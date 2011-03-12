@@ -1,0 +1,152 @@
+Bowtie: an Ultrafast, Lightweight Short Read Aligner
+
+Bowtie Getting Started Guide
+============================
+
+ Download and extract the appropriate Bowtie binary release from
+ http://bowtie-bio.sf.net into a fresh directory. Change to that
+ directory.
+
+ Performing alignments
+ ---------------------
+
+ The Bowtie source and binary packages come with a pre-built index of
+ the E. coli genome, and a set of 1,000 35-bp reads simulated from that
+ genome. To use Bowtie to align those reads, issue the following
+ command.  If you get an error message "command not found", try adding
+ a "./" before the "bowtie".
+ 
+    bowtie e_coli reads/e_coli_1000.fq
+
+ The first argument to bowtie is the basename of the index for the
+ genome to be searched. The second argument is the name of a FASTQ file
+ containing the reads.
+
+ Depending on your computer, the run might take a few seconds up to
+ about a minute. You will see bowtie print many lines of output. Each
+ line is an alignment for a read. The name of the aligned read appears
+ in the leftmost column. The final line should say "Reported 698
+ alignments to 1 output stream(s)" or something similar. 
+
+ Next, issue this command:
+
+    bowtie -t e_coli reads/e_coli_1000.fq e_coli.map
+
+ This run calculates the same alignments as the previous run, but the
+ alignments are written to e_coli.map (the final argument) rather than
+ to the screen. Also, the -t option instructs Bowtie to print timing
+ statistics.  The output should look something like this:
+
+    Time loading forward index: 00:00:00
+    Time loading mirror index: 00:00:00
+    Seeded quality full-index search: 00:00:00
+    # reads processed: 1000
+    # reads with at least one reported alignment: 699 (69.90%)
+    # reads that failed to align: 301 (30.10%)
+    Reported 699 alignments to 1 output stream(s)
+    Time searching: 00:00:00
+    Overall time: 00:00:00
+
+ Installing a pre-built index
+ ----------------------------
+
+ Download the pre-built S. cerevisiae genome package from the Bowtie
+ FTP site:
+
+    ftp://ftp.cbcb.umd.edu/pub/data/bowtie_indexes/s_cerevisiae.ebwt.zip
+
+ All pre-built indexes are packaged as .zip archives, and the S.
+ cerevisiae archive is named s_cerevisiae.ebwt.zip. When it has
+ finished downloading, extract the archive into the Bowtie 'indexes'
+ subdirectory using your preferred unzip tool. The index is now
+ installed.
+
+ To test that the index is properly installed, issue this command from
+ the Bowtie install directory:
+
+    bowtie -c s_cerevisiae ATTGTAGTTCGAGTAAGTAATGTGGGTTTG
+
+ This command searches the S. cerevisiae index with a single read. The
+ -c argument instructs Bowtie to obtain read sequences directly from
+ the command line rather than from a file. If the index is installed
+ properly, this command should print a single alignment and then exit.
+
+ If you would rather install pre-built indexes somewhere other than the
+ 'indexes' subdirectory of the Bowtie install directory, simply set the
+ BOWTIE_INDEXES environment variable to point to your preferred
+ directory and extract indexes there instead.
+
+ Building a new index
+ --------------------
+
+ The pre-built E. coli index included with Bowtie is built from the
+ sequence for strain 536, known to cause urinary tract infections. We
+ will create a new index from the sequence of E. coli strain O157:H7, a
+ strain known to cause food poisoning. Download the sequence file from:
+
+    ftp://ftp.ncbi.nlm.nih.gov/genomes/Bacteria/Escherichia_coli_O157H7/NC_002127.fna
+
+ When the sequence file is finished downloading, move it to the Bowtie
+ install directory and issue this command:
+
+    bowtie-build NC_002127.fna e_coli_O157_H7
+
+ The command should finish quickly, and print several lines of status
+ messages. When the command has completed, note that the current
+ directory contains four new files named e_coli_O157_H7.1.ebwt,
+ e_coli_O157_H7.2.ebwt, e_coli_O157_H7.rev.1.ebwt, and
+ e_coli_O157_H7.rev.2.ebwt. These files constitute the index. Move
+ these files to the indexes subdirectory to install it.
+
+ To test that the index is properly installed, issue this command:
+
+    bowtie -c e_coli_O157_H7 GCGTGAGCTATGAGAAAGCGCCACGCTTCC
+
+ If the index is installed properly, this command should print a single
+ alignment and then exit.
+
+ Finding variations with SAMtools
+ --------------------------------
+
+ SAMtools (http://samtools.sf.net) is a suite of tools for storing,
+ manipulating, and analyzing alignments such as those output by Bowtie.
+ SAMtools understands alignments in either of two complementary
+ formats: the human-readable SAM format, or the binary BAM format.
+ Because Bowtie can output SAM (using the -S/--sam option), and SAM can
+ can be converted to BAM using SAMtools, Bowtie users can make full use
+ of the analyses implemented in SAMtools, or in any other tools
+ supporting SAM or BAM.
+
+ We will use SAMtools to find SNPs in a set of simulated reads included
+ with Bowtie.  The reads cover the first 10,000 bases of the pre-built
+ E. coli genome and contain 10 SNPs throughout.  First, we run 'bowtie'
+ to align the reads, being sure to specify the -S option.  We also
+ specify an output file that we will use as input for the next step
+ (though pipes can be used to accomplish the same thing without the
+ intermediate file):
+
+    bowtie -S e_coli reads/e_coli_10000snp.fq ec_snp.sam
+
+ Next, we convert the SAM file to BAM in preparation for sorting.  We
+ assume that SAMtools is installed and that the samtools binary is
+ accessible in the PATH.
+
+    samtools view -bS -o ec_snp.bam ec_snp.sam
+ 
+ Next, we sort the BAM file, in preparation for SNP calling:
+
+    samtools sort ec_snp.bam ec_snp.sorted
+ 
+ We now have a sorted BAM file called ec_snp.sorted.bam.  Sorted BAM is
+ a useful format because the alignments are both compressed, which is
+ convenient for long-term storage, and sorted, which is conveneint for
+ variant discovery.  Finally, we call variants from the Sorted BAM:
+ 
+    samtools pileup -cv -f genomes/NC_008253.fna ec_snp.sorted.bam
+
+ For this sample data, the 'samtools pileup' command should print
+ records for 10 distinct SNPs, the first being at position 541 in the
+ reference.
+
+ See the SAMtools web site for details on how to use these and other
+ tools in the SAMtools suite: http://samtools.sf.net/.

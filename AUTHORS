@@ -1,0 +1,19 @@
+Bowtie authors
+Primary contact <blangmea@jhsph.edu>
+
+Ben Langmead and Cole Trapnell wrote Bowtie.  The SeqAn-1.1 library is
+used in Bowtie and some of its sources are included in Bowtie source
+releases; its authors are Andreas Doring, David Weese, Tobias Rausch,
+and Knut Reinert.  A DLL from the pthreads for Win32 library is
+distributed with the Win32 version of Bowtie.  The pthreads for Win32
+library and the GnuWin32 package have many contributors (see their
+respective web sites).
+
+Websites:
+
+ Bowtie:             http://bowtie-bio.sf.net
+ SeqAn:              http://www.seqan.de
+ pthreads for Win32: http://sourceware.org/pthreads-win32
+ GnuWin32:           http://gnuwin32.sf.net
+
+December 2009

@@ -1,0 +1,140 @@
+/* 
+Stylesheet for the free sNews15_1 template
+from http://www.free-css-templates.com
+*/
+
+/* Reset all margins and paddings for browsers */
+* { 
+	padding: 0;
+	margin: 0;
+}
+
+body { 
+	font: .8em Verdana, Arial, Sans-Serif; 
+	line-height: 1.6em; 
+	margin: 0;
+	/* background-image: url(../images/bg.jpg); */
+	/* background-repeat: repeat */
+}
+
+#wrap {	margin: 0 auto;	width: 95% }
+
+/* TOP HEADER -------- */
+#top {
+	margin: 0 auto;
+	padding: 0;
+	color: #666;
+	background: #FFF url(../images/cbcbstrip.jpg) repeat-x top;
+	height: 81px;
+}
+#top h1 { padding: 10px 0 0 25px; color: #FFF; font-size: 240%; background: transparent;}
+#top h2 { padding: 0px 0 0 25px; color: #bbb; font-size: 100%; background: transparent;}
+#top .padding { padding-top: 5px; }
+
+/* SEARCH BOX AND BUTTON ----------*/
+#search { float: right;  padding: 10px 25px 0 0;  }
+
+#subheader { 
+	clear: both; 
+	border-top: 1px dotted #888;	
+	border-bottom: 1px dotted #888;
+	background: #eaeaea;
+	color: #505050;
+	padding: 1em;
+	margin: 15px 0px 10px 0px;
+	
+}
+#subheader a { text-decoration: none; /* border-bottom: 1px dashed #0066B3; */ } 
+
+
+#main { background: #FFF; margin: 25px 0 15px 0; color: #666; }
+
+#main #rightside {
+	width: 300px;
+	float: right;
+	background: #FFF;
+	margin-right: 0px;
+	color: #555;
+	
+} 
+
+#main #rightside .box {
+	background: #efefef;
+	margin-bottom: 10px;
+	padding: 5px;
+	color: #555;
+}
+
+#main #rightside h2 {
+	font: bold 1.0em Arial, Arial, Sans-Serif; 
+	height: 18px;
+	padding: 3px;
+	color: #666;
+}
+
+/* LEFT SIDE - ARTICLES AREA -------- */
+#leftside {
+	padding-left: 8px;
+	color: #555;
+	background: #FFF;
+	margin-right: 305px;
+	margin-left: 0px;
+	
+}
+#leftside h1 { padding: 15px 0 10px 0 }
+#leftside h2 { padding: 15px 0 10px 0; color: #555; text-indent: 17px }
+/* #leftside h3 { font-size: 100%; margin-left: 15px; text-indent: 17px; background: #FFF url(../images/head.gif) no-repeat left; } */
+#leftside h3 { padding: 15px 0 10px 0; font-size: 100%; margin-left: 5px; text-indent: 17px; background: #FFF url(../images/head.gif) no-repeat left; }
+#leftside ul { margin-left: 24px; padding-left 24px; list-style-type: circle }
+#leftside li { }
+#leftside p { padding: 0px 0 10px 0 }
+
+#footer {
+	clear: both;
+	background: #FFF url(../images/footer.jpg) repeat-x;
+	height: 46px;
+	margin-left: 0px;
+	margin-right: 0px;
+	font-size: 75%;
+	color: #666;
+}
+#footer p  { padding: 5px }
+#footer .rside { float: right; display: inline; padding: 5px; text-align: right}
+
+#toc {
+	margin: 15px 15px 15px 10px;
+}
+#toc ol { list-style: roman }
+#toc ul { padding: 0 0 0 20px }
+
+a   { color: #0066B3; background: inherit; text-decoration: none }
+h1  { margin: 0 15px 10px 15px; padding: 10px 0 10px 0; font: bold 1.9em Arial, Arial, Sans-Serif }
+h2  { margin: 0 15px 10px 15px; padding: 10px 0 10px 0; font: bold 1.2em Arial, Arial, Sans-Serif }
+h3  { margin: 0 15px 10px 20px; padding: 10px 0 10px 0; font: 1.2em Arial, Arial, Sans-Serif }
+h4  { margin: 0 15px 10px 25px; padding: 10px 0 10px 0; font: 1.1em Arial, Arial, Sans-Serif }
+p   { margin: 0 15px 10px 15px; color: #444 }
+table { margin-top: 15px }
+ul  { margin: 0 15px 10px 15px; padding: 0; margin: 0; list-style-type: none }
+pre { margin: 0 15px 15px 25px }
+li  { margin: 0 15px 1px 15px; color: #444 }
+ol  { margin-left: 24px;
+      padding-left 24px;
+      list-style: decimal }
+td  { vertical-align: top; }
+blockquote { margin-left: 35px; font-family: "Courier New", Courier; }
+tt { font: .8em; font-family: "Courier New", Courier; }
+code { font: .8em; font-family: "Courier New", Courier; }
+.date { border-top: 1px solid #e5e5e5; text-align: right; margin-bottom: 25px; margin-top: 5px;}
+#main #leftside .date a, #main #rightside a { border: 0; text-decoration: none; }
+
+.comment .date { text-align: left; border: 0;}	
+
+#leftside #txt {width: 100%; height: 10em; padding: 3px 3px 3px 6px; margin-left:0em;}
+#leftside textarea { border: 1px solid #bbb; width: 100%;  }
+
+
+/* SNEWS */
+#main #leftside fieldset { float: left; width: 100%; border: 1px solid #ccc; padding: 10px 8px; margin: 0 10px 8px 0; background: #FFF; color: #000; }
+#main #leftside fieldset p { width: 100%; }
+#main input { padding: 3px; margin: 0; border: 1px solid #bbb }
+
