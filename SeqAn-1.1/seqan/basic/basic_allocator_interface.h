@@ -146,8 +146,10 @@ allocate(T const &,
 		 Tag<TUsage> const)
 {
 	data = (TValue *) operator new(count * sizeof(TValue));
+#ifdef SEQAN_PROFILE
 	if (data)
 	    SEQAN_PROADD(SEQAN_PROMEMORY, count * sizeof(TValue));
+#endif
 }
 template <typename T, typename TValue, typename TSize, typename TUsage>
 inline void
@@ -157,8 +159,10 @@ allocate(T &,
 		 Tag<TUsage> const)
 {
 	data = (TValue *) operator new(count * sizeof(TValue));
+#ifdef SEQAN_PROFILE
 	if (data)
 	    SEQAN_PROADD(SEQAN_PROMEMORY, count * sizeof(TValue));
+#endif
 }
 
 
@@ -214,8 +218,10 @@ deallocate(T const & /*me*/,
 		   TSize count,
 		   Tag<TUsage> const)
 {
+#ifdef SEQAN_PROFILE
 	if (data && count)	// .. to use count if SEQAN_PROFILE is not defined
 	    SEQAN_PROSUB(SEQAN_PROMEMORY, count * sizeof(TValue));
+#endif
 	operator delete ((void *) data);
 }
 template <typename T, typename TValue, typename TSize, typename TUsage>
@@ -225,8 +231,10 @@ deallocate(T & /*me*/,
 		   TSize count,
 		   Tag<TUsage> const)
 {
+#ifdef SEQAN_PROFILE
 	if (data && count)	// .. to use count if SEQAN_PROFILE is not defined
 	    SEQAN_PROSUB(SEQAN_PROMEMORY, count * sizeof(TValue));
+#endif
 	operator delete ((void *) data);
 }
 //////////////////////////////////////////////////////////////////////////////
