@@ -120,13 +120,13 @@ int PairedEndPolicy::peClassifyPair(
 }
 
 /**
- * Given details about how one mate aligns, and some details about
- * the reference sequence it aligned to, calculate a window and
- * orientation s.t. the alignment for the pair will be concordant
- * if the other mate aligns with that orientation in that window.
+ * Given details about how one mate aligns, and some details about the
+ * reference sequence it aligned to, calculate a window and orientation s.t.
+ * a paired-end alignment is concordant iff the opposite mate aligns in that
+ * window with that orientation.  The window we calculate is regardless of
+ * gaps.  The dynamic programming framer will take gaps into account.
  *
- * Returns false if it is clearly not possible to find a concordant
- * alignment involving these mates, true otherwise.
+ * Returns false if no concordant alignments are possible, true otherwise.
  */
 bool PairedEndPolicy::otherMate(
 	bool     is1,       // true -> mate 1 aligned and we're looking
@@ -136,18 +136,16 @@ bool PairedEndPolicy::otherMate(
 	uint32_t reflen,    // length of reference sequence aligned to
 	uint32_t len1,      // length of mate 1
 	uint32_t len2,      // length of mate 2
-	int      maxgaps,   // maximum number of gaps permitted in the
-	                    // alignment of the opposite mate
-	int      maxohang,  // maximum overhang of dynamic programming
-	                    // region off end of reference
-	bool&    oleft,     // whether to look to the left for opposite mate
-	int64_t& oleftoff,  // offset of leftmost character to include in
-	                    // dyn prog problem looking for opposite mate
-	int64_t& orightoff, // offset of rightmost character to include in
-	                    // dyn prog problem looking for opposite mate
-	bool&    ofw)       // whether to look for opposite mate's forward
-	const               // or reverse-comp representation
+	bool&    oleft,     // out: true iff opp mate must be to right of anchor
+	int64_t& oll,       // out: leftmost Watson off for LHS of opp alignment
+	int64_t& olr,       // out: rightmost Watson off for LHS of opp alignment
+	int64_t& orl,       // out: leftmost Watson off for RHS of opp alignment
+	int64_t& orr,       // out: rightmost Watson off for RHS of opp alignment
+	bool&    ofw)       // out: true iff opp mate must be on Watson strand
+	const
 {
+	assert_gt(len1, 0);
+	assert_gt(len2, 0);
 	assert_gt(maxfrag_, 0);
 	assert_geq(minfrag_, 0);
 	assert_geq(maxfrag_, minfrag_);
@@ -156,7 +154,6 @@ bool PairedEndPolicy::otherMate(
 	// of given mate, and what strand it should align to
 	pePolicyMateDir(pol_, is1, fw, oleft, ofw);
 	
-	uint32_t olen = is1 ? len2 : len1; // length of anchor mate
 	uint32_t alen = is1 ? len1 : len2; // length of opposite mate
 	
 	// Expand the maximum fragment length if necessary to accomodate
@@ -170,214 +167,123 @@ bool PairedEndPolicy::otherMate(
 		return false;
 	}
 	
+	// TODO: Some of the following logic, especially the logic that deals with
+	// the specifics of how dynamic programming problems are framed, should be
+	// delegated to another class that specifically deals with framing dynamic
+	// programming problems.  In general, we just need this routine to
+	// calculate the positions where it is legal for the extreme end of the
+	// opposite mate to fall.  The DP framer can then decide how to take read
+	// and ref gaps into account.
+	
 	// Now calculate bounds within which a dynamic programming
 	// algorithm should search for an alignment for the opposite mate
 	if(oleft) {
-		// Opposite mate is to the left.  Left-hand side of opposite
-		// mate has to be inside Frag Max and outside Frag Min
-		
-		//    --------------FRAG MAX-------------------
-		//                       -------FRAG MIN-------
-		//                                     |------|
-		//                                    Anchor mate
-		//                        |------|
-		//            Not concordant: LHS not outside min
-		//             |------|
-		//            Concordant
+		//    -----------FRAG MAX----------------
+		//                 -------FRAG MIN-------
+		//                               |-alen-|
+		//                             Anchor mate
+		//                               ^off
+		//                  |------|
+		//       Not concordant: LHS not outside min
+		//                 |------|
+		//                Concordant
 		//      |------|
 		//     Concordant
 		//  |------|
 		// Not concordant: RHS outside max
-
-		oleftoff  = off + alen - maxfrag;
-		orightoff = off + alen - minfrag_;
-		assert_geq(orightoff, oleftoff);
-
-		//    --------------FRAG MAX-------------------
-		//                       -------FRAG MIN-------
-		//    ^oleftoff          ^orightoff
-		//                                     |------|
-		//                                    Anchor mate
 		
-		orightoff += (olen - 1);
+		//    -----------FRAG MAX----------------
+		//                 -------FRAG MIN-------
+		//                               |-alen-|
+		//                             Anchor mate
+		//                               ^off
+		//    |------------|
+		// LHS can't be outside this range
+		//                               -----------FRAG MAX----------------
+		//    |------------------------------------------------------------|
+		// RHS can't be outside this range, assuming no restrictions on
+		// dovetailing, containment, overlap, etc.
+		//    |---------------------------------|
+		// RHS can't be outside this range, assuming no dovetailing
+		//    |-------------------------|
+		// RHS can't be outside this range, assuming no overlap
 
-		//    --------------FRAG MAX-------------------
-		//                       -------FRAG MIN-------
-		//    ^oleftoff                    ^orightoff
-		//                                     |------|
-		//                                    Anchor mate
-		//                       |---------|
-		//                     Opposite mate len
-
-		// Add 'maxgaps' to orightoff to account for additional
-		// alignment length owing to gaps
-		orightoff += maxgaps;
-
-		//    --------------FRAG MAX-------------------
-		//                       -------FRAG MIN-------
-		//    ^oleftoff                         ^orightoff
-		//                                     |------|
-		//                                    Anchor mate
-		//                       |---------|
-		//                     Opposite mate len
-		//                                  |---|
-		//                                 Max gaps
-
-		// What if orightoff is now so far off the right-hand side of
-		// the anchor mate that the frag-max would be exceeded if an
-		// alignment really started there?
-		int64_t extent = orightoff - off;
-		if(extent > maxfrag) {
-			orightoff -= (extent - maxfrag);
-			assert_leq(oleftoff, orightoff);
-		}
+		oll = off + alen - maxfrag;
+		olr = off + alen - minfrag_;
+		assert_geq(olr, oll);
+		
+		orl = oll;
+		orr = off + maxfrag - 1;
+		assert_geq(olr, oll);
 
 		// What if overlapping alignments are not allowed?
 		if(!olapOk_) {
-			// oleftoff can't be less than off
-			if(orightoff >= off) {
-				orightoff = off - 1;
-				assert_leq(oleftoff, orightoff);
-			}
-		}
-		// What if contained alignments are not allowed?
-		else if(!containOk_) {
-			// oleftoff can't be less than or equal to off
-			if(orightoff >= off+alen-1) {
-				orightoff = off+alen-2;
-				assert_leq(oleftoff, orightoff);
-			}
-			// can we move oleftoff even further to the right?
+			// RHS can't be flush with or to the right of off
+			orr = min(orr, off-1);
+			assert_leq(oll, olr);
+			assert_leq(orl, orr);
 		}
 		// What if dovetail alignments are not allowed?
 		else if(!dovetailOk_) {
-			// orightoff can't be off RHS of anchor
-			if(orightoff >= off + alen) {
-				orightoff = off + alen - 1;
-				assert_leq(oleftoff, orightoff);
-			}
-		}
-
-		// Enforce overhang limit
-		assert_lt (oleftoff,  reflen);
-		assert_geq(orightoff, 0);
-		if(oleftoff < -maxohang)                oleftoff  = -maxohang;
-		if((orightoff - reflen + 1) > maxohang) orightoff = reflen + maxohang - 1;
-
-		// What if the window that remains is too small to contain an
-		// alignment for the opposite mate, even with a bunch of
-		// reference gaps?
-		if(!local_ && (orightoff - oleftoff + 1) < ((int64_t)olen - maxgaps)) {
-			// Not possible to find a concordant alignment; the window
-			// is too small for the opposite mate to fit in
-			return false;
+			// RHS can't be past off+alen-1
+			orr = min(orr, off + alen - 1);
+			assert_leq(oll, olr);
+			assert_leq(orl, orr);
 		}
 	} else {
-		// Opposite mate is to the right.  Right-hand side of opposite
-		// mate has to be inside Frag Max and outside Frag Min
-		
-		//  --------------FRAG MAX-------------------
-		//  -------FRAG MIN-------
-		//  |------|
-		// Anchor mate
-		//               |------|
-		//    Not concordant: RHS not outside min
-		//                  |------|
-		//                 Concordant
-		//                                   |------|
-		//                                  Concordant
-		//                                     |------|
-		//                          Not concordant: RHS outside max
+		//                             -----------FRAG MAX----------------
+		//                             -------FRAG MIN-------
+		//  -----------FRAG MAX----------------
+		//                             |-alen-|
+		//                           Anchor mate
+		//                             ^off
+ 		//                                          |------|
+		//                            Not concordant: RHS not outside min
+		//                                           |------|
+		//                                          Concordant
+		//                                                      |------|
+		//                                                     Concordant
+		//                                                          |------|
+		//                                      Not concordant: RHS outside max
 		//
-		
-		orightoff = off + (maxfrag - 1);
-		oleftoff  = off + (minfrag_ - 1);
-		assert_geq(orightoff, oleftoff);
-		
-		//  --------------FRAG MAX-------------------
-		//  -------FRAG MIN-------
-		//                       ^oleftoff          ^orightoff
-		//  |------|
-		// Anchor mate
-		
-		// It is possible that oleftoff is within the anchor mate, but
-		// it can't be to the left of the anchor mate
-		assert_geq(oleftoff, off);
 
-		// Subtract from oleftoff to account for the length of the
-		// opposite mate
-		oleftoff -= (olen - 1);
-
-		//  --------------FRAG MAX-------------------
-		//  -------FRAG MIN-------
-		//             ^oleftoff                    ^orightoff
-		//  |------|
-		// Anchor mate
-		//             |---------|
-		//           Opposite mate len
+		//                             -----------FRAG MAX----------------
+		//                             -------FRAG MIN-------
+		//  -----------FRAG MAX----------------
+		//                             |-alen-|
+		//                           Anchor mate
+		//                             ^off
+		//                                                  |------------|
+		//                                      RHS can't be outside this range
+		//  |------------------------------------------------------------|
+		// LHS can't be outside this range, assuming no restrictions on
+		// dovetailing, containment, overlap, etc.
+		//                             |---------------------------------|
+		//          LHS can't be outside this range, assuming no dovetailing
+		//                                     |-------------------------|
+		//              LHS can't be outside this range, assuming no overlap
 		
-		// Subtract 'maxgaps' from oleftoff to account for additional
-		// alignment length owing to gaps
-		oleftoff -= maxgaps;
-
-		//  --------------FRAG MAX-------------------
-		//  -------FRAG MIN-------
-		//        ^oleftoff                         ^orightoff
-		//  |------|
-		// Anchor mate
-		//             |---------|
-		//           Opposite mate len
-		//        |---|
-		//       Max gaps
+		orr = off + (maxfrag - 1);
+		orl  = off + (minfrag_ - 1);
+		assert_geq(orr, orl);
 		
-		// What if oleftoff is now so far off the left-hand side of the
-		// anchor mate that the frag-max would be exceeded if an
-		// alignment really started there?
-		int64_t extent = off + alen - oleftoff;
-		if(extent > maxfrag) {
-			oleftoff += (extent - maxfrag);
-			assert_leq(oleftoff, orightoff);
-		}
+		oll = off + alen - maxfrag;
+		olr = orr;
+		assert_geq(olr, oll);
 		
 		// What if overlapping alignments are not allowed?
 		if(!olapOk_) {
-			// oleftoff can't be less than off
-			if(oleftoff < off+alen) {
-				oleftoff = off+alen;
-				assert_leq(oleftoff, orightoff);
-			}
-		}
-		// What if contained alignments are not allowed?
-		else if(!containOk_) {
-			// oleftoff can't be less than or equal to off
-			if(oleftoff <= off) {
-				oleftoff = off+1;
-				assert_leq(oleftoff, orightoff);
-			}
-			// can we move oleftoff even further to the right?
+			// RHS can't be flush with or to the right of off
+			oll = max(oll, off+alen);
+			assert_leq(oll, olr);
+			assert_leq(orl, orr);
 		}
 		// What if dovetail alignments are not allowed?
 		else if(!dovetailOk_) {
-			// oleftoff can't be less than off
-			if(oleftoff < off) {
-				oleftoff = off;
-				assert_leq(oleftoff, orightoff);
-			}
-		}
-
-		// Enforce overhang limit
-		assert_lt (oleftoff,  reflen);
-		assert_geq(orightoff, 0);
-		if(oleftoff < -maxohang)                oleftoff  = -maxohang;
-		if((orightoff - reflen + 1) > maxohang) orightoff = reflen + maxohang - 1;
-
-		// What if the window that remains is too small to contain an
-		// alignment for the opposite mate, even with a bunch of
-		// reference gaps?
-		if(!local_ && (orightoff - oleftoff + 1) < ((int64_t)olen - maxgaps)) {
-			// Not possible to find a concordant alignment; the window
-			// is too small for the opposite mate to fit in
-			return false;
+			// RHS can't be past off+alen-1
+			oll = max(oll, off);
+			assert_leq(oll, olr);
+			assert_leq(orl, orr);
 		}
 	}
 
@@ -444,12 +350,12 @@ void testCaseOtherMate(
 	uint32_t reflen,
 	uint32_t len1,
 	uint32_t len2,
-	int      maxgaps,
-	int      maxohang,
 	bool     expect_ret,
 	bool     expect_oleft,
-	int64_t  expect_oleftoff,
-	int64_t  expect_orightoff,
+	int64_t  expect_oll,
+	int64_t  expect_olr,
+	int64_t  expect_orl,
+	int64_t  expect_orr,
 	bool     expect_ofw)
 {
 	PairedEndPolicy pepol(
@@ -461,7 +367,8 @@ void testCaseOtherMate(
 		cont,
 		olap,
 		expand);
-	int64_t oleftoff = 0, orightoff = 0;
+	int64_t oll = 0, olr = 0;
+	int64_t orl = 0, orr = 0;
 	bool oleft = false, ofw = false;
 	bool ret = pepol.otherMate(
 		is1,
@@ -470,17 +377,19 @@ void testCaseOtherMate(
 		reflen,
 		len1,
 		len2,
-		maxgaps,
-		maxohang,
 		oleft,
-		oleftoff,
-		orightoff,
+		oll,
+		olr,
+		orl,
+		orr,
 		ofw);
 	assert(ret == expect_ret);
 	if(ret) {
 		assert_eq(expect_oleft, oleft);
-		assert_eq(expect_oleftoff, oleftoff);
-		assert_eq(expect_orightoff, orightoff);
+		assert_eq(expect_oll, oll);
+		assert_eq(expect_olr, olr);
+		assert_eq(expect_orl, orl);
+		assert_eq(expect_orr, orr);
 		assert_eq(expect_ofw, ofw);
 	}
 	cout << "otherMate: " << name << "...PASSED" << endl;
@@ -531,17 +440,17 @@ int main(int argc, char **argv) {
 			200,          // ref length
 			10,           // mate 1 length
 			10,           // mate 2 length
-			0,            // maximum # gaps in alignment for opposite mate
-			0,            // maximum overhang off end of reference
 			true,         // expected return val from otherMate
 			oleft[i],     // wheter to look for opposite to left
-			110,          // expected left extent of dynamic prog. problem
-			129,          // expected right extent of dynamic prog. problem
+			80,           // expected leftmost pos for opp mate LHS
+			129,          // expected rightmost pos for opp mate LHS
+			119,          // expected leftmost pos for opp mate RHS
+			129,          // expected rightmost pos for opp mate RHS
 			ofw[i]);      // expected orientation in which opposite mate must align
 	}
 	}
 
-	// Set of 8 cases where we look for the opposite mate to the right
+	// Set of 8 cases where we look for the opposite mate to the left
 	// of the anchor mate, with various combinations of policies and
 	// anchor-mate orientations.
 
@@ -585,17 +494,17 @@ int main(int argc, char **argv) {
 			200,          // ref length
 			10,           // mate 1 length
 			10,           // mate 2 length
-			0,            // maximum # gaps in alignment for opposite mate
-			0,            // maximum overhang off end of reference
 			true,         // expected return val from otherMate
 			oleft[i],     // wheter to look for opposite to left
-			100,          // expected left extent of dynamic prog. problem
-			119,          // expected right extent of dynamic prog. problem
+			100,          // expected leftmost pos for opp mate LHS
+			110,          // expected rightmost pos for opp mate LHS
+			100,          // expected leftmost pos for opp mate RHS
+			149,          // expected rightmost pos for opp mate RHS
 			ofw[i]);      // expected orientation in which opposite mate must align
 	}
 	}
 
-	// Case where min frag == max frag and opposite is to the left
+	// Case where min frag == max frag and opposite is to the right
 
 	// |----------------------------|
 	//      min frag
@@ -621,12 +530,12 @@ int main(int argc, char **argv) {
 		200,          // ref length
 		10,           // mate 1 length
 		10,           // mate 2 length
-		0,            // maximum # gaps in alignment for opposite mate
-		0,            // maximum overhang off end of reference
 		true,         // expected return val from otherMate
 		true,         // wheter to look for opposite to left
-		100,          // expected left extent of dynamic prog. problem
-		109,          // expected right extent of dynamic prog. problem
+		100,          // expected leftmost pos for opp mate LHS
+		100,          // expected rightmost pos for opp mate LHS
+		100,          // expected leftmost pos for opp mate RHS
+		149,          // expected rightmost pos for opp mate RHS
 		true);        // expected orientation in which opposite mate must align
 
 	// Case where min frag == max frag and opposite is to the right
@@ -653,77 +562,12 @@ int main(int argc, char **argv) {
 		200,          // ref length
 		10,           // mate 1 length
 		10,           // mate 2 length
-		0,            // maximum # gaps in alignment for opposite mate
-		0,            // maximum overhang off end of reference
 		true,         // expected return val from otherMate
 		false,        // wheter to look for opposite to left
-		120,          // expected left extent of dynamic prog. problem
-		129,          // expected right extent of dynamic prog. problem
-		false);       // expected orientation in which opposite mate must align
-
-	// Case where min frag == max frag, opposite is to the right and gap len is 2
-
-	// |----------------------------|
-	//      min frag                ^129
-	// |--------|
-	// ^100     ^109
-	// |----------------------------|
-	//           max frag
-	testCaseOtherMate(
-		"MinFragEqMax3",
-		PE_POLICY_FR, // policy
-		30,           // maxfrag
-		30,           // minfrag
-		false,        // local
-		true,         // dovetail OK
-		true,         // containment OK
-		true,         // overlap OK
-		true,         // expand-to-fit
-		true,         // mate 1 is anchor
-		true,         // anchor aligned to Watson
-		100,          // anchor's offset into ref
-		200,          // ref length
-		10,           // mate 1 length
-		10,           // mate 2 length
-		2,            // maximum # gaps in alignment for opposite mate
-		0,            // maximum overhang off end of reference
-		true,         // expected return val from otherMate
-		false,        // wheter to look for opposite to left
-		118,          // expected left extent of dynamic prog. problem
-		129,          // expected right extent of dynamic prog. problem
-		false);       // expected orientation in which opposite mate must align
-
-
-	// Case where min frag == max frag, opposite is to the right and gap len is huge
-
-	// |----------------------------|
-	//      min frag                ^129
-	// |--------|
-	// ^100     ^109
-	// |----------------------------|
-	//           max frag
-	testCaseOtherMate(
-		"MinFragEqMax4",
-		PE_POLICY_FR, // policy
-		30,           // maxfrag
-		30,           // minfrag
-		false,        // local
-		true,         // dovetail OK
-		true,         // containment OK
-		true,         // overlap OK
-		true,         // expand-to-fit
-		true,         // mate 1 is anchor
-		true,         // anchor aligned to Watson
-		100,          // anchor's offset into ref
-		200,          // ref length
-		10,           // mate 1 length
-		10,           // mate 2 length
-		300,          // maximum # gaps in alignment for opposite mate
-		0,            // maximum overhang off end of reference
-		true,         // expected return val from otherMate
-		false,        // wheter to look for opposite to left
-		80,           // expected left extent of dynamic prog. problem
-		129,          // expected right extent of dynamic prog. problem
+		80,           // expected leftmost pos for opp mate LHS
+		129,          // expected rightmost pos for opp mate LHS
+		129,          // expected leftmost pos for opp mate RHS
+		129,          // expected rightmost pos for opp mate RHS
 		false);       // expected orientation in which opposite mate must align
 
 	testCaseOtherMate(
@@ -742,12 +586,12 @@ int main(int argc, char **argv) {
 		200,          // ref length
 		10,           // mate 1 length
 		10,           // mate 2 length
-		300,          // maximum # gaps in alignment for opposite mate
-		0,            // maximum overhang off end of reference
 		true,         // expected return val from otherMate
 		false,        // wheter to look for opposite to left
-		100,          // expected left extent of dynamic prog. problem
-		129,          // expected right extent of dynamic prog. problem
+		100,          // expected leftmost pos for opp mate LHS
+		129,          // expected rightmost pos for opp mate LHS
+		124,          // expected leftmost pos for opp mate RHS
+		129,          // expected rightmost pos for opp mate RHS
 		false);       // expected orientation in which opposite mate must align
 
 	testCaseOtherMate(
@@ -766,12 +610,12 @@ int main(int argc, char **argv) {
 		200,          // ref length
 		10,           // mate 1 length
 		10,           // mate 2 length
-		300,          // maximum # gaps in alignment for opposite mate
-		0,            // maximum overhang off end of reference
 		true,         // expected return val from otherMate
 		false,        // wheter to look for opposite to left
-		101,          // expected left extent of dynamic prog. problem
-		129,          // expected right extent of dynamic prog. problem
+		100,          // expected leftmost pos for opp mate LHS
+		129,          // expected rightmost pos for opp mate LHS
+		124,          // expected leftmost pos for opp mate RHS
+		129,          // expected rightmost pos for opp mate RHS
 		false);       // expected orientation in which opposite mate must align
 
 	testCaseOtherMate(
@@ -790,12 +634,12 @@ int main(int argc, char **argv) {
 		200,          // ref length
 		10,           // mate 1 length
 		10,           // mate 2 length
-		300,          // maximum # gaps in alignment for opposite mate
-		0,            // maximum overhang off end of reference
 		true,         // expected return val from otherMate
 		false,        // wheter to look for opposite to left
-		110,          // expected left extent of dynamic prog. problem
-		129,          // expected right extent of dynamic prog. problem
+		110,          // expected leftmost pos for opp mate LHS
+		129,          // expected rightmost pos for opp mate LHS
+		124,          // expected leftmost pos for opp mate RHS
+		129,          // expected rightmost pos for opp mate RHS
 		false);       // expected orientation in which opposite mate must align
 
 	testCaseOtherMate(
@@ -814,36 +658,12 @@ int main(int argc, char **argv) {
 		200,          // ref length
 		10,           // mate 1 length
 		10,           // mate 2 length
-		300,          // maximum # gaps in alignment for opposite mate
-		0,            // maximum overhang off end of reference
 		true,         // expected return val from otherMate
 		true,         // whether to look for opposite to left
-		100,          // expected left extent of dynamic prog. problem
-		129,          // expected right extent of dynamic prog. problem
-		true);        // expected orientation in which opposite mate must align
-
-	testCaseOtherMate(
-		"MinFragEqMax4NoCont2",
-		PE_POLICY_FR, // policy
-		30,           // maxfrag
-		25,           // minfrag
-		false,        // local
-		false,        // dovetail OK
-		false,        // containment OK
-		true,         // overlap OK
-		true,         // expand-to-fit
-		false,        // mate 1 is anchor
-		false,        // anchor aligned to Watson
-		120,          // anchor's offset into ref
-		200,          // ref length
-		10,           // mate 1 length
-		10,           // mate 2 length
-		300,          // maximum # gaps in alignment for opposite mate
-		0,            // maximum overhang off end of reference
-		true,         // expected return val from otherMate
-		true,         // whether to look for opposite to left
-		100,          // expected left extent of dynamic prog. problem
-		128,          // expected right extent of dynamic prog. problem
+		100,          // expected leftmost pos for opp mate LHS
+		105,          // expected rightmost pos for opp mate LHS
+		100,          // expected leftmost pos for opp mate RHS
+		129,          // expected rightmost pos for opp mate RHS
 		true);        // expected orientation in which opposite mate must align
 
 	testCaseOtherMate(
@@ -862,20 +682,20 @@ int main(int argc, char **argv) {
 		200,          // ref length
 		10,           // mate 1 length
 		10,           // mate 2 length
-		300,          // maximum # gaps in alignment for opposite mate
-		0,            // maximum overhang off end of reference
 		true,         // expected return val from otherMate
 		true,         // whether to look for opposite to left
-		100,          // expected left extent of dynamic prog. problem
-		119,          // expected right extent of dynamic prog. problem
+		100,          // expected leftmost pos for opp mate LHS
+		105,          // expected rightmost pos for opp mate LHS
+		100,          // expected leftmost pos for opp mate RHS
+		119,          // expected rightmost pos for opp mate RHS
 		true);        // expected orientation in which opposite mate must align
 
 	{
-	int ohang[]    = {   0,   1,   0,   1,   2 };
-	int maxgaps[]  = {   0,   0,   1,   1,   1 };
-	int leftExt[]  = { 140, 140, 139, 139, 139 };
-	int rightExt[] = { 199, 200, 199, 200, 201 };
-	for(int i = 0; i < 5; i++) {
+	int olls[] = { 110 };
+	int olrs[] = { 299 };
+	int orls[] = { 149 };
+	int orrs[] = { 299 };
+	for(int i = 0; i < 1; i++) {
 		ostringstream oss;
 		oss << "Overhang1_";
 		oss << (i+1);
@@ -895,22 +715,22 @@ int main(int argc, char **argv) {
 			200,          // ref length
 			10,           // mate 1 length
 			10,           // mate 2 length
-			maxgaps[i],   // maximum # gaps in alignment for opposite mate
-			ohang[i],     // maximum overhang off end of reference
 			true,         // expected return val from otherMate
 			false,        // whether to look for opposite to left
-			leftExt[i],   // expected left extent of dynamic prog. problem
-			rightExt[i],  // expected right extent of dynamic prog. problem
+			olls[i],      // expected leftmost pos for opp mate LHS
+			olrs[i],      // expected rightmost pos for opp mate LHS
+			orls[i],      // expected leftmost pos for opp mate RHS
+			orrs[i],      // expected rightmost pos for opp mate RHS
 			false);       // expected orientation in which opposite mate must align
 	}
 	}
 
 	{
-	int ohang[]    = {   0,   1,   0,   1,   2 };
-	int maxgaps[]  = {   0,   0,   1,   1,   1 };
-	int leftExt[]  = {   0,  -1,   0,  -1,  -2 };
-	int rightExt[] = {  59,  59,  60,  60,  60 };
-	for(int i = 0; i < 5; i++) {
+	int olls[] = { -100 };
+	int olrs[] = {   50 };
+	int orls[] = { -100 };
+	int orrs[] = {   89 };
+	for(int i = 0; i < 1; i++) {
 		ostringstream oss;
 		oss << "Overhang2_";
 		oss << (i+1);
@@ -930,12 +750,12 @@ int main(int argc, char **argv) {
 			200,          // ref length
 			10,           // mate 1 length
 			10,           // mate 2 length
-			maxgaps[i],   // maximum # gaps in alignment for opposite mate
-			ohang[i],     // maximum overhang off end of reference
 			true,         // expected return val from otherMate
 			true,         // whether to look for opposite to left
-			leftExt[i],   // expected left extent of dynamic prog. problem
-			rightExt[i],  // expected right extent of dynamic prog. problem
+			olls[i],      // expected leftmost pos for opp mate LHS
+			olrs[i],      // expected rightmost pos for opp mate LHS
+			orls[i],      // expected leftmost pos for opp mate RHS
+			orrs[i],      // expected rightmost pos for opp mate RHS
 			true);        // expected orientation in which opposite mate must align
 	}
 	}

@@ -204,31 +204,30 @@ public:
 		expandToFit_ = expandToFit;
 	}
 
-	/**
-	 * Given details about how one mate aligns, and some details about
-	 * the reference sequence it aligned to, calculate a window and
-	 * orientation s.t. the alignment for the pair will be concordant
-	 * if the other mate aligns with that orientation in that window.
-	 */
-	bool otherMate(
-		bool     is1,       // true -> mate 1 aligned and we're looking
-							// for 2, false -> vice versa
-		bool     fw,        // orientation of aligned mate
-		int64_t  off,       // offset into the reference sequence
-		uint32_t reflen,    // length of reference sequence aligned to
-		uint32_t len1,      // length of mate 1
-		uint32_t len2,      // length of mate 2
-		int      maxgaps,   // maximum number of gaps permitted in the
-							// alignment of the opposite mate
-		int      maxohang,  // maximum overhang of dynamic programming
-							// region off end of reference
-		bool&    oleft,     // whether to look to the left for opposite mate
-		int64_t& oleftoff,  // offset of leftmost character to include in
-							// dyn prog problem looking for opposite mate
-		int64_t& orightoff, // offset of rightmost character to include in
-							// dyn prog problem looking for opposite mate
-		bool&    ofw)       // whether to look for opposite mate's forward
-		const;              // or reverse-comp representation
+/**
+ * Given details about how one mate aligns, and some details about the
+ * reference sequence it aligned to, calculate a window and orientation s.t.
+ * a paired-end alignment is concordant iff the opposite mate aligns in that
+ * window with that orientation.  The window we calculate is regardless of
+ * gaps.  The dynamic programming framer will take gaps into account.
+ *
+ * Returns false if no concordant alignments are possible, true otherwise.
+ */
+bool otherMate(
+	bool     is1,       // true -> mate 1 aligned and we're looking
+						// for 2, false -> vice versa
+	bool     fw,        // orientation of aligned mate
+	int64_t  off,       // offset into the reference sequence
+	uint32_t reflen,    // length of reference sequence aligned to
+	uint32_t len1,      // length of mate 1
+	uint32_t len2,      // length of mate 2
+	bool&    oleft,     // out: true iff opp mate must be to right of anchor
+	int64_t& oll,       // out: leftmost Watson off for LHS of opp alignment
+	int64_t& olr,       // out: rightmost Watson off for LHS of opp alignment
+	int64_t& orl,       // out: leftmost Watson off for RHS of opp alignment
+	int64_t& orr,       // out: rightmost Watson off for RHS of opp alignment
+	bool&    ofw)       // out: true iff opp mate must be on Watson strand
+	const;
 
 	/**
 	 * Return a PE_TYPE flag indicating, given a PE_POLICY and coordinates
