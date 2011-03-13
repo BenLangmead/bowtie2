@@ -1233,7 +1233,7 @@ public:
 	 * 0=A, 1=C, 2=G, 3=T, 4=N.
 	 */
 	void installReverseComp(const SDnaStringExpandable<S, M>& b) {
-		if(this->sz_ < b.len_) expandCopy((b.len_ + S) * M);
+		if(this->sz_ < b.len_) this->expandCopy((b.len_ + S) * M);
 		for(size_t i = 0; i < b.len_; i++) {
 			this->cs_[i] = (b.cs_[b.len_-i-1] == 4 ? 4 : b.cs_[b.len_-i-1] ^ 3);
 		}
@@ -1497,7 +1497,7 @@ public:
 	 */
 	void installReverseComp(const SDnaMaskString<S, M>& b) {
 		while(this->sz_ < b.len_) {
-			expandNoCopy((b.len_ + S) * M);
+			this->expandNoCopy((b.len_ + S) * M);
 		}
 		for(size_t i = 0; i < b.len_; i++) {
 			this->cs_[i] = maskcomp[(int)b.cs_[b.len_-i-1]];
