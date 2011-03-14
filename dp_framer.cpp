@@ -68,6 +68,8 @@ void DynProgFramer::frameFindMateAnchorLeft(
 {
 	assert_geq(lr, ll);
 	assert_geq(rr, rl);
+	assert_geq(rr, lr);
+	assert_geq(rl, ll);
 	assert_gt(rdlen, 0);
 	// en_left / en_right are the ref offsets of the terminal cells where
 	// alignments that are acceptable according to the fragment length bounds
@@ -131,6 +133,8 @@ void DynProgFramer::frameFindMateAnchorRight(
 {
 	assert_geq(lr, ll);
 	assert_geq(rr, rl);
+	assert_geq(rr, lr);
+	assert_geq(rl, ll);
 	assert_gt(rdlen, 0);
 	// en_left / en_right are the ref offsets of the terminal cells where
 	// alignments that are acceptable according to the fragment length bounds
@@ -141,7 +145,7 @@ void DynProgFramer::frameFindMateAnchorRight(
 	size_t left_pad = maxrfgap;
 	size_t right_pad = maxrdgap;
 	width = (size_t)(st_right - st_left + 1) + left_pad + right_pad;
-	int64_t en_left = rl + (rdlen-1) - maxrfgap;
+	int64_t en_left = ll + (rdlen-1) - maxrfgap;
 	int64_t en_right = en_left + width - 1;
 	refi = st_left - left_pad;
 	st.resize(width);
@@ -175,15 +179,19 @@ void DynProgFramer::frameFindMateAnchorRight(
 
 #ifdef MAIN_DP_FRAMER
 
+#include <iostream>
+
 static void testCaseSeedExtension(
+	const char *testName,
 	int64_t     off,
 	size_t      maxrdgap,
 	size_t      maxrfgap,
 	size_t      ex_width,
 	int64_t     ex_refi,
-	const char* ex_st,    // string of '0'/'1' chars
-	const char* ex_en)    // string of '0'/'1' chars
+	const char *ex_st,    // string of '0'/'1' chars
+	const char *ex_en)    // string of '0'/'1' chars
 {
+	cerr << testName << "...";
 	DynProgFramer fr;
 	size_t width;
 	int64_t refi;
@@ -202,12 +210,165 @@ static void testCaseSeedExtension(
 		assert_eq((ex_st[i] == '1'), st[i]);
 		assert_eq((ex_en[i] == '1'), en[i]);
 	}
+	cerr << "PASSED" << endl;
+}
+
+static void testCaseFindMateAnchorLeft(
+	const char *testName,
+	int64_t ll,
+	int64_t lr,
+	int64_t rl,
+	int64_t rr,
+	size_t rdlen,
+	size_t maxrdgap,
+	size_t maxrfgap,
+	size_t ex_width,
+	int64_t ex_refi,
+	const char *ex_st,    // string of '0'/'1' chars
+	const char *ex_en)    // string of '0'/'1' chars
+{
+	cerr << testName << "...";
+	DynProgFramer fr;
+	size_t width;
+	int64_t refi;
+	EList<bool> st, en;
+	fr.frameFindMateAnchorLeft(
+		ll,       // leftmost Watson off for LHS of opp alignment
+		lr,       // rightmost Watson off for LHS of opp alignment
+		rl,       // leftmost Watson off for RHS of opp alignment
+		rr,       // rightmost Watson off for RHS of opp alignment
+		rdlen,    // length of opposite mate
+		maxrdgap, // max # of read gaps permitted in opp mate alignment
+		maxrfgap, // max # of ref gaps permitted in opp mate alignment
+		width,    // out: calculated width stored here
+		refi,     // out: ref pos associated with first/leftmost column
+		st,       // out: legal starting columns stored here
+		en);      // out: legal ending columns stored here
+	assert_eq(ex_width, width);
+	assert_eq(ex_refi, refi);
+	for(size_t i = 0; i < width; i++) {
+		assert_eq((ex_st[i] == '1'), st[i]);
+		assert_eq((ex_en[i] == '1'), en[i]);
+	}
+	cerr << "PASSED" << endl;
+}
+
+static void testCaseFindMateAnchorRight(
+	const char *testName,
+	int64_t ll,
+	int64_t lr,
+	int64_t rl,
+	int64_t rr,
+	size_t rdlen,
+	size_t maxrdgap,
+	size_t maxrfgap,
+	size_t ex_width,
+	int64_t ex_refi,
+	const char *ex_st,    // string of '0'/'1' chars
+	const char *ex_en)    // string of '0'/'1' chars
+{
+	cerr << testName << "...";
+	DynProgFramer fr;
+	size_t width;
+	int64_t refi;
+	EList<bool> st, en;
+	fr.frameFindMateAnchorRight(
+		ll,       // leftmost Watson off for LHS of opp alignment
+		lr,       // rightmost Watson off for LHS of opp alignment
+		rl,       // leftmost Watson off for RHS of opp alignment
+		rr,       // rightmost Watson off for RHS of opp alignment
+		rdlen,    // length of opposite mate
+		maxrdgap, // max # of read gaps permitted in opp mate alignment
+		maxrfgap, // max # of ref gaps permitted in opp mate alignment
+		width,    // out: calculated width stored here
+		refi,     // out: ref pos associated with first/leftmost column
+		st,       // out: legal starting columns stored here
+		en);      // out: legal ending columns stored here
+	assert_eq(ex_width, width);
+	assert_eq(ex_refi, refi);
+	for(size_t i = 0; i < width; i++) {
+		assert_eq((ex_st[i] == '1'), st[i]);
+		assert_eq((ex_en[i] == '1'), en[i]);
+	}
+	cerr << "PASSED" << endl;
 }
 
 int main(void) {
-	testCaseSeedExtension(10, 1, 1, 3, 9, "111", "111");
-	testCaseSeedExtension(10, 0, 1, 3, 9, "011", "110");
-	testCaseSeedExtension(10, 1, 0, 3, 9, "110", "011");
+	testCaseSeedExtension("SeedExtension1", 10, 1, 1, 3, 9, "111", "111");
+	testCaseSeedExtension("SeedExtension2", 10, 0, 1, 3, 9, "011", "110");
+	testCaseSeedExtension("SeedExtension3", 10, 1, 0, 3, 9, "110", "011");
+	
+	//    <<<------->>>
+	//       \     \
+	//        \     \
+	//         \     \
+	//          \     \
+	//        <<<------->>>
+	// 012345678901234567890
+	// 0         1         2
+	testCaseFindMateAnchorLeft(
+		"FindMateAnchorLeft1", 6, 12, 10, 16, 5, 3, 3, 13, 3,
+		"0001111111000", "0001111111000");
+
+	//     <<===-----
+	//       \    \
+	//        \    \
+	//         \    \
+	//          \    \
+	//         <<------>>
+	// 012345678901234567890
+	// 0         1         2
+	testCaseFindMateAnchorLeft(
+		"FindMateAnchorLeft2", 9, 14, 10, 15, 5, 2, 2, 10, 4,
+		"0000011111", "0011111100");
+
+	//   <<<<==-===>>
+	//       \    \
+	//        \    \
+	//         \    \
+	//          \    \
+	//       <<<<------>>
+	// 012345678901234567890
+	// 0         1         2
+	testCaseFindMateAnchorLeft(
+		"FindMateAnchorLeft3", 8, 8, 10, 15, 5, 4, 2, 12, 2,
+		"000000100000", "000011111100");
+
+	//        <<<------->>>
+	//           \     \
+	//            \     \
+	//             \     \
+	//              \     \
+	//            <<<------->>>
+	// 012345678901234567890123456789
+	// 0         1         2
+	testCaseFindMateAnchorRight(
+		"FindMateAnchorRight1", 10, 16, 14, 20, 5, 3, 3, 13, 7,
+		"0001111111000", "0001111111000");
+
+	//     <<------>>
+	//        \    \
+	//         \    \
+	//          \    \
+	//           \    \
+	//         <<===--->>
+	// 012345678901234567890
+	// 0         1         2
+	testCaseFindMateAnchorRight(
+		"FindMateAnchorRight2", 6, 11, 13, 18, 5, 2, 2, 10, 4,
+		"0011111100", "0000011111");
+
+	//     <<----->>>>
+	//        \    \
+	//         \    \
+	//          \    \
+	//           \    \
+	//         <<====-=>>>>
+	// 012345678901234567890
+	// 0         1         2
+	testCaseFindMateAnchorRight(
+		"FindMateAnchorRight3", 6, 11, 14, 14, 5, 4, 2, 12, 4,
+		"001111110000", "000000100000");
 }
 
 #endif /*def MAIN_DP_FRAMER*/
