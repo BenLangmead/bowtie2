@@ -29,15 +29,13 @@ void SwAligner::alignBatchToFasta(
 }
 
 /**
- * Given a read, an alignment orientation, a range of characters in a
- * referece sequence, and a bit-encoded version of the reference,
- * execute the corresponding Smith-Waterman problem.
+ * Given a read, an alignment orientation, a range of characters in a referece
+ * sequence, and a bit-encoded version of the reference, set up and execute the
+ * corresponding dynamic programming problem.
  *
- * Here we expect that the caller has already narrowed down the
- * relevant portion of the reference (e.g. using a seed hit) and all we
- * have to do is a banded Smith-Waterman in the vicinity of that
- * portion.  This is not the function to call if we are trying to solve
- * the whole alignment problem with SW (see alignToFasta).
+ * The caller has already narrowed down the relevant portion of the reference
+ * using, e.g., the location of a seed hit, or the range of possible fragment
+ * lengths if we're searching for the opposite mate in a pair.
  */
 bool SwAligner::alignToBitPairReference(
 	const Read& rd,       // read to align
@@ -61,57 +59,66 @@ bool SwAligner::alignToBitPairReference(
 	assert_gt(rdf, rdi);
 	assert(color == rd.color);
 	if(rd.color) {
+		// Our dynamic programming table has 1 more row than there are colors
+		// in the read, because we're assigning nucleotides to all positions
+		// affected by any color
 		reflen++;
 		rff++;
 	}
 	// Figure the number of Ns we're going to add to either side
 	size_t leftNs  = (rfi >= 0               ? 0 : (size_t)std::abs(rfi));
 	size_t rightNs = (rff <= (int64_t)reflen ? 0 : (size_t)std::abs(rff - (int64_t)reflen));
-	// Full length of the reference substring to consider, including
+	// rflen = full length of the reference substring to consider, including
 	// overhang off the boundaries of the reference sequence
 	const size_t rflen = (size_t)(rff - rfi);
+	// rflenInner = length of just the portion that doesn't overhang ref ends
 	const size_t rflenInner = rflen - (leftNs + rightNs);
 	const size_t rdlen = rdf - rdi;
 #ifndef NDEBUG
 	bool haveRfbuf2 = false;
 	EList<char> rfbuf2(rflen);
+	// This is really slow, so only do it some of the time
 	if((rand() % 10) == 0) {
+		int64_t rfii = rfi;
 		for(size_t i = 0; i < rflen; i++) {
-			rfbuf2.push_back(refs.getBase(refidx, rfi + i));
+			if(rfii < 0 || (size_t)rfii >= reflen) {
+				rfbuf2.push_back(4);
+			} else {
+				rfbuf2.push_back(refs.getBase(refidx, (uint32_t)rfii));
+			}
+			rfii++;
 		}
 		haveRfbuf2 = true;
 	}
 #endif
-	// Make sure expandable uint32_t list is large enough to
-	// accommodate both the reference sequence and any Ns we might add
-	// to either side.
+	// rfbuf_ = uint32_t list large enough to accommodate both the reference
+	// sequence and any Ns we might add to either side.
 	rfbuf_.resize((rflen + 16) / 4);
 	int offset = refs.getStretch(
-		rfbuf_.ptr(),        // buffer to store words in
-		refidx,              // which reference
-		(rfi < 0) ? 0 : rfi, // starting offset (can't be < 0)
-		rflenInner);         // length to grab (exclude overhang)
+		rfbuf_.ptr(),                // buffer to store words in
+		refidx,                      // which reference
+		(rfi < 0) ? 0 : (size_t)rfi, // starting offset (can't be < 0)
+		rflenInner);                 // length to grab (exclude overhang)
 	char *rfc = (char*)rfbuf_.ptr() + offset;
-	// Shift the reference characters up so that we can stick some Ns
-	// at the beginning.  Also, stick Ns on the end if needed.
+	// Shift ref chars away from 0 so we can stick Ns at the beginning
 	if(leftNs > 0) {
-		// Slide everyone downstream
+		// Slide everyone down
 		for(size_t i = rflenInner; i > 0; i--) {
 			rfc[i+leftNs-1] = rfc[i-1];
 		}
-		// Add Ns to the beginning
+		// Add Ns
 		for(size_t i = 0; i < leftNs; i++) {
 			rfc[i] = 4;
 		}
 	}
-	// Stick some Ns at the end
 	if(rightNs > 0) {
 		// Add Ns to the end
 		for(size_t i = 0; i < rightNs; i++) {
 			rfc[i + leftNs + rflenInner] = 4;
 		}
 	}
-	// Count Ns and maskify reference
+	// Count Ns and convert reference characters into A/C/G/T masks.  Ambiguous
+	// nucleotides (IUPAC codes) have more than one mask bit set.
 	for(size_t i = 0; i < rflen; i++) {
 		assert(!haveRfbuf2 || rfc[i] == rfbuf2[i]);
 		// Make it into a mask
@@ -123,16 +130,18 @@ bool SwAligner::alignToBitPairReference(
 	RandomSource rnd(rd.seed);
 	int off = -1;
 	int nup = -1, ndn = -1;
+	const BTDnaString& rdseq  = fw ? rd.patFw : rd.patRc;
+	const BTString&    rdqual = fw ? rd.qual  : rd.qualRev;
 	if(color) {
 		// Call long align function
 		off = alignColors(
-			fw ? rd.patFw : rd.patRc,   // read sequence
-			fw ? rd.qual  : rd.qualRev, // read qualities
+			rdseq,       // read sequence
+			rdqual,      // read qualities
 			rdi,         // offset of first char in read to consdier
 			rdf,         // offset of last char (exclusive) in read to consdier
 			rf,          // reference sequence, wrapped up in BTString object
 			0,           // use the whole thing
-			rf.length(), // ditto
+			rflen,       // ditto
 			pa,          // Smith-Waterman parameters
 			pen,         // penalties
 			penceil,     // max penalty
@@ -144,13 +153,13 @@ bool SwAligner::alignToBitPairReference(
 	} else {
 		// Call long align function
 		off = alignNucleotides(
-			fw ? rd.patFw : rd.patRc,   // read sequence
-			fw ? rd.qual  : rd.qualRev, // read qualities
+			rdseq,       // read sequence
+			rdqual,      // read qualities
 			rdi,         // offset of first char in read to consdier
 			rdf,         // offset of last char (exclusive) in read to consdier
 			rf,          // reference sequence, wrapped up in BTString object
 			0,           // use the whole thing
-			rf.length(), // ditto
+			rflen,       // ditto
 			pa,          // Smith-Waterman parameters
 			pen,         // penalties
 			penceil,     // max penalty
@@ -250,7 +259,7 @@ int SwAligner::backtrackNucleotides(
 	RandomSource& rand)    // pseudo-random generator
 {
 	ELList<SwNucCell>& tab = ntab_;
-	int row = rd.length()-1;
+	int row = (int)rd.length()-1;
 	assert_eq(row, (int)tab.size()-1);
 	AlignmentScore score; score.score_ = 0;
 	score.gaps_ = score.ns_ = 0;
@@ -446,7 +455,7 @@ inline void SwNucCell::updateHoriz(
 	const SwNucCell& lc,
 	int              rfm,
 	const Penalties& pen,
-	size_t           nceil,
+	int              nceil,
 	int              penceil)
 {
 	assert(lc.finalized);
@@ -506,7 +515,7 @@ inline void SwNucCell::updateVert(
 	const SwNucCell& uc,
 	int              rdc,
 	const Penalties& pen,
-	size_t           nceil,
+	int              nceil,
 	int              penceil)
 {
 	assert(uc.finalized);
@@ -567,7 +576,7 @@ inline void SwNucCell::updateDiag(
 	int              rfm,
 	int              qpen,
 	const Penalties& pens,
-	size_t           nceil,
+	int              nceil,
 	int              penceil)
 {
 	assert(dc.finalized);
@@ -639,7 +648,7 @@ int SwAligner::alignNucleotides(
 	int refGaps  = pen.maxRefGaps(penceil);
 	assert_geq(readGaps, 0);
 	assert_geq(refGaps, 0);
-	size_t nceil = pen.nCeil(rd.length());
+	int nceil = (int)pen.nCeil(rd.length());
 
 	//
 	// Initialize the first row
@@ -836,7 +845,7 @@ int SwAligner::alignNucleotides(
 	// bottom row and in the last readGaps*2+1 columns.
 	AlignmentScore bestScore = AlignmentScore::INVALID();
 	int btCol = -1; // column to backtrace from
-	int lastRow = rdf-rdi-1;
+	int lastRow = (int)(rdf-rdi-1);
 	for(int col = wlo; col <= whi; col++) {
 		// Can we backtrace from this cell?  Depends on gaps.
 		int fromEnd = whi - col;

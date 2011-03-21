@@ -21,7 +21,7 @@ void HitSet::reportUpTo(ostream& os, int khits) {
 	BTString qualr;
 	for(int i = 0; i < khits; i++) {
 		const HitSetEnt& h = ents[i];
-		if(!h.fw && seqan::empty(seqrc)) {
+		if(!h.fw && seqrc.empty()) {
 			// Lazily initialize seqrc and qualr
 			seqrc = seq;
 			seqrc.reverseComp(color);

@@ -695,7 +695,7 @@ public:
 			for(int fw = 0; fw <= 1; fw++) {
 				EList<QVal>& rrs = (fw ? hitsFw_ : hitsRc_);
 				EList<bool>& sorted = (fw ? sortedFw_ : sortedRc_);
-				for(size_t i = 0; i < numOffs_; i++) {
+				for(uint32_t i = 0; i < numOffs_; i++) {
 					if(rrs[i].valid() &&
 					   rrs[i].numElts() > 0 &&
 					   !sorted[i] &&
@@ -767,14 +767,14 @@ public:
 			offidx = rankOffs_[r];
 			assert_lt(offidx, offIdx2off_.size());
 			off = offIdx2off_[offidx];
-			seedlen = seqFw_[rankOffs_[r]].length();
+			seedlen = (uint32_t)seqFw_[rankOffs_[r]].length();
 			return hitsFw_[rankOffs_[r]];
 		} else {
 			fw = false;
 			offidx = rankOffs_[r];
 			assert_lt(offidx, offIdx2off_.size());
 			off = offIdx2off_[offidx];
-			seedlen = seqRc_[rankOffs_[r]].length();
+			seedlen = (uint32_t)seqRc_[rankOffs_[r]].length();
 			return hitsRc_[rankOffs_[r]];
 		}
 	}
@@ -868,9 +868,15 @@ struct SACounters {
 	 * Set all counters to 0;
 	 */
 	void reset() {
-		hits = seed = ftab = fchr = maxDepth =
-		match = matchd[0] = matchd[1] = matchd[2] = matchd[3] =
-		edit = editd[0] = editd[1] = editd[2] = editd[3] = 0;
+		hits = 0;
+		seed = 0;
+		ftab = 0;
+		fchr = 0;
+		maxDepth = 0;
+		match = 0;
+		matchd[0] = matchd[1] = matchd[2] = matchd[3] = 0;
+		edit = 0;
+		editd[0] = editd[1] = editd[2] = editd[3] = 0;
 	}
 };
 

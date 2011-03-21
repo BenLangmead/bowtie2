@@ -2,7 +2,6 @@
 #define EBWT_SEARCH_BACKTRACK_H_
 
 #include <stdexcept>
-#include <seqan/sequence.h>
 #include "pat.h"
 #include "qual.h"
 #include "range.h"
@@ -143,8 +142,8 @@ public:
 			for(int i = 0; i < 4; i++) {
 				rdeps_[i] = qdeps_[i] + (rlen_ - qlen_);
 			}
-			rdepth3_ = qdepth3_ + (rlen_ - qlen_);
-			rdepth5_ = qdepth5_ + (rlen_ - qlen_);
+			rdepth3_ = qdepth3_ + (uint32_t)(rlen_ - qlen_);
+			rdepth5_ = qdepth5_ + (uint32_t)(rlen_ - qlen_);
 		}
 		assert_geq(qual_->length(), qlen_);
 		this->done = false;
@@ -155,11 +154,11 @@ public:
 			// alignment must be gapless as long as qdepth < loGapDepth_
 			loGapDepth_ = gGapBarrier;
 			loGapDepth_ = max<int>(loGapDepth_, qdeps_[0]);
-			loGapDepth_ = min<int>(qlen_, 0);
+			loGapDepth_ = min<int>((int)qlen_, 0);
 			// alignment must be gapless as long as qdepth >= loGapDepth_
-			hiGapDepth_ = qry_->length() - gGapBarrier + 1;
-			hiGapDepth_ = max<int>(hiGapDepth_, 0);
-			hiGapDepth_ = min<int>(hiGapDepth_, qlen_);
+			hiGapDepth_ = (int)(qry_->length() - gGapBarrier + 1);
+			hiGapDepth_ = max<int>((int)hiGapDepth_, 0);
+			hiGapDepth_ = min<int>((int)hiGapDepth_, (int)qlen_);
 			// Calculate the largest possible number of characters that the
 			// reference side of the alignment can have, given
 			size_t pen = min<size_t>(gInsOpen, gInsExtend);
@@ -167,12 +166,12 @@ public:
 			pen = min<size_t>(pen, gDelExtend);
 			maxGaps_ = 0;
 			if(qualLim_ > 0 && pen <= qualLim_) {
-				maxGaps_ = qualLim_ / pen;
+				maxGaps_ = (int)(qualLim_ / pen);
 			}
 		} else {
 			loGapDepth_ = hiGapDepth_ = maxGaps_ = 0;
 		}
-		maxEdits_ = qlen_ + maxGaps_;
+		maxEdits_ = (int)(qlen_ + maxGaps_);
 	}
 
 	/**
@@ -214,8 +213,8 @@ public:
 				for(int i = 0; i < 4; i++) {
 					rdeps_[i] += (rlen_ - qlen_);
 				}
-				rdepth3_ = qdepth3_ + (rlen_ - qlen_);
-				rdepth5_ = qdepth5_ + (rlen_ - qlen_);
+				rdepth3_ = qdepth3_ + (uint32_t)(rlen_ - qlen_);
+				rdepth5_ = qdepth5_ + (uint32_t)(rlen_ - qlen_);
 			}
 		}
 	}
@@ -297,7 +296,7 @@ public:
 		assert_leq(iham, qualLim_);
 		// m = depth beyond which ftab must not extend or else we might
 		// miss some legitimate paths
-		uint32_t m = min<uint32_t>(rdeps_[0], qlen_);
+		uint32_t m = min<uint32_t>(rdeps_[0], (uint32_t)qlen_);
 		// Let skipInvalidExact = true if using the ftab would be a
 		// waste because it would jump directly to an alignment we
 		// couldn't use.
@@ -317,7 +316,7 @@ public:
 				assert(reportExacts_);
 				edits_.clear();
 				addPartialEdits();
-				curRange_.init(top, bot, icost, (icost >> 14), qlen_,
+				curRange_.init(top, bot, icost, (icost >> 14), (uint32_t)qlen_,
 				               fw_, edits_, ebwt_);
 				// Lump in the edits from the partial alignment
 				assert(curRange_.repOk());
@@ -336,7 +335,7 @@ public:
 				}
 				if(!b->init(
 					pm.rpool, visit_, pm.bpool.lastId(), NULL, 0,
-					Edit(), 0, rlen_, rdeps_, 0, ftabChars, icost,
+					Edit(), 0, (uint32_t)rlen_, rdeps_, 0, ftabChars, icost,
 					iham, top, bot, ebwt._eh, ebwt.ebwt()))
 				{
 					// Negative result from b->init() indicates we ran
@@ -363,7 +362,7 @@ public:
 				return;
 			}
 			if(!b->init(pm.rpool, visit_, pm.bpool.lastId(), NULL, 0,
-			            Edit(), 0, rlen_, rdeps_, 0, 0, icost, iham, 0,
+			            Edit(), 0, (uint32_t)rlen_, rdeps_, 0, 0, icost, iham, 0,
 			            ebwt.fchr()[4], ebwt._eh, ebwt.ebwt()))
 			{
 				// Negative result from b->init() indicates we ran
@@ -407,16 +406,16 @@ public:
 			assert_leq(br->ham_, qualLim_);
 			if(gVerbose) {
 				br->print((*ref_), minCost, cout, (halfAndHalf_>0),
-				          partial_ ? qlen_ : 0, fw_, ebwt_->fw());
-				br->printEdits(qlen_, ebwt_->fw());
+				          partial_ ? (uint32_t)qlen_ : 0, fw_, ebwt_->fw());
+				br->printEdits((uint32_t)qlen_, ebwt_->fw());
 			}
-			assert(br->repOk(rlen_));
+			assert(br->repOk((uint32_t)rlen_));
 			assert_geq(qualLim_, br->ham_);
 
 			ASSERT_ONLY(int stratum = br->cost_ >> 14); // shift the stratum over
 			assert_lt(stratum, 4);
 			int rdepth = br->tipDepth(); // depth into reference string
-			int qdepth = (rdepth < (int)rlen_ ? cmap_.r2q[rdepth] : qlen_);
+			int qdepth = (rdepth < (int)rlen_ ? cmap_.r2q[rdepth] : (uint32_t)qlen_);
 			if(br->edit_.initialized()) {
 				assert_gt(br->numEdits_, 0);
 				assert(br->edit_.isInsert() || (int)br->edit_.pos < rdepth);
@@ -454,8 +453,8 @@ public:
 				pm.curtail(br, rdepth3_);
 				goto bail;
 			}
-			rcur = rlen_ - rdepth - 1; // current offset into ref_
-			qcur = qlen_ - qdepth - 1; // current offset into qry_
+			rcur = (int)(rlen_ - rdepth - 1); // current offset into ref_
+			qcur = (int)(qlen_ - qdepth - 1); // current offset into qry_
 			assert_leq(rdepth, (int)ref_->length());
 			assert_leq(rcur, (int)ref_->length());
 			assert_leq(qdepth, (int)qry_->length());
@@ -523,7 +522,7 @@ public:
 						c,                    // next character from the ref
 						visit_,               // record of visited paths
 						endoff,               // offset from near end of read
-						qry_->length(),       // full length of read
+						(uint32_t)qry_->length(), // full length of read
 						qdepth,               // depth into query region
 						qdeps_[0],            // globally unrevisitable
 					    qualLim_ - br->ham_,  // remaining quality budget
@@ -562,7 +561,7 @@ public:
 							c,               // next character from the read
 							visit_,          // record of visited paths
 							endoff,          // offset from near end of read
-							qry_->length(),  // full length of read
+							(uint32_t)qry_->length(),  // full length of read
 							qdepth,          // depth into query region
 							qdeps_[0],       // globally unrevisitable
 						    qualLim_ - br->ham_, // remaining quality budget
@@ -605,7 +604,7 @@ public:
 							c,               // next character from the read
 							visit_,          // record of visited paths
 							endoff,          // offset from near end of read
-							qry_->length(),  // full length of read
+							(uint32_t)qry_->length(),  // full length of read
 							qdepth,          // depth into query region
 							qdeps_[0],       // global unrevisitable
 							qualLim_ - br->ham_, // remaining quality budget
@@ -699,8 +698,8 @@ public:
 					else         cout << " Final alignment:"   << endl;
 					br->len_++;
 					br->print((*ref_), minCost, cout, halfAndHalf_ > 0,
-					          partial_ ? qlen_ : 0, fw_, ebwt_->fw());
-					br->printEdits(qlen_, ebwt_->fw());
+					          partial_ ? (uint32_t)qlen_ : 0, fw_, ebwt_->fw());
+					br->printEdits((uint32_t)qlen_, ebwt_->fw());
 					br->len_--;
 					cout << endl;
 				}
@@ -747,7 +746,7 @@ public:
 				// Make e.pos be w/r/t 5' end
 				addPartialEdits();
 				curRange_.init(br->top_, br->bot_, br->cost_, strat,
-				               qlen_, fw_, edits_, ebwt_);
+				               (uint32_t)qlen_, fw_, edits_, ebwt_);
 				// edits_ is now invalid, having been swapped out
 				this->foundRange = true;
 #ifndef NDEBUG
@@ -755,7 +754,7 @@ public:
 					int64_t top2 = (int64_t)br->top_;
 					top2++; // ensure it's not 0
 					if(ebwt_->fw()) top2 = -top2;
-					int len = rlen_ + br->gapOff_;
+					int len = (int)(rlen_ + br->gapOff_);
 					top2 ^= ((int64_t)len << 32);
 					assert(allTops_.find(top2) == allTops_.end());
 					allTops_.insert(top2);
@@ -779,7 +778,7 @@ public:
 		bail:
 			// Make sure the front element of the priority queue is
 			// extendable (i.e. not curtailed) and then prep it.
-			if(!pm.splitAndPrep(visit_, cmap_, rand_, rlen_, qdeps_[0],
+			if(!pm.splitAndPrep(visit_, cmap_, rand_, (uint32_t)rlen_, qdeps_[0],
 			                    qualLim_, rdepth3_, ebwt_->_eh, ebwt_->ebwt()))
 			{
 				pm.reset(0);
@@ -1001,13 +1000,13 @@ protected:
 	BTDnaString  qryBuf_;  // sequence with partial-alignment edits applied
 	BTString    *qual_;    // quality
 	BTString    *name_;    // name
-	uint32_t     patid_;   // pattern id
+	TReadId      patid_;   // pattern id
 	BTDnaString *altQry_;  // alternate sequences (up to 3)
 	BTString    *altQual_; // alternate qualities (up to 3)
 	int          alts_;    // max # alternatives
 	BTDnaString *ref_;     // reference characters already aligned to
 	BTDnaString  refBuf_;  // reference characters already aligned to
-	SStringFixed<bool> qryDelDeps_;
+	SStringExpandable<bool> qryDelDeps_;
 	CoordMap     cmap_;
 	const Ebwt*  ebwt_;   // Ebwt to search in
 	bool         fw_;
@@ -1136,7 +1135,7 @@ public:
 			SearchConstraintExtent rev1Off,
 			SearchConstraintExtent rev2Off,
 			SearchConstraintExtent rev3Off,
-			EList<String<Dna5> >& os,
+			EList<SString<char> >& os,
 			bool mate1,
 			ChunkPool* pool,
 			int *btCnt) :
@@ -1169,17 +1168,17 @@ public:
 		// If seedLen_ is huge, then it will always cover the whole
 		// alignment
 		assert_eq(len_, qual.length());
-		uint32_t s = (seedLen_ > 0 ? min(seedLen_, len_) : len_);
+		uint32_t s = (seedLen_ > 0 ? min<uint32_t>((uint32_t)seedLen_, (uint32_t)len_) : (uint32_t)len_);
 		uint32_t sLeft  = s >> 1;
 		uint32_t sRight = s >> 1;
 		// If seed has odd length, then nudge appropriate half up by 1
 		if((s & 1) != 0) { if(nudgeLeft_) sLeft++; else sRight++; }
-		uint32_t rev0Off = cextToDepth(rev0Off_, sRight, s, len_);
-		uint32_t rev1Off = cextToDepth(rev1Off_, sRight, s, len_);
-		uint32_t rev2Off = cextToDepth(rev2Off_, sRight, s, len_);
-		uint32_t rev3Off = cextToDepth(rev3Off_, sRight, s, len_);
+		uint32_t rev0Off = cextToDepth(rev0Off_, sRight, s, (uint32_t)len_);
+		uint32_t rev1Off = cextToDepth(rev1Off_, sRight, s, (uint32_t)len_);
+		uint32_t rev2Off = cextToDepth(rev2Off_, sRight, s, (uint32_t)len_);
+		uint32_t rev3Off = cextToDepth(rev3Off_, sRight, s, (uint32_t)len_);
 		// Truncate the pattern if necessary
-		uint32_t qlen = qual.length();
+		uint32_t qlen = (uint32_t)qual.length();
 		if(seed_) {
 			if(len_ > s) {
 				rs_->setQlen(s);
@@ -1259,12 +1258,13 @@ public:
 		}
 		if(gVerbose) cout << "initRangeSource minCost: " << minCost << endl;
 		this->minCostAdjustment_ = minCost;
-		rs_->setOffs(sRight,   // depth of far edge of hi-half (only matters where half-and-half is possible)
-		             s,        // depth of far edge of lo-half (only matters where half-and-half is possible)
-		             rev0Off,  // depth above which we cannot backtrack
-		             rev1Off,  // depth above which we may backtrack just once
-		             rev2Off,  // depth above which we may backtrack just twice
-		             rev3Off); // depth above which we may backtrack just three times
+		rs_->setOffs(
+			sRight,   // depth of far edge of hi-half (only matters where half-and-half is possible)
+			s,        // depth of far edge of lo-half (only matters where half-and-half is possible)
+			rev0Off,  // depth above which we cannot backtrack
+			rev1Off,  // depth above which we may backtrack just once
+			rev2Off,  // depth above which we may backtrack just twice
+			rev3Off); // depth above which we may backtrack just three times
 	}
 
 protected:
@@ -1315,7 +1315,7 @@ public:
 			SearchConstraintExtent rev1Off,
 			SearchConstraintExtent rev2Off,
 			SearchConstraintExtent rev3Off,
-			EList<String<Dna5> >& os,
+			EList<SString<char> >& os,
 			bool mate1,
 			ChunkPool* pool,
 			int *btCnt = NULL) :
@@ -1366,7 +1366,7 @@ protected:
 	SearchConstraintExtent rev1Off_;
 	SearchConstraintExtent rev2Off_;
 	SearchConstraintExtent rev3Off_;
-	EList<String<Dna5> >& os_;
+	EList<SString<char> >& os_;
 	bool mate1_;
 	ChunkPool* pool_;
 	int *btCnt_;

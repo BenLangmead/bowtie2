@@ -155,8 +155,8 @@ public:
 	
 	PairedEndPolicy(
 		int pol,
-		uint32_t maxfrag,
-		uint32_t minfrag,
+		size_t maxfrag,
+		size_t minfrag,
 		bool local,
 		bool dovetailOk,
 		bool containOk,
@@ -186,8 +186,8 @@ public:
 	 */
 	void init(
 		int pol,
-		uint32_t maxfrag,
-		uint32_t minfrag,
+		size_t maxfrag,
+		size_t minfrag,
 		bool local,
 		bool dovetailOk,
 		bool containOk,
@@ -218,9 +218,9 @@ bool otherMate(
 						// for 2, false -> vice versa
 	bool     fw,        // orientation of aligned mate
 	int64_t  off,       // offset into the reference sequence
-	uint32_t reflen,    // length of reference sequence aligned to
-	uint32_t len1,      // length of mate 1
-	uint32_t len2,      // length of mate 2
+	size_t   reflen,    // length of reference sequence aligned to
+	size_t   len1,      // length of mate 1
+	size_t   len2,      // length of mate 2
 	bool&    oleft,     // out: true iff opp mate must be to right of anchor
 	int64_t& oll,       // out: leftmost Watson off for LHS of opp alignment
 	int64_t& olr,       // out: rightmost Watson off for LHS of opp alignment
@@ -243,16 +243,16 @@ bool otherMate(
 	 */
 	int peClassifyPair(
 		int64_t  off1,   // offset of mate 1
-		uint32_t len1,   // length of mate 1
+		size_t   len1,   // length of mate 1
 		bool     fw1,    // whether mate 1 aligned to Watson
 		int64_t  off2,   // offset of mate 2
-		uint32_t len2,   // length of mate 2
+		size_t   len2,   // length of mate 2
 		bool     fw2)    // whether mate 2 aligned to Watson
 		const;
 
-	int      policy()     const { return pol_;     }
-	uint32_t maxFragLen() const { return maxfrag_; }
-	uint32_t minFragLen() const { return minfrag_; }
+	int    policy()     const { return pol_;     }
+	size_t maxFragLen() const { return maxfrag_; }
+	size_t minFragLen() const { return minfrag_; }
 
 protected:
 
@@ -284,10 +284,10 @@ protected:
 	bool expandToFit_;
 	
 	// Maximum fragment size to consider
-	uint32_t maxfrag_;
+	size_t maxfrag_;
 
 	// Minimum fragment size to consider
-	uint32_t minfrag_;
+	size_t minfrag_;
 };
 
 #endif /*ndef PE_H_*/

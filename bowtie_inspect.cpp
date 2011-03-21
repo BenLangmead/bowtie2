@@ -2,7 +2,6 @@
 #include <iostream>
 #include <getopt.h>
 #include <stdexcept>
-#include <seqan/find.h>
 
 #include "assert_helpers.h"
 #include "endian_swap.h"
@@ -11,7 +10,6 @@
 #include "ds.h"
 
 using namespace std;
-using namespace seqan;
 
 static bool showVersion = false; // just print version and quit?
 int verbose             = 0;  // be talkative
@@ -220,7 +218,7 @@ void print_index_sequences(ostream& fout, Ebwt& ebwt)
 	string curr_ref_seq = "";
 	uint32_t curr_ref_len = 0xffffffff;
 	uint32_t last_text_off = 0;
-	size_t orig_len = seqan::length(cat_ref);
+	size_t orig_len = cat_ref.length();
 	uint32_t tlen = 0xffffffff;
 	bool first = true;
 	for(size_t i = 0; i < orig_len; i++) {

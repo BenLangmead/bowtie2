@@ -22,17 +22,13 @@
 #include "sstring.h"
 #include "ds.h"
 #include "read.h"
+#include "util.h"
 
 /**
  * Classes and routines for reading reads from various input sources.
  */
 
 using namespace std;
-
-typedef uint64_t TReadId;
-
-/// Constructs string base-10 representation of integer 'value'
-extern char* itoa10(int value, char* result);
 
 /**
  * Calculate a per-read random seed based on a combination of
@@ -691,8 +687,9 @@ public:
 	TReadId       patid() const { return patid_;        }
 	virtual void  reset()       { patid_ = 0xffffffff;  }
 	bool          empty() const { return buf1_.empty(); }
-	uint32_t length(int mate) const {
-		return (mate == 1)? buf1_.length() : buf2_.length();
+	
+	size_t length(int mate) const {
+		return (mate == 1) ? buf1_.length() : buf2_.length();
 	}
 
 	/**
@@ -870,7 +867,7 @@ public:
 			r.qual.append(c);
 		}
 		char cbuf[20];
-		itoa10(patid, cbuf);
+		itoa10<TReadId>(patid, cbuf);
 		r.name.install(cbuf);
 	}
 
@@ -1112,23 +1109,23 @@ public:
 				}
 			}
 			// Pad quals with Is if necessary; this shouldn't happen
-			while(vq.length() < length(s)) {
+			while(vq.length() < s.length()) {
 				vq.push_back('I');
 			}
 			// Truncate quals to match length of read if necessary;
 			// this shouldn't happen
-			if(vq.length() > length(s)) {
-				vq.erase(length(s));
+			if(vq.length() > s.length()) {
+				vq.erase(s.length());
 			}
-			assert_eq(vq.length(), length(s));
+			assert_eq(vq.length(), s.length());
 			v_.expand();
 			v_.back().installChars(s);
-			quals_.push_back(vq);
+			quals_.push_back(BTString(vq));
 			trimmed3_.push_back(gTrim3);
 			trimmed5_.push_back(mytrim5);
 			ostringstream os;
 			os << (names_.size());
-			names_.push_back(os.str());
+			names_.push_back(BTString(os.str()));
 		}
 		assert_eq(v_.size(), quals_.size());
 	}
@@ -1586,7 +1583,6 @@ protected:
 				if(c == '.') c = 'N';
 			}
 			if(asc2dnacat[c] > 0 && begin++ >= mytrim5) {
-				//if(r.patFw.length() + 1 > 1024) tooManySeqChars(r.name);
 				r.patFw.append(asc2dna[c]);
 				r.qual.append('I');
 			}
@@ -1598,14 +1594,14 @@ protected:
 		r.trimmed3 = gTrim3;
 		r.trimmed5 = mytrim5;
 		if(doquals) {
-			parseQuals(r, qfb_, qc, r.patFw.length() + r.trimmed3 + r.trimmed5,
+			parseQuals(r, qfb_, qc, (int)(r.patFw.length() + r.trimmed3 + r.trimmed5),
 			           r.trimmed3, r.trimmed5, intQuals_, phred64_,
 			           solexa64_);
 		}
 		// Set up a default name if one hasn't been set
 		if(r.name.empty()) {
 			char cbuf[20];
-			itoa10(readCnt_, cbuf);
+			itoa10<TReadId>(readCnt_, cbuf);
 			r.name.install(cbuf);
 		}
 		assert_gt(r.name.length(), 0);
@@ -1618,8 +1614,8 @@ protected:
 			qfb_.resetLastN();
 			if(false) {
 				cout << "Name: " << r.name << endl
-					 << " Seq: " << r.patFw << " (" << seqan::length(r.patFw) << ")" << endl
-					 << "Qual: " << r.qual  << " (" << seqan::length(r.qual) << ")" << endl
+					 << " Seq: " << r.patFw << " (" << r.patFw.length() << ")" << endl
+					 << "Qual: " << r.qual  << " (" << r.qual.length() << ")" << endl
 					 << "Orig seq:" << endl;
 				cout << r.readOrigBuf.toZBuf();
 				cout << "Orig qual:" << endl;
@@ -1861,11 +1857,11 @@ private:
 		// Set up a default name if one hasn't been set
 		if(r.name.empty()) {
 			char cbuf[20];
-			itoa10(readCnt_, cbuf);
+			itoa10<TReadId>(readCnt_, cbuf);
 			r.name.install(cbuf);
 			if(r2 != NULL) r2->name.install(cbuf);
 		}
-		return r.name.length();
+		return (int)r.name.length();
 	}
 
 	/**
@@ -1906,11 +1902,6 @@ private:
 				assert_in(toupper(c), "ACGTN");
 				if(begin++ >= trim5) {
 					assert_neq(0, asc2dnacat[c]);
-					//if(r.patFw.length()+1 > 1024) {
-					//	cerr << "Input file contained a pattern more than 1024 characters long.  Please truncate" << endl
-					//		 << "reads and re-run Bowtie" << endl;
-					//	throw 1;
-					//}
 					r.patFw.append(asc2dna[c]);
 				}
 				charsRead++;
@@ -1920,7 +1911,7 @@ private:
 			}
 		}
 		r.patFw.trimEnd(gTrim3);
-		return r.patFw.length();
+		return (int)r.patFw.length();
 	}
 
 	/**
@@ -2121,7 +2112,6 @@ public:
 		bufCur_(0), subReadCnt_(0llu)
 	{
 		resetForNextFile();
-		assert_lt(length_, (size_t)BTString_len);
 	}
 
 	virtual void reset() {
@@ -2191,7 +2181,7 @@ protected:
 					// Set up a default name if one hasn't been set
 					r.name = nameBuf_;
 					char cbuf[20];
-					itoa10(readCnt_ - subReadCnt_, cbuf);
+					itoa10<TReadId>(readCnt_ - subReadCnt_, cbuf);
 					r.name.append(cbuf);
 					eat_ = freq_-1;
 					readCnt_++;
@@ -2304,7 +2294,6 @@ protected:
 
 	/// Read another pattern from a FASTQ input file
 	virtual void read(Read& r, TReadId& patid) {
-		const int bufSz = BTString_len;
 		int c;
 		int dstLen = 0;
 		r.reset();
@@ -2339,12 +2328,6 @@ protected:
 				break;
 			}
 			r.name.append(c);
-			if((int)r.name.length() > bufSz-2) {
-				// Too many chars in read name; print friendly error message
-				cerr << "FASTQ read name is too long; read names must be " << (bufSz-2) << " characters or fewer." << endl;
-				cerr << "Beginning of bad read name: " << r.name << endl;
-				throw 1;
-			}
 		}
 		// fb_ now points just past the first character of a
 		// sequence line, and c holds the first character
@@ -2382,7 +2365,6 @@ protected:
 			if(isalpha(c)) {
 				// If it's past the 5'-end trim point
 				if(charsRead >= trim5) {
-					//if(sbuf->length() >= 1024) tooManySeqChars(r.name);
 					sbuf->append(asc2dna[c]);
 					(*dstLenCur)++;
 				}
@@ -2584,7 +2566,7 @@ protected:
 		// Set up a default name if one hasn't been set
 		if(r.name.empty()) {
 			char cbuf[20];
-			itoa10(readCnt_, cbuf);
+			itoa10<TReadId>(readCnt_, cbuf);
 			r.name.install(cbuf);
 		}
 		r.trimmed3 = gTrim3;
@@ -2720,7 +2702,7 @@ protected:
 
 		// Set up name
 		char cbuf[20];
-		itoa10(readCnt_, cbuf);
+		itoa10<TReadId>(readCnt_, cbuf);
 		r.name.install(cbuf);
 		readCnt_++;
 

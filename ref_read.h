@@ -7,7 +7,6 @@
 #include <ctype.h>
 #include <fstream>
 #include <stdexcept>
-#include <seqan/sequence.h>
 #include "alphabet.h"
 #include "assert_helpers.h"
 #include "filebuf.h"
@@ -15,7 +14,6 @@
 #include "ds.h"
 
 using namespace std;
-using namespace seqan;
 
 /**
  * Encapsulates a stretch of the reference containing only unambiguous
@@ -90,36 +88,40 @@ struct RefReadInParams {
 };
 
 extern RefRecord
-fastaRefReadSize(FileBuf& in,
-                 const RefReadInParams& rparms,
-                 bool first,
-                 BitpairOutFileBuf* bpout = NULL);
+fastaRefReadSize(
+	FileBuf& in,
+	const RefReadInParams& rparms,
+	bool first,
+	BitpairOutFileBuf* bpout = NULL);
 
 extern std::pair<size_t, size_t>
-fastaRefReadSizes(EList<FileBuf*>& in,
-                  EList<RefRecord>& recs,
-                  const RefReadInParams& rparms,
-                  BitpairOutFileBuf* bpout,
-                  int& numSeqs);
+fastaRefReadSizes(
+	EList<FileBuf*>& in,
+	EList<RefRecord>& recs,
+	const RefReadInParams& rparms,
+	BitpairOutFileBuf* bpout,
+	int& numSeqs);
 
 extern void
-reverseRefRecords(const EList<RefRecord>& src,
-                  EList<RefRecord>& dst,
-                  bool recursive = false,
-				  bool verbose = false);
+reverseRefRecords(
+	const EList<RefRecord>& src,
+	EList<RefRecord>& dst,
+	bool recursive = false,
+	bool verbose = false);
 
 /**
  * Reads the next sequence from the given FASTA file and appends it to
  * the end of dst, optionally reversing it.
  */
 template <typename TStr>
-static RefRecord fastaRefReadAppend(FileBuf& in,
-                                    bool first,
-                                    TStr& dst,
-                                    RefReadInParams& rparms,
-                                    string* name = NULL)
+static RefRecord fastaRefReadAppend(
+	FileBuf& in,             // input file
+	bool first,              // true iff this is the first record in the file
+	TStr& dst,               // destination buf for parsed characters
+	size_t& dstoff,          // index of next character in dst to assign
+	RefReadInParams& rparms, // 
+	string* name = NULL)     // put parsed FASTA name here
 {
-	typedef typename Value<TStr>::Type TVal;
 	int c;
 	static int lastc = '>';
 	if(first) {
@@ -137,7 +139,7 @@ static RefRecord fastaRefReadAppend(FileBuf& in,
 	size_t off = 0;
 	first = true;
 
-	size_t ilen = length(dst);
+	size_t ilen = dstoff;
 
 	// Chew up the id line; if the next line is either
 	// another id line or a comment line, keep chewing
@@ -240,11 +242,11 @@ static RefRecord fastaRefReadAppend(FileBuf& in,
 			if(!rparms.color || lc != -1) len++;
 			// Add it to referenece buffer
 			if(rparms.color) {
-				appendValue(dst, (Dna)dinuc2color[asc2dna[(int)c]][lc]);
+				dst.set((char)dinuc2color[asc2dna[(int)c]][lc], dstoff++);
 			} else if(!rparms.color) {
-				appendValue(dst, (Dna)(char)c);
+				dst.set(asc2dna[c], dstoff++);
 			}
-			assert_lt((uint8_t)(Dna)dst[length(dst)-1], 4);
+			assert_lt((int)dst[dstoff-1], 4);
 			lc = asc2dna[(int)c];
 		}
 		c = in.get();
@@ -261,21 +263,10 @@ static RefRecord fastaRefReadAppend(FileBuf& in,
 	// ilen = length of buffer before this last sequence was appended.
 	if(rparms.reverse == REF_READ_REVERSE_EACH) {
 		// Find limits of the portion we just appended
-		size_t nlen = length(dst);
-		assert_eq(nlen - ilen, len);
-		if(len > 0) {
-			size_t halfway =  ilen + (len>>1);
-			// Reverse it in-place
-			for(size_t i = ilen; i < halfway; i++) {
-				size_t diff = i-ilen;
-				size_t j = nlen-diff-1;
-				TVal tmp = dst[i];
-				dst[i] = dst[j];
-				dst[j] = tmp;
-			}
-		}
+		size_t nlen = dstoff;
+		dst.reverseWindow(ilen, nlen);
 	}
-	return RefRecord(off, len, first);
+	return RefRecord((uint32_t)off, (uint32_t)len, first);
 }
 
 #endif /*ndef REF_READ_H_*/

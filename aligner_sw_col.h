@@ -115,7 +115,7 @@ struct SwColorCell {
 		const SwColorCell& lc,
 		int refMask,
 		const Penalties& pen,
-		size_t nceil,
+		int nceil,
 		int penceil);
 
 	inline void updateDiag(
@@ -124,7 +124,7 @@ struct SwColorCell {
 		int prevColor, // color b/t this row, one above
 		int prevQual,  // quality of color
 		const Penalties& pens,
-		size_t nceil,
+		int nceil,
 		int penceil);   // penalty ceiling
 
 	inline void updateVert(
@@ -132,7 +132,7 @@ struct SwColorCell {
 		int prevColor, // color b/t this row, one above
 		int prevQual,  // quality of color
 		const Penalties& pen,
-		size_t nceil,
+		int nceil,
 		int penceil);
 
 	/**

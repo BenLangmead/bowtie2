@@ -483,7 +483,7 @@ int SeedAligner::instantiateSeeds(
 				read,
 				sr.seqs(fw)[i],
 				sr.quals(fw)[i],
-				std::min((uint32_t)seedlen, read.length()),
+				std::min<int>((int)seedlen, (int)read.length()),
 				depth,
 				fw);
 			QKey qk(sr.seqs(fw)[i]);
@@ -495,7 +495,7 @@ int SeedAligner::instantiateSeeds(
 			} else {
 				// For each search strategy
 				EList<InstantiatedSeed>& iss = sr.instantiatedSeeds(fw, i);
-				for(size_t j = 0; j < seeds.size(); j++) {
+				for(int j = 0; j < (int)seeds.size(); j++) {
 					iss.expand();
 					assert_eq(seedlen, seeds[j].len);
 					InstantiatedSeed* is = &iss.back();
@@ -565,7 +565,7 @@ void SeedAligner::searchAllSeeds(
 	bwops_ = bwedits_ = 0;
 	uint64_t possearches = 0, seedsearches = 0, intrahits = 0, interhits = 0, ooms = 0;
 	// For each instantiated seed
-	for(size_t i = 0; i < sr.numOffs(); i++) {
+	for(int i = 0; i < (int)sr.numOffs(); i++) {
 		for(int fwi = 0; fwi < 2; fwi++) {
 			bool fw = (fwi == 0);
 			assert(sr.repOk(&cache.current()));
@@ -594,7 +594,7 @@ void SeedAligner::searchAllSeeds(
 					// Set seq_ and qual_ appropriately, using the seed sequences
 					// and qualities already installed in SeedResults
 					assert_eq(fw, iss[j].fw);
-					assert_eq(i, (size_t)iss[j].seedoffidx);
+					assert_eq(i, (int)iss[j].seedoffidx);
 					s_ = &iss[j];
 					SA_SEARCH_SEED(i, s_->seedtypeidx);
 					// Do the search!
@@ -905,7 +905,7 @@ SeedAligner::searchSeedBi(
 	uint32_t t[4], b[4]; // dest BW ranges
 	Constraint* zones[3] = { &c0, &c1, &c2 };
 	ASSERT_ONLY(uint32_t lasttot = botf - topf);
-	for(size_t i = step; i < s.steps.size(); i++) {
+	for(int i = step; i < (int)s.steps.size(); i++) {
 		assert_gt(botf, topf);
 		assert(botf - topf == 1 ||  bloc.valid());
 		assert(botf - topf > 1  || !bloc.valid());
@@ -972,7 +972,7 @@ SeedAligner::searchSeedBi(
 							// Potential mismatch
 							nextLocsBi(tloc, bloc, tf[j], bf[j], tb[j], bb[j], i+1);
 							int loff = off;
-							if(!ltr) loff = s.steps.size() - loff - 1;
+							if(!ltr) loff = (int)(s.steps.size() - loff - 1);
 							assert(prevEdit == NULL || prevEdit->next == NULL);
 							Edit edit(off, j, c, EDIT_TYPE_MM, false);
 							DoublyLinkedList<Edit> editl;
@@ -1056,7 +1056,7 @@ SeedAligner::searchSeedBi(
 		SA_MATCH(i, ltr, depth);
 		topf = tf[c]; botf = bf[c];
 		topb = tb[c]; botb = bb[c];
-		if(i+1 == s.steps.size()) {
+		if(i+1 == (int)s.steps.size()) {
 			// Finished aligning seed
 			assert(c0.acceptable());
 			assert(c1.acceptable());

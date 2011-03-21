@@ -94,7 +94,7 @@ int SwAligner::backtrackColors(
 	RandomSource& rand)    // pseudo-random generator
 {
 	ELList<SwColorCell>& tab = ctab_;
-	int row = rd.length();
+	int row = (int)rd.length();
 	assert_eq(row, (int)tab.size()-1);
 	ASSERT_ONLY(BTDnaString drd);
 	ASSERT_ONLY(drd.resize(rdf-rdi+1));
@@ -352,7 +352,7 @@ inline void SwColorCell::updateHoriz(
 	const SwColorCell& lc,
 	int                rfm,
 	const Penalties&   pen,
-	size_t             nceil,
+	int                nceil,
 	int                penceil)
 {
 	assert(lc.finalized);
@@ -419,7 +419,7 @@ inline void SwColorCell::updateVert(
 	int                c,         // color b/t this row, one above
 	int                penmm,     // penalty to incur for color miscall
 	const Penalties&   pen,
-	size_t             nceil,
+	int                nceil,
 	int                penceil)
 {
 	assert(uc.finalized);
@@ -492,7 +492,7 @@ inline void SwColorCell::updateDiag(
 	int                c,         // color being traversed
 	int                penmm,     // penalty to incur for color miscall
 	const Penalties&   pens,      // Penalties
-	size_t             nceil,     // max # Ns allowed
+	int                nceil,     // max # Ns allowed
 	int                penceil)   // penalty ceiling
 {
 	assert(uc.finalized);
@@ -587,7 +587,7 @@ int SwAligner::alignColors(
 	int refGaps  = pen.maxRefGaps(penceil);
 	assert_geq(readGaps, 0);
 	assert_geq(refGaps, 0);
-	size_t nceil = pen.nCeil(rd.length());
+	int nceil = (int)pen.nCeil(rd.length());
 
 	//
 	// Initialize the first row
@@ -797,7 +797,7 @@ int SwAligner::alignColors(
 	AlignmentScore bestScore = AlignmentScore::INVALID();
 	int btCol = -1; // column to backtrace from
 	int btC = -1;
-	int lastRow = rdf-rdi;
+	int lastRow = (int)(rdf-rdi);
 	for(int col = wlo; col <= whi; col++) {
 		// Can we backtrace from this cell?  Depends on gaps.
 		int fromEnd = whi - col;

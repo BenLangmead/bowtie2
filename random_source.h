@@ -73,7 +73,7 @@ public:
 			tot += weights[i];
 			if(f < tot) return i;
 		}
-		return numWeights-1;
+		return (uint32_t)(numWeights-1);
 	}
 
 	float nextFloat() {

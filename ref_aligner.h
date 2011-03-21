@@ -196,7 +196,7 @@ protected:
 	               bool seedOnLeft)
 	{
 		assert_gt(numToFind, 0);
-		const uint32_t qlen = qry.length();
+		const uint32_t qlen = (uint32_t)qry.length();
 		assert_geq(end - begin, qlen); // caller should have checked this
 		assert_gt(end, begin);
 		assert_gt(qlen, 0);
@@ -277,10 +277,10 @@ protected:
 	                bool seedOnLeft)
 	{
 		assert_gt(numToFind, 0);
-		ASSERT_ONLY(const uint32_t resultsISz = results.size());
+		ASSERT_ONLY(const uint32_t resultsISz = (uint32_t)results.size());
 		ASSERT_ONLY(uint32_t duplicates = 0);
 		ASSERT_ONLY(uint32_t r2i = 0);
-		const uint32_t qlen = qry.length();
+		const uint32_t qlen = (uint32_t)qry.length();
 		assert_geq(end - begin, qlen); // caller should have checked this
 		assert_gt(end, begin);
 		assert_gt(qlen, 0);
@@ -518,7 +518,7 @@ protected:
 	               bool seedOnLeft)
 	{
 		assert_gt(numToFind, 0);
-		const uint32_t qlen = qry.length();
+		const uint32_t qlen = (uint32_t)qry.length();
 		assert_geq(end - begin, qlen); // caller should have checked this
 		assert_gt(end, begin);
 		assert_gt(qlen, 0);
@@ -614,10 +614,10 @@ protected:
 	                bool seedOnLeft = false)
 	{
 		assert_gt(numToFind, 0);
-		ASSERT_ONLY(const uint32_t resultsISz = results.size());
+		ASSERT_ONLY(const uint32_t resultsISz = (uint32_t)results.size());
 		ASSERT_ONLY(uint32_t duplicates = 0);
 		ASSERT_ONLY(uint32_t r2i = 0);
-		const uint32_t qlen = qry.length();
+		const uint32_t qlen = (uint32_t)qry.length();
 		assert_geq(end - begin, qlen); // caller should have checked this
 		assert_gt(end, begin);
 		assert_gt(qlen, 0);
@@ -926,7 +926,7 @@ protected:
 	               bool seedOnLeft)
 	{
 		assert_gt(numToFind, 0);
-		const uint32_t qlen = qry.length();
+		const uint32_t qlen = (uint32_t)qry.length();
 		assert_geq(end - begin, qlen); // caller should have checked this
 		assert_gt(end, begin);
 		assert_gt(qlen, 0);
@@ -1039,10 +1039,10 @@ protected:
 					bool seedOnLeft = false)
 	{
 		assert_gt(numToFind, 0);
-		ASSERT_ONLY(const uint32_t resultsISz = results.size());
+		ASSERT_ONLY(const uint32_t resultsISz = (uint32_t)results.size());
 		ASSERT_ONLY(uint32_t duplicates = 0);
 		ASSERT_ONLY(uint32_t r2i = 0);
-		const uint32_t qlen = qry.length();
+		const uint32_t qlen = (uint32_t)qry.length();
 		assert_geq(end - begin, qlen); // caller should have checked this
 		assert_gt(end, begin);
 		assert_gt(qlen, 0);
@@ -1421,7 +1421,7 @@ protected:
 	               bool seedOnLeft)
 	{
 		assert_gt(numToFind, 0);
-		const uint32_t qlen = qry.length();
+		const uint32_t qlen = (uint32_t)qry.length();
 		assert_geq(end - begin, qlen); // caller should have checked this
 		assert_gt(end, begin);
 		assert_gt(qlen, 0);
@@ -1548,10 +1548,10 @@ protected:
 					bool seedOnLeft = false)
 	{
 		assert_gt(numToFind, 0);
-		ASSERT_ONLY(const uint32_t resultsISz = results.size());
+		ASSERT_ONLY(const uint32_t resultsISz = (uint32_t)results.size());
 		ASSERT_ONLY(uint32_t duplicates = 0);
 		ASSERT_ONLY(uint32_t r2i = 0);
-		const uint32_t qlen = qry.length();
+		const uint32_t qlen = (uint32_t)qry.length();
 		assert_geq(end - begin, qlen); // caller should have checked this
 		assert_gt(end, begin);
 		assert_gt(qlen, 0);
@@ -2034,7 +2034,7 @@ protected:
 	{
 		assert_gt(numToFind, 0);
 		assert_gt(end, begin);
-		const uint32_t qlen = qry.length();
+		const uint32_t qlen = (uint32_t)qry.length();
 		assert_gt(qlen, 0);
 		assert_geq(end - begin, qlen); // caller should have checked this
 		assert_gt(this->seedLen_, 0);
@@ -2201,10 +2201,10 @@ protected:
 					bool seedOnLeft = false)
 	{
 		assert_gt(numToFind, 0);
-		ASSERT_ONLY(const uint32_t resultsISz = results.size());
+		ASSERT_ONLY(const uint32_t resultsISz = (uint32_t)results.size());
 		ASSERT_ONLY(uint32_t duplicates = 0);
 		ASSERT_ONLY(uint32_t r2i = 0);
-		const uint32_t qlen = qry.length();
+		const uint32_t qlen = (uint32_t)qry.length();
 		assert_gt(qlen, 0);
 		assert_gt(end, begin);
 		assert_geq(end - begin, qlen); // caller should have checked this
@@ -2628,7 +2628,7 @@ protected:
 	{
 		assert_gt(numToFind, 0);
 		assert_gt(end, begin);
-		const uint32_t qlen = qry.length();
+		const uint32_t qlen = (uint32_t)qry.length();
 		assert_gt(qlen, 0);
 		assert_geq(end - begin, qlen); // caller should have checked this
 		assert_gt(this->seedLen_, 0);
@@ -2821,10 +2821,10 @@ protected:
 					bool seedOnLeft = false)
 	{
 		assert_gt(numToFind, 0);
-		ASSERT_ONLY(const uint32_t resultsISz = results.size());
+		ASSERT_ONLY(const uint32_t resultsISz = (uint32_t)results.size());
 		ASSERT_ONLY(uint32_t duplicates = 0);
 		ASSERT_ONLY(uint32_t r2i = 0);
-		const uint32_t qlen = qry.length();
+		const uint32_t qlen = (uint32_t)qry.length();
 		assert_gt(qlen, 0);
 		assert_gt(end, begin);
 		assert_geq(end - begin, qlen); // caller should have checked this
@@ -3369,7 +3369,7 @@ protected:
 	{
 		assert_gt(numToFind, 0);
 		assert_gt(end, begin);
-		const uint32_t qlen = qry.length();
+		const uint32_t qlen = (uint32_t)qry.length();
 		assert_gt(qlen, 0);
 		assert_geq(end - begin, qlen); // caller should have checked this
 		assert_gt(this->seedLen_, 0);
@@ -3586,10 +3586,10 @@ protected:
 					bool seedOnLeft = false)
 	{
 		assert_gt(numToFind, 0);
-		ASSERT_ONLY(const uint32_t resultsISz = results.size());
+		ASSERT_ONLY(const uint32_t resultsISz = (uint32_t)results.size());
 		ASSERT_ONLY(uint32_t duplicates = 0);
 		ASSERT_ONLY(uint32_t r2i = 0);
-		const uint32_t qlen = qry.length();
+		const uint32_t qlen = (uint32_t)qry.length();
 		assert_gt(qlen, 0);
 		assert_gt(end, begin);
 		assert_geq(end - begin, qlen); // caller should have checked this
@@ -4247,7 +4247,7 @@ protected:
 	{
 		assert_gt(numToFind, 0);
 		assert_gt(end, begin);
-		const uint32_t qlen = qry.length();
+		const uint32_t qlen = (uint32_t)qry.length();
 		assert_gt(qlen, 0);
 		assert_geq(end - begin, qlen); // caller should have checked this
 		assert_gt(this->seedLen_, 0);
@@ -4487,10 +4487,10 @@ protected:
 					bool seedOnLeft = false)
 	{
 		assert_gt(numToFind, 0);
-		ASSERT_ONLY(const uint32_t resultsISz = results.size());
+		ASSERT_ONLY(const uint32_t resultsISz = (uint32_t)results.size());
 		ASSERT_ONLY(uint32_t duplicates = 0);
 		ASSERT_ONLY(uint32_t r2i = 0);
-		const uint32_t qlen = qry.length();
+		const uint32_t qlen = (uint32_t)qry.length();
 		assert_gt(qlen, 0);
 		assert_gt(end, begin);
 		assert_geq(end - begin, qlen); // caller should have checked this
@@ -4859,7 +4859,7 @@ protected:
 					assert_lt(mmpos1, mmpos2);
 					if(diffs > 2) {
 						// Figure out the second mismatched position
-						ASSERT_ONLY(uint32_t origDiff3 = diff3);
+						ASSERT_ONLY(uint32_t origDiff3 = (uint32_t)diff3);
 						diff3 &= ~(0xc000000000000000llu >> (uint64_t)((savedMmpos2) << 1));
 						assert_neq(diff3, origDiff3);
 						mmpos3 = 31;

@@ -315,7 +315,13 @@ public:
 	/**
 	 * Allocate initial default of S elements.
 	 */
-	explicit EList(int cat = 0) :
+	explicit EList() :
+		cat_(0), allocCat_(-1), list_(NULL), sz_(S), cur_(0) { }
+
+	/**
+	 * Allocate initial default of S elements.
+	 */
+	explicit EList(int cat) :
 		cat_(cat), allocCat_(-1), list_(NULL), sz_(S), cur_(0)
 	{
 		assert_geq(cat, 0);
@@ -334,7 +340,16 @@ public:
 	/**
 	 * Copy from another EList using operator=.
 	 */
-	explicit EList(const EList<T, S>& o, int cat = 0) :
+	EList(const EList<T, S>& o) :
+		cat_(0), allocCat_(-1), list_(NULL), sz_(0), cur_(0)
+	{
+		*this = o;
+	}
+
+	/**
+	 * Copy from another EList using operator=.
+	 */
+	explicit EList(const EList<T, S>& o, int cat) :
 		cat_(cat), allocCat_(-1), list_(NULL), sz_(0), cur_(0)
 	{
 		*this = o;
@@ -405,6 +420,16 @@ public:
 	inline void ensure(size_t thresh) {
 		if(list_ == NULL) lazyInit();
 		expandCopy(cur_ + thresh);
+	}
+
+	/**
+	 * Ensure that there is sufficient capacity to include 'newsz' elements.
+	 * If there isn't enough capacity right now, expand capacity to exactly
+	 * equal 'newsz'.
+	 */
+	inline void reserveExact(size_t newsz) {
+		if(list_ == NULL) lazyInitExact(newsz);
+		expandCopyExact(newsz);
 	}
 
 	/**
@@ -486,6 +511,20 @@ public:
 	}
 
 	/**
+	 * If size is less than requested size, resize up to exactly sz and set
+	 * cur_ to requested sz.
+	 */
+	void resizeExact(size_t sz) {
+		if(sz > 0 && list_ == NULL) lazyInitExact(sz);
+		if(sz <= cur_) {
+			cur_ = sz;
+			return;
+		}
+		if(sz_ < sz) expandCopyExact(sz);
+		cur_ = sz;
+	}
+
+	/**
 	 * Erase element at offset idx.
 	 */
 	void erase(size_t idx) {
@@ -501,7 +540,7 @@ public:
 	 */
 	void insert(const T& el, size_t idx) {
 		if(list_ == NULL) lazyInit();
-		assert_lt(idx, cur_);
+		assert_leq(idx, cur_);
 		if(cur_ == sz_) expandCopy(sz_+1);
 		for(size_t i = cur_; i > idx; i--) {
 			list_[i] = list_[i-1];
@@ -684,11 +723,22 @@ private:
 	}
 
 	/**
+	 * Initialize exactly the prescribed number of elements for EList.
+	 */
+	void lazyInitExact(size_t sz) {
+		assert_gt(sz, 0);
+		assert(list_ == NULL);
+		sz_ = sz;
+		list_ = alloc(sz);
+	}
+
+	/**
 	 * Allocate a T array of length sz_ and store in list_.  Also,
 	 * tally into the global memory tally.
 	 */
 	T *alloc(size_t sz) {
 		T* tmp = new T[sz];
+		assert(tmp != NULL);
 		gMemTally.add(cat_, sz);
 		allocCat_ = cat_;
 		return tmp;
@@ -710,15 +760,25 @@ private:
 	}
 
 	/**
-	 * Expand the list_ buffer until it has at least 'thresh' elements.
-	 * Expansions are quadratic.  Copy old contents into new buffer
-	 * using operator=.
+	 * Expand the list_ buffer until it has at least 'thresh' elements.  Size
+	 * increases quadratically with number of expansions.  Copy old contents
+	 * into new buffer using operator=.
 	 */
 	void expandCopy(size_t thresh) {
 		if(thresh <= sz_) return;
 		size_t newsz = (sz_ * 2)+1;
 		while(newsz < thresh) newsz *= 2;
+		expandCopyExact(newsz);
+	}
+
+	/**
+	 * Expand the list_ buffer until it has exactly 'newsz' elements.  Copy
+	 * old contents into new buffer using operator=.
+	 */
+	void expandCopyExact(size_t newsz) {
+		if(newsz <= sz_) return;
 		T* tmp = alloc(newsz);
+		assert(tmp != NULL);
 		size_t cur = cur_;
 		if(list_ != NULL) {
  			for(size_t i = 0; i < cur_; i++) {
@@ -734,15 +794,27 @@ private:
 
 	/**
 	 * Expand the list_ buffer until it has at least 'thresh' elements.
-	 * Expansions are quadratic.  Don't copy old contents over.
+	 * Size increases quadratically with number of expansions.  Don't copy old
+	 * contents into the new buffer.
 	 */
 	void expandNoCopy(size_t thresh) {
 		assert(list_ != NULL);
 		if(thresh <= sz_) return;
 		size_t newsz = (sz_ * 2)+1;
 		while(newsz < thresh) newsz *= 2;
+		expandNoCopyExact(newsz);
+	}
+
+	/**
+	 * Expand the list_ buffer until it has exactly 'newsz' elements.  Don't
+	 * copy old contents into the new buffer.
+	 */
+	void expandNoCopyExact(size_t newsz) {
+		assert(list_ != NULL);
+		assert_gt(newsz, 0);
 		free();
 		T* tmp = alloc(newsz);
+		assert(tmp != NULL);
 		list_ = tmp;
 		sz_ = newsz;
 		assert_gt(sz_, 0);
@@ -801,7 +873,16 @@ public:
 	/**
 	 * Copy from another ELList using operator=.
 	 */
-	explicit ELList(const ELList<T, S1, S2>& o, int cat = 0) :
+	ELList(const ELList<T, S1, S2>& o) :
+		cat_(0), list_(NULL), sz_(0), cur_(0)
+	{
+		*this = o;
+	}
+
+	/**
+	 * Copy from another ELList using operator=.
+	 */
+	explicit ELList(const ELList<T, S1, S2>& o, int cat) :
 		cat_(cat), list_(NULL), sz_(0), cur_(0)
 	{
 		*this = o;
@@ -1130,7 +1211,16 @@ public:
 	/**
 	 * Copy from another ELLList using operator=.
 	 */
-	explicit ELLList(const ELLList<T, S1, S2, S3>& o, int cat = 0) :
+	ELLList(const ELLList<T, S1, S2, S3>& o) :
+		cat_(0), list_(NULL), sz_(0), cur_(0)
+	{
+		*this = o;
+	}
+
+	/**
+	 * Copy from another ELLList using operator=.
+	 */
+	explicit ELLList(const ELLList<T, S1, S2, S3>& o, int cat) :
 		cat_(cat), list_(NULL), sz_(0), cur_(0)
 	{
 		*this = o;
@@ -1905,7 +1995,7 @@ private:
 	bool sorted() const {
 		if(cur_ <= 1) return true;
 		for(size_t i = 0; i < cur_-1; i++) {
-			assert_lt(list_[i], list_[i+1]);
+			assert(list_[i] < list_[i+1]);
 		}
 		return true;
 	}
@@ -2292,8 +2382,8 @@ public:
 	void init(const PListSlice<T, S>& sl, size_t first, size_t last) {
 		assert_gt(last, first);
 		assert_leq(last - first, sl.len_);
-		i_ = sl.i_ + first;
-		len_ = last - first;
+		i_ = (uint32_t)(sl.i_ + first);
+		len_ = (uint32_t)(last - first);
 		list_ = sl.list_;
 	}
 	
@@ -2308,7 +2398,7 @@ public:
 	/**
 	 * Get the ith element of the slice.
 	 */
-	inline const T& get(uint32_t i) const {
+	inline const T& get(size_t i) const {
 		assert(valid());
 		assert_lt(i, len_);
 		return list_->get(i+i_);
@@ -2317,7 +2407,7 @@ public:
 	/**
 	 * Get the ith element of the slice.
 	 */
-	inline T& get(uint32_t i) {
+	inline T& get(size_t i) {
 		assert(valid());
 		assert_lt(i, len_);
 		return list_->get(i+i_);

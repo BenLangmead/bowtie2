@@ -18,7 +18,6 @@
  * randomly and then linearly scanning forward through the range,
  * reporting reference offsets as we go.
  */
-template<typename TStr>
 class RangeChaser {
 
 	typedef std::pair<uint32_t,uint32_t> U32Pair;

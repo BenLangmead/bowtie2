@@ -392,6 +392,7 @@ uint32_t Ebwt::mapLF(const SideLocus& l
 #ifdef EBWT_STATS
 	const_cast<Ebwt*>(this)->mapLFs_++;
 #endif
+	ASSERT_ONLY(uint32_t srcrow = l.toBWRow());
 	uint32_t ret;
 	assert(l.side(this->ebwt()) != NULL);
 	int c = rowL(l);
@@ -400,6 +401,7 @@ uint32_t Ebwt::mapLF(const SideLocus& l
 	if(l.fw_) ret = countFwSide(l, c); // Forward side
 	else      ret = countBwSide(l, c); // Backward side
 	assert_lt(ret, this->_eh._bwtLen);
+	assert_neq(srcrow, ret);
 #ifndef NDEBUG
 	if(_sanity && !overrideSanity) {
 		// Make sure results match up with results from mapLFEx;
@@ -695,12 +697,14 @@ inline uint32_t Ebwt::countFwSide(const SideLocus& l, int c) const {
 	uint32_t ret;
 	// Now factor in the occ[] count at the side break
 	if(c < 2) {
-		const uint32_t *ac = reinterpret_cast<const uint32_t*>(side - 8);
+		const uint8_t *ac8 = side - 8;
+		const uint32_t *ac = reinterpret_cast<const uint32_t*>(ac8);
 		assert_leq(ac[0], this->_eh._numSides * this->_eh._sideBwtLen); // b/c it's used as padding
 		assert_leq(ac[1], this->_eh._len);
 		ret = ac[c] + cCnt + this->fchr()[c];
 	} else {
-		const uint32_t *gt = reinterpret_cast<const uint32_t*>(side + this->_eh._sideSz - 8); // next
+		const uint8_t *gt8 = side + this->_eh._sideSz - 8;
+		const uint32_t *gt = reinterpret_cast<const uint32_t*>(gt8); // next
 		assert_leq(gt[0], this->_eh._len); assert_leq(gt[1], this->_eh._len);
 		ret = gt[c-2] + cCnt + this->fchr()[c];
 	}
@@ -753,8 +757,10 @@ inline void Ebwt::countFwSideEx(const SideLocus& l, uint32_t* arrs) const
 		}
 	}
 	// Now factor in the occ[] count at the side break
-	const uint32_t *ac = reinterpret_cast<const uint32_t*>(side - 8);
-	const uint32_t *gt = reinterpret_cast<const uint32_t*>(side + this->_eh._sideSz - 8);
+	const uint8_t *ac8 = side - 8;
+	const uint8_t *gt8 = side + this->_eh._sideSz - 8;
+	const uint32_t *ac = reinterpret_cast<const uint32_t*>(ac8);
+	const uint32_t *gt = reinterpret_cast<const uint32_t*>(gt8);
 	assert_leq(ac[0], this->fchr()[1] + this->_eh.sideBwtLen());
 	assert_leq(ac[1], this->fchr()[2]-this->fchr()[1]);
 	assert_leq(gt[0], this->fchr()[3]-this->fchr()[2]);
@@ -1292,7 +1298,7 @@ bool Ebwt::contains(
 	tloc.initFromRow(top, eh(), ebwt());
 	bloc.initFromRow(bot, eh(), ebwt());
 	ASSERT_ONLY(uint32_t lastDiff = bot - top);
-	for(int i = str.length()-2; i >= 0; i--) {
+	for(int i = (int)str.length()-2; i >= 0; i--) {
 		c = str[i];
 		assert_range(0, 3, c);
 		top = mapLF(tloc, c);

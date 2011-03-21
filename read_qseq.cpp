@@ -52,7 +52,7 @@ int QseqPatternSource::parseName(
 	if(r.name.empty() && warnEmpty) {
 		cerr << "Warning: read had an empty name field" << endl;
 	}
-	return r.name.length();
+	return (int)r.name.length();
 }
 
 /**
@@ -116,7 +116,7 @@ int QseqPatternSource::parseSeq(
 		}
 	}
 	r.patFw.trimEnd(gTrim3);
-	return r.patFw.length();
+	return (int)r.patFw.length();
 }
 
 /**
@@ -146,8 +146,6 @@ int QseqPatternSource::parseQuals(
 				char c = intToPhred33(atoi(qualToks_[j].c_str()), solQuals_);
 				assert_geq(c, 33);
 				if (qualsRead >= trim5) {
-					size_t off = qualsRead - trim5;
-					//if(off >= 1024) tooManyQualities(r.name);
 					r.qual.append(c);
 				}
 				++qualsRead;
@@ -166,8 +164,6 @@ int QseqPatternSource::parseQuals(
 			}
 			if(!isspace(c) && c != upto && (upto2 == -1 || c != upto2)) {
 				if (qualsRead >= trim5) {
-					size_t off = qualsRead - trim5;
-					//if(off >= 1024) tooManyQualities(r.name);
 					c = charToPhred33(c, solQuals_, phred64Quals_);
 					assert_geq(c, 33);
 					r.qual.append(c);

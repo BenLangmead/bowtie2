@@ -144,7 +144,7 @@ void SAMHitSink::appendAligned(ostream& ss,
 	//ss << "\tXC:i:" << (int)h.cost;
 	// Look for SNP annotations falling within the alignment
 	// Output MD field
-	size_t len = length(h.seq);
+	size_t len = h.seq.length();
 	int nm = 0;
 	int run = 0;
 	ss << "\tMD:Z:";
@@ -166,19 +166,19 @@ void SAMHitSink::appendAligned(ostream& ss,
 				lastPos = e.pos;
 			}
 		}
-		run = len - lastPos - 1;
+		run = (int)(len - lastPos - 1);
 	} else {
-		int lastPos = len;
-		for(int i = h.edits.size(); i >= 0; i--) {
+		size_t lastPos = len;
+		for(int i = (int)h.edits.size(); i >= 0; i--) {
 			const Edit& e = h.edits[i];
 			if(e.type == EDIT_TYPE_MM) {
-				assert_lt((int)e.pos, lastPos);
-				run = lastPos - (e.pos+1);
+				assert_lt((int)e.pos, (int)lastPos);
+				run = (int)(lastPos - (e.pos+1));
 				ss << run << e.chr;
 				lastPos = e.pos;
 			}
 		}
-		run = lastPos;
+		run = (int)lastPos;
 	}
 	ss << run;
 	// Add optional edit distance field
@@ -254,7 +254,7 @@ void SAMHitSink::reportUnOrMax(PatternSourcePerThread& p,
 	if(hs != NULL) hssz = hs->size();
 	if(paired) {
 		// truncate final 2 chars
-		for(int i = 0; i < (int)seqan::length(p.bufa().name)-2; i++) {
+		for(int i = 0; i < (int)p.bufa().name.length()-2; i++) {
 			ss << p.bufa().name[i];
 		}
 	} else {
@@ -267,7 +267,7 @@ void SAMHitSink::reportUnOrMax(PatternSourcePerThread& p,
 	   << (paired ? (hssz+1)/2 : hssz) << endl;
 	if(paired) {
 		// truncate final 2 chars
-		for(int i = 0; i < (int)seqan::length(p.bufb().name)-2; i++) {
+		for(int i = 0; i < (int)p.bufb().name.length()-2; i++) {
 			ss << p.bufb().name[i];
 		}
 		ss << "\t"
@@ -322,13 +322,13 @@ void SAMHitSink::reportMaxed(EList<Hit>& hs, PatternSourcePerThread& p) {
 				}
 			}
 			assert_leq(num, hs.size());
-			uint32_t r = rand.nextU32() % num;
+			uint32_t r = (uint32_t)(rand.nextU32() % num);
 			num = 0;
 			for(size_t i = 0; i < hs.size()-1; i += 2) {
 				int strat = min(hs[i].stratum, hs[i+1].stratum);
 				if(strat == bestStratum) {
 					if(num == r) {
-						reportHits(hs, i, i+2, 0, hs.size()/2+1);
+						reportHits(hs, i, i+2, 0, (uint32_t)(hs.size()/2+1));
 						break;
 					}
 					num++;
@@ -342,8 +342,8 @@ void SAMHitSink::reportMaxed(EList<Hit>& hs, PatternSourcePerThread& p) {
 				else break;
 			}
 			assert_leq(num, hs.size());
-			uint32_t r = rand.nextU32() % num;
-			reportHit(hs[r], /*MAPQ*/0, /*XM:I*/hs.size()+1);
+			uint32_t r = (uint32_t)(rand.nextU32() % num);
+			reportHit(hs[r], /*MAPQ*/0, /*XM:I*/(uint32_t)(hs.size()+1));
 		}
 	} else {
 		reportUnOrMax(p, &hs, false);

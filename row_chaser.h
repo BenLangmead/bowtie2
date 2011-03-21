@@ -6,7 +6,6 @@
 #define ROW_CHASER_H_
 
 #include <iostream>
-#include "seqan/sequence.h"
 #include "ebwt.h"
 #include "aligner_metrics.h"
 

@@ -13,6 +13,7 @@
 #include "edit.h"
 #include "ebwt.h"
 #include "search_globals.h"
+#include "read.h"
 
 using namespace std;
 
@@ -37,7 +38,7 @@ void EbwtSearchParams::reportHitImpl(
 	int stratum,        // alignment stratum
 	uint16_t cost,      // cost of alignment
 	uint32_t oms,       // approx. # other valid alignments
-	uint32_t patid,
+	TReadId patid,
 	uint32_t seed,
 	uint8_t mate,
 	Hit& hit)
@@ -227,7 +228,7 @@ void EbwtSearchParams::reportHitImpl(
 			Edit::invertPoss(edits_, hit.seq.length());
 		}
 		Edit::toRef(hit.seq, edits_, editRef);
-		assert_leq(h.second + qlen + hit.readGaps - hit.refGaps, length(_texts[h.first]));
+		assert_leq(h.second + qlen + hit.readGaps - hit.refGaps, _texts[h.first].length());
 		BTDnaString trueRef;
 		for(size_t i = 0; i < qlen + hit.readGaps - hit.refGaps; i++) {
 			int refc = (int)_texts[h.first][h.second + i];
@@ -272,7 +273,7 @@ void EbwtSearchParams::reportHitImpl(
 			}
 			editRef.clear();
 			Edit::toRef(hit.cseq, edits_, editRef);
-			assert_leq(h.second + qlen + hit.readGaps - hit.refGaps, length(_texts[h.first]));
+			assert_leq(h.second + qlen + hit.readGaps - hit.refGaps, _texts[h.first].length());
 			if(editRef != trueRef) {
 				cerr << endl;
 				cerr << "Edited color read didn't equal color reference" << endl;

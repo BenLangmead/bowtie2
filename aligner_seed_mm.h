@@ -38,7 +38,7 @@ public:
 			uint32_t cacheLimit,
 			ChunkPool *pool,
 			BitPairReference* refs,
-			EList<String<Dna5> >& os,
+			EList<SString<char> >& os,
 			uint32_t seed,
 			AlignerMetrics *metrics) :
 			ebwtFw_(ebwtFw),
@@ -516,8 +516,8 @@ public:
 		delete drVec;
 
 		// Set up a RangeChaser
-		RangeChaser<String<Dna> > *rchase =
-			new RangeChaser<String<Dna> >(cacheLimit_, cacheFw_, cacheBw_, metrics_);
+		RangeChaser *rchase =
+			new RangeChaser(cacheLimit_, cacheFw_, cacheBw_, metrics_);
 
 		ColorspaceDecoder *dec = new ColorspaceDecoder();
 
@@ -541,7 +541,7 @@ private:
 	const uint32_t cacheLimit_;
 	ChunkPool *pool_;
 	BitPairReference* refs_;
-	EList<String<Dna5> >& os_;
+	EList<SString<char> >& os_;
 	AlignerMetrics *metrics_;
 };
 
@@ -571,7 +571,7 @@ public:
 			uint32_t cacheLimit,
 			ChunkPool *pool,
 			BitPairReference* refs,
-			EList<String<Dna5> >& os,
+			EList<SString<char> >& os,
 			uint32_t seed) :
 			ebwtFw_(ebwtFw),
 			ebwtBw_(ebwtBw),
@@ -613,17 +613,17 @@ public:
 			paramsSe2 =
 				new EbwtSearchParams(*sinkPtSe2, os_);
 		}
-		RefAligner<String<Dna5> >* refAligner = NULL;
+		RefAligner<SString<char> >* refAligner = NULL;
 		int *btCnt = new int[1];
 		*btCnt = maxBts_;
 		if(seedMms_ == 0) {
-			refAligner = new Seed0RefAligner<String<Dna5> >(seedLen_, qualCutoff_);
+			refAligner = new Seed0RefAligner<SString<char> >(seedLen_, qualCutoff_);
 		} else if(seedMms_ == 1) {
-			refAligner = new Seed1RefAligner<String<Dna5> >(seedLen_, qualCutoff_);
+			refAligner = new Seed1RefAligner<SString<char> >(seedLen_, qualCutoff_);
 		} else if(seedMms_ == 2) {
-			refAligner = new Seed2RefAligner<String<Dna5> >(seedLen_, qualCutoff_);
+			refAligner = new Seed2RefAligner<SString<char> >(seedLen_, qualCutoff_);
 		} else {
-			refAligner = new Seed3RefAligner<String<Dna5> >(seedLen_, qualCutoff_);
+			refAligner = new Seed3RefAligner<SString<char> >(seedLen_, qualCutoff_);
 		}
 		bool do1Fw = true;
 		bool do1Rc = true;
@@ -1261,8 +1261,8 @@ public:
 			cerr << "Unsupported --stateful mode: " << seedMms_ << endl;
 		}
 		// Set up a RangeChaser
-		RangeChaser<String<Dna> > *rchase =
-			new RangeChaser<String<Dna> >(cacheLimit_, cacheFw_, cacheBw_);
+		RangeChaser *rchase =
+			new RangeChaser(cacheLimit_, cacheFw_, cacheBw_);
 
 		ColorspaceDecoder *dec = new ColorspaceDecoder();
 
@@ -1295,7 +1295,7 @@ private:
 	const uint32_t cacheLimit_;
 	ChunkPool *pool_;
 	BitPairReference* refs_;
-	EList<String<Dna5> >& os_;
+	EList<SString<char> >& os_;
 };
 
 #endif /* ALIGNER_SEED_MM_H_ */

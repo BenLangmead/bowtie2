@@ -2,7 +2,6 @@
 #define FORMATS_H_
 
 #include <iostream>
-#include <seqan/sequence.h>
 
 /**
  * File-format constants and names
@@ -32,28 +31,5 @@ static const std::string file_format_names[] = {
 	"Random",
 	"Qseq"
 };
-
-/**
- * Print the given read information as a FASTA record.
- */
-static inline void printFastaRecord(
-		std::ostream& o,
-		const seqan::String<char>& name,
-		const seqan::String<seqan::Dna5>& seq)
-{
-	o << ">" << name << endl << seq << endl;
-}
-
-/**
- * Print the given read information as a FASTQ record.
- */
-static inline void printFastqRecord(
-		std::ostream& o,
-		const seqan::String<char>& name,
-		const seqan::String<seqan::Dna5>& seq,
-		const seqan::String<char>& qual)
-{
-	o << "@" << name << endl << seq << endl << "+" << endl << qual << endl;
-}
 
 #endif /*FORMATS_H_*/

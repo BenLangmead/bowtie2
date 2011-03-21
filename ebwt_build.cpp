@@ -2,9 +2,6 @@
 #include <fstream>
 #include <string>
 #include <cassert>
-#include <seqan/index.h>
-#include <seqan/sequence.h>
-#include <seqan/file.h>
 #include <getopt.h>
 #include "assert_helpers.h"
 #include "endian_swap.h"
@@ -274,13 +271,14 @@ static void parseOptions(int argc, const char **argv) {
  * result.
  */
 template<typename TStr>
-static void driver(const string& infile,
-                   EList<string>& infiles,
-                   const string& outfile,
-				   bool packed,
-                   int reverse)
+static void driver(
+	const string& infile,
+	EList<string>& infiles,
+	const string& outfile,
+	bool packed,
+	int reverse)
 {
-	EList<FileBuf*> is;
+	EList<FileBuf*> is(MISC_CAT);
 	bool bisulfite = false;
 	RefReadInParams refparams(color, reverse, nsToAs, bisulfite);
 	assert_gt(infiles.size(), 0);
@@ -317,7 +315,7 @@ static void driver(const string& infile,
 	// Vector for the ordered list of "records" comprising the input
 	// sequences.  A record represents a stretch of unambiguous
 	// characters in one of the input sequences.
-	EList<RefRecord> szs;
+	EList<RefRecord> szs(MISC_CAT);
 	std::pair<size_t, size_t> sztot;
 	{
 		if(verbose) cout << "Reading reference sizes" << endl;
@@ -342,7 +340,7 @@ static void driver(const string& infile,
 		offRate,      // suffix-array sampling rate
 		ftabChars,    // number of chars in initial arrow-pair calc
 		outfile,      // basename for .?.ebwt files
-		reverse,      // fw
+		reverse == 0, // fw
 		!entireSA,    // useBlockwise
 		bmax,         // block size for blockwise SA builder
 		bmaxMultSqrt, // block size as multiplier of sqrt(len)
@@ -350,7 +348,7 @@ static void driver(const string& infile,
 		noDc? 0 : dcv,// difference-cover period
 		is,           // list of input streams
 		szs,          // list of reference sizes
-		sztot.first,  // total size of all unambiguous ref chars
+		(uint32_t)sztot.first,  // total size of all unambiguous ref chars
 		refparams,    // reference read-in parameters
 		seed,         // pseudo-random number generator seed
 		-1,           // override offRate
@@ -375,27 +373,27 @@ static void driver(const string& infile,
 			true,  // load rstarts?
 			false,
 			false);
-		String<Dna5> s2;
+		SString<char> s2;
 		ebwt.restore(s2);
 		ebwt.evictFromMemory();
 		{
-			String<Dna5> joinedss = Ebwt::join<String<Dna5> >(
+			SString<char> joinedss = Ebwt::join<SString<char> >(
 				is,          // list of input streams
 				szs,         // list of reference sizes
-				sztot.first, // total size of all unambiguous ref chars
+				(uint32_t)sztot.first, // total size of all unambiguous ref chars
 				refparams,   // reference read-in parameters
 				seed);       // pseudo-random number generator seed
 			if(refparams.reverse == REF_READ_REVERSE) {
-				reverseInPlace(joinedss);
+				joinedss.reverse();
 			}
-			assert_eq(length(joinedss), length(s2));
-			assert_eq(joinedss, s2);
+			assert_eq(joinedss.length(), s2.length());
+			assert(sstr_eq(joinedss, s2));
 		}
 		if(verbose) {
-			if(length(s2) < 1000) {
-				cout << "Passed restore check: " << s2 << endl;
+			if(s2.length() < 1000) {
+				cout << "Passed restore check: " << s2.toZBuf() << endl;
 			} else {
-				cout << "Passed restore check: (" << length(s2) << " chars)" << endl;
+				cout << "Passed restore check: (" << s2.length() << " chars)" << endl;
 			}
 		}
 	}
@@ -414,7 +412,7 @@ int bowtie_build(int argc, const char **argv) {
 		resetOptions();
 
 		string infile;
-		EList<string> infiles;
+		EList<string> infiles(MISC_CAT);
 		string outfile;
 
 		parseOptions(argc, argv);
@@ -510,7 +508,7 @@ int bowtie_build(int argc, const char **argv) {
 			Timer timer(cout, "Total time for call to driver() for forward index: ", verbose);
 			if(!packed) {
 				try {
-					driver<String<Dna, Alloc<> > >(infile, infiles, outfile, false, REF_READ_FORWARD);
+					driver<SString<char> >(infile, infiles, outfile, false, REF_READ_FORWARD);
 				} catch(bad_alloc& e) {
 					if(autoMem) {
 						cerr << "Switching to a packed string representation." << endl;
@@ -521,7 +519,7 @@ int bowtie_build(int argc, const char **argv) {
 				}
 			}
 			if(packed) {
-				driver<String<Dna, Packed<Alloc<> > > >(infile, infiles, outfile, true, REF_READ_FORWARD);
+				driver<S2bDnaString>(infile, infiles, outfile, true, REF_READ_FORWARD);
 			}
 		}
 		int reverseType = reverseEach ? REF_READ_REVERSE_EACH : REF_READ_REVERSE;
@@ -530,7 +528,7 @@ int bowtie_build(int argc, const char **argv) {
 			Timer timer(cout, "Total time for backward call to driver() for mirror index: ", verbose);
 			if(!packed) {
 				try {
-					driver<String<Dna, Alloc<> > >(infile, infiles, outfile + ".rev", false, reverseType);
+					driver<SString<char> >(infile, infiles, outfile + ".rev", false, reverseType);
 				} catch(bad_alloc& e) {
 					if(autoMem) {
 						cerr << "Switching to a packed string representation." << endl;
@@ -541,7 +539,7 @@ int bowtie_build(int argc, const char **argv) {
 				}
 			}
 			if(packed) {
-				driver<String<Dna, Packed<Alloc<> > > >(infile, infiles, outfile + ".rev", true, reverseType);
+				driver<S2bDnaString>(infile, infiles, outfile + ".rev", true, reverseType);
 			}
 		}
 		return 0;

@@ -7,7 +7,7 @@
 
 #include <stdint.h>
 #include <vector>
-#include "seqan/sequence.h"
+#include <queue>
 #include "ebwt.h"
 #include "range.h"
 #include "pool.h"
@@ -32,8 +32,8 @@ enum AdvanceUntil {
  */
 struct CoordMap {
 	void clear() { r2q.clear(); q2r.clear(); }
-	SStringFixed<int> r2q; // ref depth to query depth
-	SStringFixed<int> q2r; // query depth to ref depth
+	SStringExpandable<int> r2q; // ref depth to query depth
+	SStringExpandable<int> q2r; // query depth to ref depth
 };
 
 /**
@@ -115,8 +115,8 @@ public:
 	 */
 	void reset(size_t loGapDep, size_t hiGapDep, int nGaps) {
 		reset_ = true;
-		loGapDepth_ = loGapDep;
-		hiGapDepth_ = hiGapDep;
+		loGapDepth_ = (uint32_t)loGapDep;
+		hiGapDepth_ = (uint32_t)hiGapDep;
 		nGaps_ = 0;
 		if(!gGaps || gAllowRedundant >= 3) {
 			// Leaving nGaps_ at 0 disables visit checking
@@ -848,7 +848,7 @@ public:
 	/**
 	 * Empty the priority queue and reset the count.
 	 */
-	void reset(uint32_t patid) {
+	void reset(TReadId patid) {
 		patid_ = patid;
 		branchQ_ = TBranchQueue();
 		sz_ = 0;
@@ -912,7 +912,7 @@ protected:
 
 	uint32_t sz_;
 	TBranchQueue branchQ_; // priority queue of branches
-	uint32_t patid_;
+	TReadId patid_;
 };
 
 /**
@@ -1015,7 +1015,7 @@ public:
 	 * Reset the PathManager, clearing out the priority queue and
 	 * resetting the RangeStatePool.
 	 */
-	void reset(uint32_t patid) {
+	void reset(TReadId patid) {
 		branchQ_.reset(patid); // reset the priority queue
 		assert(branchQ_.empty());
 		bpool.reset();    // reset the Branch pool
@@ -1356,7 +1356,7 @@ public:
 		bool fw,
 		HitSink& sink,
 		HitSinkPerThread* sinkPt,
-		EList<String<Dna5> >& os,
+		EList<SString<char> >& os,
 		bool mate1,
 		uint32_t minCostAdjustment,
 		ChunkPool* pool,
@@ -1486,7 +1486,7 @@ public:
 protected:
 
 	// Progress state
-	uint32_t len_;
+	size_t len_;
 	bool mate1_;
 
 	// Temporary HitSink; to be deleted
@@ -1933,7 +1933,7 @@ protected:
 						delayedRange_ = &p->range();
 						size_t tot = (delayedRange_->bot() - delayedRange_->top()) +
 						             (lastRange_->bot()    - lastRange_->top());
-						uint32_t rq = rand_.nextU32() % tot;
+						uint32_t rq = (uint32_t)(rand_.nextU32() % tot);
 						// We picked this range, not the first one
 						if(rq < (delayedRange_->bot() - delayedRange_->top())) {
 							Range *tmp = lastRange_;

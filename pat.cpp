@@ -233,7 +233,7 @@ int parseQuals(Read& r,
 	if(r.qual.length() <= 0) return 0;
 	assert_eq(r.qual.length(), r.patFw.length());
 	while(fb.peek() == '\n' || fb.peek() == '\r') fb.get();
-	return r.qual.length();
+	return (int)r.qual.length();
 }
 
 void wrongQualityFormat(const BTString& read_name) {
@@ -261,25 +261,4 @@ void tooManySeqChars(const BTString& read_name) {
 		 << "Please truncate reads and quality values and and re-run Bowtie." << endl
 		 << "Offending read: " << read_name << endl;
 	throw 1;
-}
-
-/**
- * C++ version char* style "itoa":
- */
-char* itoa10(int value, char* result) {
-	// Check that base is valid
-	char* out = result;
-	int quotient = value;
-	do {
-		*out = "0123456789"[ std::abs( quotient % 10 ) ];
-		++out;
-		quotient /= 10;
-	} while ( quotient );
-
-	// Only apply negative sign for base 10
-	if (value < 0) *out++ = '-';
-	std::reverse( result, out );
-
-	*out = 0; // terminator
-	return out;
 }

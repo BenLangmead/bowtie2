@@ -133,9 +133,9 @@ void Ebwt::sanityCheckAll(int reverse) const {
  * to the end of the string.  The result is written to s.  The Ebwt
  * must be in memory.
  */
-void Ebwt::restore(String<Dna5>& s) const {
+void Ebwt::restore(SString<char>& s) const {
 	assert(isInMemory());
-	resize(s, this->_eh._len, Exact());
+	s.resize(this->_eh._len);
 	uint32_t jumps = 0;
 	uint32_t i = this->_eh._len; // should point to final SA elt (starting with '$')
 	SideLocus l(i, this->_eh, this->ebwt());
@@ -157,10 +157,12 @@ void Ebwt::restore(String<Dna5>& s) const {
  * Check that this Ebwt, when restored via restore(), matches up with
  * the given array of reference sequences.  For sanity checking.
  */
-void Ebwt::checkOrigs(const EList<String<Dna5> >& os,
-                      bool color, bool mirror) const
+void Ebwt::checkOrigs(
+	const EList<SString<char> >& os,
+	bool color,
+	bool mirror) const
 {
-	String<Dna5> rest;
+	SString<char> rest;
 	restore(rest);
 	uint32_t restOff = 0;
 	size_t i = 0, j = 0;
@@ -169,7 +171,7 @@ void Ebwt::checkOrigs(const EList<String<Dna5> >& os,
 		return;
 	}
 	while(i < os.size()) {
-		size_t olen = length(os[i]);
+		size_t olen = os[i].length();
 		int lastorig = -1;
 		for(; j < olen; j++) {
 			size_t joff = j;
@@ -198,7 +200,7 @@ void Ebwt::checkOrigs(const EList<String<Dna5> >& os,
 			lastorig = (int)os[i][joff];
 			restOff++;
 		}
-		if(j == length(os[i])) {
+		if(j == os[i].length()) {
 			// Moved to next sequence
 			i++;
 			j = 0;

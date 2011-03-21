@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include "tokenize.h"
 #include "ds.h"
+#include "mem_ids.h"
 
 using namespace std;
 
@@ -35,7 +36,7 @@ int main(int argc, const char **argv) {
 		char buf[4096];
 		int lastret = -1;
 		while(in.getline(buf, 4095)) {
-			EList<string> args;
+			EList<string> args(MISC_CAT);
 			args.push_back(string(argv[0]));
 			tokenize(buf, " \t", args);
 			const char **myargs = (const char**)malloc(sizeof(char*)*args.size());
@@ -43,7 +44,7 @@ int main(int argc, const char **argv) {
 				myargs[i] = args[i].c_str();
 			}
 			if(args.size() == 1) continue;
-			lastret = bowtie_build(args.size(), myargs);
+			lastret = bowtie_build((int)args.size(), myargs);
 			free(myargs);
 		}
 		if(lastret == -1) {

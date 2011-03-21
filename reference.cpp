@@ -8,6 +8,7 @@
  */
 
 #include "reference.h"
+#include "mem_ids.h"
 
 using namespace std;
 
@@ -19,7 +20,7 @@ BitPairReference::BitPairReference(
 	bool color,
 	bool sanity,
 	EList<string>* infiles,
-	EList<String<Dna5> >* origs,
+	EList<SString<char> >* origs,
 	bool infilesSeq,
 	bool useMm,
 	bool useShmem,
@@ -135,7 +136,7 @@ BitPairReference::BitPairReference(
 			// Remember that this is the first record for this
 			// reference sequence (and the last record for the one
 			// before)
-			refRecOffs_.push_back(recs_.size()-1);
+			refRecOffs_.push_back((uint32_t)recs_.size()-1);
 			refOffs_.push_back(cumsz);
 			if(nrefs_ > 0) {
 				refLens_.push_back(cumlen);
@@ -155,7 +156,7 @@ BitPairReference::BitPairReference(
 		logTime(cerr);
 	}
 	// Store a cap entry for the end of the last reference seq
-	refRecOffs_.push_back(recs_.size());
+	refRecOffs_.push_back((uint32_t)recs_.size());
 	refOffs_.push_back(cumsz);
 	refLens_.push_back(cumlen);
 	bufSz_ = cumsz;
@@ -228,9 +229,13 @@ BitPairReference::BitPairReference(
 			ret = fread(&c, 1, 1, f4);
 			assert_eq(0, ret); // should have failed
 			fclose(f4);
+#ifdef BOWTIE_SHARED_MEM
 			if(useShmem_) NOTIFY_SHARED(buf_, (cumsz >> 2));
+#endif
 		} else {
+#ifdef BOWTIE_SHARED_MEM
 			if(useShmem_) WAIT_SHARED(buf_, (cumsz >> 2));
+#endif
 		}
 	}
 	
@@ -256,8 +261,11 @@ BitPairReference::BitPairReference(
 	if(sanity_) {
 		// Compare the sequence we just read from the compact index
 		// file to the true reference sequence.
-		EList<seqan::String<seqan::Dna5> > *os; // for holding references
-		EList<seqan::String<seqan::Dna5> > osv; // for holding references
+		EList<SString<char> > *os; // for holding references
+		EList<SString<char> > osv(DEBUG_CAT); // for holding ref seqs
+		EList<SString<char> > osn(DEBUG_CAT); // for holding ref names
+		EList<size_t> osvLen(DEBUG_CAT); // for holding ref seq lens
+		EList<size_t> osnLen(DEBUG_CAT); // for holding ref name lens
 		if(infiles != NULL) {
 			if(infilesSeq) {
 				for(size_t i = 0; i < infiles->size(); i++) {
@@ -268,10 +276,10 @@ BitPairReference::BitPairReference(
 					if((*infiles)[i].at(0) == '\\') {
 						(*infiles)[i].erase(0, 1);
 					}
-					osv.push_back(String<Dna5>((*infiles)[i]));
+					osv.push_back(SString<char>((*infiles)[i]));
 				}
 			} else {
-				readSequenceFiles<seqan::String<seqan::Dna5>, seqan::Fasta>(*infiles, osv);
+				parseFastas(*infiles, osn, osnLen, osv, osvLen);
 			}
 			os = &osv;
 		} else {
@@ -283,7 +291,7 @@ BitPairReference::BitPairReference(
 		// sanity check against what we get by calling getBase and
 		// getStretch
 		for(size_t i = 0; i < os->size(); i++) {
-			size_t olen = seqan::length((*os)[i]);
+			size_t olen = ((*os)[i]).length();
 			size_t olenU32 = (olen + 12) / 4;
 			uint32_t *buf = new uint32_t[olenU32];
 			uint8_t *bufadj = (uint8_t*)buf;
@@ -312,7 +320,7 @@ BitPairReference::~BitPairReference() {
  * unambiguous stretches of the target reference sequence.  When
  * there are many records, binary search would be more appropriate.
  */
-int BitPairReference::getBase(uint32_t tidx, uint32_t toff) const {
+int BitPairReference::getBase(size_t tidx, size_t toff) const {
 	uint32_t reci = refRecOffs_[tidx];   // first record for target reference sequence
 	uint32_t recf = refRecOffs_[tidx+1]; // last record (exclusive) for target seq
 	assert_gt(recf, reci);
@@ -351,9 +359,9 @@ int BitPairReference::getBase(uint32_t tidx, uint32_t toff) const {
  */
 int BitPairReference::getStretchNaive(
 	uint32_t *destU32,
-	uint32_t tidx,
-	uint32_t toff,
-	uint32_t count) const
+	size_t tidx,
+	size_t toff,
+	size_t count) const
 {
 	uint8_t *dest = (uint8_t*)destU32;
 	uint32_t reci = refRecOffs_[tidx];   // first record for target reference sequence
@@ -408,12 +416,12 @@ int BitPairReference::getStretchNaive(
  */
 int BitPairReference::getStretch(
 	uint32_t *destU32,
-	uint32_t tidx,
-	uint32_t toff,
-	uint32_t count) const
+	size_t tidx,
+	size_t toff,
+	size_t count) const
 {
-	ASSERT_ONLY(uint32_t origCount = count);
-	ASSERT_ONLY(uint32_t origToff = toff);
+	ASSERT_ONLY(size_t origCount = count);
+	ASSERT_ONLY(size_t origToff = toff);
 	if(count == 0) return 0;
 	uint8_t *dest = (uint8_t*)destU32;
 #ifndef NDEBUG
@@ -442,7 +450,7 @@ int BitPairReference::getStretch(
 		off += recs_[i].off;
 		assert_gt(count, 0);
 		if(toff < off) {
-			uint32_t cpycnt = min(off - toff, count);
+			size_t cpycnt = min(off - toff, count);
 			memset(&dest[cur], 4, cpycnt);
 			count -= cpycnt;
 			toff += cpycnt;
@@ -591,7 +599,7 @@ BitPairReference::szsFromFasta(
 			std::pair<size_t, size_t> sztot2 =
 			fastaRefReadSizes(is, szs, parms, &bpout, numSeqs);
 			parms.color = true;
-			writeU32(fout3, szs.size(), bigEndian); // write # records
+			writeU32(fout3, (uint32_t)szs.size(), bigEndian); // write # records
 			for(size_t i = 0; i < szs.size(); i++) {
 				szs[i].write(fout3, bigEndian);
 			}
@@ -605,7 +613,7 @@ BitPairReference::szsFromFasta(
 		} else {
 			int numSeqs = 0;
 			sztot = fastaRefReadSizes(is, szs, parms, &bpout, numSeqs);
-			writeU32(fout3, szs.size(), bigEndian); // write # records
+			writeU32(fout3, (uint32_t)szs.size(), bigEndian); // write # records
 			for(size_t i = 0; i < szs.size(); i++) szs[i].write(fout3, bigEndian);
 		}
 		if(sztot.first == 0) {
@@ -624,7 +632,7 @@ BitPairReference::szsFromFasta(
 #ifndef NDEBUG
 		if(parms.color) {
 			parms.color = false;
-			EList<RefRecord> szs2;
+			EList<RefRecord> szs2(EBWTB_CAT);
 			int numSeqs2 = 0;
 			std::pair<size_t, size_t> sztot2 =
 			fastaRefReadSizes(is, szs2, parms, NULL, numSeqs2);

@@ -43,7 +43,7 @@ bool AlignmentCache::addOnTheFly(
 	// If this is the first reference sequence we're associating with
 	// the query sequence, initialize the QVal.
 	if(!qv.valid()) {
-		qv.init(qlist_.size(), 0, 0);
+		qv.init((uint32_t)qlist_.size(), 0, 0);
 	}
 	qv.addRange(botf-topf);
 	if(!qlist_.add(pool(), sak)) {
@@ -63,7 +63,7 @@ bool AlignmentCache::addOnTheFly(
 	}
 	assert(s->key.repOk());
 	if(added) {
-		s->payload.i = salist_.size();
+		s->payload.i = (uint32_t)salist_.size();
 		s->payload.len = botf - topf;
 		s->payload.top = topf;
 		for(size_t j = 0; j < (botf-topf); j++) {

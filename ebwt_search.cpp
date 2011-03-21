@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <cassert>
 #include <stdexcept>
-#include <seqan/find.h>
 #include <getopt.h>
 #include <pthread.h>
 #include <math.h>
@@ -17,6 +16,7 @@
 #include "sequence_io.h"
 #include "tokenize.h"
 #include "hit.h"
+#include "aln_sink.h"
 #include "pat.h"
 #include "bitset.h"
 #include "threading.h"
@@ -43,7 +43,6 @@
 #endif
 
 using namespace std;
-using namespace seqan;
 
 static EList<string> mates1;  // mated reads (first mate)
 static EList<string> mates2;  // mated reads (second mate)
@@ -121,8 +120,8 @@ static bool chunkVerbose; // have chunk allocator output status messages?
 bool gReportSe;
 static const char * refMapFile;  // file containing a map from index coordinates to another coordinate system
 static const char * annotMapFile;  // file containing a map from reference coordinates to annotations
-static size_t fastaContLen;
-static size_t fastaContFreq;
+static uint32_t fastaContLen;
+static uint32_t fastaContFreq;
 static int randomNum;    // number of randomly-generated reads
 static int randomLength; // length of randomly-generated reads
 static bool hadoopOut; // print Hadoop status and summary messages
@@ -135,7 +134,7 @@ bool gColorExEnds; // true -> nucleotides on either end of decoded cspace alignm
 bool gReportOverhangs; // false -> filter out alignments that fall off the end of a reference sequence
 static string rgs; // SAM outputs for @RG header line
 int gSnpPhred; // probability of SNP, for scoring colorspace alignments
-static Bitset suppressOuts(64); // output fields to suppress
+static EList<bool> suppressOuts; // output fields to suppress
 static bool sampleMax; // whether to report a random alignment when maxed-out via -m/-M
 static int defaultMapq; // default mapping quality to print in SAM mode
 bool gColorSeq; // true -> show colorspace alignments as colors, not decoded bases
@@ -281,6 +280,8 @@ static void resetOptions() {
 	rgs						= "";    // SAM outputs for @RG header line
 	gSnpPhred				= 30;    // probability of SNP, for scoring colorspace alignments
 	suppressOuts.clear();            // output fields to suppress
+	suppressOuts.resize(64);
+	suppressOuts.fill(false);
 	sampleMax				= false;
 	defaultMapq				= 255;
 	gColorSeq				= false; // true -> show colorspace alignments as colors, not decoded bases
@@ -826,7 +827,7 @@ static void parseOptions(int argc, const char **argv) {
 			case 'g': gGaps = true; break;
 			case 'F': {
 				format = FASTA_CONT;
-				pair<size_t, size_t> p = parsePair<size_t>(optarg, ',');
+				pair<uint32_t, uint32_t> p = parsePair<uint32_t>(optarg, ',');
 				fastaContLen = p.first;
 				fastaContFreq = p.second;
 				break;
@@ -869,7 +870,7 @@ static void parseOptions(int argc, const char **argv) {
 				tokenize(optarg, ",", supp);
 				for(size_t i = 0; i < supp.size(); i++) {
 					int ii = parseInt(1, "--suppress arg must be at least 1", supp[i].c_str());
-					suppressOuts.set(ii-1);
+					suppressOuts[ii-1] = true;
 				}
 				break;
 			}
@@ -1244,10 +1245,14 @@ static void parseOptions(int argc, const char **argv) {
 			gMate2fw = false;
 		}
 	}
-	if(outType != OUTPUT_FULL && suppressOuts.count() > 0 && !gQuiet) {
+	size_t fieldsSuppressed = 0;
+	for(size_t i = 0; i < suppressOuts.size(); i++) {
+		if(suppressOuts[i]) fieldsSuppressed++;
+	}
+	if(outType != OUTPUT_FULL && fieldsSuppressed > 0 && !gQuiet) {
 		cerr << "Warning: Ignoring --suppress because output type is not default." << endl;
 		cerr << "         --suppress is only available for the default output type." << endl;
-		suppressOuts.clear();
+		suppressOuts.fill(false);
 	}
 	if(gInsExtend > gInsOpen) {
 		cerr << "Warning: Read gap extension penalty (" << gInsExtend << ") is greater than gap open penalty (" << gInsOpen << ")." << endl;
@@ -1326,7 +1331,7 @@ static PairedPatternSource*   exactSearch_patsrc;
 static HitSink*               exactSearch_sink;
 //static ACHitSink*             exactSearch_acsink;
 static Ebwt*                  exactSearch_ebwt;
-static EList<String<Dna5> >*  exactSearch_os;
+static EList<SString<char> >* exactSearch_os;
 static BitPairReference*      exactSearch_refs;
 
 /**
@@ -1337,7 +1342,7 @@ static void *exactSearchWorkerStateful(void *vp) {
 	PairedPatternSource& _patsrc = *exactSearch_patsrc;
 	HitSink& _sink               = *exactSearch_sink;
 	Ebwt& ebwt                   = *exactSearch_ebwt;
-	EList<String<Dna5> >& os     = *exactSearch_os;
+	EList<SString<char> >& os    = *exactSearch_os;
 	BitPairReference* refs       =  exactSearch_refs;
 
 	// Global initialization
@@ -1404,7 +1409,7 @@ static void *exactSearchWorkerStateful(void *vp) {
 static void exactSearch(PairedPatternSource& _patsrc,
                         HitSink& _sink,
                         Ebwt& ebwt,
-                        EList<String<Dna5> >& os)
+                        EList<SString<char> >& os)
 {
 	exactSearch_patsrc = &_patsrc;
 	exactSearch_sink   = &_sink;
@@ -1478,7 +1483,7 @@ static PairedPatternSource*           mismatchSearch_patsrc;
 static HitSink*                       mismatchSearch_sink;
 static Ebwt*            mismatchSearch_ebwtFw;
 static Ebwt*            mismatchSearch_ebwtBw;
-static EList<String<Dna5> >*         mismatchSearch_os;
+static EList<SString<char> >*         mismatchSearch_os;
 static BitPairReference*              mismatchSearch_refs;
 
 /**
@@ -1490,7 +1495,7 @@ static void *mismatchSearchWorkerFullStateful(void *vp) {
 	HitSink&               _sink   = *mismatchSearch_sink;
 	Ebwt&    ebwtFw  = *mismatchSearch_ebwtFw;
 	Ebwt&    ebwtBw  = *mismatchSearch_ebwtBw;
-	EList<String<Dna5> >& os      = *mismatchSearch_os;
+	EList<SString<char> >& os      = *mismatchSearch_os;
 	BitPairReference*      refs    =  mismatchSearch_refs;
 
 	// Global initialization
@@ -1554,7 +1559,7 @@ static void mismatchSearchFull(PairedPatternSource& _patsrc,
                                HitSink& _sink,
                                Ebwt& ebwtFw,
                                Ebwt& ebwtBw,
-                               EList<String<Dna5> >& os)
+                               EList<SString<char> >& os)
 {
 	mismatchSearch_patsrc       = &_patsrc;
 	mismatchSearch_sink         = &_sink;
@@ -1626,7 +1631,7 @@ static PairedPatternSource*           twoOrThreeMismatchSearch_patsrc;
 static HitSink*                       twoOrThreeMismatchSearch_sink;
 static Ebwt*            twoOrThreeMismatchSearch_ebwtFw;
 static Ebwt*            twoOrThreeMismatchSearch_ebwtBw;
-static EList<String<Dna5> >*         twoOrThreeMismatchSearch_os;
+static EList<SString<char> >*         twoOrThreeMismatchSearch_os;
 static bool                           twoOrThreeMismatchSearch_two;
 static BitPairReference*              twoOrThreeMismatchSearch_refs;
 
@@ -1639,7 +1644,7 @@ static void *twoOrThreeMismatchSearchWorkerStateful(void *vp) {
 	HitSink&               _sink   = *twoOrThreeMismatchSearch_sink;
 	Ebwt&    ebwtFw  = *twoOrThreeMismatchSearch_ebwtFw;
 	Ebwt&    ebwtBw  = *twoOrThreeMismatchSearch_ebwtBw;
-	EList<String<Dna5> >& os      = *twoOrThreeMismatchSearch_os;
+	EList<SString<char> >& os      = *twoOrThreeMismatchSearch_os;
 	BitPairReference*      refs    =  twoOrThreeMismatchSearch_refs;
 	static bool            two     =  twoOrThreeMismatchSearch_two;
 
@@ -1701,9 +1706,9 @@ static void *twoOrThreeMismatchSearchWorkerStateful(void *vp) {
 static void twoOrThreeMismatchSearchFull(
 		PairedPatternSource& _patsrc,   /// pattern source
 		HitSink& _sink,                 /// hit sink
-		Ebwt& ebwtFw,             /// index of original text
-		Ebwt& ebwtBw,             /// index of mirror text
-		EList<String<Dna5> >& os,      /// text strings, if available (empty otherwise)
+		Ebwt& ebwtFw,                   /// index of original text
+		Ebwt& ebwtBw,                   /// index of mirror text
+		EList<SString<char> >& os,      /// text strings, if available (empty otherwise)
 		bool two = true)                /// true -> 2, false -> 3
 {
 	// Global initialization
@@ -1779,7 +1784,7 @@ static Penalties*               multiseed_pens;
 static EList<Seed>*             multiseed_seeds;
 static BitPairReference*        multiseed_refs;
 static AlignmentCache*          multiseed_sc; // seed cache
-static MSHitSink*               multiseed_msink;
+static AlnSink*                 multiseed_msink;
 static OutFileBuf*              multiseed_metricsOfb;
 
 static EList<ReadCounterSink*>* multiseed_readCounterSink;
@@ -2156,7 +2161,7 @@ static void* multiseedSearchWorker(void *vp) {
 	const EList<Seed>&      seeds    = *multiseed_seeds;
 	const BitPairReference& ref      = *multiseed_refs;
 	AlignmentCache&         scShared = *multiseed_sc;
-	MSHitSink&              msink    = *multiseed_msink;
+	AlnSink&              msink    = *multiseed_msink;
 	OutFileBuf*             metricsOfb = multiseed_metricsOfb;
 
 	// Sinks: these are so that we can print tables encoding counts for
@@ -2207,7 +2212,7 @@ static void* multiseedSearchWorker(void *vp) {
 		sampleMax);
 	
 	// Make a per-thread wrapper for the global MHitSink object.
-	MSHitSinkWrap msinkwrap(msink, rp);
+	AlnSinkWrap msinkwrap(msink, rp);
 
 	SeedAligner al;
 	SwDriver sd;
@@ -2377,7 +2382,7 @@ static void* multiseedSearchWorker(void *vp) {
 									wlm,              // group walk left metrics
 									swm,              // Smith-Waterman metrics
 									rpm,              // reporting metrics
-									&msinkwrap,       // MSHitSink object for reporting hits
+									&msinkwrap,       // AlnSink object for reporting hits
 									true,             // yes, report hits immediately after they're found
 									&swCounterSink,   // send counter summary for each read to this sink
 									&swActionSink);   // send action list for each read to this sink
@@ -2429,7 +2434,7 @@ static void multiseedSearch(
 	Penalties& pens,
 	EList<Seed>& seeds,
 	PairedPatternSource& patsrc,  // pattern source
-	MSHitSink& msink,             // hit sink
+	AlnSink& msink,             // hit sink
 	Ebwt& ebwtFw,                 // index of original text
 	Ebwt& ebwtBw,                 // index of mirror text
 	EList<SeedHitSink*>& seedHitSink,
@@ -2523,13 +2528,13 @@ static void multiseedSearch(
 }
 
 
-static PairedPatternSource*  seededQualSearch_patsrc;
-static HitSink*              seededQualSearch_sink;
-static Ebwt*                 seededQualSearch_ebwtFw;
-static Ebwt*                 seededQualSearch_ebwtBw;
-static EList<String<Dna5> >* seededQualSearch_os;
-static int                   seededQualSearch_qualCutoff;
-static BitPairReference*     seededQualSearch_refs;
+static PairedPatternSource*   seededQualSearch_patsrc;
+static HitSink*               seededQualSearch_sink;
+static Ebwt*                  seededQualSearch_ebwtFw;
+static Ebwt*                  seededQualSearch_ebwtBw;
+static EList<SString<char> >* seededQualSearch_os;
+static int                    seededQualSearch_qualCutoff;
+static BitPairReference*      seededQualSearch_refs;
 
 static void* seededQualSearchWorkerFullStateful(void *vp) {
 	int tid = *((int*)vp);
@@ -2537,7 +2542,7 @@ static void* seededQualSearchWorkerFullStateful(void *vp) {
 	HitSink&                 _sink      = *seededQualSearch_sink;
 	Ebwt&                    ebwtFw     = *seededQualSearch_ebwtFw;
 	Ebwt&                    ebwtBw     = *seededQualSearch_ebwtBw;
-	EList<String<Dna5> >&    os         = *seededQualSearch_os;
+	EList<SString<char> >&   os         = *seededQualSearch_os;
 	int                      qualCutoff = seededQualSearch_qualCutoff;
 	BitPairReference*        refs       = seededQualSearch_refs;
 
@@ -2633,9 +2638,9 @@ static void seededQualCutoffSearchFull(
                                         /// Can only be 1 or 2, default: 1
         PairedPatternSource& _patsrc,   /// pattern source
         HitSink& _sink,                 /// hit sink
-        Ebwt& ebwtFw,             /// index of original text
-        Ebwt& ebwtBw,             /// index of mirror text
-        EList<String<Dna5> >& os)      /// text strings, if available (empty otherwise)
+        Ebwt& ebwtFw,                   /// index of original text
+        Ebwt& ebwtBw,                   /// index of mirror text
+        EList<SString<char> >& os)      /// text strings, if available (empty otherwise)
 {
 	// Global intialization
 	assert_leq(seedMms, 3);
@@ -2718,37 +2723,26 @@ static void seededQualCutoffSearchFull(
 static string argstr;
 
 template<typename TStr>
-static void driver(const char * type,
-                   const string& ebwtFileBase,
-                   const string& query,
-                   const EList<string>& queries,
-                   const EList<string>& qualities,
-                   const string& outfile)
+static void driver(
+	const char * type,
+	const string& ebwtFileBase,
+	const string& query,
+	const EList<string>& queries,
+	const EList<string>& qualities,
+	const string& outfile)
 {
 	if(gVerbose || startVerbose)  {
 		cerr << "Entered driver(): "; logTime(cerr, true);
 	}
 	// Vector of the reference sequences; used for sanity-checking
-	EList<String<Dna5> > os;
+	EList<SString<char> > names, os;
+	EList<size_t> nameLens, seqLens;
 	// Read reference sequences from the command-line or from a FASTA file
 	if(!origString.empty()) {
-		// Determine if it's a file by looking at whether it has a FASTA-like
-		// extension
-		size_t len = origString.length();
-		if((len >= 6 && origString.substr(len-6) == ".fasta") ||
-		   (len >= 4 && origString.substr(len-4) == ".mfa")   ||
-		   (len >= 4 && origString.substr(len-4) == ".fas")   ||
-		   (len >= 4 && origString.substr(len-4) == ".fna")   ||
-		   (len >= 3 && origString.substr(len-3) == ".fa"))
-		{
-			// Read fasta file
-			EList<string> origFiles;
-			tokenize(origString, ",", origFiles);
-			readSequenceFiles<String<Dna5>, Fasta>(origFiles, os);
-		} else {
-			// Read sequence
-			readSequenceString(origString, os);
-		}
+		// Read fasta file(s)
+		EList<string> origFiles;
+		tokenize(origString, ",", origFiles);
+		parseFastas(origFiles, names, nameLens, os, seqLens);
 	}
 	PatternParams pp(
 		format,        // file format
@@ -2865,7 +2859,7 @@ static void driver(const char * type,
 		// against original strings
 		assert_eq(os.size(), ebwt.nPat());
 		for(size_t i = 0; i < os.size(); i++) {
-			assert_eq(length(os[i]), ebwt.plen()[i] + (gColor ? 1 : 0));
+			assert_eq(os[i].length(), ebwt.plen()[i] + (gColor ? 1 : 0));
 		}
 	}
 	// Sanity-check the restored version of the Ebwt
@@ -2895,7 +2889,7 @@ static void driver(const char * type,
 		// then instruct the sink to "retain" hits in a vector in
 		// memory so that we can easily sanity check them later on
 		HitSink *sink;
-		MSHitSink *mssink = NULL;
+		AlnSink *mssink = NULL;
 		auto_ptr<Mapq> bmapq(new BowtieMapq());
 		const EList<string>* refnames = &ebwt.refnames();
 		if(noRefNames) refnames = NULL;
@@ -2914,7 +2908,7 @@ static void driver(const char * type,
 					amap,         // if != NULL, AnnotationMap to use
 					fullRef,      // true -> print whole reference name, not just up to first whitespace
 					partitionSz); // size of partition, so we can check for straddling alignments
-				mssink = new MSVerboseHitSink(
+				mssink = new AlnSinkVerbose(
 					fout,         // initial output stream
 					suppressOuts, // suppress alignment columns
 					&readSink,    // read sink
@@ -3245,7 +3239,7 @@ int bowtie(int argc, const char **argv) {
 				cout << "Press key to continue..." << endl;
 				getchar();
 			}
-			driver<String<Dna, Alloc<> > >("DNA", ebwtFile, query, queries, qualities, outfile);
+			driver<SString<char> >("DNA", ebwtFile, query, queries, qualities, outfile);
 			CHUD_STOP();
 		}
 #ifdef CHUD_PROFILING

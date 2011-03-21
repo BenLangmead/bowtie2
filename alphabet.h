@@ -10,13 +10,10 @@
 
 #include <stdexcept>
 #include <string>
-#include <seqan/sequence.h>
-#include <seqan/file.h>
 #include <sstream>
 #include "assert_helpers.h"
 
 using namespace std;
-using namespace seqan;
 
 /// Convert an ascii char to a DNA category.  Categories are:
 /// 0 -> invalid
@@ -183,101 +180,5 @@ static inline void decodeNuc(char c , int& num, int *alts) {
 	}
 	}
 }
-
-/**
- * Return true iff the first string is dollar-less-than the second.
- * This means that we pretend that a 'dollar sign' character,
- * lexicographically larger than all other characters, exists at the
- * end of both strings.
- */
-template <typename TStr>
-static inline bool
-dollarLt(const TStr& l, const TStr& r) {
-	return isPrefix(r, l) || (l < r && !isPrefix(l, r));
-}
-
-/**
- * Return true iff the first string is dollar-greater-than the second.
- * This means that we pretend that a 'dollar sign' character,
- * lexicographically larger than all other characters, exists at the
- * end of both strings.
- */
-template <typename TStr>
-static inline bool
-dollarGt(const TStr& l, const TStr& r) {
-	return !dollarLt(l, r);
-}
-
-/**
- * Return a copy of the suffix of l starting at 'off'.
- */
-template <typename TStr>
-static inline std::string
-suffixStr(const TStr& l, size_t off) {
-	typedef typename Value<TStr>::Type TVal;
-	std::string ret;
-	size_t len = seqan::length(l);
-	for(size_t i = off; i < len; i++) {
-		ret.push_back((char)(TVal)l[i]);
-	}
-	return ret;
-}
-
-/// Reverse a string in-place
-template <typename TStr>
-static inline void reverseInPlace(TStr& s) {
-	typedef typename Value<TStr>::Type TVal;
-	size_t len = length(s);
-	for(size_t i = 0; i < (len>>1); i++) {
-		TVal tmp = s[i];
-		s[i] = s[len-i-1];
-		s[len-i-1] = tmp;
-	}
-}
-
-#if 0
-/**
- * Calculate the entropy of the given read.  Handle Ns by charging them
- * to the most frequent non-N character.
- */
-static inline float entropyDna5(const BTDnaString& read) {
-	size_t cs[5] = {0, 0, 0, 0, 0};
-	size_t readLen = read.length();
-	for(size_t i = 0; i < readLen; i++) {
-		int c = (int)read[i];
-		assert_lt(c, 5);
-		assert_geq(c, 0);
-		cs[c]++;
-	}
-	if(cs[4] > 0) {
-		// Charge the Ns to the non-N character with maximal count and
-		// then exclude them from the entropy calculation (i.e.,
-		// penalize Ns as much as possible)
-		if(cs[0] >= cs[1] && cs[0] >= cs[2] && cs[0] >= cs[3]) {
-			// Charge Ns to As
-			cs[0] += cs[4];
-		} else if(cs[1] >= cs[2] && cs[1] >= cs[3]) {
-			// Charge Ns to Cs
-			cs[1] += cs[4];
-		} else if(cs[2] >= cs[3]) {
-			// Charge Ns to Gs
-			cs[2] += cs[4];
-		} else {
-			// Charge Ns to Ts
-			cs[3] += cs[4];
-		}
-	}
-	float ent = 0.0;
-	for(int i = 0; i < 4; i++) {
-		if(cs[i] > 0) {
-			float frac = (float)cs[i] / (float)readLen;
-			ent += (frac * log(frac));
-		}
-	}
-	ent = -ent;
-	assert_geq(ent, 0.0);
-	return ent;
-}
-#endif
 
 #endif /*ALPHABETS_H_*/

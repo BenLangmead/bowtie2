@@ -41,7 +41,7 @@ void Edit::invertPoss(EList<Edit>& edits, size_t sz) {
 	// Invert all the .pos's
 	for(size_t i = 0; i < edits.size(); i++) {
 		assert_lt(edits[i].pos, sz);
-		edits[i].pos = sz - edits[i].pos - (edits[i].type == EDIT_TYPE_INS ? 0 : 1);
+		edits[i].pos = (uint32_t)(sz - edits[i].pos - (edits[i].type == EDIT_TYPE_INS ? 0 : 1));
 	}
 }
 

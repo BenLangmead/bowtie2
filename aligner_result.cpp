@@ -118,7 +118,7 @@ bool AlnRes::matchesRef(
 	char *raw_refbuf = new char[rflen + 16];
 	int nsOnLeft = 0;
 	if(refcoord_.off() < 0) {
-		nsOnLeft = -refcoord_.off();
+		nsOnLeft = -((int)refcoord_.off());
 	}
 	int off = ref.getStretch(
 		reinterpret_cast<uint32_t*>(raw_refbuf),

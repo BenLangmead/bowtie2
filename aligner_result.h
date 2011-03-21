@@ -518,7 +518,7 @@ public:
 	{
 		assert(rd1 != NULL || rd2 != NULL);
 		assert(rs1 != NULL || rs2 != NULL);
-		assert((rd1 == NULL) == (rs2 == NULL));
+		assert((rd1 == NULL) == (rs1 == NULL));
 		assert((rd2 == NULL) == (rs2 == NULL));
 		AlignmentScore best, secbest;
 		best.invalidate();

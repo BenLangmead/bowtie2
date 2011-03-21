@@ -37,6 +37,14 @@ sub isIUPAC($) {
 	return defined($iupac_u_nn{$_[0]});
 }
 
+##
+# Replace IUPAC characters with Ns.
+#
+sub iupacSubN($) {
+	$_[0] =~ tr/RYMKSWBVHDrymkswbvhd/NNNNNNNNNNnnnnnnnnnn/;
+	return $_[0];
+}
+
 my %compat = (
 	"A" => "A",
 	"T" => "T",

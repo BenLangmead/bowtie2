@@ -6,8 +6,6 @@
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
-#include <seqan/sequence.h>
-#include <seqan/index.h>
 #include "assert_helpers.h"
 #include "diff_sample.h"
 #include "multikey_qsort.h"
@@ -20,7 +18,6 @@
 #include "mem_ids.h"
 
 using namespace std;
-using namespace seqan;
 
 // Helpers for printing verbose messages
 
@@ -59,7 +56,7 @@ public:
 	_sanityCheck(__sanityCheck),
 	_passMemExc(__passMemExc),
 	_verbose(__verbose),
-	_itrBucket(),
+	_itrBucket(EBWTB_CAT),
 	_itrBucketPos(0xffffffff),
 	_itrPushedBackSuffix(0xffffffff),
 	_logger(__logger)
@@ -76,8 +73,8 @@ public:
 			_itrPushedBackSuffix = 0xffffffff;
 			return tmp;
 		}
-		while(_itrBucketPos >= length(_itrBucket) ||
-		      length(_itrBucket) == 0)
+		while(_itrBucketPos >= _itrBucket.size() ||
+		      _itrBucket.size() == 0)
 		{
 			if(!hasMoreBlocks()) {
 				throw out_of_range("No more suffixes");
@@ -107,7 +104,7 @@ public:
 	 * returns the lexicographically-first suffix.
 	 */
 	void resetSuffixItr() {
-		clear(_itrBucket);
+		_itrBucket.clear();
 		_itrBucketPos = 0xffffffff;
 		_itrPushedBackSuffix = 0xffffffff;
 		reset();
@@ -119,7 +116,7 @@ public:
 	 * lexicographically-first suffix.
 	 */
 	bool suffixItrIsReset() {
-		return length(_itrBucket)   == 0 &&
+		return _itrBucket.size()    == 0 &&
 		       _itrBucketPos        == 0xffffffff &&
 		       _itrPushedBackSuffix == 0xffffffff &&
 		       isReset();
@@ -130,7 +127,7 @@ public:
 	bool sanityCheck()  const { return _sanityCheck; }
 	bool verbose()      const { return _verbose; }
 	ostream& log()      const { return _logger; }
-	uint32_t size()     const { return length(_text)+1; }
+	size_t size()       const { return _text.length()+1; }
 
 protected:
 	/// Reset back to the first block
@@ -158,7 +155,7 @@ protected:
 	const bool       _sanityCheck; /// whether to perform sanity checks
 	const bool       _passMemExc;  /// true -> pass on memory exceptions
 	const bool       _verbose;     /// be talkative
-	String<uint32_t> _itrBucket;   /// current bucket
+	EList<uint32_t>  _itrBucket;   /// current bucket
 	uint32_t         _itrBucketPos;/// offset into current bucket
 	uint32_t         _itrPushedBackSuffix; /// temporary slot for lookahead
 	ostream&         _logger;      /// write log messages here
@@ -199,7 +196,7 @@ public:
 	      	              bool __verbose = false,
 	      	              ostream& __logger = cout) :
 	InorderBlockwiseSA<TStr>(__text, __bucketSz, __sanityCheck, __passMemExc, __verbose, __logger),
-	_sampleSuffs(), _cur(0), _dcV(__dcV), _dc(), _built(false)
+	_sampleSuffs(EBWTB_CAT), _cur(0), _dcV(__dcV), _dc(EBWTB_CAT), _built(false)
 	{ _randomSrc.init(__seed); reset(); }
 
 	~KarkkainenBlockwiseSA() { }
@@ -211,7 +208,7 @@ public:
 	 * the approximate number of bytes the Cover takes at all times.
 	 */
 	static size_t simulateAllocs(const TStr& text, uint32_t bucketSz) {
-		size_t len = length(text);
+		size_t len = text.length();
 		// _sampleSuffs and _itrBucket are in memory at the peak
 		size_t bsz = bucketSz;
 		size_t sssz = len / max<uint32_t>(bucketSz-1, 1);
@@ -223,11 +220,11 @@ public:
 	virtual void nextBlock();
 
 	/// Defined in blockwise_sa.cpp
-	virtual void qsort(String<uint32_t>& bucket);
+	virtual void qsort(EList<uint32_t>& bucket);
 
 	/// Return true iff more blocks are available
 	virtual bool hasMoreBlocks() const {
-		return _cur <= length(_sampleSuffs);
+		return _cur <= _sampleSuffs.size();
 	}
 
 	/// Return the difference-cover period
@@ -267,12 +264,12 @@ private:
 			_dc.get()->build();
 		}
 		// Calculate sample suffixes
-		if(this->bucketSz() <= length(this->text())) {
+		if(this->bucketSz() <= this->text().length()) {
 			VMSG_NL("Building samples");
 			buildSamples();
 		} else {
 			VMSG_NL("Skipping building samples since text length " <<
-			        length(this->text()) << " is less than bucket size: " <<
+			        this->text().length() << " is less than bucket size: " <<
 			        this->bucketSz());
 		}
 		_built = true;
@@ -298,11 +295,11 @@ private:
 	                      int64_t& j,
 	                      int64_t& k,
 	                      bool& kSoft,
-	                      const String<uint32_t>& z);
+	                      const EList<uint32_t>& z);
 
 	void buildSamples();
 
-	String<uint32_t> _sampleSuffs; /// sample suffixes
+	EList<uint32_t>  _sampleSuffs; /// sample suffixes
 	uint32_t         _cur;         /// offset to 1st elt of next block
 	const uint32_t   _dcV;         /// difference-cover periodicity
 	PtrWrap<TDC>     _dc;          /// queryable difference-cover data
@@ -314,27 +311,25 @@ private:
  * Qsort the set of suffixes whose offsets are in 'bucket'.
  */
 template<typename TStr>
-inline void KarkkainenBlockwiseSA<TStr>::qsort(String<uint32_t>& bucket) {
-	typedef typename Value<TStr>::Type TAlphabet;
+inline void KarkkainenBlockwiseSA<TStr>::qsort(EList<uint32_t>& bucket) {
 	const TStr& t = this->text();
-	uint32_t *s = begin(bucket);
-	uint32_t slen = seqan::length(bucket);
-	uint32_t len = seqan::length(t);
+	uint32_t *s = bucket.ptr();
+	size_t slen = bucket.size();
+	uint32_t len = (uint32_t)t.length();
 	if(_dc.get() != NULL) {
 		// Use the difference cover as a tie-breaker if we have it
 		VMSG_NL("  (Using difference cover)");
 		// Extract the 'host' array because it's faster to work
-		// with than the String<> container
-		uint8_t *host = (uint8_t*)t.data_begin;
+		// with than the EList<> container
+		const uint8_t *host = (const uint8_t *)t.buf();
 		assert(_dc.get() != NULL);
-		mkeyQSortSufDcU8(t, host, len, s, slen, *_dc.get(),
-		                 ValueSize<TAlphabet>::VALUE,
+		mkeyQSortSufDcU8(t, host, len, s, slen, *_dc.get(), 4,
 		                 this->verbose(), this->sanityCheck());
 	} else {
 		VMSG_NL("  (Not using difference cover)");
 		// We don't have a difference cover - just do a normal
 		// suffix sort
-		mkeyQSortSuf(t, s, slen, ValueSize<TAlphabet>::VALUE,
+		mkeyQSortSuf(t, s, slen, 4,
 		             this->verbose(), this->sanityCheck());
 	}
 }
@@ -346,24 +341,25 @@ inline void KarkkainenBlockwiseSA<TStr>::qsort(String<uint32_t>& bucket) {
  * packed means that the array cannot be sorted directly.
  */
 template<>
-inline void KarkkainenBlockwiseSA<String<Dna, Packed<> > >::qsort(String<uint32_t>& bucket) {
-	const String<Dna, Packed<> >& t = this->text();
-	uint32_t *s = begin(bucket);
-	uint32_t slen = seqan::length(bucket);
-	uint32_t len = seqan::length(t);
+inline void KarkkainenBlockwiseSA<S2bDnaString>::qsort(
+	EList<uint32_t>& bucket)
+{
+	const S2bDnaString& t = this->text();
+	uint32_t *s = bucket.ptr();
+	size_t slen = bucket.size();
+	size_t len = t.length();
 	if(_dc.get() != NULL) {
 		// Use the difference cover as a tie-breaker if we have it
 		VMSG_NL("  (Using difference cover)");
 		// Can't use the text's 'host' array because the backing
 		// store for the packed string is not one-char-per-elt.
-		mkeyQSortSufDcU8(t, t, len, s, slen, *_dc.get(),
-		                 ValueSize<Dna>::VALUE,
+		mkeyQSortSufDcU8(t, t, len, s, slen, *_dc.get(), 4,
 		                 this->verbose(), this->sanityCheck());
 	} else {
 		VMSG_NL("  (Not using difference cover)");
 		// We don't have a difference cover - just do a normal
 		// suffix sort
-		mkeyQSortSuf(t, s, slen, ValueSize<Dna>::VALUE,
+		mkeyQSortSuf(t, s, slen, 4,
 		             this->verbose(), this->sanityCheck());
 	}
 }
@@ -376,29 +372,28 @@ inline void KarkkainenBlockwiseSA<String<Dna, Packed<> > >::qsort(String<uint32_
  */
 template<typename TStr>
 void KarkkainenBlockwiseSA<TStr>::buildSamples() {
-	typedef typename Value<TStr>::Type TAlphabet;
 	const TStr& t = this->text();
 	uint32_t bsz = this->bucketSz()-1; // subtract 1 to leave room for sample
-	uint32_t len = length(this->text());
+	size_t len = this->text().length();
 	// Prepare _sampleSuffs array
-	clear(_sampleSuffs);
-	uint32_t numSamples = ((len/bsz)+1)<<1; // ~len/bsz x 2
+	_sampleSuffs.clear();
+	uint32_t numSamples = (uint32_t)((len/bsz)+1)<<1; // ~len/bsz x 2
 	assert_gt(numSamples, 0);
 	VMSG_NL("Reserving space for " << numSamples << " sample suffixes");
 	if(this->_passMemExc) {
-		reserve(_sampleSuffs, numSamples, Exact());
+		_sampleSuffs.resizeExact(numSamples);
 		// Randomly generate samples.  Allow duplicates for now.
 		VMSG_NL("Generating random suffixes");
 		for(size_t i = 0; i < numSamples; i++) {
-			appendValue(_sampleSuffs, _randomSrc.nextU32() % len);
+			_sampleSuffs[i] = (uint32_t)(_randomSrc.nextU32() % len);
 		}
 	} else {
 		try {
-			reserve(_sampleSuffs, numSamples, Exact());
+			_sampleSuffs.resizeExact(numSamples);
 			// Randomly generate samples.  Allow duplicates for now.
 			VMSG_NL("Generating random suffixes");
 			for(size_t i = 0; i < numSamples; i++) {
-				appendValue(_sampleSuffs, _randomSrc.nextU32() % len);
+				_sampleSuffs[i] = (uint32_t)(_randomSrc.nextU32() % len);
 			}
 		} catch(bad_alloc &e) {
 			if(this->_passMemExc) {
@@ -418,12 +413,12 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
 	// linearly with the size of the input
 	{
 		Timer timer(cout, "QSorting sample offsets, eliminating duplicates time: ", this->verbose());
-		VMSG_NL("QSorting " << length(_sampleSuffs) << " sample offsets, eliminating duplicates");
-		sort(begin(_sampleSuffs), end(_sampleSuffs));
-		size_t sslen = length(_sampleSuffs);
+		VMSG_NL("QSorting " << _sampleSuffs.size() << " sample offsets, eliminating duplicates");
+		_sampleSuffs.sort();
+		size_t sslen = _sampleSuffs.size();
 		for(size_t i = 0; i < sslen-1; i++) {
 			if(_sampleSuffs[i] == _sampleSuffs[i+1]) {
-				erase(_sampleSuffs, i--);
+				_sampleSuffs.erase(i--);
 				sslen--;
 			}
 		}
@@ -431,7 +426,7 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
 	// Multikey quicksort the samples
 	{
 		Timer timer(cout, "  Multikey QSorting samples time: ", this->verbose());
-		VMSG_NL("Multikey QSorting " << length(_sampleSuffs) << " samples");
+		VMSG_NL("Multikey QSorting " << _sampleSuffs.size() << " samples");
 		this->qsort(_sampleSuffs);
 	}
 	// Calculate bucket sizes
@@ -441,14 +436,16 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
 	while(--limit >= 0) {
 		// Calculate bucket sizes by doing a binary search for each
 		// suffix and noting where it lands
-		uint32_t numBuckets = length(_sampleSuffs)+1;
-		String<uint32_t> bucketSzs; // holds computed bucket sizes
-		String<uint32_t> bucketReps; // holds 1 member of each bucket (for splitting)
+		uint32_t numBuckets = (uint32_t)_sampleSuffs.size()+1;
+		EList<uint32_t> bucketSzs(EBWTB_CAT); // holds computed bucket sizes
+		EList<uint32_t> bucketReps(EBWTB_CAT); // holds 1 member of each bucket (for splitting)
 		try {
 			// Allocate and initialize containers for holding bucket
 			// sizes and representatives.
-			fill(bucketSzs, numBuckets, 0, Exact());
-			fill(bucketReps, numBuckets, 0xffffffff, Exact());
+			bucketSzs.resizeExact(numBuckets);
+			bucketReps.resizeExact(numBuckets);
+			bucketSzs.fillZero();
+			bucketReps.fill(0xffffffff);
 		} catch(bad_alloc &e) {
 			if(this->_passMemExc) {
 				throw e; // rethrow immediately
@@ -469,7 +466,7 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
 		{
 			VMSG_NL("  Binary sorting into buckets");
 			Timer timer(cout, "  Binary sorting into buckets time: ", this->verbose());
-			uint32_t lenDiv10 = (len + 9) / 10;
+			uint32_t lenDiv10 = (uint32_t)((len + 9) / 10);
 			for(uint32_t iten = 0, ten = 0; iten < len; iten += lenDiv10, ten++) {
 				uint32_t itenNext = iten + lenDiv10;
 				if(ten > 0) VMSG_NL("  " << (ten * 10) << "%");
@@ -492,8 +489,8 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
 		// and split/merge as necessary
 		int added = 0;
 		int merged = 0;
-		assert_eq(length(bucketSzs), numBuckets);
-		assert_eq(length(bucketReps), numBuckets);
+		assert_eq(bucketSzs.size(), numBuckets);
+		assert_eq(bucketReps.size(), numBuckets);
 		{
 			Timer timer(cout, "  Splitting and merging time: ", this->verbose());
 			VMSG_NL("Splitting and merging");
@@ -501,29 +498,29 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
 				uint32_t mergedSz = bsz + 1;
 				assert(bucketSzs[i] == 0 || bucketReps[i] != 0xffffffff);
 				if(i < (int64_t)numBuckets-1) {
-					mergedSz = bucketSzs[i] + bucketSzs[i+1] + 1;
+					mergedSz = bucketSzs[(size_t)i] + bucketSzs[(size_t)i+1] + 1;
 				}
 				// Merge?
 				if(mergedSz <= bsz) {
-					bucketSzs[i+1] += (bucketSzs[i]+1);
+					bucketSzs[(size_t)i+1] += (bucketSzs[(size_t)i]+1);
 					// The following may look strange, but it's necessary
 					// to ensure that the merged bucket has a representative
-					bucketReps[i+1] = _sampleSuffs[i+added];
-					erase(_sampleSuffs, i+added);
-					erase(bucketSzs, i);
-					erase(bucketReps, i);
+					bucketReps[i+1] = _sampleSuffs[(size_t)i+added];
+					_sampleSuffs.erase((size_t)i+added);
+					bucketSzs.erase((size_t)i);
+					bucketReps.erase((size_t)i);
 					i--; // might go to -1 but ++ will overflow back to 0
 					numBuckets--;
 					merged++;
-					assert_eq(numBuckets, length(_sampleSuffs)+1-added);
-					assert_eq(numBuckets, length(bucketSzs));
+					assert_eq(numBuckets, _sampleSuffs.size()+1-added);
+					assert_eq(numBuckets, bucketSzs.size());
 				}
 				// Split?
 				else if(bucketSzs[i] > bsz) {
 					// Add an additional sample from the bucketReps[]
 					// set accumulated in the binarySASearch loop; this
 					// effectively splits the bucket
-					insertValue(_sampleSuffs, i + (added++), bucketReps[i]);
+					_sampleSuffs.insert(bucketReps[i], i + (added++));
 				}
 			}
 		}
@@ -546,7 +543,7 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
 //		VMSG_NL("Iterated too many times; trying again...");
 //		buildSamples();
 //	}
-	VMSG_NL("Avg bucket size: " << ((float)(len-length(_sampleSuffs)) / (length(_sampleSuffs)+1)) << " (target: " << bsz << ")");
+	VMSG_NL("Avg bucket size: " << ((float)(len-_sampleSuffs.size()) / (_sampleSuffs.size()+1)) << " (target: " << bsz << ")");
 }
 
 /**
@@ -555,7 +552,7 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
 template<typename T> inline
 static uint32_t suffixLcp(const T& t, uint32_t aOff, uint32_t bOff) {
 	uint32_t c = 0;
-	size_t len = length(t);
+	size_t len = t.length();
 	assert_leq(aOff, len);
 	assert_leq(bOff, len);
 	while(aOff + c < len && bOff + c < len && t[aOff + c] == t[bOff + c]) c++;
@@ -576,7 +573,7 @@ bool KarkkainenBlockwiseSA<TStr>::tieBreakingLcp(uint32_t aOff,
 {
 	const TStr& t = this->text();
 	uint32_t c = 0;
-	uint32_t tlen = length(t);
+	uint32_t tlen = (uint32_t)t.length();
 	assert_leq(aOff, tlen);
 	assert_leq(bOff, tlen);
 	assert(_dc.get() != NULL);
@@ -610,17 +607,18 @@ bool KarkkainenBlockwiseSA<TStr>::tieBreakingLcp(uint32_t aOff,
  * filled in then calculate it from scratch.
  */
 template<typename T>
-static uint32_t lookupSuffixZ(const T& t,
-                              uint32_t zOff,
-                              uint32_t off,
-                              const String<uint32_t>& z)
+static uint32_t lookupSuffixZ(
+	const T& t,
+	uint32_t zOff,
+	uint32_t off,
+	const EList<uint32_t>& z)
 {
-	if(zOff < length(z)) {
+	if(zOff < z.size()) {
 		uint32_t ret = z[zOff];
 		assert_eq(ret, suffixLcp(t, off + zOff, off));
 		return ret;
 	}
-	assert_leq(off + zOff, length(t));
+	assert_leq(off + zOff, t.length());
 	return suffixLcp(t, off + zOff, off);
 }
 
@@ -629,15 +627,16 @@ static uint32_t lookupSuffixZ(const T& t,
  * false -> i > cmp
  */
 template<typename TStr> inline
-bool KarkkainenBlockwiseSA<TStr>::suffixCmp(uint32_t cmp,
-                                            uint32_t i,
-                                            int64_t& j,
-                                            int64_t& k,
-                                            bool& kSoft,
-                                            const String<uint32_t>& z)
+bool KarkkainenBlockwiseSA<TStr>::suffixCmp(
+	uint32_t cmp,
+	uint32_t i,
+	int64_t& j,
+	int64_t& k,
+	bool& kSoft,
+	const EList<uint32_t>& z)
 {
 	const TStr& t = this->text();
-	uint32_t len = length(t);
+	uint32_t len = (uint32_t)t.length();
 	// i is not covered by any previous match
 	uint32_t l;
 	if(i > k) {
@@ -649,7 +648,7 @@ bool KarkkainenBlockwiseSA<TStr>::suffixCmp(uint32_t cmp,
 	// i is covered by a previous match
 	else /* i <= k */ {
 		assert_gt((int64_t)i, j);
-		uint32_t zIdx = i-j;
+		uint32_t zIdx = (uint32_t)(i-j);
 		assert_leq(zIdx, len-cmp);
 		if(zIdx < _dcV || _dc.get() == NULL) {
 			// Go as far as the Z-box says
@@ -664,8 +663,8 @@ bool KarkkainenBlockwiseSA<TStr>::suffixCmp(uint32_t cmp,
 			bool ret = tieBreakingLcp(i, cmp, l, kSoft);
 			// Sanity-check tie-breaker
 			if(this->sanityCheck()) {
-				if(ret) assert(dollarLt(suffix(t, i), suffix(t, cmp)));
-				else    assert(dollarGt(suffix(t, i), suffix(t, cmp)));
+				if(ret) assert(sstr_suf_lt(t, i, t, cmp, false));
+				else    assert(sstr_suf_gt(t, i, t, cmp, false));
 			}
 			j = i;
 			k = i + l;
@@ -690,7 +689,7 @@ bool KarkkainenBlockwiseSA<TStr>::suffixCmp(uint32_t cmp,
 	}
 	// Z box extends further than previous match
 	else if(i + l > k) {
-		l = k - i; // point to just after previous match
+		l = (uint32_t)(k - i); // point to just after previous match
 		j = i; // update furthest-extending LHS
 		if(kSoft) {
 			while(l < len-cmp && k < len && t[cmp+l] == t[k]) {
@@ -725,12 +724,20 @@ bool KarkkainenBlockwiseSA<TStr>::suffixCmp(uint32_t cmp,
 	   t[i + l] < t[cmp + l]))
 	{
 		// Case 2: Text suffix is less than upper sample suffix
-		if(this->sanityCheck()) assert(dollarLt(suffix(t, i), suffix(t, cmp)));
+#ifndef NDEBUG
+		if(this->sanityCheck()) {
+			assert(sstr_suf_lt(t, i, t, cmp, false));
+		}
+#endif
 		return true; // suffix at i is less than suffix at cmp
 	}
 	else {
 		// Case 3: Text suffix is greater than upper sample suffix
-		if(this->sanityCheck()) assert(dollarGt(suffix(t, i), suffix(t, cmp)));
+#ifndef NDEBUG
+		if(this->sanityCheck()) {
+			assert(sstr_suf_gt(t, i, t, cmp, false));
+		}
+#endif
 		return false; // suffix at i is less than suffix at cmp
 	}
 }
@@ -741,27 +748,28 @@ bool KarkkainenBlockwiseSA<TStr>::suffixCmp(uint32_t cmp,
  */
 template<typename TStr>
 void KarkkainenBlockwiseSA<TStr>::nextBlock() {
-	typedef typename Value<TStr>::Type TAlphabet;
-	String<uint32_t>& bucket = this->_itrBucket;
-	VMSG_NL("Getting block " << (_cur+1) << " of " << length(_sampleSuffs)+1);
+	EList<uint32_t>& bucket = this->_itrBucket;
+	VMSG_NL("Getting block " << (_cur+1) << " of " << _sampleSuffs.size()+1);
 	assert(_built);
 	assert_gt(_dcV, 3);
-	assert_leq(_cur, length(_sampleSuffs));
+	assert_leq(_cur, _sampleSuffs.size());
 	const TStr& t = this->text();
-	uint32_t len = length(t);
+	uint32_t len = (uint32_t)t.length();
 	// Set up the bucket
-	clear(bucket);
+	bucket.clear();
 	uint32_t lo = 0xffffffff, hi = 0xffffffff;
-	if(length(_sampleSuffs) == 0) {
+	if(_sampleSuffs.size() == 0) {
 		// Special case: if _sampleSuffs is 0, then multikey-quicksort
 		// everything
 		VMSG_NL("  No samples; assembling all-inclusive block");
 		assert_eq(0, _cur);
 		try {
-			if(capacity(bucket) < this->bucketSz()) {
-				reserve(bucket, len+1, Exact());
+			if(bucket.size() < this->bucketSz()) {
+				bucket.resizeExact(len+1);
 			}
-			for(uint32_t i = 0; i < len; i++) append(bucket, i);
+			for(uint32_t i = 0; i < len; i++) {
+				bucket[i] = i;
+			}
 		} catch(bad_alloc &e) {
 			if(this->_passMemExc) {
 				throw e; // rethrow immediately
@@ -777,8 +785,8 @@ void KarkkainenBlockwiseSA<TStr>::nextBlock() {
 			VMSG_NL("  Reserving size (" << this->bucketSz() << ") for bucket");
 			// BTL: Add a +100 fudge factor; there seem to be instances
 			// where a bucket ends up having one more elt than bucketSz()
-			if(capacity(bucket) < this->bucketSz()+100) {
-				reserve(bucket, this->bucketSz()+100, Exact());
+			if(bucket.size() < this->bucketSz()+100) {
+				bucket.reserveExact(this->bucketSz()+100);
 			}
 		} catch(bad_alloc &e) {
 			if(this->_passMemExc) {
@@ -793,28 +801,30 @@ void KarkkainenBlockwiseSA<TStr>::nextBlock() {
 		// Select upper and lower bounds from _sampleSuffs[] and
 		// calculate the Z array up to the difference-cover periodicity
 		// for both.  Be careful about first/last buckets.
-		String<uint32_t> zLo, zHi;
+		EList<uint32_t> zLo(EBWTB_CAT), zHi(EBWTB_CAT);
 		assert_geq(_cur, 0);
-		assert_leq(_cur, length(_sampleSuffs));
+		assert_leq(_cur, _sampleSuffs.size());
 		bool first = (_cur == 0);
-		bool last  = (_cur == length(_sampleSuffs));
+		bool last  = (_cur == _sampleSuffs.size());
 		try {
 			Timer timer(cout, "  Calculating Z arrays time: ", this->verbose());
 			VMSG_NL("  Calculating Z arrays");
 			if(!last) {
 				// Not the last bucket
-				assert_lt(_cur, length(_sampleSuffs));
+				assert_lt(_cur, _sampleSuffs.size());
 				hi = _sampleSuffs[_cur];
-				fill(zHi, _dcV, 0, Exact());
+				zHi.resizeExact(_dcV);
+				zHi.fillZero();
 				assert_eq(zHi[0], 0);
 				calcZ(t, hi, zHi, this->verbose(), this->sanityCheck());
 			}
 			if(!first) {
 				// Not the first bucket
 				assert_gt(_cur, 0);
-				assert_leq(_cur, length(_sampleSuffs));
+				assert_leq(_cur, _sampleSuffs.size());
 				lo = _sampleSuffs[_cur-1];
-				fill(zLo, _dcV, 0, Exact());
+				zLo.resizeExact(_dcV);
+				zLo.fillZero();
 				assert_gt(_dcV, 3);
 				assert_eq(zLo[0], 0);
 				calcZ(t, lo, zLo, this->verbose(), this->sanityCheck());
@@ -840,7 +850,7 @@ void KarkkainenBlockwiseSA<TStr>::nextBlock() {
 		int64_t kHi = -1, kLo = -1;
 		int64_t jHi = -1, jLo = -1;
 		bool kHiSoft = false, kLoSoft = false;
-		assert_eq(0, length(bucket));
+		assert_eq(0, bucket.size());
 		{
 			Timer timer(cout, "  Block accumulator loop time: ", this->verbose());
 			VMSG_NL("  Entering block accumulator loop:");
@@ -861,12 +871,12 @@ void KarkkainenBlockwiseSA<TStr>::nextBlock() {
 				// In the bucket! - add it
 				assert_lt(i, len);
 				try {
-					appendValue(bucket, i);
+					bucket.push_back(i);
 				} catch(bad_alloc &e) {
 					if(this->_passMemExc) {
 						throw e; // rethrow immediately
 					} else {
-						cerr << "Could not append element to block of " << ((length(bucket)) * 4) << " bytes" << endl;
+						cerr << "Could not append element to block of " << ((bucket.size()) * 4) << " bytes" << endl;
 						cerr << "Please try using a larger number of blocks by specifying a smaller --bmax or" << endl
 						     << "a larger --bmaxdivn" << endl;
 						throw 1;
@@ -875,26 +885,26 @@ void KarkkainenBlockwiseSA<TStr>::nextBlock() {
 				// Not necessarily true; we allow overflowing buckets
 				// since we can't guarantee that a good set of sample
 				// suffixes can be found in a reasonable amount of time
-				//assert_lt(length(bucket), this->bucketSz());
+				//assert_lt(bucket.size(), this->bucketSz());
 			}
 			} // end loop over all suffixes of t
 			VMSG_NL("  100%");
 		}
-	} // end else clause of if(length(_sampleSuffs) == 0)
+	} // end else clause of if(_sampleSuffs.size() == 0)
 	// Sort the bucket
-	if(length(bucket) > 0) {
+	if(bucket.size() > 0) {
 		Timer timer(cout, "  Sorting block time: ", this->verbose());
-		VMSG_NL("  Sorting block of length " << length(bucket));
+		VMSG_NL("  Sorting block of length " << bucket.size());
 		this->qsort(bucket);
 	}
 	if(hi != 0xffffffff) {
 		// Not the final bucket; throw in the sample on the RHS
-		appendValue(bucket, hi);
+		bucket.push_back(hi);
 	} else {
 		// Final bucket; throw in $ suffix
-		appendValue(bucket, len);
+		bucket.push_back(len);
 	}
-	VMSG_NL("Returning block of " << length(bucket));
+	VMSG_NL("Returning block of " << bucket.size());
 	_cur++; // advance to next bucket
 }
 

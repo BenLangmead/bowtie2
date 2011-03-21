@@ -10,13 +10,13 @@
 template<typename T>
 void calcZ(const T& s,
            uint32_t off,
-           String<uint32_t>& z,
+           EList<uint32_t>& z,
            bool verbose = false,
            bool sanityCheck = false)
 {
 	size_t lCur = 0, rCur = 0;
-	size_t zlen = length(z);
-	size_t slen = length(s);
+	size_t zlen = z.size();
+	size_t slen = s.length();
 	assert_gt(zlen, 0);
 	assert_eq(z[0], 0);
 	//assert_leq(zlen, slen);
@@ -26,8 +26,8 @@ void calcZ(const T& s,
 		if(k > rCur) {
 			// compare starting at k with prefix starting at 0
 			size_t ki = k;
-			while(off+ki < length(s) && s[off+ki] == s[off+ki-k]) ki++;
-			z[k] = ki - k;
+			while(off+ki < s.length() && s[off+ki] == s[off+ki-k]) ki++;
+			z[k] = (uint32_t)(ki - k);
 			assert_lt(off+z[k], slen);
 			if(z[k] > 0) {
 				lCur = k;
@@ -44,8 +44,8 @@ void calcZ(const T& s,
 				// lCur, rCur unchanged
 			} else if (z[kPrime] > 0) {
 				int q = 0;
-				while (off+q+rCur+1 < length(s) && s[off+q+rCur+1] == s[off+betaLen+q]) q++;
-				z[k] = betaLen + q;
+				while (off+q+rCur+1 < s.length() && s[off+q+rCur+1] == s[off+betaLen+q]) q++;
+				z[k] = (uint32_t)(betaLen + q);
 				assert_lt(off+z[k], slen);
 				rCur = rCur + q;
 				assert_geq(k, lCur);
@@ -62,9 +62,9 @@ void calcZ(const T& s,
 		// Recalculate Z-boxes using naive quadratic-time algorithm and
 		// compare to linear-time result
 		assert_eq(0, z[0]);
-		for(size_t i = 1; i < length(z); i++) {
+		for(size_t i = 1; i < z.size(); i++) {
 			size_t j;
-			for(j = i; off+j < length(s); j++) {
+			for(j = i; off+j < s.length(); j++) {
 				if(s[off+j] != s[off+j-i]) break;
 			}
 			assert_eq(j-i, z[i]);

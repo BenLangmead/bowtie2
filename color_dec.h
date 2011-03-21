@@ -579,8 +579,8 @@ public:
 
 private:
 	EList<EList<GappedCell> > table_;
-	SStringFixed<uint16_t> delAllow_;
-	SStringFixed<uint16_t> insAllow_;
+	SStringExpandable<uint16_t> delAllow_;
+	SStringExpandable<uint16_t> insAllow_;
 };
 
 class ColorspaceDecoder {

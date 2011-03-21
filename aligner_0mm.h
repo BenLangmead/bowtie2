@@ -33,7 +33,7 @@ public:
 			uint32_t cacheLimit,
 			ChunkPool *pool,
 			BitPairReference* refs,
-			EList<String<Dna5> >& os,
+			EList<SString<char> >& os,
 			uint32_t seed) :
 			ebwtFw_(ebwtFw),
 			ebwtBw_(ebwtBw),
@@ -91,8 +91,8 @@ public:
 		delete drVec;
 
 		// Set up a RangeChaser
-		RangeChaser<String<Dna> > *rchase =
-			new RangeChaser<String<Dna> >(cacheLimit_, cacheFw_, cacheBw_);
+		RangeChaser *rchase =
+			new RangeChaser(cacheLimit_, cacheFw_, cacheBw_);
 
 		ColorspaceDecoder *dec = new ColorspaceDecoder();
 
@@ -112,7 +112,7 @@ private:
 	const uint32_t cacheLimit_;
 	ChunkPool *pool_;
 	BitPairReference* refs_;
-	EList<String<Dna5> >& os_;
+	EList<SString<char> >& os_;
 	uint32_t seed_;
 };
 
@@ -138,7 +138,7 @@ public:
 			uint32_t cacheLimit,
 			ChunkPool *pool,
 			BitPairReference* refs,
-			EList<String<Dna5> >& os,
+			EList<SString<char> >& os,
 			uint32_t seed) :
 			ebwtFw_(ebwtFw),
 			sink_(sink),
@@ -256,12 +256,12 @@ public:
 				os_, false, pool_, NULL);
 		}
 
-		RefAligner<String<Dna5> >* refAligner
-			= new ExactRefAligner<String<Dna5> >();
+		RefAligner<SString<char> >* refAligner
+			= new ExactRefAligner<SString<char> >();
 
 		// Set up a RangeChaser
-		RangeChaser<String<Dna> > *rchase =
-			new RangeChaser<String<Dna> >(cacheLimit_, cacheFw_, cacheBw_);
+		RangeChaser *rchase =
+			new RangeChaser(cacheLimit_, cacheFw_, cacheBw_);
 
 		ColorspaceDecoder *dec = new ColorspaceDecoder();
 
@@ -296,7 +296,7 @@ private:
 	const uint32_t cacheLimit_;
 	ChunkPool *pool_;
 	BitPairReference* refs_;
-	EList<String<Dna5> >& os_;
+	EList<SString<char> >& os_;
 	const uint32_t seed_;
 };
 

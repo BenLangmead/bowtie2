@@ -49,7 +49,7 @@ struct BowtieIndex {
 	{
 		reset();
 		refstrs = refs;
-		ebwts = Ebwt::fromStrings<seqan::String<Dna> >(
+		ebwts = Ebwt::fromStrings<SString<char> >(
 			refstrs,
 			false, // colorspace? no
 			false, // packed? no
@@ -85,7 +85,7 @@ struct BowtieIndex {
 			true,   // load reference names?
 			false); // verbose?
 		if(!nocolor) {
-			cebwts = Ebwt::fromStrings<seqan::String<Dna> >(
+			cebwts = Ebwt::fromStrings<SString<char> >(
 				refstrs,
 				true,  // colorspace? yes
 				false, // packed? no

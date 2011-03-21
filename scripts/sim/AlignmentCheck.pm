@@ -14,6 +14,7 @@ use strict;
 use warnings;
 use FindBin qw($Bin);
 use lib $Bin;
+use DNA;
 
 ##
 # Parse a fasta file into the %ref hash
@@ -319,9 +320,23 @@ sub parseBowtieLines {
 		my $roverhang = $off + length($rfseq) - length($self->refs->{$reftype}{$refname});
 		if($roverhang > 0) {
 			$padright = "N" x $roverhang;
+			$exlen -= $roverhang;
 		}
-		my $trueRfseq = $padleft . substr($self->refs->{$reftype}{$refname}, $exoff, $exlen) . $padright;
-		$rfseq eq $trueRfseq || die "Did not match:\n$seq\n$rfseq\n$trueRfseq\n";
+		my $refsub = substr($self->refs->{$reftype}{$refname}, $exoff, $exlen);
+		length($refsub) == $exlen ||
+			die "Tried to extract ref substring of length $exlen, got \"$refsub\"";
+		$refsub = DNA::iupacSubN($refsub);
+		my $trueRfseq = $padleft . $refsub . $padright;
+		length($trueRfseq) == length($rfseq) ||
+			die "Different lengths for edited read and ref:\n".
+			"       Read: $seq\n".
+			"Edited read: $rfseq\n".
+			"        Ref: $trueRfseq\n";
+		$rfseq eq $trueRfseq ||
+			die "Did not match:\n".
+			"       Read: $seq\n".
+			"Edited read: $rfseq\n".
+			"        Ref: $trueRfseq\n";
 		$self->{_nals}++;
 	}
 }
@@ -387,7 +402,7 @@ sub printSummary {
 	my $self = shift;
 	print STDERR "--- Summary ---\n";
 	print STDERR "Read ".scalar(keys %{$self->refs})." reference strings\n";
-	print STDERR "Checked $self->nals alignments, $self->nedits edits\n";
+	print STDERR "Checked $self->{_nals} alignments, $self->{_nedits} edits\n";
 	print STDERR "---------------\n";
 	print STDERR "PASSED\n";
 }

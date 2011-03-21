@@ -38,9 +38,7 @@ sub randStr($) {
 ##
 # Default random generator for number of reference per test case.
 #
-sub defaultRefNumGen() {
-	return int(Math::Random::random_exponential(1, 8))+1;
-}
+sub defaultRefNumGen() { return int(Math::Random::random_exponential(1, 8))+1; }
 
 ##
 # Default random generator for reference length.
@@ -288,12 +286,15 @@ sub genDNAgen {
 # for each sequence.
 #
 sub genRef {
-	my ($self, $ref, $refdnagen, $tmpfn) = @_;
+	my ($self, $ref, $refdnagen, $sm, $tmpfn) = @_;
 	# Get a generator for reference length
 	my $reflen = $self->rflengen;
 	# Generate the number of references
 	my $refnum = $self->rfnumgen->();
-	$refnum > 0 || die;
+	$refnum = log($refnum) if $sm;
+	$refnum = 1 if $refnum <= 0;
+	$refnum = log($refnum) if $sm;
+	$refnum = 1 if $refnum <= 0;
 	# Open output file
 	open (FA, ">$tmpfn") || die "Could not open temporary fasta file '$tmpfn' for writing";
 	my %ccnt = ();
@@ -301,7 +302,12 @@ sub genRef {
 	for (1..$refnum) {
 		# Randomly generate length
 		my $len = $reflen->();
-		$len > 0 || die;
+		$len = log($len) if $sm;
+		$len = 1 if $len <= 0;
+		$len = log($len) if $sm;
+		$len = 1 if $len <= 0;
+		$len = log($len) if $sm;
+		$len = 1 if $len <= 0;
 		my $seq = $refdnagen->nextSeq($len);
 		my $name = "Sim.pm.$_";
 		$ref->{$name} = $seq;
@@ -352,9 +358,9 @@ sub genBuildArgs {
 	my %args = ();
 	my $r1 = int(rand(3));
 	if($r1 == 0) {
-		$args{"--bmaxdivn"} = 1;
+		$args{"--bmaxdivn"} = int(Math::Random::random_exponential(1, 4))+1;
 	} elsif($r1 == 1) {
-		$args{"-B"} = int(Math::Random::random_exponential(1, 10000))+100;
+		$args{"--bmax"} = int(Math::Random::random_exponential(1, 10000))+100;
 	}
 	my $r2 = int(rand(2));
 	if($r2 == 0) {
@@ -385,14 +391,15 @@ sub build {
 			$argstr .= " ".$args->{$_};
 		}
 	}
+	$argstr .= " --sanity";
 	# Build nucleotide index
-	my $cmd = "$conf->{bowtie2_build} $fa $idx";
+	my $cmd = "$conf->{bowtie2_build_debug} $argstr $fa $idx";
 	print STDERR "$cmd\n";
 	system($cmd);
 	$? == 0 || die "Error running '$cmd'; exitlevel=$?";
 	print STDERR "Built nucleotide index '$idx'\n";
 	# Build colorspace index
-	$cmd = "$conf->{bowtie2_build} -C $fa ${idx}.c";
+	$cmd = "$conf->{bowtie2_build_debug} $argstr -C $fa ${idx}.c";
 	print STDERR "$cmd\n";
 	system($cmd);
 	$? == 0 || die "Error running '$cmd'; exitlevel=$?";
@@ -679,13 +686,13 @@ sub align {
 	open(ALSDEB, ">$als_debug") || die "Could not open '$als_debug' for writing";
 	open(ALSDEBCMD, "$cmd |") || die "Could not open pipe '$cmd |'";
 	my $ival = 100;
-	my $als = 0;
+	my $nals = 0;
 	while(<ALSDEBCMD>) {
 		# Check the sanity of this alignment
 		$ac->checkAlignments([$_], 0);
 		print ALSDEB $_;
-		$als++;
-		print STDERR "  Read $als alignments...\n" if ($als % $ival) == 0;
+		$nals++;
+		print STDERR "  Read $nals alignments...\n" if ($nals % $ival) == 0;
 	}
 	close(ALSDEBCMD);
 	close(ALSDEB);
@@ -752,7 +759,7 @@ sub nextCase {
 	# Generate references and write them to a temporary fasta file
 	my $tmpfn = "$conf->{tempdir}/Sim.pm.$conf->{randstr}.fa";
 	my %refs = ();
-	$self->genRef(\%refs, $refdnagen, $tmpfn);
+	$self->genRef(\%refs, $refdnagen, $conf->{small}, $tmpfn);
 	# Run bowtie2-build
 	my $tmpidxfn = "$conf->{tempdir}/Sim.pm.$conf->{randstr}";
 	my $buildArgs = $self->genBuildArgs();

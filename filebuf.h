@@ -16,10 +16,29 @@
 #include "assert_helpers.h"
 
 /**
- * Simple wrapper for a FILE*, istream or ifstream that reads it in
- * chunks (with fread) and keeps those chunks in a buffer.  It also
- * services calls to get(), peek() and gets() from the buffer, reading
- * in additional chunks when necessary.
+ * Simple, fast helper for determining if a character is a newline.
+ */
+static inline bool isnewline(int c) {
+	return c == '\r' || c == '\n';
+}
+
+/**
+ * Simple, fast helper for determining if a character is a non-newline
+ * whitespace character.
+ */
+static inline bool isspace_notnl(int c) {
+	return isspace(c) && !isnewline(c);
+}
+
+/**
+ * Simple wrapper for a FILE*, istream or ifstream that reads it in chunks
+ * using fread and keeps those chunks in a buffer.  It also services calls to
+ * get(), peek() and gets() from the buffer, reading in additional chunks when
+ * necessary.
+ *
+ * Helper functions do things like parse strings, numbers, and FASTA records.
+ *
+ *
  */
 class FileBuf {
 public:
@@ -45,6 +64,9 @@ public:
 		assert(_ins != NULL);
 	}
 
+	/**
+	 * Return true iff there is a stream ready to read.
+	 */
 	bool isOpen() {
 		return _in != NULL || _inf != NULL || _ins != NULL;
 	}
@@ -192,12 +214,12 @@ public:
 				buf[stored] = '\0';
 				return stored;
 			}
-			if(stored == len-1 || c == '\n' || c == '\r') {
+			if(stored == len-1 || isnewline(c)) {
 				// End of string
 				buf[stored] = '\0';
 				// Skip over all end-of-line characters
 				int pc = peek();
-				while(pc == '\n' || pc == '\r') {
+				while(isnewline(pc)) {
 					get(); // discard
 					pc = peek();
 				}
@@ -242,8 +264,8 @@ public:
 	 */
 	int getPastNewline() {
 		int c = get();
-		while(c != '\r' && c != '\n' && c != -1) c = get();
-		while(c == '\r' || c == '\n') c = get();
+		while(!isnewline(c) && c != -1) c = get();
+		while(isnewline(c)) c = get();
 		assert_neq(c, '\r');
 		assert_neq(c, '\n');
 		return c;
@@ -256,8 +278,8 @@ public:
 	 */
 	int peekPastNewline() {
 		int c = peek();
-		while(c != '\r' && c != '\n' && c != -1) c = get();
-		while(c == '\r' || c == '\n') c = get();
+		while(!isnewline(c) && c != -1) c = get();
+		while(isnewline(c)) c = get();
 		assert_neq(c, '\r');
 		assert_neq(c, '\n');
 		return c;
@@ -269,10 +291,10 @@ public:
 	 */
 	int peekUptoNewline() {
 		int c = peek();
-		while(c != '\r' && c != '\n' && c != -1) {
+		while(!isnewline(c) && c != -1) {
 			get(); c = peek();
 		}
-		while(c == '\r' || c == '\n') {
+		while(isnewline(c)) {
 			get();
 			c = peek();
 		}
@@ -280,8 +302,85 @@ public:
 		assert_neq(c, '\n');
 		return c;
 	}
+	
+	/**
+	 * Parse a FASTA record.  Append name characters to 'name' and and append
+	 * all sequence characters to 'seq'.  If gotCaret is true, assuming the
+	 * file cursor has already moved just past the starting '>' character.
+	 */
+	template <typename TNameStr, typename TSeqStr>
+	void parseFastaRecord(
+		TNameStr& name,
+		TSeqStr&  seq,
+		bool      gotCaret = false)
+	{
+		int c;
+		if(!gotCaret) {
+			// Skip over caret and non-newline whitespace
+			c = peek();
+			while(isspace_notnl(c) || c == '>') { get(); c = peek(); }
+		} else {
+			// Skip over non-newline whitespace
+			c = peek();
+			while(isspace_notnl(c)) { get(); c = peek(); }
+		}
+		size_t namecur = 0, seqcur = 0;
+		// c is the first character of the fasta name record, or is the first
+		// newline character if the name record is empty
+		while(!isnewline(c) && c != -1) {
+			name[namecur++] = c; get(); c = peek();
+		}
+		// sequence consists of all the non-whitespace characters between here
+		// and the next caret
+		while(true) {
+			// skip over whitespace
+			while(isspace(c)) { get(); c = peek(); }
+			// if we see caret or EOF, break
+			if(c == '>' || c == -1) break;
+			// append and continue
+			seq[seqcur++] = c;
+			get(); c = peek();
+		}
+	}
 
-	size_t lastNCur() const { return _lastn_cur; }
+	/**
+	 * Parse a FASTA record and return its length.  If gotCaret is true,
+	 * assuming the file cursor has already moved just past the starting '>'
+	 * character.
+	 */
+	void parseFastaRecordLength(
+		size_t&   nameLen,
+		size_t&   seqLen,
+		bool      gotCaret = false)
+	{
+		int c;
+		nameLen = seqLen = 0;
+		if(!gotCaret) {
+			// Skip over caret and non-newline whitespace
+			c = peek();
+			while(isspace_notnl(c) || c == '>') { get(); c = peek(); }
+		} else {
+			// Skip over non-newline whitespace
+			c = peek();
+			while(isspace_notnl(c)) { get(); c = peek(); }
+		}
+		// c is the first character of the fasta name record, or is the first
+		// newline character if the name record is empty
+		while(!isnewline(c) && c != -1) {
+			nameLen++; get(); c = peek();
+		}
+		// sequence consists of all the non-whitespace characters between here
+		// and the next caret
+		while(true) {
+			// skip over whitespace
+			while(isspace(c)) { get(); c = peek(); }
+			// if we see caret or EOF, break
+			if(c == '>' || c == -1) break;
+			// append and continue
+			seqLen++;
+			get(); c = peek();
+		}
+	}
 
 	/**
 	 * Reset to the beginning of the last-N-chars buffer.
@@ -473,15 +572,6 @@ public:
 		if(cur_ == BUF_SZ) flush();
 		buf_[cur_++] = c;
 	}
-	
-	/**
-	 *
-	 */
-	template<typename T>
-	void writeNumeric(const T& i) {
-		char buf_[1024];
-		
-	}
 
 	/**
 	 * Write a c++ string to the write buffer and, if necessary, flush.
@@ -604,7 +694,7 @@ private:
 
 	const char *name_;
 	FILE       *out_;
-	uint32_t    cur_;
+	size_t      cur_;
 	char        buf_[BUF_SZ]; // (large) input buffer
 	bool        closed_;
 };

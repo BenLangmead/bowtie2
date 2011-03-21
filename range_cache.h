@@ -503,7 +503,7 @@ protected:
 			uint32_t jumps = 0;
 			if(tops_.size() > 0) {
 				entTop = tops_.back();
-				jumps = tops_.size();
+				jumps = (uint32_t)tops_.size();
 			}
 			// Cache the entry for the end of the tunnel
 			assert(map_.find(entTop) == map_.end());

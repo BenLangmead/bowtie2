@@ -13,7 +13,7 @@
 #include "group_walk.h"
 #include "ebwt.h"
 #include "mem_ids.h"
-#include "hit.h"
+#include "aln_sink.h"
 #include "pe.h"
 
 class SwDriver {
@@ -32,7 +32,7 @@ public:
 	 * Given a collection of SeedHits for a single read, extend seed
 	 * alignments into full alignments.  Where possible, try to avoid
 	 * redundant offset lookups and Smith-Watermans wherever possible.
-	 * Optionally report alignments to a MSHitSinkWrap object as they
+	 * Optionally report alignments to a AlnSinkWrap object as they
 	 * are discovered.
 	 *
 	 * If 'reportImmediately' is true, returns true iff a call to
@@ -60,14 +60,14 @@ public:
 		WalkMetrics& wlm,            // group walk left metrics
 		SwMetrics& swm,              // Smith-Waterman metrics
 		ReportingMetrics& rpm,       // reporting metrics
-		MSHitSinkWrap* mhs,          // HitSink for multiseed-style aligner
+		AlnSinkWrap* mhs,          // HitSink for multiseed-style aligner
 		bool reportImmediately,      // whether to report hits immediately to mhs
 		EList<SwCounterSink*>* swCounterSinks, // send counter updates to these
 		EList<SwActionSink*>* swActionSinks);  // send action-list updates to these
 
 	/**
 	 * Given a read, perform full Smith-Waterman against the entire
-	 * reference.  Optionally report alignments to a MSHitSinkWrap object
+	 * reference.  Optionally report alignments to a AlnSinkWrap object
 	 * as they are discovered.
 	 *
 	 * If 'reportImmediately' is true, returns true iff a call to
@@ -84,7 +84,7 @@ public:
 		int penceil,                 // maximum penalty allowed
 		RandomSource& rnd,           // pseudo-random source
 		SwMetrics& swm,              // Smith-Waterman metrics
-		MSHitSinkWrap* mhs,          // HitSink for multiseed-style aligner
+		AlnSinkWrap* mhs,          // HitSink for multiseed-style aligner
 		bool reportImmediately,      // whether to report hits immediately to mhs
 		EList<SwCounterSink*>* swCounterSinks, // send counter updates to these
 		EList<SwActionSink*>* swActionSinks);  // send action-list updates to these
@@ -94,7 +94,7 @@ public:
 	 * alignments into full alignments and then look for the opposite
 	 * mate using Smith-Waterman.  Where possible, try to avoid
 	 * redundant offset lookups.  Optionally report alignments to a
-	 * MSHitSinkWrap object as they are discovered.
+	 * AlnSinkWrap object as they are discovered.
 	 *
 	 * If 'reportImmediately' is true, returns true iff a call to
 	 * mhs->report() returned true (indicating that the reporting
@@ -125,7 +125,7 @@ public:
 		WalkMetrics& wlm,            // group walk left metrics
 		SwMetrics& swm,              // Smith-Waterman metrics
 		ReportingMetrics& rpm,       // reporting metrics
-		MSHitSinkWrap* msink,        // MSHitSink wrapper for multiseed-style aligner
+		AlnSinkWrap* msink,        // AlnSink wrapper for multiseed-style aligner
 		bool swMateImmediately,      // whether to look for mate immediately
 		bool reportImmediately,      // whether to report hits immediately to msink
 		EList<SwCounterSink*>* swCounterSinks, // send counter updates to these

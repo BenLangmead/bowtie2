@@ -42,12 +42,12 @@ struct HitSetEnt {
 		assert_eq(stratum, (cost >> 14));
 		fb.writeChars((const char*)&cost, 2);
 		fb.writeChars((const char*)&oms, 4);
-		uint32_t sz = edits.size();
+		uint32_t sz = (uint32_t)edits.size();
 		fb.writeChars((const char*)&sz, 4);
 		for(size_t i = 0; i < edits.size(); i++) {
 			//edits[i].serialize(fb);
 		}
-		sz = cedits.size();
+		sz = (uint32_t)cedits.size();
 		fb.writeChars((const char*)&sz, 4);
 		for(size_t i = 0; i < cedits.size(); i++) {
 			//cedits[i].serialize(fb);
@@ -126,14 +126,14 @@ struct HitSetEnt {
 	/**
 	 * Indexing returns edits.
 	 */
-	Edit& operator[](unsigned x) {
+	Edit& operator[](size_t x) {
 		return edits[x];
 	}
 
 	/**
 	 * Indexing returns edits.
 	 */
-	const Edit& operator[](unsigned x) const {
+	const Edit& operator[](size_t x) const {
 		return edits[x];
 	}
 
@@ -240,11 +240,11 @@ struct HitSet {
 	 */
 	void serialize(OutFileBuf& fb) const {
 		fb.write(color ? 1 : 0);
-		uint32_t i = name.length();
+		uint32_t i = (uint32_t)name.length();
 		assert_gt(i, 0);
 		fb.writeChars((const char*)&i, 4);
 		fb.writeChars(name.buf(), i);
-		i = seq.length();
+		i = (uint32_t)seq.length();
 		assert_gt(i, 0);
 		assert_lt(i, 1024);
 		fb.writeChars((const char*)&i, 4);
@@ -252,7 +252,7 @@ struct HitSet {
 			fb.write("ACGTN"[(int)seq[j]]);
 		}
 		fb.writeChars(qual.buf(), i);
-		i = ents.size();
+		i = (uint32_t)ents.size();
 		fb.writeChars((const char*)&i, 4);
 		for(size_t i = 0; i < ents.size(); i++) {
 			ents[i].serialize(fb);
@@ -395,14 +395,14 @@ struct HitSet {
 	/**
 	 * Indexing returns entries.
 	 */
-	HitSetEnt& operator[](unsigned x) {
+	HitSetEnt& operator[](size_t x) {
 		return ents[x];
 	}
 
 	/**
 	 * Indexing returns entries.
 	 */
-	const HitSetEnt& operator[](unsigned x) const {
+	const HitSetEnt& operator[](size_t x) const {
 		return ents[x];
 	}
 

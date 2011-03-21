@@ -8,7 +8,7 @@
  * reference offset is known, bounds for a Smith-Waterman subproblem
  * are established; if these bounds are distinct from the bounds we've
  * already tried, we solve the Smith-Waterman subproblem and report the
- * hit; if the MSHitSinkWrap indicates that we can stop, we return,
+ * hit; if the AlnSinkWrap indicates that we can stop, we return,
  * otherwise we continue on to the next BW element.
  *
  * 
@@ -66,7 +66,7 @@ uint32_t SwDriver::bwtOffToOff(
  * Given a collection of SeedHits for a single read, extend seed
  * alignments into full alignments.  Where possible, try to avoid
  * redundant offset lookups and Smith-Watermans wherever possible.
- * Optionally report alignments to a MSHitSinkWrap object as they
+ * Optionally report alignments to a AlnSinkWrap object as they
  * are discovered.
  *
  * If 'reportImmediately' is true, returns true iff a call to
@@ -94,7 +94,7 @@ bool SwDriver::extendSeeds(
 	WalkMetrics& wlm,            // group walk left metrics
 	SwMetrics& swm,              // Smith-Waterman metrics
 	ReportingMetrics& rpm,       // reporting metrics
-	MSHitSinkWrap* msink,        // MSHitSink wrapper for multiseed-style aligner
+	AlnSinkWrap* msink,        // AlnSink wrapper for multiseed-style aligner
 	bool reportImmediately,      // whether to report hits immediately to msink
 	EList<SwCounterSink*>* swCounterSinks, // send counter updates to these
 	EList<SwActionSink*>* swActionSinks)   // send action-list updates to these
@@ -128,7 +128,7 @@ bool SwDriver::extendSeeds(
 			// 'rdoff' and 'offidx' are with respect to the 5' end of
 			// the read.  Here we convert rdoff to be with respect to
 			// the upstream (3') end of ther read.
-			rdoff = rdlen - rdoff - seedlen;
+			rdoff = (uint32_t)(rdlen - rdoff - seedlen);
 		}
 		satups_.clear();
 		sc.queryQval(qv, satups_);
@@ -244,7 +244,7 @@ bool SwDriver::extendSeeds(
 				}
 			}
 			
-			// Report this hit to an MSHitSink
+			// Report this hit to an AlnSink
 			if(found && reportImmediately) {
 				assert(msink != NULL);
 				assert(res_.repOk());
@@ -269,7 +269,7 @@ bool SwDriver::extendSeeds(
 
 /**
  * Given a read, perform full Smith-Waterman against the entire
- * reference.  Optionally report alignments to a MSHitSinkWrap object
+ * reference.  Optionally report alignments to a AlnSinkWrap object
  * as they are discovered.
  *
  * If 'reportImmediately' is true, returns true iff a call to
@@ -286,7 +286,7 @@ bool SwDriver::sw(
 	int penceil,                 // maximum penalty allowed
 	RandomSource& rnd,           // pseudo-random source
 	SwMetrics& swm,              // Smith-Waterman metrics
-	MSHitSinkWrap* msink,        // HitSink for multiseed-style aligner
+	AlnSinkWrap* msink,        // HitSink for multiseed-style aligner
 	bool reportImmediately,      // whether to report hits immediately to msink
 	EList<SwCounterSink*>* swCounterSinks, // send counter updates to these
 	EList<SwActionSink*>* swActionSinks)   // send action-list updates to these
@@ -300,7 +300,7 @@ bool SwDriver::sw(
  * seed alignments into full alignments and then look for the opposite
  * mate using dynamic programming.  Where possible, try to avoid
  * redundant offset lookups.  Optionally report alignments to a
- * MSHitSinkWrap object as they are discovered.
+ * AlnSinkWrap object as they are discovered.
  *
  * Our general approach to finding paired and unpaired alignments here
  * is as follows:
@@ -343,7 +343,7 @@ bool SwDriver::extendSeedsPaired(
 	WalkMetrics& wlm,            // group walk left metrics
 	SwMetrics& swm,              // Smith-Waterman metrics
 	ReportingMetrics& rpm,       // reporting metrics
-	MSHitSinkWrap* msink,        // MSHitSink wrapper for multiseed-style aligner
+	AlnSinkWrap* msink,        // AlnSink wrapper for multiseed-style aligner
 	bool swMateImmediately,      // whether to look for mate immediately
 	bool reportImmediately,      // whether to report hits immediately to msink
 	EList<SwCounterSink*>* swCounterSinks, // send counter updates to these
@@ -417,7 +417,7 @@ bool SwDriver::extendSeedsPaired(
 			// 'rdoff' and 'offidx' are with respect to the 5' end of
 			// the read.  Here we convert rdoff to be with respect to
 			// the upstream (3') end of ther read.
-			rdoff = rdlen - rdoff - seedlen;
+			rdoff = (uint32_t)(rdlen - rdoff - seedlen);
 		}
 		satups_.clear();
 		sc.queryQval(qv, satups_);
@@ -536,7 +536,7 @@ bool SwDriver::extendSeedsPaired(
 			bool foundMate = false;
 			if(foundAnchor && swMateImmediately) {
 				bool oleft = false, ofw = false;
-				int64_t oleftoff = 0, orightoff = 0;
+				int64_t oll = 0, olr = 0, orl = 0, orr = 0;
 				foundMate = pepol.otherMate(
 					!do2,
 					fw,
@@ -544,12 +544,13 @@ bool SwDriver::extendSeedsPaired(
 					tlen,
 					rd1.length(),
 					rd2.length(),
-					omaxGaps,
-					0, // TODO: max overhang here
 					oleft,
-					oleftoff,
-					orightoff,
+					oll,
+					olr,
+					orl,
+					orr,
 					ofw);
+#if 0
 				if(foundMate) {
 					ores_.reset();
 					assert(ores_.empty());
@@ -560,8 +561,10 @@ bool SwDriver::extendSeedsPaired(
 						ordlen,
 						ofw,
 						tidx,
-						oleftoff,
-						orightoff,
+						oll,
+						olr,
+						orl,
+						orr,
 						ref,
 						tlen,
 						pa,
@@ -586,11 +589,12 @@ bool SwDriver::extendSeedsPaired(
 						}
 					}
 				}
+#endif
 			}
 
 			if(reportImmediately) {
 				if(foundMate) {
-					// Report pair to the MSHitSinkWrap
+					// Report pair to the AlnSinkWrap
 					assert(msink != NULL);
 					assert(res_.repOk());
 					assert(ores_.repOk());

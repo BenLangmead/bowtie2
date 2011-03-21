@@ -15,6 +15,7 @@
 #include "mm.h"
 #include "shmem.h"
 #include "timer.h"
+#include "sstring.h"
 
 /**
  * Concrete reference representation that bulk-loads the reference from
@@ -45,7 +46,7 @@ public:
 		bool color,
 		bool sanity = false,
 		EList<string>* infiles = NULL,
-		EList<String<Dna5> >* origs = NULL,
+		EList<SString<char> >* origs = NULL,
 		bool infilesSeq = false,
 		bool useMm = false,
 		bool useShmem = false,
@@ -64,7 +65,7 @@ public:
 	 * unambiguous stretches of the target reference sequence.  When
 	 * there are many records, binary search would be more appropriate.
 	 */
-	int getBase(uint32_t tidx, uint32_t toff) const;
+	int getBase(size_t tidx, size_t toff) const;
 
 	/**
 	 * Load a stretch of the reference string into memory at 'dest'.
@@ -75,9 +76,9 @@ public:
 	 */
 	int getStretchNaive(
 		uint32_t *destU32,
-		uint32_t tidx,
-		uint32_t toff,
-		uint32_t count) const;
+		size_t tidx,
+		size_t toff,
+		size_t count) const;
 
 	/**
 	 * Load a stretch of the reference string into memory at 'dest'.
@@ -88,9 +89,9 @@ public:
 	 */
 	int getStretch(
 		uint32_t *destU32,
-		uint32_t tidx,
-		uint32_t toff,
-		uint32_t count) const;
+		size_t tidx,
+		size_t toff,
+		size_t count) const;
 
 	/// Return the number of reference sequences.
 	uint32_t numRefs() const {

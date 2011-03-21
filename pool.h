@@ -53,7 +53,7 @@ public:
 	/**
 	 * Reset the pool, freeing all arrays that had been given out.
 	 */
-	void reset(const BTString* name, uint32_t patid_) {
+	void reset(const BTString* name, TReadId patid_) {
 		patid = patid_;
 		readName_ = name;
 		cur_ = 0;
@@ -154,7 +154,7 @@ public:
 	}
 
 	bool verbose;
-	uint32_t patid;
+	TReadId patid;
 
 protected:
 
@@ -165,7 +165,7 @@ protected:
 	uint32_t lim_;  /// # elements held in pool_
 	FixedBitset2 bits_;
 	bool exhaustCrash_; /// abort hard when memory's exhausted?
-	uint32_t lastSkippedRead_;
+	TReadId lastSkippedRead_;
 	const BTString* readName_;
 };
 

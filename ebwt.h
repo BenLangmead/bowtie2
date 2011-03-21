@@ -11,8 +11,6 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <stdexcept>
-#include <seqan/sequence.h>
-#include <seqan/index.h>
 #include <sys/stat.h>
 #ifdef BOWTIE_MM
 #include <sys/mman.h>
@@ -42,7 +40,6 @@
 #include "mem_ids.h"
 
 using namespace std;
-using namespace seqan;
 
 #ifndef PREFETCH_LOCALITY
 // No locality by default
@@ -382,37 +379,39 @@ public:
 	/// given 'bmax' and 'dcv' parameters.  The string vector is
 	/// ultimately joined and the joined string is passed to buildToDisk().
 	template<typename TStr>
-	Ebwt(TStr exampleStr,
-	     bool packed,
-	     int color,
-		 int needEntireReverse,
-	     int32_t lineRate,
-	     int32_t offRate,
-	     int32_t ftabChars,
-	     const string& file,   // base filename for EBWT files
-	     bool fw,
-	     bool useBlockwise,
-	     uint32_t bmax,
-	     uint32_t bmaxSqrtMult,
-	     uint32_t bmaxDivN,
-	     int dcv,
-	     EList<FileBuf*>& is,
-	     EList<RefRecord>& szs,
-	     uint32_t sztot,
-	     const RefReadInParams& refparams,
-	     uint32_t seed,
-	     int32_t __overrideOffRate = -1,
-	     bool verbose = false,
-	     bool passMemExc = false,
-	     bool sanityCheck = false) :
-	     Ebwt_INITS
-	     Ebwt_STAT_INITS,
-	     _eh(joinedLen(szs),
-		     lineRate,
-			 offRate,
-			 ftabChars,
-			 color,
-			 refparams.reverse == REF_READ_REVERSE)
+	Ebwt(
+		TStr exampleStr,
+		bool packed,
+		int color,
+		int needEntireReverse,
+		int32_t lineRate,
+		int32_t offRate,
+		int32_t ftabChars,
+		const string& file,   // base filename for EBWT files
+		bool fw,
+		bool useBlockwise,
+		uint32_t bmax,
+		uint32_t bmaxSqrtMult,
+		uint32_t bmaxDivN,
+		int dcv,
+		EList<FileBuf*>& is,
+		EList<RefRecord>& szs,
+		uint32_t sztot,
+		const RefReadInParams& refparams,
+		uint32_t seed,
+		int32_t __overrideOffRate = -1,
+		bool verbose = false,
+		bool passMemExc = false,
+		bool sanityCheck = false) :
+		Ebwt_INITS
+		Ebwt_STAT_INITS,
+		_eh(
+			joinedLen(szs),
+			lineRate,
+			offRate,
+			ftabChars,
+			color,
+			refparams.reverse == REF_READ_REVERSE)
 	{
 		_in1Str = file + ".1.ebwt";
 		_in2Str = file + ".2.ebwt";
@@ -586,7 +585,7 @@ public:
 		// sequences.  A record represents a stretch of unambiguous
 		// characters in one of the input sequences.
 		EList<RefRecord> szs(EBWT_CAT);
-		std::pair<size_t, size_t> sztot;
+		std::pair<uint32_t, uint32_t> sztot;
 		sztot = BitPairReference::szsFromFasta(is, file, bigEndian, refparams, szs, sanity);
 		// Construct Ebwt from input strings and parameters
 		Ebwt *ebwtFw = new Ebwt(
@@ -687,7 +686,7 @@ public:
 		writeFromMemory(true, out1, out2);
 		try {
 			VMSG_NL("Reserving space for joined string");
-			seqan::reserve(s, jlen, Exact());
+			s.resize(jlen);
 			VMSG_NL("Joining reference sequences");
 			if(refparams.reverse == REF_READ_REVERSE) {
 				{
@@ -696,7 +695,7 @@ public:
 				} {
 					Timer timer(cout, "  Time to reverse reference sequence: ", _verbose);
 					EList<RefRecord> tmp(EBWT_CAT);
-					reverseInPlace(s);
+					s.reverse();
 					reverseRefRecords(szs, tmp, false, verbose);
 					szsToDisk(tmp, out1, refparams.reverse);
 				}
@@ -736,7 +735,7 @@ public:
 			throw 1;
 		}
 		// Succesfully obtained joined reference string
-		assert_geq(length(s), jlen);
+		assert_geq(s.length(), jlen);
 		if(bmax != 0xffffffff) {
 			VMSG_NL("bmax according to bmax setting: " << bmax);
 		}
@@ -749,7 +748,7 @@ public:
 			VMSG_NL("bmax according to bmaxDivN setting: " << bmax);
 		}
 		else {
-			bmax = (uint32_t)sqrt(length(s));
+			bmax = (uint32_t)sqrt(s.length());
 			VMSG_NL("bmax defaulted to: " << bmax);
 		}
 		int iter = 0;
@@ -815,7 +814,7 @@ public:
 				VMSG_NL("Constructing suffix-array element generator");
 				KarkkainenBlockwiseSA<TStr> bsa(s, bmax, dcv, seed, _sanity, _passMemExc, _verbose);
 				assert(bsa.suffixItrIsReset());
-				assert_eq(bsa.size(), length(s)+1);
+				assert_eq(bsa.size(), s.length()+1);
 				VMSG_NL("Converting suffix-array elements to index image");
 				buildToDisk(bsa, s, out1, out2);
 				out1.flush(); out2.flush();
@@ -1326,8 +1325,8 @@ public:
 	// Sanity checking
 	void sanityCheckUpToSide(int upToSide) const;
 	void sanityCheckAll(int reverse) const;
-	void restore(String<Dna5>& s) const;
-	void checkOrigs(const EList<String<Dna5> >& os, bool color, bool mirror) const;
+	void restore(SString<char>& s) const;
+	void checkOrigs(const EList<SString<char> >& os, bool color, bool mirror) const;
 
 	// Searching and reporting
 	void joinedToTextOff(uint32_t qlen, uint32_t off, uint32_t& tidx, uint32_t& textoff, uint32_t& tlen) const;
@@ -1468,7 +1467,7 @@ class EbwtSearchParams {
 public:
 	EbwtSearchParams(
 		HitSinkPerThread& sink,
-		const EList<String<Dna5> >& texts,
+		const EList<SString<char> >& texts,
 		bool fw = true,
 		bool ebwtFw = true) :
 		_sink(sink),
@@ -1476,8 +1475,8 @@ public:
 		_patid(0xffffffff) { }
 
 	HitSinkPerThread& sink() const { return _sink; }
-	void setPatId(uint32_t patid)  { _patid = patid; }
-	uint32_t patid() const         { return _patid; }
+	void setPatId(TReadId patid)   { _patid = patid; }
+	TReadId patid() const          { return _patid; }
 	
 	/**
 	 * Report a pair of hits.
@@ -1495,7 +1494,7 @@ public:
 					   int stratumL,
 					   uint16_t costL,
 					   uint32_t omsL,
-					   uint32_t patidL,
+					   TReadId patidL,
 					   uint32_t seedL,
 					   uint8_t mateL,
 					   const BTDnaString& seqR,
@@ -1511,7 +1510,7 @@ public:
 					   int stratumR,
 					   uint16_t costR,
 					   uint32_t omsR,
-					   uint32_t patidR,
+					   TReadId patidR,
 					   uint32_t seedR,
 					   uint8_t mateR,
 					   const BitPairReference* ref,
@@ -1592,7 +1591,7 @@ public:
 	               int stratum,        // alignment stratum
 	               uint16_t cost,      // cost of alignment
 	               uint32_t oms,       // approx. # other valid alignments
-	               uint32_t patid,
+	               TReadId patid,
 	               uint32_t seed,
 	               uint8_t mate,
 				   Hit& hit)
@@ -1625,16 +1624,16 @@ public:
 	    int stratum,        // alignment stratum
 	    uint16_t cost,      // cost of alignment
 	    uint32_t oms,       // approx. # other valid alignments
-	    uint32_t patid,
+	    TReadId patid,
 	    uint32_t seed,
 	    uint8_t mate,
 		Hit& hit);
 
 private:
 	HitSinkPerThread& _sink;
-	const EList<String<Dna5> >& _texts; // original texts, if available (if not
+	const EList<SString<char> >& _texts; // original texts, if available (if not
 	                            // available, _texts.size() == 0)
-	uint32_t _patid;      // id of current read
+	TReadId _patid;      // id of current read
 	EList<Edit> edits_;
 };
 
@@ -1854,11 +1853,14 @@ TStr Ebwt::join(EList<TStr>& l, uint32_t seed) {
 	for(size_t i = 0; i < l.size(); i++) {
 		guessLen += length(l[i]);
 	}
-	reserve(ret, guessLen, Exact());
+	ret.resize(guessLen);
+	size_t off = 0;
 	for(size_t i = 0; i < l.size(); i++) {
 		TStr& s = l[i];
-		assert_gt(length(s), 0);
-		append(ret, s);
+		assert_gt(s.length(), 0);
+		for(size_t j = 0; j < s.size(); j++) {
+			ret.set(s[j], off++);
+		}
 	}
 	return ret;
 }
@@ -1883,14 +1885,15 @@ TStr Ebwt::join(EList<FileBuf*>& l,
 	RefReadInParams rpcp = refparams;
 	TStr ret;
 	size_t guessLen = sztot;
-	reserve(ret, guessLen, Exact());
+	ret.resize(guessLen);
 	ASSERT_ONLY(size_t szsi = 0);
+	size_t dstoff = 0;
 	for(size_t i = 0; i < l.size(); i++) {
 		// For each sequence we can pull out of istream l[i]...
 		assert(!l[i]->eof());
 		bool first = true;
 		while(!l[i]->eof()) {
-			RefRecord rec = fastaRefReadAppend(*l[i], first, ret, rpcp);
+			RefRecord rec = fastaRefReadAppend(*l[i], first, ret, dstoff, rpcp);
 			first = false;
 			size_t bases = rec.len;
 			assert_eq(rec.off, szs[szsi].off);
@@ -1915,13 +1918,14 @@ TStr Ebwt::join(EList<FileBuf*>& l,
  * list of strings without building any of the auxilliary arrays.
  */
 template<typename TStr>
-void Ebwt::joinToDisk(EList<FileBuf*>& l,
-                      EList<RefRecord>& szs,
-                      uint32_t sztot,
-                      const RefReadInParams& refparams,
-                      TStr& ret,
-                      ostream& out1,
-                      ostream& out2)
+void Ebwt::joinToDisk(
+	EList<FileBuf*>& l,
+	EList<RefRecord>& szs,
+	uint32_t sztot,
+	const RefReadInParams& refparams,
+	TStr& ret,
+	ostream& out1,
+	ostream& out2)
 {
 	RefReadInParams rpcp = refparams;
 	assert_gt(szs.size(), 0);
@@ -1969,6 +1973,7 @@ void Ebwt::joinToDisk(EList<FileBuf*>& l,
 	size_t seqsRead = 0;
 	ASSERT_ONLY(uint32_t szsi = 0);
 	ASSERT_ONLY(uint32_t entsWritten = 0);
+	size_t dstoff = 0;
 	// For each filebuf
 	for(unsigned int i = 0; i < l.size(); i++) {
 		assert(!l[i]->eof());
@@ -1980,8 +1985,8 @@ void Ebwt::joinToDisk(EList<FileBuf*>& l,
 			string name;
 			// Push a new name onto our vector
 			_refnames.push_back("");
-			//uint32_t oldRetLen = length(ret);
-			RefRecord rec = fastaRefReadAppend(*l[i], first, ret, rpcp, &_refnames.back());
+			RefRecord rec = fastaRefReadAppend(
+				*l[i], first, ret, dstoff, rpcp, &_refnames.back());
 			first = false;
 			size_t bases = rec.len;
 			if(rec.first && rec.len > 0) {
@@ -2022,13 +2027,13 @@ void Ebwt::joinToDisk(EList<FileBuf*>& l,
 		assert_gt(szsi, 0);
 		l[i]->reset();
 		assert(!l[i]->eof());
-		#ifndef NDEBUG
+#ifndef NDEBUG
 		int c = l[i]->get();
 		assert_eq('>', c);
 		assert(!l[i]->eof());
 		l[i]->reset();
 		assert(!l[i]->eof());
-		#endif
+#endif
 	}
 	assert_eq(entsWritten, this->_nFrag);
 }
@@ -2056,19 +2061,19 @@ void Ebwt::joinToDisk(EList<FileBuf*>& l,
  * @param out
  */
 template<typename TStr>
-void Ebwt::buildToDisk(InorderBlockwiseSA<TStr>& sa,
-                       const TStr& s,
-                       ostream& out1,
-                       ostream& out2)
+void Ebwt::buildToDisk(
+	InorderBlockwiseSA<TStr>& sa,
+	const TStr& s,
+	ostream& out1,
+	ostream& out2)
 {
 	const EbwtParams& eh = this->_eh;
 
 	assert(eh.repOk());
-	assert_eq(length(s)+1, sa.size());
-	assert_eq(length(s), eh._len);
+	assert_eq(s.length()+1, sa.size());
+	assert_eq(s.length(), eh._len);
 	assert_gt(eh._lineRate, 3);
 	assert(sa.suffixItrIsReset());
-	assert_leq((int)ValueSize<Dna>::VALUE, 4);
 
 	uint32_t  len = eh._len;
 	uint32_t  ftabLen = eh._ftabLen;
@@ -2181,7 +2186,7 @@ void Ebwt::buildToDisk(InorderBlockwiseSA<TStr>& sa,
 					zOff = si; // remember the SA row that
 					           // corresponds to the 0th suffix
 				} else {
-					bwtChar = (int)(Dna)(s[saElt-1]);
+					bwtChar = (int)(s[saElt-1]);
 					assert_lt(bwtChar, 4);
 					// Update the fchr
 					fchr[bwtChar]++;
@@ -2197,7 +2202,7 @@ void Ebwt::buildToDisk(InorderBlockwiseSA<TStr>& sa,
 					for(int i = 0; i < eh._ftabChars; i++) {
 						sufInt <<= 2;
 						assert_lt(i, (int)(len-saElt));
-						sufInt |= (unsigned char)(Dna)(s[saElt+i]);
+						sufInt |= (unsigned char)(s[saElt+i]);
 					}
 					// Assert that this prefix-of-suffix is greater
 					// than or equal to the last one (true b/c the

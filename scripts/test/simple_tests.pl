@@ -86,6 +86,47 @@ if(! -x $bowtie2 || ! -x $bowtie2_build) {
 
 my @cases = (
 
+	{ ref    => [ "ACNCA" ],
+	  reads  => [ "CA" ],
+	  args   => "",
+	  report => "-a -P \"SEED=0,2,1;NCEIL=0,0\"",
+	  hits   => [ { 3 => 1 } ],
+	  edits  => [ ] },
+
+	{ ref    => [ "ACNCA" ],
+	  reads  => [ "AC" ],
+	  args   => "",
+	  report => "-a -P \"SEED=0,2,1;NCEIL=0,0\"",
+	  hits   => [ { 0 => 1 } ],
+	  edits  => [ ] },
+
+	{ ref    => [ "ACNCANNNNNNNNCGNNNNNNNNCG" ],
+	#              0123456789012345678901234
+	#              0         1         2
+	  reads  => [ "CG" ],
+	  args   => "",
+	  report => "-a -P \"SEED=0,2,1;NCEIL=0,0\"",
+	  hits   => [ { 13 => 2, 23 => 2 } ],
+	  edits  => [ ] },
+
+	{ ref    => [ "ACNCANNNNNNAACGNNNNNNNACGAANNNNCGAAAN" ],
+	#              0123456789012345678901234567890123456
+	#              0         1         2         3
+	  reads  => [ "CG" ],
+	  args   => "",
+	  report => "-a -P \"SEED=0,2,1;NCEIL=0,0\"",
+	  hits   => [ { 13 => 2, 23 => 2, 31 => 2 } ],
+	  edits  => [ ] },
+
+	{ ref    => [ "ACNCANNNNNNAACGNNNNNNNACGAANNNNCGAAAN" ],
+	#              0123456789012345678901234567890123456
+	#              0         1         2         3
+	  reads  => [ "CG" ],
+	  args   => "",
+	  report => "-a -P \"SEED=0,1,1;NCEIL=0,0\"",
+	  hits   => [ { 13 => 2, 23 => 2, 31 => 2 } ],
+	  edits  => [ ] },
+
 	#
 	# Alignment involving ambiguous reference character
 	#
@@ -98,7 +139,7 @@ my @cases = (
 	  report => "-a -P \"SEED=0,5,1;NCEIL=2,0\"",
 	  hits   => [ { 0 => 1 }, { 0 => 1 } ],
 	  norc   => 1,
-	  edits  => [ "5:Y>G", "5:Y>C" ] },
+	  edits  => [ "5:N>G", "5:N>C" ] },
 
 	#
 	# Alignment with multi-character read gap
@@ -461,7 +502,7 @@ sub runbowtie2($$$$$$$$$$) {
 	open(FA, $fa) || die;
 	while(<FA>) { print $_; }
 	close(FA);
-	my $cmd = "$bowtie2_build --quiet $build_args $fa .simple_tests.tmp";
+	my $cmd = "$bowtie2_build --quiet --sanity $build_args $fa .simple_tests.tmp";
 	print "$cmd\n";
 	system($cmd);
 	($? == 0) || die "Bad exitlevel from bowtie2-build: $?";

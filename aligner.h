@@ -10,7 +10,6 @@
 #include <iostream>
 #include <set>
 #include <stdint.h>
-#include "seqan/sequence.h"
 #include "assert_helpers.h"
 #include "ebwt.h"
 #include "pat.h"
@@ -48,8 +47,8 @@ public:
 		bufa_ = &patsrc->bufa();
 		assert(bufa_ != NULL);
 		bufb_ = &patsrc->bufb();
-		alen_ = bufa_->length();
-		blen_ = (bufb_ != NULL) ? bufb_->length() : 0;
+		alen_ = (uint32_t)bufa_->length();
+		blen_ = (uint32_t)((bufb_ != NULL) ? bufb_->length() : 0);
 		rand_.init(bufa_->seed);
 	}
 
@@ -329,11 +328,11 @@ public:
 	UnpairedAlignerV2(
 		EbwtSearchParams* params,
 		TDriver* driver,
-		RangeChaser<String<Dna> >* rchase,
+		RangeChaser* rchase,
 		HitSink& sink,
 		const HitSinkPerThreadFactory& sinkPtFactory,
 		HitSinkPerThread* sinkPt,
-		EList<String<Dna5> >& os,
+		EList<SString<char> >& os,
 		const BitPairReference* refs,
 		int maxBts,
 		ChunkPool *pool,
@@ -530,7 +529,7 @@ protected:
 	EbwtSearchParams* params_;
 
 	// State for getting alignments from ranges statefully
-	RangeChaser<String<Dna> >* rchase_;
+	RangeChaser* rchase_;
 
 	// Range-finding state
 	TDriver* driver_;
@@ -570,8 +569,8 @@ public:
 		EbwtSearchParams* paramsSe1,
 		EbwtSearchParams* paramsSe2,
 		TDriver* driver,
-		RefAligner<String<Dna5> >* refAligner,
-		RangeChaser<String<Dna> >* rchase,
+		RefAligner<SString<char> >* refAligner,
+		RangeChaser* rchase,
 		HitSink& sink,
 		const HitSinkPerThreadFactory& sinkPtFactory,
 		HitSinkPerThread* sinkPt,
@@ -652,8 +651,8 @@ public:
 			return;
 		}
 		driver_->setQuery(patsrc, NULL);
-		qlen1_ = patsrc_->bufa().length();
-		qlen2_ = patsrc_->bufb().length();
+		qlen1_ = (uint32_t)patsrc_->bufa().length();
+		qlen2_ = (uint32_t)patsrc_->bufb().length();
 		if(btCnt_ != NULL) (*btCnt_) = maxBts_;
 		mixedAttempts_ = 0;
 		// Neither orientation is done
@@ -960,9 +959,9 @@ protected:
 			                      patsrc_->bufa().qual) :
 			     (range.mate1() ? patsrc_->bufb().qualRev :
 			                      patsrc_->bufa().qualRev);
-		uint32_t qlen = seq.length();  // length of outstanding mate
-		uint32_t alen = (range.mate1() ? patsrc_->bufa().length() :
-		                               patsrc_->bufb().length());
+		uint32_t qlen = (uint32_t)seq.length();  // length of outstanding mate
+		uint32_t alen = (uint32_t)(range.mate1() ? patsrc_->bufa().length() :
+		                                           patsrc_->bufb().length());
 		int minins = gMinInsert;
 		int maxins = gMaxInsert;
 		if(gMate1fw) {
@@ -1060,7 +1059,7 @@ protected:
 	bool donePe_, doneSe1_, doneSe2_;
 
 	// For searching for outstanding mates
-	RefAligner<String<Dna5> >* refAligner_;
+	RefAligner<SString<char> >* refAligner_;
 
 	// Temporary HitSink; to be deleted
 	const HitSinkPerThreadFactory& sinkPtFactory_;
@@ -1076,7 +1075,7 @@ protected:
 	uint32_t mixedAttempts_;
 
 	// State for getting alignments from ranges statefully
-	RangeChaser<String<Dna> >* rchase_;
+	RangeChaser* rchase_;
 
 	// Range-finding state for first mate
 	TDriver* driver_;

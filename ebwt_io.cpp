@@ -377,11 +377,15 @@ void Ebwt::readIntoMemory(
 					side += this->_eh._sideSz;
 				}
 			}
+#ifdef BOWTIE_SHARED_MEM
 			if(useShmem_) NOTIFY_SHARED(ebwt(), eh->_ebwtTotLen);
+#endif
 		} else {
 			// Seek past the data and wait until master is finished
 			MM_SEEK(_in1, eh->_ebwtTotLen, SEEK_CUR);
+#ifdef BOWTIE_SHARED_MEM
 			if(useShmem_) WAIT_SHARED(ebwt(), eh->_ebwtTotLen);
+#endif
 		}
 	}
 	
@@ -609,12 +613,15 @@ void Ebwt::readIntoMemory(
 						assert_leq(this->offs()[i], len);
 					}
 				}
-				
+#ifdef BOWTIE_SHARED_MEM				
 				if(useShmem_) NOTIFY_SHARED(offs(), offsLenSampled*4);
+#endif
 			} else {
 				// Not the shmem leader
 				MM_SEEK(_in2, offsLenSampled*4, SEEK_CUR);
+#ifdef BOWTIE_SHARED_MEM				
 				if(useShmem_) WAIT_SHARED(offs(), offsLenSampled*4);
+#endif
 			}
 		}
 	}
@@ -956,8 +963,8 @@ void Ebwt::szsToDisk(const EList<RefRecord>& szs, ostream& os, int reverse) {
 			fwoff = plen()[seqm1] - (off + szs[i].len);
 		}
 		writeU32(os, totlen, this->toBe()); // offset from beginning of joined string
-		writeU32(os, seqm1,  this->toBe()); // sequence id
-		writeU32(os, fwoff,  this->toBe()); // offset into sequence
+		writeU32(os, (uint32_t)seqm1,  this->toBe()); // sequence id
+		writeU32(os, (uint32_t)fwoff,  this->toBe()); // offset into sequence
 		totlen += szs[i].len;
 		off += szs[i].len;
 	}

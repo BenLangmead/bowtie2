@@ -10,6 +10,8 @@
 #include "sstring.h"
 #include "filebuf.h"
 
+typedef uint64_t TReadId;
+
 class HitSet;
 
 /**
@@ -69,7 +71,7 @@ struct Read {
 	}
 
 	/// Return length of the read in the buffer
-	uint32_t length() const {
+	size_t length() const {
 		return patFw.length();
 	}
 
@@ -248,12 +250,12 @@ struct Read {
 	BTString    altQualRev[3];
 
 	// For remembering the exact input text used to define a read
-	SStringFixed<char, FileBuf::LASTN_BUF_SZ> readOrigBuf;
+	SStringExpandable<char> readOrigBuf;
 	// For when qualities are in a separate file
-	SStringFixed<char, FileBuf::LASTN_BUF_SZ> qualOrigBuf;
+	SStringExpandable<char> qualOrigBuf;
 
 	BTString name;      // read name
-	uint32_t patid;     // unique 0-based id based on order in read file(s)
+	TReadId  patid;     // unique 0-based id based on order in read file(s)
 	int      mate;      // 0 = single-end, 1 = mate1, 2 = mate2
 	uint32_t seed;      // random seed
 	int      alts;      // number of alternatives

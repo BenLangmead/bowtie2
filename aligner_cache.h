@@ -71,7 +71,7 @@ struct QKey {
 	 */
 	bool init(const BTDnaString& s) {
 		seq = 0;
-		len = s.length();
+		len = (uint32_t)s.length();
 		if(len > 32) {
 			len = 0xffffffff;
 			return false; // wasn't cacheable
@@ -88,7 +88,7 @@ struct QKey {
 #ifndef NDEBUG
 			BTDnaString tmp;
 			toString(tmp);
-			assert(tmp == s);
+			assert(sstr_eq(tmp, s));
 #endif
 			return true; // was cacheable
 		}
@@ -305,7 +305,7 @@ public:
 	 */
 	void init(const SATuple& src, size_t first, size_t last) {
 		key = src.key;
-		top = src.top + first;
+		top = src.top + (uint32_t)first;
 		offs.init(src.offs, first, last);
 	}
 	
@@ -480,7 +480,7 @@ public:
 		assert(n != NULL);
 		assert(n->key.repOk());
 		// Set the new QVal's i and len
-		n->payload.init(qlist_.size(), qv.numRanges(), qv.numElts());
+		n->payload.init((uint32_t)qlist_.size(), qv.numRanges(), qv.numElts());
 		// Add the ref seqs to this cache's qlist
 		const size_t reff = qv.offset() + qv.numRanges();
 		for(size_t i = qv.offset(); i < reff; i++) {
@@ -506,7 +506,7 @@ public:
 			uint32_t srci = srcSaNode->payload.i;
 			uint32_t top = srcSaNode->payload.top;
 			uint32_t len = srcSaNode->payload.len;
-			dstSaNode->payload.init(top, salist_.size(), len);
+			dstSaNode->payload.init(top, (uint32_t)salist_.size(), len);
 			// 
 			for(size_t j = 0; j < len; j++) {
 				if(!salist_.add(pool(), c.salist_.get(srci+j))) {

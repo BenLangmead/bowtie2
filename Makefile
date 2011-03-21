@@ -2,9 +2,7 @@
 # Makefile for bowtie, bowtie-build, bowtie-inspect
 #
 
-SEQAN_DIR = SeqAn-1.1
-SEQAN_INC = -I $(SEQAN_DIR)
-INC = $(SEQAN_INC)
+INC =
 GCC_PREFIX = $(shell dirname `which gcc`)
 GCC_SUFFIX =
 CC = $(GCC_PREFIX)/gcc$(GCC_SUFFIX)
@@ -68,17 +66,18 @@ BUILD_LIBS =
 
 SHARED_CPPS = ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
               edit.cpp ebwt.cpp ebwt_io.cpp ebwt_util.cpp \
-              reference.cpp ds.cpp
+              reference.cpp ds.cpp multikey_qsort.cpp
 SEARCH_CPPS = qual.cpp pat.cpp ref_aligner.cpp \
               log.cpp hit_set.cpp refmap.cpp annot.cpp sam.cpp \
               color.cpp color_dec.cpp hit.cpp range_source.cpp \
               report.cpp read_qseq.cpp aligner_seed_policy.cpp \
               aligner_seed.cpp aligner_sw.cpp aligner_sw_col.cpp \
 			  aligner_sw_driver.cpp aligner_cache.cpp \
-			  aligner_result.cpp ref_coord.cpp mask.cpp
+			  aligner_result.cpp ref_coord.cpp mask.cpp \
+			  pe.cpp aln_sink.cpp read_sink.cpp
 SEARCH_CPPS_MAIN = $(SEARCH_CPPS) bowtie_main.cpp
 
-BUILD_CPPS = 
+BUILD_CPPS = diff_sample.cpp
 BUILD_CPPS_MAIN = $(BUILD_CPPS) bowtie_build_main.cpp
 
 SEARCH_FRAGMENTS = $(wildcard search_*_phase*.c)
@@ -143,8 +142,6 @@ SRC_PKG_LIST = $(wildcard *.h) \
                $(wildcard *.hh) \
                $(wildcard *.c) \
                $(wildcard *.cpp) \
-               $(shell $(FIND) SeqAn-1.1 -name "*.h") \
-               $(shell $(FIND) SeqAn-1.1 -name "*.txt") \
                doc/strip_markdown.pl \
                Makefile \
                $(GENERAL_LIST)
@@ -188,31 +185,11 @@ endef
 # bowtie-build targets
 #
 
-bowtie-build: ebwt_build.cpp $(SHARED_CPPS) $(HEADERS)
-	$(checksum)
-	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(EXTRA_FLAGS) \
-		-DEBWT_BUILD_HASH=`cat .$@.cksum` \
-		$(DEFS) $(NOASSERT_FLAGS) -Wall \
-		$(INC) \
-		-o $@ $< \
-		$(SHARED_CPPS) $(BUILD_CPPS_MAIN) \
-		$(LIBS) $(BUILD_LIBS)
-
 bowtie2-build: ebwt_build.cpp $(SHARED_CPPS) $(HEADERS)
 	$(checksum)
 	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(EXTRA_FLAGS) \
 		-DEBWT_BUILD_HASH=`cat .$@.cksum` \
 		$(DEFS) -DBOWTIE2 $(NOASSERT_FLAGS) -Wall \
-		$(INC) \
-		-o $@ $< \
-		$(SHARED_CPPS) $(BUILD_CPPS_MAIN) \
-		$(LIBS) $(BUILD_LIBS)
-
-bowtie-build-debug: ebwt_build.cpp $(SHARED_CPPS) $(HEADERS)
-	$(checksum)
-	$(CXX) $(DEBUG_FLAGS) $(DEBUG_DEFS) $(EXTRA_FLAGS) \
-		-DEBWT_BUILD_HASH=`cat .$@.cksum` \
-		$(DEFS) -Wall \
 		$(INC) \
 		-o $@ $< \
 		$(SHARED_CPPS) $(BUILD_CPPS_MAIN) \
@@ -232,32 +209,11 @@ bowtie2-build-debug: ebwt_build.cpp $(SHARED_CPPS) $(HEADERS)
 # bowtie targets
 #
 
-bowtie: ebwt_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
-	$(checksum)
-	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(EXTRA_FLAGS) \
-		-DEBWT_SEARCH_HASH=`cat .$@.cksum` \
-		$(DEFS) $(NOASSERT_FLAGS) -Wall \
-		$(INC) \
-		-o $@ $< \
-		$(SHARED_CPPS) $(SEARCH_CPPS_MAIN) \
-		$(LIBS) $(SEARCH_LIBS)
-
 bowtie2: ebwt_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
 	$(checksum)
 	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(EXTRA_FLAGS) \
 		-DEBWT_SEARCH_HASH=`cat .$@.cksum` \
 		$(DEFS) -DBOWTIE2 $(NOASSERT_FLAGS) -Wall \
-		$(INC) \
-		-o $@ $< \
-		$(SHARED_CPPS) $(SEARCH_CPPS_MAIN) \
-		$(LIBS) $(SEARCH_LIBS)
-
-bowtie-debug: ebwt_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
-	$(checksum)
-	$(CXX) $(DEBUG_FLAGS) \
-		$(DEBUG_DEFS) $(EXTRA_FLAGS) \
-		-DEBWT_SEARCH_HASH=`cat .$@.cksum` \
-		$(DEFS) -Wall \
 		$(INC) \
 		-o $@ $< \
 		$(SHARED_CPPS) $(SEARCH_CPPS_MAIN) \
@@ -277,28 +233,6 @@ bowtie2-debug: ebwt_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH
 #
 # bowtie-inspect targets
 #
-
-bowtie-inspect: bowtie_inspect.cpp $(HEADERS) $(SHARED_CPPS)
-	$(checksum)
-	$(CXX) $(RELEASE_FLAGS) \
-		$(RELEASE_DEFS) $(EXTRA_FLAGS) \
-		-DEBWT_INSPECT_HASH=`cat .$@.cksum` \
-		$(DEFS) -Wall \
-		$(INC) -I . \
-		-o $@ $< \
-		$(SHARED_CPPS) \
-		$(LIBS)
-
-bowtie-inspect-debug: bowtie_inspect.cpp $(HEADERS) $(SHARED_CPPS) 
-	$(checksum)
-	$(CXX) $(DEBUG_FLAGS) \
-		$(DEBUG_DEFS) $(EXTRA_FLAGS) \
-		-DEBWT_INSPECT_HASH=`cat .$@.cksum` \
-		$(DEFS) -Wall \
-		$(INC) -I . \
-		-o $@ $< \
-		$(SHARED_CPPS) \
-		$(LIBS)
 
 bowtie2-inspect: bowtie_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 	$(checksum)
@@ -322,10 +256,7 @@ bowtie2-inspect-debug: bowtie_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 		$(SHARED_CPPS) \
 		$(LIBS)
 
-chaincat: chaincat.cpp hit_set.h filebuf.h hit_set.cpp alphabet.h alphabet.cpp
-	$(CXX) $(DEBUG_FLAGS) $(DEBUG_DEFS) $(EXTRA_FLAGS) -Wall $(INC) -I . -o $@ $< hit_set.cpp alphabet.cpp
-
-bowtie-src.zip: $(SRC_PKG_LIST)
+bowtie2-src.zip: $(SRC_PKG_LIST)
 	chmod a+x scripts/*.sh scripts/*.pl
 	mkdir .src.tmp
 	mkdir .src.tmp/bowtie-$(VERSION)
@@ -336,7 +267,7 @@ bowtie-src.zip: $(SRC_PKG_LIST)
 	cp .src.tmp/$@ .
 	rm -rf .src.tmp
 
-bowtie-bin.zip: $(BIN_PKG_LIST) $(BOWTIE_BIN_LIST) $(BOWTIE_BIN_LIST_AUX) 
+bowtie2-bin.zip: $(BIN_PKG_LIST) $(BOWTIE_BIN_LIST) $(BOWTIE_BIN_LIST_AUX) 
 	chmod a+x scripts/*.sh scripts/*.pl
 	rm -rf .bin.tmp
 	mkdir .bin.tmp
@@ -351,27 +282,6 @@ bowtie-bin.zip: $(BIN_PKG_LIST) $(BOWTIE_BIN_LIST) $(BOWTIE_BIN_LIST_AUX)
 	cd .bin.tmp ; zip -r $@ bowtie-$(VERSION)
 	cp .bin.tmp/$@ .
 	rm -rf .bin.tmp
-
-scan-debug: ac_scan.cpp ac_scan.h alphabet.cpp scan.h scan.cpp
-	$(CXX) $(DEBUG_FLAGS) \
-		$(DEBUG_DEFS) $(EXTRA_FLAGS) \
-		-DSCAN_MAIN \
-		$(DEFS) -Wall \
-		$(INC) -I . \
-		-o $@ $< \
-		alphabet.cpp shmem.cpp scan.cpp \
-		$(LIBS)
-
-scan: ac_scan.cpp ac_scan.h alphabet.cpp scan.h scan.cpp
-	$(CXX) $(RELEASE_FLAGS) \
-		$(RELEASE_DEFS) $(EXTRA_FLAGS) \
-		$(NOASSERT_FLAGS) \
-		-DSCAN_MAIN \
-		$(DEFS) -Wall \
-		$(INC) -I . \
-		-o $@ $< \
-		alphabet.cpp shmem.cpp scan.cpp \
-		$(LIBS)
 
 bowtie2-seeds-debug: aligner_seed.cpp ccnt_lut.cpp alphabet.cpp aligner_seed.h ebwt.cpp ebwt_io.cpp
 	$(CXX) $(DEBUG_FLAGS) \

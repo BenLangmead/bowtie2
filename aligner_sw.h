@@ -389,7 +389,7 @@ struct SwNucCell {
 		const SwNucCell& lc,
 		int rfm,
 		const Penalties& pen,
-		size_t nceil,
+		int nceil,
 		int penceil);
 
 	inline void updateDiag(
@@ -398,14 +398,14 @@ struct SwNucCell {
 		int rfm,
 		int pen,
 		const Penalties& pens,
-		size_t nceil,
+		int nceil,
 		int penceil);
 
 	inline void updateVert(
 		const SwNucCell& uc,
 		int rdc,
 		const Penalties& pen,
-		size_t nceil,
+		int nceil,
 		int penceil);
 
 	/**
@@ -476,6 +476,7 @@ public:
 
 	SwAligner() :
 		rfbuf_(SW_CAT),
+		mayend_(SW_CAT),
 		ntab_(SW_CAT),
 		ctab_(SW_CAT)
 	{ }
@@ -608,7 +609,8 @@ protected:
 		int col,               // start in this column
 		RandomSource& rand);   // pseudo-random generator
 
-	EList<uint32_t>     rfbuf_; // temporary buffer for holding refernece stretches
+	EList<uint32_t>     rfbuf_; // buffer for refernece stretches
+	EList<bool>         mayend_;// list of bools: which columns can we end in?
 	ELList<SwNucCell>   ntab_;  // dynamic programming table for nucleotide SW
 	ELList<SwColorCell> ctab_;  // dynamic programming table for colorspace SW
 };

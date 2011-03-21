@@ -327,24 +327,21 @@ protected:
 };
 
 /**
- * Encapsulates the progress made along a particular path from the
- * original range.
+ * Encapsulates the progress made along a particular path from the original
+ * range.
  */
 class GWState {
 	
 public:
 
 	GWState() :
-		ASSERT_ONLY(bwrows_(DEBUG_CAT),)
-		ASSERT_ONLY(toffs_(DEBUG_CAT),)
 		map_(GW_CAT)
 	{
 		reset(); assert(repOkBasic());
 	}
 	
 	/**
-	 * Initialize this GWState with new ebwt, top, bot, step,
-	 * and sat.
+	 * Initialize this GWState with new ebwt, top, bot, step, and sat.
 	 *
 	 * We assume map is already set up.
 	 *
@@ -411,42 +408,68 @@ public:
 			bool resolved = (off(i, hit) != 0xffffffff);
 			if(!resolved) {
 				// Elt not resolved yet; try to resolve it now
-				uint32_t bwrow = top - mapi_ + i;
+				uint32_t bwrow = (uint32_t)(top - mapi_ + i);
 				uint32_t toff = ebwt.tryOffset(bwrow);
 				ASSERT_ONLY(uint32_t origBwRow = hit.sat.top + map(i));
 				assert_eq(bwrow, ebwt.walkLeft(origBwRow, step));
-				assert(!bwrows_.contains(origBwRow));
 				if(toff != 0xffffffff) {
+					// Yes, toff was resolvable
 					assert_eq(toff, ebwt.getOffset(bwrow));
 					met.resolutions++;
-					toff += step; // step off by one sometimes?
+					toff += step;
 					assert_eq(toff, ebwt.getOffset(origBwRow));
-					assert(!toffs_.contains(toff));
 					setOff(i, toff, hit);
 					if(!reportList) ret.first++;
 #ifndef NDEBUG
 					uint32_t tidx = 0xffffffff, tof, tlen;
 					ebwt.joinedToTextOff(
-						hit.len,
-						toff,
-						tidx,
-						tof,
-						tlen);
+						hit.len, // length of seed
+						toff,    // offset in joined reference string
+						tidx,    // reference sequence id
+						tof,     // offset in reference coordinates
+						tlen);   // length of reference sequence
 					if(tidx != 0xffffffff) {
 						uint64_t key = hit.sat.key.seq;
+						// Go from rightmost to leftmost character w/r/t the
+						// reference Watson strand
 						for(int64_t j = tof + hit.len-1; j >= tof; j--) {
 							int c;
 							if(ebwt.eh().color()) {
 								int nup = ref.getBase(tidx, j);
-								assert_range(0, 4, nup);
+								assert_range(0, 3, nup);
 								int ndn = ref.getBase(tidx, j+1);
-								assert_range(0, 4, ndn);
+								assert_range(0, 3, ndn);
 								c = dinuc2color[nup][ndn];
 							} else {
 								c = ref.getBase(tidx, j);
 							}
-							assert_range(0, 4, c);
-							assert_eq(c, (int)(key & 3));
+							assert_range(0, 3, c);
+							if(c != (int)(key & 3)) {
+								// Oops; when we jump to the piece of the
+								// reference where the seed hit is, it doesn't
+								// match the seed hit.  Before dying, check
+								// whether we have the right spot in the joined
+								// reference string
+								SString<char> jref;
+								ebwt.restore(jref);
+								uint64_t key2 = hit.sat.key.seq;
+								for(int64_t k = toff + hit.len-1; k >= toff; k--) {
+									int c;
+									if(ebwt.eh().color()) {
+										int nup = jref[k+1];
+										assert_range(0, 3, nup);
+										int ndn = jref[k];
+										assert_range(0, 3, ndn);
+										c = dinuc2color[nup][ndn];
+									} else {
+										c = jref[k];
+									}
+									assert_range(0, 3, c);
+									assert_eq(c, (int)(key2 & 3));
+									key2 >>= 2;
+								}
+								assert(false);
+							}
 							key >>= 2;
 						}
 					}
@@ -460,10 +483,6 @@ public:
 					assert(res != NULL);
 					res->expand();
 					uint32_t origBwRow = hit.sat.top + map(i);
-					assert(!bwrows_.contains(origBwRow));
-					assert(!toffs_.contains(toff));
-					ASSERT_ONLY(bwrows_.insert(make_pair(origBwRow, toff)));
-					ASSERT_ONLY(toffs_.insert(make_pair(toff, origBwRow)));
 					res->back().init(
 						hit.offidx, // offset idx
 						hit.fw,     // orientation
@@ -494,7 +513,7 @@ public:
 				assert_geq(i, mapi_);
 				uint32_t bmap = map(i);
 				hit.fmap[bmap].first = range;
-				hit.fmap[bmap].second = i;
+				hit.fmap[bmap].second = (uint32_t)i;
 #ifndef NDEBUG
 				for(size_t j = 0; j < bmap; j++) {
 					if(hit.sat.offs[j] == 0xffffffff &&
@@ -564,7 +583,7 @@ public:
 				ref,
 				st,
 				hit,
-				st.size()-1,
+				(uint32_t)st.size()-1,
 				reportList,
 				res,
 				ztop,
@@ -604,7 +623,7 @@ public:
 		// 1 elements left to resolve.
 		int left = 0;
 		for(size_t i = mapi_; i < map_.size(); i++) {
-			ASSERT_ONLY(uint32_t row = top + i - mapi_);
+			ASSERT_ONLY(uint32_t row = (uint32_t)(top + i - mapi_));
 			ASSERT_ONLY(uint32_t origRow = hit.sat.top + map(i));
 			assert(step == 0 || row != origRow);
 			assert_eq(row, ebwt.walkLeft(origRow, step));
@@ -823,7 +842,7 @@ public:
 							ref,         // bitpair-encodede reference
 							st,          // EList of all GWStates associated with original range
 							hit,         // associated GWHit object
-							st.size()-1, // range offset
+							(uint32_t)st.size()-1, // range offset
 							reportList,  // if true, report hits to 'res' list
 							res,         // report hits here if reportList is true
 							ntop,        // BW top of new range
@@ -832,7 +851,7 @@ public:
 							met);        // update these metrics
 						ret.first += rret.first;
 						ret.second += rret.second;
-						assert(st.back().repOk(ebwt, hit, st.size()-1));
+						assert(st.back().repOk(ebwt, hit, (uint32_t)st.size()-1));
 					}
 					ASSERT_ONLY(sum += in[i]);
 				}
@@ -897,8 +916,6 @@ public:
 		tloc.invalidate();
 		bloc.invalidate();
 		map_.clear();
-		ASSERT_ONLY(bwrows_.clear());
-		ASSERT_ONLY(toffs_.clear());
 	}
 	
 	/**
@@ -908,7 +925,7 @@ public:
 		mapi_ = 0;
 		map_.resize(newsz);
 		for(size_t i = 0; i < newsz; i++) {
-			map_[i] = i;
+			map_[i] = (uint32_t)i;
 		}
 	}
 
@@ -944,7 +961,6 @@ protected:
 	
 	ASSERT_ONLY(bool inited_);
 	ASSERT_ONLY(int lastStep_);
-	ASSERT_ONLY(EMap<uint32_t, uint32_t> bwrows_, toffs_);
 	EList<uint32_t, 16> map_; // which elts in range 'range' we're tracking
 	uint32_t mapi_;           // first untrimmed element of map
 };
@@ -1074,7 +1090,7 @@ public:
 						st_[i][j].back().expand();
 						assert(st_[i][j].back().back().repOkBasic());
 						uint32_t top = (*satups)[k].top;
-						uint32_t bot = top + (*satups)[k].offs.size();
+						uint32_t bot = (uint32_t)(top + (*satups)[k].offs.size());
 						st_[i][j].back().back().reset();
 						st_[i][j].back().back().initMap(bot-top);
 						st_[i][j].back().ensure(4);
@@ -1151,14 +1167,14 @@ public:
 				// Copy SATuples into the GWHit list
 				hits_[i][j].expand();
 				assert(hits_[i][j].back().repOkBasic());
-				hits_[i][j].back().init((*satups)[k], 0, false, k);
+				hits_[i][j].back().init((*satups)[k], 0, false, (uint32_t)k);
 				// Init corresponding GWState
 				st_[i][j].expand();
 				st_[i][j].back().clear();
 				st_[i][j].back().expand();
 				assert(st_[i][j].back().back().repOkBasic());
 				uint32_t top = (*satups)[k].top;
-				uint32_t bot = top + (*satups)[k].offs.size();
+				uint32_t bot = (uint32_t)(top + (*satups)[k].offs.size());
 				st_[i][j].back().back().reset();
 				st_[i][j].back().back().initMap(bot-top);
 				st_[i][j].back().ensure(4);
@@ -1176,7 +1192,7 @@ public:
 					met);               // update metrics here
 #ifndef NDEBUG
 				for(size_t ii = 0; ii < st_[i][j].back().size(); ii++) {
-					assert(st_[i][j].back()[ii].repOk(*ebwtFw_, hits_[i][j].back(), ii));
+					assert(st_[i][j].back()[ii].repOk(*ebwtFw_, hits_[i][j].back(), (uint32_t)ii));
 				}
 #endif
 				ranges_++;
@@ -1453,8 +1469,8 @@ public:
 					seedidx, // seed offset
 					fw,      // orientation
 					range,   // range
-					i,       // element
-					h.sat.top + i,  // bw row
+					(uint32_t)i,       // element
+					(uint32_t)(h.sat.top + i),  // bw row
 					h.sat.key.len,  // length of hit
 					h.sat.offs[i]); // resolved text offset
 				rep_++;
@@ -1544,7 +1560,7 @@ public:
 							*ebwtFw_,
 							*ref_,
 							h[i],
-							j,
+							(uint32_t)j,
 							true,
 							&res_,
 							sts,
@@ -1863,7 +1879,7 @@ protected:
 			return false;
 		}
 		size_t totrowsSampled = 0;
-		uint32_t off = rnd.nextU32() % totrows;
+		uint32_t off = (uint32_t)(rnd.nextU32() % totrows);
 		bool on = false;
 		bool done = false;
 		// Go around twice, since the 

@@ -22,10 +22,10 @@ using namespace std;
  */
 int PairedEndPolicy::peClassifyPair(
 	int64_t  off1,   // offset of mate 1
-	uint32_t len1,   // length of mate 1
+	size_t   len1,   // length of mate 1
 	bool     fw1,    // whether mate 1 aligned to Watson
 	int64_t  off2,   // offset of mate 2
-	uint32_t len2,   // length of mate 2
+	size_t   len2,   // length of mate 2
 	bool     fw2)    // whether mate 2 aligned to Watson
 	const
 {
@@ -33,7 +33,7 @@ int PairedEndPolicy::peClassifyPair(
 	assert_gt(len2, 0);
 	// Expand the maximum fragment length if necessary to accomodate
 	// the longer mate
-	uint32_t maxfrag = maxfrag_;
+	size_t maxfrag = maxfrag_;
 	if(len1 > maxfrag && expandToFit_) maxfrag = len1;
 	if(len2 > maxfrag && expandToFit_) maxfrag = len2;
 	bool oneLeft = false;
@@ -66,7 +66,7 @@ int PairedEndPolicy::peClassifyPair(
 	int64_t fraglo = min<int64_t>(off1, off2);
 	int64_t fraghi = max<int64_t>(off1+len1, off2+len2);
 	assert_gt(fraghi, fraglo);
-	uint32_t frag = (uint32_t)(fraghi - fraglo);
+	size_t frag = (size_t)(fraghi - fraglo);
 	if(frag > maxfrag || frag < minfrag_) {
 		// Pair is discordant by virtue of the extents
 		return PE_ALS_DISCORD;
@@ -133,9 +133,9 @@ bool PairedEndPolicy::otherMate(
 					    // for 2, false -> vice versa
 	bool     fw,        // orientation of aligned mate
 	int64_t  off,       // offset into the reference sequence
-	uint32_t reflen,    // length of reference sequence aligned to
-	uint32_t len1,      // length of mate 1
-	uint32_t len2,      // length of mate 2
+	size_t   reflen,    // length of reference sequence aligned to
+	size_t   len1,      // length of mate 1
+	size_t   len2,      // length of mate 2
 	bool&    oleft,     // out: true iff opp mate must be to right of anchor
 	int64_t& oll,       // out: leftmost Watson off for LHS of opp alignment
 	int64_t& olr,       // out: rightmost Watson off for LHS of opp alignment
@@ -154,11 +154,11 @@ bool PairedEndPolicy::otherMate(
 	// of given mate, and what strand it should align to
 	pePolicyMateDir(pol_, is1, fw, oleft, ofw);
 	
-	uint32_t alen = is1 ? len1 : len2; // length of opposite mate
+	size_t alen = is1 ? len1 : len2; // length of opposite mate
 	
 	// Expand the maximum fragment length if necessary to accomodate
 	// the longer mate
-	uint32_t maxfrag = maxfrag_;
+	size_t maxfrag = maxfrag_;
 	if(len1 > maxfrag && expandToFit_) maxfrag = len1;
 	if(len2 > maxfrag && expandToFit_) maxfrag = len2;
 	if(!expandToFit_ && (len1 > maxfrag || len2 > maxfrag)) {
@@ -219,14 +219,14 @@ bool PairedEndPolicy::otherMate(
 		// What if overlapping alignments are not allowed?
 		if(!olapOk_) {
 			// RHS can't be flush with or to the right of off
-			orr = min(orr, off-1);
+			orr = min<int64_t>(orr, off-1);
 			assert_leq(oll, olr);
 			assert_leq(orl, orr);
 		}
 		// What if dovetail alignments are not allowed?
 		else if(!dovetailOk_) {
 			// RHS can't be past off+alen-1
-			orr = min(orr, off + alen - 1);
+			orr = min<int64_t>(orr, off + alen - 1);
 			assert_leq(oll, olr);
 			assert_leq(orl, orr);
 		}
@@ -274,14 +274,14 @@ bool PairedEndPolicy::otherMate(
 		// What if overlapping alignments are not allowed?
 		if(!olapOk_) {
 			// RHS can't be flush with or to the right of off
-			oll = max(oll, off+alen);
+			oll = max<int64_t>(oll, off+alen);
 			assert_leq(oll, olr);
 			assert_leq(orl, orr);
 		}
 		// What if dovetail alignments are not allowed?
 		else if(!dovetailOk_) {
 			// RHS can't be past off+alen-1
-			oll = max(oll, off);
+			oll = max<int64_t>(oll, off);
 			assert_leq(oll, olr);
 			assert_leq(orl, orr);
 		}
@@ -299,18 +299,18 @@ bool PairedEndPolicy::otherMate(
 void testCaseClassify(
 	const string& name,
 	int      pol,
-	uint32_t maxfrag,
-	uint32_t minfrag,
+	size_t   maxfrag,
+	size_t   minfrag,
 	bool     local,
 	bool     dove,
 	bool     cont,
 	bool     olap,
 	bool     expand,
 	int64_t  off1,
-	uint32_t len1,
+	size_t   len1,
 	bool     fw1,
 	int64_t  off2,
-	uint32_t len2,
+	size_t   len2,
 	bool     fw2,
 	int      expect_class)
 {
@@ -337,8 +337,8 @@ void testCaseClassify(
 void testCaseOtherMate(
 	const string& name,
 	int      pol,
-	uint32_t maxfrag,
-	uint32_t minfrag,
+	size_t   maxfrag,
+	size_t   minfrag,
 	bool     local,
 	bool     dove,
 	bool     cont,
@@ -346,10 +346,10 @@ void testCaseOtherMate(
 	bool     expand,
 	bool     is1,
 	bool     fw,
-	uint32_t off,
-	uint32_t reflen,
-	uint32_t len1,
-	uint32_t len2,
+	size_t   off,
+	size_t   reflen,
+	size_t   len1,
+	size_t   len2,
 	bool     expect_ret,
 	bool     expect_oleft,
 	int64_t  expect_oll,

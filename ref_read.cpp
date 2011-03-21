@@ -6,10 +6,11 @@
  * anything with the sequence characters themselves; this is purely for
  * measuring lengths.
  */
-RefRecord fastaRefReadSize(FileBuf& in,
-                           const RefReadInParams& rparms,
-                           bool first,
-                           BitpairOutFileBuf* bpout)
+RefRecord fastaRefReadSize(
+	FileBuf& in,
+	const RefReadInParams& rparms,
+	bool first,
+	BitpairOutFileBuf* bpout)
 {
 	int c;
 	static int lastc = '>'; // last character seen
@@ -58,7 +59,7 @@ RefRecord fastaRefReadSize(FileBuf& in,
 			// Don't emit a warning, since this might legitimately be
 			// a gap on the end of the final sequence in the file
 			lastc = -1;
-			return RefRecord(off, len, first);
+			return RefRecord((uint32_t)off, (uint32_t)len, first);
 		}
 	}
 
@@ -96,7 +97,7 @@ RefRecord fastaRefReadSize(FileBuf& in,
 			}
 			lastc = '>';
 			//return RefRecord(off, 0, false);
-			return RefRecord(off, 0, first);
+			return RefRecord((uint32_t)off, 0, first);
 		}
 		c = in.get();
 		if(c == -1) {
@@ -108,7 +109,7 @@ RefRecord fastaRefReadSize(FileBuf& in,
 			}
 			lastc = -1;
 			//return RefRecord(off, 0, false);
-			return RefRecord(off, 0, first);
+			return RefRecord((uint32_t)off, 0, first);
 		}
 	}
 	assert(!rparms.color || (lc != -1));
@@ -147,7 +148,7 @@ RefRecord fastaRefReadSize(FileBuf& in,
 			// It's an N or a gap
 			lastc = c;
 			assert(cc != 'A' && cc != 'C' && cc != 'G' && cc != 'T');
-			return RefRecord(off, len, first);
+			return RefRecord((uint32_t)off, (uint32_t)len, first);
 		} else {
 			// Not DNA and not a gap, ignore it
 #ifndef NDEBUG
@@ -164,29 +165,32 @@ RefRecord fastaRefReadSize(FileBuf& in,
 		c = in.get();
 	}
 	lastc = c;
-	return RefRecord(off, len, first);
+	return RefRecord((uint32_t)off, (uint32_t)len, first);
 }
 
+#if 0
 static void
 printRecords(ostream& os, const EList<RefRecord>& l) {
 	for(size_t i = 0; i < l.size(); i++) {
 		os << l[i].first << ", " << l[i].off << ", " << l[i].len << endl;
 	}
 }
+#endif
 
 /**
  * Reverse the 'src' list of RefRecords into the 'dst' list.  Don't
  * modify 'src'.
  */
-void reverseRefRecords(const EList<RefRecord>& src,
-					   EList<RefRecord>& dst,
-					   bool recursive,
-					   bool verbose)
+void reverseRefRecords(
+	const EList<RefRecord>& src,
+	EList<RefRecord>& dst,
+	bool recursive,
+	bool verbose)
 {
 	dst.clear();
 	{
 		EList<RefRecord> cur;
-		for(int i = src.size()-1; i >= 0; i--) {
+		for(int i = (int)src.size()-1; i >= 0; i--) {
 			bool first = (i == (int)src.size()-1 || src[i+1].first);
 			if(src[i].len) {
 				cur.push_back(RefRecord(0, src[i].len, first));
@@ -207,12 +211,12 @@ void reverseRefRecords(const EList<RefRecord>& src,
 			}
 		}
 	}
-	if(verbose) {
-		cout << "Source: " << endl;
-		printRecords(cout, src);
-		cout << "Dest: " << endl;
-		printRecords(cout, dst);
-	}
+	//if(verbose) {
+	//	cout << "Source: " << endl;
+	//	printRecords(cout, src);
+	//	cout << "Dest: " << endl;
+	//	printRecords(cout, dst);
+	//}
 #ifndef NDEBUG
 	if(!recursive) {
 		EList<RefRecord> tmp;
@@ -233,11 +237,12 @@ void reverseRefRecords(const EList<RefRecord>& src,
  * all references combined.  Rewinds each istream before returning.
  */
 std::pair<size_t, size_t>
-fastaRefReadSizes(EList<FileBuf*>& in,
-                  EList<RefRecord>& recs,
-                  const RefReadInParams& rparms,
-                  BitpairOutFileBuf* bpout,
-                  int& numSeqs)
+fastaRefReadSizes(
+	EList<FileBuf*>& in,
+	EList<RefRecord>& recs,
+	const RefReadInParams& rparms,
+	BitpairOutFileBuf* bpout,
+	int& numSeqs)
 {
 	uint32_t unambigTot = 0;
 	uint32_t bothTot = 0;
