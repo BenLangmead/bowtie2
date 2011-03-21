@@ -722,7 +722,7 @@ sub align {
 		$? == 0 || die "Command '$cmd' failed with exitlevel $?";
 		# Sort the $als_px file, which might have printed alignments out of
 		# order, with respect to the numeric read name.
-		$cmd = "sort -k 1,1 -n < $als_px > $als_px.sorted";
+		$cmd = "sort -k 1,1 -n -k 2,2 -k 3,3 -k 4,4 < $als_px > $als_px.sorted";
 		print "$cmd\n";
 		system($cmd);
 		$? == 0 || die "Failed to sort alignment file\n";
