@@ -792,23 +792,9 @@ sub nextCase {
 	}
 }
 
-sub test1 {
-	my $sim = Sim->new();
-	my $case = $sim->nextCase( { no_paired => 1 } );
-	return 1;
-}
-
-sub test2 {
-	my $sim = Sim->new();
-	my $case = $sim->nextCase( { no_paired => 1 } );
-	return 1;
-}
-
-if($0 eq "Sim.pm") {
+if($0 =~ /Sim\.pm$/) {
 	print "Running unit tests\n";
 	# Run unit tests
-	Test::shouldSucceed("test1", \&test1);
-	Test::shouldSucceed("test2", \&test2);
 }
 
 1;

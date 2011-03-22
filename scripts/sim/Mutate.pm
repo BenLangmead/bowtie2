@@ -277,7 +277,7 @@ sub test2 {
 	return 1;
 }
 
-if($0 =~ /^Mutate\.pm$/) {
+if($0 =~ /[^0-9a-zA-Z_]?Mutate\.pm$/) {
 	print "Running unit tests\n";
 	# Run unit tests
 	Test::shouldSucceed("test1", \&test1);

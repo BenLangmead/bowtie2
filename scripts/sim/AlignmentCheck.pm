@@ -483,7 +483,7 @@ sub test2 {
 	return 1;
 }
 
-if($0 =~ /^AlignmentCheck\.pm$/) {
+if($0 =~ /[^0-9a-zA-Z_]?AlignmentCheck\.pm$/) {
 	my @fas = ();
 	my @als = ();
 	my $format = "bowtie";

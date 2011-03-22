@@ -262,7 +262,7 @@ sub test4 {
 	return 1;
 }
 
-if($0 =~ /^DNA\.pm$/) {
+if($0 =~ /[^0-9a-zA-Z_]?DNA\.pm$/) {
 	print "Running unit tests\n";
 	# Run unit tests
 	Test::shouldSucceed("test1", \&test1);

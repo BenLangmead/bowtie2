@@ -50,9 +50,13 @@ GetOptions(
 	"bowtie2-build-debug=s" => \$conf{bowtie2_build_debug},
 	"tempdir|tmpdir=s"      => \$conf{tempdir},
 	"small"                 => \$conf{small},
+	"no-paired"             => \$conf{no_paired},
 	"help"                  => \$help,
 	"p|cpus=i"              => \$cpus
 ) || die "Bad options;";
+
+# TODO: fix
+$conf{no_paired} = 1;
 
 if($help) {
 	print $usage;
@@ -73,13 +77,13 @@ $pm->run_on_finish(sub {
 	}
 });
 
-my $case = $sim->nextCase( { no_paired => 1 } );
+my $case = $sim->nextCase(\%conf);
 for(1..$cpus) {
 	my $childPid = $pm->start;
 	if($childPid != 0) {
 		next; # spawn the next child
 	}
-	$sim->nextCase( { no_paired => 1 } );
+	$sim->nextCase(\%conf);
 	$pm->finish;
 }
 $pm->wait_all_children;
