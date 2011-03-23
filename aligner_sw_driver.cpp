@@ -1,17 +1,14 @@
 /*
  * aligner_sw_driver.cpp
  *
- * This file contains routines that drive the alignment process given
- * a collection of seed hits.  This is generally done in a few stages:
- * extendSeeds visits the set of seed-hit BW elements in some order;
- * for each element visited it resolves its reference offset; once the
- * reference offset is known, bounds for a Smith-Waterman subproblem
- * are established; if these bounds are distinct from the bounds we've
- * already tried, we solve the Smith-Waterman subproblem and report the
- * hit; if the AlnSinkWrap indicates that we can stop, we return,
- * otherwise we continue on to the next BW element.
- *
- * 
+ * Routines that drive the alignment process given a collection of seed hits.
+ * This is generally done in a few stages: extendSeeds visits the set of
+ * seed-hit BW elements in some order; for each element visited it resolves its
+ * reference offset; once the reference offset is known, bounds for a dynamic
+ * programming subproblem are established; if these bounds are distinct from
+ * the bounds we've already tried, we solve the dynamic programming subproblem
+ * and report the hit; if the AlnSinkWrap indicates that we can stop, we
+ * return, otherwise we continue on to the next BW element.
  */
 
 #include <iostream>
@@ -63,15 +60,14 @@ uint32_t SwDriver::bwtOffToOff(
 }
 
 /**
- * Given a collection of SeedHits for a single read, extend seed
- * alignments into full alignments.  Where possible, try to avoid
- * redundant offset lookups and Smith-Watermans wherever possible.
- * Optionally report alignments to a AlnSinkWrap object as they
- * are discovered.
+ * Given a collection of SeedHits for a single read, extend seed alignments
+ * into full alignments.  Where possible, try to avoid redundant offset lookups
+ * and dynamic programming wherever possible.  Optionally report alignments to
+ * a AlnSinkWrap object as they are discovered.
  *
- * If 'reportImmediately' is true, returns true iff a call to
- * msink->report() returned true (indicating that the reporting
- * policy is satisfied and we can stop).  Otherwise, returns false.
+ * If 'reportImmediately' is true, returns true iff a call to msink->report()
+ * returned true (indicating that the reporting policy is satisfied and we can
+ * stop).  Otherwise, returns false.
  */
 bool SwDriver::extendSeeds(
 	const Read& rd,              // read to align
@@ -80,8 +76,8 @@ bool SwDriver::extendSeeds(
 	const Ebwt& ebwt,            // BWT
 	const BitPairReference& ref, // Reference strings
 	GroupWalk& gw,               // group walk left
-	SwAligner& swa,              // Smith-Waterman aligner
-	const SwParams& pa,          // parars1_meters for Smith-Waterman aligner
+	SwAligner& swa,              // dynamic programming aligner
+	const SwParams& pa,          // parars1_meters for dyn prog aligner
 	const Penalties& pen,        // penalties for edits
 	int seedmms,                 // # mismatches allowed in seed
 	int seedlen,                 // length of seed
@@ -92,7 +88,7 @@ bool SwDriver::extendSeeds(
 	AlignmentCacheIface& sc,     // alignment cache for seed hits
 	RandomSource& rnd,           // pseudo-random source
 	WalkMetrics& wlm,            // group walk left metrics
-	SwMetrics& swm,              // Smith-Waterman metrics
+	SwMetrics& swm,              // dynamic programming metrics
 	ReportingMetrics& rpm,       // reporting metrics
 	AlnSinkWrap* msink,        // AlnSink wrapper for multiseed-style aligner
 	bool reportImmediately,      // whether to report hits immediately to msink
@@ -193,26 +189,27 @@ bool SwDriver::extendSeeds(
 			}
 			res_.reset();
 			assert(res_.empty());
-			// Given the boundaries defined by refi and reff, align the
-			// read to this reference stretch and, if a valid alignment
-			// is found, store the result in res_.
-			bool found = swa.alignToBitPairReference(
-				rd,
-				color,
-				0,
-				rdlen,
-				fw,
-				tidx,
-				refi,
-				reff,
-				ref,
-				tlen,
-				pa,
-				pen,
-				penceil,
+			// Given the boundaries defined by refi and reff, initilize the
+			// SwAligner with the dynamic programming problem that aligns the
+			// read to this reference stretch.
+			swa.init(
+				rd,        // read to align
+				0,         // off of first char in 'rd' to consider
+				rdlen,     // off of last char (excl) in 'rd' to consider
+				fw,        // whether to align forward or revcomp read
+				color,     // colorspace?
+				tidx,      // reference aligned against
+				refi,      // off of first character in ref to consider
+				reff,      // off of last char (excl) in ref to consider
+				ref,       // Reference strings
+				tlen,      // length of reference sequence
+				pa,        // dynamic programming parameters
+				pen,       // penalty scheme
+				penceil);  // penalty ceiling for valid alignments
+			// Now fill the dynamic programming matrix
+			bool found = swa.align(
 				res_,
-				swCounterSinks,
-				swActionSinks);
+				rnd);
 			assert_neq(0xffffffff, tidx);
 			assert( found ||  res_.empty());
 			assert(!found || !res_.empty());
@@ -268,7 +265,7 @@ bool SwDriver::extendSeeds(
 }
 
 /**
- * Given a read, perform full Smith-Waterman against the entire
+ * Given a read, perform full dynamic programming against the entire
  * reference.  Optionally report alignments to a AlnSinkWrap object
  * as they are discovered.
  *
@@ -280,13 +277,13 @@ bool SwDriver::sw(
 	const Read& rd,              // read to align
 	bool color,                  // true -> read is colorspace
 	const BitPairReference& ref, // Reference strings
-	SwAligner& swa,              // Smith-Waterman aligner
-	const SwParams& pa,          // parameters for Smith-Waterman aligner
+	SwAligner& swa,              // dynamic programming aligner
+	const SwParams& pa,          // parameters for dynamic programming aligner
 	const Penalties& pen,        // penalties for edits
 	int penceil,                 // maximum penalty allowed
 	RandomSource& rnd,           // pseudo-random source
-	SwMetrics& swm,              // Smith-Waterman metrics
-	AlnSinkWrap* msink,        // HitSink for multiseed-style aligner
+	SwMetrics& swm,              // dynamic programming metrics
+	AlnSinkWrap* msink,          // HitSink for multiseed-style aligner
 	bool reportImmediately,      // whether to report hits immediately to msink
 	EList<SwCounterSink*>* swCounterSinks, // send counter updates to these
 	EList<SwActionSink*>* swActionSinks)   // send action-list updates to these
@@ -327,8 +324,8 @@ bool SwDriver::extendSeedsPaired(
 	const Ebwt& ebwt,            // BWT
 	const BitPairReference& ref, // Reference strings
 	GroupWalk& gw,               // group walk left
-	SwAligner& swa,              // Smith-Waterman aligner
-	const SwParams& pa,          // parameters for Smith-Waterman aligner
+	SwAligner& swa,              // dynamic programming aligner
+	const SwParams& pa,          // parameters for dynamic programming aligner
 	const Penalties& pen,        // penalties for edits
 	const PairedEndPolicy& pepol,// paired-end policy
 	int seedmms,                 // # mismatches allowed in seed
@@ -341,9 +338,9 @@ bool SwDriver::extendSeedsPaired(
 	AlignmentCacheIface& sc,     // alignment cache for seed hits
 	RandomSource& rnd,           // pseudo-random source
 	WalkMetrics& wlm,            // group walk left metrics
-	SwMetrics& swm,              // Smith-Waterman metrics
+	SwMetrics& swm,              // dynamic programming metrics
 	ReportingMetrics& rpm,       // reporting metrics
-	AlnSinkWrap* msink,        // AlnSink wrapper for multiseed-style aligner
+	AlnSinkWrap* msink,          // AlnSink wrapper for multiseed-style aligner
 	bool swMateImmediately,      // whether to look for mate immediately
 	bool reportImmediately,      // whether to report hits immediately to msink
 	EList<SwCounterSink*>* swCounterSinks, // send counter updates to these
@@ -482,27 +479,28 @@ bool SwDriver::extendSeedsPaired(
 			}
 			res_.reset();
 			assert(res_.empty());
-			// Given the boundaries defined by refi and reff, align the
-			// read to this reference stretch and, if a valid alignment
-			// is found, store the result in res_.
-			bool foundAnchor = swa.alignToBitPairReference(
-				*rd,
-				color,
-				0,
-				rdlen,
-				fw,
-				tidx,
-				refi,
-				reff,
-				ref,
-				tlen,
-				pa,
-				pen,
-				penceil,
-				res_,
-				swCounterSinks,
-				swActionSinks);
 			assert_neq(0xffffffff, tidx);
+			// Given the boundaries defined by refi and reff, initilize the
+			// SwAligner with the dynamic programming problem that aligns the
+			// read to this reference stretch.
+			swa.init(
+				*rd,       // read to align
+				0,         // off of first char in 'rd' to consider
+				rdlen,     // off of last char (excl) in 'rd' to consider
+				fw,        // whether to align forward or revcomp read
+				color,     // colorspace?
+				tidx,      // reference aligned against
+				refi,      // off of first character in ref to consider
+				reff,      // off of last char (excl) in ref to consider
+				ref,       // Reference strings
+				tlen,      // length of reference sequence
+				pa,        // dynamic programming parameters
+				pen,       // penalty scheme
+				penceil);  // penalty ceiling for valid alignments
+			// Now fill the dynamic programming matrix
+			bool foundAnchor = swa.align(
+				res_,
+				rnd);
 			assert( foundAnchor ||  res_.empty());
 			assert(!foundAnchor || !res_.empty());
 			if(foundAnchor) {

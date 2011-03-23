@@ -1748,12 +1748,13 @@ public:
 	void insert(const T& c, size_t idx) {
 		assert_lt(idx, len_);
 		if(sz_ < len_ + 1) expandCopy((len_ + 1 + S) * M);
+		len_++;
 		// Move everyone down by 1
-		for(int i = len_; i > idx; i--) {
-			cs_[i] = cs_[i-1];
+		// len_ is the *new* length
+		for(size_t i = len_; i > idx+1; i--) {
+			cs_[i-1] = cs_[i-2];
 		}
 		cs_[idx] = c;
-		len_++;
 	}
 
 	/**

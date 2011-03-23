@@ -17,18 +17,6 @@ void SwParams::initFromGlobals() {
 }
 
 /**
- * Given a list of reads, execute the corresponding Smith-Waterman
- * problem across the entire extent of the reference.
- */
-void SwAligner::alignBatchToFasta(
-	const EList<Read>& rds,
-	const EList<std::string>& fas,
-	ELList<SwResult>& res)
-{
-	
-}
-
-/**
  * Given a read, an alignment orientation, a range of characters in a referece
  * sequence, and a bit-encoded version of the reference, set up and execute the
  * corresponding dynamic programming problem.
@@ -37,23 +25,20 @@ void SwAligner::alignBatchToFasta(
  * using, e.g., the location of a seed hit, or the range of possible fragment
  * lengths if we're searching for the opposite mate in a pair.
  */
-bool SwAligner::alignToBitPairReference(
+void SwAligner::init(
 	const Read& rd,       // read to align
-	bool color,           // colorspace?
 	size_t rdi,           // offset of first character within 'read' to consider
 	size_t rdf,           // offset of last char (exclusive) in 'read' to consider
 	bool fw,              // whether to align forward or revcomp read
+	bool color,           // colorspace?
 	uint32_t refidx,      // reference aligned against
 	int64_t rfi,          // first reference base to SW align against
 	int64_t rff,          // last reference base (exclusive) to SW align against
 	const BitPairReference& refs, // Reference strings
 	size_t reflen,        // length of reference sequence
-	const SwParams& pa,   // Smith-Waterman parameters
+	const SwParams& pa,   // dynamic programming parameters
 	const Penalties& pen, // penalty scheme
-	int penceil,          // maximum penalty we can incur for a valid alignment
-	SwResult& res,        // results of Smith-Waterman alignment (score, edits, etc)
-	EList<SwCounterSink*>* swCounterSinks, // send counter updates to these
-	EList<SwActionSink*>* swActionSinks)   // send action-list updates to these
+	int penceil)          // maximum penalty we can incur for a valid alignment
 {
 	assert_gt(rff, rfi);
 	assert_gt(rdf, rdi);
@@ -66,14 +51,15 @@ bool SwAligner::alignToBitPairReference(
 		rff++;
 	}
 	// Figure the number of Ns we're going to add to either side
-	size_t leftNs  = (rfi >= 0               ? 0 : (size_t)std::abs(rfi));
-	size_t rightNs = (rff <= (int64_t)reflen ? 0 : (size_t)std::abs(rff - (int64_t)reflen));
+	size_t leftNs  =
+		(rfi >= 0               ? 0 : (size_t)std::abs(rfi));
+	size_t rightNs =
+		(rff <= (int64_t)reflen ? 0 : (size_t)std::abs(rff - (int64_t)reflen));
 	// rflen = full length of the reference substring to consider, including
 	// overhang off the boundaries of the reference sequence
 	const size_t rflen = (size_t)(rff - rfi);
 	// rflenInner = length of just the portion that doesn't overhang ref ends
 	const size_t rflenInner = rflen - (leftNs + rightNs);
-	const size_t rdlen = rdf - rdi;
 #ifndef NDEBUG
 	bool haveRfbuf2 = false;
 	EList<char> rfbuf2(rflen);
@@ -93,115 +79,104 @@ bool SwAligner::alignToBitPairReference(
 #endif
 	// rfbuf_ = uint32_t list large enough to accommodate both the reference
 	// sequence and any Ns we might add to either side.
-	rfbuf_.resize((rflen + 16) / 4);
+	rfwbuf_.resize((rflen + 16) / 4);
 	int offset = refs.getStretch(
-		rfbuf_.ptr(),                // buffer to store words in
+		rfwbuf_.ptr(),               // buffer to store words in
 		refidx,                      // which reference
 		(rfi < 0) ? 0 : (size_t)rfi, // starting offset (can't be < 0)
 		rflenInner);                 // length to grab (exclude overhang)
-	char *rfc = (char*)rfbuf_.ptr() + offset;
+	assert_leq(offset, 16);
+	rf_ = (char*)rfwbuf_.ptr() + offset;
 	// Shift ref chars away from 0 so we can stick Ns at the beginning
 	if(leftNs > 0) {
 		// Slide everyone down
 		for(size_t i = rflenInner; i > 0; i--) {
-			rfc[i+leftNs-1] = rfc[i-1];
+			rf_[i+leftNs-1] = rf_[i-1];
 		}
 		// Add Ns
 		for(size_t i = 0; i < leftNs; i++) {
-			rfc[i] = 4;
+			rf_[i] = 4;
 		}
 	}
 	if(rightNs > 0) {
 		// Add Ns to the end
 		for(size_t i = 0; i < rightNs; i++) {
-			rfc[i + leftNs + rflenInner] = 4;
+			rf_[i + leftNs + rflenInner] = 4;
 		}
 	}
 	// Count Ns and convert reference characters into A/C/G/T masks.  Ambiguous
 	// nucleotides (IUPAC codes) have more than one mask bit set.
 	for(size_t i = 0; i < rflen; i++) {
-		assert(!haveRfbuf2 || rfc[i] == rfbuf2[i]);
+		assert(!haveRfbuf2 || rf_[i] == rfbuf2[i]);
 		// Make it into a mask
-		assert_range(0, 4, (int)rfc[i]);
-		// rfc[i] gets mask version of refence char, with N=16
-		rfc[i] = (1 << rfc[i]);
+		assert_range(0, 4, (int)rf_[i]);
+		// rf_[i] gets mask version of refence char, with N=16
+		rf_[i] = (1 << rf_[i]);
 	}
-	BTString rf(rfc, rflen); // wrap ref sequence in BTString
 	RandomSource rnd(rd.seed);
-	int off = -1;
-	int nup = -1, ndn = -1;
 	const BTDnaString& rdseq  = fw ? rd.patFw : rd.patRc;
 	const BTString&    rdqual = fw ? rd.qual  : rd.qualRev;
-	if(color) {
-		// Call long align function
-		off = alignColors(
-			rdseq,       // read sequence
-			rdqual,      // read qualities
-			rdi,         // offset of first char in read to consdier
-			rdf,         // offset of last char (exclusive) in read to consdier
-			rf,          // reference sequence, wrapped up in BTString object
-			0,           // use the whole thing
-			rflen,       // ditto
-			pa,          // Smith-Waterman parameters
-			pen,         // penalties
-			penceil,     // max penalty
-			nup,         // decoded upstream-most nucleotide
-			ndn,         // decoded downstream-most nucleotide
-			res,         // result
-			rnd);        // pseudo-random generator
-		assert_geq(off, -1);
+	init(
+		rdseq,       // read sequence
+		rdqual,      // read qualities
+		rdi,         // offset of first char in read to consdier
+		rdf,         // offset of last char (exclusive) in read to consdier
+		fw,          // true iff read sequence is original fw read
+		color,       // true iff read is colorspace
+		refidx,      // id of reference aligned against
+		rfi,         // offset of upstream ref char aligned against
+		rf_,         // reference sequence, wrapped up in BTString object
+		0,           // use the whole thing
+		rflen,       // ditto
+		pa,          // dynamic programming parameters
+		pen,         // penalties
+		penceil);    // max penalty
+}
+
+/**
+ * Align read 'rd' to reference using read & reference information given
+ * last time init() was called.  If the read is colorspace, the decoding is
+ * determined simultaneously with alignment.  Uses dynamic programming.
+ */
+bool SwAligner::align(
+	SwResult& res,
+	RandomSource& rnd)
+{
+	assert(inited());
+	int off = -1;
+	if(color_) {
+		off = alignColors(res, rnd);
 	} else {
-		// Call long align function
-		off = alignNucleotides(
-			rdseq,       // read sequence
-			rdqual,      // read qualities
-			rdi,         // offset of first char in read to consdier
-			rdf,         // offset of last char (exclusive) in read to consdier
-			rf,          // reference sequence, wrapped up in BTString object
-			0,           // use the whole thing
-			rflen,       // ditto
-			pa,          // Smith-Waterman parameters
-			pen,         // penalties
-			penceil,     // max penalty
-			res,         // result
-			rnd);        // pseudo-random generator
-		assert_geq(off, -1);
+		off = alignNucleotides(res, rnd);
 	}
 	assert(off == -1 || !res.empty());
 	assert(off != -1 ||  res.empty());
-	if(off != -1) {
-		// Set whether the alignment is colorspace
-		res.alres.setColor(color);
+	if(off >= 0) {
 		// Calculate the number of reference characters covered by the
 		// alignment
-		size_t extent = rdlen;
+		size_t extent = rdf_ - rdi_;
 		const EList<Edit>& ned = res.alres.ned();
 		for(size_t i = 0; i < ned.size(); i++) {
 			if     (ned[i].isInsert()) extent++;
 			else if(ned[i].isDelete()) extent--;
 		}
 		// Set the reference idx
-		// res.refcoords.second already contains the column of the SW table
-		// that we traced back to; now add the first column's offset into
-		// the reference
-		res.alres.setCoord(refidx, off + rfi, fw, extent);
+		res.alres.setCoord(refidx_, off + rfi_ + refoff_, fw_, extent);
 		assert(!res.alres.empty());
 		assert(res.repOk());
-		if(!fw) {
+		if(!fw_) {
 			// All edits are currently w/r/t upstream end; if read aligned
 			// to Crick strand, we need to invert them so that they're
 			// w/r/t the read's 5' end instead.
-			res.alres.invertEdits(rd.length());
+			res.alres.invertEdits(rd_->length());
 		}
-		if(color) {
-			assert_range(0, 3, nup);
-			assert_range(0, 3, ndn);
-			res.alres.setNucs(fw, nup, ndn);
+		if(color_) {
+			assert_range(0, 3, res.nup);
+			assert_range(0, 3, res.ndn);
+			res.alres.setNucs(fw_, res.nup, res.ndn);
 		}
-		
-		return true;
 	}
-	return false;
+	return off >= 0;
 }
 
 /**
@@ -242,24 +217,13 @@ int SwNucCellMask::randBacktrack(RandomSource& rand) {
  * character's offset with respect to rfi.
  */
 int SwAligner::backtrackNucleotides(
-	const BTDnaString& rd, // read sequence
-	const BTString& qu,    // read qualities
-	size_t rdi,            // offset of first read char to align
-	size_t rdf,            // offset of last read char to align
-	BTString& rf,          // reference sequence
-	size_t rfi,            // offset of first reference char to align to
-	size_t rff,            // offset of last reference char to align to
-	AlignmentScore expectScore,   // score we expect to get over backtrack
-	int readGaps,          // max # gaps in read
-	int refGaps,           // max # gaps in ref
-	const SwParams& pa,    // params for SW alignment
-	const Penalties& pen,  // penalties for edit types
-	SwResult& res,         // store results (edits and scores) here
-	int col,               // start in this column (w/r/t the full matrix)
-	RandomSource& rand)    // pseudo-random generator
+	AlignmentScore escore, // score we expect to get over backtrack
+	SwResult&      res,    // store results (edits and scores) here
+	int            col,    // start in this column (w/r/t the full matrix)
+	RandomSource&  rand)   // pseudo-random generator
 {
 	ELList<SwNucCell>& tab = ntab_;
-	int row = (int)rd.length()-1;
+	int row = (int)rd_->length()-1;
 	assert_eq(row, (int)tab.size()-1);
 	AlignmentScore score; score.score_ = 0;
 	score.gaps_ = score.ns_ = 0;
@@ -286,9 +250,9 @@ int SwAligner::backtrackNucleotides(
 				refExtend = readExtend = false;
 				assert_gt(row, 0); assert_gt(col, 0);
 				// Check for color mismatch
-				int readC = rd[row];
-				int refNmask = (int)rf[rfi+col];
-				int m = matches(readC, refNmask);
+				int readC = (*rd_)[row];
+				int refNmask = (int)rf_[rfi_+col];
+				int m = matchesEx(readC, refNmask);
 				if(m != 1) {
 					Edit e(row, mask2dna[refNmask], "ACGTN"[readC], EDIT_TYPE_MM);
 					assert(e.repOk());
@@ -311,17 +275,17 @@ int SwAligner::backtrackNucleotides(
 			case SW_BT_REF_OPEN: {
 				refExtend = true; readExtend = false;
 				assert_gt(row, 0);
-				Edit e(row, '-', "ACGTN"[(int)rd[row]], EDIT_TYPE_DEL);
+				Edit e(row, '-', "ACGTN"[(int)(*rd_)[row]], EDIT_TYPE_DEL);
 				assert(e.repOk());
 				ned.push_back(e);
-				assert_geq(row, pa.gapBar);
-				assert_geq((int)(rdf-rdi-row-1), pa.gapBar-1);
+				assert_geq(row, pa_->gapBar);
+				assert_geq((int)(rdf_-rdi_-row-1), pa_->gapBar-1);
 				row--;
-				score.score_ -= pen.refOpen;
+				score.score_ -= pen_->refOpen;
 				score.gaps_++;
 #ifndef NDEBUG
 				gaps++;
-				assert_leq(score.gaps_, readGaps + refGaps);
+				assert_leq(score.gaps_, rdgap_ + rfgap_);
 				assert_range(0, (int)tab.size()-1, row);
 				tabcol = col - row;
 				assert_range(0, (int)tab[row].size()-1, tabcol);
@@ -335,17 +299,17 @@ int SwAligner::backtrackNucleotides(
 			case SW_BT_REF_EXTEND: {
 				refExtend = true; readExtend = false;
 				assert_gt(row, 1);
-				Edit e(row, '-', "ACGTN"[(int)rd[row]], EDIT_TYPE_DEL);
+				Edit e(row, '-', "ACGTN"[(int)(*rd_)[row]], EDIT_TYPE_DEL);
 				assert(e.repOk());
 				ned.push_back(e);
-				assert_geq(row, pa.gapBar);
-				assert_geq((int)(rdf-rdi-row-1), pa.gapBar-1);
+				assert_geq(row, pa_->gapBar);
+				assert_geq((int)(rdf_-rdi_-row-1), pa_->gapBar-1);
 				row--;
-				score.score_ -= pen.refExConst;
+				score.score_ -= pen_->refExConst;
 				score.gaps_++;
 #ifndef NDEBUG
 				gaps++;
-				assert_leq(score.gaps_, readGaps + refGaps);
+				assert_leq(score.gaps_, rdgap_ + rfgap_);
 				assert_range(0, (int)tab.size()-1, row);
 				tabcol = col - row;
 				assert_range(0, (int)tab[row].size()-1, tabcol);
@@ -358,17 +322,17 @@ int SwAligner::backtrackNucleotides(
 			case SW_BT_READ_OPEN: {
 				refExtend = false; readExtend = true;
 				assert_gt(col, 0);
-				Edit e(row+1, mask2dna[(int)rf[rfi+col]], '-', EDIT_TYPE_INS);
+				Edit e(row+1, mask2dna[(int)rf_[rfi_+col]], '-', EDIT_TYPE_INS);
 				assert(e.repOk());
 				ned.push_back(e);
-				assert_geq(row, pa.gapBar);
-				assert_geq((int)(rdf-rdi-row-1), pa.gapBar-1);
+				assert_geq(row, pa_->gapBar);
+				assert_geq((int)(rdf_-rdi_-row-1), pa_->gapBar-1);
 				col--;
-				score.score_ -= pen.readOpen;
+				score.score_ -= pen_->readOpen;
 				score.gaps_++;
 #ifndef NDEBUG
 				gaps++;
-				assert_leq(score.gaps_, readGaps + refGaps);
+				assert_leq(score.gaps_, rdgap_ + rfgap_);
 				assert_range(0, (int)tab.size()-1, row);
 				tabcol = col - row;
 				assert_range(0, (int)tab[row].size()-1, tabcol);
@@ -381,17 +345,17 @@ int SwAligner::backtrackNucleotides(
 			case SW_BT_READ_EXTEND: {
 				refExtend = false; readExtend = true;
 				assert_gt(col, 1);
-				Edit e(row+1, mask2dna[(int)rf[rfi+col]], '-', EDIT_TYPE_INS);
+				Edit e(row+1, mask2dna[(int)rf_[rfi_+col]], '-', EDIT_TYPE_INS);
 				assert(e.repOk());
 				ned.push_back(e);
-				assert_geq(row, pa.gapBar);
-				assert_geq((int)(rdf-rdi-row-1), pa.gapBar-1);
+				assert_geq(row, pa_->gapBar);
+				assert_geq((int)(rdf_-rdi_-row-1), pa_->gapBar-1);
 				col--;
-				score.score_ -= pen.readExConst;
+				score.score_ -= pen_->readExConst;
 				score.gaps_++;
 #ifndef NDEBUG
 				gaps++;
-				assert_leq(score.gaps_, readGaps + refGaps);
+				assert_leq(score.gaps_, rdgap_ + rfgap_);
 				assert_range(0, (int)tab.size()-1, row);
 				tabcol = col - row;
 				assert_range(0, (int)tab[row].size()-1, tabcol);
@@ -405,9 +369,9 @@ int SwAligner::backtrackNucleotides(
 		}
 	}
 	assert_eq(0, row);
-	int readC = rd[rdi+row];         // get last char in read
-	int refNmask = (int)rf[rfi+col]; // get last char in ref involved in alignment
-	int m = matches(readC, refNmask);
+	int readC = (*rd_)[rdi_+row];         // get last char in read
+	int refNmask = (int)rf_[rfi_+col]; // get last char in ref involved in alignment
+	int m = matchesEx(readC, refNmask);
 	if(m != 1) {
 		Edit e(row, mask2dna[refNmask], "ACGTN"[readC], EDIT_TYPE_MM);
 		assert(e.repOk());
@@ -418,30 +382,30 @@ int SwAligner::backtrackNucleotides(
 		score.ns_++;
 	}
 	res.reverse();
-	assert(Edit::repOk(ned, rd));
+	assert(Edit::repOk(ned, (*rd_)));
 #ifndef NDEBUG
 	BTDnaString refstr;
 	for(int i = col; i <= origCol; i++) {
-		refstr.append(firsts5[(int)rf[rfi+i]]);
+		refstr.append(firsts5[(int)rf_[rfi_+i]]);
 	}
 	BTDnaString editstr;
-	Edit::toRef(rd, ned, editstr);
+	Edit::toRef((*rd_), ned, editstr);
 	if(refstr != editstr) {
 		cerr << "Decoded nucleotides and edits don't match reference:" << endl;
 		cerr << "           score: " << score.score() << " (" << gaps << " gaps)" << endl;
 		cerr << "           edits: ";
 		Edit::print(cerr, ned);
 		cerr << endl;
-		cerr << "    decoded nucs: " << rd << endl;
+		cerr << "    decoded nucs: " << (*rd_) << endl;
 		cerr << "     edited nucs: " << editstr << endl;
 		cerr << "  reference nucs: " << refstr << endl;
 		assert(0);
 	}
 #endif
 	// done
-	assert_eq(score.score(), expectScore.score());
-	//assert_leq(score.gaps, expectScore.gaps);
-	assert_leq(gaps, readGaps + refGaps);
+	assert_eq(score.score(), escore.score());
+	//assert_leq(score.gaps, escore.gaps);
+	assert_leq(gaps, rdgap_ + rfgap_);
 	// Dummy values for refid and fw
 	res.alres.setScore(score);
 	return col;
@@ -451,12 +415,10 @@ int SwAligner::backtrackNucleotides(
  * Update a SwCell's best[] and mask[] arrays with respect to its
  * neighbor on the left.
  */
-inline void SwNucCell::updateHoriz(
+inline void SwAligner::updateNucHoriz(
 	const SwNucCell& lc,
-	int              rfm,
-	const Penalties& pen,
-	int              nceil,
-	int              penceil)
+	SwNucCell&       dstc,
+	int              rfm)
 {
 	assert(lc.finalized);
 	if(lc.empty) return;
@@ -464,10 +426,10 @@ inline void SwNucCell::updateHoriz(
 	{
 		AlignmentScore leftBest = lc.best;
 		const SwNucCellMask& frMask = lc.mask;
-		AlignmentScore& myBest = best;
-		SwNucCellMask& myMask = mask;
+		AlignmentScore& myBest = dstc.best;
+		SwNucCellMask& myMask = dstc.mask;
 		assert_leq(leftBest.score(), 0);
-		if(ninvolved) leftBest.incNs(nceil);
+		if(ninvolved) leftBest.incNs(nceil_);
 		if(!VALID_AL_SCORE(leftBest)) return;
 		// *Don't* penalize for a nucleotide mismatch because we must
 		// have already done that in a previous vertical or diagonal
@@ -477,9 +439,9 @@ inline void SwNucCell::updateHoriz(
 			AlignmentScore ex = leftBest;
 			assert_leq(ex.score(), 0);
 			assert(VALID_AL_SCORE(ex));
-			ex.score_ -= pen.readExConst;
+			ex.score_ -= pen_->readExConst;
 			assert_leq(ex.score(), 0);
-			if(-ex.score_ <= penceil && ex >= myBest) {
+			if(-ex.score_ <= penceil_ && ex >= myBest) {
 				if(ex > myBest) {
 					myMask.clear();
 					myBest = ex;
@@ -493,9 +455,9 @@ inline void SwNucCell::updateHoriz(
 			AlignmentScore ex = leftBest;
 			assert_leq(ex.score_, 0);
 			assert(VALID_AL_SCORE(ex));
-			ex.score_ -= pen.readOpen;
+			ex.score_ -= pen_->readOpen;
 			assert_leq(ex.score_, 0);
-			if(-ex.score_ <= penceil && ex >= myBest) {
+			if(-ex.score_ <= penceil_ && ex >= myBest) {
 				if(ex > myBest) {
 					myMask.clear();
 					myBest = ex;
@@ -508,15 +470,13 @@ inline void SwNucCell::updateHoriz(
 }
 
 /**
- * Update a SwCell's best[] and mask[] arrays with respect to its
- * neighbor on the left.
+ * Update a SwCell's best[] and mask[] arrays with respect to its neighbor on
+ * the left.
  */
-inline void SwNucCell::updateVert(
+inline void SwAligner::updateNucVert(
 	const SwNucCell& uc,
-	int              rdc,
-	const Penalties& pen,
-	int              nceil,
-	int              penceil)
+	SwNucCell&       dstc,
+	int              rdc)
 {
 	assert(uc.finalized);
 	if(uc.empty) return;
@@ -528,32 +488,32 @@ inline void SwNucCell::updateVert(
 			AlignmentScore from = uc.best;
 			assert(!uc.empty || !VALID_AL_SCORE(from));
 			const SwNucCellMask& frMask = uc.mask;
-			AlignmentScore& myBest = best;
-			SwNucCellMask& myMask = mask;
+			AlignmentScore& myBest = dstc.best;
+			SwNucCellMask& myMask = dstc.mask;
 			if(rdc > 3) {
-				from.incNs(nceil);
+				from.incNs(nceil_);
 			}
 			if(!VALID_AL_SCORE(from)) return;
 			assert_leq(from.score_, 0);
 			if(frMask.refExtendPossible()) {
 				// Extend is possible
-				from.score_ -= pen.refExConst;
+				from.score_ -= pen_->refExConst;
 				assert_leq(from.score_, 0);
-				if(-from.score_ <= penceil && from >= best) {
-					if(from > best) {
-						best = from;
+				if(-from.score_ <= penceil_ && from >= myBest) {
+					if(from > myBest) {
+						myBest = from;
 						myMask.clear();
 					}
 					myMask.rfex = 1;
-					assert(VALID_AL_SCORE(best));
+					assert(VALID_AL_SCORE(myBest));
 				}
 				// put it back
-				from.score_ += pen.refExConst;
+				from.score_ += pen_->refExConst;
 			}
 			if(frMask.refOpenPossible()){
 				// Open is possible
-				from.score_ -= pen.refOpen;
-				if(-from.score_ <= penceil && from >= myBest) {
+				from.score_ -= pen_->refOpen;
+				if(-from.score_ <= penceil_ && from >= myBest) {
 					if(from > myBest) {
 						myBest = from;
 						myMask.clear();
@@ -570,28 +530,26 @@ inline void SwNucCell::updateVert(
  * Update a SwCell's best[] and mask[] arrays with respect to its
  * neighbor up and to the left.  SNPs are charged
  */
-inline void SwNucCell::updateDiag(
+inline void SwAligner::updateNucDiag(
 	const SwNucCell& dc,
+	SwNucCell&       dstc,
 	int              rdc,
 	int              rfm,
-	int              qpen,
-	const Penalties& pens,
-	int              nceil,
-	int              penceil)
+	int              qpen)
 {
 	assert(dc.finalized);
 	if(dc.empty) return;
 	bool ninvolved = (rdc > 3 || rfm > 15);
-	int add = ((matches(rdc, rfm) == 1) ? 0 : (ninvolved ? pens.n(30) : qpen));
+	int add = (matches(rdc, rfm) ? 0 : (ninvolved ? pen_->n(30) : qpen));
 	AlignmentScore from = dc.best - add;
 	{
 		{
-			AlignmentScore& myBest = best;
-			SwNucCellMask& myMask = mask;
-			if(ninvolved) from.incNs(nceil);
+			AlignmentScore& myBest = dstc.best;
+			SwNucCellMask& myMask = dstc.mask;
+			if(ninvolved) from.incNs(nceil_);
 			if(!VALID_AL_SCORE(from)) return;
 			assert_leq(from.score_, 0);
-			if(-from.score_ <= penceil && from >= myBest) {
+			if(-from.score_ <= penceil_ && from >= myBest) {
 				if(from > myBest) {
 					myBest = from;
 					myMask.clear();
@@ -606,60 +564,37 @@ inline void SwNucCell::updateDiag(
 
 /**
  * Align the nucleotide read 'read' as aligned against the reference
- * string 'rf' using a banded-Smith-Waterman-like dynamic programming
- * algorithm.
+ * string 'rf' using a banded dynamic programming algorithm.
  *
  * If an alignment is found, its offset relative to rdi is returned.
  * E.g. if an alignment is found that occurs starting at rdi, 0 is
  * returned.  If no alignment is found, -1 is returned.
  */
 int SwAligner::alignNucleotides(
-	const BTDnaString& rd, // read sequence
-	const BTString& qu,    // read qualities
-	size_t rdi,            // off of first character within 'read' to consider
-	size_t rdf,            // off of last char (exclusive) in 'read' to consider
-	BTString& rf,          // reference sequence, as masks
-	size_t rfi,            // off of first character within 'rf' to consider
-	size_t rff,            // off of last char (exclusive) in 'rf' to consider
-	const SwParams& pa,    // parameters governing Smith-Waterman problem
-	const Penalties& pen,  // penalties for various edits
-	int penceil,           // penalty ceiling for valid alignments
-	SwResult& res,         // edits and scores
-	RandomSource& rnd)     // pseudo-random generator
+	SwResult& res,
+	RandomSource& rnd)
 {
 	typedef SwNucCell TCell;
-	assert_leq(rdf, rd.length());
-	assert_leq(rdf, qu.length());
-	assert_leq(rff, rf.length());
-	assert_lt(rfi, rff);
-	assert_lt(rdi, rdf);
-	assert_eq(rd.length(), qu.length());
-	assert_geq(pa.gapBar, 1);
+	assert_leq(rdf_, rd_->length());
+	assert_leq(rdf_, qu_->length());
+	assert_lt(rfi_, rff_);
+	assert_lt(rdi_, rdf_);
+	assert_eq(rd_->length(), qu_->length());
+	assert_geq(pa_->gapBar, 1);
 	res.sws++;
 #ifndef NDEBUG
-	for(size_t i = rfi; i < rff; i++) {
-		assert_range(0, 16, (int)rf[i]);
+	for(size_t i = rfi_; i < rff_; i++) {
+		assert_range(0, 16, (int)rf_[i]);
 	}
 #endif
-	
-	// Calculate the largest possible number of read and reference gaps
-	// given 'penceil' and 'pens'
-	int readGaps = pen.maxReadGaps(penceil);
-	int refGaps  = pen.maxRefGaps(penceil);
-	assert_geq(readGaps, 0);
-	assert_geq(refGaps, 0);
-	int nceil = (int)pen.nCeil(rd.length());
-
 	//
 	// Initialize the first row
-	//
-	
+	//	
 	ELList<TCell>& tab = ntab_;
 	tab.resize(1); // add first row to row list
-	int maxGaps = max(readGaps, refGaps);
 	const int wlo = 0;
-	const int whi = maxGaps * 2;
-	assert_lt(whi, (int)(rff-rfi));
+	const int whi = maxgap_ * 2;
+	assert_lt(whi, (int)(rff_-rfi_));
 	tab[0].resize(whi-wlo+1); // add columns to first row
 	bool validInRow = false;
 	// Calculate starting values for the rest of the columns in the
@@ -667,21 +602,21 @@ int SwAligner::alignNucleotides(
 	for(int col = 0; col <= whi; col++) {
 		tab[0][col].clear(); // clear the cell; masks and scores
 		int fromEnd = whi - col;
-		int rdc = rd[rdi+0];
-		int rfm = rf[rfi+col];
+		int rdc = (*rd_)[rdi_+0];
+		int rfm = rf_[rfi_+col];
 		// Can we start from here?
-		if(col >= refGaps - readGaps && fromEnd >= readGaps - refGaps) {
+		if(col >= rfgap_ - rdgap_ && fromEnd >= rdgap_ - rfgap_) {
 			tab[0][col].best.gaps_ = 0;
 			tab[0][col].best.ns_ = 0;
 			tab[0][col].best.score_ = 0;
-			int m = matches(rdc, rfm);
+			int m = matchesEx(rdc, rfm);
 			if(m == 1) {
 				// The assigned subject nucleotide matches the reference;
 				// no penalty
 				assert_lt(rdc, 4);
 				assert_lt(rfm, 16);
 				tab[0][col].mask.diag = 1;
-			} else if(QUAL2(0, col) <= penceil) {
+			} else if(QUAL2(0, col) <= penceil_) {
 				// Reference char mismatches
 				int n = (rfm > 15 || rdc > 3) ? 1 : 0;
 				tab[0][col].best.score_ -= QUAL2(0, col);
@@ -692,16 +627,19 @@ int SwAligner::alignNucleotides(
 			}
 		}
 		// Calculate horizontals if barrier allows
-		if(pa.gapBar <= 1 && col > 0) {
-			tab[0][col].updateHoriz(tab[0][col-1], rfm, pen, nceil, penceil);
+		if(pa_->gapBar <= 1 && col > 0) {
+			updateNucHoriz(
+				tab[0][col-1],
+				tab[0][col],
+				rfm);
 			res.swcups++;
 		}
 		assert(!tab[0][col].finalized);
-		if(tab[0][col].finalize(penceil)) validInRow = true;
+		if(tab[0][col].finalize(penceil_)) validInRow = true;
 	}
 	res.swrows++;
 	if(!validInRow) {
-		res.swskiprows += (rdf - rdi - 1);
+		res.swskiprows += (rdf_ - rdi_ - 1);
 		assert(res.empty());
 		return -1;
 	}
@@ -711,14 +649,14 @@ int SwAligner::alignNucleotides(
 	//
 
 	// Do rest of table
-	for(int row = 1; row < (int)(rdf-rdi); row++) {
+	for(int row = 1; row < (int)(rdf_-rdi_); row++) {
 		res.swrows++;
 		tab.expand(); // add another row
-		bool onlyDiagInto = (row+1 <= pa.gapBar || (int)(rdf-rdi)-row <= pa.gapBar);
+		bool onlyDiagInto = (row+1 <= pa_->gapBar || (int)(rdf_-rdi_)-row <= pa_->gapBar);
 		tab.back().resize(whi-wlo+1); // add enough space for columns
-		assert_range(1, (int)qu.length()-1, row);
-		assert_range(1, (int)rd.length()-1, row);
-		int c = rd[row];   // read character in this row
+		assert_range(1, (int)qu_->length()-1, row);
+		assert_range(1, (int)rd_->length()-1, row);
+		int c = (*rd_)[row];   // read character in this row
 		validInRow = false;
 		//
 		// Handle col == wlo case before (and the col == whi case
@@ -730,33 +668,29 @@ int SwAligner::alignNucleotides(
 		TCell& cur = tab[row][0];
 		cur.clear();
 		if(!tab[row-1][0].empty) {
-			const int fullcol = col + row;
-			cur.updateDiag(
+			const int fc = col + row;
+			updateNucDiag(
 				tab[row-1][0],     // cell diagonally above and to the left
+				cur,               // destination cell
 				c,                 // color being traversed
-				rf[rfi + fullcol], // ref mask associated with destination cell
-				QUAL2(row, fullcol),
-				pen,               // Penalties
-				nceil,             // max # Ns allowed
-				penceil);          // max penalty allowed
+				rf_[rfi_ + fc], // ref mask at destination cell
+				QUAL2(row, fc));   //
 		}
 		if(!onlyDiagInto && col < whi && !tab[row-1][1].empty) {
-			cur.updateVert(
+			updateNucVert(
 				tab[row-1][1],     // cell diagonally above and to the left
-				c,                 // color being traversed
-				pen,               // Penalties
-				nceil,             // max # Ns allowed
-				penceil);          // max penalty allowed
+				cur,               // destination cell
+				c);                // color being traversed
 		}
 		res.swcups++;
 		// 'cur' is now initialized
 		assert(!cur.finalized);
-		if(cur.finalize(penceil)) validInRow = true;
+		if(cur.finalize(penceil_)) validInRow = true;
 		
 		// Iterate from leftmost to rightmost inner diagonals
 		for(col = wlo+1; col < whi; col++) {
 			const int fullcol = col + row;
-			int r = rf[rfi + fullcol];
+			int r = rf_[rfi_ + fullcol];
 			TCell& cur = tab[row][col-wlo];
 			cur.clear();
 			TCell& dg = tab[row-1][col-wlo];
@@ -766,35 +700,29 @@ int SwAligner::alignNucleotides(
 			// an N) as well as the quality value of the read
 			// character.
 			const int mmpen = QUAL2(row, fullcol);
-			cur.updateDiag(
+			updateNucDiag(
 				dg,            // cell diagonally above and to the left
+				cur,           // destination cell
 				c,             // nucleotide in destination row
 				r,             // ref mask associated with destination column
-				mmpen,         // penalty to incur for color miscall
-				pen,           // Penalties
-				nceil,         // max # Ns allowed
-				penceil);      // max penalty allowed
+				mmpen);        // penalty to incur for color miscall
 			if(!onlyDiagInto) {
 				TCell& up = tab[row-1][col-wlo+1];
-				cur.updateVert(
+				updateNucVert(
 					up,        // cell above
-					c,         // nucleotide in destination row
-					pen,       // Penalties
-					nceil,     // max # Ns allowed
-					penceil);  // max penalty allowed
+					cur,       // destination cell
+					c);        // nucleotide in destination row
 				// Can do horizontal
 				TCell& lf = tab[row][col-wlo-1];
-				cur.updateHoriz(
+				updateNucHoriz(
 					lf,        // cell to the left
-					r,         // ref mask associated with destination column
-					pen,       // Penalties
-					nceil,     // max # Ns allowed
-					penceil);  // max penalty allowed
+					cur,       // destination cell
+					r);        // ref mask associated with destination column
 			} // end loop over inner diagonals
 			res.swcups++;
 			// 'cur' is now initialized
 			assert(!cur.finalized);
-			if(cur.finalize(penceil)) validInRow = true;
+			if(cur.finalize(penceil_)) validInRow = true;
 		} // end loop over inner diagonals
 		//
 		// Handle the col == whi case (provided wlo != whi) after the
@@ -806,92 +734,79 @@ int SwAligner::alignNucleotides(
 			TCell& cur = tab[row][col-wlo];
 			cur.clear();
 			const int fullcol = col + row;
-			const int r = rf[rfi + fullcol];
+			const int r = rf_[rfi_ + fullcol];
 			const int mmpenf = QUAL2(row, fullcol);
 			TCell& dg = tab[row-1][col-wlo];
 			if(!dg.empty) {
-				cur.updateDiag(
+				updateNucDiag(
 					dg,        // cell diagonally above and to the left
+					cur,       // destination cell
 					c,         // nucleotide in destination row
 					r,         // ref mask associated with destination column
-					mmpenf,    // penalty to incur for color miscall
-					pen,       // Penalties
-					nceil,     // max # Ns allowed
-					penceil);  // max penalty allowed
+					mmpenf);   // penalty to incur for color miscall
 			}
 			TCell& lf = tab[row][col-wlo-1];
 			if(!onlyDiagInto && !lf.empty) {
-				cur.updateHoriz(
+				updateNucHoriz(
 					lf,        // cell to the left
-					r,         // ref mask associated with destination column
-					pen,       // Penalties
-					nceil,     // max # Ns allowed
-					penceil);  // max penalty allowed
+					cur,       // destination cell
+					r);        // ref mask associated with destination column
 			}
 			res.swcups++;
 			// 'cur' is now initialized
 			assert(!cur.finalized);
-			if(cur.finalize(penceil)) validInRow = true;
+			if(cur.finalize(penceil_)) validInRow = true;
 		}
 		if(!validInRow) {
-			assert_geq((int)(rdf-rdi), row+1);
-			res.swskiprows += (rdf - rdi - row - 1);
+			assert_geq((int)(rdf_-rdi_), row+1);
+			res.swskiprows += (rdf_ - rdi_ - row - 1);
 			assert(res.empty());
 			return -1;
 		}
 	}
-	assert_eq(tab.size(), rd.length());
+	assert_eq(tab.size(), rd_->length());
 	// Go hunting for cell to backtrace from; i.e. best score in the
 	// bottom row and in the last readGaps*2+1 columns.
-	AlignmentScore bestScore = AlignmentScore::INVALID();
+	AlignmentScore bscore = AlignmentScore::INVALID();
 	int btCol = -1; // column to backtrace from
-	int lastRow = (int)(rdf-rdi-1);
+	int lastRow = (int)(rdf_-rdi_-1);
 	for(int col = wlo; col <= whi; col++) {
 		// Can we backtrace from this cell?  Depends on gaps.
 		int fromEnd = whi - col;
 		// greater than or equal to???
-		if(fromEnd >= refGaps - readGaps && col >= readGaps - refGaps) {
+		if(fromEnd >= rfgap_ - rdgap_ && col >= rdgap_ - rfgap_) {
 			if(!tab[lastRow][col].empty) {
 				assert(tab[lastRow][col].finalized);
-				assert_leq(abs(tab[lastRow][col].best.score()), penceil);
-				if(tab[lastRow][col].updateBest(bestScore, penceil)) {
-					assert(!VALID_AL_SCORE(bestScore) || abs(bestScore.score()) <= penceil);
+				assert_leq(abs(tab[lastRow][col].best.score()), penceil_);
+				if(tab[lastRow][col].updateBest(bscore, penceil_)) {
+					assert(!VALID_AL_SCORE(bscore) || abs(bscore.score()) <= penceil_);
 					btCol = col;
 				}
 			}
 		}
 	}
 	assert_range(wlo, whi, btCol);
-	assert(VALID_AL_SCORE(bestScore));
-	assert_leq(abs(bestScore.score()), penceil);
+	assert(VALID_AL_SCORE(bscore));
+	assert_leq(abs(bscore.score()), penceil_);
 	int off = backtrackNucleotides(
-		rd,        // read sequence
-		qu,        // read qualities
-		rdi,       // offset of first character within 'rd' to consider
-		rdf,       // offset of last char (exclusive) in 'rd' to consider
-		rf,        // reference sequence, as masks
-		rfi,       // offset of first character within 'rf' to consider
-		rff,       // offset of last char (exclusive) in 'rf' to consider
-		bestScore, // best score of any cell that corresponded to a totally-aligned read
-		readGaps,  // maximum number of read gaps allowed
-		refGaps,   // maximum number of reference gaps allowed
-		pa,        // parameters governing Smith-Waterman problem
-		pen,       // penalties for various edits
-		res,       // destination for best alignment
-		btCol+lastRow, // col (in the full matrix)
-		rnd);      // pseudo-random generator
+		bscore,        // score we expect to get over backtrack
+		res,           // store results (edits and scores) here
+		btCol+lastRow, // start in this column
+		rnd);          // pseudo-random generator
 	assert_geq(off, 0);
 #ifndef NDEBUG
 	EList<Edit>& ned = res.alres.ned();
 	EList<Edit>& aed = res.alres.aed();
 	assert(res.alres.ced().empty());
 	for(int i = 0; i < (int)ned.size(); i++) {
-		assert_lt(ned[i].pos, rd.length());
+		assert_lt(ned[i].pos, rd_->length());
 	}
 	for(int i = 0; i < (int)aed.size(); i++) {
-		assert_lt(aed[i].pos, rd.length());
+		assert_lt(aed[i].pos, rd_->length());
 	}
 #endif
+	res.alres.setColor(false);
+	// Return offset of alignment with respect to rfi
 	return off;
 }
 
@@ -1024,24 +939,27 @@ static void doTestCase(
 			}
 		}
 	}
+	bool fw = true;
+	uint32_t refidx = 0;
+	al.init(
+		read,          // read sequence
+		qual,          // read qualities
+		0,             // offset of first character within 'read' to consider
+		read.length(), // offset of last char (exclusive) in 'read' to consider
+		fw,            // 'read' is forward version of read?
+		color,         // whether read is nucleotide-space or colorspace
+		refidx,        // id of reference aligned to
+		ref,           // reference sequence (masks)
+		rfi,           // offset of first char in 'ref' to consider
+		rff,           // offset of last char (exclusive) in 'ref' to consider
+		pa,            // dynamic programming parameters
+		pens,          // penalties
+		penceil);      // max total penalty
+	al.align(
+		res,
+		rnd);
+	cout << " Score: " << res.alres.score() << endl;
 	if(color) {
-		int nup, ndn;
-		al.alignColors(
-			read,          // read sequence
-			qual,          // read qualities
-			0,             // offset of first character within 'read' to consider
-			read.length(), // offset of last char (exclusive) in 'read' to consider
-			ref,           // reference sequence (masks)
-			rfi,           // offset of first char in 'ref' to consider
-			rff,           // offset of last char (exclusive) in 'ref' to consider
-			pa,            // Smith-Waterman parameters
-			pens,          // penalties
-			penceil,       // max total penalty
-			nup,           // upstream nucleotide
-			ndn,           // downstream nucleotide
-			res,           // results
-			rnd);          // pseudo-random generator
-		cout << " Score: " << res.alres.score() << endl;
 		cout << "   Read colors: " << endl;
 		cout << "     ";
 		for(size_t i = 0; i < read.length(); i++) {
@@ -1051,20 +969,6 @@ static void doTestCase(
 		cout << "   Color alignment (decoded): " << endl;
 		Edit::printQAlign(cout, "     ", read, res.alres.ced());
 	} else {
-		al.alignNucleotides(
-			read,          // read sequence
-			qual,          // read qualities
-			0,             // offset of first character within 'read' to consider
-			read.length(), // offset of last char (exclusive) in 'read' to consider
-			ref,           // reference sequence (masks)
-			rfi,           // offset of first char in 'ref' to consider
-			rff,           // offset of last char (exclusive) in 'ref' to consider
-			pa,            // Smith-Waterman parameters
-			pens,          // penalties
-			penceil,       // max total penalty
-			res,           // results
-			rnd);          // pseudo-random generator
-		cout << " Score: " << res.alres.score() << endl;
 		cout << "   Nucleotide alignment: " << endl;
 		Edit::printQAlign(cout, "     ", read, res.alres.ned());
 	}

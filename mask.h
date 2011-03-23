@@ -15,6 +15,26 @@ extern int alts5[32];
 extern int firsts5[32];
 
 /**
+ * Return 1 if a 2-bit-encoded base ('i') matches any bit in the mask ('j') and
+ * the mask < 16.  Returns -1 if either the reference or the read character was
+ * ambiguous.  Returns 0 if the characters unambiguously mismatch.
+ */
+static inline int matchesEx(int i, int j) {
+	if(j >= 16 || i > 3) {
+		// read and/or ref was ambiguous
+		return -1;
+	}
+	return (((1 << i) & j) != 0) ? 1 : 0;
+}
+
+/**
+ * Return 1 if a 2-bit-encoded base ('i') matches any bit in the mask ('j').
+ */
+static inline bool matches(int i, int j) {
+	return ((1 << i) & j) != 0;
+}
+
+/**
  * Given a mask with up to 5 bits, return an index corresponding to a
  * set bit in the mask, randomly chosen from among all set bits.
  */

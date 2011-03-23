@@ -18,7 +18,7 @@
  *
  * 1. The width of the parallelogram/rectangle to explore.
  * 2. The 0-based offset of the reference position associated with the leftmost
- *    diagnomal/column in the parallelogram/rectable to explore
+ *    diagnomal/column in the parallelogram/rectangle to explore
  * 3. An EList<bool> of length=width encoding which columns the alignment may
  *    start in
  * 4. An EList<bool> of length=width encoding which columns the alignment may

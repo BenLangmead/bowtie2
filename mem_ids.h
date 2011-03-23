@@ -15,7 +15,7 @@
 #define GW_CAT    ((int) 4)
 // For holding alignment bookkeeping data
 #define AL_CAT    ((int) 5)
-// For holding Smith-Waterman bookkeeping data
+// For holding dynamic programming bookkeeping data
 #define SW_CAT    ((int) 6)
 // For holding alignment results and other hit objects
 #define RES_CAT   ((int) 7)

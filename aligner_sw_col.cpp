@@ -74,30 +74,17 @@ pair<int, int> SwColorCellMask::randBacktrack(RandomSource& rand) {
  * character's offset with respect to rfi.
  */
 int SwAligner::backtrackColors(
-	const BTDnaString& rd, // read sequence
-	const BTString& qu,    // read qualities
-	size_t rdi,            // offset of first read char to align
-	size_t rdf,            // offset of last read char to align
-	BTString& rf,          // reference sequence
-	size_t rfi,            // offset of first reference char to align to
-	size_t rff,            // offset of last reference char to align to
-	AlignmentScore expectScore,   // score we expect to get over backtrack
-	int readGaps,          // max # gaps in read
-	int refGaps,           // max # gaps in ref
-	const SwParams& pa,    // params for SW alignment
-	const Penalties& pen,  // penalties for edit types
-	int& nup,              // upstream decoded nucleotide
-	int& ndn,              // downstream decoded nucleotide
-	SwResult& res,         // store results (edits and scores) here
-	int col,               // start in this column (w/r/t the full matrix)
-	int lastC,             // character to backtrace from in lower-right corner
-	RandomSource& rand)    // pseudo-random generator
+	AlignmentScore escore, // score we expect to get over backtrack
+	SwResult&      res,    // store results (edits and scores) here
+	int            col,    // start in this column (w/r/t the full matrix)
+	int            lastC,  // character to backtrace from in lower-right corner
+	RandomSource&  rand)   // pseudo-random generator
 {
 	ELList<SwColorCell>& tab = ctab_;
-	int row = (int)rd.length();
+	int row = (int)rd_->length();
 	assert_eq(row, (int)tab.size()-1);
 	ASSERT_ONLY(BTDnaString drd);
-	ASSERT_ONLY(drd.resize(rdf-rdi+1));
+	ASSERT_ONLY(drd.resize(rdf_-rdi_+1));
 	int curC = lastC;
 	AlignmentScore score; score.score_ = 0;
 	score.gaps_ = score.ns_ = 0;
@@ -108,7 +95,7 @@ int SwAligner::backtrackColors(
 	EList<Edit>& ned = res.alres.ned();
 	//EList<Edit>& aed = res.alres.aed();
 	EList<Edit>& ced = res.alres.ced();
-	ndn = lastC;
+	res.ndn = lastC;
 	while(row > 0) {
 		res.swbts++;
 		assert_range(0, (int)tab.size()-1, row);
@@ -132,13 +119,13 @@ int SwAligner::backtrackColors(
 				refExtend = readExtend = false;
 				assert_gt(row, 0); assert_gt(col, 0);
 				// Check for base mismatch at source (lower-right) cell
-				int refNmask = (int)rf[rfi+col];
-				int m = matches(curC, refNmask);
+				int refNmask = (int)rf_[rfi_+col];
+				int m = matchesEx(curC, refNmask);
 				if(m != 1) {
 					Edit e(row, mask2dna[refNmask], "ACGTN"[curC], EDIT_TYPE_MM);
 					assert(e.repOk());
 					ned.push_back(e);
-					score.score_ -= ((m == 0) ? pen.snp : pen.n(30));
+					score.score_ -= ((m == 0) ? pen_->snp : pen_->n(30));
 				}
 				if(m == -1) {
 					score.ns_++;
@@ -147,7 +134,7 @@ int SwAligner::backtrackColors(
 				assert_range(0, (int)tab.size()-1, row);
 				assert(VALID_AL_SCORE(score));
 				// Check for color mismatch
-				int readC = rd[rdi + row];
+				int readC = (*rd_)[rdi_ + row];
 				int decC = dinuc2color[cur.second][curC];
 				assert_range(0, 3, decC);
 				if(decC != readC) {
@@ -177,13 +164,13 @@ int SwAligner::backtrackColors(
 				Edit e(row, '-', "ACGTN"[curC], EDIT_TYPE_DEL);
 				assert(e.repOk());
 				ned.push_back(e);
-				assert_geq(row, pa.gapBar);
-				assert_geq((int)(rdf-rdi-row-1), pa.gapBar-1);
+				assert_geq(row, pa_->gapBar);
+				assert_geq((int)(rdf_-rdi_-row-1), pa_->gapBar-1);
 				row--;
 				// Check for color miscall
 				int decC = dinuc2color[cur.second][curC];
 				assert_range(0, 3, decC);
-				int rdC = rd[rdi+row];
+				int rdC = (*rd_)[rdi_+row];
 				if(decC != rdC) {
 					score.score_ -= QUAL(row);
 					Edit e(row, "ACGT"[decC], "ACGTN"[rdC], EDIT_TYPE_MM);
@@ -193,11 +180,11 @@ int SwAligner::backtrackColors(
 				if(rdC > 3) {
 					score.ns_++;
 				}
-				score.score_ -= pen.refOpen;
+				score.score_ -= pen_->refOpen;
 				score.gaps_++;
 #ifndef NDEBUG
 				gaps++;
-				assert_leq(score.gaps_, readGaps + refGaps);
+				assert_leq(score.gaps_, rdgap_ + rfgap_);
 				assert_range(0, (int)tab.size()-1, row);
 				tabcol = col - row;
 				assert_range(0, (int)tab[row].size()-1, tabcol);
@@ -217,13 +204,13 @@ int SwAligner::backtrackColors(
 				Edit e(row, '-', "ACGTN"[curC], EDIT_TYPE_DEL);
 				assert(e.repOk());
 				ned.push_back(e);
-				assert_geq(row, pa.gapBar);
-				assert_geq((int)(rdf-rdi-row-1), pa.gapBar-1);
+				assert_geq(row, pa_->gapBar);
+				assert_geq((int)(rdf_-rdi_-row-1), pa_->gapBar-1);
 				row--;
 				// Check for color mismatch
 				int decC = dinuc2color[cur.second][curC];
 				assert_range(0, 3, decC);
-				int rdC = rd[rdi+row];
+				int rdC = (*rd_)[rdi_+row];
 				if(decC != rdC) {
 					score.score_ -= QUAL(row);
 					Edit e(row, "ACGT"[decC], "ACGTN"[rdC], EDIT_TYPE_MM);
@@ -233,11 +220,11 @@ int SwAligner::backtrackColors(
 				if(rdC > 3) {
 					score.ns_++;
 				}
-				score.score_ -= pen.refExConst;
+				score.score_ -= pen_->refExConst;
 				score.gaps_++;
 #ifndef NDEBUG
 				gaps++;
-				assert_leq(score.gaps_, readGaps + refGaps);
+				assert_leq(score.gaps_, rdgap_ + rfgap_);
 				assert_range(0, (int)tab.size()-1, row);
 				tabcol = col - row;
 				assert_range(0, (int)tab[row].size()-1, tabcol);
@@ -252,17 +239,17 @@ int SwAligner::backtrackColors(
 			case SW_BT_READ_OPEN: {
 				refExtend = false; readExtend = true;
 				assert_gt(col, 0);
-				Edit e(row+1, "ACGTN"[firsts5[(int)rf[rfi+col]]], '-', EDIT_TYPE_INS);
+				Edit e(row+1, "ACGTN"[firsts5[(int)rf_[rfi_+col]]], '-', EDIT_TYPE_INS);
 				assert(e.repOk());
 				ned.push_back(e);
-				assert_geq(row, pa.gapBar);
-				assert_geq((int)(rdf-rdi-row-1), pa.gapBar-1);
+				assert_geq(row, pa_->gapBar);
+				assert_geq((int)(rdf_-rdi_-row-1), pa_->gapBar-1);
 				col--;
-				score.score_ -= pen.readOpen;
+				score.score_ -= pen_->readOpen;
 				score.gaps_++;
 #ifndef NDEBUG
 				gaps++;
-				assert_leq(score.gaps_, readGaps + refGaps);
+				assert_leq(score.gaps_, rdgap_ + rfgap_);
 				assert_range(0, (int)tab.size()-1, row);
 				tabcol = col - row;
 				assert_range(0, (int)tab[row].size()-1, tabcol);
@@ -276,17 +263,17 @@ int SwAligner::backtrackColors(
 			case SW_BT_READ_EXTEND: {
 				refExtend = false; readExtend = true;
 				assert_gt(col, 1);
-				Edit e(row+1, "ACGTN"[firsts5[(int)rf[rfi+col]]], '-', EDIT_TYPE_INS);
+				Edit e(row+1, "ACGTN"[firsts5[(int)rf_[rfi_+col]]], '-', EDIT_TYPE_INS);
 				assert(e.repOk());
 				ned.push_back(e);
-				assert_geq(row, pa.gapBar);
-				assert_geq((int)(rdf-rdi-row-1), pa.gapBar-1);
+				assert_geq(row, pa_->gapBar);
+				assert_geq((int)(rdf_-rdi_-row-1), pa_->gapBar-1);
 				col--;
-				score.score_ -= pen.readExConst;
+				score.score_ -= pen_->readExConst;
 				score.gaps_++;
 #ifndef NDEBUG
 				gaps++;
-				assert_leq(score.gaps_, readGaps + refGaps);
+				assert_leq(score.gaps_, rdgap_ + rfgap_);
 				assert_range(0, (int)tab.size()-1, row);
 				tabcol = col - row;
 				assert_range(0, (int)tab[row].size()-1, tabcol);
@@ -301,25 +288,25 @@ int SwAligner::backtrackColors(
 		}
 	}
 	assert_eq(0, row);
-	int refNmask = (int)rf[rfi+col]; // get last char in ref involved in alignment
-	int m = matches(curC, refNmask);
+	int refNmask = (int)rf_[rfi_+col]; // get last char in ref involved in alignment
+	int m = matchesEx(curC, refNmask);
 	if(m != 1) {
 		Edit e(row, mask2dna[refNmask], "ACGTN"[curC], EDIT_TYPE_MM);
 		assert(e.repOk());
 		ned.push_back(e);
-		score.score_ -= ((m == 0) ? pen.snp : pen.n(30));
+		score.score_ -= ((m == 0) ? pen_->snp : pen_->n(30));
 	}
 	if(m == -1) {
 		score.ns_++;
 	}
 	ASSERT_ONLY(drd.set(curC, 0));
-	nup = curC;
+	res.nup = curC;
 	res.reverse();
-	assert(Edit::repOk(ced, rd));
+	assert(Edit::repOk(ced, (*rd_)));
 #ifndef NDEBUG
 	BTDnaString refstr;
 	for(int i = col; i <= origCol; i++) {
-		refstr.append(firsts5[(int)rf[rfi+i]]);
+		refstr.append(firsts5[(int)rf_[rfi_+i]]);
 	}
 	BTDnaString editstr;
 	Edit::toRef(drd, ned, editstr);
@@ -336,9 +323,9 @@ int SwAligner::backtrackColors(
 	}
 #endif
 	// done
-	assert_eq(score.score(), expectScore.score());
-	//assert_leq(score.gaps(), expectScore.gaps());
-	assert_leq(gaps, readGaps + refGaps);
+	assert_eq(score.score(), escore.score());
+	//assert_leq(score.gaps(), escore.gaps());
+	assert_leq(gaps, rdgap_ + rfgap_);
 	// Dummy values for refid and fw
 	res.alres.setScore(score);
 	return col;
@@ -348,12 +335,10 @@ int SwAligner::backtrackColors(
  * Update a SwCell's best[] and mask[] arrays with respect to its
  * neighbor on the left.
  */
-inline void SwColorCell::updateHoriz(
+inline void SwAligner::updateColorHoriz(
 	const SwColorCell& lc,
-	int                rfm,
-	const Penalties&   pen,
-	int                nceil,
-	int                penceil)
+	SwColorCell&       dstc,
+	int                rfm)
 {
 	assert(lc.finalized);
 	if(lc.empty) return;
@@ -367,10 +352,10 @@ inline void SwColorCell::updateHoriz(
 		}
 		AlignmentScore leftBest = lc.best[to];
 		const SwColorCellMask& fromMask = lc.mask[to];
-		AlignmentScore& myBest = best[to];
-		SwColorCellMask& myMask = mask[to];
+		AlignmentScore& myBest = dstc.best[to];
+		SwColorCellMask& myMask = dstc.mask[to];
 		assert_leq(leftBest.score(), 0);
-		if(ninvolved) leftBest.incNs(nceil);
+		if(ninvolved) leftBest.incNs(nceil_);
 		if(!VALID_AL_SCORE(leftBest)) continue;
 		// *Don't* penalize for a nucleotide mismatch because we must
 		// have already done that in a previous vertical or diagonal
@@ -380,9 +365,9 @@ inline void SwColorCell::updateHoriz(
 			AlignmentScore ex = leftBest;
 			assert_leq(ex.score(), 0);
 			assert(VALID_AL_SCORE(ex));
-			ex.score_ -= pen.readExConst;
+			ex.score_ -= pen_->readExConst;
 			assert_leq(ex.score(), 0);
-			if(-ex.score_ <= penceil && ex >= myBest) {
+			if(-ex.score_ <= penceil_ && ex >= myBest) {
 				if(ex > myBest) {
 					myMask.clear();
 					myBest = ex;
@@ -396,9 +381,9 @@ inline void SwColorCell::updateHoriz(
 			AlignmentScore ex = leftBest;
 			assert_leq(ex.score_, 0);
 			assert(VALID_AL_SCORE(ex));
-			ex.score_ -= pen.readOpen;
+			ex.score_ -= pen_->readOpen;
 			assert_leq(ex.score_, 0);
-			if(-ex.score_ <= penceil && ex >= myBest) {
+			if(-ex.score_ <= penceil_ && ex >= myBest) {
 				if(ex > myBest) {
 					myMask.clear();
 					myBest = ex;
@@ -414,13 +399,11 @@ inline void SwColorCell::updateHoriz(
  * Update a SwCell's best[] and mask[] arrays with respect to its
  * neighbor on the left.
  */
-inline void SwColorCell::updateVert(
+inline void SwAligner::updateColorVert(
 	const SwColorCell& uc,        // cell above
+	SwColorCell&       dstc,      // destination cell
 	int                c,         // color b/t this row, one above
-	int                penmm,     // penalty to incur for color miscall
-	const Penalties&   pen,
-	int                nceil,
-	int                penceil)
+	int                penmm)     // penalty to incur for color miscall
 {
 	assert(uc.finalized);
 	if(uc.empty) return;
@@ -443,19 +426,19 @@ inline void SwColorCell::updateVert(
 		for(int fr = 0; fr < 4; fr++) {
 			AlignmentScore frBest = from[fr];
 			const SwColorCellMask& frMask = uc.mask[fr];
-			AlignmentScore& myBest = best[to];
-			SwColorCellMask& myMask = mask[to];
+			AlignmentScore& myBest = dstc.best[to];
+			SwColorCellMask& myMask = dstc.mask[to];
 			if(c > 3) {
-				frBest.incNs(nceil);
+				frBest.incNs(nceil_);
 			}
 			if(!VALID_AL_SCORE(frBest)) continue;
 			frBest.score_ -= penmm;
 			assert_leq(frBest.score_, 0);
 			if(frMask.refExtendPossible()) {
 				// Extend is possible
-				frBest.score_ -= pen.refExConst;
+				frBest.score_ -= pen_->refExConst;
 				assert_leq(frBest.score_, 0);
-				if(-frBest.score_ <= penceil && frBest >= myBest) {
+				if(-frBest.score_ <= penceil_ && frBest >= myBest) {
 					if(frBest > myBest) {
 						myBest = frBest;
 						myMask.clear();
@@ -464,12 +447,12 @@ inline void SwColorCell::updateVert(
 					assert(VALID_AL_SCORE(myBest));
 				}
 				// put it back
-				frBest.score_ += pen.refExConst;
+				frBest.score_ += pen_->refExConst;
 			}
 			if(frMask.refOpenPossible()){
 				// Open is possible
-				frBest.score_ -= pen.refOpen;
-				if(-frBest.score_ <= penceil && frBest >= myBest) {
+				frBest.score_ -= pen_->refOpen;
+				if(-frBest.score_ <= penceil_ && frBest >= myBest) {
 					if(frBest > myBest) {
 						myBest = frBest;
 						myMask.clear();
@@ -486,21 +469,19 @@ inline void SwColorCell::updateVert(
  * Update a SwCell's best[] and mask[] arrays with respect to its
  * neighbor up and to the left.  SNPs are charged
  */
-inline void SwColorCell::updateDiag(
+inline void SwAligner::updateColorDiag(
 	const SwColorCell& uc,        // cell above and to the left
+	SwColorCell&       dstc,      // destination cell
 	int                refMask,   // ref mask associated with destination cell
 	int                c,         // color being traversed
-	int                penmm,     // penalty to incur for color miscall
-	const Penalties&   pens,      // Penalties
-	int                nceil,     // max # Ns allowed
-	int                penceil)   // penalty ceiling
+	int                penmm)     // penalty to incur for color miscall
 {
 	assert(uc.finalized);
 	if(uc.empty) return;
 	bool ninvolved = (c > 3 || refMask > 15);
 	for(int to = 0; to < 4; to++) {
 		// Assuming that the read character in this row is 'to'...
-		int add = ((matches(to, refMask) == 1) ? 0 : ((refMask > 15) ? pens.n(30) : pens.snp));
+		int add = (matches(to, refMask) ? 0 : ((refMask > 15) ? pen_->n(30) : pen_->snp));
 		AlignmentScore from[] = {
 			uc.best[0] - add, uc.best[1] - add,
 			uc.best[2] - add, uc.best[3] - add };
@@ -516,13 +497,13 @@ inline void SwColorCell::updateDiag(
 		}
 		for(int fr = 0; fr < 4; fr++) {
 			AlignmentScore frBest = from[fr];
-			AlignmentScore& myBest = best[to];
-			SwColorCellMask& myMask = mask[to];
-			if(ninvolved) frBest.incNs(nceil);
+			AlignmentScore& myBest = dstc.best[to];
+			SwColorCellMask& myMask = dstc.mask[to];
+			if(ninvolved) frBest.incNs(nceil_);
 			if(!VALID_AL_SCORE(frBest)) continue;
 			frBest.score_ -= penmm;
 			assert_leq(frBest.score_, 0);
-			if(-frBest.score_ <= penceil && frBest >= myBest) {
+			if(-frBest.score_ <= penceil_ && frBest >= myBest) {
 				if(frBest > myBest) {
 					myBest = frBest;
 					myMask.clear();
@@ -545,57 +526,33 @@ inline void SwColorCell::updateDiag(
  * accurate mapping of short color-space reads. PLoS Comput Biol. 2009
  * May;5(5)
  *
- * If an alignment is found, its offset relative to rdi is returned.
+ * If an alignment is found, its offset relative to rdi_ is returned.
  * E.g. if an alignment is found that occurs starting at rdi, 0 is
  * returned.  If no alignment is found, -1 is returned.
  */
 int SwAligner::alignColors(
-	const BTDnaString& rd, // read color sequence
-	const BTString& qu,    // read qualities
-	size_t rdi,            // offset of first character within 'read' to consider
-	size_t rdf,            // offset of last char (exclusive) in 'read' to consider
-	BTString& rf,          // reference sequence, as masks
-	size_t rfi,            // offset of first character within 'rf' to consider
-	size_t rff,            // offset of last char (exclusive) in 'rf' to consider
-	const SwParams& pa,    // parameters governing Smith-Waterman problem
-	const Penalties& pen,  // penalties for various edits
-	int penceil,           // penalty ceiling for valid alignments
-	int& nup,              // upstream decoded nucleotide
-	int& ndn,              // downstream decoded nucleotide
 	SwResult& res,         // edits and scores
 	RandomSource& rnd)     // pseudo-random generator
 {
 	typedef SwColorCell TCell;
-	assert_leq(rdf, rd.length());
-	assert_leq(rdf, qu.length());
-	assert_leq(rff, rf.length());
-	assert_geq(rf.length(), rd.length()+1);
-	assert_lt(rfi, rff);
-	assert_lt(rdi, rdf);
-	assert_eq(rd.length(), qu.length());
-	assert_geq(pa.gapBar, 1);
+	assert_leq(rdf_, rd_->length());
+	assert_leq(rdf_, qu_->length());
+	assert_lt(rfi_, rff_);
+	assert_lt(rdi_, rdf_);
+	assert_eq(rd_->length(), qu_->length());
+	assert_geq(pa_->gapBar, 1);
 	res.sws++;
 #ifndef NDEBUG
-	for(size_t i = rfi; i < rff; i++) {
-		assert_range(0, 16, (int)rf[i]);
+	for(size_t i = rfi_; i < rff_; i++) {
+		assert_range(0, 16, (int)rf_[i]);
 	}
 #endif
-	
-	// Calculate the largest possible number of read and reference gaps
-	// given 'penceil' and 'pens'
-	int readGaps = pen.maxReadGaps(penceil);
-	int refGaps  = pen.maxRefGaps(penceil);
-	assert_geq(readGaps, 0);
-	assert_geq(refGaps, 0);
-	int nceil = (int)pen.nCeil(rd.length());
-
 	//
 	// Initialize the first row
 	//
-	
 	ELList<TCell>& tab = ctab_;
 	tab.resize(1); // add first row to row list
-	int maxGaps = max(readGaps, refGaps);
+	int maxGaps = max(rdgap_, rfgap_);
 	const int wlo = 0;
 	const int whi = maxGaps * 2;
 	tab[0].resize(whi-wlo+1); // add columns to first row
@@ -607,11 +564,11 @@ int SwAligner::alignColors(
 	for(int col = 0; col <= whi; col++) {
 		tab[0][col].clear(); // clear the cell; masks and scores
 		int fromEnd = whi - col;
-		int rfm = rf[rfi+col];
+		int rfm = rf_[rfi_+col];
 		// Can we start from here?
-		if(col >= refGaps - readGaps && fromEnd >= readGaps - refGaps) {
+		if(col >= rfgap_ - rdgap_ && fromEnd >= rdgap_ - rfgap_) {
 			for(int to = 0; to < 4; to++) {
-				int m = matches(to, rfm);
+				int m = matchesEx(to, rfm);
 				if(m == 1) {
 					// The assigned subject nucleotide matches the reference;
 					// no penalty
@@ -620,19 +577,19 @@ int SwAligner::alignColors(
 					tab[0][col].best[to].ns_ = 0;
 					tab[0][col].best[to].score_ = 0;
 					tab[0][col].mask[to].diag = 0xf;
-				} else if(m == 0 && pen.snp <= penceil) {
+				} else if(m == 0 && pen_->snp <= penceil_) {
 					// The assigned subject nucleotide does not match the
 					// reference nucleotide, so we add a SNP penalty
 					tab[0][col].best[to].gaps_ = 0;
 					tab[0][col].best[to].ns_ = 0;
-					tab[0][col].best[to].score_ = -pen.snp;
+					tab[0][col].best[to].score_ = -pen_->snp;
 					tab[0][col].mask[to].diag = 0xf;
 				} else if(m == -1) {
 					// The assigned subject nucleotide does not match the
 					// reference nucleotide, so we add a SNP penalty
 					tab[0][col].best[to].gaps_ = 0;
 					tab[0][col].best[to].ns_ = 1;
-					tab[0][col].best[to].score_ = -pen.n(30);
+					tab[0][col].best[to].score_ = -pen_->n(30);
 					tab[0][col].mask[to].diag = 0xf;
 				} else {
 					// Leave mask[to] cleared
@@ -640,16 +597,16 @@ int SwAligner::alignColors(
 			}
 		}
 		// Calculate horizontals if barrier allows
-		if(pa.gapBar <= 1 && col > 0) {
-			tab[0][col].updateHoriz(tab[0][col-1], rfm, pen, nceil, penceil);
+		if(pa_->gapBar <= 1 && col > 0) {
+			updateColorHoriz(tab[0][col-1], tab[0][col], rfm);
 			res.swcups++;
 		}
 		assert(!tab[0][col].finalized);
-		if(tab[0][col].finalize(penceil)) validInRow = true;
+		if(tab[0][col].finalize(penceil_)) validInRow = true;
 	}
 	res.swrows++;
 	if(!validInRow) {
-		res.swskiprows += (rdf - rdi);
+		res.swskiprows += (rdf_ - rdi_);
 		assert(res.empty());
 		return -1;
 	}
@@ -659,17 +616,17 @@ int SwAligner::alignColors(
 	//
 
 	// Do rest of table
-	for(int row = 1; row <= (int)(rdf-rdi); row++) {
+	for(int row = 1; row <= (int)(rdf_-rdi_); row++) {
 		res.swrows++;
 		tab.expand(); // add another row
-		bool onlyDiagInto = (row+1 <= pa.gapBar || (int)(rdf-rdi)-row <= pa.gapBar);
+		bool onlyDiagInto = (row+1 <= pa_->gapBar || (int)(rdf_-rdi_)-row <= pa_->gapBar);
 		tab.back().resize(whi-wlo+1); // add enough space for columns
-		assert_range(1, (int)qu.length(), row);
-		assert_range(1, (int)rd.length(), row);
-		int c = rd[row-1];   // read character in this row
+		assert_range(1, (int)qu_->length(), row);
+		assert_range(1, (int)rd_->length(), row);
+		int c = (*rd_)[row-1];   // read character in this row
 		int q = QUAL(row-1); // quality for the read character; should be Phred
 		assert_geq(q, 0);
-		const int mmpen = ((c > 3) ? pen.n(30) : pen.mm(q));
+		const int mmpen = ((c > 3) ? pen_->n(30) : pen_->mm(q));
 		validInRow = false;		
 		//
 		// Handle col == wlo case before (and the col == whi case
@@ -682,33 +639,29 @@ int SwAligner::alignColors(
 		cur.clear();
 		if(!tab[row-1][0].empty) {
 			const int fullcol = col + row;
-			cur.updateDiag(
+			updateColorDiag(
 				tab[row-1][0],     // cell diagonally above and to the left
-				rf[rfi + fullcol], // ref mask associated with destination cell
+				cur,               // destination cell
+				rf_[rfi_ + fullcol], // ref mask associated with destination cell
 				c,                 // color being traversed
-				mmpen,             // penalty to incur for color miscall
-				pen,               // Penalties
-				nceil,             // max # Ns allowed
-				penceil);          // max penalty allowed
+				mmpen);            // penalty to incur for color miscall
 		}
 		if(!onlyDiagInto && col < whi && !tab[row-1][1].empty) {
-			cur.updateVert(
+			updateColorVert(
 				tab[row-1][1],     // cell above
+				cur,               // destination cell
 				c,                 // color being traversed
-				mmpen,             // penalty to incur for color miscall
-				pen,               // Penalties
-				nceil,             // max # Ns allowed
-				penceil);          // max penalty allowed
+				mmpen);            // penalty to incur for color miscall
 		}
 		res.swcups++;
 		// 'cur' is now initialized
 		assert(!cur.finalized);
-		if(cur.finalize(penceil)) validInRow = true;
+		if(cur.finalize(penceil_)) validInRow = true;
 
 		// Iterate from leftmost to rightmost inner diagonals
 		for(col = wlo+1; col < whi; col++) {
 			const int fullcol = col + row;
-			int r = rf[rfi + fullcol];
+			int r = rf_[rfi_ + fullcol];
 			TCell& cur = tab[row][col-wlo];
 			cur.clear();
 			TCell& dg = tab[row-1][col-wlo];
@@ -717,36 +670,30 @@ int SwAligner::alignColors(
 			// (specifically: whether they match and whether either is
 			// an N) as well as the quality value of the read
 			// character.
-			cur.updateDiag(
+			updateColorDiag(
 				dg,            // cell diagonally above and to the left
+				cur,           // destination cell
 				r,             // ref mask associated with destination column
 				c,             // nucleotide in destination row
-				mmpen,         // penalty to incur for color miscall
-				pen,           // Penalties
-				nceil,         // max # Ns allowed
-				penceil);      // max penalty allowed
+				mmpen);        // penalty to incur for color miscall
 			if(!onlyDiagInto) {
 				TCell& up = tab[row-1][col-wlo+1];
-				cur.updateVert(
+				updateColorVert(
 					up,        // cell above
+					cur,       // destination cell
 					c,         // nucleotide in destination row
-					mmpen,     // penalty to incur for color miscall
-					pen,       // Penalties
-					nceil,     // max # Ns allowed
-					penceil);  // max penalty allowed
+					mmpen);    // penalty to incur for color miscall
 				// Can do horizontal
 				TCell& lf = tab[row][col-wlo-1];
-				cur.updateHoriz(
+				updateColorHoriz(
 					lf,        // cell to the left
-					r,         // ref mask associated with destination column
-					pen,       // Penalties
-					nceil,     // max # Ns allowed
-					penceil);  // max penalty allowed
+					cur,       // destination cell
+					r);        // ref mask associated with destination column
 			}
 			res.swcups++;
 			// 'cur' is now initialized
 			assert(!cur.finalized);
-			if(cur.finalize(penceil)) validInRow = true;
+			if(cur.finalize(penceil_)) validInRow = true;
 		} // end loop over inner diagonals
 		//
 		// Handle the col == whi case (provided wlo != whi) after the
@@ -758,55 +705,51 @@ int SwAligner::alignColors(
 			TCell& cur = tab[row][col-wlo];
 			cur.clear();
 			const int fullcol = col + row;
-			const int r = rf[rfi + fullcol];
+			const int r = rf_[rfi_ + fullcol];
 			TCell& dg = tab[row-1][col-wlo];
 			if(!dg.empty) {
-				cur.updateDiag(
+				updateColorDiag(
 					dg,        // cell diagonally above and to the left
+					cur,       // destination cell
 					r,         // ref mask associated with destination column
 					c,         // nucleotide in destination row
-					mmpen,     // penalty to incur for color miscall
-					pen,       // Penalties
-					nceil,     // max # Ns allowed
-					penceil);  // max penalty allowed
+					mmpen);    // penalty to incur for color miscall
 			}
 			TCell& lf = tab[row][col-wlo-1];
 			if(!onlyDiagInto && !lf.empty) {
-				cur.updateHoriz(
+				updateColorHoriz(
 					lf,        // cell to the left
-					r,         // ref mask associated with destination column
-					pen,       // Penalties
-					nceil,     // max # Ns allowed
-					penceil);  // max penalty allowed
+					cur,       // destination cell
+					r);        // ref mask associated with destination column
 			}
 			res.swcups++;
 			// 'cur' is now initialized
 			assert(!cur.finalized);
-			if(cur.finalize(penceil)) validInRow = true;
+			if(cur.finalize(penceil_)) validInRow = true;
 		}
 		if(!validInRow) {
-			assert_geq((int)(rdf-rdi), row);
-			res.swskiprows += (rdf - rdi - row);
+			assert_geq((int)(rdf_-rdi_), row);
+			res.swskiprows += (rdf_ - rdi_ - row);
 			assert(res.empty());
 			return -1;
 		}
 	}
-	assert_eq(tab.size(), rd.length()+1);
+	assert_eq(tab.size(), rd_->length()+1);
 	// Go hunting for cell to backtrace from; i.e. best score in the
-	// bottom row and in the last readGaps*2+1 columns.
-	AlignmentScore bestScore = AlignmentScore::INVALID();
+	// bottom row and in the last rdgap_*2+1 columns.
+	AlignmentScore bscore = AlignmentScore::INVALID();
 	int btCol = -1; // column to backtrace from
 	int btC = -1;
-	int lastRow = (int)(rdf-rdi);
+	int lastRow = (int)(rdf_-rdi_);
 	for(int col = wlo; col <= whi; col++) {
 		// Can we backtrace from this cell?  Depends on gaps.
 		int fromEnd = whi - col;
 		// greater than or equal to???
-		if(fromEnd >= refGaps - readGaps && col >= readGaps - refGaps) {
+		if(fromEnd >= rfgap_ - rdgap_ && col >= rdgap_ - rfgap_) {
 			if(!tab[lastRow][col].empty) {
 				assert(tab[lastRow][col].finalized);
-				if(tab[lastRow][col].updateBest(bestScore, btC, penceil)) {
-					assert(!VALID_AL_SCORE(bestScore) || abs(bestScore.score()) <= penceil);
+				if(tab[lastRow][col].updateBest(bscore, btC, penceil_)) {
+					assert(!VALID_AL_SCORE(bscore) || abs(bscore.score()) <= penceil_);
 					btCol = col;
 				}
 			}
@@ -814,33 +757,22 @@ int SwAligner::alignColors(
 	}
 	assert_range(wlo, whi, btCol);
 	assert_range(0, 3, btC);
-	assert_leq(abs(bestScore.score()), penceil);
+	assert_leq(abs(bscore.score()), penceil_);
 	int off = backtrackColors(
-		rd,        // read sequence
-		qu,        // read qualities
-		rdi,       // offset of first character within 'rd' to consider
-		rdf,       // offset of last char (exclusive) in 'rd' to consider
-		rf,        // reference sequence, as masks
-		rfi,       // offset of first character within 'rf' to consider
-		rff,       // offset of last char (exclusive) in 'rf' to consider
-		bestScore, // best score of any cell that corresponded to a totally-aligned read
-		readGaps,  // maximum number of read gaps allowed
-		refGaps,   // maximum number of reference gaps allowed
-		pa,        // parameters governing Smith-Waterman problem
-		pen,       // penalties for various edits
-		nup,       // upstream decoded nucleotide
-		ndn,       // downstream decoded nucleotide
-		res,       // destination for best alignment
+		bscore,        // best score of any cell that corresponded to a totally-aligned read
+		res,
 		btCol+lastRow, // col
-		btC,       // randomly selected char from best cell
-		rnd);      // pseudo-random generator
+		btC,           // randomly selected char from best cell
+		rnd);          // pseudo-random generator
 	assert_geq(off, 0);
 
 #ifndef NDEBUG
 	for(int i = 0; i < (int)res.alres.ced().size(); i++) {
-		assert_lt(res.alres.ced()[i].pos, rdf-rdi);
+		assert_lt(res.alres.ced()[i].pos, rdf_-rdi_);
 	}
 #endif
+	res.alres.setColor(true);
+	// Return offset of alignment with respect to rfi
 	return off;
 }
 

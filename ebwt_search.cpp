@@ -2124,14 +2124,14 @@ struct PerfMetrics {
 	OuterLoopMetrics  olm;   // overall metrics
 	SeedSearchMetrics sdm;   // metrics related to seed alignment
 	WalkMetrics       wlm;   // metrics related to walking left (i.e. resolving reference offsets)
-	SwMetrics         swm;   // metrics related to Smith-Waterman alignment
+	SwMetrics         swm;   // metrics related to dynamic prog alignment
 	ReportingMetrics  rpm;   // metrics related to reporting
 
 	// Just since the last update
 	OuterLoopMetrics  olmu;  // overall metrics
 	SeedSearchMetrics sdmu;  // metrics related to seed alignment
 	WalkMetrics       wlmu;  // metrics related to walking left (i.e. resolving reference offsets)
-	SwMetrics         swmu;  // metrics related to Smith-Waterman alignment
+	SwMetrics         swmu;  // metrics related to dynamic prog alignment
 	ReportingMetrics  rpmu;  // metrics related to reporting
 
 	MUTEX_T           lock;  // lock for when one ob
@@ -2360,7 +2360,7 @@ static void* multiseedSearchWorker(void *vp) {
 									costCeilConst,
 									costCeilLinear);
 								assert_geq(penceil, 0);
-								// ... run Smith-Waterman driver
+								// ... run dynamic programming driver
 								sd.extendSeeds(
 									ps->bufa(),       // read
 									gColor,           // colorspace alignment
@@ -2368,7 +2368,7 @@ static void* multiseedSearchWorker(void *vp) {
 									ebwtFw,           // BWT
 									ref,              // Reference strings
 									gw,               // group walk left
-									sw,               // Smith-Waterman aligner
+									sw,               // dynamic prog aligner
 									pa,               // parameters for SW alignment
 									pens,             // penalties for edits
 									multiseedMms,     // # mismatches allowed in a seed
@@ -2380,7 +2380,7 @@ static void* multiseedSearchWorker(void *vp) {
 									sc,               // seed alignment cache
 									rnd,              // pseudo-random source
 									wlm,              // group walk left metrics
-									swm,              // Smith-Waterman metrics
+									swm,              // dynamic prog metrics
 									rpm,              // reporting metrics
 									&msinkwrap,       // AlnSink object for reporting hits
 									true,             // yes, report hits immediately after they're found

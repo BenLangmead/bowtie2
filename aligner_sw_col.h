@@ -111,30 +111,6 @@ struct SwColorCellMask {
  */
 struct SwColorCell {
 
-	inline void updateHoriz(
-		const SwColorCell& lc,
-		int refMask,
-		const Penalties& pen,
-		int nceil,
-		int penceil);
-
-	inline void updateDiag(
-		const SwColorCell& uc,
-		int refMask,
-		int prevColor, // color b/t this row, one above
-		int prevQual,  // quality of color
-		const Penalties& pens,
-		int nceil,
-		int penceil);   // penalty ceiling
-
-	inline void updateVert(
-		const SwColorCell& uc,
-		int prevColor, // color b/t this row, one above
-		int prevQual,  // quality of color
-		const Penalties& pen,
-		int nceil,
-		int penceil);
-
 	/**
 	 * Clear this cell so that it's ready for updates.
 	 */

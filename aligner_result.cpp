@@ -105,17 +105,8 @@ bool AlnRes::matchesRef(
 	assert(refcoord_.valid());
 	bool fw = refcoord_.fw();
 	const size_t rdlen = rd.length();
-	size_t rflen = rdlen + (rd.color ? 1 : 0);
 	// Adjust reference string length according to edits
-	const size_t nedlen = ned_.size();
-	for(size_t i = 0; i < nedlen; i++) {
-		if(ned_[i].isInsert()) {
-			rflen++;
-		} else if(ned_[i].isDelete()) {
-			rflen--;
-		}
-	}
-	char *raw_refbuf = new char[rflen + 16];
+	char *raw_refbuf = new char[extent_ + 16];
 	int nsOnLeft = 0;
 	if(refcoord_.off() < 0) {
 		nsOnLeft = -((int)refcoord_.off());
@@ -124,7 +115,8 @@ bool AlnRes::matchesRef(
 		reinterpret_cast<uint32_t*>(raw_refbuf),
 		refcoord_.ref(),
 		max<TRefOff>(refcoord_.off(), 0),
-		rflen);
+		extent_);
+	assert_leq(off, 16);
 	char *refbuf = raw_refbuf + off;
 	
 	BTDnaString rf;
@@ -152,12 +144,12 @@ bool AlnRes::matchesRef(
 		// Re-invert the nucleotide edits so that they go from 5' to 3'
 		Edit::invertPoss(ned_, rdlen + (color() ? 1 : 0));
 	}
-	assert_eq(rflen, rf.length());
+	assert_eq(extent_ + (color_ ? 1 : 0), rf.length());
 	EList<bool> matches;
 	bool matchesOverall = true;
-	matches.resize(rflen);
+	matches.resize(extent_);
 	matches.fill(true);
-	for(size_t i = 0; i < rflen; i++) {
+	for(size_t i = 0; i < extent_; i++) {
 		if((int)i < nsOnLeft) {
 			if((int)rf[i] != 4) {
 				matches[i] = false;
@@ -181,7 +173,7 @@ bool AlnRes::matchesRef(
 			rdseq,
 			ned_);
 		cerr << "    ";
-		for(size_t i = 0; i < rflen; i++) {
+		for(size_t i = 0; i < extent_; i++) {
 			cerr << (matches[i] ? " " : "*");
 		}
 		cerr << endl;

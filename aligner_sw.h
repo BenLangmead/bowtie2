@@ -1,5 +1,28 @@
 /*
- *  aligner_sw.h
+ * aligner_sw.h
+ *
+ * Classes and routines for solving dynamic programming problems in aid of read
+ * alignment.  Goals include the ability to handle:
+ *
+ * - Both nucleotide queries and colorspace queries
+ * - Both read alignment, where the query must align end-to-end, and local
+ *   alignment, where we seek a high-scoring alignment that need not involve
+ *   the entire query.
+ * - Situations where: (a) we've found a seed hit and are trying to extend it
+ *   into a larger hit, (b) we've found an alignment for one mate of a pair and
+ *   are trying to find a nearby alignment for the other mate, (c) we're
+ *   aligning against an entire reference sequence.
+ * - Caller-specified indicators for what columns of the dynamic programming
+ *   matrix we are allowed to start in or end in.
+ *
+ * TODO:
+ *
+ * - A slicker way to filter out alignments that violate a ceiling placed on
+ *   the number of Ns permitted in the reference portion of the alignment.
+ *   Right now we accomplish this by masking out ending columns that correspond
+ *   to *ungapped* alignments with too many Ns.  This results in false
+ *   positives and false negatives for gapped alignments.  The margin of error
+ *   (# of Ns by which we might miscount) is bounded by the number of gaps.
  */
 
 #ifndef ALIGNER_SW_H_
@@ -14,29 +37,17 @@
 #include "mem_ids.h"
 #include "aligner_result.h"
 #include "aligner_sw_col.h"
+#include "mask.h"
+
+#define QUAL2(d, f) pen_->mm((int)(*rd_)[rdi_ + d], \
+                             (int)  rf_ [rfi_ + f], \
+						     (int)(*qu_)[rdi_ + d] - 33)
+#define QUAL(d)     pen_->mm((int)(*rd_)[rdi_ + d], \
+                             (int)(*qu_)[rdi_ + d] - 33)
+#define N_SNP_PEN(c) (((int)rf_[rfi_ + c] > 15) ? pen_->n(30) : pen_->penSnp)
 
 /**
- * Return 1 if a 2-bit-encoded base ('i') match any bit in the mask
- * ('j') and the mask < 16.  Returns -1 if either the reference or the
- * read character was ambiguous.  Returns 0 if the characters
- * unambiguously mismatch.
- */
-static inline int matches(int i, int j) {
-	if(j >= 16 || i > 3) return -1;
-	return (((1 << i) & j) != 0) ? 1 : 0;
-}
-
-static inline ostream& operator<<(ostream& os, const AlignmentScore& o) {
-	os << o.score();
-	return os;
-}
-
-#define QUAL2(d, f) pen.mm((int)rd[rdi + d], (int)rf[rfi + f], (int)qu[rdi + d] - 33)
-#define QUAL(d)     pen.mm((int)rd[rdi + d], (int)qu[rdi + d] - 33)
-#define N_SNP_PEN(c) (((int)rf[rfi + c] > 15) ? pen.n(30) : pen.penSnp)
-
-/**
- * Key parameters to Smith-Waterman alignment.
+ * Key parameters to dynamic programming alignment.
  */
 struct SwParams {
 	SwParams() { initFromGlobals(); }
@@ -52,7 +63,7 @@ struct SwParams {
 };
 
 /**
- * Encapsulates the result of a Smith-Waterman alignment, including
+ * Encapsulates the result of a dynamic programming alignment, including
  * colorspace alignments.  In our case, the result is a combination of:
  *
  * 1. All the nucleotide edits
@@ -118,11 +129,14 @@ struct SwResult {
 	uint64_t swsucc; // # dynamic programming problems resulting in alignment
 	uint64_t swfail; // # dynamic programming problems not resulting in alignment
 	uint64_t swbts;  // # dynamic programming backtrace steps
+	
+	int nup;         // upstream decoded nucleotide; for colorspace reads
+	int ndn;         // downstream decoded nucleotide; for colorspace reads
 };
 
 /**
  * Encapsulates counters that measure how much work has been done by
- * the Smith-Waterman driver and aligner.
+ * the dynamic programming driver and aligner.
  */
 struct SwMetrics {
 
@@ -298,30 +312,29 @@ enum {
 };
 
 /**
- * A bitmask encoding which backtracking paths out of a particular cell
- * correspond to optimal subpaths.
+ * Encapsulates a bitmask.  The bitmask encodes which backtracking paths out of
+ * a cell lie on optimal subpaths.
  */
 struct SwNucCellMask {
 
 	/**
-	 * Set all flags to 0, indicating there is no way to backtrack from
-	 * this cell to an optimal answer.
+	 * Set all flags to 0 (meaning either: there's no way to backtrack from
+	 * this cell to an optimal answer, or we haven't set the mask yet)
 	 */
 	void clear() {
 		*((uint8_t*)this) = 0;
 	}
 
 	/**
-	 * Return true iff there are no backward paths recorded in this
-	 * mask.
+	 * Return true iff the mask is empty.
 	 */
 	inline bool empty() const {
 		return *((uint8_t*)this) == 0;
 	}
 
 	/**
-	 * Return true iff it's possible to extend a gap in the reference
-	 * in the cell below this one.
+	 * Return true iff it's possible to extend a gap in the reference in the
+	 * cell below this one.
 	 */
 	inline bool refExtendPossible() const {
 		return rfop || rfex;
@@ -362,12 +375,9 @@ struct SwNucCellMask {
 	}
 
 	/**
-	 * Select a path for backtracking from this cell.  If there is a
-	 * tie among eligible paths, break it randomly.  Return value is
-	 * a pair where first = a flag indicating the backtrack type (see
-	 * enum defining SW_BT_* above), and second = a selection for
-	 * the read character for the next row up.  second should be
-	 * ignored if the backtrack type is a gap in the read.
+	 * Select a path for backtracking from this cell.  If there is a tie among
+	 * eligible paths, break it randomly.  Return value is a flag indicating
+	 * the backtrack type (see enum defining SW_BT_* above).
 	 */
 	int randBacktrack(RandomSource& rand);
 
@@ -384,29 +394,6 @@ struct SwNucCellMask {
  * at a cell in a colorspace SW matrix.
  */
 struct SwNucCell {
-
-	inline void updateHoriz(
-		const SwNucCell& lc,
-		int rfm,
-		const Penalties& pen,
-		int nceil,
-		int penceil);
-
-	inline void updateDiag(
-		const SwNucCell& dc,
-		int rdc,
-		int rfm,
-		int pen,
-		const Penalties& pens,
-		int nceil,
-		int penceil);
-
-	inline void updateVert(
-		const SwNucCell& uc,
-		int rdc,
-		const Penalties& pen,
-		int nceil,
-		int penceil);
 
 	/**
 	 * Clear this cell so that it's ready for updates.
@@ -466,101 +453,170 @@ struct SwNucCell {
 };
 
 /**
- * Ensapsulates routines for performing Smith-Waterman alignments of
- * nucleotide or colorspace reads against reference nucleotides.  In
- * the colorspace case, decoding takes place simultaneously with
- * alignment.
+ * SwAligner
+ * =========
+ *
+ * Ensapsulates routines for performing dynamic programming alignments of
+ * nucleotide or colorspace reads against reference nucleotides.  In the
+ * colorspace case, decoding takes place simultaneously with alignment.
+ *
+ * The class is stateful.  First the user must call init() to initialize the
+ * object with details regarding the dynamic programming problem to be solved.
+ * Next, the user calls align() to fill the dynamic programming matrix and
+ * calculate summaries describing the solutions.  Finally the user calls 
+ * nextAlignment(...), perhaps repeatedly, to populate the SwResult object with
+ * the next result.  Results are dispensend in best-to-worst, left-to-right
+ * order.
+ *
+ * There is a design tradeoff between hiding/exposing details of the genome and
+ * its strands to the SwAligner.  In a sense, a better design is to hide
+ * details such as the id of the reference sequence aligned to, or whether
+ * we're aligning the read in its original forward orientation or its reverse
+ * complement.  But this means that any alignment results returned by SwAligner
+ * have to be extended to include those details before they're useful to the
+ * caller.  We opt for messy but expedient - the reference id and orientation
+ * of the read are given to SwAligner, remembered, and used to populate
+ * SwResults.
  */
 class SwAligner {
 public:
 
 	SwAligner() :
-		rfbuf_(SW_CAT),
-		mayend_(SW_CAT),
+		inited_(false),
+		rfwbuf_(SW_CAT),
+		maskst_(SW_CAT),
+		masken_(SW_CAT),
 		ntab_(SW_CAT),
-		ctab_(SW_CAT)
+		ctab_(SW_CAT),
+		cursol_(0),
+		sols_(SW_CAT)
 	{ }
 
 	/**
-	 * Given a list of reads, execute the corresponding Smith-Waterman
-	 * problem across the entire extent of the reference.
+	 * Initialize with a new alignment problem.
 	 */
-	void alignBatchToFasta(
-		const EList<Read>& rds,
-		const EList<std::string>& fas,
-		ELList<SwResult>& res);
+	void init(
+		const BTDnaString& rd, // read sequence
+		const BTString& qu,    // read qualities
+		size_t rdi,            // offset of first read char to align
+		size_t rdf,            // offset of last read char to align
+		bool fw,               // true iff read sequence is original fw read
+		bool color,            // true iff read is colorspace
+		uint32_t refidx,       // id of reference aligned against
+		int64_t refoff,        // offset of upstream ref char aligned against
+		char *rf,              // reference sequence
+		size_t rfi,            // offset of first reference char to align to
+		size_t rff,            // offset of last reference char to align to
+		const SwParams& pa,    // params for SW alignment
+		const Penalties& pen,  // penalties for edit types
+		int penceil)           // penalty ceiling for valid alignments
+	{
+		int readGaps = pen.maxReadGaps(penceil);
+		int refGaps  = pen.maxRefGaps(penceil);
+		int maxGaps  = max(readGaps, refGaps);
+		int nceil    = (int)pen.nCeil(rd.length());
+		assert_geq(readGaps, 0);
+		assert_geq(refGaps, 0);
+		rd_      = &rd;        // read sequence
+		qu_      = &qu;        // read qualities
+		rdi_     = rdi;        // offset of first read char to align
+		rdf_     = rdf;        // offset of last read char to align
+		fw_      = fw;         // true iff read sequence is original fw read
+		color_   = color;      // true iff read is colorspace
+		refidx_  = refidx;     // id of reference aligned against
+		refoff_  = refoff;     // offset of upstream ref char aligned against
+		rf_      = rf;         // reference sequence
+		rfi_     = rfi;        // offset of first reference char to align to
+		rff_     = rff;        // offset of last reference char to align to
+		rdgap_   = readGaps;   // max # gaps in read
+		rfgap_   = refGaps;    // max # gaps in reference
+		maxgap_  = maxGaps;    // max(readGaps, refGaps)
+		pa_      = &pa;        // params for SW alignment
+		pen_     = &pen;       // penalties for edit types
+		penceil_ = penceil;    // penalty ceiling for valid alignments
+		nceil_   = nceil;      // max # Ns allowed in ref portion of aln
+		inited_  = true;       // indicate we're initialized now
+	}
 	
 	/**
 	 * Given a read, an alignment orientation, a range of characters in a
 	 * referece sequence, and a bit-encoded version of the reference,
-	 * execute the corresponding Smith-Waterman problem.
+	 * execute the corresponding dynamic programming problem.
 	 *
-	 * Here we expect that the caller has already narrowed down the
-	 * relevant portion of the reference (e.g. using a seed hit) and all we
-	 * have to do is a banded Smith-Waterman in the vicinity of that
-	 * portion.  This is not the function to call if we are trying to solve
-	 * the whole alignment problem with SW (see alignToFasta).
+	 * Here we expect that the caller has already narrowed down the relevant
+	 * portion of the reference (e.g. using a seed hit) and all we do is
+	 * banded dynamic programming in the vicinity of that portion.  This is not
+	 * the function to call if we are trying to solve the whole alignment
+	 * problem with dynamic programming (that is TODO).
 	 *
 	 * Returns true if an alignment was found, false otherwise.
 	 */
-	bool alignToBitPairReference(
-		const Read& rd,       // read to align
-		bool color,           // colorspace?
-		size_t rdi,           // offset of first character within 'read' to consider
-		size_t rdf,           // offset of last char (exclusive) in 'read' to consider
-		bool fw,              // whether to align forward or revcomp read
-		uint32_t refidx,      // reference aligned against
-		int64_t rfi,          // first reference base to SW align against
-		int64_t rff,          // last reference base (exclusive) to SW align against
+	void init(
+		const Read& rd,        // read to align
+		size_t rdi,            // off of first char in 'rd' to consider
+		size_t rdf,            // off of last char (excl) in 'rd' to consider
+		bool fw,               // whether to align forward or revcomp read
+		bool color,            // colorspace?
+		uint32_t refidx,       // reference aligned against
+		int64_t rfi,           // off of first character in ref to consider
+		int64_t rff,           // off of last char (excl) in ref to consider
 		const BitPairReference& refs, // Reference strings
-		size_t reflen,        // length of reference sequence
-		const SwParams& pa,   // Smith-Waterman parameters
-		const Penalties& pen, // penalty scheme
-		int penceil,          // maximum penalty we can incur for a valid alignment
-		SwResult& res,        // results of Smith-Waterman alignment (score, edits, etc)
-		EList<SwCounterSink*>* swCounterSinks, // send counter updates to these
-		EList<SwActionSink*>* swActionSinks);  // send action-list updates to these
-
+		size_t reflen,         // length of reference sequence
+		const SwParams& pa,    // dynamic programming parameters
+		const Penalties& pen,  // penalty scheme
+		int penceil);          // penalty ceiling for valid alignments
+	
 	/**
-	 * Align and simultaneously decode the colorspace read 'read' as
-	 * aligned against the reference string 'rf' using dynamic
-	 * programming.
+	 * Align read 'rd' to reference using read & reference information given
+	 * last time init() was called.  If the read is colorspace, the decoding is
+	 * determined simultaneously with alignment.  Uses dynamic programming.
 	 */
-	int alignNucleotides(
-		const BTDnaString& rd, // read sequence
-		const BTString& qu,    // read qualities
-		size_t rdi,            // offset of first character within 'read' to consider
-		size_t rdf,            // offset of last char (exclusive) in 'read' to consider
-		BTString& rf,          // reference sequence, as masks
-		size_t rfi,            // offset of first character within 'rf' to consider
-		size_t rff,            // offset of last char (exclusive) in 'rf' to consider
-		const SwParams& pa,    // parameters governing Smith-Waterman problem
-		const Penalties& pen,  // penalties for various edits
-		int penceil,           // penalty ceiling for valid alignments
-		SwResult& res,         // edits and scores
-		RandomSource& rnd);    // pseudo-random generator
-
+	bool align(
+		SwResult& res,
+		RandomSource& rnd);
+	
 	/**
-	 * Align the nucleotide read 'read' as aligned against the reference
-	 * string 'rf' using dynamic programming.
+	 * Return the next alignment, if there is one.
 	 */
-	int alignColors(
-		const BTDnaString& rd, // read sequence
-		const BTString& qu,    // read qualities
-		size_t rdi,            // offset of first character within 'read' to consider
-		size_t rdf,            // offset of last char (exclusive) in 'read' to consider
-		BTString& rf,          // reference sequence, as masks
-		size_t rfi,            // offset of first character within 'rf' to consider
-		size_t rff,            // offset of last char (exclusive) in 'rf' to consider
-		const SwParams& pa,    // parameters governing Smith-Waterman problem
-		const Penalties& pen,  // penalties for various edits
-		int penceil,           // penalty ceiling for valid alignments
-		int& nup,              // upstream decoded nucleotide
-		int& ndn,              // downstream decoded nucleotide
-		SwResult& res,         // edits and scores
-		RandomSource& rnd);    // pseudo-random generator
+	void nextAlignment(SwResult& res);
+	
+	/**
+	 * Return the estimated number of distinct alignments uncovered by the
+	 * dynamic programming matrix.
+	 */
+	size_t numAlignments() const {
+		return sols_.size();
+	}
+	
+	/**
+	 * Return true iff this SwAligner has been initialized with a dynamic
+	 * programming problem.
+	 */
+	bool inited() const { return inited_; }
+	
+	/**
+	 * Reset, signaling that we're done with this dynamic programming problem
+	 * and won't be asking for any more alignments.
+	 */
+	void reset() { inited_ = false; }
 
 protected:
+
+	/**
+	 * Align and simultaneously decode the colorspace read 'rd' to the
+	 * reference string 'rf' using dynamic programming.
+	 */
+	int alignNucleotides(
+		SwResult& res,         // store results (edits and scores) here
+		RandomSource& rnd);    // pseudo-random generator
+
+	/**
+	 * Align the nucleotide read 'rd' to the reference string 'rf' using
+	 * dynamic programming.
+	 */
+	int alignColors(
+		SwResult& res,         // store results (edits and scores) here
+		RandomSource& rnd);    // pseudo-random generator
 
 	/**
 	 * Given the dynamic programming table, trace backwards from the lower
@@ -568,20 +624,7 @@ protected:
 	 * accordingly.
 	 */
 	int backtrackColors(
-		const BTDnaString& rd, // read sequence
-		const BTString& qu,    // read qualities
-		size_t rdi,            // offset of first read char to align
-		size_t rdf,            // offset of last read char to align
-		BTString& rf,          // reference sequence
-		size_t rfi,            // offset of first reference char to align to
-		size_t rff,            // offset of last reference char to align to
-		AlignmentScore decodeScore,   // score we expect to get over backtrack
-		int readGaps,          // max # gaps in read
-		int refGaps,           // max # gaps in ref
-		const SwParams& pa,    // params for SW alignment
-		const Penalties& pen,  // penalties for edit types
-		int& nup,              // upstream decoded nucleotide
-		int& ndn,              // downstream decoded nucleotide
+		AlignmentScore dscore, // score we expect to get over backtrack
 		SwResult& res,         // store results (edits and scores) here
 		int col,               // start in this column
 		int lastC,             // character to backtrace from in lower-right corner
@@ -593,26 +636,77 @@ protected:
 	 * accordingly.
 	 */
 	int backtrackNucleotides(
-		const BTDnaString& rd, // read sequence
-		const BTString& qu,    // read qualities
-		size_t rdi,            // offset of first read char to align
-		size_t rdf,            // offset of last read char to align
-		BTString& rf,          // reference sequence
-		size_t rfi,            // offset of first reference char to align to
-		size_t rff,            // offset of last reference char to align to
-		AlignmentScore decodeScore,   // score we expect to get over backtrack
-		int readGaps,          // max # gaps in read
-		int refGaps,           // max # gaps in ref
-		const SwParams& pa,    // params for SW alignment
-		const Penalties& pen,  // penalties for edit types
+		AlignmentScore dscore, // score we expect to get over backtrack
 		SwResult& res,         // store results (edits and scores) here
 		int col,               // start in this column
 		RandomSource& rand);   // pseudo-random generator
 
-	EList<uint32_t>     rfbuf_; // buffer for refernece stretches
-	EList<bool>         mayend_;// list of bools: which columns can we end in?
-	ELList<SwNucCell>   ntab_;  // dynamic programming table for nucleotide SW
-	ELList<SwColorCell> ctab_;  // dynamic programming table for colorspace SW
+	// Members for updating cells in nucleotide dynamic programming tables
+
+	inline void updateNucHoriz(
+		const SwNucCell& lc,
+		SwNucCell& dstc,
+		int rfm);
+
+	inline void updateNucDiag(
+		const SwNucCell& dc,
+		SwNucCell& dstc,
+		int rdc,
+		int rfm,
+		int pen);
+
+	inline void updateNucVert(
+		const SwNucCell& uc,
+		SwNucCell& dstc,
+		int rdc);
+
+	// Members for updating cells in colorspace dynamic programming tables
+
+	inline void updateColorHoriz(
+		const SwColorCell& lc,
+		SwColorCell& dstc,
+		int refMask);
+
+	inline void updateColorDiag(
+		const SwColorCell& uc,
+		SwColorCell& dstc,
+		int refMask,
+		int prevColor,
+		int prevQual);
+
+	inline void updateColorVert(
+		const SwColorCell& uc,
+		SwColorCell& dstc,
+		int prevColor,
+		int prevQual);
+
+	const BTDnaString*  rd_;     // read sequence
+	const BTString*     qu_;     // read qualities
+	size_t              rdi_;    // offset of first read char to align
+	size_t              rdf_;    // offset of last read char to align
+	bool                fw_;     // true iff read sequence is original fw read
+	bool                color_;  // true iff read is colorspace
+	uint32_t            refidx_; // id of reference aligned against
+	int64_t             refoff_; // offset of upstream ref char aligned against
+	char               *rf_;     // reference sequence
+	size_t              rfi_;    // offset of first ref char to align to
+	size_t              rff_;    // offset of last ref char to align to
+	int                 rdgap_;  // max # gaps in read
+	int                 rfgap_;  // max # gaps in reference
+	int                 maxgap_; // max(rdgap_, rfgap_)
+	const SwParams*     pa_;     // params for SW alignment
+	const Penalties*    pen_;    // penalties for edit types
+	int                 penceil_;// penalty ceiling for valid alignments
+	int                 nceil_;  // max # Ns allowed in ref portion of aln
+
+	bool                inited_; // true iff initialized with DP problem
+	EList<uint32_t>     rfwbuf_; // buffer for wordized refernece stretches
+	EList<bool>         maskst_; // list of bools: which cols can we start in?
+	EList<bool>         masken_; // list of bools: which cols can we end in?
+	ELList<SwNucCell>   ntab_;   // dynamic programming table for nucleotide SW
+	ELList<SwColorCell> ctab_;   // dynamic programming table for colorspace SW
+	size_t              cursol_; // idx of next solution to dish out
+	EList<size_t>       sols_;   // list of elts in last row ending solutions
 };
 
 #endif /*ALIGNER_SW_H_*/

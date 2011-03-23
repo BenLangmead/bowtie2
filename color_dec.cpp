@@ -24,13 +24,6 @@ static inline TScore penaltyToScore(TScore pen) {
 	return maxPenalty - pen;
 }
 
-/**
- * Does a 2-bit-encoded base match any bit in a mask?
- */
-static inline bool matches(int i, int j) {
-	return ((1 << i) & j) != 0;
-}
-
 #define QUAL(i) mmPenalty(false, phredcToPhredq(qual[i]))
 
 /**

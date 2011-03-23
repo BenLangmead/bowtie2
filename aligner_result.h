@@ -72,6 +72,7 @@ public:
 		if(++ns_ > nceil) {
 			invalidate();
 		}
+		assert_lt(ns_, 0x7fffffff);
 	}
 
 	/**
@@ -102,6 +103,7 @@ public:
 		gaps_  = o.gaps_;
 		ns_    = o.ns_;
 		score_ = o.score_;
+		assert_lt(ns_, 0x7fffffff);
 		return *this;
 	}
 
@@ -143,6 +145,7 @@ public:
 		s.gaps_ = gaps_ - o.gaps_;
 		s.ns_ = ns_;
 		s.score_ = score_ - o.score_;
+		assert_lt(s.ns_, 0x7fffffff);
 		return s;
 	}
 
@@ -155,6 +158,7 @@ public:
 		s.gaps_ = gaps_ + o.gaps_;
 		s.ns_ = ns_;
 		s.score_ = score_ + o.score_;
+		assert_lt(s.ns_, 0x7fffffff);
 		return s;
 	}
 
@@ -189,6 +193,7 @@ public:
 		s.gaps_ = gaps_;
 		s.ns_ = ns_;
 		s.score_ = score_ - o;
+		assert_lt(s.ns_, 0x7fffffff);
 		return s;
 	}
 	
@@ -211,6 +216,11 @@ public:
 	// all other scores
 	TAlScore gaps_;
 };
+
+static inline ostream& operator<<(ostream& os, const AlignmentScore& o) {
+	os << o.score();
+	return os;
+}
 
 // Forward declaration
 class BitPairReference;
@@ -477,16 +487,16 @@ protected:
 	EList<Edit>    ned_;      // base edits
 	EList<Edit>    aed_;      // ambiguous base resolutions
 	EList<Edit>    ced_;      // color miscalls
-	Coord          refcoord_; // reference coordinates (sequence index, offset, orientation)
-	size_t         extent_;   // number of reference chars involved in alignment
+	Coord          refcoord_; // ref coordinates (seq idx, offset, orient)
+	size_t         extent_;   // number of ref chars involved in alignment
 	int            seedmms_;  // number of mismatches allowed in seed
 	int            seedlen_;  // length of seed
 	int            seedival_; // interval between seeds
 	int            penceil_;  // penalty ceiling
 	
 	bool           color_;    // colorspace alignment?
-	int            nuc5p_;    // 5'-most decoded nucleotide; this is chopped off if excluding ends
-	int            nuc3p_;    // 3'-most decoded nucleotide; this is chopped off if excluding ends
+	int            nuc5p_;    // 5'-most decoded base; clipped if excluding end
+	int            nuc3p_;    // 3'-most decoded base; clipped if excluding end
 };
 
 typedef uint64_t TNumAlns;

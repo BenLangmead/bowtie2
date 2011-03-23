@@ -29,11 +29,10 @@ public:
 	{ }
 
 	/**
-	 * Given a collection of SeedHits for a single read, extend seed
-	 * alignments into full alignments.  Where possible, try to avoid
-	 * redundant offset lookups and Smith-Watermans wherever possible.
-	 * Optionally report alignments to a AlnSinkWrap object as they
-	 * are discovered.
+	 * Given a collection of SeedHits for a single read, extend seed alignments
+	 * into full alignments.  Where possible, try to avoid redundant offset
+	 * lookups and dynamic programming problems.  Optionally report alignments
+	 * to a AlnSinkWrap object as they are discovered.
 	 *
 	 * If 'reportImmediately' is true, returns true iff a call to
 	 * mhs->report() returned true (indicating that the reporting
@@ -46,8 +45,8 @@ public:
 		const Ebwt& ebwt,            // BWT
 		const BitPairReference& ref, // Reference strings
 		GroupWalk& gw,               // group walk left
-		SwAligner& swa,              // Smith-Waterman aligner
-		const SwParams& pa,          // parameters for Smith-Waterman aligner
+		SwAligner& swa,              // dynamic programming aligner
+		const SwParams& pa,          // parameters for dynamic programming aligner
 		const Penalties& pen,        // penalties for edits
 		int seedmms,                 // # mismatches allowed in seed
 		int seedlen,                 // length of seed
@@ -58,15 +57,15 @@ public:
 		AlignmentCacheIface& sc,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random source
 		WalkMetrics& wlm,            // group walk left metrics
-		SwMetrics& swm,              // Smith-Waterman metrics
+		SwMetrics& swm,              // dynamic programming metrics
 		ReportingMetrics& rpm,       // reporting metrics
-		AlnSinkWrap* mhs,          // HitSink for multiseed-style aligner
+		AlnSinkWrap* mhs,            // HitSink for multiseed-style aligner
 		bool reportImmediately,      // whether to report hits immediately to mhs
 		EList<SwCounterSink*>* swCounterSinks, // send counter updates to these
 		EList<SwActionSink*>* swActionSinks);  // send action-list updates to these
 
 	/**
-	 * Given a read, perform full Smith-Waterman against the entire
+	 * Given a read, perform full dynamic programming against the entire
 	 * reference.  Optionally report alignments to a AlnSinkWrap object
 	 * as they are discovered.
 	 *
@@ -78,13 +77,13 @@ public:
 		const Read& rd,              // read to align
 		bool color,                  // true -> read is colorspace
 		const BitPairReference& ref, // Reference strings
-		SwAligner& swa,              // Smith-Waterman aligner
-		const SwParams& pa,          // parameters for Smith-Waterman aligner
+		SwAligner& swa,              // dynamic programming aligner
+		const SwParams& pa,          // parameters for dynamic prog aligner
 		const Penalties& pen,        // penalties for edits
 		int penceil,                 // maximum penalty allowed
 		RandomSource& rnd,           // pseudo-random source
-		SwMetrics& swm,              // Smith-Waterman metrics
-		AlnSinkWrap* mhs,          // HitSink for multiseed-style aligner
+		SwMetrics& swm,              // dynamic programming metrics
+		AlnSinkWrap* mhs,            // HitSink for multiseed-style aligner
 		bool reportImmediately,      // whether to report hits immediately to mhs
 		EList<SwCounterSink*>* swCounterSinks, // send counter updates to these
 		EList<SwActionSink*>* swActionSinks);  // send action-list updates to these
@@ -92,7 +91,7 @@ public:
 	/**
 	 * Given a collection of SeedHits for a read pair, extend seed
 	 * alignments into full alignments and then look for the opposite
-	 * mate using Smith-Waterman.  Where possible, try to avoid
+	 * mate using dynamic programming.  Where possible, try to avoid
 	 * redundant offset lookups.  Optionally report alignments to a
 	 * AlnSinkWrap object as they are discovered.
 	 *
@@ -109,8 +108,8 @@ public:
 		const Ebwt& ebwt,            // BWT
 		const BitPairReference& ref, // Reference strings
 		GroupWalk& gw,               // group walk left
-		SwAligner& swa,              // Smith-Waterman aligner
-		const SwParams& pa,          // parameters for Smith-Waterman aligner
+		SwAligner& swa,              // dynamic programming aligner
+		const SwParams& pa,          // parameters for dynamic prog aligner
 		const Penalties& pen,        // penalties for edits
 		const PairedEndPolicy& pepol,// paired-end policy
 		int seedmms,                 // # mismatches allowed in seed
@@ -123,11 +122,11 @@ public:
 		AlignmentCacheIface& sc,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random source
 		WalkMetrics& wlm,            // group walk left metrics
-		SwMetrics& swm,              // Smith-Waterman metrics
+		SwMetrics& swm,              // dynamic programming metrics
 		ReportingMetrics& rpm,       // reporting metrics
-		AlnSinkWrap* msink,        // AlnSink wrapper for multiseed-style aligner
+		AlnSinkWrap* msink,          // AlnSink wrapper for multiseed aligner
 		bool swMateImmediately,      // whether to look for mate immediately
-		bool reportImmediately,      // whether to report hits immediately to msink
+		bool reportImmediately,      // whether to report hits right to msink
 		EList<SwCounterSink*>* swCounterSinks, // send counter updates to these
 		EList<SwActionSink*>* swActionSinks);  // send action-list updates to these
 
