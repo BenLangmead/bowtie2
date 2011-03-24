@@ -507,6 +507,9 @@ public:
 		char *rf,              // reference sequence
 		size_t rfi,            // offset of first reference char to align to
 		size_t rff,            // offset of last reference char to align to
+		size_t width,          // # bands to do (width of parallelogram)
+		const EList<bool>* st, // mask indicating which columns we can start in
+		const EList<bool>* en, // mask indicating which columns we can end in
 		const SwParams& pa,    // params for SW alignment
 		const Penalties& pen,  // penalties for edit types
 		int penceil)           // penalty ceiling for valid alignments
@@ -531,6 +534,9 @@ public:
 		rdgap_   = readGaps;   // max # gaps in read
 		rfgap_   = refGaps;    // max # gaps in reference
 		maxgap_  = maxGaps;    // max(readGaps, refGaps)
+		width_   = width;      // # bands to do (width of parallelogram)
+		st_      = st;         // mask indicating which columns we can start in
+		en_      = en;         // mask indicating which columns we can end in
 		pa_      = &pa;        // params for SW alignment
 		pen_     = &pen;       // penalties for edit types
 		penceil_ = penceil;    // penalty ceiling for valid alignments
@@ -562,6 +568,9 @@ public:
 		int64_t rff,           // off of last char (excl) in ref to consider
 		const BitPairReference& refs, // Reference strings
 		size_t reflen,         // length of reference sequence
+		size_t width,          // # bands to do (width of parallelogram)
+		const EList<bool>* st, // mask indicating which columns we can start in
+		const EList<bool>* en, // mask indicating which columns we can end in
 		const SwParams& pa,    // dynamic programming parameters
 		const Penalties& pen,  // penalty scheme
 		int penceil);          // penalty ceiling for valid alignments
@@ -691,6 +700,9 @@ protected:
 	char               *rf_;     // reference sequence
 	size_t              rfi_;    // offset of first ref char to align to
 	size_t              rff_;    // offset of last ref char to align to
+	size_t              width_;  // # bands to do (width of parallelogram)
+	const EList<bool>*  st_;     // mask indicating which cols we can start in
+	const EList<bool>*  en_;     // mask indicating which cols we can end in
 	int                 rdgap_;  // max # gaps in read
 	int                 rfgap_;  // max # gaps in reference
 	int                 maxgap_; // max(rdgap_, rfgap_)

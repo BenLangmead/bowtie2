@@ -563,10 +563,10 @@ int SwAligner::alignColors(
 	// row.  We just consider reference mutations.
 	for(int col = 0; col <= whi; col++) {
 		tab[0][col].clear(); // clear the cell; masks and scores
-		int fromEnd = whi - col;
 		int rfm = rf_[rfi_+col];
 		// Can we start from here?
-		if(col >= rfgap_ - rdgap_ && fromEnd >= rdgap_ - rfgap_) {
+		bool canStart = (st_ == NULL || (*st_)[col]);
+		if(canStart) {
 			for(int to = 0; to < 4; to++) {
 				int m = matchesEx(to, rfm);
 				if(m == 1) {
@@ -742,10 +742,9 @@ int SwAligner::alignColors(
 	int btC = -1;
 	int lastRow = (int)(rdf_-rdi_);
 	for(int col = wlo; col <= whi; col++) {
-		// Can we backtrace from this cell?  Depends on gaps.
-		int fromEnd = whi - col;
 		// greater than or equal to???
-		if(fromEnd >= rfgap_ - rdgap_ && col >= rdgap_ - rfgap_) {
+		bool canEnd = (en_ == NULL || (*en_)[col-wlo]);
+		if(canEnd) {
 			if(!tab[lastRow][col].empty) {
 				assert(tab[lastRow][col].finalized);
 				if(tab[lastRow][col].updateBest(bscore, btC, penceil_)) {

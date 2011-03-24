@@ -15,6 +15,7 @@
 #include "aligner_cache.h"
 #include "aligner_sw_driver.h"
 #include "pe.h"
+#include "dp_framer.h"
 
 using namespace std;
 
@@ -103,10 +104,11 @@ bool SwDriver::extendSeeds(
 	// given 'penceil' and 'pen'
 	int readGaps = pen.maxReadGaps(penceil);
 	int refGaps = pen.maxRefGaps(penceil);
-	int maxGaps = max(readGaps, refGaps);
 	const size_t rdlen = rd.length();
 	coords1fw_.clear();
 	coords1rc_.clear();
+
+	DynProgFramer dpframe(!gReportOverhangs);
 
 	// Iterate twice through levels seed hits from the lowest ranked
 	// level to the highest ranked.  On the first iteration, look for
@@ -126,6 +128,7 @@ bool SwDriver::extendSeeds(
 			// the upstream (3') end of ther read.
 			rdoff = (uint32_t)(rdlen - rdoff - seedlen);
 		}
+		size_t rows = rdlen + (color ? 1 : 0);
 		satups_.clear();
 		sc.queryQval(qv, satups_);
 		gw.initQval(ebwt, ref, qv, sc, rnd, maxrows, true, wlm);
@@ -152,33 +155,30 @@ bool SwDriver::extendSeeds(
 				// The seed hit straddled a reference boundary
 				continue;
 			}
-			// Hit's a hit at a known offset
-			int64_t refi = (int64_t)toff;
-			if(rdoff > refi) {
-				// Traveling from the seed to the upstream edge of the
-				// read takes us off the end of the reference
-				// continue;
-			}
-			refi -= rdoff; // refi might be negative now
-			if((int64_t)maxGaps > refi) {
-				// The maximum number of gaps that we can add on the
-				// left flank takes us off the end of the reference
-				// continue;
-			}
-			refi -= maxGaps; // refi might be negative
-			int64_t reff = toff + rdlen + maxGaps;
-			if(reff > tlen) {
-				// Traveling from the seed to the downstream edge of
-				// the read *and* adding gaps to the right flank takes
-				// us off the end of the reference
-				// continue;
-			}
-			// Now we know what reference positions we're concerned
-			// with.  If we have already investigated a window that
-			// includes all of these reference characters, we can skip
-			// this attempt.
-			int64_t refiInner = max<int64_t>(refi, 0);
-			Coord c(tidx, refiInner, fw);
+			// Now that we have a seed hit, there are many issues to solve
+			// before we have a completely framed dynamic programming problem.
+			// They include:
+			//
+			// 1. Setting reference offsets on either side of the seed hit,
+			//    accounting for where the seed occurs in the read
+			// 2. Adjusting the width of the banded dynamic programming problem
+			//    and adjusting reference bounds to allow for gaps in the
+			//    alignment
+			// 3. Accounting for the edges of the reference, which can impact
+			//    the width of the DP problem and reference bounds.
+			// 4. Perhaps filtering the problem down to a smaller problem based
+			//    on what DPs we've already solved for this read
+			//
+			// We do #1 here, since it is simple and we have all the seed-hit
+			// information here.  #2 and #3 are handled in the DynProgFramer.
+			
+			// Find offset of alignment's upstream base assuming net gaps=0
+			// between beginning of read and beginning of seed hit
+			int64_t refoff = (int64_t)toff - rdoff;
+			// TODO: need a more sophisticated filter here.  Really we care if
+			// any of the start/end combos here have been covered by a previous
+			// dynamic programming problem.
+			Coord c(tidx, refoff, fw);
 			if((fw  && !coords1fw_.insert(c)) ||
 			   (!fw && !coords1rc_.insert(c)))
 			{
@@ -187,9 +187,26 @@ bool SwDriver::extendSeeds(
 				swm.rshit++;
 				continue;
 			}
+			size_t width = 0, trimup = 0, trimdn = 0;
+			int64_t refl = 0, refr = 0;
+			dpframe.frameSeedExtension(
+				refoff,   // ref offset implied by seed hit assuming no gaps
+				rows,     // length of read sequence used in DP table (so len
+		                  // of +1 nucleotide sequence for colorspace reads)
+				tlen,     // length of reference
+				readGaps, // max # of read gaps permitted in opp mate alignment
+				refGaps,  // max # of ref gaps permitted in opp mate alignment
+				width,    // out: calculated width stored here
+				trimup,   // out: number of bases trimmed from upstream end
+				trimdn,   // out: number of bases trimmed from downstream end
+				refl,     // out: ref pos of upper LHS of parallelogram
+				refr,     // out: ref pos of lower RHS of parallelogram
+				st_,      // out: legal starting columns stored here
+				en_);     // out: legal ending columns stored here
 			res_.reset();
 			assert(res_.empty());
-			// Given the boundaries defined by refi and reff, initilize the
+			assert_neq(0xffffffff, tidx);
+			// Given the boundaries defined by refl and refr, initilize the
 			// SwAligner with the dynamic programming problem that aligns the
 			// read to this reference stretch.
 			swa.init(
@@ -199,14 +216,18 @@ bool SwDriver::extendSeeds(
 				fw,        // whether to align forward or revcomp read
 				color,     // colorspace?
 				tidx,      // reference aligned against
-				refi,      // off of first character in ref to consider
-				reff,      // off of last char (excl) in ref to consider
+				refl,      // off of first character in ref to consider
+				refr,      // off of last char (excl) in ref to consider
 				ref,       // Reference strings
 				tlen,      // length of reference sequence
+				width,     // # bands to do (width of parallelogram)
+				&st_,      // mask indicating which columns we can start in
+				&en_,      // mask indicating which columns we can end in
 				pa,        // dynamic programming parameters
 				pen,       // penalty scheme
 				penceil);  // penalty ceiling for valid alignments
-			// Now fill the dynamic programming matrix
+			// Now fill the dynamic programming matrix and return true iff
+			// there is at least one valid alignment
 			bool found = swa.align(
 				res_,
 				rnd);
@@ -364,6 +385,8 @@ bool SwDriver::extendSeedsPaired(
 	coords1rc_.clear();
 	coords2fw_.clear();
 	coords2rc_.clear();
+	
+	DynProgFramer dpframe(!gReportOverhangs);
 
 	// Iterate twice through levels seed hits from the lowest ranked
 	// level to the highest ranked.  On the first iteration, look for
@@ -379,33 +402,47 @@ bool SwDriver::extendSeedsPaired(
 		bool fw = true;
 		uint32_t offidx = 0, rdoff = 0, seedlen;
 		QVal qv;
-		size_t rdlen, ordlen;
+		size_t rdlen, ordlen, rows, orows;
 		const Read *rd, *ord;
 		ESet<Coord> *coordsfw, *coordsrc;
 		int penceil, openceil;
 		int maxGaps, omaxGaps;
+		int readGaps, oreadGaps;
+		int refGaps, orefGaps;
 		if(!do2) {
 			qv = sh1.hitsByRank(i,       offidx, rdoff, fw, seedlen);
 			rdlen = rd1len;
 			ordlen = rd2len;
+			rows = rd1len + (color ? 1 : 0);
+			orows = rd2len + (color ? 1 : 0);
 			rd = &rd1;
 			ord = &rd2;
 			coordsfw = &coords1fw_;
 			coordsrc = &coords1rc_;
 			penceil = penceil1;
 			openceil = penceil2;
+			readGaps = readGaps1;
+			oreadGaps = readGaps2;
+			refGaps = refGaps1;
+			orefGaps = refGaps2;
 			maxGaps = maxGaps1;
 			omaxGaps = maxGaps2;
 		} else {
 			qv = sh2.hitsByRank(i-poss1, offidx, rdoff, fw, seedlen);
 			rdlen = rd2len;
 			ordlen = rd1len;
+			rows = rd2len + (color ? 1 : 0);
+			orows = rd1len + (color ? 1 : 0);
 			rd = &rd2;
 			ord = &rd1;
 			coordsfw = &coords2fw_;
 			coordsrc = &coords2rc_;
 			penceil = penceil2;
 			openceil = penceil1;
+			readGaps = readGaps2;
+			oreadGaps = readGaps1;
+			refGaps = refGaps2;
+			orefGaps = refGaps1;
 			maxGaps = maxGaps2;
 			omaxGaps = maxGaps1;
 		}
@@ -439,36 +476,34 @@ bool SwDriver::extendSeedsPaired(
 				toff,
 				tlen);
 			if(tidx == 0xffffffff) {
-				// The seed hit straddled a reference boundary
+				// The seed hit straddled a reference boundary so the seed hit
+				// isn't valid
 				continue;
 			}
-			// Hit's a hit at a known offset
-			int64_t refi = (int64_t)toff;
-			if(rdoff > refi) {
-				// Traveling from the seed to the upstream edge of the
-				// read takes us off the end of the reference
-				// continue;
-			}
-			refi -= rdoff; // refi might be negative now
-			if((int64_t)maxGaps > refi) {
-				// The maximum number of gaps that we can add on the
-				// left flank takes us off the end of the reference
-				// continue;
-			}
-			refi -= maxGaps; // refi might be negative
-			int64_t reff = toff + rdlen + maxGaps;
-			if(reff > tlen) {
-				// Traveling from the seed to the downstream edge of
-				// the read *and* adding gaps to the right flank takes
-				// us off the end of the reference
-				// continue;
-			}
-			// Now we know what reference positions we're concerned
-			// with.  If we have already investigated a window that
-			// includes all of these reference characters, we can skip
-			// this attempt.
-			int64_t refiInner = max<int64_t>(refi, 0);
-			Coord c(tidx, refiInner, fw);
+			// Now that we have a seed hit, there are many issues to solve
+			// before we have a completely framed dynamic programming problem.
+			// They include:
+			//
+			// 1. Setting reference offsets on either side of the seed hit,
+			//    accounting for where the seed occurs in the read
+			// 2. Adjusting the width of the banded dynamic programming problem
+			//    and adjusting reference bounds to allow for gaps in the
+			//    alignment
+			// 3. Accounting for the edges of the reference, which can impact
+			//    the width of the DP problem and reference bounds.
+			// 4. Perhaps filtering the problem down to a smaller problem based
+			//    on what DPs we've already solved for this read
+			//
+			// We do #1 here, since it is simple and we have all the seed-hit
+			// information here.  #2 and #3 are handled in the DynProgFramer.
+			
+			// Find offset of alignment's upstream base assuming net gaps=0
+			// between beginning of read and beginning of seed hit
+			int64_t refoff = (int64_t)toff - rdoff;
+			// TODO: need a more sophisticated filter here.  Really we care if
+			// any of the start/end combos here have been covered by a previous
+			// dynamic programming problem.
+			Coord c(tidx, refoff, fw);
 			if((fw  && !coordsfw->insert(c)) ||
 			   (!fw && !coordsrc->insert(c)))
 			{
@@ -477,10 +512,26 @@ bool SwDriver::extendSeedsPaired(
 				swm.rshit++;
 				continue;
 			}
+			size_t width = 0, trimup = 0, trimdn = 0;
+			int64_t refl = 0, refr = 0;
+			dpframe.frameSeedExtension(
+				refoff,   // ref offset implied by seed hit assuming no gaps
+				rows,     // length of read sequence used in DP table (so len
+		                  // of +1 nucleotide sequence for colorspace reads)
+				tlen,     // length of reference
+				readGaps, // max # of read gaps permitted in opp mate alignment
+				refGaps,  // max # of ref gaps permitted in opp mate alignment
+				width,    // out: calculated width stored here
+				trimup,   // out: number of bases trimmed from upstream end
+				trimdn,   // out: number of bases trimmed from downstream end
+				refl,     // out: ref pos of upper LHS of parallelogram
+				refr,     // out: ref pos of lower RHS of parallelogram
+				st_,      // out: legal starting columns stored here
+				en_);     // out: legal ending columns stored here
 			res_.reset();
 			assert(res_.empty());
 			assert_neq(0xffffffff, tidx);
-			// Given the boundaries defined by refi and reff, initilize the
+			// Given the boundaries defined by refl and refr, initilize the
 			// SwAligner with the dynamic programming problem that aligns the
 			// read to this reference stretch.
 			swa.init(
@@ -490,14 +541,18 @@ bool SwDriver::extendSeedsPaired(
 				fw,        // whether to align forward or revcomp read
 				color,     // colorspace?
 				tidx,      // reference aligned against
-				refi,      // off of first character in ref to consider
-				reff,      // off of last char (excl) in ref to consider
+				refl,      // off of first character in ref to consider
+				refr,      // off of last char (excl) in ref to consider
 				ref,       // Reference strings
 				tlen,      // length of reference sequence
+				width,     // # bands to do (width of parallelogram)
+				&st_,      // mask indicating which columns we can start in
+				&en_,      // mask indicating which columns we can end in
 				pa,        // dynamic programming parameters
 				pen,       // penalty scheme
 				penceil);  // penalty ceiling for valid alignments
-			// Now fill the dynamic programming matrix
+			// Now fill the dynamic programming matrix and return true iff
+			// there is at least one valid alignment
 			bool foundAnchor = swa.align(
 				res_,
 				rnd);
@@ -548,46 +603,67 @@ bool SwDriver::extendSeedsPaired(
 					orl,
 					orr,
 					ofw);
-#if 0
 				if(foundMate) {
-					ores_.reset();
-					assert(ores_.empty());
-					foundMate = swa.alignToBitPairReference(
-						*ord,
-						color,
-						0,
-						ordlen,
-						ofw,
-						tidx,
-						oll,
-						olr,
-						orl,
-						orr,
-						ref,
-						tlen,
-						pa,
-						pen,
-						openceil,
-						ores_,
-						swCounterSinks,
-						swActionSinks);
-					
+					size_t owidth = 0, otrimup = 0, otrimdn = 0;
+					int64_t orefl = 0, orefr = 0;
+					foundMate = dpframe.frameSeedExtension(
+						refoff,   // ref offset implied by seed hit assuming no gaps
+						orows,    // length of read sequence used in DP table (so len
+								  // of +1 nucleotide sequence for colorspace reads)
+						tlen,     // length of reference
+						oreadGaps,// max # of read gaps permitted in opp mate alignment
+						orefGaps, // max # of ref gaps permitted in opp mate alignment
+						owidth,   // out: calculated width stored here
+						otrimup,  // out: number of bases trimmed from upstream end
+						otrimdn,  // out: number of bases trimmed from downstream end
+						orefl,    // out: ref pos of upper LHS of parallelogram
+						orefr,    // out: ref pos of lower RHS of parallelogram
+						st_,      // out: legal starting columns stored here
+						en_);     // out: legal ending columns stored here
 					if(foundMate) {
-						// Annotate the AlnRes object with some key parameters
-						// that were used to obtain the alignment.
-						ores_.alres.setParams(
-							seedmms,   // # mismatches allowed in seed
-							seedlen,   // length of seed
-							seedival,  // interval between seeds
-							openceil); // maximum penalty for valid alignment
-						if(!gReportOverhangs &&
-						   !ores_.alres.within(tidx, 0, ofw, tlen))
-						{
-							foundMate = false;
+						ores_.reset();
+						assert(ores_.empty());
+						// Given the boundaries defined by refi and reff, initilize
+						// the SwAligner with the dynamic programming problem that
+						// aligns the read to this reference stretch.
+						swa.init(
+							*ord,      // read to align
+							0,         // off of first char in 'rd' to consider
+							ordlen,    // off of last char (excl) in 'rd' to consider
+							ofw,       // whether to align forward or revcomp read
+							color,     // colorspace?
+							tidx,      // reference aligned against
+							oll,       // off of first character in ref to consider
+							orr,       // off of last char (excl) in ref to consider
+							ref,       // Reference strings
+							tlen,      // length of reference sequence
+							owidth,    // # bands to do (width of parallelogram)
+							&st_,      // mask indicating which columns we can start in
+							&en_,      // mask indicating which columns we can end in
+							pa,        // dynamic programming parameters
+							pen,       // penalty scheme
+							openceil); // penalty ceiling for valid alignments
+						// Now fill the dynamic programming matrix and return true
+						// iff there is at least one valid alignment
+						foundMate = swa.align(
+							ores_,
+							rnd);
+						if(foundMate) {
+							// Annotate the AlnRes object with some key parameters
+							// that were used to obtain the alignment.
+							ores_.alres.setParams(
+								seedmms,   // # mismatches allowed in seed
+								seedlen,   // length of seed
+								seedival,  // interval between seeds
+								openceil); // maximum penalty for valid alignment
+							if(!gReportOverhangs &&
+							   !ores_.alres.within(tidx, 0, ofw, tlen))
+							{
+								foundMate = false;
+							}
 						}
 					}
 				}
-#endif
 			}
 
 			if(reportImmediately) {

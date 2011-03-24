@@ -25,7 +25,10 @@ public:
 		coords1fw_(1024, SW_CAT),
 		coords1rc_(1024, SW_CAT),
 		coords2fw_(1024, SW_CAT),
-		coords2rc_(1024, SW_CAT)
+		coords2rc_(1024, SW_CAT),
+		st_(1024, SW_CAT),
+		en_(1024, SW_CAT),
+		res_(), ores_()
 	{ }
 
 	/**
@@ -151,6 +154,8 @@ protected:
 	ESet<Coord>    coords1rc_; // ref coords tried for rc mate 1 so far
 	ESet<Coord>    coords2fw_; // ref coords tried for fw mate 2 so far
 	ESet<Coord>    coords2rc_; // ref coords tried for rc mate 2 so far
+	EList<bool>    st_;        // temporary holder for dyn prog starting mask
+	EList<bool>    en_;        // temporary holder for dyn prog ending mask
 	SwResult       res_;       // temporary holder for SW results
 	SwResult       ores_;      // temporary holder for SW results for opposite mate
 };

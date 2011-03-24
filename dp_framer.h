@@ -39,18 +39,24 @@ class DynProgFramer {
 
 public:
 
-	DynProgFramer() { }
+	DynProgFramer(bool trimToRef) : trimToRef_(trimToRef) { }
 
 	/**
 	 * Given information about a seed hit and the read that the seed came from,
 	 * return parameters for the dynamic programming problem to solve.
 	 */
-	void frameSeedExtension(
+	bool frameSeedExtension(
 		int64_t off,      // ref offset implied by seed hit assuming no gaps
+		size_t rdlen,     // length of read sequence used in DP table (so len
+		                  // of +1 nucleotide sequence for colorspace reads)
+		size_t reflen,    // length of reference sequence aligned to
 		size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
 		size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
 		size_t& width,    // out: calculated width stored here
-		int64_t& refi,    // out: ref pos associated with first/leftmost column
+		size_t& trimup,   // out: number of bases trimmed from upstream end
+		size_t& trimdn,   // out: number of bases trimmed from downstream end
+		int64_t& refl,    // out: ref pos of upper LHS of parallelogram
+		int64_t& refr,    // out: ref pos of lower RHS of parallelogram
 		EList<bool>& st,  // out: legal starting columns stored here
 		EList<bool>& en); // out: legal ending columns stored here
 
@@ -60,16 +66,20 @@ public:
 	 * the fragment length range, return parameters for the dynamic programming
 	 * problem to solve.
 	 */
-	void frameFindMateAnchorLeft(
+	bool frameFindMateAnchorLeft(
 		int64_t ll,       // leftmost Watson off for LHS of opp alignment
 		int64_t lr,       // rightmost Watson off for LHS of opp alignment
 		int64_t rl,       // leftmost Watson off for RHS of opp alignment
 		int64_t rr,       // rightmost Watson off for RHS of opp alignment
 		size_t rdlen,     // length of opposite mate
+		size_t reflen,    // length of reference sequence aligned to
 		size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
 		size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
 		size_t& width,    // out: calculated width stored here
-		int64_t& refi,    // out: ref pos associated with first/leftmost column
+		size_t& trimup,   // out: number of bases trimmed from upstream end
+		size_t& trimdn,   // out: number of bases trimmed from downstream end
+		int64_t& refl,    // out: ref pos of upper LHS of parallelogram
+		int64_t& refr,    // out: ref pos of lower RHS of parallelogram
 		EList<bool>& st,  // out: legal starting columns stored here
 		EList<bool>& en); // out: legal ending columns stored here
 
@@ -79,19 +89,48 @@ public:
 	 * the fragment length range, return parameters for the dynamic programming
 	 * problem to solve.
 	 */
-	void frameFindMateAnchorRight(
+	bool frameFindMateAnchorRight(
 		int64_t ll,       // leftmost Watson off for LHS of opp alignment
 		int64_t lr,       // rightmost Watson off for LHS of opp alignment
 		int64_t rl,       // leftmost Watson off for RHS of opp alignment
 		int64_t rr,       // rightmost Watson off for RHS of opp alignment
 		size_t rdlen,     // length of opposite mate
+		size_t reflen,    // length of reference sequence aligned to
 		size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
 		size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
 		size_t& width,    // out: calculated width stored here
-		int64_t& refi,    // out: ref pos associated with first/leftmost column
+		size_t& trimup,   // out: number of bases trimmed from upstream end
+		size_t& trimdn,   // out: number of bases trimmed from downstream end
+		int64_t& refl,    // out: ref pos of upper LHS of parallelogram
+		int64_t& refr,    // out: ref pos of lower RHS of parallelogram
 		EList<bool>& st,  // out: legal starting columns stored here
 		EList<bool>& en); // out: legal ending columns stored here
 
+protected:
+
+	/**
+	 * Trim the given parallelogram width and reference window so that neither
+	 * overhangs the beginning or end of the reference.  Return true if width
+	 * is still > 0 after trimming, otherwise return false.
+	 */
+	void trimToRef(
+		size_t   reflen,  // in: length of reference sequence aligned to
+		int64_t& refl,    // in/out: ref pos of upper LHS of parallelogram
+		int64_t& refr,    // in/out: ref pos of lower RHS of parallelogram
+		size_t&  trimup,  // out: number of bases trimmed from upstream end
+		size_t&  trimdn)  // out: number of bases trimmed from downstream end
+	{
+		if(refl < 0) {
+			trimup = (size_t)(-refl);
+			refl = 0;
+		}
+		if(refr >= (int64_t)reflen) {
+			trimdn = (size_t)(refr - reflen + 1);
+			refr = (int64_t)reflen-1;
+		}
+	}
+
+	bool trimToRef_;
 };
 
 #endif /*ndef DP_FRAMER_H_*/

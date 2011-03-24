@@ -26,19 +26,22 @@ void SwParams::initFromGlobals() {
  * lengths if we're searching for the opposite mate in a pair.
  */
 void SwAligner::init(
-	const Read& rd,       // read to align
-	size_t rdi,           // offset of first character within 'read' to consider
-	size_t rdf,           // offset of last char (exclusive) in 'read' to consider
-	bool fw,              // whether to align forward or revcomp read
-	bool color,           // colorspace?
-	uint32_t refidx,      // reference aligned against
-	int64_t rfi,          // first reference base to SW align against
-	int64_t rff,          // last reference base (exclusive) to SW align against
+	const Read& rd,        // read to align
+	size_t rdi,            // off of first char in 'rd' to consider
+	size_t rdf,            // off of last char (exclusive) in 'rd' to consider
+	bool fw,               // whether to align forward or revcomp read
+	bool color,            // colorspace?
+	uint32_t refidx,       // reference aligned against
+	int64_t rfi,           // first reference base to SW align against
+	int64_t rff,           // last ref base (exclusive) to SW align against
 	const BitPairReference& refs, // Reference strings
-	size_t reflen,        // length of reference sequence
-	const SwParams& pa,   // dynamic programming parameters
-	const Penalties& pen, // penalty scheme
-	int penceil)          // maximum penalty we can incur for a valid alignment
+	size_t reflen,         // length of reference sequence
+	size_t width,          // # bands to do (width of parallelogram)
+	const EList<bool>* st, // mask indicating which columns we can start in
+	const EList<bool>* en, // mask indicating which columns we can end in
+	const SwParams& pa,    // dynamic programming parameters
+	const Penalties& pen,  // penalty scheme
+	int penceil)           // max penalty we can incur for a valid alignment
 {
 	assert_gt(rff, rfi);
 	assert_gt(rdf, rdi);
@@ -128,6 +131,9 @@ void SwAligner::init(
 		rf_,         // reference sequence, wrapped up in BTString object
 		0,           // use the whole thing
 		rflen,       // ditto
+		width,       // # bands to do (width of parallelogram)
+		st,          // mask indicating which columns we can start in
+		en,          // mask indicating which columns we can end in
 		pa,          // dynamic programming parameters
 		pen,         // penalties
 		penceil);    // max penalty
@@ -601,11 +607,11 @@ int SwAligner::alignNucleotides(
 	// first row.
 	for(int col = 0; col <= whi; col++) {
 		tab[0][col].clear(); // clear the cell; masks and scores
-		int fromEnd = whi - col;
 		int rdc = (*rd_)[rdi_+0];
 		int rfm = rf_[rfi_+col];
 		// Can we start from here?
-		if(col >= rfgap_ - rdgap_ && fromEnd >= rdgap_ - rfgap_) {
+		bool canStart = (st_ == NULL || (*st_)[col]);
+		if(canStart) {
 			tab[0][col].best.gaps_ = 0;
 			tab[0][col].best.ns_ = 0;
 			tab[0][col].best.score_ = 0;
@@ -771,10 +777,9 @@ int SwAligner::alignNucleotides(
 	int btCol = -1; // column to backtrace from
 	int lastRow = (int)(rdf_-rdi_-1);
 	for(int col = wlo; col <= whi; col++) {
-		// Can we backtrace from this cell?  Depends on gaps.
-		int fromEnd = whi - col;
 		// greater than or equal to???
-		if(fromEnd >= rfgap_ - rdgap_ && col >= rdgap_ - rfgap_) {
+		bool canEnd = (en_ == NULL || (*en_)[col-wlo]);
+		if(canEnd) {
 			if(!tab[lastRow][col].empty) {
 				assert(tab[lastRow][col].finalized);
 				assert_leq(abs(tab[lastRow][col].best.score()), penceil_);
@@ -889,6 +894,8 @@ static void doTestCase(
 	const BTString&    qual,
 	const BTString&    refin,
 	size_t             off,
+	const EList<bool> *st,
+	const EList<bool> *en,
 	const SwParams&    pa,
 	const Penalties&   pens,
 	int                penceil,
@@ -910,6 +917,7 @@ static void doTestCase(
 	assert_geq(readGaps, 0);
 	assert_geq(refGaps, 0);
 	int maxGaps = max(readGaps, refGaps);
+	size_t width = 1 + 2 * maxGaps;
 	size_t refoff = off;
 	// Pad the beginning of the reference with Ns if necessary
 	while(refoff < maxGaps) {
@@ -949,9 +957,13 @@ static void doTestCase(
 		fw,            // 'read' is forward version of read?
 		color,         // whether read is nucleotide-space or colorspace
 		refidx,        // id of reference aligned to
-		ref,           // reference sequence (masks)
+		off,           // offset of upstream ref char aligned against
+		ref.wbuf(),    // reference sequence (masks)
 		rfi,           // offset of first char in 'ref' to consider
 		rff,           // offset of last char (exclusive) in 'ref' to consider
+		width,         // # bands to do (width of parallelogram)
+		NULL,          // mask indicating which columns we can start in
+		NULL,          // mask indicating which columns we can end in
 		pa,            // dynamic programming parameters
 		pens,          // penalties
 		penceil);      // max total penalty
@@ -978,18 +990,18 @@ static void doTestCase(
  * Another interface for running a case.
  */
 static void doTestCase2(
-	const char *     read,
-	const char *     qual,
-	const char *     refin,
-	size_t           off,
-	const SwParams&  pa,
-	const Penalties& pens,
-	float            costCeilConst,
-	float            costCeilLinear,
-	SwResult&        res,
-	bool             color,
-	bool             nsInclusive = false,
-	uint32_t         seed = 0)
+	const char        *read,
+	const char        *qual,
+	const char        *refin,
+	size_t             off,
+	const SwParams&    pa,
+	const Penalties&   pens,
+	float              costCeilConst,
+	float              costCeilLinear,
+	SwResult&          res,
+	bool               color,
+	bool               nsInclusive = false,
+	uint32_t           seed = 0)
 {
 	BTDnaString btread(read, true, color);
 	// Calculate the penalty ceiling for the read
@@ -1002,6 +1014,8 @@ static void doTestCase2(
 		BTString(qual),
 		BTString(refin),
 		off,
+		NULL,
+		NULL,
 		pa,
 		pens,
 		penceil,
@@ -1079,7 +1093,17 @@ static void doTests() {
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", exact)...";
 		pens.refOpen = 40;
 		pens.readOpen = 40;
-		doTestCase2("ACGTACGT", "IIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, false);
+		doTestCase2(
+			"ACGTACGT",
+			"IIIIIIII",
+			"ACGTACGTACGTACGT",
+			i*4,
+			pa,
+			pens,
+			30.0f,
+			0.0f,
+			res,
+			false);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), 0);
@@ -1744,6 +1768,8 @@ int main(int argc, char **argv) {
 		qual,
 		ref,
 		off,
+		NULL,
+		NULL,
 		pa,
 		pens,
 		penceil,

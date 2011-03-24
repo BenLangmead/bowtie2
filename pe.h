@@ -231,7 +231,7 @@ bool otherMate(
 
 	/**
 	 * Return a PE_TYPE flag indicating, given a PE_POLICY and coordinates
-	 * for a paired-end alignment, what type of alignment it is, i.e.,
+	 * for a paired-end alignment,	qwhat type of alignment it is, i.e.,
 	 * whether it's:
 	 *
 	 * 1. Straightforwardly concordant
