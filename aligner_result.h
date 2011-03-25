@@ -322,6 +322,19 @@ public:
 	TRefOff refoff() const { return refcoord_.off(); }
 	
 	/**
+	 * Set arguments to coordinates for the upstream-most and downstream-most
+	 * reference positions involved in the alignment.
+	 */
+	void getCoords(
+		Coord& st,  // out: install starting coordinate here
+		Coord& en)  // out: install ending coordinate here
+	{
+		st.init(refcoord_);
+		en.init(refcoord_);
+		en.setOff(en.off() + extent() - 1);
+	}
+	
+	/**
 	 * Set the upstream-most reference offset involved in the
 	 * alignment, and the extent of the alignment (w/r/t the
 	 * reference)

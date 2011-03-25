@@ -22,15 +22,32 @@ class Coord {
 public:
 
 	Coord() { invalidate(); }
+
+	Coord(const Coord& c) { init(c); }
 	
 	Coord(TRefId rf, TRefOff of, bool fw) { init(rf, of, fw); }
 
+	/**
+	 * Copy given fields into this Coord.
+	 */
 	void init(TRefId rf, TRefOff of, bool fw) {
 		ref_ = rf;
 		off_ = of;
 		orient_ = (fw ? 1 : 0);
 	}
+
+	/**
+	 * Copy contents of given Coord into this one.
+	 */
+	void init(const Coord& c) {
+		ref_ = c.ref_;
+		off_ = c.off_;
+		orient_ = c.orient_;
+	}
 	
+	/**
+	 * Return true iff this Coord is identical to the given Coord.
+	 */
 	bool operator==(const Coord& o) const {
 		assert(valid());
 		assert(o.valid());
@@ -114,6 +131,9 @@ public:
 	
 	TRefId  ref() const { return ref_; }
 	TRefOff off() const { return off_; }
+	
+	void setRef(TRefId  id)  { ref_ = id;  }
+	void setOff(TRefOff off) { off_ = off; }
 
 protected:
 

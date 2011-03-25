@@ -86,6 +86,20 @@ if(! -x $bowtie2 || ! -x $bowtie2_build) {
 
 my @cases = (
 
+	# Alignment with 1 reference gap
+	{ ref    => [ "TTTTGTTCGTTTG" ],
+	  reads  => [ "TTTTGTTCGATTTG" ], # budget = 3 + 14 * 3 = 45
+	  args   =>   "-P \"SEED=0,8,1;RFG=45\"",
+	  report =>   "-a",
+	  hits   => [ { 0 => 1 } ] },
+
+	# Alignment with 1 reference gap
+	{ ref    => [ "TTGTTCGTTTGTT" ],
+	  reads  => [ "TTGTTCGATTTGTT" ], # budget = 3 + 14 * 3 = 45
+	  args   =>   "-P \"SEED=0,3,1;RFG=45\"",
+	  report =>   "-a",
+	  hits   => [ { 0 => 1 } ] },
+
 	{ ref    => [ "ACNCA" ],
 	  reads  => [ "CA" ],
 	  args   => "",

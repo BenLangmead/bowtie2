@@ -105,8 +105,9 @@ bool SwDriver::extendSeeds(
 	int readGaps = pen.maxReadGaps(penceil);
 	int refGaps = pen.maxRefGaps(penceil);
 	const size_t rdlen = rd.length();
-	coords1fw_.clear();
-	coords1rc_.clear();
+	coords1_.clear();   // ref coords tried so far
+	coords1st_.clear(); // upstream coord for hits so far
+	coords1en_.clear(); // downstream coord for hits so far
 
 	DynProgFramer dpframe(!gReportOverhangs);
 
@@ -151,6 +152,7 @@ bool SwDriver::extendSeeds(
 				tidx,
 				toff,
 				tlen);
+			tlen += (color ? 1 : 0);
 			if(tidx == 0xffffffff) {
 				// The seed hit straddled a reference boundary
 				continue;
@@ -179,9 +181,7 @@ bool SwDriver::extendSeeds(
 			// any of the start/end combos here have been covered by a previous
 			// dynamic programming problem.
 			Coord c(tidx, refoff, fw);
-			if((fw  && !coords1fw_.insert(c)) ||
-			   (!fw && !coords1rc_.insert(c)))
-			{
+			if(!coords1_.insert(c)) {
 				// Already tried to find an alignment at these
 				// coordinates
 				swm.rshit++;
@@ -189,7 +189,7 @@ bool SwDriver::extendSeeds(
 			}
 			size_t width = 0, trimup = 0, trimdn = 0;
 			int64_t refl = 0, refr = 0;
-			dpframe.frameSeedExtension(
+			bool found = dpframe.frameSeedExtension(
 				refoff,   // ref offset implied by seed hit assuming no gaps
 				rows,     // length of read sequence used in DP table (so len
 		                  // of +1 nucleotide sequence for colorspace reads)
@@ -203,6 +203,9 @@ bool SwDriver::extendSeeds(
 				refr,     // out: ref pos of lower RHS of parallelogram
 				st_,      // out: legal starting columns stored here
 				en_);     // out: legal ending columns stored here
+			if(!found) continue;
+			assert_eq(width, st_.size());
+			assert_eq(st_.size(), en_.size());
 			res_.reset();
 			assert(res_.empty());
 			assert_neq(0xffffffff, tidx);
@@ -217,7 +220,7 @@ bool SwDriver::extendSeeds(
 				color,     // colorspace?
 				tidx,      // reference aligned against
 				refl,      // off of first character in ref to consider
-				refr,      // off of last char (excl) in ref to consider
+				refr+1,    // off of last char (excl) in ref to consider
 				ref,       // Reference strings
 				tlen,      // length of reference sequence
 				width,     // # bands to do (width of parallelogram)
@@ -228,42 +231,40 @@ bool SwDriver::extendSeeds(
 				penceil);  // penalty ceiling for valid alignments
 			// Now fill the dynamic programming matrix and return true iff
 			// there is at least one valid alignment
-			bool found = swa.align(
+			found = swa.align(
 				res_,
 				rnd);
 			assert_neq(0xffffffff, tidx);
 			assert( found ||  res_.empty());
 			assert(!found || !res_.empty());
+			swm.update(res_);
 			if(found) {
 				res_.swsucc++;
 			} else {
 				res_.swfail++;
-			}
-			swm.update(res_);
-			
-			if(found) {
-				// Annotate the AlnRes object with some key parameters
-				// that were used to obtain the alignment.
-				res_.alres.setParams(
-					seedmms,   // # mismatches allowed in seed
-					seedlen,   // length of seed
-					seedival,  // interval between seeds
-					penceil);  // maximum penalty for valid alignment
+				continue;
 			}
 			
-			// If the user specified that alignments overhanging the
-			// end of the reference be excluded, exclude them here.
-			// TODO: exclude them in the traceback process so that we
-			// don't prefer an invalid overhanging alignment over a
-			// valid one with the same score during traceback.
-			if(found && !gReportOverhangs) {
-				if(!res_.alres.within(tidx, 0, fw, tlen)) {
-					found = false;
-				}
+			// User specified that alignments overhanging ends of reference
+			// should be excluded...
+			assert(gReportOverhangs || res_.alres.within(tidx, 0, fw, tlen));
+
+			Coord st, en;
+			res_.alres.getCoords(st, en);
+			if(!coords1st_.insert(st) || !coords1en_.insert(en)) {
+				// Redundant with an alignment we found already
+				continue;
 			}
 			
-			// Report this hit to an AlnSink
-			if(found && reportImmediately) {
+			// Annotate the AlnRes object with some key parameters
+			// that were used to obtain the alignment.
+			res_.alres.setParams(
+				seedmms,   // # mismatches allowed in seed
+				seedlen,   // length of seed
+				seedival,  // interval between seeds
+				penceil);  // maximum penalty for valid alignment
+			
+			if(reportImmediately) {
 				assert(msink != NULL);
 				assert(res_.repOk());
 				// Check that alignment accurately reflects the
@@ -277,7 +278,7 @@ bool SwDriver::extendSeeds(
 					return true;
 				}
 			}
-			
+
 			// At this point we know that we aren't bailing, and will continue to resolve seed hits.  
 
 		} // while(!gw.done())
@@ -381,10 +382,12 @@ bool SwDriver::extendSeedsPaired(
 	int maxGaps2 = max(readGaps2, refGaps2);
 	const size_t rd1len = rd1.length();
 	const size_t rd2len = rd2.length();
-	coords1fw_.clear();
-	coords1rc_.clear();
-	coords2fw_.clear();
-	coords2rc_.clear();
+	coords1_.clear();
+	coords1st_.clear(); // upstream coord for mate 1 hits so far
+	coords1en_.clear(); // downstream coord for mate 2 hits so far
+	coords2_.clear();
+	coords2st_.clear(); // upstream coord for mate 2 hits so far
+	coords2en_.clear(); // downstream coord for mate 2 hits so far
 	
 	DynProgFramer dpframe(!gReportOverhangs);
 
@@ -404,7 +407,7 @@ bool SwDriver::extendSeedsPaired(
 		QVal qv;
 		size_t rdlen, ordlen, rows, orows;
 		const Read *rd, *ord;
-		ESet<Coord> *coordsfw, *coordsrc;
+		ESet<Coord> *coords;
 		int penceil, openceil;
 		int maxGaps, omaxGaps;
 		int readGaps, oreadGaps;
@@ -417,8 +420,7 @@ bool SwDriver::extendSeedsPaired(
 			orows = rd2len + (color ? 1 : 0);
 			rd = &rd1;
 			ord = &rd2;
-			coordsfw = &coords1fw_;
-			coordsrc = &coords1rc_;
+			coords = &coords1_;
 			penceil = penceil1;
 			openceil = penceil2;
 			readGaps = readGaps1;
@@ -435,8 +437,7 @@ bool SwDriver::extendSeedsPaired(
 			orows = rd1len + (color ? 1 : 0);
 			rd = &rd2;
 			ord = &rd1;
-			coordsfw = &coords2fw_;
-			coordsrc = &coords2rc_;
+			coords = &coords2_;
 			penceil = penceil2;
 			openceil = penceil1;
 			readGaps = readGaps2;
@@ -475,6 +476,7 @@ bool SwDriver::extendSeedsPaired(
 				tidx,
 				toff,
 				tlen);
+			tlen += (color ? 1 : 0);
 			if(tidx == 0xffffffff) {
 				// The seed hit straddled a reference boundary so the seed hit
 				// isn't valid
@@ -504,9 +506,7 @@ bool SwDriver::extendSeedsPaired(
 			// any of the start/end combos here have been covered by a previous
 			// dynamic programming problem.
 			Coord c(tidx, refoff, fw);
-			if((fw  && !coordsfw->insert(c)) ||
-			   (!fw && !coordsrc->insert(c)))
-			{
+			if(!coords->insert(c)) {
 				// Already tried to find an alignment at these
 				// coordinates
 				swm.rshit++;

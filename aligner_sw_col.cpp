@@ -552,9 +552,8 @@ int SwAligner::alignColors(
 	//
 	ELList<TCell>& tab = ctab_;
 	tab.resize(1); // add first row to row list
-	int maxGaps = max(rdgap_, rfgap_);
 	const int wlo = 0;
-	const int whi = maxGaps * 2;
+	const int whi = (int)(width_ - 1);
 	tab[0].resize(whi-wlo+1); // add columns to first row
 	bool validInRow = false;
 	// Calculate starting values for the rest of the columns in the
@@ -744,17 +743,18 @@ int SwAligner::alignColors(
 	for(int col = wlo; col <= whi; col++) {
 		// greater than or equal to???
 		bool canEnd = (en_ == NULL || (*en_)[col-wlo]);
-		if(canEnd) {
-			if(!tab[lastRow][col].empty) {
-				assert(tab[lastRow][col].finalized);
-				if(tab[lastRow][col].updateBest(bscore, btC, penceil_)) {
-					assert(!VALID_AL_SCORE(bscore) || abs(bscore.score()) <= penceil_);
-					btCol = col;
-				}
+		if(canEnd && !tab[lastRow][col].empty) {
+			assert(tab[lastRow][col].finalized);
+			if(tab[lastRow][col].updateBest(bscore, btC, penceil_)) {
+				assert(!VALID_AL_SCORE(bscore) || abs(bscore.score()) <= penceil_);
+				btCol = col;
 			}
 		}
 	}
-	assert_range(wlo, whi, btCol);
+	if(btCol == -1) {
+		return -1;
+	}
+	//assert_range(wlo, whi, btCol);
 	assert_range(0, 3, btC);
 	assert_leq(abs(bscore.score()), penceil_);
 	int off = backtrackColors(

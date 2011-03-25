@@ -122,11 +122,11 @@ protected:
 	{
 		if(refl < 0) {
 			trimup = (size_t)(-refl);
-			refl = 0;
+			//refl = 0;
 		}
 		if(refr >= (int64_t)reflen) {
 			trimdn = (size_t)(refr - reflen + 1);
-			refr = (int64_t)reflen-1;
+			//refr = (int64_t)reflen-1;
 		}
 	}
 
