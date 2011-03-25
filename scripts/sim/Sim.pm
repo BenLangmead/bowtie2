@@ -720,13 +720,19 @@ sub align {
 		print "$cmd\n";
 		system($cmd);
 		$? == 0 || die "Command '$cmd' failed with exitlevel $?";
-		# Sort the $als_px file, which might have printed alignments out of
-		# order, with respect to the numeric read name.
+		# Sort the $als_px and $als_debug files to guarantee that reads and
+		# alignments for a given read appear in the same order in both
 		$cmd = "sort -k 1,1 -n -k 2,2 -k 3,3 -k 4,4 < $als_px > $als_px.sorted";
 		print "$cmd\n";
 		system($cmd);
-		$? == 0 || die "Failed to sort alignment file\n";
-		$cmd = "diff -uw $als_debug $als_px.sorted";
+		$? == 0 || die "Failed to sort alignment file $als_px\n";
+		# Sort the $als_px and $als_debug files to guarantee that reads and
+		# alignments for a given read appear in the same order in both
+		$cmd = "sort -k 1,1 -n -k 2,2 -k 3,3 -k 4,4 < $als_debug > $als_debug.sorted";
+		print "$cmd\n";
+		system($cmd);
+		$? == 0 || die "Failed to sort alignment file $als_debug\n";
+		$cmd = "diff -uw $als_debug.sorted $als_px.sorted";
 		print "$cmd\n";
 		system($cmd);
 		$? == 0 || die "diff found a difference between bowtie2-debug and bowtie2 -p output for same input (above)\n";
