@@ -5,6 +5,7 @@
 #ifndef ALIGNER_SW_DRIVER_H_
 #define ALIGNER_SW_DRIVER_H_
 
+#include <utility>
 #include "ds.h"
 #include "aligner_seed.h"
 #include "aligner_sw.h"
@@ -22,14 +23,15 @@ public:
 
 	SwDriver() :
 		satups_(SW_CAT),
-		coords1_  (1024, SW_CAT),
+		coords1_(1024, SW_CAT),
 		coords1st_(1024, SW_CAT),
 		coords1en_(1024, SW_CAT),
-		coords2_  (1024, SW_CAT),
+		coords2_(1024, SW_CAT),
 		coords2st_(1024, SW_CAT),
 		coords2en_(1024, SW_CAT),
-		st_       (1024, SW_CAT),
-		en_       (1024, SW_CAT),
+		coordspair_(1024, SW_CAT),
+		st_(1024, SW_CAT),
+		en_(1024, SW_CAT),
 		res_(), ores_()
 	{ }
 
@@ -105,23 +107,23 @@ public:
 	 * policy is satisfied and we can stop).  Otherwise, returns false.
 	 */
 	bool extendSeedsPaired(
-		const Read& rd1,             // mate1 to align
-		const Read& rd2,             // mate2 to align
+		const Read& rd,              // mate to align as anchor
+		const Read& ord,             // mate to align as opposite
+		bool anchor1,                // true iff anchor mate is mate1
 		bool color,                  // true -> reads are colorspace
-		SeedResults& sh1,            // seed hits for mate1
-		SeedResults& sh2,            // seed hits for mate2
+		SeedResults& sh,             // seed hits for anchor
 		const Ebwt& ebwt,            // BWT
 		const BitPairReference& ref, // Reference strings
 		GroupWalk& gw,               // group walk left
 		SwAligner& swa,              // dynamic programming aligner
-		const SwParams& pa,          // parameters for dynamic prog aligner
+		const SwParams& pa,          // parameters for dynamic programming aligner
 		const Penalties& pen,        // penalties for edits
 		const PairedEndPolicy& pepol,// paired-end policy
 		int seedmms,                 // # mismatches allowed in seed
 		int seedlen,                 // length of seed
 		int seedival,                // interval between seeds
-		int penceil1,                // maximum penalty allowed for rd1
-		int penceil2,                // maximum penalty allowed for rd2
+		int penceil,                 // maximum penalty allowed for anchor
+		int openceil,                // maximum penalty allowed for opposite
 		uint32_t maxposs,            // stop after examining this many positions (offset+orientation combos)
 		uint32_t maxrows,            // stop examining a position after this many offsets are reported
 		AlignmentCacheIface& sc,     // alignment cache for seed hits
@@ -129,9 +131,9 @@ public:
 		WalkMetrics& wlm,            // group walk left metrics
 		SwMetrics& swm,              // dynamic programming metrics
 		ReportingMetrics& rpm,       // reporting metrics
-		AlnSinkWrap* msink,          // AlnSink wrapper for multiseed aligner
+		AlnSinkWrap* msink,          // AlnSink wrapper for multiseed-style aligner
 		bool swMateImmediately,      // whether to look for mate immediately
-		bool reportImmediately,      // whether to report hits right to msink
+		bool reportImmediately,      // whether to report hits immediately to msink
 		EList<SwCounterSink*>* swCounterSinks, // send counter updates to these
 		EList<SwActionSink*>* swActionSinks);  // send action-list updates to these
 
@@ -158,6 +160,7 @@ protected:
 	ESet<Coord>    coords2_;   // ref coords tried for mate 2 so far
 	ESet<Coord>    coords2st_; // upstream coord for mate 2 hits so far
 	ESet<Coord>    coords2en_; // downstream coord for mate 2 hits so far
+	ESet<Interval> coordspair_;// intervals for paired-end alignments
 	EList<bool>    st_;        // temporary holder for dyn prog starting mask
 	EList<bool>    en_;        // temporary holder for dyn prog ending mask
 	SwResult       res_;       // temporary holder for SW results

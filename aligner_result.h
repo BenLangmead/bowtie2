@@ -408,6 +408,13 @@ public:
 		return refcoord_;
 	}
 	
+	/**
+	 * Return true if this alignment is to the Watson strand.
+	 */
+	bool fw() const {
+		return refcoord_.fw();
+	}
+	
 	AlignmentScore     score()  const { return score_; }
 	EList<Edit>&       ned()          { return ned_; }
 	EList<Edit>&       aed()          { return aed_; }

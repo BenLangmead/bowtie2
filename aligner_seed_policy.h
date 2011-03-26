@@ -37,6 +37,10 @@ enum {
 // Linear coefficient a
 #define DEFAULT_N_CEIL_LINEAR 0.15f
 
+// Default for whether to concatenate mates before the N filter (as opposed to
+// filting each mate separately)
+#define DEFAULT_N_CAT_PAIR false
+
 // Default penalty to asses against SNPs in colorspace alignments.
 // Decoding must have occurred in order to distinguish SNPs from
 // patterns of mismatches.

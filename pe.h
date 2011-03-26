@@ -158,6 +158,7 @@ public:
 		size_t maxfrag,
 		size_t minfrag,
 		bool local,
+		bool flippingOk,
 		bool dovetailOk,
 		bool containOk,
 		bool olapOk,
@@ -168,6 +169,7 @@ public:
 			maxfrag,
 			minfrag,
 			local,
+			flippingOk,
 			dovetailOk,
 			containOk,
 			olapOk,
@@ -178,7 +180,7 @@ public:
 	 * Initialize with nonsense values.
 	 */
 	void reset() {
-		init(-1, 0xffffffff, 0xffffffff, false, false, false, false, false);
+		init(-1, 0xffffffff, 0xffffffff, false, false, false, false, false, false);
 	}
 
 	/**
@@ -189,6 +191,7 @@ public:
 		size_t maxfrag,
 		size_t minfrag,
 		bool local,
+		bool flippingOk,
 		bool dovetailOk,
 		bool containOk,
 		bool olapOk,
@@ -198,6 +201,7 @@ public:
 		maxfrag_     = maxfrag;
 		minfrag_     = minfrag;
 		local_       = local;
+		flippingOk_  = flippingOk;
 		dovetailOk_  = dovetailOk;
 		containOk_   = containOk;
 		olapOk_      = olapOk;
@@ -218,6 +222,7 @@ bool otherMate(
 						// for 2, false -> vice versa
 	bool     fw,        // orientation of aligned mate
 	int64_t  off,       // offset into the reference sequence
+	int64_t  maxalcols, // max # columns spanned by alignment
 	size_t   reflen,    // length of reference sequence aligned to
 	size_t   len1,      // length of mate 1
 	size_t   len2,      // length of mate 2
@@ -264,6 +269,10 @@ protected:
 	// each other and the reference genome
 	int pol_;
 	
+	// true iff settings are such that mates that violate the expected relative
+	// orientation but are still consistent with maximum fragment length are OK
+	bool flippingOk_;
+
 	// true iff settings are such that dovetailed mates should be
 	// considered concordant.
 	bool dovetailOk_;

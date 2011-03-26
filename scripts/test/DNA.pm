@@ -83,10 +83,13 @@ sub comp($) {
 ##
 # Return the complement, incl. if it's IUPAC.
 #
-sub revcomp($) {
-	my $ret = reverse $_[0];
-	for(my $i = 0; $i < length($ret); $i++) {
-		substr($ret, $i, 1) = comp(substr($ret, $i, 1));
+sub revcomp {
+	my ($ret, $color) = @_;
+	$ret = reverse $ret;
+	unless($color) {
+		for(my $i = 0; $i < length($ret); $i++) {
+			substr($ret, $i, 1) = comp(substr($ret, $i, 1));
+		}
 	}
 	return $ret;
 }

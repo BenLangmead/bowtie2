@@ -188,6 +188,7 @@ void AlnSinkWrap::finishGroup(
 	uint64_t& mx,       // counter to inc for reads that align repetitively
 	uint64_t& un) const // counter to inc for reads that don't align
 {
+	assert(init_);
 	const Read *rda, *rdb;
 	const EList<AlnRes> *rsa, *rsb;
 	bool maxed;
@@ -247,6 +248,7 @@ void AlnSinkWrap::finishRead(
 	bool suppressSeedSummary, // = true
 	bool suppressAlignments)  // = false
 {
+	assert(init_);
 	if(!suppressSeedSummary) {
 		if(sr1 != NULL) {
 			assert(rd1_ != NULL);
@@ -321,6 +323,7 @@ bool AlnSinkWrap::report(
 	const AlnRes* rs1,
 	const AlnRes* rs2)
 {
+	assert(init_);
 	assert(rs1 != NULL || rs2 != NULL);
 	assert(rs1 == NULL || !rs1->empty());
 	assert(rs2 == NULL || !rs2->empty());
@@ -408,7 +411,7 @@ bool AlnSinkWrap::report(
 }
 
 /**
- *
+ * Print a seed summary to the first output stream in the outs_ list.
  */
 void AlnSink::reportSeedSummary(
 	const Read&        rd,
@@ -436,7 +439,7 @@ void AlnSink::reportSeedSummary(
 }
 
 /**
- *
+ * Print an empty seed summary to the first output stream in the outs_ list.
  */
 void AlnSink::reportEmptySeedSummary(
 	const Read&        rd,

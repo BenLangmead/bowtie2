@@ -86,6 +86,73 @@ if(! -x $bowtie2 || ! -x $bowtie2_build) {
 
 my @cases = (
 
+	#
+	# Alignment with overhang
+	#
+
+	# A simple case that should align with or without overhang, with or without
+	# a special NCEIL setting.
+	{ ref    => [ "TTGTTCGT" ],
+	  reads  => [ "TTGTTCG" ],
+	  args   => "",
+	  report => "-a --overhang -P \"SEED=0,2,1;NCEIL=2,0\"",
+	  hits   => [ { 0 => 1 } ] },
+
+	{ ref    => [ "TTGTTCGT" ],
+	  reads  => [ "TTGTTCG" ],
+	  args   => "",
+	  report => "-a -P \"SEED=0,2,1;NCEIL=2,0\"",
+	  hits   => [ { 0 => 1 } ] },
+	
+	{ ref    => [ "TTGTTCGT" ],
+	  reads  => [ "TTGTTCG" ],
+	  args   => "",
+	  report => "-a --overhang",
+	  hits   => [ { 0 => 1 } ] },
+
+	{ ref    => [ "TTGTTCGT" ],
+	  reads  => [ "TTGTTCG" ],
+	  args   => "",
+	  report => "-a",
+	  hits   => [ { 0 => 1 } ] },
+
+	{ ref    => [ "TTGTTCGT" ],
+	  reads  => [ "TGTTCGT", "TTGTTCG" ],
+	  args   => "",
+	  report => "-a --overhang",
+	  hits   => [ { 1 => 1 }, { 0 => 1 } ] },
+
+	{ ref    => [ "TTGTTCGT" ],
+	  reads  => [ "TGTTCGT", "TTGTTCG" ],
+	  args   => "",
+	  report => "-a",
+	  hits   => [ { 1 => 1 }, { 0 => 1 } ] },
+
+	# Reads 1 and 2 don't have overhang, reads 3 and 4 overhang opposite ends
+	{ ref    => [ "TTGTTCGT" ],
+	  reads  => [ "TGTTCGT", "TTGTTCG", "GTTCGTA", "ATTGTTC" ],
+	  args   => "",
+	  report => "-a --overhang -P \"SEED=0,2,1;NCEIL=2,0\"",
+	  hits   => [ { 1 => 1 }, { 0 => 1 }, { 2 => 1 }, { -1 => 1 } ] },
+
+	# Same as previous case but --overhang not specified
+	{ ref    => [ "TTGTTCGT" ],
+	  reads  => [ "TGTTCGT", "TTGTTCG", "GTTCGTA", "ATTGTTC" ],
+	  args   => "",
+	  report => "-a -P \"SEED=0,2,1;NCEIL=2,0\"",
+	  hits   => [ { 1 => 1 }, { 0 => 1 } ] }, # only the internal hits
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	# Simple paired-end alignment
+	{ ref    => [ "TTTATATATATATTTTTTTTTTTCCCCCCCCCCCCCGCGCGCGCGCCCCCCCC" ],
+	#                 ATATATATAT                      CGCGCGCGCG
+	#              01234567890123456789012345678901234567890123456789012
+	#              0         1         2         3         4         5
+	  mate1s => [ "ATATATATAT" ],
+	  mate2s => [ "CGCGCGCGCG" ],
+	  args   =>   "--ff -I 0 -X 50",
+	  report =>   "-a",
+	  pairhits => [ { "3,35" => 1 } ] },
+
 	# Alignment with 1 reference gap
 	{ ref    => [ "TTTTGTTCGTTTG" ],
 	  reads  => [ "TTTTGTTCGATTTG" ], # budget = 3 + 14 * 3 = 45
@@ -181,24 +248,6 @@ my @cases = (
 	  hits   => [ { 0 => 1 } ],
 	  edits  => [ "10:GTA>-" ],
 	  norc   => 1 },
-
-	#
-	# Alignment with overhang
-	#
-
-	# Reads 1 and 2 don't have overhang, reads 3 and 4 overhang opposite ends
-	{ ref    => [ "TTGTTCGT" ],
-	  reads  => [ "TGTTCGT", "TTGTTCG", "GTTCGTA", "ATTGTTC" ],
-	  args   => "",
-	  report => "-a --overhang -P \"SEED=0,2,1;NCEIL=2,0\"",
-	  hits   => [ { 1 => 1 }, { 0 => 1 }, { 2 => 1 }, { -1 => 1 } ] },
-
-	# Same as previous case but --overhang not specified
-	{ ref    => [ "TTGTTCGT" ],
-	  reads  => [ "TGTTCGT", "TTGTTCG", "GTTCGTA", "ATTGTTC" ],
-	  args   => "",
-	  report => "-a -P \"SEED=0,2,1;NCEIL=2,0\"",
-	  hits   => [ { 1 => 1 }, { 0 => 1 } ] }, # only the internal hits
 
 	#
 	# Colorspace alignment
@@ -525,7 +574,10 @@ sub runbowtie2($$$$$$$$$$) {
 	my $mate2arg;
 	my $readarg;
 	my $formatarg = "-c";
-	my $readstr = join(",", @$reads);
+	my ($readstr, $m1str, $m2str) = (undef, undef, undef);
+	$readstr = join(",", @$reads)  if defined($reads);
+	$m1str   = join(",", @$mate1s) if defined($mate1s);
+	$m2str   = join(",", @$mate2s) if defined($mate2s);
 	if(defined($names)) {
 		writeReads($reads, $mate1s, $mate2s, $names, ".simple_tests.1.fq", ".simple_tests.2.fq");
 		$mate1arg = ".simple_tests.1.fq";
@@ -533,8 +585,8 @@ sub runbowtie2($$$$$$$$$$) {
 		$formatarg = "-q";
 		$readarg = $mate1arg;
 	} else {
-		$mate1arg = $mate1s;
-		$mate2arg = $mate2s;
+		$mate1arg = $m1str;
+		$mate2arg = $m2str;
 		$readarg = $readstr;
 	}
 	if($pe) {
@@ -588,17 +640,20 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 		my $color = 0;
 		$color = $c->{color} if defined($c->{color});
 		my $reads = $c->{reads};
+		my $m1s   = $c->{mate1s};
+		my $m2s   = $c->{mate2s};
 		if(!$fw) {
 			# Reverse-complement the reads
-			my @s = @$reads;
-			for(my $i = 0; $i < scalar(@s); $i++) {
-				if($color) {
-					$s[$i] = reverse $s[$i];
-				} else {
-					$s[$i] = DNA::revcomp($s[$i]);
-				}
-			}
-			$reads = \@s;
+			my @s = (); @s = @$reads if defined($reads);
+			# Reverse-complement mates and switch mate1 with mate2
+			my @m1 = (); @m1 = @$m1s if defined($m1s);
+			my @m2 = (); @m2 = @$m2s if defined($m2s);
+			for(0..scalar(@s )-1) { $s [$_] = DNA::revcomp($s [$_], $color); }
+			for(0..scalar(@m1)-1) { $m1[$_] = DNA::revcomp($m1[$_], $color); }
+			for(0..scalar(@m2)-1) { $m2[$_] = DNA::revcomp($m2[$_], $color); }
+			$reads = \@s if defined($reads);
+			$m1s = \@m1 if defined($m1s);
+			$m2s = \@m2 if defined($m2s);
 		}
 		runbowtie2(
 			"$a",
@@ -606,8 +661,8 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 			$tmpfafn,
 			$c->{report},
 			$reads,
-			$c->{mate1s},
-			$c->{mate2s},
+			$m1s,
+			$m2s,
 			$c->{names},
 			\@lines,
 			\@rawlines);
@@ -641,7 +696,13 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 				$seenNameSeqQual{$rsqKey} = $rsqVal;
 			}
 			my $rdi = $readname;
-			if($rdi !~ /^[0-9]+$/) {
+			$rdi = substr($rdi, 1) if substr($rdi, 0, 1) eq "r";
+			my $mate = 0;
+			if($readname =~ /\//) {
+				($rdi, $mate) = split(/\//, $readname);
+				defined($rdi) || die;
+			}
+			if($rdi != int($rdi)) {
 				# Read name has non-numeric characters.  Figure out
 				# what number it is by scanning the names list.
 				defined($c->{names}) || die "Non-numeric read name for case with no names specified";

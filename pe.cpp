@@ -133,6 +133,7 @@ bool PairedEndPolicy::otherMate(
 					    // for 2, false -> vice versa
 	bool     fw,        // orientation of aligned mate
 	int64_t  off,       // offset into the reference sequence
+	int64_t  maxalcols, // max # columns spanned by alignment
 	size_t   reflen,    // length of reference sequence aligned to
 	size_t   len1,      // length of mate 1
 	size_t   len2,      // length of mate 2
@@ -149,6 +150,7 @@ bool PairedEndPolicy::otherMate(
 	assert_gt(maxfrag_, 0);
 	assert_geq(minfrag_, 0);
 	assert_geq(maxfrag_, minfrag_);
+	assert(maxalcols == -1 || maxalcols > 0);
 	
 	// Calculate whether opposite mate should align to left or to right
 	// of given mate, and what strand it should align to
@@ -202,7 +204,11 @@ bool PairedEndPolicy::otherMate(
 		//                               -----------FRAG MAX----------------
 		//    |------------------------------------------------------------|
 		// RHS can't be outside this range, assuming no restrictions on
-		// dovetailing, containment, overlap, etc.
+		// flipping, dovetailing, containment, overlap, etc.
+		//                                      |-------|
+		//                                      maxalcols
+		//    |-----------------------------------------|
+		// RHS can't be outside this range, assuming no flipping
 		//    |---------------------------------|
 		// RHS can't be outside this range, assuming no dovetailing
 		//    |-------------------------|
@@ -227,6 +233,13 @@ bool PairedEndPolicy::otherMate(
 		else if(!dovetailOk_) {
 			// RHS can't be past off+alen-1
 			orr = min<int64_t>(orr, off + alen - 1);
+			assert_leq(oll, olr);
+			assert_leq(orl, orr);
+		}
+		// What if flipped alignments are not allowed?
+		else if(!flippingOk_ && maxalcols != -1) {
+			// RHS can't be right of ???
+			orr = min<int64_t>(orr, off + alen - 1 + (maxalcols-1));
 			assert_leq(oll, olr);
 			assert_leq(orl, orr);
 		}
@@ -258,6 +271,10 @@ bool PairedEndPolicy::otherMate(
 		//  |------------------------------------------------------------|
 		// LHS can't be outside this range, assuming no restrictions on
 		// dovetailing, containment, overlap, etc.
+		//                     |-------|
+		//                     maxalcols
+		//                     |-----------------------------------------|
+		//             LHS can't be outside this range, assuming no flipping
 		//                             |---------------------------------|
 		//          LHS can't be outside this range, assuming no dovetailing
 		//                                     |-------------------------|
@@ -273,15 +290,22 @@ bool PairedEndPolicy::otherMate(
 		
 		// What if overlapping alignments are not allowed?
 		if(!olapOk_) {
-			// RHS can't be flush with or to the right of off
+			// LHS can't be left of off+alen
 			oll = max<int64_t>(oll, off+alen);
 			assert_leq(oll, olr);
 			assert_leq(orl, orr);
 		}
 		// What if dovetail alignments are not allowed?
 		else if(!dovetailOk_) {
-			// RHS can't be past off+alen-1
+			// LHS can't be left of off
 			oll = max<int64_t>(oll, off);
+			assert_leq(oll, olr);
+			assert_leq(orl, orr);
+		}
+		// What if flipped alignments are not allowed?
+		else if(!flippingOk_ && maxalcols != -1) {
+			// LHS can't be left of off - maxalcols + 1
+			oll = max<int64_t>(oll, off - maxalcols + 1);
 			assert_leq(oll, olr);
 			assert_leq(orl, orr);
 		}
@@ -302,6 +326,7 @@ void testCaseClassify(
 	size_t   maxfrag,
 	size_t   minfrag,
 	bool     local,
+	bool     flip,
 	bool     dove,
 	bool     cont,
 	bool     olap,
@@ -319,6 +344,7 @@ void testCaseClassify(
 		maxfrag,
 		minfrag,
 		local,
+		flip,
 		dove,
 		cont,
 		olap,
@@ -340,13 +366,15 @@ void testCaseOtherMate(
 	size_t   maxfrag,
 	size_t   minfrag,
 	bool     local,
+	bool     flip,
 	bool     dove,
 	bool     cont,
 	bool     olap,
 	bool     expand,
 	bool     is1,
 	bool     fw,
-	size_t   off,
+	int64_t  off,
+	int64_t  maxalcols,
 	size_t   reflen,
 	size_t   len1,
 	size_t   len2,
@@ -363,6 +391,7 @@ void testCaseOtherMate(
 		maxfrag,
 		minfrag,
 		local,
+		flip,
 		dove,
 		cont,
 		olap,
@@ -374,6 +403,7 @@ void testCaseOtherMate(
 		is1,
 		fw,
 		off,
+		maxalcols,
 		reflen,
 		len1,
 		len2,
@@ -430,6 +460,7 @@ int main(int argc, char **argv) {
 			30,           // maxfrag
 			20,           // minfrag
 			false,        // local
+			true,         // flipping OK
 			true,         // dovetail OK
 			true,         // containment OK
 			true,         // overlap OK
@@ -437,6 +468,7 @@ int main(int argc, char **argv) {
 			is1[i],       // mate 1 is anchor
 			fw[i],        // anchor aligned to Watson
 			100,          // anchor's offset into ref
+			-1,           // max # alignment cols
 			200,          // ref length
 			10,           // mate 1 length
 			10,           // mate 2 length
@@ -484,6 +516,7 @@ int main(int argc, char **argv) {
 			30,           // maxfrag
 			20,           // minfrag
 			false,        // local
+			true,         // flipping OK
 			true,         // dovetail OK
 			true,         // containment OK
 			true,         // overlap OK
@@ -491,6 +524,7 @@ int main(int argc, char **argv) {
 			is1[i],       // mate 1 is anchor
 			fw[i],        // anchor aligned to Watson
 			120,          // anchor's offset into ref
+			-1,           // max # alignment cols
 			200,          // ref length
 			10,           // mate 1 length
 			10,           // mate 2 length
@@ -520,6 +554,7 @@ int main(int argc, char **argv) {
 		30,           // maxfrag
 		30,           // minfrag
 		false,        // local
+		true,         // flipping OK
 		true,         // dovetail OK
 		true,         // containment OK
 		true,         // overlap OK
@@ -527,6 +562,7 @@ int main(int argc, char **argv) {
 		false,        // mate 1 is anchor
 		false,        // anchor aligned to Watson
 		120,          // anchor's offset into ref
+		-1,           // max # alignment cols
 		200,          // ref length
 		10,           // mate 1 length
 		10,           // mate 2 length
@@ -552,6 +588,7 @@ int main(int argc, char **argv) {
 		30,           // maxfrag
 		30,           // minfrag
 		false,        // local
+		true,         // flipping OK
 		true,         // dovetail OK
 		true,         // containment OK
 		true,         // overlap OK
@@ -559,6 +596,7 @@ int main(int argc, char **argv) {
 		true,         // mate 1 is anchor
 		true,         // anchor aligned to Watson
 		100,          // anchor's offset into ref
+		-1,           // max # alignment cols
 		200,          // ref length
 		10,           // mate 1 length
 		10,           // mate 2 length
@@ -576,6 +614,7 @@ int main(int argc, char **argv) {
 		30,           // maxfrag
 		25,           // minfrag
 		false,        // local
+		true,         // flipping OK
 		false,        // dovetail OK
 		true,         // containment OK
 		true,         // overlap OK
@@ -583,6 +622,7 @@ int main(int argc, char **argv) {
 		true,         // mate 1 is anchor
 		true,         // anchor aligned to Watson
 		100,          // anchor's offset into ref
+		-1,           // max # alignment cols
 		200,          // ref length
 		10,           // mate 1 length
 		10,           // mate 2 length
@@ -600,6 +640,7 @@ int main(int argc, char **argv) {
 		30,           // maxfrag
 		25,           // minfrag
 		false,        // local
+		true,         // flipping OK
 		false,        // dovetail OK
 		false,        // containment OK
 		true,         // overlap OK
@@ -607,6 +648,7 @@ int main(int argc, char **argv) {
 		true,         // mate 1 is anchor
 		true,         // anchor aligned to Watson
 		100,          // anchor's offset into ref
+		-1,           // max # alignment cols
 		200,          // ref length
 		10,           // mate 1 length
 		10,           // mate 2 length
@@ -624,6 +666,7 @@ int main(int argc, char **argv) {
 		30,           // maxfrag
 		25,           // minfrag
 		false,        // local
+		true,         // flipping OK
 		false,        // dovetail OK
 		false,        // containment OK
 		false,        // overlap OK
@@ -631,6 +674,7 @@ int main(int argc, char **argv) {
 		true,         // mate 1 is anchor
 		true,         // anchor aligned to Watson
 		100,          // anchor's offset into ref
+		-1,           // max # alignment cols
 		200,          // ref length
 		10,           // mate 1 length
 		10,           // mate 2 length
@@ -648,6 +692,7 @@ int main(int argc, char **argv) {
 		30,           // maxfrag
 		25,           // minfrag
 		false,        // local
+		true,         // flipping OK
 		false,        // dovetail OK
 		true,         // containment OK
 		true,         // overlap OK
@@ -655,6 +700,7 @@ int main(int argc, char **argv) {
 		false,        // mate 1 is anchor
 		false,        // anchor aligned to Watson
 		120,          // anchor's offset into ref
+		-1,           // max # alignment cols
 		200,          // ref length
 		10,           // mate 1 length
 		10,           // mate 2 length
@@ -672,6 +718,7 @@ int main(int argc, char **argv) {
 		30,           // maxfrag
 		25,           // minfrag
 		false,        // local
+		true,         // flipping OK
 		false,        // dovetail OK
 		false,        // containment OK
 		false,        // overlap OK
@@ -679,6 +726,7 @@ int main(int argc, char **argv) {
 		false,        // mate 1 is anchor
 		false,        // anchor aligned to Watson
 		120,          // anchor's offset into ref
+		-1,           // max # alignment cols
 		200,          // ref length
 		10,           // mate 1 length
 		10,           // mate 2 length
@@ -705,6 +753,7 @@ int main(int argc, char **argv) {
 			200,          // maxfrag
 			50,           // minfrag
 			false,        // local
+			true,         // flipping OK
 			true,         // dovetail OK
 			true,         // containment OK
 			false,        // overlap OK
@@ -712,6 +761,7 @@ int main(int argc, char **argv) {
 			true,         // mate 1 is anchor
 			true,         // anchor aligned to Watson
 			100,          // anchor's offset into ref
+			-1,           // max # alignment cols
 			200,          // ref length
 			10,           // mate 1 length
 			10,           // mate 2 length
@@ -740,6 +790,7 @@ int main(int argc, char **argv) {
 			200,          // maxfrag
 			50,           // minfrag
 			false,        // local
+			true,         // flipping OK
 			true,         // dovetail OK
 			true,         // containment OK
 			false,        // overlap OK
@@ -747,6 +798,7 @@ int main(int argc, char **argv) {
 			true,         // mate 1 is anchor
 			false,        // anchor aligned to Watson
 			90,           // anchor's offset into ref
+			-1,           // max # alignment cols
 			200,          // ref length
 			10,           // mate 1 length
 			10,           // mate 2 length
@@ -775,6 +827,7 @@ int main(int argc, char **argv) {
 			200,          // maxfrag
 			100,          // minfrag
 			false,        // local
+			true,         // flipping OK
 			true,         // dovetail OK
 			true,         // containment OK
 			true,         // overlap OK
@@ -804,6 +857,7 @@ int main(int argc, char **argv) {
 			200,          // maxfrag
 			100,          // minfrag
 			false,        // local
+			true,         // flipping OK
 			true,         // dovetail OK
 			true,         // containment OK
 			true,         // overlap OK
@@ -817,6 +871,32 @@ int main(int argc, char **argv) {
 			peExpects[i]);// expectation for PE_ALS flag returned
 	}
 	}
+
+	testCaseOtherMate(
+		"Regression1",
+		PE_POLICY_FF, // policy
+		50,           // maxfrag
+		0,            // minfrag
+		false,        // local
+		true,         // flipping OK
+		true,         // dovetail OK
+		true,         // containment OK
+		true,         // overlap OK
+		true,         // expand-to-fit
+		true,         // mate 1 is anchor
+		false,        // anchor aligned to Watson
+		3,            // anchor's offset into ref
+		-1,           // max # alignment cols
+		53,           // ref length
+		10,           // mate 1 length
+		10,           // mate 2 length
+		true,         // expected return val from otherMate
+		true,         // whether to look for opposite to left
+		-37,          // expected leftmost pos for opp mate LHS
+		13,           // expected rightmost pos for opp mate LHS
+		-37,          // expected leftmost pos for opp mate RHS
+		52,           // expected rightmost pos for opp mate RHS
+		false);       // expected orientation in which opposite mate must align
 }
 
 #endif /*def MAIN_PE*/

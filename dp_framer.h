@@ -66,6 +66,68 @@ public:
 	 * the fragment length range, return parameters for the dynamic programming
 	 * problem to solve.
 	 */
+	bool frameFindMate(
+		bool anchorLeft,  // true iff anchor alignment is to the left
+		int64_t ll,       // leftmost Watson off for LHS of opp alignment
+		int64_t lr,       // rightmost Watson off for LHS of opp alignment
+		int64_t rl,       // leftmost Watson off for RHS of opp alignment
+		int64_t rr,       // rightmost Watson off for RHS of opp alignment
+		size_t rdlen,     // length of opposite mate
+		size_t reflen,    // length of reference sequence aligned to
+		size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
+		size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
+		size_t& width,    // out: calculated width stored here
+		size_t& trimup,   // out: number of bases trimmed from upstream end
+		size_t& trimdn,   // out: number of bases trimmed from downstream end
+		int64_t& refl,    // out: ref pos of upper LHS of parallelogram
+		int64_t& refr,    // out: ref pos of lower RHS of parallelogram
+		EList<bool>& st,  // out: legal starting columns stored here
+		EList<bool>& en)  // out: legal ending columns stored here
+		const
+	{
+		if(anchorLeft) {
+			return frameFindMateAnchorLeft(
+				ll,
+				lr,
+				rl,
+				rr,
+				rdlen,
+				reflen,
+				maxrdgap,
+				maxrfgap,
+				width,
+				trimup,
+				trimdn,
+				refl,
+				refr,
+				st,
+				en);
+		} else {
+			return frameFindMateAnchorRight(
+				ll,
+				lr,
+				rl,
+				rr,
+				rdlen,
+				reflen,
+				maxrdgap,
+				maxrfgap,
+				width,
+				trimup,
+				trimdn,
+				refl,
+				refr,
+				st,
+				en);
+		}
+	}
+
+	/**
+	 * Given information about an anchor mate hit, and information deduced by
+	 * PairedEndPolicy about where the opposite mate can begin and start given
+	 * the fragment length range, return parameters for the dynamic programming
+	 * problem to solve.
+	 */
 	bool frameFindMateAnchorLeft(
 		int64_t ll,       // leftmost Watson off for LHS of opp alignment
 		int64_t lr,       // rightmost Watson off for LHS of opp alignment
@@ -81,7 +143,8 @@ public:
 		int64_t& refl,    // out: ref pos of upper LHS of parallelogram
 		int64_t& refr,    // out: ref pos of lower RHS of parallelogram
 		EList<bool>& st,  // out: legal starting columns stored here
-		EList<bool>& en); // out: legal ending columns stored here
+		EList<bool>& en)  // out: legal ending columns stored here
+		const;
 
 	/**
 	 * Given information about an anchor mate hit, and information deduced by
@@ -104,7 +167,8 @@ public:
 		int64_t& refl,    // out: ref pos of upper LHS of parallelogram
 		int64_t& refr,    // out: ref pos of lower RHS of parallelogram
 		EList<bool>& st,  // out: legal starting columns stored here
-		EList<bool>& en); // out: legal ending columns stored here
+		EList<bool>& en)  // out: legal ending columns stored here
+		const;
 
 protected:
 

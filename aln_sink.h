@@ -758,6 +758,12 @@ public:
 	bool readIsPair() const {
 		return rd1_ != NULL && rd2_ != NULL;
 	}
+	
+	/**
+	 * Return true iff nextRead() has been called since the last time
+	 * finishRead() was called.
+	 */
+	bool inited() const { return init_; }
 
 protected:
 

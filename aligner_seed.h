@@ -1152,7 +1152,7 @@ public:
 	 * Iterate through the seeds that cover the read and initiate a
 	 * search for each seed.
 	 */
-	int instantiateSeeds(
+	std::pair<int, int> instantiateSeeds(
 		const EList<Seed>& seeds,  // search seeds
 		int per,                   // interval between seeds
 		const Read& read,          // read to align

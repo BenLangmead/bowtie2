@@ -145,7 +145,7 @@ protected:
 std::ostream& operator<<(std::ostream& out, const Coord& c);
 
 /**
- * Encapsulates a reference interval.
+ * Encapsulates a reference interval, which consists of a Coord and a length.
  */
 class Interval {
 
@@ -157,16 +157,17 @@ public:
 		init(upstream, len);
 	}
 
-	Interval(TRefId id1, TRefId id2, TRefOff off1, TRefOff off2) {
-		assert_eq(id1, id2);
-		TRefOff upstream = std::min(off1, off2);
-		TRefOff dnstream = std::max(off1, off2);
-		Coord c(id1, upstream, true);
-		init(c, dnstream - upstream);
+	Interval(TRefId rf, TRefOff of, bool fw, TRefOff len) {
+		init(rf, of, fw, len);
 	}
 
 	void init(const Coord& upstream, TRefOff len) {
 		upstream_ = upstream;
+		len_ = len;
+	}
+	
+	void init(TRefId rf, TRefOff of, bool fw, TRefOff len) {
+		upstream_.init(rf, of, fw);
 		len_ = len;
 	}
 

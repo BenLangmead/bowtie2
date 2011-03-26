@@ -8,6 +8,7 @@
 #include <getopt.h>
 #include <pthread.h>
 #include <math.h>
+#include <utility>
 #include "alphabet.h"
 #include "assert_helpers.h"
 #include "endian_swap.h"
@@ -38,6 +39,7 @@
 #include "aligner_counters.h"
 #include "aligner_cache.h"
 #include "util.h"
+#include "pe.h"
 #ifdef CHUD_PROFILING
 #include <CHUD/CHUD.h>
 #endif
@@ -102,6 +104,12 @@ int gMaxInsert;     // maximum insert size
 bool gMate1fw;           // -1 mate aligns in fw orientation on fw strand
 bool gMate2fw;           // -2 mate aligns in rc orientation on fw strand
 bool mateFwSet;
+bool gLocalAlign;      // use local alignment when searching for mate
+bool gFlippedMatesOK;  // allow mates to be in wrong order
+bool gDovetailMatesOK; // allow one mate to extend off the end of the other
+bool gContainMatesOK;  // allow one mate to contain the other in PE alignment
+bool gOlapMatesOK;     // allow mates to overlap in PE alignment
+bool gExpandToFrag;    // incr max frag length to =larger mate len if necessary
 static uint32_t mixedThresh;   // threshold for when to switch to paired-end mixed mode (see aligner.h)
 static uint32_t mixedAttemptLim; // number of attempts to make in "mixed mode" before giving up on orientation
 static bool dontReconcileMates;  // suppress pairwise all-versus-all way of resolving mates
@@ -162,6 +170,7 @@ static int   penMmc;         // constant if mm pelanty is a constant
 static int   penSnp;         // penalty for nucleotide mismatches in decoded colorspace als
 static int   penNType;       // how to penalize Ns in the read
 static int   penN;           // constant if N pelanty is a constant
+static bool  penNCatPair;    // concatenate mates before N filtering?
 static bool  noisyHpolymer;  // set to true if gap penalties should be reduced to be consistent with a sequencer that under- and overcalls homopolymers
 static int   penRdOpen;      // cost of opening a gap in the read
 static int   penRfOpen;      // cost of opening a gap in the reference
@@ -247,6 +256,12 @@ static void resetOptions() {
 	gMate1fw				= true;  // -1 mate aligns in fw orientation on fw strand
 	gMate2fw				= false; // -2 mate aligns in rc orientation on fw strand
 	mateFwSet				= false; // true -> user set mate1fw/mate2fw with --ff/--fr/--rf
+	gLocalAlign             = false; // use local alignment when searching for mate
+	gFlippedMatesOK         = false; // allow mates to be in wrong order
+	gDovetailMatesOK        = true;  // allow one mate to extend off the end of the other
+	gContainMatesOK         = true;  // allow one mate to contain the other in PE alignment
+	gOlapMatesOK            = true;  // allow mates to overlap in PE alignment
+	gExpandToFrag           = true;  // incr max frag length to =larger mate len if necessary
 	mixedThresh				= 4;     // threshold for when to switch to paired-end mixed mode (see aligner.h)
 	mixedAttemptLim			= 100;   // number of attempts to make in "mixed mode" before giving up on orientation
 	dontReconcileMates		= true;  // suppress pairwise all-versus-all way of resolving mates
@@ -312,6 +327,7 @@ static void resetOptions() {
 	penSnp          = DEFAULT_SNP_PENALTY;
 	penNType        = DEFAULT_N_PENALTY_TYPE;
 	penN            = DEFAULT_N_PENALTY;
+	penNCatPair     = DEFAULT_N_CAT_PAIR; // concatenate mates before N filtering?
 	noisyHpolymer   = false;
 	penRdOpen       = DEFAULT_READ_OPEN;
 	penRfOpen       = DEFAULT_REF_OPEN;
@@ -2146,9 +2162,19 @@ static PerfMetrics metrics;
 #define ROTR(n, x) (((x) >> (n)) | ((x) << (32-n)))
 
 /**
- * Called once per thread.  Sets up per-thread pointers to the shared
- * global data structures, creates per-thread structures, then enters
- * the seed-based search loop.
+ * Called once per thread.  Sets up per-thread pointers to the shared global
+ * data structures, creates per-thread structures, then enters the alignment
+ * loop.  The general flow of the alignment loop is:
+ *
+ * - If it's been a while and we're the master thread, report some alignment
+ *   metrics
+ * - Get the next read/pair
+ * - Check if this read/pair is identical to the previous
+ *   + If identical, check whether we can skip any or all alignment stages.  If
+ *     we can skip all stages, report the result immediately and move to next
+ *     read/pair
+ *   + If not identical, continue
+ * - 
  */
 static void* multiseedSearchWorker(void *vp) {
 	int tid = *((int*)vp);
@@ -2161,7 +2187,7 @@ static void* multiseedSearchWorker(void *vp) {
 	const EList<Seed>&      seeds    = *multiseed_seeds;
 	const BitPairReference& ref      = *multiseed_refs;
 	AlignmentCache&         scShared = *multiseed_sc;
-	AlnSink&              msink    = *multiseed_msink;
+	AlnSink&                msink    = *multiseed_msink;
 	OutFileBuf*             metricsOfb = multiseed_metricsOfb;
 
 	// Sinks: these are so that we can print tables encoding counts for
@@ -2218,15 +2244,38 @@ static void* multiseedSearchWorker(void *vp) {
 	SwDriver sd;
 	SwAligner sw;
 	SwParams pa;
-	SeedResults sh;
+	SeedResults shs[2];
 	QVal *qv;
-	GroupWalk gw;
+	GroupWalk gws[2];
 	OuterLoopMetrics olm;
 	SeedSearchMetrics sdm;
 	WalkMetrics wlm;
 	SwMetrics swm;
 	ReportingMetrics rpm;
 	RandomSource rnd;
+
+	int pepolFlag;
+	if(gMate1fw && gMate2fw) {
+		pepolFlag = PE_POLICY_FF;
+	} else if(gMate1fw && !gMate2fw) {
+		pepolFlag = PE_POLICY_FR;
+	} else if(!gMate1fw && gMate2fw) {
+		pepolFlag = PE_POLICY_RF;
+	} else {
+		pepolFlag = PE_POLICY_RR;
+	}
+	assert_geq(gMaxInsert, gMinInsert);
+	assert_geq(gMinInsert, 0);
+	PairedEndPolicy pepol(
+		pepolFlag,
+		gMaxInsert,
+		gMinInsert,
+		gLocalAlign,
+		gFlippedMatesOK,
+		gDovetailMatesOK,
+		gContainMatesOK,
+		gOlapMatesOK,
+		gExpandToFrag);
 	
 	// Used by thread with threadid == 1 to measure time elapsed
 	time_t iTime = time(0);
@@ -2268,155 +2317,216 @@ static void* multiseedSearchWorker(void *vp) {
 				sc.nextRead();
 				olm.reads++;
 				assert(!sc.aligning());
-				if(ps->paired()) {
-					// Read currently in buffer is paired-end
-					cerr << "No paired-end read support yet" << endl;
-					throw 1;
-				} else {
-					const size_t rdlen = ps->bufa().length();
-					olm.bases += rdlen;
-					// Check if read is identical to previous read
-					rnd.init(ROTL(ps->bufa().seed, 5));
-					int skipStages = msinkwrap.nextRead(
-						&ps->bufa(),
-						NULL,
-						patid,
-						pens.qualitiesMatter());
-					if(skipStages == -1) {
-						olm.srreads++;
-						olm.srbases += rdlen;
-						rnd.init(ROTL(ps->bufa().seed, 20));
-						msinkwrap.finishRead(
-							NULL,                 // seed results for mate 1
-							NULL,                 // seed results for mate 2
-							rnd,                  // pseudo-random generator
-							rpm,                  // reporting metrics
-							!seedSummaryOnly,     // suppress seed summaries?
-							seedSummaryOnly);     // suppress alignments?
-					} else if(pens.nFilter(ps->bufa().patFw)) {
-						// Passed N filter
-						assert(msinkwrap.empty());
-						assert(!msinkwrap.maxed());
-						olm.ureads++;
-						olm.ubases += rdlen;
-						QKey qkr(ps->bufa().patFw);
-						rnd.init(ROTL(ps->bufa().seed, 10));
-						// Seed search
-						sh.clear(); // clear seed hits
-						assert(sh.repOk(&sc.current()));
-						int interval = multiseedPeriod;
-						if(interval == -1) {
-							// Calculate the seed interval as a
-							// function of the read length
-							float x = (float)rdlen;
-							if(multiseedIvalType == SEED_IVAL_SQUARE_ROOT) {
-								x = pow(x, 0.5f);
-							} else if(multiseedIvalType == SEED_IVAL_CUBE_ROOT) {
-								x = pow(x, 0.333333f);
-							}
-							interval = (int)((multiseedIvalA * x) + multiseedIvalB + 0.5f);
-							if(interval < 1) interval = 1;
-						}
-						assert_geq(interval, 1);
-						// Instantiate the seeds
-						int searchcnt = al.instantiateSeeds(
-							seeds,                // seed templates
-							interval,             // interval between seeds
-							ps->bufa(),           // read
-							pens,                 // edit penalties
-							nCeilConst,           // ceiling on # Ns w/r/t read length, constant coeff
-							nCeilLinear,          // ceiling on # Ns w/r/t read length, linear coeff
-							sc,                   // seed cache
-							sh,                   // seed hits
-							sdm);                 // metrics
-						assert(sh.repOk(&sc.current()));
-						// If there are any seeds to be aligned...
-						if(searchcnt > 0) {
-							// ... align them
-							al.searchAllSeeds(
-								seeds,            // search seeds
-								&ebwtFw,          // BWT index
-								&ebwtBw,          // BWT' index
-								ps->bufa(),       // read
-								pens,             // edit penalties
-								sc,               // alignment cache
-								sh,               // store seed hits here
-								sdm,              // metrics
-								&readCounterSink, // send counter summary for each read to this sink
-								&seedHitSink,     // send seed hits to this sink
-								&seedCounterSink, // send counter summary for each seed to this sink
-								&seedActionSink); // send search action list for each read to this sink
-							assert_eq(0, sdm.ooms);
-							assert(sh.repOk(&sc.current()));
-						}
-						if(!seedSummaryOnly) {
-							// If there are any seed hits...
-							if(!sh.empty()) {
-								// Sort seed hits into ranks
-								sh.sort();
-								// Calculate the penalty ceiling for the read
-								int penceil = Constraint::instantiate(
-									rdlen,
-									costCeilConst,
-									costCeilLinear);
-								assert_geq(penceil, 0);
-								// ... run dynamic programming driver
-								sd.extendSeeds(
-									ps->bufa(),       // read
-									gColor,           // colorspace alignment
-									sh,               // seed hits
-									ebwtFw,           // BWT
-									ref,              // Reference strings
-									gw,               // group walk left
-									sw,               // dynamic prog aligner
-									pa,               // parameters for SW alignment
-									pens,             // penalties for edits
-									multiseedMms,     // # mismatches allowed in a seed
-									multiseedLen,     // length of seed
-									interval,         // interval between seeds
-									penceil,          // penalty ceiling
-									maxposs,          // stop after examining this many positions (offset+orientation combos)
-									maxrows,          // stop examining a position after this many offsets are reported
-									sc,               // seed alignment cache
-									rnd,              // pseudo-random source
-									wlm,              // group walk left metrics
-									swm,              // dynamic prog metrics
-									rpm,              // reporting metrics
-									&msinkwrap,       // AlnSink object for reporting hits
-									true,             // yes, report hits immediately after they're found
-									&swCounterSink,   // send counter summary for each read to this sink
-									&swActionSink);   // send action list for each read to this sink
-							}
-						}
-						assert(!seedSummaryOnly || msinkwrap.empty());
-						// Commit and report
-						rnd.init(ROTL(ps->bufa().seed, 20));
-						msinkwrap.finishRead(
-							&sh,                  // seed results for mate 1
-							NULL,                 // seed results for mate 2
-							rnd,                  // pseudo-random generator
-							rpm,                  // reporting metrics
-							!seedSummaryOnly,     // suppress seed summaries?
-							seedSummaryOnly);     // suppress alignments?
-					} else {
-						// Read failed to pass N filter
-						rnd.init(ROTL(ps->bufa().seed, 20));
-						msinkwrap.finishRead(
-							NULL,                 // seed results for mate 1
-							NULL,                 // seed results for mate 2
-							rnd,                  // pseudo-random generator
-							rpm,                  // reporting metrics
-							!seedSummaryOnly,     // suppress seed summaries?
-							seedSummaryOnly);     // suppress alignments?
-						olm.freads++;
-						olm.fbases += rdlen;
-					}
+				// NB: read may be either unpaired or paired-end at this point
+				bool pair = ps->paired();
+				const size_t rdlen1 = ps->bufa().length();
+				const size_t rdlen2 = pair ? ps->bufb().length() : 0;
+				olm.bases += (rdlen1 + rdlen2);
+				// Check if read is identical to previous read
+				rnd.init(ROTL(ps->bufa().seed, 5));
+				int skipStages = msinkwrap.nextRead(
+					&ps->bufa(),
+					pair ? &ps->bufb() : NULL,
+					patid,
+					pens.qualitiesMatter());
+				assert(msinkwrap.inited());
+				if(skipStages == -1) {
+					// Read or pair is identical to previous.  Re-report from
+					// the msinkwrap immediately.
+					olm.srreads++;
+					olm.srbases += (rdlen1 + rdlen2);
+					rnd.init(ROTL(ps->bufa().seed, 20));
+					msinkwrap.finishRead(
+						NULL,                 // seed results for mate 1
+						NULL,                 // seed results for mate 2
+						rnd,                  // pseudo-random generator
+						rpm,                  // reporting metrics
+						!seedSummaryOnly,     // suppress seed summaries?
+						seedSummaryOnly);     // suppress alignments?
+					break; // next read
 				}
+				bool nfilt[2];
+				pens.nFilterPair(
+					&ps->bufa().patFw,
+					pair ? &ps->bufb().patFw : NULL,
+					nfilt[0],
+					nfilt[1]);
+				// Re-set 'pair': true only if both mates passed the filter
+				pair = nfilt[0] && nfilt[1];
+				size_t rdlens[2]   = { rdlen1, rdlen2 };
+				const Read* rds[2] = { &ps->bufa(), &ps->bufb() };
+				// For each mate...
+				// TODO: Examine mates in a random order instead of #1 then #2
+				assert(msinkwrap.empty());
+				for(size_t mate = 0; mate < 2; mate++) {
+					if(!nfilt[mate]) {
+						// Mate was rejected by N filter
+						olm.freads++;               // reads filtered out
+						olm.fbases += rdlens[mate]; // bases filtered out
+						continue; // on to next mate
+					}
+					// Passed N filter
+					assert_gt(rds[mate]->length(), 0);
+					assert(!msinkwrap.maxed());
+					olm.ureads++;               // reads passing filter
+					olm.ubases += rdlens[mate]; // bases passing filter
+					QKey qkr(rds[mate]->patFw);
+					rnd.init(ROTL(rds[mate]->seed, 10));
+					// Seed search
+					shs[mate].clear(); // clear seed hits
+					assert(shs[mate].repOk(&sc.current()));
+					int interval = multiseedPeriod;
+					if(interval == -1) {
+						// Calculate the seed interval as a
+						// function of the read length
+						float x = (float)rdlens[mate];
+						if(multiseedIvalType == SEED_IVAL_SQUARE_ROOT) {
+							x = pow(x, 0.5f);
+						} else if(multiseedIvalType == SEED_IVAL_CUBE_ROOT) {
+							x = pow(x, 0.333333f);
+						}
+						interval = (int)((multiseedIvalA * x) + multiseedIvalB + 0.5f);
+						if(interval < 1) interval = 1;
+					}
+					assert_geq(interval, 1);
+					// Instantiate the seeds
+					std::pair<int, int> inst = al.instantiateSeeds(
+						seeds,                // seed templates
+						interval,             // interval between seeds
+						*rds[mate],           // read
+						pens,                 // edit penalties
+						nCeilConst,           // ceiling on # Ns w/r/t read length, constant coeff
+						nCeilLinear,          // ceiling on # Ns w/r/t read length, linear coeff
+						sc,                   // seed cache
+						shs[mate],            // seed hits
+						sdm);                 // metrics
+					assert(shs[mate].repOk(&sc.current()));
+					if(inst.first + inst.second == 0) {
+						continue; // on to next mate
+					}
+					// Align seeds
+					al.searchAllSeeds(
+						seeds,            // search seeds
+						&ebwtFw,          // BWT index
+						&ebwtBw,          // BWT' index
+						*rds[mate],       // read
+						pens,             // edit penalties
+						sc,               // alignment cache
+						shs[mate],        // store seed hits here
+						sdm,              // metrics
+						&readCounterSink, // send counter summary for each read to this sink
+						&seedHitSink,     // send seed hits to this sink
+						&seedCounterSink, // send counter summary for each seed to this sink
+						&seedActionSink); // send search action list for each read to this sink
+					assert_eq(0, sdm.ooms);
+					assert(shs[mate].repOk(&sc.current()));
+					if(!seedSummaryOnly) {
+						// If there aren't any seed hits...
+						if(shs[mate].empty()) {
+							continue; // on to the next mate
+						}
+						// Sort seed hits into ranks
+						shs[mate].sort();
+						// Calculate the penalty ceiling for the read
+						int penceil = Constraint::instantiate(
+							rdlens[mate],
+							costCeilConst,
+							costCeilLinear);
+						assert_geq(penceil, 0);
+						bool done = false;
+						if(pair) {
+							int openceil = Constraint::instantiate(
+								rdlens[mate ^ 1],
+								costCeilConst,
+								costCeilLinear);
+							// Paired-end dynamic programming driver
+							done = sd.extendSeedsPaired(
+								*rds[mate],     // mate to align as anchor
+								*rds[mate ^ 1], // mate to align as opp.
+								mate == 0,      // anchor is mate 1?
+								gColor,         // colorspace?
+								shs[mate],      // seed hits for anchor
+								ebwtFw,         // bowtie index
+								ref,            // packed reference strings
+								gws[mate],      // walk left for anchor
+								sw,             // dynamic prog aligner
+								pa,             // parameters for DP
+								pens,           // penalties for edits
+								pepol,          // paired-end policy
+								multiseedMms,   // # mms allowed in a seed
+								multiseedLen,   // length of a seed
+								interval,       // interval between seeds
+								penceil,        // penalty ceil for anchor
+								openceil,       // penalty ceil for opp.
+								maxposs,        // max off/orient combos
+								maxrows,        // max offset resolutions
+								sc,             // seed alignment cache
+								rnd,            // pseudo-random source
+								wlm,            // group walk left metrics
+								swm,            // dynamic prog metrics
+								rpm,            // reporting metrics
+								&msinkwrap,     // for organizing hits
+								true,           // seek mate immediately
+								true,           // report hits once found
+								&swCounterSink, // send counter info here
+								&swActionSink); // send action info here
+						} else {
+							// Unpaired dynamic programming driver
+							done = sd.extendSeeds(
+								*rds[mate],     // read
+								gColor,         // colorspace?
+								shs[mate],      // seed hits
+								ebwtFw,         // bowtie index
+								ref,            // packed reference strings
+								gws[mate],      // group walk left
+								sw,             // dynamic prog aligner
+								pa,             // parameters for DP
+								pens,           // penalties for edits
+								multiseedMms,   // # mms allowed in a seed
+								multiseedLen,   // length of a seed
+								interval,       // interval between seeds
+								penceil,        // penalty ceiling
+								maxposs,        // max off/orient combos
+								maxrows,        // max offset resolutions
+								sc,             // seed alignment cache
+								rnd,            // pseudo-random source
+								wlm,            // group walk left metrics
+								swm,            // dynamic prog metrics
+								rpm,            // reporting metrics
+								&msinkwrap,     // for organizing hits
+								true,           // report hits once found
+								&swCounterSink, // send counter info here
+								&swActionSink); // send action info here
+						}
+						// Are we done with this read/pair?
+						if(done) {
+							// Skip the other mate
+							break;
+						}
+					} // if(!seedSummaryOnly)
+				} // for(size_t mate = 0; mate < 2; mate++)
+				
+				// Commit and report paired-end/unpaired alignments
+				uint32_t seed = rds[0]->seed ^ rds[1]->seed;
+				rnd.init(ROTL(seed, 20));
+				msinkwrap.finishRead(
+					&shs[0],              // seed results for mate 1
+					&shs[1],              // seed results for mate 2
+					rnd,                  // pseudo-random generator
+					rpm,                  // reporting metrics
+					!seedSummaryOnly,     // suppress seed summaries?
+					seedSummaryOnly);     // suppress alignments?
+				
 				// Add local metrics to global metrics in a synchronized fashion
-				gw.reset();  // reset the group walk-left object
-			}
-		} else break;
-	}
+				gws[0].reset();  // reset the group walk-left object
+				gws[1].reset();  // reset the group walk-left object
+			} // while(retry)
+		} // if(patid < qUpto && !ps->empty())
+		else {
+			break;
+		}
+	} // while(true)
+	
 	// One last metrics merge
 	metrics.merge(&olm, &sdm, &wlm, &swm, &rpm, nthreads > 1);
 #ifdef BOWTIE_PTHREADS
@@ -2985,6 +3095,7 @@ static void driver(
 				nCeilLinear,   // linear coeff for penalty ceil w/r/t read length
 				penNType,      // how to penalize Ns in the read
 				penN,          // constant if N pelanty is a constant
+				penNCatPair,   // whether to concat mates before N filtering
 				penRdOpen,     // cost of opening a gap in the read
 				penRfOpen,     // cost of opening a gap in the reference
 				penRdExConst,  // constant cost of extending a gap in the read

@@ -90,6 +90,7 @@ Seed::instantiate(
 		// Shrink seed length to fit read if necessary
 		seedlen = (int)read.length();
 	}
+	assert_gt(seedlen, 0);
 	is.steps.resize(seedlen);
 	is.zones.resize(seedlen);
 	// Fill in 'steps' and 'zones'
@@ -436,7 +437,7 @@ SeedAligner::instantiateSeq(
  *
  * For each seed, tnstantiate the seed, retracting if necessary.
  */
-int SeedAligner::instantiateSeeds(
+pair<int, int> SeedAligner::instantiateSeeds(
 	const EList<Seed>& seeds,       // search seeds
 	int per,                        // seed period
 	const Read& read,               // read to align
@@ -448,6 +449,7 @@ int SeedAligner::instantiateSeeds(
 	SeedSearchMetrics& met)         // metrics
 {
 	assert(!seeds.empty());
+	assert_gt(read.length(), 0);
 	assert(!gNofw || !gNorc); // should have aborted earlier
 	// Check whether read has too many Ns
 	offIdx2off_.clear();
@@ -465,7 +467,9 @@ int SeedAligner::instantiateSeeds(
 	for(int i = 0; i < nseeds; i++) {
 		offIdx2off_.push_back(per * i);
 	}
-	int seedsToSearch = 0;
+	pair<int, int> ret;
+	ret.first = 0;  // # seeds that require alignment
+	ret.second = 0; // # seeds that hit in cache with non-empty results
 	sr.reset(read, offIdx2off_, nseeds);
 	assert(sr.repOk(&cache.current(), true)); // require that SeedResult be initialized
 	// For each seed position
@@ -492,6 +496,7 @@ int SeedAligner::instantiateSeeds(
 				assert(qv->repOk(cache.current()));
 				sr.add(*qv, cache.current(), i, fw, len);
 				met.interhit++;
+				if(!qv->empty()) ret.second++;
 			} else {
 				// For each search strategy
 				EList<InstantiatedSeed>& iss = sr.instantiatedSeeds(fw, i);
@@ -511,7 +516,7 @@ int SeedAligner::instantiateSeeds(
 						*is))
 					{
 						// Can we fill this seed hit in from the cache?
-						seedsToSearch++;
+						ret.first++;
 					} else {
 						// Seed may fail to instantiate if there are Ns
 						// that prevent it from matching
@@ -522,7 +527,7 @@ int SeedAligner::instantiateSeeds(
 			}
 		}
 	}
-	return seedsToSearch;
+	return ret;
 }
 
 /**

@@ -99,6 +99,7 @@ bool DynProgFramer::frameFindMateAnchorLeft(
 	int64_t& refr,    // out: ref pos of lower RHS of parallelogram
 	EList<bool>& st,  // out: legal starting columns stored here
 	EList<bool>& en)  // out: legal ending columns stored here
+	const
 {
 	assert_geq(lr, ll);
 	assert_geq(rr, rl);
@@ -247,6 +248,7 @@ bool DynProgFramer::frameFindMateAnchorRight(
 	int64_t& refr,    // out: ref pos of lower RHS of parallelogram
 	EList<bool>& st,  // out: legal starting columns stored here
 	EList<bool>& en)  // out: legal ending columns stored here
+	const
 {
 	assert_geq(lr, ll);
 	assert_geq(rr, rl);
@@ -1023,6 +1025,25 @@ int main(void) {
 		15,               // ref offset of downstream column
 		"1111",           // expected starting bools
 		"0010");          // expected ending bools
+	
+	testCaseFindMateAnchorRight(
+		"FindMateAnchorRight8",
+		true,             // trim to reference
+		-37,              // left offset of left upper parallelogram extent
+		13,               // right offset of left upper parallelogram extent
+		-37,              // left offset of left lower parallelogram extent
+		52,               // right offset of left lower parallelogram extent
+		10,               // length of opposite mate
+		53,               // length of reference sequence aligned to
+		0,                // max # of read gaps permitted in opp mate alignment
+		0,                // max # of ref gaps permitted in opp mate alignment
+		14,               // expected width
+		37,               // expected # bases trimmed from upstream end
+		0,                // expected # bases trimmed from downstream end
+		0,                // ref offset of upstream column
+		22,               // ref offset of downstream column
+		"11111111111111", // expected starting bools
+		"11111111111111");// expected ending bools
 }
 
 #endif /*def MAIN_DP_FRAMER*/

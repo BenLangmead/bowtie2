@@ -28,6 +28,7 @@ public:
 		float ncLinear, //
 	    int nType,      // how to penalize Ns in the read
 	    int n,          // constant if N pelanty is a constant
+		bool ncat,      // whether to concatenate mates before N filtering
 	    int rdOpen,     // cost of opening a gap in the read
 	    int rfOpen,     // cost of opening a gap in the reference
 	    int rdExConst,  // constant cost of extending a gap in the read
@@ -42,6 +43,7 @@ public:
 		nCeilLinear  = ncLinear;
 		npenType     = nType;
 		npen         = n;
+		ncatpair     = ncat;
 		readOpen     = rdOpen;
 		refOpen      = rfOpen;
 		readExConst  = rdExConst;
@@ -210,10 +212,9 @@ public:
 	}
 
 	/**
-	 * Given a read sequence, return true iff the read passes the N
-	 * filter.  The N filter filters out reads with more than the
-	 * number of Ns calculated by taking nCeilConst + nCeilLinear *
-	 * read length.
+	 * Given a read sequence, return true iff the read passes the N filter.
+	 * The N filter rejects reads with more than the number of Ns calculated by
+	 * taking nCeilConst + nCeilLinear * read length.
 	 */
 	bool nFilter(const BTDnaString& rd) const {
 		float ns = 0.0f;
@@ -228,6 +229,57 @@ public:
 			}
 		}
 		return true; // passes
+	}
+
+	/**
+	 * Given a read sequence, return true iff the read passes the N filter.
+	 * The N filter rejects reads with more than the number of Ns calculated by
+	 * taking nCeilConst + nCeilLinear * read length.
+	 *
+	 * For paired-end reads, there is a	question of how to apply the filter.
+	 * The filter could be applied to both mates separately, which might then
+	 * prevent paired-end alignment.  Or the filter could be applied to the
+	 * reads as though they're concatenated together.  The latter approach has
+	 * pros and cons.  The pro is that we can use paired-end information to
+	 * recover alignments for mates that would not have passed the N filter on
+	 * their own.  The con is that we might not want to do that, since the
+	 * non-N portion of the bad mate might contain particularly unreliable
+	 * information.
+	 */
+	void nFilterPair(
+		const BTDnaString* rd1, // mate 1
+		const BTDnaString* rd2, // mate 2
+		bool& filt1,            // true -> mate 1 rejected by filter
+		bool& filt2)            // true -> mate 2 rejected by filter
+		const
+	{
+		// Both fail to pass by default
+		filt1 = filt2 = false;
+		if(rd1 != NULL && rd2 != NULL && ncatpair) {
+			size_t rdlen1 = rd1->length();
+			size_t rdlen2 = rd2->length();
+			float maxns = nCeilConst + nCeilLinear * (rdlen1 + rdlen2);
+			size_t ns = 0;
+			for(size_t i = 0; i < rdlen1; i++) {
+				if((*rd1)[i] == 4) ns++;
+				if((float)ns > maxns) {
+					// doesn't pass
+					return;
+				}
+			}
+			for(size_t i = 0; i < rdlen2; i++) {
+				if((*rd2)[i] == 4) ns++;
+				if((float)ns > maxns) {
+					// doesn't pass
+					return;
+				}
+			}
+			// Both pass
+			filt1 = filt2 = true;
+		} else {
+			if(rd1 != NULL) filt1 = nFilter(*rd1);
+			if(rd2 != NULL) filt2 = nFilter(*rd2);
+		}
 	}
 	
 	/**
@@ -245,6 +297,7 @@ public:
 	float nCeilLinear;  // max # Ns involved in alignment, linear coeff
 	int   npenType;     // N: based on qual? rounded? just a constant?
 	int   npen;         // N: if mmcosttype=constant, this is the const
+	bool  ncatpair;     // true -> do N filtering on concated pair
 	int   readOpen;     // read gap open penalty
 	int   refOpen;      // reference gap open penalty
 	int   readExConst;  // constant term coeffecient in extend cost
@@ -256,11 +309,39 @@ public:
 	int   npens[64];    // map from N qualities to penalty
 	
 	static Penalties bwaLike() {
-		return Penalties(COST_MODEL_CONSTANT, 3, 30, 2.0f, 0.1f, COST_MODEL_CONSTANT, 3, 11, 11, 4, 4, 0, 0);
+		return Penalties(
+			COST_MODEL_CONSTANT, // how to penalize mismatches
+			3,                   // constant if mm pelanty is a constant
+			30,                  // penalty for nuc mm when decoding colors
+			2.0f,                // constant coeff for max Ns
+			0.1f,                // linear coeff for max Ns
+			COST_MODEL_CONSTANT, // how to penalize Ns in the read
+			3,                   // constant if N pelanty is a constant
+			false,               // concatenate mates before N filtering?
+			11,                  // cost of opening a gap in the read
+			11,                  // cost of opening a gap in the reference
+			4,                   // constant coeff for extending gap in read
+			4,                   // constant coeff for extending gap in ref
+			0,                   // linear coeff for extending gap in read
+			0);                  // linear coeff for extending gap in ref
 	}
 
 	static Penalties naLike() {
-		return Penalties(COST_MODEL_ROUNDED_QUAL, 0, 30, 2.0f, 0.1f, COST_MODEL_ROUNDED_QUAL, 0, 40, 40, 15, 15, 0, 0);
+		return Penalties(
+			COST_MODEL_ROUNDED_QUAL, // how to penalize mismatches
+			0,                       // constant if mm pelanty is a constant
+			30,                      // penalty for nuc mm when decoding colors
+			2.0f,                    // constant coeff for max Ns
+			0.1f,                    // linear coeff for max Ns
+			COST_MODEL_ROUNDED_QUAL, // how to penalize Ns in the read
+			0,                       // constant if N pelanty is a constant
+			false,                   // concatenate mates before N filtering?
+			40,                      // cost of opening a gap in the read
+			40,                      // cost of opening a gap in the reference
+			15,                      // constant coeff for extending gap in read
+			15,                      // constant coeff for extending gap in ref
+			0,                       // linear coeff for extending gap in read
+			0);                      // linear coeff for extending gap in ref
 	}
 
 protected:
