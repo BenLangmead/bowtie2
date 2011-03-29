@@ -23,13 +23,14 @@ public:
 
 	SwDriver() :
 		satups_(SW_CAT),
-		coords1_(1024, SW_CAT),
-		coords1st_(1024, SW_CAT),
-		coords1en_(1024, SW_CAT),
-		coords2_(1024, SW_CAT),
-		coords2st_(1024, SW_CAT),
-		coords2en_(1024, SW_CAT),
-		coordspair_(1024, SW_CAT),
+		coords_(1024, SW_CAT),
+		coordsst_(1024, SW_CAT),
+		coordsen_(1024, SW_CAT),
+		frags_(1024, SW_CAT),
+		coords1seenup_(1024, SW_CAT),
+		coords1seendn_(1024, SW_CAT),
+		coords2seenup_(1024, SW_CAT),
+		coords2seendn_(1024, SW_CAT),
 		st_(1024, SW_CAT),
 		en_(1024, SW_CAT),
 		res_(), ores_()
@@ -134,8 +135,24 @@ public:
 		AlnSinkWrap* msink,          // AlnSink wrapper for multiseed-style aligner
 		bool swMateImmediately,      // whether to look for mate immediately
 		bool reportImmediately,      // whether to report hits immediately to msink
+		bool discord,                // look for discordant alignments?
+		bool mixed,                  // look for unpaired as well as paired alns?
 		EList<SwCounterSink*>* swCounterSinks, // send counter updates to these
 		EList<SwActionSink*>* swActionSinks);  // send action-list updates to these
+
+	/**
+	 * Prepare for a new read.  For paired-end reads, this means clearing state
+	 * that would otherwise survive across calls to extendSeedsPaired.
+	 */
+	void nextRead(bool paired) {
+		if(paired) {
+			frags_.clear();
+			coords1seenup_.clear();
+			coords1seendn_.clear();
+			coords2seenup_.clear();
+			coords2seendn_.clear();
+		}
+	}
 
 protected:
 
@@ -153,18 +170,23 @@ protected:
 		uint32_t& toff,
 		uint32_t& tlen);
 
-	EList<SATuple> satups_;    // temporary holder for range lists
-	ESet<Coord>    coords1_;   // ref coords tried for mate 1 so far
-	ESet<Coord>    coords1st_; // upstream coord for mate 1 hits so far
-	ESet<Coord>    coords1en_; // downstream coord for mate 1 hits so far
-	ESet<Coord>    coords2_;   // ref coords tried for mate 2 so far
-	ESet<Coord>    coords2st_; // upstream coord for mate 2 hits so far
-	ESet<Coord>    coords2en_; // downstream coord for mate 2 hits so far
-	ESet<Interval> coordspair_;// intervals for paired-end alignments
-	EList<bool>    st_;        // temporary holder for dyn prog starting mask
-	EList<bool>    en_;        // temporary holder for dyn prog ending mask
-	SwResult       res_;       // temporary holder for SW results
-	SwResult       ores_;      // temporary holder for SW results for opposite mate
+	EList<SATuple> satups_;     // temporary holder for range lists
+	ESet<Coord>    coords_;     // ref coords tried for mate 1 so far
+	ESet<Coord>    coordsst_;   // upstream coord for mate 1 hits so far
+	ESet<Coord>    coordsen_;   // downstream coord for mate 1 hits so far
+	ESet<Interval> frags_;      // intervals for paired-end fragments
+	ESet<Coord> coords1seenup_; // LHSs seen for mate1s - to avoid double-
+	                            // reporting unpaired alignments
+	ESet<Coord> coords1seendn_; // RHSs seen for mate1s - to avoid double-
+	                            // reporting unpaired alignments
+	ESet<Coord> coords2seenup_; // LHSs seen for mate2s - to avoid double-
+	                            // reporting unpaired alignments
+	ESet<Coord> coords2seendn_; // RHSs seen for mate2s - to avoid double-
+	                            // reporting unpaired alignments
+	EList<bool>    st_;         // temp holder for dyn prog starting mask
+	EList<bool>    en_;         // temp holder for dyn prog ending mask
+	SwResult       res_;        // temp holder for SW results
+	SwResult       ores_;       // temp holder for SW results for opp mate
 };
 
 #endif /*ALIGNER_SW_DRIVER_H_*/

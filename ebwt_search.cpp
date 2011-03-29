@@ -110,6 +110,8 @@ bool gDovetailMatesOK; // allow one mate to extend off the end of the other
 bool gContainMatesOK;  // allow one mate to contain the other in PE alignment
 bool gOlapMatesOK;     // allow mates to overlap in PE alignment
 bool gExpandToFrag;    // incr max frag length to =larger mate len if necessary
+bool gReportDiscordant; // find and report discordant paired-end alignments
+bool gReportMixed;      // find and report unpaired alignments for paired reads
 static uint32_t mixedThresh;   // threshold for when to switch to paired-end mixed mode (see aligner.h)
 static uint32_t mixedAttemptLim; // number of attempts to make in "mixed mode" before giving up on orientation
 static bool dontReconcileMates;  // suppress pairwise all-versus-all way of resolving mates
@@ -262,6 +264,8 @@ static void resetOptions() {
 	gContainMatesOK         = true;  // allow one mate to contain the other in PE alignment
 	gOlapMatesOK            = true;  // allow mates to overlap in PE alignment
 	gExpandToFrag           = true;  // incr max frag length to =larger mate len if necessary
+	gReportDiscordant       = true;  // find and report discordant paired-end alignments
+	gReportMixed            = true;  // find and report unpaired alignments for paired reads
 	mixedThresh				= 4;     // threshold for when to switch to paired-end mixed mode (see aligner.h)
 	mixedAttemptLim			= 100;   // number of attempts to make in "mixed mode" before giving up on orientation
 	dontReconcileMates		= true;  // suppress pairwise all-versus-all way of resolving mates
@@ -396,6 +400,8 @@ enum {
 	ARG_FR,
 	ARG_RF,
 	ARG_MIXED_ATTEMPTS,
+	ARG_NO_MIXED,
+	ARG_NO_DISCORDANT,
 	ARG_NO_RECONCILE,
 	ARG_CACHE_LIM,
 	ARG_CACHE_SZ,
@@ -561,6 +567,8 @@ static struct option long_options[] = {
 	{(char*)"no-cache",     no_argument,       0,            ARG_NO_CACHE},
 	{(char*)"454",          no_argument,       0,            ARG_NOISY_HPOLY},
 	{(char*)"ion-torrent",  no_argument,       0,            ARG_NOISY_HPOLY},
+	{(char*)"no-mixed",     no_argument,       0,            ARG_NO_MIXED},
+	{(char*)"no-discordant",no_argument,       0,            ARG_NO_DISCORDANT},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -606,6 +614,12 @@ static void printUsage(ostream& out) {
 	    << "Alignment:" << endl
 	    << "  --nomaqround       disable Maq-like quality rounding for -n (nearest 10 <= 30)" << endl
 	    << "  --gNofw/--gNorc    do not align to forward/reverse-complement reference strand" << endl
+		<< "Paired-end:" << endl
+	    << "  -I/--minins <int>  minimum fragment length (default: 0)" << endl
+	    << "  -X/--maxins <int>  maximum fragment length (default: 250)" << endl
+	    << "  --fr/--rf/--ff     -1, -2 mates align fw/rev, rev/fw, fw/fw (default: --fr)" << endl
+		<< "  --no-mixed         report only paired alns, ignore unpaired" << endl
+		<< "  --no-discordant    report only concordant paired-end alns, ignore discordant" << endl
 	    << "Reporting:" << endl
 	    << "  -k <int>           report up to <int> good alignments per read (default: 1)" << endl
 	    << "  -a/--all           report all alignments per read (much slower than low -k)" << endl
@@ -859,6 +873,12 @@ static void parseOptions(int argc, const char **argv) {
 				break;
 			case 'X':
 				gMaxInsert = parseInt(1, "-X arg must be at least 1");
+				break;
+			case ARG_NO_DISCORDANT:
+				gReportDiscordant = false;
+				break;
+			case ARG_NO_MIXED:
+				gReportMixed = false;
 				break;
 			case 's':
 				skipReads = (uint32_t)parseInt(0, "-s arg must be positive");
@@ -2232,10 +2252,12 @@ static void* multiseedSearchWorker(void *vp) {
 	
 	// Instantiate an object for holding reporting-related parameters.
 	ReportingParams rp(
-		(allHits ? std::numeric_limits<THitInt>::max() : khits),
-		mhits,
-		0,
-		sampleMax);
+		(allHits ? std::numeric_limits<THitInt>::max() : khits), // -k
+		mhits,             // -m/-M
+		0,                 // penalty gap (not used now)
+		sampleMax,         // true -> -M was specified, otherwise assume -m
+		gReportDiscordant, // report discordang paired-end alignments?
+		gReportMixed);     // report unpaired alignments for paired reads?
 	
 	// Make a per-thread wrapper for the global MHitSink object.
 	AlnSinkWrap msinkwrap(msink, rp);
@@ -2358,6 +2380,7 @@ static void* multiseedSearchWorker(void *vp) {
 				// For each mate...
 				// TODO: Examine mates in a random order instead of #1 then #2
 				assert(msinkwrap.empty());
+				sd.nextRead(pair);
 				for(size_t mate = 0; mate < 2; mate++) {
 					if(!nfilt[mate]) {
 						// Mate was rejected by N filter
@@ -2365,9 +2388,14 @@ static void* multiseedSearchWorker(void *vp) {
 						olm.fbases += rdlens[mate]; // bases filtered out
 						continue; // on to next mate
 					}
+					if(msinkwrap.state().doneWithMate(mate == 0)) {
+						// Done with this mate
+						continue;
+					}
 					// Passed N filter
 					assert_gt(rds[mate]->length(), 0);
 					assert(!msinkwrap.maxed());
+					assert(msinkwrap.repOk());
 					olm.ureads++;               // reads passing filter
 					olm.ubases += rdlens[mate]; // bases passing filter
 					QKey qkr(rds[mate]->patFw);
@@ -2468,8 +2496,12 @@ static void* multiseedSearchWorker(void *vp) {
 								&msinkwrap,     // for organizing hits
 								true,           // seek mate immediately
 								true,           // report hits once found
+								gReportDiscordant,// look for discordant alns?
+								gReportMixed,   // look for unpaired alns?
 								&swCounterSink, // send counter info here
 								&swActionSink); // send action info here
+							
+							// Might be done, but just with this mate
 						} else {
 							// Unpaired dynamic programming driver
 							done = sd.extendSeeds(
@@ -2500,8 +2532,7 @@ static void* multiseedSearchWorker(void *vp) {
 						}
 						// Are we done with this read/pair?
 						if(done) {
-							// Skip the other mate
-							break;
+							break; // ...break out of the loop over mates
 						}
 					} // if(!seedSummaryOnly)
 				} // for(size_t mate = 0; mate < 2; mate++)
@@ -2516,6 +2547,7 @@ static void* multiseedSearchWorker(void *vp) {
 					rpm,                  // reporting metrics
 					!seedSummaryOnly,     // suppress seed summaries?
 					seedSummaryOnly);     // suppress alignments?
+				assert(!retry || msinkwrap.empty());
 				
 				// Add local metrics to global metrics in a synchronized fashion
 				gws[0].reset();  // reset the group walk-left object

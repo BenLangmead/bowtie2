@@ -278,3 +278,62 @@ void AlnRes::printQuals(
 		}
 	}
 }
+
+/**
+ * Given an unpaired read (in either rd1 or rd2) or a read pair
+ * (mate 1 in rd1, mate 2 in rd2).
+ */
+AlnSetSumm::AlnSetSumm(
+	const Read* rd1,
+	const Read* rd2,
+	const EList<AlnRes>* rs1,
+	const EList<AlnRes>* rs2)
+{
+	assert(rd1 != NULL || rd2 != NULL);
+	assert(rs1 != NULL || rs2 != NULL);
+	assert((rd1 == NULL) == (rs1 == NULL));
+	assert((rd2 == NULL) == (rs2 == NULL));
+	AlignmentScore best, secbest;
+	best.invalidate();
+	secbest.invalidate();
+	bool paired = (rs1 != NULL && rs2 != NULL);
+	size_t sz;
+	if(paired) {
+		// Paired alignments
+		assert_eq(rs1->size(), rs2->size());
+		sz = rs1->size();
+		assert_gt(sz, 0);
+		for(size_t i = 0; i < rs1->size(); i++) {
+			AlignmentScore sc = (*rs1)[i].score() + (*rs2)[i].score();
+			if(sc > best) {
+				secbest = best;
+				best = sc;
+				assert(VALID_AL_SCORE(best));
+			} else if(sc > secbest) {
+				secbest = sc;
+				assert(VALID_AL_SCORE(best));
+				assert(VALID_AL_SCORE(secbest));
+			}
+		}
+	} else {
+		// Unpaired alignments
+		const EList<AlnRes>* rs = (rs1 != NULL ? rs1 : rs2);
+		assert(rs != NULL);
+		sz = rs->size();
+		assert_gt(sz, 0);
+		for(size_t i = 0; i < rs->size(); i++) {
+			AlignmentScore sc = (*rs)[i].score();
+			if(sc > best) {
+				secbest = best;
+				best = sc;
+				assert(VALID_AL_SCORE(best));
+			} else if(sc > secbest) {
+				secbest = sc;
+				assert(VALID_AL_SCORE(best));
+				assert(VALID_AL_SCORE(secbest));
+			}
+		}
+	}
+	init(best, secbest, sz-1);
+}
+

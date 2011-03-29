@@ -86,6 +86,97 @@ if(! -x $bowtie2 || ! -x $bowtie2_build) {
 
 my @cases = (
 
+	# Simple paired-end alignment
+	
+	{ name => "Simple paired-end 1",
+	  ref    => [ "TTTATATATATATTTTTTTTTTTCCCCCCCCCCCCCGCGCGCGCGCCCCCCCC" ],
+	#                 ATATATATAT                      CGCGCGCGCG
+	#              01234567890123456789012345678901234567890123456789012
+	#              0         1         2         3         4         5
+	  mate1s => [ "ATATATATAT" ],
+	  mate2s => [ "CGCGCGCGCG" ],
+	  args   =>   "--ff -I 0 -X 50",
+	  report =>   "-a",
+	  pairhits => [ { "3,35" => 1 } ] },
+
+	# Paired-end read, but only one mate aligns
+
+	{ name => "Simple paired-end 2; no --no-mixed",
+	  ref    => [ "TTTATATATATATTTTTTTTTTTCCCCCCCCCCCCCGCGCGCGCGCCCCCCCC" ],
+	#                 ATATATATAT                      CGCGCGCGCG
+	#              01234567890123456789012345678901234567890123456789012
+	#              0         1         2         3         4         5
+	  mate1s => [ "ATATATATAT" ],
+	  mate2s => [ "CCCCCGGGGG" ],
+	  args   =>   "--ff -I 0 -X 50",
+	  report =>   "-a",
+	  pairhits => [ { 3 => 2 } ] },
+
+	{ name => "Simple paired-end 2; --no-mixed",
+	  ref    => [ "TTTATATATATATTTTTTTTTTTCCCCCCCCCCCCCGCGCGCGCGCCCCCCCC" ],
+	#                 ATATATATAT                      CGCGCGCGCG
+	#              01234567890123456789012345678901234567890123456789012
+	#              0         1         2         3         4         5
+	  mate1s => [ "ATATATATAT" ],
+	  mate2s => [ "CCCCCGGGGG" ],
+	  args   =>   "--ff -I 0 -X 50 --no-mixed",
+	  report =>   "-a",
+	  pairhits => [ ] },
+
+	# Paired-end read, but only the first mate aligns within the -m 2 ceiling.
+	# Second mate doesn't align at all.
+
+	{ name => "Simple paired-end 3",
+	  ref    => [ "TTTATATATATATTTTTTTTTTTCCCCCCCCCCCCCGCGCGCGCGCCCCCCCCGCGCGCGCGCCCCCCCCCCGCGCGCGCG" ],
+	#                 ATATATATAT                      CGCGCGCGCG       CGCGCGCGCG         CGCGCGCGCG
+	#              012345678901234567890123456789012345678901234567890123456789012345678901234567890
+	#              0         1         2         3         4         5         6         7         8
+	  mate1s => [ "ATATATATAT" ],
+	  mate2s => [ "CCCCCGGGGG" ],
+	  args   =>   "--ff -I 0 -X 80 -m 2",
+	  report =>   "-a",
+	  pairhits => [ { 3 => 2 } ] },
+
+	# Paired-end read, but only the first mate aligns within the -m 2 ceiling.
+	# Second mate aligns 3 places.
+
+	{ name => "Simple paired-end 4",
+	  ref    => [ "TTTATATATATATTTTTTTTTTTCCCCCCCCCCCCCGCGCGCGCGCCCCCCCCGCGCGCGCGCCCCCCCCCCGCGCGCGCG" ],
+	#                 ATATATATAT                      CGCGCGCGCG       CGCGCGCGCG         CGCGCGCGCG
+	#              012345678901234567890123456789012345678901234567890123456789012345678901234567890
+	#              0         1         2         3         4         5         6         7         8
+	  mate1s => [ "ATATATATAT" ],
+	  mate2s => [ "CGCGCGCGCG" ],
+	  args   =>   "--ff -I 0 -X 80 -m 2",
+	  report =>   "-a",
+	  pairhits => [ { 3 => 2 } ] },
+
+	# Same but with mates reversed, second mate doesn't align
+
+	{ name => "Simple paired-end 5",
+	  ref    => [ "TTTATATATATATTTTTTTATATATATATTTTTTTTTATATATATATTTTTTTTCCCCCCGCGCGCGCGCCCCCCCCCCCC" ],
+	#                 ATATATATAT      ATATATATAT        ATATATATAT            CGCGCGCGCG
+	#              012345678901234567890123456789012345678901234567890123456789012345678901234567890
+	#              0         1         2         3         4         5         6         7         8
+	  mate1s => [ "ATATATATAT" ],
+	  mate2s => [ "CCCCCGGGGG" ],
+	  args   =>   "--fr -I 0 -X 80 -m 2",
+	  report =>   "-a",
+	  pairhits => [ { } ] },
+
+	# Same but with mates reversed, first mate aligns 3 times
+
+	{ name => "Simple paired-end 6",
+	  ref    => [ "TTTATATATATATTTTTTTATATATATATTTTTTTTTATATATATATTTTTTTTCCCCCCGCGCGCGCGCCCCCCCCCCCC" ],
+	#                 ATATATATAT      ATATATATAT        ATATATATAT            CGCGCGCGCG
+	#              012345678901234567890123456789012345678901234567890123456789012345678901234567890
+	#              0         1         2         3         4         5         6         7         8
+	  mate1s => [ "ATATATATAT" ],
+	  mate2s => [ "CGCGCGCGCG" ],
+	  args   =>   "--fr -I 0 -X 80 -m 2",
+	  report =>   "-a",
+	  pairhits => [ { 59 => 2 } ] },
+
 	#
 	# Alignment with overhang
 	#
@@ -141,17 +232,6 @@ my @cases = (
 	  args   => "",
 	  report => "-a -P \"SEED=0,2,1;NCEIL=2,0\"",
 	  hits   => [ { 1 => 1 }, { 0 => 1 } ] }, # only the internal hits
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
-	# Simple paired-end alignment
-	{ ref    => [ "TTTATATATATATTTTTTTTTTTCCCCCCCCCCCCCGCGCGCGCGCCCCCCCC" ],
-	#                 ATATATATAT                      CGCGCGCGCG
-	#              01234567890123456789012345678901234567890123456789012
-	#              0         1         2         3         4         5
-	  mate1s => [ "ATATATATAT" ],
-	  mate2s => [ "CGCGCGCGCG" ],
-	  args   =>   "--ff -I 0 -X 50",
-	  report =>   "-a",
-	  pairhits => [ { "3,35" => 1 } ] },
 
 	# Alignment with 1 reference gap
 	{ ref    => [ "TTTTGTTCGTTTG" ],
@@ -592,35 +672,19 @@ sub runbowtie2($$$$$$$$$$) {
 	if($pe) {
 		# Paired-end case
 		$cmd = "$bowtie2 $args .simple_tests.tmp $formatarg -1 $mate1arg -2 $mate2arg";
-		print "$cmd\n";
-		open(BT, "$cmd |") || die "Could not open pipe '$cmd |'";
-		while(<BT>) {
-			my $m1 = $_;
-			my $m2 = <BT>;
-			defined($m2) || die;
-			print $m1;
-			print $m2;
-			chomp($m1);
-			chomp($m2);
-			push @$ls,    [ split(/\t/, $m1, -1) ];
-			push @$ls,    [ split(/\t/, $m2, -1) ];
-			push @$rawls, $m1;
-			push @$rawls, $m2;
-		}
-		close(BT);
 	} else {
 		# Unpaired case
 		$cmd = "$bowtie2 $args .simple_tests.tmp $formatarg $readarg";
-		print "$cmd\n";
-		open(BT, "$cmd |") || die "Could not open pipe '$cmd |'";
-		while(<BT>) {
-			print $_;
-			chomp;
-			push @$ls,    [ split(/\t/, $_, -1) ];
-			push @$rawls, $_;
-		}
-		close(BT);
 	}
+	print "$cmd\n";
+	open(BT, "$cmd |") || die "Could not open pipe '$cmd |'";
+	while(<BT>) {
+		print $_;
+		chomp;
+		push @$ls,    [ split(/\t/, $_, -1) ];
+		push @$rawls, $_;
+	}
+	close(BT);
 	($? == 0) || die "bowtie2 exited with level $?\n";
 }
 
@@ -749,13 +813,24 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 				if(defined($c->{pairhits}->[$rdi])) {
 					defined($pairhits{$offkey}) ||
 						die "No such paired off as $offkey in pairhits list: ".Dumper(\%pairhits)."\n";
-					$c->{pairhits}->[$rdi]->{$off}--;
-					delete $c->{pairhits}->[$rdi]->{$off} if $c->{pairhits}->[$rdi]->{$off} == 0;
+					$c->{pairhits}->[$rdi]->{$offkey}--;
+					delete $c->{pairhits}->[$rdi]->{$offkey} if $c->{pairhits}->[$rdi]->{$offkey} == 0;
 					%pairhits = %{$c->{pairhits}->[$rdi]};
 				}
 				($lastchr, $lastoff) = ("", -1);
 			} elsif($pe) {
-				($lastchr, $lastoff) = ($chr, $off);
+				# Found an unpaired alignment from aligning a pair
+				my $foundSe =
+					defined($c->{pairhits}->[$rdi]) &&
+					$c->{pairhits}->[$rdi]->{$off};
+				if($foundSe) {
+					$c->{pairhits}->[$rdi]->{$off}--;
+					delete $c->{pairhits}->[$rdi]->{$off}
+						if $c->{pairhits}->[$rdi]->{$off} == 0;
+					%pairhits = %{$c->{pairhits}->[$rdi]};
+				} else {
+					($lastchr, $lastoff) = ($chr, $off);
+				}
 			} else {
 				if(defined($c->{hits}->[$rdi])) {
 					defined($hits{$off}) ||
@@ -771,8 +846,11 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 			}
 		}
 		# Go through all the per-read 
-		my $klim = scalar(@{$c->{hits}});
+		my $klim = 0;
+		$klim = scalar(@{$c->{hits}}) if defined($c->{hits});
+		$klim = max($klim, scalar(@{$c->{pairhits}})) if defined($c->{pairhits});
 		for (my $k = 0; $k < $klim; $k++) {
+			# For each read
 			my %hits     = %{$c->{hits}->[$k]}     if defined($c->{hits}->[$k]);
 			my %pairhits = %{$c->{pairhits}->[$k]} if defined($c->{pairhits}->[$k]);
 			my $hits_are_superset = $c->{hits_are_superset}->[$k];
@@ -782,9 +860,10 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 				print Dumper(\%hits);
 				die "Had $hitsLeft hit(s) left over";
 			}
-			if($pe && $lastchr eq "") {
-				my $pairhitsLeft = scalar(keys %pairhits);
-				$pairhitsLeft == 0 || die "Had $pairhitsLeft hit(s) left over";
+			my $pairhitsLeft = scalar(keys %pairhits);
+			if($pairhitsLeft != 0 && !$hits_are_superset) {
+				print Dumper(\%pairhits);
+				die "Had $pairhitsLeft hit(s) left over";
 			}
 		}
 		

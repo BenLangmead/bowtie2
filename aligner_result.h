@@ -544,50 +544,7 @@ public:
 		const Read* rd1,
 		const Read* rd2,
 		const EList<AlnRes>* rs1,
-		const EList<AlnRes>* rs2)
-	{
-		assert(rd1 != NULL || rd2 != NULL);
-		assert(rs1 != NULL || rs2 != NULL);
-		assert((rd1 == NULL) == (rs1 == NULL));
-		assert((rd2 == NULL) == (rs2 == NULL));
-		AlignmentScore best, secbest;
-		best.invalidate();
-		secbest.invalidate();
-		bool paired = (rs1 != NULL && rs2 != NULL);
-		if(paired) {
-			// Paired alignments
-			assert_eq(rs1->size(), rs2->size());
-			for(size_t i = 0; i < rs1->size(); i++) {
-				AlignmentScore sc = (*rs1)[i].score() + (*rs2)[i].score();
-				if(sc > best) {
-					secbest = best;
-					best = sc;
-					assert(VALID_AL_SCORE(best));
-				} else if(sc > secbest) {
-					secbest = sc;
-					assert(VALID_AL_SCORE(best));
-					assert(VALID_AL_SCORE(secbest));
-				}
-			}
-		} else {
-			// Unpaired alignments
-			const EList<AlnRes>* rs = (rs1 != NULL ? rs1 : rs2);
-			assert(rs != NULL);
-			for(size_t i = 0; i < rs->size(); i++) {
-				AlignmentScore sc = (*rs)[i].score();
-				if(sc > best) {
-					secbest = best;
-					best = sc;
-					assert(VALID_AL_SCORE(best));
-				} else if(sc > secbest) {
-					secbest = sc;
-					assert(VALID_AL_SCORE(best));
-					assert(VALID_AL_SCORE(secbest));
-				}
-			}
-		}
-		init(best, secbest, rs1->size()-1);
-	}
+		const EList<AlnRes>* rs2);
 
 	AlnSetSumm(
 		AlignmentScore best,

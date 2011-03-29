@@ -67,21 +67,27 @@ struct ReportingParams {
 		THitInt khits_,
 		THitInt mhits_,
 		THitInt pengap_,
-		bool msample_)
+		bool msample_,
+		bool discord_,
+		bool mixed_)
 	{
-		init(khits_, mhits_, pengap_, msample_);
+		init(khits_, mhits_, pengap_, msample_, discord_, mixed_);
 	}
 
 	void init(
 		THitInt khits_,
 		THitInt mhits_,
 		THitInt pengap_,
-		bool msample_)
+		bool msample_,
+		bool discord_,
+		bool mixed_)
 	{
-		khits = khits_;     // -k (or high if -a)
-		mhits = mhits_;     // -m or -M
-		pengap = pengap_;
+		khits   = khits_;     // -k (or high if -a)
+		mhits   = ((mhits_ == 0) ? std::numeric_limits<THitInt>::max() : mhits_);
+		pengap  = pengap_;
 		msample = msample_;
+		discord = discord_;
+		mixed   = mixed_;
 	}
 	
 	/**
@@ -96,7 +102,7 @@ struct ReportingParams {
 	/**
 	 * Return true iff a -m or -M limit was set by the user.
 	 */
-	bool mhitsSet() const {
+	inline bool mhitsSet() const {
 		return mhits < std::numeric_limits<THitInt>::max();
 	}
 
@@ -111,6 +117,280 @@ struct ReportingParams {
 	// exceeded, we should report 'khits' alignments chosen at random
 	// from those found
 	bool msample;
+	
+	// true iff we should seek and report discordant paired-end alignments for
+	// paired-end reads.
+	bool discord;
+
+	// true iff we should seek and report unpaired mate alignments when there
+	// are paired-end alignments for a paired-end read, or if the number of
+	// paired-end alignments exceeds the -m ceiling.
+	bool mixed;
+};
+
+/**
+ * A state machine keeping track of the number and type of alignments found so
+ * far.  Its purpose is to inform the caller as to what stage the alignment is
+ * in and what categories of alignment are still of interest.  This information
+ * should allow the caller to short-circuit some alignment work.  Another
+ * purpose is to tell the AlnSinkWrap how many and what type of alignment to
+ * report.
+ *
+ * TODO: This class does not keep accurate information about what
+ * short-circuiting took place.  If a read is identical to a previous read,
+ * there should be a way to query this object to determine what work, if any,
+ * has to be re-done for the new read.
+ */
+class ReportingState {
+
+public:
+
+	// Numbers are spread apart a bit so that we can add intermediate states in
+	// the future, e.g., for spliced alignment.
+	
+	enum {
+		NO_READ = 1,        // haven't got a read yet
+		CONCORDANT_PAIRS,   // looking for concordant pairs
+		DISCORDANT_PAIRS,   // looking for discordant pairs
+		UNPAIRED,           // looking for unpaired
+		DONE                // finished looking
+	};
+
+	// Flags for different we you can finish out a category of potential
+	// alignments.
+	
+	enum {
+		EXIT_DID_NOT_EXIT = 1,        // haven't finished
+		EXIT_DID_NOT_ENTER,           // never tried search	
+		EXIT_SHORT_CIRCUIT_k,         // -k exceeded
+		EXIT_SHORT_CIRCUIT_M,         // -M exceeded
+		EXIT_SHORT_CIRCUIT_m,         // -m exceeded
+		EXIT_SHORT_CIRCUIT_TRUMPED,   // made irrelevant
+		EXIT_CONVERTED_TO_DISCORDANT, // unpair became discord
+		EXIT_NO_ALIGNMENTS,           // none found
+		EXIT_WITH_ALIGNMENTS          // some found
+	};
+	
+	ReportingState(const ReportingParams& p) : p_(p) { reset(); }
+	
+	/**
+	 * Set all state to uninitialized defaults.
+	 */
+	void reset() {
+		state_ = ReportingState::NO_READ;
+		paired_ = false;
+		nconcord_ = 0;
+		ndiscord_ = 0;
+		nunpair1_ = 0;
+		nunpair2_ = 0;
+		doneConcord_ = false;
+		doneDiscord_ = false;
+		doneUnpair_ = false;
+		doneUnpair1_ = false;
+		doneUnpair2_ = false;
+		exitConcord_ = ReportingState::EXIT_DID_NOT_ENTER;
+		exitDiscord_ = ReportingState::EXIT_DID_NOT_ENTER;
+		exitUnpair1_ = ReportingState::EXIT_DID_NOT_ENTER;
+		exitUnpair2_ = ReportingState::EXIT_DID_NOT_ENTER;
+		done_ = false;
+	}
+	
+	/**
+	 * Return true iff this ReportingState has been initialized with a call to
+	 * nextRead() since the last time reset() was called.
+	 */
+	bool inited() const { return state_ != ReportingState::NO_READ; }
+
+	/**
+	 * Initialize state machine with a new read.  The state we start in depends
+	 * on whether it's paired-end or unpaired.
+	 */
+	void nextRead(bool paired);
+
+	/**
+	 * Caller uses this member function to indicate that one additional
+	 * concordant alignment has been found.
+	 */
+	bool foundConcordant();
+
+	/**
+	 * Caller uses this member function to indicate that one additional
+	 * discordant alignment has been found.
+	 */
+	bool foundDiscordant();
+
+	/**
+	 * Caller uses this member function to indicate that one additional
+	 * discordant alignment has been found.
+	 */
+	bool foundUnpaired(bool mate1);
+	
+	/**
+	 * Called to indicate that the aligner has finished searching for
+	 * alignments.  This gives us a chance to finalize our state.
+	 *
+	 * TODO: Keep track of short-circuiting information.
+	 */
+	void finish();
+	
+	/**
+	 * Populate given counters with the number of various kinds of alignments
+	 * to report for this read.  Concordant alignments are preferable to (and
+	 * mutually exclusive with) discordant alignments, and paired-end
+	 * alignments are preferable to unpaired alignments.
+	 *
+	 * The caller also needs some additional information for the case where a
+	 * pair or unpaired read aligns repetitively.  If the read is paired-end
+	 * and the paired-end has repetitive concordant alignments, that should be
+	 * reported, and 'pairMax' is set to true to indicate this.  If the read is
+	 * paired-end, does not have any conordant alignments, but does have
+	 * repetitive alignments for one or both mates, then that should be
+	 * reported, and 'unpair1Max' and 'unpair2Max' are set accordingly.
+	 *
+	 * Note that it's possible in the case of a paired-end read for the read to
+	 * have repetitive concordant alignments, but for one mate to have a unique
+	 * unpaired alignment.
+	 */
+	void getReport(
+		uint64_t& nconcordAln, // # concordant alignments to report
+		uint64_t& ndiscordAln, // # discordant alignments to report
+		uint64_t& nunpair1Aln, // # unpaired alignments for mate #1 to report
+		uint64_t& nunpair2Aln, // # unpaired alignments for mate #2 to report
+		bool& pairMax,         // repetitive concordant alignments
+		bool& unpair1Max,      // repetitive alignments for mate #1
+		bool& unpair2Max)      // repetitive alignments for mate #2
+		const;
+
+	/**
+	 * Return an integer representing the alignment state we're in.
+	 */
+	inline int state() const { return state_; }
+	
+	/**
+	 * If false, there's no need to solve any more dynamic programming problems
+	 * for finding opposite mates.
+	 */
+	inline bool doneConcordant() const { return doneConcord_; }
+	
+	/**
+	 * If false, there's no need to seek any more discordant alignment.
+	 */
+	inline bool doneDiscordant() const { return doneDiscord_; }
+	
+	/**
+	 * If false, there's no need to seek any more unpaired alignments for the
+	 * specified mate.  Note: this doesn't necessarily mean we can stop looking
+	 * for alignments for the mate, since this might be necessary for finding
+	 * concordant and discordant alignments.
+	 */
+	inline bool doneUnpaired(bool mate1) const {
+		return mate1 ? doneUnpair1_ : doneUnpair2_;
+	}
+	
+	/**
+	 * If false, no further consideration of the given mate is necessary.  It's
+	 * not needed for *any* class of alignment: concordant, discordant or
+	 * unpaired.
+	 */
+	inline bool doneWithMate(bool mate1) const {
+		bool doneUnpair = mate1 ? doneUnpair1_ : doneUnpair2_;
+		uint64_t nun = mate1 ? nunpair1_ : nunpair2_;
+		if(!doneUnpair || !doneConcord_) {
+			return false; // still needed for future concordant/unpaired alns
+		}
+		if(!doneDiscord_ && nun == 0) {
+			return false; // still needed for future discordant alignments
+		}
+		return true; // done
+	}
+
+	/**
+	 * If false, there's no need to seek any more unpaired alignments.
+	 */
+	inline bool doneUnpaired() const { return doneUnpair_; }
+	
+	/**
+	 * Return true iff all alignment stages have been exited.
+	 */
+	inline bool done() const { return done_; }
+
+	inline uint64_t numConcordant() const { return nconcord_; }
+	inline uint64_t numDiscordant() const { return ndiscord_; }
+	inline uint64_t numUnpaired1()  const { return nunpair1_; }
+	inline uint64_t numUnpaired2()  const { return nunpair2_; }
+
+	inline int exitConcordant() const { return exitConcord_; }
+	inline int exitDiscordant() const { return exitDiscord_; }
+	inline int exitUnpaired1()  const { return exitUnpair1_; }
+	inline int exitUnpaired2()  const { return exitUnpair2_; }
+
+	/**
+	 * Check that ReportingState is internally consistent.
+	 */
+	bool repOk() const {
+		assert(p_.discord || doneDiscord_);
+		assert(p_.mixed   || !paired_ || doneUnpair_);
+		if(p_.mhitsSet()) {
+			assert_leq(numConcordant(), (uint64_t)p_.mhits+1);
+			assert_leq(numDiscordant(), (uint64_t)p_.mhits+1);
+			assert(paired_ || numUnpaired1() <= (uint64_t)p_.mhits+1);
+			assert(paired_ || numUnpaired2() <= (uint64_t)p_.mhits+1);
+		}
+		assert(done() || !doneWithMate(true) || !doneWithMate(false));
+		return true;
+	}
+
+protected:
+
+	/**
+	 * Update state to reflect situation after converting two unique unpaired
+	 * alignments, one for mate 1 and one for mate 2, into a single discordant
+	 * alignment.
+	 */
+	void convertUnpairedToDiscordant() {
+		assert_eq(1, numUnpaired1());
+		assert_eq(1, numUnpaired2());
+		assert_eq(0, numDiscordant());
+		exitUnpair1_ = exitUnpair2_ = ReportingState::EXIT_CONVERTED_TO_DISCORDANT;
+		nunpair1_ = nunpair2_ = 0;
+		ndiscord_ = 1;
+		assert_eq(1, numDiscordant());
+	}
+
+	/**
+	 * Given the number of alignments in a category, check whether we
+	 * short-circuited out of the category.  Set the done and exit arguments to
+	 * indicate whether and how we short-circuited.
+	 */
+	inline void areDone(
+		uint64_t cnt,     // # alignments in category
+		bool& done,       // out: whether we short-circuited out of category
+		int& exit) const; // out: if done, how we short-circuited (-k? -m? etc)
+	
+	/**
+	 * Update done_ field to reflect whether we're totally done now.
+	 */
+	inline void updateDone() {
+		done_ = doneUnpair_ && doneDiscord_ && doneConcord_;
+	}
+
+	const ReportingParams& p_;  // reporting parameters
+	int state_;          // state we're currently in
+	bool paired_;        // true iff read we're currently handling is paired
+	uint64_t nconcord_;  // # concordants found so far
+	uint64_t ndiscord_;  // # discordants found so far
+	uint64_t nunpair1_;  // # unpaired alignments found so far for mate 1
+	uint64_t nunpair2_;  // # unpaired alignments found so far for mate 2
+	bool doneConcord_;   // true iff we're no longner interested in concordants
+	bool doneDiscord_;   // true iff we're no longner interested in discordants
+	bool doneUnpair_;    // no longner interested in unpaired alns
+	bool doneUnpair1_;   // no longner interested in unpaired alns for mate 1
+	bool doneUnpair2_;   // no longner interested in unpaired alns for mate 2
+	int exitConcord_;    // flag indicating how we exited concordant state
+	int exitDiscord_;    // flag indicating how we exited discordant state
+	int exitUnpair1_;    // flag indicating how we exited unpaired 1 state
+	int exitUnpair2_;    // flag indicating how we exited unpaired 2 state
+	bool done_;          // done with all alignments
 };
 
 /**
@@ -205,18 +485,19 @@ public:
 	 * called just once per read pair.
 	 */
 	virtual void reportHits(
-		const Read           *rd1,
-		const Read           *rd2,
-		const TReadId         rdid,
-		const EList<bool>&    select,
-		const EList<AlnRes>  *rs1,
-		const EList<AlnRes>  *rs2,
-		bool                  maxed,
-		const AlnSetSumm&     summ,
-		bool                  getLock = true)
+		const Read          *rd1,            // mate #1
+		const Read          *rd2,            // mate #2
+		const TReadId        rdid,           // read ID
+		const EList<bool>&   select,         // random subset
+		const EList<AlnRes> *rs1,            // alignments for mate #1
+		const EList<AlnRes> *rs2,            // alignments for mate #2
+		bool                 maxed,          // true iff -m/-M exceeded
+		const AlnSetSumm&    summ,           // summary
+		bool                 getLock = true) // true iff lock held by caller
 	{
-		assert(rd1 != NULL);
-		assert(rs1 != NULL);
+		assert(rd1 != NULL || rd2 != NULL);
+		assert(rs1 != NULL || rs2 != NULL);
+		size_t sz = ((rs1 != NULL) ? rs1->size() : rs2->size());
 		// Report all hits in the rs1/rs2 lists
 		reportHits(
 			rd1,
@@ -227,7 +508,7 @@ public:
 			rs2,
 			maxed,
 			0,
-			rs1->size(),
+			sz,
 			summ,
 			getLock);
 	}
@@ -237,43 +518,45 @@ public:
 	 * called just once per read pair.
 	 */
 	virtual void reportHits(
-		const Read          *rd1,
-		const Read          *rd2,
-		const TReadId        rdid,
-		const EList<bool>&   select,
-		const EList<AlnRes> *rs1,
-		const EList<AlnRes> *rs2,
-		bool                 maxed,
-		size_t               start,
-		size_t               end,
-		const AlnSetSumm&    summ,
-		bool                 getLock = true)
+		const Read          *rd1,            // mate #1
+		const Read          *rd2,            // mate #2
+		const TReadId        rdid,           // read ID
+		const EList<bool>&   select,         // random subset
+		const EList<AlnRes> *rs1,            // alignments for mate #1
+		const EList<AlnRes> *rs2,            // alignments for mate #2
+		bool                 maxed,          // true iff -m/-M exceeded
+		size_t               start,          // alignments to report: start
+		size_t               end,            // alignments to report: end 
+		const AlnSetSumm&    summ,           // summary
+		bool                 getLock = true) // true iff lock held by caller
 	{
-		assert(rd1 != NULL);
-		assert(rs1 != NULL);
+		assert(rd1 != NULL || rd2 != NULL);
+		assert(rs1 != NULL || rs2 != NULL);
 		assert_geq(end, start);
-		assert_leq(end, rs1->size());
+		ASSERT_ONLY(size_t sz = ((rs1 != NULL) ? rs1->size() : rs2->size()));
+		assert_leq(end, sz);
 		size_t num = end - start;
 		if(num == 0) {
 			// Nothing to report
 			return;
 		}
-		bool paired = (rs2 != NULL && !rs2->empty() && !rs2->get(0).empty());
+		bool paired = (
+			rs1 != NULL && !rs1->empty() && !rs1->get(0).empty() &&
+			rs2 != NULL && !rs2->empty() && !rs2->get(0).empty());
 		size_t reported = 0;
 		for(size_t i = start; i < end; i++) {
 			// Skip if it hasn't been selected
 			if(!select[i]) continue;
 			// Determine the stream id using the coordinate of the
 			// upstream mate
-			size_t sid = streamId(rdid, rs1->get(i).refcoord());
+			Coord c = ((rs1 != NULL) ?
+				rs1->get(i).refcoord() :
+				rs2->get(i).refcoord());
+			size_t sid = streamId(rdid, c);
 			assert_lt(sid, locks_.size());
 			ThreadSafe ts(&locks_[sid], getLock);
-			const AlnRes* r1 = &rs1->get(i);
-			const AlnRes* r2 = NULL;
-			if(paired) {
-				assert_eq(rs1->size(), rs2->size());
-				r2 = &rs2->get(i);
-			}
+			const AlnRes* r1 = ((rs1 != NULL) ? &rs1->get(i) : NULL);
+			const AlnRes* r2 = ((rs2 != NULL) ? &rs2->get(i) : NULL);
 			append(out(sid), rd1, rd2, rdid, r1, r2, summ);
 			reported++;
 		}
@@ -292,16 +575,16 @@ public:
 	 * -M ceiling.
 	 */
 	virtual void reportMaxed(
-		const Read*          rd1,
-		const Read*          rd2,
-		const TReadId        rdid,
-		const EList<AlnRes>* rs1,
-		const EList<AlnRes>* rs2,
-		const AlnSetSumm&    summ,
-		bool                 getLock = true)
+		const Read          *rd1,            // mate #1
+		const Read          *rd2,            // mate #2
+		const TReadId        rdid,           // read ID
+		const EList<AlnRes> *rs1,            // alignments for mate #1
+		const EList<AlnRes> *rs2,            // alignments for mate #2
+		const AlnSetSumm&    summ,           // summary
+		bool                 getLock = true) // true iff lock held by caller
 	{
-		assert(rd1 != NULL);
-		assert(rs1 != NULL);
+		assert(rd1 != NULL || rd2 != NULL);
+		assert(rs1 != NULL || rs2 != NULL);
 		reportMaxed(rd1, rd2, rdid, rs1, rs2, 0, rs1->size(), summ, getLock);
 	}
 
@@ -310,18 +593,18 @@ public:
 	 * -M ceiling.
 	 */
 	virtual void reportMaxed(
-		const Read*          rd1,
-		const Read*          rd2,
-		const TReadId        rdid,
-		const EList<AlnRes>* rs1,
-		const EList<AlnRes>* rs2,
-		size_t               start,
-		size_t               end,
-		const AlnSetSumm&    summ,
-		bool                 getLock = true)
+		const Read          *rd1,            // mate #1
+		const Read          *rd2,            // mate #2
+		const TReadId        rdid,           // read ID
+		const EList<AlnRes> *rs1,            // alignments for mate #1
+		const EList<AlnRes> *rs2,            // alignments for mate #2
+		size_t               start,          // alignments to report: start
+		size_t               end,            // alignments to report: end 
+		const AlnSetSumm&    summ,           // summary
+		bool                 getLock = true) // true iff lock held by caller
 	{
-		assert(rd1 != NULL);
-		assert(rs1 != NULL);
+		assert(rd1 != NULL || rd2 != NULL);
+		assert(rs1 != NULL || rs2 != NULL);
 		readSink_->dumpMaxed(rd1, rd2, rdid);
 		ThreadSafe ts(&mainlock_, getLock);
 		numMaxed_++;
@@ -332,10 +615,10 @@ public:
 	 * want to print a placeholder when output is chained.
 	 */
 	virtual void reportUnaligned(
-		const Read*   rd1,
-		const Read*   rd2,
-		const TReadId rdid,
-		bool          getLock = true)
+		const Read          *rd1,            // mate #1
+		const Read          *rd2,            // mate #2
+		const TReadId        rdid,           // read ID
+		bool                 getLock = true) // true iff lock held by caller
 	{
 		readSink_->dumpUnal(rd1, rd2, rdid);
 		ThreadSafe ts(&mainlock_, getLock);
@@ -629,7 +912,6 @@ public:
 		maxed1_(false),       // read is pair and we maxed out mate 1 unp alns
 		maxed2_(false),       // read is pair and we maxed out mate 2 unp alns
 		maxedOverall_(false), // alignments found so far exceed -m/-M ceiling
-		short_(false), // memory of whether lastStage_ was short-circuited
 		best_(std::numeric_limits<THitInt>::max()),
 		rd1_(NULL),    // mate 1
 		rd2_(NULL),    // mate 2
@@ -641,7 +923,7 @@ public:
 		rs1u_(),       // mate 1 unpaired alignments
 		rs2u_(),       // mate 2 unpaired alignments
 		select_(),     // for selecting random subsets
-		lastStage_(-1) // memory of what alignment stages we've made it thru
+		st_(rp)        // reporting state - what's left to do?
 	{
 		assert(rp_.repOk());
 	}
@@ -661,21 +943,6 @@ public:
 		TReadId rdid,         // read ID for new pair
 		bool qualitiesMatter);// aln policy distinguishes b/t quals?
 
-	/**
-	 * Finish reporting for the read in rd1_ or in rd2_, depending on
-	 * how 'one' is set.
-	 *
-	 * Called by finishRead.
-	 */
-	void finishGroup(
-		bool paired,        // true iff alns being reported are paired
-		bool condord,       // true iff paired-end alns are concordant
-		bool one,           // true iff unpaired alns are from mate 1
-		RandomSource& rnd,  // pseudo-random generator
-		uint64_t& al,       // counter to inc for reads that align
-		uint64_t& mx,       // counter to inc for reads that align repetitively
-		uint64_t& un) const;// counter to inc for reads that don't align
-	
 	/**
 	 * Inform global, shared AlnSink object that we're finished with
 	 * this read.  The global AlnSink is responsible for updating
@@ -703,36 +970,27 @@ public:
 		int stage,
 		const AlnRes* rs1,
 		const AlnRes* rs2);
-	
-	/**
-	 * Caller uses this function to indicate that all stages up to and
-	 * including the given stage have been attempted and no alignments
-	 * were found.  Note that we assume that the aligner proceeds
-	 * through each stage in order.
-	 */
-	void finishStage(int stage) {
-		assert_gt(stage, lastStage_);
-		lastStage_ = stage;
-	}
 
 	/**
 	 * Check that hit sink wrapper is internally consistent.
 	 */
 	bool repOk() const {
-		assert_geq(lastStage_, -1);
 		assert_eq(rs2_.size(), rs1_.size());
 		if(rp_.mhitsSet()) {
-			assert_leq((int)rs1_.size()-1, rp_.mhits);
-			assert_leq((int)rs2_.size()-1, rp_.mhits);
-			assert(readIsPair() || (int)rs1u_.size()-1 <= rp_.mhits);
-			assert(readIsPair() || (int)rs2u_.size()-1 <= rp_.mhits);
+			assert_gt(rp_.mhits, 0);
+			assert_leq((int)rs1_.size(), rp_.mhits+1);
+			assert_leq((int)rs2_.size(), rp_.mhits+1);
+			assert(readIsPair() || (int)rs1u_.size() <= rp_.mhits+1);
+			assert(readIsPair() || (int)rs2u_.size() <= rp_.mhits+1);
 		}
 		if(init_) {
 			assert(rd1_ != NULL);
 			assert_neq(std::numeric_limits<TReadId>::max(), rdid_);
-		} else {
-		
 		}
+		assert_eq(st_.numConcordant(), rs1_.size());
+		assert_eq(st_.numUnpaired1(), rs1u_.size());
+		assert_eq(st_.numUnpaired2(), rs2u_.size());
+		assert(st_.repOk());
 		return true;
 	}
 	
@@ -765,13 +1023,28 @@ public:
 	 */
 	bool inited() const { return init_; }
 
+	/**
+	 * Return a const ref to the ReportingState object associated with the
+	 * AlnSinkWrap.
+	 */
+	const ReportingState& state() const { return st_; }
+
 protected:
+
+	/**
+	 * Return true iff the read in rd1/rd2 matches the last read handled, which
+	 * should still be in rd1_/rd2_.
+	 */
+	bool sameRead(
+		const Read* rd1,
+		const Read* rd2,
+		bool qualitiesMatter);
 
 	/**
 	 * If there is a configuration of unpaired alignments that fits our
 	 * criteria for there being one or more discordant alignments, then
-	 * shift the discordant alignments over to the rs1_/rs2_ lists and
-	 * return true.  Otherwise, return false.
+	 * shift the discordant alignments over to the rs1_/rs2_ lists, clear the
+	 * rs1u_/rs2u_ lists and return true.  Otherwise, return false.
 	 */
 	bool prepareDiscordants() {
 		if(rs1u_.size() == 1 && rs2u_.size() == 1) {
@@ -779,17 +1052,19 @@ protected:
 			assert(rs2_.empty());
 			rs1_.push_back(rs1u_[0]);
 			rs2_.push_back(rs2u_[0]);
+			rs1u_.clear();
+			rs2u_.clear();
 			return true;
 		}
 		return false;
 	}
 
 	/**
-	 * Given that rd1_/rd2_/rs1_/rs2_ are already populated with
-	 * information about the input reads and their respective
-	 * alignments, consider the alignment policy and make random
-	 * selections where necessary.  E.g. if we found 10 alignments and
-	 * the policy is -k 2 -m 20, select 2 alignments at random.
+	 * Given that rs is already populated with alignments, consider the
+	 * alignment policy and make random selections where necessary.  E.g. if we
+	 * found 10 alignments and the policy is -k 2 -m 20, select 2 alignments at
+	 * random.  We "select" an alignment by setting the parallel entry in the
+	 * 'select' list to true.
 	 */
 	void selectAlnsToReport(
 		const EList<AlnRes>& rs,     // alignments to select from
@@ -828,7 +1103,6 @@ protected:
 	bool            maxed1_; // true iff # unpaired mate-1 alns reported so far exceeded -m/-M
 	bool            maxed2_; // true iff # unpaired mate-2 alns reported so far exceeded -m/-M
 	bool            maxedOverall_; // true iff # paired-end alns reported so far exceeded -m/-M
-	bool            short_; // true iff report() returned true already
 	THitInt         best_;  // greatest score so far
 	const Read*     rd1_;   // mate #1
 	const Read*     rd2_;   // mate #2
@@ -840,7 +1114,7 @@ protected:
 	EList<AlnRes>   rs1u_;  // unpaired alignments for mate #1
 	EList<AlnRes>   rs2u_;  // unpaired alignments for mate #2
 	EList<bool>     select_;    // parallel to rs1_/rs2_ - which to report
-	int             lastStage_; // set to the last stage finished
+	ReportingState  st_;    // reporting state - what's left to do?
 };
 
 /**
@@ -893,21 +1167,18 @@ public:
 	 * then mate2's alignment.
 	 */
 	virtual void append(
-		OutFileBuf&   o,
-		const Read*   rd1,
-		const Read*   rd2,
-		const TReadId rdid,
-		const AlnRes* rs1,
-		const AlnRes* rs2,
-		const AlnSetSumm& summ)
+		OutFileBuf&   o,        // file buffer to write to
+		const Read*   rd1,      // mate #1
+		const Read*   rd2,      // mate #2
+		const TReadId rdid,     // read ID
+		const AlnRes* rs1,      // alignments for mate #1
+		const AlnRes* rs2,      // alignments for mate #2
+		const AlnSetSumm& summ) // summary
 	{
-		assert(rd1 != NULL);
-		assert(rs1 != NULL);
-		appendMate(o, *rd1, rd2, rdid, *rs1, rs2, summ);
-		if(rd2 != NULL) {
-			assert(rs2 != NULL);
-			appendMate(o, *rd2, rd1, rdid, *rs2, rs1, summ);
-		}
+		assert(rd1 != NULL || rd2 != NULL);
+		assert(rs1 != NULL || rs2 != NULL);
+		if(rd1 != NULL) appendMate(o, *rd1, rd2, rdid, *rs1, rs2, summ);
+		if(rd2 != NULL) appendMate(o, *rd2, rd1, rdid, *rs2, rs1, summ);
 	}
 
 protected:

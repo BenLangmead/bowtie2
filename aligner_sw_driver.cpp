@@ -103,11 +103,11 @@ bool SwDriver::extendSeeds(
 	// Calculate the largest possible number of read and reference gaps
 	// given 'penceil' and 'pen'
 	int readGaps = pen.maxReadGaps(penceil);
-	int refGaps = pen.maxRefGaps(penceil);
+	int refGaps  = pen.maxRefGaps(penceil);
 	const size_t rdlen = rd.length();
-	coords1_.clear();   // ref coords tried so far
-	coords1st_.clear(); // upstream coord for hits so far
-	coords1en_.clear(); // downstream coord for hits so far
+	coords_.clear();   // ref coords tried so far
+	coordsst_.clear(); // upstream coord for hits so far
+	coordsen_.clear(); // downstream coord for hits so far
 
 	DynProgFramer dpframe(!gReportOverhangs);
 
@@ -182,7 +182,7 @@ bool SwDriver::extendSeeds(
 			// any of the start/end combos here have been covered by a previous
 			// dynamic programming problem.
 			Coord c(tidx, refoff, fw);
-			if(!coords1_.insert(c)) {
+			if(!coords_.insert(c)) {
 				// Already tried to find an alignment at these
 				// coordinates
 				swm.rshit++;
@@ -251,7 +251,7 @@ bool SwDriver::extendSeeds(
 
 			Coord st, en;
 			res_.alres.getCoords(st, en);
-			if(!coords1st_.insert(st) || !coords1en_.insert(en)) {
+			if(!coordsst_.insert(st) || !coordsen_.insert(en)) {
 				// Redundant with an alignment we found already
 				continue;
 			}
@@ -339,6 +339,60 @@ bool SwDriver::sw(
  * 1. A paired-end alignment is NOT redundant with another paired-end alignment
  *    if only *one* fragment extreme is identical.
  *
+ * MIXING PAIRED AND UNPAIRED ALIGNMENTS
+ *
+ * There are distinct paired-end alignment modes for the cases where (a) the
+ * user does or does not want to see unpaired alignments for individual mates
+ * when there are no reportable paired-end alignments involving both mates, and
+ * (b) the user does or does not want to see discordant paired-end alignments.
+ * The modes have implications for this function and for the AlnSinkWrap, since
+ * it affects when we're "done."  Also, whether the user has asked us to report
+ * discordant alignments affects whether and how much searching for unpaired
+ * alignments we must do (i.e. if there are no paired-end alignments, we must
+ * at least do -m 1 for both mates).
+ *
+ * Mode 1: Just concordant paired-end.  Print only concordant paired-end
+ * alignments.  As soon as any limits (-k/-m/-M) are reached, stop.
+ *
+ * Mode 2: Concordant and discordant paired-end.  If -k/-m/-M limits are
+ * reached for paired-end alignments, stop.  Otherwise, if no paired-end
+ * alignments are found, align both mates in an unpaired -m 1 fashion.  If
+ * there is exactly one unpaired alignment for each mate, report the
+ * combination as a discordant alignment.
+ *
+ * Mode 3: Concordant paired-end if possible, otherwise unpaired.  If -k/-M
+ * limit is reached for paired-end alignmnts, stop.  If -m limit is reached for
+ * paired-end alignments or no paired-end alignments are found, align both
+ * mates in an unpaired fashion.  All the same settings governing validity and
+ * reportability in paired-end mode apply here too (-k/-m/-M/etc).
+ *
+ * Mode 4: Concordant or discordant paired-end if possible, otherwise unpaired.
+ * If -k/-M limit is reached for paired-end alignmnts, stop.  If -m limit is
+ * reached for paired-end alignments or no paired-end alignments are found,
+ * align both mates in an unpaired fashion.  If the -m limit was reached, there
+ * is no need to search for a discordant alignment, and unapired alignment can
+ * proceed as in Mode 3.  If no paired-end alignments were found, then unpaired
+ * alignment proceeds as in Mode 3 but with this caveat: alignment must be at
+ * least as thorough as dictated by -m 1 up until the point where
+ *
+ *Print paired-end alignments when there are reportable paired-end
+ * alignments, otherwise report reportable unpaired alignments.  If -k limit is
+ * reached for paired-end alignments, stop.  If -m/-M limit is reached for
+ * paired-end alignments, stop searching for paired-end alignments and look
+ * only for unpaired alignments.  If searching only for unpaired alignments,
+ * respect -k/-m/-M limits separately for both mates.
+ *
+ * The return value from the AlnSinkWrap's report member function must be
+ * specific enough to distinguish between:
+ *
+ * 1. Stop searching for paired-end alignments
+ * 2. Stop searching for alignments for unpaired alignments for mate #1
+ * 3. Stop searching for alignments for unpaired alignments for mate #2
+ * 4. Stop searching for any alignments
+ *
+ * Note that in Mode 2, options affecting validity and reportability of
+ * alignments apply .  E.g. if -m 1 is specified
+ *
  * WORKFLOW
  *
  * Our general approach to finding paired and unpaired alignments here
@@ -381,12 +435,15 @@ bool SwDriver::extendSeedsPaired(
 	AlnSinkWrap* msink,          // AlnSink wrapper for multiseed-style aligner
 	bool swMateImmediately,      // whether to look for mate immediately
 	bool reportImmediately,      // whether to report hits immediately to msink
+	bool discord,                // look for discordant alignments?
+	bool mixed,                  // look for unpaired as well as paired alns?
 	EList<SwCounterSink*>* swCounterSinks, // send counter updates to these
 	EList<SwActionSink*>* swActionSinks)   // send action-list updates to these
 {
 	assert(!reportImmediately || msink != NULL);
 	//assert(!reportImmediately || msink->empty());
 	assert(!reportImmediately || !msink->maxed());
+	assert(!msink->state().doneWithMate(anchor1));
 
 	// Calculate the largest possible number of read and reference gaps
 	// given 'penceil' and 'pen'
@@ -399,12 +456,9 @@ bool SwDriver::extendSeedsPaired(
 	const size_t ordlen = ord.length();
 	const size_t rows   = rdlen  + (color ? 1 : 0);
 	const size_t orows  = ordlen + (color ? 1 : 0);
-	coords1_.clear();
-	coords1st_.clear(); // upstream coord for mate 1 hits so far
-	coords1en_.clear(); // downstream coord for mate 2 hits so far
-	coords2_.clear();
-	coords2st_.clear(); // upstream coord for mate 2 hits so far
-	coords2en_.clear(); // downstream coord for mate 2 hits so far
+	coords_.clear();   // DP upstream char for seed hits
+	coordsst_.clear(); // upstream coord for anchor hits so far
+	coordsen_.clear(); // downstream coord for anchor hits so far
 	
 	DynProgFramer dpframe(!gReportOverhangs);
 
@@ -419,18 +473,6 @@ bool SwDriver::extendSeedsPaired(
 		bool fw = true;
 		uint32_t offidx = 0, rdoff = 0, seedlen;
 		QVal qv = sh.hitsByRank(i, offidx, rdoff, fw, seedlen);
-		ESet<Coord> *coords, *coordsst, *coordsen;
-		// Let coords, coordsst and coordsen point to coordinates for the
-		// anchor mate
-		if(anchor1) {
-			coords   = &coords1_;
-			coordsst = &coords1st_;
-			coordsen = &coords1en_;
-		} else {
-			coords   = &coords2_;
-			coordsst = &coords2st_;
-			coordsen = &coords2en_;
-		}
 		assert(qv.repOk(sc.current()));
 		if(!fw) {
 			// 'rdoff' and 'offidx' are with respect to the 5' end of
@@ -451,8 +493,8 @@ bool SwDriver::extendSeedsPaired(
 			assert(wr.elt != lastwr.elt);
 			ASSERT_ONLY(lastwr = wr);
 			advances++;
-			ASSERT_ONLY(uint32_t off = wr.toff);
-			assert_neq(0xffffffff, off);
+			ASSERT_ONLY(uint32_t joff = wr.toff);
+			assert_neq(0xffffffff, joff);
 			uint32_t tidx = 0, toff = 0, tlen = 0;
 			ebwt.joinedToTextOff(
 				wr.elt.len,
@@ -490,7 +532,7 @@ bool SwDriver::extendSeedsPaired(
 			// any of the start/end combos here have been covered by a previous
 			// dynamic programming problem.
 			Coord c(tidx, refoff, fw);
-			if(!coords->insert(c)) {
+			if(!coords_.insert(c)) {
 				// Already tried to find an alignment at these
 				// coordinates
 				swm.rshit++;
@@ -561,7 +603,7 @@ bool SwDriver::extendSeedsPaired(
 
 			Coord stAnchor, enAnchor;
 			res_.alres.getCoords(stAnchor, enAnchor);
-			if(!coordsst->insert(stAnchor) || !coordsen->insert(enAnchor)) {
+			if(!coordsst_.insert(stAnchor) || !coordsen_.insert(enAnchor)) {
 				// Redundant with an alignment we found already
 				continue;
 			}
@@ -575,23 +617,31 @@ bool SwDriver::extendSeedsPaired(
 				penceil);  // maximum penalty for valid alignment
 			
 			bool foundMate = false;
+			TRefOff off = res_.alres.refoff();
 			if(found && swMateImmediately) {
 				bool oleft = false, ofw = false;
 				int64_t oll = 0, olr = 0, orl = 0, orr = 0;
-				foundMate = pepol.otherMate(
-					anchor1,             // anchor mate is mate #1?
-					fw,                  // anchor aligned to Watson?
-					res_.alres.refoff(), // offset of anchor mate
-					orows + oreadGaps,   // max # columns spanned by alignment
-					tlen,                // reference length
-					anchor1 ? rd.length()  : ord.length(), // mate #1 length
-					anchor1 ? ord.length() : rd.length(),  // mate #2 length
-					oleft,               // out: look left for opposite mate?
-					oll,
-					olr,
-					orl,
-					orr,
-					ofw);
+				assert(!msink->state().done());
+				if(!msink->state().doneConcordant()) {
+					foundMate = pepol.otherMate(
+						anchor1,             // anchor mate is mate #1?
+						fw,                  // anchor aligned to Watson?
+						off,                 // offset of anchor mate
+						orows + oreadGaps,   // max # columns spanned by alignment
+						tlen,                // reference length
+						anchor1 ? rd.length()  : ord.length(), // mate #1 length
+						anchor1 ? ord.length() : rd.length(),  // mate #2 length
+						oleft,               // out: look left for opposite mate?
+						oll,
+						olr,
+						orl,
+						orr,
+						ofw);
+				} else {
+					// We're no longer interested in finding additional
+					// concordant paired-end alignments so we just report this
+					// mate's alignment as an unpaired alignment (below)
+				}
 				size_t owidth = 0, otrimup = 0, otrimdn = 0;
 				int64_t orefl = 0, orefr = 0;
 				if(foundMate) {
@@ -641,6 +691,7 @@ bool SwDriver::extendSeedsPaired(
 					foundMate = swa.align(ores_, rnd);
 				}
 				if(foundMate) {
+					assert_eq(ofw, ores_.alres.fw());
 					// Annotate the AlnRes object with some key parameters
 					// that were used to obtain the alignment.
 					ores_.alres.setParams(
@@ -663,8 +714,8 @@ bool SwDriver::extendSeedsPaired(
 				if(foundMate) {
 					refid = res_.alres.refid();
 					assert_eq(refid, ores_.alres.refid());
-					off1 = anchor1 ? res_.alres.refoff() : ores_.alres.refoff();
-					off2 = anchor1 ? ores_.alres.refoff() : res_.alres.refoff();
+					off1 = anchor1 ? off : ores_.alres.refoff();
+					off2 = anchor1 ? ores_.alres.refoff() : off;
 					len1 = anchor1 ? res_.alres.extent() : ores_.alres.extent();
 					len2 = anchor1 ? ores_.alres.extent() : res_.alres.extent();
 					fw1  = anchor1 ? res_.alres.fw() : ores_.alres.fw();
@@ -677,10 +728,10 @@ bool SwDriver::extendSeedsPaired(
 					// paired-end fragment constraints
 					pairCl = pepol.peClassifyPair(
 						off1,
-						off2,
 						len1,
-						len2,
 						fw1,
+						off2,
+						len2,
 						fw2);
 					foundMate = pairCl != PE_ALS_DISCORD;
 				}
@@ -689,8 +740,24 @@ bool SwDriver::extendSeedsPaired(
 					// previously, i.e. if the extents are the same and mate 1
 					// has the same orientation.
 					Interval ival(refid, fragoff, fw1, fraglen);
-					foundMate = coordspair_.insert(ival);
+					foundMate = frags_.insert(ival);
 				}
+				// Check whether we've already seen these *mate* alignments
+				bool seen1 = false, seen2 = false;
+				if(foundMate) {
+					// Remember that we saw each of these two mates
+					Coord c1l(tidx, off1,            fw1);
+					Coord c1r(tidx, off1 + len1 - 1, fw1);
+					seen1 = !coords1seenup_.insert(c1l) ||
+							!coords1seendn_.insert(c1r);
+					Coord c2l(tidx, off2,            fw2);
+					Coord c2r(tidx, off2 + len2 - 1, fw2);
+					seen2 = !coords2seenup_.insert(c2l) ||
+							!coords2seendn_.insert(c2r);
+				}
+				bool doneAnchor = anchor1 ?
+					msink->state().doneUnpaired(true) :
+					msink->state().doneUnpaired(false);
 				if(reportImmediately) {
 					if(foundMate) {
 						// Report pair to the AlnSinkWrap
@@ -712,7 +779,38 @@ bool SwDriver::extendSeedsPaired(
 							// -M, was exceeded
 							return true;
 						}
-					} else {
+						if(mixed || discord) {
+							// Report alignment for mate #1 as an unpaired
+							// alignment
+							bool seenAnchor   = anchor1 ? seen1 : seen2;
+							bool seenOpposite = anchor1 ? seen2 : seen1;
+							bool doneOpposite = anchor1 ?
+								msink->state().doneUnpaired(false) :
+								msink->state().doneUnpaired(true);
+							if(!seenAnchor && !doneAnchor && msink->report(
+								0,
+								anchor1 ? &res_.alres : NULL,
+								anchor1 ? NULL : &res_.alres))
+							{
+								return true; // Short-circuited
+							}
+							// Report alignment for mate #2 as an unpaired
+							// alignment
+							if(!seenOpposite && !doneOpposite && msink->report(
+								0,
+								anchor1 ? NULL : &ores_.alres,
+								anchor1 ? &ores_.alres : NULL))
+							{
+								return true; // Short-circuited
+							}
+						}
+						if(msink->state().doneWithMate(anchor1)) {
+							// We're now done with the mate that we're
+							// currently using as our anchor.  We're not with
+							// the read overall.
+							return false;
+						}
+					} else if(mixed || discord) {
 						// Report unpaired hit for anchor
 						assert(msink != NULL);
 						assert(res_.repOk());
@@ -721,24 +819,37 @@ bool SwDriver::extendSeedsPaired(
 						assert(res_.alres.matchesRef(rd, ref));
 						// Report an unpaired alignment
 						assert(!msink->maxed());
-						if(msink->report(
+						bool seen = false;
+						Coord cl(tidx, off,                           fw);
+						Coord cr(tidx, off + res_.alres.extent() - 1, fw);
+						if(anchor1) {
+							seen = !coords1seenup_.insert(cl) ||
+							       !coords1seendn_.insert(cr);
+						} else {
+							seen = !coords2seenup_.insert(cl) ||
+							       !coords2seendn_.insert(cr);
+						}
+						if(!seen && !doneAnchor && msink->report(
 							0,
 							anchor1 ? &res_.alres : NULL,
 							anchor1 ? NULL : &res_.alres))
 						{
-							// Should not short-circuit on an unpaired
-							// alignment when more paired alignments are
-							// possible
-							cerr << "Should not get true return value from report() for unpaired mate alignment" << endl;
-							throw 1;
+							return true; // Short-circuited
+						}
+						if(msink->state().doneWithMate(anchor1)) {
+							// Done with this mate, but not with the read
+							// overall
+							return false;
 						}
 					}
 				}
-			}
+				
+			} // if(found && swMateImmediately)
 			
 			// At this point we know that we aren't bailing, and will continue to resolve seed hits.  
 
 		} // while(!gw.done())
-	}
+	
+	} // for(size_t i = 0; i < poss; i++)
 	return false;
 }
