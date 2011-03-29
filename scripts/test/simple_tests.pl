@@ -177,6 +177,47 @@ my @cases = (
 	  report =>   "-a",
 	  pairhits => [ { 59 => 2 } ] },
 
+	# Like 6, but with lower -m limit
+
+	{ name => "Simple paired-end 7",
+	  ref    => [ "TTTATATATATATTTTTTTATATATATATTTTTTTTTATATATATATTTTTTTTCCCCCCGCGCGCGCGCCCCCCCCCCCC" ],
+	#                 ATATATATAT      ATATATATAT        ATATATATAT            CGCGCGCGCG
+	#              012345678901234567890123456789012345678901234567890123456789012345678901234567890
+	#              0         1         2         3         4         5         6         7         8
+	  mate1s => [ "ATATATATAT" ],
+	  mate2s => [ "CGCGCGCGCG" ],
+	  args   =>   "--fr -I 0 -X 80 -m 1",
+	  report =>   "-a",
+	  pairhits => [ ] },
+
+	# Like 6, but without -m limit
+
+	{ name => "Simple paired-end 8",
+	  ref    => [ "TTTATATATATATTTTTTTATATATATATTTTTTTTTATATATATATTTTTTTTCCCCCCGCGCGCGCGCCCCCCCCCCCC" ],
+	#                 ATATATATAT      ATATATATAT        ATATATATAT            CGCGCGCGCG
+	#              012345678901234567890123456789012345678901234567890123456789012345678901234567890
+	#              0         1         2         3         4         5         6         7         8
+	  mate1s => [ "ATATATATAT" ],
+	  mate2s => [ "CGCGCGCGCG" ],
+	  args   =>   "--fr -I 0 -X 80",
+	  report =>   "-a",
+	  pairhits => [ { "3,59" => 1, "19,59" => 1, "37,59" => 1 } ] },
+
+	# Like 6, but with -M limit
+
+	{ name => "Simple paired-end 9",
+	  ref    => [ "TTTATATATATATTTTTTTATATATATATTTTTTTTTATATATATATTTTTTTTCCCCCCGCGCGCGCGCCCCCCCCCCCC" ],
+	#                 ATATATATAT      ATATATATAT        ATATATATAT            CGCGCGCGCG
+	#              012345678901234567890123456789012345678901234567890123456789012345678901234567890
+	#              0         1         2         3         4         5         6         7         8
+	  mate1s => [ "ATATATATAT" ],
+	  mate2s => [ "CGCGCGCGCG" ],
+	  args   =>   "--fr -I 0 -X 80",
+	  report =>   "-a -M 2",
+	  lines  => 2,
+	  pairhits => [ { "3,59" => 1, "19,59" => 1, "37,59" => 1 } ],
+	  hits_are_superset => [ 1 ] },
+
 	#
 	# Alignment with overhang
 	#
@@ -744,6 +785,10 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 		# isn't mistakenly yielding different alignments for identical
 		# reads.
 		my %seenNameSeqQual = ();
+		if(defined($c->{lines})) {
+			my $l = scalar(@lines);
+			$l == $c->{lines} || die "Expected $c->{lines} lines, got $l";
+		}
 		for my $li (0 .. scalar(@lines)-1) {
 			my $l = $lines[$li];
 			scalar(@$l) == 8 || die "Bad number of fields; expected 8 got ".scalar(@$l).":\n$rawlines[$li]\n";

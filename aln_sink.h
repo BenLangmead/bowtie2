@@ -1046,18 +1046,7 @@ protected:
 	 * shift the discordant alignments over to the rs1_/rs2_ lists, clear the
 	 * rs1u_/rs2u_ lists and return true.  Otherwise, return false.
 	 */
-	bool prepareDiscordants() {
-		if(rs1u_.size() == 1 && rs2u_.size() == 1) {
-			assert(rs1_.empty());
-			assert(rs2_.empty());
-			rs1_.push_back(rs1u_[0]);
-			rs2_.push_back(rs2u_[0]);
-			rs1u_.clear();
-			rs2u_.clear();
-			return true;
-		}
-		return false;
-	}
+	bool prepareDiscordants();
 
 	/**
 	 * Given that rs is already populated with alignments, consider the
@@ -1068,34 +1057,10 @@ protected:
 	 */
 	void selectAlnsToReport(
 		const EList<AlnRes>& rs,     // alignments to select from
+		uint64_t             num,    // number of alignments to select
 		EList<bool>&         select, // list to put results in
 		RandomSource&        rnd)
-		const
-	{
-		assert(init_);
-		assert(repOk());
-		assert(!maxed() || rp_.msample);
-		size_t sz = rs.size();
-		if(sz < 1) return;
-		select.resize(sz);
-		if((size_t)rp_.khits < sz) {
-			// Select a random offset into the list of alignments
-			uint32_t off = rnd.nextU32() % (uint32_t)sz;
-			size_t take = rp_.khits;
-			// Now take rp_.khits elements starting at that offset,
-			// wrapping back to 0 if necessary, and leave the rest.
-			for(size_t i = 0; i < sz; i++) {
-				off++;
-				if(off == sz) off = 0;
-				select[off] = i < take;
-			}
-		} else {
-			// Select them all!  No randomness needed.
-			for(size_t i = 0; i < sz; i++) {
-				select[i] = true;
-			}
-		}
-	}
+		const;
 
 	AlnSink&        g_;     // global alignment sink
 	ReportingParams rp_;    // reporting parameters: khits, mhits etc

@@ -594,7 +594,7 @@ void AlnSinkWrap::finishRead(
 		if(nconcord > 0) {
 			AlnSetSumm concordSumm(rd1_, rd2_, &rs1_, &rs2_);
 			// Possibly select a random subset
-			selectAlnsToReport(rs1_, select_, rnd);
+			selectAlnsToReport(rs1_, nconcord, select_, rnd);
 			g_.reportHits(
 				rd1_,
 				rd2_,
@@ -612,6 +612,7 @@ void AlnSinkWrap::finishRead(
 			assert_eq(1, rs1_.size());
 			assert_eq(1, rs2_.size());
 			AlnSetSumm discordSumm(rd1_, rd2_, &rs1_, &rs2_);
+			selectAlnsToReport(rs1_, ndiscord, select_, rnd);
 			g_.reportHits(
 				rd1_,
 				rd2_,
@@ -627,7 +628,7 @@ void AlnSinkWrap::finishRead(
 			if(nunpair1 > 0) {
 				AlnSetSumm unpair1Summ(rd1_, NULL, &rs1u_, NULL);
 				// Possibly select a random subset
-				selectAlnsToReport(rs1u_, select_, rnd);
+				selectAlnsToReport(rs1u_, nunpair1, select_, rnd);
 				g_.reportHits(
 					rd1_,
 					NULL,
@@ -641,7 +642,7 @@ void AlnSinkWrap::finishRead(
 			if(nunpair2 > 0) {
 				AlnSetSumm unpair2Summ(NULL, rd2_, NULL, &rs2u_);
 				// Possibly select a random subset
-				selectAlnsToReport(rs2u_, select_, rnd);
+				selectAlnsToReport(rs2u_, nunpair2, select_, rnd);
 				g_.reportHits(
 					NULL,
 					rd2_,
@@ -744,6 +745,63 @@ bool AlnSinkWrap::report(
 		best_ = score;
 	}
 	return st_.done();
+}
+
+/**
+ * If there is a configuration of unpaired alignments that fits our
+ * criteria for there being one or more discordant alignments, then
+ * shift the discordant alignments over to the rs1_/rs2_ lists, clear the
+ * rs1u_/rs2u_ lists and return true.  Otherwise, return false.
+ */
+bool AlnSinkWrap::prepareDiscordants() {
+	if(rs1u_.size() == 1 && rs2u_.size() == 1) {
+		assert(rs1_.empty());
+		assert(rs2_.empty());
+		rs1_.push_back(rs1u_[0]);
+		rs2_.push_back(rs2u_[0]);
+		rs1u_.clear();
+		rs2u_.clear();
+		return true;
+	}
+	return false;
+}
+
+/**
+ * Given that rs is already populated with alignments, consider the
+ * alignment policy and make random selections where necessary.  E.g. if we
+ * found 10 alignments and the policy is -k 2 -m 20, select 2 alignments at
+ * random.  We "select" an alignment by setting the parallel entry in the
+ * 'select' list to true.
+ */
+void AlnSinkWrap::selectAlnsToReport(
+	const EList<AlnRes>& rs,     // alignments to select from
+	uint64_t             num,    // number of alignments to select
+	EList<bool>&         select, // list to put results in
+	RandomSource&        rnd)
+	const
+{
+	assert(init_);
+	assert(repOk());
+	uint64_t sz = rs.size();
+	if(sz < 1) return;
+	select.resize(sz);
+	if(num < sz) {
+		// Select a random offset into the list of alignments
+		uint32_t off = rnd.nextU32() % (uint32_t)sz;
+		size_t take = (size_t)num;
+		// Now take rp_.khits elements starting at that offset,
+		// wrapping back to 0 if necessary, and leave the rest.
+		for(size_t i = 0; i < sz; i++) {
+			off++;
+			if(off == sz) off = 0;
+			select[off] = i < take;
+		}
+	} else {
+		// Select them all!  No randomness needed.
+		for(size_t i = 0; i < sz; i++) {
+			select[i] = true;
+		}
+	}
 }
 
 #define NOT_SUPPRESSED !suppress_[field++]
