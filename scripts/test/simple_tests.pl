@@ -86,6 +86,59 @@ if(! -x $bowtie2 || ! -x $bowtie2_build) {
 
 my @cases = (
 
+	# 1 discordant alignment.  Discordant because the fragment is too short.
+
+	{ name => "Simple paired-end 10",
+	  ref    => [ "TTTATAAAAATATTTCCCCCCGCCCGCCCGCCCCCCCCCCC" ],
+	#                 ATAAAAATAT       CGCCCGCCCG
+	#              01234567890123456789012345678901234567890
+	#              0         1         2         3         4
+	#                 ---------------------------
+	#                 012345678901234567890123456
+	  mate1s => [ "ATAAAAATAT" ],
+	  mate2s => [ "CGCCCGCCCG" ],
+	  args   =>   "--ff -I 28 -X 80",
+	  report =>   "-a",
+	  # Not really any way to flag an alignment as discordant
+	  pairhits => [ { "3,20" => 1 } ],
+	  flags => [ "XT:DP" ] },
+
+	# 1 discordant alignment.  Discordant because the fragment is too long.
+
+	{ name => "Simple paired-end 11",
+	  ref    => [ "TTTATAAAAATATTTCCCCCCCCCCCCCCCCGCCCGCCCGCCCCCCCCCCC" ],
+	#                 ATAAAAATAT                 CGCCCGCCCG
+	#              012345678901234567890123456789012345678901234567890
+	#              0         1         2         3         4         5
+	#                 -------------------------------------
+	#                 012345678901234567890123456789012345678901234567
+	  mate1s => [ "ATAAAAATAT" ],
+	  mate2s => [ "CGCCCGCCCG" ],
+	  args   =>   "--ff -I 0 -X 36",
+	  report =>   "-a",
+	  # Not really any way to flag an alignment as discordant
+	  pairhits => [ { "3,30" => 1 } ],
+	  flags => [ "XT:DP" ] },
+
+	# 1 discordant alignment and one concordant alignment.  Discordant because
+	# the fragment is too long.
+
+	{ name => "Simple paired-end 12",
+	  ref    => [ "TTTATAAAAATATTTCCCCCCCCCCCCCCGGGCCCGCCCGCCCCCCCCCCC" ],
+	#                 ATAAAAATAT                 GGCCCGCCCG
+	#                 ATAAAAATAT              CCGGGCCCGC
+	#              012345678901234567890123456789012345678901234567890
+	#              0         1         2         3         4         5
+	#                 -------------------------------------
+	#                 012345678901234567890123456789012345678901234567
+	  mate1s => [ "ATAAAAATAT", "ATAAAAATAT" ],
+	  mate2s => [ "GGCCCGCCCG", "CCGGGCCCGC" ],
+	  args   =>   "--ff -I 0 -X 36",
+	  report =>   "-a",
+	  # Not really any way to flag an alignment as discordant
+	  pairhits => [ { "3,30" => 1 }, { "3,27" => 1 } ],
+	  flags => [ "XT:DP", "XT:CP" ] },
+
 	# Simple paired-end alignment
 	
 	{ name => "Simple paired-end 1",
@@ -97,7 +150,8 @@ my @cases = (
 	  mate2s => [ "CGCGCGCGCG" ],
 	  args   =>   "--ff -I 0 -X 50",
 	  report =>   "-a",
-	  pairhits => [ { "3,35" => 1 } ] },
+	  pairhits => [ { "3,35" => 1 } ],
+	  flags => [ "XT:CP" ] },
 
 	# Paired-end read, but only one mate aligns
 
@@ -110,7 +164,8 @@ my @cases = (
 	  mate2s => [ "CCCCCGGGGG" ],
 	  args   =>   "--ff -I 0 -X 50",
 	  report =>   "-a",
-	  pairhits => [ { 3 => 2 } ] },
+	  pairhits => [ { 3 => 2 } ],
+	  flags => [ "XT:UP" ] },
 
 	{ name => "Simple paired-end 2; --no-mixed",
 	  ref    => [ "TTTATATATATATTTTTTTTTTTCCCCCCCCCCCCCGCGCGCGCGCCCCCCCC" ],
@@ -135,7 +190,8 @@ my @cases = (
 	  mate2s => [ "CCCCCGGGGG" ],
 	  args   =>   "--ff -I 0 -X 80 -m 2",
 	  report =>   "-a",
-	  pairhits => [ { 3 => 2 } ] },
+	  pairhits => [ { 3 => 2 } ],
+	  flags => [ "XT:UP" ] },
 
 	# Paired-end read, but only the first mate aligns within the -m 2 ceiling.
 	# Second mate aligns 3 places.
@@ -677,6 +733,7 @@ sub runbowtie2($$$$$$$$$$) {
 		$ls,
 		$rawls) = @_;
 	$args .= " --quiet";
+	$args .= " --print-flags";
 	$reportargs = $reportargs || "-a";
 	$args .= " -C" if $color;
 	$args .= " $reportargs";
@@ -757,8 +814,8 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 			for(0..scalar(@m1)-1) { $m1[$_] = DNA::revcomp($m1[$_], $color); }
 			for(0..scalar(@m2)-1) { $m2[$_] = DNA::revcomp($m2[$_], $color); }
 			$reads = \@s if defined($reads);
-			$m1s = \@m1 if defined($m1s);
-			$m2s = \@m2 if defined($m2s);
+			$m1s = \@m2 if defined($m1s);
+			$m2s = \@m1 if defined($m2s);
 		}
 		runbowtie2(
 			"$a",
@@ -791,8 +848,8 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 		}
 		for my $li (0 .. scalar(@lines)-1) {
 			my $l = $lines[$li];
-			scalar(@$l) == 8 || die "Bad number of fields; expected 8 got ".scalar(@$l).":\n$rawlines[$li]\n";
-			my ($readname, $orient, $chr, $off, $seq, $qual) = @$l;
+			scalar(@$l) == 9 || die "Bad number of fields; expected 9 got ".scalar(@$l).":\n$rawlines[$li]\n";
+			my ($readname, $orient, $chr, $off, $seq, $qual, $oms, $editstr, $flagstr) = @$l;
 			if($c->{check_random}) {
 				my $rsqKey = "$readname\t$orient\t$seq\t$qual";
 				my $rsqVal = "$chr\t$off";
@@ -843,15 +900,26 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 			# 'hits'
 			my %hits = ();
 			%hits = %{$c->{hits}->[$rdi]} if defined($c->{hits}->[$rdi]);
+			# 'flags'
+			my $flags = undef;
+			$flags = $c->{flags}->[$rdi] if defined($c->{flags}->[$rdi]);
 			# 'pairhits'
 			my %pairhits = ();
 			%pairhits = %{$c->{pairhits}->[$rdi]} if defined($c->{pairhits}->[$rdi]);
+			# 'pairflags'
+			my %pairflags = ();
+			%pairflags = %{$c->{pairflags}->[$rdi]} if defined($c->{pairflags}->[$rdi]);
 			# 'hits_are_superset'
 			my $hits_are_superset = 0;
 			$hits_are_superset = $c->{hits_are_superset}->[$rdi] if defined($ci);
 			# edits
 			my $edits = undef;
 			$edits = $c->{edits}->[$rdi] if defined($c->{edits}->[$rdi]);
+			# flags
+			if(defined($flags)) {
+				$flagstr eq $flags ||
+					die "Expected flags=\"$flags\", got \"$flagstr\"";
+			}
 			next if $orient eq '*'; # read not aligned
 			if($pe && $lastchr ne "") {
 				my $offkey = min($lastoff, $off).",".max($lastoff, $off);
@@ -886,7 +954,7 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 				}
 			}
 			if(defined($edits)) {
-				my $eds = $l->[-1];
+				my $eds = $l->[7];
 				$eds eq $edits || die "For edit string, expected \"$edits\" got \"$eds\"\n";
 			}
 		}

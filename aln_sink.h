@@ -406,16 +406,18 @@ protected:
  */
 class AlnSink {
 
+	typedef EList<std::string> StrList;
+
 public:
 
 	explicit AlnSink(
-		OutFileBuf*               out,
-		const EList<bool>&        suppress,
-		ReadSink*                 readSink,
-		const Mapq&               mapq,       // mapping quality calculator
-		bool                      deleteOuts,
-		const EList<std::string>* refnames,
-		bool                      quiet) :
+		OutFileBuf*        out,
+		const EList<bool>& suppress,
+		ReadSink*          readSink,
+		const Mapq&        mapq,       // mapping quality calculator
+		bool               deleteOuts,
+		const StrList*     refnames,
+		bool               quiet) :
 		outs_(),
 		outNames_(),
 		suppress_(suppress),
@@ -478,7 +480,8 @@ public:
 		const TReadId      rdid,
 		const AlnRes      *rs1,
 		const AlnRes      *rs2,
-		const AlnSetSumm&  summ) = 0;
+		const AlnSetSumm&  summ,
+		const AlnFlags&    flags) = 0;
 
 	/**
 	 * Report a given batch of hits for the given read pair.  Should be
@@ -493,6 +496,7 @@ public:
 		const EList<AlnRes> *rs2,            // alignments for mate #2
 		bool                 maxed,          // true iff -m/-M exceeded
 		const AlnSetSumm&    summ,           // summary
+		const AlnFlags&      flags,          // flags
 		bool                 getLock = true) // true iff lock held by caller
 	{
 		assert(rd1 != NULL || rd2 != NULL);
@@ -510,6 +514,7 @@ public:
 			0,
 			sz,
 			summ,
+			flags,
 			getLock);
 	}
 
@@ -528,6 +533,7 @@ public:
 		size_t               start,          // alignments to report: start
 		size_t               end,            // alignments to report: end 
 		const AlnSetSumm&    summ,           // summary
+		const AlnFlags&      flags,          // flags
 		bool                 getLock = true) // true iff lock held by caller
 	{
 		assert(rd1 != NULL || rd2 != NULL);
@@ -557,7 +563,7 @@ public:
 			ThreadSafe ts(&locks_[sid], getLock);
 			const AlnRes* r1 = ((rs1 != NULL) ? &rs1->get(i) : NULL);
 			const AlnRes* r2 = ((rs2 != NULL) ? &rs2->get(i) : NULL);
-			append(out(sid), rd1, rd2, rdid, r1, r2, summ);
+			append(out(sid), rd1, rd2, rdid, r1, r2, summ, flags);
 			reported++;
 		}
 		readSink_->dumpAlign(rd1, rd2, rdid);
@@ -581,11 +587,23 @@ public:
 		const EList<AlnRes> *rs1,            // alignments for mate #1
 		const EList<AlnRes> *rs2,            // alignments for mate #2
 		const AlnSetSumm&    summ,           // summary
+		const AlnFlags&      flags,          // flags
 		bool                 getLock = true) // true iff lock held by caller
 	{
 		assert(rd1 != NULL || rd2 != NULL);
 		assert(rs1 != NULL || rs2 != NULL);
-		reportMaxed(rd1, rd2, rdid, rs1, rs2, 0, rs1->size(), summ, getLock);
+		size_t sz = ((rs1 != NULL) ? rs1->size() : rs2->size());
+		reportMaxed(
+			rd1,
+			rd2,
+			rdid,
+			rs1,
+			rs2,
+			0,
+			sz,
+			summ,
+			flags,
+			getLock);
 	}
 
 	/**
@@ -601,6 +619,7 @@ public:
 		size_t               start,          // alignments to report: start
 		size_t               end,            // alignments to report: end 
 		const AlnSetSumm&    summ,           // summary
+		const AlnFlags&      flags,          // flags
 		bool                 getLock = true) // true iff lock held by caller
 	{
 		assert(rd1 != NULL || rd2 != NULL);
@@ -785,7 +804,7 @@ protected:
 	volatile uint64_t  numMaxed_;     // # reads with # alignments exceeding -m ceiling
 	volatile uint64_t  numReported_;  // # single-ended alignments reported
 	volatile uint64_t  numReportedPaired_; // # paired-end alignments reported
-	const EList<std::string>* refnames_; // reference names
+	const StrList*     refnames_; // reference names
 	bool               quiet_;        // true -> don't print alignment stats at the end
 	ReadSink*          readSink_;     // 
 	const Mapq&        mapq_;         // mapping quality calculator
@@ -987,7 +1006,7 @@ public:
 			assert(rd1_ != NULL);
 			assert_neq(std::numeric_limits<TReadId>::max(), rdid_);
 		}
-		assert_eq(st_.numConcordant(), rs1_.size());
+		assert_eq(st_.numConcordant() + st_.numDiscordant(), rs1_.size());
 		assert_eq(st_.numUnpaired1(), rs1u_.size());
 		assert_eq(st_.numUnpaired2(), rs2u_.size());
 		assert(st_.repOk());
@@ -1087,25 +1106,28 @@ protected:
  */
 class AlnSinkVerbose : public AlnSink {
 
+	typedef EList<std::string> StrList;
+
 public:
 
 	AlnSinkVerbose(
-		OutFileBuf*               out,        // initial output stream
-		const EList<bool>&        suppress,   // suppress columns
-		ReadSink*                 readSink,   // read sink
-		const Mapq&               mapq,       // mapping quality calculator
-		bool                      deleteOuts, // whether to delete output objects upon destruction
-		const EList<std::string>* refnames,   // reference names
-		bool                      quiet,      // don't print alignment summary at end
-		int                       offBase,    // add this to 0-based offsets before printing
-		bool                      colorSeq,   // colorspace: print color seq instead of decoded nucs
-		bool                      colorQual,  // colorspace: print color quals instead of decoded quals
-		bool                      exEnds,     // exclude ends for decoded colorspace alignments
-		bool                      printCost,  // print penalty in extra column
-		bool                      printParams,// print alignment parameters
-		ReferenceMap*             rmap,       // reference coordinate transformation
-		bool                      fullRef,    // print entire reference name including whitespace
-		int                       partition = 0) : // partition size
+		OutFileBuf*        out,        // initial output stream
+		const EList<bool>& suppress,   // suppress columns
+		ReadSink*          readSink,   // read sink
+		const Mapq&        mapq,       // mapping quality calculator
+		bool               deleteOuts, // whether to delete output objects upon destruction
+		const StrList*     refnames,   // reference names
+		bool               quiet,      // don't print alignment summary at end
+		int                offBase,    // add to 0-based offsets before printing
+		bool               colorSeq,   // color: print color seq instead of decoded nucs
+		bool               colorQual,  // color: print color quals instead of decoded quals
+		bool               exEnds,     // exclude ends for decoded colors alns
+		bool               printFlags, // print alignment flags a la SAM
+		bool               printCost,  // print penalty in extra column
+		bool               printParams,// print alignment parameters
+		ReferenceMap*      rmap,       // reference coordinate transformation
+		bool               fullRef,    // print entire ref name incl whitespace
+		int                partition = 0) : // partition size
 		AlnSink(
 			out,
 			suppress,
@@ -1118,6 +1140,7 @@ public:
 		colorSeq_(colorSeq),
 		colorQual_(colorQual),
 		exEnds_(exEnds),
+		printFlags_(printFlags),
 		printCost_(printCost),
 		printParams_(printParams),
 		rmap_(rmap),
@@ -1138,12 +1161,13 @@ public:
 		const TReadId rdid,     // read ID
 		const AlnRes* rs1,      // alignments for mate #1
 		const AlnRes* rs2,      // alignments for mate #2
-		const AlnSetSumm& summ) // summary
+		const AlnSetSumm& summ, // summary
+		const AlnFlags& flags)  // flags
 	{
 		assert(rd1 != NULL || rd2 != NULL);
 		assert(rs1 != NULL || rs2 != NULL);
-		if(rd1 != NULL) appendMate(o, *rd1, rd2, rdid, *rs1, rs2, summ);
-		if(rd2 != NULL) appendMate(o, *rd2, rd1, rdid, *rs2, rs1, summ);
+		if(rd1 != NULL) appendMate(o, *rd1, rd2, rdid, *rs1, rs2, summ, flags);
+		if(rd2 != NULL) appendMate(o, *rd2, rd1, rdid, *rs2, rs1, summ, flags);
 	}
 
 protected:
@@ -1160,12 +1184,14 @@ protected:
 		const TReadId rdid,
 		const AlnRes& rs,
 		const AlnRes* rso,
-		const AlnSetSumm& summ);
+		const AlnSetSumm& summ,
+		const AlnFlags& flags);
 
 	int           offBase_;    // add this to 0-based reference offsets before printing
 	bool          colorSeq_;   // colorspace: print color seq instead of decoded nucs
 	bool          colorQual_;  // colorspace: print color quals instead of decoded quals
 	bool          exEnds_;     // exclude ends for decoded colorspace alignments
+	bool          printFlags_; // print alignment flags
 	bool          printCost_;  // print penalty in extra column
 	bool          printParams_;// print alignment parameters
 	ReferenceMap* rmap_;       // reference coordinate transformation

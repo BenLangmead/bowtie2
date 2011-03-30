@@ -526,6 +526,83 @@ typedef uint64_t TNumAlns;
  * given read.  Referring to the fields of this object should provide
  * enough information to print output records for the read.
  */
+
+enum {
+	// This alignment is one of a pair of alignments that form a concordant
+	// alignment for a read
+	ALN_FLAG_PAIR_CONCORD = 1,
+
+	// This alignment is one of a pair of alignments that form a discordant
+	// alignment for a read
+	ALN_FLAG_PAIR_DISCORD,
+	
+	// This is an unpaired alignment but the read in question is a pair;
+	// usually, this happens because the read had no reportable paired-end
+	// alignments
+	ALN_FLAG_PAIR_UNPAIRED_FROM_PAIR,
+
+	// This is an unpaired alignment of an unpaired read
+	ALN_FLAG_PAIR_UNPAIRED
+};
+
+class AlnFlags {
+
+public:
+
+	AlnFlags(int pairing, bool maxed, bool maxedPair) {
+		init(pairing, maxed, maxedPair);
+	}
+
+	/**
+	 * Initialize given values for all settings.
+	 */
+	void init(int pairing, bool maxed, bool maxedPair) {
+		assert_gt(pairing, 0);
+		assert_leq(pairing, ALN_FLAG_PAIR_UNPAIRED);
+		pairing_ = pairing;
+		maxed_ = maxed;
+		maxedPair_ = maxedPair;
+	}
+
+	/**
+	 * Return true iff this alignment is from a paired-end read.
+	 */
+	bool partOfPair() const {
+		assert_gt(pairing_, 0);
+		return pairing_ < ALN_FLAG_PAIR_UNPAIRED;
+	}
+	
+	/**
+	 * Check that the flags are internally consistent.
+	 */
+	bool repOk() const {
+		assert(partOfPair() || !maxedPair_);
+		return true;
+	}
+	
+	inline int  pairing()   const { return pairing_; }
+	inline bool maxed()     const { return maxed_; }
+	inline bool maxedPair() const { return maxedPair_; }
+
+protected:
+
+	// See ALN_FLAG_PAIR_* above
+	int pairing_;
+
+	// This alignment is sampled from among many alignments that, taken
+	// together, cause this mate to align non-uniquely
+	bool maxed_;
+	
+	// The paired-end read of which this mate is part has repetitive concordant
+	// alignments
+	bool maxedPair_;
+};
+
+/**
+ * Encapsulates a concise summary of a set of alignment results for a
+ * given read.  Referring to the fields of this object should provide
+ * enough information to print output records for the read.
+ */
 class AlnSetSumm {
 
 public:
