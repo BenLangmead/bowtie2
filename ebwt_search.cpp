@@ -2470,6 +2470,7 @@ static void* multiseedSearchWorker(void *vp) {
 							rdlens[mate],
 							costCeilConst,
 							costCeilLinear);
+						int nceil = (int)pens.nCeil(rdlens[mate]);
 						assert_geq(penceil, 0);
 						bool done = false;
 						if(pair) {
@@ -2477,6 +2478,7 @@ static void* multiseedSearchWorker(void *vp) {
 								rdlens[mate ^ 1],
 								costCeilConst,
 								costCeilLinear);
+							int onceil = (int)pens.nCeil(rdlens[mate ^ 1]);
 							// Paired-end dynamic programming driver
 							done = sd.extendSeedsPaired(
 								*rds[mate],     // mate to align as anchor
@@ -2496,6 +2498,8 @@ static void* multiseedSearchWorker(void *vp) {
 								interval,       // interval between seeds
 								penceil,        // penalty ceil for anchor
 								openceil,       // penalty ceil for opp.
+								nceil,          // N ceil for anchor
+								onceil,         // N ceil for opp.
 								maxposs,        // max off/orient combos
 								maxrows,        // max offset resolutions
 								sc,             // seed alignment cache
@@ -2528,6 +2532,7 @@ static void* multiseedSearchWorker(void *vp) {
 								multiseedLen,   // length of a seed
 								interval,       // interval between seeds
 								penceil,        // penalty ceiling
+								nceil,          // N ceil for anchor
 								maxposs,        // max off/orient combos
 								maxrows,        // max offset resolutions
 								sc,             // seed alignment cache

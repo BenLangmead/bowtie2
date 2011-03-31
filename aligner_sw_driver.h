@@ -60,6 +60,7 @@ public:
 		int seedlen,                 // length of seed
 		int seedival,                // interval between seeds
 		int penceil,                 // maximum penalty allowed
+		int nceil,                   // maximum # Ns permitted in ref portion
 		uint32_t maxposs,            // stop after examining this many positions (offset+orientation combos)
 		uint32_t maxrows,            // stop examining a position after this many offsets are reported
 		AlignmentCacheIface& sc,     // alignment cache for seed hits
@@ -125,6 +126,8 @@ public:
 		int seedival,                // interval between seeds
 		int penceil,                 // maximum penalty allowed for anchor
 		int openceil,                // maximum penalty allowed for opposite
+		int nceil,                   // max # Ns permitted in ref for anchor
+		int onceil,                  // max # Ns permitted in ref for opposite
 		uint32_t maxposs,            // stop after examining this many positions (offset+orientation combos)
 		uint32_t maxrows,            // stop examining a position after this many offsets are reported
 		AlignmentCacheIface& sc,     // alignment cache for seed hits

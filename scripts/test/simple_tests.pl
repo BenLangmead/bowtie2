@@ -86,6 +86,27 @@ if(! -x $bowtie2 || ! -x $bowtie2_build) {
 
 my @cases = (
 
+	# Experiment with N filtering
+	
+	{ name => "N filtering 1",
+	  ref      => [ "GAGACTTTATACGCATCGAACTATCGCTCTA" ],
+	  reads    => [         "ATACGCATCGAAC" ],
+	  #              0123456789012345678901234567890
+	  #                        1         2         3
+	  args     =>   "-P \"NCEIL=0,0\"",
+	  report   =>   "-a",
+	  hits     => [ { 8 => 1 } ],
+	  flags => [ "XT:UU" ] },
+
+	{ name => "N filtering 2",
+	  ref      => [ "GAGACTTTATNCGCATCGAACTATCGCTCTA" ],
+	  reads    => [         "ATACGCATCGAAC" ],
+	  #              0123456789012345678901234567890
+	  #                        1         2         3
+	  args     =>   "-P \"NCEIL=0,0\"",
+	  report   =>   "-a",
+	  hits     => [ { } ] },
+
 	# No discordant alignment because one mate is repetitive.
 
 	{ name => "Simple paired-end 15",
@@ -174,14 +195,14 @@ my @cases = (
 	# 1 discordant alignment.  Discordant because the fragment is too long.
 
 	{ name => "Simple paired-end 11",
-	  ref    => [ "TTTATAAAAATATTTCCCCCCCCCCCCCCCCGCCCGCCCGCCCCCCCCCCC" ],
-	#                 ATAAAAATAT                 CGCCCGCCCG
+	  ref    => [ "TTTATAAAAATATTTCCCCCCCCCCCCCCCCGATCGCCCGCCCCCCCCCCC" ],
+	#                 ATAAAAATAT                 CGATCGCCCG
 	#              012345678901234567890123456789012345678901234567890
 	#              0         1         2         3         4         5
 	#                 -------------------------------------
 	#                 012345678901234567890123456789012345678901234567
 	  mate1s => [ "ATAAAAATAT" ],
-	  mate2s => [ "CGCCCGCCCG" ],
+	  mate2s => [ "CGATCGCCCG" ],
 	  args   =>   "--ff -I 0 -X 36",
 	  report =>   "-a",
 	  # Not really any way to flag an alignment as discordant
@@ -191,14 +212,14 @@ my @cases = (
 	# 1 discordant alignment.  Discordant because the fragment is too short.
 
 	{ name => "Simple paired-end 10",
-	  ref    => [ "TTTATAAAAATATTTCCCCCCGCCCGCCCGCCCCCCCCCCC" ],
-	#                 ATAAAAATAT       CGCCCGCCCG
+	  ref    => [ "TTTATAAAAATATTTCCCCCCGATCGCCCGCCCCCCCCCCC" ],
+	#                 ATAAAAATAT       CGATCGCCCG
 	#              01234567890123456789012345678901234567890
 	#              0         1         2         3         4
 	#                 ---------------------------
 	#                 012345678901234567890123456
 	  mate1s => [ "ATAAAAATAT" ],
-	  mate2s => [ "CGCCCGCCCG" ],
+	  mate2s => [ "CGATCGCCCG" ],
 	  args   =>   "--ff -I 28 -X 80",
 	  report =>   "-a",
 	  # Not really any way to flag an alignment as discordant

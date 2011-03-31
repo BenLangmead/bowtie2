@@ -56,6 +56,15 @@ public:
 	}
 	
 	/**
+	 * Set the N penalty.
+	 */
+	void setNPen(int nType, int n) {
+		npenType     = nType;
+		npen         = n;
+		initPens(npens, npenType, npen);
+	}
+	
+	/**
 	 * Check that penalties are internally consistent.
 	 */
 	bool repOk() const {

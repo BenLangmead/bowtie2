@@ -508,8 +508,8 @@ public:
 		size_t rfi,            // offset of first reference char to align to
 		size_t rff,            // offset of last reference char to align to
 		size_t width,          // # bands to do (width of parallelogram)
-		const EList<bool>* st, // mask indicating which columns we can start in
-		const EList<bool>* en, // mask indicating which columns we can end in
+		EList<bool>* st,       // mask indicating which columns we can start in
+		EList<bool>* en,       // mask indicating which columns we can end in
 		const SwParams& pa,    // params for SW alignment
 		const Penalties& pen,  // penalties for edit types
 		int penceil)           // penalty ceiling for valid alignments
@@ -569,11 +569,12 @@ public:
 		const BitPairReference& refs, // Reference strings
 		size_t reflen,         // length of reference sequence
 		size_t width,          // # bands to do (width of parallelogram)
-		const EList<bool>* st, // mask indicating which columns we can start in
-		const EList<bool>* en, // mask indicating which columns we can end in
+		EList<bool>* st,       // mask indicating which columns we can start in
+		EList<bool>* en,       // mask indicating which columns we can end in
 		const SwParams& pa,    // dynamic programming parameters
 		const Penalties& pen,  // penalty scheme
-		int penceil);          // penalty ceiling for valid alignments
+		int penceil,           // penalty ceiling for valid alignments
+		int nceil);            // max # Ns allowed in reference part of aln
 	
 	/**
 	 * Align read 'rd' to reference using read & reference information given
@@ -609,7 +610,31 @@ public:
 	 */
 	void reset() { inited_ = false; }
 
+	/**
+	 * Do some quick filtering, setting elements of st_ and en_ to false
+	 * according to the alignment policy and properties of the read/ref
+	 * sequence.
+	 */
+	void filter(size_t nlim) {
+		nfilter(nlim);
+	}
+
 protected:
+	
+	/**
+	 * Set elements of en_ to false if an ungapped alignment extending
+	 * diagonally back from the corresponding cell in the last row would
+	 * overlap too many Ns (more than nlim).
+	 */
+	size_t nfilter(size_t nlim);
+	
+	/**
+	 * Return the number of rows that will be in the dynamic programming table.
+	 */
+	inline size_t dpRows() const {
+		assert(inited_);
+		return rdf_ - rdi_ + (color_ ? 1 : 0);
+	}
 
 	/**
 	 * Align and simultaneously decode the colorspace read 'rd' to the
@@ -701,8 +726,8 @@ protected:
 	size_t              rfi_;    // offset of first ref char to align to
 	size_t              rff_;    // offset of last ref char to align to
 	size_t              width_;  // # bands to do (width of parallelogram)
-	const EList<bool>*  st_;     // mask indicating which cols we can start in
-	const EList<bool>*  en_;     // mask indicating which cols we can end in
+	EList<bool>*        st_;     // mask indicating which cols we can start in
+	EList<bool>*        en_;     // mask indicating which cols we can end in
 	int                 rdgap_;  // max # gaps in read
 	int                 rfgap_;  // max # gaps in reference
 	int                 maxgap_; // max(rdgap_, rfgap_)

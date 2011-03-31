@@ -84,6 +84,7 @@ bool SwDriver::extendSeeds(
 	int seedlen,                 // length of seed
 	int seedival,                // interval between seeds
 	int penceil,                 // maximum penalty allowed
+	int nceil,                   // maximum # Ns permitted in reference portion
 	uint32_t maxposs,            // stop after examining this many positions (offset+orientation combos)
 	uint32_t maxrows,            // stop examining a position after this many offsets are reported
 	AlignmentCacheIface& sc,     // alignment cache for seed hits
@@ -229,7 +230,8 @@ bool SwDriver::extendSeeds(
 				&en_,      // mask indicating which columns we can end in
 				pa,        // dynamic programming parameters
 				pen,       // penalty scheme
-				penceil);  // penalty ceiling for valid alignments
+				penceil,   // penalty ceiling for valid alignments
+				nceil);    // max # Ns
 			// Now fill the dynamic programming matrix and return true iff
 			// there is at least one valid alignment
 			found = swa.align(
@@ -425,6 +427,8 @@ bool SwDriver::extendSeedsPaired(
 	int seedival,                // interval between seeds
 	int penceil,                 // maximum penalty allowed for anchor
 	int openceil,                // maximum penalty allowed for opposite
+	int nceil,                   // max # Ns permitted in ref for anchor
+	int onceil,                  // max # Ns permitted in ref for opposite
 	uint32_t maxposs,            // stop after examining this many positions (offset+orientation combos)
 	uint32_t maxrows,            // stop examining a position after this many offsets are reported
 	AlignmentCacheIface& sc,     // alignment cache for seed hits
@@ -581,7 +585,8 @@ bool SwDriver::extendSeedsPaired(
 				&en_,      // mask indicating which columns we can end in
 				pa,        // dynamic programming parameters
 				pen,       // penalty scheme
-				penceil);  // penalty ceiling for valid alignments
+				penceil,   // penalty ceiling for valid alignments
+				nceil);    // max # Ns
 			// Now fill the dynamic programming matrix and return true iff
 			// there is at least one valid alignment
 			found = swa.align(
@@ -662,6 +667,7 @@ bool SwDriver::extendSeedsPaired(
 						orefr,       // out: ref pos of lower RHS of parallelogram
 						st_,         // out: legal starting columns stored here
 						en_);        // out: legal ending columns stored here
+					assert_eq(orefr - orefl + 1, (int64_t)(owidth + orows - 1));
 				}
 				if(foundMate) {
 					ores_.reset();
@@ -676,8 +682,8 @@ bool SwDriver::extendSeedsPaired(
 						ofw,       // whether to align forward or revcomp read
 						color,     // colorspace?
 						tidx,      // reference aligned against
-						oll,       // off of first character in rf to consider
-						orr,       // off of last char (excl) in rf to consider
+						orefl,     // off of first character in rf to consider
+						orefr+1,   // off of last char (excl) in rf to consider
 						ref,       // Reference strings
 						tlen,      // length of reference sequence
 						owidth,    // # bands to do (width of parallelogram)
@@ -685,7 +691,8 @@ bool SwDriver::extendSeedsPaired(
 						&en_,      // mask of which cols we can end in
 						pa,        // dynamic programming parameters
 						pen,       // penalty scheme
-						openceil); // penalty ceiling for valid alignments
+						openceil,  // penalty ceiling for valid alignments
+						onceil);   // max # Ns
 					// Now fill the dynamic programming matrix and return true
 					// iff there is at least one valid alignment
 					foundMate = swa.align(ores_, rnd);

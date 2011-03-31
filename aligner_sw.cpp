@@ -37,22 +37,16 @@ void SwAligner::init(
 	const BitPairReference& refs, // Reference strings
 	size_t reflen,         // length of reference sequence
 	size_t width,          // # bands to do (width of parallelogram)
-	const EList<bool>* st, // mask indicating which columns we can start in
-	const EList<bool>* en, // mask indicating which columns we can end in
+	EList<bool>* st,       // mask indicating which columns we can start in
+	EList<bool>* en,       // mask indicating which columns we can end in
 	const SwParams& pa,    // dynamic programming parameters
 	const Penalties& pen,  // penalty scheme
-	int penceil)           // max penalty we can incur for a valid alignment
+	int penceil,           // max penalty we can incur for a valid alignment
+	int nceil)             // max # Ns allowed in reference portion of aln
 {
 	assert_gt(rff, rfi);
 	assert_gt(rdf, rdi);
 	assert(color == rd.color);
-	if(rd.color) {
-		// Our dynamic programming table has 1 more row than there are colors
-		// in the read, because we're assigning nucleotides to all positions
-		// affected by any color
-		reflen++;
-		rff++;
-	}
 	// Figure the number of Ns we're going to add to either side
 	size_t leftNs  =
 		(rfi >= 0               ? 0 : (size_t)std::abs(rfi));
@@ -137,6 +131,8 @@ void SwAligner::init(
 		pa,          // dynamic programming parameters
 		pen,         // penalties
 		penceil);    // max penalty
+	
+	filter(nceil);
 }
 
 /**
@@ -569,6 +565,42 @@ inline void SwAligner::updateNucDiag(
 }
 
 /**
+ * Set elements of en_ to false if an ungapped alignment extending
+ * diagonally back from the corresponding cell in the last row would
+ * overlap too many Ns (more than nlim).
+ */
+size_t SwAligner::nfilter(size_t nlim) {
+	size_t nrow = dpRows();
+	size_t ns = 0;
+	size_t filtered = 0;
+	assert_eq(rff_ - rfi_, width_ + nrow - 1);
+	// For each reference character involved
+	for(size_t i = rfi_; i <= rff_; i++) {
+		int rfc = rf_[i];
+		assert_range(0, 16, rfc);
+		if(i >= nrow) {
+			size_t col = i - nrow;
+			if(ns > nlim) {
+				if((*en_)[col]) {
+					(*en_)[col] = false;
+					filtered++;
+				}
+			}
+			int prev_rfc = rf_[i - nrow];
+			assert_range(0, 16, prev_rfc);
+			if(prev_rfc == 16) {
+				assert_gt(ns, 0);
+				ns--;
+			}
+		}
+		if(rfc == 16) {
+			ns++;
+		}
+	}
+	return filtered;
+}
+
+/**
  * Align the nucleotide read 'read' as aligned against the reference
  * string 'rf' using a banded dynamic programming algorithm.
  *
@@ -834,6 +866,7 @@ static int penMmc;           // constant if mm pelanty is a constant
 static int penSnp;           // penalty associated with nucleotide mismatch in decoded colorspace alignment
 static int penNType;         // how to penalize Ns in the read
 static int penN;             // constant if N pelanty is a constant
+static bool nPairCat;        // true -> concatenate mates before N filter
 static int penRdOpen;        // cost of opening a gap in the read
 static int penRfOpen;        // cost of opening a gap in the reference
 static int penRdExConst;     // constant cost of extending a gap in the read
@@ -895,14 +928,15 @@ static void doTestCase(
 	const BTString&    qual,
 	const BTString&    refin,
 	size_t             off,
-	const EList<bool> *st,
-	const EList<bool> *en,
+	EList<bool>       *st,
+	EList<bool>       *en,
 	const SwParams&    pa,
 	const Penalties&   pens,
 	int                penceil,
 	SwResult&          res,
 	bool               color,
 	bool               nsInclusive,
+	bool               filterns,
 	uint32_t           seed)
 {
 	SwAligner al;
@@ -918,6 +952,7 @@ static void doTestCase(
 	assert_geq(readGaps, 0);
 	assert_geq(refGaps, 0);
 	int maxGaps = max(readGaps, refGaps);
+	size_t nceil = pens.nCeil(read.length());
 	size_t width = 1 + 2 * maxGaps;
 	size_t refoff = off;
 	// Pad the beginning of the reference with Ns if necessary
@@ -950,6 +985,17 @@ static void doTestCase(
 	}
 	bool fw = true;
 	uint32_t refidx = 0;
+	EList<bool> stbuf, enbuf;
+	if(st == NULL) {
+		stbuf.resize(width);
+		stbuf.fill(true);
+		st = &stbuf;
+	}
+	if(en == NULL) {
+		enbuf.resize(width);
+		enbuf.fill(true);
+		en = &enbuf;
+	}
 	al.init(
 		read,          // read sequence
 		qual,          // read qualities
@@ -963,27 +1009,34 @@ static void doTestCase(
 		rfi,           // offset of first char in 'ref' to consider
 		rff,           // offset of last char (exclusive) in 'ref' to consider
 		width,         // # bands to do (width of parallelogram)
-		NULL,          // mask indicating which columns we can start in
-		NULL,          // mask indicating which columns we can end in
+		st,            // mask indicating which columns we can start in
+		en,            // mask indicating which columns we can end in
 		pa,            // dynamic programming parameters
 		pens,          // penalties
 		penceil);      // max total penalty
+	if(filterns) {
+		al.filter((int)nceil);
+	}
 	al.align(
 		res,
 		rnd);
-	cout << " Score: " << res.alres.score() << endl;
-	if(color) {
-		cout << "   Read colors: " << endl;
-		cout << "     ";
-		for(size_t i = 0; i < read.length(); i++) {
-			printColor((int)read[i]);
+	if(!res.empty()) {
+		cout << " Score: " << res.alres.score() << endl;
+		if(color) {
+			cout << "   Read colors: " << endl;
+			cout << "     ";
+			for(size_t i = 0; i < read.length(); i++) {
+				printColor((int)read[i]);
+			}
+			cout << endl;
+			cout << "   Color alignment (decoded): " << endl;
+			Edit::printQAlign(cout, "     ", read, res.alres.ced());
+		} else {
+			cout << "   Nucleotide alignment: " << endl;
+			Edit::printQAlign(cout, "     ", read, res.alres.ned());
 		}
-		cout << endl;
-		cout << "   Color alignment (decoded): " << endl;
-		Edit::printQAlign(cout, "     ", read, res.alres.ced());
 	} else {
-		cout << "   Nucleotide alignment: " << endl;
-		Edit::printQAlign(cout, "     ", read, res.alres.ned());
+		cout << "Empty result" << endl;
 	}
 }
 
@@ -1002,6 +1055,7 @@ static void doTestCase2(
 	SwResult&          res,
 	bool               color,
 	bool               nsInclusive = false,
+	bool               filterns = false,
 	uint32_t           seed = 0)
 {
 	BTDnaString btread(read, true, color);
@@ -1023,6 +1077,7 @@ static void doTestCase2(
 		res,
 		color,
 		nsInclusive,
+		filterns,
 		seed
 	);
 }
@@ -1036,6 +1091,7 @@ static void doTests() {
 	penSnp          = DEFAULT_SNP_PENALTY;
 	penNType        = DEFAULT_N_PENALTY_TYPE;
 	penN            = DEFAULT_N_PENALTY;
+	nPairCat        = DEFAULT_N_CAT_PAIR;
 	penRdOpen       = DEFAULT_READ_OPEN;
 	penRfOpen       = DEFAULT_REF_OPEN;
 	penRdExConst    = DEFAULT_READ_EXTEND_CONST;
@@ -1058,6 +1114,7 @@ static void doTests() {
 		nCeilLinear,   // coeff of linear term in N ceiling w/r/t read length
 		penNType,      // how to penalize Ns in the read
 		penN,          // constant if N pelanty is a constant
+		nPairCat,      // true -> concatenate mates before N filtering
 		penRdOpen,     // cost of opening a gap in the read
 		penRfOpen,     // cost of opening a gap in the reference
 		penRdExConst,  // constant cost of extending a gap in the read
@@ -1074,6 +1131,7 @@ static void doTests() {
 		1.0f,
 		penNType,      // how to penalize Ns in the read
 		penN,          // constant if N pelanty is a constant
+		nPairCat,      // true -> concatenate mates before N filtering
 		40,            // cost of opening a gap in the read
 		40,            // cost of opening a gap in the reference
 		penRdExConst,  // constant cost of extending a gap in the read
@@ -1089,6 +1147,8 @@ static void doTests() {
 	//
 	cerr << "Running tests..." << endl;
 	int tests = 1;
+	bool nIncl = false;
+	bool nfilter = false;
 
 	for(int i = 0; i < 3; i++) {
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", exact)...";
@@ -1104,7 +1164,9 @@ static void doTests() {
 			30.0f,
 			0.0f,
 			res,
-			false);
+			false,
+			nIncl,
+			nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), 0);
@@ -1114,7 +1176,7 @@ static void doTests() {
 		res.reset();
 		cerr << "PASSED" << endl;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", 1mm allowed by penceil)...";
-		doTestCase2("ACGTTCGT", "IIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, false);
+		doTestCase2("ACGTTCGT", "IIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, false, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), -30);
@@ -1122,7 +1184,7 @@ static void doTests() {
 		res.reset();
 		cerr << "PASSED" << endl;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", 1mm allowed by penceil, check qual 1)...";
-		doTestCase2("ACGTTCGT", "ABCDEFGH", "ACGTACGTACGTACGT", i*4, pa, pens2, 40.0f, 0.0f, res, false);
+		doTestCase2("ACGTTCGT", "ABCDEFGH", "ACGTACGTACGTACGT", i*4, pa, pens2, 40.0f, 0.0f, res, false, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), -36);
@@ -1130,7 +1192,7 @@ static void doTests() {
 		res.reset();
 		cerr << "PASSED" << endl;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", 1mm allowed by penceil, check qual 2)...";
-		doTestCase2("ACGAACGT", "ABCDEFGH", "ACGTACGTACGTACGT", i*4, pa, pens2, 40.0f, 0.0f, res, false);
+		doTestCase2("ACGAACGT", "ABCDEFGH", "ACGTACGTACGTACGT", i*4, pa, pens2, 40.0f, 0.0f, res, false, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), -35);
@@ -1138,7 +1200,7 @@ static void doTests() {
 		res.reset();
 		cerr << "PASSED" << endl;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", 1mm allowed by penceil, check qual )...";
-		doTestCase2("TCGTACGT", "ABCDEFGH", "ACGTACGTACGTACGT", i*4, pa, pens2, 40.0f, 0.0f, res, false);
+		doTestCase2("TCGTACGT", "ABCDEFGH", "ACGTACGTACGTACGT", i*4, pa, pens2, 40.0f, 0.0f, res, false, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), -32);
@@ -1146,7 +1208,7 @@ static void doTests() {
 		res.reset();
 		cerr << "PASSED" << endl;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", 1mm at the beginning, allowed by penceil)...";
-		doTestCase2("CCGTACGT", "IIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, false);
+		doTestCase2("CCGTACGT", "IIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, false, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), -30);
@@ -1157,7 +1219,7 @@ static void doTests() {
 		res.reset();
 		cerr << "PASSED" << endl;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", 1 n in read, allowed)...";
-		doTestCase2("ACGTNCGT", "IIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, false);
+		doTestCase2("ACGTNCGT", "IIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, false, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), -1);
@@ -1165,7 +1227,7 @@ static void doTests() {
 		res.reset();
 		cerr << "PASSED" << endl;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", 2 n in read, allowed)...";
-		doTestCase2("ACGNNCGT", "IIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, false);
+		doTestCase2("ACGNNCGT", "IIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, false, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), -2);
@@ -1173,7 +1235,7 @@ static void doTests() {
 		res.reset();
 		cerr << "PASSED" << endl;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", 2 n in read, 1 at beginning, allowed)...";
-		doTestCase2("NCGTNCGT", "IIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, false);
+		doTestCase2("NCGTNCGT", "IIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, false, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), -2);
@@ -1181,7 +1243,7 @@ static void doTests() {
 		res.reset();
 		cerr << "PASSED" << endl;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", 1 n in ref, allowed)...";
-		doTestCase2("ACGTACGT", "IIIIIIII", "ACGTNCGTACGTANGT", i*4, pa, pens, 30.0f, 0.0f, res, false);
+		doTestCase2("ACGTACGT", "IIIIIIII", "ACGTNCGTACGTANGT", i*4, pa, pens, 30.0f, 0.0f, res, false, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), -1);
@@ -1189,13 +1251,13 @@ static void doTests() {
 		res.reset();
 		cerr << "PASSED" << endl;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", 1mm disallowed by penceil)...";
-		doTestCase2("ACGTTCGT", "IIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 10.0f, 0.0f, res, false);
+		doTestCase2("ACGTTCGT", "IIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 10.0f, 0.0f, res, false, nIncl, nfilter);
 		assert(res.empty());
 		res.reset();
 		// Read gap with equal read and ref gap penalties
 		cerr << "PASSED" << endl;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", read gap allowed by penceil)...";
-		doTestCase2("ACGTCGT", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 40.0f, 0.0f, res, false);
+		doTestCase2("ACGTCGT", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 40.0f, 0.0f, res, false, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 1);
 		assert_eq(res.alres.score().score(), -40);
@@ -1203,13 +1265,13 @@ static void doTests() {
 		res.reset();
 		cerr << "PASSED" << endl;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", read gap disallowed by penceil)...";
-		doTestCase2("ACGTCGT", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, false);
+		doTestCase2("ACGTCGT", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, false, nIncl, nfilter);
 		assert(res.empty());
 		res.reset();
 		cerr << "PASSED" << endl;
 		// Ref gap with equal read and ref gap penalties
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", ref gap allowed by penceil)...";
-		doTestCase2("ACGTAACGT", "IIIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 40.0f, 0.0f, res, false);
+		doTestCase2("ACGTAACGT", "IIIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 40.0f, 0.0f, res, false, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 1);
 		assert_eq(res.alres.score().score(), -40);
@@ -1217,7 +1279,7 @@ static void doTests() {
 		res.reset();
 		cerr << "PASSED" << endl;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", ref gap disallowed by penceil)...";
-		doTestCase2("ACGTAACGT", "IIIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, false);
+		doTestCase2("ACGTAACGT", "IIIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, false, nIncl, nfilter);
 		assert(res.empty());
 		res.reset();
 		cerr << "PASSED" << endl;
@@ -1225,7 +1287,7 @@ static void doTests() {
 		pens.refOpen = 50;
 		pens.readOpen = 40;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", 1 read gap, ref gaps disallowed by penceil)...";
-		doTestCase2("ACGTCGT", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 40.0f, 0.0f, res, false);
+		doTestCase2("ACGTCGT", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 40.0f, 0.0f, res, false, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 1);
 		assert_eq(res.alres.score().score(), -40);
@@ -1233,7 +1295,7 @@ static void doTests() {
 		res.reset();
 		cerr << "PASSED" << endl;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", gaps disallowed by penceil)...";
-		doTestCase2("ACGTCGT", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, false);
+		doTestCase2("ACGTCGT", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, false, nIncl, nfilter);
 		assert(res.empty());
 		res.reset();
 		cerr << "PASSED" << endl;
@@ -1241,7 +1303,7 @@ static void doTests() {
 		pens.refOpen = 40;
 		pens.readOpen = 50;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", 1 ref gap, read gaps disallowed by penceil)...";
-		doTestCase2("ACGTAACGT", "IIIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 40.0f, 0.0f, res, false);
+		doTestCase2("ACGTAACGT", "IIIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 40.0f, 0.0f, res, false, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 1);
 		assert_eq(res.alres.score().score(), -40);
@@ -1249,7 +1311,7 @@ static void doTests() {
 		res.reset();
 		cerr << "PASSED" << endl;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", gaps disallowed by penceil)...";
-		doTestCase2("ACGTAACGT", "IIIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, false);
+		doTestCase2("ACGTAACGT", "IIIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, false, nIncl, nfilter);
 		assert(res.empty());
 		res.reset();
 		cerr << "PASSED" << endl;
@@ -1257,7 +1319,7 @@ static void doTests() {
 		pens.refOpen = 20;
 		pens.readOpen = 40;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", 1 read gap, 2 ref gaps allowed by penceil)...";
-		doTestCase2("ACGTCGT", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 40.0f, 0.0f, res, false);
+		doTestCase2("ACGTCGT", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 40.0f, 0.0f, res, false, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 1);
 		assert_eq(res.alres.score().score(), -40);
@@ -1265,14 +1327,14 @@ static void doTests() {
 		res.reset();
 		cerr << "PASSED" << endl;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", gaps disallowed by penceil)...";
-		doTestCase2("ACGTCGT", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, false);
+		doTestCase2("ACGTCGT", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, false, nIncl, nfilter);
 		assert(res.empty());
 		res.reset();
 		// Ref gap with one ref gap and two read gaps allowed
 		pens.refOpen = 40;
 		pens.readOpen = 20;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", 1 ref gap, 2 read gaps allowed by penceil)...";
-		doTestCase2("ACGTAACGT", "IIIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 40.0f, 0.0f, res, false);
+		doTestCase2("ACGTAACGT", "IIIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 40.0f, 0.0f, res, false, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 1);
 		assert_eq(res.alres.score().score(), -40);
@@ -1280,7 +1342,7 @@ static void doTests() {
 		res.reset();
 		cerr << "PASSED" << endl;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", gaps disallowed by penceil)...";
-		doTestCase2("ACGTAACGT", "IIIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, false);
+		doTestCase2("ACGTAACGT", "IIIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, false, nIncl, nfilter);
 		assert(res.empty());
 		res.reset();
 		cerr << "PASSED" << endl;
@@ -1288,7 +1350,7 @@ static void doTests() {
 		pens.refOpen = 20;
 		pens.readOpen = 20;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", 2 ref gaps, 2 read gaps allowed by penceil)...";
-		doTestCase2("ACGTCGT", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 40.0f, 0.0f, res, false);
+		doTestCase2("ACGTCGT", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 40.0f, 0.0f, res, false, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 1);
 		assert_eq(res.alres.score().score(), -20);
@@ -1296,7 +1358,7 @@ static void doTests() {
 		res.reset();
 		cerr << "PASSED" << endl;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", 1 ref gap, 1 read gap allowed by penceil)...";
-		doTestCase2("ACGTCGT", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, false);
+		doTestCase2("ACGTCGT", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, false, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 1);
 		assert_eq(res.alres.score().score(), -20);
@@ -1307,7 +1369,7 @@ static void doTests() {
 		pens.refOpen = 20;
 		pens.readOpen = 20;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", 2 ref gaps, 2 read gaps allowed by penceil)...";
-		doTestCase2("ACGTAACGT", "IIIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 40.0f, 0.0f, res, false);
+		doTestCase2("ACGTAACGT", "IIIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 40.0f, 0.0f, res, false, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 1);
 		assert_eq(res.alres.score().score(), -20);
@@ -1315,7 +1377,7 @@ static void doTests() {
 		res.reset();
 		cerr << "PASSED" << endl;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", 1 ref gap, 1 read gap allowed by penceil)...";
-		doTestCase2("ACGTAACGT", "IIIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, false);
+		doTestCase2("ACGTAACGT", "IIIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, false, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 1);
 		assert_eq(res.alres.score().score(), -20);
@@ -1324,7 +1386,7 @@ static void doTests() {
 		cerr << "PASSED" << endl;
 		
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", short read)...";
-		doTestCase2("A", "I", "AAAAAAAAAAAA", i*4, pa, pens, 30.0f, 0.0f, res, false);
+		doTestCase2("A", "I", "AAAAAAAAAAAA", i*4, pa, pens, 30.0f, 0.0f, res, false, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), 0);
@@ -1334,7 +1396,7 @@ static void doTests() {
 
 		if(i == 0) {
 			cerr << "  Test " << tests++ << " (nuc space, offset 0, short read & ref)...";
-			doTestCase2("A", "I", "A", 0, pa, pens, 30.0f, 0.0f, res, false);
+			doTestCase2("A", "I", "A", 0, pa, pens, 30.0f, 0.0f, res, false, nIncl, nfilter);
 			assert(!res.empty());
 			assert_eq(res.alres.score().gaps(), 0);
 			assert_eq(res.alres.score().score(), 0);
@@ -1344,7 +1406,7 @@ static void doTests() {
 		}
 
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", short read, many allowed gaps)...";
-		doTestCase2("A", "I", "AAAAAAAAAAAA", i*4, pa, pens, 150.0f, 0.0f, res, false);
+		doTestCase2("A", "I", "AAAAAAAAAAAA", i*4, pa, pens, 150.0f, 0.0f, res, false, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), 0);
@@ -1354,7 +1416,7 @@ static void doTests() {
 
 		if(i == 0) {
 			cerr << "  Test " << tests++ << " (nuc space, offset 0, short read & ref, many allowed gaps)...";
-			doTestCase2("A", "I", "A", 0, pa, pens, 150.0f, 0.0f, res, false);
+			doTestCase2("A", "I", "A", 0, pa, pens, 150.0f, 0.0f, res, false, nIncl, nfilter);
 			assert(!res.empty());
 			assert_eq(res.alres.score().gaps(), 0);
 			assert_eq(res.alres.score().score(), 0);
@@ -1369,7 +1431,7 @@ static void doTests() {
 		pens.refOpen = 40;
 		pens.readOpen = 40;
 		pa.exEnds = false;
-		doTestCase2("1313131", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, true);
+		doTestCase2("1313131", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, true, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), 0);
@@ -1382,7 +1444,7 @@ static void doTests() {
 		pens.refOpen = 40;
 		pens.readOpen = 40;
 		pa.exEnds = false;
-		doTestCase2("1313131", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 40.0f, 0.0f, res, true);
+		doTestCase2("1313131", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 40.0f, 0.0f, res, true, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), 0);
@@ -1396,7 +1458,7 @@ static void doTests() {
 		pens.refOpen = 50;
 		pens.readOpen = 40;
 		pa.exEnds = false;
-		doTestCase2("131313131", "IIIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 80.0f, 0.0f, res, true);
+		doTestCase2("131313131", "IIIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 80.0f, 0.0f, res, true, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 0); assert_eq(res.alres.score().score(), 0);
 		assert(res.alres.ned().empty()); assert(res.alres.ced().empty());
@@ -1408,7 +1470,7 @@ static void doTests() {
 		pens.refOpen = 40;
 		pens.readOpen = 50;
 		pa.exEnds = false;
-		doTestCase2("131313131", "IIIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 80.0f, 0.0f, res, true);
+		doTestCase2("131313131", "IIIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 80.0f, 0.0f, res, true, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), 0);
@@ -1423,7 +1485,7 @@ static void doTests() {
 		pens.readOpen = 40;
 		pens.snp = 30;
 		pa.exEnds = false;
-		doTestCase2("131.131", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, true);
+		doTestCase2("131.131", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, true, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), -1);
@@ -1439,7 +1501,7 @@ static void doTests() {
 		pens.readOpen = 40;
 		pens.snp = 30;
 		pa.exEnds = false;
-		doTestCase2(".313131", "IIIIIII", "ACGTACNTACGTACNT", i*4, pa, pens, 30.0f, 0.0f, res, true);
+		doTestCase2(".313131", "IIIIIII", "ACGTACNTACGTACNT", i*4, pa, pens, 30.0f, 0.0f, res, true, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), -2);
@@ -1456,7 +1518,7 @@ static void doTests() {
 		pens.readOpen = 40;
 		pens.snp = 30;
 		pa.exEnds = false;
-		doTestCase2(".31313.", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, true);
+		doTestCase2(".31313.", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, true, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), -2);
@@ -1473,7 +1535,7 @@ static void doTests() {
 			pens.readOpen = 40;
 			pens.snp = 30;
 			pa.exEnds = false;
-			doTestCase2("..13131", "IIIIIII", "ANGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, true);
+			doTestCase2("..13131", "IIIIIII", "ANGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, true, nIncl, nfilter);
 			assert(!res.empty());
 			assert_eq(res.alres.score().gaps(), 0);
 			// TODO: should be -2
@@ -1492,7 +1554,7 @@ static void doTests() {
 		pens.readOpen = 40;
 		pens.snp = 30;
 		pa.exEnds = false;
-		doTestCase2("1310231", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, true);
+		doTestCase2("1310231", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, true, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 0); assert_eq(res.alres.score().score(), -30);
 		assert_eq(1, res.alres.ned().size());
@@ -1506,7 +1568,7 @@ static void doTests() {
 		pens.readOpen = 40;
 		pens.snp = 30;
 		pa.exEnds = false;
-		doTestCase2("0213131", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, true);
+		doTestCase2("0213131", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, true, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), -30);
@@ -1521,7 +1583,7 @@ static void doTests() {
 		pens.readOpen = 20;
 		pens.snp = 20;
 		pa.exEnds = false;
-		doTestCase2("1310231", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 20.0f, 0.0f, res, true);
+		doTestCase2("1310231", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 20.0f, 0.0f, res, true, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 0); assert_eq(res.alres.score().score(), -20);
 		assert_eq(1, res.alres.ned().size());
@@ -1535,7 +1597,7 @@ static void doTests() {
 		pens.readOpen = 40;
 		pens.snp = 30;
 		pa.exEnds = false;
-		doTestCase2("1310131", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, true);
+		doTestCase2("1310131", "IIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 30.0f, 0.0f, res, true, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 0); assert_eq(res.alres.score().score(), -30);
 		assert_eq(0, res.alres.ned().size());
@@ -1547,7 +1609,7 @@ static void doTests() {
 		cerr << "  Test " << tests++ << " (color space, offset " << (i*4) << ", 1 MM allowed by penceil 2)...";
 		pens.snp = 20;
 		pa.exEnds = false;
-		doTestCase2("1310131", "5555555", "ACGTACGTACGTACGT", i*4, pa, pens2, 20.0f, 0.0f, res, true);
+		doTestCase2("1310131", "5555555", "ACGTACGTACGTACGT", i*4, pa, pens2, 20.0f, 0.0f, res, true, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 0); assert_eq(res.alres.score().score(), -20);
 		assert_eq(0, res.alres.ned().size());
@@ -1561,7 +1623,7 @@ static void doTests() {
 		pens.readOpen = 40;
 		pens.snp = 30;
 		pa.exEnds = false;
-		doTestCase2("131231", "IIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 40.0f, 0.0f, res, true);
+		doTestCase2("131231", "IIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 40.0f, 0.0f, res, true, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 1); assert_eq(res.alres.score().score(), -40);
 		assert_eq(1, res.alres.ned().size());
@@ -1575,7 +1637,7 @@ static void doTests() {
 		pens.readOpen = 40;
 		pens.snp = 30;
 		pa.exEnds = false;
-		doTestCase2("13130131", "IIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 40.0f, 0.0f, res, true);
+		doTestCase2("13130131", "IIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 40.0f, 0.0f, res, true, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 1); assert_eq(res.alres.score().score(), -40);
 		assert_eq(1, res.alres.ned().size());
@@ -1594,7 +1656,7 @@ static void doTests() {
 		pens.readExLinear = 0;
 		pens.snp = 30;
 		pa.exEnds = false;
-		doTestCase2("131003131", "IIIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 80.0f, 0.0f, res, true);
+		doTestCase2("131003131", "IIIIIIIII", "ACGTACGTACGTACGT", i*4, pa, pens, 80.0f, 0.0f, res, true, nIncl, nfilter);
 		assert(!res.empty());
 		assert_eq(res.alres.score().gaps(), 2); assert_eq(res.alres.score().score(), -55);
 		assert_eq(2, res.alres.ned().size());
@@ -1613,16 +1675,16 @@ static void doTests() {
 	pens.snp = 30;
 	pens.nCeilConst = 0.0f;
 	pens.nCeilLinear = 0.0f;
-	pens.npenType = COST_MODEL_CONSTANT;
-	pens.npen = 2;
 	pens.readOpen = 10;
 	pens.refOpen = 10;
 	pens.readExConst = 10;
 	pens.readExLinear = 10;
 	pens.refExConst = 10;
 	pens.refExLinear = 10;
+	pens.setNPen(COST_MODEL_CONSTANT, 2);
 	pa.exEnds = false;
 	pa.gapBar = 1;
+	// No Ns allowed, so this hit should be filtered
 	doTestCase2(
 		"ACGTACGT", // read seq
 		"IIIIIIII", // read quals
@@ -1633,12 +1695,61 @@ static void doTests() {
 		25.0f,      //
 		0.0f,
 		res,
-		false,
-		false,
+		false,  // colorspace
+		false, // ns are in inclusive
+		true, // nfilter
+		0);
+	assert(res.empty());
+	cerr << "PASSED" << endl;
+	res.reset();
+
+	// No Ns allowed, so this hit should be filtered
+	cerr << "  Test " << tests++ << " (N ceiling 2)...";
+	pens.nCeilConst = 1.0f;
+	pens.nCeilLinear = 0.0f;
+	doTestCase2(
+		"ACGTACGT", // read seq
+		"IIIIIIII", // read quals
+		"NCGTACGT", // ref seq
+		0,          // offset
+		pa,         // alignment params
+		pens,       // penalties
+		25.0f,      //
+		0.0f,
+		res,
+		false,  // colorspace
+		false, // ns are in inclusive
+		false, // nfilter - NOTE: FILTER OFF
 		0);
 	assert(!res.empty());
-	assert_eq(res.alres.score().ns(), 0);
-	assert_eq(res.alres.score().gaps(), 1);
+	assert_eq(0,  res.alres.score().gaps());
+	assert_eq(-2, res.alres.score().score());
+	assert_eq(1,  res.alres.score().ns());
+	cerr << "PASSED" << endl;
+	res.reset();
+
+	// No Ns allowed, so this hit should be filtered
+	cerr << "  Test " << tests++ << " (N ceiling 3)...";
+	pens.nCeilConst = 1.0f;
+	pens.nCeilLinear = 0.0f;
+	doTestCase2(
+		"ACGTACGT", // read seq
+		"IIIIIIII", // read quals
+		"NCGTACGT", // ref seq
+		0,          // offset
+		pa,         // alignment params
+		pens,       // penalties
+		25.0f,      //
+		0.0f,
+		res,
+		false,  // colorspace
+		false,  // ns are in inclusive
+		true,   // nfilter - NOTE: FILTER ON
+		0);
+	assert(!res.empty());
+	assert_eq(0,  res.alres.score().gaps());
+	assert_eq(-2, res.alres.score().score());
+	assert_eq(1,  res.alres.score().ns());
 	cerr << "PASSED" << endl;
 	res.reset();
 }
@@ -1652,6 +1763,7 @@ int main(int argc, char **argv) {
 	gColor = false;
 	gColorExEnds = true;
 	bool nsInclusive = false;
+	bool nfilter = false;
 	penMmcType      = DEFAULT_MM_PENALTY_TYPE;
 	penMmc          = DEFAULT_MM_PENALTY;
 	penSnp          = DEFAULT_SNP_PENALTY;
@@ -1750,6 +1862,7 @@ int main(int argc, char **argv) {
 		nCeilLinear,   // N ceiling linear coefficient
 		penNType,      // how to penalize Ns in the read
 		penN,          // constant if N pelanty is a constant
+		nPairCat,      // true -> concatenate mates before N filtering
 		penRdOpen,     // cost of opening a gap in the read
 		penRfOpen,     // cost of opening a gap in the reference
 		penRdExConst,  // constant cost of extending a gap in the read
@@ -1777,6 +1890,7 @@ int main(int argc, char **argv) {
 		res,
 		gColor,
 		nsInclusive,
+		nfilter,
 		seed);
 }
 #endif /*MAIN_ALIGNER_SW*/

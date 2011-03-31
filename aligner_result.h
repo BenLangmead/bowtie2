@@ -50,14 +50,6 @@ public:
 	}
 
 	/**
-	 * Return true iff gapped score is valid (i.e., represents one or
-	 * more paths leading to a valid partial alignment).
-	 */
-	//inline bool valid() const {
-	//	return score_ > scoreLim;
-	//}
-
-	/**
 	 * Make this score invalid (and therefore <= all other scores).
 	 */
 	inline void invalidate() {
