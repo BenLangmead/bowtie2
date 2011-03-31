@@ -290,13 +290,11 @@ AlnSetSumm::AlnSetSumm(
 	const EList<AlnRes>* rs2)
 {
 	assert(rd1 != NULL || rd2 != NULL);
-	assert(rs1 != NULL || rs2 != NULL);
-	assert((rd1 == NULL) == (rs1 == NULL));
-	assert((rd2 == NULL) == (rs2 == NULL));
 	AlignmentScore best, secbest;
 	best.invalidate();
 	secbest.invalidate();
 	bool paired = (rs1 != NULL && rs2 != NULL);
+	bool noResult = (rs1 == NULL && rs2 == NULL);
 	size_t sz;
 	if(paired) {
 		// Paired alignments
@@ -315,7 +313,9 @@ AlnSetSumm::AlnSetSumm(
 				assert(VALID_AL_SCORE(secbest));
 			}
 		}
-	} else {
+		init(best, secbest, sz-1);
+		assert(!empty());
+	} else if(!noResult) {
 		// Unpaired alignments
 		const EList<AlnRes>* rs = (rs1 != NULL ? rs1 : rs2);
 		assert(rs != NULL);
@@ -333,7 +333,12 @@ AlnSetSumm::AlnSetSumm(
 				assert(VALID_AL_SCORE(secbest));
 			}
 		}
+		init(best, secbest, sz-1);
+		assert(!empty());
+	} else {
+		// No result - leave best and secbest as invalid
+		init(best, secbest, 0);
+		assert(empty());
 	}
-	init(best, secbest, sz-1);
 }
 

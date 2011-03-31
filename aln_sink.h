@@ -625,6 +625,15 @@ public:
 		assert(rd1 != NULL || rd2 != NULL);
 		assert(rs1 != NULL || rs2 != NULL);
 		readSink_->dumpMaxed(rd1, rd2, rdid);
+		{
+			// Determine the stream id using the coordinate of the
+			// upstream mate
+			Coord c(0, 0, true);
+			size_t sid = streamId(rdid, c);
+			assert_lt(sid, locks_.size());
+			ThreadSafe ts(&locks_[sid], getLock);
+			append(out(sid), rd1, rd2, rdid, NULL, NULL, summ, flags);
+		}
 		ThreadSafe ts(&mainlock_, getLock);
 		numMaxed_++;
 	}
@@ -637,9 +646,20 @@ public:
 		const Read          *rd1,            // mate #1
 		const Read          *rd2,            // mate #2
 		const TReadId        rdid,           // read ID
+		const AlnSetSumm&    summ,           // summary
+		const AlnFlags&      flags,          // flags
 		bool                 getLock = true) // true iff lock held by caller
 	{
 		readSink_->dumpUnal(rd1, rd2, rdid);
+		{
+			// Determine the stream id using the coordinate of the
+			// upstream mate
+			Coord c(0, 0, true);
+			size_t sid = streamId(rdid, c);
+			assert_lt(sid, locks_.size());
+			ThreadSafe ts(&locks_[sid], getLock);
+			append(out(sid), rd1, rd2, rdid, NULL, NULL, summ, flags);
+		}
 		ThreadSafe ts(&mainlock_, getLock);
 		numUnaligned_++;
 	}
@@ -1115,13 +1135,14 @@ public:
 		const EList<bool>& suppress,   // suppress columns
 		ReadSink*          readSink,   // read sink
 		const Mapq&        mapq,       // mapping quality calculator
-		bool               deleteOuts, // whether to delete output objects upon destruction
+		bool               deleteOuts, // delete output objects upon destruction
 		const StrList*     refnames,   // reference names
 		bool               quiet,      // don't print alignment summary at end
 		int                offBase,    // add to 0-based offsets before printing
-		bool               colorSeq,   // color: print color seq instead of decoded nucs
-		bool               colorQual,  // color: print color quals instead of decoded quals
+		bool               colorSeq,   // color: print color seq, not decoded nucs
+		bool               colorQual,  // color: print color quals, not decoded quals
 		bool               exEnds,     // exclude ends for decoded colors alns
+		bool               printPlaceholders, // print maxs and unals
 		bool               printFlags, // print alignment flags a la SAM
 		bool               printCost,  // print penalty in extra column
 		bool               printParams,// print alignment parameters
@@ -1140,6 +1161,7 @@ public:
 		colorSeq_(colorSeq),
 		colorQual_(colorQual),
 		exEnds_(exEnds),
+		printPlaceholders_(printPlaceholders),
 		printFlags_(printFlags),
 		printCost_(printCost),
 		printParams_(printParams),
@@ -1165,9 +1187,8 @@ public:
 		const AlnFlags& flags)  // flags
 	{
 		assert(rd1 != NULL || rd2 != NULL);
-		assert(rs1 != NULL || rs2 != NULL);
-		if(rd1 != NULL) appendMate(o, *rd1, rd2, rdid, *rs1, rs2, summ, flags);
-		if(rd2 != NULL) appendMate(o, *rd2, rd1, rdid, *rs2, rs1, summ, flags);
+		if(rd1 != NULL) appendMate(o, *rd1, rd2, rdid, rs1, rs2, summ, flags);
+		if(rd2 != NULL) appendMate(o, *rd2, rd1, rdid, rs2, rs1, summ, flags);
 	}
 
 protected:
@@ -1182,7 +1203,7 @@ protected:
 		const Read&   rd,
 		const Read*   rdo,
 		const TReadId rdid,
-		const AlnRes& rs,
+		const AlnRes* rs,
 		const AlnRes* rso,
 		const AlnSetSumm& summ,
 		const AlnFlags& flags);
@@ -1191,6 +1212,7 @@ protected:
 	bool          colorSeq_;   // colorspace: print color seq instead of decoded nucs
 	bool          colorQual_;  // colorspace: print color quals instead of decoded quals
 	bool          exEnds_;     // exclude ends for decoded colorspace alignments
+	bool    printPlaceholders_;// print maxs and unals
 	bool          printFlags_; // print alignment flags
 	bool          printCost_;  // print penalty in extra column
 	bool          printParams_;// print alignment parameters

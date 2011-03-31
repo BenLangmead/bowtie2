@@ -727,7 +727,26 @@ void AlnSinkWrap::finishRead(
 		}
 		// No alignments at all
 		else {
-			g_.reportUnaligned(rd1_, rd2_, rdid_, true);
+			if(rd1_ != NULL) {
+				AlnSetSumm summ(rd1_, NULL, NULL, NULL);
+				AlnFlags flags(
+					readIsPair() ?
+						ALN_FLAG_PAIR_UNPAIRED_FROM_PAIR :
+						ALN_FLAG_PAIR_UNPAIRED,
+					false,
+					false);
+				g_.reportUnaligned(rd1_, rd2_, rdid_, summ, flags, true);
+			}
+			if(rd2_ != NULL) {
+				AlnSetSumm summ(NULL, rd2_, NULL, NULL);
+				AlnFlags flags(
+					readIsPair() ?
+						ALN_FLAG_PAIR_UNPAIRED_FROM_PAIR :
+						ALN_FLAG_PAIR_UNPAIRED,
+					false,
+					false);
+				g_.reportUnaligned(rd1_, rd2_, rdid_, summ, flags, true);
+			}
 		}
 	}
 	init_ = false;
@@ -1116,14 +1135,16 @@ void AlnSinkVerbose::appendMate(
 	const Read&   rd,
 	const Read*   rdo,
 	const TReadId rdid,
-	const AlnRes& rs,
+	const AlnRes* rs,
 	const AlnRes* rso,
 	const AlnSetSumm& summ,
 	const AlnFlags& flags)
 {
+	if(rs == NULL && !printPlaceholders_) return;
 	bool spill = false;
 	int spillAmt = 0;
 	int offAdj = ((rd.color && exEnds_) ? 1 : 0);
+	if(rs == NULL) offAdj = 0;
 	size_t rdlen = rd.length();
 	TRefOff pdiv = std::numeric_limits<TRefOff>::max();
 	uint32_t pmod = 0xffffffff;
@@ -1145,36 +1166,46 @@ void AlnSinkVerbose::appendMate(
 			int pospart = abs(partition_);
 			if(NOT_SUPPRESSED) {
 				WRITE_TAB;
-				// Output a partitioning key
-				// First component of the key is the reference index
-				if(refnames_ != NULL && rmap_ != NULL) {
-					printUptoWs(o, rmap_->getName(rs.refid()), !fullRef_);
-				} else if(refnames_ != NULL && rs.refid() < refnames_->size()) {
-					printUptoWs(o, (*refnames_)[rs.refid()], !fullRef_);
+				if(rs != NULL) {
+					// Output a partitioning key
+					// First component of the key is the reference index
+					if(refnames_ != NULL && rmap_ != NULL) {
+						printUptoWs(o, rmap_->getName(rs->refid()), !fullRef_);
+					} else if(refnames_ != NULL && rs->refid() < refnames_->size()) {
+						printUptoWs(o, (*refnames_)[rs->refid()], !fullRef_);
+					} else {
+						itoa10<TRefId>(rs->refid(), buf);
+						o.writeChars(buf);
+					}
 				} else {
-					itoa10<TRefId>(rs.refid(), buf);
-					o.writeChars(buf);
+					o.write('*');
 				}
 			}
-			// Next component of the key is the partition id
-			if(!dospill) {
-				pdiv = (uint32_t)((rs.refoff() + offAdj + offBase_) / pospart);
-				pmod = (uint32_t)((rs.refoff() + offAdj + offBase_) % pospart);
+			TRefOff off = rs != NULL ? rs->refoff() : 0;
+			pdiv = pmod = 0;
+			size_t pdivLen = 0;
+			char * buf2;
+			if(rs != NULL) {
+				// Next component of the key is the partition id
+				if(!dospill) {
+					pdiv = (uint32_t)((rs->refoff() + offAdj + offBase_) / pospart);
+					pmod = (uint32_t)((rs->refoff() + offAdj + offBase_) % pospart);
+				}
+				assert_neq(std::numeric_limits<TRefOff>::max(), pdiv);
+				assert_neq(0xffffffff, pmod);
+				if(dospill) assert_gt(spillAmt, 0);
+				// TODO: is colorspace being properly accounted for in the
+				// following?
+				if(partition_ > 0 &&
+				   (pmod + rdlen) >= ((uint32_t)pospart * (spillAmt + 1))) {
+					// Spills into the next partition so we need to
+					// output another alignment for that partition
+					spill = true;
+				}
 			}
-			assert_neq(std::numeric_limits<TRefOff>::max(), pdiv);
-			assert_neq(0xffffffff, pmod);
-			if(dospill) assert_gt(spillAmt, 0);
-			char * buf2 = itoa10<TRefOff>(pdiv + (dospill ? spillAmt : 0), buf);
-			size_t pdivLen = buf2 - buf;
+			buf2 = itoa10<TRefOff>(pdiv + (dospill ? spillAmt : 0), buf);
+			pdivLen = buf2 - buf;
 			assert_gt(pdivLen, 0);
-			// TODO: is colorspace being properly accounted for in the
-			// following?
-			if(partition_ > 0 &&
-			   (pmod + rdlen) >= ((uint32_t)pospart * (spillAmt + 1))) {
-				// Spills into the next partition so we need to
-				// output another alignment for that partition
-				spill = true;
-			}
 			if(NOT_SUPPRESSED) {
 				WRITE_TAB;
 				// Print partition id with leading 0s so that Hadoop
@@ -1193,7 +1224,8 @@ void AlnSinkVerbose::appendMate(
 			if(NOT_SUPPRESSED) {
 				WRITE_TAB;
 				// Print offset with leading 0s
-				buf2 = itoa10<TRefOff>(rs.refoff() + offAdj + offBase_, buf);
+				int base = (rs == NULL ? 0 : offBase_);
+				buf2 = itoa10<TRefOff>(off + offAdj + base, buf);
 				size_t offLen = buf2 - buf;
 				assert_gt(offLen, 0);
 				for(size_t i = offLen; i < 9; i++) o.write('0');
@@ -1201,7 +1233,11 @@ void AlnSinkVerbose::appendMate(
 			}
 			if(NOT_SUPPRESSED) {
 				WRITE_TAB;
-				o.write(rs.refcoord().fw() ? '+' : '-');
+				if(rs == NULL) {
+					o.write('*');
+				} else {
+					o.write(rs->refcoord().fw() ? '+' : '-');
+				}
 			}
 			// end if(partition != 0)
 		} else {
@@ -1212,24 +1248,37 @@ void AlnSinkVerbose::appendMate(
 			}
 			if(NOT_SUPPRESSED) {
 				WRITE_TAB;
-				o.write(rs.refcoord().fw() ? '+' : '-');
-			}
-			if(NOT_SUPPRESSED) {
-				WRITE_TAB;
-				// .first is text id, .second is offset
-				if(refnames_ != NULL && rmap_ != NULL) {
-					printUptoWs(o, rmap_->getName(rs.refid()), !fullRef_);
-				} else if(refnames_ != NULL && rs.refid() < refnames_->size()) {
-					printUptoWs(o, (*refnames_)[rs.refid()], !fullRef_);
+				if(rs == NULL) {
+					o.write('*');
 				} else {
-					itoa10<TRefId>(rs.refid(), buf);
-					o.writeChars(buf);
+					o.write(rs->refcoord().fw() ? '+' : '-');
 				}
 			}
 			if(NOT_SUPPRESSED) {
 				WRITE_TAB;
-				itoa10<TRefOff>(rs.refoff() + offAdj + offBase_, buf);
-				o.writeChars(buf);
+				// .first is text id, .second is offset
+				if(rs != NULL) {
+					if(refnames_ != NULL && rmap_ != NULL) {
+						printUptoWs(o, rmap_->getName(rs->refid()), !fullRef_);
+					} else if(refnames_ != NULL && rs->refid() < refnames_->size()) {
+						printUptoWs(o, (*refnames_)[rs->refid()], !fullRef_);
+					} else {
+						itoa10<TRefId>(rs->refid(), buf);
+						o.writeChars(buf);
+					}
+				} else {
+					o.write('*');
+				}
+			}
+			if(NOT_SUPPRESSED) {
+				WRITE_TAB;
+				if(rs != NULL) {
+					TRefOff off = rs->refoff();
+					itoa10<TRefOff>(off + offAdj + offBase_, buf);
+					o.writeChars(buf);
+				} else {
+					o.write('*');
+				}
 			}
 			// end else clause of if(partition != 0)
 		}
@@ -1238,48 +1287,62 @@ void AlnSinkVerbose::appendMate(
 		if(NOT_SUPPRESSED) {
 			WRITE_TAB;
 			bool printColors = rd.color && colorSeq_;
-			if(rd.color && !colorSeq_) {
+			if(rs != NULL && rd.color && !colorSeq_) {
 				// decode colorspace alignment
-				rs.decodedNucsAndQuals(rd, dseq_, dqual_);
+				rs->decodedNucsAndQuals(rd, dseq_, dqual_);
 				decoded = true;
 			}
-			rs.printSeq(
-				rd,
-				&dseq_,
-				printColors,
-				exEnds_,
-				o);
+			if(rs != NULL) {
+				rs->printSeq(
+					rd,
+					&dseq_,
+					printColors,
+					exEnds_,
+					o);
+			} else {
+				// Print the read
+				o.writeChars(rd.patFw.toZBuf());
+			}
 		}
 		if(NOT_SUPPRESSED) {
 			WRITE_TAB;
 			bool printColors = rd.color && colorQual_;
-			if(rd.color && !decoded && !colorQual_) {
+			if(rs != NULL && rd.color && !decoded && !colorQual_) {
 				// decode colorspace alignment
-				rs.decodedNucsAndQuals(rd, dseq_, dqual_);
+				rs->decodedNucsAndQuals(rd, dseq_, dqual_);
 				decoded = true;
 			}
-			rs.printQuals(
-				rd,
-				&dqual_,
-				printColors,
-				exEnds_,
-				o);
+			if(rs != NULL) {
+				rs->printQuals(
+					rd,
+					&dqual_,
+					printColors,
+					exEnds_,
+					o);
+			} else {
+				// Print the quals
+				o.writeChars(rd.qual.toZBuf());
+			}
 		}
 		if(NOT_SUPPRESSED) {
 			WRITE_TAB;
-			itoa10<TMapq>(mapq_.mapq(summ), buf);
-			o.writeChars(buf);
+			if(rs != NULL) {
+				itoa10<TMapq>(mapq_.mapq(summ), buf);
+				o.writeChars(buf);
+			} else o.write('*');
 		}
 		if(NOT_SUPPRESSED) {
 			WRITE_TAB;
 			// If ends are being excluded, we need to subtract 1 from
 			// .pos's of ned and aed, and exclude elements at the
 			// extreme ends.
-			printEdits(
-				rs.ned(),                   // edits to print
-				rdlen + (rd.color ? 1 : 0), // length of read string that edits refer to
-				rd.color && exEnds_,        // true -> exclude edits at ends and adjust poss
-				o);                         // output stream
+			if(rs != NULL) {
+				printEdits(
+					rs->ned(),                  // edits to print
+					rdlen + (rd.color ? 1 : 0), // length of read string that edits refer to
+					rd.color && exEnds_,        // true -> exclude edits at ends and adjust poss
+					o);                         // output stream
+			} else o.write('*');
 		}
 		if(partition_ != 0) {
 			// Fields addded as of Crossbow 0.1.4
@@ -1332,16 +1395,20 @@ void AlnSinkVerbose::appendMate(
 			// Cost
 			if(NOT_SUPPRESSED) {
 				WRITE_TAB;
-				WRITE_NUM(o, rs.score().penalty());
+				if(rs != NULL) {
+					WRITE_NUM(o, rs->score().penalty());
+				} else o.write('*');
 			}
 		}
 		if(printParams_) {
 			if(NOT_SUPPRESSED) {
 				WRITE_TAB;
-				WRITE_NUM(o, rs.seedmms());  o.write(',');
-				WRITE_NUM(o, rs.seedlen());  o.write(',');
-				WRITE_NUM(o, rs.seedival()); o.write(',');
-				WRITE_NUM(o, rs.penceil());
+				if(rs != NULL) {
+					WRITE_NUM(o, rs->seedmms());  o.write(',');
+					WRITE_NUM(o, rs->seedlen());  o.write(',');
+					WRITE_NUM(o, rs->seedival()); o.write(',');
+					WRITE_NUM(o, rs->penceil());
+				} else o.write('*');
 			}
 		}
 		o.write('\n');

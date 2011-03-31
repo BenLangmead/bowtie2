@@ -150,6 +150,7 @@ static int defaultMapq; // default mapping quality to print in SAM mode
 bool gColorSeq; // true -> show colorspace alignments as colors, not decoded bases
 bool gColorEdit; // true -> show edits as colors, not decoded bases
 bool gColorQual; // true -> show colorspace qualities as original quals, not decoded quals
+static bool printPlaceholders; // true -> print records for maxed-out, unaligned reads
 static bool printFlags; // true -> print alignment flags
 static bool printCost; // true -> print stratum and cost
 static bool printParams; // true -> print parameters like seed spacing, cost ceiling
@@ -307,6 +308,7 @@ static void resetOptions() {
 	gColorSeq				= false; // true -> show colorspace alignments as colors, not decoded bases
 	gColorEdit				= false; // true -> show edits as colors, not decoded bases
 	gColorQual				= false; // true -> show colorspace qualities as original quals, not decoded quals
+	printPlaceholders       = false; // true -> print records for maxed-out, unaligned reads
 	printFlags              = false; // true -> print alignment flags
 	printCost				= false; // true -> print cost and stratum
 	printParams				= false; // true -> print parameters regarding seeding, ceilings
@@ -439,6 +441,7 @@ enum {
 	ARG_COLOR_SEQ,
 	ARG_COLOR_EDIT,
 	ARG_COLOR_QUAL,
+	ARG_PRINT_PLACEHOLDERS,
 	ARG_PRINT_FLAGS,
 	ARG_COST,
 	ARG_PRINT_PARAMS,
@@ -554,6 +557,7 @@ static struct option long_options[] = {
 	{(char*)"col-cqual",    no_argument,       0,            ARG_COLOR_QUAL},
 	{(char*)"col-cedit",    no_argument,       0,            ARG_COLOR_EDIT},
 	{(char*)"col-keepends", no_argument,       0,            ARG_COLOR_KEEP_ENDS},
+	{(char*)"print-placeholders", no_argument, 0,            ARG_PRINT_PLACEHOLDERS},
 	{(char*)"print-flags",  no_argument,       0,            ARG_PRINT_FLAGS},
 	{(char*)"cost",         no_argument,       0,            ARG_COST},
 	{(char*)"print-params", no_argument,       0,            ARG_PRINT_PARAMS},
@@ -1075,6 +1079,7 @@ static void parseOptions(int argc, const char **argv) {
 				rgs += optarg;
 				break;
 			}
+			case ARG_PRINT_PLACEHOLDERS: printPlaceholders = true; break;
 			case ARG_PRINT_FLAGS: printFlags = true; break;
 			case ARG_COST: printCost = true; break;
 			case ARG_PRINT_PARAMS: printParams = true; break;
@@ -3067,6 +3072,7 @@ static void driver(
 					gColorSeq,    // colorspace: print color seq instead of decoded nucs
 					gColorQual,   // colorspace: print color quals instead of decoded quals
 					gColorExEnds, // whether to exclude end positions from decoded colorspace alignments
+					printPlaceholders, // print maxs/unals
 					printFlags,   // print alignment flags
 					printCost,    // print penalty in extra column
 					printParams,  // print alignment parameters in extra column
