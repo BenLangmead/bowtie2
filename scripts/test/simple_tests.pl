@@ -107,6 +107,42 @@ my @cases = (
 	  report   =>   "-a",
 	  hits     => [ { } ] },
 
+	{ name => "N filtering 3",
+	  ref      => [ "GAGACTTTATACGCATCGAANTATCGCTCTA" ],
+	  reads    => [         "ATACGCATCGAAC" ],
+	  #              0123456789012345678901234567890
+	  #                        1         2         3
+	  args     =>   "-P \"NCEIL=0,0\"",
+	  report   =>   "-a",
+	  hits     => [ { } ] },
+
+	{ name => "N filtering 4",
+	  ref      => [ "GAGACTTTNTACGCATCGAACTATCGCTCTA" ],
+	  reads    => [         "ATACGCATCGAAC" ],
+	  #              0123456789012345678901234567890
+	  #                        1         2         3
+	  args     =>   "-P \"NCEIL=0,0\"",
+	  report   =>   "-a",
+	  hits     => [ { } ] },
+
+	{ name => "N filtering 5",
+	  ref      => [ "GAGACTTTATNCGCATCGAACTATCGCTCTA" ],
+	  reads    => [         "ATACGCATCGAAC" ],
+	  #              0123456789012345678901234567890
+	  #                        1         2         3
+	  args     =>   "-P \"NCEIL=0,0.1;SEED=0,10,1\"",
+	  report   =>   "-a",
+	  hits     => [ { 8 => 1 } ] },
+
+	{ name => "N filtering 6",
+	  ref      => [ "GAGACTTTNTACGCATCGAANTATCGCTCTA" ],
+	  reads    => [         "ATACGCATCGAAC" ],
+	  #              0123456789012345678901234567890
+	  #                        1         2         3
+	  args     =>   "-P \"NCEIL=0,0.1;SEED=0,10,1\"",
+	  report   =>   "-a",
+	  hits     => [ { } ] },
+
 	# No discordant alignment because one mate is repetitive.
 
 	{ name => "Simple paired-end 15",
