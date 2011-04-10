@@ -2868,15 +2868,7 @@ public:
 		bool colors = false) :
 		SStringExpandable<char, S, M>()
 	{
-		if(chars) {
-			if(colors) {
-				installColors(b, strlen(b));
-			} else {
-				installChars(b, strlen(b));
-			}
-		} else {
-			install(b, strlen(b));
-		}
+		install(b, chars, colors);
 	}
 
 	virtual ~SDnaStringExpandable() { } // C++ needs this
@@ -2927,6 +2919,25 @@ public:
 				tmp = (tmp == 4 ? 4 : tmp ^ 3);
 				this->cs_[this->len_ >> 1] = tmp;
 			}
+		}
+	}
+
+	/**
+	 * Copy 'sz' bytes from buffer 'b' into this string.
+	 */
+	virtual void install(
+		const char* b,
+		bool chars = false,
+		bool colors = false)
+	{
+		if(chars) {
+			if(colors) {
+				installColors(b, strlen(b));
+			} else {
+				installChars(b, strlen(b));
+			}
+		} else {
+			install(b, strlen(b));
 		}
 	}
 

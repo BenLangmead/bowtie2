@@ -1718,7 +1718,7 @@ private:
 	bool sorted() const {
 		if(cur_ <= 1) return true;
 		for(size_t i = 0; i < cur_-1; i++) {
-			assert_lt(list_[i], list_[i+1]);
+			assert(list_[i] < list_[i+1]);
 		}
 		return true;
 	}

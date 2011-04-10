@@ -15,7 +15,9 @@
 
 typedef int64_t TAlScore;
 
-#define VALID_AL_SCORE(x) ((x).score_ > (x).scoreLim)
+#define VALID_AL_SCORE(x)   ((x).score_ > std::numeric_limits<TAlScore>::min())
+#define VALID_SCORE(x)      ((x) > std::numeric_limits<TAlScore>::min())
+#define INVALIDATE_SCORE(x) ((x) = std::numeric_limits<TAlScore>::min())
 
 /**
  * A generic score object for an alignment.  Used for accounting during
@@ -28,25 +30,34 @@ typedef int64_t TAlScore;
  * score (larger is better) as a penalty (smaller is better) requires
  * taking the absolute value.
  */
-class AlignmentScore {
+class AlnScore {
 
 public:
 
 	/**
 	 * Gapped scores are invalid until proven valid.
 	 */
-	AlignmentScore() : scoreLim(std::numeric_limits<TAlScore>::min()) {
+	AlnScore() {
 		score_ = ns_ = gaps_ = 0;
 		invalidate();
+		assert(!valid());
 	}
 
 	/**
 	 * Return an invalid SwScore.
 	 */
-	static AlignmentScore INVALID() {
-		AlignmentScore s;
+	inline static AlnScore INVALID() {
+		AlnScore s;
 		s.invalidate();
+		assert(!s.valid());
 		return s;
+	}
+	
+	/**
+	 * Return true iff this score has a valid value.
+	 */
+	inline bool valid() const {
+		return score_ != std::numeric_limits<TAlScore>::min();
 	}
 
 	/**
@@ -54,13 +65,14 @@ public:
 	 */
 	inline void invalidate() {
 		score_ = std::numeric_limits<TAlScore>::min();
+		assert(!valid());
 	}
 	
 	/**
 	 * Increment the number of gaps.  If currently invalid, this makes
 	 * the score valid with gaps == 1.
 	 */
-	void incNs(int nceil) {
+	inline void incNs(int nceil) {
 		if(++ns_ > nceil) {
 			invalidate();
 		}
@@ -71,7 +83,7 @@ public:
 	 * Return true iff this score is > score o.
 	 * Note: An "invalid" score is <= all other scores.
 	 */
-	bool operator>(const AlignmentScore& o) const {
+	bool operator>(const AlnScore& o) const {
 		if(!VALID_AL_SCORE(o)) {
 			if(!VALID_AL_SCORE(*this)) {
 				// both invalid
@@ -90,7 +102,7 @@ public:
 	/**
 	 * Scores are equal iff they're bitwise equal.
 	 */
-	inline AlignmentScore& operator=(const AlignmentScore& o) {
+	inline AlnScore& operator=(const AlnScore& o) {
 		// Profiling shows many cache misses on following lines
 		gaps_  = o.gaps_;
 		ns_    = o.ns_;
@@ -102,38 +114,45 @@ public:
 	/**
 	 * Scores are equal iff they're bitwise equal.
 	 */
-	inline bool operator==(const AlignmentScore& o) const {
+	inline bool operator==(const AlnScore& o) const {
 		// Profiling shows cache misses on following line
 		return VALID_AL_SCORE(*this) && VALID_AL_SCORE(o) && score_ == o.score_;
 	}
 
 	/**
+	 * Return true iff the two scores are unequal.
+	 */
+	inline bool operator!=(const AlnScore& o) const {
+		return !(*this == o);
+	}
+
+	/**
 	 * Return true iff this score is >= score o.
 	 */
-	bool operator>=(const AlignmentScore& o) const {
+	bool operator>=(const AlnScore& o) const {
 		return operator==(o) || operator>(o);
 	}
 
 	/**
 	 * Return true iff this score is < score o.
 	 */
-	bool operator<(const AlignmentScore& o) const {
+	bool operator<(const AlnScore& o) const {
 		return !operator>=(o);
 	}
 
 	/**
 	 * Return true iff this score is <= score o.
 	 */
-	bool operator<=(const AlignmentScore& o) const {
+	bool operator<=(const AlnScore& o) const {
 		return !operator>(o);
 	}
 
 	/**
 	 * Calculate difference between two SwScores.
 	 */
-	AlignmentScore operator-(const AlignmentScore& o) const {
+	AlnScore operator-(const AlnScore& o) const {
 		if(!VALID_AL_SCORE(*this)) return *this;
-		AlignmentScore s; 
+		AlnScore s; 
 		s.gaps_ = gaps_ - o.gaps_;
 		s.ns_ = ns_;
 		s.score_ = score_ - o.score_;
@@ -144,9 +163,9 @@ public:
 	/**
 	 * Calculate sum of two SwScores.
 	 */
-	AlignmentScore operator+(const AlignmentScore& o) const {
+	AlnScore operator+(const AlnScore& o) const {
 		if(!VALID_AL_SCORE(*this)) return *this;
-		AlignmentScore s;
+		AlnScore s;
 		s.gaps_ = gaps_ + o.gaps_;
 		s.ns_ = ns_;
 		s.score_ = score_ + o.score_;
@@ -157,7 +176,7 @@ public:
 	/**
 	 * Add given SwScore into this one.
 	 */
-	AlignmentScore operator+=(const AlignmentScore& o) {
+	AlnScore operator+=(const AlnScore& o) {
 		if(VALID_AL_SCORE(*this)) {
 			gaps_ += o.gaps_;
 			score_ += o.score_;
@@ -168,7 +187,7 @@ public:
 	/**
 	 * Subtract given SwScore from this one.
 	 */
-	inline AlignmentScore operator-=(const AlignmentScore& o) {
+	inline AlnScore operator-=(const AlnScore& o) {
 		if(VALID_AL_SCORE(*this)) {
 			gaps_ -= o.gaps_;
 			score_ -= o.score_;
@@ -179,17 +198,15 @@ public:
 	/**
 	 * Calculate difference between two SwScores.
 	 */
-	inline AlignmentScore operator-(int o) const {
+	inline AlnScore operator-(int o) const {
 		if(!VALID_AL_SCORE(*this)) return *this;
-		AlignmentScore s;
+		AlnScore s;
 		s.gaps_ = gaps_;
 		s.ns_ = ns_;
 		s.score_ = score_ - o;
 		assert_lt(s.ns_, 0x7fffffff);
 		return s;
 	}
-	
-	TAlScore scoreLim;
 	
 	TAlScore score()   const { return  score_; }
 	TAlScore penalty() const { return -score_; }
@@ -209,7 +226,7 @@ public:
 	TAlScore gaps_;
 };
 
-static inline ostream& operator<<(ostream& os, const AlignmentScore& o) {
+static inline ostream& operator<<(ostream& os, const AlnScore& o) {
 	os << o.score();
 	return os;
 }
@@ -239,7 +256,13 @@ class AlnRes {
 
 public:
 
-	AlnRes() : ned_(RES_CAT), aed_(RES_CAT), ced_(RES_CAT) { reset(); }
+	AlnRes() :
+		ned_(RES_CAT),
+		aed_(RES_CAT),
+		ced_(RES_CAT)
+	{
+		reset();
+	}
 
 	/**
 	 * Clear all contents.
@@ -250,6 +273,7 @@ public:
 		ced_.clear();
 		score_.invalidate();
 		refcoord_.invalidate();
+		rdlen_ = 0;
 		extent_ = 0;
 		seedmms_  = 0; // number of mismatches allowed in seed
 		seedlen_  = 0; // length of seed
@@ -273,14 +297,15 @@ public:
 	 * the case of a colorspace read, caller specifies the length in
 	 * colors.
 	 */
-	void invertEdits(size_t rdlen) {
+	void invertEdits() {
+		assert_gt(rdlen_, 0);
 		if(color_) {
-			Edit::invertPoss(ned_, rdlen+1);
-			Edit::invertPoss(aed_, rdlen+1);
-			Edit::invertPoss(ced_, rdlen);
+			Edit::invertPoss(ned_, rdlen_+1);
+			Edit::invertPoss(aed_, rdlen_+1);
+			Edit::invertPoss(ced_, rdlen_);
 		} else {
-			Edit::invertPoss(ned_, rdlen);
-			Edit::invertPoss(aed_, rdlen);
+			Edit::invertPoss(ned_, rdlen_);
+			Edit::invertPoss(aed_, rdlen_);
 			assert(ced_.empty());
 		}
 	}
@@ -305,19 +330,19 @@ public:
 	 * Return the identifier for the reference that the alignment
 	 * occurred in.
 	 */
-	TRefId refid() const { return refcoord_.ref(); }
+	inline TRefId refid() const { return refcoord_.ref(); }
 	
 	/**
 	 * Return the 0-based offset of the alignment into the reference
 	 * sequence it aligned to.
 	 */
-	TRefOff refoff() const { return refcoord_.off(); }
+	inline TRefOff refoff() const { return refcoord_.off(); }
 	
 	/**
 	 * Set arguments to coordinates for the upstream-most and downstream-most
 	 * reference positions involved in the alignment.
 	 */
-	void getCoords(
+	inline void getCoords(
 		Coord& st,  // out: install starting coordinate here
 		Coord& en)  // out: install ending coordinate here
 	{
@@ -331,7 +356,7 @@ public:
 	 * alignment, and the extent of the alignment (w/r/t the
 	 * reference)
 	 */
-	void setCoord(
+	inline void setCoord(
 		TRefId id,
 		TRefOff off,
 		bool fw,
@@ -339,6 +364,13 @@ public:
 	{
 		refcoord_.init(id, off, fw);
 		extent_ = extent;
+	}
+	
+	/**
+	 * Set the length of the original nucleotide read (not the decoded read).
+	 */
+	inline void setReadLength(size_t rdlen) {
+		rdlen_ = rdlen;
 	}
 	
 	/**
@@ -371,7 +403,7 @@ public:
 	/**
 	 * Set alignment score for this alignment.
 	 */
-	void setScore(AlignmentScore score) {
+	void setScore(AlnScore score) {
 		score_ = score;
 	}
 
@@ -403,11 +435,11 @@ public:
 	/**
 	 * Return true if this alignment is to the Watson strand.
 	 */
-	bool fw() const {
+	inline bool fw() const {
 		return refcoord_.fw();
 	}
 	
-	AlignmentScore     score()  const { return score_; }
+	AlnScore     score()  const { return score_; }
 	EList<Edit>&       ned()          { return ned_; }
 	EList<Edit>&       aed()          { return aed_; }
 	EList<Edit>&       ced()          { return ced_; }
@@ -442,6 +474,31 @@ public:
 		bool printColors,
 		bool exEnds,
 		OutFileBuf& o) const;
+	
+	/**
+	 * Print a stacked alignment with the reference on top, query on bottom,
+	 * and lines connecting matched-up positions.
+	 */
+	void printStacked(
+		const Read& rd,
+		std::ostream& o) const
+	{
+		printStacked(refcoord_.fw() ? rd.patFw : rd.patRc, o);
+	}
+
+	/**
+	 * Print a stacked alignment with the reference on bottom, query on top,
+	 * and lines connecting matched-up positions.
+	 */
+	void printStacked(
+		const BTDnaString& seq,
+		std::ostream& o) const
+	{
+		Edit::printQAlign(o, seq, ned_);
+		// Print reference offset below reference string
+		o << "^" << std::endl;
+		o << "(" << refcoord_.ref() << "," << refcoord_.off() << ")" << std::endl;
+	}
 	
 	/**
 	 * Check that alignment score is internally consistent.
@@ -492,23 +549,179 @@ public:
 		const Read& rd,       // read that led to alignment
 		BTDnaString& ns,      // out: decoded nucleotides
 		BTString& qs) const;  // out: decoded qualities
+	
+	/**
+	 * Return true iff this AlnRes and the given AlnRes overlap.  Two AlnRess
+	 * overlap if they share a cell in the overall dynamic programming table:
+	 * i.e. if there exists a read position s.t. that position in both reads
+	 * matches up with the same reference character.  E.g., the following
+	 * alignments (drawn schematically as paths through a dynamic programming
+	 * table) are redundant:
+	 *
+	 *  a  b           a  b
+	 *  \  \           \  \
+	 *   \  \           \  \
+	 *    \  \           \  \
+	 *     ---\           \  \
+	 *         \           ---\---
+	 *       ---\              \  \
+	 *        \  \              \  \
+	 *         \  \              \  \
+	 *          \  \              \  \
+	 *          a  b              a  b
+	 */
+	bool overlap(AlnRes& res) {
+		if(fw() != res.fw() || refid() != res.refid()) {
+			// Must be same reference and same strand in order to overlap
+			return false;
+		}
+		TRefOff my_left     = refoff();
+		TRefOff other_left  = res.refoff();
+		TRefOff my_right    = my_left    + extent();
+		TRefOff other_right = other_left + res.extent();
+		if(my_right < other_left || other_right < my_left) {
+			// Their rectangular hulls don't overlap, so they can't overlap
+			return false;
+		}
+		// Reference and strand are the same and hulls overlap.  Now go read
+		// position by read position testing if any align identically with the
+		// reference.
+		if(!fw()) {
+			invertEdits();
+		}
+		if(!res.fw()) {
+			res.invertEdits();
+		}
+		size_t nedidx = 0, onedidx = 0;
+		size_t nrow = rdlen_ + (color_ ? 1 : 0);
+		bool olap = false;
+		// For each row...
+		for(size_t i = 0; i < nrow; i++) {
+			size_t diff = 1;  // amount to shift to right for next round
+			size_t odiff = 1; // amount to shift to right for next round
+			// Unless there are insertions before the next position, we say
+			// that there is one cell in this row involved in the alignment
+			my_right = my_left + 1;
+			other_right = other_left + 1;
+			while(nedidx < ned_.size() && ned_[nedidx].pos == i) {
+				if(ned_[nedidx].isDelete()) {
+					// Next my_left will be in same column as this round
+					diff = 0;
+				}
+				nedidx++;
+			}
+			while(onedidx < res.ned_.size() && res.ned_[onedidx].pos == i) {
+				if(res.ned_[onedidx].isDelete()) {
+					// Next my_left will be in same column as this round
+					odiff = 0;
+				}
+				onedidx++;
+			}
+			if(i < nrow-1) {
+				// See how many inserts there are before the next read
+				// character
+				size_t nedidx_next  = nedidx;
+				size_t onedidx_next = onedidx;
+				while(nedidx_next < ned_.size() &&
+				      ned_[nedidx_next].pos == i+1)
+				{
+					if(ned_[nedidx_next].isInsert()) {
+						my_right++;
+					}
+					nedidx_next++;
+				}
+				while(onedidx_next < res.ned_.size() &&
+				      res.ned_[onedidx_next].pos == i+1)
+				{
+					if(res.ned_[onedidx_next].isInsert()) {
+						other_right++;
+					}
+					onedidx_next++;
+				}
+			}
+			// Contained?
+			olap =
+				(my_left >= other_left && my_right <= other_right) ||
+				(other_left >= my_left && other_right <= my_right);
+			// Overlapping but not contained?
+			if(!olap) {
+				olap =
+					(my_left <= other_left && my_right > other_left) ||
+					(other_left <= my_left && other_right > my_left);
+			}
+			if(olap) {
+				break;
+			}
+			// How to do adjust my_left and my_right
+			my_left = my_right + diff - 1;
+			other_left = other_right + odiff - 1;
+		}
+		if(!fw()) {
+			invertEdits();
+		}
+		if(!res.fw()) {
+			res.invertEdits();
+		}
+		return olap;
+	}
+	
+	/**
+	 * Initialize new AlnRes.
+	 */
+	void init(
+		size_t             rdlen,
+		AlnScore           score,
+		const EList<Edit>* ned,
+		const EList<Edit>* aed,
+		const EList<Edit>* ced,
+		Coord              refcoord,
+		bool               color,
+		int                seedmms  = -1,
+		int                seedlen  = -1,
+		int                seedival = -1,
+		int                penceil  = -1,
+		int                nuc5p    = -1,
+		int                nuc3p    = -1)
+	{
+		rdlen_ = rdlen;
+		score_ = score;
+		ned_.clear();
+		aed_.clear();
+		ced_.clear();
+		if(ned != NULL) ned_ = *ned;
+		if(aed != NULL) aed_ = *aed;
+		if(ced != NULL) ced_ = *ced;
+		refcoord_ = refcoord;
+		color_ = color;
+		seedmms_ = seedmms;
+		seedlen_ = seedlen;
+		seedival_ = seedival;
+		penceil_ = penceil;
+		nuc5p_ = nuc5p;
+		nuc3p_ = nuc3p;
+		extent_ = rdlen;
+		for(size_t i = 0; i < ned_.size(); i++) {
+			if(ned_[i].isDelete()) extent_--;
+			if(ned_[i].isInsert()) extent_++;
+		}
+	}
 
 protected:
 
-	AlignmentScore score_;    // best SW score found
-	EList<Edit>    ned_;      // base edits
-	EList<Edit>    aed_;      // ambiguous base resolutions
-	EList<Edit>    ced_;      // color miscalls
-	Coord          refcoord_; // ref coordinates (seq idx, offset, orient)
-	size_t         extent_;   // number of ref chars involved in alignment
-	int            seedmms_;  // number of mismatches allowed in seed
-	int            seedlen_;  // length of seed
-	int            seedival_; // interval between seeds
-	int            penceil_;  // penalty ceiling
-	
-	bool           color_;    // colorspace alignment?
-	int            nuc5p_;    // 5'-most decoded base; clipped if excluding end
-	int            nuc3p_;    // 3'-most decoded base; clipped if excluding end
+	size_t      rdlen_;    // length of the original read
+	AlnScore    score_;    // best SW score found
+	EList<Edit> ned_;      // base edits
+	EList<Edit> aed_;      // ambiguous base resolutions
+	EList<Edit> ced_;      // color miscalls
+	Coord       refcoord_; // ref coordinates (seq idx, offset, orient)
+	size_t      extent_;   // number of ref chars involved in alignment
+	int         seedmms_;  // number of mismatches allowed in seed
+	int         seedlen_;  // length of seed
+	int         seedival_; // interval between seeds
+	int         penceil_;  // penalty ceiling
+	bool        color_;    // colorspace alignment?
+	int         nuc5p_;    // 5'-most decoded base; clipped if excluding end
+	int         nuc3p_;    // 3'-most decoded base; clipped if excluding end
 };
 
 typedef uint64_t TNumAlns;
@@ -616,16 +829,16 @@ public:
 		const EList<AlnRes>* rs2);
 
 	AlnSetSumm(
-		AlignmentScore best,
-		AlignmentScore secbest,
+		AlnScore best,
+		AlnScore secbest,
 		TNumAlns other)
 	{
 		init(best, secbest, other);
 	}
 	
 	void init(
-		AlignmentScore best,
-		AlignmentScore secbest,
+		AlnScore best,
+		AlnScore secbest,
 		TNumAlns other)
 	{
 		best_    = best;
@@ -651,14 +864,14 @@ public:
 		return true;
 	}
 	
-	AlignmentScore best()    const { return best_;    }
-	AlignmentScore secbest() const { return secbest_; }
+	AlnScore best()    const { return best_;    }
+	AlnScore secbest() const { return secbest_; }
 	TNumAlns       other()   const { return other_;   }
 	
 protected:
 	
-	AlignmentScore best_;    // best full-alignment score found for this read
-	AlignmentScore secbest_; // second-best
+	AlnScore best_;    // best full-alignment score found for this read
+	AlnScore secbest_; // second-best
 	TNumAlns       other_;   // # more alignments within N points of second-best
 };
 

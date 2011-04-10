@@ -65,26 +65,22 @@ using namespace std;
  * Penalty for a read gap
  * ----------------------
  *
- * RDG=xx,yy,zz (default: RDG=40,15,0)
+ * RDG=xx,yy (default: RDG=25,15)
  *
- *   xx    = Read gap open penalty.  Every contiguous read gap
- *           incurs this penalty, which is added to any extension
- *           penalties.  Must be > 0.
- *   yy,zz = Read gap extension penalty.  Once the gap is opened,
- *           each extension gets a
- *           penalty = yy - zz * (gap length - 2).
+ *   xx    = Read gap open penalty.
+ *   yy    = Read gap extension penalty.
+ *
+ * Total cost incurred by a read gap = xx + yy * gap-length
  *
  * Penalty for a reference gap
  * ---------------------------
  *
- * RFG=xx,yy,zz (default: RFG=40,15,0)
+ * RFG=xx,yy (default: RFG=25,15)
  *
- *   xx    = Reference gap open penalty.  Every contiguous
- *           reference gap incurs this penalty, which is added to
- *           any extension penalties.  Must be > 0.
- *   yy,zz = Reference gap extension penalty.  Once the gap is
- *           opened, each extension gets a
- *           penalty = yy - zz * (gap length - 2).
+ *   xx    = Reference gap open penalty.
+ *   yy    = Reference gap extension penalty.
+ *
+ * Total cost incurred by a reference gap = xx + yy * gap-length
  *
  * Read penalty ceiling
  * --------------------
@@ -185,29 +181,59 @@ using namespace std;
  */
 void SeedAlignmentPolicy::parseString(
 	const string& s,
-	bool noisyHpolymer,
-	int& penMmcType,
-	int& penMmc,
-	int& penSnp,
-	int& penNType,
-	int& penN,
-	int& penRdOpen,
-	int& penRfOpen,
-	int& penRdExConst,
-	int& penRfExConst,
-	int& penRdExLinear,
-	int& penRfExLinear,
+	bool   noisyHpolymer,
+	int&   penMmcType,
+	int&   penMmc,
+	int&   penSnp,
+	int&   penNType,
+	int&   penN,
+	int&   penRdExConst,
+	int&   penRfExConst,
+	int&   penRdExLinear,
+	int&   penRfExLinear,
 	float& costCeilConst,
 	float& costCeilLinear,
 	float& nCeilConst,
 	float& nCeilLinear,
-	int& multiseedMms,
-	int& multiseedLen,
-	int& multiseedPeriod,
-	int& multiseedIvalType,
+	bool&  nCatPair,
+	int&   multiseedMms,
+	int&   multiseedLen,
+	int&   multiseedPeriod,
+	int&   multiseedIvalType,
 	float& multiseedIvalA,
 	float& multiseedIvalB)
 {
+
+	penMmcType        = DEFAULT_MM_PENALTY_TYPE;
+	penMmc            = DEFAULT_MM_PENALTY;
+	penSnp            = DEFAULT_SNP_PENALTY;
+	penNType          = DEFAULT_N_PENALTY_TYPE;
+	penN              = DEFAULT_N_PENALTY;
+	costCeilConst     = DEFAULT_CEIL_CONST;
+	costCeilLinear    = DEFAULT_CEIL_LINEAR;
+	nCeilConst        = DEFAULT_N_CEIL_CONST;
+	nCeilLinear       = DEFAULT_N_CEIL_LINEAR;
+	nCatPair          = DEFAULT_N_CAT_PAIR;
+
+	if(!noisyHpolymer) {
+		penRdExConst  = DEFAULT_READ_EXTEND_CONST;
+		penRdExLinear = DEFAULT_READ_EXTEND_LINEAR;
+		penRfExConst  = DEFAULT_REF_EXTEND_CONST;
+		penRfExLinear = DEFAULT_REF_EXTEND_LINEAR;
+	} else {
+		penRdExConst  = DEFAULT_READ_EXTEND_CONST_BADHPOLY;
+		penRdExLinear = DEFAULT_READ_EXTEND_LINEAR_BADHPOLY;
+		penRfExConst  = DEFAULT_REF_EXTEND_CONST_BADHPOLY;
+		penRfExLinear = DEFAULT_REF_EXTEND_LINEAR_BADHPOLY;
+	}
+	
+	multiseedMms      = DEFAULT_SEEDMMS;
+	multiseedLen      = DEFAULT_SEEDLEN;
+	multiseedPeriod   = DEFAULT_SEEDPERIOD;
+	multiseedIvalType = DEFAULT_IVAL;
+	multiseedIvalA    = DEFAULT_IVAL_A;
+	multiseedIvalB    = DEFAULT_IVAL_B;
+
 	EList<string> toks(MISC_CAT);
 	string tok;
 	istringstream ss(s);
@@ -337,21 +363,19 @@ void SeedAlignmentPolicy::parseString(
 		else if(tag == "RDG") {
 			if(ctoks.size() >= 1) {
 				istringstream tmpss(ctoks[0]);
-				tmpss >> penRdOpen;
+				tmpss >> penRdExConst;
 			} else {
-				penRdOpen = noisyHpolymer ? DEFAULT_READ_OPEN_BADHPOLY : DEFAULT_READ_OPEN;
+				penRdExConst = noisyHpolymer ?
+					DEFAULT_READ_EXTEND_CONST_BADHPOLY :
+					DEFAULT_READ_EXTEND_CONST;
 			}
 			if(ctoks.size() >= 2) {
 				istringstream tmpss(ctoks[1]);
-				tmpss >> penRdExConst;
-			} else {
-				penRdExConst = noisyHpolymer ? DEFAULT_READ_EXTEND_CONST_BADHPOLY : DEFAULT_READ_EXTEND_CONST;
-			}
-			if(ctoks.size() >= 3) {
-				istringstream tmpss(ctoks[2]);
 				tmpss >> penRdExLinear;
 			} else {
-				penRdExLinear = noisyHpolymer ? DEFAULT_READ_EXTEND_LINEAR_BADHPOLY : DEFAULT_READ_EXTEND_LINEAR;
+				penRdExLinear = noisyHpolymer ?
+					DEFAULT_READ_EXTEND_LINEAR_BADHPOLY :
+					DEFAULT_READ_EXTEND_LINEAR;
 			}
 		}
 		// Penalties for reference gaps
@@ -364,21 +388,19 @@ void SeedAlignmentPolicy::parseString(
 		else if(tag == "RFG") {
 			if(ctoks.size() >= 1) {
 				istringstream tmpss(ctoks[0]);
-				tmpss >> penRfOpen;
+				tmpss >> penRfExConst;
 			} else {
-				penRfOpen = noisyHpolymer ? DEFAULT_REF_OPEN_BADHPOLY : DEFAULT_REF_OPEN;
+				penRfExConst = noisyHpolymer ?
+					DEFAULT_REF_EXTEND_CONST_BADHPOLY :
+					DEFAULT_REF_EXTEND_CONST;
 			}
 			if(ctoks.size() >= 2) {
 				istringstream tmpss(ctoks[1]);
-				tmpss >> penRfExConst;
-			} else {
-				penRfExConst = noisyHpolymer ? DEFAULT_REF_EXTEND_CONST_BADHPOLY : DEFAULT_REF_EXTEND_CONST;
-			}
-			if(ctoks.size() >= 3) {
-				istringstream tmpss(ctoks[2]);
 				tmpss >> penRfExLinear;
 			} else {
-				penRfExLinear = noisyHpolymer ? DEFAULT_REF_EXTEND_LINEAR_BADHPOLY : DEFAULT_REF_EXTEND_LINEAR;
+				penRfExLinear = noisyHpolymer ?
+					DEFAULT_REF_EXTEND_LINEAR_BADHPOLY :
+					DEFAULT_REF_EXTEND_LINEAR;
 			}
 		}
 		// Per-read penalty ceiling as a function of read length
@@ -492,3 +514,135 @@ void SeedAlignmentPolicy::parseString(
 		}
 	}
 }
+
+#ifdef ALIGNER_SEED_POLICY_MAIN
+int main() {
+
+	int penMmcType;
+	int penMmc;
+	int penSnp;
+	int penNType;
+	int penN;
+	int penRdExConst;
+	int penRfExConst;
+	int penRdExLinear;
+	int penRfExLinear;
+	float costCeilConst;
+	float costCeilLinear;
+	float nCeilConst;
+	float nCeilLinear;
+	bool  nCatPair;
+	int multiseedMms;
+	int multiseedLen;
+	int multiseedPeriod;
+	int multiseedIvalType;
+	float multiseedIvalA;
+	float multiseedIvalB;
+
+	{
+		cout << "Case 1: Defaults 1 ... ";
+		const char *pol = "";
+		SeedAlignmentPolicy::parseString(
+			string(pol),
+			false,              // noisy homopolymers a la 454?
+			penMmcType,
+			penMmc,
+			penSnp,
+			penNType,
+			penN,
+			penRdExConst,
+			penRfExConst,
+			penRdExLinear,
+			penRfExLinear,
+			costCeilConst,
+			costCeilLinear,
+			nCeilConst,
+			nCeilLinear,
+			nCatPair,
+			multiseedMms,
+			multiseedLen,
+			multiseedPeriod,
+			multiseedIvalType,
+			multiseedIvalA,
+			multiseedIvalB
+		);
+		
+		assert_eq(DEFAULT_MM_PENALTY_TYPE, penMmcType);
+		assert_eq(DEFAULT_MM_PENALTY,      penMmc);
+		assert_eq(DEFAULT_SNP_PENALTY,     penSnp);
+		assert_eq(DEFAULT_N_PENALTY_TYPE,  penNType);
+		assert_eq(DEFAULT_N_PENALTY,       penN);
+		assert_eq(DEFAULT_CEIL_CONST,      costCeilConst);
+		assert_eq(DEFAULT_CEIL_LINEAR,     costCeilLinear);
+		assert_eq(DEFAULT_N_CEIL_CONST,    nCeilConst);
+		assert_eq(DEFAULT_N_CEIL_LINEAR,   nCeilLinear);
+		assert_eq(DEFAULT_N_CAT_PAIR,      nCatPair);
+
+		assert_eq(DEFAULT_READ_EXTEND_CONST,  penRdExConst);
+		assert_eq(DEFAULT_READ_EXTEND_LINEAR, penRdExLinear);
+		assert_eq(DEFAULT_REF_EXTEND_CONST,   penRfExConst);
+		assert_eq(DEFAULT_REF_EXTEND_LINEAR,  penRfExLinear);
+		assert_eq(DEFAULT_SEEDMMS,            multiseedMms);
+		assert_eq(DEFAULT_SEEDLEN,            multiseedLen);
+		assert_eq(DEFAULT_SEEDPERIOD,         multiseedPeriod);
+		assert_eq(DEFAULT_IVAL,               multiseedIvalType);
+		assert_eq(DEFAULT_IVAL_A,             multiseedIvalA);
+		assert_eq(DEFAULT_IVAL_B,             multiseedIvalB);
+		
+		cout << "PASSED" << endl;
+	}
+
+	{
+		cout << "Case 2: Defaults 2 ... ";
+		const char *pol = "";
+		SeedAlignmentPolicy::parseString(
+			string(pol),
+			true,              // noisy homopolymers a la 454?
+			penMmcType,
+			penMmc,
+			penSnp,
+			penNType,
+			penN,
+			penRdExConst,
+			penRfExConst,
+			penRdExLinear,
+			penRfExLinear,
+			costCeilConst,
+			costCeilLinear,
+			nCeilConst,
+			nCeilLinear,
+			nCatPair,
+			multiseedMms,
+			multiseedLen,
+			multiseedPeriod,
+			multiseedIvalType,
+			multiseedIvalA,
+			multiseedIvalB
+		);
+		
+		assert_eq(DEFAULT_MM_PENALTY_TYPE, penMmcType);
+		assert_eq(DEFAULT_MM_PENALTY,      penMmc);
+		assert_eq(DEFAULT_SNP_PENALTY,     penSnp);
+		assert_eq(DEFAULT_N_PENALTY_TYPE,  penNType);
+		assert_eq(DEFAULT_N_PENALTY,       penN);
+		assert_eq(DEFAULT_CEIL_CONST,      costCeilConst);
+		assert_eq(DEFAULT_CEIL_LINEAR,     costCeilLinear);
+		assert_eq(DEFAULT_N_CEIL_CONST,    nCeilConst);
+		assert_eq(DEFAULT_N_CEIL_LINEAR,   nCeilLinear);
+		assert_eq(DEFAULT_N_CAT_PAIR,      nCatPair);
+
+		assert_eq(DEFAULT_READ_EXTEND_CONST_BADHPOLY,  penRdExConst);
+		assert_eq(DEFAULT_READ_EXTEND_LINEAR_BADHPOLY, penRdExLinear);
+		assert_eq(DEFAULT_REF_EXTEND_CONST_BADHPOLY,   penRfExConst);
+		assert_eq(DEFAULT_REF_EXTEND_LINEAR_BADHPOLY,  penRfExLinear);
+		assert_eq(DEFAULT_SEEDMMS,            multiseedMms);
+		assert_eq(DEFAULT_SEEDLEN,            multiseedLen);
+		assert_eq(DEFAULT_SEEDPERIOD,         multiseedPeriod);
+		assert_eq(DEFAULT_IVAL,               multiseedIvalType);
+		assert_eq(DEFAULT_IVAL_A,             multiseedIvalA);
+		assert_eq(DEFAULT_IVAL_B,             multiseedIvalB);
+		
+		cout << "PASSED" << endl;
+	}
+}
+#endif /*def ALIGNER_SEED_POLICY_MAIN*/

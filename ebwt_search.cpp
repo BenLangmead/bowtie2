@@ -176,12 +176,10 @@ static int   penNType;       // how to penalize Ns in the read
 static int   penN;           // constant if N pelanty is a constant
 static bool  penNCatPair;    // concatenate mates before N filtering?
 static bool  noisyHpolymer;  // set to true if gap penalties should be reduced to be consistent with a sequencer that under- and overcalls homopolymers
-static int   penRdOpen;      // cost of opening a gap in the read
-static int   penRfOpen;      // cost of opening a gap in the reference
-static int   penRdExConst;   // constant cost of extending a gap in the read
-static int   penRfExConst;   // constant cost of extending a gap in the reference
-static int   penRdExLinear;  // coeff of linear term for cost of gap extension in read
-static int   penRfExLinear;  // coeff of linear term for cost of gap extension in ref
+static int   penRdGapConst;   // constant cost of extending a gap in the read
+static int   penRfGapConst;   // constant cost of extending a gap in the reference
+static int   penRdGapLinear;  // coeff of linear term for cost of gap extension in read
+static int   penRfGapLinear;  // coeff of linear term for cost of gap extension in ref
 static float costCeilConst;  // constant factor in cost ceiling w/r/t read length
 static float costCeilLinear; // coeff of linear term in cost ceiling w/r/t read length
 static float nCeilConst;     // constant factor in N ceiling w/r/t read length
@@ -337,12 +335,10 @@ static void resetOptions() {
 	penN            = DEFAULT_N_PENALTY;
 	penNCatPair     = DEFAULT_N_CAT_PAIR; // concatenate mates before N filtering?
 	noisyHpolymer   = false;
-	penRdOpen       = DEFAULT_READ_OPEN;
-	penRfOpen       = DEFAULT_REF_OPEN;
-	penRdExConst    = DEFAULT_READ_EXTEND_CONST;
-	penRfExConst    = DEFAULT_REF_EXTEND_CONST;
-	penRdExLinear   = DEFAULT_READ_EXTEND_LINEAR;
-	penRfExLinear   = DEFAULT_REF_EXTEND_LINEAR;
+	penRdGapConst    = DEFAULT_READ_EXTEND_CONST;
+	penRfGapConst    = DEFAULT_REF_EXTEND_CONST;
+	penRdGapLinear   = DEFAULT_READ_EXTEND_LINEAR;
+	penRfGapLinear   = DEFAULT_REF_EXTEND_LINEAR;
 	costCeilConst   = DEFAULT_CEIL_CONST;
 	costCeilLinear  = DEFAULT_CEIL_LINEAR;
 	nCeilConst      = 2.0f; // constant factor in N ceiling w/r/t read length
@@ -1138,16 +1134,15 @@ static void parseOptions(int argc, const char **argv) {
 			penSnp,
 			penNType,
 			penN,
-			penRdOpen,
-			penRfOpen,
-			penRdExConst,
-			penRfExConst,
-			penRdExLinear,
-			penRfExLinear,
+			penRdGapConst,
+			penRfGapConst,
+			penRdGapLinear,
+			penRfGapLinear,
 			costCeilConst,
 			costCeilLinear,
 			nCeilConst,
 			nCeilLinear,
+			penNCatPair,
 			multiseedMms,
 			multiseedLen,
 			multiseedPeriod,
@@ -1160,17 +1155,13 @@ static void parseOptions(int argc, const char **argv) {
 		penSnp            = DEFAULT_SNP_PENALTY;
 		penNType          = DEFAULT_N_PENALTY_TYPE;
 		penN              = DEFAULT_N_PENALTY;
-		penRdOpen         = noisyHpolymer ? DEFAULT_READ_OPEN_BADHPOLY
-		                                  : DEFAULT_READ_OPEN;
-		penRfOpen         = noisyHpolymer ? DEFAULT_REF_OPEN_BADHPOLY
-		                                  : DEFAULT_REF_OPEN;
-		penRdExConst      = noisyHpolymer ? DEFAULT_READ_EXTEND_CONST_BADHPOLY
+		penRdGapConst     = noisyHpolymer ? DEFAULT_READ_EXTEND_CONST_BADHPOLY
 		                                  : DEFAULT_READ_EXTEND_CONST;
-		penRfExConst      = noisyHpolymer ? DEFAULT_REF_EXTEND_CONST_BADHPOLY
+		penRfGapConst     = noisyHpolymer ? DEFAULT_REF_EXTEND_CONST_BADHPOLY
 		                                  : DEFAULT_REF_EXTEND_CONST;
-		penRdExLinear     = noisyHpolymer ? DEFAULT_READ_EXTEND_LINEAR_BADHPOLY
+		penRdGapLinear    = noisyHpolymer ? DEFAULT_READ_EXTEND_LINEAR_BADHPOLY
 		                                  : DEFAULT_READ_EXTEND_LINEAR;
-		penRfExLinear     = noisyHpolymer ? DEFAULT_REF_EXTEND_LINEAR_BADHPOLY
+		penRfGapLinear     = noisyHpolymer ? DEFAULT_REF_EXTEND_LINEAR_BADHPOLY
 		                                  : DEFAULT_REF_EXTEND_LINEAR;
 		costCeilConst     = DEFAULT_CEIL_CONST;
 		costCeilLinear    = DEFAULT_CEIL_LINEAR;
@@ -2274,7 +2265,7 @@ static void* multiseedSearchWorker(void *vp) {
 
 	SeedAligner al;
 	SwDriver sd;
-	SwAligner sw;
+	SwAligner sw, osw;
 	SwParams pa;
 	SeedResults shs[2];
 	QVal *qv;
@@ -2489,7 +2480,8 @@ static void* multiseedSearchWorker(void *vp) {
 								ebwtFw,         // bowtie index
 								ref,            // packed reference strings
 								gws[mate],      // walk left for anchor
-								sw,             // dynamic prog aligner
+								sw,             // dyn prog aligner, anchor
+								osw,            // dyn prog aligner, opposite
 								pa,             // parameters for DP
 								pens,           // penalties for edits
 								pepol,          // paired-end policy
@@ -3137,6 +3129,7 @@ static void driver(
 			// Bowtie 2
 			// Set up penalities
 			Penalties pens(
+				0,             // reward for a match
 				penMmcType,    // how to penalize mismatches
 				penMmc,        // constant if mm pelanty is a constant
 				penSnp,        // penalty for nucleotide mismatch in decoded colorspace als
@@ -3145,12 +3138,10 @@ static void driver(
 				penNType,      // how to penalize Ns in the read
 				penN,          // constant if N pelanty is a constant
 				penNCatPair,   // whether to concat mates before N filtering
-				penRdOpen,     // cost of opening a gap in the read
-				penRfOpen,     // cost of opening a gap in the reference
-				penRdExConst,  // constant cost of extending a gap in the read
-				penRfExConst,  // constant cost of extending a gap in the reference
-				penRdExLinear, // coefficient of linear term for cost of gap extension in read
-				penRfExLinear  // coefficient of linear term for cost of gap extension in ref
+				penRdGapConst,  // constant cost of extending a gap in the read
+				penRfGapConst,  // constant cost of extending a gap in the reference
+				penRdGapLinear, // coefficient of linear term for cost of gap extension in read
+				penRfGapLinear  // coefficient of linear term for cost of gap extension in ref
 			);
 			// Set up global constraint
 			Constraint gc = Constraint::penaltyFuncBased(

@@ -290,7 +290,7 @@ AlnSetSumm::AlnSetSumm(
 	const EList<AlnRes>* rs2)
 {
 	assert(rd1 != NULL || rd2 != NULL);
-	AlignmentScore best, secbest;
+	AlnScore best, secbest;
 	best.invalidate();
 	secbest.invalidate();
 	bool paired = (rs1 != NULL && rs2 != NULL);
@@ -302,7 +302,7 @@ AlnSetSumm::AlnSetSumm(
 		sz = rs1->size();
 		assert_gt(sz, 0);
 		for(size_t i = 0; i < rs1->size(); i++) {
-			AlignmentScore sc = (*rs1)[i].score() + (*rs2)[i].score();
+			AlnScore sc = (*rs1)[i].score() + (*rs2)[i].score();
 			if(sc > best) {
 				secbest = best;
 				best = sc;
@@ -322,7 +322,7 @@ AlnSetSumm::AlnSetSumm(
 		sz = rs->size();
 		assert_gt(sz, 0);
 		for(size_t i = 0; i < rs->size(); i++) {
-			AlignmentScore sc = (*rs)[i].score();
+			AlnScore sc = (*rs)[i].score();
 			if(sc > best) {
 				secbest = best;
 				best = sc;
@@ -342,3 +342,425 @@ AlnSetSumm::AlnSetSumm(
 	}
 }
 
+#ifdef ALIGNER_RESULT_MAIN
+
+#include "mem_ids.h"
+
+int main() {
+	{
+		// On top of each other, same length
+		cerr << "Test case 1, simple overlap 1 ... ";
+		AlnRes res1;
+		res1.init(
+			10,
+			AlnScore(),
+			NULL,
+			NULL,
+			NULL,
+			Coord(0, 0, true),
+			false);
+		AlnRes res2;
+		res2.init(
+			10,
+			AlnScore(),
+			NULL,
+			NULL,
+			NULL,
+			Coord(0, 0, true),
+			false);
+		assert(res1.overlap(res2));
+		cerr << "PASSED" << endl;
+	}
+
+	{
+		// On top of each other, different lengths
+		cerr << "Test case 2, simple overlap 2 ... ";
+		AlnRes res1;
+		res1.init(
+			10,
+			AlnScore(),
+			NULL,
+			NULL,
+			NULL,
+			Coord(0, 0, true),
+			false);
+		AlnRes res2;
+		res2.init(
+			11,
+			AlnScore(),
+			NULL,
+			NULL,
+			NULL,
+			Coord(0, 0, true),
+			false);
+		assert(res1.overlap(res2));
+		cerr << "PASSED" << endl;
+	}
+
+	{
+		// Different references
+		cerr << "Test case 3, simple overlap 3 ... ";
+		AlnRes res1;
+		res1.init(
+			10,
+			AlnScore(),
+			NULL,
+			NULL,
+			NULL,
+			Coord(0, 1, true),
+			false);
+		AlnRes res2;
+		res2.init(
+			11,
+			AlnScore(),
+			NULL,
+			NULL,
+			NULL,
+			Coord(0, 0, true),
+			false);
+		assert(!res1.overlap(res2));
+		cerr << "PASSED" << endl;
+	}
+
+	{
+		// Different references
+		cerr << "Test case 4, simple overlap 4 ... ";
+		AlnRes res1;
+		res1.init(
+			10,
+			AlnScore(),
+			NULL,
+			NULL,
+			NULL,
+			Coord(0, 0, true),
+			false);
+		AlnRes res2;
+		res2.init(
+			10,
+			AlnScore(),
+			NULL,
+			NULL,
+			NULL,
+			Coord(1, 0, true),
+			false);
+		assert(!res1.overlap(res2));
+		cerr << "PASSED" << endl;
+	}
+
+	{
+		// Different strands
+		cerr << "Test case 5, simple overlap 5 ... ";
+		AlnRes res1;
+		res1.init(
+			10,
+			AlnScore(),
+			NULL,
+			NULL,
+			NULL,
+			Coord(0, 0, true),
+			false);
+		AlnRes res2;
+		res2.init(
+			10,
+			AlnScore(),
+			NULL,
+			NULL,
+			NULL,
+			Coord(0, 0, false),
+			false);
+		assert(!res1.overlap(res2));
+		cerr << "PASSED" << endl;
+	}
+
+	{
+		// Different strands
+		cerr << "Test case 6, simple overlap 6 ... ";
+		EList<Edit> ned1(RES_CAT);
+		ned1.expand();
+		// 1 step to the right in the middle of the alignment
+		ned1.back().init(5, 'A', '-', EDIT_TYPE_INS);
+		AlnRes res1;
+		res1.init(
+			10,
+			AlnScore(),
+			&ned1,
+			NULL,
+			NULL,
+			Coord(0, 5, false),
+			false);
+		AlnRes res2;
+		res2.init(
+			10,
+			AlnScore(),
+			NULL,
+			NULL,
+			NULL,
+			Coord(0, 6, false),
+			false);
+		assert(res1.overlap(res2));
+		cerr << "PASSED" << endl;
+	}
+
+	{
+		// Different strands
+		cerr << "Test case 7, simple overlap 7 ... ";
+		EList<Edit> ned1(RES_CAT);
+		// 3 steps to the right in the middle of the alignment
+		ned1.push_back(Edit(5, 'A', '-', EDIT_TYPE_INS));
+		ned1.push_back(Edit(5, 'C', '-', EDIT_TYPE_INS));
+		ned1.push_back(Edit(5, 'G', '-', EDIT_TYPE_INS));
+		AlnRes res1;
+		res1.init(
+			10,
+			AlnScore(),
+			&ned1,
+			NULL,
+			NULL,
+			Coord(0, 5, false),
+			false);
+		AlnRes res2;
+		res2.init(
+			10,
+			AlnScore(),
+			NULL,
+			NULL,
+			NULL,
+			Coord(0, 6, false),
+			false);
+		assert(res1.overlap(res2));
+		cerr << "PASSED" << endl;
+	}
+
+	{
+		// Both with horizontal movements; overlap
+		cerr << "Test case 8, simple overlap 8 ... ";
+		EList<Edit> ned1(RES_CAT);
+		// 2 steps to the right in the middle of the alignment
+		ned1.push_back(Edit(5, 'A', '-', EDIT_TYPE_INS));
+		ned1.push_back(Edit(5, 'C', '-', EDIT_TYPE_INS));
+		AlnRes res1;
+		res1.init(
+			10,
+			AlnScore(),
+			&ned1,
+			NULL,
+			NULL,
+			Coord(0, 5, false),
+			false);
+		EList<Edit> ned2(RES_CAT);
+		// 2 steps to the right in the middle of the alignment
+		ned2.push_back(Edit(5, 'A', '-', EDIT_TYPE_INS));
+		ned2.push_back(Edit(5, 'C', '-', EDIT_TYPE_INS));
+		AlnRes res2;
+		res2.init(
+			10,
+			AlnScore(),
+			&ned2,
+			NULL,
+			NULL,
+			Coord(0, 6, false),
+			false);
+		assert(res1.overlap(res2));
+		cerr << "PASSED" << endl;
+	}
+
+	{
+		// Both with horizontal movements; no overlap
+		cerr << "Test case 9, simple overlap 9 ... ";
+		EList<Edit> ned1(RES_CAT);
+		// 2 steps to the right in the middle of the alignment
+		ned1.push_back(Edit(6, 'A', '-', EDIT_TYPE_INS));
+		ned1.push_back(Edit(6, 'C', '-', EDIT_TYPE_INS));
+		AlnRes res1;
+		res1.init(
+			10,
+			AlnScore(),
+			&ned1,
+			NULL,
+			NULL,
+			Coord(0, 5, true),
+			false);
+		EList<Edit> ned2(RES_CAT);
+		// 2 steps to the right in the middle of the alignment
+		ned2.push_back(Edit(5, 'A', '-', EDIT_TYPE_INS));
+		ned2.push_back(Edit(5, 'C', '-', EDIT_TYPE_INS));
+		AlnRes res2;
+		res2.init(
+			10,
+			AlnScore(),
+			&ned2,
+			NULL,
+			NULL,
+			Coord(0, 6, true),
+			false);
+		assert(!res1.overlap(res2));
+		cerr << "PASSED" << endl;
+	}
+
+	{
+		// Both with horizontal movements; no overlap.  Reverse strand.
+		cerr << "Test case 10, simple overlap 10 ... ";
+		EList<Edit> ned1(RES_CAT);
+		// 2 steps to the right in the middle of the alignment
+		ned1.push_back(Edit(5, 'A', '-', EDIT_TYPE_INS));
+		ned1.push_back(Edit(5, 'C', '-', EDIT_TYPE_INS));
+		AlnRes res1;
+		res1.init(
+			10,
+			AlnScore(),
+			&ned1,
+			NULL,
+			NULL,
+			Coord(0, 5, false),
+			false);
+		EList<Edit> ned2(RES_CAT);
+		// 2 steps to the right in the middle of the alignment
+		ned2.push_back(Edit(6, 'A', '-', EDIT_TYPE_INS));
+		ned2.push_back(Edit(6, 'C', '-', EDIT_TYPE_INS));
+		AlnRes res2;
+		res2.init(
+			10,
+			AlnScore(),
+			&ned2,
+			NULL,
+			NULL,
+			Coord(0, 6, false),
+			false);
+		assert(!res1.overlap(res2));
+		cerr << "PASSED" << endl;
+	}
+
+	{
+		// Both with vertical movements; no overlap
+		cerr << "Test case 11, simple overlap 11 ... ";
+		EList<Edit> ned1(RES_CAT);
+		// 2 steps to the right in the middle of the alignment
+		ned1.push_back(Edit(5, '-', 'A', EDIT_TYPE_DEL));
+		ned1.push_back(Edit(5, '-', 'C', EDIT_TYPE_DEL));
+		AlnRes res1;
+		res1.init(
+			10,
+			AlnScore(),
+			&ned1,
+			NULL,
+			NULL,
+			Coord(0, 5, true),
+			false);
+		EList<Edit> ned2(RES_CAT);
+		// 2 steps to the right in the middle of the alignment
+		ned2.push_back(Edit(6, '-', 'A', EDIT_TYPE_DEL));
+		ned2.push_back(Edit(6, '-', 'C', EDIT_TYPE_DEL));
+		AlnRes res2;
+		res2.init(
+			10,
+			AlnScore(),
+			&ned2,
+			NULL,
+			NULL,
+			Coord(0, 6, true),
+			false);
+		assert(!res1.overlap(res2));
+		cerr << "PASSED" << endl;
+	}
+
+	{
+		// Both with vertical movements; no overlap
+		cerr << "Test case 12, simple overlap 12 ... ";
+		EList<Edit> ned1(RES_CAT);
+		// 2 steps to the right in the middle of the alignment
+		ned1.push_back(Edit(5, '-', 'A', EDIT_TYPE_DEL));
+		ned1.push_back(Edit(5, '-', 'C', EDIT_TYPE_DEL));
+		AlnRes res1;
+		res1.init(
+			10,
+			AlnScore(),
+			&ned1,
+			NULL,
+			NULL,
+			Coord(0, 5, true),
+			false);
+		EList<Edit> ned2(RES_CAT);
+		// 2 steps to the right in the middle of the alignment
+		ned2.push_back(Edit(5, '-', 'A', EDIT_TYPE_DEL));
+		ned2.push_back(Edit(5, '-', 'C', EDIT_TYPE_DEL));
+		AlnRes res2;
+		res2.init(
+			10,
+			AlnScore(),
+			&ned2,
+			NULL,
+			NULL,
+			Coord(0, 6, true),
+			false);
+		assert(!res1.overlap(res2));
+		cerr << "PASSED" << endl;
+	}
+
+	{
+		// Both with vertical movements; overlap
+		cerr << "Test case 13, simple overlap 13 ... ";
+		EList<Edit> ned1(RES_CAT);
+		// 2 steps to the right in the middle of the alignment
+		ned1.push_back(Edit(5, '-', 'A', EDIT_TYPE_DEL));
+		ned1.push_back(Edit(5, '-', 'C', EDIT_TYPE_DEL));
+		AlnRes res1;
+		res1.init(
+			10,
+			AlnScore(),
+			&ned1,
+			NULL,
+			NULL,
+			Coord(0, 5, true),
+			false);
+		EList<Edit> ned2(RES_CAT);
+		// 2 steps to the right in the middle of the alignment
+		ned2.push_back(Edit(4, '-', 'A', EDIT_TYPE_DEL));
+		ned2.push_back(Edit(4, '-', 'C', EDIT_TYPE_DEL));
+		AlnRes res2;
+		res2.init(
+			10,
+			AlnScore(),
+			&ned2,
+			NULL,
+			NULL,
+			Coord(0, 6, true),
+			false);
+		assert(res1.overlap(res2));
+		cerr << "PASSED" << endl;
+	}
+
+	{
+		// Not even close
+		cerr << "Test case 14, simple overlap 14 ... ";
+		EList<Edit> ned1(RES_CAT);
+		// 2 steps to the right in the middle of the alignment
+		ned1.push_back(Edit(5, '-', 'A', EDIT_TYPE_DEL));
+		ned1.push_back(Edit(5, '-', 'C', EDIT_TYPE_DEL));
+		AlnRes res1;
+		res1.init(
+			10,
+			AlnScore(),
+			&ned1,
+			NULL,
+			NULL,
+			Coord(0, 5, true),
+			false);
+		EList<Edit> ned2(RES_CAT);
+		// 2 steps to the right in the middle of the alignment
+		ned2.push_back(Edit(4, '-', 'A', EDIT_TYPE_DEL));
+		ned2.push_back(Edit(4, '-', 'C', EDIT_TYPE_DEL));
+		AlnRes res2;
+		res2.init(
+			10,
+			AlnScore(),
+			&ned2,
+			NULL,
+			NULL,
+			Coord(0, 400, true),
+			false);
+		assert(!res1.overlap(res2));
+		cerr << "PASSED" << endl;
+	}
+}
+
+#endif /*def ALIGNER_RESULT_MAIN*/

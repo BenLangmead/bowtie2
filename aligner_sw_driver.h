@@ -117,7 +117,8 @@ public:
 		const Ebwt& ebwt,            // BWT
 		const BitPairReference& ref, // Reference strings
 		GroupWalk& gw,               // group walk left
-		SwAligner& swa,              // dynamic programming aligner
+		SwAligner& swa,              // dyn programming aligner for anchor
+		SwAligner& swao,             // dyn programming aligner for opposite
 		const SwParams& pa,          // parameters for dynamic programming aligner
 		const Penalties& pen,        // penalties for edits
 		const PairedEndPolicy& pepol,// paired-end policy

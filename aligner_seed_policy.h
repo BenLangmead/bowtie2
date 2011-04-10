@@ -47,24 +47,20 @@ enum {
 #define DEFAULT_SNP_PENALTY 30 
 
 // Default read gap penalties for when homopolymer calling is reliable	
-#define DEFAULT_READ_OPEN 40
-#define DEFAULT_READ_EXTEND_CONST 15
-#define DEFAULT_READ_EXTEND_LINEAR 0
+#define DEFAULT_READ_EXTEND_CONST 25
+#define DEFAULT_READ_EXTEND_LINEAR 15
 
 // Default read gap penalties for when homopolymer calling is not reliable
-#define DEFAULT_READ_OPEN_BADHPOLY 20
-#define DEFAULT_READ_EXTEND_CONST_BADHPOLY 5
-#define DEFAULT_READ_EXTEND_LINEAR_BADHPOLY 0
+#define DEFAULT_READ_EXTEND_CONST_BADHPOLY 15
+#define DEFAULT_READ_EXTEND_LINEAR_BADHPOLY 5
 
 // Default reference gap penalties for when homopolymer calling is reliable
-#define DEFAULT_REF_OPEN 40
-#define DEFAULT_REF_EXTEND_CONST 15
-#define DEFAULT_REF_EXTEND_LINEAR 0
+#define DEFAULT_REF_EXTEND_CONST 25
+#define DEFAULT_REF_EXTEND_LINEAR 15
 
 // Default reference gap penalties for when homopolymer calling is not reliable
-#define DEFAULT_REF_OPEN_BADHPOLY 20
-#define DEFAULT_REF_EXTEND_CONST_BADHPOLY 5
-#define DEFAULT_REF_EXTEND_LINEAR_BADHPOLY 0
+#define DEFAULT_REF_EXTEND_CONST_BADHPOLY 15
+#define DEFAULT_REF_EXTEND_LINEAR_BADHPOLY 5
 
 #define DEFAULT_SEEDMMS 0
 #define DEFAULT_SEEDLEN 22
@@ -123,26 +119,22 @@ public:
 	 * Penalty for a read gap
 	 * ----------------------
 	 *
-	 * RDG=xx,yy,zz (default: RDG=40,15,0)
+	 * RDG=xx,yy (default: RDG=25,15)
 	 *
-	 *   xx    = Read gap open penalty.  Every contiguous read gap
-	 *           incurs this penalty, which is added to any extension
-	 *           penalties.  Must be > 0.
-	 *   yy,zz = Read gap extension penalty.  Once the gap is opened,
-	 *           each extension gets a
-	 *           penalty = yy - zz * (gap length - 2).
+	 *   xx    = Read gap open penalty.
+	 *   yy    = Read gap extension penalty.
+	 *
+	 * Total cost incurred by a read gap = xx + yy * gap-length
 	 *
 	 * Penalty for a reference gap
 	 * ---------------------------
 	 *
-	 * RFG=xx,yy,zz (default: RFG=40,15,0)
+	 * RFG=xx,yy (default: RFG=25,15)
 	 *
-	 *   xx    = Reference gap open penalty.  Every contiguous
-	 *           reference gap incurs this penalty, which is added to
-	 *           any extension penalties.  Must be > 0.
-	 *   yy,zz = Reference gap extension penalty.  Once the gap is
-	 *           opened, each extension gets a
-	 *           penalty = yy - zz * (gap length - 2).
+	 *   xx    = Reference gap open penalty.
+	 *   yy    = Reference gap extension penalty.
+	 *
+	 * Total cost incurred by a reference gap = xx + yy * gap-length
 	 *
 	 * Read penalty ceiling
 	 * --------------------
@@ -242,27 +234,26 @@ public:
 	 *  Seed 1-: TACGATAGCA
 	 */
 	static void parseString(
-		const std::string& s,
-		bool noisyHpolymer,
-		int& penMmcType,
-		int& penMmc,
-		int& penSnp,
-		int& penNType,
-		int& penN,
-		int& penRdOpen,
-		int& penRfOpen,
-		int& penRdExConst,
-		int& penRfExConst,
-		int& penRdExLinear,
-		int& penRfExLinear,
+		const  std::string& s,
+		bool   noisyHpolymer,
+		int&   penMmcType,
+		int&   penMmc,
+		int&   penSnp,
+		int&   penNType,
+		int&   penN,
+		int&   penRdExConst,
+		int&   penRfExConst,
+		int&   penRdExLinear,
+		int&   penRfExLinear,
 		float& costCeilConst,
 		float& costCeilLinear,
 		float& nCeilConst,
 		float& nCeilLinear,
-		int& multiseedMms,
-		int& multiseedLen,
-		int& multiseedPeriod,
-		int& multiseedIvalType,
+		bool&  nCatPair,
+		int&   multiseedMms,
+		int&   multiseedLen,
+		int&   multiseedPeriod,
+		int&   multiseedIvalType,
 		float& multiseedIvalA,
 		float& multiseedIvalB);
 };

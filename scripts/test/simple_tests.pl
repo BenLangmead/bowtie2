@@ -86,6 +86,148 @@ if(! -x $bowtie2 || ! -x $bowtie2_build) {
 
 my @cases = (
 
+
+	# Alignment with 1 read gap
+	{ name   => "Gap penalties 1",
+	  ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTGTTCTTTGTT" ], # budget = 3 + 12 * 3 = 39
+	  args   =>   "-P \"SEED=0,3,1;RDG=29,10\"",
+	  report =>   "-a",
+	  hits   => [ { 0 => 1 } ],
+	  flags  => [ "XT:UU" ] },
+
+	# Alignment with 1 read gap - colorspace
+	{ name   => "Gap penalties 1 (colorspace)",
+	  ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "01102200110" ], # budget = 3 + 12 * 3 = 39
+	  #           "TTGTTCTTTGTT"
+	  args   =>   "-P \"SEED=0,3,1;RDG=26,10\"",
+	  report =>   "-a",
+	  hits   => [ { 1 => 1 } ],
+	  color  => 1,
+	  flags  => [ "XT:UU" ] },
+
+	# Alignment with 1 read gap, but not enough budget
+	{ name   => "Gap penalties 2",
+	  ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTGTTCTTTGTT" ], # budget = 3 + 12 * 3 = 39
+	  args   =>   "-P \"SEED=0,3,1;RDG=30,10\"",
+	  report =>   "-a",
+	  hits   => [ { } ],
+	  flags  => [ "XT:UU" ] },
+
+	# Alignment with 1 read gap, but not enough budget - colorspace
+	{ name   => "Gap penalties 2 (colorspace)",
+	  ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "01102200110" ], # budget = 3 + 11 * 3 = 36
+	  #           "TTGTTCTTTGTT"
+	  args   =>   "-P \"SEED=0,3,1;RDG=27,10\"",
+	  report =>   "-a",
+	  hits   => [ { } ],
+	  color  => 1,
+	  flags  => [ "XT:UU" ] },
+
+	# Alignment with 1 reference gap
+	{ name   => "Gap penalties 3",
+	  ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTGTTCGATTTGTT" ], # budget = 3 + 14 * 3 = 45
+	  args   =>   "-P \"SEED=0,3,1;RFG=30,15\"",
+	  report =>   "-a",
+	  hits   => [ { 0 => 1 } ],
+	  flags  => [ "XT:UU" ] },
+
+	# Alignment with 1 reference gap - colorspace
+	{ name   => "Gap penalties 3 (colorspace)",
+	  ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "0110232300110" ], # budget = 3 + 13 * 3 = 42
+	  #           "TTGTTCGATTTGTT"
+	  args   =>   "-P \"SEED=0,3,1;RFG=27,15\"",
+	  report =>   "-a",
+	  hits   => [ { 1 => 1 } ],
+	  color  => 1,
+	  flags  => [ "XT:UU" ] },
+
+	# Alignment with 1 reference gap, but not enough budget
+	{ name   => "Gap penalties 4",
+	  ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTGTTCGATTTGTT" ], # budget = 3 + 14 * 3 = 45
+	  args   =>   "-P \"SEED=0,3,1;RFG=30,16\"",
+	  report =>   "-a",
+	  hits   => [ { } ],
+	  flags  => [ "XT:UU" ] },
+
+	# Alignment with 1 reference gap, but not enough budget - colorspace
+	{ name   => "Gap penalties 4 (colorspace)",
+	  ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "0110232300110" ], # budget = 3 + 13 * 3 = 42
+	  #           "TTGTTCGATTTGTT"
+	  args   =>   "-P \"SEED=0,3,1;RFG=27,16\"",
+	  report =>   "-a",
+	  hits   => [ { } ],
+	  color  => 1,
+	  flags  => [ "XT:UU" ] },
+
+	# Alignment with 1 reference gap, but not enough budget
+	{ name   => "Gap penalties 5",
+	  ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTGTTCGATTTGTT" ], # budget = 3 + 14 * 3 = 45
+	  args   =>   "-P \"SEED=0,3,1;RFG=31,15\"",
+	  report =>   "-a",
+	  hits   => [ { } ],
+	  flags  => [ "XT:UU" ] },
+
+	# Alignment with 1 reference gap, but not enough budget - colorspace
+	{ name   => "Gap penalties 5 (colorspace)",
+	  ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "0110232300110" ], # budget = 3 + 13 * 3 = 42
+	  #           "TTGTTCGATTTGTT"
+	  args   =>   "-P \"SEED=0,3,1;RFG=28,15\"",
+	  report =>   "-a",
+	  hits   => [ { } ],
+	  color  => 1,
+	  flags  => [ "XT:UU" ] },
+
+	# Alignment with 1 reference gap and 1 read gap
+	{ name   => "Gap penalties 6",
+	  ref    => [ "ATTGTTCGTTTGTTCGTA" ],
+	  reads  => [ "ATTGTTGTTTGATTCGTA" ], # budget = 3 + 18 * 3 = 57
+	  args   =>   "-P \"SEED=0,3,1;RFG=18,10;RDG=19,10\"",
+	  report =>   "-a",
+	  hits   => [ { 0 => 1 } ],
+	  flags  => [ "XT:UU" ] },
+
+	# Alignment with 1 reference gap and 1 read gap - colorspace
+	{ name   => "Gap penalties 6 (colorspace)",
+	  ref    => [ "ATTGTTCGTTTGTTCGTA" ],
+	  reads  => [ "30110110012302313" ], # budget = 3 + 17 * 3 = 54
+	  #           "ATTGTTGTTTGATTCGTA"
+	  args   =>   "-P \"SEED=0,3,1;RFG=18,10;RDG=16,10\"",
+	  report =>   "-a",
+	  hits   => [ { 1 => 1 } ],
+	  color  => 1,
+	  flags  => [ "XT:UU" ] },
+
+	# Alignment with 1 reference gap and 1 read gap, but not enough budget
+	{ name   => "Gap penalties 7",
+	  ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTGTTGTTTGATTCGT" ], # budget = 3 + 16 * 3 = 51
+	  args   =>   "-P \"SEED=0,3,1;RFG=16,10;RDG=16,10\"",
+	  report =>   "-a",
+	  hits   => [ { } ],
+	  flags  => [ "XT:UU" ] },
+
+	# Alignment with 1 reference gap and 1 read gap, but not enough budget -
+	# colorspace
+	{ name   => "Gap penalties 7 (colorspace)",
+	  ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "011011001230231" ], # budget = 3 + 15 * 3 = 48
+	  #           "TTGTTGTTTGATTCGT"
+	  args   =>   "-P \"SEED=0,3,1;RFG=16,10;RDG=13,10\"",
+	  report =>   "-a",
+	  hits   => [ { } ],
+	  color  => 1,
+	  flags  => [ "XT:UU" ] },
+
 	# Experiment with N filtering
 	
 	{ name => "N filtering 1",
@@ -146,15 +288,15 @@ my @cases = (
 	# No discordant alignment because one mate is repetitive.
 
 	{ name => "Simple paired-end 15",
-	  ref    => [ "TTTATAAAAATATTTTTTATAAAAATATTTTCCCCCCCCCCCGCCCGCCCGCCCCCCGCCCGCCCGCCCCC" ],
-	#                 ATAAAAATAT     ATAAAAATAT             CGCCCGCCCG     CGCCCGCCCG
+	  ref    => [ "TTTATAAAAATATTTTTTATAAAAATATTTTCCCCCCCCCCCGCCGGCGCGCCCCCCGCCGGCGCGCCCCC" ],
+	#                 ATAAAAATAT     ATAAAAATAT             CGCCGGCGCG     CGCCGGCGCG
 	#              01234567890123456789012345678901234567890123456789012345678901234567890
 	#              0         1         2         3         4         5         6         7
 	#                 -------------------------------------------
 	#                 0123456789012345678901234567890123456789012
 	  mate1s => [ "ATAAAAATAT" ],
-	  mate2s => [ "CGCCCGCCCG" ],
-	  args   =>   "--ff -I 0 -X 70 -m 2",
+	  mate2s => [ "CGCCGGCGCG" ],
+	  args   =>   "--ff -I 0 -X 70 -m 2 --print-placeholders",
 	  report =>   "-a",
 	  # Not really any way to flag an alignment as discordant
 	  pairhits => [ { 3 => 1, 18 => 1, 41 => 1, 56 => 1 } ],
@@ -265,7 +407,7 @@ my @cases = (
 	# Like 6, but with -M limit
 
 	{ name => "Simple paired-end 9",
-	  ref    => [ "TTTATATATATATTTTTTTATATATATATTTTTTTTTATATATATATTTTTTTTCCCCCCGCGCGCGCGCCCCCCCCCCCC" ],
+	  ref    => [ "CCCATATATATATCCTCCCATATATATATCCCTCCCCATATATATATCCCTTTTCCTTTCGCGCGCGCGTTTCCCCCCCCC" ],
 	#                 ATATATATAT      ATATATATAT        ATATATATAT            CGCGCGCGCG
 	#              012345678901234567890123456789012345678901234567890123456789012345678901234567890
 	#              0         1         2         3         4         5         6         7         8
@@ -281,7 +423,7 @@ my @cases = (
 	# Like 6, but without -m limit
 
 	{ name => "Simple paired-end 8",
-	  ref    => [ "TTTATATATATATTTTTTTATATATATATTTTTTTTTATATATATATTTTTTTTCCCCCCGCGCGCGCGCCCCCCCCCCCC" ],
+	  ref    => [ "CCCATATATATACCCTCCCATATATATATCCCTTCCCATATATATATCCCTTTTTTTTTCGCGCGCGCGTTTCCCCCCCCC" ],
 	#                 ATATATATAT      ATATATATAT        ATATATATAT            CGCGCGCGCG
 	#              012345678901234567890123456789012345678901234567890123456789012345678901234567890
 	#              0         1         2         3         4         5         6         7         8
@@ -309,7 +451,7 @@ my @cases = (
 	# Same but with mates reversed, first mate aligns 3 times
 
 	{ name => "Simple paired-end 6",
-	  ref    => [ "TTTATATATATATTTTTTTATATATATATTTTTTTTTATATATATATTTTTTTTCCCCCCGCGCGCGCGCCCCCCCCCCCC" ],
+	  ref    => [ "CCCATATATATATCCCCCCATATATATATCCCTTCCCATATATATATCCCTTTTCCTTTCGCGCGCGCGTTTCCCCCCCCC" ],
 	#                 ATATATATAT      ATATATATAT        ATATATATAT            CGCGCGCGCG
 	#              012345678901234567890123456789012345678901234567890123456789012345678901234567890
 	#              0         1         2         3         4         5         6         7         8
@@ -323,7 +465,7 @@ my @cases = (
 	# Same but with mates reversed, second mate doesn't align
 
 	{ name => "Simple paired-end 5",
-	  ref    => [ "TTTATATATATATTTTTTTATATATATATTTTTTTTTATATATATATTTTTTTTCCCCCCGCGCGCGCGCCCCCCCCCCCC" ],
+	  ref    => [ "CCCATATATATATCCCTCCATATATATATCCCTTTCCATATATATATCCCTTTTCCCTTCGCGCGCGCGTTTCCCCCCCCC" ],
 	#                 ATATATATAT      ATATATATAT        ATATATATAT            CGCGCGCGCG
 	#              012345678901234567890123456789012345678901234567890123456789012345678901234567890
 	#              0         1         2         3         4         5         6         7         8
@@ -338,7 +480,7 @@ my @cases = (
 	# Second mate aligns 3 places.
 
 	{ name => "Simple paired-end 4",
-	  ref    => [ "TTTATATATATATTTTTTTTTTTCCCCCCCCCCCCCGCGCGCGCGCCCCCCCCGCGCGCGCGCCCCCCCCCCGCGCGCGCG" ],
+	  ref    => [ "CCCATATATATATCCCTTTTTTTCCCCCCCCCTTTCGCGCGCGCGTTTCTTTCGCGCGCGCGTTTCCCTTTCGCGCGCGCG" ],
 	#                 ATATATATAT                      CGCGCGCGCG       CGCGCGCGCG         CGCGCGCGCG
 	#              012345678901234567890123456789012345678901234567890123456789012345678901234567890
 	#              0         1         2         3         4         5         6         7         8
@@ -353,7 +495,7 @@ my @cases = (
 	# Second mate doesn't align at all.
 
 	{ name => "Simple paired-end 3",
-	  ref    => [ "TTTATATATATATTTTTTTTTTTCCCCCCCCCCCCCGCGCGCGCGCCCCCCCCGCGCGCGCGCCCCCCCCCCGCGCGCGCG" ],
+	  ref    => [ "CCCATATATATATCCCTTTTTTTCCCCCCCCCTTTCGCGCGCGCGTTTCCTTCGCGCGCGCGTTTTCCTTTCGCGCGCGCG" ],
 	#                 ATATATATAT                      CGCGCGCGCG       CGCGCGCGCG         CGCGCGCGCG
 	#              012345678901234567890123456789012345678901234567890123456789012345678901234567890
 	#              0         1         2         3         4         5         6         7         8
@@ -367,7 +509,7 @@ my @cases = (
 	# Paired-end read, but only one mate aligns
 
 	{ name => "Simple paired-end 2; no --no-mixed",
-	  ref    => [ "TTTATATATATATTTTTTTTTTTCCCCCCCCCCCCCGCGCGCGCGCCCCCCCC" ],
+	  ref    => [ "CCCATATATATATCCCTTTTTTTCCCCCCCCCCTTCGCGCGCGCGTTTCCCCC" ],
 	#                 ATATATATAT                      CGCGCGCGCG
 	#              01234567890123456789012345678901234567890123456789012
 	#              0         1         2         3         4         5
@@ -379,7 +521,7 @@ my @cases = (
 	  flags => [ "XT:UP" ] },
 
 	{ name => "Simple paired-end 2; --no-mixed",
-	  ref    => [ "TTTATATATATATTTTTTTTTTTCCCCCCCCCCCCCGCGCGCGCGCCCCCCCC" ],
+	  ref    => [ "CCCATATATATATCCCTTTTTTTCCCCCCCCTTTTCGCGCGCGCGTTTCCCCC" ],
 	#                 ATATATATAT                      CGCGCGCGCG
 	#              01234567890123456789012345678901234567890123456789012
 	#              0         1         2         3         4         5
@@ -392,7 +534,7 @@ my @cases = (
 	# Simple paired-end alignment
 	
 	{ name => "Simple paired-end 1",
-	  ref    => [ "TTTATATATATATTTTTTTTTTTCCCCCCCCCCCCCGCGCGCGCGCCCCCCCC" ],
+	  ref    => [ "CCCATATATATATCCCTTTTTTTCCCCCCCCTTTTCGCGCGCGCGTTTTCCCC" ],
 	#                 ATATATATAT                      CGCGCGCGCG
 	#              01234567890123456789012345678901234567890123456789012
 	#              0         1         2         3         4         5
@@ -470,7 +612,7 @@ my @cases = (
 	# Alignment with 1 reference gap
 	{ ref    => [ "TTTTGTTCGTTTG" ],
 	  reads  => [ "TTTTGTTCGATTTG" ], # budget = 3 + 14 * 3 = 45
-	  args   =>   "-P \"SEED=0,8,1;RFG=45\"",
+	  args   =>   "-P \"SEED=0,8,1;RFG=25,20\"",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1 } ],
 	  flags => [ "XT:UU" ] },
@@ -478,7 +620,7 @@ my @cases = (
 	# Alignment with 1 reference gap
 	{ ref    => [ "TTGTTCGTTTGTT" ],
 	  reads  => [ "TTGTTCGATTTGTT" ], # budget = 3 + 14 * 3 = 45
-	  args   =>   "-P \"SEED=0,3,1;RFG=45\"",
+	  args   =>   "-P \"SEED=0,3,1;RFG=25,20\"",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1 } ],
 	  flags => [ "XT:UU" ] },
@@ -550,7 +692,7 @@ my @cases = (
 
 	# Reads 1 and 2 don't have overhang, reads 3 and 4 overhang opposite ends
 	{ ref    => [ "ATATGCCCCATGCCCCCCTCCG" ],
-	  reads  => [ "ATATGCCCCCCCCCCTCCG" ],
+	  reads  => [ "ATATGCCCCCCCCCCTCCG" ], # 3 * 19 + 3 = 60
 	  #                     ^
 	  #                     9:ATG>- 
 	  args   => "",
@@ -795,54 +937,6 @@ my @cases = (
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCAT" ], # budget = 3 + 8 * 3 = 27
 	  args   =>   "-P \"SEED=2;MMP=C28\"", # penalty = 28
-	  report =>   "-a",
-	  hits   => [ { } ],
-	  flags  => [ "XT:UU" ] },
-
-	# Alignment with 1 read gap
-	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTGTTCTTTGTT" ], # budget = 3 + 12 * 3 = 39
-	  args   =>   "-P \"SEED=0,3,1;RDG=39\"",
-	  report =>   "-a",
-	  hits   => [ { 0 => 1 } ],
-	  flags  => [ "XT:UU" ] },
-
-	# Alignment with 1 read gap, but not enough budget
-	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTGTTCTTTGTT" ], # budget = 3 + 12 * 3 = 39
-	  args   =>   "-P \"SEED=0,3,1;RDG=40\"",
-	  report =>   "-a",
-	  hits   => [ { } ],
-	  flags  => [ "XT:UU" ] },
-
-	# Alignment with 1 reference gap
-	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTGTTCGATTTGTT" ], # budget = 3 + 14 * 3 = 45
-	  args   =>   "-P \"SEED=0,3,1;RFG=45\"",
-	  report =>   "-a",
-	  hits   => [ { 0 => 1 } ],
-	  flags  => [ "XT:UU" ] },
-
-	# Alignment with 1 reference gap, but not enough budget
-	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTGTTCGATTTGTT" ], # budget = 3 + 14 * 3 = 45
-	  args   =>   "-P \"SEED=0,3,1;RFG=46\"",
-	  report =>   "-a",
-	  hits   => [ { } ],
-	  flags  => [ "XT:UU" ] },
-
-	# Alignment with 1 reference gap and 1 read gap
-	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTGTTGTTTGATTCGT" ], # budget = 3 + 16 * 3 = 51
-	  args   =>   "-P \"SEED=0,3,1;RFG=25;RDG=26\"",
-	  report =>   "-a",
-	  hits   => [ { 0 => 1 } ],
-	  flags  => [ "XT:UU" ] },
-
-	# Alignment with 1 reference gap and 1 read gap, but not enough budget
-	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTGTTGTTTGATTCGT" ], # budget = 3 + 16 * 3 = 51
-	  args   =>   "-P \"SEED=0,3,1;RFG=26;RDG=26\"",
 	  report =>   "-a",
 	  hits   => [ { } ],
 	  flags  => [ "XT:UU" ] },
