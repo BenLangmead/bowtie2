@@ -439,14 +439,15 @@ public:
 		return refcoord_.fw();
 	}
 	
-	AlnScore     score()  const { return score_; }
-	EList<Edit>&       ned()          { return ned_; }
-	EList<Edit>&       aed()          { return aed_; }
-	EList<Edit>&       ced()          { return ced_; }
-	const EList<Edit>& ned()    const { return ned_; }
-	const EList<Edit>& aed()    const { return aed_; }
-	const EList<Edit>& ced()    const { return ced_; }
-	size_t             extent() const { return extent_; }
+	AlnScore           score()      const { return score_; }
+	EList<Edit>&       ned()              { return ned_; }
+	EList<Edit>&       aed()              { return aed_; }
+	EList<Edit>&       ced()              { return ced_; }
+	const EList<Edit>& ned()        const { return ned_; }
+	const EList<Edit>& aed()        const { return aed_; }
+	const EList<Edit>& ced()        const { return ced_; }
+	size_t             extent()     const { return extent_; }
+	size_t             readLength() const { return rdlen_; }
 	
 	/**
 	 * Print the sequence for the read that aligned using A, C, G and
@@ -722,6 +723,117 @@ protected:
 	bool        color_;    // colorspace alignment?
 	int         nuc5p_;    // 5'-most decoded base; clipped if excluding end
 	int         nuc3p_;    // 3'-most decoded base; clipped if excluding end
+};
+
+/**
+ * Unique ID for a cell in the overall DP table.  This is a helpful concept
+ * because of our definition of "redundnant".  Two alignments are redundant iff
+ * they have at least one cell in common in the overall DP table.
+ */
+struct RedundantCell {
+	
+	RedundantCell() {
+		rfid = 0;
+		fw = true;
+		rfoff = 0;
+		rdoff = 0;
+	}
+	
+	RedundantCell(
+		TRefId  rfid_,
+		bool    fw_,
+		TRefOff rfoff_,
+		size_t  rdoff_)
+	{
+		init(rfid_, fw_, rfoff_, rdoff_);
+	}
+	
+	void init(
+		TRefId  rfid_,
+		bool    fw_,
+		TRefOff rfoff_,
+		size_t  rdoff_)
+	{
+		rfid  = rfid_;
+		fw    = fw_;
+		rfoff = rfoff_;
+		rdoff = rdoff_;
+	}
+	
+	/**
+	 * Return true iff this RedundantCell is less than the given RedundantCell.
+	 */
+	bool operator<(const RedundantCell& c) const {
+		if(rfid  <  c.rfid) return true;
+		if(rfid  >  c.rfid) return false;
+		if(!fw   &&   c.fw) return true;
+		if( fw   &&  !c.fw) return false;
+		if(rfoff < c.rfoff) return true;
+		if(rfoff > c.rfoff) return false;
+		return rdoff < c.rdoff;
+	}
+
+	/**
+	 * Return true iff this RedundantCell is greater than the given
+	 * RedundantCell.
+	 */
+	bool operator>(const RedundantCell& c) const {
+		if(rfid  >  c.rfid) return true;
+		if(rfid  <  c.rfid) return false;
+		if( fw   &&  !c.fw) return true;
+		if(!fw   &&   c.fw) return false;
+		if(rfoff > c.rfoff) return true;
+		if(rfoff < c.rfoff) return false;
+		return rdoff > c.rdoff;
+	}
+
+	/**
+	 * Return true iff this RedundantCell is equal to the given RedundantCell.
+	 */
+	bool operator==(const RedundantCell& c) const {
+		return
+			rfid  == c.rfid  &&
+			fw    == c.fw    &&
+			rfoff == c.rfoff &&
+			rdoff == c.rdoff;
+	}
+
+	TRefId  rfid;  // reference id
+	bool    fw;    // orientation
+	TRefOff rfoff; // column
+	size_t  rdoff; // row
+};
+
+/**
+ * Encapsulates data structures and routines allowing client to determine
+ * whether one alignment is redundant (has a DP cell in common with) with a set
+ * of others.
+ */
+class RedundantAlns {
+
+public:
+
+	RedundantAlns(int cat = DP_CAT) : cells_(cat) { }
+
+	/**
+	 * Empty the cell database.
+	 */
+	void reset() { cells_.clear(); }
+
+	/**
+	 * Add all of the cells involved in the given alignment to the database.
+	 */
+	void add(const AlnRes& res);
+	
+	/**
+	 * Return true iff the given alignment has at least one cell that overlaps
+	 * one of the cells in the database.
+	 */
+	bool overlap(const AlnRes& res);
+
+protected:
+
+	ESet<RedundantCell> cells_;
 };
 
 typedef uint64_t TNumAlns;

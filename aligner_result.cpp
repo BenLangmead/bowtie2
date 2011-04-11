@@ -280,6 +280,110 @@ void AlnRes::printQuals(
 }
 
 /**
+ * Add all of the cells involved in the given alignment to the database.
+ */
+void RedundantAlns::add(const AlnRes& res) {
+	TRefOff left  = res.refoff();
+	TRefOff right = left + res.extent();
+	if(!res.fw()) {
+		const_cast<AlnRes&>(res).invertEdits();
+	}
+	const EList<Edit>& ned = res.ned();
+	size_t nedidx = 0;
+	size_t nrow = res.readLength() + (res.color() ? 1 : 0);
+	// For each row...
+	for(size_t i = 0; i < nrow; i++) {
+		size_t diff = 1;  // amount to shift to right for next round
+		right = left + 1;
+		while(nedidx < ned.size() && ned[nedidx].pos == i) {
+			if(ned[nedidx].isDelete()) {
+				// Next my_left will be in same column as this round
+				diff = 0;
+			}
+			nedidx++;
+		}
+		if(i < nrow-1) {
+			// See how many inserts there are before the next read
+			// character
+			size_t nedidx_next = nedidx;
+			while(nedidx_next < ned.size() && ned[nedidx_next].pos == i+1)
+			{
+				if(ned[nedidx_next].isInsert()) {
+					right++;
+				}
+				nedidx_next++;
+			}
+		}
+		for(TRefOff j = left; j < right; j++) {
+			// Add to db
+			RedundantCell c(res.refid(), res.fw(), j, i);
+			ASSERT_ONLY(bool ret =) cells_.insert(c);
+			assert(ret);
+		}
+		left = right + diff - 1;
+	}
+	if(!res.fw()) {
+		const_cast<AlnRes&>(res).invertEdits();
+	}
+}
+
+/**
+ * Return true iff the given alignment has at least one cell that overlaps
+ * one of the cells in the database.
+ */
+bool RedundantAlns::overlap(const AlnRes& res) {
+	TRefOff left  = res.refoff();
+	TRefOff right = left + res.extent();
+	if(!res.fw()) {
+		const_cast<AlnRes&>(res).invertEdits();
+	}
+	const EList<Edit>& ned = res.ned();
+	size_t nedidx = 0;
+	size_t nrow = res.readLength() + (res.color() ? 1 : 0);
+	// For each row...
+	bool olap = false;
+	for(size_t i = 0; i < nrow; i++) {
+		size_t diff = 1;  // amount to shift to right for next round
+		right = left + 1;
+		while(nedidx < ned.size() && ned[nedidx].pos == i) {
+			if(ned[nedidx].isDelete()) {
+				// Next my_left will be in same column as this round
+				diff = 0;
+			}
+			nedidx++;
+		}
+		if(i < nrow-1) {
+			// See how many inserts there are before the next read
+			// character
+			size_t nedidx_next = nedidx;
+			while(nedidx_next < ned.size() && ned[nedidx_next].pos == i+1)
+			{
+				if(ned[nedidx_next].isInsert()) {
+					right++;
+				}
+				nedidx_next++;
+			}
+		}
+		for(TRefOff j = left; j < right; j++) {
+			// Add to db
+			RedundantCell c(res.refid(), res.fw(), j, i);
+			if(cells_.contains(c)) {
+				olap = true;
+				break;
+			}
+		}
+		if(olap) {
+			break;
+		}
+		left = right + diff - 1;
+	}
+	if(!res.fw()) {
+		const_cast<AlnRes&>(res).invertEdits();
+	}
+	return olap;
+}
+
+/**
  * Given an unpaired read (in either rd1 or rd2) or a read pair
  * (mate 1 in rd1, mate 2 in rd2).
  */
@@ -369,6 +473,13 @@ int main() {
 			Coord(0, 0, true),
 			false);
 		assert(res1.overlap(res2));
+		
+		// Try again, but using the redundant-alignment database
+		RedundantAlns ra;
+		ra.add(res1);
+		assert(ra.overlap(res1));
+		assert(ra.overlap(res2));
+		
 		cerr << "PASSED" << endl;
 	}
 
@@ -394,6 +505,13 @@ int main() {
 			Coord(0, 0, true),
 			false);
 		assert(res1.overlap(res2));
+
+		// Try again, but using the redundant-alignment database
+		RedundantAlns ra;
+		ra.add(res1);
+		assert(ra.overlap(res1));
+		assert(ra.overlap(res2));
+
 		cerr << "PASSED" << endl;
 	}
 
@@ -419,6 +537,13 @@ int main() {
 			Coord(0, 0, true),
 			false);
 		assert(!res1.overlap(res2));
+
+		// Try again, but using the redundant-alignment database
+		RedundantAlns ra;
+		ra.add(res1);
+		assert(ra.overlap(res1));
+		assert(!ra.overlap(res2));
+
 		cerr << "PASSED" << endl;
 	}
 
@@ -444,6 +569,13 @@ int main() {
 			Coord(1, 0, true),
 			false);
 		assert(!res1.overlap(res2));
+
+		// Try again, but using the redundant-alignment database
+		RedundantAlns ra;
+		ra.add(res1);
+		assert(ra.overlap(res1));
+		assert(!ra.overlap(res2));
+
 		cerr << "PASSED" << endl;
 	}
 
@@ -469,6 +601,13 @@ int main() {
 			Coord(0, 0, false),
 			false);
 		assert(!res1.overlap(res2));
+
+		// Try again, but using the redundant-alignment database
+		RedundantAlns ra;
+		ra.add(res1);
+		assert(ra.overlap(res1));
+		assert(!ra.overlap(res2));
+
 		cerr << "PASSED" << endl;
 	}
 
@@ -498,6 +637,13 @@ int main() {
 			Coord(0, 6, false),
 			false);
 		assert(res1.overlap(res2));
+
+		// Try again, but using the redundant-alignment database
+		RedundantAlns ra;
+		ra.add(res1);
+		assert(ra.overlap(res1));
+		assert(ra.overlap(res2));
+
 		cerr << "PASSED" << endl;
 	}
 
@@ -528,6 +674,13 @@ int main() {
 			Coord(0, 6, false),
 			false);
 		assert(res1.overlap(res2));
+
+		// Try again, but using the redundant-alignment database
+		RedundantAlns ra;
+		ra.add(res1);
+		assert(ra.overlap(res1));
+		assert(ra.overlap(res2));
+
 		cerr << "PASSED" << endl;
 	}
 
@@ -561,6 +714,13 @@ int main() {
 			Coord(0, 6, false),
 			false);
 		assert(res1.overlap(res2));
+
+		// Try again, but using the redundant-alignment database
+		RedundantAlns ra;
+		ra.add(res1);
+		assert(ra.overlap(res1));
+		assert(ra.overlap(res2));
+
 		cerr << "PASSED" << endl;
 	}
 
@@ -594,6 +754,13 @@ int main() {
 			Coord(0, 6, true),
 			false);
 		assert(!res1.overlap(res2));
+
+		// Try again, but using the redundant-alignment database
+		RedundantAlns ra;
+		ra.add(res1);
+		assert(ra.overlap(res1));
+		assert(!ra.overlap(res2));
+
 		cerr << "PASSED" << endl;
 	}
 
@@ -627,6 +794,13 @@ int main() {
 			Coord(0, 6, false),
 			false);
 		assert(!res1.overlap(res2));
+
+		// Try again, but using the redundant-alignment database
+		RedundantAlns ra;
+		ra.add(res1);
+		assert(ra.overlap(res1));
+		assert(!ra.overlap(res2));
+
 		cerr << "PASSED" << endl;
 	}
 
@@ -660,6 +834,13 @@ int main() {
 			Coord(0, 6, true),
 			false);
 		assert(!res1.overlap(res2));
+
+		// Try again, but using the redundant-alignment database
+		RedundantAlns ra;
+		ra.add(res1);
+		assert(ra.overlap(res1));
+		assert(!ra.overlap(res2));
+
 		cerr << "PASSED" << endl;
 	}
 
@@ -693,6 +874,13 @@ int main() {
 			Coord(0, 6, true),
 			false);
 		assert(!res1.overlap(res2));
+
+		// Try again, but using the redundant-alignment database
+		RedundantAlns ra;
+		ra.add(res1);
+		assert(ra.overlap(res1));
+		assert(!ra.overlap(res2));
+
 		cerr << "PASSED" << endl;
 	}
 
@@ -726,6 +914,13 @@ int main() {
 			Coord(0, 6, true),
 			false);
 		assert(res1.overlap(res2));
+
+		// Try again, but using the redundant-alignment database
+		RedundantAlns ra;
+		ra.add(res1);
+		assert(ra.overlap(res1));
+		assert(ra.overlap(res2));
+
 		cerr << "PASSED" << endl;
 	}
 
@@ -759,6 +954,13 @@ int main() {
 			Coord(0, 400, true),
 			false);
 		assert(!res1.overlap(res2));
+
+		// Try again, but using the redundant-alignment database
+		RedundantAlns ra;
+		ra.add(res1);
+		assert(ra.overlap(res1));
+		assert(!ra.overlap(res2));
+
 		cerr << "PASSED" << endl;
 	}
 }

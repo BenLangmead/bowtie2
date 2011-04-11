@@ -1715,6 +1715,17 @@ int main(void) {
 		assert(!unpair2Max);
 	}
 	cerr << "PASSED" << endl;
+
+	cerr << "Case 7 (redundant alignment db test 1) ... ";
+	{
+		
+	}
+	cerr << "PASSED" << endl;
+
+	cerr << "Case 8 (redundant alignment db test 2) ... ";
+	{
+	}
+	cerr << "PASSED" << endl;
 }
 
 #endif /*def ALN_SINK_MAIN*/

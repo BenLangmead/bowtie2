@@ -1979,7 +1979,7 @@ struct PerfMetrics {
 				/* 32 */ "CacheMemPeak"   "\t" // CA_CAT
 				/* 33 */ "ResolveMemPeak" "\t" // GW_CAT
 				/* 34 */ "AlignMemPeak"   "\t" // AL_CAT
-				/* 35 */ "DPMemPeak"      "\t" // SW_CAT
+				/* 35 */ "DPMemPeak"      "\t" // DP_CAT
 				/* 36 */ "MiscMemPeak"    "\t" // MISC_CAT
 				/* 37 */ "DebugMemPeak"   "\t" // DEBUG_CAT
 				"\n";
@@ -2127,7 +2127,7 @@ struct PerfMetrics {
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 		// 35. Dynamic programming aligner memory peak
-		itoa10<size_t>(gMemTally.peak(SW_CAT) >> 20, buf);
+		itoa10<size_t>(gMemTally.peak(DP_CAT) >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 		// 36. Miscellaneous memory peak

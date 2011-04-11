@@ -20,47 +20,6 @@
 using namespace std;
 
 /**
- * Try to convert a BW offset to the forward reference offset of the
- * leftmost position involved in the hit.  Return 0xffffffff if the
- * index doesn't contain the information needed to convert.
- */
-uint32_t SwDriver::bwtOffToOff(
-	const Ebwt& ebwt,
-	bool fw,
-	uint32_t bwoff,
-	uint32_t hitlen,
-	uint32_t& tidx,
-	uint32_t& toff,
-	uint32_t& tlen)
-{
-	assert_gt(hitlen, 0);
-	uint32_t off = 0xffffffff;
-	if((bwoff & ebwt.eh().offMask()) == bwoff) {
-		// The index tells us the offset of this BW row directly
-		uint32_t bwoffOff = bwoff >> ebwt.eh().offRate();
-		assert_lt(bwoffOff, ebwt.eh().offsLen());
-		off = ebwt.offs()[bwoffOff];
-		assert_neq(0xffffffff, off);
-		if(!fw) {
-			assert_lt(off, ebwt.eh().len());
-			off = ebwt.eh().len() - off - 1;
-			assert_geq(off, hitlen-1);
-			off -= (hitlen-1);
-			assert_lt(off, ebwt.eh().len());
-		}
-	}
-	if(off != 0xffffffff) {
-		ebwt.joinedToTextOff(
-			hitlen,
-			off,
-			tidx,
-			toff,
-			tlen);
-	}
-	return off;
-}
-
-/**
  * Given a collection of SeedHits for a single read, extend seed alignments
  * into full alignments.  Where possible, try to avoid redundant offset lookups
  * and dynamic programming wherever possible.  Optionally report alignments to
@@ -106,9 +65,6 @@ bool SwDriver::extendSeeds(
 	const size_t rdlen = rd.length();
 	int readGaps = pen.maxReadGaps(-penceil, rdlen);
 	int refGaps  = pen.maxRefGaps(-penceil, rdlen);
-	coords_.clear();   // ref coords tried so far
-	coordsst_.clear(); // upstream coord for hits so far
-	coordsen_.clear(); // downstream coord for hits so far
 
 	DynProgFramer dpframe(!gReportOverhangs);
 
@@ -144,8 +100,13 @@ bool SwDriver::extendSeeds(
 			assert(wr.elt != lastwr.elt);
 			ASSERT_ONLY(lastwr = wr);
 			advances++;
-			ASSERT_ONLY(uint32_t off = wr.toff);
-			assert_neq(0xffffffff, off);
+			assert_neq(0xffffffff, wr.toff);
+			Coord c(0, (TRefOff)wr.toff - rdoff, fw);
+			if(!redSeed1_.insert(c)) {
+				// Already tried to find an alignment at these coordinates
+				swm.rshit++;
+				continue;
+			}
 			uint32_t tidx = 0, toff = 0, tlen = 0;
 			ebwt.joinedToTextOff(
 				wr.elt.len,
@@ -179,16 +140,6 @@ bool SwDriver::extendSeeds(
 			// Find offset of alignment's upstream base assuming net gaps=0
 			// between beginning of read and beginning of seed hit
 			int64_t refoff = (int64_t)toff - rdoff;
-			// TODO: need a more sophisticated filter here.  Really we care if
-			// any of the start/end combos here have been covered by a previous
-			// dynamic programming problem.
-			Coord c(tidx, refoff, fw);
-			if(!coords_.insert(c)) {
-				// Already tried to find an alignment at these
-				// coordinates
-				swm.rshit++;
-				continue;
-			}
 			size_t width = 0, trimup = 0, trimdn = 0;
 			int64_t refl = 0, refr = 0;
 			bool found = dpframe.frameSeedExtension(
@@ -210,9 +161,6 @@ bool SwDriver::extendSeeds(
 			}
 			assert_eq(width, st_.size());
 			assert_eq(st_.size(), en_.size());
-			res_.reset();
-			assert(res_.empty());
-			assert_neq(0xffffffff, tidx);
 			// Given the boundaries defined by refl and refr, initilize the
 			// SwAligner with the dynamic programming problem that aligns the
 			// read to this reference stretch.
@@ -249,18 +197,15 @@ bool SwDriver::extendSeeds(
 				if(!found) {
 					break;
 				}
-				
 				// User specified that alignments overhanging ends of reference
 				// should be excluded...
 				assert(gReportOverhangs || res_.alres.within(tidx, 0, fw, tlen));
-
-				Coord st, en;
-				res_.alres.getCoords(st, en);
-				if(!coordsst_.insert(st) || !coordsen_.insert(en)) {
+				// Is this alignment redundant with one we've seen previously?
+				if(redAnchor_.overlap(res_.alres)) {
 					// Redundant with an alignment we found already
 					continue;
 				}
-				
+				redAnchor_.add(res_.alres);
 				// Annotate the AlnRes object with some key parameters
 				// that were used to obtain the alignment.
 				res_.alres.setParams(
@@ -330,20 +275,13 @@ bool SwDriver::sw(
  * msink->report() returned true (indicating that the reporting
  * policy is satisfied and we can stop).  Otherwise, returns false.
  *
+ * REDUNDANT SEED HITS
+ *
+ * See notes at top of aligner_sw_driver.h.
+ *
  * REDUNDANT ALIGNMENTS
  *
- * In a paired-end context, it's not easy to pin down what a "redundant"
- * alignment is.  We break this down into cases:
- *
- * 1. A paired-end alignment is clearly redundant with another paired-end
- *    alignment if both the fragment extremes are identical.
- * 2. An anchor or unpaired alignment is clearly redundant with another anchor
- *    or unpaired alignment if either extreme is identical.
- *
- * On the other hand, it's also clear that:
- *
- * 1. A paired-end alignment is NOT redundant with another paired-end alignment
- *    if only *one* fragment extreme is identical.
+ * See notes at top of aligner_sw_driver.h.
  *
  * MIXING PAIRED AND UNPAIRED ALIGNMENTS
  *
@@ -381,7 +319,7 @@ bool SwDriver::sw(
  * alignment proceeds as in Mode 3 but with this caveat: alignment must be at
  * least as thorough as dictated by -m 1 up until the point where
  *
- *Print paired-end alignments when there are reportable paired-end
+ * Print paired-end alignments when there are reportable paired-end
  * alignments, otherwise report reportable unpaired alignments.  If -k limit is
  * reached for paired-end alignments, stop.  If -m/-M limit is reached for
  * paired-end alignments, stop searching for paired-end alignments and look
@@ -466,9 +404,6 @@ bool SwDriver::extendSeedsPaired(
 
 	const size_t rows   = rdlen  + (color ? 1 : 0);
 	const size_t orows  = ordlen + (color ? 1 : 0);
-	coords_.clear();   // DP upstream char for seed hits
-	coordsst_.clear(); // upstream coord for anchor hits so far
-	coordsen_.clear(); // downstream coord for anchor hits so far
 	
 	DynProgFramer dpframe(!gReportOverhangs);
 
@@ -505,8 +440,14 @@ bool SwDriver::extendSeedsPaired(
 			assert(wr.elt != lastwr.elt);
 			ASSERT_ONLY(lastwr = wr);
 			advances++;
-			ASSERT_ONLY(uint32_t joff = wr.toff);
-			assert_neq(0xffffffff, joff);
+			assert_neq(0xffffffff, wr.toff);
+			Coord c(0, (TRefOff)wr.toff - rdoff, fw);
+			ESet<Coord>& redSeedAnchor = anchor1 ? redSeed1_ : redSeed2_;
+			if(!redSeedAnchor.insert(c)) {
+				// Already tried to find an alignment at these coordinates
+				swm.rshit++;
+				continue;
+			}
 			uint32_t tidx = 0, toff = 0, tlen = 0;
 			ebwt.joinedToTextOff(
 				wr.elt.len,
@@ -540,16 +481,6 @@ bool SwDriver::extendSeedsPaired(
 			// Find offset of alignment's upstream base assuming net gaps=0
 			// between beginning of read and beginning of seed hit
 			int64_t refoff = (int64_t)toff - rdoff;
-			// TODO: need a more sophisticated filter here.  Really we care if
-			// any of the start/end combos here have been covered by a previous
-			// dynamic programming problem.
-			Coord c(tidx, refoff, fw);
-			if(!coords_.insert(c)) {
-				// Already tried to find an alignment at these
-				// coordinates
-				swm.rshit++;
-				continue;
-			}
 			size_t width = 0, trimup = 0, trimdn = 0;
 			int64_t refl = 0, refr = 0;
 			bool found = dpframe.frameSeedExtension(
@@ -618,19 +549,12 @@ bool SwDriver::extendSeedsPaired(
 				// User specified that alignments overhanging ends of reference
 				// should be excluded...
 				assert(gReportOverhangs || res_.alres.within(tidx, 0, fw, tlen));
-
-				// TODO: use more sophisticated redundancy checking, e.g. using
-				// AlnRes::overlap or a ESet of cells observed in previous
-				// alignments.
-				Coord stAnchor, enAnchor;
-				res_.alres.getCoords(stAnchor, enAnchor);
-				if(!coordsst_.insert(stAnchor) ||
-				   !coordsen_.insert(enAnchor))
-				{
+				// Is this alignment redundant with one we've seen previously?
+				if(redAnchor_.overlap(res_.alres)) {
 					// Redundant with an alignment we found already
 					continue;
 				}
-				
+				redAnchor_.add(res_.alres);
 				// Annotate the AlnRes object with some key parameters
 				// that were used to obtain the alignment.
 				res_.alres.setParams(
@@ -730,6 +654,10 @@ bool SwDriver::extendSeedsPaired(
 						oswa.nextAlignment(ores_, rnd);
 						foundMate = !ores_.empty();
 						if(foundMate) {
+							// Redundant with one we've seen previously?
+							if(!redAnchor_.overlap(ores_.alres)) {
+								redAnchor_.add(ores_.alres);
+							}
 							assert_eq(ofw, ores_.alres.fw());
 							// Annotate the AlnRes object with some key parameters
 							// that were used to obtain the alignment.
@@ -776,29 +704,6 @@ bool SwDriver::extendSeedsPaired(
 								fw2);
 							foundMate = pairCl != PE_ALS_DISCORD;
 						}
-						if(foundMate) {
-							// Check if this fragment is redundant with one found
-							// previously, i.e. if the extents are the same and
-							// mate 1 has the same orientation.
-							Interval ival(refid, fragoff, fw1, fraglen);
-							foundMate = frags_.insert(ival);
-						}
-						// Check whether we've already seen these *mate* alignments
-						bool seen1 = false, seen2 = false;
-						if(foundMate) {
-							// Remember that we saw each of these two mates
-							Coord c1l(tidx, off1,            fw1);
-							Coord c1r(tidx, off1 + len1 - 1, fw1);
-							seen1 = !coords1seenup_.insert(c1l) ||
-									!coords1seendn_.insert(c1r);
-							Coord c2l(tidx, off2,            fw2);
-							Coord c2r(tidx, off2 + len2 - 1, fw2);
-							seen2 = !coords2seenup_.insert(c2l) ||
-									!coords2seendn_.insert(c2r);
-						}
-						bool doneAnchor = anchor1 ?
-							msink->state().doneUnpaired(true) :
-							msink->state().doneUnpaired(false);
 						if(msink->state().doneConcordant()) {
 							foundMate = false;
 						}
@@ -821,37 +726,34 @@ bool SwDriver::extendSeedsPaired(
 									anchor1 ? &res_.alres : &ores_.alres,
 									anchor1 ? &ores_.alres : &res_.alres))
 								{
-									// Short-circuited because a limit, e.g. -k, -m
-									// or -M, was exceeded
+									// Short-circuited because a limit, e.g.
+									// -k, -m or -M, was exceeded
 									return true;
 								}
 								if(mixed || discord) {
 									// Report alignment for mate #1 as an
-									// unpaired alignment.  TODO: use more
-									// sophisticated redundancy checking, e.g.
-									// using AlnRes::overlap or a ESet of
-									// cells observed in previous alignments.
-									bool seenAnchor   = anchor1 ? seen1 : seen2;
-									bool seenOpposite = anchor1 ? seen2 : seen1;
-									bool doneOpposite = anchor1 ?
-										msink->state().doneUnpaired(false) :
-										msink->state().doneUnpaired(true);
-									if(!seenAnchor && !doneAnchor && msink->report(
-										0,
-										anchor1 ? &res_.alres : NULL,
-										anchor1 ? NULL : &res_.alres))
-									{
-										return true; // Short-circuited
+									// unpaired alignment.
+									if(!msink->state().doneUnpaired(true)) {
+										const AlnRes& r1 = anchor1 ?
+											res_.alres : ores_.alres;
+										if(!redMate1_.overlap(r1)) {
+											redMate1_.add(r1);
+											if(msink->report(0, &r1, NULL)) {
+												return true; // Short-circuited
+											}
+										}
 									}
-									// Report alignment for mate #2 as an unpaired
-									// alignment
-									if(!seenOpposite && !doneOpposite &&
-									   msink->report(
-										0,
-										anchor1 ? NULL : &ores_.alres,
-										anchor1 ? &ores_.alres : NULL))
-									{
-										return true; // Short-circuited
+									// Report alignment for mate #2 as an
+									// unpaired alignment.
+									if(!msink->state().doneUnpaired(false)) {
+										const AlnRes& r2 = anchor1 ?
+											ores_.alres : res_.alres;
+										if(!redMate2_.overlap(r2)) {
+											redMate2_.add(r2);
+											if(msink->report(0, NULL, &r2)) {
+												return true; // Short-circuited
+											}
+										}
 									}
 								}
 								if(msink->state().doneWithMate(anchor1)) {
@@ -870,30 +772,22 @@ bool SwDriver::extendSeedsPaired(
 								// Report an unpaired alignment
 								assert(!msink->maxed());
 								assert(!msink->state().done());
-								// TODO: use more sophisticated redundancy
-								// checking, e.g. using AlnRes::overlap or a
-								// ESet of cells observed in previous
-								// alignments.
-								bool seen = false;
-								Coord cl(tidx, off,                           fw);
-								Coord cr(tidx, off + res_.alres.extent() - 1, fw);
-								if(anchor1) {
-									seen = !coords1seenup_.insert(cl) ||
-										   !coords1seendn_.insert(cr);
-								} else {
-									seen = !coords2seenup_.insert(cl) ||
-										   !coords2seendn_.insert(cr);
-								}
-								if(!seen && !doneAnchor && msink->report(
-									0,
-									anchor1 ? &res_.alres : NULL,
-									anchor1 ? NULL : &res_.alres))
-								{
-									return true; // Short-circuited
+								// Report alignment for mate #1 as an
+								// unpaired alignment.
+								if(!msink->state().doneUnpaired(anchor1)) {
+									const AlnRes& r = res_.alres;
+									RedundantAlns& red = anchor1 ? redMate1_ : redMate2_;
+									const AlnRes* r1 = anchor1 ? &res_.alres : NULL;
+									const AlnRes* r2 = anchor1 ? NULL : &res_.alres;
+									if(!red.overlap(r)) {
+										red.add(r);
+										if(msink->report(0, r1, r2)) {
+											return true; // Short-circuited
+										}
+									}
 								}
 								if(msink->state().doneWithMate(anchor1)) {
-									// Done with this mate, but not with the read
-									// overall
+									// Done with mate, but not read overall
 									return false;
 								}
 							}
@@ -915,30 +809,22 @@ bool SwDriver::extendSeedsPaired(
 						// Report an unpaired alignment
 						assert(!msink->maxed());
 						assert(!msink->state().done());
-						// TODO: use more sophisticated redundancy
-						// checking, e.g. using AlnRes::overlap or a
-						// ESet of cells observed in previous
-						// alignments.
-						bool seen = false;
-						Coord cl(tidx, off,                           fw);
-						Coord cr(tidx, off + res_.alres.extent() - 1, fw);
-						if(anchor1) {
-							seen = !coords1seenup_.insert(cl) ||
-								   !coords1seendn_.insert(cr);
-						} else {
-							seen = !coords2seenup_.insert(cl) ||
-								   !coords2seendn_.insert(cr);
-						}
-						if(!seen && msink->report(
-							0,
-							anchor1 ? &res_.alres : NULL,
-							anchor1 ? NULL : &res_.alres))
-						{
-							return true; // Short-circuited
+						// Report alignment for mate #1 as an
+						// unpaired alignment.
+						if(!msink->state().doneUnpaired(anchor1)) {
+							const AlnRes& r = res_.alres;
+							RedundantAlns& red = anchor1 ? redMate1_ : redMate2_;
+							const AlnRes* r1 = anchor1 ? &res_.alres : NULL;
+							const AlnRes* r2 = anchor1 ? NULL : &res_.alres;
+							if(!red.overlap(r)) {
+								red.add(r);
+								if(msink->report(0, r1, r2)) {
+									return true; // Short-circuited
+								}
+							}
 						}
 						if(msink->state().doneWithMate(anchor1)) {
-							// Done with this mate, but not with the read
-							// overall.  Let the other mate be the anchor.
+							// Done with mate, but not read overall
 							return false;
 						}
 					}

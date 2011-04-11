@@ -1,5 +1,53 @@
 /*
  *  aligner_sw_driver.h
+ *
+ * REDUNDANT SEED HITS
+ *
+ * We say that two seed hits are redundant if they trigger identical
+ * seed-extend dynamic programming problems.  Detecting redundant seed hits is
+ * simple when the seed hits are ungapped, so we do this.
+ *
+ * REDUNDANT ALIGNMENTS
+ *
+ * In an unpaired context, we say that two alignments are redundant if they
+ * share any cells in the global DP table.  Roughly speaking, this is like
+ * saying that two alignments are redundant if any read character aligns to the
+ * same reference character (same reference sequence, same strand, same offset)
+ * in both alignments.
+ *
+ * In a paired-end context, we say that two paired-end alignments are redundant
+ * if the mate #1s are redundant and the mate #2s are redundant.
+ *
+ * How do we enforce this?  In the unpaired context, this is relatively simple:
+ * the cells from each alignment are checked against a set containing all cells
+ * from all previous alignments.  Given a new alignment, for each cell in the
+ * new alignment we check whether it is in the set.  If there is any overlap,
+ * the new alignment is rejected as redundant.  Otherwise, the new alignment is
+ * accepted and its cells are added to the set.
+ *
+ * Enforcement in a paired context is a little trickier.  Consider the
+ * following approaches:
+ *
+ * 1. Skip anchors that are redundant with any previous anchor or opposite
+ *    alignment.  This is sufficient to ensure no two concordant alignments
+ *    found are redundant.
+ *
+ * 2. Same as scheme 1, but with a "transitive closure" scheme for finding all
+ *    concordant pairs in the vicinity of an anchor.  Consider the AB/AC
+ *    scenario from the previous paragraph.  If B is the anchor alignment, we
+ *    will find AB but not AC.  But under this scheme, once we find AB we then
+ *    let B be a new anchor and immediately look for its opposites.  Likewise,
+ *    if we find any opposite, we make them anchors and continue searching.  We
+ *    don't stop searching until every opposite is used as an anchor.
+ *
+ * 3. Skip anchors that are redundant with any previous anchor alignment (but
+ *    allow anchors that are redundant with previous opposite alignments).
+ *    This isn't sufficient to avoid redundant concordant alignments.  To avoid
+ *    redundant concordants, we need an additional procedure that checks each
+ *    new concordant alignment one-by-one against a list of previous concordant
+ *    alignments to see if it is redundant.
+ *
+ * We take approach 1.
  */
 
 #ifndef ALIGNER_SW_DRIVER_H_
@@ -22,17 +70,11 @@ class SwDriver {
 public:
 
 	SwDriver() :
-		satups_(SW_CAT),
-		coords_(1024, SW_CAT),
-		coordsst_(1024, SW_CAT),
-		coordsen_(1024, SW_CAT),
-		frags_(1024, SW_CAT),
-		coords1seenup_(1024, SW_CAT),
-		coords1seendn_(1024, SW_CAT),
-		coords2seenup_(1024, SW_CAT),
-		coords2seendn_(1024, SW_CAT),
-		st_(1024, SW_CAT),
-		en_(1024, SW_CAT),
+		redAnchor_(DP_CAT),  // database of cells used for anchor alignments
+		redMate1_(DP_CAT),   // database of cells used for mate 1 alignments
+		redMate2_(DP_CAT),   // database of cells used for mate 2 alignments
+		st_(1024, DP_CAT),
+		en_(1024, DP_CAT),
 		res_(), ores_()
 	{ }
 
@@ -149,44 +191,24 @@ public:
 	 * that would otherwise survive across calls to extendSeedsPaired.
 	 */
 	void nextRead(bool paired) {
-		if(paired) {
-			frags_.clear();
-			coords1seenup_.clear();
-			coords1seendn_.clear();
-			coords2seenup_.clear();
-			coords2seendn_.clear();
-		}
+		redAnchor_.reset();
+		redMate1_.reset();
+		redMate2_.reset();
+		redSeed1_.clear();
+		redSeed2_.clear();
 	}
 
 protected:
 
-	/**
-	 * Try to convert a BW offset to the forward reference offset of the
-	 * leftmost position involved in the hit.  Return 0xffffffff if the
-	 * index doesn't contain the information needed to convert.
-	 */
-	uint32_t bwtOffToOff(
-		const Ebwt& ebwt,
-		bool fw,
-		uint32_t bwoff,
-		uint32_t hitlen,
-		uint32_t& tidx,
-		uint32_t& toff,
-		uint32_t& tlen);
-
 	EList<SATuple> satups_;     // temporary holder for range lists
-	ESet<Coord>    coords_;     // ref coords tried for mate 1 so far
-	ESet<Coord>    coordsst_;   // upstream coord for mate 1 hits so far
-	ESet<Coord>    coordsen_;   // downstream coord for mate 1 hits so far
-	ESet<Interval> frags_;      // intervals for paired-end fragments
-	ESet<Coord> coords1seenup_; // LHSs seen for mate1s - to avoid double-
-	                            // reporting unpaired alignments
-	ESet<Coord> coords1seendn_; // RHSs seen for mate1s - to avoid double-
-	                            // reporting unpaired alignments
-	ESet<Coord> coords2seenup_; // LHSs seen for mate2s - to avoid double-
-	                            // reporting unpaired alignments
-	ESet<Coord> coords2seendn_; // RHSs seen for mate2s - to avoid double-
-	                            // reporting unpaired alignments
+
+	ESet<Coord>    redSeed1_;   // ref coords for seed hits so far for mate 1
+	ESet<Coord>    redSeed2_;   // ref coords for seed hits so far for mate 2
+	
+	RedundantAlns  redAnchor_;  // database of cells used for anchor alignments
+	RedundantAlns  redMate1_;   // database of cells used for mate 1 alignments
+	RedundantAlns  redMate2_;   // database of cells used for mate 2 alignments
+
 	EList<bool>    st_;         // temp holder for dyn prog starting mask
 	EList<bool>    en_;         // temp holder for dyn prog ending mask
 	SwResult       res_;        // temp holder for SW results

@@ -423,7 +423,7 @@ my @cases = (
 	# Like 6, but without -m limit
 
 	{ name => "Simple paired-end 8",
-	  ref    => [ "CCCATATATATACCCTCCCATATATATATCCCTTCCCATATATATATCCCTTTTTTTTTCGCGCGCGCGTTTCCCCCCCCC" ],
+	  ref    => [ "CCCATATATATATCCTCCCATATATATATCCCTTCCCATATATATATCCCTTTTTTTTTCGCGCGCGCGTTTCCCCCCCCC" ],
 	#                 ATATATATAT      ATATATATAT        ATATATATAT            CGCGCGCGCG
 	#              012345678901234567890123456789012345678901234567890123456789012345678901234567890
 	#              0         1         2         3         4         5         6         7         8
@@ -914,7 +914,7 @@ my @cases = (
 	# matching characters between the two mismatches.  Here we wedge a
 	# length-2 seed in
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTATTAGT" ],
+	  reads  => [      "TTATTAGT" ],
 	  args   => "-P \"SEED=0,2,1;MMP=C1\"",
 	  report => "-a",
 	  hits   => [ { 0 => 1, 3 => 1, 4 => 1, 5 => 1, 7 => 1, 8 => 1} ],
