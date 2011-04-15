@@ -1,10 +1,5 @@
 /*
  *  mask.cpp
- *  bowtie-beta1
- *
- *  Created by Benjamin Langmead on 2/8/11.
- *  Copyright 2011 Johns Hopkins University. All rights reserved.
- *
  */
 
 #include "mask.h"

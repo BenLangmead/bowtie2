@@ -37,21 +37,21 @@ bool SwDriver::extendSeeds(
 	const BitPairReference& ref, // Reference strings
 	GroupWalk& gw,               // group walk left
 	SwAligner& swa,              // dynamic programming aligner
-	const SwParams& pa,          // parars1_meters for dyn prog aligner
-	const Penalties& pen,        // penalties for edits
+	const Scoring& sc,           // scoring scheme
 	int seedmms,                 // # mismatches allowed in seed
 	int seedlen,                 // length of seed
 	int seedival,                // interval between seeds
-	int penceil,                 // maximum penalty allowed
+	TAlScore minsc,              // minimum score for anchor
+	TAlScore floorsc,            // local-alignment floor for anchor score
 	int nceil,                   // maximum # Ns permitted in reference portion
 	uint32_t maxposs,            // stop after this many positions (off+orient combos)
 	uint32_t maxrows,            // stop examining a position after this many offsets
-	AlignmentCacheIface& sc,     // alignment cache for seed hits
+	AlignmentCacheIface& ca,     // alignment cache for seed hits
 	RandomSource& rnd,           // pseudo-random source
 	WalkMetrics& wlm,            // group walk left metrics
 	SwMetrics& swm,              // dynamic programming metrics
 	ReportingMetrics& rpm,       // reporting metrics
-	AlnSinkWrap* msink,        // AlnSink wrapper for multiseed-style aligner
+	AlnSinkWrap* msink,          // AlnSink wrapper for multiseed-style aligner
 	bool reportImmediately,      // whether to report hits immediately to msink
 	EList<SwCounterSink*>* swCounterSinks, // send counter updates to these
 	EList<SwActionSink*>* swActionSinks)   // send action-list updates to these
@@ -61,10 +61,9 @@ bool SwDriver::extendSeeds(
 	assert(!reportImmediately || !msink->maxed());
 
 	// Calculate the largest possible number of read and reference gaps
-	// given 'penceil' and 'pen'
 	const size_t rdlen = rd.length();
-	int readGaps = pen.maxReadGaps(-penceil, rdlen);
-	int refGaps  = pen.maxRefGaps(-penceil, rdlen);
+	int readGaps = sc.maxReadGaps(minsc, rdlen);
+	int refGaps  = sc.maxRefGaps(minsc, rdlen);
 
 	DynProgFramer dpframe(!gReportOverhangs);
 
@@ -79,7 +78,7 @@ bool SwDriver::extendSeeds(
 		bool fw = true;
 		uint32_t offidx = 0, rdoff = 0, seedlen;
 		QVal qv = sh.hitsByRank(i, offidx, rdoff, fw, seedlen);
-		assert(qv.repOk(sc.current()));
+		assert(qv.repOk(ca.current()));
 		if(!fw) {
 			// 'rdoff' and 'offidx' are with respect to the 5' end of
 			// the read.  Here we convert rdoff to be with respect to
@@ -88,8 +87,8 @@ bool SwDriver::extendSeeds(
 		}
 		size_t rows = rdlen + (color ? 1 : 0);
 		satups_.clear();
-		sc.queryQval(qv, satups_);
-		gw.initQval(ebwt, ref, qv, sc, rnd, maxrows, true, wlm);
+		ca.queryQval(qv, satups_);
+		gw.initQval(ebwt, ref, qv, ca, rnd, maxrows, true, wlm);
 		assert(gw.initialized());
 		int advances = 0;
 		ASSERT_ONLY(WalkResult lastwr);
@@ -178,12 +177,10 @@ bool SwDriver::extendSeeds(
 				width,     // # bands to do (width of parallelogram)
 				&st_,      // mask indicating which columns we can start in
 				&en_,      // mask indicating which columns we can end in
-				pa,        // dynamic programming parameters
-				pen,       // penalty scheme
-				-penceil,  // penalty ceiling for valid alignments
-				nceil,     // max # Ns
-				-1,        // low row; -1 means last row only
-				false);    // rows before scores?
+				sc,        // scoring scheme
+				minsc,     // minimum score for valid alignments
+				floorsc,   // local-alignment floor score
+				nceil);    // max # Ns
 			// Now fill the dynamic programming matrix and return true iff
 			// there is at least one valid alignment
 			found = swa.align(rnd);
@@ -212,7 +209,8 @@ bool SwDriver::extendSeeds(
 					seedmms,   // # mismatches allowed in seed
 					seedlen,   // length of seed
 					seedival,  // interval between seeds
-					-penceil); // minimum score for valid alignment
+					minsc,     // minimum score for valid alignment
+					floorsc);  // local-alignment floor score
 				
 				if(reportImmediately) {
 					assert(msink != NULL);
@@ -251,9 +249,9 @@ bool SwDriver::sw(
 	bool color,                  // true -> read is colorspace
 	const BitPairReference& ref, // Reference strings
 	SwAligner& swa,              // dynamic programming aligner
-	const SwParams& pa,          // parameters for dynamic programming aligner
-	const Penalties& pen,        // penalties for edits
-	int penceil,                 // maximum penalty allowed
+	const Scoring& sc,           // scoring scheme
+	TAlScore minsc,              // minimum score for valid alignment
+	TAlScore floorsc,            // local-alignment floor score
 	RandomSource& rnd,           // pseudo-random source
 	SwMetrics& swm,              // dynamic programming metrics
 	AlnSinkWrap* msink,          // HitSink for multiseed-style aligner
@@ -362,19 +360,20 @@ bool SwDriver::extendSeedsPaired(
 	GroupWalk& gw,               // group walk left
 	SwAligner& swa,              // dynamic programming aligner for anchor
 	SwAligner& oswa,             // dynamic programming aligner for opposite
-	const SwParams& pa,          // parameters for dynamic programming aligner
-	const Penalties& pen,        // penalties for edits
+	const Scoring& sc,          // scoring scheme
 	const PairedEndPolicy& pepol,// paired-end policy
 	int seedmms,                 // # mismatches allowed in seed
 	int seedlen,                 // length of seed
 	int seedival,                // interval between seeds
-	int penceil,                 // maximum penalty allowed for anchor
-	int openceil,                // maximum penalty allowed for opposite
+	TAlScore minsc,              // minimum score for valid anchor aln
+	TAlScore ominsc,             // minimum score for valid opposite aln
+	TAlScore floorsc,            // local-alignment score floor for anchor
+	TAlScore ofloorsc,           // local-alignment score floor for opposite
 	int nceil,                   // max # Ns permitted in ref for anchor
 	int onceil,                  // max # Ns permitted in ref for opposite
 	uint32_t maxposs,            // stop after examining this many positions (offset+orientation combos)
 	uint32_t maxrows,            // stop examining a position after this many offsets are reported
-	AlignmentCacheIface& sc,     // alignment cache for seed hits
+	AlignmentCacheIface& ca,     // alignment cache for seed hits
 	RandomSource& rnd,           // pseudo-random source
 	WalkMetrics& wlm,            // group walk left metrics
 	SwMetrics& swm,              // dynamic programming metrics
@@ -396,11 +395,10 @@ bool SwDriver::extendSeedsPaired(
 	const size_t ordlen = ord.length();
 
 	// Calculate the largest possible number of read and reference gaps
-	// given 'penceil' and 'pen'
-	int readGaps  = pen.maxReadGaps(-penceil,  rdlen);
-	int refGaps   = pen.maxRefGaps (-penceil,  rdlen);
-	int oreadGaps = pen.maxReadGaps(-openceil, ordlen);
-	int orefGaps  = pen.maxRefGaps (-openceil, ordlen);
+	int readGaps  = sc.maxReadGaps(minsc,  rdlen);
+	int refGaps   = sc.maxRefGaps (minsc,  rdlen);
+	int oreadGaps = sc.maxReadGaps(minsc, ordlen);
+	int orefGaps  = sc.maxRefGaps (minsc, ordlen);
 
 	const size_t rows   = rdlen  + (color ? 1 : 0);
 	const size_t orows  = ordlen + (color ? 1 : 0);
@@ -418,7 +416,7 @@ bool SwDriver::extendSeedsPaired(
 		bool fw = true;
 		uint32_t offidx = 0, rdoff = 0, seedlen;
 		QVal qv = sh.hitsByRank(i, offidx, rdoff, fw, seedlen);
-		assert(qv.repOk(sc.current()));
+		assert(qv.repOk(ca.current()));
 		if(!fw) {
 			// 'rdoff' and 'offidx' are with respect to the 5' end of
 			// the read.  Here we convert rdoff to be with respect to
@@ -426,8 +424,8 @@ bool SwDriver::extendSeedsPaired(
 			rdoff = (uint32_t)(rdlen - rdoff - seedlen);
 		}
 		satups_.clear();
-		sc.queryQval(qv, satups_);
-		gw.initQval(ebwt, ref, qv, sc, rnd, maxrows, true, wlm);
+		ca.queryQval(qv, satups_);
+		gw.initQval(ebwt, ref, qv, ca, rnd, maxrows, true, wlm);
 		assert(gw.initialized());
 		int advances = 0;
 		ASSERT_ONLY(WalkResult lastwr);
@@ -522,12 +520,10 @@ bool SwDriver::extendSeedsPaired(
 				width,     // # bands to do (width of parallelogram)
 				&st_,      // mask indicating which columns we can start in
 				&en_,      // mask indicating which columns we can end in
-				pa,        // dynamic programming parameters
-				pen,       // penalty scheme
-				-penceil,  // minimum for valid alignments
-				nceil,     // max # Ns
-				-1,        // low row; -1 means last row only
-				false);    // rows before scores?
+				sc,        // scoring scheme
+				minsc,     // minimum score for valid alignments
+				floorsc,   // local-alignment floor score
+				nceil);    // max # Ns
 			// Now fill the dynamic programming matrix and return true iff
 			// there is at least one valid alignment
 			found = swa.align(rnd);
@@ -561,7 +557,8 @@ bool SwDriver::extendSeedsPaired(
 					seedmms,   // # mismatches allowed in seed
 					seedlen,   // length of seed
 					seedival,  // interval between seeds
-					-penceil); // minimum score for valid alignment
+					minsc,     // minimum score for valid alignment
+					floorsc);  // local-alignment floor score
 				
 				bool foundMate = false;
 				TRefOff off = res_.alres.refoff();
@@ -639,12 +636,10 @@ bool SwDriver::extendSeedsPaired(
 							owidth,    // # bands to do (width of parallelogram)
 							&st_,      // mask of which cols we can start in
 							&en_,      // mask of which cols we can end in
-							pa,        // dynamic programming parameters
-							pen,       // penalty scheme
-							-openceil, // minimum score for valid alignments
-							onceil,    // max # Ns
-							-1,        // low row; -1 means last row only
-							false);    // rows before scores?
+							sc,        // scoring scheme
+							ominsc,    // minimum score for valid alignments
+							ofloorsc,  // local-alignment floor score
+							onceil);   // max # Ns
 						// Now fill the dynamic programming matrix and return true
 						// iff there is at least one valid alignment
 						foundMate = oswa.align(rnd);
@@ -665,7 +660,8 @@ bool SwDriver::extendSeedsPaired(
 								seedmms,    // # mismatches allowed in seed
 								seedlen,    // length of seed
 								seedival,   // interval between seeds
-								-openceil); // minimum score for valid alignment
+								ominsc,     // minimum score for valid alignment
+								ofloorsc);  // local-alignment floor score
 							if(!gReportOverhangs &&
 							   !ores_.alres.within(tidx, 0, ofw, tlen))
 							{

@@ -1,10 +1,5 @@
 /*
  *  report.cpp
- *  bowtie-beta1
- *
- *  Created by Benjamin Langmead on 5/26/10.
- *  Copyright 2010 Johns Hopkins University. All rights reserved.
- *
  */
 
 #include <utility>

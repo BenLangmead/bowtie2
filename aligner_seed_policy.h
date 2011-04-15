@@ -5,62 +5,13 @@
 #ifndef ALIGNER_SEED_POLICY_H_
 #define ALIGNER_SEED_POLICY_H_
 
-#include "penalty.h"
+#include "scoring.h"
 
 enum {
 	SEED_IVAL_LINEAR = 1,
 	SEED_IVAL_SQUARE_ROOT,
 	SEED_IVAL_CUBE_ROOT
 };
-
-// Default type of penalty to assess against mismatches
-#define DEFAULT_MM_PENALTY_TYPE COST_MODEL_CONSTANT
-// When mismatch penalty type is constant, use this constant
-#define DEFAULT_MM_PENALTY 30
-
-// Default type of penalty to assess against mismatches
-#define DEFAULT_N_PENALTY_TYPE COST_MODEL_CONSTANT
-// When mismatch penalty type is constant, use this constant
-#define DEFAULT_N_PENALTY 1
-
-// Constant coefficient b in linear function f(x) = ax + b determining
-// maximum allowed penalty f when read length is x
-#define DEFAULT_CEIL_CONST 3.0f
-// Linear coefficient a
-#define DEFAULT_CEIL_LINEAR 3.0f
-
-// Constant coefficient b in linear function f(x) = ax + b determining
-// maximum permitted number of Ns f in a read before it is filtered &
-// the maximum number of Ns in an alignment before it is considered
-// invalid.
-#define DEFAULT_N_CEIL_CONST 0.0f
-// Linear coefficient a
-#define DEFAULT_N_CEIL_LINEAR 0.15f
-
-// Default for whether to concatenate mates before the N filter (as opposed to
-// filting each mate separately)
-#define DEFAULT_N_CAT_PAIR false
-
-// Default penalty to asses against SNPs in colorspace alignments.
-// Decoding must have occurred in order to distinguish SNPs from
-// patterns of mismatches.
-#define DEFAULT_SNP_PENALTY 30 
-
-// Default read gap penalties for when homopolymer calling is reliable	
-#define DEFAULT_READ_EXTEND_CONST 25
-#define DEFAULT_READ_EXTEND_LINEAR 15
-
-// Default read gap penalties for when homopolymer calling is not reliable
-#define DEFAULT_READ_EXTEND_CONST_BADHPOLY 15
-#define DEFAULT_READ_EXTEND_LINEAR_BADHPOLY 5
-
-// Default reference gap penalties for when homopolymer calling is reliable
-#define DEFAULT_REF_EXTEND_CONST 25
-#define DEFAULT_REF_EXTEND_LINEAR 15
-
-// Default reference gap penalties for when homopolymer calling is not reliable
-#define DEFAULT_REF_EXTEND_CONST_BADHPOLY 15
-#define DEFAULT_REF_EXTEND_LINEAR_BADHPOLY 5
 
 #define DEFAULT_SEEDMMS 0
 #define DEFAULT_SEEDLEN 22
@@ -84,37 +35,51 @@ public:
 	 *
 	 * And label=value possibilities are:
 	 *
+	 * Bonus for a match
+	 * -----------------
+	 *
+	 * MA=xx (default: MA=0, or MA=1 if --local is set)
+	 *
+	 *    xx = Each position where equal read and reference characters match up
+	 *         in the alignment contriubtes this amount to the total score.
+	 *
 	 * Penalty for a mismatch
 	 * ----------------------
 	 *
 	 * MMP={Cxx|Q|RQ} (default: MMP=C30)
 	 *
-	 *   Cxx = Each mismatch costs xx.  If MMP=Cxx is specified,
-	 *         quality values are ignored when assessing penalities for
-	 *         mismatches.
-	 *   Q   = Each mismatch incurs a penalty equal to the mismatched
-	 *         base's value.
-	 *   R   = Each mismatch incurs a penalty equal to the mismatched
-	 *         base's rounded quality value.  Qualities are rounded off
-	 *         to the nearest 10, and qualities greater than 30 are
-	 *         rounded to 30.
+	 *   Cxx = Each mismatch costs xx.  If MMP=Cxx is specified, quality
+	 *         values are ignored when assessing penalities for mismatches.
+	 *   Q   = Each mismatch incurs a penalty equal to the mismatched base's
+	 *         value.
+	 *   R   = Each mismatch incurs a penalty equal to the mismatched base's
+	 *         rounded quality value.  Qualities are rounded off to the
+	 *         nearest 10, and qualities greater than 30 are rounded to 30.
+	 *
+	 * Penalty for a SNP in a colorspace alignment
+	 * -------------------------------------------
+	 *
+	 * SNP=xx (default: SNP=30)
+	 *
+	 *    xx = Each nucleotide difference in a decoded colorspace alignment
+	 *         costs xx.  This should be about equal to -10 * log10(expected
+	 *         fraction of positions that are SNPs)
 	 * 
 	 * Penalty for position with N (in either read or reference)
 	 * ---------------------------------------------------------
 	 *
 	 * NP={Cxx|Q|RQ} (default: NP=C1)
 	 *
-	 *   Cxx = Each alignment position with an N in either the read or
-	 *         the reference costs xx.  If NP=Cxx is specified, quality
-	 *         values are ignored when assessing penalities for Ns.
-	 *   Q   = Each alignment position with an N in either the read or
-	 *         the reference incurs a penalty equal to the read base's
-	 *         quality value.
-	 *   R   = Each alignment position with an N in either the read or
-	 *         the reference incurs a penalty equal to the read base's
-	 *         rounded quality value.  Qualities are rounded off to
-	 *         the nearest 10, and qualities greater than 30 are
-	 *         rounded to 30.
+	 *   Cxx = Each alignment position with an N in either the read or the
+	 *         reference costs xx.  If NP=Cxx is specified, quality values are
+	 *         ignored when assessing penalities for Ns.
+	 *   Q   = Each alignment position with an N in either the read or the
+	 *         reference incurs a penalty equal to the read base's quality
+	 *         value.
+	 *   R   = Each alignment position with an N in either the read or the
+	 *         reference incurs a penalty equal to the read base's rounded
+	 *         quality value.  Qualities are rounded off to the nearest 10,
+	 *         and qualities greater than 30 are rounded to 30.
 	 *
 	 * Penalty for a read gap
 	 * ----------------------
@@ -124,7 +89,7 @@ public:
 	 *   xx    = Read gap open penalty.
 	 *   yy    = Read gap extension penalty.
 	 *
-	 * Total cost incurred by a read gap = xx + yy * gap-length
+	 * Total cost incurred by a read gap = xx + (yy * gap length)
 	 *
 	 * Penalty for a reference gap
 	 * ---------------------------
@@ -134,17 +99,27 @@ public:
 	 *   xx    = Reference gap open penalty.
 	 *   yy    = Reference gap extension penalty.
 	 *
-	 * Total cost incurred by a reference gap = xx + yy * gap-length
+	 * Total cost incurred by a reference gap = xx + (yy * gap length)
 	 *
-	 * Read penalty ceiling
-	 * --------------------
+	 * Minimum score for valid alignment
+	 * ---------------------------------
 	 *
-	 * CEIL=xx,yy (default: CEIL=3.0,3.0)
+	 * MIN=xx,yy (defaults: MIN=-3.0,-2.0, or MIN=5.0,0.5 if --local is set)
 	 *
-	 *   xx,yy = For a read of length N, the sum of all penalties
-	 *           incurred by mismatches and gaps cannot exceed
-	 *           ceiling = xx + (read length * yy).  If the ceiling is
-	 *           exceeded, the alignment is considered invalid.
+	 *   xx,yy = For a read of length N, the total score must be at least
+	 *           xx + (read length * yy) for the alignment to be valid.  The
+	 *           total score is the sum of all negative penalties (from
+	 *           mismatches and gaps) and all positive bonuses.  The minimum
+	 *           can be negative (and is by default in global alignment mode).
+	 *
+	 * Score floor for local alignment
+	 * -------------------------------
+	 *
+	 * FL=xx,yy (defaults: FL=-Infinity,0.0, or FL=0.0,0.0 if --local is set)
+	 *
+	 *   xx,yy = If a cell in the dynamic programming table has a score less
+	 *           than xx + (read length * yy), then no valid alignment can go
+	 *           through it.  Defaults are highly recommended.
 	 *
 	 * N ceiling
 	 * ---------
@@ -235,7 +210,10 @@ public:
 	 */
 	static void parseString(
 		const  std::string& s,
+		bool   local,
 		bool   noisyHpolymer,
+		int&   bonusMatchType,
+		int&   bonusMatch,
 		int&   penMmcType,
 		int&   penMmc,
 		int&   penSnp,
@@ -245,8 +223,10 @@ public:
 		int&   penRfExConst,
 		int&   penRdExLinear,
 		int&   penRfExLinear,
-		float& costCeilConst,
-		float& costCeilLinear,
+		float& costMinConst,
+		float& costMinLinear,
+		float& costFloorConst,
+		float& costFloorLinear,
 		float& nCeilConst,
 		float& nCeilLinear,
 		bool&  nCatPair,

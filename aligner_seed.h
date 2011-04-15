@@ -1,10 +1,5 @@
 /*
  *  aligner_seed.h
- *  bowtie-beta1
- *
- *  Created by Benjamin Langmead on 7/26/10.
- *  Copyright 2010 Johns Hopkins University. All rights reserved.
- *
  */
 
 #ifndef ALIGNER_SEED_H_
@@ -22,7 +17,7 @@
 // is constant and shared, or per-thread.
 #include "threading.h"
 #include "aligner_cache.h"
-#include "penalty.h"
+#include "scoring.h"
 #include "mem_ids.h"
 
 
@@ -61,7 +56,7 @@ struct Constraint {
 	/**
 	 * Return true iff a mismatch of the given quality is permitted.
 	 */
-	bool canMismatch(int q, const Penalties& cm) {
+	bool canMismatch(int q, const Scoring& cm) {
 		assert(instantiated);
 		return (mms > 0 || edits > 0) &&
 		       penalty >= cm.mm(q);
@@ -70,7 +65,7 @@ struct Constraint {
 	/**
 	 * Return true iff a mismatch of the given quality is permitted.
 	 */
-	bool canN(int q, const Penalties& cm) {
+	bool canN(int q, const Scoring& cm) {
 		assert(instantiated);
 		return (mms > 0 || edits > 0) &&
 		       penalty >= cm.n(q);
@@ -98,7 +93,7 @@ struct Constraint {
 	 * Return true iff a deletion of the given extension (0=open, 1=1st
 	 * extension, etc) is permitted.
 	 */
-	bool canDelete(int ex, const Penalties& cm) {
+	bool canDelete(int ex, const Scoring& cm) {
 		assert(instantiated);
 		return (dels > 0 && edits > 0) &&
 		       penalty >= cm.del(ex);
@@ -117,7 +112,7 @@ struct Constraint {
 	 * Return true iff an insertion of the given extension (0=open,
 	 * 1=1st extension, etc) is permitted.
 	 */
-	bool canInsert(int ex, const Penalties& cm) {
+	bool canInsert(int ex, const Scoring& cm) {
 		assert(instantiated);
 		return (ins > 0 || edits > 0) &&
 		       penalty >= cm.ins(ex);
@@ -143,7 +138,7 @@ struct Constraint {
 	/**
 	 * Charge a mismatch of the given quality.
 	 */
-	void chargeMismatch(int q, const Penalties& cm) {
+	void chargeMismatch(int q, const Scoring& cm) {
 		assert(instantiated);
 		if(mms == 0) { assert_gt(edits, 0); edits--; }
 		else mms--;
@@ -156,7 +151,7 @@ struct Constraint {
 	/**
 	 * Charge an N mismatch of the given quality.
 	 */
-	void chargeN(int q, const Penalties& cm) {
+	void chargeN(int q, const Scoring& cm) {
 		assert(instantiated);
 		if(mms == 0) { assert_gt(edits, 0); edits--; }
 		else mms--;
@@ -169,7 +164,7 @@ struct Constraint {
 	/**
 	 * Charge a deletion of the given extension.
 	 */
-	void chargeDelete(int ex, const Penalties& cm) {
+	void chargeDelete(int ex, const Scoring& cm) {
 		assert(instantiated);
 		dels--;
 		edits--;
@@ -182,7 +177,7 @@ struct Constraint {
 	/**
 	 * Charge an insertion of the given extension.
 	 */
-	void chargeInsert(int ex, const Penalties& cm) {
+	void chargeInsert(int ex, const Scoring& cm) {
 		assert(instantiated);
 		ins--;
 		edits--;
@@ -364,7 +359,7 @@ struct Seed {
 		const Read& read,
 		const BTDnaString& seq, // already-extracted seed sequence
 		const BTString& qual,   // already-extracted seed quality sequence
-		const Penalties& pens,
+		const Scoring& pens,
 		int depth,
 		int seedoffidx,
 		int seedtypeidx,
@@ -1156,7 +1151,7 @@ public:
 		const EList<Seed>& seeds,  // search seeds
 		int per,                   // interval between seeds
 		const Read& read,          // read to align
-		const Penalties& pens,     // penalties to use for edits, Ns
+		const Scoring& pens,       // scoring scheme
 		float nCeilConst,          // ceiling on # Ns w/r/t read length, constant coeff
 		float nCeilLinear,         // ceiling on # Ns w/r/t read length, linear coeff
 		AlignmentCacheIface& cache,// holds some seed hits from previous reads
@@ -1172,7 +1167,7 @@ public:
 		const Ebwt* ebwtFw,        // BWT index
 		const Ebwt* ebwtBw,        // BWT' index
 		const Read& read,          // read to align
-		const Penalties& pens,     // penalties to use for edits
+		const Scoring& pens,       // scoring scheme
 		AlignmentCacheIface& cache,// local seed alignment cache
 		SeedResults& hits,         // holds all the seed hits
 		SeedSearchMetrics& met,    // metrics
@@ -1235,7 +1230,7 @@ protected:
 	// and other protected members.
 	const Ebwt* ebwtFw_;       // forward index (BWT)
 	const Ebwt* ebwtBw_;       // backward/mirror index (BWT')
-	const Penalties* pens_;    // penalties for edits
+	const Scoring* sc_;        // scoring scheme
 	const InstantiatedSeed* s_;// current instantiated seed
 	const Read* read_;         // read whose seeds are currently being aligned
 	EList<SeedHitSink*> *sinks_;// if non-NULL, list of sinks to send hits to
@@ -1244,7 +1239,7 @@ protected:
 	const BTDnaString* seq_;   // sequence of current seed
 	const BTString* qual_;     // quality string for current seed
 	EList<Edit> edits_;        // temporary place to sort edits
-	AlignmentCacheIface *sc_;  // local alignment cache for seed alignments
+	AlignmentCacheIface *ca_;  // local alignment cache for seed alignments
 	EList<uint32_t> offIdx2off_;// offset idx to read offset map, set up instantiateSeeds()
 	uint64_t bwops_;           // Burrows-Wheeler operations
 	uint64_t bwedits_;         // Burrows-Wheeler edits

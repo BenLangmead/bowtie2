@@ -1,10 +1,5 @@
 /*
  *  aligner_counters.h
- *  bowtie-beta1
- *
- *  Created by Benjamin Langmead on 9/18/10.
- *  Copyright 2010 Johns Hopkins University. All rights reserved.
- *
  */
 
 #ifndef ALIGNER_COUNTERS_H_

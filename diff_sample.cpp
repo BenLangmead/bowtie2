@@ -1,9 +1,5 @@
 //
 //  diff_sample.cpp
-//  bowtie2
-//
-//  Created by Benjamin Langmead on 3/14/11.
-//  Copyright 2011 Johns Hopkins University. All rights reserved.
 //
 
 #include "diff_sample.h"

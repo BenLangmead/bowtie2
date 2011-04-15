@@ -4,7 +4,7 @@
 
 #include "aligner_sw.h"
 #include "search_globals.h"
-#include "penalty.h"
+#include "scoring.h"
 #include "mask.h"
 
 /**
@@ -204,7 +204,7 @@ bool SwAligner::backtrackColors(
 					Edit e((int)row, mask2dna[refNmask], "ACGTN"[curC], EDIT_TYPE_MM);
 					assert(e.repOk());
 					ned.push_back(e);
-					score.score_ -= ((m == 0) ? pen_->snp : pen_->n(30));
+					score.score_ -= ((m == 0) ? sc_->snp : sc_->n(30));
 					assert_geq(score.score(), minsc_);
 				}
 				if(m == -1) {
@@ -245,8 +245,8 @@ bool SwAligner::backtrackColors(
 				Edit e((int)row, '-', "ACGTN"[curC], EDIT_TYPE_DEL);
 				assert(e.repOk());
 				ned.push_back(e);
-				assert_geq(row, (size_t)pa_->gapBar);
-				assert_geq((int)(rdf_-rdi_-row-1), pa_->gapBar-1);
+				assert_geq(row, (size_t)sc_->gapbar);
+				assert_geq((int)(rdf_-rdi_-row-1), sc_->gapbar-1);
 				row--;
 				// Check for color miscall
 				int decC = dinuc2color[cur.second][curC];
@@ -262,7 +262,7 @@ bool SwAligner::backtrackColors(
 				if(rdC > 3) {
 					score.ns_++;
 				}
-				score.score_ -= pen_->refGapOpen();
+				score.score_ -= sc_->refGapOpen();
 				score.gaps_++;
 				assert_geq(score.score(), minsc_);
 				gaps++;
@@ -287,8 +287,8 @@ bool SwAligner::backtrackColors(
 				Edit e((int)row, '-', "ACGTN"[curC], EDIT_TYPE_DEL);
 				assert(e.repOk());
 				ned.push_back(e);
-				assert_geq(row, (size_t)pa_->gapBar);
-				assert_geq((int)(rdf_-rdi_-row-1), pa_->gapBar-1);
+				assert_geq(row, (size_t)sc_->gapbar);
+				assert_geq((int)(rdf_-rdi_-row-1), sc_->gapbar-1);
 				row--;
 				// Check for color mismatch
 				int decC = dinuc2color[cur.second][curC];
@@ -304,7 +304,7 @@ bool SwAligner::backtrackColors(
 				if(rdC > 3) {
 					score.ns_++;
 				}
-				score.score_ -= pen_->refGapExtend();
+				score.score_ -= sc_->refGapExtend();
 				score.gaps_++;
 				assert_geq(score.score(), minsc_);
 				gaps++;
@@ -327,10 +327,10 @@ bool SwAligner::backtrackColors(
 				Edit e((int)row+1, "ACGTN"[firsts5[(int)rf_[rfi_+col]]], '-', EDIT_TYPE_INS);
 				assert(e.repOk());
 				ned.push_back(e);
-				assert_geq(row, (size_t)pa_->gapBar);
-				assert_geq((int)(rdf_-rdi_-row-1), pa_->gapBar-1);
+				assert_geq(row, (size_t)sc_->gapbar);
+				assert_geq((int)(rdf_-rdi_-row-1), sc_->gapbar-1);
 				col--;
-				score.score_ -= pen_->readGapOpen();
+				score.score_ -= sc_->readGapOpen();
 				score.gaps_++;
 				assert_geq(score.score(), minsc_);
 				gaps++;
@@ -352,10 +352,10 @@ bool SwAligner::backtrackColors(
 				Edit e((int)row+1, "ACGTN"[firsts5[(int)rf_[rfi_+col]]], '-', EDIT_TYPE_INS);
 				assert(e.repOk());
 				ned.push_back(e);
-				assert_geq(row, (size_t)pa_->gapBar);
-				assert_geq((int)(rdf_-rdi_-row-1), pa_->gapBar-1);
+				assert_geq(row, (size_t)sc_->gapbar);
+				assert_geq((int)(rdf_-rdi_-row-1), sc_->gapbar-1);
 				col--;
-				score.score_ -= pen_->readGapExtend();
+				score.score_ -= sc_->readGapExtend();
 				score.gaps_++;
 				assert_geq(score.score(), minsc_);
 				gaps++;
@@ -388,7 +388,7 @@ bool SwAligner::backtrackColors(
 		Edit e((int)row, mask2dna[refNmask], "ACGTN"[curC], EDIT_TYPE_MM);
 		assert(e.repOk());
 		ned.push_back(e);
-		score.score_ -= ((m == 0) ? pen_->snp : pen_->n(30));
+		score.score_ -= ((m == 0) ? sc_->snp : sc_->n(30));
 		assert_geq(score.score(), minsc_);
 	}
 	if(m == -1) {
@@ -460,7 +460,7 @@ inline void SwAligner::updateColorHoriz(
 			AlnScore ex = leftBest;
 			assert_leq(ex.score(), 0);
 			assert(VALID_AL_SCORE(ex));
-			ex.score_ -= pen_->readGapExtend();
+			ex.score_ -= sc_->readGapExtend();
 			assert_leq(ex.score(), 0);
 			if(ex.score_ >= minsc_ && ex >= myBest) {
 				if(ex > myBest) {
@@ -476,7 +476,7 @@ inline void SwAligner::updateColorHoriz(
 			AlnScore ex = leftBest;
 			assert_leq(ex.score_, 0);
 			assert(VALID_AL_SCORE(ex));
-			ex.score_ -= pen_->readGapOpen();
+			ex.score_ -= sc_->readGapOpen();
 			assert_leq(ex.score_, 0);
 			if(ex.score_ >= minsc_ && ex >= myBest) {
 				if(ex > myBest) {
@@ -531,7 +531,7 @@ inline void SwAligner::updateColorVert(
 			assert_leq(frBest.score_, 0);
 			if(frMask.refExtendPossible()) {
 				// Extend is possible
-				frBest.score_ -= pen_->refGapExtend();
+				frBest.score_ -= sc_->refGapExtend();
 				assert_leq(frBest.score_, 0);
 				if(frBest.score_ >= minsc_ && frBest >= myBest) {
 					if(frBest > myBest) {
@@ -542,11 +542,11 @@ inline void SwAligner::updateColorVert(
 					assert(VALID_AL_SCORE(myBest));
 				}
 				// put it back
-				frBest.score_ += pen_->refGapExtend();
+				frBest.score_ += sc_->refGapExtend();
 			}
 			if(frMask.refOpenPossible()){
 				// Open is possible
-				frBest.score_ -= pen_->refGapOpen();
+				frBest.score_ -= sc_->refGapOpen();
 				if(frBest.score_ >= minsc_ && frBest >= myBest) {
 					if(frBest > myBest) {
 						myBest = frBest;
@@ -576,7 +576,7 @@ inline void SwAligner::updateColorDiag(
 	bool ninvolved = (c > 3 || refMask > 15);
 	for(int to = 0; to < 4; to++) {
 		// Assuming that the read character in this row is 'to'...
-		int add = (matches(to, refMask) ? 0 : ((refMask > 15) ? pen_->n(30) : pen_->snp));
+		int add = (matches(to, refMask) ? 0 : ((refMask > 15) ? sc_->n(30) : sc_->snp));
 		AlnScore from[] = {
 			uc.best[0] - add, uc.best[1] - add,
 			uc.best[2] - add, uc.best[3] - add };
@@ -615,19 +615,17 @@ inline void SwAligner::updateColorDiag(
 // 1. 'row' = 0-based row of DP table
 // 2. 'col' = 0-based col of DP table
 // 3. 'minsc_' = minimum AlignmentScore required for a cell to have a sol
-// 4. 'solrowlo_' = if row >= this, cells in this row can have solutions
-// 5. 'solrows_' is a pairs encoding the range of rows s.t. all rows with
+// 4. 'solrows_' is a pairs encoding the range of rows s.t. all rows with
 //    solutions are in the range
-// 6. 'solcols_' is a list of pairs, where each pair cor
-// 7. 'solbest_'
-// 8. 'solrowbest_'
+// 5. 'solcols_' is a list of pairs, where each pair cor
+// 6. 'solbest_'
+// 7. 'solrowbest_'
 #define UPDATE_SOLS(cur, row, col) { \
 	if(en_ == NULL || (*en_)[col]) { \
 		for(int I = 0; I < 4; I++) { \
 			if(cur.best[I].score() >= minsc_) { \
-				/* Score is acceptable */ \
 				if((int64_t)row >= solrowlo_) { \
-					/* Both score and row are acceptable */ \
+					/* Score is acceptable */ \
 					if(row < solrows_.first)           solrows_.first = row; \
 					if(row > solrows_.second)          solrows_.second = row; \
 					if(col < solcols_[row].first)      solcols_[row].first  = col; \
@@ -666,7 +664,7 @@ bool SwAligner::alignColors(RandomSource& rnd) {
 	assert_lt(rfi_, rff_);
 	assert_lt(rdi_, rdf_);
 	assert_eq(rd_->length(), qu_->length());
-	assert_geq(pa_->gapBar, 1);
+	assert_geq(sc_->gapbar, 1);
 	assert(repOk());
 #ifndef NDEBUG
 	for(size_t i = rfi_; i < rff_; i++) {
@@ -707,18 +705,18 @@ bool SwAligner::alignColors(RandomSource& rnd) {
 					tab[0][col].best[to].ns_ = 0;
 					tab[0][col].best[to].score_ = 0;
 					tab[0][col].mask[to].diag = 0xf;
-				} else if(m == 0 && pen_->snp <= -minsc_) {
+				} else if(m == 0 && sc_->snp <= -minsc_) {
 					// The assigned subject nucleotide does not match the
 					// reference nucleotide, so we add a SNP penalty
 					tab[0][col].best[to].gaps_ = 0;
 					tab[0][col].best[to].ns_ = 0;
-					tab[0][col].best[to].score_ = -pen_->snp;
+					tab[0][col].best[to].score_ = -sc_->snp;
 					tab[0][col].mask[to].diag = 0xf;
 				} else if(m == -1) {
 					// The mask or query character is an N
 					tab[0][col].best[to].gaps_ = 0;
 					tab[0][col].best[to].ns_ = 1;
-					tab[0][col].best[to].score_ = -pen_->n(30);
+					tab[0][col].best[to].score_ = -sc_->n(30);
 					tab[0][col].mask[to].diag = 0xf;
 				} else {
 					// Leave mask[to] cleared
@@ -726,7 +724,7 @@ bool SwAligner::alignColors(RandomSource& rnd) {
 			}
 		}
 		// Calculate horizontals if barrier allows
-		if(pa_->gapBar <= 1 && col > 0) {
+		if(sc_->gapbar <= 1 && col > 0) {
 			updateColorHoriz(tab[0][col-1], tab[0][col], rfm);
 			ncups_++;
 		}
@@ -751,8 +749,8 @@ bool SwAligner::alignColors(RandomSource& rnd) {
 		nrowups_++;
 		tab.expand(); // add another row
 		bool onlyDiagInto =
-			(row+1             <= (size_t)pa_->gapBar ||
-			 rdf_ - rdi_ - row <= (size_t)pa_->gapBar);
+			(row+1             <= (size_t)sc_->gapbar ||
+			 rdf_ - rdi_ - row <= (size_t)sc_->gapbar);
 		tab.back().resize(whi-wlo+1); // add enough space for columns
 		assert_gt(row, 0);
 		assert_leq(row, qu_->length());
@@ -760,7 +758,7 @@ bool SwAligner::alignColors(RandomSource& rnd) {
 		int c = (*rd_)[row-1];   // read character in this row
 		int q = QUAL(row-1); // quality for the read character; should be Phred
 		assert_geq(q, 0);
-		const int mmpen = ((c > 3) ? pen_->n(30) : pen_->mm(q));
+		const int mmpen = ((c > 3) ? sc_->n(30) : sc_->mm(q));
 		validInRow = false;		
 		//
 		// Handle col == wlo case before (and the col == whi case

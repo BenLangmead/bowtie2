@@ -273,12 +273,13 @@ public:
 		ced_.clear();
 		score_.invalidate();
 		refcoord_.invalidate();
-		rdlen_ = 0;
-		extent_ = 0;
+		rdlen_    = 0;
+		extent_   = 0;
 		seedmms_  = 0; // number of mismatches allowed in seed
 		seedlen_  = 0; // length of seed
 		seedival_ = 0; // interval between seeds
-		penceil_  = 0; // penalty ceiling
+		minsc_    = 0; // minimum score
+		floorsc_  = 0; // score floor
 		assert(!refcoord_.valid());
 	}
 	
@@ -528,20 +529,22 @@ public:
 		int seedmms,
 		int seedlen,
 		int seedival,
-		int penceil)
+		int64_t minsc,
+		int64_t floorsc)
 	{
 		seedmms_ = seedmms;
 		seedlen_ = seedlen;
 		seedival_ = seedival;
-		penceil_ = penceil;
+		minsc_ = minsc;
 	}
 	
 	// Accessors for alignment parameters
-	int  seedmms()  const { return seedmms_;  }
-	int  seedlen()  const { return seedlen_;  }
-	int  seedival() const { return seedival_; }
-	int  penceil()  const { return penceil_;  }
-	bool color()    const { return color_;    }
+	int     seedmms()    const { return seedmms_;  }
+	int     seedlen()    const { return seedlen_;  }
+	int     seedival()   const { return seedival_; }
+	int64_t minScore()   const { return minsc_;    }
+	int64_t floorScore() const { return floorsc_;  }
+	bool    color()      const { return color_;    }
 
 	/**
 	 * Get the decoded nucleotide sequence 
@@ -680,7 +683,8 @@ public:
 		int                seedmms  = -1,
 		int                seedlen  = -1,
 		int                seedival = -1,
-		int                penceil  = -1,
+		int64_t            minsc    = -1,
+		int64_t            floorsc  = -1,
 		int                nuc5p    = -1,
 		int                nuc3p    = -1)
 	{
@@ -693,14 +697,15 @@ public:
 		if(aed != NULL) aed_ = *aed;
 		if(ced != NULL) ced_ = *ced;
 		refcoord_ = refcoord;
-		color_ = color;
-		seedmms_ = seedmms;
-		seedlen_ = seedlen;
+		color_    = color;
+		seedmms_  = seedmms;
+		seedlen_  = seedlen;
 		seedival_ = seedival;
-		penceil_ = penceil;
-		nuc5p_ = nuc5p;
-		nuc3p_ = nuc3p;
-		extent_ = rdlen;
+		minsc_    = minsc;
+		floorsc_  = floorsc;
+		nuc5p_    = nuc5p;
+		nuc3p_    = nuc3p;
+		extent_   = rdlen;
 		for(size_t i = 0; i < ned_.size(); i++) {
 			if(ned_[i].isDelete()) extent_--;
 			if(ned_[i].isInsert()) extent_++;
@@ -719,7 +724,8 @@ protected:
 	int         seedmms_;  // number of mismatches allowed in seed
 	int         seedlen_;  // length of seed
 	int         seedival_; // interval between seeds
-	int         penceil_;  // penalty ceiling
+	int64_t     minsc_;    // minimum score
+	int64_t     floorsc_;  // floor score
 	bool        color_;    // colorspace alignment?
 	int         nuc5p_;    // 5'-most decoded base; clipped if excluding end
 	int         nuc3p_;    // 3'-most decoded base; clipped if excluding end

@@ -77,7 +77,7 @@ Seed::instantiate(
 	const Read& read,
 	const BTDnaString& seq, // seed read sequence
 	const BTString& qual,   // seed quality sequence
-	const Penalties& pens,
+	const Scoring& pens,
 	int depth,
 	int seedoffidx,
 	int seedtypeidx,
@@ -441,7 +441,7 @@ pair<int, int> SeedAligner::instantiateSeeds(
 	const EList<Seed>& seeds,       // search seeds
 	int per,                        // seed period
 	const Read& read,               // read to align
-	const Penalties& pens,          // penalties to use for edits, Ns
+	const Scoring& pens,            // scoring scheme
 	float nCeilConst,               // ceiling on # Ns w/r/t read length, constant coeff
 	float nCeilLinear,              // ceiling on # Ns w/r/t read length, linear coeff
 	AlignmentCacheIface& cache,     // holds some seed hits from previous reads
@@ -539,11 +539,11 @@ pair<int, int> SeedAligner::instantiateSeeds(
  * 2. Calculate zone boundaries for each seed
  */
 void SeedAligner::searchAllSeeds(
-	const EList<Seed>& seeds, // search seeds
-	const Ebwt* ebwtFw,       // BWT index
-	const Ebwt* ebwtBw,       // BWT' index
-	const Read& read,         // read to align
-	const Penalties& pens,    // penalties to use for edits
+	const EList<Seed>& seeds,    // search seeds
+	const Ebwt* ebwtFw,          // BWT index
+	const Ebwt* ebwtBw,          // BWT' index
+	const Read& read,            // read to align
+	const Scoring& pens,         // scoring scheme
 	AlignmentCacheIface& cache,  // local cache for seed alignments
 	SeedResults& sr,             // holds all the seed hits
 	SeedSearchMetrics& met,      // metrics
@@ -560,12 +560,12 @@ void SeedAligner::searchAllSeeds(
 	int len = seeds[0].len;
 	ebwtFw_ = ebwtFw;
 	ebwtBw_ = ebwtBw;
-	pens_ = &pens;
+	sc_ = &pens;
 	sinks_ = sinks;
 	counterSinks_ = counterSinks;
 	actionSinks_ = actionSinks;
 	read_ = &read;
-	sc_ = &cache;
+	ca_ = &cache;
 	SA_RESET();
 	bwops_ = bwedits_ = 0;
 	uint64_t possearches = 0, seedsearches = 0, intrahits = 0, interhits = 0, ooms = 0;
@@ -758,12 +758,12 @@ SeedAligner::reportHit(
 	// happens, it may be because our zone Constraints are not set up
 	// properly and erroneously return true from acceptable() when they
 	// should return false in some cases.
-	assert_eq(hits_.size(), sc_->curNumRanges());
+	assert_eq(hits_.size(), ca_->curNumRanges());
 	assert(hits_.insert(rf));
-	if(!sc_->addOnTheFly(rf, topf, botf)) {
+	if(!ca_->addOnTheFly(rf, topf, botf)) {
 		return false;
 	}
-	assert_eq(hits_.size(), sc_->curNumRanges());
+	assert_eq(hits_.size(), ca_->curNumRanges());
 	SA_HIT();
 #ifndef NDEBUG
 	// TODO: sanity check that edits + seq_ correspond to rfseq_
@@ -963,12 +963,12 @@ SeedAligner::searchSeedBi(
 				else { t[cc] = ntop; b[cc] = ntop+1; }
 			}
 			if(!bail) {
-				if((cons.canMismatch(q, *pens_) && overall.canMismatch(q, *pens_)) || c == 4) {
+				if((cons.canMismatch(q, *sc_) && overall.canMismatch(q, *sc_)) || c == 4) {
 					Constraint oldCons = cons, oldOvCons = overall;
 					SideLocus oldTloc = tloc, oldBloc = bloc;
 					if(c != 4) {
-						cons.chargeMismatch(q, *pens_);
-						overall.chargeMismatch(q, *pens_);
+						cons.chargeMismatch(q, *sc_);
+						overall.chargeMismatch(q, *sc_);
 					}
 					// Can leave the zone as-is
 					if(!leaveZone || (cons.acceptable() && overall.acceptable())) {
@@ -1020,11 +1020,11 @@ SeedAligner::searchSeedBi(
 				if(cons.canGap() && overall.canGap()) {
 					throw 1; // TODO
 					int delEx = 0;
-					if(cons.canDelete(delEx, *pens_) && overall.canDelete(delEx, *pens_)) {
+					if(cons.canDelete(delEx, *sc_) && overall.canDelete(delEx, *sc_)) {
 						// Try delete
 					}
 					int insEx = 0;
-					if(insCons.canInsert(insEx, *pens_) && overall.canInsert(insEx, *pens_)) {
+					if(insCons.canInsert(insEx, *sc_) && overall.canInsert(insEx, *sc_)) {
 						// Try insert
 					}
 				}

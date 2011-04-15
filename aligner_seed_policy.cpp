@@ -1,10 +1,5 @@
 /*
  *  aligner_seed_policy
- *  bowtie-beta1
- *
- *  Created by Benjamin Langmead on 10/24/10.
- *  Copyright 2010 Johns Hopkins University. All rights reserved.
- *
  */
 
 #include <string>
@@ -22,45 +17,51 @@ using namespace std;
  *
  * And label=value possibilities are:
  *
+ * Bonus for a match
+ * -----------------
+ *
+ * MA=xx (default: MA=0, or MA=1 if --local is set)
+ *
+ *    xx = Each position where equal read and reference characters match up
+ *         in the alignment contriubtes this amount to the total score.
+ *
  * Penalty for a mismatch
  * ----------------------
  *
  * MMP={Cxx|Q|RQ} (default: MMP=C30)
  *
- *   Cxx = Each mismatch costs xx.  If MMP=Cxx is specified,
- *         quality values are ignored when assessing penalities for
- *         mismatches.
- *   Q   = Each mismatch incurs a penalty equal to the mismatched
- *         base's value.
- *   R   = Each mismatch incurs a penalty equal to the mismatched
- *         base's rounded quality value.  Qualities are rounded off
- *         to the nearest 10, and qualities greater than 30 are
- *         rounded to 30.
+ *   Cxx = Each mismatch costs xx.  If MMP=Cxx is specified, quality
+ *         values are ignored when assessing penalities for mismatches.
+ *   Q   = Each mismatch incurs a penalty equal to the mismatched base's
+ *         value.
+ *   R   = Each mismatch incurs a penalty equal to the mismatched base's
+ *         rounded quality value.  Qualities are rounded off to the
+ *         nearest 10, and qualities greater than 30 are rounded to 30.
  *
  * Penalty for a SNP in a colorspace alignment
  * -------------------------------------------
  *
- * SNP=xx
+ * SNP=xx (default: SNP=30)
  *
- *    xx = Each nucleotide difference in the decoded alignment
- *         costs xx.
+ *    xx = Each nucleotide difference in a decoded colorspace alignment
+ *         costs xx.  This should be about equal to -10 * log10(expected
+ *         fraction of positions that are SNPs)
  * 
  * Penalty for position with N (in either read or reference)
  * ---------------------------------------------------------
  *
  * NP={Cxx|Q|RQ} (default: NP=C1)
  *
- *   Cxx = Each alignment position with an N in either the read or
- *         the reference costs xx.  If NP=Cxx is specified, quality
- *         values are ignored when assessing penalities for Ns.
- *   Q   = Each alignment position with an N in either the read or
- *         the reference incurs a penalty equal to the read base's
- *         quality value.
- *   R   = Each alignment position with an N in either the read or
- *         the reference incurs a penalty equal to the read base's
- *         rounded quality value.  Qualities are rounded off to
- *         the nearest 10, and qualities greater than 30 are
- *         rounded to 30.
+ *   Cxx = Each alignment position with an N in either the read or the
+ *         reference costs xx.  If NP=Cxx is specified, quality values are
+ *         ignored when assessing penalities for Ns.
+ *   Q   = Each alignment position with an N in either the read or the
+ *         reference incurs a penalty equal to the read base's quality
+ *         value.
+ *   R   = Each alignment position with an N in either the read or the
+ *         reference incurs a penalty equal to the read base's rounded
+ *         quality value.  Qualities are rounded off to the nearest 10,
+ *         and qualities greater than 30 are rounded to 30.
  *
  * Penalty for a read gap
  * ----------------------
@@ -70,7 +71,7 @@ using namespace std;
  *   xx    = Read gap open penalty.
  *   yy    = Read gap extension penalty.
  *
- * Total cost incurred by a read gap = xx + yy * gap-length
+ * Total cost incurred by a read gap = xx + (yy * gap length)
  *
  * Penalty for a reference gap
  * ---------------------------
@@ -80,17 +81,27 @@ using namespace std;
  *   xx    = Reference gap open penalty.
  *   yy    = Reference gap extension penalty.
  *
- * Total cost incurred by a reference gap = xx + yy * gap-length
+ * Total cost incurred by a reference gap = xx + (yy * gap length)
  *
- * Read penalty ceiling
- * --------------------
+ * Minimum score for valid alignment
+ * ---------------------------------
  *
- * CEIL=xx,yy (default: CEIL=3.0,2.0)
+ * MIN=xx,yy (defaults: MIN=-3.0,-2.0, or MIN=5.0,0.5 if --local is set)
  *
- *   xx,yy = For a read of length N, the sum of all penalties
- *           incurred by mismatches and gaps cannot exceed
- *           ceiling = xx + (read length * yy).  If the ceiling is
- *           exceeded, the alignment is considered invalid.
+ *   xx,yy = For a read of length N, the total score must be at least
+ *           xx + (read length * yy) for the alignment to be valid.  The
+ *           total score is the sum of all negative penalties (from
+ *           mismatches and gaps) and all positive bonuses.  The minimum
+ *           can be negative (and is by default in global alignment mode).
+ *
+ * Score floor for local alignment
+ * -------------------------------
+ *
+ * FL=xx,yy (defaults: FL=-Infinity,0.0, or FL=0.0,0.0 if --local is set)
+ *
+ *   xx,yy = If a cell in the dynamic programming table has a score less
+ *           than xx + (read length * yy), then no valid alignment can go
+ *           through it.  Defaults are highly recommended.
  *
  * N ceiling
  * ---------
@@ -180,8 +191,11 @@ using namespace std;
  *  Seed 1-: TACGATAGCA
  */
 void SeedAlignmentPolicy::parseString(
-	const string& s,
-	bool   noisyHpolymer,
+	const  string& s,      // string to parse
+	bool   local,          // do local alignment
+	bool   noisyHpolymer,  // penalize gaps less for technology reasons
+	int&   bonusMatchType,
+	int&   bonusMatch,
 	int&   penMmcType,
 	int&   penMmc,
 	int&   penSnp,
@@ -191,8 +205,10 @@ void SeedAlignmentPolicy::parseString(
 	int&   penRfExConst,
 	int&   penRdExLinear,
 	int&   penRfExLinear,
-	float& costCeilConst,
-	float& costCeilLinear,
+	float& costMinConst,
+	float& costMinLinear,
+	float& costFloorConst,
+	float& costFloorLinear,
 	float& nCeilConst,
 	float& nCeilLinear,
 	bool&  nCatPair,
@@ -204,27 +220,38 @@ void SeedAlignmentPolicy::parseString(
 	float& multiseedIvalB)
 {
 
+	bonusMatchType    = local ? DEFAULT_MATCH_BONUS_TYPE_LOCAL :
+	                            DEFAULT_MATCH_BONUS_TYPE;
+	bonusMatch        = local ? DEFAULT_MATCH_BONUS_LOCAL :
+	                            DEFAULT_MATCH_BONUS;
+	
 	penMmcType        = DEFAULT_MM_PENALTY_TYPE;
 	penMmc            = DEFAULT_MM_PENALTY;
 	penSnp            = DEFAULT_SNP_PENALTY;
 	penNType          = DEFAULT_N_PENALTY_TYPE;
 	penN              = DEFAULT_N_PENALTY;
-	costCeilConst     = DEFAULT_CEIL_CONST;
-	costCeilLinear    = DEFAULT_CEIL_LINEAR;
+	costMinConst      = local ? DEFAULT_MIN_CONST_LOCAL :
+	                            DEFAULT_MIN_CONST;
+	costMinLinear     = local ? DEFAULT_MIN_LINEAR_LOCAL :
+								DEFAULT_MIN_LINEAR;
+	costFloorConst    = local ? DEFAULT_FLOOR_CONST_LOCAL :
+	                            DEFAULT_FLOOR_CONST;
+	costFloorLinear   = local ? DEFAULT_FLOOR_LINEAR_LOCAL :
+	                            DEFAULT_FLOOR_LINEAR;
 	nCeilConst        = DEFAULT_N_CEIL_CONST;
 	nCeilLinear       = DEFAULT_N_CEIL_LINEAR;
 	nCatPair          = DEFAULT_N_CAT_PAIR;
 
 	if(!noisyHpolymer) {
-		penRdExConst  = DEFAULT_READ_EXTEND_CONST;
-		penRdExLinear = DEFAULT_READ_EXTEND_LINEAR;
-		penRfExConst  = DEFAULT_REF_EXTEND_CONST;
-		penRfExLinear = DEFAULT_REF_EXTEND_LINEAR;
+		penRdExConst  = DEFAULT_READ_GAP_CONST;
+		penRdExLinear = DEFAULT_READ_GAP_LINEAR;
+		penRfExConst  = DEFAULT_REF_GAP_CONST;
+		penRfExLinear = DEFAULT_REF_GAP_LINEAR;
 	} else {
-		penRdExConst  = DEFAULT_READ_EXTEND_CONST_BADHPOLY;
-		penRdExLinear = DEFAULT_READ_EXTEND_LINEAR_BADHPOLY;
-		penRfExConst  = DEFAULT_REF_EXTEND_CONST_BADHPOLY;
-		penRfExLinear = DEFAULT_REF_EXTEND_LINEAR_BADHPOLY;
+		penRdExConst  = DEFAULT_READ_GAP_CONST_BADHPOLY;
+		penRdExLinear = DEFAULT_READ_GAP_LINEAR_BADHPOLY;
+		penRfExConst  = DEFAULT_REF_GAP_CONST_BADHPOLY;
+		penRfExLinear = DEFAULT_REF_GAP_LINEAR_BADHPOLY;
 	}
 	
 	multiseedMms      = DEFAULT_SEEDMMS;
@@ -252,7 +279,7 @@ void SeedAlignmentPolicy::parseString(
 		if(etoks.size() != 2) {
 			cerr << "Error parsing alignment policy setting " << setting << "; must be bisected by = sign" << endl
 				 << "Policy: " << s << endl;
-			throw 1;
+			assert(false); throw 1;
 		}
 		// LHS is tag, RHS value
 		string tag = etoks[0], val = etoks[1];
@@ -264,67 +291,91 @@ void SeedAlignmentPolicy::parseString(
 			ctoks.push_back(ctok);
 		}
 		if(ctoks.size() == 0) {
-			cerr << "Error parsing alignment policy setting " << setting << "; RHS must have at least 1 token" << endl
+			cerr << "Error parsing alignment policy setting " << setting
+			     << "; RHS must have at least 1 token" << endl
 				 << "Policy: " << s << endl;
-			throw 1;
+			assert(false); throw 1;
 		}
 		// In no case is >3 tokens OK
 		if(ctoks.size() > 3) {
-			cerr << "Error parsing alignment policy setting " << setting << "; RHS must have at most 3 tokens" << endl
+			cerr << "Error parsing alignment policy setting " << setting
+			     << "; RHS must have at most 3 tokens" << endl
 				 << "Policy: " << s << endl;
-			throw 1;
+			assert(false); throw 1;
 		}
 		for(size_t i = 0; i < ctoks.size(); i++) {
 			if(ctoks[i].length() == 0) {
-				cerr << "Error parsing alignment policy setting " << setting << "; token " << i+1 << " on RHS had length=0" << endl
+				cerr << "Error parsing alignment policy setting " << setting
+				     << "; token " << i+1 << " on RHS had length=0" << endl
 					 << "Policy: " << s << endl;
-				throw 1;
+				assert(false); throw 1;
 			}
 		}
-		// Penalties for mismatches
-		// MMP={Cxx|Q|RQ}
-		//        Cxx = constant, where constant is integer xx
-		//        Q   = equal to quality value
-		//        R   = equal to maq-rounded quality value (rounded to
-		//              nearest 10, can't be greater than 30).
-		if(tag == "MMP") {
+		// Bonus for a match
+		// MA=xx (default: MA=0, or MA=1 if --local is set)
+		if(tag == "MA") {
 			if(ctoks.size() != 1) {
-				cerr << "Error parsing alignment policy setting " << setting << "; RHS must have 1 token" << endl
+				cerr << "Error parsing alignment policy setting " << setting
+				     << "; RHS must have 1 token" << endl
 					 << "Policy: " << s << endl;
-				throw 1;
+				assert(false); throw 1;
 			}
-			if(ctoks[0][0] == 'C') {
-				string tmp = ctoks[0].substr(1);
-				// Parse constant penalty
-				istringstream tmpss(tmp);
-				tmpss >> penMmc;
-				// Set type to constant
-				penMmcType = COST_MODEL_CONSTANT;
-			}
-			else if(ctoks[0][0] == 'Q') {
-				// Set type to =quality
-				penMmcType = COST_MODEL_QUAL;
-			}
-			else if(ctoks[0][0] == 'R') {
-				// Set type to=Maq-quality
-				penMmcType = COST_MODEL_ROUNDED_QUAL;
-			}
+			string tmp = ctoks[0];
+			// Parse SNP penalty
+			istringstream tmpss(tmp);
+			tmpss >> bonusMatch;
 		}
 		// Penalties for SNPs in colorspace alignments
 		// SNP=xx
 		//        xx = penalty
-		if(tag == "SNP") {
+		else if(tag == "SNP") {
 			if(ctoks.size() != 1) {
-				cerr << "Error parsing alignment policy setting " << setting << "; RHS must have 1 token" << endl
+				cerr << "Error parsing alignment policy setting " << setting
+				     << "; RHS must have 1 token" << endl
 					 << "Policy: " << s << endl;
-				throw 1;
+				assert(false); throw 1;
 			}
 			string tmp = ctoks[0];
 			// Parse SNP penalty
 			istringstream tmpss(tmp);
 			tmpss >> penSnp;
 		}
-		// Penalties for mismatches where read char=N
+		// Scoring for mismatches
+		// MMP={Cxx|Q|RQ}
+		//        Cxx = constant, where constant is integer xx
+		//        Q   = equal to quality
+		//        R   = equal to maq-rounded quality value (rounded to nearest
+		//              10, can't be greater than 30)
+		else if(tag == "MMP") {
+			if(ctoks.size() != 1) {
+				cerr << "Error parsing alignment policy setting "
+				     << "'" << tag << "'"
+				     << "; RHS must have 1 token" << endl
+					 << "Policy: '" << s << "'" << endl;
+				assert(false); throw 1;
+			}
+			if(ctoks[0][0] == 'C') {
+				string tmp = ctoks[0].substr(1);
+				// Parse constant penalty
+				istringstream tmpss(tmp);
+				tmpss >> penMmc;
+				// Parse constant penalty
+				penMmcType = COST_MODEL_CONSTANT;
+			} else if(ctoks[0][0] == 'Q') {
+				// Set type to =quality
+				penMmcType = COST_MODEL_QUAL;
+			} else if(ctoks[0][0] == 'R') {
+				// Set type to=Maq-quality
+				penMmcType = COST_MODEL_ROUNDED_QUAL;
+			} else {
+				cerr << "Error parsing alignment policy setting "
+				     << "'" << tag << "'"
+				     << "; RHS must start with C, Q or R" << endl
+					 << "Policy: '" << s << "'" << endl;
+				assert(false); throw 1;
+			}
+		}
+		// Scoring for mismatches where read char=N
 		// NP={Cxx|Q|RQ}
 		//        Cxx = constant, where constant is integer xx
 		//        Q   = equal to quality
@@ -332,9 +383,11 @@ void SeedAlignmentPolicy::parseString(
 		//              10, can't be greater than 30)
 		else if(tag == "NP") {
 			if(ctoks.size() != 1) {
-				cerr << "Error parsing alignment policy setting " << setting << "; RHS must have 1 token" << endl
-					 << "Policy: " << s << endl;
-				throw 1;
+				cerr << "Error parsing alignment policy setting "
+				     << "'" << tag << "'"
+				     << "; RHS must have 1 token" << endl
+					 << "Policy: '" << s << "'" << endl;
+				assert(false); throw 1;
 			}
 			if(ctoks[0][0] == 'C') {
 				string tmp = ctoks[0].substr(1);
@@ -343,17 +396,21 @@ void SeedAlignmentPolicy::parseString(
 				tmpss >> penN;
 				// Parse constant penalty
 				penNType = COST_MODEL_CONSTANT;
-			}
-			else if(ctoks[0][0] == 'Q') {
+			} else if(ctoks[0][0] == 'Q') {
 				// Set type to =quality
 				penNType = COST_MODEL_QUAL;
-			}
-			else if(ctoks[0][0] == 'R') {
+			} else if(ctoks[0][0] == 'R') {
 				// Set type to=Maq-quality
 				penNType = COST_MODEL_ROUNDED_QUAL;
+			} else {
+				cerr << "Error parsing alignment policy setting "
+				     << "'" << tag << "'"
+				     << "; RHS must start with C, Q or R" << endl
+					 << "Policy: '" << s << "'" << endl;
+				assert(false); throw 1;
 			}
 		}
-		// Penalties for read gaps
+		// Scoring for read gaps
 		// RDG=xx,yy,zz
 		//        xx = read gap open penalty
 		//        yy = read gap extension penalty constant coefficient
@@ -366,19 +423,19 @@ void SeedAlignmentPolicy::parseString(
 				tmpss >> penRdExConst;
 			} else {
 				penRdExConst = noisyHpolymer ?
-					DEFAULT_READ_EXTEND_CONST_BADHPOLY :
-					DEFAULT_READ_EXTEND_CONST;
+					DEFAULT_READ_GAP_CONST_BADHPOLY :
+					DEFAULT_READ_GAP_CONST;
 			}
 			if(ctoks.size() >= 2) {
 				istringstream tmpss(ctoks[1]);
 				tmpss >> penRdExLinear;
 			} else {
 				penRdExLinear = noisyHpolymer ?
-					DEFAULT_READ_EXTEND_LINEAR_BADHPOLY :
-					DEFAULT_READ_EXTEND_LINEAR;
+					DEFAULT_READ_GAP_LINEAR_BADHPOLY :
+					DEFAULT_READ_GAP_LINEAR;
 			}
 		}
-		// Penalties for reference gaps
+		// Scoring for reference gaps
 		// RFG=xx,yy,zz
 		//        xx = ref gap open penalty
 		//        yy = ref gap extension penalty constant coefficient
@@ -391,33 +448,44 @@ void SeedAlignmentPolicy::parseString(
 				tmpss >> penRfExConst;
 			} else {
 				penRfExConst = noisyHpolymer ?
-					DEFAULT_REF_EXTEND_CONST_BADHPOLY :
-					DEFAULT_REF_EXTEND_CONST;
+					DEFAULT_REF_GAP_CONST_BADHPOLY :
+					DEFAULT_REF_GAP_CONST;
 			}
 			if(ctoks.size() >= 2) {
 				istringstream tmpss(ctoks[1]);
 				tmpss >> penRfExLinear;
 			} else {
 				penRfExLinear = noisyHpolymer ?
-					DEFAULT_REF_EXTEND_LINEAR_BADHPOLY :
-					DEFAULT_REF_EXTEND_LINEAR;
+					DEFAULT_REF_GAP_LINEAR_BADHPOLY :
+					DEFAULT_REF_GAP_LINEAR;
 			}
 		}
-		// Per-read penalty ceiling as a function of read length
-		// CEIL=xx,yy
-		//        xx = cost ceiling constant coefficient
-		//        yy = cost ceiling linear coefficient (set to 0 if
-		//             unspecified)
-		else if(tag == "CEIL") {
+		// Minimum score as a function of read length
+		// MIN=xx,yy
+		//        xx = constant coefficient
+		//        yy = linear coefficient
+		else if(tag == "MIN") {
 			if(ctoks.size() >= 1) {
 				istringstream tmpss(ctoks[0]);
-				tmpss >> costCeilConst;
+				tmpss >> costMinConst;
 			}
 			if(ctoks.size() >= 2) {
 				istringstream tmpss(ctoks[1]);
-				tmpss >> costCeilLinear;
-			} else {
-				costCeilLinear = DEFAULT_CEIL_LINEAR;
+				tmpss >> costMinLinear;
+			}
+		}
+		// Local-alignment score floor as a function of read length
+		// FL=xx,yy
+		//        xx = constant coefficient
+		//        yy = linear coefficient
+		else if(tag == "FL") {
+			if(ctoks.size() >= 1) {
+				istringstream tmpss(ctoks[0]);
+				tmpss >> costFloorConst;
+			}
+			if(ctoks.size() >= 2) {
+				istringstream tmpss(ctoks[1]);
+				tmpss >> costFloorLinear;
 			}
 		}
 		// Per-read N ceiling as a function of read length
@@ -512,12 +580,21 @@ void SeedAlignmentPolicy::parseString(
 				multiseedIvalB = 0.0f;
 			}
 		}
+		else {
+			// Unknown tag
+			cerr << "Unexpected alignment policy setting "
+				 << "'" << tag << "'" << endl
+				 << "Policy: '" << s << "'" << endl;
+			assert(false); throw 1;
+		}
 	}
 }
 
 #ifdef ALIGNER_SEED_POLICY_MAIN
 int main() {
 
+	int bonusMatchType;
+	int bonusMatch;
 	int penMmcType;
 	int penMmc;
 	int penSnp;
@@ -527,8 +604,10 @@ int main() {
 	int penRfExConst;
 	int penRdExLinear;
 	int penRfExLinear;
-	float costCeilConst;
-	float costCeilLinear;
+	float costMinConst;
+	float costMinLinear;
+	float costFloorConst;
+	float costFloorLinear;
 	float nCeilConst;
 	float nCeilLinear;
 	bool  nCatPair;
@@ -544,7 +623,10 @@ int main() {
 		const char *pol = "";
 		SeedAlignmentPolicy::parseString(
 			string(pol),
+			false,              // --local?
 			false,              // noisy homopolymers a la 454?
+			bonusMatchType,
+			bonusMatch,
 			penMmcType,
 			penMmc,
 			penSnp,
@@ -554,8 +636,10 @@ int main() {
 			penRfExConst,
 			penRdExLinear,
 			penRfExLinear,
-			costCeilConst,
-			costCeilLinear,
+			costMinConst,
+			costMinLinear,
+			costFloorConst,
+			costFloorLinear,
 			nCeilConst,
 			nCeilLinear,
 			nCatPair,
@@ -567,21 +651,25 @@ int main() {
 			multiseedIvalB
 		);
 		
-		assert_eq(DEFAULT_MM_PENALTY_TYPE, penMmcType);
-		assert_eq(DEFAULT_MM_PENALTY,      penMmc);
-		assert_eq(DEFAULT_SNP_PENALTY,     penSnp);
-		assert_eq(DEFAULT_N_PENALTY_TYPE,  penNType);
-		assert_eq(DEFAULT_N_PENALTY,       penN);
-		assert_eq(DEFAULT_CEIL_CONST,      costCeilConst);
-		assert_eq(DEFAULT_CEIL_LINEAR,     costCeilLinear);
-		assert_eq(DEFAULT_N_CEIL_CONST,    nCeilConst);
-		assert_eq(DEFAULT_N_CEIL_LINEAR,   nCeilLinear);
-		assert_eq(DEFAULT_N_CAT_PAIR,      nCatPair);
+		assert_eq(DEFAULT_MATCH_BONUS_TYPE,   bonusMatchType);
+		assert_eq(DEFAULT_MATCH_BONUS,        bonusMatch);
+		assert_eq(DEFAULT_MM_PENALTY_TYPE,    penMmcType);
+		assert_eq(DEFAULT_MM_PENALTY,         penMmc);
+		assert_eq(DEFAULT_SNP_PENALTY,        penSnp);
+		assert_eq(DEFAULT_N_PENALTY_TYPE,     penNType);
+		assert_eq(DEFAULT_N_PENALTY,          penN);
+		assert_eq(DEFAULT_MIN_CONST,          costMinConst);
+		assert_eq(DEFAULT_MIN_LINEAR,         costMinLinear);
+		assert_eq(DEFAULT_FLOOR_CONST,        costFloorConst);
+		assert_eq(DEFAULT_FLOOR_LINEAR,       costFloorLinear);
+		assert_eq(DEFAULT_N_CEIL_CONST,       nCeilConst);
+		assert_eq(DEFAULT_N_CEIL_LINEAR,      nCeilLinear);
+		assert_eq(DEFAULT_N_CAT_PAIR,         nCatPair);
 
-		assert_eq(DEFAULT_READ_EXTEND_CONST,  penRdExConst);
-		assert_eq(DEFAULT_READ_EXTEND_LINEAR, penRdExLinear);
-		assert_eq(DEFAULT_REF_EXTEND_CONST,   penRfExConst);
-		assert_eq(DEFAULT_REF_EXTEND_LINEAR,  penRfExLinear);
+		assert_eq(DEFAULT_READ_GAP_CONST,     penRdExConst);
+		assert_eq(DEFAULT_READ_GAP_LINEAR,    penRdExLinear);
+		assert_eq(DEFAULT_REF_GAP_CONST,      penRfExConst);
+		assert_eq(DEFAULT_REF_GAP_LINEAR,     penRfExLinear);
 		assert_eq(DEFAULT_SEEDMMS,            multiseedMms);
 		assert_eq(DEFAULT_SEEDLEN,            multiseedLen);
 		assert_eq(DEFAULT_SEEDPERIOD,         multiseedPeriod);
@@ -597,7 +685,10 @@ int main() {
 		const char *pol = "";
 		SeedAlignmentPolicy::parseString(
 			string(pol),
+			false,             // --local?
 			true,              // noisy homopolymers a la 454?
+			bonusMatchType,
+			bonusMatch,
 			penMmcType,
 			penMmc,
 			penSnp,
@@ -607,8 +698,10 @@ int main() {
 			penRfExConst,
 			penRdExLinear,
 			penRfExLinear,
-			costCeilConst,
-			costCeilLinear,
+			costMinConst,
+			costMinLinear,
+			costFloorConst,
+			costFloorLinear,
 			nCeilConst,
 			nCeilLinear,
 			nCatPair,
@@ -620,21 +713,149 @@ int main() {
 			multiseedIvalB
 		);
 		
-		assert_eq(DEFAULT_MM_PENALTY_TYPE, penMmcType);
-		assert_eq(DEFAULT_MM_PENALTY,      penMmc);
-		assert_eq(DEFAULT_SNP_PENALTY,     penSnp);
-		assert_eq(DEFAULT_N_PENALTY_TYPE,  penNType);
-		assert_eq(DEFAULT_N_PENALTY,       penN);
-		assert_eq(DEFAULT_CEIL_CONST,      costCeilConst);
-		assert_eq(DEFAULT_CEIL_LINEAR,     costCeilLinear);
-		assert_eq(DEFAULT_N_CEIL_CONST,    nCeilConst);
-		assert_eq(DEFAULT_N_CEIL_LINEAR,   nCeilLinear);
-		assert_eq(DEFAULT_N_CAT_PAIR,      nCatPair);
+		assert_eq(DEFAULT_MATCH_BONUS_TYPE,   bonusMatchType);
+		assert_eq(DEFAULT_MATCH_BONUS,        bonusMatch);
+		assert_eq(DEFAULT_MM_PENALTY_TYPE,    penMmcType);
+		assert_eq(DEFAULT_MM_PENALTY,         penMmc);
+		assert_eq(DEFAULT_SNP_PENALTY,        penSnp);
+		assert_eq(DEFAULT_N_PENALTY_TYPE,     penNType);
+		assert_eq(DEFAULT_N_PENALTY,          penN);
+		assert_eq(DEFAULT_MIN_CONST,          costMinConst);
+		assert_eq(DEFAULT_MIN_LINEAR,         costMinLinear);
+		assert_eq(DEFAULT_FLOOR_CONST,        costFloorConst);
+		assert_eq(DEFAULT_FLOOR_LINEAR,       costFloorLinear);
+		assert_eq(DEFAULT_N_CEIL_CONST,       nCeilConst);
+		assert_eq(DEFAULT_N_CEIL_LINEAR,      nCeilLinear);
+		assert_eq(DEFAULT_N_CAT_PAIR,         nCatPair);
 
-		assert_eq(DEFAULT_READ_EXTEND_CONST_BADHPOLY,  penRdExConst);
-		assert_eq(DEFAULT_READ_EXTEND_LINEAR_BADHPOLY, penRdExLinear);
-		assert_eq(DEFAULT_REF_EXTEND_CONST_BADHPOLY,   penRfExConst);
-		assert_eq(DEFAULT_REF_EXTEND_LINEAR_BADHPOLY,  penRfExLinear);
+		assert_eq(DEFAULT_READ_GAP_CONST_BADHPOLY,  penRdExConst);
+		assert_eq(DEFAULT_READ_GAP_LINEAR_BADHPOLY, penRdExLinear);
+		assert_eq(DEFAULT_REF_GAP_CONST_BADHPOLY,   penRfExConst);
+		assert_eq(DEFAULT_REF_GAP_LINEAR_BADHPOLY,  penRfExLinear);
+		assert_eq(DEFAULT_SEEDMMS,            multiseedMms);
+		assert_eq(DEFAULT_SEEDLEN,            multiseedLen);
+		assert_eq(DEFAULT_SEEDPERIOD,         multiseedPeriod);
+		assert_eq(DEFAULT_IVAL,               multiseedIvalType);
+		assert_eq(DEFAULT_IVAL_A,             multiseedIvalA);
+		assert_eq(DEFAULT_IVAL_B,             multiseedIvalB);
+		
+		cout << "PASSED" << endl;
+	}
+
+	{
+		cout << "Case 3: Defaults 3 ... ";
+		const char *pol = "";
+		SeedAlignmentPolicy::parseString(
+			string(pol),
+			true,              // --local?
+			false,             // noisy homopolymers a la 454?
+			bonusMatchType,
+			bonusMatch,
+			penMmcType,
+			penMmc,
+			penSnp,
+			penNType,
+			penN,
+			penRdExConst,
+			penRfExConst,
+			penRdExLinear,
+			penRfExLinear,
+			costMinConst,
+			costMinLinear,
+			costFloorConst,
+			costFloorLinear,
+			nCeilConst,
+			nCeilLinear,
+			nCatPair,
+			multiseedMms,
+			multiseedLen,
+			multiseedPeriod,
+			multiseedIvalType,
+			multiseedIvalA,
+			multiseedIvalB
+		);
+		
+		assert_eq(DEFAULT_MATCH_BONUS_TYPE_LOCAL,   bonusMatchType);
+		assert_eq(DEFAULT_MATCH_BONUS_LOCAL,        bonusMatch);
+		assert_eq(DEFAULT_MM_PENALTY_TYPE,    penMmcType);
+		assert_eq(DEFAULT_MM_PENALTY,         penMmc);
+		assert_eq(DEFAULT_SNP_PENALTY,        penSnp);
+		assert_eq(DEFAULT_N_PENALTY_TYPE,     penNType);
+		assert_eq(DEFAULT_N_PENALTY,          penN);
+		assert_eq(DEFAULT_MIN_CONST_LOCAL,    costMinConst);
+		assert_eq(DEFAULT_MIN_LINEAR_LOCAL,   costMinLinear);
+		assert_eq(DEFAULT_FLOOR_CONST_LOCAL,  costFloorConst);
+		assert_eq(DEFAULT_FLOOR_LINEAR_LOCAL, costFloorLinear);
+		assert_eq(DEFAULT_N_CEIL_CONST,       nCeilConst);
+		assert_eq(DEFAULT_N_CEIL_LINEAR,      nCeilLinear);
+		assert_eq(DEFAULT_N_CAT_PAIR,         nCatPair);
+
+		assert_eq(DEFAULT_READ_GAP_CONST,     penRdExConst);
+		assert_eq(DEFAULT_READ_GAP_LINEAR,    penRdExLinear);
+		assert_eq(DEFAULT_REF_GAP_CONST,      penRfExConst);
+		assert_eq(DEFAULT_REF_GAP_LINEAR,     penRfExLinear);
+		assert_eq(DEFAULT_SEEDMMS,            multiseedMms);
+		assert_eq(DEFAULT_SEEDLEN,            multiseedLen);
+		assert_eq(DEFAULT_SEEDPERIOD,         multiseedPeriod);
+		assert_eq(DEFAULT_IVAL,               multiseedIvalType);
+		assert_eq(DEFAULT_IVAL_A,             multiseedIvalA);
+		assert_eq(DEFAULT_IVAL_B,             multiseedIvalB);
+		
+		cout << "PASSED" << endl;
+	}
+
+	{
+		cout << "Case 4: Simple string 1 ... ";
+		const char *pol = "MMP=C44;MA=4;RFG=24,12;FL=8;RDG=2;SNP=10;NP=C4;MIN=7";
+		SeedAlignmentPolicy::parseString(
+			string(pol),
+			true,              // --local?
+			false,             // noisy homopolymers a la 454?
+			bonusMatchType,
+			bonusMatch,
+			penMmcType,
+			penMmc,
+			penSnp,
+			penNType,
+			penN,
+			penRdExConst,
+			penRfExConst,
+			penRdExLinear,
+			penRfExLinear,
+			costMinConst,
+			costMinLinear,
+			costFloorConst,
+			costFloorLinear,
+			nCeilConst,
+			nCeilLinear,
+			nCatPair,
+			multiseedMms,
+			multiseedLen,
+			multiseedPeriod,
+			multiseedIvalType,
+			multiseedIvalA,
+			multiseedIvalB
+		);
+		
+		assert_eq(COST_MODEL_CONSTANT,        bonusMatchType);
+		assert_eq(4,                          bonusMatch);
+		assert_eq(COST_MODEL_CONSTANT,        penMmcType);
+		assert_eq(44,                         penMmc);
+		assert_eq(10,                         penSnp);
+		assert_eq(COST_MODEL_CONSTANT,        penNType);
+		assert_eq(4.0f,                       penN);
+		assert_eq(7,                          costMinConst);
+		assert_eq(DEFAULT_MIN_LINEAR_LOCAL,   costMinLinear);
+		assert_eq(8,                          costFloorConst);
+		assert_eq(DEFAULT_FLOOR_LINEAR_LOCAL, costFloorLinear);
+		assert_eq(DEFAULT_N_CEIL_CONST,       nCeilConst);
+		assert_eq(DEFAULT_N_CEIL_LINEAR,      nCeilLinear);
+		assert_eq(DEFAULT_N_CAT_PAIR,         nCatPair);
+
+		assert_eq(2.0f,                       penRdExConst);
+		assert_eq(DEFAULT_READ_GAP_LINEAR,    penRdExLinear);
+		assert_eq(24.0f,                      penRfExConst);
+		assert_eq(12.0f,                      penRfExLinear);
 		assert_eq(DEFAULT_SEEDMMS,            multiseedMms);
 		assert_eq(DEFAULT_SEEDLEN,            multiseedLen);
 		assert_eq(DEFAULT_SEEDPERIOD,         multiseedPeriod);

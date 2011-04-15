@@ -5,7 +5,9 @@
  *
  * We say that two seed hits are redundant if they trigger identical
  * seed-extend dynamic programming problems.  Detecting redundant seed hits is
- * simple when the seed hits are ungapped, so we do this.
+ * simple when the seed hits are ungapped.  We do this after offset resolution
+ * but before the offset is converted to genome coordinates (see uses of the
+ * redSeed1_/redSeed2_ fields for examples).
  *
  * REDUNDANT ALIGNMENTS
  *
@@ -70,9 +72,11 @@ class SwDriver {
 public:
 
 	SwDriver() :
-		redAnchor_(DP_CAT),  // database of cells used for anchor alignments
-		redMate1_(DP_CAT),   // database of cells used for mate 1 alignments
-		redMate2_(DP_CAT),   // database of cells used for mate 2 alignments
+		redSeed1_(DP_CAT),
+		redSeed2_(DP_CAT),
+		redAnchor_(DP_CAT),
+		redMate1_(DP_CAT),
+		redMate2_(DP_CAT),
 		st_(1024, DP_CAT),
 		en_(1024, DP_CAT),
 		res_(), ores_()
@@ -96,16 +100,16 @@ public:
 		const BitPairReference& ref, // Reference strings
 		GroupWalk& gw,               // group walk left
 		SwAligner& swa,              // dynamic programming aligner
-		const SwParams& pa,          // parameters for dynamic programming aligner
-		const Penalties& pen,        // penalties for edits
+		const Scoring& sc,           // scoring scheme
 		int seedmms,                 // # mismatches allowed in seed
 		int seedlen,                 // length of seed
 		int seedival,                // interval between seeds
-		int penceil,                 // maximum penalty allowed
+		TAlScore minsc,              // minimum score for anchor
+		TAlScore floorsc,            // local-alignment floor for anchor score
 		int nceil,                   // maximum # Ns permitted in ref portion
 		uint32_t maxposs,            // stop after examining this many positions (offset+orientation combos)
 		uint32_t maxrows,            // stop examining a position after this many offsets are reported
-		AlignmentCacheIface& sc,     // alignment cache for seed hits
+		AlignmentCacheIface& ca,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random source
 		WalkMetrics& wlm,            // group walk left metrics
 		SwMetrics& swm,              // dynamic programming metrics
@@ -129,9 +133,9 @@ public:
 		bool color,                  // true -> read is colorspace
 		const BitPairReference& ref, // Reference strings
 		SwAligner& swa,              // dynamic programming aligner
-		const SwParams& pa,          // parameters for dynamic prog aligner
-		const Penalties& pen,        // penalties for edits
-		int penceil,                 // maximum penalty allowed
+		const Scoring& sc,           // scoring scheme
+		TAlScore minsc,              // minimum score for anchor
+		TAlScore floorsc,            // local-alignment floor for anchor score
 		RandomSource& rnd,           // pseudo-random source
 		SwMetrics& swm,              // dynamic programming metrics
 		AlnSinkWrap* mhs,            // HitSink for multiseed-style aligner
@@ -161,19 +165,20 @@ public:
 		GroupWalk& gw,               // group walk left
 		SwAligner& swa,              // dyn programming aligner for anchor
 		SwAligner& swao,             // dyn programming aligner for opposite
-		const SwParams& pa,          // parameters for dynamic programming aligner
-		const Penalties& pen,        // penalties for edits
+		const Scoring& sc,           // scoring scheme
 		const PairedEndPolicy& pepol,// paired-end policy
 		int seedmms,                 // # mismatches allowed in seed
 		int seedlen,                 // length of seed
 		int seedival,                // interval between seeds
-		int penceil,                 // maximum penalty allowed for anchor
-		int openceil,                // maximum penalty allowed for opposite
+		TAlScore minsc,              // minimum score for anchor
+		TAlScore ominsc,             // minimum score for opposite
+		TAlScore floorsc,            // local-alignment floor for anchor score
+		TAlScore ofloorsc,           // local-alignment floor for opposite score
 		int nceil,                   // max # Ns permitted in ref for anchor
 		int onceil,                  // max # Ns permitted in ref for opposite
 		uint32_t maxposs,            // stop after examining this many positions (offset+orientation combos)
 		uint32_t maxrows,            // stop examining a position after this many offsets are reported
-		AlignmentCacheIface& sc,     // alignment cache for seed hits
+		AlignmentCacheIface& cs,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random source
 		WalkMetrics& wlm,            // group walk left metrics
 		SwMetrics& swm,              // dynamic programming metrics
@@ -202,15 +207,20 @@ protected:
 
 	EList<SATuple> satups_;     // temporary holder for range lists
 
-	ESet<Coord>    redSeed1_;   // ref coords for seed hits so far for mate 1
-	ESet<Coord>    redSeed2_;   // ref coords for seed hits so far for mate 2
+	// For weeding out redundant seed hits
+	ESet<Coord>    redSeed1_;   // offsets for seed hits so far for mate 1
+	ESet<Coord>    redSeed2_;   // offsets for seed hits so far for mate 2
 	
+	// For weeding out redundant alignments
 	RedundantAlns  redAnchor_;  // database of cells used for anchor alignments
 	RedundantAlns  redMate1_;   // database of cells used for mate 1 alignments
 	RedundantAlns  redMate2_;   // database of cells used for mate 2 alignments
 
+	// For specifying starting and ending columns
 	EList<bool>    st_;         // temp holder for dyn prog starting mask
 	EList<bool>    en_;         // temp holder for dyn prog ending mask
+	
+	// For holding results for anchor (res_) and opposite (ores_) mates
 	SwResult       res_;        // temp holder for SW results
 	SwResult       ores_;       // temp holder for SW results for opp mate
 };

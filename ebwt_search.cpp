@@ -154,13 +154,15 @@ static bool printPlaceholders; // true -> print records for maxed-out, unaligned
 static bool printFlags; // true -> print alignment flags
 static bool printCost; // true -> print stratum and cost
 static bool printParams; // true -> print parameters like seed spacing, cost ceiling
-bool gShowSeed;
-bool gGaps; // true -> allow gapped alignments
-uint32_t gInsOpen;   // insertion open penalty
-uint32_t gDelOpen;   // deletion open penalty
-uint32_t gInsExtend; // insertion gap extension penalty
-uint32_t gDelExtend; // deletion gap extension penalty
-int gGapBarrier;
+bool gShowSeed;       // print pseudo-random seed used for alignment?
+bool gGaps;           // true -> allow gapped alignments
+uint32_t gInsOpen;    // insertion open penalty
+uint32_t gDelOpen;    // deletion open penalty
+uint32_t gInsExtend;  // insertion gap extension penalty
+uint32_t gDelExtend;  // deletion gap extension penalty
+int      gGapBarrier; // # diags on top/bot only to be entered diagonally
+int64_t  gRowLow;     // backtraces start from row w/ idx >= this (-1=no limit)
+bool     gRowFirst;   // sort alignments by row then score?
 int gAllowRedundant;
 static EList<string> qualities;
 static EList<string> qualities1;
@@ -169,19 +171,24 @@ static bool doMultiseed; // true -> use multiseed aligner
 
 static string seedAlignmentPolicyString; // temporary holder for policy string
 static bool  msNoCache;      // true -> disable local cache
+static int   bonusMatchType; // how to reward matches
+static int   bonusMatch;     // constant reward if bonusMatchType=constant
 static int   penMmcType;     // how to penalize mismatches
-static int   penMmc;         // constant if mm pelanty is a constant
+static int   penMmc;         // constant if mm penMmcType=constant
 static int   penSnp;         // penalty for nucleotide mismatches in decoded colorspace als
 static int   penNType;       // how to penalize Ns in the read
 static int   penN;           // constant if N pelanty is a constant
 static bool  penNCatPair;    // concatenate mates before N filtering?
+static bool  localAlign;     // do local alignment in DP steps
 static bool  noisyHpolymer;  // set to true if gap penalties should be reduced to be consistent with a sequencer that under- and overcalls homopolymers
 static int   penRdGapConst;   // constant cost of extending a gap in the read
 static int   penRfGapConst;   // constant cost of extending a gap in the reference
 static int   penRdGapLinear;  // coeff of linear term for cost of gap extension in read
 static int   penRfGapLinear;  // coeff of linear term for cost of gap extension in ref
-static float costCeilConst;  // constant factor in cost ceiling w/r/t read length
-static float costCeilLinear; // coeff of linear term in cost ceiling w/r/t read length
+static float costMinConst;    // constant coeff for minimum valid score
+static float costMinLinear;   // linear coeff for minimum valid score
+static float costFloorConst;  // constant coeff for local-alignment score floor
+static float costFloorLinear; // linear coeff for local-alignment score floor
 static float nCeilConst;     // constant factor in N ceiling w/r/t read length
 static float nCeilLinear;    // coeff of linear term in N ceiling w/r/t read length
 static int   multiseedMms;   // mismatches permitted in a multiseed seed
@@ -317,6 +324,8 @@ static void resetOptions() {
 	gInsExtend				= 40;    // insertion gap extension penalty
 	gDelExtend				= 40;    // deletion gap extension penalty
 	gGapBarrier				= 4;     // disallow gaps within this many chars of either end of alignment
+	gRowLow                 = -1;    // backtraces start from row w/ idx >= this (-1=no limit)
+	gRowFirst               = false; // sort alignments by row then score?
 	gAllowRedundant			= 0;     // 1 -> allow alignments with 1 anchor in common, 2 -> allow alignments with both anchors in common
 	qualities.clear();
 	qualities1.clear();
@@ -328,19 +337,24 @@ static void resetOptions() {
 #endif
 	seedAlignmentPolicyString.clear();
 	msNoCache       = false; // true -> disable local cache
+	bonusMatchType  = DEFAULT_MATCH_BONUS_TYPE;
+	bonusMatch      = DEFAULT_MATCH_BONUS;
 	penMmcType      = DEFAULT_MM_PENALTY_TYPE;
 	penMmc          = DEFAULT_MM_PENALTY;
 	penSnp          = DEFAULT_SNP_PENALTY;
 	penNType        = DEFAULT_N_PENALTY_TYPE;
 	penN            = DEFAULT_N_PENALTY;
 	penNCatPair     = DEFAULT_N_CAT_PAIR; // concatenate mates before N filtering?
+	localAlign      = false;     // do local alignment in DP steps
 	noisyHpolymer   = false;
-	penRdGapConst    = DEFAULT_READ_EXTEND_CONST;
-	penRfGapConst    = DEFAULT_REF_EXTEND_CONST;
-	penRdGapLinear   = DEFAULT_READ_EXTEND_LINEAR;
-	penRfGapLinear   = DEFAULT_REF_EXTEND_LINEAR;
-	costCeilConst   = DEFAULT_CEIL_CONST;
-	costCeilLinear  = DEFAULT_CEIL_LINEAR;
+	penRdGapConst   = DEFAULT_READ_GAP_CONST;
+	penRfGapConst   = DEFAULT_REF_GAP_CONST;
+	penRdGapLinear  = DEFAULT_READ_GAP_LINEAR;
+	penRfGapLinear  = DEFAULT_REF_GAP_LINEAR;
+	costMinConst    = DEFAULT_MIN_CONST;
+	costMinLinear   = DEFAULT_MIN_LINEAR;
+	costFloorConst  = DEFAULT_FLOOR_CONST;
+	costFloorLinear = DEFAULT_FLOOR_LINEAR;
 	nCeilConst      = 2.0f; // constant factor in N ceiling w/r/t read length
 	nCeilLinear     = 0.1f; // coeff of linear term in N ceiling w/r/t read length
 	multiseedMms    = DEFAULT_SEEDMMS;
@@ -452,7 +466,8 @@ enum {
 	ARG_SEED_SUMM,
 	ARG_OVERHANG,
 	ARG_NO_CACHE,
-	ARG_NOISY_HPOLY
+	ARG_NOISY_HPOLY,
+	ARG_LOCAL
 };
 
 static struct option long_options[] = {
@@ -573,6 +588,7 @@ static struct option long_options[] = {
 	{(char*)"ion-torrent",  no_argument,       0,            ARG_NOISY_HPOLY},
 	{(char*)"no-mixed",     no_argument,       0,            ARG_NO_MIXED},
 	{(char*)"no-discordant",no_argument,       0,            ARG_NO_DISCORDANT},
+	{(char*)"local",        no_argument,       0,            ARG_LOCAL},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -616,6 +632,7 @@ static void printUsage(ostream& out) {
 	    << "  --solexa1.3-quals  input quals are from GA Pipeline ver. >= 1.3" << endl
 	    << "  --integer-quals    qualities are given as space-separated integers (not ASCII)" << endl
 	    << "Alignment:" << endl
+		<< "  --local            set alignment defaults to do BWA-SW-like local alignment" << endl
 	    << "  --nomaqround       disable Maq-like quality rounding for -n (nearest 10 <= 30)" << endl
 	    << "  --gNofw/--gNorc    do not align to forward/reverse-complement reference strand" << endl
 		<< "Paired-end:" << endl
@@ -1098,6 +1115,7 @@ static void parseOptions(int argc, const char **argv) {
 				}
 				origString = optarg;
 				break;
+			case ARG_LOCAL: localAlign = true; break;
 			case ARG_NOISY_HPOLY: noisyHpolymer = true; break;
 			case 'P': seedAlignmentPolicyString = optarg; break;
 			case ARG_SA_DUMP: {
@@ -1125,54 +1143,38 @@ static void parseOptions(int argc, const char **argv) {
 		// ranges).
 		offRate = 32;
 	}
-	if(!seedAlignmentPolicyString.empty()) {
-		SeedAlignmentPolicy::parseString(
-			seedAlignmentPolicyString,
-			noisyHpolymer,
-			penMmcType,
-			penMmc,
-			penSnp,
-			penNType,
-			penN,
-			penRdGapConst,
-			penRfGapConst,
-			penRdGapLinear,
-			penRfGapLinear,
-			costCeilConst,
-			costCeilLinear,
-			nCeilConst,
-			nCeilLinear,
-			penNCatPair,
-			multiseedMms,
-			multiseedLen,
-			multiseedPeriod,
-			multiseedIvalType,
-			multiseedIvalA,
-			multiseedIvalB);
+	SeedAlignmentPolicy::parseString(
+		seedAlignmentPolicyString,
+		localAlign,
+		noisyHpolymer,
+		bonusMatchType,
+		bonusMatch,
+		penMmcType,
+		penMmc,
+		penSnp,
+		penNType,
+		penN,
+		penRdGapConst,
+		penRfGapConst,
+		penRdGapLinear,
+		penRfGapLinear,
+		costMinConst,
+		costMinLinear,
+		costFloorConst,
+		costFloorLinear,
+		nCeilConst,
+		nCeilLinear,
+		penNCatPair,
+		multiseedMms,
+		multiseedLen,
+		multiseedPeriod,
+		multiseedIvalType,
+		multiseedIvalA,
+		multiseedIvalB);
+	if(localAlign) {
+		gRowLow = 0;
 	} else {
-		penMmcType        = DEFAULT_MM_PENALTY_TYPE;
-		penMmc            = DEFAULT_MM_PENALTY;
-		penSnp            = DEFAULT_SNP_PENALTY;
-		penNType          = DEFAULT_N_PENALTY_TYPE;
-		penN              = DEFAULT_N_PENALTY;
-		penRdGapConst     = noisyHpolymer ? DEFAULT_READ_EXTEND_CONST_BADHPOLY
-		                                  : DEFAULT_READ_EXTEND_CONST;
-		penRfGapConst     = noisyHpolymer ? DEFAULT_REF_EXTEND_CONST_BADHPOLY
-		                                  : DEFAULT_REF_EXTEND_CONST;
-		penRdGapLinear    = noisyHpolymer ? DEFAULT_READ_EXTEND_LINEAR_BADHPOLY
-		                                  : DEFAULT_READ_EXTEND_LINEAR;
-		penRfGapLinear     = noisyHpolymer ? DEFAULT_REF_EXTEND_LINEAR_BADHPOLY
-		                                  : DEFAULT_REF_EXTEND_LINEAR;
-		costCeilConst     = DEFAULT_CEIL_CONST;
-		costCeilLinear    = DEFAULT_CEIL_LINEAR;
-		nCeilConst        = DEFAULT_N_CEIL_CONST;
-		nCeilLinear       = DEFAULT_N_CEIL_LINEAR;
-		multiseedMms      = DEFAULT_SEEDMMS;
-		multiseedLen      = DEFAULT_SEEDLEN;
-		multiseedPeriod   = DEFAULT_SEEDPERIOD;
-		multiseedIvalType = DEFAULT_IVAL;
-		multiseedIvalA    = DEFAULT_IVAL_A;
-		multiseedIvalB    = DEFAULT_IVAL_B;
+		gRowLow = -1;
 	}
 	if(mates1.size() != mates2.size()) {
 		cerr << "Error: " << mates1.size() << " mate files/sequences were specified with -1, but " << mates2.size() << endl
@@ -1817,10 +1819,10 @@ static void twoOrThreeMismatchSearchFull(
 static PairedPatternSource*     multiseed_patsrc;
 static Ebwt*                    multiseed_ebwtFw;
 static Ebwt*                    multiseed_ebwtBw;
-static Penalties*               multiseed_pens;
+static Scoring*                 multiseed_sc;
 static EList<Seed>*             multiseed_seeds;
 static BitPairReference*        multiseed_refs;
-static AlignmentCache*          multiseed_sc; // seed cache
+static AlignmentCache*          multiseed_ca; // seed cache
 static AlnSink*                 multiseed_msink;
 static OutFileBuf*              multiseed_metricsOfb;
 
@@ -2204,10 +2206,10 @@ static void* multiseedSearchWorker(void *vp) {
 	PairedPatternSource&    patsrc   = *multiseed_patsrc;
 	const Ebwt&             ebwtFw   = *multiseed_ebwtFw;
 	const Ebwt&             ebwtBw   = *multiseed_ebwtBw;
-	const Penalties&        pens     = *multiseed_pens;
+	const Scoring&          sc       = *multiseed_sc;
 	const EList<Seed>&      seeds    = *multiseed_seeds;
 	const BitPairReference& ref      = *multiseed_refs;
-	AlignmentCache&         scShared = *multiseed_sc;
+	AlignmentCache&         scShared = *multiseed_ca;
 	AlnSink&                msink    = *multiseed_msink;
 	OutFileBuf*             metricsOfb = multiseed_metricsOfb;
 
@@ -2246,7 +2248,7 @@ static void* multiseedSearchWorker(void *vp) {
 	AlignmentCache scCurrent(seedCacheCurrentMB * 1024 * 1024, false);
 	
 	// Interfaces for alignment and seed caches
-	AlignmentCacheIface sc(
+	AlignmentCacheIface ca(
 		&scCurrent,
 		msNoCache ? NULL : &scLocal,
 		msNoCache ? NULL : &scShared);
@@ -2266,7 +2268,6 @@ static void* multiseedSearchWorker(void *vp) {
 	SeedAligner al;
 	SwDriver sd;
 	SwAligner sw, osw;
-	SwParams pa;
 	SeedResults shs[2];
 	QVal *qv;
 	GroupWalk gws[2];
@@ -2337,9 +2338,9 @@ static void* multiseedSearchWorker(void *vp) {
 				qv = NULL;
 				retry = false;
 				assert_eq(ps->bufa().color, gColor);
-				sc.nextRead();
+				ca.nextRead();
 				olm.reads++;
-				assert(!sc.aligning());
+				assert(!ca.aligning());
 				// NB: read may be either unpaired or paired-end at this point
 				bool pair = ps->paired();
 				const size_t rdlen1 = ps->bufa().length();
@@ -2351,7 +2352,7 @@ static void* multiseedSearchWorker(void *vp) {
 					&ps->bufa(),
 					pair ? &ps->bufb() : NULL,
 					patid,
-					pens.qualitiesMatter());
+					sc.qualitiesMatter());
 				assert(msinkwrap.inited());
 				if(skipStages == -1) {
 					// Read or pair is identical to previous.  Re-report from
@@ -2369,7 +2370,7 @@ static void* multiseedSearchWorker(void *vp) {
 					break; // next read
 				}
 				bool nfilt[2];
-				pens.nFilterPair(
+				sc.nFilterPair(
 					&ps->bufa().patFw,
 					pair ? &ps->bufb().patFw : NULL,
 					nfilt[0],
@@ -2403,7 +2404,7 @@ static void* multiseedSearchWorker(void *vp) {
 					rnd.init(ROTL(rds[mate]->seed, 10));
 					// Seed search
 					shs[mate].clear(); // clear seed hits
-					assert(shs[mate].repOk(&sc.current()));
+					assert(shs[mate].repOk(&ca.current()));
 					int interval = multiseedPeriod;
 					if(interval == -1) {
 						// Calculate the seed interval as a
@@ -2423,13 +2424,13 @@ static void* multiseedSearchWorker(void *vp) {
 						seeds,                // seed templates
 						interval,             // interval between seeds
 						*rds[mate],           // read
-						pens,                 // edit penalties
+						sc,                   // scoring scheme
 						nCeilConst,           // ceiling on # Ns w/r/t read length, constant coeff
 						nCeilLinear,          // ceiling on # Ns w/r/t read length, linear coeff
-						sc,                   // seed cache
+						ca,                   // seed cache
 						shs[mate],            // seed hits
 						sdm);                 // metrics
-					assert(shs[mate].repOk(&sc.current()));
+					assert(shs[mate].repOk(&ca.current()));
 					if(inst.first + inst.second == 0) {
 						continue; // on to next mate
 					}
@@ -2439,8 +2440,8 @@ static void* multiseedSearchWorker(void *vp) {
 						&ebwtFw,          // BWT index
 						&ebwtBw,          // BWT' index
 						*rds[mate],       // read
-						pens,             // edit penalties
-						sc,               // alignment cache
+						sc,               // scoring scheme
+						ca,               // alignment cache
 						shs[mate],        // store seed hits here
 						sdm,              // metrics
 						&readCounterSink, // send counter summary for each read to this sink
@@ -2448,7 +2449,7 @@ static void* multiseedSearchWorker(void *vp) {
 						&seedCounterSink, // send counter summary for each seed to this sink
 						&seedActionSink); // send search action list for each read to this sink
 					assert_eq(0, sdm.ooms);
-					assert(shs[mate].repOk(&sc.current()));
+					assert(shs[mate].repOk(&ca.current()));
 					if(!seedSummaryOnly) {
 						// If there aren't any seed hits...
 						if(shs[mate].empty()) {
@@ -2457,19 +2458,26 @@ static void* multiseedSearchWorker(void *vp) {
 						// Sort seed hits into ranks
 						shs[mate].sort();
 						// Calculate the penalty ceiling for the read
-						int penceil = Constraint::instantiate(
+						TAlScore minsc = Scoring::linearFunc(
 							rdlens[mate],
-							costCeilConst,
-							costCeilLinear);
-						int nceil = (int)pens.nCeil(rdlens[mate]);
-						assert_geq(penceil, 0);
+							costMinConst,
+							costMinLinear);
+						TAlScore floorsc = Scoring::linearFunc(
+							rdlens[mate],
+							costFloorConst,
+							costFloorLinear);
+						int nceil = (int)sc.nCeil(rdlens[mate]);
 						bool done = false;
 						if(pair) {
-							int openceil = Constraint::instantiate(
+							TAlScore ominsc = Scoring::linearFunc(
 								rdlens[mate ^ 1],
-								costCeilConst,
-								costCeilLinear);
-							int onceil = (int)pens.nCeil(rdlens[mate ^ 1]);
+								costMinConst,
+								costMinLinear);
+							TAlScore ofloorsc = Scoring::linearFunc(
+								rdlens[mate ^ 1],
+								costFloorConst,
+								costFloorLinear);
+							int onceil = (int)sc.nCeil(rdlens[mate ^ 1]);
 							// Paired-end dynamic programming driver
 							done = sd.extendSeedsPaired(
 								*rds[mate],     // mate to align as anchor
@@ -2482,19 +2490,20 @@ static void* multiseedSearchWorker(void *vp) {
 								gws[mate],      // walk left for anchor
 								sw,             // dyn prog aligner, anchor
 								osw,            // dyn prog aligner, opposite
-								pa,             // parameters for DP
-								pens,           // penalties for edits
+								sc,             // scoring scheme
 								pepol,          // paired-end policy
 								multiseedMms,   // # mms allowed in a seed
 								multiseedLen,   // length of a seed
 								interval,       // interval between seeds
-								penceil,        // penalty ceil for anchor
-								openceil,       // penalty ceil for opp.
+								minsc,          // min score for anchor
+								ominsc,         // min score for opp.
+								floorsc,        // floor score for anchor
+								ofloorsc,       // floor score for opp.
 								nceil,          // N ceil for anchor
 								onceil,         // N ceil for opp.
 								maxposs,        // max off/orient combos
 								maxrows,        // max offset resolutions
-								sc,             // seed alignment cache
+								ca,             // seed alignment cache
 								rnd,            // pseudo-random source
 								wlm,            // group walk left metrics
 								swm,            // dynamic prog metrics
@@ -2518,16 +2527,16 @@ static void* multiseedSearchWorker(void *vp) {
 								ref,            // packed reference strings
 								gws[mate],      // group walk left
 								sw,             // dynamic prog aligner
-								pa,             // parameters for DP
-								pens,           // penalties for edits
+								sc,             // scoring scheme
 								multiseedMms,   // # mms allowed in a seed
 								multiseedLen,   // length of a seed
 								interval,       // interval between seeds
-								penceil,        // penalty ceiling
+								minsc,          // minimum score for valid
+								floorsc,        // floor score
 								nceil,          // N ceil for anchor
 								maxposs,        // max off/orient combos
 								maxrows,        // max offset resolutions
-								sc,             // seed alignment cache
+								ca,             // seed alignment cache
 								rnd,            // pseudo-random source
 								wlm,            // group walk left metrics
 								swm,            // dynamic prog metrics
@@ -2580,7 +2589,7 @@ static void* multiseedSearchWorker(void *vp) {
  * enters the search loop.
  */
 static void multiseedSearch(
-	Penalties& pens,
+	Scoring& sc,
 	EList<Seed>& seeds,
 	PairedPatternSource& patsrc,  // pattern source
 	AlnSink& msink,             // hit sink
@@ -2595,7 +2604,7 @@ static void multiseedSearch(
 	multiseed_msink  = &msink;
 	multiseed_ebwtFw = &ebwtFw;
 	multiseed_ebwtBw = &ebwtBw;
-	multiseed_pens   = &pens;
+	multiseed_sc     = &sc;
 	multiseed_seeds  = &seeds;
 	multiseed_metricsOfb      = metricsOfb;
 	multiseed_seedHitSink     = &seedHitSink;
@@ -3128,25 +3137,32 @@ static void driver(
 		if(doMultiseed) {
 			// Bowtie 2
 			// Set up penalities
-			Penalties pens(
-				0,             // reward for a match
-				penMmcType,    // how to penalize mismatches
-				penMmc,        // constant if mm pelanty is a constant
-				penSnp,        // penalty for nucleotide mismatch in decoded colorspace als
-				nCeilConst,    // constant coeff for penalty ceil w/r/t read length
-				nCeilLinear,   // linear coeff for penalty ceil w/r/t read length
-				penNType,      // how to penalize Ns in the read
-				penN,          // constant if N pelanty is a constant
-				penNCatPair,   // whether to concat mates before N filtering
-				penRdGapConst,  // constant cost of extending a gap in the read
-				penRfGapConst,  // constant cost of extending a gap in the reference
-				penRdGapLinear, // coefficient of linear term for cost of gap extension in read
-				penRfGapLinear  // coefficient of linear term for cost of gap extension in ref
+			Scoring sc(
+				bonusMatch,     // constant reward for match
+				penMmcType,     // how to penalize mismatches
+				penMmc,         // constant if mm pelanty is a constant
+				penSnp,         // pena for nuc mm in decoded colorspace alns
+				costMinConst,   // minimum score - constant coeff
+				costMinLinear,  // minimum score - linear coeff
+				costFloorConst, // score floor - constant coeff
+				costFloorLinear,// score floor - linear coeff
+				nCeilConst,     // constant coeff for N ceil w/r/t read length
+				nCeilLinear,    // linear coeff for N ceil w/r/t read length
+				penNType,       // how to penalize Ns in the read
+				penN,           // constant if N pelanty is a constant
+				penNCatPair,    // whether to concat mates before N filtering
+				penRdGapConst,  // constant coeff for read gap cost
+				penRfGapConst,  // constant coeff for ref gap cost
+				penRdGapLinear, // linear coeff for read gap cost
+				penRfGapLinear, // linear coeff for ref gap cost
+				gGapBarrier,    // # rows at top/bot only entered diagonally
+				gRowLow,        // min row idx to backtrace from; -1 = no limit
+				gRowFirst       // sort results first by row then by score?
 			);
 			// Set up global constraint
 			Constraint gc = Constraint::penaltyFuncBased(
-				costCeilConst,
-				costCeilLinear
+				costMinConst,
+				costMinLinear
 			);
 			// Set up seeds
 			EList<Seed> seeds;
@@ -3193,7 +3209,7 @@ static void driver(
 			assert(patsrc != NULL);
 			assert(mssink != NULL);
 			multiseedSearch(
-				pens,    // edit penalties
+				sc,      // scoring scheme
 				seeds,   // seeds
 				*patsrc, // pattern source
 				*mssink, // hit sink

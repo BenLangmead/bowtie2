@@ -34,56 +34,6 @@ if(! -x $bowtie2 || ! -x $bowtie2_build) {
 (-x $bowtie2)       || die "Cannot run '$bowtie2'";
 (-x $bowtie2_build) || die "Cannot run '$bowtie2_build'";
 
-#
-# Penalties for mismatches
-#   MMP={Cxx|Q|RQ}
-#     Cxx = constant, where constant is integer xx
-#     Q   = equal to quality
-#     R   = equal to maq-rounded quality value (rounded to nearest
-#           10, can't be greater than 30)
-#
-# Penalties for mismatches where read char=N
-#   NP={Cxx|Q|RQ}
-#     Cxx = constant, where constant is integer xx
-#     Q   = equal to quality
-#     R   = equal to maq-rounded quality value (rounded to nearest
-#           10, can't be greater than 30)
-#
-# Penalties for read gaps
-#   RDG=xx,yy,zz
-#     xx = read gap open penalty
-#     yy = read gap extension penalty constant coefficient
-#          (defaults to open penalty)
-#     zz = read gap extension penalty linear coefficient
-#          (defaults to 0)
-#
-# Penalties for reference gaps
-#   RFG=xx,yy,zz
-#     xx = ref gap open penalty
-#     yy = ref gap extension penalty constant coefficient
-#          (defaults to open penalty)
-#     zz = ref gap extension penalty linear coefficient
-#          (defaults to 0)
-#
-# Per-read penalty ceiling as a function of read length
-#   CEIL=xx,yy
-#     xx = cost ceiling constant coefficient
-#     yy = cost ceiling linear coefficient (set to 0 if
-#          unspecified)
-#
-# Per-read N ceiling as a function of read length
-#   NCEIL=xx,yy
-#     xx = N ceiling constant coefficient
-#     yy = N ceiling linear coefficient (set to 0 if unspecified)
-#
-# Multiseed parameters
-#   SEED=xx,yy,zz
-#     xx = mismatches allowed in seed family; can be 0, 1, 2
-#     yy = length of seed family (set to 28 if unspecified)
-#     zz = period between seed family placements (seed to 14 if
-#          unspecified)
-#
-
 my @cases = (
 
 
@@ -727,7 +677,7 @@ my @cases = (
 	  reads    => [ "11311" ],
 	  dec_seq  => [ "TGTACA" ],
 	  dec_qual => [ "IqqqqI" ],
-	  args     =>   "--col-keepends --norc --overhang -P \"NCEIL=1,0;CEIL=10,0;SEED=0,2,1;MMP=C5;SNP=9\"",
+	  args     =>   "--col-keepends --norc --overhang -P \"NCEIL=1,0;MIN=-10,0;SEED=0,2,1;MMP=C5;SNP=9\"",
 	  report   =>   "-a",
 	  hits     => [ { 1 => 1 } ],
 	  color    => 1,

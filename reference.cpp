@@ -1,10 +1,5 @@
 /*
  *  reference.cpp
- *  bowtie-beta1
- *
- *  Created by Benjamin Langmead on 8/8/10.
- *  Copyright 2010 Johns Hopkins University. All rights reserved.
- *
  */
 
 #include "reference.h"

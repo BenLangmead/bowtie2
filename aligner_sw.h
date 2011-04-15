@@ -40,28 +40,12 @@
 #include "aligner_sw_col.h"
 #include "mask.h"
 
-#define QUAL2(d, f) pen_->mm((int)(*rd_)[rdi_ + d], \
-                             (int)  rf_ [rfi_ + f], \
-						     (int)(*qu_)[rdi_ + d] - 33)
-#define QUAL(d)     pen_->mm((int)(*rd_)[rdi_ + d], \
-                             (int)(*qu_)[rdi_ + d] - 33)
-#define N_SNP_PEN(c) (((int)rf_[rfi_ + c] > 15) ? pen_->n(30) : pen_->penSnp)
-
-/**
- * Key parameters to dynamic programming alignment.
- */
-struct SwParams {
-	SwParams() { initFromGlobals(); }
-	
-	/**
-	 * Initialize fields of SwParams by copying values of globals (see
-	 * search_globals.h).
-	 */
-	void initFromGlobals();
-
-	int   gapBar;  // no gaps allowed within 'gapBar' positions of either end
-	bool  exEnds;  // true -> nucleotide alignment is 1 char shorter than color read
-};
+#define QUAL2(d, f) sc_->mm((int)(*rd_)[rdi_ + d], \
+							(int)  rf_ [rfi_ + f], \
+							(int)(*qu_)[rdi_ + d] - 33)
+#define QUAL(d)     sc_->mm((int)(*rd_)[rdi_ + d], \
+							(int)(*qu_)[rdi_ + d] - 33)
+#define N_SNP_PEN(c) (((int)rf_[rfi_ + c] > 15) ? sc_->n(30) : sc_->penSnp)
 
 /**
  * Encapsulates the result of a dynamic programming alignment, including
@@ -699,16 +683,14 @@ public:
 		size_t width,          // # bands to do (width of parallelogram)
 		EList<bool>* st,       // mask indicating which columns we can start in
 		EList<bool>* en,       // mask indicating which columns we can end in
-		const SwParams& pa,    // params for SW alignment
-		const Penalties& pen,  // penalties for edit types
+		const Scoring& sc,     // scoring scheme
 		TAlScore minsc,        // minimum score a cell must achieve to have sol
-		int64_t rowlo,         // if row >= this, solutions are possible
-		bool rowfirst)         // row more important than score in order?
+		TAlScore floorsc)      // local-alignment score floor
 	{
-		int readGaps = pen.maxReadGaps(minsc, rd.length());
-		int refGaps  = pen.maxRefGaps(minsc, rd.length());
+		int readGaps = sc.maxReadGaps(minsc, rd.length());
+		int refGaps  = sc.maxRefGaps(minsc, rd.length());
 		int maxGaps  = max(readGaps, refGaps);
-		int nceil    = (int)pen.nCeil(rd.length());
+		int nceil    = (int)sc.nCeil(rd.length());
 		assert_geq(readGaps, 0);
 		assert_geq(refGaps, 0);
 		state_   = STATE_INITED;
@@ -729,22 +711,22 @@ public:
 		width_   = width;      // # bands to do (width of parallelogram)
 		st_      = st;         // mask indicating which columns we can start in
 		en_      = en;         // mask indicating which columns we can end in
-		pa_      = &pa;        // params for SW alignment
-		pen_     = &pen;       // penalties for edit types
+		sc_      = &sc;        // scoring scheme
 		minsc_   = minsc;      // minimum score a cell must achieve to have sol
+		floorsc_ = floorsc;    // local-alignment score floor
 		nceil_   = nceil;      // max # Ns allowed in ref portion of aln
 		inited_  = true;       // indicate we're initialized now
 		solrows_ = SwAligner::EXTREMES; // range of rows with at least 1 sol
 		solcols_.clear();      // for each row, cells with >0 sols remaining
 		INVALIDATE_SCORE(solbest_); // best score
 		solrowbest_.clear();   // best score in each row
-		solrowlo_ = rowlo;     // if row >= this, solutions are possible
+		solrowlo_ = sc.rowlo;  // if row >= this, solutions are possible
 		soldone_  = true;      // true iff there are no more cells with sols
 		nsols_    = 0;         // # cells with acceptable sols so far
-		rowfirst_ = rowfirst;  // row more important than score in order?
 		if(solrowlo_ < 0) {
 			solrowlo_ = (int64_t)(dpRows()-1);
 		}
+		assert_geq(solrowlo_, 0);
 	}
 	
 	/**
@@ -774,12 +756,10 @@ public:
 		size_t width,          // # bands to do (width of parallelogram)
 		EList<bool>* st,       // mask indicating which columns we can start in
 		EList<bool>* en,       // mask indicating which columns we can end in
-		const SwParams& pa,    // dynamic programming parameters
-		const Penalties& pen,  // penalty scheme
+		const Scoring& sc,     // scoring scheme
 		TAlScore minsc,        // minimum score a cell must achieve to have sol
-		int nceil,             // max # Ns allowed in reference part of aln
-		int64_t rowlo,         // if row >= this, solutions are possible
-		bool rowfirst);        // row more important than score in order?
+		TAlScore floorsc,      // local-alignment score floor
+		int nceil);            // max # Ns allowed in reference part of aln
 	
 	/**
 	 * Align read 'rd' to reference using read & reference information given
@@ -851,8 +831,9 @@ public:
 			assert(soldone_ || solrows_.second >= solrows_.first);
 			if(solrows_.second >= solrows_.first) {
 				for(size_t i = solrows_.first; i <= solrows_.second; i++) {
-					assert_geq(solcols_[i].second, solcols_[i].first);
 					assert_leq(solrowbest_[i], solbest_);
+					assert(!VALID_SCORE(solrowbest_[i]) || 
+					       solcols_[i].second >= solcols_[i].first);
 				}
 			}
 		}
@@ -1028,8 +1009,8 @@ protected:
 		int prevColor,
 		int prevQual);
 
-	const BTDnaString*  rd_;     // read sequence
-	const BTString*     qu_;     // read qualities
+	const BTDnaString  *rd_;     // read sequence
+	const BTString     *qu_;     // read qualities
 	size_t              rdi_;    // offset of first read char to align
 	size_t              rdf_;    // offset of last read char to align
 	bool                fw_;     // true iff read sequence is original fw read
@@ -1045,9 +1026,9 @@ protected:
 	int                 rdgap_;  // max # gaps in read
 	int                 rfgap_;  // max # gaps in reference
 	int                 maxgap_; // max(rdgap_, rfgap_)
-	const SwParams*     pa_;     // params for SW alignment
-	const Penalties*    pen_;    // penalties for edit types
+	const Scoring      *sc_;     // penalties for edit types
 	TAlScore            minsc_;  // penalty ceiling for valid alignments
+	TAlScore            floorsc_;// local-alignment score floor
 	int                 nceil_;  // max # Ns allowed in ref portion of aln
 
 	int                 state_;  // state
@@ -1067,7 +1048,6 @@ protected:
 	int64_t             solrowlo_;// if row >= this, solutions are possible
 	bool                soldone_; // true iff there are no more cells with sols
 	size_t              nsols_;   // # cells with acceptable sols so far
-	bool                rowfirst_;// row more important than score in ordering
 	
 	SizeTPair           EXTREMES; // invalid, uninitialized range
 	

@@ -4,17 +4,8 @@
 
 #include "aligner_sw.h"
 #include "search_globals.h"
-#include "penalty.h"
+#include "scoring.h"
 #include "mask.h"
-
-/**
- * Initialize fields of SwParams by copying values of globals (see
- * search_globals.h).
- */
-void SwParams::initFromGlobals() {
-	gapBar = gGapBarrier;
-	exEnds = gColorExEnds;
-}
 
 /**
  * Given a read, an alignment orientation, a range of characters in a referece
@@ -39,12 +30,10 @@ void SwAligner::init(
 	size_t width,          // # bands to do (width of parallelogram)
 	EList<bool>* st,       // mask indicating which columns we can start in
 	EList<bool>* en,       // mask indicating which columns we can end in
-	const SwParams& pa,    // dynamic programming parameters
-	const Penalties& pen,  // penalty scheme
-	TAlScore floorScore,   // minimum score for a valid alignment
-	int nceil,             // max # Ns allowed in reference portion of aln
-	int64_t rowlo,         // if row >= this, solutions are possible
-	bool rowfirst)         // row more important than score in order?
+	const Scoring& pen,    // penalty scheme
+	TAlScore minsc,        // minimum score for a valid alignment
+	TAlScore floorsc,      // local-alignment score floor
+	int nceil)             // max # Ns allowed in reference portion of aln
 {
 	assert_gt(rff, rfi);
 	assert_gt(rdf, rdi);
@@ -130,11 +119,9 @@ void SwAligner::init(
 		width,       // # bands to do (width of parallelogram)
 		st,          // mask indicating which columns we can start in
 		en,          // mask indicating which columns we can end in
-		pa,          // dynamic programming parameters
-		pen,         // penalties
-		floorScore,  // minimum score for valid alignment
-		rowlo,       // if row >= this, solutions are possible
-		rowfirst);   // row more important than score in order?
+		pen,         // scoring scheme
+		minsc,       // minimum score for valid alignment
+		floorsc);    // local-alignment score floor
 	
 	filter(nceil);
 }
@@ -332,10 +319,10 @@ bool SwAligner::backtrackNucleotides(
 					EDIT_TYPE_DEL);
 				assert(e.repOk());
 				ned.push_back(e);
-				assert_geq(row, (size_t)pa_->gapBar);
-				assert_geq((int)(rdf_-rdi_-row-1), pa_->gapBar-1);
+				assert_geq(row, (size_t)sc_->gapbar);
+				assert_geq((int)(rdf_-rdi_-row-1), sc_->gapbar-1);
 				row--;
-				score.score_ -= pen_->refGapOpen();
+				score.score_ -= sc_->refGapOpen();
 				score.gaps_++;
 				assert_geq(score.score(), minsc_);
 				gaps++;
@@ -361,10 +348,10 @@ bool SwAligner::backtrackNucleotides(
 					EDIT_TYPE_DEL);
 				assert(e.repOk());
 				ned.push_back(e);
-				assert_geq(row, (size_t)pa_->gapBar);
-				assert_geq((int)(rdf_-rdi_-row-1), pa_->gapBar-1);
+				assert_geq(row, (size_t)sc_->gapbar);
+				assert_geq((int)(rdf_-rdi_-row-1), sc_->gapbar-1);
 				row--;
-				score.score_ -= pen_->refGapExtend();
+				score.score_ -= sc_->refGapExtend();
 				score.gaps_++;
 				assert_geq(score.score(), minsc_);
 				gaps++;
@@ -389,10 +376,10 @@ bool SwAligner::backtrackNucleotides(
 					EDIT_TYPE_INS);
 				assert(e.repOk());
 				ned.push_back(e);
-				assert_geq(row, (size_t)pa_->gapBar);
-				assert_geq((int)(rdf_-rdi_-row-1), pa_->gapBar-1);
+				assert_geq(row, (size_t)sc_->gapbar);
+				assert_geq((int)(rdf_-rdi_-row-1), sc_->gapbar-1);
 				col--;
-				score.score_ -= pen_->readGapOpen();
+				score.score_ -= sc_->readGapOpen();
 				score.gaps_++;
 				assert_geq(score.score(), minsc_);
 				gaps++;
@@ -417,10 +404,10 @@ bool SwAligner::backtrackNucleotides(
 					EDIT_TYPE_INS);
 				assert(e.repOk());
 				ned.push_back(e);
-				assert_geq(row, (size_t)pa_->gapBar);
-				assert_geq((int)(rdf_-rdi_-row-1), pa_->gapBar-1);
+				assert_geq(row, (size_t)sc_->gapbar);
+				assert_geq((int)(rdf_-rdi_-row-1), sc_->gapbar-1);
 				col--;
-				score.score_ -= pen_->readGapExtend();
+				score.score_ -= sc_->readGapExtend();
 				score.gaps_++;
 				assert_geq(score.score(), minsc_);
 				gaps++;
@@ -519,7 +506,7 @@ inline void SwAligner::updateNucHoriz(
 			AlnScore ex = leftBest;
 			assert_leq(ex.score(), 0);
 			assert(VALID_AL_SCORE(ex));
-			ex.score_ -= pen_->readGapExtend();
+			ex.score_ -= sc_->readGapExtend();
 			assert_leq(ex.score(), 0);
 			if(ex.score_ >= minsc_ && ex >= myBest) {
 				if(ex > myBest) {
@@ -535,7 +522,7 @@ inline void SwAligner::updateNucHoriz(
 			AlnScore ex = leftBest;
 			assert_leq(ex.score_, 0);
 			assert(VALID_AL_SCORE(ex));
-			ex.score_ -= pen_->readGapOpen();
+			ex.score_ -= sc_->readGapOpen();
 			assert_leq(ex.score_, 0);
 			if(ex.score_ >= minsc_ && ex >= myBest) {
 				if(ex > myBest) {
@@ -577,7 +564,7 @@ inline void SwAligner::updateNucVert(
 			assert_leq(from.score_, 0);
 			if(frMask.refExtendPossible()) {
 				// Extend is possible
-				from.score_ -= pen_->refGapExtend();
+				from.score_ -= sc_->refGapExtend();
 				assert_leq(from.score_, 0);
 				if(from.score_ >= minsc_ && from >= myBest) {
 					if(from > myBest) {
@@ -588,11 +575,11 @@ inline void SwAligner::updateNucVert(
 					assert(VALID_AL_SCORE(myBest));
 				}
 				// put it back
-				from.score_ += pen_->refGapExtend();
+				from.score_ += sc_->refGapExtend();
 			}
 			if(frMask.refOpenPossible()){
 				// Open is possible
-				from.score_ -= pen_->refGapOpen();
+				from.score_ -= sc_->refGapOpen();
 				if(from.score_ >= minsc_ && from >= myBest) {
 					if(from > myBest) {
 						myBest = from;
@@ -620,7 +607,7 @@ inline void SwAligner::updateNucDiag(
 	assert(dc.finalized);
 	if(dc.empty) return;
 	bool ninvolved = (rdc > 3 || rfm > 15);
-	int add = (matches(rdc, rfm) ? 0 : (ninvolved ? pen_->n(30) : qpen));
+	int add = (matches(rdc, rfm) ? 0 : (ninvolved ? sc_->n(30) : qpen));
 	AlnScore from = dc.best - add;
 	{
 		{
@@ -730,7 +717,7 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 	assert_lt(rfi_, rff_);
 	assert_lt(rdi_, rdf_);
 	assert_eq(rd_->length(), qu_->length());
-	assert_geq(pa_->gapBar, 1);
+	assert_geq(sc_->gapbar, 1);
 	assert(repOk());
 #ifndef NDEBUG
 	for(size_t i = rfi_; i < rff_; i++) {
@@ -780,7 +767,7 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 				tab[0][col].best.score_ = -QUAL2(0, col);
 				tab[0][col].mask.diag = 1;
 			} else if(m == -1) {
-				int npen = pen_->n((int)(*qu_)[rdi_] - 33);
+				int npen = sc_->n((int)(*qu_)[rdi_] - 33);
 				if(npen <= -minsc_) {
 					tab[0][col].best.score_ = -npen;
 					tab[0][col].best.ns_ = 1;
@@ -789,7 +776,7 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 			}
 		}
 		// Calculate horizontals if barrier allows
-		if(pa_->gapBar <= 1 && col > 0) {
+		if(sc_->gapbar <= 1 && col > 0) {
 			updateNucHoriz(
 				tab[0][col-1],
 				tab[0][col],
@@ -817,8 +804,8 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 		nrowups_++;
 		tab.expand(); // add another row
 		bool onlyDiagInto =
-			(row+1 <= (size_t)pa_->gapBar ||
-			 (int)(rdf_-rdi_)-row <= (size_t)pa_->gapBar);
+			(row+1 <= (size_t)sc_->gapbar ||
+			 (int)(rdf_-rdi_)-row <= (size_t)sc_->gapbar);
 		tab.back().resize(whi-wlo+1); // add enough space for columns
 		assert_gt(row, 0);
 		assert_lt(row, qu_->length());
@@ -973,7 +960,7 @@ bool SwAligner::nextAlignment(
 	          std::numeric_limits<TAlScore>::min()); // should be valid
 	// Look for the next cell to backtrace from
 	size_t off = std::numeric_limits<size_t>::max();
-	if(rowfirst_) {
+	if(sc_->rowFirst) {
 		// Iterate over rows that potentially have solution cells.  Start
 		// at the bottom and move up.  Within each row, take solutions
 		// from best score to worst score.
@@ -1394,7 +1381,7 @@ bool SwAligner::nextAlignmentTryNucRow(
 #include <sstream>
 #include <utility>
 #include <getopt.h>
-#include "penalty.h"
+#include "scoring.h"
 #include "aligner_seed_policy.h"
 #include "color.h"
 
@@ -1478,11 +1465,8 @@ static void doTestCase(
 	int64_t            off,
 	EList<bool>       *st,
 	EList<bool>       *en,
-	const SwParams&    pa,
-	const Penalties&   pens,
+	const Scoring&     sc,  
 	TAlScore           minsc,
-	int64_t            rowlo,       // if row >= this, solutions are possible
-	bool               rowfirst,    // row more important than score in order?
 	SwResult&          res,
 	bool               color,
 	bool               nsInclusive,
@@ -1497,12 +1481,12 @@ static void doTestCase(
 	int64_t rfi, rff;
 	// Calculate the largest possible number of read and reference gaps given
 	// 'minsc' and 'pens'
-	int readGaps = pens.maxReadGaps(minsc, read.length());
-	int refGaps = pens.maxRefGaps(minsc, read.length());
+	int readGaps = sc.maxReadGaps(minsc, read.length());
+	int refGaps = sc.maxRefGaps(minsc, read.length());
 	assert_geq(readGaps, 0);
 	assert_geq(refGaps, 0);
 	int maxGaps = max(readGaps, refGaps);
-	size_t nceil = pens.nCeil(read.length());
+	size_t nceil = sc.nCeil(read.length());
 	size_t width = 1 + 2 * maxGaps;
 	rfi = off;
 	off = 0;
@@ -1568,11 +1552,9 @@ static void doTestCase(
 		width,         // # bands to do (width of parallelogram)
 		st,            // mask indicating which columns we can start in
 		en,            // mask indicating which columns we can end in
-		pa,            // dynamic programming parameters
-		pens,          // penalties
-		minsc,         // max total penalty
-		rowlo,         // 
-		rowfirst);     // 
+		sc,            // scoring scheme
+		minsc,         // minimum score for valid alignment
+		floorsc);      // local-alignment score floor
 	if(filterns) {
 		al.filter((int)nceil);
 	}
@@ -1588,10 +1570,7 @@ static void doTestCase2(
 	const char        *qual,
 	const char        *refin,
 	int64_t            off,
-	const SwParams&    pa,
-	const Penalties&   pens,
-	int64_t            rowlo,       // if row >= this, solutions are possible
-	bool               rowfirst,    // row more important than score in order?
+	const Scoring&     sc,
 	float              costCeilConst,
 	float              costCeilLinear,
 	SwResult&          res,
@@ -1616,11 +1595,8 @@ static void doTestCase2(
 		off,
 		NULL,
 		NULL,
-		pa,
-		pens,
+		sc,  
 		minsc,
-		rowlo,       // if row >= this, solutions are possible
-		rowfirst,    // row more important than score in order?
 		res,
 		color,
 		nsInclusive,
@@ -1638,10 +1614,7 @@ static void doTestCase3(
 	const char        *qual,
 	const char        *refin,
 	int64_t            off,
-	const SwParams&    pa,
-	Penalties&         pens,
-	int64_t            rowlo,       // if row >= this, solutions are possible
-	bool               rowfirst,    // row more important than score in order?
+	Scoring&           sc,
 	float              costCeilConst,
 	float              costCeilLinear,
 	float              nCeilConst,
@@ -1660,8 +1633,8 @@ static void doTestCase3(
 		costCeilLinear);
 	btqual.install(qual);
 	btref.install(refin);
-	pens.nCeilConst = nCeilConst;
-	pens.nCeilLinear = nCeilLinear;
+	sc.nCeilConst = nCeilConst;
+	sc.nCeilLinear = nCeilLinear;
 	doTestCase(
 		al,
 		btread,
@@ -1670,11 +1643,8 @@ static void doTestCase3(
 		off,
 		NULL,
 		NULL,
-		pa,
-		pens,
+		sc,  
 		minsc,
-		rowlo,       // if row >= this, solutions are possible
-		rowfirst,    // row more important than score in order?
 		res,
 		color,
 		nsInclusive,
@@ -1705,7 +1675,7 @@ static void doTests() {
 	multiseedLen    = DEFAULT_SEEDLEN;
 	multiseedPeriod = DEFAULT_SEEDPERIOD;
 	// Set up penalities
-	Penalties pens(
+	Scoring pens(
 		false,         // bad homopolymers?
 		penMmcType,    // how to penalize mismatches
 		penMmc,        // constant if mm pelanty is a constant
@@ -1718,10 +1688,13 @@ static void doTests() {
 		penRdExConst,  // constant coeff for cost of gap in read
 		penRfExConst,  // constant coeff for cost of gap in ref
 		penRdExLinear, // linear coeff for cost of gap in read
-		penRfExLinear  // linear coeff for cost of gap in ref
+		penRfExLinear, // linear coeff for cost of gap in ref
+		1,             // # rows at top/bot can only be entered diagonally
+		-1,            // min row idx to backtrace from; -1 = no limit
+		false          // sort results first by row then by score?
 	);
 	// Set up alternative penalities
-	Penalties pens2(
+	Scoring pens2(
 		false,           // bad homopolymers?
 		COST_MODEL_QUAL, // how to penalize mismatches
 		penMmc,          // constant if mm pelanty is a constant
@@ -1734,9 +1707,11 @@ static void doTests() {
 		penRdExConst,    // constant coeff for cost of gap in read
 		penRfExConst,    // constant coeff for cost of gap in ref
 		penRdExLinear,   // linear coeff for cost of gap in read
-		penRfExLinear    // linear coeff for cost of gap in ref
+		penRfExLinear,   // linear coeff for cost of gap in ref
+		1,               // # rows at top/bot can only be entered diagonally
+		-1,              // min row idx to backtrace from; -1 = no limit
+		false            // sort results first by row then by score?
 	);
-	SwParams pa;
 	SwResult res;
 	
 	//
@@ -1751,18 +1726,15 @@ static void doTests() {
 	RandomSource rnd(73);
 	for(int i = 0; i < 3; i++) {
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", exact)...";
-		pens.rdGapConst = 40;
-		pens.rfGapConst = 40;
+		sc.rdGapConst = 40;
+		sc.rfGapConst = 40;
 		doTestCase2(
 			al,
 			"ACGTACGT",         // read
 			"IIIIIIII",         // qual
 			"ACGTACGTACGTACGT", // ref in
 			i*4,                // off
-			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			30.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -1794,10 +1766,7 @@ static void doTests() {
 			"IIIIIIII",         // qual
 			"ACGTACGTACGTACGT", // ref in
 			i*4,                // off
-			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			30.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -1826,10 +1795,7 @@ static void doTests() {
 			"ABCDEFGH",         // qual
 			"ACGTACGTACGTACGT", // ref in
 			i*4,                // off
-			pa,                 // params
-			pens2,              // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			pens2,              // scoring scheme
 			40.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -1868,10 +1834,7 @@ static void doTests() {
 			"ABCDEFGH",         // qual
 			"ACGTACGTACGTACGT", // ref in
 			i*4,                // off
-			pa,                 // params
-			pens2,              // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			pens2,              // scoring scheme
 			40.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -1902,10 +1865,7 @@ static void doTests() {
 			"ABCDEFGH",         // qual
 			"ACGTACGTACGTACGT", // ref in
 			i*4,                // off
-			pa,                 // params
-			pens2,              // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			pens2,              // scoring scheme
 			40.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -1935,10 +1895,7 @@ static void doTests() {
 			"IIIIIIII",         // qual
 			"ACGTACGTACGTACGT", // ref in
 			i*4,                // off
-			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			30.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -1970,10 +1927,7 @@ static void doTests() {
 			"IIIIIIII",         // qual
 			"ACGTACGTACGTACGT", // ref in
 			i*4,                // off
-			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			30.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			1.0f,               // allow 1 N
@@ -2004,10 +1958,7 @@ static void doTests() {
 			"IIIIIIII",         // qual
 			"ACGTACGTACGTACGT", // ref in
 			i*4,                // off
-			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			30.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			2.0f,               // const coeff for N ceiling
@@ -2038,10 +1989,7 @@ static void doTests() {
 			"IIIIIIII",         // qual
 			"ACGTACGTACGTACGT", // ref in
 			i*4,                // off
-			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			30.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -2070,10 +2018,7 @@ static void doTests() {
 			"IIIIIIII",         // qual
 			"ACGTNCGTACGTANGT", // ref in
 			i*4,                // off
-			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			30.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -2102,10 +2047,7 @@ static void doTests() {
 			"IIIIIIII",         // qual
 			"ACGTACGTACGTACGT", // ref in
 			i*4,                // off
-			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			10.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -2121,20 +2063,17 @@ static void doTests() {
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4)
 		     << ", read gap allowed by minsc)...";
 		assert(res.empty());
-		pens.rfGapConst = 25;
-		pens.rdGapConst = 25;
-		pens.rfGapLinear = 15;
-		pens.rdGapLinear = 15;
+		sc.rfGapConst = 25;
+		sc.rdGapConst = 25;
+		sc.rfGapLinear = 15;
+		sc.rdGapLinear = 15;
 		doTestCase2(
 			al,
 			"ACGTCGT",          // read
 			"IIIIIII",          // qual
 			"ACGTACGTACGTACGT", // ref in
 			i*4,                // off
-			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			40.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -2157,20 +2096,17 @@ static void doTests() {
 
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4)
 		     << ", read gap disallowed by minsc)...";
-		pens.rfGapConst = 25;
-		pens.rdGapConst = 25;
-		pens.rfGapLinear = 15;
-		pens.rdGapLinear = 15;
+		sc.rfGapConst = 25;
+		sc.rdGapConst = 25;
+		sc.rfGapLinear = 15;
+		sc.rdGapLinear = 15;
 		doTestCase2(
 			al,
 			"ACGTCGT",          // read
 			"IIIIIII",          // qual
 			"ACGTACGTACGTACGT", // ref in
 			i*4,                // off
-			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			30.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -2192,10 +2128,7 @@ static void doTests() {
 			"IIIIIIIII",        // qual
 			"ACGTACGTACGTACGT", // ref in
 			i*4,                // off
-			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			40.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -2224,10 +2157,7 @@ static void doTests() {
 			"IIIIIIIII",        // qual
 			"ACGTACGTACGTACGT", // ref in
 			i*4,                // off
-			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			30.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -2243,20 +2173,17 @@ static void doTests() {
 		// Read gap with one read gap and zero ref gaps allowed
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4)
 		     << ", 1 read gap, ref gaps disallowed by minsc)...";
-		pens.rfGapConst = 35;
-		pens.rdGapConst = 25;
-		pens.rfGapLinear = 20;
-		pens.rdGapLinear = 10;
+		sc.rfGapConst = 35;
+		sc.rdGapConst = 25;
+		sc.rfGapLinear = 20;
+		sc.rdGapLinear = 10;
 		doTestCase2(
 			al,
 			"ACGTCGT",          // read
 			"IIIIIII",          // qual
 			"ACGTACGTACGTACGT", // ref in
 			i*4,                // off
-			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			40.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -2279,20 +2206,17 @@ static void doTests() {
 		
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4)
 		     << ", gaps disallowed by minsc)...";
-		pens.rfGapConst = 25;
-		pens.rdGapConst = 25;
-		pens.rfGapLinear = 10;
-		pens.rdGapLinear = 10;
+		sc.rfGapConst = 25;
+		sc.rdGapConst = 25;
+		sc.rfGapLinear = 10;
+		sc.rdGapLinear = 10;
 		doTestCase2(
 			al,
 			"ACGTCGT",          // read
 			"IIIIIII",          // qual 
 			"ACGTACGTACGTACGT", // ref 
 			i*4,                // off
-			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			30.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -2306,10 +2230,10 @@ static void doTests() {
 		cerr << "PASSED" << endl;
 		
 		// Ref gap with one ref gap and zero read gaps allowed
-		pens.rfGapConst = 25;
-		pens.rdGapConst = 35;
-		pens.rfGapLinear = 12;
-		pens.rdGapLinear = 22;
+		sc.rfGapConst = 25;
+		sc.rdGapConst = 35;
+		sc.rfGapLinear = 12;
+		sc.rdGapLinear = 22;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4)
 		     << ", 1 ref gap, read gaps disallowed by minsc)...";
 		assert(res.empty());
@@ -2319,10 +2243,7 @@ static void doTests() {
 			"IIIIIIIII",
 			"ACGTACGTACGTACGT",
 			i*4,                // off
-			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			40.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -2351,10 +2272,7 @@ static void doTests() {
 			"IIIIIIIII",
 			"ACGTACGTACGTACGT",
 			i*4,                // off
-			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			30.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -2367,10 +2285,10 @@ static void doTests() {
 		cerr << "PASSED" << endl;
 		
 		// Read gap with one read gap and two ref gaps allowed
-		pens.rfGapConst = 20;
-		pens.rdGapConst = 25;
-		pens.rfGapLinear = 10;
-		pens.rdGapLinear = 15;
+		sc.rfGapConst = 20;
+		sc.rdGapConst = 25;
+		sc.rfGapLinear = 10;
+		sc.rdGapLinear = 15;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4)
 		     << ", 1 read gap, 2 ref gaps allowed by minsc)...";
 		doTestCase2(
@@ -2379,10 +2297,7 @@ static void doTests() {
 			"IIIIIII",
 			"ACGTACGTACGTACGT",
 			i*4,                // off
-			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			40.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -2411,10 +2326,7 @@ static void doTests() {
 			"IIIIIII",
 			"ACGTACGTACGTACGT",
 			i*4,                // off
-			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			30.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -2427,10 +2339,10 @@ static void doTests() {
 		cerr << "PASSED" << endl;
 
 		// Ref gap with one ref gap and two read gaps allowed
-		pens.rfGapConst = 25;
-		pens.rdGapConst = 10;
-		pens.rfGapLinear = 15;
-		pens.rdGapLinear = 10;
+		sc.rfGapConst = 25;
+		sc.rdGapConst = 10;
+		sc.rfGapLinear = 15;
+		sc.rdGapLinear = 10;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4)
 		     << ", 1 ref gap, 2 read gaps allowed by minsc)...";
 		doTestCase2(
@@ -2439,10 +2351,7 @@ static void doTests() {
 			"IIIIIIIII",
 			"ACGTACGTACGTACGT",
 			i*4,                // off
-			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			40.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -2470,10 +2379,7 @@ static void doTests() {
 			"IIIIIIIII",
 			"ACGTACGTACGTACGT",
 			i*4,                // off
-			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			30.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -2487,10 +2393,10 @@ static void doTests() {
 		cerr << "PASSED" << endl;
 		
 		// Read gap with two read gaps and two ref gaps allowed
-		pens.rfGapConst = 10;
-		pens.rdGapConst = 10;
-		pens.rfGapLinear = 10;
-		pens.rdGapLinear = 10;
+		sc.rfGapConst = 10;
+		sc.rdGapConst = 10;
+		sc.rfGapLinear = 10;
+		sc.rdGapLinear = 10;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4)
 		     << ", 2 ref gaps, 2 read gaps allowed by minsc)...";
 		doTestCase2(
@@ -2499,10 +2405,7 @@ static void doTests() {
 			"IIIIIII",
 			"ACGTACGTACGTACGT",
 			i*4,                // off
-			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			40.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -2532,10 +2435,7 @@ static void doTests() {
 			"IIIIIII",
 			"ACGTACGTACGTACGT",
 			i*4,                // off
-			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			30.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -2553,10 +2453,10 @@ static void doTests() {
 		cerr << "PASSED" << endl;
 		
 		// Ref gap with two ref gaps and zero read gaps allowed
-		pens.rfGapConst = 15;
-		pens.rdGapConst = 15;
-		pens.rfGapLinear = 5;
-		pens.rdGapLinear = 5;
+		sc.rfGapConst = 15;
+		sc.rdGapConst = 15;
+		sc.rfGapLinear = 5;
+		sc.rdGapLinear = 5;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4)
 		     << ", 2 ref gaps, 2 read gaps allowed by minsc)...";
 		// Careful: it might be possible for the read to align with overhang
@@ -2567,10 +2467,7 @@ static void doTests() {
 			"IIIIIIIII",
 			"ACGTACGTACGTACGT",
 			i*4,                // off
-			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			35.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			0.0f,               // needed to avoid overhang alignments
@@ -2603,10 +2500,10 @@ static void doTests() {
 		res.reset();
 		cerr << "PASSED" << endl;
 		
-		pens.rfGapConst = 25;
-		pens.rdGapConst = 25;
-		pens.rfGapLinear = 4;
-		pens.rdGapLinear = 4;
+		sc.rfGapConst = 25;
+		sc.rdGapConst = 25;
+		sc.rfGapLinear = 4;
+		sc.rdGapLinear = 4;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4)
 		     << ", 1 ref gap, 1 read gap allowed by minsc)...";
 		doTestCase2(
@@ -2615,10 +2512,7 @@ static void doTests() {
 			"IIIIIIIII",
 			"ACGTACGTACGTACGT",
 			i*4,                // off
-			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			30.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -2643,10 +2537,7 @@ static void doTests() {
 			"I",
 			"AAAAAAAAAAAA",
 			i*4,                // off
-			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			30.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -2670,10 +2561,7 @@ static void doTests() {
 				"I",
 				"A",
 				0,                  // off
-				pa,                 // params
-				pens,               // pens
-				-1,                 // rowlo
-				true,               // rowfirst
+				sc,                 // scoring scheme
 				30.0f,              // const coeff for cost ceiling
 				0.0f,               // linear coeff for cost ceiling
 				res,                // result
@@ -2697,10 +2585,7 @@ static void doTests() {
 			"I",
 			"AAAAAAAAAAAA",
 			i*4,                // off
-			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			150.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -2725,10 +2610,7 @@ static void doTests() {
 				"I",
 				"A",
 				0,                  // off
-				pa,                 // params
-				pens,               // pens
-				-1,                 // rowlo
-				true,               // rowfirst
+				sc,                 // scoring scheme
 				150.0f,             // const coeff for cost ceiling
 				0.0f,               // linear coeff for cost ceiling
 				res,                // result
@@ -2749,7 +2631,6 @@ static void doTests() {
 		if(i == 0) {
 			cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
 				 << ", exact)...";
-			pa.exEnds = false;
 			doTestCase2(
 				al,
 				"131",
@@ -2757,9 +2638,7 @@ static void doTests() {
 				"ACGT",
 				i*4,                // off
 				pa,                 // params
-				pens,               // pens
-				-1,                 // rowlo
-				true,               // rowfirst
+				sc,                 // scoring scheme
 				30.0f,              // const coeff for cost ceiling
 				0.0f,               // linear coeff for cost ceiling
 				res,                // result
@@ -2778,9 +2657,8 @@ static void doTests() {
 
 		cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
 		     << ", exact)...";
-		pens.rfGapConst = 40;
-		pens.rdGapConst = 40;
-		pa.exEnds = false;
+		sc.rfGapConst = 40;
+		sc.rdGapConst = 40;
 		doTestCase2(
 			al,
 			"1313131",
@@ -2788,9 +2666,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT",
 			i*4,                // off
 			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			30.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -2808,9 +2684,8 @@ static void doTests() {
 
 		cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
 		     << ", exact2)...";
-		pens.rfGapConst = 40;
-		pens.rdGapConst = 40;
-		pa.exEnds = false;
+		sc.rfGapConst = 40;
+		sc.rdGapConst = 40;
 		doTestCase2(
 			al,
 			"1313131",
@@ -2818,9 +2693,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT",
 			i*4,                // off
 			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			40.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -2839,9 +2712,8 @@ static void doTests() {
 
 		cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
 		     << ", exact3)...";
-		pens.rfGapConst = 50;
-		pens.rdGapConst = 40;
-		pa.exEnds = false;
+		sc.rfGapConst = 50;
+		sc.rdGapConst = 40;
 		doTestCase2(
 			al,
 			"131313131",
@@ -2849,9 +2721,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT",
 			i*4,                // off
 			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			80.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -2870,9 +2740,8 @@ static void doTests() {
 
 		cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
 		     << ", exact4)...";
-		pens.rfGapConst = 40;
-		pens.rdGapConst = 50;
-		pa.exEnds = false;
+		sc.rfGapConst = 40;
+		sc.rdGapConst = 50;
 		doTestCase2(
 			al,
 			"131313131",
@@ -2880,9 +2749,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT",
 			i*4,                // off
 			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			80.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -2901,10 +2768,9 @@ static void doTests() {
 
 		cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
 		     << ", 1 N allowed by minsc)...";
-		pens.rfGapConst = 40;
-		pens.rdGapConst = 40;
-		pens.snp = 30;
-		pa.exEnds = false;
+		sc.rfGapConst = 40;
+		sc.rdGapConst = 40;
+		sc.snp = 30;
 		doTestCase3(
 			al,
 			"131.131",
@@ -2912,9 +2778,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT",
 			i*4,                // off
 			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			30.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			1.0f,               // allow 1 N
@@ -2936,10 +2800,9 @@ static void doTests() {
 
 		cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
 		     << ", 1 ref N and 1 read N)...";
-		pens.rfGapConst = 40;
-		pens.rdGapConst = 40;
-		pens.snp = 30;
-		pa.exEnds = false;
+		sc.rfGapConst = 40;
+		sc.rdGapConst = 40;
+		sc.snp = 30;
 		doTestCase3(
 			al,
 			".313131",
@@ -2947,9 +2810,7 @@ static void doTests() {
 			"ACGTACNTACGTACNT",
 			i*4,                // off
 			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			30.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			1.0f,               // allow 2 Ns
@@ -2972,10 +2833,9 @@ static void doTests() {
 
 		cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
 		     << ", 2 Nn allowed by minsc)...";
-		pens.rfGapConst = 40;
-		pens.rdGapConst = 40;
-		pens.snp = 30;
-		pa.exEnds = false;
+		sc.rfGapConst = 40;
+		sc.rdGapConst = 40;
+		sc.snp = 30;
 		doTestCase2(
 			al,
 			".31313.",
@@ -2983,9 +2843,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT",
 			i*4,                // off
 			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			30.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -3006,10 +2864,9 @@ static void doTests() {
 		if(i == 0) {
 			cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
 			     << ", 2 Nn allowed by minsc)...";
-			pens.rfGapConst = 40;
-			pens.rdGapConst = 40;
-			pens.snp = 30;
-			pa.exEnds = false;
+			sc.rfGapConst = 40;
+			sc.rdGapConst = 40;
+			sc.snp = 30;
 			doTestCase2(
 				al,
 				"..13131",
@@ -3017,9 +2874,7 @@ static void doTests() {
 				"ANGTACGT",
 				i*4,                // off
 				pa,                 // params
-				pens,               // pens
-				-1,                 // rowlo
-				true,               // rowfirst
+				sc,                 // scoring scheme
 				30.0f,              // const coeff for cost ceiling
 				0.0f,               // linear coeff for cost ceiling
 				res,                // result
@@ -3042,10 +2897,9 @@ static void doTests() {
 
 		cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
 		     << ", 1 SNP allowed by minsc)...";
-		pens.rfGapConst = 40;
-		pens.rdGapConst = 40;
-		pens.snp = 30;
-		pa.exEnds = false;
+		sc.rfGapConst = 40;
+		sc.rdGapConst = 40;
+		sc.snp = 30;
 		doTestCase2(
 			al,
 			"1310231",
@@ -3053,9 +2907,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT",
 			i*4,                // off
 			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			30.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -3074,10 +2926,9 @@ static void doTests() {
 
 		cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
 		     << ", 1 SNP allowed by minsc)...";
-		pens.rfGapConst = 40;
-		pens.rdGapConst = 40;
-		pens.snp = 30;
-		pa.exEnds = false;
+		sc.rfGapConst = 40;
+		sc.rdGapConst = 40;
+		sc.snp = 30;
 		doTestCase2(
 			al,
 			"0213131",
@@ -3085,9 +2936,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT",
 			i*4,                // off
 			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			30.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -3106,10 +2955,9 @@ static void doTests() {
 
 		cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
 		     << ", 1 SNP allowed by minsc 2)...";
-		pens.rfGapConst = 20;
-		pens.rdGapConst = 20;
-		pens.snp = 20;
-		pa.exEnds = false;
+		sc.rfGapConst = 20;
+		sc.rdGapConst = 20;
+		sc.snp = 20;
 		doTestCase2(
 			al,
 			"1310231",
@@ -3117,9 +2965,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT",
 			i*4,                // off
 			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			20.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -3138,10 +2984,9 @@ static void doTests() {
 
 		cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
 		     << ", 1 MM allowed by minsc)...";
-		pens.rfGapConst = 40;
-		pens.rdGapConst = 40;
-		pens.snp = 30;
-		pa.exEnds = false;
+		sc.rfGapConst = 40;
+		sc.rdGapConst = 40;
+		sc.snp = 30;
 		doTestCase2(
 			al,
 			"1310131",
@@ -3149,9 +2994,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT",
 			i*4,                // off
 			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			30.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -3170,8 +3013,7 @@ static void doTests() {
 
 		cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
 		     << ", 1 MM allowed by minsc 2)...";
-		pens.snp = 20;
-		pa.exEnds = false;
+		sc.snp = 20;
 		doTestCase2(
 			al,
 			"1310131",
@@ -3179,9 +3021,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT",
 			i*4,                // off
 			pa,                 // params
-			pens2,              // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			pens2,              // scoring scheme
 			20.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -3200,12 +3040,11 @@ static void doTests() {
 
 		cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
 		     << ", 1 read gap)...";
-		pens.rfGapConst = 25;
-		pens.rdGapConst = 25;
-		pens.rfGapLinear = 14;
-		pens.rdGapLinear = 14;
-		pens.snp = 30;
-		pa.exEnds = false;
+		sc.rfGapConst = 25;
+		sc.rdGapConst = 25;
+		sc.rfGapLinear = 14;
+		sc.rdGapLinear = 14;
+		sc.snp = 30;
 		doTestCase2(
 			al,
 			"131231",
@@ -3213,9 +3052,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT",
 			i*4,                // off
 			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			40.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -3234,12 +3071,11 @@ static void doTests() {
 
 		cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
 		     << ", 1 ref gap)...";
-		pens.rfGapConst = 25;
-		pens.rdGapConst = 25;
-		pens.rfGapLinear = 14;
-		pens.rdGapLinear = 14;
-		pens.snp = 30;
-		pa.exEnds = false;
+		sc.rfGapConst = 25;
+		sc.rdGapConst = 25;
+		sc.rfGapLinear = 14;
+		sc.rdGapLinear = 14;
+		sc.snp = 30;
 		doTestCase2(
 			al,
 			"13130131",
@@ -3247,9 +3083,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT",
 			i*4,                // off
 			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			40.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -3268,12 +3102,11 @@ static void doTests() {
 
 		cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
 		     << ", 2 ref gaps)...";
-		pens.rfGapConst  = 25;
-		pens.rdGapConst  = 25;
-		pens.rfGapLinear = 15;
-		pens.rdGapLinear = 15;
-		pens.snp = 30;
-		pa.exEnds = false;
+		sc.rfGapConst  = 25;
+		sc.rdGapConst  = 25;
+		sc.rfGapLinear = 15;
+		sc.rdGapLinear = 15;
+		sc.snp = 30;
 		doTestCase2(
 			al,
 			"131003131",
@@ -3281,9 +3114,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT",
 			i*4,                // off
 			pa,                 // params
-			pens,               // pens
-			-1,                 // rowlo
-			true,               // rowfirst
+			sc,                 // scoring scheme
 			60.0f,              // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
@@ -3305,18 +3136,17 @@ static void doTests() {
 	// accepted over a valid alignment with a better score but too many
 	// Ns
 	cerr << "  Test " << tests++ << " (N ceiling 1)...";
-	pens.mmcostType = COST_MODEL_CONSTANT;
-	pens.mmcost = 10;
-	pens.snp = 30;
-	pens.nCeilConst  = 0.0f;
-	pens.nCeilLinear = 0.0f;
-	pens.rfGapConst  = 10;
-	pens.rdGapLinear = 10;
-	pens.rfGapConst  = 10;
-	pens.rfGapLinear = 10;
-	pens.setNPen(COST_MODEL_CONSTANT, 2);
-	pa.exEnds = false;
-	pa.gapBar = 1;
+	sc.mmcostType = COST_MODEL_CONSTANT;
+	sc.mmcost = 10;
+	sc.snp = 30;
+	sc.nCeilConst  = 0.0f;
+	sc.nCeilLinear = 0.0f;
+	sc.rfGapConst  = 10;
+	sc.rdGapLinear = 10;
+	sc.rfGapConst  = 10;
+	sc.rfGapLinear = 10;
+	sc.setNPen(COST_MODEL_CONSTANT, 2);
+	sc.gapbar = 1;
 	// No Ns allowed, so this hit should be filtered
 	doTestCase2(
 		al,
@@ -3325,9 +3155,7 @@ static void doTests() {
 		"NCGTACGT", // ref seq
 		0,          // offset
 		pa,         // alignment params
-		pens,       // penalties
-		-1,         // rowlo
-		true,       // rowfirst
+		sc,         // scoring scheme
 		25.0f,      // const coeff for cost ceiling
 		0.0f,       // linear coeff for cost ceiling
 		res,        // result
@@ -3349,9 +3177,7 @@ static void doTests() {
 		"NCGTACGT", // ref seq
 		0,          // offset
 		pa,         // alignment params
-		pens,       // penalties
-		-1,         // rowlo
-		true,       // rowfirst
+		sc,         // scoring scheme
 		25.0f,      // const coeff for cost ceiling
 		0.0f,       // linear coeff for cost ceiling
 		1.0f,       // constant coefficient for # Ns allowed
@@ -3371,8 +3197,8 @@ static void doTests() {
 
 	// No Ns allowed, so this hit should be filtered
 	cerr << "  Test " << tests++ << " (N ceiling 3)...";
-	pens.nCeilConst = 1.0f;
-	pens.nCeilLinear = 0.0f;
+	sc.nCeilConst = 1.0f;
+	sc.nCeilLinear = 0.0f;
 	doTestCase2(
 		al,
 		"ACGTACGT", // read seq
@@ -3380,9 +3206,7 @@ static void doTests() {
 		"NCGTACGT", // ref seq
 		0,          // offset
 		pa,         // alignment params
-		pens,       // penalties
-		-1,         // rowlo
-		true,       // rowfirst
+		sc,         // scoring scheme
 		25.0f,      // const coeff for cost ceiling
 		0.0f,       // linear coeff for cost ceiling
 		res,        // result
@@ -3400,12 +3224,12 @@ static void doTests() {
 
 	// No Ns allowed, so this hit should be filtered
 	cerr << "  Test " << tests++ << " (redundant alignment elimination 1)...";
-	pens.nCeilConst = 1.0f;
-	pens.nCeilLinear = 0.0f;
-	pens.rfGapConst  = 25;
-	pens.rdGapLinear = 15;
-	pens.rfGapConst  = 25;
-	pens.rfGapLinear = 15;
+	sc.nCeilConst = 1.0f;
+	sc.nCeilLinear = 0.0f;
+	sc.rfGapConst  = 25;
+	sc.rdGapLinear = 15;
+	sc.rfGapConst  = 25;
+	sc.rfGapLinear = 15;
 	doTestCase2(
 		al,
 		//                   1         2         3         4
@@ -3417,9 +3241,7 @@ static void doTests() {
 		//           1         2         3         4         5         6
 		8,          // offset
 		pa,         // alignment params
-		pens,       // penalties
-		-1,         // rowlo
-		true,       // rowfirst
+		sc,         // scoring scheme
 		25.0f,      // const coeff for cost ceiling
 		5.0f,       // linear coeff for cost ceiling
 		res,        // result
@@ -3541,7 +3363,7 @@ int main(int argc, char **argv) {
 	// Get reference offset
 	size_t off = parse<size_t>(argv[optind+3]);
 	// Set up penalities
-	Penalties pens(
+	Scoring pens(
 		false,         // bad homopolymer?
 		penMmcType,    // how to penalize mismatches
 		penMmc,        // constant if mm pelanty is a constant
@@ -3561,7 +3383,6 @@ int main(int argc, char **argv) {
 		read.length(),
 		costCeilConst,
 		costCeilLinear);
-	SwParams pa;
 	SwResult res;
 	SwAligner al;
 	doTestCase(
@@ -3573,9 +3394,7 @@ int main(int argc, char **argv) {
 		NULL,
 		NULL,
 		pa,
-		pens,
-		-1,         // rowlo
-		true,       // rowfirst
+		sc,  
 		minsc,
 		res,
 		gColor,
