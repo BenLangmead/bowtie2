@@ -200,21 +200,7 @@ struct SwColorCell {
 	 * We finished updating the cell; set empty and finalized
 	 * appropriately.
 	 */
-	inline bool finalize(TAlScore minsc) {
-		ASSERT_ONLY(finalized = true);
-		assert(VALID_SCORE(minsc));
-		for(int i = 0; i < 4; i++) {
-			if(!mask[i].empty()) {
-				assert(VALID_AL_SCORE(best[i]));
-				assert_geq(best[i].score(), minsc);
-				empty = false;
-#ifdef NDEBUG
-				break;
-#endif
-			}
-		}
-		return !empty;
-	}
+	inline bool finalize(TAlScore floorsc);
 
 	/**
 	 * Determine whether this cell has a solution with the given score.  If so,

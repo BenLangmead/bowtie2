@@ -36,7 +36,7 @@
 
 // Constant coefficient b in linear function f(x) = ax + b determining
 // what local-alignment score floor to impose when read length is x
-#define DEFAULT_FLOOR_CONST (std::numeric_limits<float>::min())
+#define DEFAULT_FLOOR_CONST (-std::numeric_limits<float>::max())
 // Linear coefficient a
 #define DEFAULT_FLOOR_LINEAR 0.0f
 // Different defaults for --local mode
@@ -141,7 +141,7 @@ public:
 		bool    rowFirst_)  // sort results first by row then by score?
 	{
 		matchType    = COST_MODEL_CONSTANT;
-		match        = mat;
+		matchConst   = mat;
 		mmcostType   = mmcType;
 		mmcost       = mmc;
 		snp          = sn;
@@ -162,9 +162,10 @@ public:
 		gapbar       = gapbar_;
 		rowlo        = rowlo_;
 		rowFirst     = rowFirst_;
+		monotone     = matchType == COST_MODEL_CONSTANT && matchConst == 0;
 		initPens<int>(mmpens, mmcostType, mmcost);
 		initPens<int>(npens, npenType, npen);
-		initPens<float>(matchBonuses, matchType, match);
+		initPens<float>(matchBonuses, matchType, matchConst);
 		assert(repOk());
 	}
 	
@@ -181,7 +182,7 @@ public:
 	 * Check that scoring scheme is internally consistent.
 	 */
 	bool repOk() const {
-		assert_geq(match, 0);
+		assert_geq(matchConst, 0);
 		assert_gt(snp, 0);
 		assert_gt(rdGapConst, 0);
 		assert_gt(rdGapLinear, 0);
@@ -213,7 +214,7 @@ public:
 	 *
 	 * qs should be clamped to 63 on the high end before this query.
 	 */
-	int mm(int rdc, int refm, int q) const {
+	inline int mm(int rdc, int refm, int q) const {
 		assert_range(0, 255, q);
 		return (rdc > 3 || refm > 15) ? npens[q] : mmpens[q];
 	}
@@ -223,7 +224,7 @@ public:
 	 * with read character 'rdc' and quality 'q'.  We assume the
 	 * reference character is non-N.
 	 */
-	int mm(int rdc, int q) const {
+	inline int mm(int rdc, int q) const {
 		assert_range(0, 255, q);
 		return (rdc > 3) ? npens[q] : mmpens[q];
 	}
@@ -232,9 +233,18 @@ public:
 	 * Return the marginal penalty incurred by a mismatch at a read
 	 * position with quality 'q'.
 	 */
-	int mm(int q) const {
+	inline int mm(int q) const {
 		assert_geq(q, 0);
 		return q < 255 ? mmpens[q] : mmpens[255];
+	}
+
+	/**
+	 * Return the marginal penalty incurred by a mismatch at a read
+	 * position with quality 'q'.
+	 */
+	inline int match(int q) const {
+		assert_geq(q, 0);
+		return q < 255 ? matchBonuses[q] : matchBonuses[255];
 	}
 
 	/**
@@ -248,7 +258,7 @@ public:
 	 * Return the marginal penalty incurred by an N mismatch at a read
 	 * position with quality 'q'.
 	 */
-	int n(int q) const {
+	inline int n(int q) const {
 		assert_geq(q, 0);
 		return q < 255 ? npens[q] : npens[255];
 	}
@@ -259,7 +269,7 @@ public:
 	 * given that this is the 'ext'th extension of the gap (0 = open,
 	 * 1 = first, etc).
 	 */
-	int ins(int ext) const {
+	inline int ins(int ext) const {
 		assert_geq(ext, 0);
 		if(ext == 0) return readGapOpen();
 		return readGapExtend();
@@ -270,7 +280,7 @@ public:
 	 * given that this is the 'ext'th extension of the gap (0 = open,
 	 * 1 = first, etc).
 	 */
-	int del(int ext) const {
+	inline int del(int ext) const {
 		assert_geq(ext, 0);
 		if(ext == 0) return refGapOpen();
 		return refGapExtend();
@@ -360,7 +370,7 @@ public:
 	}
 
 	int     matchType;    // how to reward matches
-	int     match;        // reward for a match
+	int     matchConst;   // reward for a match
 	int     mmcostType;   // based on qual? rounded? just a constant?
 	int     mmcost;       // if mmcosttype=constant, this is the const
 	int     snp;          // penalty for nuc mismatch in decoded colorspace als
@@ -380,6 +390,7 @@ public:
 	int     gapbar;       // # rows at top/bot can only be entered diagonally
 	int64_t rowlo;        // min row idx to backtrace from; -1 = no limit
 	bool    rowFirst;     // sort results first by row then by score?
+	bool    monotone;     // scores can only go down?
 	float   matchBonuses[256]; // map from qualities to match bonus
 	int     mmpens[256];  // map from qualities to mm penalty
 	int     npens[256];   // map from N qualities to penalty

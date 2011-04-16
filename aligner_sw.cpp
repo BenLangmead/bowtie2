@@ -8,6 +8,21 @@
 #include "mask.h"
 
 /**
+ * We finished updating the cell; set empty and finalized
+ * appropriately.
+ */
+inline bool SwNucCell::finalize(TAlScore floorsc) {
+	ASSERT_ONLY(finalized = true);
+	assert(empty);
+	// Profiling shows cache misses on following line
+	if(!mask.empty() && best.score() >= floorsc) {
+		assert(VALID_AL_SCORE(best));
+		empty = false;
+	}
+	return !empty;
+}
+
+/**
  * Given a read, an alignment orientation, a range of characters in a referece
  * sequence, and a bit-encoded version of the reference, set up and execute the
  * corresponding dynamic programming problem.
@@ -244,15 +259,13 @@ bool SwAligner::backtrackNucleotides(
 			}
 		}
 		assert(!tab[row][tabcol].reportedThru_);
-		assert_geq(score.score(), minsc_);
+		assert(!sc_->monotone || score.score() >= minsc_);
 		if(row == 0) {
 			btcells_.expand();
 			btcells_.back().first = row;
 			btcells_.back().second = tabcol;
 			break;
 		}
-		ASSERT_ONLY(AlnScore scoreThisRound = score);
-		ASSERT_ONLY(AlnScore bestThisRound = tab[row][tabcol].best);
 		assert_gt(tab[row][tabcol].mask.numPossible(), 0);
 		bool branch = false;
 		int cur = tab[row][tabcol].mask.randBacktrack(rand, branch);
@@ -294,7 +307,10 @@ bool SwAligner::backtrackNucleotides(
 					assert(e.repOk());
 					ned.push_back(e);
 					score.score_ -= QUAL2(row, col);
-					assert_geq(score.score(), minsc_);
+					assert(!sc_->monotone || score.score() >= minsc_);
+				} else {
+					// Reward a match
+					score.score_ += sc_->match(30);
 				}
 				if(m == -1) {
 					score.ns_++;
@@ -302,10 +318,6 @@ bool SwAligner::backtrackNucleotides(
 				row--; col--;
 				assert_lt(row, tab.size());
 				assert(VALID_AL_SCORE(score));
-				ASSERT_ONLY(scoreThisRound = score - scoreThisRound);
-				ASSERT_ONLY(bestThisRound -= tab[row][tabcol].best);
-				// Make sure that both changed in the same way
-				assert_eq(scoreThisRound, bestThisRound);
 				break;
 			}
 			// Move up.  Add an edit encoding the ref gap.
@@ -324,16 +336,13 @@ bool SwAligner::backtrackNucleotides(
 				row--;
 				score.score_ -= sc_->refGapOpen();
 				score.gaps_++;
-				assert_geq(score.score(), minsc_);
+				assert(!sc_->monotone || score.score() >= minsc_);
 				gaps++;
 #ifndef NDEBUG
 				assert_leq(score.gaps_, rdgap_ + rfgap_);
 				assert_lt(row, tab.size());
 				tabcol = col - row;
 				assert_lt(tabcol, tab[row].size());
-				scoreThisRound = score - scoreThisRound;
-				bestThisRound -= tab[row][tabcol].best;
-				assert_eq(scoreThisRound, bestThisRound);
 #endif
 				break;
 			}
@@ -353,16 +362,13 @@ bool SwAligner::backtrackNucleotides(
 				row--;
 				score.score_ -= sc_->refGapExtend();
 				score.gaps_++;
-				assert_geq(score.score(), minsc_);
+				assert(!sc_->monotone || score.score() >= minsc_);
 				gaps++;
 #ifndef NDEBUG
 				assert_leq(score.gaps_, rdgap_ + rfgap_);
 				assert_lt(row, tab.size());
 				tabcol = col - row;
 				assert_lt(tabcol, tab[row].size()-1);
-				scoreThisRound = score - scoreThisRound;
-				bestThisRound -= tab[row][tabcol].best;
-				assert_eq(scoreThisRound, bestThisRound);
 #endif
 				break;
 			}
@@ -381,16 +387,13 @@ bool SwAligner::backtrackNucleotides(
 				col--;
 				score.score_ -= sc_->readGapOpen();
 				score.gaps_++;
-				assert_geq(score.score(), minsc_);
+				assert(!sc_->monotone || score.score() >= minsc_);
 				gaps++;
 #ifndef NDEBUG
 				assert_leq(score.gaps_, rdgap_ + rfgap_);
 				assert_lt(row, tab.size());
 				tabcol = col - row;
 				assert_lt(tabcol, tab[row].size());
-				scoreThisRound = score - scoreThisRound;
-				bestThisRound -= tab[row][tabcol].best;
-				assert_eq(scoreThisRound, bestThisRound);
 #endif
 				break;
 			}
@@ -409,16 +412,13 @@ bool SwAligner::backtrackNucleotides(
 				col--;
 				score.score_ -= sc_->readGapExtend();
 				score.gaps_++;
-				assert_geq(score.score(), minsc_);
+				assert(!sc_->monotone || score.score() >= minsc_);
 				gaps++;
 #ifndef NDEBUG
 				assert_leq(score.gaps_, rdgap_ + rfgap_);
 				assert_lt(row, tab.size());
 				tabcol = col - row;
 				assert_lt(tabcol, tab[row].size());
-				scoreThisRound = score - scoreThisRound;
-				bestThisRound -= tab[row][tabcol].best;
-				assert_eq(scoreThisRound, bestThisRound);
 #endif
 				break;
 			}
@@ -442,6 +442,8 @@ bool SwAligner::backtrackNucleotides(
 		ned.push_back(e);
 		score.score_ -= QUAL2(row, col);
 		assert_geq(score.score(), minsc_);
+	} else {
+		score.score_ += sc_->match(30);
 	}
 	if(m == -1) {
 		score.ns_++;
@@ -508,7 +510,7 @@ inline void SwAligner::updateNucHoriz(
 			assert(VALID_AL_SCORE(ex));
 			ex.score_ -= sc_->readGapExtend();
 			assert_leq(ex.score(), 0);
-			if(ex.score_ >= minsc_ && ex >= myBest) {
+			if(ex.score_ >= floorsc_ && ex >= myBest) {
 				if(ex > myBest) {
 					myMask.clear();
 					myBest = ex;
@@ -524,7 +526,7 @@ inline void SwAligner::updateNucHoriz(
 			assert(VALID_AL_SCORE(ex));
 			ex.score_ -= sc_->readGapOpen();
 			assert_leq(ex.score_, 0);
-			if(ex.score_ >= minsc_ && ex >= myBest) {
+			if(ex.score_ >= floorsc_ && ex >= myBest) {
 				if(ex > myBest) {
 					myMask.clear();
 					myBest = ex;
@@ -566,7 +568,7 @@ inline void SwAligner::updateNucVert(
 				// Extend is possible
 				from.score_ -= sc_->refGapExtend();
 				assert_leq(from.score_, 0);
-				if(from.score_ >= minsc_ && from >= myBest) {
+				if(from.score_ >= floorsc_ && from >= myBest) {
 					if(from > myBest) {
 						myBest = from;
 						myMask.clear();
@@ -580,7 +582,7 @@ inline void SwAligner::updateNucVert(
 			if(frMask.refOpenPossible()){
 				// Open is possible
 				from.score_ -= sc_->refGapOpen();
-				if(from.score_ >= minsc_ && from >= myBest) {
+				if(from.score_ >= floorsc_ && from >= myBest) {
 					if(from > myBest) {
 						myBest = from;
 						myMask.clear();
@@ -607,16 +609,15 @@ inline void SwAligner::updateNucDiag(
 	assert(dc.finalized);
 	if(dc.empty) return;
 	bool ninvolved = (rdc > 3 || rfm > 15);
-	int add = (matches(rdc, rfm) ? 0 : (ninvolved ? sc_->n(30) : qpen));
-	AlnScore from = dc.best - add;
+	int add = (matches(rdc, rfm) ? sc_->match(30) : -(ninvolved ? sc_->n(30) : qpen));
+	AlnScore from = dc.best + add;
 	{
 		{
 			AlnScore& myBest = dstc.best;
 			SwNucCellMask& myMask = dstc.mask;
 			if(ninvolved) from.incNs(nceil_);
 			if(!VALID_AL_SCORE(from)) return;
-			assert_leq(from.score_, 0);
-			if(from.score_ >= minsc_ && from >= myBest) {
+			if(from.score_ >= floorsc_ && from >= myBest) {
 				if(from > myBest) {
 					myBest = from;
 					myMask.clear();
@@ -688,13 +689,24 @@ size_t SwAligner::nfilter(size_t nlim) {
 			if(col > solcols_[row].second)  solcols_[row].second = col; \
 			if(cur.best.score() > solbest_) \
 				solbest_ = cur.best.score(); \
+			assert(!sc_->monotone || solbest_ <= 0); \
 			if(cur.best.score() > solrowbest_[row]) \
 				solrowbest_[row] = cur.best.score(); \
+			assert(!sc_->monotone || solrowbest_[row] <= 0); \
 			nsols_++; \
 			soldone_ = false; \
 			assert(repOk()); \
 		} \
 	} \
+}
+
+#define FINALIZE_CELL(r, c) { \
+	assert(!tab[r][c].finalized); \
+	if(tab[r][c].finalize(floorsc_)) { \
+		UPDATE_SOLS(tab[r][c], r, c); \
+		validInRow = true; \
+	} \
+	assert(tab[r][c].finalized); \
 }
 
 /**
@@ -738,7 +750,7 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 	const size_t whi = (int)(width_ - 1);
 	assert_lt(whi, rff_-rfi_);
 	tab[0].resize(whi-wlo+1); // add columns to first row
-	bool validInRow = false;
+	bool validInRow = !sc_->monotone;
 	// For each row, there is a score below which we can't hope to extend a
 	// partial alignment through the cell into a valid full alignment.  If
 	// we're below that score, we can clear the cell's mask.
@@ -761,6 +773,7 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 				// no penalty
 				assert_lt(rdc, 4);
 				assert_lt(rfm, 16);
+				tab[0][col].best.score_ = sc_->match(30);
 				tab[0][col].mask.diag = 1;
 			} else if(m == 0 && QUAL2(0, col) <= -minsc_) {
 				// Reference char mismatches
@@ -783,11 +796,7 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 				rfm);
 		}
 		ncups_++;
-		assert(!tab[0][col].finalized);
-		if(tab[0][col].finalize(minsc_)) {
-			UPDATE_SOLS(tab[0][col], 0, col);
-			validInRow = true;
-		}
+		FINALIZE_CELL(0, col);
 	}
 	nrowups_++;
 	if(!validInRow) {
@@ -811,7 +820,7 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 		assert_lt(row, qu_->length());
 		assert_lt(row, rd_->length());
 		int c = (*rd_)[row];   // read character in this row
-		validInRow = false;
+		validInRow = !sc_->monotone;;
 		//
 		// Handle col == wlo case before (and the col == whi case
 		// after) the upcoming inner loop to reduce the number of
@@ -838,11 +847,7 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 		}
 		ncups_++;
 		// 'cur' is now initialized
-		assert(!cur.finalized);
-		if(cur.finalize(minsc_)) { // returns true if cell not empty
-			UPDATE_SOLS(cur, row, col);
-			validInRow = true;
-		}
+		FINALIZE_CELL(row, col);
 		// Iterate from leftmost to rightmost inner diagonals
 		for(col = wlo+1; col < whi; col++) {
 			const size_t fullcol = col + row;
@@ -877,11 +882,7 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 			} // end loop over inner diagonals
 			ncups_++;
 			// 'cur' is now initialized
-			assert(!cur.finalized);
-			if(cur.finalize(minsc_)) {
-				UPDATE_SOLS(cur, row, col); // returns true if cell not empty
-				validInRow = true;
-			}
+			FINALIZE_CELL(row, col);
 		} // end loop over inner diagonals
 		//
 		// Handle the col == whi case (provided wlo != whi) after the
@@ -913,11 +914,7 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 			}
 			ncups_++;
 			// 'cur' is now initialized
-			assert(!cur.finalized);
-			if(cur.finalize(minsc_)) { // returns true if cell not empty
-				UPDATE_SOLS(cur, row, col);
-				validInRow = true;
-			}
+			FINALIZE_CELL(row, col);
 		}
 		if(!validInRow) {
 			assert_geq(rdf_-rdi_, row+1);
@@ -1048,8 +1045,7 @@ bool SwAligner::nextAlignment(
 								rnd);            // pseudo-random source
 						}
 						if(done) {
-							// Found the alignment we were looking for
-							break;
+							break; // Found the alignment
 						}
 						if(oldbest != solbest_) {
 							// The best overall score changed.  When this happens,
@@ -1062,6 +1058,9 @@ bool SwAligner::nextAlignment(
 						break;
 					}
 				}
+				if(done) {
+					break; // Found the alignment
+				}
 			}
 			if(!done) {
 				// Finished with *all* distinct alignments
@@ -1073,8 +1072,8 @@ bool SwAligner::nextAlignment(
 				res.reset();
 				return false;
 			} else {
-				// Got a solution from one of the rows
 				assert(repOk());
+				break; // Found the alignment
 			}
 		}
 	}
@@ -1132,6 +1131,7 @@ void SwAligner::nextAlignmentUpdateBest() {
 			last = i;
 			if(solrowbest_[i] > solbest_) {
 				solbest_ = solrowbest_[i];
+				assert(!sc_->monotone || solbest_ <= 0);
 			}
 		}
 	}
@@ -1184,6 +1184,7 @@ bool SwAligner::nextAlignmentUpdateColorRow(size_t row) {
 			if(best.score() > solrowbest_[row]) {
 				// If it's the best in the row so far, update the row-best
 				solrowbest_[row] = best.score();
+				assert(!sc_->monotone || solrowbest_[row] <= 0);
 				if(best.score() > solbest_) {
 					// If it's the best overall, update the best overall
 					solbest_ = best.score();
@@ -1244,6 +1245,7 @@ bool SwAligner::nextAlignmentUpdateNucRow(size_t row) {
 			if(best.score() > solrowbest_[row]) {
 				// If it's the best in the row so far, update the row-best
 				solrowbest_[row] = best.score();
+				assert(!sc_->monotone || solrowbest_[row] <= 0);
 				if(best.score() > solbest_) {
 					// If it's the best overall, update the best overall
 					solbest_ = best.score();
@@ -1288,6 +1290,7 @@ bool SwAligner::nextAlignmentTryColorRow(
 	assert(VALID_SCORE(solrowbest_[row]));
 	// Try each column that might contain a solution cell.  Iterate over
 	// rectangle columns.
+	bool triedOne = false;
 	for(size_t i = solcols_[row].first; i <= solcols_[row].second; i++) {
 		assert_lt(i, ctab_[row].size());
 		if(en_ != NULL && !(*en_)[i]) {
@@ -1302,6 +1305,7 @@ bool SwAligner::nextAlignmentTryColorRow(
 		int nuc = -1;
 		if(ctab_[row][i].nextSolutionEq(sc, nuc)) {
 			assert_range(0, 3, nuc);
+			triedOne = true;
 			bool ret = backtrackColors(
 				sc,    // score we expect to get over backtrack
 				res,   // store results (edits and scores) here
@@ -1321,6 +1325,10 @@ bool SwAligner::nextAlignmentTryColorRow(
 				return false; // definitely won't find a result
 			}
 		}
+	}
+	if(!triedOne) {
+		nextAlignmentUpdateNucRow(row);
+		nextAlignmentUpdateBest();
 	}
 	return false; // no result
 }
@@ -1342,6 +1350,7 @@ bool SwAligner::nextAlignmentTryNucRow(
 	assert(VALID_SCORE(solrowbest_[row]));
 	// Try each column that might contain a solution cell.  Iterate over
 	// rectangle columns.
+	bool triedOne = false;
 	for(size_t i = solcols_[row].first; i <= solcols_[row].second; i++) {
 		assert_lt(i, ntab_[row].size());
 		if(en_ != NULL && !(*en_)[i]) {
@@ -1354,6 +1363,7 @@ bool SwAligner::nextAlignmentTryNucRow(
 		// Does this cell have the desired score and is it legal to end in
 		// this diagonal?
 		if(ntab_[row][i].nextSolutionEq(sc)) {
+			triedOne = true;
 			bool ret = backtrackNucleotides(
 				sc,    // score we expect to get over backtrack
 				res,   // store results (edits and scores) here
@@ -1372,6 +1382,10 @@ bool SwAligner::nextAlignmentTryNucRow(
 				return false; // definitely won't find a result
 			}
 		}
+	}
+	if(!triedOne) {
+		nextAlignmentUpdateNucRow(row);
+		nextAlignmentUpdateBest();
 	}
 	return false;
 }

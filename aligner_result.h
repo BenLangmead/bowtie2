@@ -199,15 +199,22 @@ public:
 	 * Calculate difference between two SwScores.
 	 */
 	inline AlnScore operator-(int o) const {
+		return (*this) + -o;
+	}
+
+	/**
+	 * Calculate sum of a SwScore and an integer.
+	 */
+	inline AlnScore operator+(int o) const {
 		if(!VALID_AL_SCORE(*this)) return *this;
 		AlnScore s;
 		s.gaps_ = gaps_;
 		s.ns_ = ns_;
-		s.score_ = score_ - o;
+		s.score_ = score_ + o;
 		assert_lt(s.ns_, 0x7fffffff);
 		return s;
 	}
-	
+
 	TAlScore score()   const { return  score_; }
 	TAlScore penalty() const { return -score_; }
 	TAlScore gaps()    const { return  gaps_;  }

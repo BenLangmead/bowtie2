@@ -16,14 +16,15 @@ int Scoring::maxReadGaps(
 	int64_t minsc,
 	size_t rdlen) const
 {
-	// Score if all characters match
-	int64_t sc = (int64_t)(rdlen * match);
+	// Score if all characters match.  TODO: remove assumption that match bonus
+	// is independent of quality value.
+	int64_t sc = (int64_t)(rdlen * match(30));
 	assert_geq(sc, minsc);
 	// Now convert matches to read gaps until sc calls below minsc
 	bool first = true;
 	int num = 0;
 	while(sc >= minsc) {
-		sc -= match;
+		sc -= match(30);
 		if(first) {
 			first = false;
 			// Subtract both penalties
@@ -47,8 +48,9 @@ int Scoring::maxRefGaps(
 	int64_t minsc,
 	size_t rdlen) const
 {
-	// Score if all characters match
-	int64_t sc = (int64_t)(rdlen * match);
+	// Score if all characters match.  TODO: remove assumption that match bonus
+	// is independent of quality value.
+	int64_t sc = (int64_t)(rdlen * match(30));
 	assert_geq(sc, minsc);
 	// Now convert matches to read gaps until sc calls below minsc
 	bool first = true;

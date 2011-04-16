@@ -1176,7 +1176,6 @@ TScore ColorspaceDecoderGapped::decode(
 	}
 	assert_neq(0, lastReadC);
 	assert(bestScore.valid());
-	assert_lt(bestScore.score, 0);
 	assert_eq(bestScore.gaps, refGaps + readGaps);
 #ifndef NDEBUG
 	int upperBoundScore = 0;

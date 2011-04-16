@@ -36,6 +36,22 @@ if(! -x $bowtie2 || ! -x $bowtie2_build) {
 
 my @cases = (
 
+	#
+	# Local alignment
+	#
+	
+	# Local alignment for a perfect hit
+	{ name   => "Gap penalties 1",
+	  ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTGTTCGTTTGTT" ], # budget = 3 + 12 * 3 = 39
+	  args   =>   "--local",
+	  report =>   "-a",
+	  hits   => [ { 0 => 1 } ],
+	  flags  => [ "XT:UU" ] },
+
+	#
+	# Gap penalties
+	#
 
 	# Alignment with 1 read gap
 	{ name   => "Gap penalties 1",

@@ -503,18 +503,7 @@ struct SwNucCell {
 	 * We finished updating the cell; set empty and finalized
 	 * appropriately.
 	 */
-	inline bool finalize(TAlScore minsc) {
-		ASSERT_ONLY(finalized = true);
-		assert(VALID_SCORE(minsc));
-		assert(empty);
-		// Profiling shows cache misses on following line
-		if(!mask.empty()) {
-			assert(VALID_AL_SCORE(best));
-			assert_geq(best.score(), minsc);
-			empty = false;
-		}
-		return !empty;
-	}
+	inline bool finalize(TAlScore floorsc);
 
 	// Best incoming score for each 'to' character
 	AlnScore best;
@@ -1030,6 +1019,7 @@ protected:
 	TAlScore            minsc_;  // penalty ceiling for valid alignments
 	TAlScore            floorsc_;// local-alignment score floor
 	int                 nceil_;  // max # Ns allowed in ref portion of aln
+	bool                monotone_; // true iff scores only go down
 
 	int                 state_;  // state
 	bool                inited_; // true iff initialized with DP problem
