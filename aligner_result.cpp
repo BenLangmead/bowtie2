@@ -9,34 +9,160 @@
 #include "edit.h"
 #include "sstring.h"
 #include "ds.h"
+#include "util.h"
 
 using namespace std;
 
 /**
- * Get the decoded nucleotide sequence 
+ * Clear all contents.
+ */
+void AlnRes::reset() {
+	ned_.clear();
+	aed_.clear();
+	ced_.clear();
+	score_.invalidate();
+	refcoord_.invalidate();
+	shapeSet_     = false;
+	rdlen_        = 0;
+	rdrows_       = 0;
+	rdextent_     = 0;
+	rdexrows_     = 0;
+	rfextent_     = 0;
+	// Trimming of the nucleotide read or the decoded nucleotides of a
+	// colorspace read
+	trimSoft_     = false;
+	trim5p_       = 0;
+	trim3p_       = 0;
+	pretrimSoft_  = true;
+	pretrim5p_    = 0;
+	pretrim3p_    = 0;
+	// Trimming of the colorspace read
+	cTrimSoft_    = false;
+	cTrim5p_      = 0;
+	cTrim3p_      = 0;
+	cPretrimSoft_ = true;
+	cPretrim5p_   = 0;
+	cPretrim3p_   = 0;
+	seedmms_      = 0; // number of mismatches allowed in seed
+	seedlen_      = 0; // length of seed
+	seedival_     = 0; // interval between seeds
+	minsc_        = 0; // minimum score
+	floorsc_      = 0; // score floor
+	assert(!refcoord_.valid());
+}
+
+/**
+ * Set the upstream-most reference offset involved in the alignment, and
+ * the extent of the alignment (w/r/t the reference)
+ */
+void AlnRes::setShape(
+	TRefId  id,          // id of reference aligned to
+	TRefOff off,         // offset of first aligned char into ref seq
+	bool    fw,          // aligned to Watson strand?
+	size_t  rdlen,       // length of read after hard trimming, before soft
+	bool    color,       // colorspace alignment?
+	bool    pretrimSoft, // whether trimming prior to alignment was soft
+	size_t  pretrim5p,   // # poss trimmed form 5p end before alignment
+	size_t  pretrim3p,   // # poss trimmed form 3p end before alignment
+	bool    trimSoft,    // whether local-alignment trimming was soft
+	size_t  trim5p,      // # poss trimmed form 5p end during alignment
+	size_t  trim3p)      // # poss trimmed form 3p end during alignment
+{
+	rdlen_       = rdlen;
+	rdrows_      = rdlen + (color ? 1 : 0);
+	color_       = color;
+	refcoord_.init(id, off, fw);
+	if(color) {
+		// In effect, all that trimming becomes hard trimming for the
+		// decoded nucleotide-space sequence.
+		pretrimSoft_  = false;
+		pretrim5p_    = pretrim5p;
+		pretrim3p_    = pretrim3p;
+		trimSoft_     = false;
+		trim5p_       = trim5p;
+		trim3p_       = trim3p;
+		// All trimming so far has been to colorspace sequence
+		cPretrimSoft_ = pretrimSoft;
+		cPretrim5p_   = pretrim5p;
+		cPretrim3p_   = pretrim3p;
+		cTrimSoft_    = trimSoft;
+		cTrim5p_      = trim5p;
+		cTrim3p_      = trim3p;
+	} else {
+		pretrimSoft_  = pretrimSoft;
+		pretrim5p_    = pretrim5p;
+		pretrim3p_    = pretrim3p;
+		trimSoft_     = trimSoft;
+		trim5p_       = trim5p;
+		trim3p_       = trim3p;
+		cTrimSoft_    = false;
+		cTrim5p_      = 0;
+		cTrim3p_      = 0;
+		cPretrimSoft_ = true;
+		cPretrim5p_   = 0;
+		cPretrim3p_   = 0;
+	}
+	// Propagate trimming to the edits.  We assume that the pos fields of the
+	// edits are set w/r/t to the rows of the dynamic programming table, and
+	// haven't taken trimming into account yet.
+	//
+	// TODO: The division of labor between the aligner and the AlnRes is not
+	// clean.  Perhaps the trimming and *all* of its side-effects should be
+	// handled by the aligner.
+	size_t trimBeg = fw ? trim5p : trim3p;
+	for(size_t i = 0; i < ned_.size(); i++) {
+		assert_geq(ned_[i].pos, trimBeg);
+		ned_[i].pos -= trimBeg;
+	}
+	rdextent_ = rdlen; // length after soft trimming
+	if(pretrimSoft_) {
+		rdextent_ -= (pretrim5p + pretrim3p); // soft trim
+	}
+	if(trimSoft_) {
+		rdextent_ -= (trim5p + trim3p);       // soft trim
+	}
+	rdexrows_ = rdextent_ + (color ? 1 : 0);
+	calcRefExtent();
+	shapeSet_ = true;
+}
+	
+/**
+ * Get the decoded nucleotide sequence.  The alignment must have been
+ * colorspace.
  */
 void AlnRes::decodedNucsAndQuals(
 	const Read& rd,        // read that led to alignment
 	BTDnaString& ns,       // out: decoded nucleotides
 	BTString& qs) const    // out: decoded qualities
 {
+	assert(shapeSet_);
+	assert(color_);
 	// Walk along the colors
 	bool fw = refcoord_.fw();
-	assert(color_);
-	const size_t rdlen = rd.length();
-	const size_t len = rdlen+1;
-	ns.resize(len);
-	qs.resize(len);
-	ns = rd.patFw;
-	qs = rd.qual;
+	const size_t rdext = readExtent(); // length in colors after all trimming
+	const size_t len = rdext+1;        // decoded nucleotide length, after trim
+	size_t trimBeg = 0, trimEnd = 0;
+	if(trimSoft_) {
+		trimBeg += fw ? trim5p_ : trim3p_;
+		trimEnd += fw ? trim3p_ : trim5p_;
+	}
+	if(pretrimSoft_) {
+		trimBeg += fw ? pretrim5p_ : pretrim3p_;
+		trimEnd += fw ? pretrim3p_ : pretrim5p_;
+	}
+	ns.resize(len); ns.resize(len-1);
+	qs.resize(len); qs.resize(len-1);
+	for(size_t i = trimBeg; i < rdlen_ - trimEnd; i++) {
+		ns.set(rd.patFw[i], i-trimBeg);
+		qs.set(rd.qual[i],  i-trimBeg);
+	}
 	if(!fw) {
-		// Reverse the read to make it upstream-to-downstream.  Recall
-		// that it's in colorspace, so no need to complement.
+		// Reverse the read to make it upstream-to-downstream.  It's in
+		// colorspace, so no need to complement.
 		ns.reverse();
 		qs.reverse();
-		// Need to flip edits around to make them
-		// upstream-to-downstream.
-		Edit::invertPoss(const_cast<EList<Edit>& >(ced_), rdlen);
+		// Flip edit,making them upstream-to-downstream.
+		Edit::invertPoss(const_cast<EList<Edit>& >(ced_), rdextent_);
 	}
 	ns.resize(len); ns.set(4, len-1);
 	qs.resize(len);
@@ -53,9 +179,8 @@ void AlnRes::decodedNucsAndQuals(
 	size_t cedidx = 0;
 	int c = ns[0], q = qs[0]-33;
 	int lastq = 0;
-	for(size_t i = 0; i < rdlen; i++) {
-		// If it was determined to have been miscalled, get the
-		// decoded subject color
+	for(size_t i = 0; i < rdext; i++) {
+		// If it was a miscall, get the true subject color
 		if(cedidx < ced_.size() && ced_[cedidx].pos == i) {
 			assert_neq("ACGTN"[c], ced_[cedidx].chr);
 			assert_eq ("ACGTN"[c], ced_[cedidx].qchr);
@@ -64,8 +189,8 @@ void AlnRes::decodedNucsAndQuals(
 			q = -q;
 			cedidx++;
 		}
-		// Determine next nucleotide by combining the previous
-		// nucleotide and the current color
+		// Determine next nucleotide by combining previous nucleotide and
+		// current color
 		int n = nuccol2nuc[lastn][c];
 		c = ns[i+1];
 		ns.set(n, i+1);
@@ -79,22 +204,217 @@ void AlnRes::decodedNucsAndQuals(
 	}
 	ns.set(nup, 0);
 	int dq = max(lastq, 0)+33;
-	qs.set(min(dq, 127) , rdlen);
-	assert_eq(ndn, ns[rdlen]);
+	qs.set(min(dq, 127) , rdext);
+	assert_eq(ndn, ns[rdext]);
 	assert_eq(cedidx, ced_.size());
-	
 	if(!fw) {
 		// Need to re-flip edits to make them 5'-to-3' again.
-		Edit::invertPoss(const_cast<EList<Edit>& >(ced_), rdlen);
+		Edit::invertPoss(const_cast<EList<Edit>& >(ced_), rdextent_);
 	}
+}
+
+/**
+ * Initialize new AlnRes.
+ */
+void AlnRes::init(
+	size_t             rdlen,           // # chars after hard trimming
+	AlnScore           score,           // alignment score
+	const EList<Edit>* ned,             // nucleotide edits
+	const EList<Edit>* aed,             // ambiguous base resolutions
+	const EList<Edit>* ced,             // color edits
+	Coord              refcoord,        // leftmost ref pos of 1st al char
+	bool               color,           // colorspace?
+	int                seedmms,         // # seed mms allowed
+	int                seedlen,         // seed length
+	int                seedival,        // space between seeds
+	int64_t            minsc,           // minimum score for valid aln
+	int64_t            floorsc,         // local-alignment floor
+	int                nuc5p,
+	int                nuc3p,
+	bool               pretrimSoft,
+	size_t             pretrim5p,       // trimming prior to alignment
+	size_t             pretrim3p,       // trimming prior to alignment
+	bool               trimSoft,
+	size_t             trim5p,          // trimming from alignment
+	size_t             trim3p,          // trimming from alignment
+	bool               cPretrimSoft,
+	size_t             cPretrim5p,      // trimming prior to alignment
+	size_t             cPretrim3p,      // trimming prior to alignment
+	bool               cTrimSoft,
+	size_t             cTrim5p,         // trimming from alignment
+	size_t             cTrim3p)         // trimming from alignment
+{
+	rdlen_  = rdlen;
+	rdrows_ = rdlen + (color ? 1 : 0);
+	score_  = score;
+	ned_.clear();
+	aed_.clear();
+	ced_.clear();
+	if(ned != NULL) ned_ = *ned;
+	if(aed != NULL) aed_ = *aed;
+	if(ced != NULL) ced_ = *ced;
+	refcoord_     = refcoord;
+	color_        = color;
+	seedmms_      = seedmms;
+	seedlen_      = seedlen;
+	seedival_     = seedival;
+	minsc_        = minsc;
+	floorsc_      = floorsc;
+	nuc5p_        = nuc5p;
+	nuc3p_        = nuc3p;
+	pretrimSoft_  = pretrimSoft;
+	pretrim5p_    = pretrim5p;
+	pretrim3p_    = pretrim3p;
+	trimSoft_     = trimSoft;
+	trim5p_       = trim5p;
+	trim3p_       = trim3p;
+	cPretrimSoft_ = cPretrimSoft;
+	cPretrim5p_   = cPretrim5p;
+	cPretrim3p_   = cPretrim3p;
+	cTrimSoft_    = cTrimSoft;
+	cTrim5p_      = cTrim5p;
+	cTrim3p_      = cTrim3p;
+	rdextent_     = rdlen;      // # read characters after any hard trimming
+	if(pretrimSoft) {
+		rdextent_ -= (pretrim5p + pretrim3p);
+	}
+	if(trimSoft) {
+		rdextent_ -= (trim5p + trim3p);
+	}
+	rdexrows_ = rdextent_ + (color ? 1 : 0);
+	calcRefExtent();
+	shapeSet_ = true;
+}
+
+/**
+ * Return true iff this AlnRes and the given AlnRes overlap.  Two AlnRess
+ * overlap if they share a cell in the overall dynamic programming table:
+ * i.e. if there exists a read position s.t. that position in both reads
+ * matches up with the same reference character.  E.g., the following
+ * alignments (drawn schematically as paths through a dynamic programming
+ * table) are redundant:
+ *
+ *  a  b           a  b
+ *  \  \           \  \
+ *   \  \           \  \
+ *    \  \           \  \
+ *     ---\           \  \
+ *         \           ---\---
+ *       ---\              \  \
+ *        \  \              \  \
+ *         \  \              \  \
+ *          \  \              \  \
+ *          a  b              a  b
+ *
+ * We iterate over each read position that hasn't been hard-trimmed, but
+ * only overlaps at positions that have also not been soft-trimmed are
+ * considered.
+ */
+bool AlnRes::overlap(AlnRes& res) {
+	if(fw() != res.fw() || refid() != res.refid()) {
+		// Must be same reference and same strand in order to overlap
+		return false;
+	}
+	TRefOff my_left     = refoff();     // my leftmost aligned char
+	TRefOff other_left  = res.refoff(); // other leftmost aligned char
+	TRefOff my_right    = my_left    + refExtent();
+	TRefOff other_right = other_left + res.refExtent();
+	if(my_right < other_left || other_right < my_left) {
+		// The rectangular hulls of the two alignments don't overlap, so
+		// they can't overlap at any cell
+		return false;
+	}
+	// Reference and strand are the same and hulls overlap.  Now go read
+	// position by read position testing if any align identically with the
+	// reference.
+	
+	// Edits are ordered and indexed from 5' to 3' to start with.  We
+	// reorder them to go from left to right along the Watson strand.
+	if(!fw()) {
+		invertEdits();
+	}
+	if(!res.fw()) {
+		res.invertEdits();
+	}
+	size_t nedidx = 0, onedidx = 0;
+	bool olap = false;
+	// For each row, going left to right along Watson reference strand...
+	for(size_t i = 0; i < rdexrows_; i++) {
+		size_t fivep = i;
+		if(!fw()) fivep = rdexrows_ - i - 1;
+		size_t diff = 1;  // amount to shift to right for next round
+		size_t odiff = 1; // amount to shift to right for next round
+		// Unless there are insertions before the next position, we say
+		// that there is one cell in this row involved in the alignment
+		my_right = my_left + 1;
+		other_right = other_left + 1;
+		while(nedidx < ned_.size() && ned_[nedidx].pos == i) {
+			if(ned_[nedidx].isRefGap()) {
+				// Next my_left will be in same column as this round
+				diff = 0;
+			}
+			nedidx++;
+		}
+		while(onedidx < res.ned_.size() && res.ned_[onedidx].pos == i) {
+			if(res.ned_[onedidx].isRefGap()) {
+				// Next my_left will be in same column as this round
+				odiff = 0;
+			}
+			onedidx++;
+		}
+		if(i < rdexrows_ - 1) {
+			// See how many inserts there are before the next read
+			// character
+			size_t nedidx_next  = nedidx;
+			size_t onedidx_next = onedidx;
+			while(nedidx_next < ned_.size() &&
+				  ned_[nedidx_next].pos == i+1)
+			{
+				if(ned_[nedidx_next].isReadGap()) {
+					my_right++;
+				}
+				nedidx_next++;
+			}
+			while(onedidx_next < res.ned_.size() &&
+				  res.ned_[onedidx_next].pos == i+1)
+			{
+				if(res.ned_[onedidx_next].isReadGap()) {
+					other_right++;
+				}
+				onedidx_next++;
+			}
+		}
+		// Contained?
+		olap =
+			(my_left >= other_left && my_right <= other_right) ||
+			(other_left >= my_left && other_right <= my_right);
+		// Overlapping but not contained?
+		if(!olap) {
+			olap =
+				(my_left <= other_left && my_right > other_left) ||
+				(other_left <= my_left && other_right > my_left);
+		}
+		if(olap) {
+			break;
+		}
+		// How to do adjust my_left and my_right
+		my_left = my_right + diff - 1;
+		other_left = other_right + odiff - 1;
+	}
+	if(!fw()) {
+		invertEdits();
+	}
+	if(!res.fw()) {
+		res.invertEdits();
+	}
+	return olap;
 }
 
 #ifndef NDEBUG
 
 /**
- * Assuming this AlnRes is an alignment for 'rd', check that the
- * alignment and 'rd' are compatible with the corresponding
- * reference sequence.
+ * Assuming this AlnRes is an alignment for 'rd', check that the alignment and
+ * 'rd' are compatible with the corresponding reference sequence.
  */
 bool AlnRes::matchesRef(
 	const Read& rd,
@@ -104,9 +424,9 @@ bool AlnRes::matchesRef(
 	assert(repOk());
 	assert(refcoord_.valid());
 	bool fw = refcoord_.fw();
-	const size_t rdlen = rd.length();
 	// Adjust reference string length according to edits
-	char *raw_refbuf = new char[extent_ + 16];
+	size_t refallen = rfextent_ + (color_ ? 1 : 0);
+	char *raw_refbuf = new char[refallen + 16];
 	int nsOnLeft = 0;
 	if(refcoord_.off() < 0) {
 		nsOnLeft = -((int)refcoord_.off());
@@ -115,41 +435,57 @@ bool AlnRes::matchesRef(
 		reinterpret_cast<uint32_t*>(raw_refbuf),
 		refcoord_.ref(),
 		max<TRefOff>(refcoord_.off(), 0),
-		extent_);
+		refallen);
 	assert_leq(off, 16);
 	char *refbuf = raw_refbuf + off;
-	
+	size_t trimBeg = 0, trimEnd = 0;
+	if(trimSoft_) {
+		trimBeg += (fw ? trim5p_ : trim3p_);
+		trimEnd += (fw ? trim3p_ : trim5p_);
+	}
+	if(pretrimSoft_) {
+		trimBeg += (fw ? pretrim5p_ : pretrim3p_);
+		trimEnd += (fw ? pretrim3p_ : pretrim5p_);
+	}
+	// All decoded-nucleotide trimming for colorspace alignments is hard
+	// trimming
+	assert(!color_ || trimBeg == 0);
+	assert(!color_ || trimEnd == 0);
 	BTDnaString rf;
 	BTDnaString rdseq;
-	BTString qseq;
 	if(rd.color) {
 		// Decode the nucleotide sequence from the alignment
+		BTString qseq;
 		decodedNucsAndQuals(rd, rdseq, qseq);
+		assert_eq(rdexrows_, rdseq.length());
+		assert_eq(rdseq.length(), qseq.length());
 	} else {
-		// Get the nucleotide sequence from the read
 		rdseq = rd.patFw;
-		if(!fw) rdseq.reverseComp(false);
+		if(!fw) {
+			rdseq.reverseComp(false);
+		}
+		assert_eq(rdrows_, rdseq.length());
 	}
 	if(!fw) {
 		// Invert the nucleotide edits so that they go from upstream to
 		// downstream on the Watson strand
-		Edit::invertPoss(ned_, rdlen + (color() ? 1 : 0));
+		Edit::invertPoss(ned_, rdexrows_);
 	}
 	// rdseq is the nucleotide sequence (decoded in the case of a
 	// colorspace read) from upstream to downstream on the Watson
 	// strand.  ned_ are the nucleotide edits from upstream to
 	// downstream.  rf contains the reference characters.
-	Edit::toRef(rdseq, ned_, rf);
+	Edit::toRef(rdseq, ned_, rf, trimBeg, trimEnd);
 	if(!fw) {
 		// Re-invert the nucleotide edits so that they go from 5' to 3'
-		Edit::invertPoss(ned_, rdlen + (color() ? 1 : 0));
+		Edit::invertPoss(ned_, rdexrows_);
 	}
-	assert_eq(extent_ + (color_ ? 1 : 0), rf.length());
+	assert_eq(refallen, rf.length());
 	EList<bool> matches;
 	bool matchesOverall = true;
-	matches.resize(extent_);
+	matches.resize(refallen);
 	matches.fill(true);
-	for(size_t i = 0; i < extent_; i++) {
+	for(size_t i = 0; i < refallen; i++) {
 		if((int)i < nsOnLeft) {
 			if((int)rf[i] != 4) {
 				matches[i] = false;
@@ -173,7 +509,7 @@ bool AlnRes::matchesRef(
 			rdseq,
 			ned_);
 		cerr << "    ";
-		for(size_t i = 0; i < extent_; i++) {
+		for(size_t i = 0; i < refallen; i++) {
 			cerr << (matches[i] ? " " : "*");
 		}
 		cerr << endl;
@@ -190,6 +526,174 @@ bool AlnRes::matchesRef(
 
 #endif /*ndef NDEBUG*/
 
+#define COPY_BUF() { \
+	char *bufc = buf; \
+	while(*bufc != '\0') { \
+		*occ = *bufc; \
+		occ++; \
+		bufc++; \
+	} \
+}
+
+/**
+ * Print a CIGAR-string representation of the alignment.
+ */
+void AlnRes::printCigar(
+	bool printColors,     // print CIGAR for colorspace alignment?
+	bool exEnds,          // exclude ends in CIGAR?
+	bool distinguishMm,   // use =/X instead of just M
+	EList<char>& op,      // stick CIGAR operations here
+	EList<size_t>& run,   // stick CIGAR run lengths here
+	OutFileBuf *o,        // write to this buf if o != NULL
+	char *oc) const       // write to this buf if oc != NULL
+{
+	char *occ = oc;
+	op.clear();
+	run.clear();
+	// Any hard or soft clipping on the Beginning?
+	size_t trimHardBeg = 0, trimSoftBeg = 0;
+	size_t trimHardEnd = 0, trimSoftEnd = 0;
+	if(pretrimSoft_) {
+		trimSoftBeg = fw() ? pretrim5p_ : pretrim3p_;
+		trimSoftEnd = fw() ? pretrim3p_ : pretrim5p_;
+	} else {
+		trimHardBeg = fw() ? pretrim5p_ : pretrim3p_;
+		trimHardEnd = fw() ? pretrim3p_ : pretrim5p_;
+	}
+	if(trimSoft_) {
+		trimSoftBeg += fw() ? trim5p_ : trim3p_;
+		trimSoftEnd += fw() ? trim3p_ : trim5p_;
+	} else {
+		trimHardBeg += fw() ? trim5p_ : trim3p_;
+		trimHardEnd += fw() ? trim3p_ : trim5p_;
+	}
+	// Print hard clipping
+	if(trimHardBeg > 0) {
+		op.push_back('H');
+		run.push_back(trimHardBeg);
+	}
+	// Print soft clipping
+	if(trimSoftBeg > 0) {
+		op.push_back('S');
+		run.push_back(trimSoftBeg);
+	}
+	// Go through edits from front to back
+	if(!fw()) {
+		const_cast<AlnRes*>(this)->invertEdits();
+	}
+	const EList<Edit>& ed = (printColors ? ced_ : ned_);
+	size_t last = 0;
+	for(size_t i = 0; i < ed.size(); i++) {
+		if(ed[i].isMismatch() && !distinguishMm) {
+			// If we're not distinguishing matches from mismatches, ignore
+			// mismatches here
+			continue;
+		}
+		// Print previous run of matches
+		if(ed[i].pos > last) {
+			// There's a run of matches prior to this edit.  
+			op.push_back(distinguishMm ? '=' : 'M');
+			run.push_back(ed[i].pos - last);
+		}
+		last = ed[i].pos;
+		// Print edit
+		if(ed[i].isMismatch()) {
+			size_t len = 1;
+			last++;
+			// Mismatches at successive positions?
+			while(i+1 < ed.size()) {
+				if(ed[i+1].isMismatch() && ed[i+1].pos == ed[i].pos+1) {
+					len++;  // increment length of mismatch run
+					i++;    // move to next edit
+					last++; // adjust beginning of next run
+				} else {
+					break;
+				}
+			}
+			op.push_back('X');
+			run.push_back(len);
+		} else if(ed[i].isRefGap()) {
+			size_t len = 1;
+			last++;
+			// Deletes at successive positions?
+			while(i+1 < ed.size()) {
+				if(ed[i+1].isRefGap() && ed[i+1].pos == ed[i].pos+1) {
+					len++;  // increment length of deletion run
+					i++;    // move to next edit
+					last++; // adjust beginning of next run
+				} else {
+					break;
+				}
+			}
+			op.push_back('I');
+			run.push_back(len);
+		} else if(ed[i].isReadGap()) {
+			size_t len = 1;
+			// Deletes at successive positions?
+			while(i+1 < ed.size()) {
+				if(ed[i+1].isReadGap() && ed[i+1].pos == ed[i].pos) {
+					len++;  // increment length of deletion run
+					i++;    // move to next edit
+				} else {
+					break;
+				}
+			}
+			op.push_back('D');
+			run.push_back(len);
+		}
+	}
+	size_t end = printColors ? rdrows_ : rdexrows_;
+	if(last < end) {
+		// There's a run of matches prior to the end.
+		op.push_back(distinguishMm ? '=' : 'M');
+		run.push_back(end - last);
+	}
+	if(!fw()) {
+		const_cast<AlnRes*>(this)->invertEdits();
+	}
+	// Print soft clipping
+	if(trimSoftEnd) {
+		op.push_back('S');
+		run.push_back(trimSoftEnd);
+	}
+	// Print hard clipping
+	if(trimHardEnd) {
+		op.push_back('H');
+		run.push_back(trimHardEnd);
+	}
+	// Write to the output file buffer and/or string buffer.
+	assert_eq(op.size(), run.size());
+	if(o != NULL || oc != NULL) {
+		char buf[128];
+		for(size_t i = 0; i < op.size(); i++) {
+			bool first = (i == 0);
+			bool last  = (i == op.size()-1);
+			size_t r = run[i];
+			if(first && exEnds && r > 0) {
+				r--;
+			}
+			if(last && exEnds && r > 0) {
+				r--;
+			}
+			if(r > 0) {
+				itoa10<size_t>(r, buf);
+				if(o != NULL) {
+					o->writeChars(buf);
+					o->write(op[i]);
+				}
+				if(oc != NULL) {
+					COPY_BUF();
+					*occ = op[i];
+					occ++;
+				}
+			}
+		}
+		if(oc != NULL) {
+			*occ = '\0';
+		}
+	}
+}
+
 /**
  * Print the sequence for the read that aligned using A, C, G and
  * T.  This will simply print the read sequence (or its reverse
@@ -200,14 +704,16 @@ bool AlnRes::matchesRef(
 void AlnRes::printSeq(
 	const Read& rd,         // read
 	const BTDnaString* dns, // already-decoded nucleotides
-	bool printColors,       // true -> print colors instead of decoded nucleotides for colorspace alignment
-	bool exEnds,            // true -> exclude ends when printing decoded nucleotides
+	bool printColors,       // print colors instead of decoded nucleotides?
+	bool exEnds,            // exclude ends when printing decoded nucleotides?
 	OutFileBuf& o) const    // output stream to write to
 {
 	assert(!rd.patFw.empty());
 	bool fw = refcoord_.fw();
 	assert(!printColors || rd.color);
 	if(!rd.color || printColors) {
+		// Should not have had hard clipping during alignment
+		assert(trimSoft_ || (trim3p_ + trim5p_ == 0));
 		// Print nucleotides or colors
 		size_t len = rd.patFw.length();
 		for(size_t i = 0; i < len; i++) {
@@ -215,6 +721,7 @@ void AlnRes::printSeq(
 			if(fw) {
 				c = rd.patFw[i];
 			} else {
+				// Reverse-complement
 				c = rd.patFw[len-i-1];
 				if(c < 4) c = c ^ 3;
 			}
@@ -225,7 +732,6 @@ void AlnRes::printSeq(
 		// Print decoded nucleotides
 		assert(dns != NULL);
 		size_t len = dns->length();
-		assert_eq(rd.patFw.length(), len - 1);
 		size_t st = 0;
 		size_t en = len;
 		if(exEnds) {
@@ -240,10 +746,10 @@ void AlnRes::printSeq(
 }
 
 /**
- * Print the quality string for the read that aligned.  This will
- * simply print the read qualities (or their reverse) unless this
- * is a colorspace read and printColors is false.  In that case,
- * we print the decoded qualities rather than the original ones.
+ * Print the quality string for the read that aligned.  This will simply print
+ * the read qualities (or their reverse) unless this is a colorspace read and
+ * printColors is false.  In that case, we print the decoded qualities rather
+ * than the original ones.
  */
 void AlnRes::printQuals(
 	const Read& rd,         // read
@@ -253,9 +759,9 @@ void AlnRes::printQuals(
 	OutFileBuf& o) const    // output stream to write to
 {
 	bool fw = refcoord_.fw();
-	size_t len = rd.qual.length();
 	assert(!printColors || rd.color);
 	if(!rd.color || printColors) {
+		size_t len = rd.qual.length();
 		// Print original qualities from upstream to downstream Watson
 		for(size_t i = 0; i < len; i++) {
 			int c = (fw ? rd.qual[i] : rd.qual[len-i-1]);
@@ -263,18 +769,18 @@ void AlnRes::printQuals(
 		}
 	} else {
 		assert(dqs != NULL);
-		assert_eq(len+1, dqs->length());
+		size_t len = dqs->length();
 		// Print decoded qualities from upstream to downstream Watson
 		if(!exEnds) {
 			// Print upstream-most quality
 			o.write(dqs->get(0));
 		}
-		for(size_t i = 0; i < len-1; i++) {
-			o.write(dqs->get(i+1));
+		for(size_t i = 1; i < len-1; i++) {
+			o.write(dqs->get(i));
 		}
 		if(!exEnds) {
 			// Print downstream-most quality
-			o.write(dqs->get(len));
+			o.write(dqs->get(len-1));
 		}
 	}
 }
@@ -283,32 +789,31 @@ void AlnRes::printQuals(
  * Add all of the cells involved in the given alignment to the database.
  */
 void RedundantAlns::add(const AlnRes& res) {
-	TRefOff left  = res.refoff();
-	TRefOff right = left + res.extent();
+	TRefOff left = res.refoff(), right;
+	const size_t len = res.readExtentRows();
 	if(!res.fw()) {
 		const_cast<AlnRes&>(res).invertEdits();
 	}
 	const EList<Edit>& ned = res.ned();
 	size_t nedidx = 0;
-	size_t nrow = res.readLength() + (res.color() ? 1 : 0);
 	// For each row...
-	for(size_t i = 0; i < nrow; i++) {
+	for(size_t i = 0; i < len; i++) {
 		size_t diff = 1;  // amount to shift to right for next round
 		right = left + 1;
 		while(nedidx < ned.size() && ned[nedidx].pos == i) {
-			if(ned[nedidx].isDelete()) {
+			if(ned[nedidx].isRefGap()) {
 				// Next my_left will be in same column as this round
 				diff = 0;
 			}
 			nedidx++;
 		}
-		if(i < nrow-1) {
+		if(i < len - 1) {
 			// See how many inserts there are before the next read
 			// character
 			size_t nedidx_next = nedidx;
 			while(nedidx_next < ned.size() && ned[nedidx_next].pos == i+1)
 			{
-				if(ned[nedidx_next].isInsert()) {
+				if(ned[nedidx_next].isReadGap()) {
 					right++;
 				}
 				nedidx_next++;
@@ -332,33 +837,32 @@ void RedundantAlns::add(const AlnRes& res) {
  * one of the cells in the database.
  */
 bool RedundantAlns::overlap(const AlnRes& res) {
-	TRefOff left  = res.refoff();
-	TRefOff right = left + res.extent();
+	TRefOff left = res.refoff(), right;
+	const size_t len = res.readExtentRows();
 	if(!res.fw()) {
 		const_cast<AlnRes&>(res).invertEdits();
 	}
 	const EList<Edit>& ned = res.ned();
 	size_t nedidx = 0;
-	size_t nrow = res.readLength() + (res.color() ? 1 : 0);
 	// For each row...
 	bool olap = false;
-	for(size_t i = 0; i < nrow; i++) {
+	for(size_t i = 0; i < len; i++) {
 		size_t diff = 1;  // amount to shift to right for next round
 		right = left + 1;
 		while(nedidx < ned.size() && ned[nedidx].pos == i) {
-			if(ned[nedidx].isDelete()) {
+			if(ned[nedidx].isRefGap()) {
 				// Next my_left will be in same column as this round
 				diff = 0;
 			}
 			nedidx++;
 		}
-		if(i < nrow-1) {
+		if(i < len - 1) {
 			// See how many inserts there are before the next read
 			// character
 			size_t nedidx_next = nedidx;
 			while(nedidx_next < ned.size() && ned[nedidx_next].pos == i+1)
 			{
-				if(ned[nedidx_next].isInsert()) {
+				if(ned[nedidx_next].isReadGap()) {
 					right++;
 				}
 				nedidx_next++;
@@ -451,6 +955,8 @@ AlnSetSumm::AlnSetSumm(
 #include "mem_ids.h"
 
 int main() {
+	EList<char> op;
+	EList<size_t> run;
 	{
 		// On top of each other, same length
 		cerr << "Test case 1, simple overlap 1 ... ";
@@ -479,6 +985,18 @@ int main() {
 		ra.add(res1);
 		assert(ra.overlap(res1));
 		assert(ra.overlap(res2));
+
+		char buf1[1024];
+		res1.printCigar(false, false, false, op, run, NULL, buf1);
+		assert_eq(0, strcmp(buf1, "10M"));
+		res1.printCigar(false, false, true, op, run, NULL, buf1);
+		assert_eq(0, strcmp(buf1, "10="));
+
+		char buf2[1024];
+		res2.printCigar(false, false, false, op, run, NULL, buf2);
+		assert_eq(0, strcmp(buf2, "10M"));
+		res2.printCigar(false, false, true, op, run, NULL, buf2);
+		assert_eq(0, strcmp(buf2, "10="));
 		
 		cerr << "PASSED" << endl;
 	}
@@ -511,6 +1029,18 @@ int main() {
 		ra.add(res1);
 		assert(ra.overlap(res1));
 		assert(ra.overlap(res2));
+
+		char buf1[1024];
+		res1.printCigar(false, false, false, op, run, NULL, buf1);
+		assert_eq(0, strcmp(buf1, "10M"));
+		res1.printCigar(false, false, true, op, run, NULL, buf1);
+		assert_eq(0, strcmp(buf1, "10="));
+
+		char buf2[1024];
+		res2.printCigar(false, false, false, op, run, NULL, buf2);
+		assert_eq(0, strcmp(buf2, "11M"));
+		res2.printCigar(false, false, true, op, run, NULL, buf2);
+		assert_eq(0, strcmp(buf2, "11="));
 
 		cerr << "PASSED" << endl;
 	}
@@ -617,7 +1147,7 @@ int main() {
 		EList<Edit> ned1(RES_CAT);
 		ned1.expand();
 		// 1 step to the right in the middle of the alignment
-		ned1.back().init(5, 'A', '-', EDIT_TYPE_INS);
+		ned1.back().init(5, 'A', '-', EDIT_TYPE_READ_GAP);
 		AlnRes res1;
 		res1.init(
 			10,
@@ -643,6 +1173,18 @@ int main() {
 		ra.add(res1);
 		assert(ra.overlap(res1));
 		assert(ra.overlap(res2));
+
+		char buf1[1024];
+		res1.printCigar(false, false, false, op, run, NULL, buf1);
+		assert_eq(0, strcmp(buf1, "5M1D5M"));
+		res1.printCigar(false, false, true, op, run, NULL, buf1);
+		assert_eq(0, strcmp(buf1, "5=1D5="));
+
+		char buf2[1024];
+		res2.printCigar(false, false, false, op, run, NULL, buf2);
+		assert_eq(0, strcmp(buf2, "10M"));
+		res2.printCigar(false, false, true, op, run, NULL, buf2);
+		assert_eq(0, strcmp(buf2, "10="));
 
 		cerr << "PASSED" << endl;
 	}
@@ -652,9 +1194,9 @@ int main() {
 		cerr << "Test case 7, simple overlap 7 ... ";
 		EList<Edit> ned1(RES_CAT);
 		// 3 steps to the right in the middle of the alignment
-		ned1.push_back(Edit(5, 'A', '-', EDIT_TYPE_INS));
-		ned1.push_back(Edit(5, 'C', '-', EDIT_TYPE_INS));
-		ned1.push_back(Edit(5, 'G', '-', EDIT_TYPE_INS));
+		ned1.push_back(Edit(5, 'A', '-', EDIT_TYPE_READ_GAP));
+		ned1.push_back(Edit(5, 'C', '-', EDIT_TYPE_READ_GAP));
+		ned1.push_back(Edit(5, 'G', '-', EDIT_TYPE_READ_GAP));
 		AlnRes res1;
 		res1.init(
 			10,
@@ -680,6 +1222,18 @@ int main() {
 		ra.add(res1);
 		assert(ra.overlap(res1));
 		assert(ra.overlap(res2));
+
+		char buf1[1024];
+		res1.printCigar(false, false, false, op, run, NULL, buf1);
+		assert_eq(0, strcmp(buf1, "5M3D5M"));
+		res1.printCigar(false, false, true, op, run, NULL, buf1);
+		assert_eq(0, strcmp(buf1, "5=3D5="));
+
+		char buf2[1024];
+		res2.printCigar(false, false, false, op, run, NULL, buf2);
+		assert_eq(0, strcmp(buf2, "10M"));
+		res2.printCigar(false, false, true, op, run, NULL, buf2);
+		assert_eq(0, strcmp(buf2, "10="));
 
 		cerr << "PASSED" << endl;
 	}
@@ -689,8 +1243,8 @@ int main() {
 		cerr << "Test case 8, simple overlap 8 ... ";
 		EList<Edit> ned1(RES_CAT);
 		// 2 steps to the right in the middle of the alignment
-		ned1.push_back(Edit(5, 'A', '-', EDIT_TYPE_INS));
-		ned1.push_back(Edit(5, 'C', '-', EDIT_TYPE_INS));
+		ned1.push_back(Edit(5, 'A', '-', EDIT_TYPE_READ_GAP));
+		ned1.push_back(Edit(5, 'C', '-', EDIT_TYPE_READ_GAP));
 		AlnRes res1;
 		res1.init(
 			10,
@@ -702,8 +1256,8 @@ int main() {
 			false);
 		EList<Edit> ned2(RES_CAT);
 		// 2 steps to the right in the middle of the alignment
-		ned2.push_back(Edit(5, 'A', '-', EDIT_TYPE_INS));
-		ned2.push_back(Edit(5, 'C', '-', EDIT_TYPE_INS));
+		ned2.push_back(Edit(5, 'A', '-', EDIT_TYPE_READ_GAP));
+		ned2.push_back(Edit(5, 'C', '-', EDIT_TYPE_READ_GAP));
 		AlnRes res2;
 		res2.init(
 			10,
@@ -720,6 +1274,18 @@ int main() {
 		ra.add(res1);
 		assert(ra.overlap(res1));
 		assert(ra.overlap(res2));
+
+		char buf1[1024];
+		res1.printCigar(false, false, false, op, run, NULL, buf1);
+		assert_eq(0, strcmp(buf1, "5M2D5M"));
+		res1.printCigar(false, false, true, op, run, NULL, buf1);
+		assert_eq(0, strcmp(buf1, "5=2D5="));
+
+		char buf2[1024];
+		res2.printCigar(false, false, false, op, run, NULL, buf2);
+		assert_eq(0, strcmp(buf2, "5M2D5M"));
+		res2.printCigar(false, false, true, op, run, NULL, buf2);
+		assert_eq(0, strcmp(buf2, "5=2D5="));
 
 		cerr << "PASSED" << endl;
 	}
@@ -729,8 +1295,8 @@ int main() {
 		cerr << "Test case 9, simple overlap 9 ... ";
 		EList<Edit> ned1(RES_CAT);
 		// 2 steps to the right in the middle of the alignment
-		ned1.push_back(Edit(6, 'A', '-', EDIT_TYPE_INS));
-		ned1.push_back(Edit(6, 'C', '-', EDIT_TYPE_INS));
+		ned1.push_back(Edit(6, 'A', '-', EDIT_TYPE_READ_GAP));
+		ned1.push_back(Edit(6, 'C', '-', EDIT_TYPE_READ_GAP));
 		AlnRes res1;
 		res1.init(
 			10,
@@ -742,8 +1308,8 @@ int main() {
 			false);
 		EList<Edit> ned2(RES_CAT);
 		// 2 steps to the right in the middle of the alignment
-		ned2.push_back(Edit(5, 'A', '-', EDIT_TYPE_INS));
-		ned2.push_back(Edit(5, 'C', '-', EDIT_TYPE_INS));
+		ned2.push_back(Edit(5, 'A', '-', EDIT_TYPE_READ_GAP));
+		ned2.push_back(Edit(5, 'C', '-', EDIT_TYPE_READ_GAP));
 		AlnRes res2;
 		res2.init(
 			10,
@@ -761,6 +1327,18 @@ int main() {
 		assert(ra.overlap(res1));
 		assert(!ra.overlap(res2));
 
+		char buf1[1024];
+		res1.printCigar(false, false, false, op, run, NULL, buf1);
+		assert_eq(0, strcmp(buf1, "6M2D4M"));
+		res1.printCigar(false, false, true, op, run, NULL, buf1);
+		assert_eq(0, strcmp(buf1, "6=2D4="));
+
+		char buf2[1024];
+		res2.printCigar(false, false, false, op, run, NULL, buf2);
+		assert_eq(0, strcmp(buf2, "5M2D5M"));
+		res2.printCigar(false, false, true, op, run, NULL, buf2);
+		assert_eq(0, strcmp(buf2, "5=2D5="));
+
 		cerr << "PASSED" << endl;
 	}
 
@@ -769,8 +1347,8 @@ int main() {
 		cerr << "Test case 10, simple overlap 10 ... ";
 		EList<Edit> ned1(RES_CAT);
 		// 2 steps to the right in the middle of the alignment
-		ned1.push_back(Edit(5, 'A', '-', EDIT_TYPE_INS));
-		ned1.push_back(Edit(5, 'C', '-', EDIT_TYPE_INS));
+		ned1.push_back(Edit(5, 'A', '-', EDIT_TYPE_READ_GAP));
+		ned1.push_back(Edit(5, 'C', '-', EDIT_TYPE_READ_GAP));
 		AlnRes res1;
 		res1.init(
 			10,
@@ -782,8 +1360,8 @@ int main() {
 			false);
 		EList<Edit> ned2(RES_CAT);
 		// 2 steps to the right in the middle of the alignment
-		ned2.push_back(Edit(6, 'A', '-', EDIT_TYPE_INS));
-		ned2.push_back(Edit(6, 'C', '-', EDIT_TYPE_INS));
+		ned2.push_back(Edit(6, 'A', '-', EDIT_TYPE_READ_GAP));
+		ned2.push_back(Edit(6, 'C', '-', EDIT_TYPE_READ_GAP));
 		AlnRes res2;
 		res2.init(
 			10,
@@ -801,6 +1379,18 @@ int main() {
 		assert(ra.overlap(res1));
 		assert(!ra.overlap(res2));
 
+		char buf1[1024];
+		res1.printCigar(false, false, false, op, run, NULL, buf1);
+		assert_eq(0, strcmp(buf1, "5M2D5M"));
+		res1.printCigar(false, false, true, op, run, NULL, buf1);
+		assert_eq(0, strcmp(buf1, "5=2D5="));
+
+		char buf2[1024];
+		res2.printCigar(false, false, false, op, run, NULL, buf2);
+		assert_eq(0, strcmp(buf2, "4M2D6M"));
+		res2.printCigar(false, false, true, op, run, NULL, buf2);
+		assert_eq(0, strcmp(buf2, "4=2D6="));
+
 		cerr << "PASSED" << endl;
 	}
 
@@ -809,8 +1399,8 @@ int main() {
 		cerr << "Test case 11, simple overlap 11 ... ";
 		EList<Edit> ned1(RES_CAT);
 		// 2 steps to the right in the middle of the alignment
-		ned1.push_back(Edit(5, '-', 'A', EDIT_TYPE_DEL));
-		ned1.push_back(Edit(5, '-', 'C', EDIT_TYPE_DEL));
+		ned1.push_back(Edit(5, '-', 'A', EDIT_TYPE_REF_GAP));
+		ned1.push_back(Edit(6, '-', 'C', EDIT_TYPE_REF_GAP));
 		AlnRes res1;
 		res1.init(
 			10,
@@ -822,8 +1412,8 @@ int main() {
 			false);
 		EList<Edit> ned2(RES_CAT);
 		// 2 steps to the right in the middle of the alignment
-		ned2.push_back(Edit(6, '-', 'A', EDIT_TYPE_DEL));
-		ned2.push_back(Edit(6, '-', 'C', EDIT_TYPE_DEL));
+		ned2.push_back(Edit(6, '-', 'A', EDIT_TYPE_REF_GAP));
+		ned2.push_back(Edit(7, '-', 'C', EDIT_TYPE_REF_GAP));
 		AlnRes res2;
 		res2.init(
 			10,
@@ -840,6 +1430,18 @@ int main() {
 		ra.add(res1);
 		assert(ra.overlap(res1));
 		assert(!ra.overlap(res2));
+
+		char buf1[1024];
+		res1.printCigar(false, false, false, op, run, NULL, buf1);
+		assert_eq(0, strcmp(buf1, "5M2I3M"));
+		res1.printCigar(false, false, true, op, run, NULL, buf1);
+		assert_eq(0, strcmp(buf1, "5=2I3="));
+
+		char buf2[1024];
+		res2.printCigar(false, false, false, op, run, NULL, buf2);
+		assert_eq(0, strcmp(buf2, "6M2I2M"));
+		res2.printCigar(false, false, true, op, run, NULL, buf2);
+		assert_eq(0, strcmp(buf2, "6=2I2="));
 
 		cerr << "PASSED" << endl;
 	}
@@ -849,8 +1451,8 @@ int main() {
 		cerr << "Test case 12, simple overlap 12 ... ";
 		EList<Edit> ned1(RES_CAT);
 		// 2 steps to the right in the middle of the alignment
-		ned1.push_back(Edit(5, '-', 'A', EDIT_TYPE_DEL));
-		ned1.push_back(Edit(5, '-', 'C', EDIT_TYPE_DEL));
+		ned1.push_back(Edit(5, '-', 'A', EDIT_TYPE_REF_GAP));
+		ned1.push_back(Edit(6, '-', 'C', EDIT_TYPE_REF_GAP));
 		AlnRes res1;
 		res1.init(
 			10,
@@ -862,8 +1464,8 @@ int main() {
 			false);
 		EList<Edit> ned2(RES_CAT);
 		// 2 steps to the right in the middle of the alignment
-		ned2.push_back(Edit(5, '-', 'A', EDIT_TYPE_DEL));
-		ned2.push_back(Edit(5, '-', 'C', EDIT_TYPE_DEL));
+		ned2.push_back(Edit(5, '-', 'A', EDIT_TYPE_REF_GAP));
+		ned2.push_back(Edit(6, '-', 'C', EDIT_TYPE_REF_GAP));
 		AlnRes res2;
 		res2.init(
 			10,
@@ -881,6 +1483,18 @@ int main() {
 		assert(ra.overlap(res1));
 		assert(!ra.overlap(res2));
 
+		char buf1[1024];
+		res1.printCigar(false, false, false, op, run, NULL, buf1);
+		assert_eq(0, strcmp(buf1, "5M2I3M"));
+		res1.printCigar(false, false, true, op, run, NULL, buf1);
+		assert_eq(0, strcmp(buf1, "5=2I3="));
+
+		char buf2[1024];
+		res2.printCigar(false, false, false, op, run, NULL, buf2);
+		assert_eq(0, strcmp(buf2, "5M2I3M"));
+		res2.printCigar(false, false, true, op, run, NULL, buf2);
+		assert_eq(0, strcmp(buf2, "5=2I3="));
+
 		cerr << "PASSED" << endl;
 	}
 
@@ -889,8 +1503,8 @@ int main() {
 		cerr << "Test case 13, simple overlap 13 ... ";
 		EList<Edit> ned1(RES_CAT);
 		// 2 steps to the right in the middle of the alignment
-		ned1.push_back(Edit(5, '-', 'A', EDIT_TYPE_DEL));
-		ned1.push_back(Edit(5, '-', 'C', EDIT_TYPE_DEL));
+		ned1.push_back(Edit(5, '-', 'A', EDIT_TYPE_REF_GAP));
+		ned1.push_back(Edit(6, '-', 'C', EDIT_TYPE_REF_GAP));
 		AlnRes res1;
 		res1.init(
 			10,
@@ -902,8 +1516,8 @@ int main() {
 			false);
 		EList<Edit> ned2(RES_CAT);
 		// 2 steps to the right in the middle of the alignment
-		ned2.push_back(Edit(4, '-', 'A', EDIT_TYPE_DEL));
-		ned2.push_back(Edit(4, '-', 'C', EDIT_TYPE_DEL));
+		ned2.push_back(Edit(4, '-', 'A', EDIT_TYPE_REF_GAP));
+		ned2.push_back(Edit(5, '-', 'C', EDIT_TYPE_REF_GAP));
 		AlnRes res2;
 		res2.init(
 			10,
@@ -921,6 +1535,18 @@ int main() {
 		assert(ra.overlap(res1));
 		assert(ra.overlap(res2));
 
+		char buf1[1024];
+		res1.printCigar(false, false, false, op, run, NULL, buf1);
+		assert_eq(0, strcmp(buf1, "5M2I3M"));
+		res1.printCigar(false, false, true, op, run, NULL, buf1);
+		assert_eq(0, strcmp(buf1, "5=2I3="));
+
+		char buf2[1024];
+		res2.printCigar(false, false, false, op, run, NULL, buf2);
+		assert_eq(0, strcmp(buf2, "4M2I4M"));
+		res2.printCigar(false, false, true, op, run, NULL, buf2);
+		assert_eq(0, strcmp(buf2, "4=2I4="));
+
 		cerr << "PASSED" << endl;
 	}
 
@@ -929,8 +1555,8 @@ int main() {
 		cerr << "Test case 14, simple overlap 14 ... ";
 		EList<Edit> ned1(RES_CAT);
 		// 2 steps to the right in the middle of the alignment
-		ned1.push_back(Edit(5, '-', 'A', EDIT_TYPE_DEL));
-		ned1.push_back(Edit(5, '-', 'C', EDIT_TYPE_DEL));
+		ned1.push_back(Edit(5, '-', 'A', EDIT_TYPE_REF_GAP));
+		ned1.push_back(Edit(6, '-', 'C', EDIT_TYPE_REF_GAP));
 		AlnRes res1;
 		res1.init(
 			10,
@@ -942,8 +1568,8 @@ int main() {
 			false);
 		EList<Edit> ned2(RES_CAT);
 		// 2 steps to the right in the middle of the alignment
-		ned2.push_back(Edit(4, '-', 'A', EDIT_TYPE_DEL));
-		ned2.push_back(Edit(4, '-', 'C', EDIT_TYPE_DEL));
+		ned2.push_back(Edit(4, '-', 'A', EDIT_TYPE_REF_GAP));
+		ned2.push_back(Edit(5, '-', 'C', EDIT_TYPE_REF_GAP));
 		AlnRes res2;
 		res2.init(
 			10,
@@ -960,7 +1586,83 @@ int main() {
 		ra.add(res1);
 		assert(ra.overlap(res1));
 		assert(!ra.overlap(res2));
+		
+		char buf1[1024];
+		res1.printCigar(false, false, false, op, run, NULL, buf1);
+		assert_eq(0, strcmp(buf1, "5M2I3M"));
+		res1.printCigar(false, false, true, op, run, NULL, buf1);
+		assert_eq(0, strcmp(buf1, "5=2I3="));
 
+		char buf2[1024];
+		res2.printCigar(false, false, false, op, run, NULL, buf2);
+		assert_eq(0, strcmp(buf2, "4M2I4M"));
+		res2.printCigar(false, false, true, op, run, NULL, buf2);
+		assert_eq(0, strcmp(buf2, "4=2I4="));
+
+		cerr << "PASSED" << endl;
+	}
+
+	{
+		cerr << "Test case 15, CIGAR string with mismatches ... ";
+		EList<Edit> ned(RES_CAT);
+		// 2 steps to the right in the middle of the alignment
+		ned.push_back(Edit(0, 'C', 'A', EDIT_TYPE_MM));
+		ned.push_back(Edit(4, '-', 'C', EDIT_TYPE_REF_GAP));
+		ned.push_back(Edit(6, '-', 'C', EDIT_TYPE_REF_GAP));
+		ned.push_back(Edit(7, '-', 'C', EDIT_TYPE_REF_GAP));
+		ned.push_back(Edit(9, '-', 'A', EDIT_TYPE_READ_GAP));
+		ned.push_back(Edit(9, '-', 'A', EDIT_TYPE_READ_GAP));
+		ned.push_back(Edit(9, '-', 'A', EDIT_TYPE_READ_GAP));
+		ned.push_back(Edit(9, '-', 'A', EDIT_TYPE_READ_GAP));
+		ned.push_back(Edit(10, '-', 'A', EDIT_TYPE_MM));
+		AlnRes res; res.init(
+			11,
+			AlnScore(),
+			&ned,
+			NULL,
+			NULL,
+			Coord(0, 44, true),
+			false);
+		char buf[1024];
+		res.printCigar(false, false, false, op, run, NULL, buf);
+		assert_eq(0, strcmp(buf, "4M1I1M2I1M4D2M"));
+		res.printCigar(false, false, true, op, run, NULL, buf);
+		assert_eq(0, strcmp(buf, "1X3=1I1=2I1=4D1=1X"));
+		cerr << "PASSED" << endl;
+	}
+
+	{
+		cerr << "Test case 16, Single colorspace 1 ... ";
+		EList<Edit> ned(RES_CAT);
+		// 2 steps to the right in the middle of the alignment
+		ned.push_back(Edit(0, 'C', 'A', EDIT_TYPE_MM));
+		ned.push_back(Edit(4, '-', 'C', EDIT_TYPE_REF_GAP));
+		ned.push_back(Edit(6, '-', 'C', EDIT_TYPE_REF_GAP));
+		ned.push_back(Edit(7, '-', 'C', EDIT_TYPE_REF_GAP));
+		ned.push_back(Edit(9, '-', 'A', EDIT_TYPE_READ_GAP));
+		ned.push_back(Edit(9, '-', 'A', EDIT_TYPE_READ_GAP));
+		ned.push_back(Edit(9, '-', 'A', EDIT_TYPE_READ_GAP));
+		ned.push_back(Edit(9, '-', 'A', EDIT_TYPE_READ_GAP));
+		ned.push_back(Edit(10, '-', 'A', EDIT_TYPE_MM));
+		AlnRes res; res.init(
+			11,
+			AlnScore(),
+			&ned,
+			NULL,
+			NULL,
+			Coord(0, 44, true),
+			false);
+		char buf[1024];
+		// Don't exclude ends
+		res.printCigar(false, false, false, op, run, NULL, buf);
+		assert_eq(0, strcmp(buf, "4M1I1M2I1M4D2M"));
+		res.printCigar(false, false, true, op, run, NULL, buf);
+		assert_eq(0, strcmp(buf, "1X3=1I1=2I1=4D1=1X"));
+		// Exclude ends
+		res.printCigar(false, true, false, op, run, NULL, buf);
+		assert_eq(0, strcmp(buf, "3M1I1M2I1M4D1M"));
+		res.printCigar(false, true, true, op, run, NULL, buf);
+		assert_eq(0, strcmp(buf, "3=1I1=2I1=4D1="));
 		cerr << "PASSED" << endl;
 	}
 }

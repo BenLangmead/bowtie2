@@ -13,7 +13,7 @@
 #define DEFAULT_MATCH_BONUS 0
 // Same settings but different defaults for --local mode
 #define DEFAULT_MATCH_BONUS_TYPE_LOCAL COST_MODEL_CONSTANT
-#define DEFAULT_MATCH_BONUS_LOCAL 1
+#define DEFAULT_MATCH_BONUS_LOCAL 10
 
 // Default type of penalty to assess against mismatches
 #define DEFAULT_MM_PENALTY_TYPE COST_MODEL_CONSTANT
@@ -32,7 +32,7 @@
 #define DEFAULT_MIN_LINEAR (-3.0f)
 // Different defaults for --local mode
 #define DEFAULT_MIN_CONST_LOCAL (0.0f)
-#define DEFAULT_MIN_LINEAR_LOCAL (0.34f)
+#define DEFAULT_MIN_LINEAR_LOCAL (3.34f)
 
 // Constant coefficient b in linear function f(x) = ax + b determining
 // what local-alignment score floor to impose when read length is x
@@ -175,7 +175,7 @@ public:
 	void setNPen(int nType, int n) {
 		npenType     = nType;
 		npen         = n;
-		initPens(npens, npenType, npen);
+		initPens<int>(npens, npenType, npen);
 	}
 	
 	/**
@@ -190,15 +190,6 @@ public:
 		assert_gt(rfGapLinear, 0);
 		return true;
 	}
-	
-	/**
-	 * Init an array that maps quality to penalty according to 'type'
-	 * and 'cons'
-	 */
-	void initPens(
-		int *pens,  // array to fill
-		int type,   // penalty type; qual | rounded qual | constant
-		int cons);  // constant for when penalty type is constant
 
 	/**
 	 * Return a linear function of x where 'cnst' is the constant coefficiant

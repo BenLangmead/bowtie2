@@ -90,9 +90,9 @@ bool Branch::init(
 	gapOff_ = 0;
 	if(parent != NULL) {
 		gapOff_ = parent->gapOff_;
-		if(edit_.isDelete()) {
+		if(edit_.isRefGap()) {
 			gapOff_--;
-		} else if(edit_.isInsert()) {
+		} else if(edit_.isReadGap()) {
 			gapOff_++;
 		}
 	}
@@ -175,7 +175,7 @@ Edit Branch::pickEdit(int i, RandomSource& rand, uint32_t& top, uint32_t& bot) {
 				if(dart < (r.bots[j] - r.tops[j])) {
 					top = r.tops[j]; bot = r.bots[j];
 					r.elimIns(j);
-					ret.type = EDIT_TYPE_INS;
+					ret.type = EDIT_TYPE_READ_GAP;
 					ret.chr = color ? "0123"[j] : "ACGT"[j];
 					ret.qchr = '-';
 					r.updateLo();
@@ -186,7 +186,7 @@ Edit Branch::pickEdit(int i, RandomSource& rand, uint32_t& top, uint32_t& bot) {
 		}
 		assert_lt(dart, tot/2);
 		r.flags.del = 1;
-		ret.type = EDIT_TYPE_DEL;
+		ret.type = EDIT_TYPE_REF_GAP;
 		ret.chr = '-';
 		r.updateLo();
 		assert(repOk());
@@ -205,7 +205,7 @@ Edit Branch::pickEdit(int i, RandomSource& rand, uint32_t& top, uint32_t& bot) {
 	// Fixup for the case where a deletion was selected.  In this case,
 	// top/bot are a function of information from the previous
 	// position.
-	if(ret.isDelete()) {
+	if(ret.isRefGap()) {
 		if(i > ilen_) {
 			int pc = ranges_[i-1].flags.qchr;
 			assert_lt(pc, 4);
@@ -430,7 +430,7 @@ Branch* Branch::splitBranch(AllocOnlyPool<Pos>& rpool,
 	}
 	ASSERT_ONLY(splits_++);
 	// Create a new branch rooted at the selected outgoing path
-	uint16_t newRdepth = rdepth_ + pos + (e.isInsert() ? 0 : 1);
+	uint16_t newRdepth = rdepth_ + pos + (e.isReadGap() ? 0 : 1);
 	if(!newBranch->init(
 		rpool, visited, bpool.lastId(), this, id_, e, numEdits_+1,
 		qlen, ndep, newRdepth, 0, cost_, ham_ + hamadd, top, bot, ep,
@@ -438,7 +438,7 @@ Branch* Branch::splitBranch(AllocOnlyPool<Pos>& rpool,
 	{
 		return NULL;
 	}
-	if(e.isDelete() && newBranch->rangesSz_ > 0) {
+	if(e.isRefGap() && newBranch->rangesSz_ > 0) {
 		assert(newBranch->ranges_ != NULL);
 		// copy outgoing BW ranges from parent
 		Pos *r = newBranch->backPos();
@@ -598,8 +598,8 @@ int Branch::installRanges(
 	// careful to accurately account for partial alignment state.
 	int offFromNear = endoff;
 	int offFromFar = fullqlen - endoff - 1;
-	bool insExtend = (edit_.isInsert() && len_ == 0);
-	bool delExtend = (edit_.isDelete() && len_ == 0) || overDelExtend;
+	bool insExtend = (edit_.isReadGap() && len_ == 0);
+	bool delExtend = (edit_.isRefGap() && len_ == 0) || overDelExtend;
 	r.flags.ins_ext = insExtend;
 	r.flags.del_ext = delExtend;
 	int ret = 0;
@@ -816,7 +816,7 @@ void Branch::print(const BTDnaString& qry,
 			bool first = true;
 			while(editidx < numEdits && edits[editidx].pos == i) {
 				if(!first) ss3 << " ";
-				assert(edits[editidx].isInsert());
+				assert(edits[editidx].isReadGap());
 				ss3 << "+" << (char)tolower(edits[editidx].chr);
 				editidx++;
 				first = false;
@@ -827,12 +827,12 @@ void Branch::print(const BTDnaString& qry,
 			// print edits
 			while(editidx < numEdits && edits[editidx].pos == i) {
 				if(!first) ss3 << " ";
-				if(edits[editidx].isInsert()) ss3 << "+";
+				if(edits[editidx].isReadGap()) ss3 << "+";
 				else ss3 << " ";
 				ss3 << (char)tolower(edits[editidx].chr);
 				first = false;
-				if(edits[editidx].isInsert()) ins = true;
-				if(edits[editidx].isDelete()) del = true;
+				if(edits[editidx].isReadGap()) ins = true;
+				if(edits[editidx].isRefGap()) del = true;
 				if(edits[editidx].isMismatch()) {
 					assert(!mm);
 					mm = true;

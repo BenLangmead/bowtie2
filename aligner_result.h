@@ -38,9 +38,16 @@ public:
 	 * Gapped scores are invalid until proven valid.
 	 */
 	AlnScore() {
-		score_ = ns_ = gaps_ = 0;
+		reset();
 		invalidate();
 		assert(!valid());
+	}
+	
+	/**
+	 * Reset the score.
+	 */
+	void reset() {
+		score_ = ns_ = gaps_ = 0;
 	}
 
 	/**
@@ -242,22 +249,43 @@ static inline ostream& operator<<(ostream& os, const AlnScore& o) {
 class BitPairReference;
 
 /**
- * Encapsulates an alignment result, including for colorspace
- * alignments.  The result comprises:
+ * Encapsulates an alignment result, including for colorspace alignments.  The
+ * result comprises:
  *
  * 1. All the nucleotide edits for both mates ('ned').
- * 2. All the "edits" where an ambiguous reference char is resolved to
- *    an unambiguous char ('aed').
+ * 2. All "edits" where an ambiguous reference char is resolved to an
+ *    unambiguous char ('aed').
  * 3. All the color miscalls (if in colorspace) ('ced').
- * 4. The score for the alginment, including summary information about
- *    the number of gaps and Ns involved.
- * 5. The reference coordinates for the alignment, including strand.
- * 6. 
+ * 4. The score for the alginment, including summary information about the
+ *    number of gaps and Ns involved.
+ * 5. The reference id, strand, and 0-based offset of the leftmost character
+ *    involved in the alignment.
+ * 6. Information about trimming prior to alignment and whether it was hard or
+ *    soft.
+ * 7. Information about trimming during alignment and whether it was hard or
+ *    soft.  Local-alignment trimming is usually soft when aligning nucleotide
+ *    reads and usually hard when aligning colorspace reads.
  *
- * Note that the AlnRes, together with the Read and an AlnSetSumm
- * (*and* the opposite mate's AlnRes and Read in the case of a paired-
- * end alignment), should contain enough information to print an entire
- * alignment record.
+ * Note that the AlnRes, together with the Read and an AlnSetSumm (*and* the
+ * opposite mate's AlnRes and Read in the case of a paired-end alignment),
+ * should contain enough information to print an entire alignment record.
+ *
+ * TRIMMING
+ *
+ * Accounting for trimming is tricky.  Trimming affects:
+ *
+ * 1. The values of the trim* and pretrim* fields.
+ * 2. The offsets of the Edits in the EList<Edit>s.
+ * 3. The read extent, if the trimming is soft.
+ * 4. The read extent and the read sequence and length, if trimming is hard.
+ *
+ * Handling 1. is not too difficult.  2., 3., and 4. are handled in setShape().
+ *
+ * Another subtlety is that, in colorspace alignment, there can be soft and/or
+ * hard trimming of the colorspace sequence, but that trimming "becomes" hard
+ * when it is transferred to the decoded nucleotide sequence.  This is because
+ * nucleotide positions not adjacent to an aligned color are not decoded, and
+ * so must be omitted entirely instead of soft-clipped.
  */
 class AlnRes {
 
@@ -274,21 +302,7 @@ public:
 	/**
 	 * Clear all contents.
 	 */
-	void reset() {
-		ned_.clear();
-		aed_.clear();
-		ced_.clear();
-		score_.invalidate();
-		refcoord_.invalidate();
-		rdlen_    = 0;
-		extent_   = 0;
-		seedmms_  = 0; // number of mismatches allowed in seed
-		seedlen_  = 0; // length of seed
-		seedival_ = 0; // interval between seeds
-		minsc_    = 0; // minimum score
-		floorsc_  = 0; // score floor
-		assert(!refcoord_.valid());
-	}
+	void reset();
 	
 	/**
 	 * Reverse all edit lists.
@@ -300,20 +314,20 @@ public:
 	}
 	
 	/**
-	 * Invert positions of edits so that they're with respect to the
-	 * other end of the read.  Caller must specify the read length.  In
-	 * the case of a colorspace read, caller specifies the length in
-	 * colors.
+	 * Invert positions of edits so that they're with respect to the other end
+	 * of the alignment.  The assumption is that the .pos fields of the edits
+	 * in the ned_/aed_/ced_ structures are offsets with respect to the first
+	 * aligned character (i.e. after all trimming).
 	 */
 	void invertEdits() {
+		assert(shapeSet_);
 		assert_gt(rdlen_, 0);
+		assert_gt(rdrows_, 0);
+		Edit::invertPoss(ned_, rdexrows_);
+		Edit::invertPoss(aed_, rdexrows_);
 		if(color_) {
-			Edit::invertPoss(ned_, rdlen_+1);
-			Edit::invertPoss(aed_, rdlen_+1);
-			Edit::invertPoss(ced_, rdlen_);
+			Edit::invertPoss(ced_, rdextent_);
 		} else {
-			Edit::invertPoss(ned_, rdlen_);
-			Edit::invertPoss(aed_, rdlen_);
 			assert(ced_.empty());
 		}
 	}
@@ -338,13 +352,19 @@ public:
 	 * Return the identifier for the reference that the alignment
 	 * occurred in.
 	 */
-	inline TRefId refid() const { return refcoord_.ref(); }
+	inline TRefId refid() const {
+		assert(shapeSet_);
+		return refcoord_.ref();
+	}
 	
 	/**
 	 * Return the 0-based offset of the alignment into the reference
 	 * sequence it aligned to.
 	 */
-	inline TRefOff refoff() const { return refcoord_.off(); }
+	inline TRefOff refoff() const {
+		assert(shapeSet_);
+		return refcoord_.off();
+	}
 	
 	/**
 	 * Set arguments to coordinates for the upstream-most and downstream-most
@@ -354,33 +374,29 @@ public:
 		Coord& st,  // out: install starting coordinate here
 		Coord& en)  // out: install ending coordinate here
 	{
+		assert(shapeSet_);
 		st.init(refcoord_);
 		en.init(refcoord_);
-		en.setOff(en.off() + extent() - 1);
+		en.setOff(en.off() + refExtent() - 1);
 	}
 	
 	/**
-	 * Set the upstream-most reference offset involved in the
-	 * alignment, and the extent of the alignment (w/r/t the
-	 * reference)
+	 * Set the upstream-most reference offset involved in the alignment, and
+	 * the extent of the alignment (w/r/t the reference)
 	 */
-	inline void setCoord(
-		TRefId id,
-		TRefOff off,
-		bool fw,
-		size_t extent)
-	{
-		refcoord_.init(id, off, fw);
-		extent_ = extent;
-	}
-	
-	/**
-	 * Set the length of the original nucleotide read (not the decoded read).
-	 */
-	inline void setReadLength(size_t rdlen) {
-		rdlen_ = rdlen;
-	}
-	
+	void setShape(
+		TRefId  id,          // id of reference aligned to
+		TRefOff off,         // offset of first aligned char into ref seq
+		bool    fw,          // aligned to Watson strand?
+		size_t  rdlen,       // length of read after hard trimming, before soft
+		bool    color,       // colorspace alignment?
+		bool    pretrimSoft, // whether trimming prior to alignment was soft
+		size_t  pretrim5p,   // # poss trimmed form 5p end before alignment
+		size_t  pretrim3p,   // # poss trimmed form 3p end before alignment
+		bool    trimSoft,    // whether local-alignment trimming was soft
+		size_t  trim5p,      // # poss trimmed form 5p end during alignment
+		size_t  trim3p);     // # poss trimmed form 3p end during alignment
+
 	/**
 	 * Return true iff the reference chars involved in this alignment
 	 * result are entirely within with given bounds.
@@ -393,19 +409,12 @@ public:
 	{
 		if(refcoord_.ref() == id &&
 		   refcoord_.off() >= off &&
-		   refcoord_.off() + extent_ <= off + extent &&
+		   refcoord_.off() + refExtent() <= off + extent &&
 		   refcoord_.fw() == fw)
 		{
 			return true;
 		}
 		return false;
-	}
-	
-	/**
-	 * Set whether this is a colorspace alignment.
-	 */
-	void setColor(bool col) {
-		color_ = col;
 	}
 	
 	/**
@@ -425,16 +434,16 @@ public:
 	}
 	
 	/**
-	 * Return the reference coordinate where this alignment result
-	 * lies.
+	 * Return the 0-based offset of the leftmost reference position involved in
+	 * the alignment.
 	 */
 	const Coord& refcoord() const {
 		return refcoord_;
 	}
 
 	/**
-	 * Return the reference coordinate where this alignment result
-	 * lies.
+	 * Return the 0-based offset of the leftmost reference position involved in
+	 * the alignment.
 	 */
 	Coord& refcoord() {
 		return refcoord_;
@@ -447,15 +456,29 @@ public:
 		return refcoord_.fw();
 	}
 	
-	AlnScore           score()      const { return score_; }
-	EList<Edit>&       ned()              { return ned_; }
-	EList<Edit>&       aed()              { return aed_; }
-	EList<Edit>&       ced()              { return ced_; }
-	const EList<Edit>& ned()        const { return ned_; }
-	const EList<Edit>& aed()        const { return aed_; }
-	const EList<Edit>& ced()        const { return ced_; }
-	size_t             extent()     const { return extent_; }
-	size_t             readLength() const { return rdlen_; }
+	AlnScore           score()          const { return score_;    }
+	EList<Edit>&       ned()                  { return ned_;      }
+	EList<Edit>&       aed()                  { return aed_;      }
+	EList<Edit>&       ced()                  { return ced_;      }
+	const EList<Edit>& ned()            const { return ned_;      }
+	const EList<Edit>& aed()            const { return aed_;      }
+	const EList<Edit>& ced()            const { return ced_;      }
+	size_t             readExtent()     const { return rdextent_; }
+	size_t             readExtentRows() const { return rdexrows_; }
+	size_t             refExtent()      const { return rfextent_; }
+	size_t             readLength()     const { return rdlen_;    }
+
+	/**
+	 * Print a CIGAR-string representation of the alignment.
+	 */
+ 	void printCigar(
+		bool printColors,     // print CIGAR for colorspace alignment?
+		bool exEnds,          // exclude ends in CIGAR?
+		bool distinguishMm,   // use =/X instead of just M
+		EList<char>& op,      // stick CIGAR operations here
+		EList<size_t>& run,   // stick CIGAR run lengths here
+		OutFileBuf* o,        // write to this buf if o != NULL
+		char* oc) const;      // write to this buf if oc != NULL
 	
 	/**
 	 * Print the sequence for the read that aligned using A, C, G and
@@ -515,7 +538,9 @@ public:
 	bool repOk() const {
 		assert(refcoord_.repOk());
 		assert(empty() || refcoord_.valid());
-		assert(empty() || extent_ > 0);
+		assert_geq(rdexrows_, rdextent_);
+		assert(empty() || rdextent_ > 0);
+		assert(empty() || rfextent_ > 0);
 		return true;
 	}
 	
@@ -562,6 +587,38 @@ public:
 		BTString& qs) const;  // out: decoded qualities
 	
 	/**
+	 * Is the ith row from the 5' end of the DP table one of the ones
+	 * soft-trimmed away by local alignment? 
+	 */
+	inline bool trimmedRow5p(size_t i) const {
+		return i < trim5p_ || rdrows_ - i - 1 < trim3p_;
+	}
+
+	/**
+	 * Is the ith character from the 5' end of read sequence one of the ones
+	 * soft-trimmed away by local alignment? 
+	 */
+	inline bool trimmedPos5p(size_t i) const {
+		return i < trim5p_ || rdlen_ - i - 1 < trim3p_;
+	}
+
+	/**
+	 * Is the ith row from the 5' end of the DP table one of the ones that
+	 * survived local-alignment soft trimming?
+	 */
+	inline bool alignedRow5p(size_t i) const {
+		return !trimmedRow5p(i);
+	}
+
+	/**
+	 * Is the ith character from the 5' end of the read sequence one of the
+	 * ones that survived local-alignment soft trimming?
+	 */
+	inline bool alignedPos5p(size_t i) const {
+		return !trimmedPos5p(i);
+	}
+	
+	/**
 	 * Return true iff this AlnRes and the given AlnRes overlap.  Two AlnRess
 	 * overlap if they share a cell in the overall dynamic programming table:
 	 * i.e. if there exists a read position s.t. that position in both reads
@@ -579,163 +636,94 @@ public:
 	 *        \  \              \  \
 	 *         \  \              \  \
 	 *          \  \              \  \
-	 *          a  b              a  b
+	 *          a  b              b  a
+	 *
+	 * We iterate over each read position that hasn't been hard-trimmed, but
+	 * only overlaps at positions that have also not been soft-trimmed are
+	 * considered.
 	 */
-	bool overlap(AlnRes& res) {
-		if(fw() != res.fw() || refid() != res.refid()) {
-			// Must be same reference and same strand in order to overlap
-			return false;
-		}
-		TRefOff my_left     = refoff();
-		TRefOff other_left  = res.refoff();
-		TRefOff my_right    = my_left    + extent();
-		TRefOff other_right = other_left + res.extent();
-		if(my_right < other_left || other_right < my_left) {
-			// Their rectangular hulls don't overlap, so they can't overlap
-			return false;
-		}
-		// Reference and strand are the same and hulls overlap.  Now go read
-		// position by read position testing if any align identically with the
-		// reference.
-		if(!fw()) {
-			invertEdits();
-		}
-		if(!res.fw()) {
-			res.invertEdits();
-		}
-		size_t nedidx = 0, onedidx = 0;
-		size_t nrow = rdlen_ + (color_ ? 1 : 0);
-		bool olap = false;
-		// For each row...
-		for(size_t i = 0; i < nrow; i++) {
-			size_t diff = 1;  // amount to shift to right for next round
-			size_t odiff = 1; // amount to shift to right for next round
-			// Unless there are insertions before the next position, we say
-			// that there is one cell in this row involved in the alignment
-			my_right = my_left + 1;
-			other_right = other_left + 1;
-			while(nedidx < ned_.size() && ned_[nedidx].pos == i) {
-				if(ned_[nedidx].isDelete()) {
-					// Next my_left will be in same column as this round
-					diff = 0;
-				}
-				nedidx++;
-			}
-			while(onedidx < res.ned_.size() && res.ned_[onedidx].pos == i) {
-				if(res.ned_[onedidx].isDelete()) {
-					// Next my_left will be in same column as this round
-					odiff = 0;
-				}
-				onedidx++;
-			}
-			if(i < nrow-1) {
-				// See how many inserts there are before the next read
-				// character
-				size_t nedidx_next  = nedidx;
-				size_t onedidx_next = onedidx;
-				while(nedidx_next < ned_.size() &&
-				      ned_[nedidx_next].pos == i+1)
-				{
-					if(ned_[nedidx_next].isInsert()) {
-						my_right++;
-					}
-					nedidx_next++;
-				}
-				while(onedidx_next < res.ned_.size() &&
-				      res.ned_[onedidx_next].pos == i+1)
-				{
-					if(res.ned_[onedidx_next].isInsert()) {
-						other_right++;
-					}
-					onedidx_next++;
-				}
-			}
-			// Contained?
-			olap =
-				(my_left >= other_left && my_right <= other_right) ||
-				(other_left >= my_left && other_right <= my_right);
-			// Overlapping but not contained?
-			if(!olap) {
-				olap =
-					(my_left <= other_left && my_right > other_left) ||
-					(other_left <= my_left && other_right > my_left);
-			}
-			if(olap) {
-				break;
-			}
-			// How to do adjust my_left and my_right
-			my_left = my_right + diff - 1;
-			other_left = other_right + odiff - 1;
-		}
-		if(!fw()) {
-			invertEdits();
-		}
-		if(!res.fw()) {
-			res.invertEdits();
-		}
-		return olap;
-	}
+	bool overlap(AlnRes& res);
 	
 	/**
 	 * Initialize new AlnRes.
 	 */
 	void init(
-		size_t             rdlen,
-		AlnScore           score,
-		const EList<Edit>* ned,
-		const EList<Edit>* aed,
-		const EList<Edit>* ced,
-		Coord              refcoord,
-		bool               color,
-		int                seedmms  = -1,
-		int                seedlen  = -1,
-		int                seedival = -1,
-		int64_t            minsc    = -1,
-		int64_t            floorsc  = -1,
-		int                nuc5p    = -1,
-		int                nuc3p    = -1)
-	{
-		rdlen_ = rdlen;
-		score_ = score;
-		ned_.clear();
-		aed_.clear();
-		ced_.clear();
-		if(ned != NULL) ned_ = *ned;
-		if(aed != NULL) aed_ = *aed;
-		if(ced != NULL) ced_ = *ced;
-		refcoord_ = refcoord;
-		color_    = color;
-		seedmms_  = seedmms;
-		seedlen_  = seedlen;
-		seedival_ = seedival;
-		minsc_    = minsc;
-		floorsc_  = floorsc;
-		nuc5p_    = nuc5p;
-		nuc3p_    = nuc3p;
-		extent_   = rdlen;
-		for(size_t i = 0; i < ned_.size(); i++) {
-			if(ned_[i].isDelete()) extent_--;
-			if(ned_[i].isInsert()) extent_++;
-		}
-	}
+		size_t             rdlen,           // # chars after hard trimming
+		AlnScore           score,           // alignment score
+		const EList<Edit>* ned,             // nucleotide edits
+		const EList<Edit>* aed,             // ambiguous base resolutions
+		const EList<Edit>* ced,             // color edits
+		Coord              refcoord,        // leftmost ref pos of 1st al char
+		bool               color,           // colorspace?
+		int                seedmms      = -1,// # seed mms allowed
+		int                seedlen      = -1,// seed length
+		int                seedival     = -1,// space between seeds
+		int64_t            minsc        = -1,// minimum score for valid aln
+		int64_t            floorsc      = -1,// local-alignment floor
+		int                nuc5p        = -1,//
+		int                nuc3p        = -1,
+		bool               pretrimSoft  = false,
+		size_t             pretrim5p    = 0, // trimming prior to alignment
+		size_t             pretrim3p    = 0, // trimming prior to alignment
+		bool               trimSoft     = true,
+		size_t             trim5p       = 0, // trimming from alignment
+		size_t             trim3p       = 0, // trimming from alignment
+		bool               cPretrimSoft = false,
+		size_t             cPretrim5p   = 0, // trimming prior to alignment
+		size_t             cPretrim3p   = 0, // trimming prior to alignment
+		bool               cTrimSoft    = true,
+		size_t             cTrim5p      = 0, // trimming from alignment
+		size_t             cTrim3p      = 0);// trimming from alignment
 
 protected:
 
-	size_t      rdlen_;    // length of the original read
-	AlnScore    score_;    // best SW score found
-	EList<Edit> ned_;      // base edits
-	EList<Edit> aed_;      // ambiguous base resolutions
-	EList<Edit> ced_;      // color miscalls
-	Coord       refcoord_; // ref coordinates (seq idx, offset, orient)
-	size_t      extent_;   // number of ref chars involved in alignment
-	int         seedmms_;  // number of mismatches allowed in seed
-	int         seedlen_;  // length of seed
-	int         seedival_; // interval between seeds
-	int64_t     minsc_;    // minimum score
-	int64_t     floorsc_;  // floor score
-	bool        color_;    // colorspace alignment?
-	int         nuc5p_;    // 5'-most decoded base; clipped if excluding end
-	int         nuc3p_;    // 3'-most decoded base; clipped if excluding end
+	/**
+	 * Given that rdextent_ and ned_ are already set, calculate rfextent_.
+	 */
+	void calcRefExtent() {
+		assert_gt(rdextent_, 0);
+		rfextent_ = rdextent_;
+		for(size_t i = 0; i < ned_.size(); i++) {
+			if(ned_[i].isRefGap()) rfextent_--;
+			if(ned_[i].isReadGap()) rfextent_++;
+		}
+	}
+
+	bool        shapeSet_;     // true iff setShape() has been called
+	size_t      rdlen_;        // length of the original read
+	size_t      rdrows_;       // # rows in alignment problem
+	AlnScore    score_;        // best SW score found
+	EList<Edit> ned_;          // base edits
+	EList<Edit> aed_;          // ambiguous base resolutions
+	EList<Edit> ced_;          // color miscalls
+	Coord       refcoord_;     // ref coordinates (seq idx, offset, orient)
+	size_t      rdextent_;     // number of read chars involved in alignment
+	size_t      rdexrows_;     // number of read rows involved in alignment
+	size_t      rfextent_;     // number of ref chars involved in alignment
+	int         seedmms_;      // number of mismatches allowed in seed
+	int         seedlen_;      // length of seed
+	int         seedival_;     // interval between seeds
+	int64_t     minsc_;        // minimum score
+	int64_t     floorsc_;      // floor score
+	bool        color_;        // colorspace alignment?
+	int         nuc5p_;        // 5'-most decoded base; clipped if excluding end
+	int         nuc3p_;        // 3'-most decoded base; clipped if excluding end
+	bool        pretrimSoft_;  // trimming prior to alignment is soft?
+	
+	// Nucleotide-sequence trimming
+	size_t      pretrim5p_;    // # bases trimmed from 5p end prior to alignment
+	size_t      pretrim3p_;    // # bases trimmed from 3p end prior to alignment
+	bool        trimSoft_;     // trimming by local alignment is soft?
+	size_t      trim5p_;       // # bases trimmed from 5p end by local alignment
+	size_t      trim3p_;       // # bases trimmed from 3p end by local alignment
+
+	// Colorspace-sequence trimming; only relevant in colorspace
+	bool        cPretrimSoft_; // trimming prior to alignment is soft?
+	size_t      cPretrim5p_;   // # bases trimmed from 5p end prior to alignment
+	size_t      cPretrim3p_;   // # bases trimmed from 3p end prior to alignment
+	bool        cTrimSoft_;    // trimming by local alignment is soft?
+	size_t      cTrim5p_;      // # bases trimmed from 5p end by local alignment
+	size_t      cTrim3p_;      // # bases trimmed from 3p end by local alignment
 };
 
 /**
@@ -991,13 +979,13 @@ public:
 	
 	AlnScore best()    const { return best_;    }
 	AlnScore secbest() const { return secbest_; }
-	TNumAlns       other()   const { return other_;   }
+	TNumAlns other()   const { return other_;   }
 	
 protected:
 	
 	AlnScore best_;    // best full-alignment score found for this read
 	AlnScore secbest_; // second-best
-	TNumAlns       other_;   // # more alignments within N points of second-best
+	TNumAlns other_;   // # more alignments within N points of second-best
 };
 
 #endif

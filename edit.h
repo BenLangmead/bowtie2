@@ -20,8 +20,8 @@
  * reference, deletion in the reference.
  */
 enum {
-	EDIT_TYPE_INS = 1,
-	EDIT_TYPE_DEL,
+	EDIT_TYPE_READ_GAP = 1,
+	EDIT_TYPE_REF_GAP,
 	EDIT_TYPE_MM,
 	EDIT_TYPE_SNP
 };
@@ -99,15 +99,15 @@ struct Edit {
 	/**
 	 * Return true iff this Edit is an initialized insertion.
 	 */
-	bool isInsert() const {
-		return initialized() && type == EDIT_TYPE_INS;
+	bool isReadGap() const {
+		return initialized() && type == EDIT_TYPE_READ_GAP;
 	}
 
 	/**
 	 * Return true iff this Edit is an initialized deletion.
 	 */
-	bool isDelete() const {
-		return initialized() && type == EDIT_TYPE_DEL;
+	bool isRefGap() const {
+		return initialized() && type == EDIT_TYPE_REF_GAP;
 	}
 
 	/**
@@ -115,7 +115,7 @@ struct Edit {
 	 * initialized insertion.
 	 */
 	bool isGap() const {
-		return initialized() && (type == EDIT_TYPE_DEL || type == EDIT_TYPE_INS);
+		return initialized() && (type == EDIT_TYPE_REF_GAP || type == EDIT_TYPE_READ_GAP);
 	}
 
 	/**
@@ -143,7 +143,9 @@ struct Edit {
 	static void toRef(
 		const BTDnaString& read,
 		const EList<Edit>& edits,
-		BTDnaString& ref);
+		BTDnaString& ref,
+		size_t trimBeg = 0,
+		size_t trimEnd = 0);
 
 	/**
 	 * Given a string and its edits with respect to some other string,

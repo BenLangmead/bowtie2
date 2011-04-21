@@ -52,8 +52,8 @@ void EbwtSearchParams::reportHitImpl(
 	hit.refGaps = 0;
 	// Count gaps
 	for(size_t i = 0; i < edits.size(); i++) {
-		if     (edits[i].isInsert()) hit.readGaps++;
-		else if(edits[i].isDelete()) hit.refGaps++;
+		if     (edits[i].isReadGap()) hit.readGaps++;
+		else if(edits[i].isRefGap()) hit.refGaps++;
 	}
 	if(!ebwtFw) {
 		// Re-reverse the pattern and the quals back to how they
@@ -117,7 +117,7 @@ void EbwtSearchParams::reportHitImpl(
 					int fromLeft = (int)edits[i].pos;
 					int fromRight = (int)(hit.cseq.length() - edits[i].pos - 1);
 					assert_geq(fromLeft, gGapBarrier);
-					if(edits[i].isInsert()) {
+					if(edits[i].isReadGap()) {
 						assert_geq(fromRight, gGapBarrier-1);
 					} else {
 						assert_geq(fromRight, gGapBarrier);
@@ -175,7 +175,7 @@ void EbwtSearchParams::reportHitImpl(
 				int fromRight = (int)(hit.seq.length() - hit.edits[i].pos - 1);
 				if(hit.edits[i].isGap()) {
 					assert_geq(fromLeft, barrier-1);
-					if(hit.edits[i].isInsert()) {
+					if(hit.edits[i].isReadGap()) {
 						assert_geq(fromRight, barrier-2);
 					} else {
 						assert_eq((int)hit.edits[i].qchr, hit.seq.toChar(hit.edits[i].pos));
@@ -184,8 +184,8 @@ void EbwtSearchParams::reportHitImpl(
 				} else if(hit.edits[i].isMismatch()) {
 					assert_eq((int)hit.edits[i].qchr, hit.seq.toChar(hit.edits[i].pos));
 				}
-				if(hit.edits[i].isInsert()) ins++;
-				else if(hit.edits[i].isDelete()) del++;
+				if(hit.edits[i].isReadGap()) ins++;
+				else if(hit.edits[i].isRefGap()) del++;
 			}
 			assert_eq(ins, hit.readGaps);
 			assert_eq(del, hit.refGaps);

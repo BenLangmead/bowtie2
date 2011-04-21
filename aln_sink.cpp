@@ -1111,9 +1111,9 @@ static void printEdits(
 		o.write(':');
 		o.write(e.chr);
 		while(
-			es[i].isInsert() &&
+			es[i].isReadGap() &&
 			i+1 < elen &&
-			es[i+1].isInsert() &&
+			es[i+1].isReadGap() &&
 			es[i+1].pos == es[i].pos)
 		{
 			i++;
@@ -1287,6 +1287,7 @@ void AlnSinkVerbose::appendMate(
 		if(NOT_SUPPRESSED) {
 			WRITE_TAB;
 			bool printColors = rd.color && colorSeq_;
+			bool exEnds = rd.color && exEnds_ && !printColors;
 			if(rs != NULL && rd.color && !colorSeq_) {
 				// decode colorspace alignment
 				rs->decodedNucsAndQuals(rd, dseq_, dqual_);
@@ -1297,7 +1298,7 @@ void AlnSinkVerbose::appendMate(
 					rd,
 					&dseq_,
 					printColors,
-					exEnds_,
+					exEnds,
 					o);
 			} else {
 				// Print the read
@@ -1307,6 +1308,7 @@ void AlnSinkVerbose::appendMate(
 		if(NOT_SUPPRESSED) {
 			WRITE_TAB;
 			bool printColors = rd.color && colorQual_;
+			bool exEnds = rd.color && exEnds_ && !printColors;
 			if(rs != NULL && rd.color && !decoded && !colorQual_) {
 				// decode colorspace alignment
 				rs->decodedNucsAndQuals(rd, dseq_, dqual_);
@@ -1317,7 +1319,7 @@ void AlnSinkVerbose::appendMate(
 					rd,
 					&dqual_,
 					printColors,
-					exEnds_,
+					exEnds,
 					o);
 			} else {
 				// Print the quals
@@ -1365,6 +1367,7 @@ void AlnSinkVerbose::appendMate(
 			//    associated with a paired-end read that has repetitive
 			//    concordant alignments
 			// c. Whether alignment was found using BW-DP or Mate-DP
+			// d. A CIGAR string of how it aligned
 			//
 			if(NOT_SUPPRESSED) {
 				WRITE_TAB;
@@ -1379,6 +1382,7 @@ void AlnSinkVerbose::appendMate(
 					o.writeChars("XP:1");
 				}
 				if(!first) o.write(',');
+				first = false;
 				o.writeChars("XT:");
 				if(flags.pairing() == ALN_FLAG_PAIR_CONCORD) {
 					o.writeChars("CP");
@@ -1388,6 +1392,21 @@ void AlnSinkVerbose::appendMate(
 					o.writeChars("UP");
 				} else if(flags.pairing() == ALN_FLAG_PAIR_UNPAIRED) {
 					o.writeChars("UU");
+				}
+				if(rs != NULL) {
+					// Print CIGAR string
+					if(!first) o.write(',');
+					o.writeChars("XC:");
+					bool printColors = rd.color && colorSeq_;
+					bool exEnds = rd.color && exEnds_ && !printColors;
+					rs->printCigar(
+						printColors,
+						exEnds,
+						true,
+						tmpop_,      // temporary EList to store CIGAR ops
+						tmprun_,     // temporary EList to store run lengths
+						&o,
+						NULL);
 				}
 			}
 		}

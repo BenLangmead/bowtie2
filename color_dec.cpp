@@ -395,8 +395,10 @@ GappedScore ColorspaceDecoderGapped::backtrackRecursive(
 				// lower-right cell)
 				if(!matches(curC, ref[refi + col])) {
 					score.score -= snpPhred;
-					assert_eq(1, alts5[(int)ref[refi + col]]);
-					int refC = firsts5[(int)ref[refi + col]];
+					int refM = (int)ref[refi + col];
+					assert_range(1, 16, refM);
+					assert_eq(1, alts5[refM]);
+					int refC = firsts5[refM];
 					assert_range(0, 3, refC);
 					nedits.push_back(Edit(row, "ACGT"[refC], "ACGTN"[curC], EDIT_TYPE_MM));
 					assert(nedits.back().repOk());
@@ -439,7 +441,7 @@ GappedScore ColorspaceDecoderGapped::backtrackRecursive(
 				refExtend = true; readExtend = false;
 				assert_gt(row, 0);
 				assert_neq(-1, cur.second);
-				nedits.push_back (Edit(row, '-', "ACGTN"[curC], EDIT_TYPE_DEL));
+				nedits.push_back (Edit(row, '-', "ACGTN"[curC], EDIT_TYPE_REF_GAP));
 				assert(nedits.back().repOk());
 				assert_eq(decoded.toChar(row), "ACGTN"[curC]);
 				assert_geq(row, gapBarrier);
@@ -456,7 +458,7 @@ GappedScore ColorspaceDecoderGapped::backtrackRecursive(
 					cedits.push_back(Edit(row, "ACGT"[decC], "ACGTN"[(int)read[row]], EDIT_TYPE_MM));
 					assert(cedits.back().repOk());
 				}
-				ccedits.push_back(Edit(row, '-', "ACGTN"[(int)read[row]], EDIT_TYPE_DEL));
+				ccedits.push_back(Edit(row, '-', "ACGTN"[(int)read[row]], EDIT_TYPE_REF_GAP));
 				assert(ccedits.back().repOk());
 				score.score -= refOpenPen;
 				score.incGaps();
@@ -481,7 +483,7 @@ GappedScore ColorspaceDecoderGapped::backtrackRecursive(
 				refExtend = true; readExtend = false;
 				assert_gt(row, 1);
 				assert_neq(-1, cur.second);
-				nedits.push_back(Edit(row, '-', "ACGTN"[curC], EDIT_TYPE_DEL));
+				nedits.push_back(Edit(row, '-', "ACGTN"[curC], EDIT_TYPE_REF_GAP));
 				assert(nedits.back().repOk());
 				assert_eq(decoded.toChar(row), "ACGTN"[curC]);
 				assert_geq(row, gapBarrier);
@@ -497,7 +499,7 @@ GappedScore ColorspaceDecoderGapped::backtrackRecursive(
 					cedits.push_back(Edit(row, "ACGT"[decC], "ACGTN"[(int)read[row]], EDIT_TYPE_MM));
 					assert(cedits.back().repOk());
 				}
-				ccedits.push_back(Edit(row, '-', "ACGTN"[(int)read[row]], EDIT_TYPE_DEL));
+				ccedits.push_back(Edit(row, '-', "ACGTN"[(int)read[row]], EDIT_TYPE_REF_GAP));
 				assert(ccedits.back().repOk());
 				score.score -= refExtendPen;
 				score.incGaps();
@@ -522,7 +524,7 @@ GappedScore ColorspaceDecoderGapped::backtrackRecursive(
 				refExtend = false; readExtend = true;
 				assert_gt(col, 0);
 				assert_eq(-1, cur.second);
-				nedits.push_back(Edit(row+1, "ACGT"[firsts5[(int)ref[refi+col]]], '-', EDIT_TYPE_INS));
+				nedits.push_back(Edit(row+1, "ACGT"[firsts5[(int)ref[refi+col]]], '-', EDIT_TYPE_READ_GAP));
 				assert(nedits.back().repOk());
 				assert_geq(row, gapBarrier);
 				assert_geq((int)(readf-readi-row-1), gapBarrier-1);
@@ -537,7 +539,7 @@ GappedScore ColorspaceDecoderGapped::backtrackRecursive(
 				// can add it to ccedits.
 				int refCmask = dnamasks2colormask[(int)ref[refi+col]][(int)ref[refi+col+1]];
 				char refc = mask2dna[refCmask];
-				ccedits.push_back(Edit(row, refc, '-', EDIT_TYPE_INS));
+				ccedits.push_back(Edit(row, refc, '-', EDIT_TYPE_READ_GAP));
 				assert(ccedits.back().repOk());
 				assert_leq(score.gaps, readGaps + refGaps);
 				assert_range(0, (int)table_.size()-1, row);
@@ -559,7 +561,7 @@ GappedScore ColorspaceDecoderGapped::backtrackRecursive(
 				refExtend = false; readExtend = true;
 				assert_gt(col, 1);
 				assert_eq(-1, cur.second);
-				nedits.push_back(Edit(row+1, "ACGT"[firsts5[(int)ref[refi+col]]], '-', EDIT_TYPE_INS));
+				nedits.push_back(Edit(row+1, "ACGT"[firsts5[(int)ref[refi+col]]], '-', EDIT_TYPE_READ_GAP));
 				assert(nedits.back().repOk());
 				assert_geq(row, gapBarrier);
 				assert_geq((int)(readf-readi-row-1), gapBarrier-1);
@@ -574,7 +576,7 @@ GappedScore ColorspaceDecoderGapped::backtrackRecursive(
 				// can add it to ccedits.
 				int refCmask = dnamasks2colormask[(int)ref[refi+col]][(int)ref[refi+col+1]];
 				char refc = mask2dna[refCmask];
-				ccedits.push_back(Edit(row, refc, '-', EDIT_TYPE_INS));
+				ccedits.push_back(Edit(row, refc, '-', EDIT_TYPE_READ_GAP));
 				assert(ccedits.back().repOk());
 				assert_leq(score.gaps, readGaps + refGaps);
 				assert_range(0, (int)table_.size()-1, row);
@@ -675,8 +677,10 @@ GappedScore ColorspaceDecoderGapped::backtrackRecursive(
 	// cell, if applicable
 	if(!matches(curC, ref[refi])) {
 		score.score -= snpPhred;
-		assert_eq(1, alts5[(int)ref[refi]]);
-		int refC = firsts5[(int)ref[refi]];
+		int refM = (int)ref[refi];
+		assert_range(1, 16, refM);
+		assert_eq(1, alts5[refM]);
+		int refC = firsts5[refM];
 		assert_range(0, 3, refC);
 		nedits.push_back(Edit(0, "ACGT"[refC], "ACGTN"[curC], EDIT_TYPE_MM));
 		assert(nedits.back().repOk());
@@ -1022,7 +1026,7 @@ TScore ColorspaceDecoderGapped::decode(
 		int dleft = (int)pos;
 		int dright = (int)(read.length() - pos - 1);
 		assert_leq(pos, read.length());
-		if(edits[i].isInsert()) {
+		if(edits[i].isReadGap()) {
 			if(dleft >= gapBarrier && dright >= gapBarrier-1) {
 				insAllow_.set(insAllow_[pos]+1, pos);
 			}
@@ -1030,7 +1034,7 @@ TScore ColorspaceDecoderGapped::decode(
 				insAllow_.set(insAllow_[pos+1]+1, pos+1);
 			}
 			ASSERT_ONLY(ins++);
-		} else if(edits[i].isDelete()) {
+		} else if(edits[i].isRefGap()) {
 			if(dleft >= gapBarrier && dright >= gapBarrier) {
 				delAllow_.set(delAllow_[pos]+1, pos);
 			}

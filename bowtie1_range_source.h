@@ -92,7 +92,7 @@ public:
 				int chrs = 0;
 				cmap_.q2r.append((int)refBuf_.length());
 				while(ecur < esz && (int)es[ecur].pos == i) {
-					if(es[ecur].isMismatch() || es[ecur].isInsert()) {
+					if(es[ecur].isMismatch() || es[ecur].isReadGap()) {
 						assert(!del);
 						refBuf_.appendChar(es[ecur].chr);
 						cmap_.r2q.append(i);
@@ -103,7 +103,7 @@ public:
 							ins = true;
 						}
 					} else {
-						assert(es[ecur].isDelete());
+						assert(es[ecur].isRefGap());
 						del = true;
 					}
 					ecur++;
@@ -418,7 +418,7 @@ public:
 			int qdepth = (rdepth < (int)rlen_ ? cmap_.r2q[rdepth] : (uint32_t)qlen_);
 			if(br->edit_.initialized()) {
 				assert_gt(br->numEdits_, 0);
-				assert(br->edit_.isInsert() || (int)br->edit_.pos < rdepth);
+				assert(br->edit_.isReadGap() || (int)br->edit_.pos < rdepth);
 			}
 			assert(seedRange_.valid() || rdepth == qdepth);
 			const Ebwt& ebwt = *ebwt_;
@@ -840,7 +840,7 @@ protected:
 		const uint32_t nedits = b->numEdits_;
 		ASSERT_ONLY(uint32_t lim3 = (rdeps_[3] == rdeps_[2])? 2 : 3);
 		ASSERT_ONLY(uint32_t lim5 = (rdeps_[1] == rdeps_[0])? 2 : 1);
-		if(b->edit_.isInsert()) {
+		if(b->edit_.isReadGap()) {
 			// tipDepth() wasn't advanced when this topmost insertion
 			// was added, so we have to add 1 to refdep to avoid
 			// thinking that we just crossed the border, when in fact
@@ -900,7 +900,7 @@ protected:
 		ASSERT_ONLY(uint32_t lim3 = (rdeps_[3] == rdeps_[2])? 2 : 3);
 		ASSERT_ONLY(uint32_t lim5 = (rdeps_[1] == rdeps_[0])? 2 : 1);
 		const uint32_t nedits = b->numEdits_;
-		if(b->edit_.isInsert()) {
+		if(b->edit_.isReadGap()) {
 			// tipDepth() wasn't advanced when this topmost insertion
 			// was added, so we have to add 1 to refdep to avoid
 			// thinking that we just crossed the border, when in fact

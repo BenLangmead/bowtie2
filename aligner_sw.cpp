@@ -1,25 +1,41 @@
-/*
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   /*
  *  aligner_sw.cpp
  */
 
 #include "aligner_sw.h"
+#include "aligner_sw_col.h"
+#include "aligner_result.h"
 #include "search_globals.h"
 #include "scoring.h"
 #include "mask.h"
 
 /**
- * We finished updating the cell; set empty and finalized
- * appropriately.
+ * We have set all three of the the cell's intermediate scores; set the 'empty'
+ * and 'finalized' fields appropriately.
  */
 inline bool SwNucCell::finalize(TAlScore floorsc) {
 	ASSERT_ONLY(finalized = true);
 	assert(empty);
+	assert(repOk());
 	// Profiling shows cache misses on following line
-	if(!mask.empty() && best.score() >= floorsc) {
-		assert(VALID_AL_SCORE(best));
+	bool aboveFloor = oallBest.valid() && oallBest.score() >= floorsc;
+	if(!mask.empty() && aboveFloor) {
+		assert(VALID_AL_SCORE(oallBest));
 		empty = false;
+	} else if(aboveFloor) {
+		assert(VALID_AL_SCORE(oallBest));
+		terminal = true;
 	}
 	return !empty;
+}
+
+/**
+ * Check that cell is internally consistent
+ */
+bool SwNucCell::repOk() const {
+	assert(oallBest >= rdgapBest || !rdgapBest.valid());
+	assert(oallBest >= rfgapBest || !rfgapBest.valid());
+	return true;
 }
 
 /**
@@ -158,42 +174,106 @@ bool SwAligner::align(RandomSource& rnd) {
 		possible = alignNucleotides(rnd);
 	}
 	assert(repOk());
+	cural_ = 0;
 	return possible;
 }
 
 /**
- * Select a path for backtracking from this cell.  If there is a
- * tie among eligible paths, break it randomly.  Return value is
- * a pair where first = a flag indicating the backtrack type (see
- * enum defining SW_BT_* above), and second = a selection for
- * the read character for the next row up.  second should be
- * ignored if the backtrack type is a gap in the read.
+ * Select a path for backtracking from the oall table version of this cell.
+ * If there is a tie among eligible paths, break it randomly.  Return value
+ * is a flag indicating the backtrack type (see enum defining SW_BT_*
+ * above).
  */
-int SwNucCellMask::randBacktrack(
+int SwNucCellMask::randOverallBacktrack(
 	RandomSource& rand,
-	bool& branch)
+	bool& branch,
+	bool clear)
 {
-	ASSERT_ONLY(int num = numPossible());
-	int i = ((diag != 0) << 0) |
-			((rfop != 0) << 1) |
-			((rfex != 0) << 2) |
-			((rdop != 0) << 3) |
-			((rdex != 0) << 4);
-	int ret = randFromMask(rand, i);
+	ASSERT_ONLY(int num = numOverallPossible());
+	int i = ((oall_diag != 0) << 0) |
+			((oall_rfop != 0) << 1) |
+			((oall_rfex != 0) << 2) |
+			((oall_rdop != 0) << 3) |
+			((oall_rdex != 0) << 4);
+	int ret = randFromMask(rand, i) + SW_BT_OALL_DIAG;
 	// If we're choosing from among >1 possibilities, inform caller so that
 	// caller can add a frame to the backtrack stack.
 	branch = alts5[i] > 1;
-	assert_range(0, 4, ret);
+	assert_range((int)SW_BT_OALL_DIAG, (int)SW_BT_OALL_READ_EXTEND, ret);
 	// Clear the bit associated with the path chosen
-	switch(ret) {
-		case SW_BT_DIAG:        diag = 0; break;
-		case SW_BT_REF_OPEN:    rfop = 0; break;
-		case SW_BT_REF_EXTEND:  rfex = 0; break;
-		case SW_BT_READ_OPEN:   rdop = 0; break;
-		case SW_BT_READ_EXTEND: rdex = 0; break;
-		default: throw 1; break;
+	if(clear) {
+		switch(ret) {
+			case SW_BT_OALL_DIAG:        oall_diag = 0; break;
+			case SW_BT_OALL_REF_OPEN:    oall_rfop = 0; break;
+			case SW_BT_OALL_REF_EXTEND:  oall_rfex = 0; break;
+			case SW_BT_OALL_READ_OPEN:   oall_rdop = 0; break;
+			case SW_BT_OALL_READ_EXTEND: oall_rdex = 0; break;
+			default: throw 1; break;
+		}
 	}
-	assert_eq(num-1, numPossible());
+	assert_eq(num - (clear ? 1 : 0), numOverallPossible());
+	return ret;
+}
+
+/**
+ * Select a path for backtracking from the rdgap table version of this cell.
+ * If there is a tie among eligible paths, break it randomly.  Return value
+ * is a flag indicating the backtrack type (see enum defining SW_BT_*
+ * above).
+ */
+int SwNucCellMask::randReadGapBacktrack(
+	RandomSource& rand,
+	bool& branch,
+	bool clear)
+{
+	ASSERT_ONLY(int num = numReadGapPossible());
+	int i = ((rdgap_op != 0) << 0) |
+			((rdgap_ex != 0) << 1);
+	int ret = randFromMask(rand, i) + SW_BT_RDGAP_OPEN;
+	// If we're choosing from among >1 possibilities, inform caller so that
+	// caller can add a frame to the backtrack stack.
+	branch = alts5[i] > 1;
+	assert(ret == SW_BT_RDGAP_OPEN || ret == SW_BT_RDGAP_EXTEND);
+	// Clear the bit associated with the path chosen
+	if(clear) {
+		switch(ret) {
+			case SW_BT_RDGAP_OPEN:   rdgap_op = 0; break;
+			case SW_BT_RDGAP_EXTEND: rdgap_ex = 0; break;
+			default: throw 1; break;
+		}
+	}
+	assert_eq(num - (clear ? 1 : 0), numReadGapPossible());
+	return ret;
+}
+
+/**
+ * Select a path for backtracking from the rfgap table version of this cell.
+ * If there is a tie among eligible paths, break it randomly.  Return value
+ * is a flag indicating the backtrack type (see enum defining SW_BT_*
+ * above).
+ */
+int SwNucCellMask::randRefGapBacktrack(
+	RandomSource& rand,
+	bool& branch,
+	bool clear)
+{
+	ASSERT_ONLY(int num = numRefGapPossible());
+	int i = ((rfgap_op != 0) << 0) |
+			((rfgap_ex != 0) << 1);
+	int ret = randFromMask(rand, i) + SW_BT_RFGAP_OPEN;
+	// If we're choosing from among >1 possibilities, inform caller so that
+	// caller can add a frame to the backtrack stack.
+	branch = alts5[i] > 1;
+	assert(ret == SW_BT_RFGAP_OPEN || ret == SW_BT_RFGAP_EXTEND);
+	// Clear the bit associated with the path chosen
+	if(clear) {
+		switch(ret) {
+			case SW_BT_RFGAP_OPEN:   rfgap_op = 0; break;
+			case SW_BT_RFGAP_EXTEND: rfgap_ex = 0; break;
+			default: throw 1; break;
+		}
+	}
+	assert_eq(num - (clear ? 1 : 0), numRefGapPossible());
 	return ret;
 }
 
@@ -221,7 +301,8 @@ bool SwAligner::backtrackNucleotides(
 	size_t         col,    // start in this parallelogram column
 	RandomSource&  rand)   // pseudo-random generator
 {
-	ELList<SwNucCell>& tab = ntab_;
+	typedef SwNucCell TCell;
+	ELList<TCell>& tab = ntab_;
 	assert_lt(row, rd_->length());
 	btnstack_.clear();
 	btcells_.clear();
@@ -230,9 +311,15 @@ bool SwAligner::backtrackNucleotides(
 	score.gaps_ = score.ns_ = 0;
 	bool refExtend = false, readExtend = false;
 	ASSERT_ONLY(size_t origCol = col);
-	int gaps = 0;
+	int gaps = 0, readGaps = 0, refGaps = 0;
 	res.alres.reset();
 	EList<Edit>& ned = res.alres.ned();
+	assert_gt(dpRows(), row);
+	size_t trimEnd = dpRows() - row - 1; 
+	size_t trimBeg = 0;
+	assert(!sc_->monotone || escore <= 0);
+	assert(!sc_->monotone || score.score() >= escore);
+	int ct = SW_BT_CELL_OALL; // cell type
 	while((int)row >= 0) {
 		res.swbts++;
 		assert_lt(row, tab.size());
@@ -240,25 +327,43 @@ bool SwAligner::backtrackNucleotides(
 		assert_geq(col, row);
 		tabcol = col - row;
 		assert_geq(tabcol, 0);
+		TCell& curc = tab[row][tabcol];
+		bool empty = curc.mask.numPossible(ct) == 0;
+		bool backtrack = false;
+		if(empty) {
+			// There were legitimate ways to backtrace from this cell, but
+			// they are now foreclosed because they are redundant with
+			// alignments already reported
+			backtrack = !curc.terminal;
+		}
+		if(curc.reportedThru_) {
+			backtrack = true;
+		}
 		// Cell was involved in a previously-reported alignment?
-		if(tab[row][tabcol].reportedThru_) {
+		if(backtrack) {
 			if(!btnstack_.empty()) {
+				// Remove all the cells from list back to and including the
+				// cell where the branch occurred
+				btcells_.resize(btnstack_.back().celsz);
 				// Pop record off the top of the stack
 				ned.resize(btnstack_.back().nedsz);
-				btcells_.resize(btnstack_.back().celsz);
 				//aed.resize(btnstack_.back().aedsz);
-				row = btnstack_.back().row;
-				col = btnstack_.back().col;
-				gaps = btnstack_.back().gaps;
-				score = btnstack_.back().score;
+				row      = btnstack_.back().row;
+				col      = btnstack_.back().col;
+				gaps     = btnstack_.back().gaps;
+				readGaps = btnstack_.back().readGaps;
+				refGaps  = btnstack_.back().refGaps;
+				score    = btnstack_.back().score;
+				ct       = btnstack_.back().ct;
 				btnstack_.pop_back();
+				assert(!sc_->monotone || score.score() >= escore);
 				continue;
 			} else {
 				// No branch points to revisit; just give up
 				return false;
 			}
 		}
-		assert(!tab[row][tabcol].reportedThru_);
+		assert(!curc.reportedThru_);
 		assert(!sc_->monotone || score.score() >= minsc_);
 		if(row == 0) {
 			btcells_.expand();
@@ -266,11 +371,17 @@ bool SwAligner::backtrackNucleotides(
 			btcells_.back().second = tabcol;
 			break;
 		}
-		assert_gt(tab[row][tabcol].mask.numPossible(), 0);
+		if(empty) {
+			assert_eq(SW_BT_CELL_OALL, ct);
+			// This cell is at the end of a legitimate alignment
+			trimBeg = row;
+			assert_eq(btcells_.size(), dpRows() - trimBeg - trimEnd + readGaps);
+			break;
+		}
 		bool branch = false;
-		int cur = tab[row][tabcol].mask.randBacktrack(rand, branch);
+		int cur = curc.mask.randBacktrack(ct, rand, branch, true);
 		if(branch) {
-			assert_gt(tab[row][tabcol].mask.numPossible(), 0);
+			assert_gt(curc.mask.numPossible(ct), 0);
 			// Add a frame to the backtrack stack
 			btnstack_.expand();
 			btnstack_.back().init(
@@ -280,7 +391,10 @@ bool SwAligner::backtrackNucleotides(
 				row,
 				col,
 				gaps,
-				score);
+				readGaps,
+				refGaps,
+				score,
+				ct);
 		}
 		btcells_.expand();
 		btcells_.back().first = row;
@@ -290,7 +404,7 @@ bool SwAligner::backtrackNucleotides(
 			// Move up and to the left.  If the reference nucleotide in the
 			// source row mismatches the read nucleotide, penalize
 			// it and add a nucleotide mismatch.
-			case SW_BT_DIAG: {
+			case SW_BT_OALL_DIAG: {
 				refExtend = readExtend = false;
 				assert_gt(row, 0); assert_gt(col, 0);
 				// Check for color mismatch
@@ -307,37 +421,44 @@ bool SwAligner::backtrackNucleotides(
 					assert(e.repOk());
 					ned.push_back(e);
 					score.score_ -= QUAL2(row, col);
-					assert(!sc_->monotone || score.score() >= minsc_);
+					//assert_geq(score.score(), floorsc_);
+					assert(!sc_->monotone || score.score() >= escore);
 				} else {
 					// Reward a match
 					score.score_ += sc_->match(30);
+					//assert_geq(score.score(), floorsc_);
+					assert(!sc_->monotone || score.score() >= escore);
 				}
 				if(m == -1) {
 					score.ns_++;
 				}
 				row--; col--;
+				ct = SW_BT_CELL_OALL;
 				assert_lt(row, tab.size());
 				assert(VALID_AL_SCORE(score));
 				break;
 			}
 			// Move up.  Add an edit encoding the ref gap.
-			case SW_BT_REF_OPEN: {
+			case SW_BT_OALL_REF_OPEN:
+			case SW_BT_RFGAP_OPEN:
+			{
 				refExtend = true; readExtend = false;
 				assert_gt(row, 0);
 				Edit e(
 					(int)row,
 					'-',
 					"ACGTN"[(int)(*rd_)[row]],
-					EDIT_TYPE_DEL);
+					EDIT_TYPE_REF_GAP);
 				assert(e.repOk());
 				ned.push_back(e);
 				assert_geq(row, (size_t)sc_->gapbar);
 				assert_geq((int)(rdf_-rdi_-row-1), sc_->gapbar-1);
 				row--;
+				ct = SW_BT_CELL_OALL;
 				score.score_ -= sc_->refGapOpen();
 				score.gaps_++;
 				assert(!sc_->monotone || score.score() >= minsc_);
-				gaps++;
+				gaps++; refGaps++;
 #ifndef NDEBUG
 				assert_leq(score.gaps_, rdgap_ + rfgap_);
 				assert_lt(row, tab.size());
@@ -347,23 +468,26 @@ bool SwAligner::backtrackNucleotides(
 				break;
 			}
 			// Move up.  Add an edit encoding the ref gap.
-			case SW_BT_REF_EXTEND: {
+			case SW_BT_OALL_REF_EXTEND:
+			case SW_BT_RFGAP_EXTEND:
+			{
 				refExtend = true; readExtend = false;
 				assert_gt(row, 1);
 				Edit e(
 					(int)row,
 					'-',
 					"ACGTN"[(int)(*rd_)[row]],
-					EDIT_TYPE_DEL);
+					EDIT_TYPE_REF_GAP);
 				assert(e.repOk());
 				ned.push_back(e);
 				assert_geq(row, (size_t)sc_->gapbar);
 				assert_geq((int)(rdf_-rdi_-row-1), sc_->gapbar-1);
 				row--;
+				ct = SW_BT_CELL_RFGAP;
 				score.score_ -= sc_->refGapExtend();
 				score.gaps_++;
 				assert(!sc_->monotone || score.score() >= minsc_);
-				gaps++;
+				gaps++; refGaps++;
 #ifndef NDEBUG
 				assert_leq(score.gaps_, rdgap_ + rfgap_);
 				assert_lt(row, tab.size());
@@ -372,23 +496,26 @@ bool SwAligner::backtrackNucleotides(
 #endif
 				break;
 			}
-			case SW_BT_READ_OPEN: {
+			case SW_BT_OALL_READ_OPEN:
+			case SW_BT_RDGAP_OPEN:
+			{
 				refExtend = false; readExtend = true;
 				assert_gt(col, 0);
 				Edit e(
 					(int)row+1,
 					mask2dna[(int)rf_[rfi_+col]],
 					'-',
-					EDIT_TYPE_INS);
+					EDIT_TYPE_READ_GAP);
 				assert(e.repOk());
 				ned.push_back(e);
 				assert_geq(row, (size_t)sc_->gapbar);
 				assert_geq((int)(rdf_-rdi_-row-1), sc_->gapbar-1);
 				col--;
+				ct = SW_BT_CELL_OALL;
 				score.score_ -= sc_->readGapOpen();
 				score.gaps_++;
 				assert(!sc_->monotone || score.score() >= minsc_);
-				gaps++;
+				gaps++; readGaps++;
 #ifndef NDEBUG
 				assert_leq(score.gaps_, rdgap_ + rfgap_);
 				assert_lt(row, tab.size());
@@ -397,23 +524,26 @@ bool SwAligner::backtrackNucleotides(
 #endif
 				break;
 			}
-			case SW_BT_READ_EXTEND: {
+			case SW_BT_OALL_READ_EXTEND:
+			case SW_BT_RDGAP_EXTEND:
+			{
 				refExtend = false; readExtend = true;
 				assert_gt(col, 1);
 				Edit e(
 					(int)row+1,
 					mask2dna[(int)rf_[rfi_+col]],
 					'-',
-					EDIT_TYPE_INS);
+					EDIT_TYPE_READ_GAP);
 				assert(e.repOk());
 				ned.push_back(e);
 				assert_geq(row, (size_t)sc_->gapbar);
 				assert_geq((int)(rdf_-rdi_-row-1), sc_->gapbar-1);
 				col--;
+				ct = SW_BT_CELL_RDGAP;
 				score.score_ -= sc_->readGapExtend();
 				score.gaps_++;
 				assert(!sc_->monotone || score.score() >= minsc_);
-				gaps++;
+				gaps++; readGaps++;
 #ifndef NDEBUG
 				assert_leq(score.gaps_, rdgap_ + rfgap_);
 				assert_lt(row, tab.size());
@@ -425,13 +555,18 @@ bool SwAligner::backtrackNucleotides(
 			default: throw 1;
 		}
 	} // while((int)row > 0)
+	assert_geq(col, 0);
+	assert_eq(SW_BT_CELL_OALL, ct);
+	// The number of cells in the backtracs should equal the number of read
+	// bases after trimming plus the number of gaps
+	assert_eq(btcells_.size(), dpRows() - trimBeg - trimEnd + readGaps);
+	// Set 'reported' flag on each cell
 	for(size_t i = 0; i < btcells_.size(); i++) {
 		size_t rw = btcells_[i].first;
 		size_t cl = btcells_[i].second;
 		assert(!tab[rw][cl].reportedThru_);
 		tab[rw][cl].setReportedThrough();
 	}
-	assert_eq(0, row);
 	int readC = (*rd_)[rdi_+row];      // get last char in read
 	int refNmask = (int)rf_[rfi_+col]; // get last ref char ref involved in aln
 	assert_gt(refNmask, 0);
@@ -456,7 +591,7 @@ bool SwAligner::backtrackNucleotides(
 		refstr.append(firsts5[(int)rf_[rfi_+i]]);
 	}
 	BTDnaString editstr;
-	Edit::toRef((*rd_), ned, editstr);
+	Edit::toRef((*rd_), ned, editstr, trimBeg, trimEnd);
 	if(refstr != editstr) {
 		cerr << "Decoded nucleotides and edits don't match reference:" << endl;
 		cerr << "           score: " << score.score()
@@ -470,19 +605,44 @@ bool SwAligner::backtrackNucleotides(
 		assert(0);
 	}
 #endif
-	// done
 	assert_eq(score.score(), escore);
 	assert_leq(gaps, rdgap_ + rfgap_);
-	// Dummy values for refid and fw
-	res.alres.setScore(score);
-	assert_lt(col + rfi_, rff_);
 	off = (col - row);
+	assert_lt(col + rfi_, rff_);
+	res.alres.setScore(score);
+	res.alres.setShape(
+		refidx_,                  // ref id
+		off + rfi_ + refoff_,     // 0-based ref offset
+		fw_,                      // aligned to Watson?
+		rdf_ - rdi_,              // read length
+		color_,                   // read was colorspace?
+		true,                     // pretrim soft?
+		0,                        // pretrim 5' end
+		0,                        // pretrim 3' end
+		true,                     // alignment trim soft?
+		fw_ ? trimBeg : trimEnd,  // alignment trim 5' end
+		fw_ ? trimEnd : trimBeg); // alignment trim 3' end
+	assert(res.repOk());
 	return true;
 }
 
+#if 0
+// Count it
+#define IF_COUNT_N(x...) x
+#define COUNT_N(x) { \
+	if(ninvolved) { \
+		x.incNs(nceil_); \
+	} \
+}
+#else
+// Do nothing
+#define IF_COUNT_N(x...)
+#define COUNT_N(x)
+#endif
+
 /**
- * Update a SwCell's best[] and mask[] arrays with respect to its
- * neighbor on the left.
+ * Update a cell's oallBest, rdgapBest, and mask with respect to its neighbor
+ * on the left.
  */
 inline void SwAligner::updateNucHoriz(
 	const SwNucCell& lc,
@@ -491,50 +651,59 @@ inline void SwAligner::updateNucHoriz(
 {
 	assert(lc.finalized);
 	if(lc.empty) return;
-	bool ninvolved = rfm > 15;
+	IF_COUNT_N(bool ninvolved = rfm > 15);
 	{
-		AlnScore leftBest = lc.best;
-		const SwNucCellMask& frMask = lc.mask;
-		AlnScore& myBest = dstc.best;
-		SwNucCellMask& myMask = dstc.mask;
-		assert_leq(leftBest.score(), 0);
-		if(ninvolved) leftBest.incNs(nceil_);
-		if(!VALID_AL_SCORE(leftBest)) return;
-		// *Don't* penalize for a nucleotide mismatch because we must
-		// have already done that in a previous vertical or diagonal
-		// step.
-		if(frMask.readExtendPossible()) {
-			// Read gap extension possible?
-			AlnScore ex = leftBest;
-			assert_leq(ex.score(), 0);
-			assert(VALID_AL_SCORE(ex));
-			ex.score_ -= sc_->readGapExtend();
-			assert_leq(ex.score(), 0);
-			if(ex.score_ >= floorsc_ && ex >= myBest) {
-				if(ex > myBest) {
-					myMask.clear();
-					myBest = ex;
+		AlnScore leftOallBest  = lc.oallBest;
+		AlnScore leftRdgapBest = lc.rdgapBest;
+		AlnScore& myOallBest   = dstc.oallBest;
+		AlnScore& myRdgapBest  = dstc.oallBest;
+		SwNucCellMask& myMask  = dstc.mask;
+		assert(!sc_->monotone || leftOallBest.score()  <= 0);
+		assert(!sc_->monotone || leftRdgapBest.score() <= 0);
+		assert_leq(leftRdgapBest, leftOallBest);
+		if(!VALID_AL_SCORE(leftOallBest)) {
+			assert(!VALID_AL_SCORE(leftRdgapBest));
+			return;
+		}
+		COUNT_N(myOallBest);
+		COUNT_N(myRdgapBest);
+		// Consider read gap extension
+		AlnScore ex = leftRdgapBest - sc_->readGapExtend();
+		if(ex.score_ >= floorsc_) {
+			if(ex >= myOallBest) {
+				if(ex > myOallBest) {
+					myMask.clearOverallMask();
+					myOallBest = ex;
 				}
-				myMask.rdex = 1;
-				assert(VALID_AL_SCORE(myBest));
+				myMask.oall_rdex = 1;
+			}
+			if(ex >= myRdgapBest) {
+				if(ex > myRdgapBest) {
+					myMask.clearReadGapMask();
+					myRdgapBest = ex;
+				}
+				myMask.rdgap_ex = 1;
 			}
 		}
-		if(frMask.readOpenPossible()) {
-			// Read gap open possible?
-			AlnScore ex = leftBest;
-			assert_leq(ex.score_, 0);
-			assert(VALID_AL_SCORE(ex));
-			ex.score_ -= sc_->readGapOpen();
-			assert_leq(ex.score_, 0);
-			if(ex.score_ >= floorsc_ && ex >= myBest) {
-				if(ex > myBest) {
-					myMask.clear();
-					myBest = ex;
+		// Consider read gap open
+		ex = leftOallBest - sc_->readGapOpen();
+		if(ex.score_ >= floorsc_) {
+			if(ex >= myOallBest) {
+				if(ex > myOallBest) {
+					myMask.clearOverallMask();
+					myOallBest = ex;
 				}
-				myMask.rdop = 1;
-				assert(VALID_AL_SCORE(myBest));
+				myMask.oall_rdop = 1;
+			}
+			if(ex >= myRdgapBest) {
+				if(ex > myRdgapBest) {
+					myMask.clearReadGapMask();
+					myRdgapBest = ex;
+				}
+				myMask.rdgap_op = 1;
 			}
 		}
+		assert(dstc.repOk());
 	}
 }
 
@@ -549,48 +718,60 @@ inline void SwAligner::updateNucVert(
 {
 	assert(uc.finalized);
 	if(uc.empty) return;
+	IF_COUNT_N(bool ninvolved = rdc > 3);
 	{
-		// Assuming that the read character in this row is 'to'...
-		// No SNP penalty because destination read char aligns to a
-		// gap in the reference.
 		{
-			AlnScore from = uc.best;
-			assert(!uc.empty || !VALID_AL_SCORE(from));
-			const SwNucCellMask& frMask = uc.mask;
-			AlnScore& myBest = dstc.best;
+			AlnScore  upOallBest  = uc.oallBest;
+			AlnScore  upRfgapBest = uc.rfgapBest;
+			AlnScore& myOallBest  = dstc.oallBest;
+			AlnScore& myRfgapBest = dstc.rfgapBest;
 			SwNucCellMask& myMask = dstc.mask;
-			if(rdc > 3) {
-				from.incNs(nceil_);
+			assert(!sc_->monotone || upOallBest.score()  <= 0);
+			assert(!sc_->monotone || upRfgapBest.score() <= 0);
+			assert_leq(upRfgapBest, upOallBest);
+			if(!VALID_AL_SCORE(upOallBest)) {
+				assert(!VALID_AL_SCORE(upRfgapBest));
+				return;
 			}
-			if(!VALID_AL_SCORE(from)) return;
-			assert_leq(from.score_, 0);
-			if(frMask.refExtendPossible()) {
-				// Extend is possible
-				from.score_ -= sc_->refGapExtend();
-				assert_leq(from.score_, 0);
-				if(from.score_ >= floorsc_ && from >= myBest) {
-					if(from > myBest) {
-						myBest = from;
-						myMask.clear();
+			COUNT_N(myOallBest);
+			COUNT_N(myRfgapBest);
+			// Consider reference gap extension
+			AlnScore ex = upRfgapBest - sc_->refGapExtend();
+			if(ex.score_ >= floorsc_) {
+				if(ex >= myOallBest) {
+					if(ex > myOallBest) {
+						myMask.clearOverallMask();
+						myOallBest = ex;
 					}
-					myMask.rfex = 1;
-					assert(VALID_AL_SCORE(myBest));
+					myMask.oall_rfex = 1;
 				}
-				// put it back
-				from.score_ += sc_->refGapExtend();
-			}
-			if(frMask.refOpenPossible()){
-				// Open is possible
-				from.score_ -= sc_->refGapOpen();
-				if(from.score_ >= floorsc_ && from >= myBest) {
-					if(from > myBest) {
-						myBest = from;
-						myMask.clear();
+				if(ex >= myRfgapBest) {
+					if(ex > myRfgapBest) {
+						myMask.clearRefGapMask();
+						myRfgapBest = ex;
 					}
-					myMask.rfop = 1;
-					assert(VALID_AL_SCORE(myBest));
+					myMask.rfgap_ex = 1;
 				}
 			}
+			// Consider reference gap open
+			ex = upOallBest - sc_->refGapOpen();
+			if(ex.score_ >= floorsc_) {
+				if(ex >= myOallBest) {
+					if(ex > myOallBest) {
+						myMask.clearOverallMask();
+						myOallBest = ex;
+					}
+					myMask.oall_rfop = 1;
+				}
+				if(ex >= myRfgapBest) {
+					if(ex > myRfgapBest) {
+						myMask.clearRefGapMask();
+						myRfgapBest = ex;
+					}
+					myMask.rfgap_op = 1;
+				}
+			}
+			assert(dstc.repOk());
 		}
 	}
 }
@@ -604,28 +785,39 @@ inline void SwAligner::updateNucDiag(
 	SwNucCell&       dstc,
 	int              rdc,
 	int              rfm,
-	int              qpen)
+	int              qpen,
+	bool&            improved)
 {
 	assert(dc.finalized);
 	if(dc.empty) return;
 	bool ninvolved = (rdc > 3 || rfm > 15);
-	int add = (matches(rdc, rfm) ? sc_->match(30) : -(ninvolved ? sc_->n(30) : qpen));
-	AlnScore from = dc.best + add;
+	bool match = matches(rdc, rfm);
+	int add;
+	if(match) {
+		add = sc_->match(30);
+		improved = true;
+	} else {
+		add = -(ninvolved ? sc_->n(30) : qpen);
+	}
 	{
 		{
-			AlnScore& myBest = dstc.best;
+			AlnScore  dcOallBest  = dc.oallBest;
+			AlnScore& myOallBest  = dstc.oallBest;
 			SwNucCellMask& myMask = dstc.mask;
-			if(ninvolved) from.incNs(nceil_);
-			if(!VALID_AL_SCORE(from)) return;
-			if(from.score_ >= floorsc_ && from >= myBest) {
-				if(from > myBest) {
-					myBest = from;
-					myMask.clear();
-					assert_eq(0, myMask.diag);
-				}
-				myMask.diag = 1;
-				assert(VALID_AL_SCORE(myBest));
+			assert(!sc_->monotone || dcOallBest.score() <= 0);
+			if(!VALID_AL_SCORE(dcOallBest)) {
+				return;
 			}
+			COUNT_N(dcOallBest);
+			AlnScore ex = dcOallBest + add;
+			if(ex.score_ >= floorsc_ && ex >= myOallBest) {
+				if(ex > myOallBest) {
+					myOallBest = ex;
+					myMask.clear();
+				}
+				myMask.oall_diag = 1;
+			}
+			assert(dstc.repOk());
 		}
 	}
 }
@@ -644,8 +836,9 @@ size_t SwAligner::nfilter(size_t nlim) {
 	for(size_t i = rfi_; i <= rff_; i++) {
 		int rfc = rf_[i];
 		assert_range(0, 16, rfc);
-		if(i >= nrow) {
-			size_t col = i - nrow;
+		size_t ii = i - rfi_;
+		if(ii >= nrow) {
+			size_t col = ii - nrow;
 			if(ns > nlim) {
 				if((*en_)[col]) {
 					(*en_)[col] = false;
@@ -676,34 +869,39 @@ size_t SwAligner::nfilter(size_t nlim) {
 // 6. 'solcols_' is a list of pairs, where each pair cor
 // 7. 'solbest_'
 // 8. 'solrowbest_'
-#define UPDATE_SOLS(cur, row, col) { \
-	if(cur.best.score() >= minsc_ && \
+#define UPDATE_SOLS(cur, row, col, improved) { \
+	if(cur.oallBest.score() >= minsc_ && \
 	   (en_ == NULL || (*en_)[col])) \
 	{ \
-		/* Score is acceptable */ \
-		if((int64_t)row >= solrowlo_) { \
-			/* Both score and row are acceptable */ \
-			if(row < solrows_.first)        solrows_.first = row; \
-			if(row > solrows_.second)       solrows_.second = row; \
-			if(col < solcols_[row].first)   solcols_[row].first  = col; \
-			if(col > solcols_[row].second)  solcols_[row].second = col; \
-			if(cur.best.score() > solbest_) \
-				solbest_ = cur.best.score(); \
-			assert(!sc_->monotone || solbest_ <= 0); \
-			if(cur.best.score() > solrowbest_[row]) \
-				solrowbest_[row] = cur.best.score(); \
-			assert(!sc_->monotone || solrowbest_[row] <= 0); \
-			nsols_++; \
-			soldone_ = false; \
-			assert(repOk()); \
+		const bool local = !sc_->monotone; \
+		/* For local alignment, a cell is only a solution candidate if */ \
+		/* the score was improved when we moved into the cell. */ \
+		if(!local || improved) { \
+			/* Score is acceptable */ \
+			if((int64_t)row >= solrowlo_) { \
+				/* Both score and row are acceptable */ \
+				if(row < solrows_.first)        solrows_.first = row; \
+				if(row > solrows_.second)       solrows_.second = row; \
+				if(col < solcols_[row].first)   solcols_[row].first  = col; \
+				if(col > solcols_[row].second)  solcols_[row].second = col; \
+				if(cur.oallBest.score() > solbest_) \
+					solbest_ = cur.oallBest.score(); \
+				assert(!sc_->monotone || solbest_ <= 0); \
+				if(cur.oallBest.score() > solrowbest_[row]) \
+					solrowbest_[row] = cur.oallBest.score(); \
+				assert(!sc_->monotone || solrowbest_[row] <= 0); \
+				nsols_++; \
+				soldone_ = false; \
+				assert(repOk()); \
+			} \
 		} \
 	} \
 }
 
-#define FINALIZE_CELL(r, c) { \
+#define FINALIZE_CELL(r, c, improved) { \
 	assert(!tab[r][c].finalized); \
 	if(tab[r][c].finalize(floorsc_)) { \
-		UPDATE_SOLS(tab[r][c], r, c); \
+		UPDATE_SOLS(tab[r][c], r, c, improved); \
 		validInRow = true; \
 	} \
 	assert(tab[r][c].finalized); \
@@ -759,44 +957,47 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 	// first row.
 	for(size_t col = 0; col <= whi; col++) {
 		tab[0][col].clear(); // clear the cell; masks and scores
+		assert(tab[0][col].repOk());
 		int rdc = (*rd_)[rdi_+0];
 		int rfm = rf_[rfi_+col];
 		// Can we start from here?
 		bool canStart = (st_ == NULL || (*st_)[col]);
+		bool improved = false;
 		if(canStart) {
-			tab[0][col].best.gaps_ = 0;
-			tab[0][col].best.ns_ = 0;
-			tab[0][col].best.score_ = 0;
+			tab[0][col].oallBest.reset();
+			tab[0][col].rdgapBest.invalidate();
+			tab[0][col].rfgapBest.invalidate();
 			int m = matchesEx(rdc, rfm);
 			if(m == 1) {
 				// The assigned subject nucleotide matches the reference;
 				// no penalty
 				assert_lt(rdc, 4);
 				assert_lt(rfm, 16);
-				tab[0][col].best.score_ = sc_->match(30);
-				tab[0][col].mask.diag = 1;
+				tab[0][col].oallBest.score_ = sc_->match(30);
+				tab[0][col].mask.oall_diag = 1;
+				improved = true;
 			} else if(m == 0 && QUAL2(0, col) <= -minsc_) {
 				// Reference char mismatches
-				tab[0][col].best.score_ = -QUAL2(0, col);
-				tab[0][col].mask.diag = 1;
+				tab[0][col].oallBest.score_ = -QUAL2(0, col);
+				tab[0][col].mask.oall_diag = 1;
 			} else if(m == -1) {
 				int npen = sc_->n((int)(*qu_)[rdi_] - 33);
 				if(npen <= -minsc_) {
-					tab[0][col].best.score_ = -npen;
-					tab[0][col].best.ns_ = 1;
-					tab[0][col].mask.diag = 1;
+					tab[0][col].oallBest.score_ = -npen;
+					tab[0][col].oallBest.ns_ = 1;
+					tab[0][col].mask.oall_diag = 1;
 				}
 			}
 		}
 		// Calculate horizontals if barrier allows
-		if(sc_->gapbar <= 1 && col > 0) {
+		if(sc_->gapbar < 1 && col > 0) {
 			updateNucHoriz(
 				tab[0][col-1],
 				tab[0][col],
 				rfm);
 		}
 		ncups_++;
-		FINALIZE_CELL(0, col);
+		FINALIZE_CELL(0, col, improved);
 	}
 	nrowups_++;
 	if(!validInRow) {
@@ -830,14 +1031,16 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 		size_t col = wlo;
 		TCell& cur = tab[row][0];
 		cur.clear();
+		bool improved = false;
 		if(!tab[row-1][0].empty) {
 			const size_t fc = col + row;
 			updateNucDiag(
 				tab[row-1][0],     // cell diagonally above and to the left
 				cur,               // destination cell
 				c,                 // color being traversed
-				rf_[rfi_ + fc], // ref mask at destination cell
-				QUAL2(row, fc));   //
+				rf_[rfi_ + fc],    // ref mask at destination cell
+				QUAL2(row, fc),    // amt to penalize mismatch
+				improved);         // =true if there was path of improvement
 		}
 		if(!onlyDiagInto && col < whi && !tab[row-1][1].empty) {
 			updateNucVert(
@@ -847,7 +1050,7 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 		}
 		ncups_++;
 		// 'cur' is now initialized
-		FINALIZE_CELL(row, col);
+		FINALIZE_CELL(row, col, improved);
 		// Iterate from leftmost to rightmost inner diagonals
 		for(col = wlo+1; col < whi; col++) {
 			const size_t fullcol = col + row;
@@ -861,12 +1064,14 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 			// an N) as well as the quality value of the read
 			// character.
 			const int mmpen = QUAL2(row, fullcol);
+			improved = false;
 			updateNucDiag(
 				dg,            // cell diagonally above and to the left
 				cur,           // destination cell
 				c,             // nucleotide in destination row
 				r,             // ref mask associated with destination column
-				mmpen);        // penalty to incur for color miscall
+				mmpen,         // penalty to incur for color miscall
+				improved);     // =true if there was path of improvement
 			if(!onlyDiagInto) {
 				TCell& up = tab[row-1][col-wlo+1];
 				updateNucVert(
@@ -882,7 +1087,7 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 			} // end loop over inner diagonals
 			ncups_++;
 			// 'cur' is now initialized
-			FINALIZE_CELL(row, col);
+			FINALIZE_CELL(row, col, improved);
 		} // end loop over inner diagonals
 		//
 		// Handle the col == whi case (provided wlo != whi) after the
@@ -897,13 +1102,15 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 			const int r = rf_[rfi_ + fullcol];
 			const int mmpenf = QUAL2(row, fullcol);
 			TCell& dg = tab[row-1][col-wlo];
+			improved = false;
 			if(!dg.empty) {
 				updateNucDiag(
 					dg,        // cell diagonally above and to the left
 					cur,       // destination cell
 					c,         // nucleotide in destination row
 					r,         // ref mask associated with destination column
-					mmpenf);   // penalty to incur for color miscall
+					mmpenf,    // penalty to incur for color miscall
+					improved); // =true if there was path of improvement
 			}
 			TCell& lf = tab[row][col-wlo-1];
 			if(!onlyDiagInto && !lf.empty) {
@@ -914,7 +1121,7 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 			}
 			ncups_++;
 			// 'cur' is now initialized
-			FINALIZE_CELL(row, col);
+			FINALIZE_CELL(row, col, improved);
 		}
 		if(!validInRow) {
 			assert_geq(rdf_-rdi_, row+1);
@@ -1079,18 +1286,6 @@ bool SwAligner::nextAlignment(
 	}
 	// Alignment offset should have been set in call to nextAlignmentTry...
 	assert_neq(std::numeric_limits<size_t>::max(), off);
-	// Calculate the number of reference characters covered by the
-	// alignment
-	size_t extent = rdf_ - rdi_;
-	const EList<Edit>& ned = res.alres.ned();
-	res.alres.setColor(color_);
-	res.alres.setReadLength(rdf_-rdi_);
-	for(size_t i = 0; i < ned.size(); i++) {
-		if     (ned[i].isInsert()) extent++;
-		else if(ned[i].isDelete()) extent--;
-	}
-	// Set the reference idx
-	res.alres.setCoord(refidx_, off + rfi_ + refoff_, fw_, extent);
 	assert(!res.alres.empty());
 	assert(res.repOk());
 	if(!fw_) {
@@ -1104,6 +1299,7 @@ bool SwAligner::nextAlignment(
 		assert_range(0, 3, res.ndn);
 		res.alres.setNucs(fw_, res.nup, res.ndn);
 	}
+	cural_++;
 	return true;
 }
 
@@ -1403,6 +1599,8 @@ int  gGapBarrier;
 int  gSnpPhred;
 bool gColor;
 bool gColorExEnds;
+static int bonusMatchType;   // how to reward matches
+static int bonusMatch;       // constant if match bonus is a constant
 static int penMmcType;       // how to penalize mismatches
 static int penMmc;           // constant if mm pelanty is a constant
 static int penSnp;           // penalty for nucleotide mm in decoded color aln
@@ -1413,8 +1611,10 @@ static int penRdExConst;     // constant coeff for cost of gap in read
 static int penRfExConst;     // constant coeff for cost of gap in ref
 static int penRdExLinear;    // linear coeff for cost of gap in read
 static int penRfExLinear;    // linear coeff for cost of gap in ref
-static float costCeilConst;  // constant coeff for cost ceiling w/r/t read len
-static float costCeilLinear; // linear coeff for cost ceiling w/r/t read len
+static float costMinConst;   // constant coeff for min score w/r/t read len
+static float costMinLinear;  // linear coeff for min score w/r/t read len
+static float costFloorConst; // constant coeff for score floor w/r/t read len
+static float costFloorLinear;// linear coeff for score floor w/r/t read len
 static float nCeilConst;     // constant coeff for N ceiling w/r/t read len
 static float nCeilLinear;    // linear coeff for N ceiling w/r/t read len
 static bool  nCatPair;       // concat mates before applying N filter?
@@ -1481,6 +1681,7 @@ static void doTestCase(
 	EList<bool>       *en,
 	const Scoring&     sc,  
 	TAlScore           minsc,
+	TAlScore           floorsc,
 	SwResult&          res,
 	bool               color,
 	bool               nsInclusive,
@@ -1585,8 +1786,8 @@ static void doTestCase2(
 	const char        *refin,
 	int64_t            off,
 	const Scoring&     sc,
-	float              costCeilConst,
-	float              costCeilLinear,
+	float              costMinConst,
+	float              costMinLinear,
 	SwResult&          res,
 	bool               color,
 	bool               nsInclusive = false,
@@ -1594,11 +1795,14 @@ static void doTestCase2(
 	uint32_t           seed = 0)
 {
 	btread.install(read, true, color);
-	// Calculate the penalty ceiling for the read
-	TAlScore minsc = -Constraint::instantiate(
+	TAlScore minsc = Scoring::linearFunc(
 		btread.length(),
-		costCeilConst,
-		costCeilLinear);
+		costMinConst,
+		costMinLinear);
+	TAlScore floorsc = Scoring::linearFunc(
+		btread.length(),
+		costFloorConst,
+		costFloorLinear);
 	btqual.install(qual);
 	btref.install(refin);
 	doTestCase(
@@ -1611,6 +1815,7 @@ static void doTestCase2(
 		NULL,
 		sc,  
 		minsc,
+		floorsc,
 		res,
 		color,
 		nsInclusive,
@@ -1629,8 +1834,8 @@ static void doTestCase3(
 	const char        *refin,
 	int64_t            off,
 	Scoring&           sc,
-	float              costCeilConst,
-	float              costCeilLinear,
+	float              costMinConst,
+	float              costMinLinear,
 	float              nCeilConst,
 	float              nCeilLinear,
 	SwResult&          res,
@@ -1641,10 +1846,14 @@ static void doTestCase3(
 {
 	btread.install(read, true, color);
 	// Calculate the penalty ceiling for the read
-	TAlScore minsc = -Constraint::instantiate(
+	TAlScore minsc = Scoring::linearFunc(
 		btread.length(),
-		costCeilConst,
-		costCeilLinear);
+		costMinConst,
+		costMinLinear);
+	TAlScore floorsc = Scoring::linearFunc(
+		btread.length(),
+		costFloorConst,
+		costFloorLinear);
 	btqual.install(qual);
 	btref.install(refin);
 	sc.nCeilConst = nCeilConst;
@@ -1659,6 +1868,7 @@ static void doTestCase3(
 		NULL,
 		sc,  
 		minsc,
+		floorsc,
 		res,
 		color,
 		nsInclusive,
@@ -1671,29 +1881,37 @@ static void doTestCase3(
  * Do a set of unit tests.
  */
 static void doTests() {
+	bonusMatchType  = DEFAULT_MATCH_BONUS_TYPE;
+	bonusMatch      = DEFAULT_MATCH_BONUS;
 	penMmcType      = DEFAULT_MM_PENALTY_TYPE;
 	penMmc          = DEFAULT_MM_PENALTY;
 	penSnp          = DEFAULT_SNP_PENALTY;
 	penNType        = DEFAULT_N_PENALTY_TYPE;
 	penN            = DEFAULT_N_PENALTY;
 	nPairCat        = DEFAULT_N_CAT_PAIR;
-	penRdExConst    = DEFAULT_READ_EXTEND_CONST;
-	penRfExConst    = DEFAULT_REF_EXTEND_CONST;
-	penRdExLinear   = DEFAULT_READ_EXTEND_LINEAR;
-	penRfExLinear   = DEFAULT_REF_EXTEND_LINEAR;
-	costCeilConst   = DEFAULT_CEIL_CONST;
-	costCeilLinear  = DEFAULT_CEIL_LINEAR;
+	penRdExConst    = DEFAULT_READ_GAP_CONST;
+	penRfExConst    = DEFAULT_REF_GAP_CONST;
+	penRdExLinear   = DEFAULT_READ_GAP_LINEAR;
+	penRfExLinear   = DEFAULT_REF_GAP_LINEAR;
+	costMinConst    = DEFAULT_MIN_CONST;
+	costMinLinear   = DEFAULT_MIN_LINEAR;
+	costFloorConst  = DEFAULT_FLOOR_CONST;
+	costFloorLinear = DEFAULT_FLOOR_LINEAR;
 	nCeilConst      = 1.0f; // constant factor in N ceiling w/r/t read length
 	nCeilLinear     = 0.1f; // coeff of linear term in N ceiling w/r/t read length
 	multiseedMms    = DEFAULT_SEEDMMS;
 	multiseedLen    = DEFAULT_SEEDLEN;
 	multiseedPeriod = DEFAULT_SEEDPERIOD;
 	// Set up penalities
-	Scoring pens(
-		false,         // bad homopolymers?
+	Scoring sc(
+		bonusMatch,
 		penMmcType,    // how to penalize mismatches
 		penMmc,        // constant if mm pelanty is a constant
 		penSnp,        // penalty for decoded SNP
+		costMinConst,  // constant factor in N ceiling w/r/t read length
+		costMinLinear, // coeff of linear term in N ceiling w/r/t read length
+		costFloorConst,  // constant factor in N ceiling w/r/t read length
+		costFloorLinear, // coeff of linear term in N ceiling w/r/t read length
 		nCeilConst,    // constant factor in N ceiling w/r/t read length
 		nCeilLinear,   // coeff of linear term in N ceiling w/r/t read length
 		penNType,      // how to penalize Ns in the read
@@ -1708,11 +1926,15 @@ static void doTests() {
 		false          // sort results first by row then by score?
 	);
 	// Set up alternative penalities
-	Scoring pens2(
-		false,           // bad homopolymers?
+	Scoring sc2(
+		bonusMatch,
 		COST_MODEL_QUAL, // how to penalize mismatches
 		penMmc,          // constant if mm pelanty is a constant
 		penSnp,          // penalty for decoded SNP
+		costMinConst,  // constant factor in N ceiling w/r/t read length
+		costMinLinear, // coeff of linear term in N ceiling w/r/t read length
+		costFloorConst,  // constant factor in N ceiling w/r/t read length
+		costFloorLinear, // coeff of linear term in N ceiling w/r/t read length
 		1.0f,            // constant factor in N ceiling w/r/t read length
 		1.0f,            // coeff of linear term in N ceiling w/r/t read length
 		penNType,        // how to penalize Ns in the read
@@ -1749,7 +1971,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT", // ref in
 			i*4,                // off
 			sc,                 // scoring scheme
-			30.0f,              // const coeff for cost ceiling
+			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			false,              // color
@@ -1759,7 +1981,7 @@ static void doTests() {
 		al.nextAlignment(res, rnd);
 		assert(!res.empty());
 		assert_eq(i*4, res.alres.refoff());
-		assert_eq(8, res.alres.extent());
+		assert_eq(8, res.alres.refExtent());
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), 0);
 		assert_eq(res.alres.score().ns(), 0);
@@ -1781,7 +2003,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT", // ref in
 			i*4,                // off
 			sc,                 // scoring scheme
-			30.0f,              // const coeff for cost ceiling
+			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			false,              // color
@@ -1791,7 +2013,7 @@ static void doTests() {
 		al.nextAlignment(res, rnd);
 		assert(!res.empty());
 		assert_eq(i*4, res.alres.refoff());
-		assert_eq(8, res.alres.extent());
+		assert_eq(8, res.alres.refExtent());
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), -30);
 		assert_eq(res.alres.score().ns(), 0);
@@ -1809,8 +2031,8 @@ static void doTests() {
 			"ABCDEFGH",         // qual
 			"ACGTACGTACGTACGT", // ref in
 			i*4,                // off
-			pens2,              // scoring scheme
-			40.0f,              // const coeff for cost ceiling
+			sc2,                // scoring scheme
+			-40.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			false,              // color
@@ -1829,7 +2051,7 @@ static void doTests() {
 			al.nextAlignment(res, rnd);
 			assert(!res.empty());
 			assert_eq(j*4, res.alres.refoff());
-			assert_eq(8, res.alres.extent());
+			assert_eq(8, res.alres.refExtent());
 			assert_eq(res.alres.score().gaps(), 0);
 			assert_eq(res.alres.score().score(), -36);
 			assert_eq(res.alres.score().ns(), 0);
@@ -1848,8 +2070,8 @@ static void doTests() {
 			"ABCDEFGH",         // qual
 			"ACGTACGTACGTACGT", // ref in
 			i*4,                // off
-			pens2,              // scoring scheme
-			40.0f,              // const coeff for cost ceiling
+			sc2,                // scoring scheme
+			-40.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			false,              // color
@@ -1859,7 +2081,7 @@ static void doTests() {
 		al.nextAlignment(res, rnd);
 		assert(!res.empty());
 		assert_eq(i*4, res.alres.refoff());
-		assert_eq(8, res.alres.extent());
+		assert_eq(8, res.alres.refExtent());
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), -35);
 		assert_eq(res.alres.score().ns(), 0);
@@ -1879,8 +2101,8 @@ static void doTests() {
 			"ABCDEFGH",         // qual
 			"ACGTACGTACGTACGT", // ref in
 			i*4,                // off
-			pens2,              // scoring scheme
-			40.0f,              // const coeff for cost ceiling
+			sc2,                // scoring scheme
+			-40.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			false,              // color
@@ -1890,7 +2112,7 @@ static void doTests() {
 		al.nextAlignment(res, rnd);
 		assert(!res.empty());
 		assert_eq(i*4, res.alres.refoff());
-		assert_eq(8, res.alres.extent());
+		assert_eq(8, res.alres.refExtent());
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), -32);
 		assert_eq(res.alres.score().ns(), 0);
@@ -1910,7 +2132,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT", // ref in
 			i*4,                // off
 			sc,                 // scoring scheme
-			30.0f,              // const coeff for cost ceiling
+			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			false,              // color
@@ -1920,7 +2142,7 @@ static void doTests() {
 		al.nextAlignment(res, rnd);
 		assert(!res.empty());
 		assert_eq(i*4, res.alres.refoff());
-		assert_eq(8, res.alres.extent());
+		assert_eq(8, res.alres.refExtent());
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), -30);
 		assert_eq(res.alres.score().ns(), 0);
@@ -1942,7 +2164,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT", // ref in
 			i*4,                // off
 			sc,                 // scoring scheme
-			30.0f,              // const coeff for cost ceiling
+			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			1.0f,               // allow 1 N
 			0.0f,               // allow 1 N
@@ -1954,7 +2176,7 @@ static void doTests() {
 		al.nextAlignment(res, rnd);
 		assert(!res.empty());
 		assert_eq(i*4, res.alres.refoff());
-		assert_eq(8, res.alres.extent());
+		assert_eq(8, res.alres.refExtent());
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), -1);
 		assert_eq(res.alres.score().ns(), 1);
@@ -1973,7 +2195,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT", // ref in
 			i*4,                // off
 			sc,                 // scoring scheme
-			30.0f,              // const coeff for cost ceiling
+			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			2.0f,               // const coeff for N ceiling
 			0.0f,               // linear coeff for N ceiling
@@ -1985,7 +2207,7 @@ static void doTests() {
 		al.nextAlignment(res, rnd);
 		assert(!res.empty());
 		assert_eq(i*4, res.alres.refoff());
-		assert_eq(8, res.alres.extent());
+		assert_eq(8, res.alres.refExtent());
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), -2);
 		assert_eq(res.alres.score().ns(), 2);
@@ -2004,7 +2226,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT", // ref in
 			i*4,                // off
 			sc,                 // scoring scheme
-			30.0f,              // const coeff for cost ceiling
+			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			false,              // color
@@ -2014,7 +2236,7 @@ static void doTests() {
 		al.nextAlignment(res, rnd);
 		assert(!res.empty());
 		assert_eq(i*4, res.alres.refoff());
-		assert_eq(8, res.alres.extent());
+		assert_eq(8, res.alres.refExtent());
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), -2);
 		assert_eq(res.alres.score().ns(), 2);
@@ -2033,7 +2255,7 @@ static void doTests() {
 			"ACGTNCGTACGTANGT", // ref in
 			i*4,                // off
 			sc,                 // scoring scheme
-			30.0f,              // const coeff for cost ceiling
+			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			false,              // color
@@ -2043,7 +2265,7 @@ static void doTests() {
 		al.nextAlignment(res, rnd);
 		assert(!res.empty());
 		assert_eq(i*4, res.alres.refoff());
-		assert_eq(8, res.alres.extent());
+		assert_eq(8, res.alres.refExtent());
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), -1);
 		assert_eq(res.alres.score().ns(), 1);
@@ -2062,7 +2284,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT", // ref in
 			i*4,                // off
 			sc,                 // scoring scheme
-			10.0f,              // const coeff for cost ceiling
+			-10.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			false,              // color
@@ -2088,7 +2310,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT", // ref in
 			i*4,                // off
 			sc,                 // scoring scheme
-			40.0f,              // const coeff for cost ceiling
+			-40.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			false,              // color
@@ -2098,7 +2320,7 @@ static void doTests() {
 		al.nextAlignment(res, rnd);
 		assert(!res.empty());
 		assert_eq(i*4, res.alres.refoff());
-		assert_eq(8, res.alres.extent());
+		assert_eq(8, res.alres.refExtent());
 		assert_eq(res.alres.score().gaps(), 1);
 		assert_eq(res.alres.score().score(), -40);
 		assert_eq(res.alres.score().ns(), 0);
@@ -2121,7 +2343,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT", // ref in
 			i*4,                // off
 			sc,                 // scoring scheme
-			30.0f,              // const coeff for cost ceiling
+			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			false,              // color
@@ -2143,7 +2365,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT", // ref in
 			i*4,                // off
 			sc,                 // scoring scheme
-			40.0f,              // const coeff for cost ceiling
+			-40.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			false,              // color
@@ -2153,7 +2375,7 @@ static void doTests() {
 		al.nextAlignment(res, rnd);
 		assert(!res.empty());
 		assert_eq(i*4, res.alres.refoff());
-		assert_eq(8, res.alres.extent());
+		assert_eq(8, res.alres.refExtent());
 		assert_eq(res.alres.score().gaps(), 1);
 		assert_eq(res.alres.score().score(), -40);
 		assert_eq(res.alres.score().ns(), 0);
@@ -2172,7 +2394,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT", // ref in
 			i*4,                // off
 			sc,                 // scoring scheme
-			30.0f,              // const coeff for cost ceiling
+			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			false,              // color
@@ -2198,7 +2420,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT", // ref in
 			i*4,                // off
 			sc,                 // scoring scheme
-			40.0f,              // const coeff for cost ceiling
+			-40.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			false,              // color
@@ -2208,7 +2430,7 @@ static void doTests() {
 		al.nextAlignment(res, rnd);
 		assert(!res.empty());
 		assert_eq(i*4, res.alres.refoff());
-		assert_eq(8, res.alres.extent());
+		assert_eq(8, res.alres.refExtent());
 		assert_eq(res.alres.score().gaps(), 1);
 		assert_eq(res.alres.score().score(), -35);
 		assert_eq(res.alres.score().ns(), 0);
@@ -2231,7 +2453,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT", // ref 
 			i*4,                // off
 			sc,                 // scoring scheme
-			30.0f,              // const coeff for cost ceiling
+			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			false,              // color
@@ -2258,7 +2480,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT",
 			i*4,                // off
 			sc,                 // scoring scheme
-			40.0f,              // const coeff for cost ceiling
+			-40.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			false,              // color
@@ -2268,7 +2490,7 @@ static void doTests() {
 		al.nextAlignment(res, rnd);
 		assert(!res.empty());
 		assert_eq(i*4, res.alres.refoff());
-		assert_eq(8, res.alres.extent());
+		assert_eq(8, res.alres.refExtent());
 		assert_eq(res.alres.score().gaps(), 1);
 		assert_eq(res.alres.score().score(), -37);
 		assert_eq(res.alres.score().ns(), 0);
@@ -2287,7 +2509,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT",
 			i*4,                // off
 			sc,                 // scoring scheme
-			30.0f,              // const coeff for cost ceiling
+			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			false,              // color
@@ -2312,7 +2534,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT",
 			i*4,                // off
 			sc,                 // scoring scheme
-			40.0f,              // const coeff for cost ceiling
+			-40.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			false,              // color
@@ -2322,7 +2544,7 @@ static void doTests() {
 		al.nextAlignment(res, rnd);
 		assert(!res.empty());
 		assert_eq(i*4, res.alres.refoff());
-		assert_eq(8, res.alres.extent());
+		assert_eq(8, res.alres.refExtent());
 		assert_eq(res.alres.score().gaps(), 1);
 		assert_eq(res.alres.score().score(), -40);
 		assert_eq(res.alres.score().ns(), 0);
@@ -2341,7 +2563,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT",
 			i*4,                // off
 			sc,                 // scoring scheme
-			30.0f,              // const coeff for cost ceiling
+			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			false,              // color
@@ -2366,7 +2588,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT",
 			i*4,                // off
 			sc,                 // scoring scheme
-			40.0f,              // const coeff for cost ceiling
+			-40.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			false,              // color
@@ -2376,7 +2598,7 @@ static void doTests() {
 		al.nextAlignment(res, rnd);
 		assert(!res.empty());
 		assert_eq(i*4, res.alres.refoff());
-		assert_eq(8, res.alres.extent());
+		assert_eq(8, res.alres.refExtent());
 		assert_eq(res.alres.score().gaps(), 1);
 		assert_eq(res.alres.score().score(), -40);
 		assert_eq(res.alres.score().ns(), 0);
@@ -2394,7 +2616,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT",
 			i*4,                // off
 			sc,                 // scoring scheme
-			30.0f,              // const coeff for cost ceiling
+			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			false,              // color
@@ -2413,30 +2635,37 @@ static void doTests() {
 		sc.rdGapLinear = 10;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4)
 		     << ", 2 ref gaps, 2 read gaps allowed by minsc)...";
-		doTestCase2(
+		doTestCase3(
 			al,
 			"ACGTCGT",
 			"IIIIIII",
 			"ACGTACGTACGTACGT",
 			i*4,                // off
 			sc,                 // scoring scheme
-			40.0f,              // const coeff for cost ceiling
+			-40.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
+			1.0,                // const coeff for N ceiling
+			0.0,                // linear coeff for N ceiling
 			res,                // result
 			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
-			nfilter);           // filter Ns
+			true);              // filter Ns
 		assert(!al.done());
 		al.nextAlignment(res, rnd);
-		//al.printResultStacked(res, cerr); cerr << endl;
+		if(!res.empty()) {
+			al.printResultStacked(res, cerr); cerr << endl;
+		}
 		assert(!res.empty());
 		assert_eq(i*4, res.alres.refoff());
-		assert_eq(8, res.alres.extent());
+		assert_eq(8, res.alres.refExtent());
 		assert_eq(res.alres.score().gaps(), 1);
 		assert_eq(res.alres.score().score(), -20);
 		assert_eq(res.alres.score().ns(), 0);
 		res.reset();
 		al.nextAlignment(res, rnd);
+		if(!res.empty()) {
+			al.printResultStacked(res, cerr); cerr << endl;
+		}
 		assert(res.empty());
 		res.reset();
 		cerr << "PASSED" << endl;
@@ -2450,7 +2679,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT",
 			i*4,                // off
 			sc,                 // scoring scheme
-			30.0f,              // const coeff for cost ceiling
+			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			false,              // color
@@ -2459,7 +2688,7 @@ static void doTests() {
 		al.nextAlignment(res, rnd);
 		assert(!res.empty());
 		assert_eq(i*4, res.alres.refoff());
-		assert_eq(8, res.alres.extent());
+		assert_eq(8, res.alres.refExtent());
 		assert_eq(res.alres.score().gaps(), 1);
 		assert_eq(res.alres.score().score(), -20);
 		assert_eq(res.alres.score().ns(), 0);
@@ -2482,14 +2711,14 @@ static void doTests() {
 			"ACGTACGTACGTACGT",
 			i*4,                // off
 			sc,                 // scoring scheme
-			35.0f,              // const coeff for cost ceiling
+			-35.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
-			0.0f,               // needed to avoid overhang alignments
+			1.0f,               // needed to avoid overhang alignments
 			0.0f,               // needed to avoid overhang alignments
 			res,                // result
 			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
-			nfilter);           // filter Ns
+			true);              // filter Ns
 		if(i == 0) {
 			lo = 0; hi = 2;
 		} else if(i == 1) {
@@ -2500,10 +2729,11 @@ static void doTests() {
 		for(size_t j = lo; j < hi; j++) {
 			al.nextAlignment(res, rnd);
 			assert(!res.empty());
+			al.printResultStacked(res, cerr); cerr << endl;
 			assert(res.alres.refoff() == 0 ||
 			       res.alres.refoff() == 4 ||
 				   res.alres.refoff() == 8);
-			assert_eq(8, res.alres.extent());
+			assert_eq(8, res.alres.refExtent());
 			assert_eq(res.alres.score().gaps(), 1);
 			assert_eq(res.alres.score().score(), -20);
 			assert_eq(res.alres.score().ns(), 0);
@@ -2527,7 +2757,7 @@ static void doTests() {
 			"ACGTACGTACGTACGT",
 			i*4,                // off
 			sc,                 // scoring scheme
-			30.0f,              // const coeff for cost ceiling
+			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			false,              // color
@@ -2536,7 +2766,7 @@ static void doTests() {
 		al.nextAlignment(res, rnd);
 		assert(!res.empty());
 		assert_eq(i*4, res.alres.refoff());
-		assert_eq(8, res.alres.extent());
+		assert_eq(8, res.alres.refExtent());
 		assert_eq(res.alres.score().gaps(), 1);
 		assert_eq(res.alres.score().score(), -29);
 		assert_eq(res.alres.score().ns(), 0);
@@ -2552,7 +2782,7 @@ static void doTests() {
 			"AAAAAAAAAAAA",
 			i*4,                // off
 			sc,                 // scoring scheme
-			30.0f,              // const coeff for cost ceiling
+			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			false,              // color
@@ -2576,7 +2806,7 @@ static void doTests() {
 				"A",
 				0,                  // off
 				sc,                 // scoring scheme
-				30.0f,              // const coeff for cost ceiling
+				-30.0f,             // const coeff for cost ceiling
 				0.0f,               // linear coeff for cost ceiling
 				res,                // result
 				false,              // color
@@ -2600,7 +2830,7 @@ static void doTests() {
 			"AAAAAAAAAAAA",
 			i*4,                // off
 			sc,                 // scoring scheme
-			150.0f,             // const coeff for cost ceiling
+			-150.0f,            // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			false,              // color
@@ -2625,7 +2855,7 @@ static void doTests() {
 				"A",
 				0,                  // off
 				sc,                 // scoring scheme
-				150.0f,             // const coeff for cost ceiling
+				-150.0f,            // const coeff for cost ceiling
 				0.0f,               // linear coeff for cost ceiling
 				res,                // result
 				false,              // color
@@ -2651,9 +2881,8 @@ static void doTests() {
 				"III",
 				"ACGT",
 				i*4,                // off
-				pa,                 // params
 				sc,                 // scoring scheme
-				30.0f,              // const coeff for cost ceiling
+				-30.0f,             // const coeff for cost ceiling
 				0.0f,               // linear coeff for cost ceiling
 				res,                // result
 				true,               // color
@@ -2679,9 +2908,8 @@ static void doTests() {
 			"IIIIIII",
 			"ACGTACGTACGTACGT",
 			i*4,                // off
-			pa,                 // params
 			sc,                 // scoring scheme
-			30.0f,              // const coeff for cost ceiling
+			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			true,               // color
@@ -2706,9 +2934,8 @@ static void doTests() {
 			"IIIIIII",
 			"ACGTACGTACGTACGT",
 			i*4,                // off
-			pa,                 // params
 			sc,                 // scoring scheme
-			40.0f,              // const coeff for cost ceiling
+			-40.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			true,               // color
@@ -2734,9 +2961,8 @@ static void doTests() {
 			"IIIIIIIII",
 			"ACGTACGTACGTACGT",
 			i*4,                // off
-			pa,                 // params
 			sc,                 // scoring scheme
-			80.0f,              // const coeff for cost ceiling
+			-80.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			true,               // color
@@ -2762,9 +2988,8 @@ static void doTests() {
 			"IIIIIIIII",
 			"ACGTACGTACGTACGT",
 			i*4,                // off
-			pa,                 // params
 			sc,                 // scoring scheme
-			80.0f,              // const coeff for cost ceiling
+			-80.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			true,               // color
@@ -2791,9 +3016,8 @@ static void doTests() {
 			"IIIIIII",
 			"ACGTACGTACGTACGT",
 			i*4,                // off
-			pa,                 // params
 			sc,                 // scoring scheme
-			30.0f,              // const coeff for cost ceiling
+			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			1.0f,               // allow 1 N
 			0.0f,               // allow 1 N
@@ -2823,9 +3047,8 @@ static void doTests() {
 			"IIIIIII",
 			"ACGTACNTACGTACNT",
 			i*4,                // off
-			pa,                 // params
 			sc,                 // scoring scheme
-			30.0f,              // const coeff for cost ceiling
+			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			1.0f,               // allow 2 Ns
 			0.2f,               // allow 2 Ns
@@ -2856,9 +3079,8 @@ static void doTests() {
 			"IIIIIII",
 			"ACGTACGTACGTACGT",
 			i*4,                // off
-			pa,                 // params
 			sc,                 // scoring scheme
-			30.0f,              // const coeff for cost ceiling
+			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			true,               // color
@@ -2887,9 +3109,8 @@ static void doTests() {
 				"IIIIIII",
 				"ANGTACGT",
 				i*4,                // off
-				pa,                 // params
 				sc,                 // scoring scheme
-				30.0f,              // const coeff for cost ceiling
+				-30.0f,             // const coeff for cost ceiling
 				0.0f,               // linear coeff for cost ceiling
 				res,                // result
 				true,               // color
@@ -2920,9 +3141,8 @@ static void doTests() {
 			"IIIIIII",
 			"ACGTACGTACGTACGT",
 			i*4,                // off
-			pa,                 // params
 			sc,                 // scoring scheme
-			30.0f,              // const coeff for cost ceiling
+			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			true,               // color
@@ -2949,9 +3169,8 @@ static void doTests() {
 			"IIIIIII",
 			"ACGTACGTACGTACGT",
 			i*4,                // off
-			pa,                 // params
 			sc,                 // scoring scheme
-			30.0f,              // const coeff for cost ceiling
+			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			true,               // color
@@ -2978,9 +3197,8 @@ static void doTests() {
 			"IIIIIII",
 			"ACGTACGTACGTACGT",
 			i*4,                // off
-			pa,                 // params
 			sc,                 // scoring scheme
-			20.0f,              // const coeff for cost ceiling
+			-20.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			true,               // color
@@ -3007,9 +3225,8 @@ static void doTests() {
 			"IIIIIII",
 			"ACGTACGTACGTACGT",
 			i*4,                // off
-			pa,                 // params
 			sc,                 // scoring scheme
-			30.0f,              // const coeff for cost ceiling
+			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			true,               // color
@@ -3034,9 +3251,8 @@ static void doTests() {
 			"5555555",
 			"ACGTACGTACGTACGT",
 			i*4,                // off
-			pa,                 // params
-			pens2,              // scoring scheme
-			20.0f,              // const coeff for cost ceiling
+			sc2,                // scoring scheme
+			-20.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			true,               // color
@@ -3065,9 +3281,8 @@ static void doTests() {
 			"IIIIII",
 			"ACGTACGTACGTACGT",
 			i*4,                // off
-			pa,                 // params
 			sc,                 // scoring scheme
-			40.0f,              // const coeff for cost ceiling
+			-40.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			true,               // color
@@ -3096,9 +3311,8 @@ static void doTests() {
 			"IIIIIIII",
 			"ACGTACGTACGTACGT",
 			i*4,                // off
-			pa,                 // params
 			sc,                 // scoring scheme
-			40.0f,              // const coeff for cost ceiling
+			-40.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			true,               // color
@@ -3127,9 +3341,8 @@ static void doTests() {
 			"IIIIIIIII",
 			"ACGTACGTACGTACGT",
 			i*4,                // off
-			pa,                 // params
 			sc,                 // scoring scheme
-			60.0f,              // const coeff for cost ceiling
+			-60.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
 			true,               // color
@@ -3168,9 +3381,8 @@ static void doTests() {
 		"IIIIIIII", // read quals
 		"NCGTACGT", // ref seq
 		0,          // offset
-		pa,         // alignment params
 		sc,         // scoring scheme
-		25.0f,      // const coeff for cost ceiling
+		-25.0f,     // const coeff for cost ceiling
 		0.0f,       // linear coeff for cost ceiling
 		res,        // result
 		false,      // colorspace
@@ -3190,9 +3402,8 @@ static void doTests() {
 		"IIIIIIII", // read quals
 		"NCGTACGT", // ref seq
 		0,          // offset
-		pa,         // alignment params
 		sc,         // scoring scheme
-		25.0f,      // const coeff for cost ceiling
+		-25.0f,     // const coeff for cost ceiling
 		0.0f,       // linear coeff for cost ceiling
 		1.0f,       // constant coefficient for # Ns allowed
 		0.0f,       // linear coefficient for # Ns allowed
@@ -3219,9 +3430,8 @@ static void doTests() {
 		"IIIIIIII", // read quals
 		"NCGTACGT", // ref seq
 		0,          // offset
-		pa,         // alignment params
 		sc,         // scoring scheme
-		25.0f,      // const coeff for cost ceiling
+		-25.0f,     // const coeff for cost ceiling
 		0.0f,       // linear coeff for cost ceiling
 		res,        // result
 		false,      // colorspace
@@ -3254,10 +3464,9 @@ static void doTests() {
 		// 01234567890123456789012345678901234567890123456789012345678901
 		//           1         2         3         4         5         6
 		8,          // offset
-		pa,         // alignment params
 		sc,         // scoring scheme
-		25.0f,      // const coeff for cost ceiling
-		5.0f,       // linear coeff for cost ceiling
+		-25.0f,     // const coeff for cost ceiling
+		-5.0f,      // linear coeff for cost ceiling
 		res,        // result
 		false,      // colorspace
 		false,      // ns are in inclusive
@@ -3266,7 +3475,7 @@ static void doTests() {
 	al.nextAlignment(res, rnd);
 	assert(!res.empty());
 	assert_eq(8, res.alres.refoff());
-	assert_eq(47, res.alres.extent());
+	assert_eq(47, res.alres.refExtent());
 	assert_eq(0, res.alres.score().gaps());
 	assert_eq(0, res.alres.score().score());
 	assert_eq(0, res.alres.score().ns());
@@ -3289,17 +3498,21 @@ int main(int argc, char **argv) {
 	gColorExEnds = true;
 	bool nsInclusive = false;
 	bool nfilter = false;
+	bonusMatchType  = DEFAULT_MATCH_BONUS_TYPE;
+	bonusMatch      = DEFAULT_MATCH_BONUS;
 	penMmcType      = DEFAULT_MM_PENALTY_TYPE;
 	penMmc          = DEFAULT_MM_PENALTY;
 	penSnp          = DEFAULT_SNP_PENALTY;
 	penNType        = DEFAULT_N_PENALTY_TYPE;
 	penN            = DEFAULT_N_PENALTY;
-	penRdExConst    = DEFAULT_READ_EXTEND_CONST;
-	penRfExConst    = DEFAULT_REF_EXTEND_CONST;
-	penRdExLinear   = DEFAULT_READ_EXTEND_LINEAR;
-	penRfExLinear   = DEFAULT_REF_EXTEND_LINEAR;
-	costCeilConst   = DEFAULT_CEIL_CONST;
-	costCeilLinear  = DEFAULT_CEIL_LINEAR;
+	penRdExConst    = DEFAULT_READ_GAP_CONST;
+	penRfExConst    = DEFAULT_REF_GAP_CONST;
+	penRdExLinear   = DEFAULT_READ_GAP_LINEAR;
+	penRfExLinear   = DEFAULT_REF_GAP_LINEAR;
+	costMinConst    = DEFAULT_MIN_CONST;
+	costMinLinear   = DEFAULT_MIN_LINEAR;
+	costFloorConst  = DEFAULT_FLOOR_CONST;
+	costFloorLinear = DEFAULT_FLOOR_LINEAR;
 	nCeilConst      = 1.0f; // constant factor in N ceiling w/r/t read length
 	nCeilLinear     = 1.0f; // coeff of linear term in N ceiling w/r/t read length
 	nCatPair        = false;
@@ -3321,10 +3534,14 @@ int main(int argc, char **argv) {
 				return 0;
 			}
 			case 'A': {
+				bool localAlign = false;
 				bool noisyHpolymer = false;
 				SeedAlignmentPolicy::parseString(
 					optarg,
+					localAlign,
 					noisyHpolymer,
+					bonusMatchType,
+					bonusMatch,
 					penMmcType,
 					penMmc,
 					penSnp,
@@ -3334,8 +3551,10 @@ int main(int argc, char **argv) {
 					penRfExConst,
 					penRdExLinear,
 					penRfExLinear,
-					costCeilConst,
-					costCeilLinear,
+					costMinConst,
+					costMinLinear,
+					costFloorConst,
+					costFloorLinear,
 					nCeilConst,
 					nCeilLinear,
 					nCatPair,
@@ -3377,11 +3596,18 @@ int main(int argc, char **argv) {
 	// Get reference offset
 	size_t off = parse<size_t>(argv[optind+3]);
 	// Set up penalities
-	Scoring pens(
+	Scoring sc(
+		false,         // local alignment?
 		false,         // bad homopolymer?
+		bonusMatchType,
+		bonusMatch,
 		penMmcType,    // how to penalize mismatches
 		penMmc,        // constant if mm pelanty is a constant
 		penSnp,        // penalty for nucleotide mismatch in decoded colorspace als
+		costMinConst,
+		costMinLinear,
+		costFloorConst,
+		costFloorLinear,
 		nCeilConst,    // N ceiling constant coefficient
 		nCeilLinear,   // N ceiling linear coefficient
 		penNType,      // how to penalize Ns in the read
@@ -3393,10 +3619,14 @@ int main(int argc, char **argv) {
 		penRfExLinear  // coefficient of linear term for cost of gap extension in ref
 	);
 	// Calculate the penalty ceiling for the read
-	TAlScore minsc = Constraint::instantiate(
+	TAlScore minsc = Scoring::linearFunc(
 		read.length(),
-		costCeilConst,
-		costCeilLinear);
+		costMinConst,
+		costMinLinear);
+	TAlScore floorsc = Scoring::linearFunc(
+		read.length(),
+		costFloorConst,
+		costFloorLinear);
 	SwResult res;
 	SwAligner al;
 	doTestCase(
@@ -3407,9 +3637,9 @@ int main(int argc, char **argv) {
 		off,
 		NULL,
 		NULL,
-		pa,
 		sc,  
 		minsc,
+		floorsc,
 		res,
 		gColor,
 		nsInclusive,

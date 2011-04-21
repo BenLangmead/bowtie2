@@ -6,13 +6,9 @@
 #define ALIGNER_SW_COL_H_
 
 #include <stdint.h>
-#include "ds.h"
-#include "threading.h"
-#include "aligner_seed.h"
-#include "reference.h"
-#include "random_source.h"
-#include "mem_ids.h"
+#include "aligner_sw_common.h"
 #include "aligner_result.h"
+#include "mask.h"
 
 /**
  * A bitmask encoding which backtracking paths out of a particular cell
@@ -23,68 +19,64 @@
  */
 struct SwColorCellMask {
 
+	typedef uint32_t TMask;
+
 	/**
-	 * Set all flags to 0, indicating there is no way to backtrack from
-	 * this cell to an optimal answer.
+	 * Set all flags to 0 (meaning either: there's no way to backtrack from
+	 * this cell to an optimal answer, or we haven't set the mask yet)
 	 */
 	void clear() {
-		*((uint16_t*)this) = 0;
+		*((TMask*)this) = 0;
 	}
 
 	/**
-	 * Return true iff there are no backward paths recorded in this
-	 * mask.
+	 * Return true iff the mask is empty.
 	 */
 	inline bool empty() const {
-		return *((uint16_t*)this) == 0;
+		return *((TMask*)this) == 0;
 	}
 
 	/**
-	 * Return true iff it's possible to extend a gap in the reference
-	 * in the cell below this one.
+	 * Return the number of equally good ways to backtrack from the oall table
+	 * version of this cell.
 	 */
-	inline bool refExtendPossible() const {
-		return rfop || rfex;
+	inline int numOverallPossible() const {
+		return alts5[oall_diag] +
+		       alts5[oall_rfop] +
+			   alts5[oall_rfex] +
+			   oall_rdop +
+			   oall_rdex;
 	}
 
 	/**
-	 * Return true iff it's possible to open a gap in the reference
-	 * in the cell below this one (false implies that only extension
-	 * is possible).
+	 * Return the number of equally good ways to backtrack from the rdgap table
+	 * version of this cell.
 	 */
-	inline bool refOpenPossible() const {
-		return diag || rfop || rfex;
+	inline int numReadGapPossible() const {
+		return rdgap_op + rdgap_ex;
 	}
 
 	/**
-	 * Return true iff it's possible to extend a gap in the read
-	 * in the cell to the right of this one.
+	 * Return the number of equally good ways to backtrack from the rfgap table
+	 * version of this cell.
 	 */
-	inline bool readExtendPossible() const {
-		return rdop || rdex;
-	}
-
-	/**
-	 * Return true iff it's possible to open a gap in the read in the
-	 * cell to the right of this one (false implies that only extension
-	 * is possible).
-	 */
-	inline bool readOpenPossible() const {
-		return diag || rdop || rdex;
+	inline int numRefGapPossible() const {
+		return alts5[rfgap_op] + alts5[rfgap_ex];
 	}
 	
 	/**
 	 * Return true iff there is >0 possible way to backtrack from this
 	 * cell.
 	 */
-	inline int numPossible() const {
-		int num = 0;
-		num += mask2popcnt[diag];
-		num += mask2popcnt[rfop];
-		num += mask2popcnt[rfex];
-		num += rdop;
-		num += rdex;
-		return num;
+	inline int numPossible(int ct) const {
+		if(ct == SW_BT_CELL_OALL) {
+			return numOverallPossible();
+		} else if(ct == SW_BT_CELL_RDGAP) {
+			return numReadGapPossible();
+		} else {
+			assert_eq(SW_BT_CELL_RFGAP, ct);
+			return numRefGapPossible();
+		}
 	}
 
 	/**
@@ -95,14 +87,96 @@ struct SwColorCellMask {
 	 * the read character for the next row up.  second should be
 	 * ignored if the backtrack type is a gap in the read.
 	 */
-	std::pair<int, int> randBacktrack(RandomSource& rand, bool& branch);
+	std::pair<int, int> randOverallBacktrack(
+		RandomSource& rand,
+		bool& branch,
+		bool clear);
 
-	uint16_t diag     : 4;
-	uint16_t rfop     : 4;
-	uint16_t rfex     : 4;
-	uint16_t rdop     : 1;
-	uint16_t rdex     : 1;
-	uint16_t reserved : 2;
+	/**
+	 * Select a path for backtracking from this cell.  If there is a
+	 * tie among eligible paths, break it randomly.  Return value is
+	 * a pair where first = a flag indicating the backtrack type (see
+	 * enum defining SW_BT_* above), and second = a selection for
+	 * the read character for the next row up.  second should be
+	 * ignored if the backtrack type is a gap in the read.
+	 */
+	std::pair<int, int> randReadGapBacktrack(
+		RandomSource& rand,
+		bool& branch,
+		bool clear);
+
+	/**
+	 * Select a path for backtracking from this cell.  If there is a
+	 * tie among eligible paths, break it randomly.  Return value is
+	 * a pair where first = a flag indicating the backtrack type (see
+	 * enum defining SW_BT_* above), and second = a selection for
+	 * the read character for the next row up.  second should be
+	 * ignored if the backtrack type is a gap in the read.
+	 */
+	std::pair<int, int> randRefGapBacktrack(
+		RandomSource& rand,
+		bool& branch,
+		bool clear);
+
+	/**
+	 * Select a path for backtracking from this cell.  If there is a
+	 * tie among eligible paths, break it randomly.  Return value is
+	 * a pair where first = a flag indicating the backtrack type (see
+	 * enum defining SW_BT_* above), and second = a selection for
+	 * the read character for the next row up.  second should be
+	 * ignored if the backtrack type is a gap in the read.
+	 */
+	std::pair<int, int> randBacktrack(
+		int ct,
+		RandomSource& rand,
+		bool& branch,
+		bool clear)
+	{
+		if(ct == SW_BT_CELL_OALL) {
+			return randOverallBacktrack(rand, branch, clear);
+		} else if(ct == SW_BT_CELL_RDGAP) {
+			return randReadGapBacktrack(rand, branch, clear);
+		} else {
+			assert_eq(SW_BT_CELL_RFGAP, ct);
+			return randRefGapBacktrack(rand, branch, clear);
+		}
+	}
+
+	/**
+	 * Clear mask for overall-table cell.
+	 */
+	inline void clearOverallMask() {
+		oall_diag = oall_rfop = oall_rfex = oall_rdop = oall_rdex = 0;
+	}
+
+	/**
+	 * Clear mask for read-gap-table cell.
+	 */
+	inline void clearReadGapMask() {
+		rdgap_op = rdgap_ex = 0;
+	}
+
+	/**
+	 * Clear mask for ref-gap-table cell.
+	 */
+	inline void clearRefGapMask() {
+		rfgap_op = rfgap_ex = 0;
+	}
+
+	// Overall (oall) table
+	TMask oall_diag : 4;
+	TMask oall_rfop : 4;
+	TMask oall_rfex : 4;
+	TMask oall_rdop : 1;
+	TMask oall_rdex : 1;
+
+	// Read gap (rdgap) table
+	TMask rdgap_op  : 1;
+	TMask rdgap_ex  : 1;
+
+	// Reference gap (rfgap) table
+	TMask rfgap_op  : 4;
+	TMask rfgap_ex  : 4;
 };
 
 /**
@@ -132,29 +206,38 @@ struct DpColFrame {
 		size_t   col_,
 		int      curC_,
 		int      gaps_,
-		AlnScore score_)
+		int      readGaps_,
+		int      refGaps_,
+		AlnScore score_,
+		int      ct_)
 	{
-		nedsz = nedsz_;
-		aedsz = aedsz_;
-		cedsz = cedsz_;
-		celsz = celsz_;
-		row   = row_;
-		col   = col_;
-		curC  = curC_;
-		gaps  = gaps_;
-		score = score_;
+		nedsz    = nedsz_;
+		aedsz    = aedsz_;
+		cedsz    = cedsz_;
+		celsz    = celsz_;
+		row      = row_;
+		col      = col_;
+		curC     = curC_;
+		gaps     = gaps_;
+		readGaps = readGaps_;
+		refGaps  = refGaps_;
+		score    = score_;
+		ct       = ct_;
 	}
 
-	size_t   nedsz; // size of the nucleotide edit list at branch (before
-	                // adding the branch edit)
-	size_t   aedsz; // size of ambiguous nucleotide edit list at branch
-	size_t   cedsz; // size of color edit list at branch
-	size_t   celsz; // size of cell-traversed list at branch
-	size_t   row;   // row of cell where branch occurred
-	size_t   col;   // column of cell where branch occurred
-	int      curC;  // character cell we're in
-	int      gaps;  // gaps before branch occurred
-	AlnScore score; // score where branch occurred
+	size_t   nedsz;    // size of the nucleotide edit list at branch (before
+	                   // adding the branch edit)
+	size_t   aedsz;    // size of ambiguous nucleotide edit list at branch
+	size_t   cedsz;    // size of color edit list at branch
+	size_t   celsz;    // size of cell-traversed list at branch
+	size_t   row;      // row of cell where branch occurred
+	size_t   col;      // column of cell where branch occurred
+	int      curC;     // character cell we're in
+	int      gaps;     // gaps before branch occurred
+	int      readGaps; // read gaps before branch occurred
+	int      refGaps;  // ref gaps before branch occurred
+	AlnScore score;    // score where branch occurred
+	int      ct;       // table type (oall, rdgap or rfgap)
 };
 
 /**
@@ -168,13 +251,16 @@ struct SwColorCell {
 	 */
 	void clear() {
 		// Initially, best scores are all invalid
-		best[0] = best[1] = best[2] = best[3] = AlnScore::INVALID();
+		oallBest [0] = oallBest [1] = oallBest [2] = oallBest [3] = AlnScore::INVALID();
+		rdgapBest[0] = rdgapBest[1] = rdgapBest[2] = rdgapBest[3] = AlnScore::INVALID();
+		rfgapBest[0] = rfgapBest[1] = rfgapBest[2] = rfgapBest[3] = AlnScore::INVALID();
 		// Initially, there's no way to backtrack from this cell
 		mask[0].clear();
 		mask[1].clear();
 		mask[2].clear();
 		mask[3].clear();
 		empty = true;
+		terminal[0] = terminal[1] = terminal[2] = terminal[3] = false;
 		reportedThru_ = false;
 		reportedFrom_[0] = reportedFrom_[1] =
 		reportedFrom_[2] = reportedFrom_[3] = false;
@@ -186,7 +272,7 @@ struct SwColorCell {
 	 */
 	bool valid() const {
 		for(int i = 0; i < 4; i++) {
-			if(VALID_AL_SCORE(best[i])) {
+			if(VALID_AL_SCORE(oallBest[i])) {
 				assert(!mask[i].empty());
 				return true;
 			} else {
@@ -217,10 +303,10 @@ struct SwColorCell {
 		bestSoFar.invalidate();
 		for(int i = 0; i < 4; i++) {
 			if(!reportedFrom_[i] &&
-			   best[i].score() >= min &&
-			   best[i] > bestSoFar)
+			   oallBest[i].score() >= min &&
+			   oallBest[i] > bestSoFar)
 			{
-				bestSoFar = best[i];
+				bestSoFar = oallBest[i];
 			}
 		}
 		if(bestSoFar.valid()) {
@@ -239,7 +325,7 @@ struct SwColorCell {
 			return false;
 		}
 		for(int i = 0; i < 4; i++) {
-			if(!reportedFrom_[i] && best[i].score() == eq) {
+			if(!reportedFrom_[i] && oallBest[i].score() == eq) {
 				return true;
 			}
 		}
@@ -255,7 +341,7 @@ struct SwColorCell {
 			return false;
 		}
 		for(int i = 0; i < 4; i++) {
-			if(!reportedFrom_[i] && best[i].score() >= eq) {
+			if(!reportedFrom_[i] && oallBest[i].score() >= eq) {
 				return true;
 			}
 		}
@@ -274,7 +360,7 @@ struct SwColorCell {
 			return false;
 		}
 		for(int i = 0; i < 4; i++) {
-			if(!reportedFrom_[i] && best[i].score() == eq) {
+			if(!reportedFrom_[i] && oallBest[i].score() == eq) {
 				reportedFrom_[i] = true;
 				nuc = i;     // set decoded nucleotide for last alignment pos
 				return true; // found a cell to potentially backtrack from
@@ -293,14 +379,21 @@ struct SwColorCell {
 		reportedThru_ = true;
 	}
 
-	// Best incoming score for each 'to' character
-	AlnScore best[4];
+	// Best incoming score for each 'to' character...
+	AlnScore oallBest[4];  // ...assuming nothing about the incoming transition
+	AlnScore rdgapBest[4]; // ...assuming incoming transition is a read gap
+	AlnScore rfgapBest[4]; // ...assuming incoming transition is a ref gap
+	
 	// Mask for tied-for-best incoming paths for each 'to' character
 	SwColorCellMask mask[4];
 	
 	// True iff there are no ways to backtrack through this cell as part of a
 	// valid alignment.
 	bool empty;
+
+	// True iff the cell's best score is >= the floor but there are no cells to
+	// backtrack to.
+	bool terminal[4];
 
 	// Initialized to false, set to true once an alignment that moves through
 	// the cell is reported.

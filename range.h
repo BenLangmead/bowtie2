@@ -60,7 +60,7 @@ public:
 		for(size_t i = 1; i < edits.size(); i++) {
 			assert_geq(edits[i].pos, edits[i-1].pos);
 			if(edits[i].pos == edits[i-1].pos) {
-				assert_eq(EDIT_TYPE_INS, edits[i-1].type);
+				assert_eq(EDIT_TYPE_READ_GAP, edits[i-1].type);
 			}
 		}
 		return true;
@@ -129,8 +129,8 @@ protected:
 		assert(Range::finalized(edits_));
 		rlen_ = qlen_;
 		for(size_t i = 0; i < edits_.size(); i++) {
-			if(edits_[i].isInsert()) rlen_++;
-			else if(edits_[i].isDelete()) rlen_--;
+			if(edits_[i].isReadGap()) rlen_++;
+			else if(edits_[i].isRefGap()) rlen_--;
 		}
 		assert_gt(rlen_, 0);
 	}

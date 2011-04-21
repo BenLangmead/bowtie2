@@ -30,6 +30,9 @@
 
 #include <stdint.h>
 #include <iostream>
+#include "aligner_sw_common.h"
+#include "aligner_sw_nuc.h"
+#include "aligner_sw_col.h"
 #include "ds.h"
 #include "threading.h"
 #include "aligner_seed.h"
@@ -37,7 +40,6 @@
 #include "random_source.h"
 #include "mem_ids.h"
 #include "aligner_result.h"
-#include "aligner_sw_col.h"
 #include "mask.h"
 
 #define QUAL2(d, f) sc_->mm((int)(*rd_)[rdi_ + d], \
@@ -46,484 +48,6 @@
 #define QUAL(d)     sc_->mm((int)(*rd_)[rdi_ + d], \
 							(int)(*qu_)[rdi_ + d] - 33)
 #define N_SNP_PEN(c) (((int)rf_[rfi_ + c] > 15) ? sc_->n(30) : sc_->penSnp)
-
-/**
- * Encapsulates the result of a dynamic programming alignment, including
- * colorspace alignments.  In our case, the result is a combination of:
- *
- * 1. All the nucleotide edits
- * 2. All the "edits" where an ambiguous reference char is resolved to
- *    an unambiguous char.
- * 3. All the color edits (if applicable)
- * 4. All the color miscalls (if applicable).  This is a subset of 3.
- * 5. The score of the best alginment
- * 6. The score of the second-best alignment
- *
- * Having scores for the best and second-best alignments gives us an
- * idea of where gaps may make reassembly beneficial.
- */
-struct SwResult {
-
-	SwResult() :
-		alres(),
-		sws(0),
-		swcups(0),
-		swrows(0),
-		swskiprows(0),
-		swsucc(0),
-		swfail(0),
-		swbts(0)
-	{ }
-
-	/**
-	 * Clear all contents.
-	 */
-	void reset() {
-		sws = swcups = swrows = swskiprows = swsucc =
-		swfail = swbts = 0;
-		alres.reset();
-	}
-	
-	/**
-	 * Reverse all edit lists.
-	 */
-	void reverse() {
-		alres.reverseEdits();
-	}
-	
-	/**
-	 * Return true iff no result has been installed.
-	 */
-	bool empty() const {
-		return alres.empty();
-	}
-	
-	/**
-	 * Check that result is internally consistent.
-	 */
-	bool repOk() const {
-		assert(alres.repOk());
-		return true;
-	}
-
-	AlnRes alres;
-	uint64_t sws;    // # dynamic programming problems solved
-	uint64_t swcups; // # dynamic programming cell updates
-	uint64_t swrows; // # dynamic programming row updates
-	uint64_t swskiprows; // # skipped dynamic programming row updates (b/c no valid alignments can go thru row)
-	uint64_t swsucc; // # dynamic programming problems resulting in alignment
-	uint64_t swfail; // # dynamic programming problems not resulting in alignment
-	uint64_t swbts;  // # dynamic programming backtrace steps
-	
-	int nup;         // upstream decoded nucleotide; for colorspace reads
-	int ndn;         // downstream decoded nucleotide; for colorspace reads
-};
-
-/**
- * Encapsulates counters that measure how much work has been done by
- * the dynamic programming driver and aligner.
- */
-struct SwMetrics {
-
-	SwMetrics() { reset(); MUTEX_INIT(lock); }
-	
-	void reset() {
-		sws = swcups = swrows = swskiprows = swsucc = swfail = swbts =
-		rshit = 0;
-	}
-	
-	void init(
-		uint64_t s1,
-		uint64_t s2,
-		uint64_t s3,
-		uint64_t s4,
-		uint64_t s5,
-		uint64_t s6,
-		uint64_t s7,
-		uint64_t s8)
-	{
-		sws        = s1;
-		swcups     = s2;
-		swrows     = s3;
-		swskiprows = s4;
-		swsucc     = s5;
-		swfail     = s6;
-		swbts      = s7;
-		rshit      = s8;
-	}
-	
-	/**
-	 * Merge (add) the counters in the given SwResult object into this
-	 * SwMetrics object.
-	 */
-	void update(const SwResult& r) {
-		sws        += r.sws;
-		swcups     += r.swcups;
-		swrows     += r.swrows;
-		swskiprows += r.swskiprows;
-		swsucc     += r.swsucc;
-		swfail     += r.swfail;
-		swbts      += r.swbts;
-	}
-	
-	/**
-	 * Merge (add) the counters in the given SwMetrics object into this
-	 * object.  This is the only safe way to update a SwMetrics shared
-	 * by multiple threads.
-	 */
-	void merge(const SwMetrics& r, bool getLock = false) {
-		ThreadSafe ts(&lock, getLock);
-		sws        += r.sws;
-		swcups     += r.swcups;
-		swrows     += r.swrows;
-		swskiprows += r.swskiprows;
-		swsucc     += r.swsucc;
-		swfail     += r.swfail;
-		swbts      += r.swbts;
-	}
-
-	uint64_t sws;    // # dynamic programming problems solved
-	uint64_t swcups; // # dynamic programming cell updates
-	uint64_t swrows; // # dynamic programming row updates
-	uint64_t swskiprows; // # skipped dynamic programming row updates (b/c no valid alignments can go thru row)
-	uint64_t swsucc; // # dynamic programming problems resulting in alignment
-	uint64_t swfail; // # dynamic programming problems not resulting in alignment
-	uint64_t swbts;  // # dynamic programming backtrace steps
-	uint64_t rshit;  // # dynamic programming problems avoided b/c seed hit was redundant
-	MUTEX_T lock;
-};
-
-/**
- * Counters characterizing work done by 
- */
-struct SwCounters {
-	uint64_t cups;    // cell updates
-	uint64_t bts;     // backtracks
-	
-	/**
-	 * Set all counters to 0.
-	 */
-	void reset() {
-		cups = bts = 0;
-	}
-};
-
-/**
- * Abstract parent class for encapsulating SeedAligner actions.
- */
-struct SwAction {
-};
-
-/**
- * Abstract parent for a class with a method that gets passed every
- * set of counters for every join attempt.
- */
-class SwCounterSink {
-public:
-	SwCounterSink() { MUTEX_INIT(lock_); }
-	virtual ~SwCounterSink() { }
-	/**
-	 * Grab the lock and call abstract member reportCountersImpl()
-	 */
-	virtual void reportCounters(const SwCounters& c) {
-		ThreadSafe(&this->lock_);
-		reportCountersImpl(c);
-	}
-protected:
-	virtual void reportCountersImpl(const SwCounters& c) = 0;
-	MUTEX_T lock_;
-};
-
-/**
- * Write each per-SW set of counters to an output stream using a
- * simple record-per-line tab-delimited format.
- */
-class StreamTabSwCounterSink : public SwCounterSink {
-public:
-	StreamTabSwCounterSink(std::ostream& os) : SwCounterSink(), os_(os) { }
-protected:
-	virtual void reportCountersImpl(const SwCounters& c)
-	{
-		os_ << c.cups << "\t"
-			<< c.bts  << "\n"; // avoid 'endl' b/c flush is unnecessary
-	}
-	std::ostream& os_;
-};
-
-/**
- * Abstract parent for a class with a method that gets passed every
- * set of counters for every join attempt.
- */
-class SwActionSink {
-public:
-	SwActionSink() { MUTEX_INIT(lock_); }
-	virtual ~SwActionSink() { }
-	/**
-	 * Grab the lock and call abstract member reportActionsImpl()
-	 */
-	virtual void reportActions(const EList<SwAction>& as) {
-		ThreadSafe(&this->lock_);
-		reportActionsImpl(as);
-	}
-protected:
-	virtual void reportActionsImpl(const EList<SwAction>& as) = 0;
-	MUTEX_T lock_;
-};
-
-/**
- * Write each per-SW set of Actions to an output stream using a
- * simple record-per-line tab-delimited format.
- */
-class StreamTabSwActionSink : public SwActionSink {
-public:
-	StreamTabSwActionSink(std::ostream& os) : SwActionSink(), os_(os) { }
-	virtual ~StreamTabSwActionSink() { }
-protected:
-	virtual void reportActionsImpl(const EList<SwAction>& as)
-	{
-		for(size_t i = 0; i < as.size(); i++) {
-			os_ << "\n"; // avoid 'endl' b/c flush is unnecessary
-		}
-	}
-	std::ostream& os_;
-};
-
-enum {
-	SW_BT_DIAG,
-	SW_BT_REF_OPEN,
-	SW_BT_REF_EXTEND,
-	SW_BT_READ_OPEN,
-	SW_BT_READ_EXTEND
-};
-
-/**
- * Encapsulates a bitmask.  The bitmask encodes which backtracking paths out of
- * a cell lie on optimal subpaths.
- */
-struct SwNucCellMask {
-
-	/**
-	 * Set all flags to 0 (meaning either: there's no way to backtrack from
-	 * this cell to an optimal answer, or we haven't set the mask yet)
-	 */
-	void clear() {
-		*((uint8_t*)this) = 0;
-	}
-
-	/**
-	 * Return true iff the mask is empty.
-	 */
-	inline bool empty() const {
-		return *((uint8_t*)this) == 0;
-	}
-
-	/**
-	 * Return true iff it's possible to extend a gap in the reference in the
-	 * cell below this one.
-	 */
-	inline bool refExtendPossible() const {
-		return rfop || rfex;
-	}
-
-	/**
-	 * Return true iff it's possible to open a gap in the reference
-	 * in the cell below this one (false implies that only extension
-	 * is possible).
-	 */
-	inline bool refOpenPossible() const {
-		return diag || rfop || rfex;
-	}
-
-	/**
-	 * Return true iff it's possible to extend a gap in the read
-	 * in the cell to the right of this one.
-	 */
-	inline bool readExtendPossible() const {
-		return rdop || rdex;
-	}
-
-	/**
-	 * Return true iff it's possible to open a gap in the read in the
-	 * cell to the right of this one (false implies that only extension
-	 * is possible).
-	 */
-	inline bool readOpenPossible() const {
-		return diag || rdop || rdex;
-	}
-	
-	/**
-	 * Return true iff there is >0 possible way to backtrack from this
-	 * cell.
-	 */
-	inline int numPossible() const {
-		return diag + rfop + rfex + rdop + rdex;
-	}
-
-	/**
-	 * Select a path for backtracking from this cell.  If there is a tie among
-	 * eligible paths, break it randomly.  Return value is a flag indicating
-	 * the backtrack type (see enum defining SW_BT_* above).
-	 */
-	int randBacktrack(RandomSource& rand, bool& branch);
-
-	uint8_t diag     : 1;
-	uint8_t rfop     : 1;
-	uint8_t rfex     : 1;
-	uint8_t rdop     : 1;
-	uint8_t rdex     : 1;
-	uint8_t reserved : 3;
-};
-
-/**
- * Encapsulates a backtrace stack frame.  Includes enough information that we
- * can "pop" back up to this frame and choose to make a different backtracking
- * decision.  The information included is:
- *
- * 1. The mask at the decision point.  When we first move through the mask and
- *    when we backtrack to it, we're careful to mask out the bit corresponding
- *    to the path we're taking.  When we move through it after removing the
- *    last bit from the mask, we're careful to pop it from the stack.
- * 2. The sizes of the edit lists.  When we backtrack, we resize the lists back
- *    down to these sizes to get rid of any edits introduced since the branch
- *    point.
- */
-struct DpNucFrame {
-
-	/**
-	 * Initialize a new DpNucFrame stack frame.
-	 */
-	void init(
-		size_t   nedsz_,
-		size_t   aedsz_,
-		size_t   celsz_,
-		size_t   row_,
-		size_t   col_,
-		int      gaps_,
-		AlnScore score_)
-	{
-		nedsz = nedsz_;
-		aedsz = aedsz_;
-		celsz = celsz_;
-		row   = row_;
-		col   = col_;
-		gaps  = gaps_;
-		score = score_;
-	}
-
-	size_t   nedsz; // size of the nucleotide edit list at branch (before
-	                // adding the branch edit)
-	size_t   aedsz; // size of ambiguous nucleotide edit list at branch
-	size_t   celsz; // size of cell-traversed list at branch
-	size_t   row;   // row of cell where branch occurred
-	size_t   col;   // column of cell where branch occurred
-	int      gaps;  // number of gaps before branch occurred
-	AlnScore score; // score where branch occurred
-};
-
-/**
- * Encapsulates all information needed to encode the optimal subproblem
- * at a cell in a colorspace SW matrix.
- */
-struct SwNucCell {
-
-	/**
-	 * Clear this cell so that it's ready for updates.
-	 */
-	void clear() {
-		// Initially, best score is invalid
-		best = AlnScore::INVALID();
-		// Initially, there's no way to backtrack from this cell
-		mask.clear();
-		empty = true;
-		reportedFrom_ = reportedThru_ = false;
-		ASSERT_ONLY(finalized = false);
-	}
-
-	/**
-	 * Return true if best is valid.
-	 */
-	bool valid() const {
-		return VALID_AL_SCORE(best);
-	}
-
-	/**
-	 * Determine whether this cell has a solution with the given score.  If so,
-	 * return true.  Otherwise, return false.
-	 */
-	inline bool bestSolutionGeq(
-		const TAlScore& min,
-		AlnScore& bst)
-	{
-		if(hasSolution(min)) {
-			bst = best;
-			return true;
-		}
-		return false;
-	}
-
-	/**
-	 * Determine whether this cell has a solution with the given score.  If so,
-	 * return true.  Otherwise, return false.
-	 */
-	inline bool hasSolutionEq(const TAlScore& eq) {
-		return !empty && !reportedFrom_ && !reportedThru_ && best.score() == eq;
-	}
-
-	/**
-	 * Determine whether this cell has a solution with a score greater than or
-	 * equal to the given score.  If so, return true.  Otherwise, return false.
-	 */
-	inline bool hasSolution(const TAlScore& eq) {
-		return !empty && !reportedFrom_ && !reportedThru_ && best.score() >= eq;
-	}
-
-	/**
-	 * Determine whether this cell has a solution with the given score.  If so,
-	 * return true.  Otherwise, return false.
-	 */
-	inline bool nextSolutionEq(const TAlScore& eq) {
-		if(hasSolutionEq(eq)) {
-			reportedFrom_ = true;
-			return true;
-		}
-		return false;
-	}
-	
-	/**
-	 * Mark this cell as "reported through," meaning that an already-reported
-	 * alignment goes through the cell.  Future alignments that go through this
-	 * cell are usually filtered out and not reported, on the theory that
-	 * they are redundant with the previously-reported alignment.
-	 */
-	inline void setReportedThrough() {
-		reportedThru_ = true;
-	}
-
-	/**
-	 * We finished updating the cell; set empty and finalized
-	 * appropriately.
-	 */
-	inline bool finalize(TAlScore floorsc);
-
-	// Best incoming score for each 'to' character
-	AlnScore best;
-	// Mask for tied-for-best incoming paths for each 'to' character
-	SwNucCellMask mask;
-	
-	// True iff there are no ways to backtrack through this cell as part of a
-	// valid alignment.
-	bool empty;
-	
-	// Initialized to false, set to true once an alignment that moves through
-	// the cell is reported.
-	bool reportedThru_;
-	
-	// Initialized to false, set to true once an alignment for which the
-	// backtrace begins at this cell is reported.
-	bool reportedFrom_;
-
-	ASSERT_ONLY(bool finalized);
-};
 
 /**
  * SwAligner
@@ -712,6 +236,7 @@ public:
 		solrowlo_ = sc.rowlo;  // if row >= this, solutions are possible
 		soldone_  = true;      // true iff there are no more cells with sols
 		nsols_    = 0;         // # cells with acceptable sols so far
+		cural_    = 0;         // idx of next alignment to give out
 		if(solrowlo_ < 0) {
 			solrowlo_ = (int64_t)(dpRows()-1);
 		}
@@ -828,6 +353,11 @@ public:
 		}
 		return true;
 	}
+	
+	/**
+	 * Return the number of alignments given out so far by nextAlignment().
+	 */
+	size_t numAlignmentsReported() const { return cural_; }
 
 protected:
 	
@@ -971,7 +501,8 @@ protected:
 		SwNucCell& dstc,
 		int rdc,
 		int rfm,
-		int pen);
+		int pen,
+		bool& improved);
 
 	inline void updateNucVert(
 		const SwNucCell& uc,
@@ -1038,6 +569,8 @@ protected:
 	int64_t             solrowlo_;// if row >= this, solutions are possible
 	bool                soldone_; // true iff there are no more cells with sols
 	size_t              nsols_;   // # cells with acceptable sols so far
+	
+	size_t              cural_;   // index of next alignment to be given
 	
 	SizeTPair           EXTREMES; // invalid, uninitialized range
 	

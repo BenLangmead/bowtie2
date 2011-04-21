@@ -680,9 +680,9 @@ bool SwDriver::extendSeedsPaired(
 							off1 = anchor1 ? off : ores_.alres.refoff();
 							off2 = anchor1 ? ores_.alres.refoff() : off;
 							len1 = anchor1 ?
-								res_.alres.extent() : ores_.alres.extent();
+								res_.alres.refExtent() : ores_.alres.refExtent();
 							len2 = anchor1 ?
-								ores_.alres.extent() : res_.alres.extent();
+								ores_.alres.refExtent() : res_.alres.refExtent();
 							fw1  = anchor1 ? res_.alres.fw() : ores_.alres.fw();
 							fw2  = anchor1 ? ores_.alres.fw() : res_.alres.fw();
 							fragoff = min<TRefOff>(off1, off2);

@@ -390,9 +390,9 @@ void VerboseHitSink::append(
 				assert_neq(e.chr, e.qchr);
 				if(i > 0) ss << ',';
 				ss << e.pos << ':' << (char)e.chr;
-				while((*es)[i].isInsert() &&
+				while((*es)[i].isReadGap() &&
 				      i+1 < es->size() &&
-				      (*es)[i+1].isInsert() &&
+				      (*es)[i+1].isReadGap() &&
 				      (*es)[i+1].pos == (*es)[i].pos)
 				{
 					i++;

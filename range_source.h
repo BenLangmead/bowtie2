@@ -186,22 +186,22 @@ struct Pos {
 		} else if(insCost == flags.costlo && flags.insA == 0) {
 			assert(gGaps);
 			flags.insA = 1;
-			ret.type = EDIT_TYPE_INS;
+			ret.type = EDIT_TYPE_READ_GAP;
 			chr = 0;
 		} else if(insCost == flags.costlo && flags.insC == 0) {
 			assert(gGaps);
 			flags.insC = 1;
-			ret.type = EDIT_TYPE_INS;
+			ret.type = EDIT_TYPE_READ_GAP;
 			chr = 1;
 		} else if(insCost == flags.costlo && flags.insG == 0) {
 			assert(gGaps);
 			flags.insG = 1;
-			ret.type = EDIT_TYPE_INS;
+			ret.type = EDIT_TYPE_READ_GAP;
 			chr = 2;
 		} else if(insCost == flags.costlo && flags.insT == 0) {
 			assert(gGaps);
 			flags.insT = 1;
-			ret.type = EDIT_TYPE_INS;
+			ret.type = EDIT_TYPE_READ_GAP;
 			chr = 3;
 		} else {
 			assert(gGaps);
@@ -209,14 +209,14 @@ struct Pos {
 			assert_eq(delCost, flags.costlo);
 			delCost += 0;
 			flags.del = 1;
-			ret.type = EDIT_TYPE_DEL;
+			ret.type = EDIT_TYPE_REF_GAP;
 		}
 		if(chr == -1) {
 			ret.chr = '-';
 		} else {
 			ret.chr = color ? "0123"[chr] : "ACGT"[chr];
 		}
-		if(ret.type == EDIT_TYPE_INS) {
+		if(ret.type == EDIT_TYPE_READ_GAP) {
 			ret.qchr = '-';
 		} else {
 			ret.qchr = "ACGTN"[flags.qchr];
@@ -524,7 +524,7 @@ public:
 	 * off from a deletion.
 	 */
 	bool justDeleted() const {
-		return len_ == 0 && edit_.isDelete();
+		return len_ == 0 && edit_.isRefGap();
 	}
 
 	/**

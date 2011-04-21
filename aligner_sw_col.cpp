@@ -3,6 +3,7 @@
  */
 
 #include "aligner_sw.h"
+#include "aligner_sw_col.h"
 #include "search_globals.h"
 #include "scoring.h"
 #include "mask.h"
@@ -15,78 +16,162 @@
  * the read character for the next row up.  second should be
  * ignored if the backtrack type is a gap in the read.
  */
-pair<int, int> SwColorCellMask::randBacktrack(
+pair<int, int> SwColorCellMask::randOverallBacktrack(
 	RandomSource& rand,
-	bool& branch)
+	bool& branch,
+	bool clear)
 {
-	ASSERT_ONLY(int num = numPossible());
+	ASSERT_ONLY(int num = numOverallPossible());
 	std::pair<int, int> ret;
 	ret.second = -1;
 	int i =
-		((diag != 0) << 0) |
-		((rfop != 0) << 1) |
-		((rfex != 0) << 2) |
-		((rdop != 0) << 3) |
-		((rdex != 0) << 4);
+		((oall_diag != 0) << 0) |
+		((oall_rfop != 0) << 1) |
+		((oall_rfex != 0) << 2) |
+		((oall_rdop != 0) << 3) |
+		((oall_rdex != 0) << 4);
 	// Count the total number of different choices we could make
 	int totChoices =
-		alts5[diag] +
-		alts5[rfop] +
-		alts5[rfex] +
-		alts5[rdop] +
-		alts5[rdex];
+		alts5[oall_diag] +
+		alts5[oall_rfop] +
+		alts5[oall_rfex] +
+		oall_rdop +
+		oall_rdex;
 	// If we're choosing from among >1 possibilities, inform caller so that
 	// caller can add a frame to the backtrack stack.
 	branch = totChoices > 1;
 	ret.first = randFromMask(rand, i);
 	assert_lt(ret.first, 5);
-	assert(ret.first == SW_BT_DIAG ||
-		   ret.first == SW_BT_REF_OPEN ||
-		   ret.first == SW_BT_REF_EXTEND ||
-		   ret.first == SW_BT_READ_OPEN ||
-		   ret.first == SW_BT_READ_EXTEND);
+	assert(ret.first == SW_BT_OALL_DIAG ||
+		   ret.first == SW_BT_OALL_REF_OPEN ||
+		   ret.first == SW_BT_OALL_REF_EXTEND ||
+		   ret.first == SW_BT_OALL_READ_OPEN ||
+		   ret.first == SW_BT_OALL_READ_EXTEND);
 	// Clear the bit associated with the path chosen
 	if(ret.first < 3) {
 		// Must choose character for next row
-		if(ret.first == SW_BT_DIAG) {
-			assert(diag != 0);
-			ret.second = randFromMask(rand, diag);
-			diag &= ~(1 << ret.second);
-		} else if(ret.first == SW_BT_REF_OPEN) {
-			assert(rfop != 0);
-			ret.second = randFromMask(rand, rfop);
-			rfop &= ~(1 << ret.second);
-		} else if(ret.first == SW_BT_REF_EXTEND) {
-			assert(rfex != 0);
-			ret.second = randFromMask(rand, rfex);
-			rfex &= ~(1 << ret.second);
+		if(ret.first == SW_BT_OALL_DIAG) {
+			assert(oall_diag != 0);
+			ret.second = randFromMask(rand, oall_diag);
+			if(clear) oall_diag &= ~(1 << ret.second);
+		} else if(ret.first == SW_BT_OALL_REF_OPEN) {
+			assert(oall_rfop != 0);
+			ret.second = randFromMask(rand, oall_rfop);
+			if(clear) oall_rfop &= ~(1 << ret.second);
+		} else if(ret.first == SW_BT_OALL_REF_EXTEND) {
+			assert(oall_rfex != 0);
+			ret.second = randFromMask(rand, oall_rfex);
+			if(clear) oall_rfex &= ~(1 << ret.second);
 		}
-	} else {
-		if(ret.first == SW_BT_READ_OPEN) {
-			rdop = 0;
+	} else if(clear) {
+		if(ret.first == SW_BT_OALL_READ_OPEN) {
+			oall_rdop = 0;
 		}
-		else if(ret.first == SW_BT_READ_EXTEND) {
-			rdex = 0;
+		else if(ret.first == SW_BT_OALL_READ_EXTEND) {
+			oall_rdex = 0;
 		}
 	}
-	assert_eq(num-1, numPossible());
+	assert_eq(num - (clear ? 1 : 0), numOverallPossible());
 	return ret;
 }
 
 /**
- * We finished updating the cell; set empty and finalized
- * appropriately.
+ * Select a path for backtracking from this cell.  If there is a
+ * tie among eligible paths, break it randomly.  Return value is
+ * a pair where first = a flag indicating the backtrack type (see
+ * enum defining SW_BT_* above), and second = a selection for
+ * the read character for the next row up.  second should be
+ * ignored if the backtrack type is a gap in the read.
+ */
+pair<int, int> SwColorCellMask::randReadGapBacktrack(
+	RandomSource& rand,
+	bool& branch,
+	bool clear)
+{
+	ASSERT_ONLY(int num = numReadGapPossible());
+	std::pair<int, int> ret;
+	ret.second = -1;
+	int i =
+		((rdgap_op != 0) << 0) |
+		((rdgap_ex != 0) << 1);
+	// Count the total number of different choices we could make
+	int totChoices = rdgap_op + rdgap_ex;
+	// If we're choosing from among >1 possibilities, inform caller so that
+	// caller can add a frame to the backtrack stack.
+	branch = totChoices > 1;
+	ret.first = randFromMask(rand, i) + SW_BT_RDGAP_OPEN;
+	assert(ret.first == SW_BT_RDGAP_OPEN ||
+		   ret.first == SW_BT_RDGAP_EXTEND);
+	if(clear) {
+		if(ret.first == SW_BT_RDGAP_OPEN) {
+			rdgap_op = 0;
+		} else {
+			rdgap_ex = 0;
+		}
+	}
+	assert_eq(num - (clear ? 1 : 0), numReadGapPossible());
+	return ret;
+}
+
+/**
+ * Select a path for backtracking from this cell.  If there is a
+ * tie among eligible paths, break it randomly.  Return value is
+ * a pair where first = a flag indicating the backtrack type (see
+ * enum defining SW_BT_* above), and second = a selection for
+ * the read character for the next row up.  second should be
+ * ignored if the backtrack type is a gap in the read.
+ */
+pair<int, int> SwColorCellMask::randRefGapBacktrack(
+	RandomSource& rand,
+	bool& branch,
+	bool clear)
+{
+	ASSERT_ONLY(int num = numRefGapPossible());
+	std::pair<int, int> ret;
+	ret.second = -1;
+	int i =
+		((rfgap_op != 0) << 0) |
+		((rfgap_ex != 0) << 1);
+	// Count the total number of different choices we could make
+	int totChoices =
+		alts5[rfgap_op] +
+		alts5[rfgap_ex];
+	// If we're choosing from among >1 possibilities, inform caller so that
+	// caller can add a frame to the backtrack stack.
+	branch = totChoices > 1;
+	ret.first = randFromMask(rand, i) + SW_BT_RFGAP_OPEN;
+	assert(ret.first == SW_BT_RFGAP_OPEN ||
+		   ret.first == SW_BT_RFGAP_EXTEND);
+	if(ret.first == SW_BT_RFGAP_OPEN) {
+		assert(rfgap_op != 0);
+		ret.second = randFromMask(rand, rfgap_op);
+		if(clear) rfgap_op &= ~(1 << ret.second);
+	} else if(ret.first == SW_BT_RFGAP_EXTEND) {
+		assert(rfgap_ex != 0);
+		ret.second = randFromMask(rand, rfgap_ex);
+		if(clear) rfgap_ex &= ~(1 << ret.second);
+	}
+	assert_eq(num - (clear ? 1 : 0), numRefGapPossible());
+	return ret;
+}
+
+/**
+ * We finished updating the cell; set empty and finalized appropriately.
  */
 inline bool SwColorCell::finalize(TAlScore floorsc) {
 	ASSERT_ONLY(finalized = true);
 	for(int i = 0; i < 4; i++) {
-		if(!mask[i].empty() && best[i].score() >= floorsc) {
-			assert(VALID_AL_SCORE(best[i]));
-			assert_geq(best[i].score(), floorsc);
+		bool aboveFloor = oallBest[i].score() >= floorsc;
+		if(!mask[i].empty() && aboveFloor) {
+			assert(VALID_AL_SCORE(oallBest[i]));
+			assert_geq(oallBest[i].score(), floorsc);
 			empty = false;
 #ifdef NDEBUG
 			break;
 #endif
+		} else if(aboveFloor) {
+			// This cell & nucleotide could be at the top end of an alignment
+			terminal[i] = true;
 		}
 	}
 	return !empty;
@@ -128,7 +213,8 @@ bool SwAligner::backtrackColors(
 	int           lastC,   // cell to backtrace from in lower-right corner
 	RandomSource& rand)    // pseudo-random generator
 {
-	ELList<SwColorCell>& tab = ctab_;
+	typedef SwColorCell TCell;
+	ELList<TCell>& tab = ctab_;
 	assert_lt(row, tab.size());
 	assert_geq(escore, minsc_);
 	btcstack_.clear();
@@ -141,15 +227,17 @@ bool SwAligner::backtrackColors(
 	score.gaps_ = score.ns_ = 0;
 	bool refExtend = false, readExtend = false;
 	ASSERT_ONLY(size_t origCol = col);
-	int gaps = 0;
+	int gaps = 0, readGaps = 0, refGaps = 0;
 	res.alres.reset();
 	EList<Edit>& ned = res.alres.ned();
 	//EList<Edit>& aed = res.alres.aed();
 	EList<Edit>& ced = res.alres.ced();
 	res.ndn = lastC;
-	assert_geq(score.score(), floorsc_);
+	size_t trimEnd = dpRows() - row - 1; 
+	size_t trimBeg = 0;
 	assert(!sc_->monotone || escore <= 0);
 	assert(!sc_->monotone || score.score() >= escore);
+	int ct = SW_BT_CELL_OALL; // cell type
 	while((int)row >= 0) {
 		res.swbts++;
 		assert_lt(row, tab.size());
@@ -159,18 +247,33 @@ bool SwAligner::backtrackColors(
 		assert_geq(col, row);
 		tabcol = col - row;
 		assert_geq(tabcol, 0);
+		TCell& curc = tab[row][tabcol];
+		bool empty = curc.mask[curC].numPossible(ct) == 0;
+		bool backtrack = false;
+		if(empty) {
+			// There were legitimate ways to backtrace from this cell, but
+			// they are now foreclosed because they are redundant with
+			// alignments already reported
+			backtrack = !curc.terminal[curC];
+		}
+		if(curc.reportedThru_) {
+			backtrack = true;
+		}
 		// Cell was involved in a previously-reported alignment?
-		if(tab[row][tabcol].reportedThru_) {
+		if(backtrack) {
 			if(!btcstack_.empty()) {
 				// Pop record off the top of the stack
 				ned.resize(btcstack_.back().nedsz);
 				btcells_.resize(btnstack_.back().celsz);
 				//aed.resize(btcstack_.back().aedsz);
-				row   = btcstack_.back().row;
-				col   = btcstack_.back().col;
-				gaps  = btcstack_.back().gaps;
-				score = btcstack_.back().score;
-				curC  = btcstack_.back().curC;
+				row      = btcstack_.back().row;
+				col      = btcstack_.back().col;
+				gaps     = btcstack_.back().gaps;
+				readGaps = btcstack_.back().readGaps;
+				refGaps  = btcstack_.back().refGaps;
+				score    = btcstack_.back().score;
+				curC     = btcstack_.back().curC;
+				ct       = btcstack_.back().ct;
 				btcstack_.pop_back();
 				assert(!sc_->monotone || score.score() >= escore);
 				continue;
@@ -179,7 +282,7 @@ bool SwAligner::backtrackColors(
 				return false;
 			}
 		}
-		assert(!tab[row][tabcol].reportedThru_);
+		assert(!curc.reportedThru_);
 		assert(!sc_->monotone || score.score() >= escore);
 		if(row == 0) {
 			btcells_.expand();
@@ -187,12 +290,18 @@ bool SwAligner::backtrackColors(
 			btcells_.back().second = tabcol;
 			break;
 		}
-		assert_gt(tab[row][tabcol].mask[curC].numPossible(), 0);
+		if(empty) {
+			assert_eq(SW_BT_CELL_OALL, ct);
+			// This cell is at the end of a legitimate alignment
+			trimBeg = row;
+			assert_eq(btcells_.size(), dpRows() - trimBeg - trimEnd + readGaps);
+			break;
+		}
 		bool branch = false;
 		pair<int, int> cur =
-			tab[row][tabcol].mask[curC].randBacktrack(rand, branch);
+			curc.mask[curC].randBacktrack(ct, rand, branch, true);
 		if(branch) {
-			assert_gt(tab[row][tabcol].mask[curC].numPossible(), 0);
+			assert_gt(curc.mask[curC].numPossible(ct), 0);
 			// Add a frame to the backtrack stack
 			btcstack_.expand();
 			btcstack_.back().init(
@@ -204,7 +313,10 @@ bool SwAligner::backtrackColors(
 				col,
 				curC,
 				gaps,
-				score);
+				readGaps,
+				refGaps,
+				score,
+				ct);
 		}
 		btcells_.expand();
 		btcells_.back().first = row;
@@ -214,7 +326,7 @@ bool SwAligner::backtrackColors(
 			// source row mismatches the decoded nucleotide, penalize
 			// it and add a nucleotide mismatch.  If the color being
 			// traversed is a miscall, penalize that.
-			case SW_BT_DIAG: {
+			case SW_BT_OALL_DIAG: {
 				assert_neq(-1, cur.second);
 				refExtend = readExtend = false;
 				assert_gt(row, 0); assert_gt(col, 0);
@@ -238,6 +350,7 @@ bool SwAligner::backtrackColors(
 					score.ns_++;
 				}
 				row--; col--;
+				ct = SW_BT_CELL_OALL;
 				assert_lt(row, tab.size());
 				assert(VALID_AL_SCORE(score));
 				// Check for color mismatch
@@ -263,15 +376,18 @@ bool SwAligner::backtrackColors(
 			}
 			// Move up.  Add an edit encoding the ref gap.  If the color
 			// being traversed is a miscall, penalize that.
-			case SW_BT_REF_OPEN: {
+			case SW_BT_OALL_REF_OPEN:
+			case SW_BT_RFGAP_OPEN:
+			{
 				refExtend = true; readExtend = false;
 				assert_gt(row, 0);
-				Edit e((int)row, '-', "ACGTN"[curC], EDIT_TYPE_DEL);
+				Edit e((int)row, '-', "ACGTN"[curC], EDIT_TYPE_REF_GAP);
 				assert(e.repOk());
 				ned.push_back(e);
 				assert_geq(row, (size_t)sc_->gapbar);
 				assert_geq((int)(rdf_-rdi_-row-1), sc_->gapbar-1);
 				row--;
+				ct = SW_BT_CELL_OALL;
 				// Check for color miscall
 				int decC = dinuc2color[cur.second][curC];
 				assert_range(0, 3, decC);
@@ -291,7 +407,7 @@ bool SwAligner::backtrackColors(
 				score.gaps_++;
 				assert_geq(score.score(), floorsc_);
 				assert(!sc_->monotone || score.score() >= escore);
-				gaps++;
+				gaps++; refGaps++;
 #ifndef NDEBUG
 				assert_leq(score.gaps_, rdgap_ + rfgap_);
 				assert_lt(row, tab.size());
@@ -304,15 +420,18 @@ bool SwAligner::backtrackColors(
 			}
 			// Move up.  Add an edit encoding the ref gap.  If the color
 			// being traversed is a miscall, penalize that.
-			case SW_BT_REF_EXTEND: {
+			case SW_BT_OALL_REF_EXTEND:
+			case SW_BT_RFGAP_EXTEND:
+			{
 				refExtend = true; readExtend = false;
 				assert_gt(row, 1);
-				Edit e((int)row, '-', "ACGTN"[curC], EDIT_TYPE_DEL);
+				Edit e((int)row, '-', "ACGTN"[curC], EDIT_TYPE_REF_GAP);
 				assert(e.repOk());
 				ned.push_back(e);
 				assert_geq(row, (size_t)sc_->gapbar);
 				assert_geq((int)(rdf_-rdi_-row-1), sc_->gapbar-1);
 				row--;
+				ct = SW_BT_CELL_RFGAP;
 				// Check for color mismatch
 				int decC = dinuc2color[cur.second][curC];
 				assert_range(0, 3, decC);
@@ -332,7 +451,7 @@ bool SwAligner::backtrackColors(
 				assert_geq(score.score(), floorsc_);
 				assert(!sc_->monotone || score.score() >= escore);
 				score.gaps_++;
-				gaps++;
+				gaps++; refGaps++;
 #ifndef NDEBUG
 				assert_leq(score.gaps_, rdgap_ + rfgap_);
 				assert_lt(row, tab.size());
@@ -343,20 +462,23 @@ bool SwAligner::backtrackColors(
 				curC = cur.second;
 				break;
 			}
-			case SW_BT_READ_OPEN: {
+			case SW_BT_OALL_READ_OPEN:
+			case SW_BT_RDGAP_OPEN:
+			{
 				refExtend = false; readExtend = true;
 				assert_gt(col, 0);
-				Edit e((int)row+1, "ACGTN"[firsts5[(int)rf_[rfi_+col]]], '-', EDIT_TYPE_INS);
+				Edit e((int)row+1, "ACGTN"[firsts5[(int)rf_[rfi_+col]]], '-', EDIT_TYPE_READ_GAP);
 				assert(e.repOk());
 				ned.push_back(e);
 				assert_geq(row, (size_t)sc_->gapbar);
 				assert_geq((int)(rdf_-rdi_-row-1), sc_->gapbar-1);
 				col--;
+				ct = SW_BT_CELL_OALL;
 				score.score_ -= sc_->readGapOpen();
 				score.gaps_++;
 				assert_geq(score.score(), floorsc_);
 				assert(!sc_->monotone || score.score() >= escore);
-				gaps++;
+				gaps++; readGaps++;
 #ifndef NDEBUG
 				assert_leq(score.gaps_, rdgap_ + rfgap_);
 				assert_lt(row, tab.size());
@@ -366,20 +488,23 @@ bool SwAligner::backtrackColors(
 				lastC = curC;
 				break;
 			}
-			case SW_BT_READ_EXTEND: {
+			case SW_BT_OALL_READ_EXTEND:
+			case SW_BT_RDGAP_EXTEND:
+			{
 				refExtend = false; readExtend = true;
 				assert_gt(col, 1);
-				Edit e((int)row+1, "ACGTN"[firsts5[(int)rf_[rfi_+col]]], '-', EDIT_TYPE_INS);
+				Edit e((int)row+1, "ACGTN"[firsts5[(int)rf_[rfi_+col]]], '-', EDIT_TYPE_READ_GAP);
 				assert(e.repOk());
 				ned.push_back(e);
 				assert_geq(row, (size_t)sc_->gapbar);
 				assert_geq((int)(rdf_-rdi_-row-1), sc_->gapbar-1);
 				col--;
+				ct = SW_BT_CELL_RDGAP;
 				score.score_ -= sc_->readGapExtend();
 				score.gaps_++;
 				assert_geq(score.score(), floorsc_);
 				assert(!sc_->monotone || score.score() >= escore);
-				gaps++;
+				gaps++; readGaps++;
 #ifndef NDEBUG
 				assert_leq(score.gaps_, rdgap_ + rfgap_);
 				assert_lt(row, tab.size());
@@ -392,6 +517,11 @@ bool SwAligner::backtrackColors(
 			default: throw 1;
 		}
 	} // while((int)row > 0)
+	assert_geq(col, 0);
+	assert_eq(SW_BT_CELL_OALL, ct);
+	// The number of cells in the backtracs should equal the number of read
+	// bases after trimming plus the number of gaps
+	assert_eq(btcells_.size(), dpRows() - trimBeg - trimEnd + readGaps);
 	for(size_t i = 0; i < btcells_.size(); i++) {
 		size_t rw = btcells_[i].first;
 		size_t cl = btcells_[i].second;
@@ -440,10 +570,37 @@ bool SwAligner::backtrackColors(
 	assert_eq(score.score(), escore);
 	assert_leq(gaps, rdgap_ + rfgap_);
 	// Dummy values for refid and fw
-	res.alres.setScore(score);
 	off = (col - row);
+	res.alres.setScore(score);
+	res.alres.setShape(
+		refidx_,                  // ref id
+		off + rfi_ + refoff_,     // 0-based ref offset
+		fw_,                      // aligned to Watson?
+		rdf_ - rdi_,              // read length
+		color_,                   // read was colorspace?
+		true,                     // pretrim soft?
+		0,                        // pretrim 5' end
+		0,                        // pretrim 3' end
+		false,                    // alignment trim soft?
+		fw_ ? trimBeg : trimEnd,  // alignment trim 5' end
+		fw_ ? trimEnd : trimBeg); // alignment trim 3' end
+	assert(res.repOk());
 	return true;
 }
+
+#if 0
+// Count it
+#define IF_COUNT_N(x...) x
+#define COUNT_N(x) { \
+	if(ninvolved) { \
+		x.incNs(nceil_); \
+	} \
+}
+#else
+// Do nothing
+#define IF_COUNT_N(x...)
+#define COUNT_N(x)
+#endif
 
 /**
  * Update a SwCell's best[] and mask[] arrays with respect to its
@@ -456,52 +613,56 @@ inline void SwAligner::updateColorHoriz(
 {
 	assert(lc.finalized);
 	if(lc.empty) return;
-	bool ninvolved = rfm > 15;
+	IF_COUNT_N(bool ninvolved = rfm > 15);
 	for(int to = 0; to < 4; to++) {
-		if(lc.empty) {
-			// There's no way to get to the cell to our left within
-			// budget if the read character assigned to this row is
-			// 'to', so try next character assignment.
-			continue;
+		AlnScore leftOallBest  = lc.oallBest[to];
+		AlnScore leftRdgapBest = lc.rdgapBest[to];
+		AlnScore& myOallBest   = dstc.oallBest[to];
+		AlnScore& myRdgapBest  = dstc.oallBest[to];
+		SwColorCellMask& myMask  = dstc.mask[to];
+		assert(!sc_->monotone || leftOallBest.score()  <= 0);
+		assert(!sc_->monotone || leftRdgapBest.score() <= 0);
+		assert_leq(leftRdgapBest, leftOallBest);
+		if(!VALID_AL_SCORE(leftOallBest)) {
+			assert(!VALID_AL_SCORE(leftRdgapBest));
+			return;
 		}
-		AlnScore leftBest = lc.best[to];
-		assert(!sc_->monotone || leftBest.score() <= 0);
-		const SwColorCellMask& fromMask = lc.mask[to];
-		AlnScore& myBest = dstc.best[to];
-		SwColorCellMask& myMask = dstc.mask[to];
-		if(ninvolved) leftBest.incNs(nceil_);
-		if(!VALID_AL_SCORE(leftBest)) continue;
-		// *Don't* penalize for a nucleotide mismatch because we must
-		// have already done that in a previous vertical or diagonal
-		// step.
-		if(fromMask.readExtendPossible()) {
-			// Read gap extension possible?
-			AlnScore ex = leftBest;
-			assert_leq(ex.score(), 0);
-			assert(VALID_AL_SCORE(ex));
-			ex.score_ -= sc_->readGapExtend();
-			assert_leq(ex.score(), 0);
-			if(ex.score_ >= floorsc_ && ex >= myBest) {
-				if(ex > myBest) {
-					myMask.clear();
-					myBest = ex;
+		COUNT_N(myOallBest);
+		COUNT_N(myRdgapBest);
+		// Consider read gap extension
+		AlnScore ex = leftRdgapBest - sc_->readGapExtend();
+		if(ex.score_ >= floorsc_) {
+			if(ex >= myOallBest) {
+				if(ex > myOallBest) {
+					myMask.clearOverallMask();
+					myOallBest = ex;
 				}
-				myMask.rdex = 1;
-				assert(VALID_AL_SCORE(myBest));
+				myMask.oall_rdex = 1;
+			}
+			if(ex >= myRdgapBest) {
+				if(ex > myRdgapBest) {
+					myMask.clearReadGapMask();
+					myRdgapBest = ex;
+				}
+				myMask.rdgap_ex = 1;
 			}
 		}
-		if(fromMask.readOpenPossible()) {
-			// Read gap open possible?
-			AlnScore ex = leftBest;
-			assert(VALID_AL_SCORE(ex));
-			ex.score_ -= sc_->readGapOpen();
-			if(ex.score_ >= floorsc_ && ex >= myBest) {
-				if(ex > myBest) {
-					myMask.clear();
-					myBest = ex;
+		// Consider read gap open
+		ex = leftOallBest - sc_->readGapOpen();
+		if(ex.score_ >= floorsc_) {
+			if(ex >= myOallBest) {
+				if(ex > myOallBest) {
+					myMask.clearOverallMask();
+					myOallBest = ex;
 				}
-				myMask.rdop = 1;
-				assert(VALID_AL_SCORE(myBest));
+				myMask.oall_rdop = 1;
+			}
+			if(ex >= myRdgapBest) {
+				if(ex > myRdgapBest) {
+					myMask.clearReadGapMask();
+					myRdgapBest = ex;
+				}
+				myMask.rdgap_op = 1;
 			}
 		}
 	}
@@ -523,50 +684,68 @@ inline void SwAligner::updateColorVert(
 		// Assuming that the read character in this row is 'to'...
 		// No SNP penalty because destination read char aligns to a
 		// gap in the reference.
-		AlnScore from[] = {
-			uc.best[0], uc.best[1],
-			uc.best[2], uc.best[3] };
-		// Calculate which 'from' character isn't going to
-		// cause a color mismatch
+		AlnScore fromOall[] = {
+			uc.oallBest[0], uc.oallBest[1],
+			uc.oallBest[2], uc.oallBest[3] };
+		AlnScore fromRfgap[] = {
+			uc.rfgapBest[0], uc.rfgapBest[1],
+			uc.rfgapBest[2], uc.rfgapBest[3] };
+		// Calculate which 'from' character isn't going to cause a color mm
 		const int goodfrom = nuccol2nuc[to][c];
-		// Reward the 'from' that corroborates the color
-		if(goodfrom < 4) from[goodfrom].score_ += penmm;
+		// Neutralize penalties for 'from' chars that corroborate color
+		if(goodfrom < 4) {
+			if(fromOall [goodfrom].valid()) fromOall [goodfrom].score_ += penmm;
+			if(fromRfgap[goodfrom].valid()) fromRfgap[goodfrom].score_ += penmm;
+		}
 		for(int fr = 0; fr < 4; fr++) {
-			AlnScore frBest = from[fr];
-			const SwColorCellMask& frMask = uc.mask[fr];
-			AlnScore& myBest = dstc.best[to];
+			AlnScore  upOallBest  = fromOall[fr] - penmm;
+			AlnScore  upRfgapBest = fromRfgap[fr] - penmm;
+			AlnScore& myOallBest  = dstc.oallBest[to];
+			AlnScore& myRfgapBest = dstc.rfgapBest[to];
 			SwColorCellMask& myMask = dstc.mask[to];
-			if(c > 3) {
-				frBest.incNs(nceil_);
+			assert(!sc_->monotone || upOallBest.score()  <= 0);
+			assert(!sc_->monotone || upRfgapBest.score() <= 0);
+			assert_leq(upRfgapBest, upOallBest);
+			if(!VALID_AL_SCORE(upOallBest)) {
+				assert(!VALID_AL_SCORE(upRfgapBest));
+				return;
 			}
-			if(!VALID_AL_SCORE(frBest)) continue;
-			frBest.score_ -= penmm;
-			assert(!sc_->monotone || frBest.score() <= 0);
-			if(frMask.refExtendPossible()) {
-				// Extend is possible
-				frBest.score_ -= sc_->refGapExtend();
-				assert_leq(frBest.score_, 0);
-				if(frBest.score_ >= floorsc_ && frBest >= myBest) {
-					if(frBest > myBest) {
-						myBest = frBest;
-						myMask.clear();
+			COUNT_N(myOallBest);
+			COUNT_N(myRfgapBest);
+			// Consider reference gap extension
+			AlnScore ex = upRfgapBest - sc_->refGapExtend();
+			if(ex.score_ >= floorsc_) {
+				if(ex >= myOallBest) {
+					if(ex > myOallBest) {
+						myMask.clearOverallMask();
+						myOallBest = ex;
 					}
-					myMask.rfex |= (1 << fr);
-					assert(VALID_AL_SCORE(myBest));
+					myMask.oall_rfex |= (1 << fr);
 				}
-				// put it back
-				frBest.score_ += sc_->refGapExtend();
-			}
-			if(frMask.refOpenPossible()){
-				// Open is possible
-				frBest.score_ -= sc_->refGapOpen();
-				if(frBest.score_ >= floorsc_ && frBest >= myBest) {
-					if(frBest > myBest) {
-						myBest = frBest;
-						myMask.clear();
+				if(ex >= myRfgapBest) {
+					if(ex > myRfgapBest) {
+						myMask.clearRefGapMask();
+						myRfgapBest = ex;
 					}
-					myMask.rfop |= (1 << fr);
-					assert(VALID_AL_SCORE(myBest));
+					myMask.rfgap_ex |= (1 << fr);
+				}
+			}
+			// Consider reference gap open
+			ex = upOallBest - sc_->refGapOpen();
+			if(ex.score_ >= floorsc_) {
+				if(ex >= myOallBest) {
+					if(ex > myOallBest) {
+						myMask.clearOverallMask();
+						myOallBest = ex;
+					}
+					myMask.oall_rfop |= (1 << fr);
+				}
+				if(ex >= myRfgapBest) {
+					if(ex > myRfgapBest) {
+						myMask.clearRefGapMask();
+						myRfgapBest = ex;
+					}
+					myMask.rfgap_op |= (1 << fr);
 				}
 			}
 		}
@@ -586,35 +765,36 @@ inline void SwAligner::updateColorDiag(
 {
 	assert(uc.finalized);
 	if(uc.empty) return;
-	bool ninvolved = (c > 3 || refMask > 15);
+	IF_COUNT_N(bool ninvolved = (c > 3 || refMask > 15));
 	for(int to = 0; to < 4; to++) {
 		// Assuming that the read character in this row is 'to'...
 		int add = (matches(to, refMask) ? sc_->match(30) : -((refMask > 15) ? sc_->n(30) : sc_->snp));
-		AlnScore from[] = {
-			uc.best[0] + add, uc.best[1] + add,
-			uc.best[2] + add, uc.best[3] + add };
-		// Calculate which 'from' character isn't going to
-		// cause a color mismatch
+		AlnScore fromOall[] = {
+			uc.oallBest[0], uc.oallBest[1],
+			uc.oallBest[2], uc.oallBest[3] };
 		const int goodfrom = nuccol2nuc[to][c];
 		if(goodfrom < 4) {
-			from[goodfrom].score_ += penmm;
+			if(fromOall[goodfrom].valid()) {
+				// Neutralize penalty for 'from' char that corroborates color
+				fromOall[goodfrom].score_ += penmm;
+			}
 		}
 		for(int fr = 0; fr < 4; fr++) {
-			AlnScore frBest = from[fr];
-			AlnScore& myBest = dstc.best[to];
+			AlnScore  dcOallBest  = fromOall[fr] - penmm;
+			AlnScore& myOallBest  = dstc.oallBest[to];
 			SwColorCellMask& myMask = dstc.mask[to];
-			if(ninvolved) frBest.incNs(nceil_);
-			if(!VALID_AL_SCORE(frBest)) continue;
-			frBest.score_ -= penmm;
-			assert(!sc_->monotone || frBest.score() <= 0);
-			if(frBest.score_ >= floorsc_ && frBest >= myBest) {
-				if(frBest > myBest) {
-					myBest = frBest;
+			assert(!sc_->monotone || dcOallBest.score() <= 0);
+			if(!VALID_AL_SCORE(dcOallBest)) {
+				return;
+			}
+			COUNT_N(dcOallBest);
+			AlnScore ex = dcOallBest + add;
+			if(ex.score_ >= floorsc_ && ex >= myOallBest) {
+				if(ex > myOallBest) {
+					myOallBest = ex;
 					myMask.clear();
-					assert_eq(0, myMask.diag);
 				}
-				myMask.diag |= (1 << fr);
-				assert(VALID_AL_SCORE(myBest));
+				myMask.oall_diag |= (1 << fr);
 			}
 		}
 	}
@@ -632,18 +812,18 @@ inline void SwAligner::updateColorDiag(
 #define UPDATE_SOLS(cur, row, col) { \
 	if(en_ == NULL || (*en_)[col]) { \
 		for(int I = 0; I < 4; I++) { \
-			if(cur.best[I].score() >= minsc_) { \
+			if(cur.oallBest[I].score() >= minsc_) { \
 				if((int64_t)row >= solrowlo_) { \
 					/* Score is acceptable */ \
 					if(row < solrows_.first)           solrows_.first = row; \
 					if(row > solrows_.second)          solrows_.second = row; \
 					if(col < solcols_[row].first)      solcols_[row].first  = col; \
 					if(col > solcols_[row].second)     solcols_[row].second = col; \
-					if(cur.best[I].score() > solbest_) \
-						solbest_ = cur.best[I].score(); \
+					if(cur.oallBest[I].score() > solbest_) \
+						solbest_ = cur.oallBest[I].score(); \
 					assert(!sc_->monotone || solbest_ <= 0); \
-					if(cur.best[I].score() > solrowbest_[row]) \
-						solrowbest_[row] = cur.best[I].score(); \
+					if(cur.oallBest[I].score() > solrowbest_[row]) \
+						solrowbest_[row] = cur.oallBest[I].score(); \
 					assert(!sc_->monotone || solrowbest_[row] <= 0); \
 					nsols_++; \
 					soldone_ = false; \
@@ -710,42 +890,46 @@ bool SwAligner::alignColors(RandomSource& rnd) {
 	// consecutive pairs of read nucleotides until we get to the second
 	// row.  We just consider reference mutations.
 	for(size_t col = 0; col <= whi; col++) {
-		tab[0][col].clear(); // clear the cell; masks and scores
+		TCell& curc = tab[0][col];
+		curc.clear(); // clear the cell; masks and scores
 		int rfm = rf_[rfi_+col];
 		// Can we start from here?
 		bool canStart = (st_ == NULL || (*st_)[col]);
 		if(canStart) {
 			for(int to = 0; to < 4; to++) {
+				curc.oallBest[to].reset();
+				curc.rdgapBest[to].invalidate();
+				curc.rfgapBest[to].invalidate();
 				int m = matchesEx(to, rfm);
 				if(m == 1) {
 					// The assigned subject nucleotide matches the reference;
 					// no penalty
 					assert_lt(rfm, 16);
-					tab[0][col].best[to].gaps_ = 0;
-					tab[0][col].best[to].ns_ = 0;
-					tab[0][col].best[to].score_ = 0;
-					tab[0][col].mask[to].diag = 0xf;
+					curc.oallBest[to].gaps_ = 0;
+					curc.oallBest[to].ns_ = 0;
+					curc.oallBest[to].score_ = 0;
+					curc.mask[to].oall_diag = 0xf;
 				} else if(m == 0 && sc_->snp <= -minsc_) {
 					// The assigned subject nucleotide does not match the
 					// reference nucleotide, so we add a SNP penalty
-					tab[0][col].best[to].gaps_ = 0;
-					tab[0][col].best[to].ns_ = 0;
-					tab[0][col].best[to].score_ = -sc_->snp;
-					tab[0][col].mask[to].diag = 0xf;
+					curc.oallBest[to].gaps_ = 0;
+					curc.oallBest[to].ns_ = 0;
+					curc.oallBest[to].score_ = -sc_->snp;
+					curc.mask[to].oall_diag = 0xf;
 				} else if(m == -1) {
 					// The mask or query character is an N
-					tab[0][col].best[to].gaps_ = 0;
-					tab[0][col].best[to].ns_ = 1;
-					tab[0][col].best[to].score_ = -sc_->n(30);
-					tab[0][col].mask[to].diag = 0xf;
+					curc.oallBest[to].gaps_ = 0;
+					curc.oallBest[to].ns_ = 1;
+					curc.oallBest[to].score_ = -sc_->n(30);
+					curc.mask[to].oall_diag = 0xf;
 				} else {
 					// Leave mask[to] cleared
 				}
 			}
 		}
 		// Calculate horizontals if barrier allows
-		if(sc_->gapbar <= 1 && col > 0) {
-			updateColorHoriz(tab[0][col-1], tab[0][col], rfm);
+		if(sc_->gapbar < 1 && col > 0) {
+			updateColorHoriz(tab[0][col-1], curc, rfm);
 			ncups_++;
 		}
 		FINALIZE_CELL(0, col);

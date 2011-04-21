@@ -41,7 +41,7 @@ void Edit::invertPoss(EList<Edit>& edits, size_t sz) {
 	// Invert all the .pos's
 	for(size_t i = 0; i < edits.size(); i++) {
 		assert_lt(edits[i].pos, sz);
-		edits[i].pos = (uint32_t)(sz - edits[i].pos - (edits[i].type == EDIT_TYPE_INS ? 0 : 1));
+		edits[i].pos = (uint32_t)(sz - edits[i].pos - (edits[i].type == EDIT_TYPE_READ_GAP ? 0 : 1));
 	}
 }
 
@@ -85,10 +85,10 @@ void Edit::printQAlign(
 	for(size_t i = 0; i < read.length(); i++) {
 		bool ins = false, del = false, mm = false;
 		while(eidx < edits.size() && edits[eidx].pos == i) {
-			if(edits[eidx].isInsert()) {
+			if(edits[eidx].isReadGap()) {
 				ins = true;
 				os << '-';
-			} else if(edits[eidx].isDelete()) {
+			} else if(edits[eidx].isRefGap()) {
 				del = true;
 				assert_eq((int)edits[eidx].qchr, read.toChar(i));
 				os << read.toChar(i);
@@ -109,10 +109,10 @@ void Edit::printQAlign(
 	for(size_t i = 0; i < read.length(); i++) {
 		bool ins = false, del = false, mm = false;
 		while(eidx < edits.size() && edits[eidx].pos == i) {
-			if(edits[eidx].isInsert()) {
+			if(edits[eidx].isReadGap()) {
 				ins = true;
 				os << ' ';
-			} else if(edits[eidx].isDelete()) {
+			} else if(edits[eidx].isRefGap()) {
 				del = true;
 				os << ' ';
 			} else {
@@ -131,10 +131,10 @@ void Edit::printQAlign(
 	for(size_t i = 0; i < read.length(); i++) {
 		bool ins = false, del = false, mm = false;
 		while(eidx < edits.size() && edits[eidx].pos == i) {
-			if(edits[eidx].isInsert()) {
+			if(edits[eidx].isReadGap()) {
 				ins = true;
 				os << (char)edits[eidx].chr;
-			} else if(edits[eidx].isDelete()) {
+			} else if(edits[eidx].isRefGap()) {
 				del = true;
 				os << '-';
 			} else {
@@ -165,10 +165,10 @@ void Edit::printQAlignNoCheck(
 	for(size_t i = 0; i < read.length(); i++) {
 		bool ins = false, del = false, mm = false;
 		while(eidx < edits.size() && edits[eidx].pos == i) {
-			if(edits[eidx].isInsert()) {
+			if(edits[eidx].isReadGap()) {
 				ins = true;
 				os << '-';
-			} else if(edits[eidx].isDelete()) {
+			} else if(edits[eidx].isRefGap()) {
 				del = true;
 				os << read.toChar(i);
 			} else {
@@ -186,10 +186,10 @@ void Edit::printQAlignNoCheck(
 	for(size_t i = 0; i < read.length(); i++) {
 		bool ins = false, del = false, mm = false;
 		while(eidx < edits.size() && edits[eidx].pos == i) {
-			if(edits[eidx].isInsert()) {
+			if(edits[eidx].isReadGap()) {
 				ins = true;
 				os << ' ';
-			} else if(edits[eidx].isDelete()) {
+			} else if(edits[eidx].isRefGap()) {
 				del = true;
 				os << ' ';
 			} else {
@@ -207,10 +207,10 @@ void Edit::printQAlignNoCheck(
 	for(size_t i = 0; i < read.length(); i++) {
 		bool ins = false, del = false, mm = false;
 		while(eidx < edits.size() && edits[eidx].pos == i) {
-			if(edits[eidx].isInsert()) {
+			if(edits[eidx].isReadGap()) {
 				ins = true;
 				os << (char)edits[eidx].chr;
-			} else if(edits[eidx].isDelete()) {
+			} else if(edits[eidx].isRefGap()) {
 				del = true;
 				os << '-';
 			} else {
@@ -243,7 +243,9 @@ void Edit::sort(EList<Edit>& edits) {
 void Edit::toRef(
 	const BTDnaString& read,
 	const EList<Edit>& edits,
-	BTDnaString& ref)
+	BTDnaString& ref,
+	size_t trimBeg,
+	size_t trimEnd)
 {
 	// edits should be sorted
 	size_t eidx = 0;
@@ -253,13 +255,16 @@ void Edit::toRef(
 		ASSERT_ONLY(int c = read[i]);
 		assert_range(0, 4, c);
 		bool ins = false, del = false, mm = false;
+		bool append = i >= trimBeg && rdlen - i - 1 >= trimEnd;
 		while(eidx < edits.size() && edits[eidx].pos == i) {
-			if(edits[eidx].isInsert()) {
+			if(edits[eidx].isReadGap()) {
 				ins = true;
 				// Inserted characters come before the position's
 				// character
-				ref.appendChar((char)edits[eidx].chr);
-			} else if(edits[eidx].isDelete()) {
+				if(append) {
+					ref.appendChar((char)edits[eidx].chr);
+				}
+			} else if(edits[eidx].isRefGap()) {
 				assert_eq("ACGTN"[c], edits[eidx].qchr);
 				del = true;
 			} else {
@@ -267,12 +272,16 @@ void Edit::toRef(
 				assert(edits[eidx].isMismatch());
 				assert(edits[eidx].qchr != edits[eidx].chr || edits[eidx].qchr == 'N');
 				assert_eq("ACGTN"[c], edits[eidx].qchr);
-				ref.appendChar((char)edits[eidx].chr);
+				if(append) {
+					ref.appendChar((char)edits[eidx].chr);
+				}
 			}
 			eidx++;
 		}
 		if(!del && !mm) {
-			ref.append(read[i]);
+			if(append) {
+				ref.append(read[i]);
+			}
 		}
 	}
 }
@@ -284,8 +293,8 @@ bool Edit::repOk() const {
 	// Ref and read characters cannot be the same unless they're both Ns
 	assert(qchr != chr || qchr == 'N');
 	// Type must match characters
-	assert(isDelete() ||  chr != '-');
-	assert(isInsert() || qchr != '-');
+	assert(isRefGap() ||  chr != '-');
+	assert(isReadGap() || qchr != '-');
 	assert(!isMismatch() || (qchr != '-' && chr != '-'));
 	return true;
 }
@@ -309,17 +318,17 @@ bool Edit::repOk(const EList<Edit>& edits,
 			const Edit& ee = edits[i];
 			assert_lt(ee.pos, s.length());
 			if(ee.qchr != '-') {
-				assert(ee.isDelete() || ee.isMismatch());
+				assert(ee.isRefGap() || ee.isMismatch());
 				assert_eq((int)ee.qchr, s.toChar(ee.pos));
 			}
 			if(ee.isMismatch()) {
 				assert(!mm);
 				mm = true;
 				assert(!del);
-			} else if(ee.isInsert()) {
+			} else if(ee.isReadGap()) {
 				ins = true;
 				assert(!mm);
-			} else if(ee.isDelete()) {
+			} else if(ee.isRefGap()) {
 				assert(!mm);
 				assert(!del);
 				del = true;
@@ -344,11 +353,11 @@ void Edit::merge(EList<Edit>& dst, const EList<Edit>& src) {
 			// There can be two inserts at a given position, but we
 			// can't merge them because there's no way to know their
 			// order
-			assert(src[si].isInsert() != dst[di].isInsert());
-			if(src[si].isInsert()) {
+			assert(src[si].isReadGap() != dst[di].isReadGap());
+			if(src[si].isReadGap()) {
 				dst.insert(src[si], di);
 				si++; di++;
-			} else if(dst[di].isInsert()) {
+			} else if(dst[di].isReadGap()) {
 				di++;
 			}
 		}

@@ -1222,6 +1222,9 @@ protected:
 	
 	BTDnaString   dseq_;       // buffer for decoded read sequence
 	BTString      dqual_;      // buffer for decoded quality sequence
+	
+	EList<char>   tmpop_;      // temporary holder for CIGAR ops
+	EList<size_t> tmprun_;     // temporary holder for CIGAR runs
 };
 
 #endif /*ndef ALN_SINK_H_*/
