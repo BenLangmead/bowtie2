@@ -1,0 +1,4 @@
+Bowtie 2 TODO list:
+- Add SAM checks to simple_tests.pl
+- Represent overhanging alignments in SAM
+- Keep /0 and /1?
