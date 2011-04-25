@@ -800,7 +800,7 @@ inline void SwAligner::updateNucDiag(
 	if(dc.empty) return;
 	bool ninvolved = (rdc > 3 || rfm > 15);
 	bool match = matches(rdc, rfm);
-	int add;
+	TAlScore add;
 	if(match) {
 		add = sc_->match(30);
 		improved = true;
@@ -1559,8 +1559,8 @@ bool SwAligner::nextAlignmentTryNucRow(
 		assert_lt(i, ntab_[row].size());
 		if(en_ != NULL && !(*en_)[i]) {
 			// This can't be at either end of the range of valid row cells
-			assert_neq(i, solcols_[row].first);
-			assert_neq(i, solcols_[row].second);
+			//assert_neq(i, solcols_[row].first);
+			//assert_neq(i, solcols_[row].second);
 			// Skip b/c this diagonal cannot have a solution cell
 			continue;
 		}

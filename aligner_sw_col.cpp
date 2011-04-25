@@ -775,7 +775,10 @@ inline void SwAligner::updateColorDiag(
 	IF_COUNT_N(bool ninvolved = (c > 3 || refMask > 15));
 	for(int to = 0; to < 4; to++) {
 		// Assuming that the read character in this row is 'to'...
-		int add = (matches(to, refMask) ? sc_->match(30) : -((refMask > 15) ? sc_->n(30) : sc_->snp));
+		TAlScore add =
+			(matches(to, refMask) ?
+				sc_->match(30) :
+				-((refMask > 15) ? sc_->n(30) : sc_->snp));
 		AlnScore fromOall[] = {
 			uc.oallBest[0], uc.oallBest[1],
 			uc.oallBest[2], uc.oallBest[3] };

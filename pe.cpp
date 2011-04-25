@@ -36,6 +36,10 @@ int PairedEndPolicy::peClassifyPair(
 	size_t maxfrag = maxfrag_;
 	if(len1 > maxfrag && expandToFit_) maxfrag = len1;
 	if(len2 > maxfrag && expandToFit_) maxfrag = len2;
+	size_t minfrag = minfrag_;
+	if(minfrag < 1) {
+		minfrag = 1;
+	}
 	bool oneLeft = false;
 	if(pol_ == PE_POLICY_FF) {
 		if(fw1 != fw2) {
@@ -67,7 +71,7 @@ int PairedEndPolicy::peClassifyPair(
 	int64_t fraghi = max<int64_t>(off1+len1, off2+len2);
 	assert_gt(fraghi, fraglo);
 	size_t frag = (size_t)(fraghi - fraglo);
-	if(frag > maxfrag || frag < minfrag_) {
+	if(frag > maxfrag || frag < minfrag) {
 		// Pair is discordant by virtue of the extents
 		return PE_ALS_DISCORD;
 	}
@@ -161,6 +165,10 @@ bool PairedEndPolicy::otherMate(
 	// Expand the maximum fragment length if necessary to accomodate
 	// the longer mate
 	size_t maxfrag = maxfrag_;
+	size_t minfrag = minfrag_;
+	if(minfrag < 1) {
+		minfrag = 1;
+	}
 	if(len1 > maxfrag && expandToFit_) maxfrag = len1;
 	if(len2 > maxfrag && expandToFit_) maxfrag = len2;
 	if(!expandToFit_ && (len1 > maxfrag || len2 > maxfrag)) {
@@ -192,7 +200,7 @@ bool PairedEndPolicy::otherMate(
 		//      |------|
 		//     Concordant
 		//  |------|
-		// Not concordant: RHS outside max
+		// Not concordant: LHS outside max
 		
 		//    -----------FRAG MAX----------------
 		//                 -------FRAG MIN-------
@@ -203,19 +211,19 @@ bool PairedEndPolicy::otherMate(
 		// LHS can't be outside this range
 		//                               -----------FRAG MAX----------------
 		//    |------------------------------------------------------------|
-		// RHS can't be outside this range, assuming no restrictions on
+		// LHS can't be outside this range, assuming no restrictions on
 		// flipping, dovetailing, containment, overlap, etc.
 		//                                      |-------|
 		//                                      maxalcols
 		//    |-----------------------------------------|
-		// RHS can't be outside this range, assuming no flipping
+		// LHS can't be outside this range, assuming no flipping
 		//    |---------------------------------|
-		// RHS can't be outside this range, assuming no dovetailing
+		// LHS can't be outside this range, assuming no dovetailing
 		//    |-------------------------|
-		// RHS can't be outside this range, assuming no overlap
+		// LHS can't be outside this range, assuming no overlap
 
 		oll = off + alen - maxfrag;
-		olr = off + alen - minfrag_;
+		olr = off + alen - minfrag;
 		assert_geq(olr, oll);
 		
 		orl = oll;
@@ -243,6 +251,10 @@ bool PairedEndPolicy::otherMate(
 			assert_leq(oll, olr);
 			assert_leq(orl, orr);
 		}
+		assert_geq(olr, oll);
+		assert_geq(orr, orl);
+		assert_geq(orr, olr);
+		assert_geq(orl, oll);
 	} else {
 		//                             -----------FRAG MAX----------------
 		//                             -------FRAG MIN-------
@@ -281,7 +293,7 @@ bool PairedEndPolicy::otherMate(
 		//              LHS can't be outside this range, assuming no overlap
 		
 		orr = off + (maxfrag - 1);
-		orl  = off + (minfrag_ - 1);
+		orl  = off + (minfrag - 1);
 		assert_geq(orr, orl);
 		
 		oll = off + alen - maxfrag;
@@ -309,6 +321,10 @@ bool PairedEndPolicy::otherMate(
 			assert_leq(oll, olr);
 			assert_leq(orl, orr);
 		}
+		assert_geq(olr, oll);
+		assert_geq(orr, orl);
+		assert_geq(orr, olr);
+		assert_geq(orl, oll);
 	}
 
 	// Boundaries and orientation determined

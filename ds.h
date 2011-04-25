@@ -1729,7 +1729,10 @@ private:
 	 */
 	void insert(const T& el, size_t idx) {
 		assert_leq(idx, cur_);
-		if(cur_ == sz_) expandCopy(sz_+1);
+		if(cur_ == sz_) {
+			expandCopy(sz_+1);
+			assert(sorted());
+		}
 		for(size_t i = cur_; i > idx; i--) {
 			list_[i] = list_[i-1];
 		}
@@ -1757,8 +1760,13 @@ private:
 	void expandCopy(size_t thresh) {
 		if(thresh <= sz_) return;
 		size_t newsz = sz_ * 2;
-		while(newsz < thresh) newsz *= 2;
+		while(newsz < thresh) {
+			newsz *= 2;
+		}
 		T* tmp = alloc(newsz);
+		for(size_t i = 0; i < cur_; i++) {
+			tmp[i] = list_[i];
+		}
 		free();
 		list_ = tmp;
 		sz_ = newsz;
