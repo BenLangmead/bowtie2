@@ -2334,7 +2334,7 @@ static void* multiseedSearchWorker(void *vp) {
 	int mergei = 0;
 	int mergeival = 16;
 	while(true) {
-		ps->nextReadPair();
+		ps->nextReadPair(outType != OUTPUT_SAM);
 		TReadId patid = ps->patid();
 		if(patid < qUpto && !ps->empty()) {
 			// Align this read/pair

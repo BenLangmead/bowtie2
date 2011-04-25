@@ -154,7 +154,7 @@ public:
 					(*aligners_)[i]->advance();
 				} else {
 					// Get a new read and initialize an aligner with it
-					(*patsrcs_)[i]->nextReadPair();
+					(*patsrcs_)[i]->nextReadPair(true);
 					if(!(*patsrcs_)[i]->empty() && (*patsrcs_)[i]->patid() < qUpto_) {
 						(*aligners_)[i]->setQuery((*patsrcs_)[i]);
 						assert(!(*aligners_)[i]->done);
@@ -243,7 +243,7 @@ public:
 					al->advance();
 				} else {
 					// Get a new read
-					ps->nextReadPair();
+					ps->nextReadPair(true);
 					if(ps->patid() < qUpto_ && !ps->empty()) {
 						assert_eq(ps->bufa().color, gColor);
 						if(ps->paired()) {
@@ -281,7 +281,7 @@ public:
 						// Feed a new read to a vacant aligner
 						PatternSourcePerThread *ps = (*patsrcs_)[i];
 						// Get a new read
-						ps->nextReadPair();
+						ps->nextReadPair(true);
 						if(ps->patid() < qUpto_ && !ps->empty()) {
 							if(ps->paired()) {
 								// Read currently in buffer is paired-end

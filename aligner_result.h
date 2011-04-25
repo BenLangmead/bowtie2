@@ -1105,6 +1105,14 @@ public:
 	inline int  pairing()   const { return pairing_; }
 	inline bool maxed()     const { return maxed_; }
 	inline bool maxedPair() const { return maxedPair_; }
+	
+	/**
+	 * Return true iff the flags indicate that the mate is one of a pair that
+	 * aligned concordantly.
+	 */
+	inline bool isConcordant() const {
+		return pairing_ == ALN_FLAG_PAIR_CONCORD;
+	}
 
 protected:
 

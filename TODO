@@ -1,13 +1,12 @@
 Bowtie 2 TODO list:
-- Add SAM checks to simple_tests.pl
 - Soft/hard trimming taken into account when setting up paired-end problems?
 - Represent overhanging alignments in SAM
-- Keep /0 and /1?
 - Mapping quality calculation?
 - Run random tests that include paired-end alignment
 - Some flags should only appear if they're relevant to mode (e.g. YP:i:)
 - XS:i: can't default to 0 because it's ambiguous w/ aln of score 0
 - Optional flags for printing original colorspace read/quals
+- Optional flags AS:i:0, XS:i:0
 
 Performance ideas:
 - Check whether a potential seed extend is redundant with a previous one

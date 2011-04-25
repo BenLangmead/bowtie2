@@ -1470,7 +1470,10 @@ void AlnSinkSam::appendMate(
 	int fl = 0;
 	if(rs != NULL && rs->isMate()) {
 		assert(rso != NULL);
-		fl |= (SAM_FLAG_PAIRED | SAM_FLAG_MAPPED_PAIRED);
+		fl |= SAM_FLAG_PAIRED;
+		if(flags.isConcordant()) {
+			fl |= SAM_FLAG_MAPPED_PAIRED;
+ 		}
 		fl |= (rs->isMate1() ?
 			SAM_FLAG_FIRST_IN_PAIR : SAM_FLAG_SECOND_IN_PAIR);
 		if(!rso->fw()) {
@@ -1542,7 +1545,7 @@ void AlnSinkSam::appendMate(
 	}
 	// MPOS
 	if(rs != NULL && rso != NULL) {
-		itoa10<int64_t>(rs->refoff()+1, buf);
+		itoa10<int64_t>(rso->refoff()+1, buf);
 		o.writeChars(buf);
 		o.write('\t');
 	} else {

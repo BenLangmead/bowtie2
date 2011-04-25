@@ -167,7 +167,12 @@ public:
 	/**
 	 * The main member function for dispensing patterns.
 	 */
-	virtual void nextReadPair(Read& ra, Read& rb, TReadId& patid) {
+	virtual void nextReadPair(
+		Read& ra,
+		Read& rb,
+		TReadId& patid,
+		bool fixName)
+	{
 		// nextPatternImpl does the reading from the ultimate source;
 		// it is implemented in concrete subclasses
 		nextReadPairImpl(ra, rb, patid);
@@ -361,7 +366,11 @@ public:
 
 	virtual void addWrapper() = 0;
 	virtual void reset() = 0;
-	virtual bool nextReadPair(Read& ra, Read& rb, TReadId& patid) = 0;
+	virtual bool nextReadPair(
+		Read& ra,
+		Read& rb,
+		TReadId& patid,
+		bool fixName) = 0;
 	virtual pair<TReadId, TReadId> readCnt() const = 0;
 
 	/**
@@ -459,11 +468,16 @@ public:
 	 * singleton reads.  Returns true iff ra and rb contain a new
 	 * pair; returns false if ra contains a new unpaired read.
 	 */
-	virtual bool nextReadPair(Read& ra, Read& rb, TReadId& patid) {
+	virtual bool nextReadPair(
+		Read& ra,
+		Read& rb,
+		TReadId& patid,
+		bool fixName)
+	{
 		uint32_t cur = cur_;
 		while(cur < src_->size()) {
 			// Patterns from srca_[cur_] are unpaired
-			(*src_)[cur]->nextReadPair(ra, rb, patid);
+			(*src_)[cur]->nextReadPair(ra, rb, patid, fixName);
 			if(ra.patFw.empty()) {
 				// If patFw is empty, that's our signal that the
 				// input dried up
@@ -476,8 +490,10 @@ public:
 			ra.seed = genRandSeed(ra.patFw, ra.qual, ra.name, seed_);
 			if(!rb.empty()) {
 				rb.seed = genRandSeed(rb.patFw, rb.qual, rb.name, seed_);
-				ra.fixMateName(1);
-				rb.fixMateName(2);
+				if(fixName) {
+					ra.fixMateName(1);
+					rb.fixMateName(2);
+				}
 			}
 			ra.patid = patid;
 			ra.mate  = 1;
@@ -568,7 +584,12 @@ public:
 	 * singleton reads.  Returns true iff ra and rb contain a new
 	 * pair; returns false if ra contains a new unpaired read.
 	 */
-	virtual bool nextReadPair(Read& ra, Read& rb, TReadId& patid) {
+	virtual bool nextReadPair(
+		Read& ra,
+		Read& rb,
+		TReadId& patid,
+		bool fixName)
+	{
 		uint32_t cur = cur_;
 		while(cur < srca_->size()) {
 			if((*srcb_)[cur] == NULL) {
@@ -608,16 +629,22 @@ public:
 					}
 					if(patid_a < patid_b) {
 						(*srca_)[cur]->nextRead(ra, patid_a);
-						ra.fixMateName(1);
+						if(fixName) {
+							ra.fixMateName(1);
+						}
 					} else {
 						(*srcb_)[cur]->nextRead(rb, patid_b);
-						rb.fixMateName(2);
+						if(fixName) {
+							rb.fixMateName(2);
+						}
 					}
 				}
 				unlock();
 				if(cont) continue; // on to next pair of PatternSources
-				ra.fixMateName(1);
-				rb.fixMateName(2);
+				if(fixName) {
+					ra.fixMateName(1);
+					rb.fixMateName(2);
+				}
 				if(ra.patFw.empty()) {
 					// If patFw is empty, that's our signal that the
 					// input dried up
@@ -679,7 +706,7 @@ public:
 	/**
 	 * Read the next read pair.
 	 */
-	virtual void nextReadPair() { }
+	virtual void nextReadPair(bool fixName) { }
 
 	Read& bufa()        { return buf1_;         }
 	Read& bufb()        { return buf2_;         }
@@ -753,12 +780,12 @@ public:
 	 * Get the next paired or unpaired read from the wrapped
 	 * PairedPatternSource.
 	 */
-	virtual void nextReadPair() {
-		PatternSourcePerThread::nextReadPair();
+	virtual void nextReadPair(bool fixName) {
+		PatternSourcePerThread::nextReadPair(fixName);
 		ASSERT_ONLY(TReadId lastPatid = patid_);
 		buf1_.reset();
 		buf2_.reset();
-		patsrc_.nextReadPair(buf1_, buf2_, patid_);
+		patsrc_.nextReadPair(buf1_, buf2_, patid_, fixName);
 		assert(buf1_.empty() || patid_ != lastPatid);
 	}
 
@@ -909,8 +936,8 @@ public:
 		rand_.init(thread_);
 	}
 
-	virtual void nextReadPair() {
-		PatternSourcePerThread::nextReadPair();
+	virtual void nextReadPair(bool fixName) {
+		PatternSourcePerThread::nextReadPair(fixName);
 		if(patid_ >= numreads_) {
 			buf1_.reset();
 			buf2_.reset();
