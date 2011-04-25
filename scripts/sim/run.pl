@@ -74,7 +74,6 @@ $pm->run_on_finish(sub {
 	}
 });
 
-my $case = $sim->nextCase(\%conf);
 for(1..$cpus) {
 	my $childPid = $pm->start;
 	if($childPid != 0) {
