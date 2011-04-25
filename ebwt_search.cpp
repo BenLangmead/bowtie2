@@ -2510,12 +2510,12 @@ static void* multiseedSearchWorker(void *vp) {
 						// Calculate the penalty ceiling for the read
 						TAlScore minsc = Scoring::linearFunc(
 							rdlens[mate],
-							costMinConst,
-							costMinLinear);
+							(float)costMinConst,
+							(float)costMinLinear);
 						TAlScore floorsc = Scoring::linearFunc(
 							rdlens[mate],
-							costFloorConst,
-							costFloorLinear);
+							(float)costFloorConst,
+							(float)costFloorLinear);
 						int nceil = (int)sc.nCeil(rdlens[mate]);
 						bool done = false;
 						if(pair) {

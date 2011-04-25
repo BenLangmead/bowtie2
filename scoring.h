@@ -233,7 +233,7 @@ public:
 	 * Return the marginal penalty incurred by a mismatch at a read
 	 * position with quality 'q'.
 	 */
-	inline int match(int q) const {
+	inline float match(int q) const {
 		assert_geq(q, 0);
 		return q < 255 ? matchBonuses[q] : matchBonuses[255];
 	}

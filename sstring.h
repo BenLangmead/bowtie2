@@ -975,7 +975,7 @@ public:
 			delete[] printcs_;
 			printcs_ = NULL;
 		}
-		len_ = NULL;
+		len_ = 0;
 	}
 
 	/**
