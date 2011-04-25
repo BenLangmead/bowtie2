@@ -233,7 +233,7 @@ public:
 	 * Return the marginal penalty incurred by a mismatch at a read
 	 * position with quality 'q'.
 	 */
-	inline TAlScore match(int q) const {
+	inline int64_t match(int q) const {
 		assert_geq(q, 0);
 		return (TAlScore)((q < 255 ? matchBonuses[q] : matchBonuses[255]) + 0.5f);
 	}
