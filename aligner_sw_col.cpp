@@ -538,7 +538,6 @@ bool SwAligner::backtrackColors(
 		ned.push_back(e);
 		score.score_ -= ((m == 0) ? sc_->snp : sc_->n(30));
 		assert_geq(score.score(), floorsc_);
-		assert(!sc_->monotone || score.score() >= escore);
 	}
 	if(m == -1) {
 		score.ns_++;
