@@ -1803,14 +1803,14 @@ static void doTestCase2(
 	uint32_t           seed = 0)
 {
 	btread.install(read, true, color);
-	TAlScore minsc = Scoring::linearFunc(
+	TAlScore minsc = (TAlScore)(Scoring::linearFunc(
 		btread.length(),
 		costMinConst,
-		costMinLinear);
-	TAlScore floorsc = Scoring::linearFunc(
+		costMinLinear) + 0.5f);
+	TAlScore floorsc = (TAlScore)(Scoring::linearFunc(
 		btread.length(),
 		costFloorConst,
-		costFloorLinear);
+		costFloorLinear) + 0.5f);
 	btqual.install(qual);
 	btref.install(refin);
 	doTestCase(
@@ -1854,14 +1854,14 @@ static void doTestCase3(
 {
 	btread.install(read, true, color);
 	// Calculate the penalty ceiling for the read
-	TAlScore minsc = Scoring::linearFunc(
+	TAlScore minsc = (TAlScore)(Scoring::linearFunc(
 		btread.length(),
 		costMinConst,
-		costMinLinear);
-	TAlScore floorsc = Scoring::linearFunc(
+		costMinLinear) + 0.5f);
+	TAlScore floorsc = (TAlScore)(Scoring::linearFunc(
 		btread.length(),
 		costFloorConst,
-		costFloorLinear);
+		costFloorLinear) + 0.5f);
 	btqual.install(qual);
 	btref.install(refin);
 	sc.nCeilConst = nCeilConst;

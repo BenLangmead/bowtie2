@@ -2508,25 +2508,25 @@ static void* multiseedSearchWorker(void *vp) {
 						// Sort seed hits into ranks
 						shs[mate].sort();
 						// Calculate the penalty ceiling for the read
-						TAlScore minsc = Scoring::linearFunc(
+						TAlScore minsc = (TAlScore)(Scoring::linearFunc(
 							rdlens[mate],
 							(float)costMinConst,
-							(float)costMinLinear);
-						TAlScore floorsc = Scoring::linearFunc(
+							(float)costMinLinear) + 0.5f);
+						TAlScore floorsc = (TAlScore)(Scoring::linearFunc(
 							rdlens[mate],
 							(float)costFloorConst,
-							(float)costFloorLinear);
+							(float)costFloorLinear) + 0.5f);
 						int nceil = (int)sc.nCeil(rdlens[mate]);
 						bool done = false;
 						if(pair) {
-							TAlScore ominsc = Scoring::linearFunc(
+							TAlScore ominsc = (TAlScore)(Scoring::linearFunc(
 								rdlens[mate ^ 1],
 								costMinConst,
-								costMinLinear);
-							TAlScore ofloorsc = Scoring::linearFunc(
+								costMinLinear) + 0.5f);
+							TAlScore ofloorsc = (TAlScore)(Scoring::linearFunc(
 								rdlens[mate ^ 1],
 								costFloorConst,
-								costFloorLinear);
+								costFloorLinear) + 0.5f);
 							int onceil = (int)sc.nCeil(rdlens[mate ^ 1]);
 							// Paired-end dynamic programming driver
 							done = sd.extendSeedsPaired(
