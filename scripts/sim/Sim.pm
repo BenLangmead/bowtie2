@@ -789,7 +789,6 @@ sub nextCase {
 		my $mutinput = $self->mutateSeq($input);
 		# Select Bowtie arguments
 		my $args = $self->genAlignArgs($mutinput);
-		# Run bowtie2 (TODO: dump input to file first?)
 		$self->align($tmpfn, $tmpidxfn, $mutinput, $conf, $args);
 		# Sanity check output.  Possible sanity checks are:
 		# 1. Check alignments & edits against reference

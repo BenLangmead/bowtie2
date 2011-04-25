@@ -55,9 +55,6 @@ GetOptions(
 	"p|cpus=i"              => \$cpus
 ) || die "Bad options;";
 
-# TODO: fix
-$conf{no_paired} = 1;
-
 if($help) {
 	print $usage;
 	exit 0;

@@ -208,7 +208,7 @@ void VerboseHitSink::reportMaxed(EList<Hit>& hs, PatternSourcePerThread& p) {
 void VerboseHitSink::append(
 	ostream& ss,
 	const Hit& h,
-	const EList<string>* refnames,
+	const StrList& refnames,
 	ReferenceMap *rmap,
 	AnnotationMap *amap,
 	bool fullRef,
@@ -243,10 +243,10 @@ void VerboseHitSink::append(
 				else ss << '\t';
 				// Output a partitioning key
 				// First component of the key is the reference index
-				if(refnames != NULL && rmap != NULL) {
+				if(rmap != NULL) {
 					printUptoWs(ss, rmap->getName(h.h.first), !fullRef);
-				} else if(refnames != NULL && h.h.first < refnames->size()) {
-					printUptoWs(ss, (*refnames)[h.h.first], !fullRef);
+				} else if(h.h.first < refnames.size()) {
+					printUptoWs(ss, refnames[h.h.first], !fullRef);
 				} else {
 					ss << h.h.first;
 				}
@@ -318,10 +318,10 @@ void VerboseHitSink::append(
 				if(firstfield) firstfield = false;
 				else ss << '\t';
 				// .first is text id, .second is offset
-				if(refnames != NULL && rmap != NULL) {
+				if(rmap != NULL) {
 					printUptoWs(ss, rmap->getName(h.h.first), !fullRef);
-				} else if(refnames != NULL && h.h.first < refnames->size()) {
-					printUptoWs(ss, (*refnames)[h.h.first], !fullRef);
+				} else if(h.h.first < refnames.size()) {
+					printUptoWs(ss, refnames[h.h.first], !fullRef);
 				} else {
 					ss << h.h.first;
 				}

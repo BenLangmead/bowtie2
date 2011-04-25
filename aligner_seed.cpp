@@ -438,19 +438,21 @@ SeedAligner::instantiateSeq(
  * For each seed, tnstantiate the seed, retracting if necessary.
  */
 pair<int, int> SeedAligner::instantiateSeeds(
-	const EList<Seed>& seeds,       // search seeds
-	int per,                        // seed period
-	const Read& read,               // read to align
-	const Scoring& pens,            // scoring scheme
-	float nCeilConst,               // ceiling on # Ns w/r/t read length, constant coeff
-	float nCeilLinear,              // ceiling on # Ns w/r/t read length, linear coeff
-	AlignmentCacheIface& cache,     // holds some seed hits from previous reads
-	SeedResults& sr,                // holds all the seed results
-	SeedSearchMetrics& met)         // metrics
+	const EList<Seed>& seeds,  // search seeds
+	int per,                   // interval between seeds
+	const Read& read,          // read to align
+	const Scoring& pens,       // scoring scheme
+	float nCeilConst,          // ceil on # Ns w/r/t read len, const coeff
+	float nCeilLinear,         // ceil on # Ns w/r/t read len, linear coeff
+	bool nofw,                 // don't align forward read
+	bool norc,                 // don't align revcomp read
+	AlignmentCacheIface& cache,// holds some seed hits from previous reads
+	SeedResults& sr,           // holds all the seed hits
+	SeedSearchMetrics& met)    // metrics
 {
 	assert(!seeds.empty());
 	assert_gt(read.length(), 0);
-	assert(!gNofw || !gNorc); // should have aborted earlier
+	assert(!nofw || !norc); // should have aborted earlier
 	// Check whether read has too many Ns
 	offIdx2off_.clear();
 	int len = seeds[0].len;
@@ -475,7 +477,10 @@ pair<int, int> SeedAligner::instantiateSeeds(
 	// For each seed position
 	for(int fwi = 0; fwi < 2; fwi++) {
 		bool fw = (fwi == 0);
-		if((fw && gNofw) || (!fw && gNorc)) continue;
+		if((fw && nofw) || (!fw && norc)) {
+			// Skip this orientation b/c user specified --nofw or --norc
+			continue;
+		}
 		// For each seed position
 		for(int i = 0; i < nseeds; i++) {
 			int depth = i * per;
@@ -553,7 +558,6 @@ void SeedAligner::searchAllSeeds(
 	EList<SeedActionSink*>*  actionSinks)    // if non-NULL, list of sinks to send SAActions to
 {
 	assert(!seeds.empty());
-	assert(!gNofw || !gNorc); // should have aborted earlier
 	assert(ebwtFw != NULL);
 	assert(ebwtFw->isInMemory());
 	assert(sr.repOk(&cache.current()));
@@ -766,8 +770,6 @@ SeedAligner::reportHit(
 	assert_eq(hits_.size(), ca_->curNumRanges());
 	SA_HIT();
 #ifndef NDEBUG
-	// TODO: sanity check that edits + seq_ correspond to rfseq_
-	
 	// Sanity check that the topf/botf and topb/botb ranges really
 	// correspond to the reference sequence aligned to
 	{

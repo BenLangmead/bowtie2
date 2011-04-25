@@ -8,168 +8,183 @@
 #ifndef SAM_H_
 #define SAM_H_
 
-#include "refmap.h"
-#include "annot.h"
-#include "pat.h"
-#include "random_source.h"
+#include <string>
 #include "ds.h"
-
-class ReferenceMap;
-class AnnotationMap;
-class PatternSourcePerThread;
+#include "util.h"
 
 enum {
-	SAM_FLAG_PAIRED = 1,
-	SAM_FLAG_MAPPED_PAIRED = 2,
-	SAM_FLAG_UNMAPPED = 4,
-	SAM_FLAG_MATE_UNMAPPED = 8,
-	SAM_FLAG_QUERY_STRAND = 16,
-	SAM_FLAG_MATE_STRAND = 32,
-	SAM_FLAG_FIRST_IN_PAIR = 64,
-	SAM_FLAG_SECOND_IN_PAIR = 128,
-	SAM_FLAG_NOT_PRIMARY = 256,
-	SAM_FLAG_FAILS_CHECKS = 512,
-	SAM_FLAG_DUPLICATE = 1024
+	// Comments use language from v1.4-r962 spec
+	SAM_FLAG_PAIRED         = 1,   // templ. having mult. frag.s in sequencing
+	SAM_FLAG_MAPPED_PAIRED  = 2,   // each frag properly aligned
+	SAM_FLAG_UNMAPPED       = 4,   // fragment unmapped
+	SAM_FLAG_MATE_UNMAPPED  = 8,   // next fragment in template unmapped
+	SAM_FLAG_QUERY_STRAND   = 16,  // SEQ is reverse comp'ed from original
+	SAM_FLAG_MATE_STRAND    = 32,  // next fragment SEQ reverse comp'ed
+	SAM_FLAG_FIRST_IN_PAIR  = 64,  // first fragment in template
+	SAM_FLAG_SECOND_IN_PAIR = 128, // last fragment in template
+	SAM_FLAG_NOT_PRIMARY    = 256, // secondary alignment
+	SAM_FLAG_FAILS_CHECKS   = 512, // not passing quality controls
+	SAM_FLAG_DUPLICATE      = 1024 // PCR or optical duplicate
 };
 
+class OutFileBuf;
+class AlnRes;
+class AlnFlags;
+class AlnSetSumm;
+
 /**
- * Sink that prints lines in SAM format:
+ * Encapsulates all the various ways that a user may wish to customize SAM
+ * output.
  */
-class SAMHitSink : public HitSink {
+class SamConfig {
+
+	typedef EList<std::string> StrList;
+	typedef EList<size_t> LenList;
+
 public:
-	/**
-	 * Construct a single-stream VerboseHitSink (default)
-	 */
-	SAMHitSink(
-		OutFileBuf *out,
-		ReadSink *readSink,
-		const EList<std::string>* refnames,
-		int offBase,
-		ReferenceMap *rmap,
-		AnnotationMap *amap,
-		bool fullRef,
-		bool sampleMax,
-		int defaultMapq) :
-		HitSink(out, readSink, refnames),
-		offBase_(offBase),
-		defaultMapq_(defaultMapq),
-		rmap_(rmap),
-		amap_(amap),
-		fullRef_(fullRef),
-		sampleMax_(sampleMax)
-	{ }
 
-	/**
-	 * Append a SAM alignment to the given output stream.
-	 */
-	static void append(ostream& ss,
-	                   const Hit& h,
-	                   int mapq,
-	                   int xms,
-	                   const EList<string>* refnames,
-	                   ReferenceMap *rmap,
-	                   AnnotationMap *amap,
-	                   bool fullRef,
-	                   int offBase);
-
-	/**
-	 * Append a SAM alignment for an aligned read to the given output
-	 * stream.
-	 */
-	static void appendAligned(ostream& ss,
-	                          const Hit& h,
-	                          int mapq,
-	                          int xms,
-	                          const EList<string>* refnames,
-	                          ReferenceMap *rmap,
-	                          AnnotationMap *amap,
-	                          bool fullRef,
-	                          int offBase);
-
-	/**
-	 * Append a verbose, readable hit to the output stream
-	 * corresponding to the hit.
-	 */
-	virtual void append(ostream& ss, const Hit& h) {
-		SAMHitSink::append(ss, h, defaultMapq_, 0, refnames_, rmap_, amap_, fullRef_, offBase_);
+	SamConfig(
+		const StrList& refnames,  // reference sequence names
+		const LenList& reflens,   // reference sequence lengths
+		const std::string& pg_id, // id
+		const std::string& pg_pn, // name
+		const std::string& pg_vn, // version
+		const std::string& pg_cl, // command-line
+		bool print_as,
+		bool print_xs,
+		bool print_xn,
+		bool print_x0,
+		bool print_x1,
+		bool print_xm,
+		bool print_xo,
+		bool print_xg,
+		bool print_nm,
+		bool print_md,
+		bool print_ym,
+		bool print_yp,
+		bool print_yt) :
+		pg_id_(pg_id),
+		pg_pn_(pg_pn),
+		pg_vn_(pg_vn),
+		pg_cl_(pg_cl),
+		refnames_(refnames),
+		reflens_(reflens),
+		print_as_(print_as),
+		print_xs_(print_xs),
+		print_xn_(print_xn),
+		print_x0_(print_x0),
+		print_x1_(print_x1),
+		print_xm_(print_xm),
+		print_xo_(print_xo),
+		print_xg_(print_xg),
+		print_nm_(print_nm),
+		print_md_(print_md),
+		print_ym_(print_ym),
+		print_yp_(print_yp),
+		print_yt_(print_yt)
+	{
+		assert_eq(refnames_.size(), reflens_.size());
 	}
 
 	/**
-	 * Append a verbose, readable hit to the output stream
-	 * corresponding to the hit.
+	 * Print a reference name in a way that doesn't violate SAM's character
+	 * constraints. \*|[!-()+-<>-~][!-~]*
 	 */
-	virtual void append(ostream& ss, const Hit& h, int mapq, int xms) {
-		SAMHitSink::append(ss, h, mapq, xms, refnames_, rmap_, amap_, fullRef_, offBase_);
-	}
+	void printRefName(
+		OutFileBuf& o,
+		const std::string& name)
+		const;
+	
+	/**
+	 * [!-?A-~]{1,255}
+	 */
+	void printReadName(
+		OutFileBuf& o,
+		const std::string& name)
+		const;
 
 	/**
-	 * Write the SAM header lines.
+	 * Print a reference name given a reference index.
 	 */
-	void appendHeaders(OutFileBuf& os,
-	                   size_t numRefs,
-	                   const EList<string>& refnames,
-	                   bool nosq,
-	                   ReferenceMap *rmap,
-	                   const uint32_t* plen,
-	                   bool fullRef,
-	                   const char *cmdline,
-	                   const char *rgline);
+	void printRefNameFromIndex(
+		OutFileBuf& o,
+		size_t i)
+		const;
+	
+	/**
+	 * Print SAM header to given output buffer.
+	 */
+	void printHeader(
+		OutFileBuf& o,
+		bool printSq,
+		bool printPg)
+		const;
+
+	/**
+	 * Print the @SQ header lines to the given OutFileBuf.
+	 */
+	void printSqLines(OutFileBuf& o) const;
+
+	/**
+	 * Print the @PG header line to the given OutFileBuf.
+	 */
+	void printPgLine(OutFileBuf& o) const;
+
+	/**
+	 * Print the optional flags to the given OutFileBuf.
+	 */
+	void printAlignedOptFlags(
+		OutFileBuf& o,          // output buffer
+		bool first,             // first opt flag printed is first overall?
+		bool exEnds,            // exclude ends of sequence?
+		const AlnRes& res,      // individual alignment result
+		const AlnFlags& flags,  // alignment flags
+		const AlnSetSumm& summ) // summary of alignments for this read
+		const;
+
+	/**
+	 * Print the optional flags to the given OutFileBuf.
+	 */
+	void printEmptyOptFlags(
+		OutFileBuf& o,          // output buffer
+		bool first,             // first opt flag printed is first overall?
+		const AlnFlags& flags,  // alignment flags
+		const AlnSetSumm& summ) // summary of alignments for this read
+		const;
 
 protected:
 
-	/**
-	 *
-	 */
-	void reportUnOrMax(PatternSourcePerThread& p,
-	                   EList<Hit>* hs,
-	                   bool un);
+	std::string pg_id_; // @PG ID: Program record identifier
+	std::string pg_pn_; // @PG PN: Program name
+	std::string pg_vn_; // @PG VN: Program version
+	std::string pg_cl_; // @PG CL: Program command-line
+	const StrList& refnames_; // reference sequence names
+	const LenList& reflens_;  // reference sequence lengths
+	
+	// Which alignment flags to print?
 
-	/**
-	 * Report a verbose, human-readable alignment to the appropriate
-	 * output stream.
-	 */
-	virtual void reportHit(const Hit& h) {
-		reportHit(h, defaultMapq_, 0);
-	}
+	// Following are printed by BWA-SW
+	bool print_as_; // AS:i: Alignment score generated by aligner
+	bool print_xs_; // XS:i: Suboptimal alignment score
+	bool print_xn_; // XN:i: Number of ambiguous bases in the referenece
 
-	/**
-	 * Report a SAM alignment with the given mapping quality and XM
-	 * field.
-	 */
-	virtual void reportHit(const Hit& h, int mapq, int xms);
+	// Following are printed by BWA
+	bool print_x0_; // X0:i: Number of best hits
+	bool print_x1_; // X1:i: Number of sub-optimal best hits
+	bool print_xm_; // XM:i: Number of mismatches in the alignment
+	bool print_xo_; // XO:i: Number of gap opens
+	bool print_xg_; // XG:i: Number of gap extensions (incl. opens)
+	bool print_nm_; // NM:i: Edit dist. to the ref, Ns count, clipping doesn't
+	bool print_md_; // MD:Z: String for mms. [0-9]+(([A-Z]|\^[A-Z]+)[0-9]+)*2
 
-	/**
-	 * Report a batch of SAM alignments (e.g. two mates that should be
-	 * printed together) with the given mapping quality and XM field.
-	 */
-	virtual void reportHits(EList<Hit>& hs,
-	                        size_t start,
-	                        size_t end,
-	                        int mapq,
-	                        int xms);
+	// Following are Bowtie2-specific
+	bool print_ym_; // YM:i: Read was repetitive when aligned unpaired?
+	bool print_yp_; // YP:i: Read was repetitive when aligned paired?
+	bool print_yt_; // YT:Z: String representing alignment type
 
-	/**
-	 * See sam.cpp
-	 */
-	virtual void reportMaxed(EList<Hit>& hs, PatternSourcePerThread& p);
-
-	/**
-	 * See sam.cpp
-	 */
-	virtual void reportUnaligned(PatternSourcePerThread& p) {
-		reportUnOrMax(p, NULL, true);
-	}
-
-private:
-	int  offBase_;        /// Add this to reference offsets before outputting.
-	                      /// (An easy way to make things 1-based instead of
-	                      /// 0-based)
-	int  defaultMapq_;    /// Default mapping quality to report when one is
-	                      /// not specified
-	ReferenceMap *rmap_;  /// mapping to reference coordinate system.
-	AnnotationMap *amap_; ///
-	bool fullRef_;        /// print full reference name, not just up to whitespace
-	bool sampleMax_;      /// user specified -M
+	EList<char>   tmpmdop_;   // temporary holder for MD:Z ops
+	EList<char>   tmpmdch_;   // temporary holder for MD:Z chars
+	EList<size_t> tmpmdrun_;  // temporary holder for MD:Z runs
 };
 
 #endif /* SAM_H_ */

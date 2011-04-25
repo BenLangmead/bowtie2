@@ -319,12 +319,14 @@ ostream& operator<< (ostream& out, const std::pair<T1, T2>& c) {
  */
 class HitSink {
 
+	typedef EList<string> StrList;
+
 public:
 
 	explicit HitSink(
 		OutFileBuf* out,
 		ReadSink* readSink,
-		const EList<string>* refnames) :
+		const StrList& refnames) :
 		outs_(),
 		deleteOuts_(false),
 		refnames_(refnames),
@@ -551,12 +553,12 @@ protected:
 		MUTEX_UNLOCK(locks_[strIdx]);
 	}
 
-	EList<OutFileBuf*>   outs_;        /// the alignment output stream(s)
-	bool                 deleteOuts_;  /// Whether to delete elements of outs_ upon exit
-	const EList<string>* refnames_;    /// map from reference indexes to names
-	int                  numWrappers_; /// # threads owning a wrapper for this HitSink
-	EList<MUTEX_T>       locks_;       /// pthreads mutexes for per-file critical sections
-	MUTEX_T              mainlock_;    /// pthreads mutexes for fields of this object
+	EList<OutFileBuf*> outs_;        /// the alignment output stream(s)
+	bool               deleteOuts_;  /// Whether to delete elements of outs_ upon exit
+	const StrList&     refnames_;    /// map from reference indexes to names
+	int                numWrappers_; /// # threads owning a wrapper for this HitSink
+	EList<MUTEX_T>     locks_;       /// pthreads mutexes for per-file critical sections
+	MUTEX_T            mainlock_;    /// pthreads mutexes for fields of this object
 
 	volatile bool     first_;       /// true -> first hit hasn't yet been reported
 	volatile uint64_t numAligned_;  /// # reads with >= 1 alignment
@@ -1583,6 +1585,9 @@ private:
  * pat-name \t [-|+] \t ref-name \t ref-off \t pat \t qual \t #-alt-hits \t mm-list
  */
 class VerboseHitSink : public HitSink {
+
+	typedef EList<string> StrList;
+
 public:
 	/**
 	 * Construct a single-stream VerboseHitSink (default)
@@ -1590,7 +1595,7 @@ public:
 	VerboseHitSink(
 		OutFileBuf* out,
 		ReadSink* readSink,
-		const EList<std::string>* refnames,
+		const EList<std::string>& refnames,
 		int offBase,
 		bool colorSeq,
 		bool colorQual,
@@ -1618,7 +1623,7 @@ public:
 	static void append(
 		ostream& ss,
 		const Hit& h,
-		const EList<string>* refnames,
+		const StrList& refnames,
 		ReferenceMap *rmap,
 		AnnotationMap *amap,
 		bool fullRef,
@@ -1705,7 +1710,7 @@ public:
 	ChainingHitSink(
 		OutFileBuf* out,
 		ReadSink *readSink,
-		const EList<std::string>* refnames,
+		const EList<std::string>& refnames,
 		bool strata,
 		AnnotationMap *amap) :
 		HitSink(out, readSink, refnames),
@@ -1742,15 +1747,6 @@ public:
 protected:
 	AnnotationMap *amap_;
 	bool strata_;
-};
-
-/**
- * Sink that does nothing.
- */
-class StubHitSink : public HitSink {
-public:
-	StubHitSink() : HitSink(new OutFileBuf(".tmp"), NULL, NULL) { }
-	virtual void append(ostream& o, const Hit& h) { }
 };
 
 #endif /*HIT_H_*/

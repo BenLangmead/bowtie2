@@ -10,6 +10,7 @@
 #include "read_sink.h"
 #include "unique.h"
 #include "refmap.h"
+#include "sam.h"
 #include "ds.h"
 
 // Forward decl	
@@ -412,15 +413,13 @@ public:
 
 	explicit AlnSink(
 		OutFileBuf*        out,
-		const EList<bool>& suppress,
 		ReadSink*          readSink,
 		const Mapq&        mapq,       // mapping quality calculator
 		bool               deleteOuts,
-		const StrList*     refnames,
+		const StrList&     refnames,
 		bool               quiet) :
 		outs_(),
 		outNames_(),
-		suppress_(suppress),
 		locks_(),
 		deleteOuts_(deleteOuts),
 		numWrappers_(0),
@@ -814,7 +813,6 @@ protected:
 	
 	EList<OutFileBuf*> outs_;         // the alignment output stream(s)
 	EList<std::string> outNames_;     // the filenames for the alignment output stream(s)
-	EList<bool>        suppress_;     // suppress columns
 	EList<MUTEX_T>     locks_;        // pthreads mutexes for per-file critical sections
 	bool               deleteOuts_;   // Whether to delete elements of outs_ upon exit
 	int                numWrappers_;  // # threads owning a wrapper for this HitSink
@@ -824,7 +822,7 @@ protected:
 	volatile uint64_t  numMaxed_;     // # reads with # alignments exceeding -m ceiling
 	volatile uint64_t  numReported_;  // # single-ended alignments reported
 	volatile uint64_t  numReportedPaired_; // # paired-end alignments reported
-	const StrList*     refnames_; // reference names
+	const StrList&     refnames_; // reference names
 	bool               quiet_;        // true -> don't print alignment stats at the end
 	ReadSink*          readSink_;     // 
 	const Mapq&        mapq_;         // mapping quality calculator
@@ -1136,7 +1134,7 @@ public:
 		ReadSink*          readSink,   // read sink
 		const Mapq&        mapq,       // mapping quality calculator
 		bool               deleteOuts, // delete output objects upon destruction
-		const StrList*     refnames,   // reference names
+		const StrList&     refnames,   // reference names
 		bool               quiet,      // don't print alignment summary at end
 		int                offBase,    // add to 0-based offsets before printing
 		bool               colorSeq,   // color: print color seq, not decoded nucs
@@ -1151,12 +1149,12 @@ public:
 		int                partition = 0) : // partition size
 		AlnSink(
 			out,
-			suppress,
 			readSink,
 			mapq,
 			deleteOuts,
 			refnames,
 			quiet),
+		suppress_(suppress),
 		offBase_(offBase),
 		colorSeq_(colorSeq),
 		colorQual_(colorQual),
@@ -1208,6 +1206,7 @@ protected:
 		const AlnSetSumm& summ,
 		const AlnFlags& flags);
 
+	const EList<bool>& suppress_; // bit mask of columns to suppress
 	int           offBase_;    // add this to 0-based reference offsets before printing
 	bool          colorSeq_;   // colorspace: print color seq instead of decoded nucs
 	bool          colorQual_;  // colorspace: print color quals instead of decoded quals
@@ -1225,6 +1224,89 @@ protected:
 	
 	EList<char>   tmpop_;      // temporary holder for CIGAR ops
 	EList<size_t> tmprun_;     // temporary holder for CIGAR runs
+};
+
+/**
+ * An AlnSink concrete subclass for printing SAM alignments.  The user might
+ * want to customize SAM output in various ways.  We encapsulate all these
+ * customizations, and some of the key printing routines, in the SamConfig
+ * class in sam.h/sam.cpp.
+ */
+class AlnSinkSam : public AlnSink {
+
+	typedef EList<std::string> StrList;
+
+public:
+
+	AlnSinkSam(
+		OutFileBuf*      out,        // initial output stream
+		ReadSink*        readSink,   // read sink
+		const Mapq&      mapq,       // mapping quality calculator
+		const SamConfig& samc,       // settings & routines for SAM output
+		bool             deleteOuts, // delete output objects upon destruction
+		const StrList&   refnames,   // reference names
+		bool             quiet,      // don't print alignment summary at end
+		bool             exEnds,     // exclude ends for decoded colors alns
+		ReferenceMap*    rmap) :     // reference coordinate transformation
+		AlnSink(
+			out,
+			readSink,
+			mapq,
+			deleteOuts,
+			refnames,
+			quiet),
+		samc_(samc),
+		exEnds_(exEnds),
+		rmap_(rmap)
+	{ }
+
+	/**
+	 * Append a single alignment result, which might be paired or
+	 * unpaired, to the given output stream in Bowtie's verbose-mode
+	 * format.  If the alignment is paired-end, print mate1's alignment
+	 * then mate2's alignment.
+	 */
+	virtual void append(
+		OutFileBuf&   o,        // file buffer to write to
+		const Read*   rd1,      // mate #1
+		const Read*   rd2,      // mate #2
+		const TReadId rdid,     // read ID
+		const AlnRes* rs1,      // alignments for mate #1
+		const AlnRes* rs2,      // alignments for mate #2
+		const AlnSetSumm& summ, // summary
+		const AlnFlags& flags)  // flags
+	{
+		assert(rd1 != NULL || rd2 != NULL);
+		if(rd1 != NULL) appendMate(o, *rd1, rd2, rdid, rs1, rs2, summ, flags);
+		if(rd2 != NULL) appendMate(o, *rd2, rd1, rdid, rs2, rs1, summ, flags);
+	}
+
+protected:
+
+	/**
+	 * Append a single per-mate alignment result to the given output
+	 * stream.  If the alignment is part of a pair, information about
+	 * the opposite mate and its alignment are given in rdo/rso.
+	 */
+	void appendMate(
+		OutFileBuf&   o,
+		const Read&   rd,
+		const Read*   rdo,
+		const TReadId rdid,
+		const AlnRes* rs,
+		const AlnRes* rso,
+		const AlnSetSumm& summ,
+		const AlnFlags& flags);
+
+	const SamConfig& samc_;    // settings & routines for SAM output
+	bool             exEnds_;  // exclude ends for decoded colorspace alignments
+	ReferenceMap*    rmap_;    // reference coordinate transformation
+	
+	BTDnaString      dseq_;    // buffer for decoded read sequence
+	BTString         dqual_;   // buffer for decoded quality sequence
+	
+	EList<char>      tmpop_;   // temporary holder for CIGAR ops
+	EList<size_t>    tmprun_;  // temporary holder for CIGAR runs
 };
 
 #endif /*ndef ALN_SINK_H_*/

@@ -248,6 +248,13 @@ static inline ostream& operator<<(ostream& os, const AlnScore& o) {
 // Forward declaration
 class BitPairReference;
 
+// A given AlnRes can be one of these three types
+enum {
+	ALN_RES_TYPE_UNPAIRED = 1, // unpaired alignment
+	ALN_RES_TYPE_MATE1,        // mate #1 in paired-end alignment
+	ALN_RES_TYPE_MATE2         // mate #2 in paired-end alignment
+};
+
 /**
  * Encapsulates an alignment result, including for colorspace alignments.  The
  * result comprises:
@@ -373,11 +380,34 @@ public:
 	inline void getCoords(
 		Coord& st,  // out: install starting coordinate here
 		Coord& en)  // out: install ending coordinate here
+		const
 	{
 		assert(shapeSet_);
 		st.init(refcoord_);
 		en.init(refcoord_);
-		en.setOff(en.off() + refExtent() - 1);
+		en.adjustOff(refExtent() - 1);
+	}
+
+	/**
+	 * Set arguments to coordinates for the upstream-most and downstream-most
+	 * reference positions covered by the read taking any read trimming into
+	 * account.  I.e. if the upstream-most offset involved in an alignment is
+	 * 40 but the read was hard-trimmed by 5 on that end, the inferred
+	 * upstream-most covered position is 35.
+	 */
+	inline void getExtendedCoords(
+		Coord& st,  // out: install starting coordinate here
+		Coord& en)  // out: install ending coordinate here
+		const
+	{
+		getCoords(st, en);
+		// Take trimming into account
+		int64_t trim_st  = (fw() ? trim5p_ : trim3p_);
+		int64_t trim_en  = (fw() ? trim3p_ : trim5p_);
+		trim_st += (fw() ? pretrim5p_ : pretrim3p_);
+		trim_en += (fw() ? pretrim3p_ : pretrim5p_);
+		st.adjustOff(-trim_st);
+		en.adjustOff( trim_st);
 	}
 	
 	/**
@@ -465,18 +495,60 @@ public:
 	const EList<Edit>& ced()            const { return ced_;      }
 	size_t             readExtent()     const { return rdextent_; }
 	size_t             readExtentRows() const { return rdexrows_; }
-	size_t             refExtent()      const { return rfextent_; }
 	size_t             readLength()     const { return rdlen_;    }
 
 	/**
-	 * Print a CIGAR-string representation of the alignment.
+	 * Return the number of reference nucleotides or colors involved in the
+	 * alignment (i.e. the number of characters in the inclusive range from the
+	 * first matched-up ref char to the last).  If alignment was in colorspace,
+	 * this is the extent measured in colors.
+	 */
+	size_t refExtent() const {
+		return rfextent_;
+	}
+
+	/**
+	 * Return the number of reference nucleotides in the alignment (i.e. the
+	 * number of characters in the inclusive range from the first matched-up
+	 * ref char to the last).
+	 */
+	size_t refNucExtent() const {
+		return rfextent_ + (color_ ? 1 : 0);
+	}
+
+	/**
+	 * Print a CIGAR-string representation of the alignment.  In the
+	 * CIGAR-string representation, edit operations are printed in an order
+	 * that corresponds to moving left-to-right along the Watson strand.  The
+	 * operators indicate one of: match, mismatch, read gap, and reference gap.
+	 * With each operator is an associated run length (printed prior to the
+	 * operator) indicating how many times in a row that feature occurs.  Hard
+	 * and soft trimming are represented with H and S operators, repsectively.
 	 */
  	void printCigar(
 		bool printColors,     // print CIGAR for colorspace alignment?
-		bool exEnds,          // exclude ends in CIGAR?
+		bool exEnds,          // exclude ends nucleotides for decoded nucs?
 		bool distinguishMm,   // use =/X instead of just M
 		EList<char>& op,      // stick CIGAR operations here
 		EList<size_t>& run,   // stick CIGAR run lengths here
+		OutFileBuf* o,        // write to this buf if o != NULL
+		char* oc) const;      // write to this buf if oc != NULL
+
+	/**
+	 * Print a MD:Z:-string representation of the alignment, a la BWA.  In this
+	 * representation runs of either matches or reference gaps are represented
+	 * by a single number indicating the length of the run.  Mismatches are
+	 * indicated by the DNA character that occurs in the reference part of the
+	 * mismatch.  Read gaps are indicated by a carat (^) followed by the string
+	 * of reference characters that occur in the gap.  The string encodes the
+	 * alignment after all trimming.
+	 */
+ 	void printMD(
+		bool printColors,     // print CIGAR for colorspace alignment?
+		bool exEnds,          // exclude ends nucleotides for decoded nucs?
+		EList<char>& op,      // stick operations here
+		EList<char>& ch,      // stick reference characters here
+		EList<size_t>& run,   // stick run lengths here
 		OutFileBuf* o,        // write to this buf if o != NULL
 		char* oc) const;      // write to this buf if oc != NULL
 	
@@ -645,6 +717,81 @@ public:
 	bool overlap(AlnRes& res);
 	
 	/**
+	 * Return true iff this alignment aligned in an unpaired fashion; not part
+	 * of a concordant or discordant pair.
+	 */
+	inline bool isUnpaired() const {
+		assert_gt(type_, 0);
+		return type_ == ALN_RES_TYPE_UNPAIRED;
+	}
+
+	/**
+	 * Return true iff this alignment aligned as mate #1 or mate #2 in a pair,
+	 * either concordant or discordant.
+	 */
+	inline bool isMate() const {
+		assert_gt(type_, 0);
+		return type_ == ALN_RES_TYPE_MATE1 || type_ == ALN_RES_TYPE_MATE2;
+	}
+
+	/**
+	 * Return true iff this alignment aligned as mate #1 in a pair, either
+	 * concordant or discordant.
+	 */
+	inline bool isMate1() const {
+		assert_gt(type_, 0);
+		return type_ == ALN_RES_TYPE_MATE1;
+	}
+
+	/**
+	 * Return true iff this alignment aligned as mate #2 in a pair, either
+	 * concordant or discordant.
+	 */
+	inline bool isMate2() const {
+		assert_gt(type_, 0);
+		return type_ == ALN_RES_TYPE_MATE2;
+	}
+	
+	/**
+	 * Set whether this alignment is unpaired, or is mate #1 or mate #2 in a
+	 * paired-end alignment.
+	 */
+	void setMateParams(int type, const AlnRes* omate) {
+		assert_gt(type, 0);
+		type_ = type;
+		fraglen_ = -1;
+		if(omate != NULL) setFragmentLength(*omate);
+	}
+	
+	/**
+	 * Assuming this alignment and the given alignment are at the extreme ends
+	 * of a fragment, return the length of the fragment.  We take all clipping,
+	 * both hard and soft, into account here.  Any clipping that occurred
+	 * earlier and isn't accounted for within Bowtie2 should be accounted for
+	 * by the user in how they set the maximum and minimum fragment length
+	 * settings.
+	 */
+	int64_t setFragmentLength(const AlnRes& omate) {
+		Coord st, en;
+		Coord ost, oen;
+		getExtendedCoords(st, en);
+		omate.getExtendedCoords(ost, oen);
+		Coord overall_st = (st < ost ? st : ost);
+		Coord overall_en = (en < oen ? oen : en);
+		assert_geq(overall_en.off(), overall_st.off());
+		return overall_en.off() - overall_st.off();
+	}
+	
+	/**
+	 * Return fragment length inferred by a paired-end alignment, or -1 if the
+	 * alignment is not part of a pair.
+	 */
+	int64_t fragmentLength() const {
+		assert_gt(type_, 0);
+		return fraglen_;
+	}
+	
+	/**
 	 * Initialize new AlnRes.
 	 */
 	void init(
@@ -674,6 +821,35 @@ public:
 		bool               cTrimSoft    = true,
 		size_t             cTrim5p      = 0, // trimming from alignment
 		size_t             cTrim3p      = 0);// trimming from alignment
+
+	/**
+	 * Set the number of reference Ns covered by the alignment.
+	 */
+	void setRefNs(size_t refns) {
+		refns_ = refns;
+	}
+	
+	/**
+	 * Return the number of reference Ns covered by the alignment.
+	 */
+	size_t refNs() const { return refns_; }
+	
+	/**
+	 * Clip away portions of the alignment that are outside the given bounds.
+	 * Clipping is soft if soft == true, hard otherwise.
+	 */
+	void clipOutside(bool soft, TRefOff refi, TRefOff reff);
+
+
+	/**
+	 * 
+	 */
+	void clipLeft(TRefOff amt);
+
+	/**
+	 * 
+	 */
+	void clipRight(TRefOff amt);
 
 protected:
 
@@ -708,9 +884,12 @@ protected:
 	bool        color_;        // colorspace alignment?
 	int         nuc5p_;        // 5'-most decoded base; clipped if excluding end
 	int         nuc3p_;        // 3'-most decoded base; clipped if excluding end
-	bool        pretrimSoft_;  // trimming prior to alignment is soft?
+	size_t      refns_;        // # of reference Ns overlapped
+	int         type_;         // unpaired or mate #1 or mate #2?
+	int64_t     fraglen_;      // inferred fragment length
 	
 	// Nucleotide-sequence trimming
+	bool        pretrimSoft_;  // trimming prior to alignment is soft?
 	size_t      pretrim5p_;    // # bases trimmed from 5p end prior to alignment
 	size_t      pretrim3p_;    // # bases trimmed from 3p end prior to alignment
 	bool        trimSoft_;     // trimming by local alignment is soft?
@@ -863,6 +1042,16 @@ enum {
 	ALN_FLAG_PAIR_UNPAIRED
 };
 
+/**
+ * Encapsulates some general information about an alignment that doesn't belong
+ * in AlnRes.  Specifically:
+ *
+ * 1. Whether the alignment is paired
+ * 2. If it's paried, whether it's concordant or discordant
+ * 3. Whether this alignment was found after the paired-end categories were
+ *    maxed out
+ * 4. Whether the relevant unpaired category was maxed out
+ */
 class AlnFlags {
 
 public:
@@ -898,6 +1087,21 @@ public:
 		return true;
 	}
 	
+	/**
+	 * Print out string representation of these flags.
+	 */
+	void printYM(OutFileBuf& o) const;
+
+	/**
+	 * Print out string representation of these flags.
+	 */
+	void printYP(OutFileBuf& o) const;
+
+	/**
+	 * Print out string representation of these flags.
+	 */
+	void printYT(OutFileBuf& o) const;
+
 	inline int  pairing()   const { return pairing_; }
 	inline bool maxed()     const { return maxed_; }
 	inline bool maxedPair() const { return maxedPair_; }

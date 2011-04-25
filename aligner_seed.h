@@ -1152,8 +1152,10 @@ public:
 		int per,                   // interval between seeds
 		const Read& read,          // read to align
 		const Scoring& pens,       // scoring scheme
-		float nCeilConst,          // ceiling on # Ns w/r/t read length, constant coeff
-		float nCeilLinear,         // ceiling on # Ns w/r/t read length, linear coeff
+		float nCeilConst,          // ceil on # Ns w/r/t read len, const coeff
+		float nCeilLinear,         // ceil on # Ns w/r/t read len, linear coeff
+		bool nofw,                 // don't align forward read
+		bool norc,                 // don't align revcomp read
 		AlignmentCacheIface& cache,// holds some seed hits from previous reads
 		SeedResults& sr,           // holds all the seed hits
 		SeedSearchMetrics& met);   // metrics

@@ -371,6 +371,8 @@ bool SwDriver::extendSeedsPaired(
 	TAlScore ofloorsc,           // local-alignment score floor for opposite
 	int nceil,                   // max # Ns permitted in ref for anchor
 	int onceil,                  // max # Ns permitted in ref for opposite
+	bool nofw,                   // don't align forward read
+	bool norc,                   // don't align revcomp read
 	uint32_t maxposs,            // stop after examining this many positions (offset+orientation combos)
 	uint32_t maxrows,            // stop examining a position after this many offsets are reported
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
@@ -423,6 +425,8 @@ bool SwDriver::extendSeedsPaired(
 			// the upstream (3') end of ther read.
 			rdoff = (uint32_t)(rdlen - rdoff - seedlen);
 		}
+		assert(!norc ||  fw);
+		assert(!nofw || !fw);
 		satups_.clear();
 		ca.queryQval(qv, satups_);
 		gw.initQval(ebwt, ref, qv, ca, rnd, maxrows, true, wlm);

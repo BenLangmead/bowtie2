@@ -32,6 +32,7 @@
 #include "aligner_seed_mm.h"
 #include "aligner_metrics.h"
 #include "sam.h"
+#include "sam_hitsink.h"
 #include "aligner_seed.h"
 #include "aligner_seed_policy.h"
 #include "aligner_sw.h"
@@ -139,6 +140,19 @@ static bool fuzzy;
 static bool fullRef;
 static bool samNoHead; // don't print any header lines in SAM output
 static bool samNoSQ;   // don't print @SQ header lines
+static bool sam_print_as;
+static bool sam_print_xs;
+static bool sam_print_xn;
+static bool sam_print_x0;
+static bool sam_print_x1;
+static bool sam_print_xm;
+static bool sam_print_xo;
+static bool sam_print_xg;
+static bool sam_print_nm;
+static bool sam_print_md;
+static bool sam_print_ym;
+static bool sam_print_yp;
+static bool sam_print_yt;
 bool gColor;     // true -> inputs are colorspace
 bool gColorExEnds; // true -> nucleotides on either end of decoded cspace alignment should be excluded
 bool gReportOverhangs; // false -> filter out alignments that fall off the end of a reference sequence
@@ -300,6 +314,19 @@ static void resetOptions() {
 	fullRef					= false; // print entire reference name instead of just up to 1st space
 	samNoHead				= false; // don't print any header lines in SAM output
 	samNoSQ					= false; // don't print @SQ header lines
+	sam_print_as            = true;
+	sam_print_xs            = true;
+	sam_print_xn            = true;
+	sam_print_x0            = true;
+	sam_print_x1            = true;
+	sam_print_xm            = true;
+	sam_print_xo            = true;
+	sam_print_xg            = true;
+	sam_print_nm            = true;
+	sam_print_md            = true;
+	sam_print_ym            = true;
+	sam_print_yp            = true;
+	sam_print_yt            = true;
 	gColor					= false; // don't align in colorspace by default
 	gColorExEnds			= true;  // true -> nucleotides on either end of decoded cspace alignment should be excluded
 	gReportOverhangs        = false; // false -> filter out alignments that fall off the end of a reference sequence
@@ -313,7 +340,7 @@ static void resetOptions() {
 	gColorSeq				= false; // true -> show colorspace alignments as colors, not decoded bases
 	gColorEdit				= false; // true -> show edits as colors, not decoded bases
 	gColorQual				= false; // true -> show colorspace qualities as original quals, not decoded quals
-	printPlaceholders       = false; // true -> print records for maxed-out, unaligned reads
+	printPlaceholders       = true;  // true -> print records for maxed-out, unaligned reads
 	printFlags              = false; // true -> print alignment flags
 	printCost				= false; // true -> print cost and stratum
 	printParams				= false; // true -> print parameters regarding seeding, ceilings
@@ -2380,10 +2407,15 @@ static void* multiseedSearchWorker(void *vp) {
 				size_t rdlens[2]   = { rdlen1, rdlen2 };
 				const Read* rds[2] = { &ps->bufa(), &ps->bufb() };
 				// For each mate...
-				// TODO: Examine mates in a random order instead of #1 then #2
 				assert(msinkwrap.empty());
 				sd.nextRead(pair);
-				for(size_t mate = 0; mate < 2; mate++) {
+				bool matemap[2] = { 0, 1 };
+				if(rnd.nextU2() == 0) {
+					// Swap order in which mates are investigated
+					std::swap(matemap[0], matemap[1]);
+				}
+				for(size_t matei = 0; matei < 2; matei++) {
+					size_t mate = matemap[matei];
 					if(!nfilt[mate]) {
 						// Mate was rejected by N filter
 						olm.freads++;               // reads filtered out
@@ -2419,17 +2451,35 @@ static void* multiseedSearchWorker(void *vp) {
 						if(interval < 1) interval = 1;
 					}
 					assert_geq(interval, 1);
+					// Set flags controlling which orientations of  individual
+					// mates to investigate
+					bool nofw, norc;
+					if(ps->paired() && mate == 0) {
+						// Mate #1
+						nofw = (gMate1fw ? gNofw : gNorc);
+						norc = (gMate1fw ? gNorc : gNofw);
+					} else if(ps->paired() && mate == 1) {
+						// Mate #2
+						nofw = (gMate2fw ? gNofw : gNorc);
+						norc = (gMate2fw ? gNorc : gNofw);
+					} else {
+						// Unpaired
+						nofw = gNofw;
+						norc = gNorc;
+					}
 					// Instantiate the seeds
 					std::pair<int, int> inst = al.instantiateSeeds(
-						seeds,                // seed templates
-						interval,             // interval between seeds
-						*rds[mate],           // read
-						sc,                   // scoring scheme
-						nCeilConst,           // ceiling on # Ns w/r/t read length, constant coeff
-						nCeilLinear,          // ceiling on # Ns w/r/t read length, linear coeff
-						ca,                   // seed cache
-						shs[mate],            // seed hits
-						sdm);                 // metrics
+						seeds,       // search seeds
+						interval,    // interval between seeds
+						*rds[mate],  // read to align
+						sc,          // scoring scheme
+						nCeilConst,  // ceil on # Ns w/r/t read len, const coeff
+						nCeilLinear, // ceil on # Ns w/r/t read len, linear coeff
+						nofw,        // don't align forward read
+						norc,        // don't align revcomp read
+						ca,          // holds some seed hits from previous reads
+						shs[mate],   // holds all the seed hits
+						sdm);        // metrics
 					assert(shs[mate].repOk(&ca.current()));
 					if(inst.first + inst.second == 0) {
 						continue; // on to next mate
@@ -2501,6 +2551,8 @@ static void* multiseedSearchWorker(void *vp) {
 								ofloorsc,       // floor score for opp.
 								nceil,          // N ceil for anchor
 								onceil,         // N ceil for opp.
+								nofw,        // don't align forward read
+								norc,        // don't align revcomp read
 								maxposs,        // max off/orient combos
 								maxrows,        // max offset resolutions
 								ca,             // seed alignment cache
@@ -2551,7 +2603,7 @@ static void* multiseedSearchWorker(void *vp) {
 							break; // ...break out of the loop over mates
 						}
 					} // if(!seedSummaryOnly)
-				} // for(size_t mate = 0; mate < 2; mate++)
+				} // for(size_t matei = 0; matei < 2; matei++)
 				
 				// Commit and report paired-end/unpaired alignments
 				uint32_t seed = rds[0]->seed ^ rds[1]->seed;
@@ -2931,7 +2983,6 @@ static void driver(
 		qualities2,  // qualities associated with m2
 		pp,          // read read-in parameters
 		gVerbose || startVerbose); // be talkative
-
 	// Open hit output file
 	if(gVerbose || startVerbose) {
 		cerr << "Opening hit output file: "; logTime(cerr, true);
@@ -3039,9 +3090,9 @@ static void driver(
 			cerr << "Creating ReadSink, HitSink: "; logTime(cerr, true);
 		}
 		ReadSink readSink(
-			dumpAlBase,   // basename of same-format files to dump aligned reads to
-			dumpUnalBase, // basename of same-format files to dump unaligned reads to
-			dumpMaxBase,  // basename of same-format files to dump reads with more than -m valid alignments to
+			dumpAlBase,   // basename of files to dump aligned reads to
+			dumpUnalBase, // basename of files to dump unaligned reads to
+			dumpMaxBase,  // basename of files to dump repetitive reads to
 			format == TAB_MATE); // both mates to same file?
 		// Set up hit sink; if sanityCheck && !os.empty() is true,
 		// then instruct the sink to "retain" hits in a vector in
@@ -3049,8 +3100,32 @@ static void driver(
 		HitSink *sink;
 		AlnSink *mssink = NULL;
 		auto_ptr<Mapq> bmapq(new BowtieMapq());
-		const EList<string>* refnames = &ebwt.refnames();
-		if(noRefNames) refnames = NULL;
+		EList<size_t> reflens;
+		for(size_t i = 0; i < ebwt.nPat(); i++) {
+			reflens.push_back(ebwt.plen()[i]);
+		}
+		EList<string> refnames;
+		readEbwtRefnames(adjustedEbwtFileBase, refnames);
+		SamConfig samc(
+			refnames,               // reference sequence names
+			reflens,                // reference sequence lengths
+			string("bowtie2"),      // program id
+			string("bowtie2"),      // program name
+			string(BOWTIE_VERSION), // program version
+			argstr,                 // command-line
+			sam_print_as,
+			sam_print_xs,
+			sam_print_xn,
+			sam_print_x0,
+			sam_print_x1,
+			sam_print_xm,
+			sam_print_xo,
+			sam_print_xg,
+			sam_print_nm,
+			sam_print_md,
+			sam_print_ym,
+			sam_print_yp,
+			sam_print_yt);
 		switch(outType) {
 			case OUTPUT_FULL: {
 				sink = new VerboseHitSink(
@@ -3098,17 +3173,24 @@ static void driver(
 					fullRef,
 					sampleMax,
 					defaultMapq);
+				mssink = new AlnSinkSam(
+					fout,         // initial output stream
+					&readSink,    // read sink
+					*bmapq.get(), // mapping quality calculator
+					samc,         // settings & routines for SAM output
+					false,        // delete output stream objects upon destruction
+					refnames,     // reference names
+					gQuiet,       // don't print alignment summary at end
+					gColorExEnds, // exclude ends from decoded colorspace alns?
+					rmap);        // if != NULL, ReferenceMap to use
 				if(!samNoHead) {
-					EList<string> refnames;
-					if(!samNoSQ) {
-						readEbwtRefnames(adjustedEbwtFileBase, refnames);
-					}
 					sam->appendHeaders(
 							sam->out(0), ebwt.nPat(),
 							refnames, samNoSQ, rmap,
 							ebwt.plen(), fullRef,
 							argstr.c_str(),
 							rgs.empty() ? NULL : rgs.c_str());
+					samc.printHeader(*fout, samNoSQ, false /* PG */);
 				}
 				sink = sam;
 				break;
@@ -3121,10 +3203,6 @@ static void driver(
 					refnames,            // reference names
 					strata,
 					amap);
-				break;
-			}
-			case OUTPUT_NONE: {
-				sink = new StubHitSink();
 				break;
 			}
 			default:

@@ -222,6 +222,10 @@ struct SwNucCell {
 		terminal = false;
 		empty = true;
 		reportedFrom_ = reportedThru_ = false;
+		assert(mask.empty());
+		assert(!oallBest.valid());
+		assert(!rdgapBest.valid());
+		assert(!rfgapBest.valid());
 		ASSERT_ONLY(finalized = false);
 		assert(!valid());
 		assert(repOk());

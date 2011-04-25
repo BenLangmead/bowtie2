@@ -36,6 +36,66 @@ if(! -x $bowtie2 || ! -x $bowtie2_build) {
 
 my @cases = (
 
+	# Mess with arguments
+	
+	# Default should be 1-mismatch, so this shouldn't align
+	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTATTAGT" ],
+	  args   => "",
+	  report => "-a",
+	  hits   => [ { "*" => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU" ],
+	  cigar  => [ "*" ],
+	  samoptflags => [{ "YT:Z:UU" => 1 }],
+	},
+
+	# Shouldn't align with 0 mismatches either
+	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTATTAGT" ],
+	  args   => "-P SEED=0",
+	  report => "-a",
+	  hits   => [ { "*" => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU" ],
+	  cigar  => [ "*" ],
+	  samoptflags => [{ "YT:Z:UU" => 1 }],
+	},
+
+	# Should align with 2 mismatches, provided the mismatches are in the right spots
+	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TAGTTCAT" ],
+	  args   => "-P \"SEED=2;MMP=C1\"",
+	  report => "-a",
+	  hits   => [ { 0 => 1, 8 => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:1=1X4=1X1=" ],
+	  cigar  => [ "8M" ],
+	  samoptflags => [{ "AS:i:-2" => 1, "XS:i:-2" => 1, "NM:i:2" => 1,
+	                    "XM:i:2" => 1, "YT:Z:UU" => 1, "MD:Z:1T4G1" => 1 }],
+	},
+
+	# Should align with 2 mismatches, provided the mismatches are in the right spots
+	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTATTAGT" ],
+	  args   =>   "-P \"SEED=2;MMP=C1\"",
+	  report =>   "-a",
+	  hits   => [ { "*" => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU" ],
+	  cigar  => [ "*" ],
+	  samoptflags => [{ "YT:Z:UU" => 1 }],
+	},
+
+	# Should align with 0 mismatches if we can wedge a seed into the 2
+	# matching characters between the two mismatches.  Here we fail to
+	# wedge a length-3 seed in (there's no room)
+	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTATTAGT" ],
+	  args   => "-P \"SEED=0,3,1;MMP=C1\"",
+	  report => "-a",
+	  hits   => [ { "*" => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU" ],
+	  cigar  => [ "*" ],
+	  samoptflags => [{ "YT:Z:UU" => 1 }],
+	},
+
 	# Should align with 0 mismatches if we can wedge a seed into the 2
 	# matching characters between the two mismatches.  Here we wedge a
 	# length-2 seed in
@@ -54,12 +114,29 @@ my @cases = (
 	  #
 	  hits   =>   [ { 0 => 1, 3 => 1, 4 => 1,
 	                  5 => 1, 7 => 1, 8 => 1} ],
-	  flag_map => [ { 0 => "XT:UU,XC:2=1X2=1X2=",
-	                  3 => "XT:UU,XC:2=2X1=3X",
-					  4 => "XT:UU,XC:1=2X2=1X2=",
-					  5 => "XT:UU,XC:3X2=2X1=",
-					  7 => "XT:UU,XC:2=2X1=3X",
-					  8 => "XT:UU,XC:2=1X2=1X2="} ] },
+	  flag_map => [ { 0 => "XM:0,XP:0,XT:UU,XC:2=1X2=1X2=",
+	                  3 => "XM:0,XP:0,XT:UU,XC:2=2X1=3X",
+					  4 => "XM:0,XP:0,XT:UU,XC:1=2X2=1X2=",
+					  5 => "XM:0,XP:0,XT:UU,XC:3X2=2X1=",
+					  7 => "XM:0,XP:0,XT:UU,XC:2=2X1=3X",
+					  8 => "XM:0,XP:0,XT:UU,XC:2=1X2=1X2="} ],
+	  cigar_map => [ { 0 => "8M", 3 => "8M", 4 => "8M",
+	                   5 => "8M", 7 => "8M", 8 => "8M" } ],
+	  samoptflags_map => [{
+		0 => { "AS:i:-2" => 1, "XS:i:-2" => 1, "NM:i:2" => 1, "XM:i:2" => 1,
+		       "YT:Z:UU" => 1, "MD:Z:2G2C2"    => 1 },
+		3 => { "AS:i:-5" => 1, "XS:i:-2" => 1, "NM:i:5" => 1, "XM:i:5" => 1,
+		       "YT:Z:UU" => 1, "MD:Z:2CG1TTG0" => 1 },
+		4 => { "AS:i:-3" => 1, "XS:i:-2" => 1, "NM:i:3" => 1, "XM:i:3" => 1,
+		       "YT:Z:UU" => 1, "MD:Z:1CG2T2"   => 1 },
+		5 => { "AS:i:-5" => 1, "XS:i:-2" => 1, "NM:i:5" => 1, "XM:i:5" => 1,
+		       "YT:Z:UU" => 1, "MD:Z:0CGT2GT1" => 1 },
+		7 => { "AS:i:-5" => 1, "XS:i:-2" => 1, "NM:i:5" => 1, "XM:i:5" => 1,
+		       "YT:Z:UU" => 1, "MD:Z:2TG1TCG0" => 1 },
+		8 => { "AS:i:-2" => 1, "XS:i:-2" => 1, "NM:i:2" => 1, "XM:i:2" => 1,
+		       "YT:Z:UU" => 1, "MD:Z:2G2C2"    => 1 },
+	  }],
+	},
 
 	# Following cases depend on this being the case:
 	#
@@ -72,15 +149,20 @@ my @cases = (
 	  args   => "-P \"SEED=2;MMP=C27\"", # penalty = 27
 	  report => "-a",
 	  hits   => [ { 0 => 1, 8 => 1 } ],
-	  flags  => [ "XT:UU,XC:6=1X1=" ] },
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:6=1X1=" ],
+	  cigar  => [ "8M" ],
+	  samoptflags => [ { "AS:i:-27" => 1, "XS:i:-27" => 1, "NM:i:1" => 1,
+	                     "XM:i:1" => 1, "YT:Z:UU" => 1, "MD:Z:6G1" => 1 } ] },
 
 	# Not quite enough budget for hits, so it should NOT align
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCAT" ], # budget = 3 + 8 * 3 = 27
 	  args   =>   "-P \"SEED=2;MMP=C28\"", # penalty = 28
 	  report =>   "-a",
-	  hits   => [ { } ],
-	  flags  => [ "XT:UU" ] },
+	  hits   => [ { "*" => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU" ],
+	  cigar  => [ "*" ],
+	  samoptflags => [ { "YT:Z:UU" => 1 } ] },
 
 	#
 	# Local alignment
@@ -93,7 +175,21 @@ my @cases = (
 	  args   =>   "--local",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1 } ],
-	  flags  => [ "XT:UU,XC:4=" ] },
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:4=" ],
+	  cigar  => [ "4M" ],
+	  samoptflags => [ {
+		"AS:i:40"  => 1, # alignment score
+		"XS:i:0"   => 1, # suboptimal alignment score
+		"XN:i:0"   => 1, # num ambiguous ref bases
+		"XM:i:0"   => 1, # num mismatches
+		"XO:i:0"   => 1, # num gap opens
+		"XG:i:0"   => 1, # num gap extensions
+		"NM:i:0"   => 1, # num edits
+		"MD:Z:4"   => 1, # mismatching positions/bases
+		"YM:i:0"   => 1, # read aligned repetitively in unpaired fashion
+		"YP:i:0"   => 1, # read aligned repetitively in paired fashion
+		"YT:Z:UU"  => 1, # type of alignment (concordant/discordant/etc)
+	} ] },
 	
 	# Local alignment for a short hit where hit is trimmed at one end
 	{ name   => "Local alignment 2",
@@ -102,7 +198,21 @@ my @cases = (
 	  args   =>   "--local -P \"MA=20;SEED=0,3,1\"",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1 } ],
-	  flags => [ "XT:UU,XC:3=1S" ] },
+	  flags => [ "XM:0,XP:0,XT:UU,XC:3=1S" ],
+	  cigar  => [ "3M1S" ],
+	  samflags => [ {
+		"AS:i:60"  => 1, # alignment score
+		"XS:i:0"   => 1, # suboptimal alignment score
+		"XN:i:0"   => 1, # num ambiguous ref bases
+		"XM:i:0"   => 1, # num mismatches
+		"XO:i:0"   => 1, # num gap opens
+		"XG:i:0"   => 1, # num gap extensions
+		"NM:i:0"   => 1, # num edits
+		"MD:Z:3"   => 1, # mismatching positions/bases
+		"YM:i:0"   => 1, # read aligned repetitively in unpaired fashion
+		"YP:i:0"   => 1, # read aligned repetitively in paired fashion
+		"YT:Z:UU"  => 1, # type of alignment (concordant/discordant/etc)
+	} ] },
 
 	# Local alignment for a perfect hit
 	{ name   => "Local alignment 3",
@@ -111,7 +221,10 @@ my @cases = (
 	  args   =>   "--local",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1 } ],
-	  flags  => [ "XT:UU,XC:13=" ] },
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:13=" ],
+	  cigar  => [ "13M" ],
+	  samoptflags => [ { "AS:i:130" => 1, "YT:Z:UU" => 1, "MD:Z:13" => 1 } ]
+	},
 
 	# Local alignment for a hit that should be trimmed from the right end
 	{ name   => "Local alignment 4",
@@ -120,7 +233,10 @@ my @cases = (
 	  args   =>   "--local -P \"SEED=0,3,1\"",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1 } ],
-	  flags  => [ "XT:UU,XC:12=" ] },
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:12=" ],
+	  cigar  => [ "12M" ],
+	  samoptflags => [ { "AS:i:120" => 1, "YT:Z:UU" => 1, "MD:Z:12" => 1 } ]
+	},
 
 	#
 	# Gap penalties
@@ -133,18 +249,28 @@ my @cases = (
 	  args   =>   "-P \"SEED=0,3,1;RDG=29,10\"",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1 } ],
-	  flags  => [ "XT:UU,XC:6=1D6=" ] },
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:6=1D6=" ],
+	  cigar  => [ "6M1D6M" ],
+	  samoptflags => [{
+		"AS:i:-39" => 1, "NM:i:1" => 1, "XO:i:1" => 1, "XG:i:1" => 1,
+		"YT:Z:UU" => 1, "MD:Z:6^G6" => 1 }]
+	},
 
 	# Alignment with 1 read gap - colorspace
 	{ name   => "Gap penalties 1 (colorspace)",
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "01102200110" ], # budget = 3 + 12 * 3 = 39
+	  reads  => [ "01102200110" ], # budget = 3 + 11 * 3 = 36
 	  #           "TTGTTCTTTGTT"
 	  args   =>   "-P \"SEED=0,3,1;RDG=26,10\"",
 	  report =>   "-a",
 	  hits   => [ { 1 => 1 } ],
 	  color  => 1,
-	  flags  => [ "XT:UU,XC:5=1D5=" ] },
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:5=1D5=" ],
+	  cigar  => [ "5M1D5M" ],
+	  samoptflags => [{
+		"AS:i:-36" => 1, "NM:i:1" => 1, "XO:i:1" => 1, "XG:i:1" => 1,
+		"YT:Z:UU" => 1, "MD:Z:5^G5" => 1 }]
+	},
 
 	# Alignment with 1 read gap, but not enough budget
 	{ name   => "Gap penalties 2",
@@ -152,8 +278,11 @@ my @cases = (
 	  reads  => [ "TTGTTCTTTGTT" ], # budget = 3 + 12 * 3 = 39
 	  args   =>   "-P \"SEED=0,3,1;RDG=30,10\"",
 	  report =>   "-a",
-	  hits   => [ { } ],
-	  flags  => [ "XT:UU" ] },
+	  hits   => [ { "*" => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU" ],
+	  cigar  => [ "*" ],
+	  samoptflags => [{ "YT:Z:UU" => 1 }]
+	},
 
 	# Alignment with 1 read gap, but not enough budget - colorspace
 	{ name   => "Gap penalties 2 (colorspace)",
@@ -162,9 +291,12 @@ my @cases = (
 	  #           "TTGTTCTTTGTT"
 	  args   =>   "-P \"SEED=0,3,1;RDG=27,10\"",
 	  report =>   "-a",
-	  hits   => [ { } ],
+	  hits   => [ { "*" => 1 } ],
 	  color  => 1,
-	  flags  => [ "XT:UU" ] },
+	  flags  => [ "XM:0,XP:0,XT:UU" ],
+	  cigar  => [ "*" ],
+	  samoptflags => [{ "YT:Z:UU" => 1 }]
+	},
 
 	# Alignment with 1 reference gap
 	{ name   => "Gap penalties 3",
@@ -173,7 +305,11 @@ my @cases = (
 	  args   =>   "-P \"SEED=0,3,1;RFG=30,15\"",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1 } ],
-	  flags  => [ "XT:UU,XC:7=1I6=" ] },
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:7=1I6=" ],
+	  cigar  => [ "7M1I6M" ],
+	  samoptflags => [{ "AS:i:-45" => 1, "NM:i:1" => 1, "XO:i:1" => 1,
+	                    "XG:i:1" => 1, "YT:Z:UU" => 1, "MD:Z:13" => 1 }]
+	},
 
 	# Alignment with 1 reference gap - colorspace
 	{ name   => "Gap penalties 3 (colorspace)",
@@ -184,7 +320,10 @@ my @cases = (
 	  report =>   "-a",
 	  hits   => [ { 1 => 1 } ],
 	  color  => 1,
-	  flags  => [ "XT:UU,XC:6=1I5=" ] },
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:6=1I5=" ],
+	  cigar  => [ "6M1I5M" ],
+	  samoptflags => [ { "AS:i:-42" => 1, "NM:i:1" => 1, "XO:i:1" => 1,
+	                     "XG:i:1" => 1, "YT:Z:UU" => 1, "MD:Z:11" => 1} ] },
 
 	# Alignment with 1 reference gap, but not enough budget
 	{ name   => "Gap penalties 4",
@@ -192,8 +331,10 @@ my @cases = (
 	  reads  => [ "TTGTTCGATTTGTT" ], # budget = 3 + 14 * 3 = 45
 	  args   =>   "-P \"SEED=0,3,1;RFG=30,16\"",
 	  report =>   "-a",
-	  hits   => [ { } ],
-	  flags  => [ "XT:UU" ] },
+	  hits   => [ { "*" => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU" ],
+	  cigar  => [ "*" ],
+	  samoptflags => [ { "YT:Z:UU" => 1 } ] },
 
 	# Alignment with 1 reference gap, but not enough budget - colorspace
 	{ name   => "Gap penalties 4 (colorspace)",
@@ -202,9 +343,11 @@ my @cases = (
 	  #           "TTGTTCGATTTGTT"
 	  args   =>   "-P \"SEED=0,3,1;RFG=27,16\"",
 	  report =>   "-a",
-	  hits   => [ { } ],
+	  hits   => [ { "*" => 1 } ],
 	  color  => 1,
-	  flags  => [ "XT:UU" ] },
+	  flags  => [ "XM:0,XP:0,XT:UU" ],
+	  cigar  => [ "*" ],
+	  samoptflags => [ { "YT:Z:UU" => 1 } ] },
 
 	# Alignment with 1 reference gap, but not enough budget
 	{ name   => "Gap penalties 5",
@@ -212,8 +355,10 @@ my @cases = (
 	  reads  => [ "TTGTTCGATTTGTT" ], # budget = 3 + 14 * 3 = 45
 	  args   =>   "-P \"SEED=0,3,1;RFG=31,15\"",
 	  report =>   "-a",
-	  hits   => [ { } ],
-	  flags  => [ "XT:UU" ] },
+	  hits   => [ { "*" => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU" ],
+	  cigar  => [ "*" ],
+	  samoptflags => [ { "YT:Z:UU" => 1 } ] },
 
 	# Alignment with 1 reference gap, but not enough budget - colorspace
 	{ name   => "Gap penalties 5 (colorspace)",
@@ -222,9 +367,11 @@ my @cases = (
 	  #           "TTGTTCGATTTGTT"
 	  args   =>   "-P \"SEED=0,3,1;RFG=28,15\"",
 	  report =>   "-a",
-	  hits   => [ { } ],
+	  hits   => [ { "*" => 1 } ],
 	  color  => 1,
-	  flags  => [ "XT:UU" ] },
+	  flags  => [ "XM:0,XP:0,XT:UU" ],
+	  cigar  => [ "*" ],
+	  samoptflags => [ { "YT:Z:UU" => 1 } ] },
 
 	# Alignment with 1 reference gap and 1 read gap
 	{ name   => "Gap penalties 6",
@@ -233,7 +380,8 @@ my @cases = (
 	  args   =>   "-P \"SEED=0,3,1;RFG=18,10;RDG=19,10\"",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1 } ],
-	  flags  => [ "XT:UU,XC:6=1D5=1I6=" ] },
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:6=1D5=1I6=" ],
+	  cigar  => [ "6M1D5M1I6M" ] },
 
 	# Alignment with 1 reference gap and 1 read gap - colorspace
 	{ name   => "Gap penalties 6 (colorspace)",
@@ -244,7 +392,8 @@ my @cases = (
 	  report =>   "-a",
 	  hits   => [ { 1 => 1 } ],
 	  color  => 1,
-	  flags  => [ "XT:UU,XC:5=1D5=1I5=" ] },
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:5=1D5=1I5=" ],
+	  cigar  => [ "5M1D5M1I5M" ] },
 
 	# Alignment with 1 reference gap and 1 read gap, but not enough budget
 	{ name   => "Gap penalties 7",
@@ -252,8 +401,9 @@ my @cases = (
 	  reads  => [ "TTGTTGTTTGATTCGT" ], # budget = 3 + 16 * 3 = 51
 	  args   =>   "-P \"SEED=0,3,1;RFG=16,10;RDG=16,10\"",
 	  report =>   "-a",
-	  hits   => [ { } ],
-	  flags  => [ "XT:UU" ] },
+	  hits   => [ { "*" => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU" ],
+	  cigar  => [ "*" ] },
 
 	# Alignment with 1 reference gap and 1 read gap, but not enough budget -
 	# colorspace
@@ -263,9 +413,10 @@ my @cases = (
 	  #           "TTGTTGTTTGATTCGT"
 	  args   =>   "-P \"SEED=0,3,1;RFG=16,10;RDG=13,10\"",
 	  report =>   "-a",
-	  hits   => [ { } ],
+	  hits   => [ { "*" => 1 } ],
 	  color  => 1,
-	  flags  => [ "XT:UU" ] },
+	  flags  => [ "XM:0,XP:0,XT:UU" ],
+	  cigar  => [ "*" ] },
 
 	# Experiment with N filtering
 	
@@ -277,7 +428,7 @@ my @cases = (
 	  args     =>   "-P \"NCEIL=0,0\"",
 	  report   =>   "-a",
 	  hits     => [ { 8 => 1 } ],
-	  flags => [ "XT:UU,XC:13=" ] },
+	  flags => [ "XM:0,XP:0,XT:UU,XC:13=" ] },
 
 	{ name => "N filtering 2",
 	  ref      => [ "GAGACTTTATNCGCATCGAACTATCGCTCTA" ],
@@ -286,7 +437,7 @@ my @cases = (
 	  #                        1         2         3
 	  args     =>   "-P \"NCEIL=0,0\"",
 	  report   =>   "-a",
-	  hits     => [ { } ] },
+	  hits     => [ { "*" => 1 } ] },
 
 	{ name => "N filtering 3",
 	  ref      => [ "GAGACTTTATACGCATCGAANTATCGCTCTA" ],
@@ -295,7 +446,7 @@ my @cases = (
 	  #                        1         2         3
 	  args     =>   "-P \"NCEIL=0,0\"",
 	  report   =>   "-a",
-	  hits     => [ { } ] },
+	  hits     => [ { "*" => 1 } ] },
 
 	{ name => "N filtering 4",
 	  ref      => [ "GAGACTTTNTACGCATCGAACTATCGCTCTA" ],
@@ -304,7 +455,7 @@ my @cases = (
 	  #                        1         2         3
 	  args     =>   "-P \"NCEIL=0,0\"",
 	  report   =>   "-a",
-	  hits     => [ { } ] },
+	  hits     => [ { "*" => 1 } ] },
 
 	{ name => "N filtering 5",
 	  ref      => [ "GAGACTTTATNCGCATCGAACTATCGCTCTA" ],
@@ -314,7 +465,7 @@ my @cases = (
 	  args     =>   "-P \"NCEIL=0,0.1;SEED=0,10,1\"",
 	  report   =>   "-a",
 	  hits     => [ { 8 => 1 } ],
-	  flags => [ "XT:UU,XC:2=1X10=" ] },
+	  flags => [ "XM:0,XP:0,XT:UU,XC:2=1X10=" ] },
 
 	{ name => "N filtering 6",
 	  ref      => [ "GAGACTTTNTACGCATCGAANTATCGCTCTA" ],
@@ -323,7 +474,7 @@ my @cases = (
 	  #                        1         2         3
 	  args     =>   "-P \"NCEIL=0,0.1;SEED=0,10,1\"",
 	  report   =>   "-a",
-	  hits     => [ { } ] },
+	  hits     => [ { "*" => 1 } ] },
 
 	# No discordant alignment because one mate is repetitive.
 
@@ -336,11 +487,11 @@ my @cases = (
 	#                 0123456789012345678901234567890123456789012
 	  mate1s => [ "ATAAAAATAT" ],
 	  mate2s => [ "CGCCGGCGCG" ],
-	  args   =>   "--ff -I 0 -X 70 -m 2 --print-placeholders",
+	  args   =>   "--ff -I 0 -X 70 -m 2",
 	  report =>   "-a",
 	  # Not really any way to flag an alignment as discordant
 	  pairhits => [ { 3 => 1, 18 => 1, 41 => 1, 56 => 1 } ],
-	  flags  => [ "XP:1,XT:UP,XC:10=" # Pair aligns repetitively
+	  flags  => [ "XM:0,XP:1,XT:UP,XC:10=" # Pair aligns repetitively
 	                           ] },
 
 	# No discordant alignment because one mate is repetitive.
@@ -357,9 +508,10 @@ my @cases = (
 	  args   =>   "--ff -I 0 -X 50 -m 1",
 	  report =>   "-a",
 	  # Not really any way to flag an alignment as discordant
-	  pairhits => [ { 3 => 1 } ],
-	  flags  => [ "XP:1,XT:UP,XC:10=" # Pair aligns repetitively
-	                           ] },
+	  pairhits => [ { "*,3" => 1 } ],
+	  flags_map  => [ {
+		3   => "XM:0,XP:1,XT:UP,XC:10=",
+		"*" => "XM:1,XP:1,XT:UP" } ] },
 
 	# 1 discordant alignment and one concordant alignment.  Discordant because
 	# the fragment is too long.
@@ -388,8 +540,10 @@ my @cases = (
 	  # Not really any way to flag an alignment as discordant
 	  pairhits => [ { "3,30" => 1 }, { "3,29" => 1 }, { "3,28" => 1 }, { "3,27" => 1 },
 	                { "4,30" => 1 }, { "4,29" => 1 }, { "4,28" => 1 }, { "4,27" => 1 } ],
-	  flags    => [ "XT:DP,XC:10=",  "XT:DP,XC:10=",  "XT:CP,XC:10=",  "XT:CP,XC:10=",
-	                "XT:DP,XC:10=",  "XT:CP,XC:10=",  "XT:CP,XC:10=",  "XT:CP,XC:10=" ] },
+	  flags    => [ "XM:0,XP:0,XT:DP,XC:10=", "XM:0,XP:0,XT:DP,XC:10=",
+	                "XM:0,XP:0,XT:CP,XC:10=", "XM:0,XP:0,XT:CP,XC:10=",
+	                "XM:0,XP:0,XT:DP,XC:10=", "XM:0,XP:0,XT:CP,XC:10=",
+					"XM:0,XP:0,XT:CP,XC:10=", "XM:0,XP:0,XT:CP,XC:10=" ] },
 
 	# 1 discordant alignment and one concordant alignment.  Discordant because
 	# the fragment is too long.
@@ -408,7 +562,7 @@ my @cases = (
 	  report =>   "-a",
 	  # Not really any way to flag an alignment as discordant
 	  pairhits => [ { "3,30" => 1 }, { "3,27" => 1 } ],
-	  flags => [ "XT:DP,XC:10=", "XT:CP,XC:10=" ] },
+	  flags => [ "XM:0,XP:0,XT:DP,XC:10=", "XM:0,XP:0,XT:CP,XC:10=" ] },
 
 	# 1 discordant alignment.  Discordant because the fragment is too long.
 
@@ -425,7 +579,7 @@ my @cases = (
 	  report =>   "-a",
 	  # Not really any way to flag an alignment as discordant
 	  pairhits => [ { "3,30" => 1 } ],
-	  flags => [ "XT:DP,XC:10=" ] },
+	  flags => [ "XM:0,XP:0,XT:DP,XC:10=" ] },
 
 	# 1 discordant alignment.  Discordant because the fragment is too short.
 
@@ -442,7 +596,7 @@ my @cases = (
 	  report =>   "-a",
 	  # Not really any way to flag an alignment as discordant
 	  pairhits => [ { "3,20" => 1 } ],
-	  flags => [ "XT:DP,XC:10=" ] },
+	  flags => [ "XM:0,XP:0,XT:DP,XC:10=" ] },
 
 	# Like 6, but with -M limit
 
@@ -472,7 +626,7 @@ my @cases = (
 	  args   =>   "--fr -I 0 -X 80",
 	  report =>   "-a",
 	  pairhits => [ { "3,59" => 1, "19,59" => 1, "37,59" => 1 } ],
-	  flags  => [ "XT:CP,XC:10=" ] },
+	  flags  => [ "XM:0,XP:0,XT:CP,XC:10=" ] },
 
 	# Like 6, but with lower -m limit
 
@@ -483,7 +637,7 @@ my @cases = (
 	#              0         1         2         3         4         5         6         7         8
 	  mate1s => [ "ATATATATAT" ],
 	  mate2s => [ "CGCGCGCGCG" ],
-	  args   =>   "--fr -I 0 -X 80 -m 1 --print-placeholders",
+	  args   =>   "--fr -I 0 -X 80 -m 1",
 	  report =>   "-a",
 	  pairhits => [ { "*,*" => 1 } ],
 	  flags  => [ "XM:1,XP:1,XT:CP", "XM:1,XP:1,XT:CP" ] },
@@ -491,60 +645,80 @@ my @cases = (
 	# Same but with mates reversed, first mate aligns 3 times
 
 	{ name => "Simple paired-end 6",
-	  ref    => [ "CCCATATATATATCCCCCCATATATATATCCCTTCCCATATATATATCCCTTTTCCTTTCGCGCGCGCGTTTCCCCCCCCC" ],
-	#                 ATATATATAT      ATATATATAT        ATATATATAT            CGCGCGCGCG
+	  ref    => [ 
+	   "CCCATATATATATCCCCCCATATATATATCCCTTCCCATATATATATCCCTTTTCCTTTCGCGCGCGCGTTTCCCCCCCCC" ],
+	#      ATATATATAT      ATATATATAT        ATATATATAT            CGCGCGCGCG
 	#              012345678901234567890123456789012345678901234567890123456789012345678901234567890
 	#              0         1         2         3         4         5         6         7         8
 	  mate1s => [ "ATATATATAT" ],
 	  mate2s => [ "CGCGCGCGCG" ],
-	  args   =>   "--fr -I 0 -X 80 -m 2",
+	  args   =>   "--fr -I 0 -X 80 -m 1 --norc",
 	  report =>   "-a",
-	  pairhits => [ { 59 => 2 } ],
-	  flags  => [ "XP:1,XT:UP,XC:10=" ] },
+	  pairhits => [ { "*,59" => 1 } ],
+	  flags_map => [ { "*"  => "XM:1,XP:1,XT:UP",
+	                   "59" => "XM:0,XP:1,XT:UP,XC:10=" } ] },
 
 	# Same but with mates reversed, second mate doesn't align
 
 	{ name => "Simple paired-end 5",
 	  ref    => [ "CCCATATATATATCCCTCCATATATATATCCCTTTCCATATATATATCCCTTTTCCCTTCGCGCGCGCGTTTCCCCCCCCC" ],
-	#                 ATATATATAT      ATATATATAT        ATATATATAT            CGCGCGCGCG
+	#                 ATATATATAT      ATATATATAT        ATATATATAT            "CCCCCGGGGG"
 	#              012345678901234567890123456789012345678901234567890123456789012345678901234567890
 	#              0         1         2         3         4         5         6         7         8
 	  mate1s => [ "ATATATATAT" ],
 	  mate2s => [ "CCCCCGGGGG" ],
-	  args   =>   "--fr -I 0 -X 80 -m 2 --print-placeholders",
+	  args   =>   "--fr -I 0 -X 80 -m 2",
 	  report =>   "-a",
-	  pairhits => [ { } ],
-	  flags  => [ "XM:1,XT:UP", "XT:UP" ] },
+	  pairhits => [ { "*,*" => 1 } ] },
 
 	# Paired-end read, but only the first mate aligns within the -m 2 ceiling.
 	# Second mate aligns 3 places.
 
 	{ name => "Simple paired-end 4",
-	  ref    => [ "CCCATATATATATCCCTTTTTTTCCCCCCCCCTTTCGCGCGCGCGTTTCTTTCGCGCGCGCGTTTCCCTTTCGCGCGCGCG" ],
-	#                 ATATATATAT                      CGCGCGCGCG       CGCGCGCGCG         CGCGCGCGCG
+	  ref    => [
+	   "CCCATATATATATCCCTTTTTTTCCCCCCCCCTTTCGCGCGCGCGTTTCTTTCGCGCGCGCGTTTCCCTTTCGCGCGCGCG" ],
+	#      ATATATATAT                      CGCGCGCGCG       CGCGCGCGCG         CGCGCGCGCG
 	#              012345678901234567890123456789012345678901234567890123456789012345678901234567890
 	#              0         1         2         3         4         5         6         7         8
 	  mate1s => [ "ATATATATAT" ],
 	  mate2s => [ "CGCGCGCGCG" ],
-	  args   =>   "--ff -I 0 -X 80 -m 2",
+	  args   =>   "--ff -I 0 -X 80 -m 1 --norc",
 	  report =>   "-a",
-	  pairhits => [ { 3 => 2 } ],
-	  flags  => [ "XP:1,XT:UP,XC:10=" ] },
+	  pairhits => [ { "*,3" => 1 } ],
+	  flags_map  => [ {  3  => "XM:i:0,XP:1,XT:UP,XC:10=",
+	                    "*" => "XM:i:1,XP:1,XT:UP" } ] },
 
 	# Paired-end read, but only the first mate aligns within the -m 2 ceiling.
 	# Second mate doesn't align at all.
 
 	{ name => "Simple paired-end 3",
-	  ref    => [ "CCCATATATATATCCCTTTTTTTCCCCCCCCCTTTCGCGCGCGCGTTTCCTTCGCGCGCGCGTTTTCCTTTCGCGCGCGCG" ],
-	#                 ATATATATAT                      CGCGCGCGCG       CGCGCGCGCG         CGCGCGCGCG
+	  ref    => [ 
+	   "CCCATATATATATCCCTTTTTTTCCCCCCCCCTTTCGCGCGCGCGTTTCCTTCGCGCGCGCGTTTTCCTTTCGCGCGCGCG" ],
+	#      ATATATATAT                      CGCGCGCGCG       CGCGCGCGCG         CGCGCGCGCG
 	#              012345678901234567890123456789012345678901234567890123456789012345678901234567890
 	#              0         1         2         3         4         5         6         7         8
 	  mate1s => [ "ATATATATAT" ],
 	  mate2s => [ "CCCCCGGGGG" ],
-	  args   =>   "--ff -I 0 -X 80 -m 2",
+	  args   =>   "--ff -I 0 -X 80 -m 1 --norc",
 	  report =>   "-a",
-	  pairhits => [ { 3 => 2 } ],
-	  flags => [ "XT:UP,XC:10=" ] },
+	  norc   => 1,
+	  pairhits  => [ { "*,3"  => 1 } ],
+	  flags_map => [ {  3     => "XM:0,XP:0,XT:UP,XC:10=",
+	                   "*"    => "XM:1,XP:1,XT:UP" } ],
+	  cigar_map => [{
+		3 => "10M",
+		"*" => "*"
+	  }],
+	  samoptflags_map => [{
+		3 => {
+			"MD:Z:10"  => 1, # mismatching positions/bases
+			"YT:Z:UP"  => 1, # type of alignment (concordant/discordant/etc)
+		},
+		"*" => {
+			"YT:Z:UP"  => 1, # type of alignment (concordant/discordant/etc)
+		}
+	  }]
+	},
 
 	# Paired-end read, but only one mate aligns
 
@@ -555,10 +729,26 @@ my @cases = (
 	#              0         1         2         3         4         5
 	  mate1s => [ "ATATATATAT" ],
 	  mate2s => [ "CCCCCGGGGG" ],
-	  args   =>   "--ff -I 0 -X 50",
+	  args   =>   "--ff -I 0 -X 50 --nofw",
 	  report =>   "-a",
-	  pairhits => [ { 3 => 2 } ],
-	  flags => [ "XT:UP,XC:10=" ] },
+	  nofw   => 1,
+	  pairhits  => [ { "*,3"  => 1 } ],
+	  flags_map => [ {  3     => "XM:0,XP:0,XT:UP,XC:10=",
+	                   "*"    => "XM:0,XP:0,XT:UP" } ],
+	  cigar_map => [{
+		3 => "10M",
+		"*" => "*"
+	  }],
+	  samoptflags_map => [{
+		3 => {
+			"MD:Z:10"  => 1, # mismatching positions/bases
+			"YT:Z:UP"  => 1, # type of alignment (concordant/discordant/etc)
+		},
+		"*" => {
+			"YT:Z:UP"  => 1, # type of alignment (concordant/discordant/etc)
+		}
+	  }]
+	},
 
 	{ name => "Simple paired-end 2; --no-mixed",
 	  ref    => [ "CCCATATATATATCCCTTTTTTTCCCCCCCCTTTTCGCGCGCGCGTTTCCCCC" ],
@@ -569,7 +759,7 @@ my @cases = (
 	  mate2s => [ "CCCCCGGGGG" ],
 	  args   =>   "--ff -I 0 -X 50 --no-mixed",
 	  report =>   "-a",
-	  pairhits => [ ] },
+	  pairhits => [ { "*,*" => 1 } ] },
 
 	# Simple paired-end alignment
 	
@@ -583,7 +773,22 @@ my @cases = (
 	  args   =>   "--ff -I 0 -X 50",
 	  report =>   "-a",
 	  pairhits => [ { "3,35" => 1 } ],
-	  flags => [ "XT:CP,XC:10=" ] },
+	  flags => [ "XM:0,XP:0,XT:CP,XC:10=" ],
+	  cigar_map => [{
+		3  => "10M",
+		35 => "10M"
+	  }],
+	  samoptflags_map => [{
+		3 => {
+			"MD:Z:10"  => 1, # mismatching positions/bases
+			"YT:Z:CP"  => 1, # type of alignment (concordant/discordant/etc)
+		},
+		35 => {
+			"MD:Z:10"  => 1, # mismatching positions/bases
+			"YT:Z:CP"  => 1, # type of alignment (concordant/discordant/etc)
+		}
+	  }]
+	},
 
 	#
 	# Alignment with overhang
@@ -596,42 +801,64 @@ my @cases = (
 	  args   => "",
 	  report => "-a --overhang -P \"SEED=0,2,1;NCEIL=2,0\"",
 	  hits   => [ { 0 => 1 } ],
-	  flags => [ "XT:UU,XC:7=" ] },
+	  nosam  => 1,
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:7=" ],
+	},
 
 	{ ref    => [ "TTGTTCGT" ],
 	  reads  => [ "TTGTTCG" ],
 	  args   => "",
 	  report => "-a -P \"SEED=0,2,1;NCEIL=2,0\"",
 	  hits   => [ { 0 => 1 } ],
-	  flags => [ "XT:UU,XC:7=" ] },
+	  flags => [ "XM:0,XP:0,XT:UU,XC:7=" ],
+	  cigar  => [ "7M" ],
+	  samoptflags => [ { "YT:Z:UU" => 1, "MD:Z:7" => 1 } ]
+	},
 	
 	{ ref    => [ "TTGTTCGT" ],
 	  reads  => [ "TTGTTCG" ],
 	  args   => "",
 	  report => "-a --overhang",
 	  hits   => [ { 0 => 1 } ],
-	  flags => [ "XT:UU,XC:7=" ] },
+	  nosam  => 1,
+	  flags => [ "XM:0,XP:0,XT:UU,XC:7=" ] },
 
 	{ ref    => [ "TTGTTCGT" ],
 	  reads  => [ "TTGTTCG" ],
 	  args   => "",
 	  report => "-a",
 	  hits   => [ { 0 => 1 } ],
-	  flags => [ "XT:UU,XC:7=" ] },
+	  flags => [ "XM:0,XP:0,XT:UU,XC:7=" ],
+	  cigar  => [ "7M" ],
+	  samoptflags => [ { "YT:Z:UU" => 1, "MD:Z:7" => 1 } ]
+	},
 
 	{ ref    => [ "TTGTTCGT" ],
 	  reads  => [  "TGTTCGT", "TTGTTCG" ],
 	  args   => "",
 	  report => "-a --overhang",
+	  nosam  => 1,
 	  hits   => [ { 1 => 1 }, { 0 => 1 } ],
-	  flags => [ "XT:UU,XC:7=", "XT:UU,XC:7=" ] },
+	  flags => [ "XM:0,XP:0,XT:UU,XC:7=", "XM:0,XP:0,XT:UU,XC:7=" ],
+	  cigar  => [ "7M", "7M" ],
+	  samoptflags => [
+		{ "YT:Z:UU" => 1, "MD:Z:7" => 1 },
+		{ "YT:Z:UU" => 1, "MD:Z:7" => 1 }
+	  ]
+	},
 
 	{ ref    => [ "TTGTTCGT" ],
 	  reads  => [ "TGTTCGT", "TTGTTCG" ],
 	  args   => "",
 	  report => "-a",
 	  hits   => [ { 1 => 1 }, { 0 => 1 } ],
-	  flags => [ "XT:UU,XC:7=", "XT:UU,XC:7=" ] },
+	  flags => [ "XM:0,XP:0,XT:UU,XC:7=", "XM:0,XP:0,XT:UU,XC:7=" ],
+	  cigar  => [ "7M", "7M" ],
+	  samoptflags => [
+		{ "YT:Z:UU" => 1, "MD:Z:7" => 1 },
+		{ "YT:Z:UU" => 1, "MD:Z:7" => 1 }
+	  ]
+	},
 
 	# Reads 1 and 2 don't have overhang, reads 3 and 4 overhang opposite ends
 	{ ref    => [ "TTGTTCGT" ],
@@ -639,7 +866,9 @@ my @cases = (
 	  args   => "",
 	  report => "-a --overhang -P \"SEED=0,2,1;NCEIL=2,0\"",
 	  hits   => [ { 1 => 1 }, { 0 => 1 }, { 2 => 1 }, { -1 => 1 } ],
-	  flags => [ "XT:UU,XC:7=", "XT:UU,XC:7=", "XT:UU,XC:6=1X", "XT:UU,XC:1X6=" ] },
+	  nosam  => 1,
+	  flags => [ "XM:0,XP:0,XT:UU,XC:7=",   "XM:0,XP:0,XT:UU,XC:7=",
+	             "XM:0,XP:0,XT:UU,XC:6=1X", "XM:0,XP:0,XT:UU,XC:1X6=" ] },
 
 	# Same as previous case but --overhang not specified
 	{ ref    => [ "TTGTTCGT" ],
@@ -647,7 +876,15 @@ my @cases = (
 	  args   => "",
 	  report => "-a -P \"SEED=0,2,1;NCEIL=2,0\"",
 	  hits   => [ { 1 => 1 }, { 0 => 1 } ], # only the internal hits
-	  flags => [ "XT:UU,XC:7=", "XT:UU,XC:7=" ] },
+	  flags => [ "XM:0,XP:0,XT:UU,XC:7=", "XM:0,XP:0,XT:UU,XC:7=" ],
+	  cigar  => [ "7M", "7M", "*", "*" ],
+	  samoptflags => [
+		{ "YT:Z:UU" => 1, "MD:Z:7" => 1 },
+		{ "YT:Z:UU" => 1, "MD:Z:7" => 1 },
+		{ "YT:Z:UU" => 1 },
+		{ "YT:Z:UU" => 1 }
+	  ]
+	},
 
 	# Alignment with 1 reference gap
 	{ ref    => [ "TTTTGTTCGTTTG" ],
@@ -655,7 +892,13 @@ my @cases = (
 	  args   =>   "-P \"SEED=0,8,1;RFG=25,20\"",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1 } ],
-	  flags => [ "XT:UU,XC:9=1I4=" ] },
+	  flags => [ "XM:0,XP:0,XT:UU,XC:9=1I4=" ],
+	  cigar  => [ "9M1I4M" ],
+	  samoptflags => [
+		{ "AS:i:-45" => 1, "NM:i:1"  => 1, "XO:i:1" => 1, "XG:i:1" => 1,
+		  "YT:Z:UU" => 1, "MD:Z:13" => 1 },
+	  ]
+	},
 
 	# Alignment with 1 reference gap
 	{ ref    => [ "TTGTTCGTTTGTT" ],
@@ -663,7 +906,13 @@ my @cases = (
 	  args   =>   "-P \"SEED=0,3,1;RFG=25,20\"",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1 } ],
-	  flags => [ "XT:UU,XC:7=1I6=" ] },
+	  flags => [ "XM:0,XP:0,XT:UU,XC:7=1I6=" ],
+	  cigar  => [ "7M1I6M" ],
+	  samoptflags => [
+		{ "AS:i:-45" => 1, "NM:i:1"  => 1, "XO:i:1" => 1, "XG:i:1" => 1,
+		  "YT:Z:UU" => 1, "MD:Z:13" => 1 },
+	  ]
+	},
 
 	{ ref    => [ "ACNCA" ],
 	  reads  => [ "CA" ],
@@ -671,7 +920,12 @@ my @cases = (
 	  report => "-a -P \"SEED=0,2,1;NCEIL=0,0\"",
 	  hits   => [ { 3 => 1 } ],
 	  edits  => [ ],
-	  flags => [ "XT:UU,XC:2=" ] },
+	  flags => [ "XM:0,XP:0,XT:UU,XC:2=" ],
+	  cigar  => [ "2M" ],
+	  samoptflags => [
+		{ "YT:Z:UU" => 1, "MD:Z:2" => 1 },
+	  ]
+	},
 
 	{ ref    => [ "ACNCA" ],
 	  reads  => [ "AC" ],
@@ -689,7 +943,13 @@ my @cases = (
 	  report => "-a -P \"SEED=0,2,1;NCEIL=0,0\"",
 	  hits   => [ { 13 => 2, 23 => 2 } ],
 	  edits  => [ ],
-	  flags => [ "XT:UU,XC:2=", "XT:UU,XC:2=" ] },
+	  flags => [ "XM:0,XP:0,XT:UU,XC:2=", "XM:0,XP:0,XT:UU,XC:2=" ],
+	  cigar  => [ "2M", "2M" ],
+	  samoptflags => [
+		{ "YT:Z:UU" => 1, "MD:Z:2" => 1 },
+		{ "YT:Z:UU" => 1, "MD:Z:2" => 1 },
+	  ]
+	},
 
 	{ ref    => [ "ACNCANNNNNNAACGNNNNNNNACGAANNNNCGAAAN" ],
 	#              0123456789012345678901234567890123456
@@ -699,7 +959,16 @@ my @cases = (
 	  report => "-a -P \"SEED=0,2,1;NCEIL=0,0\"",
 	  hits   => [ { 13 => 2, 23 => 2, 31 => 2 } ],
 	  edits  => [ ],
-	  flags => [ "XT:UU,XC:2=", "XT:UU,XC:2=", "XT:UU,XC:2=" ] },
+	  flags => [ "XM:0,XP:0,XT:UU,XC:2=",
+	             "XM:0,XP:0,XT:UU,XC:2=",
+				 "XM:0,XP:0,XT:UU,XC:2=" ],
+	  cigar  => [ "2M", "2M", "2M" ],
+	  samoptflags => [
+		{ "YT:Z:UU" => 1, "MD:Z:2" => 1 },
+		{ "YT:Z:UU" => 1, "MD:Z:2" => 1 },
+		{ "YT:Z:UU" => 1, "MD:Z:2" => 1 },
+	  ]
+	},
 
 	{ ref    => [ "ACNCANNNNNNAACGNNNNNNNACGAANNNNCGAAAN" ],
 	#              0123456789012345678901234567890123456
@@ -709,7 +978,16 @@ my @cases = (
 	  report => "-a -P \"SEED=0,1,1;NCEIL=0,0\"",
 	  hits   => [ { 13 => 2, 23 => 2, 31 => 2 } ],
 	  edits  => [ ],
-	  flags => [ "XT:UU,XC:2=", "XT:UU,XC:2=", "XT:UU,XC:2=" ] },
+	  flags => [ "XM:0,XP:0,XT:UU,XC:2=",
+	             "XM:0,XP:0,XT:UU,XC:2=",
+	             "XM:0,XP:0,XT:UU,XC:2=" ],
+	  cigar  => [ "2M", "2M", "2M" ],
+	  samoptflags => [
+		{ "YT:Z:UU" => 1, "MD:Z:2" => 1 },
+		{ "YT:Z:UU" => 1, "MD:Z:2" => 1 },
+		{ "YT:Z:UU" => 1, "MD:Z:2" => 1 },
+	  ]
+	},
 
 	#
 	# Alignment involving ambiguous reference character
@@ -724,11 +1002,36 @@ my @cases = (
 	  hits   => [ { 0 => 1 }, { 0 => 1 } ],
 	  norc   => 1,
 	  edits  => [ "5:N>G", "5:N>C" ],
-	  flags => [ "XT:UU,XC:5=1X2=", "XT:UU,XC:5=1X2=" ] },
+	  flags => [ "XM:0,XP:0,XT:UU,XC:5=1X2=", "XM:0,XP:0,XT:UU,XC:5=1X2=" ],
+	  cigar  => [ "8M", "8M" ],
+	  samoptflags => [
+		{ "AS:i:-1" => 1, "NM:i:1" => 1, "XM:i:1" => 1, "XN:i:1" => 1,
+		  "YT:Z:UU" => 1, "MD:Z:5N2" => 1 },
+		{ "AS:i:-1" => 1, "NM:i:1" => 1, "XM:i:1" => 1, "XN:i:1" => 1,
+		  "YT:Z:UU" => 1, "MD:Z:5N2" => 1 },
+	  ]
+	},
 
 	#
 	# Alignment with multi-character read gap
 	#
+
+	# Relatively small example with a read gap extend
+	{ ref    => [ "ATAACCTTCG" ],
+	  reads  => [ "ATAATTCG" ], # 3 * 19 + 3 = 60
+	  #                ^
+	  #                4:CC>- 
+	  args   => "",
+	  report => "-a --overhang --gbar 3 -P \"RDG=5,5;SEED=0,4,1\"",
+	  hits   => [ { 0 => 1 } ],
+	  edits  => [ "4:CC>-" ],
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:4=2D4=" ],
+	  cigar  => [ "4M2D4M" ],
+	  samoptflags => [
+		{ "AS:i:-15" => 1, "NM:i:2" => 1,
+		  "XO:i:1" => 1, "XG:i:2" => 3, "YT:Z:UU" => 1, "MD:Z:4^CC4" => 1 }
+	  ]
+	},
 
 	# Reads 1 and 2 don't have overhang, reads 3 and 4 overhang opposite ends
 	{ ref    => [ "ATATGCCCCATGCCCCCCTCCG" ],
@@ -740,7 +1043,13 @@ my @cases = (
 	  hits   => [ { 0 => 1 } ],
 	  edits  => [ "9:ATG>-" ],
 	  norc   => 1,
-	  flags => [ "XT:UU,XC:9=3D10=" ] },
+	  flags => [ "XM:0,XP:0,XT:UU,XC:9=3D10=" ],
+	  cigar  => [ "9M3D10M" ],
+	  samoptflags => [
+		{ "AS:i:-20" => 1, "NM:i:3" => 1,
+		  "XO:i:1" => 1, "XG:i:3" => 3, "YT:Z:UU" => 1, "MD:Z:9^ATG10" => 1 }
+	  ]
+	},
 
 	# Reads 1 and 2 don't have overhang, reads 3 and 4 overhang opposite ends
 	{ ref    => [ "ATATGCCCCATGCCCCCCTCCG" ],
@@ -753,7 +1062,13 @@ my @cases = (
 	  hits   => [ { 0 => 1 } ],
 	  edits  => [ "10:GTA>-" ],
 	  norc   => 1,
-	  flags => [ "XT:UU,XC:9=3D10=" ] },
+	  flags => [ "XM:0,XP:0,XT:UU,XC:9=3D10=" ],
+	  cigar  => [ "9M3D10M" ],
+	  samoptflags => [
+		{ "AS:i:-20" => 1, "NM:i:3" => 1,
+		  "XO:i:1" => 1, "XG:i:3" => 3, "YT:Z:UU" => 1, "MD:Z:9^ATG10" => 1 }
+	  ]
+	},
 
 	#
 	# Colorspace alignment
@@ -771,7 +1086,9 @@ my @cases = (
 	  report   =>   "-a",
 	  hits     => [ { 1 => 1 } ],
 	  color    => 1,
-	  flags => [ "XT:UU,XC:3=1X1=1X" ] },
+	  nosam  => 1,
+	  flags => [ "XM:0,XP:0,XT:UU,XC:3=1X1=1X" ]
+	},
 
 	{ ref      => [ "TTGTTC" ],
 	  reads    => [ "01102"  ],
@@ -781,7 +1098,12 @@ my @cases = (
 	  report   =>   "-a",
 	  hits     => [ { 0 => 1 } ],
 	  color    => 1,
-	  flags => [ "XT:UU,XC:6=" ] },
+	  flags => [ "XM:0,XP:0,XT:UU,XC:6=" ],
+	  cigar  => [ "6M" ],
+	  samoptflags => [
+		{ "YT:Z:UU" => 1, "MD:Z:6" => 1 }
+	  ]
+	},
 
 	{ ref      => [ "TTGTTC" ],
 	  reads    => [ "01102"  ],
@@ -791,7 +1113,12 @@ my @cases = (
 	  report   =>   "-a",
 	  hits     => [ { 0 => 1 } ],
 	  color    => 1,
-	  flags => [ "XT:UU,XC:6=" ] },
+	  flags => [ "XM:0,XP:0,XT:UU,XC:6=" ],
+	  cigar  => [ "6M" ],
+	  samoptflags => [
+		{ "YT:Z:UU" => 1, "MD:Z:6" => 1 }
+	  ]
+	},
 
 	{ ref      => [ "TTGTTC" ],
 	  reads    => [ "01102" ],
@@ -801,15 +1128,23 @@ my @cases = (
 	  report   =>   "-a",
 	  hits     => [ { 1 => 1 } ],
 	  color    => 1,
-	  flags => [ "XT:UU,XC:4=" ] },
+	  flags => [ "XM:0,XP:0,XT:UU,XC:4=" ],
+	  cigar  => [ "4M" ],
+	  samoptflags => [
+		{ "YT:Z:UU" => 1, "MD:Z:4" => 1 }
+	  ]
+	},
 
 	{ ref      => [ "TTGTTC" ],
 	  reads    => [ "01112" ],
 	  #                 ^mm
 	  args     =>   "--col-keepends -P \"SEED=0,4,1;MMP=C5\"",
 	  report   =>   "-a",
-	  hits     => [ { } ],
-	  color    => 1 },
+	  hits     => [ { "*" => 1 } ],
+	  color    => 1,
+	  cigar  => [ "*" ],
+	  samoptflags => [{ "YT:Z:UU" => 1 }]
+	},
 
 	{ ref      => [ "TTGTTC" ],
 	  reads    => [ "01112" ],
@@ -820,7 +1155,12 @@ my @cases = (
 	  report   =>   "-a",
 	  hits     => [ { 0 => 1 } ],
 	  color    => 1,
-	  flags => [ "XT:UU,XC:6=" ] },
+	  flags => [ "XM:0,XP:0,XT:UU,XC:6=" ],
+	  cigar  => [ "6M" ],
+	  samoptflags => [
+		{ "AS:i:-5" => 1, "YT:Z:UU" => 1, "MD:Z:6" => 1 }
+	  ]
+	},
 
 	# Two color mismatches carry a smaller penalty than 1 SNP
 	{ ref      => [ "TTGTTC" ],
@@ -833,7 +1173,12 @@ my @cases = (
 	  report   =>   "-a",
 	  hits     => [ { 0 => 1 } ],
 	  color    => 1,
-	  flags => [ "XT:UU,XC:6=" ] },
+	  flags => [ "XM:0,XP:0,XT:UU,XC:6=" ],
+	  cigar  => [ "6M" ],
+	  samoptflags => [
+		{ "AS:i:-10" => 1, "YT:Z:UU" => 1, "MD:Z:6" => 1 }
+	  ]
+	},
 
 	# 1 SNP carries a smaller penalty than 2 color mismatches
 	{ ref      => [ "TTGTTC" ],
@@ -846,7 +1191,13 @@ my @cases = (
 	  report   =>   "-a",
 	  hits     => [ { 0 => 1 } ],
 	  color    => 1,
-	  flags => [ "XT:UU,XC:4=1X1=" ] },
+	  flags => [ "XM:0,XP:0,XT:UU,XC:4=1X1=" ],
+	  cigar  => [ "6M" ],
+	  samoptflags => [
+		{ "NM:i:1" => 1, "XM:i:1" => 1, "AS:i:-9" => 1,
+		  "YT:Z:UU" => 1, "MD:Z:4T1" => 1 }
+	  ]
+	},
 
 	# Check that pseudo-random generation is always the same for
 	# same-sequence, same-name reads
@@ -866,7 +1217,18 @@ my @cases = (
 	  report => "-m 1 -a",
 	  hits   => [ { 0 => 1 }, { 0 => 1 }, { 0 => 1 }, { 0 => 1 }, { 0 => 1 } ],
 	  edits  => [ "-",        "-",        "-",        "-",        "-",       ],
-	  flags  => [ "XT:UU,XC:8=", "XT:UU,XC:8=", "XT:UU,XC:8=", "XT:UU,XC:8=", "XT:UU,XC:8=" ]  },
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:8=", "XM:0,XP:0,XT:UU,XC:8=",
+	              "XM:0,XP:0,XT:UU,XC:8=", "XM:0,XP:0,XT:UU,XC:8=",
+	              "XM:0,XP:0,XT:UU,XC:8=" ],
+	  cigar  => [ "8M", "8M", "8M", "8M", "8M" ],
+	  samoptflags => [
+		{ "YT:Z:UU" => 1, "MD:Z:8" => 1 },
+		{ "YT:Z:UU" => 1, "MD:Z:8" => 1 },
+		{ "YT:Z:UU" => 1, "MD:Z:8" => 1 },
+		{ "YT:Z:UU" => 1, "MD:Z:8" => 1 },
+		{ "YT:Z:UU" => 1, "MD:Z:8" => 1 },
+	  ]
+	},
 
 	{ ref    => [ "TTGTTCGT" ],
 	#              TTGTTCGT
@@ -874,10 +1236,20 @@ my @cases = (
 	#              TTGTTCGT
 	  reads  => [ "TTGTTCGT", "TAAAACGT", "TTGTTCGT", "TAATTCGT",    "TTGTTCGT" ],
 	  args   => "",
-	  report => "-m 1 -a -P \"SEED=0,3,1;MMP=C9\" --print-placeholders",
+	  report => "-m 1 -a -P \"SEED=0,3,1;MMP=C9\"",
 	  hits   => [ { 0 => 1 }, { '*' => 1 }, { 0 => 1 }, { 0 => 1 },    { 0 => 1 } ],
 	  edits  => [ "-",        undef,        "-",        "1:T>A,2:G>A", "-",        ],
-	  flags  => [ "XT:UU,XC:8=", "XT:UU", "XT:UU,XC:8=", "XT:UU,XC:1=2X5=", "XT:UU,XC:8=" ],
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:8=", "XM:0,XP:0,XT:UU",
+	              "XM:0,XP:0,XT:UU,XC:8=", "XM:0,XP:0,XT:UU,XC:1=2X5=",
+				  "XM:0,XP:0,XT:UU,XC:8=" ],
+	  cigar  => [ "8M", "*", "8M", "8M", "8M" ],
+	  samoptflags => [
+		{ "YT:Z:UU" => 1, "MD:Z:8" => 1 },
+		{ "YT:Z:UU" => 1 },
+		{ "YT:Z:UU" => 1, "MD:Z:8" => 1 },
+		{ "AS:i:-18" => 1, "NM:i:2"  => 1, "XM:i:2" => 1, "YT:Z:UU" => 1, "MD:Z:1TG5" => 1 },
+		{ "YT:Z:UU" => 1, "MD:Z:8" => 1 },
+	  ],
 	  norc   => 1 },
 
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
@@ -885,73 +1257,50 @@ my @cases = (
 	  args   => "",
 	  report => "-m 3 -a",
 	  hits   => [ { 0 => 1, 8 => 1 } ],
-	  flags  => [ "XT:UU,XC:8=", "XT:UU,XC:8=" ] },
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:8=", "XM:0,XP:0,XT:UU,XC:8=" ],
+	  cigar  => [ "8M" ],
+	  samoptflags => [
+		{ "YT:Z:UU" => 1, "MD:Z:8" => 1 }
+	  ],
+	},
 
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCGT" ],
 	  args   => "",
 	  report => "-m 2 -a",
 	  hits   => [ { 0 => 1, 8 => 1 } ],
-	  flags  => [ "XT:UU,XC:8=", "XT:UU,XC:8=" ] },
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:8=", "XM:0,XP:0,XT:UU,XC:8=" ],
+	  cigar  => [ "8M" ],
+	  samoptflags => [
+		{ "YT:Z:UU" => 1, "MD:Z:8" => 1 }
+	  ],
+	},
 
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCGT" ],
 	  args   => "",
 	  report => "-m 1 -a",
-	  hits   => [ { } ],
-	  flags  => [ "XM:1,XT:UU" ] },
+	  hits   => [ { "*" => 1 } ],
+	  flags  => [ "XM:1,XP:0,XT:UU" ],
+	  cigar  => [ "*" ],
+	  samoptflags => [
+		{ "XM:i:1" => 1, "YT:Z:UU" => 1 }
+	  ],
+	},
 
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCGT" ],
 	  args   => "",
 	  report => "-M 1",
 	  hits   => [ { 0 => 1, 8 => 1 } ],
-	  flags  => [ "XM:1,XT:UU,XC:8=" ],
-	  hits_are_superset => [ 1 ] },
+	  flags  => [ "XM:1,XP:0,XT:UU,XC:8=" ],
+	  hits_are_superset => [ 1 ],
+	  cigar  => [ "8M" ],
+	  samoptflags => [
+		{ "YM:i:1" => 1, "YT:Z:UU" => 1, "MD:Z:8" => 1 }
+	  ],
+	},
 
-	# Mess with arguments
-	
-	# Default should be 1-mismatch, so this shouldn't align
-	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTATTAGT" ],
-	  args   => "",
-	  report => "-a",
-	  hits   => [ { } ],
-	  flags  => [ "XT:UU" ] },
-
-	# Shouldn't align with 0 mismatches either
-	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTATTAGT" ],
-	  args   => "-P SEED=0",
-	  report => "-a",
-	  hits   => [ { } ],
-	  flags  => [ "XT:UU" ] },
-
-	# Should align with 2 mismatches, provided the mismatches are in the right spots
-	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TAGTTCAT" ],
-	  args   => "-P \"SEED=2;MMP=C1\"",
-	  report => "-a",
-	  hits   => [ { 0 => 1, 8 => 1 } ],
-	  flags  => [ "XT:UU,XC:1=1X4=1X1=" ] },
-
-	# Should align with 2 mismatches, provided the mismatches are in the right spots
-	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTATTAGT" ],
-	  args   =>   "-P \"SEED=2;MMP=C1\"",
-	  report =>   "-a",
-	  hits   => [ { } ],
-	  flags  => [ "XT:UU" ] },
-
-	# Should align with 0 mismatches if we can wedge a seed into the 2
-	# matching characters between the two mismatches.  Here we fail to
-	# wedge a length-3 seed in (there's no room)
-	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTATTAGT" ],
-	  args   => "-P \"SEED=0,3,1;MMP=C1\"",
-	  report => "-a",
-	  hits   => [ { } ],
-	  flags  => [ "XT:UU" ] },
 );
 
 ##
@@ -1000,7 +1349,7 @@ sub writeReads($$$$$$) {
 ##
 # Run bowtie2 with given arguments
 #
-sub runbowtie2($$$$$$$$$$) {
+sub runbowtie2($$$$$$$$$$$$) {
 	my (
 		$args,
 		$color,
@@ -1011,7 +1360,9 @@ sub runbowtie2($$$$$$$$$$) {
 		$mate2s,
 		$names,
 		$ls,
-		$rawls) = @_;
+		$rawls,
+		$header_ls,
+		$raw_header_ls) = @_;
 	$args .= " --quiet";
 	$args .= " --print-flags";
 	$reportargs = $reportargs || "-a";
@@ -1059,11 +1410,48 @@ sub runbowtie2($$$$$$$$$$) {
 	while(<BT>) {
 		print $_;
 		chomp;
-		push @$ls,    [ split(/\t/, $_, -1) ];
-		push @$rawls, $_;
+		if(substr($_, 0, 1) eq "@") {
+			push @$header_ls, [ split(/\t/, $_, -1) ];
+			push @$raw_header_ls, $_;
+		} else {
+			push @$ls, [ split(/\t/, $_, -1) ];
+			push @$rawls, $_;
+		}
 	}
 	close(BT);
 	($? == 0) || die "bowtie2 exited with level $?\n";
+}
+
+##
+# Compare a hash ref of expected SAM flags with a hash ref of observed SAM
+# flags.
+#
+sub matchSamOptionalFlags($$) {
+	my ($flags, $ex_flags) = @_;
+	my %ex = ();
+	for(keys %$ex_flags) {
+		my ($nm, $ty, $vl) = split(/:/, $_);
+		defined($vl) || die "Could not parse optional flag field \"$_\"";
+		($ex{$nm}{ty}, $ex{$nm}{vl}) = ($ty, $vl);
+	}
+	for(keys %$flags) {
+		my ($ex_ty, $ex_vl);
+		if(defined($ex{$_})) {
+			($ex_ty, $ex_vl) = ($ex{$_}{ty}, $ex{$_}{vl});
+		} else {
+			($ex_ty, $ex_vl) = ("i", "0");
+		}
+		defined($ex_ty) || die;
+		defined($ex_vl) || die;
+		my ($ty, $vl) = ($flags->{$_}{ty}, $flags->{$_}{vl});
+		defined($ty) || die;
+		defined($vl) || die;
+		$ex_ty eq $ty ||
+			die "Expected SAM optional flag $_ to have type $ex_ty, had $ty";
+		$ex_vl eq $vl ||
+			die "Expected SAM optional flag $_ to have value $ex_vl, had $vl";
+	}
+	return 1;
 }
 
 my $tmpfafn = ".simple_tests.pl.fa";
@@ -1071,220 +1459,328 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 	my $c = $cases[$ci];
 	writeFasta($c->{ref}, $tmpfafn);
 	# For each set of arguments...
-	my $a = $c->{args};
+	my $case_args = $c->{args};
+	# Forward, then reverse-complemented
 	for(my $fwi = 0; $fwi <= 1; $fwi++) {
 		my $fw = ($fwi == 0);
-		next if !$fw && $c->{norc};
-		# Run bowtie2
-		my @lines = ();
-		my @rawlines = ();
-		print $c->{name}."\n" if defined($c->{name});
-		my $color = 0;
-		$color = $c->{color} if defined($c->{color});
-		my $reads = $c->{reads};
-		my $m1s   = $c->{mate1s};
-		my $m2s   = $c->{mate2s};
-		if(!$fw) {
-			# Reverse-complement the reads
-			my @s = (); @s = @$reads if defined($reads);
-			# Reverse-complement mates and switch mate1 with mate2
-			my @m1 = (); @m1 = @$m1s if defined($m1s);
-			my @m2 = (); @m2 = @$m2s if defined($m2s);
-			for(0..scalar(@s )-1) { $s [$_] = DNA::revcomp($s [$_], $color); }
-			for(0..scalar(@m1)-1) { $m1[$_] = DNA::revcomp($m1[$_], $color); }
-			for(0..scalar(@m2)-1) { $m2[$_] = DNA::revcomp($m2[$_], $color); }
-			$reads = \@s if defined($reads);
-			$m1s = \@m2 if defined($m1s);
-			$m2s = \@m1 if defined($m2s);
-		}
-		runbowtie2(
-			"$a",
-			$color,
-			$tmpfafn,
-			$c->{report},
-			$reads,
-			$m1s,
-			$m2s,
-			$c->{names},
-			\@lines,
-			\@rawlines);
-		my $pe = defined($c->{mate1s}) && $c->{mate1s} ne "";
-		my ($lastchr, $lastoff) = ("", -1);
-		# Keep temporary copies of hits and pairhits so that we can
-		# restore for the next orientation
-		my $hitstmp = [];
-		$hitstmp = clone($c->{hits}) if defined($c->{hits});
-		my $pairhitstmp = [];
-		$pairhitstmp = clone($c->{pairhits}) if defined($c->{pairhits});
-		# Record map from already-seen read name, read sequence and
-		# quality to the place on the reference where it's reported.
-		# This allows us to check that the pseudo-random generator
-		# isn't mistakenly yielding different alignments for identical
-		# reads.
-		my %seenNameSeqQual = ();
-		if(defined($c->{lines})) {
-			my $l = scalar(@lines);
-			$l == $c->{lines} || die "Expected $c->{lines} lines, got $l";
-		}
-		for my $li (0 .. scalar(@lines)-1) {
-			my $l = $lines[$li];
-			scalar(@$l) == 9 || die "Bad number of fields; expected 9 got ".scalar(@$l).":\n$rawlines[$li]\n";
-			my ($readname, $orient, $chr, $off, $seq, $qual, $oms, $editstr, $flagstr) = @$l;
-			if($c->{check_random}) {
-				my $rsqKey = "$readname\t$orient\t$seq\t$qual";
-				my $rsqVal = "$chr\t$off";
-				if(defined($seenNameSeqQual{$rsqKey})) {
-					$seenNameSeqQual{$rsqKey} eq $rsqVal ||
-						die "Two hits for read/seq/qual:\n$rsqKey\n".
-							"had different alignments:\n".
-							"$seenNameSeqQual{$rsqKey}\n$rsqVal\n";
-				}
-				$seenNameSeqQual{$rsqKey} = $rsqVal;
+		# Not SAM format, then SMA format
+		for(my $sami = 0; $sami <= 1; $sami++) {
+			my $sam = ($sami == 1 ? 1 : 0);
+			next if !$fw  && $c->{norc};
+			next if  $fw  && $c->{nofw};
+			next if  $sam && $c->{nosam};
+			# Run bowtie2
+			my @lines = ();
+			my @rawlines = ();
+			my @header_lines = ();
+			my @header_rawlines = ();
+			print $c->{name}." " if defined($c->{name});
+			print "(fw:".($fw ? 1 : 0).", sam:$sam)\n";
+			my $color = 0;
+			$color = $c->{color} if defined($c->{color});
+			my $reads = $c->{reads};
+			my $m1s   = $c->{mate1s};
+			my $m2s   = $c->{mate2s};
+			if(!$fw) {
+				# Reverse-complement the reads
+				my @s = (); @s = @$reads if defined($reads);
+				# Reverse-complement mates and switch mate1 with mate2
+				my @m1 = (); @m1 = @$m1s if defined($m1s);
+				my @m2 = (); @m2 = @$m2s if defined($m2s);
+				for(0..scalar(@s )-1) { $s [$_] = DNA::revcomp($s [$_], $color); }
+				for(0..scalar(@m1)-1) { $m1[$_] = DNA::revcomp($m1[$_], $color); }
+				for(0..scalar(@m2)-1) { $m2[$_] = DNA::revcomp($m2[$_], $color); }
+				$reads = \@s if defined($reads);
+				$m1s = \@m2 if defined($m1s);
+				$m2s = \@m1 if defined($m2s);
 			}
-			my $rdi = $readname;
-			$rdi = substr($rdi, 1) if substr($rdi, 0, 1) eq "r";
-			my $mate = 0;
-			if($readname =~ /\//) {
-				($rdi, $mate) = split(/\//, $readname);
-				defined($rdi) || die;
+			my $a = $case_args;
+			$a .= " --sam" if $sam;
+			runbowtie2(
+				"$a",
+				$color,
+				$tmpfafn,
+				$c->{report},
+				$reads,
+				$m1s,
+				$m2s,
+				$c->{names},
+				\@lines,
+				\@rawlines,
+				\@header_lines,
+				\@header_rawlines);
+			my $pe = defined($c->{mate1s}) && $c->{mate1s} ne "";
+			my ($lastchr, $lastoff) = ("", -1);
+			# Keep temporary copies of hits and pairhits so that we can
+			# restore for the next orientation
+			my $hitstmp = [];
+			$hitstmp = clone($c->{hits}) if defined($c->{hits});
+			my $pairhitstmp = [];
+			$pairhitstmp = clone($c->{pairhits}) if defined($c->{pairhits});
+			# Record map from already-seen read name, read sequence and
+			# quality to the place on the reference where it's reported.
+			# This allows us to check that the pseudo-random generator
+			# isn't mistakenly yielding different alignments for identical
+			# reads.
+			my %seenNameSeqQual = ();
+			if(defined($c->{lines})) {
+				my $l = scalar(@lines);
+				$l == $c->{lines} || die "Expected $c->{lines} lines, got $l";
 			}
-			if($rdi != int($rdi)) {
-				# Read name has non-numeric characters.  Figure out
-				# what number it is by scanning the names list.
-				defined($c->{names}) || die "Non-numeric read name for case with no names specified";
-				my $found = 0;
-				for(my $i = 0; $i < scalar(@{$c->{names}}); $i++) {
-					if($c->{names}->[$i] eq $readname) {
-						$rdi = $i;
-						$found = 1;
-						last;
+			for my $li (0 .. scalar(@lines)-1) {
+				my $l = $lines[$li];
+				my ($readname, $orient, $chr, $off, $seq, $qual, $oms,
+				    $editstr, $flagstr, $samflags, $cigar);
+				my %samoptflags = ();
+				if($sam) {
+					scalar(@$l) >= 11 ||
+						die "Bad number of fields; expected at least 11 got ".
+						    scalar(@$l).":\n$rawlines[$li]\n";
+					($readname, $samflags, $chr, $off) = @$l[0..3];
+					($seq, $qual) = @$l[9..10];
+					if((($samflags >> 4) & 1) != 0) {
+						$orient = "-";
+					} else {
+						$orient = "+";
 					}
-				} 
-				$found || die "No specified name matched reported name $readname";
-			}
-			# Check that the sequence printed in the alignment is sane
-			if($color) {
-				# It's a decoded nucleotide sequence
-				my $dseq = $c->{dec_seq}->[$rdi];
-				if(defined($dseq)) {
-					$seq eq $dseq || die "Expected decoded sequence '$seq' from alignment to match '$dseq'";
-				}
-				my $dqual = $c->{dec_qual}->[$rdi];
-				if(defined($dqual)) {
-					$qual eq $dqual || die "Expected decoded qualities '$qual' from alignment to match '$dqual'";
-				}
-			} else {
-				
-			}
-			# Make simply-named copies of some portions of the test case
-			# 'hits'
-			my %hits = ();
-			%hits = %{$c->{hits}->[$rdi]} if defined($c->{hits}->[$rdi]);
-			# 'flags'
-			my $flags = undef;
-			$flags = $c->{flags}->[$rdi] if defined($c->{flags}->[$rdi]);
-			# 'flags_fw'
-			my $flags_fw = undef;
-			$flags_fw = $c->{flags_fw}->[$rdi] if defined($c->{flags_fw}->[$rdi]);
-			# 'flags_rc'
-			my $flags_rc = undef;
-			$flags_rc = $c->{flags_rc}->[$rdi] if defined($c->{flags_rc}->[$rdi]);
-			# 'pairhits'
-			my %pairhits = ();
-			%pairhits = %{$c->{pairhits}->[$rdi]} if defined($c->{pairhits}->[$rdi]);
-			# 'pairflags'
-			my %pairflags = ();
-			%pairflags = %{$c->{pairflags}->[$rdi]} if defined($c->{pairflags}->[$rdi]);
-			# 'hits_are_superset'
-			my $hits_are_superset = 0;
-			$hits_are_superset = $c->{hits_are_superset}->[$rdi] if defined($ci);
-			# edits
-			my $edits = undef;
-			$edits = $c->{edits}->[$rdi] if defined($c->{edits}->[$rdi]);
-			# flags
-			if(defined($flags)) {
-				$flagstr eq $flags ||
-					die "Expected flags=\"$flags\", got \"$flagstr\"";
-			}
-			if(defined($flags_fw) && $fw) {
-				$flagstr eq $flags_fw ||
-					die "Expected flags=\"$flags_fw\", got \"$flagstr\"";
-			}
-			if(defined($flags_rc) && !$fw) {
-				$flagstr eq $flags_rc ||
-					die "Expected flags=\"$flags_rc\", got \"$flagstr\"";
-			}
-			if(defined($c->{flag_map})) {
-				if(defined($c->{flag_map}->[$rdi]->{$off})) {
-					$flagstr eq $c->{flag_map}->[$rdi]->{$off} ||
-						die "Expected flags=\"$c->{flag_map}->[$rdi]->{$off}\"".
-						    " at offset $off, got \"$flagstr\"";
-				}
-			}
-			if($pe && $lastchr ne "") {
-				my $offkey = $lastoff.",".$off;
-				if($lastoff ne "*") {
-					$offkey = min($lastoff, $off).",".max($lastoff, $off);
-				}
-				if(defined($c->{pairhits}->[$rdi])) {
-					defined($pairhits{$offkey}) ||
-						die "No such paired off as $offkey in pairhits list: ".Dumper(\%pairhits)."\n";
-					$c->{pairhits}->[$rdi]->{$offkey}--;
-					delete $c->{pairhits}->[$rdi]->{$offkey} if $c->{pairhits}->[$rdi]->{$offkey} == 0;
-					%pairhits = %{$c->{pairhits}->[$rdi]};
-				}
-				($lastchr, $lastoff) = ("", -1);
-			} elsif($pe) {
-				# Found an unpaired alignment from aligning a pair
-				my $foundSe =
-					defined($c->{pairhits}->[$rdi]) &&
-					$c->{pairhits}->[$rdi]->{$off};
-				if($foundSe) {
-					$c->{pairhits}->[$rdi]->{$off}--;
-					delete $c->{pairhits}->[$rdi]->{$off}
-						if $c->{pairhits}->[$rdi]->{$off} == 0;
-					%pairhits = %{$c->{pairhits}->[$rdi]};
+					$cigar = $l->[5];
+					for(my $m = 11; $m < scalar(@$l); $m++) {
+						next if $l->[$m] eq "";
+						my ($nm, $ty, $vl) = split(/:/, $l->[$m]);
+						defined($vl) ||
+							die "Could not parse optional flag field $m: ".
+							    "\"$l->[$m]\"";
+						$samoptflags{$nm}{ty} = $ty;
+						$samoptflags{$nm}{vl} = $vl;
+						#print STDERR "Parsed SAM flag: $nm, $ty, $vl\n";
+					}
+					if($off > 0) { $off--; }
+					else { $off = "*"; }
 				} else {
-					($lastchr, $lastoff) = ($chr, $off);
+					scalar(@$l) == 9 ||
+						die "Bad number of fields; expected 9 got ".
+						    scalar(@$l).":\n$rawlines[$li]\n";
+					($readname, $orient, $chr, $off, $seq,
+					 $qual, $oms, $editstr, $flagstr) = @$l;
 				}
-			} else {
-				if(defined($c->{hits}->[$rdi])) {
-					defined($hits{$off}) ||
-						die "No such off as $off in hits list: ".Dumper(\%hits)."\n";
-					$c->{hits}->[$rdi]->{$off}--;
-					delete $c->{hits}->[$rdi]->{$off} if $c->{hits}->[$rdi]->{$off} == 0;
-					%hits = %{$c->{hits}->[$rdi]};
+				if($c->{check_random}) {
+					my $rsqKey = "$readname\t$orient\t$seq\t$qual";
+					my $rsqVal = "$chr\t$off";
+					if(defined($seenNameSeqQual{$rsqKey})) {
+						$seenNameSeqQual{$rsqKey} eq $rsqVal ||
+							die "Two hits for read/seq/qual:\n$rsqKey\n".
+								"had different alignments:\n".
+								"$seenNameSeqQual{$rsqKey}\n$rsqVal\n";
+					}
+					$seenNameSeqQual{$rsqKey} = $rsqVal;
+				}
+				my $rdi = $readname;
+				$rdi = substr($rdi, 1) if substr($rdi, 0, 1) eq "r";
+				my $mate = 0;
+				if($readname =~ /\//) {
+					($rdi, $mate) = split(/\//, $readname);
+					defined($rdi) || die;
+				}
+				if($rdi != int($rdi)) {
+					# Read name has non-numeric characters.  Figure out
+					# what number it is by scanning the names list.
+					defined($c->{names}) || die "Non-numeric read name for case with no names specified";
+					my $found = 0;
+					for(my $i = 0; $i < scalar(@{$c->{names}}); $i++) {
+						if($c->{names}->[$i] eq $readname) {
+							$rdi = $i;
+							$found = 1;
+							last;
+						}
+					} 
+					$found || die "No specified name matched reported name $readname";
+				}
+				# Check that the sequence printed in the alignment is sane
+				if($color) {
+					# It's a decoded nucleotide sequence
+					my $dseq = $c->{dec_seq}->[$rdi];
+					if(defined($dseq)) {
+						$seq eq $dseq || die "Expected decoded sequence '$seq' from alignment to match '$dseq'";
+					}
+					my $dqual = $c->{dec_qual}->[$rdi];
+					if(defined($dqual)) {
+						$qual eq $dqual || die "Expected decoded qualities '$qual' from alignment to match '$dqual'";
+					}
+				} else {
+					
+				}
+				# Make simply-named copies of some portions of the test case
+				# 'hits'
+				my %hits = ();
+				%hits = %{$c->{hits}->[$rdi]} if
+					defined($c->{hits}->[$rdi]);
+				# 'flags'
+				my $flags = undef;
+				$flags = $c->{flags}->[$rdi] if
+					defined($c->{flags}->[$rdi]);
+				# 'samflags'
+				my $ex_samflags = undef;
+				$ex_samflags = $c->{ex_samflags}->[$rdi] if
+					defined($c->{ex_samflags}->[$rdi]);
+				# 'samoptflags'
+				my $ex_samoptflags = undef;
+				$ex_samoptflags = $c->{samoptflags}->[$rdi] if
+					defined($c->{samoptflags}->[$rdi]);
+				# 'cigar'
+				my $ex_cigar = undef;
+				$ex_cigar = $c->{cigar}->[$rdi] if
+					defined($c->{cigar}->[$rdi]);
+				# 'cigar_map'
+				my $ex_cigar_map = undef;
+				$ex_cigar_map = $c->{cigar_map}->[$rdi] if
+					defined($c->{cigar_map}->[$rdi]);
+				# 'flags_fw'
+				my $flags_fw = undef;
+				$flags_fw = $c->{flags_fw}->[$rdi] if
+					defined($c->{flags_fw}->[$rdi]);
+				# 'flags_rc'
+				my $flags_rc = undef;
+				$flags_rc = $c->{flags_rc}->[$rdi] if
+					defined($c->{flags_rc}->[$rdi]);
+				# 'pairhits'
+				my %pairhits = ();
+				%pairhits = %{$c->{pairhits}->[$rdi]} if
+					defined($c->{pairhits}->[$rdi]);
+				# 'pairflags'
+				my %pairflags = ();
+				%pairflags = %{$c->{pairflags}->[$rdi]} if
+					defined($c->{pairflags}->[$rdi]);
+				# 'hits_are_superset'
+				my $hits_are_superset = 0;
+				$hits_are_superset = $c->{hits_are_superset}->[$rdi] if
+					defined($ci);
+				# edits
+				my $ex_edits = undef;
+				$ex_edits = $c->{edits}->[$rdi] if
+					defined($c->{edits}->[$rdi]);
+				if(!$sam) {
+					# Bowtie flags
+					if(defined($flags)) {
+						$flagstr eq $flags ||
+							die "Expected flags=\"$flags\", got \"$flagstr\"";
+					}
+					if(defined($flags_fw) && $fw) {
+						$flagstr eq $flags_fw ||
+							die "Expected flags=\"$flags_fw\", got \"$flagstr\"";
+					}
+					if(defined($flags_rc) && !$fw) {
+						$flagstr eq $flags_rc ||
+							die "Expected flags=\"$flags_rc\", got \"$flagstr\"";
+					}
+					if(defined($c->{flag_map})) {
+						if(defined($c->{flag_map}->[$rdi]->{$off})) {
+							$flagstr eq $c->{flag_map}->[$rdi]->{$off} ||
+								die "Expected flags=\"$c->{flag_map}->[$rdi]->{$off}\"".
+									" at offset $off, got \"$flagstr\"";
+						}
+					}
+				}
+				if($sam) {
+					# SAM flags
+					if(defined($ex_samflags)) {
+						$samflags eq $ex_samflags ||
+							die "Expected flags $ex_samflags, got $samflags";
+					}
+					# CIGAR string
+					if(defined($ex_cigar)) {
+						$cigar eq $ex_cigar ||
+							die "Expected CIGAR string $ex_cigar, got $cigar";
+					}
+					if(defined($ex_cigar_map)) {
+						if(defined($c->{cigar_map}->[$rdi]->{$off})) {
+							my $ex = $c->{cigar_map}->[$rdi]->{$off};
+							$cigar eq $ex || die
+								"Expected CIGAR string $ex at offset $off, got $cigar"
+						} else {
+							die "Expected to see alignment with offset $off";
+						}
+					}
+					# SAM optional flags
+					if(defined($ex_samoptflags)) {
+						matchSamOptionalFlags(\%samoptflags, $ex_samoptflags);
+					}
+					if(defined($c->{samoptflags_map})) {
+						if(defined($c->{samoptflags_map}->[$rdi]->{$off})) {
+							matchSamOptionalFlags(
+								\%samoptflags,
+								$c->{samoptflags_map}->[$rdi]->{$off});
+						} else {
+							die "Expected to see alignment with offset $off";
+						}
+					}
+				}
+				if($pe && $lastchr ne "") {
+					my $offkey = $lastoff.",".$off;
+					$offkey = $off.",".$lastoff if $off eq "*";
+					if($lastoff ne "*" && $off ne "*") {
+						$offkey = min($lastoff, $off).",".max($lastoff, $off);
+					}
+					if(defined($c->{pairhits}->[$rdi])) {
+						defined($pairhits{$offkey}) ||
+							die "No such paired off as $offkey in pairhits list: ".Dumper(\%pairhits)."\n";
+						$c->{pairhits}->[$rdi]->{$offkey}--;
+						delete $c->{pairhits}->[$rdi]->{$offkey} if $c->{pairhits}->[$rdi]->{$offkey} == 0;
+						%pairhits = %{$c->{pairhits}->[$rdi]};
+					}
+					($lastchr, $lastoff) = ("", -1);
+				} elsif($pe) {
+					# Found an unpaired alignment from aligning a pair
+					my $foundSe =
+						defined($c->{pairhits}->[$rdi]) &&
+						$c->{pairhits}->[$rdi]->{$off};
+					if($foundSe) {
+						$c->{pairhits}->[$rdi]->{$off}--;
+						delete $c->{pairhits}->[$rdi]->{$off}
+							if $c->{pairhits}->[$rdi]->{$off} == 0;
+						%pairhits = %{$c->{pairhits}->[$rdi]};
+					} else {
+						($lastchr, $lastoff) = ($chr, $off);
+					}
+				} else {
+					if(defined($c->{hits}->[$rdi])) {
+						defined($hits{$off}) ||
+							die "No such off as $off in hits list: ".Dumper(\%hits)."\n";
+						$c->{hits}->[$rdi]->{$off}--;
+						delete $c->{hits}->[$rdi]->{$off} if $c->{hits}->[$rdi]->{$off} == 0;
+						%hits = %{$c->{hits}->[$rdi]};
+					}
+				}
+				if(!$sam && defined($ex_edits)) {
+					my $eds = $l->[7];
+					$eds eq $ex_edits ||
+						die "For edit string, expected \"$ex_edits\" got \"$eds\"\n";
 				}
 			}
-			if(defined($edits)) {
-				my $eds = $l->[7];
-				$eds eq $edits || die "For edit string, expected \"$edits\" got \"$eds\"\n";
+			# Go through all the per-read 
+			my $klim = 0;
+			$klim = scalar(@{$c->{hits}}) if defined($c->{hits});
+			$klim = max($klim, scalar(@{$c->{pairhits}})) if defined($c->{pairhits});
+			for (my $k = 0; $k < $klim; $k++) {
+				# For each read
+				my %hits     = %{$c->{hits}->[$k]}     if defined($c->{hits}->[$k]);
+				my %pairhits = %{$c->{pairhits}->[$k]} if defined($c->{pairhits}->[$k]);
+				my $hits_are_superset = $c->{hits_are_superset}->[$k];
+				# Check if there are any hits left over
+				my $hitsLeft = scalar(keys %hits);
+				if($hitsLeft != 0 && !$hits_are_superset) {
+					print Dumper(\%hits);
+					die "Had $hitsLeft hit(s) left over";
+				}
+				my $pairhitsLeft = scalar(keys %pairhits);
+				if($pairhitsLeft != 0 && !$hits_are_superset) {
+					print Dumper(\%pairhits);
+					die "Had $pairhitsLeft hit(s) left over";
+				}
 			}
+			
+			$c->{hits} = $hitstmp;
+			$c->{pairhits} = $pairhitstmp;
 		}
-		# Go through all the per-read 
-		my $klim = 0;
-		$klim = scalar(@{$c->{hits}}) if defined($c->{hits});
-		$klim = max($klim, scalar(@{$c->{pairhits}})) if defined($c->{pairhits});
-		for (my $k = 0; $k < $klim; $k++) {
-			# For each read
-			my %hits     = %{$c->{hits}->[$k]}     if defined($c->{hits}->[$k]);
-			my %pairhits = %{$c->{pairhits}->[$k]} if defined($c->{pairhits}->[$k]);
-			my $hits_are_superset = $c->{hits_are_superset}->[$k];
-			# Check if there are any hits left over
-			my $hitsLeft = scalar(keys %hits);
-			if($hitsLeft != 0 && !$hits_are_superset) {
-				print Dumper(\%hits);
-				die "Had $hitsLeft hit(s) left over";
-			}
-			my $pairhitsLeft = scalar(keys %pairhits);
-			if($pairhitsLeft != 0 && !$hits_are_superset) {
-				print Dumper(\%pairhits);
-				die "Had $pairhitsLeft hit(s) left over";
-			}
-		}
-		
-		$c->{hits} = $hitstmp;
-		$c->{pairhits} = $pairhitstmp;
 	}
 }
 print "PASSED\n";

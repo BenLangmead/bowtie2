@@ -28,6 +28,9 @@ void AlnRes::reset() {
 	rdextent_     = 0;
 	rdexrows_     = 0;
 	rfextent_     = 0;
+	refns_        = 0;
+	type_         = ALN_RES_TYPE_UNPAIRED;
+	fraglen_      = -1;
 	// Trimming of the nucleotide read or the decoded nucleotides of a
 	// colorspace read
 	trimSoft_     = false;
@@ -287,6 +290,64 @@ void AlnRes::init(
 }
 
 /**
+ * Shift all edits left-to-right along the Watson strand by the given amount.
+ */
+void AlnRes::clipLeft(TRefOff amt) {
+#if 0
+	ned_;          // base edits
+	aed_;          // ambiguous base resolutions
+	ced_;          // color miscalls
+	refcoord_.adjustOff(amt); // shift
+	// We have to determine the shape of the portion of the alignment that
+	// we're clipping
+	size_t      rdextent_;     // number of read chars involved in alignment
+	size_t      rdexrows_;     // number of read rows involved in alignment
+	size_t      rfextent_;     // number of ref chars involved in alignment
+
+	int         nuc5p_;        // 5'-most decoded base; clipped if excluding end
+	int         nuc3p_;        // 3'-most decoded base; clipped if excluding end
+	size_t      refns_;        // # of reference Ns overlapped
+	
+	// Nucleotide-sequence trimming
+	bool        trimSoft_;     // trimming by local alignment is soft?
+	size_t      trim5p_;       // # bases trimmed from 5p end by local alignment
+	size_t      trim3p_;       // # bases trimmed from 3p end by local alignment
+
+	// Colorspace-sequence trimming; only relevant in colorspace
+	bool        cPretrimSoft_; // trimming prior to alignment is soft?
+	size_t      cPretrim5p_;   // # bases trimmed from 5p end prior to alignment
+	size_t      cPretrim3p_;   // # bases trimmed from 3p end prior to alignment
+	bool        cTrimSoft_;    // trimming by local alignment is soft?
+	size_t      cTrim5p_;      // # bases trimmed from 5p end by local alignment
+	size_t      cTrim3p_;      // # bases trimmed from 3p end by local alignment
+#endif
+}
+
+/**
+ * Shift all edits left-to-right along the Watson strand by the given amount.
+ */
+void AlnRes::clipRight(TRefOff amt) {
+}
+
+/**
+ * Clip away portions of the alignment that are outside the given bounds.
+ * Clipping is soft if soft == true, hard otherwise.  Assuming for now that
+ * there isn't any other clipping.
+ */
+void AlnRes::clipOutside(bool soft, TRefOff refi, TRefOff reff) {
+	// Overhang on LHS
+	TRefOff left = refcoord_.off();
+	if(left < refi) {
+		clipLeft(refi - refcoord_.off());
+	}
+	// Overhang on RHS
+	TRefOff right = refcoord_.off() + refNucExtent();
+	if(right > reff) {
+		clipRight(right - reff);
+	}
+}
+
+/**
  * Return true iff this AlnRes and the given AlnRes overlap.  Two AlnRess
  * overlap if they share a cell in the overall dynamic programming table:
  * i.e. if there exists a read position s.t. that position in both reads
@@ -425,7 +486,7 @@ bool AlnRes::matchesRef(
 	assert(refcoord_.valid());
 	bool fw = refcoord_.fw();
 	// Adjust reference string length according to edits
-	size_t refallen = rfextent_ + (color_ ? 1 : 0);
+	size_t refallen = refNucExtent();
 	char *raw_refbuf = new char[refallen + 16];
 	int nsOnLeft = 0;
 	if(refcoord_.off() < 0) {
@@ -536,7 +597,12 @@ bool AlnRes::matchesRef(
 }
 
 /**
- * Print a CIGAR-string representation of the alignment.
+ * Print a CIGAR-string representation of the alignment.  In the
+ * CIGAR-string representation, edit operations are printed in an order
+ * that corresponds to moving left-to-right along the Watson strand.  The
+ * operators indicate one of: match, mismatch, read gap, and reference gap.
+ * With each operator is an associated run length (printed prior to the
+ * operator) indicating how many times in a row that feature occurs.
  */
 void AlnRes::printCigar(
 	bool printColors,     // print CIGAR for colorspace alignment?
@@ -686,6 +752,166 @@ void AlnRes::printCigar(
 					*occ = op[i];
 					occ++;
 				}
+			}
+		}
+		if(oc != NULL) {
+			*occ = '\0';
+		}
+	}
+}
+
+/**
+ * Print a MD:Z:-string representation of the alignment, a la BWA.  In this
+ * representation runs of either matches or reference gaps are represented
+ * by a single number indicating the length of the run.  Mismatches are
+ * indicated by the DNA character that occurs in the reference part of the
+ * mismatch.  Read gaps are indicated by a carat (^) followed by the string
+ * of reference characters that occur in the gap.  If a mismatch follows a read
+ * gap, the read gap string (e.g. "^AAG") and the mismatch string (e.g. "T")
+ * are separated by a "0" (e.g. "^AAAG0T").  Also, if a mismatch occurs at
+ * either end, the end is capped with a "0".
+ */
+void AlnRes::printMD(
+	bool printColors,     // print CIGAR for colorspace alignment?
+	bool exEnds,          // exclude ends nucleotides for decoded nucs?
+	EList<char>& op,      // stick operations here
+	EList<char>& ch,      // stick reference characters here
+	EList<size_t>& run,   // stick run lengths here
+	OutFileBuf* o,        // write to this buf if o != NULL
+	char* oc) const       // write to this buf if oc != NULL
+{
+	char *occ = oc;
+	op.clear();
+	ch.clear();
+	run.clear();
+	// Go through edits from front to back
+	if(!fw()) {
+		const_cast<AlnRes*>(this)->invertEdits();
+	}
+	const EList<Edit>& ed = (printColors ? ced_ : ned_);
+	size_t last = 0;
+	for(size_t i = 0; i < ed.size(); i++) {
+		// Ignore ref gaps
+		if(ed[i].isRefGap()) {
+			// Ref gaps take up rows in the DP table, but don't count toward
+			// run length
+			last++;
+			continue;
+		}
+		// Print previous run of matches
+		if(ed[i].pos > last) {
+			// There's a run of matches prior to this edit.  
+			op.push_back('=');
+			ch.push_back('-');
+			run.push_back(ed[i].pos - last);
+		}
+		last = ed[i].pos;		// Print edit
+		if(ed[i].isMismatch()) {
+			last++;
+			op.push_back('X');
+			ch.push_back(ed[i].chr);
+			assert_neq('-', ed[i].chr);
+			run.push_back(1);
+		} else if(ed[i].isReadGap()) {
+			op.push_back('G');
+			ch.push_back(ed[i].chr);
+			assert_neq('-', ed[i].chr);
+			run.push_back(1);
+		}
+	}
+	size_t end = printColors ? rdrows_ : rdexrows_;
+	if(last < end) {
+		// There's a run of matches prior to the end.
+		op.push_back('=');
+		ch.push_back('-');
+		run.push_back(end - last);
+	}
+	if(!fw()) {
+		const_cast<AlnRes*>(this)->invertEdits();
+	}
+	// Write to the output file buffer and/or string buffer.
+	assert_eq(op.size(), run.size());
+	assert_eq(op.size(), ch.size());
+	if(o != NULL || oc != NULL) {
+		char buf[128];
+		bool mm_last = false;
+		bool rdgap_last = false;
+		bool first_print = true;
+		for(size_t i = 0; i < op.size(); i++) {
+			bool first = (i == 0);
+			bool last  = (i == op.size()-1);
+			size_t r = run[i];
+			if(first && exEnds && r > 0) {
+				r--;
+			}
+			if(last && exEnds && r > 0) {
+				r--;
+			}
+			if(r > 0) {
+				if(op[i] == '=') {
+					itoa10<size_t>(r, buf);
+					if(o != NULL) {
+						o->writeChars(buf);
+					}
+					if(oc != NULL) {
+						COPY_BUF();
+					}
+					first_print = false;
+					mm_last = false;
+					rdgap_last = false;
+				} else if(op[i] == 'X') {
+					if(o != NULL) {
+						if(rdgap_last || first_print) {
+							o->write('0');
+						}
+						o->write(ch[i]);
+					}
+					if(oc != NULL) {
+						if(rdgap_last || first_print) {
+							*occ = '0';
+							occ++;
+						}
+						*occ = ch[i];
+						occ++;
+					}
+					first_print = false;
+					mm_last = true;
+					rdgap_last = false;
+				} else if(op[i] == 'G') {
+					if(o != NULL) {
+						if(first_print) {
+							o->write('0');
+						}
+						if(!rdgap_last) {
+							o->write('^');
+						}
+						o->write(ch[i]);
+					}
+					if(oc != NULL) {
+						if(first_print) {
+							*occ = '0';
+							occ++;
+						}
+						if(!rdgap_last) {
+							*occ = '^';
+							occ++;
+						}
+						*occ = ch[i];
+						occ++;
+					}
+					first_print = false;
+					mm_last = false;
+					rdgap_last = true;
+				}
+			} // if r > 0
+		} // for loop over ops
+		if(mm_last || rdgap_last) {
+			if(o != NULL) {
+				o->write('0');
+			}
+			if(oc != NULL) {
+				*occ = '0';
+				occ++;
 			}
 		}
 		if(oc != NULL) {
@@ -950,12 +1176,45 @@ AlnSetSumm::AlnSetSumm(
 	}
 }
 
+/**
+ * Print out string representation of these flags.
+ */
+void AlnFlags::printYM(OutFileBuf& o) const {
+	o.writeChars("YM:i:");
+	o.write(maxed() ? '1' : '0');
+}
+
+/**
+ * Print out string representation of these flags.
+ */
+void AlnFlags::printYP(OutFileBuf& o) const {
+	o.writeChars("YP:i:");
+	o.write(maxedPair() ? '1' : '0');
+}
+
+/**
+ * Print out string representation of these flags.
+ */
+void AlnFlags::printYT(OutFileBuf& o) const {
+	o.writeChars("YT:Z:");
+	if(pairing() == ALN_FLAG_PAIR_CONCORD) {
+		o.writeChars("CP");
+	} else if(pairing() == ALN_FLAG_PAIR_DISCORD) {
+		o.writeChars("DP");
+	} else if(pairing() == ALN_FLAG_PAIR_UNPAIRED_FROM_PAIR) {
+		o.writeChars("UP");
+	} else if(pairing() == ALN_FLAG_PAIR_UNPAIRED) {
+		o.writeChars("UU");
+	} else { throw 1; }
+}
+
 #ifdef ALIGNER_RESULT_MAIN
 
 #include "mem_ids.h"
 
 int main() {
 	EList<char> op;
+	EList<char> ch;
 	EList<size_t> run;
 	{
 		// On top of each other, same length
@@ -997,7 +1256,19 @@ int main() {
 		assert_eq(0, strcmp(buf2, "10M"));
 		res2.printCigar(false, false, true, op, run, NULL, buf2);
 		assert_eq(0, strcmp(buf2, "10="));
-		
+
+		char buf3[1024];
+		res1.printMD(false, false, op, ch, run, NULL, buf3);
+		assert_eq(0, strcmp(buf3, "10"));
+		res1.printMD(false, true, op, ch, run, NULL, buf3);
+		assert_eq(0, strcmp(buf3, "8"));
+
+		char buf4[1024];
+		res2.printMD(false, false, op, ch, run, NULL, buf4);
+		assert_eq(0, strcmp(buf4, "10"));
+		res2.printMD(false, true, op, ch, run, NULL, buf4);
+		assert_eq(0, strcmp(buf4, "8"));
+
 		cerr << "PASSED" << endl;
 	}
 
@@ -1041,6 +1312,18 @@ int main() {
 		assert_eq(0, strcmp(buf2, "11M"));
 		res2.printCigar(false, false, true, op, run, NULL, buf2);
 		assert_eq(0, strcmp(buf2, "11="));
+
+		char buf3[1024];
+		res1.printMD(false, false, op, ch, run, NULL, buf3);
+		assert_eq(0, strcmp(buf3, "10"));
+		res1.printMD(false, true, op, ch, run, NULL, buf3);
+		assert_eq(0, strcmp(buf3, "8"));
+
+		char buf4[1024];
+		res2.printMD(false, false, op, ch, run, NULL, buf4);
+		assert_eq(0, strcmp(buf4, "11"));
+		res2.printMD(false, true, op, ch, run, NULL, buf4);
+		assert_eq(0, strcmp(buf4, "9"));
 
 		cerr << "PASSED" << endl;
 	}
@@ -1147,7 +1430,7 @@ int main() {
 		EList<Edit> ned1(RES_CAT);
 		ned1.expand();
 		// 1 step to the right in the middle of the alignment
-		ned1.back().init(5, 'A', '-', EDIT_TYPE_READ_GAP);
+		ned1.back().init(5, 'A' /*chr*/, '-' /*qchr*/, EDIT_TYPE_READ_GAP);
 		AlnRes res1;
 		res1.init(
 			10,
@@ -1185,6 +1468,18 @@ int main() {
 		assert_eq(0, strcmp(buf2, "10M"));
 		res2.printCigar(false, false, true, op, run, NULL, buf2);
 		assert_eq(0, strcmp(buf2, "10="));
+
+		char buf3[1024];
+		res1.printMD(false, false, op, ch, run, NULL, buf3);
+		assert_eq(0, strcmp(buf3, "5^A5"));
+		res1.printMD(false, true, op, ch, run, NULL, buf3);
+		assert_eq(0, strcmp(buf3, "4^A4"));
+
+		char buf4[1024];
+		res2.printMD(false, false, op, ch, run, NULL, buf4);
+		assert_eq(0, strcmp(buf4, "10"));
+		res2.printMD(false, true, op, ch, run, NULL, buf4);
+		assert_eq(0, strcmp(buf4, "8"));
 
 		cerr << "PASSED" << endl;
 	}
@@ -1234,6 +1529,18 @@ int main() {
 		assert_eq(0, strcmp(buf2, "10M"));
 		res2.printCigar(false, false, true, op, run, NULL, buf2);
 		assert_eq(0, strcmp(buf2, "10="));
+
+		char buf3[1024];
+		res1.printMD(false, false, op, ch, run, NULL, buf3);
+		assert_eq(0, strcmp(buf3, "5^GCA5"));
+		res1.printMD(false, true, op, ch, run, NULL, buf3);
+		assert_eq(0, strcmp(buf3, "4^GCA4"));
+
+		char buf4[1024];
+		res2.printMD(false, false, op, ch, run, NULL, buf4);
+		assert_eq(0, strcmp(buf4, "10"));
+		res2.printMD(false, true, op, ch, run, NULL, buf4);
+		assert_eq(0, strcmp(buf4, "8"));
 
 		cerr << "PASSED" << endl;
 	}
@@ -1663,6 +1970,60 @@ int main() {
 		assert_eq(0, strcmp(buf, "3M1I1M2I1M4D1M"));
 		res.printCigar(false, true, true, op, run, NULL, buf);
 		assert_eq(0, strcmp(buf, "3=1I1=2I1=4D1="));
+		cerr << "PASSED" << endl;
+	}
+
+	{
+		cerr << "Test case 17, Overhang ... ";
+		EList<Edit> ned(RES_CAT);
+		// 2 steps to the right in the middle of the alignment
+		ned.push_back(Edit(0, 'N', 'A', EDIT_TYPE_MM));
+		ned.push_back(Edit(5, 'C', 'A', EDIT_TYPE_MM));
+		AlnRes res; res.init(
+			10,
+			AlnScore(),
+			&ned,
+			NULL,
+			NULL,
+			Coord(0, -1, true),
+			false);
+		
+		char buf[1024];
+		res.printCigar(false, false, false, op, run, NULL, buf);
+		assert_eq(0, strcmp(buf, "10M"));
+		res.printCigar(false, false, true, op, run, NULL, buf);
+		assert_eq(0, strcmp(buf, "1X4=1X4="));
+		res.printMD(false, false, op, ch, run, NULL, buf);
+		assert_eq(0, strcmp(buf, "0N4C4"));
+		
+		#if 0
+		AlnRes res2(res);
+		// Now soft-clip away the overhang
+		res2.clipOutside(
+			true,  // soft clip
+			0,     // ref begins
+			40);   // ref ends (excl)
+		res2.printCigar(false, false, false, op, run, NULL, buf);
+		assert_eq(0, strcmp(buf, "1S9M"));
+		res2.printCigar(false, false, true, op, run, NULL, buf);
+		assert_eq(0, strcmp(buf, "4=1X4="));
+		res2.printMD(false, false, op, ch, run, NULL, buf);
+		assert_eq(0, strcmp(buf, "4C4"));
+
+		AlnRes res3 = res;
+		// Now hard-clip away the overhang
+		res3.clipOutside(
+			false, // hard clip
+			0,     // ref begins
+			40);   // ref ends (excl)
+		res3.printCigar(false, false, false, op, run, NULL, buf);
+		assert_eq(0, strcmp(buf, "9M"));
+		res3.printCigar(false, false, true, op, run, NULL, buf);
+		assert_eq(0, strcmp(buf, "4=1X4="));
+		res3.printMD(false, false, op, ch, run, NULL, buf);
+		assert_eq(0, strcmp(buf, "4C4"));
+		#endif
+
 		cerr << "PASSED" << endl;
 	}
 }

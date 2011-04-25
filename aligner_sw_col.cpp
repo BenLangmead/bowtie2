@@ -226,7 +226,7 @@ bool SwAligner::backtrackColors(
 	AlnScore score; score.score_ = 0;
 	score.gaps_ = score.ns_ = 0;
 	bool refExtend = false, readExtend = false;
-	ASSERT_ONLY(size_t origCol = col);
+	size_t origCol = col;
 	int gaps = 0, readGaps = 0, refGaps = 0;
 	res.alres.reset();
 	EList<Edit>& ned = res.alres.ned();
@@ -584,6 +584,13 @@ bool SwAligner::backtrackColors(
 		false,                    // alignment trim soft?
 		fw_ ? trimBeg : trimEnd,  // alignment trim 5' end
 		fw_ ? trimEnd : trimBeg); // alignment trim 3' end
+	size_t refns = 0;
+	for(size_t i = col; i <= origCol; i++) {
+		if((int)rf_[rfi_+i] > 15) {
+			refns++;
+		}
+	}
+	res.alres.setRefNs(refns);
 	assert(res.repOk());
 	return true;
 }
@@ -618,7 +625,7 @@ inline void SwAligner::updateColorHoriz(
 		AlnScore leftOallBest  = lc.oallBest[to];
 		AlnScore leftRdgapBest = lc.rdgapBest[to];
 		AlnScore& myOallBest   = dstc.oallBest[to];
-		AlnScore& myRdgapBest  = dstc.oallBest[to];
+		AlnScore& myRdgapBest  = dstc.rdgapBest[to];
 		SwColorCellMask& myMask  = dstc.mask[to];
 		assert(!sc_->monotone || leftOallBest.score()  <= 0);
 		assert(!sc_->monotone || leftRdgapBest.score() <= 0);

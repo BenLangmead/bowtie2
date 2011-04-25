@@ -122,9 +122,9 @@ int PairedEndPolicy::peClassifyPair(
 /**
  * Given details about how one mate aligns, and some details about the
  * reference sequence it aligned to, calculate a window and orientation s.t.
- * a paired-end alignment is concordant iff the opposite mate aligns in that
- * window with that orientation.  The window we calculate is regardless of
- * gaps.  The dynamic programming framer will take gaps into account.
+ * a paired-end alignment is concordant iff the opposite mate aligns in the
+ * calculated window with the calculated orientation.  The calculaton does not
+ * consider gaps.  The dynamic programming framer will take gaps into account.
  *
  * Returns false if no concordant alignments are possible, true otherwise.
  */

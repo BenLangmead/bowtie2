@@ -176,6 +176,8 @@ public:
 		TAlScore ofloorsc,           // local-alignment floor for opposite score
 		int nceil,                   // max # Ns permitted in ref for anchor
 		int onceil,                  // max # Ns permitted in ref for opposite
+		bool nofw,                   // don't align forward read
+		bool norc,                   // don't align revcomp read
 		uint32_t maxposs,            // stop after examining this many positions (offset+orientation combos)
 		uint32_t maxrows,            // stop examining a position after this many offsets are reported
 		AlignmentCacheIface& cs,     // alignment cache for seed hits

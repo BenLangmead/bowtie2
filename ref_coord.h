@@ -135,6 +135,8 @@ public:
 	void setRef(TRefId  id)  { ref_ = id;  }
 	void setOff(TRefOff off) { off_ = off; }
 
+	void adjustOff(TRefOff off) { off_ += off; }
+
 protected:
 
 	TRefId  ref_;    // which reference?

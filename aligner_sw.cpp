@@ -1,4 +1,4 @@
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   /*
+/*
  *  aligner_sw.cpp
  */
 
@@ -310,7 +310,7 @@ bool SwAligner::backtrackNucleotides(
 	AlnScore score; score.score_ = 0;
 	score.gaps_ = score.ns_ = 0;
 	bool refExtend = false, readExtend = false;
-	ASSERT_ONLY(size_t origCol = col);
+	size_t origCol = col;
 	int gaps = 0, readGaps = 0, refGaps = 0;
 	res.alres.reset();
 	EList<Edit>& ned = res.alres.ned();
@@ -622,6 +622,13 @@ bool SwAligner::backtrackNucleotides(
 		true,                     // alignment trim soft?
 		fw_ ? trimBeg : trimEnd,  // alignment trim 5' end
 		fw_ ? trimEnd : trimBeg); // alignment trim 3' end
+	size_t refns = 0;
+	for(size_t i = col; i <= origCol; i++) {
+		if((int)rf_[rfi_+i] > 15) {
+			refns++;
+		}
+	}
+	res.alres.setRefNs(refns);
 	assert(res.repOk());
 	return true;
 }
@@ -656,8 +663,9 @@ inline void SwAligner::updateNucHoriz(
 		AlnScore leftOallBest  = lc.oallBest;
 		AlnScore leftRdgapBest = lc.rdgapBest;
 		AlnScore& myOallBest   = dstc.oallBest;
-		AlnScore& myRdgapBest  = dstc.oallBest;
+		AlnScore& myRdgapBest  = dstc.rdgapBest;
 		SwNucCellMask& myMask  = dstc.mask;
+		assert(!myRdgapBest.valid());
 		assert(!sc_->monotone || leftOallBest.score()  <= 0);
 		assert(!sc_->monotone || leftRdgapBest.score() <= 0);
 		assert_leq(leftRdgapBest, leftOallBest);
@@ -3099,7 +3107,7 @@ static void doTests() {
 
 		if(i == 0) {
 			cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
-			     << ", 2 Nn allowed by minsc)...";
+			     << ", 2 Ns allowed by minsc)...";
 			sc.rfGapConst = 40;
 			sc.rdGapConst = 40;
 			sc.snp = 30;
