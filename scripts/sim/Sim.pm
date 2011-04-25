@@ -24,6 +24,18 @@ use AlignmentCheck;
 use Math::Random;
 use List::Util qw(max min);
 
+##
+# Replacement for "die" that additionally writes error message to file so that
+# run.pl can read it later.
+#
+sub mydie($) {
+	my $fn = ".run.pl.child.$$";
+	open(EO, ">$fn") || die "Could not open $fn for writing";
+	print EO $_[0];
+	close(EO);
+	die $_[0];
+}
+
 # Generates random printable strings of a given length
 sub randStr($) {
 	my $len = shift;
@@ -155,7 +167,7 @@ sub defaultGapLenGen($) {
 sub defaultSeqGen($) {
 	my $len = shift;
 	($len == int($len) && $len > 0) ||
-		die "Bad length for sequence generator: $len";
+		mydie("Bad length for sequence generator: $len");
 	my $ret = "";
 	for (1..$len) {
 		$ret .= substr("ACGT", int(rand(4)), 1);
@@ -296,7 +308,8 @@ sub genRef {
 	$refnum = log($refnum) if $sm;
 	$refnum = 1 if $refnum <= 0;
 	# Open output file
-	open (FA, ">$tmpfn") || die "Could not open temporary fasta file '$tmpfn' for writing";
+	open (FA, ">$tmpfn") ||
+		mydie("Could not open temporary fasta file '$tmpfn' for writing");
 	my %ccnt = ();
 	print STDERR "Generating $refnum references\n";
 	for (1..$refnum) {
@@ -327,7 +340,8 @@ sub genRef {
 		substr($seq, 0, $trimleft) = "";
 		$seq = substr($seq, 0, length($seq)-$trimright);
 		my $trimlen = length($seq);
-		$trimlen == $len - $trimleft - $trimright || die;
+		$trimlen == $len - $trimleft - $trimright ||
+			mydie("Unexpected trim combo: $len, $trimleft, $trimright, $trimlen");
 		print STDERR "  Generated reference '$name' of untrimmed length $len, trimmed length $trimlen\n";
 		print FA ">$name\n";
 		my $buf = "";
@@ -396,13 +410,13 @@ sub build {
 	my $cmd = "$conf->{bowtie2_build_debug} $argstr $fa $idx";
 	print STDERR "$cmd\n";
 	system($cmd);
-	$? == 0 || die "Error running '$cmd'; exitlevel=$?";
+	$? == 0 || mydie("Error running '$cmd'; exitlevel=$?");
 	print STDERR "Built nucleotide index '$idx'\n";
 	# Build colorspace index
 	$cmd = "$conf->{bowtie2_build_debug} $argstr -C $fa ${idx}.c";
 	print STDERR "$cmd\n";
 	system($cmd);
-	$? == 0 || die "Error running '$cmd'; exitlevel=$?";
+	$? == 0 || mydie("Error running '$cmd'; exitlevel=$?");
 	print STDERR "Built colorspace index '$idx'\n";
 }
 
@@ -420,10 +434,10 @@ sub flattenIUPAC() {
 			if(DNA::isIUPAC($ch) || $ch eq "N") {
 				if(rand() < $self->snpgen->()) {
 					$nc = DNA::pickIncompat($ch);
-					defined($nc) || die;
+					defined($nc) || mydie("Couldn't find incompatible base for $ch");
 				} else {
 					$nc = DNA::pickCompat($ch);
-					defined($nc) || die;
+					defined($nc) || mydie("Couldn't find compatible base for $ch");
 				}
 			}
 			if($ch ne $nc) {
@@ -566,7 +580,7 @@ sub genInput {
 		$self->rdlengen);
 	print STDERR "Created read sampler\n";
 	my $numreads = $self->rdnumgen->();
-	$numreads == int($numreads) || die;
+	$numreads == int($numreads) || mydie("numreads $numreads not a number");
 	my $tmp = int(rand(3));
 	if($tmp == 0) {
 		$input{mate2fw} = 1;
@@ -575,7 +589,7 @@ sub genInput {
 		$input{mate2fw} = 1;
 	}
 	print STDERR "Sampling $numreads reads\n";
-	ref($refs) eq "HASH" || die "Reference input must be hash ref";
+	ref($refs) eq "HASH" || mydie("Reference input must be hash ref");
 	if($paired) { 
 		$read_sampler->genReadPairs(
 			$numreads,       # number of reads/fragments to generate
@@ -599,8 +613,8 @@ sub genInput {
 	print STDERR "Dumping reads to temporary files $tmprdfn1 & $tmprdfn2\n";
 	# Dump reads to output file
 	my ($fh1, $fh2);
-	open($fh1, ">$tmprdfn1") || die "Could not open '$tmprdfn1' for writing";
-	open($fh2, ">$tmprdfn2") || die "Could not open '$tmprdfn2' for writing";
+	open($fh1, ">$tmprdfn1") || mydie("Could not open '$tmprdfn1' for writing");
+	open($fh2, ">$tmprdfn2") || mydie("Could not open '$tmprdfn2' for writing");
 	if($format eq "fastq") {
 		$self->dumpFastq(\%input, $fh1, $fh2);
 	} elsif($format eq "qseq") {
@@ -675,16 +689,16 @@ sub align {
 		0,                          # no bis-C
 		0                           # no bis-CpG
 	);
-	$ac->nrefs() > 0 || die;
+	$ac->nrefs() > 0 || mydie("No references");
 	# Run normal (non-debug) Bowtie
-	defined($conf->{tempdir}) || die;
+	defined($conf->{tempdir}) || mydie("No tmp dir");
 	my $als       = "$conf->{tempdir}/Sim.pm.$conf->{randstr}.als";
 	my $als_debug = "$conf->{tempdir}/Sim.pm.$conf->{randstr}.debug.als";
 	my $als_px    = "$conf->{tempdir}/Sim.pm.$conf->{randstr}.px.als";
 	my $cmd = "$conf->{bowtie2_debug} $argstr $idx $inputfn";
 	print "$cmd\n";
-	open(ALSDEB, ">$als_debug") || die "Could not open '$als_debug' for writing";
-	open(ALSDEBCMD, "$cmd |") || die "Could not open pipe '$cmd |'";
+	open(ALSDEB, ">$als_debug") || mydie("Could not open '$als_debug' for writing");
+	open(ALSDEBCMD, "$cmd |") || mydie("Could not open pipe '$cmd |'");
 	my $ival = 100;
 	my $nals = 0;
 	while(<ALSDEBCMD>) {
@@ -697,7 +711,7 @@ sub align {
 	close(ALSDEBCMD);
 	close(ALSDEB);
 	$ac->printSummary();
-	$? == 0 || die "Command '$cmd' failed with exitlevel $?";
+	$? == 0 || mydie("Command '$cmd' failed with exitlevel $?");
 	# With some probability, also run debug Bowtie and check that
 	# results are identical
 	if(int(rand(3)) == 0) {
@@ -705,11 +719,14 @@ sub align {
 		$cmd = "$conf->{bowtie2} $argstr $idx $inputfn > $als";
 		print "$cmd\n";
 		system($cmd);
-		$? == 0 || die "Command '$cmd' failed with exitlevel $?";
+		$? == 0 ||
+			mydie("Command '$cmd' failed with exitlevel $?");
 		$cmd = "diff -uw $als $als_debug";
 		print "$cmd\n";
 		system($cmd);
-		$? == 0 || die "diff found a difference between bowtie2 and bowtie2-debug output for same input (above)\n";
+		$? == 0 ||
+			mydie("diff found a difference between bowtie2 and bowtie2-debug ".
+			      "output for same input (above)\n");
 	}
 	# With some probability, also run debug Bowtie in -p X mode with
 	# X > 1 and check that results are identical
@@ -719,23 +736,28 @@ sub align {
 		$cmd = "$conf->{bowtie2} $argstr -p $p $idx $inputfn > $als_px";
 		print "$cmd\n";
 		system($cmd);
-		$? == 0 || die "Command '$cmd' failed with exitlevel $?";
+		$? == 0 ||
+			mydie("Command '$cmd' failed with exitlevel $?");
 		# Sort the $als_px and $als_debug files to guarantee that reads and
 		# alignments for a given read appear in the same order in both
 		$cmd = "sort -k 1,1 -n -k 2,2 -k 3,3 -k 4,4 < $als_px > $als_px.sorted";
 		print "$cmd\n";
 		system($cmd);
-		$? == 0 || die "Failed to sort alignment file $als_px\n";
+		$? == 0 ||
+			mydie("Failed to sort alignment file $als_px\n");
 		# Sort the $als_px and $als_debug files to guarantee that reads and
 		# alignments for a given read appear in the same order in both
 		$cmd = "sort -k 1,1 -n -k 2,2 -k 3,3 -k 4,4 < $als_debug > $als_debug.sorted";
 		print "$cmd\n";
 		system($cmd);
-		$? == 0 || die "Failed to sort alignment file $als_debug\n";
+		$? == 0 ||
+			mydie("Failed to sort alignment file $als_debug\n");
 		$cmd = "diff -uw $als_debug.sorted $als_px.sorted";
 		print "$cmd\n";
 		system($cmd);
-		$? == 0 || die "diff found a difference between bowtie2-debug and bowtie2 -p output for same input (above)\n";
+		$? == 0 ||
+			mydie("diff found a difference between bowtie2-debug and bowtie2 ".
+			      "-p output for same input (above)\n");
 	}
 }
 

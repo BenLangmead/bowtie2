@@ -64,13 +64,14 @@ my $sim = Sim->new();
 my $pm = new Parallel::ForkManager($cpus); 
 
 # Callback for when a child finishes so we can get its exit code
-my $childFailed = 0;
-my $childFailedPid = 0;
+my @childFailed = ();
+my @childFailedPid = ();
+
 $pm->run_on_finish(sub {
 	my ($pid, $exit_code, $ident) = @_;
 	if($exit_code != 0) {
-		$childFailed = $exit_code;
-		$childFailedPid = $pid;
+		push @childFailed, $exit_code;
+		push @childFailedPid, $pid;
 	}
 });
 
@@ -83,8 +84,18 @@ for(1..$cpus) {
 	$pm->finish;
 }
 $pm->wait_all_children;
-if($childFailed) {
-	print STDERR "One or more children failed!\n";
-	exit 1
+for(@childFailedPid) {
+	print STDERR "Error message from child with pid $_:\n";
+	my $fn = ".run.pl.child.$_";
+	if(open(ER, $fn)) {
+		print STDERR "---------\n";
+		while(<ER>) {
+			print STDERR $_;
+		}
+		print STDERR "---------\n";
+		close(ER);
+	} else {
+		print STDERR "(could not open $fn)\n";
+	}
 }
 print STDERR "PASSED\n";

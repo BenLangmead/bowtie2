@@ -240,6 +240,110 @@ public:
 	TAlScore gaps_;
 };
 
+enum {
+	// This alignment is one of a pair of alignments that form a concordant
+	// alignment for a read
+	ALN_FLAG_PAIR_CONCORD = 1,
+
+	// This alignment is one of a pair of alignments that form a discordant
+	// alignment for a read
+	ALN_FLAG_PAIR_DISCORD,
+	
+	// This is an unpaired alignment but the read in question is a pair;
+	// usually, this happens because the read had no reportable paired-end
+	// alignments
+	ALN_FLAG_PAIR_UNPAIRED_FROM_PAIR,
+
+	// This is an unpaired alignment of an unpaired read
+	ALN_FLAG_PAIR_UNPAIRED
+};
+
+/**
+ * Encapsulates some general information about an alignment that doesn't belong
+ * in AlnRes.  Specifically:
+ *
+ * 1. Whether the alignment is paired
+ * 2. If it's paried, whether it's concordant or discordant
+ * 3. Whether this alignment was found after the paired-end categories were
+ *    maxed out
+ * 4. Whether the relevant unpaired category was maxed out
+ */
+class AlnFlags {
+
+public:
+
+	AlnFlags(int pairing, bool maxed, bool maxedPair) {
+		init(pairing, maxed, maxedPair);
+	}
+
+	/**
+	 * Initialize given values for all settings.
+	 */
+	void init(int pairing, bool maxed, bool maxedPair) {
+		assert_gt(pairing, 0);
+		assert_leq(pairing, ALN_FLAG_PAIR_UNPAIRED);
+		pairing_ = pairing;
+		maxed_ = maxed;
+		maxedPair_ = maxedPair;
+	}
+
+	/**
+	 * Return true iff this alignment is from a paired-end read.
+	 */
+	bool partOfPair() const {
+		assert_gt(pairing_, 0);
+		return pairing_ < ALN_FLAG_PAIR_UNPAIRED;
+	}
+	
+	/**
+	 * Check that the flags are internally consistent.
+	 */
+	bool repOk() const {
+		assert(partOfPair() || !maxedPair_);
+		return true;
+	}
+	
+	/**
+	 * Print out string representation of these flags.
+	 */
+	void printYM(OutFileBuf& o) const;
+
+	/**
+	 * Print out string representation of these flags.
+	 */
+	void printYP(OutFileBuf& o) const;
+
+	/**
+	 * Print out string representation of these flags.
+	 */
+	void printYT(OutFileBuf& o) const;
+
+	inline int  pairing()   const { return pairing_; }
+	inline bool maxed()     const { return maxed_; }
+	inline bool maxedPair() const { return maxedPair_; }
+	
+	/**
+	 * Return true iff the flags indicate that the mate is one of a pair that
+	 * aligned concordantly.
+	 */
+	inline bool isConcordant() const {
+		return pairing_ == ALN_FLAG_PAIR_CONCORD;
+	}
+
+protected:
+
+	// See ALN_FLAG_PAIR_* above
+	int pairing_;
+
+	// This alignment is sampled from among many alignments that, taken
+	// together, cause this mate to align non-uniquely
+	bool maxed_;
+	
+	// The paired-end read of which this mate is part has repetitive concordant
+	// alignments
+	bool maxedPair_;
+};
+
 static inline ostream& operator<<(ostream& os, const AlnScore& o) {
 	os << o.score();
 	return os;
@@ -756,11 +860,17 @@ public:
 	 * Set whether this alignment is unpaired, or is mate #1 or mate #2 in a
 	 * paired-end alignment.
 	 */
-	void setMateParams(int type, const AlnRes* omate) {
+	void setMateParams(
+		int type,
+		const AlnRes* omate,
+		const AlnFlags& flags)
+	{
 		assert_gt(type, 0);
 		type_ = type;
 		fraglen_ = -1;
-		if(omate != NULL) setFragmentLength(*omate);
+		if(omate != NULL && flags.isConcordant()) {
+			setFragmentLength(*omate);
+		}
 	}
 	
 	/**
@@ -1017,116 +1127,6 @@ protected:
 };
 
 typedef uint64_t TNumAlns;
-
-/**
- * Encapsulates a concise summary of a set of alignment results for a
- * given read.  Referring to the fields of this object should provide
- * enough information to print output records for the read.
- */
-
-enum {
-	// This alignment is one of a pair of alignments that form a concordant
-	// alignment for a read
-	ALN_FLAG_PAIR_CONCORD = 1,
-
-	// This alignment is one of a pair of alignments that form a discordant
-	// alignment for a read
-	ALN_FLAG_PAIR_DISCORD,
-	
-	// This is an unpaired alignment but the read in question is a pair;
-	// usually, this happens because the read had no reportable paired-end
-	// alignments
-	ALN_FLAG_PAIR_UNPAIRED_FROM_PAIR,
-
-	// This is an unpaired alignment of an unpaired read
-	ALN_FLAG_PAIR_UNPAIRED
-};
-
-/**
- * Encapsulates some general information about an alignment that doesn't belong
- * in AlnRes.  Specifically:
- *
- * 1. Whether the alignment is paired
- * 2. If it's paried, whether it's concordant or discordant
- * 3. Whether this alignment was found after the paired-end categories were
- *    maxed out
- * 4. Whether the relevant unpaired category was maxed out
- */
-class AlnFlags {
-
-public:
-
-	AlnFlags(int pairing, bool maxed, bool maxedPair) {
-		init(pairing, maxed, maxedPair);
-	}
-
-	/**
-	 * Initialize given values for all settings.
-	 */
-	void init(int pairing, bool maxed, bool maxedPair) {
-		assert_gt(pairing, 0);
-		assert_leq(pairing, ALN_FLAG_PAIR_UNPAIRED);
-		pairing_ = pairing;
-		maxed_ = maxed;
-		maxedPair_ = maxedPair;
-	}
-
-	/**
-	 * Return true iff this alignment is from a paired-end read.
-	 */
-	bool partOfPair() const {
-		assert_gt(pairing_, 0);
-		return pairing_ < ALN_FLAG_PAIR_UNPAIRED;
-	}
-	
-	/**
-	 * Check that the flags are internally consistent.
-	 */
-	bool repOk() const {
-		assert(partOfPair() || !maxedPair_);
-		return true;
-	}
-	
-	/**
-	 * Print out string representation of these flags.
-	 */
-	void printYM(OutFileBuf& o) const;
-
-	/**
-	 * Print out string representation of these flags.
-	 */
-	void printYP(OutFileBuf& o) const;
-
-	/**
-	 * Print out string representation of these flags.
-	 */
-	void printYT(OutFileBuf& o) const;
-
-	inline int  pairing()   const { return pairing_; }
-	inline bool maxed()     const { return maxed_; }
-	inline bool maxedPair() const { return maxedPair_; }
-	
-	/**
-	 * Return true iff the flags indicate that the mate is one of a pair that
-	 * aligned concordantly.
-	 */
-	inline bool isConcordant() const {
-		return pairing_ == ALN_FLAG_PAIR_CONCORD;
-	}
-
-protected:
-
-	// See ALN_FLAG_PAIR_* above
-	int pairing_;
-
-	// This alignment is sampled from among many alignments that, taken
-	// together, cause this mate to align non-uniquely
-	bool maxed_;
-	
-	// The paired-end read of which this mate is part has repetitive concordant
-	// alignments
-	bool maxedPair_;
-};
 
 /**
  * Encapsulates a concise summary of a set of alignment results for a

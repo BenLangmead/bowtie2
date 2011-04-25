@@ -603,8 +603,8 @@ void AlnSinkWrap::finishRead(
 			AlnSetSumm concordSumm(rd1_, rd2_, &rs1_, &rs2_);
 			AlnFlags flags(ALN_FLAG_PAIR_CONCORD, pairMax, pairMax);
 			for(size_t i = 0; i < rs1_.size(); i++) {
-				rs1_[i].setMateParams(ALN_RES_TYPE_MATE1, &rs2_[i]);
-				rs2_[i].setMateParams(ALN_RES_TYPE_MATE2, &rs1_[i]);
+				rs1_[i].setMateParams(ALN_RES_TYPE_MATE1, &rs2_[i], flags);
+				rs2_[i].setMateParams(ALN_RES_TYPE_MATE2, &rs1_[i], flags);
 				assert_eq(rs1_[i].fragmentLength(), rs2_[i].fragmentLength());
 			}
 			// Possibly select a random subset
@@ -629,8 +629,8 @@ void AlnSinkWrap::finishRead(
 			AlnSetSumm discordSumm(rd1_, rd2_, &rs1_, &rs2_);
 			AlnFlags flags(ALN_FLAG_PAIR_DISCORD, false, pairMax);
 			for(size_t i = 0; i < rs1_.size(); i++) {
-				rs1_[i].setMateParams(ALN_RES_TYPE_MATE1, &rs2_[i]);
-				rs2_[i].setMateParams(ALN_RES_TYPE_MATE2, &rs1_[i]);
+				rs1_[i].setMateParams(ALN_RES_TYPE_MATE1, &rs2_[i], flags);
+				rs2_[i].setMateParams(ALN_RES_TYPE_MATE2, &rs1_[i], flags);
 				assert_eq(rs1_[i].fragmentLength(), rs2_[i].fragmentLength());
 			}
 			selectAlnsToReport(rs1_, ndiscord, select_, rnd);
@@ -657,7 +657,7 @@ void AlnSinkWrap::finishRead(
 						unpair1Max,
 						pairMax);
 					for(size_t i = 0; i < rs1u_.size(); i++) {
-						rs1u_[i].setMateParams(ALN_RES_TYPE_UNPAIRED, NULL);
+						rs1u_[i].setMateParams(ALN_RES_TYPE_UNPAIRED, NULL, flags);
 					}
 					selectAlnsToReport(rs1u_, nunpair1, select_, rnd);
 					g_.reportHits(
@@ -689,7 +689,8 @@ void AlnSinkWrap::finishRead(
 							pairMax ?
 								ALN_RES_TYPE_MATE1 :
 								ALN_RES_TYPE_UNPAIRED,
-							NULL);
+							NULL,
+							flags);
 					}
 					g_.reportMaxed(
 						rd1_,
@@ -720,7 +721,7 @@ void AlnSinkWrap::finishRead(
 						unpair2Max,
 						pairMax);
 					for(size_t i = 0; i < rs2u_.size(); i++) {
-						rs2u_[i].setMateParams(ALN_RES_TYPE_UNPAIRED, NULL);
+						rs2u_[i].setMateParams(ALN_RES_TYPE_UNPAIRED, NULL, flags);
 					}
 					selectAlnsToReport(rs2u_, nunpair2, select_, rnd);
 					g_.reportHits(
@@ -752,7 +753,8 @@ void AlnSinkWrap::finishRead(
 							pairMax ?
 								ALN_RES_TYPE_MATE2 :
 								ALN_RES_TYPE_UNPAIRED,
-							NULL);
+							NULL,
+							flags);
 					}
 					g_.reportMaxed(
 						rd2_,

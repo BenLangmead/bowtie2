@@ -798,7 +798,7 @@ inline void SwAligner::updateColorDiag(
 				return;
 			}
 			COUNT_N(dcOallBest);
-			AlnScore ex = dcOallBest + add;
+			AlnScore ex = dcOallBest + (int)add;
 			if(ex.score_ >= floorsc_ && ex >= myOallBest) {
 				if(ex > myOallBest) {
 					myOallBest = ex;
