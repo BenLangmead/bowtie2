@@ -371,7 +371,7 @@ public:
 	 * more ranges corresponding to sequence 'k' in the cache.  Returns
 	 * NULL otherwise.
 	 */
-	QVal* query(const QKey& k, bool getLock = true) {
+	inline QVal* query(const QKey& k, bool getLock = true) {
 		ThreadSafe ts(lockPtr(), shared_ && getLock);
 		QNode *n = qmap_.lookup(k);
 		if(n != NULL) {
@@ -717,7 +717,7 @@ public:
 	 * cache, 1 if it was found in the local across-read cache, and 2
 	 * if it was found in the shared across-read cache.
 	 */
-	QVal* query(
+	inline QVal* query(
 		const QKey& qk,
 		AlignmentCache** which,
 		bool getLock = true)

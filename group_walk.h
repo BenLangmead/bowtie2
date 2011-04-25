@@ -1614,7 +1614,7 @@ public:
 			return true;
 		}
 		assert_gt(ranges_, 0);
-		GWHit& h = gwhit(fw, seedidx, range);
+		ASSERT_ONLY(GWHit& h = gwhit(fw, seedidx, range));
 		assert(h.repOk());
 		// Advance the range
 		TStateV& sts = gwstates(fw, seedidx, range);

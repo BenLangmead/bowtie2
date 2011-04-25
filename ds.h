@@ -2612,7 +2612,7 @@ public:
 	 * Given a DNA string, find the red-black node corresponding to it,
 	 * if one exists.
 	 */
-	TNode* lookup(const K& key) const {
+	inline TNode* lookup(const K& key) const {
 		TNode* cur = root_;
 		while(cur != NULL) {
 			if((*cur) == key) return cur;

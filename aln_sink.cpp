@@ -1204,7 +1204,7 @@ void AlnSinkVerbose::appendMate(
 				}
 				assert_neq(std::numeric_limits<TRefOff>::max(), pdiv);
 				assert_neq(0xffffffff, pmod);
-				if(dospill) assert_gt(spillAmt, 0);
+				assert(!dospill || spillAmt > 0);
 				// TODO: is colorspace being properly accounted for in the
 				// following?
 				if(partition_ > 0 &&

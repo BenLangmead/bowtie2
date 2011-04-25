@@ -259,7 +259,7 @@ void VerboseHitSink::append(
 			}
 			assert_neq(0xffffffff, pdiv);
 			assert_neq(0xffffffff, pmod);
-			if(dospill) assert_gt(spillAmt, 0);
+			assert(!dospill || spillAmt > 0);
 			ss2 << (pdiv + (dospill ? spillAmt : 0));
 			if(partition > 0 &&
 			   (pmod + h.length()) >= ((uint32_t)pospart * (spillAmt + 1))) {

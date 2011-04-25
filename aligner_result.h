@@ -90,7 +90,7 @@ public:
 	 * Return true iff this score is > score o.
 	 * Note: An "invalid" score is <= all other scores.
 	 */
-	bool operator>(const AlnScore& o) const {
+	inline bool operator>(const AlnScore& o) const {
 		if(!VALID_AL_SCORE(o)) {
 			if(!VALID_AL_SCORE(*this)) {
 				// both invalid
@@ -136,21 +136,33 @@ public:
 	/**
 	 * Return true iff this score is >= score o.
 	 */
-	bool operator>=(const AlnScore& o) const {
-		return operator==(o) || operator>(o);
+	inline bool operator>=(const AlnScore& o) const {
+		if(!VALID_AL_SCORE(o)) {
+			if(!VALID_AL_SCORE(*this)) {
+				// both invalid
+				return false;
+			} else {
+				// I'm valid, other is invalid
+				return true;
+			}
+		} else if(!VALID_AL_SCORE(*this)) {
+			// I'm invalid, other is valid
+			return false;
+		}
+		return score_ >= o.score_;
 	}
 
 	/**
 	 * Return true iff this score is < score o.
 	 */
-	bool operator<(const AlnScore& o) const {
+	inline bool operator<(const AlnScore& o) const {
 		return !operator>=(o);
 	}
 
 	/**
 	 * Return true iff this score is <= score o.
 	 */
-	bool operator<=(const AlnScore& o) const {
+	inline bool operator<=(const AlnScore& o) const {
 		return !operator>(o);
 	}
 

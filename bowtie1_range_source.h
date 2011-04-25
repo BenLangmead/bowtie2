@@ -1147,7 +1147,7 @@ public:
 			rev0Off_(rev0Off), rev1Off_(rev1Off),
 			rev2Off_(rev2Off), rev3Off_(rev3Off)
 	{
-		if(seed_) assert_gt(seedLen, 0);
+		assert(!seed_ || seedLen > 0);
 	}
 
 	virtual ~EbwtRangeSourceDriver() { }

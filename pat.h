@@ -1538,7 +1538,7 @@ protected:
 			first_ = false;
 		}
 		assert_eq('>', c);
-		if(doquals) assert_eq('>', qc);
+		assert(!doquals || '>' == qc);
 		c = fb_.get(); // get next char after '>'
 		if(doquals) qc = qfb_.get();
 

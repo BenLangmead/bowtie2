@@ -409,7 +409,7 @@ void Ebwt::readIntoMemory(
 			for(int i = 0; i < 5; i++) {
 				this->fchr()[i] = readU32(_in1, switchEndian);
 				assert_leq(this->fchr()[i], len);
-				if(i > 0) assert_geq(this->fchr()[i], this->fchr()[i-1]);
+				assert(i <= 0 || this->fchr()[i] >= this->fchr()[i-1]);
 			}
 		}
 		assert_gt(this->fchr()[4], this->fchr()[0]);

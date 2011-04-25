@@ -344,10 +344,10 @@ struct Pos {
 			return true;
 		}
 		// Uneliminated chars must have non-empty ranges
-		if(!flags.mmA || !flags.insA) assert_gt(bots[0], tops[0]);
-		if(!flags.mmC || !flags.insC) assert_gt(bots[1], tops[1]);
-		if(!flags.mmG || !flags.insG) assert_gt(bots[2], tops[2]);
-		if(!flags.mmT || !flags.insT) assert_gt(bots[3], tops[3]);
+		assert((flags.mmA && flags.insA) || bots[0] > tops[0]);
+		assert((flags.mmC && flags.insC) || bots[1] > tops[1]);
+		assert((flags.mmG && flags.insG) || bots[2] > tops[2]);
+		assert((flags.mmT && flags.insT) || bots[3] > tops[3]);
 		if(!flags.del) {
 			assert(bots[0] > tops[0] || bots[1] > tops[1] ||
 			       bots[2] > tops[2] || bots[3] > tops[3]);
@@ -1810,7 +1810,7 @@ public:
 			assert_eq(r->cost(), iminCost);
 			needsSort = foundFirstRange(r); // may set delayedRange_; re-sorts active_
 			assert_eq(lastRange_->cost(), iminCost);
-			if(delayedRange_ != NULL) assert_eq(delayedRange_->cost(), iminCost);
+			assert(delayedRange_ == NULL || delayedRange_->cost() == iminCost);
 			p->foundRange = false;
 		}
 		if(p->done || (precost != p->minCost) || needsSort) {
