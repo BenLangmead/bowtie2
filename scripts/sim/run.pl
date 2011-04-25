@@ -35,6 +35,7 @@ Options:
   --bowtie2-build <path>        Path to bowtie2-build release binary
   --bowtie2-build-debug <path>  Path to bowtie2-build debug binary
   --tempdir <path>              Put temporary files here
+  --cases <int>                 Each thread runs around <int> cases
   --cpus <int> / -p <int>       Run test cases in <int> threads at once
   --small                       Make small test cases
   --help                        Print this usage message
@@ -42,6 +43,7 @@ Options:
 !;
 
 my $help = 0;
+my $ncases = 0;
 
 GetOptions(
 	"bowtie2=s"             => \$conf{bowtie2},
@@ -49,6 +51,7 @@ GetOptions(
 	"bowtie2-build=s"       => \$conf{bowtie2_build},
 	"bowtie2-build-debug=s" => \$conf{bowtie2_build_debug},
 	"tempdir|tmpdir=s"      => \$conf{tempdir},
+	"cases-per-thread=i"    => \$ncases,
 	"small"                 => \$conf{small},
 	"no-paired"             => \$conf{no_paired},
 	"help"                  => \$help,
@@ -75,7 +78,8 @@ $pm->run_on_finish(sub {
 	}
 });
 
-for(1..$cpus) {
+my $totcases = $ncases * $cpus;
+for(1..$totcases) {
 	my $childPid = $pm->start;
 	if($childPid != 0) {
 		next; # spawn the next child
