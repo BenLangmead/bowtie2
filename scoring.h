@@ -235,7 +235,7 @@ public:
 	 */
 	inline int64_t match(int q) const {
 		assert_geq(q, 0);
-		return (TAlScore)((q < 255 ? matchBonuses[q] : matchBonuses[255]) + 0.5f);
+		return (int64_t)((q < 255 ? matchBonuses[q] : matchBonuses[255]) + 0.5f);
 	}
 
 	/**
