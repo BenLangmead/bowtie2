@@ -174,9 +174,9 @@ struct DpNucFrame {
 		size_t   celsz_,
 		size_t   row_,
 		size_t   col_,
-		int      gaps_,
-		int      readGaps_,
-		int      refGaps_,
+		size_t   gaps_,
+		size_t   readGaps_,
+		size_t   refGaps_,
 		AlnScore score_,
 		int      ct_)
 	{
@@ -198,9 +198,9 @@ struct DpNucFrame {
 	size_t   celsz;    // size of cell-traversed list at branch
 	size_t   row;      // row of cell where branch occurred
 	size_t   col;      // column of cell where branch occurred
-	int      gaps;     // number of gaps before branch occurred
-	int      readGaps; // number of read gaps before branch occurred
-	int      refGaps;  // number of ref gaps before branch occurred
+	size_t   gaps;     // number of gaps before branch occurred
+	size_t   readGaps; // number of read gaps before branch occurred
+	size_t   refGaps;  // number of ref gaps before branch occurred
 	AlnScore score;    // score where branch occurred
 	int      ct;       // table type (oall, rdgap or rfgap)
 };
@@ -294,6 +294,24 @@ struct SwNucCell {
 	inline void setReportedThrough() {
 		reportedThru_ = true;
 	}
+	
+	/**
+	 * Return true iff we can backtrace through this cell.
+	 */
+	inline bool canMoveThrough(int ct) const {
+		bool empty = mask.numPossible(ct) == 0;
+		bool backtrack = false;
+		if(empty) {
+			// There were legitimate ways to backtrace from this cell, but
+			// they are now foreclosed because they are redundant with
+			// alignments already reported
+			backtrack = !terminal;
+		}
+		if(reportedThru_) {
+			backtrack = true;
+		}
+		return !backtrack;
+	}
 
 	/**
 	 * We finished updating the cell; set empty and finalized
@@ -305,6 +323,20 @@ struct SwNucCell {
 	 * Check that cell is internally consistent
 	 */
 	bool repOk() const;
+	
+	/**
+	 * Return the best AlnScore field for the given cell type.
+	 */
+	const AlnScore& best(int ct) const {
+		if(ct == SW_BT_CELL_OALL) {
+			return oallBest;
+		} else if(ct == SW_BT_CELL_RDGAP) {
+			return rdgapBest;
+		} else {
+			assert_eq(SW_BT_CELL_RFGAP, ct);
+			return rfgapBest;
+		}
+	}
 
 	// Best incoming score...
 	AlnScore oallBest;  // ...assuming nothing about the incoming transition

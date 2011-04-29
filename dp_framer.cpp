@@ -18,6 +18,7 @@ bool DynProgFramer::frameSeedExtension(
 	size_t reflen,    // length of reference sequence aligned to
 	size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
 	size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
+	size_t maxhalf,   // max width in either direction
 	size_t& width,    // out: calculated width stored here
 	size_t& trimup,   // out: number of bases trimmed from upstream end
 	size_t& trimdn,   // out: number of bases trimmed from downstream end
@@ -28,6 +29,8 @@ bool DynProgFramer::frameSeedExtension(
 {
 	assert_gt(rdlen, 0);
 	assert_gt(reflen, 0);
+	maxrdgap = min(maxrdgap, maxhalf);
+	maxrfgap = min(maxrfgap, maxhalf);
 	size_t maxgap = max(maxrdgap, maxrfgap);
 	width = 1 + (2 * maxgap);
 	refl = off - maxgap;
@@ -92,6 +95,7 @@ bool DynProgFramer::frameFindMateAnchorLeft(
 	size_t reflen,    // length of reference sequence aligned to
 	size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
 	size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
+	size_t maxhalf,   // max width in either direction
 	size_t& width,    // out: calculated width stored here
 	size_t& trimup,   // out: number of bases trimmed from upstream end
 	size_t& trimdn,   // out: number of bases trimmed from downstream end
@@ -111,6 +115,8 @@ bool DynProgFramer::frameFindMateAnchorLeft(
 	// Amount of padding we have to add to account for the fact that alignments
 	// ending between en_left/en_right might start in various columns in the
 	// first row
+	maxrdgap = min(maxrdgap, maxhalf);
+	maxrfgap = min(maxrfgap, maxhalf);
 	int64_t pad_left = maxrdgap;
 	int64_t pad_right = maxrfgap;
 	int64_t en_left  = rl;
@@ -241,6 +247,7 @@ bool DynProgFramer::frameFindMateAnchorRight(
 	size_t reflen,    // length of reference sequence aligned to
 	size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
 	size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
+	size_t maxhalf,   // max width in either direction
 	size_t& width,    // out: calculated width stored here
 	size_t& trimup,   // out: number of bases trimmed from upstream end
 	size_t& trimdn,   // out: number of bases trimmed from downstream end
@@ -260,6 +267,8 @@ bool DynProgFramer::frameFindMateAnchorRight(
 	// Amount of padding we have to add to account for the fact that alignments
 	// ending between en_left/en_right might start in various columns in the
 	// first row
+	maxrfgap = min(maxrfgap, maxhalf);
+	maxrdgap = min(maxrdgap, maxhalf);
 	int64_t pad_left = maxrfgap;
 	int64_t pad_right = maxrdgap;
 	int64_t st_left = ll;
@@ -401,6 +410,7 @@ static void testCaseSeedExtension(
 	int64_t refl, refr;
 	EList<bool> st, en;
 	size_t trimup, trimdn;
+	size_t maxhalf = 500;
 	fr.frameSeedExtension(
 		off,      // ref offset implied by seed hit assuming no gaps
 		rdlen,    // length of read sequence used in DP table (so len
@@ -408,6 +418,7 @@ static void testCaseSeedExtension(
 		reflen,   // length of reference sequence aligned to
 		maxrdgap, // max # of read gaps permitted in opp mate alignment
 		maxrfgap, // max # of ref gaps permitted in opp mate alignment
+		maxhalf,  // max width in either direction
 		width,    // out: calculated width stored here
 		trimup,   // out: number of bases trimmed from upstream end
 		trimdn,   // out: number of bases trimmed from downstream end
@@ -452,6 +463,7 @@ static void testCaseFindMateAnchorLeft(
 	int64_t refl, refr;
 	EList<bool> st, en;
 	size_t trimup, trimdn;
+	size_t maxhalf = 500;
 	fr.frameFindMateAnchorLeft(
 		ll,       // leftmost Watson off for LHS of opp alignment
 		lr,       // rightmost Watson off for LHS of opp alignment
@@ -461,6 +473,7 @@ static void testCaseFindMateAnchorLeft(
 		reflen,   // length of reference sequence aligned to
 		maxrdgap, // max # of read gaps permitted in opp mate alignment
 		maxrfgap, // max # of ref gaps permitted in opp mate alignment
+		maxhalf,  // max width in either direction
 		width,    // out: calculated width stored here
 		trimup,   // out: number of bases trimmed from upstream end
 		trimdn,   // out: number of bases trimmed from downstream end
@@ -505,6 +518,7 @@ static void testCaseFindMateAnchorRight(
 	int64_t refl, refr;
 	EList<bool> st, en;
 	size_t trimup, trimdn;
+	size_t maxhalf = 500;
 	fr.frameFindMateAnchorRight(
 		ll,       // leftmost Watson off for LHS of opp alignment
 		lr,       // rightmost Watson off for LHS of opp alignment
@@ -514,6 +528,7 @@ static void testCaseFindMateAnchorRight(
 		reflen,   // length of reference sequence aligned to
 		maxrdgap, // max # of read gaps permitted in opp mate alignment
 		maxrfgap, // max # of ref gaps permitted in opp mate alignment
+		maxhalf,  // max width in either direction
 		width,    // out: calculated width stored here
 		trimup,   // out: number of bases trimmed from upstream end
 		trimdn,   // out: number of bases trimmed from downstream end

@@ -94,6 +94,7 @@ public:
 	 */
 	bool extendSeeds(
 		const Read& rd,              // read to align
+		bool mate1,                  // true iff rd is mate #1
 		bool color,                  // true -> read is colorspace
 		SeedResults& sh,             // seed hits to extend into full alignments
 		const Ebwt& ebwt,            // BWT
@@ -109,6 +110,7 @@ public:
 		int nceil,                   // maximum # Ns permitted in ref portion
 		uint32_t maxposs,            // stop after examining this many positions (offset+orientation combos)
 		uint32_t maxrows,            // stop examining a position after this many offsets are reported
+		size_t maxhalf,              // maximum width on one side of DP table
 		AlignmentCacheIface& ca,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random source
 		WalkMetrics& wlm,            // group walk left metrics
@@ -180,6 +182,7 @@ public:
 		bool norc,                   // don't align revcomp read
 		uint32_t maxposs,            // stop after examining this many positions (offset+orientation combos)
 		uint32_t maxrows,            // stop examining a position after this many offsets are reported
+		size_t maxhalf,              // maximum width on one side of DP table
 		AlignmentCacheIface& cs,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random source
 		WalkMetrics& wlm,            // group walk left metrics
@@ -221,6 +224,8 @@ protected:
 	// For specifying starting and ending columns
 	EList<bool>    st_;         // temp holder for dyn prog starting mask
 	EList<bool>    en_;         // temp holder for dyn prog ending mask
+	EList<bool>    ost_;        // like st_ but for opposite mate
+	EList<bool>    oen_;        // like en_ but for opposite mate
 	
 	// For holding results for anchor (res_) and opposite (ores_) mates
 	SwResult       res_;        // temp holder for SW results

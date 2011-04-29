@@ -143,6 +143,8 @@ static bool samNoSQ;   // don't print @SQ header lines
 static bool sam_print_as;
 static bool sam_print_xs;
 static bool sam_print_xn;
+static bool sam_print_cs;
+static bool sam_print_cq;
 static bool sam_print_x0;
 static bool sam_print_x1;
 static bool sam_print_xm;
@@ -218,6 +220,7 @@ static uint32_t seedCacheLocalMB;   // # MB to use for non-shared seed alignment
 static uint32_t seedCacheCurrentMB; // # MB to use for current-read seed hit cacheing
 static int maxposs;          // maximum number of positions to consider per read
 static int maxrows;          // maximum number of rows to consider per position
+static size_t maxhalf;       // max width on one side of DP table
 static bool seedSummaryOnly; // print summary information about seed hits, not alignments
 
 static void resetOptions() {
@@ -317,6 +320,8 @@ static void resetOptions() {
 	sam_print_as            = true;
 	sam_print_xs            = true;
 	sam_print_xn            = true;
+	sam_print_cs            = false;
+	sam_print_cq            = false;
 	sam_print_x0            = true;
 	sam_print_x1            = true;
 	sam_print_xm            = true;
@@ -341,7 +346,7 @@ static void resetOptions() {
 	gColorEdit				= false; // true -> show edits as colors, not decoded bases
 	gColorQual				= false; // true -> show colorspace qualities as original quals, not decoded quals
 	printPlaceholders       = true;  // true -> print records for maxed-out, unaligned reads
-	printFlags              = false; // true -> print alignment flags
+	printFlags              = true;  // true -> print alignment flags
 	printCost				= false; // true -> print cost and stratum
 	printParams				= false; // true -> print parameters regarding seeding, ceilings
 	gShowSeed				= false; // true -> print per-read pseudo-random seed
@@ -399,6 +404,7 @@ static void resetOptions() {
 	seedCacheCurrentMB = 16; // # MB to use for current-read seed hit cacheing
 	maxposs            = 25; // maximum number of positions to consider per read
 	maxrows            = 10; // maximum number of rows to consider per position
+	maxhalf            = 100; // max width on one side of DP table
 	seedSummaryOnly    = false; // print summary information about seed hits, not alignments
 }
 
@@ -2211,6 +2217,41 @@ static PerfMetrics metrics;
 #define ROTL(n, x) (((x) << (n)) | ((x) >> (32-n)))
 #define ROTR(n, x) (((x) >> (n)) | ((x) << (32-n)))
 
+static inline void printMmsSkipMsg(
+	const PatternSourcePerThread& ps,
+	bool mate1,
+	int seedmms)
+{
+	if(ps.paired()) {
+		cerr << "Warning: skipping mate #" << (mate1 ? '1' : '2')
+		     << " of read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
+		     << "' because length (" << (mate1 ? ps.bufa().patFw.length() :
+			                                     ps.bufb().patFw.length())
+			 << ") <= # seed mismatches (" << seedmms << ")" << endl;
+	} else {
+		cerr << "Warning: skipping read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
+		     << "' because length (" << (mate1 ? ps.bufa().patFw.length() :
+			                                     ps.bufb().patFw.length())
+			 << ") <= # seed mismatches (" << seedmms << ")" << endl;
+	}
+}
+
+static inline void printColorLenSkipMsg(
+	const PatternSourcePerThread& ps,
+	bool mate1)
+{
+	if(ps.paired()) {
+		cerr << "Warning: skipping mate #" << (mate1 ? '1' : '2')
+		     << " of read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
+		     << "' because it was colorspace, --col-keepends was not "
+			 << "specified, and length was < 2" << endl;
+	} else {
+		cerr << "Warning: skipping read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
+		     << "' because it was colorspace, --col-keepends was not "
+			 << "specified, and length was < 2" << endl;
+	}
+}
+
 /**
  * Called once per thread.  Sets up per-thread pointers to the shared global
  * data structures, creates per-thread structures, then enters the alignment
@@ -2396,27 +2437,78 @@ static void* multiseedSearchWorker(void *vp) {
 						seedSummaryOnly);     // suppress alignments?
 					break; // next read
 				}
+				size_t rdlens[2]   = { rdlen1, rdlen2 };
+				// Calculate the minimum valid score threshold for the read
+				TAlScore minsc[2];
+				minsc[0] = (TAlScore)(Scoring::linearFunc(
+					rdlens[0],
+					(float)costMinConst,
+					(float)costMinLinear));
+				minsc[1] = (TAlScore)(Scoring::linearFunc(
+					rdlens[1],
+					(float)costMinConst,
+					(float)costMinLinear));
+				// Calculate the local-alignment score floor for the read
+				TAlScore floorsc[2];
+				floorsc[0] = (TAlScore)(Scoring::linearFunc(
+					rdlens[0],
+					(float)costFloorConst,
+					(float)costFloorLinear));
+				floorsc[1] = (TAlScore)(Scoring::linearFunc(
+					rdlens[1],
+					(float)costFloorConst,
+					(float)costFloorLinear));
+				// N filter; does the read have too many Ns?
 				bool nfilt[2];
 				sc.nFilterPair(
 					&ps->bufa().patFw,
 					pair ? &ps->bufb().patFw : NULL,
 					nfilt[0],
 					nfilt[1]);
+				// Score filter; does the read enough character to rise above
+				// the score threshold?
+				bool scfilt[2];
+				scfilt[0] = sc.scoreFilter(minsc[0], rdlens[0]);
+				scfilt[1] = sc.scoreFilter(minsc[1], rdlens[1]);
+				bool lenfilt[2] = {true, true};
+				if(rdlens[0] <= (size_t)multiseedMms && !gQuiet) {
+					printMmsSkipMsg(*ps, true, multiseedMms);
+					lenfilt[0] = false;
+				}
+				if(rdlens[1] <= (size_t)multiseedMms && !gQuiet && ps->paired()) {
+					printMmsSkipMsg(*ps, false, multiseedMms);
+					lenfilt[1] = false;
+				}
+				if(gColor && gColorExEnds) {
+					if(rdlens[0] < 2) {
+						printColorLenSkipMsg(*ps, true);
+						lenfilt[0] = false;
+					}
+					if(rdlens[1] < 2 && ps->paired()) {
+						printColorLenSkipMsg(*ps, false);
+						lenfilt[1] = false;
+					}
+				}
+				bool filt[2];
+				filt[0] = nfilt[0] && scfilt[0] && lenfilt[0];
+				filt[1] = nfilt[1] && scfilt[1] && lenfilt[1];
 				// Re-set 'pair': true only if both mates passed the filter
-				pair = nfilt[0] && nfilt[1];
-				size_t rdlens[2]   = { rdlen1, rdlen2 };
+				pair = filt[0] && filt[1];
 				const Read* rds[2] = { &ps->bufa(), &ps->bufb() };
 				// For each mate...
 				assert(msinkwrap.empty());
 				sd.nextRead(pair);
 				bool matemap[2] = { 0, 1 };
-				if(rnd.nextU2() == 0) {
-					// Swap order in which mates are investigated
-					std::swap(matemap[0], matemap[1]);
+				if(pair) {
+					rnd.init(ROTL(rds[0]->seed ^ rds[1]->seed, 10));
+					if(rnd.nextU2() == 0) {
+						// Swap order in which mates are investigated
+						std::swap(matemap[0], matemap[1]);
+					}
 				}
 				for(size_t matei = 0; matei < 2; matei++) {
 					size_t mate = matemap[matei];
-					if(!nfilt[mate]) {
+					if(!filt[mate]) {
 						// Mate was rejected by N filter
 						olm.freads++;               // reads filtered out
 						olm.fbases += rdlens[mate]; // bases filtered out
@@ -2507,26 +2599,9 @@ static void* multiseedSearchWorker(void *vp) {
 						}
 						// Sort seed hits into ranks
 						shs[mate].sort();
-						// Calculate the penalty ceiling for the read
-						TAlScore minsc = (TAlScore)(Scoring::linearFunc(
-							rdlens[mate],
-							(float)costMinConst,
-							(float)costMinLinear) + 0.5f);
-						TAlScore floorsc = (TAlScore)(Scoring::linearFunc(
-							rdlens[mate],
-							(float)costFloorConst,
-							(float)costFloorLinear) + 0.5f);
 						int nceil = (int)sc.nCeil(rdlens[mate]);
 						bool done = false;
 						if(pair) {
-							TAlScore ominsc = (TAlScore)(Scoring::linearFunc(
-								rdlens[mate ^ 1],
-								costMinConst,
-								costMinLinear) + 0.5f);
-							TAlScore ofloorsc = (TAlScore)(Scoring::linearFunc(
-								rdlens[mate ^ 1],
-								costFloorConst,
-								costFloorLinear) + 0.5f);
 							int onceil = (int)sc.nCeil(rdlens[mate ^ 1]);
 							// Paired-end dynamic programming driver
 							done = sd.extendSeedsPaired(
@@ -2545,16 +2620,17 @@ static void* multiseedSearchWorker(void *vp) {
 								multiseedMms,   // # mms allowed in a seed
 								multiseedLen,   // length of a seed
 								interval,       // interval between seeds
-								minsc,          // min score for anchor
-								ominsc,         // min score for opp.
-								floorsc,        // floor score for anchor
-								ofloorsc,       // floor score for opp.
+								minsc[mate],    // min score for anchor
+								minsc[mate^1],  // min score for opp.
+								floorsc[mate],  // floor score for anchor
+								floorsc[mate^1],// floor score for opp.
 								nceil,          // N ceil for anchor
 								onceil,         // N ceil for opp.
-								nofw,        // don't align forward read
-								norc,        // don't align revcomp read
+								nofw,           // don't align forward read
+								norc,           // don't align revcomp read
 								maxposs,        // max off/orient combos
 								maxrows,        // max offset resolutions
+								maxhalf,        // max width on one DP side
 								ca,             // seed alignment cache
 								rnd,            // pseudo-random source
 								wlm,            // group walk left metrics
@@ -2573,6 +2649,7 @@ static void* multiseedSearchWorker(void *vp) {
 							// Unpaired dynamic programming driver
 							done = sd.extendSeeds(
 								*rds[mate],     // read
+								mate == 0,      // mate #1?
 								gColor,         // colorspace?
 								shs[mate],      // seed hits
 								ebwtFw,         // bowtie index
@@ -2583,11 +2660,12 @@ static void* multiseedSearchWorker(void *vp) {
 								multiseedMms,   // # mms allowed in a seed
 								multiseedLen,   // length of a seed
 								interval,       // interval between seeds
-								minsc,          // minimum score for valid
-								floorsc,        // floor score
+								minsc[mate],    // minimum score for valid
+								floorsc[mate],  // floor score
 								nceil,          // N ceil for anchor
 								maxposs,        // max off/orient combos
 								maxrows,        // max offset resolutions
+								maxhalf,        // max width on one DP side
 								ca,             // seed alignment cache
 								rnd,            // pseudo-random source
 								wlm,            // group walk left metrics
@@ -3116,6 +3194,8 @@ static void driver(
 			sam_print_as,
 			sam_print_xs,
 			sam_print_xn,
+			sam_print_cs,
+			sam_print_cq,
 			sam_print_x0,
 			sam_print_x1,
 			sam_print_xm,

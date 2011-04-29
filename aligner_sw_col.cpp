@@ -220,14 +220,13 @@ bool SwAligner::backtrackColors(
 	btcstack_.clear();
 	btcells_.clear();
 	size_t tabcol = col - row;
-	ASSERT_ONLY(BTDnaString drd);
-	ASSERT_ONLY(drd.resize(rdf_-rdi_+1));
+	ASSERT_ONLY(res.alres.drd.clear());
 	int curC = lastC;
 	AlnScore score; score.score_ = 0;
 	score.gaps_ = score.ns_ = 0;
 	bool refExtend = false, readExtend = false;
 	size_t origCol = col;
-	int gaps = 0, readGaps = 0, refGaps = 0;
+	size_t gaps = 0, readGaps = 0, refGaps = 0;
 	res.alres.reset();
 	EList<Edit>& ned = res.alres.ned();
 	//EList<Edit>& aed = res.alres.aed();
@@ -238,33 +237,26 @@ bool SwAligner::backtrackColors(
 	assert(!sc_->monotone || escore <= 0);
 	assert(!sc_->monotone || score.score() >= escore);
 	int ct = SW_BT_CELL_OALL; // cell type
+	ASSERT_ONLY(res.alres.drd.append(curC));
 	while((int)row >= 0) {
 		res.swbts++;
 		assert_lt(row, tab.size());
 		assert_leq(col, origCol);
 		assert_range(0, 3, curC);
-		ASSERT_ONLY(drd.set(curC, row));
 		assert_geq(col, row);
 		tabcol = col - row;
 		assert_geq(tabcol, 0);
 		TCell& curc = tab[row][tabcol];
 		bool empty = curc.mask[curC].numPossible(ct) == 0;
-		bool backtrack = false;
-		if(empty) {
-			// There were legitimate ways to backtrace from this cell, but
-			// they are now foreclosed because they are redundant with
-			// alignments already reported
-			backtrack = !curc.terminal[curC];
-		}
-		if(curc.reportedThru_) {
-			backtrack = true;
-		}
+		assert_eq(gaps, Edit::numGaps(ned));
+		assert_leq(gaps, rdgap_ + rfgap_);
 		// Cell was involved in a previously-reported alignment?
-		if(backtrack) {
+		if(!curc.canMoveThrough(curC, ct)) {
 			if(!btcstack_.empty()) {
 				// Pop record off the top of the stack
 				ned.resize(btcstack_.back().nedsz);
-				btcells_.resize(btnstack_.back().celsz);
+				ced.resize(btcstack_.back().cedsz);
+				btcells_.resize(btcstack_.back().celsz);
 				//aed.resize(btcstack_.back().aedsz);
 				row      = btcstack_.back().row;
 				col      = btcstack_.back().col;
@@ -274,6 +266,7 @@ bool SwAligner::backtrackColors(
 				score    = btcstack_.back().score;
 				curC     = btcstack_.back().curC;
 				ct       = btcstack_.back().ct;
+				ASSERT_ONLY(res.alres.drd.resize(btcstack_.back().drdsz));
 				btcstack_.pop_back();
 				assert(!sc_->monotone || score.score() >= escore);
 				continue;
@@ -316,11 +309,14 @@ bool SwAligner::backtrackColors(
 				readGaps,
 				refGaps,
 				score,
-				ct);
+				ct
+				ASSERT_ONLY(, res.alres.drd.length())
+				);
 		}
 		btcells_.expand();
 		btcells_.back().first = row;
 		btcells_.back().second = tabcol;
+		ASSERT_ONLY(TAlScore origScore = score.score_);
 		switch(cur.first) {
 			// Move up and to the left.  If the reference nucleotide in the
 			// source row mismatches the decoded nucleotide, penalize
@@ -334,23 +330,25 @@ bool SwAligner::backtrackColors(
 				int refNmask = (int)rf_[rfi_+col];
 				assert_gt(refNmask, 0);
 				int m = matchesEx(curC, refNmask);
+				ASSERT_ONLY(int lastct = ct);
+				ct = SW_BT_CELL_OALL;
 				if(m != 1) {
 					Edit e((int)row, mask2dna[refNmask], "ACGTN"[curC], EDIT_TYPE_MM);
 					assert(e.repOk());
+					assert(ned.empty() || ned.back().pos >= row);
 					ned.push_back(e);
-					score.score_ -= ((m == 0) ? sc_->snp : sc_->n(30));
-					assert_geq(score.score(), floorsc_);
+					int pen = ((m == 0) ? sc_->snp : sc_->n(30));
+					score.score_ -= pen;
 					assert(!sc_->monotone || score.score() >= escore);
 				} else {
-					score.score_ += sc_->match(30);
-					assert_geq(score.score(), floorsc_);
+					int64_t bonus = sc_->match(30);
+					score.score_ += bonus;
 					assert(!sc_->monotone || score.score() >= escore);
 				}
 				if(m == -1) {
 					score.ns_++;
 				}
 				row--; col--;
-				ct = SW_BT_CELL_OALL;
 				assert_lt(row, tab.size());
 				assert(VALID_AL_SCORE(score));
 				// Check for color mismatch
@@ -359,10 +357,11 @@ bool SwAligner::backtrackColors(
 				assert_range(0, 3, decC);
 				if(decC != readC) {
 					Edit e((int)row, "ACGT"[decC], "ACGTN"[readC], EDIT_TYPE_MM);
-					score.score_ -= QUAL(row); // color mismatch
-					assert_geq(score.score(), floorsc_);
+					int pen = QUAL(row);
+					score.score_ -= pen; // color mismatch
 					assert(!sc_->monotone || score.score() >= escore);
 					assert(e.repOk());
+					assert(ced.empty() || ced.back().pos >= row);
 					ced.push_back(e);
 				}
 				if(readC > 3) {
@@ -372,6 +371,9 @@ bool SwAligner::backtrackColors(
 				assert(VALID_AL_SCORE(score));
 				lastC = curC;
 				curC = cur.second;
+				ASSERT_ONLY(int64_t scoreDiff = origScore - score.score_);
+				assert_eq(scoreDiff, tab[row][col-row].best(curC, ct).score() - tab[row+1][col-row].best(lastC, lastct).score());
+				ASSERT_ONLY(res.alres.drd.append(curC));
 				break;
 			}
 			// Move up.  Add an edit encoding the ref gap.  If the color
@@ -383,10 +385,12 @@ bool SwAligner::backtrackColors(
 				assert_gt(row, 0);
 				Edit e((int)row, '-', "ACGTN"[curC], EDIT_TYPE_REF_GAP);
 				assert(e.repOk());
+				assert(ned.empty() || ned.back().pos >= row);
 				ned.push_back(e);
 				assert_geq(row, (size_t)sc_->gapbar);
 				assert_geq((int)(rdf_-rdi_-row-1), sc_->gapbar-1);
 				row--;
+				ASSERT_ONLY(int lastct = ct);
 				ct = SW_BT_CELL_OALL;
 				// Check for color miscall
 				int decC = dinuc2color[cur.second][curC];
@@ -394,28 +398,27 @@ bool SwAligner::backtrackColors(
 				int rdC = (*rd_)[rdi_+row];
 				if(decC != rdC) {
 					score.score_ -= QUAL(row);
-					assert_geq(score.score(), floorsc_);
 					assert(!sc_->monotone || score.score() >= escore);
 					Edit e((int)row, "ACGT"[decC], "ACGTN"[rdC], EDIT_TYPE_MM);
 					assert(e.repOk());
+					assert(ced.empty() || ced.back().pos >= row);
 					ced.push_back(e);
 				}
 				if(rdC > 3) {
 					score.ns_++;
 				}
 				score.score_ -= sc_->refGapOpen();
-				score.gaps_++;
-				assert_geq(score.score(), floorsc_);
 				assert(!sc_->monotone || score.score() >= escore);
 				gaps++; refGaps++;
-#ifndef NDEBUG
-				assert_leq(score.gaps_, rdgap_ + rfgap_);
+				assert_eq(gaps, Edit::numGaps(ned));
+				assert_leq(gaps, rdgap_ + rfgap_);
 				assert_lt(row, tab.size());
-				tabcol = col - row;
-				assert_lt(tabcol, tab[row].size());
-#endif
+				assert_lt(col - row, tab[row].size());
 				lastC = curC;
 				curC = cur.second;
+				ASSERT_ONLY(int64_t scoreDiff = origScore - score.score_);
+				assert_eq(scoreDiff, tab[row][col-row].best(curC, ct).score() - tab[row+1][col-(row+1)].best(lastC, lastct).score());
+				ASSERT_ONLY(res.alres.drd.append(curC));
 				break;
 			}
 			// Move up.  Add an edit encoding the ref gap.  If the color
@@ -427,10 +430,12 @@ bool SwAligner::backtrackColors(
 				assert_gt(row, 1);
 				Edit e((int)row, '-', "ACGTN"[curC], EDIT_TYPE_REF_GAP);
 				assert(e.repOk());
+				assert(ned.empty() || ned.back().pos >= row);
 				ned.push_back(e);
 				assert_geq(row, (size_t)sc_->gapbar);
 				assert_geq((int)(rdf_-rdi_-row-1), sc_->gapbar-1);
 				row--;
+				ASSERT_ONLY(int lastct = ct);
 				ct = SW_BT_CELL_RFGAP;
 				// Check for color mismatch
 				int decC = dinuc2color[cur.second][curC];
@@ -438,28 +443,27 @@ bool SwAligner::backtrackColors(
 				int rdC = (*rd_)[rdi_+row];
 				if(decC != rdC) {
 					score.score_ -= QUAL(row);
-					assert_geq(score.score(), floorsc_);
 					assert(!sc_->monotone || score.score() >= escore);
 					Edit e((int)row, "ACGT"[decC], "ACGTN"[rdC], EDIT_TYPE_MM);
 					assert(e.repOk());
+					assert(ced.empty() || ced.back().pos >= row);
 					ced.push_back(e);
 				}
 				if(rdC > 3) {
 					score.ns_++;
 				}
 				score.score_ -= sc_->refGapExtend();
-				assert_geq(score.score(), floorsc_);
 				assert(!sc_->monotone || score.score() >= escore);
-				score.gaps_++;
 				gaps++; refGaps++;
-#ifndef NDEBUG
-				assert_leq(score.gaps_, rdgap_ + rfgap_);
+				assert_eq(gaps, Edit::numGaps(ned));
+				assert_leq(gaps, rdgap_ + rfgap_);
 				assert_lt(row, tab.size());
-				tabcol = col - row;
-				assert_lt(tabcol, tab[row].size());
-#endif
+				assert_lt(col - row, tab[row].size());
 				lastC = curC;
 				curC = cur.second;
+				ASSERT_ONLY(int64_t scoreDiff = origScore - score.score_);
+				assert_eq(scoreDiff, tab[row][col-row].best(curC, ct).score() - tab[row+1][col-(row+1)].best(lastC, lastct).score());
+				ASSERT_ONLY(res.alres.drd.append(curC));
 				break;
 			}
 			case SW_BT_OALL_READ_OPEN:
@@ -469,23 +473,23 @@ bool SwAligner::backtrackColors(
 				assert_gt(col, 0);
 				Edit e((int)row+1, "ACGTN"[firsts5[(int)rf_[rfi_+col]]], '-', EDIT_TYPE_READ_GAP);
 				assert(e.repOk());
+				assert(ned.empty() || ned.back().pos >= row);
 				ned.push_back(e);
 				assert_geq(row, (size_t)sc_->gapbar);
 				assert_geq((int)(rdf_-rdi_-row-1), sc_->gapbar-1);
 				col--;
+				ASSERT_ONLY(int lastct = ct);
 				ct = SW_BT_CELL_OALL;
 				score.score_ -= sc_->readGapOpen();
-				score.gaps_++;
-				assert_geq(score.score(), floorsc_);
 				assert(!sc_->monotone || score.score() >= escore);
 				gaps++; readGaps++;
-#ifndef NDEBUG
-				assert_leq(score.gaps_, rdgap_ + rfgap_);
+				assert_eq(gaps, Edit::numGaps(ned));
+				assert_leq(gaps, rdgap_ + rfgap_);
 				assert_lt(row, tab.size());
-				tabcol = col - row;
-				assert_lt(tabcol, tab[row].size());
-#endif
+				assert_lt(col - row, tab[row].size());
 				lastC = curC;
+				ASSERT_ONLY(int64_t scoreDiff = origScore - score.score_);
+				assert_eq(scoreDiff, tab[row][col-row].best(curC, ct).score() - tab[row][(col+1)-row].best(lastC, lastct).score());
 				break;
 			}
 			case SW_BT_OALL_READ_EXTEND:
@@ -495,23 +499,23 @@ bool SwAligner::backtrackColors(
 				assert_gt(col, 1);
 				Edit e((int)row+1, "ACGTN"[firsts5[(int)rf_[rfi_+col]]], '-', EDIT_TYPE_READ_GAP);
 				assert(e.repOk());
+				assert(ned.empty() || ned.back().pos >= row);
 				ned.push_back(e);
 				assert_geq(row, (size_t)sc_->gapbar);
 				assert_geq((int)(rdf_-rdi_-row-1), sc_->gapbar-1);
 				col--;
+				ASSERT_ONLY(int lastct = ct);
 				ct = SW_BT_CELL_RDGAP;
 				score.score_ -= sc_->readGapExtend();
-				score.gaps_++;
-				assert_geq(score.score(), floorsc_);
 				assert(!sc_->monotone || score.score() >= escore);
 				gaps++; readGaps++;
-#ifndef NDEBUG
-				assert_leq(score.gaps_, rdgap_ + rfgap_);
+				assert_eq(gaps, Edit::numGaps(ned));
+				assert_leq(gaps, rdgap_ + rfgap_);
 				assert_lt(row, tab.size());
-				tabcol = col - row;
-				assert_lt(tabcol, tab[row].size());
-#endif
+				assert_lt(col - row, tab[row].size());
 				lastC = curC;
+				ASSERT_ONLY(int64_t scoreDiff = origScore - score.score_);
+				assert_eq(scoreDiff, tab[row][col-row].best(curC, ct).score() - tab[row][(col+1)-row].best(lastC, lastct).score());
 				break;
 			}
 			default: throw 1;
@@ -532,34 +536,43 @@ bool SwAligner::backtrackColors(
 	int refNmask = (int)rf_[rfi_+col]; // get last char in ref involved in alignment
 	assert_gt(refNmask, 0);
 	int m = matchesEx(curC, refNmask);
+	int pen = 0;
 	if(m != 1) {
 		Edit e((int)row, mask2dna[refNmask], "ACGTN"[curC], EDIT_TYPE_MM);
 		assert(e.repOk());
+		assert(ned.empty() || ned.back().pos >= row);
 		ned.push_back(e);
-		score.score_ -= ((m == 0) ? sc_->snp : sc_->n(30));
-		assert_geq(score.score(), floorsc_);
+		pen = ((m == 0) ? sc_->snp : sc_->n(30));
+		score.score_ -= pen;
+		assert(!sc_->monotone || score.score() >= escore);
 	}
+	// TODO: check that pen matches score in final cell?
 	if(m == -1) {
 		score.ns_++;
 	}
-	ASSERT_ONLY(drd.set(curC, 0));
+	ASSERT_ONLY(res.alres.drd.reverse());
 	res.nup = curC;
 	res.reverse();
 	assert(Edit::repOk(ced, (*rd_)));
 #ifndef NDEBUG
+	size_t gapsCheck = 0;
+	for(size_t i = 0; i < ned.size(); i++) {
+		if(ned[i].isGap()) gapsCheck++;
+	}
+	assert_eq(gaps, gapsCheck);
 	BTDnaString refstr;
 	for(size_t i = col; i <= origCol; i++) {
 		refstr.append(firsts5[(int)rf_[rfi_+i]]);
 	}
 	BTDnaString editstr;
-	Edit::toRef(drd, ned, editstr);
+	Edit::toRef(res.alres.drd, ned, editstr);
 	if(refstr != editstr) {
 		cerr << "Decoded nucleotides and edits don't match reference:" << endl;
 		cerr << "           score: " << score.score() << " (" << gaps << " gaps)" << endl;
 		cerr << "           edits: ";
 		Edit::print(cerr, ned);
 		cerr << endl;
-		cerr << "    decoded nucs: " << drd << endl;
+		cerr << "    decoded nucs: " << res.alres.drd << endl;
 		cerr << "     edited nucs: " << editstr << endl;
 		cerr << "  reference nucs: " << refstr << endl;
 		assert(0);
@@ -570,6 +583,7 @@ bool SwAligner::backtrackColors(
 	assert_leq(gaps, rdgap_ + rfgap_);
 	// Dummy values for refid and fw
 	off = (col - row);
+	score.gaps_ = gaps;
 	res.alres.setScore(score);
 	res.alres.setShape(
 		refidx_,                  // ref id
@@ -794,7 +808,7 @@ inline void SwAligner::updateColorDiag(
 			SwColorCellMask& myMask = dstc.mask[to];
 			assert(!sc_->monotone || dcOallBest.score() <= 0);
 			if(!VALID_AL_SCORE(dcOallBest)) {
-				return;
+				continue;
 			}
 			COUNT_N(dcOallBest);
 			AlnScore ex = dcOallBest + (int)add;
@@ -819,6 +833,7 @@ inline void SwAligner::updateColorDiag(
 // 6. 'solbest_'
 // 7. 'solrowbest_'
 #define UPDATE_SOLS(cur, row, col) { \
+	assert_lt(col, width_); \
 	if(en_ == NULL || (*en_)[col]) { \
 		for(int I = 0; I < 4; I++) { \
 			if(cur.oallBest[I].score() >= minsc_) { \
@@ -826,8 +841,14 @@ inline void SwAligner::updateColorDiag(
 					/* Score is acceptable */ \
 					if(row < solrows_.first)           solrows_.first = row; \
 					if(row > solrows_.second)          solrows_.second = row; \
-					if(col < solcols_[row].first)      solcols_[row].first  = col; \
-					if(col > solcols_[row].second)     solcols_[row].second = col; \
+					if(col < solcols_[row].first) { \
+						solcols_[row].first  = col; \
+						assert(en_ == NULL || solcols_[row].first < en_->size()); \
+					} \
+					if(col > solcols_[row].second) { \
+						solcols_[row].second = col; \
+						assert(en_ == NULL || solcols_[row].second < en_->size()); \
+					} \
 					if(cur.oallBest[I].score() > solbest_) \
 						solbest_ = cur.oallBest[I].score(); \
 					assert(!sc_->monotone || solbest_ <= 0); \
@@ -844,6 +865,7 @@ inline void SwAligner::updateColorDiag(
 }
 
 #define FINALIZE_CELL(r, c) { \
+	assert_lt(col, width_); \
 	assert(!tab[r][c].finalized); \
 	if(tab[r][c].finalize(floorsc_)) { \
 		UPDATE_SOLS(tab[r][c], r, c); \
@@ -906,7 +928,7 @@ bool SwAligner::alignColors(RandomSource& rnd) {
 		bool canStart = (st_ == NULL || (*st_)[col]);
 		if(canStart) {
 			for(int to = 0; to < 4; to++) {
-				curc.oallBest[to].reset();
+				curc.oallBest[to].invalidate();
 				curc.rdgapBest[to].invalidate();
 				curc.rfgapBest[to].invalidate();
 				int m = matchesEx(to, rfm);

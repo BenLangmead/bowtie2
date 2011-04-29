@@ -973,6 +973,11 @@ public:
 	 */
 	void clipRight(TRefOff amt);
 
+	/**
+	 * In debug mode, we put a copy of the decoded nucleotide sequence here.
+	 */
+	ASSERT_ONLY(BTDnaString drd);
+
 protected:
 
 	/**

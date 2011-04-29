@@ -117,6 +117,17 @@ struct Edit {
 	bool isGap() const {
 		return initialized() && (type == EDIT_TYPE_REF_GAP || type == EDIT_TYPE_READ_GAP);
 	}
+	
+	/**
+	 * Return the number of gaps in the given edit list.
+	 */
+	static size_t numGaps(const EList<Edit>& es) {
+		size_t gaps = 0;
+		for(size_t i = 0; i < es.size(); i++) {
+			if(es[i].isGap()) gaps++;
+		}
+		return gaps;
+	}
 
 	/**
 	 * Return true iff this Edit is an initialized mismatch.

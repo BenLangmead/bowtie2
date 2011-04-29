@@ -8,6 +8,18 @@
 using namespace std;
 
 /**
+ * Return true iff a read of length 'rdlen' passes the score filter, i.e.,
+ * has enough characters to rise above the minimum score threshold.
+ */
+bool Scoring::scoreFilter(
+	int64_t minsc,
+	size_t rdlen) const
+{
+	int64_t sc = (int64_t)(rdlen * match(30));
+	return sc >= minsc;
+}
+
+/**
  * Given the score floor for valid alignments and the length of the read,
  * calculate the maximum possible number of read gaps that could occur in a
  * valid alignment.
@@ -24,7 +36,6 @@ int Scoring::maxReadGaps(
 	bool first = true;
 	int num = 0;
 	while(sc >= minsc) {
-		sc -= match(30);
 		if(first) {
 			first = false;
 			// Subtract both penalties
@@ -56,6 +67,7 @@ int Scoring::maxRefGaps(
 	bool first = true;
 	int num = 0;
 	while(sc >= minsc) {
+		sc -= match(30);
 		if(first) {
 			first = false;
 			// Subtract both penalties
@@ -147,33 +159,34 @@ int main() {
 	{
 		cout << "Case 1: Simple 1 ... ";
 		Scoring sc = Scoring::bwaSwLike();
-		assert_eq(1, sc.match);
+		assert_eq(COST_MODEL_CONSTANT, sc.matchType);
+		assert_eq(1, sc.matchConst);
 		
-		assert_eq(0, sc.maxReadGaps(0, 10));  // 10 - 1 - 15 = -6
-		assert_eq(0, sc.maxReadGaps(0, 11));  // 11 - 1 - 15 = -5
-		assert_eq(0, sc.maxReadGaps(0, 12));  // 12 - 1 - 15 = -4
-		assert_eq(0, sc.maxReadGaps(0, 13));  // 13 - 1 - 15 = -3
-		assert_eq(0, sc.maxReadGaps(0, 14));  // 14 - 1 - 15 = -2
-		assert_eq(0, sc.maxReadGaps(0, 15));  // 15 - 1 - 15 = -1
-		assert_eq(1, sc.maxReadGaps(0, 16));  // 16 - 1 - 15 =  0
-		assert_eq(1, sc.maxReadGaps(0, 17));  // 17 - 2 - 19 = -4
-		assert_eq(1, sc.maxReadGaps(0, 18));  // 18 - 2 - 19 = -3
-		assert_eq(1, sc.maxReadGaps(0, 19));  // 19 - 2 - 19 = -2
-		assert_eq(1, sc.maxReadGaps(0, 20));  // 20 - 2 - 19 = -1
-		assert_eq(2, sc.maxReadGaps(0, 21));  // 21 - 2 - 19 =  0
+		assert_eq(0, sc.maxRefGaps(0, 10));  // 10 - 1 - 15 = -6
+		assert_eq(0, sc.maxRefGaps(0, 11));  // 11 - 1 - 15 = -5
+		assert_eq(0, sc.maxRefGaps(0, 12));  // 12 - 1 - 15 = -4
+		assert_eq(0, sc.maxRefGaps(0, 13));  // 13 - 1 - 15 = -3
+		assert_eq(0, sc.maxRefGaps(0, 14));  // 14 - 1 - 15 = -2
+		assert_eq(0, sc.maxRefGaps(0, 15));  // 15 - 1 - 15 = -1
+		assert_eq(1, sc.maxRefGaps(0, 16));  // 16 - 1 - 15 =  0
+		assert_eq(1, sc.maxRefGaps(0, 17));  // 17 - 2 - 19 = -4
+		assert_eq(1, sc.maxRefGaps(0, 18));  // 18 - 2 - 19 = -3
+		assert_eq(1, sc.maxRefGaps(0, 19));  // 19 - 2 - 19 = -2
+		assert_eq(1, sc.maxRefGaps(0, 20));  // 20 - 2 - 19 = -1
+		assert_eq(2, sc.maxRefGaps(0, 21));  // 21 - 2 - 19 =  0
 		
-		assert_eq(0, sc.maxRefGaps(0, 10));   // 10 - 0 - 15 = -5
-		assert_eq(0, sc.maxRefGaps(0, 11));   // 11 - 0 - 15 = -4
-		assert_eq(0, sc.maxRefGaps(0, 12));   // 12 - 0 - 15 = -3
-		assert_eq(0, sc.maxRefGaps(0, 13));   // 13 - 0 - 15 = -2
-		assert_eq(0, sc.maxRefGaps(0, 14));   // 14 - 0 - 15 = -1
-		assert_eq(1, sc.maxRefGaps(0, 15));   // 15 - 0 - 15 =  0
-		assert_eq(1, sc.maxRefGaps(0, 16));   // 16 - 0 - 19 = -3
-		assert_eq(1, sc.maxRefGaps(0, 17));   // 17 - 0 - 19 = -2
-		assert_eq(1, sc.maxRefGaps(0, 18));   // 18 - 0 - 19 = -1
-		assert_eq(2, sc.maxRefGaps(0, 19));   // 19 - 0 - 19 =  0
-		assert_eq(2, sc.maxRefGaps(0, 20));   // 20 - 0 - 23 = -3
-		assert_eq(2, sc.maxRefGaps(0, 21));   // 21 - 0 - 23 = -2
+		assert_eq(0, sc.maxReadGaps(0, 10));   // 10 - 0 - 15 = -5
+		assert_eq(0, sc.maxReadGaps(0, 11));   // 11 - 0 - 15 = -4
+		assert_eq(0, sc.maxReadGaps(0, 12));   // 12 - 0 - 15 = -3
+		assert_eq(0, sc.maxReadGaps(0, 13));   // 13 - 0 - 15 = -2
+		assert_eq(0, sc.maxReadGaps(0, 14));   // 14 - 0 - 15 = -1
+		assert_eq(1, sc.maxReadGaps(0, 15));   // 15 - 0 - 15 =  0
+		assert_eq(1, sc.maxReadGaps(0, 16));   // 16 - 0 - 19 = -3
+		assert_eq(1, sc.maxReadGaps(0, 17));   // 17 - 0 - 19 = -2
+		assert_eq(1, sc.maxReadGaps(0, 18));   // 18 - 0 - 19 = -1
+		assert_eq(2, sc.maxReadGaps(0, 19));   // 19 - 0 - 19 =  0
+		assert_eq(2, sc.maxReadGaps(0, 20));   // 20 - 0 - 23 = -3
+		assert_eq(2, sc.maxReadGaps(0, 21));   // 21 - 0 - 23 = -2
 		
 		// N ceiling: const=2, linear=0.1
 		assert_eq(2, sc.nCeil(1));
@@ -217,25 +230,26 @@ int main() {
 			false            // score prioritized over row
 		);
 
-		assert_eq(4, sc.match);
+		assert_eq(COST_MODEL_CONSTANT, sc.matchType);
+		assert_eq(4, sc.matchConst);
 		assert_eq(COST_MODEL_QUAL, sc.mmcostType);
 		assert_eq(COST_MODEL_QUAL, sc.npenType);
 		
-		assert_eq(0, sc.maxReadGaps(0, 8));  // 32 - 4 - 35 = -7
-		assert_eq(0, sc.maxReadGaps(0, 9));  // 36 - 4 - 35 = -3
-		assert_eq(1, sc.maxReadGaps(0, 10)); // 40 - 4 - 35 =  1
-		assert_eq(1, sc.maxReadGaps(0, 11)); // 44 - 8 - 45 = -9
-		assert_eq(1, sc.maxReadGaps(0, 12)); // 48 - 8 - 45 = -5
-		assert_eq(1, sc.maxReadGaps(0, 13)); // 52 - 8 - 45 = -1
-		assert_eq(2, sc.maxReadGaps(0, 14)); // 56 - 8 - 45 =  3
+		assert_eq(0, sc.maxRefGaps(0, 8));  // 32 - 4 - 35 = -7
+		assert_eq(0, sc.maxRefGaps(0, 9));  // 36 - 4 - 35 = -3
+		assert_eq(1, sc.maxRefGaps(0, 10)); // 40 - 4 - 35 =  1
+		assert_eq(1, sc.maxRefGaps(0, 11)); // 44 - 8 - 45 = -9
+		assert_eq(1, sc.maxRefGaps(0, 12)); // 48 - 8 - 45 = -5
+		assert_eq(1, sc.maxRefGaps(0, 13)); // 52 - 8 - 45 = -1
+		assert_eq(2, sc.maxRefGaps(0, 14)); // 56 - 8 - 45 =  3
 		
-		assert_eq(0, sc.maxRefGaps(0, 8));   // 32 - 0 - 35 = -3
-		assert_eq(1, sc.maxRefGaps(0, 9));   // 36 - 0 - 35 =  1
-		assert_eq(1, sc.maxRefGaps(0, 10));  // 40 - 0 - 45 = -5
-		assert_eq(1, sc.maxRefGaps(0, 11));  // 44 - 0 - 45 = -1
-		assert_eq(2, sc.maxRefGaps(0, 12));  // 48 - 0 - 45 =  3
-		assert_eq(2, sc.maxRefGaps(0, 13));  // 52 - 0 - 55 = -3
-		assert_eq(3, sc.maxRefGaps(0, 14));  // 56 - 0 - 55 =  1
+		assert_eq(0, sc.maxReadGaps(0, 8));   // 32 - 0 - 35 = -3
+		assert_eq(1, sc.maxReadGaps(0, 9));   // 36 - 0 - 35 =  1
+		assert_eq(1, sc.maxReadGaps(0, 10));  // 40 - 0 - 45 = -5
+		assert_eq(1, sc.maxReadGaps(0, 11));  // 44 - 0 - 45 = -1
+		assert_eq(2, sc.maxReadGaps(0, 12));  // 48 - 0 - 45 =  3
+		assert_eq(2, sc.maxReadGaps(0, 13));  // 52 - 0 - 55 = -3
+		assert_eq(3, sc.maxReadGaps(0, 14));  // 56 - 0 - 55 =  1
 
 		// N ceiling: const=3, linear=0.4
 		assert_eq(3, sc.nCeil(1));

@@ -35,7 +35,7 @@ Options:
   --bowtie2-build <path>        Path to bowtie2-build release binary
   --bowtie2-build-debug <path>  Path to bowtie2-build debug binary
   --tempdir <path>              Put temporary files here
-  --cases <int>                 Each thread runs around <int> cases
+  --cases <int>                 Each thread runs around <int> cases (def: 5)
   --cpus <int> / -p <int>       Run test cases in <int> threads at once
   --small                       Make small test cases
   --help                        Print this usage message
@@ -43,7 +43,8 @@ Options:
 !;
 
 my $help = 0;
-my $ncases = 0;
+my $ncases = 5;
+my $dieWithChild = 0;
 
 GetOptions(
 	"bowtie2=s"             => \$conf{bowtie2},
@@ -55,7 +56,10 @@ GetOptions(
 	"small"                 => \$conf{small},
 	"no-paired"             => \$conf{no_paired},
 	"help"                  => \$help,
-	"p|cpus=i"              => \$cpus
+	"die-with-child"        => \$dieWithChild,
+	"p|cpus=i"              => \$cpus,
+	"u|qupto|maxreads=i"    => \$conf{maxreads},
+	"numrefs|num-refs=i"    => \$conf{numrefs},
 ) || die "Bad options;";
 
 if($help) {
@@ -75,6 +79,7 @@ $pm->run_on_finish(sub {
 	if($exit_code != 0) {
 		push @childFailed, $exit_code;
 		push @childFailedPid, $pid;
+		!$dieWithChild || die "Dying with child with PID $pid";
 	}
 });
 

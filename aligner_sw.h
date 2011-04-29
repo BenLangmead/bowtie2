@@ -200,9 +200,9 @@ public:
 		TAlScore minsc,        // minimum score a cell must achieve to have sol
 		TAlScore floorsc)      // local-alignment score floor
 	{
-		int readGaps = sc.maxReadGaps(minsc, rd.length());
-		int refGaps  = sc.maxRefGaps(minsc, rd.length());
-		int maxGaps  = max(readGaps, refGaps);
+		size_t readGaps = sc.maxReadGaps(minsc, rd.length());
+		size_t refGaps  = sc.maxRefGaps(minsc, rd.length());
+		size_t maxGaps  = max(readGaps, refGaps);
 		int nceil    = (int)sc.nCeil(rd.length());
 		assert_geq(readGaps, 0);
 		assert_geq(refGaps, 0);
@@ -241,6 +241,8 @@ public:
 			solrowlo_ = (int64_t)(dpRows()-1);
 		}
 		assert_geq(solrowlo_, 0);
+		assert(en_ == NULL || en_->size() == width_);
+		assert(st_ == NULL || st_->size() == width_);
 	}
 	
 	/**
@@ -351,6 +353,8 @@ public:
 				}
 			}
 		}
+		assert(st_ == NULL || st_->size() == width_);
+		assert(en_ == NULL || en_->size() == width_);
 		return true;
 	}
 	
@@ -543,8 +547,8 @@ protected:
 	size_t              width_;  // # bands to do (width of parallelogram)
 	EList<bool>*        st_;     // mask indicating which cols we can start in
 	EList<bool>*        en_;     // mask indicating which cols we can end in
-	int                 rdgap_;  // max # gaps in read
-	int                 rfgap_;  // max # gaps in reference
+	size_t              rdgap_;  // max # gaps in read
+	size_t              rfgap_;  // max # gaps in reference
 	int                 maxgap_; // max(rdgap_, rfgap_)
 	const Scoring      *sc_;     // penalties for edit types
 	TAlScore            minsc_;  // penalty ceiling for valid alignments

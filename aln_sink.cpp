@@ -1351,10 +1351,10 @@ void AlnSinkVerbose::appendMate(
 			// extreme ends.
 			if(rs != NULL) {
 				printEdits(
-					rs->ned(),                  // edits to print
-					rdlen + (rd.color ? 1 : 0), // length of read string that edits refer to
-					rd.color && exEnds_,        // true -> exclude edits at ends and adjust poss
-					o);                         // output stream
+					rs->ned(),            // edits to print
+					rs->readExtentRows(), // len of string edits refer to (post trim)
+					rd.color && exEnds_,  // true -> exclude edits at ends and adjust poss
+					o);                   // output stream
 			} else o.write('*');
 		}
 		if(partition_ != 0) {
@@ -1608,6 +1608,7 @@ void AlnSinkSam::appendMate(
 			o,      // output buffer
 			true,   // first opt flag printed is first overall?
 			exEnds, // exclude ends?
+			rd,     // read
 			*rs,    // individual alignment result
 			flags,  // alignment flags
 			summ);  // summary of alignments for this read

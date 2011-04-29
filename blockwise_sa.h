@@ -764,9 +764,10 @@ void KarkkainenBlockwiseSA<TStr>::nextBlock() {
 		VMSG_NL("  No samples; assembling all-inclusive block");
 		assert_eq(0, _cur);
 		try {
-			if(bucket.size() < this->bucketSz()) {
-				bucket.resizeExact(len+1);
+			if(bucket.capacity() < this->bucketSz()) {
+				bucket.reserveExact(len+1);
 			}
+			bucket.resize(len);
 			for(uint32_t i = 0; i < len; i++) {
 				bucket[i] = i;
 			}

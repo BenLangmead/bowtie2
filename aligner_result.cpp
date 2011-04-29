@@ -117,13 +117,13 @@ void AlnRes::setShape(
 		assert_geq(ned_[i].pos, trimBeg);
 		ned_[i].pos -= trimBeg;
 	}
-	rdextent_ = rdlen; // length after soft trimming
+	// Length after all soft trimming and any hard trimming that occurred
+	// during alignment
+	rdextent_ = rdlen;
 	if(pretrimSoft_) {
 		rdextent_ -= (pretrim5p + pretrim3p); // soft trim
 	}
-	if(trimSoft_) {
-		rdextent_ -= (trim5p + trim3p);       // soft trim
-	}
+	rdextent_ -= (trim5p + trim3p); // soft or hard trim from alignment
 	rdexrows_ = rdextent_ + (color ? 1 : 0);
 	calcRefExtent();
 	shapeSet_ = true;
@@ -142,22 +142,17 @@ void AlnRes::decodedNucsAndQuals(
 	assert(color_);
 	// Walk along the colors
 	bool fw = refcoord_.fw();
-	const size_t rdext = readExtent(); // length in colors after all trimming
-	const size_t len = rdext+1;        // decoded nucleotide length, after trim
-	size_t trimBeg = 0, trimEnd = 0;
-	if(trimSoft_) {
-		trimBeg += fw ? trim5p_ : trim3p_;
-		trimEnd += fw ? trim3p_ : trim5p_;
-	}
-	if(pretrimSoft_) {
-		trimBeg += fw ? pretrim5p_ : pretrim3p_;
-		trimEnd += fw ? pretrim3p_ : pretrim5p_;
-	}
-	ns.resize(len); ns.resize(len-1);
-	qs.resize(len); qs.resize(len-1);
-	for(size_t i = trimBeg; i < rdlen_ - trimEnd; i++) {
-		ns.set(rd.patFw[i], i-trimBeg);
-		qs.set(rd.qual[i],  i-trimBeg);
+	// How long is the color-to-color alignment after all trimming?
+	const size_t rdext = readExtent();
+	assert_gt(rdext, 0);
+	// How long is the decoded string?  (Note that if user has requested that
+	// ends be excluded, that happens later on.)  
+	size_t len = rdext+1;
+	ns.resize(rdext);
+	qs.resize(rdext);
+	for(size_t i = 0; i < rdext; i++) {
+		ns.set(rd.patFw[trim5p_ + i], i); // set to original colors at first
+		qs.set(rd.qual[trim5p_ + i],  i); // set to original qualities at first
 	}
 	if(!fw) {
 		// Reverse the read to make it upstream-to-downstream.  It's in
@@ -207,7 +202,7 @@ void AlnRes::decodedNucsAndQuals(
 	}
 	ns.set(nup, 0);
 	int dq = max(lastq, 0)+33;
-	qs.set(min(dq, 127) , rdext);
+	qs.set(min(dq, 127) , len-1);
 	assert_eq(ndn, ns[rdext]);
 	assert_eq(cedidx, ced_.size());
 	if(!fw) {
@@ -731,6 +726,7 @@ void AlnRes::printCigar(
 	assert_eq(op.size(), run.size());
 	if(o != NULL || oc != NULL) {
 		char buf[128];
+		bool printed = false;
 		for(size_t i = 0; i < op.size(); i++) {
 			bool first = (i == 0);
 			bool last  = (i == op.size()-1);
@@ -743,6 +739,7 @@ void AlnRes::printCigar(
 			}
 			if(r > 0) {
 				itoa10<size_t>(r, buf);
+				printed = true;
 				if(o != NULL) {
 					o->writeChars(buf);
 					o->write(op[i]);
@@ -754,6 +751,7 @@ void AlnRes::printCigar(
 				}
 			}
 		}
+		assert(printed);
 		if(oc != NULL) {
 			*occ = '\0';
 		}
@@ -937,6 +935,7 @@ void AlnRes::printSeq(
 	assert(!rd.patFw.empty());
 	bool fw = refcoord_.fw();
 	assert(!printColors || rd.color);
+	ASSERT_ONLY(size_t written = 0);
 	if(!rd.color || printColors) {
 		// Should not have had hard clipping during alignment
 		assert(trimSoft_ || (trim3p_ + trim5p_ == 0));
@@ -953,7 +952,17 @@ void AlnRes::printSeq(
 			}
 			assert_range(0, 4, c);
 			o.write("ACGTN"[c]);
+			ASSERT_ONLY(written++);
 		}
+#ifndef NDEBUG
+		for(size_t i = 0; i < ced_.size(); i++) {
+			if(ced_[i].isReadGap()) {
+				assert_leq(ced_[i].pos, written);
+			} else {
+				assert_lt(ced_[i].pos, written);
+			}
+		}
+#endif
 	} else {
 		// Print decoded nucleotides
 		assert(dns != NULL);
@@ -967,7 +976,17 @@ void AlnRes::printSeq(
 			int c = dns->get(i);
 			assert_range(0, 3, c);
 			o.write("ACGT"[c]);
+			ASSERT_ONLY(written++);
 		}
+#ifndef NDEBUG
+		for(size_t i = 0; i < ned_.size(); i++) {
+			if(ned_[i].isReadGap()) {
+				assert_leq(ned_[i].pos, written);
+			} else {
+				assert_lt(ned_[i].pos, dns->length());
+			}
+		}
+#endif
 	}
 }
 

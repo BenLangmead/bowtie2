@@ -97,7 +97,7 @@ void ReadSink::dumpMaxed(
 		return;
 	}
 	bool paired = (m2 != NULL && !m2->empty());
-	if(paired || onePairFile_) {
+	if(!paired || onePairFile_) {
 		// Dump unpaired read to an maxed-out-read file of the same format
 		if(!dumpMaxBase_.empty()) {
 			ThreadSafe ts(&dumpMaxLock_);

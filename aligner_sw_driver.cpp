@@ -31,6 +31,7 @@ using namespace std;
  */
 bool SwDriver::extendSeeds(
 	const Read& rd,              // read to align
+	bool mate1,                  // true iff rd is mate #1
 	bool color,                  // true -> read is colorspace
 	SeedResults& sh,             // seed hits to extend into full alignments
 	const Ebwt& ebwt,            // BWT
@@ -46,6 +47,7 @@ bool SwDriver::extendSeeds(
 	int nceil,                   // maximum # Ns permitted in reference portion
 	uint32_t maxposs,            // stop after this many positions (off+orient combos)
 	uint32_t maxrows,            // stop examining a position after this many offsets
+	size_t maxhalf,  	         // max width in either direction for DP tables
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
 	RandomSource& rnd,           // pseudo-random source
 	WalkMetrics& wlm,            // group walk left metrics
@@ -148,6 +150,7 @@ bool SwDriver::extendSeeds(
 				tlen,     // length of reference
 				readGaps, // max # of read gaps permitted in opp mate alignment
 				refGaps,  // max # of ref gaps permitted in opp mate alignment
+				maxhalf,  // max width in either direction
 				width,    // out: calculated width stored here
 				trimup,   // out: number of bases trimmed from upstream end
 				trimdn,   // out: number of bases trimmed from downstream end
@@ -220,7 +223,11 @@ bool SwDriver::extendSeeds(
 					assert(res_.alres.matchesRef(rd, ref));
 					// Report an unpaired alignment
 					assert(!msink->maxed());
-					if(msink->report(0, &res_.alres, NULL)) {
+					if(msink->report(
+						0,
+						mate1 ? &res_.alres : NULL,
+						mate1 ? NULL : &res_.alres))
+					{
 						// Short-circuited because a limit, e.g. -k, -m or
 						// -M, was exceeded
 						return true;
@@ -375,6 +382,7 @@ bool SwDriver::extendSeedsPaired(
 	bool norc,                   // don't align revcomp read
 	uint32_t maxposs,            // stop after examining this many positions (offset+orientation combos)
 	uint32_t maxrows,            // stop examining a position after this many offsets are reported
+	size_t maxhalf,              // max width in either direction for DP tables
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
 	RandomSource& rnd,           // pseudo-random source
 	WalkMetrics& wlm,            // group walk left metrics
@@ -399,8 +407,8 @@ bool SwDriver::extendSeedsPaired(
 	// Calculate the largest possible number of read and reference gaps
 	int readGaps  = sc.maxReadGaps(minsc,  rdlen);
 	int refGaps   = sc.maxRefGaps (minsc,  rdlen);
-	int oreadGaps = sc.maxReadGaps(minsc, ordlen);
-	int orefGaps  = sc.maxRefGaps (minsc, ordlen);
+	int oreadGaps = sc.maxReadGaps(ominsc, ordlen);
+	int orefGaps  = sc.maxRefGaps (ominsc, ordlen);
 
 	const size_t rows   = rdlen  + (color ? 1 : 0);
 	const size_t orows  = ordlen + (color ? 1 : 0);
@@ -492,6 +500,7 @@ bool SwDriver::extendSeedsPaired(
 				tlen,     // length of reference
 				readGaps, // max # of read gaps permitted in opp mate alignment
 				refGaps,  // max # of ref gaps permitted in opp mate alignment
+				maxhalf,  // max width in either direction
 				width,    // out: calculated width stored here
 				trimup,   // out: number of bases trimmed from upstream end
 				trimdn,   // out: number of bases trimmed from downstream end
@@ -611,13 +620,14 @@ bool SwDriver::extendSeedsPaired(
 							tlen,        // length of reference sequence aligned to
 							oreadGaps,   // max # of read gaps in opp mate aln
 							orefGaps,    // max # of ref gaps in opp mate aln
+							maxhalf,     // max width in either direction
 							owidth,      // out: calculated width stored here
 							otrimup,     // out: # bases trimmed from upstream end
 							otrimdn,     // out: # bases trimmed from downstream end
 							orefl,       // out: ref pos of upper LHS of parallelogram
 							orefr,       // out: ref pos of lower RHS of parallelogram
-							st_,         // out: legal starting columns stored here
-							en_);        // out: legal ending columns stored here
+							ost_,        // out: legal starting columns stored here
+							oen_);       // out: legal ending columns stored here
 						assert_eq(orefr - orefl + 1, (int64_t)(owidth + orows - 1));
 					}
 					if(foundMate) {
@@ -638,8 +648,8 @@ bool SwDriver::extendSeedsPaired(
 							ref,       // Reference strings
 							tlen,      // length of reference sequence
 							owidth,    // # bands to do (width of parallelogram)
-							&st_,      // mask of which cols we can start in
-							&en_,      // mask of which cols we can end in
+							&ost_,     // mask of which cols we can start in
+							&oen_,     // mask of which cols we can end in
 							sc,        // scoring scheme
 							ominsc,    // minimum score for valid alignments
 							ofloorsc,  // local-alignment floor score

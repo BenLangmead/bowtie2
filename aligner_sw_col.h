@@ -205,11 +205,13 @@ struct DpColFrame {
 		size_t   row_,
 		size_t   col_,
 		int      curC_,
-		int      gaps_,
-		int      readGaps_,
-		int      refGaps_,
+		size_t   gaps_,
+		size_t   readGaps_,
+		size_t   refGaps_,
 		AlnScore score_,
-		int      ct_)
+		int      ct_
+		ASSERT_ONLY(, size_t drdsz_)
+		)
 	{
 		nedsz    = nedsz_;
 		aedsz    = aedsz_;
@@ -223,6 +225,7 @@ struct DpColFrame {
 		refGaps  = refGaps_;
 		score    = score_;
 		ct       = ct_;
+		ASSERT_ONLY(drdsz = drdsz_);
 	}
 
 	size_t   nedsz;    // size of the nucleotide edit list at branch (before
@@ -233,11 +236,12 @@ struct DpColFrame {
 	size_t   row;      // row of cell where branch occurred
 	size_t   col;      // column of cell where branch occurred
 	int      curC;     // character cell we're in
-	int      gaps;     // gaps before branch occurred
-	int      readGaps; // read gaps before branch occurred
-	int      refGaps;  // ref gaps before branch occurred
+	size_t   gaps;     // gaps before branch occurred
+	size_t   readGaps; // read gaps before branch occurred
+	size_t   refGaps;  // ref gaps before branch occurred
 	AlnScore score;    // score where branch occurred
 	int      ct;       // table type (oall, rdgap or rfgap)
+	ASSERT_ONLY(size_t drdsz); // size of decoded string
 };
 
 /**
@@ -377,6 +381,38 @@ struct SwColorCell {
 	 */
 	inline void setReportedThrough() {
 		reportedThru_ = true;
+	}
+	
+	/**
+	 * Return true iff we can backtrace through this cell.
+	 */
+	inline bool canMoveThrough(int curC, int ct) const {
+		bool empty = mask[curC].numPossible(ct) == 0;
+		bool backtrack = false;
+		if(empty) {
+			// There were legitimate ways to backtrace from this cell, but
+			// they are now foreclosed because they are redundant with
+			// alignments already reported
+			backtrack = !terminal[curC];
+		}
+		if(reportedThru_) {
+			backtrack = true;
+		}
+		return !backtrack;
+	}
+
+	/**
+	 * Return the best AlnScore field for the given cell type.
+	 */
+	const AlnScore& best(int ch, int ct) const {
+		if(ct == SW_BT_CELL_OALL) {
+			return oallBest[ch];
+		} else if(ct == SW_BT_CELL_RDGAP) {
+			return rdgapBest[ch];
+		} else {
+			assert_eq(SW_BT_CELL_RFGAP, ct);
+			return rfgapBest[ch];
+		}
 	}
 
 	// Best incoming score for each 'to' character...

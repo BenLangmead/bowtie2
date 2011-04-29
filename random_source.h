@@ -22,6 +22,7 @@ public:
 	void init(uint32_t seed = 0) {
 		last = seed;
 		inited_ = true;
+		lastOff = 30;
 	}
 
 	uint32_t nextU32() {

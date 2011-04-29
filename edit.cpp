@@ -40,8 +40,10 @@ void Edit::invertPoss(EList<Edit>& edits, size_t sz) {
 	edits.reverse();
 	// Invert all the .pos's
 	for(size_t i = 0; i < edits.size(); i++) {
-		assert_lt(edits[i].pos, sz);
-		edits[i].pos = (uint32_t)(sz - edits[i].pos - (edits[i].type == EDIT_TYPE_READ_GAP ? 0 : 1));
+		assert(edits[i].pos < sz ||
+		       (edits[i].isReadGap() && edits[i].pos == sz));
+		edits[i].pos =
+			(uint32_t)(sz - edits[i].pos - (edits[i].isReadGap() ? 0 : 1));
 	}
 }
 
@@ -255,13 +257,14 @@ void Edit::toRef(
 		ASSERT_ONLY(int c = read[i]);
 		assert_range(0, 4, c);
 		bool ins = false, del = false, mm = false;
-		bool append = i >= trimBeg && rdlen - i - 1 >= trimEnd;
+		bool append = i >= trimBeg && rdlen - i -1 >= trimEnd;
+		bool appendIns = i >= trimBeg && rdlen - i >= trimEnd;
 		while(eidx < edits.size() && edits[eidx].pos == i) {
 			if(edits[eidx].isReadGap()) {
 				ins = true;
 				// Inserted characters come before the position's
 				// character
-				if(append) {
+				if(appendIns) {
 					ref.appendChar((char)edits[eidx].chr);
 				}
 			} else if(edits[eidx].isRefGap()) {
@@ -282,6 +285,15 @@ void Edit::toRef(
 			if(append) {
 				ref.append(read[i]);
 			}
+		}
+	}
+	if(trimEnd == 0) {
+		while(eidx < edits.size()) {
+			assert_eq(rdlen, edits[eidx].pos);
+			if(edits[eidx].isReadGap()) {
+				ref.appendChar((char)edits[eidx].chr);
+			}
+			eidx++;
 		}
 	}
 }

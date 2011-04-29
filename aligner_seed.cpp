@@ -156,7 +156,8 @@ Seed::instantiate(
 				is.zones[step].first = is.zones[step].second = 1;
 				is.steps[step++] = k+1;
 			}
-			assert_eq(1, is.zones[step-1].first);
+			// No Zone 1 if seedlen is short (like 2)
+			//assert_eq(1, is.zones[step-1].first);
 			is.zones[step-1].first = is.zones[step-1].second = -1;
 			// Zone 2 from ((seedlen+3)/4)-1 down to 0
 			for(int k = ((seedlen+3)/4)-1; k >= 0; k--) {
@@ -452,7 +453,6 @@ pair<int, int> SeedAligner::instantiateSeeds(
 {
 	assert(!seeds.empty());
 	assert_gt(read.length(), 0);
-	assert(!nofw || !norc); // should have aborted earlier
 	// Check whether read has too many Ns
 	offIdx2off_.clear();
 	int len = seeds[0].len;

@@ -278,6 +278,14 @@ public:
 	}
 
 	/**
+	 * Return true iff a read of length 'rdlen' passes the score filter, i.e.,
+	 * has enough characters to rise above the minimum score threshold.
+	 */
+	bool scoreFilter(
+		int64_t minsc,
+		size_t rdlen) const;
+
+	/**
 	 * Given the score floor for valid alignments and the length of the read,
 	 * calculate the maximum possible number of read gaps that could occur in a
 	 * valid alignment.

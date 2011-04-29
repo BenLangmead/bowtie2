@@ -31,7 +31,7 @@ use List::Util qw(max min);
 sub mydie($) {
 	my $fn = ".run.pl.child.$$";
 	open(EO, ">$fn") || die "Could not open $fn for writing";
-	print EO $_[0];
+	print EO "$_[0]\n";
 	close(EO);
 	die $_[0];
 }
@@ -298,15 +298,16 @@ sub genDNAgen {
 # for each sequence.
 #
 sub genRef {
-	my ($self, $ref, $refdnagen, $sm, $tmpfn) = @_;
+	my ($self, $ref, $refdnagen, $conf, $tmpfn) = @_;
 	# Get a generator for reference length
 	my $reflen = $self->rflengen;
 	# Generate the number of references
 	my $refnum = $self->rfnumgen->();
-	$refnum = log($refnum) if $sm;
+	$refnum = log($refnum) if $conf->{small};
 	$refnum = 1 if $refnum <= 0;
-	$refnum = log($refnum) if $sm;
+	$refnum = log($refnum) if $conf->{small};
 	$refnum = 1 if $refnum <= 0;
+	$refnum = $conf->{numrefs} if defined($conf->{numrefs});
 	# Open output file
 	open (FA, ">$tmpfn") ||
 		mydie("Could not open temporary fasta file '$tmpfn' for writing");
@@ -315,11 +316,11 @@ sub genRef {
 	for (1..$refnum) {
 		# Randomly generate length
 		my $len = $reflen->();
-		$len = log($len) if $sm;
+		$len = log($len) if $conf->{small};
 		$len = 1 if $len <= 0;
-		$len = log($len) if $sm;
+		$len = log($len) if $conf->{small};
 		$len = 1 if $len <= 0;
-		$len = log($len) if $sm;
+		$len = log($len) if $conf->{small};
 		$len = 1 if $len <= 0;
 		my $seq = $refdnagen->nextSeq($len);
 		my $name = "Sim.pm.$_";
@@ -638,14 +639,202 @@ sub mutateSeq {
 }
 
 ##
+# Generate a setting for MA (match bonus).
+#
+sub genPolicyMA($) {
+	my $local = shift;
+	return "" if ($local || int(rand(2)) == 0);
+	return "MA=".Math::Random::random_uniform(1, 1, 40).";";
+}
+
+##
+# Generate a setting for MMP (mismatch penalty).
+#
+sub genPolicyMMP() {
+	return "" if int(rand(2)) == 0;
+	my $op = substr("CQR", int(rand(3)), 1);
+	if($op eq "C") {
+		$op .= Math::Random::random_uniform(1, 1, 40);
+	}
+	return "MMP=$op;";
+}
+
+##
+# Generate a setting for SNP (nucleotide mismatch penalty for colorspace
+# alignment).
+#
+sub genPolicySNP() {
+	return "" if int(rand(2)) == 0;
+	return "SNP=".Math::Random::random_uniform(1, 1, 40).";";
+}
+
+##
+# Generate a setting for NP (penalty for a mismatch involving an N).
+#
+sub genPolicyNP() {
+	return "" if int(rand(2)) == 0;
+	my $op = substr("CQR", int(rand(3)), 1);
+	if($op eq "C") {
+		$op .= int(Math::Random::random_exponential(1, 3))+1;
+	}
+	return "NP=$op;";
+}
+
+##
+# Generate a setting for RDG (read gap open and extend penalties).
+#
+sub genPolicyRDG() {
+	return "" if int(rand(2)) == 0;
+	my $op = Math::Random::random_uniform(1, 1, 50);
+	if(int(rand(2)) == 0) {
+		$op .= ",";
+		$op .= Math::Random::random_uniform(1, 1, 20);
+	}
+	return "RDG=$op;";
+}
+
+##
+# Generate a setting for RFG (ref gap open and extend penalties).
+#
+sub genPolicyRFG() {
+	return "" if int(rand(2)) == 0;
+	my $op = Math::Random::random_uniform(1, 1, 50);
+	if(int(rand(2)) == 0) {
+		$op .= ",";
+		$op .= Math::Random::random_uniform(1, 1, 20);
+	}
+	return "RFG=$op;";
+}
+
+##
+# Generate a setting for MIN (function determining minimum acceptable score).
+#
+sub genPolicyMIN($) {
+	my $local = shift;
+	return "" if ($local || int(rand(2)) == 0);
+	my $xx = Math::Random::random_uniform(1, 1, 10);
+	my $yy = Math::Random::random_uniform(1, 1, 10);
+	if(!$local) {
+		$xx = -$xx if int(rand(2)) == 0;
+		$yy = -$yy;
+	}
+	return "MIN=$xx,$yy;";
+}
+
+##
+# Generate a setting for NCEIL (function determining maximum number of Ns
+# allowed).
+#
+sub genPolicyNCEIL() {
+	return "" if int(rand(2)) == 0;
+	my $xx = Math::Random::random_uniform(1, 0, 1.5);
+	my $yy = Math::Random::random_uniform(1, 0, 1.5);
+	return "NCEIL=$xx,$yy;";
+}
+
+##
+# Generate a setting for SEED (# mismatches, length, interval).
+#
+sub genPolicySEED() {
+	return "" if int(rand(2)) == 0;
+	# Pick a number of mismatches
+	my $sd = substr("012", int(rand(3)), 1);
+	if(rand() < 0.9) {
+		# Length
+		$sd .= ",".int(Math::Random::random_uniform(1, 12, 32));
+	}
+	if(rand() < 0.3) {
+		# Interval (overrides IVAL)
+		$sd .= ",".int(Math::Random::random_uniform(1, 1, 32));
+	}
+	return "SEED=$sd;";
+}
+
+##
+# Generate a setting for IVAL.  Interval between seeds is a function of the
+# read length OR sqaure root of read length OR cube root of read length.
+#
+sub genPolicyIVAL() {
+	return "" if int(rand(2)) == 0;
+	# Pick a number of mismatches
+	my $iv = substr("LSC", int(rand(3)), 1);
+	if($iv eq "L") {
+		if(rand() < 0.9) {
+			# Multiplier
+			$iv .= ",".Math::Random::random_uniform(1, 0.0, 0.5);
+		}
+		if(rand() < 0.3) {
+			# Offset
+			$iv .= ",".Math::Random::random_uniform(1, 0.0, 4.0);
+		}
+	} elsif($iv eq "S") {
+		if(rand() < 0.9) {
+			# Multiplier
+			$iv .= ",".Math::Random::random_uniform(1, 0.0, 3.0);
+		}
+		if(rand() < 0.3) {
+			# Offset
+			$iv .= ",".Math::Random::random_uniform(1, 0.0, 7.0);
+		}
+	} elsif($iv eq "C") {
+		if(rand() < 0.9) {
+			# Multiplier
+			$iv .= ",".Math::Random::random_uniform(1, 0.0, 5.0);
+		}
+		if(rand() < 0.3) {
+			# Offset
+			$iv .= ",".Math::Random::random_uniform(1, 0.0, 14.0);
+		}
+	}
+	return "IVAL=$iv;";
+}
+
+##
+# Generate a random but meaningful string of policy arguments to specify using
+# the -P option.
+#
+sub genPolicyArg($) {
+	my $local = shift;
+	my $args = "";
+	$args .= genPolicyMA($local);
+	$args .= genPolicyMMP();
+	$args .= genPolicySNP();
+	$args .= genPolicyNP();
+	$args .= genPolicyRDG();
+	$args .= genPolicyRFG();
+	$args .= genPolicyMIN($local);
+	$args .= genPolicyNCEIL();
+	$args .= genPolicySEED();
+	$args .= genPolicyIVAL();
+	if($args ne "") {
+		return substr($args, 0, -1);
+	} else { return ""; }
+}
+
+##
 # Generate a hash of key/value arguments to pass to bowtie2.
 #
 sub genAlignArgs {
-	my ($self, $input) = @_;
+	my ($self, $input, $color, $conf) = @_;
 	my %args = ();
+	my $local = int(rand(2)) == 0;
+	$args{"-u"}         = $conf->{maxreads} if defined($conf->{maxreads});
 	$args{"--mm"}       = "" if int(rand(2)) == 0;
 	$args{"--cost"}     = "" if int(rand(2)) == 0;
 	$args{"--overhang"} = "" if int(rand(2)) == 0;
+	$args{"--trim3"}    = int(rand(10)) if int(rand(2)) == 0;
+	$args{"--trim5"}    = int(rand(10)) if int(rand(2)) == 0;
+	$args{"--nofw"}     = "" if int(rand(4)) == 0;
+	$args{"--norc"}     = "" if int(rand(4)) == 0;
+	$args{"--col-keepends"} = "" if ($color && int(rand(3)) == 0);
+	$args{"--gbar"}     = int(Math::Random::random_exponential(1, 3))+1 if int(rand(4)) == 0;
+	$args{"--un"}
+		= "$conf->{tempdir}/Sim.pm.$conf->{randstr}.un.reads" if int(rand(3)) == 0;
+	$args{"--al"}
+		= "$conf->{tempdir}/Sim.pm.$conf->{randstr}.al.reads" if int(rand(3)) == 0;
+	$args{"--max"}
+		= "$conf->{tempdir}/Sim.pm.$conf->{randstr}.max.reads" if int(rand(3)) == 0;
+	$args{"--local"}    = "" if $local;
 	my $rep = int(rand(5));
 	if($rep == 0) {
 		$args{"-a"} = "";
@@ -656,6 +845,7 @@ sub genAlignArgs {
 	} elsif($rep == 3) {
 		$args{"-M"} = int(Math::Random::random_exponential(1, 3))+2;
 	}
+	$args{"-P"} = ("\"".genPolicyArg($local)."\"") if rand() < 0.9;
 	return \%args;
 }
 
@@ -699,7 +889,7 @@ sub align {
 	print "$cmd\n";
 	open(ALSDEB, ">$als_debug") || mydie("Could not open '$als_debug' for writing");
 	open(ALSDEBCMD, "$cmd |") || mydie("Could not open pipe '$cmd |'");
-	my $ival = 100;
+	my $ival = 50;
 	my $nals = 0;
 	while(<ALSDEBCMD>) {
 		# Check the sanity of this alignment
@@ -709,9 +899,9 @@ sub align {
 		print STDERR "  Read $nals alignments...\n" if ($nals % $ival) == 0;
 	}
 	close(ALSDEBCMD);
+	$? == 0 || mydie("bowtie2-debug exited with exitlevel $?:\n$cmd\n");
 	close(ALSDEB);
 	$ac->printSummary();
-	$? == 0 || mydie("Command '$cmd' failed with exitlevel $?");
 	# With some probability, also run debug Bowtie and check that
 	# results are identical
 	if(int(rand(3)) == 0) {
@@ -793,7 +983,7 @@ sub nextCase {
 	# Generate references and write them to a temporary fasta file
 	my $tmpfn = "$conf->{tempdir}/Sim.pm.$conf->{randstr}.fa";
 	my %refs = ();
-	$self->genRef(\%refs, $refdnagen, $conf->{small}, $tmpfn);
+	$self->genRef(\%refs, $refdnagen, $conf, $tmpfn);
 	# Run bowtie2-build
 	my $tmpidxfn = "$conf->{tempdir}/Sim.pm.$conf->{randstr}";
 	my $buildArgs = $self->genBuildArgs();
@@ -810,7 +1000,7 @@ sub nextCase {
 		# Mutate the input
 		my $mutinput = $self->mutateSeq($input);
 		# Select Bowtie arguments
-		my $args = $self->genAlignArgs($mutinput);
+		my $args = $self->genAlignArgs($mutinput, $input->{color}, $conf);
 		$self->align($tmpfn, $tmpidxfn, $mutinput, $conf, $args);
 		# Sanity check output.  Possible sanity checks are:
 		# 1. Check alignments & edits against reference

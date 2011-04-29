@@ -236,6 +236,293 @@ int parseQuals(Read& r,
 	return (int)r.qual.length();
 }
 
+/// Read another pattern from a FASTQ input file
+void FastqPatternSource::read(Read& r, TReadId& patid) {
+	int c;
+	int dstLen = 0;
+	r.reset();
+	r.color = gColor;
+	r.fuzzy = fuzzy_;
+	// Pick off the first at
+	if(first_) {
+		c = fb_.get();
+		if(c != '@') {
+			c = getOverNewline(fb_);
+			if(c < 0) { bail(r); return; }
+		}
+		if(c != '@') {
+			cerr << "Error: reads file does not look like a FASTQ file" << endl;
+			throw 1;
+		}
+		assert_eq('@', c);
+		first_ = false;
+	}
+
+	// Read to the end of the id line, sticking everything after the '@'
+	// into *name
+	while(true) {
+		c = fb_.get();
+		if(c < 0) { bail(r); return; }
+		if(c == '\n' || c == '\r') {
+			// Break at end of line, after consuming all \r's, \n's
+			while(c == '\n' || c == '\r') {
+				c = fb_.get();
+				if(c < 0) { bail(r); return; }
+			}
+			break;
+		}
+		r.name.append(c);
+	}
+	// fb_ now points just past the first character of a
+	// sequence line, and c holds the first character
+	int charsRead = 0;
+	BTDnaString *sbuf = &r.patFw;
+	int dstLens[] = {0, 0, 0, 0};
+	int *dstLenCur = &dstLens[0];
+	int mytrim5 = gTrim5;
+	int altBufIdx = 0;
+	if(gColor && c != '+') {
+		// This may be a primer character.  If so, keep it in the
+		// 'primer' field of the read buf and parse the rest of the
+		// read without it.
+		c = toupper(c);
+		if(asc2dnacat[c] > 0) {
+			// First char is a DNA char
+			int c2 = toupper(fb_.peek());
+			// Second char is a color char
+			if(asc2colcat[c2] > 0) {
+				r.primer = c;
+				r.trimc = c2;
+				mytrim5 += 2; // trim primer and first color
+			}
+		}
+		if(c < 0) { bail(r); return; }
+	}
+	int trim5 = 0;
+	if(c != '+') {
+		trim5 = mytrim5;
+		while(c != '+') {
+			// Convert color numbers to letters if necessary
+			if(gColor) {
+				if(c >= '0' && c <= '4') c = "ACGTN"[(int)c - '0'];
+				if(c == '.') c = 'N';
+			}
+			if(fuzzy_ && c == '-') c = 'A';
+			if(isalpha(c)) {
+				// If it's past the 5'-end trim point
+				if(charsRead >= trim5) {
+					sbuf->append(asc2dna[c]);
+					(*dstLenCur)++;
+				}
+				charsRead++;
+			} else if(fuzzy_ && c == ' ') {
+				trim5 = 0; // disable 5' trimming for now
+				if(charsRead == 0) {
+					c = fb_.get();
+					continue;
+				}
+				charsRead = 0;
+				if(altBufIdx >= 3) {
+					cerr << "At most 3 alternate sequence strings permitted; offending read: " << r.name << endl;
+					throw 1;
+				}
+				// Move on to the next alternate-sequence buffer
+				sbuf = &r.altPatFw[altBufIdx++];
+				dstLenCur = &dstLens[altBufIdx];
+			}
+			c = fb_.get();
+			if(c < 0) { bail(r); return; }
+		}
+		dstLen = dstLens[0];
+		charsRead = dstLen + mytrim5;
+	}
+	// Trim from 3' end
+	if(gTrim3 > 0) {
+		if((int)r.patFw.length() > gTrim3) {
+			r.patFw.resize(r.patFw.length() - gTrim3);
+			dstLen -= gTrim3;
+			assert_eq((int)r.patFw.length(), dstLen);
+		} else {
+			// Trimmed the whole read; we won't be using this read,
+			// but we proceed anyway so that fb_ is advanced
+			// properly
+			r.patFw.clear();
+			dstLen = 0;
+		}
+	}
+	assert_eq('+', c);
+
+	// Chew up the optional name on the '+' line
+	ASSERT_ONLY(int pk =) peekToEndOfLine(fb_);
+	if(charsRead == 0) {
+		assert_eq('@', pk);
+		fb_.get();
+		fb_.resetLastN();
+		cerr << "Warning: skipping empty FASTQ read with name '" << r.name << "'" << endl;
+		return;
+	}
+
+	// Now read the qualities
+	if (intQuals_) {
+		assert(!fuzzy_);
+		int qualsRead = 0;
+		char buf[4096];
+		if(gColor && r.primer != -1) {
+			// In case the original quality string is one shorter
+			mytrim5--;
+		}
+		qualToks_.clear();
+		tokenizeQualLine(fb_, buf, 4096, qualToks_);
+		for(unsigned int j = 0; j < qualToks_.size(); ++j) {
+			char c = intToPhred33(atoi(qualToks_[j].c_str()), solQuals_);
+			assert_geq(c, 33);
+			if (qualsRead >= mytrim5) {
+				//if(qualsRead - mytrim5 >= 1024) tooManyQualities(r.name);
+				r.qual.append(c);
+			}
+			++qualsRead;
+		} // done reading integer quality lines
+		if(gColor && r.primer != -1) mytrim5++;
+		r.qual.trimEnd(gTrim3);
+		if(r.qual.length() < r.patFw.length()) {
+			tooFewQualities(r.name);
+		} else if(r.qual.length() > r.patFw.length() + 1) {
+			tooManyQualities(r.name);
+		}
+		if(r.qual.length() == r.patFw.length()+1 && gColor && r.primer != -1) {
+			r.qual.remove(0);
+		}
+		// Trim qualities on 3' end
+		if(r.qual.length() > r.patFw.length()) {
+			r.qual.resize(r.patFw.length());
+			assert_eq((int)r.qual.length(), dstLen);
+		}
+		peekOverNewline(fb_);
+	} else {
+		// Non-integer qualities
+		altBufIdx = 0;
+		trim5 = mytrim5;
+		int qualsRead[4] = {0, 0, 0, 0};
+		int *qualsReadCur = &qualsRead[0];
+		BTString *qbuf = &r.qual;
+		if(gColor && r.primer != -1) {
+			// In case the original quality string is one shorter
+			trim5--;
+		}
+		while(true) {
+			c = fb_.get();
+			if (!fuzzy_ && c == ' ') {
+				wrongQualityFormat(r.name);
+			} else if(c == ' ') {
+				trim5 = 0; // disable 5' trimming for now
+				if((*qualsReadCur) == 0) continue;
+				if(altBufIdx >= 3) {
+					cerr << "At most 3 alternate quality strings permitted; offending read: " << r.name << endl;
+					throw 1;
+				}
+				qbuf = &r.altQual[altBufIdx++];
+				qualsReadCur = &qualsRead[altBufIdx];
+				continue;
+			}
+			if(c < 0) { bail(r); return; }
+			if (c != '\r' && c != '\n') {
+				if (*qualsReadCur >= trim5) {
+					//size_t off = (*qualsReadCur) - trim5;
+					//if(off >= 1024) tooManyQualities(r.name);
+					c = charToPhred33(c, solQuals_, phred64Quals_);
+					assert_geq(c, 33);
+					qbuf->append(c);
+				}
+				(*qualsReadCur)++;
+			} else {
+				break;
+			}
+		}
+		qualsRead[0] -= gTrim3;
+		r.qual.trimEnd(gTrim3);
+		if(r.qual.length() < r.patFw.length()) {
+			tooFewQualities(r.name);
+		} else if(r.qual.length() > r.patFw.length()+1) {
+			tooManyQualities(r.name);
+		}
+		if(r.qual.length() == r.patFw.length()+1 && gColor && r.primer != -1) {
+			r.qual.remove(0);
+		}
+
+		if(fuzzy_) {
+			// Trim from 3' end of alternate basecall and quality strings
+			if(gTrim3 > 0) {
+				for(int i = 0; i < 3; i++) {
+					assert_eq(r.altQual[i].length(), r.altPatFw[i].length());
+					if((int)r.altQual[i].length() > gTrim3) {
+						r.altPatFw[i].resize(gTrim3);
+						r.altQual[i].resize(gTrim3);
+					} else {
+						r.altPatFw[i].clear();
+						r.altQual[i].clear();
+					}
+					qualsRead[i+1] = dstLens[i+1] =
+						max<int>(0, dstLens[i+1] - gTrim3);
+				}
+			}
+			// Shift to RHS, and install in Strings
+			assert_eq(0, r.alts);
+			for(int i = 1; i < 4; i++) {
+				if(qualsRead[i] == 0) continue;
+				if(qualsRead[i] > dstLen) {
+					// Shift everybody up
+					int shiftAmt = qualsRead[i] - dstLen;
+					for(int j = 0; j < dstLen; j++) {
+						r.altQual[i-1].set(r.altQual[i-1][j+shiftAmt], j);
+						r.altPatFw[i-1].set(r.altPatFw[i-1][j+shiftAmt], j);
+					}
+					r.altQual[i-1].resize(dstLen);
+					r.altPatFw[i-1].resize(dstLen);
+				} else if (qualsRead[i] < dstLen) {
+					r.altQual[i-1].resize(dstLen);
+					r.altPatFw[i-1].resize(dstLen);
+					// Shift everybody down
+					int shiftAmt = dstLen - qualsRead[i];
+					for(int j = dstLen-1; j >= shiftAmt; j--) {
+						r.altQual[i-1].set(r.altQual[i-1][j-shiftAmt], j);
+						r.altPatFw[i-1].set(r.altPatFw[i-1][j-shiftAmt], j);
+					}
+					// Fill in unset positions
+					for(int j = 0; j < shiftAmt; j++) {
+						// '!' - indicates no alternate basecall at
+						// this position
+						r.altQual[i-1].set(33, j);
+					}
+				}
+				r.alts++;
+			}
+		}
+
+		if(c == '\r' || c == '\n') {
+			c = peekOverNewline(fb_);
+		} else {
+			c = peekToEndOfLine(fb_);
+		}
+	}
+	r.readOrigBuf.install(fb_.lastN(), fb_.lastNLen());
+	fb_.resetLastN();
+
+	c = fb_.get();
+	// Should either be at end of file or at beginning of next record
+	assert(c == -1 || c == '@');
+
+	// Set up a default name if one hasn't been set
+	if(r.name.empty()) {
+		char cbuf[20];
+		itoa10<TReadId>(readCnt_, cbuf);
+		r.name.install(cbuf);
+	}
+	r.trimmed3 = gTrim3;
+	r.trimmed5 = mytrim5;
+	readCnt_++;
+	patid = readCnt_-1;
+}
+
 void wrongQualityFormat(const BTString& read_name) {
 	cerr << "Encountered a space parsing the quality string for read " << read_name << endl
 	     << "If this is a FASTQ file with integer (non-ASCII-encoded) qualities, please" << endl

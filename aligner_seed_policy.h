@@ -148,7 +148,7 @@ public:
 	 * Seed interval
 	 * -------------
 	 *
-	 * IVAL={L|S|C},a,b (default: IVAL=S,1.0,0.0)
+	 * IVAL={L|S|C},xx,yy (default: IVAL=S,1.0,0.0)
 	 *
 	 *   L  = let interval between seeds be a linear function of the
 	 *        read length.  xx and yy are the constant and linear

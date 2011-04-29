@@ -103,27 +103,31 @@ sub nrefs     { return scalar(keys %{$_[0]->{_refs}}); }
 # reference.
 #
 my $nedits = 0;
-sub applyEdits($$) {
-	my ($seq, $edits) = @_;
+sub applyEdits($$$) {
+	my ($seq, $edits, $line) = @_;
 	my $rfseq = $seq;
 	my $lpos = length($seq)+1;
 	$nedits += scalar(@$edits);
 	foreach (reverse @$edits) {
 		next unless defined($_);
+		#print STDERR "Applying edit at $_->{pos}\n";
 		# Apply the edit
-		$_->{pos} <= $lpos || die;
+		$_->{pos} <= $lpos || die "Edit position $_->{pos} was greater than previous $lpos";
+		$_->{pos} < length($rfseq) || die "Edit position $_->{pos} was not less than string len ".length($rfseq);
 		if($_->{qchr} eq "-") {
 			# Insert
 			substr($rfseq, $_->{pos}, 0) = $_->{chr};
 		} elsif($_->{chr} eq "-") {
 			# Deletion
-			substr($rfseq, $_->{pos}, 1) eq $_->{qchr} ||
-				die "Edit: $_->{pos}:$_->{chr}>$_->{qchr}\n$rfseq";
+			my $dc = substr($rfseq, $_->{pos}, 1);
+			$dc eq $_->{qchr} ||
+				die "Edit: $_->{pos}:$_->{chr}>$_->{qchr} but ref char was $dc".
+				    "\n$rfseq\n$line";
 			substr($rfseq, $_->{pos}, 1) = "";
 		} else {
 			# Mismatch
 			substr($rfseq, $_->{pos}, 1) eq $_->{qchr} ||
-				die "Edit: $_->{pos}:$_->{chr}>$_->{qchr}\n$rfseq";
+				die "Edit: $_->{pos}:$_->{chr}>$_->{qchr}\n$rfseq\n$line";
 			substr($rfseq, $_->{pos}, 1) = $_->{chr};
 		}
 	}
@@ -281,6 +285,47 @@ sub calcRefType {
 }
 
 ##
+# Parse a CIGAR string into parallel arrays of CIGAR operations (M, I, D)
+#
+sub cigarParse($$$) {
+	my ($cigar, $ops, $runs) = @_;
+	my $i = 0;
+	while($i < length($cigar)) {
+		substr($cigar, $i) =~ /^([0-9]+)/;
+		defined($1) || die "Could not parse number at pos $i: '$cigar'";
+		$i += length($1);
+		$i < length($cigar) || die;
+		push @$runs, $1;
+		my $op = substr($cigar, $i, 1);
+		defined($op) || die "Could not parse operation at pos $i: '$cigar'";
+		push @$ops, $op;
+		$i++;
+	}
+}
+
+##
+# Trim a read sequence according to the soft clipping in the CIGAR string.
+#
+sub cigarTrim($$) {
+	my ($seq, $cigar) = @_;
+	my @ops = ();
+	my @runs = ();
+	cigarParse($cigar, \@ops, \@runs);
+	my ($trimup, $trimdn) = (0, 0);
+	if($ops[0] eq 'S') {
+		$runs[0] < length($seq) || die "Soft clipped entire alignment!";
+		$seq = substr($seq, $runs[0]);
+		$trimup = $runs[0];
+	}
+	if(scalar(@ops) > 1 && $ops[-1] eq 'S') {
+		$runs[-1] < length($seq) || die "Soft clipped entire alignment!";
+		$seq = substr($seq, 0, -$runs[-1]);
+		$trimdn = $runs[-1];
+	}
+	return ($seq, $trimup, $trimdn);
+}
+
+##
 # Parse a line from a Bowtie alignment file and check that the
 # alignment is sane and consistent with the reference.
 #
@@ -288,8 +333,13 @@ sub parseBowtieLines {
 	my ($self, $lines) = @_;
 	for my $line (@$lines) {
 		chomp($line);
-		my ($rdname, $orient, $refname, $off, $seq, $qual, $oms, $editstr) = split(/\t/, $line, -1);
+		my ($rdname, $orient, $refname, $off, $seq, $qual, $oms, $editstr,
+		    $flags) = split(/\t/, $line, -1);
 		next if $refname eq "*";
+		$flags =~ /XC:([^,\s]+)/;
+		my $cigar = $1;
+		defined($cigar) ||
+			die "Could not parse CIGAR string from flags: '$flags'";
 		defined($editstr) || die "Failed to get 8 tokens from line:\n$_";
 		$off == int($off) || die "Offset field (col 4) must be an integer:\n$_";
 		$oms == int($oms) || die "OMS field (col 7) must be an integer:\n$_";
@@ -300,11 +350,14 @@ sub parseBowtieLines {
 		my ($ned, $aed) = ($edits4->[0], $edits4->[1]);
 		removeDups($ned, $aed);
 		my $fpl = fivePrimeLeft($orient);
-		invertEdits($ned, length($seq)) unless ($fpl || !defined($ned));
-		invertEdits($aed, length($seq)) unless ($fpl || !defined($aed));
+		# Trim seq according to CIGAR string
 		my $rfseq = $seq;
-		$rfseq = applyEdits($rfseq, $ned) if defined($ned);
-		$rfseq = applyEdits($rfseq, $aed) if defined($aed);
+		my ($trimup, $trimdn);
+		($rfseq, $trimup, $trimdn) = cigarTrim($rfseq, $cigar);
+		invertEdits($ned, length($rfseq)) unless ($fpl || !defined($ned));
+		invertEdits($aed, length($rfseq)) unless ($fpl || !defined($aed));
+		$rfseq = applyEdits($rfseq, $ned, $line) if defined($ned);
+		$rfseq = applyEdits($rfseq, $aed, $line) if defined($aed);
 		# Check if our alignment falls off the end of the reference, in
 		# which case we need to pad the reference string with Ns
 		my $exoff = $off;
@@ -347,7 +400,9 @@ sub parseBowtieLines {
 #
 sub parseBowtie {
 	my ($self, $fh) = @_;
-	while(<$fh>) { $self->parseBowtieLines([$_]); }
+	while(<$fh>) {
+		$self->parseBowtieLines([$_]);
+	}
 }
 
 ##
@@ -430,10 +485,10 @@ sub checkAlignments {
 		foreach (@$als) {
 			my $alnpipe = $_;
 			print STDERR "Processing alignment file '$_'\n";
-			$alnpipe = "gzip -dc $_ |" if $_ =~ /\.gz$/;
+			$alnpipe = "gzip -dc $_ |" if ($_ =~ /\.gz$/);
 			my $alnfh = undef;
 			open($alnfh, $alnpipe) || die "Could not open '$alnpipe' for reading";
-			$self->parse->($alnfh);
+			$self->parse($alnfh);
 			close($alnfh);
 		}
 	} else {

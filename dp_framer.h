@@ -52,6 +52,7 @@ public:
 		size_t reflen,    // length of reference sequence aligned to
 		size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
 		size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
+		size_t maxhalf,   // max width in either direction
 		size_t& width,    // out: calculated width stored here
 		size_t& trimup,   // out: number of bases trimmed from upstream end
 		size_t& trimdn,   // out: number of bases trimmed from downstream end
@@ -76,6 +77,7 @@ public:
 		size_t reflen,    // length of reference sequence aligned to
 		size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
 		size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
+		size_t maxhalf,   // max width in either direction
 		size_t& width,    // out: calculated width stored here
 		size_t& trimup,   // out: number of bases trimmed from upstream end
 		size_t& trimdn,   // out: number of bases trimmed from downstream end
@@ -95,6 +97,7 @@ public:
 				reflen,
 				maxrdgap,
 				maxrfgap,
+				maxhalf,
 				width,
 				trimup,
 				trimdn,
@@ -112,6 +115,7 @@ public:
 				reflen,
 				maxrdgap,
 				maxrfgap,
+				maxhalf,
 				width,
 				trimup,
 				trimdn,
@@ -137,6 +141,7 @@ public:
 		size_t reflen,    // length of reference sequence aligned to
 		size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
 		size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
+		size_t maxhalf,   // max width in either direction
 		size_t& width,    // out: calculated width stored here
 		size_t& trimup,   // out: number of bases trimmed from upstream end
 		size_t& trimdn,   // out: number of bases trimmed from downstream end
@@ -161,6 +166,7 @@ public:
 		size_t reflen,    // length of reference sequence aligned to
 		size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
 		size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
+		size_t maxhalf,   // max width in either direction
 		size_t& width,    // out: calculated width stored here
 		size_t& trimup,   // out: number of bases trimmed from upstream end
 		size_t& trimdn,   // out: number of bases trimmed from downstream end
