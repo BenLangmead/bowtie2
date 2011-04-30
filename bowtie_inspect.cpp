@@ -226,7 +226,7 @@ void print_index_sequences(ostream& fout, Ebwt& ebwt)
 		uint32_t textoff = 0xffffffff;
 		tlen = 0xffffffff;
 
-		ebwt.joinedToTextOff(1 /* qlen */, i, tidx, textoff, tlen);
+		ebwt.joinedToTextOff(1 /* qlen */, (uint32_t)i, tidx, textoff, tlen);
 
 		if (tidx != 0xffffffff && textoff < tlen)
 		{
@@ -252,7 +252,7 @@ void print_index_sequences(ostream& fout, Ebwt& ebwt)
 			if (textoff_adj - last_text_off > 1)
 				curr_ref_seq += string(textoff_adj - last_text_off - 1, 'N');
 
-			curr_ref_seq.push_back(getValue(cat_ref,i));
+			curr_ref_seq.push_back(cat_ref[i]);
 			last_text_off = textoff;
 			first = false;
 		}
@@ -367,7 +367,7 @@ static void driver(
 				true,   // load rstarts
 				true,   // load names
 				false); // verbose
-			print_index_sequences<String<Dna5> >(cout, ebwt);
+			print_index_sequences<SString<char> >(cout, ebwt);
 		} else {
 			EList<string> refnames;
 			readEbwtRefnames(adjustedEbwtFileBase, refnames);
@@ -384,6 +384,8 @@ static void driver(
 		}
 	}
 }
+
+#ifdef BOWTIE_INSPECT_MAIN
 
 /**
  * main function.  Parses command-line arguments.
@@ -452,3 +454,5 @@ int main(int argc, char **argv) {
 		return e;
 	}
 }
+
+#endif /*def BOWTIE_INSPECT_MAIN*/
