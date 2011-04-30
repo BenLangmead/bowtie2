@@ -1,3 +1,5 @@
+#ifdef BOWTIE_INSPECT_MAIN
+
 #include <string>
 #include <iostream>
 #include <getopt.h>
@@ -114,9 +116,10 @@ static void parseOptions(int argc, char **argv) {
 	} while(next_option != -1);
 }
 
-void print_fasta_record(ostream& fout,
-						const string& defline,
-						const string& seq)
+static void print_fasta_record(
+	ostream& fout,
+	const string& defline,
+	const string& seq)
 {
 	fout << ">";
 	fout << defline << endl;
@@ -140,7 +143,7 @@ void print_fasta_record(ostream& fout,
  * length, print the whole nucleotide reference with the appropriate
  * number of columns.
  */
-void print_ref_sequence(
+static void print_ref_sequence(
 	ostream& fout,
 	BitPairReference& ref,
 	const string& name,
@@ -172,7 +175,7 @@ void print_ref_sequence(
  * index at the given basename.  Iterate through the reference
  * sequences, sending each one to print_ref_sequence to print.
  */
-void print_ref_sequences(
+static void print_ref_sequences(
 	ostream& fout,
 	bool color,
 	const EList<string>& refnames,
@@ -207,7 +210,7 @@ void print_ref_sequences(
  * entire thing.
  */
 template<typename TStr>
-void print_index_sequences(ostream& fout, Ebwt& ebwt)
+static void print_index_sequences(ostream& fout, Ebwt& ebwt)
 {
 	EList<string>* refnames = &(ebwt.refnames());
 
@@ -270,7 +273,7 @@ void print_index_sequences(ostream& fout, Ebwt& ebwt)
 
 static char *argv0 = NULL;
 
-void print_index_sequence_names(const string& fname, ostream& fout)
+static void print_index_sequence_names(const string& fname, ostream& fout)
 {
 	EList<string> p_refnames;
 	readEbwtRefnames(fname, p_refnames);
@@ -282,7 +285,7 @@ void print_index_sequence_names(const string& fname, ostream& fout)
 /**
  * Print a short summary of what's in the index and its flags.
  */
-void print_index_summary(
+static void print_index_summary(
 	const string& fname,
 	ostream& fout)
 {
@@ -384,8 +387,6 @@ static void driver(
 		}
 	}
 }
-
-#ifdef BOWTIE_INSPECT_MAIN
 
 /**
  * main function.  Parses command-line arguments.

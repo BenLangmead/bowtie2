@@ -240,7 +240,7 @@ bowtie2-inspect: bowtie_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 	$(CXX) $(RELEASE_FLAGS) \
 		$(RELEASE_DEFS) $(EXTRA_FLAGS) \
 		-DEBWT_INSPECT_HASH=`cat .$@.cksum` \
-		$(DEFS) -DBOWTIE2 -Wall \
+		$(DEFS) -DBOWTIE2 -DBOWTIE_INSPECT_MAIN -Wall \
 		$(INC) -I . \
 		-o $@ $< \
 		$(SHARED_CPPS) \
@@ -251,7 +251,7 @@ bowtie2-inspect-debug: bowtie_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 	$(CXX) $(DEBUG_FLAGS) \
 		$(DEBUG_DEFS) $(EXTRA_FLAGS) \
 		-DEBWT_INSPECT_HASH=`cat .$@.cksum` \
-		$(DEFS) -DBOWTIE2 -Wall \
+		$(DEFS) -DBOWTIE2 -DBOWTIE_INSPECT_MAIN -Wall \
 		$(INC) -I . \
 		-o $@ $< \
 		$(SHARED_CPPS) \
