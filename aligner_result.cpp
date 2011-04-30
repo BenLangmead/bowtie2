@@ -482,18 +482,20 @@ bool AlnRes::matchesRef(
 	bool fw = refcoord_.fw();
 	// Adjust reference string length according to edits
 	size_t refallen = refNucExtent();
-	char *raw_refbuf = new char[refallen + 16];
+	static SStringExpandable<char> raw_refbuf;
+	raw_refbuf.resize(refallen + 16);
+	raw_refbuf.clear();
 	int nsOnLeft = 0;
 	if(refcoord_.off() < 0) {
 		nsOnLeft = -((int)refcoord_.off());
 	}
 	int off = ref.getStretch(
-		reinterpret_cast<uint32_t*>(raw_refbuf),
+		reinterpret_cast<uint32_t*>(raw_refbuf.wbuf()),
 		refcoord_.ref(),
 		max<TRefOff>(refcoord_.off(), 0),
 		refallen);
 	assert_leq(off, 16);
-	char *refbuf = raw_refbuf + off;
+	char *refbuf = raw_refbuf.wbuf() + off;
 	size_t trimBeg = 0, trimEnd = 0;
 	if(trimSoft_) {
 		trimBeg += (fw ? trim5p_ : trim3p_);
@@ -507,11 +509,14 @@ bool AlnRes::matchesRef(
 	// trimming
 	assert(!color_ || trimBeg == 0);
 	assert(!color_ || trimEnd == 0);
-	BTDnaString rf;
-	BTDnaString rdseq;
+	static BTDnaString rf;
+	static BTDnaString rdseq;
+	static BTString qseq;
+	rf.clear();
+	rdseq.clear();
 	if(rd.color) {
 		// Decode the nucleotide sequence from the alignment
-		BTString qseq;
+		qseq.clear();
 		decodedNucsAndQuals(rd, rdseq, qseq);
 		assert_eq(rdexrows_, rdseq.length());
 		assert_eq(rdseq.length(), qseq.length());
@@ -537,7 +542,8 @@ bool AlnRes::matchesRef(
 		Edit::invertPoss(ned_, rdexrows_);
 	}
 	assert_eq(refallen, rf.length());
-	EList<bool> matches;
+	static EList<bool> matches;
+	matches.clear();
 	bool matchesOverall = true;
 	matches.resize(refallen);
 	matches.fill(true);
@@ -576,7 +582,6 @@ bool AlnRes::matchesRef(
 			ned_);
 		cerr << endl;
 	}
-	delete[] raw_refbuf;
 	return matchesOverall;
 }
 
@@ -981,7 +986,7 @@ void AlnRes::printSeq(
 #ifndef NDEBUG
 		for(size_t i = 0; i < ned_.size(); i++) {
 			if(ned_[i].isReadGap()) {
-				assert_leq(ned_[i].pos, written);
+				assert_leq(ned_[i].pos, dns->length());
 			} else {
 				assert_lt(ned_[i].pos, dns->length());
 			}

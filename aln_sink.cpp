@@ -1111,8 +1111,10 @@ static void printEdits(
 		const Edit& e = es[i];
 		assert(i == elen-1 || e.pos <= es[i+1].pos);
 		assert_neq(e.chr, e.qchr);
-		assert_lt(e.pos, len);
-		if(exEnds && (e.pos == 0 || e.pos == len-1)) {
+		assert( e.isReadGap() || e.pos < len);
+		assert(!e.isReadGap() || e.pos <= len);
+		if(exEnds && (e.pos == 0 || e.pos >= len-1)) {
+			// Omit edits that are excluded by exEnds
 			continue;
 		}
 		if(!first) o.write(',');

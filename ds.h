@@ -1695,14 +1695,22 @@ private:
 		size_t lo = 0;
 		while(true) {
 			if(lo == hi) {
-				assert_eq(lo, scanLoBound(el));
+#ifndef NDEBUG
+				if((rand() % 10) == 0) {
+					assert_eq(lo, scanLoBound(el));
+				}
+#endif
 				return lo;
 			}
 			size_t mid = lo + ((hi-lo)>>1);
 			assert_neq(mid, hi);
 			if(list_[mid] < el) {
 				if(lo == mid) {
-					assert_eq(hi, scanLoBound(el));
+#ifndef NDEBUG
+					if((rand() % 10) == 0) {
+						assert_eq(hi, scanLoBound(el));
+					}
+#endif
 					return hi;
 				}
 				lo = mid;
@@ -1717,9 +1725,13 @@ private:
 	 */
 	bool sorted() const {
 		if(cur_ <= 1) return true;
-		for(size_t i = 0; i < cur_-1; i++) {
-			assert(list_[i] < list_[i+1]);
+#ifndef NDEBUG
+		if((rand() % 20) == 0) {
+			for(size_t i = 0; i < cur_-1; i++) {
+				assert(list_[i] < list_[i+1]);
+			}
 		}
+#endif
 		return true;
 	}
 
@@ -1980,14 +1992,22 @@ private:
 		size_t lo = 0;
 		while(true) {
 			if(lo == hi) {
-				assert_eq(lo, scanLoBound(el));
+#ifndef NDEBUG
+				if((rand() % 10) == 0) {
+					assert_eq(lo, scanLoBound(el));
+				}
+#endif
 				return lo;
 			}
 			size_t mid = lo + ((hi-lo)>>1);
 			assert_neq(mid, hi);
 			if(list_[mid].first < el) {
 				if(lo == mid) {
-					assert_eq(hi, scanLoBound(el));
+#ifndef NDEBUG
+					if((rand() % 10) == 0) {
+						assert_eq(hi, scanLoBound(el));
+					}
+#endif
 					return hi;
 				}
 				lo = mid;

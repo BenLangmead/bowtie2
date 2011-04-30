@@ -36,6 +36,15 @@ if(! -x $bowtie2 || ! -x $bowtie2_build) {
 
 my @cases = (
 
+	# Read 3 overhangs right end
+	{ ref    => [ "TTGTTCGT"  ],
+	  reads  => [   "GTTCGTA" ],
+	  args   => "",
+	  report => "-a --overhang -P \"SEED=0,2,1;NCEIL=2,0\"",
+	  hits   => [ { 2 => 1 } ],
+	  nosam  => 1,
+	  flags => [ "XM:0,XP:0,XT:UU,XC:6=1X" ] },
+
 	# Mess with arguments
 	
 	# Default should be 1-mismatch, so this shouldn't align

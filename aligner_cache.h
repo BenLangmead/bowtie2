@@ -72,6 +72,8 @@ struct QKey {
 	bool init(const BTDnaString& s) {
 		seq = 0;
 		len = (uint32_t)s.length();
+		ASSERT_ONLY(static BTDnaString tmp);
+		ASSERT_ONLY(tmp.clear());
 		if(len > 32) {
 			len = 0xffffffff;
 			return false; // wasn't cacheable
@@ -86,7 +88,6 @@ struct QKey {
 				seq = (seq << 2) | s.get(i);
 			}
 #ifndef NDEBUG
-			BTDnaString tmp;
 			toString(tmp);
 			assert(sstr_eq(tmp, s));
 #endif

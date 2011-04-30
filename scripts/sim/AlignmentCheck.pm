@@ -113,12 +113,13 @@ sub applyEdits($$$) {
 		#print STDERR "Applying edit at $_->{pos}\n";
 		# Apply the edit
 		$_->{pos} <= $lpos || die "Edit position $_->{pos} was greater than previous $lpos";
-		$_->{pos} < length($rfseq) || die "Edit position $_->{pos} was not less than string len ".length($rfseq);
 		if($_->{qchr} eq "-") {
 			# Insert
+			$_->{pos} <= length($rfseq) || die "Read gap pos $_->{pos} was not <= string len ".length($rfseq)."\n$line";
 			substr($rfseq, $_->{pos}, 0) = $_->{chr};
 		} elsif($_->{chr} eq "-") {
 			# Deletion
+			$_->{pos} < length($rfseq) || die "Ref gap pos $_->{pos} was not < string len ".length($rfseq)."\n$line";
 			my $dc = substr($rfseq, $_->{pos}, 1);
 			$dc eq $_->{qchr} ||
 				die "Edit: $_->{pos}:$_->{chr}>$_->{qchr} but ref char was $dc".
@@ -126,6 +127,7 @@ sub applyEdits($$$) {
 			substr($rfseq, $_->{pos}, 1) = "";
 		} else {
 			# Mismatch
+			$_->{pos} < length($rfseq) || die "Mismatch pos $_->{pos} was not < string len ".length($rfseq)."\n$line";
 			substr($rfseq, $_->{pos}, 1) eq $_->{qchr} ||
 				die "Edit: $_->{pos}:$_->{chr}>$_->{qchr}\n$rfseq\n$line";
 			substr($rfseq, $_->{pos}, 1) = $_->{chr};

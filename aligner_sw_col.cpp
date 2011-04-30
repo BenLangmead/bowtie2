@@ -560,11 +560,13 @@ bool SwAligner::backtrackColors(
 		if(ned[i].isGap()) gapsCheck++;
 	}
 	assert_eq(gaps, gapsCheck);
-	BTDnaString refstr;
+	static BTDnaString refstr;
+	refstr.clear();
 	for(size_t i = col; i <= origCol; i++) {
 		refstr.append(firsts5[(int)rf_[rfi_+i]]);
 	}
-	BTDnaString editstr;
+	static BTDnaString editstr;
+	editstr.clear();
 	Edit::toRef(res.alres.drd, ned, editstr);
 	if(refstr != editstr) {
 		cerr << "Decoded nucleotides and edits don't match reference:" << endl;

@@ -37,7 +37,7 @@ public:
 	/**
 	 * Gapped scores are invalid until proven valid.
 	 */
-	AlnScore() {
+	inline AlnScore() {
 		reset();
 		invalidate();
 		assert(!valid());
@@ -169,7 +169,7 @@ public:
 	/**
 	 * Calculate difference between two SwScores.
 	 */
-	AlnScore operator-(const AlnScore& o) const {
+	inline AlnScore operator-(const AlnScore& o) const {
 		if(!VALID_AL_SCORE(*this)) return *this;
 		AlnScore s; 
 		s.gaps_ = gaps_ - o.gaps_;
@@ -182,7 +182,7 @@ public:
 	/**
 	 * Calculate sum of two SwScores.
 	 */
-	AlnScore operator+(const AlnScore& o) const {
+	inline AlnScore operator+(const AlnScore& o) const {
 		if(!VALID_AL_SCORE(*this)) return *this;
 		AlnScore s;
 		s.gaps_ = gaps_ + o.gaps_;
@@ -195,7 +195,7 @@ public:
 	/**
 	 * Add given SwScore into this one.
 	 */
-	AlnScore operator+=(const AlnScore& o) {
+	inline AlnScore operator+=(const AlnScore& o) {
 		if(VALID_AL_SCORE(*this)) {
 			gaps_ += o.gaps_;
 			score_ += o.score_;
@@ -1070,7 +1070,7 @@ struct RedundantCell {
 	/**
 	 * Return true iff this RedundantCell is less than the given RedundantCell.
 	 */
-	bool operator<(const RedundantCell& c) const {
+	inline bool operator<(const RedundantCell& c) const {
 		if(rfid  <  c.rfid) return true;
 		if(rfid  >  c.rfid) return false;
 		if(!fw   &&   c.fw) return true;
@@ -1084,7 +1084,7 @@ struct RedundantCell {
 	 * Return true iff this RedundantCell is greater than the given
 	 * RedundantCell.
 	 */
-	bool operator>(const RedundantCell& c) const {
+	inline bool operator>(const RedundantCell& c) const {
 		if(rfid  >  c.rfid) return true;
 		if(rfid  <  c.rfid) return false;
 		if( fw   &&  !c.fw) return true;
@@ -1097,7 +1097,7 @@ struct RedundantCell {
 	/**
 	 * Return true iff this RedundantCell is equal to the given RedundantCell.
 	 */
-	bool operator==(const RedundantCell& c) const {
+	inline bool operator==(const RedundantCell& c) const {
 		return
 			rfid  == c.rfid  &&
 			fw    == c.fw    &&

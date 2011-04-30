@@ -549,7 +549,7 @@ protected:
 	EList<bool>*        en_;     // mask indicating which cols we can end in
 	size_t              rdgap_;  // max # gaps in read
 	size_t              rfgap_;  // max # gaps in reference
-	int                 maxgap_; // max(rdgap_, rfgap_)
+	size_t              maxgap_; // max(rdgap_, rfgap_)
 	const Scoring      *sc_;     // penalties for edit types
 	TAlScore            minsc_;  // penalty ceiling for valid alignments
 	TAlScore            floorsc_;// local-alignment score floor

@@ -858,23 +858,25 @@ size_t SwAligner::nfilter(size_t nlim) {
 		int rfc = rf_[i];
 		assert_range(0, 16, rfc);
 		size_t ii = i - rfi_;
-		if(ii >= nrow) {
-			size_t col = ii - nrow;
+		if(rfc == 16) {
+			ns++;
+		}
+		if(ii >= (nrow-1)) {
+			size_t col = ii - (nrow-1);
+			if(ii >= nrow) {
+				int prev_rfc = rf_[i - nrow];
+				assert_range(0, 16, prev_rfc);
+				if(prev_rfc == 16) {
+					assert_gt(ns, 0);
+					ns--;
+				}
+			}
 			if(ns > nlim) {
 				if((*en_)[col]) {
 					(*en_)[col] = false;
 					filtered++;
 				}
 			}
-			int prev_rfc = rf_[i - nrow];
-			assert_range(0, 16, prev_rfc);
-			if(prev_rfc == 16) {
-				assert_gt(ns, 0);
-				ns--;
-			}
-		}
-		if(rfc == 16) {
-			ns++;
 		}
 	}
 	return filtered;
