@@ -2438,6 +2438,13 @@ static void* multiseedSearchWorker(void *vp) {
 					break; // next read
 				}
 				size_t rdlens[2]   = { rdlen1, rdlen2 };
+				size_t rdrows[2]   = { rdlen1, rdlen2 };
+				if(gColor) {
+					rdrows[0]++;
+					if(rdrows[1] > 0) {
+						rdrows[1]++;
+					}
+				}
 				// Calculate the minimum valid score threshold for the read
 				TAlScore minsc[2];
 				minsc[0] = (TAlScore)(Scoring::linearFunc(
@@ -2497,7 +2504,7 @@ static void* multiseedSearchWorker(void *vp) {
 				const Read* rds[2] = { &ps->bufa(), &ps->bufb() };
 				// For each mate...
 				assert(msinkwrap.empty());
-				sd.nextRead(pair);
+				sd.nextRead(ps->paired(), rdrows[0], rdrows[1]);
 				bool matemap[2] = { 0, 1 };
 				if(pair) {
 					rnd.init(ROTL(rds[0]->seed ^ rds[1]->seed, 10));

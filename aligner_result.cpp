@@ -1039,6 +1039,7 @@ void AlnRes::printQuals(
  * Add all of the cells involved in the given alignment to the database.
  */
 void RedundantAlns::add(const AlnRes& res) {
+	assert(!cells_.empty());
 	TRefOff left = res.refoff(), right;
 	const size_t len = res.readExtentRows();
 	if(!res.fw()) {
@@ -1046,6 +1047,7 @@ void RedundantAlns::add(const AlnRes& res) {
 	}
 	const EList<Edit>& ned = res.ned();
 	size_t nedidx = 0;
+	assert_leq(len, cells_.size());
 	// For each row...
 	for(size_t i = 0; i < len; i++) {
 		size_t diff = 1;  // amount to shift to right for next round
@@ -1072,7 +1074,7 @@ void RedundantAlns::add(const AlnRes& res) {
 		for(TRefOff j = left; j < right; j++) {
 			// Add to db
 			RedundantCell c(res.refid(), res.fw(), j, i);
-			ASSERT_ONLY(bool ret =) cells_.insert(c);
+			ASSERT_ONLY(bool ret =) cells_[i].insert(c);
 			assert(ret);
 		}
 		left = right + diff - 1;
@@ -1087,6 +1089,7 @@ void RedundantAlns::add(const AlnRes& res) {
  * one of the cells in the database.
  */
 bool RedundantAlns::overlap(const AlnRes& res) {
+	assert(!cells_.empty());
 	TRefOff left = res.refoff(), right;
 	const size_t len = res.readExtentRows();
 	if(!res.fw()) {
@@ -1096,6 +1099,7 @@ bool RedundantAlns::overlap(const AlnRes& res) {
 	size_t nedidx = 0;
 	// For each row...
 	bool olap = false;
+	assert_leq(len, cells_.size());
 	for(size_t i = 0; i < len; i++) {
 		size_t diff = 1;  // amount to shift to right for next round
 		right = left + 1;
@@ -1121,7 +1125,7 @@ bool RedundantAlns::overlap(const AlnRes& res) {
 		for(TRefOff j = left; j < right; j++) {
 			// Add to db
 			RedundantCell c(res.refid(), res.fw(), j, i);
-			if(cells_.contains(c)) {
+			if(cells_[i].contains(c)) {
 				olap = true;
 				break;
 			}
@@ -1265,6 +1269,8 @@ int main() {
 		
 		// Try again, but using the redundant-alignment database
 		RedundantAlns ra;
+		ra.reset();
+		ra.init(10);
 		ra.add(res1);
 		assert(ra.overlap(res1));
 		assert(ra.overlap(res2));
@@ -1321,6 +1327,8 @@ int main() {
 
 		// Try again, but using the redundant-alignment database
 		RedundantAlns ra;
+		ra.reset();
+		ra.init(11);
 		ra.add(res1);
 		assert(ra.overlap(res1));
 		assert(ra.overlap(res2));
@@ -1377,6 +1385,8 @@ int main() {
 
 		// Try again, but using the redundant-alignment database
 		RedundantAlns ra;
+		ra.reset();
+		ra.init(11);
 		ra.add(res1);
 		assert(ra.overlap(res1));
 		assert(!ra.overlap(res2));
@@ -1409,6 +1419,8 @@ int main() {
 
 		// Try again, but using the redundant-alignment database
 		RedundantAlns ra;
+		ra.reset();
+		ra.init(10);
 		ra.add(res1);
 		assert(ra.overlap(res1));
 		assert(!ra.overlap(res2));
@@ -1441,6 +1453,8 @@ int main() {
 
 		// Try again, but using the redundant-alignment database
 		RedundantAlns ra;
+		ra.reset();
+		ra.init(10);
 		ra.add(res1);
 		assert(ra.overlap(res1));
 		assert(!ra.overlap(res2));
@@ -1477,6 +1491,8 @@ int main() {
 
 		// Try again, but using the redundant-alignment database
 		RedundantAlns ra;
+		ra.reset();
+		ra.init(10);
 		ra.add(res1);
 		assert(ra.overlap(res1));
 		assert(ra.overlap(res2));
@@ -1538,6 +1554,8 @@ int main() {
 
 		// Try again, but using the redundant-alignment database
 		RedundantAlns ra;
+		ra.reset();
+		ra.init(10);
 		ra.add(res1);
 		assert(ra.overlap(res1));
 		assert(ra.overlap(res2));
@@ -1602,6 +1620,8 @@ int main() {
 
 		// Try again, but using the redundant-alignment database
 		RedundantAlns ra;
+		ra.reset();
+		ra.init(10);
 		ra.add(res1);
 		assert(ra.overlap(res1));
 		assert(ra.overlap(res2));
@@ -1654,6 +1674,8 @@ int main() {
 
 		// Try again, but using the redundant-alignment database
 		RedundantAlns ra;
+		ra.reset();
+		ra.init(10);
 		ra.add(res1);
 		assert(ra.overlap(res1));
 		assert(!ra.overlap(res2));
@@ -1706,6 +1728,8 @@ int main() {
 
 		// Try again, but using the redundant-alignment database
 		RedundantAlns ra;
+		ra.reset();
+		ra.init(10);
 		ra.add(res1);
 		assert(ra.overlap(res1));
 		assert(!ra.overlap(res2));
@@ -1758,6 +1782,8 @@ int main() {
 
 		// Try again, but using the redundant-alignment database
 		RedundantAlns ra;
+		ra.reset();
+		ra.init(10);
 		ra.add(res1);
 		assert(ra.overlap(res1));
 		assert(!ra.overlap(res2));
@@ -1810,6 +1836,8 @@ int main() {
 
 		// Try again, but using the redundant-alignment database
 		RedundantAlns ra;
+		ra.reset();
+		ra.init(10);
 		ra.add(res1);
 		assert(ra.overlap(res1));
 		assert(!ra.overlap(res2));
@@ -1862,6 +1890,8 @@ int main() {
 
 		// Try again, but using the redundant-alignment database
 		RedundantAlns ra;
+		ra.reset();
+		ra.init(10);
 		ra.add(res1);
 		assert(ra.overlap(res1));
 		assert(ra.overlap(res2));
@@ -1914,6 +1944,8 @@ int main() {
 
 		// Try again, but using the redundant-alignment database
 		RedundantAlns ra;
+		ra.reset();
+		ra.init(10);
 		ra.add(res1);
 		assert(ra.overlap(res1));
 		assert(!ra.overlap(res2));
