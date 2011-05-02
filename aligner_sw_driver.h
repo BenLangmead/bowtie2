@@ -200,12 +200,21 @@ public:
 	 * Prepare for a new read.  For paired-end reads, this means clearing state
 	 * that would otherwise survive across calls to extendSeedsPaired.
 	 */
-	void nextRead(bool paired) {
+	void nextRead(bool paired, size_t mate1len, size_t mate2len) {
 		redAnchor_.reset();
-		redMate1_.reset();
-		redMate2_.reset();
 		redSeed1_.clear();
-		redSeed2_.clear();
+		size_t maxlen = mate1len;
+		if(paired) {
+			redMate1_.reset();
+			redMate1_.init(mate1len);
+			redMate2_.reset();
+			redMate2_.init(mate2len);
+			redSeed2_.clear();
+			if(mate2len > maxlen) {
+				maxlen = mate2len;
+			}
+		}
+		redAnchor_.init(maxlen);
 	}
 
 protected:

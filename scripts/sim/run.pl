@@ -37,6 +37,9 @@ Options:
   --tempdir <path>              Put temporary files here
   --cases <int>                 Each thread runs around <int> cases (def: 5)
   --cpus <int> / -p <int>       Run test cases in <int> threads at once
+  --maxreads <int>              Handle at most <int> reads per case
+  --numrefs <int>               Generate <int> refs per case
+  --die-with-child              Kill parent as soon as 1 child dies
   --small                       Make small test cases
   --help                        Print this usage message
 

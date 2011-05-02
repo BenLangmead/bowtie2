@@ -420,13 +420,14 @@ int BitPairReference::getStretch(
 	if(count == 0) return 0;
 	uint8_t *dest = (uint8_t*)destU32;
 #ifndef NDEBUG
-	uint32_t *destU32_2 = NULL;
+	static SStringExpandable<uint32_t> destU32_2;
+	destU32_2.clear();
 	uint8_t *dest_2 = NULL;
 	int off2;
 	if((rand() % 10) == 0) {
-		destU32_2 = new uint32_t[(origCount >> 2) + 2];
-		off2 = getStretchNaive(destU32_2, tidx, origToff, origCount);
-		dest_2 = ((uint8_t*)destU32_2) + off2;
+		destU32_2.resize((origCount >> 2) + 2);
+		off2 = getStretchNaive(destU32_2.wbuf(), tidx, origToff, origCount);
+		dest_2 = ((uint8_t*)destU32_2.wbuf()) + off2;
 	}
 #endif
 	destU32[0] = 0x04040404; // Add Ns, which we might end up using later
@@ -544,11 +545,6 @@ int BitPairReference::getStretch(
 		dest[cur++] = 4;
 	}
 	assert_eq(0, count);
-#ifndef NDEBUG
-	if(destU32_2 != NULL) {
-		delete[] destU32_2;
-	}
-#endif
 	return offset;
 }
 

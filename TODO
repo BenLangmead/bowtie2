@@ -9,6 +9,8 @@ Bowtie 2 TODO list:
 - Bunch up sensitivity arguments into neat packages
 - SAM flag indicating when and how reads are filtered out
 - Include a test to show that --un/--max/--al work
+- If alignment mode has no short circuiting, write alignments directly to
+  output stream to save space and overhead
 
 Performance ideas:
 - Check whether a potential seed extend is redundant with a previous one

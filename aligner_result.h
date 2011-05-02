@@ -1115,6 +1115,10 @@ struct RedundantCell {
  * Encapsulates data structures and routines allowing client to determine
  * whether one alignment is redundant (has a DP cell in common with) with a set
  * of others.
+ *
+ * Adding cells to and checking cell against this data structure can get rather
+ * slow when there are many alignments in play.  Dividing the burden over
+ * read-position bins helps some.
  */
 class RedundantAlns {
 
@@ -1126,6 +1130,16 @@ public:
 	 * Empty the cell database.
 	 */
 	void reset() { cells_.clear(); }
+	
+	/**
+	 * Initialize and set the list of sets to equal the read length.
+	 */
+	void init(size_t npos) {
+		cells_.resize(npos);
+		for(size_t i = 0; i < npos; i++) {
+			cells_[i].clear();
+		}
+	}
 
 	/**
 	 * Add all of the cells involved in the given alignment to the database.
@@ -1140,7 +1154,7 @@ public:
 
 protected:
 
-	ESet<RedundantCell> cells_;
+	EList<ESet<RedundantCell> > cells_;
 };
 
 typedef uint64_t TNumAlns;
