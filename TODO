@@ -17,3 +17,5 @@ Performance ideas:
 - Add resolved offsets to cache
 - Add faster DP filter to run first
 - Binary search to find reference records instead of linear scan
+- Align seeds in random order and investigate each seed immediately after
+  aligning it
