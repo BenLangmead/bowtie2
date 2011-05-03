@@ -45,8 +45,8 @@ bool SwDriver::extendSeeds(
 	TAlScore minsc,              // minimum score for anchor
 	TAlScore floorsc,            // local-alignment floor for anchor score
 	int nceil,                   // maximum # Ns permitted in reference portion
-	uint32_t maxposs,            // stop after this many positions (off+orient combos)
-	uint32_t maxrows,            // stop examining a position after this many offsets
+	size_t maxposs,              // stop after this many positions (off+orient combos)
+	size_t maxrows,              // stop examining a position after this many offsets
 	size_t maxhalf,  	         // max width in either direction for DP tables
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
 	RandomSource& rnd,           // pseudo-random source
@@ -380,8 +380,8 @@ bool SwDriver::extendSeedsPaired(
 	int onceil,                  // max # Ns permitted in ref for opposite
 	bool nofw,                   // don't align forward read
 	bool norc,                   // don't align revcomp read
-	uint32_t maxposs,            // stop after examining this many positions (offset+orientation combos)
-	uint32_t maxrows,            // stop examining a position after this many offsets are reported
+	size_t maxposs,              // stop after examining this many positions (offset+orientation combos)
+	size_t maxrows,              // stop examining a position after this many offsets are reported
 	size_t maxhalf,              // max width in either direction for DP tables
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
 	RandomSource& rnd,           // pseudo-random source

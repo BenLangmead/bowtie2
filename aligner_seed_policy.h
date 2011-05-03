@@ -21,6 +21,11 @@ enum {
 #define DEFAULT_IVAL_A 1.0f
 #define DEFAULT_IVAL_B 0.0f
 
+#define DEFAULT_MAXPOSS_CONST  25
+#define DEFAULT_MAXPOSS_LINEAR 0
+#define DEFAULT_MAXROWS_CONST  10
+#define DEFAULT_MAXROWS_LINEAR 0
+
 /**
  * Encapsulates the set of all parameters that affect what the
  * SeedAligner does with reads.
@@ -235,7 +240,11 @@ public:
 		int&   multiseedPeriod,
 		int&   multiseedIvalType,
 		float& multiseedIvalA,
-		float& multiseedIvalB);
+		float& multiseedIvalB,
+		size_t& maxpossConst,
+		size_t& maxpossLinear,
+		size_t& maxrowsConst,
+		size_t& maxrowsLinear);
 };
 
 #endif /*ndef ALIGNER_SEED_POLICY_H_*/

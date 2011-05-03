@@ -303,9 +303,9 @@ void FastqPatternSource::read(Read& r, TReadId& patid) {
 		trim5 = mytrim5;
 		while(c != '+') {
 			// Convert color numbers to letters if necessary
+			if(c == '.') c = 'N';
 			if(gColor) {
 				if(c >= '0' && c <= '4') c = "ACGTN"[(int)c - '0'];
-				if(c == '.') c = 'N';
 			}
 			if(fuzzy_ && c == '-') c = 'A';
 			if(isalpha(c)) {

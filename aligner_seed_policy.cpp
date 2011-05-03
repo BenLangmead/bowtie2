@@ -217,7 +217,11 @@ void SeedAlignmentPolicy::parseString(
 	int&   multiseedPeriod,
 	int&   multiseedIvalType,
 	float& multiseedIvalA,
-	float& multiseedIvalB)
+	float& multiseedIvalB,
+	size_t& maxpossConst,
+	size_t& maxpossLinear,
+	size_t& maxrowsConst,
+	size_t& maxrowsLinear)
 {
 
 	bonusMatchType    = local ? DEFAULT_MATCH_BONUS_TYPE_LOCAL :
@@ -260,6 +264,11 @@ void SeedAlignmentPolicy::parseString(
 	multiseedIvalType = DEFAULT_IVAL;
 	multiseedIvalA    = DEFAULT_IVAL_A;
 	multiseedIvalB    = DEFAULT_IVAL_B;
+	
+	maxpossConst  = DEFAULT_MAXPOSS_CONST;
+	maxpossLinear = DEFAULT_MAXPOSS_LINEAR;
+	maxrowsConst  = DEFAULT_MAXROWS_CONST;
+	maxrowsLinear = DEFAULT_MAXROWS_LINEAR;
 
 	EList<string> toks(MISC_CAT);
 	string tok;
@@ -474,6 +483,34 @@ void SeedAlignmentPolicy::parseString(
 				tmpss >> costMinLinear;
 			}
 		}
+		// Maximum number of distinct seed positions to examine
+		// MAXP=xx,yy
+		//        xx = constant coefficient
+		//        yy = linear coefficient
+		else if(tag == "MAXP") {
+			if(ctoks.size() >= 1) {
+				istringstream tmpss(ctoks[0]);
+				tmpss >> maxpossConst;
+			}
+			if(ctoks.size() >= 2) {
+				istringstream tmpss(ctoks[1]);
+				tmpss >> maxpossLinear;
+			}
+		}
+		// Maximum number of distinct seed hits to examine
+		// MAXH=xx,yy
+		//        xx = constant coefficient
+		//        yy = linear coefficient
+		else if(tag == "MAXH") {
+			if(ctoks.size() >= 1) {
+				istringstream tmpss(ctoks[0]);
+				tmpss >> maxrowsConst;
+			}
+			if(ctoks.size() >= 2) {
+				istringstream tmpss(ctoks[1]);
+				tmpss >> maxrowsLinear;
+			}
+		}
 		// Local-alignment score floor as a function of read length
 		// FL=xx,yy
 		//        xx = constant coefficient
@@ -617,6 +654,10 @@ int main() {
 	int multiseedIvalType;
 	float multiseedIvalA;
 	float multiseedIvalB;
+	size_t maxpossConst;
+	size_t maxpossLinear;
+	size_t maxrowsConst;
+	size_t maxrowsLinear;
 
 	{
 		cout << "Case 1: Defaults 1 ... ";
@@ -648,7 +689,11 @@ int main() {
 			multiseedPeriod,
 			multiseedIvalType,
 			multiseedIvalA,
-			multiseedIvalB
+			multiseedIvalB,
+			maxpossConst,
+			maxpossLinear,
+			maxrowsConst,
+			maxrowsLinear
 		);
 		
 		assert_eq(DEFAULT_MATCH_BONUS_TYPE,   bonusMatchType);
@@ -676,6 +721,11 @@ int main() {
 		assert_eq(DEFAULT_IVAL,               multiseedIvalType);
 		assert_eq(DEFAULT_IVAL_A,             multiseedIvalA);
 		assert_eq(DEFAULT_IVAL_B,             multiseedIvalB);
+
+		assert_eq(DEFAULT_MAXPOSS_CONST,      maxpossConst);
+		assert_eq(DEFAULT_MAXPOSS_LINEAR,     maxpossLinear);
+		assert_eq(DEFAULT_MAXROWS_CONST,      maxrowsConst);
+		assert_eq(DEFAULT_MAXROWS_LINEAR,     maxrowsLinear);
 		
 		cout << "PASSED" << endl;
 	}
@@ -710,7 +760,11 @@ int main() {
 			multiseedPeriod,
 			multiseedIvalType,
 			multiseedIvalA,
-			multiseedIvalB
+			multiseedIvalB,
+			maxpossConst,
+			maxpossLinear,
+			maxrowsConst,
+			maxrowsLinear
 		);
 		
 		assert_eq(DEFAULT_MATCH_BONUS_TYPE,   bonusMatchType);
@@ -738,6 +792,11 @@ int main() {
 		assert_eq(DEFAULT_IVAL,               multiseedIvalType);
 		assert_eq(DEFAULT_IVAL_A,             multiseedIvalA);
 		assert_eq(DEFAULT_IVAL_B,             multiseedIvalB);
+
+		assert_eq(DEFAULT_MAXPOSS_CONST,      maxpossConst);
+		assert_eq(DEFAULT_MAXPOSS_LINEAR,     maxpossLinear);
+		assert_eq(DEFAULT_MAXROWS_CONST,      maxrowsConst);
+		assert_eq(DEFAULT_MAXROWS_LINEAR,     maxrowsLinear);
 		
 		cout << "PASSED" << endl;
 	}
@@ -772,7 +831,11 @@ int main() {
 			multiseedPeriod,
 			multiseedIvalType,
 			multiseedIvalA,
-			multiseedIvalB
+			multiseedIvalB,
+			maxpossConst,
+			maxpossLinear,
+			maxrowsConst,
+			maxrowsLinear
 		);
 		
 		assert_eq(DEFAULT_MATCH_BONUS_TYPE_LOCAL,   bonusMatchType);
@@ -800,6 +863,11 @@ int main() {
 		assert_eq(DEFAULT_IVAL,               multiseedIvalType);
 		assert_eq(DEFAULT_IVAL_A,             multiseedIvalA);
 		assert_eq(DEFAULT_IVAL_B,             multiseedIvalB);
+
+		assert_eq(DEFAULT_MAXPOSS_CONST,      maxpossConst);
+		assert_eq(DEFAULT_MAXPOSS_LINEAR,     maxpossLinear);
+		assert_eq(DEFAULT_MAXROWS_CONST,      maxrowsConst);
+		assert_eq(DEFAULT_MAXROWS_LINEAR,     maxrowsLinear);
 		
 		cout << "PASSED" << endl;
 	}
@@ -834,7 +902,11 @@ int main() {
 			multiseedPeriod,
 			multiseedIvalType,
 			multiseedIvalA,
-			multiseedIvalB
+			multiseedIvalB,
+			maxpossConst,
+			maxpossLinear,
+			maxrowsConst,
+			maxrowsLinear
 		);
 		
 		assert_eq(COST_MODEL_CONSTANT,        bonusMatchType);
@@ -862,6 +934,11 @@ int main() {
 		assert_eq(DEFAULT_IVAL,               multiseedIvalType);
 		assert_eq(DEFAULT_IVAL_A,             multiseedIvalA);
 		assert_eq(DEFAULT_IVAL_B,             multiseedIvalB);
+
+		assert_eq(DEFAULT_MAXPOSS_CONST,      maxpossConst);
+		assert_eq(DEFAULT_MAXPOSS_LINEAR,     maxpossLinear);
+		assert_eq(DEFAULT_MAXROWS_CONST,      maxrowsConst);
+		assert_eq(DEFAULT_MAXROWS_LINEAR,     maxrowsLinear);
 		
 		cout << "PASSED" << endl;
 	}

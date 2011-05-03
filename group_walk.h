@@ -1128,7 +1128,7 @@ public:
 		QVal qv,                    // seed results to walk left
 		AlignmentCacheIface& cache, // cache where resolved offsets get installed
 		RandomSource& rnd,          // pseudo-random generator for sampling rows
-		uint32_t maxrows,           // maximum number of rows to consider per orientation/offset
+		size_t maxrows,             // maximum number of rows to consider per orientation/offset
 		bool useResultsList,        // true iff user will query using advancePos or advanceRange
 		WalkMetrics& met)           // update metrics here
 	{
