@@ -368,7 +368,7 @@ static void resetOptions() {
 	doMultiseed     = false; // false -> use normal bowtie1 aligner
 #endif
 	seedAlignmentPolicyString.clear();
-	msNoCache       = false; // true -> disable local cache
+	msNoCache       = true; // true -> disable local cache
 	bonusMatchType  = DEFAULT_MATCH_BONUS_TYPE;
 	bonusMatch      = DEFAULT_MATCH_BONUS;
 	penMmcType      = DEFAULT_MM_PENALTY_TYPE;
@@ -499,6 +499,7 @@ enum {
 	ARG_SEED_SUMM,
 	ARG_OVERHANG,
 	ARG_NO_CACHE,
+	ARG_USE_CACHE,
 	ARG_NOISY_HPOLY,
 	ARG_LOCAL
 };
@@ -617,6 +618,7 @@ static struct option long_options[] = {
 	{(char*)"seed-summary", no_argument,       0,            ARG_SEED_SUMM},
 	{(char*)"overhang",     no_argument,       0,            ARG_OVERHANG},
 	{(char*)"no-cache",     no_argument,       0,            ARG_NO_CACHE},
+	{(char*)"cache",        no_argument,       0,            ARG_USE_CACHE},
 	{(char*)"454",          no_argument,       0,            ARG_NOISY_HPOLY},
 	{(char*)"ion-torrent",  no_argument,       0,            ARG_NOISY_HPOLY},
 	{(char*)"no-mixed",     no_argument,       0,            ARG_NO_MIXED},
@@ -989,6 +991,7 @@ static void parseOptions(int argc, const char **argv) {
 			case ARG_COLOR_KEEP_ENDS: gColorExEnds = false; break;
 			case ARG_OVERHANG: gReportOverhangs = true; break;
 			case ARG_NO_CACHE: msNoCache = true; break;
+			case ARG_USE_CACHE: msNoCache = false; break;
 			case ARG_SNPPHRED: gSnpPhred = parseInt(0, "--snpphred must be at least 0"); break;
 			case ARG_SNPFRAC: {
 				double p = parse<double>(optarg);
