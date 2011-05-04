@@ -25,13 +25,22 @@ struct ReportingMetrics {
 
 	ReportingMetrics() { reset(); MUTEX_INIT(lock); }
 	
-	void reset() { init(0, 0, 0); }
+	void reset() { init(0, 0, 0, 0, 0, 0, 0); }
 	
 	void init(
+		uint64_t al_concord_,
+		uint64_t al_discord_,
+		uint64_t max_concord_,
+		uint64_t unal_pair_,
 		uint64_t al_,
 		uint64_t unal_,
 		uint64_t max_)
 	{
+		al_concord = al_concord_;
+		al_discord = al_discord_;
+		max_concord = max_concord_;
+		unal_pair = unal_pair_;
+
 		al = al_;
 		unal = unal_;
 		max = max_;
@@ -44,14 +53,24 @@ struct ReportingMetrics {
 	 */
 	void merge(const ReportingMetrics& met, bool getLock = false) {
 		ThreadSafe ts(&lock, getLock);
+		al_concord += met.al_concord;
+		al_discord += met.al_discord;
+		max_concord += met.max_concord;
+		unal_pair += met.unal_pair;
 		al   += met.al;
 		unal += met.unal;
 		max  += met.max;
 	}
 
-	uint64_t al;   // # reads w/ >= 1 alignment
-	uint64_t unal; // # reads w/ 0 alignments
-	uint64_t max;  // # reads w/ more alignments than the -M/-m ceiling
+	uint64_t al_concord;  // # pairs w/ >= 1 concordant alignment
+	uint64_t al_discord;  // # pairs w/ >= 1 discordant alignment
+	uint64_t max_concord; // # pairs maxed out
+	uint64_t unal_pair;   // # pairs where neither mate aligned
+
+	uint64_t al;   // # mates w/ >= 1 reported alignment
+	uint64_t unal; // # mates w/ 0 alignments
+	uint64_t max;  // # mates withheld for exceeding -M/-m ceiling
+
 	MUTEX_T lock;
 };
 

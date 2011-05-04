@@ -114,8 +114,7 @@ public:
 		AlignmentCacheIface& ca,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random source
 		WalkMetrics& wlm,            // group walk left metrics
-		SwMetrics& swm,              // dynamic programming metrics
-		ReportingMetrics& rpm,       // reporting metrics
+		SwMetrics& swmSeed,          // DP metrics for seed-extend
 		AlnSinkWrap* mhs,            // HitSink for multiseed-style aligner
 		bool reportImmediately,      // whether to report hits immediately to mhs
 		EList<SwCounterSink*>* swCounterSinks, // send counter updates to these
@@ -186,8 +185,8 @@ public:
 		AlignmentCacheIface& cs,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random source
 		WalkMetrics& wlm,            // group walk left metrics
-		SwMetrics& swm,              // dynamic programming metrics
-		ReportingMetrics& rpm,       // reporting metrics
+		SwMetrics& swmSeed,          // DP metrics for seed-extend
+		SwMetrics& swmMate,          // DP metrics for mate finidng
 		AlnSinkWrap* msink,          // AlnSink wrapper for multiseed-style aligner
 		bool swMateImmediately,      // whether to look for mate immediately
 		bool reportImmediately,      // whether to report hits immediately to msink

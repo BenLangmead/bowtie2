@@ -1939,12 +1939,14 @@ struct PerfMetrics {
 		olm.reset();
 		sdm.reset();
 		wlm.reset();
-		swm.reset();
+		swmSeed.reset();
+		swmMate.reset();
 		rpm.reset();
 		olmu.reset();
 		sdmu.reset();
 		wlmu.reset();
-		swmu.reset();
+		swmuSeed.reset();
+		swmuMate.reset();
 		rpmu.reset();
 	}
 
@@ -1955,7 +1957,8 @@ struct PerfMetrics {
 		const OuterLoopMetrics *ol,
 		const SeedSearchMetrics *sd,
 		const WalkMetrics *wl,
-		const SwMetrics *sw,
+		const SwMetrics *swSeed,
+		const SwMetrics *swMate,
 		const ReportingMetrics *rm,
 		bool getLock)
 	{
@@ -1969,8 +1972,11 @@ struct PerfMetrics {
 		if(wl != NULL) {
 			wlmu.merge(*wl, false);
 		}
-		if(sw != NULL) {
-			swmu.merge(*sw, false);
+		if(swSeed != NULL) {
+			swmuSeed.merge(*swSeed, false);
+		}
+		if(swMate != NULL) {
+			swmuMate.merge(*swMate, false);
 		}
 		if(rm != NULL) {
 			rpmu.merge(*rm, false);
@@ -1990,6 +1996,14 @@ struct PerfMetrics {
 		time_t curtime = time(0);
 		char buf[1024];
 		if(first) {
+			// 8. Aligned concordant pairs
+			// 9. Aligned discordant pairs
+			// 10. Pairs aligned non-uniquely
+			// 11. Pairs that failed to align as a pair
+			// 12. Aligned unpaired reads
+			// 13. Unpaired reads aligned non-uniquely
+			// 14. Unpaired reads that fail to align
+
 			const char *str =
 				/*  1 */ "Time"           "\t"
 				/*  2 */ "Read"           "\t"
@@ -1998,41 +2012,51 @@ struct PerfMetrics {
 				/*  5 */ "SameReadBase"   "\t"
 				/*  6 */ "UnfilteredRead" "\t"
 				/*  7 */ "UnfilteredBase" "\t"
-				/*  8 */ "Aligned"        "\t"
-				/*  9 */ "Unaligned"      "\t"
-				/* 10 */ "Maxed"          "\t"
-				/* 11 */ "SeedSearch"     "\t"
-				/* 12 */ "IntraSCacheHit" "\t"
-				/* 13 */ "InterSCacheHit" "\t"
-				/* 14 */ "OutOfMemory"    "\t"
-				/* 15 */ "AlBWOp"         "\t"
-				/* 16 */ "AlBWBranch"     "\t"
-				/* 17 */ "ResBWOp"        "\t"
-				/* 18 */ "ResBWBranch"    "\t"
-				/* 19 */ "ResResolve"     "\t"
-				/* 20 */ "ResReport"      "\t"
-				/* 21 */ "RedundantSHit"  "\t"
-				/* 22 */ "DynProg"        "\t"
-				/* 23 */ "DynProgRow"     "\t"
-				/* 24 */ "DynProgRowSkip" "\t"
-				/* 25 */ "DynProgSucc"    "\t"
-				/* 26 */ "DynProgFail"    "\t"
-				/* 27 */ "DynProgCell"    "\t"
-				/* 28 */ "DynProgBt"      "\t"    
-				/* 29 */ "MemPeak"        "\t"
-				/* 30 */ "UncatMemPeak"   "\t" // 0
-				/* 31 */ "EbwtMemPeak"    "\t" // EBWT_CAT
-				/* 32 */ "CacheMemPeak"   "\t" // CA_CAT
-				/* 33 */ "ResolveMemPeak" "\t" // GW_CAT
-				/* 34 */ "AlignMemPeak"   "\t" // AL_CAT
-				/* 35 */ "DPMemPeak"      "\t" // DP_CAT
-				/* 36 */ "MiscMemPeak"    "\t" // MISC_CAT
-				/* 37 */ "DebugMemPeak"   "\t" // DEBUG_CAT
+				/*  8 */ "AlignedConcord" "\t"
+				/*  9 */ "AlignedDiscord" "\t"
+				/* 10 */ "MaxedPair"      "\t"
+				/* 11 */ "UnalignedPair"  "\t"
+				/* 12 */ "AlignedMate"    "\t"
+				/* 13 */ "UnalignedMate"  "\t"
+				/* 14 */ "MaxedMate"      "\t"
+				/* 15 */ "SeedSearch"     "\t"
+				/* 16 */ "IntraSCacheHit" "\t"
+				/* 17 */ "InterSCacheHit" "\t"
+				/* 18 */ "OutOfMemory"    "\t"
+				/* 19 */ "AlBWOp"         "\t"
+				/* 20 */ "AlBWBranch"     "\t"
+				/* 21 */ "ResBWOp"        "\t"
+				/* 22 */ "ResBWBranch"    "\t"
+				/* 23 */ "ResResolve"     "\t"
+				/* 24 */ "ResReport"      "\t"
+				/* 25 */ "RedundantSHit"  "\t"
+				/* 26 */ "DPRowSeed"      "\t"
+				/* 27 */ "DPRowSkipSeed"  "\t"
+				/* 28 */ "DPSuccSeed"     "\t"
+				/* 29 */ "DPFailSeed"     "\t"
+				/* 30 */ "DPCellSeed"     "\t"
+				/* 31 */ "DPBtSeed"       "\t"    
+				/* 32 */ "DPRowMate"      "\t"
+				/* 33 */ "DPRowSkipMate"  "\t"
+				/* 34 */ "DPSuccMate"     "\t"
+				/* 35 */ "DPFailMate"     "\t"
+				/* 36 */ "DPCellMate"     "\t"
+				/* 37 */ "DPBtMate"       "\t"    
+				/* 38 */ "MemPeak"        "\t"
+				/* 39 */ "UncatMemPeak"   "\t" // 0
+				/* 40 */ "EbwtMemPeak"    "\t" // EBWT_CAT
+				/* 41 */ "CacheMemPeak"   "\t" // CA_CAT
+				/* 42 */ "ResolveMemPeak" "\t" // GW_CAT
+				/* 43 */ "AlignMemPeak"   "\t" // AL_CAT
+				/* 44 */ "DPMemPeak"      "\t" // DP_CAT
+				/* 45 */ "MiscMemPeak"    "\t" // MISC_CAT
+				/* 46 */ "DebugMemPeak"   "\t" // DEBUG_CAT
 				"\n";
 			if(o != NULL) o->writeChars(str);
 			if(metricsStderr) cerr << str;
 			first = false;
 		}
+		
 		// 1. Current time in secs
 		itoa10<time_t>(curtime, buf);
 		if(metricsStderr) cerr << buf << '\t';
@@ -2062,125 +2086,164 @@ struct PerfMetrics {
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 
-		// 8. Aligned reads
+		// 8. Aligned concordant pairs
+		itoa10<uint64_t>(rpmu.al_concord, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 9. Aligned discordant pairs
+		itoa10<uint64_t>(rpmu.al_discord, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 10. Pairs aligned non-uniquely
+		itoa10<uint64_t>(rpmu.max_concord, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 11. Pairs that failed to align as a pair
+		itoa10<uint64_t>(rpmu.unal_pair, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 12. Aligned unpaired reads
 		itoa10<uint64_t>(rpmu.al, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 9. Unaligned reads
-		itoa10<uint64_t>(rpmu.unal, buf);
-		if(metricsStderr) cerr << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 10. Non-uniquely aligning reads
+		// 13. Unpaired reads aligned non-uniquely
 		itoa10<uint64_t>(rpmu.max, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 14. Unpaired reads that fail to align
+		itoa10<uint64_t>(rpmu.unal, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 		
-		// 11. Seed searches
+		// 15. Seed searches
 		itoa10<uint64_t>(sdmu.seedsearch, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 12. Hits in 'current' cache
+		// 16. Hits in 'current' cache
 		itoa10<uint64_t>(sdmu.intrahit, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 13. Hits in 'local' cache
+		// 17. Hits in 'local' cache
 		itoa10<uint64_t>(sdmu.interhit, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 14. Out of memory
+		// 18. Out of memory
 		itoa10<uint64_t>(sdmu.ooms, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 15. Burrows-Wheeler ops in aligner
+		// 19. Burrows-Wheeler ops in aligner
 		itoa10<uint64_t>(sdmu.bwops, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 16. Burrows-Wheeler branches (edits) in aligner
+		// 20. Burrows-Wheeler branches (edits) in aligner
 		itoa10<uint64_t>(sdmu.bweds, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 17. Burrows-Wheeler ops in resolver
+		// 21. Burrows-Wheeler ops in resolver
 		itoa10<uint64_t>(wlmu.bwops, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 18. Burrows-Wheeler branches in resolver
+		// 22. Burrows-Wheeler branches in resolver
 		itoa10<uint64_t>(wlmu.branches, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 19. Offset resolutions
+		// 23. Offset resolutions
 		itoa10<uint64_t>(wlmu.resolutions, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 20. Offset reports
+		// 24. Offset reports
 		itoa10<uint64_t>(wlmu.reports, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 21. Redundant seed hit
-		itoa10<uint64_t>(swmu.rshit, buf);
-		if(metricsStderr) cerr << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 22. Dynamic programming problems
-		itoa10<uint64_t>(swmu.sws, buf);
+		
+		// 25. Redundant seed hit
+		itoa10<uint64_t>(swmuSeed.rshit, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 
-		// 23. Dynamic programming rows completed
-		itoa10<uint64_t>(swmu.swrows, buf);
+		// 26. Dynamic programming seed-extend rows completed
+		itoa10<uint64_t>(swmuSeed.swrows, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 24. Dynamic programming rows skipped
-		itoa10<uint64_t>(swmu.swskiprows, buf);
+		// 27. Dynamic programming seed-extend rows skipped
+		itoa10<uint64_t>(swmuSeed.swskiprows, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 25. Dynamic programming successes
-		itoa10<uint64_t>(swmu.swsucc, buf);
+		// 28. Dynamic programming seed-extend successes
+		itoa10<uint64_t>(swmuSeed.swsucc, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 26. Dynamic programming failures
-		itoa10<uint64_t>(swmu.swfail, buf);
+		// 29. Dynamic programming seed-extend failures
+		itoa10<uint64_t>(swmuSeed.swfail, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 27. Dynamic programming CUPs
-		itoa10<uint64_t>(swmu.swcups, buf);
+		// 30. Dynamic programming seed-extend CUPs
+		itoa10<uint64_t>(swmuSeed.swcups, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 28. Dynamic programming backtraces
-		itoa10<uint64_t>(swmu.swbts, buf);
+		// 31. Dynamic programming seed-extend backtraces
+		itoa10<uint64_t>(swmuSeed.swbts, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 29. Overall memory peak
+
+		// 32. Dynamic programming mate-finding rows completed
+		itoa10<uint64_t>(swmuMate.swrows, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 33. Dynamic programming mate-finding rows skipped
+		itoa10<uint64_t>(swmuMate.swskiprows, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 34. Dynamic programming mate-finding successes
+		itoa10<uint64_t>(swmuMate.swsucc, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 35. Dynamic programming mate-finding failures
+		itoa10<uint64_t>(swmuMate.swfail, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 36. Dynamic programming mate-finding CUPs
+		itoa10<uint64_t>(swmuMate.swcups, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 37. Dynamic programming mate-finding backtraces
+		itoa10<uint64_t>(swmuMate.swbts, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		
+		// 38. Overall memory peak
 		itoa10<size_t>(gMemTally.peak() >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 30. Uncategorized memory peak
+		// 39. Uncategorized memory peak
 		itoa10<size_t>(gMemTally.peak(0) >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 31. Ebwt memory peak
+		// 40. Ebwt memory peak
 		itoa10<size_t>(gMemTally.peak(EBWT_CAT) >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 32. Cache memory peak
+		// 41. Cache memory peak
 		itoa10<size_t>(gMemTally.peak(CA_CAT) >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 33. Resolver memory peak
+		// 42. Resolver memory peak
 		itoa10<size_t>(gMemTally.peak(GW_CAT) >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 34. Seed aligner memory peak
+		// 43. Seed aligner memory peak
 		itoa10<size_t>(gMemTally.peak(AL_CAT) >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 35. Dynamic programming aligner memory peak
+		// 44. Dynamic programming aligner memory peak
 		itoa10<size_t>(gMemTally.peak(DP_CAT) >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 36. Miscellaneous memory peak
+		// 45. Miscellaneous memory peak
 		itoa10<size_t>(gMemTally.peak(MISC_CAT) >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 37. Debug memory peak
+		// 46. Debug memory peak
 		itoa10<size_t>(gMemTally.peak(DEBUG_CAT) >> 20, buf);
 		if(metricsStderr) cerr << buf;
 		if(o != NULL) { o->writeChars(buf); }
@@ -2194,12 +2257,13 @@ struct PerfMetrics {
 		olm.merge(olmu, false);
 		sdm.merge(sdmu, false);
 		wlm.merge(wlmu, false);
-		swm.merge(swmu, false);
-		rpm.merge(rpmu, false);
+		swmSeed.merge(swmuSeed, false);
+		swmMate.merge(swmuMate, false);
 		olmu.reset();
 		sdmu.reset();
 		wlmu.reset();
-		swmu.reset();
+		swmuSeed.reset();
+		swmuMate.reset();
 		rpmu.reset();
 	}
 
@@ -2207,14 +2271,16 @@ struct PerfMetrics {
 	OuterLoopMetrics  olm;   // overall metrics
 	SeedSearchMetrics sdm;   // metrics related to seed alignment
 	WalkMetrics       wlm;   // metrics related to walking left (i.e. resolving reference offsets)
-	SwMetrics         swm;   // metrics related to dynamic prog alignment
+	SwMetrics         swmSeed;  // metrics related to DP seed-extend alignment
+	SwMetrics         swmMate;  // metrics related to DP mate-finding alignment
 	ReportingMetrics  rpm;   // metrics related to reporting
 
 	// Just since the last update
 	OuterLoopMetrics  olmu;  // overall metrics
 	SeedSearchMetrics sdmu;  // metrics related to seed alignment
 	WalkMetrics       wlmu;  // metrics related to walking left (i.e. resolving reference offsets)
-	SwMetrics         swmu;  // metrics related to dynamic prog alignment
+	SwMetrics         swmuSeed; // metrics related to DP seed-extend alignment
+	SwMetrics         swmuMate; // metrics related to DP mate-finding alignment
 	ReportingMetrics  rpmu;  // metrics related to reporting
 
 	MUTEX_T           lock;  // lock for when one ob
@@ -2356,7 +2422,7 @@ static void* multiseedSearchWorker(void *vp) {
 	OuterLoopMetrics olm;
 	SeedSearchMetrics sdm;
 	WalkMetrics wlm;
-	SwMetrics swm;
+	SwMetrics swmSeed, swmMate;
 	ReportingMetrics rpm;
 	RandomSource rnd;
 
@@ -2399,11 +2465,12 @@ static void* multiseedSearchWorker(void *vp) {
 			   ++mergei == mergeival)
 			{
 				// Update global metrics, in a synchronized manner if needed
-				metrics.merge(&olm, &sdm, &wlm, &swm, &rpm, nthreads > 1);
+				metrics.merge(&olm, &sdm, &wlm, &swmSeed, &swmMate, &rpm, nthreads > 1);
 				olm.reset();
 				sdm.reset();
 				wlm.reset();
-				swm.reset();
+				swmSeed.reset();
+				swmMate.reset();
 				rpm.reset();
 				mergei = 0;
 				// Check if a progress message should be printed
@@ -2451,8 +2518,8 @@ static void* multiseedSearchWorker(void *vp) {
 						seedSummaryOnly);     // suppress alignments?
 					break; // next read
 				}
-				size_t rdlens[2]   = { rdlen1, rdlen2 };
-				size_t rdrows[2]   = { rdlen1, rdlen2 };
+				size_t rdlens[2] = { rdlen1, rdlen2 };
+				size_t rdrows[2] = { rdlen1, rdlen2 };
 				if(gColor) {
 					rdrows[0]++;
 					if(rdrows[1] > 0) {
@@ -2685,8 +2752,8 @@ static void* multiseedSearchWorker(void *vp) {
 								ca,             // seed alignment cache
 								rnd,            // pseudo-random source
 								wlm,            // group walk left metrics
-								swm,            // dynamic prog metrics
-								rpm,            // reporting metrics
+								swmSeed,        // DP metrics, seed extend
+								swmMate,        // DP metrics, mate finding
 								&msinkwrap,     // for organizing hits
 								true,           // seek mate immediately
 								true,           // report hits once found
@@ -2694,7 +2761,6 @@ static void* multiseedSearchWorker(void *vp) {
 								gReportMixed,   // look for unpaired alns?
 								&swCounterSink, // send counter info here
 								&swActionSink); // send action info here
-							
 							// Might be done, but just with this mate
 						} else {
 							// Unpaired dynamic programming driver
@@ -2720,8 +2786,7 @@ static void* multiseedSearchWorker(void *vp) {
 								ca,             // seed alignment cache
 								rnd,            // pseudo-random source
 								wlm,            // group walk left metrics
-								swm,            // dynamic prog metrics
-								rpm,            // reporting metrics
+								swmSeed,        // DP metrics, seed extend
 								&msinkwrap,     // for organizing hits
 								true,           // report hits once found
 								&swCounterSink, // send counter info here
@@ -2757,7 +2822,7 @@ static void* multiseedSearchWorker(void *vp) {
 	} // while(true)
 	
 	// One last metrics merge
-	metrics.merge(&olm, &sdm, &wlm, &swm, &rpm, nthreads > 1);
+	metrics.merge(&olm, &sdm, &wlm, &swmSeed, &swmMate, &rpm, nthreads > 1);
 #ifdef BOWTIE_PTHREADS
 	if(tid > 0) { pthread_exit(NULL); }
 #endif
