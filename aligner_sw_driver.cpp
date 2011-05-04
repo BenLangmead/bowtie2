@@ -51,8 +51,7 @@ bool SwDriver::extendSeeds(
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
 	RandomSource& rnd,           // pseudo-random source
 	WalkMetrics& wlm,            // group walk left metrics
-	SwMetrics& swm,              // dynamic programming metrics
-	ReportingMetrics& rpm,       // reporting metrics
+	SwMetrics& swmSeed,          // DP metrics for seed-extend
 	AlnSinkWrap* msink,          // AlnSink wrapper for multiseed-style aligner
 	bool reportImmediately,      // whether to report hits immediately to msink
 	EList<SwCounterSink*>* swCounterSinks, // send counter updates to these
@@ -105,7 +104,7 @@ bool SwDriver::extendSeeds(
 			Coord c(0, (TRefOff)wr.toff - rdoff, fw);
 			if(!redSeed1_.insert(c)) {
 				// Already tried to find an alignment at these coordinates
-				swm.rshit++;
+				swmSeed.rshit++;
 				continue;
 			}
 			uint32_t tidx = 0, toff = 0, tlen = 0;
@@ -187,12 +186,22 @@ bool SwDriver::extendSeeds(
 			// Now fill the dynamic programming matrix and return true iff
 			// there is at least one valid alignment
 			found = swa.align(rnd);
+			swa.mergeAlignCounters(
+				swmSeed.sws,
+				swmSeed.swcups,
+				swmSeed.swrows,
+				swmSeed.swskiprows,
+				swmSeed.swsucc,
+				swmSeed.swfail);
+			swa.resetAlignCounters();
 			if(!found) {
 				continue; // Look for more anchor alignments
 			}
 			while(true) {
 				res_.reset();
 				swa.nextAlignment(res_, rnd);
+				swa.mergeBacktraceCounters(swmSeed.swbts);
+				swa.resetBacktraceCounters();
 				found = !res_.empty();
 				if(!found) {
 					break;
@@ -386,8 +395,8 @@ bool SwDriver::extendSeedsPaired(
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
 	RandomSource& rnd,           // pseudo-random source
 	WalkMetrics& wlm,            // group walk left metrics
-	SwMetrics& swm,              // dynamic programming metrics
-	ReportingMetrics& rpm,       // reporting metrics
+	SwMetrics& swmSeed,          // DP metrics for seed-extend
+	SwMetrics& swmMate,          // DP metrics for mate finidng
 	AlnSinkWrap* msink,          // AlnSink wrapper for multiseed-style aligner
 	bool swMateImmediately,      // whether to look for mate immediately
 	bool reportImmediately,      // whether to report hits immediately to msink
@@ -455,7 +464,7 @@ bool SwDriver::extendSeedsPaired(
 			ESet<Coord>& redSeedAnchor = anchor1 ? redSeed1_ : redSeed2_;
 			if(!redSeedAnchor.insert(c)) {
 				// Already tried to find an alignment at these coordinates
-				swm.rshit++;
+				swmSeed.rshit++;
 				continue;
 			}
 			uint32_t tidx = 0, toff = 0, tlen = 0;
@@ -540,6 +549,14 @@ bool SwDriver::extendSeedsPaired(
 			// Now fill the dynamic programming matrix and return true iff
 			// there is at least one valid alignment
 			found = swa.align(rnd);
+			swa.mergeAlignCounters(
+				swmSeed.sws,
+				swmSeed.swcups,
+				swmSeed.swrows,
+				swmSeed.swskiprows,
+				swmSeed.swsucc,
+				swmSeed.swfail);
+			swa.resetAlignCounters();
 			if(!found) {
 				continue; // Look for more anchor alignments
 			}
@@ -548,6 +565,8 @@ bool SwDriver::extendSeedsPaired(
 			while(true) {
 				res_.reset();
 				swa.nextAlignment(res_, rnd);
+				swa.mergeBacktraceCounters(swmSeed.swbts);
+				swa.resetBacktraceCounters();
 				found = !res_.empty();
 				if(!found) {
 					// Could not extend the seed hit into a full alignment for
@@ -657,10 +676,20 @@ bool SwDriver::extendSeedsPaired(
 						// Now fill the dynamic programming matrix and return true
 						// iff there is at least one valid alignment
 						foundMate = oswa.align(rnd);
+						oswa.mergeAlignCounters(
+							swmMate.sws,
+							swmMate.swcups,
+							swmMate.swrows,
+							swmMate.swskiprows,
+							swmMate.swsucc,
+							swmMate.swfail);
+						oswa.resetAlignCounters();
 					}
 					do {
 						ores_.reset();
 						oswa.nextAlignment(ores_, rnd);
+						oswa.mergeBacktraceCounters(swmMate.swbts);
+						oswa.resetBacktraceCounters();
 						foundMate = !ores_.empty();
 						if(foundMate) {
 							// Redundant with one we've seen previously?

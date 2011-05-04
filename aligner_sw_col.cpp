@@ -239,7 +239,7 @@ bool SwAligner::backtrackColors(
 	int ct = SW_BT_CELL_OALL; // cell type
 	ASSERT_ONLY(res.alres.drd.append(curC));
 	while((int)row >= 0) {
-		res.swbts++;
+		nbts_++;
 		assert_lt(row, tab.size());
 		assert_leq(col, origCol);
 		assert_range(0, 3, curC);

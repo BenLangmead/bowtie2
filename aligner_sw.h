@@ -28,6 +28,8 @@
 #ifndef ALIGNER_SW_H_
 #define ALIGNER_SW_H_
 
+#define INLINE_CUPS
+
 #include <stdint.h>
 #include <iostream>
 #include "aligner_sw_common.h"
@@ -363,6 +365,113 @@ public:
 	 */
 	size_t numAlignmentsReported() const { return cural_; }
 
+	/**
+	 * Set the arguments equal to the current tallies in the counters related
+	 * to filling the DP table.
+	 */
+	void getAlignCounters(
+		uint64_t& nfills,
+		uint64_t& ncups,
+		uint64_t& nrowups,
+		uint64_t& nrowskips,
+		uint64_t& nsucc,
+		uint64_t& nfail) const
+	{
+		nfills = nfills_;
+		ncups = ncups_;
+		nrowups = nrowups_;
+		nrowskips = nrowskips_;
+		nsucc = nsucc_;
+		nfail = nfail_;
+	}
+
+	/**
+	 * Merge tallies in the counters related to filling the DP table.
+	 */
+	void mergeAlignCounters(
+		uint64_t& nfills,
+		uint64_t& ncups,
+		uint64_t& nrowups,
+		uint64_t& nrowskips,
+		uint64_t& nsucc,
+		uint64_t& nfail) const
+	{
+		nfills += nfills_;
+		ncups += ncups_;
+		nrowups += nrowups_;
+		nrowskips += nrowskips_;
+		nsucc += nsucc_;
+		nfail += nfail_;
+	}
+
+	/**
+	 * Set the arguments equal to the current tallies in the counters related
+	 * to backtracing.
+	 */
+	void getBacktraceCounters(uint64_t& nbts) const {
+		nbts = nbts_;
+	}
+
+	/**
+	 * Merge tallies in the counters related to backtracing.
+	 */
+	void mergeBacktraceCounters(uint64_t& nbts) const {
+		nbts += nbts_;
+	}
+
+	/**
+	 * Set the arguments equal to the current tallies in the counters.
+	 */
+	void getCounters(
+		uint64_t& nfills,
+		uint64_t& ncups,
+		uint64_t& nrowups,
+		uint64_t& nrowskips,
+		uint64_t& nsucc,
+		uint64_t& nfail,
+		uint64_t& nbts) const
+	{
+		nfills = nfills_;
+		ncups = ncups_;
+		nrowups = nrowups_;
+		nrowskips = nrowskips_;
+		nsucc = nsucc_;
+		nfail = nfail_;
+		nbts = nbts_;
+	}
+	
+	/**
+	 * Reset all the counters related to filling in the DP table to 0.
+	 */
+	void resetAlignCounters() {
+		nfills_    = 0; // table fills
+		ncups_     = 0; // cell updates
+		nrowups_   = 0; // row updates
+		nrowskips_ = 0; // row skips
+		nsucc_     = 0; // # table fill-ins with >= 1 solution cell
+		nfail_     = 0; // # table fill-ins with no solution cells
+	}
+	
+	/**
+	 * Reset all the counters related to backtracing to 0.
+	 */
+	void resetBacktraceCounters() {
+		nbts_      = 0; // # backtrace operations
+	}
+	
+	/**
+	 * Reset all the counters to 0.
+	 */
+	void resetCounters() {
+		nfills_    = 0; // table fills
+		ncups_     = 0; // cell updates
+		nrowups_   = 0; // row updates
+		nrowskips_ = 0; // row skips
+		nsucc_     = 0; // # table fill-ins with >= 1 solution cell
+		nfail_     = 0; // # table fill-ins with no solution cells
+		nbts_      = 0; // # backtrace operations
+	}
+
 protected:
 	
 	/**
@@ -583,6 +692,9 @@ protected:
 	uint64_t ncups_;     // cell updates
 	uint64_t nrowups_;   // row updates
 	uint64_t nrowskips_; // row skips
+	uint64_t nsucc_;     // # fills with at least 1 solution cell
+	uint64_t nfail_;     // # fills with no solution cells
+	uint64_t nbts_;      // backtrace steps
 };
 
 #endif /*ALIGNER_SW_H_*/

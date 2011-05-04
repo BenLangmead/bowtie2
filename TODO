@@ -14,6 +14,9 @@ Bowtie 2 TODO list:
 
 Performance ideas:
 - Check whether a potential seed extend is redundant with a previous one
+  + Two general ways of doing this
+    - By examining sequence
+	- By examining offset (i.e. once a diagonal has been used for a seed, never use it again)
 - Add resolved offsets to cache
 - Add faster DP filter to run first
 - Binary search to find reference records instead of linear scan

@@ -548,6 +548,17 @@ int AlnSinkWrap::nextRead(
  * 2. If there are reportable discordant alignments, report those and stop
  * 3. If unpaired alignments can be reported:
  *    3a. Report 
+ #
+ * Update metrics.  Only ambiguity is: what if a pair aligns repetitively and
+ * one of its mates aligns uniquely?
+ *
+ * 	uint64_t al;   // # mates w/ >= 1 reported alignment
+ *  uint64_t unal; // # mates w/ 0 alignments
+ *  uint64_t max;  // # mates withheld for exceeding -M/-m ceiling
+ *  uint64_t al_concord;  // # pairs w/ >= 1 concordant alignment
+ *  uint64_t al_discord;  // # pairs w/ >= 1 discordant alignment
+ *  uint64_t max_concord; // # pairs maxed out
+ *  uint64_t unal_pair;   // # pairs where neither mate aligned
  */
 void AlnSinkWrap::finishRead(
 	const SeedResults *sr1,
@@ -619,6 +630,7 @@ void AlnSinkWrap::finishRead(
 				pairMax,
 				concordSumm,
 				flags);
+			met.al_concord++;
 		}
 		// Report concordant paired-end alignments if possible
 		else if(ndiscord > 0) {
@@ -644,9 +656,16 @@ void AlnSinkWrap::finishRead(
 				pairMax,
 				discordSumm,
 				flags);
+			met.al_discord++;
 		}
 		// Report unpaired alignments if possbile
 		else {
+			if(pairMax) {
+				met.max_concord++;
+			} else {
+				met.unal_pair++;
+			}
+			// Did the pair fail to align at all
 			if(rd1_ != NULL) {
 				if(nunpair1 > 0) {
 					AlnSetSumm unpair1Summ(rd1_, NULL, &rs1u_, NULL);
@@ -670,6 +689,7 @@ void AlnSinkWrap::finishRead(
 						unpair1Max,
 						unpair1Summ,
 						flags);
+					met.al++;
 				} else if(unpair1Max) {
 					AlnSetSumm unpair1Summ(rd1_, NULL, &rs1u_, NULL);
 					int fl;
@@ -700,6 +720,7 @@ void AlnSinkWrap::finishRead(
 						NULL,
 						unpair1Summ,
 						flags);
+					met.max++;
 				} else {
 					AlnSetSumm summ(rd1_, NULL, NULL, NULL);
 					AlnFlags flags(
@@ -709,6 +730,7 @@ void AlnSinkWrap::finishRead(
 						false,
 						false);
 					g_.reportUnaligned(rd1_, NULL, rdid_, summ, flags, true);
+					met.unal++;
 				}
 			}
 			if(rd2_ != NULL) {
@@ -734,6 +756,7 @@ void AlnSinkWrap::finishRead(
 						unpair2Max,
 						unpair2Summ,
 						flags);
+					met.al++;
 				} else if(unpair2Max) {
 					AlnSetSumm unpair2Summ(rd2_, NULL, &rs2u_, NULL);
 					int fl;
@@ -764,6 +787,7 @@ void AlnSinkWrap::finishRead(
 						NULL,
 						unpair2Summ,
 						flags);
+					met.max++;
 				} else {
 					AlnSetSumm summ(rd2_, NULL, NULL, NULL);
 					AlnFlags flags(
@@ -773,6 +797,7 @@ void AlnSinkWrap::finishRead(
 						false,
 						false);
 					g_.reportUnaligned(rd2_, NULL, rdid_, summ, flags, true);
+					met.unal++;
 				}
 			}
 		}

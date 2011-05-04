@@ -19,6 +19,7 @@ inline bool SwNucCell::finalize(TAlScore floorsc) {
 	assert(repOk());
 	// Profiling shows cache misses on following line
 	bool aboveFloor = oallBest.valid() && oallBest.score() >= floorsc;
+	empty = true;
 	if(!mask.empty() && aboveFloor) {
 		assert(VALID_AL_SCORE(oallBest));
 		empty = false;
@@ -172,6 +173,11 @@ bool SwAligner::align(RandomSource& rnd) {
 	} else {
 		possible = alignNucleotides(rnd);
 	}
+	if(VALID_SCORE(solbest_)) {
+		nsucc_++;
+	} else {
+		nfail_++;
+	}
 	assert(repOk());
 	cural_ = 0;
 	return possible;
@@ -320,7 +326,7 @@ bool SwAligner::backtrackNucleotides(
 	assert(!sc_->monotone || score.score() >= escore);
 	int ct = SW_BT_CELL_OALL; // cell type
 	while((int)row >= 0) {
-		res.swbts++;
+		nbts_++;
 		assert_lt(row, tab.size());
 		assert_leq(col, origCol);
 		assert_geq(col, row);
@@ -818,15 +824,14 @@ inline void SwAligner::updateNucDiag(
 	}
 	{
 		{
-			AlnScore  dcOallBest  = dc.oallBest;
 			AlnScore& myOallBest  = dstc.oallBest;
 			SwNucCellMask& myMask = dstc.mask;
-			assert(!sc_->monotone || dcOallBest.score() <= 0);
-			if(!VALID_AL_SCORE(dcOallBest)) {
+			assert(!sc_->monotone || dc.oallBest.score() <= 0);
+			if(!VALID_AL_SCORE(dc.oallBest)) {
 				return;
 			}
-			COUNT_N(dcOallBest);
-			AlnScore ex = dcOallBest + (int)add;
+			COUNT_N(dc.oallBest);
+			AlnScore ex = dc.oallBest + (int)add;
 			if(ex.score_ >= floorsc_ && ex >= myOallBest) {
 				if(ex > myOallBest) {
 					myOallBest = ex;
@@ -931,11 +936,23 @@ size_t SwAligner::nfilter(size_t nlim) {
 #define FINALIZE_CELL(r, c, improved) { \
 	assert_lt(c, width_); \
 	assert(!tab[r][c].finalized); \
-	if(tab[r][c].finalize(floorsc_)) { \
+	ncups_++; \
+	ASSERT_ONLY(tab[r][c].finalized = true); \
+	assert(tab[r][c].empty); \
+	assert(tab[r][c].repOk()); \
+	bool aboveFloor = \
+		tab[r][c].oallBest.valid() && \
+		tab[r][c].oallBest.score() >= loBound; \
+	if(!tab[r][c].mask.empty() && aboveFloor) { \
+		assert(VALID_AL_SCORE(tab[r][c].oallBest)); \
+		tab[r][c].empty = false; \
 		UPDATE_SOLS(tab[r][c], r, c, improved); \
+		assert(!tab[r][c].empty); \
 		validInRow = true; \
+	} else if(aboveFloor) { \
+		assert(VALID_AL_SCORE(tab[r][c].oallBest)); \
+		tab[r][c].terminal = true; \
 	} \
-	assert(tab[r][c].finalized); \
 }
 
 /**
@@ -979,11 +996,8 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 	const size_t whi = (int)(width_ - 1);
 	assert_lt(whi, rff_-rfi_);
 	tab[0].resize(whi-wlo+1); // add columns to first row
+	TAlScore loBound = sc_->monotone ? minsc_ : floorsc_;
 	bool validInRow = !sc_->monotone;
-	// For each row, there is a score below which we can't hope to extend a
-	// partial alignment through the cell into a valid full alignment.  If
-	// we're below that score, we can clear the cell's mask.
-	//TAlScore rowminsc = ;
 	// Calculate starting values for the rest of the columns in the
 	// first row.
 	for(size_t col = 0; col <= whi; col++) {
@@ -1022,14 +1036,85 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 			}
 		}
 		// Calculate horizontals if barrier allows
-		if(sc_->gapbar < 1 && col > 0) {
+		if(sc_->gapbar < 1 && col > 0 && !tab[0][col-1].empty) {
+#ifndef INLINE_CUPS
 			updateNucHoriz(
 				tab[0][col-1],
 				curc,
 				rfm);
+#else
+			assert(tab[0][col-1].finalized);
+			IF_COUNT_N(bool ninvolved = rfm > 15);
+			AlnScore leftOallBest  = tab[0][col-1].oallBest;
+			AlnScore leftRdgapBest = tab[0][col-1].rdgapBest;
+			AlnScore& myOallBest   = curc.oallBest;
+			AlnScore& myRdgapBest  = curc.rdgapBest;
+			SwNucCellMask& myMask  = curc.mask;
+			assert(!myRdgapBest.valid());
+			assert(!sc_->monotone || leftOallBest.score()  <= 0);
+			assert(!sc_->monotone || leftRdgapBest.score() <= 0);
+			assert_leq(leftRdgapBest, leftOallBest);
+			if(VALID_AL_SCORE(leftOallBest)) {
+				COUNT_N(myOallBest);
+				COUNT_N(myRdgapBest);
+				// Consider read gap extension
+				AlnScore ex = leftRdgapBest - sc_->readGapExtend();
+				if(ex.score_ >= floorsc_) {
+					if(ex >= myOallBest) {
+						if(ex > myOallBest) {
+							myMask.clearOverallMask();
+							myOallBest = ex;
+						}
+						myMask.oall_rdex = 1;
+					}
+					if(ex >= myRdgapBest) {
+						if(ex > myRdgapBest) {
+							myMask.clearReadGapMask();
+							myRdgapBest = ex;
+						}
+						myMask.rdgap_ex = 1;
+					}
+				}
+				// Consider read gap open
+				ex = leftOallBest - sc_->readGapOpen();
+				if(ex.score_ >= floorsc_) {
+					if(ex >= myOallBest) {
+						if(ex > myOallBest) {
+							myMask.clearOverallMask();
+							myOallBest = ex;
+						}
+						myMask.oall_rdop = 1;
+					}
+					if(ex >= myRdgapBest) {
+						if(ex > myRdgapBest) {
+							myMask.clearReadGapMask();
+							myRdgapBest = ex;
+						}
+						myMask.rdgap_op = 1;
+					}
+				}
+				assert(curc.repOk());
+			}
+#endif
 		}
 		ncups_++;
-		FINALIZE_CELL(0, col, improved);
+		assert(tab[0][col].empty);
+		assert(tab[0][col].repOk());
+		assert(!tab[0][col].finalized);
+		ASSERT_ONLY(tab[0][col].finalized = true);
+		bool aboveFloor =
+			tab[0][col].oallBest.valid() &&
+			tab[0][col].oallBest.score() >= loBound;
+		if(!tab[0][col].mask.empty() && aboveFloor) {
+			assert(VALID_AL_SCORE(tab[0][col].oallBest));
+			tab[0][col].empty = false;
+			UPDATE_SOLS(tab[0][col], 0, col, improved);
+			assert(!tab[0][col].empty);
+			validInRow = true;
+		} else if(aboveFloor) {
+			assert(VALID_AL_SCORE(tab[0][col].oallBest));
+			tab[0][col].terminal = true;
+		}
 	}
 	nrowups_++;
 	if(!validInRow) {
@@ -1066,6 +1151,7 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 		bool improved = false;
 		if(!tab[row-1][0].empty) {
 			const size_t fc = col + row;
+#ifndef INLINE_CUPS
 			updateNucDiag(
 				tab[row-1][0],     // cell diagonally above and to the left
 				cur,               // destination cell
@@ -1073,16 +1159,112 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 				rf_[rfi_ + fc],    // ref mask at destination cell
 				QUAL2(row, fc),    // amt to penalize mismatch
 				improved);         // =true if there was path of improvement
+#else
+			bool match = matches(c, rf_[rfi_ + fc]);
+			TAlScore add;
+			if(match) {
+				add = sc_->match(30);
+				improved = true;
+			} else {
+				add = -QUAL2(row, fc);
+			}
+			const TCell& dc = tab[row-1][0];
+			TCell& dstc = cur;
+			AlnScore& myOallBest  = dstc.oallBest;
+			SwNucCellMask& myMask = dstc.mask;
+			assert(!sc_->monotone || dc.oallBest.score() <= 0);
+			if(VALID_AL_SCORE(dc.oallBest)) {
+				COUNT_N(dc.oallBest);
+				AlnScore ex = dc.oallBest + (int)add;
+				if(ex.score_ >= floorsc_ && ex >= myOallBest) {
+					if(ex > myOallBest) {
+						myOallBest = ex;
+						myMask.clear();
+					}
+					myMask.oall_diag = 1;
+				}
+				assert(dstc.repOk());
+			}
+#endif
 		}
 		if(!onlyDiagInto && col < whi && !tab[row-1][1].empty) {
+#ifndef INLINE_CUPS
 			updateNucVert(
 				tab[row-1][1],     // cell diagonally above and to the left
 				cur,               // destination cell
 				c);                // color being traversed
+#else
+			IF_COUNT_N(bool ninvolved = c > 3);
+			AlnScore  upOallBest  = tab[row-1][1].oallBest;
+			AlnScore  upRfgapBest = tab[row-1][1].rfgapBest;
+			AlnScore& myOallBest  = cur.oallBest;
+			AlnScore& myRfgapBest = cur.rfgapBest;
+			SwNucCellMask& myMask = cur.mask;
+			assert(!sc_->monotone || upOallBest.score()  <= 0);
+			assert(!sc_->monotone || upRfgapBest.score() <= 0);
+			assert_leq(upRfgapBest, upOallBest);
+			if(VALID_AL_SCORE(upOallBest)) {
+				COUNT_N(myOallBest);
+				COUNT_N(myRfgapBest);
+				// Consider reference gap extension
+				AlnScore ex = upRfgapBest - sc_->refGapExtend();
+				if(ex.score_ >= floorsc_) {
+					if(ex >= myOallBest) {
+						if(ex > myOallBest) {
+							myMask.clearOverallMask();
+							myOallBest = ex;
+						}
+						myMask.oall_rfex = 1;
+					}
+					if(ex >= myRfgapBest) {
+						if(ex > myRfgapBest) {
+							myMask.clearRefGapMask();
+							myRfgapBest = ex;
+						}
+						myMask.rfgap_ex = 1;
+					}
+				}
+				// Consider reference gap open
+				ex = upOallBest - sc_->refGapOpen();
+				if(ex.score_ >= floorsc_) {
+					if(ex >= myOallBest) {
+						if(ex > myOallBest) {
+							myMask.clearOverallMask();
+							myOallBest = ex;
+						}
+						myMask.oall_rfop = 1;
+					}
+					if(ex >= myRfgapBest) {
+						if(ex > myRfgapBest) {
+							myMask.clearRefGapMask();
+							myRfgapBest = ex;
+						}
+						myMask.rfgap_op = 1;
+					}
+				}
+				assert(cur.repOk());
+			}
+#endif
 		}
-		ncups_++;
 		// 'cur' is now initialized
-		FINALIZE_CELL(row, col, improved);
+		ncups_++;
+		assert(tab[row][col].empty);
+		assert(tab[row][col].repOk());
+		assert(!tab[row][col].finalized);
+		ASSERT_ONLY(tab[row][col].finalized = true);
+		bool aboveFloor =
+			tab[row][col].oallBest.valid() &&
+			tab[row][col].oallBest.score() >= loBound;
+		if(!tab[row][col].mask.empty() && aboveFloor) {
+			assert(VALID_AL_SCORE(tab[row][col].oallBest));
+			tab[row][col].empty = false;
+			UPDATE_SOLS(tab[row][col], row, col, improved);
+			assert(!tab[row][col].empty);
+			validInRow = true;
+		} else if(aboveFloor) {
+			assert(VALID_AL_SCORE(tab[row][col].oallBest));
+			tab[row][col].terminal = true;
+		}
 		// Iterate from leftmost to rightmost inner diagonals
 		for(col = wlo+1; col < whi; col++) {
 			const size_t fullcol = col + row;
@@ -1095,8 +1277,9 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 			// (specifically: whether they match and whether either is
 			// an N) as well as the quality value of the read
 			// character.
-			const int mmpen = QUAL2(row, fullcol);
 			improved = false;
+#ifndef INLINE_CUPS
+			const int mmpen = QUAL2(row, fullcol);
 			updateNucDiag(
 				dg,            // cell diagonally above and to the left
 				cur,           // destination cell
@@ -1104,22 +1287,173 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 				r,             // ref mask associated with destination column
 				mmpen,         // penalty to incur for color miscall
 				improved);     // =true if there was path of improvement
-			if(!onlyDiagInto) {
-				TCell& up = tab[row-1][col-wlo+1];
+#else
+			bool match = matches(c, r);
+			TAlScore add;
+			if(match) {
+				add = sc_->match(30);
+				improved = true;
+			} else {
+				add = -QUAL2(row, fullcol);
+			}
+			AlnScore& myOallBest  = cur.oallBest;
+			SwNucCellMask& myMask = cur.mask;
+			assert(!sc_->monotone || dg.oallBest.score() <= 0);
+			if(VALID_AL_SCORE(dg.oallBest)) {
+				COUNT_N(dg.oallBest);
+				AlnScore ex = dg.oallBest + (int)add;
+				if(ex.score_ >= floorsc_ && ex >= myOallBest) {
+					if(ex > myOallBest) {
+						myOallBest = ex;
+						myMask.clear();
+					}
+					myMask.oall_diag = 1;
+				}
+				assert(cur.repOk());
+			}
+#endif
+			TCell& up = tab[row-1][col-wlo+1];
+			if(!onlyDiagInto && !up.empty) {
+#ifndef INLINE_CUPS
 				updateNucVert(
 					up,        // cell above
 					cur,       // destination cell
 					c);        // nucleotide in destination row
-				// Can do horizontal
-				TCell& lf = tab[row][col-wlo-1];
+#else
+				IF_COUNT_N(bool ninvolved = c > 3);
+				AlnScore  upOallBest  = up.oallBest;
+				AlnScore  upRfgapBest = up.rfgapBest;
+				AlnScore& myOallBest  = cur.oallBest;
+				AlnScore& myRfgapBest = cur.rfgapBest;
+				SwNucCellMask& myMask = cur.mask;
+				assert(!sc_->monotone || upOallBest.score()  <= 0);
+				assert(!sc_->monotone || upRfgapBest.score() <= 0);
+				assert_leq(upRfgapBest, upOallBest);
+				if(VALID_AL_SCORE(upOallBest)) {
+					COUNT_N(myOallBest);
+					COUNT_N(myRfgapBest);
+					// Consider reference gap extension
+					AlnScore ex = upRfgapBest - sc_->refGapExtend();
+					if(ex.score_ >= floorsc_) {
+						if(ex >= myOallBest) {
+							if(ex > myOallBest) {
+								myMask.clearOverallMask();
+								myOallBest = ex;
+							}
+							myMask.oall_rfex = 1;
+						}
+						if(ex >= myRfgapBest) {
+							if(ex > myRfgapBest) {
+								myMask.clearRefGapMask();
+								myRfgapBest = ex;
+							}
+							myMask.rfgap_ex = 1;
+						}
+					}
+					// Consider reference gap open
+					ex = upOallBest - sc_->refGapOpen();
+					if(ex.score_ >= floorsc_) {
+						if(ex >= myOallBest) {
+							if(ex > myOallBest) {
+								myMask.clearOverallMask();
+								myOallBest = ex;
+							}
+							myMask.oall_rfop = 1;
+						}
+						if(ex >= myRfgapBest) {
+							if(ex > myRfgapBest) {
+								myMask.clearRefGapMask();
+								myRfgapBest = ex;
+							}
+							myMask.rfgap_op = 1;
+						}
+					}
+					assert(cur.repOk());
+				}
+#endif
+			}
+			// Can do horizontal
+			TCell& lf = tab[row][col-wlo-1];
+			if(!onlyDiagInto && !lf.empty) {
+				assert(lf.finalized);
+#ifndef INLINE_CUPS
 				updateNucHoriz(
 					lf,        // cell to the left
 					cur,       // destination cell
 					r);        // ref mask associated with destination column
+#else
+				IF_COUNT_N(bool ninvolved = r > 15);
+				AlnScore leftOallBest  = lf.oallBest;
+				AlnScore leftRdgapBest = lf.rdgapBest;
+				AlnScore& myOallBest   = cur.oallBest;
+				AlnScore& myRdgapBest  = cur.rdgapBest;
+				SwNucCellMask& myMask  = cur.mask;
+				assert(!myRdgapBest.valid());
+				assert(!sc_->monotone || leftOallBest.score()  <= 0);
+				assert(!sc_->monotone || leftRdgapBest.score() <= 0);
+				assert_leq(leftRdgapBest, leftOallBest);
+				if(VALID_AL_SCORE(leftOallBest)) {
+					COUNT_N(myOallBest);
+					COUNT_N(myRdgapBest);
+					// Consider read gap extension
+					AlnScore ex = leftRdgapBest - sc_->readGapExtend();
+					if(ex.score_ >= floorsc_) {
+						if(ex >= myOallBest) {
+							if(ex > myOallBest) {
+								myMask.clearOverallMask();
+								myOallBest = ex;
+							}
+							myMask.oall_rdex = 1;
+						}
+						if(ex >= myRdgapBest) {
+							if(ex > myRdgapBest) {
+								myMask.clearReadGapMask();
+								myRdgapBest = ex;
+							}
+							myMask.rdgap_ex = 1;
+						}
+					}
+					// Consider read gap open
+					ex = leftOallBest - sc_->readGapOpen();
+					if(ex.score_ >= floorsc_) {
+						if(ex >= myOallBest) {
+							if(ex > myOallBest) {
+								myMask.clearOverallMask();
+								myOallBest = ex;
+							}
+							myMask.oall_rdop = 1;
+						}
+						if(ex >= myRdgapBest) {
+							if(ex > myRdgapBest) {
+								myMask.clearReadGapMask();
+								myRdgapBest = ex;
+							}
+							myMask.rdgap_op = 1;
+						}
+					}
+					assert(cur.repOk());
+				}
+#endif
 			} // end loop over inner diagonals
-			ncups_++;
 			// 'cur' is now initialized
-			FINALIZE_CELL(row, col, improved);
+			ncups_++;
+			assert(tab[row][col].empty);
+			assert(tab[row][col].repOk());
+			assert(!tab[row][col].finalized);
+			ASSERT_ONLY(tab[row][col].finalized = true);
+			bool aboveFloor =
+				tab[row][col].oallBest.valid() &&
+				tab[row][col].oallBest.score() >= loBound;
+			if(!tab[row][col].mask.empty() && aboveFloor) {
+				assert(VALID_AL_SCORE(tab[row][col].oallBest));
+				tab[row][col].empty = false;
+				UPDATE_SOLS(tab[row][col], row, col, improved);
+				assert(!tab[row][col].empty);
+				validInRow = true;
+			} else if(aboveFloor) {
+				assert(VALID_AL_SCORE(tab[row][col].oallBest));
+				tab[row][col].terminal = true;
+			}
 		} // end loop over inner diagonals
 		//
 		// Handle the col == whi case (provided wlo != whi) after the
@@ -1136,6 +1470,8 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 			TCell& dg = tab[row-1][col-wlo];
 			improved = false;
 			if(!dg.empty) {
+				assert(dg.finalized);
+#ifndef INLINE_CUPS
 				updateNucDiag(
 					dg,        // cell diagonally above and to the left
 					cur,       // destination cell
@@ -1143,17 +1479,113 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 					r,         // ref mask associated with destination column
 					mmpenf,    // penalty to incur for color miscall
 					improved); // =true if there was path of improvement
+#else
+				bool match = matches(c, r);
+				TAlScore add;
+				if(match) {
+					add = sc_->match(30);
+					improved = true;
+				} else {
+					add = -mmpenf;
+				}
+				AlnScore& myOallBest  = cur.oallBest;
+				SwNucCellMask& myMask = cur.mask;
+				assert(!sc_->monotone || dg.oallBest.score() <= 0);
+				if(VALID_AL_SCORE(dg.oallBest)) {
+					COUNT_N(dg.oallBest);
+					AlnScore ex = dg.oallBest + (int)add;
+					if(ex.score_ >= floorsc_ && ex >= myOallBest) {
+						if(ex > myOallBest) {
+							myOallBest = ex;
+							myMask.clear();
+						}
+						myMask.oall_diag = 1;
+					}
+					assert(cur.repOk());
+				}
+#endif
 			}
 			TCell& lf = tab[row][col-wlo-1];
 			if(!onlyDiagInto && !lf.empty) {
+				assert(lf.finalized);
+#ifndef INLINE_CUPS
 				updateNucHoriz(
 					lf,        // cell to the left
 					cur,       // destination cell
 					r);        // ref mask associated with destination column
+#else
+				IF_COUNT_N(bool ninvolved = r > 15);
+				AlnScore leftOallBest  = lf.oallBest;
+				AlnScore leftRdgapBest = lf.rdgapBest;
+				AlnScore& myOallBest   = cur.oallBest;
+				AlnScore& myRdgapBest  = cur.rdgapBest;
+				SwNucCellMask& myMask  = cur.mask;
+				assert(!myRdgapBest.valid());
+				assert(!sc_->monotone || leftOallBest.score()  <= 0);
+				assert(!sc_->monotone || leftRdgapBest.score() <= 0);
+				assert_leq(leftRdgapBest, leftOallBest);
+				if(VALID_AL_SCORE(leftOallBest)) {
+					COUNT_N(myOallBest);
+					COUNT_N(myRdgapBest);
+					// Consider read gap extension
+					AlnScore ex = leftRdgapBest - sc_->readGapExtend();
+					if(ex.score_ >= floorsc_) {
+						if(ex >= myOallBest) {
+							if(ex > myOallBest) {
+								myMask.clearOverallMask();
+								myOallBest = ex;
+							}
+							myMask.oall_rdex = 1;
+						}
+						if(ex >= myRdgapBest) {
+							if(ex > myRdgapBest) {
+								myMask.clearReadGapMask();
+								myRdgapBest = ex;
+							}
+							myMask.rdgap_ex = 1;
+						}
+					}
+					// Consider read gap open
+					ex = leftOallBest - sc_->readGapOpen();
+					if(ex.score_ >= floorsc_) {
+						if(ex >= myOallBest) {
+							if(ex > myOallBest) {
+								myMask.clearOverallMask();
+								myOallBest = ex;
+							}
+							myMask.oall_rdop = 1;
+						}
+						if(ex >= myRdgapBest) {
+							if(ex > myRdgapBest) {
+								myMask.clearReadGapMask();
+								myRdgapBest = ex;
+							}
+							myMask.rdgap_op = 1;
+						}
+					}
+					assert(cur.repOk());
+				}
+#endif
 			}
-			ncups_++;
 			// 'cur' is now initialized
-			FINALIZE_CELL(row, col, improved);
+			ncups_++;
+			assert(tab[row][col].empty);
+			assert(tab[row][col].repOk());
+			assert(!tab[row][col].finalized);
+			ASSERT_ONLY(tab[row][col].finalized = true);
+			bool aboveFloor =
+				tab[row][col].oallBest.valid() &&
+				tab[row][col].oallBest.score() >= loBound;
+			if(!tab[row][col].mask.empty() && aboveFloor) {
+				assert(VALID_AL_SCORE(tab[row][col].oallBest));
+				tab[row][col].empty = false;
+				UPDATE_SOLS(tab[row][col], row, col, improved);
+				assert(!tab[row][col].empty);
+				validInRow = true;
+			} else if(aboveFloor) {
+				assert(VALID_AL_SCORE(tab[row][col].oallBest));
+				tab[row][col].terminal = true;
+			}
 		}
 		if(!validInRow) {
 			assert_geq(rdf_-rdi_, row+1);
@@ -1664,6 +2096,10 @@ static int multiseedPeriod;  // space between multiseed seeds
 static int multiseedIvalType;
 static float multiseedIvalA;
 static float multiseedIvalB;
+static size_t maxpossConst;
+static size_t maxpossLinear;
+static size_t maxrowsConst;
+static size_t maxrowsLinear;
 
 enum {
 	ARG_TESTS = 256
@@ -1838,11 +2274,11 @@ static void doTestCase2(
 	TAlScore minsc = (TAlScore)(Scoring::linearFunc(
 		btread.length(),
 		costMinConst,
-		costMinLinear) + 0.5f);
+		costMinLinear));
 	TAlScore floorsc = (TAlScore)(Scoring::linearFunc(
 		btread.length(),
 		costFloorConst,
-		costFloorLinear) + 0.5f);
+		costFloorLinear));
 	btqual.install(qual);
 	btref.install(refin);
 	doTestCase(
@@ -1889,11 +2325,11 @@ static void doTestCase3(
 	TAlScore minsc = (TAlScore)(Scoring::linearFunc(
 		btread.length(),
 		costMinConst,
-		costMinLinear) + 0.5f);
+		costMinLinear));
 	TAlScore floorsc = (TAlScore)(Scoring::linearFunc(
 		btread.length(),
 		costFloorConst,
-		costFloorLinear) + 0.5f);
+		costFloorLinear));
 	btqual.install(qual);
 	btref.install(refin);
 	sc.nCeilConst = nCeilConst;
@@ -3562,6 +3998,10 @@ int main(int argc, char **argv) {
 	multiseedIvalType = DEFAULT_IVAL;
 	multiseedIvalA    = DEFAULT_IVAL_A;
 	multiseedIvalB    = DEFAULT_IVAL_B;
+	maxpossConst      = DEFAULT_MAXPOSS_CONST;
+	maxpossLinear     = DEFAULT_MAXPOSS_LINEAR;
+	maxrowsConst      = DEFAULT_MAXROWS_CONST;
+	maxrowsLinear     = DEFAULT_MAXROWS_LINEAR;
 	do {
 		next_option = getopt_long(argc, argv, short_opts, long_opts, &option_index);
 		switch (next_option) {
@@ -3603,7 +4043,11 @@ int main(int argc, char **argv) {
 					multiseedPeriod,
 					multiseedIvalType,
 					multiseedIvalA,
-					multiseedIvalB);
+					multiseedIvalB,
+					maxpossConst,
+					maxpossLinear,
+					maxrowsConst,
+					maxrowsLinear);
 				break;
 			}
 			case -1: break;
