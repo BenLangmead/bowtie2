@@ -1188,11 +1188,6 @@ static void parseOptions(int argc, const char **argv) {
 		// ranges).
 		offRate = 32;
 	}
-#ifdef BOWTIE2
-	if(multiseedMms > 0 && offRatePlus <= 0) {
-		offRatePlus = 1;
-	}
-#endif
 	SeedAlignmentPolicy::parseString(
 		seedAlignmentPolicyString,
 		localAlign,
@@ -1362,6 +1357,11 @@ static void parseOptions(int argc, const char **argv) {
 	if(gColor && gColorExEnds) {
 		gGapBarrier++;
 	}
+#ifdef BOWTIE2
+	if(multiseedMms > 0 && offRatePlus <= 0) {
+		offRatePlus = 1;
+	}
+#endif
 }
 
 static const char *argv0 = NULL;
