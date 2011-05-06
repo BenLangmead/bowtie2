@@ -1150,10 +1150,6 @@ extern void aligner_random_seed_tests(
 	int num_tests,
 	uint32_t qslo,
 	uint32_t qshi,
-	uint32_t maxrowslo,
-	uint32_t maxrowshi,
-	uint32_t maxposslo,
-	uint32_t maxposshi,
 	bool color,
 	uint32_t seed);
 
@@ -1188,10 +1184,6 @@ int main(int argc, char **argv) {
 					100,     // num references
 					100,   // queries per reference lo
 					400,   // queries per reference hi
-					1,     // maxrows lo
-					100,   // maxrows hi
-					1,     // maxposs lo
-					100,   // maxposs hi
 					false, // true -> generate colorspace reference/reads
 					18);   // pseudo-random seed
 				return 0;
@@ -1202,10 +1194,6 @@ int main(int argc, char **argv) {
 					100,   // num references
 					100,   // queries per reference lo
 					400,   // queries per reference hi
-					1,     // maxrows lo
-					100,   // maxrows hi
-					1,     // maxposs lo
-					100,   // maxposs hi
 					false, // true -> generate colorspace reference/reads
 					seed); // pseudo-random seed
 				return 0;

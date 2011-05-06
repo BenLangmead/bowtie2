@@ -420,15 +420,19 @@ bool SwAligner::backtrackNucleotides(
 					assert(ned.empty() || ned.back().pos >= row);
 					ned.push_back(e);
 					int pen = QUAL2(row, col);
-					assert_geq(tab[row-1][col-row].best(ct).score(), tab[row][col-row].best(lastct).score());
-					assert_eq(pen, tab[row-1][col-row].best(ct).score() - tab[row][col-row].best(lastct).score());
+					assert_geq(tab[row-1][col-row].best(ct).score(),
+					           tab[row][col-row].best(lastct).score());
+					assert_eq(pen, tab[row-1][col-row].best(ct).score() -
+					               tab[row][col-row].best(lastct).score());
 					score.score_ -= pen;
 					assert(!sc_->monotone || score.score() >= escore);
 				} else {
 					// Reward a match
 					int64_t bonus = sc_->match(30);
-					assert_geq(tab[row][col-row].best(lastct).score(), tab[row-1][col-row].best(ct).score());
-					assert_eq(bonus, tab[row][col-row].best(lastct).score() - tab[row-1][col-row].best(ct).score());
+					assert_geq(tab[row][col-row].best(lastct).score(),
+					           tab[row-1][col-row].best(ct).score());
+					assert_eq(bonus, tab[row][col-row].best(lastct).score() -
+					                 tab[row-1][col-row].best(ct).score());
 					score.score_ += bonus;
 					assert(!sc_->monotone || score.score() >= escore);
 				}
@@ -459,8 +463,10 @@ bool SwAligner::backtrackNucleotides(
 				ASSERT_ONLY(int lastct = ct);
 				ct = SW_BT_CELL_OALL;
 				int pen = sc_->refGapOpen();
-				assert_geq(tab[row][col-row].best(ct).score(), tab[row+1][col-(row+1)].best(lastct).score());
-				assert_eq(pen, tab[row][col-row].best(ct).score() - tab[row+1][col-(row+1)].best(lastct).score());
+				assert_geq(tab[row][col-row].best(ct).score(),
+				           tab[row+1][col-(row+1)].best(lastct).score());
+				assert_eq(pen, tab[row][col-row].best(ct).score() -
+				               tab[row+1][col-(row+1)].best(lastct).score());
 				score.score_ -= pen;
 				assert(!sc_->monotone || score.score() >= minsc_);
 				gaps++; refGaps++;
@@ -489,8 +495,10 @@ bool SwAligner::backtrackNucleotides(
 				ASSERT_ONLY(int lastct = ct);
 				ct = SW_BT_CELL_RFGAP;
 				int pen = sc_->refGapExtend();
-				assert_geq(tab[row][col-row].best(ct).score(), tab[row+1][col-(row+1)].best(lastct).score());
-				assert_eq(pen, tab[row][col-row].best(ct).score() - tab[row+1][col-(row+1)].best(lastct).score());
+				assert_geq(tab[row][col-row].best(ct).score(),
+				           tab[row+1][col-(row+1)].best(lastct).score());
+				assert_eq(pen, tab[row][col-row].best(ct).score() -
+				               tab[row+1][col-(row+1)].best(lastct).score());
 				score.score_ -= pen;
 				assert(!sc_->monotone || score.score() >= minsc_);
 				gaps++; refGaps++;
@@ -519,8 +527,10 @@ bool SwAligner::backtrackNucleotides(
 				ASSERT_ONLY(int lastct = ct);
 				ct = SW_BT_CELL_OALL;
 				int pen = sc_->readGapOpen();
-				assert_geq(tab[row][col-row].best(ct).score(), tab[row][col-row+1].best(lastct).score());
-				assert_eq(pen, tab[row][col-row].best(ct).score() - tab[row][col-row+1].best(lastct).score());
+				assert_geq(tab[row][col-row].best(ct).score(),
+				           tab[row][col-row+1].best(lastct).score());
+				assert_eq(pen, tab[row][col-row].best(ct).score() -
+				               tab[row][col-row+1].best(lastct).score());
 				score.score_ -= pen;
 				assert(!sc_->monotone || score.score() >= minsc_);
 				gaps++; readGaps++;
@@ -549,8 +559,10 @@ bool SwAligner::backtrackNucleotides(
 				ASSERT_ONLY(int lastct = ct);
 				ct = SW_BT_CELL_RDGAP;
 				int pen = sc_->readGapExtend();
-				assert_geq(tab[row][col-row].best(ct).score(), tab[row][col-row+1].best(lastct).score());
-				assert_eq(pen, tab[row][col-row].best(ct).score() - tab[row][col-row+1].best(lastct).score());
+				assert_geq(tab[row][col-row].best(ct).score(),
+				           tab[row][col-row+1].best(lastct).score());
+				assert_eq(pen, tab[row][col-row].best(ct).score() -
+				               tab[row][col-row+1].best(lastct).score());
 				score.score_ -= pen;
 				assert(!sc_->monotone || score.score() >= minsc_);
 				gaps++; readGaps++;
@@ -1138,7 +1150,7 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 		assert_lt(row, qu_->length());
 		assert_lt(row, rd_->length());
 		int c = (*rd_)[row];   // read character in this row
-		validInRow = !sc_->monotone;;
+		validInRow = !sc_->monotone;
 		//
 		// Handle col == wlo case before (and the col == whi case
 		// after) the upcoming inner loop to reduce the number of
@@ -1150,6 +1162,7 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 		cur.clear();
 		bool improved = false;
 		if(!tab[row-1][0].empty) {
+			// FIRST COLUMN OF A MIDDLE ROW - DIAGONAL UPDATE
 			const size_t fc = col + row;
 #ifndef INLINE_CUPS
 			updateNucDiag(
@@ -1188,6 +1201,7 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 #endif
 		}
 		if(!onlyDiagInto && col < whi && !tab[row-1][1].empty) {
+			// FIRST COLUMN OF A MIDDLE ROW - VERTICAL UPDATE
 #ifndef INLINE_CUPS
 			updateNucVert(
 				tab[row-1][1],     // cell diagonally above and to the left
@@ -1245,7 +1259,7 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 				assert(cur.repOk());
 			}
 #endif
-		}
+		} // end if(skip_left == 0)
 		// 'cur' is now initialized
 		ncups_++;
 		assert(tab[row][col].empty);
@@ -1719,9 +1733,9 @@ bool SwAligner::nextAlignment(
 							break; // Found the alignment
 						}
 						if(oldbest != solbest_) {
-							// The best overall score changed.  When this happens,
-							// we go back to the deepest row and start our row scan
-							// over.
+							// The best overall score changed.  When this
+							// happens, we go back to the deepest row and start
+							// our row scan over.
 							ii = solrows_.second+1+1;
 						}
 					}
@@ -2096,10 +2110,9 @@ static int multiseedPeriod;  // space between multiseed seeds
 static int multiseedIvalType;
 static float multiseedIvalA;
 static float multiseedIvalB;
-static size_t maxpossConst;
-static size_t maxpossLinear;
-static size_t maxrowsConst;
-static size_t maxrowsLinear;
+static float posmin;
+static float posfrac;
+static float rowmult;
 
 enum {
 	ARG_TESTS = 256
@@ -2373,8 +2386,8 @@ static void doTests() {
 	costMinLinear   = DEFAULT_MIN_LINEAR;
 	costFloorConst  = DEFAULT_FLOOR_CONST;
 	costFloorLinear = DEFAULT_FLOOR_LINEAR;
-	nCeilConst      = 1.0f; // constant factor in N ceiling w/r/t read length
-	nCeilLinear     = 0.1f; // coeff of linear term in N ceiling w/r/t read length
+	nCeilConst      = 1.0f; // constant factor in N ceil w/r/t read len
+	nCeilLinear     = 0.1f; // coeff of linear term in N ceil w/r/t read len
 	multiseedMms    = DEFAULT_SEEDMMS;
 	multiseedLen    = DEFAULT_SEEDLEN;
 	multiseedPeriod = DEFAULT_SEEDPERIOD;
@@ -2437,7 +2450,8 @@ static void doTests() {
 	SwAligner al;
 	RandomSource rnd(73);
 	for(int i = 0; i < 3; i++) {
-		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4) << ", exact)...";
+		cerr << "  Test " << tests++ << " (nuc space, offset "
+		     << (i*4) << ", exact)...";
 		sc.rdGapConst = 40;
 		sc.rfGapConst = 40;
 		doTestCase2(
@@ -3998,10 +4012,9 @@ int main(int argc, char **argv) {
 	multiseedIvalType = DEFAULT_IVAL;
 	multiseedIvalA    = DEFAULT_IVAL_A;
 	multiseedIvalB    = DEFAULT_IVAL_B;
-	maxpossConst      = DEFAULT_MAXPOSS_CONST;
-	maxpossLinear     = DEFAULT_MAXPOSS_LINEAR;
-	maxrowsConst      = DEFAULT_MAXROWS_CONST;
-	maxrowsLinear     = DEFAULT_MAXROWS_LINEAR;
+	posmin          = DEFAULT_POSMIN;
+	posfrac         = DEFAULT_POSFRAC;
+	rowmult         = DEFAULT_ROWMULT;
 	do {
 		next_option = getopt_long(argc, argv, short_opts, long_opts, &option_index);
 		switch (next_option) {
@@ -4044,10 +4057,9 @@ int main(int argc, char **argv) {
 					multiseedIvalType,
 					multiseedIvalA,
 					multiseedIvalB,
-					maxpossConst,
-					maxpossLinear,
-					maxrowsConst,
-					maxrowsLinear);
+					posmin,
+					posfrac,
+					rowmult);
 				break;
 			}
 			case -1: break;
@@ -4087,7 +4099,7 @@ int main(int argc, char **argv) {
 		bonusMatch,
 		penMmcType,    // how to penalize mismatches
 		penMmc,        // constant if mm pelanty is a constant
-		penSnp,        // penalty for nucleotide mismatch in decoded colorspace als
+		penSnp,        // penalty for nucleotide mismatch in decoded color alns
 		costMinConst,
 		costMinLinear,
 		costFloorConst,
@@ -4099,8 +4111,8 @@ int main(int argc, char **argv) {
 		nCatPair,      // true -> concatenate mates before N filtering
 		penRdExConst,  // constant cost of extending a gap in the read
 		penRfExConst,  // constant cost of extending a gap in the reference
-		penRdExLinear, // coefficient of linear term for cost of gap extension in read
-		penRfExLinear  // coefficient of linear term for cost of gap extension in ref
+		penRdExLinear, // coeff of linear term for cost of gap extension in read
+		penRfExLinear  // coeff of linear term for cost of gap extension in ref
 	);
 	// Calculate the penalty ceiling for the read
 	TAlScore minsc = Scoring::linearFunc(

@@ -108,8 +108,9 @@ public:
 		TAlScore minsc,              // minimum score for anchor
 		TAlScore floorsc,            // local-alignment floor for anchor score
 		int nceil,                   // maximum # Ns permitted in ref portion
-		size_t maxposs,              // stop after examining this many positions (offset+orientation combos)
-		size_t maxrows,              // stop examining a position after this many offsets are reported
+		float posmin,                // minimum number of positions to examine
+		float posfrac,               // max number of additional poss to examine
+		float rowmult,               // number of extensions to try per pos
 		size_t maxhalf,              // maximum width on one side of DP table
 		AlignmentCacheIface& ca,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random source
@@ -179,8 +180,9 @@ public:
 		int onceil,                  // max # Ns permitted in ref for opposite
 		bool nofw,                   // don't align forward read
 		bool norc,                   // don't align revcomp read
-		size_t maxposs,              // stop after examining this many positions (offset+orientation combos)
-		size_t maxrows,              // stop examining a position after this many offsets are reported
+		float posmin,                // minimum number of positions to examine
+		float posfrac,               // max number of additional poss to examine
+		float rowmult,               // number of extensions to try per pos
 		size_t maxhalf,              // maximum width on one side of DP table
 		AlignmentCacheIface& cs,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random source

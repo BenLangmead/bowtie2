@@ -45,8 +45,9 @@ bool SwDriver::extendSeeds(
 	TAlScore minsc,              // minimum score for anchor
 	TAlScore floorsc,            // local-alignment floor for anchor score
 	int nceil,                   // maximum # Ns permitted in reference portion
-	size_t maxposs,              // stop after this many positions (off+orient combos)
-	size_t maxrows,              // stop examining a position after this many offsets
+	float posmin,                // minimum number of positions to examine
+	float posfrac,               // max number of additional poss to examine
+	float rowmult,               // number of extensions to try per pos
 	size_t maxhalf,  	         // max width in either direction for DP tables
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
 	RandomSource& rnd,           // pseudo-random source
@@ -65,6 +66,8 @@ bool SwDriver::extendSeeds(
 	const size_t rdlen = rd.length();
 	int readGaps = sc.maxReadGaps(minsc, rdlen);
 	int refGaps  = sc.maxRefGaps(minsc, rdlen);
+	
+	size_t maxrows = (size_t)(rowmult + 0.5f);
 
 	DynProgFramer dpframe(!gReportOverhangs);
 
@@ -74,7 +77,10 @@ bool SwDriver::extendSeeds(
 	// the second iteration, resolve entries for which the offset is
 	// unknown and try SWs.
 	const size_t nonz = sh.nonzeroOffsets();
-	const size_t poss = min<size_t>(nonz, maxposs);
+	float possf = posmin + posfrac * (nonz-posmin) + 0.5f;
+	possf = max(possf, 1.0f);
+	possf = min(possf, (float)nonz);
+	const size_t poss = (size_t)possf;
 	for(size_t i = 0; i < poss; i++) {
 		bool fw = true;
 		uint32_t offidx = 0, rdoff = 0, seedlen;
@@ -389,8 +395,9 @@ bool SwDriver::extendSeedsPaired(
 	int onceil,                  // max # Ns permitted in ref for opposite
 	bool nofw,                   // don't align forward read
 	bool norc,                   // don't align revcomp read
-	size_t maxposs,              // stop after examining this many positions (offset+orientation combos)
-	size_t maxrows,              // stop examining a position after this many offsets are reported
+	float posmin,                // minimum number of positions to examine
+	float posfrac,               // max number of additional poss to examine
+	float rowmult,               // number of extensions to try per pos
 	size_t maxhalf,              // max width in either direction for DP tables
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
 	RandomSource& rnd,           // pseudo-random source
@@ -406,7 +413,6 @@ bool SwDriver::extendSeedsPaired(
 	EList<SwActionSink*>* swActionSinks)   // send action-list updates to these
 {
 	assert(!reportImmediately || msink != NULL);
-	//assert(!reportImmediately || msink->empty());
 	assert(!reportImmediately || !msink->maxed());
 	assert(!msink->state().doneWithMate(anchor1));
 
@@ -419,6 +425,8 @@ bool SwDriver::extendSeedsPaired(
 	int oreadGaps = sc.maxReadGaps(ominsc, ordlen);
 	int orefGaps  = sc.maxRefGaps (ominsc, ordlen);
 
+	size_t maxrows = (size_t)(rowmult + 0.5f);
+
 	const size_t rows   = rdlen  + (color ? 1 : 0);
 	const size_t orows  = ordlen + (color ? 1 : 0);
 	
@@ -430,7 +438,10 @@ bool SwDriver::extendSeedsPaired(
 	// the second iteration, resolve entries for which the offset is
 	// unknown and try SWs.
 	const size_t nonz = sh.nonzeroOffsets();
-	const size_t poss = min<size_t>(nonz, maxposs);
+	float possf = posmin + posfrac * (nonz-posmin) + 0.5f;
+	possf = max(possf, 1.0f);
+	possf = min(possf, (float)nonz);
+	const size_t poss = (size_t)possf;
 	for(size_t i = 0; i < poss; i++) {
 		bool fw = true;
 		uint32_t offidx = 0, rdoff = 0, seedlen;
