@@ -900,7 +900,7 @@ public:
 	}
 
 	/// Accessors
-	const EbwtParams& eh() const     { return _eh; }
+	inline const EbwtParams& eh() const     { return _eh; }
 	uint32_t    zOff() const         { return _zOff; }
 	uint32_t    zEbwtByteOff() const { return _zEbwtByteOff; }
 	int         zEbwtBpOff() const   { return _zEbwtBpOff; }
