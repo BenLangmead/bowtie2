@@ -292,6 +292,7 @@ int main(int argc, char **argv) {
 		0,           // don't need entireReverse for fw index
 		true,        // index is for the forward direction
 		5,           // offrate (irrelevant)
+		0,           // offrate-plus (irrelevant)
 		useMm,       // whether to use memory-mapped files
 		useShmem,    // whether to use shared memory
 		mmSweep,     // sweep memory-mapped files
@@ -312,6 +313,7 @@ int main(int argc, char **argv) {
 		1,           // need entireReverse
 		false,       // index is for the backward direction
 		5,           // offrate (irrelevant)
+		0,           // offrate-plus (irrelevant)
 		useMm,       // whether to use memory-mapped files
 		useShmem,    // whether to use shared memory
 		mmSweep,     // sweep memory-mapped files
