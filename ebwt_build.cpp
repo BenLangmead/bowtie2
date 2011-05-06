@@ -62,7 +62,7 @@ static void resetOptions() {
 	//   Ebwt parameters
 	lineRate     = 6;  // a "line" is 64 bytes
 	linesPerSide = 1;  // 1 64-byte line on a side
-	offRate      = 5;  // sample 1 out of 32 SA elts
+	offRate      = 4;  // sample 1 out of 16 SA elts
 	ftabChars    = 10; // 10 chars in initial lookup table
 	bigEndian    = 0;  // little endian
 	nsToAs       = false; // convert reference Ns to As prior to indexing

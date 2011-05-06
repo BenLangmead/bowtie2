@@ -71,6 +71,7 @@ int gTrim5;         // amount to trim from 5' end
 int gTrim3;         // amount to trim from 3' end
 static int reportOpps;    // whether to report # of other mappings
 static int offRate;       // keep default offRate
+static int offRatePlus;  // amount to subtract from index offset
 static int mismatches;    // allow 0 mismatches by default
 static char *patDumpfile; // filename to dump patterns to
 static bool solexaQuals;  // quality strings are solexa quals, not phred, and subtract 64 (not 33)
@@ -249,6 +250,7 @@ static void resetOptions() {
 	gTrim3					= 0; // amount to trim from 3' end
 	reportOpps				= 0; // whether to report # of other mappings
 	offRate					= -1; // keep default offRate
+	offRatePlus             = 0;  // amount to subtract from index offrate
 	mismatches				= 0; // allow 0 mismatches by default
 	patDumpfile				= NULL; // filename to dump patterns to
 	solexaQuals				= false; // quality strings are solexa quals, not phred, and subtract 64 (not 33)
@@ -503,7 +505,8 @@ enum {
 	ARG_NO_CACHE,
 	ARG_USE_CACHE,
 	ARG_NOISY_HPOLY,
-	ARG_LOCAL
+	ARG_LOCAL,
+	ARG_OFFRATE_ADD
 };
 
 static struct option long_options[] = {
@@ -530,6 +533,7 @@ static struct option long_options[] = {
 	{(char*)"un",           required_argument, 0,            ARG_UN},
 	{(char*)"max",          required_argument, 0,            ARG_MAXDUMP},
 	{(char*)"offrate",      required_argument, 0,            'o'},
+	{(char*)"offrate-add",  required_argument, 0,            ARG_OFFRATE_ADD},
 	{(char*)"reportopps",   no_argument,       &reportOpps,  1},
 	{(char*)"version",      no_argument,       &showVersion, 1},
 	{(char*)"dumppats",     required_argument, 0,            ARG_DUMP_PATS},
@@ -695,6 +699,7 @@ static void printUsage(ostream& out) {
 	    << "  --fullref          write entire ref name (default: only up to 1st space)" << endl
 	    << "Performance:" << endl
 	    << "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl
+		<< "  --offrate-add <int>" << endl
 #ifdef BOWTIE_PTHREADS
 	    << "  -p/--threads <int> number of alignment threads to launch (default: 1)" << endl
 #endif
@@ -796,6 +801,7 @@ static void printUsage(ostream& out) {
 	    << "  --sam-RG <text>    add <text> (usually \"lab=value\") to @RG line of SAM header" << endl
 	    << "Performance:" << endl
 	    << "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl
+		<< "  --offrate-add <int>" << endl;
 #ifdef BOWTIE_PTHREADS
 	    << "  -p/--threads <int> number of alignment threads to launch (default: 1)" << endl
 #endif
@@ -1093,6 +1099,7 @@ static void parseOptions(int argc, const char **argv) {
 			case '3': gTrim3 = parseInt(0, "-3/--trim3 arg must be at least 0"); break;
 			case '5': gTrim5 = parseInt(0, "-5/--trim5 arg must be at least 0"); break;
 			case 'o': offRate = parseInt(1, "-o/--offrate arg must be at least 1"); break;
+			case ARG_OFFRATE_ADD: offRatePlus = parseInt(0, "--offrate-add arg must be at least 0"); break;
 			case 'e': qualThresh = parseInt(1, "-e/--err arg must be at least 1"); break;
 			case 'n': seedMms = parseInt(0, 3, "-n/--seedmms arg must be at least 0 and at most 3"); maqLike = 1; break;
 			case 'l': seedLen = parseInt(5, "-l/--seedlen arg must be at least 5"); break;
@@ -1181,6 +1188,11 @@ static void parseOptions(int argc, const char **argv) {
 		// ranges).
 		offRate = 32;
 	}
+#ifdef BOWTIE2
+	if(multiseedMms > 0 && offRatePlus <= 0) {
+		offRatePlus = 1;
+	}
+#endif
 	SeedAlignmentPolicy::parseString(
 		seedAlignmentPolicyString,
 		localAlign,
@@ -3191,6 +3203,7 @@ static void driver(
 		-1,       // fw index
 	    true,     // index is for the forward direction
 	    /* overriding: */ offRate,
+		offRatePlus, // amount to add to index offrate or <= 0 to do nothing
 	    useMm,    // whether to use memory-mapped files
 	    useShmem, // whether to use shared memory
 	    mmSweep,  // sweep memory-mapped files
@@ -3217,6 +3230,7 @@ static void driver(
 			1,       // TODO: maybe not
 		    false, // index is for the reverse direction
 		    /* overriding: */ offRate,
+			offRatePlus, // amount to add to index offrate or <= 0 to do nothing
 		    useMm,    // whether to use memory-mapped files
 		    useShmem, // whether to use shared memory
 		    mmSweep,  // sweep memory-mapped files
@@ -3477,14 +3491,15 @@ static void driver(
 		} else {
 			// Bowtie 1
 			if(maqLike) {
-				seededQualCutoffSearchFull(seedLen,
-										   qualThresh,
-										   seedMms,
-										   *patsrc,
-										   *sink,
-										   ebwt,    // forward index
-										   *ebwtBw, // mirror index (not optional)
-										   os);     // references, if available
+				seededQualCutoffSearchFull(
+					seedLen,
+					qualThresh,
+					seedMms,
+					*patsrc,
+					*sink,
+					ebwt,    // forward index
+					*ebwtBw, // mirror index (not optional)
+					os);     // references, if available
 			}
 			else if(mismatches > 0) {
 				if(mismatches == 1) {

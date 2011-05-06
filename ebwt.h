@@ -87,12 +87,13 @@ class EbwtParams {
 public:
 	EbwtParams() { }
 
-	EbwtParams(uint32_t len,
-	           int32_t lineRate,
-	           int32_t offRate,
-	           int32_t ftabChars,
-	           bool color,
-			   bool entireReverse)
+	EbwtParams(
+		uint32_t len,
+		int32_t lineRate,
+		int32_t offRate,
+		int32_t ftabChars,
+		bool color,
+		bool entireReverse)
 	{
 		init(len, lineRate, offRate, ftabChars, color, entireReverse);
 	}
@@ -102,9 +103,13 @@ public:
 		     eh._ftabChars, eh._color, eh._entireReverse);
 	}
 
-	void init(uint32_t len, int32_t lineRate,
-	          int32_t offRate, int32_t ftabChars,
-	          bool color, bool entireReverse)
+	void init(
+		uint32_t len,
+		int32_t lineRate,
+		int32_t offRate,
+		int32_t ftabChars,
+		bool color,
+		bool entireReverse)
 	{
 		_color = color;
 		_entireReverse = entireReverse;
@@ -288,7 +293,7 @@ class Ebwt {
 public:
 	#define Ebwt_INITS \
 	    _toBigEndian(currentlyBigEndian()), \
-	    _overrideOffRate(__overrideOffRate), \
+	    _overrideOffRate(overrideOffRate), \
 	    _verbose(verbose), \
 	    _passMemExc(passMemExc), \
 	    _sanity(sanityCheck), \
@@ -331,7 +336,8 @@ public:
 	     int color,
 		 int needEntireReverse,
 	     bool fw,
-	     int32_t __overrideOffRate, // = -1,
+	     int32_t overrideOffRate, // = -1,
+	     int32_t offRatePlus, // = -1,
 	     bool useMm, // = false,
 	     bool useShmem, // = false,
 	     bool mmSweep, // = false,
@@ -367,6 +373,9 @@ public:
 			startVerbose); // startVerbose
 		// If the offRate has been overridden, reflect that in the
 		// _eh._offRate field
+		if(offRatePlus > 0 && _overrideOffRate == -1) {
+			_overrideOffRate = _eh._offRate + offRatePlus;
+		}
 		if(_overrideOffRate > _eh._offRate) {
 			_eh.setOffRate(_overrideOffRate);
 			assert_eq(_overrideOffRate, _eh._offRate);
@@ -399,7 +408,7 @@ public:
 		uint32_t sztot,
 		const RefReadInParams& refparams,
 		uint32_t seed,
-		int32_t __overrideOffRate = -1,
+		int32_t overrideOffRate = -1,
 		bool verbose = false,
 		bool passMemExc = false,
 		bool sanityCheck = false) :
@@ -1434,6 +1443,7 @@ public:
 	static const uint32_t default_seed = 0;
 	static const int      default_lineRate = 6;
 	static const int      default_offRate = 5;
+	static const int      default_offRatePlus = 0;
 	static const int      default_ftabChars = 10;
 	static const bool     default_bigEndian = false;
 	

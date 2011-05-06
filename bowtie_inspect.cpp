@@ -299,6 +299,7 @@ static void print_index_summary(
 		-1,                   // don't require entire reverse
 		true,                 // index is for the forward direction
 		-1,                   // offrate (-1 = index default)
+		0,                    // offrate-plus (0 = index default)
 		false,                // use memory-mapped IO
 		false,                // use shared memory
 		false,                // sweep memory-mapped memory
@@ -348,6 +349,7 @@ static void driver(
 			-1,                   // don't care about entire-reverse
 			true,                 // index is for the forward direction
 			-1,                   // offrate (-1 = index default)
+			0,                    // offrate-plus (0 = index default)
 			false,                // use memory-mapped IO
 			false,                // use shared memory
 			false,                // sweep memory-mapped memory
