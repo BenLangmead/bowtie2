@@ -21,10 +21,14 @@ enum {
 #define DEFAULT_IVAL_A 1.0f
 #define DEFAULT_IVAL_B 0.0f
 
-#define DEFAULT_MAXPOSS_CONST  25
-#define DEFAULT_MAXPOSS_LINEAR 0
-#define DEFAULT_MAXROWS_CONST  10
-#define DEFAULT_MAXROWS_LINEAR 0
+// By default, the maximum number of positions we examine is about 1/3rd the
+// total number of possible positions
+#define DEFAULT_POSMIN  3.0f
+#define DEFAULT_POSFRAC 0.3f
+
+// By default, the maximum number of hits we try to extend is about 5 times the
+// total number of positions tried
+#define DEFAULT_ROWMULT  4.0f
 
 /**
  * Encapsulates the set of all parameters that affect what the
@@ -241,10 +245,9 @@ public:
 		int&   multiseedIvalType,
 		float& multiseedIvalA,
 		float& multiseedIvalB,
-		size_t& maxpossConst,
-		size_t& maxpossLinear,
-		size_t& maxrowsConst,
-		size_t& maxrowsLinear);
+		float& posmin,
+		float& posfrac,
+		float& rowmult);
 };
 
 #endif /*ndef ALIGNER_SEED_POLICY_H_*/

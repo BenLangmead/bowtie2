@@ -218,10 +218,9 @@ static string saActionsFn;   // filename to dump all alignment actions to
 static string saHitsFn;      // filename to dump all seed hits to
 static uint32_t seedCacheLocalMB;   // # MB to use for non-shared seed alignment cacheing
 static uint32_t seedCacheCurrentMB; // # MB to use for current-read seed hit cacheing
-static size_t maxpossConst;     // maximum number of positions to consider per read
-static size_t maxpossLinear;    // maximum number of positions to consider per read
-static size_t maxrowsConst;     // maximum number of rows to consider per position
-static size_t maxrowsLinear;    // maximum number of rows to consider per position
+static float posmin;         // minimum number of seed poss to try
+static float posfrac;        // fraction of additional seed poss to try
+static float rowmult;        // seed extension attempts per pos
 static size_t maxhalf;       // max width on one side of DP table
 static bool seedSummaryOnly; // print summary information about seed hits, not alignments
 
@@ -399,10 +398,9 @@ static void resetOptions() {
 	multiseedIvalType = DEFAULT_IVAL; // formula for seed spacing
 	multiseedIvalA  = DEFAULT_IVAL_A; // linear coefficient in formula
 	multiseedIvalB  = DEFAULT_IVAL_B; // constant coefficient in formula
-	maxpossConst    = DEFAULT_MAXPOSS_CONST;  // maximum number of positions to consider per read
-	maxpossLinear   = DEFAULT_MAXPOSS_LINEAR; // maximum number of positions to consider per read
-	maxrowsConst    = DEFAULT_MAXROWS_CONST;  // maximum number of rows to consider per position
-	maxrowsLinear   = DEFAULT_MAXROWS_LINEAR; // maximum number of rows to consider per position
+	posmin          = DEFAULT_POSMIN;  // minimum # seed poss to try
+	posfrac         = DEFAULT_POSFRAC; // fraction of seed poss to try
+	rowmult         = DEFAULT_ROWMULT; // seed extension attempts per pos
 	saCountersFn.clear();    // filename to dump per-read SeedAligner counters to
 	saActionsFn.clear();     // filename to dump all alignment actions to
 	saHitsFn.clear();        // filename to dump all seed hits to
@@ -1211,10 +1209,9 @@ static void parseOptions(int argc, const char **argv) {
 		multiseedIvalType,
 		multiseedIvalA,
 		multiseedIvalB,
-		maxpossConst,
-		maxpossLinear,
-		maxrowsConst,
-		maxrowsLinear);
+		posmin,
+		posfrac,
+		rowmult);
 	if(localAlign) {
 		gRowLow = 0;
 	} else {
@@ -2550,32 +2547,6 @@ static void* multiseedSearchWorker(void *vp) {
 						(float)costFloorConst,
 						(float)costFloorLinear));
 				}
-				// Calculate the maximum number of seed positions to try to
-				// extend from
-				size_t maxposs[2];
-				maxposs[0] = (size_t)(Scoring::linearFunc(
-					rdlens[0],
-					(float)maxpossConst,
-					(float)maxpossLinear));
-				if(ps->paired()) {
-					maxposs[1] = (size_t)(Scoring::linearFunc(
-						rdlens[1],
-						(float)maxpossConst,
-						(float)maxpossLinear));
-				}
-				// Calculate the maximum number of seed hits to try to extend
-				// from
-				size_t maxrows[2];
-				maxrows[0] = (size_t)(Scoring::linearFunc(
-					rdlens[0],
-					(float)maxrowsConst,
-					(float)maxrowsLinear));
-				if(ps->paired()) {
-					maxrows[1] = (size_t)(Scoring::linearFunc(
-						rdlens[1],
-						(float)maxrowsConst,
-						(float)maxrowsLinear));
-				}
 				// N filter; does the read have too many Ns?
 				bool nfilt[2];
 				sc.nFilterPair(
@@ -2746,8 +2717,9 @@ static void* multiseedSearchWorker(void *vp) {
 								onceil,         // N ceil for opp.
 								nofw,           // don't align forward read
 								norc,           // don't align revcomp read
-								maxposs[mate],  // max off/orient combos
-								maxrows[mate],  // max offset resolutions
+								posmin,         // min # seed poss to try
+								posfrac,        // max seed poss to try
+								rowmult,        // max extensions per pos
 								maxhalf,        // max width on one DP side
 								ca,             // seed alignment cache
 								rnd,            // pseudo-random source
@@ -2780,8 +2752,9 @@ static void* multiseedSearchWorker(void *vp) {
 								minsc[mate],    // minimum score for valid
 								floorsc[mate],  // floor score
 								nceil,          // N ceil for anchor
-								maxposs[mate],  // max off/orient combos
-								maxrows[mate],  // max offset resolutions
+								posmin,         // min # seed poss to try
+								posfrac,        // additional seed poss to try
+								rowmult,        // max extensions per pos
 								maxhalf,        // max width on one DP side
 								ca,             // seed alignment cache
 								rnd,            // pseudo-random source

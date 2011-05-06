@@ -110,7 +110,7 @@ my @cases = (
 	# length-2 seed in
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [      "TTATTAGT" ],
-	  args   => "-P \"SEED=0,2,1;MMP=C1\"",
+	  args   => "-P \"SEED=0,2,1;MMP=C1;ROWM=10\"",
 	  report => "-a",
 	  #
 	  # TTGTTCGTTTGTTCGT TTGTTCGTTTGTTCGT TTGTTCGTTTGTTCGT
