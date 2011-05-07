@@ -174,7 +174,10 @@ public:
 		nfills_(0),
 		ncups_(0),
 		nrowups_(0),
-		nrowskips_(0)
+		nrowskips_(0),
+		nsucc_(0),
+		nfail_(0),
+		nbts_(0)
 	{
 		SwAligner::EXTREMES.first = std::numeric_limits<size_t>::max();
 		SwAligner::EXTREMES.second = std::numeric_limits<size_t>::min();
@@ -396,12 +399,12 @@ public:
 		uint64_t& nsucc,
 		uint64_t& nfail) const
 	{
-		nfills += nfills_;
-		ncups += ncups_;
-		nrowups += nrowups_;
+		nfills    += nfills_;
+		ncups     += ncups_;
+		nrowups   += nrowups_;
 		nrowskips += nrowskips_;
-		nsucc += nsucc_;
-		nfail += nfail_;
+		nsucc     += nsucc_;
+		nfail     += nfail_;
 	}
 
 	/**
