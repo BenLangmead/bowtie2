@@ -9,21 +9,6 @@
 using namespace std;
 
 /**
- * [!-?A-~]{1,255}
- */
-void SamConfig::printReadName(
-	OutFileBuf& o,
-	const std::string& name) const
-{
-	for(size_t i = 0; i < name.length(); i++) {
-		if(isspace(name[i])) {
-			return;
-		}
-		o.write(name[i]);
-	}
-}
-
-/**
  * Print a reference name in a way that doesn't violate SAM's character
  * constraints. \*|[!-()+-<>-~][!-~]*
  */
