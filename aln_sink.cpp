@@ -1315,7 +1315,7 @@ void AlnSinkVerbose::appendMate(
 					itoa10<TRefOff>(off + offAdj + offBase_, buf);
 					o.writeChars(buf);
 				} else {
-					o.write('*');
+					o.write('0');
 				}
 			}
 			// end else clause of if(partition != 0)
@@ -1369,7 +1369,7 @@ void AlnSinkVerbose::appendMate(
 			if(rs != NULL) {
 				itoa10<TMapq>(mapq_.mapq(summ), buf);
 				o.writeChars(buf);
-			} else o.write('*');
+			} else o.write('0');
 		}
 		if(NOT_SUPPRESSED) {
 			WRITE_TAB;
@@ -1493,7 +1493,7 @@ void AlnSinkSam::appendMate(
 	char buf[1024];
 	int offAdj = ((rd.color && exEnds_) ? 1 : 0);
 	// QNAME
-	o.writeString(rd.name);
+	samc_.printReadName(o, rd.name);
 	o.write('\t');
 	// FLAG
 	int fl = 0;

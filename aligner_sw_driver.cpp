@@ -206,6 +206,7 @@ bool SwDriver::extendSeeds(
 			}
 			while(true) {
 				res_.reset();
+				assert(res_.empty());
 				if(swa.done()) {
 					break;
 				}
@@ -580,6 +581,7 @@ bool SwDriver::extendSeedsPaired(
 			// problem...
 			while(true) {
 				res_.reset();
+				assert(res_.empty());
 				if(swa.done()) {
 					break;
 				}
@@ -706,6 +708,7 @@ bool SwDriver::extendSeedsPaired(
 					}
 					do {
 						ores_.reset();
+						assert(ores_.empty());
 						if(oswa.done()) {
 							foundMate = false;
 						} else {

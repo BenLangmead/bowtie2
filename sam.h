@@ -103,10 +103,19 @@ public:
 	/**
 	 * [!-?A-~]{1,255}
 	 */
+	template<typename TStr>
 	void printReadName(
 		OutFileBuf& o,
-		const std::string& name)
-		const;
+		const TStr& name)
+		const
+	{
+		for(size_t i = 0; i < name.length(); i++) {
+			if(isspace(name[i])) {
+				return;
+			}
+			o.write(name[i]);
+		}
+	}
 
 	/**
 	 * Print a reference name given a reference index.

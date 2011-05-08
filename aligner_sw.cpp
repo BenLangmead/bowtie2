@@ -390,6 +390,7 @@ bool SwAligner::backtrackNucleotides(
 				continue;
 			} else {
 				// No branch points to revisit; just give up
+				res.reset();
 				return false;
 			}
 		}

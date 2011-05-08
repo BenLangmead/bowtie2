@@ -36,6 +36,190 @@ if(! -x $bowtie2 || ! -x $bowtie2_build) {
 
 my @cases = (
 
+	# Alignment with 1 reference gap
+	{ ref    => [ "TTTTGTTCGTTTG" ],
+	  reads  => [ "TTTTGTTCGATTTG" ], # budget = 3 + 14 * 3 = 45
+	  args   =>   "-P \"SEED=0,8,1;RFG=25,20\"",
+	  report =>   "-a",
+	  hits   => [ { 0 => 1 } ],
+	  flags => [ "XM:0,XP:0,XT:UU,XC:9=1I4=" ],
+	  cigar  => [ "9M1I4M" ],
+	  samoptflags => [
+		{ "AS:i:-45" => 1, "NM:i:1"  => 1, "XO:i:1" => 1, "XG:i:1" => 1,
+		  "YT:Z:UU" => 1, "MD:Z:13" => 1 },
+	  ]
+	},
+
+	# Alignment with 1 reference gap
+	{ ref    => [ "TTGTTCGTTTGTT" ],
+	  reads  => [ "TTGTTCGATTTGTT" ], # budget = 3 + 14 * 3 = 45
+	  args   =>   "-P \"SEED=0,3,1;RFG=25,20\"",
+	  report =>   "-a",
+	  hits   => [ { 0 => 1 } ],
+	  flags => [ "XM:0,XP:0,XT:UU,XC:7=1I6=" ],
+	  cigar  => [ "7M1I6M" ],
+	  samoptflags => [
+		{ "AS:i:-45" => 1, "NM:i:1"  => 1, "XO:i:1" => 1, "XG:i:1" => 1,
+		  "YT:Z:UU" => 1, "MD:Z:13" => 1 },
+	  ]
+	},
+
+	{ ref    => [ "ACNCA" ],
+	  reads  => [ "CA" ],
+	  args   => "",
+	  report => "-a -P \"SEED=0,2,1;NCEIL=0,0\"",
+	  hits   => [ { 3 => 1 } ],
+	  edits  => [ ],
+	  flags => [ "XM:0,XP:0,XT:UU,XC:2=" ],
+	  cigar  => [ "2M" ],
+	  samoptflags => [
+		{ "YT:Z:UU" => 1, "MD:Z:2" => 1 },
+	  ]
+	},
+
+	{ ref    => [ "ACNCA" ],
+	  reads  => [ "AC" ],
+	  args   => "",
+	  report => "-a -P \"SEED=0,2,1;NCEIL=0,0\"",
+	  hits   => [ { 0 => 1 } ],
+	  edits  => [ ],
+	  flags => [ ] },
+
+	{ ref    => [ "ACNCANNNNNNNNCGNNNNNNNNCG" ],
+	#              0123456789012345678901234
+	#              0         1         2
+	  reads  => [ "CG" ],
+	  args   => "",
+	  report => "-a -P \"SEED=0,2,1;NCEIL=0,0\"",
+	  hits   => [ { 13 => 2, 23 => 2 } ],
+	  edits  => [ ],
+	  flags => [ "XM:0,XP:0,XT:UU,XC:2=", "XM:0,XP:0,XT:UU,XC:2=" ],
+	  cigar  => [ "2M", "2M" ],
+	  samoptflags => [
+		{ "YT:Z:UU" => 1, "MD:Z:2" => 1 },
+		{ "YT:Z:UU" => 1, "MD:Z:2" => 1 },
+	  ]
+	},
+
+	{ ref    => [ "ACNCANNNNNNAACGNNNNNNNACGAANNNNCGAAAN" ],
+	#              0123456789012345678901234567890123456
+	#              0         1         2         3
+	  reads  => [ "CG" ],
+	  args   => "",
+	  report => "-a -P \"SEED=0,2,1;NCEIL=0,0;ROWM=3\"",
+	  hits   => [ { 13 => 2, 23 => 2, 31 => 2 } ],
+	  edits  => [ ],
+	  flags => [ "XM:0,XP:0,XT:UU,XC:2=",
+	             "XM:0,XP:0,XT:UU,XC:2=",
+				 "XM:0,XP:0,XT:UU,XC:2=" ],
+	  cigar  => [ "2M", "2M", "2M" ],
+	  samoptflags => [
+		{ "YT:Z:UU" => 1, "MD:Z:2" => 1 },
+		{ "YT:Z:UU" => 1, "MD:Z:2" => 1 },
+		{ "YT:Z:UU" => 1, "MD:Z:2" => 1 },
+	  ]
+	},
+
+	{ ref    => [ "ACNCANNNNNNAACGNNNNNNNACGAANNNNCGAAAN" ],
+	#              0123456789012345678901234567890123456
+	#              0         1         2         3
+	  reads  => [ "CG" ],
+	  args   => "",
+	  report => "-a -P \"SEED=0,1,1;NCEIL=0,0;ROWM=3\"",
+	  hits   => [ { 13 => 2, 23 => 2, 31 => 2 } ],
+	  edits  => [ ],
+	  flags => [ "XM:0,XP:0,XT:UU,XC:2=",
+	             "XM:0,XP:0,XT:UU,XC:2=",
+	             "XM:0,XP:0,XT:UU,XC:2=" ],
+	  cigar  => [ "2M", "2M", "2M" ],
+	  samoptflags => [
+		{ "YT:Z:UU" => 1, "MD:Z:2" => 1 },
+		{ "YT:Z:UU" => 1, "MD:Z:2" => 1 },
+		{ "YT:Z:UU" => 1, "MD:Z:2" => 1 },
+	  ]
+	},
+
+	#
+	# Alignment involving ambiguous reference character
+	#
+
+	# First read has non-compatible unambiguous charcacter (G for Y),
+	# second read has compatible one
+	{ ref    => [ "TTGTTYGT" ],
+	  reads  => [ "TTGTTGGT", "TTGTTCGT" ],
+	  args   => "",
+	  report => "-a -P \"SEED=0,5,1;NCEIL=2,0\"",
+	  hits   => [ { 0 => 1 }, { 0 => 1 } ],
+	  norc   => 1,
+	  edits  => [ "5:N>G", "5:N>C" ],
+	  flags => [ "XM:0,XP:0,XT:UU,XC:5=1X2=", "XM:0,XP:0,XT:UU,XC:5=1X2=" ],
+	  cigar  => [ "8M", "8M" ],
+	  samoptflags => [
+		{ "AS:i:-1" => 1, "NM:i:1" => 1, "XM:i:1" => 1, "XN:i:1" => 1,
+		  "YT:Z:UU" => 1, "MD:Z:5N2" => 1 },
+		{ "AS:i:-1" => 1, "NM:i:1" => 1, "XM:i:1" => 1, "XN:i:1" => 1,
+		  "YT:Z:UU" => 1, "MD:Z:5N2" => 1 },
+	  ]
+	},
+
+	#
+	# Alignment with multi-character read gap
+	#
+
+	# Relatively small example with a read gap extend
+	{ ref    => [ "ATAACCTTCG" ],
+	  reads  => [ "ATAATTCG" ], # 3 * 19 + 3 = 60
+	  #                ^
+	  #                4:CC>- 
+	  args   => "",
+	  report => "-a --overhang --gbar 3 -P \"RDG=5,5;SEED=0,4,1\"",
+	  hits   => [ { 0 => 1 } ],
+	  edits  => [ "4:CC>-" ],
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:4=2D4=" ],
+	  cigar  => [ "4M2D4M" ],
+	  samoptflags => [
+		{ "AS:i:-15" => 1, "NM:i:2" => 1,
+		  "XO:i:1" => 1, "XG:i:2" => 3, "YT:Z:UU" => 1, "MD:Z:4^CC4" => 1 }
+	  ]
+	},
+
+	# Reads 1 and 2 don't have overhang, reads 3 and 4 overhang opposite ends
+	{ ref    => [ "ATATGCCCCATGCCCCCCTCCG" ],
+	  reads  => [ "ATATGCCCCCCCCCCTCCG" ], # 3 * 19 + 3 = 60
+	  #                     ^
+	  #                     9:ATG>- 
+	  args   => "",
+	  report => "-a --overhang -P \"RDG=5,5;SEED=0,8,1\"",
+	  hits   => [ { 0 => 1 } ],
+	  edits  => [ "9:ATG>-" ],
+	  norc   => 1,
+	  flags => [ "XM:0,XP:0,XT:UU,XC:9=3D10=" ],
+	  cigar  => [ "9M3D10M" ],
+	  samoptflags => [
+		{ "AS:i:-20" => 1, "NM:i:3" => 1,
+		  "XO:i:1" => 1, "XG:i:3" => 3, "YT:Z:UU" => 1, "MD:Z:9^ATG10" => 1 }
+	  ]
+	},
+
+	# Reads 1 and 2 don't have overhang, reads 3 and 4 overhang opposite ends
+	{ ref    => [ "ATATGCCCCATGCCCCCCTCCG" ],
+	  reads  => [ "CGGAGGGGGGGGGGCATAT" ],
+	  #            ATATGCCCCCCCCCCTCCG
+	  #                     ^         
+	  #                     10:GTA>- 
+	  args   => "",
+	  report => "-a --overhang -P \"RDG=5,5;SEED=0,8,1\"",
+	  hits   => [ { 0 => 1 } ],
+	  edits  => [ "10:GTA>-" ],
+	  norc   => 1,
+	  flags => [ "XM:0,XP:0,XT:UU,XC:9=3D10=" ],
+	  cigar  => [ "9M3D10M" ],
+	  samoptflags => [
+		{ "AS:i:-20" => 1, "NM:i:3" => 1,
+		  "XO:i:1" => 1, "XG:i:3" => 3, "YT:Z:UU" => 1, "MD:Z:9^ATG10" => 1 }
+	  ]
+	},
+
 	# 1 discordant alignment and one concordant alignment.  Discordant because
 	# the fragment is too long.
 
@@ -406,190 +590,6 @@ my @cases = (
 		{ "YT:Z:UU" => 1, "MD:Z:7" => 1 },
 		{ "YT:Z:UU" => 1 },
 		{ "YT:Z:UU" => 1 }
-	  ]
-	},
-
-	# Alignment with 1 reference gap
-	{ ref    => [ "TTTTGTTCGTTTG" ],
-	  reads  => [ "TTTTGTTCGATTTG" ], # budget = 3 + 14 * 3 = 45
-	  args   =>   "-P \"SEED=0,8,1;RFG=25,20\"",
-	  report =>   "-a",
-	  hits   => [ { 0 => 1 } ],
-	  flags => [ "XM:0,XP:0,XT:UU,XC:9=1I4=" ],
-	  cigar  => [ "9M1I4M" ],
-	  samoptflags => [
-		{ "AS:i:-45" => 1, "NM:i:1"  => 1, "XO:i:1" => 1, "XG:i:1" => 1,
-		  "YT:Z:UU" => 1, "MD:Z:13" => 1 },
-	  ]
-	},
-
-	# Alignment with 1 reference gap
-	{ ref    => [ "TTGTTCGTTTGTT" ],
-	  reads  => [ "TTGTTCGATTTGTT" ], # budget = 3 + 14 * 3 = 45
-	  args   =>   "-P \"SEED=0,3,1;RFG=25,20\"",
-	  report =>   "-a",
-	  hits   => [ { 0 => 1 } ],
-	  flags => [ "XM:0,XP:0,XT:UU,XC:7=1I6=" ],
-	  cigar  => [ "7M1I6M" ],
-	  samoptflags => [
-		{ "AS:i:-45" => 1, "NM:i:1"  => 1, "XO:i:1" => 1, "XG:i:1" => 1,
-		  "YT:Z:UU" => 1, "MD:Z:13" => 1 },
-	  ]
-	},
-
-	{ ref    => [ "ACNCA" ],
-	  reads  => [ "CA" ],
-	  args   => "",
-	  report => "-a -P \"SEED=0,2,1;NCEIL=0,0\"",
-	  hits   => [ { 3 => 1 } ],
-	  edits  => [ ],
-	  flags => [ "XM:0,XP:0,XT:UU,XC:2=" ],
-	  cigar  => [ "2M" ],
-	  samoptflags => [
-		{ "YT:Z:UU" => 1, "MD:Z:2" => 1 },
-	  ]
-	},
-
-	{ ref    => [ "ACNCA" ],
-	  reads  => [ "AC" ],
-	  args   => "",
-	  report => "-a -P \"SEED=0,2,1;NCEIL=0,0\"",
-	  hits   => [ { 0 => 1 } ],
-	  edits  => [ ],
-	  flags => [ ] },
-
-	{ ref    => [ "ACNCANNNNNNNNCGNNNNNNNNCG" ],
-	#              0123456789012345678901234
-	#              0         1         2
-	  reads  => [ "CG" ],
-	  args   => "",
-	  report => "-a -P \"SEED=0,2,1;NCEIL=0,0\"",
-	  hits   => [ { 13 => 2, 23 => 2 } ],
-	  edits  => [ ],
-	  flags => [ "XM:0,XP:0,XT:UU,XC:2=", "XM:0,XP:0,XT:UU,XC:2=" ],
-	  cigar  => [ "2M", "2M" ],
-	  samoptflags => [
-		{ "YT:Z:UU" => 1, "MD:Z:2" => 1 },
-		{ "YT:Z:UU" => 1, "MD:Z:2" => 1 },
-	  ]
-	},
-
-	{ ref    => [ "ACNCANNNNNNAACGNNNNNNNACGAANNNNCGAAAN" ],
-	#              0123456789012345678901234567890123456
-	#              0         1         2         3
-	  reads  => [ "CG" ],
-	  args   => "",
-	  report => "-a -P \"SEED=0,2,1;NCEIL=0,0\"",
-	  hits   => [ { 13 => 2, 23 => 2, 31 => 2 } ],
-	  edits  => [ ],
-	  flags => [ "XM:0,XP:0,XT:UU,XC:2=",
-	             "XM:0,XP:0,XT:UU,XC:2=",
-				 "XM:0,XP:0,XT:UU,XC:2=" ],
-	  cigar  => [ "2M", "2M", "2M" ],
-	  samoptflags => [
-		{ "YT:Z:UU" => 1, "MD:Z:2" => 1 },
-		{ "YT:Z:UU" => 1, "MD:Z:2" => 1 },
-		{ "YT:Z:UU" => 1, "MD:Z:2" => 1 },
-	  ]
-	},
-
-	{ ref    => [ "ACNCANNNNNNAACGNNNNNNNACGAANNNNCGAAAN" ],
-	#              0123456789012345678901234567890123456
-	#              0         1         2         3
-	  reads  => [ "CG" ],
-	  args   => "",
-	  report => "-a -P \"SEED=0,1,1;NCEIL=0,0\"",
-	  hits   => [ { 13 => 2, 23 => 2, 31 => 2 } ],
-	  edits  => [ ],
-	  flags => [ "XM:0,XP:0,XT:UU,XC:2=",
-	             "XM:0,XP:0,XT:UU,XC:2=",
-	             "XM:0,XP:0,XT:UU,XC:2=" ],
-	  cigar  => [ "2M", "2M", "2M" ],
-	  samoptflags => [
-		{ "YT:Z:UU" => 1, "MD:Z:2" => 1 },
-		{ "YT:Z:UU" => 1, "MD:Z:2" => 1 },
-		{ "YT:Z:UU" => 1, "MD:Z:2" => 1 },
-	  ]
-	},
-
-	#
-	# Alignment involving ambiguous reference character
-	#
-
-	# First read has non-compatible unambiguous charcacter (G for Y),
-	# second read has compatible one
-	{ ref    => [ "TTGTTYGT" ],
-	  reads  => [ "TTGTTGGT", "TTGTTCGT" ],
-	  args   => "",
-	  report => "-a -P \"SEED=0,5,1;NCEIL=2,0\"",
-	  hits   => [ { 0 => 1 }, { 0 => 1 } ],
-	  norc   => 1,
-	  edits  => [ "5:N>G", "5:N>C" ],
-	  flags => [ "XM:0,XP:0,XT:UU,XC:5=1X2=", "XM:0,XP:0,XT:UU,XC:5=1X2=" ],
-	  cigar  => [ "8M", "8M" ],
-	  samoptflags => [
-		{ "AS:i:-1" => 1, "NM:i:1" => 1, "XM:i:1" => 1, "XN:i:1" => 1,
-		  "YT:Z:UU" => 1, "MD:Z:5N2" => 1 },
-		{ "AS:i:-1" => 1, "NM:i:1" => 1, "XM:i:1" => 1, "XN:i:1" => 1,
-		  "YT:Z:UU" => 1, "MD:Z:5N2" => 1 },
-	  ]
-	},
-
-	#
-	# Alignment with multi-character read gap
-	#
-
-	# Relatively small example with a read gap extend
-	{ ref    => [ "ATAACCTTCG" ],
-	  reads  => [ "ATAATTCG" ], # 3 * 19 + 3 = 60
-	  #                ^
-	  #                4:CC>- 
-	  args   => "",
-	  report => "-a --overhang --gbar 3 -P \"RDG=5,5;SEED=0,4,1\"",
-	  hits   => [ { 0 => 1 } ],
-	  edits  => [ "4:CC>-" ],
-	  flags  => [ "XM:0,XP:0,XT:UU,XC:4=2D4=" ],
-	  cigar  => [ "4M2D4M" ],
-	  samoptflags => [
-		{ "AS:i:-15" => 1, "NM:i:2" => 1,
-		  "XO:i:1" => 1, "XG:i:2" => 3, "YT:Z:UU" => 1, "MD:Z:4^CC4" => 1 }
-	  ]
-	},
-
-	# Reads 1 and 2 don't have overhang, reads 3 and 4 overhang opposite ends
-	{ ref    => [ "ATATGCCCCATGCCCCCCTCCG" ],
-	  reads  => [ "ATATGCCCCCCCCCCTCCG" ], # 3 * 19 + 3 = 60
-	  #                     ^
-	  #                     9:ATG>- 
-	  args   => "",
-	  report => "-a --overhang -P \"RDG=5,5;SEED=0,8,1\"",
-	  hits   => [ { 0 => 1 } ],
-	  edits  => [ "9:ATG>-" ],
-	  norc   => 1,
-	  flags => [ "XM:0,XP:0,XT:UU,XC:9=3D10=" ],
-	  cigar  => [ "9M3D10M" ],
-	  samoptflags => [
-		{ "AS:i:-20" => 1, "NM:i:3" => 1,
-		  "XO:i:1" => 1, "XG:i:3" => 3, "YT:Z:UU" => 1, "MD:Z:9^ATG10" => 1 }
-	  ]
-	},
-
-	# Reads 1 and 2 don't have overhang, reads 3 and 4 overhang opposite ends
-	{ ref    => [ "ATATGCCCCATGCCCCCCTCCG" ],
-	  reads  => [ "CGGAGGGGGGGGGGCATAT" ],
-	  #            ATATGCCCCCCCCCCTCCG
-	  #                     ^         
-	  #                     10:GTA>- 
-	  args   => "",
-	  report => "-a --overhang -P \"RDG=5,5;SEED=0,8,1\"",
-	  hits   => [ { 0 => 1 } ],
-	  edits  => [ "10:GTA>-" ],
-	  norc   => 1,
-	  flags => [ "XM:0,XP:0,XT:UU,XC:9=3D10=" ],
-	  cigar  => [ "9M3D10M" ],
-	  samoptflags => [
-		{ "AS:i:-20" => 1, "NM:i:3" => 1,
-		  "XO:i:1" => 1, "XG:i:3" => 3, "YT:Z:UU" => 1, "MD:Z:9^ATG10" => 1 }
 	  ]
 	},
 
