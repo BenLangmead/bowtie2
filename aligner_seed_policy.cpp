@@ -220,6 +220,7 @@ void SeedAlignmentPolicy::parseString(
 	float& multiseedIvalB,
 	float& posmin,
 	float& posfrac,
+	float& rowmin,
 	float& rowmult)
 {
 
@@ -266,6 +267,7 @@ void SeedAlignmentPolicy::parseString(
 	
 	posmin   = DEFAULT_POSMIN;
 	posfrac  = DEFAULT_POSFRAC;
+	rowmin   = DEFAULT_ROWMIN;
 	rowmult  = DEFAULT_ROWMULT;
 
 	EList<string> toks(MISC_CAT);
@@ -504,6 +506,10 @@ void SeedAlignmentPolicy::parseString(
 				istringstream tmpss(ctoks[0]);
 				tmpss >> rowmult;
 			}
+			if(ctoks.size() >= 2) {
+				istringstream tmpss(ctoks[1]);
+				tmpss >> rowmin;
+			}
 		}
 		// Local-alignment score floor as a function of read length
 		// FL=xx,yy
@@ -650,6 +656,7 @@ int main() {
 	float multiseedIvalB;
 	float posmin;
 	float posfrac;
+	float rowmin;
 	float rowmult;
 
 	{
@@ -685,6 +692,7 @@ int main() {
 			multiseedIvalB,
 			posmin,
 			posfrac,
+			rowmin,
 			rowmult
 		);
 		
@@ -716,6 +724,7 @@ int main() {
 
 		assert_eq(DEFAULT_POSMIN,             posmin);
 		assert_eq(DEFAULT_POSFRAC,            posfrac);
+		assert_eq(DEFAULT_ROWMIN,             rowmin);
 		assert_eq(DEFAULT_ROWMULT,            rowmult);
 		
 		cout << "PASSED" << endl;
@@ -754,6 +763,7 @@ int main() {
 			multiseedIvalB,
 			posmin,
 			posfrac,
+			rowmin,
 			rowmult
 		);
 		
@@ -785,6 +795,7 @@ int main() {
 
 		assert_eq(DEFAULT_POSMIN,             posmin);
 		assert_eq(DEFAULT_POSFRAC,            posfrac);
+		assert_eq(DEFAULT_ROWMIN,             rowmin);
 		assert_eq(DEFAULT_ROWMULT,            rowmult);
 		
 		cout << "PASSED" << endl;
@@ -823,6 +834,7 @@ int main() {
 			multiseedIvalB,
 			posmin,
 			posfrac,
+			rowmin,
 			rowmult
 		);
 		
@@ -854,6 +866,7 @@ int main() {
 
 		assert_eq(DEFAULT_POSMIN,             posmin);
 		assert_eq(DEFAULT_POSFRAC,            posfrac);
+		assert_eq(DEFAULT_ROWMIN,             rowmin);
 		assert_eq(DEFAULT_ROWMULT,            rowmult);
 		
 		cout << "PASSED" << endl;
@@ -892,6 +905,7 @@ int main() {
 			multiseedIvalB,
 			posmin,
 			posfrac,
+			rowmin,
 			rowmult
 		);
 		
@@ -923,6 +937,7 @@ int main() {
 
 		assert_eq(DEFAULT_POSMIN,             posmin);
 		assert_eq(DEFAULT_POSFRAC,            posfrac);
+		assert_eq(DEFAULT_ROWMIN,             rowmin);
 		assert_eq(DEFAULT_ROWMULT,            rowmult);
 		
 		cout << "PASSED" << endl;

@@ -170,7 +170,11 @@ public:
 		rfwbuf_(DP_CAT),
 		ntab_(DP_CAT),
 		ctab_(DP_CAT),
-		solcols_(DP_CAT),
+		btnstack_(DP_CAT),
+		btcstack_(DP_CAT),
+		btcells_(DP_CAT),
+		btncand_(DP_CAT),
+		btccand_(DP_CAT),
 		nfills_(0),
 		ncups_(0),
 		nrowups_(0),
@@ -234,18 +238,8 @@ public:
 		floorsc_ = floorsc;    // local-alignment score floor
 		nceil_   = nceil;      // max # Ns allowed in ref portion of aln
 		inited_  = true;       // indicate we're initialized now
-		solrows_ = SwAligner::EXTREMES; // range of rows with at least 1 sol
-		solcols_.clear();      // for each row, cells with >0 sols remaining
-		INVALIDATE_SCORE(solbest_); // best score
-		solrowbest_.clear();   // best score in each row
-		solrowlo_ = sc.rowlo;  // if row >= this, solutions are possible
-		soldone_  = true;      // true iff there are no more cells with sols
-		nsols_    = 0;         // # cells with acceptable sols so far
-		cural_    = 0;         // idx of next alignment to give out
-		if(solrowlo_ < 0) {
-			solrowlo_ = (int64_t)(dpRows()-1);
-		}
-		assert_geq(solrowlo_, 0);
+		solrowlo_= sc.rowlo;   // if row >= this, solutions are possible
+		cural_   = 0;          // idx of next alignment to give out
 		assert(en_ == NULL || en_->size() == width_);
 		assert(st_ == NULL || st_->size() == width_);
 	}
@@ -321,7 +315,12 @@ public:
 	 * no more solutions, but that hasn't been discovered yet.
 	 */
 	bool done() const {
-		return soldone_;
+		assert(inited());
+		if(color_) {
+			return cural_ == btccand_.size();
+		} else {
+			return cural_ == btncand_.size();
+		}
 	}
 
 	/**
@@ -348,18 +347,27 @@ public:
 	 */
 	bool repOk() const {
 		assert_gt(dpRows(), 0);
-		if(state_ == STATE_ALIGNED) {
-			assert(soldone_ || solrows_.second >= solrows_.first);
-			if(solrows_.second >= solrows_.first) {
-				for(size_t i = solrows_.first; i <= solrows_.second; i++) {
-					assert_leq(solrowbest_[i], solbest_);
-					assert(!VALID_SCORE(solrowbest_[i]) || 
-					       solcols_[i].second >= solcols_[i].first);
-				}
-			}
-		}
 		assert(st_ == NULL || st_->size() == width_);
 		assert(en_ == NULL || en_->size() == width_);
+		if(color_) {
+			// Check btccand_
+			for(size_t i = 0; i < btccand_.size(); i++) {
+				assert_lt(btccand_[i].row, ctab_.size());
+				assert(solrowlo_ < 0 || btccand_[i].row >= (size_t)solrowlo_);
+				assert_lt(btccand_[i].col, ctab_[btccand_[i].row].size());
+				assert(btccand_[i].repOk());
+				assert_geq(btccand_[i].score, minsc_);
+			}
+		} else {
+			// Check btncand_
+			for(size_t i = 0; i < btncand_.size(); i++) {
+				assert_lt(btncand_[i].row, ntab_.size());
+				assert(solrowlo_ < 0 || btncand_[i].row >= (size_t)solrowlo_);
+				assert_lt(btncand_[i].col, ntab_[btncand_[i].row].size());
+				assert(btncand_[i].repOk());
+				assert_geq(btncand_[i].score, minsc_);
+			}
+		}
 		return true;
 	}
 	
@@ -497,14 +505,14 @@ protected:
 	 * reference string 'rf' using dynamic programming.  Return true iff
 	 * zero or more alignments are possible.
 	 */
-	bool alignNucleotides(RandomSource& rnd);
+	void alignNucleotides(RandomSource& rnd);
 
 	/**
 	 * Align the nucleotide read 'rd' to the reference string 'rf' using
 	 * dynamic programming.  Return true iff zero or more alignments are
 	 * possible.
 	 */
-	bool alignColors(RandomSource& rnd);
+	void alignColors(RandomSource& rnd);
 
 	/**
 	 * Given the dynamic programming table and a cell (both the table offset
@@ -637,7 +645,8 @@ protected:
 		SwColorCell& dstc,
 		int refMask,
 		int prevColor,
-		int prevQual);
+		int prevQual,
+		bool& improved);
 
 	inline void updateColorVert(
 		const SwColorCell& uc,
@@ -677,20 +686,16 @@ protected:
 	EList<DpNucFrame>   btnstack_;// backtrace stack for nucleotides
 	EList<DpColFrame>   btcstack_;// backtrace stack for colors
 	EList<SizeTPair>    btcells_; // cells involved in current backtrace
-	
-	SizeTPair           solrows_; // range of rows with at least 1 sol
-	EList<SizeTPair>    solcols_; // per row, cell range with >0 sols remaining
-	TAlScore            solbest_; // best score
-	EList<TAlScore>   solrowbest_;// best score in each row
+
 	int64_t             solrowlo_;// if row >= this, solutions are possible
-	bool                soldone_; // true iff there are no more cells with sols
-	size_t              nsols_;   // # cells with acceptable sols so far
+	EList<DpNucBtCandidate> btncand_; // cells we might backtrace from
+	EList<DpColBtCandidate> btccand_; // cells we might backtrace from
 	
 	size_t              cural_;   // index of next alignment to be given
 	
 	SizeTPair           EXTREMES; // invalid, uninitialized range
 	
-	// Counters
+	// Holds potential solutions to backtrace from
 	uint64_t nfills_;    // table fills
 	uint64_t ncups_;     // cell updates
 	uint64_t nrowups_;   // row updates

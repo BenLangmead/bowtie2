@@ -245,6 +245,86 @@ struct DpColFrame {
 };
 
 /**
+ * Encapsulates a cell that we might want to backtrace from.
+ */
+struct DpColBtCandidate {
+
+	DpColBtCandidate() { reset(); }
+	
+	DpColBtCandidate(size_t row_, size_t col_, TAlScore score_, int ch_) {
+		init(row_, col_, score_, ch_);
+	}
+
+	void reset() { init(0, 0, 0, 0); }
+	
+	void init(size_t row_, size_t col_, TAlScore score_, int ch_) {
+		row = row_;
+		col = col_;
+		score = score_;
+		ch = ch_;
+	}
+
+	/**
+	 * Return true if this candidate is "greater than" (should be considered
+	 * later than) the given candidate.
+	 */
+	bool operator>(const DpColBtCandidate& o) const {
+		if(score < o.score) return true;
+		if(score > o.score) return false;
+		if(row < o.row) return true;
+		if(row > o.row) return false;
+		if(col < o.col) return true;
+		if(col > o.col) return false;
+		if(ch < o.ch) return true;
+		if(ch > o.ch) return false;
+		return false;
+	}
+
+	/**
+	 * Return true if this candidate is "less than" (should be considered
+	 * sooner than) the given candidate.
+	 */
+	bool operator<(const DpColBtCandidate& o) const {
+		if(score > o.score) return true;
+		if(score < o.score) return false;
+		if(row > o.row) return true;
+		if(row < o.row) return false;
+		if(col > o.col) return true;
+		if(col < o.col) return false;
+		if(ch > o.ch) return true;
+		if(ch < o.ch) return false;
+		return false;
+	}
+	
+	/**
+	 * Return true if this candidate equals the given candidate.
+	 */
+	bool operator==(const DpColBtCandidate& o) const {
+		return row   == o.row &&
+		       col   == o.col &&
+			   score == o.score &&
+			   ch    == o.ch;
+	}
+
+	bool operator>=(const DpColBtCandidate& o) const { return !((*this) < o); }
+	bool operator<=(const DpColBtCandidate& o) const { return !((*this) > o); }
+
+	/**
+	 * Check internal consistency.
+	 */
+	bool repOk() const {
+		assert(VALID_SCORE(score));
+		assert_range(0, 3, ch);
+		return true;
+	}
+
+	size_t   row;   // cell row
+	size_t   col;   // cell column w/r/t LHS of rectangle
+	TAlScore score; // score fo alignment
+	int      ch;    // decoded nucleotide in final row
+};
+
+/**
  * Encapsulates all information needed to encode the optimal subproblem
  * at a cell in a colorspace SW matrix.
  */
@@ -264,6 +344,7 @@ struct SwColorCell {
 		mask[2].clear();
 		mask[3].clear();
 		empty = true;
+		backtraceCandidate = false;
 		terminal[0] = terminal[1] = terminal[2] = terminal[3] = false;
 		reportedThru_ = false;
 		reportedFrom_[0] = reportedFrom_[1] =
@@ -298,6 +379,7 @@ struct SwColorCell {
 	 */
 	inline bool bestSolutionGeq(
 		const TAlScore& min,
+		int& btC,
 		AlnScore& bst)
 	{
 		if(reportedThru_ || empty) {
@@ -311,6 +393,7 @@ struct SwColorCell {
 			   oallBest[i] > bestSoFar)
 			{
 				bestSoFar = oallBest[i];
+				btC = i;
 			}
 		}
 		if(bestSoFar.valid()) {
@@ -438,6 +521,10 @@ struct SwColorCell {
 	// Initialized to false, set to true once an alignment for which the
 	// backtrace begins at this cell is reported.
 	bool reportedFrom_[4];
+
+	// Initialized to false, set to true iff it is found to be a candidate cell
+	// for starting a bactrace.
+	bool backtraceCandidate;
 
 	ASSERT_ONLY(bool finalized);
 };
