@@ -165,22 +165,55 @@ void SwAligner::init(
 bool SwAligner::align(RandomSource& rnd) {
 	assert(inited());
 	assert_eq(STATE_INITED, state_);
-	bool possible;
 	nfills_++;
 	state_ = STATE_ALIGNED;
+	// Reset solutions lists
+	btncand_.clear();
+	btccand_.clear();
 	if(color_) {
-		possible = alignColors(rnd);
+		alignColors(rnd);
 	} else {
-		possible = alignNucleotides(rnd);
-	}
-	if(VALID_SCORE(solbest_)) {
-		nsucc_++;
-	} else {
-		nfail_++;
+		alignNucleotides(rnd);
 	}
 	assert(repOk());
 	cural_ = 0;
-	return possible;
+	// Collect alignments into appropriate list: either btncand_ or btccand_
+	int64_t rowlo = solrowlo_;
+	if(color_) {
+		if(rowlo == -1) rowlo = (int64_t)ctab_.size()-1;
+		for(int64_t row = ctab_.size()-1; row >= rowlo; row--) {
+			for(size_t col = 0; col < ctab_[row].size(); col++) {
+				if(ctab_[row][col].backtraceCandidate) {
+					// Which decoded character yields the best score?
+					int btC = -1;
+					AlnScore bst;
+					ASSERT_ONLY(bool ret =)
+						ctab_[row][col].bestSolutionGeq(minsc_, btC, bst);
+					assert(ret);
+					btccand_.expand();
+					btccand_.back().init(row, col, bst.score(), btC);
+				}
+			}
+		}
+		btccand_.sort();
+		return !btccand_.empty();
+	} else {
+		if(rowlo == -1) rowlo = (int64_t)ntab_.size()-1;
+		for(int64_t row = ntab_.size()-1; row >= rowlo; row--) {
+			for(size_t col = 0; col < ntab_[row].size(); col++) {
+				if(ntab_[row][col].backtraceCandidate) {
+					AlnScore bst;
+					ASSERT_ONLY(bool ret =)
+						ntab_[row][col].bestSolutionGeq(minsc_, bst);
+					assert(ret);
+					btncand_.expand();
+					btncand_.back().init(row, col, bst.score());
+				}
+			}
+		}
+		btncand_.sort();
+		return !btncand_.empty();
+	}
 }
 
 /**
@@ -899,6 +932,21 @@ size_t SwAligner::nfilter(size_t nlim) {
 	return filtered;
 }
 
+////
+// When is a cell a candidate for us to backtrace from?
+//
+// In end-to-end alignment mode, all of the following must be the case:
+// 1. It's in the last row
+// 2. Its score is not less than the minimum
+// 3. It's not in a forbidden diagonal (e.g. disallowed by N filter)
+//
+// In local alignment mode, all of the following must be the case:
+// 1. It's an improvement over the previous step
+// 2. It's not improved upon in the next step
+// 3. Its score is not less than the minimum
+// 4. It's not in a forbidden diagonal (e.g. disallowed by N filter)
+//
+
 // Assumes:
 // 1. 'row' = 0-based row of DP table
 // 2. 'col' = 0-based col of DP table
@@ -911,40 +959,29 @@ size_t SwAligner::nfilter(size_t nlim) {
 // 8. 'solrowbest_'
 #define UPDATE_SOLS(cur, row, col, improved) { \
 	assert_lt(col, width_); \
-	if(cur.oallBest.score() >= minsc_ && \
-	   (en_ == NULL || (*en_)[col])) \
-	{ \
+	if(cur.oallBest.score() >= minsc_ && (en_ == NULL || (*en_)[col])) { \
+		/* Score and column are acceptable */ \
 		const bool local = !sc_->monotone; \
 		/* For local alignment, a cell is only a solution candidate if */ \
 		/* the score was improved when we moved into the cell. */ \
 		if(!local || improved) { \
-			/* Score is acceptable */ \
+			/* Improvement is acceptable */ \
 			if((int64_t)row >= solrowlo_) { \
-				/* Both score and row are acceptable */ \
-				if(row < solrows_.first)        solrows_.first = row; \
-				if(row > solrows_.second)       solrows_.second = row; \
-				if(col < solcols_[row].first) { \
-					solcols_[row].first  = col; \
-					assert(en_ == NULL || solcols_[row].first < en_->size()); \
-				} \
-				if(col > solcols_[row].second) { \
-					solcols_[row].second = col; \
-					assert(en_ == NULL || solcols_[row].second < en_->size()); \
-				} \
-				if(cur.oallBest.score() > solbest_) \
-					solbest_ = cur.oallBest.score(); \
-				assert(!sc_->monotone || solbest_ <= 0); \
-				if(cur.oallBest.score() > solrowbest_[row]) \
-					solrowbest_[row] = cur.oallBest.score(); \
-				assert(!sc_->monotone || solrowbest_[row] <= 0); \
-				nsols_++; \
-				soldone_ = false; \
+				/* Row is acceptable */ \
+				/* This cell is now a good candidate for backtrace BUT in */ \
+				/* local alignment mode we still need to know whether this */ \
+				/* solution is improved upon in the next row.  If it is */ \
+				/* improved upon later, this flag is set to false later. */ \
+				tab[row][col].backtraceCandidate = true; \
+				if(row > 0) tab[row-1][col].backtraceCandidate = false; \
 				assert(repOk()); \
 			} \
 		} \
 	} \
 }
 
+// c is the column offset with respect to the LHS of the rectangle; for offset
+// w/r/t LHS of parallelogram, use r+c
 #define FINALIZE_CELL(r, c, improved) { \
 	assert_lt(c, width_); \
 	assert(!tab[r][c].finalized); \
@@ -980,7 +1017,7 @@ size_t SwAligner::nfilter(size_t nlim) {
  * E.g. if an alignment is found that occurs starting at rdi, 0 is
  * returned.  If no alignment is found, -1 is returned.
  */
-bool SwAligner::alignNucleotides(RandomSource& rnd) {
+void SwAligner::alignNucleotides(RandomSource& rnd) {
 	typedef SwNucCell TCell;
 	assert_leq(rdf_, rd_->length());
 	assert_leq(rdf_, qu_->length());
@@ -999,11 +1036,6 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 	//	
 	ELList<TCell>& tab = ntab_;
 	tab.resize(1); // add first row to row list
-	solrows_ = SwAligner::EXTREMES;        // at first, no rows have sols
-	solcols_.resize(rdf_ - rdi_);
-	solcols_.fill(SwAligner::EXTREMES);    // at first, no cols have sols
-	solrowbest_.resize(rdf_ - rdi_);
-	solrowbest_.fill(std::numeric_limits<TAlScore>::min()); // no row has sol
 	const size_t wlo = 0;
 	const size_t whi = (int)(width_ - 1);
 	assert_lt(whi, rff_-rfi_);
@@ -1131,7 +1163,7 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 	nrowups_++;
 	if(!validInRow) {
 		nrowskips_ += (rdf_ - rdi_ - 1);
-		return !soldone_;
+		return;
 	}
 
 	//
@@ -1604,10 +1636,9 @@ bool SwAligner::alignNucleotides(RandomSource& rnd) {
 		if(!validInRow) {
 			assert_geq(rdf_-rdi_, row+1);
 			nrowskips_ += (rdf_ - rdi_ - row - 1);
-			return !soldone_;
+			return;
 		}
 	}
-	return !soldone_;
 }
 
 /**
@@ -1629,141 +1660,50 @@ bool SwAligner::nextAlignment(
 	assert(inited());
 	assert_eq(STATE_ALIGNED, state_);
 	assert(repOk());
-	if(soldone_) {
-		return false;
-	}
-	// Must be rows with solutions
-	assert_geq(solrows_.second, solrows_.first);
-	assert_geq((int64_t)solrows_.first, solrowlo_);
-	assert_geq((int64_t)solrows_.second, solrowlo_);
-	assert_gt(solrowbest_[solrows_.first ],
-	          std::numeric_limits<TAlScore>::min()); // should be valid
-	assert_gt(solrowbest_[solrows_.second],
-	          std::numeric_limits<TAlScore>::min()); // should be valid
-	// Look for the next cell to backtrace from
-	size_t off = std::numeric_limits<size_t>::max();
-	if(sc_->rowFirst) {
-		// Iterate over rows that potentially have solution cells.  Start
-		// at the bottom and move up.  Within each row, take solutions
-		// from best score to worst score.
-		bool done = false;
-		while(!done) {
-			// From low row to high row
-			for(size_t ii = solrows_.second+1; ii >= solrows_.first+1; ii--) {
-				size_t i = ii-1;
-#ifndef NDEBUG
-				// All lower rows should be exhausted
-				for(size_t j = i+1; j < solrowbest_.size(); j++) {
-					assert(!VALID_SCORE(solrowbest_[j]));
-					assert_gt(solcols_[j].first, solcols_[j].second);
-				}
-#endif
-				if(VALID_SCORE(solrowbest_[i])) {
-					// This row could have a solution cell
-					assert(VALID_SCORE(solbest_));
-					assert_geq(solrowbest_[i], minsc_);
-					assert_leq(solrowbest_[i], solbest_);
-					if(color_) {
-						done = nextAlignmentTryColorRow(
-							res,             // put alignment result here
-							off,             // ref offset of alignment
-							i,               // row to trace back from
-							solrowbest_[i],  // score to select
-							rnd);            // pseudo-random source
-					} else {
-						done = nextAlignmentTryNucRow(
-							res,             // put alignment result here
-							off,             // ref offset of alignment
-							i,               // row to trace back from
-							solrowbest_[i],  // score to select
-							rnd);            // pseudo-random source
-					}
-					if(done) {
-						// Found the alignment we were looking for
-						break;
-					}
-				}
-				if(solrows_.first == std::numeric_limits<size_t>::max()) {
-					break;
-				}
+	assert(!done());
+	size_t off = 0;
+	if(color_) {
+		assert_lt(cural_, btccand_.size());
+		size_t row = btccand_[cural_].row;
+		size_t pcol = row + btccand_[cural_].col;
+		while(cural_ < btccand_.size()) {
+			if(backtrackColors(
+				btccand_[cural_].score, // score we expect to get over backtrack
+				res,                    // store results (edits and scores) here
+				off,                    // store result offset here
+				row,                    // start in this parallelogram row
+				pcol,                   // start in this parallelogram column
+				btccand_[cural_].ch,    // character to backtrack from
+				rnd))                   // pseudo-random generator
+			{
+				break;
 			}
-			if(!done) {
-				// Finished with *all* distinct alignments
-				soldone_ = true;
-				assert(repOk());
-				// Reset res because we have have added e.g. edits to it in the
-				// process of discovering there were no alignments
-				res.reset();
-				return false;
-			} else {
-				// Got a solution from one of the rows
-				assert(repOk());
-			}
+			cural_++;
+		}
+		if(cural_ == btccand_.size()) {
+			return false;
 		}
 	} else {
-		// Iterate first over scores from best score.  Then, within each score
-		// stratum, take solutions from latest row to earliest row.
-		bool done = false;
-		while(!done) {
-			// From low row to high row
-			while(!soldone_) {
-				for(size_t ii = solrows_.second+1; ii >= solrows_.first+1; ii--) {
-					size_t i = ii-1;
-					if(VALID_SCORE(solrowbest_[i]) && solrowbest_[i] == solbest_) {
-						// This row could have a solution cell
-						assert(VALID_SCORE(solbest_));
-						assert(VALID_SCORE(solrowbest_[i]));
-						TAlScore oldbest = solbest_;
-						if(color_) {
-							done = nextAlignmentTryColorRow(
-								res,             // put alignment result here
-								off,             // ref offset of alignment
-								i,               // row to trace back from
-								solbest_,        // score to select
-								rnd);            // pseudo-random source
-						} else {
-							done = nextAlignmentTryNucRow(
-								res,             // put alignment result here
-								off,             // ref offset of alignment
-								i,               // row to trace back from
-								solbest_,        // score to select
-								rnd);            // pseudo-random source
-						}
-						if(done) {
-							break; // Found the alignment
-						}
-						if(oldbest != solbest_) {
-							// The best overall score changed.  When this
-							// happens, we go back to the deepest row and start
-							// our row scan over.
-							ii = solrows_.second+1+1;
-						}
-					}
-					if(solrows_.first == std::numeric_limits<size_t>::max()) {
-						break;
-					}
-				}
-				if(done) {
-					break; // Found the alignment
-				}
+		assert_lt(cural_, btncand_.size());
+		size_t row = btncand_[cural_].row;
+		size_t pcol = row + btncand_[cural_].col;
+		while(cural_ < btncand_.size()) {
+			if(backtrackNucleotides(
+				btncand_[cural_].score, // score we expect to get over backtrack
+				res,                    // store results (edits and scores) here
+				off,                    // store result offset here
+				row,                    // start in this parallelogram row
+				pcol,                   // start in this parallelogram column
+				rnd))                   // pseudo-random generator
+			{
+				break;
 			}
-			if(!done) {
-				// Finished with *all* distinct alignments
-				assert(!VALID_SCORE(solbest_));
-				soldone_ = true;
-				assert(repOk());
-				// Reset res because we have have added e.g. edits to it in the
-				// process of discovering there were no alignments
-				res.reset();
-				return false;
-			} else {
-				assert(repOk());
-				break; // Found the alignment
-			}
+			cural_++;
+		}
+		if(cural_ == btncand_.size()) {
+			return false;
 		}
 	}
-	// Alignment offset should have been set in call to nextAlignmentTry...
-	assert_neq(std::numeric_limits<size_t>::max(), off);
 	assert(!res.alres.empty());
 	assert(res.repOk());
 	if(!fw_) {
@@ -1779,297 +1719,6 @@ bool SwAligner::nextAlignment(
 	}
 	cural_++;
 	return true;
-}
-
-/**
- * If there are empty rows on either end, trim them off.  If we're out of rows
- * with potential solutions, reset everything.
- */
-void SwAligner::nextAlignmentUpdateBest() {
-	assert_geq(solrows_.second, solrows_.first);
-	assert_geq((int64_t)solrows_.first, solrowlo_);
-	assert_geq((int64_t)solrows_.second, solrowlo_);
-	ASSERT_ONLY(TAlScore oldbest = solbest_);
-	INVALIDATE_SCORE(solbest_);
-	size_t first = 0;
-	size_t last = 0;
-	bool setFirst = false;
-	bool setLast = false;
-	for(size_t i = solrows_.first; i <= solrows_.second; i++) {
-		if(VALID_SCORE(solrowbest_[i])) {
-			if(!setFirst) {
-				first = i;
-				setFirst = true;
-			}
-			setLast = true;
-			last = i;
-			if(solrowbest_[i] > solbest_) {
-				solbest_ = solrowbest_[i];
-				assert(!sc_->monotone || solbest_ <= 0);
-			}
-		}
-	}
-	if(setFirst) {
-		// There are still some rows with potential solutions
-		solrows_.first = first;
-		solrows_.second = last;
-		assert(!soldone_);
-		assert(VALID_SCORE(solbest_));
-	} else {
-		// No more rows with potential solutions
-		solrows_ = EXTREMES;
-		soldone_ = true;
-		assert(!VALID_SCORE(solbest_));
-	}
-	assert(solbest_ <= oldbest || !VALID_SCORE(oldbest));
-}
-
-/**
- * Given a range of columns in a row, update solrowbest_, solcols_, solbest_.
- * Return true iff there areone or more solution cells in the row.
- */
-bool SwAligner::nextAlignmentUpdateColorRow(size_t row) {
-	assert(repOk());
-	// For each column that used to be viable
-	INVALIDATE_SCORE(solrowbest_[row]);
-	if(solcols_[row].second < solcols_[row].first) {
-		// The columns were never refined
-		solcols_[row].first = 0;
-		solcols_[row].second = width_;
-	}
-	// Last column with a solution cell
-	size_t last = std::numeric_limits<size_t>::max();
-	bool first = true;
-	// For each column that might have a solution cell...
-	assert(en_ == NULL || solcols_[row].second <= en_->size());
-	for(size_t i = solcols_[row].first; i <= solcols_[row].second; i++) {
-		if(en_ != NULL && !(*en_)[i]) {
-			// Skip b/c this diagonal cannot have a solution cell
-			continue;
-		}
-		// Is it a solution cell?
-		AlnScore best;
-		if(ctab_[row][i].bestSolutionGeq(minsc_, best)) {
-			// Yes
-			if(first) {
-				// If it's the first solution cell, set the left column
-				// boundary to this column.
-				solcols_[row].first = i;
-				first = false;
-			}
-			if(best.score() > solrowbest_[row]) {
-				// If it's the best in the row so far, update the row-best
-				solrowbest_[row] = best.score();
-				assert(!sc_->monotone || solrowbest_[row] <= 0);
-				if(best.score() > solbest_) {
-					// If it's the best overall, update the best overall
-					solbest_ = best.score();
-				}
-			} else {
-				// If it's not better than row-best, can't be better than
-				// overall-best
-				assert_leq(best.score(), solbest_);
-			}
-			last = i;
-		}
-	}
-	// Did we find any solution cells?
-	if(last < std::numeric_limits<size_t>::max()) {
-		// Yes, found at least 1 solution cell.  Update the rightmost
-		// column with a solution cell.
-		solcols_[row].second = last;
-		return true; // success
-	} else {
-		// No, no solution cells found in this row
-		assert(!VALID_SCORE(solrowbest_[row]));
-		solcols_[row] = SwAligner::EXTREMES;
-		return false; // no solutions
-	}
-}
-
-/**
- * Given a range of columns in a row, update solrowbest_, solcols_, solbest_.
- * Return true iff there areone or more solution cells in the row.
- */
-bool SwAligner::nextAlignmentUpdateNucRow(size_t row) {
-	assert(repOk());
-	// For each column that used to be viable
-	INVALIDATE_SCORE(solrowbest_[row]);
-	if(solcols_[row].second < solcols_[row].first) {
-		// The columns were never refined
-		solcols_[row].first = 0;
-		solcols_[row].second = width_;
-	}
-	// Last column with a solution cell
-	size_t last = std::numeric_limits<size_t>::max();
-	bool first = true;
-	// For each column that might have a solution cell...
-	assert(en_ == NULL || solcols_[row].second <= en_->size());
-	for(size_t i = solcols_[row].first; i <= solcols_[row].second; i++) {
-		if(en_ != NULL && !(*en_)[i]) {
-			// Skip b/c this diagonal cannot have a solution cell
-			continue;
-		}
-		// Is it a solution cell?
-		AlnScore best;
-		if(ntab_[row][i].bestSolutionGeq(minsc_, best)) {
-			// Yes
-			if(first) {
-				// If it's the first solution cell, set the left column
-				// boundary to this column.
-				solcols_[row].first = i;
-				first = false;
-			}
-			if(best.score() > solrowbest_[row]) {
-				// If it's the best in the row so far, update the row-best
-				solrowbest_[row] = best.score();
-				assert(!sc_->monotone || solrowbest_[row] <= 0);
-				if(best.score() > solbest_) {
-					// If it's the best overall, update the best overall
-					solbest_ = best.score();
-				}
-			} else {
-				// If it's not better than row-best, can't be better than
-				// overall-best
-				assert_leq(best.score(), solbest_);
-			}
-			last = i;
-		}
-	}
-	// Did we find any solution cells?
-	if(last < std::numeric_limits<size_t>::max()) {
-		// Yes, found at least 1 solution cell.  Update the rightmost
-		// column with a solution cell.
-		solcols_[row].second = last;
-		return true; // success
-	} else {
-		// No, no solution cells found in this row
-		assert(!VALID_SCORE(solrowbest_[row]));
-		solcols_[row] = SwAligner::EXTREMES;
-		return false; // no solutions
-	}
-}
-
-/**
- * Try to report an alignment with the given score from the given row.
- * After each attempt, update information about the row.  Returns false
- * iff the row was exhausted.
- */
-bool SwAligner::nextAlignmentTryColorRow(
-	SwResult& res,       // install result here
-	size_t& off,         // ref offset of alignment
-	size_t row,          // row to try a solution from
-	TAlScore sc,         // potential solutions must have this score
-	RandomSource& rnd)   // pseudo-random generator for backtrack
-{
-	assert(repOk());
-	assert_lt(row, solcols_.size());
-	assert_lt(row, ctab_.size());
-	assert_geq(solcols_[row].second, solcols_[row].first);
-	assert(VALID_SCORE(solrowbest_[row]));
-	// Try each column that might contain a solution cell.  Iterate over
-	// rectangle columns.
-	bool triedOne = false;
-	for(size_t i = solcols_[row].first; i <= solcols_[row].second; i++) {
-		assert_lt(i, ctab_[row].size());
-		if(en_ != NULL && !(*en_)[i]) {
-			// This can't be at either end of the range of valid row cells
-			// TODO: had to comment these out - why?
-			//assert_neq(i, solcols_[row].first);
-			//assert_neq(i, solcols_[row].second);
-			// Skip b/c this diagonal cannot have a solution cell
-			continue;
-		}
-		// Does this cell have the desired score and is it legal to end in
-		// this diagonal?
-		int nuc = -1;
-		if(ctab_[row][i].nextSolutionEq(sc, nuc)) {
-			assert_range(0, 3, nuc);
-			triedOne = true;
-			bool ret = backtrackColors(
-				sc,    // score we expect to get over backtrack
-				res,   // store results (edits and scores) here
-				off,   // store result offset here
-				row,   // start in this parallelogram row
-				i+row, // start in this parallelogram column
-				nuc,   // final decoded nucleotide
-				rnd);  // pseudo-random generator
-			nextAlignmentUpdateColorRow(row);
-			nextAlignmentUpdateBest();
-			// If the row is exhausted, the caller will be able to see by
-			// checking whether solrowbest_[row] is valid, for example
-			if(ret) {
-				return true; // found a result
-			}
-			if(!VALID_SCORE(solrowbest_[row])) {
-				return false; // definitely won't find a result
-			}
-		}
-	}
-	if(!triedOne) {
-		nextAlignmentUpdateColorRow(row);
-		nextAlignmentUpdateBest();
-	}
-	return false; // no result
-}
-
-/**
- * Try to report an alignment with the given score from the given row.
- * After each attempt, update information about the row.
- */
-bool SwAligner::nextAlignmentTryNucRow(
-	SwResult& res,       // install result here
-	size_t& off,         // ref offset of alignment
-	size_t row,          // row to try a solution from
-	TAlScore sc,         // potential solutions must have this score
-	RandomSource& rnd)   // pseudo-random generator for backtrack
-{
-	assert(repOk());
-	assert_lt(row, solcols_.size());
-	assert_lt(row, ntab_.size());
-	assert_geq(solcols_[row].second, solcols_[row].first);
-	assert(VALID_SCORE(solrowbest_[row]));
-	// Try each column that might contain a solution cell.  Iterate over
-	// rectangle columns.
-	bool triedOne = false;
-	for(size_t i = solcols_[row].first; i <= solcols_[row].second; i++) {
-		assert_lt(i, ntab_[row].size());
-		if(en_ != NULL && !(*en_)[i]) {
-			// This can't be at either end of the range of valid row cells
-			// TODO: had to comment these out - why?
-			//assert_neq(i, solcols_[row].first);
-			//assert_neq(i, solcols_[row].second);
-			// Skip b/c this diagonal cannot have a solution cell
-			continue;
-		}
-		// Does this cell have the desired score and is it legal to end in
-		// this diagonal?
-		if(ntab_[row][i].nextSolutionEq(sc)) {
-			triedOne = true;
-			bool ret = backtrackNucleotides(
-				sc,    // score we expect to get over backtrack
-				res,   // store results (edits and scores) here
-				off,   // store result offset here
-				row,   // start in this parallelogram row
-				i+row, // start in this parallelogram column
-				rnd);  // pseudo-random generator
-			nextAlignmentUpdateNucRow(row);
-			nextAlignmentUpdateBest();
-			// If the row is exhausted, the caller will be able to see by
-			// checking whether solrowbest_[row] is valid, for example
-			if(ret) {
-				return true; // found a result
-			}
-			if(!VALID_SCORE(solrowbest_[row])) {
-				return false; // definitely won't find a result
-			}
-		}
-	}
-	if(!triedOne) {
-		nextAlignmentUpdateNucRow(row);
-		nextAlignmentUpdateBest();
-	}
-	return false;
 }
 
 #ifdef MAIN_ALIGNER_SW
@@ -2112,6 +1761,7 @@ static float multiseedIvalA;
 static float multiseedIvalB;
 static float posmin;
 static float posfrac;
+static float rowmin;
 static float rowmult;
 
 enum {
@@ -4014,6 +3664,7 @@ int main(int argc, char **argv) {
 	multiseedIvalB    = DEFAULT_IVAL_B;
 	posmin          = DEFAULT_POSMIN;
 	posfrac         = DEFAULT_POSFRAC;
+	rowmin          = DEFAULT_ROWMIN;
 	rowmult         = DEFAULT_ROWMULT;
 	do {
 		next_option = getopt_long(argc, argv, short_opts, long_opts, &option_index);
@@ -4059,6 +3710,7 @@ int main(int argc, char **argv) {
 					multiseedIvalB,
 					posmin,
 					posfrac,
+					rowmin,
 					rowmult);
 				break;
 			}

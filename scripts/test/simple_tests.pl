@@ -36,492 +36,6 @@ if(! -x $bowtie2 || ! -x $bowtie2_build) {
 
 my @cases = (
 
-	# Read 3 overhangs right end
-	{ ref    => [ "TTGTTCGT"  ],
-	  reads  => [   "GTTCGTA" ],
-	  args   => "",
-	  report => "-a --overhang -P \"SEED=0,2,1;NCEIL=2,0\"",
-	  hits   => [ { 2 => 1 } ],
-	  nosam  => 1,
-	  flags => [ "XM:0,XP:0,XT:UU,XC:6=1X" ] },
-
-	# Mess with arguments
-	
-	# Default should be 1-mismatch, so this shouldn't align
-	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTATTAGT" ],
-	  args   => "",
-	  report => "-a",
-	  hits   => [ { "*" => 1 } ],
-	  flags  => [ "XM:0,XP:0,XT:UU" ],
-	  cigar  => [ "*" ],
-	  samoptflags => [{ "YT:Z:UU" => 1 }],
-	},
-
-	# Shouldn't align with 0 mismatches either
-	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTATTAGT" ],
-	  args   => "-P SEED=0",
-	  report => "-a",
-	  hits   => [ { "*" => 1 } ],
-	  flags  => [ "XM:0,XP:0,XT:UU" ],
-	  cigar  => [ "*" ],
-	  samoptflags => [{ "YT:Z:UU" => 1 }],
-	},
-
-	# Should align with 2 mismatches, provided the mismatches are in the right spots
-	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TAGTTCAT" ],
-	  args   => "-P \"SEED=2;MMP=C1\"",
-	  report => "-a",
-	  hits   => [ { 0 => 1, 8 => 1 } ],
-	  flags  => [ "XM:0,XP:0,XT:UU,XC:1=1X4=1X1=" ],
-	  cigar  => [ "8M" ],
-	  samoptflags => [{ "AS:i:-2" => 1, "XS:i:-2" => 1, "NM:i:2" => 1,
-	                    "XM:i:2" => 1, "YT:Z:UU" => 1, "MD:Z:1T4G1" => 1 }],
-	},
-
-	# Should align with 2 mismatches, provided the mismatches are in the right spots
-	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTATTAGT" ],
-	  args   =>   "-P \"SEED=2;MMP=C1\"",
-	  report =>   "-a",
-	  hits   => [ { "*" => 1 } ],
-	  flags  => [ "XM:0,XP:0,XT:UU" ],
-	  cigar  => [ "*" ],
-	  samoptflags => [{ "YT:Z:UU" => 1 }],
-	},
-
-	# Should align with 0 mismatches if we can wedge a seed into the 2
-	# matching characters between the two mismatches.  Here we fail to
-	# wedge a length-3 seed in (there's no room)
-	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTATTAGT" ],
-	  args   => "-P \"SEED=0,3,1;MMP=C1\"",
-	  report => "-a",
-	  hits   => [ { "*" => 1 } ],
-	  flags  => [ "XM:0,XP:0,XT:UU" ],
-	  cigar  => [ "*" ],
-	  samoptflags => [{ "YT:Z:UU" => 1 }],
-	},
-
-	# Should align with 0 mismatches if we can wedge a seed into the 2
-	# matching characters between the two mismatches.  Here we wedge a
-	# length-2 seed in
-	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [      "TTATTAGT" ],
-	  args   => "-P \"SEED=0,2,1;MMP=C1;ROWM=10\"",
-	  report => "-a",
-	  #
-	  # TTGTTCGTTTGTTCGT TTGTTCGTTTGTTCGT TTGTTCGTTTGTTCGT
-	  # || || ||            ||  |             |  || ||
-	  # TTATTAGT            TTATTAGT          TTATTAGT
-	  #
-	  # TTGTTCGTTTGTTCGT TTGTTCGTTTGTTCGT TTGTTCGTTTGTTCGT
-	  #         ||  |           ||  |             || || ||
-	  #      TTATTAGT           TTATTAGT          TTATTAGT
-	  #
-	  hits   =>   [ { 0 => 1, 3 => 1, 4 => 1,
-	                  5 => 1, 7 => 1, 8 => 1} ],
-	  flag_map => [ { 0 => "XM:0,XP:0,XT:UU,XC:2=1X2=1X2=",
-	                  3 => "XM:0,XP:0,XT:UU,XC:2=2X1=3X",
-					  4 => "XM:0,XP:0,XT:UU,XC:1=2X2=1X2=",
-					  5 => "XM:0,XP:0,XT:UU,XC:3X2=2X1=",
-					  7 => "XM:0,XP:0,XT:UU,XC:2=2X1=3X",
-					  8 => "XM:0,XP:0,XT:UU,XC:2=1X2=1X2="} ],
-	  cigar_map => [ { 0 => "8M", 3 => "8M", 4 => "8M",
-	                   5 => "8M", 7 => "8M", 8 => "8M" } ],
-	  samoptflags_map => [{
-		0 => { "AS:i:-2" => 1, "XS:i:-2" => 1, "NM:i:2" => 1, "XM:i:2" => 1,
-		       "YT:Z:UU" => 1, "MD:Z:2G2C2"    => 1 },
-		3 => { "AS:i:-5" => 1, "XS:i:-2" => 1, "NM:i:5" => 1, "XM:i:5" => 1,
-		       "YT:Z:UU" => 1, "MD:Z:2CG1TTG0" => 1 },
-		4 => { "AS:i:-3" => 1, "XS:i:-2" => 1, "NM:i:3" => 1, "XM:i:3" => 1,
-		       "YT:Z:UU" => 1, "MD:Z:1CG2T2"   => 1 },
-		5 => { "AS:i:-5" => 1, "XS:i:-2" => 1, "NM:i:5" => 1, "XM:i:5" => 1,
-		       "YT:Z:UU" => 1, "MD:Z:0CGT2GT1" => 1 },
-		7 => { "AS:i:-5" => 1, "XS:i:-2" => 1, "NM:i:5" => 1, "XM:i:5" => 1,
-		       "YT:Z:UU" => 1, "MD:Z:2TG1TCG0" => 1 },
-		8 => { "AS:i:-2" => 1, "XS:i:-2" => 1, "NM:i:2" => 1, "XM:i:2" => 1,
-		       "YT:Z:UU" => 1, "MD:Z:2G2C2"    => 1 },
-	  }],
-	},
-
-	# Following cases depend on this being the case:
-	#
-	# static const float DEFAULT_CEIL_CONST = 3.0f;
-	# static const float DEFAULT_CEIL_LINEAR = 3.0f;
-
-	# Just enough budget for hits, so it should align
-	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTGTTCAT" ], # budget = 3 + 8 * 3 = 27
-	  args   => "-P \"SEED=2;MMP=C27\"", # penalty = 27
-	  report => "-a",
-	  hits   => [ { 0 => 1, 8 => 1 } ],
-	  flags  => [ "XM:0,XP:0,XT:UU,XC:6=1X1=" ],
-	  cigar  => [ "8M" ],
-	  samoptflags => [ { "AS:i:-27" => 1, "XS:i:-27" => 1, "NM:i:1" => 1,
-	                     "XM:i:1" => 1, "YT:Z:UU" => 1, "MD:Z:6G1" => 1 } ] },
-
-	# Not quite enough budget for hits, so it should NOT align
-	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTGTTCAT" ], # budget = 3 + 8 * 3 = 27
-	  args   =>   "-P \"SEED=2;MMP=C28\"", # penalty = 28
-	  report =>   "-a",
-	  hits   => [ { "*" => 1 } ],
-	  flags  => [ "XM:0,XP:0,XT:UU" ],
-	  cigar  => [ "*" ],
-	  samoptflags => [ { "YT:Z:UU" => 1 } ] },
-
-	#
-	# Local alignment
-	#
-
-	# Local alignment for a short perfect hit where hit spans the read
-	{ name   => "Local alignment 1",
-	  ref    => [ "TTGT" ],
-	  reads  => [ "TTGT" ],
-	  args   =>   "--local",
-	  report =>   "-a",
-	  hits   => [ { 0 => 1 } ],
-	  flags  => [ "XM:0,XP:0,XT:UU,XC:4=" ],
-	  cigar  => [ "4M" ],
-	  samoptflags => [ {
-		"AS:i:40"  => 1, # alignment score
-		"XS:i:0"   => 1, # suboptimal alignment score
-		"XN:i:0"   => 1, # num ambiguous ref bases
-		"XM:i:0"   => 1, # num mismatches
-		"XO:i:0"   => 1, # num gap opens
-		"XG:i:0"   => 1, # num gap extensions
-		"NM:i:0"   => 1, # num edits
-		"MD:Z:4"   => 1, # mismatching positions/bases
-		"YM:i:0"   => 1, # read aligned repetitively in unpaired fashion
-		"YP:i:0"   => 1, # read aligned repetitively in paired fashion
-		"YT:Z:UU"  => 1, # type of alignment (concordant/discordant/etc)
-	} ] },
-	
-	# Local alignment for a short hit where hit is trimmed at one end
-	{ name   => "Local alignment 2",
-	  ref    => [ "TTGA" ],
-	  reads  => [ "TTGT" ],
-	  args   =>   "--local -P \"MA=20;SEED=0,3,1\"",
-	  report =>   "-a",
-	  hits   => [ { 0 => 1 } ],
-	  flags => [ "XM:0,XP:0,XT:UU,XC:3=1S" ],
-	  cigar  => [ "3M1S" ],
-	  samflags => [ {
-		"AS:i:60"  => 1, # alignment score
-		"XS:i:0"   => 1, # suboptimal alignment score
-		"XN:i:0"   => 1, # num ambiguous ref bases
-		"XM:i:0"   => 1, # num mismatches
-		"XO:i:0"   => 1, # num gap opens
-		"XG:i:0"   => 1, # num gap extensions
-		"NM:i:0"   => 1, # num edits
-		"MD:Z:3"   => 1, # mismatching positions/bases
-		"YM:i:0"   => 1, # read aligned repetitively in unpaired fashion
-		"YP:i:0"   => 1, # read aligned repetitively in paired fashion
-		"YT:Z:UU"  => 1, # type of alignment (concordant/discordant/etc)
-	} ] },
-
-	# Local alignment for a perfect hit
-	{ name   => "Local alignment 3",
-	  ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTGTTCGTTTGTT" ],
-	  args   =>   "--local",
-	  report =>   "-a",
-	  hits   => [ { 0 => 1 } ],
-	  flags  => [ "XM:0,XP:0,XT:UU,XC:13=" ],
-	  cigar  => [ "13M" ],
-	  samoptflags => [ { "AS:i:130" => 1, "YT:Z:UU" => 1, "MD:Z:13" => 1 } ]
-	},
-
-	# Local alignment for a hit that should be trimmed from the right end
-	{ name   => "Local alignment 4",
-	  ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTGTTCGTTTGT" ],
-	  args   =>   "--local -P \"SEED=0,3,1\"",
-	  report =>   "-a",
-	  hits   => [ { 0 => 1 } ],
-	  flags  => [ "XM:0,XP:0,XT:UU,XC:12=" ],
-	  cigar  => [ "12M" ],
-	  samoptflags => [ { "AS:i:120" => 1, "YT:Z:UU" => 1, "MD:Z:12" => 1 } ]
-	},
-
-	#
-	# Gap penalties
-	#
-
-	# Alignment with 1 read gap
-	{ name   => "Gap penalties 1",
-	  ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTGTTCTTTGTT" ], # budget = 3 + 12 * 3 = 39
-	  args   =>   "-P \"SEED=0,3,1;RDG=29,10\"",
-	  report =>   "-a",
-	  hits   => [ { 0 => 1 } ],
-	  flags  => [ "XM:0,XP:0,XT:UU,XC:6=1D6=" ],
-	  cigar  => [ "6M1D6M" ],
-	  samoptflags => [{
-		"AS:i:-39" => 1, "NM:i:1" => 1, "XO:i:1" => 1, "XG:i:1" => 1,
-		"YT:Z:UU" => 1, "MD:Z:6^G6" => 1 }]
-	},
-
-	# Alignment with 1 read gap - colorspace
-	{ name   => "Gap penalties 1 (colorspace)",
-	  ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "01102200110" ], # budget = 3 + 11 * 3 = 36
-	  #           "TTGTTCTTTGTT"
-	  args   =>   "-P \"SEED=0,3,1;RDG=26,10\"",
-	  report =>   "-a",
-	  hits   => [ { 1 => 1 } ],
-	  color  => 1,
-	  flags  => [ "XM:0,XP:0,XT:UU,XC:5=1D5=" ],
-	  cigar  => [ "5M1D5M" ],
-	  samoptflags => [{
-		"AS:i:-36" => 1, "NM:i:1" => 1, "XO:i:1" => 1, "XG:i:1" => 1,
-		"YT:Z:UU" => 1, "MD:Z:5^G5" => 1 }]
-	},
-
-	# Alignment with 1 read gap, but not enough budget
-	{ name   => "Gap penalties 2",
-	  ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTGTTCTTTGTT" ], # budget = 3 + 12 * 3 = 39
-	  args   =>   "-P \"SEED=0,3,1;RDG=30,10\"",
-	  report =>   "-a",
-	  hits   => [ { "*" => 1 } ],
-	  flags  => [ "XM:0,XP:0,XT:UU" ],
-	  cigar  => [ "*" ],
-	  samoptflags => [{ "YT:Z:UU" => 1 }]
-	},
-
-	# Alignment with 1 read gap, but not enough budget - colorspace
-	{ name   => "Gap penalties 2 (colorspace)",
-	  ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "01102200110" ], # budget = 3 + 11 * 3 = 36
-	  #           "TTGTTCTTTGTT"
-	  args   =>   "-P \"SEED=0,3,1;RDG=27,10\"",
-	  report =>   "-a",
-	  hits   => [ { "*" => 1 } ],
-	  color  => 1,
-	  flags  => [ "XM:0,XP:0,XT:UU" ],
-	  cigar  => [ "*" ],
-	  samoptflags => [{ "YT:Z:UU" => 1 }]
-	},
-
-	# Alignment with 1 reference gap
-	{ name   => "Gap penalties 3",
-	  ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTGTTCGATTTGTT" ], # budget = 3 + 14 * 3 = 45
-	  args   =>   "-P \"SEED=0,3,1;RFG=30,15\"",
-	  report =>   "-a",
-	  hits   => [ { 0 => 1 } ],
-	  flags  => [ "XM:0,XP:0,XT:UU,XC:7=1I6=" ],
-	  cigar  => [ "7M1I6M" ],
-	  samoptflags => [{ "AS:i:-45" => 1, "NM:i:1" => 1, "XO:i:1" => 1,
-	                    "XG:i:1" => 1, "YT:Z:UU" => 1, "MD:Z:13" => 1 }]
-	},
-
-	# Alignment with 1 reference gap - colorspace
-	{ name   => "Gap penalties 3 (colorspace)",
-	  ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "0110232300110" ], # budget = 3 + 13 * 3 = 42
-	  #           "TTGTTCGATTTGTT"
-	  args   =>   "-P \"SEED=0,3,1;RFG=27,15\"",
-	  report =>   "-a",
-	  hits   => [ { 1 => 1 } ],
-	  color  => 1,
-	  flags  => [ "XM:0,XP:0,XT:UU,XC:6=1I5=" ],
-	  cigar  => [ "6M1I5M" ],
-	  samoptflags => [ { "AS:i:-42" => 1, "NM:i:1" => 1, "XO:i:1" => 1,
-	                     "XG:i:1" => 1, "YT:Z:UU" => 1, "MD:Z:11" => 1} ] },
-
-	# Alignment with 1 reference gap, but not enough budget
-	{ name   => "Gap penalties 4",
-	  ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTGTTCGATTTGTT" ], # budget = 3 + 14 * 3 = 45
-	  args   =>   "-P \"SEED=0,3,1;RFG=30,16\"",
-	  report =>   "-a",
-	  hits   => [ { "*" => 1 } ],
-	  flags  => [ "XM:0,XP:0,XT:UU" ],
-	  cigar  => [ "*" ],
-	  samoptflags => [ { "YT:Z:UU" => 1 } ] },
-
-	# Alignment with 1 reference gap, but not enough budget - colorspace
-	{ name   => "Gap penalties 4 (colorspace)",
-	  ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "0110232300110" ], # budget = 3 + 13 * 3 = 42
-	  #           "TTGTTCGATTTGTT"
-	  args   =>   "-P \"SEED=0,3,1;RFG=27,16\"",
-	  report =>   "-a",
-	  hits   => [ { "*" => 1 } ],
-	  color  => 1,
-	  flags  => [ "XM:0,XP:0,XT:UU" ],
-	  cigar  => [ "*" ],
-	  samoptflags => [ { "YT:Z:UU" => 1 } ] },
-
-	# Alignment with 1 reference gap, but not enough budget
-	{ name   => "Gap penalties 5",
-	  ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTGTTCGATTTGTT" ], # budget = 3 + 14 * 3 = 45
-	  args   =>   "-P \"SEED=0,3,1;RFG=31,15\"",
-	  report =>   "-a",
-	  hits   => [ { "*" => 1 } ],
-	  flags  => [ "XM:0,XP:0,XT:UU" ],
-	  cigar  => [ "*" ],
-	  samoptflags => [ { "YT:Z:UU" => 1 } ] },
-
-	# Alignment with 1 reference gap, but not enough budget - colorspace
-	{ name   => "Gap penalties 5 (colorspace)",
-	  ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "0110232300110" ], # budget = 3 + 13 * 3 = 42
-	  #           "TTGTTCGATTTGTT"
-	  args   =>   "-P \"SEED=0,3,1;RFG=28,15\"",
-	  report =>   "-a",
-	  hits   => [ { "*" => 1 } ],
-	  color  => 1,
-	  flags  => [ "XM:0,XP:0,XT:UU" ],
-	  cigar  => [ "*" ],
-	  samoptflags => [ { "YT:Z:UU" => 1 } ] },
-
-	# Alignment with 1 reference gap and 1 read gap
-	{ name   => "Gap penalties 6",
-	  ref    => [ "ATTGTTCGTTTGTTCGTA" ],
-	  reads  => [ "ATTGTTGTTTGATTCGTA" ], # budget = 3 + 18 * 3 = 57
-	  args   =>   "-P \"SEED=0,3,1;RFG=18,10;RDG=19,10\"",
-	  report =>   "-a",
-	  hits   => [ { 0 => 1 } ],
-	  flags  => [ "XM:0,XP:0,XT:UU,XC:6=1D5=1I6=" ],
-	  cigar  => [ "6M1D5M1I6M" ] },
-
-	# Alignment with 1 reference gap and 1 read gap - colorspace
-	{ name   => "Gap penalties 6 (colorspace)",
-	  ref    => [ "ATTGTTCGTTTGTTCGTA" ],
-	  reads  => [ "30110110012302313" ], # budget = 3 + 17 * 3 = 54
-	  #           "ATTGTTGTTTGATTCGTA"
-	  args   =>   "-P \"SEED=0,3,1;RFG=18,10;RDG=16,10\"",
-	  report =>   "-a",
-	  hits   => [ { 1 => 1 } ],
-	  color  => 1,
-	  flags  => [ "XM:0,XP:0,XT:UU,XC:5=1D5=1I5=" ],
-	  cigar  => [ "5M1D5M1I5M" ] },
-
-	# Alignment with 1 reference gap and 1 read gap, but not enough budget
-	{ name   => "Gap penalties 7",
-	  ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTGTTGTTTGATTCGT" ], # budget = 3 + 16 * 3 = 51
-	  args   =>   "-P \"SEED=0,3,1;RFG=16,10;RDG=16,10\"",
-	  report =>   "-a",
-	  hits   => [ { "*" => 1 } ],
-	  flags  => [ "XM:0,XP:0,XT:UU" ],
-	  cigar  => [ "*" ] },
-
-	# Alignment with 1 reference gap and 1 read gap, but not enough budget -
-	# colorspace
-	{ name   => "Gap penalties 7 (colorspace)",
-	  ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "011011001230231" ], # budget = 3 + 15 * 3 = 48
-	  #           "TTGTTGTTTGATTCGT"
-	  args   =>   "-P \"SEED=0,3,1;RFG=16,10;RDG=13,10\"",
-	  report =>   "-a",
-	  hits   => [ { "*" => 1 } ],
-	  color  => 1,
-	  flags  => [ "XM:0,XP:0,XT:UU" ],
-	  cigar  => [ "*" ] },
-
-	# Experiment with N filtering
-	
-	{ name => "N filtering 1",
-	  ref      => [ "GAGACTTTATACGCATCGAACTATCGCTCTA" ],
-	  reads    => [         "ATACGCATCGAAC" ],
-	  #              0123456789012345678901234567890
-	  #                        1         2         3
-	  args     =>   "-P \"NCEIL=0,0\"",
-	  report   =>   "-a",
-	  hits     => [ { 8 => 1 } ],
-	  flags => [ "XM:0,XP:0,XT:UU,XC:13=" ] },
-
-	{ name => "N filtering 2",
-	  ref      => [ "GAGACTTTATNCGCATCGAACTATCGCTCTA" ],
-	  reads    => [         "ATACGCATCGAAC" ],
-	  #              0123456789012345678901234567890
-	  #                        1         2         3
-	  args     =>   "-P \"NCEIL=0,0\"",
-	  report   =>   "-a",
-	  hits     => [ { "*" => 1 } ] },
-
-	{ name => "N filtering 3",
-	  ref      => [ "GAGACTTTATACGCATCGAANTATCGCTCTA" ],
-	  reads    => [         "ATACGCATCGAAC" ],
-	  #              0123456789012345678901234567890
-	  #                        1         2         3
-	  args     =>   "-P \"NCEIL=0,0\"",
-	  report   =>   "-a",
-	  hits     => [ { "*" => 1 } ] },
-
-	{ name => "N filtering 4",
-	  ref      => [ "GAGACTTTNTACGCATCGAACTATCGCTCTA" ],
-	  reads    => [         "ATACGCATCGAAC" ],
-	  #              0123456789012345678901234567890
-	  #                        1         2         3
-	  args     =>   "-P \"NCEIL=0,0\"",
-	  report   =>   "-a",
-	  hits     => [ { "*" => 1 } ] },
-
-	{ name => "N filtering 5",
-	  ref      => [ "GAGACTTTATNCGCATCGAACTATCGCTCTA" ],
-	  reads    => [         "ATACGCATCGAAC" ],
-	  #              0123456789012345678901234567890
-	  #                        1         2         3
-	  args     =>   "-P \"NCEIL=0,0.1;SEED=0,10,1\"",
-	  report   =>   "-a",
-	  hits     => [ { 8 => 1 } ],
-	  flags => [ "XM:0,XP:0,XT:UU,XC:2=1X10=" ] },
-
-	{ name => "N filtering 6",
-	  ref      => [ "GAGACTTTNTACGCATCGAANTATCGCTCTA" ],
-	  reads    => [         "ATACGCATCGAAC" ],
-	  #              0123456789012345678901234567890
-	  #                        1         2         3
-	  args     =>   "-P \"NCEIL=0,0.1;SEED=0,10,1\"",
-	  report   =>   "-a",
-	  hits     => [ { "*" => 1 } ] },
-
-	# No discordant alignment because one mate is repetitive.
-
-	{ name => "Simple paired-end 15",
-	  ref    => [ "TTTATAAAAATATTTTTTATAAAAATATTTTCCCCCCCCCCCGCCGGCGCGCCCCCCGCCGGCGCGCCCCC" ],
-	#                 ATAAAAATAT     ATAAAAATAT             CGCCGGCGCG     CGCCGGCGCG
-	#              01234567890123456789012345678901234567890123456789012345678901234567890
-	#              0         1         2         3         4         5         6         7
-	#                 -------------------------------------------
-	#                 0123456789012345678901234567890123456789012
-	  mate1s => [ "ATAAAAATAT" ],
-	  mate2s => [ "CGCCGGCGCG" ],
-	  args   =>   "--ff -I 0 -X 70 -m 2",
-	  report =>   "-a",
-	  # Not really any way to flag an alignment as discordant
-	  pairhits => [ { 3 => 1, 18 => 1, 41 => 1, 56 => 1 } ],
-	  flags  => [ "XM:0,XP:1,XT:UP,XC:10=" # Pair aligns repetitively
-	                           ] },
-
-	# No discordant alignment because one mate is repetitive.
-
-	{ name => "Simple paired-end 14",
-	  ref    => [ "TTTATAAAAATATTTCCCCCCCGCCCGCCCGCCCCCCGCCCGCCCGCCCCC" ],
-	#                 ATAAAAATAT        CGCCCGCCCG     CGCCCGCCCG
-	#              012345678901234567890123456789012345678901234567890
-	#              0         1         2         3         4         5
-	#                 -------------------------------------------
-	#                 0123456789012345678901234567890123456789012
-	  mate1s => [ "ATAAAAATAT" ],
-	  mate2s => [ "CGCCCGCCCG" ],
-	  args   =>   "--ff -I 0 -X 50 -m 1",
-	  report =>   "-a",
-	  # Not really any way to flag an alignment as discordant
-	  pairhits => [ { "*,3" => 1 } ],
-	  flags_map  => [ {
-		3   => "XM:0,XP:1,XT:UP,XC:10=",
-		"*" => "XM:1,XP:1,XT:UP" } ] },
-
 	# 1 discordant alignment and one concordant alignment.  Discordant because
 	# the fragment is too long.
 
@@ -617,7 +131,7 @@ my @cases = (
 	  mate1s => [ "ATATATATAT" ],
 	  mate2s => [ "CGCGCGCGCG" ],
 	  args   =>   "--fr -I 0 -X 80",
-	  report =>   "-a -M 2",
+	  report =>   "-a -M 2 -P \"ROWM=3.0\"",
 	  lines  => 2,
 	  pairhits => [ { "3,59" => 1, "19,59" => 1, "37,59" => 1 } ],
 	  hits_are_superset => [ 1 ],
@@ -632,7 +146,7 @@ my @cases = (
 	#              0         1         2         3         4         5         6         7         8
 	  mate1s => [ "ATATATATAT" ],
 	  mate2s => [ "CGCGCGCGCG" ],
-	  args   =>   "--fr -I 0 -X 80",
+	  args   =>   "--fr -I 0 -X 80 -P \"ROWM=3.0\"",
 	  report =>   "-a",
 	  pairhits => [ { "3,59" => 1, "19,59" => 1, "37,59" => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:CP,XC:10=" ] },
@@ -1309,6 +823,494 @@ my @cases = (
 		{ "YM:i:1" => 1, "YT:Z:UU" => 1, "MD:Z:8" => 1 }
 	  ],
 	},
+
+	# Read 3 overhangs right end
+	{ ref    => [ "TTGTTCGT"  ],
+	  reads  => [   "GTTCGTA" ],
+	  args   => "",
+	  report => "-a --overhang -P \"SEED=0,3,1;NCEIL=2,0\"",
+	  hits   => [ { 2 => 1 } ],
+	  nosam  => 1,
+	  flags => [ "XM:0,XP:0,XT:UU,XC:6=1X" ] },
+
+	# Mess with arguments
+	
+	# Default should be 1-mismatch, so this shouldn't align
+	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTATTAGT" ],
+	  args   => "",
+	  report => "-a",
+	  hits   => [ { "*" => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU" ],
+	  cigar  => [ "*" ],
+	  samoptflags => [{ "YT:Z:UU" => 1 }],
+	},
+
+	# Shouldn't align with 0 mismatches either
+	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTATTAGT" ],
+	  args   => "-P SEED=0",
+	  report => "-a",
+	  hits   => [ { "*" => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU" ],
+	  cigar  => [ "*" ],
+	  samoptflags => [{ "YT:Z:UU" => 1 }],
+	},
+
+	# Should align with 2 mismatches, provided the mismatches are in the right spots
+	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TAGTTCAT" ],
+	  #            TAGTTCAT
+	  #                    TAGTTCAT
+	  args   => "-P \"SEED=2;MMP=C1\"",
+	  report => "-a",
+	  hits   => [ { 0 => 1, 8 => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:1=1X4=1X1=" ],
+	  cigar  => [ "8M" ],
+	  samoptflags => [{ "AS:i:-2" => 1, "XS:i:-2" => 1, "NM:i:2" => 1,
+	                    "XM:i:2" => 1, "YT:Z:UU" => 1, "MD:Z:1T4G1" => 1 }],
+	},
+
+	# Should align with 2 mismatches, provided the mismatches are in the right spots
+	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTATTAGT" ],
+	  args   =>   "-P \"SEED=2;MMP=C1\"",
+	  report =>   "-a",
+	  hits   => [ { "*" => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU" ],
+	  cigar  => [ "*" ],
+	  samoptflags => [{ "YT:Z:UU" => 1 }],
+	},
+
+	# Should align with 0 mismatches if we can wedge a seed into the 2
+	# matching characters between the two mismatches.  Here we fail to
+	# wedge a length-3 seed in (there's no room)
+	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTATTAGT" ],
+	  args   => "-P \"SEED=0,3,1;MMP=C1\"",
+	  report => "-a",
+	  hits   => [ { "*" => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU" ],
+	  cigar  => [ "*" ],
+	  samoptflags => [{ "YT:Z:UU" => 1 }],
+	},
+
+	# Should align with 0 mismatches if we can wedge a seed into the 2
+	# matching characters between the two mismatches.  Here we wedge a
+	# length-2 seed in
+	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [      "TTATTAGT" ],
+	  args   => "-P \"SEED=0,2,1;MMP=C1;ROWM=10\"",
+	  report => "-a",
+	  #
+	  # TTGTTCGTTTGTTCGT TTGTTCGTTTGTTCGT TTGTTCGTTTGTTCGT
+	  # || || ||            ||  |             |  || ||
+	  # TTATTAGT            TTATTAGT          TTATTAGT
+	  #
+	  # TTGTTCGTTTGTTCGT TTGTTCGTTTGTTCGT TTGTTCGTTTGTTCGT
+	  #         ||  |           ||  |             || || ||
+	  #      TTATTAGT           TTATTAGT          TTATTAGT
+	  #
+	  hits   =>   [ { 0 => 1, 3 => 1, 4 => 1,
+	                  5 => 1, 7 => 1, 8 => 1} ],
+	  flag_map => [ { 0 => "XM:0,XP:0,XT:UU,XC:2=1X2=1X2=",
+	                  3 => "XM:0,XP:0,XT:UU,XC:2=2X1=3X",
+					  4 => "XM:0,XP:0,XT:UU,XC:1=2X2=1X2=",
+					  5 => "XM:0,XP:0,XT:UU,XC:3X2=2X1=",
+					  7 => "XM:0,XP:0,XT:UU,XC:2=2X1=3X",
+					  8 => "XM:0,XP:0,XT:UU,XC:2=1X2=1X2="} ],
+	  cigar_map => [ { 0 => "8M", 3 => "8M", 4 => "8M",
+	                   5 => "8M", 7 => "8M", 8 => "8M" } ],
+	  samoptflags_map => [{
+		0 => { "AS:i:-2" => 1, "XS:i:-2" => 1, "NM:i:2" => 1, "XM:i:2" => 1,
+		       "YT:Z:UU" => 1, "MD:Z:2G2C2"    => 1 },
+		3 => { "AS:i:-5" => 1, "XS:i:-2" => 1, "NM:i:5" => 1, "XM:i:5" => 1,
+		       "YT:Z:UU" => 1, "MD:Z:2CG1TTG0" => 1 },
+		4 => { "AS:i:-3" => 1, "XS:i:-2" => 1, "NM:i:3" => 1, "XM:i:3" => 1,
+		       "YT:Z:UU" => 1, "MD:Z:1CG2T2"   => 1 },
+		5 => { "AS:i:-5" => 1, "XS:i:-2" => 1, "NM:i:5" => 1, "XM:i:5" => 1,
+		       "YT:Z:UU" => 1, "MD:Z:0CGT2GT1" => 1 },
+		7 => { "AS:i:-5" => 1, "XS:i:-2" => 1, "NM:i:5" => 1, "XM:i:5" => 1,
+		       "YT:Z:UU" => 1, "MD:Z:2TG1TCG0" => 1 },
+		8 => { "AS:i:-2" => 1, "XS:i:-2" => 1, "NM:i:2" => 1, "XM:i:2" => 1,
+		       "YT:Z:UU" => 1, "MD:Z:2G2C2"    => 1 },
+	  }],
+	},
+
+	# Following cases depend on this being the case:
+	#
+	# static const float DEFAULT_CEIL_CONST = 3.0f;
+	# static const float DEFAULT_CEIL_LINEAR = 3.0f;
+
+	# Just enough budget for hits, so it should align
+	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTGTTCAT" ], # budget = 3 + 8 * 3 = 27
+	  args   => "-P \"SEED=2;MMP=C27\"", # penalty = 27
+	  report => "-a",
+	  hits   => [ { 0 => 1, 8 => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:6=1X1=" ],
+	  cigar  => [ "8M" ],
+	  samoptflags => [ { "AS:i:-27" => 1, "XS:i:-27" => 1, "NM:i:1" => 1,
+	                     "XM:i:1" => 1, "YT:Z:UU" => 1, "MD:Z:6G1" => 1 } ] },
+
+	# Not quite enough budget for hits, so it should NOT align
+	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTGTTCAT" ], # budget = 3 + 8 * 3 = 27
+	  args   =>   "-P \"SEED=2;MMP=C28\"", # penalty = 28
+	  report =>   "-a",
+	  hits   => [ { "*" => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU" ],
+	  cigar  => [ "*" ],
+	  samoptflags => [ { "YT:Z:UU" => 1 } ] },
+
+	#
+	# Local alignment
+	#
+
+	# Local alignment for a short perfect hit where hit spans the read
+	{ name   => "Local alignment 1",
+	  ref    => [ "TTGT" ],
+	  reads  => [ "TTGT" ],
+	  args   =>   "--local",
+	  report =>   "-a",
+	  hits   => [ { 0 => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:4=" ],
+	  cigar  => [ "4M" ],
+	  samoptflags => [ {
+		"AS:i:40"  => 1, # alignment score
+		"XS:i:0"   => 1, # suboptimal alignment score
+		"XN:i:0"   => 1, # num ambiguous ref bases
+		"XM:i:0"   => 1, # num mismatches
+		"XO:i:0"   => 1, # num gap opens
+		"XG:i:0"   => 1, # num gap extensions
+		"NM:i:0"   => 1, # num edits
+		"MD:Z:4"   => 1, # mismatching positions/bases
+		"YM:i:0"   => 1, # read aligned repetitively in unpaired fashion
+		"YP:i:0"   => 1, # read aligned repetitively in paired fashion
+		"YT:Z:UU"  => 1, # type of alignment (concordant/discordant/etc)
+	} ] },
+	
+	# Local alignment for a short hit where hit is trimmed at one end
+	{ name   => "Local alignment 2",
+	  ref    => [ "TTGA" ],
+	  reads  => [ "TTGT" ],
+	  args   =>   "--local -P \"MA=20;SEED=0,3,1\"",
+	  report =>   "-a",
+	  hits   => [ { 0 => 1 } ],
+	  flags => [ "XM:0,XP:0,XT:UU,XC:3=1S" ],
+	  cigar  => [ "3M1S" ],
+	  samflags => [ {
+		"AS:i:60"  => 1, # alignment score
+		"XS:i:0"   => 1, # suboptimal alignment score
+		"XN:i:0"   => 1, # num ambiguous ref bases
+		"XM:i:0"   => 1, # num mismatches
+		"XO:i:0"   => 1, # num gap opens
+		"XG:i:0"   => 1, # num gap extensions
+		"NM:i:0"   => 1, # num edits
+		"MD:Z:3"   => 1, # mismatching positions/bases
+		"YM:i:0"   => 1, # read aligned repetitively in unpaired fashion
+		"YP:i:0"   => 1, # read aligned repetitively in paired fashion
+		"YT:Z:UU"  => 1, # type of alignment (concordant/discordant/etc)
+	} ] },
+
+	# Local alignment for a perfect hit
+	{ name   => "Local alignment 3",
+	  ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTGTTCGTTTGTT" ],
+	  args   =>   "--local",
+	  report =>   "-a",
+	  hits   => [ { 0 => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:13=" ],
+	  cigar  => [ "13M" ],
+	  samoptflags => [ { "AS:i:130" => 1, "YT:Z:UU" => 1, "MD:Z:13" => 1 } ]
+	},
+
+	# Local alignment for a hit that should be trimmed from the right end
+	{ name   => "Local alignment 4",
+	  ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTGTTCGTTTGT" ],
+	  args   =>   "--local -P \"SEED=0,3,1\"",
+	  report =>   "-a",
+	  hits   => [ { 0 => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:12=" ],
+	  cigar  => [ "12M" ],
+	  samoptflags => [ { "AS:i:120" => 1, "YT:Z:UU" => 1, "MD:Z:12" => 1 } ]
+	},
+
+	#
+	# Gap penalties
+	#
+
+	# Alignment with 1 read gap
+	{ name   => "Gap penalties 1",
+	  ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTGTTCTTTGTT" ], # budget = 3 + 12 * 3 = 39
+	  args   =>   "-P \"SEED=0,3,1;RDG=29,10\"",
+	  report =>   "-a",
+	  hits   => [ { 0 => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:6=1D6=" ],
+	  cigar  => [ "6M1D6M" ],
+	  samoptflags => [{
+		"AS:i:-39" => 1, "NM:i:1" => 1, "XO:i:1" => 1, "XG:i:1" => 1,
+		"YT:Z:UU" => 1, "MD:Z:6^G6" => 1 }]
+	},
+
+	# Alignment with 1 read gap - colorspace
+	{ name   => "Gap penalties 1 (colorspace)",
+	  ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "01102200110" ], # budget = 3 + 11 * 3 = 36
+	  #           "TTGTTCTTTGTT"
+	  args   =>   "-P \"SEED=0,3,1;RDG=26,10\"",
+	  report =>   "-a",
+	  hits   => [ { 1 => 1 } ],
+	  color  => 1,
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:5=1D5=" ],
+	  cigar  => [ "5M1D5M" ],
+	  samoptflags => [{
+		"AS:i:-36" => 1, "NM:i:1" => 1, "XO:i:1" => 1, "XG:i:1" => 1,
+		"YT:Z:UU" => 1, "MD:Z:5^G5" => 1 }]
+	},
+
+	# Alignment with 1 read gap, but not enough budget
+	{ name   => "Gap penalties 2",
+	  ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTGTTCTTTGTT" ], # budget = 3 + 12 * 3 = 39
+	  args   =>   "-P \"SEED=0,3,1;RDG=30,10\"",
+	  report =>   "-a",
+	  hits   => [ { "*" => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU" ],
+	  cigar  => [ "*" ],
+	  samoptflags => [{ "YT:Z:UU" => 1 }]
+	},
+
+	# Alignment with 1 read gap, but not enough budget - colorspace
+	{ name   => "Gap penalties 2 (colorspace)",
+	  ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "01102200110" ], # budget = 3 + 11 * 3 = 36
+	  #           "TTGTTCTTTGTT"
+	  args   =>   "-P \"SEED=0,3,1;RDG=27,10\"",
+	  report =>   "-a",
+	  hits   => [ { "*" => 1 } ],
+	  color  => 1,
+	  flags  => [ "XM:0,XP:0,XT:UU" ],
+	  cigar  => [ "*" ],
+	  samoptflags => [{ "YT:Z:UU" => 1 }]
+	},
+
+	# Alignment with 1 reference gap
+	{ name   => "Gap penalties 3",
+	  ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTGTTCGATTTGTT" ], # budget = 3 + 14 * 3 = 45
+	  args   =>   "-P \"SEED=0,3,1;RFG=30,15\"",
+	  report =>   "-a",
+	  hits   => [ { 0 => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:7=1I6=" ],
+	  cigar  => [ "7M1I6M" ],
+	  samoptflags => [{ "AS:i:-45" => 1, "NM:i:1" => 1, "XO:i:1" => 1,
+	                    "XG:i:1" => 1, "YT:Z:UU" => 1, "MD:Z:13" => 1 }]
+	},
+
+	# Alignment with 1 reference gap - colorspace
+	{ name   => "Gap penalties 3 (colorspace)",
+	  ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "0110232300110" ], # budget = 3 + 13 * 3 = 42
+	  #           "TTGTTCGATTTGTT"
+	  args   =>   "-P \"SEED=0,3,1;RFG=27,15\"",
+	  report =>   "-a",
+	  hits   => [ { 1 => 1 } ],
+	  color  => 1,
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:6=1I5=" ],
+	  cigar  => [ "6M1I5M" ],
+	  samoptflags => [ { "AS:i:-42" => 1, "NM:i:1" => 1, "XO:i:1" => 1,
+	                     "XG:i:1" => 1, "YT:Z:UU" => 1, "MD:Z:11" => 1} ] },
+
+	# Alignment with 1 reference gap, but not enough budget
+	{ name   => "Gap penalties 4",
+	  ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTGTTCGATTTGTT" ], # budget = 3 + 14 * 3 = 45
+	  args   =>   "-P \"SEED=0,3,1;RFG=30,16\"",
+	  report =>   "-a",
+	  hits   => [ { "*" => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU" ],
+	  cigar  => [ "*" ],
+	  samoptflags => [ { "YT:Z:UU" => 1 } ] },
+
+	# Alignment with 1 reference gap, but not enough budget - colorspace
+	{ name   => "Gap penalties 4 (colorspace)",
+	  ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "0110232300110" ], # budget = 3 + 13 * 3 = 42
+	  #           "TTGTTCGATTTGTT"
+	  args   =>   "-P \"SEED=0,3,1;RFG=27,16\"",
+	  report =>   "-a",
+	  hits   => [ { "*" => 1 } ],
+	  color  => 1,
+	  flags  => [ "XM:0,XP:0,XT:UU" ],
+	  cigar  => [ "*" ],
+	  samoptflags => [ { "YT:Z:UU" => 1 } ] },
+
+	# Alignment with 1 reference gap, but not enough budget
+	{ name   => "Gap penalties 5",
+	  ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTGTTCGATTTGTT" ], # budget = 3 + 14 * 3 = 45
+	  args   =>   "-P \"SEED=0,3,1;RFG=31,15\"",
+	  report =>   "-a",
+	  hits   => [ { "*" => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU" ],
+	  cigar  => [ "*" ],
+	  samoptflags => [ { "YT:Z:UU" => 1 } ] },
+
+	# Alignment with 1 reference gap, but not enough budget - colorspace
+	{ name   => "Gap penalties 5 (colorspace)",
+	  ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "0110232300110" ], # budget = 3 + 13 * 3 = 42
+	  #           "TTGTTCGATTTGTT"
+	  args   =>   "-P \"SEED=0,3,1;RFG=28,15\"",
+	  report =>   "-a",
+	  hits   => [ { "*" => 1 } ],
+	  color  => 1,
+	  flags  => [ "XM:0,XP:0,XT:UU" ],
+	  cigar  => [ "*" ],
+	  samoptflags => [ { "YT:Z:UU" => 1 } ] },
+
+	# Alignment with 1 reference gap and 1 read gap
+	{ name   => "Gap penalties 6",
+	  ref    => [ "ATTGTTCGTTTGTTCGTA" ],
+	  reads  => [ "ATTGTTGTTTGATTCGTA" ], # budget = 3 + 18 * 3 = 57
+	  args   =>   "-P \"SEED=0,3,1;RFG=18,10;RDG=19,10\"",
+	  report =>   "-a",
+	  hits   => [ { 0 => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:6=1D5=1I6=" ],
+	  cigar  => [ "6M1D5M1I6M" ] },
+
+	# Alignment with 1 reference gap and 1 read gap - colorspace
+	{ name   => "Gap penalties 6 (colorspace)",
+	  ref    => [ "ATTGTTCGTTTGTTCGTA" ],
+	  reads  => [ "30110110012302313" ], # budget = 3 + 17 * 3 = 54
+	  #           "ATTGTTGTTTGATTCGTA"
+	  args   =>   "-P \"SEED=0,3,1;RFG=18,10;RDG=16,10\"",
+	  report =>   "-a",
+	  hits   => [ { 1 => 1 } ],
+	  color  => 1,
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:5=1D5=1I5=" ],
+	  cigar  => [ "5M1D5M1I5M" ] },
+
+	# Alignment with 1 reference gap and 1 read gap, but not enough budget
+	{ name   => "Gap penalties 7",
+	  ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTGTTGTTTGATTCGT" ], # budget = 3 + 16 * 3 = 51
+	  args   =>   "-P \"SEED=0,3,1;RFG=16,10;RDG=16,10\"",
+	  report =>   "-a",
+	  hits   => [ { "*" => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU" ],
+	  cigar  => [ "*" ] },
+
+	# Alignment with 1 reference gap and 1 read gap, but not enough budget -
+	# colorspace
+	{ name   => "Gap penalties 7 (colorspace)",
+	  ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "011011001230231" ], # budget = 3 + 15 * 3 = 48
+	  #           "TTGTTGTTTGATTCGT"
+	  args   =>   "-P \"SEED=0,3,1;RFG=16,10;RDG=13,10\"",
+	  report =>   "-a",
+	  hits   => [ { "*" => 1 } ],
+	  color  => 1,
+	  flags  => [ "XM:0,XP:0,XT:UU" ],
+	  cigar  => [ "*" ] },
+
+	# Experiment with N filtering
+	
+	{ name => "N filtering 1",
+	  ref      => [ "GAGACTTTATACGCATCGAACTATCGCTCTA" ],
+	  reads    => [         "ATACGCATCGAAC" ],
+	  #              0123456789012345678901234567890
+	  #                        1         2         3
+	  args     =>   "-P \"NCEIL=0,0\"",
+	  report   =>   "-a",
+	  hits     => [ { 8 => 1 } ],
+	  flags => [ "XM:0,XP:0,XT:UU,XC:13=" ] },
+
+	{ name => "N filtering 2",
+	  ref      => [ "GAGACTTTATNCGCATCGAACTATCGCTCTA" ],
+	  reads    => [         "ATACGCATCGAAC" ],
+	  #              0123456789012345678901234567890
+	  #                        1         2         3
+	  args     =>   "-P \"NCEIL=0,0\"",
+	  report   =>   "-a",
+	  hits     => [ { "*" => 1 } ] },
+
+	{ name => "N filtering 3",
+	  ref      => [ "GAGACTTTATACGCATCGAANTATCGCTCTA" ],
+	  reads    => [         "ATACGCATCGAAC" ],
+	  #              0123456789012345678901234567890
+	  #                        1         2         3
+	  args     =>   "-P \"NCEIL=0,0\"",
+	  report   =>   "-a",
+	  hits     => [ { "*" => 1 } ] },
+
+	{ name => "N filtering 4",
+	  ref      => [ "GAGACTTTNTACGCATCGAACTATCGCTCTA" ],
+	  reads    => [         "ATACGCATCGAAC" ],
+	  #              0123456789012345678901234567890
+	  #                        1         2         3
+	  args     =>   "-P \"NCEIL=0,0\"",
+	  report   =>   "-a",
+	  hits     => [ { "*" => 1 } ] },
+
+	{ name => "N filtering 5",
+	  ref      => [ "GAGACTTTATNCGCATCGAACTATCGCTCTA" ],
+	  reads    => [         "ATACGCATCGAAC" ],
+	  #              0123456789012345678901234567890
+	  #                        1         2         3
+	  args     =>   "-P \"NCEIL=0,0.1;SEED=0,10,1\"",
+	  report   =>   "-a",
+	  hits     => [ { 8 => 1 } ],
+	  flags => [ "XM:0,XP:0,XT:UU,XC:2=1X10=" ] },
+
+	{ name => "N filtering 6",
+	  ref      => [ "GAGACTTTNTACGCATCGAANTATCGCTCTA" ],
+	  reads    => [         "ATACGCATCGAAC" ],
+	  #              0123456789012345678901234567890
+	  #                        1         2         3
+	  args     =>   "-P \"NCEIL=0,0.1;SEED=0,10,1\"",
+	  report   =>   "-a",
+	  hits     => [ { "*" => 1 } ] },
+
+	# No discordant alignment because one mate is repetitive.
+
+	{ name => "Simple paired-end 15",
+	  ref    => [ "TTTATAAAAATATTTTTTATAAAAATATTTTCCCCCCCCCCCGCCGGCGCGCCCCCCGCCGGCGCGCCCCC" ],
+	#                 ATAAAAATAT     ATAAAAATAT             CGCCGGCGCG     CGCCGGCGCG
+	#              01234567890123456789012345678901234567890123456789012345678901234567890
+	#              0         1         2         3         4         5         6         7
+	#                 -------------------------------------------
+	#                 0123456789012345678901234567890123456789012
+	  mate1s => [ "ATAAAAATAT" ],
+	  mate2s => [ "CGCCGGCGCG" ],
+	  args   =>   "--ff -I 0 -X 70 -m 2",
+	  report =>   "-a",
+	  # Not really any way to flag an alignment as discordant
+	  pairhits => [ { 3 => 1, 18 => 1, 41 => 1, 56 => 1 } ],
+	  flags  => [ "XM:0,XP:1,XT:UP,XC:10=" # Pair aligns repetitively
+	                           ] },
+
+	# No discordant alignment because one mate is repetitive.
+
+	{ name => "Simple paired-end 14",
+	  ref    => [ "TTTATAAAAATATTTCCCCCCCGCCCGCCCGCCCCCCGCCCGCCCGCCCCC" ],
+	#                 ATAAAAATAT        CGCCCGCCCG     CGCCCGCCCG
+	#              012345678901234567890123456789012345678901234567890
+	#              0         1         2         3         4         5
+	#                 -------------------------------------------
+	#                 0123456789012345678901234567890123456789012
+	  mate1s => [ "ATAAAAATAT" ],
+	  mate2s => [ "CGCCCGCCCG" ],
+	  args   =>   "--ff -I 0 -X 50 -m 1",
+	  report =>   "-a",
+	  # Not really any way to flag an alignment as discordant
+	  pairhits => [ { "*,3" => 1 } ],
+	  flags_map  => [ {
+		3   => "XM:0,XP:1,XT:UP,XC:10=",
+		"*" => "XM:1,XP:1,XT:UP" } ] },
 
 );
 

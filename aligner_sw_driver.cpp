@@ -47,6 +47,7 @@ bool SwDriver::extendSeeds(
 	int nceil,                   // maximum # Ns permitted in reference portion
 	float posmin,                // minimum number of positions to examine
 	float posfrac,               // max number of additional poss to examine
+	float rowmin,                // minimum number of extensions to try
 	float rowmult,               // number of extensions to try per pos
 	size_t maxhalf,  	         // max width in either direction for DP tables
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
@@ -205,6 +206,9 @@ bool SwDriver::extendSeeds(
 			}
 			while(true) {
 				res_.reset();
+				if(swa.done()) {
+					break;
+				}
 				swa.nextAlignment(res_, rnd);
 				swa.mergeBacktraceCounters(swmSeed.swbts);
 				swa.resetBacktraceCounters();
@@ -397,6 +401,7 @@ bool SwDriver::extendSeedsPaired(
 	bool norc,                   // don't align revcomp read
 	float posmin,                // minimum number of positions to examine
 	float posfrac,               // max number of additional poss to examine
+	float rowmin,                // minimum number of extensions
 	float rowmult,               // number of extensions to try per pos
 	size_t maxhalf,              // max width in either direction for DP tables
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
@@ -575,6 +580,9 @@ bool SwDriver::extendSeedsPaired(
 			// problem...
 			while(true) {
 				res_.reset();
+				if(swa.done()) {
+					break;
+				}
 				swa.nextAlignment(res_, rnd);
 				swa.mergeBacktraceCounters(swmSeed.swbts);
 				swa.resetBacktraceCounters();
@@ -698,10 +706,14 @@ bool SwDriver::extendSeedsPaired(
 					}
 					do {
 						ores_.reset();
-						oswa.nextAlignment(ores_, rnd);
-						oswa.mergeBacktraceCounters(swmMate.swbts);
-						oswa.resetBacktraceCounters();
-						foundMate = !ores_.empty();
+						if(oswa.done()) {
+							foundMate = false;
+						} else {
+							oswa.nextAlignment(ores_, rnd);
+							oswa.mergeBacktraceCounters(swmMate.swbts);
+							oswa.resetBacktraceCounters();
+							foundMate = !ores_.empty();
+						}
 						if(foundMate) {
 							// Redundant with one we've seen previously?
 							if(!redAnchor_.overlap(ores_.alres)) {

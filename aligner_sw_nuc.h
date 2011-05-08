@@ -206,6 +206,78 @@ struct DpNucFrame {
 };
 
 /**
+ * Encapsulates a cell that we might want to backtrace from.
+ */
+struct DpNucBtCandidate {
+
+	DpNucBtCandidate() { reset(); }
+	
+	DpNucBtCandidate(size_t row_, size_t col_, TAlScore score_) {
+		init(row_, col_, score_);
+	}
+	
+	void reset() { init(0, 0, 0); }
+	
+	void init(size_t row_, size_t col_, TAlScore score_) {
+		row = row_;
+		col = col_;
+		score = score_;
+	}
+
+	/**
+	 * Return true if this candidate is "greater than" (should be considered
+	 * later than) the given candidate.
+	 */
+	bool operator>(const DpNucBtCandidate& o) const {
+		if(score < o.score) return true;
+		if(score > o.score) return false;
+		if(row < o.row) return true;
+		if(row > o.row) return false;
+		if(col < o.col) return true;
+		if(col > o.col) return false;
+		return false;
+	}
+
+	/**
+	 * Return true if this candidate is "less than" (should be considered
+	 * sooner than) the given candidate.
+	 */
+	bool operator<(const DpNucBtCandidate& o) const {
+		if(score > o.score) return true;
+		if(score < o.score) return false;
+		if(row > o.row) return true;
+		if(row < o.row) return false;
+		if(col > o.col) return true;
+		if(col < o.col) return false;
+		return false;
+	}
+	
+	/**
+	 * Return true if this candidate equals the given candidate.
+	 */
+	bool operator==(const DpNucBtCandidate& o) const {
+		return row   == o.row &&
+		       col   == o.col &&
+			   score == o.score;
+	}
+
+	bool operator>=(const DpNucBtCandidate& o) const { return !((*this) < o); }
+	bool operator<=(const DpNucBtCandidate& o) const { return !((*this) > o); }
+	
+	/**
+	 * Check internal consistency.
+	 */
+	bool repOk() const {
+		assert(VALID_SCORE(score));
+		return true;
+	}
+
+	size_t   row;   // cell row
+	size_t   col;   // cell column w/r/t LHS of rectangle
+	TAlScore score; // score fo alignment
+};
+
+/**
  * Encapsulates all information needed to encode the optimal subproblem
  * at a cell in a colorspace SW matrix.
  */
@@ -222,6 +294,7 @@ struct SwNucCell {
 		terminal = false;
 		empty = true;
 		reportedFrom_ = reportedThru_ = false;
+		backtraceCandidate = false;
 		assert(mask.empty());
 		assert(!oallBest.valid());
 		assert(!rdgapBest.valid());
@@ -361,6 +434,10 @@ struct SwNucCell {
 	// Initialized to false, set to true once an alignment for which the
 	// backtrace begins at this cell is reported.
 	bool reportedFrom_;
+
+	// Initialized to false, set to true iff it is found to be a candidate cell
+	// for starting a bactrace.
+	bool backtraceCandidate;
 
 	ASSERT_ONLY(bool finalized);
 };

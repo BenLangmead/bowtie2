@@ -221,6 +221,7 @@ static uint32_t seedCacheLocalMB;   // # MB to use for non-shared seed alignment
 static uint32_t seedCacheCurrentMB; // # MB to use for current-read seed hit cacheing
 static float posmin;         // minimum number of seed poss to try
 static float posfrac;        // fraction of additional seed poss to try
+static float rowmin;         // minimum seed extension attempts
 static float rowmult;        // seed extension attempts per pos
 static size_t maxhalf;       // max width on one side of DP table
 static bool seedSummaryOnly; // print summary information about seed hits, not alignments
@@ -402,6 +403,7 @@ static void resetOptions() {
 	multiseedIvalB  = DEFAULT_IVAL_B; // constant coefficient in formula
 	posmin          = DEFAULT_POSMIN;  // minimum # seed poss to try
 	posfrac         = DEFAULT_POSFRAC; // fraction of seed poss to try
+	rowmin          = DEFAULT_ROWMIN;  // minimum seed extension attempts
 	rowmult         = DEFAULT_ROWMULT; // seed extension attempts per pos
 	saCountersFn.clear();    // filename to dump per-read SeedAligner counters to
 	saActionsFn.clear();     // filename to dump all alignment actions to
@@ -1218,6 +1220,7 @@ static void parseOptions(int argc, const char **argv) {
 		multiseedIvalB,
 		posmin,
 		posfrac,
+		rowmin,
 		rowmult);
 	if(localAlign) {
 		gRowLow = 0;
@@ -2731,6 +2734,7 @@ static void* multiseedSearchWorker(void *vp) {
 								norc,           // don't align revcomp read
 								posmin,         // min # seed poss to try
 								posfrac,        // max seed poss to try
+								rowmin,         // min extensions
 								rowmult,        // max extensions per pos
 								maxhalf,        // max width on one DP side
 								ca,             // seed alignment cache
@@ -2766,6 +2770,7 @@ static void* multiseedSearchWorker(void *vp) {
 								nceil,          // N ceil for anchor
 								posmin,         // min # seed poss to try
 								posfrac,        // additional seed poss to try
+								rowmin,         // min extensions
 								rowmult,        // max extensions per pos
 								maxhalf,        // max width on one DP side
 								ca,             // seed alignment cache

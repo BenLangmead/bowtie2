@@ -28,7 +28,8 @@ enum {
 
 // By default, the maximum number of hits we try to extend is about 5 times the
 // total number of positions tried
-#define DEFAULT_ROWMULT  4.0f
+#define DEFAULT_ROWMIN   3.0f
+#define DEFAULT_ROWMULT  2.0f
 
 /**
  * Encapsulates the set of all parameters that affect what the
@@ -247,7 +248,8 @@ public:
 		float& multiseedIvalB,
 		float& posmin,
 		float& posfrac,
-		float& rowmult);
+		float& rowmult,
+		float& rowmin);
 };
 
 #endif /*ndef ALIGNER_SEED_POLICY_H_*/

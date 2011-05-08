@@ -783,11 +783,16 @@ inline void SwAligner::updateColorDiag(
 	SwColorCell&       dstc,      // destination cell
 	int                refMask,   // ref mask associated with destination cell
 	int                c,         // color being traversed
-	int                penmm)     // penalty to incur for color miscall
+	int                penmm,     // penalty to incur for color miscall
+	bool&              improved)
 {
 	assert(uc.finalized);
 	if(uc.empty) return;
 	IF_COUNT_N(bool ninvolved = (c > 3 || refMask > 15));
+	
+	// TODO!!!
+	improved = true;
+	
 	for(int to = 0; to < 4; to++) {
 		// Assuming that the read character in this row is 'to'...
 		TAlScore add =
@@ -834,43 +839,42 @@ inline void SwAligner::updateColorDiag(
 // 5. 'solcols_' is a list of pairs, where each pair cor
 // 6. 'solbest_'
 // 7. 'solrowbest_'
-#define UPDATE_SOLS(cur, row, col) { \
+#define UPDATE_SOLS(cur, row, col, improved) { \
 	assert_lt(col, width_); \
 	if(en_ == NULL || (*en_)[col]) { \
+		/* Column is acceptable */ \
 		for(int I = 0; I < 4; I++) { \
 			if(cur.oallBest[I].score() >= minsc_) { \
-				if((int64_t)row >= solrowlo_) { \
+				/* Score and column are acceptable */ \
+				const bool local = !sc_->monotone; \
+				/* For local alignment, a cell is only a solution candidate */ \
+				/* if the score was improved when we moved into the cell. */ \
+				if(!local || improved) { \
 					/* Score is acceptable */ \
-					if(row < solrows_.first)           solrows_.first = row; \
-					if(row > solrows_.second)          solrows_.second = row; \
-					if(col < solcols_[row].first) { \
-						solcols_[row].first  = col; \
-						assert(en_ == NULL || solcols_[row].first < en_->size()); \
+					if((int64_t)row >= solrowlo_) { \
+						/* Row is acceptable */ \
+						/* This cell is now a good candidate for backtrace BUT */ \
+						/* in local alignment mode we still need to know */ \
+						/* whether this solution is improved upon in the next */ \
+						/* row.  If it is improved upon later, this flag is set */ \
+						/* to false later. */ \
+						tab[row][col].backtraceCandidate = true; \
+						if(row > 0) tab[row-1][col].backtraceCandidate = false; \
+						assert(repOk()); \
 					} \
-					if(col > solcols_[row].second) { \
-						solcols_[row].second = col; \
-						assert(en_ == NULL || solcols_[row].second < en_->size()); \
-					} \
-					if(cur.oallBest[I].score() > solbest_) \
-						solbest_ = cur.oallBest[I].score(); \
-					assert(!sc_->monotone || solbest_ <= 0); \
-					if(cur.oallBest[I].score() > solrowbest_[row]) \
-						solrowbest_[row] = cur.oallBest[I].score(); \
-					assert(!sc_->monotone || solrowbest_[row] <= 0); \
-					nsols_++; \
-					soldone_ = false; \
-					assert(repOk()); \
 				} \
 			} \
 		} \
 	} \
 }
 
-#define FINALIZE_CELL(r, c) { \
+// c is the column offset with respect to the LHS of the rectangle; for offset
+// w/r/t LHS of parallelogram, use r+c
+#define FINALIZE_CELL(r, c, improved) { \
 	assert_lt(col, width_); \
 	assert(!tab[r][c].finalized); \
 	if(tab[r][c].finalize(floorsc_)) { \
-		UPDATE_SOLS(tab[r][c], r, c); \
+		UPDATE_SOLS(tab[r][c], r, c, improved); \
 		validInRow = true; \
 	} \
 	assert(tab[r][c].finalized); \
@@ -890,7 +894,7 @@ inline void SwAligner::updateColorDiag(
  * E.g. if an alignment is found that occurs starting at rdi, 0 is
  * returned.  If no alignment is found, -1 is returned.
  */
-bool SwAligner::alignColors(RandomSource& rnd) {
+void SwAligner::alignColors(RandomSource& rnd) {
 	typedef SwColorCell TCell;
 	assert_leq(rdf_, rd_->length());
 	assert_leq(rdf_, qu_->length());
@@ -909,14 +913,10 @@ bool SwAligner::alignColors(RandomSource& rnd) {
 	//
 	ELList<TCell>& tab = ctab_;
 	tab.resize(1); // add first row to row list
-	solrows_ = SwAligner::EXTREMES;        // at first, no rows have sols
-	solcols_.resize(rdf_ - rdi_ + 1);
-	solcols_.fill(SwAligner::EXTREMES);    // at first, no cols have sols
-	solrowbest_.resize(rdf_ - rdi_ + 1);
-	solrowbest_.fill(std::numeric_limits<TAlScore>::min()); // no row has sol
 	const size_t wlo = 0;
 	const size_t whi = (int)(width_ - 1);
 	tab[0].resize(whi-wlo+1); // add columns to first row
+	//TAlScore loBound = sc_->monotone ? minsc_ : floorsc_;
 	bool validInRow = !sc_->monotone;;
 	// Calculate starting values for the rest of the columns in the
 	// first row.  No need to consider colors yet since we won't have
@@ -928,6 +928,7 @@ bool SwAligner::alignColors(RandomSource& rnd) {
 		int rfm = rf_[rfi_+col];
 		// Can we start from here?
 		bool canStart = (st_ == NULL || (*st_)[col]);
+		bool improved = false;
 		if(canStart) {
 			for(int to = 0; to < 4; to++) {
 				curc.oallBest[to].invalidate();
@@ -942,6 +943,7 @@ bool SwAligner::alignColors(RandomSource& rnd) {
 					curc.oallBest[to].ns_ = 0;
 					curc.oallBest[to].score_ = 0;
 					curc.mask[to].oall_diag = 0xf;
+					improved = true;
 				} else if(m == 0 && sc_->snp <= -minsc_) {
 					// The assigned subject nucleotide does not match the
 					// reference nucleotide, so we add a SNP penalty
@@ -965,12 +967,12 @@ bool SwAligner::alignColors(RandomSource& rnd) {
 			updateColorHoriz(tab[0][col-1], curc, rfm);
 			ncups_++;
 		}
-		FINALIZE_CELL(0, col);
+		FINALIZE_CELL(0, col, improved);
 	}
 	nrowups_++;
 	if(!validInRow) {
 		nrowskips_ += (rdf_ - rdi_);
-		return !soldone_;
+		return;
 	}
 
 	//
@@ -1002,6 +1004,7 @@ bool SwAligner::alignColors(RandomSource& rnd) {
 		size_t col = wlo;
 		TCell& cur = tab[row][0];
 		cur.clear();
+		bool improved = false;
 		if(!tab[row-1][0].empty) {
 			const size_t fullcol = col + row;
 			updateColorDiag(
@@ -1009,7 +1012,8 @@ bool SwAligner::alignColors(RandomSource& rnd) {
 				cur,               // destination cell
 				rf_[rfi_ + fullcol], // ref mask associated with destination cell
 				c,                 // color being traversed
-				mmpen);            // penalty to incur for color miscall
+				mmpen,             // penalty to incur for color miscall
+				improved);
 		}
 		if(!onlyDiagInto && col < whi && !tab[row-1][1].empty) {
 			updateColorVert(
@@ -1020,7 +1024,7 @@ bool SwAligner::alignColors(RandomSource& rnd) {
 		}
 		ncups_++;
 		// 'cur' is now initialized
-		FINALIZE_CELL(row, col);
+		FINALIZE_CELL(row, col, improved);
 		// Iterate from leftmost to rightmost inner diagonals
 		for(col = wlo+1; col < whi; col++) {
 			const size_t fullcol = col + row;
@@ -1028,6 +1032,7 @@ bool SwAligner::alignColors(RandomSource& rnd) {
 			TCell& cur = tab[row][col-wlo];
 			cur.clear();
 			TCell& dg = tab[row-1][col-wlo];
+			improved = false;
 			// The mismatch penalty is a function of the read character
 			// in this row & the reference character in this column
 			// (specifically: whether they match and whether either is
@@ -1038,7 +1043,8 @@ bool SwAligner::alignColors(RandomSource& rnd) {
 				cur,           // destination cell
 				r,             // ref mask associated with destination column
 				c,             // nucleotide in destination row
-				mmpen);        // penalty to incur for color miscall
+				mmpen,         // penalty to incur for color miscall
+				improved);
 			if(!onlyDiagInto) {
 				TCell& up = tab[row-1][col-wlo+1];
 				updateColorVert(
@@ -1055,7 +1061,7 @@ bool SwAligner::alignColors(RandomSource& rnd) {
 			}
 			ncups_++;
 			// 'cur' is now initialized
-			FINALIZE_CELL(row, col);
+			FINALIZE_CELL(row, col, improved);
 		} // end loop over inner diagonals
 		//
 		// Handle the col == whi case (provided wlo != whi) after the
@@ -1069,13 +1075,15 @@ bool SwAligner::alignColors(RandomSource& rnd) {
 			const size_t fullcol = col + row;
 			const int r = rf_[rfi_ + fullcol];
 			TCell& dg = tab[row-1][col-wlo];
+			improved = false;
 			if(!dg.empty) {
 				updateColorDiag(
 					dg,        // cell diagonally above and to the left
 					cur,       // destination cell
 					r,         // ref mask associated with destination column
 					c,         // nucleotide in destination row
-					mmpen);    // penalty to incur for color miscall
+					mmpen,     // penalty to incur for color miscall
+					improved);
 			}
 			TCell& lf = tab[row][col-wlo-1];
 			if(!onlyDiagInto && !lf.empty) {
@@ -1086,15 +1094,14 @@ bool SwAligner::alignColors(RandomSource& rnd) {
 			}
 			ncups_++;
 			// 'cur' is now initialized
-			FINALIZE_CELL(row, col);
+			FINALIZE_CELL(row, col, improved);
 		}
 		if(!validInRow) {
 			assert_geq(rdf_ - rdi_, row);
 			nrowskips_ += (rdf_ - rdi_ - row);
-			return !soldone_;
+			return;
 		}
 	}
 	assert_eq(tab.size(), rd_->length()+1);
-	return !soldone_;
 }
 
