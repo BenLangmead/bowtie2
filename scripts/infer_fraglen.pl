@@ -10,12 +10,13 @@
 use strict;
 use warnings;
 use Getopt::Long;
+use FindBin qw($Bin); 
 
 my $m1 = "";
 my $m2 = "";
 my $index = "";
 my $bowtie_args = "";
-my $bowtie2 = "bowtie2";
+my $bowtie2 = "$Bin/../bowtie2";
 my $debug = 0;
 my $binsz = 10;
 
