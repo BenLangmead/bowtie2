@@ -662,10 +662,14 @@ void AlnSinkWrap::finishRead(
 		else {
 			if(pairMax) {
 				met.max_concord++;
-			} else {
+			} else if(readIsPair()) {
 				met.unal_pair++;
 			}
-			// Did the pair fail to align at all
+			// If we're at this point, either the read was unpaired, or it was
+			// paired-end but either aligned repetitively or failed to align as
+			// a pair (i.e. one or both mates failed to align).
+			
+			// Just examine mate 1
 			if(rd1_ != NULL) {
 				if(nunpair1 > 0) {
 					AlnSetSumm unpair1Summ(rd1_, NULL, &rs1u_, NULL);
@@ -691,6 +695,7 @@ void AlnSinkWrap::finishRead(
 						flags);
 					met.al++;
 				} else if(unpair1Max) {
+					assert(!rs1u_.empty());
 					AlnSetSumm unpair1Summ(rd1_, NULL, &rs1u_, NULL);
 					int fl;
 					if(readIsPair()) {
@@ -758,6 +763,7 @@ void AlnSinkWrap::finishRead(
 						flags);
 					met.al++;
 				} else if(unpair2Max) {
+					assert(!rs2u_.empty());
 					AlnSetSumm unpair2Summ(rd2_, NULL, &rs2u_, NULL);
 					int fl;
 					if(readIsPair()) {
