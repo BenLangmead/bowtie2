@@ -36,14 +36,13 @@ struct ReportingMetrics {
 		uint64_t unal_,
 		uint64_t max_)
 	{
-		al_concord = al_concord_;
-		al_discord = al_discord_;
+		al_concord  = al_concord_;
+		al_discord  = al_discord_;
 		max_concord = max_concord_;
-		unal_pair = unal_pair_;
-
-		al = al_;
-		unal = unal_;
-		max = max_;
+		unal_pair   = unal_pair_;
+		al          = al_;
+		unal        = unal_;
+		max         = max_;
 	}
 	
 	/**
@@ -53,13 +52,13 @@ struct ReportingMetrics {
 	 */
 	void merge(const ReportingMetrics& met, bool getLock = false) {
 		ThreadSafe ts(&lock, getLock);
-		al_concord += met.al_concord;
-		al_discord += met.al_discord;
+		al_concord  += met.al_concord;
+		al_discord  += met.al_discord;
 		max_concord += met.max_concord;
-		unal_pair += met.unal_pair;
-		al   += met.al;
-		unal += met.unal;
-		max  += met.max;
+		unal_pair   += met.unal_pair;
+		al          += met.al;
+		unal        += met.unal;
+		max         += met.max;
 	}
 
 	uint64_t al_concord;  // # pairs w/ >= 1 concordant alignment
