@@ -20,6 +20,61 @@
 using namespace std;
 
 /**
+ * Given seed results, set up all of our state for resolving and keeping
+ * track of reference offsets for hits.
+ */
+void SwDriver::setUpSaRangeState(
+	SeedResults& sh,             // seed hits to extend into full alignments
+	const Ebwt& ebwt,            // BWT
+	const BitPairReference& ref, // Reference strings
+	size_t maxrows,              // max rows to consider per position
+	AlignmentCacheIface& ca,     // alignment cache for seed hits
+	RandomSource& rnd,           // pseudo-random generator
+	WalkMetrics& wlm)            // group walk left metrics
+{
+	const size_t nonz = sh.nonzeroOffsets();
+	gws_.clear();     gws_.resize(nonz);
+	satups_.clear();  satups_.resize(nonz);
+	satups2_.clear(); satups2_.resize(nonz);
+	sacomb_.clear();  sacomb_.resize(nonz);
+	for(size_t i = 0; i < nonz; i++) {
+		bool fw = true;
+		uint32_t offidx = 0, rdoff = 0, seedlen = 0;
+		QVal qv = sh.hitsByRank(i, offidx, rdoff, fw, seedlen);
+		assert(qv.repOk(ca.current()));
+		satups_[i].clear();
+		satups2_[i].clear();
+		sacomb_[i].clear();
+		ca.queryQval(qv, satups_[i]);
+		EList<SATuple, 16> *satups = &satups_[i];
+		// Whittle down the rows in satups_ according to 'maxrows'
+		if(maxrows != 0xffffffff && SATuple::randomNarrow(
+			satups_[i],
+			satups2_[i],
+			rnd,
+			maxrows))
+		{
+			satups_[i] = satups2_[i];
+		}
+		sacomb_[i].resize(satups->size());
+		for(size_t j = 0 ; j < sacomb_[i].size(); j++) {
+			sacomb_[i][j].init((*satups)[j]);
+		}
+		gws_[i].initQval(
+			ebwt,    // forward Bowtie index
+			ref,     // reference sequences
+			qv,      // QVal describing BW ranges for this seed hit
+			*satups, // SA tuples: ref hit, salist range
+			sacomb_[i], // Combiner for resolvers
+			ca,      // current cache
+			rnd,     // pseudo-random generator
+			true,    // use results list?
+			wlm);    // metrics
+		assert(gws_[i].initialized());
+	}
+}
+
+/**
  * Given a collection of SeedHits for a single read, extend seed alignments
  * into full alignments.  Where possible, try to avoid redundant offset lookups
  * and dynamic programming wherever possible.  Optionally report alignments to
@@ -36,7 +91,6 @@ bool SwDriver::extendSeeds(
 	SeedResults& sh,             // seed hits to extend into full alignments
 	const Ebwt& ebwt,            // BWT
 	const BitPairReference& ref, // Reference strings
-	GroupWalk& gw,               // group walk left
 	SwAligner& swa,              // dynamic programming aligner
 	const Scoring& sc,           // scoring scheme
 	int seedmms,                 // # mismatches allowed in seed
@@ -72,6 +126,19 @@ bool SwDriver::extendSeeds(
 
 	DynProgFramer dpframe(!gReportOverhangs);
 
+	// Initialize a set of GroupWalks, one for each seed.  Also, intialize the
+	// accompanying lists of reference seed hits (satups*) and the combiners
+	// that link the reference-scanning results to the BW walking results
+	// (sacomb_).
+	setUpSaRangeState(
+		sh,      // seed hits to extend into full alignments
+		ebwt,    // BWT
+		ref,     // Reference strings
+		maxrows, // max rows to consider per position
+		ca,      // alignment cache for seed hits
+		rnd,     // pseudo-random generator
+		wlm);    // group walk left metrics
+
 	// Iterate twice through levels seed hits from the lowest ranked
 	// level to the highest ranked.  On the first iteration, look for
 	// entries for which the offset is already known and try SWs.  On
@@ -82,28 +149,27 @@ bool SwDriver::extendSeeds(
 	possf = max(possf, 1.0f);
 	possf = min(possf, (float)nonz);
 	const size_t poss = (size_t)possf;
+	size_t rows = rdlen + (color ? 1 : 0);
 	for(size_t i = 0; i < poss; i++) {
 		bool fw = true;
-		uint32_t offidx = 0, rdoff = 0, seedlen;
+		uint32_t offidx = 0, rdoff = 0, seedlen = 0;
+		// TODO: Right now we take a QVal and then investigate it until it's
+		// exhausted.  We might instead keep a few different GroupWalkers
+		// initialized with separate QVals and investigate them in tandem.
 		QVal qv = sh.hitsByRank(i, offidx, rdoff, fw, seedlen);
 		assert(qv.repOk(ca.current()));
+		int advances = 0;
+		ASSERT_ONLY(WalkResult lastwr);
 		if(!fw) {
 			// 'rdoff' and 'offidx' are with respect to the 5' end of
 			// the read.  Here we convert rdoff to be with respect to
 			// the upstream (3') end of ther read.
 			rdoff = (uint32_t)(rdlen - rdoff - seedlen);
 		}
-		size_t rows = rdlen + (color ? 1 : 0);
-		satups_.clear();
-		ca.queryQval(qv, satups_);
-		gw.initQval(ebwt, ref, qv, ca, rnd, maxrows, true, wlm);
-		assert(gw.initialized());
-		int advances = 0;
-		ASSERT_ONLY(WalkResult lastwr);
-		while(!gw.done()) {
+		while(!gws_[i].done()) {
 			// Resolve next element offset
 			WalkResult wr;
-			gw.advancePos(false, 0, wr, wlm);
+			gws_[i].advanceQvalPos(wr, wlm);
 			assert(wr.elt != lastwr.elt);
 			ASSERT_ONLY(lastwr = wr);
 			advances++;
@@ -257,7 +323,7 @@ bool SwDriver::extendSeeds(
 
 			// At this point we know that we aren't bailing, and will continue to resolve seed hits.  
 
-		} // while(!gw.done())
+		} // while(!gws_[i].done())
 	}
 	return false;
 }
@@ -384,10 +450,9 @@ bool SwDriver::extendSeedsPaired(
 	SeedResults& sh,             // seed hits for anchor
 	const Ebwt& ebwt,            // BWT
 	const BitPairReference& ref, // Reference strings
-	GroupWalk& gw,               // group walk left
 	SwAligner& swa,              // dynamic programming aligner for anchor
 	SwAligner& oswa,             // dynamic programming aligner for opposite
-	const Scoring& sc,          // scoring scheme
+	const Scoring& sc,           // scoring scheme
 	const PairedEndPolicy& pepol,// paired-end policy
 	int seedmms,                 // # mismatches allowed in seed
 	int seedlen,                 // length of seed
@@ -438,6 +503,19 @@ bool SwDriver::extendSeedsPaired(
 	
 	DynProgFramer dpframe(!gReportOverhangs);
 
+	// Initialize a set of GroupWalks, one for each seed.  Also, intialize the
+	// accompanying lists of reference seed hits (satups*) and the combiners
+	// that link the reference-scanning results to the BW walking results
+	// (sacomb_).
+	setUpSaRangeState(
+		sh,      // seed hits to extend into full alignments
+		ebwt,    // BWT
+		ref,     // Reference strings
+		maxrows, // max rows to consider per position
+		ca,      // alignment cache for seed hits
+		rnd,     // pseudo-random generator
+		wlm);    // group walk left metrics
+
 	// Iterate twice through levels seed hits from the lowest ranked
 	// level to the highest ranked.  On the first iteration, look for
 	// entries for which the offset is already known and try SWs.  On
@@ -450,7 +528,10 @@ bool SwDriver::extendSeedsPaired(
 	const size_t poss = (size_t)possf;
 	for(size_t i = 0; i < poss; i++) {
 		bool fw = true;
-		uint32_t offidx = 0, rdoff = 0, seedlen;
+		uint32_t offidx = 0, rdoff = 0, seedlen = 0;
+		// TODO: Right now we take a QVal and then investigate it until it's
+		// exhausted.  We might instead keep a few different GroupWalkers
+		// initialized with separate QVals and investigate them in tandem.
 		QVal qv = sh.hitsByRank(i, offidx, rdoff, fw, seedlen);
 		assert(qv.repOk(ca.current()));
 		if(!fw) {
@@ -461,18 +542,14 @@ bool SwDriver::extendSeedsPaired(
 		}
 		assert(!norc ||  fw);
 		assert(!nofw || !fw);
-		satups_.clear();
-		ca.queryQval(qv, satups_);
-		gw.initQval(ebwt, ref, qv, ca, rnd, maxrows, true, wlm);
-		assert(gw.initialized());
 		int advances = 0;
 		ASSERT_ONLY(WalkResult lastwr);
-		while(!gw.done()) {
+		while(!gws_[i].done()) {
 			// Resolve the next anchor seed hit
 			assert(!msink->state().done());
 			assert(!msink->state().doneWithMate(anchor1));
 			WalkResult wr;
-			gw.advancePos(false, 0, wr, wlm);
+			gws_[i].advanceQvalPos(wr, wlm);
 			assert(wr.elt != lastwr.elt);
 			ASSERT_ONLY(lastwr = wr);
 			advances++;

@@ -459,9 +459,22 @@ struct InstantiatedSeed {
 };
 
 /**
- * Data structure for holding all of the seed hits associated with a
- * read.  Hits are divided into forward/reverse-comp and stratified by
- * read offset.
+ * Data structure for holding all of the seed hits associated with a read.  All
+ * the seed hits for a given read are encapsulated in a single QVal object.  A
+ * QVal refers to a range of values in the qlist, where each qlist value is a 
+ * BW range and a slot to hold the hit's suffix array offset.  QVals are kept
+ * in two lists (hitsFw_ and hitsRc_), one for seeds on the forward read strand,
+ * one for seeds on the reverse read strand.  The list is indexed by read
+ * offset index (e.g. 0=closest-to-5', 1=second-closest, etc).
+ *
+ * An assumption behind this data structure is that all the seeds are found
+ * first, then downstream analyses try to extend them.  In between finding the
+ * seed hits and extending them, the sort() member function is called, which
+ * ranks QVals according to the order they should be extended.  Right now the
+ * policy is that QVals with fewer elements (hits) should be tried first.
+ *
+ * TODO: Try a randomized scheme for order in which QVals are analyzed, instead
+ *       of one where QVals with fewer elements are preferred.
  */
 class SeedResults {
 
@@ -487,19 +500,20 @@ public:
 	}
 
 	/**
-	 * Add a new RangeRange to the SeedResults.
+	 * Set the appropriate element of either hitsFw_ or hitsRc_ to the given
+	 * QVal.  A QVal encapsulates all the BW ranges for reference substrings 
+	 * that are within some distance of the seed string.
 	 */
 	void add(
-		const QVal& qv,      // range of ranges in cache
+		const QVal& qv,           // range of ranges in cache
 		const AlignmentCache& ac, // cache
-		uint32_t seedIdx,    // seed index (from 5' end)
-		bool     seedFw,     // whether seed is from forward read
-		uint32_t seedLen)    // length of each seed
+		uint32_t seedIdx,         // seed index (from 5' end)
+		bool     seedFw)          // whether seed is from forward read
 	{
 		assert(qv.repOk(ac));
 		assert(repOk(&ac));
 		assert_lt(seedIdx, hitsFw_.size());
-		assert_gt(numOffs_, 0); // if this fails, user probably didn't call reset()
+		assert_gt(numOffs_, 0); // if this fails, probably failed to call reset
 		if(qv.empty()) return;
 		if(seedFw) {
 			assert(!hitsFw_[seedIdx].valid());
@@ -615,8 +629,8 @@ public:
 	bool empty() const { return numRanges() == 0; }
 	
 	/**
-	 * Get the EList of SeedResults for the given orientation and seed
-	 * offset index.
+	 * Get the QVal representing all the reference hits for the given
+	 * orientation and seed offset index.
 	 */
 	const QVal& hitsAtOffIdx(bool fw, size_t seedoffidx) const {
 		assert_lt(seedoffidx, numOffs_);
@@ -672,33 +686,45 @@ public:
 				}
 			}
 			assert_eq(nonzs, nonzTot_);
+			assert(!sorted_ || nonzTot_ == rankFws_.size());
+			assert(!sorted_ || nonzTot_ == rankOffs_.size());
 		}
 		return true;
 	}
 	
 	/**
-	 * Given a destination list, populate it such that the elements are
-	 * a sorted list of offsetidxes from the offsetidx with the lowest
-	 * total number of BW elements up.
+	 * Populate rankOffs_ and rankFws_ with the list of QVals that need to be
+	 * examined for this SeedResults, in order.  The order is ascending by
+	 * number of elements, so QVals with fewer elements (i.e. seed sequences
+	 * that are more unique) will be tried first and QVals with more elements
+	 * (i.e. seed sequences
 	 */
-	void sort() {
-		// Just do selection sort
+	void rankSeedHits(RandomSource& rnd) {
 		while(rankOffs_.size() < nonzTot_) {
 			uint32_t minsz = 0xffffffff;
 			uint32_t minidx = 0;
 			bool minfw = true;
-			for(int fw = 0; fw <= 1; fw++) {
+			// Rank seed-hit positions in ascending order by number of elements
+			// in all BW ranges
+			bool rb = rnd.nextBool();
+			assert(rb == 0 || rb == 1);
+			for(int fwi = 0; fwi <= 1; fwi++) {
+				bool fw = (fwi == (rb ? 1 : 0));
 				EList<QVal>& rrs = (fw ? hitsFw_ : hitsRc_);
 				EList<bool>& sorted = (fw ? sortedFw_ : sortedRc_);
-				for(uint32_t i = 0; i < numOffs_; i++) {
-					if(rrs[i].valid() &&
-					   rrs[i].numElts() > 0 &&
-					   !sorted[i] &&
-					   rrs[i].numElts() < minsz)
+				uint32_t i = (rnd.nextU32() % (uint32_t)numOffs_);
+				for(uint32_t ii = 0; ii < numOffs_; ii++) {
+					if(rrs[i].valid() &&         // valid QVal
+					   rrs[i].numElts() > 0 &&   // non-empty
+					   !sorted[i] &&             // not already sorted
+					   rrs[i].numElts() < minsz) // least elts so far?
 					{
 						minsz = rrs[i].numElts();
 						minidx = i;
 						minfw = (fw == 1);
+					}
+					if((++i) == numOffs_) {
+						i = 0;
 					}
 				}
 			}
@@ -742,11 +768,11 @@ public:
 	}
 
 	/**
-	 * Return an EList of seed hits of the given rank 'r'.  'offidx'
-	 * gets the id of the offset from 5' from which it was extracted
-	 * (0 for the 5-most offset, 1 for the next closes to 5', etc).
-	 * 'off' gets the offset from the 5' end.  'fw' gets true iff the
-	 * seed was extracted from the forward read.
+	 * Return a QVal of seed hits of the given rank 'r'.  'offidx' gets the id
+	 * of the offset from 5' from which it was extracted (0 for the 5-most
+	 * offset, 1 for the next closes to 5', etc).  'off' gets the offset from
+	 * the 5' end.  'fw' gets true iff the seed was extracted from the forward
+	 * read.
 	 */
 	const QVal& hitsByRank(
 		size_t    r,      // in
@@ -808,25 +834,25 @@ protected:
 
 	// As seed hits and edits are added they're sorted into these
 	// containers
-	EList<BTDnaString>  seqFw_;       // sequences for seeds extracted from forward read
-	EList<BTDnaString>  seqRc_;       // sequences for seeds extracted from reverse-complement read
-	EList<BTString>     qualFw_;      // quality strings for seeds extracted from forward read
-	EList<BTString>     qualRc_;      // quality strings for seeds extracted from reverse-complement read
-	EList<QVal>         hitsFw_;      // hits for forward read represenatation
-	EList<QVal>         hitsRc_;      // hits for reverse-complement read representation
-	EList<EList<InstantiatedSeed> > isFw_; // hits for forward read represenatation
-	EList<EList<InstantiatedSeed> > isRc_; // hits for reverse-complement read representation
-	EList<bool>         sortedFw_;    // true iff corresponding level has been sorted
-	EList<bool>         sortedRc_;    // true iff corresponding level has been sorted
-	size_t              nonzTot_;     // number of offsets with non-zero size
-	size_t              nonzFw_;      // number of offsets into fw read with non-zero size
-	size_t              nonzRc_;      // number of offsets into rc read with non-zero size
-	size_t              numRanges_;   // number of ranges added
-	size_t              numElts_;     // number of elements added
-	size_t              numRangesFw_; // number of ranges added for fw seeds
-	size_t              numEltsFw_;   // number of elements added for fw seeds
-	size_t              numRangesRc_; // number of ranges added for rc seeds
-	size_t              numEltsRc_;   // number of elements added for rc seeds
+	EList<BTDnaString>  seqFw_;       // seqs for seeds from forward read
+	EList<BTDnaString>  seqRc_;       // seqs for seeds from revcomp read
+	EList<BTString>     qualFw_;      // quals for seeds from forward read
+	EList<BTString>     qualRc_;      // quals for seeds from revcomp read
+	EList<QVal>         hitsFw_;      // hits for forward read
+	EList<QVal>         hitsRc_;      // hits for revcomp read
+	EList<EList<InstantiatedSeed> > isFw_; // hits for forward read
+	EList<EList<InstantiatedSeed> > isRc_; // hits for revcomp read
+	EList<bool>         sortedFw_;    // true iff fw QVal was sorted/ranked
+	EList<bool>         sortedRc_;    // true iff rc QVal was sorted/ranked
+	size_t              nonzTot_;     // # offsets with non-zero size
+	size_t              nonzFw_;      // # offsets into fw read with non-0 size
+	size_t              nonzRc_;      // # offsets into rc read with non-0 size
+	size_t              numRanges_;   // # ranges added
+	size_t              numElts_;     // # elements added
+	size_t              numRangesFw_; // # ranges added for fw seeds
+	size_t              numEltsFw_;   // # elements added for fw seeds
+	size_t              numRangesRc_; // # ranges added for rc seeds
+	size_t              numEltsRc_;   // # elements added for rc seeds
 
 	EList<uint32_t>     offIdx2off_;// map from offset indexes to offsets from 5' end
 
@@ -835,12 +861,12 @@ protected:
 	// to hits from the lowest-ranked offset (the one with the fewest
 	// BW elements) to the greatest-ranked offset.  Offsets with 0 hits
 	// are ignored.
-	EList<uint32_t>     rankOffs_;  // sorted offests from min ([0]) to max ([.size()-1])
-	EList<bool>         rankFws_;   // sorted orientations associated with rankOffs_
-	bool                sorted_;    // true iff the sort() member has been called since the last reset
+	EList<uint32_t>     rankOffs_;  // sorted offests of seeds to try
+	EList<bool>         rankFws_;   // sorted orientations assoc. with rankOffs_
+	bool                sorted_;    // true if sort() called since last reset
 	
 	// These fields set once per read
-	size_t              numOffs_;   // number of different seed offsets possible
+	size_t              numOffs_;   // # different seed offsets possible
 	const Read*         read_;      // read from which seeds were extracted
 };
 

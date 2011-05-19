@@ -48,6 +48,9 @@ public:
 		return ret;
 	}
 
+	/**
+	 * Get next 2-bit unsigned integer.
+	 */
 	uint32_t nextU2() {
 		assert(inited_);
 		if(lastOff > 30) {
@@ -55,6 +58,19 @@ public:
 		}
 		uint32_t ret = (last >> lastOff) & 3;
 		lastOff += 2;
+		return ret;
+	}
+
+	/**
+	 * Get next boolean.
+	 */
+	bool nextBool() {
+		assert(inited_);
+		if(lastOff > 31) {
+			nextU32();
+		}
+		uint32_t ret = (last >> lastOff) & 1;
+		lastOff++;
 		return ret;
 	}
 	

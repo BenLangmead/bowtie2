@@ -66,12 +66,17 @@
 #include "mem_ids.h"
 #include "aln_sink.h"
 #include "pe.h"
+#include "sa_rescomb.h"
 
 class SwDriver {
 
 public:
 
 	SwDriver() :
+		satups_(DP_CAT),
+		satups2_(DP_CAT),
+		sacomb_(DP_CAT),
+		gws_(DP_CAT),
 		redSeed1_(DP_CAT),
 		redSeed2_(DP_CAT),
 		redAnchor_(DP_CAT),
@@ -99,7 +104,6 @@ public:
 		SeedResults& sh,             // seed hits to extend into full alignments
 		const Ebwt& ebwt,            // BWT
 		const BitPairReference& ref, // Reference strings
-		GroupWalk& gw,               // group walk left
 		SwAligner& swa,              // dynamic programming aligner
 		const Scoring& sc,           // scoring scheme
 		int seedmms,                 // # mismatches allowed in seed
@@ -165,7 +169,6 @@ public:
 		SeedResults& sh,             // seed hits for anchor
 		const Ebwt& ebwt,            // BWT
 		const BitPairReference& ref, // Reference strings
-		GroupWalk& gw,               // group walk left
 		SwAligner& swa,              // dyn programming aligner for anchor
 		SwAligner& swao,             // dyn programming aligner for opposite
 		const Scoring& sc,           // scoring scheme
@@ -222,7 +225,23 @@ public:
 
 protected:
 
-	EList<SATuple> satups_;     // temporary holder for range lists
+	/**
+	 * Given seed results, set up all of our state for resolving and keeping
+	 * track of reference offsets for hits.
+	 */
+	void setUpSaRangeState(
+		SeedResults& sh,             // seed hits to extend into full alignments
+		const Ebwt& ebwt,            // BWT
+		const BitPairReference& ref, // Reference strings
+		size_t maxrows,              // max rows to consider per position
+		AlignmentCacheIface& ca,     // alignment cache for seed hits
+		RandomSource& rnd,           // pseudo-random generator
+		WalkMetrics& wlm);           // group walk left metrics
+
+	ELList<SATuple, 16> satups_;     // temporary holder for range lists
+	ELList<SATuple, 16> satups2_;    // temporary holder for range lists
+	ELList<SAResolveCombiner, 16> sacomb_; // temporary holder for combiners
+	EList<GroupWalk> gws_;      // list of GroupWalks; no particular order
 
 	// For weeding out redundant seed hits
 	ESet<Coord>    redSeed1_;   // offsets for seed hits so far for mate 1

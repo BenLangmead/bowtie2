@@ -1321,7 +1321,7 @@ void AlnSinkVerbose::appendMate(
 					itoa10<TRefOff>(off + offAdj + offBase_, buf);
 					o.writeChars(buf);
 				} else {
-					o.write('0');
+					o.write('*');
 				}
 			}
 			// end else clause of if(partition != 0)

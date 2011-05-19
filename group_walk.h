@@ -1,30 +1,40 @@
 /*
  * group_walk.h
  *
- * Classes and routines for simultaneously walking a set of BW ranges
- * backwards from the edge of a seed hit.  We aren't done until the
- * offsets of all range elements have been resolved and returned.  The
- * main class is called 'GroupWalk' and an important helper class is
+ * Classes and routines for walking a set of BW ranges backwards from the edge
+ * of a seed hit with the goal of resolving the offset of each row in each
+ * range.  Here "offset" means offset into the concatenated string of all
+ * references.  The main class is 'GroupWalk' and an important helper is
  * 'GWState'.
  *
- * What are the origins for our walking procedure?  For each seed
- * offset and orientation, there is an associated QVal, which in turn
- * is associated with a (possibly empty) set of suffix array ranges.
- * Call these "seed range sets."  Each such range is "backed" by a
- * range of the salist, in the form of a PListSlice.  Each such range
- * is the origin of a walk.
+ * For each combination of seed offset and orientation, there is an associated
+ * QVal.  Each QVal describes a (possibly empty) set of suffix array ranges.
+ * Call these "seed range sets."  Each range in the set is "backed" by a range
+ * of the salist, represented as a PListSlice. Such a range is the origin of a
+ * walk.
  *
- * What bookkeeping do we have to do as we walk?  Before the first
- * step, we convert the initial QVal into a list of SATuples; the
- * SATuples are our link to the correpsonding ranges in the suffix
- * array.  The list of SATuples is then converted to a list of
- * GWState objects; these keep track of where we are in our
- * walk (e.g. what 'top' and 'bot' are, how many steps have we gone,
- * etc) as well as how the elements in the current range correspond to
- * elements from the original range.
+ * When an offset is resolved, it is entered into the salist via the
+ * PListSlice.  Note that other routines in this same thread might also be
+ * setting elements of the salist, so routines here should expect that elements
+ * can go from unresolved to resolved at any time.
  *
- * The user asks the GroupWalk to resolve another offset by calling
- * advance().  advance() can be called in various ways:
+ * BW walking is one way to resolve offsets, but so is scanning the reference
+ * for the corresponding reference string aligned to.  The former associates a
+ * resolved offset with a particular row of the BW, whereas the latter can only
+ * say that a resolved offsets belongs to same element in a range.  The
+ * SAResolveCombiner combines information from the two sources to fill in new
+ * salist elements whenever possible.
+ *
+ * What bookkeeping do we have to do as we walk?  Before the first step, we
+ * convert the initial QVal into a list of SATuples; the SATuples are our link
+ * to the correpsonding ranges in the suffix array.  The list of SATuples is
+ * then converted to a list of GWState objects; these keep track of where we
+ * are in our walk (e.g. what 'top' and 'bot' are, how many steps have we gone,
+ * etc) as well as how the elements in the current range correspond to elements
+ * from the original range.
+ *
+ * The user asks the GroupWalk to resolve another offset by calling advance().
+ * advance() can be called in various ways:
  *
  * (a) The user can request that the GroupWalk proceed until a
  *     *particular* element is resolved, then return that resolved
@@ -65,6 +75,9 @@
 #include "aligner_seed.h"
 #include "reference.h"
 #include "mem_ids.h"
+#include "sa_rescomb.h"
+
+typedef std::pair<SATuple*, SAResolveCombiner*> SATupleEx;
 
 /**
  * Encapsulates counters that encode how much work the walk-left logic
@@ -95,8 +108,8 @@ struct WalkMetrics {
 
 	uint64_t bwops;       // Burrows-Wheeler operations
 	uint64_t branches;    // BW range branch-offs
-	uint64_t resolutions; // number of offsets resolved
-	uint64_t reports;     // number of offsets reported (1 resolved offset can be reported many times)
+	uint64_t resolutions; // # offs resolved
+	uint64_t reports;     // # offs reported (1 can be reported many times)
 	MUTEX_T lock;
 };
 
@@ -198,7 +211,7 @@ struct WalkResult {
 };
 
 /**
- * A GW hit encapsulates an SATuples describing a reference substring
+ * A GW hit encapsulates an SATuple describing a reference substring
  * in the cache, along with a bool indicating whether each element of
  * the hit has been reported yet.
  */
@@ -207,7 +220,6 @@ class GWHit {
 public:
 
 	GWHit() :
-		sat(),
 		fmap(GW_CAT),
 		offidx(0xffffffff),
 		fw(false),
@@ -224,20 +236,22 @@ public:
 	 * there's one bool per suffix array element.
 	 */
 	void init(
-		const SATuple& sa,
+		SATuple* satup_,
+		SAResolveCombiner* sacomb_,
 		uint32_t oi,
 		bool f,
 		uint32_t r)
 	{
-		sat = sa;
+		satup = satup_;
+		sacomb = sacomb_;
 		nrep_ = 0;
 		offidx = oi;
 		fw = f;
 		range = r;
-		len = sa.key.len;
-		reported_.resize(sa.offs.size());
+		len = satup->key.len;
+		reported_.resize(satup->offs.size());
 		reported_.fill(false);
-		fmap.resize(sa.offs.size());
+		fmap.resize(satup->offs.size());
 		fmap.fill(make_pair(0xffffffff, 0xffffffff));
 	}
 	
@@ -245,7 +259,6 @@ public:
 	 * Clear contents of sat and done.
 	 */
 	void reset() {
-		sat.reset();
 		reported_.clear();
 		fmap.clear();
 		nrep_ = 0;
@@ -262,15 +275,17 @@ public:
 	 * reverse mappings match up for the as-yet-unresolved elements.
 	 */
 	bool repOk() const {
-		assert_eq(reported_.size(), sat.offs.size());
-		assert_eq(fmap.size(), sat.offs.size());
+		assert(satup != NULL);
+		assert(sacomb != NULL);
+		assert_eq(reported_.size(), satup->offs.size());
+		assert_eq(fmap.size(), satup->offs.size());
 		// Shouldn't be any repeats among as-yet-unresolveds
 		size_t nrep = 0;
 		for(size_t i = 0; i < fmap.size(); i++) {
 			if(reported_[i]) nrep++;
-			if(sat.offs[i] != 0xffffffff) continue;
+			if(satup->offs[i] != 0xffffffff) continue;
 			for(size_t j = i+1; j < fmap.size(); j++) {
-				if(sat.offs[j] != 0xffffffff) continue;
+				if(satup->offs[j] != 0xffffffff) continue;
 				assert_neq(fmap[i], fmap[j]);
 			}
 		}
@@ -282,8 +297,6 @@ public:
 	 * Return true iff this GWHit is not obviously corrupt.
 	 */
 	bool repOkBasic() {
-		assert_eq(reported_.size(), fmap.size());
-		assert_eq(reported_.size(), sat.offs.size());
 		return true;
 	}
 	
@@ -313,7 +326,8 @@ public:
 		return nrep_ == reported_.size();
 	}
 
-	SATuple sat;     // cache info for the range
+	SATuple *satup;   // cache info for the range & combiner
+	SAResolveCombiner *sacomb; // combiner
 	EList<std::pair<uint32_t, uint32_t>, 16> fmap; // forward map; to GWState & elt
 	uint32_t offidx; // offset idx
 	bool fw;         // orientation
@@ -387,11 +401,11 @@ public:
 	pair<int, int> init(
 		const Ebwt& ebwt,           // forward Bowtie index
 		const BitPairReference& ref,// bitpair-encoded reference
-		EList<GWState, S>& st,      // EList of GWStates for range being advanced
+		EList<GWState, S>& st,      // EList of GWStates for advancing range
 		GWHit& hit,                 // Corresponding hit structure
 		uint32_t range,             // range being inited
-		bool reportList,            // if true, "report" resolved offsets immediately by adding them to 'res' list
-		EList<WalkResult, 16>* res, // EList where resolved offsets should be appended
+		bool reportList,            // report resolutions, adding to 'res' list?
+		EList<WalkResult, 16>* res, // EList to append resolutions
 		WalkMetrics& met)           // update these metrics
 	{
 		assert(inited_);
@@ -410,7 +424,7 @@ public:
 				// Elt not resolved yet; try to resolve it now
 				uint32_t bwrow = (uint32_t)(top - mapi_ + i);
 				uint32_t toff = ebwt.tryOffset(bwrow);
-				ASSERT_ONLY(uint32_t origBwRow = hit.sat.top + map(i));
+				ASSERT_ONLY(uint32_t origBwRow = hit.satup->top + map(i));
 				assert_eq(bwrow, ebwt.walkLeft(origBwRow, step));
 				if(toff != 0xffffffff) {
 					// Yes, toff was resolvable
@@ -421,6 +435,16 @@ public:
 					setOff(i, toff, hit);
 					if(!reportList) ret.first++;
 #ifndef NDEBUG
+					// Sanity check that the reference characters under this
+					// hit match the seed characters in hit.satup->key.seq.
+					// This is NOT a check that we associated the exact right
+					// text offset with the BW row.  This is an important
+					// distinction because when resolved offsets are filled in
+					// via refernce scanning, they are not necessarily the
+					// exact right text offsets to associate with the
+					// respective BW rows but they WILL all be correct w/r/t
+					// the reference sequence underneath, which is what really
+					// matters here.
 					uint32_t tidx = 0xffffffff, tof, tlen;
 					ebwt.joinedToTextOff(
 						hit.len, // length of seed
@@ -429,12 +453,15 @@ public:
 						tof,     // offset in reference coordinates
 						tlen);   // length of reference sequence
 					if(tidx != 0xffffffff) {
-						uint64_t key = hit.sat.key.seq;
-						// Go from rightmost to leftmost character w/r/t the
-						// reference Watson strand
+						// key: 2-bit characters packed into a 64-bit word with
+						// the least significant bitpair corresponding to the
+						// rightmost character on the Watson reference strand.
+						uint64_t key = hit.satup->key.seq;
 						for(int64_t j = tof + hit.len-1; j >= tof; j--) {
+							// Get next reference base to the left
 							int c;
 							if(ebwt.eh().color()) {
+								// Convert to color
 								int nup = ref.getBase(tidx, j);
 								assert_range(0, 3, nup);
 								int ndn = ref.getBase(tidx, j+1);
@@ -444,6 +471,7 @@ public:
 								c = ref.getBase(tidx, j);
 							}
 							assert_range(0, 3, c);
+							// Must equal least significant bitpair of key
 							if(c != (int)(key & 3)) {
 								// Oops; when we jump to the piece of the
 								// reference where the seed hit is, it doesn't
@@ -452,7 +480,7 @@ public:
 								// reference string
 								SString<char> jref;
 								ebwt.restore(jref);
-								uint64_t key2 = hit.sat.key.seq;
+								uint64_t key2 = hit.satup->key.seq;
 								for(int64_t k = toff + hit.len-1; k >= toff; k--) {
 									int c;
 									if(ebwt.eh().color()) {
@@ -476,13 +504,17 @@ public:
 #endif
 				}
 			}
+			// Is the element resolved?  We ask this regardless of how it was
+			// resolved (whether this function did it just now, whether it did
+			// it a while ago, or whether some other function outside GroupWalk
+			// did it).
 			if(off(i, hit) != 0xffffffff) {
 				if(reportList && !hit.reported(map(i))) {
 					// Report it
 					uint32_t toff = off(i, hit);
 					assert(res != NULL);
 					res->expand();
-					uint32_t origBwRow = hit.sat.top + map(i);
+					uint32_t origBwRow = hit.satup->top + map(i);
 					res->back().init(
 						hit.offidx, // offset idx
 						hit.fw,     // orientation
@@ -516,7 +548,7 @@ public:
 				hit.fmap[bmap].second = (uint32_t)i;
 #ifndef NDEBUG
 				for(size_t j = 0; j < bmap; j++) {
-					if(hit.sat.offs[j] == 0xffffffff &&
+					if(hit.satup->offs[j] == 0xffffffff &&
 					   hit.fmap[j].first == range)
 					{
 						assert_neq(i, hit.fmap[j].second);
@@ -546,7 +578,7 @@ public:
 			// all elements in the corresponding GWHit that point to
 			// this range are resolved.
 			for(size_t i = 0; i < hit.fmap.size(); i++) {
-				if(hit.sat.offs[i] == 0xffffffff) {
+				if(hit.satup->offs[i] == 0xffffffff) {
 					assert_neq(range, hit.fmap[i].first);
 				}
 			}
@@ -624,10 +656,10 @@ public:
 		int left = 0;
 		for(size_t i = mapi_; i < map_.size(); i++) {
 			ASSERT_ONLY(uint32_t row = (uint32_t)(top + i - mapi_));
-			ASSERT_ONLY(uint32_t origRow = hit.sat.top + map(i));
+			ASSERT_ONLY(uint32_t origRow = hit.satup->top + map(i));
 			assert(step == 0 || row != origRow);
 			assert_eq(row, ebwt.walkLeft(origRow, step));
-			assert_lt(map_[i], hit.sat.offs.size());
+			assert_lt(map_[i], hit.satup->offs.size());
 			if(off(i, hit) == 0xffffffff) left++;
 		}
 		assert(repOkMapRepeats());
@@ -649,7 +681,7 @@ public:
 	 */
 	bool repOkMapInclusive(GWHit& hit, uint32_t range) const {
 		for(size_t i = 0; i < hit.fmap.size(); i++) {
-			if(hit.sat.offs[i] == 0xffffffff) {
+			if(hit.satup->offs[i] == 0xffffffff) {
 				if(range == hit.fmap[i].first) {
 					bool found = false;
 					for(size_t j = mapi_; j < map_.size(); j++) {
@@ -684,8 +716,8 @@ public:
 	uint32_t off(size_t i, GWHit& hit) const {
 		assert_geq(i, mapi_);
 		assert_lt(i, map_.size());
-		assert_lt(map_[i], hit.sat.offs.size());
-		return hit.sat.offs.get(map_[i]);
+		assert_lt(map_[i], hit.satup->offs.size());
+		return hit.satup->offs.get(map_[i]);
 	}
 
 	/**
@@ -727,8 +759,10 @@ public:
 	 */
 	void setOff(size_t i, uint32_t off, GWHit& hit) {
 		assert_lt(i+mapi_, map_.size());
-		assert_lt(map_[i+mapi_], hit.sat.offs.size());
-		hit.sat.offs[map_[i+mapi_]] = off;
+		assert_lt(map_[i+mapi_], hit.satup->offs.size());
+		size_t saoff = map_[i+mapi_];
+		hit.sacomb->setSalist(saoff, off);
+		assert_eq(off, hit.satup->offs[saoff]);
 	}
 
 	/**
@@ -810,9 +844,9 @@ public:
 								// expected number of steps to the left
 								// of the corresponding element in the
 								// root range
-								if(hit.sat.offs[newmap.back()] == 0xffffffff) {
+								if(hit.satup->offs[newmap.back()] == 0xffffffff) {
 									assert_eq(newtop + newmap.size() - 1,
-											  ebwt.walkLeft(hit.sat.top + newmap.back(), step+1));
+											  ebwt.walkLeft(hit.satup->top + newmap.back(), step+1));
 								}
 #endif
 							}
@@ -946,7 +980,7 @@ public:
 	 */
 	bool doneResolving(const GWHit& hit) const {
 		for(size_t i = mapi_; i < map_.size(); i++) {
-			if(hit.sat.offs[map(i)] == 0xffffffff) return false;
+			if(hit.satup->offs[map(i)] == 0xffffffff) return false;
 		}
 		return true;
 	}
@@ -999,8 +1033,6 @@ public:
 	GroupWalkSSS() :
 		res_(GW_CAT),
 		eltl_(GW_CAT),
-		satups_(GW_CAT),
-		satups2_(GW_CAT),
 		mapTmp_(GW_CAT)
 	{
 		for(int i = 0; i < 4; i++) {
@@ -1018,6 +1050,8 @@ public:
 		ref_ = NULL;
 		elt_ = rep_ = ranges_ = 0;
 		inited_ = false;
+		satups_ = NULL;
+		sacomb_ = NULL;
 		res_.clear();
 		resetEltsList();
 		assert(!initialized());
@@ -1030,113 +1064,27 @@ public:
 	bool initialized() { return inited_; }
 
 	/**
-	 * Initialize a new group walk w/r/t a SeedResults object.
-	 */
-	void initSeedResults(
-		const Ebwt& ebwtFw,         // forward Bowtie index for walking left
-		const BitPairReference& ref,// bitpair-encoded reference
-		SeedResults* sr,            // seed results to walk left
-		AlignmentCacheIface& cache, // cache where resolved offsets get installed
-		RandomSource& rnd,          // pseudo-random generator for sampling rows
-		uint32_t maxrows,           // maximum number of rows to consider per orientation/offset
-		bool useResultsList,        // true iff user will query using advancePos or advanceRange
-		WalkMetrics& met)           // update metrics here
-	{
-		reset();
-		ebwtFw_ = &ebwtFw;
-		ref_ = &ref;
-		inited_ = true;
-		justQval_ = false;
-		// For each non-empty seed hit...
-		const size_t numOffs = sr->numOffs();
-		for(int i = 0; i <= 1; i++) {
-			bool fw = (i == 1);
-			// Do these statements cause memory allocations besides
-			// those necessary to move the high water mark higher?
-			st_[i].resize(numOffs);
-			hits_[i].resize(numOffs);
-			for(size_t j = 0; j < numOffs; j++) {
-				st_[i][j].clear();
-				hits_[i][j].clear();
-				QVal qv = sr->hitsAtOffIdx(fw, j);
-				if(qv.valid() && !qv.empty()) {
-					// There's at least 1 hit for this seed/orientation
-					satups_.clear(); // clear temp list
-					cache.queryQval(qv, satups_);
-					EList<SATuple, 16> *satups = &satups_;
-					if(maxrows != 0xffffffff) {
-						satups2_.clear();
-						randomNarrow(satups_, satups2_, rnd, maxrows);
-						satups = &satups2_;
-					}
-#ifndef NDEBUG
-					{
-						size_t rows = 0;
-						for(size_t k = 0; k < satups->size(); k++) {
-							rows += (*satups)[k].offs.size();
-						}
-						assert_leq(rows, maxrows);
-					}
-#endif
-					size_t numRanges = satups->size();
-					for(size_t k = 0; k < numRanges; k++) {
-						// Copy SATuples into the GWHit list
-						hits_[i][j].expand();
-						assert(hits_[i][j].back().repOkBasic());
-						hits_[i][j].back().init((*satups)[k], j, fw, k);
-						// Init corresponding GWState
-						st_[i][j].expand();
-						st_[i][j].back().clear();
-						st_[i][j].back().expand();
-						assert(st_[i][j].back().back().repOkBasic());
-						uint32_t top = (*satups)[k].top;
-						uint32_t bot = (uint32_t)(top + (*satups)[k].offs.size());
-						st_[i][j].back().back().reset();
-						st_[i][j].back().back().initMap(bot-top);
-						st_[i][j].back().ensure(4);
-						st_[i][j].back().back().init(
-							*ebwtFw_,           // Bowtie index
-							*ref_,
-							st_[i][j].back(),   // EList<GWState>
-							hits_[i][j].back(), // GWHit
-							0,                  // range 0
-							useResultsList,     // yes, put resolved elements into res_
-							useResultsList ? &res_ : NULL, // put resolved elements here
-							top,                // BW row at top
-							bot,                // BW row at bot
-							0,                  // # steps taken
-							met);               // update metrics here
-#ifndef NDEBUG
-						for(size_t ii = 0; ii < st_[i][j].back().size(); ii++) {
-							assert(st_[i][j].back()[ii].repOk(*ebwtFw_, hits_[i][j].back(), ii));
-						}
-#endif
-						ranges_++;
-						elt_ += (*satups)[k].offs.size();
-					}
-				}
-			}
-		}
-	}
-
-	/**
 	 * Initialize a new group walk w/r/t a QVal object.
 	 */
 	void initQval(
 		const Ebwt& ebwtFw,         // forward Bowtie index for walking left
 		const BitPairReference& ref,// bitpair-encoded reference
 		QVal qv,                    // seed results to walk left
-		AlignmentCacheIface& cache, // cache where resolved offsets get installed
+		EList<SATuple, 16>& satups, // SATuples
+		EList<SAResolveCombiner, 16>& sacomb, // combiners
+		AlignmentCacheIface& cache, // cache where resolved offs get installed
 		RandomSource& rnd,          // pseudo-random generator for sampling rows
-		size_t maxrows,             // maximum number of rows to consider per orientation/offset
-		bool useResultsList,        // true iff user will query using advancePos or advanceRange
+		bool useResultsList,        // we'll query w/ advancePos/advanceRange?
 		WalkMetrics& met)           // update metrics here
 	{
 		reset();
+		satups_ = &satups;
+		sacomb_ = &sacomb;
 		ebwtFw_ = &ebwtFw;
 		ref_ = &ref;
 		inited_ = true;
 		justQval_ = true;
+		assert_eq(satups.size(), sacomb.size());
 		int i = 0, j = 0;
 		if(qv.valid() && !qv.empty()) {
 			// There's at least 1 hit for this seed/orientation
@@ -1144,43 +1092,34 @@ public:
 			hits_[0].resize(1);
 			st_[0][0].clear();
 			hits_[0][0].clear();
-			satups_.clear(); // clear temp list
-			cache.queryQval(qv, satups_);
-			EList<SATuple, 16> *satups = &satups_;
-			if(maxrows != 0xffffffff) {
-				satups2_.clear();
-				if(randomNarrow(satups_, satups2_, rnd, maxrows)) {
-					satups = &satups2_;
-				}
-			}
 #ifndef NDEBUG
 			{
 				size_t rows = 0;
-				for(size_t k = 0; k < satups->size(); k++) {
-					rows += (*satups)[k].offs.size();
+				for(size_t k = 0; k < satups_->size(); k++) {
+					rows += (*satups_)[k].offs.size();
 				}
-				assert_leq(rows, maxrows);
 			}
 #endif
-			size_t numRanges = satups->size();
+			size_t numRanges = satups_->size();
 			for(size_t k = 0; k < numRanges; k++) {
 				// Copy SATuples into the GWHit list
 				hits_[i][j].expand();
 				assert(hits_[i][j].back().repOkBasic());
-				hits_[i][j].back().init((*satups)[k], 0, false, (uint32_t)k);
+				hits_[i][j].back().init(
+					&(*satups_)[k], &(*sacomb_)[k], 0, false, (uint32_t)k);
 				// Init corresponding GWState
 				st_[i][j].expand();
 				st_[i][j].back().clear();
 				st_[i][j].back().expand();
 				assert(st_[i][j].back().back().repOkBasic());
-				uint32_t top = (*satups)[k].top;
-				uint32_t bot = (uint32_t)(top + (*satups)[k].offs.size());
+				uint32_t top = (*satups_)[k].top;
+				uint32_t bot = (uint32_t)(top + (*satups_)[k].offs.size());
 				st_[i][j].back().back().reset();
 				st_[i][j].back().back().initMap(bot-top);
 				st_[i][j].back().ensure(4);
 				st_[i][j].back().back().init(
 					*ebwtFw_,           // Bowtie index
-					*ref_,              // bitpair-encodede reference
+					*ref_,              // bitpair-encoded reference
 					st_[i][j].back(),   // EList<GWState>
 					hits_[i][j].back(), // GWHit
 					0,                  // range 0
@@ -1196,11 +1135,11 @@ public:
 				}
 #endif
 				ranges_++;
-				elt_ += (*satups)[k].offs.size();
+				elt_ += (*satups_)[k].offs.size();
 			}
 		}
 	}
-
+	
 	//
 	// FIRST-TO-LAST
 	//
@@ -1284,7 +1223,7 @@ public:
 		// Get the GWHit object corresponding to the range 'range'
 		GWHit& h = gwhit(fw, seedidx, range);
 		assert(h.repOk());
-		assert_lt(elt, h.sat.offs.size()); // elt must fall within range
+		assert_lt(elt, h.satup->offs.size()); // elt must fall within range
 		assert(!h.reported(elt));
 		// Get the list GTState objects correspond to the range 'range'
 		TStateV& sts = gwstates(fw, seedidx, range);
@@ -1296,7 +1235,7 @@ public:
 		assert(h.repOk());
 		assert(repOkGWHit(h, sts));
 		// Until we've resolved our element of interest...
-		while(h.sat.offs[elt] == 0xffffffff) {
+		while(h.satup->offs[elt] == 0xffffffff) {
 			// Get the GWState that contains our element of interest
 			size_t range = h.fmap[elt].first;
 			sts.ensure(4);
@@ -1320,7 +1259,7 @@ public:
 				masksTmp_,
 				mapTmp_,
 				met);
-			assert(h.sat.offs[elt] != 0xffffffff || !sts[h.fmap[elt].first].doneResolving(h));
+			assert(h.satup->offs[elt] != 0xffffffff || !sts[h.fmap[elt].first].doneResolving(h));
 #ifndef NDEBUG
 			assert(st.repOk(*ebwtFw_, h, range));
 			assert(h.repOk());
@@ -1330,7 +1269,7 @@ public:
 			}
 #endif
 		}
-		assert_neq(0xffffffff, h.sat.offs[elt]);
+		assert_neq(0xffffffff, h.satup->offs[elt]);
 		// Report it!
 		h.setReported(elt);
 		met.reports++;
@@ -1339,9 +1278,9 @@ public:
 			fw,      // orientation
 			range,   // range
 			elt,     // element
-			h.sat.top + elt,  // bw row
-			h.sat.key.len,    // length of hit
-			h.sat.offs[elt]); // resolved text offset
+			h.satup->top + elt,  // bw row
+			h.satup->key.len,    // length of hit
+			h.satup->offs[elt]); // resolved text offset
 		rep_++;
 		assert(repOk());
 		return true;
@@ -1363,12 +1302,12 @@ public:
 		assert(!justQval_ || !fw);
 		const THitV& h = gwhits(fw, seedidx);
 		for(size_t i = 0; i < h.size(); i++) {
-			size_t numElts = h[i].sat.offs.size();
+			size_t numElts = h[i].satup->offs.size();
 			// For each range
 			for(size_t j = 0; j < numElts; j++) {
 				// If it's not reported, return false
 				if(!h[i].reported(j)) return false;
-				assert_neq(0xffffffff, h[i].sat.offs[j]);
+				assert_neq(0xffffffff, h[i].satup->offs[j]);
 			}
 		}
 		return true;
@@ -1386,12 +1325,12 @@ public:
 		assert(!justQval_ || seedidx == 0);
 		assert(!justQval_ || !fw);
 		const GWHit& h = gwhit(fw, seedidx, range);
-		size_t numElts = h.sat.offs.size();
+		size_t numElts = h.satup->offs.size();
 		// For each range
 		for(size_t i = 0; i < numElts; i++) {
 			// If it's not reported, return false
 			if(!h.reported(i)) return false;
-			assert_neq(0xffffffff, h.sat.offs[i]);
+			assert_neq(0xffffffff, h.satup->offs[i]);
 		}
 		return true;
 	}
@@ -1413,12 +1352,12 @@ public:
 		// For each range
 		for(size_t i = 0; i < hs.size(); i++) {
 			assert(hs[i].repOk());
-			size_t numElts = hs[i].sat.offs.size();
+			size_t numElts = hs[i].satup->offs.size();
 			// For each element
 			for(size_t j = 0; j < numElts; j++) {
 				// Check if there are any elements that are resolved but
 				// not yet reported
-				if(hs[i].sat.offs[j] != 0xffffffff &&
+				if(hs[i].satup->offs[j] != 0xffffffff &&
 				   !hs[i].reported(j))
 				{
 					hs[i].setReported(j);
@@ -1428,9 +1367,9 @@ public:
 						fw,                 // orientation
 						j,                  // range
 						i,                  // element
-						hs[i].sat.top + j,  // bw row
-						hs[i].sat.key.len,  // length of hit
-						hs[i].sat.offs[j]); // resolved text offset
+						hs[i].satup->top + j,  // bw row
+						hs[i].satup->key.len,  // length of hit
+						hs[i].satup->offs[j]); // resolved text offset
 					rep_++;
 					assert(repOk());
 					return true;
@@ -1457,12 +1396,12 @@ public:
 		assert(!done());
 		GWHit& h = gwhit(fw, seedidx, range);
 		assert(h.repOk());
-		size_t numElts = h.sat.offs.size();
+		size_t numElts = h.satup->offs.size();
 		// For each element
 		for(size_t i = 0; i < numElts; i++) {
 			// Check if there are any elements that are resolved but
 			// not yet reported
-			if(h.sat.offs[i] != 0xffffffff && !h.reported(i)) {
+			if(h.satup->offs[i] != 0xffffffff && !h.reported(i)) {
 				h.setReported(i);
 				met.reports++;
 				res.init(
@@ -1470,9 +1409,9 @@ public:
 					fw,      // orientation
 					range,   // range
 					(uint32_t)i,       // element
-					(uint32_t)(h.sat.top + i),  // bw row
-					h.sat.key.len,  // length of hit
-					h.sat.offs[i]); // resolved text offset
+					(uint32_t)(h.satup->top + i),  // bw row
+					h.satup->key.len,  // length of hit
+					h.satup->offs[i]); // resolved text offset
 				rep_++;
 				assert(repOk());
 				return true;
@@ -1480,6 +1419,19 @@ public:
 		}
 		assert(repOk());
 		return false;
+	}
+
+	/**
+	 * If there is an offset at the given position that's resolved but
+	 * not yet reported, report it and return true.  Otherwise advance
+	 * ranges at the given position (in no particular order) until a
+	 * position is resolved and report it.
+	 */
+	bool advanceQvalPos(
+		WalkResult& res,  // put the result here
+		WalkMetrics& met) // update metrics here
+	{
+		return advancePos(false, 0, res, met);
 	}
 
 	/**
@@ -1498,13 +1450,16 @@ public:
 		assert(!justQval_ || !fw);
 		assert(inited_);
 		assert(!done());
-		//assert(!posReported(fw, seedidx));
+		// Is there a new result already waiting?
 		if(!res_.empty()) {
+			// TODO: What determines the order in which results are placed in
+			// this list?  Is it/can it be randomized?
 			res = res_.back();
 			res_.pop_back();
 			rep_++;
 			return true;
 		}
+		// Get the data structure that holds hits for the relevant seed
 		THitV& h = gwhits(fw, seedidx);
 		assert_leq(h.size(), ranges_);
 		// Advance ranges until we get a resolution
@@ -1521,11 +1476,15 @@ public:
 				if(h[i].done()) {
 					// This root range is entirely resolved
 					if(i == ilo) {
+						// No need to continue to consider this root range or
+						// any that preceded it
 						ilo++;
 					} else {
 						istreak++;
 					}
 					if(i == ihi-1 && istreak != 0) {
+						// No need to continue to consider these root ranges at
+						// the end of the list
 						ihi -= istreak;
 					}
 					continue;
@@ -1551,11 +1510,14 @@ public:
 						// This leaf range is entirely resolved
 						continue;
 					}
-					// Push it forward one more step
+					// Push it forward unless we get a result or until it's
+					// exhausted
 					bool cont = false;
 					while(res_.empty()) {
 						sts.ensure(4);
 						ASSERT_ONLY(size_t oldsz = sts.size());
+						// sts might grow inside this call, since the range
+						// might split into up to four more ranges
 						sts[j].advance(
 							*ebwtFw_,
 							*ref_,
@@ -1675,10 +1637,10 @@ public:
 				// For each range
 				for(size_t k = 0; k < hits_[i][j].size(); k++) {
 					// For each element
-					const size_t sz = hits_[i][j][k].sat.offs.size();
+					const size_t sz = hits_[i][j][k].satup->offs.size();
 					for(size_t m = 0; m < sz; m++) {
 						// Is it resolved?
-						if(hits_[i][j][k].sat.offs[m] != 0xffffffff) {
+						if(hits_[i][j][k].satup->offs[m] != 0xffffffff) {
 							resolved++;
 						} else {
 							assert(!hits_[i][j][k].reported(m));
@@ -1709,7 +1671,7 @@ public:
 		assert(h.repOk());
 		for(size_t i = 0; i < h.fmap.size(); i++) {
 			// As-yet-unresolved?
-			if(h.sat.offs[i] == 0xffffffff) {
+			if(h.satup->offs[i] == 0xffffffff) {
 				uint32_t ra = h.fmap[i].first;
 				uint32_t el = h.fmap[i].second;
 				assert_lt(ra, sts.size());
@@ -1763,8 +1725,8 @@ protected:
 			for(size_t j = 0; j < hits_[i].size(); j++) {
 				// For each range
 				for(size_t k = 0; k < hits_[i][j].size(); k++) {
-					const size_t   sz  = hits_[i][j][k].sat.offs.size();
-					const uint32_t len = hits_[i][j][k].sat.key.len;
+					const size_t   sz  = hits_[i][j][k].satup->offs.size();
+					const uint32_t len = hits_[i][j][k].satup->key.len;
 					// For each element
 					for(size_t m = 0; m < sz; m++) {
 						// Add an entry to eltl_
@@ -1859,86 +1821,6 @@ protected:
 		return s[off][range];
 	}
 
-	/**
-	 * Where necessary, randomly narrow down the set of seed alignment
-	 * results at each orientation/offset combination in satups_ such
-	 * that there are no more than 'maxrows' results per.
-	 */
-	bool randomNarrow(
-		EList<SATuple, 16>& src,
-		EList<SATuple, 16>& dst,
-		RandomSource& rnd,
-		size_t maxrows)
-	{
-		// Add up the total number of rows
-		size_t totrows = 0;
-		for(size_t i = 0; i < src.size(); i++) {
-			totrows += src[i].offs.size();
-		}
-		if(totrows <= maxrows) {
-			return false;
-		}
-		size_t totrowsSampled = 0;
-		uint32_t off = (uint32_t)(rnd.nextU32() % totrows);
-		bool on = false;
-		bool done = false;
-		// Go around twice, since the 
-		totrows = 0;
-		for(int twice = 0; twice < 2; twice++) {
-			for(size_t i = 0; i < src.size(); i++) {
-				assert(src[i].repOk());
-				if(!on) {
-					// Do we start sampling in this range?
-					on = (off < totrows + src[i].offs.size());
-					if(on) {
-						// Grab the appropriate portion of this range
-						assert_geq(off, totrows);
-						dst.expand();
-						size_t first = off - totrows;
-						size_t last = first + maxrows;
-						if(last > src[i].offs.size()) {
-							last = src[i].offs.size();
-						}
-						assert_gt(last, first);
-						dst.back().init(src[i], first, last);
-						totrowsSampled += (last-first);
-						assert(dst.back().repOk());
-					}
-				} else {
-					// This range is either in the middle or at the end of
-					// the random sample.
-					assert_lt(totrowsSampled, maxrows);
-					dst.expand();
-					size_t first = 0;
-					size_t last = maxrows - totrowsSampled;
-					if(last > src[i].offs.size()) {
-						last = src[i].offs.size();
-					}
-					assert_gt(last, first);
-					dst.back().init(src[i], first, last);
-					totrowsSampled += (last-first);
-					assert(dst.back().repOk());
-				}
-				if(totrowsSampled == maxrows) {
-					done = true;
-					break;
-				}
-				totrows += src[i].offs.size();
-			}
-			if(done) break;
-			// Must have already encountered first range we're sampling
-			// from
-			assert(on);
-		}
-		// Destination must be non-empty can can't have more than 1+
-		// the number of elements in the source.  1+ because the
-		// sampled range could "wrap around" and touch the same source
-		// range twice.
-		assert(!dst.empty());
-		assert_leq(dst.size(), src.size()+1);
-		return true;
-	}
-
 	const Ebwt* ebwtFw_; // Ebwt index for walking left
 	const BitPairReference* ref_; // bitpair-encoded reference sequences
 	bool inited_;        // initialized?
@@ -1969,10 +1851,10 @@ protected:
 	bool             eltlInit_; // true iff these fields have been initialized for this SeedResults
 
 	// -- Temporary lists --
-	EList<SATuple, 16> satups_;   // temporary list for SATuples
-	EList<SATuple, 16> satups2_;  // temporary list for SATuples
-	EList<bool> masksTmp_[4];     // temporary list for masks; used in GWState
-	EList<uint32_t, 16> mapTmp_;  // temporary list of GWState maps
+	EList<SATuple, 16> *satups_; // storage for SATuple and SAResolveCombiner
+	EList<SAResolveCombiner, 16> *sacomb_; // storage for SATuple and SAResolveCombiner
+	EList<bool> masksTmp_[4];      // temporary list for masks; used in GWState
+	EList<uint32_t, 16> mapTmp_;   // temporary list of GWState maps
 };
 
 typedef GroupWalkSSS<16, 16, 16> GroupWalk;

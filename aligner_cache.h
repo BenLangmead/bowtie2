@@ -20,25 +20,24 @@
  *
  * The cache consists of two linked potions:
  *
- * 1. A multimap from seed strings (i.e. read substrings) to reference
- *    strings that within some edit distance (roughly speaking).  This
- *    is the "seed multimap".
+ * 1. A multimap from seed strings (i.e. read substrings) to reference strings
+ *    that are within some edit distance (roughly speaking).  This is the "seed
+ *    multimap".
  *
  *    Key:   Read substring (2-bit-per-base encoded + length)
  *    Value: Set of reference substrings (i.e. keys into the suffix
  *           array multimap).
  *
- * 2. A multimap from reference strings to the corresponding elements
- *    of the suffix array.  Elements are filled in with
- *    reference-offset info as it's calculated.  This is the "suffix
- *     array multimap"
+ * 2. A multimap from reference strings to the corresponding elements of the
+ *    suffix array.  Elements are filled in with reference-offset info as it's
+ *    calculated.  This is the "suffix array multimap"
  *
  *    Key:   Reference substring (2-bit-per-base encoded + length)
  *    Value: (a) top from BWT, (b) length of range, (c) offset of first
  *           range element in 
  *
- * For both multimaps, we use a combo Red-Black tree and EList.  The
- * payload in the Red-Black tree nodes points to a range in the EList.
+ * For both multimaps, we use a combo Red-Black tree and EList.  The payload in
+ * the Red-Black tree nodes points to a range in the EList.
  */
 
 #include <iostream>
@@ -318,7 +317,88 @@ public:
 		assert(offs.repOk());
 		return true;
 	}
-	
+
+	/**
+	 * Randomly narrow down a list of SATuples such that the result has no more
+	 * than 'maxrows' rows total.  Could involve splitting some ranges into
+	 * pieces.  Return the result in dst.
+	 */
+	template<typename T>
+	static bool randomNarrow(
+		const T& src,      // input list of SATuples
+		T& dst,            // output list of SATuples
+		RandomSource& rnd, // pseudo-random generator
+		size_t maxrows)    // max # rows to keep
+	{
+		// Add up the total number of rows
+		size_t totrows = 0;
+		for(size_t i = 0; i < src.size(); i++) {
+			totrows += src[i].offs.size();
+		}
+		if(totrows <= maxrows) {
+			return false;
+		}
+		size_t totrowsSampled = 0;
+		uint32_t off = (uint32_t)(rnd.nextU32() % totrows);
+		bool on = false;
+		bool done = false;
+		// Go around twice, since the 
+		totrows = 0;
+		for(int twice = 0; twice < 2; twice++) {
+			for(size_t i = 0; i < src.size(); i++) {
+				assert(src[i].repOk());
+				if(!on) {
+					// Do we start sampling in this range?
+					on = (off < totrows + src[i].offs.size());
+					if(on) {
+						// Grab the appropriate portion of this range
+						assert_geq(off, totrows);
+						dst.expand();
+						size_t first = off - totrows;
+						size_t last = first + maxrows;
+						if(last > src[i].offs.size()) {
+							last = src[i].offs.size();
+						}
+						assert_gt(last, first);
+						dst.back().init(src[i], first, last);
+						totrowsSampled += (last-first);
+						assert(dst.back().repOk());
+					}
+				} else {
+					// This range is either in the middle or at the end of
+					// the random sample.
+					assert_lt(totrowsSampled, maxrows);
+					dst.expand();
+					size_t first = 0;
+					size_t last = maxrows - totrowsSampled;
+					if(last > src[i].offs.size()) {
+						last = src[i].offs.size();
+					}
+					assert_gt(last, first);
+					dst.back().init(src[i], first, last);
+					totrowsSampled += (last-first);
+					assert(dst.back().repOk());
+				}
+				if(totrowsSampled == maxrows) {
+					done = true;
+					break;
+				}
+				totrows += src[i].offs.size();
+			}
+			if(done) break;
+			// Must have already encountered first range we're sampling
+			// from
+			assert(on);
+		}
+		// Destination must be non-empty can can't have more than 1+
+		// the number of elements in the source.  1+ because the
+		// sampled range could "wrap around" and touch the same source
+		// range twice.
+		assert(!dst.empty());
+		assert_leq(dst.size(), src.size()+1);
+		return true;
+	}
+
 	void reset() { top = 0xffffffff; offs.reset(); }
 
 	// bot/length of SA range equals offs.size()

@@ -26,4 +26,7 @@ Performance ideas:
   row that you have to have before it is possible for a valid alignment to pass
   through any cell involved.  We can at least partially make up for the lack of
   row skipping using this.
+- If a seed is from the extreme end of the read, we don't have to add bands to
+  the dyn prog extending in *both* directions, just the direction away from the
+  end of the read.
   
