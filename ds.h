@@ -365,7 +365,7 @@ public:
 	 * Make this object into a copy of o by allocat
 	 */
 	EList<T, S>& operator=(const EList<T, S>& o) {
-		assert_eq(cat_, o.cat_);
+		assert_eq(cat_, o.cat());
 		if(o.cur_ == 0) {
 			// Nothing to copy
 			cur_ = 0;
@@ -391,7 +391,7 @@ public:
 	 */
 	void xfer(EList<T, S>& o) {
 		// What does it mean to transfer to a different-category list?
-		assert_eq(cat_, o.cat_);
+		assert_eq(cat_, o.cat());
 		// Can only transfer into an empty object
 		free();
 		allocCat_ = cat_;
@@ -901,7 +901,7 @@ public:
 	 * using operator= to copy them over.
 	 */
 	ELList<T, S1, S2>& operator=(const ELList<T, S1, S2>& o) {
-		assert_eq(cat_, o.cat_);
+		assert_eq(cat_, o.cat());
 		if(list_ == NULL) {
 			lazyInit();
 		}
@@ -914,7 +914,7 @@ public:
 		cur_ = o.cur_;
 		for(size_t i = 0; i < cur_; i++) {
 			// Note: using operator=, not xfer
-			assert_eq(list_[i].cat_, o.list_[i].cat_);
+			assert_eq(list_[i].cat(), o.list_[i].cat());
 			list_[i] = o.list_[i];
 		}
 		return *this;
@@ -926,7 +926,7 @@ public:
 	 * avoid o's destructor from deleting list_ out from under us.
 	 */
 	void xfer(ELList<T, S1, S2>& o) {
-		assert_eq(cat_, o.cat_);
+		assert_eq(cat_, o.cat());
 		list_ = o.list_; // list_ is an array of EList<T>s
 		sz_   = o.sz_;
 		cur_  = o.cur_;
@@ -1239,7 +1239,7 @@ public:
 	 * using operator= to copy them over.
 	 */
 	ELLList<T, S1, S2, S3>& operator=(const ELLList<T, S1, S2, S3>& o) {
-		assert_eq(cat_, o.cat_);
+		assert_eq(cat_, o.cat());
 		if(list_ == NULL) lazyInit();
 		if(o.cur_ == 0) {
 			cur_ = 0;
@@ -1250,7 +1250,7 @@ public:
 		cur_ = o.cur_;
 		for(size_t i = 0; i < cur_; i++) {
 			// Note: using operator=, not xfer
-			assert_eq(list_[i], o.list_[i].cat_);
+			assert_eq(list_[i].cat(), o.list_[i].cat());
 			list_[i] = o.list_[i];
 		}
 		return *this;
@@ -1262,7 +1262,7 @@ public:
 	 * avoid o's destructor from deleting list_ out from under us.
 	 */
 	void xfer(ELLList<T, S1, S2, S3>& o) {
-		assert_eq(cat_, o.cat_);
+		assert_eq(cat_, o.cat());
 		list_ = o.list_; // list_ is an array of EList<T>s
 		sz_   = o.sz_;
 		cur_  = o.cur_;
@@ -1541,7 +1541,7 @@ public:
 	ESet(const ESet<T>& o, int cat = 0) :
 		cat_(cat), list_(NULL)
 	{
-		assert_eq(cat_, o.cat_);
+		assert_eq(cat_, o.cat());
 		*this = o;
 	}
 
@@ -1554,7 +1554,7 @@ public:
 	 * Copy contents of given ESet into this ESet.
 	 */
 	ESet& operator=(const ESet<T>& o) {
-		assert_eq(cat_, o.cat_);
+		assert_eq(cat_, o.cat());
 		sz_ = o.sz_;
 		cur_ = o.cur_;
 		free();
@@ -1645,6 +1645,11 @@ public:
 	 * Clear set without deallocating (or setting) anything.
 	 */
 	void clear() { cur_ = 0; }
+
+	/**
+	 * Return memory category.
+	 */
+	int cat() const { return cat_; }
 
 private:
 

@@ -2430,7 +2430,6 @@ static void* multiseedSearchWorker(void *vp) {
 	SwAligner sw, osw;
 	SeedResults shs[2];
 	QVal *qv;
-	GroupWalk gws[2];
 	OuterLoopMetrics olm;
 	SeedSearchMetrics sdm;
 	WalkMetrics wlm;
@@ -2702,7 +2701,7 @@ static void* multiseedSearchWorker(void *vp) {
 							continue; // on to the next mate
 						}
 						// Sort seed hits into ranks
-						shs[mate].sort();
+						shs[mate].rankSeedHits(rnd);
 						int nceil = (int)sc.nCeil(rdlens[mate]);
 						bool done = false;
 						if(pair) {
@@ -2716,7 +2715,6 @@ static void* multiseedSearchWorker(void *vp) {
 								shs[mate],      // seed hits for anchor
 								ebwtFw,         // bowtie index
 								ref,            // packed reference strings
-								gws[mate],      // walk left for anchor
 								sw,             // dyn prog aligner, anchor
 								osw,            // dyn prog aligner, opposite
 								sc,             // scoring scheme
@@ -2759,7 +2757,6 @@ static void* multiseedSearchWorker(void *vp) {
 								shs[mate],      // seed hits
 								ebwtFw,         // bowtie index
 								ref,            // packed reference strings
-								gws[mate],      // group walk left
 								sw,             // dynamic prog aligner
 								sc,             // scoring scheme
 								multiseedMms,   // # mms allowed in a seed
@@ -2800,10 +2797,6 @@ static void* multiseedSearchWorker(void *vp) {
 					!seedSummaryOnly,     // suppress seed summaries?
 					seedSummaryOnly);     // suppress alignments?
 				assert(!retry || msinkwrap.empty());
-				
-				// Add local metrics to global metrics in a synchronized fashion
-				gws[0].reset();  // reset the group walk-left object
-				gws[1].reset();  // reset the group walk-left object
 			} // while(retry)
 		} // if(patid < qUpto && !ps->empty())
 		else {

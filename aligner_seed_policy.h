@@ -48,7 +48,7 @@ public:
 	 * Bonus for a match
 	 * -----------------
 	 *
-	 * MA=xx (default: MA=0, or MA=1 if --local is set)
+	 * MA=xx (default: MA=0, or MA=10 if --local is set)
 	 *
 	 *    xx = Each position where equal read and reference characters match up
 	 *         in the alignment contriubtes this amount to the total score.

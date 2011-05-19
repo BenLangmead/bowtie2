@@ -498,10 +498,14 @@ pair<int, int> SeedAligner::instantiateSeeds(
 			QKey qk(sr.seqs(fw)[i]);
 			QVal* qv;
 			if(qk.cacheable() && (qv = cache.queryCopy(qk)) != NULL) {
+				// This seed hit was found recently and the hitting QVal is
+				// still in the cache
 				assert(qv->repOk(cache.current()));
-				sr.add(*qv, cache.current(), i, fw, len);
-				met.interhit++;
-				if(!qv->empty()) ret.second++;
+				sr.add(*qv, cache.current(), i, fw);
+				met.interhit++; // inter-seed cache hit
+				if(!qv->empty()) {
+					ret.second++;
+				}
 			} else {
 				// For each search strategy
 				EList<InstantiatedSeed>& iss = sr.instantiatedSeeds(fw, i);
@@ -561,7 +565,6 @@ void SeedAligner::searchAllSeeds(
 	assert(ebwtFw != NULL);
 	assert(ebwtFw->isInMemory());
 	assert(sr.repOk(&cache.current()));
-	int len = seeds[0].len;
 	ebwtFw_ = ebwtFw;
 	ebwtBw_ = ebwtBw;
 	sc_ = &pens;
@@ -630,8 +633,7 @@ void SeedAligner::searchAllSeeds(
 					qv,    // range of ranges in cache
 					cache.current(), // cache
 					i,     // seed index (from 5' end)
-					fw,    // whether seed is from forward read
-					len);  // length of each seed
+					fw);   // whether seed is from forward read
 			}
 		}
 	}

@@ -20,7 +20,7 @@ using namespace std;
  * Bonus for a match
  * -----------------
  *
- * MA=xx (default: MA=0, or MA=1 if --local is set)
+ * MA=xx (default: MA=0, or MA=10 if --local is set)
  *
  *    xx = Each position where equal read and reference characters match up
  *         in the alignment contriubtes this amount to the total score.
@@ -321,7 +321,7 @@ void SeedAlignmentPolicy::parseString(
 			}
 		}
 		// Bonus for a match
-		// MA=xx (default: MA=0, or MA=1 if --local is set)
+		// MA=xx (default: MA=0, or MA=10 if --local is set)
 		if(tag == "MA") {
 			if(ctoks.size() != 1) {
 				cerr << "Error parsing alignment policy setting " << setting
