@@ -1367,7 +1367,7 @@ static void parseOptions(int argc, const char **argv) {
 	}
 #ifdef BOWTIE2
 	if(multiseedMms > 0 && offRatePlus <= 0) {
-		offRatePlus = 1;
+		//offRatePlus = 1;
 	}
 #endif
 }
