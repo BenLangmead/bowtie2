@@ -670,6 +670,19 @@ public:
 	void sort() {
 		if(cur_ > 1) std::sort(list_, list_ + cur_);
 	}
+
+	/**
+	 * Return true iff every element is < its successor.  Only operator< is
+	 * used.
+	 */
+	bool sorted() const {
+		for(size_t i = 1; i < cur_; i++) {
+			if(!(list_[i-1] < list_[i])) {
+				return false;
+			}
+		}
+		return true;
+	}
 	
 	/**
 	 * Sort some of the contents.
@@ -711,6 +724,30 @@ public:
 	 * Return memory category.
 	 */
 	int cat() const { return cat_; }
+
+	/**
+	 * Perform a binary search for the first element that is not less
+	 * than 'el'.  Return cur_ if all elements are less than el.
+	 */
+	size_t bsearchLoBound(const T& el) const {
+		size_t hi = cur_;
+		size_t lo = 0;
+		while(true) {
+			if(lo == hi) {
+				return lo;
+			}
+			size_t mid = lo + ((hi-lo)>>1);
+			assert_neq(mid, hi);
+			if(list_[mid] < el) {
+				if(lo == mid) {
+					return hi;
+				}
+				lo = mid;
+			} else {
+				hi = mid;
+			}
+		}
+	}
 
 private:
 

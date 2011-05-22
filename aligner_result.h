@@ -725,6 +725,9 @@ public:
 	 */
 	bool repOk() const {
 		assert(refcoord_.repOk());
+		assert(VALID_AL_SCORE(score_) || ned_.empty());
+		assert(VALID_AL_SCORE(score_) || aed_.empty());
+		assert(VALID_AL_SCORE(score_) || ced_.empty());
 		assert(empty() || refcoord_.valid());
 		assert_geq(rdexrows_, rdextent_);
 		assert(empty() || rdextent_ > 0);

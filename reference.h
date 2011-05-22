@@ -93,21 +93,38 @@ public:
 		size_t toff,
 		size_t count) const;
 
-	/// Return the number of reference sequences.
+	/**
+	 * Return the number of reference sequences.
+	 */
 	uint32_t numRefs() const {
 		return nrefs_;
 	}
 
-	/// Return the approximate length of a reference sequence (it might
-	/// leave off some Ns on the end).
+	/**
+	 * Return the approximate length of a reference sequence (it might leave
+	 * off some Ns on the end).
+	 *
+	 * TODO: Is it still true that it might leave off Ns?
+	 */
 	uint32_t approxLen(uint32_t elt) const {
 		assert_lt(elt, nrefs_);
 		return refLens_[elt];
 	}
 
-	/// Return true iff buf_ and all the vectors are populated.
+	/**
+	 * Return true iff buf_ and all the vectors are populated.
+	 */
 	bool loaded() const {
 		return loaded_;
+	}
+	
+	/**
+	 * Given a reference sequence id, return its offset into the pasted
+	 * reference string; i.e., return the number of unambiguous nucleotides
+	 * preceding it.
+	 */
+	uint32_t pastedOffset(uint32_t idx) const {
+		return refOffs_[idx];
 	}
 
 	/**

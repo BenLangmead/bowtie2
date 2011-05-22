@@ -761,7 +761,11 @@ public:
 		assert_lt(i+mapi_, map_.size());
 		assert_lt(map_[i+mapi_], hit.satup->offs.size());
 		size_t saoff = map_[i+mapi_];
-		hit.sacomb->setSalist(saoff, off);
+		if(hit.sacomb->inited()) {
+			hit.sacomb->setSalist(saoff, off);
+		} else {
+			hit.satup->offs[saoff] = off;
+		}
 		assert_eq(off, hit.satup->offs[saoff]);
 	}
 

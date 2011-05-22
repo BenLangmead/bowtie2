@@ -128,18 +128,22 @@ BitPairReference::BitPairReference(
 	for(uint32_t i = 0; i < sz; i++) {
 		recs_.push_back(RefRecord(f3, swap));
 		if(recs_.back().first) {
-			// Remember that this is the first record for this
-			// reference sequence (and the last record for the one
-			// before)
+			// This is the first record for this reference sequence (and the
+			// last record for the one before)
 			refRecOffs_.push_back((uint32_t)recs_.size()-1);
+			// refOffs_ links each reference sequence with the total number of
+			// unambiguous characters preceding it in the pasted reference
 			refOffs_.push_back(cumsz);
 			if(nrefs_ > 0) {
+				// refLens_ links each reference sequence with the total number
+				// of ambiguous and unambiguous characters in it.
 				refLens_.push_back(cumlen);
 			}
 			cumlen = 0;
 			nrefs_++;
 		} else if(i == 0) {
-			cerr << "First record in reference index file was not marked as 'first'" << endl;
+			cerr << "First record in reference index file was not marked as "
+			     << "'first'" << endl;
 			throw 1;
 		}
 		cumsz += recs_.back().len;
@@ -147,7 +151,8 @@ BitPairReference::BitPairReference(
 		cumlen += recs_.back().len;
 	}
 	if(verbose_ || startVerbose) {
-		cerr << "Read " << nrefs_ << " reference strings from " << sz << " records: ";
+		cerr << "Read " << nrefs_ << " reference strings from "
+		     << sz << " records: ";
 		logTime(cerr);
 	}
 	// Store a cap entry for the end of the last reference seq

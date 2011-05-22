@@ -43,6 +43,7 @@
 #include "mem_ids.h"
 #include "aligner_result.h"
 #include "mask.h"
+#include "seed_scan.h"
 
 #define QUAL2(d, f) sc_->mm((int)(*rd_)[rdi_ + d], \
 							(int)  rf_ [rfi_ + f], \
@@ -274,7 +275,8 @@ public:
 		const Scoring& sc,     // scoring scheme
 		TAlScore minsc,        // minimum score a cell must achieve to have sol
 		TAlScore floorsc,      // local-alignment score floor
-		int nceil);            // max # Ns allowed in reference part of aln
+		int nceil,             // max # Ns allowed in reference part of aln
+		SeedScanner *sscan);   // optional seed scanner to feed ref chars to
 	
 	/**
 	 * Align read 'rd' to reference using read & reference information given

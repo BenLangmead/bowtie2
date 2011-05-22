@@ -29,4 +29,7 @@ Performance ideas:
 - If a seed is from the extreme end of the read, we don't have to add bands to
   the dyn prog extending in *both* directions, just the direction away from the
   end of the read.
-  
+- Let opposite mate finding be driven by seed hits, not spread across a huge
+  window
+- Have a cache where we've precalculated all the range info for low-complexity
+  sequences like AA, AC, AG, AT, etc. repeated (only 16 of those)

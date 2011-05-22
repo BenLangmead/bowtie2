@@ -27,6 +27,7 @@
 #define SEED_SCAN_H_
 
 #include <stdint.h>
+#include <utility>
 #include "ds.h"
 
 #define BP_SUFFIX(seq, bps) \
@@ -42,8 +43,10 @@
 class SeedScanQuery {
 public:
 
+	typedef std::pair<uint32_t,uint32_t> U32Pair;
+
 	SeedScanQuery(
-		uint64_t id,
+		U32Pair id,
 		uint64_t seq,
 		size_t len)
 	{
@@ -53,13 +56,13 @@ public:
 	SeedScanQuery() { reset(); }
 
 	void reset() {
-		id_ = 0xfffffffffffffffful;
+		id_ = std::make_pair(0, 0);
 		seq_ = 0;
 		len_ = 0;
 		assert(!inited());
 	}
 
-	void init(uint64_t id, uint64_t seq, size_t len) {
+	void init(U32Pair id, uint64_t seq, size_t len) {
 		assert_gt(len, 0);
 		id_ = id;
 		seq_ = seq;
@@ -75,12 +78,12 @@ public:
 		return len_ != 0;
 	}
 	
-	inline uint64_t id()  const { return id_; }
+	inline U32Pair  id()  const { return id_; }
 	inline uint64_t seq() const { return seq_; }
 	inline size_t   len() const { return len_; }
 
 protected:
-	uint64_t id_;
+	U32Pair  id_;
 	uint64_t seq_;
 	size_t   len_;
 };
@@ -91,15 +94,17 @@ protected:
 class SeedScanHit {
 public:
 
+	typedef std::pair<uint32_t,uint32_t> U32Pair;
+
 	inline SeedScanHit() { reset(); }
 
-	inline SeedScanHit(uint64_t id, uint32_t off) { init(id, off); }
+	inline SeedScanHit(U32Pair id, uint32_t off) { init(id, off); }
 	
 	/**
 	 * Set to uninitialized state.
 	 */
 	void reset() {
-		id_ = 0xfffffffffffffffflu;
+		id_ = std::make_pair(0xffffffff, 0);
 		off_ = 0;
 	}
 	
@@ -107,22 +112,22 @@ public:
 	 * Return true iff hit is initialized.
 	 */
 	bool inited() const {
-		return id_ != 0xfffffffffffffffflu;
+		return id_.first != 0xffffffff;
 	}
 	
 	/**
 	 * Initialize to given parameters.
 	 */
-	inline void init(uint64_t id, uint32_t off) {
+	inline void init(U32Pair id, uint32_t off) {
 		id_ = id;
 		off_ = off;
 	}
 
-	inline uint64_t id()  const { return id_; }
+	inline U32Pair  id()  const { return id_; }
 	inline uint32_t off() const { return off_; }
 
 protected:
-	uint64_t id_;  // id of query sequence that hit
+	U32Pair  id_;  // id of query sequence that hit
 	uint32_t off_; // offset into the stream where it hit
 };
 
@@ -133,6 +138,8 @@ class SeedScanTable {
 
 public:
 
+	typedef std::pair<uint32_t,uint32_t> U32Pair;
+
 	SeedScanTable() : qrys_() {
 		reset();
 	}
@@ -141,8 +148,14 @@ public:
 		init(keybps);
 	}
 	
+	/**
+	 * Reset the table to be empty and uninitialized.
+	 */
 	void reset() {
 		qrys_.clear();
+		first_ = true;
+		assert(empty());
+		assert(!inited());
 	}
 	
 	/**
@@ -171,15 +184,15 @@ public:
 	 * Check that table is internally consistent.
 	 */
 	bool repOk() const {
-		assert(!inited() || qrys_.size() == (1 << (keybps_ << 1)));
+		assert(!inited() || qrys_.size() == (1ul << (keybps_ << 1ul)));
 		return true;
 	}
 	
 	/**
 	 * Add a new query and place it in the appropriate bin.
 	 */
-	void add(uint64_t id, uint64_t seq, size_t len) {
-		assert(inited());
+	void add(U32Pair id, uint64_t seq, size_t len) {
+		assert(empty() || inited());
 		add(SeedScanQuery(id, seq, len));
 	}
 
@@ -187,14 +200,14 @@ public:
 	 * Add a new query and place it in the appropriate bin.
 	 */
 	void add(const SeedScanQuery& qry) {
-		assert(inited());
+		assert(empty() || inited());
 		if(first_) {
 			len_ = qry.len();
 			first_ = false;
 		} else {
 			assert_eq(len_, qry.len());
 		}
-		size_t key = BP_SUFFIX(qry.seq(), keybps_);
+		size_t key = (size_t)BP_SUFFIX(qry.seq(), keybps_);
 		// TODO: check if a query has been added twice?
 		qrys_[key].push_back(qry);
 	}
@@ -208,7 +221,7 @@ public:
 		uint32_t off,
 		EList<SeedScanHit>& hits) const
 	{
-		size_t key = BP_SUFFIX(buf, keybps_);
+		size_t key = (size_t)BP_SUFFIX(buf, keybps_);
 		const size_t binsz = qrys_[key].size();
 		if(binsz == 0) {
 			return;
@@ -242,6 +255,8 @@ protected:
 class SeedScanner {
 public:
 
+	typedef std::pair<uint32_t,uint32_t> U32Pair;
+
 	SeedScanner() { }
 
 	/**
@@ -250,14 +265,22 @@ public:
 	 */
 	inline void nextChar(int c) {
 		assert(tab_ != NULL);
-		// Add it to the buffer
-		assert_range(0, 3, c);
 		if(tab_->empty()) {
 			return;
 		}
+		// Add it to the buffer
+		assert_range(0, 4, c);
+		if(c == 4) {
+			lastUnmatchable_ = 0;
+			c = 0;
+		}
+		assert_range(0, 3, c);
 		buf_ <<= 2;
 		buf_ |= c;
-		tab_->query(buf_, off_, hits_);
+		if(lastUnmatchable_ >= tab_->len()) {
+			tab_->query(buf_, off_, hits_);
+		}
+		lastUnmatchable_++;
 		off_++;
 	}
 	
@@ -268,6 +291,7 @@ public:
 		tab_ = &tab;
 		buf_ = off_ = 0;
 		hits_.clear();
+		lastUnmatchable_ = 1;
 	}
 	
 	/**
@@ -278,6 +302,13 @@ public:
 	}
 	
 	/**
+	 * Return true iff there are no queries to scan for.
+	 */
+	bool empty() const {
+		return tab_ == NULL || tab_->empty();
+	}
+	
+	/**
 	 * Return the list of hits so far.
 	 */
 	const EList<SeedScanHit>& hits() const {
@@ -285,10 +316,11 @@ public:
 	}
 
 protected:
-	uint64_t buf_;
-	uint32_t off_;
-	EList<SeedScanHit> hits_;
-	const SeedScanTable *tab_;
+	uint64_t buf_;             // rotating buffer of recent characters
+	uint32_t off_;             // offset w/r/t last time init() was called
+	EList<SeedScanHit> hits_;  // hits so far
+	const SeedScanTable *tab_; // table with queries
+	size_t lastUnmatchable_;   // how many chars ago was last N?
 };
 
 #endif /*ndef SEED_SCAN_H_*/
