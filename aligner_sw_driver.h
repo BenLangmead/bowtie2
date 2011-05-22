@@ -4,10 +4,11 @@
  * REDUNDANT SEED HITS
  *
  * We say that two seed hits are redundant if they trigger identical
- * seed-extend dynamic programming problems.  Detecting redundant seed hits is
- * simple when the seed hits are ungapped.  We do this after offset resolution
- * but before the offset is converted to genome coordinates (see uses of the
- * redSeed1_/redSeed2_ fields for examples).
+ * seed-extend dynamic programming problems.  Put another way, they both lie on
+ * the same diagonal of the overall read/reference dynamic programming matrix.
+ * Detecting redundant seed hits is simple when the seed hits are ungapped.  We
+ * do this after offset resolution but before the offset is converted to genome
+ * coordinates (see uses of the seenDiags1_/seenDiags2_ fields for examples).
  *
  * REDUNDANT ALIGNMENTS
  *
@@ -67,6 +68,7 @@
 #include "aln_sink.h"
 #include "pe.h"
 #include "sa_rescomb.h"
+#include "ival_list.h"
 
 class SwDriver {
 
@@ -77,8 +79,8 @@ public:
 		satups2_(DP_CAT),
 		sacomb_(DP_CAT),
 		gws_(DP_CAT),
-		redSeed1_(DP_CAT),
-		redSeed2_(DP_CAT),
+		seenDiags1_(DP_CAT),
+		seenDiags2_(DP_CAT),
 		redAnchor_(DP_CAT),
 		redMate1_(DP_CAT),
 		redMate2_(DP_CAT),
@@ -117,6 +119,7 @@ public:
 		float rowmin,                // minimum number of extensions to try
 		float rowmult,               // number of extensions to try per pos
 		size_t maxhalf,              // maximum width on one side of DP table
+		bool scanNarrowed,           // true -> ref scan even for narrowed hits
 		AlignmentCacheIface& ca,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random source
 		WalkMetrics& wlm,            // group walk left metrics
@@ -189,6 +192,7 @@ public:
 		float rowmin,                // minimum number of extensions to try
 		float rowmult,               // number of extensions to try per pos
 		size_t maxhalf,              // maximum width on one side of DP table
+		bool scanNarrowed,           // true -> ref scan even for narrowed hits
 		AlignmentCacheIface& cs,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random source
 		WalkMetrics& wlm,            // group walk left metrics
@@ -208,14 +212,14 @@ public:
 	 */
 	void nextRead(bool paired, size_t mate1len, size_t mate2len) {
 		redAnchor_.reset();
-		redSeed1_.clear();
+		seenDiags1_.reset();
+		seenDiags2_.reset();
 		size_t maxlen = mate1len;
 		if(paired) {
 			redMate1_.reset();
 			redMate1_.init(mate1len);
 			redMate2_.reset();
 			redMate2_.init(mate2len);
-			redSeed2_.clear();
 			if(mate2len > maxlen) {
 				maxlen = mate2len;
 			}
@@ -233,7 +237,9 @@ protected:
 		SeedResults& sh,             // seed hits to extend into full alignments
 		const Ebwt& ebwt,            // BWT
 		const BitPairReference& ref, // Reference strings
+		int seedlen,                 // length of seed
 		size_t maxrows,              // max rows to consider per position
+		bool scanNarrowed,           // true -> ref scan even for narrowed hits
 		AlignmentCacheIface& ca,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random generator
 		WalkMetrics& wlm);           // group walk left metrics
@@ -243,10 +249,14 @@ protected:
 	ELList<SAResolveCombiner, 16> sacomb_; // temporary holder for combiners
 	EList<GroupWalk> gws_;      // list of GroupWalks; no particular order
 
-	// For weeding out redundant seed hits
-	ESet<Coord>    redSeed1_;   // offsets for seed hits so far for mate 1
-	ESet<Coord>    redSeed2_;   // offsets for seed hits so far for mate 2
-	
+	SeedScanner    sscan_;      // reference scanner for resolving seed hits
+	SeedScanTable  sstab_;      // table of seeds to search for
+
+	// Data structures encapsulating the diagonals that have already been used
+	// to seed alignment for mate 1 and mate 2.
+	EIvalMergeStrandedList seenDiags1_;
+	EIvalMergeStrandedList seenDiags2_;
+
 	// For weeding out redundant alignments
 	RedundantAlns  redAnchor_;  // database of cells used for anchor alignments
 	RedundantAlns  redMate1_;   // database of cells used for mate 1 alignments

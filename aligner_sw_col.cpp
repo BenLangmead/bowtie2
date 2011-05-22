@@ -272,8 +272,8 @@ bool SwAligner::backtrackColors(
 				continue;
 			} else {
 				// No branch points to revisit; just give up
-				return false;
 				res.reset();
+				return false;
 			}
 		}
 		assert(!curc.reportedThru_);

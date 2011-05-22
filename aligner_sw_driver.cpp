@@ -27,7 +27,9 @@ void SwDriver::setUpSaRangeState(
 	SeedResults& sh,             // seed hits to extend into full alignments
 	const Ebwt& ebwt,            // BWT
 	const BitPairReference& ref, // Reference strings
+	int seedlen,                 // length of seed
 	size_t maxrows,              // max rows to consider per position
+	bool scanNarrowed,           // true -> ref scan even for narrowed hits
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
 	RandomSource& rnd,           // pseudo-random generator
 	WalkMetrics& wlm)            // group walk left metrics
@@ -37,6 +39,7 @@ void SwDriver::setUpSaRangeState(
 	satups_.clear();  satups_.resize(nonz);
 	satups2_.clear(); satups2_.resize(nonz);
 	sacomb_.clear();  sacomb_.resize(nonz);
+	sstab_.init(4); // Seed = 4 DNA chars = 1 byte
 	for(size_t i = 0; i < nonz; i++) {
 		bool fw = true;
 		uint32_t offidx = 0, rdoff = 0, seedlen = 0;
@@ -48,6 +51,7 @@ void SwDriver::setUpSaRangeState(
 		ca.queryQval(qv, satups_[i]);
 		EList<SATuple, 16> *satups = &satups_[i];
 		// Whittle down the rows in satups_ according to 'maxrows'
+		bool narrowed = false;
 		if(maxrows != 0xffffffff && SATuple::randomNarrow(
 			satups_[i],
 			satups2_[i],
@@ -55,10 +59,24 @@ void SwDriver::setUpSaRangeState(
 			maxrows))
 		{
 			satups_[i] = satups2_[i];
+			narrowed = true;
 		}
 		sacomb_[i].resize(satups->size());
-		for(size_t j = 0 ; j < sacomb_[i].size(); j++) {
-			sacomb_[i][j].init((*satups)[j]);
+		if(!narrowed || scanNarrowed) {
+			for(size_t j = 0 ; j < sacomb_[i].size(); j++) {
+				// Add a query corresponding to this reference substring to the
+				// SeedScanner so that we can possibly resolve it via reference
+				// scanning.
+				sstab_.add(make_pair(i, j), (*satups)[j].key.seq, (size_t)seedlen);
+				sacomb_[i][j].init((*satups)[j]);
+			}
+		} else {
+			for(size_t j = 0 ; j < sacomb_[i].size(); j++) {
+				// Don't add a query b/c the original range had to be narrowed.
+				// In this case, we have no way to determine if a hit from
+				// reference scanning belongs in one of the rows post-narrowing.
+				sacomb_[i][j].reset();
+			}
 		}
 		gws_[i].initQval(
 			ebwt,    // forward Bowtie index
@@ -104,6 +122,7 @@ bool SwDriver::extendSeeds(
 	float rowmin,                // minimum number of extensions to try
 	float rowmult,               // number of extensions to try per pos
 	size_t maxhalf,  	         // max width in either direction for DP tables
+	bool scanNarrowed,           // true -> ref scan even for narrowed hits
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
 	RandomSource& rnd,           // pseudo-random source
 	WalkMetrics& wlm,            // group walk left metrics
@@ -113,9 +132,12 @@ bool SwDriver::extendSeeds(
 	EList<SwCounterSink*>* swCounterSinks, // send counter updates to these
 	EList<SwActionSink*>* swActionSinks)   // send action-list updates to these
 {
+	typedef std::pair<uint32_t, uint32_t> U32Pair;
+
 	assert(!reportImmediately || msink != NULL);
 	assert(!reportImmediately || msink->empty());
 	assert(!reportImmediately || !msink->maxed());
+	assert_gt(seedlen, 0);
 
 	// Calculate the largest possible number of read and reference gaps
 	const size_t rdlen = rd.length();
@@ -129,15 +151,19 @@ bool SwDriver::extendSeeds(
 	// Initialize a set of GroupWalks, one for each seed.  Also, intialize the
 	// accompanying lists of reference seed hits (satups*) and the combiners
 	// that link the reference-scanning results to the BW walking results
-	// (sacomb_).
+	// (sacomb_).  Finally, initialize the SeedScanTable and SeedScanner
+	// objects that will actually do the reference scanning and opportunistic
+	// resolution of offsets.
 	setUpSaRangeState(
-		sh,      // seed hits to extend into full alignments
-		ebwt,    // BWT
-		ref,     // Reference strings
-		maxrows, // max rows to consider per position
-		ca,      // alignment cache for seed hits
-		rnd,     // pseudo-random generator
-		wlm);    // group walk left metrics
+		sh,           // seed hits to extend into full alignments
+		ebwt,         // BWT
+		ref,          // Reference strings
+		seedlen,      // length of seed substring
+		maxrows,      // max rows to consider per position
+		scanNarrowed, // true -> ref scan even for narrowed hits
+		ca,           // alignment cache for seed hits
+		rnd,          // pseudo-random generator
+		wlm);         // group walk left metrics
 
 	// Iterate twice through levels seed hits from the lowest ranked
 	// level to the highest ranked.  On the first iteration, look for
@@ -174,11 +200,17 @@ bool SwDriver::extendSeeds(
 			ASSERT_ONLY(lastwr = wr);
 			advances++;
 			assert_neq(0xffffffff, wr.toff);
-			Coord c(0, (TRefOff)wr.toff - rdoff, fw);
-			if(!redSeed1_.insert(c)) {
+			// Coordinate of the seed hit w/r/t the pasted reference string
+			TRefOff shcoord = (TRefOff)wr.toff - rdoff;
+			if(seenDiags1_.locusPresent(shcoord, fw)) {
 				// Already tried to find an alignment at these coordinates
 				swmSeed.rshit++;
 				continue;
+			} else {
+				// TODO: Perhaps widen the band a little beyond what is needed
+				// b/c of maxgaps so that we can cover a wider swath and
+				// potentially create more redundancy with future queryies.
+				seenDiags1_.add(shcoord, shcoord+1, fw);
 			}
 			uint32_t tidx = 0, toff = 0, tlen = 0;
 			ebwt.joinedToTextOff(
@@ -213,6 +245,7 @@ bool SwDriver::extendSeeds(
 			// Find offset of alignment's upstream base assuming net gaps=0
 			// between beginning of read and beginning of seed hit
 			int64_t refoff = (int64_t)toff - rdoff;
+			int64_t pastedRefoff = (int64_t)wr.toff - rdoff;
 			size_t width = 0, trimup = 0, trimdn = 0;
 			int64_t refl = 0, refr = 0;
 			bool found = dpframe.frameSeedExtension(
@@ -233,11 +266,15 @@ bool SwDriver::extendSeeds(
 			if(!found) {
 				continue;
 			}
+			assert_leq(refl, refoff);
+			int64_t leftShift = refoff - refl;
+			pastedRefoff -= leftShift;
 			assert_eq(width, st_.size());
 			assert_eq(st_.size(), en_.size());
 			// Given the boundaries defined by refl and refr, initilize the
 			// SwAligner with the dynamic programming problem that aligns the
 			// read to this reference stretch.
+			sscan_.init(sstab_);
 			swa.init(
 				rd,        // read to align
 				0,         // off of first char in 'rd' to consider
@@ -255,7 +292,23 @@ bool SwDriver::extendSeeds(
 				sc,        // scoring scheme
 				minsc,     // minimum score for valid alignments
 				floorsc,   // local-alignment floor score
-				nceil);    // max # Ns
+				nceil,     // max # Ns
+				&sscan_);  // reference scanner for resolving offsets
+			// Take reference-scanner hits and turn them into offset
+			// resolutions.
+			for(size_t j = 0; j < sscan_.hits().size(); j++) {
+				// Get identifier for the appropriate combiner
+				U32Pair id = sscan_.hits()[j].id();
+				// Get the hit's offset in pasted-reference coordinates
+				int64_t off = sscan_.hits()[j].off() + pastedRefoff;
+				// Move our offset from the RHS of the seed to the LHS
+				off -= (seedlen-1);
+				assert_geq(off, 0);
+				assert_lt(off, (int64_t)ebwt.eh().lenNucs());
+				assert_lt(off, (int64_t)0xffffffff);
+				// Install it
+				sacomb_[id.first][id.second].addRefscan((uint32_t)off);
+			}
 			// Now fill the dynamic programming matrix and return true iff
 			// there is at least one valid alignment
 			found = swa.align(rnd);
@@ -470,6 +523,7 @@ bool SwDriver::extendSeedsPaired(
 	float rowmin,                // minimum number of extensions
 	float rowmult,               // number of extensions to try per pos
 	size_t maxhalf,              // max width in either direction for DP tables
+	bool scanNarrowed,           // true -> ref scan even for narrowed hits
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
 	RandomSource& rnd,           // pseudo-random source
 	WalkMetrics& wlm,            // group walk left metrics
@@ -483,9 +537,12 @@ bool SwDriver::extendSeedsPaired(
 	EList<SwCounterSink*>* swCounterSinks, // send counter updates to these
 	EList<SwActionSink*>* swActionSinks)   // send action-list updates to these
 {
+	typedef std::pair<uint32_t, uint32_t> U32Pair;
+
 	assert(!reportImmediately || msink != NULL);
 	assert(!reportImmediately || !msink->maxed());
 	assert(!msink->state().doneWithMate(anchor1));
+	assert_gt(seedlen, 0);
 
 	const size_t rdlen  = rd.length();
 	const size_t ordlen = ord.length();
@@ -506,15 +563,19 @@ bool SwDriver::extendSeedsPaired(
 	// Initialize a set of GroupWalks, one for each seed.  Also, intialize the
 	// accompanying lists of reference seed hits (satups*) and the combiners
 	// that link the reference-scanning results to the BW walking results
-	// (sacomb_).
+	// (sacomb_).  Finally, initialize the SeedScanTable and SeedScanner
+	// objects that will actually do the reference scanning and opportunistic
+	// resolution of offsets.
 	setUpSaRangeState(
-		sh,      // seed hits to extend into full alignments
-		ebwt,    // BWT
-		ref,     // Reference strings
-		maxrows, // max rows to consider per position
-		ca,      // alignment cache for seed hits
-		rnd,     // pseudo-random generator
-		wlm);    // group walk left metrics
+		sh,           // seed hits to extend into full alignments
+		ebwt,         // BWT
+		ref,          // Reference strings
+		seedlen,      // length of seed substring
+		maxrows,      // max rows to consider per position
+		scanNarrowed, // true -> ref scan even for narrowed hits
+		ca,           // alignment cache for seed hits
+		rnd,          // pseudo-random generator
+		wlm);         // group walk left metrics
 
 	// Iterate twice through levels seed hits from the lowest ranked
 	// level to the highest ranked.  On the first iteration, look for
@@ -554,12 +615,19 @@ bool SwDriver::extendSeedsPaired(
 			ASSERT_ONLY(lastwr = wr);
 			advances++;
 			assert_neq(0xffffffff, wr.toff);
-			Coord c(0, (TRefOff)wr.toff - rdoff, fw);
-			ESet<Coord>& redSeedAnchor = anchor1 ? redSeed1_ : redSeed2_;
-			if(!redSeedAnchor.insert(c)) {
+			// Coordinate of the seed hit w/r/t the pasted reference string
+			TRefOff shcoord = (TRefOff)wr.toff - rdoff;
+			EIvalMergeStrandedList& seenDiags =
+				anchor1 ? seenDiags1_ : seenDiags2_;
+			if(seenDiags.locusPresent(shcoord, fw)) {
 				// Already tried to find an alignment at these coordinates
 				swmSeed.rshit++;
 				continue;
+			} else {
+				// TODO: Perhaps widen the band a little beyond what is needed
+				// b/c of maxgaps so that we can cover a wider swath and
+				// potentially create more redundancy with future queryies.
+				seenDiags.add(shcoord, shcoord+1, fw);
 			}
 			uint32_t tidx = 0, toff = 0, tlen = 0;
 			ebwt.joinedToTextOff(
@@ -594,6 +662,7 @@ bool SwDriver::extendSeedsPaired(
 			// Find offset of alignment's upstream base assuming net gaps=0
 			// between beginning of read and beginning of seed hit
 			int64_t refoff = (int64_t)toff - rdoff;
+			int64_t pastedRefoff = (int64_t)wr.toff - rdoff;
 			size_t width = 0, trimup = 0, trimdn = 0;
 			int64_t refl = 0, refr = 0;
 			bool found = dpframe.frameSeedExtension(
@@ -614,6 +683,9 @@ bool SwDriver::extendSeedsPaired(
 			if(!found) {
 				continue;
 			}
+			assert_leq(refl, refoff);
+			int64_t leftShift = refoff - refl;
+			pastedRefoff -= leftShift;
 			assert_eq(width, st_.size());
 			assert_eq(st_.size(), en_.size());
 			res_.reset();
@@ -622,6 +694,7 @@ bool SwDriver::extendSeedsPaired(
 			// Given the boundaries defined by refl and refr, initilize the
 			// SwAligner with the dynamic programming problem that aligns the
 			// read to this reference stretch.
+			sscan_.init(sstab_);
 			swa.init(
 				rd,        // read to align
 				0,         // off of first char in 'rd' to consider
@@ -639,7 +712,25 @@ bool SwDriver::extendSeedsPaired(
 				sc,        // scoring scheme
 				minsc,     // minimum score for valid alignments
 				floorsc,   // local-alignment floor score
-				nceil);    // max # Ns
+				nceil,     // max # Ns
+				&sscan_);  // reference scanner for resolving offsets
+			// Take reference-scanner hits and turn them into offset
+			// resolutions.
+			for(size_t j = 0; j < sscan_.hits().size(); j++) {
+				// Get identifier for the appropriate combiner
+				U32Pair id = sscan_.hits()[j].id();
+				// Get the hit's offset in pasted-reference coordinates
+				int64_t toff = sscan_.hits()[j].off() + refl;
+				int64_t off = (int64_t)ref.pastedOffset(tidx);
+				off += toff;
+				// Move our offset from the RHS of the seed to the LHS
+				off -= (seedlen-1);
+				assert_geq(off, 0);
+				assert_lt(off, (int64_t)ebwt.eh().lenNucs());
+				assert_lt(off, (int64_t)0xffffffff);
+				// Install it
+				sacomb_[id.first][id.second].addRefscan((uint32_t)off);
+			}
 			// Now fill the dynamic programming matrix and return true iff
 			// there is at least one valid alignment
 			found = swa.align(rnd);
@@ -770,7 +861,8 @@ bool SwDriver::extendSeedsPaired(
 							sc,        // scoring scheme
 							ominsc,    // minimum score for valid alignments
 							ofloorsc,  // local-alignment floor score
-							onceil);   // max # Ns
+							onceil,    // max # Ns
+							NULL);     // TODO: scan w/r/t other SeedResults
 						// Now fill the dynamic programming matrix and return true
 						// iff there is at least one valid alignment
 						foundMate = oswa.align(rnd);

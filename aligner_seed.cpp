@@ -407,9 +407,13 @@ static EList<SAAction> actions;
 #endif /*ndef ALIGNER_SEED_TRACE*/
 
 /**
- * Given a read and a few coordinates that describe a substring of the
- * read (or its reverse complement), fill in 'seq' and 'qual' objects
- * with the seed sequence and qualities.
+ * Given a read and a few coordinates that describe a substring of the read (or
+ * its reverse complement), fill in 'seq' and 'qual' objects with the seed
+ * sequence and qualities.
+ *
+ * The seq field is filled with the sequence as it would align to the Watson
+ * reference strand.  I.e. if fw is false, then the sequence that appears in
+ * 'seq' is the reverse complement of the raw read substring.
  */
 void
 SeedAligner::instantiateSeq(
@@ -436,7 +440,7 @@ SeedAligner::instantiateSeq(
 /**
  * We assume that all seeds are the same length.
  *
- * For each seed, tnstantiate the seed, retracting if necessary.
+ * For each seed, instantiate the seed, retracting if necessary.
  */
 pair<int, int> SeedAligner::instantiateSeeds(
 	const EList<Seed>& seeds,  // search seeds

@@ -77,6 +77,8 @@ public:
 	 * and then call and return the result of tryResolving().
 	 */
 	bool setSalist(size_t saoff, uint32_t off) {
+		assert(inited_);
+		assert(satup_ != NULL);
 		satup_->offs[saoff] = off;
 		return tryResolving();
 	}

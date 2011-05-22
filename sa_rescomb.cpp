@@ -16,6 +16,7 @@ bool SAResolveCombiner::tryResolving() {
 	if(satup_->offs.size() == 1) {
 		// Just one element in range; easy to check if it's been resolved
 		if(satup_->offs[0] != 0xffffffff) {
+			assert(refscan_.empty() || refscan_[0] == satup_->offs[0]);
 			return true; // already filled in
 		}
 		if(refscan_.empty()) {

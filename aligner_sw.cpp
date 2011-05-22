@@ -65,7 +65,8 @@ void SwAligner::init(
 	const Scoring& pen,    // penalty scheme
 	TAlScore minsc,        // minimum score for a valid alignment
 	TAlScore floorsc,      // local-alignment score floor
-	int nceil)             // max # Ns allowed in reference portion of aln
+	int nceil,             // max # Ns allowed in reference portion of aln
+	SeedScanner *sscan)    // optional seed scanner to feed ref chars to
 {
 	assert_gt(rff, rfi);
 	assert_gt(rdf, rdi);
@@ -124,14 +125,28 @@ void SwAligner::init(
 			rf_[i + leftNs + rflenInner] = 4;
 		}
 	}
-	// Count Ns and convert reference characters into A/C/G/T masks.  Ambiguous
-	// nucleotides (IUPAC codes) have more than one mask bit set.
+#ifndef NDEBUG
+	// Sanity check reference characters
 	for(size_t i = 0; i < rflen; i++) {
 		assert(!haveRfbuf2 || rf_[i] == rfbuf2[i]);
-		// Make it into a mask
 		assert_range(0, 4, (int)rf_[i]);
-		// rf_[i] gets mask version of refence char, with N=16
-		rf_[i] = (1 << rf_[i]);
+	}
+#endif
+	// Count Ns and convert reference characters into A/C/G/T masks.  Ambiguous
+	// nucleotides (IUPAC codes) have more than one mask bit set.  If a
+	// reference scanner was provided, use it to opportunistically resolve seed
+	// hits.
+	if(sscan == NULL || sscan->empty()) {
+		for(size_t i = 0; i < rflen; i++) {
+			// rf_[i] gets mask version of refence char, with N=16
+			rf_[i] = (1 << rf_[i]);
+		}
+	} else {
+		for(size_t i = 0; i < rflen; i++) {
+			// rf_[i] gets mask version of refence char, with N=16
+			sscan->nextChar(rf_[i]);
+			rf_[i] = (1 << rf_[i]);
+		}
 	}
 	RandomSource rnd(rd.seed);
 	const BTDnaString& rdseq  = fw ? rd.patFw : rd.patRc;
@@ -1682,6 +1697,7 @@ bool SwAligner::nextAlignment(
 			cural_++;
 		}
 		if(cural_ == btccand_.size()) {
+			assert(res.repOk());
 			return false;
 		}
 	} else {
@@ -1702,6 +1718,7 @@ bool SwAligner::nextAlignment(
 			cural_++;
 		}
 		if(cural_ == btncand_.size()) {
+			assert(res.repOk());
 			return false;
 		}
 	}
@@ -1719,6 +1736,7 @@ bool SwAligner::nextAlignment(
 		res.alres.setNucs(fw_, res.nup, res.ndn);
 	}
 	cural_++;
+	assert(res.repOk());
 	return true;
 }
 

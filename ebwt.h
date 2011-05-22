@@ -141,6 +141,7 @@ public:
 	}
 
 	uint32_t len() const           { return _len; }
+	uint32_t lenNucs() const       { return _len + (_color ? 1 : 0); }
 	uint32_t bwtLen() const        { return _bwtLen; }
 	uint32_t sz() const            { return _sz; }
 	uint32_t bwtSz() const         { return _bwtSz; }

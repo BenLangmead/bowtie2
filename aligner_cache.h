@@ -66,7 +66,8 @@ struct QKey {
 	QKey(const BTDnaString& s) { init(s); }
 	
 	/**
-	 * Initialize QKey from DNA string.
+	 * Initialize QKey from DNA string.  Rightmost character is placed in the
+	 * least significant bitpair.
 	 */
 	bool init(const BTDnaString& s) {
 		seq = 0;
@@ -77,6 +78,7 @@ struct QKey {
 			len = 0xffffffff;
 			return false; // wasn't cacheable
 		} else {
+			// Rightmost char of 's' goes in the least significant bitpair
 			for(size_t i = 0; i < 32 && i < s.length(); i++) {
 				int c = (int)s.get(i);
 				assert_range(0, 4, c);
@@ -86,10 +88,8 @@ struct QKey {
 				}
 				seq = (seq << 2) | s.get(i);
 			}
-#ifndef NDEBUG
-			toString(tmp);
+			ASSERT_ONLY(toString(tmp));
 			assert(sstr_eq(tmp, s));
-#endif
 			return true; // was cacheable
 		}
 	}
