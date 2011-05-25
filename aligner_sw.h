@@ -32,6 +32,11 @@
 
 #include <stdint.h>
 #include <iostream>
+
+#ifndef NO_SSE
+#include <emmintrin.h>
+#endif
+
 #include "aligner_sw_common.h"
 #include "aligner_sw_nuc.h"
 #include "aligner_sw_col.h"
@@ -51,6 +56,19 @@
 #define QUAL(d)     sc_->mm((int)(*rd_)[rdi_ + d], \
 							(int)(*qu_)[rdi_ + d] - 33)
 #define N_SNP_PEN(c) (((int)rf_[rfi_ + c] > 15) ? sc_->n(30) : sc_->penSnp)
+
+/**
+ * All the data associated with the query profile and other data needed for SSE
+ * alignment of a query.
+ */
+struct SSEData {
+	SSEData(int cat = 0) : buf_(cat) { }
+	EList<uint8_t> buf_;      // buffer for query profile & temp vecs
+	__m128i       *qprof_;    // query profile
+	__m128i       *pvHStore_; // pvHStore
+	__m128i       *pvHLoad_;  // pvHLoad
+	__m128i       *pvE_;      // pvE
+};
 
 /**
  * SwAligner
@@ -162,12 +180,24 @@ class SwAligner {
 		STATE_INITED,  // init() has been called, but not align()
 		STATE_ALIGNED, // align() has been called
 	};
+	
+	const static size_t ALPHA_SIZE = 5;
 
 public:
 
 	SwAligner() :
+#ifndef NO_SSE
+		sse_(true),
+		sseU8fw_(DP_CAT),
+		sseU8rc_(DP_CAT),
+		sseI16fw_(DP_CAT),
+		sseI16rc_(DP_CAT),
+		sseI32fw_(DP_CAT),
+		sseI32rc_(DP_CAT),
+#endif
 		state_(STATE_UNINIT),
-		inited_(false),
+		initedRead_(false),
+		initedRef_(false),
 		rfwbuf_(DP_CAT),
 		ntab_(DP_CAT),
 		ctab_(DP_CAT),
@@ -187,17 +217,28 @@ public:
 		SwAligner::EXTREMES.first = std::numeric_limits<size_t>::max();
 		SwAligner::EXTREMES.second = std::numeric_limits<size_t>::min();
 	}
+	
+	/**
+	 * Prepare the dynamic programming driver with a new read and a new scoring
+	 * scheme.
+	 */
+	void initRead(
+		const BTDnaString& rdfw, // read sequence for fw read
+		const BTDnaString& rdrc, // read sequence for rc read
+		const BTString& qufw,    // read qualities for fw read
+		const BTString& qurc,    // read qualities for rc read
+		size_t rdi,            // offset of first read char to align
+		size_t rdf,            // offset of last read char to align
+		bool color,            // true iff read is colorspace
+		const Scoring& sc,     // scoring scheme
+		TAlScore minsc,        // minimum score a cell must achieve to have sol
+		TAlScore floorsc);     // local-alignment score floor
 
 	/**
 	 * Initialize with a new alignment problem.
 	 */
-	void init(
-		const BTDnaString& rd, // read sequence
-		const BTString& qu,    // read qualities
-		size_t rdi,            // offset of first read char to align
-		size_t rdf,            // offset of last read char to align
-		bool fw,               // true iff read sequence is original fw read
-		bool color,            // true iff read is colorspace
+	void initRef(
+		bool fw,               // whether to forward or revcomp read aligned
 		uint32_t refidx,       // id of reference aligned against
 		TRefOff refoff,        // offset of upstream ref char aligned against
 		char *rf,              // reference sequence
@@ -205,46 +246,8 @@ public:
 		size_t rff,            // offset of last reference char to align to
 		size_t width,          // # bands to do (width of parallelogram)
 		EList<bool>* st,       // mask indicating which columns we can start in
-		EList<bool>* en,       // mask indicating which columns we can end in
-		const Scoring& sc,     // scoring scheme
-		TAlScore minsc,        // minimum score a cell must achieve to have sol
-		TAlScore floorsc)      // local-alignment score floor
-	{
-		size_t readGaps = sc.maxReadGaps(minsc, rd.length());
-		size_t refGaps  = sc.maxRefGaps(minsc, rd.length());
-		size_t maxGaps  = max(readGaps, refGaps);
-		int nceil    = (int)sc.nCeil(rd.length());
-		assert_geq(readGaps, 0);
-		assert_geq(refGaps, 0);
-		state_   = STATE_INITED;
-		rd_      = &rd;        // read sequence
-		qu_      = &qu;        // read qualities
-		rdi_     = rdi;        // offset of first read char to align
-		rdf_     = rdf;        // offset of last read char to align
-		fw_      = fw;         // true iff read sequence is original fw read
-		color_   = color;      // true iff read is colorspace
-		refidx_  = refidx;     // id of reference aligned against
-		refoff_  = refoff;     // offset of upstream ref char aligned against
-		rf_      = rf;         // reference sequence
-		rfi_     = rfi;        // offset of first reference char to align to
-		rff_     = rff;        // offset of last reference char to align to
-		rdgap_   = readGaps;   // max # gaps in read
-		rfgap_   = refGaps;    // max # gaps in reference
-		maxgap_  = maxGaps;    // max(readGaps, refGaps)
-		width_   = width;      // # bands to do (width of parallelogram)
-		st_      = st;         // mask indicating which columns we can start in
-		en_      = en;         // mask indicating which columns we can end in
-		sc_      = &sc;        // scoring scheme
-		minsc_   = minsc;      // minimum score a cell must achieve to have sol
-		floorsc_ = floorsc;    // local-alignment score floor
-		nceil_   = nceil;      // max # Ns allowed in ref portion of aln
-		inited_  = true;       // indicate we're initialized now
-		solrowlo_= sc.rowlo;   // if row >= this, solutions are possible
-		cural_   = 0;          // idx of next alignment to give out
-		assert(en_ == NULL || en_->size() == width_);
-		assert(st_ == NULL || st_->size() == width_);
-	}
-	
+		EList<bool>* en);      // mask indicating which columns we can end in
+
 	/**
 	 * Given a read, an alignment orientation, a range of characters in a
 	 * referece sequence, and a bit-encoded version of the reference,
@@ -258,12 +261,8 @@ public:
 	 *
 	 * Returns true if an alignment was found, false otherwise.
 	 */
-	void init(
-		const Read& rd,        // read to align
-		size_t rdi,            // off of first char in 'rd' to consider
-		size_t rdf,            // off of last char (excl) in 'rd' to consider
-		bool fw,               // whether to align forward or revcomp read
-		bool color,            // colorspace?
+	void initRef(
+		bool fw,               // whether to forward or revcomp read aligned
 		uint32_t refidx,       // reference aligned against
 		TRefOff rfi,           // off of first character in ref to consider
 		TRefOff rff,           // off of last char (excl) in ref to consider
@@ -272,10 +271,6 @@ public:
 		size_t width,          // # bands to do (width of parallelogram)
 		EList<bool>* st,       // mask indicating which columns we can start in
 		EList<bool>* en,       // mask indicating which columns we can end in
-		const Scoring& sc,     // scoring scheme
-		TAlScore minsc,        // minimum score a cell must achieve to have sol
-		TAlScore floorsc,      // local-alignment score floor
-		int nceil,             // max # Ns allowed in reference part of aln
 		SeedScanner *sscan);   // optional seed scanner to feed ref chars to
 	
 	/**
@@ -317,7 +312,7 @@ public:
 	 * no more solutions, but that hasn't been discovered yet.
 	 */
 	bool done() const {
-		assert(inited());
+		assert(initedRead() && initedRef());
 		if(color_) {
 			return cural_ == btccand_.size();
 		} else {
@@ -326,16 +321,21 @@ public:
 	}
 
 	/**
-	 * Return true iff this SwAligner has been initialized with a dynamic
-	 * programming problem.
+	 * Return true iff this SwAligner has been initialized with a read to align.
 	 */
-	inline bool inited() const { return inited_; }
+	inline bool initedRef() const { return initedRef_; }
+
+	/**
+	 * Return true iff this SwAligner has been initialized with a reference to
+	 * align against.
+	 */
+	inline bool initedRead() const { return initedRead_; }
 	
 	/**
 	 * Reset, signaling that we're done with this dynamic programming problem
 	 * and won't be asking for any more alignments.
 	 */
-	inline void reset() { inited_ = false; }
+	inline void reset() { initedRef_ = initedRead_ = false; }
 
 	/**
 	 * Do some quick filtering, setting elements of st_ and en_ to false
@@ -498,16 +498,50 @@ protected:
 	 * Return the number of rows that will be in the dynamic programming table.
 	 */
 	inline size_t dpRows() const {
-		assert(inited_);
+		assert(initedRead_);
 		return rdf_ - rdi_ + (color_ ? 1 : 0);
 	}
 
 	/**
-	 * Align and simultaneously decode the colorspace read 'rd' to the
-	 * reference string 'rf' using dynamic programming.  Return true iff
-	 * zero or more alignments are possible.
+	 * Align nucleotides from read 'rd' to the reference string 'rf' using
+	 * dynamic programming and normal, serial code.  Return true iff zero or
+	 * more alignments are possible.
 	 */
 	void alignNucleotides(RandomSource& rnd);
+
+#ifndef NO_SSE
+
+	/**
+	 * Align nucleotides from read 'rd' to the reference string 'rf' using
+	 * vector instructions.  Return true iff zero or more alignments are
+	 * possible.
+	 */
+	uint8_t alignNucleotidesSseU8();
+	
+	/**
+	 * Align nucleotides from read 'rd' to the reference string 'rf' using
+	 * vector instructions.  Return true iff zero or more alignments are
+	 * possible.
+	 */
+	int16_t alignNucleotidesSseI16();
+	
+	/**
+	 * Build query profile look up tables for the read.  The query profile look
+	 * up table is organized as a 1D array indexed by [i][j] where i is the
+	 * reference character in the current DP column (0=A, 1=C, etc), and j is
+	 * the segment of the query we're currently working on.
+	 */
+	void buildQueryProfileSseU8(bool fw);
+
+	/**
+	 * Build query profile look up tables for the read.  The query profile look
+	 * up table is organized as a 1D array indexed by [i][j] where i is the
+	 * reference character in the current DP column (0=A, 1=C, etc), and j is
+	 * the segment of the query we're currently working on.
+	 */
+	void buildQueryProfileSseI16(bool fw);
+
+#endif
 
 	/**
 	 * Align the nucleotide read 'rd' to the reference string 'rf' using
@@ -658,6 +692,10 @@ protected:
 
 	const BTDnaString  *rd_;     // read sequence
 	const BTString     *qu_;     // read qualities
+	const BTDnaString  *rdfw_;   // read sequence for fw read
+	const BTDnaString  *rdrc_;   // read sequence for rc read
+	const BTString     *qufw_;   // read qualities for fw read
+	const BTString     *qurc_;   // read qualities for rc read
 	size_t              rdi_;    // offset of first read char to align
 	size_t              rdf_;    // offset of last read char to align
 	bool                fw_;     // true iff read sequence is original fw read
@@ -679,8 +717,19 @@ protected:
 	int                 nceil_;  // max # Ns allowed in ref portion of aln
 	bool                monotone_; // true iff scores only go down
 
+#ifndef NO_SSE
+	bool                sse_;       // true -> use SSE 128-bit instructs
+	SSEData             sseU8fw_;   // buf for fw query, 8-bit score
+	SSEData             sseU8rc_;   // buf for rc query, 8-bit score
+	SSEData             sseI16fw_;  // buf for fw query, 16-bit score
+	SSEData             sseI16rc_;  // buf for rc query, 16-bit score
+	SSEData             sseI32fw_;  // buf for fw query, 32-bit score
+	SSEData             sseI32rc_;  // buf for rc query, 32-bit score
+#endif
+
 	int                 state_;  // state
-	bool                inited_; // true iff initialized with DP problem
+	bool                initedRead_; // true iff initialized with initRead
+	bool                initedRef_;  // true iff initialized with initRef
 	EList<uint32_t>     rfwbuf_; // buffer for wordized refernece stretches
 	ELList<SwNucCell>   ntab_;   // DP table for nucleotide read
 	ELList<SwColorCell> ctab_;   // DP table for colorspace read

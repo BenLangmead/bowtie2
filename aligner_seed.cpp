@@ -754,7 +754,8 @@ SeedAligner::reportHit(
 	// information eventually makes its way back to the SeedResults
 	// object when we call finishAlign(...).  finishAlign() will
 	// populate an ACRangeRange appropriately.
-	BTDnaString rf;
+	static BTDnaString rf;
+	rf.clear();
 	edits_.clear();
 	if(prevEdit != NULL) {
 		prevEdit->toList(edits_);

@@ -143,8 +143,8 @@ bool DynProgFramer::frameFindMateAnchorLeft(
 	if(st_left_pad < ll && (ll - st_left_pad) > ltriml) {
 		ltriml = ll - st_left_pad;
 	}
-	rtrimr = max<size_t>(rtrimr, pad_right);
-	rtriml = max<size_t>(rtriml, pad_left);
+	rtrimr = max<size_t>((size_t)rtrimr, (size_t)pad_right);
+	rtriml = max<size_t>((size_t)rtriml, (size_t)pad_left);
 	// Are we trimming so much of the left (top) interval that we can also trim
 	// more from the right (bottom) interval?
 	{
@@ -174,7 +174,7 @@ bool DynProgFramer::frameFindMateAnchorLeft(
 		if(triml > rtriml) rtriml = 0;
 		else rtriml -= triml;
 		if(trimr > 0) {
-			trimdn = trimr;
+			trimdn = (size_t)trimr;
 			if(pad_right < trimr) {
 				trimr -= pad_right;
 				pad_right = 0;
@@ -183,7 +183,7 @@ bool DynProgFramer::frameFindMateAnchorLeft(
 			} else pad_right -= trimr;
 		}
 		if(triml > 0) {
-			trimup = triml;
+			trimup = (size_t)triml;
 			if(pad_left < triml) {
 				triml -= pad_left;
 				pad_left = 0;
@@ -216,16 +216,16 @@ bool DynProgFramer::frameFindMateAnchorLeft(
 		st[i] = en[i] = true;
 	}
 	for(int64_t i = 0; i < rtriml; i++) {
-		en[i] = false;
+		en[(size_t)i] = false;
 	}
 	for(int64_t i = 0; i < rtrimr; i++) {
-		en[width - i - 1] = false;
+		en[width - (size_t)i - 1] = false;
 	}
 	for(int64_t i = 0; i < ltrimr; i++) {
-		st[width - i - 1] = false;
+		st[width - (size_t)i - 1] = false;
 	}
 	for(int64_t i = 0; i < ltriml; i++) {
-		st[i] = false;
+		st[(size_t)i] = false;
 	}
 	refl = st_left;
 	refr = en_right;
@@ -295,8 +295,8 @@ bool DynProgFramer::frameFindMateAnchorRight(
 	if(en_left_pad < rl && (rl - en_left_pad) > rtriml) {
 		rtriml = rl - en_left_pad;
 	}
-	ltrimr = max<size_t>(ltrimr, pad_right);
-	ltriml = max<size_t>(ltriml, pad_left);
+	ltrimr = max<size_t>((size_t)ltrimr, (size_t)pad_right);
+	ltriml = max<size_t>((size_t)ltriml, (size_t)pad_left);
 	// Are we trimming so much of the left (top) interval that we can also trim
 	// more from the right (bottom) interval, or vice versa?
 	{
@@ -326,7 +326,7 @@ bool DynProgFramer::frameFindMateAnchorRight(
 		if(triml > rtriml) rtriml = 0;
 		else rtriml -= triml;
 		if(trimr > 0) {
-			trimdn = trimr;
+			trimdn = (size_t)trimr;
 			if(pad_right < trimr) {
 				trimr -= pad_right;
 				pad_right = 0;
@@ -335,7 +335,7 @@ bool DynProgFramer::frameFindMateAnchorRight(
 			} else pad_right -= trimr;
 		}
 		if(triml > 0) {
-			trimup = triml;
+			trimup = (size_t)triml;
 			if(pad_left < triml) {
 				triml -= pad_left;
 				pad_left = 0;
@@ -368,16 +368,16 @@ bool DynProgFramer::frameFindMateAnchorRight(
 		st[i] = en[i] = true;
 	}
 	for(int64_t i = 0; i < ltriml; i++) {
-		st[i] = false;
+		st[(size_t)i] = false;
 	}
 	for(int64_t i = 0; i < ltrimr; i++) {
-		st[width - i - 1] = false;
+		st[width - (size_t)i - 1] = false;
 	}
 	for(int64_t i = 0; i < rtrimr; i++) {
-		en[width - i - 1] = false;
+		en[width - (size_t)i - 1] = false;
 	}
 	for(int64_t i = 0; i < rtriml; i++) {
-		en[i] = false;
+		en[(size_t)i] = false;
 	}
 	refl = st_left;
 	refr = en_right;

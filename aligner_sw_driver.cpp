@@ -147,6 +147,7 @@ bool SwDriver::extendSeeds(
 	size_t maxrows = (size_t)(rowmult + 0.5f);
 
 	DynProgFramer dpframe(!gReportOverhangs);
+	swa.reset();
 
 	// Initialize a set of GroupWalks, one for each seed.  Also, intialize the
 	// accompanying lists of reference seed hits (satups*) and the combiners
@@ -275,12 +276,22 @@ bool SwDriver::extendSeeds(
 			// SwAligner with the dynamic programming problem that aligns the
 			// read to this reference stretch.
 			sscan_.init(sstab_);
-			swa.init(
-				rd,        // read to align
-				0,         // off of first char in 'rd' to consider
-				rdlen,     // off of last char (excl) in 'rd' to consider
+			if(!swa.initedRead()) {
+				// Initialize the aligner with a new read
+				swa.initRead(
+					rd.patFw,  // fw version of query
+					rd.patRc,  // rc version of query
+					rd.qual,   // fw version of qualities
+					rd.qualRev,// rc version of qualities
+					0,         // off of first char in 'rd' to consider
+					rdlen,     // off of last char (excl) in 'rd' to consider
+					color,     // colorspace?
+					sc,        // scoring scheme
+					minsc,     // minimum score for valid alignments
+					floorsc);  // local-alignment floor score
+			}
+			swa.initRef(
 				fw,        // whether to align forward or revcomp read
-				color,     // colorspace?
 				tidx,      // reference aligned against
 				refl,      // off of first character in ref to consider
 				refr+1,    // off of last char (excl) in ref to consider
@@ -289,10 +300,6 @@ bool SwDriver::extendSeeds(
 				width,     // # bands to do (width of parallelogram)
 				&st_,      // mask indicating which columns we can start in
 				&en_,      // mask indicating which columns we can end in
-				sc,        // scoring scheme
-				minsc,     // minimum score for valid alignments
-				floorsc,   // local-alignment floor score
-				nceil,     // max # Ns
 				&sscan_);  // reference scanner for resolving offsets
 			// Take reference-scanner hits and turn them into offset
 			// resolutions.
@@ -559,6 +566,8 @@ bool SwDriver::extendSeedsPaired(
 	const size_t orows  = ordlen + (color ? 1 : 0);
 	
 	DynProgFramer dpframe(!gReportOverhangs);
+	swa.reset();
+	oswa.reset();
 
 	// Initialize a set of GroupWalks, one for each seed.  Also, intialize the
 	// accompanying lists of reference seed hits (satups*) and the combiners
@@ -695,12 +704,21 @@ bool SwDriver::extendSeedsPaired(
 			// SwAligner with the dynamic programming problem that aligns the
 			// read to this reference stretch.
 			sscan_.init(sstab_);
-			swa.init(
-				rd,        // read to align
-				0,         // off of first char in 'rd' to consider
-				rdlen,     // off of last char (excl) in 'rd' to consider
+			if(!swa.initedRead()) {
+				swa.initRead(
+					rd.patFw,  // fw version of query
+					rd.patRc,  // rc version of query
+					rd.qual,   // fw version of qualities
+					rd.qualRev,// rc version of qualities
+					0,         // off of first char in 'rd' to consider
+					rdlen,     // off of last char (excl) in 'rd' to consider
+					color,     // colorspace?
+					sc,        // scoring scheme
+					minsc,     // minimum score for valid alignments
+					floorsc);  // local-alignment floor score
+			}
+			swa.initRef(
 				fw,        // whether to align forward or revcomp read
-				color,     // colorspace?
 				tidx,      // reference aligned against
 				refl,      // off of first character in ref to consider
 				refr+1,    // off of last char (excl) in ref to consider
@@ -709,10 +727,6 @@ bool SwDriver::extendSeedsPaired(
 				width,     // # bands to do (width of parallelogram)
 				&st_,      // mask indicating which columns we can start in
 				&en_,      // mask indicating which columns we can end in
-				sc,        // scoring scheme
-				minsc,     // minimum score for valid alignments
-				floorsc,   // local-alignment floor score
-				nceil,     // max # Ns
 				&sscan_);  // reference scanner for resolving offsets
 			// Take reference-scanner hits and turn them into offset
 			// resolutions.
@@ -841,29 +855,34 @@ bool SwDriver::extendSeedsPaired(
 					if(foundMate) {
 						ores_.reset();
 						assert(ores_.empty());
+						if(!oswa.initedRead()) {
+							oswa.initRead(
+								ord.patFw,  // read to align
+								ord.patRc,  // qualities
+								ord.qual,   // read to align
+								ord.qualRev,// qualities
+								0,          // off of first char to consider
+								ordlen,     // off of last char (ex) to consider
+								color,      // colorspace?
+								sc,         // scoring scheme
+								ominsc,     // min score for valid alignments
+								ofloorsc);  // local-alignment floor score
+						}
 						// Given the boundaries defined by refi and reff, initilize
 						// the SwAligner with the dynamic programming problem that
 						// aligns the read to this reference stretch.
-						oswa.init(
-							ord,       // read to align
-							0,         // off of first char in rd to consider
-							ordlen,    // off of last char (excl) in rd to consider
-							ofw,       // whether to align forward or revcomp read
-							color,     // colorspace?
+						oswa.initRef(
+							ofw,       // align forward or revcomp read?
 							tidx,      // reference aligned against
-							orefl,     // off of first character in rf to consider
-							orefr+1,   // off of last char (excl) in rf to consider
+							orefl,     // off of first char to consider
+							orefr+1,   // off of last char (ex) to consider
 							ref,       // Reference strings
 							tlen,      // length of reference sequence
 							owidth,    // # bands to do (width of parallelogram)
 							&ost_,     // mask of which cols we can start in
 							&oen_,     // mask of which cols we can end in
-							sc,        // scoring scheme
-							ominsc,    // minimum score for valid alignments
-							ofloorsc,  // local-alignment floor score
-							onceil,    // max # Ns
 							NULL);     // TODO: scan w/r/t other SeedResults
-						// Now fill the dynamic programming matrix and return true
+						// Now fill the dynamic programming matrix, return true
 						// iff there is at least one valid alignment
 						foundMate = oswa.align(rnd);
 						oswa.mergeAlignCounters(

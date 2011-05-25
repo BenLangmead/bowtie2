@@ -76,7 +76,7 @@ SEARCH_CPPS = qual.cpp pat.cpp ref_aligner.cpp \
 			  aligner_result.cpp ref_coord.cpp mask.cpp \
 			  pe.cpp aln_sink.cpp read_sink.cpp dp_framer.cpp \
 			  scoring.cpp sam_hitsink.cpp sa_rescomb.cpp \
-			  seed_scan.cpp
+			  seed_scan.cpp aligner_sw_sse.cpp
 SEARCH_CPPS_MAIN = $(SEARCH_CPPS) bowtie_main.cpp
 
 BUILD_CPPS = diff_sample.cpp

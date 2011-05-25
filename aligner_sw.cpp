@@ -40,6 +40,86 @@ bool SwNucCell::repOk() const {
 }
 
 /**
+ * Initialize with a new read.
+ */
+void SwAligner::initRead(
+	const BTDnaString& rdfw, // forward read sequence
+	const BTDnaString& rdrc, // revcomp read sequence
+	const BTString& qufw,    // forward read qualities
+	const BTString& qurc,    // reverse read qualities
+	size_t rdi,              // offset of first read char to align
+	size_t rdf,              // offset of last read char to align
+	bool color,              // true iff read is colorspace
+	const Scoring& sc,       // scoring scheme
+	TAlScore minsc,          // minimum score a cell must achieve to have sol
+	TAlScore floorsc)        // local-alignment score floor
+{
+	assert_gt(rdf, rdi);
+	size_t readGaps = sc.maxReadGaps(minsc, rdfw.length());
+	size_t refGaps  = sc.maxRefGaps(minsc, rdfw.length());
+	assert_geq(readGaps, 0);
+	assert_geq(refGaps, 0);
+	size_t maxGaps  = max(readGaps, refGaps);
+	int nceil = (int)sc.nCeil(rdfw.length());
+	rdfw_    = &rdfw;      // read sequence
+	rdrc_    = &rdrc;      // read sequence
+	qufw_    = &qufw;      // read qualities
+	qurc_    = &qurc;      // read qualities
+	rdi_     = rdi;        // offset of first read char to align
+	rdf_     = rdf;        // offset of last read char to align
+	color_   = color;      // true iff read is colorspace
+	rdgap_   = readGaps;   // max # gaps in read
+	rfgap_   = refGaps;    // max # gaps in reference
+	maxgap_  = maxGaps;    // max(readGaps, refGaps)
+	sc_      = &sc;        // scoring scheme
+	minsc_   = minsc;      // minimum score a cell must achieve to have sol
+	floorsc_ = floorsc;    // local-alignment score floor
+	nceil_   = nceil;      // max # Ns allowed in ref portion of aln
+	solrowlo_= sc.rowlo;   // if row >= this, solutions are possible
+	initedRead_ = true;
+#ifndef NO_SSE
+	if(sse_) {
+		buildQueryProfileSseI16(true);
+		buildQueryProfileSseI16(false);
+	}
+#endif
+}
+
+/**
+ * Initialize with a new alignment problem.
+ */
+void SwAligner::initRef(
+	bool fw,               // whether to forward or revcomp read is aligning
+	uint32_t refidx,       // id of reference aligned against
+	TRefOff refoff,        // offset of upstream ref char aligned against
+	char *rf,              // reference sequence
+	size_t rfi,            // offset of first reference char to align to
+	size_t rff,            // offset of last reference char to align to
+	size_t width,          // # bands to do (width of parallelogram)
+	EList<bool>* st,       // mask indicating which columns we can start in
+	EList<bool>* en)       // mask indicating which columns we can end in
+{
+	assert_gt(rff, rfi);
+	state_   = STATE_INITED;
+	fw_      = fw;
+	rd_      = fw ? rdfw_ : rdrc_;
+	qu_      = fw ? qufw_ : qurc_;
+	refidx_  = refidx;     // id of reference aligned against
+	refoff_  = refoff;     // offset of upstream ref char aligned against
+	rf_      = rf;         // reference sequence
+	rfi_     = rfi;        // offset of first reference char to align to
+	rff_     = rff;        // offset of last reference char to align to
+	width_   = width;      // # bands to do (width of parallelogram)
+	st_      = st;         // mask indicating which columns we can start in
+	en_      = en;         // mask indicating which columns we can end in
+	cural_   = 0;          // idx of next alignment to give out
+	initedRef_ = true;
+	assert(en_ == NULL || en_->size() == width_);
+	assert(st_ == NULL || st_->size() == width_);
+	filter(nceil_);
+}
+	
+/**
  * Given a read, an alignment orientation, a range of characters in a referece
  * sequence, and a bit-encoded version of the reference, set up and execute the
  * corresponding dynamic programming problem.
@@ -48,12 +128,8 @@ bool SwNucCell::repOk() const {
  * using, e.g., the location of a seed hit, or the range of possible fragment
  * lengths if we're searching for the opposite mate in a pair.
  */
-void SwAligner::init(
-	const Read& rd,        // read to align
-	size_t rdi,            // off of first char in 'rd' to consider
-	size_t rdf,            // off of last char (exclusive) in 'rd' to consider
-	bool fw,               // whether to align forward or revcomp read
-	bool color,            // colorspace?
+void SwAligner::initRef(
+	bool fw,               // whether to forward or revcomp read is aligning
 	uint32_t refidx,       // reference aligned against
 	int64_t rfi,           // first reference base to SW align against
 	int64_t rff,           // last ref base (exclusive) to SW align against
@@ -62,15 +138,9 @@ void SwAligner::init(
 	size_t width,          // # bands to do (width of parallelogram)
 	EList<bool>* st,       // mask indicating which columns we can start in
 	EList<bool>* en,       // mask indicating which columns we can end in
-	const Scoring& pen,    // penalty scheme
-	TAlScore minsc,        // minimum score for a valid alignment
-	TAlScore floorsc,      // local-alignment score floor
-	int nceil,             // max # Ns allowed in reference portion of aln
 	SeedScanner *sscan)    // optional seed scanner to feed ref chars to
 {
 	assert_gt(rff, rfi);
-	assert_gt(rdf, rdi);
-	assert(color == rd.color);
 	// Figure the number of Ns we're going to add to either side
 	size_t leftNs  =
 		(rfi >= 0               ? 0 : (size_t)std::abs(rfi));
@@ -148,16 +218,8 @@ void SwAligner::init(
 			rf_[i] = (1 << rf_[i]);
 		}
 	}
-	RandomSource rnd(rd.seed);
-	const BTDnaString& rdseq  = fw ? rd.patFw : rd.patRc;
-	const BTString&    rdqual = fw ? rd.qual  : rd.qualRev;
-	init(
-		rdseq,       // read sequence
-		rdqual,      // read qualities
-		rdi,         // offset of first char in read to consdier
-		rdf,         // offset of last char (exclusive) in read to consdier
-		fw,          // true iff read sequence is original fw read
-		color,       // true iff read is colorspace
+	initRef(
+		fw,          // whether to forward or revcomp read is aligning
 		refidx,      // id of reference aligned against
 		rfi,         // offset of upstream ref char aligned against
 		rf_,         // reference sequence, wrapped up in BTString object
@@ -165,11 +227,7 @@ void SwAligner::init(
 		rflen,       // ditto
 		width,       // # bands to do (width of parallelogram)
 		st,          // mask indicating which columns we can start in
-		en,          // mask indicating which columns we can end in
-		pen,         // scoring scheme
-		minsc,       // minimum score for valid alignment
-		floorsc);    // local-alignment score floor
-	filter(nceil);
+		en);         // mask indicating which columns we can end in
 }
 
 /**
@@ -178,7 +236,7 @@ void SwAligner::init(
  * determined simultaneously with alignment.  Uses dynamic programming.
  */
 bool SwAligner::align(RandomSource& rnd) {
-	assert(inited());
+	assert(initedRef() && initedRead());
 	assert_eq(STATE_INITED, state_);
 	nfills_++;
 	state_ = STATE_ALIGNED;
@@ -188,7 +246,14 @@ bool SwAligner::align(RandomSource& rnd) {
 	if(color_) {
 		alignColors(rnd);
 	} else {
+#ifndef NO_SSE
+		if(sse_) {
+			alignNucleotidesSseI16();
+		}
 		alignNucleotides(rnd);
+#else
+		alignNucleotides(rnd);
+#endif
 	}
 	assert(repOk());
 	cural_ = 0;
@@ -197,36 +262,46 @@ bool SwAligner::align(RandomSource& rnd) {
 	if(color_) {
 		if(rowlo == -1) rowlo = (int64_t)ctab_.size()-1;
 		for(int64_t row = ctab_.size()-1; row >= rowlo; row--) {
-			for(size_t col = 0; col < ctab_[row].size(); col++) {
-				if(ctab_[row][col].backtraceCandidate) {
+			for(size_t col = 0; col < ctab_[(size_t)row].size(); col++) {
+				if(ctab_[(size_t)row][col].backtraceCandidate) {
 					// Which decoded character yields the best score?
 					int btC = -1;
 					AlnScore bst;
 					ASSERT_ONLY(bool ret =)
-						ctab_[row][col].bestSolutionGeq(minsc_, btC, bst);
+						ctab_[(size_t)row][col].bestSolutionGeq(minsc_, btC, bst);
 					assert(ret);
 					btccand_.expand();
-					btccand_.back().init(row, col, bst.score(), btC);
+					btccand_.back().init((size_t)row, col, bst.score(), btC);
 				}
 			}
 		}
 		btccand_.sort();
+		if(btccand_.empty()) {
+			nfail_++;
+		} else {
+			nsucc_++;
+		}
 		return !btccand_.empty();
 	} else {
 		if(rowlo == -1) rowlo = (int64_t)ntab_.size()-1;
 		for(int64_t row = ntab_.size()-1; row >= rowlo; row--) {
-			for(size_t col = 0; col < ntab_[row].size(); col++) {
-				if(ntab_[row][col].backtraceCandidate) {
+			for(size_t col = 0; col < ntab_[(size_t)row].size(); col++) {
+				if(ntab_[(size_t)row][col].backtraceCandidate) {
 					AlnScore bst;
 					ASSERT_ONLY(bool ret =)
-						ntab_[row][col].bestSolutionGeq(minsc_, bst);
+						ntab_[(size_t)row][col].bestSolutionGeq(minsc_, bst);
 					assert(ret);
 					btncand_.expand();
-					btncand_.back().init(row, col, bst.score());
+					btncand_.back().init((size_t)row, col, bst.score());
 				}
 			}
 		}
 		btncand_.sort();
+		if(btncand_.empty()) {
+			nfail_++;
+		} else {
+			nsucc_++;
+		}
 		return !btncand_.empty();
 	}
 }
@@ -1673,9 +1748,13 @@ bool SwAligner::nextAlignment(
 	SwResult& res,
 	RandomSource& rnd)
 {
-	assert(inited());
+	assert(initedRead() && initedRef());
 	assert_eq(STATE_ALIGNED, state_);
 	assert(repOk());
+	if(done()) {
+		res.reset();
+		return false;
+	}
 	assert(!done());
 	size_t off = 0;
 	if(color_) {
@@ -1824,6 +1903,9 @@ static BTString btqual;
 static BTString btref;
 static BTString btref2;
 
+static BTDnaString readrc;
+static BTString qualrc;
+
 /**
  * Helper function for running a case consisting of a read (sequence
  * and quality), a reference string, and an offset that anchors the 0th
@@ -1910,13 +1992,21 @@ static void doTestCase(
 	}
 	assert_geq(rfi, 0);
 	assert_gt(rff, rfi);
-	al.init(
+	readrc = read;
+	qualrc = qual;
+	al.initRead(
 		read,          // read sequence
+		readrc,
 		qual,          // read qualities
+		qualrc,
 		0,             // offset of first character within 'read' to consider
 		read.length(), // offset of last char (exclusive) in 'read' to consider
-		fw,            // 'read' is forward version of read?
 		color,         // whether read is nucleotide-space or colorspace
+		sc,            // scoring scheme
+		minsc,         // minimum score for valid alignment
+		floorsc);      // local-alignment score floor
+	al.initRef(
+		fw,            // 'read' is forward version of read?
 		refidx,        // id of reference aligned to
 		off,           // offset of upstream ref char aligned against
 		btref2.wbuf(), // reference sequence (masks)
@@ -1924,10 +2014,7 @@ static void doTestCase(
 		rff,           // offset of last char (exclusive) in 'ref' to consider
 		width,         // # bands to do (width of parallelogram)
 		st,            // mask indicating which columns we can start in
-		en,            // mask indicating which columns we can end in
-		sc,            // scoring scheme
-		minsc,         // minimum score for valid alignment
-		floorsc);      // local-alignment score floor
+		en);           // mask indicating which columns we can end in
 	if(filterns) {
 		al.filter((int)nceil);
 	}
@@ -2735,7 +2822,7 @@ static void doTests() {
 
 		// Ref gap with one ref gap and two read gaps allowed
 		sc.rfGapConst = 25;
-		sc.rdGapConst = 10;
+		sc.rdGapConst = 11;  // if this were 10, we'd have ties
 		sc.rfGapLinear = 15;
 		sc.rdGapLinear = 10;
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4)
