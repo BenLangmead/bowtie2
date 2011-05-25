@@ -896,7 +896,7 @@ void AlnSinkWrap::selectAlnsToReport(
 	assert(repOk());
 	uint64_t sz = rs.size();
 	if(sz < 1) return;
-	select.resize(sz);
+	select.resize((size_t)sz);
 	if(num < sz) {
 		// Select a random offset into the list of alignments
 		uint32_t off = rnd.nextU32() % (uint32_t)sz;
@@ -1214,9 +1214,9 @@ void AlnSinkVerbose::appendMate(
 					// Output a partitioning key
 					// First component of the key is the reference index
 					if(rmap_ != NULL) {
-						printUptoWs(o, rmap_->getName(rs->refid()), !fullRef_);
+						printUptoWs(o, rmap_->getName((size_t)rs->refid()), !fullRef_);
 					} else if(rs->refid() < refnames_.size()) {
-						printUptoWs(o, refnames_[rs->refid()], !fullRef_);
+						printUptoWs(o, refnames_[(size_t)rs->refid()], !fullRef_);
 					} else {
 						itoa10<TRefId>(rs->refid(), buf);
 						o.writeChars(buf);
@@ -1303,9 +1303,9 @@ void AlnSinkVerbose::appendMate(
 				// .first is text id, .second is offset
 				if(rs != NULL) {
 					if(rmap_ != NULL) {
-						printUptoWs(o, rmap_->getName(rs->refid()), !fullRef_);
+						printUptoWs(o, rmap_->getName((size_t)rs->refid()), !fullRef_);
 					} else if(rs->refid() < refnames_.size()) {
-						printUptoWs(o, refnames_[rs->refid()], !fullRef_);
+						printUptoWs(o, refnames_[(size_t)rs->refid()], !fullRef_);
 					} else {
 						itoa10<TRefId>(rs->refid(), buf);
 						o.writeChars(buf);
@@ -1528,9 +1528,9 @@ void AlnSinkSam::appendMate(
 	// RNAME
 	if(rs != NULL) {
 		if(rmap_ != NULL) {
-			samc_.printRefName(o, rmap_->getName(rs->refid()));
+			samc_.printRefName(o, rmap_->getName((size_t)rs->refid()));
 		} else {
-			samc_.printRefNameFromIndex(o, rs->refid());
+			samc_.printRefNameFromIndex(o, (size_t)rs->refid());
 		}
 		o.write('\t');
 	} else {

@@ -711,6 +711,11 @@ public:
 	T *ptr() { return list_; }
 
 	/**
+	 * Return a const pointer to the beginning of the buffer.
+	 */
+	const T *ptr() const { return list_; }
+
+	/**
 	 * Set the memory category for this object.
 	 */
 	void setCat(int cat) {
