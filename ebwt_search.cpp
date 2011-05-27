@@ -2045,29 +2045,33 @@ struct PerfMetrics {
 				/* 21 */ "ResBWOp"        "\t"
 				/* 22 */ "ResBWBranch"    "\t"
 				/* 23 */ "ResResolve"     "\t"
-				/* 24 */ "ResReport"      "\t"
-				/* 25 */ "RedundantSHit"  "\t"
-				/* 26 */ "DPRowSeed"      "\t"
-				/* 27 */ "DPRowSkipSeed"  "\t"
-				/* 28 */ "DPSuccSeed"     "\t"
-				/* 29 */ "DPFailSeed"     "\t"
-				/* 30 */ "DPCellSeed"     "\t"
-				/* 31 */ "DPBtSeed"       "\t"    
-				/* 32 */ "DPRowMate"      "\t"
-				/* 33 */ "DPRowSkipMate"  "\t"
-				/* 34 */ "DPSuccMate"     "\t"
-				/* 35 */ "DPFailMate"     "\t"
-				/* 36 */ "DPCellMate"     "\t"
-				/* 37 */ "DPBtMate"       "\t"    
-				/* 38 */ "MemPeak"        "\t"
-				/* 39 */ "UncatMemPeak"   "\t" // 0
-				/* 40 */ "EbwtMemPeak"    "\t" // EBWT_CAT
-				/* 41 */ "CacheMemPeak"   "\t" // CA_CAT
-				/* 42 */ "ResolveMemPeak" "\t" // GW_CAT
-				/* 43 */ "AlignMemPeak"   "\t" // AL_CAT
-				/* 44 */ "DPMemPeak"      "\t" // DP_CAT
-				/* 45 */ "MiscMemPeak"    "\t" // MISC_CAT
-				/* 46 */ "DebugMemPeak"   "\t" // DEBUG_CAT
+				/* 24 */ "RefScanHit"     "\t"
+				/* 25 */ "RefScanResolve" "\t"
+				/* 26 */ "ResReport"      "\t"
+				/* 27 */ "RedundantSHit"  "\t"
+				/* 28 */ "DPRowSeed"      "\t"
+				/* 29 */ "DPRowSkipSeed"  "\t"
+				/* 30 */ "DPSkipSeed"     "\t"
+				/* 31 */ "DPSuccSeed"     "\t"
+				/* 32 */ "DPFailSeed"     "\t"
+				/* 33 */ "DPCellSeed"     "\t"
+				/* 34 */ "DPBtSeed"       "\t"    
+				/* 35 */ "DPRowMate"      "\t"
+				/* 36 */ "DPRowSkipMate"  "\t"
+				/* 37 */ "DPSkipMate"     "\t"
+				/* 38 */ "DPSuccMate"     "\t"
+				/* 39 */ "DPFailMate"     "\t"
+				/* 40 */ "DPCellMate"     "\t"
+				/* 41 */ "DPBtMate"       "\t"    
+				/* 42 */ "MemPeak"        "\t"
+				/* 43 */ "UncatMemPeak"   "\t" // 0
+				/* 44 */ "EbwtMemPeak"    "\t" // EBWT_CAT
+				/* 45 */ "CacheMemPeak"   "\t" // CA_CAT
+				/* 46 */ "ResolveMemPeak" "\t" // GW_CAT
+				/* 47 */ "AlignMemPeak"   "\t" // AL_CAT
+				/* 48 */ "DPMemPeak"      "\t" // DP_CAT
+				/* 49 */ "MiscMemPeak"    "\t" // MISC_CAT
+				/* 50 */ "DebugMemPeak"   "\t" // DEBUG_CAT
 				"\n";
 			if(o != NULL) o->writeChars(str);
 			if(metricsStderr) cerr << str;
@@ -2164,103 +2168,119 @@ struct PerfMetrics {
 		itoa10<uint64_t>(wlmu.branches, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 23. Offset resolutions
-		itoa10<uint64_t>(wlmu.resolutions, buf);
+		// 23. Burrows-Wheeler offset resolutions
+		itoa10<uint64_t>(wlmu.resolves, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 24. Offset reports
+		// 24. Reference-scanner hits
+		itoa10<uint64_t>(wlmu.refscanhits, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 25. Reference-scanning offset resolutions
+		itoa10<uint64_t>(wlmu.refresolves, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 26. Offset reports
 		itoa10<uint64_t>(wlmu.reports, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 		
-		// 25. Redundant seed hit
+		// 27. Redundant seed hit
 		itoa10<uint64_t>(swmuSeed.rshit, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 
-		// 26. Dynamic programming seed-extend rows completed
+		// 28. Dynamic programming seed-extend rows completed
 		itoa10<uint64_t>(swmuSeed.swrows, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 27. Dynamic programming seed-extend rows skipped
+		// 29. Dynamic programming seed-extend rows skipped
 		itoa10<uint64_t>(swmuSeed.swskiprows, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 28. Dynamic programming seed-extend successes
+		// 30. Dynamic programming seed-extends skipped by sse filter
+		itoa10<uint64_t>(swmuSeed.swskip, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 31. Dynamic programming seed-extend successes
 		itoa10<uint64_t>(swmuSeed.swsucc, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 29. Dynamic programming seed-extend failures
+		// 32. Dynamic programming seed-extend failures
 		itoa10<uint64_t>(swmuSeed.swfail, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 30. Dynamic programming seed-extend CUPs
+		// 33. Dynamic programming seed-extend CUPs
 		itoa10<uint64_t>(swmuSeed.swcups, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 31. Dynamic programming seed-extend backtraces
+		// 34. Dynamic programming seed-extend backtraces
 		itoa10<uint64_t>(swmuSeed.swbts, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 
-		// 32. Dynamic programming mate-finding rows completed
+		// 35. Dynamic programming mate-finding rows completed
 		itoa10<uint64_t>(swmuMate.swrows, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 33. Dynamic programming mate-finding rows skipped
+		// 36. Dynamic programming mate-finding rows skipped
 		itoa10<uint64_t>(swmuMate.swskiprows, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 34. Dynamic programming mate-finding successes
+		// 37. Dynamic programming mate-finding skipped by sse filter
+		itoa10<uint64_t>(swmuMate.swskip, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 38. Dynamic programming mate-finding successes
 		itoa10<uint64_t>(swmuMate.swsucc, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 35. Dynamic programming mate-finding failures
+		// 39. Dynamic programming mate-finding failures
 		itoa10<uint64_t>(swmuMate.swfail, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 36. Dynamic programming mate-finding CUPs
+		// 40. Dynamic programming mate-finding CUPs
 		itoa10<uint64_t>(swmuMate.swcups, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 37. Dynamic programming mate-finding backtraces
+		// 41. Dynamic programming mate-finding backtraces
 		itoa10<uint64_t>(swmuMate.swbts, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 		
-		// 38. Overall memory peak
+		// 42. Overall memory peak
 		itoa10<size_t>(gMemTally.peak() >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 39. Uncategorized memory peak
+		// 43. Uncategorized memory peak
 		itoa10<size_t>(gMemTally.peak(0) >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 40. Ebwt memory peak
+		// 44. Ebwt memory peak
 		itoa10<size_t>(gMemTally.peak(EBWT_CAT) >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 41. Cache memory peak
+		// 45. Cache memory peak
 		itoa10<size_t>(gMemTally.peak(CA_CAT) >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 42. Resolver memory peak
+		// 46. Resolver memory peak
 		itoa10<size_t>(gMemTally.peak(GW_CAT) >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 43. Seed aligner memory peak
+		// 47. Seed aligner memory peak
 		itoa10<size_t>(gMemTally.peak(AL_CAT) >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 44. Dynamic programming aligner memory peak
+		// 48. Dynamic programming aligner memory peak
 		itoa10<size_t>(gMemTally.peak(DP_CAT) >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 45. Miscellaneous memory peak
+		// 49. Miscellaneous memory peak
 		itoa10<size_t>(gMemTally.peak(MISC_CAT) >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 46. Debug memory peak
+		// 50. Debug memory peak
 		itoa10<size_t>(gMemTally.peak(DEBUG_CAT) >> 20, buf);
 		if(metricsStderr) cerr << buf;
 		if(o != NULL) { o->writeChars(buf); }

@@ -12,20 +12,21 @@ using namespace std;
  * remaining elements of satup_->offs are now filled (or were filled to
  * begin with).
  */
-bool SAResolveCombiner::tryResolving() {
+bool SAResolveCombiner::tryResolving(uint64_t& nresolved) {
+	if(refscan_.empty()) {
+		return false; // not filled in, nothing to add
+	}
 	if(satup_->offs.size() == 1) {
 		// Just one element in range; easy to check if it's been resolved
 		if(satup_->offs[0] != 0xffffffff) {
 			assert(refscan_.empty() || refscan_[0] == satup_->offs[0]);
 			return true; // already filled in
 		}
-		if(refscan_.empty()) {
-			return false; // not filled in, nothing to add
-		}
 		assert_eq(1, refscan_.size());
 		assert_neq(0xffffffff, refscan_[0]);
 		// Resolved!
 		satup_->offs[0] = refscan_[0];
+		nresolved++;
 		return true; // filled everything (1 thing) in
 	} else {
 		// More than one element
@@ -38,6 +39,11 @@ bool SAResolveCombiner::tryResolving() {
 		}
 		if(needResolving == 0) {
 			return true; // already filled in
+		}
+		if(refscan_.size() < needResolving) {
+			// No way we can resolve all the outstanding salist elements with
+			// just the results in refscan_; there aren't enough.
+			return false;
 		}
 		// Count how many elements are in refscan_ but not in satup_
 		found_.resize(refscan_.size());
@@ -68,6 +74,7 @@ bool SAResolveCombiner::tryResolving() {
 						assert_lt(nexti, satup_->offs.size());
 					}
 					satup_->offs[nexti] = refscan_[i];
+					nresolved++;
 					ASSERT_ONLY(added++);
 					nexti++;
 					assert_leq(nexti, satup_->offs.size());
@@ -100,6 +107,7 @@ bool SAResolveCombiner::addRefscan(uint32_t off) {
 #include <iostream>
 
 int main(void) {
+	uint64_t ress = 0;
 	cerr << "Case 1 (1 element already resolved) ... ";
 	{
 		SAResolveCombiner comb;
@@ -114,7 +122,7 @@ int main(void) {
 		PListSlice<uint32_t, CACHE_PAGE_SZ> slice(list, 0, 1);
 		SATuple sat(k, 0, slice);
 		comb.init(sat);
-		assert(comb.tryResolving());
+		assert(comb.tryResolving(ress));
 		for(size_t i = 0; i < 1; i++) {
 			assert_eq(i, list.get(i));
 		}
@@ -135,7 +143,7 @@ int main(void) {
 		PListSlice<uint32_t, CACHE_PAGE_SZ> slice(list, 0, 3);
 		SATuple sat(k, 0, slice);
 		comb.init(sat);
-		assert(comb.tryResolving());
+		assert(comb.tryResolving(ress));
 		for(size_t i = 0; i < 3; i++) {
 			assert_eq(i, list.get(i));
 		}
@@ -160,9 +168,9 @@ int main(void) {
 		PListSlice<uint32_t, CACHE_PAGE_SZ> slice(list, 0, 3);
 		SATuple sat(k, 0, slice);
 		comb.init(sat);
-		assert(!comb.tryResolving());
+		assert(!comb.tryResolving(ress));
 		comb.addRefscan(2);
-		assert(comb.tryResolving());
+		assert(comb.tryResolving(ress));
 		for(size_t i = 0; i < 3; i++) {
 			assert_eq(i, list.get(i));
 		}
@@ -187,13 +195,13 @@ int main(void) {
 		PListSlice<uint32_t, CACHE_PAGE_SZ> slice(list, 0, 3);
 		SATuple sat(k, 0, slice);
 		comb.init(sat);
-		assert(!comb.tryResolving());
+		assert(!comb.tryResolving(ress));
 		comb.addRefscan(1); // already there
-		assert(!comb.tryResolving());
+		assert(!comb.tryResolving(ress));
 		comb.addRefscan(0); // already there
-		assert(!comb.tryResolving());
+		assert(!comb.tryResolving(ress));
 		comb.addRefscan(2);
-		assert(comb.tryResolving());
+		assert(comb.tryResolving(ress));
 		for(size_t i = 0; i < 3; i++) {
 			assert_eq(i, list.get(i));
 		}
@@ -218,13 +226,13 @@ int main(void) {
 		PListSlice<uint32_t, CACHE_PAGE_SZ> slice(list, 0, 3);
 		SATuple sat(k, 0, slice);
 		comb.init(sat);
-		assert(!comb.tryResolving());
+		assert(!comb.tryResolving(ress));
 		comb.addRefscan(1); // already there
-		assert(!comb.tryResolving());
+		assert(!comb.tryResolving(ress));
 		comb.addRefscan(0); // already there
-		assert(!comb.tryResolving());
-		assert(comb.setSalist(2, 2));
-		assert(comb.tryResolving());
+		assert(!comb.tryResolving(ress));
+		assert(comb.setSalist(2, 2, ress));
+		assert(comb.tryResolving(ress));
 		for(size_t i = 0; i < 3; i++) {
 			assert_eq(i, list.get(i));
 		}
@@ -246,25 +254,25 @@ int main(void) {
 		SATuple sat(k, 0, slice);
 		comb.init(sat);
 		comb.addRefscan(0);
-		assert(!comb.tryResolving());
+		assert(!comb.tryResolving(ress));
 		comb.addRefscan(1);
-		assert(!comb.tryResolving());
+		assert(!comb.tryResolving(ress));
 		comb.addRefscan(2);
-		assert(!comb.tryResolving());
+		assert(!comb.tryResolving(ress));
 		comb.addRefscan(3);
-		assert(!comb.tryResolving());
+		assert(!comb.tryResolving(ress));
 		comb.addRefscan(4);
-		assert(!comb.tryResolving());
+		assert(!comb.tryResolving(ress));
 		comb.addRefscan(5);
-		assert(!comb.tryResolving());
+		assert(!comb.tryResolving(ress));
 		comb.addRefscan(6);
-		assert(!comb.tryResolving());
+		assert(!comb.tryResolving(ress));
 		comb.addRefscan(7);
-		assert(!comb.tryResolving());
+		assert(!comb.tryResolving(ress));
 		comb.addRefscan(8);
-		assert(!comb.tryResolving());
+		assert(!comb.tryResolving(ress));
 		comb.addRefscan(9);
-		assert(comb.tryResolving());
+		assert(comb.tryResolving(ress));
 		for(size_t i = 0; i < 20; i++) {
 			if(i >= 1 && i < 11) {
 				assert_eq(i-1, list.get(i));
@@ -289,16 +297,16 @@ int main(void) {
 		PListSlice<uint32_t, CACHE_PAGE_SZ> slice(list, 1, 10);
 		SATuple sat(k, 0, slice);
 		comb.init(sat);
-		assert(!comb.setSalist(0, 0));
-		assert(!comb.setSalist(1, 1));
-		assert(!comb.setSalist(2, 2));
-		assert(!comb.setSalist(3, 3));
-		assert(!comb.setSalist(4, 4));
-		assert(!comb.setSalist(5, 5));
-		assert(!comb.setSalist(6, 6));
-		assert(!comb.setSalist(7, 7));
-		assert(!comb.setSalist(8, 8));
-		assert(comb.setSalist(9, 9));
+		assert(!comb.setSalist(0, 0, ress));
+		assert(!comb.setSalist(1, 1, ress));
+		assert(!comb.setSalist(2, 2, ress));
+		assert(!comb.setSalist(3, 3, ress));
+		assert(!comb.setSalist(4, 4, ress));
+		assert(!comb.setSalist(5, 5, ress));
+		assert(!comb.setSalist(6, 6, ress));
+		assert(!comb.setSalist(7, 7, ress));
+		assert(!comb.setSalist(8, 8, ress));
+		assert(comb.setSalist(9, 9, ress));
 		for(size_t i = 0; i < 20; i++) {
 			if(i >= 1 && i < 11) {
 				assert_eq(i-1, list.get(i));

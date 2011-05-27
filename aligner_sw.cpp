@@ -77,6 +77,10 @@ void SwAligner::initRead(
 	nceil_   = nceil;      // max # Ns allowed in ref portion of aln
 	solrowlo_= sc.rowlo;   // if row >= this, solutions are possible
 	initedRead_ = true;
+	if(solrowlo_ == -1) {
+		solrowlo_ = (int64_t)dpRows()-1;
+		assert_geq(solrowlo_, 0);
+	}
 #ifndef NO_SSE
 	if(sse_) {
 		buildQueryProfileSseI16(true);
@@ -243,24 +247,41 @@ bool SwAligner::align(RandomSource& rnd) {
 	// Reset solutions lists
 	btncand_.clear();
 	btccand_.clear();
+	TAlScore best = 0;
+	TAlScore upper = std::numeric_limits<TAlScore>::max();
 	if(color_) {
-		alignColors(rnd);
+		best = alignColors();
+		assert_leq(best, upper);
 	} else {
 #ifndef NO_SSE
 		if(sse_) {
-			alignNucleotidesSseI16();
+			upper = alignNucleotidesSseI16();
 		}
-		alignNucleotides(rnd);
+#ifdef NDEBUG
+		// Only skip full alignment in release mode; not debug mode
+		if(upper >= minsc_) {
+#endif
+			best = alignNucleotides();
+#ifdef NDEBUG
+			assert_leq(best, upper);
+		} else {
+			// Skip in release mode
+			nskip_++;
+			return false;
+		}
+#endif
 #else
-		alignNucleotides(rnd);
+		// NO_SSE defined
+		best = alignNucleotides();
+		assert_leq(best, upper);
 #endif
 	}
 	assert(repOk());
 	cural_ = 0;
 	// Collect alignments into appropriate list: either btncand_ or btccand_
 	int64_t rowlo = solrowlo_;
+	assert_geq(rowlo, 0);
 	if(color_) {
-		if(rowlo == -1) rowlo = (int64_t)ctab_.size()-1;
 		for(int64_t row = ctab_.size()-1; row >= rowlo; row--) {
 			for(size_t col = 0; col < ctab_[(size_t)row].size(); col++) {
 				if(ctab_[(size_t)row][col].backtraceCandidate) {
@@ -283,7 +304,6 @@ bool SwAligner::align(RandomSource& rnd) {
 		}
 		return !btccand_.empty();
 	} else {
-		if(rowlo == -1) rowlo = (int64_t)ntab_.size()-1;
 		for(int64_t row = ntab_.size()-1; row >= rowlo; row--) {
 			for(size_t col = 0; col < ntab_[(size_t)row].size(); col++) {
 				if(ntab_[(size_t)row][col].backtraceCandidate) {
@@ -1048,7 +1068,7 @@ size_t SwAligner::nfilter(size_t nlim) {
 // 6. 'solcols_' is a list of pairs, where each pair cor
 // 7. 'solbest_'
 // 8. 'solrowbest_'
-#define UPDATE_SOLS(cur, row, col, improved) { \
+#define UPDATE_SOLS(cur, row, col, improved, best) { \
 	assert_lt(col, width_); \
 	if(cur.oallBest.score() >= minsc_ && (en_ == NULL || (*en_)[col])) { \
 		/* Score and column are acceptable */ \
@@ -1059,12 +1079,17 @@ size_t SwAligner::nfilter(size_t nlim) {
 			/* Improvement is acceptable */ \
 			if((int64_t)row >= solrowlo_) { \
 				/* Row is acceptable */ \
+				if(cur.oallBest.score() > best) { \
+					best = cur.oallBest.score(); \
+				} \
 				/* This cell is now a good candidate for backtrace BUT in */ \
 				/* local alignment mode we still need to know whether this */ \
 				/* solution is improved upon in the next row.  If it is */ \
 				/* improved upon later, this flag is set to false later. */ \
 				tab[row][col].backtraceCandidate = true; \
-				if(row > 0) tab[row-1][col].backtraceCandidate = false; \
+				if(row > 0) { \
+					tab[row-1][col].backtraceCandidate = false; \
+				} \
 				assert(repOk()); \
 			} \
 		} \
@@ -1073,7 +1098,7 @@ size_t SwAligner::nfilter(size_t nlim) {
 
 // c is the column offset with respect to the LHS of the rectangle; for offset
 // w/r/t LHS of parallelogram, use r+c
-#define FINALIZE_CELL(r, c, improved) { \
+#define FINALIZE_CELL(r, c, improved, best) { \
 	assert_lt(c, width_); \
 	assert(!tab[r][c].finalized); \
 	ncups_++; \
@@ -1086,7 +1111,7 @@ size_t SwAligner::nfilter(size_t nlim) {
 	if(!tab[r][c].mask.empty() && aboveFloor) { \
 		assert(VALID_AL_SCORE(tab[r][c].oallBest)); \
 		tab[r][c].empty = false; \
-		UPDATE_SOLS(tab[r][c], r, c, improved); \
+		UPDATE_SOLS(tab[r][c], r, c, improved, best); \
 		assert(!tab[r][c].empty); \
 		validInRow = true; \
 	} else if(aboveFloor) { \
@@ -1108,7 +1133,7 @@ size_t SwAligner::nfilter(size_t nlim) {
  * E.g. if an alignment is found that occurs starting at rdi, 0 is
  * returned.  If no alignment is found, -1 is returned.
  */
-void SwAligner::alignNucleotides(RandomSource& rnd) {
+TAlScore SwAligner::alignNucleotides() {
 	typedef SwNucCell TCell;
 	assert_leq(rdf_, rd_->length());
 	assert_leq(rdf_, qu_->length());
@@ -1133,6 +1158,7 @@ void SwAligner::alignNucleotides(RandomSource& rnd) {
 	tab[0].resize(whi-wlo+1); // add columns to first row
 	TAlScore loBound = sc_->monotone ? minsc_ : floorsc_;
 	bool validInRow = !sc_->monotone;
+	TAlScore best = std::numeric_limits<TAlScore>::min();
 	// Calculate starting values for the rest of the columns in the
 	// first row.
 	for(size_t col = 0; col <= whi; col++) {
@@ -1243,7 +1269,7 @@ void SwAligner::alignNucleotides(RandomSource& rnd) {
 		if(!tab[0][col].mask.empty() && aboveFloor) {
 			assert(VALID_AL_SCORE(tab[0][col].oallBest));
 			tab[0][col].empty = false;
-			UPDATE_SOLS(tab[0][col], 0, col, improved);
+			UPDATE_SOLS(tab[0][col], 0, col, improved, best);
 			assert(!tab[0][col].empty);
 			validInRow = true;
 		} else if(aboveFloor) {
@@ -1254,7 +1280,7 @@ void SwAligner::alignNucleotides(RandomSource& rnd) {
 	nrowups_++;
 	if(!validInRow) {
 		nrowskips_ += (rdf_ - rdi_ - 1);
-		return;
+		return std::numeric_limits<TAlScore>::min();
 	}
 
 	//
@@ -1395,7 +1421,7 @@ void SwAligner::alignNucleotides(RandomSource& rnd) {
 		if(!tab[row][col].mask.empty() && aboveFloor) {
 			assert(VALID_AL_SCORE(tab[row][col].oallBest));
 			tab[row][col].empty = false;
-			UPDATE_SOLS(tab[row][col], row, col, improved);
+			UPDATE_SOLS(tab[row][col], row, col, improved, best);
 			assert(!tab[row][col].empty);
 			validInRow = true;
 		} else if(aboveFloor) {
@@ -1584,7 +1610,7 @@ void SwAligner::alignNucleotides(RandomSource& rnd) {
 			if(!tab[row][col].mask.empty() && aboveFloor) {
 				assert(VALID_AL_SCORE(tab[row][col].oallBest));
 				tab[row][col].empty = false;
-				UPDATE_SOLS(tab[row][col], row, col, improved);
+				UPDATE_SOLS(tab[row][col], row, col, improved, best);
 				assert(!tab[row][col].empty);
 				validInRow = true;
 			} else if(aboveFloor) {
@@ -1716,7 +1742,7 @@ void SwAligner::alignNucleotides(RandomSource& rnd) {
 			if(!tab[row][col].mask.empty() && aboveFloor) {
 				assert(VALID_AL_SCORE(tab[row][col].oallBest));
 				tab[row][col].empty = false;
-				UPDATE_SOLS(tab[row][col], row, col, improved);
+				UPDATE_SOLS(tab[row][col], row, col, improved, best);
 				assert(!tab[row][col].empty);
 				validInRow = true;
 			} else if(aboveFloor) {
@@ -1727,9 +1753,10 @@ void SwAligner::alignNucleotides(RandomSource& rnd) {
 		if(!validInRow) {
 			assert_geq(rdf_-rdi_, row+1);
 			nrowskips_ += (rdf_ - rdi_ - row - 1);
-			return;
+			return std::numeric_limits<TAlScore>::min();
 		}
 	}
+	return best;
 }
 
 /**
@@ -2899,7 +2926,7 @@ static void doTests() {
 		assert(!al.done());
 		al.nextAlignment(res, rnd);
 		if(!res.empty()) {
-			al.printResultStacked(res, cerr); cerr << endl;
+			//al.printResultStacked(res, cerr); cerr << endl;
 		}
 		assert(!res.empty());
 		assert_eq(i*4, res.alres.refoff());
@@ -2910,7 +2937,7 @@ static void doTests() {
 		res.reset();
 		al.nextAlignment(res, rnd);
 		if(!res.empty()) {
-			al.printResultStacked(res, cerr); cerr << endl;
+			//al.printResultStacked(res, cerr); cerr << endl;
 		}
 		assert(res.empty());
 		res.reset();
@@ -2975,7 +3002,7 @@ static void doTests() {
 		for(size_t j = lo; j < hi; j++) {
 			al.nextAlignment(res, rnd);
 			assert(!res.empty());
-			al.printResultStacked(res, cerr); cerr << endl;
+			//al.printResultStacked(res, cerr); cerr << endl;
 			assert(res.alres.refoff() == 0 ||
 			       res.alres.refoff() == 4 ||
 				   res.alres.refoff() == 8);

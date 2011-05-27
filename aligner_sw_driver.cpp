@@ -303,6 +303,7 @@ bool SwDriver::extendSeeds(
 				&sscan_);  // reference scanner for resolving offsets
 			// Take reference-scanner hits and turn them into offset
 			// resolutions.
+			wlm.refscanhits += sscan_.hits().size();
 			for(size_t j = 0; j < sscan_.hits().size(); j++) {
 				// Get identifier for the appropriate combiner
 				U32Pair id = sscan_.hits()[j].id();
@@ -314,7 +315,10 @@ bool SwDriver::extendSeeds(
 				assert_lt(off, (int64_t)ebwt.eh().lenNucs());
 				assert_lt(off, (int64_t)0xffffffff);
 				// Install it
-				sacomb_[id.first][id.second].addRefscan((uint32_t)off);
+				if(sacomb_[id.first][id.second].addRefscan((uint32_t)off)) {
+					// It was new; see if it leads to any resolutions
+					sacomb_[id.first][id.second].tryResolving(wlm.refresolves);
+				}
 			}
 			// Now fill the dynamic programming matrix and return true iff
 			// there is at least one valid alignment
@@ -324,6 +328,7 @@ bool SwDriver::extendSeeds(
 				swmSeed.swcups,
 				swmSeed.swrows,
 				swmSeed.swskiprows,
+				swmSeed.swskip,
 				swmSeed.swsucc,
 				swmSeed.swfail);
 			swa.resetAlignCounters();
@@ -730,20 +735,22 @@ bool SwDriver::extendSeedsPaired(
 				&sscan_);  // reference scanner for resolving offsets
 			// Take reference-scanner hits and turn them into offset
 			// resolutions.
+			wlm.refscanhits += sscan_.hits().size();
 			for(size_t j = 0; j < sscan_.hits().size(); j++) {
 				// Get identifier for the appropriate combiner
 				U32Pair id = sscan_.hits()[j].id();
 				// Get the hit's offset in pasted-reference coordinates
-				int64_t toff = sscan_.hits()[j].off() + refl;
-				int64_t off = (int64_t)ref.pastedOffset(tidx);
-				off += toff;
+				int64_t off = sscan_.hits()[j].off() + pastedRefoff;
 				// Move our offset from the RHS of the seed to the LHS
 				off -= (seedlen-1);
 				assert_geq(off, 0);
 				assert_lt(off, (int64_t)ebwt.eh().lenNucs());
 				assert_lt(off, (int64_t)0xffffffff);
 				// Install it
-				sacomb_[id.first][id.second].addRefscan((uint32_t)off);
+				if(sacomb_[id.first][id.second].addRefscan((uint32_t)off)) {
+					// It was new; see if it leads to any resolutions
+					sacomb_[id.first][id.second].tryResolving(wlm.refresolves);
+				}
 			}
 			// Now fill the dynamic programming matrix and return true iff
 			// there is at least one valid alignment
@@ -753,6 +760,7 @@ bool SwDriver::extendSeedsPaired(
 				swmSeed.swcups,
 				swmSeed.swrows,
 				swmSeed.swskiprows,
+				swmSeed.swskip,
 				swmSeed.swsucc,
 				swmSeed.swfail);
 			swa.resetAlignCounters();
@@ -890,6 +898,7 @@ bool SwDriver::extendSeedsPaired(
 							swmMate.swcups,
 							swmMate.swrows,
 							swmMate.swskiprows,
+							swmMate.swskip,
 							swmMate.swsucc,
 							swmMate.swfail);
 						oswa.resetAlignCounters();

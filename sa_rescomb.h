@@ -63,7 +63,7 @@ public:
 	 * remaining elements of satup_.offs() are now filled (or were filled to
 	 * begin with).
 	 */
-	bool tryResolving();
+	bool tryResolving(uint64_t& nresolved);
 	
 	/**
 	 * Try adding a new resolved offset for the sa range resolved using
@@ -76,11 +76,11 @@ public:
 	 * The caller just resolved a new offset in the salist; update the salist
 	 * and then call and return the result of tryResolving().
 	 */
-	bool setSalist(size_t saoff, uint32_t off) {
+	bool setSalist(size_t saoff, uint32_t off, uint64_t& nresolved) {
 		assert(inited_);
 		assert(satup_ != NULL);
 		satup_->offs[saoff] = off;
-		return tryResolving();
+		return tryResolving(nresolved);
 	}
 
 protected:
