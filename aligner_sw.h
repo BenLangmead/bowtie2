@@ -68,6 +68,10 @@ struct SSEData {
 	__m128i       *pvHStore_; // pvHStore
 	__m128i       *pvHLoad_;  // pvHLoad
 	__m128i       *pvE_;      // pvE
+	size_t         maxPen_;   // biggest penalty of all
+	size_t         maxBonus_; // biggest bonus of all
+	size_t         lastIter_; // which 128-bit striped word has the final row?
+	size_t         lastWord_; // which word within 128-word has final row?
 };
 
 /**
@@ -210,6 +214,7 @@ public:
 		ncups_(0),
 		nrowups_(0),
 		nrowskips_(0),
+		nskip_(0),
 		nsucc_(0),
 		nfail_(0),
 		nbts_(0)
@@ -379,26 +384,6 @@ public:
 	size_t numAlignmentsReported() const { return cural_; }
 
 	/**
-	 * Set the arguments equal to the current tallies in the counters related
-	 * to filling the DP table.
-	 */
-	void getAlignCounters(
-		uint64_t& nfills,
-		uint64_t& ncups,
-		uint64_t& nrowups,
-		uint64_t& nrowskips,
-		uint64_t& nsucc,
-		uint64_t& nfail) const
-	{
-		nfills = nfills_;
-		ncups = ncups_;
-		nrowups = nrowups_;
-		nrowskips = nrowskips_;
-		nsucc = nsucc_;
-		nfail = nfail_;
-	}
-
-	/**
 	 * Merge tallies in the counters related to filling the DP table.
 	 */
 	void mergeAlignCounters(
@@ -406,6 +391,7 @@ public:
 		uint64_t& ncups,
 		uint64_t& nrowups,
 		uint64_t& nrowskips,
+		uint64_t& nskip,
 		uint64_t& nsucc,
 		uint64_t& nfail) const
 	{
@@ -413,6 +399,7 @@ public:
 		ncups     += ncups_;
 		nrowups   += nrowups_;
 		nrowskips += nrowskips_;
+		nskip     += nskip_;
 		nsucc     += nsucc_;
 		nfail     += nfail_;
 	}
@@ -440,6 +427,7 @@ public:
 		uint64_t& ncups,
 		uint64_t& nrowups,
 		uint64_t& nrowskips,
+		uint64_t& nskip,
 		uint64_t& nsucc,
 		uint64_t& nfail,
 		uint64_t& nbts) const
@@ -448,6 +436,7 @@ public:
 		ncups = ncups_;
 		nrowups = nrowups_;
 		nrowskips = nrowskips_;
+		nskip = nskip_;
 		nsucc = nsucc_;
 		nfail = nfail_;
 		nbts = nbts_;
@@ -461,6 +450,7 @@ public:
 		ncups_     = 0; // cell updates
 		nrowups_   = 0; // row updates
 		nrowskips_ = 0; // row skips
+		nskip_     = 0; // # table fills skipped by SSE filter
 		nsucc_     = 0; // # table fill-ins with >= 1 solution cell
 		nfail_     = 0; // # table fill-ins with no solution cells
 	}
@@ -480,6 +470,7 @@ public:
 		ncups_     = 0; // cell updates
 		nrowups_   = 0; // row updates
 		nrowskips_ = 0; // row skips
+		nskip_     = 0; // # table fills skipped by SSE filter
 		nsucc_     = 0; // # table fill-ins with >= 1 solution cell
 		nfail_     = 0; // # table fill-ins with no solution cells
 		nbts_      = 0; // # backtrace operations
@@ -507,7 +498,7 @@ protected:
 	 * dynamic programming and normal, serial code.  Return true iff zero or
 	 * more alignments are possible.
 	 */
-	void alignNucleotides(RandomSource& rnd);
+	TAlScore alignNucleotides();
 
 #ifndef NO_SSE
 
@@ -548,7 +539,7 @@ protected:
 	 * dynamic programming.  Return true iff zero or more alignments are
 	 * possible.
 	 */
-	void alignColors(RandomSource& rnd);
+	TAlScore alignColors();
 
 	/**
 	 * Given the dynamic programming table and a cell (both the table offset
@@ -751,6 +742,7 @@ protected:
 	uint64_t ncups_;     // cell updates
 	uint64_t nrowups_;   // row updates
 	uint64_t nrowskips_; // row skips
+	uint64_t nskip_;     // # fills skipped b/c of SSE
 	uint64_t nsucc_;     // # fills with at least 1 solution cell
 	uint64_t nfail_;     // # fills with no solution cells
 	uint64_t nbts_;      // backtrace steps

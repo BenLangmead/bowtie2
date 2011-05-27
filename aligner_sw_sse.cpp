@@ -7,8 +7,30 @@
  *
  * Farrar M. Striped Smith-Waterman speeds database searches six times over
  * other SIMD implementations. Bioinformatics. 2007 Jan 15;23(2):156-61.
- *
  * http://sites.google.com/site/farrarmichael/smith-waterman
+ *
+ * While the paper describes an implementation of Smith-Waterman, we extend it
+ * do end-to-end read alignment as well as local alignment.  The change
+ * required for this is minor: we simply let vmax be the maximum element in the
+ * score domain rather than the minimum.
+ *
+ * The vectorized dynamic programming implementation lacks some features that
+ * make it hard to adapt to solving the entire dynamic-programming alignment
+ * problem.  For instance:
+ *
+ * - It doesn't respect gap barriers on either end of the read
+ * - It just gives a maximum; not enough information to backtrace without
+ *   redoing some alignment
+ * - It's a little difficult to handle st_ and en_, especially st_.
+ * - The query profile mechanism makes handling of ambiguous reference bases a
+ *   little tricky (16 cols in query profile lookup table instead of 5)
+ *
+ * Given the drawbacks, it is tempting to use SSE dynamic programming as a
+ * filter rather than as an aligner per se.  Here are a few ideas for how it
+ * can be extended to handle more of the alignment problem:
+ *
+ * - Save calculated scores to a big array as we go.  We return to this array
+ *   to find and backtrace from good solutions.
  */
 
 #ifndef NO_SSE
@@ -23,6 +45,7 @@
  */
 void SwAligner::buildQueryProfileSseU8(bool fw) {
 	const BTDnaString* rd = fw ? rdfw_ : rdrc_;
+	const BTString* qu = fw ? qufw_ : qurc_;
 	const size_t len = rd->length();
 	const size_t seglen = (len + 15) / 16;
 	// How many __m128i's are needed for the SSEU8
@@ -40,6 +63,8 @@ void SwAligner::buildQueryProfileSseU8(bool fw) {
 	d.pvHStore_ = d.qprof_    + (seglen * ALPHA_SIZE);
 	d.pvHLoad_  = d.pvHStore_ + seglen;
 	d.pvE_      = d.pvHLoad_  + seglen;
+	d.maxPen_   = d.maxBonus_ = 0;
+	d.lastIter_ = d.lastWord_ = 0;
 	uint8_t *qprofBytes = reinterpret_cast<uint8_t*>(d.qprof_);
 	// For each reference character A, C, G, T, N ...
 	for(size_t refc = 0; refc < ALPHA_SIZE; refc++) {
@@ -47,20 +72,30 @@ void SwAligner::buildQueryProfileSseU8(bool fw) {
 		// For each segment ...
 		for(size_t i = 0; i < seglen; i++) {
 			size_t j = i;
+			// For each sub-word (byte) ...
 			for(size_t k = 0; k < 16; k++) {
 				int sc = 0;
 				if(j < len) {
-					// Set query profile for fw query
 					int readc = (*rd)[j];
-					if(readc > 3 || (int)refc > 3) {
-						sc = sc_->n(30);
-					} else if(readc != (int)refc) {
-						sc = sc_->mm(30);
-					} else {
-						// leave it at 0
+					int readq = (*qu)[j];
+					sc = sc_->score(readc, (int)(1 << refc), readq);
+				}
+				if(refc == 0 && j == len-1) {
+					// Remember which 128-bit word and which smaller word has
+					// the final row
+					d.lastIter_ = i;
+					d.lastWord_ = k;
+				}
+				if(sc < 0) {
+					if((size_t)(-sc) > d.maxPen_) {
+						d.maxPen_ = (size_t)(-sc);
+					}
+				} else {
+					if((size_t)sc > d.maxBonus_) {
+						d.maxBonus_ = (size_t)sc;
 					}
 				}
-				qprofBytes[refc * seglen + h] = (uint8_t)sc;
+				qprofBytes[refc * (seglen*16) + h] = (uint8_t)sc;
 				h++;
 				j += seglen;
 			}
@@ -76,6 +111,7 @@ void SwAligner::buildQueryProfileSseU8(bool fw) {
  */
 void SwAligner::buildQueryProfileSseI16(bool fw) {
 	const BTDnaString* rd = fw ? rdfw_ : rdrc_;
+	const BTString* qu = fw ? qufw_ : qurc_;
 	const size_t len = rd->length();
 	const size_t seglen = (len + 7) / 8;
 	// How many __m128i's are needed for the SSEI16
@@ -93,7 +129,9 @@ void SwAligner::buildQueryProfileSseI16(bool fw) {
 	d.pvHStore_ = d.qprof_    + (seglen * ALPHA_SIZE);
 	d.pvHLoad_  = d.pvHStore_ + seglen;
 	d.pvE_      = d.pvHLoad_  + seglen;
-	uint8_t *qprofBytes = reinterpret_cast<uint8_t*>(d.qprof_);
+	d.maxPen_   = d.maxBonus_ = 0;
+	d.lastIter_ = d.lastWord_ = 0;
+	int16_t *qprofBytes = reinterpret_cast<int16_t*>(d.qprof_);
 	// For each reference character A, C, G, T, N ...
 	for(size_t refc = 0; refc < ALPHA_SIZE; refc++) {
 		size_t h = 0;
@@ -103,17 +141,26 @@ void SwAligner::buildQueryProfileSseI16(bool fw) {
 			for(size_t k = 0; k < 8; k++) {
 				int sc = 0;
 				if(j < len) {
-					// Set query profile for fw query
 					int readc = (*rd)[j];
-					if(readc > 3 || (int)refc > 3) {
-						sc = sc_->n(30);
-					} else if(readc != (int)refc) {
-						sc = sc_->mm(30);
-					} else {
-						// leave it at 0
+					int readq = (*qu)[j];
+					sc = sc_->score(readc, (int)(1 << refc), readq - 33);
+				}
+				if(refc == 0 && j == len-1) {
+					// Remember which 128-bit word and which smaller word has
+					// the final row
+					d.lastIter_ = i;
+					d.lastWord_ = k;
+				}
+				if(sc < 0) {
+					if((size_t)(-sc) > d.maxPen_) {
+						d.maxPen_ = (size_t)(-sc);
+					}
+				} else {
+					if((size_t)sc > d.maxBonus_) {
+						d.maxBonus_ = (size_t)sc;
 					}
 				}
-				qprofBytes[refc * seglen + h] = (uint8_t)sc;
+				qprofBytes[refc * (seglen*8) + h] = (int16_t)sc;
 				h++;
 				j += seglen;
 			}
@@ -129,16 +176,23 @@ uint8_t SwAligner::alignNucleotidesSseU8() {
 }
 
 /**
- *
+ * Solve the current alignment problem using SSE instructions that operate on 8
+ * signed 16-bit values packed into a single 128-bit register.
  */
 int16_t SwAligner::alignNucleotidesSseI16() {
-	typedef SwNucCell TCell;
+	const size_t NWORDS_PER_REG  = 8;
+	const size_t NBYTES_PER_REG  = 16;
+	const size_t NBITS_PER_WORD  = 16;
+	const size_t NBYTES_PER_WORD = 2;
+
 	assert_leq(rdf_, rd_->length());
 	assert_leq(rdf_, qu_->length());
 	assert_lt(rfi_, rff_);
 	assert_lt(rdi_, rdf_);
 	assert_eq(rd_->length(), qu_->length());
 	assert_geq(sc_->gapbar, 1);
+	assert(en_ == NULL || en_->size() == width_);
+	assert(st_ == NULL || st_->size() == width_);
 	assert(repOk());
 #ifndef NDEBUG
 	for(size_t i = rfi_; i < rff_; i++) {
@@ -153,7 +207,9 @@ int16_t SwAligner::alignNucleotidesSseI16() {
 	assert(d.pvHLoad_ != NULL);
 	assert(d.pvE_ != NULL);
 
-	size_t iter = (dpRows() + 7) / 8; // iter = segLen
+	bool monotone = (d.maxBonus_ == 0);
+	size_t iter =
+		(dpRows() + (NWORDS_PER_REG-1)) / NWORDS_PER_REG; // iter = segLen
 
 	// Many thanks to Michael Farrar for releasing his striped Smith-Waterman
 	// implementation:
@@ -167,73 +223,115 @@ int16_t SwAligner::alignNucleotidesSseI16() {
 	__m128i rfgape   = _mm_setzero_si128();
 	__m128i rdgapo   = _mm_setzero_si128();
 	__m128i rdgape   = _mm_setzero_si128();
+	__m128i vlo      = _mm_setzero_si128();
+	__m128i vhi      = _mm_setzero_si128();
+	__m128i vlolsw   = _mm_setzero_si128();
+	__m128i vhilsw   = _mm_setzero_si128();
+	__m128i vfilllsw = _mm_setzero_si128();
 	__m128i vmax     = _mm_setzero_si128();
-	__m128i vminimus = _mm_setzero_si128();
-	__m128i vmin     = _mm_setzero_si128();
 	__m128i ve       = _mm_setzero_si128();
 	__m128i vf       = _mm_setzero_si128();
 	__m128i vh       = _mm_setzero_si128();
 	__m128i vtmp     = _mm_setzero_si128();
 
-	assert_geq(sc_->rfGapConst, 0);
-	rfgapo = _mm_insert_epi16(rfgapo, sc_->rfGapConst, 0);
+	assert_gt(sc_->refGapOpen(), 0);
+	rfgapo = _mm_insert_epi16(rfgapo, sc_->refGapOpen(), 0);
 	rfgapo = _mm_shufflelo_epi16(rfgapo, 0);
 	rfgapo = _mm_shuffle_epi32(rfgapo, 0);
 	
 	// Set all elts to reference gap extension penalty
-	assert_gt(sc_->rfGapLinear, 0);
-	rfgape = _mm_insert_epi16(rfgape, sc_->rfGapLinear, 0);
+	assert_gt(sc_->refGapExtend(), 0);
+	assert_leq(sc_->refGapExtend(), sc_->refGapOpen());
+	rfgape = _mm_insert_epi16(rfgape, sc_->refGapExtend(), 0);
 	rfgape = _mm_shufflelo_epi16(rfgape, 0);
 	rfgape = _mm_shuffle_epi32(rfgape, 0);
 
 	// Set all elts to read gap open penalty
-	assert_geq(sc_->rdGapConst, 0);
-	rdgapo = _mm_insert_epi16(rdgapo, sc_->rdGapConst, 0);
+	assert_gt(sc_->readGapOpen(), 0);
+	rdgapo = _mm_insert_epi16(rdgapo, sc_->readGapOpen(), 0);
 	rdgapo = _mm_shufflelo_epi16(rdgapo, 0);
 	rdgapo = _mm_shuffle_epi32(rdgapo, 0);
 	
 	// Set all elts to read gap extension penalty
-	assert_gt(sc_->rdGapLinear, 0);
-	rdgape = _mm_insert_epi16(rdgape, sc_->rdGapLinear, 0);
+	assert_gt(sc_->readGapExtend(), 0);
+	assert_leq(sc_->readGapExtend(), sc_->readGapOpen());
+	rdgape = _mm_insert_epi16(rdgape, sc_->readGapExtend(), 0);
 	rdgape = _mm_shufflelo_epi16(rdgape, 0);
 	rdgape = _mm_shuffle_epi32(rdgape, 0);
-	
-	// Set all elts to 0x8000 (min value for signed 16-bit)
-	vmax = _mm_cmpeq_epi16(vmax, vmax);    // all elts = 0xffff
-	vmax = _mm_slli_epi16(vmax, 15);       // all elts = 0x8000
-	
-	// Set all elts to 0x8000 (min value for signed 16-bit)
-	vminimus = _mm_shuffle_epi32(vmax, 0); // all elts = 0x8000
 
-	// Set all elts to 0x0002
-	vmin = _mm_shuffle_epi32(vmax, 0);     // all elts = 0x8000
-	vmin = _mm_srli_si128(vmin, 14);       // all elts = 0x0002
+	// Set all elts to 0x8000 (min value for signed 16-bit)
+	vlo = _mm_cmpeq_epi16(vlo, vlo);             // all elts = 0xffff
+	vlo = _mm_slli_epi16(vlo, NBITS_PER_WORD-1); // all elts = 0x8000
+
+	// Set all elts to 0x7fff (max value for signed 16-bit)
+	vhi = _mm_cmpeq_epi16(vhi, vhi);             // all elts = 0xffff
+	vhi = _mm_srli_epi16(vhi, 1);                // all elts = 0x7fff
 	
-	__m128i *pvScore;      // points into the query profile
-	__m128i *pvtmp;        // for swapping pvHStore/pvHLoad
+	// Set all elts to 0x8000 (min value for signed 16-bit)
+	vmax = vlo;
+
+	// vlolsw: topmost (least sig) word set to 0x8000, all other words=0
+	vlolsw = _mm_shuffle_epi32(vlo, 0);
+	vlolsw = _mm_srli_si128(vlolsw, NBYTES_PER_REG - NBYTES_PER_WORD);
+
+	// vhilsw: topmost (least sig) word set to 0x7fff, all other words=0
+	vhilsw = _mm_shuffle_epi32(vhi, 0);
+	vhilsw = _mm_srli_si128(vhilsw, NBYTES_PER_REG - NBYTES_PER_WORD);
+	
+	if(monotone) {
+		vfilllsw = vhilsw;
+	} else {
+		vfilllsw = vlolsw;
+	}
+	
+	__m128i *pvScore;                // points into the query profile
+	__m128i *pvtmp;                  // for swapping pvHStore/pvHLoad
 	__m128i *pvE      = d.pvE_;      // E vectors across outer loop iters
 	__m128i *pvHStore = d.pvHStore_; // H vectors across outer loop iters
 	__m128i *pvHLoad  = d.pvHLoad_;  // H vectors across outer loop iters
 	__m128i *qprof    = d.qprof_;    // query profile
 	
+	// Maximum score in final row
+	int lrmax = std::numeric_limits<short>::min();
+	
 	// Initialize the vectors that carry H and E values over outer-loop iters
-	for(size_t i = 0; i < iter; i++) {
-		_mm_store_si128(pvE + i, vmax);
-		_mm_store_si128(pvHStore + i, vmax);
+	if(monotone) {
+		for(size_t i = 0; i < iter; i++) {
+			_mm_store_si128(pvE + i, vlo);
+			_mm_store_si128(pvHStore + i, vhi); // start high
+		}
+	} else {
+		for(size_t i = 0; i < iter; i++) {
+			_mm_store_si128(pvE + i, vlo);
+			_mm_store_si128(pvHStore + i, vlo); // start low
+		}
 	}
 	
 	for(size_t i = rfi_; i < rff_; i++) {
-		// Fetch the appropriate query profile
-		pvScore = qprof + ((size_t)rf_[i] * iter);
+		// Calculate distance from RHS of paralellogram; helps us decide
+		// whether a solution can end in this column 
+		size_t fromend = rff_ - i - 1;
+		
+		// Fetch the appropriate query profile.  Note that elements of rf_ must
+		// be numbers, not masks.
+		pvScore = qprof + ((size_t)firsts5[(int)rf_[i]] * iter);
 		
 		// Set all elts to 0x8000 (min value for signed 16-bit)
 		vf = _mm_cmpeq_epi16(vf, vf);
-		vf = _mm_slli_epi16(vf, 15);
+		vf = _mm_slli_epi16(vf, NBITS_PER_WORD-1);
 
 		// Load the next h value
 		vh = _mm_load_si128(pvHStore + iter - 1);
-		vh = _mm_slli_si128(vh, 2);
-		vh = _mm_or_si128(vh, vmin);
+		// Shift 2 bytes down so that topmost (least sig) word gets 0
+		vh = _mm_slli_si128(vh, NBYTES_PER_WORD);
+		// Now set topmost word to vlolsw
+		if(i - rfi_ >= width_ || (st_ != NULL && !(*st_)[i - rfi_])) {
+			// Fill with large negative value
+			vh = _mm_or_si128(vh, vlolsw);
+		} else {
+			// Fill with normal initial value
+			vh = _mm_or_si128(vh, vfilllsw);
+		}
 
 		// Swap load and store arrays
 		pvtmp = pvHLoad;
@@ -252,8 +350,8 @@ int16_t SwAligner::alignNucleotidesSseI16() {
 			vmax = _mm_max_epi16(vmax, vh);
 
 			// Update H, factoring in E and F
-			vh = _mm_max_epi16 (vh, ve);
-			vh = _mm_max_epi16 (vh, vf);
+			vh = _mm_max_epi16(vh, ve);
+			vh = _mm_max_epi16(vh, vf);
 
 			// Save the new vH values
 			_mm_store_si128 (pvHStore + j, vh);
@@ -270,7 +368,7 @@ int16_t SwAligner::alignNucleotidesSseI16() {
 			// Update vf value
 			vtmp = _mm_subs_epi16(vtmp, rfgapo);
 			vf = _mm_subs_epi16 (vf, rfgape);
-			vf = _mm_max_epi16 (vf, vh);
+			vf = _mm_max_epi16 (vf, vtmp);
 
 			// Save E values
 			_mm_store_si128(pvE + j, ve);
@@ -282,12 +380,14 @@ int16_t SwAligner::alignNucleotidesSseI16() {
 		// Reset pointers to the start of the saved data
 		j = 0;
 		vh = _mm_load_si128(pvHStore + j);
+		
+		// Now I have the topmost vh and the bottommost vf
 
-		/*  the computed vf value is for the given column.  since */
-		/*  we are at the end, we need to shift the vf value over */
-		/*  to the next column. */
-		vf = _mm_slli_si128(vf, 2);
-		vf = _mm_or_si128(vf, vmin);
+		// vf from last row gets shifted down by one to overlay the first row
+		vf = _mm_slli_si128(vf, NBYTES_PER_WORD);
+		vf = _mm_or_si128(vf, vlolsw);
+		
+		// Charge a gap open to vh - this is one way we might update vf
 		vtmp = _mm_subs_epi16(vh, rfgapo);
 		vtmp = _mm_cmpgt_epi16(vf, vtmp);
 		int cmp = _mm_movemask_epi8(vtmp);
@@ -296,6 +396,7 @@ int16_t SwAligner::alignNucleotidesSseI16() {
 		while (cmp != 0x0000) {
 		
 			// Grab saved E vector
+			// What's going on here?
 			ve = _mm_load_si128(pvE + j);
 			vh = _mm_max_epi16(vh, vf);
 
@@ -313,10 +414,9 @@ int16_t SwAligner::alignNucleotidesSseI16() {
 			j++;
 			if(j >= iter) {
 				j = 0;
-				
-				vf = _mm_slli_si128(vf, 2);
+				vf = _mm_slli_si128(vf, NBYTES_PER_WORD);
 				// ? - not in pseudocode
-				vf = _mm_or_si128(vf, vmin);
+				vf = _mm_or_si128(vf, vlolsw);
 			}
 
 			vh = _mm_load_si128(pvHStore + j);
@@ -324,22 +424,37 @@ int16_t SwAligner::alignNucleotidesSseI16() {
 			vtmp = _mm_cmpgt_epi16(vf, vtmp);
 			cmp  = _mm_movemask_epi8(vtmp);
 		}
+		
+		if(monotone && fromend < width_) {
+			if(en_ == NULL || (*en_)[width_ - fromend - 1]) {
+				// Update lrmax
+				vh = _mm_load_si128(pvHStore + d.lastIter_);
+				// Note: we may not want to extract from the final row
+				int16_t lr = ((int16_t*)(&vh))[d.lastWord_];
+				if(lr > lrmax) {
+					lrmax = lr;
+				}
+			}
+		}
 	}
 
-	// Find largest score in vmax
-	vtmp = _mm_srli_si128(vmax, 8);
-	vmax = _mm_max_epi16(vmax, vtmp);
-	vtmp = _mm_srli_si128(vmax, 4);
-	vmax = _mm_max_epi16(vmax, vtmp);
-	vtmp = _mm_srli_si128(vmax, 2);
-	vmax = _mm_max_epi16(vmax, vtmp);
+	if(monotone) {
+		if(lrmax == std::numeric_limits<short>::min()) {
+			return (int16_t)0x8000;
+		}
+		return (int16_t)lrmax - 0x7fff;
+	} else {
+		// Find largest score in vmax
+		vtmp = _mm_srli_si128(vmax, 8);
+		vmax = _mm_max_epi16(vmax, vtmp);
+		vtmp = _mm_srli_si128(vmax, 4);
+		vmax = _mm_max_epi16(vmax, vtmp);
+		vtmp = _mm_srli_si128(vmax, 2);
+		vmax = _mm_max_epi16(vmax, vtmp);
 
-	// store in temporary variable
-	int16_t score = (int16_t)_mm_extract_epi16(vmax, 0);
-
-	/* return largest score */
-	int SHORT_BIAS = 0;
-	return score + SHORT_BIAS;
+		// Return largest score
+		return (int16_t)_mm_extract_epi16(vmax, 0) + 0x8000;
+	}
 }
 
 #endif

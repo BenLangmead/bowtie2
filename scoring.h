@@ -209,6 +209,22 @@ public:
 		assert_range(0, 255, q);
 		return (rdc > 3 || refm > 15) ? npens[q] : mmpens[q];
 	}
+	
+	/**
+	 * Return the score of the given read character with the given quality
+	 * aligning to the given reference mask.
+	 */
+	inline int score(int rdc, int refm, int q) const {
+		assert_range(0, 255, q);
+		if(rdc > 3 || refm > 15) {
+			return -npens[q];
+		}
+		if((refm & (1 << rdc)) != 0) {
+			return matchBonuses[q];
+		} else {
+			return -mmpens[q];
+		}
+	}
 
 	/**
 	 * Return the penalty incurred by a mismatch at an alignment column

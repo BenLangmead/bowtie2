@@ -30,6 +30,7 @@ struct SwResult {
 		swcups(0),
 		swrows(0),
 		swskiprows(0),
+		swskip(0),
 		swsucc(0),
 		swfail(0),
 		swbts(0)
@@ -39,7 +40,7 @@ struct SwResult {
 	 * Clear all contents.
 	 */
 	void reset() {
-		sws = swcups = swrows = swskiprows = swsucc =
+		sws = swcups = swrows = swskiprows = swskip = swsucc =
 		swfail = swbts = 0;
 		alres.reset();
 	}
@@ -67,13 +68,14 @@ struct SwResult {
 	}
 
 	AlnRes alres;
-	uint64_t sws;    // # dynamic programming problems solved
-	uint64_t swcups; // # dynamic programming cell updates
-	uint64_t swrows; // # dynamic programming row updates
-	uint64_t swskiprows; // # skipped dynamic programming row updates (b/c no valid alignments can go thru row)
-	uint64_t swsucc; // # dynamic programming problems resulting in alignment
-	uint64_t swfail; // # dynamic programming problems not resulting in alignment
-	uint64_t swbts;  // # dynamic programming backtrace steps
+	uint64_t sws;    // # DP problems solved
+	uint64_t swcups; // # DP cell updates
+	uint64_t swrows; // # DP row updates
+	uint64_t swskiprows; // # skipped DP row updates (b/c no valid alignments can go thru row)
+	uint64_t swskip; // # DP problems skipped by sse filter
+	uint64_t swsucc; // # DP problems resulting in alignment
+	uint64_t swfail; // # DP problems not resulting in alignment
+	uint64_t swbts;  // # DP backtrace steps
 	
 	int nup;         // upstream decoded nucleotide; for colorspace reads
 	int ndn;         // downstream decoded nucleotide; for colorspace reads
@@ -88,28 +90,30 @@ struct SwMetrics {
 	SwMetrics() { reset(); MUTEX_INIT(lock); }
 	
 	void reset() {
-		sws = swcups = swrows = swskiprows = swsucc = swfail = swbts =
+		sws = swcups = swrows = swskiprows = swskip = swsucc = swfail = swbts =
 		rshit = 0;
 	}
 	
 	void init(
-		uint64_t s1,
-		uint64_t s2,
-		uint64_t s3,
-		uint64_t s4,
-		uint64_t s5,
-		uint64_t s6,
-		uint64_t s7,
-		uint64_t s8)
+		uint64_t sws_,
+		uint64_t swcups_,
+		uint64_t swrows_,
+		uint64_t swskiprows_,
+		uint64_t swskip_,
+		uint64_t swsucc_,
+		uint64_t swfail_,
+		uint64_t swbts_,
+		uint64_t rshit_)
 	{
-		sws        = s1;
-		swcups     = s2;
-		swrows     = s3;
-		swskiprows = s4;
-		swsucc     = s5;
-		swfail     = s6;
-		swbts      = s7;
-		rshit      = s8;
+		sws        = sws_;
+		swcups     = swcups_;
+		swrows     = swrows_;
+		swskiprows = swskiprows_;
+		swskip     = swskip_;
+		swsucc     = swsucc_;
+		swfail     = swfail_;
+		swbts      = swbts_;
+		rshit      = rshit_;
 	}
 	
 	/**
@@ -121,6 +125,7 @@ struct SwMetrics {
 		swcups     += r.swcups;
 		swrows     += r.swrows;
 		swskiprows += r.swskiprows;
+		swskip     += r.swskip;
 		swsucc     += r.swsucc;
 		swfail     += r.swfail;
 		swbts      += r.swbts;
@@ -137,19 +142,22 @@ struct SwMetrics {
 		swcups     += r.swcups;
 		swrows     += r.swrows;
 		swskiprows += r.swskiprows;
+		swskip     += r.swskip;
 		swsucc     += r.swsucc;
 		swfail     += r.swfail;
 		swbts      += r.swbts;
+		rshit      += r.rshit;
 	}
 
-	uint64_t sws;    // # dynamic programming problems solved
-	uint64_t swcups; // # dynamic programming cell updates
-	uint64_t swrows; // # dynamic programming row updates
-	uint64_t swskiprows; // # skipped dynamic programming row updates (b/c no valid alignments can go thru row)
-	uint64_t swsucc; // # dynamic programming problems resulting in alignment
-	uint64_t swfail; // # dynamic programming problems not resulting in alignment
-	uint64_t swbts;  // # dynamic programming backtrace steps
-	uint64_t rshit;  // # dynamic programming problems avoided b/c seed hit was redundant
+	uint64_t sws;        // # DP problems solved
+	uint64_t swcups;     // # DP cell updates
+	uint64_t swrows;     // # DP row updates
+	uint64_t swskiprows; // # skipped DP rows (b/c no valid alns go thru row)
+	uint64_t swskip;     // # DP problems skipped by sse filter
+	uint64_t swsucc;     // # DP problems resulting in alignment
+	uint64_t swfail;     // # DP problems not resulting in alignment
+	uint64_t swbts;      // # DP backtrace steps
+	uint64_t rshit;      // # DP problems avoided b/c seed hit was redundant
 	MUTEX_T lock;
 };
 

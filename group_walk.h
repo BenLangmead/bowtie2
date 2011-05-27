@@ -95,7 +95,9 @@ struct WalkMetrics {
 		ThreadSafe ts(&lock, getLock);
 		bwops += m.bwops;
 		branches += m.branches;
-		resolutions += m.resolutions;
+		resolves += m.resolves;
+		refscanhits += m.refscanhits;
+		refresolves += m.refresolves;
 		reports += m.reports;
 	}
 	
@@ -103,12 +105,14 @@ struct WalkMetrics {
 	 * Set all to 0.
 	 */
 	void reset() {
-		bwops = branches = resolutions = reports = 0;
+		bwops = branches = resolves = refscanhits = refresolves = reports = 0;
 	}
 
 	uint64_t bwops;       // Burrows-Wheeler operations
 	uint64_t branches;    // BW range branch-offs
-	uint64_t resolutions; // # offs resolved
+	uint64_t resolves;    // # offs resolved with BW walk-left
+	uint64_t refscanhits; // # reference-scanning hits
+	uint64_t refresolves; // # resolutions caused by reference scanning
 	uint64_t reports;     // # offs reported (1 can be reported many times)
 	MUTEX_T lock;
 };
@@ -429,10 +433,10 @@ public:
 				if(toff != 0xffffffff) {
 					// Yes, toff was resolvable
 					assert_eq(toff, ebwt.getOffset(bwrow));
-					met.resolutions++;
+					met.resolves++;
 					toff += step;
 					assert_eq(toff, ebwt.getOffset(origBwRow));
-					setOff(i, toff, hit);
+					setOff(i, toff, hit, met);
 					if(!reportList) ret.first++;
 #ifndef NDEBUG
 					// Sanity check that the reference characters under this
@@ -757,12 +761,12 @@ public:
 	 * Set the PListSlice element that corresponds to the ith element
 	 * of 'map' to the specified offset.
 	 */
-	void setOff(size_t i, uint32_t off, GWHit& hit) {
+	void setOff(size_t i, uint32_t off, GWHit& hit, WalkMetrics& met) {
 		assert_lt(i+mapi_, map_.size());
 		assert_lt(map_[i+mapi_], hit.satup->offs.size());
 		size_t saoff = map_[i+mapi_];
 		if(hit.sacomb->inited()) {
-			hit.sacomb->setSalist(saoff, off);
+			hit.sacomb->setSalist(saoff, off, met.refresolves);
 		} else {
 			hit.satup->offs[saoff] = off;
 		}
