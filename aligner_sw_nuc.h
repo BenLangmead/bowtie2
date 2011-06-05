@@ -280,6 +280,45 @@ struct DpNucBtCandidate {
 /**
  * Encapsulates all information needed to encode the optimal subproblem
  * at a cell in a colorspace SW matrix.
+ *
+ * Besides scores and masks, we also need to keep track of a few variables that
+ * determine how we should backtrack through and into the cell:
+ *
+ * empty:
+ *
+ *   Set to true upon reset()/clear().  Set to false in finalize() if both (a)
+ *   the mask IS NOT empty, (b) the best score is not less than the score floor.
+ *   See 'terminal' below.
+ *
+ * terminal:
+ *
+ *   Set to false upon reset()/clear().  Set to true in finalize() if both (a)
+ *   the mask IS empty, (b) the best score is not less than the score floor.
+ *   See 'empty' above.
+ *
+ * reportedThru_:
+ *
+ *   Set to false upon reset()/clear().  Once backtrackNucleotides() has picked
+ *   a valid path to backtrace through, it sets reportedThru_ to true for all
+ *   cells on the path.
+ *
+ * backtraceCandidate:
+ *
+ *   Set to false upon reset()/clear().  In the UPDATE_SOLS macro, it is set to
+ *   true iff the cell is one that we might want to backtrace from.  In
+ *   end-to-end alignment mode, this means that it must (a) have a score not
+ *   less than the minimum, (b) be in the last row, (c) not be in a diagonal
+ *   disallowed by the en_ vector.  In local alignment mode, this means that it
+ *   must (a) have a score not less than the minimum, (b) be an improvement
+ *   over the score diagonally before it, (c) the score diagnoally after cannot
+ *   be a further improvement, and (d) cannot be in a diagonal disallowed by
+ *   the en_ vector.
+ *
+ * finalized (debug only):
+ *
+ *   Set to false upon reset()/clear().  Set to true by user when the mask and
+ *   best scores are finished being updated and the 'empty' and 'termina;'
+ *   fields have been set appropriately.
  */
 struct SwNucCell {
 
@@ -293,7 +332,7 @@ struct SwNucCell {
 		mask.clear();
 		terminal = false;
 		empty = true;
-		reportedFrom_ = reportedThru_ = false;
+		reportedThru_ = false;
 		backtraceCandidate = false;
 		assert(mask.empty());
 		assert(!oallBest.valid());
@@ -309,8 +348,8 @@ struct SwNucCell {
 	 */
 	bool valid() const {
 		bool val = VALID_AL_SCORE(oallBest);
-		assert(!val || VALID_AL_SCORE(rdgapBest));
-		assert(!val || VALID_AL_SCORE(rfgapBest));
+		//assert(!val || VALID_AL_SCORE(rdgapBest));
+		//assert(!val || VALID_AL_SCORE(rfgapBest));
 		return val;
 	}
 
@@ -331,9 +370,7 @@ struct SwNucCell {
 	 * return true.  Otherwise, return false.
 	 */
 	inline bool hasSolutionEq(const TAlScore& eq) {
-		return
-			!empty && !reportedFrom_ && !reportedThru_ &&
-			oallBest.score() == eq;
+		return !empty && !reportedThru_ && oallBest.score() == eq;
 	}
 
 	/**
@@ -341,21 +378,7 @@ struct SwNucCell {
 	 * equal to the given score.  If so, return true.  Otherwise, return false.
 	 */
 	inline bool hasSolutionGeq(const TAlScore& eq) {
-		return
-			!empty && !reportedFrom_ && !reportedThru_ &&
-			oallBest.score() >= eq;
-	}
-
-	/**
-	 * Determine whether this cell has a solution with the given score.  If so,
-	 * return true.  Otherwise, return false.
-	 */
-	inline bool nextSolutionEq(const TAlScore& eq) {
-		if(hasSolutionEq(eq)) {
-			reportedFrom_ = true;
-			return true;
-		}
-		return false;
+		return !empty && !reportedThru_ && oallBest.score() >= eq;
 	}
 	
 	/**
@@ -369,7 +392,9 @@ struct SwNucCell {
 	}
 	
 	/**
-	 * Return true iff we can backtrace through this cell.
+	 * Return true iff we can backtrace through this cell.  Called by
+	 * backtrackNucleotides() to see if we should abort our current backtrace
+	 * without reporting the alignment.
 	 */
 	inline bool canMoveThrough(int ct) const {
 		bool empty = mask.numPossible(ct) == 0;
@@ -430,10 +455,6 @@ struct SwNucCell {
 	// Initialized to false, set to true once an alignment that moves through
 	// the cell is reported.
 	bool reportedThru_;
-	
-	// Initialized to false, set to true once an alignment for which the
-	// backtrace begins at this cell is reported.
-	bool reportedFrom_;
 
 	// Initialized to false, set to true iff it is found to be a candidate cell
 	// for starting a bactrace.

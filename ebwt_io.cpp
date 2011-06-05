@@ -97,8 +97,8 @@ void Ebwt::readIntoMemory(
 					cerr << "Error: Could not stat index file " << names[i] << " prior to memory-mapping" << endl;
 					throw 1;
 				}
-				mmFile[i] = (char*)mmap((void *)0, sbuf.st_size,
-										PROT_READ, MAP_SHARED, fds[i], 0);
+				mmFile[i] = (char*)mmap((void *)0, (size_t)sbuf.st_size,
+										PROT_READ, MAP_SHARED, fds[(size_t)i], 0);
 				if(mmFile == (void *)(-1)) {
 					perror("mmap");
 					cerr << "Error: Could not memory-map the index file " << names[i] << endl;

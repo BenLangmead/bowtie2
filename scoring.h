@@ -170,6 +170,16 @@ public:
 	}
 	
 	/**
+	 * Set a constant match bonus.
+	 */
+	void setMatchBonus(int bonus) {
+		matchType  = COST_MODEL_CONSTANT;
+		matchConst = bonus;
+		initPens<float>(matchBonuses, matchType, matchConst);
+		assert(repOk());
+	}
+	
+	/**
 	 * Set the N penalty.
 	 */
 	void setNPen(int nType, int n) {
