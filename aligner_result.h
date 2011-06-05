@@ -488,6 +488,16 @@ public:
 		assert(shapeSet_);
 		return refcoord_.off();
 	}
+
+	/**
+	 * Return the 0-based offset of the alignment into the reference
+	 * sequence it aligned to, after soft trimming is applied.
+	 */
+	inline TRefOff refOffSoftTrimmed() const {
+		assert(shapeSet_);
+		return refcoord_.off() +
+			(refcoord_.fw() ? softTrimmed5p() : softTrimmed3p());
+	}
 	
 	/**
 	 * Set arguments to coordinates for the upstream-most and downstream-most
@@ -946,6 +956,28 @@ public:
 		bool               cTrimSoft    = true,
 		size_t             cTrim5p      = 0, // trimming from alignment
 		size_t             cTrim3p      = 0);// trimming from alignment
+
+	size_t softTrimmed5p() const {
+		size_t trim = 0;
+		if(pretrimSoft_) {
+			trim += pretrim5p_;
+		}
+		if(trimSoft_) {
+			trim += trim5p_;
+		}
+		return trim;
+	}
+
+	size_t softTrimmed3p() const {
+		size_t trim = 0;
+		if(pretrimSoft_) {
+			trim += pretrim3p_;
+		}
+		if(trimSoft_) {
+			trim += trim3p_;
+		}
+		return trim;
+	}
 
 	/**
 	 * Set the number of reference Ns covered by the alignment.

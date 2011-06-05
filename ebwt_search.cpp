@@ -226,6 +226,7 @@ static float rowmult;        // seed extension attempts per pos
 static size_t maxhalf;       // max width on one side of DP table
 static bool seedSummaryOnly; // print summary information about seed hits, not alignments
 static bool scanNarrowed;    // true -> do ref scan even when seed is narrow
+static bool noSse;           // disable SSE-based dynamic programming
 
 static void resetOptions() {
 	mates1.clear();
@@ -414,6 +415,7 @@ static void resetOptions() {
 	maxhalf            = 100; // max width on one side of DP table
 	seedSummaryOnly    = false; // print summary information about seed hits, not alignments
 	scanNarrowed       = false; // true -> do ref scan even when seed is narrow
+	noSse              = false; // disable SSE-based dynamic programming
 }
 
 static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:o:e:n:l:w:p:k:m:M:1:2:I:X:x:B:ySCgO:E:Q:";
@@ -511,7 +513,8 @@ enum {
 	ARG_NOISY_HPOLY,
 	ARG_LOCAL,
 	ARG_OFFRATE_ADD,
-	ARG_SCAN_NARROWED
+	ARG_SCAN_NARROWED,
+	ARG_NO_SSE
 };
 
 static struct option long_options[] = {
@@ -636,6 +639,7 @@ static struct option long_options[] = {
 	{(char*)"no-discordant",no_argument,       0,            ARG_NO_DISCORDANT},
 	{(char*)"local",        no_argument,       0,            ARG_LOCAL},
 	{(char*)"scan-narrowed",no_argument,       0,            ARG_SCAN_NARROWED},
+	{(char*)"no-sse",       no_argument,       0,            ARG_NO_SSE},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -1168,6 +1172,7 @@ static void parseOptions(int argc, const char **argv) {
 				break;
 			case ARG_LOCAL: localAlign = true; break;
 			case ARG_SCAN_NARROWED: scanNarrowed = true; break;
+			case ARG_NO_SSE: noSse = true; break;
 			case ARG_NOISY_HPOLY: noisyHpolymer = true; break;
 			case 'P': seedAlignmentPolicyString = optarg; break;
 			case ARG_SA_DUMP: {
@@ -2452,7 +2457,7 @@ static void* multiseedSearchWorker(void *vp) {
 
 	SeedAligner al;
 	SwDriver sd;
-	SwAligner sw, osw;
+	SwAligner sw(!noSse), osw(!noSse);
 	SeedResults shs[2];
 	QVal *qv;
 	OuterLoopMetrics olm;

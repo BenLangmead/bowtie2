@@ -496,7 +496,7 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
 			VMSG_NL("Splitting and merging");
 			for(int64_t i = 0; i < numBuckets; i++) {
 				uint32_t mergedSz = bsz + 1;
-				assert(bucketSzs[i] == 0 || bucketReps[i] != 0xffffffff);
+				assert(bucketSzs[(size_t)i] == 0 || bucketReps[(size_t)i] != 0xffffffff);
 				if(i < (int64_t)numBuckets-1) {
 					mergedSz = bucketSzs[(size_t)i] + bucketSzs[(size_t)i+1] + 1;
 				}
@@ -505,7 +505,7 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
 					bucketSzs[(size_t)i+1] += (bucketSzs[(size_t)i]+1);
 					// The following may look strange, but it's necessary
 					// to ensure that the merged bucket has a representative
-					bucketReps[i+1] = _sampleSuffs[(size_t)i+added];
+					bucketReps[(size_t)i+1] = _sampleSuffs[(size_t)i+added];
 					_sampleSuffs.erase((size_t)i+added);
 					bucketSzs.erase((size_t)i);
 					bucketReps.erase((size_t)i);
@@ -516,11 +516,11 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
 					assert_eq(numBuckets, bucketSzs.size());
 				}
 				// Split?
-				else if(bucketSzs[i] > bsz) {
+				else if(bucketSzs[(size_t)i] > bsz) {
 					// Add an additional sample from the bucketReps[]
 					// set accumulated in the binarySASearch loop; this
 					// effectively splits the bucket
-					_sampleSuffs.insert(bucketReps[i], i + (added++));
+					_sampleSuffs.insert(bucketReps[(size_t)i], i + (added++));
 				}
 			}
 		}
@@ -680,7 +680,7 @@ bool KarkkainenBlockwiseSA<TStr>::suffixCmp(
 	// is neither a Z box nor a previous match)
 	if(i + l == k) {
 		// Extend
-		while(l < len-cmp && k < len && t[cmp+l] == t[k]) {
+		while(l < len-cmp && k < len && t[(size_t)(cmp+l)] == t[(size_t)k]) {
 			k++; l++;
 		}
 		j = i; // update furthest-extending LHS
@@ -692,7 +692,7 @@ bool KarkkainenBlockwiseSA<TStr>::suffixCmp(
 		l = (uint32_t)(k - i); // point to just after previous match
 		j = i; // update furthest-extending LHS
 		if(kSoft) {
-			while(l < len-cmp && k < len && t[cmp+l] == t[k]) {
+			while(l < len-cmp && k < len && t[(size_t)(cmp+l)] == t[(size_t)k]) {
 				k++; l++;
 			}
 			kSoft = false;

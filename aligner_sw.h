@@ -50,29 +50,16 @@
 #include "mask.h"
 #include "seed_scan.h"
 
+#ifndef NO_SSE
+#include "aligner_swsse.h"
+#endif
+
 #define QUAL2(d, f) sc_->mm((int)(*rd_)[rdi_ + d], \
 							(int)  rf_ [rfi_ + f], \
 							(int)(*qu_)[rdi_ + d] - 33)
 #define QUAL(d)     sc_->mm((int)(*rd_)[rdi_ + d], \
 							(int)(*qu_)[rdi_ + d] - 33)
 #define N_SNP_PEN(c) (((int)rf_[rfi_ + c] > 15) ? sc_->n(30) : sc_->penSnp)
-
-/**
- * All the data associated with the query profile and other data needed for SSE
- * alignment of a query.
- */
-struct SSEData {
-	SSEData(int cat = 0) : buf_(cat) { }
-	EList<uint8_t> buf_;      // buffer for query profile & temp vecs
-	__m128i       *qprof_;    // query profile
-	__m128i       *pvHStore_; // pvHStore
-	__m128i       *pvHLoad_;  // pvHLoad
-	__m128i       *pvE_;      // pvE
-	size_t         maxPen_;   // biggest penalty of all
-	size_t         maxBonus_; // biggest bonus of all
-	size_t         lastIter_; // which 128-bit striped word has the final row?
-	size_t         lastWord_; // which word within 128-word has final row?
-};
 
 /**
  * SwAligner
@@ -189,9 +176,9 @@ class SwAligner {
 
 public:
 
-	SwAligner() :
+	explicit SwAligner(bool sse = true) :
 #ifndef NO_SSE
-		sse_(true),
+		sse_(sse),
 		sseU8fw_(DP_CAT),
 		sseU8rc_(DP_CAT),
 		sseI16fw_(DP_CAT),
@@ -504,17 +491,15 @@ protected:
 
 	/**
 	 * Align nucleotides from read 'rd' to the reference string 'rf' using
-	 * vector instructions.  Return true iff zero or more alignments are
-	 * possible.
+	 * vector instructions.  Return the score of the best alignment found, or
+	 * the minimum integer if an alignment could not be found.  Flag is set to
+	 * 0 if an alignment is found, -1 if no valid alignment is found, or -2 if
+	 * the score saturated at any point during alignment.
 	 */
-	uint8_t alignNucleotidesSseU8();
-	
-	/**
-	 * Align nucleotides from read 'rd' to the reference string 'rf' using
-	 * vector instructions.  Return true iff zero or more alignments are
-	 * possible.
-	 */
-	int16_t alignNucleotidesSseI16();
+	int alignNucleotidesEnd2EndSseU8(int& flag);  // unsigned 8-bit elements
+	int alignNucleotidesLocalSseU8(int& flag);    // unsigned 8-bit elements
+	int alignNucleotidesEnd2EndSseI16(int& flag); // signed 16-bit elements
+	int alignNucleotidesLocalSseI16(int& flag);   // signed 16-bit elements
 	
 	/**
 	 * Build query profile look up tables for the read.  The query profile look
@@ -522,7 +507,8 @@ protected:
 	 * reference character in the current DP column (0=A, 1=C, etc), and j is
 	 * the segment of the query we're currently working on.
 	 */
-	void buildQueryProfileSseU8(bool fw);
+	void buildQueryProfileEnd2EndSseU8(bool fw);
+	void buildQueryProfileLocalSseU8(bool fw);
 
 	/**
 	 * Build query profile look up tables for the read.  The query profile look
@@ -530,7 +516,8 @@ protected:
 	 * reference character in the current DP column (0=A, 1=C, etc), and j is
 	 * the segment of the query we're currently working on.
 	 */
-	void buildQueryProfileSseI16(bool fw);
+	void buildQueryProfileEnd2EndSseI16(bool fw);
+	void buildQueryProfileLocalSseI16(bool fw);
 
 #endif
 

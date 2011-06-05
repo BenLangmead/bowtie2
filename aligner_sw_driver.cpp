@@ -952,9 +952,9 @@ bool SwDriver::extendSeedsPaired(
 							fw1  = anchor1 ? res_.alres.fw() : ores_.alres.fw();
 							fw2  = anchor1 ? ores_.alres.fw() : res_.alres.fw();
 							fragoff = min<TRefOff>(off1, off2);
-							fraglen = max<TRefOff>(
-								off1 - fragoff + len1,
-								off2 - fragoff + len2);
+							fraglen = (size_t)max<TRefOff>(
+								off1 - fragoff + (TRefOff)len1,
+								off2 - fragoff + (TRefOff)len2);
 							// Check that final mate alignments are consistent with
 							// paired-end fragment constraints
 							pairCl = pepol.peClassifyPair(

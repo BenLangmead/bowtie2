@@ -347,8 +347,6 @@ struct SwColorCell {
 		backtraceCandidate = false;
 		terminal[0] = terminal[1] = terminal[2] = terminal[3] = false;
 		reportedThru_ = false;
-		reportedFrom_[0] = reportedFrom_[1] =
-		reportedFrom_[2] = reportedFrom_[3] = false;
 		ASSERT_ONLY(finalized = false);
 	}
 	
@@ -388,8 +386,7 @@ struct SwColorCell {
 		AlnScore bestSoFar;
 		bestSoFar.invalidate();
 		for(int i = 0; i < 4; i++) {
-			if(!reportedFrom_[i] &&
-			   oallBest[i].score() >= min &&
+			if(oallBest[i].score() >= min &&
 			   oallBest[i] > bestSoFar)
 			{
 				bestSoFar = oallBest[i];
@@ -412,7 +409,7 @@ struct SwColorCell {
 			return false;
 		}
 		for(int i = 0; i < 4; i++) {
-			if(!reportedFrom_[i] && oallBest[i].score() == eq) {
+			if(oallBest[i].score() == eq) {
 				return true;
 			}
 		}
@@ -428,34 +425,13 @@ struct SwColorCell {
 			return false;
 		}
 		for(int i = 0; i < 4; i++) {
-			if(!reportedFrom_[i] && oallBest[i].score() >= eq) {
+			if(oallBest[i].score() >= eq) {
 				return true;
 			}
 		}
 		return false;
 	}
 
-	/**
-	 * Determine whether this cell has a solution with the given score.  If so,
-	 * return true.  Otherwise, return false.
-	 */
-	inline bool nextSolutionEq(
-		const TAlScore& eq,
-		int& nuc)
-	{
-		if(reportedThru_ || empty) {
-			return false;
-		}
-		for(int i = 0; i < 4; i++) {
-			if(!reportedFrom_[i] && oallBest[i].score() == eq) {
-				reportedFrom_[i] = true;
-				nuc = i;     // set decoded nucleotide for last alignment pos
-				return true; // found a cell to potentially backtrack from
-			}
-		}
-		return false;
-	}
-	
 	/**
 	 * Mark this cell as "reported through," meaning that an already-reported
 	 * alignment goes through the cell.  Future alignments that go through this
@@ -518,10 +494,6 @@ struct SwColorCell {
 	// the cell is reported.
 	bool reportedThru_;
 	
-	// Initialized to false, set to true once an alignment for which the
-	// backtrace begins at this cell is reported.
-	bool reportedFrom_[4];
-
 	// Initialized to false, set to true iff it is found to be a candidate cell
 	// for starting a bactrace.
 	bool backtraceCandidate;
