@@ -490,16 +490,6 @@ public:
 	}
 
 	/**
-	 * Return the 0-based offset of the alignment into the reference
-	 * sequence it aligned to, after soft trimming is applied.
-	 */
-	inline TRefOff refOffSoftTrimmed() const {
-		assert(shapeSet_);
-		return refcoord_.off() +
-			(refcoord_.fw() ? softTrimmed5p() : softTrimmed3p());
-	}
-	
-	/**
 	 * Set arguments to coordinates for the upstream-most and downstream-most
 	 * reference positions involved in the alignment.
 	 */

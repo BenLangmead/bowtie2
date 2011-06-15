@@ -619,6 +619,48 @@ public:
 	inline const T& front() const { return front(); }
 
 	/**
+	 * Return true iff this list and list o contain the same elements in the
+	 * same order according to type T's operator==.
+	 */
+	bool operator==(const EList<T, S>& o) const {
+		if(size() != o.size()) {
+			return false;
+		}
+		for(size_t i = 0; i < size(); i++) {
+			if(!(get(i) == o.get(i))) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Return true iff this list contains all of the elements in o according to
+	 * type T's operator==.
+	 */
+	bool isSuperset(const EList<T, S>& o) const {
+		if(o.size() > size()) {
+			// This can't be a superset if the other set contains more elts
+			return false;
+		}
+		// For each element in o
+		for(size_t i = 0; i < o.size(); i++) {
+			bool inthis = false;
+			// Check if it's in this
+			for(size_t j = 0; j < size(); j++) {
+				if(o[i] == (*this)[j]) {
+					inthis = true;
+					break;
+				}
+			}
+			if(!inthis) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
 	 * Return a reference to the ith element.
 	 */
 	inline T& operator[](size_t i) {

@@ -298,7 +298,7 @@ struct DpNucBtCandidate {
  *
  * reportedThru_:
  *
- *   Set to false upon reset()/clear().  Once backtrackNucleotides() has picked
+ *   Set to false upon reset()/clear().  Once backtraceNucleotides() has picked
  *   a valid path to backtrace through, it sets reportedThru_ to true for all
  *   cells on the path.
  *
@@ -393,7 +393,7 @@ struct SwNucCell {
 	
 	/**
 	 * Return true iff we can backtrace through this cell.  Called by
-	 * backtrackNucleotides() to see if we should abort our current backtrace
+	 * backtraceNucleotides() to see if we should abort our current backtrace
 	 * without reporting the alignment.
 	 */
 	inline bool canMoveThrough(int ct) const {
