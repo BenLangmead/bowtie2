@@ -840,31 +840,33 @@ inline void SwAligner::updateColorDiag(
 // 5. 'solcols_' is a list of pairs, where each pair cor
 // 6. 'solbest_'
 // 7. 'solrowbest_'
-#define UPDATE_SOLS(cur, row, col, improved, best) { \
-	assert_lt(col, width_); \
-	if(en_ == NULL || (*en_)[col]) { \
-		/* Column is acceptable */ \
-		for(int I = 0; I < 4; I++) { \
-			if(cur.oallBest[I].score() >= minsc_) { \
-				/* Score and column are acceptable */ \
-				const bool local = !sc_->monotone; \
-				/* For local alignment, a cell is only a solution candidate */ \
-				/* if the score was improved when we moved into the cell. */ \
-				if(!local || improved) { \
-					/* Score is acceptable */ \
-					if((int64_t)row >= solrowlo_) { \
-						if(cur.oallBest[I].score() > best) { \
-							best = cur.oallBest[I].score(); \
+#define UPDATE_SOLS(cur, row, col, fromend, improved, best) { \
+	if(fromend < solwidth_) { \
+		size_t widcol = solwidth_ - fromend - 1; \
+		if(en_ == NULL || (*en_)[widcol]) { \
+			/* Column is acceptable */ \
+			for(int I = 0; I < 4; I++) { \
+				if(cur.oallBest[I].score() >= minsc_) { \
+					/* Score and column are acceptable */ \
+					const bool local = !sc_->monotone; \
+					/* For local alignment, a cell is only a solution candidate */ \
+					/* if the score was improved when we moved into the cell. */ \
+					if(!local || improved) { \
+						/* Score is acceptable */ \
+						if((int64_t)row >= solrowlo_) { \
+							if(cur.oallBest[I].score() > best) { \
+								best = cur.oallBest[I].score(); \
+							} \
+							/* Row is acceptable */ \
+							/* This cell is now a good candidate for backtrace BUT */ \
+							/* in local alignment mode we still need to know */ \
+							/* whether this solution is improved upon in the next */ \
+							/* row.  If it is improved upon later, this flag is set */ \
+							/* to false later. */ \
+							tab[row][col].backtraceCandidate = true; \
+							if(row > 0) tab[row-1][col].backtraceCandidate = false; \
+							assert(repOk()); \
 						} \
-						/* Row is acceptable */ \
-						/* This cell is now a good candidate for backtrace BUT */ \
-						/* in local alignment mode we still need to know */ \
-						/* whether this solution is improved upon in the next */ \
-						/* row.  If it is improved upon later, this flag is set */ \
-						/* to false later. */ \
-						tab[row][col].backtraceCandidate = true; \
-						if(row > 0) tab[row-1][col].backtraceCandidate = false; \
-						assert(repOk()); \
 					} \
 				} \
 			} \
@@ -874,11 +876,11 @@ inline void SwAligner::updateColorDiag(
 
 // c is the column offset with respect to the LHS of the rectangle; for offset
 // w/r/t LHS of parallelogram, use r+c
-#define FINALIZE_CELL(r, c, improved, best) { \
+#define FINALIZE_CELL(r, c, fromend, improved, best) { \
 	assert_lt(col, width_); \
 	assert(!tab[r][c].finalized); \
 	if(tab[r][c].finalize(floorsc_)) { \
-		UPDATE_SOLS(tab[r][c], r, c, improved, best); \
+		UPDATE_SOLS(tab[r][c], r, c, fromend, improved, best); \
 		validInRow = true; \
 	} \
 	assert(tab[r][c].finalized); \
@@ -930,9 +932,14 @@ TAlScore SwAligner::alignColors() {
 	for(size_t col = 0; col <= whi; col++) {
 		TCell& curc = tab[0][col];
 		curc.clear(); // clear the cell; masks and scores
+		size_t fromend = whi - col;
 		int rfm = rf_[rfi_+col];
 		// Can we start from here?
-		bool canStart = (st_ == NULL || (*st_)[col]);
+		bool canStart = true;
+		//bool canStart = false;
+		//if(col < solwidth_) {
+		//	canStart = (st_ == NULL || (*st_)[col]);
+		//}
 		bool improved = false;
 		if(canStart) {
 			for(int to = 0; to < 4; to++) {
@@ -972,7 +979,7 @@ TAlScore SwAligner::alignColors() {
 			updateColorHoriz(tab[0][col-1], curc, rfm);
 			ncups_++;
 		}
-		FINALIZE_CELL(0, col, improved, best);
+		FINALIZE_CELL(0, col, fromend, improved, best);
 	}
 	nrowups_++;
 	if(!validInRow) {
@@ -988,6 +995,7 @@ TAlScore SwAligner::alignColors() {
 	for(size_t row = 1; row <= rdf_ - rdi_; row++) {
 		nrowups_++;
 		tab.expand(); // add another row
+		size_t fromend = whi - 0;
 		bool onlyDiagInto =
 			(row+1             <= (size_t)sc_->gapbar ||
 			 rdf_ - rdi_ - row <= (size_t)sc_->gapbar);
@@ -1029,11 +1037,12 @@ TAlScore SwAligner::alignColors() {
 		}
 		ncups_++;
 		// 'cur' is now initialized
-		FINALIZE_CELL(row, col, improved, best);
+		FINALIZE_CELL(row, col, fromend, improved, best);
 		// Iterate from leftmost to rightmost inner diagonals
 		for(col = wlo+1; col < whi; col++) {
 			const size_t fullcol = col + row;
 			int r = rf_[rfi_ + fullcol];
+			size_t fromend = whi - col;
 			TCell& cur = tab[row][col-wlo];
 			cur.clear();
 			TCell& dg = tab[row-1][col-wlo];
@@ -1066,7 +1075,7 @@ TAlScore SwAligner::alignColors() {
 			}
 			ncups_++;
 			// 'cur' is now initialized
-			FINALIZE_CELL(row, col, improved, best);
+			FINALIZE_CELL(row, col, fromend, improved, best);
 		} // end loop over inner diagonals
 		//
 		// Handle the col == whi case (provided wlo != whi) after the
@@ -1074,6 +1083,7 @@ TAlScore SwAligner::alignColors() {
 		// inside it.
 		//
 		if(whi > wlo) {
+			size_t fromend = 0;
 			col = whi;
 			TCell& cur = tab[row][col-wlo];
 			cur.clear();
@@ -1099,7 +1109,7 @@ TAlScore SwAligner::alignColors() {
 			}
 			ncups_++;
 			// 'cur' is now initialized
-			FINALIZE_CELL(row, col, improved, best);
+			FINALIZE_CELL(row, col, fromend, improved, best);
 		}
 		if(!validInRow) {
 			assert_geq(rdf_ - rdi_, row);

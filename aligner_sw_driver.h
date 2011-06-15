@@ -84,7 +84,7 @@ public:
 		redAnchor_(DP_CAT),
 		redMate1_(DP_CAT),
 		redMate2_(DP_CAT),
-		st_(1024, DP_CAT),
+		//st_(1024, DP_CAT),
 		en_(1024, DP_CAT),
 		res_(), ores_()
 	{ }
@@ -263,9 +263,9 @@ protected:
 	RedundantAlns  redMate2_;   // database of cells used for mate 2 alignments
 
 	// For specifying starting and ending columns
-	EList<bool>    st_;         // temp holder for dyn prog starting mask
+	//EList<bool>    st_;         // temp holder for dyn prog starting mask
 	EList<bool>    en_;         // temp holder for dyn prog ending mask
-	EList<bool>    ost_;        // like st_ but for opposite mate
+	//EList<bool>    ost_;        // like st_ but for opposite mate
 	EList<bool>    oen_;        // like en_ but for opposite mate
 	
 	// For holding results for anchor (res_) and opposite (ores_) mates

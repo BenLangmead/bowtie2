@@ -143,6 +143,7 @@ bool SwDriver::extendSeeds(
 	const size_t rdlen = rd.length();
 	int readGaps = sc.maxReadGaps(minsc, rdlen);
 	int refGaps  = sc.maxRefGaps(minsc, rdlen);
+	size_t maxGaps = 0;
 	
 	size_t maxrows = (size_t)(rowmult + 0.5f);
 
@@ -247,9 +248,9 @@ bool SwDriver::extendSeeds(
 			// between beginning of read and beginning of seed hit
 			int64_t refoff = (int64_t)toff - rdoff;
 			int64_t pastedRefoff = (int64_t)wr.toff - rdoff;
-			size_t width = 0, trimup = 0, trimdn = 0;
+			size_t width = 0, solwidth = 0, trimup = 0, trimdn = 0;
 			int64_t refl = 0, refr = 0;
-			bool found = dpframe.frameSeedExtension(
+			bool found = dpframe.frameSeedExtensionRect(
 				refoff,   // ref offset implied by seed hit assuming no gaps
 				rows,     // length of read sequence used in DP table (so len
 				          // of +1 nucleotide sequence for colorspace reads)
@@ -258,20 +259,21 @@ bool SwDriver::extendSeeds(
 				refGaps,  // max # of ref gaps permitted in opp mate alignment
 				maxhalf,  // max width in either direction
 				width,    // out: calculated width stored here
+				solwidth, // out: calculated width where solutions can end
+				maxGaps,  // out: calculated max # gaps stored here
 				trimup,   // out: number of bases trimmed from upstream end
 				trimdn,   // out: number of bases trimmed from downstream end
 				refl,     // out: ref pos of upper LHS of parallelogram
 				refr,     // out: ref pos of lower RHS of parallelogram
-				st_,      // out: legal starting columns stored here
 				en_);     // out: legal ending columns stored here
 			if(!found) {
 				continue;
 			}
-			assert_leq(refl, refoff);
+			//assert_leq(refl, refoff);
 			int64_t leftShift = refoff - refl;
 			pastedRefoff -= leftShift;
-			assert_eq(width, st_.size());
-			assert_eq(st_.size(), en_.size());
+			assert_eq(solwidth, en_.size());
+			//assert_eq(st_.size(), en_.size());
 			// Given the boundaries defined by refl and refr, initilize the
 			// SwAligner with the dynamic programming problem that aligns the
 			// read to this reference stretch.
@@ -298,7 +300,9 @@ bool SwDriver::extendSeeds(
 				ref,       // Reference strings
 				tlen,      // length of reference sequence
 				width,     // # bands to do (width of parallelogram)
-				&st_,      // mask indicating which columns we can start in
+				solwidth,  // # rightmost columns where solutions can end
+				maxGaps,   // max of max # read, ref gaps
+				trimup,    // truncate left-hand columns from DP problem
 				&en_,      // mask indicating which columns we can end in
 				&sscan_);  // reference scanner for resolving offsets
 			// Take reference-scanner hits and turn them into offset
@@ -562,8 +566,10 @@ bool SwDriver::extendSeedsPaired(
 	// Calculate the largest possible number of read and reference gaps
 	int readGaps  = sc.maxReadGaps(minsc,  rdlen);
 	int refGaps   = sc.maxRefGaps (minsc,  rdlen);
+	size_t maxGaps = 0;
 	int oreadGaps = sc.maxReadGaps(ominsc, ordlen);
 	int orefGaps  = sc.maxRefGaps (ominsc, ordlen);
+	size_t omaxGaps = 0;
 
 	size_t maxrows = (size_t)(rowmult + 0.5f);
 
@@ -677,9 +683,9 @@ bool SwDriver::extendSeedsPaired(
 			// between beginning of read and beginning of seed hit
 			int64_t refoff = (int64_t)toff - rdoff;
 			int64_t pastedRefoff = (int64_t)wr.toff - rdoff;
-			size_t width = 0, trimup = 0, trimdn = 0;
+			size_t width = 0, solwidth = 0, trimup = 0, trimdn = 0;
 			int64_t refl = 0, refr = 0;
-			bool found = dpframe.frameSeedExtension(
+			bool found = dpframe.frameSeedExtensionRect(
 				refoff,   // ref offset implied by seed hit assuming no gaps
 				rows,     // length of read sequence used in DP table (so len
 		                  // of +1 nucleotide sequence for colorspace reads)
@@ -688,20 +694,20 @@ bool SwDriver::extendSeedsPaired(
 				refGaps,  // max # of ref gaps permitted in opp mate alignment
 				maxhalf,  // max width in either direction
 				width,    // out: calculated width stored here
+				solwidth, // out: # rightmost cols where solns can end
+				maxGaps,  // out: calculated max # gaps
 				trimup,   // out: number of bases trimmed from upstream end
 				trimdn,   // out: number of bases trimmed from downstream end
 				refl,     // out: ref pos of upper LHS of parallelogram
 				refr,     // out: ref pos of lower RHS of parallelogram
-				st_,      // out: legal starting columns stored here
 				en_);     // out: legal ending columns stored here
 			if(!found) {
 				continue;
 			}
-			assert_leq(refl, refoff);
+			//assert_leq(refl, refoff);
 			int64_t leftShift = refoff - refl;
 			pastedRefoff -= leftShift;
-			assert_eq(width, st_.size());
-			assert_eq(st_.size(), en_.size());
+			assert_geq(width, en_.size());
 			res_.reset();
 			assert(res_.empty());
 			assert_neq(0xffffffff, tidx);
@@ -730,7 +736,9 @@ bool SwDriver::extendSeedsPaired(
 				ref,       // Reference strings
 				tlen,      // length of reference sequence
 				width,     // # bands to do (width of parallelogram)
-				&st_,      // mask indicating which columns we can start in
+				solwidth,  // # rightmost columns where solutions can end
+				maxGaps,   // max of max # read, ref gaps
+				trimup,    // truncate left-hand columns from DP problem
 				&en_,      // mask indicating which columns we can end in
 				&sscan_);  // reference scanner for resolving offsets
 			// Take reference-scanner hits and turn them into offset
@@ -824,8 +832,8 @@ bool SwDriver::extendSeedsPaired(
 							off,                 // offset of anchor mate
 							orows + oreadGaps,   // max # columns spanned by alignment
 							tlen,                // reference length
-							anchor1 ? rd.length()  : ord.length(), // mate #1 length
-							anchor1 ? ord.length() : rd.length(),  // mate #2 length
+							anchor1 ? rd.length() : ord.length(), // mate 1 len
+							anchor1 ? ord.length() : rd.length(), // mate 2 len
 							oleft,               // out: look left for opposite mate?
 							oll,
 							olr,
@@ -837,10 +845,10 @@ bool SwDriver::extendSeedsPaired(
 						// concordant paired-end alignments so we just report this
 						// mate's alignment as an unpaired alignment (below)
 					}
-					size_t owidth = 0, otrimup = 0, otrimdn = 0;
+					size_t owidth = 0, osolwidth = 0, otrimup = 0, otrimdn = 0;
 					int64_t orefl = 0, orefr = 0;
 					if(foundMate) {
-						foundMate = dpframe.frameFindMate(
+						foundMate = dpframe.frameFindMateRect(
 							!oleft,      // true iff anchor alignment is to the left
 							oll,         // leftmost Watson off for LHS of opp aln
 							olr,         // rightmost Watson off for LHS of opp aln
@@ -852,13 +860,13 @@ bool SwDriver::extendSeedsPaired(
 							orefGaps,    // max # of ref gaps in opp mate aln
 							maxhalf,     // max width in either direction
 							owidth,      // out: calculated width stored here
+							osolwidth,   // out: # rightmost cols where solns can end
+							omaxGaps,    // out: calculated max # gaps
 							otrimup,     // out: # bases trimmed from upstream end
 							otrimdn,     // out: # bases trimmed from downstream end
 							orefl,       // out: ref pos of upper LHS of parallelogram
 							orefr,       // out: ref pos of lower RHS of parallelogram
-							ost_,        // out: legal starting columns stored here
 							oen_);       // out: legal ending columns stored here
-						assert_eq(orefr - orefl + 1, (int64_t)(owidth + orows - 1));
 					}
 					if(foundMate) {
 						ores_.reset();
@@ -887,7 +895,9 @@ bool SwDriver::extendSeedsPaired(
 							ref,       // Reference strings
 							tlen,      // length of reference sequence
 							owidth,    // # bands to do (width of parallelogram)
-							&ost_,     // mask of which cols we can start in
+							osolwidth, // # rightmost cols where solns can end
+							omaxGaps,  // max of max # read, ref gaps
+							otrimup,   // truncate left-hand columns from DP problem
 							&oen_,     // mask of which cols we can end in
 							NULL);     // TODO: scan w/r/t other SeedResults
 						// Now fill the dynamic programming matrix, return true

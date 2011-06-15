@@ -25,6 +25,24 @@
  *   (# of Ns by which we might miscount) is bounded by the number of gaps.
  */
 
+/**
+ *  |-maxgaps-|
+ *  ***********oooooooooooooooooooooo    -
+ *   ***********ooooooooooooooooooooo    |
+ *    ***********oooooooooooooooooooo    |
+ *     ***********ooooooooooooooooooo    |
+ *      ***********oooooooooooooooooo    |
+ *       ***********ooooooooooooooooo read len
+ *        ***********oooooooooooooooo    |
+ *         ***********ooooooooooooooo    |
+ *          ***********oooooooooooooo    |
+ *           ***********ooooooooooooo    |
+ *            ***********oooooooooooo    -
+ *            |-maxgaps-|
+ *  |-readlen-|
+ *  |-------skip--------|
+ */
+
 #ifndef ALIGNER_SW_H_
 #define ALIGNER_SW_H_
 
@@ -237,7 +255,9 @@ public:
 		size_t rfi,            // offset of first reference char to align to
 		size_t rff,            // offset of last reference char to align to
 		size_t width,          // # bands to do (width of parallelogram)
-		EList<bool>* st,       // mask indicating which columns we can start in
+		size_t solwidth,       // # rightmost cols where solns can end
+		size_t maxgaps,        // max of max # read gaps, max # ref gaps
+		size_t truncLeft,      // # cols/diags to truncate from LHS
 		EList<bool>* en);      // mask indicating which columns we can end in
 
 	/**
@@ -261,7 +281,9 @@ public:
 		const BitPairReference& refs, // Reference strings
 		size_t reflen,         // length of reference sequence
 		size_t width,          // # bands to do (width of parallelogram)
-		EList<bool>* st,       // mask indicating which columns we can start in
+		size_t solwidth,       // # rightmost cols where solns can end
+		size_t maxgaps,        // max of max # read, ref gaps
+		size_t truncLeft,      // columns to truncate from left-hand side of rect
 		EList<bool>* en,       // mask indicating which columns we can end in
 		SeedScanner *sscan);   // optional seed scanner to feed ref chars to
 	
@@ -341,23 +363,29 @@ public:
 	 */
 	bool repOk() const {
 		assert_gt(dpRows(), 0);
-		assert(st_ == NULL || st_->size() == width_);
-		assert(en_ == NULL || en_->size() == width_);
+		//assert(st_ == NULL || st_->size() == solwidth_);
+		assert(en_ == NULL || en_->size() == solwidth_);
 		if(color_) {
 			// Check btccand_
 			for(size_t i = 0; i < btccand_.size(); i++) {
 				assert_lt(btccand_[i].row, ctab_.size());
 				assert(solrowlo_ < 0 || btccand_[i].row >= (size_t)solrowlo_);
-				assert_lt(btccand_[i].col, ctab_[btccand_[i].row].size());
+				// The SSE aligner, when operating in local (not end-to-end)
+				// mode might find solutions ending outside of the
+				// parallelogram.
+				//assert_lt(btccand_[i].col, ctab_[btccand_[i].row].size());
 				assert(btccand_[i].repOk());
 				assert_geq(btccand_[i].score, minsc_);
 			}
 		} else {
 			// Check btncand_
 			for(size_t i = 0; i < btncand_.size(); i++) {
-				assert_lt(btncand_[i].row, ntab_.size());
+				assert(sse_ || btncand_[i].row < ntab_.size());
 				assert(solrowlo_ < 0 || btncand_[i].row >= (size_t)solrowlo_);
-				assert_lt(btncand_[i].col, ntab_[btncand_[i].row].size());
+				// The SSE aligner, when operating in local (not end-to-end)
+				// mode might find solutions ending outside of the
+				// parallelogram.
+				//assert_lt(btncand_[i].col, ntab_[btncand_[i].row].size());
 				assert(btncand_[i].repOk());
 				assert_geq(btncand_[i].score, minsc_);
 			}
@@ -496,10 +524,10 @@ protected:
 	 * 0 if an alignment is found, -1 if no valid alignment is found, or -2 if
 	 * the score saturated at any point during alignment.
 	 */
-	int alignNucleotidesEnd2EndSseU8(int& flag);  // unsigned 8-bit elements
-	int alignNucleotidesLocalSseU8(int& flag);    // unsigned 8-bit elements
-	int alignNucleotidesEnd2EndSseI16(int& flag); // signed 16-bit elements
-	int alignNucleotidesLocalSseI16(int& flag);   // signed 16-bit elements
+	TAlScore alignNucleotidesEnd2EndSseU8(int& flag);  // unsigned 8-bit elements
+	TAlScore alignNucleotidesLocalSseU8(int& flag);    // unsigned 8-bit elements
+	TAlScore alignNucleotidesEnd2EndSseI16(int& flag); // signed 16-bit elements
+	TAlScore alignNucleotidesLocalSseI16(int& flag);   // signed 16-bit elements
 	
 	/**
 	 * Build query profile look up tables for the read.  The query profile look
@@ -518,6 +546,44 @@ protected:
 	 */
 	void buildQueryProfileEnd2EndSseI16(bool fw);
 	void buildQueryProfileLocalSseI16(bool fw);
+	
+	bool gatherCellsNucleotidesLocalSseU8(TAlScore best);
+	bool gatherCellsNucleotidesEnd2EndSseU8(TAlScore best);
+
+	bool gatherCellsNucleotidesLocalSseI16(TAlScore best);
+	bool gatherCellsNucleotidesEnd2EndSseI16(TAlScore best);
+
+	bool backtraceNucleotidesLocalSseU8(
+		TAlScore       escore, // in: expected score
+		SwResult&      res,    // out: store results (edits and scores) here
+		size_t&        off,    // out: store diagonal projection of origin
+		size_t         row,    // start in this rectangle row
+		size_t         col,    // start in this rectangle column
+		RandomSource&  rand);  // random gen, to choose among equal paths
+
+	bool backtraceNucleotidesLocalSseI16(
+		TAlScore       escore, // in: expected score
+		SwResult&      res,    // out: store results (edits and scores) here
+		size_t&        off,    // out: store diagonal projection of origin
+		size_t         row,    // start in this rectangle row
+		size_t         col,    // start in this rectangle column
+		RandomSource&  rand);  // random gen, to choose among equal paths
+
+	bool backtraceNucleotidesEnd2EndSseU8(
+		TAlScore       escore, // in: expected score
+		SwResult&      res,    // out: store results (edits and scores) here
+		size_t&        off,    // out: store diagonal projection of origin
+		size_t         row,    // start in this rectangle row
+		size_t         col,    // start in this rectangle column
+		RandomSource&  rand);  // random gen, to choose among equal paths
+
+	bool backtraceNucleotidesEnd2EndSseI16(
+		TAlScore       escore, // in: expected score
+		SwResult&      res,    // out: store results (edits and scores) here
+		size_t&        off,    // out: store diagonal projection of origin
+		size_t         row,    // start in this rectangle row
+		size_t         col,    // start in this rectangle column
+		RandomSource&  rand);  // random gen, to choose among equal paths
 
 #endif
 
@@ -580,7 +646,7 @@ protected:
 	 * reference character's offset into the chromosome and true is returned.
 	 * Otherwise, false is returned.
 	 */
-	bool backtrackNucleotides(
+	bool backtraceNucleotides(
 		TAlScore      escore,  // score we expect to get over backtrack
 		SwResult&     res,     // out: store results (edits and scores) here
 		size_t&       off,     // out: leftmost ref char involved in aln
@@ -684,11 +750,13 @@ protected:
 	size_t              rfi_;    // offset of first ref char to align to
 	size_t              rff_;    // offset of last ref char to align to (excl)
 	size_t              width_;  // # bands to do (width of parallelogram)
-	EList<bool>*        st_;     // mask indicating which cols we can start in
+	size_t              solwidth_;// # bands ending @ exhaustively scored cells
+	size_t              maxgaps_;// max of max # read gaps, max # ref gaps
+	size_t              truncLeft_; // # cols/diags to truncate from LHS
+	//EList<bool>*        st_;     // mask indicating which cols we can start in
 	EList<bool>*        en_;     // mask indicating which cols we can end in
 	size_t              rdgap_;  // max # gaps in read
 	size_t              rfgap_;  // max # gaps in reference
-	size_t              maxgap_; // max(rdgap_, rfgap_)
 	const Scoring      *sc_;     // penalties for edit types
 	TAlScore            minsc_;  // penalty ceiling for valid alignments
 	TAlScore            floorsc_;// local-alignment score floor
