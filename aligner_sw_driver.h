@@ -271,6 +271,14 @@ protected:
 	// For holding results for anchor (res_) and opposite (ores_) mates
 	SwResult       res_;        // temp holder for SW results
 	SwResult       ores_;       // temp holder for SW results for opp mate
+	
+	// For AlnRes::matchesRef:
+	ASSERT_ONLY(SStringExpandable<char>     raw_refbuf_);
+	ASSERT_ONLY(SStringExpandable<uint32_t> raw_destU32_);
+	ASSERT_ONLY(EList<bool>                 raw_matches_);
+	ASSERT_ONLY(BTDnaString                 tmp_rf_);
+	ASSERT_ONLY(BTDnaString                 tmp_rdseq_);
+	ASSERT_ONLY(BTString                    tmp_qseq_);
 };
 
 #endif /*ALIGNER_SW_DRIVER_H_*/

@@ -91,7 +91,12 @@ public:
 			this->newBuf(spreadPlus);
 		}
 		// Read in the relevant stretch of the reference string
-		int offset = refs->getStretch(this->refbuf_, tidx, begin, spread);
+		int offset = refs->getStretch(
+			this->refbuf_,
+			tidx,
+			begin,
+			spread
+			ASSERT_ONLY(, tmp_destU32_));
 		uint8_t *buf = ((uint8_t*)this->refbuf_) + offset;
 		if(gColor) {
 			// Colorize buffer
@@ -160,6 +165,7 @@ protected:
 	uint32_t  refbufSz_;  /// size of current reference buffer
 	uint32_t  buf_[REF_ALIGNER_BUFSZ / 4]; /// built-in reference buffer (may be superseded)
 	bool      freeRefbuf_; /// whether refbuf_ points to something we should delete
+	ASSERT_ONLY(SStringExpandable<uint32_t> tmp_destU32_);
 };
 
 /**

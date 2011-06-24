@@ -203,7 +203,8 @@ void SwAligner::initRef(
 		rfwbuf_.ptr(),               // buffer to store words in
 		refidx,                      // which reference
 		(rfi < 0) ? 0 : (size_t)rfi, // starting offset (can't be < 0)
-		rflenInner);                 // length to grab (exclude overhang)
+		rflenInner                   // length to grab (exclude overhang)
+		ASSERT_ONLY(, tmp_destU32_));// for BitPairReference::getStretch()
 	assert_leq(offset, 16);
 	rf_ = (char*)rfwbuf_.ptr() + offset;
 	// Shift ref chars away from 0 so we can stick Ns at the beginning

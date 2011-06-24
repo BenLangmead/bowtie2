@@ -753,6 +753,7 @@ public:
 		return true;
 	}
 	
+#ifndef NDEBUG
 	/**
 	 * Assuming this AlnRes is an alignment for 'rd', check that the
 	 * alignment and 'rd' are compatible with the corresponding
@@ -760,7 +761,14 @@ public:
 	 */
 	bool matchesRef(
 		const Read& rd,
-		const BitPairReference& ref);
+		const BitPairReference& ref,
+		BTDnaString& rf,
+		BTDnaString& rdseq,
+		BTString& qseq,
+		SStringExpandable<char>& raw_refbuf,
+		SStringExpandable<uint32_t>& destU32,
+		EList<bool>& matches);
+#endif
 	
 	/**
 	 * Set information about the alignment parameters that led to this

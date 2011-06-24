@@ -2476,6 +2476,7 @@ static void* multiseedSearchWorker(void *vp) {
 	SwMetrics swmSeed, swmMate;
 	ReportingMetrics rpm;
 	RandomSource rnd;
+	ASSERT_ONLY(BTDnaString tmp);
 
 	int pepolFlag;
 	if(gMate1fw && gMate2fw) {
@@ -2667,7 +2668,7 @@ static void* multiseedSearchWorker(void *vp) {
 					assert(msinkwrap.repOk());
 					olm.ureads++;               // reads passing filter
 					olm.ubases += rdlens[mate]; // bases passing filter
-					QKey qkr(rds[mate]->patFw);
+					QKey qkr(rds[mate]->patFw ASSERT_ONLY(, tmp));
 					rnd.init(ROTL(rds[mate]->seed, 10));
 					// Seed search
 					shs[mate].clear(); // clear seed hits

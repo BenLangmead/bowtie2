@@ -91,7 +91,8 @@ public:
 		uint32_t *destU32,
 		size_t tidx,
 		size_t toff,
-		size_t count) const;
+		size_t count
+		ASSERT_ONLY(, SStringExpandable<uint32_t>& destU32_2)) const;
 
 	/**
 	 * Return the number of reference sequences.
@@ -158,6 +159,7 @@ protected:
 	bool     useMm_;    /// load the reference as a memory-mapped file
 	bool     useShmem_; /// load the reference into shared memory
 	bool     verbose_;
+	ASSERT_ONLY(SStringExpandable<uint32_t> tmp_destU32_);
 };
 
 #endif

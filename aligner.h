@@ -438,7 +438,8 @@ public:
 				patsrc_->patid(),         // pattern id
 				bufa_->seed,              // pseudo-random seed
 				0,                        // mate (0 = unpaired)
-				hit);
+				hit
+				ASSERT_ONLY(, tmp_destU32_));
 	}
 
 	/**
@@ -539,6 +540,8 @@ protected:
 	int *btCnt_;
 	AlignerMetrics *metrics_;
 	ColorspaceDecoder * dec_;
+	
+	ASSERT_ONLY(SStringExpandable<uint32_t> tmp_destU32_);
 };
 
 /**
@@ -845,7 +848,8 @@ protected:
 				dec_,                         // ColorspaceDecoder
 				rand_,                        // Pseudo-random generator
 				hitL,
-				hitR);
+				hitR
+				ASSERT_ONLY(, tmp_destU32_));
 	}
 
 	/**
@@ -885,7 +889,8 @@ protected:
 			buf->patid,
 			buf->seed,
 			0,
-			hit))
+			hit
+			ASSERT_ONLY(, tmp_destU32_)))
 		{
 			if(r.mate1()) doneSe1_ = true;
 			else          doneSe2_ = true;
@@ -1093,6 +1098,8 @@ protected:
 	EList<RefAlignerHit> results_;
 
 	ColorspaceDecoder * dec_;
+
+	ASSERT_ONLY(SStringExpandable<uint32_t> tmp_destU32_);
 };
 
 #endif /* ALIGNER_H_ */

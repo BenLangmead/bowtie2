@@ -562,12 +562,12 @@ bool SwAligner::backtrackColors(
 		if(ned[i].isGap()) gapsCheck++;
 	}
 	assert_eq(gaps, gapsCheck);
-	static BTDnaString refstr;
+	BTDnaString& refstr = tmp_refstr_;
 	refstr.clear();
 	for(size_t i = col; i <= origCol; i++) {
 		refstr.append(firsts5[(int)rf_[rfi_+i]]);
 	}
-	static BTDnaString editstr;
+	BTDnaString& editstr = tmp_editstr_;
 	editstr.clear();
 	Edit::toRef(res.alres.drd, ned, editstr);
 	if(refstr != editstr) {

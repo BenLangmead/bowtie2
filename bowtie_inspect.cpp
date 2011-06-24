@@ -155,10 +155,11 @@ static void print_ref_sequence(
 	size_t incr = myacross * 1000;
 	uint32_t *buf = new uint32_t[(incr + 128)/4];
 	fout << ">" << name << "\n";
+	ASSERT_ONLY(SStringExpandable<uint32_t> destU32);
 	for(size_t i = 0; i < len; i += incr) {
 		size_t amt = min(incr, len-i);
 		assert_leq(amt, incr);
-		int off = ref.getStretch(buf, refi, i, amt);
+		int off = ref.getStretch(buf, refi, i, amt ASSERT_ONLY(, destU32));
 		uint8_t *cb = ((uint8_t*)buf) + off;
 		for(size_t j = 0; j < amt; j++) {
 			if(newlines && j > 0 && (j % myacross) == 0) fout << "\n";

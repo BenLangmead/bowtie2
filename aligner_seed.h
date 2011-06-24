@@ -1271,7 +1271,10 @@ protected:
 	EList<uint32_t> offIdx2off_;// offset idx to read offset map, set up instantiateSeeds()
 	uint64_t bwops_;           // Burrows-Wheeler operations
 	uint64_t bwedits_;         // Burrows-Wheeler edits
+	BTDnaString tmprfdnastr_;  // used in reportHit
+	
 	ASSERT_ONLY(ESet<BTDnaString> hits_); // Ref hits so far for seed being aligned
+	ASSERT_ONLY(BTDnaString tmpdnastr_);
 };
 
 #endif /*ALIGNER_SEED_H_*/
