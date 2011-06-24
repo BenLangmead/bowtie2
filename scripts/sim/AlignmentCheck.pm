@@ -15,6 +15,7 @@ use warnings;
 use FindBin qw($Bin);
 use lib $Bin;
 use DNA;
+use Data::Dumper;
 
 ##
 # Parse a fasta file into the %ref hash
@@ -347,7 +348,8 @@ sub parseBowtieLines {
 		$oms == int($oms) || die "OMS field (col 7) must be an integer:\n$_";
 		my $reftype = $self->calcRefType($orient);
 		defined($self->refs->{$reftype}{$refname}) ||
-			die "No such refname as $refname for reftype $reftype";
+			die "No such refname as $refname for reftype $reftype:\n".
+			Dumper($self->refs->{$reftype});
 		my $edits4 = parseAllEdits($editstr);
 		my ($ned, $aed) = ($edits4->[0], $edits4->[1]);
 		removeDups($ned, $aed);
@@ -365,21 +367,36 @@ sub parseBowtieLines {
 		my $exoff = $off;
 		my $padleft = "";
 		my $exlen = length($rfseq);
+		my $tlen = length($self->refs->{$reftype}{$refname});
 		if($exoff < 0) {
 			# Alignment hangs off LHS; pad it
-			$padleft = "N" x (-$exoff);
+			my $npad = -$exoff;
+			$padleft = "N" x $npad;
 			$exlen += $exoff;
+			$exlen >= 0 ||
+				die "Read was entirely off the LHS of the reference\n".
+					"Referemce len=$tlen\n".
+					"Alignment referemce len=$tlen\n".
+					"$line\n";
 			$exoff = 0;
 		}
 		my $padright = "";
-		my $roverhang = $off + length($rfseq) - length($self->refs->{$reftype}{$refname});
+		my $roverhang = $off + length($rfseq) - $tlen;
 		if($roverhang > 0) {
 			$padright = "N" x $roverhang;
 			$exlen -= $roverhang;
+			$exlen >= 0 ||
+				die "Read was entirely off the RHS of the reference\n".
+					"Referemce len=$tlen\n".
+					"Alignment referemce len=$tlen\n".
+					"$line\n";
 		}
 		my $refsub = substr($self->refs->{$reftype}{$refname}, $exoff, $exlen);
 		length($refsub) == $exlen ||
-			die "Tried to extract ref substring of length $exlen, got \"$refsub\"";
+			die "Tried to extract ref substring of length $exlen, got ".
+			    "\"$refsub\" from \"".$self->refs->{$reftype}{$refname}."\"".
+				"\n$line\n".
+				"\noff=$off, rfseq=$rfseq\n";
 		$refsub = DNA::iupacSubN($refsub);
 		my $trueRfseq = $padleft . $refsub . $padright;
 		length($trueRfseq) == length($rfseq) ||

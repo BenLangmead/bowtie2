@@ -139,6 +139,9 @@ bool SwDriver::extendSeeds(
 	assert(!reportImmediately || !msink->maxed());
 	assert_gt(seedlen, 0);
 
+	assert_geq(nceil, 0);
+	assert_leq((size_t)nceil, rd.length());
+
 	// Calculate the largest possible number of read and reference gaps
 	const size_t rdlen = rd.length();
 	int readGaps = sc.maxReadGaps(minsc, rdlen);
@@ -202,18 +205,6 @@ bool SwDriver::extendSeeds(
 			ASSERT_ONLY(lastwr = wr);
 			advances++;
 			assert_neq(0xffffffff, wr.toff);
-			// Coordinate of the seed hit w/r/t the pasted reference string
-			TRefOff shcoord = (TRefOff)wr.toff - rdoff;
-			if(seenDiags1_.locusPresent(shcoord, fw)) {
-				// Already tried to find an alignment at these coordinates
-				swmSeed.rshit++;
-				continue;
-			} else {
-				// TODO: Perhaps widen the band a little beyond what is needed
-				// b/c of maxgaps so that we can cover a wider swath and
-				// potentially create more redundancy with future queryies.
-				seenDiags1_.add(shcoord, shcoord+1, fw);
-			}
 			uint32_t tidx = 0, toff = 0, tlen = 0;
 			ebwt.joinedToTextOff(
 				wr.elt.len,
@@ -225,6 +216,16 @@ bool SwDriver::extendSeeds(
 			if(tidx == 0xffffffff) {
 				// The seed hit straddled a reference boundary so the seed hit
 				// isn't valid
+				continue;
+			}
+			// Find offset of alignment's upstream base assuming net gaps=0
+			// between beginning of read and beginning of seed hit
+			int64_t refoff = (int64_t)toff - rdoff;
+			// Coordinate of the seed hit w/r/t the pasted reference string
+			Coord refcoord(tidx, refoff, fw);
+			if(seenDiags1_.locusPresent(refcoord)) {
+				// Already handled alignments seeded on this diagonal
+				swmSeed.rshit++;
 				continue;
 			}
 			// Now that we have a seed hit, there are many issues to solve
@@ -244,9 +245,6 @@ bool SwDriver::extendSeeds(
 			// We do #1 here, since it is simple and we have all the seed-hit
 			// information here.  #2 and #3 are handled in the DynProgFramer.
 			
-			// Find offset of alignment's upstream base assuming net gaps=0
-			// between beginning of read and beginning of seed hit
-			int64_t refoff = (int64_t)toff - rdoff;
 			int64_t pastedRefoff = (int64_t)wr.toff - rdoff;
 			size_t width = 0, solwidth = 0, trimup = 0, trimdn = 0;
 			int64_t refl = 0, refr = 0;
@@ -257,23 +255,33 @@ bool SwDriver::extendSeeds(
 				tlen,     // length of reference
 				readGaps, // max # of read gaps permitted in opp mate alignment
 				refGaps,  // max # of ref gaps permitted in opp mate alignment
+				(size_t)nceil, // # Ns permitted
 				maxhalf,  // max width in either direction
 				width,    // out: calculated width stored here
-				solwidth, // out: calculated width where solutions can end
-				maxGaps,  // out: calculated max # gaps stored here
+				solwidth, // out: # rightmost cols where solns can end
+				maxGaps,  // out: calculated max # gaps
 				trimup,   // out: number of bases trimmed from upstream end
 				trimdn,   // out: number of bases trimmed from downstream end
 				refl,     // out: ref pos of upper LHS of parallelogram
 				refr,     // out: ref pos of lower RHS of parallelogram
 				en_);     // out: legal ending columns stored here
 			if(!found) {
+				seenDiags1_.add(Interval(refcoord, 1));
 				continue;
 			}
-			//assert_leq(refl, refoff);
 			int64_t leftShift = refoff - refl;
+			size_t nwindow = 0;
+			if(toff >= refl) {
+				nwindow = (toff - refl);
+			}
+			// NOTE: We might be taking off more than we should because the
+			// pasted string omits non-A/C/G/T characters, but we included them
+			// when calculating leftShift.  We'll account for this later.
 			pastedRefoff -= leftShift;
 			assert_eq(solwidth, en_.size());
-			//assert_eq(st_.size(), en_.size());
+			res_.reset();
+			assert(res_.empty());
+			assert_neq(0xffffffff, tidx);
 			// Given the boundaries defined by refl and refr, initilize the
 			// SwAligner with the dynamic programming problem that aligns the
 			// read to this reference stretch.
@@ -292,6 +300,7 @@ bool SwDriver::extendSeeds(
 					minsc,     // minimum score for valid alignments
 					floorsc);  // local-alignment floor score
 			}
+			size_t nsInLeftShift = 0;
 			swa.initRef(
 				fw,        // whether to align forward or revcomp read
 				tidx,      // reference aligned against
@@ -304,26 +313,52 @@ bool SwDriver::extendSeeds(
 				maxGaps,   // max of max # read, ref gaps
 				trimup,    // truncate left-hand columns from DP problem
 				&en_,      // mask indicating which columns we can end in
-				&sscan_);  // reference scanner for resolving offsets
+				&sscan_,   // reference scanner for resolving offsets
+				nwindow,
+				nsInLeftShift);
 			// Take reference-scanner hits and turn them into offset
 			// resolutions.
 			wlm.refscanhits += sscan_.hits().size();
+			pastedRefoff += nsInLeftShift;
 			for(size_t j = 0; j < sscan_.hits().size(); j++) {
 				// Get identifier for the appropriate combiner
 				U32Pair id = sscan_.hits()[j].id();
 				// Get the hit's offset in pasted-reference coordinates
 				int64_t off = sscan_.hits()[j].off() + pastedRefoff;
-				// Move our offset from the RHS of the seed to the LHS
-				off -= (seedlen-1);
+				assert_geq(off, sscan_.hits()[j].ns());
+				off -= sscan_.hits()[j].ns();
 				assert_geq(off, 0);
 				assert_lt(off, (int64_t)ebwt.eh().lenNucs());
 				assert_lt(off, (int64_t)0xffffffff);
+				// Check that reference sequence actually matches seed
+#ifndef NDEBUG
+				uint32_t tidx2 = 0, toff2 = 0, tlen2 = 0;
+				ebwt.joinedToTextOff(
+					wr.elt.len,
+					(uint32_t)off,
+					tidx2,
+					toff2,
+					tlen2);
+				assert_neq(0xffffffff, tidx2);
+				uint64_t key = sacomb_[id.first][id.second].satup().key.seq;
+				for(size_t k = 0; k < wr.elt.len; k++) {
+					int c = ref.getBase(tidx2, toff2 + wr.elt.len - k - 1);
+					int ck = (int)(key & 3);
+					key >>= 2;
+					assert_eq(c, ck);
+				}
+#endif
 				// Install it
 				if(sacomb_[id.first][id.second].addRefscan((uint32_t)off)) {
 					// It was new; see if it leads to any resolutions
 					sacomb_[id.first][id.second].tryResolving(wlm.refresolves);
 				}
 			}
+			// Because of how we framed the problem, we can say that we've
+			// exhaustively scored the seed diagonal as well as maxgaps
+			// diagonals on either side
+			Interval refival(tidx, refoff - maxGaps, fw, maxGaps*2 + 1);
+			seenDiags1_.add(refival);
 			// Now fill the dynamic programming matrix and return true iff
 			// there is at least one valid alignment
 			found = swa.align(rnd);
@@ -354,7 +389,12 @@ bool SwDriver::extendSeeds(
 				}
 				// User specified that alignments overhanging ends of reference
 				// should be excluded...
-				assert(gReportOverhangs || res_.alres.within(tidx, 0, fw, tlen));
+				Interval refival(tidx, 0, fw, tlen);
+				assert(gReportOverhangs || refival.containsIgnoreOrient(res_.alres.refival()));
+				// Did the alignment fall entirely outside the reference?
+				if(!refival.overlapsIgnoreOrient(res_.alres.refival())) {
+					continue;
+				}
 				// Is this alignment redundant with one we've seen previously?
 				if(redAnchor_.overlap(res_.alres)) {
 					// Redundant with an alignment we found already
@@ -560,6 +600,11 @@ bool SwDriver::extendSeedsPaired(
 	assert(!msink->state().doneWithMate(anchor1));
 	assert_gt(seedlen, 0);
 
+	assert_geq(nceil, 0);
+	assert_geq(onceil, 0);
+	assert_leq((size_t)nceil,  rd.length());
+	assert_leq((size_t)onceil, ord.length());
+
 	const size_t rdlen  = rd.length();
 	const size_t ordlen = ord.length();
 
@@ -608,6 +653,7 @@ bool SwDriver::extendSeedsPaired(
 	possf = min(possf, (float)nonz);
 	const size_t poss = (size_t)possf;
 	for(size_t i = 0; i < poss; i++) {
+		// cerr << "Trying position " << i << " in " << rd.name << endl;
 		bool fw = true;
 		uint32_t offidx = 0, rdoff = 0, seedlen = 0;
 		// TODO: Right now we take a QVal and then investigate it until it's
@@ -636,19 +682,6 @@ bool SwDriver::extendSeedsPaired(
 			advances++;
 			assert_neq(0xffffffff, wr.toff);
 			// Coordinate of the seed hit w/r/t the pasted reference string
-			TRefOff shcoord = (TRefOff)wr.toff - rdoff;
-			EIvalMergeStrandedList& seenDiags =
-				anchor1 ? seenDiags1_ : seenDiags2_;
-			if(seenDiags.locusPresent(shcoord, fw)) {
-				// Already tried to find an alignment at these coordinates
-				swmSeed.rshit++;
-				continue;
-			} else {
-				// TODO: Perhaps widen the band a little beyond what is needed
-				// b/c of maxgaps so that we can cover a wider swath and
-				// potentially create more redundancy with future queryies.
-				seenDiags.add(shcoord, shcoord+1, fw);
-			}
 			uint32_t tidx = 0, toff = 0, tlen = 0;
 			ebwt.joinedToTextOff(
 				wr.elt.len,
@@ -660,6 +693,19 @@ bool SwDriver::extendSeedsPaired(
 			if(tidx == 0xffffffff) {
 				// The seed hit straddled a reference boundary so the seed hit
 				// isn't valid
+				continue;
+			}
+			// cerr << "  at " << tidx << ":" << toff << endl;
+			// Find offset of alignment's upstream base assuming net gaps=0
+			// between beginning of read and beginning of seed hit
+			int64_t refoff = (int64_t)toff - rdoff;
+			EIvalMergeList& seenDiags = anchor1 ? seenDiags1_ : seenDiags2_;
+			// Coordinate of the seed hit w/r/t the pasted reference string
+			Coord refcoord(tidx, refoff, fw);
+			if(seenDiags.locusPresent(refcoord)) {
+				// Already handled alignments seeded on this diagonal
+				// cerr << "  skipping b/c diagonal was handled" << endl;
+				swmSeed.rshit++;
 				continue;
 			}
 			// Now that we have a seed hit, there are many issues to solve
@@ -679,9 +725,6 @@ bool SwDriver::extendSeedsPaired(
 			// We do #1 here, since it is simple and we have all the seed-hit
 			// information here.  #2 and #3 are handled in the DynProgFramer.
 			
-			// Find offset of alignment's upstream base assuming net gaps=0
-			// between beginning of read and beginning of seed hit
-			int64_t refoff = (int64_t)toff - rdoff;
 			int64_t pastedRefoff = (int64_t)wr.toff - rdoff;
 			size_t width = 0, solwidth = 0, trimup = 0, trimdn = 0;
 			int64_t refl = 0, refr = 0;
@@ -692,6 +735,7 @@ bool SwDriver::extendSeedsPaired(
 				tlen,     // length of reference
 				readGaps, // max # of read gaps permitted in opp mate alignment
 				refGaps,  // max # of ref gaps permitted in opp mate alignment
+				(size_t)nceil, // # Ns permitted
 				maxhalf,  // max width in either direction
 				width,    // out: calculated width stored here
 				solwidth, // out: # rightmost cols where solns can end
@@ -702,12 +746,19 @@ bool SwDriver::extendSeedsPaired(
 				refr,     // out: ref pos of lower RHS of parallelogram
 				en_);     // out: legal ending columns stored here
 			if(!found) {
+				seenDiags.add(Interval(refcoord, 1));
 				continue;
 			}
-			//assert_leq(refl, refoff);
 			int64_t leftShift = refoff - refl;
+			size_t nwindow = 0;
+			if(toff >= refl) {
+				nwindow = (toff - refl);
+			}
+			// NOTE: We might be taking off more than we should because the
+			// pasted string omits non-A/C/G/T characters, but we included them
+			// when calculating leftShift.  We'll account for this later.
 			pastedRefoff -= leftShift;
-			assert_geq(width, en_.size());
+			assert_eq(solwidth, en_.size());
 			res_.reset();
 			assert(res_.empty());
 			assert_neq(0xffffffff, tidx);
@@ -716,6 +767,7 @@ bool SwDriver::extendSeedsPaired(
 			// read to this reference stretch.
 			sscan_.init(sstab_);
 			if(!swa.initedRead()) {
+				// Initialize the aligner with a new read
 				swa.initRead(
 					rd.patFw,  // fw version of query
 					rd.patRc,  // rc version of query
@@ -728,6 +780,7 @@ bool SwDriver::extendSeedsPaired(
 					minsc,     // minimum score for valid alignments
 					floorsc);  // local-alignment floor score
 			}
+			size_t nsInLeftShift = 0;
 			swa.initRef(
 				fw,        // whether to align forward or revcomp read
 				tidx,      // reference aligned against
@@ -740,26 +793,54 @@ bool SwDriver::extendSeedsPaired(
 				maxGaps,   // max of max # read, ref gaps
 				trimup,    // truncate left-hand columns from DP problem
 				&en_,      // mask indicating which columns we can end in
-				&sscan_);  // reference scanner for resolving offsets
+				&sscan_,   // reference scanner for resolving offsets
+				nwindow,
+				nsInLeftShift);
 			// Take reference-scanner hits and turn them into offset
 			// resolutions.
 			wlm.refscanhits += sscan_.hits().size();
+			pastedRefoff += nsInLeftShift;
+			// cerr << "  initialized DP ref, got " << sscan_.hits().size()
+			//     << " seed scan hits." << endl;
 			for(size_t j = 0; j < sscan_.hits().size(); j++) {
 				// Get identifier for the appropriate combiner
 				U32Pair id = sscan_.hits()[j].id();
 				// Get the hit's offset in pasted-reference coordinates
 				int64_t off = sscan_.hits()[j].off() + pastedRefoff;
-				// Move our offset from the RHS of the seed to the LHS
-				off -= (seedlen-1);
+				assert_geq(off, sscan_.hits()[j].ns());
+				off -= sscan_.hits()[j].ns();
 				assert_geq(off, 0);
 				assert_lt(off, (int64_t)ebwt.eh().lenNucs());
 				assert_lt(off, (int64_t)0xffffffff);
+				// Check that reference sequence actually matches seed
+#ifndef NDEBUG
+				uint32_t tidx2 = 0, toff2 = 0, tlen2 = 0;
+				ebwt.joinedToTextOff(
+					wr.elt.len,
+					(uint32_t)off,
+					tidx2,
+					toff2,
+					tlen2);
+				assert_neq(0xffffffff, tidx2);
+				uint64_t key = sacomb_[id.first][id.second].satup().key.seq;
+				for(size_t k = 0; k < wr.elt.len; k++) {
+					int c = ref.getBase(tidx2, toff2 + wr.elt.len - k - 1);
+					int ck = (int)(key & 3);
+					key >>= 2;
+					assert_eq(c, ck);
+				}
+#endif
 				// Install it
 				if(sacomb_[id.first][id.second].addRefscan((uint32_t)off)) {
 					// It was new; see if it leads to any resolutions
 					sacomb_[id.first][id.second].tryResolving(wlm.refresolves);
 				}
 			}
+			// Because of how we framed the problem, we can say that we've
+			// exhaustively scored the seed diagonal as well as maxgaps
+			// diagonals on either side
+			Interval refival(tidx, refoff - maxGaps, fw, maxGaps*2 + 1);
+			seenDiags.add(refival);
 			// Now fill the dynamic programming matrix and return true iff
 			// there is at least one valid alignment
 			found = swa.align(rnd);
@@ -778,9 +859,11 @@ bool SwDriver::extendSeedsPaired(
 			// For each anchor alignment we pull out of the dynamic programming
 			// problem...
 			while(true) {
+				// cerr << "  trying another DP" << endl;
 				res_.reset();
 				assert(res_.empty());
 				if(swa.done()) {
+					// cerr << "  DONE" << endl;
 					break;
 				}
 				swa.nextAlignment(res_, rnd);
@@ -790,15 +873,24 @@ bool SwDriver::extendSeedsPaired(
 				if(!found) {
 					// Could not extend the seed hit into a full alignment for
 					// the anchor mate
+					// cerr << "  DONE after call to nextAlignment" << endl;
 					break;
 				}
+				assert(res_.alres.matchesRef(rd, ref));
 
 				// User specified that alignments overhanging ends of reference
 				// should be excluded...
-				assert(gReportOverhangs || res_.alres.within(tidx, 0, fw, tlen));
+				Interval refival(tidx, 0, fw, tlen);
+				assert(gReportOverhangs || refival.containsIgnoreOrient(res_.alres.refival()));
+				// Did the alignment fall entirely outside the reference?
+				if(!refival.overlapsIgnoreOrient(res_.alres.refival())) {
+					// cerr << "  skipping because it doesn't overlap ref" << endl;
+					continue;
+				}
 				// Is this alignment redundant with one we've seen previously?
 				if(redAnchor_.overlap(res_.alres)) {
 					// Redundant with an alignment we found already
+					// cerr << "  skipping because is redundant in redAnchor" << endl;
 					continue;
 				}
 				redAnchor_.add(res_.alres);
@@ -840,6 +932,7 @@ bool SwDriver::extendSeedsPaired(
 							orl,
 							orr,
 							ofw);
+						// cerr << "  result from otherMate: " << foundMate << endl;
 					} else {
 						// We're no longer interested in finding additional
 						// concordant paired-end alignments so we just report this
@@ -858,6 +951,7 @@ bool SwDriver::extendSeedsPaired(
 							tlen,        // length of reference sequence aligned to
 							oreadGaps,   // max # of read gaps in opp mate aln
 							orefGaps,    // max # of ref gaps in opp mate aln
+							(size_t)onceil, // max # Ns on opp mate
 							maxhalf,     // max width in either direction
 							owidth,      // out: calculated width stored here
 							osolwidth,   // out: # rightmost cols where solns can end
@@ -867,6 +961,7 @@ bool SwDriver::extendSeedsPaired(
 							orefl,       // out: ref pos of upper LHS of parallelogram
 							orefr,       // out: ref pos of lower RHS of parallelogram
 							oen_);       // out: legal ending columns stored here
+						// cerr << "  result from frameFindMateRect: " << foundMate << endl;
 					}
 					if(foundMate) {
 						ores_.reset();
@@ -887,6 +982,7 @@ bool SwDriver::extendSeedsPaired(
 						// Given the boundaries defined by refi and reff, initilize
 						// the SwAligner with the dynamic programming problem that
 						// aligns the read to this reference stretch.
+						size_t onsInLeftShift = 0;
 						oswa.initRef(
 							ofw,       // align forward or revcomp read?
 							tidx,      // reference aligned against
@@ -899,10 +995,14 @@ bool SwDriver::extendSeedsPaired(
 							omaxGaps,  // max of max # read, ref gaps
 							otrimup,   // truncate left-hand columns from DP problem
 							&oen_,     // mask of which cols we can end in
-							NULL);     // TODO: scan w/r/t other SeedResults
+							NULL,      // TODO: scan w/r/t other SeedResults
+							0,
+							onsInLeftShift);
 						// Now fill the dynamic programming matrix, return true
 						// iff there is at least one valid alignment
+						// cerr << "  aligning mate" << endl;
 						foundMate = oswa.align(rnd);
+						// cerr << "  result=" << foundMate << endl;
 						oswa.mergeAlignCounters(
 							swmMate.sws,
 							swmMate.swcups,
@@ -916,15 +1016,17 @@ bool SwDriver::extendSeedsPaired(
 					do {
 						ores_.reset();
 						assert(ores_.empty());
-						if(oswa.done()) {
+						if(foundMate && oswa.done()) {
 							foundMate = false;
-						} else {
+						} else if(foundMate) {
 							oswa.nextAlignment(ores_, rnd);
 							oswa.mergeBacktraceCounters(swmMate.swbts);
 							oswa.resetBacktraceCounters();
 							foundMate = !ores_.empty();
+							assert(!foundMate || ores_.alres.matchesRef(ord, ref));
 						}
 						if(foundMate) {
+							// cerr << "  got mate alignment from nextAlignment" << endl;
 							// Redundant with one we've seen previously?
 							if(!redAnchor_.overlap(ores_.alres)) {
 								redAnchor_.add(ores_.alres);
@@ -938,8 +1040,9 @@ bool SwDriver::extendSeedsPaired(
 								seedival,   // interval between seeds
 								ominsc,     // minimum score for valid alignment
 								ofloorsc);  // local-alignment floor score
-							if(!gReportOverhangs &&
-							   !ores_.alres.within(tidx, 0, ofw, tlen))
+							if((!gReportOverhangs &&
+							    !refival.containsIgnoreOrient(ores_.alres.refival())) ||
+								!refival.overlapsIgnoreOrient(ores_.alres.refival()))
 							{
 								foundMate = false;
 							}
@@ -986,10 +1089,6 @@ bool SwDriver::extendSeedsPaired(
 								assert(msink != NULL);
 								assert(res_.repOk());
 								assert(ores_.repOk());
-								// Check that alignment accurately reflects the
-								// reference characters aligned to
-								assert(res_.alres.matchesRef(rd, ref));
-								assert(ores_.alres.matchesRef(ord, ref));
 								// Report an unpaired alignment
 								assert(!msink->maxed());
 								assert(!msink->state().done());

@@ -684,7 +684,7 @@ SeedAligner::nextLocsBi(
 {
 	assert_gt(botf, 0);
 	assert(ebwtBw_ == NULL || botb > 0);
-	assert_gt(step, 0); // next step can't be first one
+	assert_geq(step, 0); // next step can't be first one
 	assert(ebwtBw_ == NULL || botf-topf == botb-topb);
 	if(step == (int)s_->steps.size()) return; // no more steps!
 	// Which direction are we going in next?
@@ -896,8 +896,8 @@ SeedAligner::searchSeedBi(
 			step++;
 		} else {
 			assert_eq(0, s.maxjump);
-			// TODO: handle this gracefully
-			throw 1;
+			topf = topb = 0;
+			botf = botb = ebwtFw_->fchr()[4];
 		}
 		if(step == (int)s.steps.size()) {
 			// Finished aligning seed
@@ -915,7 +915,7 @@ SeedAligner::searchSeedBi(
 	assert(tloc.valid());
 	assert(botf - topf == 1 ||  bloc.valid());
 	assert(botf - topf > 1  || !bloc.valid());
-	assert_gt(step, 0);
+	assert_geq(step, 0);
 	uint32_t t[4], b[4]; // dest BW ranges
 	Constraint* zones[3] = { &c0, &c1, &c2 };
 	ASSERT_ONLY(uint32_t lasttot = botf - topf);

@@ -74,6 +74,7 @@ public:
 		size_t reflen,    // length of reference sequence aligned to
 		size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
 		size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
+		size_t maxns,     // # Ns permitted
 		size_t maxhalf,   // max width in either direction
 		size_t& width,    // out: calculated width stored here
 		size_t& solwidth, // out: # rightmost cols where soln can end
@@ -168,6 +169,7 @@ public:
 		size_t reflen,    // length of reference sequence aligned to
 		size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
 		size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
+		size_t maxns,     // max # Ns permitted
 		size_t maxhalf,   // max width in either direction
 		size_t& width,    // out: calculated width stored here
 		size_t& solwidth, // out: # rightmost cols where solution can end
@@ -189,6 +191,7 @@ public:
 				reflen,
 				maxrdgap,
 				maxrfgap,
+				maxns,
 				maxhalf,
 				width,
 				solwidth,
@@ -208,6 +211,7 @@ public:
 				reflen,
 				maxrdgap,
 				maxrfgap,
+				maxns,
 				maxhalf,
 				width,
 				solwidth,
@@ -261,6 +265,7 @@ public:
 		size_t reflen,    // length of reference sequence aligned to
 		size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
 		size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
+		size_t maxns,     // max # Ns permitted in alignment
 		size_t maxhalf,   // max width in either direction
 		size_t& width,    // out: calculated width stored here
 		size_t& solwidth, // out: # rightmost cols where solution can end
@@ -312,6 +317,7 @@ public:
 		size_t reflen,    // length of reference sequence aligned to
 		size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
 		size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
+		size_t maxns,     // max # Ns permitted in alignment
 		size_t maxhalf,   // max width in either direction
 		size_t& width,    // out: calculated width stored here
 		size_t& solwidth, // out: # rightmost cols where solution can end

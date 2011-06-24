@@ -285,7 +285,9 @@ public:
 		size_t maxgaps,        // max of max # read, ref gaps
 		size_t truncLeft,      // columns to truncate from left-hand side of rect
 		EList<bool>* en,       // mask indicating which columns we can end in
-		SeedScanner *sscan);   // optional seed scanner to feed ref chars to
+		SeedScanner *sscan,    // optional seed scanner to feed ref chars to
+		size_t  upto,          // count the number of Ns up to this offset
+		size_t& nsUpto);       // output: the number of Ns up to 'upto'
 	
 	/**
 	 * Align read 'rd' to reference using read & reference information given
@@ -557,6 +559,7 @@ protected:
 		TAlScore       escore, // in: expected score
 		SwResult&      res,    // out: store results (edits and scores) here
 		size_t&        off,    // out: store diagonal projection of origin
+		size_t&        nbts,   // out: # backtracks
 		size_t         row,    // start in this rectangle row
 		size_t         col,    // start in this rectangle column
 		RandomSource&  rand);  // random gen, to choose among equal paths
@@ -565,6 +568,7 @@ protected:
 		TAlScore       escore, // in: expected score
 		SwResult&      res,    // out: store results (edits and scores) here
 		size_t&        off,    // out: store diagonal projection of origin
+		size_t&        nbts,   // out: # backtracks
 		size_t         row,    // start in this rectangle row
 		size_t         col,    // start in this rectangle column
 		RandomSource&  rand);  // random gen, to choose among equal paths
@@ -573,6 +577,7 @@ protected:
 		TAlScore       escore, // in: expected score
 		SwResult&      res,    // out: store results (edits and scores) here
 		size_t&        off,    // out: store diagonal projection of origin
+		size_t&        nbts,   // out: # backtracks
 		size_t         row,    // start in this rectangle row
 		size_t         col,    // start in this rectangle column
 		RandomSource&  rand);  // random gen, to choose among equal paths
@@ -581,6 +586,7 @@ protected:
 		TAlScore       escore, // in: expected score
 		SwResult&      res,    // out: store results (edits and scores) here
 		size_t&        off,    // out: store diagonal projection of origin
+		size_t&        nbts,   // out: # backtracks
 		size_t         row,    // start in this rectangle row
 		size_t         col,    // start in this rectangle column
 		RandomSource&  rand);  // random gen, to choose among equal paths
@@ -753,7 +759,6 @@ protected:
 	size_t              solwidth_;// # bands ending @ exhaustively scored cells
 	size_t              maxgaps_;// max of max # read gaps, max # ref gaps
 	size_t              truncLeft_; // # cols/diags to truncate from LHS
-	//EList<bool>*        st_;     // mask indicating which cols we can start in
 	EList<bool>*        en_;     // mask indicating which cols we can end in
 	size_t              rdgap_;  // max # gaps in read
 	size_t              rfgap_;  // max # gaps in reference
@@ -765,6 +770,8 @@ protected:
 
 #ifndef NO_SSE
 	bool                sse_;       // true -> use SSE 128-bit instructs
+	bool                sse8succ_;  // whether 8-bit worked
+	bool                sse16succ_; // whether 16-bit worked
 	SSEData             sseU8fw_;   // buf for fw query, 8-bit score
 	SSEData             sseU8rc_;   // buf for rc query, 8-bit score
 	SSEData             sseI16fw_;  // buf for fw query, 16-bit score

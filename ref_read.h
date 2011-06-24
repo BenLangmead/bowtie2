@@ -172,6 +172,11 @@ static RefRecord fastaRefReadAppend(
 			}
 			// c holds the first character on the line after the name
 			// line
+			if(c == '>') {
+				// If there's another name line immediately after this one,
+				// discard the previous name and start fresh with the new one
+				if (name) name->clear();
+			}
 		} while (c == '>' || c == '#');
 	} else {
 		ASSERT_ONLY(int cc = toupper(c));

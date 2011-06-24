@@ -110,6 +110,7 @@ bool DynProgFramer::frameSeedExtensionRect(
 	size_t reflen,    // length of reference sequence aligned to
 	size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
 	size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
+	size_t maxns,     // # Ns permitted
 	size_t maxhalf,   // max width in either direction
 	size_t& width,    // out: calculated width stored here
 	size_t& solwidth, // out: calculated width where solutions can end
@@ -134,19 +135,28 @@ bool DynProgFramer::frameSeedExtensionRect(
 	trimup = trimdn = 0;
 	// Check if we have to trim to fit the extents of the reference
 	if(trimToRef_) {
-		trimToRef(reflen, refl, refr, trimup, trimdn);
-		refl += trimup;
-		refr -= trimdn;
-		assert_geq(refr, refl);
-		// Occassionally, trimToRef trims the whole problem away (because the
-		// reference is actually too short to support a valid alignment).
-		if(trimdn >= solwidth) {
+		maxns = 0;
+	} else if(maxns > 0) {
+		maxns--;
+	}
+	if(refr >= (int64_t)(reflen + maxns)) {
+		trimdn = (size_t)(refr - (int64_t)((reflen + maxns)-1));
+		refr = (int64_t)(reflen + maxns)-1;
+	}
+	if(refl < (int64_t)(-maxns)) {
+		trimup = (size_t)(-refl) - maxns;
+		refl = (int64_t)(-maxns);
+	}
+	if(trimup > 0 || trimdn > 0) {
+		// Consider how trimdn affects width and solwidth
+		if(solwidth <= trimdn) {
 			return false;
 		}
-		// Remove from RHS of width
 		width -= trimdn;
 		solwidth -= trimdn;
+		// Consider how trimup affects width and solwidth
 		size_t wid = (size_t)(refr - refl + 1);
+		assert_gt(wid, 0);
 		if(wid < width) {
 			width = wid;
 			if(wid < solwidth) {
@@ -333,6 +343,7 @@ bool DynProgFramer::frameFindMateAnchorLeftRect(
 	size_t reflen,    // length of reference sequence aligned to
 	size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
 	size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
+	size_t maxns,     // max # ns permitted in the alignment
 	size_t maxhalf,   // max width in either direction
 	size_t& width,    // out: calculated width stored here
 	size_t& solwidth, // out: # cols where soln can end
@@ -382,14 +393,19 @@ bool DynProgFramer::frameFindMateAnchorLeftRect(
 	// Now take reference trimming into account, if required
 	assert_eq(refr - refl + 1, (int64_t)(width + rdlen - 1));
 	if(trimToRef_) {
-		if(refr >= (int64_t)reflen) {
-			trimdn = (size_t)(refr - (int64_t)(reflen-1));
-			refr = (int64_t)reflen-1;
-		}
-		if(refl < 0) {
-			trimup = (size_t)(-refl);
-			refl = 0;
-		}
+		maxns = 0;
+	} else if(maxns > 0) {
+		maxns--;
+	}
+	if(refr >= (int64_t)(reflen + maxns)) {
+		trimdn = (size_t)(refr - (int64_t)((reflen + maxns)-1));
+		refr = (int64_t)(reflen + maxns)-1;
+	}
+	if(refl < (int64_t)(-maxns)) {
+		trimup = (size_t)(-refl) - maxns;
+		refl = (int64_t)(-maxns);
+	}
+	if(trimup > 0 || trimdn > 0) {
 		// Consider how trimdn affects width and solwidth
 		if(solwidth <= trimdn) {
 			return false;
@@ -585,6 +601,7 @@ bool DynProgFramer::frameFindMateAnchorRightRect(
 	size_t reflen,    // length of reference sequence aligned to
 	size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
 	size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
+	size_t maxns,     // max # ns permitted in the alignment
 	size_t maxhalf,   // max width in either direction
 	size_t& width,    // out: calculated width stored here
 	size_t& solwidth, // out: # rightmost cols where soln might end
@@ -634,14 +651,19 @@ bool DynProgFramer::frameFindMateAnchorRightRect(
 	// Now take reference trimming into account, if required
 	assert_eq(refr - refl + 1, (int64_t)(width + rdlen - 1));
 	if(trimToRef_) {
-		if(refr >= (int64_t)reflen) {
-			trimdn = (size_t)(refr - (int64_t)(reflen-1));
-			refr = (int64_t)reflen-1;
-		}
-		if(refl < 0) {
-			trimup = (size_t)(-refl);
-			refl = 0;
-		}
+		maxns = 0;
+	} else if(maxns > 0) {
+		maxns--;
+	}
+	if(refr >= (int64_t)(reflen + maxns)) {
+		trimdn = (size_t)(refr - (int64_t)((reflen + maxns)-1));
+		refr = (int64_t)(reflen + maxns)-1;
+	}
+	if(refl < (int64_t)(-maxns)) {
+		trimup = (size_t)(-refl) - maxns;
+		refl = (int64_t)(-maxns);
+	}
+	if(trimup > 0 || trimdn > 0) {
 		// Consider how trimdn affects width and solwidth
 		if(solwidth <= trimdn) {
 			return false;
@@ -761,6 +783,7 @@ static void testCaseFindMateAnchorLeft(
 		reflen,   // length of reference sequence aligned to
 		maxrdgap, // max # of read gaps permitted in opp mate alignment
 		maxrfgap, // max # of ref gaps permitted in opp mate alignment
+		maxns,    // max # Ns permitted
 		maxhalf,  // max width in either direction
 		width,    // out: calculated width stored here
 		maxgaps,  // out: max # gaps
@@ -820,6 +843,7 @@ static void testCaseFindMateAnchorRight(
 		reflen,   // length of reference sequence aligned to
 		maxrdgap, // max # of read gaps permitted in opp mate alignment
 		maxrfgap, // max # of ref gaps permitted in opp mate alignment
+		maxns,    // max # Ns permitted
 		maxhalf,  // max width in either direction
 		width,    // out: calculated width stored here
 		maxgaps,  // out: calcualted max # gaps

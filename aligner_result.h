@@ -464,9 +464,9 @@ public:
 			assert(aed_.empty());
 			assert(ced_.empty());
 			assert(!refcoord_.valid());
+			assert(!refival_.valid());
 			return true;
 		} else {
-			//assert(refcoord_.valid());
 			return false;
 		}
 	}
@@ -478,6 +478,14 @@ public:
 	inline TRefId refid() const {
 		assert(shapeSet_);
 		return refcoord_.ref();
+	}
+
+	/**
+	 * Return the orientation that the alignment occurred in.
+	 */
+	inline int orient() const {
+		assert(shapeSet_);
+		return refcoord_.orient();
 	}
 	
 	/**
@@ -544,8 +552,8 @@ public:
 		size_t  trim3p);     // # poss trimmed form 3p end during alignment
 
 	/**
-	 * Return true iff the reference chars involved in this alignment
-	 * result are entirely within with given bounds.
+	 * Return true iff the reference chars involved in this alignment result
+	 * are entirely within with given bounds.
 	 */
 	bool within(
 		TRefId id,
@@ -562,7 +570,7 @@ public:
 		}
 		return false;
 	}
-	
+
 	/**
 	 * Set alignment score for this alignment.
 	 */
@@ -585,6 +593,14 @@ public:
 	 */
 	const Coord& refcoord() const {
 		return refcoord_;
+	}
+
+	/**
+	 * Return the 0-based offset of the leftmost reference position involved in
+	 * the alignment.
+	 */
+	const Interval& refival() const {
+		return refival_;
 	}
 
 	/**
@@ -725,10 +741,12 @@ public:
 	 */
 	bool repOk() const {
 		assert(refcoord_.repOk());
+		assert(refival_.repOk());
 		assert(VALID_AL_SCORE(score_) || ned_.empty());
 		assert(VALID_AL_SCORE(score_) || aed_.empty());
 		assert(VALID_AL_SCORE(score_) || ced_.empty());
 		assert(empty() || refcoord_.valid());
+		assert(empty() || refival_.valid());
 		assert_geq(rdexrows_, rdextent_);
 		assert(empty() || rdextent_ > 0);
 		assert(empty() || rfextent_ > 0);
@@ -899,12 +917,13 @@ public:
 	int64_t setFragmentLength(const AlnRes& omate) {
 		Coord st, en;
 		Coord ost, oen;
+		assert_eq(refid(), omate.refid());
 		getExtendedCoords(st, en);
 		omate.getExtendedCoords(ost, oen);
-		Coord overall_st = (st < ost ? st : ost);
-		Coord overall_en = (en < oen ? oen : en);
-		assert_geq(overall_en.off(), overall_st.off());
-		return overall_en.off() - overall_st.off();
+		TRefOff up = std::min(st.off(), ost.off());
+		TRefOff dn = std::max(en.off(), oen.off());
+		assert_geq(dn, up);
+		return dn - up;
 	}
 	
 	/**
@@ -1025,6 +1044,7 @@ protected:
 	EList<Edit> aed_;          // ambiguous base resolutions
 	EList<Edit> ced_;          // color miscalls
 	Coord       refcoord_;     // ref coordinates (seq idx, offset, orient)
+	Interval    refival_;      // ref interval (coord + length)
 	size_t      rdextent_;     // number of read chars involved in alignment
 	size_t      rdexrows_;     // number of read rows involved in alignment
 	size_t      rfextent_;     // number of ref chars involved in alignment

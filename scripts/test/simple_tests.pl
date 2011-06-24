@@ -38,6 +38,16 @@ if(! -x $bowtie2 || ! -x $bowtie2_build) {
 
 my @cases = (
 
+	# Check that using a seed of length 1 with 1-mismatch doesn't crash.
+	# Perhaps we should disallow it though?
+
+	{ ref    => [ "AAAAAAAAAAAAAAAAAAAAAAAAACCCCCCCCCCCCCCCCCCCCCCCC" ],
+	  reads  => [ "AA", "AA", "AA", "AA", "CC", "CC", "CC", "CC", "AA", "AA", "AA", "AA", "CC", "CC", "CC", "CC" ],
+	  names  => [ "r1", "r1", "r1", "r1", "r2", "r2", "r2", "r2", "r3", "r3", "r3", "r3", "r4", "r4", "r4", "r4" ],
+	  args   => "-P \"SEED=1,1\"",
+	  check_random => 1,
+	  report => "-k 1" },
+
 	#
 	# Local alignment
 	#

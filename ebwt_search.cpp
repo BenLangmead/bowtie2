@@ -1365,10 +1365,20 @@ static void parseOptions(int argc, const char **argv) {
 		gDelExtend = gDelOpen;
 	}
 	if(gGapBarrier < 1) {
-		cerr << "Error: --gbar must be >= 1; --gbar is " << gGapBarrier << endl;
+		cerr << "Warning: --gbar was set less than 1 (=" << gGapBarrier
+		     << "); setting to 1 instead" << endl;
+		gGapBarrier = 1;
 	}
 	if(gColor && gColorExEnds) {
 		gGapBarrier++;
+	}
+	if(multiseedMms >= multiseedLen) {
+		assert_gt(multiseedLen, 0);
+		cerr << "Warning: seed mismatches (" << multiseedMms
+		     << ") is less than seed length (" << multiseedLen
+			 << "); setting mismatches to " << (multiseedMms-1)
+			 << " instead" << endl;
+		multiseedMms = multiseedLen-1;
 	}
 #ifdef BOWTIE2
 	if(multiseedMms > 0 && offRatePlus <= 0) {
@@ -3370,6 +3380,7 @@ static void driver(
 					printFlags,   // print alignment flags
 					printCost,    // print penalty in extra column
 					printParams,  // print alignment parameters in extra column
+					gShowSeed,    // print pseudo-random seed
 					rmap,         // if != NULL, ReferenceMap to use
 					fullRef,      // print entire reference name including whitespace
 					partitionSz); // size of partition, so we can check for straddling alignments
