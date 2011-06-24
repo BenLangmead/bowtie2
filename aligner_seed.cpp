@@ -499,7 +499,7 @@ pair<int, int> SeedAligner::instantiateSeeds(
 				std::min<int>((int)seedlen, (int)read.length()),
 				depth,
 				fw);
-			QKey qk(sr.seqs(fw)[i]);
+			QKey qk(sr.seqs(fw)[i] ASSERT_ONLY(, tmpdnastr_));
 			QVal* qv;
 			if(qk.cacheable() && (qv = cache.queryCopy(qk)) != NULL) {
 				// This seed hit was found recently and the hitting QVal is
@@ -754,7 +754,7 @@ SeedAligner::reportHit(
 	// information eventually makes its way back to the SeedResults
 	// object when we call finishAlign(...).  finishAlign() will
 	// populate an ACRangeRange appropriately.
-	static BTDnaString rf;
+	BTDnaString& rf = tmprfdnastr_;
 	rf.clear();
 	edits_.clear();
 	if(prevEdit != NULL) {

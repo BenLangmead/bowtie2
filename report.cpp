@@ -36,7 +36,8 @@ void EbwtSearchParams::reportHitImpl(
 	TReadId patid,
 	uint32_t seed,
 	uint8_t mate,
-	Hit& hit)
+	Hit& hit
+	ASSERT_ONLY(, SStringExpandable<uint32_t>& destU32))
 {
 	// If ebwtFw is true, then 'seq' and 'quals' are reversed
 	// If fw is false, then 'seq' and 'quals' are reverse complemented
@@ -98,7 +99,12 @@ void EbwtSearchParams::reportHitImpl(
 				rfbuf2[i] = ref->getBase(h.first, h.second + i);
 			}
 #endif
-			int offset = ref->getStretch(rfbuf, h.first, h.second, qlen + hit.readGaps + 1);
+			int offset = ref->getStretch(
+				rfbuf,
+				h.first,
+				h.second,
+				qlen + hit.readGaps + 1
+				ASSERT_ONLY(, destU32));
 			char *rfc = (char*)rfbuf + offset;
 			for(size_t i = 0; i < qlen + hit.readGaps + 1; i++) {
 				// If gaps are allowed, it's possible for the reference

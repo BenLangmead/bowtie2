@@ -808,6 +808,9 @@ protected:
 	uint64_t nsucc_;     // # fills with at least 1 solution cell
 	uint64_t nfail_;     // # fills with no solution cells
 	uint64_t nbts_;      // backtrace steps
+	
+	ASSERT_ONLY(SStringExpandable<uint32_t> tmp_destU32_);
+	ASSERT_ONLY(BTDnaString tmp_editstr_, tmp_refstr_);
 };
 
 #endif /*ALIGNER_SW_H_*/

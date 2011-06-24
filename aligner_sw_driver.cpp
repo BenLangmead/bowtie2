@@ -415,7 +415,15 @@ bool SwDriver::extendSeeds(
 					assert(res_.repOk());
 					// Check that alignment accurately reflects the
 					// reference characters aligned to
-					assert(res_.alres.matchesRef(rd, ref));
+					assert(res_.alres.matchesRef(
+						rd,
+						ref,
+						tmp_rf_,
+						tmp_rdseq_,
+						tmp_qseq_,
+						raw_refbuf_,
+						raw_destU32_,
+						raw_matches_));
 					// Report an unpaired alignment
 					assert(!msink->maxed());
 					if(msink->report(
@@ -876,7 +884,15 @@ bool SwDriver::extendSeedsPaired(
 					// cerr << "  DONE after call to nextAlignment" << endl;
 					break;
 				}
-				assert(res_.alres.matchesRef(rd, ref));
+				assert(res_.alres.matchesRef(
+					rd,
+					ref,
+					tmp_rf_,
+					tmp_rdseq_,
+					tmp_qseq_,
+					raw_refbuf_,
+					raw_destU32_,
+					raw_matches_));
 
 				// User specified that alignments overhanging ends of reference
 				// should be excluded...
@@ -1023,7 +1039,15 @@ bool SwDriver::extendSeedsPaired(
 							oswa.mergeBacktraceCounters(swmMate.swbts);
 							oswa.resetBacktraceCounters();
 							foundMate = !ores_.empty();
-							assert(!foundMate || ores_.alres.matchesRef(ord, ref));
+							assert(!foundMate || ores_.alres.matchesRef(
+								ord,
+								ref,
+								tmp_rf_,
+								tmp_rdseq_,
+								tmp_qseq_,
+								raw_refbuf_,
+								raw_destU32_,
+								raw_matches_));
 						}
 						if(foundMate) {
 							// cerr << "  got mate alignment from nextAlignment" << endl;
@@ -1139,7 +1163,15 @@ bool SwDriver::extendSeedsPaired(
 								assert(res_.repOk());
 								// Check that alignment accurately reflects the
 								// reference characters aligned to
-								assert(res_.alres.matchesRef(rd, ref));
+								assert(res_.alres.matchesRef(
+									rd,
+									ref,
+									tmp_rf_,
+									tmp_rdseq_,
+									tmp_qseq_,
+									raw_refbuf_,
+									raw_destU32_,
+									raw_matches_));
 								// Report an unpaired alignment
 								assert(!msink->maxed());
 								assert(!msink->state().done());
@@ -1176,7 +1208,15 @@ bool SwDriver::extendSeedsPaired(
 						assert(res_.repOk());
 						// Check that alignment accurately reflects the
 						// reference characters aligned to
-						assert(res_.alres.matchesRef(rd, ref));
+						assert(res_.alres.matchesRef(
+							rd,
+							ref,
+							tmp_rf_,
+							tmp_rdseq_,
+							tmp_qseq_,
+							raw_refbuf_,
+							raw_destU32_,
+							raw_matches_));
 						// Report an unpaired alignment
 						assert(!msink->maxed());
 						assert(!msink->state().done());

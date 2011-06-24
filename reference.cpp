@@ -266,6 +266,7 @@ BitPairReference::BitPairReference(
 		EList<SString<char> > osn(DEBUG_CAT); // for holding ref names
 		EList<size_t> osvLen(DEBUG_CAT); // for holding ref seq lens
 		EList<size_t> osnLen(DEBUG_CAT); // for holding ref name lens
+		SStringExpandable<uint32_t> tmp_destU32_;
 		if(infiles != NULL) {
 			if(infilesSeq) {
 				for(size_t i = 0; i < infiles->size(); i++) {
@@ -295,7 +296,7 @@ BitPairReference::BitPairReference(
 			size_t olenU32 = (olen + 12) / 4;
 			uint32_t *buf = new uint32_t[olenU32];
 			uint8_t *bufadj = (uint8_t*)buf;
-			bufadj += getStretch(buf, i, 0, olen);
+			bufadj += getStretch(buf, i, 0, olen, tmp_destU32_);
 			for(size_t j = 0; j < olen; j++) {
 				assert_eq((int)(*os)[i][j], (int)bufadj[j]);
 				assert_eq((int)(*os)[i][j], (int)getBase(i, j));
@@ -418,14 +419,14 @@ int BitPairReference::getStretch(
 	uint32_t *destU32,
 	size_t tidx,
 	size_t toff,
-	size_t count) const
+	size_t count
+	ASSERT_ONLY(, SStringExpandable<uint32_t>& destU32_2)) const
 {
 	ASSERT_ONLY(size_t origCount = count);
 	ASSERT_ONLY(size_t origToff = toff);
 	if(count == 0) return 0;
 	uint8_t *dest = (uint8_t*)destU32;
 #ifndef NDEBUG
-	static SStringExpandable<uint32_t> destU32_2;
 	destU32_2.clear();
 	uint8_t *dest_2 = NULL;
 	int off2;

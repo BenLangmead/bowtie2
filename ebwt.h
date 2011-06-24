@@ -1529,7 +1529,8 @@ public:
 					   ColorspaceDecoder * dec,
 					   RandomSource& rand,
 					   Hit& hitL,
-					   Hit& hitR)
+					   Hit& hitR
+					   ASSERT_ONLY(, SStringExpandable<uint32_t>& destU32))
 	{
 		reportHitImpl(
 			seqL,
@@ -1552,7 +1553,8 @@ public:
 			patidL,
 			seedL,
 			mateL,
-			hitL);
+			hitL
+			ASSERT_ONLY(, destU32));
 		reportHitImpl(
 			seqR,
 			qualsR,
@@ -1574,7 +1576,8 @@ public:
 			patidR,
 			seedR,
 			mateR,
-			hitR);
+			hitR
+			ASSERT_ONLY(, destU32));
 		hitL.pmate = &hitR;
 		hitR.pmate = &hitL;
 		assert(hitL.repOk());
@@ -1605,11 +1608,12 @@ public:
 	               TReadId patid,
 	               uint32_t seed,
 	               uint8_t mate,
-				   Hit& hit)
+				   Hit& hit
+				   ASSERT_ONLY(, SStringExpandable<uint32_t>& destU32))
 	{
 		reportHitImpl(seq, quals, name, ref, rmap, dec, rand, fw,
 		              ebwtFw, edits, h, a, tlen, qlen, stratum, cost,
-					  oms, patid, seed, mate, hit);
+					  oms, patid, seed, mate, hit ASSERT_ONLY(, destU32));
 		assert(hit.repOk());
 		return sink().reportHit(hit, stratum);
 	}
@@ -1638,7 +1642,8 @@ public:
 	    TReadId patid,
 	    uint32_t seed,
 	    uint8_t mate,
-		Hit& hit);
+		Hit& hit
+		ASSERT_ONLY(, SStringExpandable<uint32_t>& destU32));
 
 private:
 	HitSinkPerThread& _sink;

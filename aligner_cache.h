@@ -63,16 +63,20 @@ struct QKey {
 	/**
 	 * Initialize QKey from DNA string.
 	 */
-	QKey(const BTDnaString& s) { init(s); }
+	QKey(const BTDnaString& s ASSERT_ONLY(, BTDnaString& tmp)) {
+		init(s ASSERT_ONLY(, tmp));
+	}
 	
 	/**
 	 * Initialize QKey from DNA string.  Rightmost character is placed in the
 	 * least significant bitpair.
 	 */
-	bool init(const BTDnaString& s) {
+	bool init(
+		const BTDnaString& s
+		ASSERT_ONLY(, BTDnaString& tmp))
+	{
 		seq = 0;
 		len = (uint32_t)s.length();
-		ASSERT_ONLY(static BTDnaString tmp);
 		ASSERT_ONLY(tmp.clear());
 		if(len > 32) {
 			len = 0xffffffff;
@@ -835,7 +839,7 @@ public:
 		bool getLock = true)
 	{
 		assert(repOk());
-		qk_.init(seq);
+		qk_.init(seq ASSERT_ONLY(, tmpdnastr_));
 		if(qk_.cacheable() && (qv_ = current_->query(qk_, getLock)) != NULL) {
 			// qv_ holds the answer
 			assert(qv_->valid());
@@ -857,6 +861,7 @@ public:
 		qv_->reset();
 		return 0; // Need to search for it
 	}
+	ASSERT_ONLY(BTDnaString tmpdnastr_);
 	
 	/**
 	 * Called when is finished aligning a read (and so is finished
@@ -941,7 +946,8 @@ public:
 		
 		assert(aligning());
 		assert(repOk());
-		SAKey sak(rfseq);
+		ASSERT_ONLY(BTDnaString tmp);
+		SAKey sak(rfseq ASSERT_ONLY(, tmp));
 		assert(sak.cacheable());
 		if(current_->addOnTheFly((*qv_), sak, topf, botf, getLock)) {
 			rangen_++;

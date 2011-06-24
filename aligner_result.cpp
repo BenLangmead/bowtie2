@@ -481,7 +481,13 @@ bool AlnRes::overlap(AlnRes& res) {
  */
 bool AlnRes::matchesRef(
 	const Read& rd,
-	const BitPairReference& ref)
+	const BitPairReference& ref,
+	BTDnaString& rf,
+	BTDnaString& rdseq,
+	BTString& qseq,
+	SStringExpandable<char>& raw_refbuf,
+	SStringExpandable<uint32_t>& destU32,
+	EList<bool>& matches)
 {
 	assert(!empty());
 	assert(repOk());
@@ -489,7 +495,6 @@ bool AlnRes::matchesRef(
 	bool fw = refcoord_.fw();
 	// Adjust reference string length according to edits
 	size_t refallen = refNucExtent();
-	static SStringExpandable<char> raw_refbuf;
 	raw_refbuf.resize(refallen + 16);
 	raw_refbuf.clear();
 	int nsOnLeft = 0;
@@ -500,7 +505,8 @@ bool AlnRes::matchesRef(
 		reinterpret_cast<uint32_t*>(raw_refbuf.wbuf()),
 		refcoord_.ref(),
 		max<TRefOff>(refcoord_.off(), 0),
-		refallen);
+		refallen,
+		destU32);
 	assert_leq(off, 16);
 	char *refbuf = raw_refbuf.wbuf() + off;
 	size_t trimBeg = 0, trimEnd = 0;
@@ -516,9 +522,6 @@ bool AlnRes::matchesRef(
 	// trimming
 	assert(!color_ || trimBeg == 0);
 	assert(!color_ || trimEnd == 0);
-	static BTDnaString rf;
-	static BTDnaString rdseq;
-	static BTString qseq;
 	rf.clear();
 	rdseq.clear();
 	if(rd.color) {
@@ -549,7 +552,6 @@ bool AlnRes::matchesRef(
 		Edit::invertPoss(ned_, rdexrows_);
 	}
 	assert_eq(refallen, rf.length());
-	static EList<bool> matches;
 	matches.clear();
 	bool matchesOverall = true;
 	matches.resize(refallen);
