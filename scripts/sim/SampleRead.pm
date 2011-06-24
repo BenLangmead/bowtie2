@@ -100,7 +100,7 @@ sub genReads {
 			while(1) {
 				my $ro = int(rand($totreflen));
 				my $len = $lengen->();
-				$len > 0 || die;
+				$len = 1 if $len < 1;
 				my $key = undef;
 				my $rflen = 0;
 				for (@keys) {

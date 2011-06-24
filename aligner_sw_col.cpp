@@ -216,6 +216,7 @@ bool SwAligner::backtrackColors(
 	typedef SwColorCell TCell;
 	ELList<TCell>& tab = ctab_;
 	assert_lt(row, tab.size());
+	assert_gt(row, 0);
 	assert_geq(escore, minsc_);
 	btcstack_.clear();
 	btcells_.clear();

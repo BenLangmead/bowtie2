@@ -88,17 +88,13 @@ void SwAligner::initRead(
 		if(sc_->monotone) {
 			buildQueryProfileEnd2EndSseI16(true);
 			buildQueryProfileEnd2EndSseI16(false);
-#ifndef NDEBUG
 			buildQueryProfileEnd2EndSseU8(true);
 			buildQueryProfileEnd2EndSseU8(false);
-#endif
 		} else {
 			buildQueryProfileLocalSseI16(true);
 			buildQueryProfileLocalSseI16(false);
-#ifndef NDEBUG
 			buildQueryProfileLocalSseU8(true);
 			buildQueryProfileLocalSseU8(false);
-#endif
 		}
 	}
 #endif
@@ -162,21 +158,26 @@ void SwAligner::initRef(
 	size_t maxgaps,        // max of max # read, ref gaps
 	size_t truncLeft,      // columns to truncate from left-hand side of rect
 	EList<bool>* en,       // mask indicating which columns we can end in
-	SeedScanner *sscan)    // optional seed scanner to feed ref chars to
+	SeedScanner *sscan,    // optional seed scanner to feed ref chars to
+	size_t  upto,          // count the number of Ns up to this offset
+	size_t& nsUpto)        // output: the number of Ns up to 'upto'
 {
 	assert_gt(rff, rfi);
 	// Capture an extra reference character outside the rectangle so that we
 	// can check matches in the next column over to the right
 	rff++;
-	// Figure the number of Ns we're going to add to either side
-	size_t leftNs  =
-		(rfi >= 0               ? 0 : (size_t)std::abs(rfi));
-	size_t rightNs =
-		(rff <= (int64_t)reflen ? 0 : (size_t)std::abs(rff - (int64_t)reflen));
 	// rflen = full length of the reference substring to consider, including
 	// overhang off the boundaries of the reference sequence
 	const size_t rflen = (size_t)(rff - rfi);
+	// Figure the number of Ns we're going to add to either side
+	size_t leftNs  =
+		(rfi >= 0               ? 0 : (size_t)std::abs(rfi));
+	leftNs = min(leftNs, rflen);
+	size_t rightNs =
+		(rff <= (int64_t)reflen ? 0 : (size_t)std::abs(rff - (int64_t)reflen));
+	rightNs = min(rightNs, rflen);
 	// rflenInner = length of just the portion that doesn't overhang ref ends
+	assert_geq(rflen, leftNs + rightNs);
 	const size_t rflenInner = rflen - (leftNs + rightNs);
 #ifndef NDEBUG
 	bool haveRfbuf2 = false;
@@ -233,17 +234,16 @@ void SwAligner::initRef(
 	// nucleotides (IUPAC codes) have more than one mask bit set.  If a
 	// reference scanner was provided, use it to opportunistically resolve seed
 	// hits.
-	if(sscan == NULL || sscan->empty()) {
-		for(size_t i = 0; i < rflen; i++) {
-			// rf_[i] gets mask version of refence char, with N=16
-			rf_[i] = (1 << rf_[i]);
-		}
-	} else {
-		for(size_t i = 0; i < rflen; i++) {
-			// rf_[i] gets mask version of refence char, with N=16
+	nsUpto = 0;
+	for(size_t i = 0; i < rflen; i++) {
+		// rf_[i] gets mask version of refence char, with N=16
+		if(sscan != NULL && !sscan->empty()) {
 			sscan->nextChar(rf_[i]);
-			rf_[i] = (1 << rf_[i]);
 		}
+		if(i < upto && rf_[i] > 3) {
+			nsUpto++;
+		}
+		rf_[i] = (1 << rf_[i]);
 	}
 	// Correct for having captured an extra reference character
 	rff--;
@@ -275,7 +275,7 @@ bool SwAligner::align(RandomSource& rnd) {
 	btncand_.clear();
 	btccand_.clear();
 	TAlScore best = 0;
-	ASSERT_ONLY(bool sse8 = false);
+	sse8succ_ = sse16succ_ = false;
 	if(color_) {
 		ctab_.clear();
 		best = alignColors();
@@ -285,67 +285,89 @@ bool SwAligner::align(RandomSource& rnd) {
 #ifndef NO_SSE
 		if(sse_) {
 			if(sc_->monotone) {
-				best = alignNucleotidesEnd2EndSseI16(flag);
+				if(minsc_ >= -254) {
+					best = alignNucleotidesEnd2EndSseU8(flag);
+					sse8succ_ = (flag == 0);
 #ifndef NDEBUG
-				int flag2 = 0;
-				TAlScore best2 = alignNucleotidesEnd2EndSseU8(flag2);
-				assert(flag2 == -2 || best == best2);
-				sse8 = (flag2 == 0);
+					int flag2 = 0;
+					TAlScore best2 = alignNucleotidesEnd2EndSseI16(flag2);
+					assert(flag == -2 || best == best2);
+					sse16succ_ = (flag2 == 0);
 #endif /*ndef NDEBUG*/
+				} else {
+					best = alignNucleotidesEnd2EndSseI16(flag);
+					sse16succ_ = (flag == 0);
+				}
 			} else {
-				best = alignNucleotidesLocalSseI16(flag);
+				assert_geq(sseU8fw_.bias_, 0);
+				best = alignNucleotidesLocalSseU8(flag);
+				if(flag == -2) {
+					flag = 0;
+					best = alignNucleotidesLocalSseI16(flag);
+					sse16succ_ = (flag == 0);
+				} else {
+					sse8succ_ = (flag == 0);
 #ifndef NDEBUG
-				int flag2 = 0;
-				TAlScore best2 = alignNucleotidesLocalSseU8(flag2);
-				assert(flag2 == -2 || best == best2);
-				sse8 = (flag2 == 0);
+					int flag2 = 0;
+					TAlScore best2 = alignNucleotidesLocalSseI16(flag2);
+					assert(flag2 == -2 || best == best2);
+					sse16succ_ = (flag2 == 0);
 #endif /*ndef NDEBUG*/
+				}
 			}
 #ifndef NDEBUG
-			SSEData& d8  = fw_ ? sseU8fw_  : sseU8rc_;
-			SSEData& d16 = fw_ ? sseI16fw_ : sseI16rc_;
-			assert_eq(d8.mat_.nrow(), d16.mat_.nrow());
-			assert_eq(d8.mat_.ncol(), d16.mat_.ncol());
-			for(size_t i = 0; i < d8.mat_.nrow(); i++) {
-				for(size_t j = 0; j < d8.mat_.ncol(); j++) {
-					int h8  = d8.mat_.helt(i, j);
-					int h16 = d16.mat_.helt(i, j);
-					int e8  = d8.mat_.eelt(i, j);
-					int e16 = d16.mat_.eelt(i, j);
-					int f8  = d8.mat_.felt(i, j);
-					int f16 = d16.mat_.felt(i, j);
-					TAlScore h8s  = (TAlScore)(h8  - 0xff  );
-					TAlScore h16s = (TAlScore)(h16 - 0x7fff);
-					TAlScore e8s  = (TAlScore)(e8  - 0xff  );
-					TAlScore e16s = (TAlScore)(e16 - 0x7fff);
-					TAlScore f8s  = (TAlScore)(f8  - 0xff  );
-					TAlScore f16s = (TAlScore)(f16 - 0x7fff);
-					if(h8s < minsc_) {
-						h8s = minsc_ - 1;
-					}
-					if(h16s < minsc_) {
-						h16s = minsc_ - 1;
-					}
-					if(e8s < minsc_) {
-						e8s = minsc_ - 1;
-					}
-					if(e16s < minsc_) {
-						e16s = minsc_ - 1;
-					}
-					if(f8s < minsc_) {
-						f8s = minsc_ - 1;
-					}
-					if(f16s < minsc_) {
-						f16s = minsc_ - 1;
-					}
-					if((h8 != 0 || (int16_t)h16 != (int16_t)0x8000) && h8 > 0) {
-						assert_eq(h8s, h16s);
-					}
-					if((e8 != 0 || (int16_t)e16 != (int16_t)0x8000) && e8 > 0) {
-						assert_eq(e8s, e16s);
-					}
-					if((f8 != 0 || (int16_t)f16 != (int16_t)0x8000) && f8 > 0) {
-						assert_eq(f8s, f16s);
+			if(sse8succ_ && sse16succ_) {
+				SSEData& d8  = fw_ ? sseU8fw_  : sseU8rc_;
+				SSEData& d16 = fw_ ? sseI16fw_ : sseI16rc_;
+				assert_eq(d8.mat_.nrow(), d16.mat_.nrow());
+				assert_eq(d8.mat_.ncol(), d16.mat_.ncol());
+				for(size_t i = 0; i < d8.mat_.nrow(); i++) {
+					for(size_t j = 0; j < d8.mat_.ncol(); j++) {
+						int h8  = d8.mat_.helt(i, j);
+						int h16 = d16.mat_.helt(i, j);
+						int e8  = d8.mat_.eelt(i, j);
+						int e16 = d16.mat_.eelt(i, j);
+						int f8  = d8.mat_.felt(i, j);
+						int f16 = d16.mat_.felt(i, j);
+						TAlScore h8s  =
+							(sc_->monotone ? (h8  - 0xff  ) : h8);
+						TAlScore h16s =
+							(sc_->monotone ? (h16 - 0x7fff) : (h16 + 0x8000));
+						TAlScore e8s  =
+							(sc_->monotone ? (e8  - 0xff  ) : e8);
+						TAlScore e16s =
+							(sc_->monotone ? (e16 - 0x7fff) : (e16 + 0x8000));
+						TAlScore f8s  =
+							(sc_->monotone ? (f8  - 0xff  ) : f8);
+						TAlScore f16s =
+							(sc_->monotone ? (f16 - 0x7fff) : (f16 + 0x8000));
+						if(h8s < minsc_) {
+							h8s = minsc_ - 1;
+						}
+						if(h16s < minsc_) {
+							h16s = minsc_ - 1;
+						}
+						if(e8s < minsc_) {
+							e8s = minsc_ - 1;
+						}
+						if(e16s < minsc_) {
+							e16s = minsc_ - 1;
+						}
+						if(f8s < minsc_) {
+							f8s = minsc_ - 1;
+						}
+						if(f16s < minsc_) {
+							f16s = minsc_ - 1;
+						}
+						if((h8 != 0 || (int16_t)h16 != (int16_t)0x8000) && h8 > 0) {
+							assert_eq(h8s, h16s);
+						}
+						if((e8 != 0 || (int16_t)e16 != (int16_t)0x8000) && e8 > 0) {
+							assert_eq(e8s, e16s);
+						}
+						if((f8 != 0 || (int16_t)f16 != (int16_t)0x8000) && f8 > 0) {
+							assert_eq(f8s, f16s);
+						}
 					}
 				}
 			}
@@ -391,25 +413,35 @@ bool SwAligner::align(RandomSource& rnd) {
 #ifndef NO_SSE
 		if(sse_) {
 			// Look for solutions using SSE matrix
-			ASSERT_ONLY(EList<DpNucBtCandidate> tmp(DP_CAT));
+			assert(sse8succ_ || sse16succ_);
 			if(sc_->monotone) {
-				gatherCellsNucleotidesEnd2EndSseI16(best);
-#ifndef NDEBUG
-				if(sse8) {
-					tmp = btncand_;
+				if(sse8succ_) {
 					gatherCellsNucleotidesEnd2EndSseU8(best);
-					assert(tmp == btncand_);
-				}
-#endif /*ndef NDEBUG*/
-			} else {
-				gatherCellsNucleotidesLocalSseI16(best);
 #ifndef NDEBUG
-				if(sse8) {
-					tmp = btncand_;
-					gatherCellsNucleotidesLocalSseU8(best);
-					assert(tmp == btncand_);
-				}
+					if(sse16succ_) {
+						ASSERT_ONLY(EList<DpNucBtCandidate> tmp(DP_CAT));
+						tmp = btncand_;
+						gatherCellsNucleotidesEnd2EndSseI16(best);
+						assert(tmp == btncand_);
+					}
 #endif /*ndef NDEBUG*/
+				} else {
+					gatherCellsNucleotidesEnd2EndSseI16(best);
+				}
+			} else {
+				if(sse8succ_) {
+					gatherCellsNucleotidesLocalSseU8(best);
+#ifndef NDEBUG
+					if(sse16succ_) {
+						ASSERT_ONLY(EList<DpNucBtCandidate> tmp(DP_CAT));
+						tmp = btncand_;
+						gatherCellsNucleotidesLocalSseI16(best);
+						assert(tmp == btncand_);
+					}
+#endif /*ndef NDEBUG*/
+				} else {
+					gatherCellsNucleotidesLocalSseI16(best);
+				}
 			}
 		} else {
 #endif /*ndef NO_SSE*/
@@ -2000,7 +2032,7 @@ bool SwAligner::nextAlignment(
 		return false;
 	}
 	assert(!done());
-	size_t off = 0;
+	size_t off = 0, nbts = 0;
 	if(color_) {
 		assert_lt(cural_, btccand_.size());
 		size_t row = btccand_[cural_].row;
@@ -2027,55 +2059,119 @@ bool SwAligner::nextAlignment(
 		assert_lt(cural_, btncand_.size());
 		if(sse_) {
 			while(cural_ < btncand_.size()) {
+				nbts = 0;
+				assert(sse8succ_ || sse16succ_);
 				size_t row = btncand_[cural_].row;
 				size_t col = btncand_[cural_].col;
 				assert_lt(row, dpRows());
 				assert_lt(col, rff_-rfi_);
 				if(sc_->monotone) {
-					bool ret = backtraceNucleotidesEnd2EndSseI16(
-						btncand_[cural_].score, // in: expected score
-						res,    // out: store results (edits and scores) here
-						off,    // out: store diagonal projection of origin
-						row,    // start in this rectangle row
-						col,    // start in this rectangle column
-						rnd);   // random gen, to choose among equal paths
+					bool ret = false;
+					if(sse8succ_) {
+						uint32_t reseed = rnd.nextU32();
+						rnd.init(reseed); // same b/t backtrace calls
+						ret = backtraceNucleotidesEnd2EndSseU8(
+							btncand_[cural_].score, // in: expected score
+							res,    // out: store results (edits and scores) here
+							off,    // out: store diagonal projection of origin
+							nbts,   // out: # backtracks
+							row,    // start in this rectangle row
+							col,    // start in this rectangle column
+							rnd);   // random gen, to choose among equal paths
 #ifndef NDEBUG
-					SwResult res2;
-					size_t off2;
-					bool ret2 = backtraceNucleotidesEnd2EndSseU8(
-						btncand_[cural_].score, // in: expected score
-						res2,   // out: store results (edits and scores) here
-						off2,   // out: store diagonal projection of origin
-						row,    // start in this rectangle row
-						col,    // start in this rectangle column
-						rnd);   // random gen, to choose among equal paths
-					assert(ret == ret2);
-					assert(!ret || res2.alres.score() == res.alres.score());
+						if(sse16succ_) {
+							SwResult res2;
+							size_t off2, nbts2 = 0;
+							rnd.init(reseed); // same b/t backtrace calls
+							bool ret2 = backtraceNucleotidesEnd2EndSseI16(
+								btncand_[cural_].score, // in: expected score
+								res2,   // out: store results (edits and scores) here
+								off2,   // out: store diagonal projection of origin
+								nbts2,  // out: # backtracks
+								row,    // start in this rectangle row
+								col,    // start in this rectangle column
+								rnd);   // random gen, to choose among equal paths
+							assert_eq(ret, ret2);
+							assert_eq(nbts, nbts2);
+							assert(!ret || res2.alres.score() == res.alres.score());
+							if((rand() & 15) == 0) {
+								// Check that same cells are reported through
+								SSEData& d8  = fw_ ? sseU8fw_  : sseU8rc_;
+								SSEData& d16 = fw_ ? sseI16fw_ : sseI16rc_;
+								for(size_t i = d8.mat_.nrow(); i > 0; i--) {
+									for(size_t j = 0; j < d8.mat_.ncol(); j++) {
+										assert_eq(d8.mat_.reportedThrough(i-1, j),
+												  d16.mat_.reportedThrough(i-1, j));
+									}
+								}
+							}
+						}
 #endif
+					} else if(sse16succ_) {
+						ret = backtraceNucleotidesEnd2EndSseI16(
+							btncand_[cural_].score, // in: expected score
+							res,    // out: store results (edits and scores) here
+							off,    // out: store diagonal projection of origin
+							nbts,   // out: # backtracks
+							row,    // start in this rectangle row
+							col,    // start in this rectangle column
+							rnd);   // random gen, to choose among equal paths
+					}
 					if(ret) {
 						break;
 					}
 				} else {
-					bool ret = backtraceNucleotidesLocalSseI16(
-						btncand_[cural_].score, // in: expected score
-						res,    // out: store results (edits and scores) here
-						off,    // out: store diagonal projection of origin
-						row,    // start in this rectangle row
-						col,    // start in this rectangle column
-						rnd);   // random gen, to choose among equal paths
+					bool ret = false;
+					if(sse8succ_) {
+						uint32_t reseed = rnd.nextU32();
+						rnd.init(reseed); // same b/t backtrace calls
+						ret = backtraceNucleotidesLocalSseU8(
+							btncand_[cural_].score, // in: expected score
+							res,    // out: store results (edits and scores) here
+							off,    // out: store diagonal projection of origin
+							nbts,   // out: # backtracks
+							row,    // start in this rectangle row
+							col,    // start in this rectangle column
+							rnd);   // random gen, to choose among equal paths
 #ifndef NDEBUG
-					SwResult res2;
-					size_t off2;
-					bool ret2 = backtraceNucleotidesLocalSseU8(
-						btncand_[cural_].score, // in: expected score
-						res2,   // out: store results (edits and scores) here
-						off2,   // out: store diagonal projection of origin
-						row,    // start in this rectangle row
-						col,    // start in this rectangle column
-						rnd);   // random gen, to choose among equal paths
-					assert(ret == ret2);
-					assert(!ret || res2.alres.score() == res.alres.score());
+						if(sse16succ_) {
+							SwResult res2;
+							size_t off2, nbts2 = 0;
+							rnd.init(reseed); // same b/t backtrace calls
+							bool ret2 = backtraceNucleotidesLocalSseI16(
+								btncand_[cural_].score, // in: expected score
+								res2,   // out: store results (edits and scores) here
+								off2,   // out: store diagonal projection of origin
+								nbts2,  // out: # backtracks
+								row,    // start in this rectangle row
+								col,    // start in this rectangle column
+								rnd);   // random gen, to choose among equal paths
+							assert_eq(ret, ret2);
+							assert_eq(nbts, nbts2);
+							assert(!ret || res2.alres.score() == res.alres.score());
+							if((rand() & 15) == 0) {
+								// Check that same cells are reported through
+								SSEData& d8  = fw_ ? sseU8fw_  : sseU8rc_;
+								SSEData& d16 = fw_ ? sseI16fw_ : sseI16rc_;
+								for(size_t i = d8.mat_.nrow(); i > 0; i--) {
+									for(size_t j = 0; j < d8.mat_.ncol(); j++) {
+										assert_eq(d8.mat_.reportedThrough(i-1, j),
+												  d16.mat_.reportedThrough(i-1, j));
+									}
+								}
+							}
+						}
 #endif
+					} else if(sse16succ_) {
+						ret = backtraceNucleotidesLocalSseI16(
+							btncand_[cural_].score, // in: expected score
+							res,    // out: store results (edits and scores) here
+							off,    // out: store diagonal projection of origin
+							nbts,   // out: # backtracks
+							row,    // start in this rectangle row
+							col,    // start in this rectangle column
+							rnd);   // random gen, to choose among equal paths
+					}
 					if(ret) {
 						break;
 					}

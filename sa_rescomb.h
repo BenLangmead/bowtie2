@@ -82,6 +82,13 @@ public:
 		satup_->offs[saoff] = off;
 		return tryResolving(nresolved);
 	}
+	
+	/**
+	 * Return the SATuple.
+	 */
+	const SATuple& satup() const {
+		return *satup_;
+	}
 
 protected:
 

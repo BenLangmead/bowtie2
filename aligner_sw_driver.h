@@ -254,8 +254,8 @@ protected:
 
 	// Data structures encapsulating the diagonals that have already been used
 	// to seed alignment for mate 1 and mate 2.
-	EIvalMergeStrandedList seenDiags1_;
-	EIvalMergeStrandedList seenDiags2_;
+	EIvalMergeList seenDiags1_;
+	EIvalMergeList seenDiags2_;
 
 	// For weeding out redundant alignments
 	RedundantAlns  redAnchor_;  // database of cells used for anchor alignments

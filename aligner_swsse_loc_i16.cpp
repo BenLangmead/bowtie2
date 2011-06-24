@@ -125,6 +125,84 @@ void SwAligner::buildQueryProfileLocalSseI16(bool fw) {
 	}
 }
 
+#ifndef NDEBUG
+/**
+ * Return true iff the cell has sane E/F/H values w/r/t its predecessors.
+ */
+static bool cellOkLocalI16(
+	SSEData& d,
+	size_t row,
+	size_t col,
+	int refc,
+	int readc,
+	int readq,
+	const Scoring& sc)     // scoring scheme
+{
+	TCScore floorsc = std::numeric_limits<int16_t>::min();
+	TCScore ceilsc = std::numeric_limits<int16_t>::max()-1;
+	TAlScore offsetsc = 0x8000;
+	TAlScore sc_h_cur = (TAlScore)d.mat_.helt(row, col);
+	TAlScore sc_e_cur = (TAlScore)d.mat_.eelt(row, col);
+	TAlScore sc_f_cur = (TAlScore)d.mat_.felt(row, col);
+	if(sc_h_cur > floorsc) {
+		sc_h_cur += offsetsc;
+	}
+	if(sc_e_cur > floorsc) {
+		sc_e_cur += offsetsc;
+	}
+	if(sc_f_cur > floorsc) {
+		sc_f_cur += offsetsc;
+	}
+	bool gapsAllowed = true;
+	size_t rowFromEnd = d.mat_.nrow() - row - 1;
+	if(row < (size_t)sc.gapbar || rowFromEnd < (size_t)sc.gapbar) {
+		gapsAllowed = false;
+	}
+	bool e_left_trans = false, h_left_trans = false;
+	bool f_up_trans   = false, h_up_trans = false;
+	bool h_diag_trans = false;
+	if(gapsAllowed) {
+		TAlScore sc_h_left = floorsc;
+		TAlScore sc_e_left = floorsc;
+		TAlScore sc_h_up   = floorsc;
+		TAlScore sc_f_up   = floorsc;
+		if(col > 0 && sc_e_cur > floorsc && sc_e_cur <= ceilsc) {
+			sc_h_left = d.mat_.helt(row, col-1) + offsetsc;
+			sc_e_left = d.mat_.eelt(row, col-1) + offsetsc;
+			e_left_trans = (sc_e_left > floorsc && sc_e_cur == sc_e_left - sc.readGapExtend());
+			h_left_trans = (sc_h_left > floorsc && sc_e_cur == sc_h_left - sc.readGapOpen());
+			assert(e_left_trans || h_left_trans);
+		}
+		if(row > 0 && sc_f_cur > floorsc && sc_f_cur <= ceilsc) {
+			sc_h_up = d.mat_.helt(row-1, col) + offsetsc;
+			sc_f_up = d.mat_.felt(row-1, col) + offsetsc;
+			f_up_trans = (sc_f_up > floorsc && sc_f_cur == sc_f_up - sc.refGapExtend());
+			h_up_trans = (sc_h_up > floorsc && sc_f_cur == sc_h_up - sc.refGapOpen());
+			assert(f_up_trans || h_up_trans);
+		}
+	} else {
+		assert_geq(floorsc, sc_e_cur);
+		assert_geq(floorsc, sc_f_cur);
+	}
+	if(col > 0 && row > 0 && sc_h_cur > floorsc && sc_h_cur <= ceilsc) {
+		TAlScore sc_h_upleft = d.mat_.helt(row-1, col-1) + offsetsc;
+		TAlScore sc_diag = sc.score(readc, (int)refc, readq - 33);
+		h_diag_trans = sc_h_cur == sc_h_upleft + sc_diag;
+	}
+	assert(
+		sc_h_cur <= floorsc ||
+		e_left_trans ||
+		h_left_trans ||
+		f_up_trans   ||
+		h_up_trans   ||
+		h_diag_trans ||
+		sc_h_cur > ceilsc ||
+		row == 0 ||
+		col == 0);
+	return true;
+}
+#endif /*ndef NDEBUG*/
+
 #ifdef NDEBUG
 
 #define assert_all_eq0(x)
@@ -326,13 +404,19 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag) {
 		size_t off = (size_t)firsts5[refc] * iter * 2;
 		pvScore = d.qprof_ + off; // even elts = query profile, odd = gap barrier
 		
-		// Set all cells to low value
+		// Load H vector from the final row of the previous column
+		vh = _mm_load_si128(pvHLoad + colstride - rowstride);
+		
+		// Set all F cells to low value
 		vf = _mm_cmpeq_epi16(vf, vf);
 		vf = _mm_slli_epi16(vf, NBITS_PER_WORD-1);
 		vf = _mm_or_si128(vf, vlolsw);
+
+		// Store cells in F, calculated previously
+		// No need to veto ref gap extensions, they're all 0x8000s
+		_mm_store_si128(pvFStore, vf);
+		pvFStore += rowstride;
 		
-		// Load H vector from the final row of the previous column
-		vh = _mm_load_si128(pvHLoad + colstride - rowstride);
 		// Shift 2 bytes down so that topmost (least sig) cell gets 0
 		vh = _mm_slli_si128(vh, NBYTES_PER_WORD);
 		// Fill topmost (least sig) cell with low value
@@ -345,17 +429,11 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag) {
 		assert_all_lt(ve, vhi);
 		pvELoad += rowstride;
 		
-		// Store cells in F, calculated previously
-		// No need to veto ref gap extensions, they're all 0x8000s
-		_mm_store_si128(pvFStore, vf);
-		pvFStore += rowstride;
-		
 		// Factor in query profile (matches and mismatches)
 		vh = _mm_adds_epi16(vh, pvScore[0]);
 		
 		// Update H, factoring in E and F
 		vh = _mm_max_epi16(vh, ve);
-		vh = _mm_max_epi16(vh, vf);
 		
 		// Update highest score encountered this far
 		vmax = _mm_max_epi16(vmax, vh);
@@ -365,7 +443,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag) {
 		pvHStore += rowstride;
 		
 		// Update vE value
-		vtmp = vh;
+		vf = vh;
 		vh = _mm_subs_epi16(vh, rdgapo);
 		vh = _mm_adds_epi16(vh, pvScore[1]); // veto some read gap opens
 		vh = _mm_adds_epi16(vh, pvScore[1]); // veto some read gap opens
@@ -382,10 +460,8 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag) {
 		pvEStore += rowstride;
 		
 		// Update vf value
-		vtmp = _mm_subs_epi16(vtmp, rfgapo);
-		vf = _mm_subs_epi16(vf, rfgape);
+		vf = _mm_subs_epi16(vf, rfgapo);
 		assert_all_lt(vf, vhi);
-		vf = _mm_max_epi16(vf, vtmp);
 		
 		pvScore += 2; // move on to next query profile
 
@@ -469,6 +545,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag) {
 		
 		// If any element of vtmp is greater than H - gap-open...
 		j = 0;
+		ASSERT_ONLY(int fixups = 0);
 		while(cmp != 0x0000) {
 			// Store this vf
 			_mm_store_si128(pvFStore, vf);
@@ -518,7 +595,25 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag) {
 			vf = _mm_max_epi16(vtmp, vf);
 			vtmp = _mm_cmpgt_epi16(vf, vtmp);
 			cmp = _mm_movemask_epi8(vtmp);
+			ASSERT_ONLY(fixups++);
 		}
+		
+#ifndef NDEBUG
+		if((rand() & 15) == 0) {
+			// This is a work-intensive sanity check; each time we finish filling
+			// a column, we check that each H, E, and F is sensible.
+			for(size_t k = 0; k < dpRows(); k++) {
+				assert(cellOkLocalI16(
+					d,
+					k,                   // row
+					i - rfi_,            // col
+					(int)rf_[rfi_+i],    // reference mask
+					(int)(*rd_)[rdi_+k], // read char
+					(int)(*qu_)[rdi_+k], // read quality
+					*sc_));              // scoring scheme
+			}
+		}
+#endif
 
 		// pvELoad and pvHLoad are already where they need to be
 		
@@ -584,8 +679,9 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag) {
 bool SwAligner::gatherCellsNucleotidesLocalSseI16(TAlScore best) {
 	// What's the minimum number of rows that can possibly be spanned by an
 	// alignment that meets the minimum score requirement?
+	assert(sse16succ_);
 	size_t bonus = sc_->match(30);
-	assert_gt(minsc_, 0);
+	//assert_gt(minsc_, 0);
 	const size_t ncol = rff_ - rfi_;
 	const size_t nrow = dpRows();
 	assert_gt(nrow, 0);
@@ -716,6 +812,7 @@ bool SwAligner::backtraceNucleotidesLocalSseI16(
 	TAlScore       escore, // in: expected score
 	SwResult&      res,    // out: store results (edits and scores) here
 	size_t&        off,    // out: store diagonal projection of origin
+	size_t&        nbts,   // out: # backtracks
 	size_t         row,    // start in this row
 	size_t         col,    // start in this column
 	RandomSource&  rand)   // random gen, to choose among equal paths
@@ -740,6 +837,7 @@ bool SwAligner::backtraceNucleotidesLocalSseI16(
 	//cout << "Backtrace from row " << row << endl;
 	while((int)row >= 0) {
 		nbts_++;
+		nbts++;
 		int readc = (*rd_)[rdi_ + row];
 		int refm  = (int)rf_[rfi_ + col];
 		int readq = (*qu_)[row];
@@ -756,7 +854,7 @@ bool SwAligner::backtraceNucleotidesLocalSseI16(
 			readq,         // read quality
 			*sc_,          // scoring scheme
 			0x8000,        // offset to add to each matrix elt
-			floorsc_,      // local-alignment floor score
+			0,             // local-alignment floor score
 			rand,          // rand gen for choosing among equal options
 			empty,         // out: =true iff no way to backtrace
 			cur,           // out: =type of transition
@@ -987,31 +1085,6 @@ bool SwAligner::backtraceNucleotidesLocalSseI16(
 	}
 	res.reverse();
 	assert(Edit::repOk(ned, (*rd_)));
-#ifndef NDEBUG
-	size_t gapsCheck = 0;
-	for(size_t i = 0; i < ned.size(); i++) {
-		if(ned[i].isGap()) gapsCheck++;
-	}
-	assert_eq(gaps, gapsCheck);
-	BTDnaString refstr;
-	for(size_t i = col; i <= origCol; i++) {
-		refstr.append(firsts5[(int)rf_[rfi_+i]]);
-	}
-	BTDnaString editstr;
-	Edit::toRef((*rd_), ned, editstr, trimBeg, trimEnd);
-	if(refstr != editstr) {
-		cerr << "Decoded nucleotides and edits don't match reference:" << endl;
-		cerr << "           score: " << score.score()
-		     << " (" << gaps << " gaps)" << endl;
-		cerr << "           edits: ";
-		Edit::print(cerr, ned);
-		cerr << endl;
-		cerr << "    decoded nucs: " << (*rd_) << endl;
-		cerr << "     edited nucs: " << editstr << endl;
-		cerr << "  reference nucs: " << refstr << endl;
-		assert(0);
-	}
-#endif
 	assert_eq(score.score(), escore);
 	assert_leq(gaps, rdgap_ + rfgap_);
 	off = col;
@@ -1038,6 +1111,31 @@ bool SwAligner::backtraceNucleotidesLocalSseI16(
 	}
 	res.alres.setRefNs(refns);
 	assert(res.repOk());
+#ifndef NDEBUG
+	size_t gapsCheck = 0;
+	for(size_t i = 0; i < ned.size(); i++) {
+		if(ned[i].isGap()) gapsCheck++;
+	}
+	assert_eq(gaps, gapsCheck);
+	BTDnaString refstr;
+	for(size_t i = col; i <= origCol; i++) {
+		refstr.append(firsts5[(int)rf_[rfi_+i]]);
+	}
+	BTDnaString editstr;
+	Edit::toRef((*rd_), ned, editstr, trimBeg, trimEnd);
+	if(refstr != editstr) {
+		cerr << "Decoded nucleotides and edits don't match reference:" << endl;
+		cerr << "           score: " << score.score()
+		     << " (" << gaps << " gaps)" << endl;
+		cerr << "           edits: ";
+		Edit::print(cerr, ned);
+		cerr << endl;
+		cerr << "    decoded nucs: " << (*rd_) << endl;
+		cerr << "     edited nucs: " << editstr << endl;
+		cerr << "  reference nucs: " << refstr << endl;
+		assert(0);
+	}
+#endif
 	return true;
 }
 

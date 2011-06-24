@@ -1450,6 +1450,13 @@ void AlnSinkVerbose::appendMate(
 						&o,
 						NULL);
 				}
+				if(printSeed_) {
+					// Print CIGAR string
+					if(!first) o.write(',');
+					o.writeChars("XR:");
+					itoa10<uint32_t>(rd.seed, buf);
+					o.writeChars(buf);
+				}
 			}
 		}
 		if(printCost_) {

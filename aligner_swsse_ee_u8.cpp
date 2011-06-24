@@ -122,6 +122,84 @@ void SwAligner::buildQueryProfileEnd2EndSseU8(bool fw) {
 	}
 }
 
+#ifndef NDEBUG
+/**
+ * Return true iff the cell has sane E/F/H values w/r/t its predecessors.
+ */
+static bool cellOkEnd2EndU8(
+	SSEData& d,
+	size_t row,
+	size_t col,
+	int refc,
+	int readc,
+	int readq,
+	const Scoring& sc)     // scoring scheme
+{
+	TCScore floorsc = 0;
+	TAlScore ceilsc = std::numeric_limits<TAlScore>::max();
+	TAlScore offsetsc = -0xff;
+	TAlScore sc_h_cur = (TAlScore)d.mat_.helt(row, col);
+	TAlScore sc_e_cur = (TAlScore)d.mat_.eelt(row, col);
+	TAlScore sc_f_cur = (TAlScore)d.mat_.felt(row, col);
+	if(sc_h_cur > floorsc) {
+		sc_h_cur += offsetsc;
+	}
+	if(sc_e_cur > floorsc) {
+		sc_e_cur += offsetsc;
+	}
+	if(sc_f_cur > floorsc) {
+		sc_f_cur += offsetsc;
+	}
+	bool gapsAllowed = true;
+	size_t rowFromEnd = d.mat_.nrow() - row - 1;
+	if(row < (size_t)sc.gapbar || rowFromEnd < (size_t)sc.gapbar) {
+		gapsAllowed = false;
+	}
+	bool e_left_trans = false, h_left_trans = false;
+	bool f_up_trans   = false, h_up_trans = false;
+	bool h_diag_trans = false;
+	if(gapsAllowed) {
+		TAlScore sc_h_left = floorsc;
+		TAlScore sc_e_left = floorsc;
+		TAlScore sc_h_up   = floorsc;
+		TAlScore sc_f_up   = floorsc;
+		if(col > 0 && sc_e_cur > floorsc && sc_e_cur <= ceilsc) {
+			sc_h_left = d.mat_.helt(row, col-1) + offsetsc;
+			sc_e_left = d.mat_.eelt(row, col-1) + offsetsc;
+			e_left_trans = (sc_e_left > floorsc && sc_e_cur == sc_e_left - sc.readGapExtend());
+			h_left_trans = (sc_h_left > floorsc && sc_e_cur == sc_h_left - sc.readGapOpen());
+			assert(e_left_trans || h_left_trans);
+		}
+		if(row > 0 && sc_f_cur > floorsc && sc_f_cur <= ceilsc) {
+			sc_h_up = d.mat_.helt(row-1, col) + offsetsc;
+			sc_f_up = d.mat_.felt(row-1, col) + offsetsc;
+			f_up_trans = (sc_f_up > floorsc && sc_f_cur == sc_f_up - sc.refGapExtend());
+			h_up_trans = (sc_h_up > floorsc && sc_f_cur == sc_h_up - sc.refGapOpen());
+			assert(f_up_trans || h_up_trans);
+		}
+	} else {
+		assert_geq(floorsc, sc_e_cur);
+		assert_geq(floorsc, sc_f_cur);
+	}
+	if(col > 0 && row > 0 && sc_h_cur > floorsc && sc_h_cur <= ceilsc) {
+		TAlScore sc_h_upleft = d.mat_.helt(row-1, col-1) + offsetsc;
+		TAlScore sc_diag = sc.score(readc, (int)refc, readq - 33);
+		h_diag_trans = sc_h_cur == sc_h_upleft + sc_diag;
+	}
+	assert(
+		sc_h_cur <= floorsc ||
+		e_left_trans ||
+		h_left_trans ||
+		f_up_trans   ||
+		h_up_trans   ||
+		h_diag_trans ||
+		sc_h_cur > ceilsc ||
+		row == 0 ||
+		col == 0);
+	return true;
+}
+#endif /*ndef NDEBUG*/
+
 #ifdef NDEBUG
 
 #define assert_all_eq0(x)
@@ -453,6 +531,23 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag) {
 			cmp = _mm_movemask_epi8(vtmp);
 		}
 		
+#ifndef NDEBUG
+		if((rand() & 15) == 0) {
+			// This is a work-intensive sanity check; each time we finish filling
+			// a column, we check that each H, E, and F is sensible.
+			for(size_t k = 0; k < dpRows(); k++) {
+				assert(cellOkEnd2EndU8(
+					d,
+					k,                   // row
+					i - rfi_,            // col
+					(int)rf_[rfi_+i],    // reference mask
+					(int)(*rd_)[rdi_+k], // read char
+					(int)(*qu_)[rdi_+k], // read quality
+					*sc_));              // scoring scheme
+			}
+		}
+#endif
+		
 		// Check in the last row for the maximum so far
 		// Only check elements that we might backtrack from
 		// These elements have to satisfy two criteria: (a) must be
@@ -523,6 +618,7 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag) {
 bool SwAligner::gatherCellsNucleotidesEnd2EndSseU8(TAlScore best) {
 	// What's the minimum number of rows that can possibly be spanned by an
 	// alignment that meets the minimum score requirement?
+	assert(sse8succ_);
 	const size_t ncol = rff_ - rfi_;
 	const size_t nrow = dpRows();
 	assert_gt(nrow, 0);
@@ -593,6 +689,7 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseU8(
 	TAlScore       escore, // in: expected score
 	SwResult&      res,    // out: store results (edits and scores) here
 	size_t&        off,    // out: store diagonal projection of origin
+	size_t&        nbts,   // out: # times we backtracked
 	size_t         row,    // start in this row
 	size_t         col,    // start in this column
 	RandomSource&  rand)   // random gen, to choose among equal paths
@@ -616,9 +713,10 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseU8(
 	size_t trimEnd = dpRows() - row - 1; 
 	size_t trimBeg = 0;
 	size_t ct = d.mat_.H; // cell type
-	//cout << "Backtrace from row " << row << endl;
+	//bool PRINT = (row == 63 && col == 194);
 	while((int)row >= 0) {
 		nbts_++;
+		nbts++;
 		int readc = (*rd_)[rdi_ + row];
 		int refm  = (int)rf_[rfi_ + col];
 		int readq = (*qu_)[row];
@@ -642,6 +740,9 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseU8(
 			branch,        // out: =true iff we chose among >1 options
 			canMoveThru,   // out: =true iff ...
 			reportedThru); // out: =true iff ...
+		//if(PRINT) {
+		//	cout << "row: " << row << ", col: " << col << endl;
+		//}
 		assert_eq(gaps, Edit::numGaps(ned));
 		assert_leq(gaps, rdgap_ + rfgap_);
 		// Cell was involved in a previously-reported alignment?
@@ -866,31 +967,6 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseU8(
 	}
 	res.reverse();
 	assert(Edit::repOk(ned, (*rd_)));
-#ifndef NDEBUG
-	size_t gapsCheck = 0;
-	for(size_t i = 0; i < ned.size(); i++) {
-		if(ned[i].isGap()) gapsCheck++;
-	}
-	assert_eq(gaps, gapsCheck);
-	BTDnaString refstr;
-	for(size_t i = col; i <= origCol; i++) {
-		refstr.append(firsts5[(int)rf_[rfi_+i]]);
-	}
-	BTDnaString editstr;
-	Edit::toRef((*rd_), ned, editstr, trimBeg, trimEnd);
-	if(refstr != editstr) {
-		cerr << "Decoded nucleotides and edits don't match reference:" << endl;
-		cerr << "           score: " << score.score()
-		     << " (" << gaps << " gaps)" << endl;
-		cerr << "           edits: ";
-		Edit::print(cerr, ned);
-		cerr << endl;
-		cerr << "    decoded nucs: " << (*rd_) << endl;
-		cerr << "     edited nucs: " << editstr << endl;
-		cerr << "  reference nucs: " << refstr << endl;
-		assert(0);
-	}
-#endif
 	assert_eq(score.score(), escore);
 	assert_leq(gaps, rdgap_ + rfgap_);
 	off = col;
@@ -917,6 +993,31 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseU8(
 	}
 	res.alres.setRefNs(refns);
 	assert(res.repOk());
+#ifndef NDEBUG
+	size_t gapsCheck = 0;
+	for(size_t i = 0; i < ned.size(); i++) {
+		if(ned[i].isGap()) gapsCheck++;
+	}
+	assert_eq(gaps, gapsCheck);
+	BTDnaString refstr;
+	for(size_t i = col; i <= origCol; i++) {
+		refstr.append(firsts5[(int)rf_[rfi_+i]]);
+	}
+	BTDnaString editstr;
+	Edit::toRef((*rd_), ned, editstr, trimBeg, trimEnd);
+	if(refstr != editstr) {
+		cerr << "Decoded nucleotides and edits don't match reference:" << endl;
+		cerr << "           score: " << score.score()
+		     << " (" << gaps << " gaps)" << endl;
+		cerr << "           edits: ";
+		Edit::print(cerr, ned);
+		cerr << endl;
+		cerr << "    decoded nucs: " << (*rd_) << endl;
+		cerr << "     edited nucs: " << editstr << endl;
+		cerr << "  reference nucs: " << refstr << endl;
+		assert(0);
+	}
+#endif
 	return true;
 }
 

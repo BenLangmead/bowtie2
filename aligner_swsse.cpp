@@ -13,6 +13,48 @@
 #include "mask.h"
 
 /**
+ * Given a number of rows (nrow), a number of columns (ncol), and the
+ * number of words to fit inside a single __m128i vector, initialize the
+ * matrix buffer to accomodate the needed configuration of vectors.
+ */
+void SSEMatrix::init(
+	size_t nrow,
+	size_t ncol,
+	size_t wperv)
+{
+	nrow_ = nrow;
+	ncol_ = ncol;
+	wperv_ = wperv;
+	nvecPerCol_ = (nrow + (wperv-1)) / wperv;
+	// The +1 is so that we don't have to special-case the final column;
+	// instead, we just write off the end of the useful part of the table
+	// with pvEStore.
+	buf_.resize((ncol+1) * nvecPerCell_ * nvecPerCol_ + 16);
+	//bzero(buf_.ptr(), sizeof(__m128i) * ((ncol+1) * nvecPerCell_ * nvecPerCol_ + 16));
+	// Get a 16-byte aligned pointer toward the beginning of the buffer.
+	size_t aligned = ((size_t)buf_.ptr() + 15) & ~(0x0f);
+	// Set up pointers into the buffer for fw query
+	bufal_ = reinterpret_cast<__m128i*>(aligned);
+	assert(wperv_ == 8 || wperv_ == 16);
+	vecshift_ = (wperv_ == 8) ? 3 : 4;
+	nvecrow_ = (nrow + (wperv_-1)) >> vecshift_;
+	nveccol_ = ncol;
+	colstride_ = nvecPerCol_ * nvecPerCell_;
+	rowstride_ = nvecPerCell_;
+	inited_ = true;
+}
+
+/**
+ * Initialize the matrix of masks and backtracking flags.
+ */
+void SSEMatrix::initMasks() {
+	assert_gt(nrow_, 0);
+	assert_gt(ncol_, 0);
+	masks_.resize(nrow_ * ncol_);
+	bzero(masks_.ptr(), sizeof(uint16_t) * nrow_ * ncol_);
+}
+
+/**
  * Given a row, col and matrix (i.e. E, F or H), return the corresponding
  * element.
  */
@@ -107,20 +149,18 @@ inline void SSEMatrix::fMaskSet(
 	masks_[row * ncol_ + col] |=  (1 << 10 | mask << 11);
 }
 
-// The various ways that one might backtrack from a later cell (either oall,
-// rdgap or rfgap) to an earlier cell
-// enum {
-//	SW_BT_OALL_DIAG,         // from oall cell to oall cell
-//	SW_BT_OALL_REF_OPEN,     // from oall cell to oall cell
-//	SW_BT_OALL_READ_OPEN,    // from oall cell to oall cell
-//	SW_BT_RDGAP_EXTEND,      // from rdgap cell to rdgap cell
-//	SW_BT_RFGAP_EXTEND       // from rfgap cell to rfgap cell
-// };
-
 /**
  * Analyze a cell in the SSE-filled dynamic programming matrix.  Determine &
  * memorize ways that we can backtrack from the cell.  If there is at least one
  * way to backtrack, select one at random and return the selection.
+ *
+ * There are a few subtleties to keep in mind regarding which cells can be at
+ * the end of a backtrace.  First of all: cells from which we can backtrack
+ * should not be at the end of a backtrace.  But have to distinguish between
+ * cells whose masks eventually become 0 (we shouldn't end at those), from
+ * those whose masks were 0 all along (we can end at those).
+ *
+ * Also, 
  */
 void SSEMatrix::analyzeCell(
 	size_t row,          // current row
@@ -139,7 +179,7 @@ void SSEMatrix::analyzeCell(
 	bool& canMoveThru,   // out: =true iff ...
 	bool& reportedThru)  // out: =true iff ...
 {
-	TAlScore sc_cur = helt(row, col) + offsetsc;
+	TAlScore sc_cur;
 	reportedThru = reportedThrough(row, col);
 	canMoveThru = true;
 	if(reportedThru) {
@@ -157,6 +197,7 @@ void SSEMatrix::analyzeCell(
 		gapsAllowed = false;
 	}
 	if(ct == E) { // AKA rdgap
+		sc_cur = eelt(row, col) + offsetsc;
 		assert(gapsAllowed);
 		// Currently in the E matrix; incoming transition must come from the
 		// left.  It's either a gap open from the H matrix or a gap extend from
@@ -175,6 +216,7 @@ void SSEMatrix::analyzeCell(
 			mask |= (1 << 1);
 		}
 		origMask = mask;
+		assert(origMask > 0 || sc_cur <= sc.match());
 		if(isEMaskSet(row, col)) {
 			mask = (masks_[row * ncol_ + col] >> 8) & 3;
 		}
@@ -205,7 +247,9 @@ void SSEMatrix::analyzeCell(
 			// means it's part of a larger alignment that was already reported.
 			canMoveThru = (origMask == 0);
 		}
+		assert(!empty || !canMoveThru);
 	} else if(ct == F) { // AKA rfgap
+		sc_cur = felt(row, col) + offsetsc;
 		assert(gapsAllowed);
 		// Currently in the F matrix; incoming transition must come from above.
 		// It's either a gap open from the H matrix or a gap extend from the F
@@ -224,6 +268,7 @@ void SSEMatrix::analyzeCell(
 			mask |= (1 << 1);
 		}
 		origMask = mask;
+		assert(origMask > 0 || sc_cur <= sc.match());
 		if(isFMaskSet(row, col)) {
 			mask = (masks_[row * ncol_ + col] >> 11) & 3;
 		}
@@ -254,7 +299,9 @@ void SSEMatrix::analyzeCell(
 			// means it's part of a larger alignment that was already reported.
 			canMoveThru = (origMask == 0);
 		}
+		assert(!empty || !canMoveThru);
 	} else {
+		sc_cur = helt(row, col) + offsetsc;
 		assert_eq(H, ct);
 		// TODO: save and restore origMask as well as mask
 		int origMask = 0, mask = 0;
@@ -282,6 +329,7 @@ void SSEMatrix::analyzeCell(
 			mask |= (1 << 4);
 		}
 		origMask = mask;
+		assert(origMask > 0 || sc_cur <= sc.match());
 		if(isHMaskSet(row, col)) {
 			mask = (masks_[row * ncol_ + col] >> 2) & 31;
 		}
@@ -322,6 +370,7 @@ void SSEMatrix::analyzeCell(
 			canMoveThru = (origMask == 0);
 		}
 	}
+	assert(!empty || !canMoveThru || ct == H);
 	
 #if 0
 	if(empty) {

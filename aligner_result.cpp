@@ -22,6 +22,7 @@ void AlnRes::reset() {
 	ced_.clear();
 	score_.invalidate();
 	refcoord_.invalidate();
+	refival_.invalidate();
 	shapeSet_     = false;
 	rdlen_        = 0;
 	rdrows_       = 0;
@@ -52,6 +53,7 @@ void AlnRes::reset() {
 	minsc_        = 0; // minimum score
 	floorsc_      = 0; // score floor
 	assert(!refcoord_.valid());
+	assert(!refival_.valid());
 }
 
 /**
@@ -113,9 +115,12 @@ void AlnRes::setShape(
 	// clean.  Perhaps the trimming and *all* of its side-effects should be
 	// handled by the aligner.
 	size_t trimBeg = fw ? trim5p : trim3p;
-	for(size_t i = 0; i < ned_.size(); i++) {
-		assert_geq(ned_[i].pos, trimBeg);
-		ned_[i].pos -= trimBeg;
+	if(trimBeg > 0) {
+		for(size_t i = 0; i < ned_.size(); i++) {
+			// Shift by trim5p, since edits are w/r/t 5p end
+			assert_geq(ned_[i].pos, trimBeg);
+			ned_[i].pos -= trimBeg;
+		}
 	}
 	// Length after all soft trimming and any hard trimming that occurred
 	// during alignment
@@ -124,8 +129,10 @@ void AlnRes::setShape(
 		rdextent_ -= (pretrim5p + pretrim3p); // soft trim
 	}
 	rdextent_ -= (trim5p + trim3p); // soft or hard trim from alignment
+	assert_gt(rdextent_, 0);
 	rdexrows_ = rdextent_ + (color ? 1 : 0);
 	calcRefExtent();
+	refival_.init(id, off, fw, rfextent_);
 	shapeSet_ = true;
 }
 	

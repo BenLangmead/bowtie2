@@ -98,14 +98,16 @@ public:
 
 	inline SeedScanHit() { reset(); }
 
-	inline SeedScanHit(U32Pair id, uint32_t off) { init(id, off); }
+	inline SeedScanHit(U32Pair id, uint32_t off, uint32_t ns) {
+		init(id, off, ns);
+	}
 	
 	/**
 	 * Set to uninitialized state.
 	 */
 	void reset() {
 		id_ = std::make_pair(0xffffffff, 0);
-		off_ = 0;
+		off_ = ns_ = 0;
 	}
 	
 	/**
@@ -118,17 +120,20 @@ public:
 	/**
 	 * Initialize to given parameters.
 	 */
-	inline void init(U32Pair id, uint32_t off) {
+	inline void init(U32Pair id, uint32_t off, uint32_t ns) {
 		id_ = id;
 		off_ = off;
+		ns_ = ns;
 	}
 
 	inline U32Pair  id()  const { return id_; }
 	inline uint32_t off() const { return off_; }
+	inline uint32_t ns()  const { return ns_; }
 
 protected:
 	U32Pair  id_;  // id of query sequence that hit
 	uint32_t off_; // offset into the stream where it hit
+	uint32_t ns_;  // # Ns
 };
 
 /**
@@ -219,6 +224,7 @@ public:
 	inline void query(
 		uint64_t buf,
 		uint32_t off,
+		uint32_t ns,
 		EList<SeedScanHit>& hits) const
 	{
 		size_t key = (size_t)BP_SUFFIX(buf, keybps_);
@@ -230,7 +236,8 @@ public:
 		for(size_t i = 0; i < binsz; i++) {
 			if(buf == qrys_[key][i].seq()) {
 				// Hit!
-				hits.push_back(SeedScanHit(qrys_[key][i].id(), off));
+				hits.push_back(SeedScanHit(
+					qrys_[key][i].id(), off - (uint32_t)len() + 1, ns));
 			}
 		}
 	}
@@ -272,13 +279,14 @@ public:
 		assert_range(0, 4, c);
 		if(c == 4) {
 			lastUnmatchable_ = 0;
+			ns_++;
 			c = 0;
 		}
 		assert_range(0, 3, c);
 		buf_ <<= 2;
 		buf_ |= c;
 		if(lastUnmatchable_ >= tab_->len()) {
-			tab_->query(buf_, off_, hits_);
+			tab_->query(buf_, off_, ns_, hits_);
 		}
 		lastUnmatchable_++;
 		off_++;
@@ -292,6 +300,7 @@ public:
 		buf_ = off_ = 0;
 		hits_.clear();
 		lastUnmatchable_ = 1;
+		ns_ = 0;
 	}
 	
 	/**
@@ -314,10 +323,18 @@ public:
 	const EList<SeedScanHit>& hits() const {
 		return hits_;
 	}
+	
+	/**
+	 * Return the total number of Ns seen.
+	 */
+	inline uint32_t ns() const {
+		return ns_;
+	}
 
 protected:
 	uint64_t buf_;             // rotating buffer of recent characters
 	uint32_t off_;             // offset w/r/t last time init() was called
+	uint32_t ns_;              // # Ns seen
 	EList<SeedScanHit> hits_;  // hits so far
 	const SeedScanTable *tab_; // table with queries
 	size_t lastUnmatchable_;   // how many chars ago was last N?

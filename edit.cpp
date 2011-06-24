@@ -259,7 +259,7 @@ void Edit::toRef(
 		bool ins = false, del = false, mm = false;
 		bool append = i >= trimBeg && rdlen - i -1 >= trimEnd;
 		bool appendIns = i >= trimBeg && rdlen - i >= trimEnd;
-		while(eidx < edits.size() && edits[eidx].pos == i) {
+		while(eidx < edits.size() && edits[eidx].pos+trimBeg == i) {
 			if(edits[eidx].isReadGap()) {
 				ins = true;
 				// Inserted characters come before the position's

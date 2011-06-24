@@ -192,7 +192,10 @@ void reverseRefRecords(
 		EList<RefRecord> cur;
 		for(int i = (int)src.size()-1; i >= 0; i--) {
 			bool first = (i == (int)src.size()-1 || src[i+1].first);
-			if(src[i].len) {
+			// Clause after the || on next line is to deal with empty FASTA
+			// records at the end of the 'src' list, which would be wrongly
+			// omitted otherwise.
+			if(src[i].len || (first && src[i].off == 0)) {
 				cur.push_back(RefRecord(0, src[i].len, first));
 				first = false;
 			}
@@ -218,6 +221,18 @@ void reverseRefRecords(
 	//	printRecords(cout, dst);
 	//}
 #ifndef NDEBUG
+	size_t srcnfirst = 0, dstnfirst = 0;
+	for(size_t i = 0; i < src.size(); i++) {
+		if(src[i].first) {
+			srcnfirst++;
+		}
+	}
+	for(size_t i = 0; i < dst.size(); i++) {
+		if(dst[i].first) {
+			dstnfirst++;
+		}
+	}
+	assert_eq(srcnfirst, dstnfirst);
 	if(!recursive) {
 		EList<RefRecord> tmp;
 		reverseRefRecords(dst, tmp, true);

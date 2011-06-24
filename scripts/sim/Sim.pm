@@ -23,6 +23,7 @@ use Mutate;
 use AlignmentCheck;
 use Math::Random;
 use List::Util qw(max min);
+use POSIX;
 
 ##
 # Replacement for "die" that additionally writes error message to file so that
@@ -33,7 +34,7 @@ sub mydie($) {
 	open(EO, ">$fn") || die "Could not open $fn for writing";
 	print EO "$_[0]\n";
 	close(EO);
-	die $_[0];
+	confess $_[0];
 }
 
 # Generates random printable strings of a given length
@@ -303,10 +304,11 @@ sub genRef {
 	my $reflen = $self->rflengen;
 	# Generate the number of references
 	my $refnum = $self->rfnumgen->();
-	$refnum = log($refnum) if $conf->{small};
+	$refnum = sqrt($refnum) if $conf->{small};
 	$refnum = 1 if $refnum <= 0;
-	$refnum = log($refnum) if $conf->{small};
+	$refnum = sqrt($refnum) if $conf->{small};
 	$refnum = 1 if $refnum <= 0;
+	$refnum = ceil($refnum);
 	$refnum = $conf->{numrefs} if defined($conf->{numrefs});
 	# Open output file
 	open (FA, ">$tmpfn") ||
@@ -316,12 +318,9 @@ sub genRef {
 	for (1..$refnum) {
 		# Randomly generate length
 		my $len = $reflen->();
-		$len = log($len) if $conf->{small};
+		$len = sqrt($len) if $conf->{small};
 		$len = 1 if $len <= 0;
-		$len = log($len) if $conf->{small};
-		$len = 1 if $len <= 0;
-		$len = log($len) if $conf->{small};
-		$len = 1 if $len <= 0;
+		$len = ceil($len);
 		my $seq = $refdnagen->nextSeq($len);
 		my $name = "Sim.pm.$_";
 		$ref->{$name} = $seq;
@@ -414,11 +413,13 @@ sub build {
 	$? == 0 || mydie("Error running '$cmd'; exitlevel=$?");
 	print STDERR "Built nucleotide index '$idx'\n";
 	# Build colorspace index
-	$cmd = "$conf->{bowtie2_build_debug} $argstr -C $fa ${idx}.c";
-	print STDERR "$cmd\n";
-	system($cmd);
-	$? == 0 || mydie("Error running '$cmd'; exitlevel=$?");
-	print STDERR "Built colorspace index '$idx'\n";
+	unless($conf->{no_color}) {
+		$cmd = "$conf->{bowtie2_build_debug} $argstr -C $fa ${idx}.c";
+		print STDERR "$cmd\n";
+		system($cmd);
+		$? == 0 || mydie("Error running '$cmd'; exitlevel=$?");
+		print STDERR "Built colorspace index '$idx'\n";
+	}
 }
 
 ##
@@ -581,6 +582,7 @@ sub genInput {
 		$self->rdlengen);
 	print STDERR "Created read sampler\n";
 	my $numreads = $self->rdnumgen->();
+	$numreads = ceil(sqrt($numreads)) if $conf->{small};
 	$numreads == int($numreads) || mydie("numreads $numreads not a number");
 	my $tmp = int(rand(3));
 	if($tmp == 0) {
@@ -846,6 +848,7 @@ sub genAlignArgs {
 		$args{"-M"} = int(Math::Random::random_exponential(1, 3))+2;
 	}
 	$args{"-P"} = ("\"".genPolicyArg($local)."\"") if rand() < 0.9;
+	$args{"--showseed"} = "";
 	return \%args;
 }
 
@@ -989,6 +992,7 @@ sub nextCase {
 	my $buildArgs = $self->genBuildArgs();
 	$self->build($tmpfn, $tmpidxfn, $conf, $buildArgs);
 	my $numruns = 10;
+	$numruns *= 10 if $conf->{small}; # Lots of short runs
 	# For each batch of reads / bowtie options
 	for(1..$numruns) {
 		print "*** Run $_ of $numruns\n";

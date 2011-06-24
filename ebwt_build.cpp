@@ -305,12 +305,20 @@ static void driver(
 			}
 			FileBuf *fb = new FileBuf(f);
 			assert(fb != NULL);
+			if(fb->peek() == -1 || fb->eof()) {
+				cerr << "Warning: Empty fasta file: '" << infile << "'" << endl;
+				continue;
+			}
 			assert(!fb->eof());
 			assert(fb->get() == '>');
 			ASSERT_ONLY(fb->reset());
 			assert(!fb->eof());
 			is.push_back(fb);
 		}
+	}
+	if(is.empty()) {
+		cerr << "Warning: All fasta inputs were empty" << endl;
+		throw 1;
 	}
 	// Vector for the ordered list of "records" comprising the input
 	// sequences.  A record represents a stretch of unambiguous

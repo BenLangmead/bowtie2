@@ -54,26 +54,52 @@ public:
 		return ref_ == o.ref_ && off_ == o.off_ && fw() == o.fw();
 	}
 
+	/**
+	 * Return true iff this Coord is less than the given Coord.  One Coord is
+	 * less than another if (a) its reference id is less, (b) its orientation is
+	 * less, or (c) its offset is less.
+	 */
 	bool operator<(const Coord& o) const {
-		assert(valid());
-		assert(o.valid());
+		//assert(valid());
+		//assert(o.valid());
 		if(ref_ < o.ref_) return true;
 		if(ref_ > o.ref_) return false;
+		if(orient_ < o.orient_) return true;
+		if(orient_ > o.orient_) return false;
 		if(off_ < o.off_) return true;
 		if(off_ > o.off_) return false;
-		if(orient_ < o.orient_) return true;
 		return false;
 	}
 	
+	/**
+	 * Return the opposite result from operator<.
+	 */
+	bool operator>=(const Coord& o) const {
+		return !((*this) < o);
+	}
+	
+	/**
+	 * Return true iff this Coord is greater than the given Coord.  One Coord
+	 * is greater than another if (a) its reference id is greater, (b) its
+	 * orientation is greater, or (c) its offset is greater.
+	 */
 	bool operator>(const Coord& o) const {
-		assert(valid());
-		assert(o.valid());
+		//assert(valid());
+		//assert(o.valid());
 		if(ref_ > o.ref_) return true;
 		if(ref_ < o.ref_) return false;
+		if(orient_ > o.orient_) return true;
+		if(orient_ < o.orient_) return false;
 		if(off_ > o.off_) return true;
 		if(off_ < o.off_) return false;
-		if(orient_ > o.orient_) return true;
 		return false;
+	}
+	
+	/**
+	 * Return the opposite result from operator>.
+	 */
+	bool operator<=(const Coord& o) const {
+		return !((*this) > o);
 	}
 	
 	/**
@@ -129,13 +155,14 @@ public:
 		return off_ >= inbegin && off_ + len <= inend;
 	}
 	
-	TRefId  ref() const { return ref_; }
-	TRefOff off() const { return off_; }
+	inline TRefId  ref()    const { return ref_; }
+	inline TRefOff off()    const { return off_; }
+	inline int     orient() const { return orient_; }
 	
-	void setRef(TRefId  id)  { ref_ = id;  }
-	void setOff(TRefOff off) { off_ = off; }
+	inline void setRef(TRefId  id)  { ref_ = id;  }
+	inline void setOff(TRefOff off) { off_ = off; }
 
-	void adjustOff(TRefOff off) { off_ += off; }
+	inline void adjustOff(TRefOff off) { off_ += off; }
 
 protected:
 
@@ -155,11 +182,11 @@ public:
 	
 	Interval() { invalidate(); }
 	
-	Interval(const Coord& upstream, TRefOff len) {
+	explicit Interval(const Coord& upstream, TRefOff len) {
 		init(upstream, len);
 	}
 
-	Interval(TRefId rf, TRefOff of, bool fw, TRefOff len) {
+	explicit Interval(TRefId rf, TRefOff of, bool fw, TRefOff len) {
 		init(rf, of, fw, len);
 	}
 
@@ -214,6 +241,13 @@ public:
 		if(len_ < o.len_) return true;
 		return false;
 	}
+	
+	/**
+	 * Return opposite result from operator<.
+	 */
+	bool operator>=(const Interval& o) const {
+		return !((*this) < o);
+	}
 
 	/**
 	 * Return true iff this Interval is greater than than the given
@@ -227,9 +261,125 @@ public:
 		if(len_ > o.len_) return true;
 		return false;
 	}
+
+	/**
+	 * Return opposite result from operator>.
+	 */
+	bool operator<=(const Interval& o) const {
+		return !((*this) > o);
+	}
 	
-	const Coord&  upstream() const { return upstream_; }
-	TRefOff       len()      const { return len_;      }
+	/**
+	 * Set upstream Coord.
+	 */
+	void setUpstream(const Coord& c) {
+		upstream_ = c;
+	}
+
+	/**
+	 * Set length.
+	 */
+	void setLength(TRefOff l) {
+		len_ = l;
+	}
+	
+	inline TRefId  ref()    const { return upstream_.ref(); }
+	inline TRefOff off()    const { return upstream_.off(); }
+	inline TRefOff dnoff()  const { return upstream_.off() + len_; }
+	inline int     orient() const { return upstream_.orient(); }
+
+	/**
+	 * Return a Coord encoding the coordinate just past the downstream edge of
+	 * the interval.
+	 */
+	inline Coord downstream() const {
+		return Coord(
+			upstream_.ref(),
+			upstream_.off() + len_,
+			upstream_.orient());
+	}
+	
+	/**
+	 * Return true iff the given Coord is inside this Interval.
+	 */
+	inline bool contains(const Coord& c) const {
+		return
+			c.ref()    == ref() &&
+			c.orient() == orient() &&
+			c.off()    >= off() &&
+			c.off()    <  dnoff();
+	}
+
+	/**
+	 * Return true iff the given Coord is inside this Interval, without
+	 * requiring orientations to match.
+	 */
+	inline bool containsIgnoreOrient(const Coord& c) const {
+		return
+			c.ref()    == ref() &&
+			c.off()    >= off() &&
+			c.off()    <  dnoff();
+	}
+
+	/**
+	 * Return true iff the given Interval is inside this Interval.
+	 */
+	inline bool contains(const Interval& c) const {
+		return
+			c.ref()    == ref() &&
+			c.orient() == orient() &&
+			c.off()    >= off() &&
+			c.dnoff()  <= dnoff();
+	}
+
+	/**
+	 * Return true iff the given Interval is inside this Interval, without
+	 * requiring orientations to match.
+	 */
+	inline bool containsIgnoreOrient(const Interval& c) const {
+		return
+			c.ref()    == ref() &&
+			c.off()    >= off() &&
+			c.dnoff()  <= dnoff();
+	}
+
+	/**
+	 * Return true iff the given Interval overlaps this Interval.
+	 */
+	inline bool overlaps(const Interval& c) const {
+		return
+			c.ref()    == upstream_.ref() &&
+			c.orient() == upstream_.orient() &&
+			(off() <= c.off()   && dnoff() > c.off()   ||
+			 off() <= c.dnoff() && dnoff() > c.dnoff() ||
+			 c.off() <= off()   && c.dnoff() > off()   ||
+			 c.off() <= dnoff() && c.dnoff() > dnoff());
+	}
+
+	/**
+	 * Return true iff the given Interval overlaps this Interval, without
+	 * requiring orientations to match.
+	 */
+	inline bool overlapsIgnoreOrient(const Interval& c) const {
+		return
+			c.ref()    == upstream_.ref() &&
+			(off() <= c.off()   && dnoff() > c.off()   ||
+			 off() <= c.dnoff() && dnoff() > c.dnoff() ||
+			 c.off() <= off()   && c.dnoff() > off()   ||
+			 c.off() <= dnoff() && c.dnoff() > dnoff());
+	}
+	
+	inline const Coord&  upstream()   const { return upstream_; }
+	inline TRefOff       len()      const { return len_;      }
+
+	/**
+	 * Check that the Interval is internally consistent.
+	 */
+	bool repOk() const {
+		assert(upstream_.repOk());
+		assert_geq(len_, 0);
+		return true;
+	}
 
 protected:
 

@@ -58,6 +58,7 @@ GetOptions(
 	"cases-per-thread=i"    => \$ncases,
 	"small"                 => \$conf{small},
 	"no-paired"             => \$conf{no_paired},
+	"no-color"              => \$conf{no_color},
 	"help"                  => \$help,
 	"die-with-child"        => \$dieWithChild,
 	"p|cpus=i"              => \$cpus,

@@ -257,6 +257,14 @@ public:
 
 	/**
 	 * Return the marginal penalty incurred by a mismatch at a read
+	 * position with quality 30.
+	 */
+	inline int64_t match() const {
+		return match(30);
+	}
+
+	/**
+	 * Return the marginal penalty incurred by a mismatch at a read
 	 * position with quality 'q'.
 	 */
 	inline int64_t match(int q) const {
@@ -363,7 +371,7 @@ public:
 	 * allowed in the sequence.
 	 */
 	inline size_t nCeil(size_t rdlen) const {
-		return (size_t)(nCeilConst + nCeilLinear * rdlen);
+		return min((size_t)(nCeilConst + nCeilLinear * rdlen), rdlen);
 	}
 	
 	/**
