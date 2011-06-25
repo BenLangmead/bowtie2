@@ -272,7 +272,7 @@ bool SwDriver::extendSeeds(
 			int64_t leftShift = refoff - refl;
 			size_t nwindow = 0;
 			if(toff >= refl) {
-				nwindow = (toff - refl);
+				nwindow = (size_t)(toff - refl);
 			}
 			// NOTE: We might be taking off more than we should because the
 			// pasted string omits non-A/C/G/T characters, but we included them
@@ -760,7 +760,7 @@ bool SwDriver::extendSeedsPaired(
 			int64_t leftShift = refoff - refl;
 			size_t nwindow = 0;
 			if(toff >= refl) {
-				nwindow = (toff - refl);
+				nwindow = (size_t)(toff - refl);
 			}
 			// NOTE: We might be taking off more than we should because the
 			// pasted string omits non-A/C/G/T characters, but we included them

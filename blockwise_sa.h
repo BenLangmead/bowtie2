@@ -520,7 +520,7 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
 					// Add an additional sample from the bucketReps[]
 					// set accumulated in the binarySASearch loop; this
 					// effectively splits the bucket
-					_sampleSuffs.insert(bucketReps[(size_t)i], i + (added++));
+					_sampleSuffs.insert(bucketReps[(size_t)i], (uint32_t)(i + (added++)));
 				}
 			}
 		}

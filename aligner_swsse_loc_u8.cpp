@@ -56,6 +56,11 @@ typedef uint8_t TCScore;
  * the segment of the query we're currently working on.
  */
 void SwAligner::buildQueryProfileLocalSseU8(bool fw) {
+	bool& done = fw ? sseU8fwBuilt_ : sseU8rcBuilt_;
+	if(done) {
+		return;
+	}
+	done = true;
 	const BTDnaString* rd = fw ? rdfw_ : rdrc_;
 	const BTString* qu = fw ? qufw_ : qurc_;
 	const size_t len = rd->length();
@@ -284,6 +289,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag) {
 
 	SSEData& d = fw_ ? sseU8fw_ : sseU8rc_;
 	assert(!d.buf_.empty());
+	buildQueryProfileEnd2EndSseU8(fw_);
 	assert(d.qprof_ != NULL);
 
 	assert_gt(d.maxBonus_, 0);
@@ -689,7 +695,7 @@ bool SwAligner::gatherCellsNucleotidesLocalSseU8(TAlScore best) {
 	// What's the minimum number of rows that can possibly be spanned by an
 	// alignment that meets the minimum score requirement?
 	assert(sse8succ_);
-	size_t bonus = sc_->match(30);
+	size_t bonus = (size_t)sc_->match(30);
 	//assert_gt(minsc_, 0);
 	const size_t ncol = rff_ - rfi_;
 	const size_t nrow = dpRows();
@@ -702,7 +708,7 @@ bool SwAligner::gatherCellsNucleotidesLocalSseU8(TAlScore best) {
 	const size_t colstride = d.mat_.colstride();
 	size_t iter = (dpRows() + (NWORDS_PER_REG - 1)) / NWORDS_PER_REG;
 	assert_gt(iter, 0);
-	size_t minrow = ((minsc_ + bonus - 1) / bonus) - 1;
+	size_t minrow = (size_t)(((minsc_ + bonus - 1) / bonus) - 1);
 	// Iterate over columns
 	size_t skip = maxgaps_; // columns w/r/t un-truncated table to skip
 	size_t iskip = skip;    // columns w/r/t table we filled in to skip

@@ -60,7 +60,7 @@ BitPairReference::BitPairReference(
 			cerr << "Error: Could not stat index file " << s4.c_str() << " prior to memory-mapping" << endl;
 			throw 1;
 		}
-		mmFile = (char*)mmap((void *)0, sbuf.st_size,
+		mmFile = (char*)mmap((void *)0, (size_t)sbuf.st_size,
 							 PROT_READ, MAP_SHARED, f4, 0);
 		if(mmFile == (void *)(-1) || mmFile == NULL) {
 			perror("mmap");
