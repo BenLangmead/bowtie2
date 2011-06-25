@@ -56,6 +56,11 @@ typedef int16_t TCScore;
  * the segment of the query we're currently working on.
  */
 void SwAligner::buildQueryProfileEnd2EndSseI16(bool fw) {
+	bool& done = fw ? sseI16fwBuilt_ : sseI16rcBuilt_;
+	if(done) {
+		return;
+	}
+	done = true;
 	const BTDnaString* rd = fw ? rdfw_ : rdrc_;
 	const BTString* qu = fw ? qufw_ : qurc_;
 	const size_t len = rd->length();
@@ -272,6 +277,7 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag) {
 
 	SSEData& d = fw_ ? sseI16fw_ : sseI16rc_;
 	assert(!d.buf_.empty());
+	buildQueryProfileEnd2EndSseI16(fw_);
 	assert(d.qprof_ != NULL);
 
 	assert_eq(0, d.maxBonus_);

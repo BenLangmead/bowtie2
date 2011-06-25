@@ -776,6 +776,10 @@ protected:
 	SSEData             sseU8rc_;   // buf for rc query, 8-bit score
 	SSEData             sseI16fw_;  // buf for fw query, 16-bit score
 	SSEData             sseI16rc_;  // buf for rc query, 16-bit score
+	bool                sseU8fwBuilt_;   // built fw query profile, 8-bit score
+	bool                sseU8rcBuilt_;   // built rc query profile, 8-bit score
+	bool                sseI16fwBuilt_;  // built fw query profile, 16-bit score
+	bool                sseI16rcBuilt_;  // built rc query profile, 16-bit score
 	SSEData             sseI32fw_;  // buf for fw query, 32-bit score
 	SSEData             sseI32rc_;  // buf for rc query, 32-bit score
 #endif

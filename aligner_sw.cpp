@@ -75,6 +75,12 @@ void SwAligner::initRead(
 	nceil_   = nceil;      // max # Ns allowed in ref portion of aln
 	solrowlo_= sc.rowlo;   // if row >= this, solutions are possible
 	initedRead_ = true;
+#ifndef NO_SSE
+	sseU8fwBuilt_  = false;  // built fw query profile, 8-bit score
+	sseU8rcBuilt_  = false;  // built rc query profile, 8-bit score
+	sseI16fwBuilt_ = false;  // built fw query profile, 16-bit score
+	sseI16rcBuilt_ = false;  // built rc query profile, 16-bit score
+#endif
 	if(solrowlo_ == -1) {
 		if(sc_->monotone) {
 			solrowlo_ = (int64_t)dpRows()-1;
@@ -83,21 +89,6 @@ void SwAligner::initRead(
 		}
 		assert_geq(solrowlo_, 0);
 	}
-#ifndef NO_SSE
-	if(sse_) {
-		if(sc_->monotone) {
-			buildQueryProfileEnd2EndSseI16(true);
-			buildQueryProfileEnd2EndSseI16(false);
-			buildQueryProfileEnd2EndSseU8(true);
-			buildQueryProfileEnd2EndSseU8(false);
-		} else {
-			buildQueryProfileLocalSseI16(true);
-			buildQueryProfileLocalSseI16(false);
-			buildQueryProfileLocalSseU8(true);
-			buildQueryProfileLocalSseU8(false);
-		}
-	}
-#endif
 }
 
 /**

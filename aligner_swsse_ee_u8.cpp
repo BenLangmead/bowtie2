@@ -56,6 +56,11 @@ typedef uint8_t TCScore;
  * the segment of the query we're currently working on.
  */
 void SwAligner::buildQueryProfileEnd2EndSseU8(bool fw) {
+	bool& done = fw ? sseU8fwBuilt_ : sseU8rcBuilt_;
+	if(done) {
+		return;
+	}
+	done = true;
 	const BTDnaString* rd = fw ? rdfw_ : rdrc_;
 	const BTString* qu = fw ? qufw_ : qurc_;
 	const size_t len = rd->length();
@@ -267,6 +272,7 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag) {
 
 	SSEData& d = fw_ ? sseU8fw_ : sseU8rc_;
 	assert(!d.buf_.empty());
+	buildQueryProfileEnd2EndSseU8(fw_);
 	assert(d.qprof_ != NULL);
 
 	assert_eq(0, d.maxBonus_);

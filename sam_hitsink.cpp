@@ -228,7 +228,7 @@ void SAMHitSink::reportHits(
 		ostringstream ss(ssmode_);
 		ss.rdbuf()->pubsetbuf(buf, 4096);
 		append(ss, hs[i], mapq, xms);
-		out(0).writeChars(buf, ss.tellp());
+		out(0).writeChars(buf, (size_t)ss.tellp());
 	}
 	unlock(0);
 	mainlock();
