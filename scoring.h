@@ -230,7 +230,7 @@ public:
 			return -npens[q];
 		}
 		if((refm & (1 << rdc)) != 0) {
-			return matchBonuses[q];
+			return (int)matchBonuses[q];
 		} else {
 			return -mmpens[q];
 		}
