@@ -23,6 +23,7 @@ void SAMHitSink::appendHeaders(
 	OutFileBuf& os,
 	size_t numRefs,
 	const StrList& refnames,
+	bool color,
 	bool nosq,
 	ReferenceMap *rmap,
 	const uint32_t* plen,
@@ -43,7 +44,7 @@ void SAMHitSink::appendHeaders(
 			} else {
 				ss << i;
 			}
-			ss << "\tLN:" << (plen[i] + (gColor ? 1 : 0)) << endl;
+			ss << "\tLN:" << (plen[i] + (color ? 1 : 0)) << endl;
 		}
 	}
 	if(rgline != NULL) {

@@ -105,7 +105,8 @@ void SwAligner::initRef(
 	size_t solwidth,       // # rightmost cols where solns can end
 	size_t maxgaps,        // max of max # read gaps, max # ref gaps
 	size_t truncLeft,      // # cols/diags to truncate from LHS
-	EList<bool>* en)       // mask indicating which columns we can end in
+	EList<bool>* en,       // mask indicating which columns we can end in
+	bool extend)           // true iff this is a seed extension
 {
 	assert_gt(rff, rfi);
 	state_     = STATE_INITED;
@@ -118,14 +119,15 @@ void SwAligner::initRef(
 	rfi_       = rfi;        // offset of first reference char to align to
 	rff_       = rff;        // offset of last reference char to align to
 	width_     = width;      // # bands to do (width of parallelogram)
-	solwidth_  = solwidth;   // 
+	solwidth_  = solwidth;   // # bands where solutions might end
 	maxgaps_   = maxgaps;    // max of max # read gaps, max # ref gaps
 	truncLeft_ = truncLeft;  // # cols/diags to truncate from LHS
 	en_        = en;         // mask indicating which columns we can end in
 	cural_     = 0;          // idx of next alignment to give out
-	initedRef_ = true;
+	initedRef_ = true;       // indicate we've initialized the ref portion
+	extend_    = extend;     // true iff this is a seed extension
 	assert(en_ == NULL || en_->size() == solwidth_);
-	filter(nceil_);
+	filter(nceil_);          // set some elements of en_ to false, w/r/t Ns
 }
 	
 /**
@@ -149,6 +151,7 @@ void SwAligner::initRef(
 	size_t maxgaps,        // max of max # read, ref gaps
 	size_t truncLeft,      // columns to truncate from left-hand side of rect
 	EList<bool>* en,       // mask indicating which columns we can end in
+	bool extend,           // true iff this is a seed extension
 	SeedScanner *sscan,    // optional seed scanner to feed ref chars to
 	size_t  upto,          // count the number of Ns up to this offset
 	size_t& nsUpto)        // output: the number of Ns up to 'upto'
@@ -250,7 +253,8 @@ void SwAligner::initRef(
 		solwidth,    // # rightmost cols where solns can end
 		maxgaps,     // max of max # read, ref gaps
 		truncLeft,   // columns to truncate from left-hand side of rect
-		en);         // mask indicating which columns we can end in
+		en,          // mask indicating which columns we can end in
+		extend);     // true iff this is a seed extension
 }
 
 /**
@@ -2057,6 +2061,20 @@ bool SwAligner::nextAlignment(
 				size_t col = btncand_[cural_].col;
 				assert_lt(row, dpRows());
 				assert_lt(col, rff_-rfi_);
+				// See if we've already reported through this cell
+				if(sse16succ_) {
+					SSEData& d = fw_ ? sseI16fw_ : sseI16rc_;
+					if(d.mat_.reportedThrough(row, col)) {
+						cural_++;
+						continue;
+					}
+				} else if(sse8succ_) {
+					SSEData& d = fw_ ? sseU8fw_ : sseU8rc_;
+					if(d.mat_.reportedThrough(row, col)) {
+						cural_++;
+						continue;
+					}
+				}
 				if(sc_->monotone) {
 					bool ret = false;
 					if(sse8succ_) {
@@ -2169,7 +2187,7 @@ bool SwAligner::nextAlignment(
 					}
 				}
 				cural_++;
-			}
+			} // while(cural_ < btncand_.size())
 		} else {
 			size_t row = btncand_[cural_].row;
 			size_t col = btncand_[cural_].col;
@@ -2604,8 +2622,8 @@ static void doTests() {
 	Scoring sc(
 		bonusMatch,
 		penMmcType,    // how to penalize mismatches
-		penMmc,        // constant if mm pelanty is a constant
-		penSnp,        // penalty for decoded SNP
+		30,        // constant if mm pelanty is a constant
+		30,        // penalty for decoded SNP
 		costMinConst,  // constant factor in N ceiling w/r/t read length
 		costMinLinear, // coeff of linear term in N ceiling w/r/t read length
 		costFloorConst,  // constant factor in N ceiling w/r/t read length
@@ -2615,10 +2633,10 @@ static void doTests() {
 		penNType,      // how to penalize Ns in the read
 		penN,          // constant if N pelanty is a constant
 		nPairCat,      // true -> concatenate mates before N filtering
-		penRdExConst,  // constant coeff for cost of gap in read
-		penRfExConst,  // constant coeff for cost of gap in ref
-		penRdExLinear, // linear coeff for cost of gap in read
-		penRfExLinear, // linear coeff for cost of gap in ref
+		25,  // constant coeff for cost of gap in read
+		25,  // constant coeff for cost of gap in ref
+		15, // linear coeff for cost of gap in read
+		15, // linear coeff for cost of gap in ref
 		1,             // # rows at top/bot can only be entered diagonally
 		-1,            // min row idx to backtrace from; -1 = no limit
 		false          // sort results first by row then by score?
@@ -2627,8 +2645,8 @@ static void doTests() {
 	Scoring sc2(
 		bonusMatch,
 		COST_MODEL_QUAL, // how to penalize mismatches
-		penMmc,          // constant if mm pelanty is a constant
-		penSnp,          // penalty for decoded SNP
+		30,          // constant if mm pelanty is a constant
+		30,          // penalty for decoded SNP
 		costMinConst,  // constant factor in N ceiling w/r/t read length
 		costMinLinear, // coeff of linear term in N ceiling w/r/t read length
 		costFloorConst,  // constant factor in N ceiling w/r/t read length
@@ -2638,10 +2656,10 @@ static void doTests() {
 		penNType,        // how to penalize Ns in the read
 		penN,            // constant if N pelanty is a constant
 		nPairCat,        // true -> concatenate mates before N filtering
-		penRdExConst,    // constant coeff for cost of gap in read
-		penRfExConst,    // constant coeff for cost of gap in ref
-		penRdExLinear,   // linear coeff for cost of gap in read
-		penRfExLinear,   // linear coeff for cost of gap in ref
+		25,    // constant coeff for cost of gap in read
+		25,    // constant coeff for cost of gap in ref
+		15,   // linear coeff for cost of gap in read
+		15,   // linear coeff for cost of gap in ref
 		1,               // # rows at top/bot can only be entered diagonally
 		-1,              // min row idx to backtrace from; -1 = no limit
 		false            // sort results first by row then by score?
@@ -2707,6 +2725,8 @@ static void doTests() {
 		
 		cerr << "  Test " << tests++ << " (nuc space, offset " << (i*4)
 		     << ", 1mm allowed by minsc)...";
+		sc.setMmPen(COST_MODEL_CONSTANT, 30);
+		//sc.setMatchBonus(10);
 		doTestCase2(
 			al,
 			"ACGTTCGT",         // read
@@ -4389,9 +4409,9 @@ static void doLocalTests() {
 	multiseedPeriod = DEFAULT_SEEDPERIOD;
 	// Set up penalities
 	Scoring sc(
-		bonusMatch,
+		10,
 		penMmcType,    // how to penalize mismatches
-		penMmc,        // constant if mm pelanty is a constant
+		30,            // constant if mm pelanty is a constant
 		penSnp,        // penalty for decoded SNP
 		costMinConst,  // constant factor in N ceiling w/r/t read length
 		costMinLinear, // coeff of linear term in N ceiling w/r/t read length
@@ -4402,10 +4422,10 @@ static void doLocalTests() {
 		penNType,      // how to penalize Ns in the read
 		penN,          // constant if N pelanty is a constant
 		nPairCat,      // true -> concatenate mates before N filtering
-		penRdExConst,  // constant coeff for cost of gap in read
-		penRfExConst,  // constant coeff for cost of gap in ref
-		penRdExLinear, // linear coeff for cost of gap in read
-		penRfExLinear, // linear coeff for cost of gap in ref
+		25,            // constant coeff for cost of gap in read
+		25,            // constant coeff for cost of gap in ref
+		15,            // linear coeff for cost of gap in read
+		15,            // linear coeff for cost of gap in ref
 		1,             // # rows at top/bot can only be entered diagonally
 		-1,            // min row idx to backtrace from; -1 = no limit
 		false          // sort results first by row then by score?

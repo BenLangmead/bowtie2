@@ -14,6 +14,52 @@
 #include <emmintrin.h>
 #include <strings.h>
 
+struct SSEMetrics {
+	
+	SSEMetrics() { reset(); }
+
+	void clear() { reset(); }
+	void reset() {
+		dp = dpsat = dpfail = dpsucc = 
+		col = cell = inner = fixup =
+		gathcell = gathsol = bt = btfail = btsucc = btcell = 0;
+	}
+	
+	void merge(const SSEMetrics& o, bool getLock = false) {
+		ThreadSafe ts(&lock, getLock);
+		dp       += o.dp;
+		dpsat    += o.dpsat;
+		dpfail   += o.dpfail;
+		dpsucc   += o.dpsucc;
+		col      += o.col;
+		cell     += o.cell;
+		inner    += o.inner;
+		fixup    += o.fixup;
+		gathcell += o.gathcell;
+		gathsol  += o.gathsol;
+		bt       += o.bt;
+		btfail   += o.btfail;
+		btsucc   += o.btsucc;
+		btcell   += o.btcell;
+	}
+
+	uint64_t dp;       // DPs tried
+	uint64_t dpsat;    // DPs saturated
+	uint64_t dpfail;   // DPs failed
+	uint64_t dpsucc;   // DPs succeeded
+	uint64_t col;      // DP columns
+	uint64_t cell;     // DP cells
+	uint64_t inner;    // DP inner loop iters
+	uint64_t fixup;    // DP fixup loop iters
+	uint64_t gathcell; // DP gather cells examined
+	uint64_t gathsol;  // DP gather solution cells found
+	uint64_t bt;       // DP backtraces
+	uint64_t btfail;   // DP backtraces failed
+	uint64_t btsucc;   // DP backtraces succeeded
+	uint64_t btcell;   // DP backtrace cells traversed
+	MUTEX_T  lock;
+};
+
 /**
  * Encapsulates matrix information calculated by the SSE aligner.
  *

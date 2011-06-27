@@ -276,8 +276,10 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag) {
 #endif
 
 	SSEData& d = fw_ ? sseI16fw_ : sseI16rc_;
-	assert(!d.buf_.empty());
+	SSEMetrics& met = extend_ ? sseI16ExtendMet_ : sseI16MateMet_;
+	met.dp++;
 	buildQueryProfileEnd2EndSseI16(fw_);
+	assert(!d.buf_.empty());
 	assert(d.qprof_ != NULL);
 
 	assert_eq(0, d.maxBonus_);
@@ -393,6 +395,7 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag) {
 	__m128i *pvFTmp   = NULL;
 	
 	assert_gt(sc_->gapbar, 0);
+	size_t nfixup = 0;
 	
 	// Fill in the table as usual but instead of using the same gap-penalty
 	// vector for each iteration of the inner loop, load words out of a
@@ -555,6 +558,7 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag) {
 			vf = _mm_max_epi16(vtmp, vf);
 			vtmp = _mm_cmpgt_epi16(vf, vtmp);
 			cmp = _mm_movemask_epi8(vtmp);
+			nfixup++;
 		}
 
 #ifndef NDEBUG
@@ -566,7 +570,7 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag) {
 					d,
 					k,                   // row
 					i - rfi_,            // col
-					(int)rf_[rfi_+i],    // reference mask
+					refc,                // reference mask
 					(int)(*rd_)[rdi_+k], // read char
 					(int)(*qu_)[rdi_+k], // read quality
 					*sc_));              // scoring scheme
@@ -598,18 +602,29 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag) {
 		pvFStore = pvFTmp;
 	}
 	
+	// Update metrics
+	size_t ninner = (rff_ - rfi_) * iter;
+	met.col   += (rff_ - rfi_);             // DP columns
+	met.cell  += (ninner * NWORDS_PER_REG); // DP cells
+	met.inner += ninner;                    // DP inner loop iters
+	met.fixup += nfixup;                    // DP fixup loop iters
+	
 	// Did we find a solution?
 	if(!found) {
 		flag = -1; // no
+		met.dpfail++;
 		return std::numeric_limits<TAlScore>::min();
 	}
 	
 	// Could we have saturated?
 	if(lrmax == std::numeric_limits<TCScore>::min()) {
 		flag = -2; // yes
+		met.dpsat++;
 		return std::numeric_limits<TAlScore>::min();
 	}
 	
+	// Return largest score
+	met.dpsucc++;
 	return (TAlScore)(lrmax - 0x7fff);
 }
 
@@ -650,6 +665,7 @@ bool SwAligner::gatherCellsNucleotidesEnd2EndSseI16(TAlScore best) {
 	assert_gt(nrow, 0);
 	btncand_.clear();
 	SSEData& d = fw_ ? sseI16fw_ : sseI16rc_;
+	SSEMetrics& met = extend_ ? sseI16ExtendMet_ : sseI16MateMet_;
 	assert(!d.buf_.empty());
 	assert(d.qprof_ != NULL);
 	const size_t colstride = d.mat_.colstride();
@@ -674,11 +690,13 @@ bool SwAligner::gatherCellsNucleotidesEnd2EndSseI16(TAlScore best) {
 				continue;
 			}
 		}
+		met.gathcell++;
 		TAlScore sc = (TAlScore)(((TCScore*)pvH)[d.lastWord_] - 0x7fff);
 		assert_leq(sc, best);
 		ASSERT_ONLY(sawbest = (sawbest || sc == best));
 		if(sc >= minsc_) {
 			// Yes, this is legit
+			met.gathsol++;
 			btncand_.expand();
 			btncand_.back().init(nrow-1, j, sc);
 		}
@@ -723,6 +741,8 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseI16(
 	assert_lt(row, dpRows());
 	assert_lt(col, rff_-rfi_);
 	SSEData& d = fw_ ? sseI16fw_ : sseI16rc_;
+	SSEMetrics& met = extend_ ? sseI16ExtendMet_ : sseI16MateMet_;
+	met.bt++;
 	assert(!d.buf_.empty());
 	assert(d.qprof_ != NULL);
 	assert_lt(row, rd_->length());
@@ -739,9 +759,8 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseI16(
 	size_t trimEnd = dpRows() - row - 1; 
 	size_t trimBeg = 0;
 	size_t ct = d.mat_.H; // cell type
-	//bool PRINT = (row == 63 && col == 194);
 	while((int)row >= 0) {
-		nbts_++;
+		met.btcell++;
 		nbts++;
 		int readc = (*rd_)[rdi_ + row];
 		int refm  = (int)rf_[rfi_ + col];
@@ -766,9 +785,7 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseI16(
 			branch,        // out: =true iff we chose among >1 options
 			canMoveThru,   // out: =true iff ...
 			reportedThru); // out: =true iff ...
-		//if(PRINT) {
-		//	cout << "row: " << row << ", col: " << col << endl;
-		//}
+		d.mat_.setReportedThrough(row, col);
 		assert_eq(gaps, Edit::numGaps(ned));
 		assert_leq(gaps, rdgap_ + rfgap_);
 		// Cell was involved in a previously-reported alignment?
@@ -793,6 +810,7 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseI16(
 			} else {
 				// No branch points to revisit; just give up
 				res.reset();
+				met.btfail++; // DP backtraces failed
 				return false;
 			}
 		}
@@ -826,7 +844,6 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseI16(
 		btcells_.expand();
 		btcells_.back().first = row;
 		btcells_.back().second = col;
-		SizeTPair p = make_pair(row, rfi_);
 		switch(cur) {
 			// Move up and to the left.  If the reference nucleotide in the
 			// source row mismatches the read nucleotide, penalize
@@ -961,19 +978,23 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseI16(
 			default: throw 1;
 		}
 	} // while((int)row > 0)
+	assert_eq(0, trimBeg);
+	assert_eq(0, trimEnd);
 	assert_geq(col, 0);
 	assert_eq(SSEMatrix::H, ct);
 	// The number of cells in the backtracs should equal the number of read
 	// bases after trimming plus the number of gaps
 	assert_eq(btcells_.size(), dpRows() - trimBeg - trimEnd + readGaps);
 	// Set 'reported' flag on each cell
+#ifndef NDEBUG
 	for(size_t i = 0; i < btcells_.size(); i++) {
 		size_t rw = btcells_[i].first;
 		size_t cl = btcells_[i].second;
-		assert(!d.mat_.reportedThrough(rw, cl));
-		d.mat_.setReportedThrough(rw, cl);
+		//assert(!d.mat_.reportedThrough(rw, cl));
+		//d.mat_.setReportedThrough(rw, cl);
 		assert(d.mat_.reportedThrough(rw, cl));
 	}
+#endif
 	int readC = (*rd_)[rdi_+row];      // get last char in read
 	int refNmask = (int)rf_[rfi_+col]; // get last ref char ref involved in aln
 	assert_gt(refNmask, 0);
@@ -1044,6 +1065,7 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseI16(
 		assert(0);
 	}
 #endif
+	met.btsucc++; // DP backtraces succeeded
 	return true;
 }
 

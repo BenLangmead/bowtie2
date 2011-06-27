@@ -258,7 +258,8 @@ public:
 		size_t solwidth,       // # rightmost cols where solns can end
 		size_t maxgaps,        // max of max # read gaps, max # ref gaps
 		size_t truncLeft,      // # cols/diags to truncate from LHS
-		EList<bool>* en);      // mask indicating which columns we can end in
+		EList<bool>* en,       // mask indicating which columns we can end in
+		bool extend);          // true iff this is a seed extension
 
 	/**
 	 * Given a read, an alignment orientation, a range of characters in a
@@ -285,10 +286,11 @@ public:
 		size_t maxgaps,        // max of max # read, ref gaps
 		size_t truncLeft,      // columns to truncate from left-hand side of rect
 		EList<bool>* en,       // mask indicating which columns we can end in
+		bool extend,           // true iff this is a seed extension
 		SeedScanner *sscan,    // optional seed scanner to feed ref chars to
 		size_t  upto,          // count the number of Ns up to this offset
 		size_t& nsUpto);       // output: the number of Ns up to 'upto'
-	
+
 	/**
 	 * Align read 'rd' to reference using read & reference information given
 	 * last time init() was called.  If the read is colorspace, the decoding is
@@ -403,94 +405,26 @@ public:
 	/**
 	 * Merge tallies in the counters related to filling the DP table.
 	 */
-	void mergeAlignCounters(
-		uint64_t& nfills,
-		uint64_t& ncups,
-		uint64_t& nrowups,
-		uint64_t& nrowskips,
-		uint64_t& nskip,
-		uint64_t& nsucc,
-		uint64_t& nfail) const
+	void merge(
+		SSEMetrics& sseU8ExtendMet,
+		SSEMetrics& sseU8MateMet,
+		SSEMetrics& sseI16ExtendMet,
+		SSEMetrics& sseI16MateMet)
 	{
-		nfills    += nfills_;
-		ncups     += ncups_;
-		nrowups   += nrowups_;
-		nrowskips += nrowskips_;
-		nskip     += nskip_;
-		nsucc     += nsucc_;
-		nfail     += nfail_;
-	}
-
-	/**
-	 * Set the arguments equal to the current tallies in the counters related
-	 * to backtracing.
-	 */
-	void getBacktraceCounters(uint64_t& nbts) const {
-		nbts = nbts_;
-	}
-
-	/**
-	 * Merge tallies in the counters related to backtracing.
-	 */
-	void mergeBacktraceCounters(uint64_t& nbts) const {
-		nbts += nbts_;
-	}
-
-	/**
-	 * Set the arguments equal to the current tallies in the counters.
-	 */
-	void getCounters(
-		uint64_t& nfills,
-		uint64_t& ncups,
-		uint64_t& nrowups,
-		uint64_t& nrowskips,
-		uint64_t& nskip,
-		uint64_t& nsucc,
-		uint64_t& nfail,
-		uint64_t& nbts) const
-	{
-		nfills = nfills_;
-		ncups = ncups_;
-		nrowups = nrowups_;
-		nrowskips = nrowskips_;
-		nskip = nskip_;
-		nsucc = nsucc_;
-		nfail = nfail_;
-		nbts = nbts_;
+		sseU8ExtendMet.merge(sseU8ExtendMet_);
+		sseU8MateMet.merge(sseU8MateMet_);
+		sseI16ExtendMet.merge(sseI16ExtendMet_);
+		sseI16MateMet.merge(sseI16MateMet_);
 	}
 	
 	/**
 	 * Reset all the counters related to filling in the DP table to 0.
 	 */
-	void resetAlignCounters() {
-		nfills_    = 0; // table fills
-		ncups_     = 0; // cell updates
-		nrowups_   = 0; // row updates
-		nrowskips_ = 0; // row skips
-		nskip_     = 0; // # table fills skipped by SSE filter
-		nsucc_     = 0; // # table fill-ins with >= 1 solution cell
-		nfail_     = 0; // # table fill-ins with no solution cells
-	}
-	
-	/**
-	 * Reset all the counters related to backtracing to 0.
-	 */
-	void resetBacktraceCounters() {
-		nbts_      = 0; // # backtrace operations
-	}
-	
-	/**
-	 * Reset all the counters to 0.
-	 */
 	void resetCounters() {
-		nfills_    = 0; // table fills
-		ncups_     = 0; // cell updates
-		nrowups_   = 0; // row updates
-		nrowskips_ = 0; // row skips
-		nskip_     = 0; // # table fills skipped by SSE filter
-		nsucc_     = 0; // # table fill-ins with >= 1 solution cell
-		nfail_     = 0; // # table fill-ins with no solution cells
-		nbts_      = 0; // # backtrace operations
+		sseU8ExtendMet_.reset();
+		sseU8MateMet_.reset();
+		sseI16ExtendMet_.reset();
+		sseI16MateMet_.reset();
 	}
 
 protected:
@@ -526,10 +460,14 @@ protected:
 	 * 0 if an alignment is found, -1 if no valid alignment is found, or -2 if
 	 * the score saturated at any point during alignment.
 	 */
-	TAlScore alignNucleotidesEnd2EndSseU8(int& flag);  // unsigned 8-bit elements
-	TAlScore alignNucleotidesLocalSseU8(int& flag);    // unsigned 8-bit elements
-	TAlScore alignNucleotidesEnd2EndSseI16(int& flag); // signed 16-bit elements
-	TAlScore alignNucleotidesLocalSseI16(int& flag);   // signed 16-bit elements
+	TAlScore alignNucleotidesEnd2EndSseU8(  // unsigned 8-bit elements
+		int& flag);
+	TAlScore alignNucleotidesLocalSseU8(    // unsigned 8-bit elements
+		int& flag);
+	TAlScore alignNucleotidesEnd2EndSseI16( // signed 16-bit elements
+		int& flag);
+	TAlScore alignNucleotidesLocalSseI16(   // signed 16-bit elements
+		int& flag);
 	
 	/**
 	 * Build query profile look up tables for the read.  The query profile look
@@ -762,6 +700,7 @@ protected:
 	EList<bool>*        en_;     // mask indicating which cols we can end in
 	size_t              rdgap_;  // max # gaps in read
 	size_t              rfgap_;  // max # gaps in reference
+	bool                extend_; // true iff this is a seed-extend problem
 	const Scoring      *sc_;     // penalties for edit types
 	TAlScore            minsc_;  // penalty ceiling for valid alignments
 	TAlScore            floorsc_;// local-alignment score floor
@@ -783,6 +722,11 @@ protected:
 	SSEData             sseI32fw_;  // buf for fw query, 32-bit score
 	SSEData             sseI32rc_;  // buf for rc query, 32-bit score
 #endif
+
+	SSEMetrics			sseU8ExtendMet_;
+	SSEMetrics			sseU8MateMet_;
+	SSEMetrics			sseI16ExtendMet_;
+	SSEMetrics			sseI16MateMet_;
 
 	int                 state_;  // state
 	bool                initedRead_; // true iff initialized with initRead

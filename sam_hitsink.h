@@ -87,6 +87,7 @@ public:
 		OutFileBuf& os,
 		size_t numRefs,
 		const StrList& refnames,
+		bool color,
 		bool nosq,
 		ReferenceMap *rmap,
 		const uint32_t* plen,
