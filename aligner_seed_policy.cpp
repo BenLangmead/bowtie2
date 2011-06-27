@@ -20,7 +20,7 @@ using namespace std;
  * Bonus for a match
  * -----------------
  *
- * MA=xx (default: MA=0, or MA=10 if --local is set)
+ * MA=xx (default: MA=0, or MA=2 if --local is set)
  *
  *    xx = Each position where equal read and reference characters match up
  *         in the alignment contriubtes this amount to the total score.
@@ -28,7 +28,7 @@ using namespace std;
  * Penalty for a mismatch
  * ----------------------
  *
- * MMP={Cxx|Q|RQ} (default: MMP=C30)
+ * MMP={Cxx|Q|RQ} (default: MMP=C6)
  *
  *   Cxx = Each mismatch costs xx.  If MMP=Cxx is specified, quality
  *         values are ignored when assessing penalities for mismatches.
@@ -41,7 +41,7 @@ using namespace std;
  * Penalty for a SNP in a colorspace alignment
  * -------------------------------------------
  *
- * SNP=xx (default: SNP=30)
+ * SNP=xx (default: SNP=6)
  *
  *    xx = Each nucleotide difference in a decoded colorspace alignment
  *         costs xx.  This should be about equal to -10 * log10(expected
@@ -66,7 +66,7 @@ using namespace std;
  * Penalty for a read gap
  * ----------------------
  *
- * RDG=xx,yy (default: RDG=25,15)
+ * RDG=xx,yy (default: RDG=5,3)
  *
  *   xx    = Read gap open penalty.
  *   yy    = Read gap extension penalty.
@@ -76,7 +76,7 @@ using namespace std;
  * Penalty for a reference gap
  * ---------------------------
  *
- * RFG=xx,yy (default: RFG=25,15)
+ * RFG=xx,yy (default: RFG=5,3)
  *
  *   xx    = Reference gap open penalty.
  *   yy    = Reference gap extension penalty.
@@ -86,7 +86,7 @@ using namespace std;
  * Minimum score for valid alignment
  * ---------------------------------
  *
- * MIN=xx,yy (defaults: MIN=-3.0,-2.0, or MIN=5.0,0.5 if --local is set)
+ * MIN=xx,yy (defaults: MIN=-0.6,-0.6, or MIN=0.0,0.66 if --local is set)
  *
  *   xx,yy = For a read of length N, the total score must be at least
  *           xx + (read length * yy) for the alignment to be valid.  The
@@ -130,7 +130,7 @@ using namespace std;
  * Seed interval
  * -------------
  *
- * IVAL={L|S|C},a,b (default: IVAL=S,1.0,0.0)
+ * IVAL={L|S|C},xx,yy (default: IVAL=S,1.0,0.0)
  *
  *   L  = let interval between seeds be a linear function of the
  *        read length.  xx and yy are the constant and linear

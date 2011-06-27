@@ -313,6 +313,7 @@ bool SwDriver::extendSeeds(
 				maxGaps,   // max of max # read, ref gaps
 				trimup,    // truncate left-hand columns from DP problem
 				&en_,      // mask indicating which columns we can end in
+				true,      // this is a seed extension - not finding a mate
 				&sscan_,   // reference scanner for resolving offsets
 				nwindow,
 				nsInLeftShift);
@@ -362,15 +363,6 @@ bool SwDriver::extendSeeds(
 			// Now fill the dynamic programming matrix and return true iff
 			// there is at least one valid alignment
 			found = swa.align(rnd);
-			swa.mergeAlignCounters(
-				swmSeed.sws,
-				swmSeed.swcups,
-				swmSeed.swrows,
-				swmSeed.swskiprows,
-				swmSeed.swskip,
-				swmSeed.swsucc,
-				swmSeed.swfail);
-			swa.resetAlignCounters();
 			if(!found) {
 				continue; // Look for more anchor alignments
 			}
@@ -381,8 +373,6 @@ bool SwDriver::extendSeeds(
 					break;
 				}
 				swa.nextAlignment(res_, rnd);
-				swa.mergeBacktraceCounters(swmSeed.swbts);
-				swa.resetBacktraceCounters();
 				found = !res_.empty();
 				if(!found) {
 					break;
@@ -442,6 +432,7 @@ bool SwDriver::extendSeeds(
 
 		} // while(!gws_[i].done())
 	}
+	// Short-circuited because a limit, e.g. -k, -m or -M, was exceeded
 	return false;
 }
 
@@ -801,6 +792,7 @@ bool SwDriver::extendSeedsPaired(
 				maxGaps,   // max of max # read, ref gaps
 				trimup,    // truncate left-hand columns from DP problem
 				&en_,      // mask indicating which columns we can end in
+				true,      // this is a seed extension - not finding a mate
 				&sscan_,   // reference scanner for resolving offsets
 				nwindow,
 				nsInLeftShift);
@@ -852,15 +844,6 @@ bool SwDriver::extendSeedsPaired(
 			// Now fill the dynamic programming matrix and return true iff
 			// there is at least one valid alignment
 			found = swa.align(rnd);
-			swa.mergeAlignCounters(
-				swmSeed.sws,
-				swmSeed.swcups,
-				swmSeed.swrows,
-				swmSeed.swskiprows,
-				swmSeed.swskip,
-				swmSeed.swsucc,
-				swmSeed.swfail);
-			swa.resetAlignCounters();
 			if(!found) {
 				continue; // Look for more anchor alignments
 			}
@@ -875,8 +858,6 @@ bool SwDriver::extendSeedsPaired(
 					break;
 				}
 				swa.nextAlignment(res_, rnd);
-				swa.mergeBacktraceCounters(swmSeed.swbts);
-				swa.resetBacktraceCounters();
 				found = !res_.empty();
 				if(!found) {
 					// Could not extend the seed hit into a full alignment for
@@ -1011,6 +992,7 @@ bool SwDriver::extendSeedsPaired(
 							omaxGaps,  // max of max # read, ref gaps
 							otrimup,   // truncate left-hand columns from DP problem
 							&oen_,     // mask of which cols we can end in
+							false,     // this is finding a mate - not seed ext
 							NULL,      // TODO: scan w/r/t other SeedResults
 							0,
 							onsInLeftShift);
@@ -1019,15 +1001,6 @@ bool SwDriver::extendSeedsPaired(
 						// cerr << "  aligning mate" << endl;
 						foundMate = oswa.align(rnd);
 						// cerr << "  result=" << foundMate << endl;
-						oswa.mergeAlignCounters(
-							swmMate.sws,
-							swmMate.swcups,
-							swmMate.swrows,
-							swmMate.swskiprows,
-							swmMate.swskip,
-							swmMate.swsucc,
-							swmMate.swfail);
-						oswa.resetAlignCounters();
 					}
 					do {
 						ores_.reset();
@@ -1036,8 +1009,6 @@ bool SwDriver::extendSeedsPaired(
 							foundMate = false;
 						} else if(foundMate) {
 							oswa.nextAlignment(ores_, rnd);
-							oswa.mergeBacktraceCounters(swmMate.swbts);
-							oswa.resetBacktraceCounters();
 							foundMate = !ores_.empty();
 							assert(!foundMate || ores_.alres.matchesRef(
 								ord,

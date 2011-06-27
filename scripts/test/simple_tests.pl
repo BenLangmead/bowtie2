@@ -38,6 +38,32 @@ if(! -x $bowtie2 || ! -x $bowtie2_build) {
 
 my @cases = (
 
+	# Following cases depend on this being the case:
+	#
+	# static const float DEFAULT_CEIL_CONST = 3.0f;
+	# static const float DEFAULT_CEIL_LINEAR = 3.0f;
+
+	# Just enough budget for hits, so it should align
+	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTGTTCAT" ], # budget = 3 + 8 * 3 = 27
+	  args   => "-P \"SEED=2;MMP=C27;MIN=-3,-3;RDG=25,15;RFG=25,15\"", # penalty = 27
+	  report => "-a",
+	  hits   => [ { 0 => 1, 8 => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:6=1X1=" ],
+	  cigar  => [ "8M" ],
+	  samoptflags => [ { "AS:i:-27" => 1, "XS:i:-27" => 1, "NM:i:1" => 1,
+	                     "XM:i:1" => 1, "YT:Z:UU" => 1, "MD:Z:6G1" => 1 } ] },
+
+	# Not quite enough budget for hits, so it should NOT align
+	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTGTTCAT" ], # budget = 3 + 8 * 3 = 27
+	  args   =>   "-P \"SEED=2;MMP=C28;MIN=-3,-3;RDG=25,15;RFG=25,15\"", # penalty = 28
+	  report =>   "-a",
+	  hits   => [ { "*" => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU" ],
+	  cigar  => [ "*" ],
+	  samoptflags => [ { "YT:Z:UU" => 1 } ] },
+
 	# Check that using a seed of length 1 with 1-mismatch doesn't crash.
 	# Perhaps we should disallow it though?
 
@@ -56,13 +82,13 @@ my @cases = (
 	{ name   => "Local alignment 1",
 	  ref    => [ "TTGT" ],
 	  reads  => [ "TTGT" ],
-	  args   =>   "--local",
+	  args   =>   "--local -P \"MIN=0.0,0.75\"",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU,XC:4=" ],
 	  cigar  => [ "4M" ],
 	  samoptflags => [ {
-		"AS:i:40"  => 1, # alignment score
+		"AS:i:8"   => 1, # alignment score
 		"XS:i:0"   => 1, # suboptimal alignment score
 		"XN:i:0"   => 1, # num ambiguous ref bases
 		"XM:i:0"   => 1, # num mismatches
@@ -85,13 +111,13 @@ my @cases = (
 	{ name   => "Local alignment 2",
 	  ref    => [ "TTGA" ],
 	  reads  => [ "TTGT" ],
-	  args   =>   "--local -P \"MA=10;SEED=0,3,1\"",
+	  args   =>   "--local -P \"MIN=0.0,0.75;SEED=0,3,1\"",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1 } ],
 	  flags => [ "XM:0,XP:0,XT:UU,XC:3=1S" ],
 	  cigar  => [ "3M1S" ],
 	  samoptflags => [ {
-		"AS:i:30"  => 1, # alignment score
+		"AS:i:6"   => 1, # alignment score
 		"XS:i:0"   => 1, # suboptimal alignment score
 		"XN:i:0"   => 1, # num ambiguous ref bases
 		"XM:i:0"   => 1, # num mismatches
@@ -156,8 +182,8 @@ my @cases = (
 		8 => "8M5S"
 	  }],
 	  samoptflags_map => [{
-		0 => { "AS:i:130" => 1, "XS:i:80" => 1, "YT:Z:UU" => 1, "MD:Z:13" => 1 },
-		8 => { "AS:i:80"  => 1, "XS:i:80" => 1, "YT:Z:UU" => 1, "MD:Z:8"  => 1 }
+		0 => { "AS:i:26" => 1, "XS:i:16" => 1, "YT:Z:UU" => 1, "MD:Z:13" => 1 },
+		8 => { "AS:i:16" => 1, "XS:i:16" => 1, "YT:Z:UU" => 1, "MD:Z:8"  => 1 }
 	  }]
 	},
 
@@ -193,8 +219,8 @@ my @cases = (
 		8 => "8M4S"
 	  }],
 	  samoptflags_map => [{
-		0 => { "AS:i:120" => 1, "XS:i:80" => 1, "YT:Z:UU" => 1, "MD:Z:12" => 1 },
-		8 => { "AS:i:80"  => 1, "XS:i:80" => 1, "YT:Z:UU" => 1, "MD:Z:8"  => 1 }
+		0 => { "AS:i:24" => 1, "XS:i:16" => 1, "YT:Z:UU" => 1, "MD:Z:12" => 1 },
+		8 => { "AS:i:16" => 1, "XS:i:16" => 1, "YT:Z:UU" => 1, "MD:Z:8"  => 1 }
 	  }]
 	},
 
@@ -206,7 +232,7 @@ my @cases = (
 	{ name   => "Gap penalties 1",
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCTTTGTT" ], # budget = 3 + 12 * 3 = 39
-	  args   =>   "-P \"SEED=0,3,1;RDG=29,10\"",
+	  args   =>   "-P \"MMP=C30;SEED=0,3,1;RDG=29,10;RFG=25,15;MIN=-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU,XC:6=1D6=" ],
@@ -221,7 +247,7 @@ my @cases = (
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "01102200110" ], # budget = 3 + 11 * 3 = 36
 	  #           "TTGTTCTTTGTT"
-	  args   =>   "-P \"SEED=0,3,1;RDG=26,10\"",
+	  args   =>   "-P \"MMP=C30;SEED=0,3,1;RDG=26,10;RFG=25,15;MIN=-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { 1 => 1 } ],
 	  color  => 1,
@@ -236,7 +262,7 @@ my @cases = (
 	{ name   => "Gap penalties 2",
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCTTTGTT" ], # budget = 3 + 12 * 3 = 39
-	  args   =>   "-P \"SEED=0,3,1;RDG=30,10\"",
+	  args   =>   "-P \"MMP=C30;SEED=0,3,1;RDG=30,10;RFG=25,15;MIN=-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { "*" => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU" ],
@@ -249,7 +275,7 @@ my @cases = (
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "01102200110" ], # budget = 3 + 11 * 3 = 36
 	  #           "TTGTTCTTTGTT"
-	  args   =>   "-P \"SEED=0,3,1;RDG=27,10\"",
+	  args   =>   "-P \"MMP=C30;SEED=0,3,1;RDG=27,10;RFG=25,15;MIN=-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { "*" => 1 } ],
 	  color  => 1,
@@ -262,7 +288,7 @@ my @cases = (
 	{ name   => "Gap penalties 3",
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCGATTTGTT" ], # budget = 3 + 14 * 3 = 45
-	  args   =>   "-P \"SEED=0,3,1;RFG=30,15\"",
+	  args   =>   "-P \"MMP=C30;SEED=0,3,1;RDG=25,15;RFG=30,15;MIN=-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU,XC:7=1I6=" ],
@@ -321,7 +347,7 @@ my @cases = (
 	{ name   => "Gap penalties 4",
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCGATTTGTT" ], # budget = 3 + 14 * 3 = 45
-	  args   =>   "-P \"SEED=0,3,1;RFG=30,16\"",
+	  args   =>   "-P \"MMP=C30;SEED=0,3,1;RDG=25,15;RFG=30,16;MIN=-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { "*" => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU" ],
@@ -333,7 +359,7 @@ my @cases = (
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "0110232300110" ], # budget = 3 + 13 * 3 = 42
 	  #           "TTGTTCGATTTGTT"
-	  args   =>   "-P \"SEED=0,3,1;RFG=27,16\"",
+	  args   =>   "-P \"MMP=C30;SEED=0,3,1;RDG=25,15;RFG=27,16;MIN=-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { "*" => 1 } ],
 	  color  => 1,
@@ -345,7 +371,7 @@ my @cases = (
 	{ name   => "Gap penalties 5",
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCGATTTGTT" ], # budget = 3 + 14 * 3 = 45
-	  args   =>   "-P \"SEED=0,3,1;RFG=31,15\"",
+	  args   =>   "-P \"MMP=C30;SEED=0,3,1;RDG=25,15;RFG=31,15;MIN=-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { "*" => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU" ],
@@ -357,7 +383,7 @@ my @cases = (
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "0110232300110" ], # budget = 3 + 13 * 3 = 42
 	  #           "TTGTTCGATTTGTT"
-	  args   =>   "-P \"SEED=0,3,1;RFG=28,15\"",
+	  args   =>   "-P \"MMP=C30;SEED=0,3,1;RDG=25,15;RFG=28,15;MIN=-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { "*" => 1 } ],
 	  color  => 1,
@@ -369,7 +395,7 @@ my @cases = (
 	{ name   => "Gap penalties 6",
 	  ref    => [ "ATTGTTCGTTTGTTCGTA" ],
 	  reads  => [ "ATTGTTGTTTGATTCGTA" ], # budget = 3 + 18 * 3 = 57
-	  args   =>   "-P \"SEED=0,3,1;RFG=18,10;RDG=19,10\"",
+	  args   =>   "-P \"MMP=C30;SEED=0,3,1;RDG=19,10;RFG=18,10;MIN=-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU,XC:6=1D5=1I6=" ],
@@ -380,7 +406,7 @@ my @cases = (
 	  ref    => [ "ATTGTTCGTTTGTTCGTA" ],
 	  reads  => [ "30110110012302313" ], # budget = 3 + 17 * 3 = 54
 	  #           "ATTGTTGTTTGATTCGTA"
-	  args   =>   "-P \"SEED=0,3,1;RFG=18,10;RDG=16,10\"",
+	  args   =>   "-P \"MMP=C30;SEED=0,3,1;RDG=16,10;RFG=18,10;MIN=-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { 1 => 1 } ],
 	  color  => 1,
@@ -391,7 +417,7 @@ my @cases = (
 	{ name   => "Gap penalties 7",
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTGTTTGATTCGT" ], # budget = 3 + 16 * 3 = 51
-	  args   =>   "-P \"SEED=0,3,1;RFG=16,10;RDG=16,10\"",
+	  args   =>   "-P \"MMP=C30;SEED=0,3,1;RDG=16,10;RFG=16,10;MIN=-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { "*" => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU" ],
@@ -403,7 +429,7 @@ my @cases = (
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "011011001230231" ], # budget = 3 + 15 * 3 = 48
 	  #           "TTGTTGTTTGATTCGT"
-	  args   =>   "-P \"SEED=0,3,1;RFG=16,10;RDG=13,10\"",
+	  args   =>   "-P \"MMP=C30;SEED=0,3,1;RFG=16,10;RDG=13,10;MIN=-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { "*" => 1 } ],
 	  color  => 1,
@@ -508,7 +534,7 @@ my @cases = (
 	# Alignment with 1 reference gap
 	{ ref    => [ "TTTTGTTCGTTTG" ],
 	  reads  => [ "TTTTGTTCGATTTG" ], # budget = 3 + 14 * 3 = 45
-	  args   =>   "-P \"SEED=0,8,1;RFG=25,20\"",
+	  args   =>   "-P \"SEED=0,8,1;MMP=C30;RDG=25,15;RFG=25,20;MIN=-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1 } ],
 	  flags => [ "XM:0,XP:0,XT:UU,XC:9=1I4=" ],
@@ -538,7 +564,7 @@ my @cases = (
 	# Alignment with 1 reference gap
 	{ ref    => [ "TTGTTCGTTTGTT" ],
 	  reads  => [ "TTGTTCGATTTGTT" ], # budget = 3 + 14 * 3 = 45
-	  args   =>   "-P \"SEED=0,3,1;RFG=25,20\"",
+	  args   =>   "-P \"SEED=0,3,1;MMP=C30;RDG=25,15;RFG=25,20;MIN=-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1 } ],
 	  flags => [ "XM:0,XP:0,XT:UU,XC:7=1I6=" ],
@@ -657,7 +683,7 @@ my @cases = (
 	  #                ^
 	  #                4:CC>- 
 	  args   => "",
-	  report => "-a --overhang --gbar 3 -P \"RDG=5,5;SEED=0,4,1\"",
+	  report => "-a --overhang --gbar 3 -P \"MMP=C30;RDG=5,5;SEED=0,4,1;RFG=25,20;MIN=-3,-3\"",
 	  hits   => [ { 0 => 1 } ],
 	  edits  => [ "4:CC>-" ],
 	  flags  => [ "XM:0,XP:0,XT:UU,XC:4=2D4=" ],
@@ -673,8 +699,7 @@ my @cases = (
 	  reads  => [ "ATATGCCCCCCCCCCTCCG" ], # 3 * 19 + 3 = 60
 	  #                     ^
 	  #                     9:ATG>- 
-	  args   => "",
-	  report => "-a --overhang -P \"RDG=5,5;SEED=0,8,1\"",
+	  args   =>   "-P \"SEED=0,8,1;MMP=C30;RDG=5,5;RFG=25,15;MIN=-3,-3\"",
 	  hits   => [ { 0 => 1 } ],
 	  edits  => [ "9:ATG>-" ],
 	  norc   => 1,
@@ -693,7 +718,7 @@ my @cases = (
 	  #                     ^         
 	  #                     10:GTA>- 
 	  args   => "",
-	  report => "-a --overhang -P \"RDG=5,5;SEED=0,8,1\"",
+	  report => "-a --overhang -P \"SEED=0,8,1;MMP=C30;RDG=5,5;RFG=25,20;MIN=-3,-3\"",
 	  hits   => [ { 0 => 1 } ],
 	  edits  => [ "10:GTA>-" ],
 	  norc   => 1,
@@ -1245,7 +1270,7 @@ my @cases = (
 	#              TTGTTCGT
 	  reads  => [ "TTGTTCGT", "TAAAACGT", "TTGTTCGT", "TAATTCGT",    "TTGTTCGT" ],
 	  args   => "",
-	  report => "-m 1 -a -P \"SEED=0,3,1;MMP=C9\"",
+	  report => "-m 1 -a -P \"SEED=0,3,1;MIN=-3,-3;MMP=C9;RFG=25,15;RDG=25,15\"",
 	  hits   => [ { 0 => 1 }, { '*' => 1 }, { 0 => 1 }, { 0 => 1 },    { 0 => 1 } ],
 	  edits  => [ "-",        undef,        "-",        "1:T>A,2:G>A", "-",        ],
 	  flags  => [ "XM:0,XP:0,XT:UU,XC:8=", "XM:0,XP:0,XT:UU",
@@ -1422,33 +1447,6 @@ my @cases = (
 		       "YT:Z:UU" => 1, "MD:Z:2G2C2"    => 1 },
 	  }],
 	},
-
-	# Following cases depend on this being the case:
-	#
-	# static const float DEFAULT_CEIL_CONST = 3.0f;
-	# static const float DEFAULT_CEIL_LINEAR = 3.0f;
-
-	# Just enough budget for hits, so it should align
-	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTGTTCAT" ], # budget = 3 + 8 * 3 = 27
-	  args   => "-P \"SEED=2;MMP=C27\"", # penalty = 27
-	  report => "-a",
-	  hits   => [ { 0 => 1, 8 => 1 } ],
-	  flags  => [ "XM:0,XP:0,XT:UU,XC:6=1X1=" ],
-	  cigar  => [ "8M" ],
-	  samoptflags => [ { "AS:i:-27" => 1, "XS:i:-27" => 1, "NM:i:1" => 1,
-	                     "XM:i:1" => 1, "YT:Z:UU" => 1, "MD:Z:6G1" => 1 } ] },
-
-	# Not quite enough budget for hits, so it should NOT align
-	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTGTTCAT" ], # budget = 3 + 8 * 3 = 27
-	  args   =>   "-P \"SEED=2;MMP=C28\"", # penalty = 28
-	  report =>   "-a",
-	  hits   => [ { "*" => 1 } ],
-	  flags  => [ "XM:0,XP:0,XT:UU" ],
-	  cigar  => [ "*" ],
-	  samoptflags => [ { "YT:Z:UU" => 1 } ] },
-
 );
 
 ##

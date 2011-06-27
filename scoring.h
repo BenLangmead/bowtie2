@@ -13,12 +13,12 @@
 #define DEFAULT_MATCH_BONUS 0
 // Same settings but different defaults for --local mode
 #define DEFAULT_MATCH_BONUS_TYPE_LOCAL COST_MODEL_CONSTANT
-#define DEFAULT_MATCH_BONUS_LOCAL 10
+#define DEFAULT_MATCH_BONUS_LOCAL 2
 
 // Default type of penalty to assess against mismatches
 #define DEFAULT_MM_PENALTY_TYPE COST_MODEL_CONSTANT
 // When mismatch penalty type is constant, use this constant
-#define DEFAULT_MM_PENALTY 30
+#define DEFAULT_MM_PENALTY 6
 
 // Default type of penalty to assess against mismatches
 #define DEFAULT_N_PENALTY_TYPE COST_MODEL_CONSTANT
@@ -27,12 +27,12 @@
 
 // Constant coefficient b in linear function f(x) = ax + b determining
 // minimum valid score f when read length is x
-#define DEFAULT_MIN_CONST (-3.0f)
+#define DEFAULT_MIN_CONST (-0.6f)
 // Linear coefficient a
-#define DEFAULT_MIN_LINEAR (-3.0f)
+#define DEFAULT_MIN_LINEAR (-0.6f)
 // Different defaults for --local mode
 #define DEFAULT_MIN_CONST_LOCAL (0.0f)
-#define DEFAULT_MIN_LINEAR_LOCAL (3.34f)
+#define DEFAULT_MIN_LINEAR_LOCAL (0.66f)
 
 // Constant coefficient b in linear function f(x) = ax + b determining
 // what local-alignment score floor to impose when read length is x
@@ -58,23 +58,23 @@
 // Default penalty to asses against SNPs in colorspace alignments.
 // Decoding must have occurred in order to distinguish SNPs from
 // patterns of mismatches.
-#define DEFAULT_SNP_PENALTY 30 
+#define DEFAULT_SNP_PENALTY 6
 
 // Default read gap penalties for when homopolymer calling is reliable	
-#define DEFAULT_READ_GAP_CONST 25
-#define DEFAULT_READ_GAP_LINEAR 15
+#define DEFAULT_READ_GAP_CONST 5
+#define DEFAULT_READ_GAP_LINEAR 3
 
 // Default read gap penalties for when homopolymer calling is not reliable
-#define DEFAULT_READ_GAP_CONST_BADHPOLY 15
-#define DEFAULT_READ_GAP_LINEAR_BADHPOLY 5
+#define DEFAULT_READ_GAP_CONST_BADHPOLY 3
+#define DEFAULT_READ_GAP_LINEAR_BADHPOLY 1
 
 // Default reference gap penalties for when homopolymer calling is reliable
-#define DEFAULT_REF_GAP_CONST 25
-#define DEFAULT_REF_GAP_LINEAR 15
+#define DEFAULT_REF_GAP_CONST 5
+#define DEFAULT_REF_GAP_LINEAR 3
 
 // Default reference gap penalties for when homopolymer calling is not reliable
-#define DEFAULT_REF_GAP_CONST_BADHPOLY 15
-#define DEFAULT_REF_GAP_LINEAR_BADHPOLY 5
+#define DEFAULT_REF_GAP_CONST_BADHPOLY 3
+#define DEFAULT_REF_GAP_LINEAR_BADHPOLY 1
 
 enum {
 	COST_MODEL_ROUNDED_QUAL = 1,
@@ -177,6 +177,15 @@ public:
 		matchConst = bonus;
 		initPens<float>(matchBonuses, matchType, matchConst);
 		assert(repOk());
+	}
+	
+	/**
+	 * Set the mismatch penalty.
+	 */
+	void setMmPen(int mmType, int c) {
+		mmcostType = mmType;
+		mmcost     = c;
+		initPens<int>(mmpens, mmcostType, mmcost);
 	}
 	
 	/**
@@ -443,34 +452,10 @@ public:
 			COST_MODEL_CONSTANT,     // how to penalize Ns in the read
 			3,                       // constant if N pelanty is a constant
 			false,                   // concatenate mates before N filtering?
-			11,                      // constant coeff for gap in read
-			11,                      // constant coeff for gap in ref
-			4,                       // linear coeff for gap in read
-			4,                       // linear coeff for gap in ref
-			5,                       // 5 rows @ top/bot diagonal-entrance-only
-			-1,                      // no restriction on row
-			false);                  // score prioritized over row
-	}
-
-	static Scoring naLike() {
-		return Scoring(
-			0,                       // reward for a match
-			COST_MODEL_ROUNDED_QUAL, // how to penalize mismatches
-			0,                       // constant if mm pelanty is a constant
-			30,                      // penalty for nuc mm when decoding colors
-			37.0f,                   // constant coeff for minimum score
-			0.3f,                    // linear coeff for minimum score
-			0.0f,                    // constant coeff for score floor
-			0.0f,                    // linear coeff for score floor
-			2.0f,                    // constant coeff for max Ns
-			0.1f,                    // linear coeff for max Ns
-			COST_MODEL_ROUNDED_QUAL, // how to penalize Ns in the read
-			0,                       // constant if N pelanty is a constant
-			false,                   // concatenate mates before N filtering?
-			40,                      // constant coeff for gap in read
-			40,                      // constant coeff for gap in ref
-			15,                      // linear coeff for gap in read
-			15,                      // linear coeff for gap in ref
+			5,                       // constant coeff for gap in read
+			5,                       // constant coeff for gap in ref
+			2,                       // linear coeff for gap in read
+			2,                       // linear coeff for gap in ref
 			5,                       // 5 rows @ top/bot diagonal-entrance-only
 			-1,                      // no restriction on row
 			false);                  // score prioritized over row
