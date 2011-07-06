@@ -104,6 +104,10 @@ public:
 	{
 		return (a * last) + c;
 	}
+	
+	uint32_t currentA() const { return a; }
+	uint32_t currentC() const { return c; }
+	uint32_t currentLast() const { return last; }
 
 private:
 	uint32_t a;

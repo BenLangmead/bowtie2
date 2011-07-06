@@ -5,6 +5,7 @@
 #ifndef ALIGNER_SEED_H_
 #define ALIGNER_SEED_H_
 
+#include <iostream>
 #include <utility>
 #include "qual.h"
 #include "ds.h"
@@ -829,6 +830,23 @@ public:
 	 * either the forward or reverse strand.
 	 */
 	EList<BTString>& quals(bool fw) { return fw ? qualFw_ : qualRc_; }
+
+	/**
+	 * Print a pretty, short summary of these seed results.
+	 */
+	void printSummary(std::ostream& os) {
+		os << "  # positions: "           << numOffs_   << std::endl
+		   << "  # non-empty positions: " << nonzTot_   << std::endl
+		   << "  # BW ranges found: "     << numRanges_ << std::endl
+		   << "  # BW elts found: "       << numElts_   << std::endl
+		   << "  sorted?: "               << sorted_    << std::endl;
+		if(sorted_) {
+			os << "  Sorted offsets:" << std::endl;
+			for(size_t i = 0; i < rankOffs_.size(); i++) {
+				os << "    " << i << ": " << rankOffs_[i] << "," << rankFws_[i] << std::endl;
+			}
+		}
+	}
 
 protected:
 

@@ -339,11 +339,14 @@ public:
 		for(size_t i = 0; i < src.size(); i++) {
 			totrows += src[i].offs.size();
 		}
+		//std::cerr << "randomNarrow: maxrows=" << maxrows
+		//          << ", totrows=" << totrows << std::endl;
 		if(totrows <= maxrows) {
 			return false;
 		}
 		size_t totrowsSampled = 0;
 		uint32_t off = (uint32_t)(rnd.nextU32() % totrows);
+		//std::cerr << "randomNarrow: picked offset " << off << std::endl;
 		bool on = false;
 		bool done = false;
 		// Go around twice, since the 

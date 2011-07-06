@@ -284,19 +284,50 @@ class AlnFlags {
 
 public:
 
-	AlnFlags(int pairing, bool maxed, bool maxedPair) {
-		init(pairing, maxed, maxedPair);
+	AlnFlags() {
+		init(ALN_FLAG_PAIR_UNPAIRED, false, false, false, false, false);
+	}
+
+	AlnFlags(
+		int pairing,
+		bool canMax,
+		bool maxed,
+		bool maxedPair,
+		bool mixedMode)
+	{
+		init(pairing, canMax, maxed, maxedPair, mixedMode, true);
+	}
+
+	AlnFlags(
+		int pairing,
+		bool canMax,
+		bool maxed,
+		bool maxedPair,
+		bool mixedMode,
+		bool primary)
+	{
+		init(pairing, canMax, maxed, maxedPair, mixedMode, primary);
 	}
 
 	/**
 	 * Initialize given values for all settings.
 	 */
-	void init(int pairing, bool maxed, bool maxedPair) {
+	void init(
+		int pairing,
+		bool canMax,
+		bool maxed,
+		bool maxedPair,
+		bool mixedMode,
+		bool primary)
+	{
 		assert_gt(pairing, 0);
 		assert_leq(pairing, ALN_FLAG_PAIR_UNPAIRED);
 		pairing_ = pairing;
+		canMax_ = canMax;
 		maxed_ = maxed;
 		maxedPair_ = maxedPair;
+		mixedMode_ = mixedMode;
+		primary_ = primary;
 	}
 
 	/**
@@ -342,11 +373,46 @@ public:
 		return pairing_ == ALN_FLAG_PAIR_CONCORD;
 	}
 
+	/**
+	 * Return true iff the alignment is not the primary alignment; i.e. not the
+	 * first reported alignment for the fragment.
+	 */
+	inline bool isPrimary() const {
+		return primary_;
+	}
+	
+	/**
+	 * Set the primary flag.
+	 */
+	void setPrimary(bool primary) {
+		primary_ = primary;
+	}
+	
+	/**
+	 * Return whether both paired and unpaired alignments are considered for
+	 * pairs & their constituent mates
+	 */
+	inline bool isMixedMode() const {
+		return mixedMode_;
+	}
+	
+	/**
+	 * Return true iff the alignment params are such that it's possible for a
+	 * read to be suppressed for being repetitive.
+	 */
+	inline bool canMax() const {
+		return canMax_;
+	}
+
 protected:
 
 	// See ALN_FLAG_PAIR_* above
 	int pairing_;
 
+	// True iff the alignment params are such that it's possible for a read to
+	// be suppressed for being repetitive
+	bool canMax_;
+	
 	// This alignment is sampled from among many alignments that, taken
 	// together, cause this mate to align non-uniquely
 	bool maxed_;
@@ -354,6 +420,13 @@ protected:
 	// The paired-end read of which this mate is part has repetitive concordant
 	// alignments
 	bool maxedPair_;
+	
+	// Whether both paired and unpaired alignments are considered for pairs &
+	// their constituent mates
+	bool mixedMode_;
+	
+	// The read is the primary read 
+	bool primary_;
 };
 
 static inline ostream& operator<<(ostream& os, const AlnScore& o) {
@@ -619,6 +692,7 @@ public:
 	}
 	
 	AlnScore           score()          const { return score_;    }
+	AlnScore           oscore()         const { return oscore_;   }
 	EList<Edit>&       ned()                  { return ned_;      }
 	EList<Edit>&       aed()                  { return aed_;      }
 	EList<Edit>&       ced()                  { return ced_;      }
@@ -908,9 +982,12 @@ public:
 	{
 		assert_gt(type, 0);
 		type_ = type;
-		fraglen_ = -1;
-		if(omate != NULL && flags.isConcordant()) {
-			setFragmentLength(*omate);
+		fraglen_ = 0;
+		if(omate != NULL) {
+			oscore_ = omate->score_;
+			if(flags.isConcordant()) {
+				setFragmentLength(*omate);
+			}
 		}
 	}
 	
@@ -1048,6 +1125,7 @@ protected:
 	size_t      rdlen_;        // length of the original read
 	size_t      rdrows_;       // # rows in alignment problem
 	AlnScore    score_;        // best SW score found
+	AlnScore    oscore_;       // score of opposite mate
 	EList<Edit> ned_;          // base edits
 	EList<Edit> aed_;          // ambiguous base resolutions
 	EList<Edit> ced_;          // color miscalls
@@ -1214,45 +1292,85 @@ typedef uint64_t TNumAlns;
 
 /**
  * Encapsulates a concise summary of a set of alignment results for a
- * given read.  Referring to the fields of this object should provide
- * enough information to print output records for the read.
+ * given pair or mate.  Referring to the fields of this object should
+ * provide enough information to print output records for the read.
  */
 class AlnSetSumm {
 
 public:
 
-	AlnSetSumm() {
-		best_.invalidate();
-		secbest_.invalidate();
-		other_ = 0;
-	}
+	AlnSetSumm() { reset(); }
 
 	/**
 	 * Given an unpaired read (in either rd1 or rd2) or a read pair
 	 * (mate 1 in rd1, mate 2 in rd2).
 	 */
-	AlnSetSumm(
+	explicit AlnSetSumm(
 		const Read* rd1,
 		const Read* rd2,
 		const EList<AlnRes>* rs1,
 		const EList<AlnRes>* rs2);
 
-	AlnSetSumm(
-		AlnScore best,
-		AlnScore secbest,
-		TNumAlns other)
+	explicit AlnSetSumm(
+		AlnScore best1,
+		AlnScore secbest1,
+		AlnScore best2,
+		AlnScore secbest2,
+		AlnScore bestPaired,
+		AlnScore secbestPaired,
+		TNumAlns other1,
+		TNumAlns other2,
+		bool     paired)
 	{
-		init(best, secbest, other);
+		init(
+			best1,
+			secbest1,
+			best2,
+			secbest2,
+			bestPaired,
+			secbestPaired,
+			other1,
+			other2,
+			paired);
 	}
 	
+	/**
+	 * Set to uninitialized state.
+	 */
+	void reset() {
+		best1_.invalidate();
+		secbest1_.invalidate();
+		best2_.invalidate();
+		secbest2_.invalidate();
+		bestPaired_.invalidate();
+		secbestPaired_.invalidate();
+		other1_ = other2_ = 0;
+		paired_ = false;
+	}
+	
+	/**
+	 * Initialize given fields.  See constructor for how fields are set.
+	 */
 	void init(
-		AlnScore best,
-		AlnScore secbest,
-		TNumAlns other)
+		AlnScore best1,
+		AlnScore secbest1,
+		AlnScore best2,
+		AlnScore secbest2,
+		AlnScore bestPaired,
+		AlnScore secbestPaired,
+		TNumAlns other1,
+		TNumAlns other2,
+		bool     paired)
 	{
-		best_    = best;
-		secbest_ = secbest;
-		other_   = other;
+		best1_         = best1;
+		secbest1_      = secbest1;
+		best2_         = best2;
+		secbest2_      = secbest2;
+		bestPaired_    = bestPaired;
+		secbestPaired_ = secbestPaired;
+		other1_        = other1;
+		other2_        = other2;
+		paired_        = paired;
 		assert(repOk());
 	}
 	
@@ -1261,27 +1379,76 @@ public:
 	 */
 	bool empty() const {
 		assert(repOk());
-		return !VALID_AL_SCORE(best_);
+		return !VALID_AL_SCORE(best1_);
 	}
 	
 	/**
 	 * Check that the summary is internally consistent.
 	 */
 	bool repOk() const {
-		assert(other_ == 0 ||  VALID_AL_SCORE(secbest_));
-		assert(other_ != 0 || !VALID_AL_SCORE(secbest_));
+		assert(other1_ == 0 ||  VALID_AL_SCORE(secbest1_));
+		assert(other1_ != 0 || !VALID_AL_SCORE(secbest1_));
+		assert(other2_ == 0 ||  VALID_AL_SCORE(secbest2_));
+		assert(other2_ != 0 || !VALID_AL_SCORE(secbest2_));
 		return true;
 	}
 	
-	AlnScore best()    const { return best_;    }
-	AlnScore secbest() const { return secbest_; }
-	TNumAlns other()   const { return other_;   }
+	AlnScore best1()         const { return best1_;         }
+	AlnScore secbest1()      const { return secbest1_;      }
+	AlnScore best2()         const { return best2_;         }
+	AlnScore secbest2()      const { return secbest2_;      }
+	AlnScore bestPaired()    const { return bestPaired_;    }
+	AlnScore secbestPaired() const { return secbestPaired_; }
+	TNumAlns other1()        const { return other1_;        }
+	TNumAlns other2()        const { return other2_;        }
+	bool     paired()        const { return paired_;        }
+
+	/**
+	 * Return the second-best score for the specified mate.  If the alignment
+	 * is paired and the specified mate aligns uniquely, return an invalid
+	 * second-best score.  This allows us to treat mates separately, so that
+	 * repetitive paired-end alignments don't trump potentially unique unpaired
+	 * alignments.
+	 */
+	AlnScore secbestMate(bool mate1) const {
+		return mate1 ? secbest1_ : secbest2_;
+	}
+	
+	/**
+	 * Return the second-best score for the specified mate.  If the alignment
+	 * is paired and the specified mate aligns uniquely, return an invalid
+	 * second-best score.  This allows us to treat mates separately, so that
+	 * repetitive paired-end alignments don't trump potentially unique unpaired
+	 * alignments.
+	 */
+	AlnScore secbest(bool mate1) const {
+		if(paired_) {
+			if(mate1) {
+				if(!secbest1_.valid()) {
+					return secbest1_;
+				}
+			} else {
+				if(!secbest2_.valid()) {
+					return secbest2_;
+				}
+			}
+			return secbestPaired_;
+		} else {
+			return mate1 ? secbest1_ : secbest2_;
+		}
+	}
 	
 protected:
 	
-	AlnScore best_;    // best full-alignment score found for this read
-	AlnScore secbest_; // second-best
-	TNumAlns other_;   // # more alignments within N points of second-best
+	AlnScore bestPaired_;    // best full-alignment score found for this read
+	AlnScore secbestPaired_; // second-best
+	AlnScore best1_;         // best full-alignment score found for this read
+	AlnScore secbest1_;      // second-best
+	AlnScore best2_;         // best full-alignment score found for this read
+	AlnScore secbest2_;      // second-best
+	TNumAlns other1_;        // # more alignments within N points of second-best
+	TNumAlns other2_;        // # more alignments within N points of second-best
+	bool     paired_;        // results are paired
 };
 
 #endif

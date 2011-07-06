@@ -23,13 +23,13 @@ enum {
 
 // By default, the maximum number of positions we examine is about 1/3rd the
 // total number of possible positions
-#define DEFAULT_POSMIN  3.0f
-#define DEFAULT_POSFRAC 0.3f
+#define DEFAULT_POSMIN  1.5f
+#define DEFAULT_POSFRAC 0.15f
 
 // By default, the maximum number of hits we try to extend is about 5 times the
 // total number of positions tried
-#define DEFAULT_ROWMIN   3.0f
-#define DEFAULT_ROWMULT  2.0f
+#define DEFAULT_ROWMIN   1.5f
+#define DEFAULT_ROWMULT  1.0f
 
 /**
  * Encapsulates the set of all parameters that affect what the

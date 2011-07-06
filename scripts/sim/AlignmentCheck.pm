@@ -329,6 +329,87 @@ sub cigarTrim($$) {
 }
 
 ##
+# Given a read sequence (with characters in upstream-to-downstream order with
+# respect to the reference - NOT necessarily 5'-to-3') and a CIGAR string and
+# an MD:Z string, build the alignment strings.  The alignment strings will only
+# contain the portion of the read that aligned.  Any portions that were either
+# hard-trimmed or soft-trimmed are trimmed from this function's result.
+#
+# For now, I'm assuming that the MD:Z string only describes aligned characters,
+# i.e. *after* trimming.
+#
+sub _read_md_cigar_to_al($$$) {
+	my ($seq, $md, $cigar) = @_;
+	my $alread = "";
+	my $alref = "";
+	my $parsed_md  = parse_md($md);
+	my $parsed_cig = parse_cigar($cigar);
+	my ($rdoff, $mdoff) = (0, 0);
+	my ($htriml, $striml, $htrimr, $strimr) = (0, 0, 0, 0);
+	my $nonsh = 0; # have I seen a non-S, non-H CIGAR op?
+	my $nonh = 0;  # have I seen a non-H CIGAR op?
+	for(my $i = 0; $i < length($parsed_cig); $i++) {
+		my $cigop = substr($parsed_cig, $i, 1);
+		$rdoff < length($seq) || die "Bad rdoff:$rdoff for seq '$seq' cigop=$cigop";
+		$nonh++ if $cigop ne "H";
+		$nonsh++ if ($cigop ne "H" && $cigop ne "S");
+		if($cigop eq "S") {
+			if($nonsh) {
+				$strimr++;
+			} else {
+				$striml++;
+			}
+			$rdoff++;
+			next;
+		}
+		if($cigop eq "H") {
+			if($nonh) {
+				$htrimr++;
+			} else {
+				$htriml++;
+			}
+			next;
+		}
+		$cigop = "M" if $cigop eq "=" || $cigop eq "X";
+		if($cigop eq "P") {
+			# Padding
+			$alread .= "-";
+			$alref .= "-";
+		} elsif($cigop eq "M") {
+			my $rdc = substr($seq, $rdoff, 1);
+			my $rfc = substr($parsed_md, $mdoff, 1);
+			$rfc = $rdc if $rfc eq " ";
+			$alread .= $rdc;
+			$alref .= $rfc;
+			$rdoff++;
+			$mdoff++;
+		} elsif($cigop eq "D") {
+			# Read gap
+			#  Read: AAA-AAA
+			#   Ref: AAAAAAA
+			my $rfc = substr($parsed_md, $mdoff, 1);
+			$rfc ne " " ||
+				die "Must have a ref character opposite a gap in the read:\n".
+				    "cig: $parsed_cig ($i)\nmd:  $parsed_md ($mdoff)\n";
+			$alread .= "-";
+			$alref .= $rfc;
+			$mdoff++;
+		} else {
+			# Reference gap
+			#  Read: AAAAAAA
+			#   Ref: AAA-AAA
+			$cigop eq "I" || die "Unsupported cigop: $cigop";
+			my $rdc = substr($seq, $rdoff, 1);
+			$alread .= $rdc;
+			$alref .= "-";
+			$rdoff++;
+			$mdoff++;
+		}
+	}
+	return ($alread, $alref, $htriml, $striml, $htrimr, $strimr);
+}
+
+##
 # Parse a line from a Bowtie alignment file and check that the
 # alignment is sane and consistent with the reference.
 #
@@ -399,6 +480,81 @@ sub parseBowtieLines {
 				"\noff=$off, rfseq=$rfseq\n";
 		$refsub = DNA::iupacSubN($refsub);
 		my $trueRfseq = $padleft . $refsub . $padright;
+		length($trueRfseq) == length($rfseq) ||
+			die "Different lengths for edited read and ref:\n".
+			"       Read: $seq\n".
+			"Edited read: $rfseq\n".
+			"        Ref: $trueRfseq\n";
+		$rfseq eq $trueRfseq ||
+			die "Did not match:\n".
+			"       Read: $seq\n".
+			"Edited read: $rfseq\n".
+			"        Ref: $trueRfseq\n";
+		$self->{_nals}++;
+	}
+}
+
+##
+# Parse a line from a SAM alignment file and check that the
+# alignment is sane and consistent with the reference.
+#
+sub parseSamLines {
+	my ($self, $lines) = @_;
+	for my $line (@$lines) {
+		chomp($line);
+		my @toks = split(/\t/, $line, -1);
+		my (
+			$qname, #1
+			$flag,  #2
+			$rname, #3
+			$pos,   #4
+			$mapq,  #5
+			$cigar, #6
+			$rnext, #7
+			$pnext, #8
+			$tlen,  #9
+			$seq,   #10
+			$qual) = @toks;
+		defined($qual) || die "Not enough SAM tokens:\n$line\n";
+		my @opt_flags_list = $toks[11..$#toks];
+		my %opt_flags = ();
+		next if $rname eq "*"; # Failed to align
+		# Stick optional flags into a hash
+		for my $fl (@opt_flags_list) {
+			my @fs = split(/:/, $fl, -1);
+			scalar(@fs) > 2 || die "Bad optional flag: $fl";
+			$opt_flags{$fs[0]}{type} = $fs[1];
+			$opt_flags{$fs[0]}{value} = join(":", @fs[2..$#fs]);
+		}
+		defined($opt_flags{"MD"}) || die "No MD:Z flag";
+		$opt_flags{"MD"}{type} eq "Z" || die "Bad type for MD:Z flag";
+		my $md = $opt_flags{"MD"}{value};
+		$pos   == int($pos)   || die "POS field (col 4) must be an int:\n$_";
+		$pnext == int($pnext) || die "PNEXT field (col 8) must be an int:\n$_";
+		$tlen  == int($tlen)  || die "TLEN field (col 9) must be an int:\n$_";
+		$mapq  == int($mapq)  || die "MAPQ field (col 5) must be an int:\n$_";
+		# TODO: deal with bisulfite strands??
+		my $fw = (($flag & 0x10) == 0);
+		my $orient = $fw ? "+" : "-";
+		my $reftype = $self->calcRefType($orient);
+		defined($self->refs->{$reftype}{$rname}) ||
+			die "No such refname as $rname for reftype $reftype:\n".
+			Dumper($self->refs->{$reftype});
+		my $exoff = $pos-1; # expected 0-based reference offset
+		my ($alread, $alref, $htriml, $striml, $htrimr, $strimr) =
+			_read_md_cigar_to_al($seq, $md, $cigar);
+		my $rfseq = $alref;
+		$rfseq =~ tr/ //; # remove spaces
+		my $exlen = length($rfseq);
+		my $refsub = substr($self->refs->{$reftype}{$rname}, $exoff, $exlen);
+		length($refsub) == $exlen ||
+			die "Tried to extract ref substring of length $exlen, got ".
+			    "\"$refsub\" from \"".$self->refs->{$reftype}{$rname}."\"".
+				"\n$line\n".
+				"\npos=$pos, rfseq=$rfseq\n";
+		#$refsub = DNA::iupacSubN($refsub);
+		#my $trueRfseq = $padleft . $refsub . $padright;
+		my $trueRfseq = $refsub;
 		length($trueRfseq) == length($rfseq) ||
 			die "Different lengths for edited read and ref:\n".
 			"       Read: $seq\n".
@@ -560,7 +716,7 @@ sub test2 {
 if($0 =~ /[^0-9a-zA-Z_]?AlignmentCheck\.pm$/) {
 	my @fas = ();
 	my @als = ();
-	my $format = "bowtie";
+	my $format = "sam";
 	my $bisC = 0;
 	my $bisCpG = 0;
 	my $test = 0;

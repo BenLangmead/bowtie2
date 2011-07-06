@@ -29,9 +29,13 @@ public:
 	 * Given an AlnSetSumm, determine if the best alignment is "unique"
 	 * according to some definition.
 	 */
-	static bool bestIsUnique(const AlnSetSumm& s) {
+	static bool bestIsUnique(
+		const AlnSetSumm& s,
+		const AlnFlags& flags,
+		bool mate1)
+	{
 		assert(!s.empty());
-		return !VALID_AL_SCORE(s.secbest());
+		return !VALID_AL_SCORE(s.secbest(mate1));
 	}
 };
 
@@ -41,7 +45,10 @@ public:
 class Mapq {
 public:
 	virtual ~Mapq() { }
-	virtual TMapq mapq(const AlnSetSumm& s) const = 0;
+	virtual TMapq mapq(
+		const AlnSetSumm& s,
+		const AlnFlags& flags,
+		bool mate1) const = 0;
 };
 
 class BlatMapq : public Mapq {
@@ -74,11 +81,19 @@ public:
 	/**
 	 * Given an AlnSetSumm, return a mapping quality calculated.
 	 */
-	virtual TMapq mapq(const AlnSetSumm& s) const {
-		if(VALID_AL_SCORE(s.secbest())) {
+	virtual TMapq mapq(
+		const AlnSetSumm& s,
+		const AlnFlags& flags,
+		bool mate1) const
+	{
+		if(VALID_AL_SCORE(s.secbest(mate1))) {
 			return 0;
 		} else {
-			return 40;
+			if(!flags.canMax()) {
+				return 255;
+			} else {
+				return 40;
+			}
 		}
 	}
 };

@@ -501,10 +501,11 @@ bool AlnRes::matchesRef(
 	if(refcoord_.off() < 0) {
 		nsOnLeft = -((int)refcoord_.off());
 	}
+	assert_geq(refcoord_.ref(), 0);
 	int off = ref.getStretch(
 		reinterpret_cast<uint32_t*>(raw_refbuf.wbuf()),
-		refcoord_.ref(),
-		max<TRefOff>(refcoord_.off(), 0),
+		(size_t)refcoord_.ref(),
+		(size_t)max<TRefOff>(refcoord_.off(), 0),
 		refallen,
 		destU32);
 	assert_leq(off, 16);
@@ -1161,55 +1162,66 @@ AlnSetSumm::AlnSetSumm(
 	const EList<AlnRes>* rs2)
 {
 	assert(rd1 != NULL || rd2 != NULL);
-	AlnScore best, secbest;
-	best.invalidate();
-	secbest.invalidate();
+	AlnScore best[2], secbest[2], bestPaired, secbestPaired;
+	size_t szs[2];
+	best[0].invalidate();    secbest[0].invalidate();
+	best[1].invalidate();    secbest[1].invalidate();
+	bestPaired.invalidate(); secbestPaired.invalidate();
 	bool paired = (rs1 != NULL && rs2 != NULL);
-	bool noResult = (rs1 == NULL && rs2 == NULL);
-	size_t sz;
+	szs[0] = szs[1] = 0;
 	if(paired) {
 		// Paired alignments
 		assert_eq(rs1->size(), rs2->size());
-		sz = rs1->size();
-		assert_gt(sz, 0);
+		szs[0] = szs[1] = rs1->size();
+		assert_gt(szs[0], 0);
 		for(size_t i = 0; i < rs1->size(); i++) {
 			AlnScore sc = (*rs1)[i].score() + (*rs2)[i].score();
-			if(sc > best) {
-				secbest = best;
-				best = sc;
-				assert(VALID_AL_SCORE(best));
-			} else if(sc > secbest) {
-				secbest = sc;
-				assert(VALID_AL_SCORE(best));
-				assert(VALID_AL_SCORE(secbest));
+			if(sc > bestPaired) {
+				secbestPaired = bestPaired;
+				bestPaired = sc;
+				assert(VALID_AL_SCORE(bestPaired));
+			} else if(sc > secbestPaired) {
+				secbestPaired = sc;
+				assert(VALID_AL_SCORE(bestPaired));
+				assert(VALID_AL_SCORE(secbestPaired));
 			}
 		}
-		init(best, secbest, sz-1);
-		assert(!empty());
-	} else if(!noResult) {
-		// Unpaired alignments
-		const EList<AlnRes>* rs = (rs1 != NULL ? rs1 : rs2);
+	}
+	for(int j = 0; j < 2; j++) {
+		const EList<AlnRes>* rs = (j == 0 ? rs1 : rs2);
+		if(rs == NULL) {
+			continue;
+		}
 		assert(rs != NULL);
-		sz = rs->size();
-		assert_gt(sz, 0);
+		assert(szs[j] == 0 || szs[j] == rs->size());
+		szs[j] = rs->size();
+		assert_gt(szs[j], 0);
 		for(size_t i = 0; i < rs->size(); i++) {
 			AlnScore sc = (*rs)[i].score();
-			if(sc > best) {
-				secbest = best;
-				best = sc;
-				assert(VALID_AL_SCORE(best));
-			} else if(sc > secbest) {
-				secbest = sc;
-				assert(VALID_AL_SCORE(best));
-				assert(VALID_AL_SCORE(secbest));
+			if(sc > best[j]) {
+				secbest[j] = best[j];
+				best[j] = sc;
+				assert(VALID_AL_SCORE(best[j]));
+			} else if(sc > secbest[j]) {
+				secbest[j] = sc;
+				assert(VALID_AL_SCORE(best[j]));
+				assert(VALID_AL_SCORE(secbest[j]));
 			}
 		}
-		init(best, secbest, sz-1);
-		assert(!empty());
+	}
+	if(szs[0] > 0 || szs[1] > 0) {
+		init(
+			best[0],
+			secbest[0],
+			best[1],
+			secbest[1],
+			bestPaired,
+			secbestPaired,
+			(szs[0] == 0) ? 0 : (szs[0] - 1),
+			(szs[1] == 0) ? 0 : (szs[1] - 1),
+			paired);
 	} else {
-		// No result - leave best and secbest as invalid
-		init(best, secbest, 0);
-		assert(empty());
+		reset();
 	}
 }
 

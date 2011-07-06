@@ -65,7 +65,8 @@ public:
 		bool print_md,
 		bool print_ym,
 		bool print_yp,
-		bool print_yt) :
+		bool print_yt,
+		bool print_ys) :
 		pg_id_(pg_id),
 		pg_pn_(pg_pn),
 		pg_vn_(pg_vn),
@@ -86,7 +87,8 @@ public:
 		print_md_(print_md),
 		print_ym_(print_ym),
 		print_yp_(print_yp),
-		print_yt_(print_yt)
+		print_yt_(print_yt),
+		print_ys_(print_ys)
 	{
 		assert_eq(refnames_.size(), reflens_.size());
 	}
@@ -200,6 +202,7 @@ protected:
 	bool print_ym_; // YM:i: Read was repetitive when aligned unpaired?
 	bool print_yp_; // YP:i: Read was repetitive when aligned paired?
 	bool print_yt_; // YT:Z: String representing alignment type
+	bool print_ys_; // YS:i: Score of other mate
 
 	EList<char>   tmpmdop_;   // temporary holder for MD:Z ops
 	EList<char>   tmpmdch_;   // temporary holder for MD:Z chars
