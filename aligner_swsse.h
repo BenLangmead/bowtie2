@@ -78,9 +78,7 @@ struct SSEMetrics {
  * the backtrace procedure to store information about (a) which cells have been
  * traversed, (b) whether the cell is "terminal" (in local mode), etc.
  */
-class SSEMatrix {
-
-public:
+struct SSEMatrix {
 
 	// Each matrix element is a quartet of vectors.  These constants are used
 	// to identify members of the quartet.
@@ -363,8 +361,6 @@ public:
 		return ncol_;
 	}
 
-protected:
-
 	bool             inited_;      // initialized?
 	size_t           nrow_;        // # rows
 	size_t           ncol_;        // # columns
@@ -399,6 +395,7 @@ struct SSEData {
 	int            bias_;        // all scores shifted up by this for unsigned
 };
 
+#if 0
 /**
  * Analyze a cell in the SSE-filled dynamic programming matrix.  Determine &
  * memorize ways that we can backtrack from the cell.  If there is at least one
@@ -645,6 +642,7 @@ inline void SSEMatrix::analyzeCell(
 	}
 #endif
 }
+#endif
 
 /**
  * Return true iff the H mask has been set with a previous call to hMaskSet.

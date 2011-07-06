@@ -457,6 +457,7 @@ bool SwAligner::align(RandomSource& rnd) {
 #ifndef NO_SSE
 		}
 #endif /*ndef NO_SSE*/
+		//cerr << "Candidates: " << btncand_.size() << endl;
 		if(btncand_.empty()) {
 			nfail_++;
 		} else {
@@ -2043,6 +2044,7 @@ bool SwAligner::nextAlignment(
 				btccand_[cural_].ch,    // character to backtrack from
 				rnd))                   // pseudo-random generator
 			{
+				//cerr << "  Succeeded on backtrack " << cural_ << endl;
 				break;
 			}
 			cural_++;
@@ -2183,6 +2185,7 @@ bool SwAligner::nextAlignment(
 							rnd);   // random gen, to choose among equal paths
 					}
 					if(ret) {
+						//cerr << "  Succeeded on backtrack " << cural_ << endl;
 						break;
 					}
 				}
@@ -2201,6 +2204,7 @@ bool SwAligner::nextAlignment(
 					pcol,                   // start in this parallelogram column
 					rnd))                   // pseudo-random generator
 				{
+					//cerr << "  Succeeded on backtrack " << cural_ << endl;
 					break;
 				}
 				cural_++;

@@ -38,41 +38,1201 @@ if(! -x $bowtie2 || ! -x $bowtie2_build) {
 
 my @cases = (
 
-	# Following cases depend on this being the case:
 	#
-	# static const float DEFAULT_CEIL_CONST = 3.0f;
-	# static const float DEFAULT_CEIL_LINEAR = 3.0f;
+	# Testing the various -M/-m/-k/-a alignment modes in both unpaired and
+	# paired-end modes.  Ensuring that SAM optional flags such as YM:i, YP:i
+	# are set properly in all cases.
+	#
+	
+	#
+	# Paired-end
+	#
 
-	# Just enough budget for hits, so it should align
-	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTGTTCAT" ], # budget = 3 + 8 * 3 = 27
-	  args   => "-P \"SEED=2;MMP=C27;MIN=-3,-3;RDG=25,15;RFG=25,15\"", # penalty = 27
-	  report => "-a",
-	  hits   => [ { 0 => 1, 8 => 1 } ],
-	  flags  => [ "XM:0,XP:0,XT:UU,XC:6=1X1=" ],
-	  cigar  => [ "8M" ],
-	  samoptflags => [ { "AS:i:-27" => 1, "XS:i:-27" => 1, "NM:i:1" => 1,
-	                     "XM:i:1" => 1, "YT:Z:UU" => 1, "MD:Z:6G1" => 1 } ] },
+	{ name   => "P.M.58.G. Unpaired -M 5 w/ 8 hits global",
+	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2       
+	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               012345678901234567890123456789012                                 0123456789012345678901234567
+	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                   
+	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGA" ],
+	  #            012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0      
+	  #            0                                                                                                   1                                                                                                   2                                                                                                   3                                                                                                   4                                                                                                   5                                                                                                   6                                                                                                   7                                                                                                   8                                                                                                   9                                                                                                   0                                                                                                   1                                                                                                   2                                                                                                   3                                                                                                   4                                                                                                   5                                                                                                   6                                                                                                   7                                                                                                   8                                                                                                   9                                                                                                   0                                                                                                   1                                                                                                   2                                                                                                   3                                                                                                   4                                                                                                   5                                                                                                   6
+	  #            0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   2                                                                                                   2                                                                                                   2                                                                                                   2                                                                                                   2                                                                                                   2                                                                                                   2
+	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
+	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
+	  args   =>   "-M 5",
+	  mapq   => [ 0 ],
+	  pairhits  => [ { "12,78"     => 1, "249,315"   => 1, "486,552"   => 1,
+	                   "723,789"   => 1, "960,1026"  => 1, "1197,1263" => 1,
+					   "1434,1500" => 1, "1671,1737" => 1 } ],
+	  hits_are_superset => [ 1 ],
+	  cigar_map => [{
+		12   => "33M",   78 => "28M",
+		249  => "33M",  315 => "28M",
+		486  => "33M",  552 => "28M",
+		723  => "33M",  789 => "28M",
+		960  => "33M", 1026 => "28M",
+		1197 => "33M", 1263 => "28M",
+		1434 => "33M", 1500 => "28M",
+		1671 => "33M", 1737 => "28M"
+	  }],
+	  samoptflags_map => [ {
+	    12 => {   "AS:i:0" => 1, "XS:i:0" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:33" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:0"  => 1 },
+	    78 => {   "AS:i:0" => 1, "XS:i:0" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:28" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:0"  => 1 },
+	    249 => {  "AS:i:0" => 1, "XS:i:0" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:33" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:0"  => 1 },
+	    315 => {  "AS:i:0" => 1, "XS:i:0" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:28" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:0"  => 1 },
+	    486 => {  "AS:i:0" => 1, "XS:i:0" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:33" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:0"  => 1 },
+	    552 => {  "AS:i:0" => 1, "XS:i:0" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:28" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:0"  => 1 },
+	    723 => {  "AS:i:0" => 1, "XS:i:0" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:33" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:0"  => 1 },
+	    789 => {  "AS:i:0" => 1, "XS:i:0" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:28" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:0"  => 1 },
+	    960 => {  "AS:i:0" => 1, "XS:i:0" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:33" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:0"  => 1 },
+	    1026 => { "AS:i:0" => 1, "XS:i:0" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:28" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:0"  => 1 },
+	    1197 => { "AS:i:0" => 1, "XS:i:0" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:33" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:0"  => 1 },
+	    1263 => { "AS:i:0" => 1, "XS:i:0" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:28" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:0"  => 1 },
+	    1434 => { "AS:i:0" => 1, "XS:i:0" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:33" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:0"  => 1 },
+	    1500 => { "AS:i:0" => 1, "XS:i:0" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:28" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:0"  => 1 },
+	    1671 => { "AS:i:0" => 1, "XS:i:0" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:33" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:0"  => 1 },
+	    1737 => { "AS:i:0" => 1, "XS:i:0" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:28" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:0"  => 1 },
+	} ] },
+	
+	{ name   => "P.M.58.L. Unpaired -M 5 w/ 8 hits local",
+	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2       
+	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               012345678901234567890123456789012                                 0123456789012345678901234567
+	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                   
+	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGA" ],
+	  #            012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0      
+	  #            0                                                                                                   1                                                                                                   2                                                                                                   3                                                                                                   4                                                                                                   5                                                                                                   6                                                                                                   7                                                                                                   8                                                                                                   9                                                                                                   0                                                                                                   1                                                                                                   2                                                                                                   3                                                                                                   4                                                                                                   5                                                                                                   6                                                                                                   7                                                                                                   8                                                                                                   9                                                                                                   0                                                                                                   1                                                                                                   2                                                                                                   3                                                                                                   4                                                                                                   5                                                                                                   6
+	  #            0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   2                                                                                                   2                                                                                                   2                                                                                                   2                                                                                                   2                                                                                                   2                                                                                                   2
+	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
+	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
+	  args   =>   "-M 5 --local",
+	  mapq   => [ 0 ],
+	  pairhits  => [ { "12,78"     => 1, "249,315"   => 1, "486,552"   => 1,
+	                   "723,789"   => 1, "960,1026"  => 1, "1197,1263" => 1,
+					   "1434,1500" => 1, "1671,1737" => 1 } ],
+	  hits_are_superset => [ 1 ],
+	  cigar_map => [{
+		12   => "33M",   78 => "28M",
+		249  => "33M",  315 => "28M",
+		486  => "33M",  552 => "28M",
+		723  => "33M",  789 => "28M",
+		960  => "33M", 1026 => "28M",
+		1197 => "33M", 1263 => "28M",
+		1434 => "33M", 1500 => "28M",
+		1671 => "33M", 1737 => "28M"
+	  }],
+	  samoptflags_map => [ {
+	    12 => {   "AS:i:66" => 1, "XS:i:66" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:33" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:56"  => 1 },
+	    78 => {   "AS:i:56" => 1, "XS:i:56" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:28" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:66"  => 1 },
+	    249 => {  "AS:i:66" => 1, "XS:i:66" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:33" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:56"  => 1 },
+	    315 => {  "AS:i:56" => 1, "XS:i:56" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:28" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:66"  => 1 },
+	    486 => {  "AS:i:66" => 1, "XS:i:66" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:33" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:56"  => 1 },
+	    552 => {  "AS:i:56" => 1, "XS:i:56" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:28" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:66"  => 1 },
+	    723 => {  "AS:i:66" => 1, "XS:i:66" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:33" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:56"  => 1 },
+	    789 => {  "AS:i:56" => 1, "XS:i:56" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:28" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:66"  => 1 },
+	    960 => {  "AS:i:66" => 1, "XS:i:66" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:33" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:56"  => 1 },
+	    1026 => { "AS:i:56" => 1, "XS:i:56" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:28" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:66"  => 1 },
+	    1197 => { "AS:i:66" => 1, "XS:i:66" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:33" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:56"  => 1 },
+	    1263 => { "AS:i:56" => 1, "XS:i:56" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:28" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:66"  => 1 },
+	    1434 => { "AS:i:66" => 1, "XS:i:66" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:33" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:56"  => 1 },
+	    1500 => { "AS:i:56" => 1, "XS:i:56" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:28" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:66"  => 1 },
+	    1671 => { "AS:i:66" => 1, "XS:i:66" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:33" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:56"  => 1 },
+	    1737 => { "AS:i:56" => 1, "XS:i:56" => 1, "XN:i:0"   => 1, "XM:i:0"  => 1,
+		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:28" => 1,
+		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:66"  => 1 },
+	} ] },
 
-	# Not quite enough budget for hits, so it should NOT align
-	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTGTTCAT" ], # budget = 3 + 8 * 3 = 27
-	  args   =>   "-P \"SEED=2;MMP=C28;MIN=-3,-3;RDG=25,15;RFG=25,15\"", # penalty = 28
+	{ name   => "P.m.22.G. Paired -m 2 w/ 2 paired hit, 2 unpaired hits each, global",
+	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2       
+	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               012345678901234567890123456789012                                 0123456789012345678901234567
+	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
+	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
+	  #            012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6
+	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
+	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
+	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
+	  mate1fw => 1, mate2fw => 0,
+	  args   =>   "-m 2",
+	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
+	  mapq => [ 0 ],
+	  cigar_map => [{
+		12 => "33M", 249 => "33M",
+		78 => "28M", 315 => "28M"
+	  }],
+	  samoptflags_map => [{
+		12  => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:33" => 1,
+		         "YM:i:0" => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
+		78  => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:28" => 1,
+		         "YM:i:0" => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
+		249 => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:33" => 1,
+		         "YM:i:0" => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
+		315 => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:28" => 1,
+		         "YM:i:0" => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
+	  }]
+	},
+	
+	{ name   => "P.m.22.L. Paired -m 2 w/ 2 paired hit, 2 unpaired hits each, local",
+	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2       
+	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               012345678901234567890123456789012                                 0123456789012345678901234567
+	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
+	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
+	  #            012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6
+	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
+	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
+	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
+	  mate1fw => 1, mate2fw => 0,
+	  args   =>   "-m 2 --local",
+	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
+	  mapq => [ 0 ],
+	  cigar_map => [{
+		12 => "33M", 249 => "33M",
+		78 => "28M", 315 => "28M"
+	  }],
+	  samoptflags_map => [{
+		12  => { "AS:i:66" => 1, "XS:i:66" => 1, "MD:Z:33" => 1,
+		         "YM:i:0"  => 1, "YP:i:0"  => 1, "YT:Z:CP" => 1, "YS:i:56" => 1 },
+		78  => { "AS:i:56" => 1, "XS:i:56" => 1, "MD:Z:28" => 1,
+		         "YM:i:0"  => 1, "YP:i:0"  => 1, "YT:Z:CP" => 1, "YS:i:66" => 1 },
+		249 => { "AS:i:66" => 1, "XS:i:66" => 1, "MD:Z:33" => 1,
+		         "YM:i:0"  => 1, "YP:i:0"  => 1, "YT:Z:CP" => 1, "YS:i:56" => 1 },
+		315 => { "AS:i:56" => 1, "XS:i:56" => 1, "MD:Z:28" => 1,
+		         "YM:i:0"  => 1, "YP:i:0"  => 1, "YT:Z:CP" => 1, "YS:i:66" => 1 },
+	  }]
+	},
+
+	{ name   => "P.M.22.G. Paired -M 2 w/ 2 paired hit, 2 unpaired hits each, global",
+	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2       
+	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               012345678901234567890123456789012                                 0123456789012345678901234567
+	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
+	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
+	  #            012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6
+	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
+	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
+	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
+	  mate1fw => 1, mate2fw => 0,
+	  args   =>   "-M 2",
+	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
+	  mapq => [ 0 ],
+	  cigar_map => [{
+		12 => "33M", 249 => "33M",
+		78 => "28M", 315 => "28M"
+	  }],
+	  samoptflags_map => [{
+		12  => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:33" => 1,
+		         "YM:i:0" => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
+		78  => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:28" => 1,
+		         "YM:i:0" => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
+		249 => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:33" => 1,
+		         "YM:i:0" => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
+		315 => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:28" => 1,
+		         "YM:i:0" => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
+	  }]
+	},
+	
+	{ name   => "P.M.22.L. Paired -M 2 w/ 2 paired hit, 2 unpaired hits each, local",
+	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2       
+	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               012345678901234567890123456789012                                 0123456789012345678901234567
+	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
+	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
+	  #            012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6
+	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
+	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
+	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
+	  mate1fw => 1, mate2fw => 0,
+	  args   =>   "-M 2 --local",
+	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
+	  mapq => [ 0 ],
+	  cigar_map => [{
+		12 => "33M", 249 => "33M",
+		78 => "28M", 315 => "28M"
+	  }],
+	  samoptflags_map => [{
+		12  => { "AS:i:66" => 1, "XS:i:66" => 1, "MD:Z:33" => 1,
+		         "YM:i:0"  => 1, "YP:i:0"  => 1, "YT:Z:CP" => 1, "YS:i:56" => 1 },
+		78  => { "AS:i:56" => 1, "XS:i:56" => 1, "MD:Z:28" => 1,
+		         "YM:i:0"  => 1, "YP:i:0"  => 1, "YT:Z:CP" => 1, "YS:i:66" => 1 },
+		249 => { "AS:i:66" => 1, "XS:i:66" => 1, "MD:Z:33" => 1,
+		         "YM:i:0"  => 1, "YP:i:0"  => 1, "YT:Z:CP" => 1, "YS:i:56" => 1 },
+		315 => { "AS:i:56" => 1, "XS:i:56" => 1, "MD:Z:28" => 1,
+		         "YM:i:0"  => 1, "YP:i:0"  => 1, "YT:Z:CP" => 1, "YS:i:66" => 1 },
+	  }]
+	},
+
+	{ name   => "P.k.2.G. Paired -k 1 w/ 2 paired hit, 2 unpaired hits each, global",
+	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2       
+	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               012345678901234567890123456789012                                 0123456789012345678901234567
+	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
+	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
+	  #            012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6
+	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
+	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
+	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
+	  mate1fw => 1, mate2fw => 0,
+	  args    => "",
+	  report  => "-k 1",
+	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
+	  hits_are_superset => [ 1 ],
+	  mapq => [ 255 ],
+	  cigar_map => [{
+		12 => "33M", 249 => "33M",
+		78 => "28M", 315 => "28M"
+	  }],
+	  samoptflags_map => [{
+		12  => { "AS:i:0"  => 1, "XS:i:0" => 1, "MD:Z:33" => 1,
+		         "YT:Z:CP" => 1, "YS:i:0" => 1 },
+		78  => { "AS:i:0"  => 1, "XS:i:0" => 1, "MD:Z:28" => 1,
+		         "YT:Z:CP" => 1, "YS:i:0" => 1 },
+		249 => { "AS:i:0"  => 1, "XS:i:0" => 1, "MD:Z:33" => 1,
+		         "YT:Z:CP" => 1, "YS:i:0" => 1 },
+		315 => { "AS:i:0"  => 1, "XS:i:0" => 1, "MD:Z:28" => 1,
+		         "YT:Z:CP" => 1, "YS:i:0" => 1 },
+	  }]
+	},
+
+	{ name   => "P.k.2.L. Paired -k 1 w/ 2 paired hit, 2 unpaired hits each, local",
+	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2       
+	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               012345678901234567890123456789012                                 0123456789012345678901234567
+	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
+	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
+	  #            012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6
+	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
+	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
+	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
+	  mate1fw => 1, mate2fw => 0,
+	  args    => "--local",
+	  report  => "-k 1",
+	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
+	  hits_are_superset => [ 1 ],
+	  mapq => [ 255 ],
+	  cigar_map => [{
+		12 => "33M", 249 => "33M",
+		78 => "28M", 315 => "28M"
+	  }],
+	  samoptflags_map => [{
+		12  => { "AS:i:66" => 1, "XS:i:0" => 1, "MD:Z:33" => 1,
+		         "YT:Z:CP" => 1, "YS:i:56" => 1 },
+		78  => { "AS:i:56" => 1, "XS:i:0" => 1, "MD:Z:28" => 1,
+		         "YT:Z:CP" => 1, "YS:i:66" => 1 },
+		249 => { "AS:i:66" => 1, "XS:i:0" => 1, "MD:Z:33" => 1,
+		         "YT:Z:CP" => 1, "YS:i:56" => 1 },
+		315 => { "AS:i:56" => 1, "XS:i:0" => 1, "MD:Z:28" => 1,
+		         "YT:Z:CP" => 1, "YS:i:66" => 1 },
+	  }]
+	},
+	
+	{ name   => "P.m.2.G. Paired -m 1 w/ 2 paired hit, 2 unpaired hits each, global",
+	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2       
+	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               012345678901234567890123456789012                                 0123456789012345678901234567
+	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
+	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
+	  #            012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6
+	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
+	  mate1s   => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
+	  mate2s   => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
+	  mate1fw  => 1, mate2fw => 0,
+	  args     =>   "-m 1",
+	  pairhits => [ { "*,*" => 1 } ],
+	  hits_are_superset => [ 1 ],
+	  mapq  => [ 0 ],
+	  cigar => [ "*" ],
+	  samoptflags => [{ "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:UP" => 1 }],
+	},
+
+	{ name   => "P.m.2.L. Paired -m 1 w/ 2 paired hit, 2 unpaired hits each, local",
+	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2       
+	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               012345678901234567890123456789012                                 0123456789012345678901234567
+	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
+	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
+	  #            012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6
+	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
+	  mate1s   => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
+	  mate2s   => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
+	  mate1fw  => 1, mate2fw => 0,
+	  args     =>   "-m 1 --local",
+	  pairhits => [ { "*,*" => 1 } ],
+	  hits_are_superset => [ 1 ],
+	  mapq  => [ 0 ],
+	  cigar => [ "*" ],
+	  samoptflags => [{ "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:UP" => 1 }],
+	},
+	
+	{ name   => "P.M.2.G. Paired -M 1 w/ 2 paired hit, 2 unpaired hits each, global",
+	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2       
+	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               012345678901234567890123456789012                                 0123456789012345678901234567
+	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
+	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
+	  #            012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6
+	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
+	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
+	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
+	  mate1fw => 1, mate2fw => 0,
+	  args   =>   "-M 1",
+	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
+	  hits_are_superset => [ 1 ],
+	  mapq => [ 0 ],
+	  cigar_map => [{
+		12 => "33M", 249 => "33M",
+		78 => "28M", 315 => "28M"
+	  }],
+	  samoptflags_map => [{
+		12  => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:33" => 1,
+		         "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
+		78  => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:28" => 1,
+		         "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
+		249 => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:33" => 1,
+		         "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
+		315 => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:28" => 1,
+		         "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
+	  }]
+	},
+	
+	{ name   => "P.M.2.L. Paired -M 1 w/ 2 paired hit, 2 unpaired hits each, local",
+	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2       
+	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               012345678901234567890123456789012                                 0123456789012345678901234567
+	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
+	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
+	  #            012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6
+	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
+	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
+	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
+	  mate1fw => 1, mate2fw => 0,
+	  args   =>   "-M 1 --local",
+	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
+	  hits_are_superset => [ 1 ],
+	  mapq => [ 0 ],
+	  cigar_map => [{
+		12 => "33M", 249 => "33M",
+		78 => "28M", 315 => "28M"
+	  }],
+	  samoptflags_map => [{
+		12  => { "AS:i:66" => 1, "XS:i:66" => 1, "MD:Z:33" => 1,
+		         "YM:i:1"  => 1, "YP:i:1"  => 1, "YT:Z:CP" => 1, "YS:i:56" => 1 },
+		78  => { "AS:i:56" => 1, "XS:i:56" => 1, "MD:Z:28" => 1,
+		         "YM:i:1"  => 1, "YP:i:1"  => 1, "YT:Z:CP" => 1, "YS:i:66" => 1 },
+		249 => { "AS:i:66" => 1, "XS:i:66" => 1, "MD:Z:33" => 1,
+		         "YM:i:1"  => 1, "YP:i:1"  => 1, "YT:Z:CP" => 1, "YS:i:56" => 1 },
+		315 => { "AS:i:56" => 1, "XS:i:56" => 1, "MD:Z:28" => 1,
+		         "YM:i:1"  => 1, "YP:i:1"  => 1, "YT:Z:CP" => 1, "YS:i:66" => 1 },
+	  }]
+	},
+	
+	{ name   => "P.k.1.G. Paired -k w/ 1 paired hit, 1 unpaired hit each, global",
+	  #                        0         1         2         3                                   0         1         2       
+	  #                        012345678901234567890123456789012                                 0123456789012345678901234567
+	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
+	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
+	  #            012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2
+	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
+	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
+	  mate1fw => 1,  mate2fw => 0,
+	  args   =>   "-k 1",
+	  pairhits  => [ { "12,78" => 1 } ],
+	  mapq => [ 255 ],
+	  cigar_map => [{
+		12 => "33M",
+		78 => "28M"
+	  }],
+	  samoptflags_map => [{
+		12 => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:33" => 1,
+		        "YM:i:0" => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
+		78 => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:28" => 1,
+		        "YM:i:0" => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
+	  }]
+	},
+	
+	{ name   => "P.k.1.L. Paired -k 1 w/ 1 paired hit, 1 unpaired hit each, local",
+	  #                        0         1         2         3                                   0         1         2       
+	  #                        012345678901234567890123456789012                                 0123456789012345678901234567
+	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
+	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
+	  #            012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2
+	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
+	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
+	  mate1fw => 1,  mate2fw => 0,
+	  args   =>   "-k 1 --local",
+	  pairhits  => [ { "12,78" => 1 } ],
+	  mapq => [ 255 ],
+	  cigar_map => [{
+		12 => "33M",
+		78 => "28M"
+	  }],
+	  samoptflags_map => [{
+		12 => { "AS:i:66" => 1, "XS:i:0" => 1, "MD:Z:33" => 1,
+		        "YM:i:0"  => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:56" => 1 },
+		78 => { "AS:i:56" => 1, "XS:i:0" => 1, "MD:Z:28" => 1,
+		        "YM:i:0"  => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:66" => 1 },
+	  }]
+	},
+	
+	{ name   => "P.m.1.G. Paired -m w/ 1 paired hit, 1 unpaired hit each, global",
+	  #                        0         1         2         3                                   0         1         2       
+	  #                        012345678901234567890123456789012                                 0123456789012345678901234567
+	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
+	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
+	  #            012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2
+	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
+	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
+	  mate1fw => 1,  mate2fw => 0,
+	  args   =>   "-m 1",
+	  pairhits  => [ { "12,78" => 1 } ],
+	  mapq => [ 40 ],
+	  cigar_map => [{
+		12 => "33M",
+		78 => "28M"
+	  }],
+	  samoptflags_map => [{
+		12 => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:33" => 1,
+		        "YM:i:0" => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
+		78 => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:28" => 1,
+		        "YM:i:0" => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
+	  }]
+	},
+	
+	{ name   => "P.m.1.L. Paired -m w/ 1 paired hit, 1 unpaired hit each, local",
+	  #                        0         1         2         3                                   0         1         2       
+	  #                        012345678901234567890123456789012                                 0123456789012345678901234567
+	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
+	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
+	  #            012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2
+	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
+	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
+	  mate1fw => 1,  mate2fw => 0,
+	  args   =>   "-m 1 --local",
+	  pairhits  => [ { "12,78" => 1 } ],
+	  mapq => [ 40 ],
+	  cigar_map => [{
+		12 => "33M",
+		78 => "28M"
+	  }],
+	  samoptflags_map => [{
+		12 => { "AS:i:66" => 1, "XS:i:0" => 1, "MD:Z:33" => 1,
+		        "YM:i:0"  => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:56" => 1 },
+		78 => { "AS:i:56" => 1, "XS:i:0" => 1, "MD:Z:28" => 1,
+		        "YM:i:0"  => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:66" => 1 },
+	  }]
+	},
+	
+	{ name   => "P.M.1.G. Paired -M w/ 1 paired hit, 1 unpaired hit each, global",
+	  #                        0         1         2         3                                   0         1         2       
+	  #                        012345678901234567890123456789012                                 0123456789012345678901234567
+	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
+	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
+	  #            012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2
+	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
+	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
+	  mate1fw => 1,  mate2fw => 0,
+	  args   =>   "-M 1",
+	  pairhits  => [ { "12,78" => 1 } ],
+	  mapq => [ 40 ],
+	  cigar_map => [{
+		12 => "33M",
+		78 => "28M"
+	  }],
+	  samoptflags_map => [{
+		12 => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:33" => 1,
+		        "YM:i:0" => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
+		78 => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:28" => 1,
+		        "YM:i:0" => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
+	  }]
+	},
+	
+	{ name   => "P.M.1.L. Paired -M w/ 1 paired hit, 1 unpaired hit each, local",
+	  #                          0         1         2         3                                   0         1         2       
+	  #                          012345678901234567890123456789012                                 0123456789012345678901234567
+	  #                          CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
+	  ref      => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
+	  #              012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345
+	  #              0         1         2         3         4         5         6         7         8         9         0         1         2
+	  mate1s   => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
+	  mate2s   => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
+	  mate1fw  => 1,  mate2fw => 0,
+	  args     =>   "-M 1 --local",
+	  pairhits => [ { "12,78" => 1 } ],
+	  mapq => [ 40 ],
+	  cigar_map => [{
+		12 => "33M",
+		78 => "28M"
+	  }],
+	  samoptflags_map => [{
+		12 => { "AS:i:66" => 1, "XS:i:0" => 1, "MD:Z:33" => 1,
+		        "YM:i:0"  => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:56" => 1 },
+		78 => { "AS:i:56" => 1, "XS:i:0" => 1, "MD:Z:28" => 1,
+		        "YM:i:0"  => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:66" => 1 },
+	  }]
+	},
+
+	#
+	# Unpaired
+	#
+
+	{ name   => "U.M.1.G. Unpaired -M w/ 1 hit global",
+	  #                        0         1         2         3
+	  #                        012345678901234567890123456789012
+	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG
+	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGA" ],
+	  #            01234567890123456789012345678901234567890123456789012345
+	  #            0         1         2         3         4         5
+	  reads  => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
+	  args   =>   "-M 1",
 	  report =>   "-a",
+	  hits   => [ { 12 => 1 } ],
+	  mapq   => [ 40 ],
+	  cigar  => [ "33M" ],
+	  samoptflags => [{
+		"AS:i:0"   => 1, # alignment score
+		"XS:i:0"   => 1, # suboptimal alignment score
+		"XN:i:0"   => 1, # num ambiguous ref bases
+		"XM:i:0"   => 1, # num mismatches
+		"XO:i:0"   => 1, # num gap opens
+		"XG:i:0"   => 1, # num gap extensions
+		"NM:i:0"   => 1, # num edits
+		"MD:Z:33"  => 1, # mismatching positions/bases
+		"YM:i:0"   => 1, # read aligned repetitively in unpaired fashion
+		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
+	}]
+	},
+	
+	{ name   => "U.M.1.L. Unpaired -M w/ 1 hit local",
+	  #                        0         1         2         3
+	  #                        012345678901234567890123456789012
+	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG
+	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGA" ],
+	  #            01234567890123456789012345678901234567890123456789012345
+	  #            0         1         2         3         4         5
+	  reads  => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
+	  args   =>   "-M 1 --local",
+	  report =>   "-a",
+	  hits   => [ { 12 => 1 } ],
+	  mapq   => [ 40 ],
+	  cigar  => [ "33M" ],
+	  samoptflags => [{
+		"AS:i:66"  => 1, # alignment score
+		"XS:i:0"   => 1, # suboptimal alignment score
+		"XN:i:0"   => 1, # num ambiguous ref bases
+		"XM:i:0"   => 1, # num mismatches
+		"XO:i:0"   => 1, # num gap opens
+		"XG:i:0"   => 1, # num gap extensions
+		"NM:i:0"   => 1, # num edits
+		"MD:Z:33"  => 1, # mismatching positions/bases
+		"YM:i:0"   => 1, # read aligned repetitively in unpaired fashion
+		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
+	}]
+	},
+
+	{ name   => "U.m.1.G. Unpaired -m w/ 1 hit global",
+	  #                        0         1         2         3
+	  #                        012345678901234567890123456789012
+	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG
+	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGA" ],
+	  #            01234567890123456789012345678901234567890123456789012345
+	  #            0         1         2         3         4         5
+	  reads  => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
+	  args   =>   "-m 1",
+	  report =>   "-a",
+	  mapq   => [ 40 ],
+	  hits   => [ { 12 => 1 } ],
+	  cigar  => [ "33M" ],
+	  samoptflags => [ {
+		"AS:i:0"   => 1, # alignment score
+		"XS:i:0"   => 1, # suboptimal alignment score
+		"XN:i:0"   => 1, # num ambiguous ref bases
+		"XM:i:0"   => 1, # num mismatches
+		"XO:i:0"   => 1, # num gap opens
+		"XG:i:0"   => 1, # num gap extensions
+		"NM:i:0"   => 1, # num edits
+		"MD:Z:33"  => 1, # mismatching positions/bases
+		"YM:i:0"   => 1, # read aligned repetitively in unpaired fashion
+		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
+	} ] },
+	
+	{ name   => "U.m.1.L. Unpaired -m w/ 1 hit local",
+	  #                        0         1         2         3
+	  #                        012345678901234567890123456789012
+	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG
+	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGA" ],
+	  #            01234567890123456789012345678901234567890123456789012345
+	  #            0         1         2         3         4         5
+	  reads  => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
+	  args   =>   "-m 1 --local",
+	  report =>   "-a",
+	  mapq   => [ 40 ],
+	  hits   => [ { 12 => 1 } ],
+	  cigar  => [ "33M" ],
+	  samoptflags => [ {
+		"AS:i:66"  => 1, # alignment score
+		"XS:i:0"   => 1, # suboptimal alignment score
+		"XN:i:0"   => 1, # num ambiguous ref bases
+		"XM:i:0"   => 1, # num mismatches
+		"XO:i:0"   => 1, # num gap opens
+		"XG:i:0"   => 1, # num gap extensions
+		"NM:i:0"   => 1, # num edits
+		"MD:Z:33"  => 1, # mismatching positions/bases
+		"YM:i:0"   => 1, # read aligned repetitively in unpaired fashion
+		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
+	} ] },
+
+	{ name   => "U.k.1.G. Unpaired -k 1 w/ 1 hit global",
+	  #                        0         1         2         3
+	  #                        012345678901234567890123456789012
+	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG
+	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGA" ],
+	  #            01234567890123456789012345678901234567890123456789012345
+	  #            0         1         2         3         4         5
+	  reads  => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
+	  args   =>   "-k 1",
+	  mapq   => [ 255 ],
+	  hits   => [ { 12 => 1 } ],
+	  cigar  => [ "33M" ],
+	  samoptflags => [ {
+		"AS:i:0"   => 1, # alignment score
+		"XS:i:0"   => 1, # suboptimal alignment score
+		"XN:i:0"   => 1, # num ambiguous ref bases
+		"XM:i:0"   => 1, # num mismatches
+		"XO:i:0"   => 1, # num gap opens
+		"XG:i:0"   => 1, # num gap extensions
+		"NM:i:0"   => 1, # num edits
+		"MD:Z:33"  => 1, # mismatching positions/bases
+		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
+	} ] },
+	
+	{ name   => "U.M.1.L. Unpaired -m w/ 1 hit local",
+	  #                        0         1         2         3
+	  #                        012345678901234567890123456789012
+	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG
+	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGA" ],
+	  #            01234567890123456789012345678901234567890123456789012345
+	  #            0         1         2         3         4         5
+	  reads  => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
+	  args   =>   "-k 1 --local",
+	  mapq   => [ 255 ],
+	  hits   => [ { 12 => 1 } ],
+	  cigar  => [ "33M" ],
+	  samoptflags => [ {
+		"AS:i:66"  => 1, # alignment score
+		"XS:i:0"   => 1, # suboptimal alignment score
+		"XN:i:0"   => 1, # num ambiguous ref bases
+		"XM:i:0"   => 1, # num mismatches
+		"XO:i:0"   => 1, # num gap opens
+		"XG:i:0"   => 1, # num gap extensions
+		"NM:i:0"   => 1, # num edits
+		"MD:Z:33"  => 1, # mismatching positions/bases
+		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
+	} ] },
+	
+	{ name   => "U.M.2.G. Unpaired -M 1 w/ 2 hit global",
+	  #                  0         1         2                     0         1         2         
+	  #                  012345678901234567890123456789            012345678901234567890123456789
+	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA
+	  ref    => [ "AGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGA" ],
+	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234
+	  #            0         1         2         3         4         5         6         7         8
+	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
+	  args   =>   "-M 1",
+	  report =>   "-a",
+	  mapq   => [ 0 ],
+	  hits   => [ { 6 => 1, 48 => 1 } ],
+	  hits_are_superset => [ 1 ],
+	  cigar  => [ "30M" ],
+	  samoptflags => [ {
+		"AS:i:0"   => 1, # alignment score
+		"XS:i:0"   => 1, # suboptimal alignment score
+		"XN:i:0"   => 1, # num ambiguous ref bases
+		"XM:i:0"   => 1, # num mismatches
+		"XO:i:0"   => 1, # num gap opens
+		"XG:i:0"   => 1, # num gap extensions
+		"NM:i:0"   => 1, # num edits
+		"MD:Z:30"  => 1, # mismatching positions/bases
+		"YM:i:1"   => 1, # read aligned repetitively in unpaired fashion
+		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
+	} ] },
+	
+	{ name   => "U.M.2.L. Unpaired -M 1 w/ 2 hit local",
+	  #                  0         1         2                     0         1         2         
+	  #                  012345678901234567890123456789            012345678901234567890123456789
+	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA
+	  ref    => [ "AGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGA" ],
+	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234
+	  #            0         1         2         3         4         5         6         7         8
+	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
+	  args   =>   "-M 1 --local",
+	  report =>   "-a",
+	  mapq   => [ 0 ],
+	  hits   => [ { 6 => 1, 48 => 1 } ],
+	  hits_are_superset => [ 1 ],
+	  cigar  => [ "30M" ],
+	  samoptflags => [ {
+		"AS:i:60"  => 1, # alignment score
+		"XS:i:60"  => 1, # suboptimal alignment score
+		"XN:i:0"   => 1, # num ambiguous ref bases
+		"XM:i:0"   => 1, # num mismatches
+		"XO:i:0"   => 1, # num gap opens
+		"XG:i:0"   => 1, # num gap extensions
+		"NM:i:0"   => 1, # num edits
+		"MD:Z:30"  => 1, # mismatching positions/bases
+		"YM:i:1"   => 1, # read aligned repetitively in unpaired fashion
+		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
+	} ] },
+
+	{ name   => "U.m.2.G. Unpaired -m 1 w/ 2 hit global",
+	  #                  0         1         2                     0         1         2         
+	  #                  012345678901234567890123456789            012345678901234567890123456789
+	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA
+	  ref    => [ "AGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGA" ],
+	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234
+	  #            0         1         2         3         4         5         6         7         8
+	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
+	  args   =>   "-m 1",
+	  report =>   "-a",
+	  mapq   => [ 0 ],
 	  hits   => [ { "*" => 1 } ],
-	  flags  => [ "XM:0,XP:0,XT:UU" ],
 	  cigar  => [ "*" ],
-	  samoptflags => [ { "YT:Z:UU" => 1 } ] },
+	  samoptflags => [ {
+		"YM:i:1"   => 1, # read aligned repetitively in unpaired fashion
+		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
+	} ] },
+	
+	{ name   => "U.m.2.L. Unpaired -m 1 w/ 2 hit local",
+	  #                  0         1         2                     0         1         2         
+	  #                  012345678901234567890123456789            012345678901234567890123456789
+	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA
+	  ref    => [ "AGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGA" ],
+	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234
+	  #            0         1         2         3         4         5         6         7         8
+	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
+	  args   =>   "-m 1 --local",
+	  report =>   "-a",
+	  mapq   => [ 0 ],
+	  hits   => [ { "*" => 1 } ],
+	  cigar  => [ "*" ],
+	  samoptflags => [ {
+		"YM:i:1"   => 1, # read aligned repetitively in unpaired fashion
+		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
+	} ] },
 
-	# Check that using a seed of length 1 with 1-mismatch doesn't crash.
-	# Perhaps we should disallow it though?
+	{ name   => "U.k.2.G. Unpaired -k 1 w/ 2 hit global",
+	  #                  0         1         2                     0         1         2         
+	  #                  012345678901234567890123456789            012345678901234567890123456789
+	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA
+	  ref    => [ "AGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGA" ],
+	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234
+	  #            0         1         2         3         4         5         6         7         8
+	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
+	  report =>   "-k 1",
+	  mapq   => [ 255 ],
+	  hits   => [ { 6 => 1, 48 => 1 } ],
+	  hits_are_superset => [ 1 ],
+	  cigar  => [ "30M" ],
+	  samoptflags => [ {
+		"AS:i:0"   => 1, # alignment score
+		"XS:i:0"   => 1, # suboptimal alignment score
+		"XN:i:0"   => 1, # num ambiguous ref bases
+		"XM:i:0"   => 1, # num mismatches
+		"XO:i:0"   => 1, # num gap opens
+		"XG:i:0"   => 1, # num gap extensions
+		"NM:i:0"   => 1, # num edits
+		"MD:Z:30"  => 1, # mismatching positions/bases
+		"YM:i:0"   => 1, # read aligned repetitively in unpaired fashion
+		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
+	} ] },
 
-	{ ref    => [ "AAAAAAAAAAAAAAAAAAAAAAAAACCCCCCCCCCCCCCCCCCCCCCCC" ],
-	  reads  => [ "AA", "AA", "AA", "AA", "CC", "CC", "CC", "CC", "AA", "AA", "AA", "AA", "CC", "CC", "CC", "CC" ],
-	  names  => [ "r1", "r1", "r1", "r1", "r2", "r2", "r2", "r2", "r3", "r3", "r3", "r3", "r4", "r4", "r4", "r4" ],
-	  args   => "-P \"SEED=1,1\"",
-	  check_random => 1,
-	  report => "-k 1" },
+	{ name   => "U.k.2.L. Unpaired -k 1 w/ 2 hit local",
+	  #                  0         1         2                     0         1         2         
+	  #                  012345678901234567890123456789            012345678901234567890123456789
+	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA
+	  ref    => [ "AGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGA" ],
+	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234
+	  #            0         1         2         3         4         5         6         7         8
+	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
+	  report =>   "-k 1",
+	  mapq   => [ 255 ],
+	  hits   => [ { 6 => 1, 48 => 1 } ],
+	  hits_are_superset => [ 1 ],
+	  cigar  => [ "30M" ],
+	  samoptflags => [ {
+		"AS:i:0"   => 1, # alignment score
+		"XS:i:0"   => 1, # suboptimal alignment score
+		"XN:i:0"   => 1, # num ambiguous ref bases
+		"XM:i:0"   => 1, # num mismatches
+		"XO:i:0"   => 1, # num gap opens
+		"XG:i:0"   => 1, # num gap extensions
+		"NM:i:0"   => 1, # num edits
+		"MD:Z:30"  => 1, # mismatching positions/bases
+		"YM:i:0"   => 1, # read aligned repetitively in unpaired fashion
+		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
+	} ] },
+
+	{ name   => "U.M.22.G. Unpaired -M 2 w/ 2 hit global",
+	  #                  0         1         2                     0         1         2         
+	  #                  012345678901234567890123456789            012345678901234567890123456789
+	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA
+	  ref    => [ "AGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGA" ],
+	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234
+	  #            0         1         2         3         4         5         6         7         8
+	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
+	  args   =>   "-M 2",
+	  mapq   => [ 0 ],
+	  hits   => [ { 6 => 1, 48 => 1 } ],
+	  cigar  => [ "30M" ],
+	  samoptflags => [ {
+		"AS:i:0"   => 1, # alignment score
+		"XS:i:0"   => 1, # suboptimal alignment score
+		"XN:i:0"   => 1, # num ambiguous ref bases
+		"XM:i:0"   => 1, # num mismatches
+		"XO:i:0"   => 1, # num gap opens
+		"XG:i:0"   => 1, # num gap extensions
+		"NM:i:0"   => 1, # num edits
+		"MD:Z:30"  => 1, # mismatching positions/bases
+		"YM:i:0"   => 1, # read aligned repetitively in unpaired fashion
+		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
+	} ] },
+	
+	{ name   => "U.M.22.L. Unpaired -M 2 w/ 2 hit local",
+	  #                  0         1         2                     0         1         2         
+	  #                  012345678901234567890123456789            012345678901234567890123456789
+	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA
+	  ref    => [ "AGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGA" ],
+	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234
+	  #            0         1         2         3         4         5         6         7         8
+	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
+	  args   =>   "-M 2 --local",
+	  mapq   => [ 0 ],
+	  hits   => [ { 6 => 1, 48 => 1 } ],
+	  cigar  => [ "30M" ],
+	  samoptflags => [ {
+		"AS:i:60"  => 1, # alignment score
+		"XS:i:60"  => 1, # suboptimal alignment score
+		"XN:i:0"   => 1, # num ambiguous ref bases
+		"XM:i:0"   => 1, # num mismatches
+		"XO:i:0"   => 1, # num gap opens
+		"XG:i:0"   => 1, # num gap extensions
+		"NM:i:0"   => 1, # num edits
+		"MD:Z:30"  => 1, # mismatching positions/bases
+		"YM:i:0"   => 1, # read aligned repetitively in unpaired fashion
+		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
+	} ] },
+
+	{ name   => "U.m.22.G. Unpaired -m 2 w/ 2 hit global",
+	  #                  0         1         2                     0         1         2         
+	  #                  012345678901234567890123456789            012345678901234567890123456789
+	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA
+	  ref    => [ "AGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGA" ],
+	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234
+	  #            0         1         2         3         4         5         6         7         8
+	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
+	  args   =>   "-m 2",
+	  mapq   => [ 0 ],
+	  hits   => [ { 6 => 1, 48 => 1 } ],
+	  cigar  => [ "30M" ],
+	  samoptflags => [ {
+		"AS:i:0"   => 1, # alignment score
+		"XS:i:0"   => 1, # suboptimal alignment score
+		"XN:i:0"   => 1, # num ambiguous ref bases
+		"XM:i:0"   => 1, # num mismatches
+		"XO:i:0"   => 1, # num gap opens
+		"XG:i:0"   => 1, # num gap extensions
+		"NM:i:0"   => 1, # num edits
+		"MD:Z:30"  => 1, # mismatching positions/bases
+		"YM:i:0"   => 1, # read aligned repetitively in unpaired fashion
+		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
+	} ] },
+	
+	{ name   => "U.m.22.L. Unpaired -m 2 w/ 2 hit local",
+	  #                  0         1         2                     0         1         2         
+	  #                  012345678901234567890123456789            012345678901234567890123456789
+	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA
+	  ref    => [ "AGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGA" ],
+	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234
+	  #            0         1         2         3         4         5         6         7         8
+	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
+	  args   =>   "-m 2 --local",
+	  mapq   => [ 0 ],
+	  hits   => [ { 6 => 1, 48 => 1 } ],
+	  cigar  => [ "30M" ],
+	  samoptflags => [ {
+		"AS:i:60"  => 1, # alignment score
+		"XS:i:60"  => 1, # suboptimal alignment score
+		"XN:i:0"   => 1, # num ambiguous ref bases
+		"XM:i:0"   => 1, # num mismatches
+		"XO:i:0"   => 1, # num gap opens
+		"XG:i:0"   => 1, # num gap extensions
+		"NM:i:0"   => 1, # num edits
+		"MD:Z:30"  => 1, # mismatching positions/bases
+		"YM:i:0"   => 1, # read aligned repetitively in unpaired fashion
+		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
+	} ] },
+
+	{ name   => "U.k.22.G. Unpaired -k 2 w/ 2 hit global",
+	  #                  0         1         2                     0         1         2         
+	  #                  012345678901234567890123456789            012345678901234567890123456789
+	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA
+	  ref    => [ "AGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGA" ],
+	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234
+	  #            0         1         2         3         4         5         6         7         8
+	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
+	  report =>   "-k 2",
+	  mapq   => [ 0 ],
+	  hits   => [ { 6 => 1, 48 => 1 } ],
+	  cigar  => [ "30M" ],
+	  samoptflags => [ {
+		"AS:i:0"   => 1, # alignment score
+		"XS:i:0"   => 1, # suboptimal alignment score
+		"XN:i:0"   => 1, # num ambiguous ref bases
+		"XM:i:0"   => 1, # num mismatches
+		"XO:i:0"   => 1, # num gap opens
+		"XG:i:0"   => 1, # num gap extensions
+		"NM:i:0"   => 1, # num edits
+		"MD:Z:30"  => 1, # mismatching positions/bases
+		"YM:i:0"   => 1, # read aligned repetitively in unpaired fashion
+		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
+	} ] },
+	
+	{ name   => "U.k.22.L. Unpaired -k 2 w/ 2 hit local",
+	  #                  0         1         2                     0         1         2         
+	  #                  012345678901234567890123456789            012345678901234567890123456789
+	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA
+	  ref    => [ "AGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGA" ],
+	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234
+	  #            0         1         2         3         4         5         6         7         8
+	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
+	  args   => "--local",
+	  report => "-k 2",
+	  mapq   => [ 0 ],
+	  hits   => [ { 6 => 1, 48 => 1 } ],
+	  cigar  => [ "30M" ],
+	  samoptflags => [ {
+		"AS:i:60"  => 1, # alignment score
+		"XS:i:60"  => 1, # suboptimal alignment score
+		"XN:i:0"   => 1, # num ambiguous ref bases
+		"XM:i:0"   => 1, # num mismatches
+		"XO:i:0"   => 1, # num gap opens
+		"XG:i:0"   => 1, # num gap extensions
+		"NM:i:0"   => 1, # num edits
+		"MD:Z:30"  => 1, # mismatching positions/bases
+		"YM:i:0"   => 1, # read aligned repetitively in unpaired fashion
+		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
+	} ] },
+
+	{ name   => "U.M.58.G. Unpaired -M 5 w/ 8 hits global",
+	  #                  0         1         2                     0         1         2                      0         1         2                     0         1         2                      0         1         2                     0         1         2                      0         1         2                     0         1         2                
+	  #                  012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789       
+	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA       
+	  ref    => [ "AGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGAAGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGAAGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGAAGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGA" ],
+	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         
+	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
+	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
+	  args   =>   "-M 5",
+	  mapq   => [ 0 ],
+	  hits   => [ { 6 => 1, 48 => 1, 91 => 1, 133 => 1, 176 => 1, 218 => 1, 261 => 1, 303 => 1 } ],
+	  hits_are_superset => [ 1 ],
+	  cigar  => [ "30M" ],
+	  samoptflags => [ {
+		"AS:i:0"   => 1, # alignment score
+		"XS:i:0"   => 1, # suboptimal alignment score
+		"XN:i:0"   => 1, # num ambiguous ref bases
+		"XM:i:0"   => 1, # num mismatches
+		"XO:i:0"   => 1, # num gap opens
+		"XG:i:0"   => 1, # num gap extensions
+		"NM:i:0"   => 1, # num edits
+		"MD:Z:30"  => 1, # mismatching positions/bases
+		"YM:i:1"   => 1, # read aligned repetitively in unpaired fashion
+		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
+	} ] },
+	
+	{ name   => "U.M.58.L. Unpaired -M 5 w/ 8 hits global",
+	  #                  0         1         2                     0         1         2                      0         1         2                     0         1         2                      0         1         2                     0         1         2                      0         1         2                     0         1         2                
+	  #                  012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789       
+	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA       
+	  ref    => [ "AGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGAAGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGAAGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGAAGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGA" ],
+	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         
+	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
+	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
+	  args   =>   "-M 5 --local",
+	  mapq   => [ 0 ],
+	  hits   => [ { 6 => 1, 48 => 1, 91 => 1, 133 => 1, 176 => 1, 218 => 1, 261 => 1, 303 => 1 } ],
+	  hits_are_superset => [ 1 ],
+	  cigar  => [ "30M" ],
+	  samoptflags => [ {
+		"AS:i:60"  => 1, # alignment score
+		"XS:i:60"  => 1, # suboptimal alignment score
+		"XN:i:0"   => 1, # num ambiguous ref bases
+		"XM:i:0"   => 1, # num mismatches
+		"XO:i:0"   => 1, # num gap opens
+		"XG:i:0"   => 1, # num gap extensions
+		"NM:i:0"   => 1, # num edits
+		"MD:Z:30"  => 1, # mismatching positions/bases
+		"YM:i:1"   => 1, # read aligned repetitively in unpaired fashion
+		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
+	} ] },
+
+	{ name   => "U.m.58.G. Unpaired -m 5 w/ 8 hits global",
+	  #                  0         1         2                     0         1         2                      0         1         2                     0         1         2                      0         1         2                     0         1         2                      0         1         2                     0         1         2                
+	  #                  012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789       
+	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA       
+	  ref    => [ "AGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGAAGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGAAGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGAAGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGA" ],
+	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         
+	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
+	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
+	  args   =>   "-m 5",
+	  mapq   => [ 0 ],
+	  hits   => [ { "*" => 1 } ],
+	  cigar  => [ "*" ],
+	  samoptflags => [ {
+		"YM:i:1"   => 1, # read aligned repetitively in unpaired fashion
+		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
+	} ] },
+	
+	{ name   => "U.m.58.L. Unpaired -m 5 w/ 8 hits global",
+	  #                  0         1         2                     0         1         2                      0         1         2                     0         1         2                      0         1         2                     0         1         2                      0         1         2                     0         1         2                
+	  #                  012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789       
+	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA       
+	  ref    => [ "AGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGAAGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGAAGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGAAGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGA" ],
+	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         
+	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
+	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
+	  args   =>   "-m 5 --local",
+	  mapq   => [ 0 ],
+	  hits   => [ { "*" => 1 } ],
+	  cigar  => [ "*" ],
+	  samoptflags => [ {
+		"YM:i:1"   => 1, # read aligned repetitively in unpaired fashion
+		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
+	} ] },
+
+	{ name   => "U.k.58.G. Unpaired -k 5 w/ 8 hits global",
+	  #                  0         1         2                     0         1         2                      0         1         2                     0         1         2                      0         1         2                     0         1         2                      0         1         2                     0         1         2                
+	  #                  012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789       
+	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA       
+	  ref    => [ "AGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGAAGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGAAGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGAAGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGA" ],
+	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         
+	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
+	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
+	  report =>   "-k 5",
+	  mapq   => [ 0 ],
+	  hits   => [ { 6 => 1, 48 => 1, 91 => 1, 133 => 1, 176 => 1, 218 => 1, 261 => 1, 303 => 1 } ],
+	  hits_are_superset => [ 1 ],
+	  cigar  => [ "30M" ],
+	  samoptflags => [ {
+		"AS:i:0"   => 1, # alignment score
+		"XS:i:0"   => 1, # suboptimal alignment score
+		"XN:i:0"   => 1, # num ambiguous ref bases
+		"XM:i:0"   => 1, # num mismatches
+		"XO:i:0"   => 1, # num gap opens
+		"XG:i:0"   => 1, # num gap extensions
+		"NM:i:0"   => 1, # num edits
+		"MD:Z:30"  => 1, # mismatching positions/bases
+		"YM:i:0"   => 1, # read aligned repetitively in unpaired fashion
+		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
+	} ] },
+	
+	{ name   => "U.k.58.L. Unpaired -k 5 w/ 8 hits local",
+	  #                  0         1         2                     0         1         2                      0         1         2                     0         1         2                      0         1         2                     0         1         2                      0         1         2                     0         1         2                
+	  #                  012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789       
+	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA       
+	  ref    => [ "AGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGAAGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGAAGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGAAGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGA" ],
+	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         
+	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
+	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
+	  args   => "--local",
+	  report => "-k 5",
+	  mapq   => [ 0 ],
+	  hits   => [ { 6 => 1, 48 => 1, 91 => 1, 133 => 1, 176 => 1, 218 => 1, 261 => 1, 303 => 1 } ],
+	  hits_are_superset => [ 1 ],
+	  cigar  => [ "30M" ],
+	  samoptflags => [ {
+		"AS:i:60"  => 1, # alignment score
+		"XS:i:60"  => 1, # suboptimal alignment score
+		"XN:i:0"   => 1, # num ambiguous ref bases
+		"XM:i:0"   => 1, # num mismatches
+		"XO:i:0"   => 1, # num gap opens
+		"XG:i:0"   => 1, # num gap extensions
+		"NM:i:0"   => 1, # num edits
+		"MD:Z:30"  => 1, # mismatching positions/bases
+		"YM:i:0"   => 1, # read aligned repetitively in unpaired fashion
+		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
+	} ] },
 
 	#
 	# Local alignment
@@ -83,7 +1243,6 @@ my @cases = (
 	  ref    => [ "TTGT" ],
 	  reads  => [ "TTGT" ],
 	  args   =>   "--local -P \"MIN=0.0,0.75\"",
-	  report =>   "-a",
 	  hits   => [ { 0 => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU,XC:4=" ],
 	  cigar  => [ "4M" ],
@@ -223,6 +1382,42 @@ my @cases = (
 		8 => { "AS:i:16" => 1, "XS:i:16" => 1, "YT:Z:UU" => 1, "MD:Z:8"  => 1 }
 	  }]
 	},
+
+	# Following cases depend on this being the case:
+	#
+	# static const float DEFAULT_CEIL_CONST = 3.0f;
+	# static const float DEFAULT_CEIL_LINEAR = 3.0f;
+
+	# Just enough budget for hits, so it should align
+	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTGTTCAT" ], # budget = 3 + 8 * 3 = 27
+	  args   => "-P \"SEED=2;MMP=C27;MIN=-3,-3;RDG=25,15;RFG=25,15\"", # penalty = 27
+	  report => "-a",
+	  hits   => [ { 0 => 1, 8 => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:6=1X1=" ],
+	  cigar  => [ "8M" ],
+	  samoptflags => [ { "AS:i:-27" => 1, "XS:i:-27" => 1, "NM:i:1" => 1,
+	                     "XM:i:1" => 1, "YT:Z:UU" => 1, "MD:Z:6G1" => 1 } ] },
+
+	# Not quite enough budget for hits, so it should NOT align
+	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTGTTCAT" ], # budget = 3 + 8 * 3 = 27
+	  args   =>   "-P \"SEED=2;MMP=C28;MIN=-3,-3;RDG=25,15;RFG=25,15\"", # penalty = 28
+	  report =>   "-a",
+	  hits   => [ { "*" => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU" ],
+	  cigar  => [ "*" ],
+	  samoptflags => [ { "YT:Z:UU" => 1 } ] },
+
+	# Check that using a seed of length 1 with 1-mismatch doesn't crash.
+	# Perhaps we should disallow it though?
+
+	{ ref    => [ "AAAAAAAAAAAAAAAAAAAAAAAAACCCCCCCCCCCCCCCCCCCCCCCC" ],
+	  reads  => [ "AA", "AA", "AA", "AA", "CC", "CC", "CC", "CC", "AA", "AA", "AA", "AA", "CC", "CC", "CC", "CC" ],
+	  names  => [ "r1", "r1", "r1", "r1", "r2", "r2", "r2", "r2", "r3", "r3", "r3", "r3", "r4", "r4", "r4", "r4" ],
+	  args   => "-P \"SEED=1,1\"",
+	  check_random => 1,
+	  report => "-k 1" },
 
 	#
 	# Gap penalties
@@ -497,20 +1692,26 @@ my @cases = (
 	# No discordant alignment because one mate is repetitive.
 
 	{ name => "Simple paired-end 15",
-	  ref    => [ "TTTATAAAAATATTTTTTATAAAAATATTTTCCCCCCCCCCCGCCGGCGCGCCCCCCGCCGGCGCGCCCCC" ],
+	  ref    => [ "TTTATAAAAATATTTTTTATAAAAATATTTTCCCCCCCCCCCGCCGGCGCGCCCAACGCCGGCGCGCCCCC" ],
 	#                 ATAAAAATAT     ATAAAAATAT             CGCCGGCGCG     CGCCGGCGCG
+	#                                                     CGCGCCGGCG     CGCGCCGGCG
 	#              01234567890123456789012345678901234567890123456789012345678901234567890
 	#              0         1         2         3         4         5         6         7
 	#                 -------------------------------------------
 	#                 0123456789012345678901234567890123456789012
-	  mate1s => [ "ATAAAAATAT" ],
-	  mate2s => [ "CGCCGGCGCG" ],
-	  args   =>   "--ff -I 0 -X 70 -m 2",
-	  report =>   "-a",
-	  # Not really any way to flag an alignment as discordant
+	  mate1s   => [ "ATAAAAATAT" ],
+	  mate2s   => [ "CGCCGGCGCG" ],
+	  mate1fw  => 1, mate2fw => 1,
+	  args     => "-I 0 -X 70 -m 2 -P \"MMP=C30\"",
+	  mapq     => [ 0 ],
 	  pairhits => [ { 3 => 1, 18 => 1, 41 => 1, 56 => 1 } ],
-	  flags  => [ "XM:0,XP:1,XT:UP,XC:10=" # Pair aligns repetitively
-	                           ] },
+	  flags    => [ "XM:0,XP:1,XT:UP,XC:10=" ], # Pair aligns repetitively
+	  samoptflags_map => [{
+		  3  => { "AS:i:0" => 1, "YT:Z:UP" => 1, "MD:Z:10" => 1, "YP:i:1" => 1, "YM:i:0" => 1 },
+		  18 => { "AS:i:0" => 1, "YT:Z:UP" => 1, "MD:Z:10" => 1, "YP:i:1" => 1, "YM:i:0" => 1 },
+		  41 => { "AS:i:0" => 1, "YT:Z:UP" => 1, "MD:Z:10" => 1, "YP:i:1" => 1, "YM:i:0" => 1 },
+		  56 => { "AS:i:0" => 1, "YT:Z:UP" => 1, "MD:Z:10" => 1, "YP:i:1" => 1, "YM:i:0" => 1 } }]
+	},
 
 	# No discordant alignment because one mate is repetitive.
 
@@ -521,15 +1722,19 @@ my @cases = (
 	#              0         1         2         3         4         5
 	#                 -------------------------------------------
 	#                 0123456789012345678901234567890123456789012
-	  mate1s => [ "ATAAAAATAT" ],
-	  mate2s => [ "CGCCCGCCCG" ],
-	  args   =>   "--ff -I 0 -X 50 -m 1",
-	  report =>   "-a",
-	  # Not really any way to flag an alignment as discordant
+	  mate1s   => [ "ATAAAAATAT" ],
+	  mate2s   => [ "CGCCCGCCCG" ],
+	  mate1fw  => 1,  mate2fw => 1,
+	  args     => "-I 0 -X 50 -m 1",
+	  mapq_map => [{ "*" => 0, 3 => 40 }],
 	  pairhits => [ { "*,3" => 1 } ],
-	  flags_map  => [ {
+	  flags_map  => [{
 		3   => "XM:0,XP:1,XT:UP,XC:10=",
-		"*" => "XM:1,XP:1,XT:UP" } ] },
+		"*" => "XM:1,XP:1,XT:UP" } ],
+	  samoptflags_map => [{
+		3   => { "AS:i:0" => 1, "YT:Z:UP" => 1, "MD:Z:10" => 1, "YP:i:1" => 1, "YM:i:0" => 1 },
+		"*" => { "YT:Z:UP" => 1, "YP:i:1" => 1, "YM:i:1" => 1 } }]
+	},
 
 	# Alignment with 1 reference gap
 	{ ref    => [ "TTTTGTTCGTTTG" ],
@@ -752,8 +1957,8 @@ my @cases = (
 	                "TAAAAATATT", "TAAAAATATT", "TAAAAATATT", "TAAAAATATT", ],
 	  mate2s   => [ "GTCGCTACCG", "TGTCGCTACC", "CTGTCGCTAC", "CCTGTCGCTA",
 	                "GTCGCTACCG", "TGTCGCTACC", "CTGTCGCTAC", "CCTGTCGCTA" ],
-	  args     =>   "--ff -I 0 -X 35",
-	  report   =>   "-a",
+	  mate1fw => 1,  mate2fw => 1,
+	  args     =>   "-I 0 -X 35",
 	  # Not really any way to flag an alignment as discordant
 	  pairhits => [ { "3,30" => 1 }, { "3,29" => 1 }, { "3,28" => 1 }, { "3,27" => 1 },
 	                { "4,30" => 1 }, { "4,29" => 1 }, { "4,28" => 1 }, { "4,27" => 1 } ],
@@ -775,8 +1980,8 @@ my @cases = (
 	#                 012345678901234567890123456789012345678901234567
 	  mate1s => [ "ATAAAAATAT", "ATAAAAATAT" ],
 	  mate2s => [ "GGCCCGCCCG", "CCGGGCCCGC" ],
-	  args   =>   "--ff -I 0 -X 36",
-	  report =>   "-a",
+	  mate1fw => 1,  mate2fw => 1,
+	  args   =>   "-I 0 -X 36",
 	  # Not really any way to flag an alignment as discordant
 	  pairhits => [ { "3,30" => 1 }, { "3,27" => 1 } ],
 	  flags => [ "XM:0,XP:0,XT:DP,XC:10=", "XM:0,XP:0,XT:CP,XC:10=" ] },
@@ -792,8 +1997,8 @@ my @cases = (
 	#                 012345678901234567890123456789012345678901234567
 	  mate1s => [ "ATAAAAATAT" ],
 	  mate2s => [ "CGATCGCCCG" ],
-	  args   =>   "--ff -I 0 -X 36",
-	  report =>   "-a",
+	  mate1fw => 1,  mate2fw => 1,
+	  args   =>   "-I 0 -X 36",
 	  # Not really any way to flag an alignment as discordant
 	  pairhits => [ { "3,30" => 1 } ],
 	  flags => [ "XM:0,XP:0,XT:DP,XC:10=" ] },
@@ -809,8 +2014,8 @@ my @cases = (
 	#                 012345678901234567890123456
 	  mate1s => [ "ATAAAAATAT" ],
 	  mate2s => [ "CGATCGCCCG" ],
-	  args   =>   "--ff -I 28 -X 80",
-	  report =>   "-a",
+	  mate1fw => 1,  mate2fw => 1,
+	  args   =>   "-I 28 -X 80",
 	  # Not really any way to flag an alignment as discordant
 	  pairhits => [ { "3,20" => 1 } ],
 	  flags => [ "XM:0,XP:0,XT:DP,XC:10=" ] },
@@ -822,11 +2027,11 @@ my @cases = (
 	#                 ATATATATAT      ATATATATAT        ATATATATAT            CGCGCGCGCG
 	#              012345678901234567890123456789012345678901234567890123456789012345678901234567890
 	#              0         1         2         3         4         5         6         7         8
-	  mate1s => [ "ATATATATAT" ],
-	  mate2s => [ "CGCGCGCGCG" ],
-	  args   =>   "--fr -I 0 -X 80",
-	  report =>   "-a -M 2 -P \"ROWM=3.0\"",
-	  lines  => 2,
+	  mate1s  => [ "ATATATATAT" ],
+	  mate2s  => [ "CGCGCGCGCG" ],
+	  mate1fw => 1,  mate2fw => 0,
+	  args    => "-I 0 -X 80 -M 2 -P \"ROWM=3.0\"",
+	  lines   => 2,
 	  pairhits => [ { "3,59" => 1, "19,59" => 1, "37,59" => 1 } ],
 	  hits_are_superset => [ 1 ],
 	  flags  => [ "XM:1,XP:1,XT:CP,XC:10=", "XM:1,XP:1,XT:CP,XC:10=" ] },
@@ -840,8 +2045,8 @@ my @cases = (
 	#              0         1         2         3         4         5         6         7         8
 	  mate1s => [ "ATATATATAT" ],
 	  mate2s => [ "CGCGCGCGCG" ],
-	  args   =>   "--fr -I 0 -X 80 -P \"ROWM=3.0\"",
-	  report =>   "-a",
+	  mate1fw => 1,  mate2fw => 0,
+	  args   =>   "-I 0 -X 80 -P \"ROWM=3.0\"",
 	  pairhits => [ { "3,59" => 1, "19,59" => 1, "37,59" => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:CP,XC:10=" ] },
 
@@ -854,8 +2059,8 @@ my @cases = (
 	#              0         1         2         3         4         5         6         7         8
 	  mate1s => [ "ATATATATAT" ],
 	  mate2s => [ "CGCGCGCGCG" ],
-	  args   =>   "--fr -I 0 -X 80 -m 1",
-	  report =>   "-a",
+	  mate1fw => 1,  mate2fw => 0,
+	  args   =>   "-I 0 -X 80 -m 1",
 	  pairhits => [ { "*,*" => 1 } ],
 	  flags  => [ "XM:1,XP:1,XT:CP", "XM:1,XP:1,XT:CP" ] },
 
@@ -869,8 +2074,8 @@ my @cases = (
 	#              0         1         2         3         4         5         6         7         8
 	  mate1s => [ "ATATATATAT" ],
 	  mate2s => [ "CGCGCGCGCG" ],
-	  args   =>   "--fr -I 0 -X 80 -m 1 --norc",
-	  report =>   "-a",
+	  mate1fw => 1,  mate2fw => 0,
+	  args   =>   "-I 0 -X 80 -m 1 --norc",
 	  pairhits => [ { "*,59" => 1 } ],
 	  flags_map => [ { "*"  => "XM:1,XP:1,XT:UP",
 	                   "59" => "XM:0,XP:1,XT:UP,XC:10=" } ] },
@@ -884,8 +2089,8 @@ my @cases = (
 	#              0         1         2         3         4         5         6         7         8
 	  mate1s => [ "ATATATATAT" ],
 	  mate2s => [ "CCCCCGGGGG" ],
-	  args   =>   "--fr -I 0 -X 80 -m 2",
-	  report =>   "-a",
+	  mate1fw => 1,  mate2fw => 0,
+	  args   =>   "-I 0 -X 80 -m 2",
 	  pairhits => [ { "*,*" => 1 } ] },
 
 	# Paired-end read, but only the first mate aligns within the -m 2 ceiling.
@@ -899,8 +2104,8 @@ my @cases = (
 	#              0         1         2         3         4         5         6         7         8
 	  mate1s => [ "ATATATATAT" ],
 	  mate2s => [ "CGCGCGCGCG" ],
-	  args   =>   "--ff -I 0 -X 80 -m 1 --norc",
-	  report =>   "-a",
+	  mate1fw => 1,  mate2fw => 1,
+	  args   =>   "-I 0 -X 80 -m 1 --norc",
 	  pairhits => [ { "*,3" => 1 } ],
 	  flags_map  => [ {  3  => "XM:i:0,XP:1,XT:UP,XC:10=",
 	                    "*" => "XM:i:1,XP:1,XT:UP" } ] },
@@ -916,8 +2121,8 @@ my @cases = (
 	#              0         1         2         3         4         5         6         7         8
 	  mate1s => [ "ATATATATAT" ],
 	  mate2s => [ "CCCCCGGGGG" ],
-	  args   =>   "--ff -I 0 -X 80 -m 1 --norc",
-	  report =>   "-a",
+	  mate1fw => 1,  mate2fw => 1,
+	  args   =>   "-I 0 -X 80 -m 1 --norc",
 	  norc   => 1,
 	  pairhits  => [ { "*,3"  => 1 } ],
 	  flags_map => [ {  3     => "XM:0,XP:0,XT:UP,XC:10=",
@@ -946,8 +2151,8 @@ my @cases = (
 	#              0         1         2         3         4         5
 	  mate1s => [ "ATATATATAT" ],
 	  mate2s => [ "CCCCCGGGGG" ],
-	  args   =>   "--ff -I 0 -X 50 --nofw",
-	  report =>   "-a",
+	  mate1fw => 1,  mate2fw => 1,
+	  args   =>   "-I 0 -X 50 --nofw",
 	  nofw   => 1,
 	  pairhits  => [ { "*,3"  => 1 } ],
 	  flags_map => [ {  3     => "XM:0,XP:0,XT:UP,XC:10=",
@@ -974,8 +2179,8 @@ my @cases = (
 	#              0         1         2         3         4         5
 	  mate1s => [ "ATATATATAT" ],
 	  mate2s => [ "CCCCCGGGGG" ],
-	  args   =>   "--ff -I 0 -X 50 --no-mixed",
-	  report =>   "-a",
+	  mate1fw => 1,  mate2fw => 1,
+	  args   =>   "-I 0 -X 50 --no-mixed",
 	  pairhits => [ { "*,*" => 1 } ] },
 
 	# Simple paired-end alignment
@@ -987,8 +2192,8 @@ my @cases = (
 	#              0         1         2         3         4         5
 	  mate1s => [ "ATATATATAT" ],
 	  mate2s => [ "CGCGCGCGCG" ],
-	  args   =>   "--ff -I 0 -X 50",
-	  report =>   "-a",
+	  mate1fw => 1,  mate2fw => 1,
+	  args   =>   "-I 0 -X 50",
 	  pairhits => [ { "3,35" => 1 } ],
 	  flags => [ "XM:0,XP:0,XT:CP,XC:10=" ],
 	  cigar_map => [{
@@ -1015,8 +2220,7 @@ my @cases = (
 	# a special NCEIL setting.
 	{ ref    => [ "TTGTTCGT" ],
 	  reads  => [ "TTGTTCG" ],
-	  args   => "",
-	  report => "-a --overhang -P \"SEED=0,2,1;NCEIL=2,0\"",
+	  args   => "--overhang -P \"SEED=0,2,1;NCEIL=2,0\"",
 	  hits   => [ { 0 => 1 } ],
 	  nosam  => 1,
 	  flags  => [ "XM:0,XP:0,XT:UU,XC:7=" ],
@@ -1024,8 +2228,7 @@ my @cases = (
 
 	{ ref    => [ "TTGTTCGT" ],
 	  reads  => [ "TTGTTCG" ],
-	  args   => "",
-	  report => "-a -P \"SEED=0,2,1;NCEIL=2,0\"",
+	  args   => "-P \"SEED=0,2,1;NCEIL=2,0\"",
 	  hits   => [ { 0 => 1 } ],
 	  flags => [ "XM:0,XP:0,XT:UU,XC:7=" ],
 	  cigar  => [ "7M" ],
@@ -1034,8 +2237,7 @@ my @cases = (
 	
 	{ ref    => [ "TTGTTCGT" ],
 	  reads  => [ "TTGTTCG" ],
-	  args   => "",
-	  report => "-a --overhang",
+	  args   => "--overhang",
 	  hits   => [ { 0 => 1 } ],
 	  nosam  => 1,
 	  flags => [ "XM:0,XP:0,XT:UU,XC:7=" ] },
@@ -1043,7 +2245,6 @@ my @cases = (
 	{ ref    => [ "TTGTTCGT" ],
 	  reads  => [ "TTGTTCG" ],
 	  args   => "",
-	  report => "-a",
 	  hits   => [ { 0 => 1 } ],
 	  flags => [ "XM:0,XP:0,XT:UU,XC:7=" ],
 	  cigar  => [ "7M" ],
@@ -1052,8 +2253,7 @@ my @cases = (
 
 	{ ref    => [ "TTGTTCGT" ],
 	  reads  => [  "TGTTCGT", "TTGTTCG" ],
-	  args   => "",
-	  report => "-a --overhang",
+	  args   => "--overhang",
 	  nosam  => 1,
 	  hits   => [ { 1 => 1 }, { 0 => 1 } ],
 	  flags => [ "XM:0,XP:0,XT:UU,XC:7=", "XM:0,XP:0,XT:UU,XC:7=" ],
@@ -1067,7 +2267,6 @@ my @cases = (
 	{ ref    => [ "TTGTTCGT" ],
 	  reads  => [ "TGTTCGT", "TTGTTCG" ],
 	  args   => "",
-	  report => "-a",
 	  hits   => [ { 1 => 1 }, { 0 => 1 } ],
 	  flags => [ "XM:0,XP:0,XT:UU,XC:7=", "XM:0,XP:0,XT:UU,XC:7=" ],
 	  cigar  => [ "7M", "7M" ],
@@ -1080,8 +2279,7 @@ my @cases = (
 	# Reads 1 and 2 don't have overhang, reads 3 and 4 overhang opposite ends
 	{ ref    => [ "TTGTTCGT" ],
 	  reads  => [ "TGTTCGT", "TTGTTCG", "GTTCGTA", "ATTGTTC" ],
-	  args   => "",
-	  report => "-a --overhang -P \"SEED=0,2,1;NCEIL=2,0\"",
+	  args   => "--overhang -P \"SEED=0,2,1;NCEIL=2,0\"",
 	  hits   => [ { 1 => 1 }, { 0 => 1 }, { 2 => 1 }, { -1 => 1 } ],
 	  nosam  => 1,
 	  flags => [ "XM:0,XP:0,XT:UU,XC:7=",   "XM:0,XP:0,XT:UU,XC:7=",
@@ -1090,8 +2288,7 @@ my @cases = (
 	# Same as previous case but --overhang not specified
 	{ ref    => [ "TTGTTCGT" ],
 	  reads  => [ "TGTTCGT", "TTGTTCG", "GTTCGTA", "ATTGTTC" ],
-	  args   => "",
-	  report => "-a -P \"SEED=0,2,1;NCEIL=2,0\"",
+	  args   => "-P \"SEED=0,2,1;NCEIL=2,0\"",
 	  hits   => [ { 1 => 1 }, { 0 => 1 } ], # only the internal hits
 	  flags => [ "XM:0,XP:0,XT:UU,XC:7=", "XM:0,XP:0,XT:UU,XC:7=" ],
 	  cigar  => [ "7M", "7M", "*", "*" ],
@@ -1128,7 +2325,6 @@ my @cases = (
 	  dec_seq  => [ "TTGTTC" ],
 	  dec_qual => [ "IqqqqI" ],
 	  args     =>   "--col-keepends",
-	  report   =>   "-a",
 	  hits     => [ { 0 => 1 } ],
 	  color    => 1,
 	  flags => [ "XM:0,XP:0,XT:UU,XC:6=" ],
@@ -1143,7 +2339,6 @@ my @cases = (
 	  dec_seq  => [ "TTGTTC" ],
 	  dec_qual => [ "IqqqqI" ],
 	  args     =>   "--col-keepends -P \"SEED=0,3,1\"",
-	  report   =>   "-a",
 	  hits     => [ { 0 => 1 } ],
 	  color    => 1,
 	  flags => [ "XM:0,XP:0,XT:UU,XC:6=" ],
@@ -1158,7 +2353,6 @@ my @cases = (
 	  dec_seq  => [ "TGTT" ],
 	  dec_qual => [ "qqqq" ],
 	  args     =>   "-P \"SEED=0,3,1\"",
-	  report   =>   "-a",
 	  hits     => [ { 1 => 1 } ],
 	  color    => 1,
 	  flags => [ "XM:0,XP:0,XT:UU,XC:4=" ],
@@ -1172,7 +2366,6 @@ my @cases = (
 	  reads    => [ "01112" ],
 	  #                 ^mm
 	  args     =>   "--col-keepends -P \"SEED=0,4,1;MMP=C5\"",
-	  report   =>   "-a",
 	  hits     => [ { "*" => 1 } ],
 	  color    => 1,
 	  cigar  => [ "*" ],
@@ -1186,7 +2379,6 @@ my @cases = (
 	  dec_seq  => [ "TTGTTC" ],
 	  dec_qual => [ "Iqq!!I" ],
 	  args     =>   "--col-keepends -P \"SEED=0,3,1;MMP=C7\"",
-	  report   =>   "-a",
 	  hits     => [ { 0 => 1 } ],
 	  color    => 1,
 	  flags => [ "XM:0,XP:0,XT:UU,XC:6=" ],
@@ -1204,7 +2396,6 @@ my @cases = (
 	  dec_seq  => [ "TTGTTC" ],
 	  dec_qual => [ "Iqq!!!" ],
 	  args     =>   "--col-keepends -P \"SEED=0,3,1;MMP=C5;SNP=11\"",
-	  report   =>   "-a",
 	  hits     => [ { 0 => 1 } ],
 	  color    => 1,
 	  flags => [ "XM:0,XP:0,XT:UU,XC:6=" ],
@@ -1222,7 +2413,6 @@ my @cases = (
 	  dec_seq  => [ "TTGTAC" ],
 	  dec_qual => [ "IqqqqI" ],
 	  args     =>   "--col-keepends -P \"SEED=0,3,1;MMP=C5;SNP=9\"",
-	  report   =>   "-a",
 	  hits     => [ { 0 => 1 } ],
 	  color    => 1,
 	  flags => [ "XM:0,XP:0,XT:UU,XC:4=1X1=" ],
@@ -1247,8 +2437,7 @@ my @cases = (
 
 	{ ref    => [ "TTGTTCGT" ],
 	  reads  => [ "TTGTTCGT", "TTGTTCGT", "TTGTTCGT", "TTGTTCGT", "TTGTTCGT" ],
-	  args   => "",
-	  report => "-m 1 -a",
+	  args   => "-m 1",
 	  hits   => [ { 0 => 1 }, { 0 => 1 }, { 0 => 1 }, { 0 => 1 }, { 0 => 1 } ],
 	  edits  => [ "-",        "-",        "-",        "-",        "-",       ],
 	  flags  => [ "XM:0,XP:0,XT:UU,XC:8=", "XM:0,XP:0,XT:UU,XC:8=",
@@ -1256,11 +2445,11 @@ my @cases = (
 	              "XM:0,XP:0,XT:UU,XC:8=" ],
 	  cigar  => [ "8M", "8M", "8M", "8M", "8M" ],
 	  samoptflags => [
-		{ "YT:Z:UU" => 1, "MD:Z:8" => 1 },
-		{ "YT:Z:UU" => 1, "MD:Z:8" => 1 },
-		{ "YT:Z:UU" => 1, "MD:Z:8" => 1 },
-		{ "YT:Z:UU" => 1, "MD:Z:8" => 1 },
-		{ "YT:Z:UU" => 1, "MD:Z:8" => 1 },
+		{ "YT:Z:UU" => 1, "MD:Z:8" => 1, "YM:i:0" => 1 },
+		{ "YT:Z:UU" => 1, "MD:Z:8" => 1, "YM:i:0" => 1 },
+		{ "YT:Z:UU" => 1, "MD:Z:8" => 1, "YM:i:0" => 1 },
+		{ "YT:Z:UU" => 1, "MD:Z:8" => 1, "YM:i:0" => 1 },
+		{ "YT:Z:UU" => 1, "MD:Z:8" => 1, "YM:i:0" => 1 },
 	  ]
 	},
 
@@ -1269,8 +2458,7 @@ my @cases = (
 	#              TAATTCGT
 	#              TTGTTCGT
 	  reads  => [ "TTGTTCGT", "TAAAACGT", "TTGTTCGT", "TAATTCGT",    "TTGTTCGT" ],
-	  args   => "",
-	  report => "-m 1 -a -P \"SEED=0,3,1;MIN=-3,-3;MMP=C9;RFG=25,15;RDG=25,15\"",
+	  args   => "-m 1 -P \"SEED=0,3,1;MIN=-3,-3;MMP=C9;RFG=25,15;RDG=25,15\"",
 	  hits   => [ { 0 => 1 }, { '*' => 1 }, { 0 => 1 }, { 0 => 1 },    { 0 => 1 } ],
 	  edits  => [ "-",        undef,        "-",        "1:T>A,2:G>A", "-",        ],
 	  flags  => [ "XM:0,XP:0,XT:UU,XC:8=", "XM:0,XP:0,XT:UU",
@@ -1278,68 +2466,67 @@ my @cases = (
 				  "XM:0,XP:0,XT:UU,XC:8=" ],
 	  cigar  => [ "8M", "*", "8M", "8M", "8M" ],
 	  samoptflags => [
-		{ "YT:Z:UU" => 1, "MD:Z:8" => 1 },
-		{ "YT:Z:UU" => 1 },
-		{ "YT:Z:UU" => 1, "MD:Z:8" => 1 },
-		{ "AS:i:-18" => 1, "NM:i:2"  => 1, "XM:i:2" => 1, "YT:Z:UU" => 1, "MD:Z:1TG5" => 1 },
-		{ "YT:Z:UU" => 1, "MD:Z:8" => 1 },
+		{ "YT:Z:UU"  => 1, "MD:Z:8" => 1, "YM:i:0" => 1 },
+		{ "YT:Z:UU"  => 1, "YM:i:0" => 1 },
+		{ "YT:Z:UU"  => 1, "MD:Z:8" => 1, "YM:i:0" => 1 },
+		{ "AS:i:-18" => 1, "NM:i:2" => 1, "XM:i:2" => 1, "YT:Z:UU" => 1, "MD:Z:1TG5" => 1, "YM:i:0" => 1 },
+		{ "YT:Z:UU"  => 1, "MD:Z:8" => 1, "YM:i:0" => 1 },
 	  ],
 	  norc   => 1 },
 
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCGT" ],
-	  args   => "",
-	  report => "-m 3 -a",
+	  args   => "-m 3",
+	  mapq   => [ 0 ],
 	  hits   => [ { 0 => 1, 8 => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU,XC:8=", "XM:0,XP:0,XT:UU,XC:8=" ],
 	  cigar  => [ "8M" ],
 	  samoptflags => [
-		{ "YT:Z:UU" => 1, "MD:Z:8" => 1 }
+		{ "YT:Z:UU" => 1, "MD:Z:8" => 1, "YM:i:0" => 1 }
 	  ],
 	},
 
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCGT" ],
-	  args   => "",
-	  report => "-m 2 -a",
+	  args   => "-m 2",
+	  mapq   => [ 0 ],
 	  hits   => [ { 0 => 1, 8 => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU,XC:8=", "XM:0,XP:0,XT:UU,XC:8=" ],
 	  cigar  => [ "8M" ],
 	  samoptflags => [
-		{ "YT:Z:UU" => 1, "MD:Z:8" => 1 }
+		{ "YT:Z:UU" => 1, "MD:Z:8" => 1, "YM:i:0" => 1 }
 	  ],
 	},
 
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCGT" ],
-	  args   => "",
-	  report => "-m 1 -a",
+	  args   => "-m 1",
+	  mapq   => [ 0 ],
 	  hits   => [ { "*" => 1 } ],
 	  flags  => [ "XM:1,XP:0,XT:UU" ],
 	  cigar  => [ "*" ],
 	  samoptflags => [
-		{ "XM:i:1" => 1, "YT:Z:UU" => 1 }
+		{ "XM:i:1" => 1, "YT:Z:UU" => 1, "YM:i:1" => 1 }
 	  ],
 	},
 
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCGT" ],
-	  args   => "",
-	  report => "-M 1",
+	  args   => "-M 1",
+	  mapq   => [ 0 ],
 	  hits   => [ { 0 => 1, 8 => 1 } ],
 	  flags  => [ "XM:1,XP:0,XT:UU,XC:8=" ],
 	  hits_are_superset => [ 1 ],
 	  cigar  => [ "8M" ],
 	  samoptflags => [
-		{ "YM:i:1" => 1, "YT:Z:UU" => 1, "MD:Z:8" => 1 }
+		{ "YM:i:1" => 1, "YT:Z:UU" => 1, "MD:Z:8" => 1, "YM:i:1" => 1 }
 	  ],
 	},
 
 	# Read 3 overhangs right end
 	{ ref    => [ "TTGTTCGT"  ],
 	  reads  => [   "GTTCGTA" ],
-	  args   => "",
-	  report => "-a --overhang -P \"SEED=0,3,1;NCEIL=2,0\"",
+	  args   => "--overhang -P \"SEED=0,3,1;NCEIL=2,0\"",
 	  hits   => [ { 2 => 1 } ],
 	  nosam  => 1,
 	  flags => [ "XM:0,XP:0,XT:UU,XC:6=1X" ] },
@@ -1350,7 +2537,6 @@ my @cases = (
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTATTAGT" ],
 	  args   => "",
-	  report => "-a",
 	  hits   => [ { "*" => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU" ],
 	  cigar  => [ "*" ],
@@ -1361,7 +2547,6 @@ my @cases = (
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTATTAGT" ],
 	  args   => "-P SEED=0",
-	  report => "-a",
 	  hits   => [ { "*" => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU" ],
 	  cigar  => [ "*" ],
@@ -1374,7 +2559,6 @@ my @cases = (
 	  #            TAGTTCAT
 	  #                    TAGTTCAT
 	  args   => "-P \"SEED=2;MMP=C1\"",
-	  report => "-a",
 	  hits   => [ { 0 => 1, 8 => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU,XC:1=1X4=1X1=" ],
 	  cigar  => [ "8M" ],
@@ -1386,7 +2570,6 @@ my @cases = (
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTATTAGT" ],
 	  args   =>   "-P \"SEED=2;MMP=C1\"",
-	  report =>   "-a",
 	  hits   => [ { "*" => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU" ],
 	  cigar  => [ "*" ],
@@ -1399,7 +2582,6 @@ my @cases = (
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTATTAGT" ],
 	  args   => "-P \"SEED=0,3,1;MMP=C1\"",
-	  report => "-a",
 	  hits   => [ { "*" => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU" ],
 	  cigar  => [ "*" ],
@@ -1412,7 +2594,6 @@ my @cases = (
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [      "TTATTAGT" ],
 	  args   => "-P \"SEED=0,2,1;MMP=C1;ROWM=10\"",
-	  report => "-a",
 	  #
 	  # TTGTTCGTTTGTTCGT TTGTTCGTTTGTTCGT TTGTTCGTTTGTTCGT
 	  # || || ||            ||  |             |  || ||
@@ -1609,325 +2790,355 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 	# Forward, then reverse-complemented
 	for(my $fwi = 0; $fwi <= 1; $fwi++) {
 		my $fw = ($fwi == 0);
-		# Not SAM format, then SMA format
-		for(my $sami = 0; $sami <= 1; $sami++) {
-			my $sam = ($sami == 1 ? 1 : 0);
-			next if !$fw  && $c->{norc};
-			next if  $fw  && $c->{nofw};
-			next if  $sam && $c->{nosam};
-			# Run bowtie2
-			my @lines = ();
-			my @rawlines = ();
-			my @header_lines = ();
-			my @header_rawlines = ();
-			print $c->{name}." " if defined($c->{name});
-			print "(fw:".($fw ? 1 : 0).", sam:$sam)\n";
-			my $color = 0;
-			$color = $c->{color} if defined($c->{color});
-			next if ($color && $skipColor);
-			my $reads = $c->{reads};
-			my $m1s   = $c->{mate1s};
-			my $m2s   = $c->{mate2s};
-			if(!$fw) {
-				# Reverse-complement the reads
-				my @s = (); @s = @$reads if defined($reads);
-				# Reverse-complement mates and switch mate1 with mate2
-				my @m1 = (); @m1 = @$m1s if defined($m1s);
-				my @m2 = (); @m2 = @$m2s if defined($m2s);
-				for(0..scalar(@s )-1) { $s [$_] = DNA::revcomp($s [$_], $color); }
-				for(0..scalar(@m1)-1) { $m1[$_] = DNA::revcomp($m1[$_], $color); }
-				for(0..scalar(@m2)-1) { $m2[$_] = DNA::revcomp($m2[$_], $color); }
-				$reads = \@s if defined($reads);
-				$m1s = \@m2 if defined($m1s);
-				$m2s = \@m1 if defined($m2s);
+		my $sam = 1; # ($sami == 1 ? 1 : 0);
+		next if !$fw  && $c->{norc};
+		next if  $fw  && $c->{nofw};
+		next if  $sam && $c->{nosam};
+		# Run bowtie2
+		my @lines = ();
+		my @rawlines = ();
+		my @header_lines = ();
+		my @header_rawlines = ();
+		print $c->{name}." " if defined($c->{name});
+		print "(fw:".($fw ? 1 : 0).", sam:$sam)\n";
+		my $color = 0;
+		$color = $c->{color} if defined($c->{color});
+		next if ($color && $skipColor);
+		my $reads = $c->{reads};
+		my $m1s   = $c->{mate1s};
+		my $m2s   = $c->{mate2s};
+		my $mate1fw = 1;
+		my $mate2fw = 0;
+		$mate1fw = $c->{mate1fw} if defined($c->{mate1fw});
+		$mate2fw = $c->{mate2fw} if defined($c->{mate2fw});
+		if(!$fw) {
+			# Reverse-complement the reads
+			my @s = (); @s = @$reads if defined($reads);
+			# Reverse-complement mates and switch mate1 with mate2
+			my @m1 = (); @m1 = @$m1s if defined($m1s);
+			my @m2 = (); @m2 = @$m2s if defined($m2s);
+			for(0..scalar(@s )-1) { $s [$_] = DNA::revcomp($s [$_], $color); }
+			if($mate1fw == $mate2fw) {
+				for(0..$#m1) { $m1[$_] = DNA::revcomp($m1[$_], $color); }
+				for(0..$#m2) { $m2[$_] = DNA::revcomp($m2[$_], $color); }
 			}
-			my $a = $case_args;
-			$a .= " --sam" if $sam;
-			runbowtie2(
-				"$a",
-				$color,
-				$tmpfafn,
-				$c->{report},
-				$reads,
-				$m1s,
-				$m2s,
-				$c->{names},
-				\@lines,
-				\@rawlines,
-				\@header_lines,
-				\@header_rawlines);
-			my $pe = defined($c->{mate1s}) && $c->{mate1s} ne "";
-			my ($lastchr, $lastoff) = ("", -1);
-			# Keep temporary copies of hits and pairhits so that we can
-			# restore for the next orientation
-			my $hitstmp = [];
-			$hitstmp = clone($c->{hits}) if defined($c->{hits});
-			my $pairhitstmp = [];
-			$pairhitstmp = clone($c->{pairhits}) if defined($c->{pairhits});
-			# Record map from already-seen read name, read sequence and
-			# quality to the place on the reference where it's reported.
-			# This allows us to check that the pseudo-random generator
-			# isn't mistakenly yielding different alignments for identical
-			# reads.
-			my %seenNameSeqQual = ();
-			if(defined($c->{lines})) {
-				my $l = scalar(@lines);
-				$l == $c->{lines} || die "Expected $c->{lines} lines, got $l";
-			}
-			for my $li (0 .. scalar(@lines)-1) {
-				my $l = $lines[$li];
-				my ($readname, $orient, $chr, $off, $seq, $qual, $oms,
-				    $editstr, $flagstr, $samflags, $cigar);
-				my %samoptflags = ();
-				if($sam) {
-					scalar(@$l) >= 11 ||
-						die "Bad number of fields; expected at least 11 got ".
-						    scalar(@$l).":\n$rawlines[$li]\n";
-					($readname, $samflags, $chr, $off) = @$l[0..3];
-					($seq, $qual) = @$l[9..10];
-					if((($samflags >> 4) & 1) != 0) {
-						$orient = "-";
-					} else {
-						$orient = "+";
-					}
-					$cigar = $l->[5];
-					for(my $m = 11; $m < scalar(@$l); $m++) {
-						next if $l->[$m] eq "";
-						my ($nm, $ty, $vl) = split(/:/, $l->[$m]);
-						defined($vl) ||
-							die "Could not parse optional flag field $m: ".
-							    "\"$l->[$m]\"";
-						$samoptflags{$nm}{ty} = $ty;
-						$samoptflags{$nm}{vl} = $vl;
-						#print STDERR "Parsed SAM flag: $nm, $ty, $vl\n";
-					}
-					if($off > 0) { $off--; }
-					else { $off = "*"; }
-				} else {
-					scalar(@$l) == 9 ||
-						die "Bad number of fields; expected 9 got ".
-						    scalar(@$l).":\n$rawlines[$li]\n";
-					($readname, $orient, $chr, $off, $seq,
-					 $qual, $oms, $editstr, $flagstr) = @$l;
-				}
-				if($c->{check_random}) {
-					my $rsqKey = "$readname\t$orient\t$seq\t$qual";
-					my $rsqVal = "$chr\t$off";
-					if(defined($seenNameSeqQual{$rsqKey})) {
-						$seenNameSeqQual{$rsqKey} eq $rsqVal ||
-							die "Two hits for read/seq/qual:\n$rsqKey\n".
-								"had different alignments:\n".
-								"$seenNameSeqQual{$rsqKey}\n$rsqVal\n";
-					}
-					$seenNameSeqQual{$rsqKey} = $rsqVal;
-				}
-				my $rdi = $readname;
-				$rdi = substr($rdi, 1) if substr($rdi, 0, 1) eq "r";
-				my $mate = 0;
-				if($readname =~ /\//) {
-					($rdi, $mate) = split(/\//, $readname);
-					defined($rdi) || die;
-				}
-				if($rdi != int($rdi)) {
-					# Read name has non-numeric characters.  Figure out
-					# what number it is by scanning the names list.
-					defined($c->{names}) || die "Non-numeric read name for case with no names specified";
-					my $found = 0;
-					for(my $i = 0; $i < scalar(@{$c->{names}}); $i++) {
-						if($c->{names}->[$i] eq $readname) {
-							$rdi = $i;
-							$found = 1;
-							last;
-						}
-					} 
-					$found || die "No specified name matched reported name $readname";
-				}
-				# Check that the sequence printed in the alignment is sane
-				if($color) {
-					# It's a decoded nucleotide sequence
-					my $dseq = $c->{dec_seq}->[$rdi];
-					if(defined($dseq)) {
-						$seq eq $dseq || die "Expected decoded sequence '$seq' from alignment to match '$dseq'";
-					}
-					my $dqual = $c->{dec_qual}->[$rdi];
-					if(defined($dqual)) {
-						$qual eq $dqual || die "Expected decoded qualities '$qual' from alignment to match '$dqual'";
-					}
-				} else {
-					
-				}
-				# Make simply-named copies of some portions of the test case
-				# 'hits'
-				my %hits = ();
-				%hits = %{$c->{hits}->[$rdi]} if
-					defined($c->{hits}->[$rdi]);
-				# 'flags'
-				my $flags = undef;
-				$flags = $c->{flags}->[$rdi] if
-					defined($c->{flags}->[$rdi]);
-				# 'samflags'
-				my $ex_samflags = undef;
-				$ex_samflags = $c->{ex_samflags}->[$rdi] if
-					defined($c->{ex_samflags}->[$rdi]);
-				# 'samoptflags'
-				my $ex_samoptflags = undef;
-				$ex_samoptflags = $c->{samoptflags}->[$rdi] if
-					defined($c->{samoptflags}->[$rdi]);
-				# 'cigar'
-				my $ex_cigar = undef;
-				$ex_cigar = $c->{cigar}->[$rdi] if
-					defined($c->{cigar}->[$rdi]);
-				# 'cigar_map'
-				my $ex_cigar_map = undef;
-				$ex_cigar_map = $c->{cigar_map}->[$rdi] if
-					defined($c->{cigar_map}->[$rdi]);
-				# 'flags_fw'
-				my $flags_fw = undef;
-				$flags_fw = $c->{flags_fw}->[$rdi] if
-					defined($c->{flags_fw}->[$rdi]);
-				# 'flags_rc'
-				my $flags_rc = undef;
-				$flags_rc = $c->{flags_rc}->[$rdi] if
-					defined($c->{flags_rc}->[$rdi]);
-				# 'pairhits'
-				my %pairhits = ();
-				%pairhits = %{$c->{pairhits}->[$rdi]} if
-					defined($c->{pairhits}->[$rdi]);
-				# 'pairflags'
-				my %pairflags = ();
-				%pairflags = %{$c->{pairflags}->[$rdi]} if
-					defined($c->{pairflags}->[$rdi]);
-				# 'hits_are_superset'
-				my $hits_are_superset = 0;
-				$hits_are_superset = $c->{hits_are_superset}->[$rdi] if
-					defined($ci);
-				# edits
-				my $ex_edits = undef;
-				$ex_edits = $c->{edits}->[$rdi] if
-					defined($c->{edits}->[$rdi]);
-				if(!$sam) {
-					# Bowtie flags
-					if(defined($flags)) {
-						$flagstr eq $flags ||
-							die "Expected flags=\"$flags\", got \"$flagstr\"";
-					}
-					if(defined($flags_fw) && $fw) {
-						$flagstr eq $flags_fw ||
-							die "Expected flags=\"$flags_fw\", got \"$flagstr\"";
-					}
-					if(defined($flags_rc) && !$fw) {
-						$flagstr eq $flags_rc ||
-							die "Expected flags=\"$flags_rc\", got \"$flagstr\"";
-					}
-					if(defined($c->{flag_map})) {
-						if(defined($c->{flag_map}->[$rdi]->{$off})) {
-							$flagstr eq $c->{flag_map}->[$rdi]->{$off} ||
-								die "Expected flags=\"$c->{flag_map}->[$rdi]->{$off}\"".
-									" at offset $off, got \"$flagstr\"";
-						}
-					}
-				}
-				if($sam) {
-					# SAM flags
-					if(defined($ex_samflags)) {
-						$samflags eq $ex_samflags ||
-							die "Expected flags $ex_samflags, got $samflags";
-					}
-					# CIGAR string
-					if(defined($ex_cigar)) {
-						$cigar eq $ex_cigar ||
-							die "Expected CIGAR string $ex_cigar, got $cigar";
-					}
-					if(defined($ex_cigar_map)) {
-						if(defined($c->{cigar_map}->[$rdi]->{$off})) {
-							my $ex = $c->{cigar_map}->[$rdi]->{$off};
-							$cigar eq $ex || die
-								"Expected CIGAR string $ex at offset $off, got $cigar"
-						} else {
-							die "Expected to see alignment with offset $off";
-						}
-					}
-					# SAM optional flags
-					if(defined($ex_samoptflags)) {
-						matchSamOptionalFlags(\%samoptflags, $ex_samoptflags);
-					}
-					if(defined($c->{samoptflags_map})) {
-						if(defined($c->{samoptflags_map}->[$rdi]->{$off})) {
-							matchSamOptionalFlags(
-								\%samoptflags,
-								$c->{samoptflags_map}->[$rdi]->{$off});
-						} else {
-							die "Expected to see alignment with offset $off";
-						}
-					}
-				}
-				if($pe && $lastchr ne "") {
-					my $offkey = $lastoff.",".$off;
-					$offkey = $off.",".$lastoff if $off eq "*";
-					if($lastoff ne "*" && $off ne "*") {
-						$offkey = min($lastoff, $off).",".max($lastoff, $off);
-					}
-					if(defined($c->{pairhits}->[$rdi])) {
-						defined($pairhits{$offkey}) ||
-							die "No such paired off as $offkey in pairhits list: ".Dumper(\%pairhits)."\n";
-						$c->{pairhits}->[$rdi]->{$offkey}--;
-						delete $c->{pairhits}->[$rdi]->{$offkey} if $c->{pairhits}->[$rdi]->{$offkey} == 0;
-						%pairhits = %{$c->{pairhits}->[$rdi]};
-					}
-					($lastchr, $lastoff) = ("", -1);
-				} elsif($pe) {
-					# Found an unpaired alignment from aligning a pair
-					my $foundSe =
-						defined($c->{pairhits}->[$rdi]) &&
-						$c->{pairhits}->[$rdi]->{$off};
-					if($foundSe) {
-						$c->{pairhits}->[$rdi]->{$off}--;
-						delete $c->{pairhits}->[$rdi]->{$off}
-							if $c->{pairhits}->[$rdi]->{$off} == 0;
-						%pairhits = %{$c->{pairhits}->[$rdi]};
-					} else {
-						($lastchr, $lastoff) = ($chr, $off);
-					}
-				} else {
-					if(defined($c->{hits}->[$rdi])) {
-						defined($hits{$off}) ||
-							die "No such off as $off in hits list: ".Dumper(\%hits)."\n";
-						$c->{hits}->[$rdi]->{$off}--;
-						delete $c->{hits}->[$rdi]->{$off} if $c->{hits}->[$rdi]->{$off} == 0;
-						%hits = %{$c->{hits}->[$rdi]};
-					}
-				}
-				if(!$sam && defined($ex_edits)) {
-					my $eds = $l->[7];
-					$eds eq $ex_edits ||
-						die "For edit string, expected \"$ex_edits\" got \"$eds\"\n";
-				}
-			}
-			# Go through all the per-read 
-			my $klim = 0;
-			$klim = scalar(@{$c->{hits}}) if defined($c->{hits});
-			$klim = max($klim, scalar(@{$c->{pairhits}})) if defined($c->{pairhits});
-			for (my $k = 0; $k < $klim; $k++) {
-				# For each read
-				my %hits     = %{$c->{hits}->[$k]}     if defined($c->{hits}->[$k]);
-				my %pairhits = %{$c->{pairhits}->[$k]} if defined($c->{pairhits}->[$k]);
-				my $hits_are_superset = $c->{hits_are_superset}->[$k];
-				# Check if there are any hits left over
-				my $hitsLeft = scalar(keys %hits);
-				if($hitsLeft != 0 && !$hits_are_superset) {
-					print Dumper(\%hits);
-					die "Had $hitsLeft hit(s) left over";
-				}
-				my $pairhitsLeft = scalar(keys %pairhits);
-				if($pairhitsLeft != 0 && !$hits_are_superset) {
-					print Dumper(\%pairhits);
-					die "Had $pairhitsLeft hit(s) left over";
-				}
-			}
-			
-			$c->{hits} = $hitstmp;
-			$c->{pairhits} = $pairhitstmp;
+			$reads = \@s if defined($reads);
+			$m1s = \@m2 if defined($m1s);
+			$m2s = \@m1 if defined($m2s);
 		}
+		my $a = $case_args;
+		if(defined($m2s)) {
+			$a .= " --";
+			$a .= ($mate1fw ? "f" : "r");
+			$a .= ($mate2fw ? "f" : "r");
+		}
+		runbowtie2(
+			"$a",
+			$color,
+			$tmpfafn,
+			$c->{report},
+			$reads,
+			$m1s,
+			$m2s,
+			$c->{names},
+			\@lines,
+			\@rawlines,
+			\@header_lines,
+			\@header_rawlines);
+		my $pe = defined($c->{mate1s}) && $c->{mate1s} ne "";
+		my ($lastchr, $lastoff) = ("", -1);
+		# Keep temporary copies of hits and pairhits so that we can
+		# restore for the next orientation
+		my $hitstmp = [];
+		$hitstmp = clone($c->{hits}) if defined($c->{hits});
+		my $pairhitstmp = [];
+		$pairhitstmp = clone($c->{pairhits}) if defined($c->{pairhits});
+		# Record map from already-seen read name, read sequence and
+		# quality to the place on the reference where it's reported.
+		# This allows us to check that the pseudo-random generator
+		# isn't mistakenly yielding different alignments for identical
+		# reads.
+		my %seenNameSeqQual = ();
+		if(defined($c->{lines})) {
+			my $l = scalar(@lines);
+			$l == $c->{lines} || die "Expected $c->{lines} lines, got $l";
+		}
+		for my $li (0 .. scalar(@lines)-1) {
+			my $l = $lines[$li];
+			my ($readname, $orient, $chr, $off, $seq, $qual, $mapq, $oms,
+				$editstr, $flagstr, $samflags, $cigar);
+			my %samoptflags = ();
+			if($sam) {
+				scalar(@$l) >= 11 ||
+					die "Bad number of fields; expected at least 11 got ".
+						scalar(@$l).":\n$rawlines[$li]\n";
+				($readname, $samflags, $chr, $off) = @$l[0..3];
+				($seq, $qual) = @$l[9..10];
+				if((($samflags >> 4) & 1) != 0) {
+					$orient = "-";
+				} else {
+					$orient = "+";
+				}
+				$mapq = $l->[4];
+				$cigar = $l->[5];
+				for(my $m = 11; $m < scalar(@$l); $m++) {
+					next if $l->[$m] eq "";
+					my ($nm, $ty, $vl) = split(/:/, $l->[$m]);
+					defined($vl) ||
+						die "Could not parse optional flag field $m: ".
+							"\"$l->[$m]\"";
+					$samoptflags{$nm}{ty} = $ty;
+					$samoptflags{$nm}{vl} = $vl;
+					#print STDERR "Parsed SAM flag: $nm, $ty, $vl\n";
+				}
+				if($off > 0) { $off--; }
+				else { $off = "*"; }
+			} else {
+				scalar(@$l) == 9 ||
+					die "Bad number of fields; expected 9 got ".
+						scalar(@$l).":\n$rawlines[$li]\n";
+				($readname, $orient, $chr, $off, $seq,
+				 $qual, $oms, $editstr, $flagstr) = @$l;
+			}
+			if($c->{check_random}) {
+				my $rsqKey = "$readname\t$orient\t$seq\t$qual";
+				my $rsqVal = "$chr\t$off";
+				if(defined($seenNameSeqQual{$rsqKey})) {
+					$seenNameSeqQual{$rsqKey} eq $rsqVal ||
+						die "Two hits for read/seq/qual:\n$rsqKey\n".
+							"had different alignments:\n".
+							"$seenNameSeqQual{$rsqKey}\n$rsqVal\n";
+				}
+				$seenNameSeqQual{$rsqKey} = $rsqVal;
+			}
+			my $rdi = $readname;
+			$rdi = substr($rdi, 1) if substr($rdi, 0, 1) eq "r";
+			my $mate = 0;
+			if($readname =~ /\//) {
+				($rdi, $mate) = split(/\//, $readname);
+				defined($rdi) || die;
+			}
+			if($rdi != int($rdi)) {
+				# Read name has non-numeric characters.  Figure out
+				# what number it is by scanning the names list.
+				defined($c->{names}) || die "Non-numeric read name for case with no names specified";
+				my $found = 0;
+				for(my $i = 0; $i < scalar(@{$c->{names}}); $i++) {
+					if($c->{names}->[$i] eq $readname) {
+						$rdi = $i;
+						$found = 1;
+						last;
+					}
+				} 
+				$found || die "No specified name matched reported name $readname";
+			}
+			# Check that the sequence printed in the alignment is sane
+			if($color) {
+				# It's a decoded nucleotide sequence
+				my $dseq = $c->{dec_seq}->[$rdi];
+				if(defined($dseq)) {
+					$seq eq $dseq || die "Expected decoded sequence '$seq' from alignment to match '$dseq'";
+				}
+				my $dqual = $c->{dec_qual}->[$rdi];
+				if(defined($dqual)) {
+					$qual eq $dqual || die "Expected decoded qualities '$qual' from alignment to match '$dqual'";
+				}
+			} else {
+				
+			}
+			# Make simply-named copies of some portions of the test case
+			# 'hits'
+			my %hits = ();
+			%hits = %{$c->{hits}->[$rdi]} if
+				defined($c->{hits}->[$rdi]);
+			# 'flags'
+			my $flags = undef;
+			$flags = $c->{flags}->[$rdi] if
+				defined($c->{flags}->[$rdi]);
+			# 'samflags'
+			my $ex_samflags = undef;
+			$ex_samflags = $c->{ex_samflags}->[$rdi] if
+				defined($c->{ex_samflags}->[$rdi]);
+			# 'samoptflags'
+			my $ex_samoptflags = undef;
+			$ex_samoptflags = $c->{samoptflags}->[$rdi] if
+				defined($c->{samoptflags}->[$rdi]);
+			# 'cigar'
+			my $ex_cigar = undef;
+			$ex_cigar = $c->{cigar}->[$rdi] if
+				defined($c->{cigar}->[$rdi]);
+			# 'cigar_map'
+			my $ex_cigar_map = undef;
+			$ex_cigar_map = $c->{cigar_map}->[$rdi] if
+				defined($c->{cigar_map}->[$rdi]);
+			# 'mapq'
+			my $ex_mapq = undef;
+			$ex_mapq = $c->{mapq}->[$rdi] if
+				defined($c->{mapq}->[$rdi]);
+			# 'mapq_map'
+			my $ex_mapq_map = undef;
+			$ex_mapq_map = $c->{mapq_map}->[$rdi] if
+				defined($c->{mapq_map}->[$rdi]);
+			# 'flags_fw'
+			my $flags_fw = undef;
+			$flags_fw = $c->{flags_fw}->[$rdi] if
+				defined($c->{flags_fw}->[$rdi]);
+			# 'flags_rc'
+			my $flags_rc = undef;
+			$flags_rc = $c->{flags_rc}->[$rdi] if
+				defined($c->{flags_rc}->[$rdi]);
+			# 'pairhits'
+			my %pairhits = ();
+			%pairhits = %{$c->{pairhits}->[$rdi]} if
+				defined($c->{pairhits}->[$rdi]);
+			# 'pairflags'
+			my %pairflags = ();
+			%pairflags = %{$c->{pairflags}->[$rdi]} if
+				defined($c->{pairflags}->[$rdi]);
+			# 'hits_are_superset'
+			my $hits_are_superset = 0;
+			$hits_are_superset = $c->{hits_are_superset}->[$rdi] if
+				defined($ci);
+			# edits
+			my $ex_edits = undef;
+			$ex_edits = $c->{edits}->[$rdi] if
+				defined($c->{edits}->[$rdi]);
+			if(!$sam) {
+				# Bowtie flags
+				if(defined($flags)) {
+					$flagstr eq $flags ||
+						die "Expected flags=\"$flags\", got \"$flagstr\"";
+				}
+				if(defined($flags_fw) && $fw) {
+					$flagstr eq $flags_fw ||
+						die "Expected flags=\"$flags_fw\", got \"$flagstr\"";
+				}
+				if(defined($flags_rc) && !$fw) {
+					$flagstr eq $flags_rc ||
+						die "Expected flags=\"$flags_rc\", got \"$flagstr\"";
+				}
+				if(defined($c->{flag_map})) {
+					if(defined($c->{flag_map}->[$rdi]->{$off})) {
+						$flagstr eq $c->{flag_map}->[$rdi]->{$off} ||
+							die "Expected flags=\"$c->{flag_map}->[$rdi]->{$off}\"".
+								" at offset $off, got \"$flagstr\"";
+					}
+				}
+			}
+			if($sam) {
+				# SAM flags
+				if(defined($ex_samflags)) {
+					$samflags eq $ex_samflags ||
+						die "Expected flags $ex_samflags, got $samflags";
+				}
+				# CIGAR string
+				if(defined($ex_cigar)) {
+					$cigar eq $ex_cigar ||
+						die "Expected CIGAR string $ex_cigar, got $cigar";
+				}
+				if(defined($ex_cigar_map)) {
+					if(defined($c->{cigar_map}->[$rdi]->{$off})) {
+						my $ex = $c->{cigar_map}->[$rdi]->{$off};
+						$cigar eq $ex || die
+							"Expected CIGAR string $ex at offset $off, got $cigar"
+					} else {
+						die "Expected to see alignment with offset $off";
+					}
+				}
+				# MAPQ
+				if(defined($ex_mapq)) {
+					$mapq eq $ex_mapq ||
+						die "Expected MAPQ $ex_mapq, got $mapq";
+				}
+				if(defined($ex_mapq_map)) {
+					if(defined($c->{mapq_map}->[$rdi]->{$off})) {
+						my $ex = $c->{mapq_map}->[$rdi]->{$off};
+						$mapq eq $ex || die
+							"Expected MAPQ string $ex at offset $off, got $mapq"
+					} else {
+						die "Expected to see alignment with offset $off";
+					}
+				}
+				# SAM optional flags
+				if(defined($ex_samoptflags)) {
+					matchSamOptionalFlags(\%samoptflags, $ex_samoptflags);
+				}
+				if(defined($c->{samoptflags_map})) {
+					if(defined($c->{samoptflags_map}->[$rdi]->{$off})) {
+						matchSamOptionalFlags(
+							\%samoptflags,
+							$c->{samoptflags_map}->[$rdi]->{$off});
+					} else {
+						die "Expected to see alignment with offset $off";
+					}
+				}
+			}
+			if($pe && $lastchr ne "") {
+				my $offkey = $lastoff.",".$off;
+				$offkey = $off.",".$lastoff if $off eq "*";
+				if($lastoff ne "*" && $off ne "*") {
+					$offkey = min($lastoff, $off).",".max($lastoff, $off);
+				}
+				if(defined($c->{pairhits}->[$rdi])) {
+					defined($pairhits{$offkey}) ||
+						die "No such paired off as $offkey in pairhits list: ".Dumper(\%pairhits)."\n";
+					$c->{pairhits}->[$rdi]->{$offkey}--;
+					delete $c->{pairhits}->[$rdi]->{$offkey} if $c->{pairhits}->[$rdi]->{$offkey} == 0;
+					%pairhits = %{$c->{pairhits}->[$rdi]};
+				}
+				($lastchr, $lastoff) = ("", -1);
+			} elsif($pe) {
+				# Found an unpaired alignment from aligning a pair
+				my $foundSe =
+					defined($c->{pairhits}->[$rdi]) &&
+					$c->{pairhits}->[$rdi]->{$off};
+				if($foundSe) {
+					$c->{pairhits}->[$rdi]->{$off}--;
+					delete $c->{pairhits}->[$rdi]->{$off}
+						if $c->{pairhits}->[$rdi]->{$off} == 0;
+					%pairhits = %{$c->{pairhits}->[$rdi]};
+				} else {
+					($lastchr, $lastoff) = ($chr, $off);
+				}
+			} else {
+				if(defined($c->{hits}->[$rdi])) {
+					defined($hits{$off}) ||
+						die "No such off as $off in hits list: ".Dumper(\%hits)."\n";
+					$c->{hits}->[$rdi]->{$off}--;
+					delete $c->{hits}->[$rdi]->{$off} if $c->{hits}->[$rdi]->{$off} == 0;
+					%hits = %{$c->{hits}->[$rdi]};
+				}
+			}
+			if(!$sam && defined($ex_edits)) {
+				my $eds = $l->[7];
+				$eds eq $ex_edits ||
+					die "For edit string, expected \"$ex_edits\" got \"$eds\"\n";
+			}
+		}
+		# Go through all the per-read 
+		my $klim = 0;
+		$klim = scalar(@{$c->{hits}}) if defined($c->{hits});
+		$klim = max($klim, scalar(@{$c->{pairhits}})) if defined($c->{pairhits});
+		for (my $k = 0; $k < $klim; $k++) {
+			# For each read
+			my %hits     = %{$c->{hits}->[$k]}     if defined($c->{hits}->[$k]);
+			my %pairhits = %{$c->{pairhits}->[$k]} if defined($c->{pairhits}->[$k]);
+			my $hits_are_superset = $c->{hits_are_superset}->[$k];
+			# Check if there are any hits left over
+			my $hitsLeft = scalar(keys %hits);
+			if($hitsLeft != 0 && !$hits_are_superset) {
+				print Dumper(\%hits);
+				die "Had $hitsLeft hit(s) left over";
+			}
+			my $pairhitsLeft = scalar(keys %pairhits);
+			if($pairhitsLeft != 0 && !$hits_are_superset) {
+				print Dumper(\%pairhits);
+				die "Had $pairhitsLeft hit(s) left over";
+			}
+		}
+		
+		$c->{hits} = $hitstmp;
+		$c->{pairhits} = $pairhitstmp;
 	}
 }
 print "PASSED\n";

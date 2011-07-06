@@ -148,7 +148,13 @@ bool SwDriver::extendSeeds(
 	int refGaps  = sc.maxRefGaps(minsc, rdlen);
 	size_t maxGaps = 0;
 	
-	size_t maxrows = (size_t)(rowmult + 0.5f);
+	size_t maxrows;
+	if(rowmult == std::numeric_limits<float>::max()) {
+		maxrows = std::numeric_limits<size_t>::max();
+	} else {
+		maxrows = (size_t)(rowmult + 0.5f);
+	}
+	assert_gt(maxrows, 0);
 
 	DynProgFramer dpframe(!gReportOverhangs);
 	swa.reset();
@@ -176,7 +182,14 @@ bool SwDriver::extendSeeds(
 	// the second iteration, resolve entries for which the offset is
 	// unknown and try SWs.
 	const size_t nonz = sh.nonzeroOffsets();
-	float possf = posmin + posfrac * (nonz-posmin) + 0.5f;
+	float possf;
+	if(posfrac == std::numeric_limits<float>::max() ||
+	   posmin  == std::numeric_limits<float>::max())
+	{
+		possf = (float)nonz;
+	} else {
+		possf = posmin + posfrac * (nonz-posmin) + 0.5f;
+	}
 	possf = max(possf, 1.0f);
 	possf = min(possf, (float)nonz);
 	const size_t poss = (size_t)possf;
@@ -594,6 +607,11 @@ bool SwDriver::extendSeedsPaired(
 {
 	typedef std::pair<uint32_t, uint32_t> U32Pair;
 
+	//cerr << "Entered extendSeedsPaired with "
+	//     << "A=" << rnd.currentA()
+	//	 << ", C=" << rnd.currentC()
+	//	 << ", last=" << rnd.currentLast() << endl;
+
 	assert(!reportImmediately || msink != NULL);
 	assert(!reportImmediately || !msink->maxed());
 	assert(!msink->state().doneWithMate(anchor1));
@@ -615,7 +633,14 @@ bool SwDriver::extendSeedsPaired(
 	int orefGaps  = sc.maxRefGaps (ominsc, ordlen);
 	size_t omaxGaps = 0;
 
-	size_t maxrows = (size_t)(rowmult + 0.5f);
+	size_t maxrows;
+	if(rowmult == std::numeric_limits<float>::max()) {
+		maxrows = std::numeric_limits<size_t>::max();
+	} else {
+		maxrows = (size_t)(rowmult + 0.5f);
+	}
+	assert_gt(maxrows, 0);
+	//std::cerr << "rowmult=" << rowmult << ", maxrows=" << maxrows << std::endl;
 
 	const size_t rows   = rdlen  + (color ? 1 : 0);
 	const size_t orows  = ordlen + (color ? 1 : 0);
@@ -641,18 +666,31 @@ bool SwDriver::extendSeedsPaired(
 		rnd,          // pseudo-random generator
 		wlm);         // group walk left metrics
 
+	//cerr << "Back from setUpSaRangeState"
+	//	 << " with A=" << rnd.currentA() << ", C=" << rnd.currentC()
+	//	 << ", last=" << rnd.currentLast() << endl;
+	
 	// Iterate twice through levels seed hits from the lowest ranked
 	// level to the highest ranked.  On the first iteration, look for
 	// entries for which the offset is already known and try SWs.  On
 	// the second iteration, resolve entries for which the offset is
 	// unknown and try SWs.
 	const size_t nonz = sh.nonzeroOffsets();
-	float possf = posmin + posfrac * (nonz-posmin) + 0.5f;
+	float possf;
+	if(posfrac == std::numeric_limits<float>::max() ||
+	   posmin  == std::numeric_limits<float>::max())
+	{
+		possf = (float)nonz;
+	} else {
+		possf = posmin + posfrac * (nonz-posmin) + 0.5f;
+	}
 	possf = max(possf, 1.0f);
 	possf = min(possf, (float)nonz);
 	const size_t poss = (size_t)possf;
 	for(size_t i = 0; i < poss; i++) {
-		// cerr << "Trying position " << i << " in " << rd.name << endl;
+		//cerr << "Trying position " << i << " in " << rd.name
+		//     << " with A=" << rnd.currentA() << ", C=" << rnd.currentC()
+		//	 << ", last=" << rnd.currentLast() << endl;
 		bool fw = true;
 		uint32_t offidx = 0, rdoff = 0, seedlen = 0;
 		// TODO: Right now we take a QVal and then investigate it until it's
@@ -694,7 +732,7 @@ bool SwDriver::extendSeedsPaired(
 				// isn't valid
 				continue;
 			}
-			// cerr << "  at " << tidx << ":" << toff << endl;
+			//cerr << "  at " << tidx << ":" << toff << endl;
 			// Find offset of alignment's upstream base assuming net gaps=0
 			// between beginning of read and beginning of seed hit
 			int64_t refoff = (int64_t)toff - rdoff;
@@ -703,7 +741,7 @@ bool SwDriver::extendSeedsPaired(
 			Coord refcoord(tidx, refoff, fw);
 			if(seenDiags.locusPresent(refcoord)) {
 				// Already handled alignments seeded on this diagonal
-				// cerr << "  skipping b/c diagonal was handled" << endl;
+				cerr << "  skipping b/c diagonal was handled" << endl;
 				swmSeed.rshit++;
 				continue;
 			}
@@ -800,7 +838,7 @@ bool SwDriver::extendSeedsPaired(
 			// resolutions.
 			wlm.refscanhits += sscan_.hits().size();
 			pastedRefoff += nsInLeftShift;
-			// cerr << "  initialized DP ref, got " << sscan_.hits().size()
+			//cerr << "  initialized DP ref, got " << sscan_.hits().size()
 			//     << " seed scan hits." << endl;
 			for(size_t j = 0; j < sscan_.hits().size(); j++) {
 				// Get identifier for the appropriate combiner
@@ -850,11 +888,11 @@ bool SwDriver::extendSeedsPaired(
 			// For each anchor alignment we pull out of the dynamic programming
 			// problem...
 			while(true) {
-				// cerr << "  trying another DP" << endl;
+				//cerr << "  trying another DP" << endl;
 				res_.reset();
 				assert(res_.empty());
 				if(swa.done()) {
-					// cerr << "  DONE" << endl;
+					//cerr << "  DONE" << endl;
 					break;
 				}
 				swa.nextAlignment(res_, rnd);
@@ -862,7 +900,7 @@ bool SwDriver::extendSeedsPaired(
 				if(!found) {
 					// Could not extend the seed hit into a full alignment for
 					// the anchor mate
-					// cerr << "  DONE after call to nextAlignment" << endl;
+					//cerr << "  DONE after call to nextAlignment" << endl;
 					break;
 				}
 				assert(res_.alres.matchesRef(
@@ -874,20 +912,14 @@ bool SwDriver::extendSeedsPaired(
 					raw_refbuf_,
 					raw_destU32_,
 					raw_matches_));
-
-				// User specified that alignments overhanging ends of reference
-				// should be excluded...
 				Interval refival(tidx, 0, fw, tlen);
 				assert(gReportOverhangs || refival.containsIgnoreOrient(res_.alres.refival()));
 				// Did the alignment fall entirely outside the reference?
 				if(!refival.overlapsIgnoreOrient(res_.alres.refival())) {
-					// cerr << "  skipping because it doesn't overlap ref" << endl;
 					continue;
 				}
 				// Is this alignment redundant with one we've seen previously?
 				if(redAnchor_.overlap(res_.alres)) {
-					// Redundant with an alignment we found already
-					// cerr << "  skipping because is redundant in redAnchor" << endl;
 					continue;
 				}
 				redAnchor_.add(res_.alres);
@@ -929,7 +961,7 @@ bool SwDriver::extendSeedsPaired(
 							orl,
 							orr,
 							ofw);
-						// cerr << "  result from otherMate: " << foundMate << endl;
+						//cerr << "  result from otherMate: " << foundMate << endl;
 					} else {
 						// We're no longer interested in finding additional
 						// concordant paired-end alignments so we just report this
@@ -958,7 +990,7 @@ bool SwDriver::extendSeedsPaired(
 							orefl,       // out: ref pos of upper LHS of parallelogram
 							orefr,       // out: ref pos of lower RHS of parallelogram
 							oen_);       // out: legal ending columns stored here
-						// cerr << "  result from frameFindMateRect: " << foundMate << endl;
+						//cerr << "  result from frameFindMateRect: " << foundMate << endl;
 					}
 					if(foundMate) {
 						ores_.reset();
@@ -998,9 +1030,9 @@ bool SwDriver::extendSeedsPaired(
 							onsInLeftShift);
 						// Now fill the dynamic programming matrix, return true
 						// iff there is at least one valid alignment
-						// cerr << "  aligning mate" << endl;
+						//cerr << "  aligning mate" << endl;
 						foundMate = oswa.align(rnd);
-						// cerr << "  result=" << foundMate << endl;
+						//cerr << "  result=" << foundMate << endl;
 					}
 					do {
 						ores_.reset();
@@ -1021,7 +1053,6 @@ bool SwDriver::extendSeedsPaired(
 								raw_matches_));
 						}
 						if(foundMate) {
-							// cerr << "  got mate alignment from nextAlignment" << endl;
 							// Redundant with one we've seen previously?
 							if(!redAnchor_.overlap(ores_.alres)) {
 								redAnchor_.add(ores_.alres);

@@ -251,6 +251,8 @@ static bool cellOkEnd2EndU8(
 }
 #endif
 
+#define ROWSTRIDE 4
+
 /**
  * Solve the current alignment problem using SSE instructions that operate on 16
  * unsigned 8-bit values packed into a single 128-bit register.
@@ -356,8 +358,8 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag) {
 
 	d.mat_.init(dpRows(), rff_ - rfi_, NWORDS_PER_REG);
 	const size_t colstride = d.mat_.colstride();
-	const size_t rowstride = d.mat_.rowstride();
-	assert_eq(rowstride, colstride / iter);
+	//const size_t rowstride = d.mat_.rowstride();
+	assert_eq(ROWSTRIDE, colstride / iter);
 	
 	// Initialize the H and E vectors in the first matrix column
 	__m128i *pvHTmp = d.mat_.tmpvec(0, 0);
@@ -370,8 +372,8 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag) {
 	for(size_t i = 0; i < iter; i++) {
 		_mm_store_si128(pvETmp, vlo);
 		_mm_store_si128(pvHTmp, vlo); // start high in end-to-end mode
-		pvETmp += rowstride;
-		pvHTmp += rowstride;
+		pvETmp += ROWSTRIDE;
+		pvHTmp += ROWSTRIDE;
 	}
 	// These are swapped just before the innermost loop
 	__m128i *pvHStore = d.mat_.hvec(0, 0);
@@ -414,7 +416,7 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag) {
 		vf = _mm_xor_si128(vf, vf);
 
 		// Load H vector from the final row of the previous column
-		vh = _mm_load_si128(pvHLoad + colstride - rowstride);
+		vh = _mm_load_si128(pvHLoad + colstride - ROWSTRIDE);
 		// Shift 2 bytes down so that topmost (least sig) cell gets 0
 		vh = _mm_slli_si128(vh, NBYTES_PER_WORD);
 		// Fill topmost (least sig) cell with high value
@@ -426,12 +428,12 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag) {
 			// Load cells from E, calculated previously
 			ve = _mm_load_si128(pvELoad);
 			assert_all_lt(ve, vhi);
-			pvELoad += rowstride;
+			pvELoad += ROWSTRIDE;
 			
 			// Store cells in F, calculated previously
 			vf = _mm_subs_epu8(vf, pvScore[1]); // veto some ref gap extensions
 			_mm_store_si128(pvFStore, vf);
-			pvFStore += rowstride;
+			pvFStore += ROWSTRIDE;
 			
 			// Factor in query profile (matches and mismatches)
 			vh = _mm_subs_epu8(vh, pvScore[0]);
@@ -442,7 +444,7 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag) {
 			
 			// Save the new vH values
 			_mm_store_si128(pvHStore, vh);
-			pvHStore += rowstride;
+			pvHStore += ROWSTRIDE;
 			
 			// Update vE value
 			vtmp = vh;
@@ -454,11 +456,11 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag) {
 			
 			// Load the next h value
 			vh = _mm_load_si128(pvHLoad);
-			pvHLoad += rowstride;
+			pvHLoad += ROWSTRIDE;
 			
 			// Save E values
 			_mm_store_si128(pvEStore, ve);
-			pvEStore += rowstride;
+			pvEStore += ROWSTRIDE;
 			
 			// Update vf value
 			vtmp = _mm_subs_epu8(vtmp, rfgapo);
@@ -497,21 +499,21 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag) {
 		while(cmp != 0xffff) {
 			// Store this vf
 			_mm_store_si128(pvFStore, vf);
-			pvFStore += rowstride;
+			pvFStore += ROWSTRIDE;
 			
 			// Update vh w/r/t new vf
 			vh = _mm_max_epu8(vh, vf);
 			
 			// Save vH values
 			_mm_store_si128(pvHStore, vh);
-			pvHStore += rowstride;
+			pvHStore += ROWSTRIDE;
 			
 			// Update E in case it can be improved using our new vh
 			vh = _mm_subs_epu8(vh, rdgapo);
 			vh = _mm_subs_epu8(vh, *pvScore); // veto some read gap opens
 			ve = _mm_max_epu8(ve, vh);
 			_mm_store_si128(pvEStore, ve);
-			pvEStore += rowstride;
+			pvEStore += ROWSTRIDE;
 			pvScore += 2;
 			
 			assert_lt(j, iter);
@@ -693,6 +695,63 @@ bool SwAligner::gatherCellsNucleotidesEnd2EndSseU8(TAlScore best) {
 	return !btncand_.empty();
 }
 
+#define MOVE_VEC_PTR_UP(vec, rowvec, rowelt) { \
+	if(rowvec == 0) { \
+		rowvec += d.mat_.nvecrow_; \
+		vec += d.mat_.colstride_; \
+		rowelt--; \
+	} \
+	rowvec--; \
+	vec -= ROWSTRIDE; \
+}
+
+#define MOVE_VEC_PTR_LEFT(vec, rowvec, rowelt) { vec -= d.mat_.colstride_; }
+
+#define MOVE_VEC_PTR_UPLEFT(vec, rowvec, rowelt) { \
+ 	MOVE_VEC_PTR_UP(vec, rowvec, rowelt); \
+ 	MOVE_VEC_PTR_LEFT(vec, rowvec, rowelt); \
+}
+
+#define MOVE_ALL_LEFT() { \
+	MOVE_VEC_PTR_LEFT(cur_vec, rowvec, rowelt); \
+	MOVE_VEC_PTR_LEFT(left_vec, left_rowvec, left_rowelt); \
+	MOVE_VEC_PTR_LEFT(up_vec, up_rowvec, up_rowelt); \
+	MOVE_VEC_PTR_LEFT(upleft_vec, upleft_rowvec, upleft_rowelt); \
+}
+
+#define MOVE_ALL_UP() { \
+	MOVE_VEC_PTR_UP(cur_vec, rowvec, rowelt); \
+	MOVE_VEC_PTR_UP(left_vec, left_rowvec, left_rowelt); \
+	MOVE_VEC_PTR_UP(up_vec, up_rowvec, up_rowelt); \
+	MOVE_VEC_PTR_UP(upleft_vec, upleft_rowvec, upleft_rowelt); \
+}
+
+#define MOVE_ALL_UPLEFT() { \
+	MOVE_VEC_PTR_UPLEFT(cur_vec, rowvec, rowelt); \
+	MOVE_VEC_PTR_UPLEFT(left_vec, left_rowvec, left_rowelt); \
+	MOVE_VEC_PTR_UPLEFT(up_vec, up_rowvec, up_rowelt); \
+	MOVE_VEC_PTR_UPLEFT(upleft_vec, upleft_rowvec, upleft_rowelt); \
+}
+
+#define NEW_ROW_COL(row, col) { \
+	rowelt = row / d.mat_.nvecrow_; \
+	rowvec = row % d.mat_.nvecrow_; \
+	eltvec = (col * d.mat_.colstride_) + (rowvec * ROWSTRIDE); \
+	cur_vec = d.mat_.bufal_ + eltvec; \
+	left_vec = cur_vec; \
+	left_rowelt = rowelt; \
+	left_rowvec = rowvec; \
+	MOVE_VEC_PTR_LEFT(left_vec, left_rowvec, left_rowelt); \
+	up_vec = cur_vec; \
+	up_rowelt = rowelt; \
+	up_rowvec = rowvec; \
+	MOVE_VEC_PTR_UP(up_vec, up_rowvec, up_rowelt); \
+	upleft_vec = up_vec; \
+	upleft_rowelt = up_rowelt; \
+	upleft_rowvec = up_rowvec; \
+	MOVE_VEC_PTR_LEFT(upleft_vec, upleft_rowvec, upleft_rowelt); \
+}
+
 /**
  * Given the dynamic programming table and a cell, trace backwards from the
  * cell and install the edits and score/penalty in the appropriate fields
@@ -738,7 +797,13 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseU8(
 	assert_gt(dpRows(), row);
 	size_t trimEnd = dpRows() - row - 1; 
 	size_t trimBeg = 0;
-	size_t ct = d.mat_.H; // cell type
+	size_t ct = SSEMatrix::H; // cell type
+	// Row and col in terms of where they fall in the SSE vector matrix
+	size_t rowelt, rowvec, eltvec;
+	size_t left_rowelt, up_rowelt, upleft_rowelt;
+	size_t left_rowvec, up_rowvec, upleft_rowvec;
+	__m128i *cur_vec, *left_vec, *up_vec, *upleft_vec;
+	NEW_ROW_COL(row, col);
 	while((int)row >= 0) {
 		met.btcell++;
 		nbts++;
@@ -749,22 +814,201 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseU8(
 		// Get score in this cell
 		bool empty, reportedThru, canMoveThru, branch = false;
 		int cur = SSEMatrix::H;
-		d.mat_.analyzeCell(
-			row,           // row
-			col,           // column
-			ct,            // E/F/H
-			refm,          // reference mask
-			readc,         // read character
-			readq,         // read quality
-			*sc_,          // scoring scheme
-			-0xff,         // offset to add to each matrix elt
-			floorsc_,      // local-alignment floor score
-			rand,          // rand gen for choosing among equal options
-			empty,         // out: =true iff no way to backtrace
-			cur,           // out: =type of transition
-			branch,        // out: =true iff we chose among >1 options
-			canMoveThru,   // out: =true iff ...
-			reportedThru); // out: =true iff ...
+		reportedThru = d.mat_.reportedThrough(row, col);
+		canMoveThru = true;
+		if(reportedThru) {
+			canMoveThru = false;
+		} else {
+			empty = false;
+			if(row > 0) {
+				assert_gt(row, 0);
+				size_t rowFromEnd = d.mat_.nrow() - row - 1;
+				bool gapsAllowed = true;
+				if(row < (size_t)sc_->gapbar ||
+				   rowFromEnd < (size_t)sc_->gapbar)
+				{
+					gapsAllowed = false;
+				}
+				const TAlScore floorsc = floorsc_;
+				const int offsetsc = -0xff;
+				// Move to beginning of column/row
+				if(ct == SSEMatrix::E) { // AKA rdgap
+					assert_gt(col, 0);
+					TAlScore sc_cur = ((TCScore*)(cur_vec + SSEMatrix::E))[rowelt] + offsetsc;
+					assert(gapsAllowed);
+					// Currently in the E matrix; incoming transition must come from the
+					// left.  It's either a gap open from the H matrix or a gap extend from
+					// the E matrix.
+					// TODO: save and restore origMask as well as mask
+					int origMask = 0, mask = 0;
+					// Get H score of cell to the left
+					TAlScore sc_h_left = ((TCScore*)(left_vec + SSEMatrix::H))[left_rowelt] + offsetsc;
+					if(sc_h_left > floorsc && sc_h_left - sc_->readGapOpen() == sc_cur) {
+						mask |= (1 << 0);
+					}
+					// Get E score of cell to the left
+					TAlScore sc_e_left = ((TCScore*)(left_vec + SSEMatrix::E))[left_rowelt] + offsetsc;
+					if(sc_e_left > floorsc && sc_e_left - sc_->readGapExtend() == sc_cur) {
+						mask |= (1 << 1);
+					}
+					origMask = mask;
+					assert(origMask > 0 || sc_cur <= sc_->match());
+					if(d.mat_.isEMaskSet(row, col)) {
+						mask = (d.mat_.masks_[row * d.mat_.ncol_ + col] >> 8) & 3;
+					}
+					if(mask == 3) {
+						if(rand.nextU2()) {
+							// I chose the H cell
+							cur = SW_BT_OALL_READ_OPEN;
+							d.mat_.eMaskSet(row, col, 2); // might choose E later
+						} else {
+							// I chose the E cell
+							cur = SW_BT_RDGAP_EXTEND;
+							d.mat_.eMaskSet(row, col, 1); // might choose H later
+						}
+						branch = true;
+					} else if(mask == 2) {
+						// I chose the E cell
+						cur = SW_BT_RDGAP_EXTEND;
+						d.mat_.eMaskSet(row, col, 0); // done
+					} else if(mask == 1) {
+						// I chose the H cell
+						cur = SW_BT_OALL_READ_OPEN;
+						d.mat_.eMaskSet(row, col, 0); // done
+					} else {
+						empty = true;
+						// It's empty, so the only question left is whether we should be
+						// allowed in terimnate in this cell.  If it's got a valid score
+						// then we *shouldn't* be allowed to terminate here because that
+						// means it's part of a larger alignment that was already reported.
+						canMoveThru = (origMask == 0);
+					}
+					assert(!empty || !canMoveThru);
+				} else if(ct == SSEMatrix::F) { // AKA rfgap
+					assert_gt(row, 0);
+					assert(gapsAllowed);
+					TAlScore sc_h_up = ((TCScore*)(up_vec  + SSEMatrix::H))[up_rowelt] + offsetsc;
+					TAlScore sc_f_up = ((TCScore*)(up_vec  + SSEMatrix::F))[up_rowelt] + offsetsc;
+					TAlScore sc_cur  = ((TCScore*)(cur_vec + SSEMatrix::F))[rowelt] + offsetsc;
+					// Currently in the F matrix; incoming transition must come from above.
+					// It's either a gap open from the H matrix or a gap extend from the F
+					// matrix.
+					// TODO: save and restore origMask as well as mask
+					int origMask = 0, mask = 0;
+					// Get H score of cell above
+					if(sc_h_up > floorsc && sc_h_up - sc_->refGapOpen() == sc_cur) {
+						mask |= (1 << 0);
+					}
+					// Get F score of cell above
+					if(sc_f_up > floorsc && sc_f_up - sc_->refGapExtend() == sc_cur) {
+						mask |= (1 << 1);
+					}
+					origMask = mask;
+					assert(origMask > 0 || sc_cur <= sc_->match());
+					if(d.mat_.isFMaskSet(row, col)) {
+						mask = (d.mat_.masks_[row * d.mat_.ncol_ + col] >> 11) & 3;
+					}
+					if(mask == 3) {
+						if(rand.nextU2()) {
+							// I chose the H cell
+							cur = SW_BT_OALL_REF_OPEN;
+							d.mat_.fMaskSet(row, col, 2); // might choose E later
+						} else {
+							// I chose the F cell
+							cur = SW_BT_RFGAP_EXTEND;
+							d.mat_.fMaskSet(row, col, 1); // might choose E later
+						}
+						branch = true;
+					} else if(mask == 2) {
+						// I chose the F cell
+						cur = SW_BT_RFGAP_EXTEND;
+						d.mat_.fMaskSet(row, col, 0); // done
+					} else if(mask == 1) {
+						// I chose the H cell
+						cur = SW_BT_OALL_REF_OPEN;
+						d.mat_.fMaskSet(row, col, 0); // done
+					} else {
+						empty = true;
+						// It's empty, so the only question left is whether we should be
+						// allowed in terimnate in this cell.  If it's got a valid score
+						// then we *shouldn't* be allowed to terminate here because that
+						// means it's part of a larger alignment that was already reported.
+						canMoveThru = (origMask == 0);
+					}
+					assert(!empty || !canMoveThru);
+				} else {
+					assert_eq(SSEMatrix::H, ct);
+					TAlScore sc_cur      = ((TCScore*)(cur_vec + SSEMatrix::H))[rowelt]    + offsetsc;
+					TAlScore sc_f_up     = ((TCScore*)(up_vec  + SSEMatrix::F))[up_rowelt] + offsetsc;
+					TAlScore sc_h_up     = ((TCScore*)(up_vec  + SSEMatrix::H))[up_rowelt] + offsetsc;
+					TAlScore sc_h_left   = col > 0 ? (((TCScore*)(left_vec   + SSEMatrix::H))[left_rowelt]   + offsetsc) : floorsc;
+					TAlScore sc_e_left   = col > 0 ? (((TCScore*)(left_vec   + SSEMatrix::E))[left_rowelt]   + offsetsc) : floorsc;
+					TAlScore sc_h_upleft = col > 0 ? (((TCScore*)(upleft_vec + SSEMatrix::H))[upleft_rowelt] + offsetsc) : floorsc;
+					TAlScore sc_diag     = sc_->score(readc, refm, readq - 33);
+					// TODO: save and restore origMask as well as mask
+					int origMask = 0, mask = 0;
+					if(gapsAllowed) {
+						if(sc_h_up     > floorsc && sc_cur == sc_h_up   - sc_->refGapOpen()) {
+							mask |= (1 << 0);
+						}
+						if(sc_h_left   > floorsc && sc_cur == sc_h_left - sc_->readGapOpen()) {
+							mask |= (1 << 1);
+						}
+						if(sc_f_up     > floorsc && sc_cur == sc_f_up   - sc_->refGapExtend()) {
+							mask |= (1 << 2);
+						}
+						if(sc_e_left   > floorsc && sc_cur == sc_e_left - sc_->readGapExtend()) {
+							mask |= (1 << 3);
+						}
+					}
+					if(sc_h_upleft > floorsc && sc_cur == sc_h_upleft + sc_diag) {
+						mask |= (1 << 4);
+					}
+					origMask = mask;
+					assert(origMask > 0 || sc_cur <= sc_->match());
+					if(d.mat_.isHMaskSet(row, col)) {
+						mask = (d.mat_.masks_[row * d.mat_.ncol_ + col] >> 2) & 31;
+					}
+					assert(gapsAllowed || mask == (1 << 4) || mask == 0);
+					int opts = alts5[mask];
+					int select = -1;
+					if(opts == 1) {
+						select = firsts5[mask];
+						assert_geq(mask, 0);
+						d.mat_.hMaskSet(row, col, 0);
+					} else if(opts > 1) {
+						select = randFromMask(rand, mask);
+						assert_geq(mask, 0);
+						mask &= ~(1 << select);
+						assert(gapsAllowed || mask == (1 << 4) || mask == 0);
+						d.mat_.hMaskSet(row, col, mask);
+						branch = true;
+					} else { /* No way to backtrack! */ }
+					if(select != -1) {
+						if(select == 4) {
+							cur = SW_BT_OALL_DIAG;
+						} else if(select == 0) {
+							cur = SW_BT_OALL_REF_OPEN;
+						} else if(select == 1) {
+							cur = SW_BT_OALL_READ_OPEN;
+						} else if(select == 2) {
+							cur = SW_BT_RFGAP_EXTEND;
+						} else {
+							assert_eq(3, select)
+							cur = SW_BT_RDGAP_EXTEND;
+						}
+					} else {
+						empty = true;
+						// It's empty, so the only question left is whether we should be
+						// allowed in terimnate in this cell.  If it's got a valid score
+						// then we *shouldn't* be allowed to terminate here because that
+						// means it's part of a larger alignment that was already reported.
+						canMoveThru = (origMask == 0);
+					}
+				}
+				assert(!empty || !canMoveThru || ct == SSEMatrix::H);
+			}
+		}
 		d.mat_.setReportedThrough(row, col);
 		assert_eq(gaps, Edit::numGaps(ned));
 		assert_leq(gaps, rdgap_ + rfgap_);
@@ -786,6 +1030,7 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseU8(
 				ct       = btnstack_.back().ct;
 				btnstack_.pop_back();
 				assert(!sc_->monotone || score.score() >= escore);
+				NEW_ROW_COL(row, col);
 				continue;
 			} else {
 				// No branch points to revisit; just give up
@@ -858,6 +1103,7 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseU8(
 					score.ns_++;
 				}
 				row--; col--;
+				MOVE_ALL_UPLEFT();
 				assert(VALID_AL_SCORE(score));
 				break;
 			}
@@ -883,6 +1129,7 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseU8(
 				gaps++; refGaps++;
 				assert_eq(gaps, Edit::numGaps(ned));
 				assert_leq(gaps, rdgap_ + rfgap_);
+				MOVE_ALL_UP();
 				break;
 			}
 			// Move up.  Add an edit encoding the ref gap.
@@ -907,6 +1154,7 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseU8(
 				gaps++; refGaps++;
 				assert_eq(gaps, Edit::numGaps(ned));
 				assert_leq(gaps, rdgap_ + rfgap_);
+				MOVE_ALL_UP();
 				break;
 			}
 			case SW_BT_OALL_READ_OPEN:
@@ -930,6 +1178,7 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseU8(
 				gaps++; readGaps++;
 				assert_eq(gaps, Edit::numGaps(ned));
 				assert_leq(gaps, rdgap_ + rfgap_);
+				MOVE_ALL_LEFT();
 				break;
 			}
 			case SW_BT_RDGAP_EXTEND:
@@ -953,6 +1202,7 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseU8(
 				gaps++; readGaps++;
 				assert_eq(gaps, Edit::numGaps(ned));
 				assert_leq(gaps, rdgap_ + rfgap_);
+				MOVE_ALL_LEFT();
 				break;
 			}
 			default: throw 1;

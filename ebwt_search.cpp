@@ -156,6 +156,7 @@ static bool sam_print_md;
 static bool sam_print_ym;
 static bool sam_print_yp;
 static bool sam_print_yt;
+static bool sam_print_ys;
 bool gColor;     // true -> inputs are colorspace
 bool gColorExEnds; // true -> nucleotides on either end of decoded cspace alignment should be excluded
 bool gReportOverhangs; // false -> filter out alignments that fall off the end of a reference sequence
@@ -266,7 +267,7 @@ static void resetOptions() {
 	maxBtsBetter			= 125; // max # backtracks allowed in half-and-half mode
 	maxBts					= 800; // max # backtracks allowed in half-and-half mode
 	nthreads				= 1;     // number of pthreads operating concurrently
-	outType					= OUTPUT_FULL;  // style of output
+	outType					= OUTPUT_SAM;  // style of output
 	numRandomReads			= 50000000; // # random reads (see Random*PatternSource in pat.h)
 	lenRandomReads			= 35;    // len of random reads (see Random*PatternSource in pat.h)
 	noRefNames				= false; // true -> print reference indexes; not names
@@ -274,7 +275,7 @@ static void resetOptions() {
 	dumpUnalBase			= "";    // basename of same-format files to dump unaligned reads to
 	dumpMaxBase				= "";    // basename of same-format files to dump reads with more than -m valid alignments to
 	khits					= 1;     // number of hits per read; >1 is much slower
-	mhits					= 0xffffffff; // don't report any hits if there are > mhits
+	mhits					= 0;     // don't report any hits if there are > mhits
 	strata					= false; // true -> don't stop at stratum boundaries
 	partitionSz				= 0;     // output a partitioning key in first field
 	gNoMaqRound				= false; // true -> don't round quals to nearest 10 like maq
@@ -338,6 +339,7 @@ static void resetOptions() {
 	sam_print_ym            = true;
 	sam_print_yp            = true;
 	sam_print_yt            = true;
+	sam_print_ys            = true;
 	gColor					= false; // don't align in colorspace by default
 	gColorExEnds			= true;  // true -> nucleotides on either end of decoded cspace alignment should be excluded
 	gReportOverhangs        = false; // false -> filter out alignments that fall off the end of a reference sequence
@@ -601,7 +603,7 @@ static struct option long_options[] = {
 	{(char*)"fuzzy",        no_argument,       0,            ARG_FUZZY},
 	{(char*)"fullref",      no_argument,       0,            ARG_FULLREF},
 	{(char*)"usage",        no_argument,       0,            ARG_USAGE},
-	{(char*)"sam",          no_argument,       0,            'S'},
+	//{(char*)"sam",          no_argument,       0,            'S'},
 	{(char*)"gaps",         no_argument,       0,            'g'},
 	{(char*)"sam-nohead",   no_argument,       0,            ARG_SAM_NOHEAD},
 	{(char*)"sam-nosq",     no_argument,       0,            ARG_SAM_NOSQ},
@@ -661,9 +663,7 @@ static void printUsage(ostream& out) {
 	    << "          sequences themselves, if -c is set.  Specify \"-\" for stdin." << endl
 	    << "  <hit>   File to write hits to (default: stdout)" << endl
 	    << "Key missing features:" << endl
-	    << "  - No paired-end support" << endl
 	    << "  - No colorspace support" << endl
-	    << "  - No SAM output support" << endl
 	    << "Input:" << endl
 	    << "  -q                 query input files are FASTQ .fq/.fastq (default)" << endl
 	    << "  -f                 query input files are (multi-)FASTA .fa/.mfa" << endl
@@ -803,8 +803,7 @@ static void printUsage(ostream& out) {
 	    << "  --col-cseq         print aligned colorspace seqs as colors, not decoded bases" << endl
 	    << "  --col-cqual        print original colorspace quals, not decoded quals" << endl
 	    << "  --col-keepends     keep nucleotides at extreme ends of decoded alignment" << endl
-	    << "SAM:" << endl
-	    << "  -S/--sam           write hits in SAM format" << endl
+	    << "SAM output:" << endl
 	    << "  --mapq <int>       default mapping quality (MAPQ) to print for SAM alignments" << endl
 	    << "  --sam-nohead       supppress header lines (starting with @) for SAM output" << endl
 	    << "  --sam-nosq         supppress @SQ header lines for SAM output" << endl
@@ -964,7 +963,6 @@ static void parseOptions(int argc, const char **argv) {
 			case ARG_RANGE: gRangeMode = true; break;
 			case ARG_CONCISE: outType = OUTPUT_CONCISE; break;
 			case ARG_CHAINOUT: outType = OUTPUT_CHAIN; break;
-			case 'S': outType = OUTPUT_SAM; break;
 			case ARG_NOOUT: outType = OUTPUT_NONE; break;
 			case ARG_REFMAP: refMapFile = optarg; break;
 			case ARG_ANNOTMAP: annotMapFile = optarg; break;
@@ -2722,6 +2720,12 @@ static void* multiseedSearchWorker(void *vp) {
 		gReportDiscordant, // report discordang paired-end alignments?
 		gReportMixed);     // report unpaired alignments for paired reads?
 	
+	float myPosmin  = posmin;
+	float myPosfrac = posfrac;
+	float myRowmin  = rowmin;
+	float myRowmult = rowmult;
+	rp.boostThresholds(myPosmin, myPosfrac, myRowmin, myRowmult);
+	
 	// Make a per-thread wrapper for the global MHitSink object.
 	AlnSinkWrap msinkwrap(msink, rp);
 
@@ -3014,15 +3018,18 @@ static void* multiseedSearchWorker(void *vp) {
 						&seedHitSink,     // send seed hits to this sink
 						&seedCounterSink, // send counter summary for each seed to this sink
 						&seedActionSink); // send search action list for each read to this sink
+					//cerr << "Seed hits:" << endl;
 					assert_eq(0, sdm.ooms);
 					assert(shs[mate].repOk(&ca.current()));
 					if(!seedSummaryOnly) {
 						// If there aren't any seed hits...
 						if(shs[mate].empty()) {
+							//cerr << "Skipping SeedResults b/c it's empty" << endl;
 							continue; // on to the next mate
 						}
 						// Sort seed hits into ranks
 						shs[mate].rankSeedHits(rnd);
+						//shs[mate].printSummary(cerr);
 						int nceil = (int)sc.nCeil(rdlens[mate]);
 						bool done = false;
 						if(pair) {
@@ -3051,10 +3058,10 @@ static void* multiseedSearchWorker(void *vp) {
 								onceil,         // N ceil for opp.
 								nofw,           // don't align forward read
 								norc,           // don't align revcomp read
-								posmin,         // min # seed poss to try
-								posfrac,        // max seed poss to try
-								rowmin,         // min extensions
-								rowmult,        // max extensions per pos
+								myPosmin,         // min # seed poss to try
+								myPosfrac,        // max seed poss to try
+								myRowmin,         // min extensions
+								myRowmult,        // max extensions per pos
 								maxhalf,        // max width on one DP side
 								scanNarrowed,   // ref scan narrowed seed hits?
 								ca,             // seed alignment cache
@@ -3087,10 +3094,10 @@ static void* multiseedSearchWorker(void *vp) {
 								minsc[mate],    // minimum score for valid
 								floorsc[mate],  // floor score
 								nceil,          // N ceil for anchor
-								posmin,         // min # seed poss to try
-								posfrac,        // additional seed poss to try
-								rowmin,         // min extensions
-								rowmult,        // max extensions per pos
+								myPosmin,         // min # seed poss to try
+								myPosfrac,        // additional seed poss to try
+								myRowmin,         // min extensions
+								myRowmult,        // max extensions per pos
 								maxhalf,        // max width on one DP side
 								scanNarrowed,   // ref scan narrowed seed hits?
 								ca,             // seed alignment cache
@@ -3652,7 +3659,8 @@ static void driver(
 			sam_print_md,
 			sam_print_ym,
 			sam_print_yp,
-			sam_print_yt);
+			sam_print_yt,
+			sam_print_ys);
 		switch(outType) {
 			case OUTPUT_FULL: {
 				sink = new VerboseHitSink(

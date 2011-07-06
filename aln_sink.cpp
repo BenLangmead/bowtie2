@@ -64,13 +64,15 @@ bool ReportingState::foundConcordant() {
 	doneDiscord_ = true;
 	exitDiscord_ = ReportingState::EXIT_SHORT_CIRCUIT_TRUMPED;
 	if(doneConcord_) {
-		// TODO: If we're finished looking for concordant alignments, do we
-		// have to continue on to search for unpaired alignments?  Only if
-		// our exit from the concordant stage is EXIT_SHORT_CIRCUIT_m.  If
-		// it's EXIT_SHORT_CIRCUIT_k or EXIT_SHORT_CIRCUIT_M or
+		// If we're finished looking for concordant alignments, do we have to
+		// continue on to search for unpaired alignments?  Only if our exit
+		// from the concordant stage is EXIT_SHORT_CIRCUIT_m or
+		// EXIT_SHORT_CIRCUIT_M.  If it's EXIT_SHORT_CIRCUIT_k or
 		// EXIT_WITH_ALIGNMENTS, we can skip unpaired.
 		assert_neq(ReportingState::EXIT_NO_ALIGNMENTS, exitConcord_);
-		if(exitConcord_ != ReportingState::EXIT_SHORT_CIRCUIT_m) {
+		if(exitConcord_ != ReportingState::EXIT_SHORT_CIRCUIT_m &&
+		   exitConcord_ != ReportingState::EXIT_SHORT_CIRCUIT_M)
+		{
 			if(!doneUnpair1_) {
 				doneUnpair1_ = true;
 				exitUnpair1_ = ReportingState::EXIT_SHORT_CIRCUIT_TRUMPED;
@@ -113,8 +115,8 @@ bool ReportingState::foundDiscordant() {
 }
 
 /**
- * Caller uses this member function to indicate that one additional
- * discordant alignment has been found.
+ * Caller uses this member function to indicate that one additional unpaired
+ * mate alignment has been found for the specified mate.
  */
 bool ReportingState::foundUnpaired(bool mate1) {
 	assert_gt(state_, ReportingState::NO_READ);
@@ -125,38 +127,28 @@ bool ReportingState::foundUnpaired(bool mate1) {
 		// Did we just finish with this mate?
 		if(!doneUnpair1_) {
 			areDone(nunpair1_, doneUnpair1_, exitUnpair1_);
-			if(nunpair1_ > 1 || nunpair2_ > 1) {
-				doneDiscord_ = true;
-				exitDiscord_ = ReportingState::EXIT_NO_ALIGNMENTS;
-			}
 			if(doneUnpair1_) {
 				doneUnpair_ = doneUnpair1_ && doneUnpair2_;
 				updateDone();
 			}
-		} else {
-			// If we've already ruled out reporting unpaired alignments for
-			// this mate, then this discovery must be in aid of finding
-			// paired-end alignments.
-			assert(!doneConcord_ || !doneDiscord_);
+		}
+		if(nunpair1_ > 1) {
+			doneDiscord_ = true;
+			exitDiscord_ = ReportingState::EXIT_NO_ALIGNMENTS;
 		}
 	} else {
 		nunpair2_++;
 		// Did we just finish with this mate?
 		if(!doneUnpair2_) {
 			areDone(nunpair2_, doneUnpair2_, exitUnpair2_);
-			if(nunpair1_ > 1 || nunpair2_ > 1) {
-				doneDiscord_ = true;
-				exitDiscord_ = ReportingState::EXIT_NO_ALIGNMENTS;
-			}
 			if(doneUnpair2_) {
 				doneUnpair_ = doneUnpair1_ && doneUnpair2_;
 				updateDone();
 			}
-		} else {
-			// If we've already ruled out reporting unpaired alignments for
-			// this mate, then this discovery must be in aid of finding
-			// paired-end alignments.
-			assert(!doneConcord_ || !doneDiscord_);
+		}
+		if(nunpair2_ > 1) {
+			doneDiscord_ = true;
+			exitDiscord_ = ReportingState::EXIT_NO_ALIGNMENTS;
 		}
 	}
 	return done();
@@ -254,6 +246,11 @@ void ReportingState::getReport(
 			assert(p_.msample);
 			assert_gt(nconcord_, 0);
 			pairMax = true;  // repetitive concordant alignments
+			if(p_.mixed) {
+				unpair1Max = nunpair1_ > (uint64_t)p_.mhits;
+				unpair2Max = nunpair2_ > (uint64_t)p_.mhits;
+			}
+			// Not sure if this is OK
 			nconcordAln = 1; // 1 at random
 			return;
 		} else if(exitConcord_ == ReportingState::EXIT_WITH_ALIGNMENTS) {
@@ -262,9 +259,14 @@ void ReportingState::getReport(
 			nconcordAln = min<uint64_t>(nconcord_, p_.khits);
 			return;
 		}
+		
 		if(exitConcord_ == ReportingState::EXIT_SHORT_CIRCUIT_m) {
 			assert(!p_.msample);
 			pairMax = true;  // repetitive concordant alignments
+			if(p_.mixed) {
+				unpair1Max = nunpair1_ > (uint64_t)p_.mhits;
+				unpair2Max = nunpair2_ > (uint64_t)p_.mhits;
+			}
 		} else {
 			assert(!p_.mhitsSet() || nconcord_ <= (uint64_t)p_.mhits+1);
 		}
@@ -611,11 +613,23 @@ void AlnSinkWrap::finishRead(
 		assert(!unpair2Max || rs2u_.size() >= (uint64_t)rp_.mhits);
 		// Report concordant paired-end alignments if possible
 		if(nconcord > 0) {
+			// TODO: what if pairMax is true?
 			AlnSetSumm concordSumm(rd1_, rd2_, &rs1_, &rs2_);
-			AlnFlags flags(ALN_FLAG_PAIR_CONCORD, pairMax, pairMax);
+			AlnFlags flags1(
+				ALN_FLAG_PAIR_CONCORD,
+				st_.params().mhitsSet(),
+				unpair1Max,
+				pairMax,
+				st_.params().mixed);
+			AlnFlags flags2(
+				ALN_FLAG_PAIR_CONCORD,
+				st_.params().mhitsSet(),
+				unpair2Max,
+				pairMax,
+				st_.params().mixed);
 			for(size_t i = 0; i < rs1_.size(); i++) {
-				rs1_[i].setMateParams(ALN_RES_TYPE_MATE1, &rs2_[i], flags);
-				rs2_[i].setMateParams(ALN_RES_TYPE_MATE2, &rs1_[i], flags);
+				rs1_[i].setMateParams(ALN_RES_TYPE_MATE1, &rs2_[i], flags1);
+				rs2_[i].setMateParams(ALN_RES_TYPE_MATE2, &rs1_[i], flags2);
 				assert_eq(rs1_[i].fragmentLength(), rs2_[i].fragmentLength());
 			}
 			// Possibly select a random subset
@@ -629,7 +643,8 @@ void AlnSinkWrap::finishRead(
 				&rs2_,
 				pairMax,
 				concordSumm,
-				flags);
+				&flags1,
+				&flags2);
 			met.al_concord++;
 		}
 		// Report concordant paired-end alignments if possible
@@ -639,10 +654,21 @@ void AlnSinkWrap::finishRead(
 			assert_eq(1, rs1_.size());
 			assert_eq(1, rs2_.size());
 			AlnSetSumm discordSumm(rd1_, rd2_, &rs1_, &rs2_);
-			AlnFlags flags(ALN_FLAG_PAIR_DISCORD, false, pairMax);
+			AlnFlags flags1(
+				ALN_FLAG_PAIR_DISCORD,
+				st_.params().mhitsSet(),
+				false,
+				pairMax,
+				st_.params().mixed);
+			AlnFlags flags2(
+				ALN_FLAG_PAIR_DISCORD,
+				st_.params().mhitsSet(),
+				false,
+				pairMax,
+				st_.params().mixed);
 			for(size_t i = 0; i < rs1_.size(); i++) {
-				rs1_[i].setMateParams(ALN_RES_TYPE_MATE1, &rs2_[i], flags);
-				rs2_[i].setMateParams(ALN_RES_TYPE_MATE2, &rs1_[i], flags);
+				rs1_[i].setMateParams(ALN_RES_TYPE_MATE1, &rs2_[i], flags1);
+				rs2_[i].setMateParams(ALN_RES_TYPE_MATE2, &rs1_[i], flags2);
 				assert_eq(rs1_[i].fragmentLength(), rs2_[i].fragmentLength());
 			}
 			selectAlnsToReport(rs1_, ndiscord, select_, rnd);
@@ -655,7 +681,8 @@ void AlnSinkWrap::finishRead(
 				&rs2_,
 				pairMax,
 				discordSumm,
-				flags);
+				&flags1,
+				&flags2);
 			met.al_discord++;
 		}
 		// Report unpaired alignments if possbile
@@ -677,8 +704,10 @@ void AlnSinkWrap::finishRead(
 						readIsPair() ?
 							ALN_FLAG_PAIR_UNPAIRED_FROM_PAIR :
 							ALN_FLAG_PAIR_UNPAIRED,
+						st_.params().mhitsSet(),
 						unpair1Max,
-						pairMax);
+						pairMax,
+						st_.params().mixed);
 					for(size_t i = 0; i < rs1u_.size(); i++) {
 						rs1u_[i].setMateParams(ALN_RES_TYPE_UNPAIRED, NULL, flags);
 					}
@@ -692,23 +721,26 @@ void AlnSinkWrap::finishRead(
 						NULL,
 						unpair1Max,
 						unpair1Summ,
-						flags);
+						&flags,
+						NULL);
 					met.al++;
 				} else if(unpair1Max) {
 					assert(!rs1u_.empty());
 					AlnSetSumm unpair1Summ(rd1_, NULL, &rs1u_, NULL);
 					int fl;
 					if(readIsPair()) {
-						fl = pairMax ?
-							ALN_FLAG_PAIR_CONCORD :
+						fl = //pairMax ?
+							//ALN_FLAG_PAIR_CONCORD :
 							ALN_FLAG_PAIR_UNPAIRED_FROM_PAIR;
 					} else {
 						fl = ALN_FLAG_PAIR_UNPAIRED;
 					}
 					AlnFlags flags(
 						fl,
+						st_.params().mhitsSet(),
 						unpair1Max,
-						pairMax);
+						pairMax,
+						st_.params().mixed);
 					for(size_t i = 0; i < rs1u_.size(); i++) {
 						rs1u_[i].setMateParams(
 							pairMax ?
@@ -724,7 +756,8 @@ void AlnSinkWrap::finishRead(
 						&rs1u_,
 						NULL,
 						unpair1Summ,
-						flags);
+						&flags,
+						NULL);
 					met.max++;
 				} else {
 					AlnSetSumm summ(rd1_, NULL, NULL, NULL);
@@ -732,21 +765,32 @@ void AlnSinkWrap::finishRead(
 						readIsPair() ?
 							ALN_FLAG_PAIR_UNPAIRED_FROM_PAIR :
 							ALN_FLAG_PAIR_UNPAIRED,
+						st_.params().mhitsSet(),
 						false,
-						false);
-					g_.reportUnaligned(rd1_, NULL, rdid_, summ, flags, true);
+						false,
+						st_.params().mixed);
+					g_.reportUnaligned(
+						rd1_,
+						NULL,
+						rdid_,
+						summ,
+						&flags,
+						NULL,
+						true);
 					met.unal++;
 				}
 			}
 			if(rd2_ != NULL) {
 				if(nunpair2 > 0) {
-					AlnSetSumm unpair2Summ(rd2_, NULL, &rs2u_, NULL);
+					AlnSetSumm unpair2Summ(NULL, rd2_, NULL, &rs2u_);
 					AlnFlags flags(
 						readIsPair() ?
 							ALN_FLAG_PAIR_UNPAIRED_FROM_PAIR :
 							ALN_FLAG_PAIR_UNPAIRED,
+						st_.params().mhitsSet(),
 						unpair2Max,
-						pairMax);
+						pairMax,
+						st_.params().mixed);
 					for(size_t i = 0; i < rs2u_.size(); i++) {
 						rs2u_[i].setMateParams(ALN_RES_TYPE_UNPAIRED, NULL, flags);
 					}
@@ -760,23 +804,26 @@ void AlnSinkWrap::finishRead(
 						NULL,
 						unpair2Max,
 						unpair2Summ,
-						flags);
+						&flags,
+						NULL);
 					met.al++;
 				} else if(unpair2Max) {
 					assert(!rs2u_.empty());
-					AlnSetSumm unpair2Summ(rd2_, NULL, &rs2u_, NULL);
+					AlnSetSumm unpair2Summ(NULL, rd2_, NULL, &rs2u_);
 					int fl;
 					if(readIsPair()) {
-						fl = pairMax ?
-							ALN_FLAG_PAIR_CONCORD :
+						fl = //pairMax ?
+							//ALN_FLAG_PAIR_CONCORD :
 							ALN_FLAG_PAIR_UNPAIRED_FROM_PAIR;
 					} else {
 						fl = ALN_FLAG_PAIR_UNPAIRED;
 					}
 					AlnFlags flags(
 						fl,
+						st_.params().mhitsSet(),
 						unpair2Max,
-						pairMax);
+						pairMax,
+						st_.params().mixed);
 					for(size_t i = 0; i < rs2u_.size(); i++) {
 						rs2u_[i].setMateParams(
 							pairMax ?
@@ -792,17 +839,27 @@ void AlnSinkWrap::finishRead(
 						&rs2u_,
 						NULL,
 						unpair2Summ,
-						flags);
+						&flags,
+						NULL);
 					met.max++;
 				} else {
-					AlnSetSumm summ(rd2_, NULL, NULL, NULL);
+					AlnSetSumm summ(NULL, rd2_, NULL, NULL);
 					AlnFlags flags(
 						readIsPair() ?
 							ALN_FLAG_PAIR_UNPAIRED_FROM_PAIR :
 							ALN_FLAG_PAIR_UNPAIRED,
+						st_.params().mhitsSet(),
 						false,
-						false);
-					g_.reportUnaligned(rd2_, NULL, rdid_, summ, flags, true);
+						false,
+						st_.params().mixed);
+					g_.reportUnaligned(
+						rd2_,
+						NULL,
+						rdid_,
+						summ,
+						&flags,
+						NULL,
+						true);
 					met.unal++;
 				}
 			}
@@ -1373,7 +1430,7 @@ void AlnSinkVerbose::appendMate(
 		if(NOT_SUPPRESSED) {
 			WRITE_TAB;
 			if(rs != NULL) {
-				itoa10<TMapq>(mapq_.mapq(summ), buf);
+				itoa10<TMapq>(mapq_.mapq(summ, flags, rd.mate < 2), buf);
 				o.writeChars(buf);
 			} else o.write('0');
 		}
@@ -1522,6 +1579,9 @@ void AlnSinkSam::appendMate(
 			fl |= SAM_FLAG_MATE_STRAND;
 		}
 	}
+	if(!flags.isPrimary()) {
+		fl |= SAM_FLAG_NOT_PRIMARY;
+	}
 	if(rs != NULL && !rs->fw()) {
 		fl |= SAM_FLAG_QUERY_STRAND;
 	}
@@ -1556,7 +1616,7 @@ void AlnSinkSam::appendMate(
 	}
 	// MAPQ
 	if(rs != NULL) {
-		itoa10<TMapq>(mapq_.mapq(summ), buf);
+		itoa10<TMapq>(mapq_.mapq(summ, flags, rd.mate < 2), buf);
 		o.writeChars(buf);
 		o.write('\t');
 	} else {
@@ -1605,39 +1665,47 @@ void AlnSinkSam::appendMate(
 	// SEQ
 	bool exEnds = rd.color && exEnds_;
 	bool decoded = false;
-	if(rs != NULL && rd.color) {
-		// decode colorspace alignment
-		if(!decoded) {
-			rs->decodedNucsAndQuals(rd, dseq_, dqual_);
-			decoded = true;
-		}
-		rs->printSeq(
-			rd,
-			&dseq_,
-			false,
-			exEnds,
-			o);
+	if(!flags.isPrimary()) {
+		o.write('*');
 	} else {
-		// Print the read
-		o.writeChars(rd.patFw.toZBuf());
+		if(rs != NULL && rd.color) {
+			// decode colorspace alignment
+			if(!decoded) {
+				rs->decodedNucsAndQuals(rd, dseq_, dqual_);
+				decoded = true;
+			}
+			rs->printSeq(
+				rd,
+				&dseq_,
+				false,
+				exEnds,
+				o);
+		} else {
+			// Print the read
+			o.writeChars(rd.patFw.toZBuf());
+		}
 	}
 	o.write('\t');
 	// QUAL
-	if(rs != NULL && rd.color) {
-		// decode colorspace alignment
-		if(!decoded) {
-			rs->decodedNucsAndQuals(rd, dseq_, dqual_);
-			decoded = true;
-		}
-		rs->printQuals(
-			rd,
-			&dqual_,
-			false,
-			exEnds,
-			o);
+	if(!flags.isPrimary()) {
+		o.write('*');
 	} else {
-		// Print the quals
-		o.writeChars(rd.qual.toZBuf());
+		if(rs != NULL && rd.color) {
+			// decode colorspace alignment
+			if(!decoded) {
+				rs->decodedNucsAndQuals(rd, dseq_, dqual_);
+				decoded = true;
+			}
+			rs->printQuals(
+				rd,
+				&dqual_,
+				false,
+				exEnds,
+				o);
+		} else {
+			// Print the quals
+			o.writeChars(rd.qual.toZBuf());
+		}
 	}
 	o.write('\t');
 	//
@@ -1963,14 +2031,132 @@ int main(void) {
 	}
 	cerr << "PASSED" << endl;
 
-	cerr << "Case 7 (redundant alignment db test 1) ... ";
+	cerr << "Case 7 (unaligned pair & uniquely aligned mate, mixed-mode) ... ";
 	{
-		
+		uint64_t nconcord = 0, ndiscord = 0, nunpair1 = 0, nunpair2 = 0;
+		bool pairMax = false, unpair1Max = false, unpair2Max = false;
+		ReportingParams rp(
+			1,      // khits
+			1,      // mhits
+			0,      // pengap
+			false,  // msample
+			true,   // discord
+			true);  // mixed
+		ReportingState st(rp);
+		st.nextRead(true); // unpaired read
+		// assert(st.doneConcordant()    == done1);
+		// assert(st.doneDiscordant()    == done2);
+		// assert(st.doneUnpaired(true)  == done3);
+		// assert(st.doneUnpaired(false) == done4);
+		// assert(st.doneUnpaired()      == done5);
+		// assert(st.done()              == done6);
+		st.foundUnpaired(true);
+		assert(testDones(st, false, false, false, false, false, false));
+		st.foundUnpaired(true);
+		assert(testDones(st, false, true, true, false, false, false));
+		assert_eq(0, st.numConcordant());
+		assert_eq(0, st.numDiscordant());
+		assert_eq(2, st.numUnpaired1());
+		assert_eq(0, st.numUnpaired2());
+		st.finish();
+		st.getReport(nconcord, ndiscord, nunpair1, nunpair2,
+		             pairMax, unpair1Max, unpair2Max);
+		assert_eq(0, nconcord);
+		assert_eq(0, ndiscord);
+		assert_eq(0, nunpair1);
+		assert_eq(0, nunpair2);
+		assert(!pairMax);
+		assert(unpair1Max);
+		assert(!unpair2Max);
 	}
 	cerr << "PASSED" << endl;
 
-	cerr << "Case 8 (redundant alignment db test 2) ... ";
+	cerr << "Case 8 (unaligned pair & uniquely aligned mate, NOT mixed-mode) ... ";
 	{
+		uint64_t nconcord = 0, ndiscord = 0, nunpair1 = 0, nunpair2 = 0;
+		bool pairMax = false, unpair1Max = false, unpair2Max = false;
+		ReportingParams rp(
+			1,      // khits
+			1,      // mhits
+			0,      // pengap
+			false,  // msample
+			true,   // discord
+			false); // mixed
+		ReportingState st(rp);
+		st.nextRead(true); // unpaired read
+		// assert(st.doneConcordant()    == done1);
+		// assert(st.doneDiscordant()    == done2);
+		// assert(st.doneUnpaired(true)  == done3);
+		// assert(st.doneUnpaired(false) == done4);
+		// assert(st.doneUnpaired()      == done5);
+		// assert(st.done()              == done6);
+		st.foundUnpaired(true);
+		assert(testDones(st, false, false, true, true, true, false));
+		st.foundUnpaired(true);
+		assert(testDones(st, false, true, true, true, true, false));
+		assert_eq(0, st.numConcordant());
+		assert_eq(0, st.numDiscordant());
+		assert_eq(2, st.numUnpaired1());
+		assert_eq(0, st.numUnpaired2());
+		st.finish();
+		st.getReport(nconcord, ndiscord, nunpair1, nunpair2,
+		             pairMax, unpair1Max, unpair2Max);
+		assert_eq(0, nconcord);
+		assert_eq(0, ndiscord);
+		assert_eq(0, nunpair1);
+		assert_eq(0, nunpair2);
+		assert(!pairMax);
+		assert(!unpair1Max); // not really relevant
+		assert(!unpair2Max); // not really relevant
+	}
+	cerr << "PASSED" << endl;
+
+	cerr << "Case 9 (repetitive pair, only one mate repetitive) ... ";
+	{
+		uint64_t nconcord = 0, ndiscord = 0, nunpair1 = 0, nunpair2 = 0;
+		bool pairMax = false, unpair1Max = false, unpair2Max = false;
+		ReportingParams rp(
+			1,      // khits
+			1,      // mhits
+			0,      // pengap
+			true,   // msample
+			true,   // discord
+			true);  // mixed
+		ReportingState st(rp);
+		st.nextRead(true); // unpaired read
+		// assert(st.doneConcordant()    == done1);
+		// assert(st.doneDiscordant()    == done2);
+		// assert(st.doneUnpaired(true)  == done3);
+		// assert(st.doneUnpaired(false) == done4);
+		// assert(st.doneUnpaired()      == done5);
+		// assert(st.done()              == done6);
+		st.foundConcordant();
+		assert(st.repOk());
+		st.foundUnpaired(true);
+		assert(st.repOk());
+		st.foundUnpaired(false);
+		assert(st.repOk());
+		assert(testDones(st, false, true, false, false, false, false));
+		assert(st.repOk());
+		st.foundConcordant();
+		assert(st.repOk());
+		st.foundUnpaired(true);
+		assert(st.repOk());
+		assert(testDones(st, true, true, true, true, true, true));
+		assert_eq(2, st.numConcordant());
+		assert_eq(0, st.numDiscordant());
+		assert_eq(2, st.numUnpaired1());
+		assert_eq(1, st.numUnpaired2());
+		st.finish();
+		st.getReport(nconcord, ndiscord, nunpair1, nunpair2,
+		             pairMax, unpair1Max, unpair2Max);
+		assert_eq(1, nconcord);
+		assert_eq(0, ndiscord);
+		assert_eq(0, nunpair1);
+		assert_eq(0, nunpair2);
+		assert(pairMax);
+		assert(unpair1Max); // not really relevant
+		assert(!unpair2Max); // not really relevant
 	}
 	cerr << "PASSED" << endl;
 }

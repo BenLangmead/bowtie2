@@ -854,7 +854,7 @@ sub genAlignArgs {
 
 ##
 # Align the given input set against the given index using the given
-# bowtie2 binary and arguments.
+# bowtie2 binary and arguments.  Sanity-check the SAM output.
 #
 sub align {
 	my ($self, $fa, $idx, $input, $conf, $args) = @_;
@@ -878,7 +878,7 @@ sub align {
 	my $ac = AlignmentCheck->new(
 		"Sim.pm alignment checker", # name
 		[ $fa ],                    # fasta
-		"bowtie",                   # Bowtie-formatted alignments
+		"sam",                      # SAM-formatted alignments
 		0,                          # no bis-C
 		0                           # no bis-CpG
 	);
@@ -897,7 +897,8 @@ sub align {
 	while(<ALSDEBCMD>) {
 		# Check the sanity of this alignment
 		$ac->checkAlignments([$_], 0);
-		print ALSDEB $_;
+		# Remove @PG line because CL: tag can legitimately differ
+		print ALSDEB $_ unless /^\@PG/;
 		$nals++;
 		print STDERR "  Read $nals alignments...\n" if ($nals % $ival) == 0;
 	}
@@ -909,7 +910,8 @@ sub align {
 	# results are identical
 	if(int(rand(3)) == 0) {
 		print STDERR "ALSO checking that bowtie2 and bowtie2-debug match up\n";
-		$cmd = "$conf->{bowtie2} $argstr $idx $inputfn > $als";
+		# Remove @PG line because CL: tag can legitimately differ
+		$cmd = "$conf->{bowtie2} $argstr $idx $inputfn | grep -v '^\@PG' > $als";
 		print "$cmd\n";
 		system($cmd);
 		$? == 0 ||
@@ -926,21 +928,21 @@ sub align {
 	if(int(rand(3)) == 0) {
 		print STDERR "ALSO checking that bowtie2 and bowtie2 -p X w/ X > 1 match up\n";
 		my $p = int(rand(3))+2;
-		$cmd = "$conf->{bowtie2} $argstr -p $p $idx $inputfn > $als_px";
+		$cmd = "$conf->{bowtie2} $argstr -p $p $idx $inputfn | grep -v '^\@PG' > $als_px";
 		print "$cmd\n";
 		system($cmd);
 		$? == 0 ||
 			mydie("Command '$cmd' failed with exitlevel $?");
 		# Sort the $als_px and $als_debug files to guarantee that reads and
 		# alignments for a given read appear in the same order in both
-		$cmd = "sort -k 1,1 -n -k 2,2 -k 3,3 -k 4,4 < $als_px > $als_px.sorted";
+		$cmd = "sort -k 1,1 -n -k 2,2 -k 3,3 -k 4,4 < $als_px | grep -v '^\@PG' > $als_px.sorted";
 		print "$cmd\n";
 		system($cmd);
 		$? == 0 ||
 			mydie("Failed to sort alignment file $als_px\n");
 		# Sort the $als_px and $als_debug files to guarantee that reads and
 		# alignments for a given read appear in the same order in both
-		$cmd = "sort -k 1,1 -n -k 2,2 -k 3,3 -k 4,4 < $als_debug > $als_debug.sorted";
+		$cmd = "sort -k 1,1 -n -k 2,2 -k 3,3 -k 4,4 < $als_debug | grep -v '^\@PG' > $als_debug.sorted";
 		print "$cmd\n";
 		system($cmd);
 		$? == 0 ||

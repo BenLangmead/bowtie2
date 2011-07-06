@@ -124,6 +124,41 @@ struct ReportingParams {
 	inline bool mhitsSet() const {
 		return mhits < std::numeric_limits<THitInt>::max();
 	}
+	
+	/**
+	 * Return a multiplier that indicates how many alignments we might look for
+	 * (max).  We can use this to boost parameters like ROWM and POSF
+	 * appropriately.
+	 */
+	inline THitInt mult() const {
+		if(mhitsSet()) {
+			return mhits+1;
+		}
+		return khits;
+	}
+
+	/**
+	 * Given ROWM, POSF thresholds, boost them according to mult().
+	 */
+	void boostThresholds(
+		float& posmin,
+		float& posfrac,
+		float& rowmin,
+		float& rowmult)
+	{
+		THitInt mul = mult();
+		if(mul == std::numeric_limits<THitInt>::max()) {
+			posmin =
+			posfrac = 
+			rowmin = 
+			rowmult = std::numeric_limits<float>::max();
+		} else {
+			posmin  *= mul;
+			posfrac *= mul;
+			rowmin  *= mul;
+			rowmult *= mul;
+		}
+	}
 
 	// Number of alignments to report
 	THitInt khits;
@@ -164,9 +199,6 @@ class ReportingState {
 
 public:
 
-	// Numbers are spread apart a bit so that we can add intermediate states in
-	// the future, e.g., for spliced alignment.
-	
 	enum {
 		NO_READ = 1,        // haven't got a read yet
 		CONCORDANT_PAIRS,   // looking for concordant pairs
@@ -175,7 +207,7 @@ public:
 		DONE                // finished looking
 	};
 
-	// Flags for different we you can finish out a category of potential
+	// Flags for different ways we can finish out a category of potential
 	// alignments.
 	
 	enum {
@@ -204,7 +236,7 @@ public:
 		nunpair2_ = 0;
 		doneConcord_ = false;
 		doneDiscord_ = false;
-		doneUnpair_ = false;
+		doneUnpair_  = false;
 		doneUnpair1_ = false;
 		doneUnpair2_ = false;
 		exitConcord_ = ReportingState::EXIT_DID_NOT_ENTER;
@@ -324,7 +356,7 @@ public:
 	}
 
 	/**
-	 * If false, there's no need to seek any more unpaired alignments.
+	 * Return true iff there's no need to seek any more unpaired alignments.
 	 */
 	inline bool doneUnpaired() const { return doneUnpair_; }
 	
@@ -349,6 +381,7 @@ public:
 	bool repOk() const {
 		assert(p_.discord || doneDiscord_);
 		assert(p_.mixed   || !paired_ || doneUnpair_);
+		assert(doneUnpair_ || !doneUnpair1_ || !doneUnpair2_);
 		if(p_.mhitsSet()) {
 			assert_leq(numConcordant(), (uint64_t)p_.mhits+1);
 			assert_leq(numDiscordant(), (uint64_t)p_.mhits+1);
@@ -357,6 +390,13 @@ public:
 		}
 		assert(done() || !doneWithMate(true) || !doneWithMate(false));
 		return true;
+	}
+	
+	/**
+	 * Return ReportingParams object governing this ReportingState.
+	 */
+	const ReportingParams& params() const {
+		return p_;
 	}
 
 protected:
@@ -390,6 +430,7 @@ protected:
 	 * Update done_ field to reflect whether we're totally done now.
 	 */
 	inline void updateDone() {
+		doneUnpair_ = doneUnpair1_ && doneUnpair2_;
 		done_ = doneUnpair_ && doneDiscord_ && doneConcord_;
 	}
 
@@ -498,7 +539,8 @@ public:
 		const AlnRes      *rs1,
 		const AlnRes      *rs2,
 		const AlnSetSumm&  summ,
-		const AlnFlags&    flags) = 0;
+		const AlnFlags*    flags1,
+		const AlnFlags*    flags2) = 0;
 
 	/**
 	 * Report a given batch of hits for the given read pair.  Should be
@@ -513,7 +555,8 @@ public:
 		const EList<AlnRes> *rs2,            // alignments for mate #2
 		bool                 maxed,          // true iff -m/-M exceeded
 		const AlnSetSumm&    summ,           // summary
-		const AlnFlags&      flags,          // flags
+		const AlnFlags*      flags1,         // flags for mate #1
+		const AlnFlags*      flags2,         // flags for mate #2
 		bool                 getLock = true) // true iff lock held by caller
 	{
 		assert(rd1 != NULL || rd2 != NULL);
@@ -531,7 +574,8 @@ public:
 			0,
 			sz,
 			summ,
-			flags,
+			flags1,
+			flags2,
 			getLock);
 	}
 
@@ -550,7 +594,8 @@ public:
 		size_t               start,          // alignments to report: start
 		size_t               end,            // alignments to report: end 
 		const AlnSetSumm&    summ,           // summary
-		const AlnFlags&      flags,          // flags
+		const AlnFlags*      flags1,         // flags for mate #1
+		const AlnFlags*      flags2,         // flags for mate #2
 		bool                 getLock = true) // true iff lock held by caller
 	{
 		assert(rd1 != NULL || rd2 != NULL);
@@ -567,6 +612,17 @@ public:
 			rs1 != NULL && !rs1->empty() && !rs1->get(0).empty() &&
 			rs2 != NULL && !rs2->empty() && !rs2->get(0).empty());
 		size_t reported = 0;
+		AlnFlags flagscp1, flagscp2;
+		if(flags1 != NULL) {
+			flagscp1 = *flags1;
+			flags1 = &flagscp1;
+			flagscp1.setPrimary(true);
+		}
+		if(flags2 != NULL) {
+			flagscp2 = *flags2;
+			flags2 = &flagscp2;
+			flagscp2.setPrimary(true);
+		}
 		for(size_t i = start; i < end; i++) {
 			// Skip if it hasn't been selected
 			if(!select[i]) continue;
@@ -580,8 +636,14 @@ public:
 			ThreadSafe ts(&locks_[sid], getLock);
 			const AlnRes* r1 = ((rs1 != NULL) ? &rs1->get(i) : NULL);
 			const AlnRes* r2 = ((rs2 != NULL) ? &rs2->get(i) : NULL);
-			append(out(sid), rd1, rd2, rdid, r1, r2, summ, flags);
+			append(out(sid), rd1, rd2, rdid, r1, r2, summ, flags1, flags2);
 			reported++;
+			if(flags1 != NULL) {
+				flagscp1.setPrimary(false);
+			}
+			if(flags2 != NULL) {
+				flagscp2.setPrimary(false);
+			}
 		}
 		readSink_->dumpAlign(rd1, rd2, rdid);
 		{
@@ -604,7 +666,8 @@ public:
 		const EList<AlnRes> *rs1,            // alignments for mate #1
 		const EList<AlnRes> *rs2,            // alignments for mate #2
 		const AlnSetSumm&    summ,           // summary
-		const AlnFlags&      flags,          // flags
+		const AlnFlags*      flags1,         // flags for mate #1
+		const AlnFlags*      flags2,         // flags for mate #2
 		bool                 getLock = true) // true iff lock held by caller
 	{
 		assert(rd1 != NULL || rd2 != NULL);
@@ -619,7 +682,8 @@ public:
 			0,
 			sz,
 			summ,
-			flags,
+			flags1,
+			flags2,
 			getLock);
 	}
 
@@ -636,7 +700,8 @@ public:
 		size_t               start,          // alignments to report: start
 		size_t               end,            // alignments to report: end 
 		const AlnSetSumm&    summ,           // summary
-		const AlnFlags&      flags,          // flags
+		const AlnFlags*      flags1,         // flags for mate #1
+		const AlnFlags*      flags2,         // flags for mate #2
 		bool                 getLock = true) // true iff lock held by caller
 	{
 		assert(rd1 != NULL || rd2 != NULL);
@@ -649,7 +714,7 @@ public:
 			size_t sid = streamId(rdid, c);
 			assert_lt(sid, locks_.size());
 			ThreadSafe ts(&locks_[sid], getLock);
-			append(out(sid), rd1, rd2, rdid, NULL, NULL, summ, flags);
+			append(out(sid), rd1, rd2, rdid, NULL, NULL, summ, flags1, flags2);
 		}
 		ThreadSafe ts(&mainlock_, getLock);
 		numMaxed_++;
@@ -664,7 +729,8 @@ public:
 		const Read          *rd2,            // mate #2
 		const TReadId        rdid,           // read ID
 		const AlnSetSumm&    summ,           // summary
-		const AlnFlags&      flags,          // flags
+		const AlnFlags*      flags1,         // flags for mate #1
+		const AlnFlags*      flags2,         // flags for mate #2
 		bool                 getLock = true) // true iff lock held by caller
 	{
 		readSink_->dumpUnal(rd1, rd2, rdid);
@@ -675,7 +741,7 @@ public:
 			size_t sid = streamId(rdid, c);
 			assert_lt(sid, locks_.size());
 			ThreadSafe ts(&locks_[sid], getLock);
-			append(out(sid), rd1, rd2, rdid, NULL, NULL, summ, flags);
+			append(out(sid), rd1, rd2, rdid, NULL, NULL, summ, flags1, flags2);
 		}
 		ThreadSafe ts(&mainlock_, getLock);
 		numUnaligned_++;
@@ -1058,8 +1124,9 @@ public:
 	}
 	
 	/**
-	 * Return true iff we have already encountered a number of
-	 * alignments that exceeds the -m/-M ceiling.
+	 * Return true iff we have already encountered a number of alignments that
+	 * exceeds the -m/-M ceiling.  TODO: how does this distinguish between
+	 * pairs and mates?
 	 */
 	bool maxed() const {
 		return maxedOverall_;
@@ -1202,11 +1269,16 @@ public:
 		const AlnRes* rs1,      // alignments for mate #1
 		const AlnRes* rs2,      // alignments for mate #2
 		const AlnSetSumm& summ, // summary
-		const AlnFlags& flags)  // flags
+		const AlnFlags* flags1, // flags for mate #1
+		const AlnFlags* flags2) // flags for mate #2
 	{
 		assert(rd1 != NULL || rd2 != NULL);
-		if(rd1 != NULL) appendMate(o, *rd1, rd2, rdid, rs1, rs2, summ, flags);
-		if(rd2 != NULL) appendMate(o, *rd2, rd1, rdid, rs2, rs1, summ, flags);
+		if(rd1 != NULL) {
+			appendMate(o, *rd1, rd2, rdid, rs1, rs2, summ, *flags1);
+		}
+		if(rd2 != NULL) {
+			appendMate(o, *rd2, rd1, rdid, rs2, rs1, summ, *flags2);
+		}
 	}
 
 protected:
@@ -1295,11 +1367,18 @@ public:
 		const AlnRes* rs1,      // alignments for mate #1
 		const AlnRes* rs2,      // alignments for mate #2
 		const AlnSetSumm& summ, // summary
-		const AlnFlags& flags)  // flags
+		const AlnFlags* flags1, // flags for mate #1
+		const AlnFlags* flags2) // flags for mate #2
 	{
 		assert(rd1 != NULL || rd2 != NULL);
-		if(rd1 != NULL) appendMate(o, *rd1, rd2, rdid, rs1, rs2, summ, flags);
-		if(rd2 != NULL) appendMate(o, *rd2, rd1, rdid, rs2, rs1, summ, flags);
+		if(rd1 != NULL) {
+			assert(flags1 != NULL);
+			appendMate(o, *rd1, rd2, rdid, rs1, rs2, summ, *flags1);
+		}
+		if(rd2 != NULL) {
+			assert(flags2 != NULL);
+			appendMate(o, *rd2, rd1, rdid, rs2, rs1, summ, *flags2);
+		}
 	}
 
 protected:
