@@ -1118,6 +1118,7 @@ bool SwDriver::extendSeedsPaired(
 								// Report an unpaired alignment
 								assert(!msink->maxed());
 								assert(!msink->state().done());
+								bool donePaired = false,  doneUnpaired = false;
 								if(msink->report(
 									0,
 									anchor1 ? &res_.alres : &ores_.alres,
@@ -1125,33 +1126,36 @@ bool SwDriver::extendSeedsPaired(
 								{
 									// Short-circuited because a limit, e.g.
 									// -k, -m or -M, was exceeded
-									return true;
+									donePaired = true;
 								}
 								if(mixed || discord) {
 									// Report alignment for mate #1 as an
 									// unpaired alignment.
-									if(!msink->state().doneUnpaired(true)) {
+									//if(!msink->state().doneUnpaired(true)) {
 										const AlnRes& r1 = anchor1 ?
 											res_.alres : ores_.alres;
 										if(!redMate1_.overlap(r1)) {
 											redMate1_.add(r1);
 											if(msink->report(0, &r1, NULL)) {
-												return true; // Short-circuited
+												doneUnpaired = true; // Short-circuited
 											}
 										}
-									}
+									//}
 									// Report alignment for mate #2 as an
 									// unpaired alignment.
-									if(!msink->state().doneUnpaired(false)) {
+									//if(!msink->state().doneUnpaired(false)) {
 										const AlnRes& r2 = anchor1 ?
 											ores_.alres : res_.alres;
 										if(!redMate2_.overlap(r2)) {
 											redMate2_.add(r2);
 											if(msink->report(0, NULL, &r2)) {
-												return true; // Short-circuited
+												doneUnpaired = true; // Short-circuited
 											}
 										}
-									}
+									//}
+								}
+								if(donePaired || doneUnpaired) {
+									return true;
 								}
 								if(msink->state().doneWithMate(anchor1)) {
 									// We're now done with the mate that we're
