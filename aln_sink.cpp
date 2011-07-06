@@ -614,7 +614,7 @@ void AlnSinkWrap::finishRead(
 		// Report concordant paired-end alignments if possible
 		if(nconcord > 0) {
 			// TODO: what if pairMax is true?
-			AlnSetSumm concordSumm(rd1_, rd2_, &rs1_, &rs2_);
+			AlnSetSumm concordSumm(rd1_, rd2_, &rs1_, &rs2_, &rs1u_, &rs2u_);
 			AlnFlags flags1(
 				ALN_FLAG_PAIR_CONCORD,
 				st_.params().mhitsSet(),
@@ -653,7 +653,7 @@ void AlnSinkWrap::finishRead(
 			assert(ret);
 			assert_eq(1, rs1_.size());
 			assert_eq(1, rs2_.size());
-			AlnSetSumm discordSumm(rd1_, rd2_, &rs1_, &rs2_);
+			AlnSetSumm discordSumm(rd1_, rd2_, &rs1_, &rs2_, &rs1u_, &rs2u_);
 			AlnFlags flags1(
 				ALN_FLAG_PAIR_DISCORD,
 				st_.params().mhitsSet(),
@@ -699,7 +699,7 @@ void AlnSinkWrap::finishRead(
 			// Just examine mate 1
 			if(rd1_ != NULL) {
 				if(nunpair1 > 0) {
-					AlnSetSumm unpair1Summ(rd1_, NULL, &rs1u_, NULL);
+					AlnSetSumm unpair1Summ(rd1_, NULL, NULL, NULL, &rs1u_, NULL);
 					AlnFlags flags(
 						readIsPair() ?
 							ALN_FLAG_PAIR_UNPAIRED_FROM_PAIR :
@@ -726,7 +726,7 @@ void AlnSinkWrap::finishRead(
 					met.al++;
 				} else if(unpair1Max) {
 					assert(!rs1u_.empty());
-					AlnSetSumm unpair1Summ(rd1_, NULL, &rs1u_, NULL);
+					AlnSetSumm unpair1Summ(rd1_, NULL, NULL, NULL, &rs1u_, NULL);
 					int fl;
 					if(readIsPair()) {
 						fl = //pairMax ?
@@ -760,7 +760,7 @@ void AlnSinkWrap::finishRead(
 						NULL);
 					met.max++;
 				} else {
-					AlnSetSumm summ(rd1_, NULL, NULL, NULL);
+					AlnSetSumm summ(rd1_, NULL, NULL, NULL, NULL, NULL);
 					AlnFlags flags(
 						readIsPair() ?
 							ALN_FLAG_PAIR_UNPAIRED_FROM_PAIR :
@@ -782,7 +782,7 @@ void AlnSinkWrap::finishRead(
 			}
 			if(rd2_ != NULL) {
 				if(nunpair2 > 0) {
-					AlnSetSumm unpair2Summ(NULL, rd2_, NULL, &rs2u_);
+					AlnSetSumm unpair2Summ(NULL, rd2_, NULL, NULL, NULL, &rs2u_);
 					AlnFlags flags(
 						readIsPair() ?
 							ALN_FLAG_PAIR_UNPAIRED_FROM_PAIR :
@@ -809,7 +809,7 @@ void AlnSinkWrap::finishRead(
 					met.al++;
 				} else if(unpair2Max) {
 					assert(!rs2u_.empty());
-					AlnSetSumm unpair2Summ(NULL, rd2_, NULL, &rs2u_);
+					AlnSetSumm unpair2Summ(NULL, rd2_, NULL, NULL, NULL, &rs2u_);
 					int fl;
 					if(readIsPair()) {
 						fl = //pairMax ?
@@ -843,7 +843,7 @@ void AlnSinkWrap::finishRead(
 						NULL);
 					met.max++;
 				} else {
-					AlnSetSumm summ(NULL, rd2_, NULL, NULL);
+					AlnSetSumm summ(NULL, rd2_, NULL, NULL, NULL, NULL);
 					AlnFlags flags(
 						readIsPair() ?
 							ALN_FLAG_PAIR_UNPAIRED_FROM_PAIR :
@@ -892,7 +892,7 @@ bool AlnSinkWrap::report(
 	bool one = (rs1 != NULL);
 	const AlnRes* rsa = one ? rs1 : rs2;
 	const AlnRes* rsb = one ? rs2 : rs1;
-	assert(!st_.done());
+	//assert(!st_.done());
 	if(paired) {
 		assert(readIsPair());
 		st_.foundConcordant();
@@ -928,8 +928,8 @@ bool AlnSinkWrap::prepareDiscordants() {
 		assert(rs2_.empty());
 		rs1_.push_back(rs1u_[0]);
 		rs2_.push_back(rs2u_[0]);
-		rs1u_.clear();
-		rs2u_.clear();
+		//rs1u_.clear();
+		//rs2u_.clear();
 		return true;
 	}
 	return false;

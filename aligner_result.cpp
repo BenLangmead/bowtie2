@@ -1152,16 +1152,20 @@ bool RedundantAlns::overlap(const AlnRes& res) {
 }
 
 /**
- * Given an unpaired read (in either rd1 or rd2) or a read pair
- * (mate 1 in rd1, mate 2 in rd2).
+ * Given all the paired and unpaired results involving mates #1 and #2,
+ * calculate best and second-best scores for both mates.  These are
+ * used for future MAPQ calculations.
  */
 AlnSetSumm::AlnSetSumm(
 	const Read* rd1,
 	const Read* rd2,
 	const EList<AlnRes>* rs1,
-	const EList<AlnRes>* rs2)
+	const EList<AlnRes>* rs2,
+	const EList<AlnRes>* rs1u,
+	const EList<AlnRes>* rs2u)
 {
 	assert(rd1 != NULL || rd2 != NULL);
+	assert((rs1 == NULL) == (rs2 == NULL));
 	AlnScore best[2], secbest[2], bestPaired, secbestPaired;
 	size_t szs[2];
 	best[0].invalidate();    secbest[0].invalidate();
@@ -1188,12 +1192,11 @@ AlnSetSumm::AlnSetSumm(
 		}
 	}
 	for(int j = 0; j < 2; j++) {
-		const EList<AlnRes>* rs = (j == 0 ? rs1 : rs2);
+		const EList<AlnRes>* rs = (j == 0 ? rs1u : rs2u);
 		if(rs == NULL) {
 			continue;
 		}
 		assert(rs != NULL);
-		assert(szs[j] == 0 || szs[j] == rs->size());
 		szs[j] = rs->size();
 		assert_gt(szs[j], 0);
 		for(size_t i = 0; i < rs->size(); i++) {

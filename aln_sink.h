@@ -1109,8 +1109,8 @@ public:
 			assert_neq(std::numeric_limits<TReadId>::max(), rdid_);
 		}
 		assert_eq(st_.numConcordant() + st_.numDiscordant(), rs1_.size());
-		assert_eq(st_.numUnpaired1(), rs1u_.size());
-		assert_eq(st_.numUnpaired2(), rs2u_.size());
+		//assert_eq(st_.numUnpaired1(), rs1u_.size());
+		//assert_eq(st_.numUnpaired2(), rs2u_.size());
 		assert(st_.repOk());
 		return true;
 	}

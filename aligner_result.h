@@ -1309,7 +1309,9 @@ public:
 		const Read* rd1,
 		const Read* rd2,
 		const EList<AlnRes>* rs1,
-		const EList<AlnRes>* rs2);
+		const EList<AlnRes>* rs2,
+		const EList<AlnRes>* rs1u,
+		const EList<AlnRes>* rs2u);
 
 	explicit AlnSetSumm(
 		AlnScore best1,
