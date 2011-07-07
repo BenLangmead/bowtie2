@@ -25,24 +25,50 @@ struct ReportingMetrics {
 
 	ReportingMetrics() { reset(); MUTEX_INIT(lock); }
 	
-	void reset() { init(0, 0, 0, 0, 0, 0, 0); }
+	void reset() {
+		init(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+	}
 	
 	void init(
-		uint64_t al_concord_,
-		uint64_t al_discord_,
-		uint64_t max_concord_,
-		uint64_t unal_pair_,
-		uint64_t al_,
-		uint64_t unal_,
-		uint64_t max_)
+		uint64_t nread_,
+		uint64_t npaired_,
+		uint64_t nunpaired_,
+		uint64_t nconcord_uni_,
+		uint64_t nconcord_rep_,
+		uint64_t nconcord_0_,
+		uint64_t ndiscord_,
+		uint64_t nunp_0_uni_,
+		uint64_t nunp_0_rep_,
+		uint64_t nunp_0_0_,
+		uint64_t nunp_rep_uni_,
+		uint64_t nunp_rep_rep_,
+		uint64_t nunp_rep_0_,
+		uint64_t nunp_uni_,
+		uint64_t nunp_rep_,
+		uint64_t nunp_0_)
 	{
-		al_concord  = al_concord_;
-		al_discord  = al_discord_;
-		max_concord = max_concord_;
-		unal_pair   = unal_pair_;
-		al          = al_;
-		unal        = unal_;
-		max         = max_;
+		nread        = nread_;
+		
+		npaired      = npaired_;
+		nunpaired    = nunpaired_;
+		
+		nconcord_uni = nconcord_uni_;
+		nconcord_rep = nconcord_rep_;
+		nconcord_0   = nconcord_0_;
+		
+		ndiscord     = ndiscord_;
+		
+		nunp_0_uni   = nunp_0_uni_;
+		nunp_0_rep   = nunp_0_rep_;
+		nunp_0_0     = nunp_0_0_;
+
+		nunp_rep_uni = nunp_rep_uni_;
+		nunp_rep_rep = nunp_rep_rep_;
+		nunp_rep_0   = nunp_rep_0_;
+
+		nunp_uni     = nunp_uni_;
+		nunp_rep     = nunp_rep_;
+		nunp_0       = nunp_0_;
 	}
 	
 	/**
@@ -52,23 +78,59 @@ struct ReportingMetrics {
 	 */
 	void merge(const ReportingMetrics& met, bool getLock = false) {
 		ThreadSafe ts(&lock, getLock);
-		al_concord  += met.al_concord;
-		al_discord  += met.al_discord;
-		max_concord += met.max_concord;
-		unal_pair   += met.unal_pair;
-		al          += met.al;
-		unal        += met.unal;
-		max         += met.max;
+		
+		nread        += met.nread;
+		
+		npaired      += met.npaired;
+		nunpaired    += met.nunpaired;
+		
+		nconcord_uni += met.nconcord_uni;
+		nconcord_rep += met.nconcord_rep;
+		nconcord_0   += met.nconcord_0;
+		
+		ndiscord     += met.ndiscord;
+		
+		nunp_0_uni   += met.nunp_0_uni;
+		nunp_0_rep   += met.nunp_0_rep;
+		nunp_0_0     += met.nunp_0_0;
+
+		nunp_rep_uni += met.nunp_rep_uni;
+		nunp_rep_rep += met.nunp_rep_rep;
+		nunp_rep_0   += met.nunp_rep_0;
+
+		nunp_uni     += met.nunp_uni;
+		nunp_rep     += met.nunp_rep;
+		nunp_0       += met.nunp_0;
 	}
 
-	uint64_t al_concord;  // # pairs w/ >= 1 concordant alignment
-	uint64_t al_discord;  // # pairs w/ >= 1 discordant alignment
-	uint64_t max_concord; // # pairs maxed out
-	uint64_t unal_pair;   // # pairs where neither mate aligned
+	uint64_t  nread;        // # reads
+	uint64_t  npaired;      // # pairs
+	uint64_t  nunpaired;    // # unpaired reads
+	
+	// Paired
+	
+	//  Concordant
+	uint64_t  nconcord_uni; // # pairs with unique concordant alns
+	uint64_t  nconcord_rep; // # pairs with repetitive concordant alns
+	uint64_t  nconcord_0;   // # pairs with 0 concordant alns
+	//  Discordant
+	uint64_t  ndiscord;     // # pairs with 1 discordant aln
+	
+	//  Unpaired from failed pairs
+	uint64_t  nunp_0_uni;   // # unique from nconcord_0_ - ndiscord_
+	uint64_t  nunp_0_rep;   // # repetitive from 
+	uint64_t  nunp_0_0;     // # with 0 alignments
 
-	uint64_t al;   // # mates w/ >= 1 reported alignment
-	uint64_t unal; // # mates w/ 0 alignments
-	uint64_t max;  // # mates withheld for exceeding -M/-m ceiling
+	//  Unpaired from repetitive pairs
+	uint64_t  nunp_rep_uni; // # pairs with unique concordant alns
+	uint64_t  nunp_rep_rep; // # pairs with repetitive concordant alns
+	uint64_t  nunp_rep_0;   // # pairs with 0 concordant alns
+	
+	// Unpaired
+	
+	uint64_t  nunp_uni;   // # unique from nconcord_0_ - ndiscord_
+	uint64_t  nunp_rep;   // # repetitive from 
+	uint64_t  nunp_0;     // # with 0 alignments
 
 	MUTEX_T lock;
 };
@@ -481,12 +543,6 @@ public:
 		outNames_(),
 		locks_(),
 		deleteOuts_(deleteOuts),
-		numWrappers_(0),
-		numAligned_(0llu),
-		numUnaligned_(0llu),
-		numMaxed_(0llu),
-		numReported_(0llu),
-		numReportedPaired_(0llu),
 		refnames_(refnames),
 		quiet_(quiet),
 		readSink_(readSink),
@@ -608,9 +664,6 @@ public:
 			// Nothing to report
 			return;
 		}
-		bool paired = (
-			rs1 != NULL && !rs1->empty() && !rs1->get(0).empty() &&
-			rs2 != NULL && !rs2->empty() && !rs2->get(0).empty());
 		size_t reported = 0;
 		AlnFlags flagscp1, flagscp2;
 		if(flags1 != NULL) {
@@ -649,9 +702,6 @@ public:
 		{
 			ThreadSafe ts(&mainlock_);
 			commitHits(rd1, rd2, rdid, rs1, rs2, start, end, getLock);
-			numAligned_++;
-			if(paired) numReportedPaired_ += reported;
-			else       numReported_       += reported;
 		}
 	}
 
@@ -716,8 +766,6 @@ public:
 			ThreadSafe ts(&locks_[sid], getLock);
 			append(out(sid), rd1, rd2, rdid, NULL, NULL, summ, flags1, flags2);
 		}
-		ThreadSafe ts(&mainlock_, getLock);
-		numMaxed_++;
 	}
 
 	/**
@@ -743,8 +791,6 @@ public:
 			ThreadSafe ts(&locks_[sid], getLock);
 			append(out(sid), rd1, rd2, rdid, NULL, NULL, summ, flags1, flags2);
 		}
-		ThreadSafe ts(&mainlock_, getLock);
-		numUnaligned_++;
 	}
 
 	/**
@@ -769,29 +815,30 @@ public:
 	 * updates.
 	 */
 	void printAlSumm(
-		uint64_t al,
-		uint64_t un,
-		uint64_t mx,
-		uint64_t rep,
-		uint64_t repp,
-		bool sample,
-		bool hadoopOut);
+		const ReportingMetrics& met,
+		size_t repThresh, // threshold for uniqueness, or max if no thresh
+		bool discord,     // looked for discordant alignments
+		bool mixed,       // looked for unpaired alignments where paired failed?
+		bool hadoopOut);  // output Hadoop counters?
 
 	/**
 	 * Called when all alignments are complete.  It is assumed that no
 	 * synchronization is necessary.
 	 */
-	void finish(bool hadoopOut, bool sampleMax) {
+	void finish(
+		size_t repThresh,
+		bool discord,
+		bool mixed,
+		bool hadoopOut)
+	{
 		// Close output streams
 		closeOuts(false);
 		if(!quiet_) {
 			printAlSumm(
-				numAligned_,
-				numUnaligned_,
-				numMaxed_,
-				numReported_,
-				numReportedPaired_,
-				sampleMax,
+				met_,
+				repThresh,
+				discord,
+				mixed,
 				hadoopOut);
 		}
 	}
@@ -874,6 +921,13 @@ public:
 		size_t        rangesRc,
 		size_t        eltsRc);
 
+	/**
+	 * Merge given metrics in with ours by summing all individual metrics.
+	 */
+	void mergeMetrics(const ReportingMetrics& met, bool getLock = true) {
+		met_.merge(met, getLock);
+	}
+
 protected:
 
 	/**
@@ -901,15 +955,12 @@ protected:
 	bool               deleteOuts_;   // Whether to delete elements of outs_ upon exit
 	int                numWrappers_;  // # threads owning a wrapper for this HitSink
 	MUTEX_T            mainlock_;     // pthreads mutexes for fields of this object
-	volatile uint64_t  numAligned_;   // # reads with >= 1 alignment
-	volatile uint64_t  numUnaligned_; // # reads with no alignments
-	volatile uint64_t  numMaxed_;     // # reads with # alignments exceeding -m ceiling
-	volatile uint64_t  numReported_;  // # single-ended alignments reported
-	volatile uint64_t  numReportedPaired_; // # paired-end alignments reported
 	const StrList&     refnames_; // reference names
 	bool               quiet_;        // true -> don't print alignment stats at the end
 	ReadSink*          readSink_;     // 
 	const Mapq&        mapq_;         // mapping quality calculator
+	
+	ReportingMetrics   met_;          // global repository of reporting metrics
 };
 
 /**
