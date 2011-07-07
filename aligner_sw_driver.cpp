@@ -741,7 +741,7 @@ bool SwDriver::extendSeedsPaired(
 			Coord refcoord(tidx, refoff, fw);
 			if(seenDiags.locusPresent(refcoord)) {
 				// Already handled alignments seeded on this diagonal
-				cerr << "  skipping b/c diagonal was handled" << endl;
+				//cerr << "  skipping b/c diagonal was handled" << endl;
 				swmSeed.rshit++;
 				continue;
 			}
