@@ -44,6 +44,7 @@ struct Read {
 		color = fuzzy = false;
 		primer = '?';
 		trimc = '?';
+		filter = '?';
 		seed = 0;
 	}
 
@@ -263,6 +264,7 @@ struct Read {
 	bool     color;     // whether read is in color space
 	char     primer;    // primer base, for csfasta files
 	char     trimc;     // trimmed color, for csfasta files
+	char     filter;    // if read format permits filter char, set it here
 	int      trimmed5;  // amount actually trimmed off 5' end
 	int      trimmed3;  // amount actually trimmed off 3' end
 	HitSet  *hitset;    // holds previously-found hits; for chaining

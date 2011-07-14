@@ -127,7 +127,8 @@ public:
 		AlnSinkWrap* mhs,            // HitSink for multiseed-style aligner
 		bool reportImmediately,      // whether to report hits immediately to mhs
 		EList<SwCounterSink*>* swCounterSinks, // send counter updates to these
-		EList<SwActionSink*>* swActionSinks);  // send action-list updates to these
+		EList<SwActionSink*>* swActionSinks,   // send action-list updates to these
+		bool& exhaustive);
 
 	/**
 	 * Given a read, perform full dynamic programming against the entire
@@ -168,6 +169,7 @@ public:
 		const Read& rd,              // mate to align as anchor
 		const Read& ord,             // mate to align as opposite
 		bool anchor1,                // true iff anchor mate is mate1
+		bool oppFilt,                // true iff opposite mate was filtered out
 		bool color,                  // true -> reads are colorspace
 		SeedResults& sh,             // seed hits for anchor
 		const Ebwt& ebwt,            // BWT
@@ -204,7 +206,8 @@ public:
 		bool discord,                // look for discordant alignments?
 		bool mixed,                  // look for unpaired as well as paired alns?
 		EList<SwCounterSink*>* swCounterSinks, // send counter updates to these
-		EList<SwActionSink*>* swActionSinks);  // send action-list updates to these
+		EList<SwActionSink*>* swActionSinks,   // send action-list updates to these
+		bool& exhaustive);
 
 	/**
 	 * Prepare for a new read.  For paired-end reads, this means clearing state

@@ -2015,6 +2015,10 @@ public:
 	 */
 	const char* toZBufXForm(const char *xform) const {
 		ASSERT_ONLY(size_t xformElts = strlen(xform));
+		if(empty()) {
+			const_cast<char&>(zero_) = 0;
+			return &zero_;
+		}
 		char* printcs = const_cast<char*>(printcs_);
 		// Lazily allocate space for print buffer
 		for(size_t i = 0; i < len_; i++) {
@@ -2030,6 +2034,10 @@ public:
 	 * pointer to the buffer.  Useful for printing.
 	 */
 	virtual const T* toZBuf() const {
+		if(empty()) {
+			const_cast<T&>(zeroT_) = 0;
+			return &zeroT_;
+		}
 		assert_lt(len_, sz_);
 		const_cast<T*>(cs_)[len_] = 0;
 		return cs_;
@@ -2091,6 +2099,8 @@ protected:
 
 	T *cs_;      // +1 so that we have the option of dropping in a terminating "\0"
 	char *printcs_; // +1 so that we have the option of dropping in a terminating "\0"
+	char zero_;  // 0 terminator for empty string
+	T zeroT_;    // 0 terminator for empty string
 	size_t len_; // # filled-in elements
 	size_t sz_;  // size capacity of cs_
 };

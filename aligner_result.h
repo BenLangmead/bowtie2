@@ -285,7 +285,9 @@ class AlnFlags {
 public:
 
 	AlnFlags() {
-		init(ALN_FLAG_PAIR_UNPAIRED, false, false, false, false, false);
+		init(
+			ALN_FLAG_PAIR_UNPAIRED,
+			false, false, false, false, false, false, false, false, false);
 	}
 
 	AlnFlags(
@@ -293,9 +295,14 @@ public:
 		bool canMax,
 		bool maxed,
 		bool maxedPair,
+		bool nfilt,
+		bool scfilt,
+		bool lenfilt,
+		bool qcfilt,
 		bool mixedMode)
 	{
-		init(pairing, canMax, maxed, maxedPair, mixedMode, true);
+		init(pairing, canMax, maxed, maxedPair, nfilt, scfilt,
+		     lenfilt, qcfilt, mixedMode, true);
 	}
 
 	AlnFlags(
@@ -303,10 +310,15 @@ public:
 		bool canMax,
 		bool maxed,
 		bool maxedPair,
+		bool nfilt,
+		bool scfilt,
+		bool lenfilt,
+		bool qcfilt,
 		bool mixedMode,
 		bool primary)
 	{
-		init(pairing, canMax, maxed, maxedPair, mixedMode, primary);
+		init(pairing, canMax, maxed, maxedPair, nfilt, scfilt,
+		     lenfilt, qcfilt, mixedMode, primary);
 	}
 
 	/**
@@ -317,17 +329,25 @@ public:
 		bool canMax,
 		bool maxed,
 		bool maxedPair,
+		bool nfilt,
+		bool scfilt,
+		bool lenfilt,
+		bool qcfilt,
 		bool mixedMode,
 		bool primary)
 	{
 		assert_gt(pairing, 0);
 		assert_leq(pairing, ALN_FLAG_PAIR_UNPAIRED);
-		pairing_ = pairing;
-		canMax_ = canMax;
-		maxed_ = maxed;
+		pairing_   = pairing;
+		canMax_    = canMax;
+		maxed_     = maxed;
 		maxedPair_ = maxedPair;
+		nfilt_     = nfilt;
+		scfilt_    = scfilt;
+		lenfilt_   = lenfilt;
+		qcfilt_    = qcfilt;
 		mixedMode_ = mixedMode;
-		primary_ = primary;
+		primary_   = primary;
 	}
 
 	/**
@@ -347,12 +367,20 @@ public:
 	}
 	
 	/**
-	 * Print out string representation of these flags.
+	 * Print out string representation of YF:i flag for indicating whether and
+	 * why the mate was filtered.
+	 */
+	bool printYF(OutFileBuf& o, bool first) const;
+
+	/**
+	 * Print out string representation of YM:i flag for indicating with the
+	 * mate per se aligned repetitively.
 	 */
 	void printYM(OutFileBuf& o) const;
 
 	/**
-	 * Print out string representation of these flags.
+	 * Print out string representation of YM:i flag for indicating with the
+	 * pair containing the mate aligned repetitively.
 	 */
 	void printYP(OutFileBuf& o) const;
 
@@ -403,6 +431,13 @@ public:
 	inline bool canMax() const {
 		return canMax_;
 	}
+	
+	/**
+	 * Return true iff the alignment was filtered out.
+	 */
+	bool filtered() const {
+		return nfilt_ || scfilt_ || lenfilt_ || qcfilt_;
+	}
 
 protected:
 
@@ -420,6 +455,11 @@ protected:
 	// The paired-end read of which this mate is part has repetitive concordant
 	// alignments
 	bool maxedPair_;
+	
+	bool nfilt_;   // read/mate filtered b/c proportion of Ns exceeded ceil
+	bool scfilt_;  // read/mate filtered b/c length can't provide min score
+	bool lenfilt_; // read/mate filtered b/c less than or equal to seed mms
+	bool qcfilt_;  // read/mate filtered by upstream qc
 	
 	// Whether both paired and unpaired alignments are considered for pairs &
 	// their constituent mates
@@ -1093,14 +1133,14 @@ public:
 
 
 	/**
-	 * 
+	 * Soft trim bases from the LHS of the alignment.
 	 */
-	void clipLeft(TRefOff amt);
+	void clipLeft(size_t rd_amt, size_t rf_amt);
 
 	/**
-	 * 
+	 * Soft trim bases from the RHS of the alignment.
 	 */
-	void clipRight(TRefOff amt);
+	void clipRight(size_t rd_amt, size_t rf_amt);
 
 	/**
 	 * In debug mode, we put a copy of the decoded nucleotide sequence here.
@@ -1145,6 +1185,13 @@ protected:
 	size_t      refns_;        // # of reference Ns overlapped
 	int         type_;         // unpaired or mate #1 or mate #2?
 	int64_t     fraglen_;      // inferred fragment length
+	
+	// A tricky aspect of trimming is that we have to decide what the units are:
+	// read positions, reference positions???  We choose read positions here.
+	// In other words, if an alignment overhangs the end of the reference and
+	// part of the overhanging portion is a reference gap, we have to make sure
+	// the trim amount reflects the number of *read characters* to trim
+	// including the character opposite the reference gap.
 	
 	// Nucleotide-sequence trimming
 	bool        pretrimSoft_;  // trimming prior to alignment is soft?
@@ -1311,7 +1358,9 @@ public:
 		const EList<AlnRes>* rs1,
 		const EList<AlnRes>* rs2,
 		const EList<AlnRes>* rs1u,
-		const EList<AlnRes>* rs2u);
+		const EList<AlnRes>* rs2u,
+		bool exhausted1,
+		bool exhausted2);
 
 	explicit AlnSetSumm(
 		AlnScore best1,
@@ -1322,7 +1371,9 @@ public:
 		AlnScore secbestPaired,
 		TNumAlns other1,
 		TNumAlns other2,
-		bool     paired)
+		bool     paired,
+		bool     exhausted1,
+		bool     exhausted2)
 	{
 		init(
 			best1,
@@ -1333,7 +1384,9 @@ public:
 			secbestPaired,
 			other1,
 			other2,
-			paired);
+			paired,
+			exhausted1,
+			exhausted2);
 	}
 	
 	/**
@@ -1348,6 +1401,7 @@ public:
 		secbestPaired_.invalidate();
 		other1_ = other2_ = 0;
 		paired_ = false;
+		exhausted1_ = exhausted2_ = false;
 	}
 	
 	/**
@@ -1362,7 +1416,9 @@ public:
 		AlnScore secbestPaired,
 		TNumAlns other1,
 		TNumAlns other2,
-		bool     paired)
+		bool     paired,
+		bool     exhausted1,
+		bool     exhausted2)
 	{
 		best1_         = best1;
 		secbest1_      = secbest1;
@@ -1373,6 +1429,8 @@ public:
 		other1_        = other1;
 		other2_        = other2;
 		paired_        = paired;
+		exhausted1_    = exhausted1;
+		exhausted2_    = exhausted2;
 		assert(repOk());
 	}
 	
@@ -1404,6 +1462,12 @@ public:
 	TNumAlns other1()        const { return other1_;        }
 	TNumAlns other2()        const { return other2_;        }
 	bool     paired()        const { return paired_;        }
+	bool     exhausted1()    const { return exhausted1_;    }
+	bool     exhausted2()    const { return exhausted2_;    }
+	
+	bool exhausted(bool mate1) const {
+		return mate1 ? exhausted1_ : exhausted2_;
+	}
 
 	/**
 	 * Return the second-best score for the specified mate.  If the alignment
@@ -1451,6 +1515,8 @@ protected:
 	TNumAlns other1_;        // # more alignments within N points of second-best
 	TNumAlns other2_;        // # more alignments within N points of second-best
 	bool     paired_;        // results are paired
+	bool     exhausted1_;    // searched exhaustively for mate 1 alignments?
+	bool     exhausted2_;    // searched exhaustively for mate 2 alignments?
 };
 
 #endif

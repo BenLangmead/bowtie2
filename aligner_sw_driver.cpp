@@ -130,7 +130,8 @@ bool SwDriver::extendSeeds(
 	AlnSinkWrap* msink,          // AlnSink wrapper for multiseed-style aligner
 	bool reportImmediately,      // whether to report hits immediately to msink
 	EList<SwCounterSink*>* swCounterSinks, // send counter updates to these
-	EList<SwActionSink*>* swActionSinks)   // send action-list updates to these
+	EList<SwActionSink*>* swActionSinks,   // send action-list updates to these
+	bool& exhaustive)            // set to true iff we searched all seeds exhaustively
 {
 	typedef std::pair<uint32_t, uint32_t> U32Pair;
 
@@ -214,6 +215,9 @@ bool SwDriver::extendSeeds(
 			// Resolve next element offset
 			WalkResult wr;
 			gws_[i].advanceQvalPos(wr, wlm);
+			if(i == poss-1 && gws_[i].done()) {
+				exhaustive = true;
+			}
 			assert(wr.elt != lastwr.elt);
 			ASSERT_ONLY(lastwr = wr);
 			advances++;
@@ -393,6 +397,15 @@ bool SwDriver::extendSeeds(
 				// User specified that alignments overhanging ends of reference
 				// should be excluded...
 				Interval refival(tidx, 0, fw, tlen);
+				assert_gt(res_.alres.refExtent(), 0);
+				if(gReportOverhangs &&
+				   !refival.containsIgnoreOrient(res_.alres.refival()))
+				{
+					res_.alres.clipOutside(true, 0, tlen);
+					if(res_.alres.refExtent() == 0) {
+						continue;
+					}
+				}
 				assert(gReportOverhangs || refival.containsIgnoreOrient(res_.alres.refival()));
 				// Did the alignment fall entirely outside the reference?
 				if(!refival.overlapsIgnoreOrient(res_.alres.refival())) {
@@ -567,6 +580,7 @@ bool SwDriver::extendSeedsPaired(
 	const Read& rd,              // mate to align as anchor
 	const Read& ord,             // mate to align as opposite
 	bool anchor1,                // true iff anchor mate is mate1
+	bool oppFilt,                // true iff opposite mate was filtered out
 	bool color,                  // true -> reads are colorspace
 	SeedResults& sh,             // seed hits for anchor
 	const Ebwt& ebwt,            // BWT
@@ -603,14 +617,10 @@ bool SwDriver::extendSeedsPaired(
 	bool discord,                // look for discordant alignments?
 	bool mixed,                  // look for unpaired as well as paired alns?
 	EList<SwCounterSink*>* swCounterSinks, // send counter updates to these
-	EList<SwActionSink*>* swActionSinks)   // send action-list updates to these
+	EList<SwActionSink*>* swActionSinks,   // send action-list updates to these
+	bool& exhaustive)
 {
 	typedef std::pair<uint32_t, uint32_t> U32Pair;
-
-	//cerr << "Entered extendSeedsPaired with "
-	//     << "A=" << rnd.currentA()
-	//	 << ", C=" << rnd.currentC()
-	//	 << ", last=" << rnd.currentLast() << endl;
 
 	assert(!reportImmediately || msink != NULL);
 	assert(!reportImmediately || !msink->maxed());
@@ -629,8 +639,11 @@ bool SwDriver::extendSeedsPaired(
 	int readGaps  = sc.maxReadGaps(minsc,  rdlen);
 	int refGaps   = sc.maxRefGaps (minsc,  rdlen);
 	size_t maxGaps = 0;
-	int oreadGaps = sc.maxReadGaps(ominsc, ordlen);
-	int orefGaps  = sc.maxRefGaps (ominsc, ordlen);
+	int oreadGaps = 0, orefGaps = 0;
+	if(!oppFilt) {
+		oreadGaps = sc.maxReadGaps(ominsc, ordlen);
+		orefGaps  = sc.maxRefGaps (ominsc, ordlen);
+	}
 	size_t omaxGaps = 0;
 
 	size_t maxrows;
@@ -640,7 +653,6 @@ bool SwDriver::extendSeedsPaired(
 		maxrows = (size_t)(rowmult + 0.5f);
 	}
 	assert_gt(maxrows, 0);
-	//std::cerr << "rowmult=" << rowmult << ", maxrows=" << maxrows << std::endl;
 
 	const size_t rows   = rdlen  + (color ? 1 : 0);
 	const size_t orows  = ordlen + (color ? 1 : 0);
@@ -666,10 +678,6 @@ bool SwDriver::extendSeedsPaired(
 		rnd,          // pseudo-random generator
 		wlm);         // group walk left metrics
 
-	//cerr << "Back from setUpSaRangeState"
-	//	 << " with A=" << rnd.currentA() << ", C=" << rnd.currentC()
-	//	 << ", last=" << rnd.currentLast() << endl;
-	
 	// Iterate twice through levels seed hits from the lowest ranked
 	// level to the highest ranked.  On the first iteration, look for
 	// entries for which the offset is already known and try SWs.  On
@@ -714,6 +722,9 @@ bool SwDriver::extendSeedsPaired(
 			assert(!msink->state().doneWithMate(anchor1));
 			WalkResult wr;
 			gws_[i].advanceQvalPos(wr, wlm);
+			if(i == poss-1 && gws_[i].done()) {
+				exhaustive = true;
+			}
 			assert(wr.elt != lastwr.elt);
 			ASSERT_ONLY(lastwr = wr);
 			advances++;
@@ -913,6 +924,15 @@ bool SwDriver::extendSeedsPaired(
 					raw_destU32_,
 					raw_matches_));
 				Interval refival(tidx, 0, fw, tlen);
+				assert_gt(res_.alres.refExtent(), 0);
+				if(gReportOverhangs &&
+				   !refival.containsIgnoreOrient(res_.alres.refival()))
+				{
+					res_.alres.clipOutside(true, 0, tlen);
+					if(res_.alres.refExtent() == 0) {
+						continue;
+					}
+				}
 				assert(gReportOverhangs || refival.containsIgnoreOrient(res_.alres.refival()));
 				// Did the alignment fall entirely outside the reference?
 				if(!refival.overlapsIgnoreOrient(res_.alres.refival())) {
@@ -946,7 +966,7 @@ bool SwDriver::extendSeedsPaired(
 					bool oleft = false, ofw = false;
 					int64_t oll = 0, olr = 0, orl = 0, orr = 0;
 					assert(!msink->state().done());
-					if(!msink->state().doneConcordant()) {
+					if(!oppFilt && !msink->state().doneConcordant()) {
 						foundMate = pepol.otherMate(
 							anchor1,             // anchor mate is mate #1?
 							fw,                  // anchor aligned to Watson?
@@ -961,7 +981,6 @@ bool SwDriver::extendSeedsPaired(
 							orl,
 							orr,
 							ofw);
-						//cerr << "  result from otherMate: " << foundMate << endl;
 					} else {
 						// We're no longer interested in finding additional
 						// concordant paired-end alignments so we just report this
@@ -1066,7 +1085,15 @@ bool SwDriver::extendSeedsPaired(
 								seedival,   // interval between seeds
 								ominsc,     // minimum score for valid alignment
 								ofloorsc);  // local-alignment floor score
-							if((!gReportOverhangs &&
+							assert_gt(ores_.alres.refExtent(), 0);
+							if(gReportOverhangs &&
+							   !refival.containsIgnoreOrient(ores_.alres.refival()))
+							{
+								ores_.alres.clipOutside(true, 0, tlen);
+								foundMate = ores_.alres.refExtent() > 0;
+							}
+							if(foundMate && 
+							   (!gReportOverhangs &&
 							    !refival.containsIgnoreOrient(ores_.alres.refival())) ||
 								!refival.overlapsIgnoreOrient(ores_.alres.refival()))
 							{
@@ -1251,7 +1278,6 @@ bool SwDriver::extendSeedsPaired(
 			// At this point we know that we aren't bailing, and will continue to resolve seed hits.  
 
 		} // while(!gw.done())
-	
 	} // for(size_t i = 0; i < poss; i++)
 	return false;
 }

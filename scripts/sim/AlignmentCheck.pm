@@ -329,6 +329,73 @@ sub cigarTrim($$) {
 }
 
 ##
+# Parse a CIGAR string into a string of operators.  Operators are expanded into
+# runs where appropriate.  = and X are collapsed into M.
+#
+sub parse_cigar($) {
+	my ($cigar) = @_;
+	my $ret = "";
+	my $i = 0;
+	my ($rdlen, $rflen) = (0, 0);
+	while($i < length($cigar)) {
+		substr($cigar, $i) =~ /^([0-9]+)/;
+		defined($1) || die "Could not parse number at pos $i: '$cigar'";
+		my $runlen = $1;
+		$i += length($1);
+		$i < length($cigar) || die;
+		my $op = substr($cigar, $i, 1);
+		defined($op) || die "Could not parse operation at pos $i: '$cigar'";
+		if($op eq "X" || $op eq "=") {
+			$op = "M";
+		}
+		$rdlen += $runlen if $op ne "D";
+		$rflen += $runlen if $op ne "I";
+		$ret .= ($op x $runlen);
+		$i++;
+	}
+	return ($ret, $rdlen, $rflen);
+}
+
+##
+# Parse an MD:Z string into a string with length equal to query length.  Each
+# position contains either a space, if the read matches the reference at that
+# position, or a character, if the reference contains a character that doesn't
+# match its opposite in the alignment.  In the latter case, the character in
+# the string is the reference character.
+#
+sub parse_md($) {
+	my ($md) = @_;
+	my $i = 0;
+	my $ret = "";
+	while($i < length($md)) {
+		# Starts with a number?
+		my $ch = substr($md, $i, 1);
+		if($ch =~ /[0-9]/) {
+			# Parse the number off the beginning
+			substr($md, $i) =~ /^([0-9]+)/;
+			defined($1) || die "Could not parse number at pos $i: '$md'";
+			my $runlen = $1;
+			$ret .= (" " x $runlen) if $runlen > 0;
+			$i += length($runlen);
+		} elsif($ch eq "^") {
+			# Read gap
+			$i++;
+			substr($md, $i) =~ /^([A-Za-z]+)/;
+			defined($1) || die "Could not parse read gap at pos $i: '$md'";
+			my $chrs = $1;
+			$i += length($chrs);
+			$ret .= $chrs;
+		} else {
+			# DNA character
+			$ch =~ /[ACGTN.]/i || die "Bad char '$ch' at pos $i: '$md'";
+			$ret .= $ch;
+			$i++;
+		}
+	}
+	return $ret;
+}
+
+##
 # Given a read sequence (with characters in upstream-to-downstream order with
 # respect to the reference - NOT necessarily 5'-to-3') and a CIGAR string and
 # an MD:Z string, build the alignment strings.  The alignment strings will only
@@ -342,15 +409,16 @@ sub _read_md_cigar_to_al($$$) {
 	my ($seq, $md, $cigar) = @_;
 	my $alread = "";
 	my $alref = "";
+	$cigar ne "*" || die "CIGAR string was star!";
+	$seq ne "" || die "Empty sequence given to _read_md_cigar_to_al";
 	my $parsed_md  = parse_md($md);
-	my $parsed_cig = parse_cigar($cigar);
+	my ($parsed_cig, $cigar_rdlen, $cigar_rflen) = parse_cigar($cigar);
 	my ($rdoff, $mdoff) = (0, 0);
 	my ($htriml, $striml, $htrimr, $strimr) = (0, 0, 0, 0);
 	my $nonsh = 0; # have I seen a non-S, non-H CIGAR op?
 	my $nonh = 0;  # have I seen a non-H CIGAR op?
 	for(my $i = 0; $i < length($parsed_cig); $i++) {
 		my $cigop = substr($parsed_cig, $i, 1);
-		$rdoff < length($seq) || die "Bad rdoff:$rdoff for seq '$seq' cigop=$cigop";
 		$nonh++ if $cigop ne "H";
 		$nonsh++ if ($cigop ne "H" && $cigop ne "S");
 		if($cigop eq "S") {
@@ -377,6 +445,8 @@ sub _read_md_cigar_to_al($$$) {
 			$alref .= "-";
 		} elsif($cigop eq "M") {
 			my $rdc = substr($seq, $rdoff, 1);
+			$mdoff < length($parsed_md) ||
+				die "Bad mdoff ($mdoff)\nlength(parsed_md)=".length($parsed_md)."\nseq:\n$seq\ncigar:\n$cigar\nmd:\n$md\nparsed md:\n$parsed_md";
 			my $rfc = substr($parsed_md, $mdoff, 1);
 			$rfc = $rdc if $rfc eq " ";
 			$alread .= $rdc;
@@ -398,13 +468,15 @@ sub _read_md_cigar_to_al($$$) {
 			# Reference gap
 			#  Read: AAAAAAA
 			#   Ref: AAA-AAA
-			$cigop eq "I" || die "Unsupported cigop: $cigop";
+			$cigop eq "I" || die "Unsupported cigop: $cigop in cigar $cigar";
 			my $rdc = substr($seq, $rdoff, 1);
 			$alread .= $rdc;
 			$alref .= "-";
 			$rdoff++;
-			$mdoff++;
+			# $mdoff SHOULD NOT be incremented here
 		}
+		$rdoff <= length($seq) ||
+			die "Bad rdoff:$rdoff for seq '$seq' cigop=$cigop\nseq: $seq\ncigar=$cigar\nmd=$md";
 	}
 	return ($alread, $alref, $htriml, $striml, $htrimr, $strimr);
 }
@@ -500,8 +572,13 @@ sub parseBowtieLines {
 #
 sub parseSamLines {
 	my ($self, $lines) = @_;
+	my ($lastseq, $lastqual) = ("", "");
+	my $idx = 0;
 	for my $line (@$lines) {
+		$idx++;
+		print STDERR "Processing line...\n";
 		chomp($line);
+		next if $line =~ /^\@/;
 		my @toks = split(/\t/, $line, -1);
 		my (
 			$qname, #1
@@ -516,9 +593,23 @@ sub parseSamLines {
 			$seq,   #10
 			$qual) = @toks;
 		defined($qual) || die "Not enough SAM tokens:\n$line\n";
-		my @opt_flags_list = $toks[11..$#toks];
+		my @opt_flags_list = @toks[11..$#toks];
 		my %opt_flags = ();
 		next if $rname eq "*"; # Failed to align
+		# Get the read sequence & qualities from previous record if necessary
+		if($seq eq "*") {
+			$lastseq ne "" || die "Line #$idx:\n$line";
+			$seq = $lastseq;
+			$qual = $lastqual;
+		} else {
+			$lastseq = $seq;
+			$lastqual = $qual;
+		}
+		$seq ne "*" || die;
+		my ($parsed_cigar, $rdlen_cigar, $rflen_cigar) = parse_cigar($cigar);
+		length($seq) == $rdlen_cigar ||
+			die "Sequence length and parsed cigar string length ($rdlen_cigar) mismatch:\n".
+			    "$seq\n$parsed_cigar\nLine:\n$line";
 		# Stick optional flags into a hash
 		for my $fl (@opt_flags_list) {
 			my @fs = split(/:/, $fl, -1);
@@ -543,17 +634,20 @@ sub parseSamLines {
 		my $exoff = $pos-1; # expected 0-based reference offset
 		my ($alread, $alref, $htriml, $striml, $htrimr, $strimr) =
 			_read_md_cigar_to_al($seq, $md, $cigar);
+		print STDERR "$alread\n$alref\n";
 		my $rfseq = $alref;
-		$rfseq =~ tr/ //; # remove spaces
+		$rfseq =~ s/[ -]//g; # remove spaces & gaps
 		my $exlen = length($rfseq);
 		my $refsub = substr($self->refs->{$reftype}{$rname}, $exoff, $exlen);
 		length($refsub) == $exlen ||
-			die "Tried to extract ref substring of length $exlen, got ".
-			    "\"$refsub\" from \"".$self->refs->{$reftype}{$rname}."\"".
-				"\n$line\n".
-				"\npos=$pos, rfseq=$rfseq\n";
-		#$refsub = DNA::iupacSubN($refsub);
-		#my $trueRfseq = $padleft . $refsub . $padright;
+			die "Tried to extract ref substring of length $exlen from:\n".
+			    $self->refs->{$reftype}{$rname}.
+				"\ngot string of length ".length($refsub).":\n".
+				$refsub.
+				"\nfrom:\n".
+				$line.
+				"\nexlen is the length of:\n$rfseq\npos=$pos, rfseq=$rfseq\n";
+		$refsub = DNA::iupacSubN($refsub);
 		my $trueRfseq = $refsub;
 		length($trueRfseq) == length($rfseq) ||
 			die "Different lengths for edited read and ref:\n".
@@ -564,7 +658,8 @@ sub parseSamLines {
 			die "Did not match:\n".
 			"       Read: $seq\n".
 			"Edited read: $rfseq\n".
-			"        Ref: $trueRfseq\n";
+			"        Ref: $trueRfseq\n".
+			"$line";
 		$self->{_nals}++;
 	}
 }
@@ -581,22 +676,14 @@ sub parseBowtie {
 }
 
 ##
-# Parse a line from a SAM alignment file and check that the
-# alignment is sane and consistent with the reference.
-#
-sub parseSamLines {
-	my ($self, $lines) = @_;
-	for my $line (@$lines) {
-	}
-}
-
-##
 # Parse lines from a SAM alignment file and check that alignments are
 # sane and consistent with the reference.
 #
 sub parseSam {
 	my ($self, $fh) = @_;
-	while(<$fh>) { $self->parseSamLines([$_]); }
+	my @lines = ();
+	while(<$fh>) { push @lines, $_; }
+	$self->parseSamLines(\@lines);
 }
 
 ##

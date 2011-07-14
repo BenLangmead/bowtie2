@@ -14,7 +14,6 @@ enum file_format {
 	TAB_MATE,
 	RAW,
 	CMDLINE,
-	INPUT_CHAIN,
 	RANDOM,
 	QSEQ
 };

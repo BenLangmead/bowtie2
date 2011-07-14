@@ -381,6 +381,8 @@ public:
 		return true;
 	}
 
+	inline void adjustOff(TRefOff off) { upstream_.adjustOff(off); }
+
 protected:
 
 	Coord   upstream_;

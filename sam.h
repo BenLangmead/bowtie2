@@ -47,6 +47,8 @@ public:
 	SamConfig(
 		const StrList& refnames,  // reference sequence names
 		const LenList& reflens,   // reference sequence lengths
+		bool truncQname,          // truncate read name to 255?
+		bool omitsec,             // omit secondary SEQ/QUAL
 		const std::string& pg_id, // id
 		const std::string& pg_pn, // name
 		const std::string& pg_vn, // version
@@ -63,10 +65,13 @@ public:
 		bool print_xg,
 		bool print_nm,
 		bool print_md,
+		bool print_yf,
 		bool print_ym,
 		bool print_yp,
 		bool print_yt,
 		bool print_ys) :
+		truncQname_(truncQname),
+		omitsec_(omitsec),
 		pg_id_(pg_id),
 		pg_pn_(pg_pn),
 		pg_vn_(pg_vn),
@@ -85,6 +90,7 @@ public:
 		print_xg_(print_xg),
 		print_nm_(print_nm),
 		print_md_(print_md),
+		print_yf_(print_yf),
 		print_ym_(print_ym),
 		print_yp_(print_yp),
 		print_yt_(print_yt),
@@ -103,7 +109,8 @@ public:
 		const;
 	
 	/**
-	 * [!-?A-~]{1,255}
+	 * Print a read name in a way that doesn't violate SAM's character
+	 * constraints. [!-?A-~]{1,255} (i.e. [33, 63], [65, 126])
 	 */
 	template<typename TStr>
 	void printReadName(
@@ -111,7 +118,17 @@ public:
 		const TStr& name)
 		const
 	{
-		for(size_t i = 0; i < name.length(); i++) {
+		size_t namelen = name.length();
+		if( namelen >= 2 &&
+			name[namelen-2] == '/' &&
+		   (name[namelen-1] == '1' || name[namelen-1] == '2'))
+		{
+			namelen -= 2;
+		}
+		if(truncQname_ && namelen > 255) {
+			namelen = 255;
+		}
+		for(size_t i = 0; i < namelen; i++) {
 			if(isspace(name[i])) {
 				return;
 			}
@@ -168,9 +185,23 @@ public:
 		const AlnFlags& flags,  // alignment flags
 		const AlnSetSumm& summ) // summary of alignments for this read
 		const;
+	
+	/**
+	 * Return true iff we should try to obey the SAM spec's recommendations
+	 * that:
+	 *
+	 * SEQ and QUAL of secondary alignments should be set to ‘*’ to reduce the
+	 * file size.
+	 */
+	bool omitSecondarySeqQual() const {
+		return omitsec_;
+	}
 
 protected:
 
+	bool truncQname_;   // truncate QNAME to 255 chars?
+	bool omitsec_;      // omit secondary 
+	
 	std::string pg_id_; // @PG ID: Program record identifier
 	std::string pg_pn_; // @PG PN: Program name
 	std::string pg_vn_; // @PG VN: Program version
@@ -199,6 +230,7 @@ protected:
 	bool print_md_; // MD:Z: String for mms. [0-9]+(([A-Z]|\^[A-Z]+)[0-9]+)*2
 
 	// Following are Bowtie2-specific
+	bool print_yf_; // YF:i: Read was filtered out?
 	bool print_ym_; // YM:i: Read was repetitive when aligned unpaired?
 	bool print_yp_; // YP:i: Read was repetitive when aligned paired?
 	bool print_yt_; // YT:Z: String representing alignment type

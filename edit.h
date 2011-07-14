@@ -146,6 +146,16 @@ struct Edit {
 	 * the other end of the read (of length 'sz').
 	 */
 	static void invertPoss(EList<Edit>& edits, size_t sz);
+	
+	/**
+	 * Clip off some of the low-numbered positions.
+	 */
+	static void clipLo(EList<Edit>& edits, size_t len, size_t amt);
+
+	/**
+	 * Clip off some of the high-numbered positions.
+	 */
+	static void clipHi(EList<Edit>& edits, size_t len, size_t amt);
 
 	/**
 	 * Given a read string and some edits, generate and append the
