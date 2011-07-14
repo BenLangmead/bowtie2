@@ -295,7 +295,6 @@ bool SwAligner::align(RandomSource& rnd) {
 					sse16succ_ = (flag == 0);
 				}
 			} else {
-				assert_geq(sseU8fw_.bias_, 0);
 				best = alignNucleotidesLocalSseU8(flag);
 				if(flag == -2) {
 					flag = 0;

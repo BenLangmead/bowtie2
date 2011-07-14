@@ -536,6 +536,21 @@ public:
 	}
 
 	/**
+	 * Erase range of elements starting at offset idx and going for len.
+	 */
+	void erase(size_t idx, size_t len) {
+		assert_geq(len, 0);
+		if(len == 0) {
+			return;
+		}
+		assert_lt(idx, cur_);
+		for(size_t i = idx; i < cur_-len; i++) {
+			list_[i] = list_[i+len];
+		}
+		cur_ -= len;
+	}
+
+	/**
 	 * Insert value 'el' at offset 'idx'
 	 */
 	void insert(const T& el, size_t idx) {

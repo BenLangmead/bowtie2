@@ -295,6 +295,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag) {
 	buildQueryProfileLocalSseU8(fw_);
 	assert(!d.buf_.empty());
 	assert(d.qprof_ != NULL);
+	assert_geq(d.bias_, 0);
 
 	assert_gt(d.maxBonus_, 0);
 	size_t iter =

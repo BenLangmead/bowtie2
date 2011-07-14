@@ -292,60 +292,107 @@ void AlnRes::init(
 }
 
 /**
- * Shift all edits left-to-right along the Watson strand by the given amount.
+ * Clip given number of characters from the Watson-upstream end of the
+ * alignment.
  */
-void AlnRes::clipLeft(TRefOff amt) {
-#if 0
-	ned_;          // base edits
-	aed_;          // ambiguous base resolutions
-	ced_;          // color miscalls
-	refcoord_.adjustOff(amt); // shift
-	// We have to determine the shape of the portion of the alignment that
-	// we're clipping
-	size_t      rdextent_;     // number of read chars involved in alignment
-	size_t      rdexrows_;     // number of read rows involved in alignment
-	size_t      rfextent_;     // number of ref chars involved in alignment
-
-	int         nuc5p_;        // 5'-most decoded base; clipped if excluding end
-	int         nuc3p_;        // 3'-most decoded base; clipped if excluding end
-	size_t      refns_;        // # of reference Ns overlapped
-	
-	// Nucleotide-sequence trimming
-	bool        trimSoft_;     // trimming by local alignment is soft?
-	size_t      trim5p_;       // # bases trimmed from 5p end by local alignment
-	size_t      trim3p_;       // # bases trimmed from 3p end by local alignment
-
-	// Colorspace-sequence trimming; only relevant in colorspace
-	bool        cPretrimSoft_; // trimming prior to alignment is soft?
-	size_t      cPretrim5p_;   // # bases trimmed from 5p end prior to alignment
-	size_t      cPretrim3p_;   // # bases trimmed from 3p end prior to alignment
-	bool        cTrimSoft_;    // trimming by local alignment is soft?
-	size_t      cTrim5p_;      // # bases trimmed from 5p end by local alignment
-	size_t      cTrim3p_;      // # bases trimmed from 3p end by local alignment
-#endif
+void AlnRes::clipLeft(size_t rd_amt, size_t rf_amt) {
+	assert_geq(rd_amt, 0);
+	assert_geq(rf_amt, 0);
+	assert_leq(rd_amt, rdexrows_);
+	assert_leq(rf_amt, rfextent_);
+	assert(trimSoft_);
+	if(fw()) {
+		trim5p_ += rd_amt;
+		Edit::clipLo(ned_, rdexrows_, rd_amt);
+		Edit::clipLo(aed_, rdexrows_, rd_amt);
+		Edit::clipLo(ced_, rdextent_, rd_amt);
+	} else {
+		trim3p_ += rd_amt;
+		Edit::clipHi(ned_, rdexrows_, rd_amt);
+		Edit::clipHi(aed_, rdexrows_, rd_amt);
+		Edit::clipHi(ced_, rdextent_, rd_amt);
+	}
+	rdexrows_ -= rd_amt;
+	rdextent_ -= rd_amt;
+	rfextent_ -= rf_amt;
+	refcoord_.adjustOff(rf_amt);
+	refival_.adjustOff(rf_amt);
+	// Adjust refns_?
 }
 
 /**
- * Shift all edits left-to-right along the Watson strand by the given amount.
+ * Clip given number of characters from the Watson-downstream end of the
+ * alignment.
  */
-void AlnRes::clipRight(TRefOff amt) {
+void AlnRes::clipRight(size_t rd_amt, size_t rf_amt) {
+	assert_geq(rd_amt, 0);
+	assert_geq(rf_amt, 0);
+	assert_leq(rd_amt, rdexrows_);
+	assert_leq(rf_amt, rfextent_);
+	assert(trimSoft_);
+	if(fw()) {
+		trim3p_ += rd_amt;
+		Edit::clipHi(ned_, rdexrows_, rd_amt);
+		Edit::clipHi(aed_, rdexrows_, rd_amt);
+		Edit::clipHi(ced_, rdextent_, rd_amt);
+	} else {
+		trim5p_ += rd_amt;
+		Edit::clipLo(ned_, rdexrows_, rd_amt);
+		Edit::clipLo(aed_, rdexrows_, rd_amt);
+		Edit::clipLo(ced_, rdextent_, rd_amt);
+	}
+	rdexrows_ -= rd_amt;
+	rdextent_ -= rd_amt;
+	rfextent_ -= rf_amt;
+	// Adjust refns_?
 }
 
 /**
  * Clip away portions of the alignment that are outside the given bounds.
  * Clipping is soft if soft == true, hard otherwise.  Assuming for now that
  * there isn't any other clipping.
+ *
+ * Note that all clipping is expressed in terms of read positions.  So if there
+ * are reference gaps in the overhanging portion, we must 
  */
 void AlnRes::clipOutside(bool soft, TRefOff refi, TRefOff reff) {
 	// Overhang on LHS
 	TRefOff left = refcoord_.off();
 	if(left < refi) {
-		clipLeft(refi - refcoord_.off());
+		size_t rf_amt = (size_t)(refi - left);
+		size_t rf_i = rf_amt;
+		size_t nedsz = ned_.size();
+		if(!fw()) {
+			Edit::invertPoss(ned_, rdexrows_);
+		}
+		for(size_t i = 0; i < nedsz; i++) {
+			assert_lt(ned_[i].pos, rdexrows_);
+			if(ned_[i].pos > rf_i) break;
+			if(ned_[i].isRefGap()) rf_i++;
+		}
+		if(!fw()) {
+			Edit::invertPoss(ned_, rdexrows_);
+		}
+		clipLeft(rf_i, rf_amt);
 	}
 	// Overhang on RHS
 	TRefOff right = refcoord_.off() + refNucExtent();
 	if(right > reff) {
-		clipRight(right - reff);
+		size_t rf_amt = (size_t)(right - reff);
+		size_t rf_i = rf_amt;
+		size_t nedsz = ned_.size();
+		if(fw()) {
+			Edit::invertPoss(ned_, rdexrows_);
+		}
+		for(size_t i = 0; i < nedsz; i++) {
+			assert_lt(ned_[i].pos, rdexrows_);
+			if(ned_[i].pos > rf_i) break;
+			if(ned_[i].isRefGap()) rf_i++;
+		}
+		if(fw()) {
+			Edit::invertPoss(ned_, rdexrows_);
+		}
+		clipRight(rf_i, rf_amt);
 	}
 }
 
@@ -1162,7 +1209,9 @@ AlnSetSumm::AlnSetSumm(
 	const EList<AlnRes>* rs1,
 	const EList<AlnRes>* rs2,
 	const EList<AlnRes>* rs1u,
-	const EList<AlnRes>* rs2u)
+	const EList<AlnRes>* rs2u,
+	bool exhausted1,
+	bool exhausted2)
 {
 	assert(rd1 != NULL || rd2 != NULL);
 	assert((rs1 == NULL) == (rs2 == NULL));
@@ -1222,14 +1271,41 @@ AlnSetSumm::AlnSetSumm(
 			secbestPaired,
 			(szs[0] == 0) ? 0 : (szs[0] - 1),
 			(szs[1] == 0) ? 0 : (szs[1] - 1),
-			paired);
+			paired,
+			exhausted1,
+			exhausted2);
 	} else {
 		reset();
 	}
 }
 
 /**
- * Print out string representation of these flags.
+ * Print out string representation of YF:i flag for indicating whether and
+ * why the mate was filtered.
+ */
+bool AlnFlags::printYF(OutFileBuf& o, bool first) const {
+	size_t flag = 0;
+	if(!lenfilt_) flag = 1;
+	if(!nfilt_)   flag = 2;
+	if(!scfilt_)  flag = 3;
+	if(!qcfilt_)  flag = 4;
+	char buf[128];
+	if(flag > 0) {
+		if(!first) {
+			o.write('\t');
+		}
+		o.writeChars("YF:i:");
+		itoa10<size_t>(flag, buf);
+		o.writeChars(buf);
+		return false;
+	}
+	return true;
+}
+
+
+/**
+ * Print out string representation of YM:i flag for indicating with the
+ * mate per se aligned repetitively.
  */
 void AlnFlags::printYM(OutFileBuf& o) const {
 	o.writeChars("YM:i:");
@@ -1237,7 +1313,8 @@ void AlnFlags::printYM(OutFileBuf& o) const {
 }
 
 /**
- * Print out string representation of these flags.
+ * Print out string representation of YM:i flag for indicating with the
+ * pair containing the mate aligned repetitively.
  */
 void AlnFlags::printYP(OutFileBuf& o) const {
 	o.writeChars("YP:i:");

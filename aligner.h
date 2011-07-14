@@ -154,14 +154,15 @@ public:
 					(*aligners_)[i]->advance();
 				} else {
 					// Get a new read and initialize an aligner with it
-					(*patsrcs_)[i]->nextReadPair(true);
-					if(!(*patsrcs_)[i]->empty() && (*patsrcs_)[i]->patid() < qUpto_) {
+					bool success = false, mydone = false, paired = false;
+					(*patsrcs_)[i]->nextReadPair(success, mydone, paired, true);
+					if(success && (*patsrcs_)[i]->patid() < qUpto_) {
 						(*aligners_)[i]->setQuery((*patsrcs_)[i]);
 						assert(!(*aligners_)[i]->done);
 						done = false;
 					} else {
-						// No more reads; if done == true, it remains
-						// true
+						// No more reads; if done == true, it remains true
+						assert(mydone && done);
 					}
 				}
 			}
@@ -243,10 +244,11 @@ public:
 					al->advance();
 				} else {
 					// Get a new read
-					ps->nextReadPair(true);
-					if(ps->patid() < qUpto_ && !ps->empty()) {
+					bool success = false, mydone = false, paired = false;
+					ps->nextReadPair(success, mydone, paired, true);
+					if(success && ps->patid() < qUpto_) {
 						assert_eq(ps->bufa().color, gColor);
-						if(ps->paired()) {
+						if(paired) {
 							// Read currently in buffer is paired-end
 							assert_eq(ps->bufb().color, gColor);
 							(*alignersPE_)[0]->setQuery(ps);
@@ -260,8 +262,8 @@ public:
 						}
 						done = false;
 					} else {
-						// No more reads; if done == true, it remains
-						// true
+						// No more reads; if done == true, it remains true
+						assert(done && mydone);
 					}
 				}
 				first = false;
@@ -281,9 +283,10 @@ public:
 						// Feed a new read to a vacant aligner
 						PatternSourcePerThread *ps = (*patsrcs_)[i];
 						// Get a new read
-						ps->nextReadPair(true);
-						if(ps->patid() < qUpto_ && !ps->empty()) {
-							if(ps->paired()) {
+						bool success = false, mydone = false, paired = false;
+						ps->nextReadPair(success, mydone, paired, true);
+						if(ps->patid() < qUpto_) {
+							if(paired) {
 								// Read currently in buffer is paired-end
 								(*alignersPE_)[i]->setQuery(ps);
 								seOrPe_[i] = false; // false -> paired
@@ -294,8 +297,8 @@ public:
 							}
 							done = false;
 						} else {
-							// No more reads; if done == true, it remains
-							// true
+							// No more reads; if done == true, it remains true
+							assert(done && mydone);
 						}
 					}
 				}

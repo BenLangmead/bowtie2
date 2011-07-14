@@ -139,6 +139,8 @@ static int randomLength; // length of randomly-generated reads
 static bool hadoopOut; // print Hadoop status and summary messages
 static bool fuzzy;
 static bool fullRef;
+static bool samTruncQname; // whether to truncate QNAME to 255 chars
+static bool samOmitSecSeqQual; // omit SEQ/QUAL for 2ndary alignments?
 static bool samNoHead; // don't print any header lines in SAM output
 static bool samNoSQ;   // don't print @SQ header lines
 static bool sam_print_as;
@@ -153,10 +155,12 @@ static bool sam_print_xo;
 static bool sam_print_xg;
 static bool sam_print_nm;
 static bool sam_print_md;
+static bool sam_print_yf;
 static bool sam_print_ym;
 static bool sam_print_yp;
 static bool sam_print_yt;
 static bool sam_print_ys;
+static bool qcFilter;
 bool gColor;     // true -> inputs are colorspace
 bool gColorExEnds; // true -> nucleotides on either end of decoded cspace alignment should be excluded
 bool gReportOverhangs; // false -> filter out alignments that fall off the end of a reference sequence
@@ -322,6 +326,8 @@ static void resetOptions() {
 	hadoopOut				= false; // print Hadoop status and summary messages
 	fuzzy					= false; // reads will have alternate basecalls w/ qualities
 	fullRef					= false; // print entire reference name instead of just up to 1st space
+	samTruncQname           = true;  // whether to truncate QNAME to 255 chars
+	samOmitSecSeqQual       = false; // omit SEQ/QUAL for 2ndary alignments?
 	samNoHead				= false; // don't print any header lines in SAM output
 	samNoSQ					= false; // don't print @SQ header lines
 	sam_print_as            = true;
@@ -336,10 +342,12 @@ static void resetOptions() {
 	sam_print_xg            = true;
 	sam_print_nm            = true;
 	sam_print_md            = true;
+	sam_print_yf            = true;
 	sam_print_ym            = true;
 	sam_print_yp            = true;
 	sam_print_yt            = true;
 	sam_print_ys            = true;
+	qcFilter                = false; // don't believe upstream qc by default
 	gColor					= false; // don't align in colorspace by default
 	gColorExEnds			= true;  // true -> nucleotides on either end of decoded cspace alignment should be excluded
 	gReportOverhangs        = false; // false -> filter out alignments that fall off the end of a reference sequence
@@ -477,8 +485,6 @@ enum {
 	ARG_CHUNKVERBOSE,
 	ARG_STRATA,
 	ARG_PEV2,
-	ARG_CHAINOUT,
-	ARG_CHAININ,
 	ARG_REFMAP,
 	ARG_ANNOTMAP,
 	ARG_REPORTSE,
@@ -488,6 +494,8 @@ enum {
 	ARG_USAGE,
 	ARG_SNPPHRED,
 	ARG_SNPFRAC,
+	ARG_SAM_NO_QNAME_TRUNC,
+	ARG_SAM_OMIT_SEC_SEQ,
 	ARG_SAM_NOHEAD,
 	ARG_SAM_NOSQ,
 	ARG_SAM_RG,
@@ -516,7 +524,8 @@ enum {
 	ARG_LOCAL,
 	ARG_OFFRATE_ADD,
 	ARG_SCAN_NARROWED,
-	ARG_NO_SSE
+	ARG_NO_SSE,
+	ARG_QC_FILTER
 };
 
 static struct option long_options[] = {
@@ -594,8 +603,6 @@ static struct option long_options[] = {
 	{(char*)"shmem",        no_argument,       0,            ARG_SHMEM},
 	{(char*)"mmsweep",      no_argument,       0,            ARG_MMSWEEP},
 	{(char*)"pev2",         no_argument,       0,            ARG_PEV2},
-	{(char*)"chainout",     no_argument,       0,            ARG_CHAINOUT},
-	{(char*)"chainin",      no_argument,       0,            ARG_CHAININ},
 	{(char*)"refmap",       required_argument, 0,            ARG_REFMAP},
 	{(char*)"annotmap",     required_argument, 0,            ARG_ANNOTMAP},
 	{(char*)"reportse",     no_argument,       0,            ARG_REPORTSE},
@@ -605,6 +612,8 @@ static struct option long_options[] = {
 	{(char*)"usage",        no_argument,       0,            ARG_USAGE},
 	//{(char*)"sam",          no_argument,       0,            'S'},
 	{(char*)"gaps",         no_argument,       0,            'g'},
+	{(char*)"sam-no-qname-trunc", no_argument, 0,            ARG_SAM_NO_QNAME_TRUNC},
+	{(char*)"sam-omit-sec-seq", no_argument,   0,            ARG_SAM_OMIT_SEC_SEQ},
 	{(char*)"sam-nohead",   no_argument,       0,            ARG_SAM_NOHEAD},
 	{(char*)"sam-nosq",     no_argument,       0,            ARG_SAM_NOSQ},
 	{(char*)"sam-noSQ",     no_argument,       0,            ARG_SAM_NOSQ},
@@ -642,6 +651,7 @@ static struct option long_options[] = {
 	{(char*)"local",        no_argument,       0,            ARG_LOCAL},
 	{(char*)"scan-narrowed",no_argument,       0,            ARG_SCAN_NARROWED},
 	{(char*)"no-sse",       no_argument,       0,            ARG_NO_SSE},
+	{(char*)"qc-filter",    no_argument,       0,            ARG_QC_FILTER},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -662,17 +672,17 @@ static void printUsage(ostream& out) {
 	    << "  <s>     Comma-separated list of files containing unpaired reads, or the" << endl
 	    << "          sequences themselves, if -c is set.  Specify \"-\" for stdin." << endl
 	    << "  <hit>   File to write hits to (default: stdout)" << endl
-	    << "Key missing features:" << endl
-	    << "  - No colorspace support" << endl
+	    //<< "Key missing features:" << endl
+	    //<< "  - No colorspace support" << endl
 	    << "Input:" << endl
 	    << "  -q                 query input files are FASTQ .fq/.fastq (default)" << endl
 	    << "  -f                 query input files are (multi-)FASTA .fa/.mfa" << endl
 	    << "  -r                 query input files are raw one-sequence-per-line" << endl
 	    << "  --qseq             query input files are in Illumina's qseq format" << endl
 	    << "  -c                 query sequences given on cmd line (as <mates>, <singles>)" << endl
-	    << "  -C                 reads and index are in colorspace" << endl
-	    << "  -Q/--quals <file>  QV file(s) corresponding to CSFASTA inputs; use with -f -C" << endl
-	    << "  --Q1/--Q2 <file>   same as -Q, but for mate files 1 and 2 respectively" << endl
+	    //<< "  -C                 reads and index are in colorspace" << endl
+	    //<< "  -Q/--quals <file>  QV file(s) corresponding to CSFASTA inputs; use with -f -C" << endl
+	    //<< "  --Q1/--Q2 <file>   same as -Q, but for mate files 1 and 2 respectively" << endl
 	    << "  -s/--skip <int>    skip the first <int> reads/pairs in the input" << endl
 	    << "  -u/--qupto <int>   stop after first <int> reads/pairs (excl. skipped reads)" << endl
 	    << "  -5/--trim5 <int>   trim <int> bases from 5' (left) end of reads" << endl
@@ -684,8 +694,8 @@ static void printUsage(ostream& out) {
 	    << "  --integer-quals    qualities are given as space-separated integers (not ASCII)" << endl
 	    << "Alignment:" << endl
 		<< "  --local            set alignment defaults to do BWA-SW-like local alignment" << endl
-	    << "  --nomaqround       disable Maq-like quality rounding for -n (nearest 10 <= 30)" << endl
-	    << "  --gNofw/--gNorc    do not align to forward/reverse-complement reference strand" << endl
+	    << "  --nomaqround       disable Maq-like quality rounding (nearest 10 <= 30)" << endl
+	    << "  --nofw/--norc      do not align to forward/reverse-complement reference strand" << endl
 		<< "Paired-end:" << endl
 	    << "  -I/--minins <int>  minimum fragment length (default: 0)" << endl
 	    << "  -X/--maxins <int>  maximum fragment length (default: 250)" << endl
@@ -940,7 +950,6 @@ static void parseOptions(int argc, const char **argv) {
 			case 'c': format = CMDLINE; break;
 			case ARG_QSEQ: format = QSEQ; break;
 			case 'C': gColor = true; break;
-			case ARG_CHAININ: format = INPUT_CHAIN; break;
 			case 'I':
 				gMinInsert = parseInt(0, "-I arg must be positive");
 				break;
@@ -962,7 +971,6 @@ static void parseOptions(int argc, const char **argv) {
 			case ARG_RANDOM_READS: format = RANDOM; break;
 			case ARG_RANGE: gRangeMode = true; break;
 			case ARG_CONCISE: outType = OUTPUT_CONCISE; break;
-			case ARG_CHAINOUT: outType = OUTPUT_CHAIN; break;
 			case ARG_NOOUT: outType = OUTPUT_NONE; break;
 			case ARG_REFMAP: refMapFile = optarg; break;
 			case ARG_ANNOTMAP: annotMapFile = optarg; break;
@@ -1138,6 +1146,8 @@ static void parseOptions(int argc, const char **argv) {
 			case ARG_NO_FW: gNofw = true; break;
 			case ARG_NO_RC: gNorc = true; break;
 			case ARG_STATS: stats = true; break;
+			case ARG_SAM_NO_QNAME_TRUNC: samTruncQname = false; break;
+			case ARG_SAM_OMIT_SEC_SEQ: samOmitSecSeqQual = true; break;
 			case ARG_SAM_NOHEAD: samNoHead = true; break;
 			case ARG_SAM_NOSQ: samNoSQ = true; break;
 			case ARG_SAM_RG: {
@@ -1171,6 +1181,7 @@ static void parseOptions(int argc, const char **argv) {
 			case ARG_LOCAL: localAlign = true; break;
 			case ARG_SCAN_NARROWED: scanNarrowed = true; break;
 			case ARG_NO_SSE: noSse = true; break;
+			case ARG_QC_FILTER: qcFilter = true; break;
 			case ARG_NOISY_HPOLY: noisyHpolymer = true; break;
 			case 'P': seedAlignmentPolicyString = optarg; break;
 			case ARG_SA_DUMP: {
@@ -1190,7 +1201,6 @@ static void parseOptions(int argc, const char **argv) {
 				throw 1;
 		}
 	} while(next_option != -1);
-	bool paired = mates1.size() > 0 || mates2.size() > 0 || mates12.size() > 0;
 	if(gRangeMode) {
 		// Tell the Ebwt loader to ignore the suffix-array portion of
 		// the index.  We don't need it because the user isn't asking
@@ -1316,22 +1326,6 @@ static void parseOptions(int argc, const char **argv) {
 	if(gSnpPhred <= 10 && gColor && !gQuiet) {
 		cerr << "Warning: the colorspace SNP penalty (--snpphred) is very low: " << gSnpPhred << endl;
 	}
-	if(format == INPUT_CHAIN) {
-		bool error = false;
-		if(paired) {
-			cerr << "Error: --chainin cannot be combined with paired-end alignment; aborting..." << endl;
-			error = true;
-		}
-		if(error) throw 1;
-	}
-	if(outType == OUTPUT_CHAIN) {
-		bool error = false;
-		if(paired) {
-			cerr << "Error: --chainout cannot be combined with paired-end alignment; aborting..." << endl;
-			error = true;
-		}
-		if(error) throw 1;
-	}
 	if(!mateFwSet) {
 		if(gColor) {
 			// Set colorspace default (--ff)
@@ -1412,9 +1406,7 @@ createPatsrcFactory(PairedPatternSource& _patsrc, int tid) {
 static HitSinkPerThreadFactory*
 createSinkFactory(HitSink& _sink) {
 	HitSinkPerThreadFactory *sink = NULL;
-	if(format == INPUT_CHAIN) {
-		sink = new ChainingHitSinkPerThreadFactory(_sink, allHits ? 0xffffffff : khits, mhits, strata);
-	} else if(!strata) {
+	if(!strata) {
 		// Unstratified
 		if(!allHits) {
 			// First N good; "good" inherently ignores strata
@@ -2648,10 +2640,11 @@ static PerfMetrics metrics;
 
 static inline void printMmsSkipMsg(
 	const PatternSourcePerThread& ps,
+	bool paired,
 	bool mate1,
 	int seedmms)
 {
-	if(ps.paired()) {
+	if(paired) {
 		cerr << "Warning: skipping mate #" << (mate1 ? '1' : '2')
 		     << " of read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
 		     << "' because length (" << (mate1 ? ps.bufa().patFw.length() :
@@ -2667,9 +2660,10 @@ static inline void printMmsSkipMsg(
 
 static inline void printColorLenSkipMsg(
 	const PatternSourcePerThread& ps,
+	bool paired,
 	bool mate1)
 {
-	if(ps.paired()) {
+	if(paired) {
 		cerr << "Warning: skipping mate #" << (mate1 ? '1' : '2')
 		     << " of read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
 		     << "' because it was colorspace, --col-keepends was not "
@@ -2841,12 +2835,34 @@ static void* multiseedSearchWorker(void *vp) {
 	// Used by thread with threadid == 1 to measure time elapsed
 	time_t iTime = time(0);
 
+	// Keep track of whether last search was exhaustive for mates 1 and 2
+	bool exhaustive[2] = { false, false };
+	// Keep track of whether mates 1/2 were filtered out last time through
+	bool filt[2]    = { true, true };
+	// Keep track of whether mates 1/2 were filtered out due Ns last time
+	bool nfilt[2]   = { true, true };
+	// Keep track of whether mates 1/2 were filtered out due to not having
+	// enough characters to rise about the score threshold.
+	bool scfilt[2]  = { true, true };
+	// Keep track of whether mates 1/2 were filtered out due to not having
+	// more characters than the number of mismatches permitted in a seed.
+	bool lenfilt[2] = { true, true };
+	// Keep track of whether mates 1/2 were filtered out by upstream qc
+	bool qcfilt[2]  = { true, true };
+
 	int mergei = 0;
 	int mergeival = 16;
 	while(true) {
-		ps->nextReadPair(outType != OUTPUT_SAM);
+		bool success = false, done = false, paired = false;
+		ps->nextReadPair(success, done, paired, outType != OUTPUT_SAM);
+		if(!success && done) {
+			break;
+		} else if(!success) {
+			continue;
+		}
+		//cerr << "Paired: " << (paired ? "true" : "false") << endl;
 		TReadId patid = ps->patid();
-		if(patid < qUpto && !ps->empty()) {
+		if(patid >= skipReads && patid < qUpto) {
 			// Align this read/pair
 			bool retry = true;
 			if(metricsIval > 0 &&
@@ -2874,7 +2890,7 @@ static void* multiseedSearchWorker(void *vp) {
 				olm.reads++;
 				assert(!ca.aligning());
 				// NB: read may be either unpaired or paired-end at this point
-				bool pair = ps->paired();
+				bool pair = paired;
 				const size_t rdlen1 = ps->bufa().length();
 				const size_t rdlen2 = pair ? ps->bufb().length() : 0;
 				olm.bases += (rdlen1 + rdlen2);
@@ -2895,6 +2911,16 @@ static void* multiseedSearchWorker(void *vp) {
 					msinkwrap.finishRead(
 						NULL,                 // seed results for mate 1
 						NULL,                 // seed results for mate 2
+						exhaustive[0],        // exhausted seed results for 1?
+						exhaustive[1],        // exhausted seed results for 2?
+						nfilt[0],
+						nfilt[1],
+						scfilt[0],
+						scfilt[1],
+						lenfilt[0],
+						lenfilt[1],
+						qcfilt[0],
+						qcfilt[1],
 						rnd,                  // pseudo-random generator
 						rpm,                  // reporting metrics
 						!seedSummaryOnly,     // suppress seed summaries?
@@ -2915,7 +2941,7 @@ static void* multiseedSearchWorker(void *vp) {
 					rdlens[0],
 					(float)costMinConst,
 					(float)costMinLinear));
-				if(ps->paired()) {
+				if(paired) {
 					minsc[1] = (TAlScore)(Scoring::linearFunc(
 						rdlens[1],
 						(float)costMinConst,
@@ -2927,21 +2953,13 @@ static void* multiseedSearchWorker(void *vp) {
 					rdlens[0],
 					(float)costFloorConst,
 					(float)costFloorLinear));
-				if(ps->paired()) {
+				if(paired) {
 					floorsc[1] = (TAlScore)(Scoring::linearFunc(
 						rdlens[1],
 						(float)costFloorConst,
 						(float)costFloorLinear));
 				}
-				
-				//
-				// FILTERS
-				// 1. N filter
-				// 2. length filter
-				//
-				
 				// N filter; does the read have too many Ns?
-				bool nfilt[2];
 				sc.nFilterPair(
 					&ps->bufa().patFw,
 					pair ? &ps->bufb().patFw : NULL,
@@ -2949,50 +2967,42 @@ static void* multiseedSearchWorker(void *vp) {
 					nfilt[1]);
 				// Score filter; does the read enough character to rise above
 				// the score threshold?
-				bool scfilt[2];
 				scfilt[0] = sc.scoreFilter(minsc[0], rdlens[0]);
 				scfilt[1] = sc.scoreFilter(minsc[1], rdlens[1]);
-				bool lenfilt[2] = {true, true};
-				if(rdlens[0] <= (size_t)multiseedMms && !gQuiet) {
-					printMmsSkipMsg(*ps, true, multiseedMms);
+				lenfilt[0] = lenfilt[1] = true;
+				if(rdlens[0] <= (size_t)multiseedMms) {
+					if(!gQuiet) {
+						printMmsSkipMsg(*ps, paired, true, multiseedMms);
+					}
 					lenfilt[0] = false;
 				}
-				if(rdlens[1] <= (size_t)multiseedMms && !gQuiet && ps->paired()) {
-					printMmsSkipMsg(*ps, false, multiseedMms);
+				if(rdlens[1] <= (size_t)multiseedMms && paired) {
+					if(!gQuiet) {
+						printMmsSkipMsg(*ps, paired, false, multiseedMms);
+					}
 					lenfilt[1] = false;
 				}
 				if(gColor && gColorExEnds) {
 					if(rdlens[0] < 2) {
-						printColorLenSkipMsg(*ps, true);
+						printColorLenSkipMsg(*ps, paired, true);
 						lenfilt[0] = false;
 					}
-					if(rdlens[1] < 2 && ps->paired()) {
-						printColorLenSkipMsg(*ps, false);
+					if(rdlens[1] < 2 && paired) {
+						printColorLenSkipMsg(*ps, paired, false);
 						lenfilt[1] = false;
 					}
 				}
-				bool filt[2];
-				filt[0] = nfilt[0] && scfilt[0] && lenfilt[0];
-				filt[1] = nfilt[1] && scfilt[1] && lenfilt[1];
-				// Re-set 'pair': true only if both mates passed the filter
-				pair = filt[0] && filt[1];
-				if(!pair && ps->paired()) {
-					// One or both mates of a paired-end read were filtered
-					if(!filt[0] && !filt[1]) {
-						// Both mates were filtered
-						//rpm.filt2pair++;
-					} else {
-						// One mate was filtered
-						//rpm.filt1pair++;
-					}
-				} else if(!pair) {
-					// An unpaired read was filtered
-					//rpm.filtunp++;
+				qcfilt[0] = qcfilt[1] = true;
+				if(qcFilter) {
+					qcfilt[0] = (ps->bufa().filter != '0');
+					qcfilt[1] = (ps->bufb().filter != '0');
 				}
+				filt[0] = nfilt[0] && scfilt[0] && lenfilt[0] && qcfilt[0];
+				filt[1] = nfilt[1] && scfilt[1] && lenfilt[1] && qcfilt[1];
 				const Read* rds[2] = { &ps->bufa(), &ps->bufb() };
 				// For each mate...
 				assert(msinkwrap.empty());
-				sd.nextRead(ps->paired(), rdrows[0], rdrows[1]);
+				sd.nextRead(paired, rdrows[0], rdrows[1]);
 				bool matemap[2] = { 0, 1 };
 				if(pair) {
 					rnd.init(ROTL(rds[0]->seed ^ rds[1]->seed, 10));
@@ -3001,6 +3011,7 @@ static void* multiseedSearchWorker(void *vp) {
 						std::swap(matemap[0], matemap[1]);
 					}
 				}
+				exhaustive[0] = exhaustive[1] = false;
 				for(size_t matei = 0; matei < 2; matei++) {
 					size_t mate = matemap[matei];
 					if(!filt[mate]) {
@@ -3008,17 +3019,17 @@ static void* multiseedSearchWorker(void *vp) {
 						olm.freads++;               // reads filtered out
 						olm.fbases += rdlens[mate]; // bases filtered out
 						continue; // on to next mate
+					} else {
+						olm.ureads++;               // reads passing filter
+						olm.ubases += rdlens[mate]; // bases passing filter
 					}
 					if(msinkwrap.state().doneWithMate(mate == 0)) {
 						// Done with this mate
 						continue;
 					}
-					// Passed N filter
-					assert_gt(rds[mate]->length(), 0);
+					assert_geq(rds[mate]->length(), 0);
 					assert(!msinkwrap.maxed());
 					assert(msinkwrap.repOk());
-					olm.ureads++;               // reads passing filter
-					olm.ubases += rdlens[mate]; // bases passing filter
 					QKey qkr(rds[mate]->patFw ASSERT_ONLY(, tmp));
 					rnd.init(ROTL(rds[mate]->seed, 10));
 					// Seed search
@@ -3041,11 +3052,11 @@ static void* multiseedSearchWorker(void *vp) {
 					// Set flags controlling which orientations of  individual
 					// mates to investigate
 					bool nofw, norc;
-					if(ps->paired() && mate == 0) {
+					if(paired && mate == 0) {
 						// Mate #1
 						nofw = (gMate1fw ? gNofw : gNorc);
 						norc = (gMate1fw ? gNorc : gNofw);
-					} else if(ps->paired() && mate == 1) {
+					} else if(paired && mate == 1) {
 						// Mate #2
 						nofw = (gMate2fw ? gNofw : gNorc);
 						norc = (gMate2fw ? gNorc : gNofw);
@@ -3106,6 +3117,7 @@ static void* multiseedSearchWorker(void *vp) {
 								*rds[mate],     // mate to align as anchor
 								*rds[mate ^ 1], // mate to align as opp.
 								mate == 0,      // anchor is mate 1?
+								!filt[mate ^ 1],// opposite mate filtered out?
 								gColor,         // colorspace?
 								shs[mate],      // seed hits for anchor
 								ebwtFw,         // bowtie index
@@ -3142,7 +3154,8 @@ static void* multiseedSearchWorker(void *vp) {
 								gReportDiscordant,// look for discordant alns?
 								gReportMixed,   // look for unpaired alns?
 								&swCounterSink, // send counter info here
-								&swActionSink); // send action info here
+								&swActionSink,  // send action info here
+								exhaustive[mate]);
 							// Might be done, but just with this mate
 						} else {
 							// Unpaired dynamic programming driver
@@ -3174,7 +3187,8 @@ static void* multiseedSearchWorker(void *vp) {
 								&msinkwrap,     // for organizing hits
 								true,           // report hits once found
 								&swCounterSink, // send counter info here
-								&swActionSink); // send action info here
+								&swActionSink,  // send action info here
+								exhaustive[mate]);
 						}
 						sw.merge(
 							sseU8ExtendMet,  // metrics for SSE 8-bit seed extends
@@ -3201,14 +3215,24 @@ static void* multiseedSearchWorker(void *vp) {
 				msinkwrap.finishRead(
 					&shs[0],              // seed results for mate 1
 					&shs[1],              // seed results for mate 2
+					exhaustive[0],        // exhausted seed hits for mate 1?
+					exhaustive[1],        // exhausted seed hits for mate 2?
+					nfilt[0],
+					nfilt[1],
+					scfilt[0],
+					scfilt[1],
+					lenfilt[0],
+					lenfilt[1],
+					qcfilt[0],
+					qcfilt[1],
 					rnd,                  // pseudo-random generator
 					rpm,                  // reporting metrics
 					!seedSummaryOnly,     // suppress seed summaries?
 					seedSummaryOnly);     // suppress alignments?
 				assert(!retry || msinkwrap.empty());
 			} // while(retry)
-		} // if(patid < qUpto && !ps->empty())
-		else {
+		} // if(patid >= skipReads && patid < qUpto)
+		else if(patid >= qUpto) {
 			break;
 		}
 	} // while(true)
@@ -3577,10 +3601,6 @@ static void driver(
 	if(!outfile.empty()) {
 		fout = new OutFileBuf(outfile.c_str(), false);
 	} else {
-		if(outType == OUTPUT_CHAIN) {
-			cerr << "Error: Must specify an output file when output mode is --chain" << endl;
-			throw 1;
-		}
 		fout = new OutFileBuf();
 	}
 	ReferenceMap* rmap = NULL;
@@ -3697,6 +3717,8 @@ static void driver(
 		SamConfig samc(
 			refnames,               // reference sequence names
 			reflens,                // reference sequence lengths
+			samTruncQname,          // whether to truncate QNAME to 255 chars
+			samOmitSecSeqQual,      // omit SEQ/QUAL for 2ndary alignments?
 			string("bowtie2"),      // program id
 			string("bowtie2"),      // program name
 			string(BOWTIE_VERSION), // program version
@@ -3713,6 +3735,7 @@ static void driver(
 			sam_print_xg,
 			sam_print_nm,
 			sam_print_md,
+			sam_print_yf,
 			sam_print_ym,
 			sam_print_yp,
 			sam_print_yt,
@@ -3790,16 +3813,6 @@ static void driver(
 					samc.printHeader(*fout, samNoSQ, false /* PG */);
 				}
 				sink = sam;
-				break;
-			}
-			case OUTPUT_CHAIN: {
-				throw 1;
-				sink = new ChainingHitSink(
-					fout,
-					&readSink,           // dump reads according to alignment status
-					refnames,            // reference names
-					strata,
-					amap);
 				break;
 			}
 			default:

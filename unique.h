@@ -51,30 +51,6 @@ public:
 		bool mate1) const = 0;
 };
 
-class BlatMapq : public Mapq {
-public:
-	virtual ~BlatMapq() { }
-	/**
-	 * Given an AlnSetSumm, return a mapping quality calculated in a
-	 * manner similar to Blat.
-	 */
-	virtual TMapq mapq(const AlnSetSumm& s) const {
-		return 10; // TODO
-	}
-};
-
-class BwaMapq : public Mapq {
-public:
-	virtual ~BwaMapq() { }
-	/**
-	 * Given an AlnSetSumm, return a mapping quality calculated in a
-	 * manner similar to BWA.
-	 */
-	virtual TMapq mapq(const AlnSetSumm& s) const {
-		return 20; // TODO
-	}
-};
-
 class BowtieMapq : public Mapq {
 public:
 	virtual ~BowtieMapq() { }
@@ -89,7 +65,7 @@ public:
 		if(VALID_AL_SCORE(s.secbest(mate1))) {
 			return 0;
 		} else {
-			if(!flags.canMax()) {
+			if(!flags.canMax() && !s.exhausted(mate1)) {
 				return 255;
 			} else {
 				return 40;

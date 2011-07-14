@@ -136,7 +136,7 @@ bool DynProgFramer::frameSeedExtensionRect(
 	// Check if we have to trim to fit the extents of the reference
 	if(trimToRef_) {
 		maxns = 0;
-	} else if(maxns > 0) {
+	} else if(maxns == rdlen) {
 		maxns--;
 	}
 	if(refr >= (int64_t)(reflen + maxns)) {
@@ -394,7 +394,7 @@ bool DynProgFramer::frameFindMateAnchorLeftRect(
 	assert_eq(refr - refl + 1, (int64_t)(width + rdlen - 1));
 	if(trimToRef_) {
 		maxns = 0;
-	} else if(maxns > 0) {
+	} else if(maxns == rdlen) {
 		maxns--;
 	}
 	if(refr >= (int64_t)(reflen + maxns)) {
@@ -652,7 +652,7 @@ bool DynProgFramer::frameFindMateAnchorRightRect(
 	assert_eq(refr - refl + 1, (int64_t)(width + rdlen - 1));
 	if(trimToRef_) {
 		maxns = 0;
-	} else if(maxns > 0) {
+	} else if(maxns == rdlen) {
 		maxns--;
 	}
 	if(refr >= (int64_t)(reflen + maxns)) {

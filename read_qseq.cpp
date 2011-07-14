@@ -102,11 +102,6 @@ int QseqPatternSource::parseSeq(
 			assert_in(toupper(c), "ACGTN");
 			if(begin++ >= trim5) {
 				assert_neq(0, asc2dnacat[c]);
-				//if(r.patFw.length()+1 > 1024) {
-				//	cerr << "Input file contained a pattern more than 1024 characters long.  Please truncate" << endl
-				//		 << "reads and re-run Bowtie" << endl;
-				//	throw 1;
-				//}
 				r.patFw.append(asc2dna[c]);
 			}
 			charsRead++;
@@ -173,10 +168,11 @@ int QseqPatternSource::parseQuals(
 				break;
 			}
 		}
-		if(qualsRead != dstLen + trim5) {
-			assert(false);
-		}
 	}
+	if(r.qual.length() < (size_t)dstLen) {
+		tooFewQualities(r.name);
+	}
+	// TODO: How to detect too many qualities??
 	r.qual.resize(dstLen);
 	while(c != upto && (upto2 == -1 || c != upto2)) {
 		c = fb_.get();
@@ -188,9 +184,20 @@ int QseqPatternSource::parseQuals(
 /**
  * Read another pattern from a Qseq input file.
  */
-void QseqPatternSource::read(Read& r, TReadId& patid) {
+bool QseqPatternSource::read(
+	Read& r,
+	TReadId& patid,
+	bool& success,
+	bool& done)
+{
 	r.reset();
 	r.color = gColor;
+	success = true;
+	done = false;
+	readCnt_++;
+	patid = readCnt_-1;
+	peekOverNewline(fb_);
+	fb_.resetLastN();
 	// 1. Machine name
 	if(parseName(r, NULL, true, true,  true, false, '\t') == -1) BAIL_UNPAIRED();
 	assert_neq('\t', fb_.peek());
@@ -241,10 +248,10 @@ void QseqPatternSource::read(Read& r, TReadId& patid) {
 		// 9. Sequence
 		int dstLen = parseSeq(r, charsRead, mytrim5, '\t');
 		assert_neq('\t', fb_.peek());
-		if(dstLen <= 0) BAIL_UNPAIRED();
+		if(dstLen < 0) BAIL_UNPAIRED();
 		char ct = 0;
 		// 10. Qualities
-		if(parseQuals(r, charsRead, dstLen, mytrim5, ct, '\t', -1) <= 0) BAIL_UNPAIRED();
+		if(parseQuals(r, charsRead, dstLen, mytrim5, ct, '\t', -1) < 0) BAIL_UNPAIRED();
 		r.trimmed3 = gTrim3;
 		r.trimmed5 = mytrim5;
 		assert_eq(ct, '\t');
@@ -252,6 +259,7 @@ void QseqPatternSource::read(Read& r, TReadId& patid) {
 	// 11. Filter flag
 	int filt = fb_.get();
 	if(filt == -1) BAIL_UNPAIRED();
+	r.filter = filt;
 	if(filt != '0' && filt != '1') {
 		// Bad value for filt
 	}
@@ -261,6 +269,16 @@ void QseqPatternSource::read(Read& r, TReadId& patid) {
 	fb_.get();
 	r.readOrigBuf.install(fb_.lastN(), fb_.lastNLen());
 	fb_.resetLastN();
-	readCnt_++;
-	patid = readCnt_-1;
+	if(r.qual.length() < r.patFw.length()) {
+		tooFewQualities(r.name);
+	} else if(r.qual.length() > r.patFw.length()) {
+		tooManyQualities(r.name);
+	}
+#ifndef NDEBUG
+	assert_eq(r.patFw.length(), r.qual.length());
+	for(size_t i = 0; i < r.qual.length(); i++) {
+		assert_geq((int)r.qual[i], 33);
+	}
+#endif
+	return true;
 }

@@ -39,6 +39,984 @@ if(! -x $bowtie2 || ! -x $bowtie2_build) {
 
 my @cases = (
 
+	{ name   => "matchesRef regression 4",
+	  ref    => [ "CCGGGTCGTCACGCCCCGCTTGCGTCANGCCCCTCACCCTCCCTTTGTCGGCTCCCACCCCTCCCCATCCGTTGTCCCCGCCCCCGCCCGCCGGGTCGTCACGCCCCGCTTGCGTCANGC",
+	              "GCTCGGAATTCGTGCTCCGNCCCGTACGGTT" ],
+	  #
+	  #       NNNNNGA------A-------------------G-NTTT
+	  #            ||||||||||||||||||||||||||||||||||
+	  #       CCAAT-ATTTTTAATTTCCTCTATTTTTCTCTCGTCTTG
+	  args   => "-P \"SNP=18.5740807665497;NP=Q;RDG=46.3220993654702;RFG=41.3796024365659;MIN=5.57015383125426,-3.28597145122829;NCEIL=0.263054599454459,0.130843661549367;SEED=2,29;IVAL=L,0.0169183264663712,3.75762168662522\" --overhang --trim5 6",
+	  reads  => [ "CTTTGCACCCCTCCCTTGTCGGCTCCCACCCATCCCCATCCGTTGTCCCCGCCCCCGCCCGCCGGTCGTCACTCCCCGTTTGCGTCATGCCCCTCACCCTCCCTTTGTCGGCTCGCACCCCTCCCCATCCGTTGTCCCCGCCCCCGCTCTCGGGGTCTTCACGCCCCGCTTGCTTCATGCCCCTCACTCGCACCCCG" ],
+	},
+	
+	{ name   => "matchesRef regression 3",
+	  ref    => [ "GAAGNTTTTCCAATATTTTTAATTTCCTCTATTTTTCTCTCGTCTTGNTCTAC" ],
+	  #
+	  #       NNNNNGA------A-------------------G-NTTT
+	  #            ||||||||||||||||||||||||||||||||||
+	  #       CCAAT-ATTTTTAATTTCCTCTATTTTTCTCTCGTCTTG
+	  args   => "-P \"MMP=R;MIN=8.8,-8.1\" --overhang",
+	  reads  => [ "CAAGACGAGAGAAAAATAGAGGAAATTAAAAATATTGG" ],
+	},
+
+	{ name   => "matchesRef regression 2",
+	  ref    => ["GTTGTCGGCAGCTCTGGATATGTGNTCTCGGGTTTATNTCGTTGTCG",
+	             "CCTTGTTNTTAATGCTGCCTGGTTTNG"],
+	  args   =>  "-P \"RDG=2.02030755427021,2.81949533273331;MIN=-6.52134769703939,-3.39889659588514;IVAL=L,0.127835912101927\" --overhang --trim5 5",
+	  mate1s => ["TCTGGCGGTTGCGAAGGCCCCTGGCGGTTGCTATGTCCTCTGGCGGTTGCGTTGTCGGCAGCTCG"],
+	  mate2s => ["AGAACACATATCCAGAGCTGCCGACAACGAAATGAACCCGAGAGCACAAATCCAGAG"] },
+
+	# Regression test for an issue observed once
+	{ name   => "matchesRef regression 1",
+	  #            0         1         2         3         4         5         6         7
+	  #            01234567890123456789012345678901234567890123456789012345678901234567890
+	  ref    => [ "AGGTCGACCGAAAGGCCTAGAGGTCGACCGACAATCTGACCATGGGGCGAGGAGCGAGTAC" ],
+	  #                       ||||||||||||||||||||||||||||||||||||||||||||||||||
+	  reads  => [            "AAGGCCTAGAGGTCGACCGACAATCTGACCATGGGGCGAGGAGCGAGTACTGGTCTGGGG" ],
+	  #                       012345678901234567890123456789012345678901234567890123456789
+	  #                       0         1         2         3         4         5                  
+	  args   => "--overhang" },
+
+	# 1 discordant alignment and one concordant alignment.  Discordant because
+	# the fragment is too long.
+
+	{ name => "Discordant with different chromosomes",
+	  ref    => [ "TTTATAAAAATATTTCCCCCCCC",
+										 "CCCCCCTGTCGCTACCGCCCCCCCCCCC" ],
+	#                 ATAAAAATAT                 GTCGCTACCG
+	#                 ATAAAAATAT                TGTCGCTACC
+	#              01234567890123456789012
+	#              0         1         2  
+	#                                     0123456789012345678901234567
+	#                                     0         1         2
+	  mate1s    => [ "ATAAAAATAT", "ATAAAAATAT" ],
+	  mate2s    => [ "GTCGCTACCG", "TGTCGCTACC" ],
+	  mate1fw   => 1,
+	  mate2fw   => 1,
+	  args      =>   "-I 0 -X 35",
+	  # Not really any way to flag an alignment as discordant
+	  pairhits  => [ { "3,7" => 1 }, { "3,6" => 1 } ],
+	  rnext_map => [ { 3 => 1, 7 => 0 }, { 3 => 1, 6 => 0 } ],
+	  pnext_map => [ { 3 => 7, 7 => 3 }, { 3 => 6, 6 => 3 } ] },
+
+	{ name   => "Fastq 1",
+	  ref    => [   "AGCATCGATCAGTATCTGA" ],
+	  fastq  => "\@r0\nCATCGATCAGTATCTG\n+\nIIIIIIIIIIIIIIII",
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Tabbed 1",
+	  ref    => [   "AGCATCGATCAGTATCTGA" ],
+	  tabbed => "r0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII",
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Fasta 1",
+	  ref    => [  "AGCATCGATCAGTATCTGA" ],
+	  fasta  => ">r0\nCATCGATCAGTATCTG",
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Qseq 1",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  qseq   => join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "X", "Y",
+						   "Index",
+						   "0", # Mate
+						   "CATCGATCAGTATCTG",
+						   "IIIIIIIIIIIIIIII",
+						   "1"),
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Raw 1",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  raw    =>     "CATCGATCAGTATCTG",
+	  hits   => [{ 2 => 1 }] },
+
+	# Like Fastq 1 but with extra newline
+	{ name   => "Fastq 2",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fastq  => "\@r0\nCATCGATCAGTATCTG\n+\nIIIIIIIIIIIIIIII\n",
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Tabbed 1",
+	  ref    => [   "AGCATCGATCAGTATCTGA" ],
+	  tabbed => "r0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII\n",
+	  hits   => [{ 2 => 1 }] },
+	
+	{ name   => "Fasta 2",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fasta  => ">r0\nCATCGATCAGTATCTG\n",
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Qseq 2",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  qseq   => join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "X", "Y",
+						   "Index",
+						   "0", # Mate
+						   "CATCGATCAGTATCTG",
+						   "IIIIIIIIIIIIIIII",
+						   "1")."\n",
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Raw 2",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  raw    => "CATCGATCAGTATCTG\n",
+	  hits   => [{ 2 => 1 }] },
+
+	# Like Fastq 1 but with many extra newlines
+	{ name   => "Fastq 3",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fastq  => "\n\n\r\n\@r0\nCATCGATCAGTATCTG\r\n+\n\nIIIIIIIIIIIIIIII\n\n",
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Tabbed 3",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  tabbed => "\n\n\r\nr0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII\n\n",
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Fasta 3",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fasta  => "\n\n\r\n>r0\nCATCGATCAGTATCTG\r\n\n",
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Qseq 3",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  qseq   => "\n\n\n".join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "X", "Y",
+						   "Index",
+						   "0", # Mate
+						   "CATCGATCAGTATCTG",
+						   "IIIIIIIIIIIIIIII",
+						   "1")."\n\n",
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Raw 3",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  raw    => "\n\n\nCATCGATCAGTATCTG\n\n",
+	  hits   => [{ 2 => 1 }] },
+
+	# Quality string length doesn't match (too short by 1)
+	{ name   => "Fastq 4",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fastq  => "\n\n\r\n\@r0\nCATCGATCAGTATCTG\r\n+\n\nIIIIIIIIIIIIIII\n\n",
+	  should_abort => 1},
+
+	{ name   => "Tabbed 4",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  tabbed => "\n\n\r\nr0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIII\n\n",
+	  should_abort => 1},
+
+	{ name   => "Qseq 4",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  qseq   => "\n\n\n".join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "X", "Y",
+						   "Index",
+						   "0", # Mate
+						   "CATCGATCAGTATCTG",
+						   "IIIIIIIIIIIIIII",
+						   "1")."\n\n",
+	  should_abort => 1},
+
+	# Name line doesn't start with @
+	{ name   => "Fastq 5",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fastq  => "\n\n\r\nr0\nCATCGATCAGTATCTG\r\n+\n\nIIIIIIIIIIIIIII\n\n",
+	  should_abort => 1,
+	  hits   => [{ }] },
+
+	# Name line doesn't start with >
+	{ name   => "Fasta 5",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fasta  => "\n\n\r\nr0\nCATCGATCAGTATCTG\r",
+	  should_abort => 1,
+	  hits   => [{ }] },
+
+	# Name line doesn't start with @ (2)
+	{ name   => "Fastq 6",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fastq  => "r0\nCATCGATCAGTATCTG\r\n+\n\nIIIIIIIIIIIIIII\n\n",
+	  should_abort => 1,
+	  hits   => [{ }] },
+
+	# Name line doesn't start with > (2)
+	{ name   => "Fasta 6",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fasta  => "r0\nCATCGATCAGTATCTG\r",
+	  should_abort => 1,
+	  hits   => [{ }] },
+
+	# Part of sequence is trimmed
+	{ name   => "Fastq 7",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fastq  => "\n\n\r\n\@r0\nCATCGATCAGTATCTG\r\n+\n\nIIIIIIIIIIIIIIII\n\n",
+	  args   => "--trim3 4",
+	  norc   => 1,
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Tabbed 7",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  tabbed => "\n\n\r\nr0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII\n\n",
+	  args   => "--trim3 4",
+	  norc   => 1,
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Fasta 7",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fasta  => "\n\n\r\n\>r0\nCATCGATCAGTATCTG\r\n",
+	  args   => "--trim3 4",
+	  norc   => 1,
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Qseq 7",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  qseq   => "\n\n\n".join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "X", "Y",
+						   "Index",
+						   "0", # Mate
+						   "CATCGATCAGTATCTG",
+						   "IIIIIIIIIIIIIIII",
+						   "1")."\n\n",
+	  args   => "--trim3 4",
+	  norc   => 1,
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Raw 7",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  raw    => "\n\n\r\nCATCGATCAGTATCTG\r\n",
+	  args   => "--trim3 4",
+	  norc   => 1,
+	  hits   => [{ 2 => 1 }] },
+
+	# Whole sequence is trimmed
+	{ name   => "Fastq 8",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fastq  => "\n\n\r\n\@r0\nCATCGATCAGTATCTG\r\n+\n\nIIIIIIIIIIIIIIII\n\n",
+	  args   => "--trim5 16",
+	  hits   => [{ "*" => 1 }] },
+
+	{ name   => "Tabbed 8",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  tabbed => "\n\n\r\nr0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII\n\n",
+	  args   => "--trim5 16",
+	  hits   => [{ "*" => 1 }] },
+
+	{ name   => "Fasta 8",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fasta  => "\n\n\r\n\>r0\nCATCGATCAGTATCTG\r\n",
+	  args   => "--trim3 16",
+	  hits   => [{ "*" => 1 }] },
+
+	{ name   => "Qseq 8",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  qseq   => "\n\n\n".join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "X", "Y",
+						   "Index",
+						   "0", # Mate
+						   "CATCGATCAGTATCTG",
+						   "IIIIIIIIIIIIIIII",
+						   "1")."\n\n",
+	  args   => "--trim3 16",
+	  hits   => [{ "*" => 1 }] },
+
+	{ name   => "Raw 8",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  raw    => "\n\n\r\nCATCGATCAGTATCTG\r\n",
+	  args   => "--trim3 16",
+	  hits   => [{ "*" => 1 }] },
+
+	# Sequence is skipped
+	{ name   => "Fastq 9",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fastq  => "\n\n\r\n\@r0\nCATCGATCAGTATCTG\r\n+\n\nIIIIIIIIIIIIIIII\n\n",
+	  args   => "-s 1",
+	  hits   => [{ }] },
+
+	{ name   => "Tabbed 9",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  tabbed => "\n\n\r\nr0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII\n\n",
+	  args   => "-s 1",
+	  hits   => [{ }] },
+
+	{ name   => "Fasta 9",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fasta  => "\n\n\r\n>r0\nCATCGATCAGTATCTG\r\n",
+	  args   => "-s 1",
+	  hits   => [{ }] },
+
+	{ name   => "Qseq 9",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  qseq   => "\n\n\n".join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "X", "Y",
+						   "Index",
+						   "0", # Mate
+						   "CATCGATCAGTATCTG",
+						   "IIIIIIIIIIIIIIII",
+						   "1")."\n\n",
+	  args   => "-s 1",
+	  hits   => [{ }] },
+
+	{ name   => "Raw 9",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  raw    => "CATCGATCAGTATCTG\n",
+	  args   => "-s 1",
+	  hits   => [{ }] },
+
+	# Like Fastq 1 but with many extra newlines
+	{ name   => "Fastq multiread 1",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fastq  => "\n\n\r\n\@r0\nCATCGATCAGTATCTG\r\n+\n\nIIIIIIIIIIIIIIII\n\n".
+	            "\n\n\r\n\@r1\nATCGATCAGTATCTG\r\n+\n\nIIIIIIIIIIIIIII\n\n",
+	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
+
+	{ name   => "Tabbed multiread 1",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  tabbed => "\n\n\r\nr0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII\n\n".
+	            "\n\n\r\nr1\tATCGATCAGTATCTG\tIIIIIIIIIIIIIII\n\n",
+	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
+
+	{ name   => "Fasta multiread 1",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fasta  => "\n\n\r\n>r0\nCATCGATCAGTATCTG\n\n".
+	            "\n\n\r\n>r1\nATCGATCAGTATCTG\n\n",
+	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
+
+	{ name   => "Qseq multiread 1",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  qseq   => "\n\n\n".join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "10", "10",
+						   "Index",
+						   "0", # Mate
+						   "CATCGATCAGTATCTG",
+						   "IIIIIIIIIIIIIIII",
+						   "1")."\n\n".
+						 join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "12", "15",
+						   "Index",
+						   "0", # Mate
+						   "ATCGATCAGTATCTG",
+						   "IIIIIIIIIIIIIII",
+						   "1")."\n\n",
+	  idx_map => { "MachName_RunNum_Lane_Tile_10_10_Index" => 0,
+	               "MachName_RunNum_Lane_Tile_12_15_Index" => 1 },
+	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
+	
+	{ name   => "Raw multiread 1",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  raw    => "\n\n\r\nCATCGATCAGTATCTG\n\n".
+	            "\n\n\r\nATCGATCAGTATCTG\n\n",
+	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
+
+	# Like Fastq multiread 1 but with -u 1
+	{ name   => "Fastq multiread 2",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  args   =>   "-u 1",
+	  fastq  => "\n\n\r\n\@r0\nCATCGATCAGTATCTG\r\n+\n\nIIIIIIIIIIIIIIII\n\n".
+	            "\n\n\r\n\@r1\nATCGATCAGTATCTG\r\n+\n\nIIIIIIIIIIIIIII\n\n",
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Tabbed multiread 2",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  args   =>   "-u 1",
+	  tabbed => "\n\n\r\nr0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII\n\n".
+	            "\n\n\r\nr1\tATCGATCAGTATCTG\tIIIIIIIIIIIIIII\n\n",
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Fasta multiread 2",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  args   =>   "-u 1",
+	  fasta  => "\n\n\r\n>r0\nCATCGATCAGTATCTG\r\n".
+	            "\n\n\r\n>r1\nATCGATCAGTATCTG\r\n",
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Qseq multiread 2",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  args   =>   "-u 1",
+	  qseq   => "\n\n\n".join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "10", "10",
+						   "Index",
+						   "0", # Mate
+						   "CATCGATCAGTATCTG",
+						   "IIIIIIIIIIIIIIII",
+						   "1")."\n\n".
+						 join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "12", "15",
+						   "Index",
+						   "0", # Mate
+						   "ATCGATCAGTATCTG",
+						   "IIIIIIIIIIIIIII",
+						   "1")."\n\n",
+	  idx_map => { "MachName_RunNum_Lane_Tile_10_10_Index" => 0,
+	               "MachName_RunNum_Lane_Tile_12_15_Index" => 1 },
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Raw multiread 2",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  args   =>   "-u 1",
+	  raw    => "\n\n\r\nCATCGATCAGTATCTG\r\n".
+	            "\n\n\r\nATCGATCAGTATCTG\r\n",
+	  hits   => [{ 2 => 1 }] },
+
+	# Like Fastq multiread 1 but with -u 2
+	{ name   => "Fastq multiread 3",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  args   =>   "-u 2",
+	  fastq  => "\n\n\r\n\@r0\nCATCGATCAGTATCTG\r\n+\n\nIIIIIIIIIIIIIIII\n\n".
+	            "\n\n\r\n\@r1\nATCGATCAGTATCTG\r\n+\n\nIIIIIIIIIIIIIII\n\n",
+	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
+
+	{ name   => "Tabbed multiread 3",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  args   =>   "-u 2",
+	  tabbed => "\n\n\r\nr0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII\n\n".
+	            "\n\n\r\nr1\tATCGATCAGTATCTG\tIIIIIIIIIIIIIII\n\n",
+	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
+
+	{ name   => "Fasta multiread 3",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  args   =>   "-u 2",
+	  fasta  => "\n\n\r\n>r0\nCATCGATCAGTATCTG\r\n".
+	            "\n\n\r\n>r1\nATCGATCAGTATCTG\r\n",
+	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
+
+	{ name   => "Qseq multiread 3",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  args   =>   "-u 2",
+	  qseq   => "\n\n\n".join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "10", "10",
+						   "Index",
+						   "0", # Mate
+						   "CATCGATCAGTATCTG",
+						   "IIIIIIIIIIIIIIII",
+						   "1")."\n\n".
+						 join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "12", "15",
+						   "Index",
+						   "0", # Mate
+						   "ATCGATCAGTATCTG",
+						   "IIIIIIIIIIIIIII",
+						   "1")."\n\n",
+	  idx_map => { "MachName_RunNum_Lane_Tile_10_10_Index" => 0,
+	               "MachName_RunNum_Lane_Tile_12_15_Index" => 1 },
+	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
+	
+	{ name   => "Raw multiread 3",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  args   =>   "-u 2",
+	  raw    => "\n\n\r\nCATCGATCAGTATCTG\r\n".
+	            "\n\n\r\nATCGATCAGTATCTG\r\n",
+	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
+	
+	# Paired-end reads that should align
+	{ name     => "Fastq paired 1",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  fastq1  => "\n\n\r\n\@r0\nAGCATCGATC\r\n+\n\nIIIIIIIIII\n\n".
+	             "\n\n\@r1\nTCAGTTTTTGA\r\n+\n\nIIIIIIIIIII\n\n",
+	  fastq2  => "\n\n\r\n\@r0\nTCAGTTTTTGA\n+\n\nIIIIIIIIIII\n\n".
+	             "\n\n\r\n\@r1\nAGCATCGATC\r\n+\n\nIIIIIIIIII",
+	  pairhits => [ { "0,8" => 1 }, { "0,8" => 1 } ] },
+
+	{ name     => "Tabbed paired 1",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  tabbed  => "\n\n\r\nr0\tAGCATCGATC\tIIIIIIIIII\tTCAGTTTTTGA\tIIIIIIIIIII\n\n".
+	             "\n\nr1\tTCAGTTTTTGA\tIIIIIIIIIII\tAGCATCGATC\tIIIIIIIIII\n\n",
+	  paired => 1,
+	  pairhits => [ { "0,8" => 1 }, { "0,8" => 1 } ] },
+
+	{ name     => "Fasta paired 1",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  fasta1  => "\n\n\r\n>r0\nAGCATCGATC\r\n".
+	             "\n\n>r1\nTCAGTTTTTGA\r\n",
+	  fasta2  => "\n\n\r\n>r0\nTCAGTTTTTGA\n".
+	             "\n\n\r\n>r1\nAGCATCGATC",
+	  pairhits => [ { "0,8" => 1 }, { "0,8" => 1 } ] },
+
+	{ name   => "Qseq paired 1",
+	  ref    => [       "AGCATCGATCAAAAACTGA" ],
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  qseq1  => "\n\n\n".join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "10", "10",
+						   "Index",
+						   "1", # Mate
+						   "AGCATCGATC",
+						   "ABCBGACBCB",
+						   "1")."\n\n".
+						 join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "12", "15",
+						   "Index",
+						   "1", # Mate
+						   "TCAGTTTTTGA",
+						   "95849456875",
+						   "1")."\n\n",
+	  qseq2  => "\n\n\n".join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "10", "10",
+						   "Index",
+						   "2", # Mate
+						   "TCAGTTTTTGA",
+						   "ABCBGACBCBA",
+						   "1")."\n\n".
+						 join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "12", "15",
+						   "Index",
+						   "2", # Mate
+						   "AGCATCGATC",
+						   "AGGCBBGCBG",
+						   "1")."\n\n",
+	  idx_map => { "MachName_RunNum_Lane_Tile_10_10_Index" => 0,
+	               "MachName_RunNum_Lane_Tile_12_15_Index" => 1 },
+	  pairhits => [ { "0,8" => 1 }, { "0,8" => 1 } ] },
+	
+	{ name     => "Raw paired 1",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  raw1    => "\n\n\r\nAGCATCGATC\r\n".
+	             "\n\nTCAGTTTTTGA\r\n",
+	  raw2    => "\n\n\r\nTCAGTTTTTGA\n".
+	             "\n\n\r\nAGCATCGATC",
+	  pairhits => [ { "0,8" => 1 }, { "0,8" => 1 } ] },
+
+	# Paired-end reads that should align
+	{ name     => "Fastq paired 2",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  args     => "-s 1",
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  fastq1  => "\@r0\nAGCATCGATC\r\n+\n\nIIIIIIIIII\n\n".
+	             "\n\n\@r1\nTCAGTTTTTGA\n+\n\nIIIIIIIIIII\n\n",
+	  fastq2  => "\n\n\r\n\@r0\nTCAGTTTTTGA\n+\n\nIIIIIIIIIII\n\n".
+	             "\n\n\r\n\@r1\nAGCATCGATC\r\n+\n\nIIIIIIIIII",
+	  pairhits => [ { }, { "0,8" => 1 } ] },
+
+	{ name     => "Tabbed paired 2",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  args     => "-s 1",
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  tabbed   => "r0\tAGCATCGATC\tIIIIIIIIII\tTCAGTTTTTGA\tIIIIIIIIIII\n\n".
+	             "\nr1\tTCAGTTTTTGA\tIIIIIIIIIII\tAGCATCGATC\tIIIIIIIIII",
+	  paired   => 1,
+	  pairhits => [ { }, { "0,8" => 1 } ] },
+
+	{ name     => "Fasta paired 2",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  args     => "-s 1",
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  fasta1  => ">r0\nAGCATCGATC\r\n".
+	             "\n\n>r1\nTCAGTTTTTGA\n",
+	  fasta2  => "\n\n\r\n>r0\nTCAGTTTTTGA\n".
+	             "\n\n\r\n>r1\nAGCATCGATC",
+	  pairhits => [ { }, { "0,8" => 1 } ] },
+
+	{ name   => "Qseq paired 1",
+	  ref    => [       "AGCATCGATCAAAAACTGA" ],
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  args     => "-s 1",
+	  qseq1  => "\n\n\n".join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "10", "10",
+						   "Index",
+						   "1", # Mate
+						   "AGCATCGATC",
+						   "ABCBGACBCB",
+						   "1")."\n\n".
+						 join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "12", "15",
+						   "Index",
+						   "1", # Mate
+						   "TCAGTTTTTGA",
+						   "95849456875",
+						   "1")."\n\n",
+	  qseq2  => "\n\n\n".join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "10", "10",
+						   "Index",
+						   "2", # Mate
+						   "TCAGTTTTTGA",
+						   "ABCBGACBCBA",
+						   "1")."\n\n".
+						 join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "12", "15",
+						   "Index",
+						   "2", # Mate
+						   "AGCATCGATC",
+						   "AGGCBBGCBG",
+						   "1")."\n\n",
+	  idx_map => { "MachName_RunNum_Lane_Tile_10_10_Index" => 0,
+	               "MachName_RunNum_Lane_Tile_12_15_Index" => 1 },
+	  pairhits => [ { }, { "0,8" => 1 } ] },
+
+	{ name     => "Raw paired 2",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  args     => "-s 1",
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  raw1    => "AGCATCGATC\r\n".
+	             "\n\nTCAGTTTTTGA\n",
+	  raw2    => "\n\n\r\nTCAGTTTTTGA\n".
+	             "\n\n\r\nAGCATCGATC",
+	  pairhits => [ { }, { "0,8" => 1 } ] },
+
+	# Paired-end reads that should align
+	{ name     => "Fastq paired 3",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  args     => "-u 1",
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  fastq1  => "\n\n\r\n\@r0\nAGCATCGATC\r\n+\n\nIIIIIIIIII\n\n".
+	             "\n\n\@r1\nTCAGTTTTTGA\r\n+\n\nIIIIIIIIIII\n\n",
+	  fastq2  => "\n\n\r\n\@r0\nTCAGTTTTTGA\n+\n\nIIIIIIIIIII\n\n".
+	             "\n\n\r\n\@r1\nAGCATCGATC\r\n+\nIIIIIIIIII",
+	  pairhits => [ { "0,8" => 1 }, { } ] },
+
+	{ name     => "Tabbed paired 3",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  args     => "-u 1",
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  tabbed   => "\n\n\r\nr0\tAGCATCGATC\tIIIIIIIIII\tTCAGTTTTTGA\tIIIIIIIIIII\n\n".
+	              "\n\nr1\tTCAGTTTTTGA\tIIIIIIIIIII\tAGCATCGATC\tIIIIIIIIII",
+	  paired   => 1,
+	  pairhits => [ { "0,8" => 1 }, { } ] },
+
+	{ name     => "Fasta paired 3",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  args     => "-u 1",
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  fasta1  => "\n\n\r\n>r0\nAGCATCGATC\r\n".
+	             "\n\n>r1\nTCAGTTTTTGA\r\n",
+	  fasta2  => "\n\n\r\n>r0\nTCAGTTTTTGA\n".
+	             "\n\n\r\n>r1\nAGCATCGATC",
+	  pairhits => [ { "0,8" => 1 }, { } ] },
+
+	{ name     => "Raw paired 3",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  args     => "-u 1",
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  raw1    => "\n\n\r\nAGCATCGATC\r\n".
+	             "\n\nTCAGTTTTTGA\r\n",
+	  raw2    => "\n\n\r\nTCAGTTTTTGA\n".
+	             "\n\n\r\nAGCATCGATC",
+	  pairhits => [ { "0,8" => 1 }, { } ] },
+
+	# Paired-end reads that should align
+	{ name     => "Fastq paired 4",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  args     => "-s 1 -P \"SEED=2\"",
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  fastq1  => "\n\n\r\n\@r0\nAGCATCGATC\r\n+\n\nIIIIIIIIII\n\n".
+	             "\n\n\@r1\nTC\r\n+\n\nII\n\n".
+	             "\n\n\@r2\nTCAGTTTTTGA\r\n+\n\nIIIIIIIIIII\n\n",
+	  fastq2  => "\n\n\r\n\@r0\nTCAGTTTTTGA\n+\n\nIIIIIIIIIII\n\n".
+	             "\n\n\r\n\@r1\nAG\r\n+\nII".
+	             "\n\@r2\nAGCATCGATC\r\n+\nIIIIIIIIII",
+	  paired   => 1,
+	  pairhits =>    [ { }, { "*,*" => 1 }, { "0,8" => 1 } ],
+	  samoptflags_map => [
+	  { },
+	  { "*" => { "YT:Z:UP" => 1, "YF:i:1"  => 1 } },
+	  { 0   => { "MD:Z:10" => 1, "YT:Z:CP" => 1 },
+		8   => { "MD:Z:11" => 1, "YT:Z:CP" => 1 } }]
+	},
+
+	{ name     => "Tabbed paired 4",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  args     => "-s 1 -P \"SEED=2\"",
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  tabbed   => "\n\n\r\nr0\tAGCATCGATC\tIIIIIIIIII\tTCAGTTTTTGA\tIIIIIIIIIII\n\n".
+	              "\n\nr1\tTC\tII\tAG\tII".
+	              "\n\nr2\tTCAGTTTTTGA\tIIIIIIIIIII\tAGCATCGATC\tIIIIIIIIII\n\n",
+	  paired   => 1,
+	  pairhits =>    [ { }, { "*,*" => 1 }, { "0,8" => 1 } ],
+	  samoptflags_map => [
+	  { },
+	  { "*" => { "YT:Z:UP" => 1, "YF:i:1"  => 1 } },
+	  { 0   => { "MD:Z:10" => 1, "YT:Z:CP" => 1 },
+		8   => { "MD:Z:11" => 1, "YT:Z:CP" => 1 } }]
+	},
+
+	{ name     => "Fasta paired 4",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  args     => "-s 1 -P \"SEED=2\"",
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  fasta1  => "\n\n\r\n>r0\nAGCATCGATC\r\n".
+	             "\n\n>r1\nTC\r\n".
+	             "\n\n>r2\nTCAGTTTTTGA\r\n",
+	  fasta2  => "\n\n\r\n>r0\nTCAGTTTTTGA\n\n".
+	             "\n\n\r\n>r1\nAG".
+	             "\n>r2\nAGCATCGATC",
+	  pairhits =>    [ { }, { "*,*" => 1 }, { "0,8" => 1 } ],
+	  samoptflags_map => [
+	  { },
+	  { "*" => { "YT:Z:UP" => 1, "YF:i:1"  => 1 } },
+	  { 0   => { "MD:Z:10" => 1, "YT:Z:CP" => 1 },
+		8   => { "MD:Z:11" => 1, "YT:Z:CP" => 1 } }]
+	},
+
+	{ name     => "Raw paired 4",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  args     => "-s 1 -P \"SEED=2\"",
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  raw1    => "\n\n\r\nAGCATCGATC\r\n".
+	             "\n\nTC\r\n".
+	             "\n\nTCAGTTTTTGA\r\n",
+	  raw2    => "\n\n\r\nTCAGTTTTTGA\n\n".
+	             "\n\n\r\nAG".
+	             "\nAGCATCGATC",
+	  pairhits =>    [ { }, { "*,*" => 1 }, { "0,8" => 1 } ],
+	  samoptflags_map => [
+	  { },
+	  { "*" => { "YT:Z:UP" => 1, "YF:i:1"  => 1 } },
+	  { 0   => { "MD:Z:10" => 1, "YT:Z:CP" => 1 },
+		8   => { "MD:Z:11" => 1, "YT:Z:CP" => 1 } }]
+	},
+
+	#
+	# Check that skipping of empty reads is handled correctly.  A read that is
+	# empty or becomes empty after --trim3/--trim5 are applied should still
+	# count as a first-class read that gets propagated up into the alignment
+	# loop.  And it should be counted in the -s/-u totals.
+	#
+	
+	{ ref      => [     "AGCATCGATCAGTATCTGA" ],
+	  reads    => [ "",    "ATCGATCAGTA" ],
+	  args     => "-s 1",
+	  hits     => [ {}, { 3 => 1 }] },
+
+	{ ref      => [     "AGCATCGATCAGTATCTGA" ],
+	  mate1s   => [ "", "AGCATCGATC" ],
+	  mate2s   => [ "",          "TCAGATACTG" ],
+	  args     => "-s 1",
+	  pairhits => [ {}, { "0,9" => 1 }] },
+
+	{ ref      => [     "AGCATCGATCAGTATCTGA" ],
+	  reads    => [ "",    "ATCGATCAGTA" ],
+	  args     => "-s 2",
+	  hits     => [ {}, {} ] },
+
+	{ ref      => [     "AGCATCGATCAGTATCTGA" ],
+	  mate1s   => [ "", "AGCATCGATC" ],
+	  mate2s   => [ "",          "TCAGATACTG" ],
+	  args     => "-s 2",
+	  pairhits => [ {}, {} ] },
+
+	{ ref    => [     "AGCATCGATCAGTATCTGA" ],
+	  reads  => [ "",    "ATCGATCAGTA", "AGTATCTGA" ],
+	  args   => "-s 1 -u 1",
+	  hits   => [ {}, { 3 => 1 }] },
+
+	{ ref    => [     "AGCATCGATCAGTATCTGA" ],
+	  reads  => [ "AC",  "ATCGATCAGTA" ],
+	  args   => "-s 1 --trim3 2",
+	  norc   => 1,
+	  hits   => [ {}, { 3 => 1 }] },
+
+	{ ref    => [     "AGCATCGATCAGTATCTGA" ],
+	  reads  => [ "AC",  "ATCGATCAGTA" ],
+	  args   => "-s 1 --trim3 2",
+	  nofw   => 1,
+	  hits   => [ {}, { 5 => 1 }] },
+
+	{ ref    => [     "AGCATCGATCAGTATCTGA" ],
+	  reads  => [ "AC",  "ATCGATCAGTA" ],
+	  args   => "-s 1 --trim5 2",
+	  nofw   => 1,
+	  hits   => [ {}, { 3 => 1 }] },
+
+	{ ref    => [     "AGCATCGATCAGTATCTGA" ],
+	  reads  => [ "AC",  "ATCGATCAGTA" ],
+	  args   => "-s 1 --trim5 2",
+	  norc   => 1,
+	  hits   => [ {}, { 5 => 1 }] },
+
+	#
+	# Alignment with overhang
+	#
+
+	{ ref    => [ "TGC" ],
+	  reads  => [ "ATGC" ],
+	  args   => "--overhang -P \"SEED=0,3,1;NCEIL=1,0\"",
+	  hits   => [ { 0 => 1 } ],
+	  mapq   => [ 40 ],
+	  cigar  => [ "1S3M" ],
+	  samoptflags => [
+		{ "AS:i:-1" => 1, "YT:Z:UU" => 1, "MD:Z:3" => 1, "XN:i:1" => 1 } ]
+	},
+
+	{ ref    => [ "TTGTTCGT" ],
+	  reads  => [ "TTGTTCG" ],
+	  args   => "-P \"SEED=0,2,1;NCEIL=2,0\"",
+	  hits   => [ { 0 => 1 } ],
+	  mapq   => [ 40 ],
+	  cigar  => [ "7M" ],
+	  samoptflags => [ { "AS:i:0" => 1, "YT:Z:UU" => 1, "MD:Z:7" => 1 } ]
+	},
+
+	{ ref    => [ "TTGTTCGT" ],
+	  reads  => [ "TTGTTCG" ],
+	  args   => "",
+	  hits   => [ { 0 => 1 } ],
+	  mapq   => [ 40 ],
+	  flags => [ "XM:0,XP:0,XT:UU,XC:7=" ],
+	  cigar  => [ "7M" ],
+	  samoptflags => [ { "AS:i:0" => 1, "YT:Z:UU" => 1, "MD:Z:7" => 1 } ]
+	},
+
+	{ ref    => [ "TTGTTCGT" ],
+	  reads  => [  "TGTTCGT", "TTGTTCG" ],
+	  args   => "--overhang",
+	  hits   => [ { 1 => 1 }, { 0 => 1 } ],
+	  flags => [ "XM:0,XP:0,XT:UU,XC:7=", "XM:0,XP:0,XT:UU,XC:7=" ],
+	  cigar  => [ "7M", "7M" ],
+	  samoptflags => [
+		{ "YT:Z:UU" => 1, "MD:Z:7" => 1 },
+		{ "YT:Z:UU" => 1, "MD:Z:7" => 1 }
+	  ]
+	},
+
+	{ ref    => [ "TTGTTCGT" ],
+	  reads  => [ "TGTTCGT", "TTGTTCG" ],
+	  args   => "",
+	  hits   => [ { 1 => 1 }, { 0 => 1 } ],
+	  flags => [ "XM:0,XP:0,XT:UU,XC:7=", "XM:0,XP:0,XT:UU,XC:7=" ],
+	  cigar  => [ "7M", "7M" ],
+	  samoptflags => [
+		{ "YT:Z:UU" => 1, "MD:Z:7" => 1 },
+		{ "YT:Z:UU" => 1, "MD:Z:7" => 1 }
+	  ]
+	},
+
+	# Reads 1 and 2 don't have overhang, reads 3 and 4 overhang opposite ends
+	{ ref    => [ "TTGTTCGT" ],
+	  reads  => [ "TGTTCGT", "GTTCGTA", "ATTGTTC" ],
+	  args   => "--overhang -P \"SEED=0,2,1;NCEIL=2,0\"",
+	  hits   => [ { 1 => 1 }, { 2 => 1 }, { 0 => 1 } ],
+	  cigar  => [ "7M", "6M1S", "1S6M" ],
+	  samoptflags => [
+		{ "YT:Z:UU" => 1, "MD:Z:7" => 1 },
+		{ "AS:i:-1" => 1, "XN:i:1" => 1, "YT:Z:UU" => 1, "MD:Z:6" => 1 },
+		{ "AS:i:-1" => 1, "XN:i:1" => 1, "YT:Z:UU" => 1, "MD:Z:6" => 1 }
+	  ]},
+
+	# Same as previous case but --overhang not specified
+	{ ref    => [ "TTGTTCGT" ],
+	  reads  => [ "TGTTCGT", "TTGTTCG", "GTTCGTA", "ATTGTTC" ],
+	  args   => "-P \"SEED=0,2,1;NCEIL=2,0\"",
+	  hits   => [ { 1 => 1 }, { 0 => 1 } ], # only the internal hits
+	  cigar  => [ "7M", "7M", "*", "*" ],
+	  samoptflags => [
+		{ "YT:Z:UU" => 1, "MD:Z:7" => 1 },
+		{ "YT:Z:UU" => 1, "MD:Z:7" => 1 },
+		{ "YT:Z:UU" => 1 },
+		{ "YT:Z:UU" => 1 }
+	  ]
+	},
+
+	# A simple case that should align with or without overhang, with or without
+	# a special NCEIL setting.
+	{ ref    => [ "TTGTTCGT" ],
+	  reads  => [ "TTGTTCG" ],
+	  args   => "--overhang -P \"SEED=0,2,1;NCEIL=2,0\"",
+	  hits   => [ { 0 => 1 } ]},
+
+	{ ref    => [ "TTGTTCGT" ],
+	  reads  => [ "TTGTTCG" ],
+	  args   => "--overhang",
+	  hits   => [ { 0 => 1 } ]},
+
 	#
 	# Testing the various -M/-m/-k/-a alignment modes in both unpaired and
 	# paired-end modes.  Ensuring that SAM optional flags such as YM:i, YP:i
@@ -549,7 +1527,7 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1,  mate2fw => 0,
-	  args   =>   "-k 1",
+	  report  =>   "-k 1",
 	  pairhits  => [ { "12,78" => 1 } ],
 	  mapq => [ 255 ],
 	  cigar_map => [{
@@ -574,7 +1552,8 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1,  mate2fw => 0,
-	  args   =>   "-k 1 --local",
+	  args    => "--local",
+	  report  => "-k 1",
 	  pairhits  => [ { "12,78" => 1 } ],
 	  mapq => [ 255 ],
 	  cigar_map => [{
@@ -1143,7 +2122,7 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1,  mate2fw => 0,
-	  args   =>   "-k 1",
+	  report  =>   "-k 1",
 	  pairhits  => [ { "12,78" => 1 } ],
 	  mapq => [ 255 ],
 	  cigar_map => [{
@@ -1168,7 +2147,8 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1,  mate2fw => 0,
-	  args   =>   "-k 1 --local",
+	  args    => "--local",
+	  report  => "-k 1",
 	  pairhits  => [ { "12,78" => 1 } ],
 	  mapq => [ 255 ],
 	  cigar_map => [{
@@ -1401,7 +2381,7 @@ my @cases = (
 	  #            01234567890123456789012345678901234567890123456789012345
 	  #            0         1         2         3         4         5
 	  reads  => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
-	  args   =>   "-k 1",
+	  report =>   "-k 1",
 	  mapq   => [ 255 ],
 	  hits   => [ { 12 => 1 } ],
 	  cigar  => [ "33M" ],
@@ -1425,7 +2405,8 @@ my @cases = (
 	  #            01234567890123456789012345678901234567890123456789012345
 	  #            0         1         2         3         4         5
 	  reads  => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
-	  args   =>   "-k 1 --local",
+	  args   => "--local",
+	  report => "-k 1",
 	  mapq   => [ 255 ],
 	  hits   => [ { 12 => 1 } ],
 	  cigar  => [ "33M" ],
@@ -2858,94 +3839,6 @@ my @cases = (
 	},
 
 	#
-	# Alignment with overhang
-	#
-
-	# A simple case that should align with or without overhang, with or without
-	# a special NCEIL setting.
-	{ ref    => [ "TTGTTCGT" ],
-	  reads  => [ "TTGTTCG" ],
-	  args   => "--overhang -P \"SEED=0,2,1;NCEIL=2,0\"",
-	  hits   => [ { 0 => 1 } ],
-	  nosam  => 1,
-	  flags  => [ "XM:0,XP:0,XT:UU,XC:7=" ],
-	},
-
-	{ ref    => [ "TTGTTCGT" ],
-	  reads  => [ "TTGTTCG" ],
-	  args   => "-P \"SEED=0,2,1;NCEIL=2,0\"",
-	  hits   => [ { 0 => 1 } ],
-	  flags => [ "XM:0,XP:0,XT:UU,XC:7=" ],
-	  cigar  => [ "7M" ],
-	  samoptflags => [ { "YT:Z:UU" => 1, "MD:Z:7" => 1 } ]
-	},
-	
-	{ ref    => [ "TTGTTCGT" ],
-	  reads  => [ "TTGTTCG" ],
-	  args   => "--overhang",
-	  hits   => [ { 0 => 1 } ],
-	  nosam  => 1,
-	  flags => [ "XM:0,XP:0,XT:UU,XC:7=" ] },
-
-	{ ref    => [ "TTGTTCGT" ],
-	  reads  => [ "TTGTTCG" ],
-	  args   => "",
-	  hits   => [ { 0 => 1 } ],
-	  flags => [ "XM:0,XP:0,XT:UU,XC:7=" ],
-	  cigar  => [ "7M" ],
-	  samoptflags => [ { "YT:Z:UU" => 1, "MD:Z:7" => 1 } ]
-	},
-
-	{ ref    => [ "TTGTTCGT" ],
-	  reads  => [  "TGTTCGT", "TTGTTCG" ],
-	  args   => "--overhang",
-	  nosam  => 1,
-	  hits   => [ { 1 => 1 }, { 0 => 1 } ],
-	  flags => [ "XM:0,XP:0,XT:UU,XC:7=", "XM:0,XP:0,XT:UU,XC:7=" ],
-	  cigar  => [ "7M", "7M" ],
-	  samoptflags => [
-		{ "YT:Z:UU" => 1, "MD:Z:7" => 1 },
-		{ "YT:Z:UU" => 1, "MD:Z:7" => 1 }
-	  ]
-	},
-
-	{ ref    => [ "TTGTTCGT" ],
-	  reads  => [ "TGTTCGT", "TTGTTCG" ],
-	  args   => "",
-	  hits   => [ { 1 => 1 }, { 0 => 1 } ],
-	  flags => [ "XM:0,XP:0,XT:UU,XC:7=", "XM:0,XP:0,XT:UU,XC:7=" ],
-	  cigar  => [ "7M", "7M" ],
-	  samoptflags => [
-		{ "YT:Z:UU" => 1, "MD:Z:7" => 1 },
-		{ "YT:Z:UU" => 1, "MD:Z:7" => 1 }
-	  ]
-	},
-
-	# Reads 1 and 2 don't have overhang, reads 3 and 4 overhang opposite ends
-	{ ref    => [ "TTGTTCGT" ],
-	  reads  => [ "TGTTCGT", "TTGTTCG", "GTTCGTA", "ATTGTTC" ],
-	  args   => "--overhang -P \"SEED=0,2,1;NCEIL=2,0\"",
-	  hits   => [ { 1 => 1 }, { 0 => 1 }, { 2 => 1 }, { -1 => 1 } ],
-	  nosam  => 1,
-	  flags => [ "XM:0,XP:0,XT:UU,XC:7=",   "XM:0,XP:0,XT:UU,XC:7=",
-	             "XM:0,XP:0,XT:UU,XC:6=1X", "XM:0,XP:0,XT:UU,XC:1X6=" ] },
-
-	# Same as previous case but --overhang not specified
-	{ ref    => [ "TTGTTCGT" ],
-	  reads  => [ "TGTTCGT", "TTGTTCG", "GTTCGTA", "ATTGTTC" ],
-	  args   => "-P \"SEED=0,2,1;NCEIL=2,0\"",
-	  hits   => [ { 1 => 1 }, { 0 => 1 } ], # only the internal hits
-	  flags => [ "XM:0,XP:0,XT:UU,XC:7=", "XM:0,XP:0,XT:UU,XC:7=" ],
-	  cigar  => [ "7M", "7M", "*", "*" ],
-	  samoptflags => [
-		{ "YT:Z:UU" => 1, "MD:Z:7" => 1 },
-		{ "YT:Z:UU" => 1, "MD:Z:7" => 1 },
-		{ "YT:Z:UU" => 1 },
-		{ "YT:Z:UU" => 1 }
-	  ]
-	},
-
-	#
 	# Colorspace alignment
 	#
 
@@ -2958,10 +3851,8 @@ my @cases = (
 	  dec_seq  => [ "TGTACA" ],
 	  dec_qual => [ "IqqqqI" ],
 	  args     =>   "--col-keepends --norc --overhang -P \"NCEIL=1,0;MIN=-10,0;SEED=0,2,1;MMP=C5;SNP=9\"",
-	  report   =>   "-a",
 	  hits     => [ { 1 => 1 } ],
 	  color    => 1,
-	  nosam  => 1,
 	  flags => [ "XM:0,XP:0,XT:UU,XC:3=1X1=1X" ]
 	},
 
@@ -3173,7 +4064,6 @@ my @cases = (
 	  reads  => [   "GTTCGTA" ],
 	  args   => "--overhang -P \"SEED=0,3,1;NCEIL=2,0\"",
 	  hits   => [ { 2 => 1 } ],
-	  nosam  => 1,
 	  flags => [ "XM:0,XP:0,XT:UU,XC:6=1X" ] },
 
 	# Mess with arguments
@@ -3321,13 +4211,17 @@ sub writeReads($$$$$$) {
 ##
 # Run bowtie2 with given arguments
 #
-sub runbowtie2($$$$$$$$$$$$$) {
+sub runbowtie2($$$$$$$$$$$$$$$$$$) {
 	my (
 		$do_build,
 		$args,
 		$color,
 		$fa,
-		$reportargs,
+		$reportargs,       #5
+		$read_file_format,
+		$read_file,
+		$mate1_file,
+		$mate2_file,
 		$reads,
 		$mate1s,
 		$mate2s,
@@ -3335,10 +4229,11 @@ sub runbowtie2($$$$$$$$$$$$$) {
 		$ls,
 		$rawls,
 		$header_ls,
-		$raw_header_ls) = @_;
+		$raw_header_ls,
+		$should_abort) = @_;
 	$args .= " --quiet";
 	$args .= " --print-flags";
-	$reportargs = $reportargs || "-a";
+	$reportargs = "-a" unless defined($reportargs);
 	$args .= " -C" if $color;
 	$args .= " $reportargs";
 	# Write the reference to a fasta file
@@ -3354,6 +4249,7 @@ sub runbowtie2($$$$$$$$$$$$$) {
 		($? == 0) || die "Bad exitlevel from bowtie2-build: $?";
 	}
 	my $pe = (defined($mate1s) && $mate1s ne "");
+	$pe = $pe || (defined($mate1_file));
 	my $mate1arg;
 	my $mate2arg;
 	my $readarg;
@@ -3362,16 +4258,58 @@ sub runbowtie2($$$$$$$$$$$$$) {
 	$readstr = join(",", @$reads)  if defined($reads);
 	$m1str   = join(",", @$mate1s) if defined($mate1s);
 	$m2str   = join(",", @$mate2s) if defined($mate2s);
-	if(defined($names)) {
-		writeReads($reads, $mate1s, $mate2s, $names, ".simple_tests.1.fq", ".simple_tests.2.fq");
-		$mate1arg = ".simple_tests.1.fq";
-		$mate2arg = ".simple_tests.2.fq";
-		$formatarg = "-q";
-		$readarg = $mate1arg;
+	if(defined($read_file) || defined($mate1_file)) {
+		defined($read_file_format) || die;
+		my $ext = "";
+		if($read_file_format eq "fastq") {
+			$formatarg = "-q";
+			$ext = ".fq";
+		} elsif($read_file_format eq "tabbed") {
+			$formatarg = "--12";
+			$ext = ".tab";
+		} elsif($read_file_format eq "fasta") {
+			$formatarg = "-f";
+			$ext = ".fa";
+		} elsif($read_file_format eq "qseq") {
+			$formatarg = "--qseq";
+			$ext = "_qseq.txt";
+		} elsif($read_file_format eq "raw") {
+			$formatarg = "-r";
+			$ext = ".raw";
+		} else {
+			die "Bad format: $read_file_format";
+		}
+		if(defined($read_file)) {
+			# Unpaired
+			open(RD, ">.simple_tests$ext") || die;
+			print RD $read_file;
+			close(RD);
+			$readarg = ".simple_tests$ext";
+		} else {
+			defined($mate1_file) || die;
+			defined($mate2_file) || die;
+			# Paired
+			open(M1, ">.simple_tests.1$ext") || die;
+			print M1 $mate1_file;
+			close(M1);
+			open(M2, ">.simple_tests.2$ext") || die;
+			print M2 $mate2_file;
+			close(M2);
+			$mate1arg = ".simple_tests.1$ext";
+			$mate2arg = ".simple_tests.2$ext";
+		}
 	} else {
-		$mate1arg = $m1str;
-		$mate2arg = $m2str;
-		$readarg = $readstr;
+		if(defined($names)) {
+			writeReads($reads, $mate1s, $mate2s, $names, ".simple_tests.1.fq", ".simple_tests.2.fq");
+			$mate1arg = ".simple_tests.1.fq";
+			$mate2arg = ".simple_tests.2.fq";
+			$formatarg = "-q";
+			$readarg = $mate1arg;
+		} else {
+			$mate1arg = $m1str;
+			$mate2arg = $m2str;
+			$readarg = $readstr;
+		}
 	}
 	my $cmd;
 	if($pe) {
@@ -3395,7 +4333,8 @@ sub runbowtie2($$$$$$$$$$$$$) {
 		}
 	}
 	close(BT);
-	($? == 0) || die "bowtie2 exited with level $?\n";
+	($? == 0 ||  $should_abort) || die "bowtie2 aborted with exitlevel $?\n";
+	($? != 0 || !$should_abort) || die "bowtie2 failed to abort!\n";
 }
 
 ##
@@ -3439,7 +4378,6 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 	my $color = 0;
 	$color = $c->{color} if defined($c->{color});
 	next if ($color && $skipColor);
-	next if $c->{nosam};
 	my $do_build = 0;
 	unless(defined($last_ref) && eq_deeply($c->{ref}, $last_ref)) {
 		writeFasta($c->{ref}, $tmpfafn);
@@ -3448,6 +4386,7 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 	$last_ref = $c->{ref};
 	# For each set of arguments...
 	my $case_args = $c->{args};
+	$case_args = "" unless defined($case_args);
 	my $first = 1; # did we build the index yet?
 	# Forward, then reverse-complemented
 	my $fwlo = ($c->{nofw} ? 1 : 0);
@@ -3455,6 +4394,43 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 	for(my $fwi = $fwlo; $fwi <= $fwhi; $fwi++) {
 		my $fw = ($fwi == 0);
 		my $sam = 1;
+		
+		my $reads     = $c->{reads};
+		my $m1s       = $c->{mate1s};
+		my $m2s       = $c->{mate2s};
+		
+		my $read_file = undef;
+		my $mate1_file = undef;
+		my $mate2_file = undef;
+		
+		$read_file  = $c->{fastq}   if defined($c->{fastq});
+		$read_file  = $c->{tabbed}  if defined($c->{tabbed});
+		$read_file  = $c->{fasta}   if defined($c->{fasta});
+		$read_file  = $c->{qseq}    if defined($c->{qseq});
+		$read_file  = $c->{raw}     if defined($c->{raw});
+
+		$mate1_file = $c->{fastq1}  if defined($c->{fastq1});
+		$mate1_file = $c->{tabbed1} if defined($c->{tabbed1});
+		$mate1_file = $c->{fasta1}  if defined($c->{fasta1});
+		$mate1_file = $c->{qseq1}   if defined($c->{qseq1});
+		$mate1_file = $c->{raw1}    if defined($c->{raw1});
+
+		$mate2_file = $c->{fastq2}  if defined($c->{fastq2});
+		$mate2_file = $c->{tabbed2} if defined($c->{tabbed2});
+		$mate2_file = $c->{fasta2}  if defined($c->{fasta2});
+		$mate2_file = $c->{qseq2}   if defined($c->{qseq2});
+		$mate2_file = $c->{raw2}    if defined($c->{raw2});
+		
+		my $read_file_format = undef;
+		if(!defined($reads) && !defined($m1s) && !defined($m2s)) {
+			defined($read_file) || defined($mate1_file) || die;
+			$read_file_format = "fastq"  if defined($c->{fastq})  || defined($c->{fastq1});
+			$read_file_format = "tabbed" if defined($c->{tabbed}) || defined($c->{tabbed});
+			$read_file_format = "fasta"  if defined($c->{fasta})  || defined($c->{fasta1});
+			$read_file_format = "qseq"   if defined($c->{qseq})   || defined($c->{qseq1});
+			$read_file_format = "raw"    if defined($c->{raw})    || defined($c->{raw1});
+			next unless $fw;
+		}
 		# Run bowtie2
 		my @lines = ();
 		my @rawlines = ();
@@ -3462,9 +4438,6 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 		my @header_rawlines = ();
 		print $c->{name}." " if defined($c->{name});
 		print "(fw:".($fw ? 1 : 0).", sam:$sam)\n";
-		my $reads = $c->{reads};
-		my $m1s   = $c->{mate1s};
-		my $m2s   = $c->{mate2s};
 		my $mate1fw = 1;
 		my $mate2fw = 0;
 		$mate1fw = $c->{mate1fw} if defined($c->{mate1fw});
@@ -3496,16 +4469,23 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 			$color,
 			$tmpfafn,
 			$c->{report},
-			$reads,
-			$m1s,
-			$m2s,
+			$read_file_format, # formate of read/mate files
+			$read_file,        # read file
+			$mate1_file,       # mate #1 file
+			$mate2_file,       # mate #2 file
+			$reads,            # read list
+			$m1s,              # mate #1 list
+			$m2s,              # mate #2 list
 			$c->{names},
 			\@lines,
 			\@rawlines,
 			\@header_lines,
-			\@header_rawlines);
+			\@header_rawlines,
+			$c->{should_abort});
 		$first = 0;
 		my $pe = defined($c->{mate1s}) && $c->{mate1s} ne "";
+		$pe = $pe || defined($mate1_file);
+		$pe = $pe || $c->{paired};
 		my ($lastchr, $lastoff) = ("", -1);
 		# Keep temporary copies of hits and pairhits so that we can
 		# restore for the next orientation
@@ -3526,7 +4506,7 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 		for my $li (0 .. scalar(@lines)-1) {
 			my $l = $lines[$li];
 			my ($readname, $orient, $chr, $off, $seq, $qual, $mapq, $oms,
-				$editstr, $flagstr, $samflags, $cigar);
+				$editstr, $flagstr, $samflags, $cigar, $rnext, $pnext);
 			my %samoptflags = ();
 			if($sam) {
 				scalar(@$l) >= 11 ||
@@ -3539,8 +4519,15 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 				} else {
 					$orient = "+";
 				}
-				$mapq = $l->[4];
+				$mapq  = $l->[4];
 				$cigar = $l->[5];
+				$rnext = $l->[6];
+				$pnext = $l->[7];
+				if($pnext == 0) {
+					$pnext = "*";
+				} else {
+					$pnext--;
+				}
 				for(my $m = 11; $m < scalar(@$l); $m++) {
 					next if $l->[$m] eq "";
 					my ($nm, $ty, $vl) = split(/:/, $l->[$m]);
@@ -3578,6 +4565,8 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 				($rdi, $mate) = split(/\//, $readname);
 				defined($rdi) || die;
 			}
+			$rdi = $c->{idx_map}{$rdi} if defined($c->{idx_map}{$rdi});
+			#print STDERR "rdi: $rdi\n";
 			if($rdi != int($rdi)) {
 				# Read name has non-numeric characters.  Figure out
 				# what number it is by scanning the names list.
@@ -3639,6 +4628,14 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 			my $ex_mapq_map = undef;
 			$ex_mapq_map = $c->{mapq_map}->[$rdi] if
 				defined($c->{mapq_map}->[$rdi]);
+			# 'rnext_map'
+			my $ex_rnext_map = undef;
+			$ex_rnext_map = $c->{rnext_map}->[$rdi] if
+				defined($c->{rnext_map}) && defined($c->{rnext_map}->[$rdi]);
+			# 'pnext_map'
+			my $ex_pnext_map = undef;
+			$ex_pnext_map = $c->{pnext_map}->[$rdi] if
+				defined($c->{pnext_map}) && defined($c->{pnext_map}->[$rdi]);
 			# 'flags_fw'
 			my $flags_fw = undef;
 			$flags_fw = $c->{flags_fw}->[$rdi] if
@@ -3702,7 +4699,7 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 						$cigar eq $ex || die
 							"Expected CIGAR string $ex at offset $off, got $cigar"
 					} else {
-						die "Expected to see alignment with offset $off";
+						die "Expected to see alignment with offset $off parsing cigar_map";
 					}
 				}
 				# MAPQ
@@ -3716,7 +4713,7 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 						$mapq eq $ex || die
 							"Expected MAPQ string $ex at offset $off, got $mapq"
 					} else {
-						die "Expected to see alignment with offset $off";
+						die "Expected to see alignment with offset $off parsing mapq_map";
 					}
 				}
 				# SAM optional flags
@@ -3729,7 +4726,27 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 							\%samoptflags,
 							$c->{samoptflags_map}->[$rdi]->{$off});
 					} else {
-						die "Expected to see alignment with offset $off";
+						die "Expected to see alignment with offset $off parsing samoptflags_map";
+					}
+				}
+				# RNEXT map
+				if(defined($c->{rnext_map})) {
+					if(defined($c->{rnext_map}->[$rdi]->{$off})) {
+						my $ex = $c->{rnext_map}->[$rdi]->{$off};
+						$rnext eq $ex || die
+							"Expected RNEXT '$ex' at offset $off, got '$rnext'"
+					} else {
+						die "Expected to see alignment with offset $off parsing rnext_map".Dumper($c);
+					}
+				}
+				# PNEXT map
+				if(defined($c->{pnext_map})) {
+					if(defined($c->{pnext_map}->[$rdi]->{$off})) {
+						my $ex = $c->{pnext_map}->[$rdi]->{$off};
+						$pnext eq $ex || die
+							"Expected PNEXT '$ex' at offset $off, got '$pnext'"
+					} else {
+						die "Expected to see alignment with offset $off parsing pnext_map";
 					}
 				}
 			}
@@ -3788,12 +4805,12 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 			my $hitsLeft = scalar(keys %hits);
 			if($hitsLeft != 0 && !$hits_are_superset) {
 				print Dumper(\%hits);
-				die "Had $hitsLeft hit(s) left over";
+				die "Had $hitsLeft hit(s) left over at position $k";
 			}
 			my $pairhitsLeft = scalar(keys %pairhits);
 			if($pairhitsLeft != 0 && !$hits_are_superset) {
 				print Dumper(\%pairhits);
-				die "Had $pairhitsLeft hit(s) left over";
+				die "Had $pairhitsLeft hit(s) left over at position $k";
 			}
 		}
 		

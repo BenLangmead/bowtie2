@@ -10,13 +10,14 @@ using namespace std;
 
 /**
  * Print a reference name in a way that doesn't violate SAM's character
- * constraints. \*|[!-()+-<>-~][!-~]*
+ * constraints. \*|[!-()+-<>-~][!-~]* (i.e. [33, 63], [65, 126])
  */
 void SamConfig::printRefName(
 	OutFileBuf& o,
 	const std::string& name) const
 {
-	for(size_t i = 0; i < name.length(); i++) {
+	size_t namelen = name.length();
+	for(size_t i = 0; i < namelen; i++) {
 		if(isspace(name[i])) {
 			return;
 		}
@@ -231,6 +232,10 @@ void SamConfig::printAlignedOptFlags(
 		WRITE_SEP();
 		flags.printYM(o);
 	}
+	if(print_yf_ && flags.filtered()) {
+		// YM:i: Read was repetitive when aligned unpaired?
+		first = flags.printYF(o, first) && first;
+	}
 }
 
 /**
@@ -257,5 +262,9 @@ void SamConfig::printEmptyOptFlags(
 		// YM:i: Read was repetitive when aligned unpaired?
 		WRITE_SEP();
 		flags.printYM(o);
+	}
+	if(print_yf_ && flags.filtered()) {
+		// YM:i: Read was repetitive when aligned unpaired?
+		first = flags.printYF(o, first) && first;
 	}
 }

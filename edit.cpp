@@ -376,3 +376,41 @@ void Edit::merge(EList<Edit>& dst, const EList<Edit>& src) {
 	}
 	while(si < src.size()) dst.push_back(src[si++]);
 }
+
+/**
+ * Clip off some of the low-numbered positions.
+ */
+void Edit::clipLo(EList<Edit>& ed, size_t len, size_t amt) {
+	size_t nrm = 0;
+	for(size_t i = 0; i < ed.size(); i++) {
+		assert_lt(ed[i].pos, len);
+		if(ed[i].pos < amt) {
+			nrm++;
+		} else {
+			// Shift everyone else up
+			ed[i].pos -= amt;
+		}
+	}
+	ed.erase(0, nrm);
+}
+
+/**
+ * Clip off some of the high-numbered positions.
+ */
+void Edit::clipHi(EList<Edit>& ed, size_t len, size_t amt) {
+	assert_leq(amt, len);
+	size_t max = len - amt;
+	size_t nrm = 0;
+	for(size_t i = 0; i < ed.size(); i++) {
+		size_t ii = ed.size() - i - 1;
+		assert_lt(ed[ii].pos, len);
+		if(ed[ii].pos > max) {
+			nrm++;
+		} else if(ed[ii].pos == max && !ed[ii].isReadGap()) {
+			nrm++;
+		} else {
+			break;
+		}
+	}
+	ed.resize(ed.size() - nrm);
+}

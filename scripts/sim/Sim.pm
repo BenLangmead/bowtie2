@@ -823,7 +823,7 @@ sub genAlignArgs {
 	$args{"-u"}         = $conf->{maxreads} if defined($conf->{maxreads});
 	$args{"--mm"}       = "" if int(rand(2)) == 0;
 	$args{"--cost"}     = "" if int(rand(2)) == 0;
-	$args{"--overhang"} = "" if int(rand(2)) == 0;
+	#$args{"--overhang"} = "" if int(rand(2)) == 0;
 	$args{"--trim3"}    = int(rand(10)) if int(rand(2)) == 0;
 	$args{"--trim5"}    = int(rand(10)) if int(rand(2)) == 0;
 	$args{"--nofw"}     = "" if int(rand(4)) == 0;
@@ -894,15 +894,16 @@ sub align {
 	open(ALSDEBCMD, "$cmd |") || mydie("Could not open pipe '$cmd |'");
 	my $ival = 50;
 	my $nals = 0;
+	my @lines = ();
 	while(<ALSDEBCMD>) {
-		# Check the sanity of this alignment
-		$ac->checkAlignments([$_], 0);
 		# Remove @PG line because CL: tag can legitimately differ
 		print ALSDEB $_ unless /^\@PG/;
+		push @lines, $_;
 		$nals++;
 		print STDERR "  Read $nals alignments...\n" if ($nals % $ival) == 0;
 	}
 	close(ALSDEBCMD);
+	$ac->checkAlignments(\@lines, 0);
 	$? == 0 || mydie("bowtie2-debug exited with exitlevel $?:\n$cmd\n");
 	close(ALSDEB);
 	$ac->printSummary();

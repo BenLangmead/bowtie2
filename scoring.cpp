@@ -92,7 +92,7 @@ bool Scoring::nFilter(const BTDnaString& rd) const {
 	size_t rdlen = rd.length();
 	float maxns = nCeilConst + nCeilLinear * rdlen;
 	if(maxns < 0.0f) maxns = 0.0f;
-	assert_gt(rd.length(), 0);
+	assert_geq(rd.length(), 0);
 	for(size_t i = 0; i < rdlen; i++) {
 		if(rd[i] == 4) {
 			ns += 1.0f;
