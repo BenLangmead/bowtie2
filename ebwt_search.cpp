@@ -3694,14 +3694,14 @@ static void driver(
 	}
 	{
 		Timer _t(cerr, "Time searching: ", timing);
-		if(gVerbose || startVerbose) {
-			cerr << "Creating ReadSink, HitSink: "; logTime(cerr, true);
-		}
-		ReadSink readSink(
-			dumpAlBase,   // basename of files to dump aligned reads to
-			dumpUnalBase, // basename of files to dump unaligned reads to
-			dumpMaxBase,  // basename of files to dump repetitive reads to
-			format == TAB_MATE); // both mates to same file?
+		//if(gVerbose || startVerbose) {
+		//	cerr << "Creating ReadSink, HitSink: "; logTime(cerr, true);
+		//}
+		//ReadSink readSink(
+		//	dumpAlBase,   // basename of files to dump aligned reads to
+		//	dumpUnalBase, // basename of files to dump unaligned reads to
+		//	dumpMaxBase,  // basename of files to dump repetitive reads to
+		//	format == TAB_MATE); // both mates to same file?
 		// Set up hit sink; if sanityCheck && !os.empty() is true,
 		// then instruct the sink to "retain" hits in a vector in
 		// memory so that we can easily sanity check them later on
@@ -3744,7 +3744,6 @@ static void driver(
 			case OUTPUT_FULL: {
 				sink = new VerboseHitSink(
 					fout,         // pointer to output object
-					&readSink,    // dump reads according to alignment status
 					refnames,     // reference names
 					offBase,      // add this to 0-based offsets before printing
 					gColorSeq,    // whether to print color sequence
@@ -3758,7 +3757,6 @@ static void driver(
 				mssink = new AlnSinkVerbose(
 					fout,         // initial output stream
 					suppressOuts, // suppress alignment columns
-					&readSink,    // read sink
 					*bmapq.get(), // mapping quality calculator
 					false,        // delete output stream objects upon destruction
 					refnames,     // reference names
@@ -3780,7 +3778,6 @@ static void driver(
 			case OUTPUT_SAM: {
 				SAMHitSink *sam = new SAMHitSink(
 					fout,
-					&readSink,           // dump reads according to alignment status
 					refnames,            // reference names
 					1,
 					rmap,
@@ -3790,7 +3787,6 @@ static void driver(
 					defaultMapq);
 				mssink = new AlnSinkSam(
 					fout,         // initial output stream
-					&readSink,    // read sink
 					*bmapq.get(), // mapping quality calculator
 					samc,         // settings & routines for SAM output
 					false,        // delete output stream objects upon destruction

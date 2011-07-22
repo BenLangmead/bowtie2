@@ -397,7 +397,195 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag) {
 	// separates the processing of the first row from the others and might make
 	// it difficult to use the first-row results in the next row, but it might
 	// be the simplest and least disruptive way to deal with the st_ constraint.
-	
+
+#if 0
+	size_t col = rfi_;
+	for(size_t i = rfi_; i < rff_; i++, col += 4) {
+		assert(pvFStore == d.mat_.fvec(0, i - rfi_));
+		assert(pvHStore == d.mat_.hvec(0, i - rfi_));
+		
+		// Calculate distance from RHS of paralellogram; helps us decide
+		// whether a solution can end in this column 
+		size_t fromend = rff_ - i - 1;
+		
+		// Fetch the appropriate query profile.  Note that elements of rf_ must
+		// be numbers, not masks.
+		const int refc = (int)rf_[i];
+		size_t off = (size_t)firsts5[refc] * iter * 2;
+		pvScore = d.qprof_ + off; // even elts = query profile, odd = gap barrier
+		
+		// Set all cells to low value
+		vf = _mm_xor_si128(vf, vf);
+
+		// Load H vector from the final row of the previous column
+		vh = _mm_load_si128(pvHLoad + colstride - ROWSTRIDE);
+		// Shift 2 bytes down so that topmost (least sig) cell gets 0
+		vh = _mm_slli_si128(vh, NBYTES_PER_WORD);
+		// Fill topmost (least sig) cell with high value
+		vh = _mm_or_si128(vh, vhilsw);
+		
+		// For each character in the reference text:
+		size_t j;
+		for(j = 0; j < iter; j++) {
+			// Load cells from E, calculated previously
+			ve = _mm_load_si128(pvELoad);
+			assert_all_lt(ve, vhi);
+			pvELoad += ROWSTRIDE;
+			
+			// Store cells in F, calculated previously
+			vf = _mm_subs_epu8(vf, pvScore[1]); // veto some ref gap extensions
+			_mm_store_si128(pvFStore, vf);
+			pvFStore += ROWSTRIDE;
+			
+			// Factor in query profile (matches and mismatches)
+			vh = _mm_subs_epu8(vh, pvScore[0]);
+			
+			// Update H, factoring in E and F
+			vh = _mm_max_epu8(vh, ve);
+			vh = _mm_max_epu8(vh, vf);
+			
+			// Save the new vH values
+			_mm_store_si128(pvHStore, vh);
+			pvHStore += ROWSTRIDE;
+			
+			// Update vE value
+			vtmp = vh;
+			vh = _mm_subs_epu8(vh, rdgapo);
+			vh = _mm_subs_epu8(vh, pvScore[1]); // veto some read gap opens
+			ve = _mm_subs_epu8(ve, rdgape);
+			ve = _mm_max_epu8(ve, vh);
+			assert_all_lt(ve, vhi);
+			
+			// Load the next h value
+			vh = _mm_load_si128(pvHLoad);
+			pvHLoad += ROWSTRIDE;
+			
+			// Save E values
+			_mm_store_si128(pvEStore, ve);
+			pvEStore += ROWSTRIDE;
+			
+			// Update vf value
+			vtmp = _mm_subs_epu8(vtmp, rfgapo);
+			vf = _mm_subs_epu8(vf, rfgape);
+			assert_all_lt(vf, vhi);
+			vf = _mm_max_epu8(vf, vtmp);
+			
+			pvScore += 2; // move on to next query profile / gap veto
+		}
+		// pvHStore, pvELoad, pvEStore have all rolled over to the next column
+		pvFTmp = pvFStore;
+		pvFStore -= colstride; // reset to start of column
+		vtmp = _mm_load_si128(pvFStore);
+		
+		pvHStore -= colstride; // reset to start of column
+		vh = _mm_load_si128(pvHStore);
+		
+		pvEStore -= colstride; // reset to start of column
+		ve = _mm_load_si128(pvEStore);
+		
+		pvHLoad = pvHStore;    // new pvHLoad = pvHStore
+		pvScore = d.qprof_ + off + 1; // reset veto vector
+		
+		// vf from last row gets shifted down by one to overlay the first row
+		// rfgape has already been subtracted from it.
+		vf = _mm_slli_si128(vf, NBYTES_PER_WORD);
+		
+		vf = _mm_subs_epu8(vf, *pvScore); // veto some ref gap extensions
+		vf = _mm_max_epu8(vtmp, vf);
+		vtmp = _mm_subs_epu8(vf, vtmp);
+		vtmp = _mm_cmpeq_epi8(vtmp, vzero);
+		int cmp = _mm_movemask_epi8(vtmp);
+		
+		// If any element of vtmp is greater than H - gap-open...
+		j = 0;
+		while(cmp != 0xffff) {
+			// Store this vf
+			_mm_store_si128(pvFStore, vf);
+			pvFStore += ROWSTRIDE;
+			
+			// Update vh w/r/t new vf
+			vh = _mm_max_epu8(vh, vf);
+			
+			// Save vH values
+			_mm_store_si128(pvHStore, vh);
+			pvHStore += ROWSTRIDE;
+			
+			// Update E in case it can be improved using our new vh
+			vh = _mm_subs_epu8(vh, rdgapo);
+			vh = _mm_subs_epu8(vh, *pvScore); // veto some read gap opens
+			ve = _mm_max_epu8(ve, vh);
+			_mm_store_si128(pvEStore, ve);
+			pvEStore += ROWSTRIDE;
+			pvScore += 2;
+			
+			assert_lt(j, iter);
+			if(++j == iter) {
+				pvFStore -= colstride;
+				vtmp = _mm_load_si128(pvFStore);   // load next vf ASAP
+				pvHStore -= colstride;
+				vh = _mm_load_si128(pvHStore);     // load next vh ASAP
+				pvEStore -= colstride;
+				ve = _mm_load_si128(pvEStore);     // load next ve ASAP
+				pvScore = d.qprof_ + off + 1;
+				j = 0;
+				vf = _mm_slli_si128(vf, NBYTES_PER_WORD);
+			} else {
+				vtmp = _mm_load_si128(pvFStore);   // load next vf ASAP
+				vh = _mm_load_si128(pvHStore);     // load next vh ASAP
+				ve = _mm_load_si128(pvEStore);     // load next vh ASAP
+			}
+			
+			// Update F with another gap extension
+			vf = _mm_subs_epu8(vf, rfgape);
+			vf = _mm_subs_epu8(vf, *pvScore); // veto some ref gap extensions
+			vf = _mm_max_epu8(vtmp, vf);
+			vtmp = _mm_subs_epu8(vf, vtmp);
+			vtmp = _mm_cmpeq_epi8(vtmp, vzero);
+			cmp = _mm_movemask_epi8(vtmp);
+			nfixup++;
+		}
+		
+#ifndef NDEBUG
+		if((rand() & 15) == 0) {
+			// This is a work-intensive sanity check; each time we finish filling
+			// a column, we check that each H, E, and F is sensible.
+			for(size_t k = 0; k < dpRows(); k++) {
+				assert(cellOkEnd2EndU8(
+					d,
+					k,                   // row
+					i - rfi_,            // col
+					refc,                // reference mask
+					(int)(*rd_)[rdi_+k], // read char
+					(int)(*qu_)[rdi_+k], // read quality
+					*sc_));              // scoring scheme
+			}
+		}
+#endif
+		
+		// Check in the last row for the maximum so far
+		// Only check elements that we might backtrack from
+		// These elements have to satisfy two criteria: (a) must be
+		// exhaustively scored and (b) must not have en_ set.
+		if(fromend < solwidth_) {
+			if(en_ == NULL || (*en_)[solwidth_ - fromend - 1]) {
+				__m128i *vtmp = d.mat_.hvec(d.lastIter_, i-rfi_);
+				// Note: we may not want to extract from the final row
+				TCScore lr = ((TCScore*)(vtmp))[d.lastWord_];
+				found = true;
+				if(lr > lrmax) {
+					lrmax = lr;
+				}
+			}
+		}
+
+		// pvELoad and pvHLoad are already where they need to be
+		
+		// Adjust the load and store vectors here.  
+		pvHStore = pvHLoad + colstride;
+		pvEStore = pvELoad + colstride;
+		pvFStore = pvFTmp;
+	}
+#else
 	for(size_t i = rfi_; i < rff_; i++) {
 		assert(pvFStore == d.mat_.fvec(0, i - rfi_));
 		assert(pvHStore == d.mat_.hvec(0, i - rfi_));
@@ -583,6 +771,7 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag) {
 		pvEStore = pvELoad + colstride;
 		pvFStore = pvFTmp;
 	}
+#endif
 	
 	// Update metrics
 	size_t ninner = (rff_ - rfi_) * iter;
