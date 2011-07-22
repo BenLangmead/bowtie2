@@ -25,7 +25,6 @@
 #include "ref_coord.h"
 #include "aligner_result.h"
 #include "unique.h"
-#include "read_sink.h"
 
 /**
  * Classes for dealing with reporting alignments.
@@ -324,7 +323,7 @@ public:
 
 	explicit HitSink(
 		OutFileBuf* out,
-		ReadSink* readSink,
+		//ReadSink* readSink,
 		const StrList& refnames) :
 		outs_(),
 		deleteOuts_(false),
@@ -338,8 +337,8 @@ public:
 		numReported_(0llu),
 		numReportedPaired_(0llu),
 		quiet_(false),
-		ssmode_(ios_base::out),
-		readSink_(readSink)
+		ssmode_(ios_base::out)
+		//readSink_(readSink)
 	{
 		outs_.push_back(out);
 		locks_.resize(1);
@@ -494,15 +493,15 @@ public:
 	}
 
 	void dumpMaxed(const Read* m1, const Read* m2, TReadId rdid) {
-		if(readSink_ != NULL) readSink_->dumpMaxed(m1, m2, rdid);
+		//if(readSink_ != NULL) readSink_->dumpMaxed(m1, m2, rdid);
 	}
 	
 	void dumpUnal(const Read* m1, const Read* m2, TReadId rdid) {
-		if(readSink_ != NULL) readSink_->dumpUnal(m1, m2, rdid);
+		//if(readSink_ != NULL) readSink_->dumpUnal(m1, m2, rdid);
 	}
 	
 	void dumpAlign(const Read* m1, const Read* m2, TReadId rdid) {
-		if(readSink_ != NULL) readSink_->dumpAlign(m1, m2, rdid);
+		//if(readSink_ != NULL) readSink_->dumpAlign(m1, m2, rdid);
 	}
 
 protected:
@@ -568,7 +567,7 @@ protected:
 	bool quiet_;  /// true -> don't print alignment stats at the end
 	ios_base::openmode ssmode_;     /// output mode for stringstreams
 	
-	ReadSink* readSink_;
+	//ReadSink* readSink_;
 };
 
 /**
@@ -1593,7 +1592,7 @@ public:
 	 */
 	VerboseHitSink(
 		OutFileBuf* out,
-		ReadSink* readSink,
+		//ReadSink* readSink,
 		const EList<std::string>& refnames,
 		int offBase,
 		bool colorSeq,
@@ -1605,7 +1604,8 @@ public:
 		bool fullRef,
 		bool sampleMax,
 		int partition = 0) :
-		HitSink(out, readSink, refnames),
+		//HitSink(out, readSink, refnames),
+		HitSink(out, refnames),
 		partition_(partition),
 		offBase_(offBase),
 		colorSeq_(colorSeq),
@@ -1708,11 +1708,12 @@ public:
 	 */
 	ChainingHitSink(
 		OutFileBuf* out,
-		ReadSink *readSink,
+		//ReadSink *readSink,
 		const EList<std::string>& refnames,
 		bool strata,
 		AnnotationMap *amap) :
-		HitSink(out, readSink, refnames),
+		//HitSink(out, readSink, refnames),
+		HitSink(out, refnames),
 		amap_(amap),
 		strata_(strata)
 	{

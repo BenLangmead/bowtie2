@@ -722,8 +722,13 @@ void AlnSinkWrap::finishRead(
 			AlnSetSumm concordSumm(
 				rd1_, rd2_, &rs1_, &rs2_, &rs1u_, &rs2u_,
 				exhaust1, exhaust2);
+			// Possibly select a random subset
+			size_t off = selectAlnsToReport(rs1_, nconcord, select_, rnd);
+			assert_lt(off, rs1_.size());
+			const AlnRes *rs1 = &rs1_[off];
+			const AlnRes *rs2 = &rs2_[off];
 			AlnFlags flags1(
-				ALN_FLAG_PAIR_CONCORD,
+				ALN_FLAG_PAIR_CONCORD_MATE1,
 				st_.params().mhitsSet(),
 				unpair1Max,
 				pairMax,
@@ -731,9 +736,11 @@ void AlnSinkWrap::finishRead(
 				scfilt1,
 				lenfilt1,
 				qcfilt1,
-				st_.params().mixed);
+				st_.params().mixed,
+				true,
+				rs2->fw());
 			AlnFlags flags2(
-				ALN_FLAG_PAIR_CONCORD,
+				ALN_FLAG_PAIR_CONCORD_MATE2,
 				st_.params().mhitsSet(),
 				unpair2Max,
 				pairMax,
@@ -741,14 +748,14 @@ void AlnSinkWrap::finishRead(
 				scfilt2,
 				lenfilt2,
 				qcfilt2,
-				st_.params().mixed);
+				st_.params().mixed,
+				true,
+				rs1->fw());
 			for(size_t i = 0; i < rs1_.size(); i++) {
 				rs1_[i].setMateParams(ALN_RES_TYPE_MATE1, &rs2_[i], flags1);
 				rs2_[i].setMateParams(ALN_RES_TYPE_MATE2, &rs1_[i], flags2);
-				assert_eq(rs1_[i].fragmentLength(), rs2_[i].fragmentLength());
+				assert_eq(abs(rs1_[i].fragmentLength()), abs(rs2_[i].fragmentLength()));
 			}
-			// Possibly select a random subset
-			selectAlnsToReport(rs1_, nconcord, select_, rnd);
 			g_.reportHits(
 				rd1_,
 				rd2_,
@@ -775,8 +782,10 @@ void AlnSinkWrap::finishRead(
 			AlnSetSumm discordSumm(
 				rd1_, rd2_, &rs1_, &rs2_, &rs1u_, &rs2u_,
 				exhaust1, exhaust2);
+			const AlnRes *rs1 = &rs1_[0];
+			const AlnRes *rs2 = &rs2_[0];
 			AlnFlags flags1(
-				ALN_FLAG_PAIR_DISCORD,
+				ALN_FLAG_PAIR_DISCORD_MATE1,
 				st_.params().mhitsSet(),
 				false,
 				pairMax,
@@ -784,9 +793,11 @@ void AlnSinkWrap::finishRead(
 				scfilt1,
 				lenfilt1,
 				qcfilt1,
-				st_.params().mixed);
+				st_.params().mixed,
+				true,
+				rs2->fw());
 			AlnFlags flags2(
-				ALN_FLAG_PAIR_DISCORD,
+				ALN_FLAG_PAIR_DISCORD_MATE2,
 				st_.params().mhitsSet(),
 				false,
 				pairMax,
@@ -794,13 +805,17 @@ void AlnSinkWrap::finishRead(
 				scfilt2,
 				lenfilt2,
 				qcfilt2,
-				st_.params().mixed);
+				st_.params().mixed,
+				true,
+				rs1->fw());
 			for(size_t i = 0; i < rs1_.size(); i++) {
 				rs1_[i].setMateParams(ALN_RES_TYPE_MATE1, &rs2_[i], flags1);
 				rs2_[i].setMateParams(ALN_RES_TYPE_MATE2, &rs1_[i], flags2);
-				assert_eq(rs1_[i].fragmentLength(), rs2_[i].fragmentLength());
+				assert_eq(abs(rs1_[i].fragmentLength()), abs(rs2_[i].fragmentLength()));
 			}
-			selectAlnsToReport(rs1_, ndiscord, select_, rnd);
+			// Possibly select a random subset
+			ASSERT_ONLY(size_t off = ) selectAlnsToReport(rs1_, ndiscord, select_, rnd);
+			assert_eq(0, off);
 			g_.reportHits(
 				rd1_,
 				rd2_,
@@ -924,47 +939,89 @@ void AlnSinkWrap::finishRead(
 			
 			if(!pairMax || nconcord == 0) {
 			
+				const AlnRes *repRs1 = NULL, *repRs2 = NULL;
+			
 				// Just examine mate 1
-				if(rd1_ != NULL) {
-					if(nunpair1 > 0) {
-						AlnSetSumm unpair1Summ(
-							rd1_, NULL, NULL, NULL, &rs1u_, NULL,
-							exhaust1, exhaust2);
-						AlnFlags flags(
-							readIsPair() ?
-								ALN_FLAG_PAIR_UNPAIRED_FROM_PAIR :
-								ALN_FLAG_PAIR_UNPAIRED,
-							st_.params().mhitsSet(),
-							unpair1Max,
-							pairMax,
-							nfilt1,
-							scfilt1,
-							lenfilt1,
-							qcfilt1,
-							st_.params().mixed);
-						for(size_t i = 0; i < rs1u_.size(); i++) {
-							rs1u_[i].setMateParams(ALN_RES_TYPE_UNPAIRED, NULL, flags);
-						}
-						selectAlnsToReport(rs1u_, nunpair1, select_, rnd);
-						g_.reportHits(
-							rd1_,
-							NULL,
-							rdid_,
-							select_,
-							&rs1u_,
-							NULL,
-							unpair1Max,
-							unpair1Summ,
-							&flags,
-							NULL);
-					} else if(unpair1Max) {
+				if(rd1_ != NULL && nunpair1 > 0) {
+					AlnSetSumm unpair1Summ(
+						rd1_, NULL, NULL, NULL, &rs1u_, NULL,
+						exhaust1, exhaust2);
+					AlnFlags flags(
+						readIsPair() ?
+							ALN_FLAG_PAIR_UNPAIRED_MATE1 :
+							ALN_FLAG_PAIR_UNPAIRED,
+						st_.params().mhitsSet(),
+						unpair1Max,
+						pairMax,
+						nfilt1,
+						scfilt1,
+						lenfilt1,
+						qcfilt1,
+						st_.params().mixed,
+						false,
+						false);
+					for(size_t i = 0; i < rs1u_.size(); i++) {
+						rs1u_[i].setMateParams(ALN_RES_TYPE_UNPAIRED_MATE1, NULL, flags);
+					}
+					size_t off = selectAlnsToReport(rs1u_, nunpair1, select_, rnd);
+					repRs1 = &rs1u_[off];
+					g_.reportHits(
+						rd1_,
+						NULL,
+						rdid_,
+						select_,
+						&rs1u_,
+						NULL,
+						unpair1Max,
+						unpair1Summ,
+						&flags,
+						NULL);
+				}
+				if(rd2_ != NULL && nunpair2 > 0) {
+					AlnSetSumm unpair2Summ(
+						NULL, rd2_, NULL, NULL, NULL, &rs2u_,
+						exhaust1, exhaust2);
+					AlnFlags flags(
+						readIsPair() ?
+							ALN_FLAG_PAIR_UNPAIRED_MATE2 :
+							ALN_FLAG_PAIR_UNPAIRED,
+						st_.params().mhitsSet(),
+						unpair2Max,
+						pairMax,
+						nfilt2,
+						scfilt2,
+						lenfilt2,
+						qcfilt2,
+						st_.params().mixed,
+						false,
+						false);
+					for(size_t i = 0; i < rs2u_.size(); i++) {
+						rs2u_[i].setMateParams(ALN_RES_TYPE_UNPAIRED_MATE2, NULL, flags);
+					}
+					size_t off = selectAlnsToReport(rs2u_, nunpair2, select_, rnd);
+					repRs2 = &rs2u_[off];
+					g_.reportHits(
+						rd2_,
+						NULL,
+						rdid_,
+						select_,
+						&rs2u_,
+						NULL,
+						unpair2Max,
+						unpair2Summ,
+						&flags,
+						NULL);
+				}
+				
+				if(rd1_ != NULL && nunpair1 <= 0) {
+					if(unpair1Max) {
 						assert(!rs1u_.empty());
 						AlnSetSumm unpair1Summ(
 							rd1_, NULL, NULL, NULL, &rs1u_, NULL,
 							exhaust1, exhaust2);
 						int fl;
 						if(readIsPair()) {
-							fl = ALN_FLAG_PAIR_UNPAIRED_FROM_PAIR;
+							fl = ALN_FLAG_PAIR_UNPAIRED_MATE1;
 						} else {
 							fl = ALN_FLAG_PAIR_UNPAIRED;
 						}
@@ -977,12 +1034,14 @@ void AlnSinkWrap::finishRead(
 							scfilt1,
 							lenfilt1,
 							qcfilt1,
-							st_.params().mixed);
+							st_.params().mixed,
+							repRs2 != NULL,
+							(repRs2 != NULL) ? repRs2->fw() : false);
 						for(size_t i = 0; i < rs1u_.size(); i++) {
 							rs1u_[i].setMateParams(
 								pairMax ?
 									ALN_RES_TYPE_MATE1 :
-									ALN_RES_TYPE_UNPAIRED,
+									ALN_RES_TYPE_UNPAIRED_MATE1,
 								NULL,
 								flags);
 						}
@@ -1001,7 +1060,7 @@ void AlnSinkWrap::finishRead(
 							exhaust1, exhaust2);
 						AlnFlags flags(
 							readIsPair() ?
-								ALN_FLAG_PAIR_UNPAIRED_FROM_PAIR :
+								ALN_FLAG_PAIR_UNPAIRED_MATE1 :
 								ALN_FLAG_PAIR_UNPAIRED,
 							st_.params().mhitsSet(),
 							false,
@@ -1010,7 +1069,9 @@ void AlnSinkWrap::finishRead(
 							scfilt1,
 							lenfilt1,
 							qcfilt1,
-							st_.params().mixed);
+							st_.params().mixed,
+							repRs2 != NULL,
+							(repRs2 != NULL) ? repRs2->fw() : false);
 						g_.reportUnaligned(
 							rd1_,
 							NULL,
@@ -1020,47 +1081,17 @@ void AlnSinkWrap::finishRead(
 							NULL,
 							true);
 					}
-				}
-				if(rd2_ != NULL) {
-					if(nunpair2 > 0) {
-						AlnSetSumm unpair2Summ(
-							NULL, rd2_, NULL, NULL, NULL, &rs2u_,
-							exhaust1, exhaust2);
-						AlnFlags flags(
-							readIsPair() ?
-								ALN_FLAG_PAIR_UNPAIRED_FROM_PAIR :
-								ALN_FLAG_PAIR_UNPAIRED,
-							st_.params().mhitsSet(),
-							unpair2Max,
-							pairMax,
-							nfilt2,
-							scfilt2,
-							lenfilt2,
-							qcfilt2,
-							st_.params().mixed);
-						for(size_t i = 0; i < rs2u_.size(); i++) {
-							rs2u_[i].setMateParams(ALN_RES_TYPE_UNPAIRED, NULL, flags);
-						}
-						selectAlnsToReport(rs2u_, nunpair2, select_, rnd);
-						g_.reportHits(
-							rd2_,
-							NULL,
-							rdid_,
-							select_,
-							&rs2u_,
-							NULL,
-							unpair2Max,
-							unpair2Summ,
-							&flags,
-							NULL);
-					} else if(unpair2Max) {
+				} // if(rd2_ != NULL)
+				
+				if(rd2_ != NULL && nunpair2 <= 0) {
+					if(unpair2Max) {
 						assert(!rs2u_.empty());
 						AlnSetSumm unpair2Summ(
 							NULL, rd2_, NULL, NULL, NULL, &rs2u_,
 							exhaust1, exhaust2);
 						int fl;
 						if(readIsPair()) {
-							fl = ALN_FLAG_PAIR_UNPAIRED_FROM_PAIR;
+							fl = ALN_FLAG_PAIR_UNPAIRED_MATE2;
 						} else {
 							fl = ALN_FLAG_PAIR_UNPAIRED;
 						}
@@ -1073,12 +1104,14 @@ void AlnSinkWrap::finishRead(
 							scfilt2,
 							lenfilt2,
 							qcfilt2,
-							st_.params().mixed);
+							st_.params().mixed,
+							repRs1 != NULL,
+							(repRs1 != NULL) ? repRs1->fw() : false);
 						for(size_t i = 0; i < rs2u_.size(); i++) {
 							rs2u_[i].setMateParams(
 								pairMax ?
 									ALN_RES_TYPE_MATE2 :
-									ALN_RES_TYPE_UNPAIRED,
+									ALN_RES_TYPE_UNPAIRED_MATE2,
 								NULL,
 								flags);
 						}
@@ -1097,7 +1130,7 @@ void AlnSinkWrap::finishRead(
 							exhaust1, exhaust2);
 						AlnFlags flags(
 							readIsPair() ?
-								ALN_FLAG_PAIR_UNPAIRED_FROM_PAIR :
+								ALN_FLAG_PAIR_UNPAIRED_MATE2 :
 								ALN_FLAG_PAIR_UNPAIRED,
 							st_.params().mhitsSet(),
 							false,
@@ -1106,7 +1139,9 @@ void AlnSinkWrap::finishRead(
 							scfilt2,
 							lenfilt2,
 							qcfilt2,
-							st_.params().mixed);
+							st_.params().mixed,
+							repRs1 != NULL,
+							(repRs1 != NULL) ? repRs1->fw() : false);
 						g_.reportUnaligned(
 							rd2_,
 							NULL,
@@ -1116,9 +1151,9 @@ void AlnSinkWrap::finishRead(
 							NULL,
 							true);
 					}
-				}
-			}
-		}
+				} // if(rd2_ != NULL)
+			} // if(!pairMax || nconcord == 0)
+		} // if(!readIsPair() || (nconcord == 0 && ndiscord == 0) || pairMax)
 	}
 	init_ = false;
 }
@@ -1196,36 +1231,45 @@ bool AlnSinkWrap::prepareDiscordants() {
  * found 10 alignments and the policy is -k 2 -m 20, select 2 alignments at
  * random.  We "select" an alignment by setting the parallel entry in the
  * 'select' list to true.
+ *
+ * Return the "representative" alignment.  This is simply the first one
+ * selected.  That will also be what SAM calls the "primary" alignment.
  */
-void AlnSinkWrap::selectAlnsToReport(
+size_t AlnSinkWrap::selectAlnsToReport(
 	const EList<AlnRes>& rs,     // alignments to select from
 	uint64_t             num,    // number of alignments to select
-	EList<bool>&         select, // list to put results in
+	EList<size_t>&       select, // list to put results in
 	RandomSource&        rnd)
 	const
 {
 	assert(init_);
 	assert(repOk());
-	uint64_t sz = rs.size();
-	if(sz < 1) return;
-	select.resize((size_t)sz);
-	if(num < sz) {
-		// Select a random offset into the list of alignments
-		uint32_t off = rnd.nextU32() % (uint32_t)sz;
-		size_t take = (size_t)num;
-		// Now take rp_.khits elements starting at that offset,
-		// wrapping back to 0 if necessary, and leave the rest.
-		for(size_t i = 0; i < sz; i++) {
-			off++;
-			if(off == sz) off = 0;
-			select[off] = i < take;
-		}
-	} else {
-		// Select them all!  No randomness needed.
-		for(size_t i = 0; i < sz; i++) {
-			select[i] = true;
+	assert_gt(num, 0);
+	size_t sz = rs.size();
+	select.resize(sz);
+	if(sz < 1) {
+		return 0;
+	} else if(sz == 1) {
+		select[0] = 1;
+		return 0;
+	}
+	select.fill(0);
+	// Select a random offset into the list of alignments
+	uint32_t off = rnd.nextU32() % (uint32_t)sz;
+	uint32_t offOrig = off;
+	// Now take rp_.khits elements starting at that offset,
+	// wrapping back to 0 if necessary, and leave the rest.
+	if(sz < num) {
+		num = sz;
+	}
+	for(size_t i = 1; i <= num; i++) {
+		select[off] = i;
+		off++;
+		if(off == sz) {
+			off = 0;
 		}
 	}
+	return offOrig;
 }
 
 #define NOT_SUPPRESSED !suppress_[field++]
@@ -1738,13 +1782,13 @@ void AlnSinkVerbose::appendMate(
 				if(!first) o.write(',');
 				first = false;
 				o.writeChars("XT:");
-				if(flags.pairing() == ALN_FLAG_PAIR_CONCORD) {
+				if(flags.alignedConcordant()) {
 					o.writeChars("CP");
-				} else if(flags.pairing() == ALN_FLAG_PAIR_DISCORD) {
+				} else if(flags.alignedDiscordant()) {
 					o.writeChars("DP");
-				} else if(flags.pairing() == ALN_FLAG_PAIR_UNPAIRED_FROM_PAIR) {
+				} else if(flags.alignedUnpairedMate()) {
 					o.writeChars("UP");
-				} else if(flags.pairing() == ALN_FLAG_PAIR_UNPAIRED) {
+				} else if(flags.alignedUnpaired()) {
 					o.writeChars("UU");
 				}
 				if(rs != NULL) {
@@ -1822,15 +1866,18 @@ void AlnSinkSam::appendMate(
 	o.write('\t');
 	// FLAG
 	int fl = 0;
-	if(rs != NULL && rs->isMate()) {
-		assert(rso != NULL);
+	if(flags.partOfPair()) {
 		fl |= SAM_FLAG_PAIRED;
-		if(flags.isConcordant()) {
+		if(flags.alignedConcordant()) {
 			fl |= SAM_FLAG_MAPPED_PAIRED;
  		}
-		fl |= (rs->isMate1() ?
+		if(!flags.mateAligned()) {
+			// Other fragment is unmapped
+			fl |= SAM_FLAG_MATE_UNMAPPED;
+		}
+		fl |= (flags.readMate1() ?
 			SAM_FLAG_FIRST_IN_PAIR : SAM_FLAG_SECOND_IN_PAIR);
-		if(!rso->fw()) {
+		if(flags.mateAligned() && !flags.mateFw()) {
 			fl |= SAM_FLAG_MATE_STRAND;
 		}
 	}
@@ -1842,7 +1889,7 @@ void AlnSinkSam::appendMate(
 	}
 	if(rs == NULL) {
 		// Failed to align
-		fl = SAM_FLAG_UNMAPPED;
+		fl |= SAM_FLAG_UNMAPPED;
 	}
 	itoa10<int>(fl, buf);
 	o.writeChars(buf);
@@ -1860,7 +1907,8 @@ void AlnSinkSam::appendMate(
 		o.writeChars("*\t");
 	}
 	// POS
-	// TODO: Should POS be before or after soft clipping?
+	// Note: POS is *after* soft clipping.  I.e. POS points to the
+	// upstream-most character *involved in the clipped alignment*.
 	if(rs != NULL) {
 		itoa10<int64_t>(rs->refoff()+1+offAdj, buf);
 		o.writeChars(buf);
@@ -1918,7 +1966,7 @@ void AlnSinkSam::appendMate(
 		o.writeChars("0\t");
 	}
 	// ISIZE
-	if(rs != NULL && rs->isMate()) {
+	if(rs != NULL && rs->alignedPaired()) {
 		itoa10<int64_t>(rs->fragmentLength(), buf);
 		o.writeChars(buf);
 		o.write('\t');

@@ -18,7 +18,6 @@ public:
 	 */
 	SAMHitSink(
 		OutFileBuf *out,
-		ReadSink *readSink,
 		const StrList& refnames,
 		int offBase,
 		ReferenceMap *rmap,
@@ -26,7 +25,7 @@ public:
 		bool fullRef,
 		bool sampleMax,
 		int defaultMapq) :
-		HitSink(out, readSink, refnames),
+		HitSink(out, refnames),
 		offBase_(offBase),
 		defaultMapq_(defaultMapq),
 		rmap_(rmap),

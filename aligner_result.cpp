@@ -1326,13 +1326,13 @@ void AlnFlags::printYP(OutFileBuf& o) const {
  */
 void AlnFlags::printYT(OutFileBuf& o) const {
 	o.writeChars("YT:Z:");
-	if(pairing() == ALN_FLAG_PAIR_CONCORD) {
+	if(alignedConcordant()) {
 		o.writeChars("CP");
-	} else if(pairing() == ALN_FLAG_PAIR_DISCORD) {
+	} else if(alignedDiscordant()) {
 		o.writeChars("DP");
-	} else if(pairing() == ALN_FLAG_PAIR_UNPAIRED_FROM_PAIR) {
+	} else if(alignedUnpairedMate()) {
 		o.writeChars("UP");
-	} else if(pairing() == ALN_FLAG_PAIR_UNPAIRED) {
+	} else if(alignedUnpaired()) {
 		o.writeChars("UU");
 	} else { throw 1; }
 }

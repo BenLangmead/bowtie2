@@ -7,7 +7,6 @@
 
 #include "filebuf.h"
 #include "read.h"
-#include "read_sink.h"
 #include "unique.h"
 #include "refmap.h"
 #include "sam.h"
@@ -534,7 +533,6 @@ public:
 
 	explicit AlnSink(
 		OutFileBuf*        out,
-		ReadSink*          readSink,
 		const Mapq&        mapq,       // mapping quality calculator
 		bool               deleteOuts,
 		const StrList&     refnames,
@@ -545,7 +543,6 @@ public:
 		deleteOuts_(deleteOuts),
 		refnames_(refnames),
 		quiet_(quiet),
-		readSink_(readSink),
 		mapq_(mapq)
 	{
 		// Add the default output stream
@@ -606,7 +603,7 @@ public:
 		const Read          *rd1,            // mate #1
 		const Read          *rd2,            // mate #2
 		const TReadId        rdid,           // read ID
-		const EList<bool>&   select,         // random subset
+		const EList<size_t>& select,         // random subset
 		const EList<AlnRes> *rs1,            // alignments for mate #1
 		const EList<AlnRes> *rs2,            // alignments for mate #2
 		bool                 maxed,          // true iff -m/-M exceeded
@@ -643,7 +640,7 @@ public:
 		const Read          *rd1,            // mate #1
 		const Read          *rd2,            // mate #2
 		const TReadId        rdid,           // read ID
-		const EList<bool>&   select,         // random subset
+		const EList<size_t>& select,         // random subset
 		const EList<AlnRes> *rs1,            // alignments for mate #1
 		const EList<AlnRes> *rs2,            // alignments for mate #2
 		bool                 maxed,          // true iff -m/-M exceeded
@@ -664,7 +661,6 @@ public:
 			// Nothing to report
 			return;
 		}
-		size_t reported = 0;
 		AlnFlags flagscp1, flagscp2;
 		if(flags1 != NULL) {
 			flagscp1 = *flags1;
@@ -676,33 +672,41 @@ public:
 			flags2 = &flagscp2;
 			flagscp2.setPrimary(true);
 		}
+		size_t sel_start = start;
+		bool found = false;
 		for(size_t i = start; i < end; i++) {
-			// Skip if it hasn't been selected
-			if(!select[i]) continue;
+			if(select[i] == 1) {
+				sel_start = i;
+				found = true;
+				break;
+			}
+		}
+		assert(found);
+		size_t i = sel_start;
+		do {
 			// Determine the stream id using the coordinate of the
 			// upstream mate
 			Coord c = ((rs1 != NULL) ?
 				rs1->get(i).refcoord() :
 				rs2->get(i).refcoord());
-			size_t sid = streamId(rdid, c);
-			assert_lt(sid, locks_.size());
-			ThreadSafe ts(&locks_[sid], getLock);
 			const AlnRes* r1 = ((rs1 != NULL) ? &rs1->get(i) : NULL);
 			const AlnRes* r2 = ((rs2 != NULL) ? &rs2->get(i) : NULL);
-			append(out(sid), rd1, rd2, rdid, r1, r2, summ, flags1, flags2);
-			reported++;
+			size_t sid = streamId(rdid, c);
+			assert_lt(sid, locks_.size());
+			{
+				ThreadSafe ts(&locks_[sid], getLock);
+				append(out(sid), rd1, rd2, rdid, r1, r2, summ, flags1, flags2);
+			}
 			if(flags1 != NULL) {
 				flagscp1.setPrimary(false);
 			}
 			if(flags2 != NULL) {
 				flagscp2.setPrimary(false);
 			}
-		}
-		readSink_->dumpAlign(rd1, rd2, rdid);
-		{
-			ThreadSafe ts(&mainlock_);
-			commitHits(rd1, rd2, rdid, rs1, rs2, start, end, getLock);
-		}
+			if(++i == end) {
+				i = 0;
+			}
+		} while(select[i] > 0 && i != sel_start);
 	}
 
 	/**
@@ -756,7 +760,6 @@ public:
 	{
 		assert(rd1 != NULL || rd2 != NULL);
 		assert(rs1 != NULL || rs2 != NULL);
-		readSink_->dumpMaxed(rd1, rd2, rdid);
 		{
 			// Determine the stream id using the coordinate of the
 			// upstream mate
@@ -781,7 +784,6 @@ public:
 		const AlnFlags*      flags2,         // flags for mate #2
 		bool                 getLock = true) // true iff lock held by caller
 	{
-		readSink_->dumpUnal(rd1, rd2, rdid);
 		{
 			// Determine the stream id using the coordinate of the
 			// upstream mate
@@ -864,15 +866,12 @@ public:
 	}
 
 	void dumpMaxed(const Read* m1, const Read* m2, TReadId rdid) {
-		if(readSink_ != NULL) readSink_->dumpMaxed(m1, m2, rdid);
 	}
 	
 	void dumpUnal(const Read* m1, const Read* m2, TReadId rdid) {
-		if(readSink_ != NULL) readSink_->dumpUnal(m1, m2, rdid);
 	}
 	
 	void dumpAlign(const Read* m1, const Read* m2, TReadId rdid) {
-		if(readSink_ != NULL) readSink_->dumpAlign(m1, m2, rdid);
 	}
 	
 	//
@@ -957,7 +956,6 @@ protected:
 	MUTEX_T            mainlock_;     // pthreads mutexes for fields of this object
 	const StrList&     refnames_; // reference names
 	bool               quiet_;        // true -> don't print alignment stats at the end
-	ReadSink*          readSink_;     // 
 	const Mapq&        mapq_;         // mapping quality calculator
 	
 	ReportingMetrics   met_;          // global repository of reporting metrics
@@ -1238,10 +1236,10 @@ protected:
 	 * random.  We "select" an alignment by setting the parallel entry in the
 	 * 'select' list to true.
 	 */
-	void selectAlnsToReport(
+	size_t selectAlnsToReport(
 		const EList<AlnRes>& rs,     // alignments to select from
 		uint64_t             num,    // number of alignments to select
-		EList<bool>&         select, // list to put results in
+		EList<size_t>&       select, // list to put results in
 		RandomSource&        rnd)
 		const;
 
@@ -1261,7 +1259,7 @@ protected:
 	EList<AlnRes>   rs2_;   // paired alignments for mate #2
 	EList<AlnRes>   rs1u_;  // unpaired alignments for mate #1
 	EList<AlnRes>   rs2u_;  // unpaired alignments for mate #2
-	EList<bool>     select_;    // parallel to rs1_/rs2_ - which to report
+	EList<size_t>   select_;    // parallel to rs1_/rs2_ - which to report
 	ReportingState  st_;    // reporting state - what's left to do?
 };
 
@@ -1277,7 +1275,6 @@ public:
 	AlnSinkVerbose(
 		OutFileBuf*        out,        // initial output stream
 		const EList<bool>& suppress,   // suppress columns
-		ReadSink*          readSink,   // read sink
 		const Mapq&        mapq,       // mapping quality calculator
 		bool               deleteOuts, // delete output objects upon destruction
 		const StrList&     refnames,   // reference names
@@ -1296,7 +1293,6 @@ public:
 		int                partition = 0) : // partition size
 		AlnSink(
 			out,
-			readSink,
 			mapq,
 			deleteOuts,
 			refnames,
@@ -1394,7 +1390,6 @@ public:
 
 	AlnSinkSam(
 		OutFileBuf*      out,        // initial output stream
-		ReadSink*        readSink,   // read sink
 		const Mapq&      mapq,       // mapping quality calculator
 		const SamConfig& samc,       // settings & routines for SAM output
 		bool             deleteOuts, // delete output objects upon destruction
@@ -1404,7 +1399,6 @@ public:
 		ReferenceMap*    rmap) :     // reference coordinate transformation
 		AlnSink(
 			out,
-			readSink,
 			mapq,
 			deleteOuts,
 			refnames,

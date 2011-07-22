@@ -255,16 +255,19 @@ public:
 enum {
 	// This alignment is one of a pair of alignments that form a concordant
 	// alignment for a read
-	ALN_FLAG_PAIR_CONCORD = 1,
+	ALN_FLAG_PAIR_CONCORD_MATE1 = 1,
+	ALN_FLAG_PAIR_CONCORD_MATE2,
 
 	// This alignment is one of a pair of alignments that form a discordant
 	// alignment for a read
-	ALN_FLAG_PAIR_DISCORD,
+	ALN_FLAG_PAIR_DISCORD_MATE1,
+	ALN_FLAG_PAIR_DISCORD_MATE2,
 	
 	// This is an unpaired alignment but the read in question is a pair;
 	// usually, this happens because the read had no reportable paired-end
 	// alignments
-	ALN_FLAG_PAIR_UNPAIRED_FROM_PAIR,
+	ALN_FLAG_PAIR_UNPAIRED_MATE1,
+	ALN_FLAG_PAIR_UNPAIRED_MATE2,
 
 	// This is an unpaired alignment of an unpaired read
 	ALN_FLAG_PAIR_UNPAIRED
@@ -287,22 +290,17 @@ public:
 	AlnFlags() {
 		init(
 			ALN_FLAG_PAIR_UNPAIRED,
-			false, false, false, false, false, false, false, false, false);
-	}
-
-	AlnFlags(
-		int pairing,
-		bool canMax,
-		bool maxed,
-		bool maxedPair,
-		bool nfilt,
-		bool scfilt,
-		bool lenfilt,
-		bool qcfilt,
-		bool mixedMode)
-	{
-		init(pairing, canMax, maxed, maxedPair, nfilt, scfilt,
-		     lenfilt, qcfilt, mixedMode, true);
+			false,  // canMax
+			false,  // maxed
+			false,  // maxedPair
+			false,  // nfilt
+			false,  // scfilt
+			false,  // lenfilt
+			false,  // qcfilt
+			false,  // mixedMode
+			false,  // primary
+			false,  // oppAligned
+			false); // oppFw
 	}
 
 	AlnFlags(
@@ -315,10 +313,29 @@ public:
 		bool lenfilt,
 		bool qcfilt,
 		bool mixedMode,
-		bool primary)
+		bool oppAligned, // opposite mate aligned?
+		bool oppFw)      // opposite mate aligned forward?
 	{
 		init(pairing, canMax, maxed, maxedPair, nfilt, scfilt,
-		     lenfilt, qcfilt, mixedMode, primary);
+		     lenfilt, qcfilt, mixedMode, true, oppAligned, oppFw);
+	}
+
+	AlnFlags(
+		int pairing,
+		bool canMax,
+		bool maxed,
+		bool maxedPair,
+		bool nfilt,
+		bool scfilt,
+		bool lenfilt,
+		bool qcfilt,
+		bool mixedMode,
+		bool primary,
+		bool oppAligned, // opposite mate aligned?
+		bool oppFw)      // opposite mate aligned forward?
+	{
+		init(pairing, canMax, maxed, maxedPair, nfilt, scfilt,
+		     lenfilt, qcfilt, mixedMode, primary, oppAligned, oppFw);
 	}
 
 	/**
@@ -334,20 +351,24 @@ public:
 		bool lenfilt,
 		bool qcfilt,
 		bool mixedMode,
-		bool primary)
+		bool primary,
+		bool oppAligned,
+		bool oppFw)
 	{
 		assert_gt(pairing, 0);
 		assert_leq(pairing, ALN_FLAG_PAIR_UNPAIRED);
-		pairing_   = pairing;
-		canMax_    = canMax;
-		maxed_     = maxed;
-		maxedPair_ = maxedPair;
-		nfilt_     = nfilt;
-		scfilt_    = scfilt;
-		lenfilt_   = lenfilt;
-		qcfilt_    = qcfilt;
-		mixedMode_ = mixedMode;
-		primary_   = primary;
+		pairing_    = pairing;
+		canMax_     = canMax;
+		maxed_      = maxed;
+		maxedPair_  = maxedPair;
+		nfilt_      = nfilt;
+		scfilt_     = scfilt;
+		lenfilt_    = lenfilt;
+		qcfilt_     = qcfilt;
+		mixedMode_  = mixedMode;
+		primary_    = primary;
+		oppAligned_ = oppAligned;
+		oppFw_      = oppFw;
 	}
 
 	/**
@@ -392,14 +413,6 @@ public:
 	inline int  pairing()   const { return pairing_; }
 	inline bool maxed()     const { return maxed_; }
 	inline bool maxedPair() const { return maxedPair_; }
-	
-	/**
-	 * Return true iff the flags indicate that the mate is one of a pair that
-	 * aligned concordantly.
-	 */
-	inline bool isConcordant() const {
-		return pairing_ == ALN_FLAG_PAIR_CONCORD;
-	}
 
 	/**
 	 * Return true iff the alignment is not the primary alignment; i.e. not the
@@ -438,6 +451,73 @@ public:
 	bool filtered() const {
 		return nfilt_ || scfilt_ || lenfilt_ || qcfilt_;
 	}
+	
+	/**
+	 * Return true iff the read is mate #1 of a pair, regardless of whether it
+	 * aligned as a pair.
+	 */
+	bool readMate1() const {
+		return pairing_ == ALN_FLAG_PAIR_CONCORD_MATE1 ||
+		       pairing_ == ALN_FLAG_PAIR_DISCORD_MATE1 ||
+			   pairing_ == ALN_FLAG_PAIR_UNPAIRED_MATE1;
+	}
+
+	/**
+	 * Return true iff the read is mate #2 of a pair, regardless of whether it
+	 * aligned as a pair.
+	 */
+	bool readMate2() const {
+		return pairing_ == ALN_FLAG_PAIR_CONCORD_MATE2 ||
+		       pairing_ == ALN_FLAG_PAIR_DISCORD_MATE2 ||
+			   pairing_ == ALN_FLAG_PAIR_UNPAIRED_MATE2;
+	}
+	
+	/**
+	 * Return true iff the read aligned as either mate of a concordant pair.
+	 */
+	bool alignedConcordant() const {
+		return pairing_ == ALN_FLAG_PAIR_CONCORD_MATE1 ||
+		       pairing_ == ALN_FLAG_PAIR_CONCORD_MATE2;
+	}
+
+	/**
+	 * Return true iff the read aligned as either mate of a discordant pair.
+	 */
+	bool alignedDiscordant() const {
+		return pairing_ == ALN_FLAG_PAIR_DISCORD_MATE1 ||
+		       pairing_ == ALN_FLAG_PAIR_DISCORD_MATE2;
+	}
+	
+	/**
+	 * Return true iff the read aligned as either mate of a pair, concordant or
+	 * discordant.
+	 */
+	bool alignedPaired() const {
+		return alignedConcordant() && alignedDiscordant();
+	}
+
+	/**
+	 * Return true iff the read aligned as an unpaired read.
+	 */
+	bool alignedUnpaired() const {
+		return pairing_ == ALN_FLAG_PAIR_UNPAIRED;
+	}
+
+	/**
+	 * Return true iff the read aligned as an unpaired mate from a paired read.
+	 */
+	bool alignedUnpairedMate() const {
+		return pairing_ == ALN_FLAG_PAIR_UNPAIRED_MATE1 ||
+		       pairing_ == ALN_FLAG_PAIR_UNPAIRED_MATE2;
+	}
+
+	bool mateAligned() const {
+		return oppAligned_;
+	}
+	
+	bool mateFw() const {
+		return oppFw_;
+	}
 
 protected:
 
@@ -467,6 +547,11 @@ protected:
 	
 	// The read is the primary read 
 	bool primary_;
+
+	// True iff the opposite mate aligned
+	bool oppAligned_;
+	// True iff the opposite mate aligned in fw orientation
+	bool oppFw_;
 };
 
 static inline ostream& operator<<(ostream& os, const AlnScore& o) {
@@ -479,9 +564,11 @@ class BitPairReference;
 
 // A given AlnRes can be one of these three types
 enum {
-	ALN_RES_TYPE_UNPAIRED = 1, // unpaired alignment
-	ALN_RES_TYPE_MATE1,        // mate #1 in paired-end alignment
-	ALN_RES_TYPE_MATE2         // mate #2 in paired-end alignment
+	ALN_RES_TYPE_UNPAIRED = 1,   // unpaired alignment
+	ALN_RES_TYPE_UNPAIRED_MATE1, // mate #1 in pair, aligned unpaired
+	ALN_RES_TYPE_UNPAIRED_MATE2, // mate #2 in pair, aligned unpaired
+	ALN_RES_TYPE_MATE1,          // mate #1 in paired-end alignment
+	ALN_RES_TYPE_MATE2           // mate #2 in paired-end alignment
 };
 
 /**
@@ -976,28 +1063,48 @@ public:
 	bool overlap(AlnRes& res);
 	
 	/**
+	 * Return true iff this read was unpaired to begin with.
+	 */
+	inline bool readUnpaired() const {
+		assert_gt(type_, 0);
+		return type_ == ALN_RES_TYPE_UNPAIRED;
+	}
+
+	/**
 	 * Return true iff this alignment aligned in an unpaired fashion; not part
 	 * of a concordant or discordant pair.
 	 */
-	inline bool isUnpaired() const {
+	inline bool alignedUnpaired() const {
 		assert_gt(type_, 0);
-		return type_ == ALN_RES_TYPE_UNPAIRED;
+		return type_ == ALN_RES_TYPE_UNPAIRED ||
+		       type_ == ALN_RES_TYPE_UNPAIRED_MATE1 ||
+			   type_ == ALN_RES_TYPE_UNPAIRED_MATE2;
 	}
 
 	/**
 	 * Return true iff this alignment aligned as mate #1 or mate #2 in a pair,
 	 * either concordant or discordant.
 	 */
-	inline bool isMate() const {
+	inline bool alignedPaired() const {
 		assert_gt(type_, 0);
-		return type_ == ALN_RES_TYPE_MATE1 || type_ == ALN_RES_TYPE_MATE2;
+		return type_ == ALN_RES_TYPE_MATE1 ||
+		       type_ == ALN_RES_TYPE_MATE2;
 	}
 
 	/**
-	 * Return true iff this alignment aligned as mate #1 in a pair, either
-	 * concordant or discordant.
+	 * Return true iff this read started as mate #1 in a pair.
 	 */
-	inline bool isMate1() const {
+	inline bool readMate1() const {
+		assert_gt(type_, 0);
+		return type_ == ALN_RES_TYPE_MATE1 ||
+		       type_ == ALN_RES_TYPE_UNPAIRED_MATE1;
+	}
+
+	/**
+	 * Return true iff this read aligned as mate #1 in a concordant or
+	 * discordant pair.
+	 */
+	inline bool alignedMate1() const {
 		assert_gt(type_, 0);
 		return type_ == ALN_RES_TYPE_MATE1;
 	}
@@ -1006,7 +1113,17 @@ public:
 	 * Return true iff this alignment aligned as mate #2 in a pair, either
 	 * concordant or discordant.
 	 */
-	inline bool isMate2() const {
+	inline bool readMate2() const {
+		assert_gt(type_, 0);
+		return type_ == ALN_RES_TYPE_MATE2 ||
+		       type_ == ALN_RES_TYPE_UNPAIRED_MATE2;
+	}
+	
+	/**
+	 * Return true iff this read aligned as mate #2 in a concordant or
+	 * discordant pair.
+	 */
+	inline bool alignedMate2() const {
 		assert_gt(type_, 0);
 		return type_ == ALN_RES_TYPE_MATE2;
 	}
@@ -1025,7 +1142,7 @@ public:
 		fraglen_ = 0;
 		if(omate != NULL) {
 			oscore_ = omate->score_;
-			if(flags.isConcordant()) {
+			if(flags.alignedConcordant()) {
 				setFragmentLength(*omate);
 			}
 		}
@@ -1045,10 +1162,15 @@ public:
 		assert_eq(refid(), omate.refid());
 		getExtendedCoords(st, en);
 		omate.getExtendedCoords(ost, oen);
+		bool imUpstream = st.off() < ost.off();
 		TRefOff up = std::min(st.off(), ost.off());
 		TRefOff dn = std::max(en.off(), oen.off());
 		assert_geq(dn, up);
-		return dn - up;
+		fraglen_ = 1 + dn - up;
+		if(!imUpstream) {
+			fraglen_ = -fraglen_;
+		}
+		return fraglen_;
 	}
 	
 	/**

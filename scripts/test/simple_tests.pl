@@ -39,6 +39,158 @@ if(! -x $bowtie2 || ! -x $bowtie2_build) {
 
 my @cases = (
 
+	# Some tricky SAM FLAGS field tests
+	
+	{ name     => "SAM paired-end where both mates align 1",
+	  ref      => [ "GCACTATCTACGCTTCGGCGTCGGCGAAAAAACGCACGACCGGGTGTGTGACAATCATATATAGCGCGC" ],
+	  #              012345678901234567890123456789012345678901234567890123456789012345678
+	  #              0         1         2         3         4         5         6
+	  mate1s   => [    "CTATCTACGCTTCGGCGTCGGTGA" ],
+	  mate2s   =>                                    [ "GATTGTCACACACCCGGTCGT" ],
+	  #                 -----------------------------------------------------
+	  #                 01234567890123456789012345678901234567890123456789012
+	  #                 0         1         2         3         4         5
+	  #  0x1    template having multiple fragments in sequencing
+	  #  0x2    each fragment properly aligned according to the aligner
+	  #  0x4    fragment unmapped
+	  #  0x8    next fragment in the template unmapped
+	  # 0x10    SEQ being reverse complemented
+	  # 0x20    SEQ of the next fragment in the template being reversed
+	  # 0x40    the first fragment in the template
+	  # 0x80    the last fragment in the template
+	  pairhits     => [{ "3,35" => 1 }],
+	  norc         => 1,
+	  samflags_map => [{ 3 => (1 | 2 | 32 | 64), 35 => (1 | 2 | 16 | 128) }],
+	  tlen_map     => [{ 3 => 53, 35 => -53 }] },
+
+	{ name     => "SAM paired-end where both mates align 2",
+	  ref      => [ "GCACTATCTACGCTTCGGCGTCGGCGAAAAAACGCACGACCGGGTGTGTGACAATCATATATAGCGCGC" ],
+	  #              012345678901234567890123456789012345678901234567890123456789012345678
+	  #              0         1         2         3         4         5         6
+	  mate1s   => [    "TCACCGACGCCGAAGCGTAGATAG" ],
+	  mate2s   =>                                    [ "ACGACCGGGTGTGTGACAATC" ],
+	  #                 -----------------------------------------------------
+	  #                 01234567890123456789012345678901234567890123456789012
+	  #                 0         1         2         3         4         5
+	  #  0x1    template having multiple fragments in sequencing
+	  #  0x2    each fragment properly aligned according to the aligner
+	  #  0x4    fragment unmapped
+	  #  0x8    next fragment in the template unmapped
+	  # 0x10    SEQ being reverse complemented
+	  # 0x20    SEQ of the next fragment in the template being reversed
+	  # 0x40    the first fragment in the template
+	  # 0x80    the last fragment in the template
+	  mate1fw      => 0,
+	  mate2fw      => 1,
+	  pairhits     => [{ "3,35" => 1 }],
+	  norc         => 1,
+	  samflags_map => [{ 3 => (1 | 2 | 16 | 64), 35 => (1 | 2 | 32 | 128) }],
+	  tlen_map     => [{ 3 => 53, 35 => -53 }] },
+
+	{ name     => "SAM paired-end where both mates align 3",
+	  ref      => [ "GCACTATCTACGCTTCGGCGTCGGCGAAAAAACGCACGACCGGGTGTGTGACAATCATATATAGCGCGC" ],
+	  #              012345678901234567890123456789012345678901234567890123456789012345678
+	  #              0         1         2         3         4         5         6
+	  mate1s   => [    "CTATCTACGCTTCGGCGTCGGTGA" ],
+	  mate2s   =>                                    [ "ACGACCGGGTGTGTGACAATC" ],
+	  #                 -----------------------------------------------------
+	  #                 01234567890123456789012345678901234567890123456789012
+	  #                 0         1         2         3         4         5
+	  #  0x1    template having multiple fragments in sequencing
+	  #  0x2    each fragment properly aligned according to the aligner
+	  #  0x4    fragment unmapped
+	  #  0x8    next fragment in the template unmapped
+	  # 0x10    SEQ being reverse complemented
+	  # 0x20    SEQ of the next fragment in the template being reversed
+	  # 0x40    the first fragment in the template
+	  # 0x80    the last fragment in the template
+	  mate1fw      => 1,
+	  mate2fw      => 1,
+	  pairhits     => [{ "3,35" => 1 }],
+	  norc         => 1,
+	  samflags_map => [{ 3 => (1 | 2 | 64), 35 => (1 | 2 | 128) }],
+	  tlen_map     => [{ 3 => 53, 35 => -53 }] },
+
+	{ name     => "SAM paired-end where mate #1 aligns but mate #2 doesn't",
+	  ref      => [ "GCACTATCTACGCTTCGGCGTCGGCGAAAAAACGCACGACCGGGTGTGTGACAATCATATATAGCGCGC" ],
+	  #              012345678901234567890123456789012345678901234567890123456789012345678
+	  #              0         1         2         3         4         5         6
+	  mate1s   => [    "CTATCTACGCTTCGGCGTCGGCGA" ],
+	  mate2s   =>                                    [ "GATTGTCTTTTCCCGGAAAAATCGT" ],
+	  #  0x1    template having multiple fragments in sequencing
+	  #  0x2    each fragment properly aligned according to the aligner
+	  #  0x4    fragment unmapped
+	  #  0x8    next fragment in the template unmapped
+	  # 0x10    SEQ being reverse complemented
+	  # 0x20    SEQ of the next fragment in the template being reversed
+	  # 0x40    the first fragment in the template
+	  # 0x80    the last fragment in the template
+	  pairhits     => [{ "*,3" => 1 }],
+	  norc         => 1,
+	  samflags_map => [{ 3 => (1 | 8 | 64), "*" => (1 | 4 | 128) }] },
+
+	{ name     => "SAM paired-end where mate #1 aligns but mate #2 doesn't because its repetitive",
+	  ref      => [ "GCACTATCTACGCTTCGGCGTCGGCGAAAAAACGCACGACCGGGTGTGTGACAATCATATATAGCGCGCGCACGACCGGGTGTGTGACAATCATATATAGCGCGC" ],
+	  #              012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234
+	  #              0         1         2         3         4         5         6         7         8         9        10
+	  mate1s   => [    "CTATCTACGCTTCGGCGTCGGCGA" ],
+	  mate2s   =>                                    [ "GATTGTCTTTTCCCGGAAAAATCGT" ],
+	  report   => "-a -m 1",
+	  #  0x1    template having multiple fragments in sequencing
+	  #  0x2    each fragment properly aligned according to the aligner
+	  #  0x4    fragment unmapped
+	  #  0x8    next fragment in the template unmapped
+	  # 0x10    SEQ being reverse complemented
+	  # 0x20    SEQ of the next fragment in the template being reversed
+	  # 0x40    the first fragment in the template
+	  # 0x80    the last fragment in the template
+	  pairhits     => [{ "*,3" => 1 }],
+	  norc         => 1,
+	  samflags_map => [{ 3 => (1 | 8 | 64), "*" => (1 | 4 | 128) }] },
+
+	{ name     => "SAM paired-end where neither mate aligns",
+	  ref      => [ "GCACTATCTACGCTTCGGCGTCGGCGAAAAAACGCACGACCGGGTGTGTGACAATCATATATAGCGCGC" ],
+	  #              012345678901234567890123456789012345678901234567890123456789012345678
+	  #              0         1         2         3         4         5         6
+	  mate1s   => [    "CTATATACGAAAAAGCGTCGGCGA" ],
+	  mate2s   =>                                    [ "GATTGTCTTTTCCCGGAAAAATCGT" ],
+	  #  0x1    template having multiple fragments in sequencing
+	  #  0x2    each fragment properly aligned according to the aligner
+	  #  0x4    fragment unmapped
+	  #  0x8    next fragment in the template unmapped
+	  # 0x10    SEQ being reverse complemented
+	  # 0x20    SEQ of the next fragment in the template being reversed
+	  # 0x40    the first fragment in the template
+	  # 0x80    the last fragment in the template
+	  pairhits     => [{ "*,*" => 1 }],
+	  norc         => 1,
+	  samoptflags_flagmap => [{
+		(1 | 4 | 8 |  64) => { "YT:Z:UP" => 1 },
+		(1 | 4 | 8 | 128) => { "YT:Z:UP" => 1 }
+	}] },
+
+	{ name     => "SAM paired-end where both mates align, but discordantly",
+	  ref      => [ "GCACTATCTACGCTTCGGCGTCGGCGAAAAAACGCACGACCGGGTGTGTGACAATCATATATAGCGCGC" ],
+	  #              012345678901234567890123456789012345678901234567890123456789012345678
+	  #              0         1         2         3         4         5         6
+	  mate1s   => [    "CTATCTACGCTTCGGCGTCGGCGA" ],
+	  mate2s   =>                                    [ "ACGACCGGGTGTGTGACAATC" ],
+	  #                 -----------------------------------------------------
+	  #                 01234567890123456789012345678901234567890123456789012
+	  #                 0         1         2         3         4         5
+	  #  0x1    template having multiple fragments in sequencing
+	  #  0x2    each fragment properly aligned according to the aligner
+	  #  0x4    fragment unmapped
+	  #  0x8    next fragment in the template unmapped
+	  # 0x10    SEQ being reverse complemented
+	  # 0x20    SEQ of the next fragment in the template being reversed
+	  # 0x40    the first fragment in the template
+	  # 0x80    the last fragment in the template
+	  pairhits     => [{ "3,35" => 1 }],
+	  norc         => 1,
+	  samflags_map => [{ 3 => (1 | 64), 35 => (1 | 128) }],
+	  tlen_map     => [{ 3 => 0, 35 => 0 }] },
+
 	{ name   => "matchesRef regression 4",
 	  ref    => [ "CCGGGTCGTCACGCCCCGCTTGCGTCANGCCCCTCACCCTCCCTTTGTCGGCTCCCACCCCTCCCCATCCGTTGTCCCCGCCCCCGCCCGCCGGGTCGTCACGCCCCGCTTGCGTCANGC",
 	              "GCTCGGAATTCGTGCTCCGNCCCGTACGGTT" ],
@@ -4506,7 +4658,7 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 		for my $li (0 .. scalar(@lines)-1) {
 			my $l = $lines[$li];
 			my ($readname, $orient, $chr, $off, $seq, $qual, $mapq, $oms,
-				$editstr, $flagstr, $samflags, $cigar, $rnext, $pnext);
+				$editstr, $flagstr, $samflags, $cigar, $rnext, $pnext, $tlen);
 			my %samoptflags = ();
 			if($sam) {
 				scalar(@$l) >= 11 ||
@@ -4514,20 +4666,13 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 						scalar(@$l).":\n$rawlines[$li]\n";
 				($readname, $samflags, $chr, $off) = @$l[0..3];
 				($seq, $qual) = @$l[9..10];
-				if((($samflags >> 4) & 1) != 0) {
-					$orient = "-";
-				} else {
-					$orient = "+";
-				}
-				$mapq  = $l->[4];
-				$cigar = $l->[5];
-				$rnext = $l->[6];
-				$pnext = $l->[7];
-				if($pnext == 0) {
-					$pnext = "*";
-				} else {
-					$pnext--;
-				}
+				$orient = ((($samflags >> 4) & 1) == 0) ? "+" : "-";
+				$mapq  = $l->[4]; # mapping quality
+				$cigar = $l->[5]; # CIGAR string
+				$rnext = $l->[6]; # ref seq of next frag in template
+				$pnext = $l->[7]; # position of next frag in template
+				$tlen  = $l->[8]; # template length
+				if($pnext == 0) { $pnext = "*"; } else { $pnext--; }
 				for(my $m = 11; $m < scalar(@$l); $m++) {
 					next if $l->[$m] eq "";
 					my ($nm, $ty, $vl) = split(/:/, $l->[$m]);
@@ -4536,7 +4681,6 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 							"\"$l->[$m]\"";
 					$samoptflags{$nm}{ty} = $ty;
 					$samoptflags{$nm}{vl} = $vl;
-					#print STDERR "Parsed SAM flag: $nm, $ty, $vl\n";
 				}
 				if($off > 0) { $off--; }
 				else { $off = "*"; }
@@ -4566,7 +4710,6 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 				defined($rdi) || die;
 			}
 			$rdi = $c->{idx_map}{$rdi} if defined($c->{idx_map}{$rdi});
-			#print STDERR "rdi: $rdi\n";
 			if($rdi != int($rdi)) {
 				# Read name has non-numeric characters.  Figure out
 				# what number it is by scanning the names list.
@@ -4608,6 +4751,10 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 			my $ex_samflags = undef;
 			$ex_samflags = $c->{ex_samflags}->[$rdi] if
 				defined($c->{ex_samflags}->[$rdi]);
+			# 'samflags_map'
+			my $ex_samflags_map = undef;
+			$ex_samflags_map = $c->{samflags_map}->[$rdi] if
+				defined($c->{samflags_map}->[$rdi]);
 			# 'samoptflags'
 			my $ex_samoptflags = undef;
 			$ex_samoptflags = $c->{samoptflags}->[$rdi] if
@@ -4636,6 +4783,10 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 			my $ex_pnext_map = undef;
 			$ex_pnext_map = $c->{pnext_map}->[$rdi] if
 				defined($c->{pnext_map}) && defined($c->{pnext_map}->[$rdi]);
+			# 'tlen_map'
+			my $ex_tlen_map = undef;
+			$ex_tlen_map = $c->{tlen_map}->[$rdi] if
+				defined($c->{tlen_map}) && defined($c->{tlen_map}->[$rdi]);
 			# 'flags_fw'
 			my $flags_fw = undef;
 			$flags_fw = $c->{flags_fw}->[$rdi] if
@@ -4688,6 +4839,15 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 					$samflags eq $ex_samflags ||
 						die "Expected flags $ex_samflags, got $samflags";
 				}
+				if(defined($ex_samflags_map)) {
+					if(defined($c->{samflags_map}->[$rdi]->{$off})) {
+						my $ex = $c->{samflags_map}->[$rdi]->{$off};
+						$samflags eq $ex || die
+							"Expected FLAGS value $ex at offset $off, got $samflags"
+					} else {
+						die "Expected to see alignment with offset $off parsing samflags_map";
+					}
+				}
 				# CIGAR string
 				if(defined($ex_cigar)) {
 					$cigar eq $ex_cigar ||
@@ -4729,6 +4889,15 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 						die "Expected to see alignment with offset $off parsing samoptflags_map";
 					}
 				}
+				if(defined($c->{samoptflags_flagmap})) {
+					if(defined($c->{samoptflags_flagmap}->[$rdi]->{$samflags})) {
+						matchSamOptionalFlags(
+							\%samoptflags,
+							$c->{samoptflags_flagmap}->[$rdi]->{$samflags});
+					} else {
+						die "Expected to see alignment with flag $samflags parsing samoptflags_flagmap";
+					}
+				}
 				# RNEXT map
 				if(defined($c->{rnext_map})) {
 					if(defined($c->{rnext_map}->[$rdi]->{$off})) {
@@ -4747,6 +4916,16 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 							"Expected PNEXT '$ex' at offset $off, got '$pnext'"
 					} else {
 						die "Expected to see alignment with offset $off parsing pnext_map";
+					}
+				}
+				# TLEN map
+				if(defined($c->{tlen_map})) {
+					if(defined($c->{tlen_map}->[$rdi]->{$off})) {
+						my $ex = $c->{tlen_map}->[$rdi]->{$off};
+						$tlen eq $ex || die
+							"Expected TLEN '$ex' at offset $off, got '$tlen'"
+					} else {
+						die "Expected to see alignment with offset $off parsing tlen_map";
 					}
 				}
 			}
