@@ -160,6 +160,9 @@ static bool sam_print_ym;
 static bool sam_print_yp;
 static bool sam_print_yt;
 static bool sam_print_ys;
+static bool bwaSwLike;
+static float bwaSwLikeC;
+static float bwaSwLikeT;
 static bool qcFilter;
 bool gColor;     // true -> inputs are colorspace
 bool gColorExEnds; // true -> nucleotides on either end of decoded cspace alignment should be excluded
@@ -279,7 +282,7 @@ static void resetOptions() {
 	dumpUnalBase			= "";    // basename of same-format files to dump unaligned reads to
 	dumpMaxBase				= "";    // basename of same-format files to dump reads with more than -m valid alignments to
 	khits					= 1;     // number of hits per read; >1 is much slower
-	mhits					= 0;     // don't report any hits if there are > mhits
+	mhits					= 1;     // don't report any hits if there are > mhits
 	strata					= false; // true -> don't stop at stratum boundaries
 	partitionSz				= 0;     // output a partitioning key in first field
 	gNoMaqRound				= false; // true -> don't round quals to nearest 10 like maq
@@ -289,7 +292,7 @@ static void resetOptions() {
 	useMm					= false; // use memory-mapped files to hold the index
 	mmSweep					= false; // sweep through memory-mapped files immediately after mapping
 	gMinInsert				= 0;     // minimum insert size
-	gMaxInsert				= 250;   // maximum insert size
+	gMaxInsert				= 450;   // maximum insert size
 	gMate1fw				= true;  // -1 mate aligns in fw orientation on fw strand
 	gMate2fw				= false; // -2 mate aligns in rc orientation on fw strand
 	mateFwSet				= false; // true -> user set mate1fw/mate2fw with --ff/--fr/--rf
@@ -347,6 +350,9 @@ static void resetOptions() {
 	sam_print_yp            = true;
 	sam_print_yt            = true;
 	sam_print_ys            = true;
+	bwaSwLike                 = false;
+	bwaSwLikeC                = 5.5f;
+	bwaSwLikeT                = 20.0f;
 	qcFilter                = false; // don't believe upstream qc by default
 	gColor					= false; // don't align in colorspace by default
 	gColorExEnds			= true;  // true -> nucleotides on either end of decoded cspace alignment should be excluded
@@ -525,7 +531,9 @@ enum {
 	ARG_OFFRATE_ADD,
 	ARG_SCAN_NARROWED,
 	ARG_NO_SSE,
-	ARG_QC_FILTER
+	ARG_QC_FILTER,
+	ARG_BWA_SW_LIKE,
+	ARG_OLDM
 };
 
 static struct option long_options[] = {
@@ -563,7 +571,7 @@ static struct option long_options[] = {
 	{(char*)"help",         no_argument,       0,            'h'},
 	{(char*)"threads",      required_argument, 0,            'p'},
 	{(char*)"khits",        required_argument, 0,            'k'},
-	{(char*)"mhits",        required_argument, 0,            'm'},
+	{(char*)"old-m",        required_argument, 0,            ARG_OLDM},
 	{(char*)"minins",       required_argument, 0,            'I'},
 	{(char*)"maxins",       required_argument, 0,            'X'},
 	{(char*)"quals",        required_argument, 0,            'Q'},
@@ -652,6 +660,7 @@ static struct option long_options[] = {
 	{(char*)"scan-narrowed",no_argument,       0,            ARG_SCAN_NARROWED},
 	{(char*)"no-sse",       no_argument,       0,            ARG_NO_SSE},
 	{(char*)"qc-filter",    no_argument,       0,            ARG_QC_FILTER},
+	{(char*)"bwa-sw-like",  required_argument, 0,            ARG_BWA_SW_LIKE},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -695,18 +704,21 @@ static void printUsage(ostream& out) {
 	    << "Alignment:" << endl
 		<< "  --local            set alignment defaults to do BWA-SW-like local alignment" << endl
 	    << "  --nomaqround       disable Maq-like quality rounding (nearest 10 <= 30)" << endl
-	    << "  --nofw/--norc      do not align to forward/reverse-complement reference strand" << endl
+	    << "  --nofw             do not align forward (original) version of read" << endl
+	    << "  --norc             do not align reverse-complemented version of read" << endl
 		<< "Paired-end:" << endl
 	    << "  -I/--minins <int>  minimum fragment length (default: 0)" << endl
-	    << "  -X/--maxins <int>  maximum fragment length (default: 250)" << endl
+	    << "  -X/--maxins <int>  maximum fragment length (default: 450)" << endl
 	    << "  --fr/--rf/--ff     -1, -2 mates align fw/rev, rev/fw, fw/fw (default: --fr)" << endl
 		<< "  --no-mixed         report only paired alns, ignore unpaired" << endl
 		<< "  --no-discordant    report only concordant paired-end alns, ignore discordant" << endl
 	    << "Reporting:" << endl
+	    << "  -M <int>           look for at least <int>+1 hits; factor into MAPQ (def.: 1)" << endl
+		<< "   OR" << endl
 	    << "  -k <int>           report up to <int> good alignments per read (default: 1)" << endl
+		<< "   OR" << endl
 	    << "  -a/--all           report all alignments per read (much slower than low -k)" << endl
-	    << "  -m <int>           suppress all alignments if > <int> exist (def: no limit)" << endl
-	    << "  -M <int>           like -m, but reports 1 random hit (MAPQ=0)" << endl
+	    //<< "  -m <int>           suppress all alignments if > <int> exist (def: no limit)" << endl
 	    << "Output:" << endl
 	    << "  -t/--time          print wall-clock time taken by search phases" << endl
 	    << "  -B/--offbase <int> leftmost ref offset = <int> in bowtie output (default: 0)" << endl
@@ -927,6 +939,9 @@ void parseTuple(const char *str, char delim, EList<T>& ret) {
 static void parseOptions(int argc, const char **argv) {
 	int option_index = 0;
 	int next_option;
+	bool saw_M = false;
+	bool saw_a = false;
+	bool saw_k = false;
 	if(startVerbose) { cerr << "Parsing options: "; logTime(cerr, true); }
 	do {
 		next_option = getopt_long(
@@ -943,6 +958,22 @@ static void parseOptions(int argc, const char **argv) {
 				pair<uint32_t, uint32_t> p = parsePair<uint32_t>(optarg, ',');
 				fastaContLen = p.first;
 				fastaContFreq = p.second;
+				break;
+			}
+			case ARG_BWA_SW_LIKE: {
+				pair<uint32_t, uint32_t> p = parsePair<float>(optarg, ',');
+				bwaSwLikeC = p.first;
+				bwaSwLikeT = p.second;
+				bwaSwLike = true;
+				// -a INT   Score of a match [1]
+				// -b INT   Mismatch penalty [3]
+				// -q INT   Gap open penalty [5]
+				// -r INT   Gap extension penalty. The penalty for a contiguous
+				//          gap of size k is q+k*r. [2] 
+				if(!seedAlignmentPolicyString.empty()) {
+					seedAlignmentPolicyString += ";";
+				}
+				seedAlignmentPolicyString += "MA=1;MMP=C3;RDG=5,2;RFG=5,2";
 				break;
 			}
 			case 'q': format = FASTQ; break;
@@ -1058,9 +1089,6 @@ static void parseOptions(int argc, const char **argv) {
 			case 'u':
 				qUpto = (uint32_t)parseInt(1, "-u/--qupto arg must be at least 1");
 				break;
-			case 'k':
-				khits = (uint32_t)parseInt(1, "-k arg must be at least 1");
-				break;
 			case 'Q':
 				tokenize(optarg, ",", qualities);
 				integerQuals = true;
@@ -1072,11 +1100,6 @@ static void parseOptions(int argc, const char **argv) {
 			case ARG_QUALS2:
 				tokenize(optarg, ",", qualities2);
 				integerQuals = true;
-				break;
-			case 'M':
-				sampleMax = true;
-			case 'm':
-				mhits = (uint32_t)parseInt(1, "-m arg must be at least 1");
 				break;
 			case 'x':
 				mixedThresh = (uint32_t)parseInt(0, "-x arg must be at least 0");
@@ -1121,7 +1144,47 @@ static void parseOptions(int argc, const char **argv) {
 			case 'l': seedLen = parseInt(5, "-l/--seedlen arg must be at least 5"); break;
 			case 'h': printUsage(cout); throw 0; break;
 			case ARG_USAGE: printUsage(cout); throw 0; break;
-			case 'a': allHits = true; break;
+			//
+			// NOTE that unlike in Bowtie 1, -M, -a and -k are mutually
+			// exclusive here.
+			//
+			case 'M': {
+				sampleMax = true;
+				mhits = (uint32_t)parseInt(1, "-M arg must be at least 1");
+				if(saw_a || saw_k) {
+					cerr << "Warning: -M, -k and -a are mutually exclusive. "
+					     << "-M will override" << endl;
+				}
+				saw_M = true;
+				break;
+			}
+			case ARG_OLDM: {
+				sampleMax = false;
+				mhits = (uint32_t)parseInt(1, "-m arg must be at least 1");
+				break;
+			}
+			case 'a': {
+				sampleMax = false;
+				allHits = true;
+				mhits = 0; // disable -M
+				if(saw_M || saw_k) {
+					cerr << "Warning: -M, -k and -a are mutually exclusive. "
+					     << "-a will override" << endl;
+				}
+				saw_a = true;
+				break;
+			}
+			case 'k': {
+				sampleMax = false;
+				khits = (uint32_t)parseInt(1, "-k arg must be at least 1");
+				mhits = 0; // disable -M
+				if(saw_M || saw_a) {
+					cerr << "Warning: -M, -k and -a are mutually exclusive. "
+					     << "-k will override" << endl;
+				}
+				saw_k = true;
+				break;
+			}
 			case 'y': tryHard = true; break;
 			case ARG_CHUNKMBS: chunkPoolMegabytes = parseInt(1, "--chunkmbs arg must be at least 1"); break;
 			case ARG_CHUNKSZ: chunkSz = parseInt(1, "--chunksz arg must be at least 1"); break;
@@ -1183,7 +1246,13 @@ static void parseOptions(int argc, const char **argv) {
 			case ARG_NO_SSE: noSse = true; break;
 			case ARG_QC_FILTER: qcFilter = true; break;
 			case ARG_NOISY_HPOLY: noisyHpolymer = true; break;
-			case 'P': seedAlignmentPolicyString = optarg; break;
+			case 'P': {
+				if(!seedAlignmentPolicyString.empty()) {
+					seedAlignmentPolicyString += ";";
+				}
+				seedAlignmentPolicyString += optarg;
+				break;
+			}
 			case ARG_SA_DUMP: {
 				EList<string> fns;
 				parseTuple<string>(optarg, ',', fns);
@@ -2937,15 +3006,27 @@ static void* multiseedSearchWorker(void *vp) {
 				}
 				// Calculate the minimum valid score threshold for the read
 				TAlScore minsc[2];
-				minsc[0] = (TAlScore)(Scoring::linearFunc(
-					rdlens[0],
-					(float)costMinConst,
-					(float)costMinLinear));
-				if(paired) {
-					minsc[1] = (TAlScore)(Scoring::linearFunc(
-						rdlens[1],
+				if(bwaSwLike) {
+					// From BWA-SW manual: "Given an l-long query, the
+					// threshold for a hit to be retained is
+					// a*max{T,c*log(l)}."  We try to recreate that here.
+					float a = (float)sc.match(30);
+					float T = bwaSwLikeT, c = bwaSwLikeC;
+					minsc[0] = (TAlScore)max<float>(a*T, a*c*log(rdlens[0]));
+					if(paired) {
+						minsc[1] = (TAlScore)max<float>(a*T, a*c*log(rdlens[1]));
+					}
+				} else {
+					minsc[0] = (TAlScore)(Scoring::linearFunc(
+						rdlens[0],
 						(float)costMinConst,
 						(float)costMinLinear));
+					if(paired) {
+						minsc[1] = (TAlScore)(Scoring::linearFunc(
+							rdlens[1],
+							(float)costMinConst,
+							(float)costMinLinear));
+					}
 				}
 				// Calculate the local-alignment score floor for the read
 				TAlScore floorsc[2];
