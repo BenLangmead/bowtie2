@@ -961,7 +961,7 @@ static void parseOptions(int argc, const char **argv) {
 				break;
 			}
 			case ARG_BWA_SW_LIKE: {
-				pair<uint32_t, uint32_t> p = parsePair<float>(optarg, ',');
+				pair<float, float> p = parsePair<float>(optarg, ',');
 				bwaSwLikeC = p.first;
 				bwaSwLikeT = p.second;
 				bwaSwLike = true;
