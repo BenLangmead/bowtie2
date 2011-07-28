@@ -1009,7 +1009,7 @@ bool SwDriver::extendSeedsPaired(
 							orefl,       // out: ref pos of upper LHS of parallelogram
 							orefr,       // out: ref pos of lower RHS of parallelogram
 							oen_);       // out: legal ending columns stored here
-						//cerr << "  result from frameFindMateRect: " << foundMate << endl;
+						assert_geq(orefr, orefl);
 					}
 					if(foundMate) {
 						ores_.reset();
@@ -1031,6 +1031,7 @@ bool SwDriver::extendSeedsPaired(
 						// the SwAligner with the dynamic programming problem that
 						// aligns the read to this reference stretch.
 						size_t onsInLeftShift = 0;
+						assert_geq(orefr, orefl);
 						oswa.initRef(
 							ofw,       // align forward or revcomp read?
 							tidx,      // reference aligned against

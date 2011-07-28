@@ -39,6 +39,64 @@ if(! -x $bowtie2 || ! -x $bowtie2_build) {
 
 my @cases = (
 
+	# Testing BWA-SW-like scoring
+	#
+	# a*max{T,c*log(l)} = 1 * max(30, 5.5 * log(56)) = 1 * max(30, 22.139) = 30
+	#
+	{ name     => "BWA-SW-like 1",
+	  #              0123
+	  ref      => [ "GTTTAGATTCCACTACGCTAACCATCGAGAACTCGTCTCAGAGTTTCGATAGGAAAATCTGCGA" ],
+	  reads    => [    "TAGATTCCACTACGCTAACCATCGAGAACTCGTCTCAGAGTTTCGATAGGAAAATC" ],
+	  #                 01234567890123456789012345678901234567890123456789012345
+	  #                           1         2         3         4         5
+	  args     => "--bwa-sw-like 5.5,30",
+	  hits     => [{ 3 => 1 }],
+	  samoptflags => [{ "AS:i:56" => 1, "NM:i:0" => 1,
+	                    "MD:Z:56" => 1, "YT:Z:UU" => 1 }]
+	},
+	{ name     => "BWA-SW-like 2",
+	  #              0123
+	  ref      => [ "GTTTAGATTCCACTACGCTAACCATCGAGAACTCGTCTCAGAGTTTCGATAGGAAAATCTGCGA" ],
+	  #                 ||||||||||||||||||||||||||  ||||||||||||||||||||||||||||
+	  reads    => [    "TAGATTCCACTACGCTAACCATCGAGTTCTCGTCTCAGAGTTTCGATAGGAAAATC" ],
+	  #                 01234567890123456789012345678901234567890123456789012345
+	  #                           1         2         3         4         5
+	  args     => "--bwa-sw-like 5.5,30",
+	  hits     => [{ 3 => 1 }],
+	  # Tot matches = 54
+	  # Tot penalties = 6
+	  samoptflags => [{ "AS:i:48" => 1, "NM:i:2" => 1, "XM:i:2" => 1,
+	                    "MD:Z:26A0A28" => 1, "YT:Z:UU" => 1 }]
+	},
+	{ name     => "BWA-SW-like 3",
+	  #              0123
+	  ref      => [ "GTTTAGATTCCACTACGCTAACCATCGAGAACTCGTCTCAGAGTTTCGATAGGAAAATCTGCGA" ],
+	  #                 ||||||||||||||||||||||||||   |||||||||||||||||||||||||||
+	  reads    => [    "TAGATTCCACTACGCTAACCATCGAG"."TCGTCTCAGAGTTTCGATAGGAAAATC" ],
+	  #                 01234567890123456789012345678901234567890123456789012345
+	  #                           1         2         3         4         5
+	  args     => "--bwa-sw-like 5.5,30",
+	  hits     => [{ 3 => 1 }],
+	  # Tot matches = 53
+	  # Tot penalties = 11
+	  samoptflags => [{ "AS:i:42" => 1, "NM:i:3" => 1, "XM:i:0" => 1,
+	                    "XO:i:1" => 1, "XG:i:3" => 1,
+	                    "MD:Z:26^AAC27" => 1, "YT:Z:UU" => 1 }]
+	},
+	{ name     => "BWA-SW-like 4",
+	  #              0123
+	  ref      => [ "GTTTAGATTCCACTACGCTAACCATCGAGAACTCGTCTCAGAGTTTCGATAGGAAAATCTGCGA" ],
+	  #                 ||||||||||||||||||||||||||   |||||||||||||||||||||||||||
+	  reads    => [    "TAGATTCCACTACGCTAACCATCGAG"."TCGTCTCAGAGTTTCGATAGGAAAATC" ],
+	  #                 01234567890123456789012345678901234567890123456789012345
+	  #                           1         2         3         4         5
+	  args     => "--bwa-sw-like 5.5,45",
+	  hits     => [{ "*" => 1 }],
+	  # Tot matches = 53
+	  # Tot penalties = 11
+	  samoptflags => [{ "YT:Z:UU" => 1 }]
+	},
+
 	# Some tricky SAM FLAGS field tests
 	
 	{ name     => "SAM paired-end where both mates align 1",
@@ -135,7 +193,7 @@ my @cases = (
 	  #              0         1         2         3         4         5         6         7         8         9        10
 	  mate1s   => [    "CTATCTACGCTTCGGCGTCGGCGA" ],
 	  mate2s   =>                                    [ "GATTGTCTTTTCCCGGAAAAATCGT" ],
-	  report   => "-a -m 1",
+	  report   => "--old-m 1",
 	  #  0x1    template having multiple fragments in sequencing
 	  #  0x2    each fragment properly aligned according to the aligner
 	  #  0x4    fragment unmapped
@@ -1190,7 +1248,8 @@ my @cases = (
 	  #            0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
-	  args   =>   "-M 5 -X 1000",
+	  args     => "-X 1000",
+	  report   => "-M 5",
 	  mapq_map   => [{ 12 => 40, 78 => 0, 249 => 0, 315 => 0, 486 => 0,
 	                   552 => 0, 723 => 0, 789 => 0, 960 => 0 }],
 	  pairhits   => [{ "12,78"  => 1, "12,249" => 1, "12,315" => 1,
@@ -1245,7 +1304,8 @@ my @cases = (
 	  #            0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
-	  args   =>   "-M 5 -X 1000 --local",
+	  args   =>  "-X 1000 --local",
+	  report =>  "-M 5",
 	  mapq_map   => [{ 12 => 40, 78 => 0, 249 => 0, 315 => 0, 486 => 0,
 	                   552 => 0, 723 => 0, 789 => 0, 960 => 0 }],
 	  pairhits   => [{ "12,78"  => 1, "12,249" => 1, "12,315" => 1,
@@ -1300,7 +1360,8 @@ my @cases = (
 	  #            0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
-	  args   =>   "-m 5 -X 1000",
+	  args   =>   "-X 1000",
+	  report =>   "--old-m 5",
 	  mapq_map   => [{ 12 => 40, "*" => 0 }],
 	  pairhits   => [{ "*,12" => 1 }],
 	  cigar_map  => [{ 12 => "33M", "*" => "*" }],
@@ -1322,7 +1383,8 @@ my @cases = (
 	  #            0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
-	  args   =>   "-m 5 -X 1000 --local",
+	  args   =>   "-X 1000 --local",
+	  report =>   "--old-m 5",
 	  mapq_map   => [{ 12 => 40, "*" => 0 }],
 	  pairhits   => [{ "*,12" => 1 }],
 	  cigar_map  => [{ 12 => "33M", "*" => "*" }],
@@ -1456,13 +1518,15 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1, mate2fw => 0,
-	  args   =>   "-M 2",
+	  args    => "-X 150",
+	  report  => "-M 2",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
 	  mapq => [ 0 ],
 	  cigar_map => [{
 		12 => "33M", 249 => "33M",
 		78 => "28M", 315 => "28M"
 	  }],
+	  hits_are_superset => [ 1 ],
 	  samoptflags_map => [{
 		12  => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:33" => 1,
 		         "YM:i:0" => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
@@ -1486,13 +1550,15 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1, mate2fw => 0,
-	  args   =>   "-M 2 --local",
+	  args    => "--local -X 150",
+	  report  => "-M 2",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
 	  mapq => [ 0 ],
 	  cigar_map => [{
 		12 => "33M", 249 => "33M",
 		78 => "28M", 315 => "28M"
 	  }],
+	  hits_are_superset => [ 1 ],
 	  samoptflags_map => [{
 		12  => { "AS:i:66" => 1, "XS:i:66" => 1, "MD:Z:33" => 1,
 		         "YM:i:0"  => 1, "YP:i:0"  => 1, "YT:Z:CP" => 1, "YS:i:56" => 1 },
@@ -1516,7 +1582,7 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1, mate2fw => 0,
-	  args    => "",
+	  args    => "-X 150",
 	  report  => "-k 1",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
 	  hits_are_superset => [ 1 ],
@@ -1548,7 +1614,7 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1, mate2fw => 0,
-	  args    => "--local",
+	  args    => "--local -X 150",
 	  report  => "-k 1",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
 	  hits_are_superset => [ 1 ],
@@ -1580,7 +1646,7 @@ my @cases = (
 	  mate1s   => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s   => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw  => 1, mate2fw => 0,
-	  args     =>   "-m 1",
+	  report   =>   "--old-m 1",
 	  pairhits => [ { "*,*" => 1 } ],
 	  hits_are_superset => [ 1 ],
 	  mapq  => [ 0 ],
@@ -1599,7 +1665,7 @@ my @cases = (
 	  mate1s   => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s   => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw  => 1, mate2fw => 0,
-	  args     =>   "-m 1 --local",
+	  report   =>   "--old-m 1 --local",
 	  pairhits => [ { "*,*" => 1 } ],
 	  hits_are_superset => [ 1 ],
 	  mapq  => [ 0 ],
@@ -1618,7 +1684,7 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1, mate2fw => 0,
-	  args   =>   "-M 1",
+	  report  =>   "-M 1",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
 	  hits_are_superset => [ 1 ],
 	  mapq => [ 0 ],
@@ -1649,7 +1715,7 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1, mate2fw => 0,
-	  args   =>   "-M 1 --local",
+	  report  =>   "-M 1 --local",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
 	  hits_are_superset => [ 1 ],
 	  mapq => [ 0 ],
@@ -1730,7 +1796,7 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1,  mate2fw => 0,
-	  args   =>   "-m 1",
+	  report  =>   "--old-m 1",
 	  pairhits  => [ { "12,78" => 1 } ],
 	  mapq => [ 40 ],
 	  cigar_map => [{
@@ -1755,7 +1821,7 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1,  mate2fw => 0,
-	  args   =>   "-m 1 --local",
+	  report  =>   "--old-m 1 --local",
 	  pairhits  => [ { "12,78" => 1 } ],
 	  mapq => [ 40 ],
 	  cigar_map => [{
@@ -1780,7 +1846,7 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1,  mate2fw => 0,
-	  args   =>   "-M 1",
+	  report  =>   "-M 1",
 	  pairhits  => [ { "12,78" => 1 } ],
 	  mapq => [ 40 ],
 	  cigar_map => [{
@@ -1805,7 +1871,7 @@ my @cases = (
 	  mate1s   => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s   => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw  => 1,  mate2fw => 0,
-	  args     =>   "-M 1 --local",
+	  report   =>   "-M 1 --local",
 	  pairhits => [ { "12,78" => 1 } ],
 	  mapq => [ 40 ],
 	  cigar_map => [{
@@ -1835,7 +1901,7 @@ my @cases = (
 	  #            0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   2                                                                                                   2                                                                                                   2                                                                                                   2                                                                                                   2                                                                                                   2                                                                                                   2
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
-	  args   =>   "-M 5",
+	  report =>   "-M 5 -X 150",
 	  mapq   => [ 0 ],
 	  pairhits  => [ { "12,78"     => 1, "249,315"   => 1, "486,552"   => 1,
 	                   "723,789"   => 1, "960,1026"  => 1, "1197,1263" => 1,
@@ -1913,7 +1979,8 @@ my @cases = (
 	  #            0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   2                                                                                                   2                                                                                                   2                                                                                                   2                                                                                                   2                                                                                                   2                                                                                                   2
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
-	  args   =>   "-M 5 --local",
+	  args   =>   "--local -X 150",
+	  report =>   "-M 5",
 	  mapq   => [ 0 ],
 	  pairhits  => [ { "12,78"     => 1, "249,315"   => 1, "486,552"   => 1,
 	                   "723,789"   => 1, "960,1026"  => 1, "1197,1263" => 1,
@@ -1991,13 +2058,15 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1, mate2fw => 0,
-	  args   =>   "-m 2",
+	  args    => "-X 150",
+	  report  => "--old-m 2",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
 	  mapq => [ 0 ],
 	  cigar_map => [{
 		12 => "33M", 249 => "33M",
 		78 => "28M", 315 => "28M"
 	  }],
+	  hits_are_superset => [ 1 ],
 	  samoptflags_map => [{
 		12  => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:33" => 1,
 		         "YM:i:0" => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
@@ -2021,13 +2090,15 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1, mate2fw => 0,
-	  args   =>   "-m 2 --local",
+	  args    => "--local -X 150",
+	  report  => "--old-m 2",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
 	  mapq => [ 0 ],
 	  cigar_map => [{
 		12 => "33M", 249 => "33M",
 		78 => "28M", 315 => "28M"
 	  }],
+	  hits_are_superset => [ 1 ],
 	  samoptflags_map => [{
 		12  => { "AS:i:66" => 1, "XS:i:66" => 1, "MD:Z:33" => 1,
 		         "YM:i:0"  => 1, "YP:i:0"  => 1, "YT:Z:CP" => 1, "YS:i:56" => 1 },
@@ -2051,13 +2122,15 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1, mate2fw => 0,
-	  args   =>   "-M 2",
+	  args    => "-X 150",
+	  report  => "-M 2",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
 	  mapq => [ 0 ],
 	  cigar_map => [{
 		12 => "33M", 249 => "33M",
 		78 => "28M", 315 => "28M"
 	  }],
+	  hits_are_superset => [ 1 ],
 	  samoptflags_map => [{
 		12  => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:33" => 1,
 		         "YM:i:0" => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
@@ -2081,13 +2154,15 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1, mate2fw => 0,
-	  args   =>   "-M 2 --local",
+	  args    => "--local -X 150",
+	  report  => "-M 2",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
 	  mapq => [ 0 ],
 	  cigar_map => [{
 		12 => "33M", 249 => "33M",
 		78 => "28M", 315 => "28M"
 	  }],
+	  hits_are_superset => [ 1 ],
 	  samoptflags_map => [{
 		12  => { "AS:i:66" => 1, "XS:i:66" => 1, "MD:Z:33" => 1,
 		         "YM:i:0"  => 1, "YP:i:0"  => 1, "YT:Z:CP" => 1, "YS:i:56" => 1 },
@@ -2111,7 +2186,7 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1, mate2fw => 0,
-	  args    => "",
+	  args    => "-X 150",
 	  report  => "-k 1",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
 	  hits_are_superset => [ 1 ],
@@ -2143,7 +2218,7 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1, mate2fw => 0,
-	  args    => "--local",
+	  args    => "--local -X 150",
 	  report  => "-k 1",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
 	  hits_are_superset => [ 1 ],
@@ -2175,7 +2250,7 @@ my @cases = (
 	  mate1s   => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s   => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw  => 1, mate2fw => 0,
-	  args     =>   "-m 1",
+	  report   =>   "--old-m 1",
 	  pairhits => [ { "*,*" => 1 } ],
 	  hits_are_superset => [ 1 ],
 	  mapq  => [ 0 ],
@@ -2194,7 +2269,7 @@ my @cases = (
 	  mate1s   => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s   => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw  => 1, mate2fw => 0,
-	  args     =>   "-m 1 --local",
+	  report   =>   "--old-m 1 --local",
 	  pairhits => [ { "*,*" => 1 } ],
 	  hits_are_superset => [ 1 ],
 	  mapq  => [ 0 ],
@@ -2213,7 +2288,7 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1, mate2fw => 0,
-	  args   =>   "-M 1",
+	  report  =>   "-M 1",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
 	  hits_are_superset => [ 1 ],
 	  mapq => [ 0 ],
@@ -2244,7 +2319,7 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1, mate2fw => 0,
-	  args   =>   "-M 1 --local",
+	  report  =>   "-M 1 --local",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
 	  hits_are_superset => [ 1 ],
 	  mapq => [ 0 ],
@@ -2325,7 +2400,7 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1,  mate2fw => 0,
-	  args   =>   "-m 1",
+	  report  =>   "--old-m 1",
 	  pairhits  => [ { "12,78" => 1 } ],
 	  mapq => [ 40 ],
 	  cigar_map => [{
@@ -2350,7 +2425,7 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1,  mate2fw => 0,
-	  args   =>   "-m 1 --local",
+	  report  =>   "--old-m 1 --local",
 	  pairhits  => [ { "12,78" => 1 } ],
 	  mapq => [ 40 ],
 	  cigar_map => [{
@@ -2375,7 +2450,7 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1,  mate2fw => 0,
-	  args   =>   "-M 1",
+	  report  =>   "-M 1",
 	  pairhits  => [ { "12,78" => 1 } ],
 	  mapq => [ 40 ],
 	  cigar_map => [{
@@ -2400,7 +2475,7 @@ my @cases = (
 	  mate1s   => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s   => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw  => 1,  mate2fw => 0,
-	  args     =>   "-M 1 --local",
+	  report   =>   "-M 1 --local",
 	  pairhits => [ { "12,78" => 1 } ],
 	  mapq => [ 40 ],
 	  cigar_map => [{
@@ -2427,8 +2502,7 @@ my @cases = (
 	  #            01234567890123456789012345678901234567890123456789012345
 	  #            0         1         2         3         4         5
 	  reads  => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
-	  args   =>   "-M 1",
-	  report =>   "-a",
+	  report =>   "-M 1",
 	  hits   => [ { 12 => 1 } ],
 	  mapq   => [ 40 ],
 	  cigar  => [ "33M" ],
@@ -2454,8 +2528,8 @@ my @cases = (
 	  #            01234567890123456789012345678901234567890123456789012345
 	  #            0         1         2         3         4         5
 	  reads  => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
-	  args   =>   "-M 1 --local",
-	  report =>   "-a",
+	  args   =>   "--local",
+	  report =>   "-M 1",
 	  hits   => [ { 12 => 1 } ],
 	  mapq   => [ 40 ],
 	  cigar  => [ "33M" ],
@@ -2481,8 +2555,8 @@ my @cases = (
 	  #            01234567890123456789012345678901234567890123456789012345
 	  #            0         1         2         3         4         5
 	  reads  => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
-	  args   =>   "-m 1",
-	  report =>   "-a",
+	  args   =>   "",
+	  report =>   "--old-m 1",
 	  mapq   => [ 40 ],
 	  hits   => [ { 12 => 1 } ],
 	  cigar  => [ "33M" ],
@@ -2507,8 +2581,8 @@ my @cases = (
 	  #            01234567890123456789012345678901234567890123456789012345
 	  #            0         1         2         3         4         5
 	  reads  => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
-	  args   =>   "-m 1 --local",
-	  report =>   "-a",
+	  args   =>   "--local",
+	  report =>   "--old-m 1",
 	  mapq   => [ 40 ],
 	  hits   => [ { 12 => 1 } ],
 	  cigar  => [ "33M" ],
@@ -2582,8 +2656,8 @@ my @cases = (
 	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234
 	  #            0         1         2         3         4         5         6         7         8
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
-	  args   =>   "-M 1",
-	  report =>   "-a",
+	  args   =>   "",
+	  report =>   "-M 1",
 	  mapq   => [ 0 ],
 	  hits   => [ { 6 => 1, 48 => 1 } ],
 	  hits_are_superset => [ 1 ],
@@ -2609,8 +2683,8 @@ my @cases = (
 	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234
 	  #            0         1         2         3         4         5         6         7         8
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
-	  args   =>   "-M 1 --local",
-	  report =>   "-a",
+	  args   =>   "--local",
+	  report =>   "-M 1",
 	  mapq   => [ 0 ],
 	  hits   => [ { 6 => 1, 48 => 1 } ],
 	  hits_are_superset => [ 1 ],
@@ -2636,8 +2710,8 @@ my @cases = (
 	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234
 	  #            0         1         2         3         4         5         6         7         8
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
-	  args   =>   "-m 1",
-	  report =>   "-a",
+	  args   =>   "",
+	  report =>   "--old-m 1",
 	  mapq   => [ 0 ],
 	  hits   => [ { "*" => 1 } ],
 	  cigar  => [ "*" ],
@@ -2654,8 +2728,8 @@ my @cases = (
 	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234
 	  #            0         1         2         3         4         5         6         7         8
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
-	  args   =>   "-m 1 --local",
-	  report =>   "-a",
+	  args   =>   "--local",
+	  report =>   "--old-m 1",
 	  mapq   => [ 0 ],
 	  hits   => [ { "*" => 1 } ],
 	  cigar  => [ "*" ],
@@ -2724,10 +2798,11 @@ my @cases = (
 	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234
 	  #            0         1         2         3         4         5         6         7         8
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
-	  args   =>   "-M 2",
+	  report =>   "-M 2",
 	  mapq   => [ 0 ],
 	  hits   => [ { 6 => 1, 48 => 1 } ],
 	  cigar  => [ "30M" ],
+	  hits_are_superset => [ 1 ],
 	  samoptflags => [ {
 		"AS:i:0"   => 1, # alignment score
 		"XS:i:0"   => 1, # suboptimal alignment score
@@ -2749,10 +2824,11 @@ my @cases = (
 	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234
 	  #            0         1         2         3         4         5         6         7         8
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
-	  args   =>   "-M 2 --local",
+	  report =>   "-M 2 --local",
 	  mapq   => [ 0 ],
 	  hits   => [ { 6 => 1, 48 => 1 } ],
 	  cigar  => [ "30M" ],
+	  hits_are_superset => [ 1 ],
 	  samoptflags => [ {
 		"AS:i:60"  => 1, # alignment score
 		"XS:i:60"  => 1, # suboptimal alignment score
@@ -2774,10 +2850,11 @@ my @cases = (
 	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234
 	  #            0         1         2         3         4         5         6         7         8
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
-	  args   =>   "-m 2",
+	  report =>   "--old-m 2",
 	  mapq   => [ 0 ],
 	  hits   => [ { 6 => 1, 48 => 1 } ],
 	  cigar  => [ "30M" ],
+	  hits_are_superset => [ 1 ],
 	  samoptflags => [ {
 		"AS:i:0"   => 1, # alignment score
 		"XS:i:0"   => 1, # suboptimal alignment score
@@ -2799,10 +2876,11 @@ my @cases = (
 	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234
 	  #            0         1         2         3         4         5         6         7         8
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
-	  args   =>   "-m 2 --local",
+	  report =>   "--old-m 2 --local",
 	  mapq   => [ 0 ],
 	  hits   => [ { 6 => 1, 48 => 1 } ],
 	  cigar  => [ "30M" ],
+	  hits_are_superset => [ 1 ],
 	  samoptflags => [ {
 		"AS:i:60"  => 1, # alignment score
 		"XS:i:60"  => 1, # suboptimal alignment score
@@ -2876,7 +2954,8 @@ my @cases = (
 	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         
 	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
-	  args   =>   "-M 5",
+	  args   =>   "-X 150",
+	  report =>   "-M 5",
 	  mapq   => [ 0 ],
 	  hits   => [ { 6 => 1, 48 => 1, 91 => 1, 133 => 1, 176 => 1, 218 => 1, 261 => 1, 303 => 1 } ],
 	  hits_are_superset => [ 1 ],
@@ -2903,7 +2982,8 @@ my @cases = (
 	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         
 	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
-	  args   =>   "-M 5 --local",
+	  args   =>   "--local",
+	  report =>   "-M 5",
 	  mapq   => [ 0 ],
 	  hits   => [ { 6 => 1, 48 => 1, 91 => 1, 133 => 1, 176 => 1, 218 => 1, 261 => 1, 303 => 1 } ],
 	  hits_are_superset => [ 1 ],
@@ -2930,7 +3010,7 @@ my @cases = (
 	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         
 	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
-	  args   =>   "-m 5",
+	  report =>   "--old-m 5",
 	  mapq   => [ 0 ],
 	  hits   => [ { "*" => 1 } ],
 	  cigar  => [ "*" ],
@@ -2948,7 +3028,8 @@ my @cases = (
 	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         
 	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
-	  args   =>   "-m 5 --local",
+	  args   =>   "--local",
+	  report =>   "--old-m 5",
 	  mapq   => [ 0 ],
 	  hits   => [ { "*" => 1 } ],
 	  cigar  => [ "*" ],
@@ -3469,30 +3550,6 @@ my @cases = (
 
 	# No discordant alignment because one mate is repetitive.
 
-	{ name => "Simple paired-end 15",
-	  ref    => [ "TTTATAAAAATATTTTTTATAAAAATATTTTCCCCCCCCCCCGCCGGCGCGCCCAACGCCGGCGCGCCCCC" ],
-	#                 ATAAAAATAT     ATAAAAATAT             CGCCGGCGCG     CGCCGGCGCG
-	#                                                     CGCGCCGGCG     CGCGCCGGCG
-	#              01234567890123456789012345678901234567890123456789012345678901234567890
-	#              0         1         2         3         4         5         6         7
-	#                 -------------------------------------------
-	#                 0123456789012345678901234567890123456789012
-	  mate1s   => [ "ATAAAAATAT" ],
-	  mate2s   => [ "CGCCGGCGCG" ],
-	  mate1fw  => 1, mate2fw => 1,
-	  args     => "-I 0 -X 70 -m 2 -P \"MMP=C30\"",
-	  mapq     => [ 0 ],
-	  pairhits => [ { 3 => 1, 18 => 1, 41 => 1, 56 => 1 } ],
-	  flags    => [ "XM:0,XP:1,XT:UP,XC:10=" ], # Pair aligns repetitively
-	  samoptflags_map => [{
-		  3  => { "AS:i:0" => 1, "YT:Z:UP" => 1, "MD:Z:10" => 1, "YP:i:1" => 1, "YM:i:0" => 1 },
-		  18 => { "AS:i:0" => 1, "YT:Z:UP" => 1, "MD:Z:10" => 1, "YP:i:1" => 1, "YM:i:0" => 1 },
-		  41 => { "AS:i:0" => 1, "YT:Z:UP" => 1, "MD:Z:10" => 1, "YP:i:1" => 1, "YM:i:0" => 1 },
-		  56 => { "AS:i:0" => 1, "YT:Z:UP" => 1, "MD:Z:10" => 1, "YP:i:1" => 1, "YM:i:0" => 1 } }]
-	},
-
-	# No discordant alignment because one mate is repetitive.
-
 	{ name => "Simple paired-end 14",
 	  ref    => [ "TTTATAAAAATATTTCCCCCCCGCCCGCCCGCCCCCCGCCCGCCCGCCCCC" ],
 	#                 ATAAAAATAT        CGCCCGCCCG     CGCCCGCCCG
@@ -3503,7 +3560,8 @@ my @cases = (
 	  mate1s   => [ "ATAAAAATAT" ],
 	  mate2s   => [ "CGCCCGCCCG" ],
 	  mate1fw  => 1,  mate2fw => 1,
-	  args     => "-I 0 -X 50 -m 1",
+	  args     => "-I 0 -X 50",
+	  report   => "--old-m 1",
 	  mapq_map => [{ "*" => 0, 3 => 40 }],
 	  pairhits => [ { "*,3" => 1 } ],
 	  flags_map  => [{
@@ -3808,7 +3866,8 @@ my @cases = (
 	  mate1s  => [ "ATATATATAT" ],
 	  mate2s  => [ "CGCGCGCGCG" ],
 	  mate1fw => 1,  mate2fw => 0,
-	  args    => "-I 0 -X 80 -M 2 -P \"ROWM=3.0\"",
+	  args    => "-I 0 -X 80 -P \"ROWM=3.0\"",
+	  report  => "-M 2",
 	  lines   => 2,
 	  pairhits => [ { "3,59" => 1, "19,59" => 1, "37,59" => 1 } ],
 	  hits_are_superset => [ 1 ],
@@ -3838,7 +3897,8 @@ my @cases = (
 	  mate1s => [ "ATATATATAT" ],
 	  mate2s => [ "CGCGCGCGCG" ],
 	  mate1fw => 1,  mate2fw => 0,
-	  args   =>   "-I 0 -X 80 -m 1",
+	  args    => "-I 0 -X 80",
+	  report  => "--old-m 1",
 	  pairhits => [ { "*,*" => 1 } ],
 	  flags  => [ "XM:1,XP:1,XT:CP", "XM:1,XP:1,XT:CP" ] },
 
@@ -3853,7 +3913,8 @@ my @cases = (
 	  mate1s => [ "ATATATATAT" ],
 	  mate2s => [ "CGCGCGCGCG" ],
 	  mate1fw => 1,  mate2fw => 0,
-	  args   =>   "-I 0 -X 80 -m 1 --norc",
+	  args   =>   "-I 0 -X 80 --norc",
+	  report =>   "--old-m 1 ",
 	  pairhits => [ { "*,59" => 1 } ],
 	  flags_map => [ { "*"  => "XM:1,XP:1,XT:UP",
 	                   "59" => "XM:0,XP:1,XT:UP,XC:10=" } ] },
@@ -3868,7 +3929,8 @@ my @cases = (
 	  mate1s => [ "ATATATATAT" ],
 	  mate2s => [ "CCCCCGGGGG" ],
 	  mate1fw => 1,  mate2fw => 0,
-	  args   =>   "-I 0 -X 80 -m 2",
+	  args   =>   "-I 0 -X 80",
+	  report =>   "--old-m 2",
 	  pairhits => [ { "*,*" => 1 } ] },
 
 	# Paired-end read, but only the first mate aligns within the -m 2 ceiling.
@@ -3883,7 +3945,8 @@ my @cases = (
 	  mate1s => [ "ATATATATAT" ],
 	  mate2s => [ "CGCGCGCGCG" ],
 	  mate1fw => 1,  mate2fw => 1,
-	  args   =>   "-I 0 -X 80 -m 1 --norc",
+	  args   =>   "-I 0 -X 80 --norc",
+	  report =>   "--old-m 1",
 	  pairhits => [ { "*,3" => 1 } ],
 	  flags_map  => [ {  3  => "XM:i:0,XP:1,XT:UP,XC:10=",
 	                    "*" => "XM:i:1,XP:1,XT:UP" } ] },
@@ -3900,7 +3963,8 @@ my @cases = (
 	  mate1s => [ "ATATATATAT" ],
 	  mate2s => [ "CCCCCGGGGG" ],
 	  mate1fw => 1,  mate2fw => 1,
-	  args   =>   "-I 0 -X 80 -m 1 --norc",
+	  args   =>   "-I 0 -X 80 --norc",
+	  report =>   "--old-m 1",
 	  norc   => 1,
 	  pairhits  => [ { "*,3"  => 1 } ],
 	  flags_map => [ {  3     => "XM:0,XP:0,XT:UP,XC:10=",
@@ -4125,7 +4189,7 @@ my @cases = (
 
 	{ ref    => [ "TTGTTCGT" ],
 	  reads  => [ "TTGTTCGT", "TTGTTCGT", "TTGTTCGT", "TTGTTCGT", "TTGTTCGT" ],
-	  args   => "-m 1",
+	  report => "--old-m 1",
 	  hits   => [ { 0 => 1 }, { 0 => 1 }, { 0 => 1 }, { 0 => 1 }, { 0 => 1 } ],
 	  edits  => [ "-",        "-",        "-",        "-",        "-",       ],
 	  flags  => [ "XM:0,XP:0,XT:UU,XC:8=", "XM:0,XP:0,XT:UU,XC:8=",
@@ -4146,7 +4210,8 @@ my @cases = (
 	#              TAATTCGT
 	#              TTGTTCGT
 	  reads  => [ "TTGTTCGT", "TAAAACGT", "TTGTTCGT", "TAATTCGT",    "TTGTTCGT" ],
-	  args   => "-m 1 -P \"SEED=0,3,1;MIN=-3,-3;MMP=C9;RFG=25,15;RDG=25,15\"",
+	  args   => "-P \"SEED=0,3,1;MIN=-3,-3;MMP=C9;RFG=25,15;RDG=25,15\"",
+	  report => "--old-m 1",
 	  hits   => [ { 0 => 1 }, { '*' => 1 }, { 0 => 1 }, { 0 => 1 },    { 0 => 1 } ],
 	  edits  => [ "-",        undef,        "-",        "1:T>A,2:G>A", "-",        ],
 	  flags  => [ "XM:0,XP:0,XT:UU,XC:8=", "XM:0,XP:0,XT:UU",
@@ -4157,50 +4222,14 @@ my @cases = (
 		{ "YT:Z:UU"  => 1, "MD:Z:8" => 1, "YM:i:0" => 1 },
 		{ "YT:Z:UU"  => 1, "YM:i:0" => 1 },
 		{ "YT:Z:UU"  => 1, "MD:Z:8" => 1, "YM:i:0" => 1 },
-		{ "AS:i:-18" => 1, "NM:i:2" => 1, "XM:i:2" => 1, "YT:Z:UU" => 1, "MD:Z:1TG5" => 1, "YM:i:0" => 1 },
+		{ "AS:i:-18" => 1, "NM:i:2" => 1, "XM:i:2" => 1, "YT:Z:UU" => 1, "MD:Z:1T0G5" => 1, "YM:i:0" => 1 },
 		{ "YT:Z:UU"  => 1, "MD:Z:8" => 1, "YM:i:0" => 1 },
 	  ],
 	  norc   => 1 },
 
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCGT" ],
-	  args   => "-m 3",
-	  mapq   => [ 0 ],
-	  hits   => [ { 0 => 1, 8 => 1 } ],
-	  flags  => [ "XM:0,XP:0,XT:UU,XC:8=", "XM:0,XP:0,XT:UU,XC:8=" ],
-	  cigar  => [ "8M" ],
-	  samoptflags => [
-		{ "YT:Z:UU" => 1, "MD:Z:8" => 1, "YM:i:0" => 1 }
-	  ],
-	},
-
-	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTGTTCGT" ],
-	  args   => "-m 2",
-	  mapq   => [ 0 ],
-	  hits   => [ { 0 => 1, 8 => 1 } ],
-	  flags  => [ "XM:0,XP:0,XT:UU,XC:8=", "XM:0,XP:0,XT:UU,XC:8=" ],
-	  cigar  => [ "8M" ],
-	  samoptflags => [
-		{ "YT:Z:UU" => 1, "MD:Z:8" => 1, "YM:i:0" => 1 }
-	  ],
-	},
-
-	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTGTTCGT" ],
-	  args   => "-m 1",
-	  mapq   => [ 0 ],
-	  hits   => [ { "*" => 1 } ],
-	  flags  => [ "XM:1,XP:0,XT:UU" ],
-	  cigar  => [ "*" ],
-	  samoptflags => [
-		{ "XM:i:1" => 1, "YT:Z:UU" => 1, "YM:i:1" => 1 }
-	  ],
-	},
-
-	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTGTTCGT" ],
-	  args   => "-M 1",
+	  report => "-M 1",
 	  mapq   => [ 0 ],
 	  hits   => [ { 0 => 1, 8 => 1 } ],
 	  flags  => [ "XM:1,XP:0,XT:UU,XC:8=" ],
@@ -4304,13 +4333,13 @@ my @cases = (
 		0 => { "AS:i:-2" => 1, "XS:i:-2" => 1, "NM:i:2" => 1, "XM:i:2" => 1,
 		       "YT:Z:UU" => 1, "MD:Z:2G2C2"    => 1 },
 		3 => { "AS:i:-5" => 1, "XS:i:-2" => 1, "NM:i:5" => 1, "XM:i:5" => 1,
-		       "YT:Z:UU" => 1, "MD:Z:2CG1TTG0" => 1 },
+		       "YT:Z:UU" => 1, "MD:Z:2C0G1T0T0G0" => 1 },
 		4 => { "AS:i:-3" => 1, "XS:i:-2" => 1, "NM:i:3" => 1, "XM:i:3" => 1,
-		       "YT:Z:UU" => 1, "MD:Z:1CG2T2"   => 1 },
+		       "YT:Z:UU" => 1, "MD:Z:1C0G2T2"   => 1 },
 		5 => { "AS:i:-5" => 1, "XS:i:-2" => 1, "NM:i:5" => 1, "XM:i:5" => 1,
-		       "YT:Z:UU" => 1, "MD:Z:0CGT2GT1" => 1 },
+		       "YT:Z:UU" => 1, "MD:Z:0C0G0T2G0T1" => 1 },
 		7 => { "AS:i:-5" => 1, "XS:i:-2" => 1, "NM:i:5" => 1, "XM:i:5" => 1,
-		       "YT:Z:UU" => 1, "MD:Z:2TG1TCG0" => 1 },
+		       "YT:Z:UU" => 1, "MD:Z:2T0G1T0C0G0" => 1 },
 		8 => { "AS:i:-2" => 1, "XS:i:-2" => 1, "NM:i:2" => 1, "XM:i:2" => 1,
 		       "YT:Z:UU" => 1, "MD:Z:2G2C2"    => 1 },
 	  }],

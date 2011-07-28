@@ -142,10 +142,16 @@ bool DynProgFramer::frameSeedExtensionRect(
 	if(refr >= (int64_t)(reflen + maxns)) {
 		trimdn = (size_t)(refr - (int64_t)((reflen + maxns)-1));
 		refr = (int64_t)(reflen + maxns)-1;
+		if(refl > refr) {
+			refl = refr;
+		}
 	}
 	if(refl < (int64_t)(-maxns)) {
 		trimup = (size_t)(-refl) - maxns;
 		refl = (int64_t)(-maxns);
+		if(refr < refl) {
+			refr = refl;
+		}
 	}
 	if(trimup > 0 || trimdn > 0) {
 		// Consider how trimdn affects width and solwidth
@@ -400,10 +406,16 @@ bool DynProgFramer::frameFindMateAnchorLeftRect(
 	if(refr >= (int64_t)(reflen + maxns)) {
 		trimdn = (size_t)(refr - (int64_t)((reflen + maxns)-1));
 		refr = (int64_t)(reflen + maxns)-1;
+		if(refl > refr) {
+			refl = refr;
+		}
 	}
 	if(refl < (int64_t)(-maxns)) {
 		trimup = (size_t)(-refl) - maxns;
 		refl = (int64_t)(-maxns);
+		if(refr < refl) {
+			refr = refl;
+		}
 	}
 	if(trimup > 0 || trimdn > 0) {
 		// Consider how trimdn affects width and solwidth
@@ -658,10 +670,16 @@ bool DynProgFramer::frameFindMateAnchorRightRect(
 	if(refr >= (int64_t)(reflen + maxns)) {
 		trimdn = (size_t)(refr - (int64_t)((reflen + maxns)-1));
 		refr = (int64_t)(reflen + maxns)-1;
+		if(refl > refr) {
+			refl = refr;
+		}
 	}
 	if(refl < (int64_t)(-maxns)) {
 		trimup = (size_t)(-refl) - maxns;
 		refl = (int64_t)(-maxns);
+		if(refr < refl) {
+			refr = refl;
+		}
 	}
 	if(trimup > 0 || trimdn > 0) {
 		// Consider how trimdn affects width and solwidth

@@ -406,23 +406,47 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag) {
 		
 		// Calculate distance from RHS of paralellogram; helps us decide
 		// whether a solution can end in this column 
-		size_t fromend = rff_ - i - 1;
+		size_t fromend = rff_ - (i+3) - 1;
 		
 		// Fetch the appropriate query profile.  Note that elements of rf_ must
 		// be numbers, not masks.
-		const int refc = (int)rf_[i];
-		size_t off = (size_t)firsts5[refc] * iter * 2;
-		pvScore = d.qprof_ + off; // even elts = query profile, odd = gap barrier
+		const int refc1 = (int)rf_[i];
+		const int refc2 = (int)rf_[i+1];
+		const int refc3 = (int)rf_[i+2];
+		const int refc4 = (int)rf_[i+3];
+		size_t off1 = (size_t)firsts5[refc1] * iter * 2;
+		size_t off2 = (size_t)firsts5[refc2] * iter * 2;
+		size_t off3 = (size_t)firsts5[refc3] * iter * 2;
+		size_t off4 = (size_t)firsts5[refc4] * iter * 2;
+		
+		pvScore1 = d.qprof_ + off1; // even elts = query profile, odd = gap barrier
+		pvScore2 = d.qprof_ + off2; // even elts = query profile, odd = gap barrier
+		pvScore3 = d.qprof_ + off3; // even elts = query profile, odd = gap barrier
+		pvScore4 = d.qprof_ + off4; // even elts = query profile, odd = gap barrier
 		
 		// Set all cells to low value
-		vf = _mm_xor_si128(vf, vf);
+		vf1 = _mm_xor_si128(vf1, vf1);
+		vf2 = _mm_xor_si128(vf2, vf2);
+		vf3 = _mm_xor_si128(vf3, vf3);
+		vf4 = _mm_xor_si128(vf4, vf4);
 
 		// Load H vector from the final row of the previous column
-		vh = _mm_load_si128(pvHLoad + colstride - ROWSTRIDE);
+		vh1 = _mm_load_si128(pvHLoad1 + colstride - ROWSTRIDE);
+		vh2 = _mm_load_si128(pvHLoad2 + colstride - ROWSTRIDE);
+		vh3 = _mm_load_si128(pvHLoad3 + colstride - ROWSTRIDE);
+		vh4 = _mm_load_si128(pvHLoad4 + colstride - ROWSTRIDE);
+		
 		// Shift 2 bytes down so that topmost (least sig) cell gets 0
-		vh = _mm_slli_si128(vh, NBYTES_PER_WORD);
+		vh1 = _mm_slli_si128(vh1, NBYTES_PER_WORD);
+		vh2 = _mm_slli_si128(vh2, NBYTES_PER_WORD);
+		vh3 = _mm_slli_si128(vh3, NBYTES_PER_WORD);
+		vh4 = _mm_slli_si128(vh4, NBYTES_PER_WORD);
+		
 		// Fill topmost (least sig) cell with high value
-		vh = _mm_or_si128(vh, vhilsw);
+		vh1 = _mm_or_si128(vh1, vhilsw);
+		vh2 = _mm_or_si128(vh2, vhilsw);
+		vh3 = _mm_or_si128(vh3, vhilsw);
+		vh4 = _mm_or_si128(vh4, vhilsw);
 		
 		// For each character in the reference text:
 		size_t j;
@@ -430,23 +454,52 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag) {
 			// Load cells from E, calculated previously
 			ve = _mm_load_si128(pvELoad);
 			assert_all_lt(ve, vhi);
+			
 			pvELoad += ROWSTRIDE;
 			
 			// Store cells in F, calculated previously
-			vf = _mm_subs_epu8(vf, pvScore[1]); // veto some ref gap extensions
-			_mm_store_si128(pvFStore, vf);
-			pvFStore += ROWSTRIDE;
+			vf1 = _mm_subs_epu8(vf1, pvScore1[1]); // veto some ref gap extensions
+			vf2 = _mm_subs_epu8(vf2, pvScore2[1]); // veto some ref gap extensions
+			vf3 = _mm_subs_epu8(vf3, pvScore3[1]); // veto some ref gap extensions
+			vf4 = _mm_subs_epu8(vf4, pvScore4[1]); // veto some ref gap extensions
+			
+			_mm_store_si128(pvFStore1, vf1);
+			_mm_store_si128(pvFStore2, vf2);
+			_mm_store_si128(pvFStore3, vf3);
+			_mm_store_si128(pvFStore4, vf4);
+			
+			pvFStore1 += ROWSTRIDE;
+			pvFStore2 += ROWSTRIDE;
+			pvFStore3 += ROWSTRIDE;
+			pvFStore4 += ROWSTRIDE;
 			
 			// Factor in query profile (matches and mismatches)
-			vh = _mm_subs_epu8(vh, pvScore[0]);
+			vh1 = _mm_subs_epu8(vh1, pvScore1[0]);
+			vh2 = _mm_subs_epu8(vh2, pvScore2[0]);
+			vh3 = _mm_subs_epu8(vh3, pvScore3[0]);
+			vh4 = _mm_subs_epu8(vh4, pvScore4[0]);
 			
 			// Update H, factoring in E and F
-			vh = _mm_max_epu8(vh, ve);
-			vh = _mm_max_epu8(vh, vf);
+			vh1 = _mm_max_epu8(vh1, ve1);
+			vh2 = _mm_max_epu8(vh2, ve2);
+			vh3 = _mm_max_epu8(vh3, ve3);
+			vh4 = _mm_max_epu8(vh4, ve4);
+			
+			vh1 = _mm_max_epu8(vh1, vf1);
+			vh2 = _mm_max_epu8(vh2, vf2);
+			vh3 = _mm_max_epu8(vh3, vf3);
+			vh4 = _mm_max_epu8(vh4, vf4);
 			
 			// Save the new vH values
-			_mm_store_si128(pvHStore, vh);
-			pvHStore += ROWSTRIDE;
+			_mm_store_si128(pvHStore1, vh1);
+			_mm_store_si128(pvHStore2, vh2);
+			_mm_store_si128(pvHStore3, vh3);
+			_mm_store_si128(pvHStore4, vh4);
+
+			pvHStore1 += ROWSTRIDE;
+			pvHStore2 += ROWSTRIDE;
+			pvHStore3 += ROWSTRIDE;
+			pvHStore4 += ROWSTRIDE;
 			
 			// Update vE value
 			vtmp = vh;
@@ -567,13 +620,16 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag) {
 		// These elements have to satisfy two criteria: (a) must be
 		// exhaustively scored and (b) must not have en_ set.
 		if(fromend < solwidth_) {
-			if(en_ == NULL || (*en_)[solwidth_ - fromend - 1]) {
-				__m128i *vtmp = d.mat_.hvec(d.lastIter_, i-rfi_);
-				// Note: we may not want to extract from the final row
-				TCScore lr = ((TCScore*)(vtmp))[d.lastWord_];
-				found = true;
-				if(lr > lrmax) {
-					lrmax = lr;
+			for(size_t i = 0; i < 4; i++) {
+				fromend = rff_ - i - 1;
+				if(en_ == NULL || (*en_)[solwidth_ - fromend - 1]) {
+					__m128i *vtmp = d.mat_.hvec(d.lastIter_, i-rfi_);
+					// Note: we may not want to extract from the final row
+					TCScore lr = ((TCScore*)(vtmp))[d.lastWord_];
+					found = true;
+					if(lr > lrmax) {
+						lrmax = lr;
+					}
 				}
 			}
 		}

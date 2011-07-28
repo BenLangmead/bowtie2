@@ -921,13 +921,13 @@ void AlnRes::printMD(
 					rdgap_last = false;
 				} else if(op[i] == 'X') {
 					if(o != NULL) {
-						if(rdgap_last || first_print) {
+						if(rdgap_last || mm_last || first_print) {
 							o->write('0');
 						}
 						o->write(ch[i]);
 					}
 					if(oc != NULL) {
-						if(rdgap_last || first_print) {
+						if(rdgap_last || mm_last || first_print) {
 							*occ = '0';
 							occ++;
 						}
