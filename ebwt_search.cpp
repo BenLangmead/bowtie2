@@ -1194,9 +1194,7 @@ static void parseOptions(int argc, const char **argv) {
 			case ARG_MULTISEED_IVAL_LINEAR:
 			case ARG_MULTISEED_IVAL_SQRT:
 			case ARG_MULTISEED_IVAL_LOG: {
-				if(!polstr.empty()) {
-					polstr += ";";
-				}
+				if(!polstr.empty()) { polstr += ";"; }
 				const char *type =
 					(ARG_MULTISEED_IVAL_CONST  ? "C" :
 					(ARG_MULTISEED_IVAL_LINEAR ? "L" :
@@ -1206,28 +1204,37 @@ static void parseOptions(int argc, const char **argv) {
 				// Split argument by comma
 				EList<string> args;
 				tokenize(optarg, ",", args);
-				if(args.size() != 7) {
-					cerr << "Error: expected 7 comma-separated arguments "
-					     << "to --multiseed-* option, got " << args.size()
-						 << endl;
+				if(args.size() > 7 || args.size() == 0) {
+					cerr << "Error: expected 7 or fewer comma-separated "
+					     << "arguments to --multiseed-* option, got "
+						 << args.size() << endl;
 					throw 1;
 				}
 				// Seed mm and length arguments
 				polstr += "SEED=";
-				polstr += (args[0] + ",");
-				polstr += (args[1] + ";");
+				polstr += (args[0]);
+				if(args.size() > 1) {
+					polstr += ("," + args[1]);
+				}
 				// Interval-settings arguments
-				polstr += "IVAL=";
-				polstr += type;
-				polstr += ",";
-				polstr += (args[2] + ",");
-				polstr += (args[3] + ";");
+				if(args.size() > 2) {
+					polstr += ";IVAL=";
+					polstr += type;
+					polstr += ("," + args[2]);
+				}
+				if(args.size() > 3) {
+					polstr += ("," + args[3]);
+				}
 				// Arguments for # seeds to examine
-				polstr += "POSF=";
-				polstr += (args[4] + ",");
-				polstr += (args[5] + ";");
-				polstr += "ROWM=";
-				polstr += (args[6]);
+				if(args.size() > 4) {
+					polstr += (";POSF=" + args[4]);
+				}
+				if(args.size() > 5) {
+					polstr += ("," + args[5]);
+				}
+				if(args.size() > 6) {
+					polstr += (";ROWM=" + args[6]);
+				}
 				break;
 			}
 			case ARG_N_CEIL: {
@@ -1237,15 +1244,16 @@ static void parseOptions(int argc, const char **argv) {
 				// Split argument by comma
 				EList<string> args;
 				tokenize(optarg, ",", args);
-				if(args.size() != 2) {
-					cerr << "Error: expected 2 comma-separated arguments "
-					     << "to --n-ceil option, got " << args.size()
-						 << endl;
+				if(args.size() > 2 || args.size() == 0) {
+					cerr << "Error: expected 2 or fewer comma-separated "
+					     << "arguments to --n-ceil option, got "
+						 << args.size() << endl;
 					throw 1;
 				}
-				polstr += "NCEIL=";
-				polstr += (args[0] + ",");
-				polstr += (args[1]);
+				polstr += ("NCEIL=" + args[0]);
+				if(args.size() > 1) {
+					polstr += ("," + (args[1]));
+				}
 				break;
 			}
 			case ARG_SCORES: {
@@ -1260,24 +1268,31 @@ static void parseOptions(int argc, const char **argv) {
 				// Split argument by comma
 				EList<string> args;
 				tokenize(optarg, ",", args);
-				if(args.size() != 7) {
-					cerr << "Error: expected 7 comma-separated arguments "
-					     << "to --scores option, got " << args.size()
-						 << endl;
+				if(args.size() > 7 || args.size() == 0) {
+					cerr << "Error: expected 7 or fewer comma-separated "
+					     << "arguments to --scores option, got "
+						 << args.size() << endl;
 					throw 1;
 				}
-				polstr += "MA=";
-				polstr += (args[0] + ";");
-				polstr += "MMP=";
-				polstr += (args[1] + ";");
-				polstr += "NP=";
-				polstr += (args[2] + ";");
-				polstr += "RDG=";
-				polstr += (args[3] + ",");
-				polstr += (args[4] + ";");
-				polstr += "RFG=";
-				polstr += (args[5] + ",");
-				polstr += (args[6]);
+				polstr += ("MA=" + args[0]);
+				if(args.size() > 1) {
+					polstr += (";MMP=" + args[1]);
+				}
+				if(args.size() > 2) {
+					polstr += (";NP=" + args[2]);
+				}
+				if(args.size() > 3) {
+					polstr += (";RDG=" + args[3]);
+				}
+				if(args.size() > 4) {
+					polstr += ("," + args[4]);
+				}
+				if(args.size() > 5) {
+					polstr += (";RFG=" + args[5]);
+				}
+				if(args.size() > 6) {
+					polstr += ("," + args[6]);
+				}
 				break;
 			}
 			case ARG_SCORE_MIN_CONST:
@@ -1289,15 +1304,16 @@ static void parseOptions(int argc, const char **argv) {
 				}
 				EList<string> args;
 				tokenize(optarg, ",", args);
-				if(args.size() != 2) {
-					cerr << "Error: expected 2 comma-separated arguments "
-					     << "to --score-min option, got " << args.size()
-						 << endl;
+				if(args.size() > 2 && args.size() == 0) {
+					cerr << "Error: expected 2 or fewer comma-separated "
+					     << "arguments to --n-ceil option, got "
+						 << args.size() << endl;
 					throw 1;
 				}
-				polstr += "MIN=";
-				polstr += (args[0] + ",");
-				polstr += (args[1]);
+				polstr += ("MIN=" + args[0]);
+				if(args.size() > 1) {
+					polstr += ("," + args[1]);
+				}
 			}
 			case -1: break; /* Done with options. */
 			case 0:
