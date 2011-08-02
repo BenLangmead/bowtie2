@@ -2272,7 +2272,6 @@ static float multiseedIvalA;
 static float multiseedIvalB;
 static float posmin;
 static float posfrac;
-static float rowmin;
 static float rowmult;
 
 enum {
@@ -4768,7 +4767,6 @@ int main(int argc, char **argv) {
 	multiseedIvalB    = DEFAULT_IVAL_B;
 	posmin          = DEFAULT_POSMIN;
 	posfrac         = DEFAULT_POSFRAC;
-	rowmin          = DEFAULT_ROWMIN;
 	rowmult         = DEFAULT_ROWMULT;
 	do {
 		next_option = getopt_long(argc, argv, short_opts, long_opts, &option_index);
@@ -4816,7 +4814,6 @@ int main(int argc, char **argv) {
 					multiseedIvalB,
 					posmin,
 					posfrac,
-					rowmin,
 					rowmult);
 				break;
 			}

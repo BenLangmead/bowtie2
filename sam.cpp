@@ -236,6 +236,10 @@ void SamConfig::printAlignedOptFlags(
 		// YM:i: Read was repetitive when aligned unpaired?
 		first = flags.printYF(o, first) && first;
 	}
+	if(!rgs_.empty()) {
+		WRITE_SEP();
+		o.writeString(rgs_);
+	}
 }
 
 /**
@@ -266,5 +270,9 @@ void SamConfig::printEmptyOptFlags(
 	if(print_yf_ && flags.filtered()) {
 		// YM:i: Read was repetitive when aligned unpaired?
 		first = flags.printYF(o, first) && first;
+	}
+	if(!rgs_.empty()) {
+		WRITE_SEP();
+		o.writeString(rgs_);
 	}
 }

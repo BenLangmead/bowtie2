@@ -116,7 +116,6 @@ public:
 		int nceil,                   // maximum # Ns permitted in ref portion
 		float posmin,                // minimum number of positions to examine
 		float posfrac,               // max number of additional poss to examine
-		float rowmin,                // minimum number of extensions to try
 		float rowmult,               // number of extensions to try per pos
 		size_t maxhalf,              // maximum width on one side of DP table
 		bool scanNarrowed,           // true -> ref scan even for narrowed hits
@@ -191,7 +190,6 @@ public:
 		bool norc,                   // don't align revcomp read
 		float posmin,                // minimum number of positions to examine
 		float posfrac,               // max number of additional poss to examine
-		float rowmin,                // minimum number of extensions to try
 		float rowmult,               // number of extensions to try per pos
 		size_t maxhalf,              // maximum width on one side of DP table
 		bool scanNarrowed,           // true -> ref scan even for narrowed hits

@@ -41,6 +41,8 @@
 
 using namespace std;
 
+#define EBWT_EXT ".bt2"
+
 #ifndef PREFETCH_LOCALITY
 // No locality by default
 #define PREFETCH_LOCALITY 2
@@ -130,12 +132,22 @@ public:
 		_offsSz = _offsLen*4;
 		_lineSz = 1 << _lineRate;
 		_sideSz = _lineSz * 1 /* lines per side */;
+#ifdef BOWTIE2
+		_sideBwtSz = _sideSz - 16;
+#else
 		_sideBwtSz = _sideSz - 8;
+#endif
 		_sideBwtLen = _sideBwtSz*4;
+#ifdef BOWTIE2
+		_numSides = (_bwtSz+(_sideBwtSz)-1)/(_sideBwtSz);
+		_numLines = _numSides * 1 /* lines per side */;
+		_ebwtTotLen = _numSides * _sideSz;
+#else
 		_numSidePairs = (_bwtSz+(2*_sideBwtSz)-1)/(2*_sideBwtSz);
 		_numSides = _numSidePairs*2;
 		_numLines = _numSides * 1 /* lines per side */;
 		_ebwtTotLen = _numSidePairs * (2*_sideSz);
+#endif
 		_ebwtTotSz = _ebwtTotLen;
 		assert(repOk());
 	}
@@ -160,7 +172,9 @@ public:
 	uint32_t sideSz() const        { return _sideSz; }
 	uint32_t sideBwtSz() const     { return _sideBwtSz; }
 	uint32_t sideBwtLen() const    { return _sideBwtLen; }
+#ifndef BOWTIE2
 	uint32_t numSidePairs() const  { return _numSidePairs; }
+#endif
 	uint32_t numSides() const      { return _numSides; }
 	uint32_t numLines() const      { return _numLines; }
 	uint32_t ebwtTotLen() const    { return _ebwtTotLen; }
@@ -191,7 +205,11 @@ public:
 		assert_eq(6, _lineRate);
 		//assert_lt(_lineRate, 32);
 		assert_lt(_ftabChars, 32);
+#ifdef BOWTIE2
+		assert_eq(0, _ebwtTotSz % _lineSz);
+#else
 		assert_eq(0, _ebwtTotSz % (2*_lineSz));
+#endif
 		return true;
 	}
 
@@ -218,7 +236,9 @@ public:
 		    << "    sideSz: "       << _sideSz << endl
 		    << "    sideBwtSz: "    << _sideBwtSz << endl
 		    << "    sideBwtLen: "   << _sideBwtLen << endl
+#ifndef BOWTIE2
 		    << "    numSidePairs: " << _numSidePairs << endl
+#endif
 		    << "    numSides: "     << _numSides << endl
 		    << "    numLines: "     << _numLines << endl
 		    << "    ebwtTotLen: "   << _ebwtTotLen << endl
@@ -246,7 +266,9 @@ public:
 	uint32_t _sideSz;
 	uint32_t _sideBwtSz;
 	uint32_t _sideBwtLen;
+#ifndef BOWTIE2
 	uint32_t _numSidePairs;
+#endif
 	uint32_t _numSides;
 	uint32_t _numLines;
 	uint32_t _ebwtTotLen;
@@ -359,8 +381,8 @@ public:
 		rmap_ = rmap;
 		_useMm = useMm;
 		useShmem_ = useShmem;
-		_in1Str = in + ".1.ebwt";
-		_in2Str = in + ".2.ebwt";
+		_in1Str = in + ".1.bt2";
+		_in2Str = in + ".2.bt2";
 		readIntoMemory(
 			color,       // expect index to be colorspace?
 			fw ? -1 : needEntireReverse, // need REF_READ_REVERSE
@@ -423,8 +445,8 @@ public:
 			color,
 			refparams.reverse == REF_READ_REVERSE)
 	{
-		_in1Str = file + ".1.ebwt";
-		_in2Str = file + ".2.ebwt";
+		_in1Str = file + ".1.bt2";
+		_in2Str = file + ".2.bt2";
 		packed_ = packed;
 		// Open output files
 		ofstream fout1(_in1Str.c_str(), ios::binary);
@@ -483,7 +505,7 @@ public:
 		// Reopen as input streams
 		VMSG_NL("Re-opening _in1 and _in2 as input streams");
 		if(_sanity) {
-			VMSG_NL("Sanity-checking Ebwt");
+			VMSG_NL("Sanity-checking Bt2");
 			assert(!isInMemory());
 			readIntoMemory(
 				color,                       // colorspace?
@@ -1244,12 +1266,14 @@ public:
 		assert_lt(_zEbwtByteOff, eh._sideBwtSz);
 		_zEbwtBpOff = sideCharOff & 3;
 		assert_lt(_zEbwtBpOff, 4);
+#ifndef BOWTIE2
 		if((sideNum & 1) == 0) {
 			// This is an even (backward) side
 			_zEbwtByteOff = eh._sideBwtSz - _zEbwtByteOff - 1;
 			_zEbwtBpOff = 3 - _zEbwtBpOff;
 			assert_lt(_zEbwtBpOff, 4);
 		}
+#endif
 		_zEbwtByteOff += sideByteOff;
 		assert(repOk(eh)); // Ebwt should be fully initialized now
 	}
@@ -1344,6 +1368,12 @@ public:
 	int rowL(uint32_t row) const;
 	inline uint32_t countUpTo(const SideLocus& l, int c) const;
 	inline void     countUpToEx(const SideLocus& l, uint32_t* pairs) const;
+#ifdef BOWTIE2
+	inline uint32_t countBt2Side(const SideLocus& l, int c) const;
+	inline void     countBt2SideEx(const SideLocus& l, uint32_t *pairs) const;
+	inline uint32_t countBt2SideRange2(const SideLocus& l, bool startAtLocus, uint32_t num, uint32_t* arrs, EList<bool> *masks, uint32_t maskOff) const;
+	inline void     countBt2SideRange(SideLocus& l, uint32_t num, uint32_t* cntsUpto, uint32_t* cntsIn, EList<bool> *masks) const;
+#else
 	inline uint32_t countFwSide(const SideLocus& l, int c) const;
 	inline void     countFwSideEx(const SideLocus& l, uint32_t *pairs) const;
 	inline uint32_t countBwSide(const SideLocus& l, int c) const;
@@ -1352,6 +1382,7 @@ public:
 	inline uint32_t countBwSideRange2(const SideLocus& l, bool startAtLocus, uint32_t num, uint32_t* arrs, EList<bool> *masks, uint32_t maskOff) const;
 	inline void     countFwSideRange(SideLocus& l, uint32_t num, uint32_t* cntsUpto, uint32_t* cntsIn, EList<bool> *masks) const;
 	inline void     countBwSideRange(SideLocus& l, uint32_t num, uint32_t* cntsUpto, uint32_t* cntsIn, EList<bool> *masks) const;
+#endif
 
 	uint32_t mapLF(const SideLocus& l ASSERT_ONLY(, bool overrideSanity = false)) const;
 	void mapBiLFEx(const SideLocus& ltop, const SideLocus& lbot, uint32_t *tops, uint32_t *bots, uint32_t *topsP, uint32_t *botsP ASSERT_ONLY(, bool overrideSanity = false) ) const;
@@ -1492,45 +1523,46 @@ public:
 	/**
 	 * Report a pair of hits.
 	 */
-	bool reportHitPair(const BTDnaString& seqL,
-					   BTString* qualsL,
-					   BTString* nameL,
-					   bool fwL,
-					   bool ebwtFwL,
-					   const EList<Edit>& editsL,
-					   U32Pair hL,
-					   U32Pair aL,
-					   uint32_t tlenL,
-					   uint32_t qlenL,
-					   int stratumL,
-					   uint16_t costL,
-					   uint32_t omsL,
-					   TReadId patidL,
-					   uint32_t seedL,
-					   uint8_t mateL,
-					   const BTDnaString& seqR,
-					   BTString* qualsR,
-					   BTString* nameR,
-					   bool fwR,
-					   bool ebwtFwR,
-					   const EList<Edit>& editsR,
-					   U32Pair hR,
-					   U32Pair aR,
-					   uint32_t tlenR,
-					   uint32_t qlenR,
-					   int stratumR,
-					   uint16_t costR,
-					   uint32_t omsR,
-					   TReadId patidR,
-					   uint32_t seedR,
-					   uint8_t mateR,
-					   const BitPairReference* ref,
-					   const ReferenceMap* rmap,
-					   ColorspaceDecoder * dec,
-					   RandomSource& rand,
-					   Hit& hitL,
-					   Hit& hitR
-					   ASSERT_ONLY(, SStringExpandable<uint32_t>& destU32))
+	bool reportHitPair(
+		const BTDnaString& seqL,
+		BTString* qualsL,
+		BTString* nameL,
+		bool fwL,
+		bool ebwtFwL,
+		const EList<Edit>& editsL,
+		U32Pair hL,
+		U32Pair aL,
+		uint32_t tlenL,
+		uint32_t qlenL,
+		int stratumL,
+		uint16_t costL,
+		uint32_t omsL,
+		TReadId patidL,
+		uint32_t seedL,
+		uint8_t mateL,
+		const BTDnaString& seqR,
+		BTString* qualsR,
+		BTString* nameR,
+		bool fwR,
+		bool ebwtFwR,
+		const EList<Edit>& editsR,
+		U32Pair hR,
+		U32Pair aR,
+		uint32_t tlenR,
+		uint32_t qlenR,
+		int stratumR,
+		uint16_t costR,
+		uint32_t omsR,
+		TReadId patidR,
+		uint32_t seedR,
+		uint8_t mateR,
+		const BitPairReference* ref,
+		const ReferenceMap* rmap,
+		ColorspaceDecoder * dec,
+		RandomSource& rand,
+		Hit& hitL,
+		Hit& hitR
+		ASSERT_ONLY(, SStringExpandable<uint32_t>& destU32))
 	{
 		reportHitImpl(
 			seqL,
@@ -1588,28 +1620,29 @@ public:
 	/**
 	 * Report a hit.  Returns true iff caller can call off the search.
 	 */
-	bool reportHit(const BTDnaString& seq, // read sequence
-	               BTString* quals, // read quality values
-	               BTString* name,  // read name
-	               const BitPairReference* ref, // reference (= NULL if not necessary)
-	               const ReferenceMap* rmap, // map to another reference coordinate system
-	               ColorspaceDecoder * dec, // colorspace decoder
-	               RandomSource& rand,
-				   bool fw,
-	               bool ebwtFw,         // whether index is forward (true) or mirror (false)
-	               const EList<Edit>& edits, // edits
-	               U32Pair h,          // ref coords
-	               U32Pair a,          // arrow pair
-	               uint32_t tlen,      // length of text
-	               uint32_t qlen,      // length of query
-	               int stratum,        // alignment stratum
-	               uint16_t cost,      // cost of alignment
-	               uint32_t oms,       // approx. # other valid alignments
-	               TReadId patid,
-	               uint32_t seed,
-	               uint8_t mate,
-				   Hit& hit
-				   ASSERT_ONLY(, SStringExpandable<uint32_t>& destU32))
+	bool reportHit(
+		const BTDnaString& seq, // read sequence
+		BTString* quals, // read quality values
+		BTString* name,  // read name
+		const BitPairReference* ref, // reference (= NULL if not necessary)
+		const ReferenceMap* rmap, // map to another reference coordinate system
+		ColorspaceDecoder * dec, // colorspace decoder
+		RandomSource& rand,
+		bool fw,
+		bool ebwtFw,         // whether index is forward (true) or mirror (false)
+		const EList<Edit>& edits, // edits
+		U32Pair h,          // ref coords
+		U32Pair a,          // arrow pair
+		uint32_t tlen,      // length of text
+		uint32_t qlen,      // length of query
+		int stratum,        // alignment stratum
+		uint16_t cost,      // cost of alignment
+		uint32_t oms,       // approx. # other valid alignments
+		TReadId patid,
+		uint32_t seed,
+		uint8_t mate,
+		Hit& hit
+		ASSERT_ONLY(, SStringExpandable<uint32_t>& destU32))
 	{
 		reportHitImpl(seq, quals, name, ref, rmap, dec, rand, fw,
 		              ebwtFw, edits, h, a, tlen, qlen, stratum, cost,
@@ -1662,7 +1695,9 @@ struct SideLocus {
 	_sideByteOff(0),
 	_sideNum(0),
 	_charOff(0),
+#ifndef BOWTIE2
 	fw_(true),
+#endif
 	_by(-1),
 	_bp(-1) { }
 
@@ -1677,15 +1712,15 @@ struct SideLocus {
 	 * Init two SideLocus objects from a top/bot pair, using the result
 	 * from one call to initFromRow to possibly avoid a second call.
 	 */
-	static void initFromTopBot(uint32_t top,
-	                           uint32_t bot,
-	                           const EbwtParams& ep,
-	                           const uint8_t* ebwt,
-	                           SideLocus& ltop,
-	                           SideLocus& lbot)
+	static void initFromTopBot(
+		uint32_t top,
+		uint32_t bot,
+		const EbwtParams& ep,
+		const uint8_t* ebwt,
+		SideLocus& ltop,
+		SideLocus& lbot)
 	{
 		const uint32_t sideBwtLen = ep._sideBwtLen;
-		const uint32_t sideBwtSz  = ep._sideBwtSz;
 		assert_gt(bot, top);
 		ltop.initFromRow(top, ep, ebwt);
 		uint32_t spread = bot - top;
@@ -1694,12 +1729,16 @@ struct SideLocus {
 			lbot._charOff = ltop._charOff + spread;
 			lbot._sideNum = ltop._sideNum;
 			lbot._sideByteOff = ltop._sideByteOff;
-			lbot.fw_ = ltop.fw_;
 			lbot._by = lbot._charOff >> 2;
-			assert_lt(lbot._by, (int)sideBwtSz);
-			if(!lbot.fw_) lbot._by = sideBwtSz - lbot._by - 1;
+			assert_lt(lbot._by, (int)ep._sideBwtSz);
 			lbot._bp = lbot._charOff & 3;
-			if(!lbot.fw_) lbot._bp ^= 3;
+#ifndef BOWTIE2
+			lbot.fw_ = ltop.fw_;
+			if(!lbot.fw_) {
+				lbot._by = ep._sideBwtSz - lbot._by - 1;
+				lbot._bp ^= 3;
+			}
+#endif
 		} else {
 			lbot.initFromRow(bot, ep, ebwt);
 		}
@@ -1713,9 +1752,15 @@ struct SideLocus {
 		const uint32_t sideSz     = ep._sideSz;
 		// Side length is hard-coded for now; this allows the compiler
 		// to do clever things to accelerate / and %.
+#ifdef BOWTIE2
+		_sideNum                  = row / 192;
+		assert_lt(_sideNum, ep._numSides);
+		_charOff                  = row % 192;
+#else
 		_sideNum                  = row / 224;
 		assert_lt(_sideNum, ep._numSides);
 		_charOff                  = row % 224;
+#endif
 		_sideByteOff              = _sideNum * sideSz;
 		assert_leq(row, ep._len);
 		assert_leq(_sideByteOff + sideSz, ep._ebwtTotSz);
@@ -1727,14 +1772,18 @@ struct SideLocus {
 #endif
 #endif
 		// Tons of cache misses on the next line
+#ifndef BOWTIE2
 		fw_ = (_sideNum & 1) != 0; // odd-numbered sides are forward
+#endif
 		_by = _charOff >> 2; // byte within side
 		assert_lt(_by, (int)ep._sideBwtSz);
 		_bp = _charOff & 3;  // bit-pair within byte
+#ifndef BOWTIE2
 		if(!fw_) {
 			_by = ep._sideBwtSz - _by - 1;
 			_bp ^= 3;
 		}
+#endif
 	}
 	
 	/**
@@ -1747,11 +1796,13 @@ struct SideLocus {
 		_sideByteOff += ep.sideSz();
 		_sideNum++;
 		_by = _bp = _charOff = 0;
+#ifndef BOWTIE2
 		fw_ = !fw_;
 		if(!fw_) {
 			_by = ep._sideBwtSz - _by - 1;
 			_bp ^= 3;
 		}
+#endif
 		assert(valid());
 	}
 
@@ -1769,7 +1820,11 @@ struct SideLocus {
 	 * Convert locus to BW row it corresponds to.
 	 */
 	uint32_t toBWRow() const {
+#ifdef BOWTIE2
+		return _sideNum * 192 + _charOff;
+#else
 		return _sideNum * 224 + _charOff;
+#endif
 	}
 	
 	/**
@@ -1777,7 +1832,11 @@ struct SideLocus {
 	 * with the (provided) EbwtParams.
 	 */
 	bool repOk(const EbwtParams& ep) const {
+#ifdef BOWTIE2
+		ASSERT_ONLY(uint32_t row = _sideNum * 192 + _charOff);
+#else
 		ASSERT_ONLY(uint32_t row = _sideNum * 224 + _charOff);
+#endif
 		assert_leq(row, ep._len);
 		assert_range(-1, 3, _bp);
 		assert_range(0, (int)ep._sideBwtSz, _by);
@@ -1808,14 +1867,18 @@ struct SideLocus {
 	 * Return a read-only pointer to the beginning of the side opposite
 	 * the top side.
 	 */
+#ifndef BOWTIE2
 	const uint8_t *oside(const uint8_t* ebwt) const {
 		return ebwt + _sideByteOff + (fw_? (-128) : (128));
 	}
+#endif
 
 	uint32_t _sideByteOff; // offset of top side within ebwt[]
 	uint32_t _sideNum;     // index of side
 	uint32_t _charOff;     // character offset within side
+#ifndef BOWTIE2
 	bool fw_;              // side is forward or backward?
+#endif
 	int32_t _by;           // byte within side (not adjusted for bw sides)
 	int32_t _bp;            // bitpair within byte (not adjusted for bw sides)
 };
@@ -2101,8 +2164,12 @@ void Ebwt::buildToDisk(
 
 	// Save # of occurrences of each character as we walk along the bwt
 	uint32_t occ[4] = {0, 0, 0, 0};
+#ifdef BOWTIE2
+	uint32_t occSave[4] = {0, 0, 0, 0};
+#else
 	// Save 'G' and 'T' occurrences between backward and forward buckets
 	uint32_t occSave[2] = {0, 0};
+#endif
 
 	// Record rows that should "absorb" adjacent rows in the ftab.
 	// The absorbed rows represent suffixes shorter than the ftabChars
@@ -2145,6 +2212,13 @@ void Ebwt::buildToDisk(
 	// Points to the base offset within ebwt for the side currently
 	// being written
 	uint32_t side = 0;
+
+	// Whether we're assembling a forward or a reverse bucket
+	bool fw;
+#ifdef BOWTIE2
+	int sideCur = 0;
+	fw = true;
+#else
 	// Points to a byte offset from 'side' within ebwt[] where next
 	// char should be written
 #ifdef SIXTY4_FORMAT
@@ -2152,13 +2226,11 @@ void Ebwt::buildToDisk(
 #else
 	int sideCur = eh._sideBwtSz - 1;
 #endif
-
-	// Whether we're assembling a forward or a reverse bucket
-	bool fw = false;
-
+	fw = false;
 	// Did we just finish writing a forward bucket?  (Must be true when
 	// we exit the loop.)
 	bool wroteFwBucket = false;
+#endif
 
 	// Have we skipped the '$' in the last column yet?
 	ASSERT_ONLY(bool dollarSkipped = false);
@@ -2172,7 +2244,9 @@ void Ebwt::buildToDisk(
 	VMSG_NL("Entering Ebwt loop");
 	ASSERT_ONLY(uint32_t beforeEbwtOff = (uint32_t)out1.tellp());
 	while(side < ebwtTotSz) {
+#ifndef BOWTIE2
 		wroteFwBucket = false;
+#endif
 		// Sanity-check our cursor into the side buffer
 		assert_geq(sideCur, 0);
 		assert_lt(sideCur, (int)eh._sideBwtSz);
@@ -2293,6 +2367,28 @@ void Ebwt::buildToDisk(
 #else
 		assert_eq(0, si & 3);
 #endif
+
+#ifdef BOWTIE2
+		sideCur++;
+		if(sideCur == (int)eh._sideBwtSz) {
+			sideCur = 0;
+			uint32_t *u32side = reinterpret_cast<uint32_t*>(ebwtSide.ptr());
+			// Write 'A', 'C', 'G' and 'T' tallies
+			side += sideSz;
+			assert_leq(side, eh._ebwtTotSz);
+			u32side[(sideSz >> 2)-4] = endianizeU32(occSave[0], this->toBe());
+			u32side[(sideSz >> 2)-3] = endianizeU32(occSave[1], this->toBe());
+			u32side[(sideSz >> 2)-2] = endianizeU32(occSave[2], this->toBe());
+			u32side[(sideSz >> 2)-1] = endianizeU32(occSave[3], this->toBe());
+			occSave[0] = occ[0];
+			occSave[1] = occ[1];
+			occSave[2] = occ[2];
+			occSave[3] = occ[3];
+			// Write backward side to primary file
+			out1.write((const char *)ebwtSide.ptr(), sideSz);
+		}
+#else
+
 		if(fw) sideCur++;
 		else   sideCur--;
 #ifdef SIXTY4_FORMAT
@@ -2308,7 +2404,9 @@ void Ebwt::buildToDisk(
 #else
 			sideCur = eh._sideBwtSz - 1;
 #endif
-			assert(fw); fw = false; wroteFwBucket = true;
+			assert(fw);
+			fw = false;
+			wroteFwBucket = true;
 			// Write 'G' and 'T'
 			assert_leq(occSave[0], occ[2]);
 			assert_leq(occSave[1], occ[3]);
@@ -2335,6 +2433,7 @@ void Ebwt::buildToDisk(
 			// Write backward side to primary file
 			out1.write((const char *)ebwtSide.ptr(), sideSz);
 		}
+#endif /*BOWTIE2*/
 	}
 	VMSG_NL("Exited Ebwt loop");
 	assert_neq(zOff, 0xffffffff);
@@ -2348,7 +2447,9 @@ void Ebwt::buildToDisk(
 	// Assert that we wrote the expected amount to out1
 	assert_eq(((uint32_t)out1.tellp() - beforeEbwtOff), eh._ebwtTotSz);
 	// assert that the last thing we did was write a forward bucket
+#ifndef BOWTIE2
 	assert(wroteFwBucket);
+#endif
 
 	//
 	// Write zOff to primary stream

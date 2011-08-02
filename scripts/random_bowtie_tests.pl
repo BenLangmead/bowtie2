@@ -440,9 +440,9 @@ sub build {
 		print "$cmd\n";
 		$out = trim(runBacktick("$cmd 2>&1"));
 		if($out eq "") {
-			if(run("diff .tmp$seed.1.ebwt .tmp$seed.packed.1.ebwt") != 0) {
+			if(run("diff .tmp$seed.1.ebwt .tmp$seed.packed.1.bt2") != 0) {
 				die if $exitOnFail;
-			} elsif(run("diff .tmp$seed.2.ebwt .tmp$seed.packed.2.ebwt") != 0) {
+			} elsif(run("diff .tmp$seed.2.ebwt .tmp$seed.packed.2.bt2") != 0) {
 				die if $exitOnFail;
 			} else {
 				$ret++;

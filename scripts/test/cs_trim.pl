@@ -28,7 +28,7 @@ if(system("$bowtie_d --version") != 0) {
 	}
 }
 
-if(! -f "e_coli_c.1.ebwt") {
+if(! -f "e_coli_c.1.bt2") {
 	print STDERR "Making colorspace e_coli index\n";
 	system("make bowtie-build") && die;
 	system("bowtie-build -C genomes/NC_008253.fna e_coli_c") && die;

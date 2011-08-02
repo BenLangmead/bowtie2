@@ -50,7 +50,7 @@ using namespace std;
 static EList<string> mates1;  // mated reads (first mate)
 static EList<string> mates2;  // mated reads (second mate)
 static EList<string> mates12; // mated reads (1st/2nd interleaved in 1 file)
-static string adjustedEbwtFileBase;
+static string adjIdxBase;
 int gVerbose;      // be talkative
 static bool startVerbose; // be talkative at startup
 int gQuiet;        // print nothing but the alignments
@@ -168,6 +168,7 @@ bool gColor;     // true -> inputs are colorspace
 bool gColorExEnds; // true -> nucleotides on either end of decoded cspace alignment should be excluded
 bool gReportOverhangs; // false -> filter out alignments that fall off the end of a reference sequence
 static string rgs; // SAM outputs for @RG header line
+static string rgs_optflag; // SAM optional flag to add corresponding to @RG ID
 int gSnpPhred; // probability of SNP, for scoring colorspace alignments
 static EList<bool> suppressOuts; // output fields to suppress
 static bool sampleMax; // whether to report a random alignment when maxed-out via -m/-M
@@ -194,7 +195,7 @@ static EList<string> qualities1;
 static EList<string> qualities2;
 static bool doMultiseed; // true -> use multiseed aligner
 
-static string seedAlignmentPolicyString; // temporary holder for policy string
+static string polstr; // temporary holder for policy string
 static bool  msNoCache;      // true -> disable local cache
 static int   bonusMatchType; // how to reward matches
 static int   bonusMatch;     // constant reward if bonusMatchType=constant
@@ -229,7 +230,6 @@ static uint32_t seedCacheLocalMB;   // # MB to use for non-shared seed alignment
 static uint32_t seedCacheCurrentMB; // # MB to use for current-read seed hit cacheing
 static float posmin;         // minimum number of seed poss to try
 static float posfrac;        // fraction of additional seed poss to try
-static float rowmin;         // minimum seed extension attempts
 static float rowmult;        // seed extension attempts per pos
 static size_t maxhalf;       // max width on one side of DP table
 static bool seedSummaryOnly; // print summary information about seed hits, not alignments
@@ -240,7 +240,7 @@ static void resetOptions() {
 	mates1.clear();
 	mates2.clear();
 	mates12.clear();
-	adjustedEbwtFileBase	= "";
+	adjIdxBase	            = "";
 	gVerbose                = 0;
 	startVerbose			= 0;
 	gQuiet					= false;
@@ -350,14 +350,15 @@ static void resetOptions() {
 	sam_print_yp            = true;
 	sam_print_yt            = true;
 	sam_print_ys            = true;
-	bwaSwLike                 = false;
-	bwaSwLikeC                = 5.5f;
-	bwaSwLikeT                = 20.0f;
+	bwaSwLike               = false;
+	bwaSwLikeC              = 5.5f;
+	bwaSwLikeT              = 20.0f;
 	qcFilter                = false; // don't believe upstream qc by default
 	gColor					= false; // don't align in colorspace by default
 	gColorExEnds			= true;  // true -> nucleotides on either end of decoded cspace alignment should be excluded
 	gReportOverhangs        = false; // false -> filter out alignments that fall off the end of a reference sequence
 	rgs						= "";    // SAM outputs for @RG header line
+	rgs_optflag				= "";    // SAM optional flag to add corresponding to @RG ID
 	gSnpPhred				= 30;    // probability of SNP, for scoring colorspace alignments
 	suppressOuts.clear();            // output fields to suppress
 	suppressOuts.resize(64);
@@ -389,7 +390,7 @@ static void resetOptions() {
 #else
 	doMultiseed     = false; // false -> use normal bowtie1 aligner
 #endif
-	seedAlignmentPolicyString.clear();
+	polstr.clear();
 	msNoCache       = true; // true -> disable local cache
 	bonusMatchType  = DEFAULT_MATCH_BONUS_TYPE;
 	bonusMatch      = DEFAULT_MATCH_BONUS;
@@ -421,7 +422,6 @@ static void resetOptions() {
 	multiseedIvalB  = DEFAULT_IVAL_B; // constant coefficient in formula
 	posmin          = DEFAULT_POSMIN;  // minimum # seed poss to try
 	posfrac         = DEFAULT_POSFRAC; // fraction of seed poss to try
-	rowmin          = DEFAULT_ROWMIN;  // minimum seed extension attempts
 	rowmult         = DEFAULT_ROWMULT; // seed extension attempts per pos
 	saCountersFn.clear();    // filename to dump per-read SeedAligner counters to
 	saActionsFn.clear();     // filename to dump all alignment actions to
@@ -531,9 +531,19 @@ enum {
 	ARG_OFFRATE_ADD,
 	ARG_SCAN_NARROWED,
 	ARG_NO_SSE,
-	ARG_QC_FILTER,
-	ARG_BWA_SW_LIKE,
-	ARG_OLDM
+	ARG_QC_FILTER,              //
+	ARG_BWA_SW_LIKE,            // --bwa-sw-like
+	ARG_OLDM,                   // --old-m
+	ARG_MULTISEED_IVAL_CONST,   // --multiseed
+	ARG_MULTISEED_IVAL_LINEAR,  // --multiseed-linear
+	ARG_MULTISEED_IVAL_SQRT,    // --multiseed-sqrt
+	ARG_MULTISEED_IVAL_LOG,     // --multiseed-log
+	ARG_SCORE_MIN_LINEAR,       // --score-min
+	ARG_SCORE_MIN_CONST,        // --score-min-const
+	ARG_SCORE_MIN_SQRT,         // --score-min-sqrt
+	ARG_SCORE_MIN_LOG,          // --score-min-log
+	ARG_SCORES,                 // --scoring
+	ARG_N_CEIL                  // --n-ceil
 };
 
 static struct option long_options[] = {
@@ -661,7 +671,18 @@ static struct option long_options[] = {
 	{(char*)"no-sse",       no_argument,       0,            ARG_NO_SSE},
 	{(char*)"qc-filter",    no_argument,       0,            ARG_QC_FILTER},
 	{(char*)"bwa-sw-like",  required_argument, 0,            ARG_BWA_SW_LIKE},
-	{(char*)0, 0, 0, 0} // terminator
+	{(char*)"multiseed",        required_argument, 0,        ARG_MULTISEED_IVAL_CONST},
+	{(char*)"multiseed-const",  required_argument, 0,        ARG_MULTISEED_IVAL_CONST},
+	{(char*)"multiseed-linear", required_argument, 0,        ARG_MULTISEED_IVAL_LINEAR},
+	{(char*)"multiseed-sqrt",   required_argument, 0,        ARG_MULTISEED_IVAL_SQRT},
+	{(char*)"multiseed-log",    required_argument, 0,        ARG_MULTISEED_IVAL_LOG},
+	{(char*)"scores",           required_argument, 0,        ARG_SCORES},
+	{(char*)"score-min",        required_argument, 0,        ARG_SCORE_MIN_LINEAR},
+	{(char*)"score-min-const",  required_argument, 0,        ARG_SCORE_MIN_CONST},
+	{(char*)"score-min-linear", required_argument, 0,        ARG_SCORE_MIN_LINEAR},
+	{(char*)"score-min-sqrt",   required_argument, 0,        ARG_SCORE_MIN_SQRT},
+	{(char*)"score-min-log",    required_argument, 0,        ARG_SCORE_MIN_LOG},
+	{(char*)"n-ceil",           required_argument, 0,        ARG_N_CEIL},
 };
 
 #ifdef BOWTIE2
@@ -670,7 +691,7 @@ static struct option long_options[] = {
  */
 static void printUsage(ostream& out) {
 	out << "Usage: " << endl
-	    << "  bowtie2 [options]* <ebwt> {-1 <m1> -2 <m2> | --12 <r> | <s>} [<hit>]" << endl
+	    << "  bowtie2 [options]* <bt2-index> {-1 <m1> -2 <m2> | --12 <r> | <s>} [<hit>]" << endl
 	    << endl
 	    << "  <m1>    Comma-separated list of files containing upstream mates (or the" << endl
 	    << "          sequences themselves, if -c is set) paired with mates in <m2>" << endl
@@ -702,6 +723,9 @@ static void printUsage(ostream& out) {
 	    << "  --solexa1.3-quals  input quals are from GA Pipeline ver. >= 1.3" << endl
 	    << "  --integer-quals    qualities are given as space-separated integers (not ASCII)" << endl
 	    << "Alignment:" << endl
+		<< "  --scores           " << endl
+		<< "  --score-min        " << endl
+		<< "  --multiseed        " << endl
 		<< "  --local            set alignment defaults to do BWA-SW-like local alignment" << endl
 	    << "  --nomaqround       disable Maq-like quality rounding (nearest 10 <= 30)" << endl
 	    << "  --nofw             do not align forward (original) version of read" << endl
@@ -732,107 +756,6 @@ static void printUsage(ostream& out) {
 	    << "Performance:" << endl
 	    << "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl
 		<< "  --offrate-add <int>" << endl
-#ifdef BOWTIE_PTHREADS
-	    << "  -p/--threads <int> number of alignment threads to launch (default: 1)" << endl
-#endif
-#ifdef BOWTIE_MM
-	    << "  --mm               use memory-mapped I/O for index; many 'bowtie's can share" << endl
-#endif
-#ifdef BOWTIE_SHARED_MEM
-	    << "  --shmem            use shared mem for index; many 'bowtie's can share" << endl
-#endif
-	    << "Other:" << endl
-	    << "  --seed <int>       seed for random number generator" << endl
-	    << "  --verbose          verbose output (for debugging)" << endl
-	    << "  --version          print version information and quit" << endl
-	    << "  -h/--help          print this usage message" << endl
-	    ;
-}
-#else
-/**
- * Print a summary usage message to the provided output stream.
- */
-static void printUsage(ostream& out) {
-	out << "Usage: " << endl
-	    << "  bowtie [options]* <ebwt> {-1 <m1> -2 <m2> | --12 <r> | <s>} [<hit>]" << endl
-	    << endl
-	    << "  <m1>    Comma-separated list of files containing upstream mates (or the" << endl
-	    << "          sequences themselves, if -c is set) paired with mates in <m2>" << endl
-	    << "  <m2>    Comma-separated list of files containing downstream mates (or the" << endl
-	    << "          sequences themselves if -c is set) paired with mates in <m1>" << endl
-	    << "  <r>     Comma-separated list of files containing Crossbow-style reads.  Can be" << endl
-	    << "          a mixture of paired and unpaired.  Specify \"-\" for stdin." << endl
-	    << "  <s>     Comma-separated list of files containing unpaired reads, or the" << endl
-	    << "          sequences themselves, if -c is set.  Specify \"-\" for stdin." << endl
-	    << "  <hit>   File to write hits to (default: stdout)" << endl
-	    << "Input:" << endl
-	    << "  -q                 query input files are FASTQ .fq/.fastq (default)" << endl
-	    << "  -f                 query input files are (multi-)FASTA .fa/.mfa" << endl
-	    << "  -r                 query input files are raw one-sequence-per-line" << endl
-	    << "  --qseq             query input files are in Illumina's qseq format" << endl
-	    << "  -c                 query sequences given on cmd line (as <mates>, <singles>)" << endl
-	    << "  -C                 reads and index are in colorspace" << endl
-	    << "  -Q/--quals <file>  QV file(s) corresponding to CSFASTA inputs; use with -f -C" << endl
-	    << "  --Q1/--Q2 <file>   same as -Q, but for mate files 1 and 2 respectively" << endl
-	    << "  -s/--skip <int>    skip the first <int> reads/pairs in the input" << endl
-	    << "  -u/--qupto <int>   stop after first <int> reads/pairs (excl. skipped reads)" << endl
-	    << "  -5/--trim5 <int>   trim <int> bases from 5' (left) end of reads" << endl
-	    << "  -3/--trim3 <int>   trim <int> bases from 3' (right) end of reads" << endl
-	    << "  --phred33-quals    input quals are Phred+33 (default)" << endl
-	    << "  --phred64-quals    input quals are Phred+64 (same as --solexa1.3-quals)" << endl
-	    << "  --solexa-quals     input quals are from GA Pipeline ver. < 1.3" << endl
-	    << "  --solexa1.3-quals  input quals are from GA Pipeline ver. >= 1.3" << endl
-	    << "  --integer-quals    qualities are given as space-separated integers (not ASCII)" << endl
-	    << "Alignment:" << endl
-	    << "  -v <int>           report end-to-end hits w/ <=v mismatches; ignore qualities" << endl
-	    << "    or" << endl
-	    << "  -n/--seedmms <int> max mismatches in seed (can be 0-3, default: -n 2)" << endl
-	    << "  -e/--maqerr <int>  max sum of mismatch quals across alignment for -n (def: 70)" << endl
-	    << "  -l/--seedlen <int> seed length for -n (default: 28)" << endl
-	    << "  -g/--gaps          allow gapped alignment" << endl
-	    << "  --gbar <int>       disallow gaps within <int> chars of either end of read" << endl
-	    << "  -O/--gopen <int> gap open penalty (default: 100)" << endl
-	    << "  -E/--gextend <int> gap extension penalty (default: 40)" << endl
-	    << "  --nomaqround       disable Maq-like quality rounding for -n (nearest 10 <= 30)" << endl
-	    << "  -I/--minins <int>  minimum insert size for paired-end alignment (default: 0)" << endl
-	    << "  -X/--maxins <int>  maximum insert size for paired-end alignment (default: 250)" << endl
-	    << "  --fr/--rf/--ff     -1, -2 mates align fw/rev, rev/fw, fw/fw (default: --fr)" << endl
-	    << "  --gNofw/--gNorc      do not align to forward/reverse-complement reference strand" << endl
-	    << "  --maxbts <int>     max # backtracks for -n 2/3 (default: 800)" << endl
-	    << "  --pairtries <int>  max # attempts to find mate for anchor hit (default: 100)" << endl
-	    << "  -y/--tryhard       try hard to find valid alignments, at the expense of speed" << endl
-	    << "  --chunkmbs <int>   max megabytes of RAM for search frames (def: 32)" << endl
-	    << "Reporting:" << endl
-	    << "  -k <int>           report up to <int> good alignments per read (default: 1)" << endl
-	    << "  -a/--all           report all alignments per read (much slower than low -k)" << endl
-	    << "  -m <int>           suppress all alignments if > <int> exist (def: no limit)" << endl
-	    << "  -M <int>           like -m, but reports 1 random hit (MAPQ=0)" << endl
-	    << "  --strata           hits in sub-optimal strata aren't reported" << endl
-	    << "Output:" << endl
-	    << "  -t/--time          print wall-clock time taken by search phases" << endl
-	    << "  -B/--offbase <int> leftmost ref offset = <int> in bowtie output (default: 0)" << endl
-	    << "  --quiet            print nothing but the alignments" << endl
-	    << "  --refidx           refer to ref. seqs by 0-based index rather than name" << endl
-	    << "  --al <fname>       write aligned reads/pairs to file(s) <fname>" << endl
-	    << "  --un <fname>       write unaligned reads/pairs to file(s) <fname>" << endl
-	    << "  --max <fname>      write reads/pairs over -m limit to file(s) <fname>" << endl
-	    << "  --suppress <cols>  suppresses given columns (comma-delim'ed) in default output" << endl
-	    << "  --fullref          write entire ref name (default: only up to 1st space)" << endl
-	    << "Colorspace:" << endl
-	    << "  --snpphred <int>   Phred penalty for SNP when decoding colorspace (def: 30)" << endl
-	    << "     or" << endl
-	    << "  --snpfrac <dec>    approx. fraction of SNP bases (e.g. 0.001); sets --snpphred" << endl
-	    << "  --col-cseq         print aligned colorspace seqs as colors, not decoded bases" << endl
-	    << "  --col-cqual        print original colorspace quals, not decoded quals" << endl
-	    << "  --col-keepends     keep nucleotides at extreme ends of decoded alignment" << endl
-	    << "SAM output:" << endl
-	    << "  --mapq <int>       default mapping quality (MAPQ) to print for SAM alignments" << endl
-	    << "  --sam-nohead       supppress header lines (starting with @) for SAM output" << endl
-	    << "  --sam-nosq         supppress @SQ header lines for SAM output" << endl
-	    << "  --sam-RG <text>    add <text> (usually \"lab=value\") to @RG line of SAM header" << endl
-	    << "Performance:" << endl
-	    << "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl
-		<< "  --offrate-add <int>" << endl;
 #ifdef BOWTIE_PTHREADS
 	    << "  -p/--threads <int> number of alignment threads to launch (default: 1)" << endl
 #endif
@@ -970,10 +893,10 @@ static void parseOptions(int argc, const char **argv) {
 				// -q INT   Gap open penalty [5]
 				// -r INT   Gap extension penalty. The penalty for a contiguous
 				//          gap of size k is q+k*r. [2] 
-				if(!seedAlignmentPolicyString.empty()) {
-					seedAlignmentPolicyString += ";";
+				if(!polstr.empty()) {
+					polstr += ";";
 				}
-				seedAlignmentPolicyString += "MA=1;MMP=C3;RDG=5,2;RFG=5,2";
+				polstr += "MA=1;MMP=C3;RDG=5,2;RFG=5,2";
 				break;
 			}
 			case 'q': format = FASTQ; break;
@@ -1214,8 +1137,14 @@ static void parseOptions(int argc, const char **argv) {
 			case ARG_SAM_NOHEAD: samNoHead = true; break;
 			case ARG_SAM_NOSQ: samNoSQ = true; break;
 			case ARG_SAM_RG: {
-				if(!rgs.empty()) rgs += '\t';
-				rgs += optarg;
+				if(!rgs.empty()) {
+					rgs += '\t';
+				}
+				string arg = optarg;
+				if(arg.substr(0, 3) == "ID:") {
+					rgs_optflag = "RG:Z:" + arg.substr(3);
+				}
+				rgs += arg;
 				break;
 			}
 			case ARG_PRINT_PLACEHOLDERS: printPlaceholders = true; break;
@@ -1247,10 +1176,10 @@ static void parseOptions(int argc, const char **argv) {
 			case ARG_QC_FILTER: qcFilter = true; break;
 			case ARG_NOISY_HPOLY: noisyHpolymer = true; break;
 			case 'P': {
-				if(!seedAlignmentPolicyString.empty()) {
-					seedAlignmentPolicyString += ";";
+				if(!polstr.empty()) {
+					polstr += ";";
 				}
-				seedAlignmentPolicyString += optarg;
+				polstr += optarg;
 				break;
 			}
 			case ARG_SA_DUMP: {
@@ -1260,6 +1189,115 @@ static void parseOptions(int argc, const char **argv) {
 				if(fns.size() >= 2) saCountersFn = fns[1];
 				if(fns.size() >= 3) saActionsFn  = fns[2];
 				break;
+			}
+			case ARG_MULTISEED_IVAL_CONST:
+			case ARG_MULTISEED_IVAL_LINEAR:
+			case ARG_MULTISEED_IVAL_SQRT:
+			case ARG_MULTISEED_IVAL_LOG: {
+				if(!polstr.empty()) {
+					polstr += ";";
+				}
+				const char *type =
+					(ARG_MULTISEED_IVAL_CONST  ? "C" :
+					(ARG_MULTISEED_IVAL_LINEAR ? "L" :
+					(ARG_MULTISEED_IVAL_SQRT   ? "S" :
+					(ARG_MULTISEED_IVAL_LOG    ? "G" : "?"))));
+				if(type[0] == '?') { throw 1; }
+				// Split argument by comma
+				EList<string> args;
+				tokenize(optarg, ",", args);
+				if(args.size() != 7) {
+					cerr << "Error: expected 7 comma-separated arguments "
+					     << "to --multiseed-* option, got " << args.size()
+						 << endl;
+					throw 1;
+				}
+				// Seed mm and length arguments
+				polstr += "SEED=";
+				polstr += (args[0] + ",");
+				polstr += (args[1] + ";");
+				// Interval-settings arguments
+				polstr += "IVAL=";
+				polstr += type;
+				polstr += ",";
+				polstr += (args[2] + ",");
+				polstr += (args[3] + ";");
+				// Arguments for # seeds to examine
+				polstr += "POSF=";
+				polstr += (args[4] + ",");
+				polstr += (args[5] + ";");
+				polstr += "ROWM=";
+				polstr += (args[6]);
+				break;
+			}
+			case ARG_N_CEIL: {
+				if(!polstr.empty()) {
+					polstr += ";";
+				}
+				// Split argument by comma
+				EList<string> args;
+				tokenize(optarg, ",", args);
+				if(args.size() != 2) {
+					cerr << "Error: expected 2 comma-separated arguments "
+					     << "to --n-ceil option, got " << args.size()
+						 << endl;
+					throw 1;
+				}
+				polstr += "NCEIL=";
+				polstr += (args[0] + ",");
+				polstr += (args[1]);
+				break;
+			}
+			case ARG_SCORES: {
+				if(!polstr.empty()) {
+					polstr += ";";
+				}
+				// MA=xx (default: MA=0, or MA=2 if --local is set)
+				// MMP={Cxx|Q|RQ} (default: MMP=C6)
+				// NP={Cxx|Q|RQ} (default: NP=C1)
+				// RDG=xx,yy (default: RDG=5,3)
+				// RFG=xx,yy (default: RFG=5,3)
+				// Split argument by comma
+				EList<string> args;
+				tokenize(optarg, ",", args);
+				if(args.size() != 7) {
+					cerr << "Error: expected 7 comma-separated arguments "
+					     << "to --scores option, got " << args.size()
+						 << endl;
+					throw 1;
+				}
+				polstr += "MA=";
+				polstr += (args[0] + ";");
+				polstr += "MMP=";
+				polstr += (args[1] + ";");
+				polstr += "NP=";
+				polstr += (args[2] + ";");
+				polstr += "RDG=";
+				polstr += (args[3] + ",");
+				polstr += (args[4] + ";");
+				polstr += "RFG=";
+				polstr += (args[5] + ",");
+				polstr += (args[6]);
+				break;
+			}
+			case ARG_SCORE_MIN_CONST:
+			case ARG_SCORE_MIN_LINEAR:
+			case ARG_SCORE_MIN_SQRT:
+			case ARG_SCORE_MIN_LOG: {
+				if(!polstr.empty()) {
+					polstr += ";";
+				}
+				EList<string> args;
+				tokenize(optarg, ",", args);
+				if(args.size() != 2) {
+					cerr << "Error: expected 2 comma-separated arguments "
+					     << "to --score-min option, got " << args.size()
+						 << endl;
+					throw 1;
+				}
+				polstr += "MIN=";
+				polstr += (args[0] + ",");
+				polstr += (args[1]);
 			}
 			case -1: break; /* Done with options. */
 			case 0:
@@ -1277,8 +1315,11 @@ static void parseOptions(int argc, const char **argv) {
 		// ranges).
 		offRate = 32;
 	}
+	if(gVerbose) {
+		cerr << "Final policy string: '" << polstr << "'" << endl;
+	}
 	SeedAlignmentPolicy::parseString(
-		seedAlignmentPolicyString,
+		polstr,
 		localAlign,
 		noisyHpolymer,
 		bonusMatchType,
@@ -1307,7 +1348,6 @@ static void parseOptions(int argc, const char **argv) {
 		multiseedIvalB,
 		posmin,
 		posfrac,
-		rowmin,
 		rowmult);
 	if(localAlign) {
 		gRowLow = 0;
@@ -1441,11 +1481,6 @@ static void parseOptions(int argc, const char **argv) {
 			 << " instead" << endl;
 		multiseedMms = multiseedLen-1;
 	}
-#ifdef BOWTIE2
-	if(multiseedMms > 0 && offRatePlus <= 0) {
-		//offRatePlus = 1;
-	}
-#endif
 }
 
 static const char *argv0 = NULL;
@@ -1614,7 +1649,7 @@ static void exactSearch(PairedPatternSource& _patsrc,
 	if(gColor || (pair && mixedThresh < 0xffffffff)) {
 		Timer _t(cerr, "Time loading reference: ", timing);
 		refs = new BitPairReference(
-			adjustedEbwtFileBase, gColor, sanityCheck, NULL, &os, false, useMm,
+			adjIdxBase, gColor, sanityCheck, NULL, &os, false, useMm,
 			useShmem, mmSweep, gVerbose, startVerbose);
 		if(!refs->loaded()) throw 1;
 	}
@@ -1772,7 +1807,7 @@ static void mismatchSearchFull(PairedPatternSource& _patsrc,
 	bool pair = mates1.size() > 0 || mates12.size() > 0;
 	if(gColor || (pair && mixedThresh < 0xffffffff)) {
 		Timer _t(cerr, "Time loading reference: ", timing);
-		refs = new BitPairReference(adjustedEbwtFileBase, gColor, sanityCheck, NULL, &os, false, useMm, useShmem, mmSweep, gVerbose, startVerbose);
+		refs = new BitPairReference(adjIdxBase, gColor, sanityCheck, NULL, &os, false, useMm, useShmem, mmSweep, gVerbose, startVerbose);
 		if(!refs->loaded()) throw 1;
 	}
 	mismatchSearch_refs = refs;
@@ -1917,7 +1952,7 @@ static void twoOrThreeMismatchSearchFull(
 	bool pair = mates1.size() > 0 || mates12.size() > 0;
 	if(gColor || (pair && mixedThresh < 0xffffffff)) {
 		Timer _t(cerr, "Time loading reference: ", timing);
-		refs = new BitPairReference(adjustedEbwtFileBase, gColor, sanityCheck, NULL, &os, false, useMm, useShmem, mmSweep, gVerbose, startVerbose);
+		refs = new BitPairReference(adjIdxBase, gColor, sanityCheck, NULL, &os, false, useMm, useShmem, mmSweep, gVerbose, startVerbose);
 		if(!refs->loaded()) throw 1;
 	}
 	twoOrThreeMismatchSearch_refs     = refs;
@@ -2851,11 +2886,14 @@ static void* multiseedSearchWorker(void *vp) {
 		gReportDiscordant, // report discordang paired-end alignments?
 		gReportMixed);     // report unpaired alignments for paired reads?
 	
+	// Given user-specified ROWM & POSF thresholds and user settings for
+	// -k/-a/-M, multiply the ROWM and POSF settings by the minimum number
+	// of alignments we're seeking.  E.g. for -M 1 or -k 2, multiply by 2.
+	// For -M 10, multiply by 11, etc.
 	float myPosmin  = posmin;
 	float myPosfrac = posfrac;
-	float myRowmin  = rowmin;
 	float myRowmult = rowmult;
-	rp.boostThresholds(myPosmin, myPosfrac, myRowmin, myRowmult);
+	rp.boostThresholds(myPosmin, myPosfrac, myRowmult);
 	
 	// Make a per-thread wrapper for the global MHitSink object.
 	AlnSinkWrap msinkwrap(msink, rp);
@@ -3218,10 +3256,9 @@ static void* multiseedSearchWorker(void *vp) {
 								onceil,         // N ceil for opp.
 								nofw,           // don't align forward read
 								norc,           // don't align revcomp read
-								myPosmin,         // min # seed poss to try
-								myPosfrac,        // max seed poss to try
-								myRowmin,         // min extensions
-								myRowmult,        // max extensions per pos
+								myPosmin,       // min # seed poss to try
+								myPosfrac,      // max seed poss to try
+								myRowmult,      // extensions per pos
 								maxhalf,        // max width on one DP side
 								scanNarrowed,   // ref scan narrowed seed hits?
 								ca,             // seed alignment cache
@@ -3255,10 +3292,9 @@ static void* multiseedSearchWorker(void *vp) {
 								minsc[mate],    // minimum score for valid
 								floorsc[mate],  // floor score
 								nceil,          // N ceil for anchor
-								myPosmin,         // min # seed poss to try
-								myPosfrac,        // additional seed poss to try
-								myRowmin,         // min extensions
-								myRowmult,        // max extensions per pos
+								myPosmin,       // min # seed poss to try
+								myPosfrac,      // additional seed poss to try
+								myRowmult,      // extensions per pos
 								maxhalf,        // max width on one DP side
 								scanNarrowed,   // ref scan narrowed seed hits?
 								ca,             // seed alignment cache
@@ -3356,7 +3392,7 @@ static void multiseedSearch(
 	Timer *_t = new Timer(cerr, "Time loading reference: ", timing);
 	auto_ptr<BitPairReference> refs(
 		new BitPairReference(
-			adjustedEbwtFileBase,
+			adjIdxBase,
 			gColor,
 			sanityCheck,
 			NULL,
@@ -3558,7 +3594,7 @@ static void seededQualCutoffSearchFull(
 	bool pair = mates1.size() > 0 || mates12.size() > 0;
 	if(gColor || (pair && mixedThresh < 0xffffffff)) {
 		Timer _t(cerr, "Time loading reference: ", timing);
-		refs = new BitPairReference(adjustedEbwtFileBase, gColor, sanityCheck, NULL, &os, false, useMm, useShmem, mmSweep, gVerbose, startVerbose);
+		refs = new BitPairReference(adjIdxBase, gColor, sanityCheck, NULL, &os, false, useMm, useShmem, mmSweep, gVerbose, startVerbose);
 		if(!refs->loaded()) throw 1;
 	}
 	seededQualSearch_refs = refs;
@@ -3704,9 +3740,9 @@ static void driver(
 	if(gVerbose || startVerbose) {
 		cerr << "About to initialize fw Ebwt: "; logTime(cerr, true);
 	}
-	adjustedEbwtFileBase = adjustEbwtBase(argv0, ebwtFileBase, gVerbose);
+	adjIdxBase = adjustEbwtBase(argv0, ebwtFileBase, gVerbose);
 	Ebwt ebwt(
-		adjustedEbwtFileBase,
+		adjIdxBase,
 	    gColor,   // index is colorspace
 		-1,       // fw index
 	    true,     // index is for the forward direction
@@ -3733,7 +3769,7 @@ static void driver(
 			cerr << "About to initialize rev Ebwt: "; logTime(cerr, true);
 		}
 		ebwtBw = new Ebwt(
-			adjustedEbwtFileBase + ".rev",
+			adjIdxBase + ".rev",
 			gColor,  // index is colorspace
 			1,       // TODO: maybe not
 		    false, // index is for the reverse direction
@@ -3794,7 +3830,7 @@ static void driver(
 			reflens.push_back(ebwt.plen()[i]);
 		}
 		EList<string> refnames;
-		readEbwtRefnames(adjustedEbwtFileBase, refnames);
+		readEbwtRefnames(adjIdxBase, refnames);
 		SamConfig samc(
 			refnames,               // reference sequence names
 			reflens,                // reference sequence lengths
@@ -3804,6 +3840,7 @@ static void driver(
 			string("bowtie2"),      // program name
 			string(BOWTIE_VERSION), // program version
 			argstr,                 // command-line
+			rgs_optflag,            // read-group string
 			sam_print_as,
 			sam_print_xs,
 			sam_print_xn,
