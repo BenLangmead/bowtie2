@@ -68,7 +68,7 @@ static void resetOptions() {
 	nsToAs       = false; // convert reference Ns to As prior to indexing
 	autoMem      = true;  // automatically adjust memory usage parameters
 	packed       = false; //
-	writeRef     = true;  // write compact reference to .3.ebwt/.4.ebwt
+	writeRef     = true;  // write compact reference to .3.bt2/.4.bt2
 	justRef      = false; // *just* write compact reference, don't index
 	color        = false;
 #ifdef BOWTIE2
@@ -96,9 +96,10 @@ enum {
  * Print a detailed usage message to the provided output stream.
  */
 static void printUsage(ostream& out) {
-	out << "Usage: bowtie-build [options]* <reference_in> <ebwt_outfile_base>" << endl
+	out << "Usage: bowtie2-build [options]* <reference_in> <bt2_index_base>" << endl
 	    << "    reference_in            comma-separated list of files with ref sequences" << endl
-	    << "    ebwt_outfile_base       write Ebwt data to files with this dir/basename" << endl
+	    << "    bt2_index_base          write .bt2 data to files with this dir/basename" << endl
+		<< "*** Bowtie 2 indexes work only with v2 (not v1).  Likewise for v1 indexes. ***" << endl
 	    << "Options:" << endl
 	    << "    -f                      reference files are Fasta (default)" << endl
 	    << "    -c                      reference sequences given on cmd line (as <seq_in>)" << endl
@@ -110,8 +111,8 @@ static void printUsage(ostream& out) {
 	    << "    --bmaxdivn <int>        max bucket sz as divisor of ref len (default: 4)" << endl
 	    << "    --dcv <int>             diff-cover period for blockwise (default: 1024)" << endl
 	    << "    --nodc                  disable diff-cover (algorithm becomes quadratic)" << endl
-	    << "    -r/--noref              don't build .3/.4.ebwt (packed reference) portion" << endl
-	    << "    -3/--justref            just build .3/.4.ebwt (packed reference) portion" << endl
+	    << "    -r/--noref              don't build .3/.4.bt2 (packed reference) portion" << endl
+	    << "    -3/--justref            just build .3/.4.bt2 (packed reference) portion" << endl
 	    << "    -o/--offrate <int>      SA is sampled every 2^offRate BWT chars (default: 5)" << endl
 	    << "    -t/--ftabchars <int>    # of chars consumed in initial lookup (default: 10)" << endl
 	    << "    --ntoa                  convert Ns in reference to As" << endl
@@ -267,7 +268,7 @@ static void parseOptions(int argc, const char **argv) {
 }
 
 /**
- * Drive the Ebwt construction process and optionally sanity-check the
+ * Drive the index construction process and optionally sanity-check the
  * result.
  */
 template<typename TStr>
@@ -338,7 +339,7 @@ static void driver(
 	assert_gt(sztot.first, 0);
 	assert_gt(sztot.second, 0);
 	assert_gt(szs.size(), 0);
-	// Construct Ebwt from input strings and parameters
+	// Construct index from input strings and parameters
 	Ebwt ebwt(
 		TStr(),
 		packed,
@@ -472,7 +473,7 @@ int bowtie_build(int argc, const char **argv) {
 		// Optionally summarize
 		if(verbose) {
 			cout << "Settings:" << endl
-				 << "  Output files: \"" << outfile << ".*.ebwt\"" << endl
+				 << "  Output files: \"" << outfile << ".*.bt2\"" << endl
 				 << "  Line rate: " << lineRate << " (line is " << (1<<lineRate) << " bytes)" << endl
 				 << "  Lines per side: " << linesPerSide << " (side is " << ((1<<lineRate)*linesPerSide) << " bytes)" << endl
 				 << "  Offset rate: " << offRate << " (one in " << (1<<offRate) << ")" << endl
