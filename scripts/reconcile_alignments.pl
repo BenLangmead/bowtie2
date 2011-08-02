@@ -241,8 +241,8 @@ if($algn_file eq "-") {
 		$index = ".reconcile_alignments.index";
 	}
 	# Index must exist
-	if(! -f "$index.1.ebwt") {
-		die "Index basename $index.1.ebwt was not found";
+	if(! -f "$index.1.bt2") {
+		die "Index basename $index.1.bt2 was not found";
 	}
 	my $btargs = "";
 	$btargs .= " -k $k" if defined($k);

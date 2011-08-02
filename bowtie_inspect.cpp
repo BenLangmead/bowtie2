@@ -44,8 +44,8 @@ static struct option long_options[] = {
  */
 static void printUsage(ostream& out) {
 	out
-	<< "Usage: bowtie-inspect [options]* <ebwt_base>" << endl
-	<< "  <ebwt_base>        ebwt filename minus trailing .1.ebwt/.2.ebwt" << endl
+	<< "Usage: bowtie2-inspect [options]* <bt2_base>" << endl
+	<< "  <bt2_base>         bt2 filename minus trailing .1.bt2/.2.bt2" << endl
 	<< endl
 	<< "  By default, prints FASTA records of the indexed nucleotide sequences to" << endl
 	<< "  standard out.  With -n, just prints names.  With -s, just prints a summary of" << endl

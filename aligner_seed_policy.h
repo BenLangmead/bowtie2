@@ -21,14 +21,14 @@ enum {
 #define DEFAULT_IVAL_A 1.0f
 #define DEFAULT_IVAL_B 0.0f
 
-// By default, the maximum number of positions we examine is about 1/3rd the
-// total number of possible positions
+// Maximum number of positions we examine.  For example the seed extracted
+// from 5' offset 10 of the forward representation of the read might be
+// one position, and the same from the reverse-complement representation
+// might be another.
 #define DEFAULT_POSMIN  1.5f
 #define DEFAULT_POSFRAC 0.15f
 
-// By default, the maximum number of hits we try to extend is about 5 times the
-// total number of positions tried
-#define DEFAULT_ROWMIN   1.5f
+// The maximum number of hits we try to extend for any given position.
 #define DEFAULT_ROWMULT  1.0f
 
 /**
@@ -248,8 +248,7 @@ public:
 		float& multiseedIvalB,
 		float& posmin,
 		float& posfrac,
-		float& rowmult,
-		float& rowmin);
+		float& rowmult);
 };
 
 #endif /*ndef ALIGNER_SEED_POLICY_H_*/

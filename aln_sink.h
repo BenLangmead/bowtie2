@@ -204,19 +204,22 @@ struct ReportingParams {
 	void boostThresholds(
 		float& posmin,
 		float& posfrac,
-		float& rowmin,
 		float& rowmult)
 	{
 		THitInt mul = mult();
+		assert_gt(mul, 0);
 		if(mul == std::numeric_limits<THitInt>::max()) {
+			// If -a was specified, boost ROWM and POSF so that all hits are
+			// tried for al; positions
 			posmin =
 			posfrac = 
-			rowmin = 
 			rowmult = std::numeric_limits<float>::max();
-		} else {
+		} else if(mul > 1) {
+			// If -k or -M were specified, boost ROWM and POSF so that an
+			// appropriately larger number of hits are tried for more
+			// positions
 			posmin  *= mul;
 			posfrac *= mul;
-			rowmin  *= mul;
 			rowmult *= mul;
 		}
 	}

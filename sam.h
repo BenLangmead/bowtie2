@@ -53,6 +53,7 @@ public:
 		const std::string& pg_pn, // name
 		const std::string& pg_vn, // version
 		const std::string& pg_cl, // command-line
+		const std::string& rgs,   // read groups string
 		bool print_as,
 		bool print_xs,
 		bool print_xn,
@@ -76,6 +77,7 @@ public:
 		pg_pn_(pg_pn),
 		pg_vn_(pg_vn),
 		pg_cl_(pg_cl),
+		rgs_(rgs),
 		refnames_(refnames),
 		reflens_(reflens),
 		print_as_(print_as),
@@ -206,6 +208,7 @@ protected:
 	std::string pg_pn_; // @PG PN: Program name
 	std::string pg_vn_; // @PG VN: Program version
 	std::string pg_cl_; // @PG CL: Program command-line
+	std::string rgs_;   // Read-group string to add to all records
 	const StrList& refnames_; // reference sequence names
 	const LenList& reflens_;  // reference sequence lengths
 	

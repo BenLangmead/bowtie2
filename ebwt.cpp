@@ -199,14 +199,15 @@ inline static void countInU64Ex(uint64_t dw, uint32_t* arrs) {
  * those loci.  Also, update a set of tops and bots for the reverse
  * index/direction using the idea from the bi-directional BWT paper.
  */
-void Ebwt::mapBiLFEx(const SideLocus& ltop,
-                     const SideLocus& lbot,
-                     uint32_t *tops,
-                     uint32_t *bots,
-                     uint32_t *topsP, // topsP[0] = top
-                     uint32_t *botsP
-                     ASSERT_ONLY(, bool overrideSanity)
-                     ) const
+void Ebwt::mapBiLFEx(
+	const SideLocus& ltop,
+	const SideLocus& lbot,
+	uint32_t *tops,
+	uint32_t *bots,
+	uint32_t *topsP, // topsP[0] = top
+	uint32_t *botsP
+	ASSERT_ONLY(, bool overrideSanity)
+	) const
 {
 	// TODO: Where there's overlap, reuse the count for the overlapping
 	// portion
@@ -218,10 +219,15 @@ void Ebwt::mapBiLFEx(const SideLocus& ltop,
 		assert_eq(0, tops[0]);  assert_eq(0, bots[0]);
 	}
 #endif
+#ifdef BOWTIE2
+	countBt2SideEx(ltop, tops);
+	countBt2SideEx(lbot, bots);
+#else
 	if(ltop.fw_) countFwSideEx(ltop, tops); // Forward side
 	else         countBwSideEx(ltop, tops); // Backward side
 	if(lbot.fw_) countFwSideEx(lbot, bots); // Forward side
 	else         countBwSideEx(lbot, bots); // Backward side
+#endif
 #ifndef NDEBUG
 	if(_sanity && !overrideSanity) {
 		// Make sure results match up with individual calls to mapLF;
@@ -252,12 +258,13 @@ void Ebwt::mapBiLFEx(const SideLocus& ltop,
  * Given top and bot rows, calculate counts of all four DNA chars up to
  * those loci.
  */
-void Ebwt::mapLFEx(uint32_t top,
-                   uint32_t bot,
-                   uint32_t *tops,
-                   uint32_t *bots
-                   ASSERT_ONLY(, bool overrideSanity)
-                   ) const
+void Ebwt::mapLFEx(
+	uint32_t top,
+	uint32_t bot,
+	uint32_t *tops,
+	uint32_t *bots
+	ASSERT_ONLY(, bool overrideSanity)
+	) const
 {
 	SideLocus ltop, lbot;
 	SideLocus::initFromTopBot(top, bot, _eh, ebwt(), ltop, lbot);
@@ -268,12 +275,13 @@ void Ebwt::mapLFEx(uint32_t top,
  * Given top and bot loci, calculate counts of all four DNA chars up to
  * those loci.  Used for more advanced backtracking-search.
  */
-void Ebwt::mapLFEx(const SideLocus& ltop,
-                   const SideLocus& lbot,
-                   uint32_t *tops,
-                   uint32_t *bots
-                   ASSERT_ONLY(, bool overrideSanity)
-                   ) const
+void Ebwt::mapLFEx(
+	const SideLocus& ltop,
+	const SideLocus& lbot,
+	uint32_t *tops,
+	uint32_t *bots
+	ASSERT_ONLY(, bool overrideSanity)
+	) const
 {
 	assert(ltop.repOk(*this));
 	assert(lbot.repOk(*this));
@@ -284,10 +292,10 @@ void Ebwt::mapLFEx(const SideLocus& ltop,
 	assert_eq(0, tops[1]); assert_eq(0, bots[1]);
 	assert_eq(0, tops[2]); assert_eq(0, bots[2]);
 	assert_eq(0, tops[3]); assert_eq(0, bots[3]);
-	if(ltop.fw_) countFwSideEx(ltop, tops); // Forward side
-	else         countBwSideEx(ltop, tops); // Backward side
-	if(lbot.fw_) countFwSideEx(lbot, bots); // Forward side
-	else         countBwSideEx(lbot, bots); // Backward side
+#ifdef BOWTIE2
+	countBt2SideEx(ltop, tops);
+	countBt2SideEx(lbot, bots);
+#endif
 #ifndef NDEBUG
 	if(_sanity && !overrideSanity) {
 		// Make sure results match up with individual calls to mapLF;
@@ -309,14 +317,15 @@ void Ebwt::mapLFEx(const SideLocus& ltop,
  * Given top and bot loci, calculate counts of all four DNA chars up to
  * those loci.  Used for more advanced backtracking-search.
  */
-void Ebwt::mapLFRange(SideLocus& ltop,
-                      SideLocus& lbot,
-					  uint32_t num,        // Number of elts
-                      uint32_t* cntsUpto,  // A/C/G/T counts up to top
-                      uint32_t* cntsIn,    // A/C/G/T counts within range
-                      EList<bool> *masks
-                      ASSERT_ONLY(, bool overrideSanity)
-                      ) const
+void Ebwt::mapLFRange(
+	SideLocus& ltop,
+	SideLocus& lbot,
+	uint32_t num,        // Number of elts
+	uint32_t* cntsUpto,  // A/C/G/T counts up to top
+	uint32_t* cntsIn,    // A/C/G/T counts within range
+	EList<bool> *masks
+	ASSERT_ONLY(, bool overrideSanity)
+	) const
 {
 	assert(ltop.repOk(*this));
 	assert(lbot.repOk(*this));
@@ -328,8 +337,12 @@ void Ebwt::mapLFRange(SideLocus& ltop,
 	assert_eq(0, cntsUpto[1]); assert_eq(0, cntsIn[1]);
 	assert_eq(0, cntsUpto[2]); assert_eq(0, cntsIn[2]);
 	assert_eq(0, cntsUpto[3]); assert_eq(0, cntsIn[3]);
+#ifdef BOWTIE2
+	countBt2SideRange(ltop, num, cntsUpto, cntsIn, masks);
+#else
 	if(ltop.fw_) countFwSideRange(ltop, num, cntsUpto, cntsIn, masks); // Forward side
 	else         countBwSideRange(ltop, num, cntsUpto, cntsIn, masks); // Backward side
+#endif
 	assert_eq(num, cntsIn[0] + cntsIn[1] + cntsIn[2] + cntsIn[3]);
 #ifndef NDEBUG
 	if(_sanity && !overrideSanity) {
@@ -368,8 +381,12 @@ void Ebwt::mapLFEx(const SideLocus& l,
 	assert_eq(0, arrs[1]);
 	assert_eq(0, arrs[2]);
 	assert_eq(0, arrs[3]);
+#ifdef BOWTIE2
+	countBt2SideEx(l, arrs);
+#else
 	if(l.fw_) countFwSideEx(l, arrs); // Forward side
 	else      countBwSideEx(l, arrs); // Backward side
+#endif
 	if(_sanity && !overrideSanity) {
 		// Make sure results match up with individual calls to mapLF;
 		// be sure to override sanity-checking in the callee, or we'll
@@ -398,8 +415,12 @@ uint32_t Ebwt::mapLF(const SideLocus& l
 	int c = rowL(l);
 	assert_lt(c, 4);
 	assert_geq(c, 0);
+#ifdef BOWTIE2
+	ret = countBt2Side(l, c);
+#else
 	if(l.fw_) ret = countFwSide(l, c); // Forward side
 	else      ret = countBwSide(l, c); // Backward side
+#endif
 	assert_lt(ret, this->_eh._bwtLen);
 	assert_neq(srcrow, ret);
 #ifndef NDEBUG
@@ -429,8 +450,12 @@ uint32_t Ebwt::mapLF(const SideLocus& l, int c
 	uint32_t ret;
 	assert_lt(c, 4);
 	assert_geq(c, 0);
+#ifdef BOWTIE2
+	ret = countBt2Side(l, c);
+#else
 	if(l.fw_) ret = countFwSide(l, c); // Forward side
 	else      ret = countBwSide(l, c); // Backward side
+#endif
 	assert_lt(ret, this->_eh._bwtLen);
 #ifndef NDEBUG
 	if(_sanity && !overrideSanity) {
@@ -463,8 +488,12 @@ uint32_t Ebwt::mapLF1(
 	uint32_t ret;
 	assert_lt(c, 4);
 	assert_geq(c, 0);
+#ifdef BOWTIE2
+	ret = countBt2Side(l, c);
+#else
 	if(l.fw_) ret = countFwSide(l, c); // Forward side
 	else      ret = countBwSide(l, c); // Backward side
+#endif
 	assert_lt(ret, this->_eh._bwtLen);
 #ifndef NDEBUG
 	if(_sanity && !overrideSanity) {
@@ -495,8 +524,12 @@ int Ebwt::mapLF1(
 	int c = rowL(l);
 	assert_lt(c, 4);
 	assert_geq(c, 0);
+#ifdef BOWTIE2
+	row = countBt2Side(l, c);
+#else
 	if(l.fw_) row = countFwSide(l, c); // Forward side
 	else      row = countBwSide(l, c); // Backward side
+#endif
 	assert_lt(row, this->_eh._bwtLen);
 #ifndef NDEBUG
 	if(_sanity && !overrideSanity) {
@@ -659,6 +692,53 @@ uint32_t Ebwt::getOffset(
 	assert_leq(x[2], this->_eh._sideBwtLen); \
 	assert_leq(x[3], this->_eh._sideBwtLen)
 
+#ifdef BOWTIE2
+/**
+ * Count all occurrences of character c from the beginning of the
+ * forward side to <by,bp> and add in the occ[] count up to the side
+ * break just prior to the side.
+ *
+ * A Bowtie 2 side is shaped like:
+ *
+ * XXXXXXXXXXXXXXXX [A] [C] [G] [T]
+ * --------48------ -4- -4- -4- -4-  (numbers in bytes)
+ */
+inline uint32_t Ebwt::countBt2Side(const SideLocus& l, int c) const {
+	assert_range(0, 3, c);
+	assert_range(0, (int)this->_eh._sideBwtSz-1, (int)l._by);
+	assert_range(0, 3, (int)l._bp);
+	const uint8_t *side = l.side(this->ebwt());
+	uint32_t cCnt = countUpTo(l, c);
+	assert_leq(cCnt, this->_eh._sideBwtLen);
+	if(c == 0 && l._sideByteOff <= _zEbwtByteOff && l._sideByteOff + l._by >= _zEbwtByteOff) {
+		// Adjust for the fact that we represented $ with an 'A', but
+		// shouldn't count it as an 'A' here
+		if((l._sideByteOff + l._by > _zEbwtByteOff) ||
+		   (l._sideByteOff + l._by == _zEbwtByteOff && l._bp > _zEbwtBpOff))
+		{
+			cCnt--; // Adjust for '$' looking like an 'A'
+		}
+	}
+	uint32_t ret;
+	// Now factor in the occ[] count at the side break
+	const uint8_t *acgt8 = side + _eh._sideBwtSz;
+	const uint32_t *acgt = reinterpret_cast<const uint32_t*>(acgt8);
+	assert_leq(acgt[0], this->_eh._numSides * this->_eh._sideBwtLen); // b/c it's used as padding
+	assert_leq(acgt[1], this->_eh._len);
+	assert_leq(acgt[2], this->_eh._len);
+	assert_leq(acgt[3], this->_eh._len);
+	ret = acgt[c] + cCnt + this->fchr()[c];
+#ifndef NDEBUG
+	assert_leq(ret, this->fchr()[c+1]); // can't have jumpded into next char's section
+	if(c == 0) {
+		assert_leq(cCnt, this->_eh._sideBwtLen);
+	} else {
+		assert_leq(ret, this->_eh._bwtLen);
+	}
+#endif
+	return ret;
+}
+#else
 /**
  * Count all occurrences of character c from the beginning of the
  * forward side to <by,bp> and add in the occ[] count up to the side
@@ -720,13 +800,13 @@ inline uint32_t Ebwt::countFwSide(const SideLocus& l, int c) const {
 }
 
 /**
- * Count all occurrences of character c from the beginning of the
- * forward side to <by,bp> and add in the occ[] count up to the side
- * break just prior to the side.
+ * Count all instances of character c from <by,bp> to the logical end
+ * (actual beginning) of the backward side, and subtract that from the
+ * occ[] count up to the side break.
  *
- * A forward side is shaped like:
+ * A reverse side is shaped like:
  *
- * [A] [C] XXXXXXXXXXXXXXXX
+ * [G] [T] XXXXXXXXXXXXXXXX
  * -4- -4- --------56------ (numbers in bytes)
  *         ^
  *         Side ptr (result from SideLocus.side())
@@ -737,43 +817,123 @@ inline uint32_t Ebwt::countFwSide(const SideLocus& l, int c) const {
  * -4- -4- --------56------ (numbers in bytes)
  *         ^
  *         Side ptr (result from SideLocus.side())
- *
  */
-inline void Ebwt::countFwSideEx(const SideLocus& l, uint32_t* arrs) const
-{
+inline uint32_t Ebwt::countBwSide(const SideLocus& l, int c) const {
+	assert_range(0, 3, c);
 	assert_range(0, (int)this->_eh._sideBwtSz-1, (int)l._by);
 	assert_range(0, 3, (int)l._bp);
-	countUpToEx(l, arrs);
-	WITHIN_FCHR(arrs);
-	WITHIN_BWT_LEN(arrs);
 	const uint8_t *side = l.side(this->ebwt());
+	uint32_t cCnt = countUpTo(l, c);
+	if(rowL(l) == c) cCnt++;
+	assert_leq(cCnt, this->_eh._sideBwtLen);
+	if(c == 0 && l._sideByteOff <= _zEbwtByteOff && l._sideByteOff + l._by >= _zEbwtByteOff) {
+		// Adjust for the fact that we represented $ with an 'A', but
+		// shouldn't count it as an 'A' here
+		if((l._sideByteOff + l._by > _zEbwtByteOff) ||
+		   (l._sideByteOff + l._by == _zEbwtByteOff && l._bp >= _zEbwtBpOff))
+		{
+			cCnt--;
+		}
+	}
+	uint32_t ret;
+	// Now factor in the occ[] count at the side break
+	if(c < 2) {
+		const uint32_t *ac = reinterpret_cast<const uint32_t*>(side + this->_eh._sideSz - 8);
+		assert_leq(ac[0], this->_eh._numSides * this->_eh._sideBwtLen); // b/c it's used as padding
+		assert_leq(ac[1], this->_eh._len);
+		ret = ac[c] - cCnt + this->fchr()[c];
+	} else {
+		const uint32_t *gt = reinterpret_cast<const uint32_t*>(side + (2*this->_eh._sideSz) - 8); // next
+		assert_leq(gt[0], this->_eh._len); assert_leq(gt[1], this->_eh._len);
+		ret = gt[c-2] - cCnt + this->fchr()[c];
+	}
+#ifndef NDEBUG
+	assert_leq(ret, this->fchr()[c+1]); // can't have jumped into next char's section
+	if(c == 0) {
+		assert_leq(cCnt, this->_eh._sideBwtLen);
+	} else {
+		assert_lt(ret, this->_eh._bwtLen);
+	}
+#endif
+	return ret;
+}
+#endif
+
+#ifdef BOWTIE2
+/**
+ * Count all occurrences of all four nucleotides up to the starting
+ * point (which must be in a forward side) given by 'l' storing the
+ * result in 'cntsUpto', then count nucleotide occurrences within the
+ * range of length 'num' storing the result in 'cntsIn'.  Also, keep
+ * track of the characters occurring within the range by setting
+ * 'masks' accordingly (masks[1][10] == true -> 11th character is a
+ * 'C', and masks[0][10] == masks[2][10] == masks[3][10] == false.
+ */
+inline void Ebwt::countBt2SideRange(
+	SideLocus& l,        // top locus
+	uint32_t num,        // number of elts in range to tall
+	uint32_t* cntsUpto,  // A/C/G/T counts up to top
+	uint32_t* cntsIn,    // A/C/G/T counts within range
+	EList<bool> *masks) const // masks indicating which range elts = A/C/G/T
+{
+	assert_gt(num, 0);
+	assert_range(0, (int)this->_eh._sideBwtSz-1, (int)l._by);
+	assert_range(0, 3, (int)l._bp);
+	countUpToEx(l, cntsUpto);
+	WITHIN_FCHR_DOLLARA(cntsUpto);
+	WITHIN_BWT_LEN(cntsUpto);
+	const uint8_t *side = l.side(this->ebwt());
+	bool adjustedForDollar = false;
 	if(l._sideByteOff <= _zEbwtByteOff && l._sideByteOff + l._by >= _zEbwtByteOff) {
 		// Adjust for the fact that we represented $ with an 'A', but
 		// shouldn't count it as an 'A' here
 		if((l._sideByteOff + l._by > _zEbwtByteOff) ||
 		   (l._sideByteOff + l._by == _zEbwtByteOff && l._bp > _zEbwtBpOff))
 		{
-			arrs[0]--; // Adjust for '$' looking like an 'A'
+			adjustedForDollar = true;
+			cntsUpto[0]--; // Adjust for '$' looking like an 'A'
 		}
 	}
 	// Now factor in the occ[] count at the side break
-	const uint8_t *ac8 = side - 8;
-	const uint8_t *gt8 = side + this->_eh._sideSz - 8;
-	const uint32_t *ac = reinterpret_cast<const uint32_t*>(ac8);
-	const uint32_t *gt = reinterpret_cast<const uint32_t*>(gt8);
-	assert_leq(ac[0], this->fchr()[1] + this->_eh.sideBwtLen());
-	assert_leq(ac[1], this->fchr()[2]-this->fchr()[1]);
-	assert_leq(gt[0], this->fchr()[3]-this->fchr()[2]);
-	assert_leq(gt[1], this->fchr()[4]-this->fchr()[3]);
-	assert_leq(ac[0], this->_eh._len + this->_eh.sideBwtLen()); assert_leq(ac[1], this->_eh._len);
-	assert_leq(gt[0], this->_eh._len); assert_leq(gt[1], this->_eh._len);
-	arrs[0] += (ac[0] + this->fchr()[0]);
-	arrs[1] += (ac[1] + this->fchr()[1]);
-	arrs[2] += (gt[0] + this->fchr()[2]);
-	arrs[3] += (gt[1] + this->fchr()[3]);
-	WITHIN_FCHR(arrs);
+	const uint32_t *acgt = reinterpret_cast<const uint32_t*>(side + _eh._sideBwtSz);
+	assert_leq(acgt[0], this->fchr()[1] + this->_eh.sideBwtLen());
+	assert_leq(acgt[1], this->fchr()[2]-this->fchr()[1]);
+	assert_leq(acgt[2], this->fchr()[3]-this->fchr()[2]);
+	assert_leq(acgt[3], this->fchr()[4]-this->fchr()[3]);
+	assert_leq(acgt[0], this->_eh._len + this->_eh.sideBwtLen());
+	assert_leq(acgt[1], this->_eh._len);
+	assert_leq(acgt[2], this->_eh._len);
+	assert_leq(acgt[3], this->_eh._len);
+	cntsUpto[0] += (acgt[0] + this->fchr()[0]);
+	cntsUpto[1] += (acgt[1] + this->fchr()[1]);
+	cntsUpto[2] += (acgt[2] + this->fchr()[2]);
+	cntsUpto[3] += (acgt[3] + this->fchr()[3]);
+	masks[0].resize(num);
+	masks[1].resize(num);
+	masks[2].resize(num);
+	masks[3].resize(num);
+	WITHIN_FCHR_DOLLARA(cntsUpto);
+	WITHIN_FCHR_DOLLARA(cntsIn);
+	// 'cntsUpto' is complete now.
+	// Walk forward until we've tallied the entire 'In' range
+	uint32_t nm = 0;
+	// Rest of this side
+	nm += countBt2SideRange2(l, true, num - nm, cntsIn, masks, nm);
+	assert_eq(nm, cntsIn[0] + cntsIn[1] + cntsIn[2] + cntsIn[3]);
+	assert_leq(nm, num);
+	SideLocus lcopy = l;
+	while(nm < num) {
+		// Subsequent sides, if necessary
+		lcopy.nextSide(this->_eh);
+		nm += countBt2SideRange2(lcopy, false, num - nm, cntsIn, masks, nm);
+		WITHIN_FCHR_DOLLARA(cntsIn);
+		assert_leq(nm, num);
+		assert_eq(nm, cntsIn[0] + cntsIn[1] + cntsIn[2] + cntsIn[3]);
+	}
+	assert_eq(num, cntsIn[0] + cntsIn[1] + cntsIn[2] + cntsIn[3]);
+	WITHIN_FCHR_DOLLARA(cntsIn);
 }
-
+#else
 /**
  * Count all occurrences of all four nucleotides up to the starting
  * point (which must be in a forward side) given by 'l' storing the
@@ -854,65 +1014,6 @@ inline void Ebwt::countFwSideRange(
 }
 
 /**
- * Count all instances of character c from <by,bp> to the logical end
- * (actual beginning) of the backward side, and subtract that from the
- * occ[] count up to the side break.
- *
- * A reverse side is shaped like:
- *
- * [G] [T] XXXXXXXXXXXXXXXX
- * -4- -4- --------56------ (numbers in bytes)
- *         ^
- *         Side ptr (result from SideLocus.side())
- *
- * And following it is a reverse side shaped like:
- * 
- * [G] [T] XXXXXXXXXXXXXXXX
- * -4- -4- --------56------ (numbers in bytes)
- *         ^
- *         Side ptr (result from SideLocus.side())
- */
-inline uint32_t Ebwt::countBwSide(const SideLocus& l, int c) const {
-	assert_range(0, 3, c);
-	assert_range(0, (int)this->_eh._sideBwtSz-1, (int)l._by);
-	assert_range(0, 3, (int)l._bp);
-	const uint8_t *side = l.side(this->ebwt());
-	uint32_t cCnt = countUpTo(l, c);
-	if(rowL(l) == c) cCnt++;
-	assert_leq(cCnt, this->_eh._sideBwtLen);
-	if(c == 0 && l._sideByteOff <= _zEbwtByteOff && l._sideByteOff + l._by >= _zEbwtByteOff) {
-		// Adjust for the fact that we represented $ with an 'A', but
-		// shouldn't count it as an 'A' here
-		if((l._sideByteOff + l._by > _zEbwtByteOff) ||
-		   (l._sideByteOff + l._by == _zEbwtByteOff && l._bp >= _zEbwtBpOff))
-		{
-			cCnt--;
-		}
-	}
-	uint32_t ret;
-	// Now factor in the occ[] count at the side break
-	if(c < 2) {
-		const uint32_t *ac = reinterpret_cast<const uint32_t*>(side + this->_eh._sideSz - 8);
-		assert_leq(ac[0], this->_eh._numSides * this->_eh._sideBwtLen); // b/c it's used as padding
-		assert_leq(ac[1], this->_eh._len);
-		ret = ac[c] - cCnt + this->fchr()[c];
-	} else {
-		const uint32_t *gt = reinterpret_cast<const uint32_t*>(side + (2*this->_eh._sideSz) - 8); // next
-		assert_leq(gt[0], this->_eh._len); assert_leq(gt[1], this->_eh._len);
-		ret = gt[c-2] - cCnt + this->fchr()[c];
-	}
-#ifndef NDEBUG
-	assert_leq(ret, this->fchr()[c+1]); // can't have jumped into next char's section
-	if(c == 0) {
-		assert_leq(cCnt, this->_eh._sideBwtLen);
-	} else {
-		assert_lt(ret, this->_eh._bwtLen);
-	}
-#endif
-	return ret;
-}
-
-/**
  * Count all occurrences of all four nucleotides up to the starting
  * point (which must be in a forward side) given by 'l' storing the
  * result in 'cntsUpto', then count nucleotide occurrences within the
@@ -988,6 +1089,118 @@ inline void Ebwt::countBwSideRange(
 	assert_eq(num, cntsIn[0] + cntsIn[1] + cntsIn[2] + cntsIn[3]);
 	WITHIN_FCHR_DOLLARA(cntsIn);
 }
+#endif
+
+#ifdef BOWTIE2
+/**
+ * Count all occurrences of character c from the beginning of the
+ * forward side to <by,bp> and add in the occ[] count up to the side
+ * break just prior to the side.
+ *
+ * A forward side is shaped like:
+ *
+ * [A] [C] XXXXXXXXXXXXXXXX
+ * -4- -4- --------56------ (numbers in bytes)
+ *         ^
+ *         Side ptr (result from SideLocus.side())
+ *
+ * And following it is a reverse side shaped like:
+ * 
+ * [G] [T] XXXXXXXXXXXXXXXX
+ * -4- -4- --------56------ (numbers in bytes)
+ *         ^
+ *         Side ptr (result from SideLocus.side())
+ *
+ */
+inline void Ebwt::countBt2SideEx(const SideLocus& l, uint32_t* arrs) const
+{
+	assert_range(0, (int)this->_eh._sideBwtSz-1, (int)l._by);
+	assert_range(0, 3, (int)l._bp);
+	countUpToEx(l, arrs);
+	if(l._sideByteOff <= _zEbwtByteOff && l._sideByteOff + l._by >= _zEbwtByteOff) {
+		// Adjust for the fact that we represented $ with an 'A', but
+		// shouldn't count it as an 'A' here
+		if((l._sideByteOff + l._by > _zEbwtByteOff) ||
+		   (l._sideByteOff + l._by == _zEbwtByteOff && l._bp > _zEbwtBpOff))
+		{
+			arrs[0]--; // Adjust for '$' looking like an 'A'
+		}
+	}
+	WITHIN_FCHR(arrs);
+	WITHIN_BWT_LEN(arrs);
+	// Now factor in the occ[] count at the side break
+	const uint8_t *side = l.side(this->ebwt());
+	const uint8_t *acgt16 = side + this->_eh._sideSz - 16;
+	const uint32_t *acgt = reinterpret_cast<const uint32_t*>(acgt16);
+	assert_leq(acgt[0], this->fchr()[1] + this->_eh.sideBwtLen());
+	assert_leq(acgt[1], this->fchr()[2]-this->fchr()[1]);
+	assert_leq(acgt[2], this->fchr()[3]-this->fchr()[2]);
+	assert_leq(acgt[3], this->fchr()[4]-this->fchr()[3]);
+	assert_leq(acgt[0], this->_eh._len + this->_eh.sideBwtLen());
+	assert_leq(acgt[1], this->_eh._len);
+	assert_leq(acgt[2], this->_eh._len);
+	assert_leq(acgt[3], this->_eh._len);
+	arrs[0] += (acgt[0] + this->fchr()[0]);
+	arrs[1] += (acgt[1] + this->fchr()[1]);
+	arrs[2] += (acgt[2] + this->fchr()[2]);
+	arrs[3] += (acgt[3] + this->fchr()[3]);
+	WITHIN_FCHR(arrs);
+}
+#else
+/**
+ * Count all occurrences of character c from the beginning of the
+ * forward side to <by,bp> and add in the occ[] count up to the side
+ * break just prior to the side.
+ *
+ * A forward side is shaped like:
+ *
+ * [A] [C] XXXXXXXXXXXXXXXX
+ * -4- -4- --------56------ (numbers in bytes)
+ *         ^
+ *         Side ptr (result from SideLocus.side())
+ *
+ * And following it is a reverse side shaped like:
+ * 
+ * [G] [T] XXXXXXXXXXXXXXXX
+ * -4- -4- --------56------ (numbers in bytes)
+ *         ^
+ *         Side ptr (result from SideLocus.side())
+ *
+ */
+inline void Ebwt::countFwSideEx(const SideLocus& l, uint32_t* arrs) const
+{
+	assert_range(0, (int)this->_eh._sideBwtSz-1, (int)l._by);
+	assert_range(0, 3, (int)l._bp);
+	countUpToEx(l, arrs);
+	WITHIN_FCHR(arrs);
+	WITHIN_BWT_LEN(arrs);
+	const uint8_t *side = l.side(this->ebwt());
+	if(l._sideByteOff <= _zEbwtByteOff && l._sideByteOff + l._by >= _zEbwtByteOff) {
+		// Adjust for the fact that we represented $ with an 'A', but
+		// shouldn't count it as an 'A' here
+		if((l._sideByteOff + l._by > _zEbwtByteOff) ||
+		   (l._sideByteOff + l._by == _zEbwtByteOff && l._bp > _zEbwtBpOff))
+		{
+			arrs[0]--; // Adjust for '$' looking like an 'A'
+		}
+	}
+	// Now factor in the occ[] count at the side break
+	const uint8_t *ac8 = side - 8;
+	const uint8_t *gt8 = side + this->_eh._sideSz - 8;
+	const uint32_t *ac = reinterpret_cast<const uint32_t*>(ac8);
+	const uint32_t *gt = reinterpret_cast<const uint32_t*>(gt8);
+	assert_leq(ac[0], this->fchr()[1] + this->_eh.sideBwtLen());
+	assert_leq(ac[1], this->fchr()[2]-this->fchr()[1]);
+	assert_leq(gt[0], this->fchr()[3]-this->fchr()[2]);
+	assert_leq(gt[1], this->fchr()[4]-this->fchr()[3]);
+	assert_leq(ac[0], this->_eh._len + this->_eh.sideBwtLen()); assert_leq(ac[1], this->_eh._len);
+	assert_leq(gt[0], this->_eh._len); assert_leq(gt[1], this->_eh._len);
+	arrs[0] += (ac[0] + this->fchr()[0]);
+	arrs[1] += (ac[1] + this->fchr()[1]);
+	arrs[2] += (gt[0] + this->fchr()[2]);
+	arrs[3] += (gt[1] + this->fchr()[3]);
+	WITHIN_FCHR(arrs);
+}
 
 /**
  * Count all instances of character c from <by,bp> to the logical end
@@ -1025,6 +1238,7 @@ inline void Ebwt::countBwSideEx(const SideLocus& l, uint32_t* arrs) const {
 	arrs[3] = (gt[1] - arrs[3] + this->fchr()[3]);
 	WITHIN_FCHR(arrs);
 }
+#endif
 
 /**
  * Counts the number of occurrences of character 'c' in the given Ebwt
@@ -1119,6 +1333,86 @@ inline void Ebwt::countUpToEx(const SideLocus& l, uint32_t* arrs) const {
 #endif
 }
 
+#ifdef BOWTIE2
+/**
+ * Counts the number of occurrences of all four nucleotides in the
+ * given side from the given byte/bitpair (l->_by/l->_bp) (or the
+ * beginning of the side if l == 0).  Count for 'a' goes in arrs[0],
+ * 'c' in arrs[1], etc.
+ *
+ * Note: must account for $.
+ *
+ * Must fill in masks
+ */
+inline uint32_t Ebwt::countBt2SideRange2(
+	const SideLocus& l,
+	bool startAtLocus,
+	uint32_t num,
+	uint32_t* arrs,
+	EList<bool> *masks,
+	uint32_t maskOff) const
+{
+	assert(!masks[0].empty());
+	assert_eq(masks[0].size(), masks[1].size());
+	assert_eq(masks[0].size(), masks[2].size());
+	assert_eq(masks[0].size(), masks[3].size());
+	ASSERT_ONLY(uint32_t myarrs[4] = {0, 0, 0, 0});
+	uint32_t nm = 0; // number of nucleotides tallied so far
+	int iby = 0;      // initial byte offset
+	int ibp = 0;      // initial base-pair offset
+	if(startAtLocus) {
+		iby = l._by;
+		ibp = l._bp;
+	} else {
+		// Start at beginning
+	}
+	int by = iby, bp = ibp;
+#ifdef SIXTY4_FORMAT
+	throw 1; // Unsupported for now
+#else
+	assert_lt(bp, 4);
+	assert_lt(by, (int)this->_eh._sideBwtSz);
+	const uint8_t *side = l.side(this->ebwt());
+	while(nm < num) {
+		int c = (side[by] >> (bp * 2)) & 3;
+		assert_lt(maskOff + nm, masks[c].size());
+		masks[0][maskOff + nm] = masks[1][maskOff + nm] =
+		masks[2][maskOff + nm] = masks[3][maskOff + nm] = false;
+		assert_range(0, 3, c);
+		// Note: we tally $ just like an A
+		arrs[c]++; // tally it
+		ASSERT_ONLY(myarrs[c]++);
+		masks[c][maskOff + nm] = true; // not dead
+		nm++;
+		if(++bp == 4) {
+			bp = 0;
+			by++;
+			assert_leq(by, (int)this->_eh._sideBwtSz);
+			if(by == (int)this->_eh._sideBwtSz) {
+				// Fell off the end of the side
+				break;
+			}
+		}
+	}
+	WITHIN_FCHR_DOLLARA(arrs);
+#endif
+#ifndef NDEBUG
+	if(_sanity) {
+		// Make sure results match up with a call to mapLFEx.
+		uint32_t tops[4] = {0, 0, 0, 0};
+		uint32_t bots[4] = {0, 0, 0, 0};
+		uint32_t top = l.toBWRow();
+		uint32_t bot = top + nm;
+		mapLFEx(top, bot, tops, bots);
+		assert(myarrs[0] == (bots[0] - tops[0]) || myarrs[0] == (bots[0] - tops[0])+1);
+		assert_eq(myarrs[1], bots[1] - tops[1]);
+		assert_eq(myarrs[2], bots[2] - tops[2]);
+		assert_eq(myarrs[3], bots[3] - tops[3]);
+	}
+#endif
+	return nm;
+}
+#else
 /**
  * Counts the number of occurrences of all four nucleotides in the
  * given side from the given byte/bitpair (l->_by/l->_bp) (or the
@@ -1274,6 +1568,7 @@ inline uint32_t Ebwt::countBwSideRange2(
 #endif
 	return nm;
 }
+#endif
 
 /**
  * Returns true iff the index contains the given string (exactly).  The
@@ -1331,7 +1626,7 @@ string adjustEbwtBase(const string& cmdline,
 	string str = ebwtFileBase;
 	ifstream in;
 	if(verbose) cout << "Trying " << str << endl;
-	in.open((str + ".1.ebwt").c_str(), ios_base::in | ios::binary);
+	in.open((str + ".1.bt2").c_str(), ios_base::in | ios::binary);
 	if(!in.is_open()) {
 		if(verbose) cout << "  didn't work" << endl;
 		in.close();
@@ -1345,14 +1640,14 @@ string adjustEbwtBase(const string& cmdline,
 		}
 		str += ebwtFileBase;
 		if(verbose) cout << "Trying " << str << endl;
-		in.open((str + ".1.ebwt").c_str(), ios_base::in | ios::binary);
+		in.open((str + ".1.bt2").c_str(), ios_base::in | ios::binary);
 		if(!in.is_open()) {
 			if(verbose) cout << "  didn't work" << endl;
 			in.close();
 			if(getenv("BOWTIE_INDEXES") != NULL) {
 				str = string(getenv("BOWTIE_INDEXES")) + "/" + ebwtFileBase;
 				if(verbose) cout << "Trying " << str << endl;
-				in.open((str + ".1.ebwt").c_str(), ios_base::in | ios::binary);
+				in.open((str + ".1.bt2").c_str(), ios_base::in | ios::binary);
 				if(!in.is_open()) {
 					if(verbose) cout << "  didn't work" << endl;
 					in.close();

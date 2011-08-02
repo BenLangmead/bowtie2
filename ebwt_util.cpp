@@ -26,10 +26,14 @@
 void Ebwt::sanityCheckUpToSide(int upToSide) const {
 	assert(isInMemory());
 	uint32_t occ[] = {0, 0, 0, 0};
-	uint32_t occ_save[] = {0, 0};
+	uint32_t occ_save[] = {0, 0, 0, 0};
 	uint32_t cur = 0; // byte pointer
 	const EbwtParams& eh = this->_eh;
+#ifdef BOWTIE2
 	bool fw = false;
+#else
+	bool fw = true;
+#endif
 	while(cur < (upToSide * eh._sideSz)) {
 		assert_leq(cur + eh._sideSz, eh._ebwtTotLen);
 		for(uint32_t i = 0; i < eh._sideBwtSz; i++) {
@@ -38,11 +42,27 @@ void Ebwt::sanityCheckUpToSide(int upToSide) const {
 				// Unpack from lowest to highest bit pair
 				int twoBit = unpack_2b_from_8b(by, fw ? j : 3-j);
 				occ[twoBit]++;
-				//if(_verbose) cout << "ACGT"[twoBit];
 			}
 			assert_eq(0, (occ[0] + occ[1] + occ[2] + occ[3]) % 4);
 		}
 		assert_eq(0, (occ[0] + occ[1] + occ[2] + occ[3]) % eh._sideBwtLen);
+#ifdef BOWTIE2
+		// Finished forward bucket; check saved [A], [C], [G] and [T]
+		// against the uint32_ts encoded here
+		ASSERT_ONLY(const uint32_t *u32ebwt = reinterpret_cast<const uint32_t*>(&ebwt()[cur + eh._sideBwtSz]));
+		ASSERT_ONLY(uint32_t as = u32ebwt[0]);
+		ASSERT_ONLY(uint32_t cs = u32ebwt[1]);
+		ASSERT_ONLY(uint32_t gs = u32ebwt[2]);
+		ASSERT_ONLY(uint32_t ts = u32ebwt[3]);
+		assert(as == occ_save[0] || as == occ_save[0]-1);
+		assert_eq(cs, occ_save[1]);
+		assert_eq(gs, occ_save[2]);
+		assert_eq(ts, occ_save[3]);
+		occ_save[0] = occ[0];
+		occ_save[1] = occ[1];
+		occ_save[2] = occ[2];
+		occ_save[3] = occ[3];
+#else
 		if(fw) {
 			// Finished forward bucket; check saved [G] and [T]
 			// against the two uint32_ts encoded here
@@ -64,6 +84,7 @@ void Ebwt::sanityCheckUpToSide(int upToSide) const {
 			occ_save[1] = occ[3]; // save ts
 			fw = true;
 		}
+#endif
 		cur += eh._sideSz;
 	}
 }
