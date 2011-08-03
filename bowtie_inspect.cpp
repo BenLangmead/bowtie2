@@ -308,7 +308,6 @@ static void print_index_summary(
 		false,                // load SA sample?
 		false,                // load ftab?
 		false,                // load rstarts?
-		NULL,                 // no reference map
 		verbose,              // be talkative?
 		verbose,              // be talkative at startup?
 		false,                // pass up memory exceptions?
