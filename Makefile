@@ -100,20 +100,12 @@ ifeq (64,$(BITS))
 BITS_FLAG = -m64
 endif
 
-DEBUG_FLAGS = -O0 -g3 $(BITS_FLAG)
-DEBUG_DEFS = -DCOMPILER_OPTIONS="\"$(DEBUG_FLAGS) $(EXTRA_FLAGS)\""
-#RELEASE_FLAGS = -O3 $(BITS_FLAG) -funroll-loops -fomit-frame-pointer
-RELEASE_FLAGS = -O3 $(BITS_FLAG) -funroll-loops
-RELEASE_DEFS = -DCOMPILER_OPTIONS="\"$(RELEASE_FLAGS) $(EXTRA_FLAGS)\""
+DEBUG_FLAGS    = -O0 -g3 $(BITS_FLAG)
+DEBUG_DEFS     = -DCOMPILER_OPTIONS="\"$(DEBUG_FLAGS) $(EXTRA_FLAGS)\""
+RELEASE_FLAGS  = -O3 $(BITS_FLAG) -funroll-loops
+RELEASE_DEFS   = -DCOMPILER_OPTIONS="\"$(RELEASE_FLAGS) $(EXTRA_FLAGS)\""
 NOASSERT_FLAGS = -DNDEBUG
-FILE_FLAGS = -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
-
-BOWTIE_BIN_LIST =      bowtie-build \
-                       bowtie \
-                       bowtie-inspect
-BOWTIE_BIN_LIST_AUX =  bowtie-build-debug \
-                       bowtie-debug \
-                       bowtie-inspect-debug
+FILE_FLAGS     = -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
 
 BOWTIE2_BIN_LIST =     bowtie2-build \
                        bowtie2 \
@@ -156,23 +148,15 @@ SRC_PKG_LIST = $(wildcard *.h) \
 
 BIN_PKG_LIST = $(GENERAL_LIST)
 
-.PHONY: all2 allall2 all allall both2 both both2-debug both-debug
+.PHONY: all allall both both-debug
 
-all2: $(BOWTIE2_BIN_LIST)
+all: $(BOWTIE2_BIN_LIST)
 
-allall2: $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)
+allall: $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)
 
-all: $(BOWTIE_BIN_LIST)
+both: bowtie2 bowtie2-build
 
-allall: $(BOWTIE_BIN_LIST) $(BOWTIE_BIN_LIST_AUX)
-
-both2: bowtie2 bowtie2-build
-
-both: bowtie bowtie-build
-
-both2-debug: bowtie2-debug bowtie2-build-debug
-
-both-debug: bowtie-debug bowtie-build-debug
+both-debug: bowtie2-debug bowtie2-build-debug
 
 DEFS=-fno-strict-aliasing \
      -DBOWTIE_VERSION="\"`cat VERSION`\"" \
