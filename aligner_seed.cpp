@@ -34,10 +34,9 @@ Constraint Constraint::penaltyBased(int pen) {
  * Construct a constraint where the only constraint is a total
  * penalty constraint related to the length of the read.
  */
-Constraint Constraint::penaltyFuncBased(float penConst, float penLinear) {
+Constraint Constraint::penaltyFuncBased(const SimpleFunc& f) {
 	Constraint c;
-	c.penConst = penConst;
-	c.penLinear = penLinear;
+	c.penFunc = f;
 	return c;
 }
 
@@ -447,8 +446,6 @@ pair<int, int> SeedAligner::instantiateSeeds(
 	int per,                   // interval between seeds
 	const Read& read,          // read to align
 	const Scoring& pens,       // scoring scheme
-	float nCeilConst,          // ceil on # Ns w/r/t read len, const coeff
-	float nCeilLinear,         // ceil on # Ns w/r/t read len, linear coeff
 	bool nofw,                 // don't align forward read
 	bool norc,                 // don't align revcomp read
 	AlignmentCacheIface& cache,// holds some seed hits from previous reads

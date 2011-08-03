@@ -28,7 +28,7 @@ void SwDriver::setUpSaRangeState(
 	const Ebwt& ebwt,            // BWT
 	const BitPairReference& ref, // Reference strings
 	int seedlen,                 // length of seed
-	size_t maxrows,              // max rows to consider per position
+	const SimpleFunc& rowmult,   // max rows to consider per position
 	bool scanNarrowed,           // true -> ref scan even for narrowed hits
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
 	RandomSource& rnd,           // pseudo-random generator
@@ -40,23 +40,27 @@ void SwDriver::setUpSaRangeState(
 	satups2_.clear(); satups2_.resize(nonz);
 	sacomb_.clear();  sacomb_.resize(nonz);
 	sstab_.init(4); // Seed = 4 DNA chars = 1 byte
+	// nonz is the number of positions that had at least one hit.  It's not the
+	// number of SA ranges, nor is it the 
 	for(size_t i = 0; i < nonz; i++) {
 		bool fw = true;
 		uint32_t offidx = 0, rdoff = 0, seedlen = 0;
+		// A QVal is a collection of SARanges
 		QVal qv = sh.hitsByRank(i, offidx, rdoff, fw, seedlen);
 		assert(qv.repOk(ca.current()));
 		satups_[i].clear();
 		satups2_[i].clear();
 		sacomb_[i].clear();
+		// Get SATuples.  One SATuple per SARange.
 		ca.queryQval(qv, satups_[i]);
 		EList<SATuple, 16> *satups = &satups_[i];
-		// Whittle down the rows in satups_ according to 'maxrows'
 		bool narrowed = false;
-		if(maxrows != 0xffffffff && SATuple::randomNarrow(
+		// Whittle down the rows in satups_ according to 'maxrows'
+		if(SATuple::randomNarrow(
 			satups_[i],
 			satups2_[i],
 			rnd,
-			maxrows))
+			rowmult))
 		{
 			satups_[i] = satups2_[i];
 			narrowed = true;
@@ -117,9 +121,8 @@ bool SwDriver::extendSeeds(
 	TAlScore minsc,              // minimum score for anchor
 	TAlScore floorsc,            // local-alignment floor for anchor score
 	int nceil,                   // maximum # Ns permitted in reference portion
-	float posmin,                // minimum number of positions to examine
-	float posfrac,               // max number of additional poss to examine
-	float rowmult,               // number of extensions to try per pos
+	const SimpleFunc& posfrac,   // minimum number of positions to examine
+	const SimpleFunc& rowmult,   // max number of additional poss to examine
 	size_t maxhalf,  	         // max width in either direction for DP tables
 	bool scanNarrowed,           // true -> ref scan even for narrowed hits
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
@@ -147,14 +150,6 @@ bool SwDriver::extendSeeds(
 	int readGaps = sc.maxReadGaps(minsc, rdlen);
 	int refGaps  = sc.maxRefGaps(minsc, rdlen);
 	size_t maxGaps = 0;
-	
-	size_t maxrows;
-	if(rowmult == std::numeric_limits<float>::max()) {
-		maxrows = std::numeric_limits<size_t>::max();
-	} else {
-		maxrows = (size_t)(rowmult + 0.5f);
-	}
-	assert_gt(maxrows, 0);
 
 	DynProgFramer dpframe(!gReportOverhangs);
 	swa.reset();
@@ -170,7 +165,7 @@ bool SwDriver::extendSeeds(
 		ebwt,         // BWT
 		ref,          // Reference strings
 		seedlen,      // length of seed substring
-		maxrows,      // max rows to consider per position
+		rowmult,      // max rows to consider per position
 		scanNarrowed, // true -> ref scan even for narrowed hits
 		ca,           // alignment cache for seed hits
 		rnd,          // pseudo-random generator
@@ -182,16 +177,9 @@ bool SwDriver::extendSeeds(
 	// the second iteration, resolve entries for which the offset is
 	// unknown and try SWs.
 	const size_t nonz = sh.nonzeroOffsets();
-	float possf;
-	if(posfrac == std::numeric_limits<float>::max() ||
-	   posmin  == std::numeric_limits<float>::max())
-	{
-		possf = (float)nonz;
-	} else {
-		possf = posmin + posfrac * (nonz-posmin) + 0.5f;
-	}
-	possf = max(possf, 1.0f);
-	possf = min(possf, (float)nonz);
+	double possf = posfrac.f<double>((double)nonz);
+	possf = max<double>(possf, 1.0f);
+	possf = min<double>(possf, (double)nonz);
 	const size_t poss = (size_t)possf;
 	size_t rows = rdlen + (color ? 1 : 0);
 	for(size_t i = 0; i < poss; i++) {
@@ -599,9 +587,8 @@ bool SwDriver::extendSeedsPaired(
 	int onceil,                  // max # Ns permitted in ref for opposite
 	bool nofw,                   // don't align forward read
 	bool norc,                   // don't align revcomp read
-	float posmin,                // minimum number of positions to examine
-	float posfrac,               // max number of additional poss to examine
-	float rowmult,               // number of extensions to try per pos
+	const SimpleFunc& posfrac,   // minimum number of positions to examine
+	const SimpleFunc& rowmult,   // max number of additional poss to examine
 	size_t maxhalf,              // max width in either direction for DP tables
 	bool scanNarrowed,           // true -> ref scan even for narrowed hits
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
@@ -644,14 +631,6 @@ bool SwDriver::extendSeedsPaired(
 	}
 	size_t omaxGaps = 0;
 
-	size_t maxrows;
-	if(rowmult == std::numeric_limits<float>::max()) {
-		maxrows = std::numeric_limits<size_t>::max();
-	} else {
-		maxrows = (size_t)(rowmult + 0.5f);
-	}
-	assert_gt(maxrows, 0);
-
 	const size_t rows   = rdlen  + (color ? 1 : 0);
 	const size_t orows  = ordlen + (color ? 1 : 0);
 	
@@ -670,7 +649,7 @@ bool SwDriver::extendSeedsPaired(
 		ebwt,         // BWT
 		ref,          // Reference strings
 		seedlen,      // length of seed substring
-		maxrows,      // max rows to consider per position
+		rowmult,      // max rows to consider per position
 		scanNarrowed, // true -> ref scan even for narrowed hits
 		ca,           // alignment cache for seed hits
 		rnd,          // pseudo-random generator
@@ -682,21 +661,11 @@ bool SwDriver::extendSeedsPaired(
 	// the second iteration, resolve entries for which the offset is
 	// unknown and try SWs.
 	const size_t nonz = sh.nonzeroOffsets();
-	float possf;
-	if(posfrac == std::numeric_limits<float>::max() ||
-	   posmin  == std::numeric_limits<float>::max())
-	{
-		possf = (float)nonz;
-	} else {
-		possf = posmin + posfrac * (nonz-posmin) + 0.5f;
-	}
-	possf = max(possf, 1.0f);
-	possf = min(possf, (float)nonz);
+	double possf = posfrac.f<double>((double)nonz);
+	possf = max<double>(possf, 1.0f);
+	possf = min<double>(possf, (double)nonz);
 	const size_t poss = (size_t)possf;
 	for(size_t i = 0; i < poss; i++) {
-		//cerr << "Trying position " << i << " in " << rd.name
-		//     << " with A=" << rnd.currentA() << ", C=" << rnd.currentC()
-		//	 << ", last=" << rnd.currentLast() << endl;
 		bool fw = true;
 		uint32_t offidx = 0, rdoff = 0, seedlen = 0;
 		// TODO: Right now we take a QVal and then investigate it until it's
@@ -741,7 +710,6 @@ bool SwDriver::extendSeedsPaired(
 				// isn't valid
 				continue;
 			}
-			//cerr << "  at " << tidx << ":" << toff << endl;
 			// Find offset of alignment's upstream base assuming net gaps=0
 			// between beginning of read and beginning of seed hit
 			int64_t refoff = (int64_t)toff - rdoff;
@@ -750,7 +718,6 @@ bool SwDriver::extendSeedsPaired(
 			Coord refcoord(tidx, refoff, fw);
 			if(seenDiags.locusPresent(refcoord)) {
 				// Already handled alignments seeded on this diagonal
-				//cerr << "  skipping b/c diagonal was handled" << endl;
 				swmSeed.rshit++;
 				continue;
 			}
@@ -847,8 +814,6 @@ bool SwDriver::extendSeedsPaired(
 			// resolutions.
 			wlm.refscanhits += sscan_.hits().size();
 			pastedRefoff += nsInLeftShift;
-			//cerr << "  initialized DP ref, got " << sscan_.hits().size()
-			//     << " seed scan hits." << endl;
 			for(size_t j = 0; j < sscan_.hits().size(); j++) {
 				// Get identifier for the appropriate combiner
 				U32Pair id = sscan_.hits()[j].id();
@@ -897,11 +862,9 @@ bool SwDriver::extendSeedsPaired(
 			// For each anchor alignment we pull out of the dynamic programming
 			// problem...
 			while(true) {
-				//cerr << "  trying another DP" << endl;
 				res_.reset();
 				assert(res_.empty());
 				if(swa.done()) {
-					//cerr << "  DONE" << endl;
 					break;
 				}
 				swa.nextAlignment(res_, rnd);
@@ -909,7 +872,6 @@ bool SwDriver::extendSeedsPaired(
 				if(!found) {
 					// Could not extend the seed hit into a full alignment for
 					// the anchor mate
-					//cerr << "  DONE after call to nextAlignment" << endl;
 					break;
 				}
 				assert(res_.alres.matchesRef(
@@ -1048,9 +1010,7 @@ bool SwDriver::extendSeedsPaired(
 							onsInLeftShift);
 						// Now fill the dynamic programming matrix, return true
 						// iff there is at least one valid alignment
-						//cerr << "  aligning mate" << endl;
 						foundMate = oswa.align(rnd);
-						//cerr << "  result=" << foundMate << endl;
 					}
 					do {
 						ores_.reset();

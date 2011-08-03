@@ -290,7 +290,7 @@ public:
 			if(satup->offs[i] != 0xffffffff) continue;
 			for(size_t j = i+1; j < fmap.size(); j++) {
 				if(satup->offs[j] != 0xffffffff) continue;
-				assert_neq(fmap[i], fmap[j]);
+				assert(fmap[i] != fmap[j]);
 			}
 		}
 		assert_eq(nrep_, nrep);

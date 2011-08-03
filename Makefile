@@ -67,15 +67,15 @@ BUILD_LIBS =
 SHARED_CPPS = ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
               edit.cpp ebwt.cpp ebwt_io.cpp ebwt_util.cpp \
               reference.cpp ds.cpp multikey_qsort.cpp
-SEARCH_CPPS = qual.cpp pat.cpp ref_aligner.cpp \
-              log.cpp hit_set.cpp refmap.cpp annot.cpp sam.cpp \
-              color.cpp color_dec.cpp hit.cpp range_source.cpp \
-              report.cpp read_qseq.cpp aligner_seed_policy.cpp \
+SEARCH_CPPS = qual.cpp pat.cpp \
+              log.cpp refmap.cpp annot.cpp sam.cpp \
+              color.cpp color_dec.cpp \
+              read_qseq.cpp aligner_seed_policy.cpp \
               aligner_seed.cpp aligner_sw.cpp aligner_sw_col.cpp \
 			  aligner_sw_driver.cpp aligner_cache.cpp \
 			  aligner_result.cpp ref_coord.cpp mask.cpp \
 			  pe.cpp aln_sink.cpp read_sink.cpp dp_framer.cpp \
-			  scoring.cpp sam_hitsink.cpp sa_rescomb.cpp \
+			  scoring.cpp sa_rescomb.cpp \
 			  seed_scan.cpp \
 			  aligner_swsse.cpp \
 			  aligner_swsse_loc_i16.cpp \

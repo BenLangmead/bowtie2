@@ -2470,11 +2470,18 @@ int main(void) {
 		assert(st.repOk());
 		st.foundUnpaired(true);
 		assert(st.repOk());
-		assert(testDones(st, true, true, true, true, true, true));
+		assert(testDones(st, true, true, true, false, false, false));
 		assert_eq(2, st.numConcordant());
 		assert_eq(0, st.numDiscordant());
 		assert_eq(2, st.numUnpaired1());
 		assert_eq(1, st.numUnpaired2());
+		st.foundUnpaired(false);
+		assert(st.repOk());
+		assert(testDones(st, true, true, true, true, true, true));		
+		assert_eq(2, st.numConcordant());
+		assert_eq(0, st.numDiscordant());
+		assert_eq(2, st.numUnpaired1());
+		assert_eq(2, st.numUnpaired2());
 		st.finish();
 		st.getReport(nconcord, ndiscord, nunpair1, nunpair2,
 		             pairMax, unpair1Max, unpair2Max);
@@ -2484,7 +2491,7 @@ int main(void) {
 		assert_eq(0, nunpair2);
 		assert(pairMax);
 		assert(unpair1Max); // not really relevant
-		assert(!unpair2Max); // not really relevant
+		assert(unpair2Max); // not really relevant
 	}
 	cerr << "PASSED" << endl;
 }

@@ -6,18 +6,12 @@
 #define ALIGNER_SEED_POLICY_H_
 
 #include "scoring.h"
-
-enum {
-	SEED_IVAL_LINEAR = 1,
-	SEED_IVAL_SQUARE_ROOT,
-	SEED_IVAL_CUBE_ROOT
-};
+#include "simple_func.h"
 
 #define DEFAULT_SEEDMMS 0
 #define DEFAULT_SEEDLEN 22
-#define DEFAULT_SEEDPERIOD -1
 
-#define DEFAULT_IVAL SEED_IVAL_SQUARE_ROOT
+#define DEFAULT_IVAL SIMPLE_FUNC_SQRT
 #define DEFAULT_IVAL_A 1.0f
 #define DEFAULT_IVAL_B 0.0f
 
@@ -233,22 +227,15 @@ public:
 		int&   penRfExConst,
 		int&   penRdExLinear,
 		int&   penRfExLinear,
-		float& costMinConst,
-		float& costMinLinear,
-		float& costFloorConst,
-		float& costFloorLinear,
-		float& nCeilConst,
-		float& nCeilLinear,
+		SimpleFunc& costMin,
+		SimpleFunc& costFloor,
+		SimpleFunc& nCeil,
 		bool&  nCatPair,
 		int&   multiseedMms,
 		int&   multiseedLen,
-		int&   multiseedPeriod,
-		int&   multiseedIvalType,
-		float& multiseedIvalA,
-		float& multiseedIvalB,
-		float& posmin,
-		float& posfrac,
-		float& rowmult);
+		SimpleFunc& multiseedIval,
+		SimpleFunc& posmin,
+		SimpleFunc& rowmult);
 };
 
 #endif /*ndef ALIGNER_SEED_POLICY_H_*/
