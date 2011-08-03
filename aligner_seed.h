@@ -39,6 +39,7 @@ struct Constraint {
 	void init() {
 		edits = mms = ins = dels = penalty = editsCeil = mmsCeil =
 		insCeil = delsCeil = penaltyCeil = std::numeric_limits<int>::max();
+		penFunc.reset();
 		instantiated = false;
 	}
 	

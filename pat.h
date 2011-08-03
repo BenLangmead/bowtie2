@@ -86,8 +86,6 @@ struct PatternParams {
 		bool phred64_,
 		bool intQuals_,
 		bool fuzzy_,
-		int numRandom_,
-		int lenRandom_,
 		int sampleLen_,
 		int sampleFreq_,
 		uint32_t skip_) :
@@ -100,8 +98,6 @@ struct PatternParams {
 		phred64(phred64_),
 		intQuals(intQuals_),
 		fuzzy(fuzzy_),
-		numRandom(numRandom_),
-		lenRandom(lenRandom_),
 		sampleLen(sampleLen_),
 		sampleFreq(sampleFreq_),
 		skip(skip_) { }
@@ -115,8 +111,6 @@ struct PatternParams {
 	bool phred64;         // true -> qualities are on phred64 scale
 	bool intQuals;        // true -> qualities are space-separated numbers
 	bool fuzzy;           // true -> try to parse fuzzy fastq
-	int numRandom;        // number of randomly-generated reads to make
-	int lenRandom;        // for randomly-generated reads, length they should be 
 	int sampleLen;        // length of sampled reads for FastaContinuous...
 	int sampleFreq;       // frequency of sampled reads for FastaContinuous...
 	uint32_t skip;        // skip the first 'skip' patterns

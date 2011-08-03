@@ -797,6 +797,7 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseI16(
 	size_t         col,    // start in this column
 	RandomSource&  rand)   // random gen, to choose among equal paths
 {
+	assert_leq(floorsc_, 0);
 	assert_lt(row, dpRows());
 	assert_lt(col, rff_-rfi_);
 	SSEData& d = fw_ ? sseI16fw_ : sseI16rc_;

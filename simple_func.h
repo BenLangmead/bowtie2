@@ -38,6 +38,12 @@ public:
 	void init(int type, double I, double X, double C, double L) {
 		type_ = type; I_ = I; X_ = X; C_ = C; L_ = L;
 	}
+
+	void init(int type, double C, double L) {
+		type_ = type; C_ = C; L_ = L;
+		I_ = -std::numeric_limits<double>::max();
+		X_ = std::numeric_limits<double>::max();
+	}
 	
 	void setType (int type ) { type_ = type; }
 	void setMin  (double mn) { I_ = mn; }
@@ -54,6 +60,7 @@ public:
 	void mult(double x) { I_ *= x; X_ *= x; C_ *= x; L_ *= x; }
 	
 	bool initialized() const { return type_ != 0; }
+	void reset() { type_ = 0; }
 	
 	template<typename T>
 	T f(double x) const {
