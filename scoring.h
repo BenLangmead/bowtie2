@@ -6,6 +6,7 @@
 #define SCORING_H_
 
 #include "qual.h"
+#include "simple_func.h"
 
 // Default type of bonus to added for matches
 #define DEFAULT_MATCH_BONUS_TYPE COST_MODEL_CONSTANT
@@ -123,12 +124,9 @@ public:
 		int   mmcType,      // how to penalize mismatches
 	    int   mmc,          // constant if mm pelanty is a constant
 		int   sn,           // penalty for nuc mismatch in decoded color alns
-		float minConst_,    // minimum score for valid alignment; const coeff
-		float minLinear_,   // minimum score for valid alignment; linear coeff
-		float floorConst_,  // local-alignment score floor; const coeff
-		float floorLinear_, // local-alignment score floor; linear coeff
-		float ncConst,      // max # ref Ns allowed in alignment; const coeff
-		float ncLinear,     // max # ref Ns allowed in alignment; linear coeff
+		const SimpleFunc& scoreMin_,   // minimum score for valid alignment; const coeff
+		const SimpleFunc& scoreFloor_, // local-alignment score floor; const coeff
+		const SimpleFunc& nCeil_,      // max # ref Ns allowed in alignment; const coeff
 	    int   nType,        // how to penalize Ns in the read
 	    int   n,            // constant if N pelanty is a constant
 		bool  ncat,         // whether to concatenate mates before N filtering
@@ -145,12 +143,9 @@ public:
 		mmcostType   = mmcType;
 		mmcost       = mmc;
 		snp          = sn;
-		minConst     = minConst_;
-		minLinear    = minLinear_;
-		floorConst   = floorConst_;
-		floorLinear  = floorLinear_;
-		nCeilConst   = ncConst;
-		nCeilLinear  = ncLinear;
+		scoreMin     = scoreMin_;
+		scoreFloor   = scoreFloor_;
+		nCeil        = nCeil_;
 		npenType     = nType;
 		npen         = n;
 		ncatpair     = ncat;
@@ -376,14 +371,6 @@ public:
 		const;
 	
 	/**
-	 * Given a sequence length, return the number of Ns that are
-	 * allowed in the sequence.
-	 */
-	inline size_t nCeil(size_t rdlen) const {
-		return min((size_t)(nCeilConst + nCeilLinear * rdlen), rdlen);
-	}
-	
-	/**
 	 * The penalty associated with opening a new read gap.
 	 */
 	inline int readGapOpen() const { 
@@ -416,12 +403,9 @@ public:
 	int     mmcostType;   // based on qual? rounded? just a constant?
 	int     mmcost;       // if mmcosttype=constant, this is the const
 	int     snp;          // penalty for nuc mismatch in decoded colorspace als
-	float   minConst;     // minimum score for valid alignment, constant coeff
-	float   minLinear;    // minimum score for valid alignment, linear coeff
-	float   floorConst;   // local-alignment score floor, constant coeff
-	float   floorLinear;  // local-alignment score floor, linear coeff
-	float   nCeilConst;   // max # Ns involved in alignment, constant coeff
-	float   nCeilLinear;  // max # Ns involved in alignment, linear coeff
+	SimpleFunc scoreMin;  // minimum score for valid alignment, constant coeff
+	SimpleFunc scoreFloor;// local-alignment score floor, constant coeff
+	SimpleFunc nCeil;     // max # Ns involved in alignment, constant coeff
 	int     npenType;     // N: based on qual? rounded? just a constant?
 	int     npen;         // N: if mmcosttype=constant, this is the const
 	bool    ncatpair;     // true -> do N filtering on concated pair
@@ -438,17 +422,18 @@ public:
 	int     npens[256];   // map from N qualities to penalty
 	
 	static Scoring bwaSwLike() {
+		const double DMAX = std::numeric_limits<double>::max();
+		SimpleFunc scoreFloor(SIMPLE_FUNC_CONST, 0.0f, 0.0f, 0.0f, 0.0f);
+		SimpleFunc scoreMin(SIMPLE_FUNC_LINEAR, 0.0f, DMAX, 37.0f, 0.3f);
+		SimpleFunc nCeil(SIMPLE_FUNC_LINEAR, 0.0f, DMAX, 2.0f, 0.1f);
 		return Scoring(
 			1,                       // reward for a match
 			COST_MODEL_CONSTANT,     // how to penalize mismatches
 			3,                       // constant if mm pelanty is a constant
 			3,                       // penalty for nuc mm when decoding colors
-			37.0f,                   // constant coeff for minimum score
-			0.3f,                    // linear coeff for minimum score
-			0.0f,                    // constant coeff for score floor
-			0.0f,                    // linear coeff for score floor
-			2.0f,                    // constant coeff for max Ns
-			0.1f,                    // linear coeff for max Ns
+			scoreMin,                // score min: 37 + 0.3x
+			scoreFloor,              // score floor: constant = 0
+			nCeil,                   // n ceiling: 2 + 0.1x
 			COST_MODEL_CONSTANT,     // how to penalize Ns in the read
 			3,                       // constant if N pelanty is a constant
 			false,                   // concatenate mates before N filtering?
@@ -456,6 +441,31 @@ public:
 			5,                       // constant coeff for gap in ref
 			2,                       // linear coeff for gap in read
 			2,                       // linear coeff for gap in ref
+			5,                       // 5 rows @ top/bot diagonal-entrance-only
+			-1,                      // no restriction on row
+			false);                  // score prioritized over row
+	}
+
+	static Scoring base1() {
+		const double DMAX = std::numeric_limits<double>::max();
+		SimpleFunc scoreFloor(SIMPLE_FUNC_CONST, 0.0f, 0.0f, 0.0f, 0.0f);
+		SimpleFunc scoreMin(SIMPLE_FUNC_LINEAR, 0.0f, DMAX, 37.0f, 0.3f);
+		SimpleFunc nCeil(SIMPLE_FUNC_LINEAR, 0.0f, DMAX, 2.0f, 0.1f);
+		return Scoring(
+			1,                       // reward for a match
+			COST_MODEL_CONSTANT,     // how to penalize mismatches
+			3,                       // constant if mm pelanty is a constant
+			3,                       // penalty for nuc mm when decoding colors
+			scoreMin,                // score min: 37 + 0.3x
+			scoreFloor,              // score floor: constant = 0
+			nCeil,                   // n ceiling: 2 + 0.1x
+			COST_MODEL_CONSTANT,     // how to penalize Ns in the read
+			3,                       // constant if N pelanty is a constant
+			false,                   // concatenate mates before N filtering?
+			11,                      // constant coeff for gap in read
+			11,                      // constant coeff for gap in ref
+			4,                       // linear coeff for gap in read
+			4,                       // linear coeff for gap in ref
 			5,                       // 5 rows @ top/bot diagonal-entrance-only
 			-1,                      // no restriction on row
 			false);                  // score prioritized over row

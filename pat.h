@@ -17,7 +17,6 @@
 #include "threading.h"
 #include "filebuf.h"
 #include "qual.h"
-#include "hit_set.h"
 #include "search_globals.h"
 #include "sstring.h"
 #include "ds.h"

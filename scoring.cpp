@@ -84,19 +84,19 @@ int Scoring::maxRefGaps(
 
 /**
  * Given a read sequence, return true iff the read passes the N filter.
- * The N filter rejects reads with more than the number of Ns calculated by
- * taking nCeilConst + nCeilLinear * read length.
+ * The N filter rejects reads with more than the number of Ns.
  */
 bool Scoring::nFilter(const BTDnaString& rd) const {
-	float ns = 0.0f;
+	size_t ns = 0;
 	size_t rdlen = rd.length();
-	float maxns = nCeilConst + nCeilLinear * rdlen;
-	if(maxns < 0.0f) maxns = 0.0f;
+	size_t maxns = nCeil.f<size_t>((double)rdlen);
 	assert_geq(rd.length(), 0);
 	for(size_t i = 0; i < rdlen; i++) {
 		if(rd[i] == 4) {
-			ns += 1.0f;
-			if(ns > maxns) return false; // doesn't pass
+			ns++;
+			if(ns > maxns) {
+				return false; // doesn't pass
+			}
 		}
 	}
 	return true; // passes
@@ -104,8 +104,7 @@ bool Scoring::nFilter(const BTDnaString& rd) const {
 
 /**
  * Given a read sequence, return true iff the read passes the N filter.
- * The N filter rejects reads with more than the number of Ns calculated by
- * taking nCeilConst + nCeilLinear * read length.
+ * The N filter rejects reads with more than the number of Ns.
  *
  * For paired-end reads, there is a	question of how to apply the filter.
  * The filter could be applied to both mates separately, which might then
@@ -129,18 +128,18 @@ void Scoring::nFilterPair(
 	if(rd1 != NULL && rd2 != NULL && ncatpair) {
 		size_t rdlen1 = rd1->length();
 		size_t rdlen2 = rd2->length();
-		float maxns = nCeilConst + nCeilLinear * (rdlen1 + rdlen2);
+		size_t maxns = nCeil.f<size_t>((double)(rdlen1 + rdlen2));
 		size_t ns = 0;
 		for(size_t i = 0; i < rdlen1; i++) {
 			if((*rd1)[i] == 4) ns++;
-			if((float)ns > maxns) {
+			if(ns > maxns) {
 				// doesn't pass
 				return;
 			}
 		}
 		for(size_t i = 0; i < rdlen2; i++) {
 			if((*rd2)[i] == 4) ns++;
-			if((float)ns > maxns) {
+			if(ns > maxns) {
 				// doesn't pass
 				return;
 			}
@@ -158,9 +157,8 @@ void Scoring::nFilterPair(
 int main() {
 	{
 		cout << "Case 1: Simple 1 ... ";
-		Scoring sc = Scoring::bwaSwLike();
+		Scoring sc = Scoring::base1();
 		assert_eq(COST_MODEL_CONSTANT, sc.matchType);
-		assert_eq(1, sc.matchConst);
 		
 		assert_eq(0, sc.maxRefGaps(0, 10));  // 10 - 1 - 15 = -6
 		assert_eq(0, sc.maxRefGaps(0, 11));  // 11 - 1 - 15 = -5
@@ -189,7 +187,7 @@ int main() {
 		assert_eq(2, sc.maxReadGaps(0, 21));   // 21 - 0 - 23 = -2
 		
 		// N ceiling: const=2, linear=0.1
-		assert_eq(2, sc.nCeil(1));
+		assert_eq(1, sc.nCeil(1));
 		assert_eq(2, sc.nCeil(3));
 		assert_eq(2, sc.nCeil(5));
 		assert_eq(2, sc.nCeil(7));
@@ -252,9 +250,9 @@ int main() {
 		assert_eq(3, sc.maxReadGaps(0, 14));  // 56 - 0 - 55 =  1
 
 		// N ceiling: const=3, linear=0.4
-		assert_eq(3, sc.nCeil(1));
-		assert_eq(3, sc.nCeil(2));
-		assert_eq(4, sc.nCeil(3));
+		assert_eq(1, sc.nCeil(1));
+		assert_eq(2, sc.nCeil(2));
+		assert_eq(3, sc.nCeil(3));
 		assert_eq(4, sc.nCeil(4));
 		assert_eq(5, sc.nCeil(5));
 		assert_eq(5, sc.nCeil(6));

@@ -59,7 +59,7 @@ void SwAligner::initRead(
 	size_t refGaps  = sc.maxRefGaps(minsc, rdfw.length());
 	assert_geq(readGaps, 0);
 	assert_geq(refGaps, 0);
-	int nceil = (int)sc.nCeil(rdfw.length());
+	int nceil = sc.nCeil.f<int>((double)rdfw.length());
 	rdfw_    = &rdfw;      // read sequence
 	rdrc_    = &rdrc;      // read sequence
 	qufw_    = &qufw;      // read qualities
@@ -2266,7 +2266,6 @@ static float nCeilLinear;    // linear coeff for N ceiling w/r/t read len
 static bool  nCatPair;       // concat mates before applying N filter?
 static int multiseedMms;     // mismatches permitted in a multiseed seed
 static int multiseedLen;     // length of multiseed seeds
-static int multiseedPeriod;  // space between multiseed seeds
 static int multiseedIvalType;
 static float multiseedIvalA;
 static float multiseedIvalB;
@@ -2359,7 +2358,7 @@ static void doTestCase(
 		padf = maxGaps;
 		maxgaps = (size_t)maxGaps;
 	}
-	size_t nceil = sc.nCeil(read.length());
+	size_t nceil = (size_t)sc.nCeil.f((double)read.length());
 	size_t width = 1 + padi + padf;
 	rfi = off;
 	off = 0;
@@ -2521,8 +2520,9 @@ static void doTestCase3(
 		costFloorLinear));
 	btqual.install(qual);
 	btref.install(refin);
-	sc.nCeilConst = nCeilConst;
-	sc.nCeilLinear = nCeilLinear;
+	sc.nCeil.setType(SIMPLE_FUNC_LINEAR);
+	sc.nCeil.setConst(costMinConst);
+	sc.nCeil.setCoeff(costMinLinear);
 	doTestCase(
 		al,
 		btread,
@@ -2575,8 +2575,9 @@ static void doTestCase4(
 		costFloorLinear));
 	btqual.install(qual);
 	btref.install(refin);
-	sc.nCeilConst = nCeilConst;
-	sc.nCeilLinear = nCeilLinear;
+	sc.nCeil.setType(SIMPLE_FUNC_LINEAR);
+	sc.nCeil.setConst(costMinConst);
+	sc.nCeil.setCoeff(costMinLinear);
 	doTestCase(
 		al,
 		btread,
@@ -2619,7 +2620,6 @@ static void doTests() {
 	nCeilLinear     = 0.1f; // coeff of linear term in N ceil w/r/t read len
 	multiseedMms    = DEFAULT_SEEDMMS;
 	multiseedLen    = DEFAULT_SEEDLEN;
-	multiseedPeriod = DEFAULT_SEEDPERIOD;
 	// Set up penalities
 	Scoring sc(
 		bonusMatch,
@@ -4408,7 +4408,6 @@ static void doLocalTests() {
 	nCeilLinear     = 0.1f; // coeff of linear term in N ceil w/r/t read len
 	multiseedMms    = DEFAULT_SEEDMMS;
 	multiseedLen    = DEFAULT_SEEDLEN;
-	multiseedPeriod = DEFAULT_SEEDPERIOD;
 	// Set up penalities
 	Scoring sc(
 		10,
@@ -4761,7 +4760,6 @@ int main(int argc, char **argv) {
 	nCatPair        = false;
 	multiseedMms    = DEFAULT_SEEDMMS;
 	multiseedLen    = DEFAULT_SEEDLEN;
-	multiseedPeriod = DEFAULT_SEEDPERIOD;
 	multiseedIvalType = DEFAULT_IVAL;
 	multiseedIvalA    = DEFAULT_IVAL_A;
 	multiseedIvalB    = DEFAULT_IVAL_B;
@@ -4808,7 +4806,6 @@ int main(int argc, char **argv) {
 					nCatPair,
 					multiseedMms,
 					multiseedLen,
-					multiseedPeriod,
 					multiseedIvalType,
 					multiseedIvalA,
 					multiseedIvalB,

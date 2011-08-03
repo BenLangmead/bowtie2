@@ -6,9 +6,9 @@
 #include <algorithm>
 #include <iostream>
 #include <fstream>
-#include <set>
 #include <sstream>
 #include <fcntl.h>
+#include <math.h>
 #include <errno.h>
 #include <stdexcept>
 #include <sys/stat.h>
@@ -24,7 +24,6 @@
 #include "endian_swap.h"
 #include "word_io.h"
 #include "random_source.h"
-#include "hit.h"
 #include "ref_read.h"
 #include "threading.h"
 #include "bitset.h"
@@ -1502,191 +1501,6 @@ private:
 };
 
 /**
- * Structure encapsulating search parameters, such as whether and how
- * to backtrack and how to deal with multiple equally-good hits.
- */
-class EbwtSearchParams {
-public:
-	EbwtSearchParams(
-		HitSinkPerThread& sink,
-		const EList<SString<char> >& texts,
-		bool fw = true,
-		bool ebwtFw = true) :
-		_sink(sink),
-		_texts(texts),
-		_patid(0xffffffff) { }
-
-	HitSinkPerThread& sink() const { return _sink; }
-	void setPatId(TReadId patid)   { _patid = patid; }
-	TReadId patid() const          { return _patid; }
-	
-	/**
-	 * Report a pair of hits.
-	 */
-	bool reportHitPair(
-		const BTDnaString& seqL,
-		BTString* qualsL,
-		BTString* nameL,
-		bool fwL,
-		bool ebwtFwL,
-		const EList<Edit>& editsL,
-		U32Pair hL,
-		U32Pair aL,
-		uint32_t tlenL,
-		uint32_t qlenL,
-		int stratumL,
-		uint16_t costL,
-		uint32_t omsL,
-		TReadId patidL,
-		uint32_t seedL,
-		uint8_t mateL,
-		const BTDnaString& seqR,
-		BTString* qualsR,
-		BTString* nameR,
-		bool fwR,
-		bool ebwtFwR,
-		const EList<Edit>& editsR,
-		U32Pair hR,
-		U32Pair aR,
-		uint32_t tlenR,
-		uint32_t qlenR,
-		int stratumR,
-		uint16_t costR,
-		uint32_t omsR,
-		TReadId patidR,
-		uint32_t seedR,
-		uint8_t mateR,
-		const BitPairReference* ref,
-		const ReferenceMap* rmap,
-		ColorspaceDecoder * dec,
-		RandomSource& rand,
-		Hit& hitL,
-		Hit& hitR
-		ASSERT_ONLY(, SStringExpandable<uint32_t>& destU32))
-	{
-		reportHitImpl(
-			seqL,
-			qualsL,
-			nameL,
-			ref,
-			rmap,
-			dec,
-			rand,
-			fwL,
-			ebwtFwL,
-			editsL,
-			hL,
-			aL,
-			tlenL,
-			qlenL,
-			stratumL,
-			costL,
-			omsL,
-			patidL,
-			seedL,
-			mateL,
-			hitL
-			ASSERT_ONLY(, destU32));
-		reportHitImpl(
-			seqR,
-			qualsR,
-			nameR,
-			ref,
-			rmap,
-			dec,
-			rand,
-			fwR,
-			ebwtFwR,
-			editsR,
-			hR,
-			aR,
-			tlenR,
-			qlenR,
-			stratumR,
-			costR,
-			omsR,
-			patidR,
-			seedR,
-			mateR,
-			hitR
-			ASSERT_ONLY(, destU32));
-		hitL.pmate = &hitR;
-		hitR.pmate = &hitL;
-		assert(hitL.repOk());
-		assert(hitR.repOk());
-		return sink().reportHitPair(hitL, hitR, stratumL, stratumR);
-	}
-
-	/**
-	 * Report a hit.  Returns true iff caller can call off the search.
-	 */
-	bool reportHit(
-		const BTDnaString& seq, // read sequence
-		BTString* quals, // read quality values
-		BTString* name,  // read name
-		const BitPairReference* ref, // reference (= NULL if not necessary)
-		const ReferenceMap* rmap, // map to another reference coordinate system
-		ColorspaceDecoder * dec, // colorspace decoder
-		RandomSource& rand,
-		bool fw,
-		bool ebwtFw,         // whether index is forward (true) or mirror (false)
-		const EList<Edit>& edits, // edits
-		U32Pair h,          // ref coords
-		U32Pair a,          // arrow pair
-		uint32_t tlen,      // length of text
-		uint32_t qlen,      // length of query
-		int stratum,        // alignment stratum
-		uint16_t cost,      // cost of alignment
-		uint32_t oms,       // approx. # other valid alignments
-		TReadId patid,
-		uint32_t seed,
-		uint8_t mate,
-		Hit& hit
-		ASSERT_ONLY(, SStringExpandable<uint32_t>& destU32))
-	{
-		reportHitImpl(seq, quals, name, ref, rmap, dec, rand, fw,
-		              ebwtFw, edits, h, a, tlen, qlen, stratum, cost,
-					  oms, patid, seed, mate, hit ASSERT_ONLY(, destU32));
-		assert(hit.repOk());
-		return sink().reportHit(hit, stratum);
-	}
-	
-	/**
-	 * Report a hit.  Returns true iff caller can call off the search.
-	 */
-	void reportHitImpl(
-		const BTDnaString& seq, // read sequence
-	    BTString* quals, // read quality values
-	    BTString* name,  // read name
-	    const BitPairReference* ref, // reference (= NULL if not necessary)
-	    const ReferenceMap* rmap, // map to another reference coordinate system
-	    ColorspaceDecoder * dec, // colorspace decoder
-	    RandomSource& rand,
-		bool fw,
-	    bool ebwtFw,        // whether index is forward (true) or mirror (false)
-	    const EList<Edit>& edits, // edits
-	    U32Pair h,          // ref coords
-	    U32Pair a,          // arrow pair
-	    uint32_t tlen,      // length of text
-	    uint32_t qlen,      // length of query
-	    int stratum,        // alignment stratum
-	    uint16_t cost,      // cost of alignment
-	    uint32_t oms,       // approx. # other valid alignments
-	    TReadId patid,
-	    uint32_t seed,
-	    uint8_t mate,
-		Hit& hit
-		ASSERT_ONLY(, SStringExpandable<uint32_t>& destU32));
-
-private:
-	HitSinkPerThread& _sink;
-	const EList<SString<char> >& _texts; // original texts, if available (if not
-	                            // available, _texts.size() == 0)
-	TReadId _patid;      // id of current read
-	EList<Edit> edits_;
-};
-
-/**
  * Encapsulates a location in the bwt text in terms of the side it
  * occurs in and its offset within the side.
  */
@@ -1882,8 +1696,6 @@ struct SideLocus {
 	int32_t _by;           // byte within side (not adjusted for bw sides)
 	int32_t _bp;            // bitpair within byte (not adjusted for bw sides)
 };
-
-#include "row_chaser.h"
 
 /**
  * Read reference names from an input stream 'in' for an Ebwt primary

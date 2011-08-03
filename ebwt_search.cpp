@@ -16,23 +16,15 @@
 #include "formats.h"
 #include "sequence_io.h"
 #include "tokenize.h"
-#include "hit.h"
 #include "aln_sink.h"
 #include "pat.h"
 #include "bitset.h"
 #include "threading.h"
-#include "range_cache.h"
 #include "refmap.h"
 #include "annot.h"
 #include "ds.h"
-#include "aligner.h"
-#include "aligner_0mm.h"
-#include "aligner_1mm.h"
-#include "aligner_23mm.h"
-#include "aligner_seed_mm.h"
 #include "aligner_metrics.h"
 #include "sam.h"
-#include "sam_hitsink.h"
 #include "aligner_seed.h"
 #include "aligner_seed_policy.h"
 #include "aligner_sw.h"
@@ -41,6 +33,7 @@
 #include "aligner_cache.h"
 #include "util.h"
 #include "pe.h"
+#include "simple_func.h"
 #ifdef CHUD_PROFILING
 #include <CHUD/CHUD.h>
 #endif
@@ -63,37 +56,22 @@ static int metricsIval;   // interval between alignment metrics messages (0 = no
 static string metricsFile;// output file to put alignment metrics in
 static bool metricsStderr;// output file to put alignment metrics in
 static bool allHits;      // for multihits, report just one
-bool gRangeMode;    // report BWT ranges instead of ref locs
 static int showVersion;   // just print version and quit?
 static int ipause;        // pause before maching?
 static uint32_t qUpto;    // max # of queries to read
 int gTrim5;         // amount to trim from 5' end
 int gTrim3;         // amount to trim from 3' end
-static int reportOpps;    // whether to report # of other mappings
 static int offRate;       // keep default offRate
-static int offRatePlus;  // amount to subtract from index offset
 static int mismatches;    // allow 0 mismatches by default
 static char *patDumpfile; // filename to dump patterns to
 static bool solexaQuals;  // quality strings are solexa quals, not phred, and subtract 64 (not 33)
 static bool phred64Quals; // quality chars are phred, but must subtract 64 (not 33)
 static bool integerQuals; // quality strings are space-separated strings of integers, not ASCII
-static int maqLike;       // do maq-like searching
-static int seedLen;       // seed length (changed in Maq 0.6.4 from 24)
-static int seedMms;       // # mismatches allowed in seed (maq's -n)
-static int qualThresh;    // max qual-weighted hamming dist (maq's -e)
-static int maxBtsBetter;  // max # backtracks allowed in half-and-half mode
-static int maxBts;        // max # backtracks allowed in half-and-half mode
 static int nthreads;      // number of pthreads operating concurrently
-static output_types outType;  // style of output
-static int numRandomReads;    // # random reads (see Random*PatternSource in pat.h)
-static int lenRandomReads;    // len of random reads (see Random*PatternSource in pat.h)
+static int outType;  // style of output
 static bool noRefNames;       // true -> print reference indexes; not names
-static string dumpAlBase;     // basename of same-format files to dump aligned reads to
-static string dumpUnalBase;   // basename of same-format files to dump unaligned reads to
-static string dumpMaxBase;    // basename of same-format files to dump reads with more than -m valid alignments to
 static uint32_t khits;  // number of hits per read; >1 is much slower
 static uint32_t mhits;  // don't report any hits if there are > mhits
-static bool strata;     // true -> don't stop at stratum boundaries
 static int partitionSz; // output a partitioning key in first field
 bool gNoMaqRound; // true -> don't round quals to nearest 10 like maq
 static bool useSpinlock;  // false -> don't use of spinlocks even if they're #defines
@@ -115,20 +93,12 @@ bool gExpandToFrag;    // incr max frag length to =larger mate len if necessary
 bool gReportDiscordant; // find and report discordant paired-end alignments
 bool gReportMixed;      // find and report unpaired alignments for paired reads
 static uint32_t mixedThresh;   // threshold for when to switch to paired-end mixed mode (see aligner.h)
-static uint32_t mixedAttemptLim; // number of attempts to make in "mixed mode" before giving up on orientation
-static bool dontReconcileMates;  // suppress pairwise all-versus-all way of resolving mates
 static uint32_t cacheLimit;      // ranges w/ size > limit will be cached
 static uint32_t cacheSize;       // # words per range cache
-static int offBase;              // offsets are 0-based by default, but configurable
-static bool tryHard;             // set very high maxBts, mixedAttemptLim
 static uint32_t skipReads;       // # reads/read pairs to skip
 bool gNofw; // don't align fw orientation of read
 bool gNorc; // don't align rc orientation of read
-bool gStrandFix;  // attempt to fix strand bias
 static bool stats; // print performance stats
-static int chunkPoolMegabytes;    // max MB to dedicate to best-first search frames per thread
-static int chunkSz;    // size of single chunk disbursed by ChunkPool
-static bool chunkVerbose; // have chunk allocator output status messages?
 bool gReportSe;
 static const char * refMapFile;  // file containing a map from index coordinates to another coordinate system
 static const char * annotMapFile;  // file containing a map from reference coordinates to annotations
@@ -172,7 +142,6 @@ static string rgs_optflag; // SAM optional flag to add corresponding to @RG ID
 int gSnpPhred; // probability of SNP, for scoring colorspace alignments
 static EList<bool> suppressOuts; // output fields to suppress
 static bool sampleMax; // whether to report a random alignment when maxed-out via -m/-M
-static int defaultMapq; // default mapping quality to print in SAM mode
 bool gColorSeq; // true -> show colorspace alignments as colors, not decoded bases
 bool gColorEdit; // true -> show edits as colors, not decoded bases
 bool gColorQual; // true -> show colorspace qualities as original quals, not decoded quals
@@ -189,12 +158,9 @@ uint32_t gDelExtend;  // deletion gap extension penalty
 int      gGapBarrier; // # diags on top/bot only to be entered diagonally
 int64_t  gRowLow;     // backtraces start from row w/ idx >= this (-1=no limit)
 bool     gRowFirst;   // sort alignments by row then score?
-int gAllowRedundant;
 static EList<string> qualities;
 static EList<string> qualities1;
 static EList<string> qualities2;
-static bool doMultiseed; // true -> use multiseed aligner
-
 static string polstr; // temporary holder for policy string
 static bool  msNoCache;      // true -> disable local cache
 static int   bonusMatchType; // how to reward matches
@@ -211,30 +177,25 @@ static int   penRdGapConst;   // constant cost of extending a gap in the read
 static int   penRfGapConst;   // constant cost of extending a gap in the reference
 static int   penRdGapLinear;  // coeff of linear term for cost of gap extension in read
 static int   penRfGapLinear;  // coeff of linear term for cost of gap extension in ref
-static float costMinConst;    // constant coeff for minimum valid score
-static float costMinLinear;   // linear coeff for minimum valid score
-static float costFloorConst;  // constant coeff for local-alignment score floor
-static float costFloorLinear; // linear coeff for local-alignment score floor
-static float nCeilConst;     // constant factor in N ceiling w/r/t read length
-static float nCeilLinear;    // coeff of linear term in N ceiling w/r/t read length
+static SimpleFunc scoreMin;    // minimum valid score as function of read len
+static SimpleFunc scoreFloor;  // 
+static SimpleFunc nCeil;      // max # Ns allowed as function of read len
+static SimpleFunc msIval;     // interval between seeds as function of read len
 static int   multiseedMms;   // mismatches permitted in a multiseed seed
 static int   multiseedLen;   // length of multiseed seeds
-static int   multiseedPeriod;// space between multiseed seeds
-static int   multiseedIvalType; // formula for seed spacing
-static float multiseedIvalA; // linear coefficient in formula
-static float multiseedIvalB; // constant coefficient in formula
 static string saCountersFn;  // filename to dump per-read SeedAligner counters to
 static string saActionsFn;   // filename to dump all alignment actions to
 static string saHitsFn;      // filename to dump all seed hits to
 static uint32_t seedCacheLocalMB;   // # MB to use for non-shared seed alignment cacheing
 static uint32_t seedCacheCurrentMB; // # MB to use for current-read seed hit cacheing
-static float posmin;         // minimum number of seed poss to try
-static float posfrac;        // fraction of additional seed poss to try
-static float rowmult;        // seed extension attempts per pos
+static SimpleFunc posfrac;   // number of seed poss to try as function of # poss
+static SimpleFunc rowmult;   // number of hits per pos to try as function of # hits
 static size_t maxhalf;       // max width on one side of DP table
 static bool seedSummaryOnly; // print summary information about seed hits, not alignments
 static bool scanNarrowed;    // true -> do ref scan even when seed is narrow
 static bool noSse;           // disable SSE-based dynamic programming
+
+#define DMAX std::numeric_limits<double>::max()
 
 static void resetOptions() {
 	mates1.clear();
@@ -253,37 +214,22 @@ static void resetOptions() {
 	metricsFile             = ""; // output file to put alignment metrics in
 	metricsStderr           = false; // print metrics to stderr (in addition to --metrics-file if it's specified
 	allHits					= false; // for multihits, report just one
-	gRangeMode				= false; // report BWT ranges instead of ref locs
 	showVersion				= 0; // just print version and quit?
 	ipause					= 0; // pause before maching?
 	qUpto					= 0xffffffff; // max # of queries to read
 	gTrim5					= 0; // amount to trim from 5' end
 	gTrim3					= 0; // amount to trim from 3' end
-	reportOpps				= 0; // whether to report # of other mappings
 	offRate					= -1; // keep default offRate
-	offRatePlus             = 0;  // amount to subtract from index offrate
 	mismatches				= 0; // allow 0 mismatches by default
 	patDumpfile				= NULL; // filename to dump patterns to
 	solexaQuals				= false; // quality strings are solexa quals, not phred, and subtract 64 (not 33)
 	phred64Quals			= false; // quality chars are phred, but must subtract 64 (not 33)
 	integerQuals			= false; // quality strings are space-separated strings of integers, not ASCII
-	maqLike					= 1;   // do maq-like searching
-	seedLen					= 28;  // seed length (changed in Maq 0.6.4 from 24)
-	seedMms					= 2;   // # mismatches allowed in seed (maq's -n)
-	qualThresh				= 70;  // max qual-weighted hamming dist (maq's -e)
-	maxBtsBetter			= 125; // max # backtracks allowed in half-and-half mode
-	maxBts					= 800; // max # backtracks allowed in half-and-half mode
 	nthreads				= 1;     // number of pthreads operating concurrently
 	outType					= OUTPUT_SAM;  // style of output
-	numRandomReads			= 50000000; // # random reads (see Random*PatternSource in pat.h)
-	lenRandomReads			= 35;    // len of random reads (see Random*PatternSource in pat.h)
 	noRefNames				= false; // true -> print reference indexes; not names
-	dumpAlBase				= "";    // basename of same-format files to dump aligned reads to
-	dumpUnalBase			= "";    // basename of same-format files to dump unaligned reads to
-	dumpMaxBase				= "";    // basename of same-format files to dump reads with more than -m valid alignments to
 	khits					= 1;     // number of hits per read; >1 is much slower
 	mhits					= 1;     // don't report any hits if there are > mhits
-	strata					= false; // true -> don't stop at stratum boundaries
 	partitionSz				= 0;     // output a partitioning key in first field
 	gNoMaqRound				= false; // true -> don't round quals to nearest 10 like maq
 	useSpinlock				= true;  // false -> don't use of spinlocks even if they're #defines
@@ -305,20 +251,12 @@ static void resetOptions() {
 	gReportDiscordant       = true;  // find and report discordant paired-end alignments
 	gReportMixed            = true;  // find and report unpaired alignments for paired reads
 	mixedThresh				= 4;     // threshold for when to switch to paired-end mixed mode (see aligner.h)
-	mixedAttemptLim			= 100;   // number of attempts to make in "mixed mode" before giving up on orientation
-	dontReconcileMates		= true;  // suppress pairwise all-versus-all way of resolving mates
 	cacheLimit				= 5;     // ranges w/ size > limit will be cached
 	cacheSize				= 0;     // # words per range cache
-	offBase					= 0;     // offsets are 0-based by default, but configurable
-	tryHard					= false; // set very high maxBts, mixedAttemptLim
 	skipReads				= 0;     // # reads/read pairs to skip
 	gNofw					= false; // don't align fw orientation of read
 	gNorc					= false; // don't align rc orientation of read
-	gStrandFix				= true;  // attempt to fix strand bias
 	stats					= false; // print performance stats
-	chunkPoolMegabytes		= 32;    // max MB to dedicate to best-first search frames per thread
-	chunkSz					= 256;   // size of single chunk disbursed by ChunkPool
-	chunkVerbose			= false; // have chunk allocator output status messages?
 	gReportSe				= false;
 	refMapFile				= NULL;  // file containing a map from index coordinates to another coordinate system
 	annotMapFile			= NULL;  // file containing a map from reference coordinates to annotations
@@ -364,7 +302,6 @@ static void resetOptions() {
 	suppressOuts.resize(64);
 	suppressOuts.fill(false);
 	sampleMax				= false;
-	defaultMapq				= 255;
 	gColorSeq				= false; // true -> show colorspace alignments as colors, not decoded bases
 	gColorEdit				= false; // true -> show edits as colors, not decoded bases
 	gColorQual				= false; // true -> show colorspace qualities as original quals, not decoded quals
@@ -381,15 +318,9 @@ static void resetOptions() {
 	gGapBarrier				= 4;     // disallow gaps within this many chars of either end of alignment
 	gRowLow                 = -1;    // backtraces start from row w/ idx >= this (-1=no limit)
 	gRowFirst               = false; // sort alignments by row then score?
-	gAllowRedundant			= 0;     // 1 -> allow alignments with 1 anchor in common, 2 -> allow alignments with both anchors in common
 	qualities.clear();
 	qualities1.clear();
 	qualities2.clear();
-#ifdef BOWTIE2
-	doMultiseed     = true; // true -> use multiseed aligner
-#else
-	doMultiseed     = false; // false -> use normal bowtie1 aligner
-#endif
 	polstr.clear();
 	msNoCache       = true; // true -> disable local cache
 	bonusMatchType  = DEFAULT_MATCH_BONUS_TYPE;
@@ -406,23 +337,14 @@ static void resetOptions() {
 	penRfGapConst   = DEFAULT_REF_GAP_CONST;
 	penRdGapLinear  = DEFAULT_READ_GAP_LINEAR;
 	penRfGapLinear  = DEFAULT_REF_GAP_LINEAR;
-	costMinConst    = DEFAULT_MIN_CONST;
-	costMinLinear   = DEFAULT_MIN_LINEAR;
-	costFloorConst  = DEFAULT_FLOOR_CONST;
-	costFloorLinear = DEFAULT_FLOOR_LINEAR;
-	nCeilConst      = 2.0f; // constant factor in N ceiling w/r/t read length
-	nCeilLinear     = 0.1f; // coeff of linear term in N ceiling w/r/t read length
+	scoreMin.init  (SIMPLE_FUNC_LINEAR, 1.0f, DMAX, DEFAULT_MIN_CONST,   DEFAULT_MIN_LINEAR);
+	scoreFloor.init(SIMPLE_FUNC_LINEAR, 1.0f, DMAX, DEFAULT_FLOOR_CONST, DEFAULT_FLOOR_LINEAR);
+	nCeil.init    (SIMPLE_FUNC_LINEAR, 0.0f, DMAX, 2.0f, 0.1f);
+	msIval.init   (SIMPLE_FUNC_LINEAR, 1.0f, DMAX, DEFAULT_IVAL_B, DEFAULT_IVAL_A);
+	posfrac.init  (SIMPLE_FUNC_LINEAR, 1.0f, DMAX, DEFAULT_POSMIN, DEFAULT_POSFRAC);
+	rowmult.init  (SIMPLE_FUNC_CONST,  1.0f, DMAX, DEFAULT_ROWMULT, 0.0f);
 	multiseedMms    = DEFAULT_SEEDMMS;
 	multiseedLen    = DEFAULT_SEEDLEN;
-	// Note multiseedPeriod is re-instantiated for each read, since it
-	// may ultimately depend on the read length.
-	multiseedPeriod = DEFAULT_SEEDPERIOD;
-	multiseedIvalType = DEFAULT_IVAL; // formula for seed spacing
-	multiseedIvalA  = DEFAULT_IVAL_A; // linear coefficient in formula
-	multiseedIvalB  = DEFAULT_IVAL_B; // constant coefficient in formula
-	posmin          = DEFAULT_POSMIN;  // minimum # seed poss to try
-	posfrac         = DEFAULT_POSFRAC; // fraction of seed poss to try
-	rowmult         = DEFAULT_ROWMULT; // seed extension attempts per pos
 	saCountersFn.clear();    // filename to dump per-read SeedAligner counters to
 	saActionsFn.clear();     // filename to dump all alignment actions to
 	saHitsFn.clear();        // filename to dump all seed hits to
@@ -434,28 +356,22 @@ static void resetOptions() {
 	noSse              = false; // disable SSE-based dynamic programming
 }
 
-static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:o:e:n:l:w:p:k:m:M:1:2:I:X:x:B:ySCgO:E:Q:";
+static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:o:w:p:k:M:1:2:I:X:x:CgO:E:Q:";
 
 enum {
 	ARG_ORIG = 256,
 	ARG_SEED,
 	ARG_DUMP_PATS,
 	ARG_RANGE,
-	ARG_CONCISE,
 	ARG_SOLEXA_QUALS,
-	ARG_MAXBTS,
 	ARG_VERBOSE,
 	ARG_STARTVERBOSE,
 	ARG_QUIET,
 	ARG_RANDOM_READS,
-	ARG_NOOUT,
 	ARG_FAST,
 	ARG_METRIC_IVAL,
 	ARG_METRIC_FILE,
 	ARG_METRIC_STDERR,
-	ARG_AL,
-	ARG_UN,
-	ARG_MAXDUMP,
 	ARG_REFIDX,
 	ARG_SANITY,
 	ARG_OLDBEST,
@@ -481,15 +397,10 @@ enum {
 	ARG_NO_FW,
 	ARG_NO_RC,
 	ARG_SKIP,
-	ARG_STRAND_FIX,
 	ARG_STATS,
 	ARG_ONETWO,
 	ARG_PHRED64,
 	ARG_PHRED33,
-	ARG_CHUNKMBS,
-	ARG_CHUNKSZ,
-	ARG_CHUNKVERBOSE,
-	ARG_STRATA,
 	ARG_PEV2,
 	ARG_REFMAP,
 	ARG_ANNOTMAP,
@@ -528,7 +439,6 @@ enum {
 	ARG_USE_CACHE,
 	ARG_NOISY_HPOLY,
 	ARG_LOCAL,
-	ARG_OFFRATE_ADD,
 	ARG_SCAN_NARROWED,
 	ARG_NO_SSE,
 	ARG_QC_FILTER,              //
@@ -554,8 +464,6 @@ static struct option long_options[] = {
 	{(char*)"pause",        no_argument,       &ipause,      1},
 	{(char*)"orig",         required_argument, 0,            ARG_ORIG},
 	{(char*)"all",          no_argument,       0,            'a'},
-	{(char*)"concise",      no_argument,       0,            ARG_CONCISE},
-	{(char*)"noout",        no_argument,       0,            ARG_NOOUT},
 	{(char*)"solexa-quals", no_argument,       0,            ARG_SOLEXA_QUALS},
 	{(char*)"integer-quals",no_argument,       0,            ARG_INTEGER_QUALS},
 	{(char*)"metrics",      required_argument, 0,            ARG_METRIC_IVAL},
@@ -566,17 +474,9 @@ static struct option long_options[] = {
 	{(char*)"trim5",        required_argument, 0,            '5'},
 	{(char*)"seed",         required_argument, 0,            ARG_SEED},
 	{(char*)"qupto",        required_argument, 0,            'u'},
-	{(char*)"al",           required_argument, 0,            ARG_AL},
-	{(char*)"un",           required_argument, 0,            ARG_UN},
-	{(char*)"max",          required_argument, 0,            ARG_MAXDUMP},
 	{(char*)"offrate",      required_argument, 0,            'o'},
-	{(char*)"offrate-add",  required_argument, 0,            ARG_OFFRATE_ADD},
-	{(char*)"reportopps",   no_argument,       &reportOpps,  1},
 	{(char*)"version",      no_argument,       &showVersion, 1},
 	{(char*)"dumppats",     required_argument, 0,            ARG_DUMP_PATS},
-	{(char*)"maqerr",       required_argument, 0,            'e'},
-	{(char*)"seedlen",      required_argument, 0,            'l'},
-	{(char*)"seedmms",      required_argument, 0,            'n'},
 	{(char*)"filepar",      no_argument,       0,            ARG_FILEPAR},
 	{(char*)"help",         no_argument,       0,            'h'},
 	{(char*)"threads",      required_argument, 0,            'p'},
@@ -587,11 +487,9 @@ static struct option long_options[] = {
 	{(char*)"quals",        required_argument, 0,            'Q'},
 	{(char*)"Q1",           required_argument, 0,            ARG_QUALS1},
 	{(char*)"Q2",           required_argument, 0,            ARG_QUALS2},
-	{(char*)"strata",       no_argument,       0,            ARG_STRATA},
 	{(char*)"nomaqround",   no_argument,       0,            ARG_NOMAQROUND},
 	{(char*)"refidx",       no_argument,       0,            ARG_REFIDX},
 	{(char*)"range",        no_argument,       0,            ARG_RANGE},
-	{(char*)"maxbts",       required_argument, 0,            ARG_MAXBTS},
 	{(char*)"randread",     no_argument,       0,            ARG_RANDOM_READS},
 	{(char*)"partition",    required_argument, 0,            ARG_PARTITION},
 	{(char*)"nospin",       no_argument,       0,            ARG_USE_SPINLOCK},
@@ -605,18 +503,12 @@ static struct option long_options[] = {
 	{(char*)"cachesz",      required_argument, 0,            ARG_CACHE_SZ},
 	{(char*)"nofw",         no_argument,       0,            ARG_NO_FW},
 	{(char*)"norc",         no_argument,       0,            ARG_NO_RC},
-	{(char*)"offbase",      required_argument, 0,            'B'},
-	{(char*)"tryhard",      no_argument,       0,            'y'},
 	{(char*)"skip",         required_argument, 0,            's'},
-	{(char*)"strandfix",    no_argument,       0,            ARG_STRAND_FIX},
 	{(char*)"stats",        no_argument,       0,            ARG_STATS},
 	{(char*)"12",           required_argument, 0,            ARG_ONETWO},
 	{(char*)"phred33-quals", no_argument,      0,            ARG_PHRED33},
 	{(char*)"phred64-quals", no_argument,      0,            ARG_PHRED64},
 	{(char*)"solexa1.3-quals", no_argument,    0,            ARG_PHRED64},
-	{(char*)"chunkmbs",     required_argument, 0,            ARG_CHUNKMBS},
-	{(char*)"chunksz",      required_argument, 0,            ARG_CHUNKSZ},
-	{(char*)"chunkverbose", no_argument,       0,            ARG_CHUNKVERBOSE},
 	{(char*)"mm",           no_argument,       0,            ARG_MM},
 	{(char*)"shmem",        no_argument,       0,            ARG_SHMEM},
 	{(char*)"mmsweep",      no_argument,       0,            ARG_MMSWEEP},
@@ -628,7 +520,6 @@ static struct option long_options[] = {
 	{(char*)"fuzzy",        no_argument,       0,            ARG_FUZZY},
 	{(char*)"fullref",      no_argument,       0,            ARG_FULLREF},
 	{(char*)"usage",        no_argument,       0,            ARG_USAGE},
-	//{(char*)"sam",          no_argument,       0,            'S'},
 	{(char*)"gaps",         no_argument,       0,            'g'},
 	{(char*)"sam-no-qname-trunc", no_argument, 0,            ARG_SAM_NO_QNAME_TRUNC},
 	{(char*)"sam-omit-sec-seq", no_argument,   0,            ARG_SAM_OMIT_SEC_SEQ},
@@ -745,7 +636,6 @@ static void printUsage(ostream& out) {
 	    //<< "  -m <int>           suppress all alignments if > <int> exist (def: no limit)" << endl
 	    << "Output:" << endl
 	    << "  -t/--time          print wall-clock time taken by search phases" << endl
-	    << "  -B/--offbase <int> leftmost ref offset = <int> in bowtie output (default: 0)" << endl
 	    << "  --quiet            print nothing but the alignments" << endl
 	    << "  --refidx           refer to ref. seqs by 0-based index rather than name" << endl
 	    << "  --al <fname>       write aligned reads/pairs to file(s) <fname>" << endl
@@ -755,7 +645,6 @@ static void printUsage(ostream& out) {
 	    << "  --fullref          write entire ref name (default: only up to 1st space)" << endl
 	    << "Performance:" << endl
 	    << "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl
-		<< "  --offrate-add <int>" << endl
 #ifdef BOWTIE_PTHREADS
 	    << "  -p/--threads <int> number of alignment threads to launch (default: 1)" << endl
 #endif
@@ -809,13 +698,6 @@ static int parseInt(int lower, const char *errmsg) {
  */
 static int parseInt(int lower, const char *errmsg, const char *arg) {
 	return parseInt(lower, INT_MAX, errmsg, arg);
-}
-
-/**
- * Upper is INT_MAX, parse from optarg by default.
- */
-static int parseInt(int lower, int upper, const char *errmsg) {
-	return parseInt(lower, upper, errmsg, optarg);
 }
 
 /**
@@ -923,9 +805,6 @@ static void parseOptions(int argc, const char **argv) {
 			case ARG_RF: gMate1fw = false; gMate2fw = true;  mateFwSet = true; break;
 			case ARG_FR: gMate1fw = true;  gMate2fw = false; mateFwSet = true; break;
 			case ARG_RANDOM_READS: format = RANDOM; break;
-			case ARG_RANGE: gRangeMode = true; break;
-			case ARG_CONCISE: outType = OUTPUT_CONCISE; break;
-			case ARG_NOOUT: outType = OUTPUT_NONE; break;
 			case ARG_REFMAP: refMapFile = optarg; break;
 			case ARG_ANNOTMAP: annotMapFile = optarg; break;
 			case ARG_USE_SPINLOCK: useSpinlock = false; break;
@@ -958,9 +837,6 @@ static void parseOptions(int argc, const char **argv) {
 			}
 			case ARG_MMSWEEP: mmSweep = true; break;
 			case ARG_HADOOPOUT: hadoopOut = true; break;
-			case ARG_AL: dumpAlBase = optarg; break;
-			case ARG_UN: dumpUnalBase = optarg; break;
-			case ARG_MAXDUMP: dumpMaxBase = optarg; break;
 			case ARG_SOLEXA_QUALS: solexaQuals = true; break;
 			case ARG_INTEGER_QUALS: integerQuals = true; break;
 			case ARG_PHRED64: phred64Quals = true; break;
@@ -991,9 +867,6 @@ static void parseOptions(int argc, const char **argv) {
 			case ARG_FUZZY: fuzzy = true; break;
 			case ARG_REPORTSE: gReportSe = true; break;
 			case ARG_FULLREF: fullRef = true; break;
-			case 'B':
-				offBase = parseInt(-999999, "-B/--offbase cannot be a large negative number");
-				break;
 			case ARG_GAP_BAR:
 				gGapBarrier = parseInt(1, "--gbar must be no less than 1");
 				break;
@@ -1002,9 +875,6 @@ static void parseOptions(int argc, const char **argv) {
 				break;
 			case 'E':
 				gInsExtend = gDelExtend = parseInt(1, "-E/--gextend must be at least 1");
-				break;
-			case ARG_REDUNDANTS:
-				gAllowRedundant = parseInt(0, "--redundant must be at least 0");
 				break;
 			case ARG_SEED:
 				seed = parseInt(0, "--seed arg must be at least 0");
@@ -1027,18 +897,12 @@ static void parseOptions(int argc, const char **argv) {
 			case 'x':
 				mixedThresh = (uint32_t)parseInt(0, "-x arg must be at least 0");
 				break;
-			case ARG_MIXED_ATTEMPTS:
-				mixedAttemptLim = (uint32_t)parseInt(1, "--mixatt arg must be at least 1");
-				break;
 			case ARG_CACHE_LIM:
 				cacheLimit = (uint32_t)parseInt(1, "--cachelim arg must be at least 1");
 				break;
 			case ARG_CACHE_SZ:
 				cacheSize = (uint32_t)parseInt(1, "--cachesz arg must be at least 1");
 				cacheSize *= (1024 * 1024); // convert from MB to B
-				break;
-			case ARG_NO_RECONCILE:
-				dontReconcileMates = true;
 				break;
 			case 'p':
 #ifndef BOWTIE_PTHREADS
@@ -1054,17 +918,8 @@ static void parseOptions(int argc, const char **argv) {
 #endif
 				fileParallel = true;
 				break;
-			case 'v':
-				maqLike = 0;
-				mismatches = parseInt(0, 3, "-v arg must be at least 0 and at most 3");
-				break;
 			case '3': gTrim3 = parseInt(0, "-3/--trim3 arg must be at least 0"); break;
 			case '5': gTrim5 = parseInt(0, "-5/--trim5 arg must be at least 0"); break;
-			case 'o': offRate = parseInt(1, "-o/--offrate arg must be at least 1"); break;
-			case ARG_OFFRATE_ADD: offRatePlus = parseInt(0, "--offrate-add arg must be at least 0"); break;
-			case 'e': qualThresh = parseInt(1, "-e/--err arg must be at least 1"); break;
-			case 'n': seedMms = parseInt(0, 3, "-n/--seedmms arg must be at least 0 and at most 3"); maqLike = 1; break;
-			case 'l': seedLen = parseInt(5, "-l/--seedlen arg must be at least 5"); break;
 			case 'h': printUsage(cout); throw 0; break;
 			case ARG_USAGE: printUsage(cout); throw 0; break;
 			//
@@ -1108,11 +963,6 @@ static void parseOptions(int argc, const char **argv) {
 				saw_k = true;
 				break;
 			}
-			case 'y': tryHard = true; break;
-			case ARG_CHUNKMBS: chunkPoolMegabytes = parseInt(1, "--chunkmbs arg must be at least 1"); break;
-			case ARG_CHUNKSZ: chunkSz = parseInt(1, "--chunksz arg must be at least 1"); break;
-			case ARG_CHUNKVERBOSE: chunkVerbose = true; break;
-			case ARG_STRATA: strata = true; break;
 			case ARG_VERBOSE: gVerbose = 1; break;
 			case ARG_STARTVERBOSE: startVerbose = true; break;
 			case ARG_QUIET: gQuiet = true; break;
@@ -1151,16 +1001,7 @@ static void parseOptions(int argc, const char **argv) {
 			case ARG_PRINT_FLAGS: printFlags = true; break;
 			case ARG_COST: printCost = true; break;
 			case ARG_PRINT_PARAMS: printParams = true; break;
-			case ARG_DEFAULT_MAPQ:
-				defaultMapq = parseInt(0, "--mapq must be positive");
-				break;
-			case ARG_MAXBTS: {
-				maxBts  = parseInt(0, "--maxbts must be positive");
-				maxBtsBetter = maxBts;
-				break;
-			}
 			case ARG_DUMP_PATS: patDumpfile = optarg; break;
-			case ARG_STRAND_FIX: gStrandFix = true; break;
 			case ARG_PARTITION: partitionSz = parse<int>(optarg); break;
 			case ARG_ORIG:
 				if(optarg == NULL || strlen(optarg) == 0) {
@@ -1324,13 +1165,6 @@ static void parseOptions(int argc, const char **argv) {
 				throw 1;
 		}
 	} while(next_option != -1);
-	if(gRangeMode) {
-		// Tell the Ebwt loader to ignore the suffix-array portion of
-		// the index.  We don't need it because the user isn't asking
-		// for bowtie to report reference positions (just matrix
-		// ranges).
-		offRate = 32;
-	}
 	if(gVerbose) {
 		cerr << "Final policy string: '" << polstr << "'" << endl;
 	}
@@ -1349,20 +1183,13 @@ static void parseOptions(int argc, const char **argv) {
 		penRfGapConst,
 		penRdGapLinear,
 		penRfGapLinear,
-		costMinConst,
-		costMinLinear,
-		costFloorConst,
-		costFloorLinear,
-		nCeilConst,
-		nCeilLinear,
+		scoreMin,
+		scoreFloor,
+		nCeil,
 		penNCatPair,
 		multiseedMms,
 		multiseedLen,
-		multiseedPeriod,
-		multiseedIvalType,
-		multiseedIvalA,
-		multiseedIvalB,
-		posmin,
+		msIval,
 		posfrac,
 		rowmult);
 	if(localAlign) {
@@ -1427,16 +1254,6 @@ static void parseOptions(int argc, const char **argv) {
 				}
 			}
 		}
-	}
-	if(tryHard) {
-		// Increase backtracking limit to huge number
-		maxBts = maxBtsBetter = INT_MAX;
-		// Increase number of paired-end scan attempts to huge number
-		mixedAttemptLim = UINT_MAX;
-	}
-	if(strata && !allHits && khits == 1 && mhits == 0xffffffff) {
-		cerr << "--strata has no effect unless combined with -k, -m or -a" << endl;
-		throw 1;
 	}
 	// If both -s and -u are used, we need to adjust qUpto accordingly
 	// since it uses patid to know if we've reached the -u limit (and
@@ -1519,488 +1336,9 @@ createPatsrcFactory(PairedPatternSource& _patsrc, int tid) {
 	return patsrcFact;
 }
 
-/**
- * Allocate a HitSinkPerThreadFactory on the heap according to the
- * global params and return a pointer to it.
- */
-static HitSinkPerThreadFactory*
-createSinkFactory(HitSink& _sink) {
-	HitSinkPerThreadFactory *sink = NULL;
-	if(!strata) {
-		// Unstratified
-		if(!allHits) {
-			// First N good; "good" inherently ignores strata
-			sink = new NGoodHitSinkPerThreadFactory(_sink, khits, mhits);
-		} else {
-			// All hits, spanning strata
-			sink = new AllHitSinkPerThreadFactory(_sink, mhits);
-		}
-	} else {
-		// Stratified
-		if(!allHits) {
-			// Buffer best hits, assuming they're arriving in best-
-			// to-worst order
-			sink = new NBestFirstStratHitSinkPerThreadFactory(_sink, khits, mhits);
-		} else {
-			// Buffer best hits, assuming they're arriving in best-
-			// to-worst order
-			sink = new NBestFirstStratHitSinkPerThreadFactory(_sink, 0xffffffff/2, mhits);
-		}
-	}
-	assert(sink != NULL);
-	return sink;
-}
-
-
-static PairedPatternSource*   exactSearch_patsrc;
-static HitSink*               exactSearch_sink;
-//static ACHitSink*             exactSearch_acsink;
-static Ebwt*                  exactSearch_ebwt;
-static EList<SString<char> >* exactSearch_os;
-static BitPairReference*      exactSearch_refs;
-
-/**
- * A statefulness-aware worker driver.  Uses UnpairedExactAlignerV1.
- */
-static void *exactSearchWorkerStateful(void *vp) {
-	int tid = *((int*)vp);
-	PairedPatternSource& _patsrc = *exactSearch_patsrc;
-	HitSink& _sink               = *exactSearch_sink;
-	Ebwt& ebwt                   = *exactSearch_ebwt;
-	EList<SString<char> >& os    = *exactSearch_os;
-	BitPairReference* refs       =  exactSearch_refs;
-
-	// Global initialization
-	PatternSourcePerThreadFactory* patsrcFact = createPatsrcFactory(_patsrc, tid);
-	HitSinkPerThreadFactory* sinkFact = createSinkFactory(_sink);
-
-	ChunkPool *pool = new ChunkPool(chunkSz * 1024, chunkPoolMegabytes * 1024 * 1024, chunkVerbose);
-	UnpairedExactAlignerV1Factory alSEfact(
-			ebwt,
-			NULL,
-			_sink,
-			*sinkFact,
-			NULL, //&cacheFw,
-			NULL, //&cacheBw,
-			cacheLimit,
-			pool,
-			refs,
-			os,
-			seed);
-	PairedExactAlignerV1Factory alPEfact(
-			ebwt,
-			NULL,
-			_sink,
-			*sinkFact,
-			dontReconcileMates,
-			mhits,       // for symCeiling
-			mixedThresh,
-			mixedAttemptLim,
-			NULL, //&cacheFw,
-			NULL, //&cacheBw,
-			cacheLimit,
-			pool,
-			refs, os,
-			seed);
-	{
-		MixedMultiAligner multi(
-				1,
-				qUpto,
-				alSEfact,
-				alPEfact,
-				*patsrcFact);
-		// Run that mother
-		multi.run();
-		// MultiAligner must be destroyed before patsrcFact
-	}
-
-	delete patsrcFact;
-	delete sinkFact;
-	delete pool;
-#ifdef BOWTIE_PTHREADS
-	if(tid > 0) pthread_exit(NULL);
-#endif
-	return NULL;
-}
-
 #ifdef BOWTIE_PTHREADS
 #define PTHREAD_ATTRS (PTHREAD_CREATE_JOINABLE | PTHREAD_CREATE_DETACHED)
 #endif
-
-/**
- * Search through a single (forward) Ebwt index for exact end-to-end
- * hits.  Assumes that index is already loaded into memory.
- */
-static void exactSearch(PairedPatternSource& _patsrc,
-                        HitSink& _sink,
-                        Ebwt& ebwt,
-                        EList<SString<char> >& os)
-{
-	exactSearch_patsrc = &_patsrc;
-	exactSearch_sink   = &_sink;
-	exactSearch_ebwt   = &ebwt;
-	exactSearch_os     = &os;
-
-	assert(!ebwt.isInMemory());
-	{
-		// Load the rest of (vast majority of) the backward Ebwt into
-		// memory
-		Timer _t(cerr, "Time loading forward index: ", timing);
-		ebwt.loadIntoMemory(
-			gColor ? 1 : 0, // we expect index to be colorspace? (for sanity)
-			0,              // it's exact search, so we don't care how reverse is constructed
-			true,           // load the SA sample
-			true,           // load the ftab
-			true,           // load the rstarts
-			!noRefNames,    
-			startVerbose);
-	}
-
-	BitPairReference *refs = NULL;
-	bool pair = mates1.size() > 0 || mates12.size() > 0;
-	// Do we need to load the 2-bit-encoded reference string?  Only if:
-	//  1. We're doing Aho-Corasick to find seed hits
-	//  2. We're doing colorspace (and we need nuc ref for decoding)
-	//  3. We're doing paried-end (and we need ref to scan for opposite mate)
-	if(gColor || (pair && mixedThresh < 0xffffffff)) {
-		Timer _t(cerr, "Time loading reference: ", timing);
-		refs = new BitPairReference(
-			adjIdxBase, gColor, sanityCheck, NULL, &os, false, useMm,
-			useShmem, mmSweep, gVerbose, startVerbose);
-		if(!refs->loaded()) throw 1;
-	}
-	exactSearch_refs   = refs;
-
-#ifdef BOWTIE_PTHREADS
-	AutoArray<pthread_t> threads(nthreads-1);
-	AutoArray<int> tids(nthreads-1);
-#endif
-	CHUD_START();
-	{
-		Timer _t(cerr, "Time for 0-mismatch search: ", timing);
-#ifdef BOWTIE_PTHREADS
-		for(int i = 0; i < nthreads-1; i++) {
-			tids[i] = i+1;
-			createThread(&threads[i],
-						 exactSearchWorkerStateful,
-						 (void *)&tids[i]);
-		}
-#endif
-		int tmp = 0;
-		exactSearchWorkerStateful((void*)&tmp);
-#ifdef BOWTIE_PTHREADS
-		for(int i = 0; i < nthreads-1; i++) joinThread(threads[i]);
-#endif
-	}
-	if(refs != NULL) delete refs;
-}
-
-/**
- * Search through a pair of Ebwt indexes, one for the forward direction
- * and one for the backward direction, for exact end-to-end hits and 1-
- * mismatch end-to-end hits.  In my experience, this is slightly faster
- * than Maq (default) mode with the -n 1 option.
- *
- * Forward Ebwt (ebwtFw) is already loaded into memory and backward
- * Ebwt (ebwtBw) is not loaded into memory.
- */
-static PairedPatternSource*           mismatchSearch_patsrc;
-static HitSink*                       mismatchSearch_sink;
-static Ebwt*            mismatchSearch_ebwtFw;
-static Ebwt*            mismatchSearch_ebwtBw;
-static EList<SString<char> >*         mismatchSearch_os;
-static BitPairReference*              mismatchSearch_refs;
-
-/**
- * A statefulness-aware worker driver.  Uses Unpaired/Paired1mmAlignerV1.
- */
-static void *mismatchSearchWorkerFullStateful(void *vp) {
-	int tid = *((int*)vp);
-	PairedPatternSource&   _patsrc = *mismatchSearch_patsrc;
-	HitSink&               _sink   = *mismatchSearch_sink;
-	Ebwt&    ebwtFw  = *mismatchSearch_ebwtFw;
-	Ebwt&    ebwtBw  = *mismatchSearch_ebwtBw;
-	EList<SString<char> >& os      = *mismatchSearch_os;
-	BitPairReference*      refs    =  mismatchSearch_refs;
-
-	// Global initialization
-	PatternSourcePerThreadFactory* patsrcFact = createPatsrcFactory(_patsrc, tid);
-	HitSinkPerThreadFactory* sinkFact = createSinkFactory(_sink);
-	ChunkPool *pool = new ChunkPool(chunkSz * 1024, chunkPoolMegabytes * 1024 * 1024, chunkVerbose);
-
-	Unpaired1mmAlignerV1Factory alSEfact(
-			ebwtFw,
-			&ebwtBw,
-			_sink,
-			*sinkFact,
-			NULL, //&cacheFw,
-			NULL, //&cacheBw,
-			cacheLimit,
-			pool,
-			refs,
-			os,
-			seed);
-	Paired1mmAlignerV1Factory alPEfact(
-			ebwtFw,
-			&ebwtBw,
-			_sink,
-			*sinkFact,
-			dontReconcileMates,
-			mhits,     // for symCeiling
-			mixedThresh,
-			mixedAttemptLim,
-			NULL, //&cacheFw,
-			NULL, //&cacheBw,
-			cacheLimit,
-			pool,
-			refs, os,
-			seed);
-	{
-		MixedMultiAligner multi(
-				1,
-				qUpto,
-				alSEfact,
-				alPEfact,
-				*patsrcFact);
-		// Run that mother
-		multi.run();
-		// MultiAligner must be destroyed before patsrcFact
-	}
-
-	delete patsrcFact;
-	delete sinkFact;
-	delete pool;
-#ifdef BOWTIE_PTHREADS
-	if(tid > 0) pthread_exit(NULL);
-#endif
-	return NULL;
-}
-
-/**
- * Search through a single (forward) Ebwt index for exact end-to-end
- * hits.  Assumes that index is already loaded into memory.
- */
-static void mismatchSearchFull(PairedPatternSource& _patsrc,
-                               HitSink& _sink,
-                               Ebwt& ebwtFw,
-                               Ebwt& ebwtBw,
-                               EList<SString<char> >& os)
-{
-	mismatchSearch_patsrc       = &_patsrc;
-	mismatchSearch_sink         = &_sink;
-	mismatchSearch_ebwtFw       = &ebwtFw;
-	mismatchSearch_ebwtBw       = &ebwtBw;
-	mismatchSearch_os           = &os;
-
-	assert(!ebwtFw.isInMemory());
-	assert(!ebwtBw.isInMemory());
-	{
-		// Load the other half of the index into memory
-		Timer _t(cerr, "Time loading forward index: ", timing);
-		ebwtFw.loadIntoMemory(
-			gColor ? 1 : 0,
-			-1, // it's not bidirectional search, so we don't care how reverse is constructed
-			true, // load SA sample
-			true, // load ftab
-			true, // load rstarts
-			!noRefNames,
-			startVerbose);
-	}
-	{
-		// Load the other half of the index into memory
-		Timer _t(cerr, "Time loading mirror index: ", timing);
-		ebwtBw.loadIntoMemory(
-			gColor ? 1 : 0,
-			-1, // it's not bidirectional search, so we don't care how reverse is constructed
-			true, // load SA sample
-			true, // load ftab
-			true, // load rstarts
-			!noRefNames,
-			startVerbose);
-	}
-	// Create range caches, which are shared among all aligners
-	BitPairReference *refs = NULL;
-	bool pair = mates1.size() > 0 || mates12.size() > 0;
-	if(gColor || (pair && mixedThresh < 0xffffffff)) {
-		Timer _t(cerr, "Time loading reference: ", timing);
-		refs = new BitPairReference(adjIdxBase, gColor, sanityCheck, NULL, &os, false, useMm, useShmem, mmSweep, gVerbose, startVerbose);
-		if(!refs->loaded()) throw 1;
-	}
-	mismatchSearch_refs = refs;
-
-#ifdef BOWTIE_PTHREADS
-	// Allocate structures for threads
-	AutoArray<pthread_t> threads(nthreads-1);
-	AutoArray<int> tids(nthreads-1);
-#endif
-    CHUD_START();
-    {
-		Timer _t(cerr, "Time for 1-mismatch full-index search: ", timing);
-#ifdef BOWTIE_PTHREADS
-		for(int i = 0; i < nthreads-1; i++) {
-			tids[i] = i+1;
-			createThread(&threads[i], mismatchSearchWorkerFullStateful, (void *)&tids[i]);
-		}
-#endif
-		// Go to town
-		int tmp = 0;
-		mismatchSearchWorkerFullStateful((void*)&tmp);
-#ifdef BOWTIE_PTHREADS
-		for(int i = 0; i < nthreads-1; i++) joinThread(threads[i]);
-#endif
-	}
-	if(refs != NULL) delete refs;
-}
-
-static PairedPatternSource*           twoOrThreeMismatchSearch_patsrc;
-static HitSink*                       twoOrThreeMismatchSearch_sink;
-static Ebwt*            twoOrThreeMismatchSearch_ebwtFw;
-static Ebwt*            twoOrThreeMismatchSearch_ebwtBw;
-static EList<SString<char> >*         twoOrThreeMismatchSearch_os;
-static bool                           twoOrThreeMismatchSearch_two;
-static BitPairReference*              twoOrThreeMismatchSearch_refs;
-
-/**
- * A statefulness-aware worker driver.  Uses UnpairedExactAlignerV1.
- */
-static void *twoOrThreeMismatchSearchWorkerStateful(void *vp) {
-	int tid = *((int*)vp);
-	PairedPatternSource&   _patsrc = *twoOrThreeMismatchSearch_patsrc;
-	HitSink&               _sink   = *twoOrThreeMismatchSearch_sink;
-	Ebwt&    ebwtFw  = *twoOrThreeMismatchSearch_ebwtFw;
-	Ebwt&    ebwtBw  = *twoOrThreeMismatchSearch_ebwtBw;
-	EList<SString<char> >& os      = *twoOrThreeMismatchSearch_os;
-	BitPairReference*      refs    =  twoOrThreeMismatchSearch_refs;
-	static bool            two     =  twoOrThreeMismatchSearch_two;
-
-	// Global initialization
-	PatternSourcePerThreadFactory* patsrcFact = createPatsrcFactory(_patsrc, tid);
-	HitSinkPerThreadFactory* sinkFact = createSinkFactory(_sink);
-
-	ChunkPool *pool = new ChunkPool(chunkSz * 1024, chunkPoolMegabytes * 1024 * 1024, chunkVerbose);
-	Unpaired23mmAlignerV1Factory alSEfact(
-			ebwtFw,
-			&ebwtBw,
-			two,
-			_sink,
-			*sinkFact,
-			NULL, //&cacheFw,
-			NULL, //&cacheBw,
-			cacheLimit,
-			pool,
-			refs,
-			os,
-			seed);
-	Paired23mmAlignerV1Factory alPEfact(
-			ebwtFw,
-			&ebwtBw,
-			two,
-			_sink,
-			*sinkFact,
-			dontReconcileMates,
-			mhits,       // for symCeiling
-			mixedThresh,
-			mixedAttemptLim,
-			NULL, //&cacheFw,
-			NULL, //&cacheBw,
-			cacheLimit,
-			pool,
-			refs, os,
-			seed);
-	{
-		MixedMultiAligner multi(
-				1,
-				qUpto,
-				alSEfact,
-				alPEfact,
-				*patsrcFact);
-		// Run that mother
-		multi.run();
-		// MultiAligner must be destroyed before patsrcFact
-	}
-
-	delete patsrcFact;
-	delete sinkFact;
-	delete pool;
-#ifdef BOWTIE_PTHREADS
-	if(tid > 0) pthread_exit(NULL);
-#endif
-	return NULL;
-}
-
-static void twoOrThreeMismatchSearchFull(
-		PairedPatternSource& _patsrc,   /// pattern source
-		HitSink& _sink,                 /// hit sink
-		Ebwt& ebwtFw,                   /// index of original text
-		Ebwt& ebwtBw,                   /// index of mirror text
-		EList<SString<char> >& os,      /// text strings, if available (empty otherwise)
-		bool two = true)                /// true -> 2, false -> 3
-{
-	// Global initialization
-	assert(!ebwtFw.isInMemory());
-	assert(!ebwtBw.isInMemory());
-	{
-		// Load the other half of the index into memory
-		Timer _t(cerr, "Time loading forward index: ", timing);
-		ebwtFw.loadIntoMemory(
-			gColor ? 1 : 0,
-			-1, // it's not bidirectional search, so we don't care how reverse is constructed
-			true, // load SA sample
-			true, // load ftab
-			true, // load rstarts
-			!noRefNames,
-			startVerbose);
-	}
-	{
-		// Load the other half of the index into memory
-		Timer _t(cerr, "Time loading mirror index: ", timing);
-		ebwtBw.loadIntoMemory(
-			gColor ? 1 : 0,
-			-1, // it's not bidirectional search, so we don't care how reverse is constructed
-			true, // load SA sample
-			true, // load ftab
-			true, // load rstarts
-			!noRefNames,
-			startVerbose);
-	}
-	// Create range caches, which are shared among all aligners
-	BitPairReference *refs = NULL;
-	bool pair = mates1.size() > 0 || mates12.size() > 0;
-	if(gColor || (pair && mixedThresh < 0xffffffff)) {
-		Timer _t(cerr, "Time loading reference: ", timing);
-		refs = new BitPairReference(adjIdxBase, gColor, sanityCheck, NULL, &os, false, useMm, useShmem, mmSweep, gVerbose, startVerbose);
-		if(!refs->loaded()) throw 1;
-	}
-	twoOrThreeMismatchSearch_refs     = refs;
-	twoOrThreeMismatchSearch_patsrc   = &_patsrc;
-	twoOrThreeMismatchSearch_sink     = &_sink;
-	twoOrThreeMismatchSearch_ebwtFw   = &ebwtFw;
-	twoOrThreeMismatchSearch_ebwtBw   = &ebwtBw;
-	twoOrThreeMismatchSearch_os       = &os;
-	twoOrThreeMismatchSearch_two      = two;
-
-#ifdef BOWTIE_PTHREADS
-	AutoArray<pthread_t> threads(nthreads-1);
-	AutoArray<int> tids(nthreads-1);
-#endif
-	CHUD_START();
-	{
-		Timer _t(cerr, "End-to-end 2/3-mismatch full-index search: ", timing);
-#ifdef BOWTIE_PTHREADS
-		for(int i = 0; i < nthreads-1; i++) {
-			tids[i] = i+1;
-			createThread(&threads[i], twoOrThreeMismatchSearchWorkerStateful, (void *)&tids[i]);
-		}
-#endif
-		int tmp = 0;
-		twoOrThreeMismatchSearchWorkerStateful((void*)&tmp);
-#ifdef BOWTIE_PTHREADS
-		for(int i = 0; i < nthreads-1; i++) joinThread(threads[i]);
-#endif
-	}
-	if(refs != NULL) delete refs;
-	return;
-}
 
 static PairedPatternSource*     multiseed_patsrc;
 static Ebwt*                    multiseed_ebwtFw;
@@ -2906,10 +2244,9 @@ static void* multiseedSearchWorker(void *vp) {
 	// -k/-a/-M, multiply the ROWM and POSF settings by the minimum number
 	// of alignments we're seeking.  E.g. for -M 1 or -k 2, multiply by 2.
 	// For -M 10, multiply by 11, etc.
-	float myPosmin  = posmin;
-	float myPosfrac = posfrac;
-	float myRowmult = rowmult;
-	rp.boostThresholds(myPosmin, myPosfrac, myRowmult);
+	SimpleFunc myPosfrac = posfrac;
+	SimpleFunc myRowmult = rowmult;
+	rp.boostThresholds(myPosfrac, myRowmult);
 	
 	// Make a per-thread wrapper for the global MHitSink object.
 	AlnSinkWrap msinkwrap(msink, rp);
@@ -3071,29 +2408,13 @@ static void* multiseedSearchWorker(void *vp) {
 						minsc[1] = (TAlScore)max<float>(a*T, a*c*log(rdlens[1]));
 					}
 				} else {
-					minsc[0] = (TAlScore)(Scoring::linearFunc(
-						rdlens[0],
-						(float)costMinConst,
-						(float)costMinLinear));
-					if(paired) {
-						minsc[1] = (TAlScore)(Scoring::linearFunc(
-							rdlens[1],
-							(float)costMinConst,
-							(float)costMinLinear));
-					}
+					minsc[0] = scoreMin.f<TAlScore>(rdlens[0]);
+					if(paired) minsc[0] = scoreMin.f<TAlScore>(rdlens[1]);
 				}
 				// Calculate the local-alignment score floor for the read
 				TAlScore floorsc[2];
-				floorsc[0] = (TAlScore)(Scoring::linearFunc(
-					rdlens[0],
-					(float)costFloorConst,
-					(float)costFloorLinear));
-				if(paired) {
-					floorsc[1] = (TAlScore)(Scoring::linearFunc(
-						rdlens[1],
-						(float)costFloorConst,
-						(float)costFloorLinear));
-				}
+				floorsc[0] = scoreFloor.f<TAlScore>(rdlens[0]);
+				if(paired) floorsc[1] = scoreFloor.f<TAlScore>(rdlens[1]);
 				// N filter; does the read have too many Ns?
 				sc.nFilterPair(
 					&ps->bufa().patFw,
@@ -3170,19 +2491,10 @@ static void* multiseedSearchWorker(void *vp) {
 					// Seed search
 					shs[mate].clear(); // clear seed hits
 					assert(shs[mate].repOk(&ca.current()));
-					int interval = multiseedPeriod;
-					if(interval == -1) {
-						// Calculate the seed interval as a
-						// function of the read length
-						float x = (float)rdlens[mate];
-						if(multiseedIvalType == SEED_IVAL_SQUARE_ROOT) {
-							x = pow(x, 0.5f);
-						} else if(multiseedIvalType == SEED_IVAL_CUBE_ROOT) {
-							x = pow(x, 0.333333f);
-						}
-						interval = (int)((multiseedIvalA * x) + multiseedIvalB + 0.5f);
-						if(interval < 1) interval = 1;
-					}
+					// Calculate the seed interval as a
+					// function of the read length
+					int interval = msIval.f<int>((double)rdlens[mate]);
+					if(interval < 1) interval = 1;
 					assert_geq(interval, 1);
 					// Set flags controlling which orientations of  individual
 					// mates to investigate
@@ -3206,8 +2518,6 @@ static void* multiseedSearchWorker(void *vp) {
 						interval,    // interval between seeds
 						*rds[mate],  // read to align
 						sc,          // scoring scheme
-						nCeilConst,  // ceil on # Ns w/r/t read len, const coeff
-						nCeilLinear, // ceil on # Ns w/r/t read len, linear coeff
 						nofw,        // don't align forward read
 						norc,        // don't align revcomp read
 						ca,          // holds some seed hits from previous reads
@@ -3243,10 +2553,10 @@ static void* multiseedSearchWorker(void *vp) {
 						// Sort seed hits into ranks
 						shs[mate].rankSeedHits(rnd);
 						//shs[mate].printSummary(cerr);
-						int nceil = (int)sc.nCeil(rdlens[mate]);
+						int nceil = nCeil.f<int>((double)rdlens[mate]);
 						bool done = false;
 						if(pair) {
-							int onceil = (int)sc.nCeil(rdlens[mate ^ 1]);
+							int onceil = nCeil.f<int>((double)rdlens[mate ^ 1]);
 							// Paired-end dynamic programming driver
 							done = sd.extendSeedsPaired(
 								*rds[mate],     // mate to align as anchor
@@ -3272,7 +2582,6 @@ static void* multiseedSearchWorker(void *vp) {
 								onceil,         // N ceil for opp.
 								nofw,           // don't align forward read
 								norc,           // don't align revcomp read
-								myPosmin,       // min # seed poss to try
 								myPosfrac,      // max seed poss to try
 								myRowmult,      // extensions per pos
 								maxhalf,        // max width on one DP side
@@ -3308,7 +2617,6 @@ static void* multiseedSearchWorker(void *vp) {
 								minsc[mate],    // minimum score for valid
 								floorsc[mate],  // floor score
 								nceil,          // N ceil for anchor
-								myPosmin,       // min # seed poss to try
 								myPosfrac,      // additional seed poss to try
 								myRowmult,      // extensions per pos
 								maxhalf,        // max width on one DP side
@@ -3480,199 +2788,6 @@ static void multiseedSearch(
 	//if(metricsIval > 0) { mett.kill(); mett.join(); }
 }
 
-
-static PairedPatternSource*   seededQualSearch_patsrc;
-static HitSink*               seededQualSearch_sink;
-static Ebwt*                  seededQualSearch_ebwtFw;
-static Ebwt*                  seededQualSearch_ebwtBw;
-static EList<SString<char> >* seededQualSearch_os;
-static int                    seededQualSearch_qualCutoff;
-static BitPairReference*      seededQualSearch_refs;
-
-static void* seededQualSearchWorkerFullStateful(void *vp) {
-	int tid = *((int*)vp);
-	PairedPatternSource&     _patsrc    = *seededQualSearch_patsrc;
-	HitSink&                 _sink      = *seededQualSearch_sink;
-	Ebwt&                    ebwtFw     = *seededQualSearch_ebwtFw;
-	Ebwt&                    ebwtBw     = *seededQualSearch_ebwtBw;
-	EList<SString<char> >&   os         = *seededQualSearch_os;
-	int                      qualCutoff = seededQualSearch_qualCutoff;
-	BitPairReference*        refs       = seededQualSearch_refs;
-
-	// Global initialization
-	PatternSourcePerThreadFactory* patsrcFact = createPatsrcFactory(_patsrc, tid);
-	HitSinkPerThreadFactory* sinkFact = createSinkFactory(_sink);
-	ChunkPool *pool = new ChunkPool(chunkSz * 1024, chunkPoolMegabytes * 1024 * 1024, chunkVerbose);
-
-	AlignerMetrics *metrics = NULL;
-	if(stats) {
-		metrics = new AlignerMetrics();
-	}
-	UnpairedSeedAlignerFactory alSEfact(
-			ebwtFw,
-			&ebwtBw,
-			seedMms,
-			seedLen,
-			qualCutoff,
-			maxBts,
-			_sink,
-			*sinkFact,
-			NULL, //&cacheFw,
-			NULL, //&cacheBw,
-			cacheLimit,
-			pool,
-			refs,
-			os,
-			seed,
-			metrics);
-	PairedSeedAlignerFactory alPEfact(
-			ebwtFw,
-			&ebwtBw,
-			seedMms,
-			seedLen,
-			qualCutoff,
-			maxBts,
-			_sink,
-			*sinkFact,
-			dontReconcileMates,
-			mhits,       // for symCeiling
-			mixedThresh,
-			mixedAttemptLim,
-			NULL, //&cacheFw,
-			NULL, //&cacheBw,
-			cacheLimit,
-			pool,
-			refs,
-			os,
-			seed);
-	{
-		MixedMultiAligner multi(
-				1,
-				qUpto,
-				alSEfact,
-				alPEfact,
-				*patsrcFact);
-		// Run that mother
-		multi.run();
-		// MultiAligner must be destroyed before patsrcFact
-	}
-	if(metrics != NULL) {
-		metrics->printSummary();
-		delete metrics;
-	}
-
-	delete patsrcFact;
-	delete sinkFact;
-	delete pool;
-#ifdef BOWTIE_PTHREADS
-	if(tid > 0) { pthread_exit(NULL); }
-#endif
-	return NULL;
-}
-
-/**
- * Search for a good alignments for each read using criteria that
- * correspond somewhat faithfully to Maq's.  Search is aided by a pair
- * of Ebwt indexes, one for the original references, and one for the
- * transpose of the references.  Neither index should be loaded upon
- * entry to this function.
- *
- * Like Maq, we treat the first 24 base pairs of the read (those
- * closest to the 5' end) differently from the remainder of the read.
- * We call the first 24 base pairs the "seed."
- */
-static void seededQualCutoffSearchFull(
-        int seedLen,                    /// length of seed (not a maq option)
-        int qualCutoff,                 /// maximum sum of mismatch qualities
-                                        /// like maq map's -e option
-                                        /// default: 70
-        int seedMms,                    /// max # mismatches allowed in seed
-                                        /// (like maq map's -n option)
-                                        /// Can only be 1 or 2, default: 1
-        PairedPatternSource& _patsrc,   /// pattern source
-        HitSink& _sink,                 /// hit sink
-        Ebwt& ebwtFw,                   /// index of original text
-        Ebwt& ebwtBw,                   /// index of mirror text
-        EList<SString<char> >& os)      /// text strings, if available (empty otherwise)
-{
-	// Global intialization
-	assert_leq(seedMms, 3);
-
-	seededQualSearch_patsrc   = &_patsrc;
-	seededQualSearch_sink     = &_sink;
-	seededQualSearch_ebwtFw   = &ebwtFw;
-	seededQualSearch_ebwtBw   = &ebwtBw;
-	seededQualSearch_os       = &os;
-	seededQualSearch_qualCutoff = qualCutoff;
-
-	// Create range caches, which are shared among all aligners
-	BitPairReference *refs = NULL;
-	bool pair = mates1.size() > 0 || mates12.size() > 0;
-	if(gColor || (pair && mixedThresh < 0xffffffff)) {
-		Timer _t(cerr, "Time loading reference: ", timing);
-		refs = new BitPairReference(adjIdxBase, gColor, sanityCheck, NULL, &os, false, useMm, useShmem, mmSweep, gVerbose, startVerbose);
-		if(!refs->loaded()) throw 1;
-	}
-	seededQualSearch_refs = refs;
-
-#ifdef BOWTIE_PTHREADS
-	AutoArray<pthread_t> threads(nthreads-1);
-	AutoArray<int> tids(nthreads-1);
-#endif
-
-	{
-		// Load the other half of the index into memory
-		assert(!ebwtFw.isInMemory());
-		Timer _t(cerr, "Time loading forward index: ", timing);
-		ebwtFw.loadIntoMemory(
-			gColor ? 1 : 0,
-			-1, // it's not bidirectional search, so we don't care how reverse is constructed
-			true, // load SA sample?
-			true, // load ftab?
-			true, // load rstarts?
-			!noRefNames,
-			startVerbose);
-	}
-	{
-		// Load the other half of the index into memory
-		assert(!ebwtBw.isInMemory());
-		Timer _t(cerr, "Time loading mirror index: ", timing);
-		ebwtBw.loadIntoMemory(
-			gColor ? 1 : 0,
-			-1, // it's not bidirectional search, so we don't care how reverse is constructed
-			true, // load SA sample?
-			true, // load ftab?
-			true, // load rstarts?
-			!noRefNames,
-			startVerbose);
-	}
-	CHUD_START();
-	{
-		// Phase 1: Consider cases 1R and 2R
-		Timer _t(cerr, "Seeded quality full-index search: ", timing);
-#ifdef BOWTIE_PTHREADS
-		for(int i = 0; i < nthreads-1; i++) {
-			tids[i] = i+1;
-			createThread(&threads[i],
-			             seededQualSearchWorkerFullStateful,
-			             (void*)&tids[i]);
-		}
-#endif
-		int tmp = 0;
-		seededQualSearchWorkerFullStateful((void*)&tmp);
-#ifdef BOWTIE_PTHREADS
-		for(int i = 0; i < nthreads-1; i++) joinThread(threads[i]);
-#endif
-	}
-	if(refs != NULL) {
-		delete refs;
-	}
-	ebwtBw.evictFromMemory();
-}
-
-
-#define PASS_DUMP_FILES dumpAlBase, dumpUnalBase, dumpMaxBase
-
 static string argstr;
 
 template<typename TStr>
@@ -3763,7 +2878,7 @@ static void driver(
 		-1,       // fw index
 	    true,     // index is for the forward direction
 	    /* overriding: */ offRate,
-		offRatePlus, // amount to add to index offrate or <= 0 to do nothing
+		0, // amount to add to index offrate or <= 0 to do nothing
 	    useMm,    // whether to use memory-mapped files
 	    useShmem, // whether to use shared memory
 	    mmSweep,  // sweep memory-mapped files
@@ -3778,9 +2893,7 @@ static void driver(
 	    sanityCheck);
 	Ebwt* ebwtBw = NULL;
 	// We need the mirror index if mismatches are allowed
-	if((!doMultiseed && (mismatches > 0 || maqLike)) ||
-	   (doMultiseed && multiseedMms > 0))
-	{
+	if(multiseedMms > 0) {
 		if(gVerbose || startVerbose) {
 			cerr << "About to initialize rev Ebwt: "; logTime(cerr, true);
 		}
@@ -3790,7 +2903,7 @@ static void driver(
 			1,       // TODO: maybe not
 		    false, // index is for the reverse direction
 		    /* overriding: */ offRate,
-			offRatePlus, // amount to add to index offrate or <= 0 to do nothing
+			0, // amount to add to index offrate or <= 0 to do nothing
 		    useMm,    // whether to use memory-mapped files
 		    useShmem, // whether to use shared memory
 		    mmSweep,  // sweep memory-mapped files
@@ -3827,18 +2940,9 @@ static void driver(
 	}
 	{
 		Timer _t(cerr, "Time searching: ", timing);
-		//if(gVerbose || startVerbose) {
-		//	cerr << "Creating ReadSink, HitSink: "; logTime(cerr, true);
-		//}
-		//ReadSink readSink(
-		//	dumpAlBase,   // basename of files to dump aligned reads to
-		//	dumpUnalBase, // basename of files to dump unaligned reads to
-		//	dumpMaxBase,  // basename of files to dump repetitive reads to
-		//	format == TAB_MATE); // both mates to same file?
 		// Set up hit sink; if sanityCheck && !os.empty() is true,
 		// then instruct the sink to "retain" hits in a vector in
 		// memory so that we can easily sanity check them later on
-		HitSink *sink;
 		AlnSink *mssink = NULL;
 		auto_ptr<Mapq> bmapq(new BowtieMapq());
 		EList<size_t> reflens;
@@ -3876,18 +2980,6 @@ static void driver(
 			sam_print_ys);
 		switch(outType) {
 			case OUTPUT_FULL: {
-				sink = new VerboseHitSink(
-					fout,         // pointer to output object
-					refnames,     // reference names
-					offBase,      // add this to 0-based offsets before printing
-					gColorSeq,    // whether to print color sequence
-					gColorQual,   // whether to print color qualities
-					printCost,    // whether to print penalty
-					suppressOuts, // suppress alignment columns
-					rmap,         // if != NULL, ReferenceMap to use
-					amap,         // if != NULL, AnnotationMap to use
-					fullRef,      // true -> print whole reference name, not just up to first whitespace
-					partitionSz); // size of partition, so we can check for straddling alignments
 				mssink = new AlnSinkVerbose(
 					fout,         // initial output stream
 					suppressOuts, // suppress alignment columns
@@ -3895,7 +2987,7 @@ static void driver(
 					false,        // delete output stream objects upon destruction
 					refnames,     // reference names
 					gQuiet,       // don't print alignment summary at end   
-					offBase,      // add this to 0-based offsets before printing
+					0,            // add this to 0-based offsets before printing
 					gColorSeq,    // colorspace: print color seq instead of decoded nucs
 					gColorQual,   // colorspace: print color quals instead of decoded quals
 					gColorExEnds, // whether to exclude end positions from decoded colorspace alignments
@@ -3910,15 +3002,6 @@ static void driver(
 				break;
 			}
 			case OUTPUT_SAM: {
-				SAMHitSink *sam = new SAMHitSink(
-					fout,
-					refnames,            // reference names
-					1,
-					rmap,
-					amap,
-					fullRef,
-					sampleMax,
-					defaultMapq);
 				mssink = new AlnSinkSam(
 					fout,         // initial output stream
 					*bmapq.get(), // mapping quality calculator
@@ -3929,20 +3012,8 @@ static void driver(
 					gColorExEnds, // exclude ends from decoded colorspace alns?
 					rmap);        // if != NULL, ReferenceMap to use
 				if(!samNoHead) {
-					sam->appendHeaders(
-						sam->out(0),
-						ebwt.nPat(),
-						refnames,
-						gColor,
-						samNoSQ,
-						rmap,
-						ebwt.plen(),
-						fullRef,
-						argstr.c_str(),
-						rgs.empty() ? NULL : rgs.c_str());
 					samc.printHeader(*fout, samNoSQ, false /* PG */);
 				}
-				sink = sam;
 				break;
 			}
 			default:
@@ -3952,129 +3023,89 @@ static void driver(
 		if(gVerbose || startVerbose) {
 			cerr << "Dispatching to search driver: "; logTime(cerr, true);
 		}
-		if(doMultiseed) {
-			// Bowtie 2
-			// Set up penalities
-			Scoring sc(
-				bonusMatch,     // constant reward for match
-				penMmcType,     // how to penalize mismatches
-				penMmc,         // constant if mm pelanty is a constant
-				penSnp,         // pena for nuc mm in decoded colorspace alns
-				costMinConst,   // minimum score - constant coeff
-				costMinLinear,  // minimum score - linear coeff
-				costFloorConst, // score floor - constant coeff
-				costFloorLinear,// score floor - linear coeff
-				nCeilConst,     // constant coeff for N ceil w/r/t read length
-				nCeilLinear,    // linear coeff for N ceil w/r/t read length
-				penNType,       // how to penalize Ns in the read
-				penN,           // constant if N pelanty is a constant
-				penNCatPair,    // whether to concat mates before N filtering
-				penRdGapConst,  // constant coeff for read gap cost
-				penRfGapConst,  // constant coeff for ref gap cost
-				penRdGapLinear, // linear coeff for read gap cost
-				penRfGapLinear, // linear coeff for ref gap cost
-				gGapBarrier,    // # rows at top/bot only entered diagonally
-				gRowLow,        // min row idx to backtrace from; -1 = no limit
-				gRowFirst       // sort results first by row then by score?
-			);
-			// Set up global constraint
-			Constraint gc = Constraint::penaltyFuncBased(
-				costMinConst,
-				costMinLinear
-			);
-			// Set up seeds
-			EList<Seed> seeds;
-			Seed::mmSeeds(
-				multiseedMms,    // max # mms allowed in a multiseed seed
-				multiseedLen,    // length of a multiseed seed (scales down if read is shorter)
-				seeds,           // seeds
-				gc               // global constraint
-			);
-			// Set up listeners for alignment progress
-			EList<SeedHitSink*> seedHitSink;
-			EList<SeedCounterSink*> seedCounterSink;
-			EList<SeedActionSink*> seedActionSink;
-			ofstream *hitsOf = NULL, *cntsOf = NULL, *actionsOf = NULL;
-			if(!saHitsFn.empty()) {
-				hitsOf = new ofstream(saHitsFn.c_str());
-				if(!hitsOf->is_open()) {
-					cerr << "Error: Unable to open seed hit dump file " << saHitsFn << endl;
-					throw 1;
-				}
-				seedHitSink.push_back(new StreamTabSeedHitSink(*hitsOf));
+		// Bowtie 2
+		// Set up penalities
+		Scoring sc(
+			bonusMatch,     // constant reward for match
+			penMmcType,     // how to penalize mismatches
+			penMmc,         // constant if mm pelanty is a constant
+			penSnp,         // pena for nuc mm in decoded colorspace alns
+			scoreMin,       // min score as function of read len
+			scoreFloor,     // floor score as function of read len
+			nCeil,          // max # Ns as function of read len
+			penNType,       // how to penalize Ns in the read
+			penN,           // constant if N pelanty is a constant
+			penNCatPair,    // whether to concat mates before N filtering
+			penRdGapConst,  // constant coeff for read gap cost
+			penRfGapConst,  // constant coeff for ref gap cost
+			penRdGapLinear, // linear coeff for read gap cost
+			penRfGapLinear, // linear coeff for ref gap cost
+			gGapBarrier,    // # rows at top/bot only entered diagonally
+			gRowLow,        // min row idx to backtrace from; -1 = no limit
+			gRowFirst);     // sort results first by row then by score?
+		// Set up global constraint
+		Constraint gc = Constraint::penaltyFuncBased(scoreMin);
+		// Set up seeds
+		EList<Seed> seeds;
+		Seed::mmSeeds(
+			multiseedMms,    // max # mms allowed in a multiseed seed
+			multiseedLen,    // length of a multiseed seed (scales down if read is shorter)
+			seeds,           // seeds
+			gc);             // global constraint
+		// Set up listeners for alignment progress
+		EList<SeedHitSink*> seedHitSink;
+		EList<SeedCounterSink*> seedCounterSink;
+		EList<SeedActionSink*> seedActionSink;
+		ofstream *hitsOf = NULL, *cntsOf = NULL, *actionsOf = NULL;
+		if(!saHitsFn.empty()) {
+			hitsOf = new ofstream(saHitsFn.c_str());
+			if(!hitsOf->is_open()) {
+				cerr << "Error: Unable to open seed hit dump file " << saHitsFn << endl;
+				throw 1;
 			}
-			if(!saCountersFn.empty()) {
-				cntsOf = new ofstream(saCountersFn.c_str());
-				if(!cntsOf->is_open()) {
-					cerr << "Error: Unable to open seed counter dump file " << saCountersFn << endl;
-					throw 1;
-				}
-				seedCounterSink.push_back(new StreamTabSeedCounterSink(*cntsOf));
-			}
-			if(!saActionsFn.empty()) {
-				actionsOf = new ofstream(saActionsFn.c_str());
-				if(!actionsOf->is_open()) {
-					cerr << "Error: Unable to open seed action dump file " << saActionsFn << endl;
-					throw 1;
-				}
-				seedActionSink.push_back(new StreamTabSeedActionSink(*actionsOf));
-			}
-			OutFileBuf *metricsOfb = NULL;
-			if(!metricsFile.empty() && metricsIval > 0) {
-				metricsOfb = new OutFileBuf(metricsFile);
-			}
-			// Do the search for all input reads
-			assert(patsrc != NULL);
-			assert(mssink != NULL);
-			multiseedSearch(
-				sc,      // scoring scheme
-				seeds,   // seeds
-				*patsrc, // pattern source
-				*mssink, // hit sink
-				ebwt,    // BWT
-				*ebwtBw, // BWT'
-				seedHitSink,
-				seedCounterSink,
-				seedActionSink,
-				metricsOfb
-			);
-			for(size_t i = 0; i < seedHitSink.size();     i++) delete seedHitSink[i];
-			for(size_t i = 0; i < seedCounterSink.size(); i++) delete seedCounterSink[i];
-			for(size_t i = 0; i < seedActionSink.size();  i++) delete seedActionSink[i];
-			if(hitsOf != NULL) delete hitsOf;
-			if(cntsOf != NULL) delete cntsOf;
-			if(actionsOf != NULL) delete actionsOf;
-			if(metricsOfb != NULL) delete metricsOfb;
-		} else {
-			// Bowtie 1
-			if(maqLike) {
-				seededQualCutoffSearchFull(
-					seedLen,
-					qualThresh,
-					seedMms,
-					*patsrc,
-					*sink,
-					ebwt,    // forward index
-					*ebwtBw, // mirror index (not optional)
-					os);     // references, if available
-			}
-			else if(mismatches > 0) {
-				if(mismatches == 1) {
-					assert(ebwtBw != NULL);
-					mismatchSearchFull(*patsrc, *sink, ebwt, *ebwtBw, os);
-				} else if(mismatches == 2 || mismatches == 3) {
-					twoOrThreeMismatchSearchFull(*patsrc, *sink, ebwt, *ebwtBw, os, mismatches == 2);
-				} else {
-					cerr << "Error: " << mismatches << " is not a supported number of mismatches" << endl;
-					throw 1;
-				}
-			} else {
-				// Search without mismatches
-				// Note that --fast doesn't make a difference here because
-				// we're only loading half of the index anyway
-				exactSearch(*patsrc, *sink, ebwt, os);
-			}
+			seedHitSink.push_back(new StreamTabSeedHitSink(*hitsOf));
 		}
+		if(!saCountersFn.empty()) {
+			cntsOf = new ofstream(saCountersFn.c_str());
+			if(!cntsOf->is_open()) {
+				cerr << "Error: Unable to open seed counter dump file " << saCountersFn << endl;
+				throw 1;
+			}
+			seedCounterSink.push_back(new StreamTabSeedCounterSink(*cntsOf));
+		}
+		if(!saActionsFn.empty()) {
+			actionsOf = new ofstream(saActionsFn.c_str());
+			if(!actionsOf->is_open()) {
+				cerr << "Error: Unable to open seed action dump file " << saActionsFn << endl;
+				throw 1;
+			}
+			seedActionSink.push_back(new StreamTabSeedActionSink(*actionsOf));
+		}
+		OutFileBuf *metricsOfb = NULL;
+		if(!metricsFile.empty() && metricsIval > 0) {
+			metricsOfb = new OutFileBuf(metricsFile);
+		}
+		// Do the search for all input reads
+		assert(patsrc != NULL);
+		assert(mssink != NULL);
+		multiseedSearch(
+			sc,      // scoring scheme
+			seeds,   // seeds
+			*patsrc, // pattern source
+			*mssink, // hit sink
+			ebwt,    // BWT
+			*ebwtBw, // BWT'
+			seedHitSink,
+			seedCounterSink,
+			seedActionSink,
+			metricsOfb);
+		for(size_t i = 0; i < seedHitSink.size();     i++) delete seedHitSink[i];
+		for(size_t i = 0; i < seedCounterSink.size(); i++) delete seedCounterSink[i];
+		for(size_t i = 0; i < seedActionSink.size();  i++) delete seedActionSink[i];
+		if(hitsOf != NULL) delete hitsOf;
+		if(cntsOf != NULL) delete cntsOf;
+		if(actionsOf != NULL) delete actionsOf;
+		if(metricsOfb != NULL) delete metricsOfb;
 		// Evict any loaded indexes from memory
 		if(ebwt.isInMemory()) {
 			ebwt.evictFromMemory();
@@ -4082,25 +3113,18 @@ static void driver(
 		if(ebwtBw != NULL) {
 			delete ebwtBw;
 		}
-		if(!gQuiet) {
-			if(doMultiseed) {
-				if(!seedSummaryOnly) {
-					size_t repThresh = mhits;
-					if(repThresh == 0) {
-						repThresh = std::numeric_limits<size_t>::max();
-					}
-					mssink->finish(
-						repThresh,
-						gReportDiscordant,
-						gReportMixed,
-						hadoopOut);
-				}
-			} else {
-				sink->finish(hadoopOut, sampleMax); // end the hits section of the hit file
+		if(!gQuiet && !seedSummaryOnly) {
+			size_t repThresh = mhits;
+			if(repThresh == 0) {
+				repThresh = std::numeric_limits<size_t>::max();
 			}
+			mssink->finish(
+				repThresh,
+				gReportDiscordant,
+				gReportMixed,
+				hadoopOut);
 		}
 		delete patsrc;
-		delete sink;
 		delete mssink;
 		delete amap;
 		delete rmap;

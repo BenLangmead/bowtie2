@@ -69,6 +69,7 @@
 #include "pe.h"
 #include "sa_rescomb.h"
 #include "ival_list.h"
+#include "simple_func.h"
 
 class SwDriver {
 
@@ -114,9 +115,8 @@ public:
 		TAlScore minsc,              // minimum score for anchor
 		TAlScore floorsc,            // local-alignment floor for anchor score
 		int nceil,                   // maximum # Ns permitted in ref portion
-		float posmin,                // minimum number of positions to examine
-		float posfrac,               // max number of additional poss to examine
-		float rowmult,               // number of extensions to try per pos
+		const SimpleFunc& posfrac,   // minimum number of positions to examine
+		const SimpleFunc& rowmult,   // max number of additional poss to examine
 		size_t maxhalf,              // maximum width on one side of DP table
 		bool scanNarrowed,           // true -> ref scan even for narrowed hits
 		AlignmentCacheIface& ca,     // alignment cache for seed hits
@@ -188,9 +188,8 @@ public:
 		int onceil,                  // max # Ns permitted in ref for opposite
 		bool nofw,                   // don't align forward read
 		bool norc,                   // don't align revcomp read
-		float posmin,                // minimum number of positions to examine
-		float posfrac,               // max number of additional poss to examine
-		float rowmult,               // number of extensions to try per pos
+		const SimpleFunc& posfrac,   // minimum number of positions to examine
+		const SimpleFunc& rowmult,   // max number of additional poss to examine
 		size_t maxhalf,              // maximum width on one side of DP table
 		bool scanNarrowed,           // true -> ref scan even for narrowed hits
 		AlignmentCacheIface& cs,     // alignment cache for seed hits
@@ -239,7 +238,7 @@ protected:
 		const Ebwt& ebwt,            // BWT
 		const BitPairReference& ref, // Reference strings
 		int seedlen,                 // length of seed
-		size_t maxrows,              // max rows to consider per position
+		const SimpleFunc& rowmult,   // max rows to consider per position
 		bool scanNarrowed,           // true -> ref scan even for narrowed hits
 		AlignmentCacheIface& ca,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random generator

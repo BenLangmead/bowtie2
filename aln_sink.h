@@ -11,9 +11,15 @@
 #include "refmap.h"
 #include "sam.h"
 #include "ds.h"
+#include "simple_func.h"
 
 // Forward decl	
 class SeedResults;
+
+enum {
+	OUTPUT_SAM = 1,
+	OUTPUT_FULL
+};
 
 /**
  * Metrics summarizing the work done by the reporter and summarizing
@@ -202,25 +208,22 @@ struct ReportingParams {
 	 * Given ROWM, POSF thresholds, boost them according to mult().
 	 */
 	void boostThresholds(
-		float& posmin,
-		float& posfrac,
-		float& rowmult)
+		SimpleFunc& posfrac,
+		SimpleFunc& rowmult)
 	{
 		THitInt mul = mult();
 		assert_gt(mul, 0);
 		if(mul == std::numeric_limits<THitInt>::max()) {
 			// If -a was specified, boost ROWM and POSF so that all hits are
 			// tried for al; positions
-			posmin =
-			posfrac = 
-			rowmult = std::numeric_limits<float>::max();
+			posfrac.setMin(std::numeric_limits<double>::max());
+			rowmult.setMin(std::numeric_limits<double>::max());
 		} else if(mul > 1) {
 			// If -k or -M were specified, boost ROWM and POSF so that an
 			// appropriately larger number of hits are tried for more
 			// positions
-			posmin  *= mul;
-			posfrac *= mul;
-			rowmult *= mul;
+			posfrac.mult(mul);
+			rowmult.mult(mul);
 		}
 	}
 

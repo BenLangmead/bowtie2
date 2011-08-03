@@ -20,7 +20,7 @@
 #include "aligner_cache.h"
 #include "scoring.h"
 #include "mem_ids.h"
-
+#include "simple_func.h"
 
 /**
  * A constraint to apply to an alignment zone, or to an overall
@@ -39,7 +39,6 @@ struct Constraint {
 	void init() {
 		edits = mms = ins = dels = penalty = editsCeil = mmsCeil =
 		insCeil = delsCeil = penaltyCeil = std::numeric_limits<int>::max();
-		penConst = penLinear = std::numeric_limits<float>::max();
 		instantiated = false;
 	}
 	
@@ -208,12 +207,8 @@ struct Constraint {
 	 * Instantiate a constraint w/r/t the read length and the constant
 	 * and linear coefficients for the penalty function.
 	 */
-	static int instantiate(
-		size_t rdlen,
-		float penConst,
-		float penLinear)
-	{
-		return (int)(0.5f + penConst + penLinear * (float)rdlen);
+	static int instantiate(size_t rdlen, const SimpleFunc& func) {
+		return func.f<int>((double)rdlen);
 	}
 	
 	/**
@@ -221,8 +216,8 @@ struct Constraint {
 	 */
 	void instantiate(size_t rdlen) {
 		assert(!instantiated);
-		if(penConst != std::numeric_limits<float>::max()) {
-			penalty = Constraint::instantiate(rdlen, penConst, penLinear);
+		if(penFunc.initialized()) {
+			penalty = Constraint::instantiate(rdlen, penFunc);
 		}
 		instantiated = true;
 	}
@@ -237,8 +232,7 @@ struct Constraint {
 	int insCeil;    // <= this many inserts can be left at the end
 	int delsCeil;   // <= this many deletions can be left at the end
 	int penaltyCeil;// <= this much leftover penalty can be left at the end
-	float penConst; // constant coeff in f(x) where f=penalty, x=read length
-	float penLinear;// linear coeff in f(x) where f=penalty, x=read length
+	SimpleFunc penFunc;// penalty function; function of read len
 	bool instantiated; // whether constraint is instantiated w/r/t read len
 	
 	//
@@ -260,7 +254,7 @@ struct Constraint {
 	 * Construct a constraint where the only constraint is a total
 	 * penalty constraint related to the length of the read.
 	 */
-	static Constraint penaltyFuncBased(float penConst, float penLinear);
+	static Constraint penaltyFuncBased(const SimpleFunc& func);
 
 	/**
 	 * Construct a constraint where the only constraint is a total
@@ -1196,8 +1190,6 @@ public:
 		int per,                   // interval between seeds
 		const Read& read,          // read to align
 		const Scoring& pens,       // scoring scheme
-		float nCeilConst,          // ceil on # Ns w/r/t read len, const coeff
-		float nCeilLinear,         // ceil on # Ns w/r/t read len, linear coeff
 		bool nofw,                 // don't align forward read
 		bool norc,                 // don't align revcomp read
 		AlignmentCacheIface& cache,// holds some seed hits from previous reads

@@ -11,6 +11,53 @@
 
 using namespace std;
 
+static int parseFuncType(const std::string& otype) {
+	string type = otype;
+	if(type == "C" || type == "Constant") {
+		return SIMPLE_FUNC_CONST;
+	} else if(type == "L" || type == "Linear") {
+		return SIMPLE_FUNC_LINEAR;
+	} else if(type == "S" || type == "Sqrt") {
+		return SIMPLE_FUNC_SQRT;
+	} else if(type == "G" || type == "Log") {
+		return SIMPLE_FUNC_LOG;
+	}
+	std::cerr << "Error: Bad function type '" << otype
+	          << "'.  Should be C (constant), L (linear), "
+	          << "S (square root) or G (natural log)." << std::endl;
+	throw 1;
+}
+
+#define PARSE_FUNC(fv) { \
+	if(ctoks.size() >= 1) { \
+		fv.setType(parseFuncType(ctoks[0])); \
+	} \
+	if(ctoks.size() >= 2) { \
+		double co; \
+		istringstream tmpss(ctoks[1]); \
+		tmpss >> co; \
+		fv.setConst(co); \
+	} \
+	if(ctoks.size() >= 3) { \
+		double ce; \
+		istringstream tmpss(ctoks[2]); \
+		tmpss >> ce; \
+		fv.setCoeff(ce); \
+	} \
+	if(ctoks.size() >= 4) { \
+		double mn; \
+		istringstream tmpss(ctoks[3]); \
+		tmpss >> mn; \
+		fv.setMin(mn); \
+	} \
+	if(ctoks.size() >= 5) { \
+		double mx; \
+		istringstream tmpss(ctoks[4]); \
+		tmpss >> mx; \
+		fv.setMin(mx); \
+	} \
+}
+
 /**
  * Parse alignment policy when provided in this format:
  * <lab>=<val>;<lab>=<val>;<lab>=<val>...
@@ -205,22 +252,15 @@ void SeedAlignmentPolicy::parseString(
 	int&   penRfExConst,
 	int&   penRdExLinear,
 	int&   penRfExLinear,
-	float& costMinConst,
-	float& costMinLinear,
-	float& costFloorConst,
-	float& costFloorLinear,
-	float& nCeilConst,
-	float& nCeilLinear,
+	SimpleFunc& costMin,
+	SimpleFunc& costFloor,
+	SimpleFunc& nCeil,
 	bool&  nCatPair,
 	int&   multiseedMms,
 	int&   multiseedLen,
-	int&   multiseedPeriod,
-	int&   multiseedIvalType,
-	float& multiseedIvalA,
-	float& multiseedIvalB,
-	float& posmin,
-	float& posfrac,
-	float& rowmult)
+	SimpleFunc& msIval,
+	SimpleFunc& posfrac,
+	SimpleFunc& rowmult)
 {
 
 	bonusMatchType    = local ? DEFAULT_MATCH_BONUS_TYPE_LOCAL :
@@ -233,16 +273,28 @@ void SeedAlignmentPolicy::parseString(
 	penSnp            = DEFAULT_SNP_PENALTY;
 	penNType          = DEFAULT_N_PENALTY_TYPE;
 	penN              = DEFAULT_N_PENALTY;
-	costMinConst      = local ? DEFAULT_MIN_CONST_LOCAL :
-	                            DEFAULT_MIN_CONST;
-	costMinLinear     = local ? DEFAULT_MIN_LINEAR_LOCAL :
-								DEFAULT_MIN_LINEAR;
-	costFloorConst    = local ? DEFAULT_FLOOR_CONST_LOCAL :
-	                            DEFAULT_FLOOR_CONST;
-	costFloorLinear   = local ? DEFAULT_FLOOR_LINEAR_LOCAL :
-	                            DEFAULT_FLOOR_LINEAR;
-	nCeilConst        = DEFAULT_N_CEIL_CONST;
-	nCeilLinear       = DEFAULT_N_CEIL_LINEAR;
+	
+	const double DMAX = std::numeric_limits<double>::max();
+	costMin.init(
+		SIMPLE_FUNC_LINEAR, 1.0f, DMAX,
+		local ? DEFAULT_MIN_CONST_LOCAL  : DEFAULT_MIN_CONST,
+		local ? DEFAULT_MIN_LINEAR_LOCAL : DEFAULT_MIN_LINEAR);
+	costFloor.init(
+		SIMPLE_FUNC_LINEAR, 1.0f, DMAX,
+		local ? DEFAULT_FLOOR_CONST_LOCAL  : DEFAULT_FLOOR_CONST,
+		local ? DEFAULT_FLOOR_LINEAR_LOCAL : DEFAULT_FLOOR_LINEAR);
+	nCeil.init(
+		SIMPLE_FUNC_LINEAR, 0.0f, DMAX,
+		DEFAULT_N_CEIL_CONST, DEFAULT_N_CEIL_LINEAR);
+	msIval.init(
+		DEFAULT_IVAL, 1.0f, DMAX,
+		DEFAULT_IVAL_B, DEFAULT_IVAL_A);
+	posfrac.init(
+		SIMPLE_FUNC_LINEAR, 1.0f, DMAX,
+		DEFAULT_POSMIN, DEFAULT_POSFRAC);
+	rowmult.init(
+		SIMPLE_FUNC_CONST,  1.0f, DMAX,
+		DEFAULT_ROWMULT, 0.0f);
 	nCatPair          = DEFAULT_N_CAT_PAIR;
 
 	if(!noisyHpolymer) {
@@ -259,15 +311,7 @@ void SeedAlignmentPolicy::parseString(
 	
 	multiseedMms      = DEFAULT_SEEDMMS;
 	multiseedLen      = DEFAULT_SEEDLEN;
-	multiseedPeriod   = DEFAULT_SEEDPERIOD;
-	multiseedIvalType = DEFAULT_IVAL;
-	multiseedIvalA    = DEFAULT_IVAL_A;
-	multiseedIvalB    = DEFAULT_IVAL_B;
 	
-	posmin   = DEFAULT_POSMIN;
-	posfrac  = DEFAULT_POSFRAC;
-	rowmult  = DEFAULT_ROWMULT;
-
 	EList<string> toks(MISC_CAT);
 	string tok;
 	istringstream ss(s);
@@ -284,7 +328,8 @@ void SeedAlignmentPolicy::parseString(
 		}
 		// Must be exactly 1 =
 		if(etoks.size() != 2) {
-			cerr << "Error parsing alignment policy setting " << setting << "; must be bisected by = sign" << endl
+			cerr << "Error parsing alignment policy setting " << setting
+			     << "; must be bisected by = sign" << endl
 				 << "Policy: " << s << endl;
 			assert(false); throw 1;
 		}
@@ -300,13 +345,6 @@ void SeedAlignmentPolicy::parseString(
 		if(ctoks.size() == 0) {
 			cerr << "Error parsing alignment policy setting " << setting
 			     << "; RHS must have at least 1 token" << endl
-				 << "Policy: " << s << endl;
-			assert(false); throw 1;
-		}
-		// In no case is >3 tokens OK
-		if(ctoks.size() > 3) {
-			cerr << "Error parsing alignment policy setting " << setting
-			     << "; RHS must have at most 3 tokens" << endl
 				 << "Policy: " << s << endl;
 			assert(false); throw 1;
 		}
@@ -472,14 +510,7 @@ void SeedAlignmentPolicy::parseString(
 		//        xx = constant coefficient
 		//        yy = linear coefficient
 		else if(tag == "MIN") {
-			if(ctoks.size() >= 1) {
-				istringstream tmpss(ctoks[0]);
-				tmpss >> costMinConst;
-			}
-			if(ctoks.size() >= 2) {
-				istringstream tmpss(ctoks[1]);
-				tmpss >> costMinLinear;
-			}
+			PARSE_FUNC(costMin);
 		}
 		// If a total of N seed positions fit onto the read, try look for seed
 		// hits from xx + yy * N of them
@@ -487,53 +518,27 @@ void SeedAlignmentPolicy::parseString(
 		//        xx = always examine at least this many poss
 		//        yy = examine this times N more
 		else if(tag == "POSF") {
-			if(ctoks.size() >= 1) {
-				istringstream tmpss(ctoks[0]);
-				tmpss >> posmin;
-			}
-			if(ctoks.size() >= 2) {
-				istringstream tmpss(ctoks[1]);
-				tmpss >> posfrac;
-			}
+			PARSE_FUNC(posfrac);
 		}
 		// Try a maximum of N * xx seed extensions from any given seed position.
 		// ROWM=xx
 		//        xx = floating-point fraction
 		else if(tag == "ROWM") {
-			if(ctoks.size() >= 1) {
-				istringstream tmpss(ctoks[0]);
-				tmpss >> rowmult;
-			}
+			PARSE_FUNC(rowmult);
 		}
 		// Local-alignment score floor as a function of read length
 		// FL=xx,yy
 		//        xx = constant coefficient
 		//        yy = linear coefficient
 		else if(tag == "FL") {
-			if(ctoks.size() >= 1) {
-				istringstream tmpss(ctoks[0]);
-				tmpss >> costFloorConst;
-			}
-			if(ctoks.size() >= 2) {
-				istringstream tmpss(ctoks[1]);
-				tmpss >> costFloorLinear;
-			}
+			PARSE_FUNC(costFloor);
 		}
 		// Per-read N ceiling as a function of read length
 		// NCEIL=xx,yy
 		//        xx = N ceiling constant coefficient
 		//        yy = N ceiling linear coefficient (set to 0 if unspecified)
 		else if(tag == "NCEIL") {
-			if(ctoks.size() >= 1) {
-				istringstream tmpss(ctoks[0]);
-				tmpss >> nCeilConst;
-			}
-			if(ctoks.size() >= 2) {
-				istringstream tmpss(ctoks[1]);
-				tmpss >> nCeilLinear;
-			} else {
-				nCeilLinear = DEFAULT_N_CEIL_LINEAR;
-			}
+			PARSE_FUNC(nCeil);
 		}
 		/*
 		 * Seeds
@@ -550,6 +555,13 @@ void SeedAlignmentPolicy::parseString(
 		 *          interval is determined by IVAL.
 		 */
 		else if(tag == "SEED") {
+			if(ctoks.size() != 2) {
+				cerr << "Error parsing alignment policy setting "
+				     << "'" << tag << "'"
+				     << "; RHS must have 2 token" << endl
+					 << "Policy: '" << s << "'" << endl;
+				assert(false); throw 1;
+			}
 			if(ctoks.size() >= 1) {
 				istringstream tmpss(ctoks[0]);
 				tmpss >> multiseedMms;
@@ -559,12 +571,6 @@ void SeedAlignmentPolicy::parseString(
 				tmpss >> multiseedLen;
 			} else {
 				multiseedLen = DEFAULT_SEEDLEN;
-			}
-			if(ctoks.size() >= 3) {
-				istringstream tmpss(ctoks[2]);
-				tmpss >> multiseedPeriod;
-			} else {
-				multiseedPeriod = DEFAULT_SEEDPERIOD;
 			}
 		}
 		/*
@@ -587,29 +593,7 @@ void SeedAlignmentPolicy::parseString(
 		 *        root.
 		 */
 		else if(tag == "IVAL") {
-			if(ctoks.size() >= 1) {
-				if(ctoks[0][0] == 'L') {
-					multiseedIvalType = SEED_IVAL_LINEAR;
-				} else if(ctoks[0][0] == 'S') {
-					multiseedIvalType = SEED_IVAL_SQUARE_ROOT;
-				} else if(ctoks[0][0] == 'C') {
-					multiseedIvalType = SEED_IVAL_CUBE_ROOT;
-				}
-			}
-			// A = Linear coefficient
-			if(ctoks.size() >= 2) {
-				istringstream tmpss(ctoks[1]);
-				tmpss >> multiseedIvalA;
-			} else {
-				multiseedIvalA = 1.0f;
-			}
-			// B = Constant coefficient
-			if(ctoks.size() >= 3) {
-				istringstream tmpss(ctoks[2]);
-				tmpss >> multiseedIvalB;
-			} else {
-				multiseedIvalB = 0.0f;
-			}
+			PARSE_FUNC(msIval);
 		}
 		else {
 			// Unknown tag
@@ -635,22 +619,15 @@ int main() {
 	int penRfExConst;
 	int penRdExLinear;
 	int penRfExLinear;
-	float costMinConst;
-	float costMinLinear;
-	float costFloorConst;
-	float costFloorLinear;
-	float nCeilConst;
-	float nCeilLinear;
-	bool  nCatPair;
+	SimpleFunc costMin;
+	SimpleFunc costFloor;
+	SimpleFunc nCeil;
+	bool nCatPair;
 	int multiseedMms;
 	int multiseedLen;
-	int multiseedPeriod;
-	int multiseedIvalType;
-	float multiseedIvalA;
-	float multiseedIvalB;
-	float posmin;
-	float posfrac;
-	float rowmult;
+	SimpleFunc msIval;
+	SimpleFunc posfrac;
+	SimpleFunc rowmult;
 
 	{
 		cout << "Case 1: Defaults 1 ... ";
@@ -670,23 +647,15 @@ int main() {
 			penRfExConst,
 			penRdExLinear,
 			penRfExLinear,
-			costMinConst,
-			costMinLinear,
-			costFloorConst,
-			costFloorLinear,
-			nCeilConst,
-			nCeilLinear,
+			costMin,
+			costFloor,
+			nCeil,
 			nCatPair,
 			multiseedMms,
 			multiseedLen,
-			multiseedPeriod,
-			multiseedIvalType,
-			multiseedIvalA,
-			multiseedIvalB,
-			posmin,
+			msIval,
 			posfrac,
-			rowmult
-		);
+			rowmult);
 		
 		assert_eq(DEFAULT_MATCH_BONUS_TYPE,   bonusMatchType);
 		assert_eq(DEFAULT_MATCH_BONUS,        bonusMatch);
@@ -695,12 +664,11 @@ int main() {
 		assert_eq(DEFAULT_SNP_PENALTY,        penSnp);
 		assert_eq(DEFAULT_N_PENALTY_TYPE,     penNType);
 		assert_eq(DEFAULT_N_PENALTY,          penN);
-		assert_eq(DEFAULT_MIN_CONST,          costMinConst);
-		assert_eq(DEFAULT_MIN_LINEAR,         costMinLinear);
-		assert_eq(DEFAULT_FLOOR_CONST,        costFloorConst);
-		assert_eq(DEFAULT_FLOOR_LINEAR,       costFloorLinear);
-		assert_eq(DEFAULT_N_CEIL_CONST,       nCeilConst);
-		assert_eq(DEFAULT_N_CEIL_LINEAR,      nCeilLinear);
+		assert_eq(DEFAULT_MIN_CONST,          costMin.getConst());
+		assert_eq(DEFAULT_MIN_LINEAR,         costMin.getCoeff());
+		assert_eq(DEFAULT_FLOOR_CONST,        costFloor.getConst());
+		assert_eq(DEFAULT_FLOOR_LINEAR,       costFloor.getCoeff());
+		assert_eq(DEFAULT_N_CEIL_CONST,       nCeil.getConst());
 		assert_eq(DEFAULT_N_CAT_PAIR,         nCatPair);
 
 		assert_eq(DEFAULT_READ_GAP_CONST,     penRdExConst);
@@ -709,14 +677,13 @@ int main() {
 		assert_eq(DEFAULT_REF_GAP_LINEAR,     penRfExLinear);
 		assert_eq(DEFAULT_SEEDMMS,            multiseedMms);
 		assert_eq(DEFAULT_SEEDLEN,            multiseedLen);
-		assert_eq(DEFAULT_SEEDPERIOD,         multiseedPeriod);
-		assert_eq(DEFAULT_IVAL,               multiseedIvalType);
-		assert_eq(DEFAULT_IVAL_A,             multiseedIvalA);
-		assert_eq(DEFAULT_IVAL_B,             multiseedIvalB);
+		assert_eq(DEFAULT_IVAL,               msIval.getType());
+		assert_eq(DEFAULT_IVAL_A,             msIval.getCoeff());
+		assert_eq(DEFAULT_IVAL_B,             msIval.getConst());
 
-		assert_eq(DEFAULT_POSMIN,             posmin);
-		assert_eq(DEFAULT_POSFRAC,            posfrac);
-		assert_eq(DEFAULT_ROWMULT,            rowmult);
+		assert_eq(DEFAULT_POSMIN,             posfrac.getConst());
+		assert_eq(DEFAULT_POSFRAC,            posfrac.getCoeff());
+		assert_eq(DEFAULT_ROWMULT,            rowmult.getConst());
 		
 		cout << "PASSED" << endl;
 	}
@@ -739,23 +706,15 @@ int main() {
 			penRfExConst,
 			penRdExLinear,
 			penRfExLinear,
-			costMinConst,
-			costMinLinear,
-			costFloorConst,
-			costFloorLinear,
-			nCeilConst,
-			nCeilLinear,
+			costMin,
+			costFloor,
+			nCeil,
 			nCatPair,
 			multiseedMms,
 			multiseedLen,
-			multiseedPeriod,
-			multiseedIvalType,
-			multiseedIvalA,
-			multiseedIvalB,
-			posmin,
+			msIval,
 			posfrac,
-			rowmult
-		);
+			rowmult);
 		
 		assert_eq(DEFAULT_MATCH_BONUS_TYPE,   bonusMatchType);
 		assert_eq(DEFAULT_MATCH_BONUS,        bonusMatch);
@@ -764,12 +723,11 @@ int main() {
 		assert_eq(DEFAULT_SNP_PENALTY,        penSnp);
 		assert_eq(DEFAULT_N_PENALTY_TYPE,     penNType);
 		assert_eq(DEFAULT_N_PENALTY,          penN);
-		assert_eq(DEFAULT_MIN_CONST,          costMinConst);
-		assert_eq(DEFAULT_MIN_LINEAR,         costMinLinear);
-		assert_eq(DEFAULT_FLOOR_CONST,        costFloorConst);
-		assert_eq(DEFAULT_FLOOR_LINEAR,       costFloorLinear);
-		assert_eq(DEFAULT_N_CEIL_CONST,       nCeilConst);
-		assert_eq(DEFAULT_N_CEIL_LINEAR,      nCeilLinear);
+		assert_eq(DEFAULT_MIN_CONST,          costMin.getConst());
+		assert_eq(DEFAULT_MIN_LINEAR,         costMin.getCoeff());
+		assert_eq(DEFAULT_FLOOR_CONST,        costFloor.getConst());
+		assert_eq(DEFAULT_FLOOR_LINEAR,       costFloor.getCoeff());
+		assert_eq(DEFAULT_N_CEIL_CONST,       nCeil.getConst());
 		assert_eq(DEFAULT_N_CAT_PAIR,         nCatPair);
 
 		assert_eq(DEFAULT_READ_GAP_CONST_BADHPOLY,  penRdExConst);
@@ -778,14 +736,13 @@ int main() {
 		assert_eq(DEFAULT_REF_GAP_LINEAR_BADHPOLY,  penRfExLinear);
 		assert_eq(DEFAULT_SEEDMMS,            multiseedMms);
 		assert_eq(DEFAULT_SEEDLEN,            multiseedLen);
-		assert_eq(DEFAULT_SEEDPERIOD,         multiseedPeriod);
-		assert_eq(DEFAULT_IVAL,               multiseedIvalType);
-		assert_eq(DEFAULT_IVAL_A,             multiseedIvalA);
-		assert_eq(DEFAULT_IVAL_B,             multiseedIvalB);
+		assert_eq(DEFAULT_IVAL,               msIval.getType());
+		assert_eq(DEFAULT_IVAL_A,             msIval.getCoeff());
+		assert_eq(DEFAULT_IVAL_B,             msIval.getConst());
 
-		assert_eq(DEFAULT_POSMIN,             posmin);
-		assert_eq(DEFAULT_POSFRAC,            posfrac);
-		assert_eq(DEFAULT_ROWMULT,            rowmult);
+		assert_eq(DEFAULT_POSMIN,             posfrac.getConst());
+		assert_eq(DEFAULT_POSFRAC,            posfrac.getCoeff());
+		assert_eq(DEFAULT_ROWMULT,            rowmult.getConst());
 		
 		cout << "PASSED" << endl;
 	}
@@ -808,23 +765,15 @@ int main() {
 			penRfExConst,
 			penRdExLinear,
 			penRfExLinear,
-			costMinConst,
-			costMinLinear,
-			costFloorConst,
-			costFloorLinear,
-			nCeilConst,
-			nCeilLinear,
+			costMin,
+			costFloor,
+			nCeil,
 			nCatPair,
 			multiseedMms,
 			multiseedLen,
-			multiseedPeriod,
-			multiseedIvalType,
-			multiseedIvalA,
-			multiseedIvalB,
-			posmin,
+			msIval,
 			posfrac,
-			rowmult
-		);
+			rowmult);
 		
 		assert_eq(DEFAULT_MATCH_BONUS_TYPE_LOCAL,   bonusMatchType);
 		assert_eq(DEFAULT_MATCH_BONUS_LOCAL,        bonusMatch);
@@ -833,12 +782,12 @@ int main() {
 		assert_eq(DEFAULT_SNP_PENALTY,        penSnp);
 		assert_eq(DEFAULT_N_PENALTY_TYPE,     penNType);
 		assert_eq(DEFAULT_N_PENALTY,          penN);
-		assert_eq(DEFAULT_MIN_CONST_LOCAL,    costMinConst);
-		assert_eq(DEFAULT_MIN_LINEAR_LOCAL,   costMinLinear);
-		assert_eq(DEFAULT_FLOOR_CONST_LOCAL,  costFloorConst);
-		assert_eq(DEFAULT_FLOOR_LINEAR_LOCAL, costFloorLinear);
-		assert_eq(DEFAULT_N_CEIL_CONST,       nCeilConst);
-		assert_eq(DEFAULT_N_CEIL_LINEAR,      nCeilLinear);
+		assert_eq(DEFAULT_MIN_CONST_LOCAL,    costMin.getConst());
+		assert_eq(DEFAULT_MIN_LINEAR_LOCAL,   costMin.getCoeff());
+		assert_eq(DEFAULT_FLOOR_CONST_LOCAL,  costFloor.getConst());
+		assert_eq(DEFAULT_FLOOR_LINEAR_LOCAL, costFloor.getCoeff());
+		assert_eq(DEFAULT_N_CEIL_CONST,       nCeil.getConst());
+		assert_eq(DEFAULT_N_CEIL_LINEAR,      nCeil.getCoeff());
 		assert_eq(DEFAULT_N_CAT_PAIR,         nCatPair);
 
 		assert_eq(DEFAULT_READ_GAP_CONST,     penRdExConst);
@@ -847,21 +796,20 @@ int main() {
 		assert_eq(DEFAULT_REF_GAP_LINEAR,     penRfExLinear);
 		assert_eq(DEFAULT_SEEDMMS,            multiseedMms);
 		assert_eq(DEFAULT_SEEDLEN,            multiseedLen);
-		assert_eq(DEFAULT_SEEDPERIOD,         multiseedPeriod);
-		assert_eq(DEFAULT_IVAL,               multiseedIvalType);
-		assert_eq(DEFAULT_IVAL_A,             multiseedIvalA);
-		assert_eq(DEFAULT_IVAL_B,             multiseedIvalB);
+		assert_eq(DEFAULT_IVAL,               msIval.getType());
+		assert_eq(DEFAULT_IVAL_A,             msIval.getCoeff());
+		assert_eq(DEFAULT_IVAL_B,             msIval.getConst());
 
-		assert_eq(DEFAULT_POSMIN,             posmin);
-		assert_eq(DEFAULT_POSFRAC,            posfrac);
-		assert_eq(DEFAULT_ROWMULT,            rowmult);
+		assert_eq(DEFAULT_POSMIN,             posfrac.getConst());
+		assert_eq(DEFAULT_POSFRAC,            posfrac.getCoeff());
+		assert_eq(DEFAULT_ROWMULT,            rowmult.getConst());
 		
 		cout << "PASSED" << endl;
 	}
 
 	{
 		cout << "Case 4: Simple string 1 ... ";
-		const char *pol = "MMP=C44;MA=4;RFG=24,12;FL=8;RDG=2;SNP=10;NP=C4;MIN=7";
+		const char *pol = "MMP=C44;MA=4;RFG=24,12;FL=C,8;RDG=2;SNP=10;NP=C4;MIN=C,7";
 		SeedAlignmentPolicy::parseString(
 			string(pol),
 			true,              // --local?
@@ -877,23 +825,15 @@ int main() {
 			penRfExConst,
 			penRdExLinear,
 			penRfExLinear,
-			costMinConst,
-			costMinLinear,
-			costFloorConst,
-			costFloorLinear,
-			nCeilConst,
-			nCeilLinear,
+			costMin,
+			costFloor,
+			nCeil,
 			nCatPair,
 			multiseedMms,
 			multiseedLen,
-			multiseedPeriod,
-			multiseedIvalType,
-			multiseedIvalA,
-			multiseedIvalB,
-			posmin,
+			msIval,
 			posfrac,
-			rowmult
-		);
+			rowmult);
 		
 		assert_eq(COST_MODEL_CONSTANT,        bonusMatchType);
 		assert_eq(4,                          bonusMatch);
@@ -902,12 +842,12 @@ int main() {
 		assert_eq(10,                         penSnp);
 		assert_eq(COST_MODEL_CONSTANT,        penNType);
 		assert_eq(4.0f,                       penN);
-		assert_eq(7,                          costMinConst);
-		assert_eq(DEFAULT_MIN_LINEAR_LOCAL,   costMinLinear);
-		assert_eq(8,                          costFloorConst);
-		assert_eq(DEFAULT_FLOOR_LINEAR_LOCAL, costFloorLinear);
-		assert_eq(DEFAULT_N_CEIL_CONST,       nCeilConst);
-		assert_eq(DEFAULT_N_CEIL_LINEAR,      nCeilLinear);
+		assert_eq(7,                          costMin.getConst());
+		assert_eq(DEFAULT_MIN_LINEAR_LOCAL,   costMin.getCoeff());
+		assert_eq(8,                          costFloor.getConst());
+		assert_eq(DEFAULT_FLOOR_LINEAR_LOCAL, costFloor.getCoeff());
+		assert_eq(DEFAULT_N_CEIL_CONST,       nCeil.getConst());
+		assert_eq(DEFAULT_N_CEIL_LINEAR,      nCeil.getCoeff());
 		assert_eq(DEFAULT_N_CAT_PAIR,         nCatPair);
 
 		assert_eq(2.0f,                       penRdExConst);
@@ -916,15 +856,14 @@ int main() {
 		assert_eq(12.0f,                      penRfExLinear);
 		assert_eq(DEFAULT_SEEDMMS,            multiseedMms);
 		assert_eq(DEFAULT_SEEDLEN,            multiseedLen);
-		assert_eq(DEFAULT_SEEDPERIOD,         multiseedPeriod);
-		assert_eq(DEFAULT_IVAL,               multiseedIvalType);
-		assert_eq(DEFAULT_IVAL_A,             multiseedIvalA);
-		assert_eq(DEFAULT_IVAL_B,             multiseedIvalB);
+		assert_eq(DEFAULT_IVAL,               msIval.getType());
+		assert_eq(DEFAULT_IVAL_A,             msIval.getCoeff());
+		assert_eq(DEFAULT_IVAL_B,             msIval.getConst());
 
-		assert_eq(DEFAULT_POSMIN,             posmin);
-		assert_eq(DEFAULT_POSFRAC,            posfrac);
-		assert_eq(DEFAULT_ROWMULT,            rowmult);
-		
+		assert_eq(DEFAULT_POSMIN,             posfrac.getConst());
+		assert_eq(DEFAULT_POSFRAC,            posfrac.getCoeff());
+		assert_eq(DEFAULT_ROWMULT,            rowmult.getConst());
+
 		cout << "PASSED" << endl;
 	}
 }
