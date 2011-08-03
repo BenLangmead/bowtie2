@@ -151,9 +151,15 @@ public:
 	 */
 	void printHeader(
 		OutFileBuf& o,
+		bool printHd,
 		bool printSq,
 		bool printPg)
 		const;
+
+	/**
+	 * Print the @HD header line to the given OutFileBuf.
+	 */
+	void printHdLine(OutFileBuf& o, const char *samver) const;
 
 	/**
 	 * Print the @SQ header lines to the given OutFileBuf.

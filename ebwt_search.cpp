@@ -474,6 +474,7 @@ static struct option long_options[] = {
 	{(char*)"sam-no-qname-trunc", no_argument, 0,            ARG_SAM_NO_QNAME_TRUNC},
 	{(char*)"sam-omit-sec-seq", no_argument,   0,            ARG_SAM_OMIT_SEC_SEQ},
 	{(char*)"sam-nohead",   no_argument,       0,            ARG_SAM_NOHEAD},
+	{(char*)"sam-noHD",     no_argument,       0,            ARG_SAM_NOHEAD},
 	{(char*)"sam-nosq",     no_argument,       0,            ARG_SAM_NOSQ},
 	{(char*)"sam-noSQ",     no_argument,       0,            ARG_SAM_NOSQ},
 	{(char*)"color",        no_argument,       0,            'C'},
@@ -542,8 +543,6 @@ static void printUsage(ostream& out) {
 	    << "  <s>     Comma-separated list of files containing unpaired reads, or the" << endl
 	    << "          sequences themselves, if -c is set.  Specify \"-\" for stdin." << endl
 	    << "  <hit>   File to write hits to (default: stdout)" << endl
-	    //<< "Key missing features:" << endl
-	    //<< "  - No colorspace support" << endl
 	    << "Input:" << endl
 	    << "  -q                 query input files are FASTQ .fq/.fastq (default)" << endl
 	    << "  -f                 query input files are (multi-)FASTA .fa/.mfa" << endl
@@ -577,21 +576,15 @@ static void printUsage(ostream& out) {
 		<< "  --no-mixed         report only paired alns, ignore unpaired" << endl
 		<< "  --no-discordant    report only concordant paired-end alns, ignore discordant" << endl
 	    << "Reporting:" << endl
-	    << "  -M <int>           look for at least <int>+1 hits; factor into MAPQ (def.: 1)" << endl
+	    << "  -M <int>           look for at least <int>+1 hits; report 1 with MAPQ (def.: 1)" << endl
 		<< "   OR" << endl
 	    << "  -k <int>           report up to <int> good alignments per read (default: 1)" << endl
 		<< "   OR" << endl
 	    << "  -a/--all           report all alignments per read (much slower than low -k)" << endl
-	    //<< "  -m <int>           suppress all alignments if > <int> exist (def: no limit)" << endl
 	    << "Output:" << endl
 	    << "  -t/--time          print wall-clock time taken by search phases" << endl
 	    << "  --quiet            print nothing but the alignments" << endl
 	    << "  --refidx           refer to ref. seqs by 0-based index rather than name" << endl
-	    << "  --al <fname>       write aligned reads/pairs to file(s) <fname>" << endl
-	    << "  --un <fname>       write unaligned reads/pairs to file(s) <fname>" << endl
-	    << "  --max <fname>      write reads/pairs over -m limit to file(s) <fname>" << endl
-	    << "  --suppress <cols>  suppresses given columns (comma-delim'ed) in default output" << endl
-	    << "  --fullref          write entire ref name (default: only up to 1st space)" << endl
 	    << "Performance:" << endl
 	    << "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl
 #ifdef BOWTIE_PTHREADS
@@ -2982,7 +2975,8 @@ static void driver(
 					gQuiet,       // don't print alignment summary at end
 					gColorExEnds);// exclude ends from decoded colorspace alns?
 				if(!samNoHead) {
-					samc.printHeader(*fout, samNoSQ, false /* PG */);
+					bool printHd = true, printSq = true;
+					samc.printHeader(*fout, printHd, !samNoSQ, printSq);
 				}
 				break;
 			}
