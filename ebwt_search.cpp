@@ -20,8 +20,6 @@
 #include "pat.h"
 #include "bitset.h"
 #include "threading.h"
-#include "refmap.h"
-#include "annot.h"
 #include "ds.h"
 #include "aligner_metrics.h"
 #include "sam.h"
@@ -62,7 +60,6 @@ static uint32_t qUpto;    // max # of queries to read
 int gTrim5;         // amount to trim from 5' end
 int gTrim3;         // amount to trim from 3' end
 static int offRate;       // keep default offRate
-static int mismatches;    // allow 0 mismatches by default
 static char *patDumpfile; // filename to dump patterns to
 static bool solexaQuals;  // quality strings are solexa quals, not phred, and subtract 64 (not 33)
 static bool phred64Quals; // quality chars are phred, but must subtract 64 (not 33)
@@ -84,7 +81,6 @@ int gMaxInsert;     // maximum insert size
 bool gMate1fw;           // -1 mate aligns in fw orientation on fw strand
 bool gMate2fw;           // -2 mate aligns in rc orientation on fw strand
 bool mateFwSet;
-bool gLocalAlign;      // use local alignment when searching for mate
 bool gFlippedMatesOK;  // allow mates to be in wrong order
 bool gDovetailMatesOK; // allow one mate to extend off the end of the other
 bool gContainMatesOK;  // allow one mate to contain the other in PE alignment
@@ -92,20 +88,13 @@ bool gOlapMatesOK;     // allow mates to overlap in PE alignment
 bool gExpandToFrag;    // incr max frag length to =larger mate len if necessary
 bool gReportDiscordant; // find and report discordant paired-end alignments
 bool gReportMixed;      // find and report unpaired alignments for paired reads
-static uint32_t mixedThresh;   // threshold for when to switch to paired-end mixed mode (see aligner.h)
 static uint32_t cacheLimit;      // ranges w/ size > limit will be cached
 static uint32_t cacheSize;       // # words per range cache
 static uint32_t skipReads;       // # reads/read pairs to skip
 bool gNofw; // don't align fw orientation of read
 bool gNorc; // don't align rc orientation of read
-static bool stats; // print performance stats
-bool gReportSe;
-static const char * refMapFile;  // file containing a map from index coordinates to another coordinate system
-static const char * annotMapFile;  // file containing a map from reference coordinates to annotations
 static uint32_t fastaContLen;
 static uint32_t fastaContFreq;
-static int randomNum;    // number of randomly-generated reads
-static int randomLength; // length of randomly-generated reads
 static bool hadoopOut; // print Hadoop status and summary messages
 static bool fuzzy;
 static bool fullRef;
@@ -150,11 +139,6 @@ static bool printFlags; // true -> print alignment flags
 static bool printCost; // true -> print stratum and cost
 static bool printParams; // true -> print parameters like seed spacing, cost ceiling
 bool gShowSeed;       // print pseudo-random seed used for alignment?
-bool gGaps;           // true -> allow gapped alignments
-uint32_t gInsOpen;    // insertion open penalty
-uint32_t gDelOpen;    // deletion open penalty
-uint32_t gInsExtend;  // insertion gap extension penalty
-uint32_t gDelExtend;  // deletion gap extension penalty
 int      gGapBarrier; // # diags on top/bot only to be entered diagonally
 int64_t  gRowLow;     // backtraces start from row w/ idx >= this (-1=no limit)
 bool     gRowFirst;   // sort alignments by row then score?
@@ -220,7 +204,6 @@ static void resetOptions() {
 	gTrim5					= 0; // amount to trim from 5' end
 	gTrim3					= 0; // amount to trim from 3' end
 	offRate					= -1; // keep default offRate
-	mismatches				= 0; // allow 0 mismatches by default
 	patDumpfile				= NULL; // filename to dump patterns to
 	solexaQuals				= false; // quality strings are solexa quals, not phred, and subtract 64 (not 33)
 	phred64Quals			= false; // quality chars are phred, but must subtract 64 (not 33)
@@ -242,7 +225,6 @@ static void resetOptions() {
 	gMate1fw				= true;  // -1 mate aligns in fw orientation on fw strand
 	gMate2fw				= false; // -2 mate aligns in rc orientation on fw strand
 	mateFwSet				= false; // true -> user set mate1fw/mate2fw with --ff/--fr/--rf
-	gLocalAlign             = false; // use local alignment when searching for mate
 	gFlippedMatesOK         = false; // allow mates to be in wrong order
 	gDovetailMatesOK        = true;  // allow one mate to extend off the end of the other
 	gContainMatesOK         = true;  // allow one mate to contain the other in PE alignment
@@ -250,20 +232,14 @@ static void resetOptions() {
 	gExpandToFrag           = true;  // incr max frag length to =larger mate len if necessary
 	gReportDiscordant       = true;  // find and report discordant paired-end alignments
 	gReportMixed            = true;  // find and report unpaired alignments for paired reads
-	mixedThresh				= 4;     // threshold for when to switch to paired-end mixed mode (see aligner.h)
+
 	cacheLimit				= 5;     // ranges w/ size > limit will be cached
 	cacheSize				= 0;     // # words per range cache
 	skipReads				= 0;     // # reads/read pairs to skip
 	gNofw					= false; // don't align fw orientation of read
 	gNorc					= false; // don't align rc orientation of read
-	stats					= false; // print performance stats
-	gReportSe				= false;
-	refMapFile				= NULL;  // file containing a map from index coordinates to another coordinate system
-	annotMapFile			= NULL;  // file containing a map from reference coordinates to annotations
 	fastaContLen			= 0;
 	fastaContFreq			= 0;
-    randomNum               = 100;   // number of randomly-generated reads
-    randomLength            = 35;    // length of randomly-generated reads
 	hadoopOut				= false; // print Hadoop status and summary messages
 	fuzzy					= false; // reads will have alternate basecalls w/ qualities
 	fullRef					= false; // print entire reference name instead of just up to 1st space
@@ -310,11 +286,6 @@ static void resetOptions() {
 	printCost				= false; // true -> print cost and stratum
 	printParams				= false; // true -> print parameters regarding seeding, ceilings
 	gShowSeed				= false; // true -> print per-read pseudo-random seed
-	gGaps					= false; // true -> allow gaps
-	gInsOpen				= 100;   // insertion open penalty
-	gDelOpen				= 100;   // deletion open penalty
-	gInsExtend				= 40;    // insertion gap extension penalty
-	gDelExtend				= 40;    // deletion gap extension penalty
 	gGapBarrier				= 4;     // disallow gaps within this many chars of either end of alignment
 	gRowLow                 = -1;    // backtraces start from row w/ idx >= this (-1=no limit)
 	gRowFirst               = false; // sort alignments by row then score?
@@ -337,8 +308,8 @@ static void resetOptions() {
 	penRfGapConst   = DEFAULT_REF_GAP_CONST;
 	penRdGapLinear  = DEFAULT_READ_GAP_LINEAR;
 	penRfGapLinear  = DEFAULT_REF_GAP_LINEAR;
-	scoreMin.init  (SIMPLE_FUNC_LINEAR, 1.0f, DMAX, DEFAULT_MIN_CONST,   DEFAULT_MIN_LINEAR);
-	scoreFloor.init(SIMPLE_FUNC_LINEAR, 1.0f, DMAX, DEFAULT_FLOOR_CONST, DEFAULT_FLOOR_LINEAR);
+	scoreMin.init  (SIMPLE_FUNC_LINEAR, DEFAULT_MIN_CONST,   DEFAULT_MIN_LINEAR);
+	scoreFloor.init(SIMPLE_FUNC_LINEAR, DEFAULT_FLOOR_CONST, DEFAULT_FLOOR_LINEAR);
 	nCeil.init    (SIMPLE_FUNC_LINEAR, 0.0f, DMAX, 2.0f, 0.1f);
 	msIval.init   (SIMPLE_FUNC_LINEAR, 1.0f, DMAX, DEFAULT_IVAL_B, DEFAULT_IVAL_A);
 	posfrac.init  (SIMPLE_FUNC_LINEAR, 1.0f, DMAX, DEFAULT_POSMIN, DEFAULT_POSFRAC);
@@ -356,27 +327,22 @@ static void resetOptions() {
 	noSse              = false; // disable SSE-based dynamic programming
 }
 
-static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:o:w:p:k:M:1:2:I:X:x:CgO:E:Q:";
+static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:o:w:p:k:M:1:2:I:X:CQ:";
 
 enum {
 	ARG_ORIG = 256,
 	ARG_SEED,
 	ARG_DUMP_PATS,
-	ARG_RANGE,
 	ARG_SOLEXA_QUALS,
 	ARG_VERBOSE,
 	ARG_STARTVERBOSE,
 	ARG_QUIET,
-	ARG_RANDOM_READS,
 	ARG_FAST,
 	ARG_METRIC_IVAL,
 	ARG_METRIC_FILE,
 	ARG_METRIC_STDERR,
 	ARG_REFIDX,
 	ARG_SANITY,
-	ARG_OLDBEST,
-	ARG_BETTER,
-	ARG_BEST,
 	ARG_PARTITION,
 	ARG_INTEGER_QUALS,
 	ARG_NOMAQROUND,
@@ -388,23 +354,16 @@ enum {
 	ARG_FF,
 	ARG_FR,
 	ARG_RF,
-	ARG_MIXED_ATTEMPTS,
 	ARG_NO_MIXED,
 	ARG_NO_DISCORDANT,
-	ARG_NO_RECONCILE,
 	ARG_CACHE_LIM,
 	ARG_CACHE_SZ,
 	ARG_NO_FW,
 	ARG_NO_RC,
 	ARG_SKIP,
-	ARG_STATS,
 	ARG_ONETWO,
 	ARG_PHRED64,
 	ARG_PHRED33,
-	ARG_PEV2,
-	ARG_REFMAP,
-	ARG_ANNOTMAP,
-	ARG_REPORTSE,
 	ARG_HADOOPOUT,
 	ARG_FUZZY,
 	ARG_FULLREF,
@@ -417,7 +376,6 @@ enum {
 	ARG_SAM_NOSQ,
 	ARG_SAM_RG,
 	ARG_SUPPRESS_FIELDS,
-	ARG_DEFAULT_MAPQ,
 	ARG_COLOR_SEQ,
 	ARG_COLOR_EDIT,
 	ARG_COLOR_QUAL,
@@ -489,22 +447,17 @@ static struct option long_options[] = {
 	{(char*)"Q2",           required_argument, 0,            ARG_QUALS2},
 	{(char*)"nomaqround",   no_argument,       0,            ARG_NOMAQROUND},
 	{(char*)"refidx",       no_argument,       0,            ARG_REFIDX},
-	{(char*)"range",        no_argument,       0,            ARG_RANGE},
-	{(char*)"randread",     no_argument,       0,            ARG_RANDOM_READS},
 	{(char*)"partition",    required_argument, 0,            ARG_PARTITION},
 	{(char*)"nospin",       no_argument,       0,            ARG_USE_SPINLOCK},
 	{(char*)"ff",           no_argument,       0,            ARG_FF},
 	{(char*)"fr",           no_argument,       0,            ARG_FR},
 	{(char*)"rf",           no_argument,       0,            ARG_RF},
 	{(char*)"mixthresh",    required_argument, 0,            'x'},
-	{(char*)"pairtries",    required_argument, 0,            ARG_MIXED_ATTEMPTS},
-	{(char*)"noreconcile",  no_argument,       0,            ARG_NO_RECONCILE},
 	{(char*)"cachelim",     required_argument, 0,            ARG_CACHE_LIM},
 	{(char*)"cachesz",      required_argument, 0,            ARG_CACHE_SZ},
 	{(char*)"nofw",         no_argument,       0,            ARG_NO_FW},
 	{(char*)"norc",         no_argument,       0,            ARG_NO_RC},
 	{(char*)"skip",         required_argument, 0,            's'},
-	{(char*)"stats",        no_argument,       0,            ARG_STATS},
 	{(char*)"12",           required_argument, 0,            ARG_ONETWO},
 	{(char*)"phred33-quals", no_argument,      0,            ARG_PHRED33},
 	{(char*)"phred64-quals", no_argument,      0,            ARG_PHRED64},
@@ -512,10 +465,6 @@ static struct option long_options[] = {
 	{(char*)"mm",           no_argument,       0,            ARG_MM},
 	{(char*)"shmem",        no_argument,       0,            ARG_SHMEM},
 	{(char*)"mmsweep",      no_argument,       0,            ARG_MMSWEEP},
-	{(char*)"pev2",         no_argument,       0,            ARG_PEV2},
-	{(char*)"refmap",       required_argument, 0,            ARG_REFMAP},
-	{(char*)"annotmap",     required_argument, 0,            ARG_ANNOTMAP},
-	{(char*)"reportse",     no_argument,       0,            ARG_REPORTSE},
 	{(char*)"hadoopout",    no_argument,       0,            ARG_HADOOPOUT},
 	{(char*)"fuzzy",        no_argument,       0,            ARG_FUZZY},
 	{(char*)"fullref",      no_argument,       0,            ARG_FULLREF},
@@ -531,7 +480,6 @@ static struct option long_options[] = {
 	{(char*)"snpphred",     required_argument, 0,            ARG_SNPPHRED},
 	{(char*)"snpfrac",      required_argument, 0,            ARG_SNPFRAC},
 	{(char*)"suppress",     required_argument, 0,            ARG_SUPPRESS_FIELDS},
-	{(char*)"mapq",         required_argument, 0,            ARG_DEFAULT_MAPQ},
 	{(char*)"col-cseq",     no_argument,       0,            ARG_COLOR_SEQ},
 	{(char*)"col-cqual",    no_argument,       0,            ARG_COLOR_QUAL},
 	{(char*)"col-cedit",    no_argument,       0,            ARG_COLOR_EDIT},
@@ -757,7 +705,6 @@ static void parseOptions(int argc, const char **argv) {
 			case '2': tokenize(optarg, ",", mates2); break;
 			case ARG_ONETWO: tokenize(optarg, ",", mates12); format = TAB_MATE; break;
 			case 'f': format = FASTA; break;
-			case 'g': gGaps = true; break;
 			case 'F': {
 				format = FASTA_CONT;
 				pair<uint32_t, uint32_t> p = parsePair<uint32_t>(optarg, ',');
@@ -804,9 +751,6 @@ static void parseOptions(int argc, const char **argv) {
 			case ARG_FF: gMate1fw = true;  gMate2fw = true;  mateFwSet = true; break;
 			case ARG_RF: gMate1fw = false; gMate2fw = true;  mateFwSet = true; break;
 			case ARG_FR: gMate1fw = true;  gMate2fw = false; mateFwSet = true; break;
-			case ARG_RANDOM_READS: format = RANDOM; break;
-			case ARG_REFMAP: refMapFile = optarg; break;
-			case ARG_ANNOTMAP: annotMapFile = optarg; break;
 			case ARG_USE_SPINLOCK: useSpinlock = false; break;
 			case ARG_SHMEM: useShmem = true; break;
 			case ARG_COLOR_SEQ: gColorSeq = true; break;
@@ -865,16 +809,9 @@ static void parseOptions(int argc, const char **argv) {
 			}
 			case ARG_REFIDX: noRefNames = true; break;
 			case ARG_FUZZY: fuzzy = true; break;
-			case ARG_REPORTSE: gReportSe = true; break;
 			case ARG_FULLREF: fullRef = true; break;
 			case ARG_GAP_BAR:
 				gGapBarrier = parseInt(1, "--gbar must be no less than 1");
-				break;
-			case 'O':
-				gInsOpen = gDelOpen = parseInt(1, "-O/--gopen must be at least 1");
-				break;
-			case 'E':
-				gInsExtend = gDelExtend = parseInt(1, "-E/--gextend must be at least 1");
 				break;
 			case ARG_SEED:
 				seed = parseInt(0, "--seed arg must be at least 0");
@@ -893,9 +830,6 @@ static void parseOptions(int argc, const char **argv) {
 			case ARG_QUALS2:
 				tokenize(optarg, ",", qualities2);
 				integerQuals = true;
-				break;
-			case 'x':
-				mixedThresh = (uint32_t)parseInt(0, "-x arg must be at least 0");
 				break;
 			case ARG_CACHE_LIM:
 				cacheLimit = (uint32_t)parseInt(1, "--cachelim arg must be at least 1");
@@ -981,7 +915,6 @@ static void parseOptions(int argc, const char **argv) {
 			case ARG_METRIC_STDERR: metricsStderr = true; break;
 			case ARG_NO_FW: gNofw = true; break;
 			case ARG_NO_RC: gNorc = true; break;
-			case ARG_STATS: stats = true; break;
 			case ARG_SAM_NO_QNAME_TRUNC: samTruncQname = false; break;
 			case ARG_SAM_OMIT_SEC_SEQ: samOmitSecSeqQual = true; break;
 			case ARG_SAM_NOHEAD: samNoHead = true; break;
@@ -1287,16 +1220,6 @@ static void parseOptions(int argc, const char **argv) {
 		cerr << "Warning: Ignoring --suppress because output type is not default." << endl;
 		cerr << "         --suppress is only available for the default output type." << endl;
 		suppressOuts.fill(false);
-	}
-	if(gInsExtend > gInsOpen) {
-		cerr << "Warning: Read gap extension penalty (" << gInsExtend << ") is greater than gap open penalty (" << gInsOpen << ")." << endl;
-		cerr << "Adjusting extension penalty to be equal to open penalty." << endl;
-		gInsExtend = gInsOpen;
-	}
-	if(gDelExtend > gDelOpen) {
-		cerr << "Warning: Reference gap extension penalty (" << gDelExtend << ") is greater than gap open penalty (" << gDelOpen << ")." << endl;
-		cerr << "Adjusting extension penalty to be equal to open penalty." << endl;
-		gDelExtend = gDelOpen;
 	}
 	if(gGapBarrier < 1) {
 		cerr << "Warning: --gbar was set less than 1 (=" << gGapBarrier
@@ -2285,7 +2208,7 @@ static void* multiseedSearchWorker(void *vp) {
 		pepolFlag,
 		gMaxInsert,
 		gMinInsert,
-		gLocalAlign,
+		localAlign,
 		gFlippedMatesOK,
 		gDovetailMatesOK,
 		gContainMatesOK,
@@ -2409,12 +2332,20 @@ static void* multiseedSearchWorker(void *vp) {
 					}
 				} else {
 					minsc[0] = scoreMin.f<TAlScore>(rdlens[0]);
-					if(paired) minsc[0] = scoreMin.f<TAlScore>(rdlens[1]);
+					if(paired) {
+						minsc[1] = scoreMin.f<TAlScore>(rdlens[1]);
+					}
 				}
 				// Calculate the local-alignment score floor for the read
 				TAlScore floorsc[2];
-				floorsc[0] = scoreFloor.f<TAlScore>(rdlens[0]);
-				if(paired) floorsc[1] = scoreFloor.f<TAlScore>(rdlens[1]);
+				if(localAlign) {
+					floorsc[0] = scoreFloor.f<TAlScore>(rdlens[0]);
+					if(paired) {
+						floorsc[1] = scoreFloor.f<TAlScore>(rdlens[1]);
+					}
+				} else {
+					floorsc[0] = floorsc[1] = std::numeric_limits<TAlScore>::min();
+				}
 				// N filter; does the read have too many Ns?
 				sc.nFilterPair(
 					&ps->bufa().patFw,
@@ -2453,8 +2384,8 @@ static void* multiseedSearchWorker(void *vp) {
 					qcfilt[0] = (ps->bufa().filter != '0');
 					qcfilt[1] = (ps->bufb().filter != '0');
 				}
-				filt[0] = nfilt[0] && scfilt[0] && lenfilt[0] && qcfilt[0];
-				filt[1] = nfilt[1] && scfilt[1] && lenfilt[1] && qcfilt[1];
+				filt[0] = (nfilt[0] && scfilt[0] && lenfilt[0] && qcfilt[0]);
+				filt[1] = (nfilt[1] && scfilt[1] && lenfilt[1] && qcfilt[1]);
 				const Read* rds[2] = { &ps->bufa(), &ps->bufb() };
 				// For each mate...
 				assert(msinkwrap.empty());
@@ -2541,22 +2472,21 @@ static void* multiseedSearchWorker(void *vp) {
 						&seedHitSink,     // send seed hits to this sink
 						&seedCounterSink, // send counter summary for each seed to this sink
 						&seedActionSink); // send search action list for each read to this sink
-					//cerr << "Seed hits:" << endl;
 					assert_eq(0, sdm.ooms);
 					assert(shs[mate].repOk(&ca.current()));
 					if(!seedSummaryOnly) {
 						// If there aren't any seed hits...
 						if(shs[mate].empty()) {
-							//cerr << "Skipping SeedResults b/c it's empty" << endl;
 							continue; // on to the next mate
 						}
 						// Sort seed hits into ranks
 						shs[mate].rankSeedHits(rnd);
-						//shs[mate].printSummary(cerr);
 						int nceil = nCeil.f<int>((double)rdlens[mate]);
+						nceil = min(nceil, (int)rdlens[mate]);
 						bool done = false;
 						if(pair) {
 							int onceil = nCeil.f<int>((double)rdlens[mate ^ 1]);
+							onceil = min(onceil, (int)rdlens[mate ^ 1]);
 							// Paired-end dynamic programming driver
 							done = sd.extendSeedsPaired(
 								*rds[mate],     // mate to align as anchor
@@ -2822,8 +2752,6 @@ static void driver(
 		phred64Quals,  // true -> qualities are on phred64 scale
 		integerQuals,  // true -> qualities are space-separated numbers
 		fuzzy,         // true -> try to parse fuzzy fastq
-		randomNum,     // number of randomly-generated reads to make
-		randomLength,  // length of randomly-generated reads
 		fastaContLen,  // length of sampled reads for FastaContinuous...
 		fastaContFreq, // frequency of sampled reads for FastaContinuous...
 		skipReads      // skip the first 'skip' patterns
@@ -2851,22 +2779,6 @@ static void driver(
 	} else {
 		fout = new OutFileBuf();
 	}
-	ReferenceMap* rmap = NULL;
-	if(refMapFile != NULL) {
-		if(gVerbose || startVerbose) {
-			cerr << "About to load in a reference map file with name "
-			     << refMapFile << ": "; logTime(cerr, true);
-		}
-		rmap = new ReferenceMap(refMapFile, !noRefNames);
-	}
-	AnnotationMap* amap = NULL;
-	if(annotMapFile != NULL) {
-		if(gVerbose || startVerbose) {
-			cerr << "About to load in an annotation map file with name "
-			     << annotMapFile << ": "; logTime(cerr, true);
-		}
-		amap = new AnnotationMap(annotMapFile);
-	}
 	// Initialize Ebwt object and read in header
 	if(gVerbose || startVerbose) {
 		cerr << "About to initialize fw Ebwt: "; logTime(cerr, true);
@@ -2886,7 +2798,6 @@ static void driver(
 		true,        // load SA sample?
 		true,        // load ftab?
 		true,        // load rstarts?
-	    rmap,     // reference map, or NULL if none is needed
 	    gVerbose, // whether to be talkative
 	    startVerbose, // talkative during initialization
 	    false /*passMemExc*/,
@@ -2911,7 +2822,6 @@ static void driver(
 			true,        // load SA sample?
 			true,        // load ftab?
 			true,        // load rstarts?
-		    rmap,        // reference map, or NULL if none is needed
 		    gVerbose,    // whether to be talkative
 		    startVerbose, // talkative during initialization
 		    false /*passMemExc*/,
@@ -2996,7 +2906,6 @@ static void driver(
 					printCost,    // print penalty in extra column
 					printParams,  // print alignment parameters in extra column
 					gShowSeed,    // print pseudo-random seed
-					rmap,         // if != NULL, ReferenceMap to use
 					fullRef,      // print entire reference name including whitespace
 					partitionSz); // size of partition, so we can check for straddling alignments
 				break;
@@ -3009,8 +2918,7 @@ static void driver(
 					false,        // delete output stream objects upon destruction
 					refnames,     // reference names
 					gQuiet,       // don't print alignment summary at end
-					gColorExEnds, // exclude ends from decoded colorspace alns?
-					rmap);        // if != NULL, ReferenceMap to use
+					gColorExEnds);// exclude ends from decoded colorspace alns?
 				if(!samNoHead) {
 					samc.printHeader(*fout, samNoSQ, false /* PG */);
 				}
@@ -3126,8 +3034,6 @@ static void driver(
 		}
 		delete patsrc;
 		delete mssink;
-		delete amap;
-		delete rmap;
 		if(fout != NULL) delete fout;
 	}
 }

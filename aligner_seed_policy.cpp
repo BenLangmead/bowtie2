@@ -276,11 +276,11 @@ void SeedAlignmentPolicy::parseString(
 	
 	const double DMAX = std::numeric_limits<double>::max();
 	costMin.init(
-		SIMPLE_FUNC_LINEAR, 1.0f, DMAX,
+		SIMPLE_FUNC_LINEAR,
 		local ? DEFAULT_MIN_CONST_LOCAL  : DEFAULT_MIN_CONST,
 		local ? DEFAULT_MIN_LINEAR_LOCAL : DEFAULT_MIN_LINEAR);
 	costFloor.init(
-		SIMPLE_FUNC_LINEAR, 1.0f, DMAX,
+		SIMPLE_FUNC_LINEAR,
 		local ? DEFAULT_FLOOR_CONST_LOCAL  : DEFAULT_FLOOR_CONST,
 		local ? DEFAULT_FLOOR_LINEAR_LOCAL : DEFAULT_FLOOR_LINEAR);
 	nCeil.init(
@@ -555,10 +555,10 @@ void SeedAlignmentPolicy::parseString(
 		 *          interval is determined by IVAL.
 		 */
 		else if(tag == "SEED") {
-			if(ctoks.size() != 2) {
+			if(ctoks.size() > 2) {
 				cerr << "Error parsing alignment policy setting "
-				     << "'" << tag << "'"
-				     << "; RHS must have 2 token" << endl
+				     << "'" << tag << "'; RHS must have 1 or 2 tokens, "
+					 << "had " << ctoks.size() << ".  "
 					 << "Policy: '" << s << "'" << endl;
 				assert(false); throw 1;
 			}

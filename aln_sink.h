@@ -8,7 +8,6 @@
 #include "filebuf.h"
 #include "read.h"
 #include "unique.h"
-#include "refmap.h"
 #include "sam.h"
 #include "ds.h"
 #include "simple_func.h"
@@ -1294,7 +1293,6 @@ public:
 		bool               printCost,  // print penalty in extra column
 		bool               printParams,// print alignment parameters
 		bool               printSeed,  // print pseudo-random seed
-		ReferenceMap*      rmap,       // reference coordinate transformation
 		bool               fullRef,    // print entire ref name incl whitespace
 		int                partition = 0) : // partition size
 		AlnSink(
@@ -1313,7 +1311,6 @@ public:
 		printCost_(printCost),
 		printParams_(printParams),
 		printSeed_(printSeed),
-		rmap_(rmap),
 		fullRef_(fullRef),
 		partition_(partition)
 	{ }
@@ -1371,7 +1368,6 @@ protected:
 	bool          printCost_;  // print penalty in extra column
 	bool          printParams_;// print alignment parameters
 	bool          printSeed_;  // print pseudo-random seed
-	ReferenceMap* rmap_;       // reference coordinate transformation
 	bool          fullRef_;    // print entire reference name including whitespace
 	int           partition_;  // partition size
 	
@@ -1401,8 +1397,7 @@ public:
 		bool             deleteOuts, // delete output objects upon destruction
 		const StrList&   refnames,   // reference names
 		bool             quiet,      // don't print alignment summary at end
-		bool             exEnds,     // exclude ends for decoded colors alns
-		ReferenceMap*    rmap) :     // reference coordinate transformation
+		bool             exEnds) :   // exclude ends for decoded colors alns
 		AlnSink(
 			out,
 			mapq,
@@ -1410,8 +1405,7 @@ public:
 			refnames,
 			quiet),
 		samc_(samc),
-		exEnds_(exEnds),
-		rmap_(rmap)
+		exEnds_(exEnds)
 	{ }
 
 	/**
@@ -1461,8 +1455,6 @@ protected:
 
 	const SamConfig& samc_;    // settings & routines for SAM output
 	bool             exEnds_;  // exclude ends for decoded colorspace alignments
-	ReferenceMap*    rmap_;    // reference coordinate transformation
-	
 	BTDnaString      dseq_;    // buffer for decoded read sequence
 	BTString         dqual_;   // buffer for decoded quality sequence
 	

@@ -1022,6 +1022,7 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseU8(
 	size_t         col,    // start in this column
 	RandomSource&  rand)   // random gen, to choose among equal paths
 {
+	assert_leq(floorsc_, 0);
 	assert_lt(row, dpRows());
 	assert_lt(col, rff_-rfi_);
 	SSEData& d = fw_ ? sseU8fw_ : sseU8rc_;
@@ -1293,6 +1294,7 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseU8(
 			btcells_.back().second = col;
 			// This cell is at the end of a legitimate alignment
 			trimBeg = row;
+			assert_eq(0, trimBeg);
 			assert_eq(btcells_.size(), dpRows() - trimBeg - trimEnd + readGaps);
 			break;
 		}

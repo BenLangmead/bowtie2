@@ -30,7 +30,6 @@
 #include "str_util.h"
 #include "mm.h"
 #include "timer.h"
-#include "refmap.h"
 #include "color_dec.h"
 #include "reference.h"
 #include "search_globals.h"
@@ -337,7 +336,6 @@ public:
 	    _useMm(false), \
 	    useShmem_(false), \
 	    _refnames(EBWT_CAT), \
-	    rmap_(NULL), \
 	    mmFile1_(NULL), \
 	    mmFile2_(NULL)
 
@@ -367,7 +365,6 @@ public:
 		 bool loadSASamp, // = true,
 		 bool loadFtab, // = true,
 		 bool loadRstarts, // = true,
-	     const ReferenceMap* rmap, // = NULL,
 	     bool verbose, // = false,
 	     bool startVerbose, // = false,
 	     bool passMemExc, // = false,
@@ -377,7 +374,6 @@ public:
 	{
 		assert(!useMm || !useShmem);
 		packed_ = false;
-		rmap_ = rmap;
 		_useMm = useMm;
 		useShmem_ = useShmem;
 		_in1Str = in + ".1.bt2";
@@ -942,7 +938,6 @@ public:
 	inline const uint32_t* plen() const    { return _plen.get(); }
 	inline const uint32_t* rstarts() const { return _rstarts.get(); }
 	inline const uint8_t*  ebwt() const    { return _ebwt.get(); }
-	const ReferenceMap* rmap() const { return rmap_; }
 	bool        toBe() const         { return _toBigEndian; }
 	bool        verbose() const      { return _verbose; }
 	bool        sanityCheck() const  { return _sanity; }
@@ -1459,7 +1454,6 @@ public:
 	bool       _useMm;        /// use memory-mapped files to hold the index
 	bool       useShmem_;     /// use shared memory to hold large parts of the index
 	EList<string> _refnames; /// names of the reference sequences
-	const ReferenceMap* rmap_; /// mapping into another reference coordinate space
 	char *mmFile1_;
 	char *mmFile2_;
 	EbwtParams _eh;

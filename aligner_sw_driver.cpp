@@ -202,7 +202,10 @@ bool SwDriver::extendSeeds(
 			// Resolve next element offset
 			WalkResult wr;
 			gws_[i].advanceQvalPos(wr, wlm);
-			if(i == poss-1 && gws_[i].done()) {
+			if(i == poss-1 &&
+			   gws_[i].done() &&
+			   (size_t)possf == (size_t)nonz)
+			{
 				exhaustive = true;
 			}
 			assert(wr.elt != lastwr.elt);
@@ -689,7 +692,10 @@ bool SwDriver::extendSeedsPaired(
 			assert(!msink->state().doneWithMate(anchor1));
 			WalkResult wr;
 			gws_[i].advanceQvalPos(wr, wlm);
-			if(i == poss-1 && gws_[i].done()) {
+			if(i == poss-1 &&
+			   gws_[i].done() &&
+			   (size_t)possf == (size_t)nonz)
+			{
 				exhaustive = true;
 			}
 			assert(wr.elt != lastwr.elt);

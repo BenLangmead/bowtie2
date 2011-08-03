@@ -1569,9 +1569,7 @@ void AlnSinkVerbose::appendMate(
 				if(rs != NULL) {
 					// Output a partitioning key
 					// First component of the key is the reference index
-					if(rmap_ != NULL) {
-						printUptoWs(o, rmap_->getName((size_t)rs->refid()), !fullRef_);
-					} else if(rs->refid() < refnames_.size()) {
+					if(rs->refid() < refnames_.size()) {
 						printUptoWs(o, refnames_[(size_t)rs->refid()], !fullRef_);
 					} else {
 						itoa10<TRefId>(rs->refid(), buf);
@@ -1658,9 +1656,7 @@ void AlnSinkVerbose::appendMate(
 				WRITE_TAB;
 				// .first is text id, .second is offset
 				if(rs != NULL) {
-					if(rmap_ != NULL) {
-						printUptoWs(o, rmap_->getName((size_t)rs->refid()), !fullRef_);
-					} else if(rs->refid() < refnames_.size()) {
+					if(rs->refid() < refnames_.size()) {
 						printUptoWs(o, refnames_[(size_t)rs->refid()], !fullRef_);
 					} else {
 						itoa10<TRefId>(rs->refid(), buf);
@@ -1896,11 +1892,7 @@ void AlnSinkSam::appendMate(
 	o.write('\t');
 	// RNAME
 	if(rs != NULL) {
-		if(rmap_ != NULL) {
-			samc_.printRefName(o, rmap_->getName((size_t)rs->refid()));
-		} else {
-			samc_.printRefNameFromIndex(o, (size_t)rs->refid());
-		}
+		samc_.printRefNameFromIndex(o, (size_t)rs->refid());
 		o.write('\t');
 	} else {
 		// No alignment
@@ -1945,11 +1937,7 @@ void AlnSinkSam::appendMate(
 	// RNEXT
 	if(rs != NULL && rso != NULL) {
 		if(rs->refid() != rso->refid()) {
-			if(rmap_ != NULL) {
-				samc_.printRefName(o, rmap_->getName((size_t)rso->refid()));
-			} else {
-				samc_.printRefNameFromIndex(o, (size_t)rso->refid());
-			}
+			samc_.printRefNameFromIndex(o, (size_t)rso->refid());
 			o.write('\t');
 		} else {
 			o.writeChars("=\t");

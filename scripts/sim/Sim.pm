@@ -720,7 +720,7 @@ sub genPolicyMIN($) {
 		$xx = -$xx if int(rand(2)) == 0;
 		$yy = -$yy;
 	}
-	return "MIN=$xx,$yy;";
+	return "MIN=L,$xx,$yy;";
 }
 
 ##
@@ -731,7 +731,7 @@ sub genPolicyNCEIL() {
 	return "" if int(rand(2)) == 0;
 	my $xx = Math::Random::random_uniform(1, 0, 1.5);
 	my $yy = Math::Random::random_uniform(1, 0, 1.5);
-	return "NCEIL=$xx,$yy;";
+	return "NCEIL=L,$xx,$yy;";
 }
 
 ##
@@ -744,10 +744,6 @@ sub genPolicySEED() {
 	if(rand() < 0.9) {
 		# Length
 		$sd .= ",".int(Math::Random::random_uniform(1, 12, 32));
-	}
-	if(rand() < 0.3) {
-		# Interval (overrides IVAL)
-		$sd .= ",".int(Math::Random::random_uniform(1, 1, 32));
 	}
 	return "SEED=$sd;";
 }
@@ -830,12 +826,6 @@ sub genAlignArgs {
 	$args{"--norc"}     = "" if int(rand(4)) == 0;
 	$args{"--col-keepends"} = "" if ($color && int(rand(3)) == 0);
 	$args{"--gbar"}     = int(Math::Random::random_exponential(1, 3))+1 if int(rand(4)) == 0;
-	$args{"--un"}
-		= "$conf->{tempdir}/Sim.pm.$conf->{randstr}.un.reads" if int(rand(3)) == 0;
-	$args{"--al"}
-		= "$conf->{tempdir}/Sim.pm.$conf->{randstr}.al.reads" if int(rand(3)) == 0;
-	$args{"--max"}
-		= "$conf->{tempdir}/Sim.pm.$conf->{randstr}.max.reads" if int(rand(3)) == 0;
 	$args{"--local"}    = "" if $local;
 	my $rep = int(rand(5));
 	if($rep == 0) {
