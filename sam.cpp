@@ -37,11 +37,22 @@ void SamConfig::printRefNameFromIndex(OutFileBuf& o, size_t i) const {
  */
 void SamConfig::printHeader(
 	OutFileBuf& o,
+	bool printHd,
 	bool printSq,
 	bool printPg) const
 {
+	if(printHd) printHdLine(o, "1.0");
 	if(printSq) printSqLines(o);
 	if(printPg) printPgLine(o);
+}
+
+/**
+ * Print the @HD header line to the given OutFileBuf.
+ */
+void SamConfig::printHdLine(OutFileBuf& o, const char *samver) const {
+	o.writeChars("@HD\tVN:");
+	o.writeChars(samver);
+	o.writeChars("\tSO:unsorted\n");
 }
 
 /**
@@ -51,7 +62,7 @@ void SamConfig::printSqLines(OutFileBuf& o) const {
 	char buf[1024];
 	for(size_t i = 0; i < refnames_.size(); i++) {
 		o.writeChars("@SQ\tSN:");
-		o.writeString(refnames_[i]);
+		printRefName(o, refnames_[i]);
 		o.writeChars("\tLN:");
 		itoa10<size_t>(reflens_[i], buf);
 		o.writeChars(buf);
