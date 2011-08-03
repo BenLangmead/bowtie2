@@ -39,6 +39,32 @@ if(! -x $bowtie2 || ! -x $bowtie2_build) {
 
 my @cases = (
 
+	# Testing that DEFAULT is -M 1
+	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTGTTCGT" ],
+	  report => "-M 1",
+	  mapq   => [ 0 ],
+	  hits   => [ { 0 => 1, 8 => 1 } ],
+	  flags  => [ "XM:1,XP:0,XT:UU,XC:8=" ],
+	  hits_are_superset => [ 1 ],
+	  cigar  => [ "8M" ],
+	  samoptflags => [
+		{ "YM:i:1" => 1, "YT:Z:UU" => 1, "MD:Z:8" => 1, "YM:i:1" => 1 }
+	  ],
+	},
+	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTGTTCGT" ],
+	  report => "",
+	  mapq   => [ 0 ],
+	  hits   => [ { 0 => 1, 8 => 1 } ],
+	  flags  => [ "XM:1,XP:0,XT:UU,XC:8=" ],
+	  hits_are_superset => [ 1 ],
+	  cigar  => [ "8M" ],
+	  samoptflags => [
+		{ "YM:i:1" => 1, "YT:Z:UU" => 1, "MD:Z:8" => 1, "YM:i:1" => 1 }
+	  ],
+	},
+
 	# Testing BWA-SW-like scoring
 	#
 	# a*max{T,c*log(l)} = 1 * max(30, 5.5 * log(56)) = 1 * max(30, 22.139) = 30
