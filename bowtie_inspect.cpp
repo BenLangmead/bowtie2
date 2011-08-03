@@ -357,7 +357,6 @@ static void driver(
 			true,                 // load SA sample?
 			true,                 // load ftab?
 			true,                 // load rstarts?
-			NULL,                 // no reference map
 			verbose,              // be talkative?
 			verbose,              // be talkative at startup?
 			false,                // pass up memory exceptions?
