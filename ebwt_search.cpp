@@ -402,7 +402,8 @@ enum {
 	ARG_QC_FILTER,              //
 	ARG_BWA_SW_LIKE,            // --bwa-sw-like
 	ARG_OLDM,                   // --old-m
-	ARG_MULTISEED_IVAL_CONST,   // --multiseed
+	ARG_MULTISEED_IVAL,         // --multiseed
+	ARG_MULTISEED_IVAL_CONST,   // --multiseed-const
 	ARG_MULTISEED_IVAL_LINEAR,  // --multiseed-linear
 	ARG_MULTISEED_IVAL_SQRT,    // --multiseed-sqrt
 	ARG_MULTISEED_IVAL_LOG,     // --multiseed-log
@@ -510,7 +511,7 @@ static struct option long_options[] = {
 	{(char*)"no-sse",       no_argument,       0,            ARG_NO_SSE},
 	{(char*)"qc-filter",    no_argument,       0,            ARG_QC_FILTER},
 	{(char*)"bwa-sw-like",  required_argument, 0,            ARG_BWA_SW_LIKE},
-	{(char*)"multiseed",        required_argument, 0,        ARG_MULTISEED_IVAL_CONST},
+	{(char*)"multiseed",        required_argument, 0,        ARG_MULTISEED_IVAL},
 	{(char*)"multiseed-const",  required_argument, 0,        ARG_MULTISEED_IVAL_CONST},
 	{(char*)"multiseed-linear", required_argument, 0,        ARG_MULTISEED_IVAL_LINEAR},
 	{(char*)"multiseed-sqrt",   required_argument, 0,        ARG_MULTISEED_IVAL_SQRT},
@@ -964,6 +965,64 @@ static void parseOptions(int argc, const char **argv) {
 				if(fns.size() >= 3) saActionsFn  = fns[2];
 				break;
 			}
+			case ARG_MULTISEED_IVAL: {
+				if(!polstr.empty()) { polstr += ";"; }
+				// Split argument by comma
+				EList<string> args;
+				tokenize(optarg, ",", args);
+				if(args.size() > 11 || args.size() == 0) {
+					cerr << "Error: expected 11 or fewer comma-separated "
+					     << "arguments to --multiseed option, got "
+						 << args.size() << endl;
+					throw 1;
+				}
+				// Seed mm and length arguments
+				polstr += "SEED=";
+				polstr += (args[0]);
+				if(args.size() > 1) {
+					polstr += ("," + args[1]);
+				}
+				// Interval-settings arguments
+				if(args.size() > 2) {
+					// Function type
+					polstr += (";IVAL=" + args[2]);
+				}
+				if(args.size() > 3) {
+					// Constant term
+					polstr += ("," + args[3]);
+				}
+				if(args.size() > 4) {
+					// Coefficient
+					polstr += ("," + args[4]);
+				}
+				// Arguments for # seed positions to examine
+				if(args.size() > 5) {
+					// Function type
+					polstr += (";POSF=" + args[5]);
+				}
+				if(args.size() > 6) {
+					// Constant term
+					polstr += ("," + args[6]);
+				}
+				if(args.size() > 7) {
+					// Coefficient
+					polstr += ("," + args[7]);
+				}
+				// Arguments for # rows to examine per range
+				if(args.size() > 8) {
+					// Function type
+					polstr += (";ROWM=" + args[8]);
+				}
+				if(args.size() > 9) {
+					// Constant term
+					polstr += ("," + args[9]);
+				}
+				if(args.size() > 10) {
+					// Coefficient
+					polstr += ("," + args[10]);
+				}
+				break;
+			}
 			case ARG_MULTISEED_IVAL_CONST:
 			case ARG_MULTISEED_IVAL_LINEAR:
 			case ARG_MULTISEED_IVAL_SQRT:
@@ -1078,8 +1137,8 @@ static void parseOptions(int argc, const char **argv) {
 				}
 				EList<string> args;
 				tokenize(optarg, ",", args);
-				if(args.size() > 2 && args.size() == 0) {
-					cerr << "Error: expected 2 or fewer comma-separated "
+				if(args.size() > 3 && args.size() == 0) {
+					cerr << "Error: expected 3 or fewer comma-separated "
 					     << "arguments to --n-ceil option, got "
 						 << args.size() << endl;
 					throw 1;
@@ -1087,6 +1146,9 @@ static void parseOptions(int argc, const char **argv) {
 				polstr += ("MIN=" + args[0]);
 				if(args.size() > 1) {
 					polstr += ("," + args[1]);
+				}
+				if(args.size() > 2) {
+					polstr += ("," + args[2]);
 				}
 			}
 			case -1: break; /* Done with options. */
