@@ -130,7 +130,7 @@ static string rgs; // SAM outputs for @RG header line
 static string rgs_optflag; // SAM optional flag to add corresponding to @RG ID
 int gSnpPhred; // probability of SNP, for scoring colorspace alignments
 static EList<bool> suppressOuts; // output fields to suppress
-static bool sampleMax; // whether to report a random alignment when maxed-out via -m/-M
+static bool msample; // whether to report a random alignment when maxed-out via -m/-M
 bool gColorSeq; // true -> show colorspace alignments as colors, not decoded bases
 bool gColorEdit; // true -> show edits as colors, not decoded bases
 bool gColorQual; // true -> show colorspace qualities as original quals, not decoded quals
@@ -277,7 +277,7 @@ static void resetOptions() {
 	suppressOuts.clear();            // output fields to suppress
 	suppressOuts.resize(64);
 	suppressOuts.fill(false);
-	sampleMax				= false;
+	msample				    = true;
 	gColorSeq				= false; // true -> show colorspace alignments as colors, not decoded bases
 	gColorEdit				= false; // true -> show edits as colors, not decoded bases
 	gColorQual				= false; // true -> show colorspace qualities as original quals, not decoded quals
@@ -855,7 +855,7 @@ static void parseOptions(int argc, const char **argv) {
 			// exclusive here.
 			//
 			case 'M': {
-				sampleMax = true;
+				msample = true;
 				mhits = (uint32_t)parseInt(1, "-M arg must be at least 1");
 				if(saw_a || saw_k) {
 					cerr << "Warning: -M, -k and -a are mutually exclusive. "
@@ -865,12 +865,12 @@ static void parseOptions(int argc, const char **argv) {
 				break;
 			}
 			case ARG_OLDM: {
-				sampleMax = false;
+				msample = false;
 				mhits = (uint32_t)parseInt(1, "-m arg must be at least 1");
 				break;
 			}
 			case 'a': {
-				sampleMax = false;
+				msample = false;
 				allHits = true;
 				mhits = 0; // disable -M
 				if(saw_M || saw_k) {
@@ -881,7 +881,7 @@ static void parseOptions(int argc, const char **argv) {
 				break;
 			}
 			case 'k': {
-				sampleMax = false;
+				msample = false;
 				khits = (uint32_t)parseInt(1, "-k arg must be at least 1");
 				mhits = 0; // disable -M
 				if(saw_M || saw_a) {
@@ -2214,7 +2214,7 @@ static void* multiseedSearchWorker(void *vp) {
 		(allHits ? std::numeric_limits<THitInt>::max() : khits), // -k
 		mhits,             // -m/-M
 		0,                 // penalty gap (not used now)
-		sampleMax,         // true -> -M was specified, otherwise assume -m
+		msample,           // true -> -M was specified, otherwise assume -m
 		gReportDiscordant, // report discordang paired-end alignments?
 		gReportMixed);     // report unpaired alignments for paired reads?
 	
