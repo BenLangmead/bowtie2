@@ -414,10 +414,9 @@ bool SwAligner::align(RandomSource& rnd) {
 					gatherCellsNucleotidesEnd2EndSseU8(best);
 #ifndef NDEBUG
 					if(sse16succ_) {
-						ASSERT_ONLY(EList<DpNucBtCandidate> tmp(DP_CAT));
-						tmp = btncand_;
+						cand_tmp_ = btncand_;
 						gatherCellsNucleotidesEnd2EndSseI16(best);
-						assert(tmp == btncand_);
+						assert(cand_tmp_ == btncand_);
 					}
 #endif /*ndef NDEBUG*/
 				} else {
@@ -428,10 +427,9 @@ bool SwAligner::align(RandomSource& rnd) {
 					gatherCellsNucleotidesLocalSseU8(best);
 #ifndef NDEBUG
 					if(sse16succ_) {
-						ASSERT_ONLY(EList<DpNucBtCandidate> tmp(DP_CAT));
-						tmp = btncand_;
+						cand_tmp_ = btncand_;
 						gatherCellsNucleotidesLocalSseI16(best);
-						assert(tmp == btncand_);
+						assert(cand_tmp_ == btncand_);
 					}
 #endif /*ndef NDEBUG*/
 				} else {

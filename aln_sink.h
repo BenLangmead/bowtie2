@@ -1292,7 +1292,6 @@ public:
 		bool               printFlags, // print alignment flags a la SAM
 		bool               printCost,  // print penalty in extra column
 		bool               printParams,// print alignment parameters
-		bool               printSeed,  // print pseudo-random seed
 		bool               fullRef,    // print entire ref name incl whitespace
 		int                partition = 0) : // partition size
 		AlnSink(
@@ -1310,7 +1309,6 @@ public:
 		printFlags_(printFlags),
 		printCost_(printCost),
 		printParams_(printParams),
-		printSeed_(printSeed),
 		fullRef_(fullRef),
 		partition_(partition)
 	{ }
@@ -1367,7 +1365,6 @@ protected:
 	bool          printFlags_; // print alignment flags
 	bool          printCost_;  // print penalty in extra column
 	bool          printParams_;// print alignment parameters
-	bool          printSeed_;  // print pseudo-random seed
 	bool          fullRef_;    // print entire reference name including whitespace
 	int           partition_;  // partition size
 	

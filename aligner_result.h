@@ -1268,6 +1268,14 @@ public:
 	 * In debug mode, we put a copy of the decoded nucleotide sequence here.
 	 */
 	ASSERT_ONLY(BTDnaString drd);
+	
+	/**
+	 * Return true iff this AlnRes should come before the given AlnRes in a
+	 * prioritized list of results.
+	 */
+	bool operator<(const AlnRes& o) const {
+		return score_ > o.score_;
+	}
 
 protected:
 

@@ -29,7 +29,6 @@ void SSEMatrix::init(
 	// instead, we just write off the end of the useful part of the table
 	// with pvEStore.
 	buf_.resize((ncol+1) * nvecPerCell_ * nvecPerCol_ + 16);
-	//bzero(buf_.ptr(), sizeof(__m128i) * ((ncol+1) * nvecPerCell_ * nvecPerCol_ + 16));
 	// Get a 16-byte aligned pointer toward the beginning of the buffer.
 	size_t aligned = ((size_t)buf_.ptr() + 15) & ~(0x0f);
 	// Set up pointers into the buffer for fw query
@@ -50,7 +49,7 @@ void SSEMatrix::initMasks() {
 	assert_gt(nrow_, 0);
 	assert_gt(ncol_, 0);
 	masks_.resize(nrow_ * ncol_);
-	bzero(masks_.ptr(), sizeof(uint16_t) * nrow_ * ncol_);
+	memset(masks_.ptr(), 0, sizeof(uint16_t) * nrow_ * ncol_);
 }
 
 /**

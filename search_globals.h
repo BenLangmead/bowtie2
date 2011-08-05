@@ -18,7 +18,6 @@ extern bool     gColorSeq;
 extern bool     gColorEdit;
 extern bool     gColorQual;
 extern int      gSnpPhred;
-extern bool     gShowSeed;
 extern bool     gNoMaqRound;
 extern bool     gStrandFix;
 extern bool     gRangeMode;

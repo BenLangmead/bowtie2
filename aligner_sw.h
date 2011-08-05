@@ -223,6 +223,7 @@ public:
 		nsucc_(0),
 		nfail_(0),
 		nbts_(0)
+		ASSERT_ONLY(, cand_tmp_(DP_CAT))
 	{
 		SwAligner::EXTREMES.first = std::numeric_limits<size_t>::max();
 		SwAligner::EXTREMES.second = std::numeric_limits<size_t>::min();
@@ -759,6 +760,7 @@ protected:
 	
 	ASSERT_ONLY(SStringExpandable<uint32_t> tmp_destU32_);
 	ASSERT_ONLY(BTDnaString tmp_editstr_, tmp_refstr_);
+	ASSERT_ONLY(EList<DpNucBtCandidate> cand_tmp_);
 };
 
 #endif /*ALIGNER_SW_H_*/

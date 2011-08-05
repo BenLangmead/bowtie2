@@ -136,9 +136,7 @@ bool gColorEdit; // true -> show edits as colors, not decoded bases
 bool gColorQual; // true -> show colorspace qualities as original quals, not decoded quals
 static bool printPlaceholders; // true -> print records for maxed-out, unaligned reads
 static bool printFlags; // true -> print alignment flags
-static bool printCost; // true -> print stratum and cost
 static bool printParams; // true -> print parameters like seed spacing, cost ceiling
-bool gShowSeed;       // print pseudo-random seed used for alignment?
 int      gGapBarrier; // # diags on top/bot only to be entered diagonally
 int64_t  gRowLow;     // backtraces start from row w/ idx >= this (-1=no limit)
 bool     gRowFirst;   // sort alignments by row then score?
@@ -283,9 +281,7 @@ static void resetOptions() {
 	gColorQual				= false; // true -> show colorspace qualities as original quals, not decoded quals
 	printPlaceholders       = true;  // true -> print records for maxed-out, unaligned reads
 	printFlags              = true;  // true -> print alignment flags
-	printCost				= false; // true -> print cost and stratum
 	printParams				= false; // true -> print parameters regarding seeding, ceilings
-	gShowSeed				= false; // true -> print per-read pseudo-random seed
 	gGapBarrier				= 4;     // disallow gaps within this many chars of either end of alignment
 	gRowLow                 = -1;    // backtraces start from row w/ idx >= this (-1=no limit)
 	gRowFirst               = false; // sort alignments by row then score?
@@ -379,27 +375,23 @@ enum {
 	ARG_COLOR_SEQ,
 	ARG_COLOR_EDIT,
 	ARG_COLOR_QUAL,
-	ARG_PRINT_PLACEHOLDERS,
-	ARG_PRINT_FLAGS,
-	ARG_COST,
-	ARG_PRINT_PARAMS,
-	ARG_COLOR_KEEP_ENDS,
-	ARG_SHOWSEED,
-	ARG_GAP_BAR,
-	ARG_REDUNDANTS,
-	ARG_QUALS1,
-	ARG_QUALS2,
-	ARG_QSEQ,
-	ARG_SA_DUMP,
-	ARG_SEED_SUMM,
-	ARG_OVERHANG,
-	ARG_NO_CACHE,
-	ARG_USE_CACHE,
-	ARG_NOISY_HPOLY,
-	ARG_LOCAL,
-	ARG_SCAN_NARROWED,
-	ARG_NO_SSE,
-	ARG_QC_FILTER,              //
+	ARG_PRINT_PLACEHOLDERS,     //
+	ARG_PRINT_FLAGS,            //
+	ARG_PRINT_PARAMS,           //
+	ARG_COLOR_KEEP_ENDS,        //
+	ARG_GAP_BAR,                // --gbar
+	ARG_QUALS1,                 // --Q1
+	ARG_QUALS2,                 // --Q2
+	ARG_QSEQ,                   // --qseq
+	ARG_SEED_SUMM,              // --seed-summary
+	ARG_OVERHANG,               // --overhang
+	ARG_NO_CACHE,               // --no-cache
+	ARG_USE_CACHE,              // --cache
+	ARG_NOISY_HPOLY,            // --454/--ion-torrent
+	ARG_LOCAL,                  // --local
+	ARG_SCAN_NARROWED,          // --scan-narrowed
+	ARG_NO_SSE,                 // --no-sse
+	ARG_QC_FILTER,              // --qc-filter
 	ARG_BWA_SW_LIKE,            // --bwa-sw-like
 	ARG_OLDM,                   // --old-m
 	ARG_MULTISEED_IVAL,         // --multiseed
@@ -412,7 +404,8 @@ enum {
 	ARG_SCORE_MIN_SQRT,         // --score-min-sqrt
 	ARG_SCORE_MIN_LOG,          // --score-min-log
 	ARG_SCORES,                 // --scoring
-	ARG_N_CEIL                  // --n-ceil
+	ARG_N_CEIL,                 // --n-ceil
+	ARG_DPAD                    // --dpad
 };
 
 static struct option long_options[] = {
@@ -488,14 +481,10 @@ static struct option long_options[] = {
 	{(char*)"col-keepends", no_argument,       0,            ARG_COLOR_KEEP_ENDS},
 	{(char*)"print-placeholders", no_argument, 0,            ARG_PRINT_PLACEHOLDERS},
 	{(char*)"print-flags",  no_argument,       0,            ARG_PRINT_FLAGS},
-	{(char*)"cost",         no_argument,       0,            ARG_COST},
 	{(char*)"print-params", no_argument,       0,            ARG_PRINT_PARAMS},
-	{(char*)"showseed",     no_argument,       0,            ARG_SHOWSEED},
 	{(char*)"gbar",         required_argument, 0,            ARG_GAP_BAR},
 	{(char*)"gopen",        required_argument, 0,            'O'},
 	{(char*)"gextend",      required_argument, 0,            'E'},
-	{(char*)"redundants",   required_argument, 0,            ARG_REDUNDANTS},
-	{(char*)"redundant",    required_argument, 0,            ARG_REDUNDANTS},
 	{(char*)"qseq",         no_argument,       0,            ARG_QSEQ},
 	{(char*)"align-policy", required_argument, 0,            'P'},
 	{(char*)"seed-summ",    no_argument,       0,            ARG_SEED_SUMM},
@@ -524,6 +513,7 @@ static struct option long_options[] = {
 	{(char*)"score-min-sqrt",   required_argument, 0,        ARG_SCORE_MIN_SQRT},
 	{(char*)"score-min-log",    required_argument, 0,        ARG_SCORE_MIN_LOG},
 	{(char*)"n-ceil",           required_argument, 0,        ARG_N_CEIL},
+	{(char*)"dpad",             required_argument, 0,        ARG_DPAD},
 };
 
 #ifdef BOWTIE2
@@ -750,7 +740,6 @@ static void parseOptions(int argc, const char **argv) {
 			case ARG_COLOR_SEQ: gColorSeq = true; break;
 			case ARG_COLOR_EDIT: gColorEdit = true; break;
 			case ARG_COLOR_QUAL: gColorQual = true; break;
-			case ARG_SHOWSEED: gShowSeed = true; break;
 			case ARG_SEED_SUMM: seedSummaryOnly = true; break;
 			case ARG_SUPPRESS_FIELDS: {
 				EList<string> supp;
@@ -926,10 +915,12 @@ static void parseOptions(int argc, const char **argv) {
 			}
 			case ARG_PRINT_PLACEHOLDERS: printPlaceholders = true; break;
 			case ARG_PRINT_FLAGS: printFlags = true; break;
-			case ARG_COST: printCost = true; break;
 			case ARG_PRINT_PARAMS: printParams = true; break;
 			case ARG_DUMP_PATS: patDumpfile = optarg; break;
 			case ARG_PARTITION: partitionSz = parse<int>(optarg); break;
+			case ARG_DPAD:
+				maxhalf = parseInt(0, "--dpad must be no less than 0");
+				break;
 			case ARG_ORIG:
 				if(optarg == NULL || strlen(optarg) == 0) {
 					cerr << "--orig arg must be followed by a string" << endl;
@@ -948,14 +939,6 @@ static void parseOptions(int argc, const char **argv) {
 					polstr += ";";
 				}
 				polstr += optarg;
-				break;
-			}
-			case ARG_SA_DUMP: {
-				EList<string> fns;
-				parseTuple<string>(optarg, ',', fns);
-				if(fns.size() >= 1) saHitsFn     = fns[0];
-				if(fns.size() >= 2) saCountersFn = fns[1];
-				if(fns.size() >= 3) saActionsFn  = fns[2];
 				break;
 			}
 			case ARG_MULTISEED_IVAL: {
@@ -2958,9 +2941,8 @@ static void driver(
 					gColorExEnds, // whether to exclude end positions from decoded colorspace alignments
 					printPlaceholders, // print maxs/unals
 					printFlags,   // print alignment flags
-					printCost,    // print penalty in extra column
+					false,        // print penalty in extra column
 					printParams,  // print alignment parameters in extra column
-					gShowSeed,    // print pseudo-random seed
 					fullRef,      // print entire reference name including whitespace
 					partitionSz); // size of partition, so we can check for straddling alignments
 				break;
