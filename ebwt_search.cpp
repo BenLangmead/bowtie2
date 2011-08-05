@@ -514,6 +514,7 @@ static struct option long_options[] = {
 	{(char*)"score-min-log",    required_argument, 0,        ARG_SCORE_MIN_LOG},
 	{(char*)"n-ceil",           required_argument, 0,        ARG_N_CEIL},
 	{(char*)"dpad",             required_argument, 0,        ARG_DPAD},
+	{(char*)0, 0, 0, 0} // terminator
 };
 
 #ifdef BOWTIE2
