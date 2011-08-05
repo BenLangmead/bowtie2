@@ -44,6 +44,7 @@ bool SATuple::randomNarrow(
 		totrows += src[i].offs.size();
 	}
 	size_t maxrows = rowmult.f<size_t>((double)totrows);
+	//cerr << totrows << ", " << maxrows << endl;
 	assert_gt(maxrows, 0);
 	if(totrows <= maxrows) {
 		return false;

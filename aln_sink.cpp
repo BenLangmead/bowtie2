@@ -943,6 +943,7 @@ void AlnSinkWrap::finishRead(
 			
 				// Just examine mate 1
 				if(rd1_ != NULL && nunpair1 > 0) {
+					//rs1u_.sort();
 					AlnSetSumm unpair1Summ(
 						rd1_, NULL, NULL, NULL, &rs1u_, NULL,
 						exhaust1, exhaust2);
@@ -978,6 +979,7 @@ void AlnSinkWrap::finishRead(
 						NULL);
 				}
 				if(rd2_ != NULL && nunpair2 > 0) {
+					//rs2u_.sort();
 					AlnSetSumm unpair2Summ(
 						NULL, rd2_, NULL, NULL, NULL, &rs2u_,
 						exhaust1, exhaust2);
@@ -1234,6 +1236,8 @@ bool AlnSinkWrap::prepareDiscordants() {
  *
  * Return the "representative" alignment.  This is simply the first one
  * selected.  That will also be what SAM calls the "primary" alignment.
+ *
+ * TODO: try to take alignment score into account here?
  */
 size_t AlnSinkWrap::selectAlnsToReport(
 	const EList<AlnRes>& rs,     // alignments to select from
@@ -1801,13 +1805,6 @@ void AlnSinkVerbose::appendMate(
 						tmprun_,     // temporary EList to store run lengths
 						&o,
 						NULL);
-				}
-				if(printSeed_) {
-					// Print CIGAR string
-					if(!first) o.write(',');
-					o.writeChars("XR:");
-					itoa10<uint32_t>(rd.seed, buf);
-					o.writeChars(buf);
 				}
 			}
 		}

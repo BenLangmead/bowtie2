@@ -181,6 +181,8 @@ bool SwDriver::extendSeeds(
 	possf = max<double>(possf, 1.0f);
 	possf = min<double>(possf, (double)nonz);
 	const size_t poss = (size_t)possf;
+	assert_leq(poss, nonz);
+	//cerr << "   " << nonz << ", " << poss << endl;
 	size_t rows = rdlen + (color ? 1 : 0);
 	for(size_t i = 0; i < poss; i++) {
 		bool fw = true;
