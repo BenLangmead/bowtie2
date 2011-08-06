@@ -151,6 +151,8 @@ public:
 	 */
 	void printHeader(
 		OutFileBuf& o,
+		const std::string& rgid,
+		const std::string& rgs,
 		bool printHd,
 		bool printSq,
 		bool printPg)
