@@ -126,7 +126,8 @@ static bool qcFilter;
 bool gColor;     // true -> inputs are colorspace
 bool gColorExEnds; // true -> nucleotides on either end of decoded cspace alignment should be excluded
 bool gReportOverhangs; // false -> filter out alignments that fall off the end of a reference sequence
-static string rgs; // SAM outputs for @RG header line
+static string rgid; // ID: setting for @RG header line
+static string rgs;  // SAM outputs for @RG header line
 static string rgs_optflag; // SAM optional flag to add corresponding to @RG ID
 int gSnpPhred; // probability of SNP, for scoring colorspace alignments
 static EList<bool> suppressOuts; // output fields to suppress
@@ -269,6 +270,7 @@ static void resetOptions() {
 	gColor					= false; // don't align in colorspace by default
 	gColorExEnds			= true;  // true -> nucleotides on either end of decoded cspace alignment should be excluded
 	gReportOverhangs        = false; // false -> filter out alignments that fall off the end of a reference sequence
+	rgid					= "";    // SAM outputs for @RG header line
 	rgs						= "";    // SAM outputs for @RG header line
 	rgs_optflag				= "";    // SAM optional flag to add corresponding to @RG ID
 	gSnpPhred				= 30;    // probability of SNP, for scoring colorspace alignments
@@ -576,6 +578,9 @@ static void printUsage(ostream& out) {
 	    << "  -t/--time          print wall-clock time taken by search phases" << endl
 	    << "  --quiet            print nothing but the alignments" << endl
 	    << "  --refidx           refer to ref. seqs by 0-based index rather than name" << endl
+	    << "  --sam-nohead       supppress header lines (starting with @)" << endl
+	    << "  --sam-nosq         supppress @SQ header lines" << endl
+	    << "  --sam-RG <text>    add <text> (usually \"lab:value\") to @RG line of SAM header" << endl
 	    << "Performance:" << endl
 	    << "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl
 #ifdef BOWTIE_PTHREADS
@@ -904,14 +909,15 @@ static void parseOptions(int argc, const char **argv) {
 			case ARG_SAM_NOHEAD: samNoHead = true; break;
 			case ARG_SAM_NOSQ: samNoSQ = true; break;
 			case ARG_SAM_RG: {
-				if(!rgs.empty()) {
-					rgs += '\t';
-				}
 				string arg = optarg;
 				if(arg.substr(0, 3) == "ID:") {
+					rgid = "\t";
+					rgid += arg;
 					rgs_optflag = "RG:Z:" + arg.substr(3);
+				} else {
+					rgs += '\t';
+					rgs += arg;
 				}
-				rgs += arg;
 				break;
 			}
 			case ARG_PRINT_PLACEHOLDERS: printPlaceholders = true; break;
@@ -2959,7 +2965,7 @@ static void driver(
 					gColorExEnds);// exclude ends from decoded colorspace alns?
 				if(!samNoHead) {
 					bool printHd = true, printSq = true;
-					samc.printHeader(*fout, printHd, !samNoSQ, printSq);
+					samc.printHeader(*fout, rgid, rgs, printHd, !samNoSQ, printSq);
 				}
 				break;
 			}
