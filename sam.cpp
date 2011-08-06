@@ -2,6 +2,7 @@
  * sam.cpp
  */
 
+#include <string>
 #include "sam.h"
 #include "filebuf.h"
 #include "aligner_result.h"
@@ -37,12 +38,20 @@ void SamConfig::printRefNameFromIndex(OutFileBuf& o, size_t i) const {
  */
 void SamConfig::printHeader(
 	OutFileBuf& o,
+	const string& rgid,
+	const string& rgs,
 	bool printHd,
 	bool printSq,
 	bool printPg) const
 {
 	if(printHd) printHdLine(o, "1.0");
 	if(printSq) printSqLines(o);
+	if(!rgid.empty()) {
+		o.writeChars("@RG");
+		o.writeString(rgid);
+		o.writeString(rgs);
+		o.write('\n');
+	}
 	if(printPg) printPgLine(o);
 }
 

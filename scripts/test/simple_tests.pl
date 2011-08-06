@@ -39,13 +39,19 @@ if(! -x $bowtie2 || ! -x $bowtie2_build) {
 
 my @cases = (
 
+	# Testing POSF and ROWM
+	{ ref    => [ "TTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTGTTCGT" ],
+	  args   => "--multiseed=0,4,C,1,0",
+	  report => "-M 1"
+	},
+
 	# Testing that DEFAULT is -M 1
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCGT" ],
 	  report => "-M 1",
 	  mapq   => [ 0 ],
 	  hits   => [ { 0 => 1, 8 => 1 } ],
-	  flags  => [ "XM:1,XP:0,XT:UU,XC:8=" ],
 	  hits_are_superset => [ 1 ],
 	  cigar  => [ "8M" ],
 	  samoptflags => [
@@ -57,13 +63,58 @@ my @cases = (
 	  report => "",
 	  mapq   => [ 0 ],
 	  hits   => [ { 0 => 1, 8 => 1 } ],
-	  flags  => [ "XM:1,XP:0,XT:UU,XC:8=" ],
 	  hits_are_superset => [ 1 ],
 	  cigar  => [ "8M" ],
 	  samoptflags => [
 		{ "YM:i:1" => 1, "YT:Z:UU" => 1, "MD:Z:8" => 1, "YM:i:1" => 1 }
 	  ],
 	},
+
+	#
+	# Test XS:i
+	#
+	
+	{ name   => "XS:i 1",
+	  ref    => [ "TTGTTCGATTGTTCGA" ],
+	  reads  => [ "TTGTTCGT" ],
+	  args   => "--multiseed=0,7,C,1 --score-min=C,-6",
+	  report => "",
+	  mapq   => [ 0 ],
+	  hits   => [ { 0 => 1, 8 => 1 } ],
+	  hits_are_superset => [ 1 ],
+	  cigar  => [ "8M" ],
+	  samoptflags => [ {
+		  "AS:i:-6"  => 1, "XS:i:-6" => 1,
+		  "YM:i:1"   => 1, "YT:Z:UU" => 1,
+		  "MD:Z:7A0" => 1, "YM:i:1"  => 1,
+		  "NM:i:1"   => 1, "XM:i:1"  => 1 } ],
+	},
+	
+	{ name   => "XS:i 2",
+	  ref    => [ "TTGTTCGATTGTTCGA" ],
+	  reads  => [ "TTGTTCGT" ],
+	  args   => "--multiseed=0,7,C,1 --score-min=C,-5",
+	  report => "",
+	  cigar  => [ "*" ],
+	  samoptflags => [{ "YT:Z:UU" => 1, "YM:i:0" => 1 }],
+	},
+
+	#{ name   => "XS:i 3",
+	#  ref    => [ "TTGTTCGATTGTTCGT" ],
+	#  #                    TTGTTCGT
+	#  reads  => [ "TTGTTCGT" ],
+	#  args   => "--multiseed=0,7,C,1 --score-min=C,-6",
+	#  report => "-M 1",
+	#  mapq   => [ 0 ],
+	#  hits   => [ { 0 => 1, 8 => 1 } ],
+	#  hits_are_superset => [ 1 ],
+	#  cigar  => [ "8M" ],
+	#  samoptflags => [ {
+	#	  "AS:i:0"   => 1, "XS:i:-6" => 1,
+	#	  "YM:i:1"   => 1, "YT:Z:UU" => 1,
+	#	  "MD:Z:8"   => 1, "YM:i:1"  => 1,
+	#	  "NM:i:1"   => 1, "XM:i:1"  => 1 } ],
+	#},
 
 	# Testing BWA-SW-like scoring
 	#
