@@ -1143,6 +1143,7 @@ static void parseOptions(int argc, const char **argv) {
 				if(args.size() > 2) {
 					polstr += ("," + args[2]);
 				}
+				break;
 			}
 			case ARG_MAPQ_DIFFCOEFF:
 				mapqDiffcoeff = parse<double>(optarg);
