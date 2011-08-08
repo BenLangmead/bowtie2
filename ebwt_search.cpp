@@ -32,9 +32,6 @@
 #include "util.h"
 #include "pe.h"
 #include "simple_func.h"
-#ifdef CHUD_PROFILING
-#include <CHUD/CHUD.h>
-#endif
 
 using namespace std;
 
@@ -122,6 +119,9 @@ static bool sam_print_ys;
 static bool bwaSwLike;
 static float bwaSwLikeC;
 static float bwaSwLikeT;
+static float mapqDiffcoeff; // differences are multiplied by this
+static float mapqHorizon;   // if no 2nd alignment, assume one has score
+static float mapqMax;       // maximum Mapq 
 static bool qcFilter;
 bool gColor;     // true -> inputs are colorspace
 bool gColorExEnds; // true -> nucleotides on either end of decoded cspace alignment should be excluded
@@ -266,6 +266,9 @@ static void resetOptions() {
 	bwaSwLike               = false;
 	bwaSwLikeC              = 5.5f;
 	bwaSwLikeT              = 20.0f;
+	mapqDiffcoeff           = 1.5f;
+	mapqHorizon             = 1.5f;
+	mapqMax                 = 40.0f;
 	qcFilter                = false; // don't believe upstream qc by default
 	gColor					= false; // don't align in colorspace by default
 	gColorExEnds			= true;  // true -> nucleotides on either end of decoded cspace alignment should be excluded
@@ -407,8 +410,12 @@ enum {
 	ARG_SCORE_MIN_LOG,          // --score-min-log
 	ARG_SCORES,                 // --scoring
 	ARG_N_CEIL,                 // --n-ceil
-	ARG_DPAD                    // --dpad
+	ARG_DPAD,                   // --dpad
+	ARG_MAPQ_DIFFCOEFF,         // --mapq-diff-coeff
+	ARG_MAPQ_HORIZON,           // --mapq-horizon
+	ARG_MAPQ_MAX                // --mapq-max
 };
+
 
 static struct option long_options[] = {
 	{(char*)"verbose",      no_argument,       0,            ARG_VERBOSE},
@@ -516,6 +523,9 @@ static struct option long_options[] = {
 	{(char*)"score-min-log",    required_argument, 0,        ARG_SCORE_MIN_LOG},
 	{(char*)"n-ceil",           required_argument, 0,        ARG_N_CEIL},
 	{(char*)"dpad",             required_argument, 0,        ARG_DPAD},
+	{(char*)"mapq-diff-coeff",  required_argument, 0,        ARG_MAPQ_DIFFCOEFF},
+	{(char*)"mapq-horizon",     required_argument, 0,        ARG_MAPQ_HORIZON},
+	{(char*)"mapq-max",         required_argument, 0,        ARG_MAPQ_MAX},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -1134,6 +1144,15 @@ static void parseOptions(int argc, const char **argv) {
 					polstr += ("," + args[2]);
 				}
 			}
+			case ARG_MAPQ_DIFFCOEFF:
+				mapqDiffcoeff = parse<double>(optarg);
+				break;
+			case ARG_MAPQ_HORIZON:
+				mapqHorizon = parse<double>(optarg);
+				break;
+			case ARG_MAPQ_MAX:
+				mapqMax = parse<double>(optarg);
+				break;
 			case -1: break; /* Done with options. */
 			case 0:
 				if (long_options[option_index].flag != 0)
@@ -1285,14 +1304,6 @@ static void parseOptions(int argc, const char **argv) {
 }
 
 static const char *argv0 = NULL;
-
-#ifdef CHUD_PROFILING
-#define CHUD_START() chudStartRemotePerfMonitor("Bowtie");
-#define CHUD_STOP()  chudStopRemotePerfMonitor();
-#else
-#define CHUD_START()
-#define CHUD_STOP()
-#endif
 
 /// Create a PatternSourcePerThread for the current thread according
 /// to the global params and return a pointer to it
@@ -2738,7 +2749,6 @@ static void multiseedSearch(
 			!noRefNames,  // load names?
 			startVerbose);
 	}
-	CHUD_START();
 	// Start the metrics thread
 	//MetricsThread mett(cerr, metrics, (time_t)metricsIval);
 	//if(metricsIval > 0) mett.run();
@@ -2899,7 +2909,9 @@ static void driver(
 		// then instruct the sink to "retain" hits in a vector in
 		// memory so that we can easily sanity check them later on
 		AlnSink *mssink = NULL;
-		auto_ptr<Mapq> bmapq(new BowtieMapq());
+		// Instantiate a mapping quality calculator
+		auto_ptr<Mapq> bmapq(
+			new BowtieMapq(scoreMin, mapqDiffcoeff, mapqHorizon, mapqMax));
 		EList<size_t> reflens;
 		for(size_t i = 0; i < ebwt.nPat(); i++) {
 			reflens.push_back(ebwt.plen()[i]);
@@ -3128,10 +3140,6 @@ int bowtie(int argc, const char **argv) {
 				 << ", " << sizeof(off_t) << "}" << endl;
 			return 0;
 		}
-	#ifdef CHUD_PROFILING
-		chudInitialize();
-		chudAcquireRemoteAccess();
-	#endif
 		{
 			Timer _t(cerr, "Overall time: ", timing);
 			if(startVerbose) {
@@ -3188,7 +3196,7 @@ int bowtie(int argc, const char **argv) {
 
 			// Optionally summarize
 			if(gVerbose) {
-				cout << "Input ebwt file: \"" << ebwtFile << "\"" << endl;
+				cout << "Input bt2 file: \"" << ebwtFile << "\"" << endl;
 				cout << "Query inputs (DNA, " << file_format_names[format] << "):" << endl;
 				for(size_t i = 0; i < queries.size(); i++) {
 					cout << "  " << queries[i] << endl;
@@ -3211,11 +3219,7 @@ int bowtie(int argc, const char **argv) {
 				getchar();
 			}
 			driver<SString<char> >("DNA", ebwtFile, query, queries, qualities, outfile);
-			CHUD_STOP();
 		}
-#ifdef CHUD_PROFILING
-		chudReleaseRemoteAccess();
-#endif
 		return 0;
 	} catch(exception& e) {
 		cerr << "Command: ";

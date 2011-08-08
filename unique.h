@@ -16,6 +16,7 @@
 #define UNIQUE_H_
 
 #include "aligner_result.h"
+#include "simple_func.h"
 
 typedef int64_t TMapq;
 
@@ -32,7 +33,8 @@ public:
 	static bool bestIsUnique(
 		const AlnSetSumm& s,
 		const AlnFlags& flags,
-		bool mate1)
+		bool mate1,
+		size_t rdlen)
 	{
 		assert(!s.empty());
 		return !VALID_AL_SCORE(s.secbest(mate1));
@@ -43,35 +45,87 @@ public:
  * Collection of routines for calculating mapping quality.
  */
 class Mapq {
+
 public:
+
 	virtual ~Mapq() { }
+	
 	virtual TMapq mapq(
 		const AlnSetSumm& s,
 		const AlnFlags& flags,
-		bool mate1) const = 0;
+		bool mate1,
+		size_t rdlen) const = 0;
 };
 
+/**
+ * TODO: Do BowtieMapq on a per-thread basis prior to the mutex'ed output
+ * function.
+ */
 class BowtieMapq : public Mapq {
+
 public:
+
+	BowtieMapq(
+		const SimpleFunc& scoreMin,
+		float mapqDiffcoeff,
+		float mapqHorizon,
+		float mapqMax) :
+		scoreMin_(scoreMin),
+		mapqDiffcoeff_(mapqDiffcoeff),
+		mapqHorizon_(mapqHorizon),
+		mapqMax_(mapqMax)
+	{ }
+
 	virtual ~BowtieMapq() { }
+
 	/**
 	 * Given an AlnSetSumm, return a mapping quality calculated.
 	 */
 	virtual TMapq mapq(
 		const AlnSetSumm& s,
 		const AlnFlags& flags,
-		bool mate1) const
+		bool mate1,
+		size_t rdlen) const
 	{
+		EList<TAlScore>& scores = const_cast<EList<TAlScore>&>(scores_);
 		if(VALID_AL_SCORE(s.secbest(mate1))) {
-			return 0;
+			TAlScore minsc = scoreMin_.f<TAlScore>((double)rdlen);
+			scores.clear();
+			scores.push_back(s.best(mate1).score());
+			scores.push_back(s.secbest(mate1).score());
+			scores.push_back((TAlScore)(mapqHorizon_ * minsc + 0.5f));
+			return calc();
 		} else {
 			if(!flags.canMax() && !s.exhausted(mate1)) {
 				return 255;
 			} else {
-				return 40;
+				TAlScore minsc = scoreMin_.f<TAlScore>((double)rdlen);
+				scores.clear();
+				scores.push_back(s.best(mate1).score());
+				scores.push_back((TAlScore)(mapqHorizon_ * minsc + 0.5f));
+				return calc();
 			}
 		}
 	}
+
+protected:
+
+	/**
+	 * Given a collection of alignment scores, calculate a mapping quality.
+	 */
+	TMapq calc() const {
+		assert_geq(scores_.size(), 2);
+		TMapq sc1 = std::abs(scores_[0]);
+		TMapq sc2 = std::abs(scores_[1]);
+		float scaledDiff = fabs((float)(sc2 - sc1) * mapqDiffcoeff_);
+		return min<TMapq>((TMapq)scaledDiff, (TMapq)mapqMax_);
+	}
+
+	SimpleFunc scoreMin_;
+	float mapqDiffcoeff_;
+	float mapqHorizon_;
+	float mapqMax_;
+	EList<TAlScore> scores_;
 };
 
 #endif /*ndef UNIQUE_H_*/
