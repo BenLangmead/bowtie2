@@ -1729,7 +1729,7 @@ void AlnSinkVerbose::appendMate(
 		if(NOT_SUPPRESSED) {
 			WRITE_TAB;
 			if(rs != NULL) {
-				itoa10<TMapq>(mapq_.mapq(summ, flags, rd.mate < 2), buf);
+				itoa10<TMapq>(mapq_.mapq(summ, flags, rd.mate < 2, rdlen), buf);
 				o.writeChars(buf);
 			} else o.write('0');
 		}
@@ -1908,7 +1908,8 @@ void AlnSinkSam::appendMate(
 	}
 	// MAPQ
 	if(rs != NULL) {
-		itoa10<TMapq>(mapq_.mapq(summ, flags, rd.mate < 2), buf);
+		TMapq mapq = mapq_.mapq(summ, flags, rd.mate < 2, rd.length());
+		itoa10<TMapq>(mapq, buf);
 		o.writeChars(buf);
 		o.write('\t');
 	} else {

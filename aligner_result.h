@@ -1594,7 +1594,12 @@ public:
 	bool     paired()        const { return paired_;        }
 	bool     exhausted1()    const { return exhausted1_;    }
 	bool     exhausted2()    const { return exhausted2_;    }
-	
+
+	/**
+	 *
+	 */
+	AlnScore best(bool mate1) const { return mate1 ? best1_ : best2_; }
+
 	bool exhausted(bool mate1) const {
 		return mate1 ? exhausted1_ : exhausted2_;
 	}
