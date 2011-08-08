@@ -1726,10 +1726,12 @@ void AlnSinkVerbose::appendMate(
 				o.writeChars(rd.qual.toZBuf());
 			}
 		}
+		mapqInps_[0] = '\0';
 		if(NOT_SUPPRESSED) {
 			WRITE_TAB;
 			if(rs != NULL) {
-				itoa10<TMapq>(mapq_.mapq(summ, flags, rd.mate < 2, rdlen), buf);
+				itoa10<TMapq>(mapq_.mapq(
+					summ, flags, rd.mate < 2, rdlen, mapqInps_), buf);
 				o.writeChars(buf);
 			} else o.write('0');
 		}
@@ -1907,9 +1909,10 @@ void AlnSinkSam::appendMate(
 		o.writeChars("0\t");
 	}
 	// MAPQ
+	mapqInps_[0] = '\0';
 	if(rs != NULL) {
-		TMapq mapq = mapq_.mapq(summ, flags, rd.mate < 2, rd.length());
-		itoa10<TMapq>(mapq, buf);
+		itoa10<TMapq>(mapq_.mapq(
+			summ, flags, rd.mate < 2, rd.length(), mapqInps_), buf);
 		o.writeChars(buf);
 		o.write('\t');
 	} else {
@@ -2033,7 +2036,8 @@ void AlnSinkSam::appendMate(
 			rd,     // read
 			*rs,    // individual alignment result
 			flags,  // alignment flags
-			summ);  // summary of alignments for this read
+			summ,   // summary of alignments for this read
+			mapqInps_);  // inputs to MAPQ calculation
 	} else {
 		samc_.printEmptyOptFlags(
 			o,      // output buffer

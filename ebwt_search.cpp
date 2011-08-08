@@ -112,6 +112,7 @@ static bool sam_print_xg;
 static bool sam_print_nm;
 static bool sam_print_md;
 static bool sam_print_yf;
+static bool sam_print_yi;
 static bool sam_print_ym;
 static bool sam_print_yp;
 static bool sam_print_yt;
@@ -259,6 +260,7 @@ static void resetOptions() {
 	sam_print_nm            = true;
 	sam_print_md            = true;
 	sam_print_yf            = true;
+	sam_print_yi            = false;
 	sam_print_ym            = true;
 	sam_print_yp            = true;
 	sam_print_yt            = true;
@@ -413,7 +415,8 @@ enum {
 	ARG_DPAD,                   // --dpad
 	ARG_MAPQ_DIFFCOEFF,         // --mapq-diff-coeff
 	ARG_MAPQ_HORIZON,           // --mapq-horizon
-	ARG_MAPQ_MAX                // --mapq-max
+	ARG_MAPQ_MAX,               // --mapq-max
+	ARG_SAM_PRINT_YI
 };
 
 
@@ -526,6 +529,7 @@ static struct option long_options[] = {
 	{(char*)"mapq-diff-coeff",  required_argument, 0,        ARG_MAPQ_DIFFCOEFF},
 	{(char*)"mapq-horizon",     required_argument, 0,        ARG_MAPQ_HORIZON},
 	{(char*)"mapq-max",         required_argument, 0,        ARG_MAPQ_MAX},
+	{(char*)"mapq-print-inputs",no_argument,       0,        ARG_SAM_PRINT_YI},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -918,6 +922,7 @@ static void parseOptions(int argc, const char **argv) {
 			case ARG_SAM_OMIT_SEC_SEQ: samOmitSecSeqQual = true; break;
 			case ARG_SAM_NOHEAD: samNoHead = true; break;
 			case ARG_SAM_NOSQ: samNoSQ = true; break;
+			case ARG_SAM_PRINT_YI: sam_print_yi = true; break;
 			case ARG_SAM_RG: {
 				string arg = optarg;
 				if(arg.substr(0, 3) == "ID:") {
@@ -2942,6 +2947,7 @@ static void driver(
 			sam_print_nm,
 			sam_print_md,
 			sam_print_yf,
+			sam_print_yi,
 			sam_print_ym,
 			sam_print_yp,
 			sam_print_yt,

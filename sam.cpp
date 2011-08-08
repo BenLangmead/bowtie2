@@ -107,7 +107,8 @@ void SamConfig::printAlignedOptFlags(
 	const Read& rd,         // the read
 	const AlnRes& res,      // individual alignment result
 	const AlnFlags& flags,  // alignment flags
-	const AlnSetSumm& summ) // summary of alignments for this read
+	const AlnSetSumm& summ, // summary of alignments for this read
+	const char *mapqInp)    // inputs to MAPQ calculation
 	const
 {
 	char buf[1024];
@@ -255,6 +256,14 @@ void SamConfig::printAlignedOptFlags(
 	if(print_yf_ && flags.filtered()) {
 		// YM:i: Read was repetitive when aligned unpaired?
 		first = flags.printYF(o, first) && first;
+	}
+	if(print_yi_) {
+		if(mapqInp[0] != '\0') {
+			// YI:i: Suboptimal alignment score
+			WRITE_SEP();
+			o.writeChars("YI:Z:");
+			o.writeChars(mapqInp);
+		}
 	}
 	if(!rgs_.empty()) {
 		WRITE_SEP();

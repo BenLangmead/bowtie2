@@ -15,8 +15,10 @@
 #ifndef UNIQUE_H_
 #define UNIQUE_H_
 
+#include <string>
 #include "aligner_result.h"
 #include "simple_func.h"
+#include "util.h"
 
 typedef int64_t TMapq;
 
@@ -34,7 +36,8 @@ public:
 		const AlnSetSumm& s,
 		const AlnFlags& flags,
 		bool mate1,
-		size_t rdlen)
+		size_t rdlen,
+		char *inps)
 	{
 		assert(!s.empty());
 		return !VALID_AL_SCORE(s.secbest(mate1));
@@ -54,7 +57,8 @@ public:
 		const AlnSetSumm& s,
 		const AlnFlags& flags,
 		bool mate1,
-		size_t rdlen) const = 0;
+		size_t rdlen,
+		char *inps) const = 0;
 };
 
 /**
@@ -85,7 +89,9 @@ public:
 		const AlnSetSumm& s,
 		const AlnFlags& flags,
 		bool mate1,
-		size_t rdlen) const
+		size_t rdlen,
+		char *inps)     // put string representation of inputs here
+		const
 	{
 		EList<TAlScore>& scores = const_cast<EList<TAlScore>&>(scores_);
 		if(VALID_AL_SCORE(s.secbest(mate1))) {
@@ -94,7 +100,7 @@ public:
 			scores.push_back(s.best(mate1).score());
 			scores.push_back(s.secbest(mate1).score());
 			scores.push_back((TAlScore)(mapqHorizon_ * minsc + 0.5f));
-			return calc();
+			return calc(inps);
 		} else {
 			if(!flags.canMax() && !s.exhausted(mate1)) {
 				return 255;
@@ -103,7 +109,7 @@ public:
 				scores.clear();
 				scores.push_back(s.best(mate1).score());
 				scores.push_back((TAlScore)(mapqHorizon_ * minsc + 0.5f));
-				return calc();
+				return calc(inps);
 			}
 		}
 	}
@@ -113,8 +119,13 @@ protected:
 	/**
 	 * Given a collection of alignment scores, calculate a mapping quality.
 	 */
-	TMapq calc() const {
+	TMapq calc(char* inps) const {
 		assert_geq(scores_.size(), 2);
+		if(inps != NULL) {
+			inps = itoa10<TAlScore>(scores_[0], inps);
+			*inps++ = ',';
+			itoa10<TAlScore>(scores_[1], inps);
+		}
 		TMapq sc1 = std::abs(scores_[0]);
 		TMapq sc2 = std::abs(scores_[1]);
 		float scaledDiff = fabs((float)(sc2 - sc1) * mapqDiffcoeff_);
