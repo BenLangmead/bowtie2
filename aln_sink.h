@@ -1357,16 +1357,18 @@ protected:
 		const AlnFlags& flags);
 
 	const EList<bool>& suppress_; // bit mask of columns to suppress
-	int           offBase_;    // add this to 0-based reference offsets before printing
-	bool          colorSeq_;   // colorspace: print color seq instead of decoded nucs
-	bool          colorQual_;  // colorspace: print color quals instead of decoded quals
+	int           offBase_;    // add to 0-based reference offsets
+	bool          colorSeq_;   // cspace: print color seq, not decoded nucs
+	bool          colorQual_;  // cspace: print color quals,  not decoded quals
 	bool          exEnds_;     // exclude ends for decoded colorspace alignments
 	bool    printPlaceholders_;// print maxs and unals
 	bool          printFlags_; // print alignment flags
 	bool          printCost_;  // print penalty in extra column
 	bool          printParams_;// print alignment parameters
-	bool          fullRef_;    // print entire reference name including whitespace
+	bool          fullRef_;    // print entire ref name including whitespace
 	int           partition_;  // partition size
+
+	char          mapqInps_[1024]; // summary of what went into MAPQ calculation
 	
 	BTDnaString   dseq_;       // buffer for decoded read sequence
 	BTString      dqual_;      // buffer for decoded quality sequence
@@ -1457,6 +1459,9 @@ protected:
 	
 	EList<char>      tmpop_;   // temporary holder for CIGAR ops
 	EList<size_t>    tmprun_;  // temporary holder for CIGAR runs
+	
+	char          mapqInps_[1024]; // summary of what went into MAPQ calculation
+
 };
 
 #endif /*ndef ALN_SINK_H_*/

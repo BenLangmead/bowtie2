@@ -67,6 +67,7 @@ public:
 		bool print_nm,
 		bool print_md,
 		bool print_yf,
+		bool print_yi,
 		bool print_ym,
 		bool print_yp,
 		bool print_yt,
@@ -93,6 +94,7 @@ public:
 		print_nm_(print_nm),
 		print_md_(print_md),
 		print_yf_(print_yf),
+		print_yi_(print_yi),
 		print_ym_(print_ym),
 		print_yp_(print_yp),
 		print_yt_(print_yt),
@@ -183,7 +185,8 @@ public:
 		const Read& rd,         // the read
 		const AlnRes& res,      // individual alignment result
 		const AlnFlags& flags,  // alignment flags
-		const AlnSetSumm& summ) // summary of alignments for this read
+		const AlnSetSumm& summ, // summary of alignments for this read
+		const char *mapqInp)    // inputs to MAPQ calculation
 		const;
 
 	/**
@@ -242,6 +245,7 @@ protected:
 
 	// Following are Bowtie2-specific
 	bool print_yf_; // YF:i: Read was filtered out?
+	bool print_yi_; // YI:Z: Summary of inputs to MAPQ calculation
 	bool print_ym_; // YM:i: Read was repetitive when aligned unpaired?
 	bool print_yp_; // YP:i: Read was repetitive when aligned paired?
 	bool print_yt_; // YT:Z: String representing alignment type
