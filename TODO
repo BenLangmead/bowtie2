@@ -1,12 +1,17 @@
 Bowtie 2 TODO list:
+- Restore --overhang flag
 - Soft/hard trimming taken into account when setting up paired-end problems?
-- Mapping quality calculation?
-- Some flags should only appear if they're relevant to mode (e.g. YP:i:)
-- XS:i: can't default to 0 because it's ambiguous w/ aln of score 0
-- Optional flags for printing original colorspace read/quals
 - Bunch up sensitivity arguments into neat packages
+- More sophisticated MAPQ calculation
+  + Taking paired-end alignment into account
+  + More local-alignment savvy
+  + Simulate across various read lengths
+
+Manuscript TODO:
+- Get SOAP2 benchmarks working
 
 Performance ideas:
+- Do some of the gather & backtrace steps in SSE code
 - Add resolved offsets to cache
 - Add faster DP filter to run first
 - Binary search to find reference records instead of linear scan

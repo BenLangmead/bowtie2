@@ -1625,15 +1625,15 @@ public:
 	AlnScore secbest(bool mate1) const {
 		if(paired_) {
 			if(mate1) {
-				if(!secbest1_.valid()) {
+				//if(!secbest1_.valid()) {
 					return secbest1_;
-				}
+				//}
 			} else {
-				if(!secbest2_.valid()) {
+				//if(!secbest2_.valid()) {
 					return secbest2_;
-				}
+				//}
 			}
-			return secbestPaired_;
+			//return secbestPaired_;
 		} else {
 			return mate1 ? secbest1_ : secbest2_;
 		}

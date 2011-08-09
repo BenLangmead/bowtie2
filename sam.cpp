@@ -143,10 +143,12 @@ void SamConfig::printAlignedOptFlags(
 	if(print_xs_) {
 		// XS:i: Suboptimal alignment score
 		AlnScore sc = summ.secbestMate(rd.mate < 2);
-		itoa10<TAlScore>(sc.valid() ? sc.score() : 0, buf);
-		WRITE_SEP();
-		o.writeChars("XS:i:");
-		o.writeChars(buf);
+		if(sc.valid()) {
+			itoa10<TAlScore>(sc.score(), buf);
+			WRITE_SEP();
+			o.writeChars("XS:i:");
+			o.writeChars(buf);
+		}
 	}
 	if(print_xn_) {
 		// XN:i: Number of ambiguous bases in the referenece

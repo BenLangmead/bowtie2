@@ -19,6 +19,7 @@
 #include "aligner_result.h"
 #include "simple_func.h"
 #include "util.h"
+#include "scoring.h"
 
 typedef int64_t TMapq;
 
@@ -64,6 +65,21 @@ public:
 /**
  * TODO: Do BowtieMapq on a per-thread basis prior to the mutex'ed output
  * function.
+ *
+ * topCoeff :: top_coeff
+ * botCoeff :: bot_coeff
+ * mx :: mapqMax
+ * horiz :: mapqHorizon (sort of)
+ *
+ * sc1 <- tab$sc1
+ * sc2 <- tab$sc2
+ * mapq <- rep(mx, length(sc1))
+ * diff_top <- ifelse(sc1 != best & sc2 != best, abs(best - abs(pmax(sc1, sc2))), 0)
+ * mapq <- mapq - diff_top * top_coeff
+ * diff_bot <- ifelse(sc2 != horiz, abs(abs(sc2) - abs(horiz)), 0)
+ * mapq <- mapq - diff_bot * bot_coeff
+ * mapq <- round(pmax(0, pmin(mx, mapq)))
+ * tab$mapq <- mapq
  */
 class BowtieMapq : public Mapq {
 
@@ -71,14 +87,19 @@ public:
 
 	BowtieMapq(
 		const SimpleFunc& scoreMin,
-		float mapqDiffcoeff,
-		float mapqHorizon,
-		float mapqMax) :
+		float topCoeff,
+		float botCoeff,
+		float mapqMax,
+		const Scoring& sc) :
 		scoreMin_(scoreMin),
-		mapqDiffcoeff_(mapqDiffcoeff),
-		mapqHorizon_(mapqHorizon),
-		mapqMax_(mapqMax)
-	{ }
+		topCoeff_(topCoeff),
+		botCoeff_(botCoeff),
+		mapqMax_(mapqMax),
+		sc_(sc)
+	{
+		assert_gt(topCoeff_, 0);
+		assert_gt(botCoeff_, 0);
+	}
 
 	virtual ~BowtieMapq() { }
 
@@ -93,50 +114,37 @@ public:
 		char *inps)     // put string representation of inputs here
 		const
 	{
-		EList<TAlScore>& scores = const_cast<EList<TAlScore>&>(scores_);
-		if(VALID_AL_SCORE(s.secbest(mate1))) {
-			TAlScore minsc = scoreMin_.f<TAlScore>((double)rdlen);
-			scores.clear();
-			scores.push_back(s.best(mate1).score());
-			scores.push_back(s.secbest(mate1).score());
-			scores.push_back((TAlScore)(mapqHorizon_ * minsc + 0.5f));
-			return calc(inps);
-		} else {
-			if(!flags.canMax() && !s.exhausted(mate1)) {
-				return 255;
-			} else {
-				TAlScore minsc = scoreMin_.f<TAlScore>((double)rdlen);
-				scores.clear();
-				scores.push_back(s.best(mate1).score());
-				scores.push_back((TAlScore)(mapqHorizon_ * minsc + 0.5f));
-				return calc(inps);
+		bool hasSecbest = VALID_AL_SCORE(s.secbest(mate1));
+		if(!flags.canMax() && !s.exhausted(mate1) && !hasSecbest) {
+			return 255;
+		}
+		TAlScore scPer = (TAlScore)sc_.perfectScore(rdlen);
+		TAlScore scMin = scoreMin_.f<TAlScore>((float)rdlen);
+		float mapq = mapqMax_;
+		TAlScore best = s.best(mate1).score();
+		assert_leq(best, scPer);
+		if(best < scPer) {
+			mapq -= (float)(scPer - best) * topCoeff_;
+		}
+		if(hasSecbest) {
+			TAlScore secbest = s.secbest(mate1).score();
+			assert_geq(secbest, scMin);
+			mapq -= (float)(secbest - scMin) * botCoeff_;
+			TAlScore diff = abs(abs(best) - abs(secbest));
+			if(diff < mapqMax_) {
+				mapq -= (mapqMax_ - diff);
 			}
 		}
+		return (TMapq)(std::max(0.0f, std::min(mapqMax_, mapq + 0.5f)));
 	}
 
 protected:
 
-	/**
-	 * Given a collection of alignment scores, calculate a mapping quality.
-	 */
-	TMapq calc(char* inps) const {
-		assert_geq(scores_.size(), 2);
-		if(inps != NULL) {
-			inps = itoa10<TAlScore>(scores_[0], inps);
-			*inps++ = ',';
-			itoa10<TAlScore>(scores_[1], inps);
-		}
-		TMapq sc1 = std::abs(scores_[0]);
-		TMapq sc2 = std::abs(scores_[1]);
-		float scaledDiff = fabs((float)(sc2 - sc1) * mapqDiffcoeff_);
-		return min<TMapq>((TMapq)scaledDiff, (TMapq)mapqMax_);
-	}
-
-	SimpleFunc scoreMin_;
-	float mapqDiffcoeff_;
-	float mapqHorizon_;
-	float mapqMax_;
-	EList<TAlScore> scores_;
+	SimpleFunc      scoreMin_;
+	float           topCoeff_;
+	float           botCoeff_;
+	float           mapqMax_;
+	const Scoring&  sc_;
 };
 
 #endif /*ndef UNIQUE_H_*/

@@ -120,9 +120,9 @@ static bool sam_print_ys;
 static bool bwaSwLike;
 static float bwaSwLikeC;
 static float bwaSwLikeT;
-static float mapqDiffcoeff; // differences are multiplied by this
-static float mapqHorizon;   // if no 2nd alignment, assume one has score
-static float mapqMax;       // maximum Mapq 
+static float mapqTopCoeff;
+static float mapqBotCoeff;
+static float mapqMax;             // maximum Mapq 
 static bool qcFilter;
 bool gColor;     // true -> inputs are colorspace
 bool gColorExEnds; // true -> nucleotides on either end of decoded cspace alignment should be excluded
@@ -268,9 +268,9 @@ static void resetOptions() {
 	bwaSwLike               = false;
 	bwaSwLikeC              = 5.5f;
 	bwaSwLikeT              = 20.0f;
-	mapqDiffcoeff           = 1.5f;
-	mapqHorizon             = 1.5f;
-	mapqMax                 = 40.0f;
+	mapqTopCoeff            = 0.6f;
+	mapqBotCoeff            = 0.9f;
+	mapqMax                 = 40.0f; // maximum Mapq 
 	qcFilter                = false; // don't believe upstream qc by default
 	gColor					= false; // don't align in colorspace by default
 	gColorExEnds			= true;  // true -> nucleotides on either end of decoded cspace alignment should be excluded
@@ -413,8 +413,8 @@ enum {
 	ARG_SCORES,                 // --scoring
 	ARG_N_CEIL,                 // --n-ceil
 	ARG_DPAD,                   // --dpad
-	ARG_MAPQ_DIFFCOEFF,         // --mapq-diff-coeff
-	ARG_MAPQ_HORIZON,           // --mapq-horizon
+	ARG_MAPQ_TOP_COEFF,         // --mapq-top-coeff
+	ARG_MAPQ_BOT_COEFF,         // --mapq-bot-coeff
 	ARG_MAPQ_MAX,               // --mapq-max
 	ARG_SAM_PRINT_YI
 };
@@ -526,8 +526,8 @@ static struct option long_options[] = {
 	{(char*)"score-min-log",    required_argument, 0,        ARG_SCORE_MIN_LOG},
 	{(char*)"n-ceil",           required_argument, 0,        ARG_N_CEIL},
 	{(char*)"dpad",             required_argument, 0,        ARG_DPAD},
-	{(char*)"mapq-diff-coeff",  required_argument, 0,        ARG_MAPQ_DIFFCOEFF},
-	{(char*)"mapq-horizon",     required_argument, 0,        ARG_MAPQ_HORIZON},
+	{(char*)"mapq-top-coeff",   required_argument, 0,        ARG_MAPQ_TOP_COEFF},
+	{(char*)"mapq-bot-coeff",   required_argument, 0,        ARG_MAPQ_BOT_COEFF},
 	{(char*)"mapq-max",         required_argument, 0,        ARG_MAPQ_MAX},
 	{(char*)"mapq-print-inputs",no_argument,       0,        ARG_SAM_PRINT_YI},
 	{(char*)0, 0, 0, 0} // terminator
@@ -1150,11 +1150,11 @@ static void parseOptions(int argc, const char **argv) {
 				}
 				break;
 			}
-			case ARG_MAPQ_DIFFCOEFF:
-				mapqDiffcoeff = parse<double>(optarg);
+			case ARG_MAPQ_TOP_COEFF:
+				mapqTopCoeff = parse<double>(optarg);
 				break;
-			case ARG_MAPQ_HORIZON:
-				mapqHorizon = parse<double>(optarg);
+			case ARG_MAPQ_BOT_COEFF:
+				mapqBotCoeff = parse<double>(optarg);
 				break;
 			case ARG_MAPQ_MAX:
 				mapqMax = parse<double>(optarg);
@@ -2911,13 +2911,32 @@ static void driver(
 	}
 	{
 		Timer _t(cerr, "Time searching: ", timing);
-		// Set up hit sink; if sanityCheck && !os.empty() is true,
-		// then instruct the sink to "retain" hits in a vector in
-		// memory so that we can easily sanity check them later on
-		AlnSink *mssink = NULL;
+		// Set up penalities
+		Scoring sc(
+			bonusMatch,     // constant reward for match
+			penMmcType,     // how to penalize mismatches
+			penMmc,         // constant if mm pelanty is a constant
+			penSnp,         // pena for nuc mm in decoded colorspace alns
+			scoreMin,       // min score as function of read len
+			scoreFloor,     // floor score as function of read len
+			nCeil,          // max # Ns as function of read len
+			penNType,       // how to penalize Ns in the read
+			penN,           // constant if N pelanty is a constant
+			penNCatPair,    // whether to concat mates before N filtering
+			penRdGapConst,  // constant coeff for read gap cost
+			penRfGapConst,  // constant coeff for ref gap cost
+			penRdGapLinear, // linear coeff for read gap cost
+			penRfGapLinear, // linear coeff for ref gap cost
+			gGapBarrier,    // # rows at top/bot only entered diagonally
+			gRowLow,        // min row idx to backtrace from; -1 = no limit
+			gRowFirst);     // sort results first by row then by score?
 		// Instantiate a mapping quality calculator
-		auto_ptr<Mapq> bmapq(
-			new BowtieMapq(scoreMin, mapqDiffcoeff, mapqHorizon, mapqMax));
+		auto_ptr<Mapq> bmapq(new BowtieMapq(
+			scoreMin,
+			mapqTopCoeff,
+			mapqBotCoeff,
+			mapqMax,
+			sc));
 		EList<size_t> reflens;
 		for(size_t i = 0; i < ebwt.nPat(); i++) {
 			reflens.push_back(ebwt.plen()[i]);
@@ -2952,6 +2971,10 @@ static void driver(
 			sam_print_yp,
 			sam_print_yt,
 			sam_print_ys);
+		// Set up hit sink; if sanityCheck && !os.empty() is true,
+		// then instruct the sink to "retain" hits in a vector in
+		// memory so that we can easily sanity check them later on
+		AlnSink *mssink = NULL;
 		switch(outType) {
 			case OUTPUT_FULL: {
 				mssink = new AlnSinkVerbose(
@@ -2995,26 +3018,6 @@ static void driver(
 		if(gVerbose || startVerbose) {
 			cerr << "Dispatching to search driver: "; logTime(cerr, true);
 		}
-		// Bowtie 2
-		// Set up penalities
-		Scoring sc(
-			bonusMatch,     // constant reward for match
-			penMmcType,     // how to penalize mismatches
-			penMmc,         // constant if mm pelanty is a constant
-			penSnp,         // pena for nuc mm in decoded colorspace alns
-			scoreMin,       // min score as function of read len
-			scoreFloor,     // floor score as function of read len
-			nCeil,          // max # Ns as function of read len
-			penNType,       // how to penalize Ns in the read
-			penN,           // constant if N pelanty is a constant
-			penNCatPair,    // whether to concat mates before N filtering
-			penRdGapConst,  // constant coeff for read gap cost
-			penRfGapConst,  // constant coeff for ref gap cost
-			penRdGapLinear, // linear coeff for read gap cost
-			penRfGapLinear, // linear coeff for ref gap cost
-			gGapBarrier,    // # rows at top/bot only entered diagonally
-			gRowLow,        // min row idx to backtrace from; -1 = no limit
-			gRowFirst);     // sort results first by row then by score?
 		// Set up global constraint
 		Constraint gc = Constraint::penaltyFuncBased(scoreMin);
 		// Set up seeds
