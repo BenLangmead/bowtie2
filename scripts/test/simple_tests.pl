@@ -50,7 +50,7 @@ my @cases = (
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCGT" ],
 	  report => "-M 1",
-	  mapq   => [ 0 ],
+	  mapq_hi=> [ 0 ],
 	  hits   => [ { 0 => 1, 8 => 1 } ],
 	  hits_are_superset => [ 1 ],
 	  cigar  => [ "8M" ],
@@ -61,7 +61,7 @@ my @cases = (
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCGT" ],
 	  report => "",
-	  mapq   => [ 0 ],
+	  mapq_hi   => [ 0 ],
 	  hits   => [ { 0 => 1, 8 => 1 } ],
 	  hits_are_superset => [ 1 ],
 	  cigar  => [ "8M" ],
@@ -79,7 +79,7 @@ my @cases = (
 	  reads  => [ "TTGTTCGT" ],
 	  args   => "--multiseed=0,7,C,1 --score-min=C,-6",
 	  report => "",
-	  mapq   => [ 0 ],
+	  mapq_hi   => [ 0 ],
 	  hits   => [ { 0 => 1, 8 => 1 } ],
 	  hits_are_superset => [ 1 ],
 	  cigar  => [ "8M" ],
@@ -105,7 +105,7 @@ my @cases = (
 	#  reads  => [ "TTGTTCGT" ],
 	#  args   => "--multiseed=0,7,C,1 --score-min=C,-6",
 	#  report => "-M 1",
-	#  mapq   => [ 0 ],
+	#  mapq_hi   => [ 0 ],
 	#  hits   => [ { 0 => 1, 8 => 1 } ],
 	#  hits_are_superset => [ 1 ],
 	#  cigar  => [ "8M" ],
@@ -1217,7 +1217,7 @@ my @cases = (
 	  reads  => [ "ATGC" ],
 	  args   => "--overhang -P \"SEED=0,3;IVAL=C,1,0;NCEIL=L,1,0\"",
 	  hits   => [ { 0 => 1 } ],
-	  mapq   => [ 40 ],
+	  mapq_hi   => [ 1 ],
 	  cigar  => [ "1S3M" ],
 	  samoptflags => [
 		{ "AS:i:-1" => 1, "YT:Z:UU" => 1, "MD:Z:3" => 1, "XN:i:1" => 1 } ]
@@ -1227,7 +1227,7 @@ my @cases = (
 	  reads  => [ "TTGTTCG" ],
 	  args   => "-P \"SEED=0,2;IVAL=C,1,0;NCEIL=L,2,0\"",
 	  hits   => [ { 0 => 1 } ],
-	  mapq   => [ 40 ],
+	  mapq_hi   => [ 1 ],
 	  cigar  => [ "7M" ],
 	  samoptflags => [ { "AS:i:0" => 1, "YT:Z:UU" => 1, "MD:Z:7" => 1 } ]
 	},
@@ -1236,7 +1236,7 @@ my @cases = (
 	  reads  => [ "TTGTTCG" ],
 	  args   => "",
 	  hits   => [ { 0 => 1 } ],
-	  mapq   => [ 40 ],
+	  mapq_hi   => [ 1 ],
 	  flags => [ "XM:0,XP:0,XT:UU,XC:7=" ],
 	  cigar  => [ "7M" ],
 	  samoptflags => [ { "AS:i:0" => 1, "YT:Z:UU" => 1, "MD:Z:7" => 1 } ]
@@ -1327,8 +1327,8 @@ my @cases = (
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  args     => "-X 1000",
 	  report   => "-M 5",
-	  mapq_map   => [{ 12 => 40, 78 => 0, 249 => 0, 315 => 0, 486 => 0,
-	                   552 => 0, 723 => 0, 789 => 0, 960 => 0 }],
+	  #mapq_map   => [{ 12 => 40, 78 => 0, 249 => 0, 315 => 0, 486 => 0,
+	  #                 552 => 0, 723 => 0, 789 => 0, 960 => 0 }],
 	  pairhits   => [{ "12,78"  => 1, "12,249" => 1, "12,315" => 1,
 	                   "12,486" => 1, "12,552" => 1, "12,723" => 1,
 					   "12,789" => 1, "12,960" => 1 }],
@@ -1383,8 +1383,8 @@ my @cases = (
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  args   =>  "-X 1000 --local",
 	  report =>  "-M 5",
-	  mapq_map   => [{ 12 => 40, 78 => 0, 249 => 0, 315 => 0, 486 => 0,
-	                   552 => 0, 723 => 0, 789 => 0, 960 => 0 }],
+	  #mapq_map   => [{ 12 => 40, 78 => 0, 249 => 0, 315 => 0, 486 => 0,
+	  #                 552 => 0, 723 => 0, 789 => 0, 960 => 0 }],
 	  pairhits   => [{ "12,78"  => 1, "12,249" => 1, "12,315" => 1,
 	                   "12,486" => 1, "12,552" => 1, "12,723" => 1,
 					   "12,789" => 1, "12,960" => 1 }],
@@ -1439,7 +1439,7 @@ my @cases = (
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  args   =>   "-X 1000",
 	  report =>   "--old-m 5",
-	  mapq_map   => [{ 12 => 40, "*" => 0 }],
+	  #mapq_map   => [{ 12 => 40, "*" => 0 }],
 	  pairhits   => [{ "*,12" => 1 }],
 	  cigar_map  => [{ 12 => "33M", "*" => "*" }],
 	  samoptflags_map => [ {
@@ -1485,8 +1485,8 @@ my @cases = (
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  args   =>   "-X 1000",
 	  report =>   "-k 5",
-	  mapq_map   => [{ 12 => 255, 78 => 0, 249 => 0, 315 => 0, 486 => 0,
-	                   552 => 0, 723 => 0, 789 => 0, 960 => 0 }],
+	  #mapq_map   => [{ 12 => 255, 78 => 0, 249 => 0, 315 => 0, 486 => 0,
+	  #                 552 => 0, 723 => 0, 789 => 0, 960 => 0 }],
 	  pairhits   => [{ "12,78"  => 1, "12,249" => 1, "12,315" => 1,
 	                   "12,486" => 1, "12,552" => 1, "12,723" => 1,
 					   "12,789" => 1, "12,960" => 1 }],
@@ -1541,8 +1541,8 @@ my @cases = (
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  args   =>   "-X 1000 --local",
 	  report =>   "-k 5",
-	  mapq_map   => [{ 12 => 255, 78 => 0, 249 => 0, 315 => 0, 486 => 0,
-	                   552 => 0, 723 => 0, 789 => 0, 960 => 0 }],
+	  #mapq_map   => [{ 12 => 255, 78 => 0, 249 => 0, 315 => 0, 486 => 0,
+	  #                 552 => 0, 723 => 0, 789 => 0, 960 => 0 }],
 	  pairhits   => [{ "12,78"  => 1, "12,249" => 1, "12,315" => 1,
 	                   "12,486" => 1, "12,552" => 1, "12,723" => 1,
 					   "12,789" => 1, "12,960" => 1 }],
@@ -1598,7 +1598,7 @@ my @cases = (
 	  args    => "-X 150",
 	  report  => "-M 2",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
-	  mapq => [ 0 ],
+	  mapq_hi => [ 0 ],
 	  cigar_map => [{
 		12 => "33M", 249 => "33M",
 		78 => "28M", 315 => "28M"
@@ -1630,7 +1630,7 @@ my @cases = (
 	  args    => "--local -X 150",
 	  report  => "-M 2",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
-	  mapq => [ 0 ],
+	  mapq_hi => [ 0 ],
 	  cigar_map => [{
 		12 => "33M", 249 => "33M",
 		78 => "28M", 315 => "28M"
@@ -1663,7 +1663,7 @@ my @cases = (
 	  report  => "-k 1",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
 	  hits_are_superset => [ 1 ],
-	  mapq => [ 255 ],
+	  mapq_hi => [ 1 ],
 	  cigar_map => [{
 		12 => "33M", 249 => "33M",
 		78 => "28M", 315 => "28M"
@@ -1695,7 +1695,7 @@ my @cases = (
 	  report  => "-k 1",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
 	  hits_are_superset => [ 1 ],
-	  mapq => [ 255 ],
+	  mapq_hi => [ 1 ],
 	  cigar_map => [{
 		12 => "33M", 249 => "33M",
 		78 => "28M", 315 => "28M"
@@ -1726,7 +1726,7 @@ my @cases = (
 	  report   =>   "--old-m 1",
 	  pairhits => [ { "*,*" => 1 } ],
 	  hits_are_superset => [ 1 ],
-	  mapq  => [ 0 ],
+	  mapq_hi  => [ 0 ],
 	  cigar => [ "*" ],
 	  samoptflags => [{ "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:UP" => 1 }],
 	},
@@ -1745,7 +1745,7 @@ my @cases = (
 	  report   =>   "--old-m 1 --local",
 	  pairhits => [ { "*,*" => 1 } ],
 	  hits_are_superset => [ 1 ],
-	  mapq  => [ 0 ],
+	  mapq_hi  => [ 0 ],
 	  cigar => [ "*" ],
 	  samoptflags => [{ "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:UP" => 1 }],
 	},
@@ -1764,7 +1764,7 @@ my @cases = (
 	  report  =>   "-M 1",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
 	  hits_are_superset => [ 1 ],
-	  mapq => [ 0 ],
+	  mapq_hi => [ 0 ],
 	  cigar_map => [{
 		12 => "33M", 249 => "33M",
 		78 => "28M", 315 => "28M"
@@ -1795,7 +1795,7 @@ my @cases = (
 	  report  =>   "-M 1 --local",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
 	  hits_are_superset => [ 1 ],
-	  mapq => [ 0 ],
+	  mapq_hi => [ 0 ],
 	  cigar_map => [{
 		12 => "33M", 249 => "33M",
 		78 => "28M", 315 => "28M"
@@ -1824,7 +1824,7 @@ my @cases = (
 	  mate1fw => 1,  mate2fw => 0,
 	  report  =>   "-k 1",
 	  pairhits  => [ { "12,78" => 1 } ],
-	  mapq => [ 255 ],
+	  mapq_hi => [ 1 ],
 	  cigar_map => [{
 		12 => "33M",
 		78 => "28M"
@@ -1850,7 +1850,7 @@ my @cases = (
 	  args    => "--local",
 	  report  => "-k 1",
 	  pairhits  => [ { "12,78" => 1 } ],
-	  mapq => [ 255 ],
+	  mapq_hi => [ 1 ],
 	  cigar_map => [{
 		12 => "33M",
 		78 => "28M"
@@ -1875,7 +1875,7 @@ my @cases = (
 	  mate1fw => 1,  mate2fw => 0,
 	  report  =>   "--old-m 1",
 	  pairhits  => [ { "12,78" => 1 } ],
-	  mapq => [ 40 ],
+	  mapq_hi => [ 1 ],
 	  cigar_map => [{
 		12 => "33M",
 		78 => "28M"
@@ -1900,7 +1900,7 @@ my @cases = (
 	  mate1fw => 1,  mate2fw => 0,
 	  report  =>   "--old-m 1 --local",
 	  pairhits  => [ { "12,78" => 1 } ],
-	  mapq => [ 40 ],
+	  mapq_hi => [ 1 ],
 	  cigar_map => [{
 		12 => "33M",
 		78 => "28M"
@@ -1925,7 +1925,7 @@ my @cases = (
 	  mate1fw => 1,  mate2fw => 0,
 	  report  =>   "-M 1",
 	  pairhits  => [ { "12,78" => 1 } ],
-	  mapq => [ 40 ],
+	  mapq_hi => [ 1 ],
 	  cigar_map => [{
 		12 => "33M",
 		78 => "28M"
@@ -1950,7 +1950,7 @@ my @cases = (
 	  mate1fw  => 1,  mate2fw => 0,
 	  report   =>   "-M 1 --local",
 	  pairhits => [ { "12,78" => 1 } ],
-	  mapq => [ 40 ],
+	  mapq_hi => [ 1 ],
 	  cigar_map => [{
 		12 => "33M",
 		78 => "28M"
@@ -1979,7 +1979,7 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  report =>   "-M 5 -X 150",
-	  mapq   => [ 0 ],
+	  mapq_hi   => [ 0 ],
 	  pairhits  => [ { "12,78"     => 1, "249,315"   => 1, "486,552"   => 1,
 	                   "723,789"   => 1, "960,1026"  => 1, "1197,1263" => 1,
 					   "1434,1500" => 1, "1671,1737" => 1 } ],
@@ -2058,7 +2058,7 @@ my @cases = (
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  args   =>   "--local -X 150",
 	  report =>   "-M 5",
-	  mapq   => [ 0 ],
+	  mapq_hi   => [ 0 ],
 	  pairhits  => [ { "12,78"     => 1, "249,315"   => 1, "486,552"   => 1,
 	                   "723,789"   => 1, "960,1026"  => 1, "1197,1263" => 1,
 					   "1434,1500" => 1, "1671,1737" => 1 } ],
@@ -2138,7 +2138,7 @@ my @cases = (
 	  args    => "-X 150",
 	  report  => "--old-m 2",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
-	  mapq => [ 0 ],
+	  mapq_hi => [ 0 ],
 	  cigar_map => [{
 		12 => "33M", 249 => "33M",
 		78 => "28M", 315 => "28M"
@@ -2170,7 +2170,7 @@ my @cases = (
 	  args    => "--local -X 150",
 	  report  => "--old-m 2",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
-	  mapq => [ 0 ],
+	  mapq_hi => [ 0 ],
 	  cigar_map => [{
 		12 => "33M", 249 => "33M",
 		78 => "28M", 315 => "28M"
@@ -2202,7 +2202,7 @@ my @cases = (
 	  args    => "-X 150",
 	  report  => "-M 2",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
-	  mapq => [ 0 ],
+	  mapq_hi => [ 0 ],
 	  cigar_map => [{
 		12 => "33M", 249 => "33M",
 		78 => "28M", 315 => "28M"
@@ -2234,7 +2234,7 @@ my @cases = (
 	  args    => "--local -X 150",
 	  report  => "-M 2",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
-	  mapq => [ 0 ],
+	  mapq_hi => [ 0 ],
 	  cigar_map => [{
 		12 => "33M", 249 => "33M",
 		78 => "28M", 315 => "28M"
@@ -2267,7 +2267,7 @@ my @cases = (
 	  report  => "-k 1",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
 	  hits_are_superset => [ 1 ],
-	  mapq => [ 255 ],
+	  mapq_hi => [ 1 ],
 	  cigar_map => [{
 		12 => "33M", 249 => "33M",
 		78 => "28M", 315 => "28M"
@@ -2299,7 +2299,7 @@ my @cases = (
 	  report  => "-k 1",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
 	  hits_are_superset => [ 1 ],
-	  mapq => [ 255 ],
+	  mapq_hi => [ 1 ],
 	  cigar_map => [{
 		12 => "33M", 249 => "33M",
 		78 => "28M", 315 => "28M"
@@ -2330,7 +2330,7 @@ my @cases = (
 	  report   =>   "--old-m 1",
 	  pairhits => [ { "*,*" => 1 } ],
 	  hits_are_superset => [ 1 ],
-	  mapq  => [ 0 ],
+	  mapq_hi  => [ 0 ],
 	  cigar => [ "*" ],
 	  samoptflags => [{ "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:UP" => 1 }],
 	},
@@ -2349,7 +2349,7 @@ my @cases = (
 	  report   =>   "--old-m 1 --local",
 	  pairhits => [ { "*,*" => 1 } ],
 	  hits_are_superset => [ 1 ],
-	  mapq  => [ 0 ],
+	  mapq_hi  => [ 0 ],
 	  cigar => [ "*" ],
 	  samoptflags => [{ "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:UP" => 1 }],
 	},
@@ -2368,7 +2368,7 @@ my @cases = (
 	  report  =>   "-M 1",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
 	  hits_are_superset => [ 1 ],
-	  mapq => [ 0 ],
+	  mapq_hi => [ 0 ],
 	  cigar_map => [{
 		12 => "33M", 249 => "33M",
 		78 => "28M", 315 => "28M"
@@ -2399,7 +2399,7 @@ my @cases = (
 	  report  =>   "-M 1 --local",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
 	  hits_are_superset => [ 1 ],
-	  mapq => [ 0 ],
+	  mapq_hi => [ 0 ],
 	  cigar_map => [{
 		12 => "33M", 249 => "33M",
 		78 => "28M", 315 => "28M"
@@ -2428,7 +2428,7 @@ my @cases = (
 	  mate1fw => 1,  mate2fw => 0,
 	  report  =>   "-k 1",
 	  pairhits  => [ { "12,78" => 1 } ],
-	  mapq => [ 255 ],
+	  mapq_hi => [ 1 ],
 	  cigar_map => [{
 		12 => "33M",
 		78 => "28M"
@@ -2454,7 +2454,7 @@ my @cases = (
 	  args    => "--local",
 	  report  => "-k 1",
 	  pairhits  => [ { "12,78" => 1 } ],
-	  mapq => [ 255 ],
+	  mapq_hi => [ 1 ],
 	  cigar_map => [{
 		12 => "33M",
 		78 => "28M"
@@ -2479,7 +2479,7 @@ my @cases = (
 	  mate1fw => 1,  mate2fw => 0,
 	  report  =>   "--old-m 1",
 	  pairhits  => [ { "12,78" => 1 } ],
-	  mapq => [ 40 ],
+	  mapq_hi => [ 1 ],
 	  cigar_map => [{
 		12 => "33M",
 		78 => "28M"
@@ -2504,7 +2504,7 @@ my @cases = (
 	  mate1fw => 1,  mate2fw => 0,
 	  report  =>   "--old-m 1 --local",
 	  pairhits  => [ { "12,78" => 1 } ],
-	  mapq => [ 40 ],
+	  mapq_hi => [ 1 ],
 	  cigar_map => [{
 		12 => "33M",
 		78 => "28M"
@@ -2529,7 +2529,7 @@ my @cases = (
 	  mate1fw => 1,  mate2fw => 0,
 	  report  =>   "-M 1",
 	  pairhits  => [ { "12,78" => 1 } ],
-	  mapq => [ 40 ],
+	  mapq_hi => [ 1 ],
 	  cigar_map => [{
 		12 => "33M",
 		78 => "28M"
@@ -2554,7 +2554,7 @@ my @cases = (
 	  mate1fw  => 1,  mate2fw => 0,
 	  report   =>   "-M 1 --local",
 	  pairhits => [ { "12,78" => 1 } ],
-	  mapq => [ 40 ],
+	  mapq_hi => [ 1 ],
 	  cigar_map => [{
 		12 => "33M",
 		78 => "28M"
@@ -2581,7 +2581,7 @@ my @cases = (
 	  reads  => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  report =>   "-M 1",
 	  hits   => [ { 12 => 1 } ],
-	  mapq   => [ 40 ],
+	  mapq_hi   => [ 1 ],
 	  cigar  => [ "33M" ],
 	  samoptflags => [{
 		"AS:i:0"   => 1, # alignment score
@@ -2608,7 +2608,7 @@ my @cases = (
 	  args   =>   "--local",
 	  report =>   "-M 1",
 	  hits   => [ { 12 => 1 } ],
-	  mapq   => [ 40 ],
+	  mapq_hi   => [ 1 ],
 	  cigar  => [ "33M" ],
 	  samoptflags => [{
 		"AS:i:66"  => 1, # alignment score
@@ -2634,7 +2634,7 @@ my @cases = (
 	  reads  => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  args   =>   "",
 	  report =>   "--old-m 1",
-	  mapq   => [ 40 ],
+	  mapq_hi   => [ 1 ],
 	  hits   => [ { 12 => 1 } ],
 	  cigar  => [ "33M" ],
 	  samoptflags => [ {
@@ -2660,7 +2660,7 @@ my @cases = (
 	  reads  => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  args   =>   "--local",
 	  report =>   "--old-m 1",
-	  mapq   => [ 40 ],
+	  mapq_hi   => [ 1 ],
 	  hits   => [ { 12 => 1 } ],
 	  cigar  => [ "33M" ],
 	  samoptflags => [ {
@@ -2685,7 +2685,7 @@ my @cases = (
 	  #            0         1         2         3         4         5
 	  reads  => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  report =>   "-k 1",
-	  mapq   => [ 255 ],
+	  mapq_hi   => [ 1 ],
 	  hits   => [ { 12 => 1 } ],
 	  cigar  => [ "33M" ],
 	  samoptflags => [ {
@@ -2710,7 +2710,7 @@ my @cases = (
 	  reads  => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  args   => "--local",
 	  report => "-k 1",
-	  mapq   => [ 255 ],
+	  mapq_hi   => [ 1 ],
 	  hits   => [ { 12 => 1 } ],
 	  cigar  => [ "33M" ],
 	  samoptflags => [ {
@@ -2735,7 +2735,7 @@ my @cases = (
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
 	  args   =>   "",
 	  report =>   "-M 1",
-	  mapq   => [ 0 ],
+	  mapq_hi   => [ 0 ],
 	  hits   => [ { 6 => 1, 48 => 1 } ],
 	  hits_are_superset => [ 1 ],
 	  cigar  => [ "30M" ],
@@ -2762,7 +2762,7 @@ my @cases = (
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
 	  args   =>   "--local",
 	  report =>   "-M 1",
-	  mapq   => [ 0 ],
+	  mapq_hi   => [ 0 ],
 	  hits   => [ { 6 => 1, 48 => 1 } ],
 	  hits_are_superset => [ 1 ],
 	  cigar  => [ "30M" ],
@@ -2789,7 +2789,7 @@ my @cases = (
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
 	  args   =>   "",
 	  report =>   "--old-m 1",
-	  mapq   => [ 0 ],
+	  mapq_hi   => [ 0 ],
 	  hits   => [ { "*" => 1 } ],
 	  cigar  => [ "*" ],
 	  samoptflags => [ {
@@ -2807,7 +2807,7 @@ my @cases = (
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
 	  args   =>   "--local",
 	  report =>   "--old-m 1",
-	  mapq   => [ 0 ],
+	  mapq_hi   => [ 0 ],
 	  hits   => [ { "*" => 1 } ],
 	  cigar  => [ "*" ],
 	  samoptflags => [ {
@@ -2824,7 +2824,7 @@ my @cases = (
 	  #            0         1         2         3         4         5         6         7         8
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
 	  report =>   "-k 1",
-	  mapq   => [ 255 ],
+	  mapq_hi   => [ 1 ],
 	  hits   => [ { 6 => 1, 48 => 1 } ],
 	  hits_are_superset => [ 1 ],
 	  cigar  => [ "30M" ],
@@ -2850,7 +2850,7 @@ my @cases = (
 	  #            0         1         2         3         4         5         6         7         8
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
 	  report =>   "-k 1",
-	  mapq   => [ 255 ],
+	  mapq_hi   => [ 1 ],
 	  hits   => [ { 6 => 1, 48 => 1 } ],
 	  hits_are_superset => [ 1 ],
 	  cigar  => [ "30M" ],
@@ -2876,7 +2876,7 @@ my @cases = (
 	  #            0         1         2         3         4         5         6         7         8
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
 	  report =>   "-M 2",
-	  mapq   => [ 0 ],
+	  mapq_hi   => [ 0 ],
 	  hits   => [ { 6 => 1, 48 => 1 } ],
 	  cigar  => [ "30M" ],
 	  hits_are_superset => [ 1 ],
@@ -2902,7 +2902,7 @@ my @cases = (
 	  #            0         1         2         3         4         5         6         7         8
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
 	  report =>   "-M 2 --local",
-	  mapq   => [ 0 ],
+	  mapq_hi   => [ 0 ],
 	  hits   => [ { 6 => 1, 48 => 1 } ],
 	  cigar  => [ "30M" ],
 	  hits_are_superset => [ 1 ],
@@ -2928,7 +2928,7 @@ my @cases = (
 	  #            0         1         2         3         4         5         6         7         8
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
 	  report =>   "--old-m 2",
-	  mapq   => [ 0 ],
+	  mapq_hi   => [ 0 ],
 	  hits   => [ { 6 => 1, 48 => 1 } ],
 	  cigar  => [ "30M" ],
 	  hits_are_superset => [ 1 ],
@@ -2954,7 +2954,7 @@ my @cases = (
 	  #            0         1         2         3         4         5         6         7         8
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
 	  report =>   "--old-m 2 --local",
-	  mapq   => [ 0 ],
+	  mapq_hi   => [ 0 ],
 	  hits   => [ { 6 => 1, 48 => 1 } ],
 	  cigar  => [ "30M" ],
 	  hits_are_superset => [ 1 ],
@@ -2980,7 +2980,7 @@ my @cases = (
 	  #            0         1         2         3         4         5         6         7         8
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
 	  report =>   "-k 2",
-	  mapq   => [ 0 ],
+	  mapq_hi   => [ 0 ],
 	  hits   => [ { 6 => 1, 48 => 1 } ],
 	  cigar  => [ "30M" ],
 	  samoptflags => [ {
@@ -3006,7 +3006,7 @@ my @cases = (
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
 	  args   => "--local",
 	  report => "-k 2",
-	  mapq   => [ 0 ],
+	  mapq_hi   => [ 0 ],
 	  hits   => [ { 6 => 1, 48 => 1 } ],
 	  cigar  => [ "30M" ],
 	  samoptflags => [ {
@@ -3033,7 +3033,7 @@ my @cases = (
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
 	  args   =>   "-X 150",
 	  report =>   "-M 5",
-	  mapq   => [ 0 ],
+	  mapq_hi   => [ 0 ],
 	  hits   => [ { 6 => 1, 48 => 1, 91 => 1, 133 => 1, 176 => 1, 218 => 1, 261 => 1, 303 => 1 } ],
 	  hits_are_superset => [ 1 ],
 	  cigar  => [ "30M" ],
@@ -3061,7 +3061,7 @@ my @cases = (
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
 	  args   =>   "--local",
 	  report =>   "-M 5",
-	  mapq   => [ 0 ],
+	  mapq_hi   => [ 0 ],
 	  hits   => [ { 6 => 1, 48 => 1, 91 => 1, 133 => 1, 176 => 1, 218 => 1, 261 => 1, 303 => 1 } ],
 	  hits_are_superset => [ 1 ],
 	  cigar  => [ "30M" ],
@@ -3088,7 +3088,7 @@ my @cases = (
 	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
 	  report =>   "--old-m 5",
-	  mapq   => [ 0 ],
+	  mapq_hi   => [ 0 ],
 	  hits   => [ { "*" => 1 } ],
 	  cigar  => [ "*" ],
 	  samoptflags => [ {
@@ -3107,7 +3107,7 @@ my @cases = (
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
 	  args   =>   "--local",
 	  report =>   "--old-m 5",
-	  mapq   => [ 0 ],
+	  mapq_hi   => [ 0 ],
 	  hits   => [ { "*" => 1 } ],
 	  cigar  => [ "*" ],
 	  samoptflags => [ {
@@ -3125,7 +3125,7 @@ my @cases = (
 	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
 	  report =>   "-k 5",
-	  mapq   => [ 0 ],
+	  mapq_hi   => [ 0 ],
 	  hits   => [ { 6 => 1, 48 => 1, 91 => 1, 133 => 1, 176 => 1, 218 => 1, 261 => 1, 303 => 1 } ],
 	  hits_are_superset => [ 1 ],
 	  cigar  => [ "30M" ],
@@ -3153,7 +3153,7 @@ my @cases = (
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
 	  args   => "--local",
 	  report => "-k 5",
-	  mapq   => [ 0 ],
+	  mapq_hi   => [ 0 ],
 	  hits   => [ { 6 => 1, 48 => 1, 91 => 1, 133 => 1, 176 => 1, 218 => 1, 261 => 1, 303 => 1 } ],
 	  hits_are_superset => [ 1 ],
 	  cigar  => [ "30M" ],
@@ -3639,7 +3639,7 @@ my @cases = (
 	  mate1fw  => 1,  mate2fw => 1,
 	  args     => "-I 0 -X 50",
 	  report   => "--old-m 1",
-	  mapq_map => [{ "*" => 0, 3 => 40 }],
+	  #mapq_map => [{ "*" => 0, 3 => 40 }],
 	  pairhits => [ { "*,3" => 1 } ],
 	  flags_map  => [{
 		3   => "XM:0,XP:1,XT:UP,XC:10=",
@@ -4307,7 +4307,7 @@ my @cases = (
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCGT" ],
 	  report => "-M 1",
-	  mapq   => [ 0 ],
+	  mapq_hi   => [ 0 ],
 	  hits   => [ { 0 => 1, 8 => 1 } ],
 	  flags  => [ "XM:1,XP:0,XT:UU,XC:8=" ],
 	  hits_are_superset => [ 1 ],
@@ -4873,6 +4873,10 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 			my $ex_cigar_map = undef;
 			$ex_cigar_map = $c->{cigar_map}->[$rdi] if
 				defined($c->{cigar_map}->[$rdi]);
+			# 'mapq_hi' - boolean indicating whether mapq is hi/lo
+			my $ex_mapq_hi = undef;
+			$ex_mapq_hi = $c->{mapq_hi}->[$rdi] if
+				defined($c->{mapq_hi}->[$rdi]);
 			# 'mapq'
 			my $ex_mapq = undef;
 			$ex_mapq = $c->{mapq}->[$rdi] if
@@ -4972,6 +4976,23 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 				if(defined($ex_mapq)) {
 					$mapq eq $ex_mapq ||
 						die "Expected MAPQ $ex_mapq, got $mapq";
+				}
+				if(defined($ex_mapq_map)) {
+					if(defined($c->{mapq_map}->[$rdi]->{$off})) {
+						my $ex = $c->{mapq_map}->[$rdi]->{$off};
+						$mapq eq $ex || die
+							"Expected MAPQ string $ex at offset $off, got $mapq"
+					} else {
+						die "Expected to see alignment with offset $off parsing mapq_map";
+					}
+				}
+				# MAPQ
+				if(defined($ex_mapq_hi)) {
+					if($ex_mapq_hi == 0) {
+						$mapq < 20 || die "Expected MAPQ < 20, got $mapq";
+					} else {
+						$mapq >= 20 || die "Expected MAPQ >= 20, got $mapq";
+					}
 				}
 				if(defined($ex_mapq_map)) {
 					if(defined($c->{mapq_map}->[$rdi]->{$off})) {

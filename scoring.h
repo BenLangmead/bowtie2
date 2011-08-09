@@ -275,6 +275,17 @@ public:
 		assert_geq(q, 0);
 		return (int64_t)((q < 255 ? matchBonuses[q] : matchBonuses[255]) + 0.5f);
 	}
+	
+	/**
+	 * Return the best score achievable by a read of length 'rdlen'.
+	 */
+	inline int64_t perfectScore(size_t rdlen) const {
+		if(monotone) {
+			return 0;
+		} else {
+			return rdlen * match(30);
+		}
+	}
 
 	/**
 	 * Return true iff the penalities are such that two reads with the
