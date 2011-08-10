@@ -126,8 +126,9 @@ public:
 		if(best < scPer) {
 			mapq -= (float)(scPer - best) * topCoeff_;
 		}
+		TAlScore secbest = scMin-1;
 		if(hasSecbest) {
-			TAlScore secbest = s.secbest(mate1).score();
+			secbest = s.secbest(mate1).score();
 			assert_geq(secbest, scMin);
 			mapq -= (float)(secbest - scMin) * botCoeff_;
 			TAlScore diff = abs(abs(best) - abs(secbest));
@@ -135,7 +136,15 @@ public:
 				mapq -= (mapqMax_ - diff);
 			}
 		}
-		return (TMapq)(std::max(0.0f, std::min(mapqMax_, mapq + 0.5f)));
+		TMapq ret = (TMapq)(std::max(0.0f, std::min(mapqMax_, mapq + 0.5f)));
+		if(inps != NULL) {
+			inps = itoa10<TAlScore>(best, inps);
+			*inps++ = ',';
+			inps = itoa10<TAlScore>(secbest, inps);
+			*inps++ = ',';
+			inps = itoa10<TMapq>(ret, inps);
+		}
+		return ret;
 	}
 
 protected:
