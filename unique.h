@@ -166,11 +166,8 @@ public:
 		TAlScore scMin = scoreMin_.f<TAlScore>((float)rdlen);
 		TAlScore secbest = scMin-1;
 		TAlScore diff = (scPer - scMin);
-		float sixth_1 = (float)scPer - diff * 0.1666f * 1;
 		float sixth_2 = (float)scPer - diff * 0.1666f * 2; 
 		float sixth_3 = (float)scPer - diff * 0.1666f * 3;
-		float sixth_4 = (float)scPer - diff * 0.1666f * 4;
-		float sixth_5 = (float)scPer - diff * 0.1666f * 5;
 		TMapq ret = 0;
 		TAlScore best = s.best(mate1).score();
 		if(!hasSecbest) {
@@ -188,16 +185,16 @@ public:
 			}
 		} else {
 			secbest = s.secbest(mate1).score();
-			diff = abs(abs(best)-abs(secbest));
-			if(diff >= sixth_1) {
+			TAlScore bestdiff = abs(abs(best)-abs(secbest));
+			if(bestdiff >= diff * 0.1666f * 5) {
 				ret = 5;
-			} else if(diff >= sixth_2) {
+			} else if(bestdiff >= diff * 0.1666f * 4) {
 				ret = 4;
-			} else if(diff >= sixth_3) {
+			} else if(bestdiff >= diff * 0.1666f * 3) {
 				ret = 3;
-			} else if(diff >= sixth_4) {
+			} else if(bestdiff >= diff * 0.1666f * 2) {
 				ret = 2;
-			} else if(diff >= sixth_5) {
+			} else if(bestdiff >= diff * 0.1666f * 1) {
 				ret = 1;
 			}
 		}
