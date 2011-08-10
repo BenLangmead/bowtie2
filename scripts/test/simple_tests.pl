@@ -1462,7 +1462,7 @@ my @cases = (
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  args   =>   "-X 1000 --local",
 	  report =>   "--old-m 5",
-	  mapq_map   => [{ 12 => 40, "*" => 0 }],
+	  #mapq_map   => [{ 12 => 40, "*" => 0 }],
 	  pairhits   => [{ "*,12" => 1 }],
 	  cigar_map  => [{ 12 => "33M", "*" => "*" }],
 	  samoptflags_map => [ {

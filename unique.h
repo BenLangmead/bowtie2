@@ -106,7 +106,7 @@ public:
 	/**
 	 * Given an AlnSetSumm, return a mapping quality calculated.
 	 */
-	virtual TMapq mapq(
+	virtual TMapq mapq2(
 		const AlnSetSumm& s,
 		const AlnFlags& flags,
 		bool mate1,
@@ -137,6 +137,70 @@ public:
 			}
 		}
 		TMapq ret = (TMapq)(std::max(0.0f, std::min(mapqMax_, mapq + 0.5f)));
+		if(inps != NULL) {
+			inps = itoa10<TAlScore>(best, inps);
+			*inps++ = ',';
+			inps = itoa10<TAlScore>(secbest, inps);
+			*inps++ = ',';
+			inps = itoa10<TMapq>(ret, inps);
+		}
+		return ret;
+	}
+
+	/**
+	 * Given an AlnSetSumm, return a mapping quality calculated.
+	 */
+	virtual TMapq mapq(
+		const AlnSetSumm& s,
+		const AlnFlags& flags,
+		bool mate1,
+		size_t rdlen,
+		char *inps)     // put string representation of inputs here
+		const
+	{
+		bool hasSecbest = VALID_AL_SCORE(s.secbest(mate1));
+		if(!flags.canMax() && !s.exhausted(mate1) && !hasSecbest) {
+			return 255;
+		}
+		TAlScore scPer = (TAlScore)sc_.perfectScore(rdlen);
+		TAlScore scMin = scoreMin_.f<TAlScore>((float)rdlen);
+		TAlScore secbest = scMin-1;
+		TAlScore diff = (scPer - scMin);
+		float sixth_1 = (float)scPer - diff * 0.1666f * 1;
+		float sixth_2 = (float)scPer - diff * 0.1666f * 2; 
+		float sixth_3 = (float)scPer - diff * 0.1666f * 3;
+		float sixth_4 = (float)scPer - diff * 0.1666f * 4;
+		float sixth_5 = (float)scPer - diff * 0.1666f * 5;
+		TMapq ret = 0;
+		TAlScore best = s.best(mate1).score();
+		if(!hasSecbest) {
+			// Top third?
+			if(best >= sixth_2) {
+				ret = 37;
+			}
+			// Otherwise in top half?
+			else if(best >= sixth_3) {
+				ret = 25;
+			}
+			// Otherwise has no second-best?
+			else {
+				ret = 8;
+			}
+		} else {
+			secbest = s.secbest(mate1).score();
+			diff = abs(abs(best)-abs(secbest));
+			if(diff >= sixth_1) {
+				ret = 5;
+			} else if(diff >= sixth_2) {
+				ret = 4;
+			} else if(diff >= sixth_3) {
+				ret = 3;
+			} else if(diff >= sixth_4) {
+				ret = 2;
+			} else if(diff >= sixth_5) {
+				ret = 1;
+			}
+		}
 		if(inps != NULL) {
 			inps = itoa10<TAlScore>(best, inps);
 			*inps++ = ',';
