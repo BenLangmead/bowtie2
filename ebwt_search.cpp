@@ -400,7 +400,6 @@ enum {
 	ARG_NO_SSE,                 // --no-sse
 	ARG_QC_FILTER,              // --qc-filter
 	ARG_BWA_SW_LIKE,            // --bwa-sw-like
-	ARG_OLDM,                   // --old-m
 	ARG_MULTISEED_IVAL,         // --multiseed
 	ARG_MULTISEED_IVAL_CONST,   // --multiseed-const
 	ARG_MULTISEED_IVAL_LINEAR,  // --multiseed-linear
@@ -445,7 +444,6 @@ static struct option long_options[] = {
 	{(char*)"help",         no_argument,       0,            'h'},
 	{(char*)"threads",      required_argument, 0,            'p'},
 	{(char*)"khits",        required_argument, 0,            'k'},
-	{(char*)"old-m",        required_argument, 0,            ARG_OLDM},
 	{(char*)"minins",       required_argument, 0,            'I'},
 	{(char*)"maxins",       required_argument, 0,            'X'},
 	{(char*)"quals",        required_argument, 0,            'Q'},
@@ -871,11 +869,6 @@ static void parseOptions(int argc, const char **argv) {
 					     << "-M will override" << endl;
 				}
 				saw_M = true;
-				break;
-			}
-			case ARG_OLDM: {
-				msample = false;
-				mhits = (uint32_t)parseInt(1, "-m arg must be at least 1");
 				break;
 			}
 			case 'a': {
@@ -2233,8 +2226,16 @@ static void* multiseedSearchWorker(void *vp) {
 	SimpleFunc myRowmult = rowmult;
 	rp.boostThresholds(myPosfrac, myRowmult);
 	
+	// Instantiate a mapping quality calculator
+	auto_ptr<Mapq> bmapq(new BowtieMapq(
+		scoreMin,
+		mapqTopCoeff,
+		mapqBotCoeff,
+		mapqMax,
+		sc));
+	
 	// Make a per-thread wrapper for the global MHitSink object.
-	AlnSinkWrap msinkwrap(msink, rp);
+	AlnSinkWrap msinkwrap(msink, rp, *bmapq.get());
 
 	SeedAligner al;
 	SwDriver sd;
@@ -2305,7 +2306,6 @@ static void* multiseedSearchWorker(void *vp) {
 		} else if(!success) {
 			continue;
 		}
-		//cerr << "Paired: " << (paired ? "true" : "false") << endl;
 		TReadId patid = ps->patid();
 		if(patid >= skipReads && patid < qUpto) {
 			// Align this read/pair
@@ -2930,13 +2930,6 @@ static void driver(
 			gGapBarrier,    // # rows at top/bot only entered diagonally
 			gRowLow,        // min row idx to backtrace from; -1 = no limit
 			gRowFirst);     // sort results first by row then by score?
-		// Instantiate a mapping quality calculator
-		auto_ptr<Mapq> bmapq(new BowtieMapq(
-			scoreMin,
-			mapqTopCoeff,
-			mapqBotCoeff,
-			mapqMax,
-			sc));
 		EList<size_t> reflens;
 		for(size_t i = 0; i < ebwt.nPat(); i++) {
 			reflens.push_back(ebwt.plen()[i]);
@@ -2980,7 +2973,6 @@ static void driver(
 				mssink = new AlnSinkVerbose(
 					fout,         // initial output stream
 					suppressOuts, // suppress alignment columns
-					*bmapq.get(), // mapping quality calculator
 					false,        // delete output stream objects upon destruction
 					refnames,     // reference names
 					gQuiet,       // don't print alignment summary at end   
@@ -2999,7 +2991,6 @@ static void driver(
 			case OUTPUT_SAM: {
 				mssink = new AlnSinkSam(
 					fout,         // initial output stream
-					*bmapq.get(), // mapping quality calculator
 					samc,         // settings & routines for SAM output
 					false,        // delete output stream objects upon destruction
 					refnames,     // reference names

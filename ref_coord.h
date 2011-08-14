@@ -10,7 +10,7 @@
 #include <algorithm>
 #include "assert_helpers.h"
 
-typedef uint64_t TRefId;
+typedef int64_t TRefId;
 typedef int64_t TRefOff;
 
 /**

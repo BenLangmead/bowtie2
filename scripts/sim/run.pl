@@ -40,6 +40,7 @@ Options:
   --maxreads <int>              Handle at most <int> reads per case
   --numrefs <int>               Generate <int> refs per case
   --die-with-child              Kill parent as soon as 1 child dies
+  --no-die-with-child           Don\'t kill parent as soon as 1 child dies
   --small                       Make small test cases
   --help                        Print this usage message
 
@@ -47,7 +48,7 @@ Options:
 
 my $help = 0;
 my $ncases = 5;
-my $dieWithChild = 0;
+my $dieWithChild = 1;
 
 GetOptions(
 	"bowtie2=s"             => \$conf{bowtie2},
@@ -61,6 +62,7 @@ GetOptions(
 	"no-color"              => \$conf{no_color},
 	"help"                  => \$help,
 	"die-with-child"        => \$dieWithChild,
+	"no-die-with-child"     => sub { $dieWithChild = 0 },
 	"p|cpus=i"              => \$cpus,
 	"u|qupto|maxreads=i"    => \$conf{maxreads},
 	"numrefs|num-refs=i"    => \$conf{numrefs},
