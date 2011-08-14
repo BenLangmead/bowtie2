@@ -595,7 +595,7 @@ sub parseSamLines {
 		defined($qual) || die "Not enough SAM tokens:\n$line\n";
 		my @opt_flags_list = @toks[11..$#toks];
 		my %opt_flags = ();
-		next if $rname eq "*"; # Failed to align
+		next if $cigar eq "*"; # Failed to align
 		# Get the read sequence & qualities from previous record if necessary
 		if($seq eq "*") {
 			$lastseq ne "" || die "Line #$idx:\n$line";

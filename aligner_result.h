@@ -313,23 +313,6 @@ public:
 		bool lenfilt,
 		bool qcfilt,
 		bool mixedMode,
-		bool oppAligned, // opposite mate aligned?
-		bool oppFw)      // opposite mate aligned forward?
-	{
-		init(pairing, canMax, maxed, maxedPair, nfilt, scfilt,
-		     lenfilt, qcfilt, mixedMode, true, oppAligned, oppFw);
-	}
-
-	AlnFlags(
-		int pairing,
-		bool canMax,
-		bool maxed,
-		bool maxedPair,
-		bool nfilt,
-		bool scfilt,
-		bool lenfilt,
-		bool qcfilt,
-		bool mixedMode,
 		bool primary,
 		bool oppAligned, // opposite mate aligned?
 		bool oppFw)      // opposite mate aligned forward?
@@ -1490,7 +1473,13 @@ public:
 		const EList<AlnRes>* rs1u,
 		const EList<AlnRes>* rs2u,
 		bool exhausted1,
-		bool exhausted2);
+		bool exhausted2,
+		TRefId orefid,
+		TRefOff orefoff)
+	{
+		init(rd1, rd2, rs1, rs2, rs1u, rs2u, exhausted1, exhausted2, 
+		     orefid, orefoff);
+	}
 
 	explicit AlnSetSumm(
 		AlnScore best1,
@@ -1503,7 +1492,9 @@ public:
 		TNumAlns other2,
 		bool     paired,
 		bool     exhausted1,
-		bool     exhausted2)
+		bool     exhausted2,
+		TRefId   orefid,
+		TRefOff  orefoff)
 	{
 		init(
 			best1,
@@ -1516,7 +1507,9 @@ public:
 			other2,
 			paired,
 			exhausted1,
-			exhausted2);
+			exhausted2,
+			orefid,
+			orefoff);
 	}
 	
 	/**
@@ -1532,7 +1525,21 @@ public:
 		other1_ = other2_ = 0;
 		paired_ = false;
 		exhausted1_ = exhausted2_ = false;
+		orefid_ = -1;
+		orefoff_ = -1;
 	}
+	
+	void init(
+		const Read* rd1,
+		const Read* rd2,
+		const EList<AlnRes>* rs1,
+		const EList<AlnRes>* rs2,
+		const EList<AlnRes>* rs1u,
+		const EList<AlnRes>* rs2u,
+		bool exhausted1,
+		bool exhausted2,
+		TRefId orefid,
+		TRefOff orefoff);
 	
 	/**
 	 * Initialize given fields.  See constructor for how fields are set.
@@ -1548,7 +1555,9 @@ public:
 		TNumAlns other2,
 		bool     paired,
 		bool     exhausted1,
-		bool     exhausted2)
+		bool     exhausted2,
+		TRefId   orefid,
+		TRefOff  orefoff)
 	{
 		best1_         = best1;
 		secbest1_      = secbest1;
@@ -1561,6 +1570,8 @@ public:
 		paired_        = paired;
 		exhausted1_    = exhausted1;
 		exhausted2_    = exhausted2;
+		orefid_        = orefid;
+		orefoff_       = orefoff;
 		assert(repOk());
 	}
 	
@@ -1594,6 +1605,8 @@ public:
 	bool     paired()        const { return paired_;        }
 	bool     exhausted1()    const { return exhausted1_;    }
 	bool     exhausted2()    const { return exhausted2_;    }
+	TRefId   orefid()        const { return orefid_;        }
+	TRefOff  orefoff()       const { return orefoff_;       }
 
 	/**
 	 *
@@ -1652,6 +1665,8 @@ protected:
 	bool     paired_;        // results are paired
 	bool     exhausted1_;    // searched exhaustively for mate 1 alignments?
 	bool     exhausted2_;    // searched exhaustively for mate 2 alignments?
+	TRefId   orefid_;
+	TRefOff  orefoff_;
 };
 
 #endif

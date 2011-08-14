@@ -818,7 +818,6 @@ sub genAlignArgs {
 	my $local = int(rand(2)) == 0;
 	$args{"-u"}         = $conf->{maxreads} if defined($conf->{maxreads});
 	$args{"--mm"}       = "" if int(rand(2)) == 0;
-	$args{"--cost"}     = "" if int(rand(2)) == 0;
 	#$args{"--overhang"} = "" if int(rand(2)) == 0;
 	$args{"--trim3"}    = int(rand(10)) if int(rand(2)) == 0;
 	$args{"--trim5"}    = int(rand(10)) if int(rand(2)) == 0;
@@ -836,7 +835,6 @@ sub genAlignArgs {
 		$args{"-M"} = int(Math::Random::random_exponential(1, 3))+2;
 	}
 	$args{"-P"} = ("\"".genPolicyArg($local)."\"") if rand() < 0.9;
-	$args{"--showseed"} = "";
 	return \%args;
 }
 

@@ -1203,7 +1203,7 @@ bool RedundantAlns::overlap(const AlnRes& res) {
  * calculate best and second-best scores for both mates.  These are
  * used for future MAPQ calculations.
  */
-AlnSetSumm::AlnSetSumm(
+void AlnSetSumm::init(
 	const Read* rd1,
 	const Read* rd2,
 	const EList<AlnRes>* rs1,
@@ -1211,7 +1211,9 @@ AlnSetSumm::AlnSetSumm(
 	const EList<AlnRes>* rs1u,
 	const EList<AlnRes>* rs2u,
 	bool exhausted1,
-	bool exhausted2)
+	bool exhausted2,
+	TRefId orefid,
+	TRefOff orefoff)
 {
 	assert(rd1 != NULL || rd2 != NULL);
 	assert((rs1 == NULL) == (rs2 == NULL));
@@ -1273,9 +1275,13 @@ AlnSetSumm::AlnSetSumm(
 			(szs[1] == 0) ? 0 : (szs[1] - 1),
 			paired,
 			exhausted1,
-			exhausted2);
+			exhausted2,
+			orefid,
+			orefoff);
 	} else {
 		reset();
+		orefid_ = orefid;
+		orefoff_ = orefoff;
 	}
 }
 

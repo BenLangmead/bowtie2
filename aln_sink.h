@@ -281,7 +281,6 @@ public:
 		EXIT_DID_NOT_ENTER,           // never tried search	
 		EXIT_SHORT_CIRCUIT_k,         // -k exceeded
 		EXIT_SHORT_CIRCUIT_M,         // -M exceeded
-		EXIT_SHORT_CIRCUIT_m,         // -m exceeded
 		EXIT_SHORT_CIRCUIT_TRUMPED,   // made irrelevant
 		EXIT_CONVERTED_TO_DISCORDANT, // unpair became discord
 		EXIT_NO_ALIGNMENTS,           // none found
@@ -538,7 +537,6 @@ public:
 
 	explicit AlnSink(
 		OutFileBuf*        out,
-		const Mapq&        mapq,       // mapping quality calculator
 		bool               deleteOuts,
 		const StrList&     refnames,
 		bool               quiet) :
@@ -547,8 +545,7 @@ public:
 		locks_(),
 		deleteOuts_(deleteOuts),
 		refnames_(refnames),
-		quiet_(quiet),
-		mapq_(mapq)
+		quiet_(quiet)
 	{
 		// Add the default output stream
 		outs_.push_back(out);
@@ -598,11 +595,18 @@ public:
 		const AlnRes      *rs2,
 		const AlnSetSumm&  summ,
 		const AlnFlags*    flags1,
-		const AlnFlags*    flags2) = 0;
+		const AlnFlags*    flags2,
+		const Mapq&        mapq) = 0;
 
 	/**
 	 * Report a given batch of hits for the given read pair.  Should be
-	 * called just once per read pair.
+	 * called just once per read pair.  Assumes all the alignments are
+	 * paired, split between rs1 and rs2.
+	 *
+	 * The caller hasn't decided which alignments get reported as primary
+	 * or secondary; that's up to the routine.  Because the caller might
+	 * want to know this, we use the pri1 and pri2 out arguments to
+	 * convey this.
 	 */
 	virtual void reportHits(
 		const Read          *rd1,            // mate #1
@@ -611,10 +615,13 @@ public:
 		const EList<size_t>& select,         // random subset
 		const EList<AlnRes> *rs1,            // alignments for mate #1
 		const EList<AlnRes> *rs2,            // alignments for mate #2
+		size_t&              pri1,           // OUT: which rs1 got primary?
+		size_t&              pri2,           // OUT: which rs1 got primary?
 		bool                 maxed,          // true iff -m/-M exceeded
 		const AlnSetSumm&    summ,           // summary
 		const AlnFlags*      flags1,         // flags for mate #1
 		const AlnFlags*      flags2,         // flags for mate #2
+		const Mapq&          mapq,
 		bool                 getLock = true) // true iff lock held by caller
 	{
 		assert(rd1 != NULL || rd2 != NULL);
@@ -628,18 +635,27 @@ public:
 			select,
 			rs1,
 			rs2,
+			pri1,
+			pri2,
 			maxed,
 			0,
 			sz,
 			summ,
 			flags1,
 			flags2,
+			mapq,
 			getLock);
 	}
 
 	/**
 	 * Report a given batch of hits for the given read pair.  Should be
-	 * called just once per read pair.
+	 * called just once per read pair.  Assumes all the alignments are
+	 * paired, split between rs1 and rs2.
+	 *
+	 * The caller hasn't decided which alignments get reported as primary
+	 * or secondary; that's up to the routine.  Because the caller might
+	 * want to know this, we use the pri1 and pri2 out arguments to
+	 * convey this.
 	 */
 	virtual void reportHits(
 		const Read          *rd1,            // mate #1
@@ -648,12 +664,15 @@ public:
 		const EList<size_t>& select,         // random subset
 		const EList<AlnRes> *rs1,            // alignments for mate #1
 		const EList<AlnRes> *rs2,            // alignments for mate #2
+		size_t&              pri1,           // OUT: which rs1 got primary?
+		size_t&              pri2,           // OUT: which rs1 got primary?
 		bool                 maxed,          // true iff -m/-M exceeded
 		size_t               start,          // alignments to report: start
 		size_t               end,            // alignments to report: end 
 		const AlnSetSumm&    summ,           // summary
 		const AlnFlags*      flags1,         // flags for mate #1
 		const AlnFlags*      flags2,         // flags for mate #2
+		const Mapq&          mapq,
 		bool                 getLock = true) // true iff lock held by caller
 	{
 		assert(rd1 != NULL || rd2 != NULL);
@@ -666,6 +685,7 @@ public:
 			// Nothing to report
 			return;
 		}
+		// Now we instantiate the 
 		AlnFlags flagscp1, flagscp2;
 		if(flags1 != NULL) {
 			flagscp1 = *flags1;
@@ -681,6 +701,7 @@ public:
 		bool found = false;
 		for(size_t i = start; i < end; i++) {
 			if(select[i] == 1) {
+				pri1 = pri2 = i;
 				sel_start = i;
 				found = true;
 				break;
@@ -700,7 +721,7 @@ public:
 			assert_lt(sid, locks_.size());
 			{
 				ThreadSafe ts(&locks_[sid], getLock);
-				append(out(sid), rd1, rd2, rdid, r1, r2, summ, flags1, flags2);
+				append(out(sid), rd1, rd2, rdid, r1, r2, summ, flags1, flags2, mapq);
 			}
 			if(flags1 != NULL) {
 				flagscp1.setPrimary(false);
@@ -715,68 +736,6 @@ public:
 	}
 
 	/**
-	 * Report a read that aligned more times than allowed by the -m or
-	 * -M ceiling.
-	 */
-	virtual void reportMaxed(
-		const Read          *rd1,            // mate #1
-		const Read          *rd2,            // mate #2
-		const TReadId        rdid,           // read ID
-		const EList<AlnRes> *rs1,            // alignments for mate #1
-		const EList<AlnRes> *rs2,            // alignments for mate #2
-		const AlnSetSumm&    summ,           // summary
-		const AlnFlags*      flags1,         // flags for mate #1
-		const AlnFlags*      flags2,         // flags for mate #2
-		bool                 getLock = true) // true iff lock held by caller
-	{
-		assert(rd1 != NULL || rd2 != NULL);
-		assert(rs1 != NULL || rs2 != NULL);
-		size_t sz = ((rs1 != NULL) ? rs1->size() : rs2->size());
-		reportMaxed(
-			rd1,
-			rd2,
-			rdid,
-			rs1,
-			rs2,
-			0,
-			sz,
-			summ,
-			flags1,
-			flags2,
-			getLock);
-	}
-
-	/**
-	 * Report a read that aligned more times than allowed by the -m or
-	 * -M ceiling.
-	 */
-	virtual void reportMaxed(
-		const Read          *rd1,            // mate #1
-		const Read          *rd2,            // mate #2
-		const TReadId        rdid,           // read ID
-		const EList<AlnRes> *rs1,            // alignments for mate #1
-		const EList<AlnRes> *rs2,            // alignments for mate #2
-		size_t               start,          // alignments to report: start
-		size_t               end,            // alignments to report: end 
-		const AlnSetSumm&    summ,           // summary
-		const AlnFlags*      flags1,         // flags for mate #1
-		const AlnFlags*      flags2,         // flags for mate #2
-		bool                 getLock = true) // true iff lock held by caller
-	{
-		assert(rd1 != NULL || rd2 != NULL);
-		assert(rs1 != NULL || rs2 != NULL);
-		{
-			// Determine the stream id using the coordinate of the
-			// upstream mate
-			Coord c(0, 0, true);
-			size_t sid = streamId(rdid, c);
-			assert_lt(sid, locks_.size());
-			ThreadSafe ts(&locks_[sid], getLock);
-			append(out(sid), rd1, rd2, rdid, NULL, NULL, summ, flags1, flags2);
-		}
-	}
-
-	/**
 	 * Report an unaligned read.  Typically we do nothing, but we might
 	 * want to print a placeholder when output is chained.
 	 */
@@ -787,6 +746,7 @@ public:
 		const AlnSetSumm&    summ,           // summary
 		const AlnFlags*      flags1,         // flags for mate #1
 		const AlnFlags*      flags2,         // flags for mate #2
+		const Mapq&          mapq,
 		bool                 getLock = true) // true iff lock held by caller
 	{
 		{
@@ -796,7 +756,7 @@ public:
 			size_t sid = streamId(rdid, c);
 			assert_lt(sid, locks_.size());
 			ThreadSafe ts(&locks_[sid], getLock);
-			append(out(sid), rd1, rd2, rdid, NULL, NULL, summ, flags1, flags2);
+			append(out(sid), rd1, rd2, rdid, NULL, NULL, summ, flags1, flags2, mapq);
 		}
 	}
 
@@ -961,7 +921,6 @@ protected:
 	MUTEX_T            mainlock_;     // pthreads mutexes for fields of this object
 	const StrList&     refnames_; // reference names
 	bool               quiet_;        // true -> don't print alignment stats at the end
-	const Mapq&        mapq_;         // mapping quality calculator
 	
 	ReportingMetrics   met_;          // global repository of reporting metrics
 };
@@ -1080,9 +1039,11 @@ public:
 
 	AlnSinkWrap(
 		AlnSink& g,                  // AlnSink being wrapped
-		const ReportingParams& rp) : // Parameters governing reporting
+		const ReportingParams& rp,   // Parameters governing reporting
+		Mapq& mapq) :
 		g_(g),
 		rp_(rp),
+		mapq_(mapq),
 		init_(false),   
 		maxed1_(false),       // read is pair and we maxed out mate 1 unp alns
 		maxed2_(false),       // read is pair and we maxed out mate 2 unp alns
@@ -1250,6 +1211,7 @@ protected:
 
 	AlnSink&        g_;     // global alignment sink
 	ReportingParams rp_;    // reporting parameters: khits, mhits etc
+	Mapq&           mapq_;  // mapq calculator
 	bool            init_;  // whether we're initialized w/ read pair
 	bool            maxed1_; // true iff # unpaired mate-1 alns reported so far exceeded -m/-M
 	bool            maxed2_; // true iff # unpaired mate-2 alns reported so far exceeded -m/-M
@@ -1280,7 +1242,6 @@ public:
 	AlnSinkVerbose(
 		OutFileBuf*        out,        // initial output stream
 		const EList<bool>& suppress,   // suppress columns
-		const Mapq&        mapq,       // mapping quality calculator
 		bool               deleteOuts, // delete output objects upon destruction
 		const StrList&     refnames,   // reference names
 		bool               quiet,      // don't print alignment summary at end
@@ -1296,7 +1257,6 @@ public:
 		int                partition = 0) : // partition size
 		AlnSink(
 			out,
-			mapq,
 			deleteOuts,
 			refnames,
 			quiet),
@@ -1328,14 +1288,15 @@ public:
 		const AlnRes* rs2,      // alignments for mate #2
 		const AlnSetSumm& summ, // summary
 		const AlnFlags* flags1, // flags for mate #1
-		const AlnFlags* flags2) // flags for mate #2
+		const AlnFlags* flags2, // flags for mate #2
+		const Mapq&   mapq)
 	{
 		assert(rd1 != NULL || rd2 != NULL);
 		if(rd1 != NULL) {
-			appendMate(o, *rd1, rd2, rdid, rs1, rs2, summ, *flags1);
+			appendMate(o, *rd1, rd2, rdid, rs1, rs2, summ, *flags1, mapq);
 		}
 		if(rd2 != NULL) {
-			appendMate(o, *rd2, rd1, rdid, rs2, rs1, summ, *flags2);
+			appendMate(o, *rd2, rd1, rdid, rs2, rs1, summ, *flags2, mapq);
 		}
 	}
 
@@ -1354,7 +1315,8 @@ protected:
 		const AlnRes* rs,
 		const AlnRes* rso,
 		const AlnSetSumm& summ,
-		const AlnFlags& flags);
+		const AlnFlags& flags,
+		const Mapq& mapq);
 
 	const EList<bool>& suppress_; // bit mask of columns to suppress
 	int           offBase_;    // add to 0-based reference offsets
@@ -1391,7 +1353,6 @@ public:
 
 	AlnSinkSam(
 		OutFileBuf*      out,        // initial output stream
-		const Mapq&      mapq,       // mapping quality calculator
 		const SamConfig& samc,       // settings & routines for SAM output
 		bool             deleteOuts, // delete output objects upon destruction
 		const StrList&   refnames,   // reference names
@@ -1399,7 +1360,6 @@ public:
 		bool             exEnds) :   // exclude ends for decoded colors alns
 		AlnSink(
 			out,
-			mapq,
 			deleteOuts,
 			refnames,
 			quiet),
@@ -1422,16 +1382,17 @@ public:
 		const AlnRes* rs2,      // alignments for mate #2
 		const AlnSetSumm& summ, // summary
 		const AlnFlags* flags1, // flags for mate #1
-		const AlnFlags* flags2) // flags for mate #2
+		const AlnFlags* flags2, // flags for mate #2
+		const Mapq&   mapq)
 	{
 		assert(rd1 != NULL || rd2 != NULL);
 		if(rd1 != NULL) {
 			assert(flags1 != NULL);
-			appendMate(o, *rd1, rd2, rdid, rs1, rs2, summ, *flags1);
+			appendMate(o, *rd1, rd2, rdid, rs1, rs2, summ, *flags1, mapq);
 		}
 		if(rd2 != NULL) {
 			assert(flags2 != NULL);
-			appendMate(o, *rd2, rd1, rdid, rs2, rs1, summ, *flags2);
+			appendMate(o, *rd2, rd1, rdid, rs2, rs1, summ, *flags2, mapq);
 		}
 	}
 
@@ -1450,7 +1411,8 @@ protected:
 		const AlnRes* rs,
 		const AlnRes* rso,
 		const AlnSetSumm& summ,
-		const AlnFlags& flags);
+		const AlnFlags& flags,
+		const Mapq&   mapq);
 
 	const SamConfig& samc_;    // settings & routines for SAM output
 	bool             exEnds_;  // exclude ends for decoded colorspace alignments

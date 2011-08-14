@@ -6,6 +6,12 @@ Bowtie 2 TODO list:
   + Taking paired-end alignment into account
   + More local-alignment savvy
   + Simulate across various read lengths
+- Wrapper script where bells and whistles can be shoved
+- Are we picking best alignment?
+- Test scaling
+- Don't calc MAPQ in shared thread
+- Output locking can be economical.  SAM records can be written to strings,
+  then flushed while locked
 
 Manuscript TODO:
 - Get SOAP2 benchmarks working
