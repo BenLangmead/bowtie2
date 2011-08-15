@@ -707,7 +707,6 @@ static void parseOptions(int argc, const char **argv) {
 	bool saw_a = false;
 	bool saw_k = false;
 	EList<string> presetList; presetList.clear();
-	auto_ptr<Presets> presets(new PresetsV0());
 	if(startVerbose) { cerr << "Parsing options: "; logTime(cerr, true); }
 	do {
 		next_option = getopt_long(
@@ -961,24 +960,16 @@ static void parseOptions(int argc, const char **argv) {
 			case ARG_QC_FILTER: qcFilter = true; break;
 			case ARG_NOISY_HPOLY: noisyHpolymer = true; break;
 			case ARG_PRESET_VERY_FAST: {
-				string tmp;
-				presets->apply("very-fast", polstr, tmp);
-				break;
+				presetList.push_back("very-fast%LOCAL%"); break;
 			}
 			case ARG_PRESET_FAST: {
-				string tmp;
-				presets->apply("fast", polstr, tmp);
-				break;
+				presetList.push_back("fast%LOCAL%"); break;
 			}
 			case ARG_PRESET_SENSITIVE: {
-				string tmp;
-				presets->apply("sensitive", polstr, tmp);
-				break;
+				presetList.push_back("sensitive%LOCAL%"); break;
 			}
 			case ARG_PRESET_VERY_SENSITIVE: {
-				string tmp;
-				presets->apply("very-sensitive", polstr, tmp);
-				break;
+				presetList.push_back("very-sensitive%LOCAL%"); break;
 			}
 			case 'P': {
 				presetList.push_back(optarg);
@@ -1188,12 +1179,29 @@ static void parseOptions(int argc, const char **argv) {
 				throw 1;
 		}
 	} while(next_option != -1);
-	if(gVerbose) {
-		cerr << "Final policy string: '" << polstr << "'" << endl;
+	// Now parse all the presets.  Might want to pick which presets version to
+	// use according to other parameters.
+	auto_ptr<Presets> presets(new PresetsV0());
+	for(size_t i = 0; i < presetList.size(); i++) {
+		string tmp;
+		string s = presetList[i];
+		size_t found = s.find("%LOCAL%");
+		if(found != string::npos) {
+			s.replace(found, strlen("%LOCAL%"), localAlign ? "-local" : "");
+		}
+		if(gVerbose) {
+			cerr << "Applying preset: '" << s << "' using preset menu '"
+			     << presets->name() << "'" << endl;
+		}
+		presets->apply(s, polstr, tmp);
+		assert(tmp.empty());
 	}
 	// Remove initial semicolons
 	while(!polstr.empty() && polstr[0] == ';') {
 		polstr = polstr.substr(1);
+	}
+	if(gVerbose) {
+		cerr << "Final policy string: '" << polstr << "'" << endl;
 	}
 	SeedAlignmentPolicy::parseString(
 		polstr,
@@ -1223,12 +1231,6 @@ static void parseOptions(int argc, const char **argv) {
 		gRowLow = 0;
 	} else {
 		gRowLow = -1;
-	}
-	// Now parse all the presets
-	for(size_t i = 0; i < presetList.size(); i++) {
-		string tmp;
-		presets->apply(presetList[i], polstr, tmp);
-		assert(tmp.empty());
 	}
 	if(mates1.size() != mates2.size()) {
 		cerr << "Error: " << mates1.size() << " mate files/sequences were specified with -1, but " << mates2.size() << endl
