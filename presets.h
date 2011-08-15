@@ -12,12 +12,17 @@
 
 class Presets {
 public:
+	
 	Presets() { }
+	
 	virtual ~Presets() { }
+	
 	virtual void apply(
 		const std::string& preset,
 		std::string& policy,
 		std::string& args) = 0;
+	
+	virtual const char * name() = 0;
 };
 
 /**
@@ -25,12 +30,17 @@ public:
  */
 class PresetsV0 : public Presets {
 public:
+	
 	PresetsV0() : Presets() { }
+	
 	virtual ~PresetsV0() { }
+	
 	virtual void apply(
 		const std::string& preset,
 		std::string& policy,
 		std::string& args);
+
+	virtual const char * name() { return "V0"; }
 };
 
 #endif /*ndef PRESETS_H_*/
