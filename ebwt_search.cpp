@@ -32,6 +32,7 @@
 #include "util.h"
 #include "pe.h"
 #include "simple_func.h"
+#include "presets.h"
 
 using namespace std;
 
@@ -367,25 +368,25 @@ enum {
 	ARG_ONETWO,
 	ARG_PHRED64,
 	ARG_PHRED33,
-	ARG_HADOOPOUT,
-	ARG_FUZZY,
-	ARG_FULLREF,
-	ARG_USAGE,
-	ARG_SNPPHRED,
-	ARG_SNPFRAC,
-	ARG_SAM_NO_QNAME_TRUNC,
-	ARG_SAM_OMIT_SEC_SEQ,
-	ARG_SAM_NOHEAD,
-	ARG_SAM_NOSQ,
-	ARG_SAM_RG,
-	ARG_SUPPRESS_FIELDS,
-	ARG_COLOR_SEQ,
-	ARG_COLOR_EDIT,
-	ARG_COLOR_QUAL,
-	ARG_PRINT_PLACEHOLDERS,     //
-	ARG_PRINT_FLAGS,            //
-	ARG_PRINT_PARAMS,           //
-	ARG_COLOR_KEEP_ENDS,        //
+	ARG_HADOOPOUT,              // --hadoopout
+	ARG_FUZZY,                  // --fuzzy
+	ARG_FULLREF,                // --fullref
+	ARG_USAGE,                  // --usage
+	ARG_SNPPHRED,               // --snpphred
+	ARG_SNPFRAC,                // --snpfrac
+	ARG_SAM_NO_QNAME_TRUNC,     // --sam-no-qname-trunc
+	ARG_SAM_OMIT_SEC_SEQ,       // --sam-omit-sec-seq
+	ARG_SAM_NOHEAD,             // --sam-noHD/--sam-nohead
+	ARG_SAM_NOSQ,               // --sam-nosq/--sam-noSQ
+	ARG_SAM_RG,                 // --sam-RG
+	ARG_SUPPRESS_FIELDS,        // --suppress
+	ARG_COLOR_SEQ,              // --col-cseq
+	ARG_COLOR_EDIT,             // --col-cedit
+	ARG_COLOR_QUAL,             // --col-cqual
+	ARG_PRINT_PLACEHOLDERS,     // --print-placeholders
+	ARG_PRINT_FLAGS,            // --print-flags
+	ARG_PRINT_PARAMS,           // --print-params
+	ARG_COLOR_KEEP_ENDS,        // --col-keepends
 	ARG_GAP_BAR,                // --gbar
 	ARG_QUALS1,                 // --Q1
 	ARG_QUALS2,                 // --Q2
@@ -415,7 +416,12 @@ enum {
 	ARG_MAPQ_TOP_COEFF,         // --mapq-top-coeff
 	ARG_MAPQ_BOT_COEFF,         // --mapq-bot-coeff
 	ARG_MAPQ_MAX,               // --mapq-max
-	ARG_SAM_PRINT_YI
+	ARG_SAM_PRINT_YI,           // --mapq-print-inputs
+	ARG_ALIGN_POLICY,           // --policy
+	ARG_PRESET_VERY_FAST,       // --very-fast
+	ARG_PRESET_FAST,            // --fast
+	ARG_PRESET_SENSITIVE,       // --sensitive
+	ARG_PRESET_VERY_SENSITIVE   // --very-sensitive
 };
 
 
@@ -496,7 +502,8 @@ static struct option long_options[] = {
 	{(char*)"gopen",        required_argument, 0,            'O'},
 	{(char*)"gextend",      required_argument, 0,            'E'},
 	{(char*)"qseq",         no_argument,       0,            ARG_QSEQ},
-	{(char*)"align-policy", required_argument, 0,            'P'},
+	{(char*)"policy",       required_argument, 0,            ARG_ALIGN_POLICY},
+	{(char*)"preset",       required_argument, 0,            'P'},
 	{(char*)"seed-summ",    no_argument,       0,            ARG_SEED_SUMM},
 	{(char*)"seed-summary", no_argument,       0,            ARG_SEED_SUMM},
 	{(char*)"overhang",     no_argument,       0,            ARG_OVERHANG},
@@ -528,10 +535,13 @@ static struct option long_options[] = {
 	{(char*)"mapq-bot-coeff",   required_argument, 0,        ARG_MAPQ_BOT_COEFF},
 	{(char*)"mapq-max",         required_argument, 0,        ARG_MAPQ_MAX},
 	{(char*)"mapq-print-inputs",no_argument,       0,        ARG_SAM_PRINT_YI},
+	{(char*)"very-fast",        no_argument,       0,        ARG_PRESET_VERY_FAST},
+	{(char*)"fast",             no_argument,       0,        ARG_PRESET_FAST},
+	{(char*)"sensitive",        no_argument,       0,        ARG_PRESET_SENSITIVE},
+	{(char*)"very-sensitive",   no_argument,       0,        ARG_PRESET_VERY_SENSITIVE},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
-#ifdef BOWTIE2
 /**
  * Print a summary usage message to the provided output stream.
  */
@@ -611,7 +621,6 @@ static void printUsage(ostream& out) {
 	    << "  -h/--help          print this usage message" << endl
 	    ;
 }
-#endif
 
 /**
  * Parse an int out of optarg and enforce that it be at least 'lower';
@@ -697,6 +706,8 @@ static void parseOptions(int argc, const char **argv) {
 	bool saw_M = false;
 	bool saw_a = false;
 	bool saw_k = false;
+	EList<string> presetList; presetList.clear();
+	auto_ptr<Presets> presets(new PresetsV0());
 	if(startVerbose) { cerr << "Parsing options: "; logTime(cerr, true); }
 	do {
 		next_option = getopt_long(
@@ -949,15 +960,37 @@ static void parseOptions(int argc, const char **argv) {
 			case ARG_NO_SSE: noSse = true; break;
 			case ARG_QC_FILTER: qcFilter = true; break;
 			case ARG_NOISY_HPOLY: noisyHpolymer = true; break;
+			case ARG_PRESET_VERY_FAST: {
+				string tmp;
+				presets->apply("very-fast", polstr, tmp);
+				break;
+			}
+			case ARG_PRESET_FAST: {
+				string tmp;
+				presets->apply("fast", polstr, tmp);
+				break;
+			}
+			case ARG_PRESET_SENSITIVE: {
+				string tmp;
+				presets->apply("sensitive", polstr, tmp);
+				break;
+			}
+			case ARG_PRESET_VERY_SENSITIVE: {
+				string tmp;
+				presets->apply("very-sensitive", polstr, tmp);
+				break;
+			}
 			case 'P': {
-				if(!polstr.empty()) {
-					polstr += ";";
-				}
+				presetList.push_back(optarg);
+				break;
+			}
+			case ARG_ALIGN_POLICY: {
+				polstr += ";";
 				polstr += optarg;
 				break;
 			}
 			case ARG_MULTISEED_IVAL: {
-				if(!polstr.empty()) { polstr += ";"; }
+				polstr += ";";
 				// Split argument by comma
 				EList<string> args;
 				tokenize(optarg, ",", args);
@@ -1018,7 +1051,7 @@ static void parseOptions(int argc, const char **argv) {
 			case ARG_MULTISEED_IVAL_LINEAR:
 			case ARG_MULTISEED_IVAL_SQRT:
 			case ARG_MULTISEED_IVAL_LOG: {
-				if(!polstr.empty()) { polstr += ";"; }
+				polstr += ";";
 				const char *type =
 					(ARG_MULTISEED_IVAL_CONST  ? "C" :
 					(ARG_MULTISEED_IVAL_LINEAR ? "L" :
@@ -1062,9 +1095,7 @@ static void parseOptions(int argc, const char **argv) {
 				break;
 			}
 			case ARG_N_CEIL: {
-				if(!polstr.empty()) {
-					polstr += ";";
-				}
+				polstr += ";";
 				// Split argument by comma
 				EList<string> args;
 				tokenize(optarg, ",", args);
@@ -1081,9 +1112,7 @@ static void parseOptions(int argc, const char **argv) {
 				break;
 			}
 			case ARG_SCORES: {
-				if(!polstr.empty()) {
-					polstr += ";";
-				}
+				polstr += ";";
 				// MA=xx (default: MA=0, or MA=2 if --local is set)
 				// MMP={Cxx|Q|RQ} (default: MMP=C6)
 				// NP={Cxx|Q|RQ} (default: NP=C1)
@@ -1123,9 +1152,7 @@ static void parseOptions(int argc, const char **argv) {
 			case ARG_SCORE_MIN_LINEAR:
 			case ARG_SCORE_MIN_SQRT:
 			case ARG_SCORE_MIN_LOG: {
-				if(!polstr.empty()) {
-					polstr += ";";
-				}
+				polstr += ";";
 				EList<string> args;
 				tokenize(optarg, ",", args);
 				if(args.size() > 3 && args.size() == 0) {
@@ -1164,6 +1191,10 @@ static void parseOptions(int argc, const char **argv) {
 	if(gVerbose) {
 		cerr << "Final policy string: '" << polstr << "'" << endl;
 	}
+	// Remove initial semicolons
+	while(!polstr.empty() && polstr[0] == ';') {
+		polstr = polstr.substr(1);
+	}
 	SeedAlignmentPolicy::parseString(
 		polstr,
 		localAlign,
@@ -1192,6 +1223,12 @@ static void parseOptions(int argc, const char **argv) {
 		gRowLow = 0;
 	} else {
 		gRowLow = -1;
+	}
+	// Now parse all the presets
+	for(size_t i = 0; i < presetList.size(); i++) {
+		string tmp;
+		presets->apply(presetList[i], polstr, tmp);
+		assert(tmp.empty());
 	}
 	if(mates1.size() != mates2.size()) {
 		cerr << "Error: " << mates1.size() << " mate files/sequences were specified with -1, but " << mates2.size() << endl

@@ -823,7 +823,10 @@ void AlnSinkWrap::finishRead(
 			return;
 		}
 		// If we're at this point, at least one mate failed to align.
-		assert(nunpair1 == 0 || nunpair2 == 0);
+		// BTL: That's not true.  It could be that there are no concordant
+		// alignments but both mates have unpaired alignments, with one of
+		// the mates having more than one.
+		//assert(nunpair1 == 0 || nunpair2 == 0);
 		assert(!pairMax);
 
 		// Update counters given that one mate didn't align
