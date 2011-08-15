@@ -834,7 +834,7 @@ sub genAlignArgs {
 	} elsif($rep == 2) {
 		$args{"-M"} = int(Math::Random::random_exponential(1, 3))+2;
 	}
-	$args{"-P"} = ("\"".genPolicyArg($local)."\"") if rand() < 0.9;
+	$args{"--policy"} = ("\"".genPolicyArg($local)."\"") if rand() < 0.9;
 	return \%args;
 }
 

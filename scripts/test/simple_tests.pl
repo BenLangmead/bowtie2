@@ -322,7 +322,7 @@ my @cases = (
 	  #       NNNNNGA------A-------------------G-NTTT
 	  #            ||||||||||||||||||||||||||||||||||
 	  #       CCAAT-ATTTTTAATTTCCTCTATTTTTCTCTCGTCTTG
-	  args   => "-P \"SNP=18.5740807665497;NP=Q;RDG=46.3220993654702;RFG=41.3796024365659;MIN=L,5.57015383125426,-3.28597145122829;NCEIL=L,0.263054599454459,0.130843661549367;SEED=2,29;IVAL=L,0.0169183264663712,3.75762168662522\" --overhang --trim5 6",
+	  args   => "--policy \"SNP=18.5740807665497;NP=Q;RDG=46.3220993654702;RFG=41.3796024365659;MIN=L,5.57015383125426,-3.28597145122829;NCEIL=L,0.263054599454459,0.130843661549367;SEED=2,29;IVAL=L,0.0169183264663712,3.75762168662522\" --overhang --trim5 6",
 	  reads  => [ "CTTTGCACCCCTCCCTTGTCGGCTCCCACCCATCCCCATCCGTTGTCCCCGCCCCCGCCCGCCGGTCGTCACTCCCCGTTTGCGTCATGCCCCTCACCCTCCCTTTGTCGGCTCGCACCCCTCCCCATCCGTTGTCCCCGCCCCCGCTCTCGGGGTCTTCACGCCCCGCTTGCTTCATGCCCCTCACTCGCACCCCG" ],
 	},
 	
@@ -332,14 +332,14 @@ my @cases = (
 	  #       NNNNNGA------A-------------------G-NTTT
 	  #            ||||||||||||||||||||||||||||||||||
 	  #       CCAAT-ATTTTTAATTTCCTCTATTTTTCTCTCGTCTTG
-	  args   => "-P \"MMP=R;MIN=L,8.8,-8.1\" --overhang",
+	  args   => "--policy \"MMP=R;MIN=L,8.8,-8.1\" --overhang",
 	  reads  => [ "CAAGACGAGAGAAAAATAGAGGAAATTAAAAATATTGG" ],
 	},
 
 	{ name   => "matchesRef regression 2",
 	  ref    => ["GTTGTCGGCAGCTCTGGATATGTGNTCTCGGGTTTATNTCGTTGTCG",
 	             "CCTTGTTNTTAATGCTGCCTGGTTTNG"],
-	  args   =>  "-P \"RDG=2.02030755427021,2.81949533273331;MIN=L,-6.52134769703939,-3.39889659588514;IVAL=L,0.127835912101927\" --overhang --trim5 5",
+	  args   =>  "--policy \"RDG=2.02030755427021,2.81949533273331;MIN=L,-6.52134769703939,-3.39889659588514;IVAL=L,0.127835912101927\" --overhang --trim5 5",
 	  mate1s => ["TCTGGCGGTTGCGAAGGCCCCTGGCGGTTGCTATGTCCTCTGGCGGTTGCGTTGTCGGCAGCTCG"],
 	  mate2s => ["AGAACACATATCCAGAGCTGCCGACAACGAAATGAACCCGAGAGCACAAATCCAGAG"] },
 
@@ -1063,7 +1063,7 @@ my @cases = (
 	# Paired-end reads that should align
 	{ name     => "Fastq paired 4",
 	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  args     => "-s 1 -P \"SEED=2\"",
+	  args     => "-s 1 --policy \"SEED=2\"",
 	  #                  AGCATCGATC
 	  #                          TCAAAAACTGA
 	  #                  0123456789012345678
@@ -1084,7 +1084,7 @@ my @cases = (
 
 	{ name     => "Tabbed paired 4",
 	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  args     => "-s 1 -P \"SEED=2\"",
+	  args     => "-s 1 --policy \"SEED=2\"",
 	  #                  AGCATCGATC
 	  #                          TCAAAAACTGA
 	  #                  0123456789012345678
@@ -1102,7 +1102,7 @@ my @cases = (
 
 	{ name     => "Fasta paired 4",
 	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  args     => "-s 1 -P \"SEED=2\"",
+	  args     => "-s 1 --policy \"SEED=2\"",
 	  #                  AGCATCGATC
 	  #                          TCAAAAACTGA
 	  #                  0123456789012345678
@@ -1122,7 +1122,7 @@ my @cases = (
 
 	{ name     => "Raw paired 4",
 	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  args     => "-s 1 -P \"SEED=2\"",
+	  args     => "-s 1 --policy \"SEED=2\"",
 	  #                  AGCATCGATC
 	  #                          TCAAAAACTGA
 	  #                  0123456789012345678
@@ -1204,7 +1204,7 @@ my @cases = (
 
 	{ ref    => [ "TGC" ],
 	  reads  => [ "ATGC" ],
-	  args   => "--overhang -P \"SEED=0,3;IVAL=C,1,0;NCEIL=L,1,0\"",
+	  args   => "--overhang --policy \"SEED=0,3;IVAL=C,1,0;NCEIL=L,1,0\"",
 	  hits   => [ { 0 => 1 } ],
 	  mapq_hi   => [ 1 ],
 	  cigar  => [ "1S3M" ],
@@ -1214,7 +1214,7 @@ my @cases = (
 
 	{ ref    => [ "TTGTTCGT" ],
 	  reads  => [ "TTGTTCG" ],
-	  args   => "-P \"SEED=0,2;IVAL=C,1,0;NCEIL=L,2,0\"",
+	  args   => "--policy \"SEED=0,2;IVAL=C,1,0;NCEIL=L,2,0\"",
 	  hits   => [ { 0 => 1 } ],
 	  mapq_hi   => [ 1 ],
 	  cigar  => [ "7M" ],
@@ -1258,7 +1258,7 @@ my @cases = (
 	# Reads 1 and 2 don't have overhang, reads 3 and 4 overhang opposite ends
 	{ ref    => [ "TTGTTCGT" ],
 	  reads  => [ "TGTTCGT", "GTTCGTA", "ATTGTTC" ],
-	  args   => "--overhang -P \"SEED=0,2;IVAL=C,1,0;NCEIL=L,2,0\"",
+	  args   => "--overhang --policy \"SEED=0,2;IVAL=C,1,0;NCEIL=L,2,0\"",
 	  hits   => [ { 1 => 1 }, { 2 => 1 }, { 0 => 1 } ],
 	  cigar  => [ "7M", "6M1S", "1S6M" ],
 	  samoptflags => [
@@ -1270,7 +1270,7 @@ my @cases = (
 	# Same as previous case but --overhang not specified
 	{ ref    => [ "TTGTTCGT" ],
 	  reads  => [ "TGTTCGT", "TTGTTCG", "GTTCGTA", "ATTGTTC" ],
-	  args   => "-P \"SEED=0,2;IVAL=C,1,0;NCEIL=L,2,0\"",
+	  args   => "--policy \"SEED=0,2;IVAL=C,1,0;NCEIL=L,2,0\"",
 	  hits   => [ { 1 => 1 }, { 0 => 1 } ], # only the internal hits
 	  cigar  => [ "7M", "7M", "*", "*" ],
 	  samoptflags => [
@@ -1285,7 +1285,7 @@ my @cases = (
 	# a special NCEIL setting.
 	{ ref    => [ "TTGTTCGT" ],
 	  reads  => [ "TTGTTCG" ],
-	  args   => "--overhang -P \"SEED=0,2;IVAL=C,1,0;NCEIL=L,2,0\"",
+	  args   => "--overhang --policy \"SEED=0,2;IVAL=C,1,0;NCEIL=L,2,0\"",
 	  hits   => [ { 0 => 1 } ]},
 
 	{ ref    => [ "TTGTTCGT" ],
@@ -2705,7 +2705,7 @@ my @cases = (
 	{ name   => "Local alignment 1",
 	  ref    => [ "TTGT" ],
 	  reads  => [ "TTGT" ],
-	  args   =>   "--local -P \"MIN=L,0.0,0.75\"",
+	  args   =>   "--local --policy \"MIN=L,0.0,0.75\"",
 	  hits   => [ { 0 => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU,XC:4=" ],
 	  cigar  => [ "4M" ],
@@ -2733,7 +2733,7 @@ my @cases = (
 	{ name   => "Local alignment 2",
 	  ref    => [ "TTGA" ],
 	  reads  => [ "TTGT" ],
-	  args   =>   "--local -P \"MIN=L,0.0,0.75;SEED=0,3;IVAL=C,1,0\"",
+	  args   =>   "--local --policy \"MIN=L,0.0,0.75;SEED=0,3;IVAL=C,1,0\"",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1 } ],
 	  flags => [ "XM:0,XP:0,XT:UU,XC:3=1S" ],
@@ -2792,7 +2792,7 @@ my @cases = (
 	{ name   => "Local alignment 3",
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCGTTTGTT" ],
-	  args   =>   "--local -P \"POSF=L,0,1.0\"",
+	  args   =>   "--local --policy \"POSF=L,0,1.0\"",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1, 8 => 1 } ],
 	  flags_map => [{
@@ -2829,7 +2829,7 @@ my @cases = (
 	{ name   => "Local alignment 4",
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCGTTTGT" ],
-	  args   =>   "--local -P \"SEED=0,3;IVAL=C,1,0;POSF=L,0,1.0\"",
+	  args   =>   "--local --policy \"SEED=0,3;IVAL=C,1,0;POSF=L,0,1.0\"",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1, 8 => 1 } ],
 	  flags_map => [{
@@ -2854,7 +2854,7 @@ my @cases = (
 	# Just enough budget for hits, so it should align
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCAT" ], # budget = 3 + 8 * 3 = 27
-	  args   => "-P \"SEED=2;MMP=C27;MIN=L,-3,-3;RDG=25,15;RFG=25,15\"", # penalty = 27
+	  args   => "--policy \"SEED=2;MMP=C27;MIN=L,-3,-3;RDG=25,15;RFG=25,15\"", # penalty = 27
 	  report => "-a",
 	  hits   => [ { 0 => 1, 8 => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU,XC:6=1X1=" ],
@@ -2865,7 +2865,7 @@ my @cases = (
 	# Not quite enough budget for hits, so it should NOT align
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCAT" ], # budget = 3 + 8 * 3 = 27
-	  args   =>   "-P \"SEED=2;MMP=C28;MIN=L,-3,-3;RDG=25,15;RFG=25,15\"", # penalty = 28
+	  args   =>   "--policy \"SEED=2;MMP=C28;MIN=L,-3,-3;RDG=25,15;RFG=25,15\"", # penalty = 28
 	  report =>   "-a",
 	  hits   => [ { "*" => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU" ],
@@ -2878,7 +2878,7 @@ my @cases = (
 	{ ref    => [ "AAAAAAAAAAAAAAAAAAAAAAAAACCCCCCCCCCCCCCCCCCCCCCCC" ],
 	  reads  => [ "AA", "AA", "AA", "AA", "CC", "CC", "CC", "CC", "AA", "AA", "AA", "AA", "CC", "CC", "CC", "CC" ],
 	  names  => [ "r1", "r1", "r1", "r1", "r2", "r2", "r2", "r2", "r3", "r3", "r3", "r3", "r4", "r4", "r4", "r4" ],
-	  args   => "-P \"SEED=1,1\"",
+	  args   => "--policy \"SEED=1,1\"",
 	  check_random => 1,
 	  report => "-k 1" },
 
@@ -2890,7 +2890,7 @@ my @cases = (
 	{ name   => "Gap penalties 1",
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCTTTGTT" ], # budget = 3 + 12 * 3 = 39
-	  args   =>   "-P \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=29,10;RFG=25,15;MIN=L,-3,-3\"",
+	  args   =>   "--policy \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=29,10;RFG=25,15;MIN=L,-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU,XC:6=1D6=" ],
@@ -2905,7 +2905,7 @@ my @cases = (
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "01102200110" ], # budget = 3 + 11 * 3 = 36
 	  #           "TTGTTCTTTGTT"
-	  args   =>   "-P \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=26,10;RFG=25,15;MIN=L,-3,-3\"",
+	  args   =>   "--policy \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=26,10;RFG=25,15;MIN=L,-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { 1 => 1 } ],
 	  color  => 1,
@@ -2920,7 +2920,7 @@ my @cases = (
 	{ name   => "Gap penalties 2",
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCTTTGTT" ], # budget = 3 + 12 * 3 = 39
-	  args   =>   "-P \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=30,10;RFG=25,15;MIN=L,-3,-3\"",
+	  args   =>   "--policy \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=30,10;RFG=25,15;MIN=L,-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { "*" => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU" ],
@@ -2933,7 +2933,7 @@ my @cases = (
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "01102200110" ], # budget = 3 + 11 * 3 = 36
 	  #           "TTGTTCTTTGTT"
-	  args   =>   "-P \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=27,10;RFG=25,15;MIN=L,-3,-3\"",
+	  args   =>   "--policy \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=27,10;RFG=25,15;MIN=L,-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { "*" => 1 } ],
 	  color  => 1,
@@ -2946,7 +2946,7 @@ my @cases = (
 	{ name   => "Gap penalties 3",
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCGATTTGTT" ], # budget = 3 + 14 * 3 = 45
-	  args   =>   "-P \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=25,15;RFG=30,15;MIN=L,-3,-3\"",
+	  args   =>   "--policy \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=25,15;RFG=30,15;MIN=L,-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU,XC:7=1I6=" ],
@@ -2992,7 +2992,7 @@ my @cases = (
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "0110232300110" ], # budget = 3 + 13 * 3 = 42
 	  #           "TTGTTCGATTTGTT"
-	  args   =>   "-P \"SEED=0,3;IVAL=C,1,0;RFG=27,15\"",
+	  args   =>   "--policy \"SEED=0,3;IVAL=C,1,0;RFG=27,15\"",
 	  report =>   "-a",
 	  hits   => [ { 1 => 1 } ],
 	  color  => 1,
@@ -3005,7 +3005,7 @@ my @cases = (
 	{ name   => "Gap penalties 4",
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCGATTTGTT" ], # budget = 3 + 14 * 3 = 45
-	  args   =>   "-P \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=25,15;RFG=30,16;MIN=L,-3,-3\"",
+	  args   =>   "--policy \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=25,15;RFG=30,16;MIN=L,-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { "*" => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU" ],
@@ -3017,7 +3017,7 @@ my @cases = (
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "0110232300110" ], # budget = 3 + 13 * 3 = 42
 	  #           "TTGTTCGATTTGTT"
-	  args   =>   "-P \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=25,15;RFG=27,16;MIN=L,-3,-3\"",
+	  args   =>   "--policy \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=25,15;RFG=27,16;MIN=L,-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { "*" => 1 } ],
 	  color  => 1,
@@ -3029,7 +3029,7 @@ my @cases = (
 	{ name   => "Gap penalties 5",
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCGATTTGTT" ], # budget = 3 + 14 * 3 = 45
-	  args   =>   "-P \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=25,15;RFG=31,15;MIN=L,-3,-3\"",
+	  args   =>   "--policy \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=25,15;RFG=31,15;MIN=L,-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { "*" => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU" ],
@@ -3041,7 +3041,7 @@ my @cases = (
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "0110232300110" ], # budget = 3 + 13 * 3 = 42
 	  #           "TTGTTCGATTTGTT"
-	  args   =>   "-P \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=25,15;RFG=28,15;MIN=L,-3,-3\"",
+	  args   =>   "--policy \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=25,15;RFG=28,15;MIN=L,-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { "*" => 1 } ],
 	  color  => 1,
@@ -3053,7 +3053,7 @@ my @cases = (
 	{ name   => "Gap penalties 6",
 	  ref    => [ "ATTGTTCGTTTGTTCGTA" ],
 	  reads  => [ "ATTGTTGTTTGATTCGTA" ], # budget = 3 + 18 * 3 = 57
-	  args   =>   "-P \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=19,10;RFG=18,10;MIN=L,-3,-3\"",
+	  args   =>   "--policy \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=19,10;RFG=18,10;MIN=L,-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU,XC:6=1D5=1I6=" ],
@@ -3064,7 +3064,7 @@ my @cases = (
 	  ref    => [ "ATTGTTCGTTTGTTCGTA" ],
 	  reads  => [ "30110110012302313" ], # budget = 3 + 17 * 3 = 54
 	  #           "ATTGTTGTTTGATTCGTA"
-	  args   =>   "-P \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=16,10;RFG=18,10;MIN=L,-3,-3\"",
+	  args   =>   "--policy \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=16,10;RFG=18,10;MIN=L,-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { 1 => 1 } ],
 	  color  => 1,
@@ -3075,7 +3075,7 @@ my @cases = (
 	{ name   => "Gap penalties 7",
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTGTTTGATTCGT" ], # budget = 3 + 16 * 3 = 51
-	  args   =>   "-P \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=16,10;RFG=16,10;MIN=L,-3,-3\"",
+	  args   =>   "--policy \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=16,10;RFG=16,10;MIN=L,-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { "*" => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU" ],
@@ -3087,7 +3087,7 @@ my @cases = (
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "011011001230231" ], # budget = 3 + 15 * 3 = 48
 	  #           "TTGTTGTTTGATTCGT"
-	  args   =>   "-P \"MMP=C30;SEED=0,3;IVAL=C,1,0;RFG=16,10;RDG=13,10;MIN=L,-3,-3\"",
+	  args   =>   "--policy \"MMP=C30;SEED=0,3;IVAL=C,1,0;RFG=16,10;RDG=13,10;MIN=L,-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { "*" => 1 } ],
 	  color  => 1,
@@ -3101,7 +3101,7 @@ my @cases = (
 	  reads    => [         "ATACGCATCGAAC" ],
 	  #              0123456789012345678901234567890
 	  #                        1         2         3
-	  args     =>   "-P \"NCEIL=L,0,0\"",
+	  args     =>   "--policy \"NCEIL=L,0,0\"",
 	  report   =>   "-a",
 	  hits     => [ { 8 => 1 } ],
 	  flags => [ "XM:0,XP:0,XT:UU,XC:13=" ] },
@@ -3111,7 +3111,7 @@ my @cases = (
 	  reads    => [         "ATACGCATCGAAC" ],
 	  #              0123456789012345678901234567890
 	  #                        1         2         3
-	  args     =>   "-P \"NCEIL=L,0,0\"",
+	  args     =>   "--policy \"NCEIL=L,0,0\"",
 	  report   =>   "-a",
 	  hits     => [ { "*" => 1 } ] },
 
@@ -3120,7 +3120,7 @@ my @cases = (
 	  reads    => [         "ATACGCATCGAAC" ],
 	  #              0123456789012345678901234567890
 	  #                        1         2         3
-	  args     =>   "-P \"NCEIL=L,0,0\"",
+	  args     =>   "--policy \"NCEIL=L,0,0\"",
 	  report   =>   "-a",
 	  hits     => [ { "*" => 1 } ] },
 
@@ -3129,7 +3129,7 @@ my @cases = (
 	  reads    => [         "ATACGCATCGAAC" ],
 	  #              0123456789012345678901234567890
 	  #                        1         2         3
-	  args     =>   "-P \"NCEIL=L,0,0\"",
+	  args     =>   "--policy \"NCEIL=L,0,0\"",
 	  report   =>   "-a",
 	  hits     => [ { "*" => 1 } ] },
 
@@ -3138,7 +3138,7 @@ my @cases = (
 	  reads    => [         "ATACGCATCGAAC" ],
 	  #              0123456789012345678901234567890
 	  #                        1         2         3
-	  args     =>   "-P \"NCEIL=L,0,0.1;SEED=0,10;IVAL=C,1,0\"",
+	  args     =>   "--policy \"NCEIL=L,0,0.1;SEED=0,10;IVAL=C,1,0\"",
 	  report   =>   "-a",
 	  hits     => [ { 8 => 1 } ],
 	  flags => [ "XM:0,XP:0,XT:UU,XC:2=1X10=" ] },
@@ -3148,7 +3148,7 @@ my @cases = (
 	  reads    => [         "ATACGCATCGAAC" ],
 	  #              0123456789012345678901234567890
 	  #                        1         2         3
-	  args     =>   "-P \"NCEIL=L,0,0.1;SEED=0,10;IVAL=C,1,0\"",
+	  args     =>   "--policy \"NCEIL=L,0,0.1;SEED=0,10;IVAL=C,1,0\"",
 	  report   =>   "-a",
 	  hits     => [ { "*" => 1 } ] },
 
@@ -3157,7 +3157,7 @@ my @cases = (
 	# Alignment with 1 reference gap
 	{ ref    => [ "TTTTGTTCGTTTG" ],
 	  reads  => [ "TTTTGTTCGATTTG" ], # budget = 3 + 14 * 3 = 45
-	  args   =>   "-P \"SEED=0,8;IVAL=C,1,0;MMP=C30;RDG=25,15;RFG=25,20;MIN=L,-3,-3\"",
+	  args   =>   "--policy \"SEED=0,8;IVAL=C,1,0;MMP=C30;RDG=25,15;RFG=25,20;MIN=L,-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1 } ],
 	  flags => [ "XM:0,XP:0,XT:UU,XC:9=1I4=" ],
@@ -3187,7 +3187,7 @@ my @cases = (
 	# Alignment with 1 reference gap
 	{ ref    => [ "TTGTTCGTTTGTT" ],
 	  reads  => [ "TTGTTCGATTTGTT" ], # budget = 3 + 14 * 3 = 45
-	  args   =>   "-P \"SEED=0,3;IVAL=C,1,0;MMP=C30;RDG=25,15;RFG=25,20;MIN=L,-3,-3\"",
+	  args   =>   "--policy \"SEED=0,3;IVAL=C,1,0;MMP=C30;RDG=25,15;RFG=25,20;MIN=L,-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1 } ],
 	  flags => [ "XM:0,XP:0,XT:UU,XC:7=1I6=" ],
@@ -3201,7 +3201,7 @@ my @cases = (
 	{ ref    => [ "ACNCA" ],
 	  reads  => [ "CA" ],
 	  args   => "",
-	  report => "-a -P \"SEED=0,2;IVAL=C,1,0;NCEIL=L,0,0\"",
+	  report => "-a --policy \"SEED=0,2;IVAL=C,1,0;NCEIL=L,0,0\"",
 	  hits   => [ { 3 => 1 } ],
 	  edits  => [ ],
 	  flags => [ "XM:0,XP:0,XT:UU,XC:2=" ],
@@ -3214,7 +3214,7 @@ my @cases = (
 	{ ref    => [ "ACNCA" ],
 	  reads  => [ "AC" ],
 	  args   => "",
-	  report => "-a -P \"SEED=0,2;IVAL=C,1,0;NCEIL=L,0,0\"",
+	  report => "-a --policy \"SEED=0,2;IVAL=C,1,0;NCEIL=L,0,0\"",
 	  hits   => [ { 0 => 1 } ],
 	  edits  => [ ],
 	  flags => [ ] },
@@ -3224,7 +3224,7 @@ my @cases = (
 	#              0         1         2
 	  reads  => [ "CG" ],
 	  args   => "",
-	  report => "-a -P \"SEED=0,2;IVAL=C,1,0;NCEIL=L,0,0\"",
+	  report => "-a --policy \"SEED=0,2;IVAL=C,1,0;NCEIL=L,0,0\"",
 	  hits   => [ { 13 => 2, 23 => 2 } ],
 	  edits  => [ ],
 	  flags => [ "XM:0,XP:0,XT:UU,XC:2=", "XM:0,XP:0,XT:UU,XC:2=" ],
@@ -3240,7 +3240,7 @@ my @cases = (
 	#              0         1         2         3
 	  reads  => [ "CG" ],
 	  args   => "",
-	  report => "-a -P \"SEED=0,2;IVAL=C,1,0;NCEIL=L,0,0;ROWM=C,3,0\"",
+	  report => "-a --policy \"SEED=0,2;IVAL=C,1,0;NCEIL=L,0,0;ROWM=C,3,0\"",
 	  hits   => [ { 13 => 2, 23 => 2, 31 => 2 } ],
 	  edits  => [ ],
 	  flags => [ "XM:0,XP:0,XT:UU,XC:2=",
@@ -3259,7 +3259,7 @@ my @cases = (
 	#              0         1         2         3
 	  reads  => [ "CG" ],
 	  args   => "",
-	  report => "-a -P \"SEED=0,1;IVAL=C,1,0;NCEIL=L,0,0;ROWM=C,3,0\"",
+	  report => "-a --policy \"SEED=0,1;IVAL=C,1,0;NCEIL=L,0,0;ROWM=C,3,0\"",
 	  hits   => [ { 13 => 2, 23 => 2, 31 => 2 } ],
 	  edits  => [ ],
 	  flags => [ "XM:0,XP:0,XT:UU,XC:2=",
@@ -3282,7 +3282,7 @@ my @cases = (
 	{ ref    => [ "TTGTTYGT" ],
 	  reads  => [ "TTGTTGGT", "TTGTTCGT" ],
 	  args   => "",
-	  report => "-a -P \"SEED=0,5;IVAL=C,1,0;NCEIL=L,2,0\"",
+	  report => "-a --policy \"SEED=0,5;IVAL=C,1,0;NCEIL=L,2,0\"",
 	  hits   => [ { 0 => 1 }, { 0 => 1 } ],
 	  norc   => 1,
 	  edits  => [ "5:N>G", "5:N>C" ],
@@ -3306,7 +3306,7 @@ my @cases = (
 	  #                ^
 	  #                4:CC>- 
 	  args   => "",
-	  report => "-a --overhang --gbar 3 -P \"MMP=C30;RDG=5,5;SEED=0,4;IVAL=C,1,0;RFG=25,20;MIN=L,-3,-3\"",
+	  report => "-a --overhang --gbar 3 --policy \"MMP=C30;RDG=5,5;SEED=0,4;IVAL=C,1,0;RFG=25,20;MIN=L,-3,-3\"",
 	  hits   => [ { 0 => 1 } ],
 	  edits  => [ "4:CC>-" ],
 	  flags  => [ "XM:0,XP:0,XT:UU,XC:4=2D4=" ],
@@ -3322,7 +3322,7 @@ my @cases = (
 	  reads  => [ "ATATGCCCCCCCCCCTCCG" ], # 3 * 19 + 3 = 60
 	  #                     ^
 	  #                     9:ATG>- 
-	  args   =>   "-P \"SEED=0,8;IVAL=C,1,0;MMP=C30;RDG=5,5;RFG=25,15;MIN=L,-3,-3\"",
+	  args   =>   "--policy \"SEED=0,8;IVAL=C,1,0;MMP=C30;RDG=5,5;RFG=25,15;MIN=L,-3,-3\"",
 	  hits   => [ { 0 => 1 } ],
 	  edits  => [ "9:ATG>-" ],
 	  norc   => 1,
@@ -3341,7 +3341,7 @@ my @cases = (
 	  #                     ^         
 	  #                     10:GTA>- 
 	  args   => "",
-	  report => "-a --overhang -P \"SEED=0,8;IVAL=C,1,0;MMP=C30;RDG=5,5;RFG=25,20;MIN=L,-3,-3\"",
+	  report => "-a --overhang --policy \"SEED=0,8;IVAL=C,1,0;MMP=C30;RDG=5,5;RFG=25,20;MIN=L,-3,-3\"",
 	  hits   => [ { 0 => 1 } ],
 	  edits  => [ "10:GTA>-" ],
 	  norc   => 1,
@@ -3448,7 +3448,7 @@ my @cases = (
 	  mate1s  => [ "ATATATATAT" ],
 	  mate2s  => [ "CGCGCGCGCG" ],
 	  mate1fw => 1,  mate2fw => 0,
-	  args    => "-I 0 -X 80 -P \"ROWM=C,3.0,0\"",
+	  args    => "-I 0 -X 80 --policy \"ROWM=C,3.0,0\"",
 	  report  => "-M 2",
 	  lines   => 2,
 	  pairhits => [ { "3,59" => 1, "19,59" => 1, "37,59" => 1 } ],
@@ -3465,7 +3465,7 @@ my @cases = (
 	  mate1s => [ "ATATATATAT" ],
 	  mate2s => [ "CGCGCGCGCG" ],
 	  mate1fw => 1,  mate2fw => 0,
-	  args   =>   "-I 0 -X 80 -P \"ROWM=C,3.0,0\"",
+	  args   =>   "-I 0 -X 80 --policy \"ROWM=C,3.0,0\"",
 	  pairhits => [ { "3,59" => 1, "19,59" => 1, "37,59" => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:CP,XC:10=" ] },
 
@@ -3551,7 +3551,7 @@ my @cases = (
 	  reads    => [ "11311" ],
 	  dec_seq  => [ "TGTACA" ],
 	  dec_qual => [ "IqqqqI" ],
-	  args     =>   "--col-keepends --norc --overhang -P \"NCEIL=L,1,0;MIN=L,-10,0;SEED=0,2;IVAL=C,1,0;MMP=C5;SNP=9\"",
+	  args     =>   "--col-keepends --norc --overhang --policy \"NCEIL=L,1,0;MIN=L,-10,0;SEED=0,2;IVAL=C,1,0;MMP=C5;SNP=9\"",
 	  hits     => [ { 1 => 1 } ],
 	  color    => 1,
 	  flags => [ "XM:0,XP:0,XT:UU,XC:3=1X1=1X" ]
@@ -3575,7 +3575,7 @@ my @cases = (
 	  reads    => [ "01102"  ],
 	  dec_seq  => [ "TTGTTC" ],
 	  dec_qual => [ "IqqqqI" ],
-	  args     =>   "--col-keepends -P \"SEED=0,3;IVAL=C,1,0\"",
+	  args     =>   "--col-keepends --policy \"SEED=0,3;IVAL=C,1,0\"",
 	  hits     => [ { 0 => 1 } ],
 	  color    => 1,
 	  flags => [ "XM:0,XP:0,XT:UU,XC:6=" ],
@@ -3589,7 +3589,7 @@ my @cases = (
 	  reads    => [ "01102" ],
 	  dec_seq  => [ "TGTT" ],
 	  dec_qual => [ "qqqq" ],
-	  args     =>   "-P \"SEED=0,3;IVAL=C,1,0\"",
+	  args     =>   "--policy \"SEED=0,3;IVAL=C,1,0\"",
 	  hits     => [ { 1 => 1 } ],
 	  color    => 1,
 	  flags => [ "XM:0,XP:0,XT:UU,XC:4=" ],
@@ -3602,7 +3602,7 @@ my @cases = (
 	{ ref      => [ "TTGTTC" ],
 	  reads    => [ "01112" ],
 	  #                 ^mm
-	  args     =>   "--col-keepends -P \"SEED=0,4;IVAL=C,1,0;MMP=C5\"",
+	  args     =>   "--col-keepends --policy \"SEED=0,4;IVAL=C,1,0;MMP=C5\"",
 	  hits     => [ { "*" => 1 } ],
 	  color    => 1,
 	  cigar  => [ "*" ],
@@ -3615,7 +3615,7 @@ my @cases = (
 	  #                 ^mm
 	  dec_seq  => [ "TTGTTC" ],
 	  dec_qual => [ "Iqq!!I" ],
-	  args     =>   "--col-keepends -P \"SEED=0,3;IVAL=C,1,0;MMP=C7\"",
+	  args     =>   "--col-keepends --policy \"SEED=0,3;IVAL=C,1,0;MMP=C7\"",
 	  hits     => [ { 0 => 1 } ],
 	  color    => 1,
 	  flags => [ "XM:0,XP:0,XT:UU,XC:6=" ],
@@ -3632,7 +3632,7 @@ my @cases = (
 	  reads    => [ "01131" ],
 	  dec_seq  => [ "TTGTTC" ],
 	  dec_qual => [ "Iqq!!!" ],
-	  args     =>   "--col-keepends -P \"SEED=0,3;IVAL=C,1,0;MMP=C5;SNP=11\"",
+	  args     =>   "--col-keepends --policy \"SEED=0,3;IVAL=C,1,0;MMP=C5;SNP=11\"",
 	  hits     => [ { 0 => 1 } ],
 	  color    => 1,
 	  flags => [ "XM:0,XP:0,XT:UU,XC:6=" ],
@@ -3649,7 +3649,7 @@ my @cases = (
 	  reads    => [ "01131" ],
 	  dec_seq  => [ "TTGTAC" ],
 	  dec_qual => [ "IqqqqI" ],
-	  args     =>   "--col-keepends -P \"SEED=0,3;IVAL=C,1,0;MMP=C5;SNP=9\"",
+	  args     =>   "--col-keepends --policy \"SEED=0,3;IVAL=C,1,0;MMP=C5;SNP=9\"",
 	  hits     => [ { 0 => 1 } ],
 	  color    => 1,
 	  flags => [ "XM:0,XP:0,XT:UU,XC:4=1X1=" ],
@@ -3686,7 +3686,7 @@ my @cases = (
 	# Read 3 overhangs right end
 	{ ref    => [ "TTGTTCGT"  ],
 	  reads  => [   "GTTCGTA" ],
-	  args   => "--overhang -P \"SEED=0,3;IVAL=C,1,0;NCEIL=L,2,0\"",
+	  args   => "--overhang --policy \"SEED=0,3;IVAL=C,1,0;NCEIL=L,2,0\"",
 	  hits   => [ { 2 => 1 } ],
 	  flags => [ "XM:0,XP:0,XT:UU,XC:6=1X" ] },
 
@@ -3705,7 +3705,7 @@ my @cases = (
 	# Shouldn't align with 0 mismatches either
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTATTAGT" ],
-	  args   => "-P SEED=0",
+	  args   => "--policy SEED=0",
 	  hits   => [ { "*" => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU" ],
 	  cigar  => [ "*" ],
@@ -3717,7 +3717,7 @@ my @cases = (
 	  reads  => [ "TAGTTCAT" ],
 	  #            TAGTTCAT
 	  #                    TAGTTCAT
-	  args   => "-P \"SEED=2;MMP=C1\"",
+	  args   => "--policy \"SEED=2;MMP=C1\"",
 	  hits   => [ { 0 => 1, 8 => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU,XC:1=1X4=1X1=" ],
 	  cigar  => [ "8M" ],
@@ -3728,7 +3728,7 @@ my @cases = (
 	# Should align with 2 mismatches, provided the mismatches are in the right spots
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTATTAGT" ],
-	  args   =>   "-P \"SEED=2;MMP=C1\"",
+	  args   =>   "--policy \"SEED=2;MMP=C1\"",
 	  hits   => [ { "*" => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU" ],
 	  cigar  => [ "*" ],
@@ -3740,7 +3740,7 @@ my @cases = (
 	# wedge a length-3 seed in (there's no room)
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTATTAGT" ],
-	  args   => "-P \"SEED=0,3;IVAL=C,1,0;MMP=C1\"",
+	  args   => "--policy \"SEED=0,3;IVAL=C,1,0;MMP=C1\"",
 	  hits   => [ { "*" => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU" ],
 	  cigar  => [ "*" ],
@@ -3752,7 +3752,7 @@ my @cases = (
 	# length-2 seed in
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [      "TTATTAGT" ],
-	  args   => "-P \"SEED=0,2;IVAL=C,1,0;MMP=C1;ROWM=C,10,0\"",
+	  args   => "--policy \"SEED=0,2;IVAL=C,1,0;MMP=C1;ROWM=C,10,0\"",
 	  #
 	  # TTGTTCGTTTGTTCGT TTGTTCGTTTGTTCGT TTGTTCGTTTGTTCGT
 	  # || || ||            ||  |             |  || ||
