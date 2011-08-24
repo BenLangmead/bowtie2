@@ -11,6 +11,7 @@
 #include "sam.h"
 #include "ds.h"
 #include "simple_func.h"
+#include <utility>
 
 // Forward decl	
 class SeedResults;
@@ -615,77 +616,15 @@ public:
 		const EList<size_t>& select,         // random subset
 		const EList<AlnRes> *rs1,            // alignments for mate #1
 		const EList<AlnRes> *rs2,            // alignments for mate #2
-		size_t&              pri1,           // OUT: which rs1 got primary?
-		size_t&              pri2,           // OUT: which rs1 got primary?
 		bool                 maxed,          // true iff -m/-M exceeded
 		const AlnSetSumm&    summ,           // summary
 		const AlnFlags*      flags1,         // flags for mate #1
 		const AlnFlags*      flags2,         // flags for mate #2
-		const Mapq&          mapq,
+		const Mapq&          mapq,           // MAPQ generator
 		bool                 getLock = true) // true iff lock held by caller
 	{
 		assert(rd1 != NULL || rd2 != NULL);
 		assert(rs1 != NULL || rs2 != NULL);
-		size_t sz = ((rs1 != NULL) ? rs1->size() : rs2->size());
-		// Report all hits in the rs1/rs2 lists
-		reportHits(
-			rd1,
-			rd2,
-			rdid,
-			select,
-			rs1,
-			rs2,
-			pri1,
-			pri2,
-			maxed,
-			0,
-			sz,
-			summ,
-			flags1,
-			flags2,
-			mapq,
-			getLock);
-	}
-
-	/**
-	 * Report a given batch of hits for the given read pair.  Should be
-	 * called just once per read pair.  Assumes all the alignments are
-	 * paired, split between rs1 and rs2.
-	 *
-	 * The caller hasn't decided which alignments get reported as primary
-	 * or secondary; that's up to the routine.  Because the caller might
-	 * want to know this, we use the pri1 and pri2 out arguments to
-	 * convey this.
-	 */
-	virtual void reportHits(
-		const Read          *rd1,            // mate #1
-		const Read          *rd2,            // mate #2
-		const TReadId        rdid,           // read ID
-		const EList<size_t>& select,         // random subset
-		const EList<AlnRes> *rs1,            // alignments for mate #1
-		const EList<AlnRes> *rs2,            // alignments for mate #2
-		size_t&              pri1,           // OUT: which rs1 got primary?
-		size_t&              pri2,           // OUT: which rs1 got primary?
-		bool                 maxed,          // true iff -m/-M exceeded
-		size_t               start,          // alignments to report: start
-		size_t               end,            // alignments to report: end 
-		const AlnSetSumm&    summ,           // summary
-		const AlnFlags*      flags1,         // flags for mate #1
-		const AlnFlags*      flags2,         // flags for mate #2
-		const Mapq&          mapq,
-		bool                 getLock = true) // true iff lock held by caller
-	{
-		assert(rd1 != NULL || rd2 != NULL);
-		assert(rs1 != NULL || rs2 != NULL);
-		assert_geq(end, start);
-		ASSERT_ONLY(size_t sz = ((rs1 != NULL) ? rs1->size() : rs2->size()));
-		assert_leq(end, sz);
-		size_t num = end - start;
-		if(num == 0) {
-			// Nothing to report
-			return;
-		}
-		// Now we instantiate the 
 		AlnFlags flagscp1, flagscp2;
 		if(flags1 != NULL) {
 			flagscp1 = *flags1;
@@ -697,26 +636,14 @@ public:
 			flags2 = &flagscp2;
 			flagscp2.setPrimary(true);
 		}
-		size_t sel_start = start;
-		bool found = false;
-		for(size_t i = start; i < end; i++) {
-			if(select[i] == 1) {
-				pri1 = pri2 = i;
-				sel_start = i;
-				found = true;
-				break;
-			}
-		}
-		assert(found);
-		size_t i = sel_start;
-		do {
+		for(size_t i = 0; i < select.size(); i++) {
 			// Determine the stream id using the coordinate of the
 			// upstream mate
 			Coord c = ((rs1 != NULL) ?
-				rs1->get(i).refcoord() :
-				rs2->get(i).refcoord());
-			const AlnRes* r1 = ((rs1 != NULL) ? &rs1->get(i) : NULL);
-			const AlnRes* r2 = ((rs2 != NULL) ? &rs2->get(i) : NULL);
+				rs1->get(select[i]).refcoord() :
+				rs2->get(select[i]).refcoord());
+			const AlnRes* r1 = ((rs1 != NULL) ? &rs1->get(select[i]) : NULL);
+			const AlnRes* r2 = ((rs2 != NULL) ? &rs2->get(select[i]) : NULL);
 			size_t sid = streamId(rdid, c);
 			assert_lt(sid, locks_.size());
 			{
@@ -729,10 +656,7 @@ public:
 			if(flags2 != NULL) {
 				flagscp2.setPrimary(false);
 			}
-			if(++i == end) {
-				i = 0;
-			}
-		} while(select[i] > 0 && i != sel_start);
+		}
 	}
 
 	/**
@@ -1086,20 +1010,21 @@ public:
 	 * to the appropriate output stream.
 	 */
 	void finishRead(
-		const SeedResults *sr1,
-		const SeedResults *sr2,
-		bool               exhaust1,
-		bool               exhaust2,
-		bool               nfilt1,
-		bool               nfilt2,
-		bool               scfilt1,
-		bool               scfilt2,
-		bool               lenfilt1,
-		bool               lenfilt2,
-		bool               qcfilt1,
-		bool               qcfilt2,
-		RandomSource&      rnd,
-		ReportingMetrics&  met,
+		const SeedResults *sr1,         //
+		const SeedResults *sr2,         //
+		bool               exhaust1,    //
+		bool               exhaust2,    //
+		bool               nfilt1,      //
+		bool               nfilt2,      //
+		bool               scfilt1,     //
+		bool               scfilt2,     //
+		bool               lenfilt1,    //
+		bool               lenfilt2,    //
+		bool               qcfilt1,     //
+		bool               qcfilt2,     //
+		bool               sortByScore, // prioritize alignments by score
+		RandomSource&      rnd,         //
+		ReportingMetrics&  met,         //
 		bool suppressSeedSummary = true,
 		bool suppressAlignments = false);
 	
@@ -1209,6 +1134,20 @@ protected:
 		RandomSource&        rnd)
 		const;
 
+	/**
+	 * rs1 (possibly together with rs2 if reads are paired) are populated with
+	 * alignments.  Here we prioritize them according to alignment score, and
+	 * some randomness to break ties.  Priorities are returned in the 'select'
+	 * list.
+	 */
+	size_t selectByScore(
+		const EList<AlnRes>* rs1,    // alignments to select from (mate 1)
+		const EList<AlnRes>* rs2,    // alignments to select from (mate 2, or NULL)
+		uint64_t             num,    // number of alignments to select
+		EList<size_t>&       select, // prioritized list to put results in
+		RandomSource&        rnd)
+		const;
+
 	AlnSink&        g_;     // global alignment sink
 	ReportingParams rp_;    // reporting parameters: khits, mhits etc
 	Mapq&           mapq_;  // mapq calculator
@@ -1228,6 +1167,8 @@ protected:
 	EList<AlnRes>   rs2u_;  // unpaired alignments for mate #2
 	EList<size_t>   select_;    // parallel to rs1_/rs2_ - which to report
 	ReportingState  st_;    // reporting state - what's left to do?
+	
+	EList<std::pair<TAlScore, size_t> > selectBuf_;
 };
 
 /**
