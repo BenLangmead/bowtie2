@@ -388,7 +388,7 @@ void SeedAlignmentPolicy::parseString(
 		// Scoring for mismatches
 		// MMP={Cxx|Q|RQ}
 		//        Cxx = constant, where constant is integer xx
-		//        Q   = equal to quality
+		//        Qxx = equal to quality, scaled
 		//        R   = equal to maq-rounded quality value (rounded to nearest
 		//              10, can't be greater than 30)
 		else if(tag == "MMP") {
@@ -407,6 +407,10 @@ void SeedAlignmentPolicy::parseString(
 				// Parse constant penalty
 				penMmcType = COST_MODEL_CONSTANT;
 			} else if(ctoks[0][0] == 'Q') {
+				string tmp = ctoks[0].substr(1);
+				// Parse constant penalty
+				istringstream tmpss(tmp);
+				tmpss >> penMmc;
 				// Set type to =quality
 				penMmcType = COST_MODEL_QUAL;
 			} else if(ctoks[0][0] == 'R') {

@@ -106,7 +106,12 @@ class Scoring {
 			}
 		} else if(type == COST_MODEL_QUAL) {
 			for(int i = 0; i < 256; i++) {
-				pens[i] = (T)i;
+				int ii = i;
+				if(ii > 30) {
+					ii = 30;
+				}
+				float frac = (float)ii / 30.0f;
+				pens[i] = (T)(frac * cons);
 			}
 		} else if(type == COST_MODEL_CONSTANT) {
 			for(int i = 0; i < 256; i++) {
