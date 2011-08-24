@@ -2,19 +2,18 @@ Bowtie 2 TODO list:
 - Restore --overhang flag
 - Soft/hard trimming taken into account when setting up paired-end problems?
 - Bunch up sensitivity arguments into neat packages
+  + Done for unpaired end-to-end and local alignment modes.  Different settings
+	for paired-end?
 - More sophisticated MAPQ calculation
   + Taking paired-end alignment into account
   + More local-alignment savvy
   + Simulate across various read lengths
-- Wrapper script where bells and whistles can be shoved
-- Are we picking best alignment?
-- Test scaling
-- Don't calc MAPQ in shared thread
+- Wrapper script where bells and whistles like gzipped input can be shoved
+- Test scaling with -p
 - Output locking can be economical.  SAM records can be written to strings,
   then flushed while locked
-
-Manuscript TODO:
-- Get SOAP2 benchmarks working
+- Can quality values really be used in alignment?  There should be a way to
+  rescale
 
 Performance ideas:
 - Do some of the gather & backtrace steps in SSE code

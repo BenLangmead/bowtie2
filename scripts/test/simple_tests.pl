@@ -107,22 +107,37 @@ my @cases = (
 	  samoptflags => [{ "YT:Z:UU" => 1, "YM:i:0" => 1 }],
 	},
 
-	#{ name   => "XS:i 3",
-	#  ref    => [ "TTGTTCGATTGTTCGT" ],
-	#  #                    TTGTTCGT
-	#  reads  => [ "TTGTTCGT" ],
-	#  args   => "--multiseed=0,7,C,1 --score-min=C,-6",
-	#  report => "-M 1",
-	#  mapq_hi   => [ 0 ],
-	#  hits   => [ { 0 => 1, 8 => 1 } ],
-	#  hits_are_superset => [ 1 ],
-	#  cigar  => [ "8M" ],
-	#  samoptflags => [ {
-	#	  "AS:i:0"   => 1, "XS:i:-6" => 1,
-	#	  "YM:i:1"   => 1, "YT:Z:UU" => 1,
-	#	  "MD:Z:8"   => 1, "YM:i:1"  => 1,
-	#	  "NM:i:1"   => 1, "XM:i:1"  => 1 } ],
-	#},
+	{ name   => "XS:i 3",
+	  ref    => [ "TTGTTCGATTGTTCGT" ],
+	  #                    TTGTTCGT
+	  reads  => [ "TTGTTCGT" ],
+	  args   => "--multiseed=0,7,C,1 --score-min=C,-6",
+	  report => "-M 1",
+	  mapq_hi   => [ 0 ],
+	  hits   => [ { 8 => 1 } ],
+	  cigar  => [ "8M" ],
+	  samoptflags => [ {
+		  "AS:i:0"   => 1, "XS:i:-6" => 1,
+		  "YM:i:1"   => 1, "YT:Z:UU" => 1,
+		  "MD:Z:8"   => 1, "YM:i:1"  => 1,
+		  "NM:i:0"   => 1, "XM:i:0"  => 1 } ],
+	},
+
+	{ name   => "XS:i 3",
+	  ref    => [ "TTGTTCGATTGTTCGT" ],
+	  #                    TTGTTCGT
+	  reads  => [ "TTGTTCGT" ],
+	  args   => "--multiseed=0,7,C,1 --score-min=C,-6 --seed=52",
+	  report => "-M 1",
+	  mapq_hi   => [ 0 ],
+	  hits   => [ { 8 => 1 } ],
+	  cigar  => [ "8M" ],
+	  samoptflags => [ {
+		  "AS:i:0"   => 1, "XS:i:-6" => 1,
+		  "YM:i:1"   => 1, "YT:Z:UU" => 1,
+		  "MD:Z:8"   => 1, "YM:i:1"  => 1,
+		  "NM:i:0"   => 1, "XM:i:0"  => 1 } ],
+	},
 
 	# Testing BWA-SW-like scoring
 	#
@@ -1655,7 +1670,6 @@ my @cases = (
 	  }]
 	},
 
-
 	{ name   => "P.M.2.G. Paired -M 1 w/ 2 paired hit, 2 unpaired hits each, global",
 	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2       
 	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               012345678901234567890123456789012                                 0123456789012345678901234567
@@ -1667,7 +1681,7 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1, mate2fw => 0,
-	  report  =>   "-M 1",
+	  report  =>   "-M 1 -X 150",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
 	  hits_are_superset => [ 1 ],
 	  mapq_hi => [ 0 ],
@@ -1698,7 +1712,7 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1, mate2fw => 0,
-	  report  =>   "-M 1 --local",
+	  report  =>   "-M 1 --local -X 150",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
 	  hits_are_superset => [ 1 ],
 	  mapq_hi => [ 0 ],
@@ -1728,7 +1742,7 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1,  mate2fw => 0,
-	  report  =>   "-k 1",
+	  report  =>   "-k 1 -X 150",
 	  pairhits  => [ { "12,78" => 1 } ],
 	  mapq_hi => [ 1 ],
 	  cigar_map => [{
@@ -1753,7 +1767,7 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1,  mate2fw => 0,
-	  args    => "--local",
+	  args    => "--local -X 150",
 	  report  => "-k 1",
 	  pairhits  => [ { "12,78" => 1 } ],
 	  mapq_hi => [ 1 ],
@@ -1779,6 +1793,7 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1,  mate2fw => 0,
+	  args    =>   "-X 150",
 	  report  =>   "-M 1",
 	  pairhits  => [ { "12,78" => 1 } ],
 	  mapq_hi => [ 1 ],
@@ -1804,7 +1819,8 @@ my @cases = (
 	  mate1s   => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s   => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw  => 1,  mate2fw => 0,
-	  report   =>   "-M 1 --local",
+	  args     =>   "-X 150 --local",
+	  report   =>   "-M 1",
 	  pairhits => [ { "12,78" => 1 } ],
 	  mapq_hi => [ 1 ],
 	  cigar_map => [{
@@ -1819,10 +1835,6 @@ my @cases = (
 	  }]
 	},
 
-
-
-
-
 	{ name   => "P.M.58.G. Unpaired -M 5 w/ 8 hits global",
 	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2       
 	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               012345678901234567890123456789012                                 0123456789012345678901234567
@@ -1834,7 +1846,8 @@ my @cases = (
 	  #            0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   2                                                                                                   2                                                                                                   2                                                                                                   2                                                                                                   2                                                                                                   2                                                                                                   2
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
-	  report =>   "-M 5 -X 150",
+	  args   =>   "-X 150",
+	  report =>   "-M 5",
 	  mapq_hi   => [ 0 ],
 	  pairhits  => [ { "12,78"     => 1, "249,315"   => 1, "486,552"   => 1,
 	                   "723,789"   => 1, "960,1026"  => 1, "1197,1263" => 1,
@@ -1979,297 +1992,6 @@ my @cases = (
 		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:28" => 1,
 		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:66"  => 1 },
 	} ] },
-
-	{ name   => "P.M.22.G. Paired -M 2 w/ 2 paired hit, 2 unpaired hits each, global",
-	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2       
-	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               012345678901234567890123456789012                                 0123456789012345678901234567
-	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
-	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
-	  #            012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012
-	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6
-	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
-	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
-	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
-	  mate1fw => 1, mate2fw => 0,
-	  args    => "-X 150",
-	  report  => "-M 2",
-	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
-	  mapq_hi => [ 0 ],
-	  cigar_map => [{
-		12 => "33M", 249 => "33M",
-		78 => "28M", 315 => "28M"
-	  }],
-	  hits_are_superset => [ 1 ],
-	  samoptflags_map => [{
-		12  => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:33" => 1,
-		         "YM:i:0" => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
-		78  => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:28" => 1,
-		         "YM:i:0" => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
-		249 => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:33" => 1,
-		         "YM:i:0" => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
-		315 => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:28" => 1,
-		         "YM:i:0" => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
-	  }]
-	},
-	
-	{ name   => "P.M.22.L. Paired -M 2 w/ 2 paired hit, 2 unpaired hits each, local",
-	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2       
-	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               012345678901234567890123456789012                                 0123456789012345678901234567
-	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
-	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
-	  #            012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012
-	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6
-	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
-	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
-	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
-	  mate1fw => 1, mate2fw => 0,
-	  args    => "--local -X 150",
-	  report  => "-M 2",
-	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
-	  mapq_hi => [ 0 ],
-	  cigar_map => [{
-		12 => "33M", 249 => "33M",
-		78 => "28M", 315 => "28M"
-	  }],
-	  hits_are_superset => [ 1 ],
-	  samoptflags_map => [{
-		12  => { "AS:i:66" => 1, "XS:i:66" => 1, "MD:Z:33" => 1,
-		         "YM:i:0"  => 1, "YP:i:0"  => 1, "YT:Z:CP" => 1, "YS:i:56" => 1 },
-		78  => { "AS:i:56" => 1, "XS:i:56" => 1, "MD:Z:28" => 1,
-		         "YM:i:0"  => 1, "YP:i:0"  => 1, "YT:Z:CP" => 1, "YS:i:66" => 1 },
-		249 => { "AS:i:66" => 1, "XS:i:66" => 1, "MD:Z:33" => 1,
-		         "YM:i:0"  => 1, "YP:i:0"  => 1, "YT:Z:CP" => 1, "YS:i:56" => 1 },
-		315 => { "AS:i:56" => 1, "XS:i:56" => 1, "MD:Z:28" => 1,
-		         "YM:i:0"  => 1, "YP:i:0"  => 1, "YT:Z:CP" => 1, "YS:i:66" => 1 },
-	  }]
-	},
-
-	{ name   => "P.k.2.G. Paired -k 1 w/ 2 paired hit, 2 unpaired hits each, global",
-	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2       
-	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               012345678901234567890123456789012                                 0123456789012345678901234567
-	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
-	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
-	  #            012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012
-	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6
-	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
-	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
-	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
-	  mate1fw => 1, mate2fw => 0,
-	  args    => "-X 150",
-	  report  => "-k 1",
-	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
-	  hits_are_superset => [ 1 ],
-	  mapq_hi => [ 1 ],
-	  cigar_map => [{
-		12 => "33M", 249 => "33M",
-		78 => "28M", 315 => "28M"
-	  }],
-	  samoptflags_map => [{
-		12  => { "AS:i:0"  => 1, "XS:i:0" => 1, "MD:Z:33" => 1,
-		         "YT:Z:CP" => 1, "YS:i:0" => 1 },
-		78  => { "AS:i:0"  => 1, "XS:i:0" => 1, "MD:Z:28" => 1,
-		         "YT:Z:CP" => 1, "YS:i:0" => 1 },
-		249 => { "AS:i:0"  => 1, "XS:i:0" => 1, "MD:Z:33" => 1,
-		         "YT:Z:CP" => 1, "YS:i:0" => 1 },
-		315 => { "AS:i:0"  => 1, "XS:i:0" => 1, "MD:Z:28" => 1,
-		         "YT:Z:CP" => 1, "YS:i:0" => 1 },
-	  }]
-	},
-
-	{ name   => "P.k.2.L. Paired -k 1 w/ 2 paired hit, 2 unpaired hits each, local",
-	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2       
-	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               012345678901234567890123456789012                                 0123456789012345678901234567
-	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
-	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
-	  #            012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012
-	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6
-	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
-	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
-	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
-	  mate1fw => 1, mate2fw => 0,
-	  args    => "--local -X 150",
-	  report  => "-k 1",
-	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
-	  hits_are_superset => [ 1 ],
-	  mapq_hi => [ 1 ],
-	  cigar_map => [{
-		12 => "33M", 249 => "33M",
-		78 => "28M", 315 => "28M"
-	  }],
-	  samoptflags_map => [{
-		12  => { "AS:i:66" => 1, "XS:i:0" => 1, "MD:Z:33" => 1,
-		         "YT:Z:CP" => 1, "YS:i:56" => 1 },
-		78  => { "AS:i:56" => 1, "XS:i:0" => 1, "MD:Z:28" => 1,
-		         "YT:Z:CP" => 1, "YS:i:66" => 1 },
-		249 => { "AS:i:66" => 1, "XS:i:0" => 1, "MD:Z:33" => 1,
-		         "YT:Z:CP" => 1, "YS:i:56" => 1 },
-		315 => { "AS:i:56" => 1, "XS:i:0" => 1, "MD:Z:28" => 1,
-		         "YT:Z:CP" => 1, "YS:i:66" => 1 },
-	  }]
-	},
-
-	{ name   => "P.M.2.G. Paired -M 1 w/ 2 paired hit, 2 unpaired hits each, global",
-	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2       
-	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               012345678901234567890123456789012                                 0123456789012345678901234567
-	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
-	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
-	  #            012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012
-	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6
-	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
-	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
-	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
-	  mate1fw => 1, mate2fw => 0,
-	  report  =>   "-M 1",
-	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
-	  hits_are_superset => [ 1 ],
-	  mapq_hi => [ 0 ],
-	  cigar_map => [{
-		12 => "33M", 249 => "33M",
-		78 => "28M", 315 => "28M"
-	  }],
-	  samoptflags_map => [{
-		12  => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:33" => 1,
-		         "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
-		78  => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:28" => 1,
-		         "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
-		249 => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:33" => 1,
-		         "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
-		315 => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:28" => 1,
-		         "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
-	  }]
-	},
-	
-	{ name   => "P.M.2.L. Paired -M 1 w/ 2 paired hit, 2 unpaired hits each, local",
-	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2       
-	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               012345678901234567890123456789012                                 0123456789012345678901234567
-	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
-	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
-	  #            012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012
-	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6
-	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
-	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
-	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
-	  mate1fw => 1, mate2fw => 0,
-	  report  =>   "-M 1 --local",
-	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
-	  hits_are_superset => [ 1 ],
-	  mapq_hi => [ 0 ],
-	  cigar_map => [{
-		12 => "33M", 249 => "33M",
-		78 => "28M", 315 => "28M"
-	  }],
-	  samoptflags_map => [{
-		12  => { "AS:i:66" => 1, "XS:i:66" => 1, "MD:Z:33" => 1,
-		         "YM:i:1"  => 1, "YP:i:1"  => 1, "YT:Z:CP" => 1, "YS:i:56" => 1 },
-		78  => { "AS:i:56" => 1, "XS:i:56" => 1, "MD:Z:28" => 1,
-		         "YM:i:1"  => 1, "YP:i:1"  => 1, "YT:Z:CP" => 1, "YS:i:66" => 1 },
-		249 => { "AS:i:66" => 1, "XS:i:66" => 1, "MD:Z:33" => 1,
-		         "YM:i:1"  => 1, "YP:i:1"  => 1, "YT:Z:CP" => 1, "YS:i:56" => 1 },
-		315 => { "AS:i:56" => 1, "XS:i:56" => 1, "MD:Z:28" => 1,
-		         "YM:i:1"  => 1, "YP:i:1"  => 1, "YT:Z:CP" => 1, "YS:i:66" => 1 },
-	  }]
-	},
-	
-	{ name   => "P.k.1.G. Paired -k w/ 1 paired hit, 1 unpaired hit each, global",
-	  #                        0         1         2         3                                   0         1         2       
-	  #                        012345678901234567890123456789012                                 0123456789012345678901234567
-	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
-	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
-	  #            012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345
-	  #            0         1         2         3         4         5         6         7         8         9         0         1         2
-	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
-	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
-	  mate1fw => 1,  mate2fw => 0,
-	  report  =>   "-k 1",
-	  pairhits  => [ { "12,78" => 1 } ],
-	  mapq_hi => [ 1 ],
-	  cigar_map => [{
-		12 => "33M",
-		78 => "28M"
-	  }],
-	  samoptflags_map => [{
-		12 => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:33" => 1,
-		        "YM:i:0" => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
-		78 => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:28" => 1,
-		        "YM:i:0" => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
-	  }]
-	},
-	
-	{ name   => "P.k.1.L. Paired -k 1 w/ 1 paired hit, 1 unpaired hit each, local",
-	  #                        0         1         2         3                                   0         1         2       
-	  #                        012345678901234567890123456789012                                 0123456789012345678901234567
-	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
-	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
-	  #            012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345
-	  #            0         1         2         3         4         5         6         7         8         9         0         1         2
-	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
-	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
-	  mate1fw => 1,  mate2fw => 0,
-	  args    => "--local",
-	  report  => "-k 1",
-	  pairhits  => [ { "12,78" => 1 } ],
-	  mapq_hi => [ 1 ],
-	  cigar_map => [{
-		12 => "33M",
-		78 => "28M"
-	  }],
-	  samoptflags_map => [{
-		12 => { "AS:i:66" => 1, "XS:i:0" => 1, "MD:Z:33" => 1,
-		        "YM:i:0"  => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:56" => 1 },
-		78 => { "AS:i:56" => 1, "XS:i:0" => 1, "MD:Z:28" => 1,
-		        "YM:i:0"  => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:66" => 1 },
-	  }]
-	},
-
-	{ name   => "P.M.1.G. Paired -M w/ 1 paired hit, 1 unpaired hit each, global",
-	  #                        0         1         2         3                                   0         1         2       
-	  #                        012345678901234567890123456789012                                 0123456789012345678901234567
-	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
-	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
-	  #            012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345
-	  #            0         1         2         3         4         5         6         7         8         9         0         1         2
-	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
-	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
-	  mate1fw => 1,  mate2fw => 0,
-	  report  =>   "-M 1",
-	  pairhits  => [ { "12,78" => 1 } ],
-	  mapq_hi => [ 1 ],
-	  cigar_map => [{
-		12 => "33M",
-		78 => "28M"
-	  }],
-	  samoptflags_map => [{
-		12 => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:33" => 1,
-		        "YM:i:0" => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
-		78 => { "AS:i:0" => 1, "XS:i:0" => 1, "MD:Z:28" => 1,
-		        "YM:i:0" => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
-	  }]
-	},
-	
-	{ name   => "P.M.1.L. Paired -M w/ 1 paired hit, 1 unpaired hit each, local",
-	  #                          0         1         2         3                                   0         1         2       
-	  #                          012345678901234567890123456789012                                 0123456789012345678901234567
-	  #                          CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
-	  ref      => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
-	  #              012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345
-	  #              0         1         2         3         4         5         6         7         8         9         0         1         2
-	  mate1s   => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
-	  mate2s   => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
-	  mate1fw  => 1,  mate2fw => 0,
-	  report   =>   "-M 1 --local",
-	  pairhits => [ { "12,78" => 1 } ],
-	  mapq_hi => [ 1 ],
-	  cigar_map => [{
-		12 => "33M",
-		78 => "28M"
-	  }],
-	  samoptflags_map => [{
-		12 => { "AS:i:66" => 1, "XS:i:0" => 1, "MD:Z:33" => 1,
-		        "YM:i:0"  => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:56" => 1 },
-		78 => { "AS:i:56" => 1, "XS:i:0" => 1, "MD:Z:28" => 1,
-		        "YM:i:0"  => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:66" => 1 },
-	  }]
-	},
 
 	#
 	# Unpaired

@@ -629,20 +629,21 @@ int AlnSinkWrap::nextRead(
  *  uint64_t unal_pair;   // # pairs where neither mate aligned
  */
 void AlnSinkWrap::finishRead(
-	const SeedResults *sr1,
-	const SeedResults *sr2,
-	bool               exhaust1,
-	bool               exhaust2,
-	bool               nfilt1,
-	bool               nfilt2,
-	bool               scfilt1,
-	bool               scfilt2,
-	bool               lenfilt1,
-	bool               lenfilt2,
-	bool               qcfilt1,
-	bool               qcfilt2,
-	RandomSource&      rnd,
-	ReportingMetrics&  met,
+	const SeedResults *sr1,         //
+	const SeedResults *sr2,         //
+	bool               exhaust1,    //
+	bool               exhaust2,    //
+	bool               nfilt1,      //
+	bool               nfilt2,      //
+	bool               scfilt1,     //
+	bool               scfilt2,     //
+	bool               lenfilt1,    //
+	bool               lenfilt2,    //
+	bool               qcfilt1,     //
+	bool               qcfilt2,     //
+	bool               sortByScore, // prioritize alignments by score
+	RandomSource&      rnd,         //
+	ReportingMetrics&  met,         //
 	bool suppressSeedSummary, // = true
 	bool suppressAlignments)  // = false
 {
@@ -699,7 +700,14 @@ void AlnSinkWrap::finishRead(
 				rd1_, rd2_, &rs1_, &rs2_, &rs1u_, &rs2u_,
 				exhaust1, exhaust2, -1, -1);
 			// Possibly select a random subset
-			size_t off = selectAlnsToReport(rs1_, nconcord, select_, rnd);
+			size_t off;
+			if(sortByScore) {
+				// Sort by score then pick from low to high
+				off = selectByScore(&rs1_, &rs2_, nconcord, select_, rnd);
+			} else {
+				// Select subset randomly
+				off = selectAlnsToReport(rs1_, nconcord, select_, rnd);
+			}
 			assert_lt(off, rs1_.size());
 			const AlnRes *rs1 = &rs1_[off];
 			const AlnRes *rs2 = &rs2_[off];
@@ -734,7 +742,7 @@ void AlnSinkWrap::finishRead(
 				rs2_[i].setMateParams(ALN_RES_TYPE_MATE2, &rs1_[i], flags2);
 				assert_eq(abs(rs1_[i].fragmentLength()), abs(rs2_[i].fragmentLength()));
 			}
-			size_t pri1 = rs1_.size(), pri2 = rs2_.size();
+			assert(!select_.empty());
 			g_.reportHits(
 				rd1_,
 				rd2_,
@@ -742,8 +750,6 @@ void AlnSinkWrap::finishRead(
 				select_,
 				&rs1_,
 				&rs2_,
-				pri1,
-				pri2,
 				pairMax,
 				concordSumm,
 				&flags1,
@@ -799,10 +805,16 @@ void AlnSinkWrap::finishRead(
 				rs2_[i].setMateParams(ALN_RES_TYPE_MATE2, &rs1_[i], flags2);
 				assert_eq(abs(rs1_[i].fragmentLength()), abs(rs2_[i].fragmentLength()));
 			}
-			// Possibly select a random subset
-			ASSERT_ONLY(size_t off = ) selectAlnsToReport(rs1_, ndiscord, select_, rnd);
+			size_t off;
+			if(sortByScore) {
+				// Sort by score then pick from low to high
+				off = selectByScore(&rs1_, &rs2_, ndiscord, select_, rnd);
+			} else {
+				// Select subset randomly
+				off = selectAlnsToReport(rs1_, ndiscord, select_, rnd);
+			}
 			assert_eq(0, off);
-			size_t pri1 = rs1_.size(), pri2 = rs2_.size();
+			assert(!select_.empty());
 			g_.reportHits(
 				rd1_,
 				rd2_,
@@ -810,8 +822,6 @@ void AlnSinkWrap::finishRead(
 				select_,
 				&rs1_,
 				&rs2_,
-				pri1,
-				pri2,
 				pairMax,
 				discordSumm,
 				&flags1,
@@ -901,9 +911,16 @@ void AlnSinkWrap::finishRead(
 			for(size_t i = 0; i < rs1u_.size(); i++) {
 				rs1u_[i].setMateParams(ALN_RES_TYPE_UNPAIRED_MATE1, NULL, flags1);
 			}
-			size_t off = selectAlnsToReport(rs1u_, nunpair1, select_, rnd);
+			size_t off;
+			if(sortByScore) {
+				// Sort by score then pick from low to high
+				off = selectByScore(&rs1u_, NULL, nunpair1, select_, rnd);
+			} else {
+				// Select subset randomly
+				off = selectAlnsToReport(rs1u_, nunpair1, select_, rnd);
+			}
 			repRs1 = &rs1u_[off];
-			size_t pri1 = rs1u_.size(), pri2 = 0;
+			assert(!select_.empty());
 			g_.reportHits(
 				rd1_,
 				NULL,
@@ -911,16 +928,14 @@ void AlnSinkWrap::finishRead(
 				select_,
 				&rs1u_,
 				NULL,
-				pri1,
-				pri2,
 				unpair1Max,
 				summ1,
 				&flags1,
 				NULL,
 				mapq_);
-			assert_lt(pri1, rs1u_.size());
-			refid = rs1u_[pri1].refid();
-			refoff = rs1u_[pri1].refoff();
+			assert_lt(select_[0], rs1u_.size());
+			refid = rs1u_[select_[0]].refid();
+			refoff = rs1u_[select_[0]].refoff();
 		} else if(rd1_ != NULL) {
 			// Mate 1 failed to align - don't do anything yet.  First we want
 			// to collect information on mate 2 in case that factors into the
@@ -950,9 +965,16 @@ void AlnSinkWrap::finishRead(
 			for(size_t i = 0; i < rs2u_.size(); i++) {
 				rs2u_[i].setMateParams(ALN_RES_TYPE_UNPAIRED_MATE2, NULL, flags2);
 			}
-			size_t off = selectAlnsToReport(rs2u_, nunpair2, select_, rnd);
+			size_t off;
+			if(sortByScore) {
+				// Sort by score then pick from low to high
+				off = selectByScore(&rs2u_, NULL, nunpair2, select_, rnd);
+			} else {
+				// Select subset randomly
+				off = selectAlnsToReport(rs2u_, nunpair2, select_, rnd);
+			}
 			repRs2 = &rs2u_[off];
-			size_t pri1 = 0, pri2 = rs2u_.size();
+			assert(!select_.empty());
 			g_.reportHits(
 				rd2_,
 				NULL,
@@ -960,16 +982,14 @@ void AlnSinkWrap::finishRead(
 				select_,
 				&rs2u_,
 				NULL,
-				pri2,
-				pri1,
 				unpair2Max,
 				summ2,
 				&flags2,
 				NULL,
 				mapq_);
-			assert_lt(pri2, rs2u_.size());
-			refid = rs2u_[pri2].refid();
-			refoff = rs2u_[pri2].refoff();
+			assert_lt(select_[0], rs2u_.size());
+			refid = rs2u_[select_[0]].refid();
+			refoff = rs2u_[select_[0]].refoff();
 		} else if(rd2_ != NULL) {
 			// Mate 2 failed to align - don't do anything yet.  First we want
 			// to collect information on mate 1 in case that factors into the
@@ -1122,6 +1142,50 @@ bool AlnSinkWrap::prepareDiscordants() {
 }
 
 /**
+ * rs1 (possibly together with rs2 if reads are paired) are populated with
+ * alignments.  Here we prioritize them according to alignment score, and
+ * some randomness to break ties.  Priorities are returned in the 'select'
+ * list.
+ */
+size_t AlnSinkWrap::selectByScore(
+	const EList<AlnRes>* rs1,    // alignments to select from (mate 1)
+	const EList<AlnRes>* rs2,    // alignments to select from (mate 2, or NULL)
+	uint64_t             num,    // number of alignments to select
+	EList<size_t>&       select, // prioritized list to put results in
+	RandomSource&        rnd)
+	const
+{
+	assert(init_);
+	assert(repOk());
+	assert_gt(num, 0);
+	assert(rs1 != NULL);
+	size_t sz = rs1->size();
+	assert_leq(num, sz);
+	if(sz < num) {
+		num = sz;
+	}
+	if(sz < 1) {
+		return 0;
+	}
+	select.resize(num);
+	EList<std::pair<TAlScore, size_t> >& buf =
+		const_cast<EList<std::pair<TAlScore, size_t> >& >(selectBuf_);
+	buf.resize(sz);
+	for(size_t i = 0; i < sz; i++) {
+		buf[i].first = (*rs1)[i].score().score();
+		if(rs2 != NULL) {
+			buf[i].first += (*rs2)[i].score().score();
+		}
+		buf[i].second = i;
+	}
+	buf.sort(); buf.reverse();
+	for(size_t i = 0; i < num; i++) {
+		select[i] = selectBuf_[i].second;
+	}
+	return selectBuf_[0].second; // index of representative alignment
+}
+
+/**
  * Given that rs is already populated with alignments, consider the
  * alignment policy and make random selections where necessary.  E.g. if we
  * found 10 alignments and the policy is -k 2 -m 20, select 2 alignments at
@@ -1130,8 +1194,6 @@ bool AlnSinkWrap::prepareDiscordants() {
  *
  * Return the "representative" alignment.  This is simply the first one
  * selected.  That will also be what SAM calls the "primary" alignment.
- *
- * TODO: try to take alignment score into account here?
  */
 size_t AlnSinkWrap::selectAlnsToReport(
 	const EList<AlnRes>& rs,     // alignments to select from
@@ -1144,24 +1206,25 @@ size_t AlnSinkWrap::selectAlnsToReport(
 	assert(repOk());
 	assert_gt(num, 0);
 	size_t sz = rs.size();
-	select.resize(sz);
-	if(sz < 1) {
-		return 0;
-	} else if(sz == 1) {
-		select[0] = 1;
-		return 0;
-	}
-	select.fill(0);
-	// Select a random offset into the list of alignments
-	uint32_t off = rnd.nextU32() % (uint32_t)sz;
-	uint32_t offOrig = off;
-	// Now take rp_.khits elements starting at that offset,
-	// wrapping back to 0 if necessary, and leave the rest.
 	if(sz < num) {
 		num = sz;
 	}
-	for(size_t i = 1; i <= num; i++) {
-		select[off] = i;
+	if(sz < 1) {
+		return 0;
+	}
+	select.resize(num);
+	if(sz == 1) {
+		assert_eq(1, num);
+		select[0] = 0;
+		return 0;
+	}
+	// Select a random offset into the list of alignments
+	uint32_t off = rnd.nextU32() % (uint32_t)sz;
+	uint32_t offOrig = off;
+	// Now take elements starting at that offset, wrapping around to 0 if
+	// necessary.  Leave the rest.
+	for(size_t i = 0; i < num; i++) {
+		select[i] = off;
 		off++;
 		if(off == sz) {
 			off = 0;

@@ -125,6 +125,7 @@ static float mapqTopCoeff;
 static float mapqBotCoeff;
 static float mapqMax;             // maximum Mapq 
 static bool qcFilter;
+static bool sortByScore;   // prioritize alignments to report by score?
 bool gColor;     // true -> inputs are colorspace
 bool gColorExEnds; // true -> nucleotides on either end of decoded cspace alignment should be excluded
 bool gReportOverhangs; // false -> filter out alignments that fall off the end of a reference sequence
@@ -179,6 +180,7 @@ static size_t maxhalf;       // max width on one side of DP table
 static bool seedSummaryOnly; // print summary information about seed hits, not alignments
 static bool scanNarrowed;    // true -> do ref scan even when seed is narrow
 static bool noSse;           // disable SSE-based dynamic programming
+static string defaultPreset; // default preset; applied immediately
 
 #define DMAX std::numeric_limits<double>::max()
 
@@ -273,6 +275,7 @@ static void resetOptions() {
 	mapqBotCoeff            = 0.9f;
 	mapqMax                 = 40.0f; // maximum Mapq 
 	qcFilter                = false; // don't believe upstream qc by default
+	sortByScore             = true;  // prioritize alignments to report by score?
 	gColor					= false; // don't align in colorspace by default
 	gColorExEnds			= true;  // true -> nucleotides on either end of decoded cspace alignment should be excluded
 	gReportOverhangs        = false; // false -> filter out alignments that fall off the end of a reference sequence
@@ -329,6 +332,7 @@ static void resetOptions() {
 	seedSummaryOnly    = false; // print summary information about seed hits, not alignments
 	scanNarrowed       = false; // true -> do ref scan even when seed is narrow
 	noSse              = false; // disable SSE-based dynamic programming
+	defaultPreset      = "fast%LOCAL%"; // default preset; applied immediately
 }
 
 static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:o:w:p:k:M:1:2:I:X:CQ:";
@@ -421,7 +425,8 @@ enum {
 	ARG_PRESET_VERY_FAST,       // --very-fast
 	ARG_PRESET_FAST,            // --fast
 	ARG_PRESET_SENSITIVE,       // --sensitive
-	ARG_PRESET_VERY_SENSITIVE   // --very-sensitive
+	ARG_PRESET_VERY_SENSITIVE,  // --very-sensitive
+	ARG_NO_SCORE_PRIORITY       // --no-score-priority
 };
 
 
@@ -539,6 +544,7 @@ static struct option long_options[] = {
 	{(char*)"fast",             no_argument,       0,        ARG_PRESET_FAST},
 	{(char*)"sensitive",        no_argument,       0,        ARG_PRESET_SENSITIVE},
 	{(char*)"very-sensitive",   no_argument,       0,        ARG_PRESET_VERY_SENSITIVE},
+	{(char*)"no-score-priority",no_argument,       0,        ARG_NO_SCORE_PRIORITY},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -697,6 +703,22 @@ void parseTuple(const char *str, char delim, EList<T>& ret) {
 	}
 }
 
+static string applyPreset(const string& sorig, Presets& presets) {
+	string s = sorig;
+	size_t found = s.find("%LOCAL%");
+	if(found != string::npos) {
+		s.replace(found, strlen("%LOCAL%"), localAlign ? "-local" : "");
+	}
+	if(gVerbose) {
+		cerr << "Applying preset: '" << s << "' using preset menu '"
+			 << presets.name() << "'" << endl;
+	}
+	string pol, tmp;
+	presets.apply(s, pol, tmp);
+	assert(tmp.empty());
+	return pol;
+}
+
 /**
  * Read command-line arguments
  */
@@ -734,10 +756,7 @@ static void parseOptions(int argc, const char **argv) {
 				// -q INT   Gap open penalty [5]
 				// -r INT   Gap extension penalty. The penalty for a contiguous
 				//          gap of size k is q+k*r. [2] 
-				if(!polstr.empty()) {
-					polstr += ";";
-				}
-				polstr += "MA=1;MMP=C3;RDG=5,2;RFG=5,2";
+				polstr += ";MA=1;MMP=C3;RDG=5,2;RFG=5,2";
 				break;
 			}
 			case 'q': format = FASTQ; break;
@@ -958,6 +977,7 @@ static void parseOptions(int argc, const char **argv) {
 			case ARG_SCAN_NARROWED: scanNarrowed = true; break;
 			case ARG_NO_SSE: noSse = true; break;
 			case ARG_QC_FILTER: qcFilter = true; break;
+			case ARG_NO_SCORE_PRIORITY: sortByScore = false; break;
 			case ARG_NOISY_HPOLY: noisyHpolymer = true; break;
 			case ARG_PRESET_VERY_FAST: {
 				presetList.push_back("very-fast%LOCAL%"); break;
@@ -1182,19 +1202,13 @@ static void parseOptions(int argc, const char **argv) {
 	// Now parse all the presets.  Might want to pick which presets version to
 	// use according to other parameters.
 	auto_ptr<Presets> presets(new PresetsV0());
+	// Apply default preset
+	if(!defaultPreset.empty()) {
+		polstr = applyPreset(defaultPreset, *presets.get()) + polstr;
+	}
+	// Apply specified presets
 	for(size_t i = 0; i < presetList.size(); i++) {
-		string tmp;
-		string s = presetList[i];
-		size_t found = s.find("%LOCAL%");
-		if(found != string::npos) {
-			s.replace(found, strlen("%LOCAL%"), localAlign ? "-local" : "");
-		}
-		if(gVerbose) {
-			cerr << "Applying preset: '" << s << "' using preset menu '"
-			     << presets->name() << "'" << endl;
-		}
-		presets->apply(s, polstr, tmp);
-		assert(tmp.empty());
+		polstr += applyPreset(presetList[i], *presets.get());
 	}
 	// Remove initial semicolons
 	while(!polstr.empty() && polstr[0] == ';') {
@@ -2405,6 +2419,7 @@ static void* multiseedSearchWorker(void *vp) {
 						lenfilt[1],
 						qcfilt[0],
 						qcfilt[1],
+						sortByScore,          // prioritize by alignment score
 						rnd,                  // pseudo-random generator
 						rpm,                  // reporting metrics
 						!seedSummaryOnly,     // suppress seed summaries?
@@ -2697,6 +2712,7 @@ static void* multiseedSearchWorker(void *vp) {
 					lenfilt[1],
 					qcfilt[0],
 					qcfilt[1],
+					sortByScore,          // prioritize by alignment score
 					rnd,                  // pseudo-random generator
 					rpm,                  // reporting metrics
 					!seedSummaryOnly,     // suppress seed summaries?
