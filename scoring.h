@@ -112,6 +112,9 @@ class Scoring {
 				}
 				float frac = (float)ii / 30.0f;
 				pens[i] = (T)(frac * cons);
+				if(pens[i] == 0) {
+					pens[i] = ((cons > 0) ? (T)1 : (T)-1);
+				}
 			}
 		} else if(type == COST_MODEL_CONSTANT) {
 			for(int i = 0; i < 256; i++) {
