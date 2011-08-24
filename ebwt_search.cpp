@@ -224,7 +224,7 @@ static void resetOptions() {
 	useMm					= false; // use memory-mapped files to hold the index
 	mmSweep					= false; // sweep through memory-mapped files immediately after mapping
 	gMinInsert				= 0;     // minimum insert size
-	gMaxInsert				= 450;   // maximum insert size
+	gMaxInsert				= 500;   // maximum insert size
 	gMate1fw				= true;  // -1 mate aligns in fw orientation on fw strand
 	gMate2fw				= false; // -2 mate aligns in rc orientation on fw strand
 	mateFwSet				= false; // true -> user set mate1fw/mate2fw with --ff/--fr/--rf
@@ -592,7 +592,7 @@ static void printUsage(ostream& out) {
 	    << "  --norc             do not align reverse-complemented version of read" << endl
 		<< "Paired-end:" << endl
 	    << "  -I/--minins <int>  minimum fragment length (default: 0)" << endl
-	    << "  -X/--maxins <int>  maximum fragment length (default: 450)" << endl
+	    << "  -X/--maxins <int>  maximum fragment length (default: 500)" << endl
 	    << "  --fr/--rf/--ff     -1, -2 mates align fw/rev, rev/fw, fw/fw (default: --fr)" << endl
 		<< "  --no-mixed         report only paired alns, ignore unpaired" << endl
 		<< "  --no-discordant    report only concordant paired-end alns, ignore discordant" << endl

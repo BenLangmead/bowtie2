@@ -1,9 +1,6 @@
 Bowtie 2 TODO list:
 - Restore --overhang flag
 - Soft/hard trimming taken into account when setting up paired-end problems?
-- Bunch up sensitivity arguments into neat packages
-  + Done for unpaired end-to-end and local alignment modes.  Different settings
-	for paired-end?
 - More sophisticated MAPQ calculation
   + Taking paired-end alignment into account
   + More local-alignment savvy
@@ -14,6 +11,9 @@ Bowtie 2 TODO list:
   then flushed while locked
 - Can quality values really be used in alignment?  There should be a way to
   rescale
+- Better way to break this down?: '382448 (76.49%) aligned >0 and <=3 times'
+- Spliced alignment
+- Colorspace
 
 Performance ideas:
 - Do some of the gather & backtrace steps in SSE code

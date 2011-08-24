@@ -39,6 +39,61 @@ if(! -x $bowtie2 || ! -x $bowtie2_build) {
 
 my @cases = (
 
+	#
+	# Test XS:i with quality scaling
+	#
+	
+	{ name   => "Q XS:i 1a",
+	  ref    => [ "TTGTTCGATTGTTCGA" ],
+	  reads  => [ "TTGTTCGT" ],
+	  quals  => [ "IIIIIIIA" ],
+	  args   => "--multiseed=0,7,C,1 --score-min=C,-6 --policy \"MMP=Q6\"",
+	  report => "",
+	  mapq_hi   => [ 0 ],
+	  hits   => [ { 0 => 1, 8 => 1 } ],
+	  hits_are_superset => [ 1 ],
+	  cigar  => [ "8M" ],
+	  samoptflags => [ {
+		  "AS:i:-6"  => 1, "XS:i:-6" => 1,
+		  "YM:i:1"   => 1, "YT:Z:UU" => 1,
+		  "MD:Z:7A0" => 1,
+		  "NM:i:1"   => 1, "XM:i:1"  => 1 } ],
+	},
+
+	{ name   => "Q XS:i 1b",
+	  ref    => [ "TTGTTCGATTGTTCGA" ],
+	  reads  => [ "TTGTTCGT" ],
+	  quals  => [ "IIIIIII5" ],
+	  args   => "--multiseed=0,7,C,1 --score-min=C,-6 --policy \"MMP=Q6\"",
+	  report => "",
+	  mapq_hi   => [ 0 ],
+	  hits   => [ { 0 => 1, 8 => 1 } ],
+	  hits_are_superset => [ 1 ],
+	  cigar  => [ "8M" ],
+	  samoptflags => [ {
+		  "AS:i:-4"  => 1, "XS:i:-4" => 1,
+		  "YM:i:1"   => 1, "YT:Z:UU" => 1,
+		  "MD:Z:7A0" => 1,
+		  "NM:i:1"   => 1, "XM:i:1"  => 1 } ],
+	},
+	
+	{ name   => "Q XS:i 1c",
+	  ref    => [ "TTGTTCGATTGTTCGA" ],
+	  reads  => [ "TTGTTCGT" ],
+	  quals  => [ "IIIIIII4" ],
+	  args   => "--multiseed=0,7,C,1 --score-min=C,-6 --policy \"MMP=Q6\"",
+	  report => "",
+	  mapq_hi   => [ 0 ],
+	  hits   => [ { 0 => 1, 8 => 1 } ],
+	  hits_are_superset => [ 1 ],
+	  cigar  => [ "8M" ],
+	  samoptflags => [ {
+		  "AS:i:-3"  => 1, "XS:i:-3" => 1,
+		  "YM:i:1"   => 1, "YT:Z:UU" => 1,
+		  "MD:Z:7A0" => 1,
+		  "NM:i:1"   => 1, "XM:i:1"  => 1 } ],
+	},
+	
 	# One mate aligns.  Ensuring that the unmapped mate gets reference
 	# information filled in from the other mate.
 	{ ref    => [ "CATCGACTGAGACTCGTACGACAATTACGCGCATTATTCGCATCACCAGCGCGGCGCGCGCCCCCTAT" ],
@@ -94,7 +149,7 @@ my @cases = (
 	  samoptflags => [ {
 		  "AS:i:-6"  => 1, "XS:i:-6" => 1,
 		  "YM:i:1"   => 1, "YT:Z:UU" => 1,
-		  "MD:Z:7A0" => 1, "YM:i:1"  => 1,
+		  "MD:Z:7A0" => 1,
 		  "NM:i:1"   => 1, "XM:i:1"  => 1 } ],
 	},
 	
@@ -107,7 +162,7 @@ my @cases = (
 	  samoptflags => [{ "YT:Z:UU" => 1, "YM:i:0" => 1 }],
 	},
 
-	{ name   => "XS:i 3",
+	{ name   => "XS:i 3a",
 	  ref    => [ "TTGTTCGATTGTTCGT" ],
 	  #                    TTGTTCGT
 	  reads  => [ "TTGTTCGT" ],
@@ -119,11 +174,11 @@ my @cases = (
 	  samoptflags => [ {
 		  "AS:i:0"   => 1, "XS:i:-6" => 1,
 		  "YM:i:1"   => 1, "YT:Z:UU" => 1,
-		  "MD:Z:8"   => 1, "YM:i:1"  => 1,
+		  "MD:Z:8"   => 1,
 		  "NM:i:0"   => 1, "XM:i:0"  => 1 } ],
 	},
 
-	{ name   => "XS:i 3",
+	{ name   => "XS:i 3b",
 	  ref    => [ "TTGTTCGATTGTTCGT" ],
 	  #                    TTGTTCGT
 	  reads  => [ "TTGTTCGT" ],
@@ -135,7 +190,99 @@ my @cases = (
 	  samoptflags => [ {
 		  "AS:i:0"   => 1, "XS:i:-6" => 1,
 		  "YM:i:1"   => 1, "YT:Z:UU" => 1,
-		  "MD:Z:8"   => 1, "YM:i:1"  => 1,
+		  "MD:Z:8"   => 1,
+		  "NM:i:0"   => 1, "XM:i:0"  => 1 } ],
+	},
+
+	{ name   => "XS:i 3c",
+	  ref    => [ "TTGTTCGATTGTTCGT" ],
+	  #                    TTGTTCGT
+	  reads  => [ "TTGTTCGT" ],
+	  args   => "--multiseed=0,7,C,1 --score-min=C,-6 --seed=53",
+	  report => "-M 2",
+	  mapq_hi   => [ 0 ],
+	  hits   => [ { 8 => 1 } ],
+	  cigar  => [ "8M" ],
+	  samoptflags => [ {
+		  "AS:i:0"   => 1, "XS:i:-6" => 1,
+		  "YM:i:0"   => 1, "YT:Z:UU" => 1,
+		  "MD:Z:8"   => 1,
+		  "NM:i:0"   => 1, "XM:i:0"  => 1 } ],
+	},
+
+	{ name   => "XS:i 4a",
+	  ref    => [ "TTGTTCAATTGTTCGATTGTTCGT" ],
+	  #            ||||||  ||||||| ||||||||
+	  #            TTGTTCGT||||||| ||||||||
+	  #                    TTGTTCGT||||||||
+	  #                            TTGTTCGT
+	  reads  => [ "TTGTTCGT" ],
+	  args   => "--multiseed=0,6,C,1 --score-min=C,-12 --seed=53",
+	  report => "-M 2",
+	  mapq_hi   => [ 0 ],
+	  hits   => [ { 16 => 1 } ],
+	  cigar  => [ "8M" ],
+	  samoptflags => [ {
+		  "AS:i:0"   => 1, "XS:i:-6" => 1,
+		  "YM:i:1"   => 1, "YT:Z:UU" => 1,
+		  "MD:Z:8"   => 1,
+		  "NM:i:0"   => 1, "XM:i:0"  => 1 } ],
+	},
+
+	{ name   => "XS:i 4b",
+	  ref    => [ "TTGTTCAATTGTTCGATTGTTCGT" ],
+	  #            ||||||  ||||||| ||||||||
+	  #            TTGTTCGT||||||| ||||||||
+	  #                    TTGTTCGT||||||||
+	  #                            TTGTTCGT
+	  reads  => [ "TTGTTCGT" ],
+	  args   => "--multiseed=0,6,C,1 --score-min=C,-12 --seed=54",
+	  report => "-M 3",
+	  mapq_hi   => [ 0 ],
+	  hits   => [ { 16 => 1 } ],
+	  cigar  => [ "8M" ],
+	  samoptflags => [ {
+		  "AS:i:0"   => 1, "XS:i:-6" => 1,
+		  "YM:i:0"   => 1, "YT:Z:UU" => 1,
+		  "MD:Z:8"   => 1,
+		  "NM:i:0"   => 1, "XM:i:0"  => 1 } ],
+	},
+
+	{ name   => "XS:i 5a",
+	  ref    => [ "TTGTTCAATTGTTCGATTGTTCGTTTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAA" ],
+	  #            ||||||  ||||||| ||||||||||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  
+	  #            TTGTTCGT||||||| ||||||||TTGTTCGT||||||  TTGTTCGT||||||  TTGTTCGT||||||  TTGTTCGT||||||  TTGTTCGT||||||  TTGTTCGT||||||  
+	  #                    TTGTTCGT||||||||        TTGTTCGT        TTGTTCGT        TTGTTCGT        TTGTTCGT        TTGTTCGT        TTGTTCGT
+	  #                            TTGTTCGT
+	  reads  => [ "TTGTTCGT" ],
+	  args   => "--multiseed=0,6,C,1,1 --score-min=C,-12 --seed=54",
+	  report => "-M 1",
+	  mapq_hi   => [ 0 ],
+	  hits   => [ { 16 => 1 } ],
+	  cigar  => [ "8M" ],
+	  samoptflags => [ {
+		  "AS:i:0"   => 1, "XS:i:-6" => 1,
+		  "YM:i:1"   => 1, "YT:Z:UU" => 1,
+		  "MD:Z:8"   => 1,
+		  "NM:i:0"   => 1, "XM:i:0"  => 1 } ],
+	},
+
+	{ name   => "XS:i 5b",
+	  ref    => [ "TTGTTCAATTGTTCGATTGTTCGTTTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAA" ],
+	  #            ||||||  ||||||| ||||||||||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  
+	  #            TTGTTCGT||||||| ||||||||TTGTTCGT||||||  TTGTTCGT||||||  TTGTTCGT||||||  TTGTTCGT||||||  TTGTTCGT||||||  TTGTTCGT||||||  
+	  #                    TTGTTCGT||||||||        TTGTTCGT        TTGTTCGT        TTGTTCGT        TTGTTCGT        TTGTTCGT        TTGTTCGT
+	  #                            TTGTTCGT
+	  reads  => [ "TTGTTCGT" ],
+	  args   => "--multiseed=0,5,C,1,1 --score-min=C,-12 --seed=55",
+	  report => "-M 1",
+	  mapq_hi   => [ 0 ],
+	  hits   => [ { 16 => 1 } ],
+	  cigar  => [ "8M" ],
+	  samoptflags => [ {
+		  "AS:i:0"   => 1, "XS:i:-6" => 1,
+		  "YM:i:1"   => 1, "YT:Z:UU" => 1,
+		  "MD:Z:8"   => 1,
 		  "NM:i:0"   => 1, "XM:i:0"  => 1 } ],
 	},
 
@@ -3530,8 +3677,18 @@ sub writeFasta($$) {
 # Take a lists of named reads/mates and write them to appropriate
 # files.
 #
-sub writeReads($$$$$$) {
-	my ($reads, $mate1s, $mate2s, $names, $fq1, $fq2) = @_;
+sub writeReads($$$$$$$$$) {
+	my (
+		$reads,
+		$quals,
+		$mate1s,
+		$qual1s,
+		$mate2s,
+		$qual2s,
+		$names,
+		$fq1,
+		$fq2) = @_;
+	
 	open(FQ1, ">$fq1") || die "Could not open '$fq1' for writing";
 	open(FQ2, ">$fq2") || die "Could not open '$fq2' for writing";
 	my $pe = (defined($mate1s) && $mate1s ne "");
@@ -3539,15 +3696,26 @@ sub writeReads($$$$$$) {
 		for (0..scalar(@$mate1s)-1) {
 			my $m1 = $mate1s->[$_];
 			my $m2 = $mate2s->[$_];
+			my $q1 = $qual1s->[$_];
+			my $q2 = $qual2s->[$_];
 			my $nm = $names->[$_];
-			print FQ1 "\@$nm/1\n$m1\n+\n".("I" x length($m1))."\n";
-			print FQ2 "\@$nm/2\n$m2\n+\n".("I" x length($m2))."\n";
+			defined($m1) || die;
+			defined($m2) || die;
+			$q1 = $q1 || ("I" x length($m1));
+			$q2 = $q2 || ("I" x length($m2));
+			$nm = $nm || "r$_";
+			print FQ1 "\@$nm/1\n$m1\n+\n$q1\n";
+			print FQ2 "\@$nm/2\n$m2\n+\n$q2\n";
 		}
 	} else {
 		for (0..scalar(@$reads)-1) {
 			my $read = $reads->[$_];
+			defined($read) || die;
+			my $qual = $quals->[$_];
 			my $nm = $names->[$_];
-			print FQ1 "\@$nm\n$read\n+\n".("I" x length($read))."\n";
+			$qual = $qual || ("I" x length($read));
+			$nm = $nm || "r$_";
+			print FQ1 "\@$nm\n$read\n+\n$qual\n";
 		}
 	}
 	close(FQ1);
@@ -3557,7 +3725,8 @@ sub writeReads($$$$$$) {
 ##
 # Run bowtie2 with given arguments
 #
-sub runbowtie2($$$$$$$$$$$$$$$$$$) {
+sub runbowtie2($$$$$$$$$$$$$$$$$$$$$) {
+	
 	my (
 		$do_build,
 		$args,
@@ -3569,14 +3738,18 @@ sub runbowtie2($$$$$$$$$$$$$$$$$$) {
 		$mate1_file,
 		$mate2_file,
 		$reads,
+		$quals,
 		$mate1s,
+		$qual1s,
 		$mate2s,
+		$qual2s,
 		$names,
 		$ls,
 		$rawls,
 		$header_ls,
 		$raw_header_ls,
 		$should_abort) = @_;
+	
 	$args .= " --quiet";
 	$args .= " --print-flags";
 	$reportargs = "-a" unless defined($reportargs);
@@ -3645,17 +3818,20 @@ sub runbowtie2($$$$$$$$$$$$$$$$$$) {
 			$mate2arg = ".simple_tests.2$ext";
 		}
 	} else {
-		if(defined($names)) {
-			writeReads($reads, $mate1s, $mate2s, $names, ".simple_tests.1.fq", ".simple_tests.2.fq");
-			$mate1arg = ".simple_tests.1.fq";
-			$mate2arg = ".simple_tests.2.fq";
-			$formatarg = "-q";
-			$readarg = $mate1arg;
-		} else {
-			$mate1arg = $m1str;
-			$mate2arg = $m2str;
-			$readarg = $readstr;
-		}
+		writeReads(
+			$reads,
+			$quals,
+			$mate1s,
+			$qual1s,
+			$mate2s,
+			$qual2s,
+			$names,
+			".simple_tests.1.fq",
+			".simple_tests.2.fq");
+		$mate1arg = ".simple_tests.1.fq";
+		$mate2arg = ".simple_tests.2.fq";
+		$formatarg = "-q";
+		$readarg = $mate1arg;
 	}
 	my $cmd;
 	if($pe) {
@@ -3741,11 +3917,14 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 		my $fw = ($fwi == 0);
 		my $sam = 1;
 		
-		my $reads     = $c->{reads};
-		my $m1s       = $c->{mate1s};
-		my $m2s       = $c->{mate2s};
+		my $reads      = $c->{reads};
+		my $quals      = $c->{quals};
+		my $m1s        = $c->{mate1s};
+		my $q1s        = $c->{qual1s};
+		my $m2s        = $c->{mate2s};
+		my $q2s        = $c->{qual2s};
 		
-		my $read_file = undef;
+		my $read_file  = undef;
 		my $mate1_file = undef;
 		my $mate2_file = undef;
 		
@@ -3791,17 +3970,28 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 		if(!$fw) {
 			# Reverse-complement the reads
 			my @s = (); @s = @$reads if defined($reads);
+			my @q = (); @q = @$quals if defined($quals);
 			# Reverse-complement mates and switch mate1 with mate2
 			my @m1 = (); @m1 = @$m1s if defined($m1s);
 			my @m2 = (); @m2 = @$m2s if defined($m2s);
-			for(0..scalar(@s )-1) { $s [$_] = DNA::revcomp($s [$_], $color); }
+			my @q1 = (); @q1 = @$q1s if defined($q1s);
+			my @q2 = (); @q2 = @$q2s if defined($q2s);
+			for(0..scalar(@s )-1) {
+				$s[$_] = DNA::revcomp($s[$_], $color);
+				$q[$_] = reverse $q[$_];
+			}
 			if($mate1fw == $mate2fw) {
 				for(0..$#m1) { $m1[$_] = DNA::revcomp($m1[$_], $color); }
 				for(0..$#m2) { $m2[$_] = DNA::revcomp($m2[$_], $color); }
+				for(0..$#q1) { $q1[$_] = reverse $q1[$_]; }
+				for(0..$#q2) { $q2[$_] = reverse $q2[$_]; }
 			}
 			$reads = \@s if defined($reads);
-			$m1s = \@m2 if defined($m1s);
-			$m2s = \@m1 if defined($m2s);
+			$quals = \@q if defined($quals);
+			$m1s   = \@m2 if defined($m1s);
+			$q1s   = \@q2 if defined($q1s);
+			$m2s   = \@m1 if defined($m2s);
+			$q2s   = \@q1 if defined($q2s);
 		}
 		my $a = $case_args;
 		if(defined($m2s)) {
@@ -3820,8 +4010,11 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 			$mate1_file,       # mate #1 file
 			$mate2_file,       # mate #2 file
 			$reads,            # read list
-			$m1s,              # mate #1 list
-			$m2s,              # mate #2 list
+			$quals,            # quality list
+			$m1s,              # mate #1 sequence list
+			$q1s,              # mate #1 quality list
+			$m2s,              # mate #2 sequence list
+			$q2s,              # mate #2 quality list
 			$c->{names},
 			\@lines,
 			\@rawlines,
@@ -3902,6 +4095,7 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 				}
 				$seenNameSeqQual{$rsqKey} = $rsqVal;
 			}
+			$readname ne "" || die "readname was blank:\n".Dumper($c);
 			my $rdi = $readname;
 			$rdi = substr($rdi, 1) if substr($rdi, 0, 1) eq "r";
 			my $mate = 0;
@@ -3910,6 +4104,7 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 				defined($rdi) || die;
 			}
 			$rdi = $c->{idx_map}{$rdi} if defined($c->{idx_map}{$rdi});
+			$rdi ne "" || die "rdi was blank:\nreadname=$readname\n".Dumper($c);
 			if($rdi != int($rdi)) {
 				# Read name has non-numeric characters.  Figure out
 				# what number it is by scanning the names list.
