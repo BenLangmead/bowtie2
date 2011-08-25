@@ -2278,6 +2278,12 @@ static void* multiseedSearchWorker(void *vp) {
 	SimpleFunc myPosfrac = posfrac;
 	SimpleFunc myRowmult = rowmult;
 	rp.boostThresholds(myPosfrac, myRowmult);
+
+	SimpleFunc myPosfracPair = posfrac;
+	SimpleFunc myRowmultPair = rowmult;
+	rp.boostThresholds(myPosfracPair, myRowmultPair);
+	myPosfracPair.mult(0.5f);
+	myRowmultPair.mult(0.5f);
 	
 	// Instantiate a mapping quality calculator
 	auto_ptr<Mapq> bmapq(new BowtieMapq(
@@ -2540,8 +2546,18 @@ static void* multiseedSearchWorker(void *vp) {
 					assert(shs[mate].repOk(&ca.current()));
 					// Calculate the seed interval as a
 					// function of the read length
-					int interval = msIval.f<int>((double)rdlens[mate]);
-					if(interval < 1) interval = 1;
+					int interval;
+					if(filt[mate ^ 1]) {
+						// Both mates made it through the filter; base the
+						// interval calculation on the combined length
+						interval = msIval.f<int>((double)(rdlens[0] + rdlens[1]));
+					} else {
+						// Just aligning this mate
+						interval = msIval.f<int>((double)rdlens[mate]);
+					}
+					if(interval < 1) {
+						interval = 1;
+					}
 					assert_geq(interval, 1);
 					// Set flags controlling which orientations of  individual
 					// mates to investigate
@@ -2628,8 +2644,8 @@ static void* multiseedSearchWorker(void *vp) {
 								onceil,         // N ceil for opp.
 								nofw,           // don't align forward read
 								norc,           // don't align revcomp read
-								myPosfrac,      // max seed poss to try
-								myRowmult,      // extensions per pos
+								myPosfracPair,  // max seed poss to try
+								myRowmultPair,  // extensions per pos
 								maxhalf,        // max width on one DP side
 								scanNarrowed,   // ref scan narrowed seed hits?
 								ca,             // seed alignment cache
