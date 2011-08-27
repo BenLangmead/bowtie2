@@ -4764,6 +4764,7 @@ int main(int argc, char **argv) {
 	posmin          = DEFAULT_POSMIN;
 	posfrac         = DEFAULT_POSFRAC;
 	rowmult         = DEFAULT_ROWMULT;
+	mhits           = 1;
 	do {
 		next_option = getopt_long(argc, argv, short_opts, long_opts, &option_index);
 		switch (next_option) {
@@ -4809,7 +4810,8 @@ int main(int argc, char **argv) {
 					multiseedIvalB,
 					posmin,
 					posfrac,
-					rowmult);
+					rowmult,
+					mhits);
 				break;
 			}
 			case -1: break;

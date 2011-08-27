@@ -9,6 +9,8 @@
 #define PRESETS_H_
 
 #include <string>
+#include <utility>
+#include "ds.h"
 
 class Presets {
 public:
@@ -20,7 +22,7 @@ public:
 	virtual void apply(
 		const std::string& preset,
 		std::string& policy,
-		std::string& args) = 0;
+		EList<std::pair<int, std::string> >& opts) = 0;
 	
 	virtual const char * name() = 0;
 };
@@ -38,7 +40,7 @@ public:
 	virtual void apply(
 		const std::string& preset,
 		std::string& policy,
-		std::string& args);
+		EList<std::pair<int, std::string> >& opts);
 
 	virtual const char * name() { return "V0"; }
 };

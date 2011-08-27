@@ -235,7 +235,8 @@ public:
 		int&   multiseedLen,
 		SimpleFunc& multiseedIval,
 		SimpleFunc& posmin,
-		SimpleFunc& rowmult);
+		SimpleFunc& rowmult,
+		uint32_t& mhits);
 };
 
 #endif /*ndef ALIGNER_SEED_POLICY_H_*/

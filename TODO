@@ -12,8 +12,13 @@ Bowtie 2 TODO list:
 - Can quality values really be used in alignment?  There should be a way to
   rescale
 - Better way to break this down?: '382448 (76.49%) aligned >0 and <=3 times'
+- Something more branch-and-boundy once 2 alignments have been found
 - Spliced alignment
 - Colorspace
+- A better way of pursuing dynamic programming problems; one that allows use of
+  the latest Rognes approach.  E.g. buffer up potential DP problems then solve
+  them in chunks of 8 at a time.  Then the resulting max scores tell us which
+  we should resolve first.
 
 Performance ideas:
 - Do some of the gather & backtrace steps in SSE code

@@ -260,7 +260,8 @@ void SeedAlignmentPolicy::parseString(
 	int&   multiseedLen,
 	SimpleFunc& msIval,
 	SimpleFunc& posfrac,
-	SimpleFunc& rowmult)
+	SimpleFunc& rowmult,
+	uint32_t& mhits)
 {
 
 	bonusMatchType    = local ? DEFAULT_MATCH_BONUS_TYPE_LOCAL :
@@ -577,6 +578,32 @@ void SeedAlignmentPolicy::parseString(
 				multiseedLen = DEFAULT_SEEDLEN;
 			}
 		}
+		else if(tag == "SEEDLEN") {
+			if(ctoks.size() > 1) {
+				cerr << "Error parsing alignment policy setting "
+				     << "'" << tag << "'; RHS must have 1 token, "
+					 << "had " << ctoks.size() << ".  "
+					 << "Policy: '" << s << "'" << endl;
+				assert(false); throw 1;
+			}
+			if(ctoks.size() >= 1) {
+				istringstream tmpss(ctoks[0]);
+				tmpss >> multiseedLen;
+			}
+		}
+		else if(tag == "MHITS") {
+			if(ctoks.size() > 1) {
+				cerr << "Error parsing alignment policy setting "
+				     << "'" << tag << "'; RHS must have 1 token, "
+					 << "had " << ctoks.size() << ".  "
+					 << "Policy: '" << s << "'" << endl;
+				assert(false); throw 1;
+			}
+			if(ctoks.size() >= 1) {
+				istringstream tmpss(ctoks[0]);
+				tmpss >> mhits;
+			}
+		}
 		/*
 		 * Seed interval
 		 * -------------
@@ -632,6 +659,7 @@ int main() {
 	SimpleFunc msIval;
 	SimpleFunc posfrac;
 	SimpleFunc rowmult;
+	uint32_t mhits;
 
 	{
 		cout << "Case 1: Defaults 1 ... ";
@@ -659,7 +687,8 @@ int main() {
 			multiseedLen,
 			msIval,
 			posfrac,
-			rowmult);
+			rowmult,
+			mhits);
 		
 		assert_eq(DEFAULT_MATCH_BONUS_TYPE,   bonusMatchType);
 		assert_eq(DEFAULT_MATCH_BONUS,        bonusMatch);
@@ -718,7 +747,8 @@ int main() {
 			multiseedLen,
 			msIval,
 			posfrac,
-			rowmult);
+			rowmult,
+			mhits);
 		
 		assert_eq(DEFAULT_MATCH_BONUS_TYPE,   bonusMatchType);
 		assert_eq(DEFAULT_MATCH_BONUS,        bonusMatch);
@@ -777,7 +807,8 @@ int main() {
 			multiseedLen,
 			msIval,
 			posfrac,
-			rowmult);
+			rowmult,
+			mhits);
 		
 		assert_eq(DEFAULT_MATCH_BONUS_TYPE_LOCAL,   bonusMatchType);
 		assert_eq(DEFAULT_MATCH_BONUS_LOCAL,        bonusMatch);
@@ -837,7 +868,8 @@ int main() {
 			multiseedLen,
 			msIval,
 			posfrac,
-			rowmult);
+			rowmult,
+			mhits);
 		
 		assert_eq(COST_MODEL_CONSTANT,        bonusMatchType);
 		assert_eq(4,                          bonusMatch);

@@ -17,7 +17,7 @@
 #define DEFAULT_MATCH_BONUS_LOCAL 2
 
 // Default type of penalty to assess against mismatches
-#define DEFAULT_MM_PENALTY_TYPE COST_MODEL_CONSTANT
+#define DEFAULT_MM_PENALTY_TYPE COST_MODEL_QUAL
 // When mismatch penalty type is constant, use this constant
 #define DEFAULT_MM_PENALTY 6
 

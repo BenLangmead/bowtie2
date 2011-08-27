@@ -33,6 +33,7 @@
 #include "pe.h"
 #include "simple_func.h"
 #include "presets.h"
+#include "opts.h"
 
 using namespace std;
 
@@ -182,6 +183,9 @@ static bool scanNarrowed;    // true -> do ref scan even when seed is narrow
 static bool noSse;           // disable SSE-based dynamic programming
 static string defaultPreset; // default preset; applied immediately
 
+static EList<pair<int, string> > extra_opts;
+static size_t extra_opts_cur;
+
 #define DMAX std::numeric_limits<double>::max()
 
 static void resetOptions() {
@@ -317,10 +321,10 @@ static void resetOptions() {
 	penRfGapLinear  = DEFAULT_REF_GAP_LINEAR;
 	scoreMin.init  (SIMPLE_FUNC_LINEAR, DEFAULT_MIN_CONST,   DEFAULT_MIN_LINEAR);
 	scoreFloor.init(SIMPLE_FUNC_LINEAR, DEFAULT_FLOOR_CONST, DEFAULT_FLOOR_LINEAR);
-	nCeil.init    (SIMPLE_FUNC_LINEAR, 0.0f, DMAX, 2.0f, 0.1f);
-	msIval.init   (SIMPLE_FUNC_LINEAR, 1.0f, DMAX, DEFAULT_IVAL_B, DEFAULT_IVAL_A);
-	posfrac.init  (SIMPLE_FUNC_LINEAR, 1.0f, DMAX, DEFAULT_POSMIN, DEFAULT_POSFRAC);
-	rowmult.init  (SIMPLE_FUNC_CONST,  1.0f, DMAX, DEFAULT_ROWMULT, 0.0f);
+	nCeil.init     (SIMPLE_FUNC_LINEAR, 0.0f, DMAX, 2.0f, 0.1f);
+	msIval.init    (SIMPLE_FUNC_LINEAR, 1.0f, DMAX, DEFAULT_IVAL_B, DEFAULT_IVAL_A);
+	posfrac.init   (SIMPLE_FUNC_LINEAR, 1.0f, DMAX, DEFAULT_POSMIN, DEFAULT_POSFRAC);
+	rowmult.init   (SIMPLE_FUNC_CONST,  1.0f, DMAX, DEFAULT_ROWMULT, 0.0f);
 	multiseedMms    = DEFAULT_SEEDMMS;
 	multiseedLen    = DEFAULT_SEEDLEN;
 	saCountersFn.clear();    // filename to dump per-read SeedAligner counters to
@@ -332,103 +336,12 @@ static void resetOptions() {
 	seedSummaryOnly    = false; // print summary information about seed hits, not alignments
 	scanNarrowed       = false; // true -> do ref scan even when seed is narrow
 	noSse              = false; // disable SSE-based dynamic programming
-	defaultPreset      = "fast%LOCAL%"; // default preset; applied immediately
+	defaultPreset      = "sensitive%LOCAL%"; // default preset; applied immediately
+	extra_opts.clear();
+	extra_opts_cur = 0;
 }
 
-static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:o:w:p:k:M:1:2:I:X:CQ:";
-
-enum {
-	ARG_ORIG = 256,
-	ARG_SEED,
-	ARG_DUMP_PATS,
-	ARG_SOLEXA_QUALS,
-	ARG_VERBOSE,
-	ARG_STARTVERBOSE,
-	ARG_QUIET,
-	ARG_FAST,
-	ARG_METRIC_IVAL,
-	ARG_METRIC_FILE,
-	ARG_METRIC_STDERR,
-	ARG_REFIDX,
-	ARG_SANITY,
-	ARG_PARTITION,
-	ARG_INTEGER_QUALS,
-	ARG_NOMAQROUND,
-	ARG_USE_SPINLOCK,
-	ARG_FILEPAR,
-	ARG_SHMEM,
-	ARG_MM,
-	ARG_MMSWEEP,
-	ARG_FF,
-	ARG_FR,
-	ARG_RF,
-	ARG_NO_MIXED,
-	ARG_NO_DISCORDANT,
-	ARG_CACHE_LIM,
-	ARG_CACHE_SZ,
-	ARG_NO_FW,
-	ARG_NO_RC,
-	ARG_SKIP,
-	ARG_ONETWO,
-	ARG_PHRED64,
-	ARG_PHRED33,
-	ARG_HADOOPOUT,              // --hadoopout
-	ARG_FUZZY,                  // --fuzzy
-	ARG_FULLREF,                // --fullref
-	ARG_USAGE,                  // --usage
-	ARG_SNPPHRED,               // --snpphred
-	ARG_SNPFRAC,                // --snpfrac
-	ARG_SAM_NO_QNAME_TRUNC,     // --sam-no-qname-trunc
-	ARG_SAM_OMIT_SEC_SEQ,       // --sam-omit-sec-seq
-	ARG_SAM_NOHEAD,             // --sam-noHD/--sam-nohead
-	ARG_SAM_NOSQ,               // --sam-nosq/--sam-noSQ
-	ARG_SAM_RG,                 // --sam-RG
-	ARG_SUPPRESS_FIELDS,        // --suppress
-	ARG_COLOR_SEQ,              // --col-cseq
-	ARG_COLOR_EDIT,             // --col-cedit
-	ARG_COLOR_QUAL,             // --col-cqual
-	ARG_PRINT_PLACEHOLDERS,     // --print-placeholders
-	ARG_PRINT_FLAGS,            // --print-flags
-	ARG_PRINT_PARAMS,           // --print-params
-	ARG_COLOR_KEEP_ENDS,        // --col-keepends
-	ARG_GAP_BAR,                // --gbar
-	ARG_QUALS1,                 // --Q1
-	ARG_QUALS2,                 // --Q2
-	ARG_QSEQ,                   // --qseq
-	ARG_SEED_SUMM,              // --seed-summary
-	ARG_OVERHANG,               // --overhang
-	ARG_NO_CACHE,               // --no-cache
-	ARG_USE_CACHE,              // --cache
-	ARG_NOISY_HPOLY,            // --454/--ion-torrent
-	ARG_LOCAL,                  // --local
-	ARG_SCAN_NARROWED,          // --scan-narrowed
-	ARG_NO_SSE,                 // --no-sse
-	ARG_QC_FILTER,              // --qc-filter
-	ARG_BWA_SW_LIKE,            // --bwa-sw-like
-	ARG_MULTISEED_IVAL,         // --multiseed
-	ARG_MULTISEED_IVAL_CONST,   // --multiseed-const
-	ARG_MULTISEED_IVAL_LINEAR,  // --multiseed-linear
-	ARG_MULTISEED_IVAL_SQRT,    // --multiseed-sqrt
-	ARG_MULTISEED_IVAL_LOG,     // --multiseed-log
-	ARG_SCORE_MIN_LINEAR,       // --score-min
-	ARG_SCORE_MIN_CONST,        // --score-min-const
-	ARG_SCORE_MIN_SQRT,         // --score-min-sqrt
-	ARG_SCORE_MIN_LOG,          // --score-min-log
-	ARG_SCORES,                 // --scoring
-	ARG_N_CEIL,                 // --n-ceil
-	ARG_DPAD,                   // --dpad
-	ARG_MAPQ_TOP_COEFF,         // --mapq-top-coeff
-	ARG_MAPQ_BOT_COEFF,         // --mapq-bot-coeff
-	ARG_MAPQ_MAX,               // --mapq-max
-	ARG_SAM_PRINT_YI,           // --mapq-print-inputs
-	ARG_ALIGN_POLICY,           // --policy
-	ARG_PRESET_VERY_FAST,       // --very-fast
-	ARG_PRESET_FAST,            // --fast
-	ARG_PRESET_SENSITIVE,       // --sensitive
-	ARG_PRESET_VERY_SENSITIVE,  // --very-sensitive
-	ARG_NO_SCORE_PRIORITY       // --no-score-priority
-};
-
+static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:o:w:p:k:M:1:2:I:X:CQ:N:i:L:";
 
 static struct option long_options[] = {
 	{(char*)"verbose",      no_argument,       0,            ARG_VERBOSE},
@@ -522,7 +435,7 @@ static struct option long_options[] = {
 	{(char*)"scan-narrowed",no_argument,       0,            ARG_SCAN_NARROWED},
 	{(char*)"no-sse",       no_argument,       0,            ARG_NO_SSE},
 	{(char*)"qc-filter",    no_argument,       0,            ARG_QC_FILTER},
-	{(char*)"bwa-sw-like",  required_argument, 0,            ARG_BWA_SW_LIKE},
+	{(char*)"bwa-sw-like",  no_argument,       0,            ARG_BWA_SW_LIKE},
 	{(char*)"multiseed",        required_argument, 0,        ARG_MULTISEED_IVAL},
 	{(char*)"multiseed-const",  required_argument, 0,        ARG_MULTISEED_IVAL_CONST},
 	{(char*)"multiseed-linear", required_argument, 0,        ARG_MULTISEED_IVAL_LINEAR},
@@ -545,6 +458,9 @@ static struct option long_options[] = {
 	{(char*)"sensitive",        no_argument,       0,        ARG_PRESET_SENSITIVE},
 	{(char*)"very-sensitive",   no_argument,       0,        ARG_PRESET_VERY_SENSITIVE},
 	{(char*)"no-score-priority",no_argument,       0,        ARG_NO_SCORE_PRIORITY},
+	{(char*)"seedlen",          required_argument, 0,        'L'},
+	{(char*)"seedmms",          required_argument, 0,        'N'},
+	{(char*)"seedival",         required_argument, 0,        'i'},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -652,13 +568,6 @@ static int parseInt(int lower, int upper, const char *errmsg, const char *arg) {
 }
 
 /**
- * Parse from optarg by default.
- */
-static int parseInt(int lower, const char *errmsg) {
-	return parseInt(lower, INT_MAX, errmsg, optarg);
-}
-
-/**
  * Upper is INT_MAX by default.
  */
 static int parseInt(int lower, const char *errmsg, const char *arg) {
@@ -713,10 +622,513 @@ static string applyPreset(const string& sorig, Presets& presets) {
 		cerr << "Applying preset: '" << s << "' using preset menu '"
 			 << presets.name() << "'" << endl;
 	}
-	string pol, tmp;
-	presets.apply(s, pol, tmp);
-	assert(tmp.empty());
+	string pol;
+	presets.apply(s, pol, extra_opts);
 	return pol;
+}
+
+static bool saw_M;
+static bool saw_a;
+static bool saw_k;
+static EList<string> presetList;
+
+/**
+ * TODO: Argument parsing is very, very flawed.  The biggest problem is that
+ * there are two separate worlds of arguments, the ones set via polstr, and
+ * the ones set directly in variables.  This makes for nasty interactions,
+ * e.g., with the -M option being resolved at an awkward time relative to
+ * the -k and -a options.
+ */
+static void parseOption(int next_option, const char *arg) {
+	switch (next_option) {
+		case '1': tokenize(arg, ",", mates1); break;
+		case '2': tokenize(arg, ",", mates2); break;
+		case ARG_ONETWO: tokenize(arg, ",", mates12); format = TAB_MATE; break;
+		case 'f': format = FASTA; break;
+		case 'F': {
+			format = FASTA_CONT;
+			pair<uint32_t, uint32_t> p = parsePair<uint32_t>(arg, ',');
+			fastaContLen = p.first;
+			fastaContFreq = p.second;
+			break;
+		}
+		case ARG_BWA_SW_LIKE: {
+			bwaSwLikeC = 5.5f;
+			bwaSwLikeT = 30;
+			bwaSwLike = true;
+			// -a INT   Score of a match [1]
+			// -b INT   Mismatch penalty [3]
+			// -q INT   Gap open penalty [5]
+			// -r INT   Gap extension penalty. The penalty for a contiguous
+			//          gap of size k is q+k*r. [2] 
+			polstr += ";MA=1;MMP=C3;RDG=5,2;RFG=5,2";
+			break;
+		}
+		case 'q': format = FASTQ; break;
+		case 'r': format = RAW; break;
+		case 'c': format = CMDLINE; break;
+		case ARG_QSEQ: format = QSEQ; break;
+		case 'C': gColor = true; break;
+		case 'I':
+			gMinInsert = parseInt(0, "-I arg must be positive", arg);
+			break;
+		case 'X':
+			gMaxInsert = parseInt(1, "-X arg must be at least 1", arg);
+			break;
+		case ARG_NO_DISCORDANT:
+			gReportDiscordant = false;
+			break;
+		case ARG_NO_MIXED:
+			gReportMixed = false;
+			break;
+		case 's':
+			skipReads = (uint32_t)parseInt(0, "-s arg must be positive", arg);
+			break;
+		case ARG_FF: gMate1fw = true;  gMate2fw = true;  mateFwSet = true; break;
+		case ARG_RF: gMate1fw = false; gMate2fw = true;  mateFwSet = true; break;
+		case ARG_FR: gMate1fw = true;  gMate2fw = false; mateFwSet = true; break;
+		case ARG_USE_SPINLOCK: useSpinlock = false; break;
+		case ARG_SHMEM: useShmem = true; break;
+		case ARG_COLOR_SEQ: gColorSeq = true; break;
+		case ARG_COLOR_EDIT: gColorEdit = true; break;
+		case ARG_COLOR_QUAL: gColorQual = true; break;
+		case ARG_SEED_SUMM: seedSummaryOnly = true; break;
+		case ARG_SUPPRESS_FIELDS: {
+			EList<string> supp;
+			tokenize(arg, ",", supp);
+			for(size_t i = 0; i < supp.size(); i++) {
+				int ii = parseInt(1, "--suppress arg must be at least 1", supp[i].c_str());
+				suppressOuts[ii-1] = true;
+			}
+			break;
+		}
+		case ARG_MM: {
+#ifdef BOWTIE_MM
+			useMm = true;
+			break;
+#else
+			cerr << "Memory-mapped I/O mode is disabled because bowtie was not compiled with" << endl
+				 << "BOWTIE_MM defined.  Memory-mapped I/O is not supported under Windows.  If you" << endl
+				 << "would like to use memory-mapped I/O on a platform that supports it, please" << endl
+				 << "refrain from specifying BOWTIE_MM=0 when compiling Bowtie." << endl;
+			throw 1;
+#endif
+		}
+		case ARG_MMSWEEP: mmSweep = true; break;
+		case ARG_HADOOPOUT: hadoopOut = true; break;
+		case ARG_SOLEXA_QUALS: solexaQuals = true; break;
+		case ARG_INTEGER_QUALS: integerQuals = true; break;
+		case ARG_PHRED64: phred64Quals = true; break;
+		case ARG_PHRED33: solexaQuals = false; phred64Quals = false; break;
+		case ARG_NOMAQROUND: gNoMaqRound = true; break;
+		case ARG_COLOR_KEEP_ENDS: gColorExEnds = false; break;
+		case ARG_OVERHANG: gReportOverhangs = true; break;
+		case ARG_NO_CACHE: msNoCache = true; break;
+		case ARG_USE_CACHE: msNoCache = false; break;
+		case ARG_SNPPHRED: gSnpPhred = parseInt(0, "--snpphred must be at least 0", arg); break;
+		case ARG_SNPFRAC: {
+			double p = parse<double>(arg);
+			if(p <= 0.0) {
+				cerr << "Error: --snpfrac parameter must be > 0.0" << endl;
+				throw 1;
+			}
+			p = (log10(p) * -10);
+			gSnpPhred = (int)(p + 0.5);
+			if(gSnpPhred < 10)
+			cout << "gSnpPhred: " << gSnpPhred << endl;
+			break;
+		}
+		case 'z': {
+			cerr << "Error: -z/--phased mode is no longer supported" << endl;
+			throw 1;
+		}
+		case ARG_REFIDX: noRefNames = true; break;
+		case ARG_FUZZY: fuzzy = true; break;
+		case ARG_FULLREF: fullRef = true; break;
+		case ARG_GAP_BAR:
+			gGapBarrier = parseInt(1, "--gbar must be no less than 1", arg);
+			break;
+		case ARG_SEED:
+			seed = parseInt(0, "--seed arg must be at least 0", arg);
+			break;
+		case 'u':
+			qUpto = (uint32_t)parseInt(1, "-u/--qupto arg must be at least 1", arg);
+			break;
+		case 'Q':
+			tokenize(arg, ",", qualities);
+			integerQuals = true;
+			break;
+		case ARG_QUALS1:
+			tokenize(arg, ",", qualities1);
+			integerQuals = true;
+			break;
+		case ARG_QUALS2:
+			tokenize(arg, ",", qualities2);
+			integerQuals = true;
+			break;
+		case ARG_CACHE_LIM:
+			cacheLimit = (uint32_t)parseInt(1, "--cachelim arg must be at least 1", arg);
+			break;
+		case ARG_CACHE_SZ:
+			cacheSize = (uint32_t)parseInt(1, "--cachesz arg must be at least 1", arg);
+			cacheSize *= (1024 * 1024); // convert from MB to B
+			break;
+		case 'p':
+#ifndef BOWTIE_PTHREADS
+			cerr << "-p/--threads is disabled because bowtie was not compiled with pthreads support" << endl;
+			throw 1;
+#endif
+			nthreads = parseInt(1, "-p/--threads arg must be at least 1", arg);
+			break;
+		case ARG_FILEPAR:
+#ifndef BOWTIE_PTHREADS
+			cerr << "--filepar is disabled because bowtie was not compiled with pthreads support" << endl;
+			throw 1;
+#endif
+			fileParallel = true;
+			break;
+		case '3': gTrim3 = parseInt(0, "-3/--trim3 arg must be at least 0", arg); break;
+		case '5': gTrim5 = parseInt(0, "-5/--trim5 arg must be at least 0", arg); break;
+		case 'h': printUsage(cout); throw 0; break;
+		case ARG_USAGE: printUsage(cout); throw 0; break;
+		//
+		// NOTE that unlike in Bowtie 1, -M, -a and -k are mutually
+		// exclusive here.
+		//
+		case 'M': {
+			msample = true;
+			polstr += ";MHITS=";
+			polstr += arg;
+			if(saw_a || saw_k) {
+				cerr << "Warning: -M, -k and -a are mutually exclusive. "
+					 << "-M will override" << endl;
+			}
+			saw_M = true;
+			break;
+		}
+		case 'a': {
+			msample = false;
+			allHits = true;
+			mhits = 0; // disable -M
+			if(saw_M || saw_k) {
+				cerr << "Warning: -M, -k and -a are mutually exclusive. "
+					 << "-a will override" << endl;
+			}
+			saw_a = true;
+			break;
+		}
+		case 'k': {
+			msample = false;
+			khits = (uint32_t)parseInt(1, "-k arg must be at least 1", arg);
+			mhits = 0; // disable -M
+			if(saw_M || saw_a) {
+				cerr << "Warning: -M, -k and -a are mutually exclusive. "
+					 << "-k will override" << endl;
+			}
+			saw_k = true;
+			break;
+		}
+		case ARG_VERBOSE: gVerbose = 1; break;
+		case ARG_STARTVERBOSE: startVerbose = true; break;
+		case ARG_QUIET: gQuiet = true; break;
+		case ARG_SANITY: sanityCheck = true; break;
+		case 't': timing = true; break;
+		case ARG_METRIC_IVAL: {
+#ifdef BOWTIE_PTHREADS
+			metricsIval = parseInt(1, "--metrics arg must be at least 1", arg);
+#else
+			cerr << "Must compile with BOWTIE_PTHREADS to use --metrics" << endl;
+			throw 1;
+#endif
+			break;
+		}
+		case ARG_METRIC_FILE: metricsFile = arg; break;
+		case ARG_METRIC_STDERR: metricsStderr = true; break;
+		case ARG_NO_FW: gNofw = true; break;
+		case ARG_NO_RC: gNorc = true; break;
+		case ARG_SAM_NO_QNAME_TRUNC: samTruncQname = false; break;
+		case ARG_SAM_OMIT_SEC_SEQ: samOmitSecSeqQual = true; break;
+		case ARG_SAM_NOHEAD: samNoHead = true; break;
+		case ARG_SAM_NOSQ: samNoSQ = true; break;
+		case ARG_SAM_PRINT_YI: sam_print_yi = true; break;
+		case ARG_SAM_RG: {
+			string arg = arg;
+			if(arg.substr(0, 3) == "ID:") {
+				rgid = "\t";
+				rgid += arg;
+				rgs_optflag = "RG:Z:" + arg.substr(3);
+			} else {
+				rgs += '\t';
+				rgs += arg;
+			}
+			break;
+		}
+		case ARG_PRINT_PLACEHOLDERS: printPlaceholders = true; break;
+		case ARG_PRINT_FLAGS: printFlags = true; break;
+		case ARG_PRINT_PARAMS: printParams = true; break;
+		case ARG_DUMP_PATS: patDumpfile = (char*)arg; break;
+		case ARG_PARTITION: partitionSz = parse<int>(arg); break;
+		case ARG_DPAD:
+			maxhalf = parseInt(0, "--dpad must be no less than 0", arg);
+			break;
+		case ARG_ORIG:
+			if(arg == NULL || strlen(arg) == 0) {
+				cerr << "--orig arg must be followed by a string" << endl;
+				printUsage(cerr);
+				throw 1;
+			}
+			origString = arg;
+			break;
+		case ARG_LOCAL: localAlign = true; break;
+		case ARG_SCAN_NARROWED: scanNarrowed = true; break;
+		case ARG_NO_SSE: noSse = true; break;
+		case ARG_QC_FILTER: qcFilter = true; break;
+		case ARG_NO_SCORE_PRIORITY: sortByScore = false; break;
+		case ARG_NOISY_HPOLY: noisyHpolymer = true; break;
+		case ARG_PRESET_VERY_FAST: {
+			presetList.push_back("very-fast%LOCAL%"); break;
+		}
+		case ARG_PRESET_FAST: {
+			presetList.push_back("fast%LOCAL%"); break;
+		}
+		case ARG_PRESET_SENSITIVE: {
+			presetList.push_back("sensitive%LOCAL%"); break;
+		}
+		case ARG_PRESET_VERY_SENSITIVE: {
+			presetList.push_back("very-sensitive%LOCAL%"); break;
+		}
+		case 'P': {
+			presetList.push_back(arg);
+			break;
+		}
+		case ARG_ALIGN_POLICY: {
+			polstr += ";";
+			polstr += arg;
+			break;
+		}
+		case 'N': {
+			polstr += ";SEED=";
+			polstr += arg;
+			break;
+		}
+		case 'L': {
+			polstr += ";SEEDLEN=";
+			polstr += arg;
+			break;
+		}
+		case 'i': {
+			EList<string> args;
+			tokenize(arg, ",", args);
+			if(args.size() > 3 || args.size() == 0) {
+				cerr << "Error: expected 3 or fewer comma-separated "
+					 << "arguments to -i option, got "
+					 << args.size() << endl;
+				throw 1;
+			}
+			// Interval-settings arguments
+			polstr += (";IVAL=" + args[0]); // Function type
+			if(args.size() > 1) {
+				polstr += ("," + args[1]);  // Constant term
+			}
+			if(args.size() > 2) {
+				polstr += ("," + args[2]);  // Coefficient
+			}
+			break;
+		}
+		case ARG_MULTISEED_IVAL: {
+			polstr += ";";
+			// Split argument by comma
+			EList<string> args;
+			tokenize(arg, ",", args);
+			if(args.size() > 11 || args.size() == 0) {
+				cerr << "Error: expected 11 or fewer comma-separated "
+					 << "arguments to --multiseed option, got "
+					 << args.size() << endl;
+				throw 1;
+			}
+			// Seed mm and length arguments
+			polstr += "SEED=";
+			polstr += (args[0]);
+			if(args.size() > 1) {
+				polstr += ("," + args[1]);
+			}
+			// Interval-settings arguments
+			if(args.size() > 2) {
+				// Function type
+				polstr += (";IVAL=" + args[2]);
+			}
+			if(args.size() > 3) {
+				// Constant term
+				polstr += ("," + args[3]);
+			}
+			if(args.size() > 4) {
+				// Coefficient
+				polstr += ("," + args[4]);
+			}
+			// Arguments for # seed positions to examine
+			if(args.size() > 5) {
+				// Function type
+				polstr += (";POSF=" + args[5]);
+			}
+			if(args.size() > 6) {
+				// Constant term
+				polstr += ("," + args[6]);
+			}
+			if(args.size() > 7) {
+				// Coefficient
+				polstr += ("," + args[7]);
+			}
+			// Arguments for # rows to examine per range
+			if(args.size() > 8) {
+				// Function type
+				polstr += (";ROWM=" + args[8]);
+			}
+			if(args.size() > 9) {
+				// Constant term
+				polstr += ("," + args[9]);
+			}
+			if(args.size() > 10) {
+				// Coefficient
+				polstr += ("," + args[10]);
+			}
+			break;
+		}
+		case ARG_MULTISEED_IVAL_CONST:
+		case ARG_MULTISEED_IVAL_LINEAR:
+		case ARG_MULTISEED_IVAL_SQRT:
+		case ARG_MULTISEED_IVAL_LOG: {
+			polstr += ";";
+			const char *type =
+				(ARG_MULTISEED_IVAL_CONST  ? "C" :
+				(ARG_MULTISEED_IVAL_LINEAR ? "L" :
+				(ARG_MULTISEED_IVAL_SQRT   ? "S" :
+				(ARG_MULTISEED_IVAL_LOG    ? "G" : "?"))));
+			if(type[0] == '?') { throw 1; }
+			// Split argument by comma
+			EList<string> args;
+			tokenize(arg, ",", args);
+			if(args.size() > 7 || args.size() == 0) {
+				cerr << "Error: expected 7 or fewer comma-separated "
+					 << "arguments to --multiseed-* option, got "
+					 << args.size() << endl;
+				throw 1;
+			}
+			// Seed mm and length arguments
+			polstr += "SEED=";
+			polstr += (args[0]);
+			if(args.size() > 1) {
+				polstr += ("," + args[1]);
+			}
+			// Interval-settings arguments
+			if(args.size() > 2) {
+				polstr += ";IVAL=";
+				polstr += type;
+				polstr += ("," + args[2]);
+			}
+			if(args.size() > 3) {
+				polstr += ("," + args[3]);
+			}
+			// Arguments for # seeds to examine
+			if(args.size() > 4) {
+				polstr += (";POSF=" + args[4]);
+			}
+			if(args.size() > 5) {
+				polstr += ("," + args[5]);
+			}
+			if(args.size() > 6) {
+				polstr += (";ROWM=" + args[6]);
+			}
+			break;
+		}
+		case ARG_N_CEIL: {
+			polstr += ";";
+			// Split argument by comma
+			EList<string> args;
+			tokenize(arg, ",", args);
+			if(args.size() > 2 || args.size() == 0) {
+				cerr << "Error: expected 2 or fewer comma-separated "
+					 << "arguments to --n-ceil option, got "
+					 << args.size() << endl;
+				throw 1;
+			}
+			polstr += ("NCEIL=" + args[0]);
+			if(args.size() > 1) {
+				polstr += ("," + (args[1]));
+			}
+			break;
+		}
+		case ARG_SCORES: {
+			polstr += ";";
+			// MA=xx (default: MA=0, or MA=2 if --local is set)
+			// MMP={Cxx|Q|RQ} (default: MMP=C6)
+			// NP={Cxx|Q|RQ} (default: NP=C1)
+			// RDG=xx,yy (default: RDG=5,3)
+			// RFG=xx,yy (default: RFG=5,3)
+			// Split argument by comma
+			EList<string> args;
+			tokenize(arg, ",", args);
+			if(args.size() > 7 || args.size() == 0) {
+				cerr << "Error: expected 7 or fewer comma-separated "
+					 << "arguments to --scores option, got "
+					 << args.size() << endl;
+				throw 1;
+			}
+			polstr += ("MA=" + args[0]);
+			if(args.size() > 1) {
+				polstr += (";MMP=" + args[1]);
+			}
+			if(args.size() > 2) {
+				polstr += (";NP=" + args[2]);
+			}
+			if(args.size() > 3) {
+				polstr += (";RDG=" + args[3]);
+			}
+			if(args.size() > 4) {
+				polstr += ("," + args[4]);
+			}
+			if(args.size() > 5) {
+				polstr += (";RFG=" + args[5]);
+			}
+			if(args.size() > 6) {
+				polstr += ("," + args[6]);
+			}
+			break;
+		}
+		case ARG_SCORE_MIN_CONST:
+		case ARG_SCORE_MIN_LINEAR:
+		case ARG_SCORE_MIN_SQRT:
+		case ARG_SCORE_MIN_LOG: {
+			polstr += ";";
+			EList<string> args;
+			tokenize(arg, ",", args);
+			if(args.size() > 3 && args.size() == 0) {
+				cerr << "Error: expected 3 or fewer comma-separated "
+					 << "arguments to --n-ceil option, got "
+					 << args.size() << endl;
+				throw 1;
+			}
+			polstr += ("MIN=" + args[0]);
+			if(args.size() > 1) {
+				polstr += ("," + args[1]);
+			}
+			if(args.size() > 2) {
+				polstr += ("," + args[2]);
+			}
+			break;
+		}
+		case ARG_MAPQ_TOP_COEFF:
+			mapqTopCoeff = parse<double>(arg);
+			break;
+		case ARG_MAPQ_BOT_COEFF:
+			mapqBotCoeff = parse<double>(arg);
+			break;
+		case ARG_MAPQ_MAX:
+			mapqMax = parse<double>(arg);
+			break;
+		default:
+			printUsage(cerr);
+			throw 1;
+	}
 }
 
 /**
@@ -725,480 +1137,27 @@ static string applyPreset(const string& sorig, Presets& presets) {
 static void parseOptions(int argc, const char **argv) {
 	int option_index = 0;
 	int next_option;
-	bool saw_M = false;
-	bool saw_a = false;
-	bool saw_k = false;
-	EList<string> presetList; presetList.clear();
+	saw_M = false;
+	saw_a = false;
+	saw_k = false;
+	presetList.clear();
 	if(startVerbose) { cerr << "Parsing options: "; logTime(cerr, true); }
-	do {
+	while(true) {
 		next_option = getopt_long(
 			argc, const_cast<char**>(argv),
 			short_options, long_options, &option_index);
-		switch (next_option) {
-			case '1': tokenize(optarg, ",", mates1); break;
-			case '2': tokenize(optarg, ",", mates2); break;
-			case ARG_ONETWO: tokenize(optarg, ",", mates12); format = TAB_MATE; break;
-			case 'f': format = FASTA; break;
-			case 'F': {
-				format = FASTA_CONT;
-				pair<uint32_t, uint32_t> p = parsePair<uint32_t>(optarg, ',');
-				fastaContLen = p.first;
-				fastaContFreq = p.second;
+		const char * arg = optarg;
+		if(next_option == EOF) {
+			if(extra_opts_cur < extra_opts.size()) {
+				next_option = extra_opts[extra_opts_cur].first;
+				arg = extra_opts[extra_opts_cur].second.c_str();
+				extra_opts_cur++;
+			} else {
 				break;
 			}
-			case ARG_BWA_SW_LIKE: {
-				pair<float, float> p = parsePair<float>(optarg, ',');
-				bwaSwLikeC = p.first;
-				bwaSwLikeT = p.second;
-				bwaSwLike = true;
-				// -a INT   Score of a match [1]
-				// -b INT   Mismatch penalty [3]
-				// -q INT   Gap open penalty [5]
-				// -r INT   Gap extension penalty. The penalty for a contiguous
-				//          gap of size k is q+k*r. [2] 
-				polstr += ";MA=1;MMP=C3;RDG=5,2;RFG=5,2";
-				break;
-			}
-			case 'q': format = FASTQ; break;
-			case 'r': format = RAW; break;
-			case 'c': format = CMDLINE; break;
-			case ARG_QSEQ: format = QSEQ; break;
-			case 'C': gColor = true; break;
-			case 'I':
-				gMinInsert = parseInt(0, "-I arg must be positive");
-				break;
-			case 'X':
-				gMaxInsert = parseInt(1, "-X arg must be at least 1");
-				break;
-			case ARG_NO_DISCORDANT:
-				gReportDiscordant = false;
-				break;
-			case ARG_NO_MIXED:
-				gReportMixed = false;
-				break;
-			case 's':
-				skipReads = (uint32_t)parseInt(0, "-s arg must be positive");
-				break;
-			case ARG_FF: gMate1fw = true;  gMate2fw = true;  mateFwSet = true; break;
-			case ARG_RF: gMate1fw = false; gMate2fw = true;  mateFwSet = true; break;
-			case ARG_FR: gMate1fw = true;  gMate2fw = false; mateFwSet = true; break;
-			case ARG_USE_SPINLOCK: useSpinlock = false; break;
-			case ARG_SHMEM: useShmem = true; break;
-			case ARG_COLOR_SEQ: gColorSeq = true; break;
-			case ARG_COLOR_EDIT: gColorEdit = true; break;
-			case ARG_COLOR_QUAL: gColorQual = true; break;
-			case ARG_SEED_SUMM: seedSummaryOnly = true; break;
-			case ARG_SUPPRESS_FIELDS: {
-				EList<string> supp;
-				tokenize(optarg, ",", supp);
-				for(size_t i = 0; i < supp.size(); i++) {
-					int ii = parseInt(1, "--suppress arg must be at least 1", supp[i].c_str());
-					suppressOuts[ii-1] = true;
-				}
-				break;
-			}
-			case ARG_MM: {
-#ifdef BOWTIE_MM
-				useMm = true;
-				break;
-#else
-				cerr << "Memory-mapped I/O mode is disabled because bowtie was not compiled with" << endl
-				     << "BOWTIE_MM defined.  Memory-mapped I/O is not supported under Windows.  If you" << endl
-				     << "would like to use memory-mapped I/O on a platform that supports it, please" << endl
-				     << "refrain from specifying BOWTIE_MM=0 when compiling Bowtie." << endl;
-				throw 1;
-#endif
-			}
-			case ARG_MMSWEEP: mmSweep = true; break;
-			case ARG_HADOOPOUT: hadoopOut = true; break;
-			case ARG_SOLEXA_QUALS: solexaQuals = true; break;
-			case ARG_INTEGER_QUALS: integerQuals = true; break;
-			case ARG_PHRED64: phred64Quals = true; break;
-			case ARG_PHRED33: solexaQuals = false; phred64Quals = false; break;
-			case ARG_NOMAQROUND: gNoMaqRound = true; break;
-			case ARG_COLOR_KEEP_ENDS: gColorExEnds = false; break;
-			case ARG_OVERHANG: gReportOverhangs = true; break;
-			case ARG_NO_CACHE: msNoCache = true; break;
-			case ARG_USE_CACHE: msNoCache = false; break;
-			case ARG_SNPPHRED: gSnpPhred = parseInt(0, "--snpphred must be at least 0"); break;
-			case ARG_SNPFRAC: {
-				double p = parse<double>(optarg);
-				if(p <= 0.0) {
-					cerr << "Error: --snpfrac parameter must be > 0.0" << endl;
-					throw 1;
-				}
-				p = (log10(p) * -10);
-				gSnpPhred = (int)(p + 0.5);
-				if(gSnpPhred < 10)
-				cout << "gSnpPhred: " << gSnpPhred << endl;
-				break;
-			}
-			case 'z': {
-				cerr << "Error: -z/--phased mode is no longer supported" << endl;
-				throw 1;
-			}
-			case ARG_REFIDX: noRefNames = true; break;
-			case ARG_FUZZY: fuzzy = true; break;
-			case ARG_FULLREF: fullRef = true; break;
-			case ARG_GAP_BAR:
-				gGapBarrier = parseInt(1, "--gbar must be no less than 1");
-				break;
-			case ARG_SEED:
-				seed = parseInt(0, "--seed arg must be at least 0");
-				break;
-			case 'u':
-				qUpto = (uint32_t)parseInt(1, "-u/--qupto arg must be at least 1");
-				break;
-			case 'Q':
-				tokenize(optarg, ",", qualities);
-				integerQuals = true;
-				break;
-			case ARG_QUALS1:
-				tokenize(optarg, ",", qualities1);
-				integerQuals = true;
-				break;
-			case ARG_QUALS2:
-				tokenize(optarg, ",", qualities2);
-				integerQuals = true;
-				break;
-			case ARG_CACHE_LIM:
-				cacheLimit = (uint32_t)parseInt(1, "--cachelim arg must be at least 1");
-				break;
-			case ARG_CACHE_SZ:
-				cacheSize = (uint32_t)parseInt(1, "--cachesz arg must be at least 1");
-				cacheSize *= (1024 * 1024); // convert from MB to B
-				break;
-			case 'p':
-#ifndef BOWTIE_PTHREADS
-				cerr << "-p/--threads is disabled because bowtie was not compiled with pthreads support" << endl;
-				throw 1;
-#endif
-				nthreads = parseInt(1, "-p/--threads arg must be at least 1");
-				break;
-			case ARG_FILEPAR:
-#ifndef BOWTIE_PTHREADS
-				cerr << "--filepar is disabled because bowtie was not compiled with pthreads support" << endl;
-				throw 1;
-#endif
-				fileParallel = true;
-				break;
-			case '3': gTrim3 = parseInt(0, "-3/--trim3 arg must be at least 0"); break;
-			case '5': gTrim5 = parseInt(0, "-5/--trim5 arg must be at least 0"); break;
-			case 'h': printUsage(cout); throw 0; break;
-			case ARG_USAGE: printUsage(cout); throw 0; break;
-			//
-			// NOTE that unlike in Bowtie 1, -M, -a and -k are mutually
-			// exclusive here.
-			//
-			case 'M': {
-				msample = true;
-				mhits = (uint32_t)parseInt(1, "-M arg must be at least 1");
-				if(saw_a || saw_k) {
-					cerr << "Warning: -M, -k and -a are mutually exclusive. "
-					     << "-M will override" << endl;
-				}
-				saw_M = true;
-				break;
-			}
-			case 'a': {
-				msample = false;
-				allHits = true;
-				mhits = 0; // disable -M
-				if(saw_M || saw_k) {
-					cerr << "Warning: -M, -k and -a are mutually exclusive. "
-					     << "-a will override" << endl;
-				}
-				saw_a = true;
-				break;
-			}
-			case 'k': {
-				msample = false;
-				khits = (uint32_t)parseInt(1, "-k arg must be at least 1");
-				mhits = 0; // disable -M
-				if(saw_M || saw_a) {
-					cerr << "Warning: -M, -k and -a are mutually exclusive. "
-					     << "-k will override" << endl;
-				}
-				saw_k = true;
-				break;
-			}
-			case ARG_VERBOSE: gVerbose = 1; break;
-			case ARG_STARTVERBOSE: startVerbose = true; break;
-			case ARG_QUIET: gQuiet = true; break;
-			case ARG_SANITY: sanityCheck = true; break;
-			case 't': timing = true; break;
-			case ARG_METRIC_IVAL: {
-#ifdef BOWTIE_PTHREADS
-				metricsIval = parseInt(1, "--metrics arg must be at least 1");
-#else
-				cerr << "Must compile with BOWTIE_PTHREADS to use --metrics" << endl;
-				throw 1;
-#endif
-				break;
-			}
-			case ARG_METRIC_FILE: metricsFile = optarg; break;
-			case ARG_METRIC_STDERR: metricsStderr = true; break;
-			case ARG_NO_FW: gNofw = true; break;
-			case ARG_NO_RC: gNorc = true; break;
-			case ARG_SAM_NO_QNAME_TRUNC: samTruncQname = false; break;
-			case ARG_SAM_OMIT_SEC_SEQ: samOmitSecSeqQual = true; break;
-			case ARG_SAM_NOHEAD: samNoHead = true; break;
-			case ARG_SAM_NOSQ: samNoSQ = true; break;
-			case ARG_SAM_PRINT_YI: sam_print_yi = true; break;
-			case ARG_SAM_RG: {
-				string arg = optarg;
-				if(arg.substr(0, 3) == "ID:") {
-					rgid = "\t";
-					rgid += arg;
-					rgs_optflag = "RG:Z:" + arg.substr(3);
-				} else {
-					rgs += '\t';
-					rgs += arg;
-				}
-				break;
-			}
-			case ARG_PRINT_PLACEHOLDERS: printPlaceholders = true; break;
-			case ARG_PRINT_FLAGS: printFlags = true; break;
-			case ARG_PRINT_PARAMS: printParams = true; break;
-			case ARG_DUMP_PATS: patDumpfile = optarg; break;
-			case ARG_PARTITION: partitionSz = parse<int>(optarg); break;
-			case ARG_DPAD:
-				maxhalf = parseInt(0, "--dpad must be no less than 0");
-				break;
-			case ARG_ORIG:
-				if(optarg == NULL || strlen(optarg) == 0) {
-					cerr << "--orig arg must be followed by a string" << endl;
-					printUsage(cerr);
-					throw 1;
-				}
-				origString = optarg;
-				break;
-			case ARG_LOCAL: localAlign = true; break;
-			case ARG_SCAN_NARROWED: scanNarrowed = true; break;
-			case ARG_NO_SSE: noSse = true; break;
-			case ARG_QC_FILTER: qcFilter = true; break;
-			case ARG_NO_SCORE_PRIORITY: sortByScore = false; break;
-			case ARG_NOISY_HPOLY: noisyHpolymer = true; break;
-			case ARG_PRESET_VERY_FAST: {
-				presetList.push_back("very-fast%LOCAL%"); break;
-			}
-			case ARG_PRESET_FAST: {
-				presetList.push_back("fast%LOCAL%"); break;
-			}
-			case ARG_PRESET_SENSITIVE: {
-				presetList.push_back("sensitive%LOCAL%"); break;
-			}
-			case ARG_PRESET_VERY_SENSITIVE: {
-				presetList.push_back("very-sensitive%LOCAL%"); break;
-			}
-			case 'P': {
-				presetList.push_back(optarg);
-				break;
-			}
-			case ARG_ALIGN_POLICY: {
-				polstr += ";";
-				polstr += optarg;
-				break;
-			}
-			case ARG_MULTISEED_IVAL: {
-				polstr += ";";
-				// Split argument by comma
-				EList<string> args;
-				tokenize(optarg, ",", args);
-				if(args.size() > 11 || args.size() == 0) {
-					cerr << "Error: expected 11 or fewer comma-separated "
-					     << "arguments to --multiseed option, got "
-						 << args.size() << endl;
-					throw 1;
-				}
-				// Seed mm and length arguments
-				polstr += "SEED=";
-				polstr += (args[0]);
-				if(args.size() > 1) {
-					polstr += ("," + args[1]);
-				}
-				// Interval-settings arguments
-				if(args.size() > 2) {
-					// Function type
-					polstr += (";IVAL=" + args[2]);
-				}
-				if(args.size() > 3) {
-					// Constant term
-					polstr += ("," + args[3]);
-				}
-				if(args.size() > 4) {
-					// Coefficient
-					polstr += ("," + args[4]);
-				}
-				// Arguments for # seed positions to examine
-				if(args.size() > 5) {
-					// Function type
-					polstr += (";POSF=" + args[5]);
-				}
-				if(args.size() > 6) {
-					// Constant term
-					polstr += ("," + args[6]);
-				}
-				if(args.size() > 7) {
-					// Coefficient
-					polstr += ("," + args[7]);
-				}
-				// Arguments for # rows to examine per range
-				if(args.size() > 8) {
-					// Function type
-					polstr += (";ROWM=" + args[8]);
-				}
-				if(args.size() > 9) {
-					// Constant term
-					polstr += ("," + args[9]);
-				}
-				if(args.size() > 10) {
-					// Coefficient
-					polstr += ("," + args[10]);
-				}
-				break;
-			}
-			case ARG_MULTISEED_IVAL_CONST:
-			case ARG_MULTISEED_IVAL_LINEAR:
-			case ARG_MULTISEED_IVAL_SQRT:
-			case ARG_MULTISEED_IVAL_LOG: {
-				polstr += ";";
-				const char *type =
-					(ARG_MULTISEED_IVAL_CONST  ? "C" :
-					(ARG_MULTISEED_IVAL_LINEAR ? "L" :
-					(ARG_MULTISEED_IVAL_SQRT   ? "S" :
-					(ARG_MULTISEED_IVAL_LOG    ? "G" : "?"))));
-				if(type[0] == '?') { throw 1; }
-				// Split argument by comma
-				EList<string> args;
-				tokenize(optarg, ",", args);
-				if(args.size() > 7 || args.size() == 0) {
-					cerr << "Error: expected 7 or fewer comma-separated "
-					     << "arguments to --multiseed-* option, got "
-						 << args.size() << endl;
-					throw 1;
-				}
-				// Seed mm and length arguments
-				polstr += "SEED=";
-				polstr += (args[0]);
-				if(args.size() > 1) {
-					polstr += ("," + args[1]);
-				}
-				// Interval-settings arguments
-				if(args.size() > 2) {
-					polstr += ";IVAL=";
-					polstr += type;
-					polstr += ("," + args[2]);
-				}
-				if(args.size() > 3) {
-					polstr += ("," + args[3]);
-				}
-				// Arguments for # seeds to examine
-				if(args.size() > 4) {
-					polstr += (";POSF=" + args[4]);
-				}
-				if(args.size() > 5) {
-					polstr += ("," + args[5]);
-				}
-				if(args.size() > 6) {
-					polstr += (";ROWM=" + args[6]);
-				}
-				break;
-			}
-			case ARG_N_CEIL: {
-				polstr += ";";
-				// Split argument by comma
-				EList<string> args;
-				tokenize(optarg, ",", args);
-				if(args.size() > 2 || args.size() == 0) {
-					cerr << "Error: expected 2 or fewer comma-separated "
-					     << "arguments to --n-ceil option, got "
-						 << args.size() << endl;
-					throw 1;
-				}
-				polstr += ("NCEIL=" + args[0]);
-				if(args.size() > 1) {
-					polstr += ("," + (args[1]));
-				}
-				break;
-			}
-			case ARG_SCORES: {
-				polstr += ";";
-				// MA=xx (default: MA=0, or MA=2 if --local is set)
-				// MMP={Cxx|Q|RQ} (default: MMP=C6)
-				// NP={Cxx|Q|RQ} (default: NP=C1)
-				// RDG=xx,yy (default: RDG=5,3)
-				// RFG=xx,yy (default: RFG=5,3)
-				// Split argument by comma
-				EList<string> args;
-				tokenize(optarg, ",", args);
-				if(args.size() > 7 || args.size() == 0) {
-					cerr << "Error: expected 7 or fewer comma-separated "
-					     << "arguments to --scores option, got "
-						 << args.size() << endl;
-					throw 1;
-				}
-				polstr += ("MA=" + args[0]);
-				if(args.size() > 1) {
-					polstr += (";MMP=" + args[1]);
-				}
-				if(args.size() > 2) {
-					polstr += (";NP=" + args[2]);
-				}
-				if(args.size() > 3) {
-					polstr += (";RDG=" + args[3]);
-				}
-				if(args.size() > 4) {
-					polstr += ("," + args[4]);
-				}
-				if(args.size() > 5) {
-					polstr += (";RFG=" + args[5]);
-				}
-				if(args.size() > 6) {
-					polstr += ("," + args[6]);
-				}
-				break;
-			}
-			case ARG_SCORE_MIN_CONST:
-			case ARG_SCORE_MIN_LINEAR:
-			case ARG_SCORE_MIN_SQRT:
-			case ARG_SCORE_MIN_LOG: {
-				polstr += ";";
-				EList<string> args;
-				tokenize(optarg, ",", args);
-				if(args.size() > 3 && args.size() == 0) {
-					cerr << "Error: expected 3 or fewer comma-separated "
-					     << "arguments to --n-ceil option, got "
-						 << args.size() << endl;
-					throw 1;
-				}
-				polstr += ("MIN=" + args[0]);
-				if(args.size() > 1) {
-					polstr += ("," + args[1]);
-				}
-				if(args.size() > 2) {
-					polstr += ("," + args[2]);
-				}
-				break;
-			}
-			case ARG_MAPQ_TOP_COEFF:
-				mapqTopCoeff = parse<double>(optarg);
-				break;
-			case ARG_MAPQ_BOT_COEFF:
-				mapqBotCoeff = parse<double>(optarg);
-				break;
-			case ARG_MAPQ_MAX:
-				mapqMax = parse<double>(optarg);
-				break;
-			case -1: break; /* Done with options. */
-			case 0:
-				if (long_options[option_index].flag != 0)
-					break;
-			default:
-				printUsage(cerr);
-				throw 1;
 		}
-	} while(next_option != -1);
+		parseOption(next_option, arg);
+	}
 	// Now parse all the presets.  Might want to pick which presets version to
 	// use according to other parameters.
 	auto_ptr<Presets> presets(new PresetsV0());
@@ -1209,6 +1168,11 @@ static void parseOptions(int argc, const char **argv) {
 	// Apply specified presets
 	for(size_t i = 0; i < presetList.size(); i++) {
 		polstr += applyPreset(presetList[i], *presets.get());
+	}
+	for(size_t i = 0; i < extra_opts.size(); i++) {
+		next_option = extra_opts[extra_opts_cur].first;
+		const char *arg = extra_opts[extra_opts_cur].second.c_str();
+		parseOption(next_option, arg);
 	}
 	// Remove initial semicolons
 	while(!polstr.empty() && polstr[0] == ';') {
@@ -1240,7 +1204,15 @@ static void parseOptions(int argc, const char **argv) {
 		multiseedLen,
 		msIval,
 		posfrac,
-		rowmult);
+		rowmult,
+		mhits);
+	if(saw_a || saw_k) {
+		msample = false;
+		mhits = 0;
+	} else {
+		assert_gt(mhits, 0);
+		msample = true;
+	}
 	if(localAlign) {
 		gRowLow = 0;
 	} else {
