@@ -57,7 +57,11 @@ public:
 	double getConst() const { return C_; }
 	double getCoeff() const { return L_; }
 	
-	void mult(double x) { I_ *= x; X_ *= x; C_ *= x; L_ *= x; }
+	void mult(double x) {
+		if(I_ < std::numeric_limits<double>::max()) {
+			I_ *= x; X_ *= x; C_ *= x; L_ *= x;
+		}
+	}
 	
 	bool initialized() const { return type_ != 0; }
 	void reset() { type_ = 0; }
