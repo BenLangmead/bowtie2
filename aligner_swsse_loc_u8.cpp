@@ -839,6 +839,7 @@ bool SwAligner::gatherCellsNucleotidesLocalSseU8(TAlScore best) {
 							if(rdoff < dpRows()-1) {
 								int readcSucc = (*rd_)[rdoff+1];
 								int refcSucc = rf_[j + rfi_ + 1];
+								assert_range(0, 16, refcSucc);
 								matchSucc = ((refcSucc & (1 << readcSucc)) != 0);
 							}
 							if(match && !matchSucc) {
