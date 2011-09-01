@@ -782,7 +782,7 @@ bool SwAligner::gatherCellsNucleotidesLocalSseI16(TAlScore best) {
 		vmax = _mm_max_epi16(vmax, vtmp);
 		vtmp = _mm_srli_si128(vmax, 2);
 		vmax = _mm_max_epi16(vmax, vtmp);
-		int score = _mm_extract_epi16(vmax, 0) + 0x8000;
+		TAlScore score = (TAlScore)((int16_t)_mm_extract_epi16(vmax, 0) + 0x8000);
 		assert_geq(score, 0);
 #ifndef NDEBUG
 		{
@@ -791,7 +791,7 @@ bool SwAligner::gatherCellsNucleotidesLocalSseI16(TAlScore best) {
 			__m128i *pvH = d.mat_.hvec(0, j);
 			for(size_t i = 0; i < iter; i++) {
 				for(size_t k = 0; k < NWORDS_PER_REG; k++) {
-					TAlScore sc = (TAlScore)((TCScore*)pvH)[k];
+					TAlScore sc = (TAlScore)(((TCScore*)pvH)[k] + 0x8000);
 					if(sc > max) {
 						max = sc;
 					}
@@ -801,7 +801,7 @@ bool SwAligner::gatherCellsNucleotidesLocalSseI16(TAlScore best) {
 			assert_eq(max, score);
 		}
 #endif
-		if((TAlScore)score < minsc_) {
+		if(score < minsc_) {
 			// Scores in column aren't good enough
 			continue;
 		}
