@@ -1020,6 +1020,7 @@ bool SwDriver::extendSeedsPaired(
 						// iff there is at least one valid alignment
 						foundMate = oswa.align(rnd);
 					}
+					bool didAnchor = false;
 					do {
 						ores_.reset();
 						assert(ores_.empty());
@@ -1072,7 +1073,7 @@ bool SwDriver::extendSeedsPaired(
 						TRefOff fragoff;
 						size_t len1, len2, fraglen;
 						bool fw1, fw2;
-						int pairCl;
+						int pairCl = PE_ALS_DISCORD;
 						if(foundMate) {
 							refid = res_.alres.refid();
 							assert_eq(refid, ores_.alres.refid());
@@ -1097,7 +1098,8 @@ bool SwDriver::extendSeedsPaired(
 								off2,
 								len2,
 								fw2);
-							foundMate = pairCl != PE_ALS_DISCORD;
+							// Instead of trying
+							//foundMate = pairCl != PE_ALS_DISCORD;
 						}
 						if(msink->state().doneConcordant()) {
 							foundMate = false;
@@ -1113,10 +1115,11 @@ bool SwDriver::extendSeedsPaired(
 								assert(!msink->maxed());
 								assert(!msink->state().done());
 								bool donePaired = false,  doneUnpaired = false;
-								if(msink->report(
-									0,
-									anchor1 ? &res_.alres : &ores_.alres,
-									anchor1 ? &ores_.alres : &res_.alres))
+								if(pairCl != PE_ALS_DISCORD &&
+								   msink->report(
+								       0,
+								       anchor1 ? &res_.alres : &ores_.alres,
+								       anchor1 ? &ores_.alres : &res_.alres))
 								{
 									// Short-circuited because a limit, e.g.
 									// -k, -m or -M, was exceeded
@@ -1125,7 +1128,10 @@ bool SwDriver::extendSeedsPaired(
 								if(mixed || discord) {
 									// Report alignment for mate #1 as an
 									// unpaired alignment.
-									//if(!msink->state().doneUnpaired(true)) {
+									if(!anchor1 || !didAnchor) {
+										if(anchor1) {
+											didAnchor = true;
+										}
 										const AlnRes& r1 = anchor1 ?
 											res_.alres : ores_.alres;
 										if(!redMate1_.overlap(r1)) {
@@ -1134,10 +1140,13 @@ bool SwDriver::extendSeedsPaired(
 												doneUnpaired = true; // Short-circuited
 											}
 										}
-									//}
+									}
 									// Report alignment for mate #2 as an
 									// unpaired alignment.
-									//if(!msink->state().doneUnpaired(false)) {
+									if(anchor1 || !didAnchor) {
+										if(!anchor1) {
+											didAnchor = true;
+										}
 										const AlnRes& r2 = anchor1 ?
 											ores_.alres : res_.alres;
 										if(!redMate2_.overlap(r2)) {
@@ -1146,7 +1155,7 @@ bool SwDriver::extendSeedsPaired(
 												doneUnpaired = true; // Short-circuited
 											}
 										}
-									//}
+									}
 								}
 								if(donePaired || doneUnpaired) {
 									return true;
@@ -1157,7 +1166,8 @@ bool SwDriver::extendSeedsPaired(
 									// with the read overall.
 									return false;
 								}
-							} else if(mixed || discord) {
+							} else if((mixed || discord) && !didAnchor) {
+								didAnchor = true;
 								// Report unpaired hit for anchor
 								assert(msink != NULL);
 								assert(res_.repOk());

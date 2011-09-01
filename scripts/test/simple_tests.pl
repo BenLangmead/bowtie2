@@ -97,8 +97,11 @@ my @cases = (
 	# One mate aligns.  Ensuring that the unmapped mate gets reference
 	# information filled in from the other mate.
 	{ ref    => [ "CATCGACTGAGACTCGTACGACAATTACGCGCATTATTCGCATCACCAGCGCGGCGCGCGCCCCCTAT" ],
+	#              01234567890123456789012345678901234567890123456789012345678901234567
+	#              0         1         2         3         4         5         6
+	#                                                       ATCACCAGCGTTTCGCGCGAAACCTA
 	  mate1s => [ "ATCGACTGAGACTCGTACGACAATTAC" ],
-	  mate2s => [ "TAGGTTTCGCGCGCCGCGCTGGTGAT" ],
+	  mate2s => [ "TAGGTTTCGCGCGAAACGCTGGTGAT" ],
 	  pairhits_orig => [{ "1,1" => 1}]
 	},
 
@@ -3214,6 +3217,8 @@ my @cases = (
 
 	{ name => "Simple paired-end 13",
 	  ref    => [ "TTTATAAAAATATTTCCCCCCCCCCCCCCTGTCGCTACCGCCCCCCCCCCC" ],
+	#              012345678901234567890123456789012345678901234567890
+	#              0         1         2         3         4         5
 	#                 ATAAAAATAT                 GTCGCTACCG
 	#                 ATAAAAATAT                TGTCGCTACC
 	#                 ATAAAAATAT               CTGTCGCTAC
