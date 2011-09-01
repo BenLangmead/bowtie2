@@ -306,6 +306,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag) {
 	__m128i vvetohi  = _mm_setzero_si128();
 	__m128i vlolsw   = _mm_setzero_si128();
 	__m128i vmax     = _mm_setzero_si128();
+	__m128i vcolmax  = _mm_setzero_si128();
 	__m128i ve       = _mm_setzero_si128();
 	__m128i vf       = _mm_setzero_si128();
 	__m128i vh       = _mm_setzero_si128();
@@ -409,10 +410,11 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag) {
 		assert(pvFStore == d.mat_.fvec(0, i - rfi_));
 		assert(pvHStore == d.mat_.hvec(0, i - rfi_));
 		
-		// Fetch the appropriate query profile.  Note that elements of rf_ must
-		// be numbers, not masks.
-		const int refc = (int)rf_[i];
-		size_t off = (size_t)firsts5[refc] * iter * 2;
+		// Fetch this column's reference mask
+		const int refm = (int)rf_[i];
+		
+		// Fetch the appropriate query profile
+		size_t off = (size_t)firsts5[refm] * iter * 2;
 		pvScore = d.qprof_ + off; // even elts = query profile, odd = gap barrier
 		
 		// Load H vector from the final row of the previous column
@@ -432,7 +434,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag) {
 		_mm_store_si128(pvFStore, vf);
 		pvFStore += ROWSTRIDE;
 		
-		// Shift 2 bytes down so that topmost (least sig) cell gets 0
+		// Shift down so that topmost (least sig) cell gets 0
 		vh = _mm_slli_si128(vh, NBYTES_PER_WORD);
 		// Fill topmost (least sig) cell with low value
 		vh = _mm_or_si128(vh, vlolsw);
@@ -469,8 +471,9 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag) {
 #endif
 		vh = vtmp;
 		
-		// Update highest score encountered this far
-		vmax = _mm_max_epi16(vmax, vh);
+		// Update highest score so far
+		vcolmax = _mm_xor_si128(vcolmax, vcolmax);
+		vcolmax = _mm_max_epu8(vcolmax, vh);
 		
 		// Save the new vH values
 		_mm_store_si128(pvHStore, vh);
@@ -525,7 +528,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag) {
 			vh = _mm_max_epi16(vh, vf);
 			
 			// Update highest score encountered this far
-			vmax = _mm_max_epi16(vmax, vh);
+			vcolmax = _mm_max_epu8(vcolmax, vh);
 			
 			// Save the new vH values
 			_mm_store_si128(pvHStore, vh);
@@ -596,7 +599,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag) {
 			pvHStore += ROWSTRIDE;
 			
 			// Update highest score encountered this far
-			vmax = _mm_max_epi16(vmax, vh);
+			vcolmax = _mm_max_epu8(vcolmax, vh);
 			
 			// Update E in case it can be improved using our new vh
 			vh = _mm_subs_epi16(vh, rdgapo);
@@ -644,7 +647,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag) {
 					d,
 					k,                   // row
 					i - rfi_,            // col
-					refc,                // reference mask
+					refm,                // reference mask
 					(int)(*rd_)[rdi_+k], // read char
 					(int)(*qu_)[rdi_+k], // read quality
 					*sc_));              // scoring scheme
@@ -658,6 +661,10 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag) {
 		pvHStore = pvHLoad + colstride;
 		pvEStore = pvELoad + colstride;
 		pvFStore = pvFTmp;
+		
+		// Store column maximum vector in first element of tmp
+		vmax = _mm_max_epu8(vmax, vcolmax);
+		_mm_store_si128(d.mat_.tmpvec(0, i - rfi_), vcolmax);
 	}
 
 	// Find largest score in vmax
@@ -754,6 +761,9 @@ bool SwAligner::gatherCellsNucleotidesLocalSseI16(TAlScore best) {
 	size_t icol = iskip; // off w/r/t the table we filled in
 	size_t nrow_thiscol = min<size_t>(col - maxgaps_ + 1, nrow);
 	for(size_t j = icol; j < ncol; j++) {
+		if(j > icol) {
+			nrow_thiscol = min<size_t>(nrow_thiscol+1, nrow);
+		}
 		// Skip cells that en_ tells us to
 		size_t fromend = ncol - j - 1;
 		if(en_ != NULL && fromend < solwidth_) {
@@ -762,6 +772,38 @@ bool SwAligner::gatherCellsNucleotidesLocalSseI16(TAlScore best) {
 			if(!(*en_)[off]) {
 				continue;
 			}
+		}
+		// First, check if there is a cell in this column with a score
+		// above the score threshold
+		__m128i vmax = *d.mat_.tmpvec(0, j);
+		__m128i vtmp = _mm_srli_si128(vmax, 8);
+		vmax = _mm_max_epi16(vmax, vtmp);
+		vtmp = _mm_srli_si128(vmax, 4);
+		vmax = _mm_max_epi16(vmax, vtmp);
+		vtmp = _mm_srli_si128(vmax, 2);
+		vmax = _mm_max_epi16(vmax, vtmp);
+		int score = _mm_extract_epi16(vmax, 0) + 0x8000;
+		assert_geq(score, 0);
+#ifndef NDEBUG
+		{
+			// Start in upper vector row and move down
+			TAlScore max = 0;
+			__m128i *pvH = d.mat_.hvec(0, j);
+			for(size_t i = 0; i < iter; i++) {
+				for(size_t k = 0; k < NWORDS_PER_REG; k++) {
+					TAlScore sc = (TAlScore)((TCScore*)pvH)[k];
+					if(sc > max) {
+						max = sc;
+					}
+				}
+				pvH += ROWSTRIDE;
+			}
+			assert_eq(max, score);
+		}
+#endif
+		if((TAlScore)score < minsc_) {
+			// Scores in column aren't good enough
+			continue;
 		}
 		// Get pointer to first cell in column to examine:
 		__m128i *pvHorig = d.mat_.hvec(0, j);
@@ -830,7 +872,6 @@ bool SwAligner::gatherCellsNucleotidesLocalSseI16(TAlScore best) {
 			}
 			pvH += ROWSTRIDE;
 		}
-		nrow_thiscol = min<size_t>(nrow_thiscol+1, nrow);
 	}
 	btncand_.sort();
 	if(btncand_.empty()) {
