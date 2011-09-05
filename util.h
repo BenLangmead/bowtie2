@@ -6,6 +6,7 @@
 #define UTIL_H_
 
 #include <stdlib.h>
+#include <limits>
 
 /**
  * C++ version char* style "itoa":

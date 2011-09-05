@@ -50,6 +50,7 @@
 
 #include <stdint.h>
 #include <iostream>
+#include <limits>
 
 #ifndef NO_SSE
 #include <emmintrin.h>

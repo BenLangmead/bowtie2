@@ -9,6 +9,7 @@
 #include <pthread.h>
 #include <math.h>
 #include <utility>
+#include <limits>
 #include "alphabet.h"
 #include "assert_helpers.h"
 #include "endian_swap.h"
@@ -568,10 +569,10 @@ static int parseInt(int lower, int upper, const char *errmsg, const char *arg) {
 }
 
 /**
- * Upper is INT_MAX by default.
+ * Upper is maximum int by default.
  */
 static int parseInt(int lower, const char *errmsg, const char *arg) {
-	return parseInt(lower, INT_MAX, errmsg, arg);
+	return parseInt(lower, std::numeric_limits<int>::max(), errmsg, arg);
 }
 
 /**
@@ -2486,7 +2487,7 @@ static void* multiseedSearchWorker(void *vp) {
 				sd.nextRead(paired, rdrows[0], rdrows[1]);
 				bool matemap[2] = { 0, 1 };
 				if(pair) {
-					rnd.init(ROTL(rds[0]->seed ^ rds[1]->seed, 10));
+					rnd.init(ROTL((rds[0]->seed ^ rds[1]->seed), 10));
 					if(rnd.nextU2() == 0) {
 						// Swap order in which mates are investigated
 						std::swap(matemap[0], matemap[1]);

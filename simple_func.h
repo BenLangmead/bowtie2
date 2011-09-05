@@ -8,6 +8,7 @@
 #include <math.h>
 #include <algorithm>
 #include <cassert>
+#include <limits>
 
 #define SIMPLE_FUNC_CONST  1
 #define SIMPLE_FUNC_LINEAR 2
