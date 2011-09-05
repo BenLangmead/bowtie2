@@ -58,7 +58,7 @@ template<unsigned N>
 class Class_sstr_len<const char[N]> {
 public:
 	static inline size_t sstr_len(const char s[N]) {
-		return std::strlen(s);
+		return strlen(s);
 	}
 };
 
@@ -66,7 +66,7 @@ template<>
 class Class_sstr_len<const char *> {
 public:
 	static inline size_t sstr_len(const char *s) {
-		return std::strlen(s);
+		return strlen(s);
 	}
 };
 
@@ -74,7 +74,7 @@ template<>
 class Class_sstr_len<const unsigned char *> {
 public:
 	static inline size_t sstr_len(const unsigned char *s) {
-		return std::strlen((const char *)s);
+		return strlen((const char *)s);
 	}
 };
 

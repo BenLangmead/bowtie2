@@ -28,6 +28,10 @@ Bowtie 2 TODO list:
   window
 - Have a cache where we've precalculated all the range info for low-complexity
   sequences like AA, AC, AG, AT, etc. repeated (only 16 of those)
+- Unroll inner loop for local alignment?  Try to take pressure off loads that
+  are dominating the profile?
+- Faster ungapped mode for when either (a) the user asks for it, or (b) the
+  score threshold is such that there can be no gap opens
 
 How to compare tools:
 
