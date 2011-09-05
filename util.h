@@ -29,7 +29,7 @@ char* itoa10(const T& value, char* result) {
 		// Avoid compiler warning in cases where T is unsigned
 		if (value <= 0 && value != 0) *out++ = '-';
 	}
-	std::reverse( result, out );
+	reverse( result, out );
 	*out = 0; // terminator
 	return out;
 }

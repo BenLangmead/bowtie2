@@ -8,6 +8,7 @@
 
 #ifndef NO_SSE
 
+#include <string.h>
 #include "aligner_sw_common.h"
 #include "aligner_swsse.h"
 

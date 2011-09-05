@@ -10,6 +10,8 @@
 
 #include <stdexcept>
 #include <utility>
+#include <stdint.h>
+#include <string.h>
 #include "assert_helpers.h"
 #include "threading.h"
 
@@ -609,7 +611,7 @@ public:
 	 * Reverse list elements.
 	 */
 	void reverse() {
-		if(cur_ > 1) std::reverse(list_, list_ + cur_);
+		if(cur_ > 1) reverse(list_, list_ + cur_);
 	}
 
 	/**
@@ -725,7 +727,7 @@ public:
 	 * Sort contents
 	 */
 	void sort() {
-		if(cur_ > 1) std::sort(list_, list_ + cur_);
+		if(cur_ > 1) sort(list_, list_ + cur_);
 	}
 
 	/**
@@ -747,7 +749,7 @@ public:
 	void sortPortion(size_t begin, size_t num) {
 		assert_leq(begin+num, cur_);
 		if(num < 2) return;
-		std::sort(list_ + begin, list_ + begin + num);
+		sort(list_ + begin, list_ + begin + num);
 	}
 
 	/**
