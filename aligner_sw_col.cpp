@@ -2,6 +2,7 @@
  *  aligner_sw_col.cpp
  */
 
+#include <limits>
 #include "aligner_sw.h"
 #include "aligner_sw_col.h"
 #include "search_globals.h"

@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <iostream>
 #include <algorithm>
+#include <limits>
 #include "assert_helpers.h"
 
 typedef int64_t TRefId;
@@ -350,10 +351,10 @@ public:
 		return
 			c.ref()    == upstream_.ref() &&
 			c.orient() == upstream_.orient() &&
-			(off() <= c.off()   && dnoff() > c.off()   ||
-			 off() <= c.dnoff() && dnoff() > c.dnoff() ||
-			 c.off() <= off()   && c.dnoff() > off()   ||
-			 c.off() <= dnoff() && c.dnoff() > dnoff());
+			((off() <= c.off()   && dnoff() > c.off())   ||
+			 (off() <= c.dnoff() && dnoff() > c.dnoff()) ||
+			 (c.off() <= off()   && c.dnoff() > off())   ||
+			 (c.off() <= dnoff() && c.dnoff() > dnoff()));
 	}
 
 	/**
@@ -363,10 +364,10 @@ public:
 	inline bool overlapsIgnoreOrient(const Interval& c) const {
 		return
 			c.ref()    == upstream_.ref() &&
-			(off() <= c.off()   && dnoff() > c.off()   ||
-			 off() <= c.dnoff() && dnoff() > c.dnoff() ||
-			 c.off() <= off()   && c.dnoff() > off()   ||
-			 c.off() <= dnoff() && c.dnoff() > dnoff());
+			((off() <= c.off()   && dnoff() > c.off())   ||
+			 (off() <= c.dnoff() && dnoff() > c.dnoff()) ||
+			 (c.off() <= off()   && c.dnoff() > off())   ||
+			 (c.off() <= dnoff() && c.dnoff() > dnoff()));
 	}
 	
 	inline const Coord&  upstream()   const { return upstream_; }

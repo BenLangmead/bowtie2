@@ -6,6 +6,7 @@
 #define ALIGNER_RESULT_H_
 
 #include <utility>
+#include <limits>
 #include "mem_ids.h"
 #include "ref_coord.h"
 #include "read.h"

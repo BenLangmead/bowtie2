@@ -7,6 +7,7 @@
 
 #include <iostream>
 #include <utility>
+#include <limits>
 #include "qual.h"
 #include "ds.h"
 #include "sstring.h"

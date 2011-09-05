@@ -35,6 +35,7 @@
 
 #ifndef NO_SSE
 
+#include <limits>
 #include "aligner_sw.h"
 
 static const size_t NBYTES_PER_REG  = 16;

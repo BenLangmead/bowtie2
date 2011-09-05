@@ -5,6 +5,7 @@
 #ifndef ALN_SINK_H_
 #define ALN_SINK_H_
 
+#include <limits>
 #include "filebuf.h"
 #include "read.h"
 #include "unique.h"

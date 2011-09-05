@@ -43,6 +43,7 @@
 #include <stdint.h>
 #include <string>
 #include <utility>
+#include <limits>
 #include "alphabet.h"
 #include "sstring.h"
 #include "ds.h"

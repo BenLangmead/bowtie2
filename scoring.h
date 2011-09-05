@@ -5,6 +5,7 @@
 #ifndef SCORING_H_
 #define SCORING_H_
 
+#include <limits>
 #include "qual.h"
 #include "simple_func.h"
 

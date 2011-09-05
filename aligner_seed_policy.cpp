@@ -5,6 +5,7 @@
 #include <string>
 #include <iostream>
 #include <sstream>
+#include <limits>
 #include "ds.h"
 #include "aligner_seed_policy.h"
 #include "mem_ids.h"
