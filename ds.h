@@ -12,6 +12,7 @@
 #include <utility>
 #include <stdint.h>
 #include <string.h>
+#include <algorithm>
 #include "assert_helpers.h"
 #include "threading.h"
 
