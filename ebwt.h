@@ -7,6 +7,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <memory>
 #include <fcntl.h>
 #include <math.h>
 #include <errno.h>
