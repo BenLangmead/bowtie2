@@ -477,7 +477,7 @@ static inline const char * sstr_to_cstr(const T& s) {
 }
 
 template<>
-static inline const char * sstr_to_cstr<std::basic_string<char> >(
+inline const char * sstr_to_cstr<std::basic_string<char> >(
 	const std::basic_string<char>& s)
 {
 	return s.c_str();
@@ -2023,7 +2023,7 @@ public:
 		// Lazily allocate space for print buffer
 		for(size_t i = 0; i < len_; i++) {
 			assert_lt(cs_[i], (int)xformElts);
-			printcs[i] = xform[cs_[i]];
+			printcs[i] = xform[(int)cs_[i]];
 		}
 		printcs[len_] = 0;
 		return printcs_;
