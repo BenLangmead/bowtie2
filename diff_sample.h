@@ -2,6 +2,7 @@
 #define DIFF_SAMPLE_H_
 
 #include <stdint.h>
+#include <string.h>
 #include "assert_helpers.h"
 #include "multikey_qsort.h"
 #include "timer.h"

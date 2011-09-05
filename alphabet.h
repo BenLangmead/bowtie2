@@ -11,6 +11,7 @@
 #include <stdexcept>
 #include <string>
 #include <sstream>
+#include <stdint.h>
 #include "assert_helpers.h"
 
 using namespace std;

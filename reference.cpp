@@ -2,6 +2,7 @@
  *  reference.cpp
  */
 
+#include <string.h>
 #include "reference.h"
 #include "mem_ids.h"
 
