@@ -89,8 +89,8 @@ int PairedEndPolicy::peClassifyPair(
 	int type = PE_ALS_NORMAL;
 	// Check whether one mate overlaps the other
 	bool olap = false;
-	if(lo1 <= lo2 && hi1 >= lo2 ||
-	   lo1 <= hi2 && hi1 >= hi2 ||
+	if((lo1 <= lo2 && hi1 >= lo2) ||
+	   (lo1 <= hi2 && hi1 >= hi2) ||
 	   containment)
 	{
 		// The mates overlap

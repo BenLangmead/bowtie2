@@ -1,6 +1,7 @@
 #ifndef RANDOM_GEN_H_
 #define RANDOM_GEN_H_
 
+#include <stdint.h>
 #include "assert_helpers.h"
 
 /**

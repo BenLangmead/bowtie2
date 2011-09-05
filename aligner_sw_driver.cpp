@@ -1061,9 +1061,9 @@ bool SwDriver::extendSeedsPaired(
 								foundMate = ores_.alres.refExtent() > 0;
 							}
 							if(foundMate && 
-							   (!gReportOverhangs &&
-							    !refival.containsIgnoreOrient(ores_.alres.refival())) ||
-								!refival.overlapsIgnoreOrient(ores_.alres.refival()))
+							   ((!gReportOverhangs &&
+							     !refival.containsIgnoreOrient(ores_.alres.refival())) ||
+								 !refival.overlapsIgnoreOrient(ores_.alres.refival())))
 							{
 								foundMate = false;
 							}
