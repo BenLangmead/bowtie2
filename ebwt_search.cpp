@@ -70,7 +70,6 @@ static bool noRefNames;       // true -> print reference indexes; not names
 static uint32_t khits;  // number of hits per read; >1 is much slower
 static uint32_t mhits;  // don't report any hits if there are > mhits
 static int partitionSz; // output a partitioning key in first field
-bool gNoMaqRound; // true -> don't round quals to nearest 10 like maq
 static bool useSpinlock;  // false -> don't use of spinlocks even if they're #defines
 static bool fileParallel; // separate threads read separate input files in parallel
 static bool useShmem;     // use shared memory to hold the index
@@ -183,6 +182,7 @@ static bool seedSummaryOnly; // print summary information about seed hits, not a
 static bool scanNarrowed;    // true -> do ref scan even when seed is narrow
 static bool noSse;           // disable SSE-based dynamic programming
 static string defaultPreset; // default preset; applied immediately
+static bool ignoreQuals;     // all mms incur same penalty, regardless of qual
 
 static EList<pair<int, string> > extra_opts;
 static size_t extra_opts_cur;
@@ -222,7 +222,6 @@ static void resetOptions() {
 	khits					= 1;     // number of hits per read; >1 is much slower
 	mhits					= 1;     // don't report any hits if there are > mhits
 	partitionSz				= 0;     // output a partitioning key in first field
-	gNoMaqRound				= false; // true -> don't round quals to nearest 10 like maq
 	useSpinlock				= true;  // false -> don't use of spinlocks even if they're #defines
 	fileParallel			= false; // separate threads read separate input files in parallel
 	useShmem				= false; // use shared memory to hold the index
@@ -340,6 +339,7 @@ static void resetOptions() {
 	defaultPreset      = "sensitive%LOCAL%"; // default preset; applied immediately
 	extra_opts.clear();
 	extra_opts_cur = 0;
+	ignoreQuals = false;     // all mms incur same penalty, regardless of qual
 }
 
 static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:o:w:p:k:M:1:2:I:X:CQ:N:i:L:";
@@ -374,7 +374,6 @@ static struct option long_options[] = {
 	{(char*)"quals",        required_argument, 0,            'Q'},
 	{(char*)"Q1",           required_argument, 0,            ARG_QUALS1},
 	{(char*)"Q2",           required_argument, 0,            ARG_QUALS2},
-	{(char*)"nomaqround",   no_argument,       0,            ARG_NOMAQROUND},
 	{(char*)"refidx",       no_argument,       0,            ARG_REFIDX},
 	{(char*)"partition",    required_argument, 0,            ARG_PARTITION},
 	{(char*)"nospin",       no_argument,       0,            ARG_USE_SPINLOCK},
@@ -462,6 +461,7 @@ static struct option long_options[] = {
 	{(char*)"seedlen",          required_argument, 0,        'L'},
 	{(char*)"seedmms",          required_argument, 0,        'N'},
 	{(char*)"seedival",         required_argument, 0,        'i'},
+	{(char*)"ignore-quals",     no_argument,       0,        ARG_IGNORE_QUALS},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -503,8 +503,8 @@ static void printUsage(ostream& out) {
 		<< "  --scores           " << endl
 		<< "  --score-min        " << endl
 		<< "  --multiseed        " << endl
+		<< "  --ignore-quals     treat all quality values as Phred 30 (off)" << endl
 		<< "  --local            set alignment defaults to do BWA-SW-like local alignment" << endl
-	    << "  --nomaqround       disable Maq-like quality rounding (nearest 10 <= 30)" << endl
 	    << "  --nofw             do not align forward (original) version of read" << endl
 	    << "  --norc             do not align reverse-complemented version of read" << endl
 		<< "Paired-end:" << endl
@@ -721,7 +721,6 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_INTEGER_QUALS: integerQuals = true; break;
 		case ARG_PHRED64: phred64Quals = true; break;
 		case ARG_PHRED33: solexaQuals = false; phred64Quals = false; break;
-		case ARG_NOMAQROUND: gNoMaqRound = true; break;
 		case ARG_COLOR_KEEP_ENDS: gColorExEnds = false; break;
 		case ARG_OVERHANG: gReportOverhangs = true; break;
 		case ARG_NO_CACHE: msNoCache = true; break;
@@ -885,6 +884,7 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_NO_SSE: noSse = true; break;
 		case ARG_QC_FILTER: qcFilter = true; break;
 		case ARG_NO_SCORE_PRIORITY: sortByScore = false; break;
+		case ARG_IGNORE_QUALS: ignoreQuals = true; break;
 		case ARG_NOISY_HPOLY: noisyHpolymer = true; break;
 		case ARG_PRESET_VERY_FAST: {
 			presetList.push_back("very-fast%LOCAL%"); break;
@@ -1186,6 +1186,7 @@ static void parseOptions(int argc, const char **argv) {
 		polstr,
 		localAlign,
 		noisyHpolymer,
+		ignoreQuals,
 		bonusMatchType,
 		bonusMatch,
 		penMmcType,

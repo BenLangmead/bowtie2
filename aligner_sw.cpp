@@ -4782,10 +4782,12 @@ int main(int argc, char **argv) {
 			case 'A': {
 				bool localAlign = false;
 				bool noisyHpolymer = false;
+				bool ignoreQuals = false;
 				SeedAlignmentPolicy::parseString(
 					optarg,
 					localAlign,
 					noisyHpolymer,
+					ignoreQuals,
 					bonusMatchType,
 					bonusMatch,
 					penMmcType,
