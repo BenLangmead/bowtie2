@@ -19,6 +19,8 @@
 
 // Default type of penalty to assess against mismatches
 #define DEFAULT_MM_PENALTY_TYPE COST_MODEL_QUAL
+// Default type of penalty to assess against mismatches
+#define DEFAULT_MM_PENALTY_TYPE_IGNORE_QUALS COST_MODEL_CONSTANT
 // When mismatch penalty type is constant, use this constant
 #define DEFAULT_MM_PENALTY 6
 

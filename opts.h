@@ -91,5 +91,6 @@ enum {
 	ARG_PRESET_FAST,            // --fast
 	ARG_PRESET_SENSITIVE,       // --sensitive
 	ARG_PRESET_VERY_SENSITIVE,  // --very-sensitive
-	ARG_NO_SCORE_PRIORITY       // --no-score-priority
+	ARG_NO_SCORE_PRIORITY,      // --no-score-priority
+	ARG_IGNORE_QUALS            // --ignore-quals
 };

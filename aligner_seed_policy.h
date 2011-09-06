@@ -216,6 +216,7 @@ public:
 		const  std::string& s,
 		bool   local,
 		bool   noisyHpolymer,
+		bool   ignoreQuals,
 		int&   bonusMatchType,
 		int&   bonusMatch,
 		int&   penMmcType,

@@ -242,6 +242,7 @@ void SeedAlignmentPolicy::parseString(
 	const  string& s,      // string to parse
 	bool   local,          // do local alignment
 	bool   noisyHpolymer,  // penalize gaps less for technology reasons
+	bool   ignoreQuals,    // ignore quality values, all mms penalized the same
 	int&   bonusMatchType,
 	int&   bonusMatch,
 	int&   penMmcType,
@@ -270,7 +271,8 @@ void SeedAlignmentPolicy::parseString(
 	bonusMatch        = local ? DEFAULT_MATCH_BONUS_LOCAL :
 	                            DEFAULT_MATCH_BONUS;
 	
-	penMmcType        = DEFAULT_MM_PENALTY_TYPE;
+	penMmcType        = ignoreQuals ? DEFAULT_MM_PENALTY_TYPE_IGNORE_QUALS :
+	                                  DEFAULT_MM_PENALTY_TYPE;
 	penMmc            = DEFAULT_MM_PENALTY;
 	penSnp            = DEFAULT_SNP_PENALTY;
 	penNType          = DEFAULT_N_PENALTY_TYPE;
@@ -669,6 +671,7 @@ int main() {
 			string(pol),
 			false,              // --local?
 			false,              // noisy homopolymers a la 454?
+			false,              // ignore qualities?
 			bonusMatchType,
 			bonusMatch,
 			penMmcType,
@@ -727,8 +730,9 @@ int main() {
 		const char *pol = "";
 		SeedAlignmentPolicy::parseString(
 			string(pol),
-			false,             // --local?
-			true,              // noisy homopolymers a la 454?
+			false,              // --local?
+			true,               // noisy homopolymers a la 454?
+			false,              // ignore qualities?
 			bonusMatchType,
 			bonusMatch,
 			penMmcType,
@@ -787,8 +791,9 @@ int main() {
 		const char *pol = "";
 		SeedAlignmentPolicy::parseString(
 			string(pol),
-			true,              // --local?
-			false,             // noisy homopolymers a la 454?
+			true,               // --local?
+			false,              // noisy homopolymers a la 454?
+			false,              // ignore qualities?
 			bonusMatchType,
 			bonusMatch,
 			penMmcType,
@@ -848,8 +853,9 @@ int main() {
 		const char *pol = "MMP=C44;MA=4;RFG=24,12;FL=C,8;RDG=2;SNP=10;NP=C4;MIN=C,7";
 		SeedAlignmentPolicy::parseString(
 			string(pol),
-			true,              // --local?
-			false,             // noisy homopolymers a la 454?
+			true,               // --local?
+			false,              // noisy homopolymers a la 454?
+			false,              // ignore qualities?
 			bonusMatchType,
 			bonusMatch,
 			penMmcType,
