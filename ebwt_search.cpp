@@ -184,6 +184,7 @@ static bool noSse;           // disable SSE-based dynamic programming
 static string defaultPreset; // default preset; applied immediately
 static bool ignoreQuals;     // all mms incur same penalty, regardless of qual
 
+static string bt2index;      // read Bowtie 2 index from files with this prefix
 static EList<pair<int, string> > extra_opts;
 static size_t extra_opts_cur;
 
@@ -339,6 +340,7 @@ static void resetOptions() {
 	defaultPreset      = "sensitive%LOCAL%"; // default preset; applied immediately
 	extra_opts.clear();
 	extra_opts_cur = 0;
+	bt2index.clear();        // read Bowtie 2 index from files with this prefix
 	ignoreQuals = false;     // all mms incur same penalty, regardless of qual
 }
 
@@ -462,8 +464,47 @@ static struct option long_options[] = {
 	{(char*)"seedmms",          required_argument, 0,        'N'},
 	{(char*)"seedival",         required_argument, 0,        'i'},
 	{(char*)"ignore-quals",     no_argument,       0,        ARG_IGNORE_QUALS},
+	{(char*)"index",            required_argument, 0,        ARG_INDEX},
+	{(char*)"arg-desc",         no_argument,       0,        ARG_DESC},
 	{(char*)0, 0, 0, 0} // terminator
 };
+
+/**
+ * Print out a concise description of what options are taken and whether they
+ * take an argument.
+ */
+static void printArgDesc(ostream& out) {
+	// struct option {
+	//   const char *name;
+	//   int has_arg;
+	//   int *flag;
+	//   int val;
+	// };
+	size_t i = 0;
+	while(long_options[i].name != 0) {
+		out << long_options[i].name << "\t"
+		    << (long_options[i].has_arg == no_argument ? 0 : 1)
+		    << endl;
+		i++;
+	}
+	size_t solen = strlen(short_options);
+	for(i = 0; i < solen; i++) {
+		// Has an option?  Does if next char is :
+		if(i == solen-1) {
+			assert_neq(':', short_options[i]);
+			cout << (char)short_options[i] << "\t" << 0 << endl;
+		} else {
+			if(short_options[i+1] == ':') {
+				// Option with argument
+				cout << (char)short_options[i] << "\t" << 1 << endl;
+				i++; // skip the ':'
+			} else {
+				// Option with no argument
+				cout << (char)short_options[i] << "\t" << 0 << endl;
+			}
+		}
+	}
+}
 
 /**
  * Print a summary usage message to the provided output stream.
@@ -886,6 +927,7 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_NO_SCORE_PRIORITY: sortByScore = false; break;
 		case ARG_IGNORE_QUALS: ignoreQuals = true; break;
 		case ARG_NOISY_HPOLY: noisyHpolymer = true; break;
+		case ARG_INDEX: bt2index = arg; break;
 		case ARG_PRESET_VERY_FAST: {
 			presetList.push_back("very-fast%LOCAL%"); break;
 		}
@@ -1126,6 +1168,9 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_MAPQ_MAX:
 			mapqMax = parse<double>(arg);
 			break;
+		case ARG_DESC:
+			printArgDesc(cout);
+			throw 0;
 		default:
 			printUsage(cerr);
 			throw 1;
@@ -2829,7 +2874,7 @@ static string argstr;
 template<typename TStr>
 static void driver(
 	const char * type,
-	const string& ebwtFileBase,
+	const string& bt2indexBase,
 	const string& query,
 	const EList<string>& queries,
 	const EList<string>& qualities,
@@ -2889,7 +2934,7 @@ static void driver(
 	if(gVerbose || startVerbose) {
 		cerr << "About to initialize fw Ebwt: "; logTime(cerr, true);
 	}
-	adjIdxBase = adjustEbwtBase(argv0, ebwtFileBase, gVerbose);
+	adjIdxBase = adjustEbwtBase(argv0, bt2indexBase, gVerbose);
 	Ebwt ebwt(
 		adjIdxBase,
 	    gColor,   // index is colorspace
@@ -3159,7 +3204,6 @@ int bowtie(int argc, const char **argv) {
 			argstr += argv[i];
 			if(i < argc-1) argstr += " ";
 		}
-		string ebwtFile;  // read serialized Ebwt from this file
 		string query;   // read query string(s) from this file
 		EList<string> queries(0);
 		string outfile; // write query results to this file
@@ -3192,13 +3236,15 @@ int bowtie(int argc, const char **argv) {
 				cerr << "Parsing index and read arguments: "; logTime(cerr, true);
 			}
 
-			// Get index basename
-			if(optind >= argc) {
-				cerr << "No index, query, or output file specified!" << endl;
-				printUsage(cerr);
-				return 1;
+			// Get index basename (but only if it wasn't specified via --index)
+			if(bt2index.empty()) {
+				if(optind >= argc) {
+					cerr << "No index, query, or output file specified!" << endl;
+					printUsage(cerr);
+					return 1;
+				}
+				bt2index = argv[optind++];
 			}
-			ebwtFile = argv[optind++];
 
 			// Get query filename
 			if(optind >= argc) {
@@ -3242,7 +3288,7 @@ int bowtie(int argc, const char **argv) {
 
 			// Optionally summarize
 			if(gVerbose) {
-				cout << "Input bt2 file: \"" << ebwtFile << "\"" << endl;
+				cout << "Input bt2 file: \"" << bt2index << "\"" << endl;
 				cout << "Query inputs (DNA, " << file_format_names[format] << "):" << endl;
 				for(size_t i = 0; i < queries.size(); i++) {
 					cout << "  " << queries[i] << endl;
@@ -3264,7 +3310,7 @@ int bowtie(int argc, const char **argv) {
 				cout << "Press key to continue..." << endl;
 				getchar();
 			}
-			driver<SString<char> >("DNA", ebwtFile, query, queries, qualities, outfile);
+			driver<SString<char> >("DNA", bt2index, query, queries, qualities, outfile);
 		}
 		return 0;
 	} catch(exception& e) {
