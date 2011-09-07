@@ -65,6 +65,7 @@ for(0..$#ARGV) {
 	push @bt2w_args, $ARGV[$_] if !$saw_dd;
 	push @bt2_args,  $ARGV[$_] if  $saw_dd;
 }
+@bt2_args = @bt2w_args if !$saw_dd;
 
 my @mate1s = ();
 my @mate2s = ();
@@ -76,14 +77,14 @@ my $no_pipes = 0;
 my $keep = 0;
 
 GetOptionsFromArray(\@bt2w_args,
-	"1=s"            => \@mate1s,
-	"2=s"            => \@mate2s,
-	"reads=s"        => \@mate1s,
-	"temp-dir=s"     => \$temp_dir,
-	"bam"            => \$bam_out,
-	"no-named-pipes" => \$no_pipes,
+	"1=s"                           => \@mate1s,
+	"2=s"                           => \@mate2s,
+	"reads=s"                       => \@mate1s,
+	"temp-directory=s"              => \$temp_dir,
+	"bam"                           => \$bam_out,
+	"no-named-pipes"                => \$no_pipes,
 	"ref-string|reference-string=s" => \$ref_str,
-	"keep"           => \$keep
+	"keep"                          => \$keep
 ) || die "Bad option";
 
 sub cat_file($$) {
@@ -107,6 +108,7 @@ if(scalar(@mate1s) > 0) {
 		die "Different number of files specified with --reads/-1 as with -2";
 	# Make a named pipe for delivering mate #1s
 	my $m1fn = "$temp_dir/$$.inpipe1";
+	push @to_delete, $m1fn;
 	push @bt2_args, "-1 $m1fn";
 	my $pid = 0;
 	$pid = fork() unless $no_pipes;
@@ -116,7 +118,6 @@ if(scalar(@mate1s) > 0) {
 			mkfifo($m1fn, 0700) ||
 				die "Error: mkfifo($m1fn) failed.  Try --no-named-pipes.";
 		}
-		push @to_delete, $m1fn;
 		open(my $ofh, ">$m1fn") || die "Can't open '$m1fn' for writing";
 		for my $ifn (@mate1s) { cat_file($ifn, $ofh); }
 		close($ofh);
@@ -125,6 +126,7 @@ if(scalar(@mate1s) > 0) {
 	if(scalar(@mate2s) > 0) {
 		# Make a named pipe for delivering mate #2s
 		my $m2fn = "$temp_dir/$$.inpipe2";
+		push @to_delete, $m2fn;
 		push @bt2_args, "-2 $m2fn";
 		$pid = 0;
 		$pid = fork() unless $no_pipes;
@@ -134,7 +136,6 @@ if(scalar(@mate1s) > 0) {
 				mkfifo($m2fn, 0700) ||
 					die "Error: mkfifo($m2fn) failed.  Try --no-named-pipes.";
 			}
-			push @to_delete, $m2fn;
 			open(my $ofh, ">$m2fn") || die "Can't open '$m2fn' for writing";
 			for my $ifn (@mate2s) { cat_file($ifn, $ofh); }
 			close($ofh);
