@@ -1,0 +1,164 @@
+#!/usr/bin/env perl -w
+
+##
+# bowtie2w
+#
+#  Author: Ben Langmead
+#    Date: 9/6/2011
+# Contact: blangmea@jhsph.edu
+#
+# A wrapper script for bowtie2.  Provides various advantages over running
+# bowtie2 directly, including:
+#
+# 1. Handling compressed inputs
+# 2. Redirecting output to various files
+# 3. Output directly to bam
+#
+# ISSUES
+#
+# 1. How can this script know which Bowtie options take options and which
+#    don't?  This is needed before this script can figure out which options it
+#    should handle.
+#
+
+use strict;
+use warnings;
+use Getopt::Long qw(GetOptionsFromArray);
+use FindBin qw($Bin);
+use POSIX;
+
+(-x "$Bin/bowtie2") ||
+	die "Error: Expected bowtie2 to be in same directory with bowtie2:\n$Bin";
+
+# Get description of arguments from Bowtie 2 so that we can distinguish Bowtie
+# 2 args from wrapper args
+sub getBt2Desc($) {
+	my $d = shift;
+	my $cmd = "$Bin/bowtie2 --arg-desc";
+	open(my $fh, "$cmd |") || die "Failed to run command '$cmd'";
+	while(readline $fh) {
+		chomp;
+		next if /^\s*$/;
+		my @ts = split(/\t/);
+		$d->{$ts[0]} = $ts[1];
+	}
+	close($fh);
+	$? == 0 || die;
+}
+
+my %desc = ();
+my %wrapped = ("1" => 1, "2" => 1);
+getBt2Desc(\%desc);
+
+# Given an option like -1, determine whether it's wrapped (i.e. should be
+# handled by this script rather than being passed along to Bowtie 2)
+sub isWrapped($) { return defined($wrapped{$_[0]}); }
+
+my @bt2w_args = (); # options for wrapper
+my @bt2_args  = (); # options for Bowtie 2
+my $saw_dd = 0;
+for(0..$#ARGV) {
+	if($ARGV[$_] eq "--") {
+		$saw_dd = 1;
+		next;
+	}
+	push @bt2w_args, $ARGV[$_] if !$saw_dd;
+	push @bt2_args,  $ARGV[$_] if  $saw_dd;
+}
+
+my @mate1s = ();
+my @mate2s = ();
+my @to_delete = ();
+my $temp_dir = "/tmp";
+my $bam_out = 0;
+my $ref_str = undef;
+my $no_pipes = 0;
+my $keep = 0;
+
+GetOptionsFromArray(\@bt2w_args,
+	"1=s"            => \@mate1s,
+	"2=s"            => \@mate2s,
+	"reads=s"        => \@mate1s,
+	"temp-dir=s"     => \$temp_dir,
+	"bam"            => \$bam_out,
+	"no-named-pipes" => \$no_pipes,
+	"ref-string|reference-string=s" => \$ref_str,
+	"keep"           => \$keep
+) || die "Bad option";
+
+sub cat_file($$) {
+	my ($ifn, $ofh) = @_;
+	my $ifh = undef;
+	if($ifn =~ /\.gz$/) {
+		open($ifh, "gzip -dc $ifn |") ||
+			die "Error: could not open gzipped read file: $ifn";
+	} elsif($ifn =~ /\.bz2/) {
+		open($ifh, "bzip2 -dc $ifn |") ||
+			die "Error: could not open bzip2ed read file: $ifn";
+	} else {
+		open($ifh, $ifn) || die "Error: could not open read file: $ifn";
+	}
+	while(readline $ifh) { print {$ofh} $_; }
+	close($ifh);
+}
+
+if(scalar(@mate1s) > 0) {
+	scalar(@mate2s) == scalar(@mate1s) ||
+		die "Different number of files specified with --reads/-1 as with -2";
+	# Make a named pipe for delivering mate #1s
+	my $m1fn = "$temp_dir/$$.inpipe1";
+	push @bt2_args, "-1 $m1fn";
+	my $pid = 0;
+	$pid = fork() unless $no_pipes;
+	if($pid == 0) {
+		# Open named pipe 1 for writing
+		if(!$no_pipes) {
+			mkfifo($m1fn, 0700) ||
+				die "Error: mkfifo($m1fn) failed.  Try --no-named-pipes.";
+		}
+		push @to_delete, $m1fn;
+		open(my $ofh, ">$m1fn") || die "Can't open '$m1fn' for writing";
+		for my $ifn (@mate1s) { cat_file($ifn, $ofh); }
+		close($ofh);
+		exit 0 unless $no_pipes;
+	}
+	if(scalar(@mate2s) > 0) {
+		# Make a named pipe for delivering mate #2s
+		my $m2fn = "$temp_dir/$$.inpipe2";
+		push @bt2_args, "-2 $m2fn";
+		$pid = 0;
+		$pid = fork() unless $no_pipes;
+		if($pid == 0) {
+			# Open named pipe 2 for writing
+			if(!$no_pipes) {
+				mkfifo($m2fn, 0700) ||
+					die "Error: mkfifo($m2fn) failed.  Try --no-named-pipes.";
+			}
+			push @to_delete, $m2fn;
+			open(my $ofh, ">$m2fn") || die "Can't open '$m2fn' for writing";
+			for my $ifn (@mate2s) { cat_file($ifn, $ofh); }
+			close($ofh);
+			exit 0 unless $no_pipes;
+		}
+	}
+}
+
+if(defined($ref_str)) {
+	my $ofn = "$temp_dir/$$.ref_str.fa";
+	open(my $ofh, ">$ofn") ||
+		die "Error: could not open temporary fasta file '$ofn' for writing";
+	print {$ofh} ">1\n$ref_str\n";
+	close($ofh);
+	push @to_delete, $ofn;
+	system("$Bin/bowtie2-build $ofn $ofn") == 0 ||
+		die "Error: bowtie2-build returned non-0 exit level";
+	push @bt2_args, ("--index", "$ofn");
+	push @to_delete, ("$ofn.1.bt2", "$ofn.2.bt2", "$ofn.3.bt2", "$ofn.4.bt2",
+	                  "$ofn.rev.1.bt2", "$ofn.rev.2.bt2");
+}
+
+my $cmd = "$Bin/bowtie2 ".join(" ", @bt2_args);
+print STDERR "$cmd\n";
+system($cmd);
+
+if(!$keep) { for(@to_delete) { unlink($_); } }

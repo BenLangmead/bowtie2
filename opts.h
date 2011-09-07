@@ -21,8 +21,8 @@ enum {
 	ARG_NOMAQROUND,
 	ARG_USE_SPINLOCK,
 	ARG_FILEPAR,
-	ARG_SHMEM,
-	ARG_MM,
+	ARG_SHMEM,                 // --shmem
+	ARG_MM,                    // --mm
 	ARG_MMSWEEP,
 	ARG_FF,
 	ARG_FR,
@@ -92,5 +92,7 @@ enum {
 	ARG_PRESET_SENSITIVE,       // --sensitive
 	ARG_PRESET_VERY_SENSITIVE,  // --very-sensitive
 	ARG_NO_SCORE_PRIORITY,      // --no-score-priority
-	ARG_IGNORE_QUALS            // --ignore-quals
+	ARG_IGNORE_QUALS,           // --ignore-quals
+	ARG_INDEX,                  // --index
+	ARG_DESC                    // --arg-desc
 };
