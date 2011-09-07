@@ -67,6 +67,35 @@ for(0..$#ARGV) {
 }
 @bt2_args = @bt2w_args if !$saw_dd;
 
+# We've handled arguments that the user has explicitly directed either to the
+# wrapper or to bowtie2, now we capture some of the bowtie2 arguments that
+# ought to be handled in the wrapper
+for(my $i = 0; $i < scalar(@bt2_args); $i++) {
+	my $arg = $bt2_args[$i];
+	$arg =~ s/^\s+//;
+	$arg =~ s/\s+$//;
+	if($arg =~ /^--?([12])/) {
+		my $mate = $1;
+		$bt2_args[$i] = undef;
+		$arg =~ s/^--?[12]//;
+		if($arg ne "") {
+			# Argument was part of this token
+			my @args = split(/,/, $arg);
+			for my $a (@args) { push @bt2w_args, ("-$mate", $a); }
+		} else {
+			# Argument is in the next token
+			$i < scalar(@bt2_args)-1 || die;
+			$i++;
+			my @args = split(/,/, $bt2_args[$i]);
+			for my $a (@args) { push @bt2w_args, ("-$mate", $a); }
+			$bt2_args[$i] = undef;
+		}
+	}
+}
+my @tmp = ();
+for (@bt2_args) { push(@tmp, $_) if defined($_); }
+@bt2_args = @tmp;
+
 my @mate1s = ();
 my @mate2s = ();
 my @to_delete = ();
@@ -75,7 +104,9 @@ my $bam_out = 0;
 my $ref_str = undef;
 my $no_pipes = 0;
 my $keep = 0;
+my $verbose = 0;
 
+my @bt2w_args_cp = @bt2w_args;
 GetOptionsFromArray(\@bt2w_args,
 	"1=s"                           => \@mate1s,
 	"2=s"                           => \@mate2s,
@@ -84,8 +115,15 @@ GetOptionsFromArray(\@bt2w_args,
 	"bam"                           => \$bam_out,
 	"no-named-pipes"                => \$no_pipes,
 	"ref-string|reference-string=s" => \$ref_str,
-	"keep"                          => \$keep
+	"keep"                          => \$keep,
+	"verbose"                       => \$verbose
 ) || die "Bad option";
+
+if($verbose) {
+	print STDERR "Before arg handling:\n";
+	print STDERR "  Wrapper args:\n[ @bt2w_args_cp ]\n";
+	print STDERR "  Binary args:\n[ @bt2_args ]\n";
+}
 
 sub cat_file($$) {
 	my ($ifn, $ofh) = @_;
@@ -103,7 +141,18 @@ sub cat_file($$) {
 	close($ifh);
 }
 
-if(scalar(@mate1s) > 0) {
+# Return non-zero if and only if the input should be wrapped (i.e. because
+# it's compressed).
+sub wrapInput($$) {
+	my ($mate1s, $mate2s) = @_;
+	return 0 if scalar(@$mate1s) == 0;
+	return 1 if $mate1s->[0] =~ /\.gz$/;
+	return 1 if $mate1s->[0] =~ /\.bz2$/;
+	return 0;
+}
+
+if(wrapInput(\@mate1s, \@mate2s)) {
+	# Put reads into temporary files or fork off processes to feed named pipes
 	scalar(@mate2s) == scalar(@mate1s) ||
 		die "Different number of files specified with --reads/-1 as with -2";
 	# Make a named pipe for delivering mate #1s
@@ -142,6 +191,10 @@ if(scalar(@mate1s) > 0) {
 			exit 0 unless $no_pipes;
 		}
 	}
+} else {
+	# Just pass all the mate arguments along to the binary
+	push @bt2_args, ("-1", join(",", @mate1s));
+	push @bt2_args, ("-2", join(",", @mate2s));
 }
 
 if(defined($ref_str)) {
@@ -158,8 +211,13 @@ if(defined($ref_str)) {
 	                  "$ofn.rev.1.bt2", "$ofn.rev.2.bt2");
 }
 
+if($verbose) {
+	print STDERR "After arg handling:\n";
+	print STDERR "  Binary args:\n[ @bt2_args ]\n";
+}
+
 my $cmd = "$Bin/bowtie2 ".join(" ", @bt2_args);
-print STDERR "$cmd\n";
+print STDERR "$cmd\n" if $verbose;
 system($cmd);
 
 if(!$keep) { for(@to_delete) { unlink($_); } }
