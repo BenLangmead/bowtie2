@@ -218,6 +218,6 @@ if($verbose) {
 
 my $cmd = "$Bin/bowtie2 ".join(" ", @bt2_args);
 print STDERR "$cmd\n" if $verbose;
-system($cmd);
-
+my $ret = system($cmd);
 if(!$keep) { for(@to_delete) { unlink($_); } }
+exit $ret;
