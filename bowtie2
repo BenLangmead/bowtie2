@@ -27,14 +27,14 @@ use Getopt::Long;
 use FindBin qw($Bin);
 use POSIX;
 
-(-x "$Bin/bowtie2") ||
-	die "Error: Expected bowtie2 to be in same directory with bowtie2:\n$Bin";
+(-x "$Bin/bowtie2-align") ||
+	die "Error: Expected bowtie2 to be in same directory with bowtie2-aligner:\n$Bin";
 
 # Get description of arguments from Bowtie 2 so that we can distinguish Bowtie
 # 2 args from wrapper args
 sub getBt2Desc($) {
 	my $d = shift;
-	my $cmd = "$Bin/bowtie2 --arg-desc";
+	my $cmd = "$Bin/bowtie2-align --arg-desc";
 	open(my $fh, "$cmd |") || die "Failed to run command '$cmd'";
 	while(readline $fh) {
 		chomp;
@@ -219,7 +219,7 @@ if($verbose) {
 	print STDERR "  Binary args:\n[ @bt2_args ]\n";
 }
 
-my $cmd = "$Bin/bowtie2 ".join(" ", @bt2_args);
+my $cmd = "$Bin/bowtie2-align ".join(" ", @bt2_args);
 print STDERR "$cmd\n" if $verbose;
 my $ret = system($cmd);
 if(!$keep) { for(@to_delete) { unlink($_); } }
