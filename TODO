@@ -5,7 +5,6 @@ Bowtie 2 TODO list:
   + Taking paired-end alignment into account
   + More local-alignment savvy
   + Simulate across various read lengths
-- Wrapper script where bells and whistles like gzipped input can be shoved
 - Test scaling with -p
 - Output locking can be economical.  SAM records can be written to strings,
   then flushed while locked
@@ -32,6 +31,8 @@ Bowtie 2 TODO list:
   are dominating the profile?
 - Faster ungapped mode for when either (a) the user asks for it, or (b) the
   score threshold is such that there can be no gap opens
+- More wrapper script features
+  + Maybe change 'bowtie2w' to 'bowtie2' and make 'bowtie2' 'bowtie2-align'
 
 How to compare tools:
 

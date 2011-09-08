@@ -108,10 +108,10 @@ NOASSERT_FLAGS = -DNDEBUG
 FILE_FLAGS     = -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
 
 BOWTIE2_BIN_LIST =     bowtie2-build \
-                       bowtie2 \
+                       bowtie2-align \
                        bowtie2-inspect
 BOWTIE2_BIN_LIST_AUX = bowtie2-build-debug \
-                       bowtie2-debug \
+                       bowtie2-align-debug \
                        bowtie2-inspect-debug
 
 GENERAL_LIST = $(wildcard scripts/*.sh) \
@@ -156,7 +156,7 @@ allall: $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)
 
 both: bowtie2 bowtie2-build
 
-both-debug: bowtie2-debug bowtie2-build-debug
+both-debug: bowtie2-align-debug bowtie2-build-debug
 
 DEFS=-fno-strict-aliasing \
      -DBOWTIE_VERSION="\"`cat VERSION`\"" \
@@ -201,7 +201,7 @@ bowtie2-build-debug: ebwt_build.cpp $(SHARED_CPPS) $(HEADERS)
 # bowtie targets
 #
 
-bowtie2: ebwt_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
+bowtie2-align: ebwt_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
 	$(checksum)
 	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(EXTRA_FLAGS) \
 		-DEBWT_SEARCH_HASH=`cat .$@.cksum` \
@@ -211,7 +211,7 @@ bowtie2: ebwt_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGM
 		$(SHARED_CPPS) $(SEARCH_CPPS_MAIN) \
 		$(LIBS) $(SEARCH_LIBS)
 
-bowtie2-debug: ebwt_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
+bowtie2-align-debug: ebwt_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
 	$(checksum)
 	$(CXX) $(DEBUG_FLAGS) \
 		$(DEBUG_DEFS) $(EXTRA_FLAGS) \
