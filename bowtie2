@@ -67,7 +67,10 @@ for(0..$#ARGV) {
 	push @bt2w_args, $ARGV[$_] if !$saw_dd;
 	push @bt2_args,  $ARGV[$_] if  $saw_dd;
 }
-@bt2_args = @bt2w_args if !$saw_dd;
+if(!$saw_dd) {
+	@bt2_args = @bt2w_args;
+	@bt2w_args= ();
+}
 
 # We've handled arguments that the user has explicitly directed either to the
 # wrapper or to bowtie2, now we capture some of the bowtie2 arguments that
