@@ -23,7 +23,7 @@
 
 use strict;
 use warnings;
-use Getopt::Long qw(GetOptionsFromArray);
+use Getopt::Long;
 use FindBin qw($Bin);
 use POSIX;
 
@@ -53,6 +53,8 @@ getBt2Desc(\%desc);
 # Given an option like -1, determine whether it's wrapped (i.e. should be
 # handled by this script rather than being passed along to Bowtie 2)
 sub isWrapped($) { return defined($wrapped{$_[0]}); }
+
+my @orig_argv = @ARGV;
 
 my @bt2w_args = (); # options for wrapper
 my @bt2_args  = (); # options for Bowtie 2
@@ -107,7 +109,8 @@ my $keep = 0;
 my $verbose = 0;
 
 my @bt2w_args_cp = @bt2w_args;
-GetOptionsFromArray(\@bt2w_args,
+@ARGV = @bt2w_args;
+GetOptions(
 	"1=s"                           => \@mate1s,
 	"2=s"                           => \@mate2s,
 	"reads=s"                       => \@mate1s,
