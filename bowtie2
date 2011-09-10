@@ -197,7 +197,7 @@ if(wrapInput(\@mate1s, \@mate2s)) {
 			exit 0 unless $no_pipes;
 		}
 	}
-} else {
+} elsif(scalar(@mate2s) > 0) {
 	# Just pass all the mate arguments along to the binary
 	push @bt2_args, ("-1", join(",", @mate1s));
 	push @bt2_args, ("-2", join(",", @mate2s));
