@@ -389,6 +389,8 @@ static struct option long_options[] = {
 	{(char*)"norc",         no_argument,       0,            ARG_NO_RC},
 	{(char*)"skip",         required_argument, 0,            's'},
 	{(char*)"12",           required_argument, 0,            ARG_ONETWO},
+	{(char*)"tab5",         required_argument, 0,            ARG_TAB5},
+	{(char*)"tab6",         required_argument, 0,            ARG_TAB6},
 	{(char*)"phred33-quals", no_argument,      0,            ARG_PHRED33},
 	{(char*)"phred64-quals", no_argument,      0,            ARG_PHRED64},
 	{(char*)"solexa1.3-quals", no_argument,    0,            ARG_PHRED64},
@@ -685,7 +687,9 @@ static void parseOption(int next_option, const char *arg) {
 	switch (next_option) {
 		case '1': tokenize(arg, ",", mates1); break;
 		case '2': tokenize(arg, ",", mates2); break;
-		case ARG_ONETWO: tokenize(arg, ",", mates12); format = TAB_MATE; break;
+		case ARG_ONETWO: tokenize(arg, ",", mates12); format = TAB_MATE5; break;
+		case ARG_TAB5:   tokenize(arg, ",", mates12); format = TAB_MATE5; break;
+		case ARG_TAB6:   tokenize(arg, ",", mates12); format = TAB_MATE6; break;
 		case 'f': format = FASTA; break;
 		case 'F': {
 			format = FASTA_CONT;
@@ -1473,9 +1477,9 @@ struct PerfMetrics {
 		swmMate.reset();
 		rpm.reset();
 		dpSse8Seed.reset();   // 8-bit SSE seed extensions
-		dpSse8Mate.reset();     // 8-bit SSE mate finds
+		dpSse8Mate.reset();   // 8-bit SSE mate finds
 		dpSse16Seed.reset();  // 16-bit SSE seed extensions
-		dpSse16Mate.reset();    // 16-bit SSE mate finds
+		dpSse16Mate.reset();  // 16-bit SSE mate finds
 		
 		olmu.reset();
 		sdmu.reset();
@@ -1484,9 +1488,9 @@ struct PerfMetrics {
 		swmuMate.reset();
 		rpmu.reset();
 		dpSse8uSeed.reset();  // 8-bit SSE seed extensions
-		dpSse8uMate.reset();    // 8-bit SSE mate finds
+		dpSse8uMate.reset();  // 8-bit SSE mate finds
 		dpSse16uSeed.reset(); // 16-bit SSE seed extensions
-		dpSse16uMate.reset();   // 16-bit SSE mate finds
+		dpSse16uMate.reset(); // 16-bit SSE mate finds
 	}
 
 	/**

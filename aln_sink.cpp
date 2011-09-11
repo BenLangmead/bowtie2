@@ -341,7 +341,8 @@ static std::ostream& printPct(
 	uint64_t num,
 	uint64_t denom)
 {
-	double pct = 100.0 * (double)num / (double)denom;
+	double pct = 0.0f;
+	if(denom != 0) { pct = 100.0 * (double)num / (double)denom; }
 	os << fixed << setprecision(2) << pct << '%';
 	return os;
 }

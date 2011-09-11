@@ -6,8 +6,6 @@ Bowtie 2 TODO list:
   + More local-alignment savvy
   + Simulate across various read lengths
 - Test scaling with -p
-- Output locking can be economical.  SAM records can be written to strings,
-  then flushed while locked
 - Mode to ignore quality values
 - Better way to break this down?: '382448 (76.49%) aligned >0 and <=3 times'
 - Something more branch-and-boundy once 2 alignments have been found
@@ -32,7 +30,10 @@ Bowtie 2 TODO list:
 - Faster ungapped mode for when either (a) the user asks for it, or (b) the
   score threshold is such that there can be no gap opens
 - More wrapper script features
-  + Maybe change 'bowtie2w' to 'bowtie2' and make 'bowtie2' 'bowtie2-align'
+
+Low priority:
+- Output locking can be economical.  SAM records can be written to strings,
+  then flushed while locked.
 
 How to compare tools:
 
