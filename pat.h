@@ -1107,11 +1107,13 @@ public:
 
 	TabbedPatternSource(
 		const EList<string>& infiles,
-		const PatternParams& p) :
+		const PatternParams& p,
+		bool  secondName) :
 		BufferedFilePatternSource(infiles, NULL, p),
 		solQuals_(p.solexa64),
 		phred64Quals_(p.phred64),
-		intQuals_(p.intQuals) { }
+		intQuals_(p.intQuals),
+		secondName_(secondName) { }
 
 protected:
 
@@ -1175,6 +1177,7 @@ private:
 	bool phred64Quals_;
 	bool intQuals_;
 	EList<string> qualToks_;
+	bool secondName_;
 };
 
 /**

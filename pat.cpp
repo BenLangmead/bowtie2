@@ -25,7 +25,8 @@ PatternSource* PatternSource::patsrcFromStrings(
 		case FASTA_CONT:  return new FastaContinuousPatternSource(qs, p);
 		case RAW:         return new RawPatternSource(qs, p);
 		case FASTQ:       return new FastqPatternSource(qs, p);
-		case TAB_MATE:    return new TabbedPatternSource(qs, p);
+		case TAB_MATE5:   return new TabbedPatternSource(qs, p, false);
+		case TAB_MATE6:   return new TabbedPatternSource(qs, p, true);
 		case CMDLINE:     return new VectorPatternSource(qs, p);
 		case QSEQ:        return new QseqPatternSource(qs, p);
 		default: {
@@ -1268,6 +1269,7 @@ bool TabbedPatternSource::readPair(
 	ra.trimmed5 = mytrim5_1;
 	assert(ct == '\t' || ct == '\n' || ct == '\r' || ct == -1);
 	if(ct == '\r' || ct == '\n' || ct == -1) {
+		// Only had 3 fields prior to newline, so this must be an unpaired read
 		rb.reset();
 		ra.readOrigBuf.install(fb_.lastN(), fb_.lastNLen());
 		fb_.resetLastN();
@@ -1278,9 +1280,23 @@ bool TabbedPatternSource::readPair(
 	}
 	paired = true;
 	assert_neq('\t', fb_.peek());
+	
+	// Saw another tab after the third field, so this must be a pair
+	if(secondName_) {
+		// The second mate has its own name
+		if(parseName(rb, NULL, '\t') == -1) {
+			peekOverNewline(fb_); // skip rest of line
+			ra.reset();
+			rb.reset();
+			fb_.resetLastN();
+			success = false;
+			done = true;
+			return false;
+		}
+		assert_neq('\t', fb_.peek());
+	}
 
-	// fb_ is about to dish out the first character of the
-	// sequence field for the second mate
+	// fb_ about to give the first character of the second mate's sequence
 	int charsRead2 = 0;
 	int mytrim5_2 = gTrim5;
 	int dstLen2 = parseSeq(rb, charsRead2, mytrim5_2, '\t');
