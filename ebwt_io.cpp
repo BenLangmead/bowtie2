@@ -536,7 +536,7 @@ void Ebwt::readIntoMemory(
 					throw 1;
 				}
 			} else {
-				uint32_t *tmp;
+				uint32_t *tmp = NULL;
 				shmemLeader = ALLOC_SHARED_U32(
 					(_in2Str + "[offs]"), offsLenSampled*4, &tmp,
 					"offs", (_verbose || startVerbose));
