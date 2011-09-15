@@ -473,8 +473,8 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag) {
 		vh = vtmp;
 		
 		// Update highest score so far
-		vcolmax = _mm_xor_si128(vcolmax, vcolmax);
-		vcolmax = _mm_max_epu8(vcolmax, vh);
+		vcolmax = vlo;
+		vcolmax = _mm_max_epi16(vcolmax, vh);
 		
 		// Save the new vH values
 		_mm_store_si128(pvHStore, vh);
@@ -529,7 +529,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag) {
 			vh = _mm_max_epi16(vh, vf);
 			
 			// Update highest score encountered this far
-			vcolmax = _mm_max_epu8(vcolmax, vh);
+			vcolmax = _mm_max_epi16(vcolmax, vh);
 			
 			// Save the new vH values
 			_mm_store_si128(pvHStore, vh);
@@ -600,7 +600,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag) {
 			pvHStore += ROWSTRIDE;
 			
 			// Update highest score encountered this far
-			vcolmax = _mm_max_epu8(vcolmax, vh);
+			vcolmax = _mm_max_epi16(vcolmax, vh);
 			
 			// Update E in case it can be improved using our new vh
 			vh = _mm_subs_epi16(vh, rdgapo);
@@ -664,7 +664,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag) {
 		pvFStore = pvFTmp;
 		
 		// Store column maximum vector in first element of tmp
-		vmax = _mm_max_epu8(vmax, vcolmax);
+		vmax = _mm_max_epi16(vmax, vcolmax);
 		_mm_store_si128(d.mat_.tmpvec(0, i - rfi_), vcolmax);
 	}
 
@@ -789,10 +789,13 @@ bool SwAligner::gatherCellsNucleotidesLocalSseI16(TAlScore best) {
 		{
 			// Start in upper vector row and move down
 			TAlScore max = 0;
+			vmax = *d.mat_.tmpvec(0, j);
 			__m128i *pvH = d.mat_.hvec(0, j);
 			for(size_t i = 0; i < iter; i++) {
 				for(size_t k = 0; k < NWORDS_PER_REG; k++) {
 					TAlScore sc = (TAlScore)(((TCScore*)pvH)[k] + 0x8000);
+					TAlScore scm = (TAlScore)(((TCScore*)&vmax)[k] + 0x8000);
+					assert_leq(sc, scm);
 					if(sc > max) {
 						max = sc;
 					}

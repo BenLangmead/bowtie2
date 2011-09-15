@@ -34,7 +34,7 @@ use POSIX;
 # 2 args from wrapper args
 sub getBt2Desc($) {
 	my $d = shift;
-	my $cmd = "$Bin/bowtie2-align --arg-desc";
+	my $cmd = "$Bin/bowtie2-align --wrapper basic-0 --arg-desc";
 	open(my $fh, "$cmd |") || die "Failed to run command '$cmd'";
 	while(readline $fh) {
 		chomp;
@@ -222,7 +222,7 @@ if($verbose) {
 	print STDERR "  Binary args:\n[ @bt2_args ]\n";
 }
 
-my $cmd = "$Bin/bowtie2-align ".join(" ", @bt2_args);
+my $cmd = "$Bin/bowtie2-align --wrapper basic-0 ".join(" ", @bt2_args);
 print STDERR "$cmd\n" if $verbose;
 my $ret = system($cmd);
 if(!$keep) { for(@to_delete) { unlink($_); } }

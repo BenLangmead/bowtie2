@@ -69,21 +69,6 @@ bool PatternSource::nextReadPair(
 		if(!rb.empty()) {
 			rb.seed = genRandSeed(rb.patFw, rb.qual, rb.name, seed_);
 		}
-		// Output it, if desired
-		if(dumpfile_ != NULL) {
-			dumpBuf(ra);
-			if(!rb.empty()) {
-				dumpBuf(rb);
-			}
-		}
-		if(gVerbose) {
-			if(paired) {
-				cout << "Parsed mate 1: "; ra.dump(cout);
-				cout << "Parsed mate 2: "; rb.dump(cout);
-			} else {
-				cout << "Parsed unpaired: "; ra.dump(cout);
-			}
-		}
 	}
 	return success;
 }
@@ -109,13 +94,6 @@ bool PatternSource::nextRead(
 		// information from the user-specified seed and the read
 		// sequence, qualities, and name
 		r.seed = genRandSeed(r.patFw, r.qual, r.name, seed_);
-		// Output it, if desired
-		if(dumpfile_ != NULL) {
-			dumpBuf(r);
-		}
-		if(gVerbose) {
-			cout << "Parsed read: "; r.dump(cout);
-		}
 	}
 	return success;
 }

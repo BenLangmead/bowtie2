@@ -87,65 +87,12 @@ public:
 
 	BowtieMapq(
 		const SimpleFunc& scoreMin,
-		float topCoeff,
-		float botCoeff,
-		float mapqMax,
 		const Scoring& sc) :
 		scoreMin_(scoreMin),
-		topCoeff_(topCoeff),
-		botCoeff_(botCoeff),
-		mapqMax_(mapqMax),
 		sc_(sc)
-	{
-		assert_gt(topCoeff_, 0);
-		assert_gt(botCoeff_, 0);
-	}
+	{ }
 
 	virtual ~BowtieMapq() { }
-
-	/**
-	 * Given an AlnSetSumm, return a mapping quality calculated.
-	 */
-	virtual TMapq mapq2(
-		const AlnSetSumm& s,
-		const AlnFlags& flags,
-		bool mate1,
-		size_t rdlen,
-		char *inps)     // put string representation of inputs here
-		const
-	{
-		bool hasSecbest = VALID_AL_SCORE(s.secbest(mate1));
-		if(!flags.canMax() && !s.exhausted(mate1) && !hasSecbest) {
-			return 255;
-		}
-		TAlScore scPer = (TAlScore)sc_.perfectScore(rdlen);
-		TAlScore scMin = scoreMin_.f<TAlScore>((float)rdlen);
-		float mapq = mapqMax_;
-		TAlScore best = s.best(mate1).score();
-		assert_leq(best, scPer);
-		if(best < scPer) {
-			mapq -= (float)(scPer - best) * topCoeff_;
-		}
-		TAlScore secbest = scMin-1;
-		if(hasSecbest) {
-			secbest = s.secbest(mate1).score();
-			assert_geq(secbest, scMin);
-			mapq -= (float)(secbest - scMin) * botCoeff_;
-			TAlScore diff = abs(abs(best) - abs(secbest));
-			if(diff < mapqMax_) {
-				mapq -= (mapqMax_ - diff);
-			}
-		}
-		TMapq ret = (TMapq)(std::max(0.0f, std::min(mapqMax_, mapq + 0.5f)));
-		if(inps != NULL) {
-			inps = itoa10<TAlScore>(best, inps);
-			*inps++ = ',';
-			inps = itoa10<TAlScore>(secbest, inps);
-			*inps++ = ',';
-			inps = itoa10<TMapq>(ret, inps);
-		}
-		return ret;
-	}
 
 	/**
 	 * Given an AlnSetSumm, return a mapping quality calculated.
@@ -211,9 +158,6 @@ public:
 protected:
 
 	SimpleFunc      scoreMin_;
-	float           topCoeff_;
-	float           botCoeff_;
-	float           mapqMax_;
 	const Scoring&  sc_;
 };
 

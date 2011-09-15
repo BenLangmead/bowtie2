@@ -408,55 +408,58 @@ void AlnSink::printAlSumm(
 			// TODO: what about discoardant and on separate chromosomes?
 		
 			// Bring out the unaligned pair total so we can subtract discordants
-			cerr << "" << met.nconcord_0
+			cerr << "    ----" << endl;
+			cerr << "    " << met.nconcord_0
 			     << " pairs aligned concordantly 0 times; of these:" << endl;
 			// Discordants
-			cerr << "  " << met.ndiscord << " (";
+			cerr << "      " << met.ndiscord << " (";
 			printPct(cerr, met.ndiscord, met.nconcord_0);
 			cerr << ") aligned discordantly 1 time" << endl;
 		}
 		uint64_t ncondiscord_0 = met.nconcord_0 - met.ndiscord;
 		if(mixed) {
 			// Bring out the unaligned pair total so we can subtract discordants
-			cerr << "" << ncondiscord_0
+			cerr << "    ----" << endl;
+			cerr << "    " << ncondiscord_0
 			     << " pairs aligned 0 times concordantly or discordantly; of these:" << endl;
-			cerr << "  " << (ncondiscord_0 * 2) << " mates make up the pairs; of these:" << endl;
-			cerr << "    " << met.nunp_0_0 << " " << "(";
+			cerr << "      " << (ncondiscord_0 * 2) << " mates make up the pairs; of these:" << endl;
+			cerr << "        " << met.nunp_0_0 << " " << "(";
 			printPct(cerr, met.nunp_0_0, ncondiscord_0 * 2);
 			cerr << ") aligned 0 times" << endl;
 			if(canRep) {
-				cerr << "    " << met.nunp_0_uni << " (";
+				cerr << "        " << met.nunp_0_uni << " (";
 				printPct(cerr, met.nunp_0_uni, ncondiscord_0 * 2);
 				cerr << ") aligned >0 and <=" << repThresh << " times" << endl;
 				
-				cerr << "    " << met.nunp_0_rep << " (";
+				cerr << "        " << met.nunp_0_rep << " (";
 				printPct(cerr, met.nunp_0_rep, ncondiscord_0 * 2);
 				cerr << ") aligned >" << repThresh << " times" << endl;
 			} else {
-				cerr << "    " << met.nunp_0_uni << " (";
+				cerr << "        " << met.nunp_0_uni << " (";
 				printPct(cerr, met.nunp_0_uni, ncondiscord_0 * 2);
 				cerr << ") aligned >0 times" << endl;
 			}
 			
-			if(canRep) {
-				// Bring out the repetitively aligned pair total so we can subtract discordants
-				cerr << "" << met.nconcord_rep
-					 << " pairs aligned concordantly >" << repThresh
-					 << " times; of these:" << endl;
-				cerr << "  " << (met.nconcord_rep * 2) << " mates make up the pairs; of these:" << endl;
-				
-				cerr << "    " << met.nunp_rep_0 << " (";
-				printPct(cerr, met.nunp_rep_0, met.nconcord_rep * 2);
-				cerr << ") aligned 0 times" << endl;
-				
-				cerr << "    " << met.nunp_rep_uni << " (";
-				printPct(cerr, met.nunp_rep_uni, met.nconcord_rep * 2);
-				cerr << ") aligned >0 and <=" << repThresh << " times" << endl;
-				
-				cerr << "    " << met.nunp_rep_rep << " (";
-				printPct(cerr, met.nunp_rep_rep, met.nconcord_rep * 2);
-				cerr << ") aligned >" << repThresh << " times" << endl;
-			}
+			//if(canRep) {
+			//	// Bring out the repetitively aligned pair total so we can subtract discordants
+			//	cerr << "    ----" << endl;
+			//	cerr << "    " << met.nconcord_rep
+			//		 << " pairs aligned concordantly >" << repThresh
+			//		 << " times; of these:" << endl;
+			//	cerr << "      " << (met.nconcord_rep * 2) << " mates make up the pairs; of these:" << endl;
+			//	
+			//	cerr << "        " << met.nunp_rep_0 << " (";
+			//	printPct(cerr, met.nunp_rep_0, met.nconcord_rep * 2);
+			//	cerr << ") aligned 0 times" << endl;
+			//	
+			//	cerr << "        " << met.nunp_rep_uni << " (";
+			//	printPct(cerr, met.nunp_rep_uni, met.nconcord_rep * 2);
+			//	cerr << ") aligned >0 and <=" << repThresh << " times" << endl;
+			//	
+			//	cerr << "        " << met.nunp_rep_rep << " (";
+			//	printPct(cerr, met.nunp_rep_rep, met.nconcord_rep * 2);
+			//	cerr << ") aligned >" << repThresh << " times" << endl;
+			//}
 		}
 	}
 	uint64_t totunpair = met.nunpaired;
@@ -842,7 +845,9 @@ void AlnSinkWrap::finishRead(
 		assert(!pairMax);
 
 		// Update counters given that one mate didn't align
-		met.nconcord_0++;
+		if(readIsPair()) {
+			met.nconcord_0++;
+		}
 		if(rd1_ != NULL) {
 			if(nunpair1 > 0) {
 				// Update counters
