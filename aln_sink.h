@@ -18,8 +18,7 @@
 class SeedResults;
 
 enum {
-	OUTPUT_SAM = 1,
-	OUTPUT_FULL
+	OUTPUT_SAM = 1
 };
 
 /**

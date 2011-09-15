@@ -11,7 +11,7 @@ CXX = $(CPP)
 HEADERS = $(wildcard *.h)
 BOWTIE_PTHREADS = 1
 BOWTIE_MM = 1
-BOWTIE_SHARED_MEM = 1
+BOWTIE_SHARED_MEM = 0
 
 # Detect Cygwin or MinGW
 WINDOWS = 0

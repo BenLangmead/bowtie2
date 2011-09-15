@@ -3,40 +3,37 @@
  */
 
 enum {
-	ARG_ORIG = 256,
-	ARG_SEED,
-	ARG_DUMP_PATS,
-	ARG_SOLEXA_QUALS,
-	ARG_VERBOSE,
-	ARG_STARTVERBOSE,
-	ARG_QUIET,
-	ARG_FAST,
-	ARG_METRIC_IVAL,
-	ARG_METRIC_FILE,
-	ARG_METRIC_STDERR,
-	ARG_REFIDX,
-	ARG_SANITY,
-	ARG_PARTITION,
-	ARG_INTEGER_QUALS,
-	ARG_NOMAQROUND,
-	ARG_USE_SPINLOCK,
-	ARG_FILEPAR,
-	ARG_SHMEM,                 // --shmem
-	ARG_MM,                    // --mm
-	ARG_MMSWEEP,
-	ARG_FF,
-	ARG_FR,
-	ARG_RF,
-	ARG_NO_MIXED,
-	ARG_NO_DISCORDANT,
-	ARG_CACHE_LIM,
-	ARG_CACHE_SZ,
-	ARG_NO_FW,
-	ARG_NO_RC,
-	ARG_SKIP,
-	ARG_ONETWO,
-	ARG_PHRED64,
-	ARG_PHRED33,
+	ARG_ORIG = 256,             // --orig
+	ARG_SEED,                   // --seed
+	ARG_SOLEXA_QUALS,           // --solexa-quals
+	ARG_VERBOSE,                // --verbose
+	ARG_STARTVERBOSE,           // --startverbose
+	ARG_QUIET,                  // --quiet
+	ARG_METRIC_IVAL,            // --met
+	ARG_METRIC_FILE,            // --met-file
+	ARG_METRIC_STDERR,          // --met-stderr
+	ARG_REFIDX,                 // --refidx
+	ARG_SANITY,                 // --sanity
+	ARG_PARTITION,              // --partition
+	ARG_INTEGER_QUALS,          // --int-quals
+	ARG_USE_SPINLOCK,           // --nospin
+	ARG_FILEPAR,                // --filepar
+	ARG_SHMEM,                  // --shmem
+	ARG_MM,                     // --mm
+	ARG_MMSWEEP,                // --mmsweep
+	ARG_FF,                     // --ff
+	ARG_FR,                     // --fr
+	ARG_RF,                     // --rf
+	ARG_NO_MIXED,               // --
+	ARG_NO_DISCORDANT,          // --
+	ARG_CACHE_LIM,              // --
+	ARG_CACHE_SZ,               // --
+	ARG_NO_FW,                  // --nofw
+	ARG_NO_RC,                  // --norc
+	ARG_SKIP,                   // --skip
+	ARG_ONETWO,                 // --12
+	ARG_PHRED64,                // --phred64
+	ARG_PHRED33,                // --phred33
 	ARG_HADOOPOUT,              // --hadoopout
 	ARG_FUZZY,                  // --fuzzy
 	ARG_FULLREF,                // --fullref
@@ -48,13 +45,9 @@ enum {
 	ARG_SAM_NOHEAD,             // --sam-noHD/--sam-nohead
 	ARG_SAM_NOSQ,               // --sam-nosq/--sam-noSQ
 	ARG_SAM_RG,                 // --sam-RG
-	ARG_SUPPRESS_FIELDS,        // --suppress
 	ARG_COLOR_SEQ,              // --col-cseq
 	ARG_COLOR_EDIT,             // --col-cedit
 	ARG_COLOR_QUAL,             // --col-cqual
-	ARG_PRINT_PLACEHOLDERS,     // --print-placeholders
-	ARG_PRINT_FLAGS,            // --print-flags
-	ARG_PRINT_PARAMS,           // --print-params
 	ARG_COLOR_KEEP_ENDS,        // --col-keepends
 	ARG_GAP_BAR,                // --gbar
 	ARG_QUALS1,                 // --Q1
@@ -66,6 +59,7 @@ enum {
 	ARG_USE_CACHE,              // --cache
 	ARG_NOISY_HPOLY,            // --454/--ion-torrent
 	ARG_LOCAL,                  // --local
+	ARG_END_TO_END,             // --end-to-end
 	ARG_SCAN_NARROWED,          // --scan-narrowed
 	ARG_NO_SSE,                 // --no-sse
 	ARG_QC_FILTER,              // --qc-filter
@@ -80,11 +74,13 @@ enum {
 	ARG_SCORE_MIN_SQRT,         // --score-min-sqrt
 	ARG_SCORE_MIN_LOG,          // --score-min-log
 	ARG_SCORES,                 // --scoring
+	ARG_SCORE_MA,               // --ma
+	ARG_SCORE_MMP,              // --mm
+	ARG_SCORE_NP,               // --nm
+	ARG_SCORE_RDG,              // --rdg
+	ARG_SCORE_RFG,              // --rfg
 	ARG_N_CEIL,                 // --n-ceil
 	ARG_DPAD,                   // --dpad
-	ARG_MAPQ_TOP_COEFF,         // --mapq-top-coeff
-	ARG_MAPQ_BOT_COEFF,         // --mapq-bot-coeff
-	ARG_MAPQ_MAX,               // --mapq-max
 	ARG_SAM_PRINT_YI,           // --mapq-print-inputs
 	ARG_ALIGN_POLICY,           // --policy
 	ARG_PRESET_VERY_FAST,       // --very-fast
@@ -93,8 +89,8 @@ enum {
 	ARG_PRESET_VERY_SENSITIVE,  // --very-sensitive
 	ARG_NO_SCORE_PRIORITY,      // --no-score-priority
 	ARG_IGNORE_QUALS,           // --ignore-quals
-	ARG_INDEX,                  // --index
 	ARG_DESC,                   // --arg-desc
 	ARG_TAB5,                   // --tab5
-	ARG_TAB6                    // --tab6
+	ARG_TAB6,                   // --tab6
+	ARG_WRAPPER                 // --wrapper
 };

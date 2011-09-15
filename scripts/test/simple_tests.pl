@@ -3794,7 +3794,6 @@ sub runbowtie2($$$$$$$$$$$$$$$$$$$$$) {
 		$should_abort) = @_;
 	
 	$args .= " --quiet";
-	$args .= " --print-flags";
 	$reportargs = "-a" unless defined($reportargs);
 	$args .= " -C" if $color;
 	$args .= " $reportargs";

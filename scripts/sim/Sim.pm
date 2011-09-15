@@ -890,13 +890,13 @@ sub align {
 	}
 	close(ALSDEBCMD);
 	$ac->checkAlignments(\@lines, 0);
-	$? == 0 || mydie("bowtie2-debug exited with exitlevel $?:\n$cmd\n");
+	$? == 0 || mydie("bowtie2-align-debug exited with exitlevel $?:\n$cmd\n");
 	close(ALSDEB);
 	$ac->printSummary();
 	# With some probability, also run debug Bowtie and check that
 	# results are identical
 	if(int(rand(3)) == 0) {
-		print STDERR "ALSO checking that bowtie2 and bowtie2-debug match up\n";
+		print STDERR "ALSO checking that bowtie2 and bowtie2-align-debug match up\n";
 		# Remove @PG line because CL: tag can legitimately differ
 		$cmd = "$conf->{bowtie2} $argstr $idx $inputfn | grep -v '^\@PG' > $als";
 		print "$cmd\n";
@@ -907,7 +907,7 @@ sub align {
 		print "$cmd\n";
 		system($cmd);
 		$? == 0 ||
-			mydie("diff found a difference between bowtie2 and bowtie2-debug ".
+			mydie("diff found a difference between bowtie2 and bowtie2-align-debug ".
 			      "output for same input (above)\n");
 	}
 	# With some probability, also run debug Bowtie in -p X mode with
@@ -938,7 +938,7 @@ sub align {
 		print "$cmd\n";
 		system($cmd);
 		$? == 0 ||
-			mydie("diff found a difference between bowtie2-debug and bowtie2 ".
+			mydie("diff found a difference between bowtie2-align-debug and bowtie2 ".
 			      "-p output for same input (above)\n");
 	}
 }
@@ -961,9 +961,9 @@ sub nextCase {
 	my ($self, $conf) = @_;
 
 	$conf->{bowtie2_build}       = "bowtie2-build"       unless defined($conf->{bowtie2_build});
-	$conf->{bowtie2}             = "bowtie2"             unless defined($conf->{bowtie2});
+	$conf->{bowtie2}             = "bowtie2-align"       unless defined($conf->{bowtie2});
 	$conf->{bowtie2_build_debug} = "bowtie2-build-debug" unless defined($conf->{bowtie2_build_debug});
-	$conf->{bowtie2_debug}       = "bowtie2-debug"       unless defined($conf->{bowtie2_debug});
+	$conf->{bowtie2_debug}       = "bowtie2-align-debug" unless defined($conf->{bowtie2_debug});
 	$conf->{tempdir}             = "/tmp"                unless defined($conf->{tempdir});
 	srand(time ^ $$);
 	$conf->{randstr} = randStr(8);

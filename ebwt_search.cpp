@@ -60,7 +60,6 @@ static uint32_t qUpto;    // max # of queries to read
 int gTrim5;         // amount to trim from 5' end
 int gTrim3;         // amount to trim from 3' end
 static int offRate;       // keep default offRate
-static char *patDumpfile; // filename to dump patterns to
 static bool solexaQuals;  // quality strings are solexa quals, not phred, and subtract 64 (not 33)
 static bool phred64Quals; // quality chars are phred, but must subtract 64 (not 33)
 static bool integerQuals; // quality strings are space-separated strings of integers, not ASCII
@@ -122,9 +121,6 @@ static bool sam_print_ys;
 static bool bwaSwLike;
 static float bwaSwLikeC;
 static float bwaSwLikeT;
-static float mapqTopCoeff;
-static float mapqBotCoeff;
-static float mapqMax;             // maximum Mapq 
 static bool qcFilter;
 static bool sortByScore;   // prioritize alignments to report by score?
 bool gColor;     // true -> inputs are colorspace
@@ -134,14 +130,10 @@ static string rgid; // ID: setting for @RG header line
 static string rgs;  // SAM outputs for @RG header line
 static string rgs_optflag; // SAM optional flag to add corresponding to @RG ID
 int gSnpPhred; // probability of SNP, for scoring colorspace alignments
-static EList<bool> suppressOuts; // output fields to suppress
 static bool msample; // whether to report a random alignment when maxed-out via -m/-M
 bool gColorSeq; // true -> show colorspace alignments as colors, not decoded bases
 bool gColorEdit; // true -> show edits as colors, not decoded bases
 bool gColorQual; // true -> show colorspace qualities as original quals, not decoded quals
-static bool printPlaceholders; // true -> print records for maxed-out, unaligned reads
-static bool printFlags; // true -> print alignment flags
-static bool printParams; // true -> print parameters like seed spacing, cost ceiling
 int      gGapBarrier; // # diags on top/bot only to be entered diagonally
 int64_t  gRowLow;     // backtraces start from row w/ idx >= this (-1=no limit)
 bool     gRowFirst;   // sort alignments by row then score?
@@ -183,6 +175,8 @@ static bool scanNarrowed;    // true -> do ref scan even when seed is narrow
 static bool noSse;           // disable SSE-based dynamic programming
 static string defaultPreset; // default preset; applied immediately
 static bool ignoreQuals;     // all mms incur same penalty, regardless of qual
+static string wrapper; // type of wrapper script, so we can print correct usage
+static EList<string> queries; // list of query files
 
 static string bt2index;      // read Bowtie 2 index from files with this prefix
 static EList<pair<int, string> > extra_opts;
@@ -203,7 +197,7 @@ static void resetOptions() {
 	origString				= ""; // reference text, or filename(s)
 	seed					= 0; // srandom() seed
 	timing					= 0; // whether to report basic timing data
-	metricsIval				= 0; // interval between alignment metrics messages (0 = no messages)
+	metricsIval				= 1; // interval between alignment metrics messages (0 = no messages)
 	metricsFile             = ""; // output file to put alignment metrics in
 	metricsStderr           = false; // print metrics to stderr (in addition to --metrics-file if it's specified
 	allHits					= false; // for multihits, report just one
@@ -213,7 +207,6 @@ static void resetOptions() {
 	gTrim5					= 0; // amount to trim from 5' end
 	gTrim3					= 0; // amount to trim from 3' end
 	offRate					= -1; // keep default offRate
-	patDumpfile				= NULL; // filename to dump patterns to
 	solexaQuals				= false; // quality strings are solexa quals, not phred, and subtract 64 (not 33)
 	phred64Quals			= false; // quality chars are phred, but must subtract 64 (not 33)
 	integerQuals			= false; // quality strings are space-separated strings of integers, not ASCII
@@ -276,9 +269,6 @@ static void resetOptions() {
 	bwaSwLike               = false;
 	bwaSwLikeC              = 5.5f;
 	bwaSwLikeT              = 20.0f;
-	mapqTopCoeff            = 0.6f;
-	mapqBotCoeff            = 0.9f;
-	mapqMax                 = 40.0f; // maximum Mapq 
 	qcFilter                = false; // don't believe upstream qc by default
 	sortByScore             = true;  // prioritize alignments to report by score?
 	gColor					= false; // don't align in colorspace by default
@@ -288,16 +278,10 @@ static void resetOptions() {
 	rgs						= "";    // SAM outputs for @RG header line
 	rgs_optflag				= "";    // SAM optional flag to add corresponding to @RG ID
 	gSnpPhred				= 30;    // probability of SNP, for scoring colorspace alignments
-	suppressOuts.clear();            // output fields to suppress
-	suppressOuts.resize(64);
-	suppressOuts.fill(false);
 	msample				    = true;
 	gColorSeq				= false; // true -> show colorspace alignments as colors, not decoded bases
 	gColorEdit				= false; // true -> show edits as colors, not decoded bases
 	gColorQual				= false; // true -> show colorspace qualities as original quals, not decoded quals
-	printPlaceholders       = true;  // true -> print records for maxed-out, unaligned reads
-	printFlags              = true;  // true -> print alignment flags
-	printParams				= false; // true -> print parameters regarding seeding, ceilings
 	gGapBarrier				= 4;     // disallow gaps within this many chars of either end of alignment
 	gRowLow                 = -1;    // backtraces start from row w/ idx >= this (-1=no limit)
 	gRowFirst               = false; // sort alignments by row then score?
@@ -342,9 +326,11 @@ static void resetOptions() {
 	extra_opts_cur = 0;
 	bt2index.clear();        // read Bowtie 2 index from files with this prefix
 	ignoreQuals = false;     // all mms incur same penalty, regardless of qual
+	wrapper.clear();         // type of wrapper script, so we can print correct usage
+	queries.clear();         // list of query files
 }
 
-static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:o:w:p:k:M:1:2:I:X:CQ:N:i:L:";
+static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:o:w:p:k:M:1:2:I:X:CQ:N:i:L:U:x:";
 
 static struct option long_options[] = {
 	{(char*)"verbose",      no_argument,       0,            ARG_VERBOSE},
@@ -356,17 +342,21 @@ static struct option long_options[] = {
 	{(char*)"all",          no_argument,       0,            'a'},
 	{(char*)"solexa-quals", no_argument,       0,            ARG_SOLEXA_QUALS},
 	{(char*)"integer-quals",no_argument,       0,            ARG_INTEGER_QUALS},
+	{(char*)"int-quals",    no_argument,       0,            ARG_INTEGER_QUALS},
 	{(char*)"metrics",      required_argument, 0,            ARG_METRIC_IVAL},
 	{(char*)"metrics-file", required_argument, 0,            ARG_METRIC_FILE},
 	{(char*)"metrics-stderr",no_argument,      0,            ARG_METRIC_STDERR},
+	{(char*)"met",          required_argument, 0,            ARG_METRIC_IVAL},
+	{(char*)"met-file",     required_argument, 0,            ARG_METRIC_FILE},
+	{(char*)"met-stderr",   no_argument,       0,            ARG_METRIC_STDERR},
 	{(char*)"time",         no_argument,       0,            't'},
 	{(char*)"trim3",        required_argument, 0,            '3'},
 	{(char*)"trim5",        required_argument, 0,            '5'},
 	{(char*)"seed",         required_argument, 0,            ARG_SEED},
 	{(char*)"qupto",        required_argument, 0,            'u'},
+	{(char*)"upto",         required_argument, 0,            'u'},
 	{(char*)"offrate",      required_argument, 0,            'o'},
 	{(char*)"version",      no_argument,       &showVersion, 1},
-	{(char*)"dumppats",     required_argument, 0,            ARG_DUMP_PATS},
 	{(char*)"filepar",      no_argument,       0,            ARG_FILEPAR},
 	{(char*)"help",         no_argument,       0,            'h'},
 	{(char*)"threads",      required_argument, 0,            'p'},
@@ -382,7 +372,6 @@ static struct option long_options[] = {
 	{(char*)"ff",           no_argument,       0,            ARG_FF},
 	{(char*)"fr",           no_argument,       0,            ARG_FR},
 	{(char*)"rf",           no_argument,       0,            ARG_RF},
-	{(char*)"mixthresh",    required_argument, 0,            'x'},
 	{(char*)"cachelim",     required_argument, 0,            ARG_CACHE_LIM},
 	{(char*)"cachesz",      required_argument, 0,            ARG_CACHE_SZ},
 	{(char*)"nofw",         no_argument,       0,            ARG_NO_FW},
@@ -393,6 +382,8 @@ static struct option long_options[] = {
 	{(char*)"tab6",         required_argument, 0,            ARG_TAB6},
 	{(char*)"phred33-quals", no_argument,      0,            ARG_PHRED33},
 	{(char*)"phred64-quals", no_argument,      0,            ARG_PHRED64},
+	{(char*)"phred33",       no_argument,      0,            ARG_PHRED33},
+	{(char*)"phred64",      no_argument,       0,            ARG_PHRED64},
 	{(char*)"solexa1.3-quals", no_argument,    0,            ARG_PHRED64},
 	{(char*)"mm",           no_argument,       0,            ARG_MM},
 	{(char*)"shmem",        no_argument,       0,            ARG_SHMEM},
@@ -412,14 +403,10 @@ static struct option long_options[] = {
 	{(char*)"sam-RG",       required_argument, 0,            ARG_SAM_RG},
 	{(char*)"snpphred",     required_argument, 0,            ARG_SNPPHRED},
 	{(char*)"snpfrac",      required_argument, 0,            ARG_SNPFRAC},
-	{(char*)"suppress",     required_argument, 0,            ARG_SUPPRESS_FIELDS},
 	{(char*)"col-cseq",     no_argument,       0,            ARG_COLOR_SEQ},
 	{(char*)"col-cqual",    no_argument,       0,            ARG_COLOR_QUAL},
 	{(char*)"col-cedit",    no_argument,       0,            ARG_COLOR_EDIT},
 	{(char*)"col-keepends", no_argument,       0,            ARG_COLOR_KEEP_ENDS},
-	{(char*)"print-placeholders", no_argument, 0,            ARG_PRINT_PLACEHOLDERS},
-	{(char*)"print-flags",  no_argument,       0,            ARG_PRINT_FLAGS},
-	{(char*)"print-params", no_argument,       0,            ARG_PRINT_PARAMS},
 	{(char*)"gbar",         required_argument, 0,            ARG_GAP_BAR},
 	{(char*)"gopen",        required_argument, 0,            'O'},
 	{(char*)"gextend",      required_argument, 0,            'E'},
@@ -436,6 +423,7 @@ static struct option long_options[] = {
 	{(char*)"no-mixed",     no_argument,       0,            ARG_NO_MIXED},
 	{(char*)"no-discordant",no_argument,       0,            ARG_NO_DISCORDANT},
 	{(char*)"local",        no_argument,       0,            ARG_LOCAL},
+	{(char*)"end-to-end",   no_argument,       0,            ARG_END_TO_END},
 	{(char*)"scan-narrowed",no_argument,       0,            ARG_SCAN_NARROWED},
 	{(char*)"no-sse",       no_argument,       0,            ARG_NO_SSE},
 	{(char*)"qc-filter",    no_argument,       0,            ARG_QC_FILTER},
@@ -445,6 +433,11 @@ static struct option long_options[] = {
 	{(char*)"multiseed-linear", required_argument, 0,        ARG_MULTISEED_IVAL_LINEAR},
 	{(char*)"multiseed-sqrt",   required_argument, 0,        ARG_MULTISEED_IVAL_SQRT},
 	{(char*)"multiseed-log",    required_argument, 0,        ARG_MULTISEED_IVAL_LOG},
+	{(char*)"ma",               required_argument, 0,        ARG_SCORE_MA},
+	{(char*)"mm",               required_argument, 0,        ARG_SCORE_MMP},
+	{(char*)"nm",               required_argument, 0,        ARG_SCORE_NP},
+	{(char*)"rdg",              required_argument, 0,        ARG_SCORE_RDG},
+	{(char*)"rfg",              required_argument, 0,        ARG_SCORE_RFG},
 	{(char*)"scores",           required_argument, 0,        ARG_SCORES},
 	{(char*)"score-min",        required_argument, 0,        ARG_SCORE_MIN_LINEAR},
 	{(char*)"score-min-const",  required_argument, 0,        ARG_SCORE_MIN_CONST},
@@ -453,9 +446,6 @@ static struct option long_options[] = {
 	{(char*)"score-min-log",    required_argument, 0,        ARG_SCORE_MIN_LOG},
 	{(char*)"n-ceil",           required_argument, 0,        ARG_N_CEIL},
 	{(char*)"dpad",             required_argument, 0,        ARG_DPAD},
-	{(char*)"mapq-top-coeff",   required_argument, 0,        ARG_MAPQ_TOP_COEFF},
-	{(char*)"mapq-bot-coeff",   required_argument, 0,        ARG_MAPQ_BOT_COEFF},
-	{(char*)"mapq-max",         required_argument, 0,        ARG_MAPQ_MAX},
 	{(char*)"mapq-print-inputs",no_argument,       0,        ARG_SAM_PRINT_YI},
 	{(char*)"very-fast",        no_argument,       0,        ARG_PRESET_VERY_FAST},
 	{(char*)"fast",             no_argument,       0,        ARG_PRESET_FAST},
@@ -466,8 +456,10 @@ static struct option long_options[] = {
 	{(char*)"seedmms",          required_argument, 0,        'N'},
 	{(char*)"seedival",         required_argument, 0,        'i'},
 	{(char*)"ignore-quals",     no_argument,       0,        ARG_IGNORE_QUALS},
-	{(char*)"index",            required_argument, 0,        ARG_INDEX},
+	{(char*)"index",            required_argument, 0,        'x'},
 	{(char*)"arg-desc",         no_argument,       0,        ARG_DESC},
+	{(char*)"wrapper",          required_argument, 0,        ARG_WRAPPER},
+	{(char*)"unpaired",         required_argument, 0,        'U'},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -512,63 +504,107 @@ static void printArgDesc(ostream& out) {
  * Print a summary usage message to the provided output stream.
  */
 static void printUsage(ostream& out) {
+	string tool_name = "bowtie2-align";
+	if(wrapper == "basic-0") {
+		tool_name = "bowtie2";
+	}
 	out << "Usage: " << endl
-	    << "  bowtie2 [options]* <bt2-index> {-1 <m1> -2 <m2> | --12 <r> | <s>} [<hit>]" << endl
+	    << "  " << tool_name << " [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r>} [-S <sam>]" << endl
 	    << endl
-	    << "  <m1>    Comma-separated list of files containing upstream mates (or the" << endl
-	    << "          sequences themselves, if -c is set) paired with mates in <m2>" << endl
-	    << "  <m2>    Comma-separated list of files containing downstream mates (or the" << endl
-	    << "          sequences themselves if -c is set) paired with mates in <m1>" << endl
-	    << "  <r>     Comma-separated list of files containing Crossbow-style reads.  Can be" << endl
-	    << "          a mixture of paired and unpaired.  Specify \"-\" for stdin." << endl
-	    << "  <s>     Comma-separated list of files containing unpaired reads, or the" << endl
-	    << "          sequences themselves, if -c is set.  Specify \"-\" for stdin." << endl
-	    << "  <hit>   File to write hits to (default: stdout)" << endl
+		<<     "  <bt2-idx>  Index filename prefix (minus trailing .X.bt2)." << endl
+		<<     "             Note: Bowtie 1 and Bowtie 2 indexes are *not compatible*." << endl
+	    <<     "  <m1>       Files containing #1 mates, paired with files in <m2>." << endl;
+	if(wrapper == "basic-0") {
+		out << "             Could be gzip'ed (extension: .gz) or bzip2'ed (extension: .bz2)." << endl;
+	}
+	out <<     "  <m2>       Files containing #2 mates, paired with files in <m1>." << endl;
+	if(wrapper == "basic-0") {
+		out << "             Could be gzip'ed (extension: .gz) or bzip2'ed (extension: .bz2)." << endl;
+	}
+	out <<     "  <r>        Files containing unpaired reads." << endl;
+	if(wrapper == "basic-0") {
+		out << "             Could be gzip'ed (extension: .gz) or bzip2'ed (extension: .bz2)." << endl;
+	}
+	out << "  <sam>   File to write SAM output to (default: stdout)" << endl
+		// Wrapper script should write <bam> line next
+		<< endl
 	    << "Input:" << endl
 	    << "  -q                 query input files are FASTQ .fq/.fastq (default)" << endl
 	    << "  -f                 query input files are (multi-)FASTA .fa/.mfa" << endl
 	    << "  -r                 query input files are raw one-sequence-per-line" << endl
 	    << "  --qseq             query input files are in Illumina's qseq format" << endl
-	    << "  -c                 query sequences given on cmd line (as <mates>, <singles>)" << endl
-	    //<< "  -C                 reads and index are in colorspace" << endl
-	    //<< "  -Q/--quals <file>  QV file(s) corresponding to CSFASTA inputs; use with -f -C" << endl
-	    //<< "  --Q1/--Q2 <file>   same as -Q, but for mate files 1 and 2 respectively" << endl
+	    << "  -c                 <m1>, <m2>, <r> are sequences themselves, not files" << endl
 	    << "  -s/--skip <int>    skip the first <int> reads/pairs in the input" << endl
-	    << "  -u/--qupto <int>   stop after first <int> reads/pairs (excl. skipped reads)" << endl
+	    << "  -u/--upto <int>    stop after first <int> reads/pairs" << endl
 	    << "  -5/--trim5 <int>   trim <int> bases from 5' (left) end of reads" << endl
 	    << "  -3/--trim3 <int>   trim <int> bases from 3' (right) end of reads" << endl
-	    << "  --phred33-quals    input quals are Phred+33 (default)" << endl
-	    << "  --phred64-quals    input quals are Phred+64 (same as --solexa1.3-quals)" << endl
-	    << "  --solexa-quals     input quals are from GA Pipeline ver. < 1.3" << endl
-	    << "  --solexa1.3-quals  input quals are from GA Pipeline ver. >= 1.3" << endl
-	    << "  --integer-quals    qualities are given as space-separated integers (not ASCII)" << endl
+	    << "  --phred33          qualities are Phred+33 (default)" << endl
+	    << "  --phred64          qualities are Phred+64" << endl
+	    << "  --int-quals        qualities encoded as space-delimited integers" << endl
+		<< endl
+	    << "Presets:                 Same as:" << endl
+		<< "  --very-fast            -M 1 -N 0 -L 22 -i S,1,2.50" << endl
+		<< "  --fast                 -M 5 -N 0 -L 22 -i S,1,2.50" << endl
+		<< "  --sensitive            -M 5 -N 0 -L 22 -i S,1,1.25" << endl
+		<< "  (default)              -M 5 -N 0 -L 22 -i S,1,1.25" << endl
+		<< "  --very-sensitive       -M 5 -N 0 -L 20 -i S,1,0.50" << endl
+		<< endl
+		<< "  --very-fast-local      --local -M 1 -N 0 -L 25 -i S,1,2.00" << endl
+		<< "  --fast-local           --local -M 2 -N 0 -L 22 -i S,1,1.75" << endl
+		<< "  --sensitive-local      --local -M 2 -N 0 -L 20 -i S,1,0.75" << endl
+		<< "  --local (default)      --local -M 2 -N 0 -L 20 -i S,1,0.75" << endl
+		<< "  --very-sensitive-local --local -M 3 -N 0 -L 20 -i S,1,0.50" << endl
+		<< endl
 	    << "Alignment:" << endl
-		<< "  --scores           " << endl
-		<< "  --score-min        " << endl
-		<< "  --multiseed        " << endl
-		<< "  --ignore-quals     treat all quality values as Phred 30 (off)" << endl
-		<< "  --local            set alignment defaults to do BWA-SW-like local alignment" << endl
+		<< "  --N <int>          max # mismatches in seed alignment; can be 0 1 or 2 (0)" << endl
+		<< "  --L <int>          length of seed alignment; must be >3, <32 (22)" << endl
+		<< "  --i <func>         func for interval between seed substrings (S,1,1.25)" << endl
+		<< "  --ma <int>         match bonus (always =0 end-to-end mode, otherwise 2) " << endl
+		<< "  --mm {C|Q}<int>    set mismatch penalty to constant <int> or quality-scale" << endl
+		<< "  --nm <int>         constant penalty for non-A/C/G/Ts in either read/ref " << endl
+		<< "  --rdg <int>,<int>  set read gap open, extend penalties ()" << endl
+		<< "  --rfg <int>,<int>  set reference gap open, extend penalties ()" << endl
+		<< "  --score-min        func for min alignment score (L,0,0.66 for local," << endl
+		<< "                     L,-0.6,-0.9 for end-to-end)" << endl
+		<< "  --n-ceil           func for max # non-A/C/G/Ts permitted in alignment (L,0,0.15)" << endl
+		<< "  --dpad <int>       include <int> extra ref chars on either side of DP table (15)" << endl
+		<< "  --gbar <int>       disallow gaps within <int> nucs of read extremes (4)" << endl
+		<< "  --ignore-quals     treat all quality values as 30 on Phred scale (off)" << endl
 	    << "  --nofw             do not align forward (original) version of read" << endl
 	    << "  --norc             do not align reverse-complemented version of read" << endl
-		<< "Paired-end:" << endl
-	    << "  -I/--minins <int>  minimum fragment length (default: 0)" << endl
-	    << "  -X/--maxins <int>  maximum fragment length (default: 500)" << endl
-	    << "  --fr/--rf/--ff     -1, -2 mates align fw/rev, rev/fw, fw/fw (default: --fr)" << endl
-		<< "  --no-mixed         report only paired alns, ignore unpaired" << endl
-		<< "  --no-discordant    report only concordant paired-end alns, ignore discordant" << endl
+		<< endl
+		<< "  --end-to-end       end-to-end alignment; entire read must align (on)" << endl
+		<< "   OR" << endl
+		<< "  --local            local alignment; nucs at ends might be soft clipped" << endl
+		<< endl
 	    << "Reporting:" << endl
 	    << "  -M <int>           look for at least <int>+1 hits; report 1 with MAPQ (def.: 1)" << endl
 		<< "   OR" << endl
 	    << "  -k <int>           report up to <int> good alignments per read (default: 1)" << endl
 		<< "   OR" << endl
 	    << "  -a/--all           report all alignments per read (much slower than low -k)" << endl
-	    << "Output:" << endl
-	    << "  -t/--time          print wall-clock time taken by search phases" << endl
+		<< endl
+		<< "Paired-end:" << endl
+	    << "  -I/--minins <int>  minimum fragment length (default: 0)" << endl
+	    << "  -X/--maxins <int>  maximum fragment length (default: 500)" << endl
+	    << "  --fr/--rf/--ff     -1, -2 mates align fw/rev, rev/fw, fw/fw (default: --fr)" << endl
+		<< "  --no-mixed         suppress unpaired alignments for paired reads" << endl
+		<< "  --no-discordant    suppress discordant alignments for paired reads" << endl
+		<< endl
+	    << "Output:" << endl;
+	if(wrapper == "basic-0") {
+		out << "  --bam              output directly to BAM (by piping through 'samtools view')" << endl;
+	}
+	out << "  -t/--time          print wall-clock time taken by search phases" << endl
 	    << "  --quiet            print nothing but the alignments" << endl
 	    << "  --refidx           refer to ref. seqs by 0-based index rather than name" << endl
+		<< "  --met <int>        report internal counters & metrics every <int> secs (1)" << endl
+		<< "  --met-file <path>  send metrics to file at <path>" << endl
+		<< "  --met-stderr       send metrics to stderr (doesn't override --metrics-file)" << endl
 	    << "  --sam-nohead       supppress header lines (starting with @)" << endl
 	    << "  --sam-nosq         supppress @SQ header lines" << endl
 	    << "  --sam-RG <text>    add <text> (usually \"lab:value\") to @RG line of SAM header" << endl
+		<< endl
 	    << "Performance:" << endl
 	    << "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl
 #ifdef BOWTIE_PTHREADS
@@ -578,8 +614,9 @@ static void printUsage(ostream& out) {
 	    << "  --mm               use memory-mapped I/O for index; many 'bowtie's can share" << endl
 #endif
 #ifdef BOWTIE_SHARED_MEM
-	    << "  --shmem            use shared mem for index; many 'bowtie's can share" << endl
+		//<< "  --shmem            use shared mem for index; many 'bowtie's can share" << endl
 #endif
+		<< endl
 	    << "Other:" << endl
 	    << "  --seed <int>       seed for random number generator" << endl
 	    << "  --verbose          verbose output (for debugging)" << endl
@@ -739,15 +776,6 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_COLOR_EDIT: gColorEdit = true; break;
 		case ARG_COLOR_QUAL: gColorQual = true; break;
 		case ARG_SEED_SUMM: seedSummaryOnly = true; break;
-		case ARG_SUPPRESS_FIELDS: {
-			EList<string> supp;
-			tokenize(arg, ",", supp);
-			for(size_t i = 0; i < supp.size(); i++) {
-				int ii = parseInt(1, "--suppress arg must be at least 1", supp[i].c_str());
-				suppressOuts[ii-1] = true;
-			}
-			break;
-		}
 		case ARG_MM: {
 #ifdef BOWTIE_MM
 			useMm = true;
@@ -818,6 +846,7 @@ static void parseOption(int next_option, const char *arg) {
 			cacheSize = (uint32_t)parseInt(1, "--cachesz arg must be at least 1", arg);
 			cacheSize *= (1024 * 1024); // convert from MB to B
 			break;
+		case ARG_WRAPPER: wrapper = arg; break;
 		case 'p':
 #ifndef BOWTIE_PTHREADS
 			cerr << "-p/--threads is disabled because bowtie was not compiled with pthreads support" << endl;
@@ -908,10 +937,6 @@ static void parseOption(int next_option, const char *arg) {
 			}
 			break;
 		}
-		case ARG_PRINT_PLACEHOLDERS: printPlaceholders = true; break;
-		case ARG_PRINT_FLAGS: printFlags = true; break;
-		case ARG_PRINT_PARAMS: printParams = true; break;
-		case ARG_DUMP_PATS: patDumpfile = (char*)arg; break;
 		case ARG_PARTITION: partitionSz = parse<int>(arg); break;
 		case ARG_DPAD:
 			maxhalf = parseInt(0, "--dpad must be no less than 0", arg);
@@ -925,13 +950,14 @@ static void parseOption(int next_option, const char *arg) {
 			origString = arg;
 			break;
 		case ARG_LOCAL: localAlign = true; break;
+		case ARG_END_TO_END: localAlign = false; break;
 		case ARG_SCAN_NARROWED: scanNarrowed = true; break;
 		case ARG_NO_SSE: noSse = true; break;
 		case ARG_QC_FILTER: qcFilter = true; break;
 		case ARG_NO_SCORE_PRIORITY: sortByScore = false; break;
 		case ARG_IGNORE_QUALS: ignoreQuals = true; break;
 		case ARG_NOISY_HPOLY: noisyHpolymer = true; break;
-		case ARG_INDEX: bt2index = arg; break;
+		case 'x': bt2index = arg; break;
 		case ARG_PRESET_VERY_FAST: {
 			presetList.push_back("very-fast%LOCAL%"); break;
 		}
@@ -1104,11 +1130,15 @@ static void parseOption(int next_option, const char *arg) {
 			}
 			break;
 		}
+		case ARG_SCORE_MA:  polstr += ";MA=";  polstr += arg; break;
+		case ARG_SCORE_MMP: polstr += ";MMP="; polstr += arg; break;
+		case ARG_SCORE_NP:  polstr += ";NP=";  polstr += arg; break;
+		case ARG_SCORE_RDG: polstr += ";RDG="; polstr += arg; break;
+		case ARG_SCORE_RFG: polstr += ";RFG="; polstr += arg; break;
 		case ARG_SCORES: {
-			polstr += ";";
 			// MA=xx (default: MA=0, or MA=2 if --local is set)
-			// MMP={Cxx|Q|RQ} (default: MMP=C6)
-			// NP={Cxx|Q|RQ} (default: NP=C1)
+			// MMP={Cxx|Qxx} (default: MMP=Q6)
+			// NP={Cxx|Qxx} (default: NP=C1)
 			// RDG=xx,yy (default: RDG=5,3)
 			// RFG=xx,yy (default: RFG=5,3)
 			// Split argument by comma
@@ -1120,25 +1150,13 @@ static void parseOption(int next_option, const char *arg) {
 					 << args.size() << endl;
 				throw 1;
 			}
-			polstr += ("MA=" + args[0]);
-			if(args.size() > 1) {
-				polstr += (";MMP=" + args[1]);
-			}
-			if(args.size() > 2) {
-				polstr += (";NP=" + args[2]);
-			}
-			if(args.size() > 3) {
-				polstr += (";RDG=" + args[3]);
-			}
-			if(args.size() > 4) {
-				polstr += ("," + args[4]);
-			}
-			if(args.size() > 5) {
-				polstr += (";RFG=" + args[5]);
-			}
-			if(args.size() > 6) {
-				polstr += ("," + args[6]);
-			}
+			if(args.size() > 0) polstr += (";MA=" + args[0]);
+			if(args.size() > 1) polstr += (";MMP=" + args[1]);
+			if(args.size() > 2) polstr += (";NP=" + args[2]);
+			if(args.size() > 3) polstr += (";RDG=" + args[3]);
+			if(args.size() > 4) polstr += ("," + args[4]);
+			if(args.size() > 5) polstr += (";RFG=" + args[5]);
+			if(args.size() > 6) polstr += ("," + args[6]);
 			break;
 		}
 		case ARG_SCORE_MIN_CONST:
@@ -1163,18 +1181,17 @@ static void parseOption(int next_option, const char *arg) {
 			}
 			break;
 		}
-		case ARG_MAPQ_TOP_COEFF:
-			mapqTopCoeff = parse<double>(arg);
-			break;
-		case ARG_MAPQ_BOT_COEFF:
-			mapqBotCoeff = parse<double>(arg);
-			break;
-		case ARG_MAPQ_MAX:
-			mapqMax = parse<double>(arg);
-			break;
 		case ARG_DESC:
 			printArgDesc(cout);
 			throw 0;
+		case 'U': {
+			EList<string> args;
+			tokenize(arg, ",", args);
+			for(size_t i = 0; i < args.size(); i++) {
+				queries.push_back(args[i]);
+			}
+			break;
+		}
 		default:
 			printUsage(cerr);
 			throw 1;
@@ -1350,15 +1367,6 @@ static void parseOptions(int argc, const char **argv) {
 			gMate1fw = true;
 			gMate2fw = false;
 		}
-	}
-	size_t fieldsSuppressed = 0;
-	for(size_t i = 0; i < suppressOuts.size(); i++) {
-		if(suppressOuts[i]) fieldsSuppressed++;
-	}
-	if(outType != OUTPUT_FULL && fieldsSuppressed > 0 && !gQuiet) {
-		cerr << "Warning: Ignoring --suppress because output type is not default." << endl;
-		cerr << "         --suppress is only available for the default output type." << endl;
-		suppressOuts.fill(false);
 	}
 	if(gGapBarrier < 1) {
 		cerr << "Warning: --gbar was set less than 1 (=" << gGapBarrier
@@ -2309,12 +2317,7 @@ static void* multiseedSearchWorker(void *vp) {
 	myRowmultPair.mult(0.5f);
 	
 	// Instantiate a mapping quality calculator
-	auto_ptr<Mapq> bmapq(new BowtieMapq(
-		scoreMin,
-		mapqTopCoeff,
-		mapqBotCoeff,
-		mapqMax,
-		sc));
+	auto_ptr<Mapq> bmapq(new BowtieMapq(scoreMin, sc));
 	
 	// Make a per-thread wrapper for the global MHitSink object.
 	AlnSinkWrap msinkwrap(msink, rp, *bmapq.get());
@@ -2879,9 +2882,6 @@ template<typename TStr>
 static void driver(
 	const char * type,
 	const string& bt2indexBase,
-	const string& query,
-	const EList<string>& queries,
-	const EList<string>& qualities,
 	const string& outfile)
 {
 	if(gVerbose || startVerbose)  {
@@ -2902,7 +2902,6 @@ static void driver(
 		fileParallel,  // true -> wrap files with separate PairedPatternSources
 		seed,          // pseudo-random seed
 		useSpinlock,   // use spin locks instead of pthreads
-		patDumpfile,   // file name of file to dump to
 		solexaQuals,   // true -> qualities are on solexa64 scale
 		phred64Quals,  // true -> qualities are on phred64 scale
 		integerQuals,  // true -> qualities are space-separated numbers
@@ -3063,25 +3062,6 @@ static void driver(
 		// memory so that we can easily sanity check them later on
 		AlnSink *mssink = NULL;
 		switch(outType) {
-			case OUTPUT_FULL: {
-				mssink = new AlnSinkVerbose(
-					fout,         // initial output stream
-					suppressOuts, // suppress alignment columns
-					false,        // delete output stream objects upon destruction
-					refnames,     // reference names
-					gQuiet,       // don't print alignment summary at end   
-					0,            // add this to 0-based offsets before printing
-					gColorSeq,    // colorspace: print color seq instead of decoded nucs
-					gColorQual,   // colorspace: print color quals instead of decoded quals
-					gColorExEnds, // whether to exclude end positions from decoded colorspace alignments
-					printPlaceholders, // print maxs/unals
-					printFlags,   // print alignment flags
-					false,        // print penalty in extra column
-					printParams,  // print alignment parameters in extra column
-					fullRef,      // print entire reference name including whitespace
-					partitionSz); // size of partition, so we can check for straddling alignments
-				break;
-			}
 			case OUTPUT_SAM: {
 				mssink = new AlnSinkSam(
 					fout,         // initial output stream
@@ -3209,7 +3189,6 @@ int bowtie(int argc, const char **argv) {
 			if(i < argc-1) argstr += " ";
 		}
 		string query;   // read query string(s) from this file
-		EList<string> queries(0);
 		string outfile; // write query results to this file
 		if(startVerbose) { cerr << "Entered main(): "; logTime(cerr, true); }
 		parseOptions(argc, argv);
@@ -3251,19 +3230,19 @@ int bowtie(int argc, const char **argv) {
 			}
 
 			// Get query filename
+			bool got_reads = !queries.empty() || !mates1.empty() || !mates12.empty();
 			if(optind >= argc) {
-				if(mates1.size() > 0 || mates12.size() > 0) {
-					query = "";
-				} else {
-					cerr << "No query or output file specified!" << endl;
+				if(!got_reads) {
 					printUsage(cerr);
+					cerr << "***" << endl
+					     << "Error: Must specify at least one read input with -U/-1/-2" << endl;
 					return 1;
 				}
-			} else if (mates1.size() == 0 && mates12.size() == 0) {
+			} else if(!got_reads) {
 				query = argv[optind++];
 				// Tokenize the list of query files
 				tokenize(query, ",", queries);
-				if(queries.size() < 1) {
+				if(queries.empty()) {
 					cerr << "Tokenized query file list was empty!" << endl;
 					printUsage(cerr);
 					return 1;
@@ -3314,7 +3293,7 @@ int bowtie(int argc, const char **argv) {
 				cout << "Press key to continue..." << endl;
 				getchar();
 			}
-			driver<SString<char> >("DNA", bt2index, query, queries, qualities, outfile);
+			driver<SString<char> >("DNA", bt2index, outfile);
 		}
 		return 0;
 	} catch(exception& e) {

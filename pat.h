@@ -81,7 +81,6 @@ struct PatternParams {
 		bool fileParallel_,
 		uint32_t seed_,
 		bool useSpinlock_,
-		const char *dumpfile_,
 		bool solexa64_,
 		bool phred64_,
 		bool intQuals_,
@@ -93,7 +92,6 @@ struct PatternParams {
 		fileParallel(fileParallel_),
 		seed(seed_),
 		useSpinlock(useSpinlock_),
-		dumpfile(dumpfile_),
 		solexa64(solexa64_),
 		phred64(phred64_),
 		intQuals(intQuals_),
@@ -106,7 +104,6 @@ struct PatternParams {
 	bool fileParallel;    // true -> wrap files with separate PairedPatternSources
 	uint32_t seed;        // pseudo-random seed
 	bool useSpinlock;     // use spin locks instead of pthreads
-	const char *dumpfile; // file name of file to dump to
 	bool solexa64;        // true -> qualities are on solexa64 scale
 	bool phred64;         // true -> qualities are on phred64 scale
 	bool intQuals;        // true -> qualities are space-separated numbers
@@ -118,8 +115,7 @@ struct PatternParams {
 
 /**
  * Encapsulates a synchronized source of patterns; usually a file.
- * Handles dumping patterns to a logfile (useful for debugging).  Also
- * optionally reverses reads and quality strings before returning them,
+ * Optionally reverses reads and quality strings before returning them,
  * though that is usually more efficiently done by the concrete
  * subclass.  Concrete subclasses should delimit critical sections with
  * calls to lock() and unlock().
@@ -131,21 +127,11 @@ public:
 	PatternSource(const PatternParams& p) :
 		seed_(p.seed),
 		readCnt_(0),
-		dumpfile_(p.dumpfile),
 		numWrappers_(0),
 		doLocking_(true),
 		useSpinlock_(p.useSpinlock),
 		lock_()
 	{
-		// Open dumpfile, if specified
-		if(dumpfile_ != NULL) {
-			out_.open(dumpfile_, ios_base::out);
-			if(!out_.good()) {
-				cerr << "Could not open pattern dump file \""
-				     << dumpfile_ << "\" for writing" << endl;
-				throw 1;
-			}
-		}
 		MUTEX_INIT(lock_);
 	}
 
@@ -269,40 +255,11 @@ public:
 
 protected:
 
-	/**
-	 * Dump the contents of the Read to the dump file.
-	 */
-	void dumpBuf(const Read& r) {
-		assert(dumpfile_ != NULL);
-		BTString empty("(empty)");
-		dump(out_, r.patFw,
-		     r.qual.empty()    ? empty : r.qual,
-		     r.name.empty()    ? empty : r.name);
-		dump(out_, r.patRc,
-		     r.qualRev.empty() ? empty : r.qualRev,
-		     r.name.empty()    ? empty : r.name);
-	}
-
-	/**
-	 * Default format for dumping a read to an output stream.  Concrete
-	 * subclasses might want to do something fancier.
-	 */
-	virtual void dump(
-		ostream& out,
-		const BTDnaString& seq,
-		const BTString& qual,
-		const BTString& name)
-	{
-		out << name << ": " << seq << " " << qual << endl;
-	}
-
 	uint32_t seed_;
 
 	/// The number of reads read by this PatternSource
 	TReadId readCnt_;
 
-	const char *dumpfile_; /// dump patterns to this file before returning them
-	ofstream out_;         /// output stream for dumpfile
 	int numWrappers_;      /// # threads that own a wrapper for this PatternSource
 	bool doLocking_;       /// override whether to lock (true = don't override)
 	/// User can ask to use the normal pthreads-style lock even if
@@ -1063,15 +1020,6 @@ protected:
 		first_ = true;
 	}
 	
-	virtual void dump(
-		ostream& out,
-		const BTDnaString& seq,
-		const BTString& qual,
-		const BTString& name)
-	{
-		out << ">" << name << endl << seq << endl;
-	}
-	
 private:
 	bool first_;
 	bool solexa64_;
@@ -1132,19 +1080,6 @@ protected:
 		bool& success,
 		bool& done,
 		bool& paired);
-
-	/**
-	 * Dump a FASTQ-style record for the read.
-	 */
-	virtual void dump(
-		ostream& out,
-		const BTDnaString& seq,
-		const BTString& qual,
-		const BTString& name)
-	{
-		out << "@" << name << endl << seq << endl
-		    << "+" << endl << qual << endl;
-	}
 	
 private:
 
@@ -1287,19 +1222,6 @@ protected:
 		cerr << "In QseqPatternSource.readPair()" << endl;
 		throw 1;
 		return false;
-	}
-
-	/**
-	 * Dump a FASTQ-style record for the read.
-	 */
-	virtual void dump(
-		ostream& out,
-		const BTDnaString& seq,
-		const BTString& qual,
-		const BTString& name)
-	{
-		out << "@" << name << endl << seq << endl
-		    << "+" << endl << qual << endl;
 	}
 
 	bool solQuals_;
@@ -1547,14 +1469,6 @@ protected:
 		first_ = true;
 	}
 	
-	virtual void dump(
-		ostream& out,
-		const BTDnaString& seq,
-		const BTString& qual,
-		const BTString& name)
-	{
-		out << "@" << name << endl << seq << endl << "+" << endl << qual << endl;
-	}
 private:
 
 	/**
@@ -1705,15 +1619,6 @@ protected:
 	
 	virtual void resetForNextFile() {
 		first_ = true;
-	}
-	
-	virtual void dump(
-		ostream& out,
-		const BTDnaString& seq,
-		const BTString& qual,
-		const BTString& name)
-	{
-		out << seq << endl;
 	}
 	
 private:
