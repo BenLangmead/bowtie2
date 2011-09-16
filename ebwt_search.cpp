@@ -430,12 +430,13 @@ static struct option long_options[] = {
 	{(char*)"bwa-sw-like",  no_argument,       0,            ARG_BWA_SW_LIKE},
 	{(char*)"multiseed",        required_argument, 0,        ARG_MULTISEED_IVAL},
 	{(char*)"ma",               required_argument, 0,        ARG_SCORE_MA},
-	{(char*)"mm",               required_argument, 0,        ARG_SCORE_MMP},
-	{(char*)"nm",               required_argument, 0,        ARG_SCORE_NP},
+	{(char*)"mp",               required_argument, 0,        ARG_SCORE_MMP},
+	{(char*)"np",               required_argument, 0,        ARG_SCORE_NP},
 	{(char*)"rdg",              required_argument, 0,        ARG_SCORE_RDG},
 	{(char*)"rfg",              required_argument, 0,        ARG_SCORE_RFG},
 	{(char*)"scores",           required_argument, 0,        ARG_SCORES},
 	{(char*)"score-min",        required_argument, 0,        ARG_SCORE_MIN},
+	{(char*)"min-score",        required_argument, 0,        ARG_SCORE_MIN},
 	{(char*)"n-ceil",           required_argument, 0,        ARG_N_CEIL},
 	{(char*)"dpad",             required_argument, 0,        ARG_DPAD},
 	{(char*)"mapq-print-inputs",no_argument,       0,        ARG_SAM_PRINT_YI},
@@ -570,8 +571,8 @@ static void printUsage(ostream& out) {
 		<< endl
 	    << " Scoring:" << endl
 		<< "  --ma <int>         match bonus (0 for --end-to-end, 2 for --local) " << endl
-		<< "  --mm <int>         max penalty for mismatch; lower qual = lower penalty (6)" << endl
-		<< "  --nm <int>         penalty for non-A/C/G/Ts in read/ref (1)" << endl
+		<< "  --mp <int>         max penalty for mismatch; lower qual = lower penalty (6)" << endl
+		<< "  --np <int>         penalty for non-A/C/G/Ts in read/ref (1)" << endl
 		<< "  --rdg <int>,<int>  read gap open, extend penalties (5,3)" << endl
 		<< "  --rfg <int>,<int>  reference gap open, extend penalties (5,3)" << endl
 		<< "  --score-min <func> min acceptable alignment score w/r/t read length" << endl
@@ -1029,11 +1030,11 @@ static void parseOption(int next_option, const char *arg) {
 			}
 			break;
 		}
-		case ARG_SCORE_MA:  polstr += ";MA=";  polstr += arg; break;
-		case ARG_SCORE_MMP: polstr += ";MMP="; polstr += arg; break;
-		case ARG_SCORE_NP:  polstr += ";NP=";  polstr += arg; break;
-		case ARG_SCORE_RDG: polstr += ";RDG="; polstr += arg; break;
-		case ARG_SCORE_RFG: polstr += ";RFG="; polstr += arg; break;
+		case ARG_SCORE_MA:  polstr += ";MA=";   polstr += arg; break;
+		case ARG_SCORE_MMP: polstr += ";MMP=Q"; polstr += arg; break;
+		case ARG_SCORE_NP:  polstr += ";NP=C";  polstr += arg; break;
+		case ARG_SCORE_RDG: polstr += ";RDG=";  polstr += arg; break;
+		case ARG_SCORE_RFG: polstr += ";RFG=";  polstr += arg; break;
 		case ARG_SCORES: {
 			// MA=xx (default: MA=0, or MA=2 if --local is set)
 			// MMP={Cxx|Qxx} (default: MMP=Q6)
