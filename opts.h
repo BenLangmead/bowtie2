@@ -65,14 +65,7 @@ enum {
 	ARG_QC_FILTER,              // --qc-filter
 	ARG_BWA_SW_LIKE,            // --bwa-sw-like
 	ARG_MULTISEED_IVAL,         // --multiseed
-	ARG_MULTISEED_IVAL_CONST,   // --multiseed-const
-	ARG_MULTISEED_IVAL_LINEAR,  // --multiseed-linear
-	ARG_MULTISEED_IVAL_SQRT,    // --multiseed-sqrt
-	ARG_MULTISEED_IVAL_LOG,     // --multiseed-log
-	ARG_SCORE_MIN_LINEAR,       // --score-min
-	ARG_SCORE_MIN_CONST,        // --score-min-const
-	ARG_SCORE_MIN_SQRT,         // --score-min-sqrt
-	ARG_SCORE_MIN_LOG,          // --score-min-log
+	ARG_SCORE_MIN,              // --score-min
 	ARG_SCORES,                 // --scoring
 	ARG_SCORE_MA,               // --ma
 	ARG_SCORE_MMP,              // --mm

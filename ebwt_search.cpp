@@ -74,11 +74,10 @@ static bool fileParallel; // separate threads read separate input files in paral
 static bool useShmem;     // use shared memory to hold the index
 static bool useMm;        // use memory-mapped files to hold the index
 static bool mmSweep;      // sweep through memory-mapped files immediately after mapping
-int gMinInsert;     // minimum insert size
-int gMaxInsert;     // maximum insert size
+int gMinInsert;          // minimum insert size
+int gMaxInsert;          // maximum insert size
 bool gMate1fw;           // -1 mate aligns in fw orientation on fw strand
 bool gMate2fw;           // -2 mate aligns in rc orientation on fw strand
-bool mateFwSet;
 bool gFlippedMatesOK;  // allow mates to be in wrong order
 bool gDovetailMatesOK; // allow one mate to extend off the end of the other
 bool gContainMatesOK;  // allow one mate to contain the other in PE alignment
@@ -175,8 +174,9 @@ static bool scanNarrowed;    // true -> do ref scan even when seed is narrow
 static bool noSse;           // disable SSE-based dynamic programming
 static string defaultPreset; // default preset; applied immediately
 static bool ignoreQuals;     // all mms incur same penalty, regardless of qual
-static string wrapper; // type of wrapper script, so we can print correct usage
+static string wrapper;        // type of wrapper script, so we can print correct usage
 static EList<string> queries; // list of query files
+static string outfile;        // write SAM output to this file
 
 static string bt2index;      // read Bowtie 2 index from files with this prefix
 static EList<pair<int, string> > extra_opts;
@@ -225,7 +225,6 @@ static void resetOptions() {
 	gMaxInsert				= 500;   // maximum insert size
 	gMate1fw				= true;  // -1 mate aligns in fw orientation on fw strand
 	gMate2fw				= false; // -2 mate aligns in rc orientation on fw strand
-	mateFwSet				= false; // true -> user set mate1fw/mate2fw with --ff/--fr/--rf
 	gFlippedMatesOK         = false; // allow mates to be in wrong order
 	gDovetailMatesOK        = true;  // allow one mate to extend off the end of the other
 	gContainMatesOK         = true;  // allow one mate to contain the other in PE alignment
@@ -328,9 +327,10 @@ static void resetOptions() {
 	ignoreQuals = false;     // all mms incur same penalty, regardless of qual
 	wrapper.clear();         // type of wrapper script, so we can print correct usage
 	queries.clear();         // list of query files
+	outfile.clear();         // write SAM output to this file
 }
 
-static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:o:w:p:k:M:1:2:I:X:CQ:N:i:L:U:x:";
+static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:o:w:p:k:M:1:2:I:X:CQ:N:i:L:U:x:S:";
 
 static struct option long_options[] = {
 	{(char*)"verbose",      no_argument,       0,            ARG_VERBOSE},
@@ -429,21 +429,13 @@ static struct option long_options[] = {
 	{(char*)"qc-filter",    no_argument,       0,            ARG_QC_FILTER},
 	{(char*)"bwa-sw-like",  no_argument,       0,            ARG_BWA_SW_LIKE},
 	{(char*)"multiseed",        required_argument, 0,        ARG_MULTISEED_IVAL},
-	{(char*)"multiseed-const",  required_argument, 0,        ARG_MULTISEED_IVAL_CONST},
-	{(char*)"multiseed-linear", required_argument, 0,        ARG_MULTISEED_IVAL_LINEAR},
-	{(char*)"multiseed-sqrt",   required_argument, 0,        ARG_MULTISEED_IVAL_SQRT},
-	{(char*)"multiseed-log",    required_argument, 0,        ARG_MULTISEED_IVAL_LOG},
 	{(char*)"ma",               required_argument, 0,        ARG_SCORE_MA},
 	{(char*)"mm",               required_argument, 0,        ARG_SCORE_MMP},
 	{(char*)"nm",               required_argument, 0,        ARG_SCORE_NP},
 	{(char*)"rdg",              required_argument, 0,        ARG_SCORE_RDG},
 	{(char*)"rfg",              required_argument, 0,        ARG_SCORE_RFG},
 	{(char*)"scores",           required_argument, 0,        ARG_SCORES},
-	{(char*)"score-min",        required_argument, 0,        ARG_SCORE_MIN_LINEAR},
-	{(char*)"score-min-const",  required_argument, 0,        ARG_SCORE_MIN_CONST},
-	{(char*)"score-min-linear", required_argument, 0,        ARG_SCORE_MIN_LINEAR},
-	{(char*)"score-min-sqrt",   required_argument, 0,        ARG_SCORE_MIN_SQRT},
-	{(char*)"score-min-log",    required_argument, 0,        ARG_SCORE_MIN_LOG},
+	{(char*)"score-min",        required_argument, 0,        ARG_SCORE_MIN},
 	{(char*)"n-ceil",           required_argument, 0,        ARG_N_CEIL},
 	{(char*)"dpad",             required_argument, 0,        ARG_DPAD},
 	{(char*)"mapq-print-inputs",no_argument,       0,        ARG_SAM_PRINT_YI},
@@ -460,6 +452,7 @@ static struct option long_options[] = {
 	{(char*)"arg-desc",         no_argument,       0,        ARG_DESC},
 	{(char*)"wrapper",          required_argument, 0,        ARG_WRAPPER},
 	{(char*)"unpaired",         required_argument, 0,        'U'},
+	{(char*)"output",           required_argument, 0,        'S'},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -512,103 +505,111 @@ static void printUsage(ostream& out) {
 	    << "  " << tool_name << " [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r>} [-S <sam>]" << endl
 	    << endl
 		<<     "  <bt2-idx>  Index filename prefix (minus trailing .X.bt2)." << endl
-		<<     "             Note: Bowtie 1 and Bowtie 2 indexes are *not compatible*." << endl
-	    <<     "  <m1>       Files containing #1 mates, paired with files in <m2>." << endl;
+		<<     "             NOTE: Bowtie 1 and Bowtie 2 indexes are not compatible." << endl
+	    <<     "  <m1>       Files with #1 mates, paired with files in <m2>." << endl;
 	if(wrapper == "basic-0") {
 		out << "             Could be gzip'ed (extension: .gz) or bzip2'ed (extension: .bz2)." << endl;
 	}
-	out <<     "  <m2>       Files containing #2 mates, paired with files in <m1>." << endl;
+	out <<     "  <m2>       Files with #2 mates, paired with files in <m1>." << endl;
 	if(wrapper == "basic-0") {
 		out << "             Could be gzip'ed (extension: .gz) or bzip2'ed (extension: .bz2)." << endl;
 	}
-	out <<     "  <r>        Files containing unpaired reads." << endl;
+	out <<     "  <r>        Files with unpaired reads." << endl;
 	if(wrapper == "basic-0") {
 		out << "             Could be gzip'ed (extension: .gz) or bzip2'ed (extension: .bz2)." << endl;
 	}
-	out << "  <sam>   File to write SAM output to (default: stdout)" << endl
+	out <<     "  <sam>      File for SAM output (default: stdout)" << endl
+	    << endl
+	    << "  <m1>, <m2>, <r> can be comma-separated lists (no whitespace) and can be" << endl
+		<< "  specified many times.  E.g. '-U file1.fq,file2.fq -U file3.fq'." << endl
 		// Wrapper script should write <bam> line next
 		<< endl
-	    << "Input:" << endl
+	    << "Options (defaults in parentheses):" << endl
+		<< endl
+	    << " Input:" << endl
 	    << "  -q                 query input files are FASTQ .fq/.fastq (default)" << endl
 	    << "  -f                 query input files are (multi-)FASTA .fa/.mfa" << endl
 	    << "  -r                 query input files are raw one-sequence-per-line" << endl
 	    << "  --qseq             query input files are in Illumina's qseq format" << endl
 	    << "  -c                 <m1>, <m2>, <r> are sequences themselves, not files" << endl
-	    << "  -s/--skip <int>    skip the first <int> reads/pairs in the input" << endl
-	    << "  -u/--upto <int>    stop after first <int> reads/pairs" << endl
-	    << "  -5/--trim5 <int>   trim <int> bases from 5' (left) end of reads" << endl
-	    << "  -3/--trim3 <int>   trim <int> bases from 3' (right) end of reads" << endl
+	    << "  -s/--skip <int>    skip the first <int> reads/pairs in the input (none)" << endl
+	    << "  -u/--upto <int>    stop after first <int> reads/pairs (no limit)" << endl
+	    << "  -5/--trim5 <int>   trim <int> bases from 5'/left end of reads (0)" << endl
+	    << "  -3/--trim3 <int>   trim <int> bases from 3'/right end of reads (0)" << endl
 	    << "  --phred33          qualities are Phred+33 (default)" << endl
 	    << "  --phred64          qualities are Phred+64" << endl
 	    << "  --int-quals        qualities encoded as space-delimited integers" << endl
 		<< endl
-	    << "Presets:                 Same as:" << endl
-		<< "  --very-fast            -M 1 -N 0 -L 22 -i S,1,2.50" << endl
-		<< "  --fast                 -M 5 -N 0 -L 22 -i S,1,2.50" << endl
-		<< "  --sensitive            -M 5 -N 0 -L 22 -i S,1,1.25" << endl
-		<< "  (default)              -M 5 -N 0 -L 22 -i S,1,1.25" << endl
-		<< "  --very-sensitive       -M 5 -N 0 -L 20 -i S,1,0.50" << endl
+	    << " Presets:                 Same as:" << endl
+		<< "  For --end-to-end:" << endl
+		<< "   --very-fast            -M 1 -N 0 -L 22 -i S,1,2.50" << endl
+		<< "   --fast                 -M 5 -N 0 -L 22 -i S,1,2.50" << endl
+		<< "   --sensitive            -M 5 -N 0 -L 22 -i S,1,1.25 (default)" << endl
+		<< "   --very-sensitive       -M 5 -N 0 -L 20 -i S,1,0.50" << endl
 		<< endl
-		<< "  --very-fast-local      --local -M 1 -N 0 -L 25 -i S,1,2.00" << endl
-		<< "  --fast-local           --local -M 2 -N 0 -L 22 -i S,1,1.75" << endl
-		<< "  --sensitive-local      --local -M 2 -N 0 -L 20 -i S,1,0.75" << endl
-		<< "  --local (default)      --local -M 2 -N 0 -L 20 -i S,1,0.75" << endl
-		<< "  --very-sensitive-local --local -M 3 -N 0 -L 20 -i S,1,0.50" << endl
+		<< "  For --local:" << endl
+		<< "   --very-fast-local      -M 1 -N 0 -L 25 -i S,1,2.00" << endl
+		<< "   --fast-local           -M 2 -N 0 -L 22 -i S,1,1.75" << endl
+		<< "   --sensitive-local      -M 2 -N 0 -L 20 -i S,1,0.75 (default)" << endl
+		<< "   --very-sensitive-local -M 3 -N 0 -L 20 -i S,1,0.50" << endl
 		<< endl
-	    << "Alignment:" << endl
+	    << " Alignment:" << endl
 		<< "  --N <int>          max # mismatches in seed alignment; can be 0 1 or 2 (0)" << endl
-		<< "  --L <int>          length of seed alignment; must be >3, <32 (22)" << endl
-		<< "  --i <func>         func for interval between seed substrings (S,1,1.25)" << endl
-		<< "  --ma <int>         match bonus (always =0 end-to-end mode, otherwise 2) " << endl
-		<< "  --mm {C|Q}<int>    set mismatch penalty to constant <int> or quality-scale" << endl
-		<< "  --nm <int>         constant penalty for non-A/C/G/Ts in either read/ref " << endl
-		<< "  --rdg <int>,<int>  set read gap open, extend penalties ()" << endl
-		<< "  --rfg <int>,<int>  set reference gap open, extend penalties ()" << endl
-		<< "  --score-min        func for min alignment score (L,0,0.66 for local," << endl
-		<< "                     L,-0.6,-0.9 for end-to-end)" << endl
-		<< "  --n-ceil           func for max # non-A/C/G/Ts permitted in alignment (L,0,0.15)" << endl
-		<< "  --dpad <int>       include <int> extra ref chars on either side of DP table (15)" << endl
+		<< "  --L <int>          length of seed substrings; must be >3, <32 (22)" << endl
+		<< "  --i <func>         interval between seed substrings w/r/t read len (S,1,1.25)" << endl
+		<< "  --n-ceil           func for max # non-A/C/G/Ts permitted in aln (L,0,0.15)" << endl
+		<< "  --dpad <int>       include <int> extra ref chars on sides of DP table (15)" << endl
 		<< "  --gbar <int>       disallow gaps within <int> nucs of read extremes (4)" << endl
 		<< "  --ignore-quals     treat all quality values as 30 on Phred scale (off)" << endl
-	    << "  --nofw             do not align forward (original) version of read" << endl
-	    << "  --norc             do not align reverse-complemented version of read" << endl
+	    << "  --nofw             do not align forward (original) version of read (off)" << endl
+	    << "  --norc             do not align reverse-complement version of read (off)" << endl
 		<< endl
-		<< "  --end-to-end       end-to-end alignment; entire read must align (on)" << endl
+		<< "  --end-to-end       entire read must align; no clipping (on)" << endl
 		<< "   OR" << endl
-		<< "  --local            local alignment; nucs at ends might be soft clipped" << endl
+		<< "  --local            local alignment; ends might be soft clipped (off)" << endl
 		<< endl
-	    << "Reporting:" << endl
-	    << "  -M <int>           look for at least <int>+1 hits; report 1 with MAPQ (def.: 1)" << endl
-		<< "   OR" << endl
-	    << "  -k <int>           report up to <int> good alignments per read (default: 1)" << endl
-		<< "   OR" << endl
-	    << "  -a/--all           report all alignments per read (much slower than low -k)" << endl
+	    << " Scoring:" << endl
+		<< "  --ma <int>         match bonus (0 for --end-to-end, 2 for --local) " << endl
+		<< "  --mm <int>         max penalty for mismatch; lower qual = lower penalty (6)" << endl
+		<< "  --nm <int>         penalty for non-A/C/G/Ts in read/ref (1)" << endl
+		<< "  --rdg <int>,<int>  read gap open, extend penalties (5,3)" << endl
+		<< "  --rfg <int>,<int>  reference gap open, extend penalties (5,3)" << endl
+		<< "  --score-min <func> min acceptable alignment score w/r/t read length" << endl
+		<< "                     (L,0,0.66 for local, L,-0.6,-0.9 for end-to-end)" << endl
 		<< endl
-		<< "Paired-end:" << endl
-	    << "  -I/--minins <int>  minimum fragment length (default: 0)" << endl
-	    << "  -X/--maxins <int>  maximum fragment length (default: 500)" << endl
-	    << "  --fr/--rf/--ff     -1, -2 mates align fw/rev, rev/fw, fw/fw (default: --fr)" << endl
+	    << " Reporting:" << endl
+	    << "  -M <int>           look for up to <int>+1 alns; report best, with MAPQ (5 for" << endl
+		<< "                     --end-to-end, 2 for --local)" << endl
+		<< "   OR" << endl
+	    << "  -k <int>           report up to <int> alns per read; MAPQ not meaningful (off)" << endl
+		<< "   OR" << endl
+	    << "  -a/--all           report all alignments; very slow (off)" << endl
+		<< endl
+		<< " Paired-end:" << endl
+	    << "  -I/--minins <int>  minimum fragment length (0)" << endl
+	    << "  -X/--maxins <int>  maximum fragment length (500)" << endl
+	    << "  --fr/--rf/--ff     -1, -2 mates align fw/rev, rev/fw, fw/fw (--fr)" << endl
 		<< "  --no-mixed         suppress unpaired alignments for paired reads" << endl
 		<< "  --no-discordant    suppress discordant alignments for paired reads" << endl
 		<< endl
-	    << "Output:" << endl;
+	    << " Output:" << endl;
 	if(wrapper == "basic-0") {
 		out << "  --bam              output directly to BAM (by piping through 'samtools view')" << endl;
 	}
 	out << "  -t/--time          print wall-clock time taken by search phases" << endl
-	    << "  --quiet            print nothing but the alignments" << endl
-	    << "  --refidx           refer to ref. seqs by 0-based index rather than name" << endl
+	    << "  --quiet            print nothing to stderr except serious errors" << endl
+	//  << "  --refidx           refer to ref. seqs by 0-based index rather than name" << endl
 		<< "  --met <int>        report internal counters & metrics every <int> secs (1)" << endl
-		<< "  --met-file <path>  send metrics to file at <path>" << endl
-		<< "  --met-stderr       send metrics to stderr (doesn't override --metrics-file)" << endl
-	    << "  --sam-nohead       supppress header lines (starting with @)" << endl
+		<< "  --met-file <path>  send metrics to file at <path> (off)" << endl
+		<< "  --met-stderr       send metrics to stderr (off)" << endl
+	    << "  --sam-nohead       supppress header lines, i.e. lines starting with @" << endl
 	    << "  --sam-nosq         supppress @SQ header lines" << endl
 	    << "  --sam-RG <text>    add <text> (usually \"lab:value\") to @RG line of SAM header" << endl
 		<< endl
-	    << "Performance:" << endl
+	    << " Performance:" << endl
 	    << "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl
 #ifdef BOWTIE_PTHREADS
-	    << "  -p/--threads <int> number of alignment threads to launch (default: 1)" << endl
+	    << "  -p/--threads <int> number of alignment threads to launch (1)" << endl
 #endif
 #ifdef BOWTIE_MM
 	    << "  --mm               use memory-mapped I/O for index; many 'bowtie's can share" << endl
@@ -617,9 +618,9 @@ static void printUsage(ostream& out) {
 		//<< "  --shmem            use shared mem for index; many 'bowtie's can share" << endl
 #endif
 		<< endl
-	    << "Other:" << endl
-	    << "  --seed <int>       seed for random number generator" << endl
-	    << "  --verbose          verbose output (for debugging)" << endl
+	    << " Other:" << endl
+	    << "  --seed <int>       seed for random number generator (0)" << endl
+	//  << "  --verbose          verbose output for debugging" << endl
 	    << "  --version          print version information and quit" << endl
 	    << "  -h/--help          print this usage message" << endl
 	    ;
@@ -758,18 +759,14 @@ static void parseOption(int next_option, const char *arg) {
 		case 'X':
 			gMaxInsert = parseInt(1, "-X arg must be at least 1", arg);
 			break;
-		case ARG_NO_DISCORDANT:
-			gReportDiscordant = false;
-			break;
-		case ARG_NO_MIXED:
-			gReportMixed = false;
-			break;
+		case ARG_NO_DISCORDANT: gReportDiscordant = false; break;
+		case ARG_NO_MIXED: gReportMixed = false; break;
 		case 's':
 			skipReads = (uint32_t)parseInt(0, "-s arg must be positive", arg);
 			break;
-		case ARG_FF: gMate1fw = true;  gMate2fw = true;  mateFwSet = true; break;
-		case ARG_RF: gMate1fw = false; gMate2fw = true;  mateFwSet = true; break;
-		case ARG_FR: gMate1fw = true;  gMate2fw = false; mateFwSet = true; break;
+		case ARG_FF: gMate1fw = true;  gMate2fw = true;  break;
+		case ARG_RF: gMate1fw = false; gMate2fw = true;  break;
+		case ARG_FR: gMate1fw = true;  gMate2fw = false; break;
 		case ARG_USE_SPINLOCK: useSpinlock = false; break;
 		case ARG_SHMEM: useShmem = true; break;
 		case ARG_COLOR_SEQ: gColorSeq = true; break;
@@ -810,10 +807,6 @@ static void parseOption(int next_option, const char *arg) {
 			if(gSnpPhred < 10)
 			cout << "gSnpPhred: " << gSnpPhred << endl;
 			break;
-		}
-		case 'z': {
-			cerr << "Error: -z/--phased mode is no longer supported" << endl;
-			throw 1;
 		}
 		case ARG_REFIDX: noRefNames = true; break;
 		case ARG_FUZZY: fuzzy = true; break;
@@ -970,25 +963,10 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_PRESET_VERY_SENSITIVE: {
 			presetList.push_back("very-sensitive%LOCAL%"); break;
 		}
-		case 'P': {
-			presetList.push_back(arg);
-			break;
-		}
-		case ARG_ALIGN_POLICY: {
-			polstr += ";";
-			polstr += arg;
-			break;
-		}
-		case 'N': {
-			polstr += ";SEED=";
-			polstr += arg;
-			break;
-		}
-		case 'L': {
-			polstr += ";SEEDLEN=";
-			polstr += arg;
-			break;
-		}
+		case 'P': { presetList.push_back(arg); break; }
+		case ARG_ALIGN_POLICY: { polstr += ";"; polstr += arg; break; }
+		case 'N': { polstr += ";SEED="; polstr += arg; break; }
+		case 'L': { polstr += ";SEEDLEN="; polstr += arg; break; }
 		case 'i': {
 			EList<string> args;
 			tokenize(arg, ",", args);
@@ -1021,96 +999,17 @@ static void parseOption(int next_option, const char *arg) {
 			}
 			// Seed mm and length arguments
 			polstr += "SEED=";
-			polstr += (args[0]);
-			if(args.size() > 1) {
-				polstr += ("," + args[1]);
-			}
-			// Interval-settings arguments
-			if(args.size() > 2) {
-				// Function type
-				polstr += (";IVAL=" + args[2]);
-			}
-			if(args.size() > 3) {
-				// Constant term
-				polstr += ("," + args[3]);
-			}
-			if(args.size() > 4) {
-				// Coefficient
-				polstr += ("," + args[4]);
-			}
-			// Arguments for # seed positions to examine
-			if(args.size() > 5) {
-				// Function type
-				polstr += (";POSF=" + args[5]);
-			}
-			if(args.size() > 6) {
-				// Constant term
-				polstr += ("," + args[6]);
-			}
-			if(args.size() > 7) {
-				// Coefficient
-				polstr += ("," + args[7]);
-			}
-			// Arguments for # rows to examine per range
-			if(args.size() > 8) {
-				// Function type
-				polstr += (";ROWM=" + args[8]);
-			}
-			if(args.size() > 9) {
-				// Constant term
-				polstr += ("," + args[9]);
-			}
-			if(args.size() > 10) {
-				// Coefficient
-				polstr += ("," + args[10]);
-			}
-			break;
-		}
-		case ARG_MULTISEED_IVAL_CONST:
-		case ARG_MULTISEED_IVAL_LINEAR:
-		case ARG_MULTISEED_IVAL_SQRT:
-		case ARG_MULTISEED_IVAL_LOG: {
-			polstr += ";";
-			const char *type =
-				(ARG_MULTISEED_IVAL_CONST  ? "C" :
-				(ARG_MULTISEED_IVAL_LINEAR ? "L" :
-				(ARG_MULTISEED_IVAL_SQRT   ? "S" :
-				(ARG_MULTISEED_IVAL_LOG    ? "G" : "?"))));
-			if(type[0] == '?') { throw 1; }
-			// Split argument by comma
-			EList<string> args;
-			tokenize(arg, ",", args);
-			if(args.size() > 7 || args.size() == 0) {
-				cerr << "Error: expected 7 or fewer comma-separated "
-					 << "arguments to --multiseed-* option, got "
-					 << args.size() << endl;
-				throw 1;
-			}
-			// Seed mm and length arguments
-			polstr += "SEED=";
-			polstr += (args[0]);
-			if(args.size() > 1) {
-				polstr += ("," + args[1]);
-			}
-			// Interval-settings arguments
-			if(args.size() > 2) {
-				polstr += ";IVAL=";
-				polstr += type;
-				polstr += ("," + args[2]);
-			}
-			if(args.size() > 3) {
-				polstr += ("," + args[3]);
-			}
-			// Arguments for # seeds to examine
-			if(args.size() > 4) {
-				polstr += (";POSF=" + args[4]);
-			}
-			if(args.size() > 5) {
-				polstr += ("," + args[5]);
-			}
-			if(args.size() > 6) {
-				polstr += (";ROWM=" + args[6]);
-			}
+			polstr += (args[0]); // # mismatches
+			if(args.size() >  1) polstr += ("," + args[ 1]); // length
+			if(args.size() >  2) polstr += (";IVAL=" + args[2]); // Func type
+			if(args.size() >  3) polstr += ("," + args[ 3]); // Constant term
+			if(args.size() >  4) polstr += ("," + args[ 4]); // Coefficient
+			if(args.size() >  5) polstr += (";POSF=" + args[5]); // Func type
+			if(args.size() >  6) polstr += ("," + args[ 6]); // Constant term
+			if(args.size() >  7) polstr += ("," + args[ 7]); // Coefficient
+			if(args.size() >  8) polstr += (";ROWM=" + args[8]); // Func type
+			if(args.size() >  9) polstr += ("," + args[ 9]); // Constant term
+			if(args.size() > 10) polstr += ("," + args[10]); // Coefficient
 			break;
 		}
 		case ARG_N_CEIL: {
@@ -1159,10 +1058,7 @@ static void parseOption(int next_option, const char *arg) {
 			if(args.size() > 6) polstr += ("," + args[6]);
 			break;
 		}
-		case ARG_SCORE_MIN_CONST:
-		case ARG_SCORE_MIN_LINEAR:
-		case ARG_SCORE_MIN_SQRT:
-		case ARG_SCORE_MIN_LOG: {
+		case ARG_SCORE_MIN: {
 			polstr += ";";
 			EList<string> args;
 			tokenize(arg, ",", args);
@@ -1181,9 +1077,8 @@ static void parseOption(int next_option, const char *arg) {
 			}
 			break;
 		}
-		case ARG_DESC:
-			printArgDesc(cout);
-			throw 0;
+		case ARG_DESC: printArgDesc(cout); throw 0;
+		case 'S': outfile = arg; break;
 		case 'U': {
 			EList<string> args;
 			tokenize(arg, ",", args);
@@ -1356,17 +1251,6 @@ static void parseOptions(int argc, const char **argv) {
 	}
 	if(gSnpPhred <= 10 && gColor && !gQuiet) {
 		cerr << "Warning: the colorspace SNP penalty (--snpphred) is very low: " << gSnpPhred << endl;
-	}
-	if(!mateFwSet) {
-		if(gColor) {
-			// Set colorspace default (--ff)
-			gMate1fw = true;
-			gMate2fw = true;
-		} else {
-			// Set nucleotide space default (--fr)
-			gMate1fw = true;
-			gMate2fw = false;
-		}
 	}
 	if(gGapBarrier < 1) {
 		cerr << "Warning: --gbar was set less than 1 (=" << gGapBarrier
@@ -3188,8 +3072,6 @@ int bowtie(int argc, const char **argv) {
 			argstr += argv[i];
 			if(i < argc-1) argstr += " ";
 		}
-		string query;   // read query string(s) from this file
-		string outfile; // write query results to this file
 		if(startVerbose) { cerr << "Entered main(): "; logTime(cerr, true); }
 		parseOptions(argc, argv);
 		argv0 = argv[0];
@@ -3239,9 +3121,8 @@ int bowtie(int argc, const char **argv) {
 					return 1;
 				}
 			} else if(!got_reads) {
-				query = argv[optind++];
 				// Tokenize the list of query files
-				tokenize(query, ",", queries);
+				tokenize(argv[optind++], ",", queries);
 				if(queries.empty()) {
 					cerr << "Tokenized query file list was empty!" << endl;
 					printUsage(cerr);
@@ -3250,7 +3131,7 @@ int bowtie(int argc, const char **argv) {
 			}
 
 			// Get output filename
-			if(optind < argc) {
+			if(optind < argc && outfile.empty()) {
 				outfile = argv[optind++];
 			}
 
