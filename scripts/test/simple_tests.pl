@@ -43,6 +43,137 @@ my @cases = (
 	# Test XS:i with quality scaling
 	#
 	
+	{ name   => "Scoring params 1",
+	#              012345678
+	  ref    => [ "ACTATTGCGCGCATGCACATATCAATTAAGCCGTCTCTCTAAAGAGACCCCAATCTCGCGCGCTAGACGTCAGTAGTTTAATTTTATAAACACCTCGCTGCGGGG" ],
+	  reads  => [         "GCGCATGCACATATCAATTAAGCCGTCTCTCTAAAGAGACCCCAATCTCGCGCGCTAGACGTCAGTAGTTTAATTTTATAAACACCTC" ],
+	  quals  => [         "GOAIYEFGFIWDSFIUYWEHRIWQWLFNSLDKkjdfglduhiuevhsiuqkAUHFIUEHGIUDJFHSKseuweyriwfskdgbiuuhh" ],
+	  #                    0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567
+	  #                    0         1         2         3         4         5         6         7         8
+	  args   => "",
+	  report => "-M 1",
+	  hits   => [ { 8 => 1 } ],
+	  cigar  => [ "88M" ],
+	  samoptflags => [ {
+		  "AS:i:0"   => 1,
+		  "YT:Z:UU"  => 1,
+		  "MD:Z:88" => 1 } ],
+	},
+
+	{ name   => "Scoring params 2",
+	#              012345678
+	  ref    => [ "ACTATTGCGCGCATGCACATATCAATTAAGCCGTCTCTCTAAAGAGACCCCAATCTCGCGCGCTAGACGTCAGTAGTTT"."TTTATAAACACCTCGCTGCGGGG" ],
+	  reads  => [         "NCGCATGCACATtTCAATTAAGCCGTCTCTCTAAAGA". "CCAATCTCGCGCGCTAGACGTCAGTAGTTTAAATTTATAAACACCTC" ],
+	  #                    * -1        * -6                     **** -5 -3 -3 -3 -3               *** -5 -3 -3 -3
+	  quals  => [         "GOAIYEFGFIWDSFIUYWEHRIWQWLFNSLDKkjdfg". "iuevhsiuqkAUHFIUEHGIUDJFHSKseuweyriwfskdgbiuuhh" ],
+	  #                    0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567
+	  #                    0         1         2         3         4         5         6         7         8
+	  args   => "--ignore-quals --score-min C,-40,0 -N 1",
+	  report => "-M 1",
+	  hits   => [ { 8 => 1 } ],
+	  cigar  => [ "37M4D30M3I14M" ],
+	  samoptflags => [ {
+		  "AS:i:-38" => 1,
+		  "YT:Z:UU"  => 1,
+		  "MD:Z:0G11A24^GACC44" => 1,
+		  "NM:i:9"   => 1,
+		  "XM:i:2"   => 1,
+		  "XG:i:7"   => 1,
+		  "XO:i:2"   => 1 } ],
+	},
+
+	{ name   => "Scoring params 3",
+	#              012345678
+	  ref    => [ "ACTATTGCGCGCATGCACATATCAATTAAGCCGTCTCTCTAAAGAGACCCCAATCTCGCGCGCTAGACGTCAGTAGTTT"."TTTATAAACACCTCGCTGCGGGG" ],
+	  reads  => [         "NCGCATGCACATtTCAATTAAGCCGTCTCTCTAAAGA". "CCAATCTCGCGCGCTAGACGTCAGTAGTTTAAATTTATAAACACCTC" ],
+	  #                    * -1        * -6                     **** -5 -3 -3 -3 -3               *** -1 -2 -2 -2
+	  quals  => [         "GOAIYEFGFIWDSFIUYWEHRIWQWLFNSLDKkjdfg". "iuevhsiuqkAUHFIUEHGIUDJFHSKseuweyriwfskdgbiuuhh" ],
+	  #                    0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567
+	  #                    0         1         2         3         4         5         6         7         8
+	  args   => "--ignore-quals --rfg 1,2 --score-min C,-40,0 -N 1",
+	  report => "-M 1",
+	  hits   => [ { 8 => 1 } ],
+	  cigar  => [ "37M4D30M3I14M" ],
+	  samoptflags => [ {
+		  "AS:i:-31" => 1,
+		  "YT:Z:UU"  => 1,
+		  "MD:Z:0G11A24^GACC44" => 1,
+		  "NM:i:9"   => 1,
+		  "XM:i:2"   => 1,
+		  "XG:i:7"   => 1,
+		  "XO:i:2"   => 1 } ],
+	},
+
+	{ name   => "Scoring params 4",
+	#              012345678
+	  ref    => [ "ACTATTGCGCGCATGCACATATCAATTAAGCCGTCTCTCTAAAGAGACCCCAATCTCGCGCGCTAGACGTCAGTAGTTT"."TTTATAAACACCTCGCTGCGGGG" ],
+	  reads  => [         "NCGCATGCACATtTCAATTAAGCCGTCTCTCTAAAGA". "CCAATCTCGCGCGCTAGACGTCAGTAGTTTAAATTTATAAACACCTC" ],
+	  #                    * -1        * -6                     **** -1 -2 -2 -2 -2               *** -5 -3 -3 -3
+	  quals  => [         "GOAIYEFGFIWDSFIUYWEHRIWQWLFNSLDKkjdfg". "iuevhsiuqkAUHFIUEHGIUDJFHSKseuweyriwfskdgbiuuhh" ],
+	  #                    0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567
+	  #                    0         1         2         3         4         5         6         7         8
+	  args   => "--ignore-quals --rdg 1,2 --score-min C,-40,0 -N 1",
+	  report => "-M 1",
+	  hits   => [ { 8 => 1 } ],
+	  cigar  => [ "37M4D30M3I14M" ],
+	  samoptflags => [ {
+		  "AS:i:-30" => 1,
+		  "YT:Z:UU"  => 1,
+		  "MD:Z:0G11A24^GACC44" => 1,
+		  "NM:i:9"   => 1,
+		  "XM:i:2"   => 1,
+		  "XG:i:7"   => 1,
+		  "XO:i:2"   => 1 } ],
+	},
+
+	{ name   => "Scoring params 5",
+	#              012345678
+	  ref    => [ "ACTATTGCGCGCATGCACATATCAATTAAGCCGTCTCTCTAAAGAGACCCCAATCTCGCGCGCTAGACGTCAGTAGTTT"."TTTATAAACACCTCGCTGCGGGG" ],
+	  reads  => [         "NCGCATGCACATtTCAATTAAGCCGTCTCTCTAAAGA". "CCAATCTCGCGCGCTAGACGTCAGTAGTTTAAATTTATAAACACCTC" ],
+	  #                    * -1        * -8                     **** -5 -3 -3 -3 -3               *** -5 -3 -3 -3
+	  quals  => [         "GOAIYEFGFIWDSFIUYWEHRIWQWLFNSLDKkjdfg". "iuevhsiuqkAUHFIUEHGIUDJFHSKseuweyriwfskdgbiuuhh" ],
+	  #                    0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567
+	  #                    0         1         2         3         4         5         6         7         8
+	  args   => "--ignore-quals --mp 8 --score-min C,-40,0 -N 1",
+	  report => "-M 1",
+	  hits   => [ { 8 => 1 } ],
+	  cigar  => [ "37M4D30M3I14M" ],
+	  samoptflags => [ {
+		  "AS:i:-40" => 1,
+		  "YT:Z:UU"  => 1,
+		  "MD:Z:0G11A24^GACC44" => 1,
+		  "NM:i:9"   => 1,
+		  "XM:i:2"   => 1,
+		  "XG:i:7"   => 1,
+		  "XO:i:2"   => 1 } ],
+	},
+
+	{ name   => "Scoring params 6",
+	#              012345678
+	  ref    => [ "ACTATTGCGCGCATGCACATATCAATTAAGCCGTCTCTCTAAAGAGACCCCAATCTCGCGCGCTAGACGTCAGTAGTTT"."TTTATAAACACCTCGCTGCGGGG" ],
+	  reads  => [         "NCGCATGCACATtTCAATTAAGCCGTCTCTCTAAAGA". "CCAATCTCGCGCGCTAGACGTCAGTAGTTTAAATTTATAAACACCTC" ],
+	  #                    * -4        * -6                     **** -5 -3 -3 -3 -3               *** -5 -3 -3 -3
+	  quals  => [         "GOAIYEFGFIWDSFIUYWEHRIWQWLFNSLDKkjdfg". "iuevhsiuqkAUHFIUEHGIUDJFHSKseuweyriwfskdgbiuuhh" ],
+	  #                    0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567
+	  #                    0         1         2         3         4         5         6         7         8
+	  args   => "--ignore-quals --np 4 --score-min C,-41,0 -N 1",
+	  report => "-M 1",
+	  hits   => [ { 8 => 1 } ],
+	  cigar  => [ "37M4D30M3I14M" ],
+	  samoptflags => [ {
+		  "AS:i:-41" => 1,
+		  "YT:Z:UU"  => 1,
+		  "MD:Z:0G11A24^GACC44" => 1,
+		  "NM:i:9"   => 1,
+		  "XM:i:2"   => 1,
+		  "XG:i:7"   => 1,
+		  "XO:i:2"   => 1 } ],
+	},
+
+	#
+	# Test XS:i with quality scaling
+	#
+	
 	{ name   => "Q XS:i 1a",
 	  ref    => [ "TTGTTCGATTGTTCGA" ],
 	  reads  => [ "TTGTTCGT" ],
