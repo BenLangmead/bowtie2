@@ -1,8 +1,23 @@
 #!/usr/bin/perl -w
 
-##
-# Author: Ben Langmead
-#   Date: 2/23/2011
+#
+# Copyright 2011, Ben Langmead <blangmea@jhsph.edu>
+#
+# This file is part of Bowtie 2.
+#
+# Bowtie 2 is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Bowtie 2 is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Bowtie 2.  If not, see <http://www.gnu.org/licenses/>.
+#
 
 use strict;
 use warnings;
@@ -19,7 +34,9 @@ my %conf = (
 	bowtie2             => "bowtie2",
 	bowtie2_build_debug => "bowtie2-build-debug",
 	bowtie2_debug       => "bowtie2-debug",
-	tempdir             => "/tmp"
+	tempdir             => "/tmp",
+	no_color            => 1,
+	small               => 1
 );
 
 # Number of parallel processes to use
@@ -58,7 +75,9 @@ GetOptions(
 	"tempdir|tmpdir=s"      => \$conf{tempdir},
 	"cases-per-thread=i"    => \$ncases,
 	"small"                 => \$conf{small},
+	"large"                 => sub { $conf{small} = 0 },
 	"no-paired"             => \$conf{no_paired},
+	"color"                 => sub { $conf{no_color} = 0 },
 	"no-color"              => \$conf{no_color},
 	"help"                  => \$help,
 	"die-with-child"        => \$dieWithChild,

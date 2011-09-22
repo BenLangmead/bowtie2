@@ -1,25 +1,32 @@
 #!/usr/bin/env perl
 
-##
-# bowtie2w
 #
-#  Author: Ben Langmead
-#    Date: 9/6/2011
-# Contact: blangmea@jhsph.edu
+# Copyright 2011, Ben Langmead <blangmea@jhsph.edu>
+#
+# This file is part of Bowtie 2.
+#
+# Bowtie 2 is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Bowtie 2 is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Bowtie 2.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+# bowtie2:
 #
 # A wrapper script for bowtie2.  Provides various advantages over running
 # bowtie2 directly, including:
 #
 # 1. Handling compressed inputs
 # 2. Redirecting output to various files
-# 3. Output directly to bam
-#
-# ISSUES
-#
-# 1. How can this script know which Bowtie options take options and which
-#    don't?  This is needed before this script can figure out which options it
-#    should handle.
-#
+# 3. Output directly to bam (not currently supported)
 
 use strict;
 use warnings;

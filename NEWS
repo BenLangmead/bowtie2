@@ -1,9 +1,9 @@
-Bowtie: an Ultrafast, Lightweight Short Read Aligner
+Bowtie 2 NEWS
+=============
 
-Bowtie NEWS
-===========
-
-   Bowtie is now available for download.  0.9.0 is the first version to
+Bowtie 2 is now available for download.  2.0.0-beta1 is the first version
+released to the public.  Bowtie 2 is licensed under the GPL 3
+ 
 be released under the OSI Artistic License (see `COPYING') and freely
 available to the public for download.  The current version is 0.12.1.
 The Bowtie project is still in its early stages, and anyone interested

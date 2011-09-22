@@ -1,6 +1,11 @@
 #!/usr/bin/perl -w
 
-# Used to convert MANUAL.markdown to MANUAL.
+##
+# strip_markdown.pl
+#
+# Used to convert MANUAL.markdown to MANUAL.  Leaves all manual content, but
+# strips away some of the clutter that makes it hard to read the markdown.
+#
 
 use strict;
 use warnings;

@@ -1,4 +1,23 @@
 #
+# Copyright 2011, Ben Langmead <blangmea@jhsph.edu>
+#
+# This file is part of Bowtie 2.
+#
+# Bowtie 2 is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Bowtie 2 is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Bowtie 2.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+#
 # Makefile for bowtie, bowtie-build, bowtie-inspect
 #
 
@@ -65,7 +84,7 @@ SEARCH_LIBS = $(PTHREAD_LIB)
 BUILD_LIBS =
 
 SHARED_CPPS = ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
-              edit.cpp ebwt.cpp ebwt_io.cpp ebwt_util.cpp \
+              edit.cpp bt2_idx.cpp bt2_io.cpp bt2_util.cpp \
               reference.cpp ds.cpp multikey_qsort.cpp
 SEARCH_CPPS = qual.cpp pat.cpp \
               log.cpp sam.cpp \
@@ -74,7 +93,7 @@ SEARCH_CPPS = qual.cpp pat.cpp \
               aligner_seed.cpp aligner_sw.cpp aligner_sw_col.cpp \
 			  aligner_sw_driver.cpp aligner_cache.cpp \
 			  aligner_result.cpp ref_coord.cpp mask.cpp \
-			  pe.cpp aln_sink.cpp read_sink.cpp dp_framer.cpp \
+			  pe.cpp aln_sink.cpp dp_framer.cpp \
 			  scoring.cpp sa_rescomb.cpp \
 			  seed_scan.cpp presets.cpp \
 			  aligner_swsse.cpp \
@@ -159,7 +178,7 @@ both: bowtie2 bowtie2-build
 both-debug: bowtie2-align-debug bowtie2-build-debug
 
 DEFS=-fno-strict-aliasing \
-     -DBOWTIE_VERSION="\"`cat VERSION`\"" \
+     -DBOWTIE2_VERSION="\"`cat VERSION`\"" \
      -DBUILD_HOST="\"`hostname`\"" \
      -DBUILD_TIME="\"`date`\"" \
      -DCOMPILER_VERSION="\"`$(CXX) -v 2>&1 | tail -1`\"" \
@@ -169,28 +188,20 @@ DEFS=-fno-strict-aliasing \
      $(MM_DEF) \
      $(SHMEM_DEF)
 
-define checksum
-  cat $^ | cksum | sed 's/[01-9][01-9] .*//' | awk '{print $$1}' > .$@.cksum
-endef
-
 #
 # bowtie-build targets
 #
 
-bowtie2-build: ebwt_build.cpp $(SHARED_CPPS) $(HEADERS)
-	$(checksum)
+bowtie2-build: bt2_build.cpp $(SHARED_CPPS) $(HEADERS)
 	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(EXTRA_FLAGS) \
-		-DEBWT_BUILD_HASH=`cat .$@.cksum` \
 		$(DEFS) -DBOWTIE2 $(NOASSERT_FLAGS) -Wall \
 		$(INC) \
 		-o $@ $< \
 		$(SHARED_CPPS) $(BUILD_CPPS_MAIN) \
 		$(LIBS) $(BUILD_LIBS)
 
-bowtie2-build-debug: ebwt_build.cpp $(SHARED_CPPS) $(HEADERS)
-	$(checksum)
+bowtie2-build-debug: bt2_build.cpp $(SHARED_CPPS) $(HEADERS)
 	$(CXX) $(DEBUG_FLAGS) $(DEBUG_DEFS) $(EXTRA_FLAGS) \
-		-DEBWT_BUILD_HASH=`cat .$@.cksum` \
 		$(DEFS) -DBOWTIE2 -Wall \
 		$(INC) \
 		-o $@ $< \
@@ -201,21 +212,17 @@ bowtie2-build-debug: ebwt_build.cpp $(SHARED_CPPS) $(HEADERS)
 # bowtie targets
 #
 
-bowtie2-align: ebwt_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
-	$(checksum)
+bowtie2-align: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
 	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(EXTRA_FLAGS) \
-		-DEBWT_SEARCH_HASH=`cat .$@.cksum` \
 		$(DEFS) -DBOWTIE2 $(NOASSERT_FLAGS) -Wall \
 		$(INC) \
 		-o $@ $< \
 		$(SHARED_CPPS) $(SEARCH_CPPS_MAIN) \
 		$(LIBS) $(SEARCH_LIBS)
 
-bowtie2-align-debug: ebwt_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
-	$(checksum)
+bowtie2-align-debug: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
 	$(CXX) $(DEBUG_FLAGS) \
 		$(DEBUG_DEFS) $(EXTRA_FLAGS) \
-		-DEBWT_SEARCH_HASH=`cat .$@.cksum` \
 		$(DEFS) -DBOWTIE2 -Wall \
 		$(INC) \
 		-o $@ $< \
@@ -226,22 +233,18 @@ bowtie2-align-debug: ebwt_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(
 # bowtie-inspect targets
 #
 
-bowtie2-inspect: bowtie_inspect.cpp $(HEADERS) $(SHARED_CPPS)
-	$(checksum)
+bowtie2-inspect: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 	$(CXX) $(RELEASE_FLAGS) \
 		$(RELEASE_DEFS) $(EXTRA_FLAGS) \
-		-DEBWT_INSPECT_HASH=`cat .$@.cksum` \
 		$(DEFS) -DBOWTIE2 -DBOWTIE_INSPECT_MAIN -Wall \
 		$(INC) -I . \
 		-o $@ $< \
 		$(SHARED_CPPS) \
 		$(LIBS)
 
-bowtie2-inspect-debug: bowtie_inspect.cpp $(HEADERS) $(SHARED_CPPS) 
-	$(checksum)
+bowtie2-inspect-debug: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS) 
 	$(CXX) $(DEBUG_FLAGS) \
 		$(DEBUG_DEFS) $(EXTRA_FLAGS) \
-		-DEBWT_INSPECT_HASH=`cat .$@.cksum` \
 		$(DEFS) -DBOWTIE2 -DBOWTIE_INSPECT_MAIN -Wall \
 		$(INC) -I . \
 		-o $@ $< \
@@ -259,15 +262,15 @@ bowtie2-src.zip: $(SRC_PKG_LIST)
 	cp .src.tmp/$@ .
 	rm -rf .src.tmp
 
-bowtie2-bin.zip: $(BIN_PKG_LIST) $(BOWTIE_BIN_LIST) $(BOWTIE_BIN_LIST_AUX) 
+bowtie2-bin.zip: $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX) 
 	chmod a+x scripts/*.sh scripts/*.pl
 	rm -rf .bin.tmp
 	mkdir .bin.tmp
 	mkdir .bin.tmp/bowtie-$(VERSION)
 	if [ -f bowtie.exe ] ; then \
-		zip tmp.zip $(BIN_PKG_LIST) $(addsuffix .exe,$(BOWTIE_BIN_LIST) $(BOWTIE_BIN_LIST_AUX)) ; \
+		zip tmp.zip $(BIN_PKG_LIST) $(addsuffix .exe,$(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)) ; \
 	else \
-		zip tmp.zip $(BIN_PKG_LIST) $(BOWTIE_BIN_LIST) $(BOWTIE_BIN_LIST_AUX) ; \
+		zip tmp.zip $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX) ; \
 	fi
 	mv tmp.zip .bin.tmp/bowtie-$(VERSION)
 	cd .bin.tmp/bowtie-$(VERSION) ; unzip tmp.zip ; rm -f tmp.zip
@@ -275,14 +278,14 @@ bowtie2-bin.zip: $(BIN_PKG_LIST) $(BOWTIE_BIN_LIST) $(BOWTIE_BIN_LIST_AUX)
 	cp .bin.tmp/$@ .
 	rm -rf .bin.tmp
 
-bowtie2-seeds-debug: aligner_seed.cpp ccnt_lut.cpp alphabet.cpp aligner_seed.h ebwt.cpp ebwt_io.cpp
+bowtie2-seeds-debug: aligner_seed.cpp ccnt_lut.cpp alphabet.cpp aligner_seed.h bt2_idx.cpp bt2_io.cpp
 	$(CXX) $(DEBUG_FLAGS) \
 		$(DEBUG_DEFS) $(EXTRA_FLAGS) \
 		-DSCAN_MAIN \
 		$(DEFS) -Wall \
 		$(INC) -I . \
 		-o $@ $< \
-		aligner_seed.cpp ebwt.cpp ccnt_lut.cpp alphabet.cpp ebwt.cpp ebwt_io.cpp \
+		aligner_seed.cpp bt2_idx.cpp ccnt_lut.cpp alphabet.cpp bt2_io.cpp \
 		$(LIBS)
 
 .PHONY: doc
@@ -290,7 +293,7 @@ doc: doc/manual.html MANUAL
 
 doc/manual.html: MANUAL.markdown
 	echo "<h1>Table of Contents</h1>" > .tmp.head
-	pandoc -T "Bowtie Manual" -B .tmp.head \
+	pandoc -T "Bowtie 2 Manual" -B .tmp.head \
 	       --css style.css -o $@ \
 	       --from markdown --to HTML \
 	       --table-of-contents $^
@@ -300,9 +303,8 @@ MANUAL: MANUAL.markdown
 
 .PHONY: clean
 clean:
-	rm -f $(BOWTIE_BIN_LIST)  $(BOWTIE_BIN_LIST_AUX) \
 	rm -f $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX) \
-	$(addsuffix .exe,$(BOWTIE_BIN_LIST)  $(BOWTIE_BIN_LIST_AUX)) \
 	$(addsuffix .exe,$(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)) \
-	bowtie-src.zip bowtie-bin.zip
+	bowtie2-src.zip bowtie2-bin.zip
 	rm -f core.*
+	rm -rf *.dSYM
