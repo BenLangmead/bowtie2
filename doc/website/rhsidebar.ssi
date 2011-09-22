@@ -22,7 +22,7 @@
       </tr>
       <tr>
       <td colspan=2>
-        <li style="font-size: x-small; line-height: 130%">Please cite: Langmead B, Schatz MC, Lin J, Pop M, Salzberg SL. <a href="http://genomebiology.com/2009/10/11/R134">Searching for SNPs with cloud computing</a>. <i><a href="http://genomebiology.com">Genome Biol</a></i> 10:R134.
+        <li style="font-size: x-small; line-height: 130%">Please cite: Langmead B, Trapnell C, Pop M, Salzberg SL. <a href="http://genomebiology.com/2009/10/3/R25">Ultrafast and memory-efficient alignment of short DNA sequences to the human genome</a>. <i><a href="http://genomebiology.com">Genome Biol</a></i> 10:R25.</table>
       </td>
       </tr>
 	 </table>
