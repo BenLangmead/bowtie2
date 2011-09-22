@@ -1,19 +1,25 @@
-Bowtie 2 authors
-Primary contact <blangmea@jhsph.edu>
+Ben Langmead <blangmea@jhsph.edu> wrote Bowtie 2, which is based partially on
+Bowtie.  Bowtie was written by Ben Langmead and Cole Trapnell.
 
-Ben Langmead wrote Bowtie 2, based partially on Bowtie which was written
-by Ben Langmead and Cole Trapnell.  A DLL from the pthreads for Win32
-library is distributed with the Win32 version of Bowtie 2.  The pthreads
-for Win32 library and the GnuWin32 package have many contributors (see
-their respective web sites).
+  Bowtie & Bowtie 2:  http://bowtie-bio.sf.net
 
-Various users have kindly supplied patches, bug reports and feature
-requests over the years.  Many, many thanks go to them.
+A DLL from the pthreads for Win32 library is distributed with the Win32 version
+of Bowtie 2.  The pthreads for Win32 library and the GnuWin32 package have many
+contributors (see their respective web sites).
 
-Websites:
+  pthreads for Win32: http://sourceware.org/pthreads-win32
+  GnuWin32:           http://gnuwin32.sf.net
 
- Bowtie & Bowtie 2:  http://bowtie-bio.sf.net
- pthreads for Win32: http://sourceware.org/pthreads-win32
- GnuWin32:           http://gnuwin32.sf.net
+The ForkManager.pm perl module is used in Bowtie 2's random testing framework,
+and is included as scripts/sim/contrib/ForkManager.pm.  ForkManager.pm is
+written by dLux (Szabo, Balazs), with contributions by others.  See the perldoc
+in ForkManager.pm for the complete list.
 
-March 2011
+The file ls.h includes an implementation of the Larsson-Sadakane suffix sorting
+algorithm.  The implementation is by N. Jesper Larsson and was adapted somewhat
+for use in Bowtie 2.
+
+Various users have kindly supplied patches, bug reports and feature requests
+over the years.  Many, many thanks go to them.
+
+September 2011

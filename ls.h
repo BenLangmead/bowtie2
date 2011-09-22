@@ -1,14 +1,25 @@
-//
-//  ls.h
+/*
+ * Copyright 2011, Ben Langmead <blangmea@jhsph.edu>
+ *
+ * This file is part of Bowtie 2.
+ *
+ * Bowtie 2 is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Bowtie 2 is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Bowtie 2.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-#ifndef LS_H_
-#define LS_H_
+/* Code in this file is ultimately based on:
 
-#include <iostream>
-#include <limits>
-#include <stdint.h>
-
-/* qsufsort.c
+   qsufsort.c
    Copyright 1999, N. Jesper Larsson, all rights reserved.
 
    This file contains an implementation of the algorithm presented in "Faster
@@ -20,6 +31,13 @@
    distributed, the copyright notice must be retained and any alterations in
    the code must be clearly marked. No warranty is given regarding the quality
    of this software.*/
+
+#ifndef LS_H_
+#define LS_H_
+
+#include <iostream>
+#include <limits>
+#include <stdint.h>
 
 template<typename T>
 class LarssonSadakane {

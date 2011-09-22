@@ -1,4 +1,0 @@
-Generated from bowtie/scripts/make_e_coli.sh.  Built from the strain
-loacted in Bacteria/Escherichia_coli_536 on the NCBI FTP site.  The -t
-parameter (--ftabchars) has been turned down to 8 to keep the index
-small, so that it's reasonable to distribute with the Bowtie source.
