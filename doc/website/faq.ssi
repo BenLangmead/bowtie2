@@ -31,6 +31,7 @@ Chief differences between Bowtie 1 and Bowtie 2 are:
    example, for pairs that do not align in a paired fashion, it will attempt to
    find unpaired alignments for each mate.
 <li>Bowtie 2 does not align colorspace reads.
+</ul>
 
 <h2>Is Bowtie 2 a straightforward upgrade from Bowtie 1?</h2>
 Bowtie 2 is not a "drop-in" replacement for Bowtie 1.  Bowtie 2's command-line
