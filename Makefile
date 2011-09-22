@@ -18,7 +18,7 @@
 #
 
 #
-# Makefile for bowtie, bowtie-build, bowtie-inspect
+# Makefile for bowtie, bowtie2-build, bowtie2-inspect
 #
 
 INC =
@@ -135,15 +135,9 @@ BOWTIE2_BIN_LIST_AUX = bowtie2-build-debug \
 
 GENERAL_LIST = $(wildcard scripts/*.sh) \
                $(wildcard scripts/*.pl) \
-               $(wildcard indexes/e_coli*) \
-               $(wildcard genomes/NC_008253.fna) \
-               $(wildcard reads/e_coli_1000.*) \
-               $(wildcard reads/e_coli_1000_*) \
                doc/manual.html \
                doc/README \
                doc/style.css \
-               reads/e_coli_10000snp.fa \
-               reads/e_coli_10000snp.fq \
                $(PTHREAD_PKG) \
                AUTHORS \
                COPYING \
@@ -189,7 +183,7 @@ DEFS=-fno-strict-aliasing \
      $(SHMEM_DEF)
 
 #
-# bowtie-build targets
+# bowtie2-build targets
 #
 
 bowtie2-build: bt2_build.cpp $(SHARED_CPPS) $(HEADERS)
@@ -230,7 +224,7 @@ bowtie2-align-debug: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(S
 		$(LIBS) $(SEARCH_LIBS)
 
 #
-# bowtie-inspect targets
+# bowtie2-inspect targets
 #
 
 bowtie2-inspect: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS)
@@ -251,30 +245,31 @@ bowtie2-inspect-debug: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 		$(SHARED_CPPS) \
 		$(LIBS)
 
-bowtie2-src.zip: $(SRC_PKG_LIST)
+.PHONY: bowtie2-src
+bowtie2-src: $(SRC_PKG_LIST)
 	chmod a+x scripts/*.sh scripts/*.pl
 	mkdir .src.tmp
-	mkdir .src.tmp/bowtie-$(VERSION)
+	mkdir .src.tmp/bowtie2-$(VERSION)
 	zip tmp.zip $(SRC_PKG_LIST)
-	mv tmp.zip .src.tmp/bowtie-$(VERSION)
-	cd .src.tmp/bowtie-$(VERSION) ; unzip tmp.zip ; rm -f tmp.zip
-	cd .src.tmp ; zip -r $@ bowtie-$(VERSION)
-	cp .src.tmp/$@ .
+	mv tmp.zip .src.tmp/bowtie2-$(VERSION)
+	cd .src.tmp/bowtie2-$(VERSION) ; unzip tmp.zip ; rm -f tmp.zip
+	cd .src.tmp ; zip -r bowtie2-$(VERSION).zip bowtie2-$(VERSION)
+	cp .src.tmp/bowtie2-$(VERSION).zip .
 	rm -rf .src.tmp
 
 bowtie2-bin.zip: $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX) 
 	chmod a+x scripts/*.sh scripts/*.pl
 	rm -rf .bin.tmp
 	mkdir .bin.tmp
-	mkdir .bin.tmp/bowtie-$(VERSION)
+	mkdir .bin.tmp/bowtie2-$(VERSION)
 	if [ -f bowtie.exe ] ; then \
 		zip tmp.zip $(BIN_PKG_LIST) $(addsuffix .exe,$(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)) ; \
 	else \
 		zip tmp.zip $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX) ; \
 	fi
-	mv tmp.zip .bin.tmp/bowtie-$(VERSION)
-	cd .bin.tmp/bowtie-$(VERSION) ; unzip tmp.zip ; rm -f tmp.zip
-	cd .bin.tmp ; zip -r $@ bowtie-$(VERSION)
+	mv tmp.zip .bin.tmp/bowtie2-$(VERSION)
+	cd .bin.tmp/bowtie2-$(VERSION) ; unzip tmp.zip ; rm -f tmp.zip
+	cd .bin.tmp ; zip -r $@ bowtie2-$(VERSION)
 	cp .bin.tmp/$@ .
 	rm -rf .bin.tmp
 
@@ -306,5 +301,5 @@ clean:
 	rm -f $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX) \
 	$(addsuffix .exe,$(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)) \
 	bowtie2-src.zip bowtie2-bin.zip
-	rm -f core.*
+	rm -f core.* .tmp.head
 	rm -rf *.dSYM
