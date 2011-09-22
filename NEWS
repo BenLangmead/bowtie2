@@ -21,3 +21,5 @@ Version 2.0.0-beta1 - September 22, 2011
    * Caveats: as of now, the manual is incomplete, there's no tutorial, and no
      example genome or example reads.  All these will be fixed in upcoming
      releases.
+   * Only a source package is currently available.  Platform-specific binaries
+     will be included in future releases.

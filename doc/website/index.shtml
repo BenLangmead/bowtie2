@@ -1,0 +1,58 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>Bowtie 2: fast and sensitive read alignment</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" type="text/css" href="../css/style.css" media="screen" />
+<meta name="verify-v1" content="YJT1CfXN3kzE9cr+jvNB+Q73lTfHrv8eivoY+xjblc0=" />
+</head>
+<body>
+<div id="wrap">
+  <!--#include virtual="top.ssi" -->
+  <div id="subheader">
+  <table width="100%"><tr>
+  <td>
+
+  <strong>Bowtie 2</strong> is an ultrafast and memory-efficient tool for aligning sequencing
+reads to long reference sequences.  It is particularly good at aligning reads of
+about 50 up to 100s or 1,000s of characters, and particularly good at aligning to relatively long (e.g. mammalian)
+genomes.  Bowtie 2 indexes the genome with an FM Index to keep its memory footprint small: for the human
+genome, its memory footprint is typically around 2.3 GB.  Bowtie 2 supports
+gapped, local, and paired-end alignment modes.  Multiple processors can be used
+simultaneously to achieve greater alignment speed.
+
+<td align=right valign=middle>
+  <a href="http://opensource.org"><img border=0 alt="Open Source Software" src="/images/osi-certified.gif"></img></a>
+  </td></tr>
+  </table>
+  </div>
+  <div id="main">
+    <!--#include virtual="rhsidebar.ssi" -->
+    <div id="leftside">
+      <!--#include virtual="recent_news.ssi" -->
+    </div>
+  </div>
+  <div id="footer">
+  	<table width="100%" cellspacing=15><tr><td>
+    This research was supported in part by NIH grants R01-HG006102 and R01-GM083873 and AWS in Education research grants.
+    </td><td align=right>
+    Administrator: <a href="mailto:blangmea@jhsph.edu">Ben Langmead</a>. Design by <a href="http://www.free-css-templates.com" title="Design by David Herreman">David Herreman</a>
+    </td></tr>
+    </table>
+    <center><a href="http://www.sourceforge.net"><img src="/images/sflogo.png" alt="Sourceforge.net" style="border-style: none"></img></a></center>
+  </div>
+</div>
+
+<!-- Google analytics code -->
+<script type="text/javascript">
+var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
+document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
+</script>
+<script type="text/javascript">
+var pageTracker = _gat._getTracker("UA-5334290-1");
+pageTracker._trackPageview();
+</script>
+<!-- End google analytics code -->
+
+</body>
+</html>

@@ -1,0 +1,96 @@
+<div id="rightside" style="width: 320px ; padding-left: 20px">
+  <h2>Site Map</h2>
+  <div class="box">
+    <ul>
+      <li><a href="index.shtml">Home</a></li>
+      <li><a href="news.shtml">News archive</a></li>
+      <li><a href="manual.shtml">Manual</a></li>
+      <li><a href="faq.shtml">Frequently Asked Questions</a></li>
+    </ul>
+  </div>
+  <a href="http://sourceforge.net/projects/bowtie-bio/files/bowtie2/"><h2><u>Latest Release</u></h2></a>
+  <div class="box">
+    <ul>
+     <table width="100%">
+      <tr>
+      <td>
+        <a href="http://sourceforge.net/projects/bowtie-bio/files/bowtie2/">Bowtie2 2.0.0-beta1</a>
+      </td>
+      <td align="right">
+        9/22/11&nbsp;
+      </td>
+      </tr>
+      <tr>
+      <td colspan=2>
+        <li style="font-size: x-small; line-height: 130%">Please cite: Langmead B, Schatz MC, Lin J, Pop M, Salzberg SL. <a href="http://genomebiology.com/2009/10/11/R134">Searching for SNPs with cloud computing</a>. <i><a href="http://genomebiology.com">Genome Biol</a></i> 10:R134.
+      </td>
+      </tr>
+	 </table>
+    </ul>
+  </div>
+  <h2>Related Tools</h2>
+  <div class="box">
+    <ul>
+      <table width="100%">
+      <tr><td><a href="http://bowtie-bio.sf.net">Bowtie</a>: Ultrafast short read alignment</td></tr>
+      <tr><td><a href="http://bowtie-bio.sf.net/crossbow">Crossbow</a>: Genotyping, cloud computing</td></tr>
+      <tr><td><a href="http://bowtie-bio.sf.net/myrna">Myrna</a>: Cloud, differential gene expression</td></tr>
+      <tr><td><a href="http://tophat.cbcb.umd.edu">Tophat</a>: RNA-Seq splice junction mapper</td></tr>
+      <tr><td><a href="http://cufflinks.cbcb.umd.edu">Cufflinks</a>: Isoform assembly, quantitation</td></tr>
+      </table>
+    </ul>
+  </div>
+  <h2>Indexes</h2>
+  <div class="box">
+    <ul>
+      <table width="100%">
+      <tr><td></td></tr>
+      <tr><td>
+        <i>H. sapiens</i>: <a href="http://hgdownload.cse.ucsc.edu/downloads.html#human">hg18</a>/<a href="http://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?mode=Info&id=9606">dbSNP 130</a>
+      </td></tr>
+      <tr><td style="font-size: x-small">
+        &nbsp;s3n://crossbow-refs/hg18.jar<br/>
+      </td></tr>
+       
+      </table>
+    </ul>
+  </div>
+  <h2>Related publications</h2>
+  <div class="box">
+    <ul>
+      <li style="font-size: x-small; line-height: 130%">Langmead B, Trapnell C, Pop M, Salzberg SL. <a href="http://genomebiology.com/2009/10/3/R25"><b>Ultrafast and memory-efficient alignment of short DNA sequences to the human genome</b></a>. <i><a href="http://genomebiology.com">Genome Biology</a></i> <b>10</b>:R25.
+      <br/><br/>
+      <li style="font-size: x-small; line-height: 130%">Langmead B, Schatz M, Lin J, Pop M, Salzberg SL. <a href="http://genomebiology.com/2009/10/11/R134"><b>Searching for SNPs with cloud computing</b></a>. <i><a href="http://genomebiology.com">Genome Biology</a></i> <b>10</b>:R134.
+      <br/><br/>
+      <li style="font-size: x-small; line-height: 130%">Langmead B, Hansen K, Leek J. <a href="http://genomebiology.com/2010/11/8/R83"><b>Cloud-scale RNA-sequencing differential expression analysis with Myrna</b></a>. <i><a href="http://genomebiology.com">Genome Biology</a></i> <b>11</b>:R83.
+    </ul>
+  </div>
+  <h2>Author</h2>
+  <div class="box">
+    <ul>
+      <li><a href="http://www.cbcb.umd.edu/~langmead">Ben Langmead</a></li>
+    </ul>
+  </div>
+  <h2>Other Documentation</h2>
+  <div class="box">
+    <ul>
+    </ul>
+  </div>
+  <h2>Links</h2>
+  <div class="box">
+    <ul>
+      <li>Bowtie <a href="https://sourceforge.net/projects/bowtie-bio/">sourceforge.net project</a></li>
+      <ul>
+        <li>&nbsp;&nbsp;<a href="https://sourceforge.net/tracker/?func=add&group_id=236897&atid=1101609">Request a feature</li>
+        <li>&nbsp;&nbsp;<a href="https://sourceforge.net/tracker/?func=add&group_id=236897&atid=1101606">Report a bug</li>
+      </ul>
+      <li><a href="http://seqanswers.com/">SEQanswers</a></li>
+      <li><a href="http://www.umd.edu/">University of Maryland</a></li>
+      <li>&nbsp;<a href="http://www.cbcb.umd.edu/">UMD CBCB</a></li>
+      <li>&nbsp;<a href="http://www.cs.umd.edu/">UMD Computer Science</a></li>
+      <li>&nbsp;<a href="http://www.umiacs.umd.edu/">UMIACS</a></li>
+      <li><a href="http://www.jhsph.edu/">J.H. Bloomberg School of Public Health</a></li>
+      <li>&nbsp;<a href="http://www.biostat.jhsph.edu/">JHSPH Biostatistics</a></li>
+    </ul>
+  </div>
+</div> <!-- End of "rightside" -->

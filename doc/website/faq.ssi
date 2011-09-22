@@ -1,0 +1,50 @@
+<h2>How is Bowtie 2 different from Bowtie 1?</h2>
+
+Bowtie 1 was released in 2009 and was geared toward aligning the relatively
+short type of sequencing reads (up to 50 bp) prevalent at the time.
+Since then, sequencing technology has improved both in terms of throughput (more
+bp produced per sequencer per day) and in terms of read length (more
+bp per read).
+
+Chief differences between Bowtie 1 and Bowtie 2 are:
+
+<ul>
+<li>Bowtie 2 fully supports gapped alignment with affine gap penalties.  Number
+   of gaps and gap lengths are not restricted, except via the user-supplied
+   scoring scheme.  Bowtie 1 only finds ungapped alignments.
+<li> For reads longer than about 50 bp Bowtie 2 is generally faster, more
+   sensitive, and uses less memory than Bowtie 1.  For relatively short reads
+   (e.g. less than 50 bp) Bowtie 1 is sometimes faster and/or more sensitive.
+<li>Bowtie 2 supports a "local" alignment mode, which doesn't require that reads
+   align end-to-end.  This produces alignments that might be "trimmed" (or "soft
+   clipped") at one or both extremes in a way that optimizes alignment score.
+   Bowtie 2 also supports an "end-to-end" alignment mode which, like Bowtie 1,
+   requires that the read align entirely.
+<li>There is no upper limit on read length in Bowtie 2.  Bowtie 1 had an upper
+   limit of around 1000 bp.
+<li>Bowtie 2 does away with Bowtie 1's notion of alignment "stratum".  In Bowtie
+   2 all alignments lie along a continuous spectrum of alignment scores.
+<li>There is no longer a distinction between "end-to-end" and "Maq-like" modes as
+   in Bowtie 1.  There is just one scoring scheme, similar to Needleman–Wunsch
+   and Smith-Waterman.
+<li>Bowtie 2's paired-end alignment mode is more flexible than Bowtie 1's.  For
+   example, for pairs that do not align in a paired fashion, it will attempt to
+   find unpaired alignments for each mate.
+<li>Bowtie 2 does not align colorspace reads.
+
+<h2>Is Bowtie 2 a straightforward upgrade from Bowtie 1?</h2>
+Bowtie 2 is not a "drop-in" replacement for Bowtie 1.  Bowtie 2's command-line
+arguments and genome index format are similar to, but different from Bowtie 1's,
+so that simply running the Bowtie 2 executable instead of the Bowtie 1
+executable will not work.
+
+<h2>Are Bowtie 2 and Bowtie 1 genome indexes compatible?</h2>
+No.  Bowtie 2 indexes are formatted differently.  Bowtie 1 indexes do not work
+with Bowtie 2 and Bowtie 2 indexes do not work with Bowtie 1.
+
+<h2>Does Bowtie 2 supersede Bowtie 1?</h2>
+Mostly, but not entirely.  If your reads are shorter than 50 bp, you
+might want to try both Bowtie 1 and Bowtie 2 and see which gives better
+results in terms of speed and sensitivity.  In our experiments, Bowtie 2 is
+generally superior to Bowtie 1 for reads longer than 50 bp.  For reads shorter
+than 50 bp, Bowtie 1 may or may not be preferable.
