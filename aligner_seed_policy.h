@@ -34,11 +34,11 @@
 // from 5' offset 10 of the forward representation of the read might be
 // one position, and the same from the reverse-complement representation
 // might be another.
-#define DEFAULT_POSMIN  1.5f
-#define DEFAULT_POSFRAC 0.15f
+#define DEFAULT_POSMIN  1.0f
+#define DEFAULT_POSFRAC 1.0f
 
 // The maximum number of hits we try to extend for any given position.
-#define DEFAULT_ROWMULT  1.0f
+#define DEFAULT_ROWMULT 2.0f
 
 /**
  * Encapsulates the set of all parameters that affect what the
