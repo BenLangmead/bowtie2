@@ -7,13 +7,13 @@
 
 GENOMES_MIRROR=ftp://ftp.ncbi.nlm.nih.gov/genomes
 
-BOWTIE_BUILD_EXE=./bowtie-build
+BOWTIE_BUILD_EXE=./bowtie2-build
 if [ ! -x "$BOWTIE_BUILD_EXE" ] ; then
-	if ! which bowtie-build ; then
-		echo "Could not find bowtie-build in current directory or in PATH"
+	if ! which bowtie2-build ; then
+		echo "Could not find bowtie2-build in current directory or in PATH"
 		exit 1
 	else
-		BOWTIE_BUILD_EXE=`which bowtie-build`
+		BOWTIE_BUILD_EXE=`which bowtie2-build`
 	fi
 fi
 
