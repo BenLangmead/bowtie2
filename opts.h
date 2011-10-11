@@ -95,10 +95,17 @@ enum {
 	ARG_PRESET_FAST,            // --fast
 	ARG_PRESET_SENSITIVE,       // --sensitive
 	ARG_PRESET_VERY_SENSITIVE,  // --very-sensitive
+	ARG_PRESET_VERY_FAST_LOCAL,      // --very-fast-local
+	ARG_PRESET_FAST_LOCAL,           // --fast-local
+	ARG_PRESET_SENSITIVE_LOCAL,      // --sensitive-local
+	ARG_PRESET_VERY_SENSITIVE_LOCAL, // --very-sensitive-local
 	ARG_NO_SCORE_PRIORITY,      // --no-score-priority
 	ARG_IGNORE_QUALS,           // --ignore-quals
 	ARG_DESC,                   // --arg-desc
 	ARG_TAB5,                   // --tab5
 	ARG_TAB6,                   // --tab6
-	ARG_WRAPPER                 // --wrapper
+	ARG_WRAPPER,                // --wrapper
+	ARG_NO_DOVETAIL,            // --no-dovetail
+	ARG_NO_CONTAIN,             // --no-contain
+	ARG_NO_OVERLAP              // --no-overlap
 };

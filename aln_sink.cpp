@@ -1181,30 +1181,34 @@ size_t AlnSinkWrap::selectByScore(
 	assert(repOk());
 	assert_gt(num, 0);
 	assert(rs1 != NULL);
-	size_t sz = rs1->size();
+	size_t sz = rs1->size(); // sz = # alignments found
 	assert_leq(num, sz);
 	if(sz < num) {
 		num = sz;
 	}
+	// num = # to select
 	if(sz < 1) {
 		return 0;
 	}
 	select.resize(num);
+	// Use 'selectBuf_' as a temporary list for sorting purposes
 	EList<std::pair<TAlScore, size_t> >& buf =
 		const_cast<EList<std::pair<TAlScore, size_t> >& >(selectBuf_);
 	buf.resize(sz);
+	// Sort by score.  If reads are pairs, sort by sum of mate scores.
 	for(size_t i = 0; i < sz; i++) {
 		buf[i].first = (*rs1)[i].score().score();
 		if(rs2 != NULL) {
 			buf[i].first += (*rs2)[i].score().score();
 		}
-		buf[i].second = i;
+		buf[i].second = i; // original offset
 	}
 	buf.sort(); buf.reverse();
-	for(size_t i = 0; i < num; i++) {
-		select[i] = selectBuf_[i].second;
-	}
-	return selectBuf_[0].second; // index of representative alignment
+	for(size_t i = 0; i < num; i++) { select[i] = selectBuf_[i].second; }
+	// Returns index of the representative alignment, but in 'select' also
+	// returns the indexes of the next best selected alignments in order by
+	// score.
+	return selectBuf_[0].second;
 }
 
 /**

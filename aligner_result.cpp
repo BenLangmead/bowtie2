@@ -1305,19 +1305,15 @@ void AlnSetSumm::init(
  * why the mate was filtered.
  */
 bool AlnFlags::printYF(OutFileBuf& o, bool first) const {
-	size_t flag = 0;
-	if(!lenfilt_) flag = 1;
-	if(!nfilt_)   flag = 2;
-	if(!scfilt_)  flag = 3;
-	if(!qcfilt_)  flag = 4;
-	char buf[128];
+	const char *flag = "";
+	if     (!lenfilt_) flag = "LN";
+	else if(!nfilt_  ) flag = "NS";
+	else if(!scfilt_ ) flag = "SC";
+	else if(!qcfilt_ ) flag = "QC";
 	if(flag > 0) {
-		if(!first) {
-			o.write('\t');
-		}
+		if(!first) o.write('\t');
 		o.writeChars("YF:i:");
-		itoa10<size_t>(flag, buf);
-		o.writeChars(buf);
+		o.writeChars(flag);
 		return false;
 	}
 	return true;

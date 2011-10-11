@@ -271,10 +271,11 @@ void SamConfig::printAlignedOptFlags(
 		flags.printYM(o);
 	}
 	if(print_yf_ && flags.filtered()) {
-		// YM:i: Read was repetitive when aligned unpaired?
+		// YF:i: Read was filtered?
 		first = flags.printYF(o, first) && first;
 	}
 	if(print_yi_) {
+		// Print MAPQ calibration info
 		if(mapqInp[0] != '\0') {
 			// YI:i: Suboptimal alignment score
 			WRITE_SEP();

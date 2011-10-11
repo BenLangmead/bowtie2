@@ -1629,7 +1629,7 @@ bool Ebwt::contains(
  * exact path given by the user.  Then try the user-provided string
  * appended onto the path of the "indexes" subdirectory below this
  * executable, then try the provided string appended onto
- * "$BOWTIE_INDEXES/".
+ * "$BOWTIE2_INDEXES/".
  */
 string adjustEbwtBase(const string& cmdline,
 					  const string& ebwtFileBase,
@@ -1656,8 +1656,8 @@ string adjustEbwtBase(const string& cmdline,
 		if(!in.is_open()) {
 			if(verbose) cout << "  didn't work" << endl;
 			in.close();
-			if(getenv("BOWTIE_INDEXES") != NULL) {
-				str = string(getenv("BOWTIE_INDEXES")) + "/" + ebwtFileBase;
+			if(getenv("BOWTIE2_INDEXES") != NULL) {
+				str = string(getenv("BOWTIE2_INDEXES")) + "/" + ebwtFileBase;
 				if(verbose) cout << "Trying " << str << endl;
 				in.open((str + ".1.bt2").c_str(), ios_base::in | ios::binary);
 				if(!in.is_open()) {

@@ -1881,7 +1881,7 @@ private:
 			list_[i] = list_[i+1];
 		}
 		cur_--;
-		assert(sorted);
+		assert(sorted());
 	}
 
 	/**
@@ -2171,7 +2171,7 @@ private:
 			list_[i] = list_[i+1];
 		}
 		cur_--;
-		assert(sorted);
+		assert(sorted());
 	}
 
 	/**
