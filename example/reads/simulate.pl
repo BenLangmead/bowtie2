@@ -91,7 +91,7 @@ my @fraglens  = ();     # fragment lengths (for paired)
 my @readlens  = ();     # read/end lengths
 
 if($long) {
-	$nreads = 3000;
+	$nreads = 6000;
 	$rdlen_av = 300;
 	$rdlen_min = 40;
 }
