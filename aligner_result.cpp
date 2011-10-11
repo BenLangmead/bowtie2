@@ -1312,7 +1312,7 @@ bool AlnFlags::printYF(OutFileBuf& o, bool first) const {
 	else if(!qcfilt_ ) flag = "QC";
 	if(flag > 0) {
 		if(!first) o.write('\t');
-		o.writeChars("YF:i:");
+		o.writeChars("YF:Z:");
 		o.writeChars(flag);
 		return false;
 	}
