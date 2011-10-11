@@ -64,38 +64,43 @@ The chief differences between Bowtie 1 and Bowtie 2 are:
 sensitive, and uses less memory than Bowtie 1.  For relatively short reads (e.g.
 less than 50 bp) Bowtie 1 is sometimes faster and/or more sensitive.
 
-2. Bowtie 2 fully supports gapped alignment with affine gap penalties. Number of
-gaps and gap lengths are not restricted, except by way of the scoring scheme,
-which is user-configurable. scoring scheme.  Bowtie 1 only finds ungapped
-alignments.
+2. Bowtie 2 supports gapped alignment with affine gap penalties. Number of gaps
+and gap lengths are not restricted, except by way of the configurable scoring
+scheme.  Bowtie 1 finds just ungapped alignments.
 
-3. Bowtie 2 supports a "local" alignment mode, which doesn't require that reads
-align end-to-end.  In this mode, alignments might be "trimmed" ("soft clipped")
-at one or both extremes in a way that optimizes alignment score. Bowtie 2 also
-supports an "end-to-end" alignment mode which, like Bowtie 1, requires that the
-read align entirely.
+3. Bowtie 2 supports [local alignment], which doesn't require reads to align
+end-to-end.  Local alignments might be "trimmed" ("soft clipped") at one or both
+extremes in a way that optimizes alignment score. Bowtie 2 also supports
+[end-to-end alignment] which, like Bowtie 1, requires that the read align
+entirely.
 
 4. There is no upper limit on read length in Bowtie 2.  Bowtie 1 had an upper
 limit of around 1000 bp.
 
-5. Bowtie 2 does away with Bowtie 1's notion of alignment "stratum".  In Bowtie
-2 all alignments lie along a continuous spectrum of alignment scores.
+5. Bowtie 2 allows alignments to [overlap ambiguous characters] (e.g. `N`s) in
+the reference.  Bowtie 1 did not.
 
-6. There is no longer a distinction between "end-to-end" and "Maq-like" modes as
-in Bowtie 1.  There is just one scoring scheme, similar to [Needleman–Wunsch]
-and [Smith-Waterman].
+6. Bowtie 2 does away with Bowtie 1's notion of alignment "stratum", and its
+distinction between "Maq-like" and "end-to-end" modes.  In Bowtie 2 all
+alignments lie along a continuous spectrum of alignment scores where the
+[scoring scheme], similar to [Needleman–Wunsch] and [Smith-Waterman].
 
-7. Bowtie 2's paired-end alignment mode is more flexible than Bowtie 1's. For
-example, for pairs that do not align in a paired fashion, it will attempt to
-find unpaired alignments for each mate.
+7. Bowtie 2's [paired-end alignment] is more flexible.  E.g. for pairs that do
+not align in a paired fashion, Bowtie 2 attempts to find unpaired alignments for
+each mate.
 
 8. Bowtie 2 does not align colorspace reads.
 
 Bowtie 2 is not a "drop-in" replacement for Bowtie 1.  Bowtie 2's command-line
 arguments and genome index format are both different from Bowtie 1's.
 
+[local alignment]: #end-to-end-alignment-versus-local-alignment
+[end-to-end alignment]: #end-to-end-alignment-versus-local-alignment
+[overlap ambiguous characters]: #ambiguous-characters
 [Needleman–Wunsch]: http://en.wikipedia.org/wiki/Needleman–Wunsch_algorithm
 [Smith-Waterman]:   http://en.wikipedia.org/wiki/Smith_waterman
+[scoring scheme]: #scores-higher-more-similar
+[paired-end alignment]: #aligning-pairs
 
 What isn't Bowtie 2?
 --------------------
@@ -126,7 +131,10 @@ supported in future versions.
 What does it mean that Bowtie 2 is "beta"?
 ------------------------------------------
 
-Bowtie 2 is in "beta" mode meaning that it is not as polished as a tool that has been around for a while, and it might
+We say that Bowtie 2 is in "beta" to convey (a) that it is not as polished as a
+tool that has been around for a while, and (b) it is still in flux. Features and
+file formats might still change in the near future, so please do not depend
+heavily on these remaining static.
 
 Obtaining Bowtie 2
 ==================
@@ -169,6 +177,19 @@ library.  To compile Bowtie 2 without `pthreads` (which disables [`-p`]), use
 [sourceforge site]: https://sourceforge.net/projects/bowtie-bio/files/bowtie/
 [Xcode]:    http://developer.apple.com/xcode/
 
+Adding to PATH
+--------------
+
+By adding your new Bowtie 2 directory to your [PATH environment variable], you
+ensure that whenever you run `bowtie2`, `bowtie2-build` or `bowtie2-inspect`
+from the command line, you will get the version you just installed without
+having to specify the entire path.  This is recommended for most users.  To do
+this, follow your operating system's instructions for adding the directory to
+your [PATH].
+
+[PATH environment variable]: http://en.wikipedia.org/wiki/PATH_(variable)
+[PATH]: http://en.wikipedia.org/wiki/PATH_(variable)
+
 The `bowtie2` aligner
 =====================
 
@@ -192,12 +213,12 @@ End-to-end alignment versus local alignment
 -------------------------------------------
 
 By default, Bowtie 2 performs end-to-end read alignment.  That is, it searches
-for alignments where all of the characters are involved.  This could also be
-called an "untrimmed" alignment.
+for alignments involving all of the read characters.  This could also be called
+an "untrimmed" alignment.
 
 When the --local option is specified, Bowtie 2 performs local read alignment. In
 this mode, Bowtie 2 might "trim" or "clip" some read characters from one or both
-ends of the alignment to maximize the alignment score.
+ends of the alignment if doing so maximizes the alignment score.
 
 ### End-to-end alignment example
 
@@ -268,7 +289,7 @@ The best possible score in local mode equals the match bonus times the length of
 the read.  This happens when there are no differences between the read and the
 reference.
 
-### Minimum score threshold
+### Valid alignments meet or exceed the minimum score threshold
 
 For an alignment to be considered "valid" (i.e. "good enough") by Bowtie 2, it
 must have an alignment score no less than the minimum score threshold.  The
@@ -471,17 +492,33 @@ Reporting
 
 The reporting mode governs how many alignments Bowtie 2 looks for, and how to
 report them.  Bowtie 2 has three distinct reporting modes.  The default
-reporting mode, -M, is similar to the default reporting mode of many other read
-alignment tools, including [BWA].  It is also similar to Bowtie 1's `-M`
+reporting mode, [`-M`], is similar to the default reporting mode of many other
+read alignment tools, including [BWA].  It is also similar to Bowtie 1's `-M`
 alignment mode.
 
-Quick terminology note: we say two alignments are "distinct," if they map the
-read to different places on the genome, roughly speaking.  Specifically, we say
-that a pair of alignments for the same read are distinct if there are no
-positions such that the same read offset is being lined up opposite the same
-reference offset in both alignments.
+In general, when we say that a read has an alignment, we mean that it has a
+[valid alignment].  When we say that a read has multiple alignments, we mean
+that it has multiple alignments that are valid and distinct from one another. 
 
+[valid alignment]: #valid-alignments-meet-or-exceed-the-minimum-score-threshold
 [BWA]: http://bio-bwa.sourceforge.net/
+
+### Distinct alignments map a read to different places
+
+Two alignments for the same individual read are "distinct" if they map the same
+read to different places.  Specifically, we say that two alignments are distinct
+if there are no alignment positions where a particular read offset is aligned
+opposite a particular reference offset in both alignments with the same
+orientation.  E.g. if the first alignment is in the forward orientation and
+aligns the read character at read offset 10 to the reference character at
+chromosome 3, offset 3,445,245, and the second alignment is also in the forward
+orientation and also aligns the read character at read offset 10 to the
+reference character at chromosome 3, offset 3,445,245, they are not distinct
+alignments.
+
+Two alignments for the same pair are distinct if either the mate 1s in the two
+paired-end alignments are distinct or the mate 2s in the two alignments are
+distinct or both.
 
 ### -M mode: search for multiple alignments, report the best
 
@@ -580,6 +617,29 @@ concern for users.
 [Bowtie 1 paper]: http://genomebiology.com/2009/10/3/R25
 [FM Index]: http://portal.acm.org/citation.cfm?id=796543
 [bi-directional BWT approach]: http://www.computer.org/portal/web/csdl/doi/10.1109/BIBM.2009.42
+
+Ambiguous characters
+--------------------
+
+Non-whitespace characters besides A, C, G or T are considered "ambiguous."  N is
+a common ambiguous character that appears in reference sequences.  Bowtie 2
+considers all ambiguous characters in the reference (including [IUPAC nucleotide
+codes]) to be Ns.
+
+Bowtie 2 allows alignments to overlap ambiguous characters in the reference. An
+alignment position that contains an ambiguous character in the read, reference,
+or both, is penalized according to [`--np`].  [`--n-ceil`] sets an upper limit
+on the number of positions that may contain ambiguous reference characters in a
+valid alignment.  The optional field [`XN:i`] reports the number of ambiguous
+reference characters overlapped by an alignment.
+
+Note that the [multiseed heuristic] cannot find *seed* alignments that overlap
+ambiguous reference characters.  For an alignment overlapping an ambiguous
+reference character to be found, it must have one or more seed alignments that
+do not overlap ambiguous reference characters.
+
+[IUPAC nucleotide codes]: http://www.bioinformatics.org/sms/iupac.html
+[multiseed heuristic]: #multiseed-heuristic
 
 Filtering
 ---------
@@ -1461,7 +1521,7 @@ Default: mates can overlap in a concordant alignment.
 
 </td></tr></table>
 
-#### Output
+#### Output options
 
 <table>
 
@@ -1526,7 +1586,7 @@ either [`--met-stderr`] or [`--met-file`] are specified.  Default: 1.
 </td></tr>
 </table>
 
-#### SAM
+#### SAM options
 
 <table>
 
@@ -1567,7 +1627,7 @@ Spec][SAM].
 
 </td></tr></table>
 
-#### Performance
+#### Performance options
 
 <table><tr>
 
@@ -1621,7 +1681,7 @@ possible.
 
 </td></tr></table>
 
-#### Other
+#### Other options
 
 <table>
 <tr><td id="bowtie2-options-qc-filter">
@@ -2345,3 +2405,156 @@ Print usage information and quit.
 
 </td></tr></table>
 
+Getting started with Bowtie 2: Lambda phage example
+===================================================
+
+Bowtie 2 comes with some example files to get you started.  The example files
+are not scientifically significant; we use the [Lambda phage] reference genome
+simply because it's short, and the reads were generated by a computer program,
+not a sequencer.  However, these files will let you start running Bowtie 2 and
+downstream tools right away.
+
+First follow the manual instructions to [obtain Bowtie 2].  Set the `BT2_HOME`
+environment variable to point to the new Bowtie 2 directory containing the
+`bowtie2`, `bowtie2-build` and `bowtie2-inspect` binaries.  This is important,
+as the `BT2_HOME` variable is used in the commands below to refer to that
+directory.
+
+[Lambda phage]: http://en.wikipedia.org/wiki/Lambda_phage
+[obtain Bowtie 2]: #obtaining-bowtie-2
+
+Indexing a reference genome
+---------------------------
+
+To create an index for the [Lambda phage] reference genome included with Bowtie
+2, create a new temporary directory (it doesn't matter where), change into that
+directory, and run:
+
+    $BT2_HOME/bowtie2-build $BT2_HOME/example/reference/lambda_virus.fa lambda_virus
+
+The command should print many lines of output then quit. When the command
+completes, the current directory will contain four new files that all start with
+`lambda_virus` and end with `.1.bt2`, `.2.bt2`, `.3.bt2`, `.4.bt2`,
+`.rev.1.bt2`, and `.rev.2.bt2`.  These files constitute the index - you're done!
+
+You can use `bowtie2-build` to create an index for a set of FASTA files obtained
+from any source, including sites such as [UCSC], [NCBI], and [Ensembl]. When
+indexing multiple FASTA files, specify all the files using commas to separate
+file names.  For more details on how to create an index with `bowtie2-build`,
+see the [manual section on index building].  You may also want to bypass this
+process by obtaining a pre-built index.  See [using a pre-built index] below
+for an example.
+
+[UCSC]: http://genome.ucsc.edu/cgi-bin/hgGateway
+[NCBI]: http://www.ncbi.nlm.nih.gov/sites/genome
+[Ensembl]: http://www.ensembl.org/
+[manual section on index building]: #the-bowtie2-build-indexer
+[using a pre-built index]: #using-a-pre-built-index
+
+Aligning example reads
+----------------------
+
+Stay in the directory created in the previous step, which now contains the
+`lambda_virus` index files.  Next, run:
+
+    $BT2_HOME/bowtie2 -x lambda_virus -U $BT2_HOME/example/reads/reads_1.fq -S eg1.sam
+
+This runs the Bowtie 2 aligner, which aligns a set of unpaired reads to the
+[Lambda phage] reference genome using the index generated in the previous step.
+The alignment results in SAM format are written to the file `eg1.sam`, and a
+short alignment summary is written to the console.  (Actually, the summary is
+written to the "standard error" or "stderr" filehandle, which is typically
+printed to the console.)
+
+To see the first few lines of the SAM output, run:
+
+    head eg1.sam
+
+You will see something like this:
+
+    @HD	VN:1.0	SO:unsorted
+    @SQ	SN:gi|9626243|ref|NC_001416.1|	LN:48502
+    @PG	ID:bowtie2	PN:bowtie2	VN:2.0.0-beta1
+    r1	0	gi|9626243|ref|NC_001416.1|	18401	37	122M	*	0	0	TGAATGCGAACTCCGGGACGCTCAGTAATGTGACGATAGCTGAAAACTGTACGATAAACNGTACGCTGAGGGCAGAAAAAATCGTCGGGGACATTNTAAAGGCGGCGAGCGCGGCTTTTCCG	+"@6<:27(F&5)9)"B:%B+A-%5A?2$HCB0B+0=D<7E/<.03#!.F77@6B==?C"7>;))%;,3-$.A06+<-1/@@?,26">=?*@'0;$:;??G+:#+(A?9+10!8!?()?7C>	AS:i:-5	XN:i:0	XM:i:3	XO:i:0	XG:i:0	NM:i:3	MD:Z:59G13G21G26	YT:Z:UU	YM:i:0	YF:i:
+    r2	0	gi|9626243|ref|NC_001416.1|	8886	37	275M	*	0	0	NTTNTGATGCGGGCTTGTGGAGTTCAGCCGATCTGACTTATGTCATTACCTATGAAATGTGAGGACGCTATGCCTGTACCAAATCCTACAATGCCGGTGAAAGGTGCCGGGATCACCCTGTGGGTTTATAAGGGGATCGGTGACCCCTACGCGAATCCGCTTTCAGACGTTGACTGGTCGCGTCTGGCAAAAGTTAAAGACCTGACGCCCGGCGAACTGACCGCTGAGNCCTATGACGACAGCTATCTCGATGATGAAGATGCAGACTGGACTGC	(#!!'+!$""%+(+)'%)%!+!(&++)''"#"#&#"!'!("%'""("+&%$%*%%#$%#%#!)*'(#")(($&$'&%+&#%*)*#*%*')(%+!%%*"$%"#+)$&&+)&)*+!"*)!*!("&&"*#+"&"'(%)*("'!$*!!%$&&&$!!&&"(*"$&"#&!$%'%"#)$#+%*+)!&*)+(""#!)!%*#"*)*')&")($+*%%)!*)!('(%""+%"$##"#+(('!*(($*'!"*('"+)&%#&$+('**$$&+*&!#%)')'(+(!%+	AS:i:-9	XN:i:0	XM:i:8	XO:i:0	XG:i:0	NM:i:8	MD:Z:0A0C0G0A108C23G9T81T46	YT:Z:UU	YM:i:0	YF:i:
+    r3	16	gi|9626243|ref|NC_001416.1|	11599	37	338M	*	0	0	GGGCGCGTTACTGGGATGATCGTGAAAAGGCCCGTCTTGCGCTTGAAGCCGCCCGAAAGAAGGCTGAGCAGCAGACTCAAGAGGAGAAAAATGCGCAGCAGCGGAGCGATACCGAAGCGTCACGGCTGAAATATACCGAAGAGGCGCAGAAGGCTNACGAACGGCTGCAGACGCCGCTGCAGAAATATACCGCCCGTCAGGAAGAACTGANCAAGGCACNGAAAGACGGGAAAATCCTGCAGGCGGATTACAACACGCTGATGGCGGCGGCGAAAAAGGATTATGAAGCGACGCTGTAAAAGCCGAAACAGTCCAGCGTGAAGGTGTCTGCGGGCGAT	7F$%6=$:9B@/F'>=?!D?@0(:A*)7/>9C>6#1<6:C(.CC;#.;>;2'$4D:?&B!>689?(0(G7+0=@37F)GG=>?958.D2E04C<E,*AD%G0.%$+A:'H;?8<72:88?E6((CF)6DF#.)=>B>D-="C'B080E'5BH"77':"@70#4%A5=6.2/1>;9"&-H6)=$/0;5E:<8G!@::1?2DC7C*;@*#.1C0.D>H/20,!"C-#,6@%<+<D(AG-).?&#0.00'@)/F8?B!&"170,)>:?<A7#1(A@0E#&A.*DC.E")AH"+.,5,2>5"2?:G,F"D0B8D-6$65D<D!A/38860.*4;4B<*31?6	AS:i:-22	XN:i:0	XM:i:8	XO:i:0	XG:i:0	NM:i:8	MD:Z:80C4C16A52T23G30A8T76A41	YT:Z:UU	YM:i:0	YF:i:
+    r4	0	gi|9626243|ref|NC_001416.1|	40075	37	184M	*	0	0	GGGCCAATGCGCTTACTGATGCGGAATTACGCCGTAAGGCCGCAGATGAGCTTGTCCATATGACTGCGAGAATTAACNGTGGTGAGGCGATCCCTGAACCAGTAAAACAACTTCCTGTCATGGGCGGTAGACCTCTAAATCGTGCACAGGCTCTGGCGAAGATCGCAGAAATCAAAGCTAAGTT	(=8B)GD04*G%&4F,1'A>.C&7=F$,+#6!))43C,5/5+)?-/0>/D3=-,2/+.1?@->;)00!'3!7BH$G)HG+ADC'#-9F)7<7"$?&.>0)@5;4,!0-#C!15CF8&HB+B==H>7,/)C5)5*+(F5A%D,EA<(>G9E0>7&/E?4%;#'92)<5+@7:A.(BG@BG86@.G	AS:i:-1	XN:i:0	XM:i:1	XO:i:0	XG:i:0	NM:i:1	MD:Z:77C106	YT:Z:UU	YM:i:0	YF:i:
+    r5	0	gi|9626243|ref|NC_001416.1|	48010	37	138M	*	0	0	GTCAGGAAAGTGGTAAAACTGCAACTCAATTACTGCAATGCCCTCGTAATTAAGTGAATTTACAATATCGTCCTGTTCGGAGGGAAGAACGCGGGATGTTCATTCTTCATCACTTTTAATTGATGTATATGCTCTCTT	9''%<D)A03E1-*7=),:F/0!6,D9:H,<9D%:0B(%'E,(8EFG$E89B$27G8F*2+4,-!,0D5()&=(FGG:5;3*@/.0F-G#5#3->('FDFEG?)5.!)"AGADB3?6(@H(:B<>6!>;>6>G,."?%	AS:i:0	XN:i:0	XM:i:0	XO:i:0	XG:i:0	NM:i:0	MD:Z:138	YT:Z:UU	YM:i:0	YF:i:
+    r6	16	gi|9626243|ref|NC_001416.1|	41607	37	72M2D119M	*	0	0	TCGATTTGCAAATACCGGAACATCTCGGTAACTGCATATTCTGCATTAAAAAATCAACGCAAAAAATCGGACGCCTGCAAAGATGAGGAGGGATTGCAGCGTGTTTTTAATGAGGTCATCACGGGATNCCATGTGCGTGACGGNCATCGGGAAACGCCAAAGGAGATTATGTACCGAGGAAGAATGTCGCT	1H#G;H"$E*E#&"*)2%66?=9/9'=;4)4/>@%+5#@#$4A*!<D=="8#1*A9BA=:(1+#C&.#(3#H=9E)AC*5,AC#E'536*2?)H14?>9'B=7(3H/B:+A:8%1-+#(E%&$$&14"76D?>7(&20H5%*&CF8!G5B+A4F$7(:"'?0$?G+$)B-?2<0<F=D!38BH,%=8&5@+	AS:i:-13	XN:i:0	XM:i:2	XO:i:1	XG:i:2	NM:i:4	MD:Z:72^TT55C15A47	YT:Z:UU	YM:i:0	YF:i:
+    r7	16	gi|9626243|ref|NC_001416.1|	4692	37	143M	*	0	0	TCAGCCGGACGCGGGCGCTGCAGCCGTACTCGGGGATGACCGGTTACAACGGCATTATCGCCCGTCTGCAACAGGCTGCCAGCGATCCGATGGTGGACAGCATTCTGCTCGATATGGACANGCCCGGCGGGATGGTGGCGGGG	-"/@*7A0)>2,AAH@&"%B)*5*23B/,)90.B@%=FE,E063C9?,:26$-0:,.,1849'4.;F>FA;76+5&$<C":$!A*,<B,<)@<'85D%C*:)30@85;?.B$05=@95DCDH<53!8G:F:B7/A.E':434>	AS:i:-7	XN:i:0	XM:i:2	XO:i:0	XG:i:0	NM:i:2	MD:Z:98G21C22	YT:Z:UU	YM:i:0	YF:i:
+
+The first few lines (beginning with `@`) are SAM header lines, and the rest of
+the lines are SAM alignments, one line per read or mate.  See the [Bowtie 2
+manual section on SAM output] and the [SAM specification] for details about how
+to interpret the SAM file format.
+
+[Bowtie 2 manual section on SAM output]: #sam-output
+
+Paired-end example
+------------------
+
+To align paired-end reads included with Bowtie 2, stay in the same directory and
+run:
+
+    $BT2_HOME/bowtie2 -x lambda_virus -1 $BT2_HOME/example/reads/reads_1.fq -2 $BT2_HOME/example/reads/reads_2.fq -S eg2.sam
+
+This aligns a set of paired-end reads to the reference genome, with results
+written to the file `eg2.sam`.
+
+Local alignment example
+-----------------------
+
+To use [local alignment] to align some longer reads included with Bowtie 2, stay
+in the same directory and run:
+
+    $BT2_HOME/bowtie2 --local -x lambda_virus -U $BT2_HOME/example/reads/longreads.fq -S eg3.sam
+
+This aligns the long reads to the reference genome using local alignment, with
+results written to the file `eg3.sam`.
+
+[local alignment]: #end-to-end-alignment-versus-local-alignment
+
+Using SAMtools/BCFtools downstream
+----------------------------------
+
+[SAMtools] is a collection of tools for manipulating and analyzing SAM and BAM
+alignment files.  [BCFtools] is a collection of tools for calling variants and
+manipulating VCF and BCF files, and it is typically distributed with [SAMtools].
+Using these tools together allows you to get from alignments in SAM format to
+variant calls in VCF format.  This example assumes that `samtools` and
+`bcftools` are installed and that the directories containing these binaries are
+in your [PATH environment variable].
+
+If you haven't already done so above, run the paired-end example.  Run it in the
+same directory where you ran the initial index-building step.  Here is the
+command again:
+
+    $BT2_HOME/bowtie2 -x lambda_virus -1 $BT2_HOME/example/reads/reads_1.fq -2 $BT2_HOME/example/reads/reads_2.fq -S eg2.sam
+
+Use `samtools view` to convert the SAM file into a BAM file.  BAM is a the
+binary format corresponding to the SAM text format.  Run:
+
+    samtools view -bS eg2.sam > eg2.bam
+
+Use `samtools sort` to convert the BAM file to a sorted BAM file.
+
+    samtools sort eg2.bam eg2.sorted
+
+We now have a sorted BAM file called `eg2.sorted.bam`. Sorted BAM is a useful
+format because the alignments are (a) compressed, which is convenient for
+long-term storage, and (b) sorted, which is conveneint for variant discovery.
+To generate variant calls in VCF format, run:
+
+    samtools mpileup -uf $BT2_HOME/example/reference/lambda_virus.fa eg2.sorted.bam | bcftools view -bvcg - > eg2.raw.bcf
+
+Then to view the variants, run:
+
+    bcftools view eg2.raw.bcf
+
+See the official SAMtools guide to [Calling SNPs/INDELs with SAMtools/BCFtools]
+for more details and variations on this process.
+
+[SAMtools]: http://samtools.sourceforge.net/
+[BCFtools]: http://samtools.sourceforge.net/mpileup.shtml
+[PATH environment variable]: http://en.wikipedia.org/wiki/PATH_(variable)
+[Calling SNPs/INDELs with SAMtools/BCFtools]: http://samtools.sourceforge.net/mpileup.shtml
