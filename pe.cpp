@@ -249,8 +249,10 @@ bool PairedEndPolicy::otherMate(
 		if(!olapOk_) {
 			// RHS can't be flush with or to the right of off
 			orr = min<int64_t>(orr, off-1);
+			if(orr < olr) olr = orr;
 			assert_leq(oll, olr);
 			assert_leq(orl, orr);
+			assert_geq(orr, olr);
 		}
 		// What if dovetail alignments are not allowed?
 		else if(!dovetailOk_) {
@@ -319,8 +321,10 @@ bool PairedEndPolicy::otherMate(
 		if(!olapOk_) {
 			// LHS can't be left of off+alen
 			oll = max<int64_t>(oll, off+alen);
+			if(oll > orl) orl = oll;
 			assert_leq(oll, olr);
 			assert_leq(orl, orr);
+			assert_geq(orl, oll);
 		}
 		// What if dovetail alignments are not allowed?
 		else if(!dovetailOk_) {

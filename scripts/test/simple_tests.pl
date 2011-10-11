@@ -59,6 +59,139 @@ if(! -x $bowtie2 || ! -x $bowtie2_build) {
 my @cases = (
 
 	#
+	# Test some common featuers for the manual.  E.g. when more than one
+	# alignment is reported in -k mode, what order are they reported in?  They
+	# should be in order by alignment score.
+	#
+	
+	{ name   => "Alignment order -k",
+	#              012345678
+	  ref    => [ "GCGCATGCACATATCANNNNNGCGCATGCACATATCTNNNNNNNNGCGCATGCACATATTTNNNNNNNNNGCGCATGGTGTTATCA" ],
+	  reads  => [ "GCGCATGCACATATCA" ],
+	  quals  => [ "GOAIYEFGFIWDSFIU" ],
+	  args   => "--min-score C,-24,0 -L 4",
+	  report => "-k 4"
+	},
+
+	{ name   => "Alignment order -a",
+	#              012345678
+	  ref    => [ "GCGCATGCACATATCANNNNNGCGCATGCACATATCTNNNNNNNNGCGCATGCACATATTTNNNNNNNNNGCGCATGGTGTTATCA" ],
+	  reads  => [ "GCGCATGCACATATCA" ],
+	  quals  => [ "GOAIYEFGFIWDSFIU" ],
+	  args   => "--min-score C,-24,0 -L 4",
+	  report => "-a"
+	},
+	
+	#
+	# What order are mates reported in?  Should be reporting in mate1/mate2
+	# order.
+	#
+
+	{ name   => "Mate reporting order, -a",
+	#              012345678
+	  ref    => [ "AGCTATCATCACGCGGATATTAGCGCATCGACATTAATATCCCCAAAATAGACGACTCGATCGCGGATTAGGGGTAGACCCCCCCCCGACTNNNNNNNNNNAGCTATCATCACGCGGATATTAGCGCATCGACATTAATATCCCCAAAATAGACGACTCGATCGCGGATTAGGGGTAGACCCCCCCCCGACTNNNNNNNNNNAGCTATCATCACGCGGATATTAGCGCATCGACATTAATATCCCCAAAATAGACGACTCGATCGCGGATTAGGGGTAGACCCCCCCCCGACTNNNNNNNNCGGTAATACGGCCATCGCGGCGGCATTACTCGGCGACTGCACGAGCAGATATTGGGGGTCTAATATAACGTCTCATTAAAACGCTCTAGTCAGCTCATTGGCTCTA" ],
+	  mate1s => [ "CTATCATCACGCGGATATT", "GGGGGGGGTCTACCCCTAA", "ATACGGCCATCGCGGCGGCATTACTCGGCG" ],
+	  mate2s => [ "GGGGGGGGTCTACCCCTAA", "CTATCATCACGCGGATATT", "AGCCAATGAGCTGACTAGAGCGTTTT" ],
+	  quals  => [ "GOAIYEFGFIWDSFIU" ],
+	  args   => "",
+	  report => "-a"
+	},
+
+	{ name   => "Mate reporting order, -M 1",
+	#              012345678
+	  ref    => [ "AGCTATCATCACGCGGATATTAGCGCATCGACATTAATATCCCCAAAATAGACGACTCGATCGCGGATTAGGGGTAGACCCCCCCCCGACTNNNNNNNNNNAGCTATCATCACGCGGATATTAGCGCATCGACATTAATATCCCCAAAATAGACGACTCGATCGCGGATTAGGGGTAGACCCCCCCCCGACTNNNNNNNNNNAGCTATCATCACGCGGATATTAGCGCATCGACATTAATATCCCCAAAATAGACGACTCGATCGCGGATTAGGGGTAGACCCCCCCCCGACTNNNNNNNNCGGTAATACGGCCATCGCGGCGGCATTACTCGGCGACTGCACGAGCAGATATTGGGGGTCTAATATAACGTCTCATTAAAACGCTCTAGTCAGCTCATTGGCTCTA" ],
+	  mate1s => [ "CTATCATCACGCGGATATT", "GGGGGGGGTCTACCCCTAA", "ATACGGCCATCGCGGCGGCATTACTCGGCG" ],
+	  mate2s => [ "GGGGGGGGTCTACCCCTAA", "CTATCATCACGCGGATATT", "AGCCAATGAGCTGACTAGAGCGTTTT" ],
+	  quals  => [ "GOAIYEFGFIWDSFIU" ],
+	  args   => "",
+	  report => "-M 1"
+	},
+	
+	#
+	# Test dovetailing, containment, and overlapping
+	#
+	{ name     => "Non-overlapping; no args",
+	  ref      => [ "AGCTATCATCACGCGGATATTAGCGCATCGACATTAATATCCCCAAA" ],
+	  #              01234567890123456789012345678901234567890123456
+	  mate1s   => [  "GCTATCATCACGCGGATA"                        ],
+	  mate2s   => [                        "CGCATCGACATTAATATCC" ],
+	  pairhits => [{ "1,23" => 1 }],
+	  mate1fw  => 1, mate2fw => 1,
+	  report   => "-M 1"
+	},
+	{ name     => "Non-overlapping; --no-dovetail",
+	  ref      => [ "AGCTATCATCACGCGGATATTAGCGCATCGACATTAATATCCCCAAA" ],
+	  #              01234567890123456789012345678901234567890123456
+	  mate1s   => [  "GCTATCATCACGCGGATA"                        ],
+	  mate2s   => [                        "CGCATCGACATTAATATCC" ],
+	  pairhits => [{ "1,23" => 1 }],
+	  mate1fw  => 1, mate2fw => 1,
+	  args     => "--no-dovetail",
+	  report   => "-M 1"
+	},
+	{ name     => "Non-overlapping; --no-contain",
+	  ref      => [ "AGCTATCATCACGCGGATATTAGCGCATCGACATTAATATCCCCAAA" ],
+	  #              01234567890123456789012345678901234567890123456
+	  mate1s   => [  "GCTATCATCACGCGGATA"                        ],
+	  mate2s   => [                        "CGCATCGACATTAATATCC" ],
+	  pairhits => [{ "1,23" => 1 }],
+	  mate1fw  => 1, mate2fw => 1,
+	  args     => "--no-contain",
+	  report   => "-M 1"
+	},
+	{ name     => "Non-overlapping; --no-overlap",
+	  ref      => [ "AGCTATCATCACGCGGATATTAGCGCATCGACATTAATATCCCCAAA" ],
+	  #              01234567890123456789012345678901234567890123456
+	  mate1s   => [  "GCTATCATCACGCGGATA"                        ],
+	  mate2s   => [                        "CGCATCGACATTAATATCC" ],
+	  pairhits => [{ "1,23" => 1 }],
+	  mate1fw  => 1, mate2fw => 1,
+	  args     => "--no-overlap",
+	  report   => "-M 1"
+	},
+
+	{ name     => "Overlapping; no args",
+	  ref      => [ "AGCTATCATCACGCGGATATTAGCGCATCGACATTAATATCCCCAAA" ],
+	  #              01234567890123456789012345678901234567890123456
+	  mate1s   => [  "GCTATCATCACGCGGATATTA"                        ],
+	  mate2s   => [                    "TTAGCGCATCGACATTAATATCC" ],
+	  pairhits => [{ "1,19" => 1 }],
+	  mate1fw  => 1, mate2fw => 1,
+	  args     => "",
+	  report   => "-M 1"
+	},
+	{ name     => "Overlapping; --no-dovetail",
+	  ref      => [ "AGCTATCATCACGCGGATATTAGCGCATCGACATTAATATCCCCAAA" ],
+	  #              01234567890123456789012345678901234567890123456
+	  mate1s   => [  "GCTATCATCACGCGGATATTA"                        ],
+	  mate2s   => [                    "TTAGCGCATCGACATTAATATCC" ],
+	  pairhits => [{ "1,19" => 1 }],
+	  mate1fw  => 1, mate2fw => 1,
+	  args     => "--no-dovetail",
+	  report   => "-M 1"
+	},
+	{ name     => "Overlapping; --no-contain",
+	  ref      => [ "AGCTATCATCACGCGGATATTAGCGCATCGACATTAATATCCCCAAA" ],
+	  #              01234567890123456789012345678901234567890123456
+	  mate1s   => [  "GCTATCATCACGCGGATATTA"                        ],
+	  mate2s   => [                    "TTAGCGCATCGACATTAATATCC" ],
+	  pairhits => [{ "1,19" => 1 }],
+	  mate1fw  => 1, mate2fw => 1,
+	  args     => "--no-contain",
+	  report   => "-M 1"
+	},
+	{ name     => "Overlapping; --no-overlap",
+	  ref      => [ "AGCTATCATCACGCGGATATTAGCGCATCGACATTAATATCCCCAAA" ],
+	  #              01234567890123456789012345678901234567890123456
+	  mate1s   => [  "GCTATCATCACGCGGATATTA"                        ],
+	  mate2s   => [                    "TTAGCGCATCGACATTAATATCC" ],
+	  pairhits => [],
+	  mate1fw  => 1, mate2fw => 1,
+	  args     => "--no-overlap",
+	  report   => "-M 1"
+	},
+
+	#
 	# Test XS:i with quality scaling
 	#
 	

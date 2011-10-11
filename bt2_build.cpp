@@ -123,7 +123,6 @@ static void printUsage(ostream& out) {
 	    << "Options:" << endl
 	    << "    -f                      reference files are Fasta (default)" << endl
 	    << "    -c                      reference sequences given on cmd line (as <seq_in>)" << endl
-	    << "    -C/--color              build a colorspace index" << endl
 	    << "    -a/--noauto             disable automatic -p/--bmax/--dcv memory-fitting" << endl
 	    << "    -p/--packed             use packed strings internally; slower, uses less mem" << endl
 	    << "    -B                      build both letter- and colorspace indexes" << endl
@@ -135,7 +134,7 @@ static void printUsage(ostream& out) {
 	    << "    -3/--justref            just build .3/.4.bt2 (packed reference) portion" << endl
 	    << "    -o/--offrate <int>      SA is sampled every 2^offRate BWT chars (default: 5)" << endl
 	    << "    -t/--ftabchars <int>    # of chars consumed in initial lookup (default: 10)" << endl
-	    << "    --ntoa                  convert Ns in reference to As" << endl
+	    //<< "    --ntoa                  convert Ns in reference to As" << endl
 	    //<< "    --big --little          endianness (default: little, this host: "
 	    //<< (currentlyBigEndian()? "big":"little") << ")" << endl
 	    << "    --seed <int>            seed for random number generator" << endl

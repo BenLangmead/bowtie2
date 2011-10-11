@@ -416,10 +416,13 @@ static struct option long_options[] = {
 	{(char*)"sam-omit-sec-seq", no_argument,   0,            ARG_SAM_OMIT_SEC_SEQ},
 	{(char*)"sam-nohead",   no_argument,       0,            ARG_SAM_NOHEAD},
 	{(char*)"sam-noHD",     no_argument,       0,            ARG_SAM_NOHEAD},
+	{(char*)"sam-no-hd",    no_argument,       0,            ARG_SAM_NOHEAD},
 	{(char*)"sam-nosq",     no_argument,       0,            ARG_SAM_NOSQ},
+	{(char*)"sam-no-sq",    no_argument,       0,            ARG_SAM_NOSQ},
 	{(char*)"sam-noSQ",     no_argument,       0,            ARG_SAM_NOSQ},
 	{(char*)"color",        no_argument,       0,            'C'},
 	{(char*)"sam-RG",       required_argument, 0,            ARG_SAM_RG},
+	{(char*)"sam-rg",       required_argument, 0,            ARG_SAM_RG},
 	{(char*)"snpphred",     required_argument, 0,            ARG_SNPPHRED},
 	{(char*)"snpfrac",      required_argument, 0,            ARG_SNPFRAC},
 	{(char*)"col-cseq",     no_argument,       0,            ARG_COLOR_SEQ},
@@ -463,6 +466,10 @@ static struct option long_options[] = {
 	{(char*)"fast",             no_argument,       0,        ARG_PRESET_FAST},
 	{(char*)"sensitive",        no_argument,       0,        ARG_PRESET_SENSITIVE},
 	{(char*)"very-sensitive",   no_argument,       0,        ARG_PRESET_VERY_SENSITIVE},
+	{(char*)"very-fast-local",      no_argument,   0,        ARG_PRESET_VERY_FAST_LOCAL},
+	{(char*)"fast-local",           no_argument,   0,        ARG_PRESET_FAST_LOCAL},
+	{(char*)"sensitive-local",      no_argument,   0,        ARG_PRESET_SENSITIVE_LOCAL},
+	{(char*)"very-sensitive-local", no_argument,   0,        ARG_PRESET_VERY_SENSITIVE_LOCAL},
 	{(char*)"no-score-priority",no_argument,       0,        ARG_NO_SCORE_PRIORITY},
 	{(char*)"seedlen",          required_argument, 0,        'L'},
 	{(char*)"seedmms",          required_argument, 0,        'N'},
@@ -473,6 +480,9 @@ static struct option long_options[] = {
 	{(char*)"wrapper",          required_argument, 0,        ARG_WRAPPER},
 	{(char*)"unpaired",         required_argument, 0,        'U'},
 	{(char*)"output",           required_argument, 0,        'S'},
+	{(char*)"no-dovetail",      no_argument,       0,        ARG_NO_DOVETAIL},
+	{(char*)"no-contain",       no_argument,       0,        ARG_NO_CONTAIN},
+	{(char*)"no-overlap",       no_argument,       0,        ARG_NO_OVERLAP},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -549,9 +559,9 @@ static void printUsage(ostream& out) {
 		<< endl
 	    << " Input:" << endl
 	    << "  -q                 query input files are FASTQ .fq/.fastq (default)" << endl
+	    << "  --qseq             query input files are in Illumina's qseq format" << endl
 	    << "  -f                 query input files are (multi-)FASTA .fa/.mfa" << endl
 	    << "  -r                 query input files are raw one-sequence-per-line" << endl
-	    << "  --qseq             query input files are in Illumina's qseq format" << endl
 	    << "  -c                 <m1>, <m2>, <r> are sequences themselves, not files" << endl
 	    << "  -s/--skip <int>    skip the first <int> reads/pairs in the input (none)" << endl
 	    << "  -u/--upto <int>    stop after first <int> reads/pairs (no limit)" << endl
@@ -575,10 +585,10 @@ static void printUsage(ostream& out) {
 		<< "   --very-sensitive-local -M 3 -N 0 -L 20 -i S,1,0.50" << endl
 		<< endl
 	    << " Alignment:" << endl
-		<< "  --N <int>          max # mismatches in seed alignment; can be 0 1 or 2 (0)" << endl
-		<< "  --L <int>          length of seed substrings; must be >3, <32 (22)" << endl
-		<< "  --i <func>         interval between seed substrings w/r/t read len (S,1,1.25)" << endl
-		<< "  --n-ceil           func for max # non-A/C/G/Ts permitted in aln (L,0,0.15)" << endl
+		<< "  -N <int>           max # mismatches in seed alignment; can be 0 1 or 2 (0)" << endl
+		<< "  -L <int>           length of seed substrings; must be >3, <32 (22)" << endl
+		<< "  -i <func>          interval between seed substrings w/r/t read len (S,1,1.25)" << endl
+		<< "  --n-ceil <func>    func for max # non-A/C/G/Ts permitted in aln (L,0,0.15)" << endl
 		<< "  --dpad <int>       include <int> extra ref chars on sides of DP table (15)" << endl
 		<< "  --gbar <int>       disallow gaps within <int> nucs of read extremes (4)" << endl
 		<< "  --ignore-quals     treat all quality values as 30 on Phred scale (off)" << endl
@@ -612,6 +622,9 @@ static void printUsage(ostream& out) {
 	    << "  --fr/--rf/--ff     -1, -2 mates align fw/rev, rev/fw, fw/fw (--fr)" << endl
 		<< "  --no-mixed         suppress unpaired alignments for paired reads" << endl
 		<< "  --no-discordant    suppress discordant alignments for paired reads" << endl
+		<< "  --no-dovetail      not concordant when mates extend past each other" << endl
+		<< "  --no-contain       not concordant when one mate alignment contains other" << endl
+		<< "  --no-overlap       not concordant when mates overlap at all" << endl
 		<< endl
 	    << " Output:" << endl;
 	//if(wrapper == "basic-0") {
@@ -620,9 +633,9 @@ static void printUsage(ostream& out) {
 	out << "  -t/--time          print wall-clock time taken by search phases" << endl
 	    << "  --quiet            print nothing to stderr except serious errors" << endl
 	//  << "  --refidx           refer to ref. seqs by 0-based index rather than name" << endl
-		<< "  --met <int>        report internal counters & metrics every <int> secs (1)" << endl
 		<< "  --met-file <path>  send metrics to file at <path> (off)" << endl
 		<< "  --met-stderr       send metrics to stderr (off)" << endl
+		<< "  --met <int>        report internal counters & metrics every <int> secs (1)" << endl
 	    << "  --sam-nohead       supppress header lines, i.e. lines starting with @" << endl
 	    << "  --sam-nosq         supppress @SQ header lines" << endl
 	    << "  --sam-RG <text>    add <text> (usually \"lab:value\") to @RG line of SAM header" << endl
@@ -640,6 +653,7 @@ static void printUsage(ostream& out) {
 #endif
 		<< endl
 	    << " Other:" << endl
+		<< "  --qc-filter        filter out reads that are bad according to QSEQ filter" << endl
 	    << "  --seed <int>       seed for random number generator (0)" << endl
 	//  << "  --verbose          verbose output for debugging" << endl
 	    << "  --version          print version information and quit" << endl
@@ -967,20 +981,27 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_END_TO_END: localAlign = false; break;
 		case ARG_SCAN_NARROWED: scanNarrowed = true; break;
 		case ARG_NO_SSE: noSse = true; break;
+		case ARG_NO_DOVETAIL: gDovetailMatesOK = false; break;
+		case ARG_NO_CONTAIN:  gContainMatesOK = false; break;
+		case ARG_NO_OVERLAP:  gOlapMatesOK = false; break;
 		case ARG_QC_FILTER: qcFilter = true; break;
 		case ARG_NO_SCORE_PRIORITY: sortByScore = false; break;
 		case ARG_IGNORE_QUALS: ignoreQuals = true; break;
 		case ARG_NOISY_HPOLY: noisyHpolymer = true; break;
 		case 'x': bt2index = arg; break;
+		case ARG_PRESET_VERY_FAST_LOCAL: localAlign = true;
 		case ARG_PRESET_VERY_FAST: {
 			presetList.push_back("very-fast%LOCAL%"); break;
 		}
+		case ARG_PRESET_FAST_LOCAL: localAlign = true;
 		case ARG_PRESET_FAST: {
 			presetList.push_back("fast%LOCAL%"); break;
 		}
+		case ARG_PRESET_SENSITIVE_LOCAL: localAlign = true;
 		case ARG_PRESET_SENSITIVE: {
 			presetList.push_back("sensitive%LOCAL%"); break;
 		}
+		case ARG_PRESET_VERY_SENSITIVE_LOCAL: localAlign = true;
 		case ARG_PRESET_VERY_SENSITIVE: {
 			presetList.push_back("very-sensitive%LOCAL%"); break;
 		}
