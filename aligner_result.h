@@ -448,7 +448,7 @@ public:
 	 * Return true iff the alignment was filtered out.
 	 */
 	bool filtered() const {
-		return nfilt_ || scfilt_ || lenfilt_ || qcfilt_;
+		return !nfilt_ || !scfilt_ || !lenfilt_ || !qcfilt_;
 	}
 	
 	/**
