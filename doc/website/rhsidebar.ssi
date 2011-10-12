@@ -5,6 +5,7 @@
       <li><a href="index.shtml">Home</a></li>
       <li><a href="news.shtml">News archive</a></li>
       <li><a href="manual.shtml">Manual</a></li>
+      <li><a href="manual.shtml#getting-started-with-bowtie-2-lambda-phage-example">Getting started</a></li>
       <li><a href="faq.shtml">Frequently Asked Questions</a></li>
     </ul>
   </div>
@@ -25,7 +26,7 @@
         <!-- <li style="font-size: x-small; line-height: 130%">Please cite: Langmead B, Trapnell C, Pop M, Salzberg SL. <a href="http://genomebiology.com/2009/10/3/R25">Ultrafast and memory-efficient alignment of short DNA sequences to the human genome</a>. <i><a href="http://genomebiology.com">Genome Biol</a></i> 10:R25.</table> -->
       </td>
       </tr>
-	 </table>
+     </table>
     </ul>
   </div>
   <h2>Related Tools</h2>
@@ -42,18 +43,56 @@
   </div>
   <h2>Indexes</h2>
   <div class="box">
-    <ul>
-      <table width="100%">
-      <tr><td></td></tr>
-      <tr><td>
-        <i>H. sapiens</i>: <a href="http://hgdownload.cse.ucsc.edu/downloads.html#human">hg18</a>/<a href="http://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?mode=Info&id=9606">dbSNP 130</a>
-      </td></tr>
-      <tr><td style="font-size: x-small">
-        &nbsp;s3n://crossbow-refs/hg18.jar<br/>
-      </td></tr>
-       
-      </table>
-    </ul>
+    <table width="100%">
+      <!-- hg18 -->
+      <tr>
+        <td>
+          <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/hg18.zip"><i>H. sapiens</i>, UCSC hg18</a>
+        </td>
+        <td align="right">
+          <b>3.5 GB</b>
+        </td>
+      </tr>
+      <tr>
+        <td colspan=2 style="font-size: small">&nbsp;or: <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/hg18.1.zip">part 1</a> - 1.4 GB,
+                                <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/hg18.2.zip">part 2</a> - 648 MB,
+                                <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/hg18.3.zip">part 3</a> - 1.4 GB
+        </td>
+      </tr>
+
+      <!-- hg19 -->
+      <tr>
+        <td>
+          <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/hg19.zip"><i>H. sapiens</i>, UCSC hg19</a>
+        </td>
+        <td align="right">
+          <b>3.5 GB</b>
+        </td>
+      </tr>
+      <tr>
+        <td colspan=2 style="font-size: small">&nbsp;or: <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/hg19.1.zip">part 1</a> - 1.5 GB,
+                                <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/hg19.2.zip">part 2</a> - 649 MB,
+                                <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/hg19.3.zip">part 3</a> - 1.5 GB
+        </td>
+      </tr>
+
+      <!-- mm9 -->
+      <tr>
+        <td>
+          <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/mm9.zip"><i>H. sapiens</i>, UCSC mm9</a>
+        </td>
+        <td align="right">
+          <b>3.1 GB</b>
+        </td>
+      </tr>
+      <tr>
+        <td colspan=2 style="font-size: small">&nbsp;or: <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/mm9.1.zip">part 1</a> - 1.3 GB,
+                                <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/mm9.2.zip">part 2</a> - 580 MB,
+                                <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/mm9.3.zip">part 3</a> - 1.3 GB
+        </td>
+      </tr>
+
+    </table>
   </div>
   <h2>Related publications</h2>
   <div class="box">

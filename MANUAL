@@ -210,7 +210,7 @@ When the --local option is specified, Bowtie 2 performs local read alignment. In
 this mode, Bowtie 2 might "trim" or "clip" some read characters from one or both
 ends of the alignment if doing so maximizes the alignment score.
 
-  End-to-end alignment example
+### End-to-end alignment example
 
 The following is an "end-to-end" alignment because it involves all the
 characters in the read.  Such an alignment can be produced by Bowtie 2 in either
@@ -224,7 +224,7 @@ end-to-end mode or in local mode.
                  |||||  |||||||||| |||
       Reference: GACTG--CGATCTCGACATCG
 
-  Local alignment example
+### Local alignment example
 
 The following is a "local" alignment because some of the characters at the ends
 of the read do not participate.  In this case, 4 characters are omitted (or
@@ -253,7 +253,7 @@ penalty), `--np` (penalty for having an N in either the read or the
 reference), `--rdg` (affine read gap penalty) and `--rfg` (affine reference
 gap penalty) options.
 
-  End-to-end alignment score example
+### End-to-end alignment score example
 
 A mismatched base at a high-quality position in the read receives a penalty of
 -6 by default.  A length-2 read gap receives a penalty of -11 by default (-5 for
@@ -265,7 +265,7 @@ length-2 read gap, then the overall score is -(6 + 11) = -17.
 The best possible alignment score in end-to-end mode is 0, which happens when
 there are no differences between the read and the reference.
 
-  Local alignment score example
+### Local alignment score example
 
 A mismatched base at a high-quality position in the read receives a penalty of
 -6 by default.  A length-2 read gap receives a penalty of -11 by default (-5 for
@@ -279,7 +279,7 @@ The best possible score in local mode equals the match bonus times the length of
 the read.  This happens when there are no differences between the read and the
 reference.
 
-  Valid alignments meet or exceed the minimum score threshold
+### Valid alignments meet or exceed the minimum score threshold
 
 For an alignment to be considered "valid" (i.e. "good enough") by Bowtie 2, it
 must have an alignment score no less than the minimum score threshold.  The
@@ -338,7 +338,7 @@ reads with some expected relative orientation and distance.  Depending on the
 protocol, these might actually be referred to as "paired-end" or "mate-paired."
 Also, we always refer to the individual sequences making up the pair as "mates."
 
-  Paired inputs
+### Paired inputs
 
 Pairs are often stored in a pair of files, one file containing the mate 1s and
 the other containing the mates 2s.  The first mate in the file for mate 1 forms
@@ -348,7 +348,7 @@ mates using the `-1` argument and the file with the mate 2s using the `-2`
 argument.  This causes Bowtie 2 to take the paired nature of the reads into
 account when aligning them.
 
-  Paired SAM output
+### Paired SAM output
 
 When Bowtie 2 prints a SAM alignment for a pair, it prints two records (i.e. two
 lines of output), one for each mate.  The first record describes the alignment
@@ -360,7 +360,7 @@ aligned, and the 9th field indicates the inferred length of the DNA fragment
 from which the two mates were sequenced.  See the [SAM specification] for more
 details regarding these fields.
 
-  Concordant pairs match pair expectations, discordant pairs don't
+### Concordant pairs match pair expectations, discordant pairs don't
 
 A pair that aligns with the expected relative mate orientation and with the
 expected range of distances between mates is said to align "concordantly".  If
@@ -385,7 +385,7 @@ though searching for discordant alignments can be disabled with the
 
 [structural variants]: http://www.ncbi.nlm.nih.gov/dbvar/content/overview/
 
-  Mixed mode: paired where possible, unpaired otherwise
+### Mixed mode: paired where possible, unpaired otherwise
 
 If Bowtie 2 cannot find a paired-end alignment for a pair, by default it will go
 on to look for unpaired alignments for the constituent mates.  This is called
@@ -396,7 +396,7 @@ alignment status of pairs per se, not individual mates.  I.e. in SAM records for
 pairs, the optional XM:i flag will not appear and MAPQ values calculated for
 mates may be underestimates in some cases.
 
-  Some SAM FLAGS describe paired-end properties
+### Some SAM FLAGS describe paired-end properties
 
 The SAM `FLAGS` field, the second field in a SAM record, has multiple bits that
 describe the paired-end nature of the read and alignment.  The first (least
@@ -413,7 +413,7 @@ eighth bit (128 in decimal, 0x80 in hexidecimal) is set if the read is mate 2 in
 a pair.  See the [SAM specification] for a more detailed description of the
 `FLAGS` field.
 
-  Some SAM optional fields describe more paired-end properties
+### Some SAM optional fields describe more paired-end properties
 
 The last severeal fields of each SAM record usually contain SAM optional fields,
 which are simply tab-separated strings conveying additional information about
@@ -437,7 +437,7 @@ information about how the pair and its constitutuent mates aligned:
    the mate is less than the ceiling set with the `-M` option.  If not
    present, the read is not part of a pair or no `-M` ceiling was set.
 
-  Mates can overlap, contain, or dovetail each other
+### Mates can overlap, contain, or dovetail each other
 
 The fragment and read lengths might be such that alignments for the two mates
 from a pair overlap each other.  Consider this example:
@@ -490,7 +490,7 @@ that it has multiple alignments that are valid and distinct from one another.
 
 [BWA]: http://bio-bwa.sourceforge.net/
 
-  Distinct alignments map a read to different places
+### Distinct alignments map a read to different places
 
 Two alignments for the same individual read are "distinct" if they map the same
 read to different places.  Specifically, we say that two alignments are distinct
@@ -507,7 +507,7 @@ Two alignments for the same pair are distinct if either the mate 1s in the two
 paired-end alignments are distinct or the mate 2s in the two alignments are
 distinct or both.
 
-  -M mode: search for multiple alignments, report the best
+### -M mode: search for multiple alignments, report the best
 
 In `-M` mode, Bowtie 2 searches for at most N distinct, valid alignments for
 each read, where N equals the integer specified with the `-M` parameter plus
@@ -524,7 +524,7 @@ Bowtie 2 does not "find" alignments in any specific order, so for reads that
 have more than N distinct, valid alignments, Bowtie 2 does not gaurantee that
 the alignment reported is the best possible in terms of alignment score.
 
-  -k mode: search for one or more alignments, report each
+### -k mode: search for one or more alignments, report each
 
 In `-k` mode, Bowtie 2 searches for up to N distinct, valid alignments for
 each read, where N equals the integer specified with the `-k` parameter.  That
@@ -541,7 +541,7 @@ the N alignments reported are the best possible in terms of alignment score.
 
 [SAM specification]: http://samtools.sourceforge.net/SAM1.pdf
 
-  -a mode: search for and report all alignments
+### -a mode: search for and report all alignments
 
 `-a` mode is similar to `-k` mode except that there is no upper limit on the
 number of alignments Bowtie 2 should report.  Alignments are reported in
@@ -576,7 +576,7 @@ shorter, and/or (c) allow more mismatches.  You can adjust these options
 one-by-one, though Bowtie 2 comes with some useful combinations of options
 pre-packaged as "[preset options]."
 
-  FM Index memory footprint
+### FM Index memory footprint
 
 Bowtie 2 uses the [FM Index] to find ungapped alignments for seeds.  This step
 accounts for the bulk of Bowtie 2's memory footprint, as the [FM Index] itself
@@ -587,7 +587,7 @@ permitted per seed is greater than 0 (`-N 1` or `-N 2`), this necessitates use
 of the "mirror index" which further increases the memory footprint to about 3.2
 gigabytes for the human genome.
 
-  Excessive backtracking and the `-N 2` heuristic
+### Excessive backtracking and the `-N 2` heuristic
 
 When `-N 2` is specified, Bowtie 2 allows up to 2 mismatches in seed alignments.
 In theory, this can lead to "excessive backtracking," where the alignment
@@ -739,7 +739,7 @@ Performance tuning
 Command Line
 ------------
 
-  Setting function options
+### Setting function options
 
 Some Bowtie 2 options specify a function rather than an individual number or
 setting.  In these cases the user specifies three parameters: (a) a function
@@ -764,11 +764,11 @@ is for.  For example, in the case if the `--score-min` option, the function
 `f(x)` sets the minimum alignment score necessary for an alignment to be
 considered valid, and `x` is the read length.
 
-  Usage
+### Usage
 
     bowtie2 [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r>} -S [<hit>]
 
-  Main arguments
+### Main arguments
 
     -x <bt2-idx>
 
@@ -807,9 +807,9 @@ filehandle.
 File to write SAM alignments to.  By default, alignments are written to the
 "standard out" or "stdout" filehandle (i.e. the console).
 
-  Options
+### Options
 
-    Input options
+#### Input options
 
     -q
 
@@ -889,7 +889,7 @@ ASCII characters, e.g., `II?I`....  Integers are treated as being on
 the [Phred quality] scale unless `--solexa-quals` is also specified.
 Default: off.
 
-    Preset options in `--end-to-end` mode
+#### Preset options in `--end-to-end` mode
 
     --very-fast
 
@@ -907,7 +907,7 @@ Same as: `-M 5 -N 0 -L 22 -i S,1,1.25` (default in `--end-to-end` mode)
 
 Same as: `-M 5 -N 0 -L 20 -i S,1,0.50`
 
-    Preset options in `--local` mode
+#### Preset options in `--local` mode
 
     --very-fast-local
 
@@ -925,7 +925,7 @@ Same as: `-M 2 -N 0 -L 20 -i S,1,0.75` (default in `--local` mode)
 
 Same as: `-M 3 -N 0 -L 20 -i S,1,0.50`
 
-    Alignment options
+#### Alignment options
 
     -N <int>
 
@@ -1023,7 +1023,7 @@ and one of the presets (e.g. `--local --very-fast`) is equivalent to specifying
 the local version of the preset (`--very-fast-local`).  This is mutually
 exclusive with `--end-to-end`.  `--end-to-end` is the default mode.
 
-    Scoring options
+#### Scoring options
 
     --ma <int>
 
@@ -1067,7 +1067,7 @@ length. For instance, specifying `L,-0.6,-0.9` sets the minimum-score function
 [setting function options].  The default in `--end-to-end` mode is
 `L,-0.6,-0.9` and the default in `--local` mode is `L,0,0.66`.
 
-    Reporting options
+#### Reporting options
 
     -M <int>
 
@@ -1103,7 +1103,7 @@ default.
 Like `-k` but with no upper limit on number of alignments to search for.  `-a`
 is mutually exclusive with `-M` and `-k`, and `-M` is the default.
 
-    Paired-end options
+#### Paired-end options
 
     -I/--minins <int>
 
@@ -1169,7 +1169,7 @@ If one mate alignment overlaps the other at all, consider that to be
 non-concordant.  See also: [Mates can overlap, contain or dovetail each other]. 
 Default: mates can overlap in a concordant alignment.
 
-    Output options
+#### Output options
 
     -t/--time
 
@@ -1198,7 +1198,7 @@ useful for debugging certain problems, especially performance issues.  See also:
 Write a new `bowtie2` metrics record every `<int>` seconds.  Only matters if
 either `--met-stderr` or `--met-file` are specified.  Default: 1.
 
-    SAM options
+#### SAM options
 
     --sam-no-hd
 
@@ -1217,7 +1217,7 @@ that, if any `@RG` fields are set using this option, the `ID` and `SM` fields
 must both be among them to make the `@RG` line legal according to the [SAM
 Spec][SAM].
 
-    Performance options
+#### Performance options
 
     -o/--offrate <int>
 
@@ -1246,7 +1246,7 @@ pay the memory overhead just once).  This facilitates memory-efficient
 parallelization of `bowtie` in situations where using `-p` is not
 possible.
 
-    Other options
+#### Other options
 
     --qc-filter
 
@@ -1311,11 +1311,11 @@ left to right, the fields are:
 
         64
 
-    The read is the first  mate in a pair
+    The read is mate 1 in a pair
 
         128
 
-    The read is the second  mate in a pair
+    The read is mate 2 in a pair
 
     Thus, an unpaired read that aligns to the reverse reference strand
     will have flag 16.  A paired-end read that aligns and is the first
@@ -1532,7 +1532,7 @@ Usage:
 
     bowtie2-build [options]* <reference_in> <bt2_base>
 
-  Main arguments
+### Main arguments
 
     <reference_in>
 
@@ -1548,7 +1548,7 @@ The basename of the index files to write.  By default, `bowtie2-build` writes
 files named `NAME.1.bt2`, `NAME.2.bt2`, `NAME.3.bt2`, `NAME.4.bt2`,
 `NAME.rev.1.bt2`, and `NAME.rev.2.bt2`, where `NAME` is `<bt2_base>`.
 
-  Options
+### Options
 
     -f
 
@@ -1673,7 +1673,7 @@ Usage:
 
     bowtie2-inspect [options]* <bt2_base>
 
-  Main arguments
+### Main arguments
 
     <bt2_base>
 
@@ -1684,7 +1684,7 @@ looks in the `indexes` subdirectory under the directory where the
 currently-running `bowtie` executable is located, then looks in the directory
 specified in the `BOWTIE2_INDEXES` environment variable.
 
-  Options
+### Options
 
     -a/--across <int>
 

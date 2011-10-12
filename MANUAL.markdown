@@ -1847,7 +1847,7 @@ left to right, the fields are:
 
     </td><td>
 
-    The read is the first (#1) mate in a pair
+    The read is mate 1 in a pair
 
     </td></tr><tr><td>
 
@@ -1855,7 +1855,7 @@ left to right, the fields are:
 
     </td><td>
 
-    The read is the second (#2) mate in a pair
+    The read is mate 2 in a pair
 
     </td></tr></table>
 

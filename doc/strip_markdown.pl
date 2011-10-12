@@ -28,12 +28,12 @@ while(<>) {
 	s/\[`/`/g;
 	s/`\]/`/g;
 	# Strip [#...]
-	s/\[#[^\]]*\]//g;
+	#s/\[#[^\]]*\]//g;
 	# Strip (#...)
 	s/\(#[^\)]*\)//g;
 	# Turn hashes into spaces
-	s/^####/   /;
-	s/^###/ /;
+	#s/^####/   /;
+	#s/^###/ /;
 	if(/^\s*$/) {
 		next if $lastBlank;
 		$lastBlank = 1;
