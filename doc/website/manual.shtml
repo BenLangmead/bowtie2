@@ -13,7 +13,7 @@
     <!--#include virtual="rhsidebar.ssi" -->
     <div id="manual">
       <table>
-        <tr><td cellpadding=7>
+        <tr><td>
         <!--#include virtual="manual.ssi" -->
         </td></tr>
       </table>

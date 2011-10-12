@@ -777,7 +777,7 @@ Alignment:
 ><p
 >Bowtie 2 runs a little faster in <code
   >--no-mixed</code
-  > mode, but will only consider alignment status of pairs per se, not individual mates. I.e. in SAM records for pairs, the optional XM:i flag will not appear and MAPQ values calculated for mates may be underestimates in some cases.</p
+  > mode, but will only consider alignment status of pairs per se, not individual mates. I.e. in SAM records for pairs, the optional YM:i flag will not appear and MAPQ values calculated for mates may be underestimates in some cases.</p
 ><h3 id="some-sam-flags-describe-paired-end-properties"
 ><a href="#TOC"
   >Some SAM FLAGS describe paired-end properties</a
@@ -1439,7 +1439,8 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
     >--int-quals</code
     ></a
   >.</p
-><tr><td id="bowtie2-options-qseq">
+></td></tr>
+<tr><td id="bowtie2-options-qseq">
 
 
 <pre
@@ -1466,7 +1467,8 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
     >--int-quals</code
     ></a
   >.</p
-></td></tr><tr><td id="bowtie2-options-f">
+></td></tr>
+<tr><td id="bowtie2-options-f">
 
 
 <pre
@@ -1495,7 +1497,8 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
   > is set, the result is as if <code
   >--ignore-quals</code
   > is also set.</p
-></td></tr><tr><td id="bowtie2-options-r">
+></td></tr>
+<tr><td id="bowtie2-options-r">
 
 
 <pre
@@ -1516,7 +1519,8 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
   > is set, the result is as if <code
   >--ignore-quals</code
   > is also set.</p
-></td></tr><tr><td id="bowtie2-options-c">
+></td></tr>
+<tr><td id="bowtie2-options-c">
 
 
 <pre
@@ -1537,7 +1541,8 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
   > also implies <code
   >--ignore-quals</code
   >.</p
-></td></tr><tr><td id="bowtie2-options-s">
+></td></tr>
+<tr><td id="bowtie2-options-s">
 
 
 
@@ -1551,7 +1556,8 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
 >Skip (i.e. do not align) the first <code
   >&lt;int&gt;</code
   > reads or pairs in the input.</p
-></td></tr><tr><td id="bowtie2-options-u">
+></td></tr>
+<tr><td id="bowtie2-options-u">
 
 
 
@@ -1571,7 +1577,8 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
     >--skip</code
     ></a
   > reads or pairs have been skipped), then stop. Default: no limit.</p
-></td></tr><tr><td id="bowtie2-options-5">
+></td></tr>
+<tr><td id="bowtie2-options-5">
 
 
 
@@ -1585,7 +1592,8 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
 >Trim <code
   >&lt;int&gt;</code
   > bases from 5' (left) end of each read before alignment (default: 0).</p
-></td></tr><tr><td id="bowtie2-options-3">
+></td></tr>
+<tr><td id="bowtie2-options-3">
 
 
 
@@ -1612,7 +1620,8 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
 >Input qualities are ASCII chars equal to the <a href="http://en.wikipedia.org/wiki/Phred_quality_score"
   >Phred quality</a
   > plus 33. This is also called the &quot;Phred+33&quot; encoding, which is used by the very latest Illumina pipelines.</p
-></td></tr><tr><td id="bowtie2-options-phred64-quals">
+></td></tr>
+<tr><td id="bowtie2-options-phred64-quals">
 
 
 <pre
@@ -1625,7 +1634,8 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
 >Input qualities are ASCII chars equal to the <a href="http://en.wikipedia.org/wiki/Phred_quality_score"
   >Phred quality</a
   > plus 64. This is also called the &quot;Phred+64&quot; encoding.</p
-></td></tr><tr><td id="bowtie2-options-solexa-quals">
+></td></tr>
+<tr><td id="bowtie2-options-solexa-quals">
 
 
 <pre
@@ -1640,7 +1650,8 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
   > (which can be negative) to <a href="http://en.wikipedia.org/wiki/Phred_quality_score"
   >Phred</a
   > (which can't). This scheme was used in older Illumina GA Pipeline versions (prior to 1.3). Default: off.</p
-></td></tr><tr><td id="bowtie2-options-int-quals">
+></td></tr>
+<tr><td id="bowtie2-options-int-quals">
 
 
 <pre
@@ -1839,7 +1850,8 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
     >--local</code
     ></a
   > mode.</p
-><tr><td id="bowtie2-options-L">
+></td></tr>
+<tr><td id="bowtie2-options-L">
 
 
 <pre
@@ -1866,7 +1878,8 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
     >--local</code
     ></a
   > mode.</p
-><tr><td id="bowtie2-options-i">
+></td></tr>
+<tr><td id="bowtie2-options-i">
 
 
 <pre
@@ -1920,7 +1933,8 @@ Seed 4 rc:                   TTATGCATGA
     >--local</code
     ></a
   > mode.</p
-><tr><td id="bowtie2-options-n-ceil">
+></td></tr>
+<tr><td id="bowtie2-options-n-ceil">
 
 
 <pre
@@ -1947,7 +1961,8 @@ Seed 4 rc:                   TTATGCATGA
   >. Default: <code
   >L,0,0.15</code
   >.</p
-><tr><td id="bowtie2-options-dpad">
+></td></tr>
+<tr><td id="bowtie2-options-dpad">
 
 
 <pre
@@ -1960,7 +1975,8 @@ Seed 4 rc:                   TTATGCATGA
 >&quot;Pads&quot; dynamic programming problems by <code
   >&lt;int&gt;</code
   > columns on either side to allow gaps. Default: 15.</p
-><tr><td id="bowtie2-options-gbar">
+></td></tr>
+<tr><td id="bowtie2-options-gbar">
 
 
 <pre
@@ -1973,7 +1989,8 @@ Seed 4 rc:                   TTATGCATGA
 >Disallow gaps within <code
   >&lt;int&gt;</code
   > positions of the beginning or end of the read. Default: 4.</p
-><tr><td id="bowtie2-options-ignore-quals">
+></td></tr>
+<tr><td id="bowtie2-options-ignore-quals">
 
 
 <pre
@@ -1996,7 +2013,8 @@ Seed 4 rc:                   TTATGCATGA
     >-c</code
     ></a
   > modes).</p
-></td></tr><tr><td id="bowtie2-options-nofw">
+></td></tr>
+<tr><td id="bowtie2-options-nofw">
 
 
 <pre
@@ -2023,7 +2041,8 @@ Seed 4 rc:                   TTATGCATGA
   > causes <code
   >bowtie2</code
   > to explore only those paired-end configurations corresponding to fragments from the reverse-complement (Crick) strand. Default: both strands enabled.</p
-><tr><td id="bowtie2-options-end-to-end">
+></td></tr>
+<tr><td id="bowtie2-options-end-to-end">
 
 
 <pre
@@ -2044,7 +2063,8 @@ Seed 4 rc:                   TTATGCATGA
   >. <code
   >--end-to-end</code
   > is the default mode.</p
-><tr><td id="bowtie2-options-local">
+></td></tr>
+<tr><td id="bowtie2-options-local">
 
 
 <pre
@@ -2104,7 +2124,8 @@ Seed 4 rc:                   TTATGCATGA
     >--end-to-end</code
     ></a
   > mode. Default: 2.</p
-><tr><td id="bowtie2-options-mp">
+></td></tr>
+<tr><td id="bowtie2-options-mp">
 
 
 <pre
@@ -2131,7 +2152,8 @@ Seed 4 rc:                   TTATGCATGA
     >--ignore-quals</code
     ></a
   > is specified, all mismatches incur the maximum penalty, regardless of quality value. Default: 6.</p
-><tr><td id="bowtie2-options-np">
+></td></tr>
+<tr><td id="bowtie2-options-np">
 
 
 <pre
@@ -2144,7 +2166,8 @@ Seed 4 rc:                   TTATGCATGA
 >Sets penalty for positions where the read, reference, or both, contain an ambiguous character such as <code
   >N</code
   >. Default: 1.</p
-><tr><td id="bowtie2-options-rdg">
+></td></tr>
+<tr><td id="bowtie2-options-rdg">
 
 
 <pre
@@ -2163,7 +2186,8 @@ Seed 4 rc:                   TTATGCATGA
   > + N * <code
   >&lt;int2&gt;</code
   >. Default: 5, 3.</p
-><tr><td id="bowtie2-options-rfg">
+></td></tr>
+<tr><td id="bowtie2-options-rfg">
 
 
 <pre
@@ -2182,7 +2206,8 @@ Seed 4 rc:                   TTATGCATGA
   > + N * <code
   >&lt;int2&gt;</code
   >. Default: 5, 3.</p
-><tr><td id="bowtie2-options-score-min">
+></td></tr>
+<tr><td id="bowtie2-options-score-min">
 
 
 <pre
@@ -2274,7 +2299,8 @@ Seed 4 rc:                   TTATGCATGA
     >--local</code
     ></a
   > mode.</p
-><tr><td id="bowtie2-options-k">
+></td></tr>
+<tr><td id="bowtie2-options-k">
 
 
 <pre
@@ -2311,7 +2337,8 @@ Seed 4 rc:                   TTATGCATGA
     >-M</code
     ></a
   > is the default.</p
-><tr><td id="bowtie2-options-a">
+></td></tr>
+<tr><td id="bowtie2-options-a">
 
 
 <pre
@@ -2378,7 +2405,8 @@ Seed 4 rc:                   TTATGCATGA
     >-I</code
     ></a
   > constraint is applied with respect to the untrimmed mates. Default: 0.</p
-></td></tr><tr><td id="bowtie2-options-X">
+></td></tr>
+<tr><td id="bowtie2-options-X">
 
 
 
@@ -2406,7 +2434,8 @@ Seed 4 rc:                   TTATGCATGA
   > are also used, the <code
   >-X</code
   > constraint is applied with respect to the untrimmed mates, not the trimmed mates. Default: 500.</p
-></td></tr><tr><td id="bowtie2-options-fr">
+></td></tr>
+<tr><td id="bowtie2-options-fr">
 
 
 
@@ -2436,7 +2465,8 @@ Seed 4 rc:                   TTATGCATGA
   > requires both an upstream mate 1 and a downstream mate 2 to be forward-oriented. Default: <code
   >--fr</code
   > (appropriate for Illumina's Paired-end Sequencing Assay).</p
-></td></tr><tr><td id="bowtie2-options-no-mixed">
+></td></tr>
+<tr><td id="bowtie2-options-no-mixed">
 
 
 <pre
@@ -2449,7 +2479,8 @@ Seed 4 rc:                   TTATGCATGA
 >By default, when <code
   >bowtie2</code
   > cannot find a concordant or discordant alignment for a pair, it then tries to find alignments for the individual mates. This option disables that behavior.</p
-></td></tr><tr><td id="bowtie2-options-no-discordant">
+></td></tr>
+<tr><td id="bowtie2-options-no-discordant">
 
 
 <pre
@@ -2478,7 +2509,8 @@ Seed 4 rc:                   TTATGCATGA
     >-X</code
     ></a
   >). This option disables that behavior.</p
-></td></tr><tr><td id="bowtie2-options-no-dovetail">
+></td></tr>
+<tr><td id="bowtie2-options-no-dovetail">
 
 
 <pre
@@ -2491,7 +2523,8 @@ Seed 4 rc:                   TTATGCATGA
 >If the mates &quot;dovetail&quot;, that is if one mate alignment extends past the beginning of the other such that the wrong mate begins upstream, consider that to be non-concordant. See also: <a href="#mates-can-overlap-contain-or-dovetail-each-other"
   >Mates can overlap, contain or dovetail each other</a
   >. Default: mates can dovetail in a concordant alignment.</p
-></td></tr><tr><td id="bowtie2-options-no-contain">
+></td></tr>
+<tr><td id="bowtie2-options-no-contain">
 
 
 <pre
@@ -2504,7 +2537,8 @@ Seed 4 rc:                   TTATGCATGA
 >If one mate alignment contains the other, consider that to be non-concordant. See also: <a href="#mates-can-overlap-contain-or-dovetail-each-other"
   >Mates can overlap, contain or dovetail each other</a
   >. Default: a mate can contain the other in a concordant alignment.</p
-></td></tr><tr><td id="bowtie2-options-no-overlap">
+></td></tr>
+<tr><td id="bowtie2-options-no-overlap">
 
 
 <pre
@@ -2536,7 +2570,8 @@ Seed 4 rc:                   TTATGCATGA
 ></td><td>
 <p
 >Print the wall-clock time required to load the index files and align the reads. This is printed to the &quot;standard error&quot; (&quot;stderr&quot;) filehandle. Default: off.</p
-></td></tr><tr><td id="bowtie2-options-quiet">
+></td></tr>
+<tr><td id="bowtie2-options-quiet">
 
 
 <pre
@@ -2547,7 +2582,8 @@ Seed 4 rc:                   TTATGCATGA
 ></td><td>
 <p
 >Print nothing besides alignments and serious errors.</p
-></td></tr><tr><td id="bowtie2-options-met-file">
+></td></tr>
+<tr><td id="bowtie2-options-met-file">
 
 
 <pre
@@ -2566,7 +2602,8 @@ Seed 4 rc:                   TTATGCATGA
     >--met</code
     ></a
   >. Default: metrics disabled.</p
-></td></tr><tr><td id="bowtie2-options-met-stderr">
+></td></tr>
+<tr><td id="bowtie2-options-met-stderr">
 
 
 <pre
@@ -2587,7 +2624,8 @@ Seed 4 rc:                   TTATGCATGA
     >--met</code
     ></a
   >. Default: metrics disabled.</p
-></td></tr><tr><td id="bowtie2-options-met">
+></td></tr>
+<tr><td id="bowtie2-options-met">
 
 
 <pre
@@ -2631,7 +2669,8 @@ Seed 4 rc:                   TTATGCATGA
 >Suppress SAM header lines (starting with <code
   >@</code
   >).</p
-></td></tr><tr><td id="bowtie2-options-sam-no-sq">
+></td></tr>
+<tr><td id="bowtie2-options-sam-no-sq">
 
 
 <pre
@@ -2644,7 +2683,8 @@ Seed 4 rc:                   TTATGCATGA
 >Suppress <code
   >@SQ</code
   > SAM header lines.</p
-></td></tr><tr><td id="bowtie2-options-sam-rg">
+></td></tr>
+<tr><td id="bowtie2-options-sam-rg">
 
 
 <pre
@@ -2703,7 +2743,8 @@ Seed 4 rc:                   TTATGCATGA
   > is greater than the offrate used to build the index, then some row markings are discarded when the index is read into memory. This reduces the memory footprint of the aligner but requires more time to calculate text offsets. <code
   >&lt;int&gt;</code
   > must be greater than the value used to build the index.</p
-></td></tr><tr><td id="bowtie2-options-p">
+></td></tr>
+<tr><td id="bowtie2-options-p">
 
 
 
@@ -2723,7 +2764,8 @@ Seed 4 rc:                   TTATGCATGA
   > library (i.e. if <code
   >BOWTIE_PTHREADS=0</code
   > is not specified at build time).</p
-></td></tr><tr><td id="bowtie2-options-mm">
+></td></tr>
+<tr><td id="bowtie2-options-mm">
 
 
 <pre
@@ -2789,7 +2831,8 @@ Seed 4 rc:                   TTATGCATGA
 ></td><td>
 <p
 >Print version information and quit.</p
-></td></tr><tr><td id="bowtie2-options-h">
+></td></tr>
+<tr><td id="bowtie2-options-h">
 <pre
 ><code
   >-h/--help
@@ -3114,12 +3157,12 @@ Seed 4 rc:                   TTATGCATGA
       >YP:i:0</code
       > is printed. Only present if SAM record is for a read that aligned as part of a paired-end alignment.</p
     ></td></tr>
-<tr><td id="bowtie2-build-opt-fields-xm">
+<tr><td id="bowtie2-build-opt-fields-ym">
 
 
 <pre
     ><code
-      >XM:i:&lt;N&gt;
+      >YM:i:&lt;N&gt;
 </code
       ></pre
     ></td><td>

@@ -393,7 +393,7 @@ on to look for unpaired alignments for the constituent mates.  This is called
 
 Bowtie 2 runs a little faster in `--no-mixed` mode, but will only consider
 alignment status of pairs per se, not individual mates.  I.e. in SAM records for
-pairs, the optional XM:i flag will not appear and MAPQ values calculated for
+pairs, the optional YM:i flag will not appear and MAPQ values calculated for
 mates may be underestimates in some cases.
 
 ### Some SAM FLAGS describe paired-end properties
@@ -1443,9 +1443,9 @@ alignment:
     Only present if SAM record is for a read that aligned as part of a
     paired-end alignment.
 
-    <tr><td id="bowtie2-build-opt-fields-xm">
+    <tr><td id="bowtie2-build-opt-fields-ym">
 
-        XM:i:<N>
+        YM:i:<N>
 
     Equals 1 if the read aligned with at least N unpaired alignments, where N is
     the argument specified to `-M` plus one.  Equals 0 if the read aligned
