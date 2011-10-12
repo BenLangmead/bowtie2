@@ -136,12 +136,6 @@ body {
 	margin-left: 0px;
 }
 
-#manual {
-	margin-right: 305px;
-	margin-left: 0px;
-	width: auto;
-}
-
 #leftside h1 { padding: 15px 0 10px 0 }
 #leftside h2 { padding: 15px 0 10px 0; color: #555; text-indent: 17px; background: #FFF url(../images/head.gif) no-repeat left; }
 #leftside h3 { padding: 15px 0 10px 0; font-size: 100%; margin-left: 5px; text-indent: 17px; background: #FFF url(../images/head.gif) no-repeat left; }
@@ -230,3 +224,10 @@ p { margin-top: 10px; }
 #manual .date a, #main #rightside a { border: 0; text-decoration: none; }
 #manual .date a, #main #rightside a { border: 0; text-decoration: none; }
 #manual td { vertical-align: top; }
+
+#manual {
+	margin-right: 310px;
+	margin-left: 0px;
+	width: auto;
+}
+

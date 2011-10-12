@@ -405,7 +405,7 @@ on to look for unpaired alignments for the constituent mates.  This is called
 
 Bowtie 2 runs a little faster in `--no-mixed` mode, but will only consider
 alignment status of pairs per se, not individual mates.  I.e. in SAM records for
-pairs, the optional XM:i flag will not appear and MAPQ values calculated for
+pairs, the optional YM:i flag will not appear and MAPQ values calculated for
 mates may be underestimates in some cases.
 
 ### Some SAM FLAGS describe paired-end properties
@@ -874,6 +874,7 @@ Reads (specified with `<m1>`, `<m2>`, `<s>`) are FASTQ files.  FASTQ files
 usually have extension `.fq` or `.fastq`.  FASTQ is the default format.  See
 also: [`--solexa-quals`] and [`--int-quals`].
 
+</td></tr>
 <tr><td id="bowtie2-options-qseq">
 
 [`--qseq`]: #bowtie2-options-qseq
@@ -885,7 +886,8 @@ also: [`--solexa-quals`] and [`--int-quals`].
 Reads (specified with `<m1>`, `<m2>`, `<s>`) are QSEQ files.  QSEQ files usually
 end in `_qseq.txt`.  See also: [`--solexa-quals`] and [`--int-quals`].
 
-</td></tr><tr><td id="bowtie2-options-f">
+</td></tr>
+<tr><td id="bowtie2-options-f">
 
 [`-f`]: #bowtie2-options-f
 
@@ -898,7 +900,8 @@ usually have extension `.fa`, `.fasta`, `.mfa`, `.fna` or similar.  FASTA files
 do not have a way of specifying quality values, so when `-f` is set, the result
 is as if `--ignore-quals` is also set.
 
-</td></tr><tr><td id="bowtie2-options-r">
+</td></tr>
+<tr><td id="bowtie2-options-r">
 
 [`-r`]: #bowtie2-options-r
 
@@ -910,7 +913,8 @@ Reads (specified with `<m1>`, `<m2>`, `<s>`) are files with one input sequence
 per line, without any other information (no read names, no qualities).  When
 `-r` is set, the result is as if `--ignore-quals` is also set.
 
-</td></tr><tr><td id="bowtie2-options-c">
+</td></tr>
+<tr><td id="bowtie2-options-c">
 
 [`-c`]: #bowtie2-options-c
 
@@ -923,7 +927,8 @@ The read sequences are given on command line.  I.e. `<m1>`, `<m2>` and
 There is no way to specify read names or qualities, so `-c` also implies
 `--ignore-quals`.
 
-</td></tr><tr><td id="bowtie2-options-s">
+</td></tr>
+<tr><td id="bowtie2-options-s">
 
 [`-s`/`--skip`]: #bowtie2-options-s
 [`-s`]: #bowtie2-options-s
@@ -934,7 +939,8 @@ There is no way to specify read names or qualities, so `-c` also implies
 
 Skip (i.e. do not align) the first `<int>` reads or pairs in the input.
 
-</td></tr><tr><td id="bowtie2-options-u">
+</td></tr>
+<tr><td id="bowtie2-options-u">
 
 [`-u`/`--qupto`]: #bowtie2-options-u
 [`-u`]: #bowtie2-options-u
@@ -946,7 +952,8 @@ Skip (i.e. do not align) the first `<int>` reads or pairs in the input.
 Align the first `<int>` reads or read pairs from the input (after the
 [`-s`/`--skip`] reads or pairs have been skipped), then stop.  Default: no limit.
 
-</td></tr><tr><td id="bowtie2-options-5">
+</td></tr>
+<tr><td id="bowtie2-options-5">
 
 [`-5`/`--trim5`]: #bowtie2-options-5
 [`-5`]: #bowtie2-options-5
@@ -957,7 +964,8 @@ Align the first `<int>` reads or read pairs from the input (after the
 
 Trim `<int>` bases from 5' (left) end of each read before alignment (default: 0).
 
-</td></tr><tr><td id="bowtie2-options-3">
+</td></tr>
+<tr><td id="bowtie2-options-3">
 
 [`-3`/`--trim3`]: #bowtie2-options-3
 [`-3`]: #bowtie2-options-3
@@ -983,7 +991,8 @@ pipelines.
 
 [Phred quality]: http://en.wikipedia.org/wiki/Phred_quality_score
 
-</td></tr><tr><td id="bowtie2-options-phred64-quals">
+</td></tr>
+<tr><td id="bowtie2-options-phred64-quals">
 
 [`--phred64`]: #bowtie2-options-phred64-quals
 
@@ -996,7 +1005,8 @@ pipelines.
 Input qualities are ASCII chars equal to the [Phred quality] plus 64.  This is
 also called the "Phred+64" encoding.
 
-</td></tr><tr><td id="bowtie2-options-solexa-quals">
+</td></tr>
+<tr><td id="bowtie2-options-solexa-quals">
 
 [`--solexa-quals`]: #bowtie2-options-solexa-quals
 
@@ -1008,7 +1018,8 @@ Convert input qualities from [Solexa][Phred quality] (which can be negative) to
 [Phred][Phred quality] (which can't).  This scheme was used in older Illumina GA
 Pipeline versions (prior to 1.3).  Default: off.
 
-</td></tr><tr><td id="bowtie2-options-int-quals">
+</td></tr>
+<tr><td id="bowtie2-options-int-quals">
 
 [`--int-quals`]: #bowtie2-options-int-quals
 
@@ -1145,6 +1156,7 @@ sets `-N` to 0 both in [`--end-to-end`] mode and in [`--local`] mode.
 [2-mismatch mode is heuristic]: #excessive-backtracking-and-the--n-2-heuristic
 [yields a larger memory footprint]: #fm-index-memory-footprint
 
+</td></tr>
 <tr><td id="bowtie2-options-L">
 
 [`-L`]: #bowtie2-options-L
@@ -1160,6 +1172,7 @@ Smaller values make alignment slower but more senstive. Default: the
 
 [multiseed alignment]: #multiseed-heuristic
 
+</td></tr>
 <tr><td id="bowtie2-options-i">
 
 [`-i`]: #bowtie2-options-i
@@ -1194,6 +1207,7 @@ in [`--local`] mode.
 [setting function options]: #setting-function-options
 [multiseed alignment]: #multiseed-heuristic
 
+</td></tr>
 <tr><td id="bowtie2-options-n-ceil">
 
 [`--n-ceil`]: #bowtie2-options-n-ceil
@@ -1210,6 +1224,7 @@ exceeding this ceiling are [filtered out].  Default: `L,0,0.15`.
 
 [filtered out]: #filtering
 
+</td></tr>
 <tr><td id="bowtie2-options-dpad">
 
 [`--dpad`]: #bowtie2-options-dpad
@@ -1221,6 +1236,7 @@ exceeding this ceiling are [filtered out].  Default: `L,0,0.15`.
 "Pads" dynamic programming problems by `<int>` columns on either side to allow
 gaps.  Default: 15.
 
+</td></tr>
 <tr><td id="bowtie2-options-gbar">
 
 [`--gbar`]: #bowtie2-options-gbar
@@ -1232,6 +1248,7 @@ gaps.  Default: 15.
 Disallow gaps within `<int>` positions of the beginning or end of the read. 
 Default: 4.
 
+</td></tr>
 <tr><td id="bowtie2-options-ignore-quals">
 
 [`--ignore-quals`]: #bowtie2-options-ignore-quals
@@ -1246,7 +1263,8 @@ I.e. input is treated as though all quality values are high.  This is also the
 default behavior when the input doesn't specify quality values (e.g. in [`-f`],
 [`-r`], or [`-c`] modes).
 
-</td></tr><tr><td id="bowtie2-options-nofw">
+</td></tr>
+<tr><td id="bowtie2-options-nofw">
 
 [`--nofw`]: #bowtie2-options-nofw
 
@@ -1262,6 +1280,7 @@ fragments; i.e. specifying `--nofw` causes `bowtie2` to explore only those
 paired-end configurations corresponding to fragments from the reverse-complement
 (Crick) strand.  Default: both strands enabled. 
 
+</td></tr>
 <tr><td id="bowtie2-options-end-to-end">
 
 [`--end-to-end`]: #bowtie2-options-end-to-end
@@ -1276,6 +1295,7 @@ The match bonus [`--ma`] always equals 0 in this mode, so all alignment scores
 are less than or equal to 0, and the greatest possible alignment score is 0.
 This is mutually exclusive with [`--local`].  `--end-to-end` is the default mode.
 
+</td></tr>
 <tr><td id="bowtie2-options-local">
 
 [`--local`]: #bowtie2-options-local
@@ -1312,6 +1332,7 @@ Sets the match bonus.  In [`--local`] mode `<int>` is added to the alignment
 score for each position where a read character aligns to a reference character
 and the characters match.  Not used in [`--end-to-end`] mode.  Default: 2.
 
+</td></tr>
 <tr><td id="bowtie2-options-mp">
 
 [`--mp`]: #bowtie2-options-mp
@@ -1329,6 +1350,7 @@ equals `max(floor(30/min(30, Q) * N), 1)` where Q is the Phred quality value and
 N is the `<int>` parameter to `--mp`.  When [`--ignore-quals`] is specified, all
 mismatches incur the maximum penalty, regardless of quality value.  Default: 6.
 
+</td></tr>
 <tr><td id="bowtie2-options-np">
 
 [`--np`]: #bowtie2-options-np
@@ -1340,6 +1362,7 @@ mismatches incur the maximum penalty, regardless of quality value.  Default: 6.
 Sets penalty for positions where the read, reference, or both, contain an
 ambiguous character such as `N`.  Default: 1.
 
+</td></tr>
 <tr><td id="bowtie2-options-rdg">
 
 [`--rdg`]: #bowtie2-options-rdg
@@ -1351,6 +1374,7 @@ ambiguous character such as `N`.  Default: 1.
 Sets the read gap open (`<int1>`) and extend (`<int2>`) penalties.  A read gap of
 length N gets a penalty of `<int1>` + N * `<int2>`.  Default: 5, 3.
 
+</td></tr>
 <tr><td id="bowtie2-options-rfg">
 
 [`--rfg`]: #bowtie2-options-rfg
@@ -1363,6 +1387,7 @@ Sets the reference gap open (`<int1>`) and extend (`<int2>`) penalties.  A
 reference gap of length N gets a penalty of `<int1>` + N * `<int2>`.  Default:
 5, 3.
 
+</td></tr>
 <tr><td id="bowtie2-options-score-min">
 
 [`--score-min`]: #bowtie2-options-score-min
@@ -1406,6 +1431,7 @@ best possible in terms of alignment score.  See also: [reporting].  `-M` is
 mutually exclusive with [`-k`] and [`-a`].  The default is 5 in [`--end-to-end`]
 mode and 2 in [`--local`] mode.
 
+</td></tr>
 <tr><td id="bowtie2-options-k">
 
 [`-k`]: #bowtie2-options-k
@@ -1426,6 +1452,7 @@ that the `<int>` alignments reported are the best possible in terms of alignment
 score.  `-k` is mutually exclusive with [`-M`] and [`-a`], and [`-M`] is the
 default.
 
+</td></tr>
 <tr><td id="bowtie2-options-a">
 
 [`-a`]: #bowtie2-options-a
@@ -1462,7 +1489,8 @@ considered valid (as long as [`-X`] is also satisfied).  A 19-bp gap would not
 be valid in that case.  If trimming options [`-3`] or [`-5`] are also used, the
 [`-I`] constraint is applied with respect to the untrimmed mates.  Default: 0.
 
-</td></tr><tr><td id="bowtie2-options-X">
+</td></tr>
+<tr><td id="bowtie2-options-X">
 
 [`-X`/`--maxins`]: #bowtie2-options-X
 [`-X`]: #bowtie2-options-X
@@ -1479,7 +1507,8 @@ that case.  If trimming options [`-3`] or [`-5`] are also used, the `-X`
 constraint is applied with respect to the untrimmed mates, not the trimmed
 mates.  Default: 500.
 
-</td></tr><tr><td id="bowtie2-options-fr">
+</td></tr>
+<tr><td id="bowtie2-options-fr">
 
 [`--fr`/`--rf`/`--ff`]: #bowtie2-options-fr
 [`--fr`]: #bowtie2-options-fr
@@ -1501,7 +1530,8 @@ downstream mate2 be forward-oriented. ` --ff` requires both an upstream mate 1
 and a downstream mate 2 to be forward-oriented.  Default: `--fr` (appropriate
 for Illumina's Paired-end Sequencing Assay).
 
-</td></tr><tr><td id="bowtie2-options-no-mixed">
+</td></tr>
+<tr><td id="bowtie2-options-no-mixed">
 
 [`--no-mixed`]: #bowtie2-options-no-mixed
 
@@ -1513,7 +1543,8 @@ By default, when `bowtie2` cannot find a concordant or discordant alignment for
 a pair, it then tries to find alignments for the individual mates.  This option
 disables that behavior.
 
-</td></tr><tr><td id="bowtie2-options-no-discordant">
+</td></tr>
+<tr><td id="bowtie2-options-no-discordant">
 
 [`--no-discordant`]: #bowtie2-options-no-discordant
 
@@ -1526,7 +1557,8 @@ concordant alignments.  A discordant alignment is an alignment where both mates
 align uniquely, but that does not satisfy the paired-end constraints
 ([`--fr`/`--rf`/`--ff`], [`-I`], [`-X`]).  This option disables that behavior.
 
-</td></tr><tr><td id="bowtie2-options-no-dovetail">
+</td></tr>
+<tr><td id="bowtie2-options-no-dovetail">
 
 [`--no-dovetail`]: #bowtie2-options-no-dovetail
 
@@ -1541,7 +1573,8 @@ other].  Default: mates can dovetail in a concordant alignment.
 
 [Mates can overlap, contain or dovetail each other]: #mates-can-overlap-contain-or-dovetail-each-other
 
-</td></tr><tr><td id="bowtie2-options-no-contain">
+</td></tr>
+<tr><td id="bowtie2-options-no-contain">
 
 [`--no-contain`]: #bowtie2-options-no-contain
 
@@ -1553,7 +1586,8 @@ If one mate alignment contains the other, consider that to be non-concordant.
 See also: [Mates can overlap, contain or dovetail each other].  Default: a mate
 can contain the other in a concordant alignment.
 
-</td></tr><tr><td id="bowtie2-options-no-overlap">
+</td></tr>
+<tr><td id="bowtie2-options-no-overlap">
 
 [`--no-overlap`]: #bowtie2-options-no-overlap
 
@@ -1583,7 +1617,8 @@ Default: mates can overlap in a concordant alignment.
 Print the wall-clock time required to load the index files and align the reads. 
 This is printed to the "standard error" ("stderr") filehandle.  Default: off.
 
-</td></tr><tr><td id="bowtie2-options-quiet">
+</td></tr>
+<tr><td id="bowtie2-options-quiet">
 
 [`--quiet`]: #bowtie2-options-quiet
 
@@ -1593,7 +1628,8 @@ This is printed to the "standard error" ("stderr") filehandle.  Default: off.
 
 Print nothing besides alignments and serious errors.
 
-</td></tr><tr><td id="bowtie2-options-met-file">
+</td></tr>
+<tr><td id="bowtie2-options-met-file">
 
 [`--met-file`]: #bowtie2-options-met-file
 
@@ -1605,7 +1641,8 @@ Write `bowtie2` metrics to file `<path>`.  Having alignment metric can be useful
 for debugging certain problems, especially performance issues.  See also:
 [`--met`].  Default: metrics disabled.
 
-</td></tr><tr><td id="bowtie2-options-met-stderr">
+</td></tr>
+<tr><td id="bowtie2-options-met-stderr">
 
 [`--met-stderr`]: #bowtie2-options-met-stderr
 
@@ -1618,7 +1655,8 @@ not mutually exclusive with [`--met-file`].  Having alignment metric can be
 useful for debugging certain problems, especially performance issues.  See also:
 [`--met`].  Default: metrics disabled.
 
-</td></tr><tr><td id="bowtie2-options-met">
+</td></tr>
+<tr><td id="bowtie2-options-met">
 
 [`--met`]: #bowtie2-options-met
 
@@ -1646,7 +1684,8 @@ either [`--met-stderr`] or [`--met-file`] are specified.  Default: 1.
 
 Suppress SAM header lines (starting with `@`).
 
-</td></tr><tr><td id="bowtie2-options-sam-no-sq">
+</td></tr>
+<tr><td id="bowtie2-options-sam-no-sq">
 
 [`--sam-no-sq`]: #bowtie2-options-sam-no-sq
 
@@ -1656,7 +1695,8 @@ Suppress SAM header lines (starting with `@`).
 
 Suppress `@SQ` SAM header lines.
 
-</td></tr><tr><td id="bowtie2-options-sam-rg">
+</td></tr>
+<tr><td id="bowtie2-options-sam-rg">
 
 [`--sam-rg`]: #bowtie2-options-sam-rg
 
@@ -1694,7 +1734,8 @@ footprint of the aligner but requires more time to calculate text
 offsets.  `<int>` must be greater than the value used to build the
 index.
 
-</td></tr><tr><td id="bowtie2-options-p">
+</td></tr>
+<tr><td id="bowtie2-options-p">
 
 [`-p`/`--threads`]: #bowtie2-options-p
 [`-p`]: #bowtie2-options-p
@@ -1710,7 +1751,8 @@ and speedup is fairly close to linear.  This option is only available
 if `bowtie` is linked with the `pthreads` library (i.e. if
 `BOWTIE_PTHREADS=0` is not specified at build time).
 
-</td></tr><tr><td id="bowtie2-options-mm">
+</td></tr>
+<tr><td id="bowtie2-options-mm">
 
 [`--mm`]: #bowtie2-options-mm
 
@@ -1763,7 +1805,8 @@ Use `<int>` as the seed for pseudo-random number generator.  Default: 0.
 
 Print version information and quit.
 
-</td></tr><tr><td id="bowtie2-options-h">
+</td></tr>
+<tr><td id="bowtie2-options-h">
 
     -h/--help
 
@@ -2022,11 +2065,11 @@ alignment:
     paired-end alignment.
 
     </td></tr>
-    <tr><td id="bowtie2-build-opt-fields-xm">
+    <tr><td id="bowtie2-build-opt-fields-ym">
 
-[`XM:i`]: #bowtie2-build-opt-fields-xm
+[`YM:i`]: #bowtie2-build-opt-fields-ym
 
-        XM:i:<N>
+        YM:i:<N>
 
     </td><td>
 

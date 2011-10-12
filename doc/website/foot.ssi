@@ -1,9 +1,11 @@
   <div id="footer">
-  	<table width="100%" cellspacing=15><tr><td>
+  	<table width="100%"><tr><td>
     This research was supported in part by NIH grants R01-HG006102 and R01-GM083873 and AWS in Education research grants.
-    </td><td align=right>
+    </td><td align="right">
     Administrator: <a href="mailto:blangmea@jhsph.edu">Ben Langmead</a>. Design by <a href="http://www.free-css-templates.com" title="Design by David Herreman">David Herreman</a>
     </td></tr>
     </table>
-    <center><a href="http://www.sourceforge.net"><img src="../images/sflogo.png" alt="Sourceforge.net" style="border-style: none"></img></a></center>
+    <div style="text-align:center">
+      <a href="http://www.sourceforge.net"><img src="../images/sflogo.png" alt="Sourceforge.net" style="border-style: none"></img></a>
+    </div>
   </div>
