@@ -13,4 +13,4 @@
 
 [ -z "$SF_USER" ] && echo "Must set SF_USER" && exit 1
 
-scp -r *.ssi *.shtml *.html *.css $SF_USER,bowtie-bio@web.sourceforge.net:/home/groups/b/bo/bowtie-bio/htdocs/bowtie2/
+scp -r ../images $SF_USER,bowtie-bio@web.sourceforge.net:/home/groups/b/bo/bowtie-bio/htdocs/bowtie2/
