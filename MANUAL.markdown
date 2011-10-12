@@ -585,7 +585,11 @@ The tradeoff between speed and sensitivity can be adjusted by setting the seed
 length ([`-L`]), the interval between extracted seeds ([`-i`]), and the number
 of mismatches permitted per seed ([`-N`]).  For more sensitive alignment, set
 these parameters to (a) make the seeds closer together, (b) make the seeds
-shorter, and/or (c) allow more mismatches.
+shorter, and/or (c) allow more mismatches.  You can adjust these options
+one-by-one, though Bowtie 2 comes with some useful combinations of options
+pre-packaged as "[preset options]."
+
+[preset options]: #presets-setting-many-settings-at-once
 
 ### FM Index memory footprint
 
@@ -641,6 +645,20 @@ do not overlap ambiguous reference characters.
 [IUPAC nucleotide codes]: http://www.bioinformatics.org/sms/iupac.html
 [multiseed heuristic]: #multiseed-heuristic
 
+Presets: setting many settings at once
+--------------------------------------
+
+Bowtie 2 comes with some useful combinations of parameters packaged into shorter
+"preset" parameters.  For example, running Bowtie 2 with the `--very-sensitive`
+option is the same as running with options: `-M 5 -N 0 -L 20 -i S,1,0.50`.  The
+preset options that come with Bowtie 2 are designed to cover a wide area of the
+speed/sensitivity/accuracy tradeoff space, with the presets ending in `fast`
+generally being faster but less sensitive and less accurate, and the presets
+ending in `sensitive` generally being slower but more sensitive and more
+accurate.  See the [documentation for the preset options] for details.
+
+[documentation for the preset options]: #preset-options-in---end-to-end-mode
+
 Filtering
 ---------
 
@@ -673,29 +691,40 @@ When Bowtie 2 finishes running, it prints messages summarizing what happened.
 These messages are printed to the "standard error" ("stderr") filehandle.  For
 datasets consisting of unpaired reads, the summary might look like this:
 
-    2500 reads
-      2000 (50.00%) aligned 0 times
-      2000 (50.00%) aligned >0 and <=1 time(s)
-      2000 (50.00%) aligned >1 time(s)
+    10000 reads; of these:
+      10000 (100.00%) were unpaired; of these:
+        618 (6.18%) aligned 0 times
+        8821 (88.21%) aligned exactly 1 time
+        263 (2.63%) aligned >1 and <=5 times
+        298 (2.98%) aligned >5 times
+    93.82% overall alignment rate
 
 For datasets consisting of pairs, the summary might look like this:
 
-    2500 pairs; of these:
-      2000 (80.00%) aligned concordantly 0 times
-      100 (4.00%) aligned concordantly >0 and <=1 time(s)
-      400 (16.00%) aligned concordantly >1 time(s)
-    2000 pairs aligned concordantly 0 times; of these:
-      50 aligned discordantly 1 time
-    1950 pairs aligned 0 times concordantly or discordantly; of these:
-      3900 mates were considered in an unpaired fashion; of these:
-        2000 (50.00%) aligned 0 times
-        2000 (50.00%) aligned >0 and <=1 time(s)
-        2000 (50.00%) aligned >1 time(s)
-    1950 pairs aligned concordantly >1 time(s); of these:
-      3900 mates were considered in an unpaired fashion; of these:
-        2000 (50.00%) aligned 0 times
-        2000 (50.00%) aligned >0 and <=1 time(s)
-        2000 (50.00%) aligned >1 time(s)
+    20000 reads; of these:
+      10000 (50.00%) were paired; of these:
+        616 (6.16%) aligned concordantly 0 times
+        7041 (70.41%) aligned concordantly exactly 1 time
+        219 (2.19%) aligned concordantly >1 and <=5 times
+        2124 (21.24%) aligned concordantly >5 times
+        ----
+        616 pairs aligned concordantly 0 times; of these:
+          27 (4.38%) aligned discordantly 1 time
+        ----
+        589 pairs aligned 0 times concordantly or discordantly; of these:
+          1178 mates make up the pairs; of these:
+            630 (53.48%) aligned 0 times
+            522 (44.31%) aligned exactly 1 time
+            15 (1.27%) aligned >1 and <=5 times
+            11 (0.93%) aligned >5 times
+      10000 (50.00%) were unpaired; of these:
+        607 (6.07%) aligned 0 times
+        8851 (88.51%) aligned exactly 1 time
+        263 (2.63%) aligned >1 and <=5 times
+        279 (2.79%) aligned >5 times
+    95.88% overall alignment rate
+
+The indentation indicates how subtotals relate to totals.
 
 Wrapper
 -------
@@ -730,11 +759,28 @@ Command Line
 
 ### Setting function options
 
-Some Bowtie 2 options allow the user to set a function, as opposed to an
-individual number or setting.  In these cases the user chooses three different
-things: (a) a function type, (b) a constant term, and (c) a coefficient.  The
-available function types are constant (`C`), linear (`L`), square-root (`S`),
-and natural log (`G`).
+Some Bowtie 2 options specify a function rather than an individual number or
+setting.  In these cases the user specifies three parameters: (a) a function
+type `F`, (b) a constant term `B`, and (c) a coefficient `A`.  The available
+function types are constant (`C`), linear (`L`), square-root (`S`), and natural
+log (`G`). The parameters are specified as `F,B,A` - that is, the function type,
+the constant term, and the coefficient are separated by commas with no
+whitespace.  The constant term and coefficient may be negative and/or
+floating-point numbers.
+
+For example, if the function specification is `L,-0.4,-0.6`, then the function
+defined is:
+
+    f(x) = -0.4 + -0.6 * x
+
+If the function specification is `G,1,5.4`, then the function defined is:
+
+    f(x) = 1.0 + 5.4 * ln(x)
+
+See the documentation for the option in question to learn what the parameter `x`
+is for.  For example, in the case if the [`--score-min`] option, the function
+`f(x)` sets the minimum alignment score necessary for an alignment to be
+considered valid, and `x` is the read length.
 
 ### Usage
 
