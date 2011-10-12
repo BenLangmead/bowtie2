@@ -407,17 +407,33 @@ void AlnSink::printAlSumm(
 		printPct(cerr, met.nconcord_0, met.npaired);
 		cerr << ") aligned concordantly 0 times" << endl;
 		if(canRep) {
-			cerr << "    " << met.nconcord_uni << " (";
-			printPct(cerr, met.nconcord_uni, met.npaired);
-			cerr << ") aligned concordantly >0 and <=" << repThresh << " times" << endl;
+			// Print the number that aligned concordantly exactly once
+			assert_eq(met.nconcord_uni, met.nconcord_uni1+met.nconcord_uni2);
+			cerr << "    " << met.nconcord_uni1 << " (";
+			printPct(cerr, met.nconcord_uni1, met.npaired);
+			cerr << ") aligned concordantly exactly 1 time" << endl;
+			
+			// Print the number that aligned concordantly more than once but
+			// fewer times than the limit
+			
+			cerr << "    " << met.nconcord_uni2 << " (";
+			printPct(cerr, met.nconcord_uni2, met.npaired);
+			cerr << ") aligned concordantly >1 and <=" << repThresh << " times" << endl;
 			
 			cerr << "    " << met.nconcord_rep << " (";
 			printPct(cerr, met.nconcord_rep, met.npaired);
 			cerr << ") aligned concordantly >" << repThresh << " times" << endl;
 		} else {
-			cerr << "    " << met.nconcord_uni << " (";
-			printPct(cerr, met.nconcord_uni, met.npaired);
-			cerr << ") aligned concordantly >0 times" << endl;
+			// Print the number that aligned concordantly exactly once
+			assert_eq(met.nconcord_uni, met.nconcord_uni1+met.nconcord_uni2);
+			cerr << "    " << met.nconcord_uni1 << " (";
+			printPct(cerr, met.nconcord_uni1, met.npaired);
+			cerr << ") aligned concordantly exactly 1 time" << endl;
+
+			// Print the number that aligned concordantly more than once
+			cerr << "    " << met.nconcord_uni2 << " (";
+			printPct(cerr, met.nconcord_uni2, met.npaired);
+			cerr << ") aligned concordantly >1 times" << endl;
 		}
 		if(discord) {
 			// TODO: what about discoardant and on separate chromosomes?
@@ -442,17 +458,33 @@ void AlnSink::printAlSumm(
 			printPct(cerr, met.nunp_0_0, ncondiscord_0 * 2);
 			cerr << ") aligned 0 times" << endl;
 			if(canRep) {
-				cerr << "        " << met.nunp_0_uni << " (";
-				printPct(cerr, met.nunp_0_uni, ncondiscord_0 * 2);
-				cerr << ") aligned >0 and <=" << repThresh << " times" << endl;
+				// Print the number that aligned exactly once
+				assert_eq(met.nunp_0_uni, met.nunp_0_uni1+met.nunp_0_uni2);
+				cerr << "        " << met.nunp_0_uni1 << " (";
+				printPct(cerr, met.nunp_0_uni1, ncondiscord_0 * 2);
+				cerr << ") aligned exactly 1 time" << endl;
+
+				// Print the number that aligned more than once but fewer times
+				// than the limit
+				cerr << "        " << met.nunp_0_uni2 << " (";
+				printPct(cerr, met.nunp_0_uni2, ncondiscord_0 * 2);
+				cerr << ") aligned >1 and <=" << repThresh << " times" << endl;
 				
 				cerr << "        " << met.nunp_0_rep << " (";
 				printPct(cerr, met.nunp_0_rep, ncondiscord_0 * 2);
 				cerr << ") aligned >" << repThresh << " times" << endl;
 			} else {
-				cerr << "        " << met.nunp_0_uni << " (";
-				printPct(cerr, met.nunp_0_uni, ncondiscord_0 * 2);
-				cerr << ") aligned >0 times" << endl;
+				// Print the number that aligned exactly once
+				assert_eq(met.nunp_0_uni, met.nunp_0_uni1+met.nunp_0_uni2);
+				cerr << "        " << met.nunp_0_uni1 << " (";
+				printPct(cerr, met.nunp_0_uni1, ncondiscord_0 * 2);
+				cerr << ") aligned exactly 1 time" << endl;
+
+				// Print the number that aligned more than once but fewer times
+				// than the limit
+				cerr << "        " << met.nunp_0_uni2 << " (";
+				printPct(cerr, met.nunp_0_uni2, ncondiscord_0 * 2);
+				cerr << ") aligned >1 times" << endl;
 			}
 			
 			//if(canRep) {
@@ -493,17 +525,32 @@ void AlnSink::printAlSumm(
 		}
 		
 		if(canRep) {
-			cerr << "    " << met.nunp_uni << " (";
-			printPct(cerr, met.nunp_uni, met.nunpaired);
-			cerr << ") aligned >0 and <=" << repThresh << " times" << endl;
+			// Print the number that aligned exactly once
+			assert_eq(met.nunp_uni, met.nunp_uni1+met.nunp_uni2);
+			cerr << "    " << met.nunp_uni1 << " (";
+			printPct(cerr, met.nunp_uni1, met.nunpaired);
+			cerr << ") aligned exactly 1 time" << endl;
+
+			// Print the number that aligned more than once but fewer times
+			// than the limit
+			cerr << "    " << met.nunp_uni2 << " (";
+			printPct(cerr, met.nunp_uni2, met.nunpaired);
+			cerr << ") aligned >1 and <=" << repThresh << " times" << endl;
 			
 			cerr << "    " << met.nunp_rep << " (";
 			printPct(cerr, met.nunp_rep, met.nunpaired);
 			cerr << ") aligned >" << repThresh << " times" << endl;
 		} else {
-			cerr << "    " << met.nunp_uni << " (";
-			printPct(cerr, met.nunp_uni, met.nunpaired);
-			cerr << ") aligned >0 times" << endl;
+			// Print the number that aligned exactly once
+			assert_eq(met.nunp_uni, met.nunp_uni1+met.nunp_uni2);
+			cerr << "    " << met.nunp_uni1 << " (";
+			printPct(cerr, met.nunp_uni1, met.nunpaired);
+			cerr << ") aligned exactly 1 time" << endl;
+
+			// Print the number that aligned more than once
+			cerr << "    " << met.nunp_uni2 << " (";
+			printPct(cerr, met.nunp_uni2, met.nunpaired);
+			cerr << ") aligned >1 times" << endl;
 		}
 	}
 	uint64_t tot_al_cand = totunpair + totpair*2;
@@ -515,7 +562,6 @@ void AlnSink::printAlSumm(
 		met.nunp_uni +
 		met.nunp_rep;
 	assert_leq(tot_al, tot_al_cand);
-	//cerr << "";
 	printPct(cerr, tot_al, tot_al_cand);
 	cerr << " overall alignment rate" << endl;
 }
@@ -779,6 +825,12 @@ void AlnSinkWrap::finishRead(
 				met.nconcord_rep++;
 			} else {
 				met.nconcord_uni++;
+				assert(!rs1_.empty());
+				if(rs1_.size() == 1) {
+					met.nconcord_uni1++;
+				} else {
+					met.nconcord_uni2++;
+				}
 			}
 			init_ = false;
 			return;
@@ -868,10 +920,26 @@ void AlnSinkWrap::finishRead(
 				// Update counters
 				if(readIsPair()) {
 					if(unpair1Max) met.nunp_0_rep++;
-					else           met.nunp_0_uni++;
+					else {
+						met.nunp_0_uni++;
+						assert(!rs1u_.empty());
+						if(rs1u_.size() == 1) {
+							met.nunp_0_uni1++;
+						} else {
+							met.nunp_0_uni2++;
+						}
+					}
 				} else {
 					if(unpair1Max) met.nunp_rep++;
-					else           met.nunp_uni++;
+					else {
+						met.nunp_uni++;
+						assert(!rs1u_.empty());
+						if(rs1u_.size() == 1) {
+							met.nunp_uni1++;
+						} else {
+							met.nunp_uni2++;
+						}
+					}
 				}
 			} else if(unpair1Max) {
 				// Update counters
@@ -888,10 +956,26 @@ void AlnSinkWrap::finishRead(
 				// Update counters
 				if(readIsPair()) {
 					if(unpair2Max) met.nunp_0_rep++;
-					else           met.nunp_0_uni++;
+					else {
+						assert(!rs2u_.empty());
+						met.nunp_0_uni++;
+						if(rs2u_.size() == 1) {
+							met.nunp_0_uni1++;
+						} else {
+							met.nunp_0_uni2++;
+						}
+					}
 				} else {
 					if(unpair2Max) met.nunp_rep++;
-					else           met.nunp_uni++;
+					else {
+						assert(!rs2u_.empty());
+						met.nunp_uni++;
+						if(rs2u_.size() == 1) {
+							met.nunp_uni1++;
+						} else {
+							met.nunp_uni2++;
+						}
+					}
 				}
 			} else if(unpair2Max) {
 				// Update counters

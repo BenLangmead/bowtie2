@@ -46,7 +46,7 @@ struct ReportingMetrics {
 	ReportingMetrics() { reset(); MUTEX_INIT(lock); }
 	
 	void reset() {
-		init(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+		init(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 	}
 	
 	void init(
@@ -54,41 +54,57 @@ struct ReportingMetrics {
 		uint64_t npaired_,
 		uint64_t nunpaired_,
 		uint64_t nconcord_uni_,
+		uint64_t nconcord_uni1_,
+		uint64_t nconcord_uni2_,
 		uint64_t nconcord_rep_,
 		uint64_t nconcord_0_,
 		uint64_t ndiscord_,
 		uint64_t nunp_0_uni_,
+		uint64_t nunp_0_uni1_,
+		uint64_t nunp_0_uni2_,
 		uint64_t nunp_0_rep_,
 		uint64_t nunp_0_0_,
 		uint64_t nunp_rep_uni_,
+		uint64_t nunp_rep_uni1_,
+		uint64_t nunp_rep_uni2_,
 		uint64_t nunp_rep_rep_,
 		uint64_t nunp_rep_0_,
 		uint64_t nunp_uni_,
+		uint64_t nunp_uni1_,
+		uint64_t nunp_uni2_,
 		uint64_t nunp_rep_,
 		uint64_t nunp_0_)
 	{
-		nread        = nread_;
+		nread         = nread_;
 		
-		npaired      = npaired_;
-		nunpaired    = nunpaired_;
+		npaired       = npaired_;
+		nunpaired     = nunpaired_;
 		
-		nconcord_uni = nconcord_uni_;
-		nconcord_rep = nconcord_rep_;
-		nconcord_0   = nconcord_0_;
+		nconcord_uni  = nconcord_uni_;
+		nconcord_uni1 = nconcord_uni1_;
+		nconcord_uni2 = nconcord_uni2_;
+		nconcord_rep  = nconcord_rep_;
+		nconcord_0    = nconcord_0_;
 		
-		ndiscord     = ndiscord_;
+		ndiscord      = ndiscord_;
 		
-		nunp_0_uni   = nunp_0_uni_;
-		nunp_0_rep   = nunp_0_rep_;
-		nunp_0_0     = nunp_0_0_;
+		nunp_0_uni    = nunp_0_uni_;
+		nunp_0_uni1   = nunp_0_uni1_;
+		nunp_0_uni2   = nunp_0_uni2_;
+		nunp_0_rep    = nunp_0_rep_;
+		nunp_0_0      = nunp_0_0_;
 
-		nunp_rep_uni = nunp_rep_uni_;
-		nunp_rep_rep = nunp_rep_rep_;
-		nunp_rep_0   = nunp_rep_0_;
+		nunp_rep_uni  = nunp_rep_uni_;
+		nunp_rep_uni1 = nunp_rep_uni1_;
+		nunp_rep_uni2 = nunp_rep_uni2_;
+		nunp_rep_rep  = nunp_rep_rep_;
+		nunp_rep_0    = nunp_rep_0_;
 
-		nunp_uni     = nunp_uni_;
-		nunp_rep     = nunp_rep_;
-		nunp_0       = nunp_0_;
+		nunp_uni      = nunp_uni_;
+		nunp_uni1     = nunp_uni1_;
+		nunp_uni2     = nunp_uni2_;
+		nunp_rep      = nunp_rep_;
+		nunp_0        = nunp_0_;
 	}
 	
 	/**
@@ -99,58 +115,74 @@ struct ReportingMetrics {
 	void merge(const ReportingMetrics& met, bool getLock = false) {
 		ThreadSafe ts(&lock, getLock);
 		
-		nread        += met.nread;
+		nread         += met.nread;
 		
-		npaired      += met.npaired;
-		nunpaired    += met.nunpaired;
+		npaired       += met.npaired;
+		nunpaired     += met.nunpaired;
 		
-		nconcord_uni += met.nconcord_uni;
-		nconcord_rep += met.nconcord_rep;
-		nconcord_0   += met.nconcord_0;
+		nconcord_uni  += met.nconcord_uni;
+		nconcord_uni1 += met.nconcord_uni1;
+		nconcord_uni2 += met.nconcord_uni2;
+		nconcord_rep  += met.nconcord_rep;
+		nconcord_0    += met.nconcord_0;
 		
-		ndiscord     += met.ndiscord;
+		ndiscord      += met.ndiscord;
 		
-		nunp_0_uni   += met.nunp_0_uni;
-		nunp_0_rep   += met.nunp_0_rep;
-		nunp_0_0     += met.nunp_0_0;
+		nunp_0_uni    += met.nunp_0_uni;
+		nunp_0_uni1   += met.nunp_0_uni1;
+		nunp_0_uni2   += met.nunp_0_uni2;
+		nunp_0_rep    += met.nunp_0_rep;
+		nunp_0_0      += met.nunp_0_0;
 
-		nunp_rep_uni += met.nunp_rep_uni;
-		nunp_rep_rep += met.nunp_rep_rep;
-		nunp_rep_0   += met.nunp_rep_0;
+		nunp_rep_uni  += met.nunp_rep_uni;
+		nunp_rep_uni1 += met.nunp_rep_uni1;
+		nunp_rep_uni2 += met.nunp_rep_uni2;
+		nunp_rep_rep  += met.nunp_rep_rep;
+		nunp_rep_0    += met.nunp_rep_0;
 
-		nunp_uni     += met.nunp_uni;
-		nunp_rep     += met.nunp_rep;
-		nunp_0       += met.nunp_0;
+		nunp_uni      += met.nunp_uni;
+		nunp_uni1     += met.nunp_uni1;
+		nunp_uni2     += met.nunp_uni2;
+		nunp_rep      += met.nunp_rep;
+		nunp_0        += met.nunp_0;
 	}
 
-	uint64_t  nread;        // # reads
-	uint64_t  npaired;      // # pairs
-	uint64_t  nunpaired;    // # unpaired reads
+	uint64_t  nread;         // # reads
+	uint64_t  npaired;       // # pairs
+	uint64_t  nunpaired;     // # unpaired reads
 	
 	// Paired
 	
 	//  Concordant
-	uint64_t  nconcord_uni; // # pairs with unique concordant alns
-	uint64_t  nconcord_rep; // # pairs with repetitive concordant alns
-	uint64_t  nconcord_0;   // # pairs with 0 concordant alns
+	uint64_t  nconcord_uni;  // # pairs with unique concordant alns
+	uint64_t  nconcord_uni1; // # pairs with exactly 1 concordant alns
+	uint64_t  nconcord_uni2; // # pairs with >1 concordant aln, still unique
+	uint64_t  nconcord_rep;  // # pairs with repetitive concordant alns
+	uint64_t  nconcord_0;    // # pairs with 0 concordant alns
 	//  Discordant
-	uint64_t  ndiscord;     // # pairs with 1 discordant aln
+	uint64_t  ndiscord;      // # pairs with 1 discordant aln
 	
 	//  Unpaired from failed pairs
-	uint64_t  nunp_0_uni;   // # unique from nconcord_0_ - ndiscord_
-	uint64_t  nunp_0_rep;   // # repetitive from 
-	uint64_t  nunp_0_0;     // # with 0 alignments
+	uint64_t  nunp_0_uni;    // # unique from nconcord_0_ - ndiscord_
+	uint64_t  nunp_0_uni1;   // # pairs with exactly 1 concordant alns
+	uint64_t  nunp_0_uni2;   // # pairs with >1 concordant aln, still unique
+	uint64_t  nunp_0_rep;    // # repetitive from 
+	uint64_t  nunp_0_0;      // # with 0 alignments
 
 	//  Unpaired from repetitive pairs
-	uint64_t  nunp_rep_uni; // # pairs with unique concordant alns
-	uint64_t  nunp_rep_rep; // # pairs with repetitive concordant alns
-	uint64_t  nunp_rep_0;   // # pairs with 0 concordant alns
+	uint64_t  nunp_rep_uni;  // # pairs with unique concordant alns
+	uint64_t  nunp_rep_uni1; // # pairs with exactly 1 concordant alns
+	uint64_t  nunp_rep_uni2; // # pairs with >1 concordant aln, still unique
+	uint64_t  nunp_rep_rep;  // # pairs with repetitive concordant alns
+	uint64_t  nunp_rep_0;    // # pairs with 0 concordant alns
 	
 	// Unpaired
 	
-	uint64_t  nunp_uni;   // # unique from nconcord_0_ - ndiscord_
-	uint64_t  nunp_rep;   // # repetitive from 
-	uint64_t  nunp_0;     // # with 0 alignments
+	uint64_t  nunp_uni;      // # unique from nconcord_0_ - ndiscord_
+	uint64_t  nunp_uni1;     // # pairs with exactly 1 concordant alns
+	uint64_t  nunp_uni2;     // # pairs with >1 concordant aln, still unique
+	uint64_t  nunp_rep;      // # repetitive from 
+	uint64_t  nunp_0;        // # with 0 alignments
 
 	MUTEX_T lock;
 };
