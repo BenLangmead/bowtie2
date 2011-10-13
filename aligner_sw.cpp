@@ -327,7 +327,7 @@ bool SwAligner::align(RandomSource& rnd) {
 				}
 			}
 #ifndef NDEBUG
-			if(sse8succ_ && sse16succ_) {
+			if((rand() & 15) == 0 && sse8succ_ && sse16succ_) {
 				SSEData& d8  = fw_ ? sseU8fw_  : sseU8rc_;
 				SSEData& d16 = fw_ ? sseI16fw_ : sseI16rc_;
 				assert_eq(d8.mat_.nrow(), d16.mat_.nrow());
