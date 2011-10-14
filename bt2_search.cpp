@@ -334,7 +334,7 @@ static void resetOptions() {
 	saActionsFn.clear();     // filename to dump all alignment actions to
 	saHitsFn.clear();        // filename to dump all seed hits to
 	seedCacheLocalMB   = 32; // # MB to use for non-shared seed alignment cacheing
-	seedCacheCurrentMB = 16; // # MB to use for current-read seed hit cacheing
+	seedCacheCurrentMB = 20; // # MB to use for current-read seed hit cacheing
 	maxhalf            = 15; // max width on one side of DP table
 	seedSummaryOnly    = false; // print summary information about seed hits, not alignments
 	scanNarrowed       = false; // true -> do ref scan even when seed is narrow
