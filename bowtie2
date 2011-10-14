@@ -79,6 +79,8 @@ if(!$saw_dd) {
 	@bt2w_args= ();
 }
 
+my $debug = 0;
+
 # We've handled arguments that the user has explicitly directed either to the
 # wrapper or to bowtie2, now we capture some of the bowtie2 arguments that
 # ought to be handled in the wrapper
@@ -102,6 +104,10 @@ for(my $i = 0; $i < scalar(@bt2_args); $i++) {
 			for my $a (@args) { push @bt2w_args, ("-$mate", $a); }
 			$bt2_args[$i] = undef;
 		}
+	}
+	if($arg eq "--debug") {
+		$debug = 1;
+		$bt2_args[$i] = undef;
 	}
 }
 my @tmp = ();
@@ -229,7 +235,8 @@ if($verbose) {
 	print STDERR "  Binary args:\n[ @bt2_args ]\n";
 }
 
-my $cmd = "$Bin/bowtie2-align --wrapper basic-0 ".join(" ", @bt2_args);
+my $debug_str = ($debug ? "-debug" : "");
+my $cmd = "$Bin/bowtie2-align$debug_str --wrapper basic-0 ".join(" ", @bt2_args);
 print STDERR "$cmd\n" if $verbose;
 my $ret = system($cmd);
 if(!$keep) { for(@to_delete) { unlink($_); } }
