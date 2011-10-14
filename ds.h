@@ -2492,8 +2492,11 @@ protected:
 	 * Expand our page supply by 1
 	 */
 	T* expand(Pool& p) {
-		pages_.push_back((T*)p.alloc());
-		assert(pages_.back() != NULL);
+		T* newpage = (T*)p.alloc();
+		if(newpage == NULL) {
+			return NULL;
+		}
+		pages_.push_back(newpage);
 		return pages_.back();
 	}
 
