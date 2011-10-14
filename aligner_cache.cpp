@@ -164,6 +164,8 @@ bool AlignmentCache::addOnTheFly(
 		s->payload.top = topf;
 		for(size_t j = 0; j < (botf-topf); j++) {
 			if(!salist_.add(pool(), 0xffffffff)) {
+				// Change the payload's len field
+				s->payload.len = (uint32_t)(topf + j);
 				return false; // Exhausted pool memory
 			}
 		}
