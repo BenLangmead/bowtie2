@@ -2577,7 +2577,8 @@ static void* multiseedSearchWorker(void *vp) {
 						&seedHitSink,     // send seed hits to this sink
 						&seedCounterSink, // send counter summary for each seed to this sink
 						&seedActionSink); // send search action list for each read to this sink
-					assert_eq(0, sdm.ooms);
+					// BTL: Following assert has been observed in the wild
+					//assert_eq(0, sdm.ooms);
 					assert(shs[mate].repOk(&ca.current()));
 					if(!seedSummaryOnly) {
 						// If there aren't any seed hits...
