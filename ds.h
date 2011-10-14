@@ -2493,6 +2493,7 @@ protected:
 	 */
 	T* expand(Pool& p) {
 		pages_.push_back((T*)p.alloc());
+		assert(pages_.back() != NULL);
 		return pages_.back();
 	}
 
