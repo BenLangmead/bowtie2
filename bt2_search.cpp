@@ -2715,11 +2715,8 @@ static void* multiseedSearchWorker(void *vp) {
 		}
 	} // while(true)
 	
-	// Check if a progress message should be printed
-	if(metricsIval > 0 && (metricsOfb != NULL || metricsStderr)) {
-		// One last metrics merge
-		MERGE_METRICS();
-	}
+	// One last metrics merge
+	MERGE_METRICS();
 
 #ifdef BOWTIE_PTHREADS
 	if(tid > 0) { pthread_exit(NULL); }
@@ -2805,8 +2802,6 @@ static void multiseedSearch(
 			startVerbose);
 	}
 	// Start the metrics thread
-	//MetricsThread mett(cerr, metrics, (time_t)metricsIval);
-	//if(metricsIval > 0) mett.run();
 	{
 		Timer _t(cerr, "Multiseed full-index search: ", timing);
 #ifdef BOWTIE_PTHREADS
@@ -2822,10 +2817,7 @@ static void multiseedSearch(
 		for(int i = 0; i < nthreads-1; i++) joinThread(threads[i]);
 #endif
 	}
-	if(metricsIval > 0 && (metricsOfb != NULL || metricsStderr)) {
-		metrics.reportInterval(metricsOfb, metricsStderr, true, false);
-	}
-	//if(metricsIval > 0) { mett.kill(); mett.join(); }
+	metrics.reportInterval(metricsOfb, metricsStderr, true, false);
 }
 
 static string argstr;
