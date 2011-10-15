@@ -138,7 +138,12 @@ GENERAL_LIST = $(wildcard scripts/*.sh) \
                doc/manual.html \
                doc/README \
                doc/style.css \
+			   $(wildcard example/index/*.bt2) \
+			   $(wildcard example/reads/*.fq) \
+			   $(wildcard example/reads/*.pl) \
+			   example/reference/lambda_virus.fa \
                $(PTHREAD_PKG) \
+			   bowtie2 \
                AUTHORS \
                COPYING \
                NEWS \
