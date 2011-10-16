@@ -50,7 +50,7 @@
 #include "ds.h"
 
 #define BP_SUFFIX(seq, bps) \
-	(seq & ~(0xfffffffffffffffflu << (bps << 1)))
+	(seq & ~(0xffffffffffffffffllu << (bps << 1)))
 
 #define BP_SUFFIX_EQ(seq1, seq2, bps) \
 	(BP_SUFFIX(seq1, bps) == BP_SUFFIX(seq2, bps))
