@@ -75,7 +75,7 @@
       <!-- mm9 -->
       <tr>
         <td>
-          <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/mm9.zip"><i>H. sapiens</i>, UCSC mm9</a>
+          <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/mm9.zip"><i>M. musculus</i>, UCSC mm9</a>
         </td>
         <td align="right">
           <b>3.1 GB</b>
@@ -96,8 +96,8 @@
   <h2>Related publications</h2>
   <div class="box">
     <ul>
-      <li style="font-size: x-small; line-height: 130%">Langmead B, Trapnell C, Pop M, Salzberg SL. <a href="http://genomebiology.com/2009/10/3/R25"><b>Ultrafast and memory-efficient alignment of short DNA sequences to the human genome</b></a>. <i><a href="http://genomebiology.com">Genome Biology</a></i> <b>10</b>:R25.</li>
-      <li style="font-size: x-small; line-height: 130%">Langmead B, Schatz M, Lin J, Pop M, Salzberg SL. <a href="http://genomebiology.com/2009/10/11/R134"><b>Searching for SNPs with cloud computing</b></a>. <i><a href="http://genomebiology.com">Genome Biology</a></i> <b>10</b>:R134.</li>
+      <li style="font-size: x-small; line-height: 130%">Langmead B, Trapnell C, Pop M, Salzberg SL. <a href="http://genomebiology.com/2009/10/3/R25"><b>Ultrafast and memory-efficient alignment of short DNA sequences to the human genome</b></a>. <i><a href="http://genomebiology.com">Genome Biology</a></i> <b>10</b>:R25.<br/><br/></li>
+      <li style="font-size: x-small; line-height: 130%">Langmead B, Schatz M, Lin J, Pop M, Salzberg SL. <a href="http://genomebiology.com/2009/10/11/R134"><b>Searching for SNPs with cloud computing</b></a>. <i><a href="http://genomebiology.com">Genome Biology</a></i> <b>10</b>:R134.<br/><br/></li>
       <li style="font-size: x-small; line-height: 130%">Langmead B, Hansen K, Leek J. <a href="http://genomebiology.com/2010/11/8/R83"><b>Cloud-scale RNA-sequencing differential expression analysis with Myrna</b></a>. <i><a href="http://genomebiology.com">Genome Biology</a></i> <b>11</b>:R83.</li>
     </ul>
   </div>
