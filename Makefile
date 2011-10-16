@@ -111,6 +111,7 @@ VERSION = $(shell cat VERSION)
 EXTRA_FLAGS =
 
 # Convert BITS=?? to a -m flag
+BITS=32
 BITS_FLAG =
 ifeq (32,$(BITS))
 BITS_FLAG = -m32
@@ -262,7 +263,8 @@ bowtie2-src: $(SRC_PKG_LIST)
 	cp .src.tmp/bowtie2-$(VERSION).zip .
 	rm -rf .src.tmp
 
-bowtie2-bin.zip: $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX) 
+.PHONY: bowtie2-bin
+bowtie2-bin: $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX) 
 	chmod a+x scripts/*.sh scripts/*.pl
 	rm -rf .bin.tmp
 	mkdir .bin.tmp
@@ -274,8 +276,8 @@ bowtie2-bin.zip: $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)
 	fi
 	mv tmp.zip .bin.tmp/bowtie2-$(VERSION)
 	cd .bin.tmp/bowtie2-$(VERSION) ; unzip tmp.zip ; rm -f tmp.zip
-	cd .bin.tmp ; zip -r $@ bowtie2-$(VERSION)
-	cp .bin.tmp/$@ .
+	cd .bin.tmp ; zip -r bowtie2-$(VERSION)-$(BITS).zip bowtie2-$(VERSION)
+	cp .bin.tmp/bowtie2-$(VERSION)-$(BITS).zip .
 	rm -rf .bin.tmp
 
 bowtie2-seeds-debug: aligner_seed.cpp ccnt_lut.cpp alphabet.cpp aligner_seed.h bt2_idx.cpp bt2_io.cpp
