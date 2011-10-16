@@ -14,8 +14,9 @@ genome, its memory footprint is typically around 2.3 GB.  Bowtie 2 supports
 gapped, local, and paired-end alignment modes.  Multiple processors can be used
 simultaneously to achieve greater alignment speed.  Bowtie 2 outputs alignments
 in [SAM] format, enabling interoperation with a large number of other tools
-(e.g. [SAMtools], [GATK]) that use SAM.  Bowtie 2 runs on the command line under
-Windows, Mac OS X and Linux.
+(e.g. [SAMtools], [GATK]) that use SAM.  Bowtie 2 is distributed under the
+[GPLv3 license], and it runs on the command line under Windows, Mac OS X and
+Linux.
 
 [Bowtie 2] is often the first step in pipelines for comparative genomics,
 including for variation calling, ChIP-seq, RNA-seq, BS-seq.  [Bowtie 2] and
@@ -44,6 +45,7 @@ paper].  Thank you!
 [Myrna]:           http://bowtie-bio.sf.net/myrna
 [BSmooth]:         http://bowtie-bio.sf.net/myrna
 [Bowtie paper]:    http://genomebiology.com/2009/10/3/R25
+[GPLv3 license]:   http://www.gnu.org/licenses/gpl-3.0.html
 
 How is Bowtie 2 different from Bowtie 1?
 ----------------------------------------
@@ -78,7 +80,7 @@ the reference.  Bowtie 1 did not.
 6. Bowtie 2 does away with Bowtie 1's notion of alignment "stratum", and its
 distinction between "Maq-like" and "end-to-end" modes.  In Bowtie 2 all
 alignments lie along a continuous spectrum of alignment scores where the
-[scoring scheme], similar to [Needleman–Wunsch] and [Smith-Waterman].
+[scoring scheme], similar to [Needleman-Wunsch] and [Smith-Waterman].
 
 7. Bowtie 2's [paired-end alignment] is more flexible.  E.g. for pairs that do
 not align in a paired fashion, Bowtie 2 attempts to find unpaired alignments for
@@ -89,7 +91,7 @@ each mate.
 Bowtie 2 is not a "drop-in" replacement for Bowtie 1.  Bowtie 2's command-line
 arguments and genome index format are both different from Bowtie 1's.
 
-[Needleman–Wunsch]: http://en.wikipedia.org/wiki/Needleman–Wunsch_algorithm
+[Needleman-Wunsch]: http://en.wikipedia.org/wiki/Needleman-Wunsch_algorithm
 [Smith-Waterman]:   http://en.wikipedia.org/wiki/Smith_waterman
 
 What isn't Bowtie 2?
@@ -673,38 +675,33 @@ When Bowtie 2 finishes running, it prints messages summarizing what happened.
 These messages are printed to the "standard error" ("stderr") filehandle.  For
 datasets consisting of unpaired reads, the summary might look like this:
 
-    10000 reads; of these:
-      10000 (100.00%) were unpaired; of these:
-        618 (6.18%) aligned 0 times
-        8821 (88.21%) aligned exactly 1 time
-        263 (2.63%) aligned >1 and <=5 times
-        298 (2.98%) aligned >5 times
-    93.82% overall alignment rate
+    20000 reads; of these:
+      20000 (100.00%) were unpaired; of these:
+        1249 (6.25%) aligned 0 times
+        18729 (93.64%) aligned exactly 1 time
+        22 (0.11%) aligned >1 and <=3 times
+        0 (0.00%) aligned >3 times
+    93.75% overall alignment rate
 
 For datasets consisting of pairs, the summary might look like this:
 
-    20000 reads; of these:
-      10000 (50.00%) were paired; of these:
-        616 (6.16%) aligned concordantly 0 times
-        7041 (70.41%) aligned concordantly exactly 1 time
-        219 (2.19%) aligned concordantly >1 and <=5 times
-        2124 (21.24%) aligned concordantly >5 times
+    10000 reads; of these:
+      10000 (100.00%) were paired; of these:
+        650 (6.50%) aligned concordantly 0 times
+        8822 (88.22%) aligned concordantly exactly 1 time
+        338 (3.38%) aligned concordantly >1 and <=3 times
+        190 (1.90%) aligned concordantly >3 times
         ----
-        616 pairs aligned concordantly 0 times; of these:
-          27 (4.38%) aligned discordantly 1 time
+        650 pairs aligned concordantly 0 times; of these:
+          33 (5.08%) aligned discordantly 1 time
         ----
-        589 pairs aligned 0 times concordantly or discordantly; of these:
-          1178 mates make up the pairs; of these:
-            630 (53.48%) aligned 0 times
-            522 (44.31%) aligned exactly 1 time
-            15 (1.27%) aligned >1 and <=5 times
-            11 (0.93%) aligned >5 times
-      10000 (50.00%) were unpaired; of these:
-        607 (6.07%) aligned 0 times
-        8851 (88.51%) aligned exactly 1 time
-        263 (2.63%) aligned >1 and <=5 times
-        279 (2.79%) aligned >5 times
-    95.88% overall alignment rate
+        617 pairs aligned 0 times concordantly or discordantly; of these:
+          1234 mates make up the pairs; of these:
+            661 (53.57%) aligned 0 times
+            572 (46.35%) aligned exactly 1 time
+            1 (0.08%) aligned >1 and <=3 times
+            0 (0.00%) aligned >3 times
+    96.69% overall alignment rate
 
 The indentation indicates how subtotals relate to totals.
 
