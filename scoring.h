@@ -48,7 +48,7 @@
 // minimum valid score f when read length is x
 #define DEFAULT_MIN_CONST (-0.6f)
 // Linear coefficient a
-#define DEFAULT_MIN_LINEAR (-0.9f)
+#define DEFAULT_MIN_LINEAR (-0.6f)
 // Different defaults for --local mode
 #define DEFAULT_MIN_CONST_LOCAL (0.0f)
 #define DEFAULT_MIN_LINEAR_LOCAL (0.66f)

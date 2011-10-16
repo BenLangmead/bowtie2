@@ -31,9 +31,9 @@ void PresetsV0::apply(
 	// Presets:                 Same as:
 	//  For --end-to-end:
 	//   --very-fast            -M 1 -N 0 -L 22 -i S,1,2.50
-	//   --fast                 -M 5 -N 0 -L 22 -i S,1,2.50
-	//   --sensitive            -M 5 -N 0 -L 22 -i S,1,1.25 (default)
-	//   --very-sensitive       -M 5 -N 0 -L 20 -i S,1,0.50
+	//   --fast                 -M 3 -N 0 -L 22 -i S,1,2.50
+	//   --sensitive            -M 3 -N 0 -L 22 -i S,1,1.25 (default)
+	//   --very-sensitive       -M 3 -N 0 -L 20 -i S,1,0.50
 	if(preset == "very-fast") {
 		policy += ";SEED=0,22";
 		policy += ";IVAL=S,1,2.50";
@@ -45,19 +45,19 @@ void PresetsV0::apply(
 		policy += ";IVAL=S,1,2.50";
 		policy += ";POSF=G,1.00,1.00";
 		policy += ";ROWM=C,2,0";
-		policy += ";MHITS=5";
+		policy += ";MHITS=3";
 	} else if(preset == "sensitive") {
 		policy += ";SEED=0,22";
 		policy += ";IVAL=S,1,1.25";
 		policy += ";POSF=G,1.00,1.00";
 		policy += ";ROWM=C,2,0";
-		policy += ";MHITS=5";
+		policy += ";MHITS=3";
 	} else if(preset == "very-sensitive") {
 		policy += ";SEED=0,20";
 		policy += ";IVAL=S,1,0.50";
 		policy += ";POSF=G,1.00,1.00";
 		policy += ";ROWM=C,2,0";
-		policy += ";MHITS=5";
+		policy += ";MHITS=3";
 	}
 	//  For --local:
 	//   --very-fast-local      -M 1 -N 0 -L 25 -i S,1,2.00
