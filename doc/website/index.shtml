@@ -20,6 +20,7 @@ genomes.  Bowtie 2 indexes the genome with an FM Index to keep its memory footpr
 genome, its memory footprint is typically around 2.3 GB.  Bowtie 2 supports
 gapped, local, and paired-end alignment modes.
 
+</td>
 <td align="right" valign="middle">
   <a href="http://opensource.org"><img alt="Open Source Software" src="/images/osi-certified.gif"></img></a>
   </td></tr>

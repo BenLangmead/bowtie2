@@ -11,12 +11,8 @@
   <!--#include virtual="top.ssi" -->
   <div id="main">
     <!--#include virtual="rhsidebar.ssi" -->
-    <div id="manual">
-      <table>
-        <tr><td>
+    <div id="manual" style="margin-right: 310px; margin-left: 0px; width: auto;">
         <!--#include virtual="manual.ssi" -->
-        </td></tr>
-      </table>
     </div>
   </div>
   <!--#include virtual="foot.ssi" -->
