@@ -3,8 +3,8 @@ Bowtie 2 NEWS
 
 Bowtie 2 is now available for download from the project website,
 http://bowtie-bio.sf.net/bowtie2.  2.0.0-beta1 is the first version released to
-the public.  Bowtie 2 is licensed under the GPL 3.  See `COPYING' file for
-details.
+the public and 2.0.0-beta2 is the latest version.  Bowtie 2 is licensed under
+the GPLv3 license.  See `COPYING' file for details.
 
 Reporting Issues
 ================
@@ -15,6 +15,22 @@ Please report any issues using the Sourceforge bug tracker:
 
 Version Release History
 =======================
+
+Version 2.0.0-beta2 - October 16, 2011
+   * Added manual, both included in the download package and on the website.
+     The website will always have the manual for the latest version.
+   * Added Linux 32-bit and 64-bit binary packages.  Mac OS X packages to come.
+     Still working on a Windows package.
+   * Fixed a bug that led to crashes when seed-alignment result memory was
+     exhausted.
+   * Changed the --end-to-end mode --score-min default to be less permissive.
+     The previous threshold seemed to be having an adverse effect on accuracy,
+     though the fix implemented in this version comes at the expense of some
+     sensitivity.
+   * Changed the --end-to-end mode -M default to be lower by 2 notches.  This
+     offsets any detrimental effect that the previous change would have had on
+     speed, without a large adverse impact on accuracy.  As always, setting -M
+     higher will yield still greater accuracy at the expense of speed.
 
 Version 2.0.0-beta1 - September 22, 2011
    * First public release.
