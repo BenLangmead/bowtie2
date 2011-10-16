@@ -12,8 +12,8 @@
   <div id="main">
   	<!--#include virtual="rhsidebar.ssi" -->
     <div id="leftside">
-    	<h2>Frequently Asked Questions</h2>
-    	<!--#include virtual="faq.ssi" -->
+       <h2>Frequently Asked Questions</h2>
+       <!--#include virtual="faq.ssi" -->
     </div>
   </div>
   <!--#include virtual="foot.ssi" -->

@@ -519,7 +519,7 @@ the other alignments to estimate mapping quality and to set SAM optional fields,
 such as the `AS:i` and `XS:i` fields.
 
 Increasing `-M` makes Bowtie 2 slower, but increases the likelihood that it
-will pick the correct alignment for a read that aligns many places. Note that
+will find and report the correct alignment for a read that aligns many places.
 Bowtie 2 does not "find" alignments in any specific order, so for reads that
 have more than N distinct, valid alignments, Bowtie 2 does not gaurantee that
 the alignment reported is the best possible in terms of alignment score.
@@ -634,7 +634,7 @@ Presets: setting many settings at once
 
 Bowtie 2 comes with some useful combinations of parameters packaged into shorter
 "preset" parameters.  For example, running Bowtie 2 with the `--very-sensitive`
-option is the same as running with options: `-M 5 -N 0 -L 20 -i S,1,0.50`.  The
+option is the same as running with options: `-M 3 -N 0 -L 20 -i S,1,0.50`.  The
 preset options that come with Bowtie 2 are designed to cover a wide area of the
 speed/sensitivity/accuracy tradeoff space, with the presets ending in `fast`
 generally being faster but less sensitive and less accurate, and the presets
@@ -897,15 +897,15 @@ Same as: `-M 1 -N 0 -L 22 -i S,1,2.50`
 
     --fast
 
-Same as: `-M 5 -N 0 -L 22 -i S,1,2.50`
+Same as: `-M 3 -N 0 -L 22 -i S,1,2.50`
 
     --sensitive
 
-Same as: `-M 5 -N 0 -L 22 -i S,1,1.25` (default in `--end-to-end` mode)
+Same as: `-M 3 -N 0 -L 22 -i S,1,1.25` (default in `--end-to-end` mode)
 
     --very-sensitive
 
-Same as: `-M 5 -N 0 -L 20 -i S,1,0.50`
+Same as: `-M 3 -N 0 -L 20 -i S,1,0.50`
 
 #### Preset options in `--local` mode
 
@@ -1062,10 +1062,10 @@ reference gap of length N gets a penalty of `<int1>` + N * `<int2>`.  Default:
 
 Sets a function governing the minimum alignment score needed for an alignment to
 be considered "valid" (i.e. good enough to report).  This is a function of read
-length. For instance, specifying `L,-0.6,-0.9` sets the minimum-score function
-`f` to `f(x) = -0.6 + -0.9 * x`, where `x` is the read length.  See also:
-[setting function options].  The default in `--end-to-end` mode is
-`L,-0.6,-0.9` and the default in `--local` mode is `L,0,0.66`.
+length. For instance, specifying `L,0,-0.6` sets the minimum-score function `f`
+to `f(x) = 0 + -0.6 * x`, where `x` is the read length.  See also: [setting
+function options].  The default in `--end-to-end` mode is `L,0,-0.6` and the
+default in `--local` mode is `L,0,0.66`.
 
 #### Reporting options
 
@@ -1081,7 +1081,7 @@ but increases the likelihood that it will pick the correct alignment for a read
 that aligns many places.  For reads that have more than `<int>+1` distinct,
 valid alignments, Bowtie 2 does not gaurantee that the alignment reported is the
 best possible in terms of alignment score.  See also: [reporting].  `-M` is
-mutually exclusive with `-k` and `-a`.  The default is 5 in `--end-to-end`
+mutually exclusive with `-k` and `-a`.  The default is 3 in `--end-to-end`
 mode and 2 in `--local` mode.
 
     -k <int>
