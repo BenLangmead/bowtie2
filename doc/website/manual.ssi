@@ -1,5 +1,5 @@
 <h1>Table of Contents</h1>
-<p>&nbsp;Version <b>2.0.0-beta1</b></p>
+<p>&nbsp;Version <b>2.0.0-beta2</b></p>
 <div id="TOC"
 ><ul
   ><li
@@ -934,7 +934,7 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
   ><code
     >-M</code
     ></a
-  > makes Bowtie 2 slower, but increases the likelihood that it will pick the correct alignment for a read that aligns many places. Note that Bowtie 2 does not &quot;find&quot; alignments in any specific order, so for reads that have more than N distinct, valid alignments, Bowtie 2 does not gaurantee that the alignment reported is the best possible in terms of alignment score.</p
+  > makes Bowtie 2 slower, but increases the likelihood that it will find and report the correct alignment for a read that aligns many places. Bowtie 2 does not &quot;find&quot; alignments in any specific order, so for reads that have more than N distinct, valid alignments, Bowtie 2 does not gaurantee that the alignment reported is the best possible in terms of alignment score.</p
 ><h3 id="k-mode-search-for-one-or-more-alignments-report-each"
 ><a href="#TOC"
   >-k mode: search for one or more alignments, report each</a
@@ -1065,7 +1065,7 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
 >Bowtie 2 comes with some useful combinations of parameters packaged into shorter &quot;preset&quot; parameters. For example, running Bowtie 2 with the <code
   >--very-sensitive</code
   > option is the same as running with options: <code
-  >-M 5 -N 0 -L 20 -i S,1,0.50</code
+  >-M 3 -N 0 -L 20 -i S,1,0.50</code
   >. The preset options that come with Bowtie 2 are designed to cover a wide area of the speed/sensitivity/accuracy tradeoff space, with the presets ending in <code
   >fast</code
   > generally being faster but less sensitive and less accurate, and the presets ending in <code
@@ -1697,7 +1697,7 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
 ></td><td>
 <p
 >Same as: <code
-  >-M 5 -N 0 -L 22 -i S,1,2.50</code
+  >-M 3 -N 0 -L 22 -i S,1,2.50</code
   ></p
 ></td></tr>
 <tr><td id="bowtie2-options-sensitive">
@@ -1711,7 +1711,7 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
 ></td><td>
 <p
 >Same as: <code
-  >-M 5 -N 0 -L 22 -i S,1,1.25</code
+  >-M 3 -N 0 -L 22 -i S,1,1.25</code
   > (default in <a href="#bowtie2-options-end-to-end"
   ><code
     >--end-to-end</code
@@ -1729,7 +1729,7 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
 ></td><td>
 <p
 >Same as: <code
-  >-M 5 -N 0 -L 20 -i S,1,0.50</code
+  >-M 3 -N 0 -L 20 -i S,1,0.50</code
   ></p
 ></td></tr>
 </table>
@@ -2210,11 +2210,11 @@ Seed 4 rc:                   TTATGCATGA
 ></td><td>
 <p
 >Sets a function governing the minimum alignment score needed for an alignment to be considered &quot;valid&quot; (i.e. good enough to report). This is a function of read length. For instance, specifying <code
-  >L,-0.6,-0.9</code
+  >L,0,-0.6</code
   > sets the minimum-score function <code
   >f</code
   > to <code
-  >f(x) = -0.6 + -0.9 * x</code
+  >f(x) = 0 + -0.6 * x</code
   >, where <code
   >x</code
   > is the read length. See also: <a href="#setting-function-options"
@@ -2224,7 +2224,7 @@ Seed 4 rc:                   TTATGCATGA
     >--end-to-end</code
     ></a
   > mode is <code
-  >L,-0.6,-0.9</code
+  >L,0,-0.6</code
   > and the default in <a href="#bowtie2-options-local"
   ><code
     >--local</code
@@ -2282,7 +2282,7 @@ Seed 4 rc:                   TTATGCATGA
   ><code
     >-a</code
     ></a
-  >. The default is 5 in <a href="#bowtie2-options-end-to-end"
+  >. The default is 3 in <a href="#bowtie2-options-end-to-end"
   ><code
     >--end-to-end</code
     ></a
