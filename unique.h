@@ -153,14 +153,16 @@ public:
 			secbest = s.secbest(mate1).score();
 			TAlScore bestdiff = abs(abs(best)-abs(secbest));
 			if(bestdiff >= diff * 0.1666f * 5) {
-				ret = 5;
+				ret = 6;
 			} else if(bestdiff >= diff * 0.1666f * 4) {
-				ret = 4;
+				ret = 5;
 			} else if(bestdiff >= diff * 0.1666f * 3) {
-				ret = 3;
+				ret = 4;
 			} else if(bestdiff >= diff * 0.1666f * 2) {
-				ret = 2;
+				ret = 3;
 			} else if(bestdiff >= diff * 0.1666f * 1) {
+				ret = 2;
+			} else {
 				ret = 1;
 			}
 		}
