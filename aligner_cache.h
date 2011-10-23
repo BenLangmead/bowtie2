@@ -373,8 +373,20 @@ public:
 		}
 		return top > o.top;
 	}
+	
+	bool operator==(const SATuple& o) const {
+		return key == o.key && top == o.top && offs == o.offs;
+	}
 
 	void reset() { top = 0xffffffff; offs.reset(); }
+	
+	/**
+	 * Set the length to be at most the original length.
+	 */
+	void setLength(size_t nlen) {
+		assert_leq(nlen, offs.size());
+		offs.setLength(nlen);
+	}
 	
 	/**
 	 * Return the number of times this reference substring occurs in the

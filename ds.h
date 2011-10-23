@@ -2621,6 +2621,14 @@ public:
 		return !(*this == sl);
 	}
 	
+	/**
+	 * Set the length.  This could leave things inconsistent (e.g. could
+	 * include elements that fall off the end of list_).
+	 */
+	void setLength(size_t nlen) {
+		len_ = (uint32_t)nlen;
+	}
+	
 protected:
 	uint32_t i_;
 	uint32_t len_;

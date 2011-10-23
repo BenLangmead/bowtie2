@@ -81,10 +81,12 @@ void SwDriver::prioritizeSATups(
 			if(keepWhole) {
 				satpos_.expand();
 				satpos_.back().sat = satups_[j];
+				satpos_.back().origSz = sz;
 				satpos_.back().pos.init(fw, offidx, rdoff, seedlen);
 			} else {
 				satpos2_.expand();
 				satpos2_.back().sat = satups_[j];
+				satpos2_.back().origSz = sz;
 				satpos2_.back().pos.init(fw, offidx, rdoff, seedlen);
 			}
 		}
@@ -128,7 +130,6 @@ void SwDriver::prioritizeSATups(
 	gws_.ensure(min(maxelt, nelt));
 	rands_.ensure(min(maxelt, nelt));
 	rands2_.ensure(min(maxelt, nelt));
-	ASSERT_ONLY(size_t nlarge = nrange - nsmall);
 	size_t nlarge_elts = nelt - nsmall_elts;
 	if(maxelt < nelt) {
 		size_t diff = nelt - maxelt;
@@ -139,82 +140,99 @@ void SwDriver::prioritizeSATups(
 		}
 	}
 	size_t nelt_added = 0;
-	bool first = true;
-	while(nelt_added < maxelt && nelt_added < nelt) {
-		for(size_t j = 0; j < nrange; j++) {
-			ASSERT_ONLY(const size_t sz = satpos2_[j].sat.size());
-			assert(sz > nsm  || j <  nsmall);
-			assert(sz <= nsm || j >= nsmall);
-			if(j < nsmall && first) {
-				// Add a query corresponding to this reference substring to the
-				// SeedScanner so that we can possibly resolve it via reference
-				// scanning.
-				sstab_.add(
-					make_pair(j, 0),
-					satpos2_[j].sat.key.seq,
-					(size_t)satpos2_[j].pos.seedlen);
-				satpos_.expand();
-				satpos_.back() = satpos2_[j];
-				sacomb_.expand();
-				sacomb_.back().init(satpos_.back().sat);
-				gws_.expand();
-				gws_.back().init(
-					ebwt,               // forward Bowtie index
-					ref,                // reference sequences
-					satpos_.back().sat, // SA tuples: ref hit, salist range
-					sacomb_.back(),     // Combiner for resolvers
-					ca,                 // current cache
-					rnd,                // pseudo-random generator
-					wlm);               // metrics
-				assert(gws_.back().initialized());
-				rands_.expand();
-				rands_.back().init(satpos_.back().sat.size());
-				nelt_added += satpos_.back().sat.size();
-				if(nelt_added >= maxelt) {
-					break;
-				}
-			} else if(j >= nsmall) {
-				size_t jj = j - nsmall;
-				if(first) {
-					assert_eq(jj, rands2_.size());
-					rands2_.expand();
-					rands2_.back().init(satpos2_[j].sat.size());
-				} else {
-					assert_eq(nlarge, rands2_.size());
-					if(rands2_[jj].done()) {
-						continue;
-					}
-				}
-				assert(!rands2_[jj].done());
-				uint32_t r = rands2_[jj].next(rnd);
-				SATuple sa;
-				TSlice o;
-				o.init(satpos2_[j].sat.offs, r, r+1);
-				sa.init(satpos2_[j].sat.key, satpos2_[j].sat.top + r, o);
-				satpos_.expand();
-				satpos_.back().sat = sa;
-				satpos_.back().pos = satpos2_[j].pos;
-				sacomb_.expand();
-				sacomb_.back().reset();
-				gws_.expand();
-				gws_.back().init(
-					ebwt,               // forward Bowtie index
-					ref,                // reference sequences
-					satpos_.back().sat, // SA tuples: ref hit, salist range
-					sacomb_.back(),     // Combiner for resolvers
-					ca,                 // current cache
-					rnd,                // pseudo-random generator
-					wlm);               // metrics
-				assert(gws_.back().initialized());
-				rands_.expand();
-				rands_.back().init(1);
-				nelt_added++;
-				if(nelt_added >= maxelt) {
-					break;
-				}
-			}
+	// Now we have a collection of ranges in satpos2_.  Now we want to decide
+	// how we explore elements from them.  The basic idea is that: for very
+	// small guys, where "very small" means that the size of the range is less
+	// than or equal to the parameter 'nsz', we explore them in their entirety
+	// right away.  For the rest, we want to select in a way that is (a)
+	// random, and (b) weighted toward examining elements from the smaller
+	// ranges more frequently (and first).
+	//
+	// 1. do the smalls
+	for(size_t j = 0; j < nsmall; j++) {
+		ASSERT_ONLY(const size_t sz = satpos2_[j].sat.size());
+		assert_leq(sz, nsm);
+		sstab_.add(
+			make_pair(j, 0),
+			satpos2_[j].sat.key.seq,
+			(size_t)satpos2_[j].pos.seedlen);
+		satpos_.expand();
+		satpos_.back() = satpos2_[j];
+		sacomb_.expand();
+		sacomb_.back().init(satpos_.back().sat);
+		gws_.expand();
+		gws_.back().init(
+			ebwt,               // forward Bowtie index
+			ref,                // reference sequences
+			satpos_.back().sat, // SA tuples: ref hit, salist range
+			sacomb_.back(),     // Combiner for resolvers
+			ca,                 // current cache
+			rnd,                // pseudo-random generator
+			wlm);               // metrics
+		assert(gws_.back().initialized());
+		rands_.expand();
+		rands_.back().init(satpos_.back().sat.size());
+		if(nelt_added + satpos_.back().sat.size() > maxelt) {
+			// Curtail
+			size_t nlen = maxelt - nelt_added;
+			satpos_.back().sat.setLength(nlen);
 		}
-		first = false;
+		nelt_added += satpos_.back().sat.size();
+#ifndef NDEBUG
+		for(size_t k = 0; k < satpos_.size()-1; k++) {
+			assert(!(satpos_[k] == satpos_.back()));
+		}
+#endif
+	}
+	assert_leq(nelt_added, maxelt)
+	if(nelt_added == maxelt) {
+		return;
+	}
+	// 2. do the non-smalls
+	// Initialize the row sampler
+	rowsamp_.init(satpos2_, nsmall, satpos2_.size());
+	// Initialize the random choosers
+	rands2_.resize(satpos2_.size());
+	for(size_t j = 0; j < satpos2_.size(); j++) {
+		rands2_[j].reset();
+	}
+	while(nelt_added < maxelt && nelt_added < nelt) {
+		size_t ri = rowsamp_.next(rnd) + nsmall;
+		assert_geq(ri, nsmall);
+		assert_lt(ri, satpos2_.size());
+		if(!rands2_[ri].inited()) {
+			rands2_[ri].init(satpos2_[ri].sat.size());
+			assert(!rands2_[ri].done());
+		}
+		assert(!rands2_[ri].done());
+		uint32_t r = rands2_[ri].next(rnd);
+		if(rands2_[ri].done()) {
+			// Tell the row sampler this range is done
+			rowsamp_.finishedRange(ri);
+		}
+		SATuple sa;
+		TSlice o;
+		o.init(satpos2_[ri].sat.offs, r, r+1);
+		sa.init(satpos2_[ri].sat.key, satpos2_[ri].sat.top + r, o);
+		satpos_.expand();
+		satpos_.back().sat = sa;
+		satpos_.back().origSz = satpos2_[ri].origSz;
+		satpos_.back().pos = satpos2_[ri].pos;
+		sacomb_.expand();
+		sacomb_.back().reset();
+		gws_.expand();
+		gws_.back().init(
+			ebwt,               // forward Bowtie index
+			ref,                // reference sequences
+			satpos_.back().sat, // SA tuples: ref hit, salist range
+			sacomb_.back(),     // Combiner for resolvers
+			ca,                 // current cache
+			rnd,                // pseudo-random generator
+			wlm);               // metrics
+		assert(gws_.back().initialized());
+		rands_.expand();
+		rands_.back().init(1);
+		nelt_added++;
 	}
 }
 
@@ -352,6 +370,17 @@ bool SwDriver::extendSeeds(
 					// isn't valid
 					continue;
 				}
+#ifndef NDEBUG
+				{ // Check that seed hit matches reference
+					uint64_t key = satpos_[i].sat.key.seq;
+					for(size_t k = 0; k < wr.elt.len; k++) {
+						int c = ref.getBase(tidx, toff + wr.elt.len - k - 1);
+						int ck = (int)(key & 3);
+						key >>= 2;
+						assert_eq(c, ck);
+					}
+				}
+#endif
 				// Find offset of alignment's upstream base assuming net gaps=0
 				// between beginning of read and beginning of seed hit
 				int64_t refoff = (int64_t)toff - rdoff;
@@ -865,6 +894,17 @@ bool SwDriver::extendSeedsPaired(
 					// isn't valid
 					continue;
 				}
+#ifndef NDEBUG
+				{ // Check that seed hit matches reference
+					uint64_t key = satpos_[i].sat.key.seq;
+					for(size_t k = 0; k < wr.elt.len; k++) {
+						int c = ref.getBase(tidx, toff + wr.elt.len - k - 1);
+						int ck = (int)(key & 3);
+						key >>= 2;
+						assert_eq(c, ck);
+					}
+				}
+#endif
 				// Find offset of alignment's upstream base assuming net gaps=0
 				// between beginning of read and beginning of seed hit
 				int64_t refoff = (int64_t)toff - rdoff;

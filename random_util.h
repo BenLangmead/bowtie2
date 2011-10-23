@@ -36,6 +36,10 @@ public:
 		cur_ = 0;
 		list_.clear();
 	}
+	
+	void reset() {
+		n_ = cur_ = 0; list_.clear();
+	}
 
 	uint32_t next(RandomSource& rnd) {
 		assert(!done());
@@ -59,7 +63,9 @@ public:
 		return list_[cur_++];
 	}
 	
-	bool done() { return cur_ >= n_; }
+	bool inited() { return n_ > 0; }
+	
+	bool done() { return inited() && cur_ >= n_; }
 
 	size_t size() const { return n_; }
 	
