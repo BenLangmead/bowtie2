@@ -208,7 +208,7 @@ void SwDriver::prioritizeSATups(
 		uint32_t r = rands2_[ri].next(rnd);
 		if(rands2_[ri].done()) {
 			// Tell the row sampler this range is done
-			rowsamp_.finishedRange(ri);
+			rowsamp_.finishedRange(ri - nsmall);
 		}
 		SATuple sa;
 		TSlice o;
