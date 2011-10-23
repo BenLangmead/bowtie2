@@ -77,7 +77,6 @@
 
 #include "aligner_sw_common.h"
 #include "aligner_sw_nuc.h"
-#include "aligner_sw_col.h"
 #include "ds.h"
 #include "threading.h"
 #include "aligner_seed.h"
@@ -87,6 +86,7 @@
 #include "aligner_result.h"
 #include "mask.h"
 #include "seed_scan.h"
+#include "dp_framer.h"
 
 #ifndef NO_SSE
 #include "aligner_swsse.h"
@@ -229,12 +229,9 @@ public:
 		initedRef_(false),
 		rfwbuf_(DP_CAT),
 		ntab_(DP_CAT),
-		ctab_(DP_CAT),
 		btnstack_(DP_CAT),
-		btcstack_(DP_CAT),
 		btcells_(DP_CAT),
 		btncand_(DP_CAT),
-		btccand_(DP_CAT),
 		nfills_(0),
 		ncups_(0),
 		nrowups_(0),
@@ -262,24 +259,21 @@ public:
 		size_t rdf,            // offset of last read char to align
 		bool color,            // true iff read is colorspace
 		const Scoring& sc,     // scoring scheme
-		TAlScore minsc,        // minimum score a cell must achieve to have sol
 		TAlScore floorsc);     // local-alignment score floor
+
 
 	/**
 	 * Initialize with a new alignment problem.
 	 */
 	void initRef(
-		bool fw,               // whether to forward or revcomp read aligned
+		bool fw,               // whether to forward or revcomp read is aligning
 		uint32_t refidx,       // id of reference aligned against
-		TRefOff refoff,        // offset of upstream ref char aligned against
+		const DPRect& rect,    // DP rectangle
 		char *rf,              // reference sequence
 		size_t rfi,            // offset of first reference char to align to
 		size_t rff,            // offset of last reference char to align to
-		size_t width,          // # bands to do (width of parallelogram)
-		size_t solwidth,       // # rightmost cols where solns can end
-		size_t maxgaps,        // max of max # read gaps, max # ref gaps
-		size_t truncLeft,      // # cols/diags to truncate from LHS
-		EList<bool>* en,       // mask indicating which columns we can end in
+		const Scoring& sc,     // scoring scheme
+		TAlScore minsc,        // minimum score
 		bool extend);          // true iff this is a seed extension
 
 	/**
@@ -298,15 +292,11 @@ public:
 	void initRef(
 		bool fw,               // whether to forward or revcomp read aligned
 		uint32_t refidx,       // reference aligned against
-		TRefOff rfi,           // off of first character in ref to consider
-		TRefOff rff,           // off of last char (excl) in ref to consider
+		const DPRect& rect,    // DP rectangle
 		const BitPairReference& refs, // Reference strings
 		size_t reflen,         // length of reference sequence
-		size_t width,          // # bands to do (width of parallelogram)
-		size_t solwidth,       // # rightmost cols where solns can end
-		size_t maxgaps,        // max of max # read, ref gaps
-		size_t truncLeft,      // columns to truncate from left-hand side of rect
-		EList<bool>* en,       // mask indicating which columns we can end in
+		const Scoring& sc,     // scoring scheme
+		TAlScore minsc,        // minimum alignment score
 		bool extend,           // true iff this is a seed extension
 		SeedScanner *sscan,    // optional seed scanner to feed ref chars to
 		size_t  upto,          // count the number of Ns up to this offset
@@ -352,11 +342,7 @@ public:
 	 */
 	bool done() const {
 		assert(initedRead() && initedRef());
-		if(color_) {
-			return cural_ == btccand_.size();
-		} else {
-			return cural_ == btncand_.size();
-		}
+		return cural_ == btncand_.size();
 	}
 
 	/**
@@ -381,39 +367,23 @@ public:
 	 * according to the alignment policy and properties of the read/ref
 	 * sequence.
 	 */
-	inline void filter(size_t nlim) { nfilter(nlim); }
+	//inline void filter(size_t nlim) { nfilter(nlim); }
 	
 	/**
 	 * Check that aligner is internally consistent.
 	 */
 	bool repOk() const {
 		assert_gt(dpRows(), 0);
-		//assert(st_ == NULL || st_->size() == solwidth_);
-		assert(en_ == NULL || en_->size() == solwidth_);
-		if(color_) {
-			// Check btccand_
-			for(size_t i = 0; i < btccand_.size(); i++) {
-				assert_lt(btccand_[i].row, ctab_.size());
-				assert(solrowlo_ < 0 || btccand_[i].row >= (size_t)solrowlo_);
-				// The SSE aligner, when operating in local (not end-to-end)
-				// mode might find solutions ending outside of the
-				// parallelogram.
-				//assert_lt(btccand_[i].col, ctab_[btccand_[i].row].size());
-				assert(btccand_[i].repOk());
-				assert_geq(btccand_[i].score, minsc_);
-			}
-		} else {
-			// Check btncand_
-			for(size_t i = 0; i < btncand_.size(); i++) {
-				assert(sse_ || btncand_[i].row < ntab_.size());
-				assert(solrowlo_ < 0 || btncand_[i].row >= (size_t)solrowlo_);
-				// The SSE aligner, when operating in local (not end-to-end)
-				// mode might find solutions ending outside of the
-				// parallelogram.
-				//assert_lt(btncand_[i].col, ntab_[btncand_[i].row].size());
-				assert(btncand_[i].repOk());
-				assert_geq(btncand_[i].score, minsc_);
-			}
+		// Check btncand_
+		for(size_t i = 0; i < btncand_.size(); i++) {
+			assert(sse_ || btncand_[i].row < ntab_.size());
+			assert(solrowlo_ < 0 || btncand_[i].row >= (size_t)solrowlo_);
+			// The SSE aligner, when operating in local (not end-to-end)
+			// mode might find solutions ending outside of the
+			// parallelogram.
+			//assert_lt(btncand_[i].col, ntab_[btncand_[i].row].size());
+			assert(btncand_[i].repOk());
+			assert_geq(btncand_[i].score, minsc_);
 		}
 		return true;
 	}
@@ -455,7 +425,7 @@ protected:
 	 * diagonally back from the corresponding cell in the last row would
 	 * overlap too many Ns (more than nlim).
 	 */
-	size_t nfilter(size_t nlim);
+	//size_t nfilter(size_t nlim);
 	
 	/**
 	 * Return the number of rows that will be in the dynamic programming table.
@@ -470,7 +440,7 @@ protected:
 	 * dynamic programming and normal, serial code.  Return true iff zero or
 	 * more alignments are possible.
 	 */
-	TAlScore alignNucleotides();
+	//TAlScore alignNucleotides();
 
 #ifndef NO_SSE
 
@@ -552,153 +522,6 @@ protected:
 
 #endif
 
-	/**
-	 * Align the nucleotide read 'rd' to the reference string 'rf' using
-	 * dynamic programming.  Return true iff zero or more alignments are
-	 * possible.
-	 */
-	TAlScore alignColors();
-
-	/**
-	 * Given the dynamic programming table and a cell (both the table offset
-	 * and the reference character), trace backwards from the cell and install
-	 * the edits and score/penalty in the appropriate fields of res.  The
-	 * RandomSource is used to break ties among equally good ways of tracing
-	 * back.
-	 *
-	 * Note that the subject nucleotide sequence is decoded at the same time as
-	 * the alignment is constructed.  So the traceback reveals both the
-	 * nucleotide decoding (in ned) and the colorspace error pattern (in ced).
-	 * The approach is very similar to the one described in the SHRiMP
-	 * paper:
-	 *
-	 * Rumble SM, Lacroute P, Dalca AV, Fiume M, Sidow A, Brudno M. SHRiMP:
-	 * accurate mapping of short color-space reads. PLoS Comput Biol. 2009
-	 * May;5(5)
-	 *
-	 * Whenever we enter a cell, we check whether the read/ref coordinates of
-	 * that cell correspond to a cell we traversed constructing a previous
-	 * alignment.  If so, we backtrack to the last decision point, mask out the
-	 * path that led to the previously observed cell, and continue along a
-	 * different path; or, if there are no more paths to try, we give up.
-	 *
-	 * If an alignment is found, 'off' is set to the alignment's upstream-most
-	 * reference character's offset into the chromosome and true is returned.
-	 * Otherwise, false is returned.
-	 */
-	bool backtrackColors(
-		TAlScore      dscore,  // score we expect to get over backtrack
-		SwResult&     res,     // out: store results (edits and scores) here
-		size_t&       off,     // out: leftmost ref char involved in aln
-		size_t        row,     // start in this row (w/r/t full matrix)
-		size_t        col,     // start in this column (w/r/t full matrix)
-		int           lastC,   // cell to backtrace from in lower-right corner
-		RandomSource& rand);   // pseudo-random generator
-
-	/**
-	 * Given the dynamic programming table and a cell, trace backwards from the
-	 * cell and install the edits and score/penalty in the appropriate fields
-	 * of res.  The RandomSource is used to break ties among equally good ways
-	 * of tracing back.
-	 *
-	 * Whenever we enter a cell, we check whether the read/ref coordinates of
-	 * that cell correspond to a cell we traversed constructing a previous
-	 * alignment.  If so, we backtrack to the last decision point, mask out the
-	 * path that led to the previously observed cell, and continue along a
-	 * different path; or, if there are no more paths to try, we give up.
-	 *
-	 * If an alignment is found, 'off' is set to the alignment's upstream-most
-	 * reference character's offset into the chromosome and true is returned.
-	 * Otherwise, false is returned.
-	 */
-	bool backtraceNucleotides(
-		TAlScore      escore,  // score we expect to get over backtrack
-		SwResult&     res,     // out: store results (edits and scores) here
-		size_t&       off,     // out: leftmost ref char involved in aln
-		size_t        row,     // start in this row (w/r/t full matrix)
-		size_t        col,     // start in this column (w/r/t full matrix)
-		RandomSource& rand);   // pseudo-random generator
-
-	/**
-	 * Update the overall best alignment.
-	 */
-	void nextAlignmentUpdateBest();
-
-	/**
-	 * Given a range of columns in a row, update solrowbest_, solcols_, solbest_.
-	 * Return true iff there areone or more solution cells in the row.
-	 */
-	bool nextAlignmentUpdateColorRow(size_t row);
-
-	/**
-	 * Given a range of columns in a row, update solrowbest_, solcols_, solbest_.
-	 * Return true iff there areone or more solution cells in the row.
-	 */
-	bool nextAlignmentUpdateNucRow(size_t row);
-
-	/**
-	 * Try to report an alignment with the given score from the given row.
-	 * After each attempt, update information about the row.
-	 */
-	bool nextAlignmentTryColorRow(
-		SwResult& res,       // install result here
-		size_t& off,         // ref offset of alignment
-		size_t row,          // row to try a solution from
-		TAlScore sc,         // potential solutions must have this score
-		RandomSource& rnd);  // pseudo-random generator for backtrack
-
-	/**
-	 * Try to report an alignment with the given score from the given row.
-	 * After each attempt, update information about the row.
-	 */
-	bool nextAlignmentTryNucRow(
-		SwResult& res,       // install result here
-		size_t& off,         // ref offset of alignment
-		size_t row,          // row to try a solution from
-		TAlScore sc,         // potential solutions must have this score
-		RandomSource& rnd);  // pseudo-random generator for backtrack
-
-	// Members for updating cells in nucleotide dynamic programming tables
-
-	inline void updateNucHoriz(
-		const SwNucCell& lc,
-		SwNucCell& dstc,
-		int rfm);
-
-	inline void updateNucDiag(
-		const SwNucCell& dc,
-		SwNucCell& dstc,
-		int rdc,
-		int rfm,
-		int pen,
-		bool& improved);
-
-	inline void updateNucVert(
-		const SwNucCell& uc,
-		SwNucCell& dstc,
-		int rdc);
-
-	// Members for updating cells in colorspace dynamic programming tables
-
-	inline void updateColorHoriz(
-		const SwColorCell& lc,
-		SwColorCell& dstc,
-		int refMask);
-
-	inline void updateColorDiag(
-		const SwColorCell& uc,
-		SwColorCell& dstc,
-		int refMask,
-		int prevColor,
-		int prevQual,
-		bool& improved);
-
-	inline void updateColorVert(
-		const SwColorCell& uc,
-		SwColorCell& dstc,
-		int prevColor,
-		int prevQual);
-
 	const BTDnaString  *rd_;     // read sequence
 	const BTString     *qu_;     // read qualities
 	const BTDnaString  *rdfw_;   // read sequence for fw read
@@ -710,15 +533,10 @@ protected:
 	bool                fw_;     // true iff read sequence is original fw read
 	bool                color_;  // true iff read is colorspace
 	uint32_t            refidx_; // id of reference aligned against
-	TRefOff             refoff_; // offset of upstream ref char aligned against
+	const DPRect*       rect_;   // DP rectangle
 	char               *rf_;     // reference sequence
 	size_t              rfi_;    // offset of first ref char to align to
 	size_t              rff_;    // offset of last ref char to align to (excl)
-	size_t              width_;  // # bands to do (width of parallelogram)
-	size_t              solwidth_;// # bands ending @ exhaustively scored cells
-	size_t              maxgaps_;// max of max # read gaps, max # ref gaps
-	size_t              truncLeft_; // # cols/diags to truncate from LHS
-	EList<bool>*        en_;     // mask indicating which cols we can end in
 	size_t              rdgap_;  // max # gaps in read
 	size_t              rfgap_;  // max # gaps in reference
 	bool                extend_; // true iff this is a seed-extend problem
@@ -728,7 +546,6 @@ protected:
 	int                 nceil_;  // max # Ns allowed in ref portion of aln
 	bool                monotone_; // true iff scores only go down
 
-#ifndef NO_SSE
 	bool                sse_;       // true -> use SSE 128-bit instructs
 	bool                sse8succ_;  // whether 8-bit worked
 	bool                sse16succ_; // whether 16-bit worked
@@ -742,7 +559,6 @@ protected:
 	bool                sseI16rcBuilt_;  // built rc query profile, 16-bit score
 	SSEData             sseI32fw_;  // buf for fw query, 32-bit score
 	SSEData             sseI32rc_;  // buf for rc query, 32-bit score
-#endif
 
 	SSEMetrics			sseU8ExtendMet_;
 	SSEMetrics			sseU8MateMet_;
@@ -754,15 +570,12 @@ protected:
 	bool                initedRef_;  // true iff initialized with initRef
 	EList<uint32_t>     rfwbuf_; // buffer for wordized refernece stretches
 	ELList<SwNucCell>   ntab_;   // DP table for nucleotide read
-	ELList<SwColorCell> ctab_;   // DP table for colorspace read
 	
 	EList<DpNucFrame>   btnstack_;// backtrace stack for nucleotides
-	EList<DpColFrame>   btcstack_;// backtrace stack for colors
 	EList<SizeTPair>    btcells_; // cells involved in current backtrace
 
 	int64_t             solrowlo_;// if row >= this, solutions are possible
 	EList<DpNucBtCandidate> btncand_; // cells we might backtrace from
-	EList<DpColBtCandidate> btccand_; // cells we might backtrace from
 	
 	size_t              cural_;   // index of next alignment to be given
 	

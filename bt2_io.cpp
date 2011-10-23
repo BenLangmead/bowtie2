@@ -616,7 +616,7 @@ void Ebwt::readIntoMemory(
 						}
 					}
 				}
-				
+#if 0
 				{
 					ASSERT_ONLY(Bitset offsSeen(len+1));
 					for(uint32_t i = 0; i < offsLenSampled; i++) {
@@ -625,6 +625,7 @@ void Ebwt::readIntoMemory(
 						assert_leq(this->offs()[i], len);
 					}
 				}
+#endif
 #ifdef BOWTIE_SHARED_MEM				
 				if(useShmem_) NOTIFY_SHARED(offs(), offsLenSampled*4);
 #endif

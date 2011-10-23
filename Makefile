@@ -90,7 +90,7 @@ SEARCH_CPPS = qual.cpp pat.cpp \
               log.cpp sam.cpp \
               color.cpp color_dec.cpp \
               read_qseq.cpp aligner_seed_policy.cpp \
-              aligner_seed.cpp aligner_sw.cpp aligner_sw_col.cpp \
+              aligner_seed.cpp aligner_sw.cpp \
 			  aligner_sw_driver.cpp aligner_cache.cpp \
 			  aligner_result.cpp ref_coord.cpp mask.cpp \
 			  pe.cpp aln_sink.cpp dp_framer.cpp \

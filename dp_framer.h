@@ -49,6 +49,63 @@
 
 #include <stdint.h>
 #include "ds.h"
+#include "ref_coord.h"
+
+/**
+ * Describes a dynamic programming rectangle.
+ *
+ * Only knows about reference offsets, not reference sequences.
+ */
+struct DPRect {
+
+	DPRect(int cat = 0) /*: st(cat), en(cat)*/ {
+		refl = refr = triml = trimr = corel = corer = 0;
+	}
+
+	int64_t refl;         // leftmost ref offset involved post trimming (incl)
+	int64_t refr;         // rightmost ref offset involved post trimming (incl)
+
+	int64_t refl_pretrim; // leftmost ref offset involved pre trimming (incl)
+	int64_t refr_pretrim; // rightmost ref offset involved pre trimming (incl)
+	
+	size_t  triml;        // positions trimmed from LHS
+	size_t  trimr;        // positions trimmed from RHS
+	
+	// If "core" diagonals are specified, then any alignment reported has to
+	// overlap one of the core diagonals.  This is to avoid the situation where
+	// an alignment is reported that overlaps a better-scoring alignment that
+	// falls partially outside the rectangle.  This is used in both seed
+	// extensions and in mate finding.  Filtering based on the core diagonals
+	// should happen in the backtrace routine.  I.e. it should simply never
+	// return an alignment that doesn't overlap a core diagonal, even if there
+	// is such an alignment and it's valid.
+	
+	size_t  corel; // offset of column where leftmost "core" diagonal starts
+	size_t  corer; // offset of column where rightmost "core" diagonal starts
+	// [corel, corer] is an inclusive range
+	
+	size_t  maxgap; // max # gaps - width of the gap bands
+	
+	// Designating some columns as "illegal" starting or ending columns is
+	// problematic.  This artificially disallows some alignments that
+	// rightfully ought to trump others because they score higher.  However,
+	// there are some situations where were interested only in alignments that
+	// start or end in certain columns.  Instead of using 'st' and 'en', we
+	// enforce this using
+	
+	//EList<bool> st; // legal starting columns
+	//EList<bool> en; // legal ending columns
+	
+	bool repOk() const {
+		assert_geq(corer, corel);
+		return true;
+	}
+	
+	void initIval(Interval& iv) {
+		iv.setOff(refl + (int64_t)corel);
+		iv.setLen(corer - corel + 1);
+	}
+};
 
 /**
  * Encapsulates routines for calculating parameters for the various types of
@@ -61,27 +118,6 @@ public:
 	DynProgFramer(bool trimToRef) : trimToRef_(trimToRef) { }
 
 	/**
-	 * Given information about a seed hit and the read that the seed came from,
-	 * return parameters for the dynamic programming problem to solve.
-	 */
-	bool frameSeedExtensionParallelogram(
-		int64_t off,      // ref offset implied by seed hit assuming no gaps
-		size_t rdlen,     // length of read sequence used in DP table (so len
-		                  // of +1 nucleotide sequence for colorspace reads)
-		size_t reflen,    // length of reference sequence aligned to
-		size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
-		size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
-		size_t maxhalf,   // max width in either direction
-		size_t& width,    // out: calculated width stored here
-		size_t& maxgap,   // out: calculated width stored here
-		size_t& trimup,   // out: number of bases trimmed from upstream end
-		size_t& trimdn,   // out: number of bases trimmed from downstream end
-		int64_t& refl,    // out: ref pos of upper LHS of parallelogram
-		int64_t& refr,    // out: ref pos of lower RHS of parallelogram
-		//EList<bool>& st,  // out: legal starting columns stored here
-		EList<bool>& en); // out: legal ending columns stored here
-
-	/**
 	 * Similar to frameSeedExtensionParallelogram but we're being somewhat more
 	 * inclusive in order to ensure all characters aling the "width" in the last
 	 * row are exhaustively scored.
@@ -90,87 +126,12 @@ public:
 		int64_t off,      // ref offset implied by seed hit assuming no gaps
 		size_t rdlen,     // length of read sequence used in DP table (so len
 						  // of +1 nucleotide sequence for colorspace reads)
-		size_t reflen,    // length of reference sequence aligned to
+		int64_t reflen,   // length of reference sequence aligned to
 		size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
 		size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
-		size_t maxns,     // # Ns permitted
+		int64_t maxns,    // # Ns permitted
 		size_t maxhalf,   // max width in either direction
-		size_t& width,    // out: calculated width stored here
-		size_t& solwidth, // out: # rightmost cols where soln can end
-		size_t& maxgap,   // out: calculated width stored here
-		size_t& trimup,   // out: number of bases trimmed from upstream end
-		size_t& trimdn,   // out: number of bases trimmed from downstream end
-		int64_t& refl,    // out: ref pos of upper LHS of parallelogram
-		int64_t& refr,    // out: ref pos of lower RHS of parallelogram
-		EList<bool>& en); // out: legal ending columns stored here
-
-	/**
-	 * Given information about an anchor mate hit, and information deduced by
-	 * PairedEndPolicy about where the opposite mate can begin and start given
-	 * the fragment length range, return parameters for the dynamic programming
-	 * problem to solve.
-	 */
-	bool frameFindMate(
-		bool anchorLeft,  // true iff anchor alignment is to the left
-		int64_t ll,       // leftmost Watson off for LHS of opp alignment
-		int64_t lr,       // rightmost Watson off for LHS of opp alignment
-		int64_t rl,       // leftmost Watson off for RHS of opp alignment
-		int64_t rr,       // rightmost Watson off for RHS of opp alignment
-		size_t rdlen,     // length of opposite mate
-		size_t reflen,    // length of reference sequence aligned to
-		size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
-		size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
-		size_t maxhalf,   // max width in either direction
-		size_t& width,    // out: calculated width stored here
-		size_t& omaxgaps, // out: calculated max # gaps stored here
-		size_t& trimup,   // out: number of bases trimmed from upstream end
-		size_t& trimdn,   // out: number of bases trimmed from downstream end
-		int64_t& refl,    // out: ref pos of upper LHS of parallelogram
-		int64_t& refr,    // out: ref pos of lower RHS of parallelogram
-		//EList<bool>& st,  // out: legal starting columns stored here
-		EList<bool>& en)  // out: legal ending columns stored here
-		const
-	{
-		if(anchorLeft) {
-			return frameFindMateAnchorLeft(
-				ll,
-				lr,
-				rl,
-				rr,
-				rdlen,
-				reflen,
-				maxrdgap,
-				maxrfgap,
-				maxhalf,
-				width,
-				omaxgaps,
-				trimup,
-				trimdn,
-				refl,
-				refr,
-				//st,
-				en);
-		} else {
-			return frameFindMateAnchorRight(
-				ll,
-				lr,
-				rl,
-				rr,
-				rdlen,
-				reflen,
-				maxrdgap,
-				maxrfgap,
-				maxhalf,
-				width,
-				omaxgaps,
-				trimup,
-				trimdn,
-				refl,
-				refr,
-				//st,
-				en);
-		}
-	}
+		DPRect& rect);    // out: DP rectangle
 
 	/**
 	 * Given information about an anchor mate hit, and information deduced by
@@ -184,20 +145,13 @@ public:
 		int64_t lr,       // rightmost Watson off for LHS of opp alignment
 		int64_t rl,       // leftmost Watson off for RHS of opp alignment
 		int64_t rr,       // rightmost Watson off for RHS of opp alignment
-		size_t rdlen,     // length of opposite mate
-		size_t reflen,    // length of reference sequence aligned to
-		size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
-		size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
-		size_t maxns,     // max # Ns permitted
-		size_t maxhalf,   // max width in either direction
-		size_t& width,    // out: calculated width stored here
-		size_t& solwidth, // out: # rightmost cols where solution can end
-		size_t& omaxgaps, // out: calculated max # gaps stored here
-		size_t& trimup,   // out: number of bases trimmed from upstream end
-		size_t& trimdn,   // out: number of bases trimmed from downstream end
-		int64_t& refl,    // out: ref pos of upper LHS of parallelogram
-		int64_t& refr,    // out: ref pos of lower RHS of parallelogram
-		EList<bool>& en)  // out: legal ending columns stored here
+		size_t  rdlen,    // length of opposite mate
+		int64_t reflen,   // length of reference sequence aligned to
+		size_t  maxrdgap, // max # of read gaps permitted in opp mate alignment
+		size_t  maxrfgap, // max # of ref gaps permitted in opp mate alignment
+		int64_t maxns,    // max # Ns permitted
+		size_t  maxhalf,  // max width in either direction
+		DPRect& rect)     // out: DP rectangle
 		const
 	{
 		if(anchorLeft) {
@@ -212,14 +166,7 @@ public:
 				maxrfgap,
 				maxns,
 				maxhalf,
-				width,
-				solwidth,
-				omaxgaps,
-				trimup,
-				trimdn,
-				refl,
-				refr,
-				en);
+				rect);
 		} else {
 			return frameFindMateAnchorRightRect(
 				ll,
@@ -232,42 +179,9 @@ public:
 				maxrfgap,
 				maxns,
 				maxhalf,
-				width,
-				solwidth,
-				omaxgaps,
-				trimup,
-				trimdn,
-				refl,
-				refr,
-				en);
+				rect);
 		}
 	}
-
-	/**
-	 * Given information about an anchor mate hit, and information deduced by
-	 * PairedEndPolicy about where the opposite mate can begin and start given
-	 * the fragment length range, return parameters for the dynamic programming
-	 * problem to solve.
-	 */
-	bool frameFindMateAnchorLeft(
-		int64_t ll,       // leftmost Watson off for LHS of opp alignment
-		int64_t lr,       // rightmost Watson off for LHS of opp alignment
-		int64_t rl,       // leftmost Watson off for RHS of opp alignment
-		int64_t rr,       // rightmost Watson off for RHS of opp alignment
-		size_t rdlen,     // length of opposite mate
-		size_t reflen,    // length of reference sequence aligned to
-		size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
-		size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
-		size_t maxhalf,   // max width in either direction
-		size_t& width,    // out: calculated width stored here
-		size_t& omaxgaps, // out: max # gaps
-		size_t& trimup,   // out: number of bases trimmed from upstream end
-		size_t& trimdn,   // out: number of bases trimmed from downstream end
-		int64_t& refl,    // out: ref pos of upper LHS of parallelogram
-		int64_t& refr,    // out: ref pos of lower RHS of parallelogram
-		//EList<bool>& st,  // out: legal starting columns stored here
-		EList<bool>& en)  // out: legal ending columns stored here
-		const;
 
 	/**
 	 * Given information about an anchor mate hit, and information deduced by
@@ -280,45 +194,13 @@ public:
 		int64_t lr,       // rightmost Watson off for LHS of opp alignment
 		int64_t rl,       // leftmost Watson off for RHS of opp alignment
 		int64_t rr,       // rightmost Watson off for RHS of opp alignment
-		size_t rdlen,     // length of opposite mate
-		size_t reflen,    // length of reference sequence aligned to
-		size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
-		size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
-		size_t maxns,     // max # Ns permitted in alignment
-		size_t maxhalf,   // max width in either direction
-		size_t& width,    // out: calculated width stored here
-		size_t& solwidth, // out: # rightmost cols where solution can end
-		size_t& omaxgaps, // out: max # gaps
-		size_t& trimup,   // out: number of bases trimmed from upstream end
-		size_t& trimdn,   // out: number of bases trimmed from downstream end
-		int64_t& refl,    // out: ref pos of upper LHS of parallelogram
-		int64_t& refr,    // out: ref pos of lower RHS of parallelogram
-		EList<bool>& en)  // out: legal ending columns stored here
-		const;
-
-	/**
-	 * Given information about an anchor mate hit, and information deduced by
-	 * PairedEndPolicy about where the opposite mate can begin and start given
-	 * the fragment length range, return parameters for the dynamic programming
-	 * problem to solve.
-	 */
-	bool frameFindMateAnchorRight(
-		int64_t ll,       // leftmost Watson off for LHS of opp alignment
-		int64_t lr,       // rightmost Watson off for LHS of opp alignment
-		int64_t rl,       // leftmost Watson off for RHS of opp alignment
-		int64_t rr,       // rightmost Watson off for RHS of opp alignment
-		size_t rdlen,     // length of opposite mate
-		size_t reflen,    // length of reference sequence aligned to
-		size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
-		size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
-		size_t maxhalf,   // max width in either direction
-		size_t& width,    // out: calculated width stored here
-		size_t& omaxgaps, // out: max # gaps
-		size_t& trimup,   // out: number of bases trimmed from upstream end
-		size_t& trimdn,   // out: number of bases trimmed from downstream end
-		int64_t& refl,    // out: ref pos of upper LHS of parallelogram
-		int64_t& refr,    // out: ref pos of lower RHS of parallelogram
-		EList<bool>& en)  // out: legal ending columns stored here
+		size_t  rdlen,    // length of opposite mate
+		int64_t reflen,   // length of reference sequence aligned to
+		size_t  maxrdgap, // max # of read gaps permitted in opp mate alignment
+		size_t  maxrfgap, // max # of ref gaps permitted in opp mate alignment
+		int64_t maxns,    // max # Ns permitted in alignment
+		size_t  maxhalf,  // max width in either direction
+		DPRect& rect)     // out: DP rectangle
 		const;
 
 	/**
@@ -332,20 +214,13 @@ public:
 		int64_t lr,       // rightmost Watson off for LHS of opp alignment
 		int64_t rl,       // leftmost Watson off for RHS of opp alignment
 		int64_t rr,       // rightmost Watson off for RHS of opp alignment
-		size_t rdlen,     // length of opposite mate
-		size_t reflen,    // length of reference sequence aligned to
-		size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
-		size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
-		size_t maxns,     // max # Ns permitted in alignment
-		size_t maxhalf,   // max width in either direction
-		size_t& width,    // out: calculated width stored here
-		size_t& solwidth, // out: # rightmost cols where solution can end
-		size_t& omaxgaps, // out: max # gaps
-		size_t& trimup,   // out: number of bases trimmed from upstream end
-		size_t& trimdn,   // out: number of bases trimmed from downstream end
-		int64_t& refl,    // out: ref pos of upper LHS of parallelogram
-		int64_t& refr,    // out: ref pos of lower RHS of parallelogram
-		EList<bool>& en)  // out: legal ending columns stored here
+		size_t  rdlen,    // length of opposite mate
+		int64_t reflen,   // length of reference sequence aligned to
+		size_t  maxrdgap, // max # of read gaps permitted in opp mate alignment
+		size_t  maxrfgap, // max # of ref gaps permitted in opp mate alignment
+		int64_t maxns,    // max # Ns permitted in alignment
+		size_t  maxhalf,  // max width in either direction
+		DPRect& rect)     // out: DP rectangle
 		const;
 
 protected:

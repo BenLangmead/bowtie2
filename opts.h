@@ -17,6 +17,9 @@
  * along with Bowtie 2.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef OPTS_H_
+#define OPTS_H_
+
 enum {
 	ARG_ORIG = 256,             // --orig
 	ARG_SEED,                   // --seed
@@ -109,3 +112,6 @@ enum {
 	ARG_NO_CONTAIN,             // --no-contain
 	ARG_NO_OVERLAP              // --no-overlap
 };
+
+#endif
+

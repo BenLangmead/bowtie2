@@ -289,7 +289,6 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag) {
 	assert_lt(rdi_, rdf_);
 	assert_eq(rd_->length(), qu_->length());
 	assert_geq(sc_->gapbar, 1);
-	assert(en_ == NULL || en_->size() == solwidth_);
 	assert(repOk());
 #ifndef NDEBUG
 	for(size_t i = rfi_; i < rff_; i++) {
@@ -727,28 +726,51 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag) {
  * that might be at the ends of valid alignments.  No need to do this unless
  * the maximum score returned by the align*() func is >= the minimum.
  *
- * Only cells that are exhaustively scored are candidates.  Those are the
- * cells inside the shape made of o's in this:
+ * We needn't consider cells that have no chance of reaching any of the core
+ * diagonals.  These are the cells that are more than 'maxgaps' cells away from
+ * a core diagonal.
  *
- *  |-maxgaps-|
- *  ***********oooooooooooooooooooooo    -
- *   ***********ooooooooooooooooooooo    |
- *    ***********oooooooooooooooooooo    |
- *     ***********ooooooooooooooooooo    |
- *      ***********oooooooooooooooooo    |
- *       ***********ooooooooooooooooo read len
- *        ***********oooooooooooooooo    |
- *         ***********ooooooooooooooo    |
- *          ***********oooooooooooooo    |
- *           ***********ooooooooooooo    |
- *            ***********oooooooooooo    -
- *            |-maxgaps-|
- *  |-readlen-|
- *  |-------skip--------|
+ * We need to be careful to consider that the rectangle might be truncated on
+ * one or both ends.
  *
- * And it's possible for the shape to be truncated on the left and right sides.
+ * The seed extend case looks like this:
  *
- * 
+ *      |Rectangle|   0: seed diagonal
+ *      **OO0oo----   o: "RHS gap" diagonals
+ *      -**OO0oo---   O: "LHS gap" diagonals
+ *      --**OO0oo--   *: "LHS extra" diagonals
+ *      ---**OO0oo-   -: cells that can't possibly be involved in a valid    
+ *      ----**OO0oo      alignment that overlaps one of the core diagonals
+ *
+ * The anchor-to-left case looks like this:
+ *
+ *   |Anchor|  | ---- Rectangle ---- |
+ *   o---------OO0000000000000oo------  0: mate diagonal (also core diags!)
+ *   -o---------OO0000000000000oo-----  o: "RHS gap" diagonals
+ *   --o---------OO0000000000000oo----  O: "LHS gap" diagonals
+ *   ---oo--------OO0000000000000oo---  *: "LHS extra" diagonals
+ *   -----o--------OO0000000000000oo--  -: cells that can't possibly be
+ *   ------o--------OO0000000000000oo-     involved in a valid alignment that
+ *   -------o--------OO0000000000000oo     overlaps one of the core diagonals
+ *                     XXXXXXXXXXXXX
+ *                     | RHS Range |
+ *                     ^           ^
+ *                     rl          rr
+ *
+ * The anchor-to-right case looks like this:
+ *
+ *    ll          lr
+ *    v           v
+ *    | LHS Range |
+ *    XXXXXXXXXXXXX          |Anchor|
+ *  OO0000000000000oo--------o--------  0: mate diagonal (also core diags!)
+ *  -OO0000000000000oo--------o-------  o: "RHS gap" diagonals
+ *  --OO0000000000000oo--------o------  O: "LHS gap" diagonals
+ *  ---OO0000000000000oo--------oo----  *: "LHS extra" diagonals
+ *  ----OO0000000000000oo---------o---  -: cells that can't possibly be
+ *  -----OO0000000000000oo---------o--     involved in a valid alignment that
+ *  ------OO0000000000000oo---------o-     overlaps one of the core diagonals
+ *  | ---- Rectangle ---- |
  */
 bool SwAligner::gatherCellsNucleotidesLocalSseI16(TAlScore best) {
 	// What's the minimum number of rows that can possibly be spanned by an
@@ -768,31 +790,12 @@ bool SwAligner::gatherCellsNucleotidesLocalSseI16(TAlScore best) {
 	size_t iter = (dpRows() + (NWORDS_PER_REG - 1)) / NWORDS_PER_REG;
 	assert_gt(iter, 0);
 	size_t minrow = (size_t)(((minsc_ + bonus - 1) / bonus) - 1);
-	// Iterate over columns
-	size_t skip = maxgaps_; // columns w/r/t un-truncated table to skip
-	size_t iskip = skip;    // columns w/r/t table we filled in to skip
-	if(truncLeft_ >= maxgaps_) {
-		skip += (truncLeft_ - maxgaps_);
-		iskip = 0;
-	} else {
-		iskip -= truncLeft_;
-	}
-	size_t col  = skip;  // off w/r/t the un-truncated table
-	size_t icol = iskip; // off w/r/t the table we filled in
-	size_t nrow_thiscol = min<size_t>(col - maxgaps_ + 1, nrow);
-	for(size_t j = icol; j < ncol; j++) {
-		if(j > icol) {
-			nrow_thiscol = min<size_t>(nrow_thiscol+1, nrow);
-		}
-		// Skip cells that en_ tells us to
-		size_t fromend = ncol - j - 1;
-		if(en_ != NULL && fromend < solwidth_) {
-			size_t off = solwidth_ - fromend - 1;
-			assert_lt(off, en_->size());
-			if(!(*en_)[off]) {
-				continue;
-			}
-		}
+	for(size_t j = 0; j < ncol; j++) {
+		// Establish the range of rows where a backtrace from the cell in this
+		// row/col is close enough to one of the core diagonals that it could
+		// conceivably count
+		size_t nrow_lo = std::numeric_limits<size_t>::min();
+		size_t nrow_hi = nrow;
 		// First, check if there is a cell in this column with a score
 		// above the score threshold
 		__m128i vmax = *d.mat_.tmpvec(0, j);
@@ -859,7 +862,9 @@ bool SwAligner::gatherCellsNucleotidesLocalSseI16(TAlScore best) {
 			// Which elements of this vector are exhaustively scored?
 			size_t rdoff = i;
 			for(size_t k = 0; k < NWORDS_PER_REG; k++) {
-				if(rdoff < nrow_thiscol) {
+				// Is this row, col one that we can potential backtrace from?
+				// I.e. are we close enough to a core diagonal?
+				if(rdoff >= nrow_lo && rdoff < nrow_hi) {
 					// This cell has been exhaustively scored
 					met.gathcell++;
 					if(rdoff >= minrow) {
@@ -1424,16 +1429,40 @@ bool SwAligner::backtraceNucleotidesLocalSseI16(
 	// The number of cells in the backtracs should equal the number of read
 	// bases after trimming plus the number of gaps
 	assert_eq(btcells_.size(), dpRows() - trimBeg - trimEnd + readGaps);
-	// Set 'reported' flag on each cell
-#ifndef NDEBUG
+	// Check whether we went through a core diagonal and set 'reported' flag on
+	// each cell
+	bool overlappedCoreDiag = false;
 	for(size_t i = 0; i < btcells_.size(); i++) {
 		size_t rw = btcells_[i].first;
 		size_t cl = btcells_[i].second;
+		// Calculate the diagonal within the *trimmed* rectangle, i.e. the
+		// rectangle we dealt with in align, gather and backtrack.
+		int64_t diagi = cl - rw;
+		// Now adjust to the diagonal within the *untrimmed* rectangle by
+		// adding on the amount trimmed from the left.
+		diagi += rect_->triml;
+		if(diagi >= 0) {
+			size_t diag = (size_t)diagi;
+			if(diag >= rect_->corel && diag <= rect_->corer) {
+				overlappedCoreDiag = true;
+				break;
+			}
+		}
+#ifndef NDEBUG
 		//assert(!d.mat_.reportedThrough(rw, cl));
 		//d.mat_.setReportedThrough(rw, cl);
 		assert(d.mat_.reportedThrough(rw, cl));
-	}
 #endif
+	}
+	if(!overlappedCoreDiag) {
+		// Must overlap a core diagonal.  Otherwise, we run the risk of
+		// reporting an alignment that overlaps (and trumps) a higher-scoring
+		// alignment that lies partially outside the dynamic programming
+		// rectangle.
+		res.reset();
+		met.corerej++;
+		return false;
+	}
 	int readC = (*rd_)[rdi_+row];      // get last char in read
 	int refNmask = (int)rf_[rfi_+col]; // get last ref char ref involved in aln
 	assert_gt(refNmask, 0);
@@ -1451,6 +1480,12 @@ bool SwAligner::backtraceNucleotidesLocalSseI16(
 	if(m == -1) {
 		score.ns_++;
 	}
+	if(score.ns_ > nceil_) {
+		// Alignment has too many Ns in it!
+		res.reset();
+		met.nrej++;
+		return false;
+	}
 	res.reverse();
 	assert(Edit::repOk(ned, (*rd_)));
 	assert_eq(score.score(), escore);
@@ -1461,7 +1496,7 @@ bool SwAligner::backtraceNucleotidesLocalSseI16(
 	res.alres.setScore(score);
 	res.alres.setShape(
 		refidx_,                  // ref id
-		off + rfi_ + refoff_,     // 0-based ref offset
+		off + rfi_ + rect_->refl, // 0-based ref offset
 		fw_,                      // aligned to Watson?
 		rdf_ - rdi_,              // read length
 		color_,                   // read was colorspace?

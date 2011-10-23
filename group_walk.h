@@ -606,7 +606,7 @@ public:
 				}
 			}
 #endif
-			assert(repOk(ebwt, hit, range));
+			//assert(repOk(ebwt, hit, range));
 			return ret;
 		} else {
 			assert(!done());
@@ -657,8 +657,8 @@ public:
 			assert(tloc.valid()); assert(tloc.repOk(ebwt));
 			bloc.invalidate();
 		}
-		assert(repOk(ebwt, hit, range));
-		assert(hit.repOk());
+		//assert(repOk(ebwt, hit, range));
+		//assert(hit.repOk());
 		return ret;
 	}
 	
@@ -822,9 +822,9 @@ public:
 		assert_eq(step, lastStep_);
 		//assert(!doneResolving(hit));
 		assert_geq(st.capacity(), st.size() + 4);
-		assert(repOk(ebwt, hit, range));
+		//assert(repOk(ebwt, hit, range));
 		assert(tloc.valid()); assert(tloc.repOk(ebwt));
-		assert(repOkMapInclusive(hit, range));
+		//assert(repOkMapInclusive(hit, range));
 		assert_eq(bot-top, map_.size()-mapi_);
 		pair<int, int> ret = make_pair(0, 0);
 		assert_eq(top, tloc.toBWRow());
@@ -912,7 +912,7 @@ public:
 							met);        // update these metrics
 						ret.first += rret.first;
 						ret.second += rret.second;
-						assert(st.back().repOk(ebwt, hit, (uint32_t)st.size()-1));
+						//assert(st.back().repOk(ebwt, hit, (uint32_t)st.size()-1));
 					}
 					ASSERT_ONLY(sum += in[i]);
 				}
@@ -928,8 +928,8 @@ public:
 			if(!newmap.empty()) {
 				map_ = newmap;
 			}
-			assert(repOkMapRepeats());
-			assert(repOkMapInclusive(hit, range));
+			//assert(repOkMapRepeats());
+			//assert(repOkMapInclusive(hit, range));
 			assert_eq(bot-top, map_.size());
 		} else {
 			// Down to one element
@@ -963,7 +963,7 @@ public:
 			met);       // update these metrics
 		ret.first += rret.first;
 		ret.second += rret.second;
-		assert(repOk(ebwt, hit, range));
+		//assert(repOk(ebwt, hit, range));
 		return ret;
 	}
 
@@ -1025,6 +1025,210 @@ protected:
 	EList<uint32_t, 16> map_; // which elts in range 'range' we're tracking
 	uint32_t mapi_;           // first untrimmed element of map
 };
+
+template<int S>
+class GroupWalk2S {
+public:
+	typedef EList<GWState, S> TStateV;
+
+	GroupWalk2S() : mapTmp_(GW_CAT) {
+		for(int i = 0; i < 4; i++) {
+			masksTmp_[i].setCat(GW_CAT);
+		}
+		reset();
+	}
+	
+	/**
+	 * Reset the GroupWalk in preparation for the next SeedResults.
+	 */
+	void reset() {
+		ebwtFw_ = NULL;
+		ref_ = NULL;
+		elt_ = rep_ = 0;
+		inited_ = false;
+		satup_ = NULL;
+		sacomb_ = NULL;
+		assert(!initialized());
+	}
+	
+	/**
+	 * Return true iff this GroupWalk is currently associated with a
+	 * SeedResults object.
+	 */
+	bool initialized() { return inited_; }
+
+	/**
+	 * Initialize a new group walk w/r/t a QVal object.
+	 */
+	void init(
+		const Ebwt& ebwtFw,         // forward Bowtie index for walking left
+		const BitPairReference& ref,// bitpair-encoded reference
+		SATuple& satup,             // SATuples
+		SAResolveCombiner& sacomb,  // combiners
+		AlignmentCacheIface& cache, // cache where resolved offs get installed
+		RandomSource& rnd,          // pseudo-random generator for sampling rows
+		WalkMetrics& met)           // update metrics here
+	{
+		reset();
+		satup_ = &satup;
+		sacomb_ = &sacomb;
+		ebwtFw_ = &ebwtFw;
+		ref_ = &ref;
+		inited_ = true;
+		// Init GWHit
+		hit_.init(satup_, sacomb_, 0, false, 0);
+		// Init corresponding GWState
+		st_.resize(1);
+		st_.back().reset();
+		assert(st_.back().repOkBasic());
+		uint32_t top = satup_->top;
+		uint32_t bot = (uint32_t)(top + satup_->size());
+		st_.back().initMap(bot-top);
+		st_.ensure(4);
+		st_.back().init(
+			*ebwtFw_,           // Bowtie index
+			*ref_,              // bitpair-encoded reference
+			st_,                // EList<GWState>
+			hit_,               // GWHit
+			0,                  // range 0
+			false,              // put resolved elements into res_?
+			NULL,               // put resolved elements here
+			top,                // BW row at top
+			bot,                // BW row at bot
+			0,                  // # steps taken
+			met);               // update metrics here
+		elt_ += satup_->size();
+	}
+
+	//
+	// ELEMENT-BASED
+	//
+
+	/**
+	 * Advance the GroupWalk until the specified element has been
+	 * resolved.
+	 */
+	bool advanceElement(
+		uint32_t elt,     // element within the range
+		WalkResult& res,  // put the result here
+		WalkMetrics& met)
+	{
+		assert(inited_);
+		assert(!done());
+		//assert(hit_.repOk());
+		assert_lt(elt, satup_->size()); // elt must fall within range
+		assert(!hit_.reported(elt));
+		// Until we've resolved our element of interest...
+		while(satup_->offs[elt] == 0xffffffff) {
+			// Get the GWState that contains our element of interest
+			size_t range = hit_.fmap[elt].first;
+			st_.ensure(4);
+			GWState& st = st_[range];
+			assert(!st.doneResolving(hit_));
+			//assert(st.repOk(*ebwtFw_, hit_, (uint32_t)range));
+			//assert(hit_.repOk());
+			// Returns a pair of numbers, the first being the number of
+			// resolved but unreported offsets found during this
+			// advance, the second being the number of
+			// as-yet-unresolved offsets.
+			st.advance(
+				*ebwtFw_,
+				*ref_,
+				hit_,
+				(uint32_t)range,
+				false,
+				NULL,
+				st_,
+				masksTmp_,
+				mapTmp_,
+				met);
+			assert(satup_->offs[elt] != 0xffffffff ||
+			       !st_[hit_.fmap[elt].first].doneResolving(hit_));
+		}
+		assert_neq(0xffffffff, satup_->offs[elt]);
+		// Report it!
+		hit_.setReported(elt);
+		met.reports++;
+		res.init(
+			0,       // seed offset
+			false,   // orientation
+			0,       // range
+			elt,     // element
+			satup_->top + elt,  // bw row
+			satup_->key.len,    // length of hit
+			satup_->offs[elt]); // resolved text offset
+		rep_++;
+		//assert(repOk());
+		return true;
+	}
+
+	/**
+	 * Return true iff all elements have been resolved and reported.
+	 */
+	bool done() const { return rep_ == elt_; }
+	
+	/**
+	 * Check that GroupWalk is internally consistent.
+	 */
+	bool repOk() const {
+		assert_leq(rep_, elt_);
+		// This is a lot of work
+		size_t resolved = 0, reported = 0;
+		// For each element
+		const size_t sz = satup_->size();
+		for(size_t m = 0; m < sz; m++) {
+			// Is it resolved?
+			if(satup_->offs[m] != 0xffffffff) {
+				resolved++;
+			} else {
+				assert(!hit_.reported(m));
+			}
+			// Is it reported?
+			if(hit_.reported(m)) {
+				reported++;
+			}
+			assert_geq(resolved, reported);
+		}
+		assert_geq(resolved, reported);
+		assert_eq(rep_, reported);
+		assert_eq(elt_, sz);
+		return true;
+	}
+
+	/**
+	 * Return the number of BW elements that we can resolve.
+	 */
+	size_t numElts() const { return elt_; }
+	
+protected:
+
+	const Ebwt* ebwtFw_; // Ebwt index for walking left
+	const BitPairReference* ref_; // bitpair-encoded reference sequences
+	bool inited_;        // initialized?
+	
+	size_t elt_;    // # BW elements under the control of the GropuWalk
+	size_t rep_;    // # BW elements reported
+	
+	// true iff this GroupWalk is initialized with a single QVal
+	// instead of an entire SeedResults object
+	bool justQval_; 
+
+	// For each orientation and seed offset, keep a GWState object that
+	// holds the state of the walk so far.
+	TStateV st_;
+
+	// For each orientation and seed offset, keep an EList of GWHit.
+	// Each GWHit has an SATuple that describes the BW ranges and
+	// PListSlices for the seed hits.  Each GWHit also has 
+	GWHit hit_;
+
+	// -- Temporary lists and pointers --
+	SATuple *satup_;               // storage for SATuple and SAResolveCombiner
+	SAResolveCombiner *sacomb_;    // storage for SATuple and SAResolveCombiner
+	EList<bool> masksTmp_[4];      // temporary list for masks; used in GWState
+	EList<uint32_t, 16> mapTmp_;   // temporary list of GWState maps
+};
+
 
 /**
  * Walk a group of BW ranges to the left and report the calculated SA
@@ -1093,10 +1297,35 @@ public:
 	/**
 	 * Initialize a new group walk w/r/t a QVal object.
 	 */
-	void initQval(
+	void initSATuple(
 		const Ebwt& ebwtFw,         // forward Bowtie index for walking left
 		const BitPairReference& ref,// bitpair-encoded reference
-		QVal qv,                    // seed results to walk left
+		const SATuple& satup,       // SATuples
+		const SAResolveCombiner& sacomb, // combiners
+		AlignmentCacheIface& cache, // cache where resolved offs get installed
+		RandomSource& rnd,          // pseudo-random generator for sampling rows
+		bool useResultsList,        // we'll query w/ advancePos/advanceRange?
+		WalkMetrics& met)           // update metrics here
+	{
+		satupSingList_.push_back(satup);
+		sacombSingList_.push_back(sacomb);
+		initSATuples(
+			ebwtFw,
+			ref,
+			satupSingList_,
+			sacombSingList_,
+			cache,
+			rnd,
+			useResultsList,
+			met);
+	}
+
+	/**
+	 * Initialize a new group walk w/r/t a QVal object.
+	 */
+	void initSATuples(
+		const Ebwt& ebwtFw,         // forward Bowtie index for walking left
+		const BitPairReference& ref,// bitpair-encoded reference
 		EList<SATuple, 16>& satups, // SATuples
 		EList<SAResolveCombiner, 16>& sacomb, // combiners
 		AlignmentCacheIface& cache, // cache where resolved offs get installed
@@ -1113,57 +1342,47 @@ public:
 		justQval_ = true;
 		assert_eq(satups.size(), sacomb.size());
 		int i = 0, j = 0;
-		if(qv.valid() && !qv.empty()) {
-			// There's at least 1 hit for this seed/orientation
-			st_[0].resize(1);
-			hits_[0].resize(1);
-			st_[0][0].clear();
-			hits_[0][0].clear();
+		// There's at least 1 hit for this seed/orientation
+		st_[0].resize(1);
+		hits_[0].resize(1);
+		st_[0][0].clear();
+		hits_[0][0].clear();
+		size_t numRanges = satups_->size();
+		for(size_t k = 0; k < numRanges; k++) {
+			// Copy SATuples into the GWHit list
+			hits_[i][j].expand();
+			assert(hits_[i][j].back().repOkBasic());
+			hits_[i][j].back().init(
+				&(*satups_)[k], &(*sacomb_)[k], 0, false, (uint32_t)k);
+			// Init corresponding GWState
+			st_[i][j].expand();
+			st_[i][j].back().clear();
+			st_[i][j].back().expand();
+			assert(st_[i][j].back().back().repOkBasic());
+			uint32_t top = (*satups_)[k].top;
+			uint32_t bot = (uint32_t)(top + (*satups_)[k].offs.size());
+			st_[i][j].back().back().reset();
+			st_[i][j].back().back().initMap(bot-top);
+			st_[i][j].back().ensure(4);
+			st_[i][j].back().back().init(
+				*ebwtFw_,           // Bowtie index
+				*ref_,              // bitpair-encoded reference
+				st_[i][j].back(),   // EList<GWState>
+				hits_[i][j].back(), // GWHit
+				0,                  // range 0
+				useResultsList,     // yes, put resolved elements into res_
+				useResultsList ? &res_ : NULL, // put resolved elements here
+				top,                // BW row at top
+				bot,                // BW row at bot
+				0,                  // # steps taken
+				met);               // update metrics here
 #ifndef NDEBUG
-			{
-				size_t rows = 0;
-				for(size_t k = 0; k < satups_->size(); k++) {
-					rows += (*satups_)[k].offs.size();
-				}
+			for(size_t ii = 0; ii < st_[i][j].back().size(); ii++) {
+				assert(st_[i][j].back()[ii].repOk(*ebwtFw_, hits_[i][j].back(), (uint32_t)ii));
 			}
 #endif
-			size_t numRanges = satups_->size();
-			for(size_t k = 0; k < numRanges; k++) {
-				// Copy SATuples into the GWHit list
-				hits_[i][j].expand();
-				assert(hits_[i][j].back().repOkBasic());
-				hits_[i][j].back().init(
-					&(*satups_)[k], &(*sacomb_)[k], 0, false, (uint32_t)k);
-				// Init corresponding GWState
-				st_[i][j].expand();
-				st_[i][j].back().clear();
-				st_[i][j].back().expand();
-				assert(st_[i][j].back().back().repOkBasic());
-				uint32_t top = (*satups_)[k].top;
-				uint32_t bot = (uint32_t)(top + (*satups_)[k].offs.size());
-				st_[i][j].back().back().reset();
-				st_[i][j].back().back().initMap(bot-top);
-				st_[i][j].back().ensure(4);
-				st_[i][j].back().back().init(
-					*ebwtFw_,           // Bowtie index
-					*ref_,              // bitpair-encoded reference
-					st_[i][j].back(),   // EList<GWState>
-					hits_[i][j].back(), // GWHit
-					0,                  // range 0
-					useResultsList,     // yes, put resolved elements into res_
-					useResultsList ? &res_ : NULL, // put resolved elements here
-					top,                // BW row at top
-					bot,                // BW row at bot
-					0,                  // # steps taken
-					met);               // update metrics here
-#ifndef NDEBUG
-				for(size_t ii = 0; ii < st_[i][j].back().size(); ii++) {
-					assert(st_[i][j].back()[ii].repOk(*ebwtFw_, hits_[i][j].back(), (uint32_t)ii));
-				}
-#endif
-				ranges_++;
-				elt_ += (*satups_)[k].offs.size();
-			}
+			ranges_++;
+			elt_ += (*satups_)[k].offs.size();
 		}
 	}
 	
@@ -1877,7 +2096,9 @@ protected:
 	size_t           eltli_;
 	bool             eltlInit_; // true iff these fields have been initialized for this SeedResults
 
-	// -- Temporary lists --
+	// -- Temporary lists and pointers --
+	EList<SATuple, 1> satupSingList_;            // temp list for singleton
+	EList<SAResolveCombiner, 1> sacombSingList_; // temp list for singleton
 	EList<SATuple, 16> *satups_; // storage for SATuple and SAResolveCombiner
 	EList<SAResolveCombiner, 16> *sacomb_; // storage for SATuple and SAResolveCombiner
 	EList<bool> masksTmp_[4];      // temporary list for masks; used in GWState
@@ -1885,5 +2106,6 @@ protected:
 };
 
 typedef GroupWalkSSS<16, 16, 16> GroupWalk;
+typedef GroupWalk2S<16> GroupWalk2;
 
 #endif /*GROUP_WALK_H_*/

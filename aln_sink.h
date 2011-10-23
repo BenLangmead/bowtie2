@@ -251,6 +251,7 @@ struct ReportingParams {
 		return khits;
 	}
 
+#if 0
 	/**
 	 * Given ROWM, POSF thresholds, boost them according to mult().
 	 */
@@ -273,6 +274,20 @@ struct ReportingParams {
 			rowmult.mult(mul);
 		}
 	}
+#else
+	/**
+	 * Given ROWM, POSF thresholds, boost them according to mult().
+	 */
+	void boostThreshold(SimpleFunc& func) {
+		THitInt mul = mult();
+		assert_gt(mul, 0);
+		if(mul == std::numeric_limits<THitInt>::max()) {
+			func.setMin(std::numeric_limits<double>::max());
+		} else if(mul > 1) {
+			func.mult(mul);
+		}
+	}
+#endif
 
 	// Number of alignments to report
 	THitInt khits;
@@ -897,74 +912,53 @@ protected:
 };
 
 /**
- * Per-thread hit sink "wrapper" for the MultiSeed aligner.
- * Encapsulates aspects of the MultiSeed aligner hit sink that are
- * particular to a single thread.  This includes aspects relating to:
+ * Per-thread hit sink "wrapper" for the MultiSeed aligner.  Encapsulates
+ * aspects of the MultiSeed aligner hit sink that are per-thread.  This
+ * includes aspects relating to:
  *
- * (a) Enforcement of the global policy
+ * (a) Enforcement of the reporting policy
  * (b) Tallying of results
- * (c) Storing of results for the previous read in case this allows us
- *     to short-circuit some work for the next read (i.e. if it's
- *     identical)
- *
- * RANDOM ORDER ASSUMPTION
- *
- * In order to short-circuit the alignment process when the -l limit is
- * reached (and there is no -m or -M limit), we must know that the
- * order in which the alignments are being found and reported is
- * reasonably "random".  If the order is not sufficiently random, then
- * we really ought to expend the additional effort needed to capture a
- * large (maybe comprehensive) sample of alignments and then pick
- * randomly from among those.
- *
- * Note that a reasonable definition of random *might* include a
- * preference for better-scoring alignments.  Thus, if the aligner
- * chooses seeds to extend in some order s.t. better-aligning seeds are
- * chosen before worse-aligning seeds, that may be OK.
+ * (c) Storing of results for the previous read in case this allows us to
+ *     short-circuit some work for the next read (i.e. if it's identical)
  *
  * PHASED ALIGNMENT ASSUMPTION
  *
  * We make some assumptions about how alignment proceeds when we try to
- * short-circuit work for identical reads.  Specifically, we assume
- * that for each read the aligner proceeds in a series of stages (or
- * perhaps just one stage).  In each stage, the aligner either:
+ * short-circuit work for identical reads.  Specifically, we assume that for
+ * each read the aligner proceeds in a series of stages (or perhaps just one
+ * stage).  In each stage, the aligner either:
  *
  * (a)  Finds no alignments, or
- * (b1) Finds some alignments and short circuits out of the stage with
- *      some random reporting involved (e.g. in -k and/or -M modes), or
- * (b2) Finds some alignments and short circuits out of the stage
- *      without any random reporting involved (e.g. in -m mode), or
+ * (b)  Finds some alignments and short circuits out of the stage with some
+ *      random reporting involved (e.g. in -k and/or -M modes), or
  * (c)  Finds all of the alignments in the stage
  *
- * In the event of (a), the aligner proceeds to the next stage and
- * keeps trying; we can skip the stage entirely for the next read if
- * it's identical.  In the event of (b1), (b2), or (c), the aligner
- * stops and does not proceed to further stages.  In the event of (b1),
- * if the next read is identical we would like to tell the aligner to
- * start again at the beginning of the stage that was short-circuited.
- * In the event of (b2), if the next read is identical we can skip the
- * read entirely.
+ * In the event of (a), the aligner proceeds to the next stage and keeps
+ * trying; we can skip the stage entirely for the next read if it's identical.
+ * In the event of (b), or (c), the aligner stops and does not proceed to
+ * further stages.  In the event of (b1), if the next read is identical we
+ * would like to tell the aligner to start again at the beginning of the stage
+ * that was short-circuited.
  *
- * In any event, the rs1_ and rs2_ fields contain the alignments found
+ * In any event, the rs1_/rs2_/rs1u_/rs2u_ fields contain the alignments found
  * in the last alignment stage attempted.
  *
  * HANDLING REPORTING LIMITS
  *
  * The user can specify reporting limits, like -k (specifies number of
- * alignments to report out of pool of those found) and -m (specifies a
- * ceiling s.t. if there are more alignments than the ceiling, read is
- * called repetitive).  Enforcing these limits is straightforward for
- * unpaired alignments: if a new alignment causes us to exceed the -m
- * ceiling, we can stop looking.
+ * alignments to report out of those found) and -M (specifies a ceiling s.t. if
+ * there are more alignments than the ceiling, read is called repetitive and
+ * best found is reported).  Enforcing these limits is straightforward for
+ * unpaired alignments: if a new alignment causes us to exceed the -M ceiling,
+ * we can stop looking.
  *
- * The case where both paired-end and unpaired alignments are possible
- * is trickier.  Once we have a number of unpaired alignments that
- * exceeds the ceiling, we can stop looking *for unpaired alignments* -
- * but we can't necessarily stop looking for paired-end alignments,
- * since there may yet be more to find.  However, if the input read is
- * not a pair, then we can stop at this point.  If the input read is a
- * pair and we have a number of paired aligments that exceeds the -m
- * ceiling, we can stop looking.
+ * The case where both paired-end and unpaired alignments are possible is
+ * trickier.  Once we have a number of unpaired alignments that exceeds the
+ * ceiling, we can stop looking *for unpaired alignments* - but we can't
+ * necessarily stop looking for paired-end alignments, since there may yet be
+ * more to find.  However, if the input read is not a pair, then we can stop at
+ * this point.  If the input read is a pair and we have a number of paired
+ * aligments that exceeds the -M ceiling, we can stop looking.
  *
  * CONCORDANT & DISCORDANT, PAIRED & UNPAIRED
  *
@@ -1019,7 +1013,12 @@ public:
 		maxed1_(false),       // read is pair and we maxed out mate 1 unp alns
 		maxed2_(false),       // read is pair and we maxed out mate 2 unp alns
 		maxedOverall_(false), // alignments found so far exceed -m/-M ceiling
-		best_(std::numeric_limits<THitInt>::max()),
+		bestPair_(std::numeric_limits<TAlScore>::min()),
+		best2Pair_(std::numeric_limits<TAlScore>::min()),
+		bestUnp1_(std::numeric_limits<TAlScore>::min()),
+		best2Unp1_(std::numeric_limits<TAlScore>::min()),
+		bestUnp2_(std::numeric_limits<TAlScore>::min()),
+		best2Unp2_(std::numeric_limits<TAlScore>::min()),
 		rd1_(NULL),    // mate 1
 		rd2_(NULL),    // mate 2
 		rd1buf_(),     // copy of mate 1 Read object
@@ -1147,6 +1146,79 @@ public:
 	 * AlnSinkWrap.
 	 */
 	const ReportingState& state() const { return st_; }
+	
+	/**
+	 * Return true iff we're in -M mode.
+	 */
+	bool Mmode() const {
+		return rp_.mhitsSet();
+	}
+	
+	/**
+	 * Return true iff at least two alignments have been reported so far for an
+	 * unpaired read or mate 1.
+	 */
+	bool hasSecondBestUnp1() const {
+		return best2Unp1_ != std::numeric_limits<TAlScore>::min();
+	}
+
+	/**
+	 * Return true iff at least two alignments have been reported so far for
+	 * mate 2.
+	 */
+	bool hasSecondBestUnp2() const {
+		return best2Unp2_ != std::numeric_limits<TAlScore>::min();
+	}
+
+	/**
+	 * Return true iff at least two paired-end alignments have been reported so
+	 * far.
+	 */
+	bool hasSecondBestPair() const {
+		return best2Pair_ != std::numeric_limits<TAlScore>::min();
+	}
+	
+	/**
+	 * Get best score observed so far for an unpaired read or mate 1.
+	 */
+	TAlScore bestUnp1() const {
+		return bestUnp1_;
+	}
+
+	/**
+	 * Get second-best score observed so far for an unpaired read or mate 1.
+	 */
+	TAlScore secondBestUnp1() const {
+		return best2Unp1_;
+	}
+
+	/**
+	 * Get best score observed so far for mate 2.
+	 */
+	TAlScore bestUnp2() const {
+		return bestUnp2_;
+	}
+
+	/**
+	 * Get second-best score observed so far for mate 2.
+	 */
+	TAlScore secondBestUnp2() const {
+		return best2Unp2_;
+	}
+
+	/**
+	 * Get best score observed so far for paired-end read.
+	 */
+	TAlScore bestPair() const {
+		return bestPair_;
+	}
+
+	/**
+	 * Get second-best score observed so far for paired-end read.
+	 */
+	TAlScore secondBestPair() const {
+		return best2Pair_;
+	}
 
 protected:
 
@@ -1202,7 +1274,12 @@ protected:
 	bool            maxed1_; // true iff # unpaired mate-1 alns reported so far exceeded -m/-M
 	bool            maxed2_; // true iff # unpaired mate-2 alns reported so far exceeded -m/-M
 	bool            maxedOverall_; // true iff # paired-end alns reported so far exceeded -m/-M
-	THitInt         best_;  // greatest score so far
+	TAlScore        bestPair_;     // greatest score so far for paired-end
+	TAlScore        best2Pair_;    // second-greatest score so far for paired-end
+	TAlScore        bestUnp1_;     // greatest score so far for unpaired/mate1
+	TAlScore        best2Unp1_;    // second-greatest score so far for unpaired/mate1
+	TAlScore        bestUnp2_;     // greatest score so far for mate 2
+	TAlScore        best2Unp2_;    // second-greatest score so far for mate 2
 	const Read*     rd1_;   // mate #1
 	const Read*     rd2_;   // mate #2
 	Read            rd1buf_;// buffer for mate #1

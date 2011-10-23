@@ -23,601 +23,267 @@
 using namespace std;
 
 /**
- * Given information about a seed hit and the read that the seed came from,
- * return parameters for the dynamic programming problem to solve.
+ * Set up variables that describe the shape of a dynamic programming matrix to
+ * be filled in.  The matrix is built around the diagonal containing the seed
+ * hit: the "seed diagonal".  The N diagonals to the right of the seed diagonal
+ * are the "RHS gap" diagonals, where N is the maximum number of read or
+ * reference gaps permitted (whichever is larger).  The N diagonals to the left
+ * of the seed diagonal are the "LHS gap" diagonals.
  *
- *   refl       off
- *   v          v
- *   |-maxgaps-||-- redlen --||-maxgaps-|
- *   *************************
- *    ************************
- *     ***********************
- *      **********************
- *       *********************
- *        ********************
- *         *******************
- *          ******************
- *           *****************
- *            ****************
- *             ***************
- *              **************
- *               *************
- *                ************
- */
-bool DynProgFramer::frameSeedExtensionParallelogram(
-	int64_t off,      // ref offset implied by seed hit assuming no gaps
-	size_t rdlen,     // length of read sequence used in DP table (so len
-	                  // of +1 nucleotide sequence for colorspace reads)
-	size_t reflen,    // length of reference sequence aligned to
-	size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
-	size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
-	size_t maxhalf,   // max width in either direction
-	size_t& width,    // out: calculated width stored here
-	size_t& maxgap,   // out: calculated width stored here
-	size_t& trimup,   // out: number of bases trimmed from upstream end
-	size_t& trimdn,   // out: number of bases trimmed from downstream end
-	int64_t& refl,    // out: ref pos of upper LHS of parallelogram
-	int64_t& refr,    // out: ref pos of lower RHS of parallelogram
-	EList<bool>& en)  // out: legal ending columns stored here
-{
-	assert_gt(rdlen, 0);
-	assert_gt(reflen, 0);
-	maxrdgap = min(maxrdgap, maxhalf);
-	maxrfgap = min(maxrfgap, maxhalf);
-	maxgap = max(maxrdgap, maxrfgap);
-	width = 1 + (2 * maxgap); // width, assuming we have room for entire pgram
-	refl = off - maxgap;
-	refr = off + (rdlen - 1) + maxgap;
-	trimup = trimdn = 0;
-	// Check if we have to trim to fit the extents of the reference
-	if(trimToRef_) {
-		trimToRef(reflen, refl, refr, trimup, trimdn);
-		// Occassionally, trimToRef trims the whole problem away (because the
-		// reference is actually too short to support a valid alignment).
-		if(trimup >= width || trimdn >= width) {
-			return false;
-		}
-		// Trimming affects which cells are set to false, not the width.  TODO:
-		// it could also affect the width, but we're not checking for that.
-	}
-	en.resize(width);
-	// Most common & simplest case is maxrdgap == maxrfgap; handle that first
-	for(size_t i = 0; i < width; i++) {
-		en[i] = true;
-	}
-	if(maxrdgap < maxrfgap && width > 1) {
-		// More read gaps than ref gaps; some cells at RHS of 'st' and LHS of
-		// 'en' aren't valid
-		size_t diff = maxrfgap - maxrdgap;
-		for(size_t i = 0; i < diff; i++) {
-			assert_geq(width, i+1);
-			//st[i] = false;
-			en[width - i - 1] = false;
-		}
-	} else if(maxrfgap < maxrdgap && width > 1) {
-		// More ref gaps than read gaps; some cells at LHS of 'st' and RHS of
-		// 'en' aren't valid
-		size_t diff = maxrdgap - maxrfgap;
-		for(size_t i = 0; i < diff; i++) {
-			assert_geq(width, i+1);
-			//st[width - i - 1] = false;
-			en[i] = false;
-		}
-	}
-	//for(size_t i = 0; i < trimup; i++) {
-	//	st[i] = false;
-	//}
-	for(size_t i = 0; i < trimdn; i++) {
-		en[width - i - 1] = false;
-	}
-	return true;
-}
-
-/**
- * Similar to frameSeedExtensionParallelogram but we're being somewhat more
- * inclusive in order to ensure all characters aling the "width" in the last
- * row are exhaustively scored.
+ * The way the rectangle is currently formulated, there are another N diagonals
+ * to the left of the "LHS gap" diagonals called the "LHS extra diagonals".  It
+ * might also be possible to split the "extra diagonals" into two subsets and
+ * place them both to the left of the LHS gap diagonals and to the right of the
+ * RHS gap diagonals.
+ *
+ * The purpose of arranging and these groupings of diagonals is that a subset
+ * of them, the "core diagonals", can now be considered "covered."  By
+ * "covered" I mean that any alignment that overlaps a cell in any of the core
+ * diagonals cannot possibly overlap another, higher-scoring alignment that
+ * falls partially outside the rectangle.
+ *
+ * Say the read is 5 characters long, the maximum number of read or ref gaps is
+ * 2, and the seed hit puts the main diagonal at offset 10 in the reference.
+ * The larger rectangle explored looks like this:
+ *
+ *  off=10, maxgap=2
+ *
+ * Ref      1
+ * off: 67890123456   0: seed diagonal
+ *      **OO0oo----   o: "RHS gap" diagonals
+ *      -**OO0oo---   O: "LHS gap" diagonals
+ *      --**OO0oo--   *: "LHS extra" diagonals
+ *      ---**OO0oo-   -: cells that can't possibly be involved in a valid    
+ *      ----**OO0oo      alignment that overlaps one of the core diagonals
+ *
+ * The "core diagonals" are marked with 0s or Os.
+ *
+ * A caveat is that, for performance reasons, we place an upper limit on N -
+ * the maximum number of read or reference gaps.  It is constrained to be no
+ * greater than 'maxgap'.  This means that in some situations, we may report an
+ * alignment that spuriously trumps a better alignment that falls partially
+ * outside the rectangle.  Also, we may fail to find a valid alignment with
+ * more than 'maxgap' gaps.
+ *
+ * Another issue is trimming: if the seed hit is sufficiently close to one or
+ * both ends of the reference sequence, and either (a) overhang is not
+ * permitted, or (b) the number of Ns permitted is less than the number of
+ * columns that overhang the reference, then we want to exclude the trimmed
+ * columns from the rectangle.
+ *
+ * We need to return enough information so that downstream routines can fully
+ * understand the shape of the rectangle, which diagonals are which (esp. which
+ * are the "core" diagonals, since we needn't examine any more seed hits from
+ * those columns in the future), and how the rectangle is trimmed.  The
+ * information returned should be compatible with the sort of information
+ * returned by the routines that set up rectangles for mate finding.
  */
 bool DynProgFramer::frameSeedExtensionRect(
-	int64_t off,      // ref offset implied by seed hit assuming no gaps
-	size_t rdlen,     // length of read sequence used in DP table (so len
-	                  // of +1 nucleotide sequence for colorspace reads)
-	size_t reflen,    // length of reference sequence aligned to
-	size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
-	size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
-	size_t maxns,     // # Ns permitted
-	size_t maxhalf,   // max width in either direction
-	size_t& width,    // out: calculated width stored here
-	size_t& solwidth, // out: calculated width where solutions can end
-	size_t& maxgap,   // out: calculated width stored here
-	size_t& trimup,   // out: number of bases trimmed from upstream end
-	size_t& trimdn,   // out: number of bases trimmed from downstream end
-	int64_t& refl,    // out: ref pos of upper LHS of parallelogram
-	int64_t& refr,    // out: ref pos of lower RHS of parallelogram
-	EList<bool>& en)  // out: legal ending columns stored here
+	int64_t  off,      // ref offset implied by seed hit assuming no gaps
+	size_t   rdlen,    // length of read sequence used in DP table (so len
+	                   // of +1 nucleotide sequence for colorspace reads)
+	int64_t  reflen,   // length of reference sequence aligned to
+	size_t   maxrdgap, // max # of read gaps permitted in opp mate alignment
+	size_t   maxrfgap, // max # of ref gaps permitted in opp mate alignment
+	int64_t  maxns,    // # Ns permitted
+	size_t   maxhalf,  // max width in either direction
+	DPRect&  rect)     // out: DP rectangle
 {
 	assert_gt(rdlen, 0);
 	assert_gt(reflen, 0);
-	maxrdgap = min(maxrdgap, maxhalf);
-	maxrfgap = min(maxrfgap, maxhalf);
-	maxgap = max(maxrdgap, maxrfgap);
-	width = 1 + (3 * maxgap);
-	solwidth = width - maxgap;
-	refl = off - 2*maxgap;             // inclusive
-	refr = off + (rdlen - 1) + maxgap; // inclusive
-	assert_geq((size_t)(refr-refl+1), width);
-	assert_geq(width, solwidth);
-	trimup = trimdn = 0;
+	// Set N, the maximum number of reference or read gaps permitted, whichever
+	// is larger.  Also, enforce ceiling: can't be larger than 'maxhalf'.
+	size_t maxgap = max(maxrdgap, maxrfgap);
+	maxgap = min(maxgap, maxhalf);
+	int64_t refl = off - 2*maxgap;             // inclusive
+	int64_t refr = off + (rdlen - 1) + maxgap; // inclusive
+	size_t triml = 0, trimr = 0;
 	// Check if we have to trim to fit the extents of the reference
 	if(trimToRef_) {
-		maxns = 0;
+		maxns = 0; // no leeway
 	} else if(maxns == rdlen) {
 		maxns--;
 	}
-	if(refr >= (int64_t)(reflen + maxns)) {
-		trimdn = (size_t)(refr - (int64_t)((reflen + maxns)-1));
-		refr = (int64_t)(reflen + maxns)-1;
-		if(refl > refr) {
-			refl = refr;
-		}
+	// Trim from RHS of rectangle
+	if(refr >= reflen + maxns) {
+		trimr = (size_t)(refr - (reflen + maxns - 1));
 	}
-	if(refl < (int64_t)(-maxns)) {
-		trimup = (size_t)(-refl) - maxns;
-		refl = (int64_t)(-maxns);
-		if(refr < refl) {
-			refr = refl;
-		}
+	// Trim from LHS of rectangle
+	if(refl < -maxns) {
+		triml = (size_t)(-refl) - maxns;
 	}
-	if(trimup > 0 || trimdn > 0) {
-		// Consider how trimdn affects width and solwidth
-		if(solwidth <= trimdn) {
-			return false;
-		}
-		width -= trimdn;
-		solwidth -= trimdn;
-		// Consider how trimup affects width and solwidth
-		size_t wid = (size_t)(refr - refl + 1);
-		assert_gt(wid, 0);
-		if(wid < width) {
-			width = wid;
-			if(wid < solwidth) {
-				solwidth = wid;
-			}
-		}
-	}
-	assert_leq(width, (size_t)(refr-refl+1));
-	assert_leq(solwidth, (size_t)(refr-refl+1));
-	assert_leq(solwidth, width);
-	assert_gt(width, 0);
-	assert_gt(solwidth, 0);
-	en.resize(solwidth);
-	en.fill(true);
+	rect.refl_pretrim = refl;
+	rect.refr_pretrim = refr;
+	rect.refl  = refl + triml;
+	rect.refr  = refr - trimr;
+	rect.triml = triml;
+	rect.trimr = trimr;
+	rect.maxgap = maxgap;
+	rect.corel = maxgap;
+	rect.corer = rect.corel + maxgap; // inclusive
+	assert(rect.repOk());
 	return true;
 }
 
 /**
- * Given information about an anchor mate hit, and information deduced by
- * PairedEndPolicy about where the opposite mate can begin and start given
- * the fragment length range, return parameters for the dynamic programming
- * problem to solve.
- */
-bool DynProgFramer::frameFindMateAnchorLeft(
-	int64_t ll,       // leftmost Watson off for LHS of opp alignment
-	int64_t lr,       // rightmost Watson off for LHS of opp alignment
-	int64_t rl,       // leftmost Watson off for RHS of opp alignment
-	int64_t rr,       // rightmost Watson off for RHS of opp alignment
-	size_t rdlen,     // length of opposite mate
-	size_t reflen,    // length of reference sequence aligned to
-	size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
-	size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
-	size_t maxhalf,   // max width in either direction
-	size_t& width,    // out: calculated width stored here
-	size_t& maxgaps,  // out: calculated max # gaps
-	size_t& trimup,   // out: number of bases trimmed from upstream end
-	size_t& trimdn,   // out: number of bases trimmed from downstream end
-	int64_t& refl,    // out: ref pos of upper LHS of parallelogram
-	int64_t& refr,    // out: ref pos of lower RHS of parallelogram
-	EList<bool>& en)  // out: legal ending columns stored here
-	const
-{
-	assert_geq(lr, ll);
-	assert_geq(rr, rl);
-	assert_geq(rr, lr);
-	assert_geq(rl, ll);
-	assert_gt(rdlen, 0);
-	assert_gt(reflen, 0);
-	trimup = trimdn = 0;
-	// Amount of padding we have to add to account for the fact that alignments
-	// ending between en_left/en_right might start in various columns in the
-	// first row
-	maxrdgap = min(maxrdgap, maxhalf);
-	maxrfgap = min(maxrfgap, maxhalf);
-	maxgaps = max(maxrdgap, maxrfgap);
-	int64_t pad_left = maxrdgap;
-	int64_t pad_right = maxrfgap;
-	int64_t en_left  = rl;
-	int64_t en_right = rr;
-	int64_t st_left  = en_left - (rdlen-1);
-	int64_t st_right = en_right - (rdlen-1);
-	int64_t ltrimr = 0, ltriml = 0;
-	int64_t rtrimr = 0, rtriml = 0;
-	int64_t en_right_pad = en_right + pad_right;
-	int64_t en_left_pad  = en_left  - pad_left;
-	int64_t st_right_pad = st_right + pad_right;
-	int64_t st_left_pad  = st_left  - pad_left;
-	// Trim both mates to reference, if required
-	if(trimToRef_) {
-		if(en_right_pad >= (int64_t)reflen) rtrimr = en_right_pad - reflen + 1;
-		if(en_left_pad < 0)                 rtriml = -en_left_pad;
-		if(st_right_pad >= (int64_t)reflen) ltrimr = st_right_pad - reflen + 1;
-		if(st_left_pad < 0)                 ltriml = -st_left_pad;
-	}
-	// Trim left mate to ll/lr
-	if(st_right_pad > lr && (st_right_pad - lr) > ltrimr) {
-		ltrimr = st_right_pad - lr;
-	}
-	if(st_left_pad < ll && (ll - st_left_pad) > ltriml) {
-		ltriml = ll - st_left_pad;
-	}
-	rtrimr = max<size_t>((size_t)rtrimr, (size_t)pad_right);
-	rtriml = max<size_t>((size_t)rtriml, (size_t)pad_left);
-	// Are we trimming so much of the left (top) interval that we can also trim
-	// more from the right (bottom) interval?
-	{
-		int64_t trimr = 0, triml = 0;
-		int64_t mxrdgap = (int64_t)maxrdgap;
-		if(ltrimr > rtrimr + mxrdgap) {
-			trimr = ltrimr - mxrdgap;
-		} else if(rtrimr > ltrimr + mxrdgap) {
-			trimr = rtrimr - mxrdgap;
-		} else {
-			trimr = min(rtrimr, ltrimr);
-		}
-		int64_t mxrfgap = (int64_t)maxrfgap;
-		if(ltriml > rtriml + mxrfgap) {
-			triml = ltriml - mxrfgap;
-		} else if(rtriml > ltriml + mxrfgap) {
-			triml = rtriml - mxrfgap;
-		} else {
-			triml = min(rtriml, ltriml);
-		}
-		if(trimr > ltrimr) ltrimr = 0;
-		else ltrimr -= trimr;
-		if(triml > ltriml) ltriml = 0;
-		else ltriml -= triml;
-		if(trimr > rtrimr) rtrimr = 0;
-		else rtrimr -= trimr;
-		if(triml > rtriml) rtriml = 0;
-		else rtriml -= triml;
-		if(trimr > 0) {
-			trimdn = (size_t)trimr;
-			if(pad_right < trimr) {
-				trimr -= pad_right;
-				pad_right = 0;
-				en_right -= trimr;
-				st_right -= trimr;
-			} else pad_right -= trimr;
-		}
-		if(triml > 0) {
-			trimup = (size_t)triml;
-			if(pad_left < triml) {
-				triml -= pad_left;
-				pad_left = 0;
-				en_left += triml;
-				st_left += triml;
-			} else pad_left -= triml;
-		}
-	}
-	if(en_left > en_right) {
-		// Trimmed everything
-		return false;
-	}
-	assert(!trimToRef_ ||
-		((st_left+ltriml) >= 0 && en_left >= 0));
-	assert(!trimToRef_ ||
-		(st_right < (int64_t)reflen &&
-		 (en_right-rtrimr) < (int64_t)reflen));
-	// Calculate width taking gaps into account
-	width = (size_t)(en_right - en_left + 1 + pad_left + pad_right);
-	assert_gt(width, 0);
-	//st.resize(width);
-	en.resize(width);
-	// Apply padding
-	st_left -= pad_left;
-	en_left -= pad_left;
-	st_right += pad_right;
-	en_right += pad_right;
-	assert_eq(en_right - en_left, st_right - st_left);
-	for(size_t i = 0; i < width; i++) {
-		//st[i] = true;
-		en[i] = true;
-	}
-	for(int64_t i = 0; i < rtriml; i++) {
-		en[(size_t)i] = false;
-	}
-	for(int64_t i = 0; i < rtrimr; i++) {
-		en[width - (size_t)i - 1] = false;
-	}
-	//for(int64_t i = 0; i < ltrimr; i++) {
-	//	st[width - (size_t)i - 1] = false;
-	//}
-	//for(int64_t i = 0; i < ltriml; i++) {
-	//	st[(size_t)i] = false;
-	//}
-	refl = st_left;
-	refr = en_right;
-	return true;
-}
-
-/**
- * Given information about an anchor mate hit, and information deduced by
- * PairedEndPolicy about where the opposite mate can begin and start given
- * the fragment length range, return parameters for the dynamic programming
- * problem to solve.
+ * Set up variables that describe the shape of a dynamic programming matrix to
+ * be filled in.  The matrix is built around the diagonals that terminate in
+ * the range of columns where the RHS of the opposite mate must fall in order
+ * to satisfy the fragment-length constraint.  These are the "mate" diagonals
+ * and they also happen to be the "core" diagonals in this case.
+ *
+ * The N diagonals to the right of the mate diagonals are the "RHS gap"
+ * diagonals, where N is the maximum number of read or reference gaps permitted
+ * (whichever is larger).  The N diagonals to the left of the mate diagonals
+ * are the "LHS gap" diagonals.
+ *
+ * The purpose of arranging and these groupings of diagonals is that a subset
+ * of them, the "core diagonals", can now be considered "covered."  By
+ * "covered" I mean that any alignment that overlaps a cell in any of the core
+ * diagonals cannot possibly overlap another, higher-scoring alignment that
+ * falls partially outside the rectangle.
+ *
+ *   |Anchor| 
+ *   o---------OO0000000000000oo------  0: mate diagonal (also core diags!)
+ *   -o---------OO0000000000000oo-----  o: "RHS gap" diagonals
+ *   --o---------OO0000000000000oo----  O: "LHS gap" diagonals
+ *   ---oo--------OO0000000000000oo---  *: "LHS extra" diagonals
+ *   -----o--------OO0000000000000oo--  -: cells that can't possibly be
+ *   ------o--------OO0000000000000oo-     involved in a valid alignment that
+ *   -------o--------OO0000000000000oo     overlaps one of the core diagonals
+ *                     XXXXXXXXXXXXX
+ *                     | RHS Range |
+ *                     ^           ^
+ *                     rl          rr
+ *
+ * The "core diagonals" are marked with 0s.
+ *
+ * A caveat is that, for performance reasons, we place an upper limit on N -
+ * the maximum number of read or reference gaps.  It is constrained to be no
+ * greater than 'maxgap'.  This means that in some situations, we may report an
+ * alignment that spuriously trumps a better alignment that falls partially
+ * outside the rectangle.  Also, we may fail to find a valid alignment with
+ * more than 'maxgap' gaps.
+ *
+ * Another issue is trimming: if the seed hit is sufficiently close to one or
+ * both ends of the reference sequence, and either (a) overhang is not
+ * permitted, or (b) the number of Ns permitted is less than the number of
+ * columns that overhang the reference, then we want to exclude the trimmed
+ * columns from the rectangle.
  */
 bool DynProgFramer::frameFindMateAnchorLeftRect(
 	int64_t ll,       // leftmost Watson off for LHS of opp alignment
 	int64_t lr,       // rightmost Watson off for LHS of opp alignment
 	int64_t rl,       // leftmost Watson off for RHS of opp alignment
 	int64_t rr,       // rightmost Watson off for RHS of opp alignment
-	size_t rdlen,     // length of opposite mate
-	size_t reflen,    // length of reference sequence aligned to
-	size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
-	size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
-	size_t maxns,     // max # ns permitted in the alignment
-	size_t maxhalf,   // max width in either direction
-	size_t& width,    // out: calculated width stored here
-	size_t& solwidth, // out: # cols where soln can end
-	size_t& maxgaps,  // out: calculated max # gaps
-	size_t& trimup,   // out: number of bases trimmed from upstream end
-	size_t& trimdn,   // out: number of bases trimmed from downstream end
-	int64_t& refl,    // out: ref pos of upper LHS of parallelogram
-	int64_t& refr,    // out: ref pos of lower RHS of parallelogram
-	EList<bool>& en)  // out: legal ending columns stored here
+	size_t  rdlen,    // length of opposite mate
+	int64_t reflen,   // length of reference sequence aligned to
+	size_t  maxrdgap, // max # of read gaps permitted in opp mate alignment
+	size_t  maxrfgap, // max # of ref gaps permitted in opp mate alignment
+	int64_t maxns,    // max # ns permitted in the alignment
+	size_t  maxhalf,  // max width in either direction
+	DPRect& rect)     // out: DP rectangle
 	const
 {
-	assert_geq(lr, ll);
-	assert_geq(rr, rl);
-	assert_geq(rr, lr);
-	assert_geq(rl, ll);
+	assert_geq(lr, ll);  // LHS rightmost must be >= LHS leftmost
+	assert_geq(rr, rl);  // RHS rightmost must be >= RHS leftmost
+	assert_geq(rr, lr);  // RHS rightmost must be >= LHS rightmost
+	assert_geq(rl, ll);  // RHS leftmost must be >= LHS leftmost
 	assert_gt(rdlen, 0);
 	assert_gt(reflen, 0);
-	trimup = trimdn = 0;
+	size_t triml = 0, trimr = 0;
+	size_t maxgap = max(maxrdgap, maxrfgap);
+	maxgap = max(maxgap, maxhalf);
 	// Amount of padding we have to add to account for the fact that alignments
 	// ending between en_left/en_right might start in various columns in the
 	// first row
-	maxrdgap = min(maxrdgap, maxhalf);
-	maxrfgap = min(maxrfgap, maxhalf);
-	maxgaps = max(maxrdgap, maxrfgap);
-	int64_t pad_left = maxgaps * 2;
-	int64_t pad_right = maxgaps;
+	int64_t pad_left = maxgap;
+	int64_t pad_right = maxgap;
 	int64_t en_left  = rl;
 	int64_t en_right = rr;
 	int64_t st_left  = en_left - (rdlen-1);
 	ASSERT_ONLY(int64_t st_right = en_right - (rdlen-1));
 	int64_t en_right_pad = en_right + pad_right;
-	int64_t en_left_pad  = en_left  - pad_left;
+	ASSERT_ONLY(int64_t en_left_pad  = en_left  - pad_left);
 	ASSERT_ONLY(int64_t st_right_pad = st_right + pad_right);
 	int64_t st_left_pad  = st_left  - pad_left;
 	assert_leq(st_left, en_left);
 	assert_geq(en_right, st_right);
 	assert_leq(st_left_pad, en_left_pad);
 	assert_geq(en_right_pad, st_right_pad);
-	// We have enough info to deduce where the boundaries of our rectangle
-	// should be.  Finalize the boundaries, ignoring reference trimming for now
-	width = (size_t)(en_right_pad - en_left_pad + 1);
-	solwidth = width - maxgaps;
-	refl = st_left_pad;
-	refr = en_right_pad;
-	assert_leq(width, (size_t)(refr - refl + 1));
-	assert_leq(solwidth, width);
-	// Now take reference trimming into account, if required
-	assert_eq(refr - refl + 1, (int64_t)(width + rdlen - 1));
+	int64_t refl = st_left_pad;
+	int64_t refr = en_right_pad;
 	if(trimToRef_) {
 		maxns = 0;
 	} else if(maxns == rdlen) {
 		maxns--;
 	}
-	if(refr >= (int64_t)(reflen + maxns)) {
-		trimdn = (size_t)(refr - (int64_t)((reflen + maxns)-1));
-		refr = (int64_t)(reflen + maxns)-1;
-		if(refl > refr) {
-			refl = refr;
-		}
+	// Trim from the RHS of the rectangle?
+	if(refr >= reflen + maxns) {
+		trimr = (size_t)(refr - (reflen + maxns - 1));
 	}
-	if(refl < (int64_t)(-maxns)) {
-		trimup = (size_t)(-refl) - maxns;
-		refl = (int64_t)(-maxns);
-		if(refr < refl) {
-			refr = refl;
-		}
+	// Trim from the LHS of the rectangle?
+	if(refl < -maxns) {
+		triml = (size_t)(-refl) - maxns;
 	}
-	if(trimup > 0 || trimdn > 0) {
-		// Consider how trimdn affects width and solwidth
-		if(solwidth <= trimdn) {
-			return false;
-		}
-		width -= trimdn;
-		solwidth -= trimdn;
-		// Consider how trimup affects width and solwidth
-		size_t wid = (size_t)(refr - refl + 1);
-		assert_gt(wid, 0);
-		if(wid < width) {
-			width = wid;
-			if(wid < solwidth) {
-				solwidth = wid;
-			}
-		}
-	}
-	assert_leq(width, (size_t)(refr-refl+1));
-	assert_leq(solwidth, width);
-	assert_gt(width, 0);
-	assert_gt(solwidth, 0);
-	en.resize(solwidth);
-	en.fill(true);
+	size_t width = (size_t)(refr - refl + 1);
+	rect.refl_pretrim = refl;
+	rect.refr_pretrim = refr;
+	rect.refl  = refl + triml;
+	rect.refr  = refr - trimr;
+	rect.triml = triml;
+	rect.trimr = trimr;
+	rect.maxgap = maxgap;
+	rect.corel = maxgap;
+	rect.corer = width - maxgap - 1; // inclusive
+	assert(rect.repOk());
 	return true;
 }
 
 /**
- * Given information about an anchor mate hit, and information deduced by
- * PairedEndPolicy about where the opposite mate can begin and start given
- * the fragment length range, return parameters for the dynamic programming
- * problem to solve.
- */
-bool DynProgFramer::frameFindMateAnchorRight(
-	int64_t ll,       // leftmost Watson off for LHS of opp alignment
-	int64_t lr,       // rightmost Watson off for LHS of opp alignment
-	int64_t rl,       // leftmost Watson off for RHS of opp alignment
-	int64_t rr,       // rightmost Watson off for RHS of opp alignment
-	size_t rdlen,     // length of opposite mate
-	size_t reflen,    // length of reference sequence aligned to
-	size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
-	size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
-	size_t maxhalf,   // max width in either direction
-	size_t& width,    // out: calculated width stored here
-	size_t& maxgaps,  // out: calculated max # gaps
-	size_t& trimup,   // out: number of bases trimmed from upstream end
-	size_t& trimdn,   // out: number of bases trimmed from downstream end
-	int64_t& refl,    // out: ref pos of upper LHS of parallelogram
-	int64_t& refr,    // out: ref pos of lower RHS of parallelogram
-	//EList<bool>& st,  // out: legal starting columns stored here
-	EList<bool>& en)  // out: legal ending columns stored here
-	const
-{
-	assert_geq(lr, ll);
-	assert_geq(rr, rl);
-	assert_geq(rr, lr);
-	assert_geq(rl, ll);
-	assert_gt(rdlen, 0);
-	assert_gt(reflen, 0);
-	trimup = trimdn = 0;
-	// Amount of padding we have to add to account for the fact that alignments
-	// ending between en_left/en_right might start in various columns in the
-	// first row
-	maxrfgap = min(maxrfgap, maxhalf);
-	maxrdgap = min(maxrdgap, maxhalf);
-	maxgaps = max(maxrfgap, maxrdgap);
-	int64_t pad_left = maxrfgap;
-	int64_t pad_right = maxrdgap;
-	int64_t st_left = ll;
-	int64_t st_right = lr;
-	int64_t en_left = st_left + (rdlen-1);
-	int64_t en_right = st_right + (rdlen-1);
-	int64_t ltrimr = 0, ltriml = 0;
-	int64_t rtrimr = 0, rtriml = 0;
-	int64_t en_right_pad = en_right + pad_right;
-	int64_t en_left_pad  = en_left  - pad_left;
-	int64_t st_right_pad = st_right + pad_right;
-	int64_t st_left_pad  = st_left  - pad_left;
-	// Trim both mates to reference, if required
-	if(trimToRef_) {
-		if(en_right_pad >= (int64_t)reflen) rtrimr = en_right_pad - reflen + 1;
-		if(en_left_pad < 0)                 rtriml = -en_left_pad;
-		if(st_right_pad >= (int64_t)reflen) ltrimr = st_right_pad - reflen + 1;
-		if(st_left_pad < 0)                 ltriml = -st_left_pad;
-	}
-	// Trim left mate to ll/lr
-	if(en_right_pad > rr && (en_right_pad - rr) > rtrimr) {
-		rtrimr = en_right_pad - rr;
-	}
-	if(en_left_pad < rl && (rl - en_left_pad) > rtriml) {
-		rtriml = rl - en_left_pad;
-	}
-	ltrimr = max<size_t>((size_t)ltrimr, (size_t)pad_right);
-	ltriml = max<size_t>((size_t)ltriml, (size_t)pad_left);
-	// Are we trimming so much of the left (top) interval that we can also trim
-	// more from the right (bottom) interval, or vice versa?
-	{
-		int64_t trimr = 0, triml = 0;
-		int64_t mxrfgap = (int64_t)maxrfgap;
-		if(ltrimr > rtrimr + mxrfgap) {
-			trimr = ltrimr - mxrfgap;
-		} else if(rtrimr > ltrimr + mxrfgap) {
-			trimr = rtrimr - mxrfgap;
-		} else {
-			trimr = min(rtrimr, ltrimr);
-		}
-		int64_t mxrdgap = (int64_t)maxrdgap;
-		if(ltriml > rtriml + mxrdgap) {
-			triml = ltriml - mxrdgap;
-		} else if(rtriml > ltriml + mxrdgap) {
-			triml = rtriml - mxrdgap;
-		} else {
-			triml = min(rtriml, ltriml);
-		}
-		if(trimr > ltrimr) ltrimr = 0;
-		else ltrimr -= trimr;
-		if(triml > ltriml) ltriml = 0;
-		else ltriml -= triml;
-		if(trimr > rtrimr) rtrimr = 0;
-		else rtrimr -= trimr;
-		if(triml > rtriml) rtriml = 0;
-		else rtriml -= triml;
-		if(trimr > 0) {
-			trimdn = (size_t)trimr;
-			if(pad_right < trimr) {
-				trimr -= pad_right;
-				pad_right = 0;
-				en_right -= trimr;
-				st_right -= trimr;
-			} else pad_right -= trimr;
-		}
-		if(triml > 0) {
-			trimup = (size_t)triml;
-			if(pad_left < triml) {
-				triml -= pad_left;
-				pad_left = 0;
-				en_left += triml;
-				st_left += triml;
-			} else pad_left -= triml;
-		}
-	}
-	if(en_left > en_right) {
-		// Trimmed everything
-		return false;
-	}
-	assert(!trimToRef_ ||
-		((st_left+ltriml) >= 0 && en_left >= 0));
-	assert(!trimToRef_ ||
-		(st_right < (int64_t)reflen &&
-		 (en_right-rtrimr) < (int64_t)reflen));
-	// Calculate width taking gaps into account
-	width = (size_t)(en_right - en_left + 1 + pad_left + pad_right);
-	assert_gt(width, 0);
-	//st.resize(width);
-	en.resize(width);
-	// Apply padding
-	st_left -= pad_left;
-	en_left -= pad_left;
-	st_right += pad_right;
-	en_right += pad_right;
-	assert_eq(en_right - en_left, st_right - st_left);
-	for(size_t i = 0; i < width; i++) {
-		//st[i] = true;
-		en[i] = true;
-	}
-	//for(int64_t i = 0; i < ltriml; i++) {
-	//	st[(size_t)i] = false;
-	//}
-	//for(int64_t i = 0; i < ltrimr; i++) {
-	//	st[width - (size_t)i - 1] = false;
-	//}
-	for(int64_t i = 0; i < rtrimr; i++) {
-		en[width - (size_t)i - 1] = false;
-	}
-	for(int64_t i = 0; i < rtriml; i++) {
-		en[(size_t)i] = false;
-	}
-	refl = st_left;
-	refr = en_right;
-	return true;
-}
-
-/**
- * Given information about an anchor mate hit, and information deduced by
- * PairedEndPolicy about where the opposite mate can begin and start given
- * the fragment length range, return parameters for the dynamic programming
- * problem to solve.
+ * Set up variables that describe the shape of a dynamic programming matrix to
+ * be filled in.  The matrix is built around the diagonals that begin in the
+ * range of columns where the LHS of the opposite mate must fall in order to
+ * satisfy the fragment-length constraint.  These are the "mate" diagonals and
+ * they also happen to be the "core" diagonals in this case.
+ *
+ * The N diagonals to the right of the mate diagonals are the "RHS gap"
+ * diagonals, where N is the maximum number of read or reference gaps permitted
+ * (whichever is larger).  The N diagonals to the left of the mate diagonals
+ * are the "LHS gap" diagonals.
+ *
+ * The purpose of arranging and these groupings of diagonals is that a subset
+ * of them, the "core diagonals", can now be considered "covered."  By
+ * "covered" I mean that any alignment that overlaps a cell in any of the core
+ * diagonals cannot possibly overlap another, higher-scoring alignment that
+ * falls partially outside the rectangle.
+ *
+ *    ll          lr
+ *    v           v
+ *    | LHS Range |
+ *    XXXXXXXXXXXXX          |Anchor|
+ *  OO0000000000000oo--------o--------  0: mate diagonal (also core diags!)
+ *  -OO0000000000000oo--------o-------  o: "RHS gap" diagonals
+ *  --OO0000000000000oo--------o------  O: "LHS gap" diagonals
+ *  ---OO0000000000000oo--------oo----  *: "LHS extra" diagonals
+ *  ----OO0000000000000oo---------o---  -: cells that can't possibly be
+ *  -----OO0000000000000oo---------o--     involved in a valid alignment that
+ *  ------OO0000000000000oo---------o-     overlaps one of the core diagonals
+ *
+ * The "core diagonals" are marked with 0s.
+ *
+ * A caveat is that, for performance reasons, we place an upper limit on N -
+ * the maximum number of read or reference gaps.  It is constrained to be no
+ * greater than 'maxgap'.  This means that in some situations, we may report an
+ * alignment that spuriously trumps a better alignment that falls partially
+ * outside the rectangle.  Also, we may fail to find a valid alignment with
+ * more than 'maxgap' gaps.
+ *
+ * Another issue is trimming: if the seed hit is sufficiently close to one or
+ * both ends of the reference sequence, and either (a) overhang is not
+ * permitted, or (b) the number of Ns permitted is less than the number of
+ * columns that overhang the reference, then we want to exclude the trimmed
+ * columns from the rectangle.
  */
 bool DynProgFramer::frameFindMateAnchorRightRect(
 	int64_t ll,       // leftmost Watson off for LHS of opp alignment
@@ -625,19 +291,12 @@ bool DynProgFramer::frameFindMateAnchorRightRect(
 	int64_t rl,       // leftmost Watson off for RHS of opp alignment
 	int64_t rr,       // rightmost Watson off for RHS of opp alignment
 	size_t rdlen,     // length of opposite mate
-	size_t reflen,    // length of reference sequence aligned to
+	int64_t reflen,   // length of reference sequence aligned to
 	size_t maxrdgap,  // max # of read gaps permitted in opp mate alignment
 	size_t maxrfgap,  // max # of ref gaps permitted in opp mate alignment
-	size_t maxns,     // max # ns permitted in the alignment
+	int64_t maxns,    // max # ns permitted in the alignment
 	size_t maxhalf,   // max width in either direction
-	size_t& width,    // out: calculated width stored here
-	size_t& solwidth, // out: # rightmost cols where soln might end
-	size_t& maxgaps,  // out: calculated max # gaps
-	size_t& trimup,   // out: number of bases trimmed from upstream end
-	size_t& trimdn,   // out: number of bases trimmed from downstream end
-	int64_t& refl,    // out: ref pos of upper LHS of parallelogram
-	int64_t& refr,    // out: ref pos of lower RHS of parallelogram
-	EList<bool>& en)  // out: legal ending columns stored here
+	DPRect& rect)     // out: DP rectangle
 	const
 {
 	assert_geq(lr, ll);
@@ -646,21 +305,17 @@ bool DynProgFramer::frameFindMateAnchorRightRect(
 	assert_geq(rl, ll);
 	assert_gt(rdlen, 0);
 	assert_gt(reflen, 0);
-	trimup = trimdn = 0;
-	// Amount of padding we have to add to account for the fact that alignments
-	// ending between en_left/en_right might start in various columns in the
-	// first row
-	maxrfgap = min(maxrfgap, maxhalf);
-	maxrdgap = min(maxrdgap, maxhalf);
-	maxgaps = max(maxrfgap, maxrdgap);
-	int64_t pad_left = maxgaps * 2;
-	int64_t pad_right = maxgaps;
+	size_t triml = 0, trimr = 0;
+	size_t maxgap = max(maxrdgap, maxrfgap);
+	maxgap = max(maxgap, maxhalf);
+	int64_t pad_left = maxgap;
+	int64_t pad_right = maxgap;
 	int64_t st_left = ll;
 	int64_t st_right = lr;
-	int64_t en_left = st_left + (rdlen-1);
+	ASSERT_ONLY(int64_t en_left = st_left + (rdlen-1));
 	int64_t en_right = st_right + (rdlen-1);
 	int64_t en_right_pad = en_right + pad_right;
-	int64_t en_left_pad  = en_left  - pad_left;
+	ASSERT_ONLY(int64_t en_left_pad  = en_left  - pad_left);
 	ASSERT_ONLY(int64_t st_right_pad = st_right + pad_right);
 	int64_t st_left_pad  = st_left  - pad_left;
 	assert_leq(st_left, en_left);
@@ -669,115 +324,38 @@ bool DynProgFramer::frameFindMateAnchorRightRect(
 	assert_geq(en_right_pad, st_right_pad);
 	// We have enough info to deduce where the boundaries of our rectangle
 	// should be.  Finalize the boundaries, ignoring reference trimming for now
-	width = (size_t)(en_right_pad - en_left_pad + 1);
-	solwidth = width - maxgaps;
-	refl = st_left_pad;
-	refr = en_right_pad;
-	assert_leq(width, (size_t)(refr - refl + 1));
-	assert_leq(solwidth, width);
-	// Now take reference trimming into account, if required
-	assert_eq(refr - refl + 1, (int64_t)(width + rdlen - 1));
+	int64_t refl = st_left_pad;
+	int64_t refr = en_right_pad;
 	if(trimToRef_) {
 		maxns = 0;
 	} else if(maxns == rdlen) {
 		maxns--;
 	}
-	if(refr >= (int64_t)(reflen + maxns)) {
-		trimdn = (size_t)(refr - (int64_t)((reflen + maxns)-1));
-		refr = (int64_t)(reflen + maxns)-1;
-		if(refl > refr) {
-			refl = refr;
-		}
+	// Trim from the RHS of the rectangle?
+	if(refr >= reflen + maxns) {
+		trimr = (size_t)(refr - (reflen + maxns - 1));
 	}
-	if(refl < (int64_t)(-maxns)) {
-		trimup = (size_t)(-refl) - maxns;
-		refl = (int64_t)(-maxns);
-		if(refr < refl) {
-			refr = refl;
-		}
+	// Trim from the LHS of the rectangle?
+	if(refl < -maxns) {
+		triml = (size_t)(-refl) - maxns;
 	}
-	if(trimup > 0 || trimdn > 0) {
-		// Consider how trimdn affects width and solwidth
-		if(solwidth <= trimdn) {
-			return false;
-		}
-		width -= trimdn;
-		solwidth -= trimdn;
-		// Consider how trimup affects width and solwidth
-		size_t wid = (size_t)(refr - refl + 1);
-		assert_gt(wid, 0);
-		if(wid < width) {
-			width = wid;
-			if(wid < solwidth) {
-				solwidth = wid;
-			}
-		}
-	}
-	assert_leq(width, (size_t)(refr-refl+1));
-	assert_leq(solwidth, width);
-	assert_gt(width, 0);
-	assert_gt(solwidth, 0);
-	en.resize(solwidth);
-	en.fill(true);
+	size_t width = (size_t)(refr - refl + 1);
+	rect.refl_pretrim = refl;
+	rect.refr_pretrim = refr;
+	rect.refl  = refl + triml;
+	rect.refr  = refr - trimr;
+	rect.triml = triml;
+	rect.trimr = trimr;
+	rect.maxgap = maxgap;
+	rect.corel = maxgap;
+	rect.corer = width - maxgap - 1; // inclusive
+	assert(rect.repOk());
 	return true;
 }
 
 #ifdef MAIN_DP_FRAMER
 
 #include <iostream>
-
-static void testCaseSeedExtension(
-	const char *testName,
-	bool trimToRef,
-	int64_t off,
-	size_t rdlen,
-	size_t reflen,
-	size_t maxrdgap,
-	size_t maxrfgap,
-	size_t ex_width,
-	size_t ex_solwidth,
-	size_t ex_trimup,
-	size_t ex_trimdn,
-	int64_t ex_refl,
-	int64_t ex_refr,
-	const char *ex_st,    // string of '0'/'1' chars
-	const char *ex_en)    // string of '0'/'1' chars
-{
-	cerr << testName << "...";
-	DynProgFramer fr(trimToRef);
-	size_t width;
-	int64_t refl, refr;
-	EList<bool> st, en;
-	size_t trimup, trimdn;
-	size_t maxhalf = 500;
-	fr.frameSeedExtensionParallelogram(
-		off,      // ref offset implied by seed hit assuming no gaps
-		rdlen,    // length of read sequence used in DP table (so len
-		          // of +1 nucleotide sequence for colorspace reads)
-		reflen,   // length of reference sequence aligned to
-		maxrdgap, // max # of read gaps permitted in opp mate alignment
-		maxrfgap, // max # of ref gaps permitted in opp mate alignment
-		maxhalf,  // max width in either direction
-		width,    // out: calculated width stored here
-		solwidth, // # rightmost cols where soln might end
-		trimup,   // out: number of bases trimmed from upstream end
-		trimdn,   // out: number of bases trimmed from downstream end
-		refl,     // out: ref pos of upper LHS of parallelogram
-		refr,     // out: ref pos of lower RHS of parallelogram
-		st,       // out: legal starting columns stored here
-		en);      // out: legal ending columns stored here
-	assert_eq(ex_width, width);
-	assert_eq(ex_solwidth, solwidth);
-	assert_eq(ex_trimup, trimup);
-	assert_eq(ex_trimdn, trimdn);
-	assert_eq(ex_refl, refl);
-	assert_eq(ex_refr, refr);
-	for(size_t i = 0; i < width; i++) {
-		assert_eq((ex_st[i] == '1'), st[i]);
-		assert_eq((ex_en[i] == '1'), en[i]);
-	}
-	cerr << "PASSED" << endl;
-}
 
 static void testCaseFindMateAnchorLeft(
 	const char *testName,
@@ -899,94 +477,6 @@ static void testCaseFindMateAnchorRight(
 }
 
 int main(void) {
-	//           v off
-	//           *
-	//          ooo
-	//           ooo
-	//            ooo
-	//             ooo
-	//              ooo
-	// 012345678901234567890
-	// 0         1         2
-	// Note: length of read isn't known here
-	testCaseSeedExtension(
-		"SeedExtension1", // name
-		false,            // trim to reference
-		10,               // offset
-		5,                // read length
-		30,               // reference length
-		1,                // max read gap
-		1,                // max ref gap
-		3,                // width of parallelogram
-		0,                // # bases trimmed from upstream end
-		0,                // # bases trimmed from downstream end
-		9,                // ref offset of upstream column
-		15,               // ref offset of downstream column
-		"111",            // expected starting bools
-		"111");           // expected ending bools
-	testCaseSeedExtension(
-		"SeedExtension2", // name
-		false,            // trim to reference
-		10,               // offset
-		5,                // read length
-		30,               // reference length
-		0,                // max read gap
-		1,                // max ref gap
-		3,                // width of parallelogram
-		0,                // # bases trimmed from upstream end
-		0,                // # bases trimmed from downstream end
-		9,                // ref offset of upstream column
-		15,               // ref offset of downstream column
-		"011",            // expected starting bools
-		"110");           // expected ending bools
-	
-	testCaseSeedExtension(
-		"SeedExtension3", // name
-		false,            // trim to reference
-		10,               // offset
-		5,                // read length
-		30,               // reference length
-		1,                // max read gap
-		0,                // max ref gap
-		3,                // width of parallelogram
-		0,                // expected # bases trimmed from upstream end
-		0,                // expected # bases trimmed from downstream end
-		9,                // ref offset of upstream column
-		15,               // ref offset of downstream column
-		"110",            // expected starting bools
-		"011");           // expected ending bools
-
-	testCaseSeedExtension(
-		"SeedExtension4", // name
-		false,            // trim to reference
-		0,                // offset
-		5,                // read length
-		3,                // reference length
-		2,                // max read gap
-		2,                // max ref gap
-		5,                // width of parallelogram
-		0,                // expected # bases trimmed from upstream end
-		0,                // expected # bases trimmed from downstream end
-		-2,               // ref offset of upstream column
-		6,                // ref offset of downstream column
-		"11111",          // expected starting bools
-		"11111");         // expected ending bools
-	
-	testCaseSeedExtension(
-		"SeedExtension5", // name
-		true,             // trim to reference
-		0,                // offset
-		5,                // read length
-		3,                // reference length
-		2,                // max read gap
-		2,                // max ref gap
-		5,                // width of parallelogram
-		2,                // expected # bases trimmed from upstream end
-		4,                // expected # bases trimmed from downstream end
-		-2,               // ref offset of upstream column
-		6,                // ref offset of downstream column
-		"00111",          // expected starting bools
-		"10000");         // expected ending bools
 	
 	///////////////////////////
 	//

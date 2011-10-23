@@ -416,13 +416,9 @@ void AlnSink::printAlSumm(
 			// Print the number that aligned concordantly more than once but
 			// fewer times than the limit
 			
-			cerr << "    " << met.nconcord_uni2 << " (";
-			printPct(cerr, met.nconcord_uni2, met.npaired);
-			cerr << ") aligned concordantly >1 and <=" << repThresh << " times" << endl;
-			
-			cerr << "    " << met.nconcord_rep << " (";
-			printPct(cerr, met.nconcord_rep, met.npaired);
-			cerr << ") aligned concordantly >" << repThresh << " times" << endl;
+			cerr << "    " << met.nconcord_uni2+met.nconcord_rep << " (";
+			printPct(cerr, met.nconcord_uni2+met.nconcord_rep, met.npaired);
+			cerr << ") aligned concordantly >1 times" << endl;
 		} else {
 			// Print the number that aligned concordantly exactly once
 			assert_eq(met.nconcord_uni, met.nconcord_uni1+met.nconcord_uni2);
@@ -466,13 +462,9 @@ void AlnSink::printAlSumm(
 
 				// Print the number that aligned more than once but fewer times
 				// than the limit
-				cerr << "        " << met.nunp_0_uni2 << " (";
-				printPct(cerr, met.nunp_0_uni2, ncondiscord_0 * 2);
-				cerr << ") aligned >1 and <=" << repThresh << " times" << endl;
-				
-				cerr << "        " << met.nunp_0_rep << " (";
-				printPct(cerr, met.nunp_0_rep, ncondiscord_0 * 2);
-				cerr << ") aligned >" << repThresh << " times" << endl;
+				cerr << "        " << met.nunp_0_uni2+met.nunp_0_rep << " (";
+				printPct(cerr, met.nunp_0_uni2+met.nunp_0_rep, ncondiscord_0 * 2);
+				cerr << ") aligned >1 times" << endl;
 			} else {
 				// Print the number that aligned exactly once
 				assert_eq(met.nunp_0_uni, met.nunp_0_uni1+met.nunp_0_uni2);
@@ -533,13 +525,9 @@ void AlnSink::printAlSumm(
 
 			// Print the number that aligned more than once but fewer times
 			// than the limit
-			cerr << "    " << met.nunp_uni2 << " (";
-			printPct(cerr, met.nunp_uni2, met.nunpaired);
-			cerr << ") aligned >1 and <=" << repThresh << " times" << endl;
-			
-			cerr << "    " << met.nunp_rep << " (";
-			printPct(cerr, met.nunp_rep, met.nunpaired);
-			cerr << ") aligned >" << repThresh << " times" << endl;
+			cerr << "    " << met.nunp_uni2+met.nunp_rep << " (";
+			printPct(cerr, met.nunp_uni+met.nunp_rep, met.nunpaired);
+			cerr << ") aligned >1 times" << endl;
 		} else {
 			// Print the number that aligned exactly once
 			assert_eq(met.nunp_uni, met.nunp_uni1+met.nunp_uni2);
@@ -659,7 +647,9 @@ int AlnSinkWrap::nextRead(
 	maxed1_ = false;
 	maxed2_ = false;
 	maxedOverall_ = false;
-	best_ = std::numeric_limits<THitInt>::min();
+	bestPair_ = best2Pair_ =
+	bestUnp1_ = best2Unp1_ =
+	bestUnp2_ = best2Unp2_ = std::numeric_limits<THitInt>::min();
 	rs1_.clear();     // clear out paired-end alignments
 	rs2_.clear();     // clear out paired-end alignments
 	rs1u_.clear();    // clear out unpaired alignments for mate #1
@@ -1219,11 +1209,32 @@ bool AlnSinkWrap::report(
 		}
 	}
 	// Tally overall alignment score
-	THitInt score = rsa->score().score();
+	TAlScore score = rsa->score().score();
 	if(rsb != NULL) score += rsb->score().score();
 	// Update best score so far
-	if(score < best_) {
-		best_ = score;
+	if(paired) {
+		if(score > bestPair_) {
+			best2Pair_ = bestPair_;
+			bestPair_ = score;
+		} else if(score > best2Pair_) {
+			best2Pair_ = score;
+		}
+	} else {
+		if(one) {
+			if(score > bestUnp1_) {
+				best2Unp1_ = bestUnp1_;
+				bestUnp1_ = score;
+			} else if(score > best2Unp1_) {
+				best2Unp1_ = score;
+			}
+		} else {
+			if(score > bestUnp2_) {
+				best2Unp2_ = bestUnp2_;
+				bestUnp2_ = score;
+			} else if(score > best2Unp2_) {
+				best2Unp2_ = score;
+			}
+		}
 	}
 	return st_.done();
 }

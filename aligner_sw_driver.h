@@ -89,6 +89,64 @@
 #include "sa_rescomb.h"
 #include "ival_list.h"
 #include "simple_func.h"
+#include "random_util.h"
+
+struct SeedPos {
+
+	SeedPos() : fw(false), offidx(0), rdoff(0), seedlen(0) { }
+
+	SeedPos(
+		bool fw_,
+		uint32_t offidx_,
+		uint32_t rdoff_,
+		uint32_t seedlen_)
+	{
+		init(fw_, offidx_, rdoff_, seedlen_);
+	}
+	
+	void init(
+		bool fw_,
+		uint32_t offidx_,
+		uint32_t rdoff_,
+		uint32_t seedlen_)
+	{
+		fw      = fw_;
+		offidx  = offidx_;
+		rdoff   = rdoff_;
+		seedlen = seedlen_;
+	}
+	
+	bool operator<(const SeedPos& o) const {
+		if(offidx < o.offidx)   return true;
+		if(offidx > o.offidx)   return false;
+		if(rdoff < o.rdoff)     return true;
+		if(rdoff > o.rdoff)     return false;
+		if(seedlen < o.seedlen) return true;
+		if(seedlen > o.seedlen) return false;
+		if(fw && !o.fw)         return true;
+		if(!fw && o.fw)         return false;
+		return false;
+	}
+
+	bool fw;
+	uint32_t offidx;
+	uint32_t rdoff;
+	uint32_t seedlen;
+};
+
+/**
+ * An SATuple along with the associated seed position.
+ */
+struct SATupleAndPos {
+	SATuple sat;
+	SeedPos pos;
+	
+	bool operator<(const SATupleAndPos& o) const {
+		if(sat < o.sat) return true;
+		if(sat > o.sat) return false;
+		return pos < o.pos;
+	}
+};
 
 class SwDriver {
 
@@ -96,7 +154,6 @@ public:
 
 	SwDriver() :
 		satups_(DP_CAT),
-		satups2_(DP_CAT),
 		sacomb_(DP_CAT),
 		gws_(DP_CAT),
 		seenDiags1_(DP_CAT),
@@ -134,8 +191,7 @@ public:
 		TAlScore minsc,              // minimum score for anchor
 		TAlScore floorsc,            // local-alignment floor for anchor score
 		int nceil,                   // maximum # Ns permitted in ref portion
-		const SimpleFunc& posfrac,   // minimum number of positions to examine
-		const SimpleFunc& rowmult,   // max number of additional poss to examine
+		const SimpleFunc& maxelt,    // # elts to explore as function of total elts
 		size_t maxhalf,              // maximum width on one side of DP table
 		bool scanNarrowed,           // true -> ref scan even for narrowed hits
 		AlignmentCacheIface& ca,     // alignment cache for seed hits
@@ -207,8 +263,7 @@ public:
 		int onceil,                  // max # Ns permitted in ref for opposite
 		bool nofw,                   // don't align forward read
 		bool norc,                   // don't align revcomp read
-		const SimpleFunc& posfrac,   // minimum number of positions to examine
-		const SimpleFunc& rowmult,   // max number of additional poss to examine
+		const SimpleFunc& maxelt,    // # elts to explore as function of total elts
 		size_t maxhalf,              // maximum width on one side of DP table
 		bool scanNarrowed,           // true -> ref scan even for narrowed hits
 		AlignmentCacheIface& cs,     // alignment cache for seed hits
@@ -263,10 +318,25 @@ protected:
 		RandomSource& rnd,           // pseudo-random generator
 		WalkMetrics& wlm);           // group walk left metrics
 
-	ELList<SATuple, 16> satups_;     // temporary holder for range lists
-	ELList<SATuple, 16> satups2_;    // temporary holder for range lists
-	ELList<SAResolveCombiner, 16> sacomb_; // temporary holder for combiners
-	EList<GroupWalk> gws_;      // list of GroupWalks; no particular order
+	void prioritizeSATups(
+		SeedResults& sh,             // seed hits to extend into full alignments
+		const Ebwt& ebwt,            // BWT
+		const BitPairReference& ref, // Reference strings
+		size_t maxelt,               // max elts we'll consider
+		size_t nsm,                  // if range as <= nsm elts, it's "small"
+		AlignmentCacheIface& ca,     // alignment cache for seed hits
+		RandomSource& rnd,           // pseudo-random generator
+		WalkMetrics& wlm,            // group walk left metrics
+		size_t& nelt);               // out: # elements total
+
+	Random1toN            rand_;       // random number generators
+	EList<Random1toN, 16> rands_;      // random number generators
+	EList<Random1toN, 16> rands2_;     // random number generators
+	EList<SATupleAndPos, 16> satpos_;  // holds SATuple, SeedPos pairs
+	EList<SATupleAndPos, 16> satpos2_; // holds SATuple, SeedPos pairs
+	EList<SATuple, 16>    satups_;     // holds SATuples to explore elements from
+	EList<SAResolveCombiner, 16> sacomb_; // temporary holder for combiners
+	EList<GroupWalk2> gws_;         // list of GroupWalks; no particular order
 
 	SeedScanner    sscan_;      // reference scanner for resolving seed hits
 	SeedScanTable  sstab_;      // table of seeds to search for
