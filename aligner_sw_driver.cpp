@@ -185,7 +185,7 @@ void SwDriver::prioritizeSATups(
 #endif
 	}
 	assert_leq(nelt_added, maxelt)
-	if(nelt_added == maxelt) {
+	if(nelt_added == maxelt || nsmall == satpos2_.size()) {
 		return;
 	}
 	// 2. do the non-smalls
