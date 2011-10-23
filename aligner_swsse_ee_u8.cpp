@@ -284,7 +284,6 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag) {
 	assert_lt(rdi_, rdf_);
 	assert_eq(rd_->length(), qu_->length());
 	assert_geq(sc_->gapbar, 1);
-	assert(en_ == NULL || en_->size() == solwidth_);
 	assert(repOk());
 #ifndef NDEBUG
 	for(size_t i = rfi_; i < rff_; i++) {
@@ -319,7 +318,6 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag) {
 	__m128i rdgape   = _mm_setzero_si128();
 	__m128i vlo      = _mm_setzero_si128();
 	__m128i vhi      = _mm_setzero_si128();
-	__m128i vmax     = _mm_setzero_si128();
 	__m128i ve       = _mm_setzero_si128();
 	__m128i vf       = _mm_setzero_si128();
 	__m128i vh       = _mm_setzero_si128();
@@ -362,7 +360,6 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag) {
 	
 	vhi = _mm_cmpeq_epi16(vhi, vhi); // all elts = 0xffff
 	vlo = _mm_xor_si128(vlo, vlo);   // all elts = 0
-	vmax = vlo;
 	
 	// vhilsw: topmost (least sig) word set to 0x7fff, all other words=0
 	vhilsw = _mm_shuffle_epi32(vhi, 0);
@@ -668,7 +665,7 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag) {
 		
 		// Calculate distance from RHS of paralellogram; helps us decide
 		// whether a solution can end in this column 
-		size_t fromend = rff_ - i - 1;
+		//size_t fromend = rff_ - i - 1;
 		
 		// Fetch the appropriate query profile.  Note that elements of rf_ must
 		// be numbers, not masks.
@@ -828,8 +825,8 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag) {
 		// Only check elements that we might backtrack from
 		// These elements have to satisfy two criteria: (a) must be
 		// exhaustively scored and (b) must not have en_ set.
-		if(fromend < solwidth_) {
-			if(en_ == NULL || (*en_)[solwidth_ - fromend - 1]) {
+		//if(fromend < solwidth_) {
+		//	if(en_ == NULL || (*en_)[solwidth_ - fromend - 1]) {
 				__m128i *vtmp = d.mat_.hvec(d.lastIter_, i-rfi_);
 				// Note: we may not want to extract from the final row
 				TCScore lr = ((TCScore*)(vtmp))[d.lastWord_];
@@ -837,8 +834,8 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag) {
 				if(lr > lrmax) {
 					lrmax = lr;
 				}
-			}
-		}
+		//	}
+		//}
 
 		// pvELoad and pvHLoad are already where they need to be
 		
@@ -916,27 +913,9 @@ bool SwAligner::gatherCellsNucleotidesEnd2EndSseU8(TAlScore best) {
 	assert(!d.buf_.empty());
 	assert(d.qprof_ != NULL);
 	const size_t colstride = d.mat_.colstride();
-	// Skip over all the columns that don't have o in final row
-	size_t iskip = maxgaps_ + nrow - 1; // cols w/r/t table we filled in to skip
-	if(truncLeft_ >= iskip) {
-		iskip = 0;
-	} else {
-		iskip -= truncLeft_;
-	}
-	size_t icol = iskip; // off w/r/t the table we filled in
 	ASSERT_ONLY(bool sawbest = false);
-	__m128i *pvH = d.mat_.hvec(d.lastIter_, icol);
-	for(size_t j = icol; j < ncol; j++) {
-		size_t fromend = ncol - j - 1;
-		// Skip cells that en_ tells us to
-		if(en_ != NULL && fromend < solwidth_) {
-			size_t off = solwidth_ - fromend - 1;
-			assert_lt(off, en_->size());
-			if(!(*en_)[off]) {
-				pvH += colstride;
-				continue;
-			}
-		}
+	__m128i *pvH = d.mat_.hvec(d.lastIter_, 0);
+	for(size_t j = 0; j < ncol; j++) {
 		met.gathcell++;
 		TAlScore sc = (TAlScore)(((TCScore*)pvH)[d.lastWord_] - 0xff);
 		assert_leq(sc, best);
@@ -1482,16 +1461,40 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseU8(
 	// The number of cells in the backtracs should equal the number of read
 	// bases after trimming plus the number of gaps
 	assert_eq(btcells_.size(), dpRows() - trimBeg - trimEnd + readGaps);
-	// Set 'reported' flag on each cell
-#ifndef NDEBUG
+	// Check whether we went through a core diagonal and set 'reported' flag on
+	// each cell
+	bool overlappedCoreDiag = false;
 	for(size_t i = 0; i < btcells_.size(); i++) {
 		size_t rw = btcells_[i].first;
 		size_t cl = btcells_[i].second;
+		// Calculate the diagonal within the *trimmed* rectangle, i.e. the
+		// rectangle we dealt with in align, gather and backtrack.
+		int64_t diagi = cl - rw;
+		// Now adjust to the diagonal within the *untrimmed* rectangle by
+		// adding on the amount trimmed from the left.
+		diagi += rect_->triml;
+		if(diagi >= 0) {
+			size_t diag = (size_t)diagi;
+			if(diag >= rect_->corel && diag <= rect_->corer) {
+				overlappedCoreDiag = true;
+				break;
+			}
+		}
+#ifndef NDEBUG
 		//assert(!d.mat_.reportedThrough(rw, cl));
 		//d.mat_.setReportedThrough(rw, cl);
 		assert(d.mat_.reportedThrough(rw, cl));
-	}
 #endif
+	}
+	if(!overlappedCoreDiag) {
+		// Must overlap a core diagonal.  Otherwise, we run the risk of
+		// reporting an alignment that overlaps (and trumps) a higher-scoring
+		// alignment that lies partially outside the dynamic programming
+		// rectangle.
+		res.reset();
+		met.corerej++;
+		return false;
+	}
 	int readC = (*rd_)[rdi_+row];      // get last char in read
 	int refNmask = (int)rf_[rfi_+col]; // get last ref char ref involved in aln
 	assert_gt(refNmask, 0);
@@ -1509,6 +1512,12 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseU8(
 	if(m == -1) {
 		score.ns_++;
 	}
+	if(score.ns_ > nceil_) {
+		// Alignment has too many Ns in it!
+		res.reset();
+		met.nrej++;
+		return false;
+	}
 	res.reverse();
 	assert(Edit::repOk(ned, (*rd_)));
 	assert_eq(score.score(), escore);
@@ -1519,7 +1528,7 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseU8(
 	res.alres.setScore(score);
 	res.alres.setShape(
 		refidx_,                  // ref id
-		off + rfi_ + refoff_,     // 0-based ref offset
+		off + rfi_ + rect_->refl, // 0-based ref offset
 		fw_,                      // aligned to Watson?
 		rdf_ - rdi_,              // read length
 		color_,                   // read was colorspace?

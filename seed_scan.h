@@ -193,6 +193,7 @@ public:
 			qrys_[i].clear();
 		}
 		first_ = true;
+		len_ = 0;
 		assert(inited());
 	}
 	

@@ -187,6 +187,7 @@ static uint32_t seedCacheLocalMB;   // # MB to use for non-shared seed alignment
 static uint32_t seedCacheCurrentMB; // # MB to use for current-read seed hit cacheing
 static SimpleFunc posfrac;   // number of seed poss to try as function of # poss
 static SimpleFunc rowmult;   // number of hits per pos to try as function of # hits
+static SimpleFunc maxelt;    // max # elts to extend for any given batch of seed hits
 static size_t maxhalf;       // max width on one side of DP table
 static bool seedSummaryOnly; // print summary information about seed hits, not alignments
 static bool scanNarrowed;    // true -> do ref scan even when seed is narrow
@@ -280,8 +281,8 @@ static void resetOptions() {
 	sam_print_md            = true;
 	sam_print_yf            = true;
 	sam_print_yi            = false;
-	sam_print_ym            = true;
-	sam_print_yp            = true;
+	sam_print_ym            = false;
+	sam_print_yp            = false;
 	sam_print_yt            = true;
 	sam_print_ys            = true;
 	bwaSwLike               = false;
@@ -328,6 +329,7 @@ static void resetOptions() {
 	msIval.init    (SIMPLE_FUNC_LINEAR, 1.0f, DMAX, DEFAULT_IVAL_B, DEFAULT_IVAL_A);
 	posfrac.init   (SIMPLE_FUNC_LINEAR, 1.0f, DMAX, DEFAULT_POSMIN, DEFAULT_POSFRAC);
 	rowmult.init   (SIMPLE_FUNC_CONST,  1.0f, DMAX, DEFAULT_ROWMULT, 0.0f);
+	maxelt.init    (SIMPLE_FUNC_CONST,  1.0f, DMAX, 20.0f, 0.0f);
 	multiseedMms    = DEFAULT_SEEDMMS;
 	multiseedLen    = DEFAULT_SEEDLEN;
 	saCountersFn.clear();    // filename to dump per-read SeedAligner counters to
@@ -1490,14 +1492,6 @@ struct PerfMetrics {
 		time_t curtime = time(0);
 		char buf[1024];
 		if(first) {
-			// 8. Aligned concordant pairs
-			// 9. Aligned discordant pairs
-			// 10. Pairs aligned non-uniquely
-			// 11. Pairs that failed to align as a pair
-			// 12. Aligned unpaired reads
-			// 13. Unpaired reads aligned non-uniquely
-			// 14. Unpaired reads that fail to align
-
 			const char *str =
 				/*  1 */ "Time"           "\t"
 				/*  2 */ "Read"           "\t"
@@ -1551,61 +1545,69 @@ struct PerfMetrics {
 				/* 47 */ "DP16ExBtFail"   "\t"
 				/* 48 */ "DP16ExBtSucc"   "\t"
 				/* 49 */ "DP16ExBtCell"   "\t"
+				/* 50 */ "DP16ExCoreRej"  "\t"
+				/* 51 */ "DP16ExNRej"     "\t"
 
-				/* 50 */ "DP8ExDps"       "\t"
-				/* 51 */ "DP8ExDpSat"     "\t"
-				/* 52 */ "DP8ExDpFail"    "\t"
-				/* 53 */ "DP8ExDpSucc"    "\t"
-				/* 54 */ "DP8ExCol"       "\t"
-				/* 55 */ "DP8ExCell"      "\t"
-				/* 56 */ "DP8ExInner"     "\t"
-				/* 57 */ "DP8ExFixup"     "\t"
-				/* 58 */ "DP8ExGathCell"  "\t"
-				/* 59 */ "DP8ExGathSol"   "\t"
-				/* 60 */ "DP8ExBt"        "\t"
-				/* 61 */ "DP8ExBtFail"    "\t"
-				/* 62 */ "DP8ExBtSucc"    "\t"
-				/* 63 */ "DP8ExBtCell"    "\t"
+				/* 52 */ "DP8ExDps"       "\t"
+				/* 53 */ "DP8ExDpSat"     "\t"
+				/* 54 */ "DP8ExDpFail"    "\t"
+				/* 55 */ "DP8ExDpSucc"    "\t"
+				/* 56 */ "DP8ExCol"       "\t"
+				/* 57 */ "DP8ExCell"      "\t"
+				/* 58 */ "DP8ExInner"     "\t"
+				/* 59 */ "DP8ExFixup"     "\t"
+				/* 60 */ "DP8ExGathCell"  "\t"
+				/* 61 */ "DP8ExGathSol"   "\t"
+				/* 62 */ "DP8ExBt"        "\t"
+				/* 63 */ "DP8ExBtFail"    "\t"
+				/* 64 */ "DP8ExBtSucc"    "\t"
+				/* 65 */ "DP8ExBtCell"    "\t"
+				/* 66 */ "DP8ExCoreRej"   "\t"
+				/* 67 */ "DP8ExNRej"      "\t"
 
-				/* 64 */ "DP16MateDps"     "\t"
-				/* 65 */ "DP16MateDpSat"   "\t"
-				/* 66 */ "DP16MateDpFail"  "\t"
-				/* 67 */ "DP16MateDpSucc"  "\t"
-				/* 68 */ "DP16MateCol"     "\t"
-				/* 69 */ "DP16MateCell"    "\t"
-				/* 70 */ "DP16MateInner"   "\t"
-				/* 71 */ "DP16MateFixup"   "\t"
-				/* 72 */ "DP16MateGathCell""\t"
-				/* 73 */ "DP16MateGathSol" "\t"
-				/* 74 */ "DP16MateBt"      "\t"
-				/* 75 */ "DP16MateBtFail"  "\t"
-				/* 76 */ "DP16MateBtSucc"  "\t"
-				/* 77 */ "DP16MateBtCell"  "\t"
+				/* 68 */ "DP16MateDps"     "\t"
+				/* 69 */ "DP16MateDpSat"   "\t"
+				/* 70 */ "DP16MateDpFail"  "\t"
+				/* 71 */ "DP16MateDpSucc"  "\t"
+				/* 72 */ "DP16MateCol"     "\t"
+				/* 73 */ "DP16MateCell"    "\t"
+				/* 74 */ "DP16MateInner"   "\t"
+				/* 75 */ "DP16MateFixup"   "\t"
+				/* 76 */ "DP16MateGathCell""\t"
+				/* 77 */ "DP16MateGathSol" "\t"
+				/* 78 */ "DP16MateBt"      "\t"
+				/* 79 */ "DP16MateBtFail"  "\t"
+				/* 80 */ "DP16MateBtSucc"  "\t"
+				/* 81 */ "DP16MateBtCell"  "\t"
+				/* 82 */ "DP16MateCoreRej" "\t"
+				/* 83 */ "DP16MateNRej"    "\t"
 
-				/* 78 */ "DP8MateDps"     "\t"
-				/* 79 */ "DP8MateDpSat"   "\t"
-				/* 80 */ "DP8MateDpFail"  "\t"
-				/* 81 */ "DP8MateDpSucc"  "\t"
-				/* 82 */ "DP8MateCol"     "\t"
-				/* 83 */ "DP8MateCell"    "\t"
-				/* 84 */ "DP8MateInner"   "\t"
-				/* 85 */ "DP8MateFixup"   "\t"
-				/* 86 */ "DP8MateGathCell""\t"
-				/* 87 */ "DP8MateGathSol" "\t"
-				/* 88 */ "DP8MateBt"      "\t"
-				/* 89 */ "DP8MateBtFail"  "\t"
-				/* 90 */ "DP8MateBtSucc"  "\t"
-				/* 91 */ "DP8MateBtCell"  "\t"
+				/* 84 */ "DP8MateDps"     "\t"
+				/* 85 */ "DP8MateDpSat"   "\t"
+				/* 86 */ "DP8MateDpFail"  "\t"
+				/* 87 */ "DP8MateDpSucc"  "\t"
+				/* 88 */ "DP8MateCol"     "\t"
+				/* 89 */ "DP8MateCell"    "\t"
+				/* 90 */ "DP8MateInner"   "\t"
+				/* 91 */ "DP8MateFixup"   "\t"
+				/* 92 */ "DP8MateGathCell""\t"
+				/* 93 */ "DP8MateGathSol" "\t"
+				/* 94 */ "DP8MateBt"      "\t"
+				/* 95 */ "DP8MateBtFail"  "\t"
+				/* 96 */ "DP8MateBtSucc"  "\t"
+				/* 97 */ "DP8MateBtCell"  "\t"
+				/* 98 */ "DP8MateCoreRej" "\t"
+				/* 99 */ "DP8MateNRej"    "\t"
 
-				/* 92 */ "MemPeak"        "\t"
-				/* 93 */ "UncatMemPeak"   "\t" // 0
-				/* 94 */ "EbwtMemPeak"    "\t" // EBWT_CAT
-				/* 95 */ "CacheMemPeak"   "\t" // CA_CAT
-				/* 96 */ "ResolveMemPeak" "\t" // GW_CAT
-				/* 97 */ "AlignMemPeak"   "\t" // AL_CAT
-				/* 98 */ "DPMemPeak"      "\t" // DP_CAT
-				/* 99 */ "MiscMemPeak"    "\t" // MISC_CAT
-				/* 100 */ "DebugMemPeak"   "\t" // DEBUG_CAT
+				/* 100 */ "MemPeak"        "\t"
+				/* 101 */ "UncatMemPeak"   "\t" // 0
+				/* 102 */ "EbwtMemPeak"    "\t" // EBWT_CAT
+				/* 103 */ "CacheMemPeak"   "\t" // CA_CAT
+				/* 104 */ "ResolveMemPeak" "\t" // GW_CAT
+				/* 105 */ "AlignMemPeak"   "\t" // AL_CAT
+				/* 106 */ "DPMemPeak"      "\t" // DP_CAT
+				/* 107 */ "MiscMemPeak"    "\t" // MISC_CAT
+				/* 108 */ "DebugMemPeak"   "\t" // DEBUG_CAT
 				
 				"\n";
 			
@@ -1828,213 +1830,245 @@ struct PerfMetrics {
 		itoa10<uint64_t>(dpSse16s.btcell, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 50. 16-bit SSE seed-extend DP core-diag rejections
+		itoa10<uint64_t>(dpSse16s.corerej, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 51. 16-bit SSE seed-extend DP N rejections
+		itoa10<uint64_t>(dpSse16s.nrej, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 		
 		const SSEMetrics& dpSse8s = total ? dpSse8Seed : dpSse8uSeed;
 		
-		// 50. 8-bit SSE seed-extend DPs tried
+		// 52. 8-bit SSE seed-extend DPs tried
 		itoa10<uint64_t>(dpSse8s.dp, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 51. 8-bit SSE seed-extend DPs saturated
+		// 53. 8-bit SSE seed-extend DPs saturated
 		itoa10<uint64_t>(dpSse8s.dpsat, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 52. 8-bit SSE seed-extend DPs failed
+		// 54. 8-bit SSE seed-extend DPs failed
 		itoa10<uint64_t>(dpSse8s.dpfail, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 53. 8-bit SSE seed-extend DPs succeeded
+		// 55. 8-bit SSE seed-extend DPs succeeded
 		itoa10<uint64_t>(dpSse8s.dpsucc, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 54. 8-bit SSE seed-extend DP columns completed
+		// 56. 8-bit SSE seed-extend DP columns completed
 		itoa10<uint64_t>(dpSse8s.col, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 55. 8-bit SSE seed-extend DP cells completed
+		// 57. 8-bit SSE seed-extend DP cells completed
 		itoa10<uint64_t>(dpSse8s.cell, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 56. 8-bit SSE seed-extend DP inner loop iters completed
+		// 58. 8-bit SSE seed-extend DP inner loop iters completed
 		itoa10<uint64_t>(dpSse8s.inner, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 57. 8-bit SSE seed-extend DP fixup loop iters completed
+		// 59. 8-bit SSE seed-extend DP fixup loop iters completed
 		itoa10<uint64_t>(dpSse8s.fixup, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 58. 16-bit SSE seed-extend DP gather, cells examined
+		// 60. 16-bit SSE seed-extend DP gather, cells examined
 		itoa10<uint64_t>(dpSse8s.gathcell, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 59. 16-bit SSE seed-extend DP gather, cells with potential solutions
+		// 61. 16-bit SSE seed-extend DP gather, cells with potential solutions
 		itoa10<uint64_t>(dpSse8s.gathsol, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 60. 16-bit SSE seed-extend DP backtrace attempts
+		// 62. 16-bit SSE seed-extend DP backtrace attempts
 		itoa10<uint64_t>(dpSse8s.bt, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 61. 16-bit SSE seed-extend DP failed backtrace attempts
+		// 63. 16-bit SSE seed-extend DP failed backtrace attempts
 		itoa10<uint64_t>(dpSse8s.btfail, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 62. 16-bit SSE seed-extend DP succesful backtrace attempts
+		// 64. 16-bit SSE seed-extend DP succesful backtrace attempts
 		itoa10<uint64_t>(dpSse8s.btsucc, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 63. 16-bit SSE seed-extend DP backtrace cells
+		// 65. 16-bit SSE seed-extend DP backtrace cells
 		itoa10<uint64_t>(dpSse8s.btcell, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 66. 16-bit SSE seed-extend DP core-diag rejections
+		itoa10<uint64_t>(dpSse8s.corerej, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 67. 16-bit SSE seed-extend DP N rejections
+		itoa10<uint64_t>(dpSse8s.nrej, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 		
 		const SSEMetrics& dpSse16m = total ? dpSse16Mate : dpSse16uMate;
 		
-		// 64. 16-bit SSE mate-finding DPs tried
+		// 68. 16-bit SSE mate-finding DPs tried
 		itoa10<uint64_t>(dpSse16m.dp, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 65. 16-bit SSE mate-finding DPs saturated
+		// 69. 16-bit SSE mate-finding DPs saturated
 		itoa10<uint64_t>(dpSse16m.dpsat, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 66. 16-bit SSE mate-finding DPs failed
+		// 70. 16-bit SSE mate-finding DPs failed
 		itoa10<uint64_t>(dpSse16m.dpfail, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 67. 16-bit SSE mate-finding DPs succeeded
+		// 71. 16-bit SSE mate-finding DPs succeeded
 		itoa10<uint64_t>(dpSse16m.dpsucc, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 68. 16-bit SSE mate-finding DP columns completed
+		// 72. 16-bit SSE mate-finding DP columns completed
 		itoa10<uint64_t>(dpSse16m.col, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 69. 16-bit SSE mate-finding DP cells completed
+		// 73. 16-bit SSE mate-finding DP cells completed
 		itoa10<uint64_t>(dpSse16m.cell, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 70. 16-bit SSE mate-finding DP inner loop iters completed
+		// 74. 16-bit SSE mate-finding DP inner loop iters completed
 		itoa10<uint64_t>(dpSse16m.inner, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 71. 16-bit SSE mate-finding DP fixup loop iters completed
+		// 75. 16-bit SSE mate-finding DP fixup loop iters completed
 		itoa10<uint64_t>(dpSse16m.fixup, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 72. 16-bit SSE mate-finding DP gather, cells examined
+		// 76. 16-bit SSE mate-finding DP gather, cells examined
 		itoa10<uint64_t>(dpSse16m.gathcell, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 73. 16-bit SSE mate-finding DP gather, cells with potential solutions
+		// 77. 16-bit SSE mate-finding DP gather, cells with potential solutions
 		itoa10<uint64_t>(dpSse16m.gathsol, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 74. 16-bit SSE mate-finding DP backtrace attempts
+		// 78. 16-bit SSE mate-finding DP backtrace attempts
 		itoa10<uint64_t>(dpSse16m.bt, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 75. 16-bit SSE mate-finding DP failed backtrace attempts
+		// 79. 16-bit SSE mate-finding DP failed backtrace attempts
 		itoa10<uint64_t>(dpSse16m.btfail, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 76. 16-bit SSE mate-finding DP succesful backtrace attempts
+		// 80. 16-bit SSE mate-finding DP succesful backtrace attempts
 		itoa10<uint64_t>(dpSse16m.btsucc, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 77. 16-bit SSE mate-finding DP backtrace cells
+		// 81. 16-bit SSE mate-finding DP backtrace cells
 		itoa10<uint64_t>(dpSse16m.btcell, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 82. 16-bit SSE mate-finding DP core-diag rejections
+		itoa10<uint64_t>(dpSse16m.corerej, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 83. 16-bit SSE mate-finding DP N rejections
+		itoa10<uint64_t>(dpSse16m.nrej, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 		
 		const SSEMetrics& dpSse8m = total ? dpSse8Mate : dpSse8uMate;
 		
-		// 78. 8-bit SSE mate-finding DPs tried
+		// 84. 8-bit SSE mate-finding DPs tried
 		itoa10<uint64_t>(dpSse8m.dp, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 79. 8-bit SSE mate-finding DPs saturated
+		// 85. 8-bit SSE mate-finding DPs saturated
 		itoa10<uint64_t>(dpSse8m.dpsat, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 80. 8-bit SSE mate-finding DPs failed
+		// 86. 8-bit SSE mate-finding DPs failed
 		itoa10<uint64_t>(dpSse8m.dpfail, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 81. 8-bit SSE mate-finding DPs succeeded
+		// 87. 8-bit SSE mate-finding DPs succeeded
 		itoa10<uint64_t>(dpSse8m.dpsucc, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 82. 8-bit SSE mate-finding DP columns completed
+		// 88. 8-bit SSE mate-finding DP columns completed
 		itoa10<uint64_t>(dpSse8m.col, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 83. 8-bit SSE mate-finding DP cells completed
+		// 89. 8-bit SSE mate-finding DP cells completed
 		itoa10<uint64_t>(dpSse8m.cell, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 84. 8-bit SSE mate-finding DP inner loop iters completed
+		// 90. 8-bit SSE mate-finding DP inner loop iters completed
 		itoa10<uint64_t>(dpSse8m.inner, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 85. 8-bit SSE mate-finding DP fixup loop iters completed
+		// 91. 8-bit SSE mate-finding DP fixup loop iters completed
 		itoa10<uint64_t>(dpSse8m.fixup, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 86. 16-bit SSE mate-finding DP gather, cells examined
+		// 92. 16-bit SSE mate-finding DP gather, cells examined
 		itoa10<uint64_t>(dpSse8m.gathcell, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 87. 16-bit SSE mate-finding DP gather, cells with potential solutions
+		// 93. 16-bit SSE mate-finding DP gather, cells with potential solutions
 		itoa10<uint64_t>(dpSse8m.gathsol, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 88. 16-bit SSE mate-finding DP backtrace attempts
+		// 94. 16-bit SSE mate-finding DP backtrace attempts
 		itoa10<uint64_t>(dpSse8m.bt, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 89. 16-bit SSE mate-finding DP failed backtrace attempts
+		// 95. 16-bit SSE mate-finding DP failed backtrace attempts
 		itoa10<uint64_t>(dpSse8m.btfail, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 90. 16-bit SSE mate-finding DP succesful backtrace attempts
+		// 96. 16-bit SSE mate-finding DP succesful backtrace attempts
 		itoa10<uint64_t>(dpSse8m.btsucc, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 91. 16-bit SSE mate-finding DP backtrace cells
+		// 97. 16-bit SSE mate-finding DP backtrace cells
 		itoa10<uint64_t>(dpSse8m.btcell, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 98. 16-bit SSE mate-finding DP core rejections
+		itoa10<uint64_t>(dpSse8m.corerej, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 99. 16-bit SSE mate-finding N rejections
+		itoa10<uint64_t>(dpSse8m.nrej, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 				
-		// 92. Overall memory peak
+		// 100. Overall memory peak
 		itoa10<size_t>(gMemTally.peak() >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 93. Uncategorized memory peak
+		// 101. Uncategorized memory peak
 		itoa10<size_t>(gMemTally.peak(0) >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 94. Ebwt memory peak
+		// 102. Ebwt memory peak
 		itoa10<size_t>(gMemTally.peak(EBWT_CAT) >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 95. Cache memory peak
+		// 103. Cache memory peak
 		itoa10<size_t>(gMemTally.peak(CA_CAT) >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 96. Resolver memory peak
+		// 104. Resolver memory peak
 		itoa10<size_t>(gMemTally.peak(GW_CAT) >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 97. Seed aligner memory peak
+		// 105. Seed aligner memory peak
 		itoa10<size_t>(gMemTally.peak(AL_CAT) >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 98. Dynamic programming aligner memory peak
+		// 106. Dynamic programming aligner memory peak
 		itoa10<size_t>(gMemTally.peak(DP_CAT) >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 99. Miscellaneous memory peak
+		// 107. Miscellaneous memory peak
 		itoa10<size_t>(gMemTally.peak(MISC_CAT) >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
@@ -2248,7 +2282,8 @@ static void* multiseedSearchWorker(void *vp) {
 		msample,           // true -> -M was specified, otherwise assume -m
 		gReportDiscordant, // report discordang paired-end alignments?
 		gReportMixed);     // report unpaired alignments for paired reads?
-	
+
+#if 0
 	// Given user-specified ROWM & POSF thresholds and user settings for
 	// -k/-a/-M, multiply the ROWM and POSF settings by the minimum number
 	// of alignments we're seeking.  E.g. for -M 1 or -k 2, multiply by 2.
@@ -2262,12 +2297,22 @@ static void* multiseedSearchWorker(void *vp) {
 	rp.boostThresholds(myPosfracPair, myRowmultPair);
 	myPosfracPair.mult(0.5f);
 	myRowmultPair.mult(0.5f);
-	
+#endif
+	SimpleFunc myMaxelt = maxelt;
+	rp.boostThreshold(myMaxelt);
+
+	SimpleFunc myMaxeltPair = maxelt;
+	rp.boostThreshold(myMaxeltPair);
+	myMaxeltPair.mult(0.5f);
+
 	// Instantiate a mapping quality calculator
 	auto_ptr<Mapq> bmapq(new BowtieMapq(scoreMin, sc));
 	
 	// Make a per-thread wrapper for the global MHitSink object.
-	AlnSinkWrap msinkwrap(msink, rp, *bmapq.get());
+	AlnSinkWrap msinkwrap(
+		msink,         // global sink
+		rp,            // reporting parameters
+		*bmapq.get()); // MAPQ calculator
 
 	SeedAligner al;
 	SwDriver sd;
@@ -2494,7 +2539,7 @@ static void* multiseedSearchWorker(void *vp) {
 					}
 				}
 				exhaustive[0] = exhaustive[1] = false;
-				for(size_t matei = 0; matei < 2; matei++) {
+				for(size_t matei = 0; matei < (pair ? 2:1); matei++) {
 					size_t mate = matemap[matei];
 					if(!filt[mate]) {
 						// Mate was rejected by N filter
@@ -2618,8 +2663,7 @@ static void* multiseedSearchWorker(void *vp) {
 								onceil,         // N ceil for opp.
 								nofw,           // don't align forward read
 								norc,           // don't align revcomp read
-								myPosfracPair,  // max seed poss to try
-								myRowmultPair,  // extensions per pos
+								myMaxeltPair,   // max elts to extend
 								maxhalf,        // max width on one DP side
 								scanNarrowed,   // ref scan narrowed seed hits?
 								ca,             // seed alignment cache
@@ -2653,8 +2697,9 @@ static void* multiseedSearchWorker(void *vp) {
 								minsc[mate],    // minimum score for valid
 								floorsc[mate],  // floor score
 								nceil,          // N ceil for anchor
-								myPosfrac,      // additional seed poss to try
-								myRowmult,      // extensions per pos
+								//myPosfrac,      // additional seed poss to try
+								//myRowmult,      // extensions per pos
+								myMaxelt,       // max elts to extend
 								maxhalf,        // max width on one DP side
 								scanNarrowed,   // ref scan narrowed seed hits?
 								ca,             // seed alignment cache

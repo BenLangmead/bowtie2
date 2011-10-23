@@ -42,76 +42,179 @@ using namespace std;
  * Given seed results, set up all of our state for resolving and keeping
  * track of reference offsets for hits.
  */
-void SwDriver::setUpSaRangeState(
+void SwDriver::prioritizeSATups(
 	SeedResults& sh,             // seed hits to extend into full alignments
 	const Ebwt& ebwt,            // BWT
 	const BitPairReference& ref, // Reference strings
-	int seedlen,                 // length of seed
-	const SimpleFunc& rowmult,   // max rows to consider per position
-	bool scanNarrowed,           // true -> ref scan even for narrowed hits
+	size_t maxelt,               // max elts we'll consider
+	size_t nsm,                  // if range as <= nsm elts, it's "small"
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
 	RandomSource& rnd,           // pseudo-random generator
-	WalkMetrics& wlm)            // group walk left metrics
+	WalkMetrics& wlm,            // group walk left metrics
+	size_t& nelt_out)            // out: # elements total
 {
-	const size_t nonz = sh.nonzeroOffsets();
-	gws_.clear();     gws_.resize(nonz);
-	satups_.clear();  satups_.resize(nonz);
-	satups2_.clear(); satups2_.resize(nonz);
-	sacomb_.clear();  sacomb_.resize(nonz);
+	const size_t nonz = sh.nonzeroOffsets(); // non-zero positions
+	sacomb_.clear();
+	satups_.clear();
+	gws_.clear();
+	rands_.clear();
+	rands2_.clear();
+	satpos_.clear();
+	satpos2_.clear();
 	sstab_.init(4); // Seed = 4 DNA chars = 1 byte
-	// nonz is the number of positions that had at least one hit.  It's not the
-	// number of SA ranges, nor is it the 
+	size_t nrange = 0, nelt = 0, nsmall = 0, nsmall_elts = 0;
+	bool keepWhole = false;
 	for(size_t i = 0; i < nonz; i++) {
 		bool fw = true;
 		uint32_t offidx = 0, rdoff = 0, seedlen = 0;
-		// A QVal is a collection of SARanges
 		QVal qv = sh.hitsByRank(i, offidx, rdoff, fw, seedlen);
+		assert(qv.valid());
+		assert(!qv.empty());
 		assert(qv.repOk(ca.current()));
-		satups_[i].clear();
-		satups2_[i].clear();
-		sacomb_[i].clear();
-		// Get SATuples.  One SATuple per SARange.
-		ca.queryQval(qv, satups_[i]);
-		EList<SATuple, 16> *satups = &satups_[i];
-		bool narrowed = false;
-		// Whittle down the rows in satups_ according to 'maxrows'
-		if(SATuple::randomNarrow(
-			satups_[i],
-			satups2_[i],
-			rnd,
-			rowmult))
-		{
-			satups_[i] = satups2_[i];
-			narrowed = true;
+		ca.queryQval(qv, satups_, nrange, nelt);
+		for(size_t j = 0; j < satups_.size(); j++) {
+			const size_t sz = satups_[j].size();
+			if(sz <= nsm) {
+				nsmall++;
+				nsmall_elts += sz;
+			}
+			if(keepWhole) {
+				satpos_.expand();
+				satpos_.back().sat = satups_[j];
+				satpos_.back().pos.init(fw, offidx, rdoff, seedlen);
+			} else {
+				satpos2_.expand();
+				satpos2_.back().sat = satups_[j];
+				satpos2_.back().pos.init(fw, offidx, rdoff, seedlen);
+			}
 		}
-		sacomb_[i].resize(satups->size());
-		if(!narrowed || scanNarrowed) {
-			for(size_t j = 0 ; j < sacomb_[i].size(); j++) {
+		satups_.clear();
+	}
+	assert_leq(nsmall, nrange);
+	nelt_out = nelt; // return the total number of elements
+	if(keepWhole) {
+		assert_eq(nrange, satpos_.size());
+		satpos_.sort();
+	} else {
+		assert_eq(nrange, satpos2_.size());
+		satpos2_.sort();
+	}
+	if(keepWhole) {
+		sacomb_.ensure(nrange);
+		gws_.ensure(nrange);
+		rands_.ensure(nrange);
+		for(size_t i = 0; i < nrange; i++) {
+			sacomb_.expand();
+			sacomb_.back().init(satpos_[i].sat);
+			gws_.expand();
+			gws_.back().init(
+				ebwt,           // forward Bowtie index
+				ref,            // reference sequences
+				satpos_[i].sat, // SA tuples: ref hit, salist range
+				sacomb_.back(), // Combiner for resolvers
+				ca,             // current cache
+				rnd,            // pseudo-random generator
+				wlm);           // metrics
+			assert(gws_.back().initialized());
+			rands_.expand();
+			rands_.back().init(satpos_[i].sat.size());
+		}
+		return;
+	}
+	// Resize satups_ list so that ranges having elements that we might
+	// possibly explore are present
+	satpos_.ensure(min(maxelt, nelt));
+	sacomb_.ensure(min(maxelt, nelt));
+	gws_.ensure(min(maxelt, nelt));
+	rands_.ensure(min(maxelt, nelt));
+	rands2_.ensure(min(maxelt, nelt));
+	ASSERT_ONLY(size_t nlarge = nrange - nsmall);
+	size_t nlarge_elts = nelt - nsmall_elts;
+	if(maxelt < nelt) {
+		size_t diff = nelt - maxelt;
+		if(diff >= nlarge_elts) {
+			nlarge_elts = 0;
+		} else {
+			nlarge_elts -= diff;
+		}
+	}
+	size_t nelt_added = 0;
+	bool first = true;
+	while(nelt_added < maxelt && nelt_added < nelt) {
+		for(size_t j = 0; j < nrange; j++) {
+			ASSERT_ONLY(const size_t sz = satpos2_[j].sat.size());
+			assert(sz > nsm  || j <  nsmall);
+			assert(sz <= nsm || j >= nsmall);
+			if(j < nsmall && first) {
 				// Add a query corresponding to this reference substring to the
 				// SeedScanner so that we can possibly resolve it via reference
 				// scanning.
-				sstab_.add(make_pair(i, j), (*satups)[j].key.seq, (size_t)seedlen);
-				sacomb_[i][j].init((*satups)[j]);
-			}
-		} else {
-			for(size_t j = 0 ; j < sacomb_[i].size(); j++) {
-				// Don't add a query b/c the original range had to be narrowed.
-				// In this case, we have no way to determine if a hit from
-				// reference scanning belongs in one of the rows post-narrowing.
-				sacomb_[i][j].reset();
+				sstab_.add(
+					make_pair(j, 0),
+					satpos2_[j].sat.key.seq,
+					(size_t)satpos2_[j].pos.seedlen);
+				satpos_.expand();
+				satpos_.back() = satpos2_[j];
+				sacomb_.expand();
+				sacomb_.back().init(satpos_.back().sat);
+				gws_.expand();
+				gws_.back().init(
+					ebwt,               // forward Bowtie index
+					ref,                // reference sequences
+					satpos_.back().sat, // SA tuples: ref hit, salist range
+					sacomb_.back(),     // Combiner for resolvers
+					ca,                 // current cache
+					rnd,                // pseudo-random generator
+					wlm);               // metrics
+				assert(gws_.back().initialized());
+				rands_.expand();
+				rands_.back().init(satpos_.back().sat.size());
+				nelt_added += satpos_.back().sat.size();
+				if(nelt_added >= maxelt) {
+					break;
+				}
+			} else if(j >= nsmall) {
+				size_t jj = j - nsmall;
+				if(first) {
+					assert_eq(jj, rands2_.size());
+					rands2_.expand();
+					rands2_.back().init(satpos2_[j].sat.size());
+				} else {
+					assert_eq(nlarge, rands2_.size());
+					if(rands2_[jj].done()) {
+						continue;
+					}
+				}
+				assert(!rands2_[jj].done());
+				uint32_t r = rands2_[jj].next(rnd);
+				SATuple sa;
+				TSlice o;
+				o.init(satpos2_[j].sat.offs, r, r+1);
+				sa.init(satpos2_[j].sat.key, satpos2_[j].sat.top + r, o);
+				satpos_.expand();
+				satpos_.back().sat = sa;
+				satpos_.back().pos = satpos2_[j].pos;
+				sacomb_.expand();
+				sacomb_.back().reset();
+				gws_.expand();
+				gws_.back().init(
+					ebwt,               // forward Bowtie index
+					ref,                // reference sequences
+					satpos_.back().sat, // SA tuples: ref hit, salist range
+					sacomb_.back(),     // Combiner for resolvers
+					ca,                 // current cache
+					rnd,                // pseudo-random generator
+					wlm);               // metrics
+				assert(gws_.back().initialized());
+				rands_.expand();
+				rands_.back().init(1);
+				nelt_added++;
+				if(nelt_added >= maxelt) {
+					break;
+				}
 			}
 		}
-		gws_[i].initQval(
-			ebwt,    // forward Bowtie index
-			ref,     // reference sequences
-			qv,      // QVal describing BW ranges for this seed hit
-			*satups, // SA tuples: ref hit, salist range
-			sacomb_[i], // Combiner for resolvers
-			ca,      // current cache
-			rnd,     // pseudo-random generator
-			true,    // use results list?
-			wlm);    // metrics
-		assert(gws_[i].initialized());
+		first = false;
 	}
 }
 
@@ -140,8 +243,7 @@ bool SwDriver::extendSeeds(
 	TAlScore minsc,              // minimum score for anchor
 	TAlScore floorsc,            // local-alignment floor for anchor score
 	int nceil,                   // maximum # Ns permitted in reference portion
-	const SimpleFunc& posfrac,   // minimum number of positions to examine
-	const SimpleFunc& rowmult,   // max number of additional poss to examine
+	const SimpleFunc& maxeltf,   // # elts to explore as function of total elts
 	size_t maxhalf,  	         // max width in either direction for DP tables
 	bool scanNarrowed,           // true -> ref scan even for narrowed hits
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
@@ -163,12 +265,13 @@ bool SwDriver::extendSeeds(
 
 	assert_geq(nceil, 0);
 	assert_leq((size_t)nceil, rd.length());
-
+	
 	// Calculate the largest possible number of read and reference gaps
 	const size_t rdlen = rd.length();
 	int readGaps = sc.maxReadGaps(minsc, rdlen);
 	int refGaps  = sc.maxRefGaps(minsc, rdlen);
 	size_t maxGaps = 0;
+	TAlScore bestPossibleScore = sc.perfectScore(rdlen);
 
 	DynProgFramer dpframe(!gReportOverhangs);
 	swa.reset();
@@ -179,295 +282,304 @@ bool SwDriver::extendSeeds(
 	// (sacomb_).  Finally, initialize the SeedScanTable and SeedScanner
 	// objects that will actually do the reference scanning and opportunistic
 	// resolution of offsets.
-	setUpSaRangeState(
+	const size_t nsm = 3;
+	double maxelt_db = maxeltf.f<double>((double)rdlen);
+	maxelt_db = max<double>(maxelt_db, 1.0f);
+	size_t maxelt = (size_t)maxelt_db;
+	if(maxelt_db == std::numeric_limits<double>::max()) {
+		maxelt = std::numeric_limits<size_t>::max();
+	}
+	size_t nelt = 0;
+	prioritizeSATups(
 		sh,           // seed hits to extend into full alignments
 		ebwt,         // BWT
 		ref,          // Reference strings
-		seedlen,      // length of seed substring
-		rowmult,      // max rows to consider per position
-		scanNarrowed, // true -> ref scan even for narrowed hits
+		maxelt,       // max rows to consider per position
+		nsm,          // smallness threshold
 		ca,           // alignment cache for seed hits
 		rnd,          // pseudo-random generator
-		wlm);         // group walk left metrics
-
-	// Iterate twice through levels seed hits from the lowest ranked
-	// level to the highest ranked.  On the first iteration, look for
-	// entries for which the offset is already known and try SWs.  On
-	// the second iteration, resolve entries for which the offset is
-	// unknown and try SWs.
-	const size_t nonz = sh.nonzeroOffsets();
-	double possf = posfrac.f<double>((double)nonz);
-	possf = max<double>(possf, 1.0f);
-	possf = min<double>(possf, (double)nonz);
-	const size_t poss = (size_t)possf;
-	assert_leq(poss, nonz);
-	//cerr << "   " << nonz << ", " << poss << endl;
+		wlm,          // group walk left metrics
+		nelt);        // out: # elements total
 	size_t rows = rdlen + (color ? 1 : 0);
-	for(size_t i = 0; i < poss; i++) {
-		bool fw = true;
-		uint32_t offidx = 0, rdoff = 0, seedlen = 0;
-		// TODO: Right now we take a QVal and then investigate it until it's
-		// exhausted.  We might instead keep a few different GroupWalkers
-		// initialized with separate QVals and investigate them in tandem.
-		QVal qv = sh.hitsByRank(i, offidx, rdoff, fw, seedlen);
-		assert(qv.repOk(ca.current()));
-		int advances = 0;
-		ASSERT_ONLY(WalkResult lastwr);
-		if(!fw) {
-			// 'rdoff' and 'offidx' are with respect to the 5' end of
-			// the read.  Here we convert rdoff to be with respect to
-			// the upstream (3') end of ther read.
-			rdoff = (uint32_t)(rdlen - rdoff - seedlen);
-		}
-		while(!gws_[i].done()) {
-			// Resolve next element offset
-			WalkResult wr;
-			gws_[i].advanceQvalPos(wr, wlm);
-			if(i == poss-1 &&
-			   gws_[i].done() &&
-			   (size_t)possf == (size_t)nonz)
-			{
-				exhaustive = true;
+	assert_eq(gws_.size(), rands_.size());
+	assert_eq(gws_.size(), satpos_.size());
+	size_t eltsDone = 0;
+	assert_lt(eltsDone, maxelt);
+	size_t neltLeft = nelt;
+	while(neltLeft > 0 && eltsDone < maxelt) {
+		for(size_t i = 0; i < gws_.size(); i++) {
+			bool small = satpos_[i].sat.size() < nsm;
+			ASSERT_ONLY(WalkResult lastwr);
+			bool fw          = satpos_[i].pos.fw;
+			uint32_t rdoff   = satpos_[i].pos.rdoff;
+			uint32_t seedlen = satpos_[i].pos.seedlen;
+			if(!fw) {
+				// 'rdoff' and 'offidx' are with respect to the 5' end of
+				// the read.  Here we convert rdoff to be with respect to
+				// the upstream (3') end of ther read.
+				rdoff = (uint32_t)(rdlen - rdoff - seedlen);
 			}
-			assert(wr.elt != lastwr.elt);
-			ASSERT_ONLY(lastwr = wr);
-			advances++;
-			assert_neq(0xffffffff, wr.toff);
-			uint32_t tidx = 0, toff = 0, tlen = 0;
-			ebwt.joinedToTextOff(
-				wr.elt.len,
-				wr.toff,
-				tidx,
-				toff,
-				tlen);
-			tlen += (color ? 1 : 0);
-			if(tidx == 0xffffffff) {
-				// The seed hit straddled a reference boundary so the seed hit
-				// isn't valid
-				continue;
-			}
-			// Find offset of alignment's upstream base assuming net gaps=0
-			// between beginning of read and beginning of seed hit
-			int64_t refoff = (int64_t)toff - rdoff;
-			// Coordinate of the seed hit w/r/t the pasted reference string
-			Coord refcoord(tidx, refoff, fw);
-			if(seenDiags1_.locusPresent(refcoord)) {
-				// Already handled alignments seeded on this diagonal
-				swmSeed.rshit++;
-				continue;
-			}
-			// Now that we have a seed hit, there are many issues to solve
-			// before we have a completely framed dynamic programming problem.
-			// They include:
-			//
-			// 1. Setting reference offsets on either side of the seed hit,
-			//    accounting for where the seed occurs in the read
-			// 2. Adjusting the width of the banded dynamic programming problem
-			//    and adjusting reference bounds to allow for gaps in the
-			//    alignment
-			// 3. Accounting for the edges of the reference, which can impact
-			//    the width of the DP problem and reference bounds.
-			// 4. Perhaps filtering the problem down to a smaller problem based
-			//    on what DPs we've already solved for this read
-			//
-			// We do #1 here, since it is simple and we have all the seed-hit
-			// information here.  #2 and #3 are handled in the DynProgFramer.
-			
-			int64_t pastedRefoff = (int64_t)wr.toff - rdoff;
-			size_t width = 0, solwidth = 0, trimup = 0, trimdn = 0;
-			int64_t refl = 0, refr = 0;
-			bool found = dpframe.frameSeedExtensionRect(
-				refoff,   // ref offset implied by seed hit assuming no gaps
-				rows,     // length of read sequence used in DP table (so len
-				          // of +1 nucleotide sequence for colorspace reads)
-				tlen,     // length of reference
-				readGaps, // max # of read gaps permitted in opp mate alignment
-				refGaps,  // max # of ref gaps permitted in opp mate alignment
-				(size_t)nceil, // # Ns permitted
-				maxhalf,  // max width in either direction
-				width,    // out: calculated width stored here
-				solwidth, // out: # rightmost cols where solns can end
-				maxGaps,  // out: calculated max # gaps
-				trimup,   // out: number of bases trimmed from upstream end
-				trimdn,   // out: number of bases trimmed from downstream end
-				refl,     // out: ref pos of upper LHS of parallelogram
-				refr,     // out: ref pos of lower RHS of parallelogram
-				en_);     // out: legal ending columns stored here
-			if(!found) {
-				seenDiags1_.add(Interval(refcoord, 1));
-				continue;
-			}
-			int64_t leftShift = refoff - refl;
-			size_t nwindow = 0;
-			if(toff >= refl) {
-				nwindow = (size_t)(toff - refl);
-			}
-			// NOTE: We might be taking off more than we should because the
-			// pasted string omits non-A/C/G/T characters, but we included them
-			// when calculating leftShift.  We'll account for this later.
-			pastedRefoff -= leftShift;
-			assert_eq(solwidth, en_.size());
-			res_.reset();
-			assert(res_.empty());
-			assert_neq(0xffffffff, tidx);
-			// Given the boundaries defined by refl and refr, initilize the
-			// SwAligner with the dynamic programming problem that aligns the
-			// read to this reference stretch.
-			sscan_.init(sstab_);
-			if(!swa.initedRead()) {
-				// Initialize the aligner with a new read
-				swa.initRead(
-					rd.patFw,  // fw version of query
-					rd.patRc,  // rc version of query
-					rd.qual,   // fw version of qualities
-					rd.qualRev,// rc version of qualities
-					0,         // off of first char in 'rd' to consider
-					rdlen,     // off of last char (excl) in 'rd' to consider
-					color,     // colorspace?
-					sc,        // scoring scheme
-					minsc,     // minimum score for valid alignments
-					floorsc);  // local-alignment floor score
-			}
-			size_t nsInLeftShift = 0;
-			swa.initRef(
-				fw,        // whether to align forward or revcomp read
-				tidx,      // reference aligned against
-				refl,      // off of first character in ref to consider
-				refr+1,    // off of last char (excl) in ref to consider
-				ref,       // Reference strings
-				tlen,      // length of reference sequence
-				width,     // # bands to do (width of parallelogram)
-				solwidth,  // # rightmost columns where solutions can end
-				maxGaps,   // max of max # read, ref gaps
-				trimup,    // truncate left-hand columns from DP problem
-				&en_,      // mask indicating which columns we can end in
-				true,      // this is a seed extension - not finding a mate
-				&sscan_,   // reference scanner for resolving offsets
-				nwindow,
-				nsInLeftShift);
-			// Take reference-scanner hits and turn them into offset
-			// resolutions.
-			wlm.refscanhits += sscan_.hits().size();
-			pastedRefoff += nsInLeftShift;
-			for(size_t j = 0; j < sscan_.hits().size(); j++) {
-				// Get identifier for the appropriate combiner
-				U32Pair id = sscan_.hits()[j].id();
-				// Get the hit's offset in pasted-reference coordinates
-				int64_t off = sscan_.hits()[j].off() + pastedRefoff;
-				assert_geq(off, sscan_.hits()[j].ns());
-				off -= sscan_.hits()[j].ns();
-				assert_geq(off, 0);
-				assert_lt(off, (int64_t)ebwt.eh().lenNucs());
-				assert_lt(off, (int64_t)0xffffffff);
-				// Check that reference sequence actually matches seed
-#ifndef NDEBUG
-				uint32_t tidx2 = 0, toff2 = 0, tlen2 = 0;
+			bool first = true;
+			assert_leq(eltsDone, maxelt);
+			// If the range is small, investigate all elements now.  If the
+			// range is large, just investigate one and move on - we might come
+			// back to this range later.
+			while(!rands_[i].done() && eltsDone < maxelt && (first || small)) {
+				first = false;
+				assert(!gws_[i].done());
+				// Resolve next element offset
+				WalkResult wr;
+				uint32_t elt = rands_[i].next(rnd);
+				gws_[i].advanceElement(elt, wr, wlm);
+				eltsDone++;
+				assert_gt(neltLeft, 0);
+				neltLeft--;
+				assert(wr.elt != lastwr.elt);
+				ASSERT_ONLY(lastwr = wr);
+				assert_neq(0xffffffff, wr.toff);
+				uint32_t tidx = 0, toff = 0, tlen = 0;
 				ebwt.joinedToTextOff(
 					wr.elt.len,
-					(uint32_t)off,
-					tidx2,
-					toff2,
-					tlen2);
-				assert_neq(0xffffffff, tidx2);
-				uint64_t key = sacomb_[id.first][id.second].satup().key.seq;
-				for(size_t k = 0; k < wr.elt.len; k++) {
-					int c = ref.getBase(tidx2, toff2 + wr.elt.len - k - 1);
-					int ck = (int)(key & 3);
-					key >>= 2;
-					assert_eq(c, ck);
+					wr.toff,
+					tidx,
+					toff,
+					tlen);
+				tlen += (color ? 1 : 0);
+				if(tidx == 0xffffffff) {
+					// The seed hit straddled a reference boundary so the seed hit
+					// isn't valid
+					continue;
 				}
-#endif
-				// Install it
-				if(sacomb_[id.first][id.second].addRefscan((uint32_t)off)) {
-					// It was new; see if it leads to any resolutions
-					sacomb_[id.first][id.second].tryResolving(wlm.refresolves);
+				// Find offset of alignment's upstream base assuming net gaps=0
+				// between beginning of read and beginning of seed hit
+				int64_t refoff = (int64_t)toff - rdoff;
+				// Coordinate of the seed hit w/r/t the pasted reference string
+				Coord refcoord(tidx, refoff, fw);
+				if(seenDiags1_.locusPresent(refcoord)) {
+					// Already handled alignments seeded on this diagonal
+					swmSeed.rshit++;
+					continue;
 				}
-			}
-			// Because of how we framed the problem, we can say that we've
-			// exhaustively scored the seed diagonal as well as maxgaps
-			// diagonals on either side
-			Interval refival(tidx, refoff - maxGaps, fw, maxGaps*2 + 1);
-			seenDiags1_.add(refival);
-			// Now fill the dynamic programming matrix and return true iff
-			// there is at least one valid alignment
-			found = swa.align(rnd);
-			if(!found) {
-				continue; // Look for more anchor alignments
-			}
-			while(true) {
+				// Now that we have a seed hit, there are many issues to solve
+				// before we have a completely framed dynamic programming problem.
+				// They include:
+				//
+				// 1. Setting reference offsets on either side of the seed hit,
+				//    accounting for where the seed occurs in the read
+				// 2. Adjusting the width of the banded dynamic programming problem
+				//    and adjusting reference bounds to allow for gaps in the
+				//    alignment
+				// 3. Accounting for the edges of the reference, which can impact
+				//    the width of the DP problem and reference bounds.
+				// 4. Perhaps filtering the problem down to a smaller problem based
+				//    on what DPs we've already solved for this read
+				//
+				// We do #1 here, since it is simple and we have all the seed-hit
+				// information here.  #2 and #3 are handled in the DynProgFramer.
+				
+				int64_t pastedRefoff = (int64_t)wr.toff - rdoff;
+				DPRect rect;
+				bool found = dpframe.frameSeedExtensionRect(
+					refoff,   // ref offset implied by seed hit assuming no gaps
+					rows,     // length of read sequence used in DP table (so len
+							  // of +1 nucleotide sequence for colorspace reads)
+					tlen,     // length of reference
+					readGaps, // max # of read gaps permitted in opp mate alignment
+					refGaps,  // max # of ref gaps permitted in opp mate alignment
+					(size_t)nceil, // # Ns permitted
+					maxhalf,  // max width in either direction
+					rect);    // DP rectangle
+				if(!found) {
+					// Add the seed diagonal at least
+					seenDiags1_.add(Interval(refcoord, 1));
+					continue;
+				}
+				int64_t leftShift = refoff - rect.refl;
+				size_t nwindow = 0;
+				if(toff >= rect.refl) {
+					nwindow = (size_t)(toff - rect.refl);
+				}
+				// NOTE: We might be taking off more than we should because the
+				// pasted string omits non-A/C/G/T characters, but we included them
+				// when calculating leftShift.  We'll account for this later.
+				pastedRefoff -= leftShift;
+				//assert_eq(solwidth, en_.size());
 				res_.reset();
 				assert(res_.empty());
-				if(swa.done()) {
-					break;
+				assert_neq(0xffffffff, tidx);
+				// Given the boundaries defined by refl and refr, initilize the
+				// SwAligner with the dynamic programming problem that aligns the
+				// read to this reference stretch.
+				sscan_.init(sstab_);
+				if(!swa.initedRead()) {
+					// Initialize the aligner with a new read
+					swa.initRead(
+						rd.patFw,  // fw version of query
+						rd.patRc,  // rc version of query
+						rd.qual,   // fw version of qualities
+						rd.qualRev,// rc version of qualities
+						0,         // off of first char in 'rd' to consider
+						rdlen,     // off of last char (excl) in 'rd' to consider
+						color,     // colorspace?
+						sc,        // scoring scheme
+						floorsc);  // local-alignment floor score
 				}
-				swa.nextAlignment(res_, rnd);
-				found = !res_.empty();
+				size_t nsInLeftShift = 0;
+				swa.initRef(
+					fw,        // whether to align forward or revcomp read
+					tidx,      // reference aligned against
+					rect,      // DP rectangle
+					ref,       // Reference strings
+					tlen,      // length of reference sequence
+					sc,        // scoring scheme
+					minsc,     // minimum score permitted
+					true,      // this is a seed extension - not finding a mate
+					&sscan_,   // reference scanner for resolving offsets
+					nwindow,
+					nsInLeftShift);
+				// Take reference-scanner hits and turn them into offset
+				// resolutions.
+				wlm.refscanhits += sscan_.hits().size();
+				pastedRefoff += nsInLeftShift;
+				for(size_t j = 0; j < sscan_.hits().size(); j++) {
+					// Get identifier for the appropriate combiner
+					U32Pair id = sscan_.hits()[j].id();
+					// Get the hit's offset in pasted-reference coordinates
+					int64_t off = sscan_.hits()[j].off() + pastedRefoff;
+					assert_geq(off, sscan_.hits()[j].ns());
+					off -= sscan_.hits()[j].ns();
+					assert_geq(off, 0);
+					assert_lt(off, (int64_t)ebwt.eh().lenNucs());
+					assert_lt(off, (int64_t)0xffffffff);
+					// Check that reference sequence actually matches seed
+#ifndef NDEBUG
+					uint32_t tidx2 = 0, toff2 = 0, tlen2 = 0;
+					ebwt.joinedToTextOff(
+						wr.elt.len,
+						(uint32_t)off,
+						tidx2,
+						toff2,
+						tlen2);
+					assert_neq(0xffffffff, tidx2);
+					//uint64_t key = sacomb_[id.first][id.second].satup().key.seq;
+					uint64_t key = sacomb_[id.first].satup().key.seq;
+					for(size_t k = 0; k < wr.elt.len; k++) {
+						int c = ref.getBase(tidx2, toff2 + wr.elt.len - k - 1);
+						int ck = (int)(key & 3);
+						key >>= 2;
+						assert_eq(c, ck);
+					}
+#endif
+					// Install it
+					if(sacomb_[id.first].addRefscan((uint32_t)off)) {
+						// It was new; see if it leads to any resolutions
+						sacomb_[id.first].tryResolving(wlm.refresolves);
+					}
+				}
+				// Because of how we framed the problem, we can say that we've
+				// exhaustively scored the seed diagonal as well as maxgaps
+				// diagonals on either side
+				Interval refival(tidx, refoff - maxGaps, fw, maxGaps*2 + 1);
+				seenDiags1_.add(refival);
+				// Now fill the dynamic programming matrix and return true iff
+				// there is at least one valid alignment
+				found = swa.align(rnd);
 				if(!found) {
-					break;
+					continue; // Look for more anchor alignments
 				}
-				// User specified that alignments overhanging ends of reference
-				// should be excluded...
-				Interval refival(tidx, 0, fw, tlen);
-				assert_gt(res_.alres.refExtent(), 0);
-				if(gReportOverhangs &&
-				   !refival.containsIgnoreOrient(res_.alres.refival()))
-				{
-					res_.alres.clipOutside(true, 0, tlen);
-					if(res_.alres.refExtent() == 0) {
+				while(true) {
+					res_.reset();
+					assert(res_.empty());
+					if(swa.done()) {
+						break;
+					}
+					swa.nextAlignment(res_, rnd);
+					found = !res_.empty();
+					if(!found) {
+						break;
+					}
+					// User specified that alignments overhanging ends of reference
+					// should be excluded...
+					Interval refival(tidx, 0, fw, tlen);
+					assert_gt(res_.alres.refExtent(), 0);
+					if(gReportOverhangs &&
+					   !refival.containsIgnoreOrient(res_.alres.refival()))
+					{
+						res_.alres.clipOutside(true, 0, tlen);
+						if(res_.alres.refExtent() == 0) {
+							continue;
+						}
+					}
+					assert(gReportOverhangs || refival.containsIgnoreOrient(res_.alres.refival()));
+					// Did the alignment fall entirely outside the reference?
+					if(!refival.overlapsIgnoreOrient(res_.alres.refival())) {
 						continue;
 					}
-				}
-				assert(gReportOverhangs || refival.containsIgnoreOrient(res_.alres.refival()));
-				// Did the alignment fall entirely outside the reference?
-				if(!refival.overlapsIgnoreOrient(res_.alres.refival())) {
-					continue;
-				}
-				// Is this alignment redundant with one we've seen previously?
-				if(redAnchor_.overlap(res_.alres)) {
-					// Redundant with an alignment we found already
-					continue;
-				}
-				redAnchor_.add(res_.alres);
-				// Annotate the AlnRes object with some key parameters
-				// that were used to obtain the alignment.
-				res_.alres.setParams(
-					seedmms,   // # mismatches allowed in seed
-					seedlen,   // length of seed
-					seedival,  // interval between seeds
-					minsc,     // minimum score for valid alignment
-					floorsc);  // local-alignment floor score
-				
-				if(reportImmediately) {
-					assert(msink != NULL);
-					assert(res_.repOk());
-					// Check that alignment accurately reflects the
-					// reference characters aligned to
-					assert(res_.alres.matchesRef(
-						rd,
-						ref,
-						tmp_rf_,
-						tmp_rdseq_,
-						tmp_qseq_,
-						raw_refbuf_,
-						raw_destU32_,
-						raw_matches_));
-					// Report an unpaired alignment
-					assert(!msink->maxed());
-					if(msink->report(
-						0,
-						mate1 ? &res_.alres : NULL,
-						mate1 ? NULL : &res_.alres))
-					{
-						// Short-circuited because a limit, e.g. -k, -m or
-						// -M, was exceeded
-						return true;
+					// Is this alignment redundant with one we've seen previously?
+					if(redAnchor_.overlap(res_.alres)) {
+						// Redundant with an alignment we found already
+						continue;
+					}
+					redAnchor_.add(res_.alres);
+					// Annotate the AlnRes object with some key parameters
+					// that were used to obtain the alignment.
+					res_.alres.setParams(
+						seedmms,   // # mismatches allowed in seed
+						seedlen,   // length of seed
+						seedival,  // interval between seeds
+						minsc,     // minimum score for valid alignment
+						floorsc);  // local-alignment floor score
+					
+					if(reportImmediately) {
+						assert(msink != NULL);
+						assert(res_.repOk());
+						// Check that alignment accurately reflects the
+						// reference characters aligned to
+						assert(res_.alres.matchesRef(
+							rd,
+							ref,
+							tmp_rf_,
+							tmp_rdseq_,
+							tmp_qseq_,
+							raw_refbuf_,
+							raw_destU32_,
+							raw_matches_));
+						// Report an unpaired alignment
+						assert(!msink->maxed());
+						if(msink->report(
+							0,
+							mate1 ? &res_.alres : NULL,
+							mate1 ? NULL : &res_.alres))
+						{
+							// Short-circuited because a limit, e.g. -k, -m or
+							// -M, was exceeded
+							return true;
+						}
+						if(msink->Mmode() && msink->hasSecondBestUnp1()) {
+							if(true) {
+								if(msink->bestUnp1() >= minsc) {
+									minsc = msink->bestUnp1();
+									if(minsc < bestPossibleScore) {
+										minsc++;
+									}
+								}
+							} else {
+								if(msink->secondBestUnp1() >= minsc) {
+									minsc = msink->secondBestUnp1();
+									if(minsc < bestPossibleScore) {
+										minsc++;
+									}
+								}
+							}
+						}
 					}
 				}
-			}
 
-			// At this point we know that we aren't bailing, and will continue to resolve seed hits.  
+				// At this point we know that we aren't bailing, and will
+				// continue to resolve seed hits.  
 
-		} // while(!gws_[i].done())
+			} // while(!gws_[i].done())
+		}
 	}
 	// Short-circuited because a limit, e.g. -k, -m or -M, was exceeded
 	return false;
@@ -611,8 +723,7 @@ bool SwDriver::extendSeedsPaired(
 	int onceil,                  // max # Ns permitted in ref for opposite
 	bool nofw,                   // don't align forward read
 	bool norc,                   // don't align revcomp read
-	const SimpleFunc& posfrac,   // minimum number of positions to examine
-	const SimpleFunc& rowmult,   // max number of additional poss to examine
+	const SimpleFunc& maxeltf,   // # elts to explore as function of total elts
 	size_t maxhalf,              // max width in either direction for DP tables
 	bool scanNarrowed,           // true -> ref scan even for narrowed hits
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
@@ -644,20 +755,35 @@ bool SwDriver::extendSeedsPaired(
 	const size_t rdlen  = rd.length();
 	const size_t ordlen = ord.length();
 
+	TAlScore bestPairScore = sc.perfectScore(rdlen) + sc.perfectScore(ordlen);
+	if(msink->Mmode() && msink->hasSecondBestPair()) {
+		// From now on, we want paired-end alignments to have at least this
+		// score
+		TAlScore ps = (true ? msink->bestPair() : msink->secondBestPair());
+		if(ps < bestPairScore) {
+			ps++;
+			// What does that mean for the anchor mate?  It means it must have
+			// at least a score equal to 'ps' minus the best possible score for
+			// the opposite mate.
+			TAlScore nc = ps - sc.perfectScore(ordlen);
+			if(nc > minsc) {
+				minsc = nc;
+			}
+		}
+	}
+
 	// Calculate the largest possible number of read and reference gaps
 	int readGaps  = sc.maxReadGaps(minsc,  rdlen);
 	int refGaps   = sc.maxRefGaps (minsc,  rdlen);
-	size_t maxGaps = 0;
 	int oreadGaps = 0, orefGaps = 0;
 	if(!oppFilt) {
 		oreadGaps = sc.maxReadGaps(ominsc, ordlen);
 		orefGaps  = sc.maxRefGaps (ominsc, ordlen);
 	}
-	size_t omaxGaps = 0;
 
 	const size_t rows   = rdlen  + (color ? 1 : 0);
 	const size_t orows  = ordlen + (color ? 1 : 0);
-	
+
 	DynProgFramer dpframe(!gReportOverhangs);
 	swa.reset();
 	oswa.reset();
@@ -668,532 +794,380 @@ bool SwDriver::extendSeedsPaired(
 	// (sacomb_).  Finally, initialize the SeedScanTable and SeedScanner
 	// objects that will actually do the reference scanning and opportunistic
 	// resolution of offsets.
-	setUpSaRangeState(
+	const size_t nsm = 3;
+	double maxelt_db = maxeltf.f<double>((double)rdlen);
+	maxelt_db = max<double>(maxelt_db, 1.0f);
+	size_t maxelt = (size_t)maxelt_db;
+	if(maxelt_db == std::numeric_limits<double>::max()) {
+		maxelt = std::numeric_limits<size_t>::max();
+	}
+	size_t nelt = 0;
+	prioritizeSATups(
 		sh,           // seed hits to extend into full alignments
 		ebwt,         // BWT
 		ref,          // Reference strings
-		seedlen,      // length of seed substring
-		rowmult,      // max rows to consider per position
-		scanNarrowed, // true -> ref scan even for narrowed hits
+		maxelt,       // max rows to consider per position
+		nsm,          // smallness threshold
 		ca,           // alignment cache for seed hits
 		rnd,          // pseudo-random generator
-		wlm);         // group walk left metrics
-
-	// Iterate twice through levels seed hits from the lowest ranked
-	// level to the highest ranked.  On the first iteration, look for
-	// entries for which the offset is already known and try SWs.  On
-	// the second iteration, resolve entries for which the offset is
-	// unknown and try SWs.
-	const size_t nonz = sh.nonzeroOffsets();
-	double possf = posfrac.f<double>((double)nonz);
-	possf = max<double>(possf, 1.0f);
-	possf = min<double>(possf, (double)nonz);
-	const size_t poss = (size_t)possf;
-	for(size_t i = 0; i < poss; i++) {
-		bool fw = true;
-		uint32_t offidx = 0, rdoff = 0, seedlen = 0;
-		// TODO: Right now we take a QVal and then investigate it until it's
-		// exhausted.  We might instead keep a few different GroupWalkers
-		// initialized with separate QVals and investigate them in tandem.
-		QVal qv = sh.hitsByRank(i, offidx, rdoff, fw, seedlen);
-		assert(qv.repOk(ca.current()));
-		if(!fw) {
-			// 'rdoff' and 'offidx' are with respect to the 5' end of
-			// the read.  Here we convert rdoff to be with respect to
-			// the upstream (3') end of ther read.
-			rdoff = (uint32_t)(rdlen - rdoff - seedlen);
-		}
-		assert(!norc ||  fw);
-		assert(!nofw || !fw);
-		int advances = 0;
-		ASSERT_ONLY(WalkResult lastwr);
-		while(!gws_[i].done()) {
-			// Resolve the next anchor seed hit
-			assert(!msink->state().done());
-			assert(!msink->state().doneWithMate(anchor1));
-			WalkResult wr;
-			gws_[i].advanceQvalPos(wr, wlm);
-			if(i == poss-1 &&
-			   gws_[i].done() &&
-			   (size_t)possf == (size_t)nonz)
-			{
-				exhaustive = true;
+		wlm,          // group walk left metrics
+		nelt);        // out: # elements total
+	assert_eq(gws_.size(), rands_.size());
+	assert_eq(gws_.size(), satpos_.size());
+	size_t eltsDone = 0;
+	assert_lt(eltsDone, maxelt);
+	size_t neltLeft = nelt;
+	while(neltLeft > 0 && eltsDone < maxelt) {
+		for(size_t i = 0; i < gws_.size(); i++) {
+			bool small = satpos_[i].sat.size() < nsm;
+			ASSERT_ONLY(WalkResult lastwr);
+			bool fw          = satpos_[i].pos.fw;
+			uint32_t rdoff   = satpos_[i].pos.rdoff;
+			uint32_t seedlen = satpos_[i].pos.seedlen;
+			if(!fw) {
+				// 'rdoff' and 'offidx' are with respect to the 5' end of
+				// the read.  Here we convert rdoff to be with respect to
+				// the upstream (3') end of ther read.
+				rdoff = (uint32_t)(rdlen - rdoff - seedlen);
 			}
-			assert(wr.elt != lastwr.elt);
-			ASSERT_ONLY(lastwr = wr);
-			advances++;
-			assert_neq(0xffffffff, wr.toff);
-			// Coordinate of the seed hit w/r/t the pasted reference string
-			uint32_t tidx = 0, toff = 0, tlen = 0;
-			ebwt.joinedToTextOff(
-				wr.elt.len,
-				wr.toff,
-				tidx,
-				toff,
-				tlen);
-			tlen += (color ? 1 : 0);
-			if(tidx == 0xffffffff) {
-				// The seed hit straddled a reference boundary so the seed hit
-				// isn't valid
-				continue;
-			}
-			// Find offset of alignment's upstream base assuming net gaps=0
-			// between beginning of read and beginning of seed hit
-			int64_t refoff = (int64_t)toff - rdoff;
-			EIvalMergeList& seenDiags = anchor1 ? seenDiags1_ : seenDiags2_;
-			// Coordinate of the seed hit w/r/t the pasted reference string
-			Coord refcoord(tidx, refoff, fw);
-			if(seenDiags.locusPresent(refcoord)) {
-				// Already handled alignments seeded on this diagonal
-				swmSeed.rshit++;
-				continue;
-			}
-			// Now that we have a seed hit, there are many issues to solve
-			// before we have a completely framed dynamic programming problem.
-			// They include:
-			//
-			// 1. Setting reference offsets on either side of the seed hit,
-			//    accounting for where the seed occurs in the read
-			// 2. Adjusting the width of the banded dynamic programming problem
-			//    and adjusting reference bounds to allow for gaps in the
-			//    alignment
-			// 3. Accounting for the edges of the reference, which can impact
-			//    the width of the DP problem and reference bounds.
-			// 4. Perhaps filtering the problem down to a smaller problem based
-			//    on what DPs we've already solved for this read
-			//
-			// We do #1 here, since it is simple and we have all the seed-hit
-			// information here.  #2 and #3 are handled in the DynProgFramer.
-			
-			int64_t pastedRefoff = (int64_t)wr.toff - rdoff;
-			size_t width = 0, solwidth = 0, trimup = 0, trimdn = 0;
-			int64_t refl = 0, refr = 0;
-			bool found = dpframe.frameSeedExtensionRect(
-				refoff,   // ref offset implied by seed hit assuming no gaps
-				rows,     // length of read sequence used in DP table (so len
-		                  // of +1 nucleotide sequence for colorspace reads)
-				tlen,     // length of reference
-				readGaps, // max # of read gaps permitted in opp mate alignment
-				refGaps,  // max # of ref gaps permitted in opp mate alignment
-				(size_t)nceil, // # Ns permitted
-				maxhalf,  // max width in either direction
-				width,    // out: calculated width stored here
-				solwidth, // out: # rightmost cols where solns can end
-				maxGaps,  // out: calculated max # gaps
-				trimup,   // out: number of bases trimmed from upstream end
-				trimdn,   // out: number of bases trimmed from downstream end
-				refl,     // out: ref pos of upper LHS of parallelogram
-				refr,     // out: ref pos of lower RHS of parallelogram
-				en_);     // out: legal ending columns stored here
-			if(!found) {
-				seenDiags.add(Interval(refcoord, 1));
-				continue;
-			}
-			int64_t leftShift = refoff - refl;
-			size_t nwindow = 0;
-			if(toff >= refl) {
-				nwindow = (size_t)(toff - refl);
-			}
-			// NOTE: We might be taking off more than we should because the
-			// pasted string omits non-A/C/G/T characters, but we included them
-			// when calculating leftShift.  We'll account for this later.
-			pastedRefoff -= leftShift;
-			assert_eq(solwidth, en_.size());
-			res_.reset();
-			assert(res_.empty());
-			assert_neq(0xffffffff, tidx);
-			// Given the boundaries defined by refl and refr, initilize the
-			// SwAligner with the dynamic programming problem that aligns the
-			// read to this reference stretch.
-			sscan_.init(sstab_);
-			if(!swa.initedRead()) {
-				// Initialize the aligner with a new read
-				swa.initRead(
-					rd.patFw,  // fw version of query
-					rd.patRc,  // rc version of query
-					rd.qual,   // fw version of qualities
-					rd.qualRev,// rc version of qualities
-					0,         // off of first char in 'rd' to consider
-					rdlen,     // off of last char (excl) in 'rd' to consider
-					color,     // colorspace?
-					sc,        // scoring scheme
-					minsc,     // minimum score for valid alignments
-					floorsc);  // local-alignment floor score
-			}
-			size_t nsInLeftShift = 0;
-			swa.initRef(
-				fw,        // whether to align forward or revcomp read
-				tidx,      // reference aligned against
-				refl,      // off of first character in ref to consider
-				refr+1,    // off of last char (excl) in ref to consider
-				ref,       // Reference strings
-				tlen,      // length of reference sequence
-				width,     // # bands to do (width of parallelogram)
-				solwidth,  // # rightmost columns where solutions can end
-				maxGaps,   // max of max # read, ref gaps
-				trimup,    // truncate left-hand columns from DP problem
-				&en_,      // mask indicating which columns we can end in
-				true,      // this is a seed extension - not finding a mate
-				&sscan_,   // reference scanner for resolving offsets
-				nwindow,
-				nsInLeftShift);
-			// Take reference-scanner hits and turn them into offset
-			// resolutions.
-			wlm.refscanhits += sscan_.hits().size();
-			pastedRefoff += nsInLeftShift;
-			for(size_t j = 0; j < sscan_.hits().size(); j++) {
-				// Get identifier for the appropriate combiner
-				U32Pair id = sscan_.hits()[j].id();
-				// Get the hit's offset in pasted-reference coordinates
-				int64_t off = sscan_.hits()[j].off() + pastedRefoff;
-				assert_geq(off, sscan_.hits()[j].ns());
-				off -= sscan_.hits()[j].ns();
-				assert_geq(off, 0);
-				assert_lt(off, (int64_t)ebwt.eh().lenNucs());
-				assert_lt(off, (int64_t)0xffffffff);
-				// Check that reference sequence actually matches seed
-#ifndef NDEBUG
-				uint32_t tidx2 = 0, toff2 = 0, tlen2 = 0;
+			bool first = true;
+			assert_leq(eltsDone, maxelt);
+			// If the range is small, investigate all elements now.  If the
+			// range is large, just investigate one and move on - we might come
+			// back to this range later.
+			while(!rands_[i].done() && eltsDone < maxelt && (first || small)) {
+				first = false;
+				assert(!gws_[i].done());
+				// Resolve next element offset
+				WalkResult wr;
+				uint32_t elt = rands_[i].next(rnd);
+				gws_[i].advanceElement(elt, wr, wlm);
+				eltsDone++;
+				assert_gt(neltLeft, 0);
+				neltLeft--;
+				assert(wr.elt != lastwr.elt);
+				ASSERT_ONLY(lastwr = wr);
+				assert_neq(0xffffffff, wr.toff);
+				uint32_t tidx = 0, toff = 0, tlen = 0;
 				ebwt.joinedToTextOff(
 					wr.elt.len,
-					(uint32_t)off,
-					tidx2,
-					toff2,
-					tlen2);
-				assert_neq(0xffffffff, tidx2);
-				uint64_t key = sacomb_[id.first][id.second].satup().key.seq;
-				for(size_t k = 0; k < wr.elt.len; k++) {
-					int c = ref.getBase(tidx2, toff2 + wr.elt.len - k - 1);
-					int ck = (int)(key & 3);
-					key >>= 2;
-					assert_eq(c, ck);
+					wr.toff,
+					tidx,
+					toff,
+					tlen);
+				tlen += (color ? 1 : 0);
+				if(tidx == 0xffffffff) {
+					// The seed hit straddled a reference boundary so the seed hit
+					// isn't valid
+					continue;
 				}
-#endif
-				// Install it
-				if(sacomb_[id.first][id.second].addRefscan((uint32_t)off)) {
-					// It was new; see if it leads to any resolutions
-					sacomb_[id.first][id.second].tryResolving(wlm.refresolves);
+				// Find offset of alignment's upstream base assuming net gaps=0
+				// between beginning of read and beginning of seed hit
+				int64_t refoff = (int64_t)toff - rdoff;
+				EIvalMergeList& seenDiags  = anchor1 ? seenDiags1_ : seenDiags2_;
+				//EIvalMergeList& oseenDiags = anchor1 ? seenDiags2_ : seenDiags1_;
+				// Coordinate of the seed hit w/r/t the pasted reference string
+				Coord refcoord(tidx, refoff, fw);
+				if(seenDiags.locusPresent(refcoord)) {
+					// Already handled alignments seeded on this diagonal
+					swmSeed.rshit++;
+					continue;
 				}
-			}
-			// Because of how we framed the problem, we can say that we've
-			// exhaustively scored the seed diagonal as well as maxgaps
-			// diagonals on either side
-			Interval refival(tidx, refoff - maxGaps, fw, maxGaps*2 + 1);
-			seenDiags.add(refival);
-			// Now fill the dynamic programming matrix and return true iff
-			// there is at least one valid alignment
-			found = swa.align(rnd);
-			if(!found) {
-				continue; // Look for more anchor alignments
-			}
-			// For each anchor alignment we pull out of the dynamic programming
-			// problem...
-			while(true) {
+				// Now that we have a seed hit, there are many issues to solve
+				// before we have a completely framed dynamic programming problem.
+				// They include:
+				//
+				// 1. Setting reference offsets on either side of the seed hit,
+				//    accounting for where the seed occurs in the read
+				// 2. Adjusting the width of the banded dynamic programming problem
+				//    and adjusting reference bounds to allow for gaps in the
+				//    alignment
+				// 3. Accounting for the edges of the reference, which can impact
+				//    the width of the DP problem and reference bounds.
+				// 4. Perhaps filtering the problem down to a smaller problem based
+				//    on what DPs we've already solved for this read
+				//
+				// We do #1 here, since it is simple and we have all the seed-hit
+				// information here.  #2 and #3 are handled in the DynProgFramer.
+				
+				int64_t pastedRefoff = (int64_t)wr.toff - rdoff;
+				DPRect rect;
+				bool found = dpframe.frameSeedExtensionRect(
+					refoff,   // ref offset implied by seed hit assuming no gaps
+					rows,     // length of read sequence used in DP table (so len
+							  // of +1 nucleotide sequence for colorspace reads)
+					tlen,     // length of reference
+					readGaps, // max # of read gaps permitted in opp mate alignment
+					refGaps,  // max # of ref gaps permitted in opp mate alignment
+					(size_t)nceil, // # Ns permitted
+					maxhalf,  // max width in either direction
+					rect);    // DP rectangle
+				assert(rect.repOk());
+				if(!found) {
+					seenDiags.add(Interval(refcoord, 1));
+					continue;
+				}
+				int64_t leftShift = refoff - rect.refl;
+				size_t nwindow = 0;
+				if(toff >= rect.refl) {
+					nwindow = (size_t)(toff - rect.refl);
+				}
+				// NOTE: We might be taking off more than we should because the
+				// pasted string omits non-A/C/G/T characters, but we included them
+				// when calculating leftShift.  We'll account for this later.
+				pastedRefoff -= leftShift;
+				//assert_eq(solwidth, en_.size());
 				res_.reset();
 				assert(res_.empty());
-				if(swa.done()) {
-					break;
+				assert_neq(0xffffffff, tidx);
+				// Given the boundaries defined by refl and refr, initilize the
+				// SwAligner with the dynamic programming problem that aligns the
+				// read to this reference stretch.
+				sscan_.init(sstab_);
+				if(!swa.initedRead()) {
+					// Initialize the aligner with a new read
+					swa.initRead(
+						rd.patFw,  // fw version of query
+						rd.patRc,  // rc version of query
+						rd.qual,   // fw version of qualities
+						rd.qualRev,// rc version of qualities
+						0,         // off of first char in 'rd' to consider
+						rdlen,     // off of last char (excl) in 'rd' to consider
+						color,     // colorspace?
+						sc,        // scoring scheme
+						floorsc);  // local-alignment floor score
 				}
-				swa.nextAlignment(res_, rnd);
-				found = !res_.empty();
+				size_t nsInLeftShift = 0;
+				swa.initRef(
+					fw,          // whether to align forward or revcomp read
+					tidx,        // reference aligned against
+					rect,        // DP rectangle
+					ref,         // Reference strings
+					tlen,        // length of reference sequence
+					sc,          // scoring scheme
+					minsc,       // minimum score for valid alignments
+					true,        // seed extension, not mate finding
+					&sscan_,     // reference scanner for resolving offsets
+					nwindow,
+					nsInLeftShift);
+				// Take reference-scanner hits and turn them into offset
+				// resolutions.
+				wlm.refscanhits += sscan_.hits().size();
+				pastedRefoff += nsInLeftShift;
+				for(size_t j = 0; j < sscan_.hits().size(); j++) {
+					// Get identifier for the appropriate combiner
+					U32Pair id = sscan_.hits()[j].id();
+					// Get the hit's offset in pasted-reference coordinates
+					int64_t off = sscan_.hits()[j].off() + pastedRefoff;
+					assert_geq(off, sscan_.hits()[j].ns());
+					off -= sscan_.hits()[j].ns();
+					assert_geq(off, 0);
+					assert_lt(off, (int64_t)ebwt.eh().lenNucs());
+					assert_lt(off, (int64_t)0xffffffff);
+					// Check that reference sequence actually matches seed
+#ifndef NDEBUG
+					uint32_t tidx2 = 0, toff2 = 0, tlen2 = 0;
+					ebwt.joinedToTextOff(
+						wr.elt.len,
+						(uint32_t)off,
+						tidx2,
+						toff2,
+						tlen2);
+					assert_neq(0xffffffff, tidx2);
+					uint64_t key = sacomb_[id.first].satup().key.seq;
+					for(size_t k = 0; k < wr.elt.len; k++) {
+						int c = ref.getBase(tidx2, toff2 + wr.elt.len - k - 1);
+						int ck = (int)(key & 3);
+						key >>= 2;
+						assert_eq(c, ck);
+					}
+#endif
+					// Install it
+					if(sacomb_[id.first].addRefscan((uint32_t)off)) {
+						// It was new; see if it leads to any resolutions
+						sacomb_[id.first].tryResolving(wlm.refresolves);
+					}
+				}
+				// Because of how we framed the problem, we can say that we've
+				// exhaustively scored the seed diagonal as well as maxgaps
+				// diagonals on either side
+				Interval refival(tidx, 0, fw, 0);
+				rect.initIval(refival);
+				seenDiags.add(refival);
+				// Now fill the dynamic programming matrix and return true iff
+				// there is at least one valid alignment
+				found = swa.align(rnd);
 				if(!found) {
-					// Could not extend the seed hit into a full alignment for
-					// the anchor mate
-					break;
+					continue; // Look for more anchor alignments
 				}
-				assert(res_.alres.matchesRef(
-					rd,
-					ref,
-					tmp_rf_,
-					tmp_rdseq_,
-					tmp_qseq_,
-					raw_refbuf_,
-					raw_destU32_,
-					raw_matches_));
-				Interval refival(tidx, 0, fw, tlen);
-				assert_gt(res_.alres.refExtent(), 0);
-				if(gReportOverhangs &&
-				   !refival.containsIgnoreOrient(res_.alres.refival()))
-				{
-					res_.alres.clipOutside(true, 0, tlen);
-					if(res_.alres.refExtent() == 0) {
+				// For each anchor alignment we pull out of the dynamic programming
+				// problem...
+				while(true) {
+					res_.reset();
+					assert(res_.empty());
+					if(swa.done()) {
+						break;
+					}
+					swa.nextAlignment(res_, rnd);
+					found = !res_.empty();
+					if(!found) {
+						// Could not extend the seed hit into a full alignment for
+						// the anchor mate
+						break;
+					}
+					assert(res_.alres.matchesRef(
+						rd,
+						ref,
+						tmp_rf_,
+						tmp_rdseq_,
+						tmp_qseq_,
+						raw_refbuf_,
+						raw_destU32_,
+						raw_matches_));
+					Interval refival(tidx, 0, fw, tlen);
+					assert_gt(res_.alres.refExtent(), 0);
+					if(gReportOverhangs &&
+					   !refival.containsIgnoreOrient(res_.alres.refival()))
+					{
+						res_.alres.clipOutside(true, 0, tlen);
+						if(res_.alres.refExtent() == 0) {
+							continue;
+						}
+					}
+					assert(gReportOverhangs || refival.containsIgnoreOrient(res_.alres.refival()));
+					// Did the alignment fall entirely outside the reference?
+					if(!refival.overlapsIgnoreOrient(res_.alres.refival())) {
 						continue;
 					}
-				}
-				assert(gReportOverhangs || refival.containsIgnoreOrient(res_.alres.refival()));
-				// Did the alignment fall entirely outside the reference?
-				if(!refival.overlapsIgnoreOrient(res_.alres.refival())) {
-					continue;
-				}
-				// Is this alignment redundant with one we've seen previously?
-				if(redAnchor_.overlap(res_.alres)) {
-					continue;
-				}
-				redAnchor_.add(res_.alres);
-				// Annotate the AlnRes object with some key parameters
-				// that were used to obtain the alignment.
-				res_.alres.setParams(
-					seedmms,   // # mismatches allowed in seed
-					seedlen,   // length of seed
-					seedival,  // interval between seeds
-					minsc,     // minimum score for valid alignment
-					floorsc);  // local-alignment floor score
-				
-				bool foundMate = false;
-				TRefOff off = res_.alres.refoff();
-				if( msink->state().doneWithMate(!anchor1) &&
-				   !msink->state().doneWithMate( anchor1))
-				{
-					// We're done with the opposite mate but not with the
-					// anchor mate; don't try to mate up the anchor.
-					swMateImmediately = false;
-				}
-				if(found && swMateImmediately) {
-					assert(!msink->state().doneWithMate(!anchor1));
-					bool oleft = false, ofw = false;
-					int64_t oll = 0, olr = 0, orl = 0, orr = 0;
-					assert(!msink->state().done());
-					if(!oppFilt && !msink->state().doneConcordant()) {
-						foundMate = pepol.otherMate(
-							anchor1,             // anchor mate is mate #1?
-							fw,                  // anchor aligned to Watson?
-							off,                 // offset of anchor mate
-							orows + oreadGaps,   // max # columns spanned by alignment
-							tlen,                // reference length
-							anchor1 ? rd.length() : ord.length(), // mate 1 len
-							anchor1 ? ord.length() : rd.length(), // mate 2 len
-							oleft,               // out: look left for opposite mate?
-							oll,
-							olr,
-							orl,
-							orr,
-							ofw);
-					} else {
-						// We're no longer interested in finding additional
-						// concordant paired-end alignments so we just report this
-						// mate's alignment as an unpaired alignment (below)
+					// Is this alignment redundant with one we've seen previously?
+					if(redAnchor_.overlap(res_.alres)) {
+						continue;
 					}
-					size_t owidth = 0, osolwidth = 0, otrimup = 0, otrimdn = 0;
-					int64_t orefl = 0, orefr = 0;
-					if(foundMate) {
-						foundMate = dpframe.frameFindMateRect(
-							!oleft,      // true iff anchor alignment is to the left
-							oll,         // leftmost Watson off for LHS of opp aln
-							olr,         // rightmost Watson off for LHS of opp aln
-							orl,         // leftmost Watson off for RHS of opp aln
-							orr,         // rightmost Watson off for RHS of opp aln
-							orows,       // length of opposite mate
-							tlen,        // length of reference sequence aligned to
-							oreadGaps,   // max # of read gaps in opp mate aln
-							orefGaps,    // max # of ref gaps in opp mate aln
-							(size_t)onceil, // max # Ns on opp mate
-							maxhalf,     // max width in either direction
-							owidth,      // out: calculated width stored here
-							osolwidth,   // out: # rightmost cols where solns can end
-							omaxGaps,    // out: calculated max # gaps
-							otrimup,     // out: # bases trimmed from upstream end
-							otrimdn,     // out: # bases trimmed from downstream end
-							orefl,       // out: ref pos of upper LHS of parallelogram
-							orefr,       // out: ref pos of lower RHS of parallelogram
-							oen_);       // out: legal ending columns stored here
-						assert_geq(orefr, orefl);
+					redAnchor_.add(res_.alres);
+					// Annotate the AlnRes object with some key parameters
+					// that were used to obtain the alignment.
+					res_.alres.setParams(
+						seedmms,   // # mismatches allowed in seed
+						seedlen,   // length of seed
+						seedival,  // interval between seeds
+						minsc,     // minimum score for valid alignment
+						floorsc);  // local-alignment floor score
+					
+					bool foundMate = false;
+					TRefOff off = res_.alres.refoff();
+					if( msink->state().doneWithMate(!anchor1) &&
+					   !msink->state().doneWithMate( anchor1))
+					{
+						// We're done with the opposite mate but not with the
+						// anchor mate; don't try to mate up the anchor.
+						swMateImmediately = false;
 					}
-					if(foundMate) {
-						ores_.reset();
-						assert(ores_.empty());
-						if(!oswa.initedRead()) {
-							oswa.initRead(
-								ord.patFw,  // read to align
-								ord.patRc,  // qualities
-								ord.qual,   // read to align
-								ord.qualRev,// qualities
-								0,          // off of first char to consider
-								ordlen,     // off of last char (ex) to consider
-								color,      // colorspace?
-								sc,         // scoring scheme
-								ominsc,     // min score for valid alignments
-								ofloorsc);  // local-alignment floor score
+					if(found && swMateImmediately) {
+						assert(!msink->state().doneWithMate(!anchor1));
+						bool oleft = false, ofw = false;
+						int64_t oll = 0, olr = 0, orl = 0, orr = 0;
+						assert(!msink->state().done());
+						if(!oppFilt && !msink->state().doneConcordant()) {
+							foundMate = pepol.otherMate(
+								anchor1,             // anchor mate is mate #1?
+								fw,                  // anchor aligned to Watson?
+								off,                 // offset of anchor mate
+								orows + oreadGaps,   // max # columns spanned by alignment
+								tlen,                // reference length
+								anchor1 ? rd.length() : ord.length(), // mate 1 len
+								anchor1 ? ord.length() : rd.length(), // mate 2 len
+								oleft,               // out: look left for opposite mate?
+								oll,
+								olr,
+								orl,
+								orr,
+								ofw);
+						} else {
+							// We're no longer interested in finding additional
+							// concordant paired-end alignments so we just report this
+							// mate's alignment as an unpaired alignment (below)
 						}
-						// Given the boundaries defined by refi and reff, initilize
-						// the SwAligner with the dynamic programming problem that
-						// aligns the read to this reference stretch.
-						size_t onsInLeftShift = 0;
-						assert_geq(orefr, orefl);
-						oswa.initRef(
-							ofw,       // align forward or revcomp read?
-							tidx,      // reference aligned against
-							orefl,     // off of first char to consider
-							orefr+1,   // off of last char (ex) to consider
-							ref,       // Reference strings
-							tlen,      // length of reference sequence
-							owidth,    // # bands to do (width of parallelogram)
-							osolwidth, // # rightmost cols where solns can end
-							omaxGaps,  // max of max # read, ref gaps
-							otrimup,   // truncate left-hand columns from DP problem
-							&oen_,     // mask of which cols we can end in
-							false,     // this is finding a mate - not seed ext
-							NULL,      // TODO: scan w/r/t other SeedResults
-							0,
-							onsInLeftShift);
-						// Now fill the dynamic programming matrix, return true
-						// iff there is at least one valid alignment
-						foundMate = oswa.align(rnd);
-					}
-					bool didAnchor = false;
-					do {
-						ores_.reset();
-						assert(ores_.empty());
-						if(foundMate && oswa.done()) {
-							foundMate = false;
-						} else if(foundMate) {
-							oswa.nextAlignment(ores_, rnd);
-							foundMate = !ores_.empty();
-							assert(!foundMate || ores_.alres.matchesRef(
-								ord,
-								ref,
-								tmp_rf_,
-								tmp_rdseq_,
-								tmp_qseq_,
-								raw_refbuf_,
-								raw_destU32_,
-								raw_matches_));
+						DPRect orect;
+						if(foundMate) {
+							foundMate = dpframe.frameFindMateRect(
+								!oleft,      // true iff anchor alignment is to the left
+								oll,         // leftmost Watson off for LHS of opp aln
+								olr,         // rightmost Watson off for LHS of opp aln
+								orl,         // leftmost Watson off for RHS of opp aln
+								orr,         // rightmost Watson off for RHS of opp aln
+								orows,       // length of opposite mate
+								tlen,        // length of reference sequence aligned to
+								oreadGaps,   // max # of read gaps in opp mate aln
+								orefGaps,    // max # of ref gaps in opp mate aln
+								(size_t)onceil, // max # Ns on opp mate
+								maxhalf,     // max width in either direction
+								orect);      // DP rectangle
+							assert_geq(orect.refr, orect.refl);
 						}
 						if(foundMate) {
-							// Redundant with one we've seen previously?
-							if(!redAnchor_.overlap(ores_.alres)) {
-								redAnchor_.add(ores_.alres);
+							ores_.reset();
+							assert(ores_.empty());
+							if(!oswa.initedRead()) {
+								oswa.initRead(
+									ord.patFw,  // read to align
+									ord.patRc,  // qualities
+									ord.qual,   // read to align
+									ord.qualRev,// qualities
+									0,          // off of first char to consider
+									ordlen,     // off of last char (ex) to consider
+									color,      // colorspace?
+									sc,         // scoring scheme
+									ofloorsc);  // local-alignment floor score
 							}
-							assert_eq(ofw, ores_.alres.fw());
-							// Annotate the AlnRes object with some key parameters
-							// that were used to obtain the alignment.
-							ores_.alres.setParams(
-								seedmms,    // # mismatches allowed in seed
-								seedlen,    // length of seed
-								seedival,   // interval between seeds
-								ominsc,     // minimum score for valid alignment
-								ofloorsc);  // local-alignment floor score
-							assert_gt(ores_.alres.refExtent(), 0);
-							if(gReportOverhangs &&
-							   !refival.containsIgnoreOrient(ores_.alres.refival()))
-							{
-								ores_.alres.clipOutside(true, 0, tlen);
-								foundMate = ores_.alres.refExtent() > 0;
-							}
-							if(foundMate && 
-							   ((!gReportOverhangs &&
-							     !refival.containsIgnoreOrient(ores_.alres.refival())) ||
-								 !refival.overlapsIgnoreOrient(ores_.alres.refival())))
-							{
+							// Given the boundaries defined by refi and reff, initilize
+							// the SwAligner with the dynamic programming problem that
+							// aligns the read to this reference stretch.
+							size_t onsInLeftShift = 0;
+							assert_geq(orect.refr, orect.refl);
+							oswa.initRef(
+								ofw,       // align forward or revcomp read?
+								tidx,      // reference aligned against
+								orect,     // DP rectangle
+								ref,       // Reference strings
+								tlen,      // length of reference sequence
+								sc,        // scoring scheme
+								ominsc,    // min score for valid alignments
+								false,     // this is finding a mate - not seed ext
+								NULL,      // TODO: scan w/r/t other SeedResults
+								0,         // nwindow?
+								onsInLeftShift);
+							// TODO: Can't we add some diagonals to the
+							// opposite mate's seenDiags when we fill in the
+							// opposite mate's DP?  Or can we?  We might want
+							// to use this again as an anchor - will that still
+							// happen?  Also, isn't there a problem with
+							// consistency of the minimum score?  Minimum score
+							// here depends in part on the score of the anchor
+							// alignment here, but it won't when the current
+							// opposite becomes the anchor.
+							
+							// Because of how we framed the problem, we can say
+							// that we've exhaustively explored the "core"
+							// diagonals
+							//Interval orefival(tidx, 0, ofw, 0);
+							//orect.initIval(orefival);
+							//oseenDiags.add(orefival);
+
+							// Now fill the dynamic programming matrix, return true
+							// iff there is at least one valid alignment
+							foundMate = oswa.align(rnd);
+						}
+						bool didAnchor = false;
+						do {
+							ores_.reset();
+							assert(ores_.empty());
+							if(foundMate && oswa.done()) {
 								foundMate = false;
-							}
-						}
-						TRefId refid;
-						TRefOff off1, off2;
-						TRefOff fragoff;
-						size_t len1, len2, fraglen;
-						bool fw1, fw2;
-						int pairCl = PE_ALS_DISCORD;
-						if(foundMate) {
-							refid = res_.alres.refid();
-							assert_eq(refid, ores_.alres.refid());
-							off1 = anchor1 ? off : ores_.alres.refoff();
-							off2 = anchor1 ? ores_.alres.refoff() : off;
-							len1 = anchor1 ?
-								res_.alres.refExtent() : ores_.alres.refExtent();
-							len2 = anchor1 ?
-								ores_.alres.refExtent() : res_.alres.refExtent();
-							fw1  = anchor1 ? res_.alres.fw() : ores_.alres.fw();
-							fw2  = anchor1 ? ores_.alres.fw() : res_.alres.fw();
-							fragoff = min<TRefOff>(off1, off2);
-							fraglen = (size_t)max<TRefOff>(
-								off1 - fragoff + (TRefOff)len1,
-								off2 - fragoff + (TRefOff)len2);
-							// Check that final mate alignments are consistent with
-							// paired-end fragment constraints
-							pairCl = pepol.peClassifyPair(
-								off1,
-								len1,
-								fw1,
-								off2,
-								len2,
-								fw2);
-							// Instead of trying
-							//foundMate = pairCl != PE_ALS_DISCORD;
-						}
-						if(msink->state().doneConcordant()) {
-							foundMate = false;
-						}
-						if(reportImmediately) {
-							if(foundMate) {
-								// Report pair to the AlnSinkWrap
-								assert(!msink->state().doneConcordant());
-								assert(msink != NULL);
-								assert(res_.repOk());
-								assert(ores_.repOk());
-								// Report an unpaired alignment
-								assert(!msink->maxed());
-								assert(!msink->state().done());
-								bool donePaired = false,  doneUnpaired = false;
-								if(pairCl != PE_ALS_DISCORD &&
-								   msink->report(
-								       0,
-								       anchor1 ? &res_.alres : &ores_.alres,
-								       anchor1 ? &ores_.alres : &res_.alres))
-								{
-									// Short-circuited because a limit, e.g.
-									// -k, -m or -M, was exceeded
-									donePaired = true;
-								}
-								if(mixed || discord) {
-									// Report alignment for mate #1 as an
-									// unpaired alignment.
-									if(!anchor1 || !didAnchor) {
-										if(anchor1) {
-											didAnchor = true;
-										}
-										const AlnRes& r1 = anchor1 ?
-											res_.alres : ores_.alres;
-										if(!redMate1_.overlap(r1)) {
-											redMate1_.add(r1);
-											if(msink->report(0, &r1, NULL)) {
-												doneUnpaired = true; // Short-circuited
-											}
-										}
-									}
-									// Report alignment for mate #2 as an
-									// unpaired alignment.
-									if(anchor1 || !didAnchor) {
-										if(!anchor1) {
-											didAnchor = true;
-										}
-										const AlnRes& r2 = anchor1 ?
-											ores_.alres : res_.alres;
-										if(!redMate2_.overlap(r2)) {
-											redMate2_.add(r2);
-											if(msink->report(0, NULL, &r2)) {
-												doneUnpaired = true; // Short-circuited
-											}
-										}
-									}
-								}
-								if(donePaired || doneUnpaired) {
-									return true;
-								}
-								if(msink->state().doneWithMate(anchor1)) {
-									// We're now done with the mate that we're
-									// currently using as our anchor.  We're not
-									// with the read overall.
-									return false;
-								}
-							} else if((mixed || discord) && !didAnchor) {
-								didAnchor = true;
-								// Report unpaired hit for anchor
-								assert(msink != NULL);
-								assert(res_.repOk());
-								// Check that alignment accurately reflects the
-								// reference characters aligned to
-								assert(res_.alres.matchesRef(
-									rd,
+							} else if(foundMate) {
+								oswa.nextAlignment(ores_, rnd);
+								foundMate = !ores_.empty();
+								assert(!foundMate || ores_.alres.matchesRef(
+									ord,
 									ref,
 									tmp_rf_,
 									tmp_rdseq_,
@@ -1201,79 +1175,243 @@ bool SwDriver::extendSeedsPaired(
 									raw_refbuf_,
 									raw_destU32_,
 									raw_matches_));
-								// Report an unpaired alignment
-								assert(!msink->maxed());
-								assert(!msink->state().done());
-								// Report alignment for mate #1 as an
-								// unpaired alignment.
-								if(!msink->state().doneUnpaired(anchor1)) {
-									const AlnRes& r = res_.alres;
-									RedundantAlns& red = anchor1 ? redMate1_ : redMate2_;
-									const AlnRes* r1 = anchor1 ? &res_.alres : NULL;
-									const AlnRes* r2 = anchor1 ? NULL : &res_.alres;
-									if(!red.overlap(r)) {
-										red.add(r);
-										if(msink->report(0, r1, r2)) {
-											return true; // Short-circuited
+							}
+							if(foundMate) {
+								// Redundant with one we've seen previously?
+								if(!redAnchor_.overlap(ores_.alres)) {
+									redAnchor_.add(ores_.alres);
+								}
+								assert_eq(ofw, ores_.alres.fw());
+								// Annotate the AlnRes object with some key parameters
+								// that were used to obtain the alignment.
+								ores_.alres.setParams(
+									seedmms,    // # mismatches allowed in seed
+									seedlen,    // length of seed
+									seedival,   // interval between seeds
+									ominsc,     // minimum score for valid alignment
+									ofloorsc);  // local-alignment floor score
+								assert_gt(ores_.alres.refExtent(), 0);
+								if(gReportOverhangs &&
+								   !refival.containsIgnoreOrient(ores_.alres.refival()))
+								{
+									ores_.alres.clipOutside(true, 0, tlen);
+									foundMate = ores_.alres.refExtent() > 0;
+								}
+								if(foundMate && 
+								   ((!gReportOverhangs &&
+									 !refival.containsIgnoreOrient(ores_.alres.refival())) ||
+									 !refival.overlapsIgnoreOrient(ores_.alres.refival())))
+								{
+									foundMate = false;
+								}
+							}
+							TRefId refid;
+							TRefOff off1, off2;
+							TRefOff fragoff;
+							size_t len1, len2, fraglen;
+							bool fw1, fw2;
+							int pairCl = PE_ALS_DISCORD;
+							if(foundMate) {
+								refid = res_.alres.refid();
+								assert_eq(refid, ores_.alres.refid());
+								off1 = anchor1 ? off : ores_.alres.refoff();
+								off2 = anchor1 ? ores_.alres.refoff() : off;
+								len1 = anchor1 ?
+									res_.alres.refExtent() : ores_.alres.refExtent();
+								len2 = anchor1 ?
+									ores_.alres.refExtent() : res_.alres.refExtent();
+								fw1  = anchor1 ? res_.alres.fw() : ores_.alres.fw();
+								fw2  = anchor1 ? ores_.alres.fw() : res_.alres.fw();
+								fragoff = min<TRefOff>(off1, off2);
+								fraglen = (size_t)max<TRefOff>(
+									off1 - fragoff + (TRefOff)len1,
+									off2 - fragoff + (TRefOff)len2);
+								// Check that final mate alignments are consistent with
+								// paired-end fragment constraints
+								pairCl = pepol.peClassifyPair(
+									off1,
+									len1,
+									fw1,
+									off2,
+									len2,
+									fw2);
+								// Instead of trying
+								//foundMate = pairCl != PE_ALS_DISCORD;
+							}
+							if(msink->state().doneConcordant()) {
+								foundMate = false;
+							}
+							if(reportImmediately) {
+								if(foundMate) {
+									// Report pair to the AlnSinkWrap
+									assert(!msink->state().doneConcordant());
+									assert(msink != NULL);
+									assert(res_.repOk());
+									assert(ores_.repOk());
+									// Report an unpaired alignment
+									assert(!msink->maxed());
+									assert(!msink->state().done());
+									bool donePaired = false,  doneUnpaired = false;
+									if(pairCl != PE_ALS_DISCORD) {
+										if(msink->report(
+										       0,
+										       anchor1 ? &res_.alres : &ores_.alres,
+										       anchor1 ? &ores_.alres : &res_.alres))
+										{
+											// Short-circuited because a limit, e.g.
+											// -k, -m or -M, was exceeded
+											donePaired = true;
+										} else {
+											if(msink->Mmode() && msink->hasSecondBestPair()) {
+												// From now on, we want paired-end alignments to have at least this
+												// score
+												TAlScore ps = (true ? msink->bestPair() : msink->secondBestPair());
+												if(ps < bestPairScore) {
+													ps++;
+													// What does that mean for the anchor mate?  It means it must have
+													// at least a score equal to 'ps' minus the best possible score for
+													// the opposite mate.
+													TAlScore nc = ps - sc.perfectScore(ordlen);
+													if(nc > minsc) {
+														minsc = nc;
+													}
+												}
+											}
 										}
 									}
-								}
-								if(msink->state().doneWithMate(anchor1)) {
-									// Done with mate, but not read overall
-									return false;
+
+									if(mixed || discord) {
+										// Report alignment for mate #1 as an
+										// unpaired alignment.
+										if(!anchor1 || !didAnchor) {
+											if(anchor1) {
+												didAnchor = true;
+											}
+											const AlnRes& r1 = anchor1 ?
+												res_.alres : ores_.alres;
+											if(!redMate1_.overlap(r1)) {
+												redMate1_.add(r1);
+												if(msink->report(0, &r1, NULL)) {
+													doneUnpaired = true; // Short-circuited
+												}
+											}
+										}
+										// Report alignment for mate #2 as an
+										// unpaired alignment.
+										if(anchor1 || !didAnchor) {
+											if(!anchor1) {
+												didAnchor = true;
+											}
+											const AlnRes& r2 = anchor1 ?
+												ores_.alres : res_.alres;
+											if(!redMate2_.overlap(r2)) {
+												redMate2_.add(r2);
+												if(msink->report(0, NULL, &r2)) {
+													doneUnpaired = true; // Short-circuited
+												}
+											}
+										}
+									}
+									if(donePaired || doneUnpaired) {
+										return true;
+									}
+									if(msink->state().doneWithMate(anchor1)) {
+										// We're now done with the mate that we're
+										// currently using as our anchor.  We're not
+										// with the read overall.
+										return false;
+									}
+								} else if((mixed || discord) && !didAnchor) {
+									didAnchor = true;
+									// Report unpaired hit for anchor
+									assert(msink != NULL);
+									assert(res_.repOk());
+									// Check that alignment accurately reflects the
+									// reference characters aligned to
+									assert(res_.alres.matchesRef(
+										rd,
+										ref,
+										tmp_rf_,
+										tmp_rdseq_,
+										tmp_qseq_,
+										raw_refbuf_,
+										raw_destU32_,
+										raw_matches_));
+									// Report an unpaired alignment
+									assert(!msink->maxed());
+									assert(!msink->state().done());
+									// Report alignment for mate #1 as an
+									// unpaired alignment.
+									if(!msink->state().doneUnpaired(anchor1)) {
+										const AlnRes& r = res_.alres;
+										RedundantAlns& red = anchor1 ? redMate1_ : redMate2_;
+										const AlnRes* r1 = anchor1 ? &res_.alres : NULL;
+										const AlnRes* r2 = anchor1 ? NULL : &res_.alres;
+										if(!red.overlap(r)) {
+											red.add(r);
+											if(msink->report(0, r1, r2)) {
+												return true; // Short-circuited
+											}
+										}
+									}
+									if(msink->state().doneWithMate(anchor1)) {
+										// Done with mate, but not read overall
+										return false;
+									}
 								}
 							}
-						}
-					} while(!ores_.empty());
-				} // if(found && swMateImmediately)
-				else if(found) {
-					assert(!msink->state().doneWithMate(anchor1));
-					// We found an anchor alignment but did not attempt to find
-					// an alignment for the opposite mate (probably because
-					// we're done with it)
-					if(reportImmediately && (mixed || discord)) {
-						// Report unpaired hit for anchor
-						assert(msink != NULL);
-						assert(res_.repOk());
-						// Check that alignment accurately reflects the
-						// reference characters aligned to
-						assert(res_.alres.matchesRef(
-							rd,
-							ref,
-							tmp_rf_,
-							tmp_rdseq_,
-							tmp_qseq_,
-							raw_refbuf_,
-							raw_destU32_,
-							raw_matches_));
-						// Report an unpaired alignment
-						assert(!msink->maxed());
-						assert(!msink->state().done());
-						// Report alignment for mate #1 as an
-						// unpaired alignment.
-						if(!msink->state().doneUnpaired(anchor1)) {
-							const AlnRes& r = res_.alres;
-							RedundantAlns& red = anchor1 ? redMate1_ : redMate2_;
-							const AlnRes* r1 = anchor1 ? &res_.alres : NULL;
-							const AlnRes* r2 = anchor1 ? NULL : &res_.alres;
-							if(!red.overlap(r)) {
-								red.add(r);
-								if(msink->report(0, r1, r2)) {
-									return true; // Short-circuited
+						} while(!ores_.empty());
+					} // if(found && swMateImmediately)
+					else if(found) {
+						assert(!msink->state().doneWithMate(anchor1));
+						// We found an anchor alignment but did not attempt to find
+						// an alignment for the opposite mate (probably because
+						// we're done with it)
+						if(reportImmediately && (mixed || discord)) {
+							// Report unpaired hit for anchor
+							assert(msink != NULL);
+							assert(res_.repOk());
+							// Check that alignment accurately reflects the
+							// reference characters aligned to
+							assert(res_.alres.matchesRef(
+								rd,
+								ref,
+								tmp_rf_,
+								tmp_rdseq_,
+								tmp_qseq_,
+								raw_refbuf_,
+								raw_destU32_,
+								raw_matches_));
+							// Report an unpaired alignment
+							assert(!msink->maxed());
+							assert(!msink->state().done());
+							// Report alignment for mate #1 as an
+							// unpaired alignment.
+							if(!msink->state().doneUnpaired(anchor1)) {
+								const AlnRes& r = res_.alres;
+								RedundantAlns& red = anchor1 ? redMate1_ : redMate2_;
+								const AlnRes* r1 = anchor1 ? &res_.alres : NULL;
+								const AlnRes* r2 = anchor1 ? NULL : &res_.alres;
+								if(!red.overlap(r)) {
+									red.add(r);
+									if(msink->report(0, r1, r2)) {
+										return true; // Short-circuited
+									}
 								}
 							}
-						}
-						if(msink->state().doneWithMate(anchor1)) {
-							// Done with mate, but not read overall
-							return false;
+							if(msink->state().doneWithMate(anchor1)) {
+								// Done with mate, but not read overall
+								return false;
+							}
 						}
 					}
-				}
-			} // while(true)
-			
-			// At this point we know that we aren't bailing, and will continue to resolve seed hits.  
+				} // while(true)
+				
+				// At this point we know that we aren't bailing, and will continue to resolve seed hits.  
 
-		} // while(!gw.done())
-	} // for(size_t i = 0; i < poss; i++)
+			} // while(!gw.done())
+		} // for(size_t i = 0; i < gws_.size(); i++)
+	} // while(neltLeft > 0 && eltsDone < maxelt)
 	return false;
 }
+

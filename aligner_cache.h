@@ -348,8 +348,39 @@ public:
 		EList<SATuple, 16>& dst,       // output list of SATuples
 		RandomSource& rnd,              // pseudo-random generator
 		const SimpleFunc& rowmult);     // max # rows to keep, function of tot rows
+	
+	/**
+	 * Function for ordering SATuples.  This is used when prioritizing which to
+	 * explore first when extending seed hits into full alignments.  Smaller
+	 * ranges get higher priority and we use 'top' to break ties, though any
+	 * way of breaking a tie would be fine.
+	 */
+	bool operator<(const SATuple& o) const {
+		if(offs.size() < o.offs.size()) {
+			return true;
+		}
+		if(offs.size() > o.offs.size()) {
+			return false;
+		}
+		return top < o.top;
+	}
+	bool operator>(const SATuple& o) const {
+		if(offs.size() < o.offs.size()) {
+			return false;
+		}
+		if(offs.size() > o.offs.size()) {
+			return true;
+		}
+		return top > o.top;
+	}
 
 	void reset() { top = 0xffffffff; offs.reset(); }
+	
+	/**
+	 * Return the number of times this reference substring occurs in the
+	 * reference, which is also the size of the 'offs' TSlice.
+	 */
+	size_t size() const { return offs.size(); }
 
 	// bot/length of SA range equals offs.size()
 	SAKey    key;  // sequence key
@@ -421,11 +452,15 @@ public:
 	void queryEx(
 		const QKey& k,
 		EList<SATuple, S>& satups,
+		size_t& nrange,
+		size_t& nelt,
 		bool getLock = true)
 	{
 		ThreadSafe ts(lockPtr(), shared_ && getLock);
 		QVal *n = query(k, getLock);
-		if(n != NULL) queryQval(*n, satups, false);
+		if(n != NULL) {
+			queryQval(*n, satups, nrange, nelt, false);
+		}
 	}
 
 
@@ -438,6 +473,8 @@ public:
 	void queryQval(
 		const QVal& qv,
 		EList<SATuple, S>& satups,
+		size_t& nrange,
+		size_t& nelt,
 		bool getLock = true)
 	{
 		ThreadSafe ts(lockPtr(), shared_ && getLock);
@@ -445,7 +482,8 @@ public:
 		const size_t refi = qv.offset();
 		const size_t reff = refi + qv.numRanges();
 		// For each reference sequence sufficiently similar to the
-		// query sequence in the QKey.
+		// query sequence in the QKey...
+		nrange += (reff - refi);
 		for(size_t i = refi; i < reff; i++) {
 			// Get corresponding SAKey, containing similar reference
 			// sequence & length
@@ -459,6 +497,7 @@ public:
 			assert(sav.repOk(*this));
 			satups.expand();
 			satups.back().init(sak, sav.top, TSlice(salist_, sav.i, sav.len));
+			nelt += sav.len;
 #ifndef NDEBUG
 			// Shouldn't add consecutive identical entries too satups
 			if(i > refi) {
@@ -926,9 +965,11 @@ public:
 	void queryQval(
 		const QVal& qv,
 		EList<SATuple, S>& satups,
+		size_t& nrange,
+		size_t& nelt,
 		bool getLock = true)
 	{
-		current_->queryQval(qv, satups, getLock);
+		current_->queryQval(qv, satups, nrange, nelt, getLock);
 	}
 
 	/**

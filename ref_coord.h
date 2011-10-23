@@ -215,6 +215,20 @@ public:
 		upstream_.init(rf, of, fw);
 		len_ = len;
 	}
+	
+	/**
+	 * Set offset.
+	 */
+	void setOff(TRefOff of) {
+		upstream_.setOff(of);
+	}
+
+	/**
+	 * Set length.
+	 */
+	void setLen(TRefOff len) {
+		len_ = len;
+	}
 
 	/**
 	 * Make this coord invalid.

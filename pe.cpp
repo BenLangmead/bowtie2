@@ -142,8 +142,22 @@ int PairedEndPolicy::peClassifyPair(
  * Given details about how one mate aligns, and some details about the
  * reference sequence it aligned to, calculate a window and orientation s.t.
  * a paired-end alignment is concordant iff the opposite mate aligns in the
- * calculated window with the calculated orientation.  The calculaton does not
- * consider gaps.  The dynamic programming framer will take gaps into account.
+ * calculated window with the calculated orientation.  The "window" is really a
+ * cosntraint on which positions the extreme end of the opposite mate can fall.
+ * This is a different type of constraint from the one placed on seed-extend
+ * dynamic programming problems.  That constraints requires that alignments at
+ * one point pass through one of a set of "core" columns.
+ *
+ * When the opposite mate is to the left, we're constraining where its
+ * left-hand extreme can fall, i.e., which cells in the top row of the matrix
+ * it can end in.  When the opposite mate is to the right, we're cosntraining
+ * where its right-hand extreme can fall, i.e., which cells in the bottom row
+ * of the matrix it can end in.  However, in practice we can only constrain
+ * where we start the backtrace, i.e. where the RHS of the alignment falls.
+ * See frameFindMateRect for details.
+ *
+ * This calculaton does not consider gaps - the dynamic programming framer will
+ * take gaps into account.
  *
  * Returns false if no concordant alignments are possible, true otherwise.
  */
@@ -191,14 +205,6 @@ bool PairedEndPolicy::otherMate(
 		// mates is too long
 		return false;
 	}
-	
-	// TODO: Some of the following logic, especially the logic that deals with
-	// the specifics of how dynamic programming problems are framed, should be
-	// delegated to another class that specifically deals with framing dynamic
-	// programming problems.  In general, we just need this routine to
-	// calculate the positions where it is legal for the extreme end of the
-	// opposite mate to fall.  The DP framer can then decide how to take read
-	// and ref gaps into account.
 	
 	// Now calculate bounds within which a dynamic programming
 	// algorithm should search for an alignment for the opposite mate

@@ -59,6 +59,157 @@ if(! -x $bowtie2 || ! -x $bowtie2_build) {
 my @cases = (
 
 	#
+	# Local alignment
+	#
+
+	# Local alignment for a short perfect hit where hit spans the read
+	{ name   => "Local alignment 1",
+	  ref    => [ "TTGT" ],
+	  reads  => [ "TTGT" ],
+	  args   =>   "--local --policy \"MIN=L,0.0,0.75\"",
+	  hits   => [ { 0 => 1 } ],
+	  flags  => [ "XM:0,XP:0,XT:UU,XC:4=" ],
+	  cigar  => [ "4M" ],
+	  samoptflags => [ {
+		"AS:i:8"   => 1, # alignment score
+		"XS:i:0"   => 1, # suboptimal alignment score
+		"XN:i:0"   => 1, # num ambiguous ref bases
+		"XM:i:0"   => 1, # num mismatches
+		"XO:i:0"   => 1, # num gap opens
+		"XG:i:0"   => 1, # num gap extensions
+		"NM:i:0"   => 1, # num edits
+		"MD:Z:4"   => 1, # mismatching positions/bases
+		"YM:i:0"   => 1, # read aligned repetitively in unpaired fashion
+		"YP:i:0"   => 1, # read aligned repetitively in paired fashion
+		"YT:Z:UU"  => 1, # type of alignment (concordant/discordant/etc)
+	} ] },
+	
+	#   T T G A     T T G A
+	# T x         T   x
+	# T   x       T      
+	# G     x     G        
+	# T           T
+	
+	# Local alignment for a short hit where hit is trimmed at one end
+	{ name   => "Local alignment 2",
+	  ref    => [ "TTGA" ],
+	  reads  => [ "TTGT" ],
+	  args   =>   "--local --policy \"MIN=L,0.0,0.75;SEED=0,3;IVAL=C,1,0\"",
+	  report =>   "-a",
+	  hits   => [ { 0 => 1 } ],
+	  flags => [ "XM:0,XP:0,XT:UU,XC:3=1S" ],
+	  cigar  => [ "3M1S" ],
+	  samoptflags => [ {
+		"AS:i:6"   => 1, # alignment score
+		"XS:i:0"   => 1, # suboptimal alignment score
+		"XN:i:0"   => 1, # num ambiguous ref bases
+		"XM:i:0"   => 1, # num mismatches
+		"XO:i:0"   => 1, # num gap opens
+		"XG:i:0"   => 1, # num gap extensions
+		"NM:i:0"   => 1, # num edits
+		"MD:Z:3"   => 1, # mismatching positions/bases
+		"YM:i:0"   => 1, # read aligned repetitively in unpaired fashion
+		"YP:i:0"   => 1, # read aligned repetitively in paired fashion
+		"YT:Z:UU"  => 1, # type of alignment (concordant/discordant/etc)
+	} ] },
+
+	#     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5
+	#     T T G T T C G T T T G T T C G T
+	# 0 T x
+	# 1 T   x
+	# 2 G     x
+	# 3 T       x
+	# 4 T         x
+	# 5 C           x
+	# 6 G             x
+	# 7 T               x
+	# 8 T                 x
+	# 9 T                   x
+	# 0 G                     x
+	# 1 T                       x
+	# 2 T                         x
+	#
+	# Score=130
+
+	#     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5
+	#     T T G T T C G T T T G T T C G T
+	# 0 T                 x
+	# 1 T                   x
+	# 2 G                     x
+	# 3 T                       x
+	# 4 T                         x
+	# 5 C                           x
+	# 6 G                             x
+	# 7 T                               x
+	# 8 T
+	# 9 T
+	# 0 G
+	# 1 T
+	# 2 T
+	#
+	# Score=80
+
+	# Local alignment for a perfect hit
+	{ name   => "Local alignment 3",
+	  ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  #            TTGTTCGTTTGTT
+	  #                    TTGTTCGT-----
+	  reads  => [ "TTGTTCGTTTGTT" ],
+	  args   =>   "--local -L 8 -i C,1,0",
+	  report =>   "-a",
+	  hits   => [ { 0 => 1, 8 => 1 } ],
+	  flags_map => [{
+		0 => "XM:0,XP:0,XT:UU,XC:13=",
+		8 => "XM:0,XP:0,XT:UU,XC:8="
+	  }],
+	  cigar_map => [{
+		0 => "13M",
+		8 => "8M5S"
+	  }],
+	  samoptflags_map => [{
+		0 => { "AS:i:26" => 1, "XS:i:16" => 1, "YT:Z:UU" => 1, "MD:Z:13" => 1 },
+		8 => { "AS:i:16" => 1, "XS:i:16" => 1, "YT:Z:UU" => 1, "MD:Z:8"  => 1 }
+	  }]
+	},
+
+	#                          1
+	#      0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5
+	#      T T G T T C G T T T G T T C G T
+	#  0 T                 x
+	#  1 T                   x
+	#  2 G                     x
+	#  3 T                       x
+	#  4 T                         x
+	#  5 C                           x
+	#  6 G                             x
+	#  7 T                               x
+	#  8 T
+	#  9 T
+	# 10 G
+	#  1 T
+
+	# Local alignment for a hit that should be trimmed from the right end
+	{ name   => "Local alignment 4",
+	  ref    => [ "TTGTTCGTTTGTTCGT" ],
+	  reads  => [ "TTGTTCGTTTGT" ],
+	  args   =>   "--local --policy \"SEED=0,3;IVAL=C,1,0;POSF=L,0,1.0\"",
+	  report =>   "-a",
+	  hits   => [ { 0 => 1, 8 => 1 } ],
+	  flags_map => [{
+		0 => "XM:0,XP:0,XT:UU,XC:12=",
+		8 => "XM:0,XP:0,XT:UU,XC:8=4S"
+	  }],
+	  cigar_map => [{
+		0 => "12M",
+		8 => "8M4S"
+	  }],
+	  samoptflags_map => [{
+		0 => { "AS:i:24" => 1, "XS:i:16" => 1, "YT:Z:UU" => 1, "MD:Z:12" => 1 },
+		8 => { "AS:i:16" => 1, "XS:i:16" => 1, "YT:Z:UU" => 1, "MD:Z:8"  => 1 }
+	  }]
+	},
+
+	#
 	# Test some common featuers for the manual.  E.g. when more than one
 	# alignment is reported in -k mode, what order are they reported in?  They
 	# should be in order by alignment score.
@@ -220,10 +371,11 @@ my @cases = (
 	  quals  => [         "GOAIYEFGFIWDSFIUYWEHRIWQWLFNSLDKkjdfg". "iuevhsiuqkAUHFIUEHGIUDJFHSKseuweyriwfskdgbiuuhh" ],
 	  #                    0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567
 	  #                    0         1         2         3         4         5         6         7         8
-	  args   => "--ignore-quals --score-min C,-40,0 -N 1",
+	  args   => "--ignore-quals --score-min C,-40,0 -N 1 -L 20",
 	  report => "-M 1",
 	  hits   => [ { 8 => 1 } ],
 	  cigar  => [ "37M4D30M3I14M" ],
+	  #            37M4D30M13I4M
 	  samoptflags => [ {
 		  "AS:i:-38" => 1,
 		  "YT:Z:UU"  => 1,
@@ -242,7 +394,7 @@ my @cases = (
 	  quals  => [         "GOAIYEFGFIWDSFIUYWEHRIWQWLFNSLDKkjdfg". "iuevhsiuqkAUHFIUEHGIUDJFHSKseuweyriwfskdgbiuuhh" ],
 	  #                    0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567
 	  #                    0         1         2         3         4         5         6         7         8
-	  args   => "--ignore-quals --rfg 1,2 --score-min C,-40,0 -N 1",
+	  args   => "--ignore-quals --rfg 1,2 --score-min C,-40,0 -N 1 -L 20",
 	  report => "-M 1",
 	  hits   => [ { 8 => 1 } ],
 	  cigar  => [ "37M4D30M3I14M" ],
@@ -264,7 +416,7 @@ my @cases = (
 	  quals  => [         "GOAIYEFGFIWDSFIUYWEHRIWQWLFNSLDKkjdfg". "iuevhsiuqkAUHFIUEHGIUDJFHSKseuweyriwfskdgbiuuhh" ],
 	  #                    0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567
 	  #                    0         1         2         3         4         5         6         7         8
-	  args   => "--ignore-quals --rdg 1,2 --score-min C,-40,0 -N 1",
+	  args   => "--ignore-quals --rdg 1,2 --score-min C,-40,0 -N 1 -L 20",
 	  report => "-M 1",
 	  hits   => [ { 8 => 1 } ],
 	  cigar  => [ "37M4D30M3I14M" ],
@@ -286,7 +438,7 @@ my @cases = (
 	  quals  => [         "GOAIYEFGFIWDSFIUYWEHRIWQWLFNSLDKkjdfg". "iuevhsiuqkAUHFIUEHGIUDJFHSKseuweyriwfskdgbiuuhh" ],
 	  #                    0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567
 	  #                    0         1         2         3         4         5         6         7         8
-	  args   => "--ignore-quals --mp 8 --score-min C,-40,0 -N 1",
+	  args   => "--ignore-quals --mp 8 --score-min C,-40,0 -N 1 -L 20",
 	  report => "-M 1",
 	  hits   => [ { 8 => 1 } ],
 	  cigar  => [ "37M4D30M3I14M" ],
@@ -308,7 +460,7 @@ my @cases = (
 	  quals  => [         "GOAIYEFGFIWDSFIUYWEHRIWQWLFNSLDKkjdfg". "iuevhsiuqkAUHFIUEHGIUDJFHSKseuweyriwfskdgbiuuhh" ],
 	  #                    0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567
 	  #                    0         1         2         3         4         5         6         7         8
-	  args   => "--ignore-quals --np 4 --score-min C,-41,0 -N 1",
+	  args   => "--ignore-quals --np 4 --score-min C,-41,0 -N 1 -L 20",
 	  report => "-M 1",
 	  hits   => [ { 8 => 1 } ],
 	  cigar  => [ "37M4D30M3I14M" ],
@@ -628,8 +780,8 @@ my @cases = (
 	# a*max{T,c*log(l)} = 1 * max(30, 5.5 * log(56)) = 1 * max(30, 22.139) = 30
 	#
 	{ name     => "BWA-SW-like 1",
-	  #              0123
 	  ref      => [ "GTTTAGATTCCACTACGCTAACCATCGAGAACTCGTCTCAGAGTTTCGATAGGAAAATCTGCGA" ],
+	  #                 ||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 	  reads    => [    "TAGATTCCACTACGCTAACCATCGAGAACTCGTCTCAGAGTTTCGATAGGAAAATC" ],
 	  #                 01234567890123456789012345678901234567890123456789012345
 	  #                           1         2         3         4         5
@@ -645,7 +797,7 @@ my @cases = (
 	  reads    => [    "TAGATTCCACTACGCTAACCATCGAGTTCTCGTCTCAGAGTTTCGATAGGAAAATC" ],
 	  #                 01234567890123456789012345678901234567890123456789012345
 	  #                           1         2         3         4         5
-	  args     => "--bwa-sw-like",
+	  args     => "--bwa-sw-like -L 18",
 	  hits     => [{ 3 => 1 }],
 	  # Tot matches = 54
 	  # Tot penalties = 6
@@ -659,7 +811,7 @@ my @cases = (
 	  reads    => [    "TAGATTCCACTACGCTAACCATCGAG"."TCGTCTCAGAGTTTCGATAGGAAAATC" ],
 	  #                 01234567890123456789012345678901234567890123456789012345
 	  #                           1         2         3         4         5
-	  args     => "--bwa-sw-like",
+	  args     => "--bwa-sw-like -i C,1,0",
 	  hits     => [{ 3 => 1 }],
 	  # Tot matches = 53
 	  # Tot penalties = 11
@@ -2472,6 +2624,9 @@ my @cases = (
 	  #                        0         1         2         3
 	  #                        012345678901234567890123456789012
 	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG
+	  #                        CAGCGTACGGTATCTAGCTATG
+	  #                                GGTATCTAGCTATGGGCATCGA
+	  #            AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGA
 	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGA" ],
 	  #            01234567890123456789012345678901234567890123456789012345
 	  #            0         1         2         3         4         5
@@ -2889,155 +3044,6 @@ my @cases = (
 		"YM:i:0"   => 1, # read aligned repetitively in unpaired fashion
 		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
 	} ] },
-
-	#
-	# Local alignment
-	#
-
-	# Local alignment for a short perfect hit where hit spans the read
-	{ name   => "Local alignment 1",
-	  ref    => [ "TTGT" ],
-	  reads  => [ "TTGT" ],
-	  args   =>   "--local --policy \"MIN=L,0.0,0.75\"",
-	  hits   => [ { 0 => 1 } ],
-	  flags  => [ "XM:0,XP:0,XT:UU,XC:4=" ],
-	  cigar  => [ "4M" ],
-	  samoptflags => [ {
-		"AS:i:8"   => 1, # alignment score
-		"XS:i:0"   => 1, # suboptimal alignment score
-		"XN:i:0"   => 1, # num ambiguous ref bases
-		"XM:i:0"   => 1, # num mismatches
-		"XO:i:0"   => 1, # num gap opens
-		"XG:i:0"   => 1, # num gap extensions
-		"NM:i:0"   => 1, # num edits
-		"MD:Z:4"   => 1, # mismatching positions/bases
-		"YM:i:0"   => 1, # read aligned repetitively in unpaired fashion
-		"YP:i:0"   => 1, # read aligned repetitively in paired fashion
-		"YT:Z:UU"  => 1, # type of alignment (concordant/discordant/etc)
-	} ] },
-	
-	#   T T G A     T T G A
-	# T x         T   x
-	# T   x       T      
-	# G     x     G        
-	# T           T
-	
-	# Local alignment for a short hit where hit is trimmed at one end
-	{ name   => "Local alignment 2",
-	  ref    => [ "TTGA" ],
-	  reads  => [ "TTGT" ],
-	  args   =>   "--local --policy \"MIN=L,0.0,0.75;SEED=0,3;IVAL=C,1,0\"",
-	  report =>   "-a",
-	  hits   => [ { 0 => 1 } ],
-	  flags => [ "XM:0,XP:0,XT:UU,XC:3=1S" ],
-	  cigar  => [ "3M1S" ],
-	  samoptflags => [ {
-		"AS:i:6"   => 1, # alignment score
-		"XS:i:0"   => 1, # suboptimal alignment score
-		"XN:i:0"   => 1, # num ambiguous ref bases
-		"XM:i:0"   => 1, # num mismatches
-		"XO:i:0"   => 1, # num gap opens
-		"XG:i:0"   => 1, # num gap extensions
-		"NM:i:0"   => 1, # num edits
-		"MD:Z:3"   => 1, # mismatching positions/bases
-		"YM:i:0"   => 1, # read aligned repetitively in unpaired fashion
-		"YP:i:0"   => 1, # read aligned repetitively in paired fashion
-		"YT:Z:UU"  => 1, # type of alignment (concordant/discordant/etc)
-	} ] },
-
-	#     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5
-	#     T T G T T C G T T T G T T C G T
-	# 0 T x
-	# 1 T   x
-	# 2 G     x
-	# 3 T       x
-	# 4 T         x
-	# 5 C           x
-	# 6 G             x
-	# 7 T               x
-	# 8 T                 x
-	# 9 T                   x
-	# 0 G                     x
-	# 1 T                       x
-	# 2 T                         x
-	#
-	# Score=130
-
-	#     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5
-	#     T T G T T C G T T T G T T C G T
-	# 0 T                 x
-	# 1 T                   x
-	# 2 G                     x
-	# 3 T                       x
-	# 4 T                         x
-	# 5 C                           x
-	# 6 G                             x
-	# 7 T                               x
-	# 8 T
-	# 9 T
-	# 0 G
-	# 1 T
-	# 2 T
-	#
-	# Score=80
-
-	# Local alignment for a perfect hit
-	{ name   => "Local alignment 3",
-	  ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTGTTCGTTTGTT" ],
-	  args   =>   "--local --policy \"POSF=L,0,1.0\"",
-	  report =>   "-a",
-	  hits   => [ { 0 => 1, 8 => 1 } ],
-	  flags_map => [{
-		0 => "XM:0,XP:0,XT:UU,XC:13=",
-		8 => "XM:0,XP:0,XT:UU,XC:8="
-	  }],
-	  cigar_map => [{
-		0 => "13M",
-		8 => "8M5S"
-	  }],
-	  samoptflags_map => [{
-		0 => { "AS:i:26" => 1, "XS:i:16" => 1, "YT:Z:UU" => 1, "MD:Z:13" => 1 },
-		8 => { "AS:i:16" => 1, "XS:i:16" => 1, "YT:Z:UU" => 1, "MD:Z:8"  => 1 }
-	  }]
-	},
-
-	#                          1
-	#      0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5
-	#      T T G T T C G T T T G T T C G T
-	#  0 T                 x
-	#  1 T                   x
-	#  2 G                     x
-	#  3 T                       x
-	#  4 T                         x
-	#  5 C                           x
-	#  6 G                             x
-	#  7 T                               x
-	#  8 T
-	#  9 T
-	# 10 G
-	#  1 T
-
-	# Local alignment for a hit that should be trimmed from the right end
-	{ name   => "Local alignment 4",
-	  ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTGTTCGTTTGT" ],
-	  args   =>   "--local --policy \"SEED=0,3;IVAL=C,1,0;POSF=L,0,1.0\"",
-	  report =>   "-a",
-	  hits   => [ { 0 => 1, 8 => 1 } ],
-	  flags_map => [{
-		0 => "XM:0,XP:0,XT:UU,XC:12=",
-		8 => "XM:0,XP:0,XT:UU,XC:8=4S"
-	  }],
-	  cigar_map => [{
-		0 => "12M",
-		8 => "8M4S"
-	  }],
-	  samoptflags_map => [{
-		0 => { "AS:i:24" => 1, "XS:i:16" => 1, "YT:Z:UU" => 1, "MD:Z:12" => 1 },
-		8 => { "AS:i:16" => 1, "XS:i:16" => 1, "YT:Z:UU" => 1, "MD:Z:8"  => 1 }
-	  }]
-	},
 
 	# Following cases depend on this being the case:
 	#
