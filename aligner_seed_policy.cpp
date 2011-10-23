@@ -276,8 +276,7 @@ void SeedAlignmentPolicy::parseString(
 	int&   multiseedMms,
 	int&   multiseedLen,
 	SimpleFunc& msIval,
-	SimpleFunc& posfrac,
-	SimpleFunc& rowmult,
+	SimpleFunc& maxelt,
 	uint32_t& mhits)
 {
 
@@ -308,12 +307,9 @@ void SeedAlignmentPolicy::parseString(
 	msIval.init(
 		DEFAULT_IVAL, 1.0f, DMAX,
 		DEFAULT_IVAL_B, DEFAULT_IVAL_A);
-	posfrac.init(
-		SIMPLE_FUNC_LINEAR, 1.0f, DMAX,
-		DEFAULT_POSMIN, DEFAULT_POSFRAC);
-	rowmult.init(
+	maxelt.init(
 		SIMPLE_FUNC_CONST,  1.0f, DMAX,
-		DEFAULT_ROWMULT, 0.0f);
+		DEFAULT_MAXELT_CONST, DEFAULT_MAXELT_COEFF);
 	nCatPair          = DEFAULT_N_CAT_PAIR;
 
 	if(!noisyHpolymer) {
@@ -535,19 +531,13 @@ void SeedAlignmentPolicy::parseString(
 		else if(tag == "MIN") {
 			PARSE_FUNC(costMin);
 		}
-		// If a total of N seed positions fit onto the read, try look for seed
-		// hits from xx + yy * N of them
-		// POSF=xx,yy
+		// Examine a maximum of this many BW elements when looking for
+		// alignments.
+		// MELT=xx,yy
 		//        xx = always examine at least this many poss
 		//        yy = examine this times N more
-		else if(tag == "POSF") {
-			PARSE_FUNC(posfrac);
-		}
-		// Try a maximum of N * xx seed extensions from any given seed position.
-		// ROWM=xx
-		//        xx = floating-point fraction
-		else if(tag == "ROWM") {
-			PARSE_FUNC(rowmult);
+		else if(tag == "MELT") {
+			PARSE_FUNC(maxelt);
 		}
 		// Local-alignment score floor as a function of read length
 		// FL=xx,yy
@@ -705,8 +695,7 @@ int main() {
 			multiseedMms,
 			multiseedLen,
 			msIval,
-			posfrac,
-			rowmult,
+			maxelt,
 			mhits);
 		
 		assert_eq(DEFAULT_MATCH_BONUS_TYPE,   bonusMatchType);
@@ -733,9 +722,8 @@ int main() {
 		assert_eq(DEFAULT_IVAL_A,             msIval.getCoeff());
 		assert_eq(DEFAULT_IVAL_B,             msIval.getConst());
 
-		assert_eq(DEFAULT_POSMIN,             posfrac.getConst());
-		assert_eq(DEFAULT_POSFRAC,            posfrac.getCoeff());
-		assert_eq(DEFAULT_ROWMULT,            rowmult.getConst());
+		assert_eq(DEFAULT_MAXELT_CONST,       maxelt.getConst());
+		assert_eq(DEFAULT_MAXELT_COEFF,       maxelt.getCoeff());
 		
 		cout << "PASSED" << endl;
 	}
@@ -766,8 +754,7 @@ int main() {
 			multiseedMms,
 			multiseedLen,
 			msIval,
-			posfrac,
-			rowmult,
+			maxelt,
 			mhits);
 		
 		assert_eq(DEFAULT_MATCH_BONUS_TYPE,   bonusMatchType);
@@ -794,9 +781,8 @@ int main() {
 		assert_eq(DEFAULT_IVAL_A,             msIval.getCoeff());
 		assert_eq(DEFAULT_IVAL_B,             msIval.getConst());
 
-		assert_eq(DEFAULT_POSMIN,             posfrac.getConst());
-		assert_eq(DEFAULT_POSFRAC,            posfrac.getCoeff());
-		assert_eq(DEFAULT_ROWMULT,            rowmult.getConst());
+		assert_eq(DEFAULT_MAXELT_CONST,       maxelt.getConst());
+		assert_eq(DEFAULT_MAXELT_COEFF,       maxelt.getCoeff());
 		
 		cout << "PASSED" << endl;
 	}
@@ -827,8 +813,7 @@ int main() {
 			multiseedMms,
 			multiseedLen,
 			msIval,
-			posfrac,
-			rowmult,
+			maxelt,
 			mhits);
 		
 		assert_eq(DEFAULT_MATCH_BONUS_TYPE_LOCAL,   bonusMatchType);
@@ -856,9 +841,8 @@ int main() {
 		assert_eq(DEFAULT_IVAL_A,             msIval.getCoeff());
 		assert_eq(DEFAULT_IVAL_B,             msIval.getConst());
 
-		assert_eq(DEFAULT_POSMIN,             posfrac.getConst());
-		assert_eq(DEFAULT_POSFRAC,            posfrac.getCoeff());
-		assert_eq(DEFAULT_ROWMULT,            rowmult.getConst());
+		assert_eq(DEFAULT_MAXELT_CONST,       maxelt.getConst());
+		assert_eq(DEFAULT_MAXELT_COEFF,       maxelt.getCoeff());
 		
 		cout << "PASSED" << endl;
 	}
@@ -889,8 +873,7 @@ int main() {
 			multiseedMms,
 			multiseedLen,
 			msIval,
-			posfrac,
-			rowmult,
+			maxelt,
 			mhits);
 		
 		assert_eq(COST_MODEL_CONSTANT,        bonusMatchType);
@@ -918,9 +901,8 @@ int main() {
 		assert_eq(DEFAULT_IVAL_A,             msIval.getCoeff());
 		assert_eq(DEFAULT_IVAL_B,             msIval.getConst());
 
-		assert_eq(DEFAULT_POSMIN,             posfrac.getConst());
-		assert_eq(DEFAULT_POSFRAC,            posfrac.getCoeff());
-		assert_eq(DEFAULT_ROWMULT,            rowmult.getConst());
+		assert_eq(DEFAULT_MAXELT_CONST,       maxelt.getConst());
+		assert_eq(DEFAULT_MAXELT_COEFF,       maxelt.getCoeff());
 
 		cout << "PASSED" << endl;
 	}

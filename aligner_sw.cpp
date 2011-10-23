@@ -3212,9 +3212,8 @@ int main(int argc, char **argv) {
 	multiseedIvalType = DEFAULT_IVAL;
 	multiseedIvalA    = DEFAULT_IVAL_A;
 	multiseedIvalB    = DEFAULT_IVAL_B;
-	posmin          = DEFAULT_POSMIN;
-	posfrac         = DEFAULT_POSFRAC;
-	rowmult         = DEFAULT_ROWMULT;
+	maxeltConst       = DEFAULT_MAXELT_CONST;
+	maxeltCoeff       = DEFAULT_MAXELT_COEFF;
 	mhits           = 1;
 	do {
 		next_option = getopt_long(argc, argv, short_opts, long_opts, &option_index);
@@ -3262,8 +3261,7 @@ int main(int argc, char **argv) {
 					multiseedIvalA,
 					multiseedIvalB,
 					posmin,
-					posfrac,
-					rowmult,
+					maxelt,
 					mhits);
 				break;
 			}

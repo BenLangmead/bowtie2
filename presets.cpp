@@ -37,26 +37,22 @@ void PresetsV0::apply(
 	if(preset == "very-fast") {
 		policy += ";SEED=0,22";
 		policy += ";IVAL=S,1,2.50";
-		policy += ";POSF=G,1.00,1.00";
-		policy += ";ROWM=C,2,0";
+		policy += ";MELT=L,0,5.00";
 		policy += ";MHITS=1";
 	} else if(preset == "fast") {
 		policy += ";SEED=0,22";
 		policy += ";IVAL=S,1,2.50";
-		policy += ";POSF=G,1.00,1.00";
-		policy += ";ROWM=C,2,0";
+		policy += ";MELT=L,0,5.00";
 		policy += ";MHITS=3";
 	} else if(preset == "sensitive") {
 		policy += ";SEED=0,22";
 		policy += ";IVAL=S,1,1.25";
-		policy += ";POSF=G,1.00,1.00";
-		policy += ";ROWM=C,2,0";
+		policy += ";MELT=L,0,5.00";
 		policy += ";MHITS=3";
 	} else if(preset == "very-sensitive") {
 		policy += ";SEED=0,20";
 		policy += ";IVAL=S,1,0.50";
-		policy += ";POSF=G,1.00,1.00";
-		policy += ";ROWM=C,2,0";
+		policy += ";MELT=L,0,5.00";
 		policy += ";MHITS=3";
 	}
 	//  For --local:
@@ -67,26 +63,22 @@ void PresetsV0::apply(
 	else if(preset == "very-fast-local") {
 		policy += ";SEED=0,25";
 		policy += ";IVAL=S,1,2.00";
-		policy += ";POSF=G,1.00,1.00";
-		policy += ";ROWM=C,2,0";
+		policy += ";MELT=L,0,5.00";
 		policy += ";MHITS=1";
 	} else if(preset == "fast-local") {
 		policy += ";SEED=0,22";
 		policy += ";IVAL=S,1,1.75";
-		policy += ";POSF=G,1.00,1.00";
-		policy += ";ROWM=C,2,0";
+		policy += ";MELT=L,0,5.00";
 		policy += ";MHITS=2";
 	} else if(preset == "sensitive-local") {
 		policy += ";SEED=0,20";
 		policy += ";IVAL=S,1,0.75";
-		policy += ";POSF=G,1.00,1.00";
-		policy += ";ROWM=C,2,0";
+		policy += ";MELT=L,0,5.00";
 		policy += ";MHITS=2";
 	} else if(preset == "very-sensitive-local") {
 		policy += ";SEED=0,20";
 		policy += ";IVAL=S,1,0.50";
-		policy += ";POSF=G,1.00,1.00";
-		policy += ";ROWM=C,2,0";
+		policy += ";MELT=L,0,5.00";
 		policy += ";MHITS=3";
 	}
 	else {

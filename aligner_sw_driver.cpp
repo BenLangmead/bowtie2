@@ -283,7 +283,9 @@ bool SwDriver::extendSeeds(
 	// objects that will actually do the reference scanning and opportunistic
 	// resolution of offsets.
 	const size_t nsm = 3;
-	double maxelt_db = maxeltf.f<double>((double)rdlen);
+	const size_t nonz = sh.nonzeroOffsets(); // non-zero positions
+	assert_gt(nonz, 0);
+	double maxelt_db = maxeltf.f<double>((double)nonz);
 	maxelt_db = max<double>(maxelt_db, 1.0f);
 	size_t maxelt = (size_t)maxelt_db;
 	if(maxelt_db == std::numeric_limits<double>::max()) {
@@ -795,7 +797,9 @@ bool SwDriver::extendSeedsPaired(
 	// objects that will actually do the reference scanning and opportunistic
 	// resolution of offsets.
 	const size_t nsm = 3;
-	double maxelt_db = maxeltf.f<double>((double)rdlen);
+	const size_t nonz = sh.nonzeroOffsets(); // non-zero positions
+	assert_gt(nonz, 0);
+	double maxelt_db = maxeltf.f<double>((double)nonz);
 	maxelt_db = max<double>(maxelt_db, 1.0f);
 	size_t maxelt = (size_t)maxelt_db;
 	if(maxelt_db == std::numeric_limits<double>::max()) {

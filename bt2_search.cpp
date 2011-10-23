@@ -185,8 +185,6 @@ static string saActionsFn;   // filename to dump all alignment actions to
 static string saHitsFn;      // filename to dump all seed hits to
 static uint32_t seedCacheLocalMB;   // # MB to use for non-shared seed alignment cacheing
 static uint32_t seedCacheCurrentMB; // # MB to use for current-read seed hit cacheing
-static SimpleFunc posfrac;   // number of seed poss to try as function of # poss
-static SimpleFunc rowmult;   // number of hits per pos to try as function of # hits
 static SimpleFunc maxelt;    // max # elts to extend for any given batch of seed hits
 static size_t maxhalf;       // max width on one side of DP table
 static bool seedSummaryOnly; // print summary information about seed hits, not alignments
@@ -327,9 +325,7 @@ static void resetOptions() {
 	scoreFloor.init(SIMPLE_FUNC_LINEAR, DEFAULT_FLOOR_CONST, DEFAULT_FLOOR_LINEAR);
 	nCeil.init     (SIMPLE_FUNC_LINEAR, 0.0f, DMAX, 2.0f, 0.1f);
 	msIval.init    (SIMPLE_FUNC_LINEAR, 1.0f, DMAX, DEFAULT_IVAL_B, DEFAULT_IVAL_A);
-	posfrac.init   (SIMPLE_FUNC_LINEAR, 1.0f, DMAX, DEFAULT_POSMIN, DEFAULT_POSFRAC);
-	rowmult.init   (SIMPLE_FUNC_CONST,  1.0f, DMAX, DEFAULT_ROWMULT, 0.0f);
-	maxelt.init    (SIMPLE_FUNC_CONST,  1.0f, DMAX, 20.0f, 0.0f);
+	maxelt.init    (SIMPLE_FUNC_CONST,  1.0f, DMAX, DEFAULT_MAXELT_CONST, DEFAULT_MAXELT_COEFF);
 	multiseedMms    = DEFAULT_SEEDMMS;
 	multiseedLen    = DEFAULT_SEEDLEN;
 	saCountersFn.clear();    // filename to dump per-read SeedAligner counters to
@@ -1035,8 +1031,8 @@ static void parseOption(int next_option, const char *arg) {
 			// Split argument by comma
 			EList<string> args;
 			tokenize(arg, ",", args);
-			if(args.size() > 11 || args.size() == 0) {
-				cerr << "Error: expected 11 or fewer comma-separated "
+			if(args.size() > 5 || args.size() == 0) {
+				cerr << "Error: expected 5 or fewer comma-separated "
 					 << "arguments to --multiseed option, got "
 					 << args.size() << endl;
 				throw 1;
@@ -1048,12 +1044,6 @@ static void parseOption(int next_option, const char *arg) {
 			if(args.size() >  2) polstr += (";IVAL=" + args[2]); // Func type
 			if(args.size() >  3) polstr += ("," + args[ 3]); // Constant term
 			if(args.size() >  4) polstr += ("," + args[ 4]); // Coefficient
-			if(args.size() >  5) polstr += (";POSF=" + args[5]); // Func type
-			if(args.size() >  6) polstr += ("," + args[ 6]); // Constant term
-			if(args.size() >  7) polstr += ("," + args[ 7]); // Coefficient
-			if(args.size() >  8) polstr += (";ROWM=" + args[8]); // Func type
-			if(args.size() >  9) polstr += ("," + args[ 9]); // Constant term
-			if(args.size() > 10) polstr += ("," + args[10]); // Coefficient
 			break;
 		}
 		case ARG_N_CEIL: {
@@ -1210,8 +1200,7 @@ static void parseOptions(int argc, const char **argv) {
 		multiseedMms,
 		multiseedLen,
 		msIval,
-		posfrac,
-		rowmult,
+		maxelt,
 		mhits);
 	if(saw_a || saw_k) {
 		msample = false;
@@ -2283,21 +2272,6 @@ static void* multiseedSearchWorker(void *vp) {
 		gReportDiscordant, // report discordang paired-end alignments?
 		gReportMixed);     // report unpaired alignments for paired reads?
 
-#if 0
-	// Given user-specified ROWM & POSF thresholds and user settings for
-	// -k/-a/-M, multiply the ROWM and POSF settings by the minimum number
-	// of alignments we're seeking.  E.g. for -M 1 or -k 2, multiply by 2.
-	// For -M 10, multiply by 11, etc.
-	SimpleFunc myPosfrac = posfrac;
-	SimpleFunc myRowmult = rowmult;
-	rp.boostThresholds(myPosfrac, myRowmult);
-
-	SimpleFunc myPosfracPair = posfrac;
-	SimpleFunc myRowmultPair = rowmult;
-	rp.boostThresholds(myPosfracPair, myRowmultPair);
-	myPosfracPair.mult(0.5f);
-	myRowmultPair.mult(0.5f);
-#endif
 	SimpleFunc myMaxelt = maxelt;
 	rp.boostThreshold(myMaxelt);
 
@@ -2697,8 +2671,6 @@ static void* multiseedSearchWorker(void *vp) {
 								minsc[mate],    // minimum score for valid
 								floorsc[mate],  // floor score
 								nceil,          // N ceil for anchor
-								//myPosfrac,      // additional seed poss to try
-								//myRowmult,      // extensions per pos
 								myMaxelt,       // max elts to extend
 								maxhalf,        // max width on one DP side
 								scanNarrowed,   // ref scan narrowed seed hits?
