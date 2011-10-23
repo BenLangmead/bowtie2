@@ -192,7 +192,7 @@ my @cases = (
 	{ name   => "Local alignment 4",
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCGTTTGT" ],
-	  args   =>   "--local --policy \"SEED=0,3;IVAL=C,1,0;POSF=L,0,1.0\"",
+	  args   =>   "--local --policy \"SEED=0,3;IVAL=C,1,0\"",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1, 8 => 1 } ],
 	  flags_map => [{
@@ -591,7 +591,6 @@ my @cases = (
 	  pairhits_orig => [{ "1,1" => 1}]
 	},
 
-	# Testing POSF and ROWM
 	{ ref    => [ "TTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCGT" ],
 	  args   => "--multiseed=0,4,C,1,0",
@@ -3439,7 +3438,7 @@ my @cases = (
 	#              0         1         2         3
 	  reads  => [ "CG" ],
 	  args   => "",
-	  report => "-a --policy \"SEED=0,2;IVAL=C,1,0;NCEIL=L,0,0;ROWM=C,3,0\"",
+	  report => "-a --policy \"SEED=0,2;IVAL=C,1,0;NCEIL=L,0,0\"",
 	  hits   => [ { 13 => 2, 23 => 2, 31 => 2 } ],
 	  edits  => [ ],
 	  flags => [ "XM:0,XP:0,XT:UU,XC:2=",
@@ -3458,7 +3457,7 @@ my @cases = (
 	#              0         1         2         3
 	  reads  => [ "CG" ],
 	  args   => "",
-	  report => "-a --policy \"SEED=0,1;IVAL=C,1,0;NCEIL=L,0,0;ROWM=C,3,0\"",
+	  report => "-a --policy \"SEED=0,1;IVAL=C,1,0;NCEIL=L,0,0\"",
 	  hits   => [ { 13 => 2, 23 => 2, 31 => 2 } ],
 	  edits  => [ ],
 	  flags => [ "XM:0,XP:0,XT:UU,XC:2=",
@@ -3649,7 +3648,7 @@ my @cases = (
 	  mate1s  => [ "ATATATATAT" ],
 	  mate2s  => [ "CGCGCGCGCG" ],
 	  mate1fw => 1,  mate2fw => 0,
-	  args    => "-I 0 -X 80 --policy \"ROWM=C,3.0,0\"",
+	  args    => "-I 0 -X 80",
 	  report  => "-M 2",
 	  lines   => 2,
 	  pairhits => [ { "3,59" => 1, "19,59" => 1, "37,59" => 1 } ],
@@ -3666,7 +3665,7 @@ my @cases = (
 	  mate1s => [ "ATATATATAT" ],
 	  mate2s => [ "CGCGCGCGCG" ],
 	  mate1fw => 1,  mate2fw => 0,
-	  args   =>   "-I 0 -X 80 --policy \"ROWM=C,3.0,0\"",
+	  args   =>   "-I 0 -X 80",
 	  pairhits => [ { "3,59" => 1, "19,59" => 1, "37,59" => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:CP,XC:10=" ] },
 
@@ -3953,7 +3952,7 @@ my @cases = (
 	# length-2 seed in
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [      "TTATTAGT" ],
-	  args   => "--policy \"SEED=0,2;IVAL=C,1,0;MMP=C1;ROWM=C,10,0\"",
+	  args   => "--policy \"SEED=0,2;IVAL=C,1,0;MMP=C1\"",
 	  #
 	  # TTGTTCGTTTGTTCGT TTGTTCGTTTGTTCGT TTGTTCGTTTGTTCGT
 	  # || || ||            ||  |             |  || ||
