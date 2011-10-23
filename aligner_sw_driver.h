@@ -127,6 +127,23 @@ struct SeedPos {
 		if(!fw && o.fw)         return false;
 		return false;
 	}
+	
+	bool operator>(const SeedPos& o) const {
+		if(offidx < o.offidx)   return false;
+		if(offidx > o.offidx)   return true;
+		if(rdoff < o.rdoff)     return false;
+		if(rdoff > o.rdoff)     return true;
+		if(seedlen < o.seedlen) return false;
+		if(seedlen > o.seedlen) return true;
+		if(fw && !o.fw)         return false;
+		if(!fw && o.fw)         return true;
+		return false;
+	}
+	
+	bool operator==(const SeedPos& o) const {
+		return fw == o.fw && offidx == o.offidx &&
+		       rdoff == o.rdoff && seedlen == o.seedlen;
+	}
 
 	bool fw;
 	uint32_t offidx;
@@ -138,14 +155,85 @@ struct SeedPos {
  * An SATuple along with the associated seed position.
  */
 struct SATupleAndPos {
-	SATuple sat;
-	SeedPos pos;
+	
+	SATuple sat;    // result for this seed hit
+	SeedPos pos;    // seed position that yielded the range this was taken from
+	size_t  origSz; // size of range this was taken from
 	
 	bool operator<(const SATupleAndPos& o) const {
 		if(sat < o.sat) return true;
 		if(sat > o.sat) return false;
 		return pos < o.pos;
 	}
+
+	bool operator==(const SATupleAndPos& o) const {
+		return sat == o.sat && pos == o.pos;
+	}
+};
+
+/**
+ * Encapsulates the weighted random sampling scheme we want to use to pick
+ * which seed hit range to sample a row from.
+ */
+class RowSampler {
+
+public:
+
+	RowSampler(int cat = 0) : elim_(cat), masses_(cat) { 
+		mass_ = 0.0f;
+	}
+	
+	/**
+	 * Initialze sampler with respect to a range of elements in a list of
+	 * SATupleAndPos's.
+	 */
+	void init(const EList<SATupleAndPos, 16>& salist, size_t sai, size_t saf) {
+		assert_gt(saf, sai);
+		elim_.resize(saf - sai);
+		elim_.fill(false);
+		// Initialize mass
+		mass_ = 0.0f;
+		masses_.resize(saf - sai);
+		for(size_t i = sai; i < saf; i++) {
+			masses_[i - sai] = (1.0f / sqrt((double)salist[i].sat.size()));
+			mass_ += masses_[i - sai];
+		}
+	}
+	
+	/**
+	 * Caller is indicating that the bin at index i is exhausted and we should
+	 * exclude it from our sampling from now on.
+	 */
+	void finishedRange(size_t i) {
+		assert_lt(i, masses_.size());
+		elim_[i] = true;
+		mass_ -= masses_[i];
+	}
+	
+	/**
+	 * Sample randomly from the mass.
+	 */
+	size_t next(RandomSource& rnd) {
+		// Throw the dart
+		double rd = rnd.nextFloat() * mass_;
+		double mass_sofar = 0.0f;
+		for(size_t i = 0; i < masses_.size(); i++) {
+			if(!elim_[i]) {
+				mass_sofar += masses_[i];
+				if(rd < mass_sofar) {
+					// This is the one we hit
+					return i;
+				}
+			}
+		}
+		assert(false);
+		return 0;
+	}
+
+protected:
+	double        mass_;    // total probability mass to throw darts at
+	EList<bool>   elim_;    // whether the range is eliminated
+	EList<double> masses_;  // mass of each range
 };
 
 class SwDriver {
@@ -329,14 +417,15 @@ protected:
 		WalkMetrics& wlm,            // group walk left metrics
 		size_t& nelt);               // out: # elements total
 
-	Random1toN            rand_;       // random number generators
-	EList<Random1toN, 16> rands_;      // random number generators
-	EList<Random1toN, 16> rands2_;     // random number generators
+	Random1toN               rand_;    // random number generators
+	EList<Random1toN, 16>    rands_;   // random number generators
+	EList<Random1toN, 16>    rands2_;  // random number generators
 	EList<SATupleAndPos, 16> satpos_;  // holds SATuple, SeedPos pairs
 	EList<SATupleAndPos, 16> satpos2_; // holds SATuple, SeedPos pairs
-	EList<SATuple, 16>    satups_;     // holds SATuples to explore elements from
+	EList<SATuple, 16>       satups_;  // holds SATuples to explore elements from
 	EList<SAResolveCombiner, 16> sacomb_; // temporary holder for combiners
-	EList<GroupWalk2> gws_;         // list of GroupWalks; no particular order
+	EList<GroupWalk2>        gws_;         // list of GroupWalks; no particular order
+	RowSampler               rowsamp_;     // row sampler
 
 	SeedScanner    sscan_;      // reference scanner for resolving seed hits
 	SeedScanTable  sstab_;      // table of seeds to search for
