@@ -526,7 +526,7 @@ void AlnSink::printAlSumm(
 			// Print the number that aligned more than once but fewer times
 			// than the limit
 			cerr << "    " << met.nunp_uni2+met.nunp_rep << " (";
-			printPct(cerr, met.nunp_uni+met.nunp_rep, met.nunpaired);
+			printPct(cerr, met.nunp_uni2+met.nunp_rep, met.nunpaired);
 			cerr << ") aligned >1 times" << endl;
 		} else {
 			// Print the number that aligned exactly once
