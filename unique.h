@@ -147,7 +147,7 @@ public:
 			}
 			// Otherwise has no second-best?
 			else {
-				ret = 8;
+				ret = 10;
 			}
 		} else {
 			secbest = s.secbest(mate1).score();
