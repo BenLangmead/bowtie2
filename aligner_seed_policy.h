@@ -31,7 +31,7 @@
 #define DEFAULT_IVAL_B 0.0f
 
 #define DEFAULT_MAXELT_CONST 0.0f
-#define DEFAULT_MAXELT_COEFF 5.0f
+#define DEFAULT_MAXELT_COEFF 1.0f
 
 /**
  * Encapsulates the set of all parameters that affect what the
