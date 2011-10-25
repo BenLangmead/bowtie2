@@ -120,23 +120,24 @@ public:
 		TAlScore best = s.best(mate1).score();
 		if(!hasSecbest) {
 			// Top third?
-			if(best >= diff * 0.9f) {
+			TAlScore bestOver = best - scMin;
+			if(bestOver >= diff * 0.9f) {
 				ret = 47;
-			} else if(best >= diff * 0.8f) {
+			} else if(bestOver >= diff * 0.8f) {
 				ret = 45;
-			} else if(best >= diff * 0.7f) {
+			} else if(bestOver >= diff * 0.7f) {
 				ret = 43;
-			} else if(best >= diff * 0.6f) {
+			} else if(bestOver >= diff * 0.6f) {
 				ret = 41;
-			} else if(best >= diff * 0.5f) {
+			} else if(bestOver >= diff * 0.5f) {
 				ret = 39;
-			} else if(best >= diff * 0.4f) {
+			} else if(bestOver >= diff * 0.4f) {
 				ret = 37;
-			} else if(best >= diff * 0.3f) {
+			} else if(bestOver >= diff * 0.3f) {
 				ret = 35;
-			} else if(best >= diff * 0.2f) {
+			} else if(bestOver >= diff * 0.2f) {
 				ret = 33;
-			} else if(best >= diff * 0.1f) {
+			} else if(bestOver >= diff * 0.1f) {
 				ret = 31;
 			} else {
 				ret = 29;
