@@ -121,36 +121,30 @@ public:
 		if(!hasSecbest) {
 			// Top third?
 			TAlScore bestOver = best - scMin;
-			if(bestOver >= diff * 0.9f) {
-				ret = 47;
-			} else if(bestOver >= diff * 0.8f) {
-				ret = 45;
+			if(bestOver >= diff * 0.8f) {
+				ret = 44;
 			} else if(bestOver >= diff * 0.7f) {
-				ret = 43;
+				ret = 40;
 			} else if(bestOver >= diff * 0.6f) {
-				ret = 41;
+				ret = 28;
 			} else if(bestOver >= diff * 0.5f) {
-				ret = 39;
+				ret = 24;
 			} else if(bestOver >= diff * 0.4f) {
-				ret = 37;
+				ret = 12;
 			} else if(bestOver >= diff * 0.3f) {
-				ret = 35;
-			} else if(bestOver >= diff * 0.2f) {
-				ret = 33;
-			} else if(bestOver >= diff * 0.1f) {
-				ret = 31;
+				ret = 8;
 			} else {
-				ret = 29;
+				ret = 2;
 			}
 		} else {
 			secbest = s.secbest(mate1).score();
 			TAlScore bestdiff = abs(abs(best)-abs(secbest));
 			if(bestdiff >= diff * 0.9f) {
-				ret = 19;
+				ret = 21;
 			} else if(bestdiff >= diff * 0.8f) {
-				ret = 17;
+				ret = 19;
 			} else if(bestdiff >= diff * 0.7f) {
-				ret = 15;
+				ret = 17;
 			} else if(bestdiff >= diff * 0.6f) {
 				ret = 13;
 			} else if(bestdiff >= diff * 0.5f) {
