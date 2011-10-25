@@ -110,7 +110,8 @@ enum {
 	ARG_WRAPPER,                // --wrapper
 	ARG_NO_DOVETAIL,            // --no-dovetail
 	ARG_NO_CONTAIN,             // --no-contain
-	ARG_NO_OVERLAP              // --no-overlap
+	ARG_NO_OVERLAP,             // --no-overlap
+	ARG_MAPQ_V                  // --mapq-v
 };
 
 #endif

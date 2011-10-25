@@ -82,6 +82,110 @@ public:
 };
 
 /**
+ * V2 of the MAPQ calculator
+ */
+class BowtieMapq2 : public Mapq {
+
+public:
+
+	BowtieMapq2(
+		const SimpleFunc& scoreMin,
+		const Scoring& sc) :
+		scoreMin_(scoreMin),
+		sc_(sc)
+	{ }
+
+	virtual ~BowtieMapq2() { }
+
+	/**
+	 * Given an AlnSetSumm, return a mapping quality calculated.
+	 */
+	virtual TMapq mapq(
+		const AlnSetSumm& s,
+		const AlnFlags& flags,
+		bool mate1,
+		size_t rdlen,
+		char *inps)     // put string representation of inputs here
+		const
+	{
+		bool hasSecbest = VALID_AL_SCORE(s.secbest(mate1));
+		if(!flags.canMax() && !s.exhausted(mate1) && !hasSecbest) {
+			return 255;
+		}
+		TAlScore scPer = (TAlScore)sc_.perfectScore(rdlen);
+		TAlScore scMin = scoreMin_.f<TAlScore>((float)rdlen);
+		TAlScore secbest = scMin-1;
+		TAlScore diff = (scPer - scMin);
+		TMapq ret = 0;
+		TAlScore best = s.best(mate1).score();
+		if(!hasSecbest) {
+			// Top third?
+			if(best >= diff * 0.9f) {
+				ret = 47;
+			} else if(best >= diff * 0.8f) {
+				ret = 45;
+			} else if(best >= diff * 0.7f) {
+				ret = 43;
+			} else if(best >= diff * 0.6f) {
+				ret = 41;
+			} else if(best >= diff * 0.5f) {
+				ret = 39;
+			} else if(best >= diff * 0.4f) {
+				ret = 37;
+			} else if(best >= diff * 0.3f) {
+				ret = 35;
+			} else if(best >= diff * 0.2f) {
+				ret = 33;
+			} else if(best >= diff * 0.1f) {
+				ret = 31;
+			} else {
+				ret = 29;
+			}
+		} else {
+			secbest = s.secbest(mate1).score();
+			TAlScore bestdiff = abs(abs(best)-abs(secbest));
+			if(bestdiff >= diff * 0.9f) {
+				ret = 19;
+			} else if(bestdiff >= diff * 0.8f) {
+				ret = 17;
+			} else if(bestdiff >= diff * 0.7f) {
+				ret = 15;
+			} else if(bestdiff >= diff * 0.6f) {
+				ret = 13;
+			} else if(bestdiff >= diff * 0.5f) {
+				ret = 11;
+			} else if(bestdiff >= diff * 0.4f) {
+				ret = 9;
+			} else if(bestdiff >= diff * 0.3f) {
+				ret = 7;
+			} else if(bestdiff >= diff * 0.2f) {
+				ret = 5;
+			} else if(bestdiff >= diff * 0.1f) {
+				ret = 3;
+			} else {
+				ret = 1;
+			}
+		}
+		if(flags.alignedConcordant()) {
+			ret = (TMapq)(ret * 1.3f);
+		}
+		if(inps != NULL) {
+			inps = itoa10<TAlScore>(best, inps);
+			*inps++ = ',';
+			inps = itoa10<TAlScore>(secbest, inps);
+			*inps++ = ',';
+			inps = itoa10<TMapq>(ret, inps);
+		}
+		return ret;
+	}
+
+protected:
+
+	SimpleFunc      scoreMin_;
+	const Scoring&  sc_;
+};
+
+/**
  * TODO: Do BowtieMapq on a per-thread basis prior to the mutex'ed output
  * function.
  *
@@ -181,5 +285,20 @@ protected:
 	SimpleFunc      scoreMin_;
 	const Scoring&  sc_;
 };
+
+/**
+ * Create and return new MAPQ calculating object.
+ */
+static inline Mapq *new_mapq(
+	int version,
+	const SimpleFunc& scoreMin,
+	const Scoring& sc)
+{
+	if(version == 2) {
+		return new BowtieMapq2(scoreMin, sc);
+	} else {
+		return new BowtieMapq(scoreMin, sc);
+	}
+}
 
 #endif /*ndef UNIQUE_H_*/
