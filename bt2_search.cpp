@@ -195,6 +195,7 @@ static bool ignoreQuals;     // all mms incur same penalty, regardless of qual
 static string wrapper;        // type of wrapper script, so we can print correct usage
 static EList<string> queries; // list of query files
 static string outfile;        // write SAM output to this file
+static int mapqv;             // MAPQ calculation version
 
 static string bt2index;      // read Bowtie 2 index from files with this prefix
 static EList<pair<int, string> > extra_opts;
@@ -345,6 +346,7 @@ static void resetOptions() {
 	wrapper.clear();         // type of wrapper script, so we can print correct usage
 	queries.clear();         // list of query files
 	outfile.clear();         // write SAM output to this file
+	mapqv = 1;               // MAPQ calculation version
 }
 
 static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:o:w:p:k:M:1:2:I:X:CQ:N:i:L:U:x:S:";
@@ -478,6 +480,7 @@ static struct option long_options[] = {
 	{(char*)"wrapper",          required_argument, 0,        ARG_WRAPPER},
 	{(char*)"unpaired",         required_argument, 0,        'U'},
 	{(char*)"output",           required_argument, 0,        'S'},
+	{(char*)"mapq-v",           required_argument, 0,        ARG_MAPQ_V},
 	{(char*)"no-dovetail",      no_argument,       0,        ARG_NO_DOVETAIL},
 	{(char*)"no-contain",       no_argument,       0,        ARG_NO_CONTAIN},
 	{(char*)"no-overlap",       no_argument,       0,        ARG_NO_OVERLAP},
@@ -985,6 +988,7 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_QC_FILTER: qcFilter = true; break;
 		case ARG_NO_SCORE_PRIORITY: sortByScore = false; break;
 		case ARG_IGNORE_QUALS: ignoreQuals = true; break;
+		case ARG_MAPQ_V: mapqv = parse<int>(arg); break;
 		case ARG_NOISY_HPOLY: noisyHpolymer = true; break;
 		case 'x': bt2index = arg; break;
 		case ARG_PRESET_VERY_FAST_LOCAL: localAlign = true;
@@ -2280,7 +2284,7 @@ static void* multiseedSearchWorker(void *vp) {
 	myMaxeltPair.mult(0.5f);
 
 	// Instantiate a mapping quality calculator
-	auto_ptr<Mapq> bmapq(new BowtieMapq(scoreMin, sc));
+	auto_ptr<Mapq> bmapq(new_mapq(mapqv, scoreMin, sc));
 	
 	// Make a per-thread wrapper for the global MHitSink object.
 	AlnSinkWrap msinkwrap(
