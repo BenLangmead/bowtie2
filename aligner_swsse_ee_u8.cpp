@@ -984,7 +984,7 @@ bool SwAligner::gatherCellsNucleotidesEnd2EndSseU8(TAlScore best) {
 	rowelt = row / d.mat_.nvecrow_; \
 	rowvec = row % d.mat_.nvecrow_; \
 	eltvec = (col * d.mat_.colstride_) + (rowvec * ROWSTRIDE); \
-	cur_vec = d.mat_.bufal_ + eltvec; \
+	cur_vec = d.mat_.buf_.ptr() + eltvec; \
 	left_vec = cur_vec; \
 	left_rowelt = rowelt; \
 	left_rowvec = rowvec; \

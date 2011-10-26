@@ -858,8 +858,7 @@ public:
 						newtop = upto[i];
 						newbot = newtop + in[i];
 						assert_leq(newbot-newtop, bot-top);
-						// Range narrowed so we have to look at the
-						// masks
+						// Range narrowed so we have to look at the masks
 						for(size_t j = 0; j < masks[i].size(); j++) {
 							assert_lt(j+mapi_, map_.size());
 							if(masks[i][j]) {
@@ -871,6 +870,7 @@ public:
 								// expected number of steps to the left
 								// of the corresponding element in the
 								// root range
+								assert_lt(newmap.back(), hit.satup->size());
 								if(hit.satup->offs[newmap.back()] == 0xffffffff) {
 									assert_eq(newtop + newmap.size() - 1,
 											  ebwt.walkLeft(hit.satup->top + newmap.back(), step+1));
@@ -1098,6 +1098,7 @@ public:
 			0,                  // # steps taken
 			met);               // update metrics here
 		elt_ += satup_->size();
+		assert(hit_.repOk());
 	}
 
 	//
@@ -1115,7 +1116,7 @@ public:
 	{
 		assert(inited_);
 		assert(!done());
-		//assert(hit_.repOk());
+		assert(hit_.repOk());
 		assert_lt(elt, satup_->size()); // elt must fall within range
 		assert(!hit_.reported(elt));
 		// Until we've resolved our element of interest...
@@ -1125,12 +1126,9 @@ public:
 			st_.ensure(4);
 			GWState& st = st_[range];
 			assert(!st.doneResolving(hit_));
-			//assert(st.repOk(*ebwtFw_, hit_, (uint32_t)range));
-			//assert(hit_.repOk());
 			// Returns a pair of numbers, the first being the number of
-			// resolved but unreported offsets found during this
-			// advance, the second being the number of
-			// as-yet-unresolved offsets.
+			// resolved but unreported offsets found during this advance, the
+			// second being the number of as-yet-unresolved offsets.
 			st.advance(
 				*ebwtFw_,
 				*ref_,
