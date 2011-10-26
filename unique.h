@@ -130,11 +130,11 @@ public:
 			} else if(bestOver >= diff * 0.5f) {
 				ret = 24;
 			} else if(bestOver >= diff * 0.4f) {
-				ret = 12;
+				ret = 4;
 			} else if(bestOver >= diff * 0.3f) {
-				ret = 8;
-			} else {
 				ret = 2;
+			} else {
+				ret = 0;
 			}
 		} else {
 			secbest = s.secbest(mate1).score();
@@ -152,9 +152,9 @@ public:
 			} else if(bestdiff >= diff * 0.4f) {
 				ret = 9;
 			} else if(bestdiff >= diff * 0.3f) {
-				ret = 7;
+				ret = 3;
 			} else if(bestdiff >= diff * 0.2f) {
-				ret = 5;
+				ret = 3;
 			} else if(bestdiff >= diff * 0.1f) {
 				ret = 3;
 			} else {
@@ -162,7 +162,7 @@ public:
 			}
 		}
 		if(flags.alignedConcordant()) {
-			ret = (TMapq)(ret * 1.3f);
+			ret = (TMapq)(ret * 1.15f);
 		}
 		if(inps != NULL) {
 			inps = itoa10<TAlScore>(best, inps);
