@@ -253,7 +253,8 @@ static bool cellOkLocalU8(
 #else
 
 #define assert_all_eq0(x) { \
-	__m128i z, tmp; \
+	__m128i z = _mm_setzero_si128(); \
+	__m128i tmp = _mm_setzero_si128(); \
 	z = _mm_xor_si128(z, z); \
 	tmp = _mm_cmpeq_epi16(x, z); \
 	assert_eq(0xffff, _mm_movemask_epi8(tmp)); \
@@ -265,14 +266,15 @@ static bool cellOkLocalU8(
 }
 
 #define assert_all_gt_lo(x) { \
-	__m128i z, tmp; \
+	__m128i z = _mm_setzero_si128(); \
+	__m128i tmp = _mm_setzero_si128(); \
 	z = _mm_xor_si128(z, z); \
 	tmp = _mm_cmpgt_epu8(x, z); \
 	assert_eq(0xffff, _mm_movemask_epi8(tmp)); \
 }
 
 #define assert_all_lt(x, y) { \
-	__m128i z; \
+	__m128i z = _mm_setzero_si128(); \
 	z = _mm_xor_si128(z, z); \
 	__m128i tmp = _mm_subs_epu8(y, x); \
 	tmp = _mm_cmpeq_epi16(tmp, z); \
@@ -280,7 +282,8 @@ static bool cellOkLocalU8(
 }
 
 #define assert_all_lt_hi(x) { \
-	__m128i z, tmp; \
+	__m128i z = _mm_setzero_si128(); \
+	__m128i tmp = _mm_setzero_si128(); \
 	z = _mm_cmpeq_epu8(z, z); \
 	z = _mm_srli_epu8(z, 1); \
 	tmp = _mm_cmplt_epu8(x, z); \

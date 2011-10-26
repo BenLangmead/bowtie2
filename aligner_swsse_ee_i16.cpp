@@ -239,7 +239,8 @@ static bool cellOkEnd2EndI16(
 #else
 
 #define assert_all_eq0(x) { \
-	__m128i z, tmp; \
+	__m128i z = _mm_setzero_si128(); \
+	__m128i tmp = _mm_setzero_si128(); \
 	z = _mm_xor_si128(z, z); \
 	tmp = _mm_cmpeq_epi16(x, z); \
 	assert_eq(0xffff, _mm_movemask_epi8(tmp)); \
@@ -251,7 +252,8 @@ static bool cellOkEnd2EndI16(
 }
 
 #define assert_all_gt_lo(x) { \
-	__m128i z, tmp; \
+	__m128i z = _mm_setzero_si128(); \
+	__m128i tmp = _mm_setzero_si128(); \
 	z = _mm_xor_si128(z, z); \
 	tmp = _mm_cmpgt_epi16(x, z); \
 	assert_eq(0xffff, _mm_movemask_epi8(tmp)); \
@@ -268,7 +270,8 @@ static bool cellOkEnd2EndI16(
 }
 
 #define assert_all_lt_hi(x) { \
-	__m128i z, tmp; \
+	__m128i z = _mm_setzero_si128(); \
+	__m128i tmp = _mm_setzero_si128(); \
 	z = _mm_cmpeq_epi16(z, z); \
 	z = _mm_srli_epi16(z, 1); \
 	tmp = _mm_cmplt_epi16(x, z); \
