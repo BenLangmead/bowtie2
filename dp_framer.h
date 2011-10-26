@@ -86,6 +86,17 @@ struct DPRect {
 	
 	size_t  maxgap; // max # gaps - width of the gap bands
 	
+	/**
+	 * Return true iff the combined effect of triml and trimr is to trim away
+	 * the entire rectangle.
+	 */
+	bool entirelyTrimmed() const {
+		bool tr = refr < refl;
+		ASSERT_ONLY(size_t width = (size_t)(refr_pretrim - refl_pretrim + 1));
+		assert(tr == (width <= triml + trimr));
+		return tr;
+	}
+	
 	// Designating some columns as "illegal" starting or ending columns is
 	// problematic.  This artificially disallows some alignments that
 	// rightfully ought to trump others because they score higher.  However,

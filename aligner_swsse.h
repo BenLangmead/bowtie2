@@ -36,7 +36,7 @@ public:
 	 * Allocate initial default of S elements.
 	 */
 	explicit EList_m128i(int cat = 0) :
-		cat_(cat), list_(NULL), sz_(0), cur_(0)
+		cat_(cat), last_alloc_(NULL), list_(NULL), sz_(0), cur_(0)
 	{
 		assert_geq(cat, 0);
 	}
