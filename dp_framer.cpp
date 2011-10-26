@@ -122,7 +122,7 @@ bool DynProgFramer::frameSeedExtensionRect(
 	rect.corel = maxgap;
 	rect.corer = rect.corel + maxgap; // inclusive
 	assert(rect.repOk());
-	return true;
+	return !rect.entirelyTrimmed();
 }
 
 /**
@@ -237,7 +237,7 @@ bool DynProgFramer::frameFindMateAnchorLeftRect(
 	rect.corel = maxgap;
 	rect.corer = width - maxgap - 1; // inclusive
 	assert(rect.repOk());
-	return true;
+	return !rect.entirelyTrimmed();
 }
 
 /**
@@ -350,7 +350,7 @@ bool DynProgFramer::frameFindMateAnchorRightRect(
 	rect.corel = maxgap;
 	rect.corer = width - maxgap - 1; // inclusive
 	assert(rect.repOk());
-	return true;
+	return !rect.entirelyTrimmed();
 }
 
 #ifdef MAIN_DP_FRAMER
