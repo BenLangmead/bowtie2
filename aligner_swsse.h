@@ -107,7 +107,7 @@ struct SSEMatrix {
 	const static size_t H   = 2;
 	const static size_t TMP = 3;
 
-	SSEMatrix(int cat = 0) : nvecPerCell_(4), buf_(cat) { }
+	SSEMatrix(int cat = 0) : nvecPerCell_(4), buf_(cat), nbufelt_(0) { }
 
 	/**
 	 * Return a pointer to the matrix buffer.
@@ -124,7 +124,9 @@ struct SSEMatrix {
 	inline __m128i* evec(size_t row, size_t col) {
 		assert_lt(row, nvecrow_);
 		assert_lt(col, nveccol_);
-		return ptr() + row * rowstride() + col * colstride() + E;
+		size_t elt = row * rowstride() + col * colstride() + E;
+		assert_lt(elt, nbufelt_);
+		return ptr() + elt;
 	}
 
 	/**
@@ -134,7 +136,9 @@ struct SSEMatrix {
 	inline __m128i* evecUnsafe(size_t row, size_t col) {
 		assert_lt(row, nvecrow_);
 		assert_leq(col, nveccol_);
-		return ptr() + row * rowstride() + col * colstride() + E;
+		size_t elt = row * rowstride() + col * colstride() + E;
+		assert_lt(elt, nbufelt_);
+		return ptr() + elt;
 	}
 
 	/**
@@ -144,7 +148,9 @@ struct SSEMatrix {
 	inline __m128i* fvec(size_t row, size_t col) {
 		assert_lt(row, nvecrow_);
 		assert_lt(col, nveccol_);
-		return ptr() + row * rowstride() + col * colstride() + F;
+		size_t elt = row * rowstride() + col * colstride() + F;
+		assert_lt(elt, nbufelt_);
+		return ptr() + elt;
 	}
 
 	/**
@@ -154,7 +160,9 @@ struct SSEMatrix {
 	inline __m128i* hvec(size_t row, size_t col) {
 		assert_lt(row, nvecrow_);
 		assert_lt(col, nveccol_);
-		return ptr() + row * rowstride() + col * colstride() + H;
+		size_t elt = row * rowstride() + col * colstride() + H;
+		assert_lt(elt, nbufelt_);
+		return ptr() + elt;
 	}
 
 	/**
@@ -164,7 +172,9 @@ struct SSEMatrix {
 	inline __m128i* tmpvec(size_t row, size_t col) {
 		assert_lt(row, nvecrow_);
 		assert_lt(col, nveccol_);
-		return ptr() + row * rowstride() + col * colstride() + TMP;
+		size_t elt = row * rowstride() + col * colstride() + TMP;
+		assert_lt(elt, nbufelt_);
+		return ptr() + elt;
 	}
 
 	/**
@@ -174,7 +184,9 @@ struct SSEMatrix {
 	inline __m128i* tmpvecUnsafe(size_t row, size_t col) {
 		assert_lt(row, nvecrow_);
 		assert_leq(col, nveccol_);
-		return ptr() + row * rowstride() + col * colstride() + TMP;
+		size_t elt = row * rowstride() + col * colstride() + TMP;
+		assert_lt(elt, nbufelt_);
+		return ptr() + elt;
 	}
 	
 	/**
@@ -218,6 +230,7 @@ struct SSEMatrix {
 		size_t rowelt = row / nvecrow_;
 		size_t rowvec = row % nvecrow_;
 		size_t eltvec = (col * colstride_) + (rowvec * rowstride_) + mat;
+		assert_lt(eltvec, nbufelt_);
 		if(wperv_ == 16) {
 			return (int)((uint8_t*)&bufal_[eltvec])[rowelt];
 		} else {
@@ -239,6 +252,7 @@ struct SSEMatrix {
 		size_t rowelt = row / nvecrow_;
 		size_t rowvec = row % nvecrow_;
 		size_t eltvec = (col * colstride_) + (rowvec * rowstride_) + mat;
+		assert_lt(eltvec, nbufelt_);
 		return &bufal_[eltvec] + rowelt;
 	}
 	
@@ -393,6 +407,7 @@ struct SSEMatrix {
 	size_t           colstride_;   // # vectors b/t adjacent cells in same row
 	size_t           rowstride_;   // # vectors b/t adjacent cells in same col
 	EList<__m128i>   buf_;         // buffer for holding vectors
+	size_t           nbufelt_;     // number of __m128is in buf_
 	EList<uint16_t>  masks_;       // buffer for masks/backtracking flags
 	__m128i         *bufal_;       // 16-byte aligned version of the ptr for buf_
 };
