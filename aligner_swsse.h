@@ -191,7 +191,8 @@ private:
 	 * tally into the global memory tally.
 	 */
 	__m128i *alloc(size_t sz) {
-		__m128i* tmp = new __m128i[sz + 2];
+		__m128i* last_alloc_ = new __m128i[sz + 2];
+		__m128i* tmp = last_alloc_;
 		size_t tmpint = (size_t)tmp;
 		// Align it!
 		if((tmpint & 0xf) != 0) {
@@ -211,7 +212,7 @@ private:
 	 */
 	void free() {
 		if(list_ != NULL) {
-			delete[] list_;
+			delete[] last_alloc_;
 			gMemTally.del(cat_, sz_);
 			list_ = NULL;
 			sz_ = cur_ = 0;
@@ -251,10 +252,11 @@ private:
 		cur_ = cur;
 	}
 
-	int      cat_;   // memory category, for accounting purposes
-	__m128i *list_;  // list pointer, returned from new[]
-	size_t   sz_;    // capacity
-	size_t   cur_;   // occupancy (AKA size)
+	int      cat_;        // memory category, for accounting purposes
+	__m128i* last_alloc_; // what new[] originally returns
+	__m128i *list_;       // list ptr, aligned version of what new[] returns
+	size_t   sz_;         // capacity
+	size_t   cur_;        // occupancy (AKA size)
 };
 
 struct SSEMetrics {
