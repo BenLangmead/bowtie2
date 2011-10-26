@@ -40,12 +40,7 @@ void SSEMatrix::init(
 	// The +1 is so that we don't have to special-case the final column;
 	// instead, we just write off the end of the useful part of the table
 	// with pvEStore.
-	buf_.resize((ncol+1) * nvecPerCell_ * nvecPerCol_ + 16);
-	nbufelt_ = (ncol+1) * nvecPerCell_ * nvecPerCol_;
-	// Get a 16-byte aligned pointer toward the beginning of the buffer.
-	size_t aligned = ((size_t)buf_.ptr() + 15) & ~(0x0f);
-	// Set up pointers into the buffer for fw query
-	bufal_ = reinterpret_cast<__m128i*>(aligned);
+	buf_.resize((ncol+1) * nvecPerCell_ * nvecPerCol_);
 	assert(wperv_ == 8 || wperv_ == 16);
 	vecshift_ = (wperv_ == 8) ? 3 : 4;
 	nvecrow_ = (nrow + (wperv_-1)) >> vecshift_;
@@ -77,12 +72,11 @@ int SSEMatrix::eltSlow(size_t row, size_t col, size_t mat) const {
 	size_t rowelt = row / nvecrow_;
 	size_t rowvec = row % nvecrow_;
 	size_t eltvec = (col * colstride_) + (rowvec * rowstride_) + mat;
-	assert_lt(eltvec, nbufelt_);
 	if(wperv_ == 16) {
-		return (int)((uint8_t*)&bufal_[eltvec])[rowelt];
+		return (int)((uint8_t*)(buf_.ptr() + eltvec))[rowelt];
 	} else {
 		assert_eq(8, wperv_);
-		return (int)((int16_t*)&bufal_[eltvec])[rowelt];
+		return (int)((int16_t*)(buf_.ptr() + eltvec))[rowelt];
 	}
 }
 

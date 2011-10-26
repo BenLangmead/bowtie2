@@ -149,15 +149,22 @@ void SwDriver::prioritizeSATups(
 	// ranges more frequently (and first).
 	//
 	// 1. do the smalls
-	for(size_t j = 0; j < nsmall; j++) {
-		ASSERT_ONLY(const size_t sz = satpos2_[j].sat.size());
-		assert_leq(sz, nsm);
+	for(size_t j = 0; j < nsmall && nelt_added < maxelt; j++) {
+		satpos_.expand();
+		satpos_.back() = satpos2_[j];
+		// The following mechanism for ensuring we don't go over the maxelt
+		// limit is tricky because it can mess us up when we try to combine
+		// ref-scanning results with BW search results.
+		
+		//if(nelt_added + satpos_.back().sat.size() > maxelt) {
+		//	// Curtail so as not to exceed maxelt
+		//	size_t nlen = maxelt - nelt_added;
+		//	satpos_.back().sat.setLength(nlen);
+		//}
 		sstab_.add(
 			make_pair(j, 0),
 			satpos2_[j].sat.key.seq,
 			(size_t)satpos2_[j].pos.seedlen);
-		satpos_.expand();
-		satpos_.back() = satpos2_[j];
 		sacomb_.expand();
 		sacomb_.back().init(satpos_.back().sat);
 		gws_.expand();
@@ -172,11 +179,6 @@ void SwDriver::prioritizeSATups(
 		assert(gws_.back().initialized());
 		rands_.expand();
 		rands_.back().init(satpos_.back().sat.size());
-		if(nelt_added + satpos_.back().sat.size() > maxelt) {
-			// Curtail
-			size_t nlen = maxelt - nelt_added;
-			satpos_.back().sat.setLength(nlen);
-		}
 		nelt_added += satpos_.back().sat.size();
 #ifndef NDEBUG
 		for(size_t k = 0; k < satpos_.size()-1; k++) {
@@ -184,8 +186,7 @@ void SwDriver::prioritizeSATups(
 		}
 #endif
 	}
-	assert_leq(nelt_added, maxelt)
-	if(nelt_added == maxelt || nsmall == satpos2_.size()) {
+	if(nelt_added >= maxelt || nsmall == satpos2_.size()) {
 		return;
 	}
 	// 2. do the non-smalls
