@@ -2438,6 +2438,7 @@ static void* multiseedSearchWorker(void *vp) {
 				}
 				// Calculate the minimum valid score threshold for the read
 				TAlScore minsc[2];
+				minsc[0] = minsc[1] = std::numeric_limits<TAlScore>::max();
 				if(bwaSwLike) {
 					// From BWA-SW manual: "Given an l-long query, the
 					// threshold for a hit to be retained is
