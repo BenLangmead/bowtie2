@@ -1285,7 +1285,7 @@ size_t AlnSinkWrap::selectByScore(
 	if(sz < 1) {
 		return 0;
 	}
-	select.resize(num);
+	select.resize((size_t)num);
 	// Use 'selectBuf_' as a temporary list for sorting purposes
 	EList<std::pair<TAlScore, size_t> >& buf =
 		const_cast<EList<std::pair<TAlScore, size_t> >& >(selectBuf_);
@@ -1333,7 +1333,7 @@ size_t AlnSinkWrap::selectAlnsToReport(
 	if(sz < 1) {
 		return 0;
 	}
-	select.resize(num);
+	select.resize((size_t)num);
 	if(sz == 1) {
 		assert_eq(1, num);
 		select[0] = 0;
