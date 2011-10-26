@@ -191,8 +191,14 @@ private:
 	 * tally into the global memory tally.
 	 */
 	__m128i *alloc(size_t sz) {
-		__m128i* tmp = new __m128i[sz + 1];
-		ASSERT_ONLY(size_t tmpint = (size_t)tmp);
+		__m128i* tmp = new __m128i[sz + 2];
+		size_t tmpint = (size_t)tmp;
+		// Align it!
+		if((tmpint & 0xf) != 0) {
+			tmpint += 15;
+			tmpint &= (~0xf);
+			tmp = reinterpret_cast<__m128i*>(tmpint);
+		}
 		assert_eq(0, (tmpint & 0xf)); // should be 16-byte aligned
 		assert(tmp != NULL);
 		gMemTally.add(cat_, sz);
