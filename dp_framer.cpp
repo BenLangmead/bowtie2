@@ -110,7 +110,7 @@ bool DynProgFramer::frameSeedExtensionRect(
 	}
 	// Trim from LHS of rectangle
 	if(refl < -maxns) {
-		triml = (size_t)(-refl) - maxns;
+		triml = (size_t)(-refl) - (size_t)maxns;
 	}
 	rect.refl_pretrim = refl;
 	rect.refr_pretrim = refr;
@@ -224,7 +224,7 @@ bool DynProgFramer::frameFindMateAnchorLeftRect(
 	}
 	// Trim from the LHS of the rectangle?
 	if(refl < -maxns) {
-		triml = (size_t)(-refl) - maxns;
+		triml = (size_t)(-refl) - (size_t)maxns;
 	}
 	size_t width = (size_t)(refr - refl + 1);
 	rect.refl_pretrim = refl;
@@ -337,7 +337,7 @@ bool DynProgFramer::frameFindMateAnchorRightRect(
 	}
 	// Trim from the LHS of the rectangle?
 	if(refl < -maxns) {
-		triml = (size_t)(-refl) - maxns;
+		triml = (size_t)(-refl) - (size_t)maxns;
 	}
 	size_t width = (size_t)(refr - refl + 1);
 	rect.refl_pretrim = refl;
