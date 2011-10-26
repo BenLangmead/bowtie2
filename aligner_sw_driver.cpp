@@ -1147,7 +1147,7 @@ bool SwDriver::extendSeedsPaired(
 								(size_t)onceil, // max # Ns on opp mate
 								maxhalf,     // max width in either direction
 								orect);      // DP rectangle
-							assert_geq(orect.refr, orect.refl);
+							assert(!foundMate || orect.refr >= orect.refl);
 						}
 						if(foundMate) {
 							ores_.reset();
