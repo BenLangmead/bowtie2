@@ -4379,7 +4379,7 @@ for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 			}
 			$rdi = $c->{idx_map}{$rdi} if defined($c->{idx_map}{$rdi});
 			$rdi ne "" || die "rdi was blank:\nreadname=$readname\n".Dumper($c);
-			if($rdi != int($rdi)) {
+			if($rdi =~ /[a-zA-Z]/ || $rdi != int($rdi)) {
 				# Read name has non-numeric characters.  Figure out
 				# what number it is by scanning the names list.
 				defined($c->{names}) || die "Non-numeric read name for case with no names specified";
