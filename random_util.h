@@ -28,17 +28,20 @@
 class Random1toN {
 
 public:
-	Random1toN(int cat = 0) : n_(0), cur_(0), list_(cat) {}
-	Random1toN(size_t n, int cat = 0) : n_(n), cur_(0), list_(cat) {}
+	static const size_t THRESH = 32;
+
+	Random1toN(int cat = 0) : n_(0), cur_(0), list_(THRESH, cat) {}
+	Random1toN(size_t n, int cat = 0) : n_(n), cur_(0), list_(THRESH, cat) {}
 
 	void init(size_t n) {
 		n_ = n;
+		small_ = n < THRESH;
 		cur_ = 0;
 		list_.clear();
 	}
 	
 	void reset() {
-		n_ = cur_ = 0; list_.clear();
+		n_ = cur_ = 0; small_ = false; list_.clear();
 	}
 
 	uint32_t next(RandomSource& rnd) {
@@ -48,19 +51,27 @@ public:
 				cur_ = 1;
 				return 0;
 			}
-			// Initialize list
-			list_.resize(n_);
-			for(size_t i = 0; i < n_; i++) {
-				list_[i] = ((uint32_t)i);
+			if(small_) {
+				// Initialize list
+				list_.resize(n_);
+				for(size_t i = 0; i < n_; i++) {
+					list_[i] = ((uint32_t)i);
+				}
 			}
 		}
-		size_t r = cur_ + (rnd.nextU32() % (n_ - cur_));
-		if(r != cur_) {
-			uint32_t tmp = list_[cur_];
-			list_[cur_] = list_[r];
-			list_[r] = tmp;
+		if(small_) {
+			size_t r = cur_ + (rnd.nextU32() % (n_ - cur_));
+			if(r != cur_) {
+				uint32_t tmp = list_[cur_];
+				list_[cur_] = list_[r];
+				list_[r] = tmp;
+			}
+			return list_[cur_++];
+		} else {
+			// We have a large domain, so we'll draw a random without regard to
+			// previous draws
+			return rnd.nextU32() % (uint32_t)n_;
 		}
-		return list_[cur_++];
 	}
 	
 	bool inited() { return n_ > 0; }
@@ -72,9 +83,11 @@ public:
 	size_t left() const { return n_ - cur_; }
 
 protected:
-	size_t          n_;
-	size_t          cur_;
-	EList<uint32_t> list_;
+
+	size_t          n_;     // domain to pick elts from
+	bool            small_; // if small, use swapping
+	size_t          cur_;   // # times next() was called
+	EList<uint32_t> list_;  // state to remember what's been picked
 };
 
 #endif

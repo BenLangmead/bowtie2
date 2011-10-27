@@ -134,7 +134,7 @@ void AlnRes::setShape(
 		for(size_t i = 0; i < ned_.size(); i++) {
 			// Shift by trim5p, since edits are w/r/t 5p end
 			assert_geq(ned_[i].pos, trimBeg);
-			ned_[i].pos -= trimBeg;
+			ned_[i].pos -= (uint32_t)trimBeg;
 		}
 	}
 	// Length after all soft trimming and any hard trimming that occurred

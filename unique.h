@@ -121,17 +121,17 @@ public:
 		if(!hasSecbest) {
 			// Top third?
 			TAlScore bestOver = best - scMin;
-			if(bestOver >= diff * 0.8f) {
+			if(bestOver >= diff * (double)0.8f) {
 				ret = 44;
-			} else if(bestOver >= diff * 0.7f) {
+			} else if(bestOver >= diff * (double)0.7f) {
 				ret = 40;
-			} else if(bestOver >= diff * 0.6f) {
+			} else if(bestOver >= diff * (double)0.6f) {
 				ret = 28;
-			} else if(bestOver >= diff * 0.5f) {
+			} else if(bestOver >= diff * (double)0.5f) {
 				ret = 24;
-			} else if(bestOver >= diff * 0.4f) {
+			} else if(bestOver >= diff * (double)0.4f) {
 				ret = 4;
-			} else if(bestOver >= diff * 0.3f) {
+			} else if(bestOver >= diff * (double)0.3f) {
 				ret = 2;
 			} else {
 				ret = 0;
@@ -139,30 +139,30 @@ public:
 		} else {
 			secbest = s.secbest(mate1).score();
 			TAlScore bestdiff = abs(abs(best)-abs(secbest));
-			if(bestdiff >= diff * 0.9f) {
+			if(bestdiff >= diff * (double)0.9f) {
 				ret = 21;
-			} else if(bestdiff >= diff * 0.8f) {
+			} else if(bestdiff >= diff * (double)0.8f) {
 				ret = 19;
-			} else if(bestdiff >= diff * 0.7f) {
+			} else if(bestdiff >= diff * (double)0.7f) {
 				ret = 17;
-			} else if(bestdiff >= diff * 0.6f) {
+			} else if(bestdiff >= diff * (double)0.6f) {
 				ret = 13;
-			} else if(bestdiff >= diff * 0.5f) {
+			} else if(bestdiff >= diff * (double)0.5f) {
 				ret = 11;
-			} else if(bestdiff >= diff * 0.4f) {
+			} else if(bestdiff >= diff * (double)0.4f) {
 				ret = 9;
-			} else if(bestdiff >= diff * 0.3f) {
+			} else if(bestdiff >= diff * (double)0.3f) {
 				ret = 3;
-			} else if(bestdiff >= diff * 0.2f) {
+			} else if(bestdiff >= diff * (double)0.2f) {
 				ret = 3;
-			} else if(bestdiff >= diff * 0.1f) {
+			} else if(bestdiff >= diff * (double)0.1f) {
 				ret = 3;
 			} else {
 				ret = 1;
 			}
 		}
 		if(flags.alignedConcordant()) {
-			ret = (TMapq)(ret * 1.15f);
+			ret = (TMapq)(ret * (double)1.15f);
 		}
 		if(inps != NULL) {
 			inps = itoa10<TAlScore>(best, inps);
@@ -231,8 +231,8 @@ public:
 		TAlScore scMin = scoreMin_.f<TAlScore>((float)rdlen);
 		TAlScore secbest = scMin-1;
 		TAlScore diff = (scPer - scMin);
-		float sixth_2 = (float)scPer - diff * 0.1666f * 2; 
-		float sixth_3 = (float)scPer - diff * 0.1666f * 3;
+		float sixth_2 = (float)(scPer - diff * (double)0.1666f * 2); 
+		float sixth_3 = (float)(scPer - diff * (double)0.1666f * 3);
 		TMapq ret = 0;
 		TAlScore best = s.best(mate1).score();
 		if(!hasSecbest) {
@@ -251,15 +251,15 @@ public:
 		} else {
 			secbest = s.secbest(mate1).score();
 			TAlScore bestdiff = abs(abs(best)-abs(secbest));
-			if(bestdiff >= diff * 0.1666f * 5) {
+			if(bestdiff >= diff * 0.1666 * 5) {
 				ret = 6;
-			} else if(bestdiff >= diff * 0.1666f * 4) {
+			} else if(bestdiff >= diff * 0.1666 * 4) {
 				ret = 5;
-			} else if(bestdiff >= diff * 0.1666f * 3) {
+			} else if(bestdiff >= diff * 0.1666 * 3) {
 				ret = 4;
-			} else if(bestdiff >= diff * 0.1666f * 2) {
+			} else if(bestdiff >= diff * 0.1666 * 2) {
 				ret = 3;
-			} else if(bestdiff >= diff * 0.1666f * 1) {
+			} else if(bestdiff >= diff * 0.1666 * 1) {
 				ret = 2;
 			} else {
 				ret = 1;

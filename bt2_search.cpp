@@ -72,6 +72,7 @@ static int timing;        // whether to report basic timing data
 static int metricsIval;   // interval between alignment metrics messages (0 = no messages)
 static string metricsFile;// output file to put alignment metrics in
 static bool metricsStderr;// output file to put alignment metrics in
+static bool metricsPerRead; // report a metrics tuple for every read
 static bool allHits;      // for multihits, report just one
 static int showVersion;   // just print version and quit?
 static int ipause;        // pause before maching?
@@ -188,6 +189,8 @@ static uint32_t seedCacheCurrentMB; // # MB to use for current-read seed hit cac
 static SimpleFunc maxelt;    // max # elts to extend for any given batch of seed hits
 static size_t maxhalf;       // max width on one side of DP table
 static bool seedSummaryOnly; // print summary information about seed hits, not alignments
+static bool enable8;         // use 8-bit SSE where possible?
+static bool refscan;         // use reference scanning?
 static bool scanNarrowed;    // true -> do ref scan even when seed is narrow
 static string defaultPreset; // default preset; applied immediately
 static bool ignoreQuals;     // all mms incur same penalty, regardless of qual
@@ -218,6 +221,7 @@ static void resetOptions() {
 	metricsIval				= 1; // interval between alignment metrics messages (0 = no messages)
 	metricsFile             = ""; // output file to put alignment metrics in
 	metricsStderr           = false; // print metrics to stderr (in addition to --metrics-file if it's specified
+	metricsPerRead          = false; // report a metrics tuple for every read?
 	allHits					= false; // for multihits, report just one
 	showVersion				= 0; // just print version and quit?
 	ipause					= 0; // pause before maching?
@@ -335,6 +339,8 @@ static void resetOptions() {
 	seedCacheCurrentMB = 20; // # MB to use for current-read seed hit cacheing
 	maxhalf            = 15; // max width on one side of DP table
 	seedSummaryOnly    = false; // print summary information about seed hits, not alignments
+	enable8            = true;  // use 8-bit SSE where possible?
+	refscan            = true;  // use reference scanning?
 	scanNarrowed       = false; // true -> do ref scan even when seed is narrow
 	defaultPreset      = "sensitive%LOCAL%"; // default preset; applied immediately
 	extra_opts.clear();
@@ -363,6 +369,8 @@ static struct option long_options[] = {
 	{(char*)"metrics",      required_argument, 0,            ARG_METRIC_IVAL},
 	{(char*)"metrics-file", required_argument, 0,            ARG_METRIC_FILE},
 	{(char*)"metrics-stderr",no_argument,      0,            ARG_METRIC_STDERR},
+	{(char*)"metrics-per-read", no_argument,   0,            ARG_METRIC_PER_READ},
+	{(char*)"met-read",     no_argument,       0,            ARG_METRIC_PER_READ},
 	{(char*)"met",          required_argument, 0,            ARG_METRIC_IVAL},
 	{(char*)"met-file",     required_argument, 0,            ARG_METRIC_FILE},
 	{(char*)"met-stderr",   no_argument,       0,            ARG_METRIC_STDERR},
@@ -444,6 +452,10 @@ static struct option long_options[] = {
 	{(char*)"no-discordant",no_argument,       0,            ARG_NO_DISCORDANT},
 	{(char*)"local",        no_argument,       0,            ARG_LOCAL},
 	{(char*)"end-to-end",   no_argument,       0,            ARG_END_TO_END},
+	{(char*)"refscan",      no_argument,       0,            ARG_REFSCAN},
+	{(char*)"no-refscan",   no_argument,       0,            ARG_REFSCAN_NO},
+	{(char*)"sse8",         no_argument,       0,            ARG_SSE8},
+	{(char*)"no-sse8",      no_argument,       0,            ARG_SSE8_NO},
 	{(char*)"scan-narrowed",no_argument,       0,            ARG_SCAN_NARROWED},
 	{(char*)"qc-filter",    no_argument,       0,            ARG_QC_FILTER},
 	{(char*)"bwa-sw-like",  no_argument,       0,            ARG_BWA_SW_LIKE},
@@ -944,6 +956,7 @@ static void parseOption(int next_option, const char *arg) {
 		}
 		case ARG_METRIC_FILE: metricsFile = arg; break;
 		case ARG_METRIC_STDERR: metricsStderr = true; break;
+		case ARG_METRIC_PER_READ: metricsPerRead = true; break;
 		case ARG_NO_FW: gNofw = true; break;
 		case ARG_NO_RC: gNorc = true; break;
 		case ARG_SAM_NO_QNAME_TRUNC: samTruncQname = false; break;
@@ -977,6 +990,10 @@ static void parseOption(int next_option, const char *arg) {
 			break;
 		case ARG_LOCAL: localAlign = true; break;
 		case ARG_END_TO_END: localAlign = false; break;
+		case ARG_REFSCAN: refscan = true; break;
+		case ARG_REFSCAN_NO: refscan = false; break;
+		case ARG_SSE8: enable8 = true; break;
+		case ARG_SSE8_NO: enable8 = false; break;
 		case ARG_SCAN_NARROWED: scanNarrowed = true; break;
 		case ARG_NO_DOVETAIL: gDovetailMatesOK = false; break;
 		case ARG_NO_CONTAIN:  gContainMatesOK = false; break;
@@ -1476,14 +1493,16 @@ struct PerfMetrics {
 	}
 
 	/**
-	 * Reports a matrix of results, incl. column labels, to an
-	 * OutFileBuf.  Optionally also send results to stderr (unbuffered).
+	 * Reports a matrix of results, incl. column labels, to an OutFileBuf.
+	 * Optionally also sends results to stderr (unbuffered).  Can optionally
+	 * print a per-read record with the read name at the beginning.
 	 */
 	void reportInterval(
-		OutFileBuf* o,      // file to send output to
-		bool metricsStderr, // additionally output to stderr?
-		bool total,         // true -> report total, otherwise incremental
-		bool sync)
+		OutFileBuf* o,        // file to send output to
+		bool metricsStderr,   // additionally output to stderr?
+		bool total,           // true -> report total, otherwise incremental
+		bool sync,            //  synchronize output
+		const BTString *name) // non-NULL name pointer if is per-read record
 	{
 		ThreadSafe ts(&lock, sync);
 		time_t curtime = time(0);
@@ -1607,6 +1626,11 @@ struct PerfMetrics {
 				
 				"\n";
 			
+			if(name != NULL) {
+				if(o != NULL) o->writeChars("Name\t");
+				if(metricsStderr) cerr << "Name\t";
+			}
+			
 			if(o != NULL) o->writeChars(str);
 			if(metricsStderr) cerr << str;
 			first = false;
@@ -1614,6 +1638,17 @@ struct PerfMetrics {
 		
 		if(total) mergeIncrementals();
 		
+		// 0. Read name, if needed
+		if(name != NULL) {
+			if(o != NULL) {
+				o->writeChars(name->toZBuf());
+				o->write('\t');
+			}
+			if(metricsStderr) {
+				cerr << (*name) << '\t';
+			}
+		}
+			
 		// 1. Current time in secs
 		itoa10<time_t>(curtime, buf);
 		if(metricsStderr) cerr << buf << '\t';
@@ -2174,9 +2209,9 @@ static inline void printColorLenSkipMsg(
 	}
 }
 
-#define MERGE_METRICS() { \
+#define MERGE_METRICS(met, sync) { \
 	msink.mergeMetrics(rpm); \
-	metrics.merge( \
+	met.merge( \
 		&olm, \
 		&sdm, \
 		&wlm, \
@@ -2189,7 +2224,7 @@ static inline void printColorLenSkipMsg(
 		&sseI16MateMet, \
 		nbtfiltst, \
 		nbtfiltdo, \
-		nthreads > 1); \
+		sync); \
 	olm.reset(); \
 	sdm.reset(); \
 	wlm.reset(); \
@@ -2342,6 +2377,9 @@ static void* multiseedSearchWorker(void *vp) {
 		gOlapMatesOK,
 		gExpandToFrag);
 	
+	PerfMetrics metricsPt; // per-thread metrics object; for read-level metrics
+	BTString nametmp;
+	
 	// Used by thread with threadid == 1 to measure time elapsed
 	time_t iTime = time(0);
 
@@ -2374,19 +2412,24 @@ static void* multiseedSearchWorker(void *vp) {
 		if(patid >= skipReads && patid < qUpto) {
 			// Align this read/pair
 			bool retry = true;
+			//
+			// Check if there is metrics reporting for us to do.
+			//
 			if(metricsIval > 0 &&
 			   (metricsOfb != NULL || metricsStderr) &&
+			   !metricsPerRead &&
 			   ++mergei == mergeival)
 			{
-				// Update global metrics, in a synchronized manner if needed
-				MERGE_METRICS();
+				// Do a periodic merge.  Update global metrics, in a
+				// synchronized manner if needed.
+				MERGE_METRICS(metrics, nthreads > 1);
 				mergei = 0;
 				// Check if a progress message should be printed
 				if(tid == 0) {
 					// Only thread 1 prints progress messages
 					time_t curTime = time(0);
 					if(curTime - iTime >= metricsIval) {
-						metrics.reportInterval(metricsOfb, metricsStderr, false, true);
+						metrics.reportInterval(metricsOfb, metricsStderr, false, true, NULL);
 						iTime = curTime;
 					}
 				}
@@ -2653,6 +2696,8 @@ static void* multiseedSearchWorker(void *vp) {
 								norc,           // don't align revcomp read
 								myMaxeltPair,   // max elts to extend
 								maxhalf,        // max width on one DP side
+								enable8,        // use 8-bit SSE where possible
+								refscan,        // use reference scanning?
 								scanNarrowed,   // ref scan narrowed seed hits?
 								ca,             // seed alignment cache
 								rnd,            // pseudo-random source
@@ -2687,6 +2732,8 @@ static void* multiseedSearchWorker(void *vp) {
 								nceil,          // N ceil for anchor
 								myMaxelt,       // max elts to extend
 								maxhalf,        // max width on one DP side
+								enable8,        // use 8-bit SSE where possible
+								refscan,        // use reference scanning?
 								scanNarrowed,   // ref scan narrowed seed hits?
 								ca,             // seed alignment cache
 								rnd,            // pseudo-random source
@@ -2748,10 +2795,19 @@ static void* multiseedSearchWorker(void *vp) {
 		else if(patid >= qUpto) {
 			break;
 		}
+		if(metricsPerRead) {
+			MERGE_METRICS(metricsPt, nthreads > 1);
+			nametmp = ps->bufa().name;
+			metricsPt.reportInterval(
+				metricsOfb, metricsStderr, true, true, &nametmp);
+			metricsPt.reset();
+		}
 	} // while(true)
 	
 	// One last metrics merge
-	MERGE_METRICS();
+	if(!metricsPerRead && (metricsOfb != NULL || metricsStderr)) {
+		MERGE_METRICS(metrics, nthreads > 1);
+	}
 
 #ifdef BOWTIE_PTHREADS
 	if(tid > 0) { pthread_exit(NULL); }
@@ -2852,7 +2908,9 @@ static void multiseedSearch(
 		for(int i = 0; i < nthreads-1; i++) joinThread(threads[i]);
 #endif
 	}
-	metrics.reportInterval(metricsOfb, metricsStderr, true, false);
+	if(!metricsPerRead && (metricsOfb != NULL || metricsStderr)) {
+		metrics.reportInterval(metricsOfb, metricsStderr, true, false, NULL);
+	}
 }
 
 static string argstr;

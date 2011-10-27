@@ -281,6 +281,8 @@ public:
 		int nceil,                   // maximum # Ns permitted in ref portion
 		const SimpleFunc& maxelt,    // # elts to explore as function of total elts
 		size_t maxhalf,              // maximum width on one side of DP table
+		bool enable8,                // use 8-bit SSE where possible
+		bool refscan,                // use reference scanning
 		bool scanNarrowed,           // true -> ref scan even for narrowed hits
 		AlignmentCacheIface& ca,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random source
@@ -353,6 +355,8 @@ public:
 		bool norc,                   // don't align revcomp read
 		const SimpleFunc& maxelt,    // # elts to explore as function of total elts
 		size_t maxhalf,              // maximum width on one side of DP table
+		bool enable8,                // use 8-bit SSE where possible
+		bool refscan,                // use reference scanning
 		bool scanNarrowed,           // true -> ref scan even for narrowed hits
 		AlignmentCacheIface& cs,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random source
@@ -410,6 +414,7 @@ protected:
 		SeedResults& sh,             // seed hits to extend into full alignments
 		const Ebwt& ebwt,            // BWT
 		const BitPairReference& ref, // Reference strings
+		bool refscan,                // do reference scanning?
 		size_t maxelt,               // max elts we'll consider
 		size_t nsm,                  // if range as <= nsm elts, it's "small"
 		AlignmentCacheIface& ca,     // alignment cache for seed hits

@@ -258,6 +258,7 @@ public:
 		size_t rff,            // offset of last reference char to align to
 		const Scoring& sc,     // scoring scheme
 		TAlScore minsc,        // minimum score
+		bool enable8,          // use 8-bit SSE if possible?
 		bool extend);          // true iff this is a seed extension
 
 	/**
@@ -281,6 +282,7 @@ public:
 		size_t reflen,         // length of reference sequence
 		const Scoring& sc,     // scoring scheme
 		TAlScore minsc,        // minimum alignment score
+		bool enable8,          // use 8-bit SSE if possible?
 		bool extend,           // true iff this is a seed extension
 		SeedScanner *sscan,    // optional seed scanner to feed ref chars to
 		size_t  upto,          // count the number of Ns up to this offset
@@ -498,6 +500,7 @@ protected:
 	size_t              rff_;    // offset of last ref char to align to (excl)
 	size_t              rdgap_;  // max # gaps in read
 	size_t              rfgap_;  // max # gaps in reference
+	bool                enable8_;// enable 8-bit sse
 	bool                extend_; // true iff this is a seed-extend problem
 	const Scoring      *sc_;     // penalties for edit types
 	TAlScore            minsc_;  // penalty ceiling for valid alignments

@@ -400,7 +400,7 @@ void Edit::clipLo(EList<Edit>& ed, size_t len, size_t amt) {
 			nrm++;
 		} else {
 			// Shift everyone else up
-			ed[i].pos -= amt;
+			ed[i].pos -= (uint32_t)amt;
 		}
 	}
 	ed.erase(0, nrm);

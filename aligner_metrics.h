@@ -137,17 +137,17 @@ public:
 		}
 		cout << "AlignerMetrics:" << endl;
 		cout << "  # Reads:             " << reads_ << endl;
-		float hopct = (reads_ > 0) ? (((float)homoReads_)/((float)reads_)) : (0.0);
-		hopct *= 100.0;
+		float hopct = (reads_ > 0) ? (((float)homoReads_)/((float)reads_)) : (0.0f);
+		hopct *= 100.0f;
 		cout << "  % homo-polymeric:    " << (hopct) << endl;
-		float lopct = (reads_ > 0) ? ((float)lowEntReads_/(float)(reads_)) : (0.0);
-		lopct *= 100.0;
+		float lopct = (reads_ > 0) ? ((float)lowEntReads_/(float)(reads_)) : (0.0f);
+		lopct *= 100.0f;
 		cout << "  % low-entropy:       " << (lopct) << endl;
-		float unpct = (reads_ > 0) ? ((float)unalignedReads_/(float)(reads_)) : (0.0);
-		unpct *= 100.0;
+		float unpct = (reads_ > 0) ? ((float)unalignedReads_/(float)(reads_)) : (0.0f);
+		unpct *= 100.0f;
 		cout << "  % unaligned:         " << (unpct) << endl;
-		float npct = (reads_ > 0) ? ((float)threeOrMoreNReads_/(float)(reads_)) : (0.0);
-		npct *= 100.0;
+		float npct = (reads_ > 0) ? ((float)threeOrMoreNReads_/(float)(reads_)) : (0.0f);
+		npct *= 100.0f;
 		cout << "  % with 3 or more Ns: " << (npct) << endl;
 		cout << endl;
 		cout << "  Total BWT ops:    avg: " << bwtOpsPerRead_.mean() << ", stddev: " << bwtOpsPerRead_.stddev() << endl;
