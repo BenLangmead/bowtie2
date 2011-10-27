@@ -340,7 +340,7 @@ static void resetOptions() {
 	maxhalf            = 15; // max width on one side of DP table
 	seedSummaryOnly    = false; // print summary information about seed hits, not alignments
 	enable8            = true;  // use 8-bit SSE where possible?
-	refscan            = true;  // use reference scanning?
+	refscan            = false; // use reference scanning?
 	scanNarrowed       = false; // true -> do ref scan even when seed is narrow
 	defaultPreset      = "sensitive%LOCAL%"; // default preset; applied immediately
 	extra_opts.clear();

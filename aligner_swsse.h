@@ -466,25 +466,6 @@ struct SSEMatrix {
 		}
 	}
 
-#if 0
-	/**
-	 * Given a row, col and matrix (i.e. E, F or H), return the corresponding
-	 * element.
-	 */
-	inline void* eltptr(size_t row, size_t col, size_t mat) const {
-		assert(inited_);
-		assert_lt(row, nrow_);
-		assert_lt(col, ncol_);
-		assert_lt(mat, 3);
-		// Move to beginning of column/row
-		size_t rowelt = row / nvecrow_;
-		size_t rowvec = row % nvecrow_;
-		size_t eltvec = (col * colstride_) + (rowvec * rowstride_) + mat;
-		assert_lt(eltvec, buf_.size());
-		return &buf_[eltvec] + rowelt;
-	}
-#endif	
-
 	/**
 	 * Return the element in the E matrix at element row, col.
 	 */
@@ -513,7 +494,7 @@ struct SSEMatrix {
 		size_t row,          // current row
 		size_t col) const    // current column
 	{
-		return ((masks_[row * ncol_ + col] & (1 << 0)) != 0);
+		return (masks_[row][col] & (1 << 0)) != 0;
 	}
 
 	/**
@@ -523,7 +504,7 @@ struct SSEMatrix {
 		size_t row,          // current row
 		size_t col)          // current column
 	{
-		masks_[row * ncol_ + col] |= (1 << 0);
+		masks_[row][col] |= (1 << 0);
 	}
 
 	/**
@@ -623,6 +604,16 @@ struct SSEMatrix {
 	size_t ncol() const {
 		return ncol_;
 	}
+	
+	/**
+	 * Prepare a row so we can use it to store masks.
+	 */
+	void resetRow(size_t i) {
+		assert(!reset_[i]);
+		masks_[i].resizeNoCopy(ncol_);
+		masks_[i].fillZero();
+		reset_[i] = true;
+	}
 
 	bool             inited_;      // initialized?
 	size_t           nrow_;        // # rows
@@ -636,7 +627,8 @@ struct SSEMatrix {
 	size_t           colstride_;   // # vectors b/t adjacent cells in same row
 	size_t           rowstride_;   // # vectors b/t adjacent cells in same col
 	EList_m128i      buf_;         // buffer for holding vectors
-	EList<uint16_t>  masks_;       // buffer for masks/backtracking flags
+	ELList<uint16_t> masks_;       // buffer for masks/backtracking flags
+	EList<bool>      reset_;       // true iff row has been reset
 };
 
 /**
@@ -664,7 +656,7 @@ inline bool SSEMatrix::isHMaskSet(
 	size_t row,          // current row
 	size_t col) const    // current column
 {
-	return ((masks_[row * ncol_ + col] & (1 << 1)) != 0);
+	return (masks_[row][col] & (1 << 1)) != 0;
 }
 
 /**
@@ -678,8 +670,8 @@ inline void SSEMatrix::hMaskSet(
 	int mask)
 {
 	assert_lt(mask, 32);
-	masks_[row * ncol_ + col] &= ~(31 << 1);
-	masks_[row * ncol_ + col] |= (1 << 1 | mask << 2);
+	masks_[row][col] &= ~(31 << 1);
+	masks_[row][col] |= (1 << 1 | mask << 2);
 }
 
 /**
@@ -689,7 +681,7 @@ inline bool SSEMatrix::isEMaskSet(
 	size_t row,          // current row
 	size_t col) const    // current column
 {
-	return ((masks_[row * ncol_ + col] & (1 << 7)) != 0);
+	return (masks_[row][col] & (1 << 7)) != 0;
 }
 
 /**
@@ -703,8 +695,8 @@ inline void SSEMatrix::eMaskSet(
 	int mask)
 {
 	assert_lt(mask, 4);
-	masks_[row * ncol_ + col] &= ~(7 << 7);
-	masks_[row * ncol_ + col] |=  (1 << 7 | mask << 8);
+	masks_[row][col] &= ~(7 << 7);
+	masks_[row][col] |=  (1 << 7 | mask << 8);
 }
 
 /**
@@ -714,7 +706,7 @@ inline bool SSEMatrix::isFMaskSet(
 	size_t row,          // current row
 	size_t col) const    // current column
 {
-	return ((masks_[row * ncol_ + col] & (1 << 10)) != 0);
+	return (masks_[row][col] & (1 << 10)) != 0;
 }
 
 /**
@@ -728,8 +720,8 @@ inline void SSEMatrix::fMaskSet(
 	int mask)
 {
 	assert_lt(mask, 4);
-	masks_[row * ncol_ + col] &= ~(7 << 10);
-	masks_[row * ncol_ + col] |=  (1 << 10 | mask << 11);
+	masks_[row][col] &= ~(7 << 10);
+	masks_[row][col] |=  (1 << 10 | mask << 11);
 }
 
 #endif /*ndef ALIGNER_SWSSE_H_*/

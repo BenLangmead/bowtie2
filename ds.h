@@ -348,7 +348,6 @@ public:
 	explicit EList(size_t isz, int cat = 0) :
 		cat_(cat), allocCat_(-1), list_(NULL), sz_(isz), cur_(0)
 	{
-		assert_gt(isz, 0);
 		assert_geq(cat, 0);
 	}
 
@@ -515,13 +514,29 @@ public:
 	 * If size is less than requested size, resize up to at least sz
 	 * and set cur_ to requested sz.
 	 */
+	void resizeNoCopy(size_t sz) {
+		if(sz > 0 && list_ == NULL) lazyInit();
+		if(sz <= cur_) {
+			cur_ = sz;
+			return;
+		}
+		if(sz_ < sz) expandNoCopy(sz);
+		cur_ = sz;
+	}
+
+	/**
+	 * If size is less than requested size, resize up to at least sz
+	 * and set cur_ to requested sz.
+	 */
 	void resize(size_t sz) {
 		if(sz > 0 && list_ == NULL) lazyInit();
 		if(sz <= cur_) {
 			cur_ = sz;
 			return;
 		}
-		if(sz_ < sz) expandCopy(sz);
+		if(sz_ < sz) {
+			expandCopy(sz);
+		}
 		cur_ = sz;
 	}
 
@@ -1082,7 +1097,9 @@ public:
 			cur_ = sz;
 			return;
 		}
-		if(sz_ < sz) expandCopy(sz);
+		if(sz_ < sz) {
+			expandCopy(sz);
+		}
 		cur_ = sz;
 	}
 

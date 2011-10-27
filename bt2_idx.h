@@ -1927,7 +1927,7 @@ void Ebwt::joinToDisk(
 			//writeU32(out1, oldRetLen, this->toBe()); // offset from beginning of joined string
 			//writeU32(out1, seq,       this->toBe()); // sequence id
 			//writeU32(out1, patoff,    this->toBe()); // offset into sequence
-			patoff += bases;
+			patoff += (uint32_t)bases;
 		}
 		assert_gt(szsi, 0);
 		l[i]->reset();

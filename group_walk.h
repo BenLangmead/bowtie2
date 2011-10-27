@@ -242,13 +242,13 @@ class GWHit {
 
 public:
 
-	GWHit(size_t sz = 8) :
-		fmap(sz, GW_CAT),
+	GWHit() :
+		fmap(0, GW_CAT),
 		offidx(0xffffffff),
 		fw(false),
 		range(0xffffffff),
 		len(0xffffffff),
-		reported_(sz, GW_CAT),
+		reported_(0, GW_CAT),
 		nrep_(0)
 	{
 		assert(repOkBasic());
@@ -370,7 +370,7 @@ class GWState {
 	
 public:
 
-	GWState(size_t sz = 8) : map_(sz, GW_CAT) {
+	GWState() : map_(0, GW_CAT) {
 		reset(); assert(repOkBasic());
 	}
 	
