@@ -344,7 +344,7 @@ static void resetOptions() {
 	wrapper.clear();         // type of wrapper script, so we can print correct usage
 	queries.clear();         // list of query files
 	outfile.clear();         // write SAM output to this file
-	mapqv = 1;               // MAPQ calculation version
+	mapqv = 2;               // MAPQ calculation version
 }
 
 static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:o:w:p:k:M:1:2:I:X:CQ:N:i:L:U:x:S:";
