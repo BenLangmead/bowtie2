@@ -90,11 +90,8 @@ void SwAligner::buildQueryProfileLocalSseU8(bool fw) {
 		* 2;                    // & gap barrier data
 	assert_gt(n128s, 0);
 	SSEData& d = fw ? sseU8fw_ : sseU8rc_;
-	d.buf_.resize(n128s * sizeof(__m128i));
-	// Get a 16-byte aligned pointer toward the beginning of the buffer.
-	size_t aligned = ((size_t)d.buf_.ptr() + 15) & ~(0x0f);
-	// Set up pointers into the buffer for fw query
-	d.qprof_       = reinterpret_cast<__m128i*>(aligned);
+	d.profbuf_.resizeNoCopy(n128s);
+	assert(!d.profbuf_.empty());
 	d.maxPen_      = d.maxBonus_ = 0;
 	d.lastIter_    = d.lastWord_ = 0;
 	d.qprofStride_ = d.gbarStride_ = 2;
@@ -118,9 +115,9 @@ void SwAligner::buildQueryProfileLocalSseU8(bool fw) {
 		for(size_t i = 0; i < seglen; i++) {
 			size_t j = i;
 			uint8_t *qprofWords =
-				reinterpret_cast<uint8_t*>(d.qprof_ + (refc * seglen * 2) + (i * 2));
+				reinterpret_cast<uint8_t*>(d.profbuf_.ptr() + (refc * seglen * 2) + (i * 2));
 			uint8_t *gbarWords =
-				reinterpret_cast<uint8_t*>(d.qprof_ + (refc * seglen * 2) + (i * 2) + 1);
+				reinterpret_cast<uint8_t*>(d.profbuf_.ptr() + (refc * seglen * 2) + (i * 2) + 1);
 			// For each sub-word (byte) ...
 			for(size_t k = 0; k < NWORDS_PER_REG; k++) {
 				int sc = 0;
@@ -313,8 +310,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag) {
 	SSEMetrics& met = extend_ ? sseU8ExtendMet_ : sseU8MateMet_;
 	met.dp++;
 	buildQueryProfileLocalSseU8(fw_);
-	assert(!d.buf_.empty());
-	assert(d.qprof_ != NULL);
+	assert(!d.profbuf_.empty());
 	assert_geq(d.bias_, 0);
 
 	assert_gt(d.maxBonus_, 0);
@@ -450,7 +446,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag) {
 		
 		// Fetch the appropriate query profile
 		size_t off = (size_t)firsts5[refm] * iter * 2;
-		pvScore = d.qprof_ + off; // even elts = query profile, odd = gap barrier
+		pvScore = d.profbuf_.ptr() + off; // even elts = query profile, odd = gap barrier
 		
 		// Load H vector from the final row of the previous column
 		vh = _mm_load_si128(pvHLoad + colstride - ROWSTRIDE);
@@ -575,7 +571,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag) {
 		ve = _mm_load_si128(pvEStore);
 		
 		pvHLoad = pvHStore;    // new pvHLoad = pvHStore
-		pvScore = d.qprof_ + off + 1; // reset veto vector
+		pvScore = d.profbuf_.ptr() + off + 1; // reset veto vector
 		
 		// vf from last row gets shifted down by one to overlay the first row
 		// rfgape has already been subtracted from it.
@@ -620,7 +616,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag) {
 				vh = _mm_load_si128(pvHStore);     // load next vh ASAP
 				pvEStore -= colstride;
 				ve = _mm_load_si128(pvEStore);     // load next ve ASAP
-				pvScore = d.qprof_ + off + 1;
+				pvScore = d.profbuf_.ptr() + off + 1;
 				j = 0;
 				vf = _mm_slli_si128(vf, NBYTES_PER_WORD);
 			} else {
@@ -770,8 +766,7 @@ bool SwAligner::gatherCellsNucleotidesLocalSseU8(TAlScore best) {
 	btncanddone_.clear();
 	SSEData& d = fw_ ? sseU8fw_ : sseU8rc_;
 	SSEMetrics& met = extend_ ? sseU8ExtendMet_ : sseU8MateMet_;
-	assert(!d.buf_.empty());
-	assert(d.qprof_ != NULL);
+	assert(!d.profbuf_.empty());
 	//const size_t rowstride = d.mat_.rowstride();
 	const size_t colstride = d.mat_.colstride();
 	size_t iter = (dpRows() + (NWORDS_PER_REG - 1)) / NWORDS_PER_REG;
@@ -935,7 +930,7 @@ bool SwAligner::gatherCellsNucleotidesLocalSseU8(TAlScore best) {
 	rowelt = row / d.mat_.nvecrow_; \
 	rowvec = row % d.mat_.nvecrow_; \
 	eltvec = (col * d.mat_.colstride_) + (rowvec * ROWSTRIDE); \
-	cur_vec = d.mat_.buf_.ptr() + eltvec; \
+	cur_vec = d.mat_.matbuf_.ptr() + eltvec; \
 	left_vec = cur_vec; \
 	left_rowelt = rowelt; \
 	left_rowvec = rowvec; \
@@ -994,8 +989,7 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 	SSEData& d = fw_ ? sseU8fw_ : sseU8rc_;
 	SSEMetrics& met = extend_ ? sseU8ExtendMet_ : sseU8MateMet_;
 	met.bt++;
-	assert(!d.buf_.empty());
-	assert(d.qprof_ != NULL);
+	assert(!d.profbuf_.empty());
 	assert_lt(row, rd_->length());
 	btnstack_.clear(); // empty the backtrack stack
 	btcells_.clear();  // empty the cells-so-far list

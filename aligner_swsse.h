@@ -28,7 +28,7 @@
 #include <emmintrin.h>
 #include <strings.h>
 
-class EList_m128i : public EList<__m128i, 256> {
+class EList_m128i {
 public:
 
 	/**
@@ -94,7 +94,25 @@ public:
 			cur_ = sz;
 			return;
 		}
-		if(sz_ < sz) expandCopy(sz);
+		if(sz_ < sz) {
+			expandCopy(sz);
+		}
+		cur_ = sz;
+	}
+
+	/**
+	 * If size is less than requested size, resize up to at least sz
+	 * and set cur_ to requested sz.  Do not copy the elements over.
+	 */
+	void resizeNoCopy(size_t sz) {
+		if(sz > 0 && list_ == NULL) lazyInit();
+		if(sz <= cur_) {
+			cur_ = sz;
+			return;
+		}
+		if(sz_ < sz) {
+			expandNoCopy(sz);
+		}
 		cur_ = sz;
 	}
 
@@ -251,6 +269,34 @@ private:
 		cur_ = cur;
 	}
 
+	/**
+	 * Expand the list_ buffer until it has at least 'thresh' elements.
+	 * Size increases quadratically with number of expansions.  Don't copy old
+	 * contents into the new buffer.
+	 */
+	void expandNoCopy(size_t thresh) {
+		assert(list_ != NULL);
+		if(thresh <= sz_) return;
+		size_t newsz = (sz_ * 2)+1;
+		while(newsz < thresh) newsz *= 2;
+		expandNoCopyExact(newsz);
+	}
+
+	/**
+	 * Expand the list_ buffer until it has exactly 'newsz' elements.  Don't
+	 * copy old contents into the new buffer.
+	 */
+	void expandNoCopyExact(size_t newsz) {
+		assert(list_ != NULL);
+		assert_gt(newsz, 0);
+		free();
+		__m128i* tmp = alloc(newsz);
+		assert(tmp != NULL);
+		list_ = tmp;
+		sz_ = newsz;
+		assert_gt(sz_, 0);
+	}
+
 	int      cat_;        // memory category, for accounting purposes
 	__m128i* last_alloc_; // what new[] originally returns
 	__m128i *list_;       // list ptr, aligned version of what new[] returns
@@ -334,14 +380,14 @@ struct SSEMatrix {
 	const static size_t H   = 2;
 	const static size_t TMP = 3;
 
-	SSEMatrix(int cat = 0) : nvecPerCell_(4), buf_(cat) { }
+	SSEMatrix(int cat = 0) : nvecPerCell_(4), matbuf_(cat) { }
 
 	/**
 	 * Return a pointer to the matrix buffer.
 	 */
 	inline __m128i *ptr() {
 		assert(inited_);
-		return buf_.ptr();
+		return matbuf_.ptr();
 	}
 	
 	/**
@@ -352,7 +398,7 @@ struct SSEMatrix {
 		assert_lt(row, nvecrow_);
 		assert_lt(col, nveccol_);
 		size_t elt = row * rowstride() + col * colstride() + E;
-		assert_lt(elt, buf_.size());
+		assert_lt(elt, matbuf_.size());
 		return ptr() + elt;
 	}
 
@@ -364,7 +410,7 @@ struct SSEMatrix {
 		assert_lt(row, nvecrow_);
 		assert_leq(col, nveccol_);
 		size_t elt = row * rowstride() + col * colstride() + E;
-		assert_lt(elt, buf_.size());
+		assert_lt(elt, matbuf_.size());
 		return ptr() + elt;
 	}
 
@@ -376,7 +422,7 @@ struct SSEMatrix {
 		assert_lt(row, nvecrow_);
 		assert_lt(col, nveccol_);
 		size_t elt = row * rowstride() + col * colstride() + F;
-		assert_lt(elt, buf_.size());
+		assert_lt(elt, matbuf_.size());
 		return ptr() + elt;
 	}
 
@@ -388,7 +434,7 @@ struct SSEMatrix {
 		assert_lt(row, nvecrow_);
 		assert_lt(col, nveccol_);
 		size_t elt = row * rowstride() + col * colstride() + H;
-		assert_lt(elt, buf_.size());
+		assert_lt(elt, matbuf_.size());
 		return ptr() + elt;
 	}
 
@@ -400,7 +446,7 @@ struct SSEMatrix {
 		assert_lt(row, nvecrow_);
 		assert_lt(col, nveccol_);
 		size_t elt = row * rowstride() + col * colstride() + TMP;
-		assert_lt(elt, buf_.size());
+		assert_lt(elt, matbuf_.size());
 		return ptr() + elt;
 	}
 
@@ -412,7 +458,7 @@ struct SSEMatrix {
 		assert_lt(row, nvecrow_);
 		assert_leq(col, nveccol_);
 		size_t elt = row * rowstride() + col * colstride() + TMP;
-		assert_lt(elt, buf_.size());
+		assert_lt(elt, matbuf_.size());
 		return ptr() + elt;
 	}
 	
@@ -457,12 +503,12 @@ struct SSEMatrix {
 		size_t rowelt = row / nvecrow_;
 		size_t rowvec = row % nvecrow_;
 		size_t eltvec = (col * colstride_) + (rowvec * rowstride_) + mat;
-		assert_lt(eltvec, buf_.size());
+		assert_lt(eltvec, matbuf_.size());
 		if(wperv_ == 16) {
-			return (int)((uint8_t*)(buf_.ptr() + eltvec))[rowelt];
+			return (int)((uint8_t*)(matbuf_.ptr() + eltvec))[rowelt];
 		} else {
 			assert_eq(8, wperv_);
-			return (int)((int16_t*)(buf_.ptr() + eltvec))[rowelt];
+			return (int)((int16_t*)(matbuf_.ptr() + eltvec))[rowelt];
 		}
 	}
 
@@ -626,7 +672,7 @@ struct SSEMatrix {
 	size_t           nvecPerCell_; // # vectors per matrix cell (4)
 	size_t           colstride_;   // # vectors b/t adjacent cells in same row
 	size_t           rowstride_;   // # vectors b/t adjacent cells in same col
-	EList_m128i      buf_;         // buffer for holding vectors
+	EList_m128i      matbuf_;      // buffer for holding vectors
 	ELList<uint16_t> masks_;       // buffer for masks/backtracking flags
 	EList<bool>      reset_;       // true iff row has been reset
 };
@@ -636,9 +682,8 @@ struct SSEMatrix {
  * alignment of a query.
  */
 struct SSEData {
-	SSEData(int cat = 0) : buf_(cat), mat_(cat) { }
-	EList_m128i    buf_;         // buffer for query profile & temp vecs
-	__m128i       *qprof_;       // query profile
+	SSEData(int cat = 0) : profbuf_(cat), mat_(cat) { }
+	EList_m128i    profbuf_;     // buffer for query profile & temp vecs
 	size_t         qprofStride_; // stride for query profile
 	size_t         gbarStride_;  // gap barrier for query profile
 	SSEMatrix      mat_;         // SSE matrix for holding all E, F, H vectors
