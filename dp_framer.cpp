@@ -101,7 +101,7 @@ bool DynProgFramer::frameSeedExtensionRect(
 	// Check if we have to trim to fit the extents of the reference
 	if(trimToRef_) {
 		maxns = 0; // no leeway
-	} else if(maxns == rdlen) {
+	} else if(maxns == (int64_t)rdlen) {
 		maxns--;
 	}
 	// Trim from RHS of rectangle
@@ -215,7 +215,7 @@ bool DynProgFramer::frameFindMateAnchorLeftRect(
 	int64_t refr = en_right_pad;
 	if(trimToRef_) {
 		maxns = 0;
-	} else if(maxns == rdlen) {
+	} else if(maxns == (int64_t)rdlen) {
 		maxns--;
 	}
 	// Trim from the RHS of the rectangle?
@@ -328,7 +328,7 @@ bool DynProgFramer::frameFindMateAnchorRightRect(
 	int64_t refr = en_right_pad;
 	if(trimToRef_) {
 		maxns = 0;
-	} else if(maxns == rdlen) {
+	} else if(maxns == (int64_t)rdlen) {
 		maxns--;
 	}
 	// Trim from the RHS of the rectangle?
