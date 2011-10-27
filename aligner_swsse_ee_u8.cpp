@@ -52,8 +52,6 @@
  *   to find and backtrace from good solutions.
  */
 
-#ifndef NO_SSE
-
 #include <limits>
 #include "aligner_sw.h"
 
@@ -911,6 +909,7 @@ bool SwAligner::gatherCellsNucleotidesEnd2EndSseU8(TAlScore best) {
 	const size_t nrow = dpRows();
 	assert_gt(nrow, 0);
 	btncand_.clear();
+	btncanddone_.clear();
 	SSEData& d = fw_ ? sseU8fw_ : sseU8rc_;
 	SSEMetrics& met = extend_ ? sseU8ExtendMet_ : sseU8MateMet_;
 	assert(!d.buf_.empty());
@@ -919,7 +918,6 @@ bool SwAligner::gatherCellsNucleotidesEnd2EndSseU8(TAlScore best) {
 	ASSERT_ONLY(bool sawbest = false);
 	__m128i *pvH = d.mat_.hvec(d.lastIter_, 0);
 	for(size_t j = 0; j < ncol; j++) {
-		met.gathcell++;
 		TAlScore sc = (TAlScore)(((TCScore*)pvH)[d.lastWord_] - 0xff);
 		assert_leq(sc, best);
 		ASSERT_ONLY(sawbest = (sawbest || sc == best));
@@ -932,12 +930,9 @@ bool SwAligner::gatherCellsNucleotidesEnd2EndSseU8(TAlScore best) {
 		pvH += colstride;
 	}
 	assert(sawbest);
-	btncand_.sort();
-	if(btncand_.empty()) {
-		nfail_++;
-	} else {
-		nsucc_++;
+	if(!btncand_.empty()) {
 		d.mat_.initMasks();
+		btncand_.sort();
 	}
 	return !btncand_.empty();
 }
@@ -1577,5 +1572,3 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseU8(
 	met.btsucc++; // DP backtraces succeeded
 	return true;
 }
-
-#endif

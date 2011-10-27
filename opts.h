@@ -79,7 +79,6 @@ enum {
 	ARG_LOCAL,                  // --local
 	ARG_END_TO_END,             // --end-to-end
 	ARG_SCAN_NARROWED,          // --scan-narrowed
-	ARG_NO_SSE,                 // --no-sse
 	ARG_QC_FILTER,              // --qc-filter
 	ARG_BWA_SW_LIKE,            // --bwa-sw-like
 	ARG_MULTISEED_IVAL,         // --multiseed

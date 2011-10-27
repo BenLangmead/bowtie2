@@ -70,11 +70,7 @@
 #include <stdint.h>
 #include <iostream>
 #include <limits>
-
-#ifndef NO_SSE
 #include <emmintrin.h>
-#endif
-
 #include "aligner_sw_common.h"
 #include "aligner_sw_nuc.h"
 #include "ds.h"
@@ -87,10 +83,7 @@
 #include "mask.h"
 #include "seed_scan.h"
 #include "dp_framer.h"
-
-#ifndef NO_SSE
 #include "aligner_swsse.h"
-#endif
 
 #define QUAL2(d, f) sc_->mm((int)(*rd_)[rdi_ + d], \
 							(int)  rf_ [rfi_ + f], \
@@ -214,32 +207,23 @@ class SwAligner {
 
 public:
 
-	explicit SwAligner(bool sse = true) :
-#ifndef NO_SSE
-		sse_(sse),
+	explicit SwAligner() :
 		sseU8fw_(DP_CAT),
 		sseU8rc_(DP_CAT),
 		sseI16fw_(DP_CAT),
 		sseI16rc_(DP_CAT),
 		sseI32fw_(DP_CAT),
 		sseI32rc_(DP_CAT),
-#endif
 		state_(STATE_UNINIT),
 		initedRead_(false),
 		initedRef_(false),
 		rfwbuf_(DP_CAT),
-		ntab_(DP_CAT),
 		btnstack_(DP_CAT),
 		btcells_(DP_CAT),
 		btncand_(DP_CAT),
-		nfills_(0),
-		ncups_(0),
-		nrowups_(0),
-		nrowskips_(0),
-		nskip_(0),
-		nsucc_(0),
-		nfail_(0),
-		nbts_(0)
+		btncanddone_(DP_CAT),
+		btncanddoneSucc_(0),
+		btncanddoneFail_(0)
 		ASSERT_ONLY(, cand_tmp_(DP_CAT))
 	{
 		SwAligner::EXTREMES.first = std::numeric_limits<size_t>::max();
@@ -363,25 +347,13 @@ public:
 	inline void reset() { initedRef_ = initedRead_ = false; }
 
 	/**
-	 * Do some quick filtering, setting elements of st_ and en_ to false
-	 * according to the alignment policy and properties of the read/ref
-	 * sequence.
-	 */
-	//inline void filter(size_t nlim) { nfilter(nlim); }
-	
-	/**
 	 * Check that aligner is internally consistent.
 	 */
 	bool repOk() const {
 		assert_gt(dpRows(), 0);
 		// Check btncand_
 		for(size_t i = 0; i < btncand_.size(); i++) {
-			assert(sse_ || btncand_[i].row < ntab_.size());
 			assert(solrowlo_ < 0 || btncand_[i].row >= (size_t)solrowlo_);
-			// The SSE aligner, when operating in local (not end-to-end)
-			// mode might find solutions ending outside of the
-			// parallelogram.
-			//assert_lt(btncand_[i].col, ntab_[btncand_[i].row].size());
 			assert(btncand_[i].repOk());
 			assert_geq(btncand_[i].score, minsc_);
 		}
@@ -400,12 +372,16 @@ public:
 		SSEMetrics& sseU8ExtendMet,
 		SSEMetrics& sseU8MateMet,
 		SSEMetrics& sseI16ExtendMet,
-		SSEMetrics& sseI16MateMet)
+		SSEMetrics& sseI16MateMet,
+		uint64_t&   nbtfiltst,
+		uint64_t&   nbtfiltdo)
 	{
 		sseU8ExtendMet.merge(sseU8ExtendMet_);
 		sseU8MateMet.merge(sseU8MateMet_);
 		sseI16ExtendMet.merge(sseI16ExtendMet_);
 		sseI16MateMet.merge(sseI16MateMet_);
+		nbtfiltst += nbtfiltst_;
+		nbtfiltdo += nbtfiltdo_;
 	}
 	
 	/**
@@ -416,16 +392,10 @@ public:
 		sseU8MateMet_.reset();
 		sseI16ExtendMet_.reset();
 		sseI16MateMet_.reset();
+		nbtfiltst_ = nbtfiltdo_ = 0;
 	}
 
 protected:
-	
-	/**
-	 * Set elements of en_ to false if an ungapped alignment extending
-	 * diagonally back from the corresponding cell in the last row would
-	 * overlap too many Ns (more than nlim).
-	 */
-	//size_t nfilter(size_t nlim);
 	
 	/**
 	 * Return the number of rows that will be in the dynamic programming table.
@@ -434,15 +404,6 @@ protected:
 		assert(initedRead_);
 		return rdf_ - rdi_ + (color_ ? 1 : 0);
 	}
-
-	/**
-	 * Align nucleotides from read 'rd' to the reference string 'rf' using
-	 * dynamic programming and normal, serial code.  Return true iff zero or
-	 * more alignments are possible.
-	 */
-	//TAlScore alignNucleotides();
-
-#ifndef NO_SSE
 
 	/**
 	 * Align nucleotides from read 'rd' to the reference string 'rf' using
@@ -520,8 +481,6 @@ protected:
 		size_t         col,    // start in this rectangle column
 		RandomSource&  rand);  // random gen, to choose among equal paths
 
-#endif
-
 	const BTDnaString  *rd_;     // read sequence
 	const BTString     *qu_;     // read qualities
 	const BTDnaString  *rdfw_;   // read sequence for fw read
@@ -546,7 +505,6 @@ protected:
 	int                 nceil_;  // max # Ns allowed in ref portion of aln
 	bool                monotone_; // true iff scores only go down
 
-	bool                sse_;       // true -> use SSE 128-bit instructs
 	bool                sse8succ_;  // whether 8-bit worked
 	bool                sse16succ_; // whether 16-bit worked
 	SSEData             sseU8fw_;   // buf for fw query, 8-bit score
@@ -565,31 +523,26 @@ protected:
 	SSEMetrics			sseI16ExtendMet_;
 	SSEMetrics			sseI16MateMet_;
 
-	int                 state_;  // state
+	int                 state_;      // state
 	bool                initedRead_; // true iff initialized with initRead
 	bool                initedRef_;  // true iff initialized with initRef
-	EList<uint32_t>     rfwbuf_; // buffer for wordized refernece stretches
-	ELList<SwNucCell>   ntab_;   // DP table for nucleotide read
+	EList<uint32_t>     rfwbuf_;     // buffer for wordized refernece stretches
 	
 	EList<DpNucFrame>   btnstack_;// backtrace stack for nucleotides
 	EList<SizeTPair>    btcells_; // cells involved in current backtrace
 
 	int64_t             solrowlo_;// if row >= this, solutions are possible
-	EList<DpNucBtCandidate> btncand_; // cells we might backtrace from
+	EList<DpNucBtCandidate> btncand_;     // cells we might backtrace from
+	EList<DpNucBtCandidate> btncanddone_; // candidates that we investigated
+	size_t              btncanddoneSucc_; // # investigated and succeeded
+	size_t              btncanddoneFail_; // # investigated and failed
 	
 	size_t              cural_;   // index of next alignment to be given
 	
 	SizeTPair           EXTREMES; // invalid, uninitialized range
 	
-	// Holds potential solutions to backtrace from
-	uint64_t nfills_;    // table fills
-	uint64_t ncups_;     // cell updates
-	uint64_t nrowups_;   // row updates
-	uint64_t nrowskips_; // row skips
-	uint64_t nskip_;     // # fills skipped b/c of SSE
-	uint64_t nsucc_;     // # fills with at least 1 solution cell
-	uint64_t nfail_;     // # fills with no solution cells
-	uint64_t nbts_;      // backtrace steps
+	uint64_t nbtfiltst_; // # candidates filtered b/c starting cell was seen
+	uint64_t nbtfiltdo_; // # candidates filtered b/c "dominated" by better cell
 	
 	ASSERT_ONLY(SStringExpandable<uint32_t> tmp_destU32_);
 	ASSERT_ONLY(BTDnaString tmp_editstr_, tmp_refstr_);

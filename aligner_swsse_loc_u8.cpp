@@ -52,8 +52,6 @@
  *   to find and backtrace from good solutions.
  */
 
-#ifndef NO_SSE
-
 #include <limits>
 #include "aligner_sw.h"
 
@@ -769,6 +767,7 @@ bool SwAligner::gatherCellsNucleotidesLocalSseU8(TAlScore best) {
 	const size_t nrow = dpRows();
 	assert_gt(nrow, 0);
 	btncand_.clear();
+	btncanddone_.clear();
 	SSEData& d = fw_ ? sseU8fw_ : sseU8rc_;
 	SSEMetrics& met = extend_ ? sseU8ExtendMet_ : sseU8MateMet_;
 	assert(!d.buf_.empty());
@@ -853,7 +852,6 @@ bool SwAligner::gatherCellsNucleotidesLocalSseU8(TAlScore best) {
 				// I.e. are we close enough to a core diagonal?
 				if(rdoff >= nrow_lo && rdoff < nrow_hi) {
 					// This cell has been exhaustively scored
-					met.gathcell++;
 					if(rdoff >= minrow) {
 						// ... and it could potentially score high enough
 						TAlScore sc = (TAlScore)((TCScore*)pvH)[k];
@@ -888,12 +886,9 @@ bool SwAligner::gatherCellsNucleotidesLocalSseU8(TAlScore best) {
 			pvH += ROWSTRIDE;
 		}
 	}
-	btncand_.sort();
-	if(btncand_.empty()) {
-		nfail_++;
-	} else {
-		nsucc_++;
+	if(!btncand_.empty()) {
 		d.mat_.initMasks();
+		btncand_.sort();
 	}
 	return !btncand_.empty();
 }
@@ -1543,5 +1538,3 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 	met.btsucc++; // DP backtraces succeeded
 	return true;
 }
-
-#endif
