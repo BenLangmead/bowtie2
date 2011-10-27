@@ -1,47 +1,60 @@
 #!/bin/sh
 
 #
-# Downloads sequence for H. sapiens (human) from NCBI.  This script was
-# used to build the Bowtie index for H. sapiens 37.
+# Downloads sequence for H. sapiens (human) from NCBI.
 #
-# From README_CURRENT_BUILD:
-# Organism: Homo sapiens (human)
-# NCBI Build Number: 37    
-# Version: 1
-# Release date: 04 August 2009
+# A relatively new directory structure (as of Oct 2011) seems to have collected
+# all the relevant files in one directory (MT no longer separate) and
+# eliminated the alternative haplotype assembles from the main directory
+#
+# It's generally a good idea to consult:
+# ftp://ftp.ncbi.nlm.nih.gov/genbank/genomes/Eukaryotes/vertebrates_mammals/Homo_sapiens
+# To check for updates to the assembly or the FTP directory structure.
 #
 
 BASE_CHRS="\
-chr1 \
-chr2 \
-chr3 \
-chr4 \
-chr5 \
-chr6 \
-chr7 \
-chr8 \
-chr9 \
-chr10 \
-chr11 \
-chr12 \
-chr13 \
-chr14 \
-chr15 \
-chr16 \
-chr17 \
-chr18 \
-chr19 \
-chr20 \
-chr21 \
-chr22 \
-chrX \
-chrY"
+assembled_chromosomes/FASTA/chr1.fa \
+assembled_chromosomes/FASTA/chr2.fa \
+assembled_chromosomes/FASTA/chr3.fa \
+assembled_chromosomes/FASTA/chr4.fa \
+assembled_chromosomes/FASTA/chr5.fa \
+assembled_chromosomes/FASTA/chr6.fa \
+assembled_chromosomes/FASTA/chr7.fa \
+assembled_chromosomes/FASTA/chr8.fa \
+assembled_chromosomes/FASTA/chr9.fa \
+assembled_chromosomes/FASTA/chr10.fa \
+assembled_chromosomes/FASTA/chr11.fa \
+assembled_chromosomes/FASTA/chr12.fa \
+assembled_chromosomes/FASTA/chr13.fa \
+assembled_chromosomes/FASTA/chr14.fa \
+assembled_chromosomes/FASTA/chr15.fa \
+assembled_chromosomes/FASTA/chr16.fa \
+assembled_chromosomes/FASTA/chr17.fa \
+assembled_chromosomes/FASTA/chr18.fa \
+assembled_chromosomes/FASTA/chr19.fa \
+assembled_chromosomes/FASTA/chr20.fa \
+assembled_chromosomes/FASTA/chr21.fa \
+assembled_chromosomes/FASTA/chr22.fa \
+assembled_chromosomes/FASTA/chrX.fa \
+assembled_chromosomes/FASTA/chrY.fa"
 
-CHRS_TO_INDEX=$BASE_CHRS
+UNLOCALIZED="\
+unlocalized_scaffolds/FASTA/chr1.unlocalized.scaf.fa \
+unlocalized_scaffolds/FASTA/chr4.unlocalized.scaf.fa \
+unlocalized_scaffolds/FASTA/chr7.unlocalized.scaf.fa \
+unlocalized_scaffolds/FASTA/chr8.unlocalized.scaf.fa \
+unlocalized_scaffolds/FASTA/chr9.unlocalized.scaf.fa \
+unlocalized_scaffolds/FASTA/chr11.unlocalized.scaf.fa \
+unlocalized_scaffolds/FASTA/chr17.unlocalized.scaf.fa \
+unlocalized_scaffolds/FASTA/chr18.unlocalized.scaf.fa \
+unlocalized_scaffolds/FASTA/chr19.unlocalized.scaf.fa \
+unlocalized_scaffolds/FASTA/chr21.unlocalized.scaf.fa"
 
-FTP_BASE=ftp://ftp.ncbi.nih.gov/genomes/H_sapiens
-FTP_ASM_BASE=$FTP_BASE/Assembled_chromosomes
-FTP_MT_BASE=$FTP_BASE/CHR_MT
+UNPLACED="unplaced_scaffolds/FASTA/unplaced.scaf.fa"
+
+CHRS_TO_INDEX="$BASE_CHRS $UNLOCALIZED $UNPLACED"
+
+FTP_BASE=ftp://ftp.ncbi.nlm.nih.gov/genbank/genomes/Eukaryotes/vertebrates_mammals/Homo_sapiens/GRCh37/Primary_Assembly
 
 get() {
 	file=$1
@@ -69,26 +82,16 @@ if [ ! -x "$BOWTIE_BUILD_EXE" ] ; then
 fi
 
 INPUTS=
-BASE_NAME=hs_ref_GRCh37_
 for c in $CHRS_TO_INDEX ; do
-	c=${BASE_NAME}${c}
-	if [ ! -f $c.fa ] ; then
-		F=$c.fa.gz
-		get ${FTP_ASM_BASE}/$F || (echo "Error getting $F" && exit 1)
-		gunzip $F || (echo "Error unzipping $F" && exit 1)
+	cbase=`basename ${c}`
+	if [ ! -f $cbase ] ; then
+		F=${c}.gz
+		get ${FTP_BASE}/$F || (echo "Error getting $F" && exit 1)
+		gunzip ${cbase}.gz || (echo "Error unzipping ${cbase}.gz" && exit 1)
 	fi
-	[ -n "$INPUTS" ] && INPUTS=$INPUTS,$c.fa
-	[ -z "$INPUTS" ] && INPUTS=$c.fa
+	[ -n "$INPUTS" ] && INPUTS=$INPUTS,$cbase
+	[ -z "$INPUTS" ] && INPUTS=$cbase
 done
-
-# Special case: get mitochondrial DNA from its home
-if [ ! -f hs_ref_chrMT.fa ] ; then
-	F=hs_ref_chrMT.fa.gz
-	get ${FTP_MT_BASE}/$F || (echo "Error getting $F" && exit 1)
-	gunzip $F || (echo "Error unzipping $F" && exit 1)
-fi
-
-INPUTS=$INPUTS,hs_ref_chrMT.fa
 
 echo Running ${BOWTIE_BUILD_EXE} $* ${INPUTS} h_sapiens_37_asm
 ${BOWTIE_BUILD_EXE} $* ${INPUTS} h_sapiens_37_asm
