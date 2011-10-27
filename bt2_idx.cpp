@@ -141,7 +141,7 @@ inline static int pop64(uint64_t x) {
 	x = x + (x >> 8);
 	x = x + (x >> 16);
 	x = x + (x >> 32);
-	return x & 0x3F;
+	return (int)(x & 0x3Fllu);
 }
 #endif
 

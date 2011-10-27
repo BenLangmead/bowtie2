@@ -46,6 +46,7 @@ void SwDriver::prioritizeSATups(
 	SeedResults& sh,             // seed hits to extend into full alignments
 	const Ebwt& ebwt,            // BWT
 	const BitPairReference& ref, // Reference strings
+	bool refscan,                // Use reference scanning
 	size_t maxelt,               // max elts we'll consider
 	size_t nsm,                  // if range as <= nsm elts, it's "small"
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
@@ -54,14 +55,16 @@ void SwDriver::prioritizeSATups(
 	size_t& nelt_out)            // out: # elements total
 {
 	const size_t nonz = sh.nonzeroOffsets(); // non-zero positions
-	sacomb_.clear();
 	satups_.clear();
 	gws_.clear();
 	rands_.clear();
 	rands2_.clear();
 	satpos_.clear();
 	satpos2_.clear();
-	sstab_.init(4); // Seed = 4 DNA chars = 1 byte
+	if(refscan) {
+		sacomb_.clear();
+		sstab_.init(4); // Seed = 4 DNA chars = 1 byte
+	}
 	size_t nrange = 0, nelt = 0, nsmall = 0, nsmall_elts = 0;
 	bool keepWhole = false;
 	for(size_t i = 0; i < nonz; i++) {
@@ -102,18 +105,22 @@ void SwDriver::prioritizeSATups(
 		satpos2_.sort();
 	}
 	if(keepWhole) {
-		sacomb_.ensure(nrange);
+		if(refscan) {
+			sacomb_.ensure(nrange);
+		}
 		gws_.ensure(nrange);
 		rands_.ensure(nrange);
 		for(size_t i = 0; i < nrange; i++) {
-			sacomb_.expand();
-			sacomb_.back().init(satpos_[i].sat);
+			if(refscan) {
+				sacomb_.expand();
+				sacomb_.back().init(satpos_[i].sat);
+			}
 			gws_.expand();
 			gws_.back().init(
 				ebwt,           // forward Bowtie index
 				ref,            // reference sequences
 				satpos_[i].sat, // SA tuples: ref hit, salist range
-				sacomb_.back(), // Combiner for resolvers
+				refscan ? &sacomb_.back() : NULL, // Combiner for resolvers
 				ca,             // current cache
 				rnd,            // pseudo-random generator
 				wlm);           // metrics
@@ -126,7 +133,9 @@ void SwDriver::prioritizeSATups(
 	// Resize satups_ list so that ranges having elements that we might
 	// possibly explore are present
 	satpos_.ensure(min(maxelt, nelt));
-	sacomb_.ensure(min(maxelt, nelt));
+	if(refscan) {
+		sacomb_.ensure(min(maxelt, nelt));
+	}
 	gws_.ensure(min(maxelt, nelt));
 	rands_.ensure(min(maxelt, nelt));
 	rands2_.ensure(min(maxelt, nelt));
@@ -161,18 +170,20 @@ void SwDriver::prioritizeSATups(
 		//	size_t nlen = maxelt - nelt_added;
 		//	satpos_.back().sat.setLength(nlen);
 		//}
-		sstab_.add(
-			make_pair(j, 0),
-			satpos2_[j].sat.key.seq,
-			(size_t)satpos2_[j].pos.seedlen);
-		sacomb_.expand();
-		sacomb_.back().init(satpos_.back().sat);
+		if(refscan) {
+			sstab_.add(
+				make_pair(j, 0),
+				satpos2_[j].sat.key.seq,
+				(size_t)satpos2_[j].pos.seedlen);
+			sacomb_.expand();
+			sacomb_.back().init(satpos_.back().sat);
+		}
 		gws_.expand();
 		gws_.back().init(
 			ebwt,               // forward Bowtie index
 			ref,                // reference sequences
 			satpos_.back().sat, // SA tuples: ref hit, salist range
-			sacomb_.back(),     // Combiner for resolvers
+			refscan ? &sacomb_.back() : NULL, // Combiner for resolvers
 			ca,                 // current cache
 			rnd,                // pseudo-random generator
 			wlm);               // metrics
@@ -219,14 +230,16 @@ void SwDriver::prioritizeSATups(
 		satpos_.back().sat = sa;
 		satpos_.back().origSz = satpos2_[ri].origSz;
 		satpos_.back().pos = satpos2_[ri].pos;
-		sacomb_.expand();
-		sacomb_.back().reset();
+		if(refscan) {
+			sacomb_.expand();
+			sacomb_.back().reset();
+		}
 		gws_.expand();
 		gws_.back().init(
 			ebwt,               // forward Bowtie index
 			ref,                // reference sequences
 			satpos_.back().sat, // SA tuples: ref hit, salist range
-			sacomb_.back(),     // Combiner for resolvers
+			refscan ? &sacomb_.back() : NULL, // Combiner for resolvers
 			ca,                 // current cache
 			rnd,                // pseudo-random generator
 			wlm);               // metrics
@@ -264,6 +277,8 @@ bool SwDriver::extendSeeds(
 	int nceil,                   // maximum # Ns permitted in reference portion
 	const SimpleFunc& maxeltf,   // # elts to explore as function of total elts
 	size_t maxhalf,  	         // max width in either direction for DP tables
+	bool enable8,                // use 8-bit SSE where possible
+	bool refscan,                // use reference scanning
 	bool scanNarrowed,           // true -> ref scan even for narrowed hits
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
 	RandomSource& rnd,           // pseudo-random source
@@ -315,6 +330,7 @@ bool SwDriver::extendSeeds(
 		sh,           // seed hits to extend into full alignments
 		ebwt,         // BWT
 		ref,          // Reference strings
+		refscan,      // do reference scanning?
 		maxelt,       // max rows to consider per position
 		nsm,          // smallness threshold
 		ca,           // alignment cache for seed hits
@@ -465,47 +481,50 @@ bool SwDriver::extendSeeds(
 					tlen,      // length of reference sequence
 					sc,        // scoring scheme
 					minsc,     // minimum score permitted
+					enable8,   // use 8-bit SSE if possible?
 					true,      // this is a seed extension - not finding a mate
 					&sscan_,   // reference scanner for resolving offsets
 					nwindow,
 					nsInLeftShift);
-				// Take reference-scanner hits and turn them into offset
-				// resolutions.
-				wlm.refscanhits += sscan_.hits().size();
-				pastedRefoff += nsInLeftShift;
-				for(size_t j = 0; j < sscan_.hits().size(); j++) {
-					// Get identifier for the appropriate combiner
-					U32Pair id = sscan_.hits()[j].id();
-					// Get the hit's offset in pasted-reference coordinates
-					int64_t off = sscan_.hits()[j].off() + pastedRefoff;
-					assert_geq(off, sscan_.hits()[j].ns());
-					off -= sscan_.hits()[j].ns();
-					assert_geq(off, 0);
-					assert_lt(off, (int64_t)ebwt.eh().lenNucs());
-					assert_lt(off, (int64_t)0xffffffff);
-					// Check that reference sequence actually matches seed
+				if(refscan) {
+					// Take reference-scanner hits and turn them into offset
+					// resolutions.
+					wlm.refscanhits += sscan_.hits().size();
+					pastedRefoff += nsInLeftShift;
+					for(size_t j = 0; j < sscan_.hits().size(); j++) {
+						// Get identifier for the appropriate combiner
+						U32Pair id = sscan_.hits()[j].id();
+						// Get the hit's offset in pasted-reference coordinates
+						int64_t off = sscan_.hits()[j].off() + pastedRefoff;
+						assert_geq(off, sscan_.hits()[j].ns());
+						off -= sscan_.hits()[j].ns();
+						assert_geq(off, 0);
+						assert_lt(off, (int64_t)ebwt.eh().lenNucs());
+						assert_lt(off, (int64_t)0xffffffff);
+						// Check that reference sequence actually matches seed
 #ifndef NDEBUG
-					uint32_t tidx2 = 0, toff2 = 0, tlen2 = 0;
-					ebwt.joinedToTextOff(
-						wr.elt.len,
-						(uint32_t)off,
-						tidx2,
-						toff2,
-						tlen2);
-					assert_neq(0xffffffff, tidx2);
-					//uint64_t key = sacomb_[id.first][id.second].satup().key.seq;
-					uint64_t key = sacomb_[id.first].satup().key.seq;
-					for(size_t k = 0; k < wr.elt.len; k++) {
-						int c = ref.getBase(tidx2, toff2 + wr.elt.len - k - 1);
-						int ck = (int)(key & 3);
-						key >>= 2;
-						assert_eq(c, ck);
-					}
+						uint32_t tidx2 = 0, toff2 = 0, tlen2 = 0;
+						ebwt.joinedToTextOff(
+							wr.elt.len,
+							(uint32_t)off,
+							tidx2,
+							toff2,
+							tlen2);
+						assert_neq(0xffffffff, tidx2);
+						//uint64_t key = sacomb_[id.first][id.second].satup().key.seq;
+						uint64_t key = sacomb_[id.first].satup().key.seq;
+						for(size_t k = 0; k < wr.elt.len; k++) {
+							int c = ref.getBase(tidx2, toff2 + wr.elt.len - k - 1);
+							int ck = (int)(key & 3);
+							key >>= 2;
+							assert_eq(c, ck);
+						}
 #endif
-					// Install it
-					if(sacomb_[id.first].addRefscan((uint32_t)off)) {
-						// It was new; see if it leads to any resolutions
-						sacomb_[id.first].tryResolving(wlm.refresolves);
+						// Install it
+						if(sacomb_[id.first].addRefscan((uint32_t)off)) {
+							// It was new; see if it leads to any resolutions
+							sacomb_[id.first].tryResolving(wlm.refresolves);
+						}
 					}
 				}
 				// Because of how we framed the problem, we can say that we've
@@ -757,6 +776,8 @@ bool SwDriver::extendSeedsPaired(
 	bool norc,                   // don't align revcomp read
 	const SimpleFunc& maxeltf,   // # elts to explore as function of total elts
 	size_t maxhalf,              // max width in either direction for DP tables
+	bool enable8,                // use 8-bit SSE where possible
+	bool refscan,                // use reference scanning
 	bool scanNarrowed,           // true -> ref scan even for narrowed hits
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
 	RandomSource& rnd,           // pseudo-random source
@@ -840,6 +861,7 @@ bool SwDriver::extendSeedsPaired(
 		sh,           // seed hits to extend into full alignments
 		ebwt,         // BWT
 		ref,          // Reference strings
+		refscan,      // do reference scanning?
 		maxelt,       // max rows to consider per position
 		nsm,          // smallness threshold
 		ca,           // alignment cache for seed hits
@@ -991,46 +1013,49 @@ bool SwDriver::extendSeedsPaired(
 					tlen,        // length of reference sequence
 					sc,          // scoring scheme
 					minsc,       // minimum score for valid alignments
+					enable8,     // use 8-bit SSE if possible?
 					true,        // seed extension, not mate finding
 					&sscan_,     // reference scanner for resolving offsets
 					nwindow,
 					nsInLeftShift);
 				// Take reference-scanner hits and turn them into offset
 				// resolutions.
-				wlm.refscanhits += sscan_.hits().size();
-				pastedRefoff += nsInLeftShift;
-				for(size_t j = 0; j < sscan_.hits().size(); j++) {
-					// Get identifier for the appropriate combiner
-					U32Pair id = sscan_.hits()[j].id();
-					// Get the hit's offset in pasted-reference coordinates
-					int64_t off = sscan_.hits()[j].off() + pastedRefoff;
-					assert_geq(off, sscan_.hits()[j].ns());
-					off -= sscan_.hits()[j].ns();
-					assert_geq(off, 0);
-					assert_lt(off, (int64_t)ebwt.eh().lenNucs());
-					assert_lt(off, (int64_t)0xffffffff);
-					// Check that reference sequence actually matches seed
+				if(refscan) {
+					wlm.refscanhits += sscan_.hits().size();
+					pastedRefoff += nsInLeftShift;
+					for(size_t j = 0; j < sscan_.hits().size(); j++) {
+						// Get identifier for the appropriate combiner
+						U32Pair id = sscan_.hits()[j].id();
+						// Get the hit's offset in pasted-reference coordinates
+						int64_t off = sscan_.hits()[j].off() + pastedRefoff;
+						assert_geq(off, sscan_.hits()[j].ns());
+						off -= sscan_.hits()[j].ns();
+						assert_geq(off, 0);
+						assert_lt(off, (int64_t)ebwt.eh().lenNucs());
+						assert_lt(off, (int64_t)0xffffffff);
+						// Check that reference sequence actually matches seed
 #ifndef NDEBUG
-					uint32_t tidx2 = 0, toff2 = 0, tlen2 = 0;
-					ebwt.joinedToTextOff(
-						wr.elt.len,
-						(uint32_t)off,
-						tidx2,
-						toff2,
-						tlen2);
-					assert_neq(0xffffffff, tidx2);
-					uint64_t key = sacomb_[id.first].satup().key.seq;
-					for(size_t k = 0; k < wr.elt.len; k++) {
-						int c = ref.getBase(tidx2, toff2 + wr.elt.len - k - 1);
-						int ck = (int)(key & 3);
-						key >>= 2;
-						assert_eq(c, ck);
-					}
+						uint32_t tidx2 = 0, toff2 = 0, tlen2 = 0;
+						ebwt.joinedToTextOff(
+							wr.elt.len,
+							(uint32_t)off,
+							tidx2,
+							toff2,
+							tlen2);
+						assert_neq(0xffffffff, tidx2);
+						uint64_t key = sacomb_[id.first].satup().key.seq;
+						for(size_t k = 0; k < wr.elt.len; k++) {
+							int c = ref.getBase(tidx2, toff2 + wr.elt.len - k - 1);
+							int ck = (int)(key & 3);
+							key >>= 2;
+							assert_eq(c, ck);
+						}
 #endif
-					// Install it
-					if(sacomb_[id.first].addRefscan((uint32_t)off)) {
-						// It was new; see if it leads to any resolutions
-						sacomb_[id.first].tryResolving(wlm.refresolves);
+						// Install it
+						if(sacomb_[id.first].addRefscan((uint32_t)off)) {
+							// It was new; see if it leads to any resolutions
+							sacomb_[id.first].tryResolving(wlm.refresolves);
+						}
 					}
 				}
 				// Because of how we framed the problem, we can say that we've
@@ -1177,6 +1202,7 @@ bool SwDriver::extendSeedsPaired(
 								tlen,      // length of reference sequence
 								sc,        // scoring scheme
 								ominsc,    // min score for valid alignments
+								enable8,   // use 8-bit SSE if possible?
 								false,     // this is finding a mate - not seed ext
 								NULL,      // TODO: scan w/r/t other SeedResults
 								0,         // nwindow?

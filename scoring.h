@@ -233,7 +233,7 @@ public:
 	 * and 'lin' is the linear coefficient.
 	 */
 	static float linearFunc(int64_t x, float cnst, float lin) {
-		return cnst + (lin * x);
+		return (float)((double)cnst + ((double)lin * x));
 	}
 
 	/**

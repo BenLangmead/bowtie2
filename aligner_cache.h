@@ -121,7 +121,7 @@ struct QKey {
 		s.resize(len);
 		uint64_t sq = seq;
 		for(int i = (len)-1; i >= 0; i--) {
-			s.set(sq & 3, i);
+			s.set((uint32_t)(sq & 3), i);
 			sq >>= 2;
 		}
 	}

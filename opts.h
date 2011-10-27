@@ -30,6 +30,7 @@ enum {
 	ARG_METRIC_IVAL,            // --met
 	ARG_METRIC_FILE,            // --met-file
 	ARG_METRIC_STDERR,          // --met-stderr
+	ARG_METRIC_PER_READ,        // --met-per-read
 	ARG_REFIDX,                 // --refidx
 	ARG_SANITY,                 // --sanity
 	ARG_PARTITION,              // --partition
@@ -110,7 +111,11 @@ enum {
 	ARG_NO_DOVETAIL,            // --no-dovetail
 	ARG_NO_CONTAIN,             // --no-contain
 	ARG_NO_OVERLAP,             // --no-overlap
-	ARG_MAPQ_V                  // --mapq-v
+	ARG_MAPQ_V,                 // --mapq-v
+	ARG_REFSCAN,                // --refscan
+	ARG_REFSCAN_NO,             // --no-refscan
+	ARG_SSE8,                   // --sse8
+	ARG_SSE8_NO                 // --no-sse8
 };
 
 #endif

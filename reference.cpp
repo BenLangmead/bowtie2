@@ -354,7 +354,7 @@ int BitPairReference::getBase(size_t tidx, size_t toff) const {
 		uint32_t recOff = off + recs_[i].len;
 		if(toff < recOff) {
 			toff -= off;
-			bufOff += toff;
+			bufOff += (uint32_t)toff;
 			assert_lt(bufOff, bufSz_);
 			const uint32_t bufElt = (bufOff) >> 2;
 			const uint32_t shift = (bufOff & 3) << 1;
@@ -398,7 +398,7 @@ int BitPairReference::getStretchNaive(
 		if(count == 0) break;
 		assert_geq(toff, off);
 		if(toff < off + recs_[i].len) {
-			bufOff += (toff - off); // move bufOff pointer forward
+			bufOff += (uint32_t)(toff - off); // move bufOff pointer forward
 		} else {
 			bufOff += recs_[i].len;
 		}
@@ -472,12 +472,12 @@ int BitPairReference::getStretch(
 			memset(&dest[cur], 4, cpycnt);
 			count -= cpycnt;
 			toff += cpycnt;
-			cur += cpycnt;
+			cur += (uint32_t)cpycnt;
 			if(count == 0) break;
 		}
 		assert_geq(toff, off);
 		if(toff < off + recs_[i].len) {
-			bufOff += (toff - off); // move bufOff pointer forward
+			bufOff += (uint32_t)(toff - off); // move bufOff pointer forward
 		} else {
 			bufOff += recs_[i].len;
 		}
@@ -510,8 +510,8 @@ int BitPairReference::getStretch(
 					}
 					assert_eq(0, bufOff & 3);
 					uint32_t bufOffU32 = bufOff >> 2;
-					uint32_t countLim = count >> 2;
-					uint32_t offLim = (off - (toff + 4)) >> 2;
+					uint32_t countLim = (uint32_t)count >> 2;
+					uint32_t offLim = (uint32_t)((off - (toff + 4)) >> 2);
 					uint32_t lim = min(countLim, offLim);
 					// Do the fast thing for as far as possible
 					for(uint32_t j = 0; j < lim; j++) {

@@ -80,6 +80,7 @@ void SwAligner::initRef(
 	size_t rff,            // offset of last reference char to align to
 	const Scoring& sc,     // scoring scheme
 	TAlScore minsc,        // minimum score
+	bool enable8,          // use 8-bit SSE if possible?
 	bool extend)           // true iff this is a seed extension
 {
 	size_t readGaps = sc.maxReadGaps(minsc, rdfw_->length());
@@ -101,6 +102,7 @@ void SwAligner::initRef(
 	minsc_     = minsc;      // minimum score
 	cural_     = 0;          // idx of next alignment to give out
 	initedRef_ = true;       // indicate we've initialized the ref portion
+	enable8_   = enable8;    // use 8-bit SSE if possible?
 	extend_    = extend;     // true iff this is a seed extension
 }
 	
@@ -121,6 +123,7 @@ void SwAligner::initRef(
 	size_t reflen,         // length of reference sequence
 	const Scoring& sc,     // scoring scheme
 	TAlScore minsc,        // minimum score
+	bool enable8,          // use 8-bit SSE if possible?
 	bool extend,           // true iff this is a seed extension
 	SeedScanner *sscan,    // optional seed scanner to feed ref chars to
 	size_t  upto,          // count the number of Ns up to this offset
@@ -223,6 +226,7 @@ void SwAligner::initRef(
 		(size_t)(rff - rfi), // ditto
 		sc,          // scoring scheme
 		minsc,       // minimum score
+		enable8,     // use 8-bit SSE if possible?
 		extend);     // true iff this is a seed extension
 }
 
@@ -242,9 +246,8 @@ bool SwAligner::align(RandomSource& rnd) {
 	TAlScore best = 0;
 	sse8succ_ = sse16succ_ = false;
 	int flag = 0;
-	const bool enable8 = false;
 	if(sc_->monotone) {
-		if(enable8 && minsc_ >= -254) {
+		if(enable8_ && minsc_ >= -254) {
 			best = alignNucleotidesEnd2EndSseU8(flag);
 			sse8succ_ = (flag == 0);
 #ifndef NDEBUG
@@ -259,7 +262,7 @@ bool SwAligner::align(RandomSource& rnd) {
 		}
 	} else {
 		flag = -2;
-		if(enable8) {
+		if(enable8_) {
 			best = alignNucleotidesLocalSseU8(flag);
 		}
 		if(flag == -2) {
