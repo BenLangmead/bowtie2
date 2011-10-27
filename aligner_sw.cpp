@@ -417,7 +417,7 @@ bool SwAligner::nextAlignment(
 		assert_lt(col, rff_-rfi_);
 		if(sse16succ_) {
 			SSEData& d = fw_ ? sseI16fw_ : sseI16rc_;
-			if(d.mat_.reportedThrough(row, col)) {
+			if(d.mat_.reset_[row] && d.mat_.reportedThrough(row, col)) {
 				// Skipping this candidate because a previous candidate already
 				// moved through this cell
 				btncand_[cural_].fate = BT_CAND_FATE_FILT_START;
@@ -426,7 +426,7 @@ bool SwAligner::nextAlignment(
 			}
 		} else if(sse8succ_) {
 			SSEData& d = fw_ ? sseU8fw_ : sseU8rc_;
-			if(d.mat_.reportedThrough(row, col)) {
+			if(d.mat_.reset_[row] && d.mat_.reportedThrough(row, col)) {
 				// Skipping this candidate because a previous candidate already
 				// moved through this cell
 				btncand_[cural_].fate = BT_CAND_FATE_FILT_START;

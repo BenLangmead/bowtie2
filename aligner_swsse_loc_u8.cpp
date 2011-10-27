@@ -1026,6 +1026,9 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 		// Get score in this cell
 		bool empty, reportedThru, canMoveThru, branch = false;
 		int cur = SSEMatrix::H;
+		if(!d.mat_.reset_[row]) {
+			d.mat_.resetRow(row);
+		}
 		reportedThru = d.mat_.reportedThrough(row, col);
 		canMoveThru = true;
 		if(reportedThru) {
@@ -1066,7 +1069,7 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 					origMask = mask;
 					assert(origMask > 0 || sc_cur <= sc_->match());
 					if(d.mat_.isEMaskSet(row, col)) {
-						mask = (d.mat_.masks_[row * d.mat_.ncol_ + col] >> 8) & 3;
+						mask = (d.mat_.masks_[row][col] >> 8) & 3;
 					}
 					if(mask == 3) {
 						if(rand.nextU2()) {
@@ -1118,7 +1121,7 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 					origMask = mask;
 					assert(origMask > 0 || sc_cur <= sc_->match());
 					if(d.mat_.isFMaskSet(row, col)) {
-						mask = (d.mat_.masks_[row * d.mat_.ncol_ + col] >> 11) & 3;
+						mask = (d.mat_.masks_[row][col] >> 11) & 3;
 					}
 					if(mask == 3) {
 						if(rand.nextU2()) {
@@ -1179,7 +1182,7 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 					origMask = mask;
 					assert(origMask > 0 || sc_cur <= sc_->match());
 					if(d.mat_.isHMaskSet(row, col)) {
-						mask = (d.mat_.masks_[row * d.mat_.ncol_ + col] >> 2) & 31;
+						mask = (d.mat_.masks_[row][col] >> 2) & 31;
 					}
 					assert(gapsAllowed || mask == (1 << 4) || mask == 0);
 					int opts = alts5[mask];

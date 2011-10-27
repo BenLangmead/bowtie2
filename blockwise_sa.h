@@ -562,7 +562,7 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
 //		VMSG_NL("Iterated too many times; trying again...");
 //		buildSamples();
 //	}
-	VMSG_NL("Avg bucket size: " << ((float)(len-_sampleSuffs.size()) / (_sampleSuffs.size()+1)) << " (target: " << bsz << ")");
+	VMSG_NL("Avg bucket size: " << ((double)(len-_sampleSuffs.size()) / (_sampleSuffs.size()+1)) << " (target: " << bsz << ")");
 }
 
 /**

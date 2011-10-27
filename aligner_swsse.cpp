@@ -54,8 +54,9 @@ void SSEMatrix::init(
 void SSEMatrix::initMasks() {
 	assert_gt(nrow_, 0);
 	assert_gt(ncol_, 0);
-	masks_.resize(nrow_ * ncol_);
-	memset(masks_.ptr(), 0, sizeof(uint16_t) * nrow_ * ncol_);
+	masks_.resize(nrow_);
+	reset_.resizeNoCopy(nrow_);
+	reset_.fill(false);
 }
 
 /**
