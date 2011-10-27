@@ -19,7 +19,6 @@
 
 #ifndef ALIGNER_SWSSE_H_
 #define ALIGNER_SWSSE_H_
-#ifndef NO_SSE
 
 #include "ds.h"
 #include "mem_ids.h"
@@ -267,7 +266,7 @@ struct SSEMetrics {
 	void reset() {
 		dp = dpsat = dpfail = dpsucc = 
 		col = cell = inner = fixup =
-		gathcell = gathsol = bt = btfail = btsucc = btcell =
+		gathsol = bt = btfail = btsucc = btcell =
 		corerej = nrej = 0;
 	}
 	
@@ -281,7 +280,6 @@ struct SSEMetrics {
 		cell     += o.cell;
 		inner    += o.inner;
 		fixup    += o.fixup;
-		gathcell += o.gathcell;
 		gathsol  += o.gathsol;
 		bt       += o.bt;
 		btfail   += o.btfail;
@@ -299,7 +297,6 @@ struct SSEMetrics {
 	uint64_t cell;     // DP cells
 	uint64_t inner;    // DP inner loop iters
 	uint64_t fixup;    // DP fixup loop iters
-	uint64_t gathcell; // DP gather cells examined
 	uint64_t gathsol;  // DP gather solution cells found
 	uint64_t bt;       // DP backtraces
 	uint64_t btfail;   // DP backtraces failed
@@ -735,5 +732,4 @@ inline void SSEMatrix::fMaskSet(
 	masks_[row * ncol_ + col] |=  (1 << 10 | mask << 11);
 }
 
-#endif /*ndef NO_SSE*/
 #endif /*ndef ALIGNER_SWSSE_H_*/

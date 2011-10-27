@@ -25,36 +25,6 @@
 #include "mask.h"
 
 /**
- * We have set all three of the the cell's intermediate scores; set the 'empty'
- * and 'finalized' fields appropriately.
- */
-inline bool SwNucCell::finalize(TAlScore floorsc) {
-	ASSERT_ONLY(finalized = true);
-	assert(empty);
-	assert(repOk());
-	// Profiling shows cache misses on following line
-	bool aboveFloor = oallBest.valid() && oallBest.score() >= floorsc;
-	empty = true;
-	if(!mask.empty() && aboveFloor) {
-		assert(VALID_AL_SCORE(oallBest));
-		empty = false;
-	} else if(aboveFloor) {
-		assert(VALID_AL_SCORE(oallBest));
-		terminal = true;
-	}
-	return !empty;
-}
-
-/**
- * Check that cell is internally consistent
- */
-bool SwNucCell::repOk() const {
-	assert(oallBest >= rdgapBest || !rdgapBest.valid());
-	assert(oallBest >= rfgapBest || !rfgapBest.valid());
-	return true;
-}
-
-/**
  * Initialize with a new read.
  */
 void SwAligner::initRead(
@@ -132,7 +102,6 @@ void SwAligner::initRef(
 	cural_     = 0;          // idx of next alignment to give out
 	initedRef_ = true;       // indicate we've initialized the ref portion
 	extend_    = extend;     // true iff this is a seed extension
-	//filter(nceil_);          // set some elements of en_ to false, w/r/t Ns
 }
 	
 /**
@@ -265,16 +234,17 @@ void SwAligner::initRef(
 bool SwAligner::align(RandomSource& rnd) {
 	assert(initedRef() && initedRead());
 	assert_eq(STATE_INITED, state_);
-	nfills_++;
 	state_ = STATE_ALIGNED;
 	// Reset solutions lists
 	btncand_.clear();
+	btncanddone_.clear();
+	btncanddoneSucc_ = btncanddoneFail_ = 0;
 	TAlScore best = 0;
 	sse8succ_ = sse16succ_ = false;
 	int flag = 0;
-	ntab_.clear();
+	const bool enable8 = false;
 	if(sc_->monotone) {
-		if(minsc_ >= -254) {
+		if(enable8 && minsc_ >= -254) {
 			best = alignNucleotidesEnd2EndSseU8(flag);
 			sse8succ_ = (flag == 0);
 #ifndef NDEBUG
@@ -288,7 +258,10 @@ bool SwAligner::align(RandomSource& rnd) {
 			sse16succ_ = (flag == 0);
 		}
 	} else {
-		best = alignNucleotidesLocalSseU8(flag);
+		flag = -2;
+		if(enable8) {
+			best = alignNucleotidesLocalSseU8(flag);
+		}
 		if(flag == -2) {
 			flag = 0;
 			best = alignNucleotidesLocalSseI16(flag);
@@ -394,111 +367,7 @@ bool SwAligner::align(RandomSource& rnd) {
 			gatherCellsNucleotidesLocalSseI16(best);
 		}
 	}
-	if(btncand_.empty()) {
-		nfail_++;
-	} else {
-		nsucc_++;
-	}
 	return !btncand_.empty();
-}
-
-/**
- * Select a path for backtracking from the oall table version of this cell.
- * If there is a tie among eligible paths, break it randomly.  Return value
- * is a flag indicating the backtrack type (see enum defining SW_BT_*
- * above).
- */
-int SwNucCellMask::randOverallBacktrack(
-	RandomSource& rand,
-	bool& branch,
-	bool clear)
-{
-	ASSERT_ONLY(int num = numOverallPossible());
-	int i = ((oall_diag != 0) << 0) |
-			((oall_rfop != 0) << 1) |
-			((oall_rfex != 0) << 2) |
-			((oall_rdop != 0) << 3) |
-			((oall_rdex != 0) << 4);
-	int ret = randFromMask(rand, i) + SW_BT_OALL_DIAG;
-	// If we're choosing from among >1 possibilities, inform caller so that
-	// caller can add a frame to the backtrack stack.
-	branch = alts5[i] > 1;
-	assert_range((int)SW_BT_OALL_DIAG, (int)SW_BT_OALL_READ_EXTEND, ret);
-	// Clear the bit associated with the path chosen
-	if(clear) {
-		switch(ret) {
-			case SW_BT_OALL_DIAG:        oall_diag = 0; break;
-			case SW_BT_OALL_REF_OPEN:    oall_rfop = 0; break;
-			case SW_BT_OALL_REF_EXTEND:  oall_rfex = 0; break;
-			case SW_BT_OALL_READ_OPEN:   oall_rdop = 0; break;
-			case SW_BT_OALL_READ_EXTEND: oall_rdex = 0; break;
-			default: throw 1; break;
-		}
-	}
-	assert_eq(num - (clear ? 1 : 0), numOverallPossible());
-	return ret;
-}
-
-/**
- * Select a path for backtracking from the rdgap table version of this cell.
- * If there is a tie among eligible paths, break it randomly.  Return value
- * is a flag indicating the backtrack type (see enum defining SW_BT_*
- * above).
- */
-int SwNucCellMask::randReadGapBacktrack(
-	RandomSource& rand,
-	bool& branch,
-	bool clear)
-{
-	ASSERT_ONLY(int num = numReadGapPossible());
-	int i = ((rdgap_op != 0) << 0) |
-			((rdgap_ex != 0) << 1);
-	int ret = randFromMask(rand, i) + SW_BT_RDGAP_OPEN;
-	// If we're choosing from among >1 possibilities, inform caller so that
-	// caller can add a frame to the backtrack stack.
-	branch = alts5[i] > 1;
-	assert(ret == SW_BT_RDGAP_OPEN || ret == SW_BT_RDGAP_EXTEND);
-	// Clear the bit associated with the path chosen
-	if(clear) {
-		switch(ret) {
-			case SW_BT_RDGAP_OPEN:   rdgap_op = 0; break;
-			case SW_BT_RDGAP_EXTEND: rdgap_ex = 0; break;
-			default: throw 1; break;
-		}
-	}
-	assert_eq(num - (clear ? 1 : 0), numReadGapPossible());
-	return ret;
-}
-
-/**
- * Select a path for backtracking from the rfgap table version of this cell.
- * If there is a tie among eligible paths, break it randomly.  Return value
- * is a flag indicating the backtrack type (see enum defining SW_BT_*
- * above).
- */
-int SwNucCellMask::randRefGapBacktrack(
-	RandomSource& rand,
-	bool& branch,
-	bool clear)
-{
-	ASSERT_ONLY(int num = numRefGapPossible());
-	int i = ((rfgap_op != 0) << 0) |
-			((rfgap_ex != 0) << 1);
-	int ret = randFromMask(rand, i) + SW_BT_RFGAP_OPEN;
-	// If we're choosing from among >1 possibilities, inform caller so that
-	// caller can add a frame to the backtrack stack.
-	branch = alts5[i] > 1;
-	assert(ret == SW_BT_RFGAP_OPEN || ret == SW_BT_RFGAP_EXTEND);
-	// Clear the bit associated with the path chosen
-	if(clear) {
-		switch(ret) {
-			case SW_BT_RFGAP_OPEN:   rfgap_op = 0; break;
-			case SW_BT_RFGAP_EXTEND: rfgap_ex = 0; break;
-			default: throw 1; break;
-		}
-	}
-	assert_eq(num - (clear ? 1 : 0), numRefGapPossible());
-	return ret;
 }
 
 /**
@@ -529,25 +398,37 @@ bool SwAligner::nextAlignment(
 	assert_lt(cural_, btncand_.size());
 	assert(res.repOk());
 	// For each candidate cell that we should try to backtrack from...
-	while(cural_ < btncand_.size()) {
+	const size_t candsz = btncand_.size();
+	size_t SQ = dpRows() >> 4;
+	if(SQ == 0) SQ = 1;
+	while(cural_ < candsz) {
 		// Doing 'continue' anywhere in here simply causes us to move on to the
 		// next candidate
+		//cerr << "In nextAlignment; current=" << cural_ << ", # candidates="
+		//     << btncand_.size() << endl;
 		nbts = 0;
 		assert(sse8succ_ || sse16succ_);
 		size_t row = btncand_[cural_].row;
 		size_t col = btncand_[cural_].col;
 		assert_lt(row, dpRows());
 		assert_lt(col, rff_-rfi_);
-		// See if we've already reported through this cell
 		if(sse16succ_) {
 			SSEData& d = fw_ ? sseI16fw_ : sseI16rc_;
 			if(d.mat_.reportedThrough(row, col)) {
-				cural_++; continue;
+				// Skipping this candidate because a previous candidate already
+				// moved through this cell
+				btncand_[cural_].fate = BT_CAND_FATE_FILT_START;
+				//cerr << "  skipped becuase starting cell was covered" << endl;
+				nbtfiltst_++; cural_++; continue;
 			}
 		} else if(sse8succ_) {
 			SSEData& d = fw_ ? sseU8fw_ : sseU8rc_;
 			if(d.mat_.reportedThrough(row, col)) {
-				cural_++; continue;
+				// Skipping this candidate because a previous candidate already
+				// moved through this cell
+				btncand_[cural_].fate = BT_CAND_FATE_FILT_START;
+				//cerr << "  skipped becuase starting cell was covered" << endl;
+				nbtfiltst_++; cural_++; continue;
 			}
 		}
 		if(sc_->monotone) {
@@ -603,9 +484,43 @@ bool SwAligner::nextAlignment(
 					rnd);   // random gen, to choose among equal paths
 			}
 			if(ret) {
+				btncand_[cural_].fate = BT_CAND_FATE_SUCCEEDED;
 				break;
+			} else {
+				btncand_[cural_].fate = BT_CAND_FATE_FAILED;
 			}
 		} else {
+			// Local alignment
+			// Check if this solution is "dominated" by a prior one.
+			// Domination is a heuristic designed to eliminate the vast
+			// majority of valid-but-redundant candidates lying in the
+			// "penumbra" of a high-scoring alignment.
+			bool dom = false;
+			{
+				size_t donesz = btncanddone_.size();
+				const size_t col = btncand_[cural_].col;
+				const size_t row = btncand_[cural_].row;
+				for(size_t i = 0; i < donesz; i++) {
+					assert_gt(btncanddone_[i].fate, 0);
+					size_t colhi = col, rowhi = row;
+					size_t rowlo = btncanddone_[i].row;
+					size_t collo = btncanddone_[i].col;
+					if(colhi < collo) swap(colhi, collo);
+					if(rowhi < rowlo) swap(rowhi, rowlo);
+					if(colhi - collo <= SQ && rowhi - rowlo <= SQ) {
+						// Skipping this candidate because it's "dominated" by
+						// a previous candidate
+						dom = true;
+						break;
+					}
+				}
+			}
+			if(dom) {
+				btncand_[cural_].fate = BT_CAND_FATE_FILT_DOMINATED;
+				nbtfiltdo_++;
+				cural_++;
+				continue;
+			}
 			bool ret = false;
 			if(sse8succ_) {
 				uint32_t reseed = rnd.nextU32();
@@ -658,8 +573,15 @@ bool SwAligner::nextAlignment(
 					rnd);   // random gen, to choose among equal paths
 			}
 			if(ret) {
+				btncand_[cural_].fate = BT_CAND_FATE_SUCCEEDED;
+				btncanddone_.push_back(btncand_[cural_]);
+				btncanddoneSucc_++;
 				assert(res.repOk());
 				break;
+			} else {
+				btncand_[cural_].fate = BT_CAND_FATE_FAILED;
+				btncanddone_.push_back(btncand_[cural_]);
+				btncanddoneFail_++;
 			}
 		}
 		cural_++;

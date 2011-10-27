@@ -52,8 +52,6 @@
  *   to find and backtrace from good solutions.
  */
 
-#ifndef NO_SSE
-
 #include <limits>
 #include "aligner_sw.h"
 
@@ -784,6 +782,7 @@ bool SwAligner::gatherCellsNucleotidesLocalSseI16(TAlScore best) {
 	const size_t nrow = dpRows();
 	assert_gt(nrow, 0);
 	btncand_.clear();
+	btncanddone_.clear();
 	SSEData& d = fw_ ? sseI16fw_ : sseI16rc_;
 	SSEMetrics& met = extend_ ? sseI16ExtendMet_ : sseI16MateMet_;
 	assert(!d.buf_.empty());
@@ -869,7 +868,6 @@ bool SwAligner::gatherCellsNucleotidesLocalSseI16(TAlScore best) {
 				// I.e. are we close enough to a core diagonal?
 				if(rdoff >= nrow_lo && rdoff < nrow_hi) {
 					// This cell has been exhaustively scored
-					met.gathcell++;
 					if(rdoff >= minrow) {
 						// ... and it could potentially score high enough
 						TAlScore sc = (TAlScore)(((TCScore*)pvH)[k] + 0x8000);
@@ -904,12 +902,9 @@ bool SwAligner::gatherCellsNucleotidesLocalSseI16(TAlScore best) {
 			pvH += ROWSTRIDE;
 		}
 	}
-	btncand_.sort();
-	if(btncand_.empty()) {
-		nfail_++;
-	} else {
-		nsucc_++;
+	if(!btncand_.empty()) {
 		d.mat_.initMasks();
+		btncand_.sort();
 	}
 	return !btncand_.empty();
 }
@@ -973,19 +968,24 @@ bool SwAligner::gatherCellsNucleotidesLocalSseI16(TAlScore best) {
 
 /**
  * Given the dynamic programming table and a cell, trace backwards from the
- * cell and install the edits and score/penalty in the appropriate fields
- * of res.  The RandomSource is used to break ties among equally good ways
- * of tracing back.
+ * cell and install the edits and score/penalty in the appropriate fields of
+ * res.  The RandomSource is used to break ties among equally good ways of
+ * tracing back.
  *
- * Whenever we enter a cell, we check whether the read/ref coordinates of
- * that cell correspond to a cell we traversed constructing a previous
- * alignment.  If so, we backtrack to the last decision point, mask out the
- * path that led to the previously observed cell, and continue along a
- * different path; or, if there are no more paths to try, we give up.
+ * Whenever we enter a cell, we check if its read/ref coordinates correspond to
+ * a cell we traversed constructing a previous alignment.  If so, we backtrack
+ * to the last decision point, mask out the path that led to the previously
+ * observed cell, and continue along a different path.  If there are no more
+ * paths to try, we stop.
  *
  * If an alignment is found, 'off' is set to the alignment's upstream-most
- * reference character's offset into the chromosome and true is returned.
- * Otherwise, false is returned.
+ * reference character's offset and true is returned.  Otherwise, false is
+ * returned.
+ *
+ * In local alignment mode, this method is liable to be slow, especially for
+ * long reads.  This is chiefly because if there is one valid solution
+ * (especially if it is pretty high scoring), then many, many paths shooting
+ * off that solution's path will also have valid solutions.
  */
 bool SwAligner::backtraceNucleotidesLocalSseI16(
 	TAlScore       escore, // in: expected score
@@ -1006,8 +1006,8 @@ bool SwAligner::backtraceNucleotidesLocalSseI16(
 	assert_lt(row, rd_->length());
 	btnstack_.clear(); // empty the backtrack stack
 	btcells_.clear();  // empty the cells-so-far list
-	AlnScore score; score.score_ = 0;
-	score.gaps_ = score.ns_ = 0;
+	AlnScore score;
+	score.score_ = score.gaps_ = score.ns_ = 0;
 	size_t origCol = col;
 	size_t gaps = 0, readGaps = 0, refGaps = 0;
 	res.alres.reset();
@@ -1022,8 +1022,19 @@ bool SwAligner::backtraceNucleotidesLocalSseI16(
 	size_t left_rowelt, up_rowelt, upleft_rowelt;
 	size_t left_rowvec, up_rowvec, upleft_rowvec;
 	__m128i *cur_vec, *left_vec, *up_vec, *upleft_vec;
+	const size_t gbar = sc_->gapbar;
 	NEW_ROW_COL(row, col);
+	// If 'backEliminate' is true, then every time we visit a cell, we remove
+	// edges into the cell.  We do this to avoid some of the thrashing around
+	// that occurs when there are lots of valid candidates in the same DP
+	// problem.
+	//const bool backEliminate = true;
 	while((int)row >= 0) {
+		// TODO: As soon as we enter a cell, set it as being reported through,
+		// *and* mark all cells that point into this cell as being reported
+		// through.  This will save us from having to consider quite so many
+		// candidates.
+		
 		met.btcell++;
 		nbts++;
 		int readc = (*rd_)[rdi_ + row];
@@ -1040,14 +1051,8 @@ bool SwAligner::backtraceNucleotidesLocalSseI16(
 		} else {
 			empty = false;
 			if(row > 0) {
-				assert_gt(row, 0);
 				size_t rowFromEnd = d.mat_.nrow() - row - 1;
-				bool gapsAllowed = true;
-				if(row < (size_t)sc_->gapbar ||
-				   rowFromEnd < (size_t)sc_->gapbar)
-				{
-					gapsAllowed = false;
-				}
+				bool gapsAllowed = !(row < gbar || rowFromEnd < gbar);
 				const int floorsc = 0;
 				const int offsetsc = 0x8000;
 				// Move to beginning of column/row
@@ -1063,12 +1068,12 @@ bool SwAligner::backtraceNucleotidesLocalSseI16(
 					// Get H score of cell to the left
 					TAlScore sc_h_left = ((TCScore*)(left_vec + SSEMatrix::H))[left_rowelt] + offsetsc;
 					if(sc_h_left > floorsc && sc_h_left - sc_->readGapOpen() == sc_cur) {
-						mask |= (1 << 0);
+						mask |= (1 << 0); // horiz H -> E move possible
 					}
 					// Get E score of cell to the left
 					TAlScore sc_e_left = ((TCScore*)(left_vec + SSEMatrix::E))[left_rowelt] + offsetsc;
 					if(sc_e_left > floorsc && sc_e_left - sc_->readGapExtend() == sc_cur) {
-						mask |= (1 << 1);
+						mask |= (1 << 1); // horiz E -> E move possible
 					}
 					origMask = mask;
 					assert(origMask > 0 || sc_cur <= sc_->match());
@@ -1076,18 +1081,19 @@ bool SwAligner::backtraceNucleotidesLocalSseI16(
 						mask = (d.mat_.masks_[row * d.mat_.ncol_ + col] >> 8) & 3;
 					}
 					if(mask == 3) {
+						// Horiz H -> E or horiz E -> E moves possible
 						if(rand.nextU2()) {
-							// I chose the H cell
+							// Pick H -> E cell
 							cur = SW_BT_OALL_READ_OPEN;
 							d.mat_.eMaskSet(row, col, 2); // might choose E later
 						} else {
-							// I chose the E cell
+							// Pick E -> E cell
 							cur = SW_BT_RDGAP_EXTEND;
 							d.mat_.eMaskSet(row, col, 1); // might choose H later
 						}
 						branch = true;
 					} else if(mask == 2) {
-						// I chose the E cell
+						// Only horiz E -> E move possible, pick it
 						cur = SW_BT_RDGAP_EXTEND;
 						d.mat_.eMaskSet(row, col, 0); // done
 					} else if(mask == 1) {
@@ -1101,6 +1107,9 @@ bool SwAligner::backtraceNucleotidesLocalSseI16(
 						// then we *shouldn't* be allowed to terminate here because that
 						// means it's part of a larger alignment that was already reported.
 						canMoveThru = (origMask == 0);
+					}
+					if(!branch) {
+						// Is this where we can eliminate some incoming paths as well?
 					}
 					assert(!empty || !canMoveThru);
 				} else if(ct == SSEMatrix::F) { // AKA rfgap
@@ -1226,9 +1235,16 @@ bool SwAligner::backtraceNucleotidesLocalSseI16(
 					}
 				}
 				assert(!empty || !canMoveThru || ct == SSEMatrix::H);
-			}
+			} // if(row > 0)
+		} // else clause of if(reportedThru)
+		if(!reportedThru) {
+			d.mat_.setReportedThrough(row, col);
 		}
-		d.mat_.setReportedThrough(row, col);
+		assert(d.mat_.reportedThrough(row, col));
+		//if(backEliminate && row < d.mat_.nrow()-1) {
+		//	// Possibly pick off neighbors below and to the right if the
+		//	// neighbor's only way of backtracking is through this cell.
+		//}
 		assert_eq(gaps, Edit::numGaps(ned));
 		assert_leq(gaps, rdgap_ + rfgap_);
 		// Cell was involved in a previously-reported alignment?
@@ -1545,5 +1561,3 @@ bool SwAligner::backtraceNucleotidesLocalSseI16(
 	met.btsucc++; // DP backtraces succeeded
 	return true;
 }
-
-#endif

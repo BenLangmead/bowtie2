@@ -17,8 +17,6 @@
  * along with Bowtie 2.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef NO_SSE
-
 #include <string.h>
 #include "aligner_sw_common.h"
 #include "aligner_swsse.h"
@@ -79,5 +77,3 @@ int SSEMatrix::eltSlow(size_t row, size_t col, size_t mat) const {
 		return (int)((int16_t*)(buf_.ptr() + eltvec))[rowelt];
 	}
 }
-
-#endif

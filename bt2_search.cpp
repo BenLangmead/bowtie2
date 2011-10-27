@@ -189,7 +189,6 @@ static SimpleFunc maxelt;    // max # elts to extend for any given batch of seed
 static size_t maxhalf;       // max width on one side of DP table
 static bool seedSummaryOnly; // print summary information about seed hits, not alignments
 static bool scanNarrowed;    // true -> do ref scan even when seed is narrow
-static bool noSse;           // disable SSE-based dynamic programming
 static string defaultPreset; // default preset; applied immediately
 static bool ignoreQuals;     // all mms incur same penalty, regardless of qual
 static string wrapper;        // type of wrapper script, so we can print correct usage
@@ -337,7 +336,6 @@ static void resetOptions() {
 	maxhalf            = 15; // max width on one side of DP table
 	seedSummaryOnly    = false; // print summary information about seed hits, not alignments
 	scanNarrowed       = false; // true -> do ref scan even when seed is narrow
-	noSse              = false; // disable SSE-based dynamic programming
 	defaultPreset      = "sensitive%LOCAL%"; // default preset; applied immediately
 	extra_opts.clear();
 	extra_opts_cur = 0;
@@ -447,7 +445,6 @@ static struct option long_options[] = {
 	{(char*)"local",        no_argument,       0,            ARG_LOCAL},
 	{(char*)"end-to-end",   no_argument,       0,            ARG_END_TO_END},
 	{(char*)"scan-narrowed",no_argument,       0,            ARG_SCAN_NARROWED},
-	{(char*)"no-sse",       no_argument,       0,            ARG_NO_SSE},
 	{(char*)"qc-filter",    no_argument,       0,            ARG_QC_FILTER},
 	{(char*)"bwa-sw-like",  no_argument,       0,            ARG_BWA_SW_LIKE},
 	{(char*)"multiseed",        required_argument, 0,        ARG_MULTISEED_IVAL},
@@ -981,7 +978,6 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_LOCAL: localAlign = true; break;
 		case ARG_END_TO_END: localAlign = false; break;
 		case ARG_SCAN_NARROWED: scanNarrowed = true; break;
-		case ARG_NO_SSE: noSse = true; break;
 		case ARG_NO_DOVETAIL: gDovetailMatesOK = false; break;
 		case ARG_NO_CONTAIN:  gContainMatesOK = false; break;
 		case ARG_NO_OVERLAP:  gOlapMatesOK = false; break;
@@ -1409,6 +1405,8 @@ struct PerfMetrics {
 		dpSse8Mate.reset();   // 8-bit SSE mate finds
 		dpSse16Seed.reset();  // 16-bit SSE seed extensions
 		dpSse16Mate.reset();  // 16-bit SSE mate finds
+		nbtfiltst = 0;
+		nbtfiltdo = 0;
 		
 		olmu.reset();
 		sdmu.reset();
@@ -1420,6 +1418,8 @@ struct PerfMetrics {
 		dpSse8uMate.reset();  // 8-bit SSE mate finds
 		dpSse16uSeed.reset(); // 16-bit SSE seed extensions
 		dpSse16uMate.reset(); // 16-bit SSE mate finds
+		nbtfiltst_u = 0;
+		nbtfiltdo_u = 0;
 	}
 
 	/**
@@ -1436,6 +1436,8 @@ struct PerfMetrics {
 		const SSEMetrics *dpSse8Ma,
 		const SSEMetrics *dpSse16Ex,
 		const SSEMetrics *dpSse16Ma,
+		uint64_t nbtfiltst_,
+		uint64_t nbtfiltdo_,
 		bool getLock)
 	{
 		ThreadSafe ts(&lock, getLock);
@@ -1469,6 +1471,8 @@ struct PerfMetrics {
 		if(dpSse16Ma != NULL) {
 			dpSse16uMate.merge(*dpSse16Ma, false);
 		}
+		nbtfiltst_u += nbtfiltst_;
+		nbtfiltdo_u += nbtfiltdo_;
 	}
 
 	/**
@@ -1532,7 +1536,6 @@ struct PerfMetrics {
 				/* 41 */ "DP16ExCell"     "\t"
 				/* 42 */ "DP16ExInner"    "\t"
 				/* 43 */ "DP16ExFixup"    "\t"
-				/* 44 */ "DP16ExGathCell" "\t"
 				/* 45 */ "DP16ExGathSol"  "\t"
 				/* 46 */ "DP16ExBt"       "\t"
 				/* 47 */ "DP16ExBtFail"   "\t"
@@ -1549,7 +1552,6 @@ struct PerfMetrics {
 				/* 57 */ "DP8ExCell"      "\t"
 				/* 58 */ "DP8ExInner"     "\t"
 				/* 59 */ "DP8ExFixup"     "\t"
-				/* 60 */ "DP8ExGathCell"  "\t"
 				/* 61 */ "DP8ExGathSol"   "\t"
 				/* 62 */ "DP8ExBt"        "\t"
 				/* 63 */ "DP8ExBtFail"    "\t"
@@ -1566,7 +1568,6 @@ struct PerfMetrics {
 				/* 73 */ "DP16MateCell"    "\t"
 				/* 74 */ "DP16MateInner"   "\t"
 				/* 75 */ "DP16MateFixup"   "\t"
-				/* 76 */ "DP16MateGathCell""\t"
 				/* 77 */ "DP16MateGathSol" "\t"
 				/* 78 */ "DP16MateBt"      "\t"
 				/* 79 */ "DP16MateBtFail"  "\t"
@@ -1583,7 +1584,6 @@ struct PerfMetrics {
 				/* 89 */ "DP8MateCell"    "\t"
 				/* 90 */ "DP8MateInner"   "\t"
 				/* 91 */ "DP8MateFixup"   "\t"
-				/* 92 */ "DP8MateGathCell""\t"
 				/* 93 */ "DP8MateGathSol" "\t"
 				/* 94 */ "DP8MateBt"      "\t"
 				/* 95 */ "DP8MateBtFail"  "\t"
@@ -1592,15 +1592,18 @@ struct PerfMetrics {
 				/* 98 */ "DP8MateCoreRej" "\t"
 				/* 99 */ "DP8MateNRej"    "\t"
 
-				/* 100 */ "MemPeak"        "\t"
-				/* 101 */ "UncatMemPeak"   "\t" // 0
-				/* 102 */ "EbwtMemPeak"    "\t" // EBWT_CAT
-				/* 103 */ "CacheMemPeak"   "\t" // CA_CAT
-				/* 104 */ "ResolveMemPeak" "\t" // GW_CAT
-				/* 105 */ "AlignMemPeak"   "\t" // AL_CAT
-				/* 106 */ "DPMemPeak"      "\t" // DP_CAT
-				/* 107 */ "MiscMemPeak"    "\t" // MISC_CAT
-				/* 108 */ "DebugMemPeak"   "\t" // DEBUG_CAT
+				/* 100 */ "DPBtFiltStart"  "\t"
+				/* 101 */ "DpBtFiltDom"    "\t"
+
+				/* 102 */ "MemPeak"        "\t"
+				/* 103 */ "UncatMemPeak"   "\t" // 0
+				/* 104 */ "EbwtMemPeak"    "\t" // EBWT_CAT
+				/* 105 */ "CacheMemPeak"   "\t" // CA_CAT
+				/* 106 */ "ResolveMemPeak" "\t" // GW_CAT
+				/* 107 */ "AlignMemPeak"   "\t" // AL_CAT
+				/* 108 */ "DPMemPeak"      "\t" // DP_CAT
+				/* 109 */ "MiscMemPeak"    "\t" // MISC_CAT
+				/* 110 */ "DebugMemPeak"   "\t" // DEBUG_CAT
 				
 				"\n";
 			
@@ -1799,10 +1802,6 @@ struct PerfMetrics {
 		itoa10<uint64_t>(dpSse16s.fixup, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 44. 16-bit SSE seed-extend DP gather, cells examined
-		itoa10<uint64_t>(dpSse16s.gathcell, buf);
-		if(metricsStderr) cerr << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 		// 45. 16-bit SSE seed-extend DP gather, cells with potential solutions
 		itoa10<uint64_t>(dpSse16s.gathsol, buf);
 		if(metricsStderr) cerr << buf << '\t';
@@ -1864,10 +1863,6 @@ struct PerfMetrics {
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 		// 59. 8-bit SSE seed-extend DP fixup loop iters completed
 		itoa10<uint64_t>(dpSse8s.fixup, buf);
-		if(metricsStderr) cerr << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 60. 16-bit SSE seed-extend DP gather, cells examined
-		itoa10<uint64_t>(dpSse8s.gathcell, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 		// 61. 16-bit SSE seed-extend DP gather, cells with potential solutions
@@ -1933,10 +1928,6 @@ struct PerfMetrics {
 		itoa10<uint64_t>(dpSse16m.fixup, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 76. 16-bit SSE mate-finding DP gather, cells examined
-		itoa10<uint64_t>(dpSse16m.gathcell, buf);
-		if(metricsStderr) cerr << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 		// 77. 16-bit SSE mate-finding DP gather, cells with potential solutions
 		itoa10<uint64_t>(dpSse16m.gathsol, buf);
 		if(metricsStderr) cerr << buf << '\t';
@@ -2000,10 +1991,6 @@ struct PerfMetrics {
 		itoa10<uint64_t>(dpSse8m.fixup, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 92. 16-bit SSE mate-finding DP gather, cells examined
-		itoa10<uint64_t>(dpSse8m.gathcell, buf);
-		if(metricsStderr) cerr << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 		// 93. 16-bit SSE mate-finding DP gather, cells with potential solutions
 		itoa10<uint64_t>(dpSse8m.gathsol, buf);
 		if(metricsStderr) cerr << buf << '\t';
@@ -2032,40 +2019,49 @@ struct PerfMetrics {
 		itoa10<uint64_t>(dpSse8m.nrej, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-				
-		// 100. Overall memory peak
+		
+		// 100. 16-bit SSE mate-finding N rejections
+		itoa10<uint64_t>(total ? nbtfiltst : nbtfiltst_u, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 101. 16-bit SSE mate-finding N rejections
+		itoa10<uint64_t>(total ? nbtfiltdo : nbtfiltdo_u, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		
+		// 102. Overall memory peak
 		itoa10<size_t>(gMemTally.peak() >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 101. Uncategorized memory peak
+		// 103. Uncategorized memory peak
 		itoa10<size_t>(gMemTally.peak(0) >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 102. Ebwt memory peak
+		// 104. Ebwt memory peak
 		itoa10<size_t>(gMemTally.peak(EBWT_CAT) >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 103. Cache memory peak
+		// 105. Cache memory peak
 		itoa10<size_t>(gMemTally.peak(CA_CAT) >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 104. Resolver memory peak
+		// 106. Resolver memory peak
 		itoa10<size_t>(gMemTally.peak(GW_CAT) >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 105. Seed aligner memory peak
+		// 107. Seed aligner memory peak
 		itoa10<size_t>(gMemTally.peak(AL_CAT) >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 106. Dynamic programming aligner memory peak
+		// 108. Dynamic programming aligner memory peak
 		itoa10<size_t>(gMemTally.peak(DP_CAT) >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 107. Miscellaneous memory peak
+		// 109. Miscellaneous memory peak
 		itoa10<size_t>(gMemTally.peak(MISC_CAT) >> 20, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 100. Debug memory peak
+		// 110. Debug memory peak
 		itoa10<size_t>(gMemTally.peak(DEBUG_CAT) >> 20, buf);
 		if(metricsStderr) cerr << buf;
 		if(o != NULL) { o->writeChars(buf); }
@@ -2085,6 +2081,9 @@ struct PerfMetrics {
 		dpSse8Mate.merge(dpSse8uMate, false);
 		dpSse16Seed.merge(dpSse16uSeed, false);
 		dpSse16Mate.merge(dpSse16uMate, false);
+		nbtfiltst_u += nbtfiltst;
+		nbtfiltdo_u += nbtfiltdo;
+
 		olmu.reset();
 		sdmu.reset();
 		wlmu.reset();
@@ -2095,6 +2094,8 @@ struct PerfMetrics {
 		dpSse8uMate.reset();
 		dpSse16uSeed.reset();
 		dpSse16uMate.reset();
+		nbtfiltst_u = 0;
+		nbtfiltdo_u = 0;
 	}
 
 	// Total over the whole job
@@ -2108,6 +2109,8 @@ struct PerfMetrics {
 	SSEMetrics        dpSse8Mate;    // 8-bit SSE mate finds
 	SSEMetrics        dpSse16Seed; // 16-bit SSE seed extensions
 	SSEMetrics        dpSse16Mate;   // 16-bit SSE mate finds
+	uint64_t          nbtfiltst;
+	uint64_t          nbtfiltdo;
 
 	// Just since the last update
 	OuterLoopMetrics  olmu;  // overall metrics
@@ -2120,6 +2123,8 @@ struct PerfMetrics {
 	SSEMetrics        dpSse8uMate;  // 8-bit SSE mate finds
 	SSEMetrics        dpSse16uSeed; // 16-bit SSE seed extensions
 	SSEMetrics        dpSse16uMate; // 16-bit SSE mate finds
+	uint64_t          nbtfiltst_u;
+	uint64_t          nbtfiltdo_u;
 
 	MUTEX_T           lock;  // lock for when one ob
 	bool              first; // yet to print first line?
@@ -2182,6 +2187,8 @@ static inline void printColorLenSkipMsg(
 		&sseU8MateMet, \
 		&sseI16ExtendMet, \
 		&sseI16MateMet, \
+		nbtfiltst, \
+		nbtfiltdo, \
 		nthreads > 1); \
 	olm.reset(); \
 	sdm.reset(); \
@@ -2294,7 +2301,7 @@ static void* multiseedSearchWorker(void *vp) {
 
 	SeedAligner al;
 	SwDriver sd;
-	SwAligner sw(!noSse), osw(!noSse);
+	SwAligner sw, osw;
 	SeedResults shs[2];
 	QVal *qv;
 	OuterLoopMetrics olm;
@@ -2307,6 +2314,8 @@ static void* multiseedSearchWorker(void *vp) {
 	SSEMetrics sseU8MateMet;
 	SSEMetrics sseI16ExtendMet;
 	SSEMetrics sseI16MateMet;
+	uint64_t nbtfiltst = 0; // TODO: find a new home for these
+	uint64_t nbtfiltdo = 0; // TODO: find a new home for these
 
 	ASSERT_ONLY(BTDnaString tmp);
 
@@ -2693,13 +2702,17 @@ static void* multiseedSearchWorker(void *vp) {
 							sseU8ExtendMet,  // metrics for SSE 8-bit seed extends
 							sseU8MateMet,    // metrics for SSE 8-bit mate finding
 							sseI16ExtendMet, // metrics for SSE 16-bit seed extends
-							sseI16MateMet);  // metrics for SSE 16-bit mate finding
+							sseI16MateMet,   // metrics for SSE 16-bit mate finding
+							nbtfiltst,
+							nbtfiltdo);
 						sw.resetCounters();
 						osw.merge(
 							sseU8ExtendMet,  // metrics for SSE 8-bit seed extends
 							sseU8MateMet,    // metrics for SSE 8-bit mate finding
 							sseI16ExtendMet, // metrics for SSE 16-bit seed extends
-							sseI16MateMet);  // metrics for SSE 16-bit mate finding
+							sseI16MateMet,   // metrics for SSE 16-bit mate finding
+							nbtfiltst,
+							nbtfiltdo);
 						osw.resetCounters();
 						// Are we done with this read/pair?
 						if(done) {
