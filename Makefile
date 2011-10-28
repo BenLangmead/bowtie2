@@ -112,6 +112,9 @@ EXTRA_FLAGS =
 
 # Convert BITS=?? to a -m flag
 BITS=32
+ifeq (x86_64,$(shell uname -m))
+BITS=64
+endif
 BITS_FLAG =
 ifeq (32,$(BITS))
 BITS_FLAG = -m32
