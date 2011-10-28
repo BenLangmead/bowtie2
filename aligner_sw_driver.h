@@ -410,6 +410,15 @@ protected:
 		RandomSource& rnd,           // pseudo-random generator
 		WalkMetrics& wlm);           // group walk left metrics
 
+	void resolveAll(
+		SeedResults& sh,             // seed hits to extend into full alignments
+		const Ebwt& ebwt,            // BWT
+		const BitPairReference& ref, // Reference strings
+		AlignmentCacheIface& ca,     // alignment cache for seed hits
+		RandomSource& rnd,           // pseudo-random generator
+		WalkMetrics& wlm,            // group walk left metrics
+		size_t& nelt_out);           // out: # elements total
+
 	void prioritizeSATups(
 		SeedResults& sh,             // seed hits to extend into full alignments
 		const Ebwt& ebwt,            // BWT
