@@ -309,6 +309,7 @@ public:
 	 */
 	bool nextAlignment(
 		SwResult& res,
+		TAlScore minsc,
 		RandomSource& rnd);
 	
 	/**
@@ -376,6 +377,7 @@ public:
 		SSEMetrics& sseI16ExtendMet,
 		SSEMetrics& sseI16MateMet,
 		uint64_t&   nbtfiltst,
+		uint64_t&   nbtfiltsc,
 		uint64_t&   nbtfiltdo)
 	{
 		sseU8ExtendMet.merge(sseU8ExtendMet_);
@@ -383,6 +385,7 @@ public:
 		sseI16ExtendMet.merge(sseI16ExtendMet_);
 		sseI16MateMet.merge(sseI16MateMet_);
 		nbtfiltst += nbtfiltst_;
+		nbtfiltsc += nbtfiltsc_;
 		nbtfiltdo += nbtfiltdo_;
 	}
 	
@@ -394,7 +397,7 @@ public:
 		sseU8MateMet_.reset();
 		sseI16ExtendMet_.reset();
 		sseI16MateMet_.reset();
-		nbtfiltst_ = nbtfiltdo_ = 0;
+		nbtfiltst_ = nbtfiltsc_ = nbtfiltdo_ = 0;
 	}
 	
 	/**
@@ -552,7 +555,8 @@ protected:
 	SizeTPair           EXTREMES; // invalid, uninitialized range
 	
 	uint64_t nbtfiltst_; // # candidates filtered b/c starting cell was seen
-	uint64_t nbtfiltdo_; // # candidates filtered b/c "dominated" by better cell
+	uint64_t nbtfiltsc_; // # candidates filtered b/c score uninteresting
+	uint64_t nbtfiltdo_; // # candidates filtered b/c dominated by other cell
 	
 	ASSERT_ONLY(SStringExpandable<uint32_t> tmp_destU32_);
 	ASSERT_ONLY(BTDnaString tmp_editstr_, tmp_refstr_);

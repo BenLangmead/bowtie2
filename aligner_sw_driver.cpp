@@ -341,7 +341,7 @@ bool SwDriver::extendSeeds(
 	size_t maxhalf,  	         // max width in either direction for DP tables
 	bool enable8,                // use 8-bit SSE where possible
 	bool refscan,                // use reference scanning
-	bool scanNarrowed,           // true -> ref scan even for narrowed hits
+	int tighten,                 // -M score tightening mode
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
 	RandomSource& rnd,           // pseudo-random source
 	WalkMetrics& wlm,            // group walk left metrics
@@ -627,7 +627,7 @@ bool SwDriver::extendSeeds(
 					if(swa.done()) {
 						break;
 					}
-					swa.nextAlignment(res_, rnd);
+					swa.nextAlignment(res_, minsc, rnd);
 					found = !res_.empty();
 					if(!found) {
 						break;
@@ -692,13 +692,13 @@ bool SwDriver::extendSeeds(
 							//}
 							return true;
 						}
-						if(msink->Mmode() && msink->hasSecondBestUnp1()) {
-							if(true) {
+						if(tighten > 0 &&
+						   msink->Mmode() &&
+						   msink->hasSecondBestUnp1())
+						{
+							if(tighten == 1) {
 								if(msink->bestUnp1() >= minsc) {
 									minsc = msink->bestUnp1();
-									if(minsc < bestPossibleScore) {
-										minsc++;
-									}
 								}
 							} else {
 								if(msink->secondBestUnp1() >= minsc) {
@@ -708,6 +708,7 @@ bool SwDriver::extendSeeds(
 									}
 								}
 							}
+							assert_leq(minsc, sc.perfectScore(rdlen));
 						}
 					}
 				}
@@ -867,7 +868,7 @@ bool SwDriver::extendSeedsPaired(
 	size_t maxhalf,              // max width in either direction for DP tables
 	bool enable8,                // use 8-bit SSE where possible
 	bool refscan,                // use reference scanning
-	bool scanNarrowed,           // true -> ref scan even for narrowed hits
+	int tighten,                 // -M score tightening mode
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
 	RandomSource& rnd,           // pseudo-random source
 	WalkMetrics& wlm,            // group walk left metrics
@@ -896,31 +897,23 @@ bool SwDriver::extendSeedsPaired(
 
 	const size_t rdlen  = rd.length();
 	const size_t ordlen = ord.length();
+	assert_leq(minsc, sc.perfectScore(rdlen));
+	assert(oppFilt || ominsc <= sc.perfectScore(ordlen));
 
 	TAlScore bestPairScore = sc.perfectScore(rdlen) + sc.perfectScore(ordlen);
-	if(msink->Mmode() && msink->hasSecondBestPair()) {
-		// From now on, we want paired-end alignments to have at least this
-		// score
-		TAlScore ps = (true ? msink->bestPair() : msink->secondBestPair());
-		if(ps < bestPairScore) {
+	if(tighten > 0 && msink->Mmode() && msink->hasSecondBestPair()) {
+		// Paired-end alignments should have at least this score from now
+		TAlScore ps = ((tighten == 1) ? msink->bestPair() : msink->secondBestPair());
+		if(tighten == 2 && ps < bestPairScore) {
 			ps++;
-			// What does that mean for the anchor mate?  It means it must have
-			// at least a score equal to 'ps' minus the best possible score for
-			// the opposite mate.
-			TAlScore nc = ps - sc.perfectScore(ordlen);
-			if(nc > minsc) {
-				minsc = nc;
-			}
 		}
-	}
-
-	// Calculate the largest possible number of read and reference gaps
-	int readGaps  = sc.maxReadGaps(minsc,  rdlen);
-	int refGaps   = sc.maxRefGaps (minsc,  rdlen);
-	int oreadGaps = 0, orefGaps = 0;
-	if(!oppFilt) {
-		oreadGaps = sc.maxReadGaps(ominsc, ordlen);
-		orefGaps  = sc.maxRefGaps (ominsc, ordlen);
+		// Anchor mate must have score at least 'ps' minus the best possible
+		// score for the opposite mate.
+		TAlScore nc = ps - sc.perfectScore(ordlen);
+		if(nc > minsc) {
+			minsc = nc;
+		}
+		assert_leq(minsc, sc.perfectScore(rdlen));
 	}
 
 	const size_t rows   = rdlen  + (color ? 1 : 0);
@@ -1051,6 +1044,8 @@ bool SwDriver::extendSeedsPaired(
 				
 				int64_t pastedRefoff = (int64_t)wr.toff - rdoff;
 				DPRect rect;
+				int readGaps = sc.maxReadGaps(minsc,  rdlen);
+				int refGaps  = sc.maxRefGaps (minsc,  rdlen);
 				bool found = dpframe.frameSeedExtensionRect(
 					refoff,   // ref offset implied by seed hit assuming no gaps
 					rows,     // length of read sequence used in DP table (so len
@@ -1170,7 +1165,7 @@ bool SwDriver::extendSeedsPaired(
 					if(swa.done()) {
 						break;
 					}
-					swa.nextAlignment(res_, rnd);
+					swa.nextAlignment(res_, minsc, rnd);
 					found = !res_.empty();
 					if(!found) {
 						// Could not extend the seed hit into a full alignment for
@@ -1229,7 +1224,29 @@ bool SwDriver::extendSeedsPaired(
 						bool oleft = false, ofw = false;
 						int64_t oll = 0, olr = 0, orl = 0, orr = 0;
 						assert(!msink->state().done());
-						if(!oppFilt && !msink->state().doneConcordant()) {
+						foundMate = !oppFilt;
+						TAlScore ominsc_cur = ominsc;
+						int oreadGaps = 0, orefGaps = 0;
+						if(foundMate) {
+							// Adjust ominsc given the alignment score of the
+							// anchor mate
+							ominsc_cur = ominsc;
+							if(tighten > 0 && msink->Mmode() && msink->hasSecondBestPair()) {
+								// Paired-end alignments should have at least this score from now
+								TAlScore ps = ((tighten == 1) ? msink->bestPair() : msink->secondBestPair());
+								if(tighten == 2 && ps < bestPairScore) {
+									ps++;
+								}
+								// Anchor mate must have score at least 'ps' minus the best possible
+								// score for the opposite mate.
+								TAlScore nc = ps - res_.alres.score().score();
+								if(nc > ominsc_cur) {
+									ominsc_cur = nc;
+									assert_leq(ominsc_cur, sc.perfectScore(ordlen));
+								}
+							}
+							oreadGaps = sc.maxReadGaps(ominsc_cur, ordlen);
+							orefGaps  = sc.maxRefGaps (ominsc_cur, ordlen);
 							foundMate = pepol.otherMate(
 								anchor1,             // anchor mate is mate #1?
 								fw,                  // anchor aligned to Watson?
@@ -1244,10 +1261,6 @@ bool SwDriver::extendSeedsPaired(
 								orl,
 								orr,
 								ofw);
-						} else {
-							// We're no longer interested in finding additional
-							// concordant paired-end alignments so we just report this
-							// mate's alignment as an unpaired alignment (below)
 						}
 						DPRect orect;
 						if(foundMate) {
@@ -1293,7 +1306,7 @@ bool SwDriver::extendSeedsPaired(
 								ref,       // Reference strings
 								tlen,      // length of reference sequence
 								sc,        // scoring scheme
-								ominsc,    // min score for valid alignments
+								ominsc_cur,// min score for valid alignments
 								enable8,   // use 8-bit SSE if possible?
 								false,     // this is finding a mate - not seed ext
 								NULL,      // TODO: scan w/r/t other SeedResults
@@ -1327,7 +1340,7 @@ bool SwDriver::extendSeedsPaired(
 							if(foundMate && oswa.done()) {
 								foundMate = false;
 							} else if(foundMate) {
-								oswa.nextAlignment(ores_, rnd);
+								oswa.nextAlignment(ores_, ominsc_cur, rnd);
 								foundMate = !ores_.empty();
 								assert(!foundMate || ores_.alres.matchesRef(
 									ord,
@@ -1425,18 +1438,21 @@ bool SwDriver::extendSeedsPaired(
 											// -k, -m or -M, was exceeded
 											donePaired = true;
 										} else {
-											if(msink->Mmode() && msink->hasSecondBestPair()) {
-												// From now on, we want paired-end alignments to have at least this
-												// score
-												TAlScore ps = (true ? msink->bestPair() : msink->secondBestPair());
-												if(ps < bestPairScore) {
+											if(tighten > 0 && msink->Mmode() && msink->hasSecondBestPair()) {
+												// Paired-end alignments should have at least this score from now
+												TAlScore ps = ((tighten == 1) ? msink->bestPair() : msink->secondBestPair());
+												if(tighten == 2 && ps < bestPairScore) {
 													ps++;
-													// What does that mean for the anchor mate?  It means it must have
-													// at least a score equal to 'ps' minus the best possible score for
-													// the opposite mate.
-													TAlScore nc = ps - sc.perfectScore(ordlen);
-													if(nc > minsc) {
-														minsc = nc;
+												}
+												// Anchor mate must have score at least 'ps' minus the best possible
+												// score for the opposite mate.
+												TAlScore nc = ps - sc.perfectScore(ordlen);
+												if(nc > minsc) {
+													minsc = nc;
+													assert_leq(minsc, sc.perfectScore(rdlen));
+													if(minsc > res_.alres.score().score()) {
+														// We're done with this anchor
+														break;
 													}
 												}
 											}

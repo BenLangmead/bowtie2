@@ -82,8 +82,9 @@ struct DpNucFrame {
 enum {
 	BT_CAND_FATE_SUCCEEDED = 1,
 	BT_CAND_FATE_FAILED,
-	BT_CAND_FATE_FILT_START,
-	BT_CAND_FATE_FILT_DOMINATED // skipped b/c it was do
+	BT_CAND_FATE_FILT_START,     // skipped b/c starting cell already explored
+	BT_CAND_FATE_FILT_DOMINATED, // skipped b/c it was dominated
+	BT_CAND_FATE_FILT_SCORE      // skipped b/c score not interesting anymore
 };
 
 /**

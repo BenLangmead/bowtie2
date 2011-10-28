@@ -422,6 +422,7 @@ bool SwAligner::align(RandomSource& rnd) {
  */
 bool SwAligner::nextAlignment(
 	SwResult& res,
+	TAlScore minsc,
 	RandomSource& rnd)
 {
 	//struct timeval tv_i, tv_f;
@@ -446,8 +447,10 @@ bool SwAligner::nextAlignment(
 	while(cural_ < candsz) {
 		// Doing 'continue' anywhere in here simply causes us to move on to the
 		// next candidate
-		//cerr << "In nextAlignment; current=" << cural_ << ", # candidates="
-		//     << btncand_.size() << endl;
+		if(btncand_[cural_].score < minsc) {
+			btncand_[cural_].fate = BT_CAND_FATE_FILT_SCORE;
+			nbtfiltsc_++; cural_++; continue;
+		}
 		nbts = 0;
 		assert(sse8succ_ || sse16succ_);
 		size_t row = btncand_[cural_].row;
