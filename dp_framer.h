@@ -82,7 +82,8 @@ struct DPRect {
 	
 	size_t  corel; // offset of column where leftmost "core" diagonal starts
 	size_t  corer; // offset of column where rightmost "core" diagonal starts
-	// [corel, corer] is an inclusive range
+	// [corel, corer] is an inclusive range and offsets are with respect to the
+	// original, untrimmed rectangle.
 	
 	size_t  maxgap; // max # gaps - width of the gap bands
 	
@@ -113,7 +114,7 @@ struct DPRect {
 	}
 	
 	void initIval(Interval& iv) {
-		iv.setOff(refl + (int64_t)corel);
+		iv.setOff(refl_pretrim + (int64_t)corel);
 		iv.setLen(corer - corel + 1);
 	}
 };

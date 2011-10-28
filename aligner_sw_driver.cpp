@@ -17,6 +17,18 @@
  * along with Bowtie 2.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define TIMER_START() \
+	struct timeval tv_i, tv_f; \
+	struct timezone tz_i, tz_f; \
+	size_t total_usecs; \
+	gettimeofday(&tv_i, &tz_i)
+
+#define IF_TIMER_END() \
+	gettimeofday(&tv_f, &tz_f); \
+	total_usecs = \
+		(tv_f.tv_sec - tv_i.tv_sec) * 1000000 + (tv_f.tv_usec - tv_i.tv_usec); \
+	if(total_usecs > 300000)
+
 /*
  * aligner_sw_driver.cpp
  *
@@ -37,11 +49,56 @@
 #include "pe.h"
 #include "dp_framer.h"
 // -- BTL remove --
-//#include <stdlib.h>
-//#include <sys/time.h>
+#include <stdlib.h>
+#include <sys/time.h>
 // -- --
 
 using namespace std;
+
+void SwDriver::resolveAll(
+	SeedResults& sh,             // seed hits to extend into full alignments
+	const Ebwt& ebwt,            // BWT
+	const BitPairReference& ref, // Reference strings
+	AlignmentCacheIface& ca,     // alignment cache for seed hits
+	RandomSource& rnd,           // pseudo-random generator
+	WalkMetrics& wlm,            // group walk left metrics
+	size_t& nelt_out)            // out: # elements total
+{
+	const size_t nonz = sh.nonzeroOffsets(); // non-zero positions
+	gws_.clear();
+	satpos_.clear();
+	for(size_t i = 0; i < nonz; i++) {
+		satups_.clear();
+		bool fw = true;
+		uint32_t offidx = 0, rdoff = 0, seedlen = 0;
+		QVal qv = sh.hitsByRank(i, offidx, rdoff, fw, seedlen);
+		assert(qv.valid());
+		assert(!qv.empty());
+		assert(qv.repOk(ca.current()));
+		size_t nrange = 0;
+		ca.queryQval(qv, satups_, nrange, nelt_out);
+		for(size_t j = 0; j < satups_.size(); j++) {
+			satpos_.expand();
+			satpos_.back().sat = satups_[j];
+			satpos_.back().origSz = satups_[j].size();
+			satpos_.back().pos.init(fw, offidx, rdoff, seedlen);
+			gws_.expand();
+			gws_.back().init(
+				ebwt,               // forward Bowtie index
+				ref,                // reference sequences
+				satpos_.back().sat, // SA tuples: ref hit, salist range
+				NULL,               // Combiner for resolvers
+				ca,                 // current cache
+				rnd,                // pseudo-random generator
+				wlm);               // metrics
+			TIMER_START();
+			gws_.back().resolveAll(wlm);
+			IF_TIMER_END() {
+				cerr << "Saw a long resolveAll (" << total_usecs << ")" << endl;
+			}
+		}
+	}
+}
 
 /**
  * Given seed results, set up all of our state for resolving and keeping
@@ -295,10 +352,7 @@ bool SwDriver::extendSeeds(
 	EList<SwActionSink*>* swActionSinks,   // send action-list updates to these
 	bool& exhaustive)            // set to true iff we searched all seeds exhaustively
 {
-	//struct timeval tv_i, tv_f;
-	//struct timezone tz_i, tz_f;
-	//gettimeofday(&tv_i, &tz_i);
-	
+	//TIMER_START();
 	typedef std::pair<uint32_t, uint32_t> U32Pair;
 
 	assert(!reportImmediately || msink != NULL);
@@ -317,6 +371,21 @@ bool SwDriver::extendSeeds(
 
 	DynProgFramer dpframe(!gReportOverhangs);
 	swa.reset();
+	
+	// Resolve all the seed hits
+	//size_t nelt = 0;
+	//resolveAll(
+	//	sh,      // seed hits to resolve
+	//	ebwt,    // FM Index
+	//	ref,     // reference strings
+	//	ca,      // alignment cache for seed hits
+	//	rnd,     // pseudo-random generator
+	//	wlm,     // walk-left metrics,
+	//	nelt);   // out: # elements total
+	
+	//IF_TIMER_END() {
+	//	cerr << "Saw a long extendSeeds (" << total_usecs << ")" << endl;
+	//}
 
 	// Initialize a set of GroupWalks, one for each seed.  Also, intialize the
 	// accompanying lists of reference seed hits (satups*) and the combiners
@@ -328,8 +397,10 @@ bool SwDriver::extendSeeds(
 	const size_t nonz = sh.nonzeroOffsets(); // non-zero positions
 	assert_gt(nonz, 0);
 	double maxelt_db = maxeltf.f<double>((double)nonz);
-	maxelt_db *= 32.0/pow((double)max<size_t>(rdlen, 100), 0.75);
-	maxelt_db = max<double>(maxelt_db, 2.0f);
+	if(maxelt_db < std::numeric_limits<double>::max()) {
+		maxelt_db *= 32.0/pow((double)max<size_t>(rdlen, 100), 0.75);
+		maxelt_db = max<double>(maxelt_db, 2.0f);
+	}
 	size_t maxelt = (size_t)maxelt_db;
 	if(maxelt_db == std::numeric_limits<double>::max()) {
 		maxelt = std::numeric_limits<size_t>::max();
@@ -346,12 +417,6 @@ bool SwDriver::extendSeeds(
 		rnd,          // pseudo-random generator
 		wlm,          // group walk left metrics
 		nelt);        // out: # elements total
-	//gettimeofday(&tv_f, &tz_f);
-	//size_t total_usecs =
-	//	(tv_f.tv_sec - tv_i.tv_sec) * 1000000 + (tv_f.tv_usec - tv_i.tv_usec);
-	//if(total_usecs > 300000) {
-	//	cerr << "Saw a long extendSeeds (" << total_usecs << " usecs)" << endl;
-	//}
 	size_t rows = rdlen + (color ? 1 : 0);
 	assert_eq(gws_.size(), rands_.size());
 	assert_eq(gws_.size(), satpos_.size());
@@ -622,11 +687,8 @@ bool SwDriver::extendSeeds(
 						{
 							// Short-circuited because a limit, e.g. -k, -m or
 							// -M, was exceeded
-							//gettimeofday(&tv_f, &tz_f);
-							//size_t total_usecs =
-							//	(tv_f.tv_sec - tv_i.tv_sec) * 1000000 + (tv_f.tv_usec - tv_i.tv_usec);
-							//if(total_usecs > 300000) {
-							//	cerr << "Saw a long extendSeeds (" << total_usecs << " usecs)" << endl;
+							//IF_TIMER_END() {
+							//	cerr << "Saw a long extendSeeds (" << total_usecs << ")" << endl;
 							//}
 							return true;
 						}
@@ -657,11 +719,8 @@ bool SwDriver::extendSeeds(
 		}
 	}
 	// Short-circuited because a limit, e.g. -k, -m or -M, was exceeded
-	//gettimeofday(&tv_f, &tz_f);
-	//total_usecs =
-	//	(tv_f.tv_sec - tv_i.tv_sec) * 1000000 + (tv_f.tv_usec - tv_i.tv_usec);
-	//if(total_usecs > 300000) {
-	//	cerr << "Saw a long extendSeeds (" << total_usecs << " usecs)" << endl;
+	//IF_TIMER_END() {
+	//	cerr << "Saw a long extendSeeds (" << total_usecs << ")" << endl;
 	//}
 	return false;
 }
@@ -881,8 +940,10 @@ bool SwDriver::extendSeedsPaired(
 	const size_t nonz = sh.nonzeroOffsets(); // non-zero positions
 	assert_gt(nonz, 0);
 	double maxelt_db = maxeltf.f<double>((double)nonz);
-	maxelt_db *= 32.0/pow((double)max<size_t>(rdlen, 100), 0.75);
-	maxelt_db = max<double>(maxelt_db, 2.0f);
+	if(maxelt_db < std::numeric_limits<double>::max()) {
+		maxelt_db *= 32.0/pow((double)max<size_t>(rdlen, 100), 0.75);
+		maxelt_db = max<double>(maxelt_db, 2.0f);
+	}
 	size_t maxelt = (size_t)maxelt_db;
 	if(maxelt_db == std::numeric_limits<double>::max()) {
 		maxelt = std::numeric_limits<size_t>::max();

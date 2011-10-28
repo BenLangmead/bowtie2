@@ -1103,6 +1103,16 @@ public:
 	//
 
 	/**
+	 * Advance the GroupWalk until all elements have been resolved.
+	 */
+	void resolveAll(WalkMetrics& met) {
+		WalkResult res; // ignore results for now
+		for(size_t i = 0; i < elt_; i++) {
+			advanceElement((uint32_t)i, res, met);
+		}
+	}
+
+	/**
 	 * Advance the GroupWalk until the specified element has been
 	 * resolved.
 	 */

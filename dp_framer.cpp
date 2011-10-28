@@ -119,6 +119,8 @@ bool DynProgFramer::frameSeedExtensionRect(
 	rect.triml = triml;
 	rect.trimr = trimr;
 	rect.maxgap = maxgap;
+	// Remember which diagonals are "core" as offsets from the LHS of the
+	// untrimmed rectangle
 	rect.corel = maxgap;
 	rect.corer = rect.corel + maxgap; // inclusive
 	assert(rect.repOk());
