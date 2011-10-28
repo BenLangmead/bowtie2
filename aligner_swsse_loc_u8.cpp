@@ -883,7 +883,6 @@ bool SwAligner::gatherCellsNucleotidesLocalSseU8(TAlScore best) {
 	}
 	if(!btncand_.empty()) {
 		d.mat_.initMasks();
-		btncand_.sort();
 	}
 	return !btncand_.empty();
 }

@@ -18,6 +18,10 @@
  */
 
 #include <limits>
+// -- BTL remove --
+//#include <stdlib.h>
+//#include <sys/time.h>
+// -- --
 #include "aligner_sw.h"
 #include "aligner_result.h"
 #include "search_globals.h"
@@ -236,6 +240,10 @@ void SwAligner::initRef(
  * determined simultaneously with alignment.  Uses dynamic programming.
  */
 bool SwAligner::align(RandomSource& rnd) {
+	//struct timeval tv_i, tv_f;
+	//struct timezone tz_i, tz_f;
+	//gettimeofday(&tv_i, &tz_i);
+
 	assert(initedRef() && initedRead());
 	assert_eq(STATE_INITED, state_);
 	state_ = STATE_ALIGNED;
@@ -246,6 +254,11 @@ bool SwAligner::align(RandomSource& rnd) {
 	TAlScore best = 0;
 	sse8succ_ = sse16succ_ = false;
 	int flag = 0;
+	
+	//struct timeval tv_i, tv_f;
+	//struct timezone tz_i, tz_f;
+	//gettimeofday(&tv_i, &tz_i);
+	
 	if(sc_->monotone) {
 		if(enable8_ && minsc_ >= -254) {
 			best = alignNucleotidesEnd2EndSseU8(flag);
@@ -279,6 +292,13 @@ bool SwAligner::align(RandomSource& rnd) {
 #endif /*ndef NDEBUG*/
 		}
 	}
+
+	//gettimeofday(&tv_f, &tz_f);
+	//size_t total_usecs =
+	//	(tv_f.tv_sec - tv_i.tv_sec) * 1000000 + (tv_f.tv_usec - tv_i.tv_usec);
+	//if(total_usecs > 500000) {
+	//	cerr << "Saw a long DP (" << total_usecs << " usecs)" << endl;
+	//}
 #ifndef NDEBUG
 	if((rand() & 15) == 0 && sse8succ_ && sse16succ_) {
 		SSEData& d8  = fw_ ? sseU8fw_  : sseU8rc_;
@@ -339,6 +359,12 @@ bool SwAligner::align(RandomSource& rnd) {
 	assert(repOk());
 	cural_ = 0;
 	if(best == std::numeric_limits<TAlScore>::min()) {
+		//gettimeofday(&tv_f, &tz_f);
+		//size_t total_usecs =
+		//	(tv_f.tv_sec - tv_i.tv_sec) * 1000000 + (tv_f.tv_usec - tv_i.tv_usec);
+		//if(total_usecs > 300000) {
+		//	cerr << "Saw a long call to align (" << total_usecs << " usecs)" << endl;
+		//}
 		return false;
 	}
 	// Look for solutions using SSE matrix
@@ -370,6 +396,15 @@ bool SwAligner::align(RandomSource& rnd) {
 			gatherCellsNucleotidesLocalSseI16(best);
 		}
 	}
+	if(!btncand_.empty()) {
+		btncand_.sort();
+	}
+	//gettimeofday(&tv_f, &tz_f);
+	//size_t total_usecs =
+	//	(tv_f.tv_sec - tv_i.tv_sec) * 1000000 + (tv_f.tv_usec - tv_i.tv_usec);
+	//if(total_usecs > 300000) {
+	//	cerr << "Saw a long call to align (" << total_usecs << " usecs)" << endl;
+	//}
 	return !btncand_.empty();
 }
 
@@ -389,6 +424,10 @@ bool SwAligner::nextAlignment(
 	SwResult& res,
 	RandomSource& rnd)
 {
+	//struct timeval tv_i, tv_f;
+	//struct timezone tz_i, tz_f;
+	//gettimeofday(&tv_i, &tz_i);
+	
 	assert(initedRead() && initedRef());
 	assert_eq(STATE_ALIGNED, state_);
 	assert(repOk());
@@ -591,6 +630,12 @@ bool SwAligner::nextAlignment(
 	} // while(cural_ < btncand_.size())
 	if(cural_ == btncand_.size()) {
 		assert(res.repOk());
+		//gettimeofday(&tv_f, &tz_f);
+		//size_t total_usecs =
+		//	(tv_f.tv_sec - tv_i.tv_sec) * 1000000 + (tv_f.tv_usec - tv_i.tv_usec);
+		//if(total_usecs > 300000) {
+		//	cerr << "Saw a long call to nextAlignment (" << total_usecs << " usecs)" << endl;
+		//}
 		return false;
 	}
 	assert(!res.alres.empty());
@@ -603,6 +648,12 @@ bool SwAligner::nextAlignment(
 	}
 	cural_++;
 	assert(res.repOk());
+	//gettimeofday(&tv_f, &tz_f);
+	//size_t total_usecs =
+	//	(tv_f.tv_sec - tv_i.tv_sec) * 1000000 + (tv_f.tv_usec - tv_i.tv_usec);
+	//if(total_usecs > 300000) {
+	//	cerr << "Saw a long call to nextAlignment (" << total_usecs << " usecs)" << endl;
+	//}
 	return true;
 }
 

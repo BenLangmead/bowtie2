@@ -927,7 +927,6 @@ bool SwAligner::gatherCellsNucleotidesEnd2EndSseU8(TAlScore best) {
 	assert(sawbest);
 	if(!btncand_.empty()) {
 		d.mat_.initMasks();
-		btncand_.sort();
 	}
 	return !btncand_.empty();
 }

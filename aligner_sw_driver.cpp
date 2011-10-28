@@ -31,10 +31,15 @@
  */
 
 #include <iostream>
+#include <algorithm>
 #include "aligner_cache.h"
 #include "aligner_sw_driver.h"
 #include "pe.h"
 #include "dp_framer.h"
+// -- BTL remove --
+//#include <stdlib.h>
+//#include <sys/time.h>
+// -- --
 
 using namespace std;
 
@@ -290,6 +295,10 @@ bool SwDriver::extendSeeds(
 	EList<SwActionSink*>* swActionSinks,   // send action-list updates to these
 	bool& exhaustive)            // set to true iff we searched all seeds exhaustively
 {
+	//struct timeval tv_i, tv_f;
+	//struct timezone tz_i, tz_f;
+	//gettimeofday(&tv_i, &tz_i);
+	
 	typedef std::pair<uint32_t, uint32_t> U32Pair;
 
 	assert(!reportImmediately || msink != NULL);
@@ -304,7 +313,6 @@ bool SwDriver::extendSeeds(
 	const size_t rdlen = rd.length();
 	int readGaps = sc.maxReadGaps(minsc, rdlen);
 	int refGaps  = sc.maxRefGaps(minsc, rdlen);
-	size_t maxGaps = 0;
 	TAlScore bestPossibleScore = sc.perfectScore(rdlen);
 
 	DynProgFramer dpframe(!gReportOverhangs);
@@ -320,7 +328,8 @@ bool SwDriver::extendSeeds(
 	const size_t nonz = sh.nonzeroOffsets(); // non-zero positions
 	assert_gt(nonz, 0);
 	double maxelt_db = maxeltf.f<double>((double)nonz);
-	maxelt_db = max<double>(maxelt_db, 1.0f);
+	maxelt_db *= 32.0/pow((double)max<size_t>(rdlen, 100), 0.75);
+	maxelt_db = max<double>(maxelt_db, 2.0f);
 	size_t maxelt = (size_t)maxelt_db;
 	if(maxelt_db == std::numeric_limits<double>::max()) {
 		maxelt = std::numeric_limits<size_t>::max();
@@ -337,6 +346,12 @@ bool SwDriver::extendSeeds(
 		rnd,          // pseudo-random generator
 		wlm,          // group walk left metrics
 		nelt);        // out: # elements total
+	//gettimeofday(&tv_f, &tz_f);
+	//size_t total_usecs =
+	//	(tv_f.tv_sec - tv_i.tv_sec) * 1000000 + (tv_f.tv_usec - tv_i.tv_usec);
+	//if(total_usecs > 300000) {
+	//	cerr << "Saw a long extendSeeds (" << total_usecs << " usecs)" << endl;
+	//}
 	size_t rows = rdlen + (color ? 1 : 0);
 	assert_eq(gws_.size(), rands_.size());
 	assert_eq(gws_.size(), satpos_.size());
@@ -367,6 +382,7 @@ bool SwDriver::extendSeeds(
 				// Resolve next element offset
 				WalkResult wr;
 				uint32_t elt = rands_[i].next(rnd);
+				// cerr << i << ", " << elt << endl;
 				gws_[i].advanceElement(elt, wr, wlm);
 				eltsDone++;
 				assert_gt(neltLeft, 0);
@@ -406,6 +422,7 @@ bool SwDriver::extendSeeds(
 				if(seenDiags1_.locusPresent(refcoord)) {
 					// Already handled alignments seeded on this diagonal
 					swmSeed.rshit++;
+					// cerr << "  skipped" << endl;
 					continue;
 				}
 				// Now that we have a seed hit, there are many issues to solve
@@ -530,7 +547,8 @@ bool SwDriver::extendSeeds(
 				// Because of how we framed the problem, we can say that we've
 				// exhaustively scored the seed diagonal as well as maxgaps
 				// diagonals on either side
-				Interval refival(tidx, refoff - maxGaps, fw, maxGaps*2 + 1);
+				Interval refival(tidx, 0, fw, 0);
+				rect.initIval(refival);
 				seenDiags1_.add(refival);
 				// Now fill the dynamic programming matrix and return true iff
 				// there is at least one valid alignment
@@ -604,6 +622,12 @@ bool SwDriver::extendSeeds(
 						{
 							// Short-circuited because a limit, e.g. -k, -m or
 							// -M, was exceeded
+							//gettimeofday(&tv_f, &tz_f);
+							//size_t total_usecs =
+							//	(tv_f.tv_sec - tv_i.tv_sec) * 1000000 + (tv_f.tv_usec - tv_i.tv_usec);
+							//if(total_usecs > 300000) {
+							//	cerr << "Saw a long extendSeeds (" << total_usecs << " usecs)" << endl;
+							//}
 							return true;
 						}
 						if(msink->Mmode() && msink->hasSecondBestUnp1()) {
@@ -633,6 +657,12 @@ bool SwDriver::extendSeeds(
 		}
 	}
 	// Short-circuited because a limit, e.g. -k, -m or -M, was exceeded
+	//gettimeofday(&tv_f, &tz_f);
+	//total_usecs =
+	//	(tv_f.tv_sec - tv_i.tv_sec) * 1000000 + (tv_f.tv_usec - tv_i.tv_usec);
+	//if(total_usecs > 300000) {
+	//	cerr << "Saw a long extendSeeds (" << total_usecs << " usecs)" << endl;
+	//}
 	return false;
 }
 
@@ -851,7 +881,8 @@ bool SwDriver::extendSeedsPaired(
 	const size_t nonz = sh.nonzeroOffsets(); // non-zero positions
 	assert_gt(nonz, 0);
 	double maxelt_db = maxeltf.f<double>((double)nonz);
-	maxelt_db = max<double>(maxelt_db, 1.0f);
+	maxelt_db *= 32.0/pow((double)max<size_t>(rdlen, 100), 0.75);
+	maxelt_db = max<double>(maxelt_db, 2.0f);
 	size_t maxelt = (size_t)maxelt_db;
 	if(maxelt_db == std::numeric_limits<double>::max()) {
 		maxelt = std::numeric_limits<size_t>::max();
