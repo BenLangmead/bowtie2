@@ -283,7 +283,7 @@ public:
 		size_t maxhalf,              // maximum width on one side of DP table
 		bool enable8,                // use 8-bit SSE where possible
 		bool refscan,                // use reference scanning
-		bool scanNarrowed,           // true -> ref scan even for narrowed hits
+		int tighten,                 // -M score tightening mode
 		AlignmentCacheIface& ca,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random source
 		WalkMetrics& wlm,            // group walk left metrics
@@ -357,7 +357,7 @@ public:
 		size_t maxhalf,              // maximum width on one side of DP table
 		bool enable8,                // use 8-bit SSE where possible
 		bool refscan,                // use reference scanning
-		bool scanNarrowed,           // true -> ref scan even for narrowed hits
+		int tighten,                 // -M score tightening mode
 		AlignmentCacheIface& cs,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random source
 		WalkMetrics& wlm,            // group walk left metrics
@@ -399,6 +399,7 @@ protected:
 	 * Given seed results, set up all of our state for resolving and keeping
 	 * track of reference offsets for hits.
 	 */
+#if 0
 	void setUpSaRangeState(
 		SeedResults& sh,             // seed hits to extend into full alignments
 		const Ebwt& ebwt,            // BWT
@@ -409,6 +410,7 @@ protected:
 		AlignmentCacheIface& ca,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random generator
 		WalkMetrics& wlm);           // group walk left metrics
+#endif
 
 	void resolveAll(
 		SeedResults& sh,             // seed hits to extend into full alignments
