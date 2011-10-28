@@ -704,7 +704,6 @@ bool SwAligner::gatherCellsNucleotidesEnd2EndSseI16(TAlScore best) {
 	assert(sawbest);
 	if(!btncand_.empty()) {
 		d.mat_.initMasks();
-		btncand_.sort();
 	}
 	return !btncand_.empty();
 }

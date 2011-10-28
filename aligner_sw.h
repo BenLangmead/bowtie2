@@ -396,6 +396,13 @@ public:
 		sseI16MateMet_.reset();
 		nbtfiltst_ = nbtfiltdo_ = 0;
 	}
+	
+	/**
+	 * Return the size of the DP problem.
+	 */
+	size_t size() const {
+		return dpRows() * (rff_ - rfi_);
+	}
 
 protected:
 	

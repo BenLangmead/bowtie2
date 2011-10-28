@@ -2805,9 +2805,7 @@ static void* multiseedSearchWorker(void *vp) {
 	} // while(true)
 	
 	// One last metrics merge
-	if(!metricsPerRead && (metricsOfb != NULL || metricsStderr)) {
-		MERGE_METRICS(metrics, nthreads > 1);
-	}
+	MERGE_METRICS(metrics, nthreads > 1);
 
 #ifdef BOWTIE_PTHREADS
 	if(tid > 0) { pthread_exit(NULL); }
