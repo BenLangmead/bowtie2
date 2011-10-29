@@ -339,6 +339,7 @@ bool SwDriver::extendSeeds(
 	int nceil,                   // maximum # Ns permitted in reference portion
 	const SimpleFunc& maxeltf,   // # elts to explore as function of total elts
 	size_t maxhalf,  	         // max width in either direction for DP tables
+	bool doUngapped,             // do ungapped alignment
 	bool enable8,                // use 8-bit SSE where possible
 	bool refscan,                // use reference scanning
 	int tighten,                 // -M score tightening mode
@@ -509,7 +510,7 @@ bool SwDriver::extendSeeds(
 				bool ungapped = (readGaps == 0 && refGaps == 0);
 				int ungappedAlign = -1; // defer
 				bool found = false;
-				if(ungapped) {
+				if(doUngapped && ungapped) {
 					resUngapped_.reset();
 					ungappedAlign = swa.ungappedAlign(
 						fw ? rd.patFw : rd.patRc,
@@ -913,6 +914,7 @@ bool SwDriver::extendSeedsPaired(
 	bool norc,                   // don't align revcomp read
 	const SimpleFunc& maxeltf,   // # elts to explore as function of total elts
 	size_t maxhalf,              // max width in either direction for DP tables
+	bool doUngapped,             // do ungapped alignment
 	bool enable8,                // use 8-bit SSE where possible
 	bool refscan,                // use reference scanning
 	int tighten,                 // -M score tightening mode
@@ -1096,7 +1098,7 @@ bool SwDriver::extendSeedsPaired(
 				bool ungapped = (readGaps == 0 && refGaps == 0);
 				int ungappedAlign = -1; // defer
 				bool found = false;
-				if(ungapped) {
+				if(doUngapped && ungapped) {
 					resUngapped_.reset();
 					ungappedAlign = swa.ungappedAlign(
 						fw ? rd.patFw : rd.patRc,

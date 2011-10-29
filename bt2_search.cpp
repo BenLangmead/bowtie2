@@ -189,6 +189,7 @@ static uint32_t seedCacheCurrentMB; // # MB to use for current-read seed hit cac
 static SimpleFunc maxelt;    // max # elts to extend for any given batch of seed hits
 static size_t maxhalf;       // max width on one side of DP table
 static bool seedSummaryOnly; // print summary information about seed hits, not alignments
+static bool doUngapped;      // do ungapped alignment
 static bool enable8;         // use 8-bit SSE where possible?
 static bool refscan;         // use reference scanning?
 static string defaultPreset; // default preset; applied immediately
@@ -339,6 +340,7 @@ static void resetOptions() {
 	seedCacheCurrentMB = 20; // # MB to use for current-read seed hit cacheing
 	maxhalf            = 15; // max width on one side of DP table
 	seedSummaryOnly    = false; // print summary information about seed hits, not alignments
+	doUngapped         = true;  // do ungapped alignment
 	enable8            = true;  // use 8-bit SSE where possible?
 	refscan            = false; // use reference scanning?
 	defaultPreset      = "sensitive%LOCAL%"; // default preset; applied immediately
@@ -454,6 +456,8 @@ static struct option long_options[] = {
 	{(char*)"end-to-end",   no_argument,       0,            ARG_END_TO_END},
 	{(char*)"refscan",      no_argument,       0,            ARG_REFSCAN},
 	{(char*)"no-refscan",   no_argument,       0,            ARG_REFSCAN_NO},
+	{(char*)"ungapped",     no_argument,       0,            ARG_UNGAPPED},
+	{(char*)"no-ungapped",  no_argument,       0,            ARG_UNGAPPED_NO},
 	{(char*)"sse8",         no_argument,       0,            ARG_SSE8},
 	{(char*)"no-sse8",      no_argument,       0,            ARG_SSE8_NO},
 	{(char*)"scan-narrowed",no_argument,       0,            ARG_SCAN_NARROWED},
@@ -996,6 +1000,8 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_REFSCAN_NO: refscan = false; break;
 		case ARG_SSE8: enable8 = true; break;
 		case ARG_SSE8_NO: enable8 = false; break;
+		case ARG_UNGAPPED: doUngapped = true; break;
+		case ARG_UNGAPPED_NO: doUngapped = false; break;
 		case ARG_NO_DOVETAIL: gDovetailMatesOK = false; break;
 		case ARG_NO_CONTAIN:  gContainMatesOK = false; break;
 		case ARG_NO_OVERLAP:  gOlapMatesOK = false; break;
@@ -2819,6 +2825,7 @@ static void* multiseedSearchWorker(void *vp) {
 								norc,           // don't align revcomp read
 								myMaxeltPair,   // max elts to extend
 								maxhalf,        // max width on one DP side
+								doUngapped,     // do ungapped alignment
 								enable8,        // use 8-bit SSE where possible
 								refscan,        // use reference scanning?
 								tighten,        // -M score tightening mode
@@ -2855,6 +2862,7 @@ static void* multiseedSearchWorker(void *vp) {
 								nceil,          // N ceil for anchor
 								myMaxelt,       // max elts to extend
 								maxhalf,        // max width on one DP side
+								doUngapped,     // do ungapped alignment
 								enable8,        // use 8-bit SSE where possible
 								refscan,        // use reference scanning?
 								tighten,        // -M score tightening mode
