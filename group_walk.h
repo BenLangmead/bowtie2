@@ -1153,7 +1153,9 @@ public:
 		}
 		assert_neq(0xffffffff, satup_->offs[elt]);
 		// Report it!
-		hit_.setReported(elt);
+		if(!hit_.reported(elt)) {
+			hit_.setReported(elt);
+		}
 		met.reports++;
 		res.init(
 			0,       // seed offset
