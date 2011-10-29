@@ -780,10 +780,17 @@ public:
 	}
 	
 	/**
-	 * Return true iff all seeds hit (all have at least one range).
+	 * Return true iff all seeds hit for forward read.
 	 */
-	bool allSeedsHit() const {
-		return nonzeroOffsets() == numOffs();
+	bool allFwSeedsHit() const {
+		return nonzFw_ == numOffs();
+	}
+
+	/**
+	 * Return true iff all seeds hit for revcomp read.
+	 */
+	bool allRcSeedsHit() const {
+		return nonzRc_ == numOffs();
 	}
 
 	/**
