@@ -699,6 +699,8 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag) {
 	met.inner += ninner;                    // DP inner loop iters
 	met.fixup += nfixup;                    // DP fixup loop iters
 
+	flag = 0;
+
 	// Did we find a solution?
 	if(ret == std::numeric_limits<TCScore>::min()) {
 		flag = -1; // no
@@ -786,6 +788,8 @@ bool SwAligner::gatherCellsNucleotidesLocalSseI16(TAlScore best) {
 	const size_t colstride = d.mat_.colstride();
 	size_t iter = (dpRows() + (NWORDS_PER_REG - 1)) / NWORDS_PER_REG;
 	assert_gt(iter, 0);
+	assert_geq(minsc_, 0);
+	assert_gt(bonus, 0);
 	size_t minrow = (size_t)(((minsc_ + bonus - 1) / bonus) - 1);
 	for(size_t j = 0; j < ncol; j++) {
 		// Establish the range of rows where a backtrace from the cell in this

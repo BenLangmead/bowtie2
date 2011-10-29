@@ -627,6 +627,8 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag) {
 	met.inner += ninner;                    // DP inner loop iters
 	met.fixup += nfixup;                    // DP fixup loop iters
 	
+	flag = 0;
+	
 	// Did we find a solution?
 	if(!found) {
 		flag = -1; // no

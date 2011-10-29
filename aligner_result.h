@@ -58,6 +58,16 @@ public:
 		invalidate();
 		assert(!valid());
 	}
+
+	/**
+	 * Gapped scores are invalid until proven valid.
+	 */
+	inline AlnScore(TAlScore score, TAlScore ns, TAlScore gaps) {
+		score_ = score;
+		ns_ = ns;
+		gaps_ = gaps;
+		assert(valid());
+	}
 	
 	/**
 	 * Reset the score.
@@ -781,7 +791,6 @@ public:
 	 * Set the upstream-most and downstream-most nucleotides.
 	 */
 	void setNucs(bool fw, int nup, int ndn) {
-		assert(color_);
 		nuc5p_ = fw ? nup : ndn;
 		nuc3p_ = fw ? ndn : nup;
 	}
@@ -1274,6 +1283,46 @@ public:
 	 */
 	bool operator<(const AlnRes& o) const {
 		return score_ > o.score_;
+	}
+	
+	bool operator==(const AlnRes& o) const {
+		return
+			shapeSet_     == o.shapeSet_ &&
+			rdlen_        == o.rdlen_ &&
+			rdrows_       == o.rdrows_ &&
+			score_        == o.score_ &&
+			//oscore_       == o.oscore_ &&
+			ned_          == o.ned_ &&
+			aed_          == o.aed_ &&
+			ced_          == o.ced_ &&
+			refcoord_     == o.refcoord_ &&
+			refival_      == o.refival_ &&
+			rdextent_     == o.rdextent_ &&
+			rdexrows_     == o.rdexrows_ &&
+			rfextent_     == o.rfextent_ &&
+			seedmms_      == o.seedmms_ &&
+			seedlen_      == o.seedlen_ &&
+			seedival_     == o.seedival_ &&
+			minsc_        == o.minsc_ &&
+			floorsc_      == o.floorsc_ &&
+			color_        == o.color_ &&
+			nuc5p_        == o.nuc5p_ &&
+			nuc3p_        == o.nuc3p_ &&
+			refns_        == o.refns_ &&
+			type_         == o.type_ &&
+			fraglen_      == o.fraglen_ &&
+			pretrimSoft_  == o.pretrimSoft_ &&
+			pretrim5p_    == o.pretrim5p_ &&
+			pretrim3p_    == o.pretrim3p_ &&
+			trimSoft_     == o.trimSoft_ &&
+			trim5p_       == o.trim5p_ &&
+			trim3p_       == o.trim3p_ &&
+			cPretrimSoft_ == o.cPretrimSoft_ &&
+			cPretrim5p_   == o.cPretrim5p_ &&
+			cPretrim3p_   == o.cPretrim3p_ &&
+			cTrimSoft_    == o.cTrimSoft_ &&
+			cTrim5p_      == o.cTrim5p_ &&
+			cTrim3p_      == o.cTrim3p_;
 	}
 
 protected:

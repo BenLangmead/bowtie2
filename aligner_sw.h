@@ -289,6 +289,29 @@ public:
 		size_t& nsUpto);       // output: the number of Ns up to 'upto'
 
 	/**
+	 * Given a read, an alignment orientation, a range of characters in a
+	 * referece sequence, and a bit-encoded version of the reference, set up
+	 * and execute the corresponding ungapped alignment problem.  There can
+	 * only be one solution.
+	 *
+	 * The caller has already narrowed down the relevant portion of the
+	 * reference using, e.g., the location of a seed hit, or the range of
+	 * possible fragment lengths if we're searching for the opposite mate in a
+	 * pair.
+	 */
+	int ungappedAlign(
+		const BTDnaString&      rd,     // read sequence (could be RC)
+		const BTString&         qu,     // qual sequence (could be rev)
+		const Coord&            coord,  // coordinate aligned to
+		const BitPairReference& refs,   // Reference strings
+		size_t                  reflen, // length of reference sequence
+		const Scoring&          sc,     // scoring scheme
+		bool                    ohang,  // allow overhang?
+		TAlScore                minsc,  // minimum score
+		TAlScore                floorsc,// Smith-Waterman floor score
+		SwResult&               res);   // put alignment result here
+
+	/**
 	 * Align read 'rd' to reference using read & reference information given
 	 * last time init() was called.  If the read is colorspace, the decoding is
 	 * determined simultaneously with alignment.  Uses dynamic programming.

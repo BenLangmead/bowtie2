@@ -351,6 +351,9 @@ sub genRef {
 		my $trimlen = length($seq);
 		$trimlen == $len - $trimleft - $trimright ||
 			mydie("Unexpected trim combo: $len, $trimleft, $trimright, $trimlen");
+		if($trimlen) {
+			$seq = "ACCATCGGTCTGA";
+		}
 		print STDERR "  Generated reference '$name' of untrimmed length $len, trimmed length $trimlen\n";
 		print FA ">$name\n";
 		my $buf = "";

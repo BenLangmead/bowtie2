@@ -1875,6 +1875,9 @@ my @cases = (
 
 	# Reads 1 and 2 don't have overhang, reads 3 and 4 overhang opposite ends
 	{ ref    => [ "TTGTTCGT" ],
+	#              TGTTCGT
+	#                GTTCGTA
+	#             ATTGTTC
 	  reads  => [ "TGTTCGT", "GTTCGTA", "ATTGTTC" ],
 	  args   => "--overhang --policy \"SEED=0,2;IVAL=C,1,0;NCEIL=L,2,0\"",
 	  hits   => [ { 1 => 1 }, { 2 => 1 }, { 0 => 1 } ],

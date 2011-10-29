@@ -249,11 +249,29 @@ public:
 	
 	/**
 	 * Return the score of the given read character with the given quality
-	 * aligning to the given reference mask.
+	 * aligning to the given reference mask.  Take Ns into account.
 	 */
 	inline int score(int rdc, int refm, int q) const {
 		assert_range(0, 255, q);
 		if(rdc > 3 || refm > 15) {
+			return -npens[q];
+		}
+		if((refm & (1 << rdc)) != 0) {
+			return (int)matchBonuses[q];
+		} else {
+			return -mmpens[q];
+		}
+	}
+
+	/**
+	 * Return the score of the given read character with the given quality
+	 * aligning to the given reference mask.  Take Ns into account.  Increment
+	 * a counter if it's an N.
+	 */
+	inline int score(int rdc, int refm, int q, int& ns) const {
+		assert_range(0, 255, q);
+		if(rdc > 3 || refm > 15) {
+			ns++;
 			return -npens[q];
 		}
 		if((refm & (1 << rdc)) != 0) {
