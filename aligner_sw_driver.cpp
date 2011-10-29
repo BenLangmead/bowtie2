@@ -1146,6 +1146,7 @@ bool SwDriver::extendSeedsPaired(
 					nelt);        // out: # elements total
 				assert_eq(gws_.size(), rands_.size());
 				assert_eq(gws_.size(), satpos_.size());
+				neltLeft = nelt;
 			} else {
 				exactMode = false;
 			}
@@ -1174,6 +1175,9 @@ bool SwDriver::extendSeedsPaired(
 				break;
 			}
 		}
+		// neltLeft is initialized separately in exact mode and in inexact
+		// mode.  eltsDone and maxelt are initialized once and carried over
+		// across exact & inexact modes.
 		for(size_t i = 0; i < gws_.size(); i++) {
 			bool small = satpos_[i].sat.size() < nsm;
 			bool fw          = satpos_[i].pos.fw;
@@ -1190,21 +1194,16 @@ bool SwDriver::extendSeedsPaired(
 			// If the range is small, investigate all elements now.  If the
 			// range is large, just investigate one and move on - we might come
 			// back to this range later.
-			while(!rands_[i].done() &&
-			      (exactMode ||
-			      (eltsDone < maxelt && (first || small))))
-			{
+			while(!rands_[i].done() && (eltsDone < maxelt && (first || small))) {
 				first = false;
 				assert(!gws_[i].done());
 				// Resolve next element offset
 				WalkResult wr;
 				uint32_t elt = rands_[i].next(rnd);
 				gws_[i].advanceElement(elt, wr, wlm);
-				if(!exactMode) {
-					eltsDone++;
-					assert_gt(neltLeft, 0);
-					neltLeft--;
-				}
+				eltsDone++;
+				assert_gt(neltLeft, 0);
+				neltLeft--;
 				assert_neq(0xffffffff, wr.toff);
 				uint32_t tidx = 0, toff = 0, tlen = 0;
 				ebwt.joinedToTextOff(
