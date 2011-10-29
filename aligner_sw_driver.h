@@ -281,6 +281,7 @@ public:
 		int nceil,                   // maximum # Ns permitted in ref portion
 		const SimpleFunc& maxelt,    // # elts to explore as function of total elts
 		size_t maxhalf,              // maximum width on one side of DP table
+		bool doUngapped,             // do ungapped alignment
 		bool enable8,                // use 8-bit SSE where possible
 		bool refscan,                // use reference scanning
 		int tighten,                 // -M score tightening mode
@@ -355,6 +356,7 @@ public:
 		bool norc,                   // don't align revcomp read
 		const SimpleFunc& maxelt,    // # elts to explore as function of total elts
 		size_t maxhalf,              // maximum width on one side of DP table
+		bool doUngapped,             // do ungapped alignment
 		bool enable8,                // use 8-bit SSE where possible
 		bool refscan,                // use reference scanning
 		int tighten,                 // -M score tightening mode

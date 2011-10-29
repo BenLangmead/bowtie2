@@ -116,6 +116,8 @@ enum {
 	ARG_REFSCAN_NO,             // --no-refscan
 	ARG_SSE8,                   // --sse8
 	ARG_SSE8_NO,                // --no-sse8
+	ARG_UNGAPPED,               // --ungapped
+	ARG_UNGAPPED_NO,            // --no-ungapped
 	ARG_TIGHTEN                 // --tighten
 };
 
