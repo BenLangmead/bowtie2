@@ -472,7 +472,9 @@ public:
 						tidx,    // reference sequence id
 						tof,     // offset in reference coordinates
 						tlen);   // length of reference sequence
-					if(tidx != 0xffffffff) {
+					if(tidx != 0xffffffff &&
+					   hit.satup->key.seq != std::numeric_limits<uint64_t>::max())
+					{
 						// key: 2-bit characters packed into a 64-bit word with
 						// the least significant bitpair corresponding to the
 						// rightmost character on the Watson reference strand.
@@ -1062,7 +1064,6 @@ public:
 		const BitPairReference& ref,// bitpair-encoded reference
 		SATuple& satup,             // SATuples
 		SAResolveCombiner* sacomb,  // combiners
-		AlignmentCacheIface& cache, // cache where resolved offs get installed
 		RandomSource& rnd,          // pseudo-random generator for sampling rows
 		WalkMetrics& met)           // update metrics here
 	{
@@ -1125,7 +1126,7 @@ public:
 		assert(!done());
 		assert(hit_.repOk());
 		assert_lt(elt, satup_->size()); // elt must fall within range
-		assert(!hit_.reported(elt));
+		//assert(!hit_.reported(elt));
 		// Until we've resolved our element of interest...
 		while(satup_->offs[elt] == 0xffffffff) {
 			// Get the GWState that contains our element of interest

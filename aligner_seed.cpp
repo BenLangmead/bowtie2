@@ -387,31 +387,13 @@ static SACounters counters;
 // History of actions performed by the seed aligner each time
 // searchAllSeeds is called
 static EList<SAAction> actions;
-#define SA_RESET() { \
-	if(counterSinks_ != NULL && !counterSinks_->empty()) { \
-		for(size_t i = 0; i < counterSinks_->size(); i++) { \
-			(*counterSinks_)[i]->reportCounters(*read_, counters); \
-	}	} \
-	if(actionSinks_ != NULL && !actionSinks_->empty()) { \
-		for(size_t i = 0; i < actionSinks_->size(); i++) { \
-			(*actionSinks_)[i]->reportActions(*read_, actions); \
-	}	} \
-	counters.reset(); \
-	actions.clear(); \
-	actions.push_back(SAActionReset()); \
-}
-#define SA_SEARCH_SEED(x, y) counters.seed++; actions.push_back(SAActionSearchSeed(x, y))
-#define SA_FTAB(x, y, z) counters.ftab++; actions.push_back(SAActionFtab(s.seedoff, s.s.type, x, y, z))
-#define SA_FCHR(x, y) counters.fchr++; actions.push_back(SAActionFchr(s.seedoff, s.s.type, x, y))
-#define SA_MATCH(x, y, z) counters.match++; counters.matchd[MIN(z, 3)]++; actions.push_back(SAActionMatch(s.seedoff, s.s.type, x, y, z))
-#define SA_EDIT(x, y, z, w) counters.match++; counters.editd[MIN(z, 3)]++; actions.push_back(SAActionEdit(s.seedoff, s.s.type, x, y, z, w))
-#define SA_HIT() { \
-	counters.hits++; \
-	if(sinks_ != NULL && !sinks_->empty()) { \
-		for(size_t i = 0; i < sinks_->size(); i++) { \
-			(*sinks_)[i]->reportSeedHit(*read_, *seq_); } } }
+#define SA_SEARCH_SEED(x, y) counters.seed++;
+#define SA_FTAB(x, y, z) counters.ftab++;
+#define SA_FCHR(x, y) counters.fchr++;
+#define SA_MATCH(x, y, z) counters.match++;
+#define SA_EDIT(x, y, z, w) counters.match++;
+#define SA_HIT() counters.hits++;
 #else
-#define SA_RESET()
 #define SA_SEARCH_SEED(x, y)
 #define SA_FTAB(x, y, z)
 #define SA_FCHR(x, y)
@@ -571,11 +553,7 @@ void SeedAligner::searchAllSeeds(
 	const Scoring& pens,         // scoring scheme
 	AlignmentCacheIface& cache,  // local cache for seed alignments
 	SeedResults& sr,             // holds all the seed hits
-	SeedSearchMetrics& met,      // metrics
-	EList<ReadCounterSink*>* readCounterSink,// if non-NULL, list of sinks to send per-read counter updates to
-	EList<SeedHitSink*>*     sinks,          // if non-NULL, list of sinks to send hits to
-	EList<SeedCounterSink*>* counterSinks,   // if non-NULL, list of sinks to send SACounters to
-	EList<SeedActionSink*>*  actionSinks)    // if non-NULL, list of sinks to send SAActions to
+	SeedSearchMetrics& met)      // metrics
 {
 	assert(!seeds.empty());
 	assert(ebwtFw != NULL);
@@ -584,12 +562,8 @@ void SeedAligner::searchAllSeeds(
 	ebwtFw_ = ebwtFw;
 	ebwtBw_ = ebwtBw;
 	sc_ = &pens;
-	sinks_ = sinks;
-	counterSinks_ = counterSinks;
-	actionSinks_ = actionSinks;
 	read_ = &read;
 	ca_ = &cache;
-	SA_RESET();
 	bwops_ = bwedits_ = 0;
 	uint64_t possearches = 0, seedsearches = 0, intrahits = 0, interhits = 0, ooms = 0;
 	// For each instantiated seed
@@ -660,6 +634,39 @@ void SeedAligner::searchAllSeeds(
 	met.ooms += ooms;
 	met.bwops += bwops_;
 	met.bweds += bwedits_;
+}
+
+/**
+ * Search for end-to-end exact hit for read.  Return true iff one is found.
+ */
+bool SeedAligner::exactSearch(
+	const Ebwt*        ebwtFw, // BWT index
+	const Read&        read,   // read to align
+	bool               nofw,   // don't align forward read
+	bool               norc,   // don't align revcomp read
+	SeedResults&       hits,   // holds all the seed hits (and exact hit)
+	SeedSearchMetrics& met)    // metrics
+{
+	assert(ebwtFw != NULL);
+	uint32_t top_fw = 0, bot_fw = 0, top_rc = 0, bot_rc = 0;
+	bool hit = false;
+	if(!nofw) {
+		if(!ebwtFw->contains(read.patFw, &top_fw, &bot_fw)) {
+			top_fw = bot_fw = 0;
+		} else {
+			hits.installExactHit(top_fw, bot_fw, true);
+			hit = true;
+		}
+	}
+	if(!norc) {
+		if(!ebwtFw->contains(read.patRc, &top_rc, &bot_rc)) {
+			top_rc = bot_rc = 0;
+		} else {
+			hits.installExactHit(top_rc, bot_rc, false);
+			hit = true;
+		}
+	}
+	return hit;
 }
 
 /**
