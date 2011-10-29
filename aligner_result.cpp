@@ -67,6 +67,8 @@ void AlnRes::reset() {
 	seedival_     = 0; // interval between seeds
 	minsc_        = 0; // minimum score
 	floorsc_      = 0; // score floor
+	nuc5p_        = 0;
+	nuc3p_        = 0;
 	assert(!refcoord_.valid());
 	assert(!refival_.valid());
 }

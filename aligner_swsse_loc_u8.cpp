@@ -684,6 +684,8 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag) {
 	int score = _mm_extract_epi16(vmax, 0);
 	score = score & 0x00ff;
 
+	flag = 0;
+	
 	// Could we have saturated?
 	if(score + d.bias_ >= 255) {
 		flag = -2; // yes
@@ -771,6 +773,8 @@ bool SwAligner::gatherCellsNucleotidesLocalSseU8(TAlScore best) {
 	const size_t colstride = d.mat_.colstride();
 	size_t iter = (dpRows() + (NWORDS_PER_REG - 1)) / NWORDS_PER_REG;
 	assert_gt(iter, 0);
+	assert_geq(minsc_, 0);
+	assert_gt(bonus, 0);
 	size_t minrow = (size_t)(((minsc_ + bonus - 1) / bonus) - 1);
 	for(size_t j = 0; j < ncol; j++) {
 		// Establish the range of rows where a backtrace from the cell in this

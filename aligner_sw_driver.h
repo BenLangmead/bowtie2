@@ -463,8 +463,10 @@ protected:
 	EList<bool>    oen_;        // like en_ but for opposite mate
 	
 	// For holding results for anchor (res_) and opposite (ores_) mates
-	SwResult       res_;        // temp holder for SW results
-	SwResult       ores_;       // temp holder for SW results for opp mate
+	SwResult       res_;          // temp holder for alignment result
+	SwResult       ores_;         // temp holder for alignment result, opp mate
+	SwResult       resUngapped_;  // temp holder for ungapped alignment result
+	SwResult       oresUngapped_; // temp holder for ungap. aln. opp mate
 	
 	// For AlnRes::matchesRef:
 	ASSERT_ONLY(SStringExpandable<char>     raw_refbuf_);

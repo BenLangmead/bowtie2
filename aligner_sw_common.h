@@ -106,7 +106,7 @@ struct SwMetrics {
 	
 	void reset() {
 		sws = swcups = swrows = swskiprows = swskip = swsucc = swfail = swbts =
-		rshit = 0;
+		rshit = ungapsucc = ungapfail = ungapnodec = 0;
 	}
 	
 	void init(
@@ -118,7 +118,10 @@ struct SwMetrics {
 		uint64_t swsucc_,
 		uint64_t swfail_,
 		uint64_t swbts_,
-		uint64_t rshit_)
+		uint64_t rshit_,
+		uint64_t ungapsucc_,
+		uint64_t ungapfail_,
+		uint64_t ungapnodec_)
 	{
 		sws        = sws_;
 		swcups     = swcups_;
@@ -128,7 +131,6 @@ struct SwMetrics {
 		swsucc     = swsucc_;
 		swfail     = swfail_;
 		swbts      = swbts_;
-		rshit      = rshit_;
 	}
 	
 	/**
@@ -162,6 +164,9 @@ struct SwMetrics {
 		swfail     += r.swfail;
 		swbts      += r.swbts;
 		rshit      += r.rshit;
+		ungapsucc  += r.ungapsucc;
+		ungapfail  += r.ungapfail;
+		ungapnodec += r.ungapnodec;
 	}
 
 	uint64_t sws;        // # DP problems solved
@@ -173,6 +178,9 @@ struct SwMetrics {
 	uint64_t swfail;     // # DP problems not resulting in alignment
 	uint64_t swbts;      // # DP backtrace steps
 	uint64_t rshit;      // # DP problems avoided b/c seed hit was redundant
+	uint64_t ungapsucc;  // # DP problems avoided b/c seed hit was redundant
+	uint64_t ungapfail;  // # DP problems avoided b/c seed hit was redundant
+	uint64_t ungapnodec; // # DP problems avoided b/c seed hit was redundant
 	MUTEX_T lock;
 };
 

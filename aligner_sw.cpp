@@ -235,6 +235,223 @@ void SwAligner::initRef(
 }
 
 /**
+ * Given a read, an alignment orientation, a range of characters in a referece
+ * sequence, and a bit-encoded version of the reference, set up and execute the
+ * corresponding ungapped alignment problem.  There can only be one solution.
+ *
+ * The caller has already narrowed down the relevant portion of the reference
+ * using, e.g., the location of a seed hit, or the range of possible fragment
+ * lengths if we're searching for the opposite mate in a pair.
+ */
+int SwAligner::ungappedAlign(
+	const BTDnaString&      rd,     // read sequence (could be RC)
+	const BTString&         qu,     // qual sequence (could be rev)
+	const Coord&            coord,  // coordinate aligned to
+	const BitPairReference& refs,   // Reference strings
+	size_t                  reflen, // length of reference sequence
+	const Scoring&          sc,     // scoring scheme
+	bool                    ohang,  // allow overhang?
+	TAlScore                minsc,  // minimum score
+	TAlScore                floorsc,// Smith-Waterman floor score
+	SwResult&               res)    // put alignment result here
+{
+	const size_t len = rd.length();
+	int nceil = sc.nCeil.f<int>((double)len);
+	int ns = 0;
+	int64_t rfi = coord.off();
+	int64_t rff = rfi + (int64_t)len;
+	TRefId refidx = coord.ref();
+	assert_gt(rff, rfi);
+	// Figure the number of Ns we're going to add to either side
+	size_t leftNs = 0;
+	if(rfi < 0) {
+		if(ohang) {
+			leftNs = (size_t)(-rfi);
+		} else {
+			return 0;
+		}
+	}
+	size_t rightNs = 0;
+	if(rff > (int64_t)reflen) {
+		if(ohang) {
+			rightNs = (size_t)(rff - (int64_t)reflen);
+		} else {
+			return 0;
+		}
+	}
+	if((leftNs + rightNs) > (size_t)nceil) {
+		return 0;
+	}
+	// rflenInner = length of just the portion that doesn't overhang ref ends
+	assert_geq(len, leftNs + rightNs);
+	const size_t rflenInner = len - (leftNs + rightNs);
+#ifndef NDEBUG
+	bool haveRfbuf2 = false;
+	EList<char> rfbuf2(len);
+	// This is really slow, so only do it some of the time
+	if((rand() % 10) == 0) {
+		int64_t rfii = rfi;
+		for(size_t i = 0; i < len; i++) {
+			if(rfii < 0 || (size_t)rfii >= reflen) {
+				rfbuf2.push_back(4);
+			} else {
+				rfbuf2.push_back(refs.getBase(refidx, (uint32_t)rfii));
+			}
+			rfii++;
+		}
+		haveRfbuf2 = true;
+	}
+#endif
+	// rfbuf_ = uint32_t list large enough to accommodate both the reference
+	// sequence and any Ns we might add to either side.
+	rfwbuf_.resize((len + 16) / 4);
+	int offset = refs.getStretch(
+		rfwbuf_.ptr(),               // buffer to store words in
+		refidx,                      // which reference
+		(rfi < 0) ? 0 : (size_t)rfi, // starting offset (can't be < 0)
+		rflenInner                   // length to grab (exclude overhang)
+		ASSERT_ONLY(, tmp_destU32_));// for BitPairReference::getStretch()
+	assert_leq(offset, 16);
+	rf_ = (char*)rfwbuf_.ptr() + offset;
+	// Shift ref chars away from 0 so we can stick Ns at the beginning
+	if(leftNs > 0) {
+		// Slide everyone down
+		for(size_t i = rflenInner; i > 0; i--) {
+			rf_[i+leftNs-1] = rf_[i-1];
+		}
+		// Add Ns
+		for(size_t i = 0; i < leftNs; i++) {
+			rf_[i] = 4;
+		}
+	}
+	if(rightNs > 0) {
+		// Add Ns to the end
+		for(size_t i = 0; i < rightNs; i++) {
+			rf_[i + leftNs + rflenInner] = 4;
+		}
+	}
+#ifndef NDEBUG
+	// Sanity check reference characters
+	for(size_t i = 0; i < len; i++) {
+		assert(!haveRfbuf2 || rf_[i] == rfbuf2[i]);
+		assert_range(0, 4, (int)rf_[i]);
+	}
+#endif
+	// Count Ns and convert reference characters into A/C/G/T masks.  Ambiguous
+	// nucleotides (IUPAC codes) have more than one mask bit set.  If a
+	// reference scanner was provided, use it to opportunistically resolve seed
+	// hits.
+	TAlScore score = 0;
+	res.alres.reset();
+	size_t rowi = 0;
+	size_t rowf = len-1;
+	if(sc.monotone) {
+		for(size_t i = 0; i < len; i++) {
+			// rf_[i] gets mask version of refence char, with N=16
+			assert_geq(qu[i], 33);
+			score += sc.score(rd[i], (int)(1 << rf_[i]), qu[i] - 33, ns);
+			assert_leq(score, 0);
+			if(score < minsc || ns > nceil) {
+				// Fell below threshold
+				return 0;
+			}
+		}
+		// Got a result!  Fill in the rest of the result object.
+	} else {
+		// Definitely ways to short-circuit this.  E.g. if diff between cur
+		// score and minsc can't be met by matches.
+		TAlScore scoreMax = floorsc;
+		size_t lastfloor = 0;
+		rowi = std::numeric_limits<size_t>::max();
+		size_t sols = 0;
+		for(size_t i = 0; i < len; i++) {
+			score += sc.score(rd[i], (int)(1 << rf_[i]), qu[i] - 33, ns);
+			if(score >= minsc && score >= scoreMax) {
+				scoreMax = score;
+				rowf = i;
+				if(rowi != lastfloor) {
+					rowi = lastfloor;
+					sols++;
+				}
+			}
+			if(score <= floorsc) {
+				score = floorsc;
+				lastfloor = i+1;
+			}
+		}
+		if(ns > nceil || scoreMax < minsc) {
+			// Too many Ns
+			return 0;
+		}
+		if(sols > 1) {
+			// >1 distinct solution in this diag; defer to DP aligner
+			return -1;
+		}
+		score = scoreMax;
+		// Got a result!  Fill in the rest of the result object.  
+	}
+	// Now fill in the edits
+	res.alres.setScore(AlnScore(score, ns, 0));
+	assert_geq(rowf, rowi);
+	EList<Edit>& ned = res.alres.ned();
+	size_t refns = 0;
+	ASSERT_ONLY(BTDnaString refstr);
+	for(size_t i = rowi; i <= rowf; i++) {
+		ASSERT_ONLY(refstr.append((int)rf_[i]));
+		if(rf_[i] > 3 || rd[i] != rf_[i]) {
+			// Add edit
+			Edit e((int)i,
+			       mask2dna[1 << (int)rf_[i]],
+			       "ACGTN"[(int)rd[i]],
+			       EDIT_TYPE_MM);
+			ned.push_back(e);
+			if(rf_[i] > 3) {
+				refns++;
+			}
+		}
+	}
+	assert(Edit::repOk(ned, rd));
+	bool fw = coord.fw();
+	assert_leq(rowf, len-1);
+	size_t trimEnd = (len-1) - rowf;
+	res.alres.setShape(
+		coord.ref(),  // ref id
+		coord.off()+rowi, // 0-based ref offset
+		fw,           // aligned to Watson?
+		len,          // read length
+		false,        // read was colorspace?
+		true,         // pretrim soft?
+		0,            // pretrim 5' end
+		0,            // pretrim 3' end
+		true,         // alignment trim soft?
+		fw ? rowi : trimEnd,  // alignment trim 5' end
+		fw ? trimEnd : rowi); // alignment trim 3' end
+	res.alres.setRefNs(refns);
+	assert(res.repOk());
+#ifndef NDEBUG
+	BTDnaString editstr;
+	Edit::toRef(rd, ned, editstr, rowi, trimEnd);
+	if(refstr != editstr) {
+		cerr << "Decoded nucleotides and edits don't match reference:" << endl;
+		cerr << "           score: " << res.alres.score().score() << endl;
+		cerr << "           edits: ";
+		Edit::print(cerr, ned);
+		cerr << endl;
+		cerr << "    decoded nucs: " << rd << endl;
+		cerr << "     edited nucs: " << editstr << endl;
+		cerr << "  reference nucs: " << refstr << endl;
+		assert(0);
+	}
+#endif
+	if(!fw) {
+		// All edits are currently w/r/t upstream end; if read aligned to Crick
+		// strand, invert them to be w/r/t 5' end instead.
+		res.alres.invertEdits();
+	}
+	return 1;
+}
+
+/**
  * Align read 'rd' to reference using read & reference information given
  * last time init() was called.  If the read is colorspace, the decoding is
  * determined simultaneously with alignment.  Uses dynamic programming.
@@ -376,6 +593,8 @@ bool SwAligner::align(RandomSource& rnd) {
 			if(sse16succ_) {
 				cand_tmp_ = btncand_;
 				gatherCellsNucleotidesEnd2EndSseI16(best);
+				cand_tmp_.sort();
+				btncand_.sort();
 				assert(cand_tmp_ == btncand_);
 			}
 #endif /*ndef NDEBUG*/
@@ -389,6 +608,8 @@ bool SwAligner::align(RandomSource& rnd) {
 			if(sse16succ_) {
 				cand_tmp_ = btncand_;
 				gatherCellsNucleotidesLocalSseI16(best);
+				cand_tmp_.sort();
+				btncand_.sort();
 				assert(cand_tmp_ == btncand_);
 			}
 #endif /*ndef NDEBUG*/
@@ -594,17 +815,17 @@ bool SwAligner::nextAlignment(
 					assert_eq(ret, ret2);
 					assert_eq(nbts, nbts2);
 					assert(!ret || res2.alres.score() == res.alres.score());
-					if((rand() & 15) == 0) {
+					//if((rand() & 15) == 0) {
 						// Check that same cells are reported through
-						SSEData& d8  = fw_ ? sseU8fw_  : sseU8rc_;
-						SSEData& d16 = fw_ ? sseI16fw_ : sseI16rc_;
-						for(size_t i = d8.mat_.nrow(); i > 0; i--) {
-							for(size_t j = 0; j < d8.mat_.ncol(); j++) {
-								assert_eq(d8.mat_.reportedThrough(i-1, j),
-										  d16.mat_.reportedThrough(i-1, j));
-							}
-						}
-					}
+						//SSEData& d8  = fw_ ? sseU8fw_  : sseU8rc_;
+						//SSEData& d16 = fw_ ? sseI16fw_ : sseI16rc_;
+						//for(size_t i = d8.mat_.nrow(); i > 0; i--) {
+						//	for(size_t j = 0; j < d8.mat_.ncol(); j++) {
+						//		assert_eq(d8.mat_.reportedThrough(i-1, j),
+						//				  d16.mat_.reportedThrough(i-1, j));
+						//	}
+						//}
+					//}
 				}
 #endif
 			} else if(sse16succ_) {

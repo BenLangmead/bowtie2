@@ -786,6 +786,7 @@ static void parseOption(int next_option, const char *arg) {
 			bwaSwLikeC = 5.5f;
 			bwaSwLikeT = 30;
 			bwaSwLike = true;
+			localAlign = true;
 			// -a INT   Score of a match [1]
 			// -b INT   Mismatch penalty [3]
 			// -q INT   Gap open penalty [5]
@@ -1551,84 +1552,88 @@ struct PerfMetrics {
 				/* 33 */ "RefScanResolve" "\t"
 				/* 34 */ "ResReport"      "\t"
 				/* 35 */ "RedundantSHit"  "\t"
+
+				/* 36 */ "UngappedSucc"   "\t"
+				/* 37 */ "UngappedFail"   "\t"
+				/* 38 */ "UngappedNoDec"  "\t"
 				
-				/* 36 */ "DP16ExDps"      "\t"
-				/* 37 */ "DP16ExDpSat"    "\t"
-				/* 38 */ "DP16ExDpFail"   "\t"
-				/* 39 */ "DP16ExDpSucc"   "\t"
-				/* 40 */ "DP16ExCol"      "\t"
-				/* 41 */ "DP16ExCell"     "\t"
-				/* 42 */ "DP16ExInner"    "\t"
-				/* 43 */ "DP16ExFixup"    "\t"
-				/* 44 */ "DP16ExGathSol"  "\t"
-				/* 45 */ "DP16ExBt"       "\t"
-				/* 46 */ "DP16ExBtFail"   "\t"
-				/* 47 */ "DP16ExBtSucc"   "\t"
-				/* 48 */ "DP16ExBtCell"   "\t"
-				/* 49 */ "DP16ExCoreRej"  "\t"
-				/* 50 */ "DP16ExNRej"     "\t"
+				/* 39 */ "DP16ExDps"      "\t"
+				/* 40 */ "DP16ExDpSat"    "\t"
+				/* 41 */ "DP16ExDpFail"   "\t"
+				/* 42 */ "DP16ExDpSucc"   "\t"
+				/* 43 */ "DP16ExCol"      "\t"
+				/* 44 */ "DP16ExCell"     "\t"
+				/* 45 */ "DP16ExInner"    "\t"
+				/* 46 */ "DP16ExFixup"    "\t"
+				/* 47 */ "DP16ExGathSol"  "\t"
+				/* 48 */ "DP16ExBt"       "\t"
+				/* 49 */ "DP16ExBtFail"   "\t"
+				/* 50 */ "DP16ExBtSucc"   "\t"
+				/* 51 */ "DP16ExBtCell"   "\t"
+				/* 52 */ "DP16ExCoreRej"  "\t"
+				/* 53 */ "DP16ExNRej"     "\t"
 
-				/* 51 */ "DP8ExDps"       "\t"
-				/* 52 */ "DP8ExDpSat"     "\t"
-				/* 53 */ "DP8ExDpFail"    "\t"
-				/* 54 */ "DP8ExDpSucc"    "\t"
-				/* 55 */ "DP8ExCol"       "\t"
-				/* 56 */ "DP8ExCell"      "\t"
-				/* 57 */ "DP8ExInner"     "\t"
-				/* 58 */ "DP8ExFixup"     "\t"
-				/* 59 */ "DP8ExGathSol"   "\t"
-				/* 60 */ "DP8ExBt"        "\t"
-				/* 61 */ "DP8ExBtFail"    "\t"
-				/* 62 */ "DP8ExBtSucc"    "\t"
-				/* 63 */ "DP8ExBtCell"    "\t"
-				/* 64 */ "DP8ExCoreRej"   "\t"
-				/* 65 */ "DP8ExNRej"      "\t"
+				/* 54 */ "DP8ExDps"       "\t"
+				/* 55 */ "DP8ExDpSat"     "\t"
+				/* 56 */ "DP8ExDpFail"    "\t"
+				/* 57 */ "DP8ExDpSucc"    "\t"
+				/* 58 */ "DP8ExCol"       "\t"
+				/* 59 */ "DP8ExCell"      "\t"
+				/* 60 */ "DP8ExInner"     "\t"
+				/* 61 */ "DP8ExFixup"     "\t"
+				/* 62 */ "DP8ExGathSol"   "\t"
+				/* 63 */ "DP8ExBt"        "\t"
+				/* 64 */ "DP8ExBtFail"    "\t"
+				/* 65 */ "DP8ExBtSucc"    "\t"
+				/* 66 */ "DP8ExBtCell"    "\t"
+				/* 67 */ "DP8ExCoreRej"   "\t"
+				/* 68 */ "DP8ExNRej"      "\t"
 
-				/* 66 */ "DP16MateDps"     "\t"
-				/* 67 */ "DP16MateDpSat"   "\t"
-				/* 68 */ "DP16MateDpFail"  "\t"
-				/* 69 */ "DP16MateDpSucc"  "\t"
-				/* 70 */ "DP16MateCol"     "\t"
-				/* 71 */ "DP16MateCell"    "\t"
-				/* 72 */ "DP16MateInner"   "\t"
-				/* 73 */ "DP16MateFixup"   "\t"
-				/* 74 */ "DP16MateGathSol" "\t"
-				/* 75 */ "DP16MateBt"      "\t"
-				/* 76 */ "DP16MateBtFail"  "\t"
-				/* 77 */ "DP16MateBtSucc"  "\t"
-				/* 78 */ "DP16MateBtCell"  "\t"
-				/* 79 */ "DP16MateCoreRej" "\t"
-				/* 80 */ "DP16MateNRej"    "\t"
+				/* 69 */ "DP16MateDps"     "\t"
+				/* 70 */ "DP16MateDpSat"   "\t"
+				/* 71 */ "DP16MateDpFail"  "\t"
+				/* 72 */ "DP16MateDpSucc"  "\t"
+				/* 73 */ "DP16MateCol"     "\t"
+				/* 74 */ "DP16MateCell"    "\t"
+				/* 75 */ "DP16MateInner"   "\t"
+				/* 76 */ "DP16MateFixup"   "\t"
+				/* 77 */ "DP16MateGathSol" "\t"
+				/* 78 */ "DP16MateBt"      "\t"
+				/* 79 */ "DP16MateBtFail"  "\t"
+				/* 80 */ "DP16MateBtSucc"  "\t"
+				/* 81 */ "DP16MateBtCell"  "\t"
+				/* 82 */ "DP16MateCoreRej" "\t"
+				/* 83 */ "DP16MateNRej"    "\t"
 
-				/* 81 */ "DP8MateDps"     "\t"
-				/* 82 */ "DP8MateDpSat"   "\t"
-				/* 83 */ "DP8MateDpFail"  "\t"
-				/* 84 */ "DP8MateDpSucc"  "\t"
-				/* 85 */ "DP8MateCol"     "\t"
-				/* 86 */ "DP8MateCell"    "\t"
-				/* 87 */ "DP8MateInner"   "\t"
-				/* 88 */ "DP8MateFixup"   "\t"
-				/* 89 */ "DP8MateGathSol" "\t"
-				/* 90 */ "DP8MateBt"      "\t"
-				/* 91 */ "DP8MateBtFail"  "\t"
-				/* 92 */ "DP8MateBtSucc"  "\t"
-				/* 93 */ "DP8MateBtCell"  "\t"
-				/* 94 */ "DP8MateCoreRej" "\t"
-				/* 95 */ "DP8MateNRej"    "\t"
+				/* 84 */ "DP8MateDps"     "\t"
+				/* 85 */ "DP8MateDpSat"   "\t"
+				/* 86 */ "DP8MateDpFail"  "\t"
+				/* 87 */ "DP8MateDpSucc"  "\t"
+				/* 88 */ "DP8MateCol"     "\t"
+				/* 89 */ "DP8MateCell"    "\t"
+				/* 90 */ "DP8MateInner"   "\t"
+				/* 91 */ "DP8MateFixup"   "\t"
+				/* 92 */ "DP8MateGathSol" "\t"
+				/* 93 */ "DP8MateBt"      "\t"
+				/* 94 */ "DP8MateBtFail"  "\t"
+				/* 95 */ "DP8MateBtSucc"  "\t"
+				/* 96 */ "DP8MateBtCell"  "\t"
+				/* 97 */ "DP8MateCoreRej" "\t"
+				/* 98 */ "DP8MateNRej"    "\t"
 
-				/* 96 */ "DPBtFiltStart"  "\t"
-				/* 97 */ "DPBtFiltScore"  "\t"
-				/* 98 */ "DpBtFiltDom"    "\t"
+				/* 99 */ "DPBtFiltStart"  "\t"
+				/* 100 */ "DPBtFiltScore"  "\t"
+				/* 101 */ "DpBtFiltDom"    "\t"
 
-				/* 99 */ "MemPeak"        "\t"
-				/* 100 */ "UncatMemPeak"   "\t" // 0
-				/* 101 */ "EbwtMemPeak"    "\t" // EBWT_CAT
-				/* 102 */ "CacheMemPeak"   "\t" // CA_CAT
-				/* 103 */ "ResolveMemPeak" "\t" // GW_CAT
-				/* 104 */ "AlignMemPeak"   "\t" // AL_CAT
-				/* 105 */ "DPMemPeak"      "\t" // DP_CAT
-				/* 106 */ "MiscMemPeak"    "\t" // MISC_CAT
-				/* 107 */ "DebugMemPeak"   "\t" // DEBUG_CAT
+				/* 102 */ "MemPeak"        "\t"
+				/* 103 */ "UncatMemPeak"   "\t" // 0
+				/* 104 */ "EbwtMemPeak"    "\t" // EBWT_CAT
+				/* 105 */ "CacheMemPeak"   "\t" // CA_CAT
+				/* 106 */ "ResolveMemPeak" "\t" // GW_CAT
+				/* 107 */ "AlignMemPeak"   "\t" // AL_CAT
+				/* 108 */ "DPMemPeak"      "\t" // DP_CAT
+				/* 109 */ "MiscMemPeak"    "\t" // MISC_CAT
+				/* 110 */ "DebugMemPeak"   "\t" // DEBUG_CAT
 				
 				"\n";
 			
@@ -1806,6 +1811,18 @@ struct PerfMetrics {
 		
 		// 35. Redundant seed hit
 		itoa10<uint64_t>(total ? swmSeed.rshit : swmuSeed.rshit, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 36. Ungapped aligner success
+		itoa10<uint64_t>(total ? swmSeed.ungapsucc : swmuSeed.ungapsucc, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 37. Ungapped aligner fail
+		itoa10<uint64_t>(total ? swmSeed.ungapfail : swmuSeed.ungapfail, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 38. Ungapped aligner no decision
+		itoa10<uint64_t>(total ? swmSeed.ungapnodec : swmuSeed.ungapnodec, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 		
@@ -2206,6 +2223,21 @@ static inline void printMmsSkipMsg(
 	}
 }
 
+static inline void printLenSkipMsg(
+	const PatternSourcePerThread& ps,
+	bool paired,
+	bool mate1)
+{
+	if(paired) {
+		cerr << "Warning: skipping mate #" << (mate1 ? '1' : '2')
+		     << " of read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
+		     << "' because it was < 2 characters long" << endl;
+	} else {
+		cerr << "Warning: skipping read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
+		     << "' because it was < 2 characters long" << endl;
+	}
+}
+
 static inline void printColorLenSkipMsg(
 	const PatternSourcePerThread& ps,
 	bool paired,
@@ -2215,11 +2247,45 @@ static inline void printColorLenSkipMsg(
 		cerr << "Warning: skipping mate #" << (mate1 ? '1' : '2')
 		     << " of read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
 		     << "' because it was colorspace, --col-keepends was not "
-			 << "specified, and length was < 2" << endl;
+			 << "specified, and length was < 3" << endl;
 	} else {
 		cerr << "Warning: skipping read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
 		     << "' because it was colorspace, --col-keepends was not "
-			 << "specified, and length was < 2" << endl;
+			 << "specified, and length was < 3" << endl;
+	}
+}
+
+static inline void printLocalScoreMsg(
+	const PatternSourcePerThread& ps,
+	bool paired,
+	bool mate1)
+{
+	if(paired) {
+		cerr << "Warning: minimum score function gave negative number in "
+		     << "--local mode for mate #" << (mate1 ? '1' : '2')
+		     << " of read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
+			 << "; setting to 0 instead" << endl;
+	} else {
+		cerr << "Warning: minimum score function gave negative number in "
+		     << "--local mode for read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
+			 << "; setting to 0 instead" << endl;
+	}
+}
+
+static inline void printEEScoreMsg(
+	const PatternSourcePerThread& ps,
+	bool paired,
+	bool mate1)
+{
+	if(paired) {
+		cerr << "Warning: minimum score function gave positive number in "
+		     << "--end-to-end mode for mate #" << (mate1 ? '1' : '2')
+		     << " of read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
+			 << "; setting to 0 instead" << endl;
+	} else {
+		cerr << "Warning: minimum score function gave positive number in "
+		     << "--end-to-end mode for read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
+			 << "; setting to 0 instead" << endl;
 	}
 }
 
@@ -2522,6 +2588,33 @@ static void* multiseedSearchWorker(void *vp) {
 					if(paired) {
 						minsc[1] = scoreMin.f<TAlScore>(rdlens[1]);
 					}
+					if(localAlign) {
+						if(minsc[0] < 0) {
+							if(!gQuiet) {
+								printLocalScoreMsg(*ps, paired, true);
+							}
+							minsc[0] = 0;
+						}
+						if(paired && minsc[1] < 0) {
+							if(!gQuiet) {
+								printLocalScoreMsg(*ps, paired, false);
+							}
+							minsc[1] = 0;
+						}
+					} else {
+						if(minsc[0] > 0) {
+							if(!gQuiet) {
+								printEEScoreMsg(*ps, paired, true);
+							}
+							minsc[0] = 0;
+						}
+						if(paired && minsc[1] > 0) {
+							if(!gQuiet) {
+								printEEScoreMsg(*ps, paired, false);
+							}
+							minsc[1] = 0;
+						}
+					}
 				}
 				// Calculate the local-alignment score floor for the read
 				TAlScore floorsc[2];
@@ -2544,24 +2637,38 @@ static void* multiseedSearchWorker(void *vp) {
 				scfilt[0] = sc.scoreFilter(minsc[0], rdlens[0]);
 				scfilt[1] = sc.scoreFilter(minsc[1], rdlens[1]);
 				lenfilt[0] = lenfilt[1] = true;
-				if(rdlens[0] <= (size_t)multiseedMms) {
+				if(rdlens[0] <= (size_t)multiseedMms || rdlens[0] < 2) {
 					if(!gQuiet) {
 						printMmsSkipMsg(*ps, paired, true, multiseedMms);
 					}
 					lenfilt[0] = false;
 				}
-				if(rdlens[1] <= (size_t)multiseedMms && paired) {
+				if((rdlens[1] <= (size_t)multiseedMms || rdlens[1] < 2) && paired) {
 					if(!gQuiet) {
 						printMmsSkipMsg(*ps, paired, false, multiseedMms);
 					}
 					lenfilt[1] = false;
 				}
+				
+				if(rdlens[0] < 2) {
+					if(!gQuiet) {
+						printLenSkipMsg(*ps, paired, true);
+					}
+					lenfilt[0] = false;
+				}
+				if(rdlens[1] < 2 && paired) {
+					if(!gQuiet) {
+						printLenSkipMsg(*ps, paired, false);
+					}
+					lenfilt[1] = false;
+				}
+				
 				if(gColor && gColorExEnds) {
-					if(rdlens[0] < 2) {
+					if(rdlens[0] < 3) {
 						printColorLenSkipMsg(*ps, paired, true);
 						lenfilt[0] = false;
 					}
-					if(rdlens[1] < 2 && paired) {
+					if(rdlens[1] < 3 && paired) {
 						printColorLenSkipMsg(*ps, paired, false);
 						lenfilt[1] = false;
 					}
@@ -3058,6 +3165,10 @@ static void driver(
 	{
 		Timer _t(cerr, "Time searching: ", timing);
 		// Set up penalities
+		if(bonusMatch > 0 && !localAlign) {
+			cerr << "Warning: Match bonus always = 0 in --end-to-end mode; ignoring user setting" << endl;
+			bonusMatch = 0;
+		}
 		Scoring sc(
 			bonusMatch,     // constant reward for match
 			penMmcType,     // how to penalize mismatches
