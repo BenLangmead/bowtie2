@@ -2787,12 +2787,14 @@ static void* multiseedSearchWorker(void *vp) {
 						}
 						// If all seeds hit, then an exact end-to-end alignment
 						// is possible; search for it here
-						if(shs[mate].allSeedsHit() && readns[mate] == 0) {
+						if(readns[mate] == 0) {
+							bool fw = shs[mate].allFwSeedsHit();
+							bool rc = shs[mate].allRcSeedsHit();
 							al.exactSearch(
 								&ebwtFw,      // BWT index
 								*rds[mate],   // read
-								nofw,         // don't align forward read
-								norc,         // don't align revcomp read
+								!fw,          // don't align forward read
+								!rc,          // don't align revcomp read
 								shs[mate],    // seed hits (hit installed here)
 								sdm);         // metrics
 						}
