@@ -28,7 +28,7 @@
 class Random1toN {
 
 public:
-	static const size_t THRESH = 32;
+	static const size_t THRESH = 128;
 
 	Random1toN(int cat = 0) : n_(0), cur_(0), list_(THRESH, cat) {}
 	Random1toN(size_t n, int cat = 0) : n_(n), cur_(0), list_(THRESH, cat) {}

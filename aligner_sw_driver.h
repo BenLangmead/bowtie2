@@ -238,9 +238,11 @@ protected:
 
 class SwDriver {
 
+	typedef PList<uint32_t, CACHE_PAGE_SZ> TSAList;
+
 public:
 
-	SwDriver() :
+	SwDriver(size_t bytes) :
 		satups_(DP_CAT),
 		sacomb_(DP_CAT),
 		gws_(DP_CAT),
@@ -249,10 +251,8 @@ public:
 		redAnchor_(DP_CAT),
 		redMate1_(DP_CAT),
 		redMate2_(DP_CAT),
-		//st_(1024, DP_CAT),
-		en_(1024, DP_CAT),
-		res_(), ores_()
-	{ }
+		pool_(bytes, CACHE_PAGE_SZ, CA_CAT),
+		salistExact_(CA_CAT) { }
 
 	/**
 	 * Given a collection of SeedHits for a single read, extend seed alignments
@@ -291,8 +291,6 @@ public:
 		SwMetrics& swmSeed,          // DP metrics for seed-extend
 		AlnSinkWrap* mhs,            // HitSink for multiseed-style aligner
 		bool reportImmediately,      // whether to report hits immediately to mhs
-		EList<SwCounterSink*>* swCounterSinks, // send counter updates to these
-		EList<SwActionSink*>* swActionSinks,   // send action-list updates to these
 		bool& exhaustive);
 
 	/**
@@ -370,8 +368,6 @@ public:
 		bool reportImmediately,      // whether to report hits immediately to msink
 		bool discord,                // look for discordant alignments?
 		bool mixed,                  // look for unpaired as well as paired alns?
-		EList<SwCounterSink*>* swCounterSinks, // send counter updates to these
-		EList<SwActionSink*>* swActionSinks,   // send action-list updates to these
 		bool& exhaustive);
 
 	/**
@@ -397,23 +393,6 @@ public:
 
 protected:
 
-	/**
-	 * Given seed results, set up all of our state for resolving and keeping
-	 * track of reference offsets for hits.
-	 */
-#if 0
-	void setUpSaRangeState(
-		SeedResults& sh,             // seed hits to extend into full alignments
-		const Ebwt& ebwt,            // BWT
-		const BitPairReference& ref, // Reference strings
-		int seedlen,                 // length of seed
-		const SimpleFunc& rowmult,   // max rows to consider per position
-		bool scanNarrowed,           // true -> ref scan even for narrowed hits
-		AlignmentCacheIface& ca,     // alignment cache for seed hits
-		RandomSource& rnd,           // pseudo-random generator
-		WalkMetrics& wlm);           // group walk left metrics
-#endif
-
 	void resolveAll(
 		SeedResults& sh,             // seed hits to extend into full alignments
 		const Ebwt& ebwt,            // BWT
@@ -421,6 +400,15 @@ protected:
 		AlignmentCacheIface& ca,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random generator
 		WalkMetrics& wlm,            // group walk left metrics
+		size_t& nelt_out);           // out: # elements total
+
+	bool exactSATups(
+		SeedResults& sh,             // seed hits to extend into full alignments
+		const Ebwt& ebwt,            // BWT
+		const BitPairReference& ref, // Reference strings
+		RandomSource& rnd,           // pseudo-random generator
+		WalkMetrics& wlm,            // group walk left metrics
+		SwMetrics& swmSeed,          // metrics for seed extensions
 		size_t& nelt_out);           // out: # elements total
 
 	void prioritizeSATups(
@@ -458,17 +446,16 @@ protected:
 	RedundantAlns  redMate1_;   // database of cells used for mate 1 alignments
 	RedundantAlns  redMate2_;   // database of cells used for mate 2 alignments
 
-	// For specifying starting and ending columns
-	//EList<bool>    st_;         // temp holder for dyn prog starting mask
-	EList<bool>    en_;         // temp holder for dyn prog ending mask
-	//EList<bool>    ost_;        // like st_ but for opposite mate
-	EList<bool>    oen_;        // like en_ but for opposite mate
-	
 	// For holding results for anchor (res_) and opposite (ores_) mates
-	SwResult       res_;          // temp holder for alignment result
-	SwResult       ores_;         // temp holder for alignment result, opp mate
-	SwResult       resUngapped_;  // temp holder for ungapped alignment result
-	SwResult       oresUngapped_; // temp holder for ungap. aln. opp mate
+	SwResult       resGap_;    // temp holder for alignment result
+	SwResult       oresGap_;   // temp holder for alignment result, opp mate
+	SwResult       resUngap_;  // temp holder for ungapped alignment result
+	SwResult       oresUngap_; // temp holder for ungap. aln. opp mate
+	SwResult       resExact_;  // temp holder for ungapped alignment result
+	SwResult       oresExact_; // temp holder for ungap. aln. opp mate
+	
+	Pool           pool_;        // memory pages for salistExact_
+	TSAList        salistExact_; // PList for offsets for end-to-end hits
 	
 	// For AlnRes::matchesRef:
 	ASSERT_ONLY(SStringExpandable<char>     raw_refbuf_);

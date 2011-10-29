@@ -331,6 +331,7 @@ sub genRef {
 		$len = 1 if $len <= 0;
 		$len = ceil($len);
 		my $seq = $refdnagen->nextSeq($len);
+		length($seq) >= $len || die;
 		my $name = "Sim.pm.$_";
 		$ref->{$name} = $seq;
 		# Select amount to trim from LHS
@@ -351,18 +352,17 @@ sub genRef {
 		my $trimlen = length($seq);
 		$trimlen == $len - $trimleft - $trimright ||
 			mydie("Unexpected trim combo: $len, $trimleft, $trimright, $trimlen");
-		if($trimlen) {
-			$seq = "ACCATCGGTCTGA";
-		}
 		print STDERR "  Generated reference '$name' of untrimmed length $len, trimmed length $trimlen\n";
 		print FA ">$name\n";
 		my $buf = "";
-		for (1..$trimlen) {
-			my $c = substr($seq, $_-1, 1);
+		length($seq) >= $trimlen || die;
+		for my $i (1..$trimlen) {
+			my $c = substr($seq, $i-1, 1);
+			defined($c) || die;
 			$ccnt{$c}++;
 			$buf .= $c;
 			$ref->{$name} .= $c;
-			if($_ % 60 == 0) {
+			if($i % 60 == 0) {
 				print FA "$buf\n";
 				$buf = "";
 			}

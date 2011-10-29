@@ -398,7 +398,7 @@ public:
 	 * The N filter rejects reads with more than the number of Ns calculated by
 	 * taking nCeilConst + nCeilLinear * read length.
 	 */
-	bool nFilter(const BTDnaString& rd) const;
+	bool nFilter(const BTDnaString& rd, size_t& ns) const;
 
 	/**
 	 * Given a read sequence, return true iff the read passes the N filter.
@@ -418,6 +418,8 @@ public:
 	void nFilterPair(
 		const BTDnaString* rd1, // mate 1
 		const BTDnaString* rd2, // mate 2
+		size_t& ns1,            // # Ns in mate 1
+		size_t& ns2,            // # Ns in mate 2
 		bool& filt1,            // true -> mate 1 rejected by filter
 		bool& filt2)            // true -> mate 2 rejected by filter
 		const;

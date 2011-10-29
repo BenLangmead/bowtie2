@@ -484,9 +484,6 @@ struct InstantiatedSeed {
  * seed hits and extending them, the sort() member function is called, which
  * ranks QVals according to the order they should be extended.  Right now the
  * policy is that QVals with fewer elements (hits) should be tried first.
- *
- * TODO: Try a randomized scheme for order in which QVals are analyzed, instead
- *       of one where QVals with fewer elements are preferred.
  */
 class SeedResults {
 
@@ -504,11 +501,9 @@ public:
 		sortedRc_(AL_CAT),
 		offIdx2off_(AL_CAT),
 		rankOffs_(AL_CAT),
-		rankFws_(AL_CAT),
-		numOffs_(0),
-		read_(NULL)
+		rankFws_(AL_CAT)
 	{
-
+		clear();
 	}
 
 	/**
@@ -598,9 +593,30 @@ public:
 		numRangesRc_ = 0;
 		numEltsRc_ = 0;
 		read_ = NULL;
+		exactTopFw_ = 0;
+		exactBotFw_ = 0;
+		exactFw_ = false;
+		exactTopRc_ = 0;
+		exactBotRc_ = 0;
+		exactRc_ = false;
 		assert(empty());
 	}
-	
+
+	/**
+	 * Install an exact end-to-end alignment for the whole read.
+	 */
+	void installExactHit(uint32_t top, uint32_t bot, bool fw) {
+		if(fw) {
+			exactTopFw_ = top;
+			exactBotFw_ = bot;
+			exactFw_ = true;
+		} else {
+			exactTopRc_ = top;
+			exactBotRc_ = bot;
+			exactRc_ = true;
+		}
+	}
+
 	/**
 	 * Return the number of ranges being held.
 	 */
@@ -762,6 +778,13 @@ public:
 		assert(!sorted_ || nonzTot_ == rankOffs_.size());
 		return nonzTot_;
 	}
+	
+	/**
+	 * Return true iff all seeds hit (all have at least one range).
+	 */
+	bool allSeedsHit() const {
+		return nonzeroOffsets() == numOffs();
+	}
 
 	/**
 	 * Return the number of offsets into the forward read that have at
@@ -858,6 +881,45 @@ public:
 			}
 		}
 	}
+	
+	/**
+	 * Return information about any exact end-to-end alignments found.
+	 */
+	void exactE2EHits(
+		uint32_t& top_fw,
+		uint32_t& bot_fw,
+		uint32_t& top_rc,
+		uint32_t& bot_rc) const
+	{
+		if(exactFw_) {
+			top_fw = exactTopFw_;
+			bot_fw = exactBotFw_;
+		} else {
+			top_fw = bot_fw = 0;
+		}
+		if(exactRc_) {
+			top_rc = exactTopRc_;
+			bot_rc = exactBotRc_;
+		} else {
+			top_rc = bot_rc = 0;
+		}
+	}
+	
+	/**
+	 * Return the number of distinct exact end-to-end hits found.
+	 */
+	size_t numExactE2eHits() const {
+		return (exactFw_ ? (exactBotFw_ - exactTopFw_) : 0) +
+		       (exactRc_ ? (exactBotRc_ - exactTopRc_) : 0);
+	}
+	
+	/**
+	 * Return the length of the read that yielded the seed hits.
+	 */
+	size_t readLength() const {
+		assert(read_ != NULL);
+		return read_->length();
+	}
 
 protected:
 
@@ -897,6 +959,13 @@ protected:
 	// These fields set once per read
 	size_t              numOffs_;   // # different seed offsets possible
 	const Read*         read_;      // read from which seeds were extracted
+	
+	uint32_t            exactTopFw_;
+	uint32_t            exactBotFw_;
+	bool                exactFw_;
+	uint32_t            exactTopRc_;
+	uint32_t            exactBotRc_;
+	bool                exactRc_;
 };
 
 /**
@@ -1203,33 +1272,40 @@ public:
 	 * search for each seed.
 	 */
 	std::pair<int, int> instantiateSeeds(
-		const EList<Seed>& seeds,  // search seeds
-		int per,                   // interval between seeds
-		const Read& read,          // read to align
-		const Scoring& pens,       // scoring scheme
-		bool nofw,                 // don't align forward read
-		bool norc,                 // don't align revcomp read
-		AlignmentCacheIface& cache,// holds some seed hits from previous reads
-		SeedResults& sr,           // holds all the seed hits
-		SeedSearchMetrics& met);   // metrics
+		const EList<Seed>& seeds,   // search seeds
+		int per,                    // interval between seeds
+		const Read& read,           // read to align
+		const Scoring& pens,        // scoring scheme
+		bool nofw,                  // don't align forward read
+		bool norc,                  // don't align revcomp read
+		AlignmentCacheIface& cache, // holds some seed hits from previous reads
+		SeedResults& sr,            // holds all the seed hits
+		SeedSearchMetrics& met);    // metrics
 
 	/**
 	 * Iterate through the seeds that cover the read and initiate a
 	 * search for each seed.
 	 */
 	void searchAllSeeds(
-		const EList<Seed>& seeds,  // search seeds
-		const Ebwt* ebwtFw,        // BWT index
-		const Ebwt* ebwtBw,        // BWT' index
-		const Read& read,          // read to align
-		const Scoring& pens,       // scoring scheme
-		AlignmentCacheIface& cache,// local seed alignment cache
-		SeedResults& hits,         // holds all the seed hits
-		SeedSearchMetrics& met,    // metrics
-		EList<ReadCounterSink*>* readCounterSink,// if non-NULL, list of sinks to send per-read counter updates to
-		EList<SeedHitSink*>*     sinks,          // if non-NULL, list of sinks to send hits to
-		EList<SeedCounterSink*>* counterSinks,   // if non-NULL, list of sinks to send SACounters to
-		EList<SeedActionSink*>*  actionSinks);   // if non-NULL, list of sinks to send SAActions to
+		const EList<Seed>& seeds,   // search seeds
+		const Ebwt* ebwtFw,         // BWT index
+		const Ebwt* ebwtBw,         // BWT' index
+		const Read& read,           // read to align
+		const Scoring& pens,        // scoring scheme
+		AlignmentCacheIface& cache, // local seed alignment cache
+		SeedResults& hits,          // holds all the seed hits
+		SeedSearchMetrics& met);    // metrics
+
+	/**
+	 * Search for end-to-end exact hit for read.  Return true iff one is found.
+	 */
+	bool exactSearch(
+		const Ebwt* ebwtFw,         // BWT index
+		const Read& read,           // read to align
+		bool nofw,                  // don't align forward read
+		bool norc,                  // don't align revcomp read
+		SeedResults& hits,          // holds all the seed hits (and exact hit)
+		SeedSearchMetrics& met);    // metrics
 
 protected:
 

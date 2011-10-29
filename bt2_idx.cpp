@@ -1583,9 +1583,9 @@ inline uint32_t Ebwt::countBwSideRange2(
 #endif
 
 /**
- * Returns true iff the index contains the given string (exactly).  The
- * given string must contain only unambiguous characters.  TODO:
- * support skipping of ambiguous characters in 'str'.
+ * Returns true iff the index contains the given string (exactly).  The given
+ * string must contain only unambiguous characters.  TODO: support ambiguous
+ * characters in 'str'.
  */
 bool Ebwt::contains(
 	const BTDnaString& str,

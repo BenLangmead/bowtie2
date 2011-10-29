@@ -101,8 +101,7 @@ int Scoring::maxRefGaps(
  * Given a read sequence, return true iff the read passes the N filter.
  * The N filter rejects reads with more than the number of Ns.
  */
-bool Scoring::nFilter(const BTDnaString& rd) const {
-	size_t ns = 0;
+bool Scoring::nFilter(const BTDnaString& rd, size_t& ns) const {
 	size_t rdlen = rd.length();
 	size_t maxns = nCeil.f<size_t>((double)rdlen);
 	assert_geq(rd.length(), 0);
@@ -134,6 +133,8 @@ bool Scoring::nFilter(const BTDnaString& rd) const {
 void Scoring::nFilterPair(
 	const BTDnaString* rd1, // mate 1
 	const BTDnaString* rd2, // mate 2
+	size_t& ns1,            // # Ns in mate 1
+	size_t& ns2,            // # Ns in mate 2
 	bool& filt1,            // true -> mate 1 rejected by filter
 	bool& filt2)            // true -> mate 2 rejected by filter
 	const
@@ -144,17 +145,16 @@ void Scoring::nFilterPair(
 		size_t rdlen1 = rd1->length();
 		size_t rdlen2 = rd2->length();
 		size_t maxns = nCeil.f<size_t>((double)(rdlen1 + rdlen2));
-		size_t ns = 0;
 		for(size_t i = 0; i < rdlen1; i++) {
-			if((*rd1)[i] == 4) ns++;
-			if(ns > maxns) {
+			if((*rd1)[i] == 4) ns1++;
+			if(ns1 > maxns) {
 				// doesn't pass
 				return;
 			}
 		}
 		for(size_t i = 0; i < rdlen2; i++) {
-			if((*rd2)[i] == 4) ns++;
-			if(ns > maxns) {
+			if((*rd2)[i] == 4) ns2++;
+			if(ns2 > maxns) {
 				// doesn't pass
 				return;
 			}
@@ -162,8 +162,8 @@ void Scoring::nFilterPair(
 		// Both pass
 		filt1 = filt2 = true;
 	} else {
-		if(rd1 != NULL) filt1 = nFilter(*rd1);
-		if(rd2 != NULL) filt2 = nFilter(*rd2);
+		if(rd1 != NULL) filt1 = nFilter(*rd1, ns1);
+		if(rd2 != NULL) filt2 = nFilter(*rd2, ns2);
 	}
 }
 

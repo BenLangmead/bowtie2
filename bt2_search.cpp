@@ -186,6 +186,7 @@ static string saActionsFn;   // filename to dump all alignment actions to
 static string saHitsFn;      // filename to dump all seed hits to
 static uint32_t seedCacheLocalMB;   // # MB to use for non-shared seed alignment cacheing
 static uint32_t seedCacheCurrentMB; // # MB to use for current-read seed hit cacheing
+static uint32_t exactCacheCurrentMB; // # MB to use for current-read seed hit cacheing
 static SimpleFunc maxelt;    // max # elts to extend for any given batch of seed hits
 static size_t maxhalf;       // max width on one side of DP table
 static bool seedSummaryOnly; // print summary information about seed hits, not alignments
@@ -338,6 +339,7 @@ static void resetOptions() {
 	saHitsFn.clear();        // filename to dump all seed hits to
 	seedCacheLocalMB   = 32; // # MB to use for non-shared seed alignment cacheing
 	seedCacheCurrentMB = 20; // # MB to use for current-read seed hit cacheing
+	exactCacheCurrentMB = 20; // # MB to use for current-read seed hit cacheing
 	maxhalf            = 15; // max width on one side of DP table
 	seedSummaryOnly    = false; // print summary information about seed hits, not alignments
 	doUngapped         = true;  // do ungapped alignment
@@ -1354,13 +1356,6 @@ static AlignmentCache*          multiseed_ca; // seed cache
 static AlnSink*                 multiseed_msink;
 static OutFileBuf*              multiseed_metricsOfb;
 
-static EList<ReadCounterSink*>* multiseed_readCounterSink;
-static EList<SeedHitSink*>*     multiseed_seedHitSink;
-static EList<SeedCounterSink*>* multiseed_seedCounterSink;
-static EList<SeedActionSink*>*  multiseed_seedActionSink;
-static EList<SwCounterSink*>*   multiseed_swCounterSink;
-static EList<SwActionSink*>*    multiseed_swActionSink;
-
 /**
  * Metrics for measuring the work done by the outer read alignment
  * loop.
@@ -1559,87 +1554,92 @@ struct PerfMetrics {
 				/* 34 */ "ResReport"      "\t"
 				/* 35 */ "RedundantSHit"  "\t"
 
-				/* 36 */ "UngappedSucc"   "\t"
-				/* 37 */ "UngappedFail"   "\t"
-				/* 38 */ "UngappedNoDec"  "\t"
+				/* 36 */ "ExactSucc"      "\t"
+				/* 37 */ "ExactRanges"    "\t"
+				/* 38 */ "ExactRows"      "\t"
+				/* 38 */ "ExactOOMs"      "\t"
+
+				/* 39 */ "UngappedSucc"   "\t"
+				/* 40 */ "UngappedFail"   "\t"
+				/* 41 */ "UngappedNoDec"  "\t"
 				
-				/* 39 */ "DP16ExDps"      "\t"
-				/* 40 */ "DP16ExDpSat"    "\t"
-				/* 41 */ "DP16ExDpFail"   "\t"
-				/* 42 */ "DP16ExDpSucc"   "\t"
-				/* 43 */ "DP16ExCol"      "\t"
-				/* 44 */ "DP16ExCell"     "\t"
-				/* 45 */ "DP16ExInner"    "\t"
-				/* 46 */ "DP16ExFixup"    "\t"
-				/* 47 */ "DP16ExGathSol"  "\t"
-				/* 48 */ "DP16ExBt"       "\t"
-				/* 49 */ "DP16ExBtFail"   "\t"
-				/* 50 */ "DP16ExBtSucc"   "\t"
-				/* 51 */ "DP16ExBtCell"   "\t"
-				/* 52 */ "DP16ExCoreRej"  "\t"
-				/* 53 */ "DP16ExNRej"     "\t"
+				/* 42 */ "DP16ExDps"      "\t"
+				/* 43 */ "DP16ExDpSat"    "\t"
+				/* 44 */ "DP16ExDpFail"   "\t"
+				/* 45 */ "DP16ExDpSucc"   "\t"
+				/* 46 */ "DP16ExCol"      "\t"
+				/* 47 */ "DP16ExCell"     "\t"
+				/* 48 */ "DP16ExInner"    "\t"
+				/* 49 */ "DP16ExFixup"    "\t"
+				/* 50 */ "DP16ExGathSol"  "\t"
+				/* 51 */ "DP16ExBt"       "\t"
+				/* 52 */ "DP16ExBtFail"   "\t"
+				/* 53 */ "DP16ExBtSucc"   "\t"
+				/* 54 */ "DP16ExBtCell"   "\t"
+				/* 55 */ "DP16ExCoreRej"  "\t"
+				/* 56 */ "DP16ExNRej"     "\t"
 
-				/* 54 */ "DP8ExDps"       "\t"
-				/* 55 */ "DP8ExDpSat"     "\t"
-				/* 56 */ "DP8ExDpFail"    "\t"
-				/* 57 */ "DP8ExDpSucc"    "\t"
-				/* 58 */ "DP8ExCol"       "\t"
-				/* 59 */ "DP8ExCell"      "\t"
-				/* 60 */ "DP8ExInner"     "\t"
-				/* 61 */ "DP8ExFixup"     "\t"
-				/* 62 */ "DP8ExGathSol"   "\t"
-				/* 63 */ "DP8ExBt"        "\t"
-				/* 64 */ "DP8ExBtFail"    "\t"
-				/* 65 */ "DP8ExBtSucc"    "\t"
-				/* 66 */ "DP8ExBtCell"    "\t"
-				/* 67 */ "DP8ExCoreRej"   "\t"
-				/* 68 */ "DP8ExNRej"      "\t"
+				/* 57 */ "DP8ExDps"       "\t"
+				/* 58 */ "DP8ExDpSat"     "\t"
+				/* 59 */ "DP8ExDpFail"    "\t"
+				/* 60 */ "DP8ExDpSucc"    "\t"
+				/* 61 */ "DP8ExCol"       "\t"
+				/* 62 */ "DP8ExCell"      "\t"
+				/* 63 */ "DP8ExInner"     "\t"
+				/* 64 */ "DP8ExFixup"     "\t"
+				/* 65 */ "DP8ExGathSol"   "\t"
+				/* 66 */ "DP8ExBt"        "\t"
+				/* 67 */ "DP8ExBtFail"    "\t"
+				/* 68 */ "DP8ExBtSucc"    "\t"
+				/* 69 */ "DP8ExBtCell"    "\t"
+				/* 70 */ "DP8ExCoreRej"   "\t"
+				/* 71 */ "DP8ExNRej"      "\t"
 
-				/* 69 */ "DP16MateDps"     "\t"
-				/* 70 */ "DP16MateDpSat"   "\t"
-				/* 71 */ "DP16MateDpFail"  "\t"
-				/* 72 */ "DP16MateDpSucc"  "\t"
-				/* 73 */ "DP16MateCol"     "\t"
-				/* 74 */ "DP16MateCell"    "\t"
-				/* 75 */ "DP16MateInner"   "\t"
-				/* 76 */ "DP16MateFixup"   "\t"
-				/* 77 */ "DP16MateGathSol" "\t"
-				/* 78 */ "DP16MateBt"      "\t"
-				/* 79 */ "DP16MateBtFail"  "\t"
-				/* 80 */ "DP16MateBtSucc"  "\t"
-				/* 81 */ "DP16MateBtCell"  "\t"
-				/* 82 */ "DP16MateCoreRej" "\t"
-				/* 83 */ "DP16MateNRej"    "\t"
+				/* 72 */ "DP16MateDps"     "\t"
+				/* 73 */ "DP16MateDpSat"   "\t"
+				/* 74 */ "DP16MateDpFail"  "\t"
+				/* 75 */ "DP16MateDpSucc"  "\t"
+				/* 76 */ "DP16MateCol"     "\t"
+				/* 77 */ "DP16MateCell"    "\t"
+				/* 78 */ "DP16MateInner"   "\t"
+				/* 79 */ "DP16MateFixup"   "\t"
+				/* 80 */ "DP16MateGathSol" "\t"
+				/* 81 */ "DP16MateBt"      "\t"
+				/* 82 */ "DP16MateBtFail"  "\t"
+				/* 83 */ "DP16MateBtSucc"  "\t"
+				/* 84 */ "DP16MateBtCell"  "\t"
+				/* 85 */ "DP16MateCoreRej" "\t"
+				/* 86 */ "DP16MateNRej"    "\t"
 
-				/* 84 */ "DP8MateDps"     "\t"
-				/* 85 */ "DP8MateDpSat"   "\t"
-				/* 86 */ "DP8MateDpFail"  "\t"
-				/* 87 */ "DP8MateDpSucc"  "\t"
-				/* 88 */ "DP8MateCol"     "\t"
-				/* 89 */ "DP8MateCell"    "\t"
-				/* 90 */ "DP8MateInner"   "\t"
-				/* 91 */ "DP8MateFixup"   "\t"
-				/* 92 */ "DP8MateGathSol" "\t"
-				/* 93 */ "DP8MateBt"      "\t"
-				/* 94 */ "DP8MateBtFail"  "\t"
-				/* 95 */ "DP8MateBtSucc"  "\t"
-				/* 96 */ "DP8MateBtCell"  "\t"
-				/* 97 */ "DP8MateCoreRej" "\t"
-				/* 98 */ "DP8MateNRej"    "\t"
+				/* 87 */ "DP8MateDps"     "\t"
+				/* 88 */ "DP8MateDpSat"   "\t"
+				/* 89 */ "DP8MateDpFail"  "\t"
+				/* 90 */ "DP8MateDpSucc"  "\t"
+				/* 91 */ "DP8MateCol"     "\t"
+				/* 92 */ "DP8MateCell"    "\t"
+				/* 93 */ "DP8MateInner"   "\t"
+				/* 94 */ "DP8MateFixup"   "\t"
+				/* 95 */ "DP8MateGathSol" "\t"
+				/* 96 */ "DP8MateBt"      "\t"
+				/* 97 */ "DP8MateBtFail"  "\t"
+				/* 98 */ "DP8MateBtSucc"  "\t"
+				/* 99 */ "DP8MateBtCell"  "\t"
+				/* 100 */ "DP8MateCoreRej" "\t"
+				/* 101 */ "DP8MateNRej"    "\t"
 
-				/* 99 */ "DPBtFiltStart"  "\t"
-				/* 100 */ "DPBtFiltScore"  "\t"
-				/* 101 */ "DpBtFiltDom"    "\t"
+				/* 102 */ "DPBtFiltStart"  "\t"
+				/* 103 */ "DPBtFiltScore"  "\t"
+				/* 104 */ "DpBtFiltDom"    "\t"
 
-				/* 102 */ "MemPeak"        "\t"
-				/* 103 */ "UncatMemPeak"   "\t" // 0
-				/* 104 */ "EbwtMemPeak"    "\t" // EBWT_CAT
-				/* 105 */ "CacheMemPeak"   "\t" // CA_CAT
-				/* 106 */ "ResolveMemPeak" "\t" // GW_CAT
-				/* 107 */ "AlignMemPeak"   "\t" // AL_CAT
-				/* 108 */ "DPMemPeak"      "\t" // DP_CAT
-				/* 109 */ "MiscMemPeak"    "\t" // MISC_CAT
-				/* 110 */ "DebugMemPeak"   "\t" // DEBUG_CAT
+				/* 105 */ "MemPeak"        "\t"
+				/* 106 */ "UncatMemPeak"   "\t" // 0
+				/* 107 */ "EbwtMemPeak"    "\t" // EBWT_CAT
+				/* 108 */ "CacheMemPeak"   "\t" // CA_CAT
+				/* 109 */ "ResolveMemPeak" "\t" // GW_CAT
+				/* 110 */ "AlignMemPeak"   "\t" // AL_CAT
+				/* 111 */ "DPMemPeak"      "\t" // DP_CAT
+				/* 112 */ "MiscMemPeak"    "\t" // MISC_CAT
+				/* 113 */ "DebugMemPeak"   "\t" // DEBUG_CAT
 				
 				"\n";
 			
@@ -1819,6 +1819,24 @@ struct PerfMetrics {
 		itoa10<uint64_t>(total ? swmSeed.rshit : swmuSeed.rshit, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		
+		// 36. Exact aligner successes
+		itoa10<uint64_t>(total ? swmSeed.exsucc : swmuSeed.exsucc, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 37. Exact aligner ranges
+		itoa10<uint64_t>(total ? swmSeed.exranges : swmuSeed.exranges, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 38. Exact aligner rows
+		itoa10<uint64_t>(total ? swmSeed.exrows : swmuSeed.exrows, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 39. Exact aligner OOMs
+		itoa10<uint64_t>(total ? swmSeed.exooms : swmuSeed.exooms, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+
 		// 36. Ungapped aligner success
 		itoa10<uint64_t>(total ? swmSeed.ungapsucc : swmuSeed.ungapsucc, buf);
 		if(metricsStderr) cerr << buf << '\t';
@@ -2358,26 +2376,6 @@ static void* multiseedSearchWorker(void *vp) {
 	// level.  These in turn can be used to diagnose performance
 	// problems, or generally characterize performance.
 	
-	// readCounterSink: for each read, keep a record of counts related
-	// to all phases of alignment: seed alignment, joining, SW
-	EList<ReadCounterSink*>& readCounterSink = *multiseed_readCounterSink;
-
-	// seedHitSink: for each seed hit, keep a record of counts
-	EList<SeedHitSink*>&     seedHitSink     = *multiseed_seedHitSink;
-	// seedCounterSink: for each seed, keep a record of counts related
-	// to the seed alignment
-	EList<SeedCounterSink*>& seedCounterSink = *multiseed_seedCounterSink;
-	// seedActionSink: keep a detailed record of seed alignment actions
-	// taken per read
-	EList<SeedActionSink*>&  seedActionSink  = *multiseed_seedActionSink;
-
-	// swCounterSink: for each SW, keep a record of counts related to
-	// the SW alignment
-	EList<SwCounterSink*>&   swCounterSink   = *multiseed_swCounterSink;
-	// swActionSink: keep a detailed record of SW alignment actions
-	// taken per read
-	EList<SwActionSink*>&    swActionSink    = *multiseed_swActionSink;
-	
 	//const BitPairReference& refs   = *multiseed_refs;
 	auto_ptr<PatternSourcePerThreadFactory> patsrcFact(createPatsrcFactory(patsrc, tid));
 	auto_ptr<PatternSourcePerThread> ps(patsrcFact->create());
@@ -2422,7 +2420,7 @@ static void* multiseedSearchWorker(void *vp) {
 		*bmapq.get()); // MAPQ calculator
 
 	SeedAligner al;
-	SwDriver sd;
+	SwDriver sd(exactCacheCurrentMB * 1024 * 1024);
 	SwAligner sw, osw;
 	SeedResults shs[2];
 	QVal *qv;
@@ -2633,9 +2631,12 @@ static void* multiseedSearchWorker(void *vp) {
 					floorsc[0] = floorsc[1] = std::numeric_limits<TAlScore>::min();
 				}
 				// N filter; does the read have too many Ns?
+				size_t readns[2] = {0, 0};
 				sc.nFilterPair(
 					&ps->bufa().patFw,
 					pair ? &ps->bufb().patFw : NULL,
+					readns[0],
+					readns[1],
 					nfilt[0],
 					nfilt[1]);
 				// Score filter; does the read enough character to rise above
@@ -2777,18 +2778,23 @@ static void* multiseedSearchWorker(void *vp) {
 						sc,               // scoring scheme
 						ca,               // alignment cache
 						shs[mate],        // store seed hits here
-						sdm,              // metrics
-						&readCounterSink, // send counter summary for each read to this sink
-						&seedHitSink,     // send seed hits to this sink
-						&seedCounterSink, // send counter summary for each seed to this sink
-						&seedActionSink); // send search action list for each read to this sink
-					// BTL: Following assert has been observed in the wild
-					//assert_eq(0, sdm.ooms);
+						sdm);             // metrics
 					assert(shs[mate].repOk(&ca.current()));
 					if(!seedSummaryOnly) {
 						// If there aren't any seed hits...
 						if(shs[mate].empty()) {
 							continue; // on to the next mate
+						}
+						// If all seeds hit, then an exact end-to-end alignment
+						// is possible; search for it here
+						if(shs[mate].allSeedsHit() && readns[mate] == 0) {
+							al.exactSearch(
+								&ebwtFw,      // BWT index
+								*rds[mate],   // read
+								nofw,         // don't align forward read
+								norc,         // don't align revcomp read
+								shs[mate],    // seed hits (hit installed here)
+								sdm);         // metrics
 						}
 						// Sort seed hits into ranks
 						shs[mate].rankSeedHits(rnd);
@@ -2839,8 +2845,6 @@ static void* multiseedSearchWorker(void *vp) {
 								true,           // report hits once found
 								gReportDiscordant,// look for discordant alns?
 								gReportMixed,   // look for unpaired alns?
-								&swCounterSink, // send counter info here
-								&swActionSink,  // send action info here
 								exhaustive[mate]);
 							// Might be done, but just with this mate
 						} else {
@@ -2872,8 +2876,6 @@ static void* multiseedSearchWorker(void *vp) {
 								swmSeed,        // DP metrics, seed extend
 								&msinkwrap,     // for organizing hits
 								true,           // report hits once found
-								&swCounterSink, // send counter info here
-								&swActionSink,  // send action info here
 								exhaustive[mate]);
 						}
 						sw.merge(
@@ -2958,9 +2960,6 @@ static void multiseedSearch(
 	AlnSink& msink,             // hit sink
 	Ebwt& ebwtFw,                 // index of original text
 	Ebwt& ebwtBw,                 // index of mirror text
-	EList<SeedHitSink*>& seedHitSink,
-	EList<SeedCounterSink*>& seedCounterSink,
-	EList<SeedActionSink*>&  seedActionSink,
 	OutFileBuf *metricsOfb)
 {
 	multiseed_patsrc = &patsrc;
@@ -2970,9 +2969,6 @@ static void multiseedSearch(
 	multiseed_sc     = &sc;
 	multiseed_seeds  = &seeds;
 	multiseed_metricsOfb      = metricsOfb;
-	multiseed_seedHitSink     = &seedHitSink;
-	multiseed_seedCounterSink = &seedCounterSink;
-	multiseed_seedActionSink  = &seedActionSink;
 	Timer *_t = new Timer(cerr, "Time loading reference: ", timing);
 	auto_ptr<BitPairReference> refs(
 		new BitPairReference(
@@ -3264,35 +3260,6 @@ static void driver(
 			multiseedLen,    // length of a multiseed seed (scales down if read is shorter)
 			seeds,           // seeds
 			gc);             // global constraint
-		// Set up listeners for alignment progress
-		EList<SeedHitSink*> seedHitSink;
-		EList<SeedCounterSink*> seedCounterSink;
-		EList<SeedActionSink*> seedActionSink;
-		ofstream *hitsOf = NULL, *cntsOf = NULL, *actionsOf = NULL;
-		if(!saHitsFn.empty()) {
-			hitsOf = new ofstream(saHitsFn.c_str());
-			if(!hitsOf->is_open()) {
-				cerr << "Error: Unable to open seed hit dump file " << saHitsFn << endl;
-				throw 1;
-			}
-			seedHitSink.push_back(new StreamTabSeedHitSink(*hitsOf));
-		}
-		if(!saCountersFn.empty()) {
-			cntsOf = new ofstream(saCountersFn.c_str());
-			if(!cntsOf->is_open()) {
-				cerr << "Error: Unable to open seed counter dump file " << saCountersFn << endl;
-				throw 1;
-			}
-			seedCounterSink.push_back(new StreamTabSeedCounterSink(*cntsOf));
-		}
-		if(!saActionsFn.empty()) {
-			actionsOf = new ofstream(saActionsFn.c_str());
-			if(!actionsOf->is_open()) {
-				cerr << "Error: Unable to open seed action dump file " << saActionsFn << endl;
-				throw 1;
-			}
-			seedActionSink.push_back(new StreamTabSeedActionSink(*actionsOf));
-		}
 		OutFileBuf *metricsOfb = NULL;
 		if(!metricsFile.empty() && metricsIval > 0) {
 			metricsOfb = new OutFileBuf(metricsFile);
@@ -3307,17 +3274,7 @@ static void driver(
 			*mssink, // hit sink
 			ebwt,    // BWT
 			*ebwtBw, // BWT'
-			seedHitSink,
-			seedCounterSink,
-			seedActionSink,
 			metricsOfb);
-		for(size_t i = 0; i < seedHitSink.size();     i++) delete seedHitSink[i];
-		for(size_t i = 0; i < seedCounterSink.size(); i++) delete seedCounterSink[i];
-		for(size_t i = 0; i < seedActionSink.size();  i++) delete seedActionSink[i];
-		if(hitsOf != NULL) delete hitsOf;
-		if(cntsOf != NULL) delete cntsOf;
-		if(actionsOf != NULL) delete actionsOf;
-		if(metricsOfb != NULL) delete metricsOfb;
 		// Evict any loaded indexes from memory
 		if(ebwt.isInMemory()) {
 			ebwt.evictFromMemory();
