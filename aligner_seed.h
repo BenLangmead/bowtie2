@@ -471,6 +471,109 @@ struct InstantiatedSeed {
 };
 
 /**
+ * Simple struct for holding a end-to-end alignments for the read with at most
+ * 2 edits.
+ */
+struct EEHit {
+	
+	EEHit() { reset(); }
+	
+	void reset() {
+		top = bot = 0;
+		fw = false;
+		e1.reset();
+		e2.reset();
+		score = std::numeric_limits<int64_t>::min();
+	}
+	
+	void init(
+		uint32_t top_,
+		uint32_t bot_,
+		const Edit* e1_,
+		const Edit* e2_,
+		bool fw_,
+		int64_t score_)
+	{
+		top = top_; bot = bot_;
+		if(e1_ != NULL) {
+			e1 = *e1_;
+		} else {
+			e1.reset();
+		}
+		if(e2_ != NULL) {
+			e2 = *e2_;
+		} else {
+			e2.reset();
+		}
+		fw = fw_;
+		score = score_;
+	}
+	
+	/**
+	 * Return number of mismatches in the alignment.
+	 */
+	int mms() const {
+		if     (e2.inited()) return 2;
+		else if(e1.inited()) return 1;
+		else                 return 0;
+	}
+	
+	/**
+	 * Return the number of Ns involved in the alignment.
+	 */
+	int ns() const {
+		int ns = 0;
+		if(e1.inited() && e1.hasN()) {
+			ns++;
+			if(e2.inited() && e2.hasN()) {
+				ns++;
+			}
+		}
+		return ns;
+	}
+
+	/**
+	 * Return the number of Ns involved in the alignment.
+	 */
+	int refns() const {
+		int ns = 0;
+		if(e1.inited() && e1.chr == 'N') {
+			ns++;
+			if(e2.inited() && e2.chr == 'N') {
+				ns++;
+			}
+		}
+		return ns;
+	}
+	
+	/**
+	 * Return true iff there is no hit.
+	 */
+	bool empty() const {
+		return bot <= top;
+	}
+	
+	/**
+	 * Higher score = higher priority.
+	 */
+	bool operator<(const EEHit& o) const {
+		return score > o.score;
+	}
+	
+	/**
+	 * Return the size of the alignments SA range.s
+	 */
+	uint32_t size() const { return bot - top; }
+	
+	uint32_t top;
+	uint32_t bot;
+	Edit     e1;
+	Edit     e2;
+	bool     fw;
+	int64_t  score;
+};
+
+/**
  * Data structure for holding all of the seed hits associated with a read.  All
  * the seed hits for a given read are encapsulated in a single QVal object.  A
  * QVal refers to a range of values in the qlist, where each qlist value is a 
@@ -501,7 +604,8 @@ public:
 		sortedRc_(AL_CAT),
 		offIdx2off_(AL_CAT),
 		rankOffs_(AL_CAT),
-		rankFws_(AL_CAT)
+		rankFws_(AL_CAT),
+		mm1Hit_(AL_CAT)
 	{
 		clear();
 	}
@@ -593,28 +697,12 @@ public:
 		numRangesRc_ = 0;
 		numEltsRc_ = 0;
 		read_ = NULL;
-		exactTopFw_ = 0;
-		exactBotFw_ = 0;
-		exactFw_ = false;
-		exactTopRc_ = 0;
-		exactBotRc_ = 0;
-		exactRc_ = false;
+		exactFwHit_.reset();
+		exactRcHit_.reset();
+		mm1Hit_.clear();
+		mm1Sorted_ = false;
+		mm1Elt_ = 0;
 		assert(empty());
-	}
-
-	/**
-	 * Install an exact end-to-end alignment for the whole read.
-	 */
-	void installExactHit(uint32_t top, uint32_t bot, bool fw) {
-		if(fw) {
-			exactTopFw_ = top;
-			exactBotFw_ = bot;
-			exactFw_ = true;
-		} else {
-			exactTopRc_ = top;
-			exactBotRc_ = bot;
-			exactRc_ = true;
-		}
 	}
 
 	/**
@@ -792,6 +880,25 @@ public:
 	bool allRcSeedsHit() const {
 		return nonzRc_ == numOffs();
 	}
+	
+	/**
+	 * Return the minimum number of edits that an end-to-end alignment of the
+	 * fw read could have.  Uses knowledge of how many seeds have exact hits
+	 * and how the seeds overlap.
+	 */
+	size_t fewestEditsEE(bool fw, int seedlen, int per) const {
+		assert_gt(seedlen, 0);
+		assert_gt(per, 0);
+		size_t nonz = fw ? nonzFw_ : nonzRc_;
+		if(nonz < numOffs()) {
+			int maxdepth = (seedlen + per - 1) / per;
+			int missing = (int)(numOffs() - nonz);
+			return (missing + maxdepth - 1) / maxdepth;
+		} else {
+			// Exact hit is possible (not guaranteed)
+			return 0;
+		}
+	}
 
 	/**
 	 * Return the number of offsets into the forward read that have at
@@ -873,51 +980,87 @@ public:
 	EList<BTString>& quals(bool fw) { return fw ? qualFw_ : qualRc_; }
 
 	/**
-	 * Print a pretty, short summary of these seed results.
+	 * Return exact end-to-end alignment of fw read.
 	 */
-	void printSummary(std::ostream& os) {
-		os << "  # positions: "           << numOffs_   << std::endl
-		   << "  # non-empty positions: " << nonzTot_   << std::endl
-		   << "  # BW ranges found: "     << numRanges_ << std::endl
-		   << "  # BW elts found: "       << numElts_   << std::endl
-		   << "  sorted?: "               << sorted_    << std::endl;
-		if(sorted_) {
-			os << "  Sorted offsets:" << std::endl;
-			for(size_t i = 0; i < rankOffs_.size(); i++) {
-				os << "    " << i << ": " << rankOffs_[i] << "," << rankFws_[i] << std::endl;
-			}
-		}
+	EEHit exactFwEEHit() const { return exactFwHit_; }
+
+	/**
+	 * Return exact end-to-end alignment of rc read.
+	 */
+	EEHit exactRcEEHit() const { return exactRcHit_; }
+	
+	/**
+	 * Return const ref to list of 1-mismatch end-to-end alignments.
+	 */
+	const EList<EEHit>& mm1EEHits() const { return mm1Hit_; }
+	
+	/**
+	 * Sort the end-to-end 1-mismatch alignments, prioritizing by score (higher
+	 * score = higher priority).
+	 */
+	void sort1mmEe() {
+		assert(!mm1Sorted_);
+		mm1Hit_.sort();
+		mm1Sorted_ = true;
 	}
 	
 	/**
-	 * Return information about any exact end-to-end alignments found.
+	 * Add an end-to-end 1-mismatch alignment.
 	 */
-	void exactE2EHits(
-		uint32_t& top_fw,
-		uint32_t& bot_fw,
-		uint32_t& top_rc,
-		uint32_t& bot_rc) const
+	void add1mmEe(
+		uint32_t top,
+		uint32_t bot,
+		const Edit* e1,
+		const Edit* e2,
+		bool fw,
+		int64_t score)
 	{
-		if(exactFw_) {
-			top_fw = exactTopFw_;
-			bot_fw = exactBotFw_;
-		} else {
-			top_fw = bot_fw = 0;
-		}
-		if(exactRc_) {
-			top_rc = exactTopRc_;
-			bot_rc = exactBotRc_;
-		} else {
-			top_rc = bot_rc = 0;
-		}
+		mm1Hit_.expand();
+		mm1Hit_.back().init(top, bot, e1, e2, fw, score);
+		mm1Elt_ += (bot - top);
 	}
-	
+
+	/**
+	 * Add an end-to-end exact alignment.
+	 */
+	void addExactEeFw(
+		uint32_t top,
+		uint32_t bot,
+		const Edit* e1,
+		const Edit* e2,
+		bool fw,
+		int64_t score)
+	{
+		exactFwHit_.init(top, bot, e1, e2, fw, score);
+	}
+
+	/**
+	 * Add an end-to-end exact alignment.
+	 */
+	void addExactEeRc(
+		uint32_t top,
+		uint32_t bot,
+		const Edit* e1,
+		const Edit* e2,
+		bool fw,
+		int64_t score)
+	{
+		exactRcHit_.init(top, bot, e1, e2, fw, score);
+	}
+
+	/**
+	 * Return the number of distinct exact and 1-mismatch end-to-end hits
+	 * found.
+	 */
+	size_t numE2eHits() const {
+		return exactFwHit_.size() + exactRcHit_.size() + mm1Elt_;
+	}
+
 	/**
 	 * Return the number of distinct exact end-to-end hits found.
 	 */
 	size_t numExactE2eHits() const {
-		return (exactFw_ ? (exactBotFw_ - exactTopFw_) : 0) +
-		       (exactRc_ ? (exactBotRc_ - exactTopRc_) : 0);
+		return exactFwHit_.size() + exactRcHit_.size();
 	}
 	
 	/**
@@ -967,12 +1110,11 @@ protected:
 	size_t              numOffs_;   // # different seed offsets possible
 	const Read*         read_;      // read from which seeds were extracted
 	
-	uint32_t            exactTopFw_;
-	uint32_t            exactBotFw_;
-	bool                exactFw_;
-	uint32_t            exactTopRc_;
-	uint32_t            exactBotRc_;
-	bool                exactRc_;
+	EEHit               exactFwHit_; // end-to-end exact hit for fw read
+	EEHit               exactRcHit_; // end-to-end exact hit for rc read
+	EList<EEHit>        mm1Hit_;     // 1-mismatch end-to-end hits
+	size_t              mm1Elt_;     // number of 1-mismatch hit rows
+	bool                mm1Sorted_;  // true iff we've sorted the mm1Hit_ list
 };
 
 /**
@@ -1004,195 +1146,6 @@ struct SACounters {
 		edit = 0;
 		editd[0] = editd[1] = editd[2] = editd[3] = 0;
 	}
-};
-
-/**
- * Abstract parent class for encapsulating SeedAligner actions.
- */
-struct SAAction {
-	
-	SAAction() :
-		type(0), seed(0), seedoff(0), pos(0), ltr(true), len(0), depth(0), edit() { }
-	SAAction(int sd, int sdo, int ps, bool lr, int ln, int dp, Edit e) :
-		type(0), seed(sd), seedoff(sdo), pos(ps), ltr(lr), len(ln), depth(dp), edit(e) { }
-	
-	int  type;    // type
-	int  seed;    // seed
-	int  seedoff; // offset of seed
-	int  pos;     // position before jump
-	bool ltr;     // direction of jump
-	int  len;     // length
-	int  depth;   // depth of recursion stack
-	Edit edit;    // edit performed
-};
-
-/**
- * Abstract parent for a class with a method that gets passed every
- * seed hit.
- */
-class SeedHitSink {
-public:
-	SeedHitSink() { MUTEX_INIT(lock_); }
-	virtual ~SeedHitSink() { }
-
-	/**
-	 * Grab the lock and call abstract member reportSeedHitImpl()
-	 */
-	virtual void reportSeedHit(
-		const Read& rd,
-		const BTDnaString& seedseq)
-	{
-		ThreadSafe(&this->lock_);
-		reportSeedHitImpl(rd, seedseq);
-	}
-
-protected:
-
-	virtual void reportSeedHitImpl(const Read& rd, const BTDnaString& seedseq) = 0;
-	MUTEX_T lock_;
-};
-
-/**
- * Write each hit to an output stream using a simple record-per-line
- * tab-delimited format.
- */
-class StreamTabSeedHitSink : public SeedHitSink {
-public:
-	StreamTabSeedHitSink(std::ostream& os) : SeedHitSink(), os_(os) { }
-	virtual ~StreamTabSeedHitSink() { }
-protected:
-	virtual void reportSeedHitImpl(
-		const Read& rd,
-		const BTDnaString& seedseq)
-	{
-		os_ << rd.patFw  << "\t"
-		    << rd.qual   << "\t"
-		    << seedseq   << "\n";
-		  //  << h.topf()  << "\t"
-		//	<< h.botf()  << "\t"
-		//	<< h.topb()  << "\t"
-		//	<< h.editn() << "\n"; // avoid 'endl' b/c flush is unnecessary
-	}
-	std::ostream& os_;
-};
-
-/**
- * Abstract parent for a class with a method that gets passed every
- * set of counters for every read.
- */
-class SeedCounterSink {
-public:
-	SeedCounterSink() { MUTEX_INIT(lock_); }
-	virtual ~SeedCounterSink() { }
-
-	/**
-	 * Grab the lock and call abstract member reportCountersImpl()
-	 */
-	virtual void reportCounters(const Read& rd, const SACounters& c) {
-		ThreadSafe(&this->lock_);
-		reportCountersImpl(rd, c);
-	}
-
-protected:
-
-	virtual void reportCountersImpl(const Read& rd, const SACounters& c) = 0;
-
-	MUTEX_T lock_;
-};
-
-/**
- * Write each per-read set of counters to an output stream using a
- * simple record-per-line tab-delimited format.
- */
-class StreamTabSeedCounterSink : public SeedCounterSink {
-public:
-	StreamTabSeedCounterSink(std::ostream& os) : SeedCounterSink(), os_(os) { }
-	virtual ~StreamTabSeedCounterSink() { }
-protected:
-	virtual void reportCountersImpl(const Read& rd, const SACounters& c) {
-	// # Plot number of depth-0 and depth-1 matches for reads that had 0 or >0 seed hits
-	// plot(cnts[,6][cnts[,14] > 0], cnts[,7][cnts[,14] > 0], col="blue")
-	// points(cnts[,6][cnts[,14] == 0], cnts[,7][cnts[,14] == 0], col="red")
-
-	// # Plot number of depth-0 and depth-1 matches for reads that had 0 or >0 seed hits
-	// bwops <- apply(cnts[,6:13], 1, sum)
-	// plot(bwops, cnts[,14], xlab="BW ops", ylab="Number of seed hits")
-	// (above is close to a stright line, bowed down in the middle somewhat)
-	// bwopsnz <- bwops[bwops > 0]
-	// bwopsnz <- sort(bwopsnz, decreasing=T)
-	// prefix.sum <- function(x) {
-	//   for(i in 1:(length(x)-1)) {
-	//     x[i+1] <- x[i+1] + x[i]
-	//   }
-	//   x
-	// }
-	// effort <- prefix.sum(bwopsnz)/sum(bwopsnz)
-	// plot(effort, xlab="Descending BW ops rank", ylab="Cumulative fraction of BW op effort")
-		os_ << rd.patFw    << "\t" // 1: read sequence
-		    << rd.qual     << "\t" // 2: quality sequence
-		    << c.seed      << "\t" // 3: # seeds searched
-			<< c.ftab      << "\t" // 4: # times ftab queried
-			<< c.fchr      << "\t" // 5: # times fchr queried
-			<< c.matchd[0] << "\t" // 6: # match advances at depth 0
-			<< c.matchd[1] << "\t" // 7: # match advances at depth 1
-			<< c.matchd[2] << "\t" // 8: # match advances at depth 2
-			<< c.matchd[3] << "\t" // 9: # match advances at depth >=3
-			<< c.editd[0]  << "\t" // 10: # match advances at depth 0
-			<< c.editd[1]  << "\t" // 11: # match advances at depth 1
-			<< c.editd[2]  << "\t" // 12: # match advances at depth 2
-			<< c.editd[3]  << "\t" // 13: # match advances at depth >=3
-			<< c.hits      << "\t" // 14: # seed hits
-		    << c.maxDepth  << "\n";// 15: max depth
-			// avoid 'endl' b/c flush is unnecessary
-	}
-	std::ostream& os_;
-};
-
-/**
- * Abstract parent for a class with a method that gets passed every
- * seed hit.
- */
-class SeedActionSink {
-public:
-	SeedActionSink() { MUTEX_INIT(lock_); }
-	virtual ~SeedActionSink() { }
-
-	/**
-	 * Grab the lock and call abstract member reportActionsImpl()
-	 */
-	virtual void reportActions(const Read& rd, const EList<SAAction>& a) {
-		ThreadSafe(&this->lock_);
-		reportActionsImpl(rd, a);
-	}
-
-protected:
-	virtual void reportActionsImpl(const Read& rd, const EList<SAAction>& a) = 0;
-
-	MUTEX_T lock_;
-};
-
-/**
- * Write each action to an output stream using a simple record-per-line
- * tab-delimited format.
- */
-class StreamTabSeedActionSink : public SeedActionSink {
-public:
-	StreamTabSeedActionSink(std::ostream& os) : SeedActionSink(), os_(os) { }
-	virtual ~StreamTabSeedActionSink() { }
-protected:
-	virtual void reportActionsImpl(const Read& rd, const EList<SAAction>& a) {
-		for(size_t i = 0; i < a.size(); i++) {
-			os_ << rd.patFw     << "\t"
-				<< rd.qual      << "\t"
-				// Omit jump-related fields
-				<< a[i].pos     << "\t"
-				<< a[i].type    << "\t"
-				<< a[i].seed    << "\t"
-				<< a[i].seedoff << "\t"
-				<< a[i].depth   << "\n"; // avoid 'endl' b/c flush is unnecessary
-		}
-	}
-	std::ostream& os_;
 };
 
 // Forward decl
@@ -1306,6 +1259,7 @@ public:
 	/**
 	 * Search for end-to-end exact hit for read.  Return true iff one is found.
 	 */
+#if 0
 	bool exactSearch(
 		const Ebwt* ebwtFw,         // BWT index
 		const Read& read,           // read to align
@@ -1313,6 +1267,32 @@ public:
 		bool norc,                  // don't align revcomp read
 		SeedResults& hits,          // holds all the seed hits (and exact hit)
 		SeedSearchMetrics& met);    // metrics
+#endif
+
+	bool sanityPartial(
+		const Ebwt*        ebwtFw, // BWT index
+		const Ebwt*        ebwtBw, // BWT' index
+		const BTDnaString& seq,
+		size_t dep,
+		size_t len,
+		uint32_t topfw,
+		uint32_t botfw,
+		uint32_t topbw,
+		uint32_t botbw);
+
+	bool oneMmSearch(
+		const Ebwt*        ebwtFw, // BWT index
+		const Ebwt*        ebwtBw, // BWT' index
+		const Read&        read,   // read to align
+		const Scoring&     sc,     // scoring
+		int64_t            minsc,  // minimum score
+		bool               nofw,   // don't align forward read
+		bool               norc,   // don't align revcomp read
+		bool               local,  // 1mm hits must be legal local alignments
+		bool               repex,  // report 0mm hits?
+		bool               rep1mm, // report 1mm hits?
+		SeedResults&       hits,   // holds all the seed hits (and exact hit)
+		SeedSearchMetrics& met);   // metrics
 
 protected:
 
@@ -1371,9 +1351,6 @@ protected:
 	const Scoring* sc_;        // scoring scheme
 	const InstantiatedSeed* s_;// current instantiated seed
 	const Read* read_;         // read whose seeds are currently being aligned
-	EList<SeedHitSink*> *sinks_;// if non-NULL, list of sinks to send hits to
-	EList<SeedCounterSink*>* counterSinks_; // if non-NULL, list of sinks to send SACounters to
-	EList<SeedActionSink*>* actionSinks_;   // if non-NULL, list of sinks to send SAActions to
 	const BTDnaString* seq_;   // sequence of current seed
 	const BTString* qual_;     // quality string for current seed
 	EList<Edit> edits_;        // temporary place to sort edits
@@ -1384,7 +1361,7 @@ protected:
 	BTDnaString tmprfdnastr_;  // used in reportHit
 	
 	ASSERT_ONLY(ESet<BTDnaString> hits_); // Ref hits so far for seed being aligned
-	ASSERT_ONLY(BTDnaString tmpdnastr_);
+	BTDnaString tmpdnastr_;
 };
 
 #endif /*ALIGNER_SEED_H_*/

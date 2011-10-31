@@ -246,13 +246,12 @@ void Edit::sort(EList<Edit>& edits) {
 }
 
 /**
- * Given a read string and some edits, generate and append the
- * corresponding reference string to 'ref'.  If read aligned to
- * the Watson strand, the caller should pass the original read
- * sequence and original edits.  If a read aligned to the Crick strand,
- * the caller should pass the reverse complement of the read and a
- * version of the edits list that has had Edit:invertPoss called on it
- * to cause edits to be listed in 3'-to-5' order.
+ * Given a read string and some edits, generate and append the corresponding
+ * reference string to 'ref'.  If read aligned to the Watson strand, the caller
+ * should pass the original read sequence and original edits.  If a read
+ * aligned to the Crick strand, the caller should pass the reverse complement
+ * of the read and a version of the edits list that has had Edit:invertPoss
+ * called on it to cause edits to be listed in 3'-to-5' order.
  */
 void Edit::toRef(
 	const BTDnaString& read,
@@ -314,6 +313,7 @@ void Edit::toRef(
  * Check that the edit is internally consistent.
  */
 bool Edit::repOk() const {
+		assert(inited());
 	// Ref and read characters cannot be the same unless they're both Ns
 	assert(qchr != chr || qchr == 'N');
 	// Type must match characters

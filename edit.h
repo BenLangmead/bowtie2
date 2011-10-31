@@ -44,7 +44,7 @@ enum {
  */
 struct Edit {
 
-	Edit() : pos(0xffffffff) { }
+	Edit() { reset(); }
 
 	Edit(
 		uint32_t po,
@@ -54,6 +54,14 @@ struct Edit {
 		bool chrs = true)
 	{
 		init(po, ch, qc, ty, chrs);
+	}
+	
+	void reset() {
+		pos = 0xffffffff;
+	}
+	
+	bool inited() const {
+		return pos != 0xffffffff;
 	}
 	
 	void init(
@@ -76,12 +84,22 @@ struct Edit {
 		assert_in(chr, "ACMGRSVTWYHKDBN-");
 		assert_in(qchr, "ACGTN-");
 		assert(chr != qchr || chr == 'N');
+		assert(inited());
+	}
+	
+	/**
+	 * Return true iff one part of the edit or the other has an 'N'.
+	 */
+	bool hasN() const {
+		assert(inited());
+		return chr == 'N' || qchr == 'N';
 	}
 
 	/**
 	 * Edit less-than overload.
 	 */
 	int operator< (const Edit &rhs) const {
+		assert(inited());
 		if(pos  < rhs.pos) return 1;
 		if(pos  > rhs.pos) return 0;
 		if(type < rhs.type) return 1;
@@ -95,6 +113,7 @@ struct Edit {
 	 * Edit equals overload.
 	 */
 	int operator== (const Edit &rhs) const {
+		assert(inited());
 		return(pos  == rhs.pos &&
 			   chr  == rhs.chr &&
 			   qchr == rhs.qchr &&
@@ -102,24 +121,19 @@ struct Edit {
 	}
 
 	/**
-	 * Return true iff this Edit is initialized.
-	 */
-	bool initialized() const {
-		return pos != 0xffffffff;
-	}
-
-	/**
 	 * Return true iff this Edit is an initialized insertion.
 	 */
 	bool isReadGap() const {
-		return initialized() && type == EDIT_TYPE_READ_GAP;
+		assert(inited());
+		return type == EDIT_TYPE_READ_GAP;
 	}
 
 	/**
 	 * Return true iff this Edit is an initialized deletion.
 	 */
 	bool isRefGap() const {
-		return initialized() && type == EDIT_TYPE_REF_GAP;
+		assert(inited());
+		return type == EDIT_TYPE_REF_GAP;
 	}
 
 	/**
@@ -127,7 +141,8 @@ struct Edit {
 	 * initialized insertion.
 	 */
 	bool isGap() const {
-		return initialized() && (type == EDIT_TYPE_REF_GAP || type == EDIT_TYPE_READ_GAP);
+		assert(inited());
+		return (type == EDIT_TYPE_REF_GAP || type == EDIT_TYPE_READ_GAP);
 	}
 	
 	/**
@@ -145,7 +160,8 @@ struct Edit {
 	 * Return true iff this Edit is an initialized mismatch.
 	 */
 	bool isMismatch() const {
-		return initialized() && type == EDIT_TYPE_MM;
+		assert(inited());
+		return type == EDIT_TYPE_MM;
 	}
 
 	/**

@@ -61,6 +61,20 @@ struct Read {
 		trimc = '?';
 		filter = '?';
 		seed = 0;
+		ns_ = 0;
+	}
+	
+	/**
+	 * Finish initializing a new read.
+	 */
+	void finalize() {
+		for(size_t i = 0; i < patFw.length(); i++) {
+			if((int)patFw[i] > 3) {
+				ns_++;
+			}
+		}
+		constructRevComps();
+		constructReverses();
 	}
 
 	/**
@@ -76,8 +90,13 @@ struct Read {
 		color = col;
 		patFw.installChars(seq);
 		qual.install(ql);
-		constructReverses();
+		for(size_t i = 0; i < patFw.length(); i++) {
+			if((int)patFw[i] > 3) {
+				ns_++;
+			}
+		}
 		constructRevComps();
+		constructReverses();
 		if(nm != NULL) name.install(nm);
 	}
 
@@ -89,6 +108,13 @@ struct Read {
 	/// Return length of the read in the buffer
 	size_t length() const {
 		return patFw.length();
+	}
+	
+	/**
+	 * Return the number of Ns in the read.
+	 */
+	size_t ns() const {
+		return ns_;
 	}
 
 	/**
@@ -274,6 +300,7 @@ struct Read {
 	TReadId  patid;     // unique 0-based id based on order in read file(s)
 	int      mate;      // 0 = single-end, 1 = mate1, 2 = mate2
 	uint32_t seed;      // random seed
+	size_t   ns_;       // # Ns
 	int      alts;      // number of alternatives
 	bool     fuzzy;     // whether to employ fuzziness
 	bool     color;     // whether read is in color space

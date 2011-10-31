@@ -335,72 +335,7 @@ enum {
 	SA_ACTION_TYPE_EDIT         // 6
 };
 
-// Action for when a new search is begun
-struct SAActionReset : public SAAction {
-	SAActionReset() : SAAction() {
-		type = SA_ACTION_TYPE_RESET;
-	}
-};
-
-// Action for when a new search seed is begun
-struct SAActionSearchSeed : public SAAction {
-	SAActionSearchSeed(int of, int sd) : SAAction() {
-		type = SA_ACTION_TYPE_SEARCH_SEED; seedoff = of; seed = sd;
-	}
-};
-
-// Action for when an ftab jump is made
-struct SAActionFtab : public SAAction {
-	SAActionFtab(int of, int sd, int ps, int ln, bool lr) : SAAction() {
-		type = SA_ACTION_TYPE_FTAB; seedoff = of; seed = sd; pos = ps; len = ln; ltr = lr;
-	}
-};
-
-// Action for when an fchr jump is made
-struct SAActionFchr : public SAAction {
-	SAActionFchr(int of, int sd, int ps, bool lr) : SAAction() {
-		type = SA_ACTION_TYPE_FCHR; seedoff = of; seed = sd; pos = ps; len = 1; ltr = lr;
-	}
-};
-
-// Action for when we advance by matching the read character with a
-// reference character
-struct SAActionMatch : public SAAction {
-	SAActionMatch(int of, int sd, int ps, bool lr, int dp) : SAAction() {
-		type = SA_ACTION_TYPE_MATCH; seedoff = of; seed = sd; pos = ps; depth = dp; len = 1; ltr = lr;
-	}
-};
-
-// Action for when we advance by editing the read character into a
-// reference character
-struct SAActionEdit : public SAAction {
-	SAActionEdit(int of, int sd, int ps, bool lr, int dp, Edit e) : SAAction() {
-		type = SA_ACTION_TYPE_EDIT; seedoff = of; seed = sd; pos = ps; depth = dp; len = 1; ltr = lr; edit = e;
-	}
-};
-
 #define MIN(x, y) ((x < y) ? x : y)
-
-#ifdef ALIGNER_SEED_TRACE
-// Counters
-static SACounters counters;
-// History of actions performed by the seed aligner each time
-// searchAllSeeds is called
-static EList<SAAction> actions;
-#define SA_SEARCH_SEED(x, y) counters.seed++;
-#define SA_FTAB(x, y, z) counters.ftab++;
-#define SA_FCHR(x, y) counters.fchr++;
-#define SA_MATCH(x, y, z) counters.match++;
-#define SA_EDIT(x, y, z, w) counters.match++;
-#define SA_HIT() counters.hits++;
-#else
-#define SA_SEARCH_SEED(x, y)
-#define SA_FTAB(x, y, z)
-#define SA_FCHR(x, y)
-#define SA_MATCH(x, y, z)
-#define SA_EDIT(x, y, z, w)
-#define SA_HIT()
-#endif /*ndef ALIGNER_SEED_TRACE*/
 
 /**
  * Given a read and a few coordinates that describe a substring of the read (or
@@ -598,7 +533,6 @@ void SeedAligner::searchAllSeeds(
 					assert_eq(fw, iss[j].fw);
 					assert_eq(i, (int)iss[j].seedoffidx);
 					s_ = &iss[j];
-					SA_SEARCH_SEED(i, s_->seedtypeidx);
 					// Do the search!
 					if(!searchSeedBi()) {
 						// Memory exhausted during search
@@ -636,6 +570,7 @@ void SeedAligner::searchAllSeeds(
 	met.bweds += bwedits_;
 }
 
+#if 0
 /**
  * Search for end-to-end exact hit for read.  Return true iff one is found.
  */
@@ -667,6 +602,391 @@ bool SeedAligner::exactSearch(
 		}
 	}
 	return hit;
+}
+#endif
+
+#define INIT_LOCS(top, bot, tloc, bloc, ebwt) { \
+	if(bot - top == 1) { \
+		tloc.initFromRow(top, ebwt->eh(), ebwt->ebwt()); \
+		bloc.invalidate(); \
+	} else { \
+		SideLocus::initFromTopBot(top, bot, ebwt->eh(), ebwt->ebwt(), tloc, bloc); \
+		assert(bloc.valid()); \
+	} \
+}
+
+#define SANITY_CHECK_4TUP(t, b, tp, bp) { \
+	ASSERT_ONLY(uint32_t tot = (b[0]-t[0])+(b[1]-t[1])+(b[2]-t[2])+(b[3]-t[3])); \
+	ASSERT_ONLY(uint32_t totp = (bp[0]-tp[0])+(bp[1]-tp[1])+(bp[2]-tp[2])+(bp[3]-tp[3])); \
+	assert_eq(tot, totp); \
+}
+
+bool SeedAligner::sanityPartial(
+	const Ebwt*        ebwtFw, // BWT index
+	const Ebwt*        ebwtBw, // BWT' index
+	const BTDnaString& seq,
+	size_t dep,
+	size_t len,
+	uint32_t topfw,
+	uint32_t botfw,
+	uint32_t topbw,
+	uint32_t botbw)
+{
+	tmpdnastr_.clear();
+	for(size_t i = dep; i < len; i++) {
+		tmpdnastr_.append(seq[i]);
+	}
+	uint32_t top_fw = 0, bot_fw = 0;
+	ebwtFw->contains(tmpdnastr_, &top_fw, &bot_fw);
+	assert_eq(top_fw, topfw);
+	assert_eq(bot_fw, botfw);
+	if(ebwtBw != NULL) {
+		tmpdnastr_.reverse();
+		uint32_t top_bw = 0, bot_bw = 0;
+		ebwtBw->contains(tmpdnastr_, &top_bw, &bot_bw);
+		assert_eq(top_bw, topbw);
+		assert_eq(bot_bw, botbw);
+	}
+	return true;
+}
+
+/**
+ * Search for end-to-end exact hit for read.  Return true iff one is found.
+ */
+bool SeedAligner::oneMmSearch(
+	const Ebwt*        ebwtFw, // BWT index
+	const Ebwt*        ebwtBw, // BWT' index
+	const Read&        read,   // read to align
+	const Scoring&     sc,     // scoring
+	int64_t            minsc,  // minimum score
+	bool               nofw,   // don't align forward read
+	bool               norc,   // don't align revcomp read
+	bool               local,  // 1mm hits must be legal local alignments
+	bool               repex,  // report 0mm hits?
+	bool               rep1mm, // report 1mm hits?
+	SeedResults&       hits,   // holds all the seed hits (and exact hit)
+	SeedSearchMetrics& met)    // metrics
+{
+	const size_t len = read.length();
+	int nceil = sc.nCeil.f<int>((double)len);
+	size_t ns = read.ns();
+	if(ns > 1) {
+		// Can't align this with <= 1 mismatches
+		return false;
+	}
+	assert_geq(len, 2);
+	assert(ebwtBw->eh().ftabChars() == ebwtFw->eh().ftabChars());
+#ifndef NDEBUG
+	for(int i = 0; i < 4; i++) {
+		assert_eq(ebwtBw->fchr()[i], ebwtFw->fchr()[i]);
+	}
+#endif
+	size_t halfFw = len >> 1;
+	size_t halfBw = len >> 1;
+	if((len & 1) != 0) {
+		halfBw++;
+	}
+	assert_geq(halfFw, 1);
+	assert_geq(halfBw, 1);
+	SideLocus tloc, bloc;
+	uint32_t t[4], b[4];   // dest BW ranges for BWT
+	t[0] = t[1] = t[2] = t[3] = 0;
+	b[0] = b[1] = b[2] = b[3] = 0;
+	uint32_t tp[4], bp[4]; // dest BW ranges for BWT'
+	tp[0] = tp[1] = tp[2] = tp[3] = 0;
+	bp[0] = bp[1] = bp[2] = bp[3] = 0;
+	uint32_t top = 0, bot = 0, topp = 0, botp = 0;
+	// Align fw read / rc read
+	bool results = false;
+	for(int fwi = 0; fwi < 2; fwi++) {
+		bool fw = (fwi == 0);
+		if( fw && nofw) continue;
+		if(!fw && norc) continue;
+		// Align going right-to-left, left-to-right
+		int lim = rep1mm ? 2 : 1;
+		for(int ebwtfwi = 0; ebwtfwi < lim; ebwtfwi++) {
+			bool ebwtfw = (ebwtfwi == 0);
+			const Ebwt* ebwt  = (ebwtfw ? ebwtFw : ebwtBw);
+			const Ebwt* ebwtp = (ebwtfw ? ebwtBw : ebwtFw);
+			const BTDnaString& seq =
+				(fw ? (ebwtfw ? read.patFw : read.patFwRev) :
+				      (ebwtfw ? read.patRc : read.patRcRev));
+			assert(!seq.empty());
+			const BTString& qual =
+				(fw ? (ebwtfw ? read.qual    : read.qualRev) :
+				      (ebwtfw ? read.qualRev : read.qual));
+			int ftabLen = ebwt->eh().ftabChars();
+			size_t nea = ebwtfw ? halfFw : halfBw;
+			// Check if there's an N in the near portion
+			bool skip = false;
+			for(size_t dep = 0; dep < nea; dep++) {
+				if(seq[len-dep-1] > 3) {
+					skip = true;
+					break;
+				}
+			}
+			if(skip) {
+				continue;
+			}
+			size_t dep = 0;
+			// Align near half
+			if(ftabLen > 1 && (size_t)ftabLen <= nea) {
+				// Use ftab to jump partway into near half
+				bool rev = !ebwtfw;
+				ebwt->ftabLoHi(seq, len - ftabLen, rev, top, bot);
+				ebwtp->ftabLoHi(seq, len - ftabLen, rev, topp, botp);
+				assert_eq(bot - top, botp - topp);
+				if(bot - top == 0) {
+					return results;
+				}
+				int c = seq[len - ftabLen];
+				t[c] = top; b[c] = bot;
+				tp[c] = topp; bp[c] = botp;
+				dep = ftabLen;
+				// initialize tloc, bloc??
+			} else {
+				// Use fchr to jump in by 1 pos
+				int c = seq[len-1];
+				assert_range(0, 3, c);
+				top = topp = tp[c] = ebwt->fchr()[c];
+				bot = botp = bp[c] = ebwt->fchr()[c+1];
+				if(bot - top == 0) {
+					return results;
+				}
+				dep = 1;
+				// initialize tloc, bloc??
+			}
+			INIT_LOCS(top, bot, tloc, bloc, ebwt);
+			assert(sanityPartial(ebwt, ebwtp, seq, len-dep, len, top, bot, topp, botp));
+			for(; dep < nea; dep++) {
+				assert_lt(dep, len);
+				int rdc = seq[len - dep - 1];
+				tp[0] = tp[1] = tp[2] = tp[3] = topp;
+				bp[0] = bp[1] = bp[2] = bp[3] = botp;
+				if(bloc.valid()) {
+					bwops_++;
+					t[0] = t[1] = t[2] = t[3] = b[0] = b[1] = b[2] = b[3] = 0;
+					ebwt->mapBiLFEx(tloc, bloc, t, b, tp, bp);
+					SANITY_CHECK_4TUP(t, b, tp, bp);
+					top = t[rdc]; bot = b[rdc];
+					if(bot <= top) {
+						return results;
+					}
+					topp = tp[rdc]; botp = bp[rdc];
+					assert_eq(bot - top, botp - topp);
+				} else {
+					assert_eq(bot, top+1);
+					assert_eq(botp, topp+1);
+					bwops_++;
+					top = ebwt->mapLF1(top, tloc, rdc);
+					if(top == 0xffffffff) {
+						return results;
+					}
+					bot = top + 1;
+					t[rdc] = top; b[rdc] = bot;
+					tp[rdc] = topp; bp[rdc] = botp;
+					assert_eq(b[rdc] - t[rdc], bp[rdc] - tp[rdc]);
+					// topp/botp stay the same
+				}
+				INIT_LOCS(top, bot, tloc, bloc, ebwt);
+				assert(sanityPartial(ebwt, ebwtp, seq, len - dep - 1, len, top, bot, topp, botp));
+			}
+			// Align far half
+			for(; dep < len; dep++) {
+				int rdc = seq[len-dep-1];
+				int quc = qual[len-dep-1];
+				if(rdc > 3 && nceil == 0) {
+					break;
+				}
+				tp[0] = tp[1] = tp[2] = tp[3] = topp;
+				bp[0] = bp[1] = bp[2] = bp[3] = botp;
+				int clo = 0, chi = 3;
+				bool match = true;
+				if(bloc.valid()) {
+					bwops_++;
+					t[0] = t[1] = t[2] = t[3] = b[0] = b[1] = b[2] = b[3] = 0;
+					ebwt->mapBiLFEx(tloc, bloc, t, b, tp, bp);
+					SANITY_CHECK_4TUP(t, b, tp, bp);
+					top = t[rdc]; bot = b[rdc];
+					topp = tp[rdc]; botp = bp[rdc];
+				} else {
+					assert_eq(bot, top+1);
+					assert_eq(botp, topp+1);
+					bwops_++;
+					clo = ebwt->mapLF1(top, tloc);
+					match = (clo == rdc);
+					assert_range(-1, 3, clo);
+					if(clo < 0) {
+						return results; // Hit the $
+					} else {
+						t[clo] = top;
+						b[clo] = bot = top + 1;
+					}
+					bp[clo] = botp;
+					tp[clo] = topp;
+					assert_eq(bot - top, botp - topp);
+					assert_eq(b[clo] - t[clo], bp[clo] - tp[clo]);
+					chi = clo;
+				}
+				//assert(sanityPartial(ebwt, ebwtp, seq, len - dep - 1, len, top, bot, topp, botp));
+				if(rep1mm && (ns == 0 || rdc > 3)) {
+					for(int j = clo; j <= chi; j++) {
+						if(j == rdc || b[j] == t[j]) {
+							// Either matches read or isn't a possibility
+							continue;
+						}
+						// Potential mismatch - next, try
+						size_t depm = dep + 1;
+						uint32_t topm = t[j], botm = b[j];
+						uint32_t topmp = tp[j], botmp = bp[j];
+						assert_eq(botm - topm, botmp - topmp);
+						uint32_t tm[4], bm[4];   // dest BW ranges for BWT
+						tm[0] = t[0]; tm[1] = t[1];
+						tm[2] = t[2]; tm[3] = t[3];
+						bm[0] = b[0]; bm[1] = t[1];
+						bm[2] = b[2]; bm[3] = t[3];
+						uint32_t tmp[4], bmp[4]; // dest BW ranges for BWT'
+						tmp[0] = tp[0]; tmp[1] = tp[1];
+						tmp[2] = tp[2]; tmp[3] = tp[3];
+						bmp[0] = bp[0]; bmp[1] = tp[1];
+						bmp[2] = bp[2]; bmp[3] = tp[3];
+						SideLocus tlocm, blocm;
+						INIT_LOCS(topm, botm, tlocm, blocm, ebwt);
+						for(; depm < len; depm++) {
+							int rdcm = seq[len - depm - 1];
+							tmp[0] = tmp[1] = tmp[2] = tmp[3] = topmp;
+							bmp[0] = bmp[1] = bmp[2] = bmp[3] = botmp;
+							if(blocm.valid()) {
+								bwops_++;
+								tm[0] = tm[1] = tm[2] = tm[3] =
+								bm[0] = bm[1] = bm[2] = bm[3] = 0;
+								ebwt->mapBiLFEx(tlocm, blocm, tm, bm, tmp, bmp);
+								SANITY_CHECK_4TUP(tm, bm, tmp, bmp);
+								topm = tm[rdcm]; botm = bm[rdcm];
+								topmp = tmp[rdcm]; botmp = bmp[rdcm];
+								if(botm <= topm) {
+									break;
+								}
+							} else {
+								assert_eq(botm, topm+1);
+								assert_eq(botmp, topmp+1);
+								bwops_++;
+								topm = ebwt->mapLF1(topm, tlocm, rdcm);
+								if(topm == 0xffffffff) {
+									break;
+								}
+								botm = topm + 1;
+								// topp/botp stay the same
+							}
+							INIT_LOCS(topm, botm, tlocm, blocm, ebwt);
+						}
+						if(depm == len) {
+							// Success; this is a 1MM hit
+							size_t off5p = dep;  // offset from 5' end of read
+							size_t offstr = dep; // offset into patFw/patRc
+							if(fw == ebwtfw) {
+								off5p = len - off5p - 1;
+							}
+							if(!ebwtfw) {
+								offstr = len - offstr - 1;
+							}
+							Edit e((uint32_t)off5p, j, rdc, EDIT_TYPE_MM, false);
+							results = true;
+							int64_t score = (len - 1) * sc.match();
+							// In --local mode, need to double-check that
+							// end-to-end alignment doesn't violate  local
+							// alignment principles.  Specifically, it
+							// shouldn't to or below 0 anywhere in the middle.
+							int pen = sc.score(rdc, (int)(1 << j), quc - 33);
+							score += pen;
+							bool valid = true;
+							if(local) {
+								int64_t locscore_fw = 0, locscore_bw = 0;
+								for(size_t i = 0; i < len; i++) {
+									if(i == dep) {
+										if(locscore_fw + pen <= 0) {
+											valid = false;
+											break;
+										}
+										locscore_fw += pen;
+									} else {
+										locscore_fw += sc.match();
+									}
+									if(len-i-1 == dep) {
+										if(locscore_bw + pen <= 0) {
+											valid = false;
+											break;
+										}
+										locscore_bw += pen;
+									} else {
+										locscore_bw += sc.match();
+									}
+								}
+							}
+							if(valid) {
+								valid = score >= minsc;
+							}
+							if(valid) {
+#ifndef NDEBUG
+								BTDnaString& rf = tmprfdnastr_;
+								rf.clear();
+								edits_.clear();
+								edits_.push_back(e);
+								if(!fw) Edit::invertPoss(edits_, len);
+								Edit::toRef(fw ? read.patFw : read.patRc, edits_, rf);
+								if(!fw) Edit::invertPoss(edits_, len);
+								assert_eq(len, rf.length());
+								for(size_t i = 0; i < len; i++) {
+									assert_lt((int)rf[i], 4);
+								}
+								ASSERT_ONLY(uint32_t toptmp = 0);
+								ASSERT_ONLY(uint32_t bottmp = 0);
+								assert(ebwtFw->contains(rf, &toptmp, &bottmp));
+#endif
+								uint32_t toprep = ebwtfw ? topm : topmp;
+								uint32_t botrep = ebwtfw ? botm : botmp;
+								assert_eq(toprep, toptmp);
+								assert_eq(botrep, bottmp);
+								hits.add1mmEe(toprep, botrep, &e, NULL, fw, score);
+							}
+						}
+					}
+				}
+				if(bot > top && match) {
+					assert_lt(rdc, 4);
+					if(dep == len-1) {
+						// Success; this is an exact hit
+						if(ebwtfw && repex) {
+							if(fw) {
+								results = true;
+								int64_t score = len * sc.match();
+								hits.addExactEeFw(
+									ebwtfw ? top : topp,
+									ebwtfw ? bot : botp,
+									NULL, NULL, fw, score);
+								assert(ebwtFw->contains(seq, NULL, NULL));
+							} else {
+								results = true;
+								int64_t score = len * sc.match();
+								hits.addExactEeRc(
+									ebwtfw ? top : topp,
+									ebwtfw ? bot : botp,
+									NULL, NULL, fw, score);
+								assert(ebwtFw->contains(seq, NULL, NULL));
+							}
+						}
+						break; // End of far loop
+					} else {
+						INIT_LOCS(top, bot, tloc, bloc, ebwt);
+						assert(sanityPartial(ebwt, ebwtp, seq, len - dep - 1, len, top, bot, topp, botp));
+					}
+				} else {
+					break; // End of far loop
+				}
+			} // for(; dep < len; dep++)
+		} // for(int ebwtfw = 0; ebwtfw < 2; ebwtfw++)
+	} // for(int fw = 0; fw < 2; fw++)
+	return true;
 }
 
 /**
@@ -794,7 +1114,6 @@ SeedAligner::reportHit(
 		return false;
 	}
 	assert_eq(hits_.size(), ca_->curNumRanges());
-	SA_HIT();
 #ifndef NDEBUG
 	// Sanity check that the topf/botf and topb/botb ranges really
 	// correspond to the reference sequence aligned to
@@ -886,7 +1205,7 @@ SeedAligner::searchSeedBi(
 				assert_geq(off+1, ftabLen-1);
 				off = off - ftabLen + 1;
 			}
-			ebwtFw_->ftabLoHi(*seq_, off, topf, botf);
+			ebwtFw_->ftabLoHi(*seq_, off, false, topf, botf);
 			#ifdef NDEBUG
 			if(botf - topf == 0) return true;
 			#endif
@@ -897,12 +1216,11 @@ SeedAligner::searchSeedBi(
 			}
 			#else
 			if(ebwtBw_ != NULL) {
-				ebwtBw_->ftabLoHi(*seq_, off, topb, botb);
+				ebwtBw_->ftabLoHi(*seq_, off, false, topb, botb);
 				assert_eq(botf-topf, botb-topb);
 			}
 			if(botf - topf == 0) return true;
 			#endif
-			SA_FTAB(step, ftabLen, true);
 			step += ftabLen;
 		} else if(s.maxjump > 0) {
 			// Use fchr
@@ -911,7 +1229,6 @@ SeedAligner::searchSeedBi(
 			topf = topb = ebwtFw_->fchr()[c];
 			botf = botb = ebwtFw_->fchr()[c+1];
 			if(botf - topf == 0) return true;
-			SA_FCHR(step, true);
 			step++;
 		} else {
 			assert_eq(0, s.maxjump);
@@ -1015,7 +1332,6 @@ SeedAligner::searchSeedBi(
 								editl.prev = prevEdit;
 							}
 							assert(editl.next == NULL);
-							SA_EDIT(i, ltr, depth, edit);
 							bwedits_++;
 							if(!searchSeedBi(
 								i+1,     // depth into steps_[] array
@@ -1086,7 +1402,6 @@ SeedAligner::searchSeedBi(
 		if(b[c] == t[c]) {
 			return true;
 		}
-		SA_MATCH(i, ltr, depth);
 		topf = tf[c]; botf = bf[c];
 		topb = tb[c]; botb = bb[c];
 		if(i+1 == (int)s.steps.size()) {

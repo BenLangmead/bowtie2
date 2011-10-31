@@ -485,7 +485,7 @@ uint32_t Ebwt::mapLF(const SideLocus& l, int c
 /**
  * Given row and its locus information, proceed on the given character
  * and return the next row, or all-fs if we can't proceed on that
- * character.
+ * character.  Returns 0xffffffff if this row ends in $.
  */
 uint32_t Ebwt::mapLF1(
 	uint32_t row,       // starting row

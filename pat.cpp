@@ -75,11 +75,9 @@ bool PatternSource::nextReadPair(
 	nextReadPairImpl(ra, rb, patid, success, done, paired);
 	if(success) {
 		// Construct reversed versions of fw and rc seqs/quals
-		ra.constructRevComps();
-		ra.constructReverses();
+		ra.finalize();
 		if(!rb.empty()) {
-			rb.constructRevComps();
-			rb.constructReverses();
+			rb.finalize();
 		}
 		// Fill in the random-seed field using a combination of
 		// information from the user-specified seed and the read
@@ -107,8 +105,7 @@ bool PatternSource::nextRead(
 	if(success) {
 		// Construct the reversed versions of the fw and rc seqs
 		// and quals
-		r.constructRevComps();
-		r.constructReverses();
+		r.finalize();
 		// Fill in the random-seed field using a combination of
 		// information from the user-specified seed and the read
 		// sequence, qualities, and name
