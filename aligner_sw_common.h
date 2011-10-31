@@ -106,8 +106,9 @@ struct SwMetrics {
 	
 	void reset() {
 		sws = swcups = swrows = swskiprows = swskip = swsucc = swfail = swbts =
-		rshit = ungapsucc = ungapfail = ungapnodec = exranges = exrows =
-		exsucc = exooms = 0;
+		rshit = ungapsucc = ungapfail = ungapnodec = 0;
+		exatts = exranges = exrows = exsucc = exooms = 0;
+		mm1atts = mm1ranges = mm1rows = mm1succ = mm1ooms = 0;
 	}
 	
 	void init(
@@ -123,10 +124,16 @@ struct SwMetrics {
 		uint64_t ungapsucc_,
 		uint64_t ungapfail_,
 		uint64_t ungapnodec_,
+		uint64_t exatts_,
 		uint64_t exranges_,
 		uint64_t exrows_,
 		uint64_t exsucc_,
-		uint64_t exooms_)
+		uint64_t exooms_,
+		uint64_t mm1atts_,
+		uint64_t mm1ranges_,
+		uint64_t mm1rows_,
+		uint64_t mm1succ_,
+		uint64_t mm1ooms_)
 	{
 		sws        = sws_;
 		swcups     = swcups_;
@@ -139,10 +146,16 @@ struct SwMetrics {
 		ungapsucc  = ungapsucc_;
 		ungapfail  = ungapfail_;
 		ungapnodec = ungapnodec_;
+		exatts     = exatts_;
 		exranges   = exranges_;
 		exrows     = exrows_;
 		exsucc     = exsucc_;
 		exooms     = exooms_;
+		mm1atts    = mm1atts_;
+		mm1ranges  = mm1ranges_;
+		mm1rows    = mm1rows_;
+		mm1succ    = mm1succ_;
+		mm1ooms    = mm1ooms_;
 	}
 	
 	/**
@@ -179,10 +192,16 @@ struct SwMetrics {
 		ungapsucc  += r.ungapsucc;
 		ungapfail  += r.ungapfail;
 		ungapnodec += r.ungapnodec;
+		exatts     += r.exatts;
 		exranges   += r.exranges;
 		exrows     += r.exrows;
 		exsucc     += r.exsucc;
 		exooms     += r.exooms;
+		mm1atts    += r.mm1atts;
+		mm1ranges  += r.mm1ranges;
+		mm1rows    += r.mm1rows;
+		mm1succ    += r.mm1succ;
+		mm1ooms    += r.mm1ooms;
 	}
 
 	uint64_t sws;        // # DP problems solved
@@ -198,11 +217,18 @@ struct SwMetrics {
 	uint64_t ungapfail;  // # DP problems avoided b/c seed hit was redundant
 	uint64_t ungapnodec; // # DP problems avoided b/c seed hit was redundant
 
-	uint64_t exranges;  // total # ranges returned by exact-hit queries
-	uint64_t exrows;    // total # rows returned by exact-hit queries
-	uint64_t exsucc;    // exact-hit yielded non-empty result
-	uint64_t exooms;    // exact-hit offset memory exhausted
-
+	uint64_t exatts;     // total # attempts at exact-hit end-to-end aln
+	uint64_t exranges;   // total # ranges returned by exact-hit queries
+	uint64_t exrows;     // total # rows returned by exact-hit queries
+	uint64_t exsucc;     // exact-hit yielded non-empty result
+	uint64_t exooms;     // exact-hit offset memory exhausted
+	
+	uint64_t mm1atts;    // total # attempts at 1mm end-to-end aln
+	uint64_t mm1ranges;  // total # ranges returned by 1mm-hit queries
+	uint64_t mm1rows;    // total # rows returned by 1mm-hit queries
+	uint64_t mm1succ;    // 1mm-hit yielded non-empty result
+	uint64_t mm1ooms;    // 1mm-hit offset memory exhausted
+	
 	MUTEX_T lock;
 };
 

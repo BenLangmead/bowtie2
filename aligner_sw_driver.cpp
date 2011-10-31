@@ -100,10 +100,12 @@ void SwDriver::resolveAll(
 }
 
 /**
- * Given seed results, set up all of our state for resolving and keeping
- * track of reference offsets for hits.
+ * Given end-to-end alignment results stored in the SeedResults structure, set
+ * up all of our state for resolving and keeping track of reference offsets for
+ * hits.  Order the list of ranges to examine such that all exact end-to-end
+ * alignments are examined before any 1mm end-to-end alignments.
  */
-bool SwDriver::exactSATups(
+bool SwDriver::eeSaTups(
 	SeedResults& sh,             // seed hits to extend into full alignments
 	const Ebwt& ebwt,            // BWT
 	const BitPairReference& ref, // Reference strings
@@ -115,76 +117,121 @@ bool SwDriver::exactSATups(
 	gws_.clear();
 	rands_.clear();
 	satpos_.clear();
-	uint32_t topFw = 0, botFw = 0, topRc = 0, botRc = 0;
-	sh.exactE2EHits(topFw, botFw, topRc, botRc);
-	if(botFw > topFw) {
-		// Clear list where resolved offsets are stored
-		swmSeed.exranges++;
-		swmSeed.exrows += (botFw - topFw);
-		swmSeed.exsucc++;
-		salistExact_.clear();
-		pool_.clear();
-		TSlice o(salistExact_, (uint32_t)salistExact_.size(), botFw-topFw);
-		for(size_t i = 0; i < botFw-topFw; i++) {
-			if(!salistExact_.add(pool_, 0xffffffff)) {
-				swmSeed.exooms++;
-				return false;
+	eehits_.clear();
+	// First, count up the total number of satpos_, rands_, eehits_, and gws_
+	// we're going to tuse
+	size_t nobj = 0;
+	if(!sh.exactFwEEHit().empty()) nobj++;
+	if(!sh.exactRcEEHit().empty()) nobj++;
+	nobj += sh.mm1EEHits().size();
+	gws_.ensure(nobj);
+	rands_.ensure(nobj);
+	satpos_.ensure(nobj);
+	eehits_.ensure(nobj);	
+	size_t tot = sh.exactFwEEHit().size() + sh.exactRcEEHit().size();
+	bool succ = false;
+	bool firstEe = true;
+	if(tot > 0) {
+		uint32_t rn = rnd.nextU32() % (uint32_t)tot;
+		for(int fwi = 0; fwi < 2; fwi++) {
+			bool fw = (fwi == 0);
+			if(rn >= sh.exactFwEEHit().size()) {
+				fw = !fw;
+			}
+			EEHit hit = fw ? sh.exactFwEEHit() : sh.exactRcEEHit();
+			if(hit.empty()) {
+				continue;
+			}
+			assert(hit.fw == fw);
+			if(hit.bot > hit.top) {
+				// Clear list where resolved offsets are stored
+				swmSeed.exranges++;
+				swmSeed.exrows += (hit.bot - hit.top);
+				if(!succ) {
+					swmSeed.exsucc++;
+					succ = true;
+				}
+				if(firstEe) {
+					salistEe_.clear();
+					pool_.clear();
+					firstEe = false;
+				}
+				TSlice o(salistEe_, (uint32_t)salistEe_.size(), hit.bot - hit.top);
+				for(size_t i = 0; i < hit.bot - hit.top; i++) {
+					if(!salistEe_.add(pool_, 0xffffffff)) {
+						swmSeed.exooms++;
+						return false;
+					}
+				}
+				eehits_.push_back(hit);
+				satpos_.expand();
+				satpos_.back().sat.init(SAKey(), hit.top, o);
+				satpos_.back().sat.key.seq = std::numeric_limits<uint64_t>::max();
+				satpos_.back().sat.key.len = (uint32_t)sh.readLength();
+				satpos_.back().pos.init(hit.fw, 0, 0, (uint32_t)sh.readLength());
+				satpos_.back().origSz = hit.bot - hit.top;
+				rands_.expand();
+				rands_.back().init(hit.bot - hit.top);
+				gws_.expand();
+				gws_.back().init(
+					ebwt,               // forward Bowtie index
+					ref,                // reference sequences
+					satpos_.back().sat, // SATuple
+					NULL,               // Combiner for resolvers
+					rnd,                // pseudo-random generator
+					wlm);               // metrics
+				assert(gws_.back().repOk());
+				nelt_out += (hit.bot - hit.top);
 			}
 		}
-		satpos_.expand();
-		satpos_.back().sat.init(SAKey(), topFw, o);
-		satpos_.back().sat.key.seq = std::numeric_limits<uint64_t>::max();
-		satpos_.back().sat.key.len = (uint32_t)sh.readLength();
-		satpos_.back().pos.init(true, 0, 0, (uint32_t)sh.readLength());
-		satpos_.back().origSz = botFw - topFw;
-		rands_.expand();
-		rands_.back().init(botFw - topFw);
-		gws_.expand();
-		gws_.back().init(
-			ebwt,               // forward Bowtie index
-			ref,                // reference sequences
-			satpos_.back().sat, // SATuple
-			NULL,               // Combiner for resolvers
-			rnd,                // pseudo-random generator
-			wlm);               // metrics
-		nelt_out += (botFw - topFw);
 	}
-	if(botRc > topRc) {
-		swmSeed.exranges++;
-		swmSeed.exrows += (botRc - topRc);
-		if(botFw <= topFw) {
+	succ = false;
+	if(!sh.mm1EEHits().empty()) {
+		sh.sort1mmEe();
+		size_t sz = sh.mm1EEHits().size();
+		for(size_t i = 0; i < sz; i++) {
+			EEHit hit = sh.mm1EEHits()[i];
+			assert(!hit.empty());
 			// Clear list where resolved offsets are stored
-			salistExact_.clear();
-			pool_.clear();
-			swmSeed.exsucc++;
-		}
-		TSlice o(salistExact_, (uint32_t)salistExact_.size(), botRc - topRc);
-		for(size_t i = 0; i < botRc-topRc; i++) {
-			if(!salistExact_.add(pool_, 0xffffffff)) {
-				swmSeed.exooms++;
-				return false;
+			swmSeed.mm1ranges++;
+			swmSeed.mm1rows += (hit.bot - hit.top);
+			if(!succ) {
+				swmSeed.mm1succ++;
+				succ = true;
 			}
+			if(firstEe) {
+				salistEe_.clear();
+				pool_.clear();
+				firstEe = false;
+			}
+			TSlice o(salistEe_, (uint32_t)salistEe_.size(), hit.bot - hit.top);
+			for(size_t i = 0; i < hit.bot - hit.top; i++) {
+				if(!salistEe_.add(pool_, 0xffffffff)) {
+					swmSeed.mm1ooms++;
+					return false;
+				}
+			}
+			eehits_.push_back(hit);
+			satpos_.expand();
+			satpos_.back().sat.init(SAKey(), hit.top, o);
+			satpos_.back().sat.key.seq = std::numeric_limits<uint64_t>::max();
+			satpos_.back().sat.key.len = (uint32_t)sh.readLength();
+			satpos_.back().pos.init(hit.fw, 0, 0, (uint32_t)sh.readLength());
+			satpos_.back().origSz = hit.bot - hit.top;
+			rands_.expand();
+			rands_.back().init(hit.bot - hit.top);
+			gws_.expand();
+			gws_.back().init(
+				ebwt,               // forward Bowtie index
+				ref,                // reference sequences
+				satpos_.back().sat, // SATuple
+				NULL,               // Combiner for resolvers
+				rnd,                // pseudo-random generator
+				wlm);               // metrics
+			assert(gws_.back().repOk());
+			nelt_out += (hit.bot - hit.top);
 		}
-		satpos_.expand();
-		satpos_.back().sat.init(SAKey(), topRc, o);
-		satpos_.back().sat.key.seq = std::numeric_limits<uint64_t>::max();
-		satpos_.back().sat.key.len = (uint32_t)sh.readLength();
-		satpos_.back().pos.init(false, 0, 0, (uint32_t)sh.readLength());
-		satpos_.back().origSz = botRc - topRc;
-		rands_.expand();
-		rands_.back().init(botRc - topRc);
-		gws_.expand();
-		gws_.back().init(
-			ebwt,               // forward Bowtie index
-			ref,                // reference sequences
-			satpos_.back().sat, // SATuple
-			NULL,               // Combiner for resolvers
-			rnd,                // pseudo-random generator
-			wlm);               // metrics
-		nelt_out += (botRc - topRc);
 	}
-	// TODO: Ordering may be important here.  What if both ranges are non-empty
-	// and one is much larger?  We should pick one in a weighted random fashion.
 	return true;
 }
 
@@ -399,7 +446,7 @@ void SwDriver::prioritizeSATups(
 
 enum {
 	FOUND_NONE = 0,
-	FOUND_EXACT,
+	FOUND_EE,
 	FOUND_UNGAPPED,
 };
 
@@ -455,7 +502,7 @@ bool SwDriver::extendSeeds(
 	
 	// Calculate the largest possible number of read and reference gaps
 	const size_t rdlen = rd.length();
-	TAlScore bestPossibleScore = sc.perfectScore(rdlen);
+	TAlScore perfectScore = sc.perfectScore(rdlen);
 
 	DynProgFramer dpframe(!gReportOverhangs);
 	swa.reset();
@@ -479,19 +526,19 @@ bool SwDriver::extendSeeds(
 		maxelt = std::numeric_limits<size_t>::max();
 	}
 
-	size_t exactHits = sh.numExactE2eHits();
-	bool exactMode = exactHits > 0;
-	bool firstExact = true;
-	bool firstInexact = true;
+	size_t eeHits = sh.numE2eHits();
+	bool eeMode = eeHits > 0;
+	bool firstEe = true;
+	bool firstExtend = true;
 
 	size_t nelt = 0, neltLeft = 0;
 	size_t rows = rdlen + (color ? 1 : 0);
 	size_t eltsDone = 0;
 	while(true) {
-		if(exactMode) {
-			if(firstExact) {
-				firstExact = false;
-				exactMode = exactSATups(
+		if(eeMode) {
+			if(firstEe) {
+				firstEe = false;
+				eeMode = eeSaTups(
 					sh,           // seed hits to extend into full alignments
 					ebwt,         // BWT
 					ref,          // Reference strings
@@ -502,11 +549,15 @@ bool SwDriver::extendSeeds(
 				assert_eq(gws_.size(), rands_.size());
 				assert_eq(gws_.size(), satpos_.size());
 			} else {
-				exactMode = false;
+				eeMode = false;
 			}
 		}
-		if(!exactMode) {
-			if(firstInexact) {
+		if(!eeMode) {
+			if(minsc == perfectScore) {
+				// Already found all perfect hits!
+				return false;
+			}
+			if(firstExtend) {
 				nelt = 0;
 				prioritizeSATups(
 					sh,           // seed hits to extend into full alignments
@@ -522,7 +573,7 @@ bool SwDriver::extendSeeds(
 				assert_eq(gws_.size(), rands_.size());
 				assert_eq(gws_.size(), satpos_.size());
 				neltLeft = nelt;
-				firstInexact = false;
+				firstExtend = false;
 			}
 			if(!(neltLeft > 0 && eltsDone < maxelt)) {
 				// Finished examining gapped candidates
@@ -530,6 +581,9 @@ bool SwDriver::extendSeeds(
 			}
 		}
 		for(size_t i = 0; i < gws_.size(); i++) {
+			if(eeMode && eehits_[i].score < minsc) {
+				break;
+			}
 			bool small       = satpos_[i].sat.size() < nsm;
 			bool fw          = satpos_[i].pos.fw;
 			uint32_t rdoff   = satpos_[i].pos.rdoff;
@@ -546,16 +600,23 @@ bool SwDriver::extendSeeds(
 			// range is large, just investigate one and move on - we might come
 			// back to this range later.
 			while(!rands_[i].done() &&
-			      (exactMode ||
+			      (eeMode ||
 			      (eltsDone < maxelt && (first || small))))
 			{
+				if(minsc == perfectScore) {
+					if(!eeMode || eehits_[i].score < perfectScore) {
+						return false;
+					}
+				} else if(eeMode && eehits_[i].score < minsc) {
+					break;
+				}
 				first = false;
 				assert(!gws_[i].done());
 				// Resolve next element offset
 				WalkResult wr;
 				uint32_t elt = rands_[i].next(rnd);
 				gws_[i].advanceElement(elt, wr, wlm);
-				if(!exactMode) {
+				if(!eeMode) {
 					eltsDone++;
 					assert_gt(neltLeft, 0);
 					neltLeft--;
@@ -575,7 +636,7 @@ bool SwDriver::extendSeeds(
 					continue;
 				}
 #ifndef NDEBUG
-				if(!exactMode) { // Check that seed hit matches reference
+				if(!eeMode) { // Check that seed hit matches reference
 					uint64_t key = satpos_[i].sat.key.seq;
 					for(size_t k = 0; k < wr.elt.len; k++) {
 						int c = ref.getBase(tidx, toff + wr.elt.len - k - 1);
@@ -613,19 +674,21 @@ bool SwDriver::extendSeeds(
 				// information here.  #2 and #3 are handled in the DynProgFramer.
 				int readGaps = 0, refGaps = 0;
 				bool ungapped = false;
-				if(!exactMode) {
+				if(!eeMode) {
 					readGaps = sc.maxReadGaps(minsc, rdlen);
 					refGaps  = sc.maxRefGaps(minsc, rdlen);
 					ungapped = (readGaps == 0 && refGaps == 0);
 				}
 				int state = FOUND_NONE;
 				bool found = false;
-				if(exactMode) {
-					// Set up resExact_
-					resExact_.reset();
-					resExact_.alres.reset();
-					resExact_.alres.setScore(AlnScore(sc.perfectScore(rdlen), 0, 0));
-					resExact_.alres.setShape(
+				if(eeMode) {
+					// Set up resEe_
+					resEe_.reset();
+					resEe_.alres.reset();
+					const EEHit& h = eehits_[i];
+					assert_leq(h.score, perfectScore);
+					resEe_.alres.setScore(AlnScore(h.score, h.ns(), 0));
+					resEe_.alres.setShape(
 						refcoord.ref(),  // ref id
 						refcoord.off(),  // 0-based ref offset
 						fw,              // aligned to Watson?
@@ -637,8 +700,12 @@ bool SwDriver::extendSeeds(
 						true,            // alignment trim soft?
 						0,               // alignment trim 5' end
 						0);              // alignment trim 3' end
-					resExact_.alres.setRefNs(0);
-					state = FOUND_EXACT;
+					resEe_.alres.setRefNs(h.refns());
+					if(h.mms() > 0) {
+						assert_eq(1, h.mms());
+						resEe_.alres.ned().push_back(h.e1);
+					}
+					state = FOUND_EE;
 					found = true;
 					Interval refival(refcoord, 1);
 					seenDiags1_.add(refival);
@@ -784,11 +851,11 @@ bool SwDriver::extendSeeds(
 				while(true) {
 					assert(found);
 					SwResult *res = NULL;
-					if(state == FOUND_EXACT) {
+					if(state == FOUND_EE) {
 						if(!firstInner) {
 							break;
 						}
-						res = &resExact_;
+						res = &resEe_;
 					} else if(state == FOUND_UNGAPPED) {
 						if(!firstInner) {
 							break;
@@ -888,12 +955,12 @@ bool SwDriver::extendSeeds(
 							} else {
 								if(msink->secondBestUnp1() >= minsc) {
 									minsc = msink->secondBestUnp1();
-									if(minsc < bestPossibleScore) {
+									if(minsc < perfectScore) {
 										minsc++;
 									}
 								}
 							}
-							assert_leq(minsc, sc.perfectScore(rdlen));
+							assert_leq(minsc, perfectScore);
 						}
 					}
 				}
@@ -1081,10 +1148,13 @@ bool SwDriver::extendSeedsPaired(
 
 	const size_t rdlen  = rd.length();
 	const size_t ordlen = ord.length();
-	assert_leq(minsc, sc.perfectScore(rdlen));
-	assert(oppFilt || ominsc <= sc.perfectScore(ordlen));
+	const TAlScore perfectScore = sc.perfectScore(rdlen);
+	const TAlScore operfectScore = sc.perfectScore(ordlen);
 
-	TAlScore bestPairScore = sc.perfectScore(rdlen) + sc.perfectScore(ordlen);
+	assert_leq(minsc, perfectScore);
+	assert(oppFilt || ominsc <= operfectScore);
+
+	TAlScore bestPairScore = perfectScore + operfectScore;
 	if(tighten > 0 && msink->Mmode() && msink->hasSecondBestPair()) {
 		// Paired-end alignments should have at least this score from now
 		TAlScore ps = ((tighten == 1) ? msink->bestPair() : msink->secondBestPair());
@@ -1093,11 +1163,11 @@ bool SwDriver::extendSeedsPaired(
 		}
 		// Anchor mate must have score at least 'ps' minus the best possible
 		// score for the opposite mate.
-		TAlScore nc = ps - sc.perfectScore(ordlen);
+		TAlScore nc = ps - operfectScore;
 		if(nc > minsc) {
 			minsc = nc;
 		}
-		assert_leq(minsc, sc.perfectScore(rdlen));
+		assert_leq(minsc, perfectScore);
 	}
 
 	DynProgFramer dpframe(!gReportOverhangs);
@@ -1123,20 +1193,20 @@ bool SwDriver::extendSeedsPaired(
 		maxelt = std::numeric_limits<size_t>::max();
 	}
 	
-	size_t exactHits = sh.numExactE2eHits();
-	bool exactMode = exactHits > 0;
-	bool firstExact = true;
-	bool firstInexact = true;
+	size_t eeHits = sh.numE2eHits();
+	bool eeMode = eeHits > 0;
+	bool firstEe = true;
+	bool firstExtend = true;
 
 	size_t nelt = 0, neltLeft = 0;
 	const size_t rows = rdlen + (color ? 1 : 0);
 	const size_t orows  = ordlen + (color ? 1 : 0);
 	size_t eltsDone = 0;
 	while(true) {
-		if(exactMode) {
-			if(firstExact) {
-				firstExact = false;
-				exactMode = exactSATups(
+		if(eeMode) {
+			if(firstEe) {
+				firstEe = false;
+				eeMode = eeSaTups(
 					sh,           // seed hits to extend into full alignments
 					ebwt,         // BWT
 					ref,          // Reference strings
@@ -1148,11 +1218,15 @@ bool SwDriver::extendSeedsPaired(
 				assert_eq(gws_.size(), satpos_.size());
 				neltLeft = nelt;
 			} else {
-				exactMode = false;
+				eeMode = false;
 			}
 		}
-		if(!exactMode) {
-			if(firstInexact) {
+		if(!eeMode) {
+			if(minsc == perfectScore) {
+				// Already found all perfect hits!
+				return false;
+			}
+			if(firstExtend) {
 				nelt = 0;
 				prioritizeSATups(
 					sh,           // seed hits to extend into full alignments
@@ -1168,17 +1242,20 @@ bool SwDriver::extendSeedsPaired(
 				assert_eq(gws_.size(), rands_.size());
 				assert_eq(gws_.size(), satpos_.size());
 				neltLeft = nelt;
-				firstInexact = false;
+				firstExtend = false;
 			}
 			if(!(neltLeft > 0 && eltsDone < maxelt)) {
 				// Finished examining gapped candidates
 				break;
 			}
 		}
-		// neltLeft is initialized separately in exact mode and in inexact
-		// mode.  eltsDone and maxelt are initialized once and carried over
-		// across exact & inexact modes.
+		// neltLeft is initialized separately, once for the end-to-end hits and
+		// once for the seed hits.  eltsDone and maxelt are initialized once
+		// and carried over across end-to-end & seed modes.
 		for(size_t i = 0; i < gws_.size(); i++) {
+			if(eeMode && eehits_[i].score < minsc) {
+				break;
+			}
 			bool small = satpos_[i].sat.size() < nsm;
 			bool fw          = satpos_[i].pos.fw;
 			uint32_t rdoff   = satpos_[i].pos.rdoff;
@@ -1194,7 +1271,16 @@ bool SwDriver::extendSeedsPaired(
 			// If the range is small, investigate all elements now.  If the
 			// range is large, just investigate one and move on - we might come
 			// back to this range later.
-			while(!rands_[i].done() && (eltsDone < maxelt && (first || small))) {
+			while(!rands_[i].done() &&
+			      (eltsDone < maxelt && (first || small)))
+			{
+				if(minsc == perfectScore) {
+					if(!eeMode || eehits_[i].score < perfectScore) {
+						return false;
+					}
+				} else if(eeMode && eehits_[i].score < minsc) {
+					break;
+				}
 				first = false;
 				assert(!gws_[i].done());
 				// Resolve next element offset
@@ -1219,7 +1305,7 @@ bool SwDriver::extendSeedsPaired(
 					continue;
 				}
 #ifndef NDEBUG
-				if(!exactMode) { // Check that seed hit matches reference
+				if(!eeMode) { // Check that seed hit matches reference
 					uint64_t key = satpos_[i].sat.key.seq;
 					for(size_t k = 0; k < wr.elt.len; k++) {
 						int c = ref.getBase(tidx, toff + wr.elt.len - k - 1);
@@ -1258,19 +1344,20 @@ bool SwDriver::extendSeedsPaired(
 				// information here.  #2 and #3 are handled in the DynProgFramer.
 				int readGaps = 0, refGaps = 0;
 				bool ungapped = false;
-				if(!exactMode) {
+				if(!eeMode) {
 					readGaps = sc.maxReadGaps(minsc, rdlen);
 					refGaps  = sc.maxRefGaps(minsc, rdlen);
 					ungapped = (readGaps == 0 && refGaps == 0);
 				}
 				int state = FOUND_NONE;
 				bool found = false;
-				if(exactMode) {
-					// Set up resExact_
-					resExact_.reset();
-					resExact_.alres.reset();
-					resExact_.alres.setScore(AlnScore(sc.perfectScore(rdlen), 0, 0));
-					resExact_.alres.setShape(
+				if(eeMode) {
+					resEe_.reset();
+					resEe_.alres.reset();
+					const EEHit& h = eehits_[i];
+					assert_leq(h.score, perfectScore);
+					resEe_.alres.setScore(AlnScore(h.score, h.ns(), 0));
+					resEe_.alres.setShape(
 						refcoord.ref(),  // ref id
 						refcoord.off(),  // 0-based ref offset
 						fw,              // aligned to Watson?
@@ -1282,8 +1369,12 @@ bool SwDriver::extendSeedsPaired(
 						true,            // alignment trim soft?
 						0,               // alignment trim 5' end
 						0);              // alignment trim 3' end
-					resExact_.alres.setRefNs(0);
-					state = FOUND_EXACT;
+					resEe_.alres.setRefNs(h.refns());
+					if(h.mms() > 0) {
+						assert_eq(1, h.mms());
+						resEe_.alres.ned().push_back(h.e1);
+					}
+					state = FOUND_EE;
 					found = true;
 					Interval refival(refcoord, 1);
 					seenDiags.add(refival);
@@ -1428,11 +1519,11 @@ bool SwDriver::extendSeedsPaired(
 				while(true) {
 					assert(found);
 					SwResult *res = NULL;
-					if(state == FOUND_EXACT) {
+					if(state == FOUND_EE) {
 						if(!firstInner) {
 							break;
 						}
-						res = &resExact_;
+						res = &resEe_;
 					} else if(state == FOUND_UNGAPPED) {
 						if(!firstInner) {
 							break;
@@ -1525,7 +1616,7 @@ bool SwDriver::extendSeedsPaired(
 								TAlScore nc = ps - res->alres.score().score();
 								if(nc > ominsc_cur) {
 									ominsc_cur = nc;
-									assert_leq(ominsc_cur, sc.perfectScore(ordlen));
+									assert_leq(ominsc_cur, operfectScore);
 								}
 							}
 							oreadGaps = sc.maxReadGaps(ominsc_cur, ordlen);
@@ -1746,15 +1837,16 @@ bool SwDriver::extendSeedsPaired(
 												}
 												// Anchor mate must have score at least 'ps' minus the best possible
 												// score for the opposite mate.
-												TAlScore nc = ps - sc.perfectScore(ordlen);
+												TAlScore nc = ps - operfectScore;
 												if(nc > minsc) {
 													minsc = nc;
-													assert_leq(minsc, sc.perfectScore(rdlen));
+													assert_leq(minsc, perfectScore);
 													if(minsc > res->alres.score().score()) {
 														// We're done with this anchor
 														break;
 													}
 												}
+												assert_leq(minsc, perfectScore);
 											}
 										}
 									}

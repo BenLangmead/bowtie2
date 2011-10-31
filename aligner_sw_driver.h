@@ -251,8 +251,8 @@ public:
 		redAnchor_(DP_CAT),
 		redMate1_(DP_CAT),
 		redMate2_(DP_CAT),
-		pool_(bytes, CACHE_PAGE_SZ, CA_CAT),
-		salistExact_(CA_CAT) { }
+		pool_(bytes, CACHE_PAGE_SZ, DP_CAT),
+		salistEe_(DP_CAT) { }
 
 	/**
 	 * Given a collection of SeedHits for a single read, extend seed alignments
@@ -402,7 +402,7 @@ protected:
 		WalkMetrics& wlm,            // group walk left metrics
 		size_t& nelt_out);           // out: # elements total
 
-	bool exactSATups(
+	bool eeSaTups(
 		SeedResults& sh,             // seed hits to extend into full alignments
 		const Ebwt& ebwt,            // BWT
 		const BitPairReference& ref, // Reference strings
@@ -426,6 +426,7 @@ protected:
 	Random1toN               rand_;    // random number generators
 	EList<Random1toN, 16>    rands_;   // random number generators
 	EList<Random1toN, 16>    rands2_;  // random number generators
+	EList<EEHit, 16>         eehits_;  // holds end-to-end hits
 	EList<SATupleAndPos, 16> satpos_;  // holds SATuple, SeedPos pairs
 	EList<SATupleAndPos, 16> satpos2_; // holds SATuple, SeedPos pairs
 	EList<SATuple, 16>       satups_;  // holds SATuples to explore elements from
@@ -451,11 +452,11 @@ protected:
 	SwResult       oresGap_;   // temp holder for alignment result, opp mate
 	SwResult       resUngap_;  // temp holder for ungapped alignment result
 	SwResult       oresUngap_; // temp holder for ungap. aln. opp mate
-	SwResult       resExact_;  // temp holder for ungapped alignment result
-	SwResult       oresExact_; // temp holder for ungap. aln. opp mate
+	SwResult       resEe_;     // temp holder for ungapped alignment result
+	SwResult       oresEe_;    // temp holder for ungap. aln. opp mate
 	
-	Pool           pool_;        // memory pages for salistExact_
-	TSAList        salistExact_; // PList for offsets for end-to-end hits
+	Pool           pool_;      // memory pages for salistExact_
+	TSAList        salistEe_;  // PList for offsets for end-to-end hits
 	
 	// For AlnRes::matchesRef:
 	ASSERT_ONLY(SStringExpandable<char>     raw_refbuf_);

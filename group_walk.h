@@ -305,9 +305,13 @@ public:
 		size_t nrep = 0;
 		for(size_t i = 0; i < fmap.size(); i++) {
 			if(reported_[i]) nrep++;
-			if(satup->offs[i] != 0xffffffff) continue;
+			if(satup->offs[i] != 0xffffffff) {
+				continue;
+			}
 			for(size_t j = i+1; j < fmap.size(); j++) {
-				if(satup->offs[j] != 0xffffffff) continue;
+				if(satup->offs[j] != 0xffffffff) {
+					continue;
+				}
 				assert(fmap[i] != fmap[j]);
 			}
 		}
@@ -1179,6 +1183,7 @@ public:
 	 * Check that GroupWalk is internally consistent.
 	 */
 	bool repOk() const {
+		assert(hit_.repOk());
 		assert_leq(rep_, elt_);
 		// This is a lot of work
 		size_t resolved = 0, reported = 0;

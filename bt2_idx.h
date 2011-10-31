@@ -1068,16 +1068,22 @@ public:
 	 * length equal to the index's 'ftabChars' into an int that can be
 	 * used to index into the ftab array.
 	 */
-	uint32_t ftabSeqToInt(const BTDnaString& seq, size_t off) const {
+	uint32_t ftabSeqToInt(
+		const BTDnaString& seq,
+		size_t off,
+		bool rev) const
+	{
 		int fc = _eh._ftabChars;
 		size_t lo = off, hi = lo + fc;
 		assert_leq(hi, seq.length());
 		uint32_t ftabOff = 0;
 		for(int i = 0; i < fc; i++) {
+			bool fwex = fw();
+			if(rev) fwex = !fwex;
 			// We add characters to the ftabOff in the order they would
 			// have been consumed in a normal search.  For BWT, this
 			// means right-to-left order; for BWT' it's left-to-right.
-			int c = (fw() ? seq[lo + i] : seq[hi - i - 1]);
+			int c = (fwex ? seq[lo + i] : seq[hi - i - 1]);
 			//cout << "ACGTN"[c];
 			assert_range(0, 3, c);
 			ftabOff <<= 2;
@@ -1145,22 +1151,28 @@ public:
 	 * Get low bound of ftab range.
 	 */
 	uint32_t ftabLo(const BTDnaString& seq, size_t off) const {
-		return ftabLo(ftabSeqToInt(seq, off));
+		return ftabLo(ftabSeqToInt(seq, off, false));
 	}
 
 	/**
 	 * Get high bound of ftab range.
 	 */
 	uint32_t ftabHi(const BTDnaString& seq, size_t off) const {
-		return ftabHi(ftabSeqToInt(seq, off));
+		return ftabHi(ftabSeqToInt(seq, off, false));
 	}
 	
 	/**
 	 *
 	 */
 	void
-	ftabLoHi(const BTDnaString& seq, size_t off, uint32_t& top, uint32_t& bot) const {
-		uint32_t fi = ftabSeqToInt(seq, off);
+	ftabLoHi(
+		const BTDnaString& seq, // sequence to extract from
+		size_t off,             // offset into seq to begin extracting
+		bool rev,               // reverse while extracting
+		uint32_t& top,
+		uint32_t& bot) const
+	{
+		uint32_t fi = ftabSeqToInt(seq, off, rev);
 		top = ftabHi(fi);
 		bot = ftabLo(fi+1);
 		assert_geq(bot, top);
@@ -1168,12 +1180,12 @@ public:
 		BTDnaString q;
 		seq.windowGetDna(q, fw(), true, off, _eh._ftabChars);
 		assert_eq((int)q.length(), _eh._ftabChars);
-		uint32_t top2 = 0, bot2 = 0;
-		bool cont = contains(q, &top2, &bot2);
-		assert(bot-top == 0 || top == top2);
-		assert(bot-top == 0 || bot == bot2);
-		assert(top == bot ||  cont);
-		assert(top != bot || !cont);
+		//uint32_t top2 = 0, bot2 = 0;
+		//bool cont = contains(q, &top2, &bot2);
+		//assert(bot-top == 0 || top == top2);
+		//assert(bot-top == 0 || bot == bot2);
+		//assert(top == bot ||  cont);
+		//assert(top != bot || !cont);
 #endif
 	}
 	

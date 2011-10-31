@@ -200,6 +200,8 @@ static EList<string> queries; // list of query files
 static string outfile;        // write SAM output to this file
 static int mapqv;             // MAPQ calculation version
 static int tighten;           // -M tighten mode (0=none, 1=best, 2=secbest+1)
+static bool doExactUpFront;   // do exact search up front if seeds seem good enough
+static bool do1mmUpFront;     // do 1mm search up front if seeds seem good enough
 
 static string bt2index;      // read Bowtie 2 index from files with this prefix
 static EList<pair<int, string> > extra_opts;
@@ -355,6 +357,8 @@ static void resetOptions() {
 	outfile.clear();         // write SAM output to this file
 	mapqv = 2;               // MAPQ calculation version
 	tighten = 1;             // -M tightening mode
+	doExactUpFront = true;   // do exact search up front if seeds seem good enough
+	do1mmUpFront = true;     // do 1mm search up front if seeds seem good enough
 }
 
 static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:o:w:p:k:M:1:2:I:X:CQ:N:i:L:U:x:S:";
@@ -1554,92 +1558,99 @@ struct PerfMetrics {
 				/* 34 */ "ResReport"      "\t"
 				/* 35 */ "RedundantSHit"  "\t"
 
-				/* 36 */ "ExactSucc"      "\t"
-				/* 37 */ "ExactRanges"    "\t"
-				/* 38 */ "ExactRows"      "\t"
-				/* 38 */ "ExactOOMs"      "\t"
+				/* 36 */ "ExactAttempts"  "\t"
+				/* 37 */ "ExactSucc"      "\t"
+				/* 38 */ "ExactRanges"    "\t"
+				/* 39 */ "ExactRows"      "\t"
+				/* 40 */ "ExactOOMs"      "\t"
 
-				/* 39 */ "UngappedSucc"   "\t"
-				/* 40 */ "UngappedFail"   "\t"
-				/* 41 */ "UngappedNoDec"  "\t"
-				
-				/* 42 */ "DP16ExDps"      "\t"
-				/* 43 */ "DP16ExDpSat"    "\t"
-				/* 44 */ "DP16ExDpFail"   "\t"
-				/* 45 */ "DP16ExDpSucc"   "\t"
-				/* 46 */ "DP16ExCol"      "\t"
-				/* 47 */ "DP16ExCell"     "\t"
-				/* 48 */ "DP16ExInner"    "\t"
-				/* 49 */ "DP16ExFixup"    "\t"
-				/* 50 */ "DP16ExGathSol"  "\t"
-				/* 51 */ "DP16ExBt"       "\t"
-				/* 52 */ "DP16ExBtFail"   "\t"
-				/* 53 */ "DP16ExBtSucc"   "\t"
-				/* 54 */ "DP16ExBtCell"   "\t"
-				/* 55 */ "DP16ExCoreRej"  "\t"
-				/* 56 */ "DP16ExNRej"     "\t"
+				/* 41 */ "1mmAttempts"    "\t"
+				/* 42 */ "1mmSucc"        "\t"
+				/* 43 */ "1mmRanges"      "\t"
+				/* 44 */ "1mmRows"        "\t"
+				/* 45 */ "1mmOOMs"        "\t"
 
-				/* 57 */ "DP8ExDps"       "\t"
-				/* 58 */ "DP8ExDpSat"     "\t"
-				/* 59 */ "DP8ExDpFail"    "\t"
-				/* 60 */ "DP8ExDpSucc"    "\t"
-				/* 61 */ "DP8ExCol"       "\t"
-				/* 62 */ "DP8ExCell"      "\t"
-				/* 63 */ "DP8ExInner"     "\t"
-				/* 64 */ "DP8ExFixup"     "\t"
-				/* 65 */ "DP8ExGathSol"   "\t"
-				/* 66 */ "DP8ExBt"        "\t"
-				/* 67 */ "DP8ExBtFail"    "\t"
-				/* 68 */ "DP8ExBtSucc"    "\t"
-				/* 69 */ "DP8ExBtCell"    "\t"
-				/* 70 */ "DP8ExCoreRej"   "\t"
-				/* 71 */ "DP8ExNRej"      "\t"
+				/* 46 */ "UngappedSucc"   "\t"
+				/* 47 */ "UngappedFail"   "\t"
+				/* 48 */ "UngappedNoDec"  "\t"
 
-				/* 72 */ "DP16MateDps"     "\t"
-				/* 73 */ "DP16MateDpSat"   "\t"
-				/* 74 */ "DP16MateDpFail"  "\t"
-				/* 75 */ "DP16MateDpSucc"  "\t"
-				/* 76 */ "DP16MateCol"     "\t"
-				/* 77 */ "DP16MateCell"    "\t"
-				/* 78 */ "DP16MateInner"   "\t"
-				/* 79 */ "DP16MateFixup"   "\t"
-				/* 80 */ "DP16MateGathSol" "\t"
-				/* 81 */ "DP16MateBt"      "\t"
-				/* 82 */ "DP16MateBtFail"  "\t"
-				/* 83 */ "DP16MateBtSucc"  "\t"
-				/* 84 */ "DP16MateBtCell"  "\t"
-				/* 85 */ "DP16MateCoreRej" "\t"
-				/* 86 */ "DP16MateNRej"    "\t"
+				/* 49 */ "DP16ExDps"      "\t"
+				/* 50 */ "DP16ExDpSat"    "\t"
+				/* 51 */ "DP16ExDpFail"   "\t"
+				/* 52 */ "DP16ExDpSucc"   "\t"
+				/* 53 */ "DP16ExCol"      "\t"
+				/* 54 */ "DP16ExCell"     "\t"
+				/* 55 */ "DP16ExInner"    "\t"
+				/* 56 */ "DP16ExFixup"    "\t"
+				/* 57 */ "DP16ExGathSol"  "\t"
+				/* 58 */ "DP16ExBt"       "\t"
+				/* 59 */ "DP16ExBtFail"   "\t"
+				/* 60 */ "DP16ExBtSucc"   "\t"
+				/* 61 */ "DP16ExBtCell"   "\t"
+				/* 62 */ "DP16ExCoreRej"  "\t"
+				/* 63 */ "DP16ExNRej"     "\t"
 
-				/* 87 */ "DP8MateDps"     "\t"
-				/* 88 */ "DP8MateDpSat"   "\t"
-				/* 89 */ "DP8MateDpFail"  "\t"
-				/* 90 */ "DP8MateDpSucc"  "\t"
-				/* 91 */ "DP8MateCol"     "\t"
-				/* 92 */ "DP8MateCell"    "\t"
-				/* 93 */ "DP8MateInner"   "\t"
-				/* 94 */ "DP8MateFixup"   "\t"
-				/* 95 */ "DP8MateGathSol" "\t"
-				/* 96 */ "DP8MateBt"      "\t"
-				/* 97 */ "DP8MateBtFail"  "\t"
-				/* 98 */ "DP8MateBtSucc"  "\t"
-				/* 99 */ "DP8MateBtCell"  "\t"
-				/* 100 */ "DP8MateCoreRej" "\t"
-				/* 101 */ "DP8MateNRej"    "\t"
+				/* 64 */ "DP8ExDps"       "\t"
+				/* 65 */ "DP8ExDpSat"     "\t"
+				/* 66 */ "DP8ExDpFail"    "\t"
+				/* 67 */ "DP8ExDpSucc"    "\t"
+				/* 68 */ "DP8ExCol"       "\t"
+				/* 69 */ "DP8ExCell"      "\t"
+				/* 70 */ "DP8ExInner"     "\t"
+				/* 71 */ "DP8ExFixup"     "\t"
+				/* 72 */ "DP8ExGathSol"   "\t"
+				/* 73 */ "DP8ExBt"        "\t"
+				/* 74 */ "DP8ExBtFail"    "\t"
+				/* 75 */ "DP8ExBtSucc"    "\t"
+				/* 76 */ "DP8ExBtCell"    "\t"
+				/* 77 */ "DP8ExCoreRej"   "\t"
+				/* 78 */ "DP8ExNRej"      "\t"
 
-				/* 102 */ "DPBtFiltStart"  "\t"
-				/* 103 */ "DPBtFiltScore"  "\t"
-				/* 104 */ "DpBtFiltDom"    "\t"
+				/* 79 */ "DP16MateDps"     "\t"
+				/* 80 */ "DP16MateDpSat"   "\t"
+				/* 81 */ "DP16MateDpFail"  "\t"
+				/* 82 */ "DP16MateDpSucc"  "\t"
+				/* 83 */ "DP16MateCol"     "\t"
+				/* 84 */ "DP16MateCell"    "\t"
+				/* 85 */ "DP16MateInner"   "\t"
+				/* 86 */ "DP16MateFixup"   "\t"
+				/* 87 */ "DP16MateGathSol" "\t"
+				/* 88 */ "DP16MateBt"      "\t"
+				/* 89 */ "DP16MateBtFail"  "\t"
+				/* 90 */ "DP16MateBtSucc"  "\t"
+				/* 91 */ "DP16MateBtCell"  "\t"
+				/* 92 */ "DP16MateCoreRej" "\t"
+				/* 93 */ "DP16MateNRej"    "\t"
 
-				/* 105 */ "MemPeak"        "\t"
-				/* 106 */ "UncatMemPeak"   "\t" // 0
-				/* 107 */ "EbwtMemPeak"    "\t" // EBWT_CAT
-				/* 108 */ "CacheMemPeak"   "\t" // CA_CAT
-				/* 109 */ "ResolveMemPeak" "\t" // GW_CAT
-				/* 110 */ "AlignMemPeak"   "\t" // AL_CAT
-				/* 111 */ "DPMemPeak"      "\t" // DP_CAT
-				/* 112 */ "MiscMemPeak"    "\t" // MISC_CAT
-				/* 113 */ "DebugMemPeak"   "\t" // DEBUG_CAT
+				/* 94 */ "DP8MateDps"     "\t"
+				/* 95 */ "DP8MateDpSat"   "\t"
+				/* 96 */ "DP8MateDpFail"  "\t"
+				/* 97 */ "DP8MateDpSucc"  "\t"
+				/* 98 */ "DP8MateCol"     "\t"
+				/* 99 */ "DP8MateCell"    "\t"
+				/* 100 */ "DP8MateInner"   "\t"
+				/* 101 */ "DP8MateFixup"   "\t"
+				/* 102 */ "DP8MateGathSol" "\t"
+				/* 103 */ "DP8MateBt"      "\t"
+				/* 104 */ "DP8MateBtFail"  "\t"
+				/* 105 */ "DP8MateBtSucc"  "\t"
+				/* 106 */ "DP8MateBtCell"  "\t"
+				/* 107 */ "DP8MateCoreRej" "\t"
+				/* 108 */ "DP8MateNRej"    "\t"
+
+				/* 109 */ "DPBtFiltStart"  "\t"
+				/* 110 */ "DPBtFiltScore"  "\t"
+				/* 111 */ "DpBtFiltDom"    "\t"
+
+				/* 112 */ "MemPeak"        "\t"
+				/* 113 */ "UncatMemPeak"   "\t" // 0
+				/* 114 */ "EbwtMemPeak"    "\t" // EBWT_CAT
+				/* 115 */ "CacheMemPeak"   "\t" // CA_CAT
+				/* 116 */ "ResolveMemPeak" "\t" // GW_CAT
+				/* 117 */ "AlignMemPeak"   "\t" // AL_CAT
+				/* 118 */ "DPMemPeak"      "\t" // DP_CAT
+				/* 119 */ "MiscMemPeak"    "\t" // MISC_CAT
+				/* 120 */ "DebugMemPeak"   "\t" // DEBUG_CAT
 				
 				"\n";
 			
@@ -1820,20 +1831,45 @@ struct PerfMetrics {
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 		
-		// 36. Exact aligner successes
+		// Exact aligner attempts
+		itoa10<uint64_t>(total ? swmSeed.exatts : swmuSeed.exatts, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// Exact aligner successes
 		itoa10<uint64_t>(total ? swmSeed.exsucc : swmuSeed.exsucc, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 37. Exact aligner ranges
+		// Exact aligner ranges
 		itoa10<uint64_t>(total ? swmSeed.exranges : swmuSeed.exranges, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 38. Exact aligner rows
+		// Exact aligner rows
 		itoa10<uint64_t>(total ? swmSeed.exrows : swmuSeed.exrows, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 39. Exact aligner OOMs
+		// Exact aligner OOMs
 		itoa10<uint64_t>(total ? swmSeed.exooms : swmuSeed.exooms, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+
+		// 1mm aligner attempts
+		itoa10<uint64_t>(total ? swmSeed.mm1atts : swmuSeed.mm1atts, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 1mm aligner successes
+		itoa10<uint64_t>(total ? swmSeed.mm1succ : swmuSeed.mm1succ, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 1mm aligner ranges
+		itoa10<uint64_t>(total ? swmSeed.mm1ranges : swmuSeed.mm1ranges, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 1mm aligner rows
+		itoa10<uint64_t>(total ? swmSeed.mm1rows : swmuSeed.mm1rows, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 1mm aligner OOMs
+		itoa10<uint64_t>(total ? swmSeed.mm1ooms : swmuSeed.mm1ooms, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 
@@ -2692,7 +2728,11 @@ static void* multiseedSearchWorker(void *vp) {
 				assert(msinkwrap.empty());
 				sd.nextRead(paired, rdrows[0], rdrows[1]);
 				bool matemap[2] = { 0, 1 };
-				if(pair) {
+				bool pairPostFilt = filt[0] && filt[1];
+				if(pairPostFilt) {
+					// Search for seeds first!
+					
+					
 					rnd.init(ROTL((rds[0]->seed ^ rds[1]->seed), 10));
 					if(rnd.nextU2() == 0) {
 						// Swap order in which mates are investigated
@@ -2738,7 +2778,7 @@ static void* multiseedSearchWorker(void *vp) {
 						interval = 1;
 					}
 					assert_geq(interval, 1);
-					// Set flags controlling which orientations of  individual
+					// Set flags controlling which orientations of individual
 					// mates to investigate
 					bool nofw, norc;
 					if(paired && mate == 0) {
@@ -2787,16 +2827,38 @@ static void* multiseedSearchWorker(void *vp) {
 						}
 						// If all seeds hit, then an exact end-to-end alignment
 						// is possible; search for it here
-						if(readns[mate] == 0) {
-							bool fw = shs[mate].allFwSeedsHit();
-							bool rc = shs[mate].allRcSeedsHit();
-							al.exactSearch(
-								&ebwtFw,      // BWT index
-								*rds[mate],   // read
-								!fw,          // don't align forward read
-								!rc,          // don't align revcomp read
-								shs[mate],    // seed hits (hit installed here)
-								sdm);         // metrics
+						size_t fewestEditsFw = shs[mate].fewestEditsEE(
+							true, multiseedLen, interval);
+						size_t fewestEditsRc = shs[mate].fewestEditsEE(
+							false, multiseedLen, interval);
+						if((doExactUpFront || do1mmUpFront) &&
+						   (fewestEditsFw <= 1 || fewestEditsRc <= 1))
+						{
+							bool yfw = fewestEditsFw <= 1 && !nofw;
+							bool yrc = fewestEditsRc <= 1 && !norc;
+							bool do1mm = do1mmUpFront;
+							if(do1mm && minsc[mate] == sc.perfectScore(rdlens[mate])) {
+								do1mm = false;
+							}
+							if(doExactUpFront) {
+								swmSeed.exatts++;
+							}
+							if(do1mm) {
+								swmSeed.mm1atts++;
+							}
+							al.oneMmSearch(
+								&ebwtFw,        // BWT index
+								&ebwtBw,        // BWT' index
+								*rds[mate],     // read
+								sc,             // scoring scheme
+								minsc[mate],    // minimum score
+								!yfw,           // don't align forward read
+								!yrc,           // don't align revcomp read
+								localAlign,     // must be legal local alns?
+								doExactUpFront, // do exact match
+								do1mm,          // do 1mm
+								shs[mate],      // seed hits (hits installed here)
+								sdm);           // metrics
 						}
 						// Sort seed hits into ranks
 						shs[mate].rankSeedHits(rnd);
@@ -3006,7 +3068,7 @@ static void multiseedSearch(
 			!noRefNames,  // load names?
 			startVerbose);
 	}
-	if(multiseedMms > 0) {
+	if(multiseedMms > 0 || do1mmUpFront) {
 		// Load the other half of the index into memory
 		assert(!ebwtBw.isInMemory());
 		Timer _t(cerr, "Time loading mirror index: ", timing);
@@ -3124,7 +3186,7 @@ static void driver(
 	    sanityCheck);
 	Ebwt* ebwtBw = NULL;
 	// We need the mirror index if mismatches are allowed
-	if(multiseedMms > 0) {
+	if(multiseedMms > 0 || do1mmUpFront) {
 		if(gVerbose || startVerbose) {
 			cerr << "About to initialize rev Ebwt: "; logTime(cerr, true);
 		}
@@ -3297,6 +3359,7 @@ static void driver(
 		}
 		delete patsrc;
 		delete mssink;
+		delete metricsOfb;
 		if(fout != NULL) delete fout;
 	}
 }

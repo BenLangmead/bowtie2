@@ -3380,7 +3380,8 @@ my @cases = (
 	  ]
 	},
 
-	{ ref    => [ "ACNCA" ],
+	{ name   => "N ceil = 0, 2 legit hits (1)",
+	  ref    => [ "ACNCA" ],
 	  reads  => [ "AC" ],
 	  args   => "",
 	  report => "-a --policy \"SEED=0,2;IVAL=C,1,0;NCEIL=L,0,0\"",
@@ -3388,7 +3389,8 @@ my @cases = (
 	  edits  => [ ],
 	  flags => [ ] },
 
-	{ ref    => [ "ACNCANNNNNNNNCGNNNNNNNNCG" ],
+	{ name   => "N ceil = 0, 2 legit hits (2)",
+	  ref    => [ "ACNCANNNNNNNNCGNNNNNNNNCG" ],
 	#              0123456789012345678901234
 	#              0         1         2
 	  reads  => [ "CG" ],
@@ -3396,7 +3398,6 @@ my @cases = (
 	  report => "-a --policy \"SEED=0,2;IVAL=C,1,0;NCEIL=L,0,0\"",
 	  hits   => [ { 13 => 2, 23 => 2 } ],
 	  edits  => [ ],
-	  flags => [ "XM:0,XP:0,XT:UU,XC:2=", "XM:0,XP:0,XT:UU,XC:2=" ],
 	  cigar  => [ "2M", "2M" ],
 	  samoptflags => [
 		{ "YT:Z:UU" => 1, "MD:Z:2" => 1 },
