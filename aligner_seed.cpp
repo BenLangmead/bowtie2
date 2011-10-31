@@ -673,6 +673,9 @@ bool SeedAligner::oneMmSearch(
 	if(ns > 1) {
 		// Can't align this with <= 1 mismatches
 		return false;
+	} else if(ns == 1 && !rep1mm) {
+		// Can't align this with 0 mismatches
+		return false;
 	}
 	assert_geq(len, 2);
 	assert(ebwtBw->eh().ftabChars() == ebwtFw->eh().ftabChars());
@@ -737,7 +740,7 @@ bool SeedAligner::oneMmSearch(
 				ebwtp->ftabLoHi(seq, len - ftabLen, rev, topp, botp);
 				assert_eq(bot - top, botp - topp);
 				if(bot - top == 0) {
-					return results;
+					continue;
 				}
 				int c = seq[len - ftabLen];
 				t[c] = top; b[c] = bot;
@@ -751,13 +754,14 @@ bool SeedAligner::oneMmSearch(
 				top = topp = tp[c] = ebwt->fchr()[c];
 				bot = botp = bp[c] = ebwt->fchr()[c+1];
 				if(bot - top == 0) {
-					return results;
+					continue;
 				}
 				dep = 1;
 				// initialize tloc, bloc??
 			}
 			INIT_LOCS(top, bot, tloc, bloc, ebwt);
 			assert(sanityPartial(ebwt, ebwtp, seq, len-dep, len, top, bot, topp, botp));
+			bool do_continue = false;
 			for(; dep < nea; dep++) {
 				assert_lt(dep, len);
 				int rdc = seq[len - dep - 1];
@@ -770,7 +774,8 @@ bool SeedAligner::oneMmSearch(
 					SANITY_CHECK_4TUP(t, b, tp, bp);
 					top = t[rdc]; bot = b[rdc];
 					if(bot <= top) {
-						return results;
+						do_continue = true;
+						break;
 					}
 					topp = tp[rdc]; botp = bp[rdc];
 					assert_eq(bot - top, botp - topp);
@@ -780,7 +785,8 @@ bool SeedAligner::oneMmSearch(
 					bwops_++;
 					top = ebwt->mapLF1(top, tloc, rdc);
 					if(top == 0xffffffff) {
-						return results;
+						do_continue = true;
+						break;
 					}
 					bot = top + 1;
 					t[rdc] = top; b[rdc] = bot;
@@ -790,6 +796,9 @@ bool SeedAligner::oneMmSearch(
 				}
 				INIT_LOCS(top, bot, tloc, bloc, ebwt);
 				assert(sanityPartial(ebwt, ebwtp, seq, len - dep - 1, len, top, bot, topp, botp));
+			}
+			if(do_continue) {
+				continue;
 			}
 			// Align far half
 			for(; dep < len; dep++) {
@@ -817,7 +826,7 @@ bool SeedAligner::oneMmSearch(
 					match = (clo == rdc);
 					assert_range(-1, 3, clo);
 					if(clo < 0) {
-						return results; // Hit the $
+						break; // Hit the $
 					} else {
 						t[clo] = top;
 						b[clo] = bot = top + 1;
@@ -986,7 +995,7 @@ bool SeedAligner::oneMmSearch(
 			} // for(; dep < len; dep++)
 		} // for(int ebwtfw = 0; ebwtfw < 2; ebwtfw++)
 	} // for(int fw = 0; fw < 2; fw++)
-	return true;
+	return results;
 }
 
 /**
