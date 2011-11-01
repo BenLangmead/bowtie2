@@ -744,8 +744,8 @@ bool SeedAligner::oneMmSearch(
 				ebwt->ftabLoHi(seq, len - ftabLen, rev, top, bot);
 				if(rep1mm) {
 					ebwtp->ftabLoHi(seq, len - ftabLen, rev, topp, botp);
+					assert_eq(bot - top, botp - topp);
 				}
-				assert_eq(bot - top, botp - topp);
 				if(bot - top == 0) {
 					continue;
 				}
@@ -785,10 +785,10 @@ bool SeedAligner::oneMmSearch(
 						break;
 					}
 					topp = tp[rdc]; botp = bp[rdc];
-					assert_eq(bot - top, botp - topp);
+					assert(!rep1mm || bot - top == botp - topp);
 				} else {
 					assert_eq(bot, top+1);
-					assert_eq(botp, topp+1);
+					assert(!rep1mm || botp == topp+1);
 					bwops_++;
 					top = ebwt->mapLF1(top, tloc, rdc);
 					if(top == 0xffffffff) {
@@ -798,7 +798,7 @@ bool SeedAligner::oneMmSearch(
 					bot = top + 1;
 					t[rdc] = top; b[rdc] = bot;
 					tp[rdc] = topp; bp[rdc] = botp;
-					assert_eq(b[rdc] - t[rdc], bp[rdc] - tp[rdc]);
+					assert(!rep1mm || b[rdc] - t[rdc] == bp[rdc] - tp[rdc]);
 					// topp/botp stay the same
 				}
 				INIT_LOCS(top, bot, tloc, bloc, ebwt);
@@ -827,7 +827,7 @@ bool SeedAligner::oneMmSearch(
 					topp = tp[rdc]; botp = bp[rdc];
 				} else {
 					assert_eq(bot, top+1);
-					assert_eq(botp, topp+1);
+					assert(!rep1mm || botp == topp+1);
 					bwops_++;
 					clo = ebwt->mapLF1(top, tloc);
 					match = (clo == rdc);
@@ -840,8 +840,8 @@ bool SeedAligner::oneMmSearch(
 					}
 					bp[clo] = botp;
 					tp[clo] = topp;
-					assert_eq(bot - top, botp - topp);
-					assert_eq(b[clo] - t[clo], bp[clo] - tp[clo]);
+					assert(!rep1mm || bot - top == botp - topp);
+					assert(!rep1mm || b[clo] - t[clo] == bp[clo] - tp[clo]);
 					chi = clo;
 				}
 				//assert(sanityPartial(ebwt, ebwtp, seq, len - dep - 1, len, top, bot, topp, botp));
