@@ -667,6 +667,8 @@ bool SeedAligner::oneMmSearch(
 	SeedResults&       hits,   // holds all the seed hits (and exact hit)
 	SeedSearchMetrics& met)    // metrics
 {
+	assert( rep1mm || ebwtBw == NULL);
+	assert(!rep1mm || ebwtBw != NULL);
 	const size_t len = read.length();
 	int nceil = sc.nCeil.f<int>((double)len);
 	size_t ns = read.ns();
@@ -678,10 +680,12 @@ bool SeedAligner::oneMmSearch(
 		return false;
 	}
 	assert_geq(len, 2);
-	assert(ebwtBw->eh().ftabChars() == ebwtFw->eh().ftabChars());
+	assert(!rep1mm || ebwtBw->eh().ftabChars() == ebwtFw->eh().ftabChars());
 #ifndef NDEBUG
-	for(int i = 0; i < 4; i++) {
-		assert_eq(ebwtBw->fchr()[i], ebwtFw->fchr()[i]);
+	if(rep1mm) {
+		for(int i = 0; i < 4; i++) {
+			assert_eq(ebwtBw->fchr()[i], ebwtFw->fchr()[i]);
+		}
 	}
 #endif
 	size_t halfFw = len >> 1;
@@ -711,6 +715,7 @@ bool SeedAligner::oneMmSearch(
 			bool ebwtfw = (ebwtfwi == 0);
 			const Ebwt* ebwt  = (ebwtfw ? ebwtFw : ebwtBw);
 			const Ebwt* ebwtp = (ebwtfw ? ebwtBw : ebwtFw);
+			assert(rep1mm || ebwt->fw());
 			const BTDnaString& seq =
 				(fw ? (ebwtfw ? read.patFw : read.patFwRev) :
 				      (ebwtfw ? read.patRc : read.patRcRev));
@@ -737,7 +742,9 @@ bool SeedAligner::oneMmSearch(
 				// Use ftab to jump partway into near half
 				bool rev = !ebwtfw;
 				ebwt->ftabLoHi(seq, len - ftabLen, rev, top, bot);
-				ebwtp->ftabLoHi(seq, len - ftabLen, rev, topp, botp);
+				if(rep1mm) {
+					ebwtp->ftabLoHi(seq, len - ftabLen, rev, topp, botp);
+				}
 				assert_eq(bot - top, botp - topp);
 				if(bot - top == 0) {
 					continue;
