@@ -14,12 +14,12 @@ What is Bowtie 2?
 reads to long reference sequences.  It is particularly good at aligning reads of
 about 50 up to 100s or 1,000s of characters to relatively long (e.g. mammalian)
 genomes.  Bowtie 2 indexes the genome with an [FM Index] (based on the
-[Burrows-Wheeler Transform] or [BWT]) to keep its memory footprint small: for the human
-genome, its memory footprint is typically around 2.3 GB.  Bowtie 2 supports
-gapped, local, and paired-end alignment modes.  Multiple processors can be used
-simultaneously to achieve greater alignment speed.  Bowtie 2 outputs alignments
-in [SAM] format, enabling interoperation with a large number of other tools
-(e.g. [SAMtools], [GATK]) that use SAM.  Bowtie 2 is distributed under the
+[Burrows-Wheeler Transform] or [BWT]) to keep its memory footprint small: for
+the human genome, its memory footprint is typically around 3.2 GB.  Bowtie 2
+supports gapped, local, and paired-end alignment modes.  Multiple processors can
+be used simultaneously to achieve greater alignment speed.  Bowtie 2 outputs
+alignments in [SAM] format, enabling interoperation with a large number of other
+tools (e.g. [SAMtools], [GATK]) that use SAM.  Bowtie 2 is distributed under the
 [GPLv3 license], and it runs on the command line under Windows, Mac OS X and
 Linux.
 
@@ -134,9 +134,10 @@ What does it mean that Bowtie 2 is "beta"?
 ------------------------------------------
 
 We say that Bowtie 2 is in "beta" to convey (a) that it is not as polished as a
-tool that has been around for a while, and (b) it is still in flux. Features and
-file formats might still change in the near future, so please do not depend
-heavily on these remaining static.
+tool that has been around for a while, and (b) it is still in flux. Features,
+file formats, and performance characteristics (speed, sensitivity, and accuracy)
+will probably continue to change from release to release until the "beta"
+disgnation is removed.
 
 Obtaining Bowtie 2
 ==================
@@ -202,7 +203,14 @@ a set of alignments in SAM format.
 are similar to the reference sequence.  An "alignment" is a result from this
 process, specifically: an alignment is a way of "lining up" some or all of the
 characters in the read with some characters from the reference in a way that
-reveals how they're similar.
+reveals how they're similar.  For example:
+
+      Read:      GACTGGGCGATCTCGACTTCG
+                 |||||  |||||||||| |||
+      Reference: GACTG--CGATCTCGACATCG
+
+Where dash symbols represent gaps and vertical bars show where aligned
+characters match.
 
 We use alignment to make an educated guess as to where a read originated with
 respect to the reference genome.  It's not always possible to determine this
@@ -215,8 +223,8 @@ End-to-end alignment versus local alignment
 -------------------------------------------
 
 By default, Bowtie 2 performs end-to-end read alignment.  That is, it searches
-for alignments involving all of the read characters.  This could also be called
-an "untrimmed" alignment.
+for alignments involving all of the read characters.  This is also called an
+"untrimmed" or "unclipped" alignment.
 
 When the --local option is specified, Bowtie 2 performs local read alignment. In
 this mode, Bowtie 2 might "trim" or "clip" some read characters from one or both

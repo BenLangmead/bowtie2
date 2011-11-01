@@ -118,7 +118,11 @@ enum {
 	ARG_SSE8_NO,                // --no-sse8
 	ARG_UNGAPPED,               // --ungapped
 	ARG_UNGAPPED_NO,            // --no-ungapped
-	ARG_TIGHTEN                 // --tighten
+	ARG_TIGHTEN,                // --tighten
+	ARG_EXACT_UPFRONT,          // --exact-upfront
+	ARG_1MM_UPFRONT,            // --1mm-upfront
+	ARG_EXACT_UPFRONT_NO,       // --no-exact-upfront
+	ARG_1MM_UPFRONT_NO          // --no-1mm-upfront
 };
 
 #endif
