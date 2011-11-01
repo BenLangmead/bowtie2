@@ -504,6 +504,10 @@ static struct option long_options[] = {
 	{(char*)"no-contain",       no_argument,       0,        ARG_NO_CONTAIN},
 	{(char*)"no-overlap",       no_argument,       0,        ARG_NO_OVERLAP},
 	{(char*)"tighten",          required_argument, 0,        ARG_TIGHTEN},
+	{(char*)"exact-upfront",    no_argument,       0,        ARG_EXACT_UPFRONT},
+	{(char*)"1mm-upfront",      no_argument,       0,        ARG_1MM_UPFRONT},
+	{(char*)"no-exact-upfront", no_argument,       0,        ARG_EXACT_UPFRONT_NO},
+	{(char*)"no-1mm-upfront",   no_argument,       0,        ARG_1MM_UPFRONT_NO},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -1016,6 +1020,10 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_IGNORE_QUALS: ignoreQuals = true; break;
 		case ARG_MAPQ_V: mapqv = parse<int>(arg); break;
 		case ARG_TIGHTEN: tighten = parse<int>(arg); break;
+		case ARG_EXACT_UPFRONT:    doExactUpFront = true; break;
+		case ARG_1MM_UPFRONT:      do1mmUpFront   = true; break;
+		case ARG_EXACT_UPFRONT_NO: doExactUpFront = false; break;
+		case ARG_1MM_UPFRONT_NO:   do1mmUpFront   = false; break;
 		case ARG_NOISY_HPOLY: noisyHpolymer = true; break;
 		case 'x': bt2index = arg; break;
 		case ARG_PRESET_VERY_FAST_LOCAL: localAlign = true;
