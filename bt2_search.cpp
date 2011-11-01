@@ -202,6 +202,7 @@ static int mapqv;             // MAPQ calculation version
 static int tighten;           // -M tighten mode (0=none, 1=best, 2=secbest+1)
 static bool doExactUpFront;   // do exact search up front if seeds seem good enough
 static bool do1mmUpFront;     // do 1mm search up front if seeds seem good enough
+static size_t do1mmMinLen;    // length below which we disable 1mm e2e search
 
 static string bt2index;      // read Bowtie 2 index from files with this prefix
 static EList<pair<int, string> > extra_opts;
@@ -359,6 +360,7 @@ static void resetOptions() {
 	tighten = 1;             // -M tightening mode
 	doExactUpFront = true;   // do exact search up front if seeds seem good enough
 	do1mmUpFront = true;     // do 1mm search up front if seeds seem good enough
+	do1mmMinLen = 60;        // length below which we disable 1mm search
 }
 
 static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:o:w:p:k:M:1:2:I:X:CQ:N:i:L:U:x:S:";
@@ -508,6 +510,7 @@ static struct option long_options[] = {
 	{(char*)"1mm-upfront",      no_argument,       0,        ARG_1MM_UPFRONT},
 	{(char*)"no-exact-upfront", no_argument,       0,        ARG_EXACT_UPFRONT_NO},
 	{(char*)"no-1mm-upfront",   no_argument,       0,        ARG_1MM_UPFRONT_NO},
+	{(char*)"1mm-minlen",       required_argument, 0,        ARG_1MM_MINLEN},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -1024,6 +1027,7 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_1MM_UPFRONT:      do1mmUpFront   = true; break;
 		case ARG_EXACT_UPFRONT_NO: doExactUpFront = false; break;
 		case ARG_1MM_UPFRONT_NO:   do1mmUpFront   = false; break;
+		case ARG_1MM_MINLEN:       do1mmMinLen = parse<size_t>(arg); break;
 		case ARG_NOISY_HPOLY: noisyHpolymer = true; break;
 		case 'x': bt2index = arg; break;
 		case ARG_PRESET_VERY_FAST_LOCAL: localAlign = true;
@@ -2846,6 +2850,9 @@ static void* multiseedSearchWorker(void *vp) {
 							bool yrc = fewestEditsRc <= 1 && !norc;
 							bool do1mm = do1mmUpFront;
 							if(do1mm && minsc[mate] == sc.perfectScore(rdlens[mate])) {
+								do1mm = false;
+							}
+							if(do1mm && rdlens[mate] < do1mmMinLen) {
 								do1mm = false;
 							}
 							if(doExactUpFront) {
