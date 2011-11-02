@@ -33,6 +33,8 @@
 #define DEFAULT_MAXELT_CONST 0.0f
 #define DEFAULT_MAXELT_COEFF 1.0f
 
+#define DEFAULT_UNGAPPED_HITS 6
+
 /**
  * Encapsulates the set of all parameters that affect what the
  * SeedAligner does with reads.
@@ -244,7 +246,8 @@ public:
 		int&   multiseedLen,
 		SimpleFunc& multiseedIval,
 		SimpleFunc& maxelt,
-		uint32_t& mhits);
+		uint32_t& mhits,
+		size_t& ungappedHits);
 };
 
 #endif /*ndef ALIGNER_SEED_POLICY_H_*/
