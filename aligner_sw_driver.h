@@ -282,6 +282,7 @@ public:
 		const SimpleFunc& maxelt,    // # elts to explore as function of total elts
 		size_t maxhalf,              // maximum width on one side of DP table
 		bool doUngapped,             // do ungapped alignment
+		size_t ungappedThresh,       // all attempts after this many are ungapped
 		bool enable8,                // use 8-bit SSE where possible
 		bool refscan,                // use reference scanning
 		int tighten,                 // -M score tightening mode
@@ -355,6 +356,7 @@ public:
 		const SimpleFunc& maxelt,    // # elts to explore as function of total elts
 		size_t maxhalf,              // maximum width on one side of DP table
 		bool doUngapped,             // do ungapped alignment
+		size_t ungappedThresh,       // all attempts after this many are ungapped
 		bool enable8,                // use 8-bit SSE where possible
 		bool refscan,                // use reference scanning
 		int tighten,                 // -M score tightening mode

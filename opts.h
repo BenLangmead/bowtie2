@@ -119,6 +119,7 @@ enum {
 	ARG_UNGAPPED,               // --ungapped
 	ARG_UNGAPPED_NO,            // --no-ungapped
 	ARG_TIGHTEN,                // --tighten
+	ARG_UNGAP_THRESH,           // --ungap-thresh
 	ARG_EXACT_UPFRONT,          // --exact-upfront
 	ARG_1MM_UPFRONT,            // --1mm-upfront
 	ARG_EXACT_UPFRONT_NO,       // --no-exact-upfront
