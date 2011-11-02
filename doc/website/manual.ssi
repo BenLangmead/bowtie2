@@ -1,5 +1,5 @@
 <h1>Table of Contents</h1>
-<p>&nbsp;Version <b>2.0.0-beta2</b></p>
+<p>&nbsp;Version <b>2.0.0-beta3</b></p>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
@@ -358,7 +358,7 @@
   >Burrows-Wheeler Transform</a
   > or <a href="http://en.wikipedia.org/wiki/Burrows-Wheeler_transform"
   >BWT</a
-  >) to keep its memory footprint small: for the human genome, its memory footprint is typically around 2.3 GB. Bowtie 2 supports gapped, local, and paired-end alignment modes. Multiple processors can be used simultaneously to achieve greater alignment speed. Bowtie 2 outputs alignments in <a href="http://samtools.sourceforge.net/SAM1.pdf"
+  >) to keep its memory footprint small: for the human genome, its memory footprint is typically around 3.2 GB. Bowtie 2 supports gapped, local, and paired-end alignment modes. Multiple processors can be used simultaneously to achieve greater alignment speed. Bowtie 2 outputs alignments in <a href="http://samtools.sourceforge.net/SAM1.pdf"
   >SAM</a
   > format, enabling interoperation with a large number of other tools (e.g. <a href="http://samtools.sourceforge.net/"
   >SAMtools</a
@@ -480,7 +480,7 @@
   >What does it mean that Bowtie 2 is &quot;beta&quot;?</a
   ></h2
 ><p
->We say that Bowtie 2 is in &quot;beta&quot; to convey (a) that it is not as polished as a tool that has been around for a while, and (b) it is still in flux. Features and file formats might still change in the near future, so please do not depend heavily on these remaining static.</p
+>We say Bowtie 2 is in &quot;beta&quot; to convey that it is not as polished as a tool that has been around for a while, and it's still in flux. Features, file formats, and performance characteristics (speed, sensitivity, and accuracy) may change from release to release until the &quot;beta&quot; disgnation is removed.</p
 ><h1 id="obtaining-bowtie-2"
 ><a href="#TOC"
   >Obtaining Bowtie 2</a
@@ -570,7 +570,16 @@
   >bowtie2</code
   > takes a Bowtie 2 index and a set of sequencing read files and outputs a set of alignments in SAM format.</p
 ><p
->&quot;Alignment&quot; is the process by which we discover how and where the read sequences are similar to the reference sequence. An &quot;alignment&quot; is a result from this process, specifically: an alignment is a way of &quot;lining up&quot; some or all of the characters in the read with some characters from the reference in a way that reveals how they're similar.</p
+>&quot;Alignment&quot; is the process by which we discover how and where the read sequences are similar to the reference sequence. An &quot;alignment&quot; is a result from this process, specifically: an alignment is a way of &quot;lining up&quot; some or all of the characters in the read with some characters from the reference in a way that reveals how they're similar. For example:</p
+><pre
+><code
+  >  Read:      GACTGGGCGATCTCGACTTCG
+             |||||  |||||||||| |||
+  Reference: GACTG--CGATCTCGACATCG
+</code
+  ></pre
+><p
+>Where dash symbols represent gaps and vertical bars show where aligned characters match.</p
 ><p
 >We use alignment to make an educated guess as to where a read originated with respect to the reference genome. It's not always possible to determine this with certainty. For instance, if the reference genome contains several long stretches of As (<code
   >AAAAAAAAA</code
@@ -584,7 +593,7 @@
   >End-to-end alignment versus local alignment</a
   ></h2
 ><p
->By default, Bowtie 2 performs end-to-end read alignment. That is, it searches for alignments involving all of the read characters. This could also be called an &quot;untrimmed&quot; alignment.</p
+>By default, Bowtie 2 performs end-to-end read alignment. That is, it searches for alignments involving all of the read characters. This is also called an &quot;untrimmed&quot; or &quot;unclipped&quot; alignment.</p
 ><p
 >When the --local option is specified, Bowtie 2 performs local read alignment. In this mode, Bowtie 2 might &quot;trim&quot; or &quot;clip&quot; some read characters from one or both ends of the alignment if doing so maximizes the alignment score.</p
 ><h3 id="end-to-end-alignment-example"
@@ -780,7 +789,7 @@ Alignment:
 ><p
 >Bowtie 2 runs a little faster in <code
   >--no-mixed</code
-  > mode, but will only consider alignment status of pairs per se, not individual mates. I.e. in SAM records for pairs, the optional YM:i flag will not appear and MAPQ values calculated for mates may be underestimates in some cases.</p
+  > mode, but will only consider alignment status of pairs per se, not individual mates.</p
 ><h3 id="some-sam-flags-describe-paired-end-properties"
 ><a href="#TOC"
   >Some SAM FLAGS describe paired-end properties</a
@@ -807,40 +816,6 @@ Alignment:
   >. See the <a href="http://samtools.sourceforge.net/SAM1.pdf"
   >SAM specification</a
   > for details regarding SAM optional fields.</p
-><p
->The following SAM optional fields are sometimes output by Bowtie 2 to convey information about how the pair and its constitutuent mates aligned:</p
-><p
-><code
-  >YP:i</code
-  > If present and set to 1, the number of valid, distinct, concordant alignments for the pair is greater than or equal to the ceiling set with the <a href="#bowtie2-options-M"
-  ><code
-    >-M</code
-    ></a
-  > option. If present and set to 0, the number of valid, distinct, concordant alignments is less than the ceiling set with the <a href="#bowtie2-options-M"
-  ><code
-    >-M</code
-    ></a
-  > option. If not present, the alignment is not paired or no <a href="#bowtie2-options-M"
-  ><code
-    >-M</code
-    ></a
-  > ceiling is set.</p
-><p
-><code
-  >YM:i</code
-  > If present and set to 1, the number of valid, distinct, unpaired alignments for the mate exceeds the ceiling set with the <a href="#bowtie2-options-M"
-  ><code
-    >-M</code
-    ></a
-  > option. If present and set to 0, the number of valid, distinct, unpaired alignments for the mate is less than the ceiling set with the <a href="#bowtie2-options-M"
-  ><code
-    >-M</code
-    ></a
-  > option. If not present, the read is not part of a pair or no <a href="#bowtie2-options-M"
-  ><code
-    >-M</code
-    ></a
-  > ceiling was set.</p
 ><h3 id="mates-can-overlap-contain-or-dovetail-each-other"
 ><a href="#TOC"
   >Mates can overlap, contain, or dovetail each other</a
@@ -963,7 +938,7 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
   >SAM specification</a
   > for details.</p
 ><p
->Bowtie 2 does not &quot;find&quot; alignments in any specific order, so for reads that have more than N distinct, valid alignments, Bowtie 2 does not gaurantee that the N alignments reported are the best possible in terms of alignment score.</p
+>Bowtie 2 does not &quot;find&quot; alignments in any specific order, so for reads that have more than N distinct, valid alignments, Bowtie 2 does not gaurantee that the N alignments reported are the best possible in terms of alignment score. Still, this mode can be effective and fast in situations where the user cares more about whether a read aligns (or aligns a certain number of times) than where exactly it originated.</p
 ><h3 id="a-mode-search-for-and-report-all-alignments"
 ><a href="#TOC"
   >-a mode: search for and report all alignments</a
@@ -980,6 +955,8 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
   > mode except that there is no upper limit on the number of alignments Bowtie 2 should report. Alignments are reported in descending order by alignment score. The alignment score for a paired-end alignment equals the sum of the alignment scores of the individual mates. Each reported read or pair alignment beyond the first has the SAM 'secondary' bit (which equals 256) set in its FLAGS field. See the <a href="http://samtools.sourceforge.net/SAM1.pdf"
   >SAM specification</a
   > for details.</p
+><p
+>Some tools are designed with this reporting mode in mind. Bowtie 2 is not! For very large genomes, this mode is very slow.</p
 ><h2 id="multiseed-heuristic"
 ><a href="#TOC"
   >Multiseed heuristic</a
@@ -1019,13 +996,7 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
   >FM Index</a
   > itself is typically the largest data structure used. For instance, the memory footprint of the <a href="http://portal.acm.org/citation.cfm?id=796543"
   >FM Index</a
-  > for the human genome when 0 seed mismatches are permitted (<code
-  >-N 0</code
-  >) is about 2.3 gigabytes of RAM. When the number of mismatches permitted per seed is greater than 0 (<code
-  >-N 1</code
-  > or <code
-  >-N 2</code
-  >), this necessitates use of the &quot;mirror index&quot; which further increases the memory footprint to about 3.2 gigabytes for the human genome.</p
+  > for the human genome is about 3.2 gigabytes of RAM.</p
 ><h3 id="excessive-backtracking-and-the--n-2-heuristic"
 ><a href="#TOC"
   >Excessive backtracking and the <code
@@ -1154,11 +1125,10 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
 ><code
   >20000 reads; of these:
   20000 (100.00%) were unpaired; of these:
-    1249 (6.25%) aligned 0 times
-    18729 (93.64%) aligned exactly 1 time
-    22 (0.11%) aligned &gt;1 and &lt;=3 times
-    0 (0.00%) aligned &gt;3 times
-93.75% overall alignment rate
+    1247 (6.24%) aligned 0 times
+    18739 (93.69%) aligned exactly 1 time
+    14 (0.07%) aligned &gt;1 times
+93.77% overall alignment rate
 </code
   ></pre
 ><p
@@ -1168,20 +1138,18 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
   >10000 reads; of these:
   10000 (100.00%) were paired; of these:
     650 (6.50%) aligned concordantly 0 times
-    8822 (88.22%) aligned concordantly exactly 1 time
-    338 (3.38%) aligned concordantly &gt;1 and &lt;=3 times
-    190 (1.90%) aligned concordantly &gt;3 times
+    8823 (88.23%) aligned concordantly exactly 1 time
+    527 (5.27%) aligned concordantly &gt;1 times
     ----
     650 pairs aligned concordantly 0 times; of these:
-      33 (5.08%) aligned discordantly 1 time
+      34 (5.23%) aligned discordantly 1 time
     ----
-    617 pairs aligned 0 times concordantly or discordantly; of these:
-      1234 mates make up the pairs; of these:
-        661 (53.57%) aligned 0 times
-        572 (46.35%) aligned exactly 1 time
-        1 (0.08%) aligned &gt;1 and &lt;=3 times
-        0 (0.00%) aligned &gt;3 times
-96.69% overall alignment rate
+    616 pairs aligned 0 times concordantly or discordantly; of these:
+      1232 mates make up the pairs; of these:
+        660 (53.57%) aligned 0 times
+        571 (46.35%) aligned exactly 1 time
+        1 (0.08%) aligned &gt;1 times
+96.70% overall alignment rate
 </code
   ></pre
 ><p
@@ -3137,51 +3105,6 @@ Seed 4 rc:                   TTATGCATGA
 
 <pre
     ><code
-      >YP:i:&lt;N&gt;
-</code
-      ></pre
-    ></td>
-<td>
-<p
-    >Equals 1 if the read is part of a pair that has at least N concordant alignments, where N is the argument specified to <a href="#bowtie2-options-M"
-      ><code
-	>-M</code
-	></a
-      > plus one. Equals 0 if the read is part of a pair that has fewer than N alignments. E.g. if <code
-      >-M 2</code
-      > is specified and 3 distinct, concordant paired-end alignments are found, <code
-      >YP:i:1</code
-      > will be printed. If fewer than 3 are found, <code
-      >YP:i:0</code
-      > is printed. Only present if SAM record is for a read that aligned as part of a paired-end alignment.</p
-    ></td></tr>
-<tr><td id="bowtie2-build-opt-fields-ym">
-
-
-<pre
-    ><code
-      >YM:i:&lt;N&gt;
-</code
-      ></pre
-    ></td><td>
-<p
-    >Equals 1 if the read aligned with at least N unpaired alignments, where N is the argument specified to <a href="#bowtie2-options-M"
-      ><code
-	>-M</code
-	></a
-      > plus one. Equals 0 if the read aligned with fewer than N unpaired alignments. E.g. if <code
-      >-M 2</code
-      > is specified and 3 distinct, valid, unpaired alignments are found, <code
-      >YM:i:1</code
-      > is printed. If fewer than 3 are found, <code
-      >YM:i:0</code
-      > is printed. Only present if SAM record is for a read that Bowtie 2 attempted to align in an unpaired fashion.</p
-    ></td></tr>
-<tr><td id="bowtie2-build-opt-fields-yf">
-
-
-<pre
-    ><code
       >YF:Z:&lt;N&gt;
 </code
       ></pre
@@ -3903,14 +3826,14 @@ Sequence-N  &lt;name&gt;  &lt;len&gt;
 ><code
   >@HD VN:1.0  SO:unsorted
 @SQ SN:gi|9626243|ref|NC_001416.1|  LN:48502
-@PG ID:bowtie2  PN:bowtie2  VN:2.0.0-beta1
-r1  0   gi|9626243|ref|NC_001416.1| 18401   37  122M    *   0   0   TGAATGCGAACTCCGGGACGCTCAGTAATGTGACGATAGCTGAAAACTGTACGATAAACNGTACGCTGAGGGCAGAAAAAATCGTCGGGGACATTNTAAAGGCGGCGAGCGCGGCTTTTCCG  +&quot;@6&lt;:27(F&amp;5)9)&quot;B:%B+A-%5A?2$HCB0B+0=D&lt;7E/&lt;.03#!.F77@6B==?C&quot;7&gt;;))%;,3-$.A06+&lt;-1/@@?,26&quot;&gt;=?*@'0;$:;??G+:#+(A?9+10!8!?()?7C&gt;  AS:i:-5 XN:i:0  XM:i:3  XO:i:0  XG:i:0  NM:i:3  MD:Z:59G13G21G26    YT:Z:UU YM:i:0  YF:i:
-r2  0   gi|9626243|ref|NC_001416.1| 8886    37  275M    *   0   0   NTTNTGATGCGGGCTTGTGGAGTTCAGCCGATCTGACTTATGTCATTACCTATGAAATGTGAGGACGCTATGCCTGTACCAAATCCTACAATGCCGGTGAAAGGTGCCGGGATCACCCTGTGGGTTTATAAGGGGATCGGTGACCCCTACGCGAATCCGCTTTCAGACGTTGACTGGTCGCGTCTGGCAAAAGTTAAAGACCTGACGCCCGGCGAACTGACCGCTGAGNCCTATGACGACAGCTATCTCGATGATGAAGATGCAGACTGGACTGC (#!!'+!$&quot;&quot;%+(+)'%)%!+!(&amp;++)''&quot;#&quot;#&amp;#&quot;!'!(&quot;%'&quot;&quot;(&quot;+&amp;%$%*%%#$%#%#!)*'(#&quot;)(($&amp;$'&amp;%+&amp;#%*)*#*%*')(%+!%%*&quot;$%&quot;#+)$&amp;&amp;+)&amp;)*+!&quot;*)!*!(&quot;&amp;&amp;&quot;*#+&quot;&amp;&quot;'(%)*(&quot;'!$*!!%$&amp;&amp;&amp;$!!&amp;&amp;&quot;(*&quot;$&amp;&quot;#&amp;!$%'%&quot;#)$#+%*+)!&amp;*)+(&quot;&quot;#!)!%*#&quot;*)*')&amp;&quot;)($+*%%)!*)!('(%&quot;&quot;+%&quot;$##&quot;#+(('!*(($*'!&quot;*('&quot;+)&amp;%#&amp;$+('**$$&amp;+*&amp;!#%)')'(+(!%+ AS:i:-9 XN:i:0  XM:i:8  XO:i:0  XG:i:0  NM:i:8  MD:Z:0A0C0G0A108C23G9T81T46 YT:Z:UU YM:i:0  YF:i:
-r3  16  gi|9626243|ref|NC_001416.1| 11599   37  338M    *   0   0   GGGCGCGTTACTGGGATGATCGTGAAAAGGCCCGTCTTGCGCTTGAAGCCGCCCGAAAGAAGGCTGAGCAGCAGACTCAAGAGGAGAAAAATGCGCAGCAGCGGAGCGATACCGAAGCGTCACGGCTGAAATATACCGAAGAGGCGCAGAAGGCTNACGAACGGCTGCAGACGCCGCTGCAGAAATATACCGCCCGTCAGGAAGAACTGANCAAGGCACNGAAAGACGGGAAAATCCTGCAGGCGGATTACAACACGCTGATGGCGGCGGCGAAAAAGGATTATGAAGCGACGCTGTAAAAGCCGAAACAGTCCAGCGTGAAGGTGTCTGCGGGCGAT  7F$%6=$:9B@/F'&gt;=?!D?@0(:A*)7/&gt;9C&gt;6#1&lt;6:C(.CC;#.;&gt;;2'$4D:?&amp;B!&gt;689?(0(G7+0=@37F)GG=&gt;?958.D2E04C&lt;E,*AD%G0.%$+A:'H;?8&lt;72:88?E6((CF)6DF#.)=&gt;B&gt;D-=&quot;C'B080E'5BH&quot;77':&quot;@70#4%A5=6.2/1&gt;;9&quot;&amp;-H6)=$/0;5E:&lt;8G!@::1?2DC7C*;@*#.1C0.D&gt;H/20,!&quot;C-#,6@%&lt;+&lt;D(AG-).?&amp;#0.00'@)/F8?B!&amp;&quot;170,)&gt;:?&lt;A7#1(A@0E#&amp;A.*DC.E&quot;)AH&quot;+.,5,2&gt;5&quot;2?:G,F&quot;D0B8D-6$65D&lt;D!A/38860.*4;4B&lt;*31?6  AS:i:-22    XN:i:0  XM:i:8  XO:i:0  XG:i:0  NM:i:8  MD:Z:80C4C16A52T23G30A8T76A41   YT:Z:UU YM:i:0  YF:i:
-r4  0   gi|9626243|ref|NC_001416.1| 40075   37  184M    *   0   0   GGGCCAATGCGCTTACTGATGCGGAATTACGCCGTAAGGCCGCAGATGAGCTTGTCCATATGACTGCGAGAATTAACNGTGGTGAGGCGATCCCTGAACCAGTAAAACAACTTCCTGTCATGGGCGGTAGACCTCTAAATCGTGCACAGGCTCTGGCGAAGATCGCAGAAATCAAAGCTAAGTT    (=8B)GD04*G%&amp;4F,1'A&gt;.C&amp;7=F$,+#6!))43C,5/5+)?-/0&gt;/D3=-,2/+.1?@-&gt;;)00!'3!7BH$G)HG+ADC'#-9F)7&lt;7&quot;$?&amp;.&gt;0)@5;4,!0-#C!15CF8&amp;HB+B==H&gt;7,/)C5)5*+(F5A%D,EA&lt;(&gt;G9E0&gt;7&amp;/E?4%;#'92)&lt;5+@7:A.(BG@BG86@.G    AS:i:-1 XN:i:0  XM:i:1  XO:i:0  XG:i:0  NM:i:1  MD:Z:77C106 YT:Z:UU YM:i:0  YF:i:
-r5  0   gi|9626243|ref|NC_001416.1| 48010   37  138M    *   0   0   GTCAGGAAAGTGGTAAAACTGCAACTCAATTACTGCAATGCCCTCGTAATTAAGTGAATTTACAATATCGTCCTGTTCGGAGGGAAGAACGCGGGATGTTCATTCTTCATCACTTTTAATTGATGTATATGCTCTCTT  9''%&lt;D)A03E1-*7=),:F/0!6,D9:H,&lt;9D%:0B(%'E,(8EFG$E89B$27G8F*2+4,-!,0D5()&amp;=(FGG:5;3*@/.0F-G#5#3-&gt;('FDFEG?)5.!)&quot;AGADB3?6(@H(:B&lt;&gt;6!&gt;;&gt;6&gt;G,.&quot;?%  AS:i:0  XN:i:0  XM:i:0  XO:i:0  XG:i:0  NM:i:0  MD:Z:138    YT:Z:UU YM:i:0  YF:i:
-r6  16  gi|9626243|ref|NC_001416.1| 41607   37  72M2D119M   *   0   0   TCGATTTGCAAATACCGGAACATCTCGGTAACTGCATATTCTGCATTAAAAAATCAACGCAAAAAATCGGACGCCTGCAAAGATGAGGAGGGATTGCAGCGTGTTTTTAATGAGGTCATCACGGGATNCCATGTGCGTGACGGNCATCGGGAAACGCCAAAGGAGATTATGTACCGAGGAAGAATGTCGCT 1H#G;H&quot;$E*E#&amp;&quot;*)2%66?=9/9'=;4)4/&gt;@%+5#@#$4A*!&lt;D==&quot;8#1*A9BA=:(1+#C&amp;.#(3#H=9E)AC*5,AC#E'536*2?)H14?&gt;9'B=7(3H/B:+A:8%1-+#(E%&amp;$$&amp;14&quot;76D?&gt;7(&amp;20H5%*&amp;CF8!G5B+A4F$7(:&quot;'?0$?G+$)B-?2&lt;0&lt;F=D!38BH,%=8&amp;5@+ AS:i:-13    XN:i:0  XM:i:2  XO:i:1  XG:i:2  NM:i:4  MD:Z:72^TT55C15A47  YT:Z:UU YM:i:0  YF:i:
-r7  16  gi|9626243|ref|NC_001416.1| 4692    37  143M    *   0   0   TCAGCCGGACGCGGGCGCTGCAGCCGTACTCGGGGATGACCGGTTACAACGGCATTATCGCCCGTCTGCAACAGGCTGCCAGCGATCCGATGGTGGACAGCATTCTGCTCGATATGGACANGCCCGGCGGGATGGTGGCGGGG -&quot;/@*7A0)&gt;2,AAH@&amp;&quot;%B)*5*23B/,)90.B@%=FE,E063C9?,:26$-0:,.,1849'4.;F&gt;FA;76+5&amp;$&lt;C&quot;:$!A*,&lt;B,&lt;)@&lt;'85D%C*:)30@85;?.B$05=@95DCDH&lt;53!8G:F:B7/A.E':434&gt; AS:i:-7 XN:i:0  XM:i:2  XO:i:0  XG:i:0  NM:i:2  MD:Z:98G21C22   YT:Z:UU YM:i:0  YF:i:
+@PG ID:bowtie2  PN:bowtie2  VN:2.0.0-beta2
+r1  0   gi|9626243|ref|NC_001416.1| 18401   37  122M    *   0   0   TGAATGCGAACTCCGGGACGCTCAGTAATGTGACGATAGCTGAAAACTGTACGATAAACNGTACGCTGAGGGCAGAAAAAATCGTCGGGGACATTNTAAAGGCGGCGAGCGCGGCTTTTCCG  +&quot;@6&lt;:27(F&amp;5)9)&quot;B:%B+A-%5A?2$HCB0B+0=D&lt;7E/&lt;.03#!.F77@6B==?C&quot;7&gt;;))%;,3-$.A06+&lt;-1/@@?,26&quot;&gt;=?*@'0;$:;??G+:#+(A?9+10!8!?()?7C&gt;  AS:i:-5 XN:i:0  XM:i:3  XO:i:0  XG:i:0  NM:i:3  MD:Z:59G13G21G26    YT:Z:UU
+r2  0   gi|9626243|ref|NC_001416.1| 8886    37  275M    *   0   0   NTTNTGATGCGGGCTTGTGGAGTTCAGCCGATCTGACTTATGTCATTACCTATGAAATGTGAGGACGCTATGCCTGTACCAAATCCTACAATGCCGGTGAAAGGTGCCGGGATCACCCTGTGGGTTTATAAGGGGATCGGTGACCCCTACGCGAATCCGCTTTCAGACGTTGACTGGTCGCGTCTGGCAAAAGTTAAAGACCTGACGCCCGGCGAACTGACCGCTGAGNCCTATGACGACAGCTATCTCGATGATGAAGATGCAGACTGGACTGC (#!!'+!$&quot;&quot;%+(+)'%)%!+!(&amp;++)''&quot;#&quot;#&amp;#&quot;!'!(&quot;%'&quot;&quot;(&quot;+&amp;%$%*%%#$%#%#!)*'(#&quot;)(($&amp;$'&amp;%+&amp;#%*)*#*%*')(%+!%%*&quot;$%&quot;#+)$&amp;&amp;+)&amp;)*+!&quot;*)!*!(&quot;&amp;&amp;&quot;*#+&quot;&amp;&quot;'(%)*(&quot;'!$*!!%$&amp;&amp;&amp;$!!&amp;&amp;&quot;(*&quot;$&amp;&quot;#&amp;!$%'%&quot;#)$#+%*+)!&amp;*)+(&quot;&quot;#!)!%*#&quot;*)*')&amp;&quot;)($+*%%)!*)!('(%&quot;&quot;+%&quot;$##&quot;#+(('!*(($*'!&quot;*('&quot;+)&amp;%#&amp;$+('**$$&amp;+*&amp;!#%)')'(+(!%+ AS:i:-9 XN:i:0  XM:i:8  XO:i:0  XG:i:0  NM:i:8  MD:Z:0A0C0G0A108C23G9T81T46 YT:Z:UU
+r3  16  gi|9626243|ref|NC_001416.1| 11599   37  338M    *   0   0   GGGCGCGTTACTGGGATGATCGTGAAAAGGCCCGTCTTGCGCTTGAAGCCGCCCGAAAGAAGGCTGAGCAGCAGACTCAAGAGGAGAAAAATGCGCAGCAGCGGAGCGATACCGAAGCGTCACGGCTGAAATATACCGAAGAGGCGCAGAAGGCTNACGAACGGCTGCAGACGCCGCTGCAGAAATATACCGCCCGTCAGGAAGAACTGANCAAGGCACNGAAAGACGGGAAAATCCTGCAGGCGGATTACAACACGCTGATGGCGGCGGCGAAAAAGGATTATGAAGCGACGCTGTAAAAGCCGAAACAGTCCAGCGTGAAGGTGTCTGCGGGCGAT  7F$%6=$:9B@/F'&gt;=?!D?@0(:A*)7/&gt;9C&gt;6#1&lt;6:C(.CC;#.;&gt;;2'$4D:?&amp;B!&gt;689?(0(G7+0=@37F)GG=&gt;?958.D2E04C&lt;E,*AD%G0.%$+A:'H;?8&lt;72:88?E6((CF)6DF#.)=&gt;B&gt;D-=&quot;C'B080E'5BH&quot;77':&quot;@70#4%A5=6.2/1&gt;;9&quot;&amp;-H6)=$/0;5E:&lt;8G!@::1?2DC7C*;@*#.1C0.D&gt;H/20,!&quot;C-#,6@%&lt;+&lt;D(AG-).?&amp;#0.00'@)/F8?B!&amp;&quot;170,)&gt;:?&lt;A7#1(A@0E#&amp;A.*DC.E&quot;)AH&quot;+.,5,2&gt;5&quot;2?:G,F&quot;D0B8D-6$65D&lt;D!A/38860.*4;4B&lt;*31?6  AS:i:-22    XN:i:0  XM:i:8  XO:i:0  XG:i:0  NM:i:8  MD:Z:80C4C16A52T23G30A8T76A41   YT:Z:UU
+r4  0   gi|9626243|ref|NC_001416.1| 40075   37  184M    *   0   0   GGGCCAATGCGCTTACTGATGCGGAATTACGCCGTAAGGCCGCAGATGAGCTTGTCCATATGACTGCGAGAATTAACNGTGGTGAGGCGATCCCTGAACCAGTAAAACAACTTCCTGTCATGGGCGGTAGACCTCTAAATCGTGCACAGGCTCTGGCGAAGATCGCAGAAATCAAAGCTAAGTT    (=8B)GD04*G%&amp;4F,1'A&gt;.C&amp;7=F$,+#6!))43C,5/5+)?-/0&gt;/D3=-,2/+.1?@-&gt;;)00!'3!7BH$G)HG+ADC'#-9F)7&lt;7&quot;$?&amp;.&gt;0)@5;4,!0-#C!15CF8&amp;HB+B==H&gt;7,/)C5)5*+(F5A%D,EA&lt;(&gt;G9E0&gt;7&amp;/E?4%;#'92)&lt;5+@7:A.(BG@BG86@.G    AS:i:-1 XN:i:0  XM:i:1  XO:i:0  XG:i:0  NM:i:1  MD:Z:77C106 YT:Z:UU
+r5  0   gi|9626243|ref|NC_001416.1| 48010   37  138M    *   0   0   GTCAGGAAAGTGGTAAAACTGCAACTCAATTACTGCAATGCCCTCGTAATTAAGTGAATTTACAATATCGTCCTGTTCGGAGGGAAGAACGCGGGATGTTCATTCTTCATCACTTTTAATTGATGTATATGCTCTCTT  9''%&lt;D)A03E1-*7=),:F/0!6,D9:H,&lt;9D%:0B(%'E,(8EFG$E89B$27G8F*2+4,-!,0D5()&amp;=(FGG:5;3*@/.0F-G#5#3-&gt;('FDFEG?)5.!)&quot;AGADB3?6(@H(:B&lt;&gt;6!&gt;;&gt;6&gt;G,.&quot;?%  AS:i:0  XN:i:0  XM:i:0  XO:i:0  XG:i:0  NM:i:0  MD:Z:138    YT:Z:UU
+r6  16  gi|9626243|ref|NC_001416.1| 41607   37  72M2D119M   *   0   0   TCGATTTGCAAATACCGGAACATCTCGGTAACTGCATATTCTGCATTAAAAAATCAACGCAAAAAATCGGACGCCTGCAAAGATGAGGAGGGATTGCAGCGTGTTTTTAATGAGGTCATCACGGGATNCCATGTGCGTGACGGNCATCGGGAAACGCCAAAGGAGATTATGTACCGAGGAAGAATGTCGCT 1H#G;H&quot;$E*E#&amp;&quot;*)2%66?=9/9'=;4)4/&gt;@%+5#@#$4A*!&lt;D==&quot;8#1*A9BA=:(1+#C&amp;.#(3#H=9E)AC*5,AC#E'536*2?)H14?&gt;9'B=7(3H/B:+A:8%1-+#(E%&amp;$$&amp;14&quot;76D?&gt;7(&amp;20H5%*&amp;CF8!G5B+A4F$7(:&quot;'?0$?G+$)B-?2&lt;0&lt;F=D!38BH,%=8&amp;5@+ AS:i:-13    XN:i:0  XM:i:2  XO:i:1  XG:i:2  NM:i:4  MD:Z:72^TT55C15A47  YT:Z:UU
+r7  16  gi|9626243|ref|NC_001416.1| 4692    37  143M    *   0   0   TCAGCCGGACGCGGGCGCTGCAGCCGTACTCGGGGATGACCGGTTACAACGGCATTATCGCCCGTCTGCAACAGGCTGCCAGCGATCCGATGGTGGACAGCATTCTGCTCGATATGGACANGCCCGGCGGGATGGTGGCGGGG -&quot;/@*7A0)&gt;2,AAH@&amp;&quot;%B)*5*23B/,)90.B@%=FE,E063C9?,:26$-0:,.,1849'4.;F&gt;FA;76+5&amp;$&lt;C&quot;:$!A*,&lt;B,&lt;)@&lt;'85D%C*:)30@85;?.B$05=@95DCDH&lt;53!8G:F:B7/A.E':434&gt; AS:i:-7 XN:i:0  XM:i:2  XO:i:0  XG:i:0  NM:i:2  MD:Z:98G21C22   YT:Z:UU
 </code
   ></pre
 ><p

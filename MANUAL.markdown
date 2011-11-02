@@ -133,11 +133,10 @@ supported in future versions.
 What does it mean that Bowtie 2 is "beta"?
 ------------------------------------------
 
-We say that Bowtie 2 is in "beta" to convey (a) that it is not as polished as a
-tool that has been around for a while, and (b) it is still in flux. Features,
-file formats, and performance characteristics (speed, sensitivity, and accuracy)
-will probably continue to change from release to release until the "beta"
-disgnation is removed.
+We say Bowtie 2 is in "beta" to convey that it is not as polished as a tool that
+has been around for a while, and it's still in flux. Features, file formats, and
+performance characteristics (speed, sensitivity, and accuracy) may change from
+release to release until the "beta" disgnation is removed.
 
 Obtaining Bowtie 2
 ==================
@@ -544,6 +543,9 @@ field.  See the [SAM specification] for details.
 Bowtie 2 does not "find" alignments in any specific order, so for reads that
 have more than N distinct, valid alignments, Bowtie 2 does not gaurantee that
 the N alignments reported are the best possible in terms of alignment score.
+Still, this mode can be effective and fast in situations where the user cares
+more about whether a read aligns (or aligns a certain number of times) than
+where exactly it originated.
 
 [SAM specification]: http://samtools.sourceforge.net/SAM1.pdf
 
@@ -556,6 +558,9 @@ alignment equals the sum of the alignment scores of the individual mates.  Each
 reported read or pair alignment beyond the first has the SAM 'secondary' bit
 (which equals 256) set in its FLAGS field.  See the [SAM specification] for
 details.
+
+Some tools are designed with this reporting mode in mind.  Bowtie 2 is not!  For
+very large genomes, this mode is very slow.
 
 [SAM specification]: http://samtools.sourceforge.net/SAM1.pdf
 
@@ -589,11 +594,7 @@ pre-packaged as "[preset options]."
 Bowtie 2 uses the [FM Index] to find ungapped alignments for seeds.  This step
 accounts for the bulk of Bowtie 2's memory footprint, as the [FM Index] itself
 is typically the largest data structure used.  For instance, the memory
-footprint of the [FM Index] for the human genome when 0 seed mismatches are
-permitted (`-N 0`) is about 2.3 gigabytes of RAM.  When the number of mismatches
-permitted per seed is greater than 0 (`-N 1` or `-N 2`), this necessitates use
-of the "mirror index" which further increases the memory footprint to about 3.2
-gigabytes for the human genome.
+footprint of the [FM Index] for the human genome is about 3.2 gigabytes of RAM.
 
 ### Excessive backtracking and the `-N 2` heuristic
 
@@ -688,9 +689,8 @@ datasets consisting of unpaired reads, the summary might look like this:
       20000 (100.00%) were unpaired; of these:
         1247 (6.24%) aligned 0 times
         18739 (93.69%) aligned exactly 1 time
-        14 (93.77%) aligned >1 times
+        14 (0.07%) aligned >1 times
     93.77% overall alignment rate
-
 
 For datasets consisting of pairs, the summary might look like this:
 
