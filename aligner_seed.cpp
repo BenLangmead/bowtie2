@@ -823,6 +823,7 @@ bool SeedAligner::oneMmSearch(
 					t[0] = t[1] = t[2] = t[3] = b[0] = b[1] = b[2] = b[3] = 0;
 					ebwt->mapBiLFEx(tloc, bloc, t, b, tp, bp);
 					SANITY_CHECK_4TUP(t, b, tp, bp);
+					match = rdc < 4;
 					top = t[rdc]; bot = b[rdc];
 					topp = tp[rdc]; botp = bp[rdc];
 				} else {
