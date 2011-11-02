@@ -478,6 +478,7 @@ bool SwDriver::extendSeeds(
 	const SimpleFunc& maxeltf,   // # elts to explore as function of total elts
 	size_t maxhalf,  	         // max width in either direction for DP tables
 	bool doUngapped,             // do ungapped alignment
+	size_t ungappedThresh,       // all attempts after this many are ungapped
 	bool enable8,                // use 8-bit SSE where possible
 	bool refscan,                // use reference scanning
 	int tighten,                 // -M score tightening mode
@@ -677,7 +678,7 @@ bool SwDriver::extendSeeds(
 				if(!eeMode) {
 					readGaps = sc.maxReadGaps(minsc, rdlen);
 					refGaps  = sc.maxRefGaps(minsc, rdlen);
-					ungapped = (readGaps == 0 && refGaps == 0);
+					ungapped = (readGaps == 0 && refGaps == 0) || eltsDone >= ungappedThresh;
 				}
 				int state = FOUND_NONE;
 				bool found = false;
@@ -1119,6 +1120,7 @@ bool SwDriver::extendSeedsPaired(
 	const SimpleFunc& maxeltf,   // # elts to explore as function of total elts
 	size_t maxhalf,              // max width in either direction for DP tables
 	bool doUngapped,             // do ungapped alignment
+	size_t ungappedThresh,       // all attempts after this many are ungapped
 	bool enable8,                // use 8-bit SSE where possible
 	bool refscan,                // use reference scanning
 	int tighten,                 // -M score tightening mode
@@ -1347,7 +1349,7 @@ bool SwDriver::extendSeedsPaired(
 				if(!eeMode) {
 					readGaps = sc.maxReadGaps(minsc, rdlen);
 					refGaps  = sc.maxRefGaps(minsc, rdlen);
-					ungapped = (readGaps == 0 && refGaps == 0);
+					ungapped = (readGaps == 0 && refGaps == 0) || eltsDone >= ungappedThresh;
 				}
 				int state = FOUND_NONE;
 				bool found = false;

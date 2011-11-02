@@ -191,6 +191,7 @@ static SimpleFunc maxelt;    // max # elts to extend for any given batch of seed
 static size_t maxhalf;       // max width on one side of DP table
 static bool seedSummaryOnly; // print summary information about seed hits, not alignments
 static bool doUngapped;      // do ungapped alignment
+static size_t ungappedThresh;// all attempts after this many are ungapped
 static bool enable8;         // use 8-bit SSE where possible?
 static bool refscan;         // use reference scanning?
 static string defaultPreset; // default preset; applied immediately
@@ -346,6 +347,7 @@ static void resetOptions() {
 	maxhalf            = 15; // max width on one side of DP table
 	seedSummaryOnly    = false; // print summary information about seed hits, not alignments
 	doUngapped         = true;  // do ungapped alignment
+	ungappedThresh     = std::numeric_limits<size_t>::max();// all attempts after this many are ungapped
 	enable8            = true;  // use 8-bit SSE where possible?
 	refscan            = false; // use reference scanning?
 	defaultPreset      = "sensitive%LOCAL%"; // default preset; applied immediately
@@ -511,6 +513,7 @@ static struct option long_options[] = {
 	{(char*)"no-exact-upfront", no_argument,       0,        ARG_EXACT_UPFRONT_NO},
 	{(char*)"no-1mm-upfront",   no_argument,       0,        ARG_1MM_UPFRONT_NO},
 	{(char*)"1mm-minlen",       required_argument, 0,        ARG_1MM_MINLEN},
+	{(char*)"ungap-thresh",     required_argument, 0,        ARG_UNGAP_THRESH},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -1028,6 +1031,7 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_EXACT_UPFRONT_NO: doExactUpFront = false; break;
 		case ARG_1MM_UPFRONT_NO:   do1mmUpFront   = false; break;
 		case ARG_1MM_MINLEN:       do1mmMinLen = parse<size_t>(arg); break;
+		case ARG_UNGAP_THRESH:     ungappedThresh = parse<size_t>(arg); break;
 		case ARG_NOISY_HPOLY: noisyHpolymer = true; break;
 		case 'x': bt2index = arg; break;
 		case ARG_PRESET_VERY_FAST_LOCAL: localAlign = true;
@@ -2911,6 +2915,7 @@ static void* multiseedSearchWorker(void *vp) {
 								myMaxeltPair,   // max elts to extend
 								maxhalf,        // max width on one DP side
 								doUngapped,     // do ungapped alignment
+								ungappedThresh, // # attempts before all ungapped
 								enable8,        // use 8-bit SSE where possible
 								refscan,        // use reference scanning?
 								tighten,        // -M score tightening mode
@@ -2946,6 +2951,7 @@ static void* multiseedSearchWorker(void *vp) {
 								myMaxelt,       // max elts to extend
 								maxhalf,        // max width on one DP side
 								doUngapped,     // do ungapped alignment
+								ungappedThresh, // # attempts before all ungapped
 								enable8,        // use 8-bit SSE where possible
 								refscan,        // use reference scanning?
 								tighten,        // -M score tightening mode
