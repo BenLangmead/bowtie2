@@ -3415,6 +3415,7 @@ int main(int argc, char **argv) {
 	maxeltConst       = DEFAULT_MAXELT_CONST;
 	maxeltCoeff       = DEFAULT_MAXELT_COEFF;
 	mhits           = 1;
+	ungappedThresh  = 6;
 	do {
 		next_option = getopt_long(argc, argv, short_opts, long_opts, &option_index);
 		switch (next_option) {
@@ -3462,7 +3463,8 @@ int main(int argc, char **argv) {
 					multiseedIvalB,
 					posmin,
 					maxelt,
-					mhits);
+					mhits,
+					ungappedThresh);
 				break;
 			}
 			case -1: break;

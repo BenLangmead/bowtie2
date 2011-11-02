@@ -365,7 +365,7 @@ static void resetOptions() {
 	do1mmMinLen = 60;        // length below which we disable 1mm search
 }
 
-static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:o:w:p:k:M:1:2:I:X:CQ:N:i:L:U:x:S:";
+static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:o:w:p:k:M:1:2:I:X:CQ:N:i:L:U:x:S:g:";
 
 static struct option long_options[] = {
 	{(char*)"verbose",      no_argument,       0,            ARG_VERBOSE},
@@ -429,7 +429,6 @@ static struct option long_options[] = {
 	{(char*)"fuzzy",        no_argument,       0,            ARG_FUZZY},
 	{(char*)"fullref",      no_argument,       0,            ARG_FULLREF},
 	{(char*)"usage",        no_argument,       0,            ARG_USAGE},
-	{(char*)"gaps",         no_argument,       0,            'g'},
 	{(char*)"sam-no-qname-trunc", no_argument, 0,            ARG_SAM_NO_QNAME_TRUNC},
 	{(char*)"sam-omit-sec-seq", no_argument,   0,            ARG_SAM_OMIT_SEC_SEQ},
 	{(char*)"sam-nohead",   no_argument,       0,            ARG_SAM_NOHEAD},
@@ -513,7 +512,7 @@ static struct option long_options[] = {
 	{(char*)"no-exact-upfront", no_argument,       0,        ARG_EXACT_UPFRONT_NO},
 	{(char*)"no-1mm-upfront",   no_argument,       0,        ARG_1MM_UPFRONT_NO},
 	{(char*)"1mm-minlen",       required_argument, 0,        ARG_1MM_MINLEN},
-	{(char*)"ungap-thresh",     required_argument, 0,        ARG_UNGAP_THRESH},
+	{(char*)"ungap-thresh",     required_argument, 0,        'g'},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -940,6 +939,13 @@ static void parseOption(int next_option, const char *arg) {
 			saw_M = true;
 			break;
 		}
+		case 'g': {
+			ungappedThresh = DEFAULT_UNGAPPED_HITS;
+			polstr += ";UNGAP=";
+			polstr += arg;
+			saw_M = true;
+			break;
+		}
 		case 'a': {
 			msample = false;
 			allHits = true;
@@ -1031,7 +1037,6 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_EXACT_UPFRONT_NO: doExactUpFront = false; break;
 		case ARG_1MM_UPFRONT_NO:   do1mmUpFront   = false; break;
 		case ARG_1MM_MINLEN:       do1mmMinLen = parse<size_t>(arg); break;
-		case ARG_UNGAP_THRESH:     ungappedThresh = parse<size_t>(arg); break;
 		case ARG_NOISY_HPOLY: noisyHpolymer = true; break;
 		case 'x': bt2index = arg; break;
 		case ARG_PRESET_VERY_FAST_LOCAL: localAlign = true;
@@ -1248,7 +1253,8 @@ static void parseOptions(int argc, const char **argv) {
 		multiseedLen,
 		msIval,
 		maxelt,
-		mhits);
+		mhits,
+		ungappedThresh);
 	if(saw_a || saw_k) {
 		msample = false;
 		mhits = 0;

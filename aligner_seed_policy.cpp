@@ -277,7 +277,8 @@ void SeedAlignmentPolicy::parseString(
 	int&   multiseedLen,
 	SimpleFunc& msIval,
 	SimpleFunc& maxelt,
-	uint32_t& mhits)
+	uint32_t& mhits,
+	size_t& ungappedThresh)
 {
 
 	bonusMatchType    = local ? DEFAULT_MATCH_BONUS_TYPE_LOCAL :
@@ -610,6 +611,19 @@ void SeedAlignmentPolicy::parseString(
 			if(ctoks.size() >= 1) {
 				istringstream tmpss(ctoks[0]);
 				tmpss >> mhits;
+			}
+		}
+		else if(tag == "UNGAP") {
+			if(ctoks.size() > 1) {
+				cerr << "Error parsing alignment policy setting "
+				     << "'" << tag << "'; RHS must have 1 token, "
+					 << "had " << ctoks.size() << ".  "
+					 << "Policy: '" << s << "'" << endl;
+				assert(false); throw 1;
+			}
+			if(ctoks.size() >= 1) {
+				istringstream tmpss(ctoks[0]);
+				tmpss >> ungappedThresh;
 			}
 		}
 		/*
