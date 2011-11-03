@@ -363,7 +363,7 @@ static void resetOptions() {
 	tighten = 1;             // -M tightening mode
 	doExactUpFront = true;   // do exact search up front if seeds seem good enough
 	do1mmUpFront = true;     // do 1mm search up front if seeds seem good enough
-	maxeltPairMult = 0.35f;  // multiply maxelt by this for paired-end
+	maxeltPairMult = 0.25f;  // multiply maxelt by this for paired-end
 	do1mmMinLen = 60;        // length below which we disable 1mm search
 }
 
