@@ -217,10 +217,11 @@ public:
 		// Throw the dart
 		double rd = rnd.nextFloat() * mass_;
 		double mass_sofar = 0.0f;
-		for(size_t i = 0; i < masses_.size(); i++) {
+		size_t sz = masses_.size();
+		for(size_t i = 0; i < sz; i++) {
 			if(!elim_[i]) {
 				mass_sofar += masses_[i];
-				if(rd < mass_sofar) {
+				if(rd < mass_sofar && i == sz - 1) {
 					// This is the one we hit
 					return i;
 				}
