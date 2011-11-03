@@ -1275,6 +1275,7 @@ public:
 		const BTDnaString& seq,
 		size_t dep,
 		size_t len,
+		bool do1mm,
 		uint32_t topfw,
 		uint32_t botfw,
 		uint32_t topbw,

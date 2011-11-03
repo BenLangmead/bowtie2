@@ -204,6 +204,7 @@ static int tighten;           // -M tighten mode (0=none, 1=best, 2=secbest+1)
 static bool doExactUpFront;   // do exact search up front if seeds seem good enough
 static bool do1mmUpFront;     // do 1mm search up front if seeds seem good enough
 static size_t do1mmMinLen;    // length below which we disable 1mm e2e search
+static float maxeltPairMult;  // multiple maxelt by this for paired-end
 
 static string bt2index;      // read Bowtie 2 index from files with this prefix
 static EList<pair<int, string> > extra_opts;
@@ -362,6 +363,7 @@ static void resetOptions() {
 	tighten = 1;             // -M tightening mode
 	doExactUpFront = true;   // do exact search up front if seeds seem good enough
 	do1mmUpFront = true;     // do 1mm search up front if seeds seem good enough
+	maxeltPairMult = 0.35f;  // multiply maxelt by this for paired-end
 	do1mmMinLen = 60;        // length below which we disable 1mm search
 }
 
@@ -513,6 +515,7 @@ static struct option long_options[] = {
 	{(char*)"no-1mm-upfront",   no_argument,       0,        ARG_1MM_UPFRONT_NO},
 	{(char*)"1mm-minlen",       required_argument, 0,        ARG_1MM_MINLEN},
 	{(char*)"ungap-thresh",     required_argument, 0,        'g'},
+	{(char*)"maxelt-pair-mult", required_argument, 0,        ARG_MAXELT_PAIR_MULT},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -943,7 +946,10 @@ static void parseOption(int next_option, const char *arg) {
 			ungappedThresh = DEFAULT_UNGAPPED_HITS;
 			polstr += ";UNGAP=";
 			polstr += arg;
-			saw_M = true;
+			break;
+		}
+		case ARG_MAXELT_PAIR_MULT: {
+			maxeltPairMult = parse<float>(arg);
 			break;
 		}
 		case 'a': {
@@ -2466,7 +2472,7 @@ static void* multiseedSearchWorker(void *vp) {
 
 	SimpleFunc myMaxeltPair = maxelt;
 	rp.boostThreshold(myMaxeltPair);
-	myMaxeltPair.mult(0.5f);
+	myMaxeltPair.mult(maxeltPairMult);
 
 	// Instantiate a mapping quality calculator
 	auto_ptr<Mapq> bmapq(new_mapq(mapqv, scoreMin, sc));

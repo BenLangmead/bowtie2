@@ -627,6 +627,7 @@ bool SeedAligner::sanityPartial(
 	const BTDnaString& seq,
 	size_t dep,
 	size_t len,
+	bool do1mm,
 	uint32_t topfw,
 	uint32_t botfw,
 	uint32_t topbw,
@@ -640,7 +641,7 @@ bool SeedAligner::sanityPartial(
 	ebwtFw->contains(tmpdnastr_, &top_fw, &bot_fw);
 	assert_eq(top_fw, topfw);
 	assert_eq(bot_fw, botfw);
-	if(ebwtBw != NULL) {
+	if(do1mm && ebwtBw != NULL) {
 		tmpdnastr_.reverse();
 		uint32_t top_bw = 0, bot_bw = 0;
 		ebwtBw->contains(tmpdnastr_, &top_bw, &bot_bw);
@@ -667,7 +668,6 @@ bool SeedAligner::oneMmSearch(
 	SeedResults&       hits,   // holds all the seed hits (and exact hit)
 	SeedSearchMetrics& met)    // metrics
 {
-	assert( rep1mm || ebwtBw == NULL);
 	assert(!rep1mm || ebwtBw != NULL);
 	const size_t len = read.length();
 	int nceil = sc.nCeil.f<int>((double)len);
@@ -767,7 +767,7 @@ bool SeedAligner::oneMmSearch(
 				// initialize tloc, bloc??
 			}
 			INIT_LOCS(top, bot, tloc, bloc, ebwt);
-			assert(sanityPartial(ebwt, ebwtp, seq, len-dep, len, top, bot, topp, botp));
+			assert(sanityPartial(ebwt, ebwtp, seq, len-dep, len, rep1mm, top, bot, topp, botp));
 			bool do_continue = false;
 			for(; dep < nea; dep++) {
 				assert_lt(dep, len);
@@ -802,7 +802,7 @@ bool SeedAligner::oneMmSearch(
 					// topp/botp stay the same
 				}
 				INIT_LOCS(top, bot, tloc, bloc, ebwt);
-				assert(sanityPartial(ebwt, ebwtp, seq, len - dep - 1, len, top, bot, topp, botp));
+				assert(sanityPartial(ebwt, ebwtp, seq, len - dep - 1, len, rep1mm, top, bot, topp, botp));
 			}
 			if(do_continue) {
 				continue;
@@ -845,7 +845,7 @@ bool SeedAligner::oneMmSearch(
 					assert(!rep1mm || b[clo] - t[clo] == bp[clo] - tp[clo]);
 					chi = clo;
 				}
-				//assert(sanityPartial(ebwt, ebwtp, seq, len - dep - 1, len, top, bot, topp, botp));
+				//assert(sanityPartial(ebwt, ebwtp, seq, len - dep - 1, len, rep1mm, top, bot, topp, botp));
 				if(rep1mm && (ns == 0 || rdc > 3)) {
 					for(int j = clo; j <= chi; j++) {
 						if(j == rdc || b[j] == t[j]) {
@@ -995,7 +995,7 @@ bool SeedAligner::oneMmSearch(
 						break; // End of far loop
 					} else {
 						INIT_LOCS(top, bot, tloc, bloc, ebwt);
-						assert(sanityPartial(ebwt, ebwtp, seq, len - dep - 1, len, top, bot, topp, botp));
+						assert(sanityPartial(ebwt, ebwtp, seq, len - dep - 1, len, rep1mm, top, bot, topp, botp));
 					}
 				} else {
 					break; // End of far loop
