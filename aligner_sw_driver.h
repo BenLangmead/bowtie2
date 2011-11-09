@@ -221,7 +221,7 @@ public:
 		for(size_t i = 0; i < sz; i++) {
 			if(!elim_[i]) {
 				mass_sofar += masses_[i];
-				if(rd < mass_sofar && i == sz - 1) {
+				if(rd < mass_sofar || i == sz - 1) {
 					// This is the one we hit
 					return i;
 				}
