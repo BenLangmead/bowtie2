@@ -74,7 +74,7 @@ static string metricsFile;// output file to put alignment metrics in
 static bool metricsStderr;// output file to put alignment metrics in
 static bool metricsPerRead; // report a metrics tuple for every read
 static bool allHits;      // for multihits, report just one
-static int showVersion;   // just print version and quit?
+static bool showVersion;  // just print version and quit?
 static int ipause;        // pause before maching?
 static uint32_t qUpto;    // max # of queries to read
 int gTrim5;         // amount to trim from 5' end
@@ -137,6 +137,7 @@ static bool sam_print_ym;
 static bool sam_print_yp;
 static bool sam_print_yt;
 static bool sam_print_ys;
+static bool sam_print_seed_fields;
 static bool bwaSwLike;
 static float bwaSwLikeC;
 static float bwaSwLikeT;
@@ -230,7 +231,7 @@ static void resetOptions() {
 	metricsStderr           = false; // print metrics to stderr (in addition to --metrics-file if it's specified
 	metricsPerRead          = false; // report a metrics tuple for every read?
 	allHits					= false; // for multihits, report just one
-	showVersion				= 0; // just print version and quit?
+	showVersion				= false; // just print version and quit?
 	ipause					= 0; // pause before maching?
 	qUpto					= 0xffffffff; // max # of queries to read
 	gTrim5					= 0; // amount to trim from 5' end
@@ -294,6 +295,7 @@ static void resetOptions() {
 	sam_print_yp            = false;
 	sam_print_yt            = true;
 	sam_print_ys            = true;
+	sam_print_seed_fields   = false;
 	bwaSwLike               = false;
 	bwaSwLikeC              = 5.5f;
 	bwaSwLikeT              = 20.0f;
@@ -395,7 +397,7 @@ static struct option long_options[] = {
 	{(char*)"qupto",        required_argument, 0,            'u'},
 	{(char*)"upto",         required_argument, 0,            'u'},
 	{(char*)"offrate",      required_argument, 0,            'o'},
-	{(char*)"version",      no_argument,       &showVersion, 1},
+	{(char*)"version",      no_argument,       0,            ARG_VERSION},
 	{(char*)"filepar",      no_argument,       0,            ARG_FILEPAR},
 	{(char*)"help",         no_argument,       0,            'h'},
 	{(char*)"threads",      required_argument, 0,            'p'},
@@ -516,6 +518,7 @@ static struct option long_options[] = {
 	{(char*)"1mm-minlen",       required_argument, 0,        ARG_1MM_MINLEN},
 	{(char*)"ungap-thresh",     required_argument, 0,        'g'},
 	{(char*)"maxelt-pair-mult", required_argument, 0,        ARG_MAXELT_PAIR_MULT},
+	{(char*)"seed-info",        no_argument,       0,        ARG_SEED_INFO},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -998,6 +1001,7 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_SAM_NOHEAD: samNoHead = true; break;
 		case ARG_SAM_NOSQ: samNoSQ = true; break;
 		case ARG_SAM_PRINT_YI: sam_print_yi = true; break;
+		case ARG_SEED_INFO: sam_print_seed_fields = true; break;
 		case ARG_SAM_RG: {
 			string arg = arg;
 			if(arg.substr(0, 3) == "ID:") {
@@ -1179,6 +1183,7 @@ static void parseOption(int next_option, const char *arg) {
 			}
 			break;
 		}
+		case ARG_VERSION: showVersion = 1; break;
 		default:
 			printUsage(cerr);
 			throw 1;
@@ -3321,7 +3326,8 @@ static void driver(
 			sam_print_ym,
 			sam_print_yp,
 			sam_print_yt,
-			sam_print_ys);
+			sam_print_ys,
+			sam_print_seed_fields);
 		// Set up hit sink; if sanityCheck && !os.empty() is true,
 		// then instruct the sink to "retain" hits in a vector in
 		// memory so that we can easily sanity check them later on

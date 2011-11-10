@@ -657,6 +657,8 @@ public:
 		const AlnRes      *rs1,
 		const AlnRes      *rs2,
 		const AlnSetSumm&  summ,
+		const SeedAlSumm&  ssm1,
+		const SeedAlSumm&  ssm2,
 		const AlnFlags*    flags1,
 		const AlnFlags*    flags2,
 		const Mapq&        mapq) = 0;
@@ -680,6 +682,8 @@ public:
 		const EList<AlnRes> *rs2,            // alignments for mate #2
 		bool                 maxed,          // true iff -m/-M exceeded
 		const AlnSetSumm&    summ,           // summary
+		const SeedAlSumm&    ssm1,           // seed alignment summ
+		const SeedAlSumm&    ssm2,           // seed alignment summ
 		const AlnFlags*      flags1,         // flags for mate #1
 		const AlnFlags*      flags2,         // flags for mate #2
 		const Mapq&          mapq,           // MAPQ generator
@@ -698,25 +702,30 @@ public:
 			flags2 = &flagscp2;
 			flagscp2.setPrimary(true);
 		}
-		for(size_t i = 0; i < select.size(); i++) {
-			// Determine the stream id using the coordinate of the
-			// upstream mate
-			Coord c = ((rs1 != NULL) ?
-				rs1->get(select[i]).refcoord() :
-				rs2->get(select[i]).refcoord());
-			const AlnRes* r1 = ((rs1 != NULL) ? &rs1->get(select[i]) : NULL);
-			const AlnRes* r2 = ((rs2 != NULL) ? &rs2->get(select[i]) : NULL);
+		{
+			// ASSUMING that sid doesn't change from alignment to alignment
+			Coord c(0, 0, true);
 			size_t sid = streamId(rdid, c);
-			assert_lt(sid, locks_.size());
-			{
-				ThreadSafe ts(&locks_[sid], getLock);
-				append(out(sid), rd1, rd2, rdid, r1, r2, summ, flags1, flags2, mapq);
-			}
-			if(flags1 != NULL) {
-				flagscp1.setPrimary(false);
-			}
-			if(flags2 != NULL) {
-				flagscp2.setPrimary(false);
+			ThreadSafe ts(&locks_[sid], getLock);
+			for(size_t i = 0; i < select.size(); i++) {
+				// Determine the stream id using the coordinate of the
+				// upstream mate
+				//Coord c = ((rs1 != NULL) ?
+				//	rs1->get(select[i]).refcoord() :
+				//	rs2->get(select[i]).refcoord());
+				//size_t sid = streamId(rdid, c);
+				const AlnRes* r1 = ((rs1 != NULL) ? &rs1->get(select[i]) : NULL);
+				const AlnRes* r2 = ((rs2 != NULL) ? &rs2->get(select[i]) : NULL);
+				assert_lt(sid, locks_.size());
+				{
+					append(out(sid), rd1, rd2, rdid, r1, r2, summ, ssm1, ssm2, flags1, flags2, mapq);
+				}
+				if(flags1 != NULL) {
+					flagscp1.setPrimary(false);
+				}
+				if(flags2 != NULL) {
+					flagscp2.setPrimary(false);
+				}
 			}
 		}
 	}
@@ -730,20 +739,18 @@ public:
 		const Read          *rd2,            // mate #2
 		const TReadId        rdid,           // read ID
 		const AlnSetSumm&    summ,           // summary
+		const SeedAlSumm&    ssm1,           // seed alignment summary
+		const SeedAlSumm&    ssm2,           // seed alignment summary
 		const AlnFlags*      flags1,         // flags for mate #1
 		const AlnFlags*      flags2,         // flags for mate #2
 		const Mapq&          mapq,
 		bool                 getLock = true) // true iff lock held by caller
 	{
-		{
-			// Determine the stream id using the coordinate of the
-			// upstream mate
-			Coord c(0, 0, true);
-			size_t sid = streamId(rdid, c);
-			assert_lt(sid, locks_.size());
-			ThreadSafe ts(&locks_[sid], getLock);
-			append(out(sid), rd1, rd2, rdid, NULL, NULL, summ, flags1, flags2, mapq);
-		}
+		Coord c(0, 0, true);
+		size_t sid = streamId(rdid, c);
+		assert_lt(sid, locks_.size());
+		ThreadSafe ts(&locks_[sid], getLock);
+		append(out(sid), rd1, rd2, rdid, NULL, NULL, summ, ssm1, ssm2, flags1, flags2, mapq);
 	}
 
 	/**
@@ -1352,16 +1359,18 @@ public:
 		const AlnRes* rs1,      // alignments for mate #1
 		const AlnRes* rs2,      // alignments for mate #2
 		const AlnSetSumm& summ, // summary
+		const SeedAlSumm& ssm1, // seed alignment summary
+		const SeedAlSumm& ssm2, // seed alignment summary
 		const AlnFlags* flags1, // flags for mate #1
 		const AlnFlags* flags2, // flags for mate #2
 		const Mapq&   mapq)
 	{
 		assert(rd1 != NULL || rd2 != NULL);
 		if(rd1 != NULL) {
-			appendMate(o, *rd1, rd2, rdid, rs1, rs2, summ, *flags1, mapq);
+			appendMate(o, *rd1, rd2, rdid, rs1, rs2, summ, ssm1, ssm2, *flags1, mapq);
 		}
 		if(rd2 != NULL) {
-			appendMate(o, *rd2, rd1, rdid, rs2, rs1, summ, *flags2, mapq);
+			appendMate(o, *rd2, rd1, rdid, rs2, rs1, summ, ssm2, ssm1, *flags2, mapq);
 		}
 	}
 
@@ -1380,6 +1389,8 @@ protected:
 		const AlnRes* rs,
 		const AlnRes* rso,
 		const AlnSetSumm& summ,
+		const SeedAlSumm& ssm,
+		const SeedAlSumm& ssmo,
 		const AlnFlags& flags,
 		const Mapq& mapq);
 
@@ -1446,6 +1457,8 @@ public:
 		const AlnRes* rs1,      // alignments for mate #1
 		const AlnRes* rs2,      // alignments for mate #2
 		const AlnSetSumm& summ, // summary
+		const SeedAlSumm& ssm1, // seed alignment summary
+		const SeedAlSumm& ssm2, // seed alignment summary
 		const AlnFlags* flags1, // flags for mate #1
 		const AlnFlags* flags2, // flags for mate #2
 		const Mapq&   mapq)
@@ -1453,11 +1466,11 @@ public:
 		assert(rd1 != NULL || rd2 != NULL);
 		if(rd1 != NULL) {
 			assert(flags1 != NULL);
-			appendMate(o, *rd1, rd2, rdid, rs1, rs2, summ, *flags1, mapq);
+			appendMate(o, *rd1, rd2, rdid, rs1, rs2, summ, ssm1, ssm2, *flags1, mapq);
 		}
 		if(rd2 != NULL) {
 			assert(flags2 != NULL);
-			appendMate(o, *rd2, rd1, rdid, rs2, rs1, summ, *flags2, mapq);
+			appendMate(o, *rd2, rd1, rdid, rs2, rs1, summ, ssm2, ssm1, *flags2, mapq);
 		}
 	}
 
@@ -1476,6 +1489,8 @@ protected:
 		const AlnRes* rs,
 		const AlnRes* rso,
 		const AlnSetSumm& summ,
+		const SeedAlSumm& ssm,
+		const SeedAlSumm& ssmo,
 		const AlnFlags& flags,
 		const Mapq&   mapq);
 

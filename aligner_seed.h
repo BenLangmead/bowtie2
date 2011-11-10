@@ -33,6 +33,7 @@
 // intermediate alignment results to files.  Otherwise, all data herein
 // is constant and shared, or per-thread.
 #include "threading.h"
+#include "aligner_result.h"
 #include "aligner_cache.h"
 #include "scoring.h"
 #include "mem_ids.h"
@@ -704,6 +705,62 @@ public:
 		mm1Elt_ = 0;
 		assert(empty());
 	}
+	
+	/**
+	 * Extract key summaries from this SeedResults and put into 'ssum'.
+	 */
+	void toSeedAlSumm(SeedAlSumm& ssum) const {
+		// Number of positions with at least 1 range
+		ssum.nonzTot   = nonzTot_;
+		ssum.nonzFw    = nonzFw_;
+		ssum.nonzRc    = nonzRc_;
+
+		// Number of ranges
+		ssum.nrangeTot = numRanges_;
+		ssum.nrangeFw  = numRangesFw_;
+		ssum.nrangeRc  = numRangesRc_;
+
+		// Number of elements
+		ssum.neltTot   = numElts_;
+		ssum.neltFw    = numEltsFw_;
+		ssum.neltRc    = numEltsRc_;
+		
+		// Other summaries
+		ssum.maxNonzRangeFw = ssum.minNonzRangeFw = 0;
+		ssum.maxNonzRangeRc = ssum.minNonzRangeRc = 0;
+		ssum.maxNonzEltFw = ssum.minNonzEltFw = 0;
+		ssum.maxNonzEltRc = ssum.minNonzEltRc = 0;
+		for(size_t i = 0; i < numOffs_; i++) {
+			if(hitsFw_[i].valid()) {
+				if(ssum.minNonzEltFw == 0 || hitsFw_[i].numElts() < ssum.minNonzEltFw) {
+					ssum.minNonzEltFw = hitsFw_[i].numElts();
+				}
+				if(ssum.maxNonzEltFw == 0 || hitsFw_[i].numElts() > ssum.maxNonzEltFw) {
+					ssum.maxNonzEltFw = hitsFw_[i].numElts();
+				}
+				if(ssum.minNonzRangeFw == 0 || hitsFw_[i].numRanges() < ssum.minNonzRangeFw) {
+					ssum.minNonzRangeFw = hitsFw_[i].numRanges();
+				}
+				if(ssum.maxNonzRangeFw == 0 || hitsFw_[i].numRanges() > ssum.maxNonzRangeFw) {
+					ssum.maxNonzRangeFw = hitsFw_[i].numRanges();
+				}
+			}
+			if(hitsRc_[i].valid()) {
+				if(ssum.minNonzEltRc == 0 || hitsRc_[i].numElts() < ssum.minNonzEltRc) {
+					ssum.minNonzEltRc = hitsRc_[i].numElts();
+				}
+				if(ssum.maxNonzEltRc == 0 || hitsRc_[i].numElts() > ssum.maxNonzEltRc) {
+					ssum.maxNonzEltRc = hitsRc_[i].numElts();
+				}
+				if(ssum.minNonzRangeRc == 0 || hitsRc_[i].numRanges() < ssum.minNonzRangeRc) {
+					ssum.minNonzRangeRc = hitsRc_[i].numRanges();
+				}
+				if(ssum.maxNonzRangeRc == 0 || hitsRc_[i].numRanges() > ssum.maxNonzRangeRc) {
+					ssum.maxNonzRangeRc = hitsRc_[i].numRanges();
+				}
+			}
+		}
+	}
 
 	/**
 	 * Return the number of ranges being held.
@@ -1257,30 +1314,23 @@ public:
 		SeedSearchMetrics& met);    // metrics
 
 	/**
-	 * Search for end-to-end exact hit for read.  Return true iff one is found.
+	 * Sanity-check a partial alignment produced during oneMmSearch.
 	 */
-#if 0
-	bool exactSearch(
-		const Ebwt* ebwtFw,         // BWT index
-		const Read& read,           // read to align
-		bool nofw,                  // don't align forward read
-		bool norc,                  // don't align revcomp read
-		SeedResults& hits,          // holds all the seed hits (and exact hit)
-		SeedSearchMetrics& met);    // metrics
-#endif
-
 	bool sanityPartial(
 		const Ebwt*        ebwtFw, // BWT index
 		const Ebwt*        ebwtBw, // BWT' index
 		const BTDnaString& seq,
-		size_t dep,
-		size_t len,
-		bool do1mm,
-		uint32_t topfw,
-		uint32_t botfw,
-		uint32_t topbw,
-		uint32_t botbw);
+		size_t             dep,
+		size_t             len,
+		bool               do1mm,
+		uint32_t           topfw,
+		uint32_t           botfw,
+		uint32_t           topbw,
+		uint32_t           botbw);
 
+	/**
+	 * Search for end-to-end alignments with up to 1 mismatch.
+	 */
 	bool oneMmSearch(
 		const Ebwt*        ebwtFw, // BWT index
 		const Ebwt*        ebwtBw, // BWT' index
