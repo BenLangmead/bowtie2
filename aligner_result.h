@@ -581,6 +581,48 @@ enum {
 };
 
 /**
+ * Seed alignment summary
+ */
+struct SeedAlSumm {
+
+	SeedAlSumm() { reset(); }
+	
+	void reset() {
+		nonzTot = nonzFw = nonzRc = 0;
+		nrangeTot = nrangeFw = nrangeRc = 0;
+		neltTot = neltFw = neltRc = 0;
+		minNonzRangeFw = minNonzRangeRc = 0;
+		maxNonzRangeFw = maxNonzRangeRc = 0;
+		minNonzEltFw = minNonzEltRc = 0;
+		maxNonzEltFw = maxNonzEltRc = 0;
+	}
+
+	size_t nonzTot;
+	size_t nonzFw;
+	size_t nonzRc;
+
+	size_t nrangeTot;
+	size_t nrangeFw;
+	size_t nrangeRc;
+
+	size_t neltTot;
+	size_t neltFw;
+	size_t neltRc;
+
+	size_t minNonzRangeFw;
+	size_t minNonzRangeRc;
+
+	size_t maxNonzRangeFw;
+	size_t maxNonzRangeRc;
+
+	size_t minNonzEltFw;
+	size_t minNonzEltRc;
+
+	size_t maxNonzEltFw;
+	size_t maxNonzEltRc;
+};
+
+/**
  * Encapsulates an alignment result, including for colorspace alignments.  The
  * result comprises:
  *

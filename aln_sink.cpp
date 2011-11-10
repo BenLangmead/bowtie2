@@ -793,6 +793,9 @@ void AlnSinkWrap::finishRead(
 				false,      // primary
 				true,       // opp aligned
 				rs1->fw()); // opp fw
+			SeedAlSumm ssm1, ssm2;
+			sr1->toSeedAlSumm(ssm1);
+			sr2->toSeedAlSumm(ssm2);
 			for(size_t i = 0; i < rs1_.size(); i++) {
 				rs1_[i].setMateParams(ALN_RES_TYPE_MATE1, &rs2_[i], flags1);
 				rs2_[i].setMateParams(ALN_RES_TYPE_MATE2, &rs1_[i], flags2);
@@ -808,6 +811,8 @@ void AlnSinkWrap::finishRead(
 				&rs2_,
 				pairMax,
 				concordSumm,
+				ssm1,
+				ssm2,
 				&flags1,
 				&flags2,
 				mapq_);
@@ -862,6 +867,9 @@ void AlnSinkWrap::finishRead(
 				false,      // primary
 				true,       // opp aligned
 				rs1->fw()); // opp fw
+			SeedAlSumm ssm1, ssm2;
+			sr1->toSeedAlSumm(ssm1);
+			sr2->toSeedAlSumm(ssm2);
 			for(size_t i = 0; i < rs1_.size(); i++) {
 				rs1_[i].setMateParams(ALN_RES_TYPE_MATE1, &rs2_[i], flags1);
 				rs2_[i].setMateParams(ALN_RES_TYPE_MATE2, &rs1_[i], flags2);
@@ -886,6 +894,8 @@ void AlnSinkWrap::finishRead(
 				&rs2_,
 				pairMax,
 				discordSumm,
+				ssm1,
+				ssm2,
 				&flags1,
 				&flags2,
 				mapq_);
@@ -1004,6 +1014,9 @@ void AlnSinkWrap::finishRead(
 				true,   // primary
 				false,  // opp aligned
 				false); // opp fw
+			SeedAlSumm ssm1, ssm2;
+			if(sr1 != NULL) sr1->toSeedAlSumm(ssm1);
+			if(sr2 != NULL) sr2->toSeedAlSumm(ssm2);
 			for(size_t i = 0; i < rs1u_.size(); i++) {
 				rs1u_[i].setMateParams(ALN_RES_TYPE_UNPAIRED_MATE1, NULL, flags1);
 			}
@@ -1026,6 +1039,8 @@ void AlnSinkWrap::finishRead(
 				NULL,
 				unpair1Max,
 				summ1,
+				ssm1,
+				ssm2,
 				&flags1,
 				NULL,
 				mapq_);
@@ -1058,6 +1073,9 @@ void AlnSinkWrap::finishRead(
 				true,   // primary
 				false,  // opp aligned
 				false); // opp fw
+			SeedAlSumm ssm1, ssm2;
+			if(sr1 != NULL) sr1->toSeedAlSumm(ssm1);
+			if(sr2 != NULL) sr2->toSeedAlSumm(ssm2);
 			for(size_t i = 0; i < rs2u_.size(); i++) {
 				rs2u_[i].setMateParams(ALN_RES_TYPE_UNPAIRED_MATE2, NULL, flags2);
 			}
@@ -1080,6 +1098,8 @@ void AlnSinkWrap::finishRead(
 				NULL,
 				unpair2Max,
 				summ2,
+				ssm1,
+				ssm2,
 				&flags2,
 				NULL,
 				mapq_);
@@ -1104,6 +1124,9 @@ void AlnSinkWrap::finishRead(
 					rd1_, NULL, NULL, NULL, NULL, NULL,
 					exhaust1, exhaust2, -1, -1);
 			}
+			SeedAlSumm ssm1, ssm2;
+			if(sr1 != NULL) sr1->toSeedAlSumm(ssm1);
+			if(sr2 != NULL) sr2->toSeedAlSumm(ssm2);
 			flags1.init(
 				readIsPair() ?
 					ALN_FLAG_PAIR_UNPAIRED_MATE1 :
@@ -1124,6 +1147,8 @@ void AlnSinkWrap::finishRead(
 				NULL,    // read 2
 				rdid_,   // read id
 				summ1,   // summ
+				ssm1,    // 
+				ssm2,
 				&flags1, // flags 1
 				NULL,    // flags 2
 				mapq_,   // MAPQ calculator
@@ -1140,6 +1165,9 @@ void AlnSinkWrap::finishRead(
 					NULL, rd2_, NULL, NULL, NULL, NULL,
 					exhaust1, exhaust2, -1, -1);
 			}
+			SeedAlSumm ssm1, ssm2;
+			if(sr1 != NULL) sr1->toSeedAlSumm(ssm1);
+			if(sr2 != NULL) sr2->toSeedAlSumm(ssm2);
 			flags2.init(
 				readIsPair() ?
 					ALN_FLAG_PAIR_UNPAIRED_MATE2 :
@@ -1160,6 +1188,8 @@ void AlnSinkWrap::finishRead(
 				NULL,    // read 2
 				rdid_,   // read id
 				summ2,   // summ
+				ssm1,
+				ssm2,
 				&flags2, // flags 1
 				NULL,    // flags 2
 				mapq_,   // MAPQ calculator
@@ -1620,6 +1650,8 @@ void AlnSinkVerbose::appendMate(
 	const AlnRes* rs,
 	const AlnRes* rso,
 	const AlnSetSumm& summ,
+	const SeedAlSumm& ssm,
+	const SeedAlSumm& ssmo,
 	const AlnFlags& flags,
 	const Mapq& mapqCalc)
 {
@@ -1933,8 +1965,10 @@ void AlnSinkSam::appendMate(
 	const AlnRes* rs,
 	const AlnRes* rso,
 	const AlnSetSumm& summ,
+	const SeedAlSumm& ssm,
+	const SeedAlSumm& ssmo,
 	const AlnFlags& flags,
-	const Mapq&   mapqCalc)
+	const Mapq& mapqCalc)
 {
 	char buf[1024];
 	int offAdj = ((rd.color && exEnds_) ? 1 : 0);
@@ -2154,13 +2188,15 @@ void AlnSinkSam::appendMate(
 			*rs,    // individual alignment result
 			flags,  // alignment flags
 			summ,   // summary of alignments for this read
+			ssm,    // seed alignment summary
 			mapqInps_);  // inputs to MAPQ calculation
 	} else {
 		samc_.printEmptyOptFlags(
 			o,      // output buffer
 			true,   // first opt flag printed is first overall?
 			flags,  // alignment flags
-			summ);  // summary of alignments for this read
+			summ,   // summary of alignments for this read
+			ssm);   // seed alignment summary
 	}
 	o.write('\n');
 }

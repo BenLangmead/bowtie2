@@ -20,7 +20,6 @@
 #include <string>
 #include "sam.h"
 #include "filebuf.h"
-#include "aligner_result.h"
 
 using namespace std;
 
@@ -123,6 +122,7 @@ void SamConfig::printAlignedOptFlags(
 	const AlnRes& res,      // individual alignment result
 	const AlnFlags& flags,  // alignment flags
 	const AlnSetSumm& summ, // summary of alignments for this read
+	const SeedAlSumm& ssm,  // seed alignment summary
 	const char *mapqInp)    // inputs to MAPQ calculation
 	const
 {
@@ -287,6 +287,93 @@ void SamConfig::printAlignedOptFlags(
 		WRITE_SEP();
 		o.writeString(rgs_);
 	}
+	if(print_seed_fields_) {
+		// Z0: # non-zero poss
+		WRITE_SEP();
+		o.writeChars("Z0:i:");
+		itoa10<TAlScore>(ssm.nonzTot, buf);
+		o.writeChars(buf);
+		// Z1: # non-zero poss fw
+		WRITE_SEP();
+		o.writeChars("Z1:i:");
+		itoa10<TAlScore>(ssm.nonzFw, buf);
+		o.writeChars(buf);
+		// Z2: # non-zero poss rc
+		WRITE_SEP();
+		o.writeChars("Z2:i:");
+		itoa10<TAlScore>(ssm.nonzRc, buf);
+		o.writeChars(buf);
+		// Z3: # ranges
+		WRITE_SEP();
+		o.writeChars("Z3:i:");
+		itoa10<TAlScore>(ssm.nrangeTot, buf);
+		o.writeChars(buf);
+		// Z4: # ranges fw
+		WRITE_SEP();
+		o.writeChars("Z4:i:");
+		itoa10<TAlScore>(ssm.nrangeFw, buf);
+		o.writeChars(buf);
+		// Z5: # ranges rc
+		WRITE_SEP();
+		o.writeChars("Z5:i:");
+		itoa10<TAlScore>(ssm.nrangeRc, buf);
+		o.writeChars(buf);
+		// Z6: # elements
+		WRITE_SEP();
+		o.writeChars("Z6:i:");
+		itoa10<TAlScore>(ssm.neltTot, buf);
+		o.writeChars(buf);
+		// Z7: # elements fw
+		WRITE_SEP();
+		o.writeChars("Z7:i:");
+		itoa10<TAlScore>(ssm.neltFw, buf);
+		o.writeChars(buf);
+		// Z8: # elements rc
+		WRITE_SEP();
+		o.writeChars("Z8:i:");
+		itoa10<TAlScore>(ssm.neltRc, buf);
+		o.writeChars(buf);
+		// Z9: min # ranges per nonz fw
+		WRITE_SEP();
+		o.writeChars("Z9:i:");
+		itoa10<TAlScore>(ssm.minNonzRangeFw, buf);
+		o.writeChars(buf);
+		// ZZ: min # ranges per nonz rc
+		WRITE_SEP();
+		o.writeChars("ZZ:i:");
+		itoa10<TAlScore>(ssm.minNonzRangeRc, buf);
+		o.writeChars(buf);
+		// ZY: max # ranges per nonz fw
+		WRITE_SEP();
+		o.writeChars("ZY:i:");
+		itoa10<TAlScore>(ssm.maxNonzRangeFw, buf);
+		o.writeChars(buf);
+		// ZX: max # ranges per nonz rc
+		WRITE_SEP();
+		o.writeChars("ZX:i:");
+		itoa10<TAlScore>(ssm.maxNonzRangeRc, buf);
+		o.writeChars(buf);
+		// ZW: min # elts per nonz fw
+		WRITE_SEP();
+		o.writeChars("ZW:i:");
+		itoa10<TAlScore>(ssm.minNonzEltFw, buf);
+		o.writeChars(buf);
+		// ZV: min # elts per nonz rc
+		WRITE_SEP();
+		o.writeChars("ZV:i:");
+		itoa10<TAlScore>(ssm.minNonzEltRc, buf);
+		o.writeChars(buf);
+		// ZU: max # elts per nonz fw
+		WRITE_SEP();
+		o.writeChars("ZU:i:");
+		itoa10<TAlScore>(ssm.maxNonzEltFw, buf);
+		o.writeChars(buf);
+		// ZT: max # elts per nonz rc
+		WRITE_SEP();
+		o.writeChars("ZT:i:");
+		itoa10<TAlScore>(ssm.maxNonzEltRc, buf);
+		o.writeChars(buf);
+	}
 }
 
 /**
@@ -296,9 +383,11 @@ void SamConfig::printEmptyOptFlags(
 	OutFileBuf& o,          // output buffer
 	bool first,             // first opt flag printed is first overall?
 	const AlnFlags& flags,  // alignment flags
-	const AlnSetSumm& summ) // summary of alignments for this read
+	const AlnSetSumm& summ, // summary of alignments for this read
+	const SeedAlSumm& ssm)  // seed alignment summary
 	const
 {
+	char buf[1024];
 	if(print_yt_) {
 		// YT:Z: String representing alignment type
 		WRITE_SEP();
@@ -321,5 +410,92 @@ void SamConfig::printEmptyOptFlags(
 	if(!rgs_.empty()) {
 		WRITE_SEP();
 		o.writeString(rgs_);
+	}
+	if(print_seed_fields_) {
+		// Z0: # non-zero poss
+		WRITE_SEP();
+		o.writeChars("Z0:i:");
+		itoa10<TAlScore>(ssm.nonzTot, buf);
+		o.writeChars(buf);
+		// Z1: # non-zero poss fw
+		WRITE_SEP();
+		o.writeChars("Z1:i:");
+		itoa10<TAlScore>(ssm.nonzFw, buf);
+		o.writeChars(buf);
+		// Z2: # non-zero poss rc
+		WRITE_SEP();
+		o.writeChars("Z2:i:");
+		itoa10<TAlScore>(ssm.nonzRc, buf);
+		o.writeChars(buf);
+		// Z3: # ranges
+		WRITE_SEP();
+		o.writeChars("Z3:i:");
+		itoa10<TAlScore>(ssm.nrangeTot, buf);
+		o.writeChars(buf);
+		// Z4: # ranges fw
+		WRITE_SEP();
+		o.writeChars("Z4:i:");
+		itoa10<TAlScore>(ssm.nrangeFw, buf);
+		o.writeChars(buf);
+		// Z5: # ranges rc
+		WRITE_SEP();
+		o.writeChars("Z5:i:");
+		itoa10<TAlScore>(ssm.nrangeRc, buf);
+		o.writeChars(buf);
+		// Z6: # elements
+		WRITE_SEP();
+		o.writeChars("Z6:i:");
+		itoa10<TAlScore>(ssm.neltTot, buf);
+		o.writeChars(buf);
+		// Z7: # elements fw
+		WRITE_SEP();
+		o.writeChars("Z7:i:");
+		itoa10<TAlScore>(ssm.neltFw, buf);
+		o.writeChars(buf);
+		// Z8: # elements rc
+		WRITE_SEP();
+		o.writeChars("Z8:i:");
+		itoa10<TAlScore>(ssm.neltRc, buf);
+		o.writeChars(buf);
+		// Z9: min # ranges per nonz fw
+		WRITE_SEP();
+		o.writeChars("Z9:i:");
+		itoa10<TAlScore>(ssm.minNonzRangeFw, buf);
+		o.writeChars(buf);
+		// ZZ: min # ranges per nonz rc
+		WRITE_SEP();
+		o.writeChars("ZZ:i:");
+		itoa10<TAlScore>(ssm.minNonzRangeRc, buf);
+		o.writeChars(buf);
+		// ZY: max # ranges per nonz fw
+		WRITE_SEP();
+		o.writeChars("ZY:i:");
+		itoa10<TAlScore>(ssm.maxNonzRangeFw, buf);
+		o.writeChars(buf);
+		// ZX: max # ranges per nonz rc
+		WRITE_SEP();
+		o.writeChars("ZX:i:");
+		itoa10<TAlScore>(ssm.maxNonzRangeRc, buf);
+		o.writeChars(buf);
+		// ZW: min # elts per nonz fw
+		WRITE_SEP();
+		o.writeChars("ZW:i:");
+		itoa10<TAlScore>(ssm.minNonzEltFw, buf);
+		o.writeChars(buf);
+		// ZV: min # elts per nonz rc
+		WRITE_SEP();
+		o.writeChars("ZV:i:");
+		itoa10<TAlScore>(ssm.minNonzEltRc, buf);
+		o.writeChars(buf);
+		// ZU: max # elts per nonz fw
+		WRITE_SEP();
+		o.writeChars("ZU:i:");
+		itoa10<TAlScore>(ssm.maxNonzEltFw, buf);
+		o.writeChars(buf);
+		// ZT: max # elts per nonz rc
+		WRITE_SEP();
+		o.writeChars("ZT:i:");
+		itoa10<TAlScore>(ssm.maxNonzEltRc, buf);
+		o.writeChars(buf);
 	}
 }

@@ -570,41 +570,6 @@ void SeedAligner::searchAllSeeds(
 	met.bweds += bwedits_;
 }
 
-#if 0
-/**
- * Search for end-to-end exact hit for read.  Return true iff one is found.
- */
-bool SeedAligner::exactSearch(
-	const Ebwt*        ebwtFw, // BWT index
-	const Read&        read,   // read to align
-	bool               nofw,   // don't align forward read
-	bool               norc,   // don't align revcomp read
-	SeedResults&       hits,   // holds all the seed hits (and exact hit)
-	SeedSearchMetrics& met)    // metrics
-{
-	assert(ebwtFw != NULL);
-	uint32_t top_fw = 0, bot_fw = 0, top_rc = 0, bot_rc = 0;
-	bool hit = false;
-	if(!nofw) {
-		if(!ebwtFw->contains(read.patFw, &top_fw, &bot_fw)) {
-			top_fw = bot_fw = 0;
-		} else {
-			hits.installExactHit(top_fw, bot_fw, true);
-			hit = true;
-		}
-	}
-	if(!norc) {
-		if(!ebwtFw->contains(read.patRc, &top_rc, &bot_rc)) {
-			top_rc = bot_rc = 0;
-		} else {
-			hits.installExactHit(top_rc, bot_rc, false);
-			hit = true;
-		}
-	}
-	return hit;
-}
-#endif
-
 #define INIT_LOCS(top, bot, tloc, bloc, ebwt) { \
 	if(bot - top == 1) { \
 		tloc.initFromRow(top, ebwt->eh(), ebwt->ebwt()); \

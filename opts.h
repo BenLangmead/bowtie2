@@ -43,8 +43,8 @@ enum {
 	ARG_FF,                     // --ff
 	ARG_FR,                     // --fr
 	ARG_RF,                     // --rf
-	ARG_NO_MIXED,               // --
-	ARG_NO_DISCORDANT,          // --
+	ARG_NO_MIXED,               // --no-mixed
+	ARG_NO_DISCORDANT,          // --no-discordant
 	ARG_CACHE_LIM,              // --
 	ARG_CACHE_SZ,               // --
 	ARG_NO_FW,                  // --nofw
@@ -125,7 +125,9 @@ enum {
 	ARG_EXACT_UPFRONT_NO,       // --no-exact-upfront
 	ARG_1MM_UPFRONT_NO,         // --no-1mm-upfront
 	ARG_1MM_MINLEN,             // --1mm-minlen
-	ARG_MAXELT_PAIR_MULT        // --maxelt-pair-mult
+	ARG_MAXELT_PAIR_MULT,       // --maxelt-pair-mult
+	ARG_VERSION,                // --version
+	ARG_SEED_INFO               // --seed-info
 };
 
 #endif
