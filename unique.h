@@ -123,7 +123,7 @@ public:
 		if(!hasSecbest) {
 			// Top third?
 			if(bestOver >= diff * (double)0.8f) {
-				ret = 44;
+				ret = 42;
 			} else if(bestOver >= diff * (double)0.7f) {
 				ret = 40;
 			} else if(bestOver >= diff * (double)0.6f) {
@@ -141,17 +141,34 @@ public:
 			secbest = s.secbest(mate1).score();
 			TAlScore bestdiff = abs(abs(best)-abs(secbest));
 			if(bestdiff >= diff * (double)0.9f) {
-				ret = 33; // was: 21
+				if(bestOver == diff) {
+					ret = 39;
+				} else {
+					ret = 33; // was: 21
+				}
 			} else if(bestdiff >= diff * (double)0.8f) {
-				ret = 27;
+				if(bestOver == diff) {
+					ret = 38;
+				} else {
+					ret = 27;
+				}
 			} else if(bestdiff >= diff * (double)0.7f) {
-				ret = 26;
+				if(bestOver == diff) {
+					ret = 37;
+				} else {
+					ret = 26;
+				}
 			} else if(bestdiff >= diff * (double)0.6f) {
-				ret = 22;
+				if(bestOver == diff) {
+					ret = 36;
+				} else {
+					ret = 22;
+				}
 			} else if(bestdiff >= diff * (double)0.5f) {
-				ret = 19;
 				// Top third is still pretty good
-				if       (bestOver >= diff * (double)0.84f) {
+				if       (bestOver == diff) {
+					ret = 35;
+				} else if(bestOver >= diff * (double)0.84f) {
 					ret = 25;
 				} else if(bestOver >= diff * (double)0.68f) {
 					ret = 16;
@@ -160,7 +177,9 @@ public:
 				}
 			} else if(bestdiff >= diff * (double)0.4f) {
 				// Top third is still pretty good
-				if       (bestOver >= diff * (double)0.84f) {
+				if       (bestOver == diff) {
+					ret = 34;
+				} else if(bestOver >= diff * (double)0.84f) {
 					ret = 21;
 				} else if(bestOver >= diff * (double)0.68f) {
 					ret = 14;
@@ -169,7 +188,9 @@ public:
 				}
 			} else if(bestdiff >= diff * (double)0.3f) {
 				// Top third is still pretty good
-				if       (bestOver >= diff * (double)0.88f) {
+				if       (bestOver == diff) {
+					ret = 32;
+				} else if(bestOver >= diff * (double)0.88f) {
 					ret = 18;
 				} else if(bestOver >= diff * (double)0.67f) {
 					ret = 12;
@@ -178,7 +199,9 @@ public:
 				}
 			} else if(bestdiff >= diff * (double)0.2f) {
 				// Top third is still pretty good
-				if       (bestOver >= diff * (double)0.88f) {
+				if       (bestOver == diff) {
+					ret = 31;
+				} else if(bestOver >= diff * (double)0.88f) {
 					ret = 17;
 				} else if(bestOver >= diff * (double)0.67f) {
 					ret = 11;
@@ -187,7 +210,9 @@ public:
 				}
 			} else if(bestdiff >= diff * (double)0.1f) {
 				// Top third is still pretty good
-				if       (bestOver >= diff * (double)0.88f) {
+				if       (bestOver == diff) {
+					ret = 30;
+				} else if(bestOver >= diff * (double)0.88f) {
 					ret = 15;
 				} else if(bestOver >= diff * (double)0.67f) {
 					ret = 6;
