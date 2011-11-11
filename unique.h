@@ -127,7 +127,7 @@ public:
 			} else if(bestOver >= diff * (double)0.7f) {
 				ret = 40;
 			} else if(bestOver >= diff * (double)0.6f) {
-				ret = 28;
+				ret = 24;
 			} else if(bestOver >= diff * (double)0.5f) {
 				ret = 24;
 			} else if(bestOver >= diff * (double)0.4f) {
