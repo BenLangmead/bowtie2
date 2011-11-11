@@ -824,7 +824,11 @@ static void parseOption(int next_option, const char *arg) {
 		case 'r': format = RAW; break;
 		case 'c': format = CMDLINE; break;
 		case ARG_QSEQ: format = QSEQ; break;
-		case 'C': gColor = true; break;
+		case 'C': {
+			cerr << "Error: -C specified but Bowtie 2 does not support colorspace input." << endl;
+			throw 1;
+			break;
+		}
 		case 'I':
 			gMinInsert = parseInt(0, "-I arg must be positive", arg);
 			break;

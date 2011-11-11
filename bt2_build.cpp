@@ -214,7 +214,10 @@ static void parseOptions(int argc, const char **argv) {
 			case 'f': format = FASTA; break;
 			case 'c': format = CMDLINE; break;
 			case 'p': packed = true; break;
-			case 'C': color = true; break;
+			case 'C':
+				cerr << "Error: -C specified but Bowtie 2 does not support colorspace input." << endl;
+				throw 1;
+				break;
 			case 'l':
 				lineRate = parseNumber<int>(3, "-l/--lineRate arg must be at least 3");
 				break;

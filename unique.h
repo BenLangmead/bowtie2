@@ -115,12 +115,13 @@ public:
 		TAlScore scPer = (TAlScore)sc_.perfectScore(rdlen);
 		TAlScore scMin = scoreMin_.f<TAlScore>((float)rdlen);
 		TAlScore secbest = scMin-1;
-		TAlScore diff = (scPer - scMin);
+		TAlScore diff = (scPer - scMin);  // scores can vary by up to this much
 		TMapq ret = 0;
-		TAlScore best = s.best(mate1).score();
+		TAlScore best = s.best(mate1).score(); // best score
+		// best score but normalized so that 0 = worst valid score
+		TAlScore bestOver = best - scMin;
 		if(!hasSecbest) {
 			// Top third?
-			TAlScore bestOver = best - scMin;
 			if(bestOver >= diff * (double)0.8f) {
 				ret = 44;
 			} else if(bestOver >= diff * (double)0.7f) {
@@ -140,7 +141,7 @@ public:
 			secbest = s.secbest(mate1).score();
 			TAlScore bestdiff = abs(abs(best)-abs(secbest));
 			if(bestdiff >= diff * (double)0.9f) {
-				ret = 21;
+				ret = 33; // was: 21
 			} else if(bestdiff >= diff * (double)0.8f) {
 				ret = 19;
 			} else if(bestdiff >= diff * (double)0.7f) {
@@ -152,13 +153,18 @@ public:
 			} else if(bestdiff >= diff * (double)0.4f) {
 				ret = 9;
 			} else if(bestdiff >= diff * (double)0.3f) {
-				ret = 3;
+				ret = 7;
 			} else if(bestdiff >= diff * (double)0.2f) {
-				ret = 3;
+				ret = 5;
 			} else if(bestdiff >= diff * (double)0.1f) {
 				ret = 3;
 			} else {
-				ret = 1;
+				// Top sixth is 
+				if(bestOver >= diff * (double)0.3f) {
+					ret = 1;
+				} else {
+					ret = 0;
+				}
 			}
 		}
 		if(flags.alignedConcordant()) {
