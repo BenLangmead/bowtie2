@@ -131,7 +131,7 @@ public:
 			} else if(bestOver >= diff * (double)0.5f) {
 				ret = 24;
 			} else if(bestOver >= diff * (double)0.4f) {
-				ret = 4;
+				ret = 8;
 			} else if(bestOver >= diff * (double)0.3f) {
 				ret = 2;
 			} else {
@@ -169,7 +169,7 @@ public:
 			} else if(bestdiff >= diff * (double)0.1f) {
 				// Top third is still pretty good
 				if(bestOver >= diff * (double)0.67f) {
-					ret = 12;
+					ret = 7;
 				} else {
 					ret = 0;
 				}
