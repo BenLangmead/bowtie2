@@ -153,14 +153,29 @@ public:
 			} else if(bestdiff >= diff * (double)0.4f) {
 				ret = 9;
 			} else if(bestdiff >= diff * (double)0.3f) {
-				ret = 7;
+				// Top third is still pretty good
+				if(bestOver >= diff * (double)0.33f) {
+					ret = 16;
+				} else {
+					ret = 1;
+				}
 			} else if(bestdiff >= diff * (double)0.2f) {
-				ret = 5;
+				// Top third is still pretty good
+				if(bestOver >= diff * (double)0.33f) {
+					ret = 15;
+				} else {
+					ret = 0;
+				}
 			} else if(bestdiff >= diff * (double)0.1f) {
-				ret = 3;
+				// Top third is still pretty good
+				if(bestOver >= diff * (double)0.33f) {
+					ret = 12;
+				} else {
+					ret = 0;
+				}
 			} else {
-				// Top sixth is 
-				if(bestOver >= diff * (double)0.3f) {
+				// Top third is still pretty good
+				if(bestOver >= diff * (double)0.33f) {
 					ret = 1;
 				} else {
 					ret = 0;
