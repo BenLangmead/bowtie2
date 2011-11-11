@@ -129,7 +129,7 @@ public:
 			} else if(bestOver >= diff * (double)0.6f) {
 				ret = 24;
 			} else if(bestOver >= diff * (double)0.5f) {
-				ret = 24;
+				ret = 23;
 			} else if(bestOver >= diff * (double)0.4f) {
 				ret = 8;
 			} else if(bestOver >= diff * (double)0.3f) {
@@ -147,7 +147,7 @@ public:
 			} else if(bestdiff >= diff * (double)0.7f) {
 				ret = 26;
 			} else if(bestdiff >= diff * (double)0.6f) {
-				ret = 24;
+				ret = 22;
 			} else if(bestdiff >= diff * (double)0.5f) {
 				ret = 19;
 			} else if(bestdiff >= diff * (double)0.4f) {
