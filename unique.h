@@ -150,26 +150,47 @@ public:
 				ret = 22;
 			} else if(bestdiff >= diff * (double)0.5f) {
 				ret = 19;
+				// Top third is still pretty good
+				if       (bestOver >= diff * (double)0.84f) {
+					ret = 25;
+				} else if(bestOver >= diff * (double)0.68f) {
+					ret = 16;
+				} else {
+					ret = 4;
+				}
 			} else if(bestdiff >= diff * (double)0.4f) {
-				ret = 16;
+				// Top third is still pretty good
+				if       (bestOver >= diff * (double)0.84f) {
+					ret = 21;
+				} else if(bestOver >= diff * (double)0.68f) {
+					ret = 14;
+				} else {
+					ret = 3;
+				}
 			} else if(bestdiff >= diff * (double)0.3f) {
 				// Top third is still pretty good
-				if(bestOver >= diff * (double)0.67f) {
-					ret = 17;
+				if       (bestOver >= diff * (double)0.88f) {
+					ret = 18;
+				} else if(bestOver >= diff * (double)0.67f) {
+					ret = 12;
 				} else {
 					ret = 1;
 				}
 			} else if(bestdiff >= diff * (double)0.2f) {
 				// Top third is still pretty good
-				if(bestOver >= diff * (double)0.67f) {
-					ret = 13;
+				if       (bestOver >= diff * (double)0.88f) {
+					ret = 17;
+				} else if(bestOver >= diff * (double)0.67f) {
+					ret = 11;
 				} else {
 					ret = 0;
 				}
 			} else if(bestdiff >= diff * (double)0.1f) {
 				// Top third is still pretty good
-				if(bestOver >= diff * (double)0.67f) {
-					ret = 9;
+				if       (bestOver >= diff * (double)0.88f) {
+					ret = 15;
+				} else if(bestOver >= diff * (double)0.67f) {
+					ret = 6;
 				} else {
 					ret = 0;
 				}
