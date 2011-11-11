@@ -143,33 +143,33 @@ public:
 			if(bestdiff >= diff * (double)0.9f) {
 				ret = 33; // was: 21
 			} else if(bestdiff >= diff * (double)0.8f) {
-				ret = 19;
+				ret = 27;
 			} else if(bestdiff >= diff * (double)0.7f) {
-				ret = 17;
+				ret = 26;
 			} else if(bestdiff >= diff * (double)0.6f) {
-				ret = 13;
+				ret = 24;
 			} else if(bestdiff >= diff * (double)0.5f) {
-				ret = 11;
+				ret = 19;
 			} else if(bestdiff >= diff * (double)0.4f) {
-				ret = 9;
+				ret = 16;
 			} else if(bestdiff >= diff * (double)0.3f) {
 				// Top third is still pretty good
 				if(bestOver >= diff * (double)0.67f) {
-					ret = 16;
+					ret = 17;
 				} else {
 					ret = 1;
 				}
 			} else if(bestdiff >= diff * (double)0.2f) {
 				// Top third is still pretty good
 				if(bestOver >= diff * (double)0.67f) {
-					ret = 15;
+					ret = 13;
 				} else {
 					ret = 0;
 				}
 			} else if(bestdiff >= diff * (double)0.1f) {
 				// Top third is still pretty good
 				if(bestOver >= diff * (double)0.67f) {
-					ret = 7;
+					ret = 9;
 				} else {
 					ret = 0;
 				}
