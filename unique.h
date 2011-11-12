@@ -144,7 +144,7 @@ public:
 				if(bestOver == diff) {
 					ret = 39;
 				} else {
-					ret = 33; // was: 21
+					ret = 33;
 				}
 			} else if(bestdiff >= diff * (double)0.8f) {
 				if(bestOver == diff) {

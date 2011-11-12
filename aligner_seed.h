@@ -761,6 +761,13 @@ public:
 			}
 		}
 	}
+	
+	/**
+	 * Return true iff this batch of seed results is very repetitive.  We say
+	 */
+	float averageHitsPerSeed() const {
+		return (float)numElts_ / (float)nonzTot_;
+	}
 
 	/**
 	 * Return the number of ranges being held.
