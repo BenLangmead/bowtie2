@@ -206,6 +206,7 @@ static bool doExactUpFront;   // do exact search up front if seeds seem good eno
 static bool do1mmUpFront;     // do 1mm search up front if seeds seem good enough
 static size_t do1mmMinLen;    // length below which we disable 1mm e2e search
 static float maxeltPairMult;  // multiple maxelt by this for paired-end
+static int seedBoostThresh;   // if average non-zero position has more than this many elements
 
 static string bt2index;      // read Bowtie 2 index from files with this prefix
 static EList<pair<int, string> > extra_opts;
@@ -366,6 +367,7 @@ static void resetOptions() {
 	doExactUpFront = true;   // do exact search up front if seeds seem good enough
 	do1mmUpFront = true;     // do 1mm search up front if seeds seem good enough
 	maxeltPairMult = 0.25f;  // multiply maxelt by this for paired-end
+	seedBoostThresh = 100;   // if average non-zero position has more than this many elements
 	do1mmMinLen = 60;        // length below which we disable 1mm search
 }
 
@@ -519,6 +521,7 @@ static struct option long_options[] = {
 	{(char*)"ungap-thresh",     required_argument, 0,        'g'},
 	{(char*)"maxelt-pair-mult", required_argument, 0,        ARG_MAXELT_PAIR_MULT},
 	{(char*)"seed-info",        no_argument,       0,        ARG_SEED_INFO},
+	{(char*)"seed-boost",       required_argument, 0,        ARG_SEED_BOOST_THRESH},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -957,6 +960,10 @@ static void parseOption(int next_option, const char *arg) {
 		}
 		case ARG_MAXELT_PAIR_MULT: {
 			maxeltPairMult = parse<float>(arg);
+			break;
+		}
+		case ARG_SEED_BOOST_THRESH: {
+			seedBoostThresh = parse<int>(arg);
 			break;
 		}
 		case 'a': {
@@ -2438,7 +2445,6 @@ static void* multiseedSearchWorker(void *vp) {
 	const Ebwt&             ebwtFw   = *multiseed_ebwtFw;
 	const Ebwt&             ebwtBw   = *multiseed_ebwtBw;
 	const Scoring&          sc       = *multiseed_sc;
-	const EList<Seed>&      seeds    = *multiseed_seeds;
 	const BitPairReference& ref      = *multiseed_refs;
 	AlignmentCache&         scShared = *multiseed_ca;
 	AlnSink&                msink    = *multiseed_msink;
@@ -2538,7 +2544,8 @@ static void* multiseedSearchWorker(void *vp) {
 	
 	PerfMetrics metricsPt; // per-thread metrics object; for read-level metrics
 	BTString nametmp;
-	
+	EList<Seed> seeds;
+
 	// Used by thread with threadid == 1 to measure time elapsed
 	time_t iTime = time(0);
 
@@ -2831,32 +2838,69 @@ static void* multiseedSearchWorker(void *vp) {
 						nofw = gNofw;
 						norc = gNorc;
 					}
-					// Instantiate the seeds
-					std::pair<int, int> inst = al.instantiateSeeds(
-						seeds,       // search seeds
-						interval,    // interval between seeds
-						*rds[mate],  // read to align
-						sc,          // scoring scheme
-						nofw,        // don't align forward read
-						norc,        // don't align revcomp read
-						ca,          // holds some seed hits from previous reads
-						shs[mate],   // holds all the seed hits
-						sdm);        // metrics
-					assert(shs[mate].repOk(&ca.current()));
-					if(inst.first + inst.second == 0) {
-						continue; // on to next mate
+					int seedlen = multiseedLen;
+					int iters = 0;
+					while(true) {
+						// Set up seeds
+						Constraint gc = Constraint::penaltyFuncBased(scoreMin);
+						seeds.clear();
+						ca.nextRead();
+						Seed::mmSeeds(
+							multiseedMms,    // max # mms per seed
+							seedlen,         // length of a multiseed seed
+							seeds,           // seeds
+							gc);             // global constraint
+						// Instantiate the seeds
+						std::pair<int, int> inst = al.instantiateSeeds(
+							seeds,       // search seeds
+							interval,    // interval between seeds
+							*rds[mate],  // read to align
+							sc,          // scoring scheme
+							nofw,        // don't align forward read
+							norc,        // don't align revcomp read
+							ca,          // holds some seed hits from previous reads
+							shs[mate],   // holds all the seed hits
+							sdm);        // metrics
+						assert(shs[mate].repOk(&ca.current()));
+						if(inst.first + inst.second == 0) {
+							continue; // on to next mate
+						}
+						// Align seeds
+						al.searchAllSeeds(
+							seeds,            // search seeds
+							&ebwtFw,          // BWT index
+							&ebwtBw,          // BWT' index
+							*rds[mate],       // read
+							sc,               // scoring scheme
+							ca,               // alignment cache
+							shs[mate],        // store seed hits here
+							sdm);             // metrics
+						assert(shs[mate].repOk(&ca.current()));
+						if(iters > 0 || shs[mate].averageHitsPerSeed() < seedBoostThresh) {
+							break;
+						}
+						// Decrease interval, increase seed length
+						bool changed = false;
+						if(interval > 1) {
+							interval = (int)(interval * 0.5 + 0.5);
+							if(interval < 1) {
+								interval = 1;
+							}
+							changed = true;
+						}
+						if(seedlen < 32) {
+							seedlen = (int)(seedlen * 1.33);
+							if(seedlen > 32) {
+								seedlen = 32;
+							}
+							changed = true;
+						}
+						if(!changed) {
+							// Can't do much more
+							break;
+						}
+						iters++;
 					}
-					// Align seeds
-					al.searchAllSeeds(
-						seeds,            // search seeds
-						&ebwtFw,          // BWT index
-						&ebwtBw,          // BWT' index
-						*rds[mate],       // read
-						sc,               // scoring scheme
-						ca,               // alignment cache
-						shs[mate],        // store seed hits here
-						sdm);             // metrics
-					assert(shs[mate].repOk(&ca.current()));
 					if(!seedSummaryOnly) {
 						// If there aren't any seed hits...
 						if(shs[mate].empty()) {
@@ -3061,7 +3105,6 @@ static void* multiseedSearchWorker(void *vp) {
  */
 static void multiseedSearch(
 	Scoring& sc,
-	EList<Seed>& seeds,
 	PairedPatternSource& patsrc,  // pattern source
 	AlnSink& msink,             // hit sink
 	Ebwt& ebwtFw,                 // index of original text
@@ -3073,7 +3116,6 @@ static void multiseedSearch(
 	multiseed_ebwtFw = &ebwtFw;
 	multiseed_ebwtBw = &ebwtBw;
 	multiseed_sc     = &sc;
-	multiseed_seeds  = &seeds;
 	multiseed_metricsOfb      = metricsOfb;
 	Timer *_t = new Timer(cerr, "Time loading reference: ", timing);
 	auto_ptr<BitPairReference> refs(
@@ -3359,14 +3401,6 @@ static void driver(
 			cerr << "Dispatching to search driver: "; logTime(cerr, true);
 		}
 		// Set up global constraint
-		Constraint gc = Constraint::penaltyFuncBased(scoreMin);
-		// Set up seeds
-		EList<Seed> seeds;
-		Seed::mmSeeds(
-			multiseedMms,    // max # mms allowed in a multiseed seed
-			multiseedLen,    // length of a multiseed seed (scales down if read is shorter)
-			seeds,           // seeds
-			gc);             // global constraint
 		OutFileBuf *metricsOfb = NULL;
 		if(!metricsFile.empty() && metricsIval > 0) {
 			metricsOfb = new OutFileBuf(metricsFile);
@@ -3376,7 +3410,6 @@ static void driver(
 		assert(mssink != NULL);
 		multiseedSearch(
 			sc,      // scoring scheme
-			seeds,   // seeds
 			*patsrc, // pattern source
 			*mssink, // hit sink
 			ebwt,    // BWT
