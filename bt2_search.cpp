@@ -1398,7 +1398,6 @@ static PairedPatternSource*     multiseed_patsrc;
 static Ebwt*                    multiseed_ebwtFw;
 static Ebwt*                    multiseed_ebwtBw;
 static Scoring*                 multiseed_sc;
-static EList<Seed>*             multiseed_seeds;
 static BitPairReference*        multiseed_refs;
 static AlignmentCache*          multiseed_ca; // seed cache
 static AlnSink*                 multiseed_msink;
