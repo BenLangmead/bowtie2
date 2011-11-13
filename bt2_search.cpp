@@ -2850,7 +2850,7 @@ static void* multiseedSearchWorker(void *vp) {
 						// Set up seeds
 						Constraint gc = Constraint::penaltyFuncBased(scoreMin);
 						seeds.clear();
-						//ca.nextRead();
+						ca.nextRead();
 						Seed::mmSeeds(
 							multiseedMms,    // max # mms per seed
 							seedlen,         // length of a multiseed seed
@@ -2890,19 +2890,19 @@ static void* multiseedSearchWorker(void *vp) {
 						// Decrease interval, increase seed length
 						bool changed = false;
 						if(interval > 1) {
-							interval = (int)(interval * 0.33 + 0.5);
+							interval = (int)(interval * 0.25 + 0.5);
 							if(interval < 1) {
 								interval = 1;
 							}
 							changed = true;
 						}
-						//if(seedlen < 32) {
-						//	seedlen = (int)(seedlen * 1.4);
-						//	if(seedlen > 32) {
-						//		seedlen = 32;
-						//	}
-						//	changed = true;
-						//}
+						if(seedlen < 32) {
+							seedlen = (int)(seedlen * 1.4);
+							if(seedlen > 32) {
+								seedlen = 32;
+							}
+							changed = true;
+						}
 						if(!changed) {
 							// Can't do much more
 							break;
