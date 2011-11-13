@@ -128,7 +128,8 @@ enum {
 	ARG_MAXELT_PAIR_MULT,       // --maxelt-pair-mult
 	ARG_VERSION,                // --version
 	ARG_SEED_INFO,              // --seed-info
-	ARG_SEED_BOOST_THRESH       // --seed-boost
+	ARG_SEED_BOOST_THRESH,      // --seed-boost
+	ARG_SEED_BOOST_ITERS        // --seed-boost-iters
 };
 
 #endif
