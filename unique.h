@@ -193,7 +193,7 @@ public:
 				} else if(bestOver >= diff * (double)0.88f) {
 					ret = 18;
 				} else if(bestOver >= diff * (double)0.67f) {
-					ret = 12;
+					ret = 15;
 				} else {
 					ret = 1;
 				}
@@ -213,7 +213,7 @@ public:
 				if       (bestOver == diff) {
 					ret = 30;
 				} else if(bestOver >= diff * (double)0.88f) {
-					ret = 15;
+					ret = 12;
 				} else if(bestOver >= diff * (double)0.67f) {
 					ret = 6;
 				} else {

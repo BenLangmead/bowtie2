@@ -207,6 +207,7 @@ static bool do1mmUpFront;     // do 1mm search up front if seeds seem good enoug
 static size_t do1mmMinLen;    // length below which we disable 1mm e2e search
 static float maxeltPairMult;  // multiple maxelt by this for paired-end
 static int seedBoostThresh;   // if average non-zero position has more than this many elements
+static int seedBoostMaxIters; // maximum number of seed-boosting iterations
 
 static string bt2index;      // read Bowtie 2 index from files with this prefix
 static EList<pair<int, string> > extra_opts;
@@ -368,6 +369,7 @@ static void resetOptions() {
 	do1mmUpFront = true;     // do 1mm search up front if seeds seem good enough
 	maxeltPairMult = 0.25f;  // multiply maxelt by this for paired-end
 	seedBoostThresh = 100;   // if average non-zero position has more than this many elements
+	seedBoostMaxIters = 1;   // maximum # of seed-boosting iterations
 	do1mmMinLen = 60;        // length below which we disable 1mm search
 }
 
@@ -522,6 +524,7 @@ static struct option long_options[] = {
 	{(char*)"maxelt-pair-mult", required_argument, 0,        ARG_MAXELT_PAIR_MULT},
 	{(char*)"seed-info",        no_argument,       0,        ARG_SEED_INFO},
 	{(char*)"seed-boost",       required_argument, 0,        ARG_SEED_BOOST_THRESH},
+	{(char*)"seed-boost-iters", required_argument, 0,        ARG_SEED_BOOST_ITERS},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -964,6 +967,10 @@ static void parseOption(int next_option, const char *arg) {
 		}
 		case ARG_SEED_BOOST_THRESH: {
 			seedBoostThresh = parse<int>(arg);
+			break;
+		}
+		case ARG_SEED_BOOST_ITERS: {
+			seedBoostMaxIters = parse<int>(arg);
 			break;
 		}
 		case 'a': {
@@ -2875,20 +2882,22 @@ static void* multiseedSearchWorker(void *vp) {
 							shs[mate],        // store seed hits here
 							sdm);             // metrics
 						assert(shs[mate].repOk(&ca.current()));
-						if(iters > 0 || shs[mate].averageHitsPerSeed() < seedBoostThresh) {
+						if(iters >= seedBoostMaxIters ||
+						   shs[mate].averageHitsPerSeed() < seedBoostThresh)
+						{
 							break;
 						}
 						// Decrease interval, increase seed length
 						bool changed = false;
 						if(interval > 1) {
-							interval = (int)(interval * 0.5 + 0.5);
+							interval = (int)(interval * 0.25 + 0.5);
 							if(interval < 1) {
 								interval = 1;
 							}
 							changed = true;
 						}
 						if(seedlen < 32) {
-							seedlen = (int)(seedlen * 1.33);
+							seedlen = (int)(seedlen * 1.4);
 							if(seedlen > 32) {
 								seedlen = 32;
 							}

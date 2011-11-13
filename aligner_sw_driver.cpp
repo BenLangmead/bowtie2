@@ -952,6 +952,11 @@ bool SwDriver::extendSeeds(
 							if(tighten == 1) {
 								if(msink->bestUnp1() >= minsc) {
 									minsc = msink->bestUnp1();
+									if(minsc < perfectScore &&
+									   msink->bestUnp1() == msink->secondBestUnp1())
+									{
+										minsc++;
+									}
 								}
 							} else {
 								if(msink->secondBestUnp1() >= minsc) {
@@ -1160,6 +1165,11 @@ bool SwDriver::extendSeedsPaired(
 	if(tighten > 0 && msink->Mmode() && msink->hasSecondBestPair()) {
 		// Paired-end alignments should have at least this score from now
 		TAlScore ps = ((tighten == 1) ? msink->bestPair() : msink->secondBestPair());
+		if(tighten == 1 && ps < bestPairScore &&
+		   msink->bestPair() == msink->secondBestPair())
+		{
+			ps++;
+		}
 		if(tighten == 2 && ps < bestPairScore) {
 			ps++;
 		}
@@ -1610,6 +1620,11 @@ bool SwDriver::extendSeedsPaired(
 							if(tighten > 0 && msink->Mmode() && msink->hasSecondBestPair()) {
 								// Paired-end alignments should have at least this score from now
 								TAlScore ps = ((tighten == 1) ? msink->bestPair() : msink->secondBestPair());
+								if(tighten == 1 && ps < bestPairScore &&
+								   msink->bestPair() == msink->secondBestPair())
+								{
+									ps++;
+								}
 								if(tighten == 2 && ps < bestPairScore) {
 									ps++;
 								}
@@ -1834,6 +1849,11 @@ bool SwDriver::extendSeedsPaired(
 											if(tighten > 0 && msink->Mmode() && msink->hasSecondBestPair()) {
 												// Paired-end alignments should have at least this score from now
 												TAlScore ps = ((tighten == 1) ? msink->bestPair() : msink->secondBestPair());
+												if(tighten == 1 && ps < bestPairScore &&
+												   msink->bestPair() == msink->secondBestPair())
+												{
+													ps++;
+												}
 												if(tighten == 2 && ps < bestPairScore) {
 													ps++;
 												}

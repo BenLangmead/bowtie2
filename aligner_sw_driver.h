@@ -195,7 +195,8 @@ public:
 		mass_ = 0.0f;
 		masses_.resize(saf - sai);
 		for(size_t i = sai; i < saf; i++) {
-			masses_[i - sai] = (1.0f / sqrt((double)salist[i].sat.size()));
+			//masses_[i - sai] = (1.0f / sqrt((double)salist[i].sat.size()));
+			masses_[i - sai] = (1.0 / ((double)salist[i].sat.size() * (double)salist[i].sat.size()));
 			mass_ += masses_[i - sai];
 		}
 	}
