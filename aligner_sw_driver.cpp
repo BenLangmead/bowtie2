@@ -1835,7 +1835,40 @@ bool SwDriver::extendSeedsPaired(
 									// Report an unpaired alignment
 									assert(!msink->maxed());
 									assert(!msink->state().done());
-									bool donePaired = false,  doneUnpaired = false;
+									bool doneUnpaired = false;
+									if(mixed || discord) {
+										// Report alignment for mate #1 as an
+										// unpaired alignment.
+										if(!anchor1 || !didAnchor) {
+											if(anchor1) {
+												didAnchor = true;
+											}
+											const AlnRes& r1 = anchor1 ?
+												res->alres : oresGap_.alres;
+											if(!redMate1_.overlap(r1)) {
+												redMate1_.add(r1);
+												if(msink->report(0, &r1, NULL)) {
+													doneUnpaired = true; // Short-circuited
+												}
+											}
+										}
+										// Report alignment for mate #2 as an
+										// unpaired alignment.
+										if(anchor1 || !didAnchor) {
+											if(!anchor1) {
+												didAnchor = true;
+											}
+											const AlnRes& r2 = anchor1 ?
+												oresGap_.alres : res->alres;
+											if(!redMate2_.overlap(r2)) {
+												redMate2_.add(r2);
+												if(msink->report(0, NULL, &r2)) {
+													doneUnpaired = true; // Short-circuited
+												}
+											}
+										}
+									} // if(mixed || discord)
+									bool donePaired = false;
 									if(pairCl != PE_ALS_DISCORD) {
 										if(msink->report(
 										       0,
@@ -1871,40 +1904,7 @@ bool SwDriver::extendSeedsPaired(
 												assert_leq(minsc, perfectScore);
 											}
 										}
-									}
-
-									if(mixed || discord) {
-										// Report alignment for mate #1 as an
-										// unpaired alignment.
-										if(!anchor1 || !didAnchor) {
-											if(anchor1) {
-												didAnchor = true;
-											}
-											const AlnRes& r1 = anchor1 ?
-												res->alres : oresGap_.alres;
-											if(!redMate1_.overlap(r1)) {
-												redMate1_.add(r1);
-												if(msink->report(0, &r1, NULL)) {
-													doneUnpaired = true; // Short-circuited
-												}
-											}
-										}
-										// Report alignment for mate #2 as an
-										// unpaired alignment.
-										if(anchor1 || !didAnchor) {
-											if(!anchor1) {
-												didAnchor = true;
-											}
-											const AlnRes& r2 = anchor1 ?
-												oresGap_.alres : res->alres;
-											if(!redMate2_.overlap(r2)) {
-												redMate2_.add(r2);
-												if(msink->report(0, NULL, &r2)) {
-													doneUnpaired = true; // Short-circuited
-												}
-											}
-										}
-									}
+									} // if(pairCl != PE_ALS_DISCORD)
 									if(donePaired || doneUnpaired) {
 										return true;
 									}
