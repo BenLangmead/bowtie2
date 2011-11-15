@@ -110,6 +110,7 @@ struct QKey {
 			}
 			ASSERT_ONLY(toString(tmp));
 			assert(sstr_eq(tmp, s));
+			assert_leq(len, 32);
 			return true; // was cacheable
 		}
 	}
