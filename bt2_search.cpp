@@ -2860,6 +2860,7 @@ static void* multiseedSearchWorker(void *vp) {
 					}
 					int seedlen = multiseedLen;
 					int iters = 0;
+					bool skip = false;
 					while(true) {
 						// Set up seeds
 						Constraint gc = Constraint::penaltyFuncBased(scoreMin);
@@ -2884,7 +2885,8 @@ static void* multiseedSearchWorker(void *vp) {
 							sdm);        // metrics
 						assert(shs[mate].repOk(&ca.current()));
 						if(inst.first + inst.second == 0) {
-							continue; // on to next mate
+							skip = true;
+							break; // on to next mate
 						}
 						// Align seeds
 						al.searchAllSeeds(
@@ -2923,6 +2925,9 @@ static void* multiseedSearchWorker(void *vp) {
 							break;
 						}
 						iters++;
+					}
+					if(skip) {
+						continue;
 					}
 					if(!seedSummaryOnly) {
 						// If there aren't any seed hits...
