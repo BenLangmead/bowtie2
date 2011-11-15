@@ -208,6 +208,8 @@ static size_t do1mmMinLen;    // length below which we disable 1mm e2e search
 static float maxeltPairMult;  // multiple maxelt by this for paired-end
 static int seedBoostThresh;   // if average non-zero position has more than this many elements
 static int seedBoostMaxIters; // maximum number of seed-boosting iterations
+static float seedBoostIvalMult;
+static float seedBoostLenMult;
 
 static string bt2index;      // read Bowtie 2 index from files with this prefix
 static EList<pair<int, string> > extra_opts;
@@ -370,6 +372,8 @@ static void resetOptions() {
 	maxeltPairMult = 0.25f;  // multiply maxelt by this for paired-end
 	seedBoostThresh = 100;   // if average non-zero position has more than this many elements
 	seedBoostMaxIters = 1;   // maximum # of seed-boosting iterations
+	seedBoostIvalMult = 0.33;
+	seedBoostLenMult = 1.5;
 	do1mmMinLen = 60;        // length below which we disable 1mm search
 }
 
@@ -525,6 +529,8 @@ static struct option long_options[] = {
 	{(char*)"seed-info",        no_argument,       0,        ARG_SEED_INFO},
 	{(char*)"seed-boost",       required_argument, 0,        ARG_SEED_BOOST_THRESH},
 	{(char*)"seed-boost-iters", required_argument, 0,        ARG_SEED_BOOST_ITERS},
+	{(char*)"seed-boost-ival-mult", required_argument, 0,    ARG_SEED_BOOST_IVAL_MULT},
+	{(char*)"seed-boost-len-mult",  required_argument, 0,    ARG_SEED_BOOST_LEN_MULT},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -971,6 +977,14 @@ static void parseOption(int next_option, const char *arg) {
 		}
 		case ARG_SEED_BOOST_ITERS: {
 			seedBoostMaxIters = parse<int>(arg);
+			break;
+		}
+		case ARG_SEED_BOOST_IVAL_MULT: {
+			seedBoostIvalMult = parse<float>(arg);
+			break;
+		}
+		case ARG_SEED_BOOST_LEN_MULT: {
+			seedBoostLenMult = parse<float>(arg);
 			break;
 		}
 		case 'a': {
@@ -2851,6 +2865,7 @@ static void* multiseedSearchWorker(void *vp) {
 						Constraint gc = Constraint::penaltyFuncBased(scoreMin);
 						seeds.clear();
 						ca.nextRead();
+						shs[mate].clear();
 						Seed::mmSeeds(
 							multiseedMms,    // max # mms per seed
 							seedlen,         // length of a multiseed seed
@@ -2890,14 +2905,14 @@ static void* multiseedSearchWorker(void *vp) {
 						// Decrease interval, increase seed length
 						bool changed = false;
 						if(interval > 1) {
-							interval = (int)(interval * 0.25 + 0.5);
+							interval = (int)(interval * seedBoostIvalMult + 0.5);
 							if(interval < 1) {
 								interval = 1;
 							}
 							changed = true;
 						}
 						if(seedlen < 32) {
-							seedlen = (int)(seedlen * 1.4);
+							seedlen = (int)(seedlen * seedBoostLenMult);
 							if(seedlen > 32) {
 								seedlen = 32;
 							}

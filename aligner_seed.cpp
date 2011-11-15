@@ -429,6 +429,7 @@ pair<int, int> SeedAligner::instantiateSeeds(
 				depth,
 				fw);
 			QKey qk(sr.seqs(fw)[i] ASSERT_ONLY(, tmpdnastr_));
+			assert_leq(qk.len, 32);
 			QVal* qv;
 			if(qk.cacheable() && (qv = cache.queryCopy(qk)) != NULL) {
 				// This seed hit was found recently and the hitting QVal is
