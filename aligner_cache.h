@@ -773,6 +773,7 @@ public:
 	 * current-read cache, NULL is returned.
 	 */
 	QVal* queryCopy(const QKey& qk, bool getLock = true) {
+		assert(qk.cacheable());
 		AlignmentCache* caches[3] = { current_, local_, shared_ };
 		for(int i = 0; i < 3; i++) {
 			if(caches[i] == NULL) continue;
@@ -804,6 +805,7 @@ public:
 		AlignmentCache** which,
 		bool getLock = true)
 	{
+		assert(qk.cacheable());
 		AlignmentCache* caches[3] = { current_, local_, shared_ };
 		for(int i = 0; i < 3; i++) {
 			if(caches[i] == NULL) continue;
@@ -945,7 +947,7 @@ public:
 		assert(repOk());
 		ASSERT_ONLY(BTDnaString tmp);
 		SAKey sak(rfseq ASSERT_ONLY(, tmp));
-		assert(sak.cacheable());
+		//assert(sak.cacheable());
 		if(current_->addOnTheFly((*qv_), sak, topf, botf, getLock)) {
 			rangen_++;
 			eltsn_ += (botf-topf);
@@ -964,6 +966,7 @@ public:
 		EList<SATuple, S>& satups,
 		bool getLock = true)
 	{
+		assert(k.cacheable());
 		current_->queryEx(k, satups, getLock);
 	}
 
