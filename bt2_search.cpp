@@ -353,7 +353,7 @@ static void resetOptions() {
 	exactCacheCurrentMB = 20; // # MB to use for current-read seed hit cacheing
 	maxhalf            = 15; // max width on one side of DP table
 	seedSummaryOnly    = false; // print summary information about seed hits, not alignments
-	doUngapped         = true;  // do ungapped alignment
+	doUngapped         = false; // do ungapped alignment
 	ungappedThresh     = std::numeric_limits<size_t>::max();// all attempts after this many are ungapped
 	enable8            = true;  // use 8-bit SSE where possible?
 	refscan            = false; // use reference scanning?
