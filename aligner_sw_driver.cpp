@@ -620,11 +620,9 @@ bool SwDriver::extendSeeds(
 				WalkResult wr;
 				uint32_t elt = rands_[i].next(rnd);
 				gws_[i].advanceElement(elt, wr, wlm);
-				if(!eeMode) {
-					eltsDone++;
-					assert_gt(neltLeft, 0);
-					neltLeft--;
-				}
+				eltsDone++;
+				assert_gt(neltLeft, 0);
+				neltLeft--;
 				assert_neq(0xffffffff, wr.toff);
 				uint32_t tidx = 0, toff = 0, tlen = 0;
 				ebwt.joinedToTextOff(
@@ -1303,11 +1301,9 @@ bool SwDriver::extendSeedsPaired(
 				WalkResult wr;
 				uint32_t elt = rands_[i].next(rnd);
 				gws_[i].advanceElement(elt, wr, wlm);
-				if(!eeMode) {
-					eltsDone++;
-					assert_gt(neltLeft, 0);
-					neltLeft--;
-				}
+				eltsDone++;
+				assert_gt(neltLeft, 0);
+				neltLeft--;
 				assert_neq(0xffffffff, wr.toff);
 				uint32_t tidx = 0, toff = 0, tlen = 0;
 				ebwt.joinedToTextOff(

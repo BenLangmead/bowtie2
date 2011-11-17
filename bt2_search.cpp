@@ -2620,14 +2620,14 @@ static void* multiseedSearchWorker(void *vp) {
 					}
 				}
 			}
+			// Try to align this read
 			while(retry) {
 				qv = NULL;
 				retry = false;
 				assert_eq(ps->bufa().color, gColor);
-				ca.nextRead();
+				ca.nextRead(); // clear the cache
 				olm.reads++;
 				assert(!ca.aligning());
-				// NB: read may be either unpaired or paired-end at this point
 				bool pair = paired;
 				const size_t rdlen1 = ps->bufa().length();
 				const size_t rdlen2 = pair ? ps->bufb().length() : 0;
@@ -2668,12 +2668,6 @@ static void* multiseedSearchWorker(void *vp) {
 				}
 				size_t rdlens[2] = { rdlen1, rdlen2 };
 				size_t rdrows[2] = { rdlen1, rdlen2 };
-				if(gColor) {
-					rdrows[0]++;
-					if(rdrows[1] > 0) {
-						rdrows[1]++;
-					}
-				}
 				// Calculate the minimum valid score threshold for the read
 				TAlScore minsc[2];
 				minsc[0] = minsc[1] = std::numeric_limits<TAlScore>::max();
@@ -2689,44 +2683,33 @@ static void* multiseedSearchWorker(void *vp) {
 					}
 				} else {
 					minsc[0] = scoreMin.f<TAlScore>(rdlens[0]);
-					if(paired) {
-						minsc[1] = scoreMin.f<TAlScore>(rdlens[1]);
-					}
+					if(paired) minsc[1] = scoreMin.f<TAlScore>(rdlens[1]);
 					if(localAlign) {
 						if(minsc[0] < 0) {
-							if(!gQuiet) {
-								printLocalScoreMsg(*ps, paired, true);
-							}
+							if(!gQuiet) printLocalScoreMsg(*ps, paired, true);
 							minsc[0] = 0;
 						}
 						if(paired && minsc[1] < 0) {
-							if(!gQuiet) {
-								printLocalScoreMsg(*ps, paired, false);
-							}
+							if(!gQuiet) printLocalScoreMsg(*ps, paired, false);
 							minsc[1] = 0;
 						}
 					} else {
 						if(minsc[0] > 0) {
-							if(!gQuiet) {
-								printEEScoreMsg(*ps, paired, true);
-							}
+							if(!gQuiet) printEEScoreMsg(*ps, paired, true);
 							minsc[0] = 0;
 						}
 						if(paired && minsc[1] > 0) {
-							if(!gQuiet) {
-								printEEScoreMsg(*ps, paired, false);
-							}
+							if(!gQuiet) printEEScoreMsg(*ps, paired, false);
 							minsc[1] = 0;
 						}
 					}
 				}
-				// Calculate the local-alignment score floor for the read
+				// Calculate the local-alignment score floor for the read; it's
+				// pretty much always 0
 				TAlScore floorsc[2];
 				if(localAlign) {
 					floorsc[0] = scoreFloor.f<TAlScore>(rdlens[0]);
-					if(paired) {
-						floorsc[1] = scoreFloor.f<TAlScore>(rdlens[1]);
-					}
+					if(paired) floorsc[1] = scoreFloor.f<TAlScore>(rdlens[1]);
 				} else {
 					floorsc[0] = floorsc[1] = std::numeric_limits<TAlScore>::min();
 				}
@@ -2745,40 +2728,20 @@ static void* multiseedSearchWorker(void *vp) {
 				scfilt[1] = sc.scoreFilter(minsc[1], rdlens[1]);
 				lenfilt[0] = lenfilt[1] = true;
 				if(rdlens[0] <= (size_t)multiseedMms || rdlens[0] < 2) {
-					if(!gQuiet) {
-						printMmsSkipMsg(*ps, paired, true, multiseedMms);
-					}
+					if(!gQuiet) printMmsSkipMsg(*ps, paired, true, multiseedMms);
 					lenfilt[0] = false;
 				}
 				if((rdlens[1] <= (size_t)multiseedMms || rdlens[1] < 2) && paired) {
-					if(!gQuiet) {
-						printMmsSkipMsg(*ps, paired, false, multiseedMms);
-					}
+					if(!gQuiet) printMmsSkipMsg(*ps, paired, false, multiseedMms);
 					lenfilt[1] = false;
 				}
-				
 				if(rdlens[0] < 2) {
-					if(!gQuiet) {
-						printLenSkipMsg(*ps, paired, true);
-					}
+					if(!gQuiet) printLenSkipMsg(*ps, paired, true);
 					lenfilt[0] = false;
 				}
 				if(rdlens[1] < 2 && paired) {
-					if(!gQuiet) {
-						printLenSkipMsg(*ps, paired, false);
-					}
+					if(!gQuiet) printLenSkipMsg(*ps, paired, false);
 					lenfilt[1] = false;
-				}
-				
-				if(gColor && gColorExEnds) {
-					if(rdlens[0] < 3) {
-						printColorLenSkipMsg(*ps, paired, true);
-						lenfilt[0] = false;
-					}
-					if(rdlens[1] < 3 && paired) {
-						printColorLenSkipMsg(*ps, paired, false);
-						lenfilt[1] = false;
-					}
 				}
 				qcfilt[0] = qcfilt[1] = true;
 				if(qcFilter) {
@@ -2790,13 +2753,50 @@ static void* multiseedSearchWorker(void *vp) {
 				const Read* rds[2] = { &ps->bufa(), &ps->bufb() };
 				// For each mate...
 				assert(msinkwrap.empty());
-				sd.nextRead(paired, rdrows[0], rdrows[1]);
+				sd.nextRead(paired, rdrows[0], rdrows[1]); // SwDriver
+				
+#if 0
+				// Try end-to-end alignment here?
+				if((doExactUpFront || do1mmUpFront) &&
+				   (fewestEditsFw <= 1 || fewestEditsRc <= 1))
+				{
+					bool yfw = fewestEditsFw <= 1 && !nofw;
+					bool yrc = fewestEditsRc <= 1 && !norc;
+					bool do1mm = do1mmUpFront;
+					if(do1mm && minsc[mate] == sc.perfectScore(rdlens[mate])) {
+						do1mm = false;
+					}
+					if(do1mm && rdlens[mate] < do1mmMinLen) {
+						do1mm = false;
+					}
+					if(doExactUpFront) {
+						swmSeed.exatts++;
+					}
+					if(do1mm) {
+						swmSeed.mm1atts++;
+					}
+					al.oneMmSearch(
+						&ebwtFw,        // BWT index
+						&ebwtBw,        // BWT' index
+						*rds[mate],     // read
+						sc,             // scoring scheme
+						minsc[mate],    // minimum score
+						!yfw,           // don't align forward read
+						!yrc,           // don't align revcomp read
+						localAlign,     // must be legal local alns?
+						doExactUpFront, // do exact match
+						do1mm,          // do 1mm
+						shs[mate],      // seed hits (hits installed here)
+						sdm);           // metrics
+				}
+#endif
+				
+				// Do seed alignment here?  And in paired-end mode, select the
+				// seed that seems more unique/promising?
+				
 				bool matemap[2] = { 0, 1 };
 				bool pairPostFilt = filt[0] && filt[1];
 				if(pairPostFilt) {
-					// Search for seeds first!
-					
-					
 					rnd.init(ROTL((rds[0]->seed ^ rds[1]->seed), 10));
 					if(rnd.nextU2() == 0) {
 						// Swap order in which mates are investigated
@@ -2822,7 +2822,6 @@ static void* multiseedSearchWorker(void *vp) {
 					assert_geq(rds[mate]->length(), 0);
 					assert(!msinkwrap.maxed());
 					assert(msinkwrap.repOk());
-					QKey qkr(rds[mate]->patFw ASSERT_ONLY(, tmp));
 					rnd.init(ROTL(rds[mate]->seed, 10));
 					// Seed search
 					shs[mate].clear(); // clear seed hits
