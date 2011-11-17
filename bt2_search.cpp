@@ -2807,6 +2807,7 @@ static void* multiseedSearchWorker(void *vp) {
 						if(!filt[mate]) {
 							continue;
 						}
+						shs[mate].clear(); // clear seed hits
 						assert_geq(rds[mate]->length(), 0);
 						al.exactSweep(
 							ebwtFw,
@@ -2851,7 +2852,6 @@ static void* multiseedSearchWorker(void *vp) {
 					assert(msinkwrap.repOk());
 					rnd.init(ROTL(rds[mate]->seed, 10));
 					// Seed search
-					shs[mate].clear(); // clear seed hits
 					assert(shs[mate].repOk(&ca.current()));
 					// Calculate the seed interval as a
 					// function of the read length
