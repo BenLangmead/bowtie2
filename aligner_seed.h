@@ -656,7 +656,7 @@ public:
 		size_t numOffs)
 	{
 		assert_gt(numOffs, 0);
-		clear();
+		clearSeeds();
 		numOffs_ = numOffs;
 		seqFw_.resize(numOffs_);
 		seqRc_.resize(numOffs_);
