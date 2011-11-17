@@ -581,6 +581,9 @@ bool SwDriver::extendSeeds(
 				break;
 			}
 		}
+		// neltLeft is initialized separately, once for the end-to-end hits and
+		// once for the seed hits.  eltsDone and maxelt are initialized once
+		// and carried over across end-to-end & seed modes.
 		for(size_t i = 0; i < gws_.size(); i++) {
 			if(eeMode && eehits_[i].score < minsc) {
 				break;
@@ -1268,7 +1271,7 @@ bool SwDriver::extendSeedsPaired(
 			if(eeMode && eehits_[i].score < minsc) {
 				break;
 			}
-			bool small = satpos_[i].sat.size() < nsm;
+			bool small       = satpos_[i].sat.size() < nsm;
 			bool fw          = satpos_[i].pos.fw;
 			uint32_t rdoff   = satpos_[i].pos.rdoff;
 			uint32_t seedlen = satpos_[i].pos.seedlen;
@@ -1284,7 +1287,8 @@ bool SwDriver::extendSeedsPaired(
 			// range is large, just investigate one and move on - we might come
 			// back to this range later.
 			while(!rands_[i].done() &&
-			      (eltsDone < maxelt && (first || small)))
+			      (eeMode ||
+			      (eltsDone < maxelt && (first || small))))
 			{
 				if(minsc == perfectScore) {
 					if(!eeMode || eehits_[i].score < perfectScore) {
@@ -1299,9 +1303,11 @@ bool SwDriver::extendSeedsPaired(
 				WalkResult wr;
 				uint32_t elt = rands_[i].next(rnd);
 				gws_[i].advanceElement(elt, wr, wlm);
-				eltsDone++;
-				assert_gt(neltLeft, 0);
-				neltLeft--;
+				if(!eeMode) {
+					eltsDone++;
+					assert_gt(neltLeft, 0);
+					neltLeft--;
+				}
 				assert_neq(0xffffffff, wr.toff);
 				uint32_t tidx = 0, toff = 0, tlen = 0;
 				ebwt.joinedToTextOff(
