@@ -571,12 +571,12 @@ void SeedAligner::searchAllSeeds(
 	met.bweds += bwedits_;
 }
 
-#define INIT_LOCS(top, bot, tloc, bloc, ebwt) { \
+#define INIT_LOCS(top, bot, tloc, bloc, e) { \
 	if(bot - top == 1) { \
-		tloc.initFromRow(top, ebwt->eh(), ebwt->ebwt()); \
+		tloc.initFromRow(top, (e).eh(), (e).ebwt()); \
 		bloc.invalidate(); \
 	} else { \
-		SideLocus::initFromTopBot(top, bot, ebwt->eh(), ebwt->ebwt(), tloc, bloc); \
+		SideLocus::initFromTopBot(top, bot, (e).eh(), (e).ebwt(), tloc, bloc); \
 		assert(bloc.valid()); \
 	} \
 }
@@ -615,6 +615,132 @@ bool SeedAligner::sanityPartial(
 		assert_eq(bot_bw, botbw);
 	}
 	return true;
+}
+
+/**
+ * Sweep right-to-left and left-to-right using exact matching.  Remember all
+ * the SA ranges encountered along the way.  Report exact matches if there are
+ * any.  Calculate a lower bound on the number of edits in an end-to-end
+ * alignment.
+ */
+void SeedAligner::exactSweep(
+	const Ebwt&        ebwt,    // BWT index
+	const Read&        read,    // read to align
+	const Scoring&     sc,      // scoring scheme
+	bool               nofw,    // don't align forward read
+	bool               norc,    // don't align revcomp read
+	size_t             mineMax, // don't care about edit bounds > this
+	size_t&            mineFw,  // minimum # edits for forward read
+	size_t&            mineRc,  // minimum # edits for revcomp read
+	bool               repex,   // report 0mm hits?
+	SeedResults&       hits,    // holds all the seed hits (and exact hit)
+	SeedSearchMetrics& met)     // metrics
+{
+	assert_gt(mineMax, 0);
+	uint32_t top = 0, bot = 0;
+	SideLocus tloc, bloc;
+	const size_t len = read.length();
+	for(int fwi = 0; fwi < 2; fwi++) {
+		bool fw = (fwi == 0);
+		if( fw && nofw) continue;
+		if(!fw && norc) continue;
+		const BTDnaString& seq = fw ? read.patFw : read.patRc;
+		assert(!seq.empty());
+		int ftabLen = ebwt.eh().ftabChars();
+		size_t dep = 0;
+		size_t nedit = 0;
+		bool done = false;
+		while(dep < len && !done) {
+			top = bot = 0;
+			size_t left = len - dep;
+			assert_gt(left, 0);
+			bool doFtab = ftabLen > 1 && left >= (size_t)ftabLen;
+			if(doFtab) {
+				// Does N interfere with use of Ftab?
+				for(size_t i = 0; i < (size_t)ftabLen; i++) {
+					int c = seq[len-dep-1-i];
+					if(c > 3) {
+						doFtab = false;
+						break;
+					}
+				}
+			}
+			if(doFtab) {
+				// Use ftab
+				ebwt.ftabLoHi(seq, len - dep - ftabLen, false, top, bot);
+				dep += (size_t)ftabLen;
+			} else {
+				// Use fchr
+				int c = seq[len-dep-1];
+				if(c < 4) {
+					top = ebwt.fchr()[c];
+					bot = ebwt.fchr()[c+1];
+				}
+				dep++;
+			}
+			if(bot <= top) {
+				nedit++;
+				if(nedit >= mineMax) {
+					if(fw) { mineFw = nedit; } else { mineRc = nedit; }
+					break;
+				}
+				continue;
+			}
+			INIT_LOCS(top, bot, tloc, bloc, ebwt);
+			// Keep going
+			while(dep < len) {
+				int c = seq[len-dep-1];
+				if(c > 3) {
+					top = bot = 0;
+				} else {
+					if(bloc.valid()) {
+						bwops_ += 2;
+						top = ebwt.mapLF(tloc, c);
+						bot = ebwt.mapLF(bloc, c);
+					} else {
+						bwops_++;
+						top = ebwt.mapLF1(top, tloc, c);
+						if(top == 0xffffffff) {
+							top = bot = 0;
+						} else {
+							bot = top+1;
+						}
+					}
+				}
+				if(bot <= top) {
+					nedit++;
+					if(nedit >= mineMax) {
+						if(fw) { mineFw = nedit; } else { mineRc = nedit; }
+						done = true;
+					}
+					break;
+				}
+				INIT_LOCS(top, bot, tloc, bloc, ebwt);
+				dep++;
+			}
+			if(done) {
+				break;
+			}
+			if(dep == len) {
+				// Set the minimum # edits
+				if(fw) { mineFw = nedit; } else { mineRc = nedit; }
+				// Done
+				if(nedit == 0 && bot > top && repex) {
+					// This is an exact hit
+					int64_t score = len * sc.match();
+					if(fw) {
+						hits.addExactEeFw(top, bot, NULL, NULL, fw, score);
+						assert(ebwt.contains(seq, NULL, NULL));
+					} else {
+						hits.addExactEeRc(top, bot, NULL, NULL, fw, score);
+						assert(ebwt.contains(seq, NULL, NULL));
+					}
+				}
+				break;
+			}
+			dep++;
+		}
+	}
 }
 
 /**
@@ -732,7 +858,7 @@ bool SeedAligner::oneMmSearch(
 				dep = 1;
 				// initialize tloc, bloc??
 			}
-			INIT_LOCS(top, bot, tloc, bloc, ebwt);
+			INIT_LOCS(top, bot, tloc, bloc, *ebwt);
 			assert(sanityPartial(ebwt, ebwtp, seq, len-dep, len, rep1mm, top, bot, topp, botp));
 			bool do_continue = false;
 			for(; dep < nea; dep++) {
@@ -767,7 +893,7 @@ bool SeedAligner::oneMmSearch(
 					assert(!rep1mm || b[rdc] - t[rdc] == bp[rdc] - tp[rdc]);
 					// topp/botp stay the same
 				}
-				INIT_LOCS(top, bot, tloc, bloc, ebwt);
+				INIT_LOCS(top, bot, tloc, bloc, *ebwt);
 				assert(sanityPartial(ebwt, ebwtp, seq, len - dep - 1, len, rep1mm, top, bot, topp, botp));
 			}
 			if(do_continue) {
@@ -834,7 +960,7 @@ bool SeedAligner::oneMmSearch(
 						bmp[0] = bp[0]; bmp[1] = tp[1];
 						bmp[2] = bp[2]; bmp[3] = tp[3];
 						SideLocus tlocm, blocm;
-						INIT_LOCS(topm, botm, tlocm, blocm, ebwt);
+						INIT_LOCS(topm, botm, tlocm, blocm, *ebwt);
 						for(; depm < len; depm++) {
 							int rdcm = seq[len - depm - 1];
 							tmp[0] = tmp[1] = tmp[2] = tmp[3] = topmp;
@@ -861,7 +987,7 @@ bool SeedAligner::oneMmSearch(
 								botm = topm + 1;
 								// topp/botp stay the same
 							}
-							INIT_LOCS(topm, botm, tlocm, blocm, ebwt);
+							INIT_LOCS(topm, botm, tlocm, blocm, *ebwt);
 						}
 						if(depm == len) {
 							// Success; this is a 1MM hit
@@ -960,7 +1086,7 @@ bool SeedAligner::oneMmSearch(
 						}
 						break; // End of far loop
 					} else {
-						INIT_LOCS(top, bot, tloc, bloc, ebwt);
+						INIT_LOCS(top, bot, tloc, bloc, *ebwt);
 						assert(sanityPartial(ebwt, ebwtp, seq, len - dep - 1, len, rep1mm, top, bot, topp, botp));
 					}
 				} else {

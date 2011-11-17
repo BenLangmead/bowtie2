@@ -156,7 +156,7 @@ my @cases = (
 	  #            TTGTTCGTTTGTT
 	  #                    TTGTTCGT-----
 	  reads  => [ "TTGTTCGTTTGTT" ],
-	  args   =>   "--local -L 8 -i C,4,0 -g 10",
+	  args   =>   "--local -L 8 -i C,1,0",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1, 8 => 1 } ],
 	  flags_map => [{
