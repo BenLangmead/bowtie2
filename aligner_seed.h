@@ -681,9 +681,9 @@ public:
 	}
 	
 	/**
-	 * Clear buffered seed hits and state.
+	 * Clear seed-hit state.
 	 */
-	void clear() {
+	void clearSeeds() {
 		sortedFw_.clear();
 		sortedRc_.clear();
 		rankOffs_.clear();
@@ -697,6 +697,13 @@ public:
 		numEltsFw_ = 0;
 		numRangesRc_ = 0;
 		numEltsRc_ = 0;
+	}
+	
+	/**
+	 * Clear seed-hit state and end-to-end alignment state.
+	 */
+	void clear() {
+		clearSeeds();
 		read_ = NULL;
 		exactFwHit_.reset();
 		exactRcHit_.reset();
