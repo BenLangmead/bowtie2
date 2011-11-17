@@ -1904,16 +1904,16 @@ struct PerfMetrics {
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 
-		// # times the best (out of fw/rc) minimum # edits was 0
-		itoa10<uint64_t>(total ? swmSeed.exatts : swmuSeed.exatts, buf);
+		// 36. # times the best (out of fw/rc) minimum # edits was 0
+		itoa10<uint64_t>(total ? sdm.bestmin0 : sdmu.bestmin0, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// # times the best (out of fw/rc) minimum # edits was 1
-		itoa10<uint64_t>(total ? swmSeed.exatts : swmuSeed.exatts, buf);
+		// 37. # times the best (out of fw/rc) minimum # edits was 1
+		itoa10<uint64_t>(total ? sdm.bestmin1 : sdmu.bestmin1, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// # times the best (out of fw/rc) minimum # edits was 2
-		itoa10<uint64_t>(total ? swmSeed.exatts : swmuSeed.exatts, buf);
+		// 38. # times the best (out of fw/rc) minimum # edits was 2
+		itoa10<uint64_t>(total ? sdm.bestmin2 : sdmu.bestmin2, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 		
