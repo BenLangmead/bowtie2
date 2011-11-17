@@ -2194,6 +2194,7 @@ void AlnSinkSam::appendMate(
 		samc_.printEmptyOptFlags(
 			o,      // output buffer
 			true,   // first opt flag printed is first overall?
+			rd,     // read
 			flags,  // alignment flags
 			summ,   // summary of alignments for this read
 			ssm);   // seed alignment summary

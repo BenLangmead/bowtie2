@@ -18,6 +18,7 @@
  */
 
 #include <string>
+#include <sys/time.h>
 #include "sam.h"
 #include "filebuf.h"
 
@@ -374,6 +375,19 @@ void SamConfig::printAlignedOptFlags(
 		itoa10<TAlScore>(ssm.maxNonzEltRc, buf);
 		o.writeChars(buf);
 	}
+	if(print_xt_) {
+		// XT:i: Timing
+		WRITE_SEP();
+		struct timeval  tv_end;
+		struct timezone tz_end;
+		gettimeofday(&tv_end, &tz_end);
+		size_t total_usecs =
+			(tv_end.tv_sec  - rd.tv_beg.tv_sec) * 1000000 +
+			(tv_end.tv_usec - rd.tv_beg.tv_usec);
+		itoa10<size_t>(total_usecs, buf);
+		o.writeChars("XT:i:");
+		o.writeChars(buf);
+	}
 }
 
 /**
@@ -382,6 +396,7 @@ void SamConfig::printAlignedOptFlags(
 void SamConfig::printEmptyOptFlags(
 	OutFileBuf& o,          // output buffer
 	bool first,             // first opt flag printed is first overall?
+	const Read& rd,         // read
 	const AlnFlags& flags,  // alignment flags
 	const AlnSetSumm& summ, // summary of alignments for this read
 	const SeedAlSumm& ssm)  // seed alignment summary
@@ -496,6 +511,19 @@ void SamConfig::printEmptyOptFlags(
 		WRITE_SEP();
 		o.writeChars("ZT:i:");
 		itoa10<TAlScore>(ssm.maxNonzEltRc, buf);
+		o.writeChars(buf);
+	}
+	if(print_xt_) {
+		// XT:i: Timing
+		WRITE_SEP();
+		struct timeval  tv_end;
+		struct timezone tz_end;
+		gettimeofday(&tv_end, &tz_end);
+		size_t total_usecs =
+			(tv_end.tv_sec  - rd.tv_beg.tv_sec) * 1000000 +
+			(tv_end.tv_usec - rd.tv_beg.tv_usec);
+		itoa10<size_t>(total_usecs, buf);
+		o.writeChars("XT:i:");
 		o.writeChars(buf);
 	}
 }
