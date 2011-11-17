@@ -356,7 +356,7 @@ static void resetOptions() {
 	exactCacheCurrentMB = 20; // # MB to use for current-read seed hit cacheing
 	maxhalf            = 15; // max width on one side of DP table
 	seedSummaryOnly    = false; // print summary information about seed hits, not alignments
-	doUngapped         = false; // do ungapped alignment
+	doUngapped         = true;  // do ungapped alignment
 	ungappedThresh     = std::numeric_limits<size_t>::max();// all attempts after this many are ungapped
 	enable8            = true;  // use 8-bit SSE where possible?
 	refscan            = false; // use reference scanning?
@@ -1303,6 +1303,10 @@ static void parseOptions(int argc, const char **argv) {
 		maxelt,
 		mhits,
 		ungappedThresh);
+	// BLT: Overriding ungappedThresh because it performs so badly for long
+	// reads.  This doesn't preclude switching over to ungapped alignment mode
+	// when the minimum score allows.
+	ungappedThresh = std::numeric_limits<size_t>::max();
 	if(saw_a || saw_k) {
 		msample = false;
 		mhits = 0;
