@@ -575,7 +575,7 @@ bool SwAligner::align(RandomSource& rnd) {
 #endif
 	assert(repOk());
 	cural_ = 0;
-	if(best == std::numeric_limits<TAlScore>::min()) {
+	if(best == std::numeric_limits<TAlScore>::min() || best < minsc_) {
 		//gettimeofday(&tv_f, &tz_f);
 		//size_t total_usecs =
 		//	(tv_f.tv_sec - tv_i.tv_sec) * 1000000 + (tv_f.tv_usec - tv_i.tv_usec);

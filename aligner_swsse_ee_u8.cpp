@@ -853,10 +853,18 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag) {
 	flag = 0;
 	
 	// Did we find a solution?
+	TAlScore score = std::numeric_limits<TAlScore>::min();
 	if(!found) {
 		flag = -1; // no
 		met.dpfail++;
 		return std::numeric_limits<TAlScore>::min();
+	} else {
+		score = (TAlScore)(lrmax - 0xff);
+		if(score < minsc_) {
+			flag = -1; // no
+			met.dpfail++;
+			return score;
+		}
 	}
 	
 	// Could we have saturated?
@@ -868,7 +876,7 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag) {
 	
 	// Return largest score
 	met.dpsucc++;
-	return (TAlScore)(lrmax - 0xff);
+	return score;
 }
 
 /**

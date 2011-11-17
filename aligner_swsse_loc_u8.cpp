@@ -686,17 +686,17 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag) {
 
 	flag = 0;
 	
+	// Did we find a solution?
+	if(score == std::numeric_limits<TCScore>::min() || score < minsc_) {
+		flag = -1; // no
+		met.dpfail++;
+		return (TAlScore)score;
+	}
+	
 	// Could we have saturated?
 	if(score + d.bias_ >= 255) {
 		flag = -2; // yes
 		met.dpsat++;
-		return std::numeric_limits<TAlScore>::min();
-	}
-	
-	// Did we find a solution?
-	if(score == std::numeric_limits<TCScore>::min()) {
-		flag = -1; // no
-		met.dpfail++;
 		return std::numeric_limits<TAlScore>::min();
 	}
 	
