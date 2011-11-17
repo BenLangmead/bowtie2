@@ -375,8 +375,7 @@ public:
 		bool& exhaustive);
 
 	/**
-	 * Prepare for a new read.  For paired-end reads, this means clearing state
-	 * that would otherwise survive across calls to extendSeedsPaired.
+	 * Prepare for a new read.
 	 */
 	void nextRead(bool paired, size_t mate1len, size_t mate2len) {
 		redAnchor_.reset();
