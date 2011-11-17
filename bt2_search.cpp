@@ -137,6 +137,7 @@ static bool sam_print_ym;
 static bool sam_print_yp;
 static bool sam_print_yt;
 static bool sam_print_ys;
+static bool sam_print_xt;
 static bool sam_print_seed_fields;
 static bool bwaSwLike;
 static float bwaSwLikeC;
@@ -210,6 +211,7 @@ static int seedBoostThresh;   // if average non-zero position has more than this
 static int seedBoostMaxIters; // maximum number of seed-boosting iterations
 static float seedBoostIvalMult;
 static float seedBoostLenMult;
+
 
 static string bt2index;      // read Bowtie 2 index from files with this prefix
 static EList<pair<int, string> > extra_opts;
@@ -299,6 +301,7 @@ static void resetOptions() {
 	sam_print_yp            = false;
 	sam_print_yt            = true;
 	sam_print_ys            = true;
+	sam_print_xt            = false;
 	sam_print_seed_fields   = false;
 	bwaSwLike               = false;
 	bwaSwLikeC              = 5.5f;
@@ -531,6 +534,7 @@ static struct option long_options[] = {
 	{(char*)"seed-boost-iters", required_argument, 0,        ARG_SEED_BOOST_ITERS},
 	{(char*)"seed-boost-ival-mult", required_argument, 0,    ARG_SEED_BOOST_IVAL_MULT},
 	{(char*)"seed-boost-len-mult",  required_argument, 0,    ARG_SEED_BOOST_LEN_MULT},
+	{(char*)"read-times",       no_argument,       0,        ARG_READ_TIMES},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -1034,6 +1038,7 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_SAM_NOSQ: samNoSQ = true; break;
 		case ARG_SAM_PRINT_YI: sam_print_yi = true; break;
 		case ARG_SEED_INFO: sam_print_seed_fields = true; break;
+		case ARG_READ_TIMES: sam_print_xt = true; break;
 		case ARG_SAM_RG: {
 			string arg = arg;
 			if(arg.substr(0, 3) == "ID:") {
@@ -1622,99 +1627,103 @@ struct PerfMetrics {
 				/* 34 */ "ResReport"      "\t"
 				/* 35 */ "RedundantSHit"  "\t"
 
-				/* 36 */ "ExactAttempts"  "\t"
-				/* 37 */ "ExactSucc"      "\t"
-				/* 38 */ "ExactRanges"    "\t"
-				/* 39 */ "ExactRows"      "\t"
-				/* 40 */ "ExactOOMs"      "\t"
+				/* 36 */ "BestMinEdit0"   "\t"
+				/* 37 */ "BestMinEdit1"   "\t"
+				/* 38 */ "BestMinEdit2"   "\t"
 
-				/* 41 */ "1mmAttempts"    "\t"
-				/* 42 */ "1mmSucc"        "\t"
-				/* 43 */ "1mmRanges"      "\t"
-				/* 44 */ "1mmRows"        "\t"
-				/* 45 */ "1mmOOMs"        "\t"
+				/* 39 */ "ExactAttempts"  "\t"
+				/* 40 */ "ExactSucc"      "\t"
+				/* 41 */ "ExactRanges"    "\t"
+				/* 42 */ "ExactRows"      "\t"
+				/* 43 */ "ExactOOMs"      "\t"
 
-				/* 46 */ "UngappedSucc"   "\t"
-				/* 47 */ "UngappedFail"   "\t"
-				/* 48 */ "UngappedNoDec"  "\t"
+				/* 44 */ "1mmAttempts"    "\t"
+				/* 45 */ "1mmSucc"        "\t"
+				/* 46 */ "1mmRanges"      "\t"
+				/* 47 */ "1mmRows"        "\t"
+				/* 48 */ "1mmOOMs"        "\t"
 
-				/* 49 */ "DP16ExDps"      "\t"
-				/* 50 */ "DP16ExDpSat"    "\t"
-				/* 51 */ "DP16ExDpFail"   "\t"
-				/* 52 */ "DP16ExDpSucc"   "\t"
-				/* 53 */ "DP16ExCol"      "\t"
-				/* 54 */ "DP16ExCell"     "\t"
-				/* 55 */ "DP16ExInner"    "\t"
-				/* 56 */ "DP16ExFixup"    "\t"
-				/* 57 */ "DP16ExGathSol"  "\t"
-				/* 58 */ "DP16ExBt"       "\t"
-				/* 59 */ "DP16ExBtFail"   "\t"
-				/* 60 */ "DP16ExBtSucc"   "\t"
-				/* 61 */ "DP16ExBtCell"   "\t"
-				/* 62 */ "DP16ExCoreRej"  "\t"
-				/* 63 */ "DP16ExNRej"     "\t"
+				/* 49 */ "UngappedSucc"   "\t"
+				/* 50 */ "UngappedFail"   "\t"
+				/* 51 */ "UngappedNoDec"  "\t"
 
-				/* 64 */ "DP8ExDps"       "\t"
-				/* 65 */ "DP8ExDpSat"     "\t"
-				/* 66 */ "DP8ExDpFail"    "\t"
-				/* 67 */ "DP8ExDpSucc"    "\t"
-				/* 68 */ "DP8ExCol"       "\t"
-				/* 69 */ "DP8ExCell"      "\t"
-				/* 70 */ "DP8ExInner"     "\t"
-				/* 71 */ "DP8ExFixup"     "\t"
-				/* 72 */ "DP8ExGathSol"   "\t"
-				/* 73 */ "DP8ExBt"        "\t"
-				/* 74 */ "DP8ExBtFail"    "\t"
-				/* 75 */ "DP8ExBtSucc"    "\t"
-				/* 76 */ "DP8ExBtCell"    "\t"
-				/* 77 */ "DP8ExCoreRej"   "\t"
-				/* 78 */ "DP8ExNRej"      "\t"
+				/* 52 */ "DP16ExDps"      "\t"
+				/* 53 */ "DP16ExDpSat"    "\t"
+				/* 54 */ "DP16ExDpFail"   "\t"
+				/* 55 */ "DP16ExDpSucc"   "\t"
+				/* 56 */ "DP16ExCol"      "\t"
+				/* 57 */ "DP16ExCell"     "\t"
+				/* 58 */ "DP16ExInner"    "\t"
+				/* 59 */ "DP16ExFixup"    "\t"
+				/* 60 */ "DP16ExGathSol"  "\t"
+				/* 61 */ "DP16ExBt"       "\t"
+				/* 62 */ "DP16ExBtFail"   "\t"
+				/* 63 */ "DP16ExBtSucc"   "\t"
+				/* 64 */ "DP16ExBtCell"   "\t"
+				/* 65 */ "DP16ExCoreRej"  "\t"
+				/* 66 */ "DP16ExNRej"     "\t"
 
-				/* 79 */ "DP16MateDps"     "\t"
-				/* 80 */ "DP16MateDpSat"   "\t"
-				/* 81 */ "DP16MateDpFail"  "\t"
-				/* 82 */ "DP16MateDpSucc"  "\t"
-				/* 83 */ "DP16MateCol"     "\t"
-				/* 84 */ "DP16MateCell"    "\t"
-				/* 85 */ "DP16MateInner"   "\t"
-				/* 86 */ "DP16MateFixup"   "\t"
-				/* 87 */ "DP16MateGathSol" "\t"
-				/* 88 */ "DP16MateBt"      "\t"
-				/* 89 */ "DP16MateBtFail"  "\t"
-				/* 90 */ "DP16MateBtSucc"  "\t"
-				/* 91 */ "DP16MateBtCell"  "\t"
-				/* 92 */ "DP16MateCoreRej" "\t"
-				/* 93 */ "DP16MateNRej"    "\t"
+				/* 67 */ "DP8ExDps"       "\t"
+				/* 68 */ "DP8ExDpSat"     "\t"
+				/* 69 */ "DP8ExDpFail"    "\t"
+				/* 70 */ "DP8ExDpSucc"    "\t"
+				/* 71 */ "DP8ExCol"       "\t"
+				/* 72 */ "DP8ExCell"      "\t"
+				/* 73 */ "DP8ExInner"     "\t"
+				/* 74 */ "DP8ExFixup"     "\t"
+				/* 75 */ "DP8ExGathSol"   "\t"
+				/* 76 */ "DP8ExBt"        "\t"
+				/* 77 */ "DP8ExBtFail"    "\t"
+				/* 78 */ "DP8ExBtSucc"    "\t"
+				/* 79 */ "DP8ExBtCell"    "\t"
+				/* 80 */ "DP8ExCoreRej"   "\t"
+				/* 81 */ "DP8ExNRej"      "\t"
 
-				/* 94 */ "DP8MateDps"     "\t"
-				/* 95 */ "DP8MateDpSat"   "\t"
-				/* 96 */ "DP8MateDpFail"  "\t"
-				/* 97 */ "DP8MateDpSucc"  "\t"
-				/* 98 */ "DP8MateCol"     "\t"
-				/* 99 */ "DP8MateCell"    "\t"
-				/* 100 */ "DP8MateInner"   "\t"
-				/* 101 */ "DP8MateFixup"   "\t"
-				/* 102 */ "DP8MateGathSol" "\t"
-				/* 103 */ "DP8MateBt"      "\t"
-				/* 104 */ "DP8MateBtFail"  "\t"
-				/* 105 */ "DP8MateBtSucc"  "\t"
-				/* 106 */ "DP8MateBtCell"  "\t"
-				/* 107 */ "DP8MateCoreRej" "\t"
-				/* 108 */ "DP8MateNRej"    "\t"
+				/* 82 */ "DP16MateDps"     "\t"
+				/* 83 */ "DP16MateDpSat"   "\t"
+				/* 84 */ "DP16MateDpFail"  "\t"
+				/* 85 */ "DP16MateDpSucc"  "\t"
+				/* 86 */ "DP16MateCol"     "\t"
+				/* 87 */ "DP16MateCell"    "\t"
+				/* 88 */ "DP16MateInner"   "\t"
+				/* 89 */ "DP16MateFixup"   "\t"
+				/* 90 */ "DP16MateGathSol" "\t"
+				/* 91 */ "DP16MateBt"      "\t"
+				/* 92 */ "DP16MateBtFail"  "\t"
+				/* 93 */ "DP16MateBtSucc"  "\t"
+				/* 94 */ "DP16MateBtCell"  "\t"
+				/* 95 */ "DP16MateCoreRej" "\t"
+				/* 96 */ "DP16MateNRej"    "\t"
 
-				/* 109 */ "DPBtFiltStart"  "\t"
-				/* 110 */ "DPBtFiltScore"  "\t"
-				/* 111 */ "DpBtFiltDom"    "\t"
+				/* 97 */ "DP8MateDps"     "\t"
+				/* 98 */ "DP8MateDpSat"   "\t"
+				/* 99 */ "DP8MateDpFail"  "\t"
+				/* 100 */ "DP8MateDpSucc"  "\t"
+				/* 101 */ "DP8MateCol"     "\t"
+				/* 102 */ "DP8MateCell"    "\t"
+				/* 103 */ "DP8MateInner"   "\t"
+				/* 104 */ "DP8MateFixup"   "\t"
+				/* 105 */ "DP8MateGathSol" "\t"
+				/* 106 */ "DP8MateBt"      "\t"
+				/* 107 */ "DP8MateBtFail"  "\t"
+				/* 108 */ "DP8MateBtSucc"  "\t"
+				/* 109 */ "DP8MateBtCell"  "\t"
+				/* 110 */ "DP8MateCoreRej" "\t"
+				/* 111 */ "DP8MateNRej"    "\t"
 
-				/* 112 */ "MemPeak"        "\t"
-				/* 113 */ "UncatMemPeak"   "\t" // 0
-				/* 114 */ "EbwtMemPeak"    "\t" // EBWT_CAT
-				/* 115 */ "CacheMemPeak"   "\t" // CA_CAT
-				/* 116 */ "ResolveMemPeak" "\t" // GW_CAT
-				/* 117 */ "AlignMemPeak"   "\t" // AL_CAT
-				/* 118 */ "DPMemPeak"      "\t" // DP_CAT
-				/* 119 */ "MiscMemPeak"    "\t" // MISC_CAT
-				/* 120 */ "DebugMemPeak"   "\t" // DEBUG_CAT
+				/* 112 */ "DPBtFiltStart"  "\t"
+				/* 113 */ "DPBtFiltScore"  "\t"
+				/* 114 */ "DpBtFiltDom"    "\t"
+
+				/* 115 */ "MemPeak"        "\t"
+				/* 116 */ "UncatMemPeak"   "\t" // 0
+				/* 117 */ "EbwtMemPeak"    "\t" // EBWT_CAT
+				/* 118 */ "CacheMemPeak"   "\t" // CA_CAT
+				/* 119 */ "ResolveMemPeak" "\t" // GW_CAT
+				/* 120 */ "AlignMemPeak"   "\t" // AL_CAT
+				/* 121 */ "DPMemPeak"      "\t" // DP_CAT
+				/* 122 */ "MiscMemPeak"    "\t" // MISC_CAT
+				/* 123 */ "DebugMemPeak"   "\t" // DEBUG_CAT
 				
 				"\n";
 			
@@ -1892,6 +1901,19 @@ struct PerfMetrics {
 		
 		// 35. Redundant seed hit
 		itoa10<uint64_t>(total ? swmSeed.rshit : swmuSeed.rshit, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+
+		// # times the best (out of fw/rc) minimum # edits was 0
+		itoa10<uint64_t>(total ? swmSeed.exatts : swmuSeed.exatts, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// # times the best (out of fw/rc) minimum # edits was 1
+		itoa10<uint64_t>(total ? swmSeed.exatts : swmuSeed.exatts, buf);
+		if(metricsStderr) cerr << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// # times the best (out of fw/rc) minimum # edits was 2
+		itoa10<uint64_t>(total ? swmSeed.exatts : swmuSeed.exatts, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 		
@@ -2596,6 +2618,12 @@ static void* multiseedSearchWorker(void *vp) {
 		}
 		TReadId patid = ps->patid();
 		if(patid >= skipReads && patid < qUpto) {
+			if(sam_print_xt) {
+				gettimeofday(&ps->bufa().tv_beg, &ps->bufa().tz_beg);
+				if(paired) {
+					gettimeofday(&ps->bufb().tv_beg, &ps->bufb().tz_beg);
+				}
+			}
 			// Align this read/pair
 			bool retry = true;
 			//
@@ -2792,6 +2820,15 @@ static void* multiseedSearchWorker(void *vp) {
 							true, // report 0mm hits
 							shs[mate],
 							sdm);
+						size_t bestmin = min(minedfw[mate], minedrc[mate]);
+						if(bestmin == 0) {
+							sdm.bestmin0++;
+						} else if(bestmin == 1) {
+							sdm.bestmin1++;
+						} else {
+							assert_eq(2, bestmin);
+							sdm.bestmin2++;
+						}
 					}
 				}	
 				for(size_t matei = 0; matei < (pair ? 2:1); matei++) {
@@ -3373,6 +3410,7 @@ static void driver(
 			sam_print_yp,
 			sam_print_yt,
 			sam_print_ys,
+			sam_print_xt,
 			sam_print_seed_fields);
 		// Set up hit sink; if sanityCheck && !os.empty() is true,
 		// then instruct the sink to "retain" hits in a vector in

@@ -1231,14 +1231,17 @@ struct SeedSearchMetrics {
 	 */
 	void merge(const SeedSearchMetrics& m, bool getLock = false) {
 		ThreadSafe ts(&lock, getLock);
-		seedsearch += m.seedsearch;
-		possearch  += m.possearch;
-		intrahit   += m.intrahit;
-		interhit   += m.interhit;
-		filteredseed+= m.filteredseed;
-		ooms       += m.ooms;
-		bwops      += m.bwops;
-		bweds      += m.bweds;
+		seedsearch   += m.seedsearch;
+		possearch    += m.possearch;
+		intrahit     += m.intrahit;
+		interhit     += m.interhit;
+		filteredseed += m.filteredseed;
+		ooms         += m.ooms;
+		bwops        += m.bwops;
+		bweds        += m.bweds;
+		bestmin0     += m.bestmin0;
+		bestmin1     += m.bestmin1;
+		bestmin2     += m.bestmin2;
 	}
 	
 	/**
@@ -1252,17 +1255,23 @@ struct SeedSearchMetrics {
 		filteredseed =
 		ooms =
 		bwops =
-		bweds = 0;
+		bweds =
+		bestmin0 =
+		bestmin1 =
+		bestmin2 = 0;
 	}
 
-	uint64_t seedsearch; // # times aligner executed the search strategy in an InstantiatedSeed
-	uint64_t possearch;  // # offsets where aligner executed at least 1 strategy
-	uint64_t intrahit;   // # offsets where current-read cache provided answer
-	uint64_t interhit;   // # offsets where across-read cache provided answer
-	uint64_t filteredseed;// # seed instantiations skipped due to Ns
-	uint64_t ooms;       // out-of-memory errors
-	uint64_t bwops;      // Burrows-Wheeler operations
-	uint64_t bweds;      // Burrows-Wheeler edits
+	uint64_t seedsearch;   // # times we executed strategy in InstantiatedSeed
+	uint64_t possearch;    // # offsets where aligner executed >= 1 strategy
+	uint64_t intrahit;     // # offsets where current-read cache gave answer
+	uint64_t interhit;     // # offsets where across-read cache gave answer
+	uint64_t filteredseed; // # seed instantiations skipped due to Ns
+	uint64_t ooms;         // out-of-memory errors
+	uint64_t bwops;        // Burrows-Wheeler operations
+	uint64_t bweds;        // Burrows-Wheeler edits
+	uint64_t bestmin0;     // # times the best min # edits was 0
+	uint64_t bestmin1;     // # times the best min # edits was 1
+	uint64_t bestmin2;     // # times the best min # edits was 2
 	MUTEX_T  lock;
 };
 

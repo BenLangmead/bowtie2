@@ -21,6 +21,7 @@
 #define READ_H_
 
 #include <stdint.h>
+#include <sys/time.h>
 #include "ds.h"
 #include "sstring.h"
 #include "filebuf.h"
@@ -310,6 +311,8 @@ struct Read {
 	int      trimmed5;  // amount actually trimmed off 5' end
 	int      trimmed3;  // amount actually trimmed off 3' end
 	HitSet  *hitset;    // holds previously-found hits; for chaining
+	struct timeval  tv_beg; // timer start to measure how long alignment takes
+	struct timezone tz_beg; // timer start to measure how long alignment takes
 };
 
 #endif /*READ_H_*/

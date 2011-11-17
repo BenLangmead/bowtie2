@@ -85,6 +85,7 @@ public:
 		bool print_yp,
 		bool print_yt,
 		bool print_ys,
+		bool print_xt,
 		bool print_seed_fields) :
 		truncQname_(truncQname),
 		omitsec_(omitsec),
@@ -113,6 +114,7 @@ public:
 		print_yp_(print_yp),
 		print_yt_(print_yt),
 		print_ys_(print_ys),
+		print_xt_(print_xt),
 		print_seed_fields_(print_seed_fields)
 	{
 		assert_eq(refnames_.size(), reflens_.size());
@@ -211,6 +213,7 @@ public:
 	void printEmptyOptFlags(
 		OutFileBuf& o,          // output buffer
 		bool first,             // first opt flag printed is first overall?
+		const Read& rd,         // the read
 		const AlnFlags& flags,  // alignment flags
 		const AlnSetSumm& summ, // summary of alignments for this read
 		const SeedAlSumm& ssm)  // seed alignment summary
@@ -267,6 +270,7 @@ protected:
 	bool print_yp_; // YP:i: Read was repetitive when aligned paired?
 	bool print_yt_; // YT:Z: String representing alignment type
 	bool print_ys_; // YS:i: Score of other mate
+	bool print_xt_; // XT:i: Time taken to align
 	
 	bool print_seed_fields_; // print summary statistics about seed alignments
 
