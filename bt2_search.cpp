@@ -2851,10 +2851,8 @@ static void* multiseedSearchWorker(void *vp) {
 					assert(!msinkwrap.maxed());
 					assert(msinkwrap.repOk());
 					rnd.init(ROTL(rds[mate]->seed, 10));
-					// Seed search
 					assert(shs[mate].repOk(&ca.current()));
-					// Calculate the seed interval as a
-					// function of the read length
+					// Calculate seed interval as function of read length
 					int interval;
 					if(filt[mate ^ 1]) {
 						// Both mates made it through the filter; base the
@@ -2876,7 +2874,7 @@ static void* multiseedSearchWorker(void *vp) {
 						Constraint gc = Constraint::penaltyFuncBased(scoreMin);
 						seeds.clear();
 						ca.nextRead();
-						shs[mate].clear();
+						shs[mate].clearSeeds();
 						Seed::mmSeeds(
 							multiseedMms,    // max # mms per seed
 							seedlen,         // length of a multiseed seed
