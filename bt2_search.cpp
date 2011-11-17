@@ -2754,46 +2754,15 @@ static void* multiseedSearchWorker(void *vp) {
 				// For each mate...
 				assert(msinkwrap.empty());
 				sd.nextRead(paired, rdrows[0], rdrows[1]); // SwDriver
-				
-#if 0
-				// Try end-to-end alignment here?
-				if((doExactUpFront || do1mmUpFront) &&
-				   (fewestEditsFw <= 1 || fewestEditsRc <= 1))
-				{
-					bool yfw = fewestEditsFw <= 1 && !nofw;
-					bool yrc = fewestEditsRc <= 1 && !norc;
-					bool do1mm = do1mmUpFront;
-					if(do1mm && minsc[mate] == sc.perfectScore(rdlens[mate])) {
-						do1mm = false;
-					}
-					if(do1mm && rdlens[mate] < do1mmMinLen) {
-						do1mm = false;
-					}
-					if(doExactUpFront) {
-						swmSeed.exatts++;
-					}
-					if(do1mm) {
-						swmSeed.mm1atts++;
-					}
-					al.oneMmSearch(
-						&ebwtFw,        // BWT index
-						&ebwtBw,        // BWT' index
-						*rds[mate],     // read
-						sc,             // scoring scheme
-						minsc[mate],    // minimum score
-						!yfw,           // don't align forward read
-						!yrc,           // don't align revcomp read
-						localAlign,     // must be legal local alns?
-						doExactUpFront, // do exact match
-						do1mm,          // do 1mm
-						shs[mate],      // seed hits (hits installed here)
-						sdm);           // metrics
-				}
-#endif
-				
-				// Do seed alignment here?  And in paired-end mode, select the
-				// seed that seems more unique/promising?
-				
+				size_t minedfw[2] = { 0, 0 };
+				size_t minedrc[2] = { 0, 0 };
+				bool nofw[2] = { false, false };
+				bool norc[2] = { false, false };
+				nofw[0] = paired ? (gMate1fw ? gNofw : gNorc) : gNofw;
+				norc[0] = paired ? (gMate1fw ? gNorc : gNofw) : gNorc;
+				nofw[1] = paired ? (gMate2fw ? gNofw : gNorc) : gNofw;
+				norc[1] = paired ? (gMate2fw ? gNorc : gNofw) : gNorc;
+				exhaustive[0] = exhaustive[1] = false;
 				bool matemap[2] = { 0, 1 };
 				bool pairPostFilt = filt[0] && filt[1];
 				if(pairPostFilt) {
@@ -2803,7 +2772,28 @@ static void* multiseedSearchWorker(void *vp) {
 						std::swap(matemap[0], matemap[1]);
 					}
 				}
-				exhaustive[0] = exhaustive[1] = false;
+				if(doExactUpFront) {
+					swmSeed.exatts++;
+					for(size_t matei = 0; matei < (pair ? 2:1); matei++) {
+						size_t mate = matemap[matei];
+						if(!filt[mate]) {
+							continue;
+						}
+						assert_geq(rds[mate]->length(), 0);
+						al.exactSweep(
+							ebwtFw,
+							*rds[mate],
+							sc,
+							nofw[mate],
+							norc[mate],
+							2,
+							minedfw[mate],
+							minedrc[mate],
+							true, // report 0mm hits
+							shs[mate],
+							sdm);
+					}
+				}	
 				for(size_t matei = 0; matei < (pair ? 2:1); matei++) {
 					size_t mate = matemap[matei];
 					if(!filt[mate]) {
@@ -2841,22 +2831,6 @@ static void* multiseedSearchWorker(void *vp) {
 						interval = 1;
 					}
 					assert_geq(interval, 1);
-					// Set flags controlling which orientations of individual
-					// mates to investigate
-					bool nofw, norc;
-					if(paired && mate == 0) {
-						// Mate #1
-						nofw = (gMate1fw ? gNofw : gNorc);
-						norc = (gMate1fw ? gNorc : gNofw);
-					} else if(paired && mate == 1) {
-						// Mate #2
-						nofw = (gMate2fw ? gNofw : gNorc);
-						norc = (gMate2fw ? gNorc : gNofw);
-					} else {
-						// Unpaired
-						nofw = gNofw;
-						norc = gNorc;
-					}
 					int seedlen = multiseedLen;
 					int iters = 0;
 					bool skip = false;
@@ -2877,8 +2851,8 @@ static void* multiseedSearchWorker(void *vp) {
 							interval,    // interval between seeds
 							*rds[mate],  // read to align
 							sc,          // scoring scheme
-							nofw,        // don't align forward read
-							norc,        // don't align revcomp read
+							nofw[mate],  // don't align forward read
+							norc[mate],  // don't align revcomp read
 							ca,          // holds some seed hits from previous reads
 							shs[mate],   // holds all the seed hits
 							sdm);        // metrics
@@ -2939,20 +2913,19 @@ static void* multiseedSearchWorker(void *vp) {
 							true, multiseedLen, interval);
 						size_t fewestEditsRc = shs[mate].fewestEditsEE(
 							false, multiseedLen, interval);
-						if((doExactUpFront || do1mmUpFront) &&
+						fewestEditsFw = max(fewestEditsFw, minedfw[mate]);
+						fewestEditsRc = max(fewestEditsRc, minedfw[mate]);
+						if(do1mmUpFront &&
 						   (fewestEditsFw <= 1 || fewestEditsRc <= 1))
 						{
-							bool yfw = fewestEditsFw <= 1 && !nofw;
-							bool yrc = fewestEditsRc <= 1 && !norc;
+							bool yfw = fewestEditsFw <= 1 && !nofw[mate];
+							bool yrc = fewestEditsRc <= 1 && !norc[mate];
 							bool do1mm = do1mmUpFront;
 							if(do1mm && minsc[mate] == sc.perfectScore(rdlens[mate])) {
 								do1mm = false;
 							}
 							if(do1mm && rdlens[mate] < do1mmMinLen) {
 								do1mm = false;
-							}
-							if(doExactUpFront) {
-								swmSeed.exatts++;
 							}
 							if(do1mm) {
 								swmSeed.mm1atts++;
@@ -2966,7 +2939,7 @@ static void* multiseedSearchWorker(void *vp) {
 								!yfw,           // don't align forward read
 								!yrc,           // don't align revcomp read
 								localAlign,     // must be legal local alns?
-								doExactUpFront, // do exact match
+								false,          // do exact match
 								do1mm,          // do 1mm
 								shs[mate],      // seed hits (hits installed here)
 								sdm);           // metrics
@@ -3002,8 +2975,8 @@ static void* multiseedSearchWorker(void *vp) {
 								floorsc[mate^1],// floor score for opp.
 								nceil,          // N ceil for anchor
 								onceil,         // N ceil for opp.
-								nofw,           // don't align forward read
-								norc,           // don't align revcomp read
+								nofw[mate],     // don't align forward read
+								norc[mate],     // don't align revcomp read
 								myMaxeltPair,   // max elts to extend
 								maxhalf,        // max width on one DP side
 								doUngapped,     // do ungapped alignment

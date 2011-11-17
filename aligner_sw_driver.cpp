@@ -604,8 +604,7 @@ bool SwDriver::extendSeeds(
 			// range is large, just investigate one and move on - we might come
 			// back to this range later.
 			while(!rands_[i].done() &&
-			      (eeMode ||
-			      (eltsDone < maxelt && (first || small))))
+			      (eltsDone < maxelt && (first || small || eeMode)))
 			{
 				if(minsc == perfectScore) {
 					if(!eeMode || eehits_[i].score < perfectScore) {
@@ -621,8 +620,10 @@ bool SwDriver::extendSeeds(
 				uint32_t elt = rands_[i].next(rnd);
 				gws_[i].advanceElement(elt, wr, wlm);
 				eltsDone++;
-				assert_gt(neltLeft, 0);
-				neltLeft--;
+				if(!eeMode) {
+					assert_gt(neltLeft, 0);
+					neltLeft--;
+				}
 				assert_neq(0xffffffff, wr.toff);
 				uint32_t tidx = 0, toff = 0, tlen = 0;
 				ebwt.joinedToTextOff(
@@ -1285,8 +1286,7 @@ bool SwDriver::extendSeedsPaired(
 			// range is large, just investigate one and move on - we might come
 			// back to this range later.
 			while(!rands_[i].done() &&
-			      (eeMode ||
-			      (eltsDone < maxelt && (first || small))))
+			      (eltsDone < maxelt && (first || small || eeMode)))
 			{
 				if(minsc == perfectScore) {
 					if(!eeMode || eehits_[i].score < perfectScore) {
