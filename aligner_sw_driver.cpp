@@ -822,7 +822,6 @@ bool SwDriver::extendSeeds(
 								toff2,
 								tlen2);
 							assert_neq(0xffffffff, tidx2);
-							//uint64_t key = sacomb_[id.first][id.second].satup().key.seq;
 							uint64_t key = sacomb_[id.first].satup().key.seq;
 							for(size_t k = 0; k < wr.elt.len; k++) {
 								int c = ref.getBase(tidx2, toff2 + wr.elt.len - k - 1);
@@ -848,17 +847,17 @@ bool SwDriver::extendSeeds(
 					// there is at least one valid alignment
 					found = swa.align(rnd);
 					swmSeed.tallyGappedDp(readGaps, refGaps);
+					rd.nExDps++;
 					if(!found) {
 						rd.nDpFail++;
 						continue; // Look for more anchor alignments
 					} else {
-						rd.nDpLastSucc = rd.nExDps;
+						rd.nDpLastSucc = rd.nExDps-1;
 						if(rd.nDpFail > rd.nDpFailStreak) {
 							rd.nDpFailStreak = rd.nDpFail;
 						}
 						rd.nDpFail = 0;
 					}
-					rd.nExDps++;
 				}
 				bool firstInner = true;
 				while(true) {
@@ -1537,17 +1536,17 @@ bool SwDriver::extendSeedsPaired(
 					// there is at least one valid alignment
 					found = swa.align(rnd);
 					swmSeed.tallyGappedDp(readGaps, refGaps);
+					rd.nExDps++;
 					if(!found) {
 						rd.nDpFail++;
 						continue; // Look for more anchor alignments
 					} else {
-						rd.nDpLastSucc = rd.nExDps;
+						rd.nDpLastSucc = rd.nExDps-1;
 						if(rd.nDpFail > rd.nDpFailStreak) {
 							rd.nDpFailStreak = rd.nDpFail;
 						}
 						rd.nDpFail = 0;
 					}
-					rd.nExDps++;
 				}
 				bool firstInner = true;
 				while(true) {
