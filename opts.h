@@ -132,7 +132,9 @@ enum {
 	ARG_SEED_BOOST_ITERS,       // --seed-boost-iters
 	ARG_SEED_BOOST_IVAL_MULT,   // --seed-boost-ival-mult
 	ARG_SEED_BOOST_LEN_MULT,    // --seed-boost-len-mult
-	ARG_READ_TIMES              // --read-times
+	ARG_READ_TIMES,             // --read-times
+	ARG_DP_FAIL_THRESH,         // --dp-fail
+	ARG_UG_FAIL_THRESH          // --ug-fail
 };
 
 #endif
