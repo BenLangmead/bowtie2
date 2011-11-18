@@ -479,6 +479,8 @@ bool SwDriver::extendSeeds(
 	size_t maxhalf,  	         // max width in either direction for DP tables
 	bool doUngapped,             // do ungapped alignment
 	size_t ungappedThresh,       // all attempts after this many are ungapped
+	size_t maxUgStreak,          // stop after streak of this many ungap fails
+	size_t maxDpStreak,          // stop after streak of this many dp fails
 	bool enable8,                // use 8-bit SSE where possible
 	bool refscan,                // use reference scanning
 	int tighten,                 // -M score tightening mode
@@ -730,10 +732,16 @@ bool SwDriver::extendSeeds(
 					rd.nExUngaps++;
 					if(al == 0) {
 						rd.nUgFail++;
+						if(rd.nUgFail > maxUgStreak) {
+							return false;
+						}
 						swmSeed.ungapfail++;
 						continue;
 					} else if(al == -1) {
 						rd.nUgFail++; // count this as failure
+						if(rd.nUgFail > maxUgStreak) {
+							return false;
+						}
 						swmSeed.ungapnodec++;
 					} else {
 						rd.nUgLastSucc = rd.nExUngaps-1;
@@ -857,6 +865,9 @@ bool SwDriver::extendSeeds(
 					rd.nExDps++;
 					if(!found) {
 						rd.nDpFail++;
+						if(rd.nDpFail > maxDpStreak) {
+							return false;
+						}
 						continue; // Look for more anchor alignments
 					} else {
 						rd.nDpLastSucc = rd.nExDps-1;
@@ -1144,6 +1155,8 @@ bool SwDriver::extendSeedsPaired(
 	size_t maxhalf,              // max width in either direction for DP tables
 	bool doUngapped,             // do ungapped alignment
 	size_t ungappedThresh,       // all attempts after this many are ungapped
+	size_t maxUgStreak,          // stop after streak of this many ungap fails
+	size_t maxDpStreak,          // stop after streak of this many dp fails
 	bool enable8,                // use 8-bit SSE where possible
 	bool refscan,                // use reference scanning
 	int tighten,                 // -M score tightening mode
@@ -1426,10 +1439,16 @@ bool SwDriver::extendSeedsPaired(
 					rd.nExUngaps++;
 					if(al == 0) {
 						rd.nUgFail++;
+						if(rd.nUgFail > maxUgStreak) {
+							return false;
+						}
 						swmSeed.ungapfail++;
 						continue;
 					} else if(al == -1) {
 						rd.nUgFail++; // count this as failure
+						if(rd.nUgFail > maxUgStreak) {
+							return false;
+						}
 						swmSeed.ungapnodec++;
 					} else {
 						rd.nUgLastSucc = rd.nExUngaps-1;
@@ -1553,6 +1572,9 @@ bool SwDriver::extendSeedsPaired(
 					rd.nExDps++;
 					if(!found) {
 						rd.nDpFail++;
+						if(rd.nDpFail > maxDpStreak) {
+							return false;
+						}
 						continue; // Look for more anchor alignments
 					} else {
 						rd.nDpLastSucc = rd.nExDps-1;

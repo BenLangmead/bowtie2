@@ -285,6 +285,8 @@ public:
 		size_t maxhalf,              // maximum width on one side of DP table
 		bool doUngapped,             // do ungapped alignment
 		size_t ungappedThresh,       // all attempts after this many are ungapped
+		size_t maxUgStreak,          // stop after streak of this many ungap fails
+		size_t maxDpStreak,          // stop after streak of this many dp fails
 		bool enable8,                // use 8-bit SSE where possible
 		bool refscan,                // use reference scanning
 		int tighten,                 // -M score tightening mode
@@ -359,6 +361,8 @@ public:
 		size_t maxhalf,              // maximum width on one side of DP table
 		bool doUngapped,             // do ungapped alignment
 		size_t ungappedThresh,       // all attempts after this many are ungapped
+		size_t maxUgStreak,          // stop after streak of this many ungap fails
+		size_t maxDpStreak,          // stop after streak of this many dp fails
 		bool enable8,                // use 8-bit SSE where possible
 		bool refscan,                // use reference scanning
 		int tighten,                 // -M score tightening mode

@@ -199,6 +199,8 @@ static size_t maxhalf;       // max width on one side of DP table
 static bool seedSummaryOnly; // print summary information about seed hits, not alignments
 static bool doUngapped;      // do ungapped alignment
 static size_t ungappedThresh;// all attempts after this many are ungapped
+static size_t maxUgStreak;   // stop after this many ungap fails in a row
+static size_t maxDpStreak;   // stop after this many dp fails in a row
 static bool enable8;         // use 8-bit SSE where possible?
 static bool refscan;         // use reference scanning?
 static string defaultPreset; // default preset; applied immediately
@@ -367,7 +369,9 @@ static void resetOptions() {
 	maxhalf            = 15; // max width on one side of DP table
 	seedSummaryOnly    = false; // print summary information about seed hits, not alignments
 	doUngapped         = true;  // do ungapped alignment
-	ungappedThresh     = std::numeric_limits<size_t>::max();// all attempts after this many are ungapped
+	ungappedThresh     = std::numeric_limits<size_t>::max(); // all attempts after this many are ungapped
+	maxUgStreak        = std::numeric_limits<size_t>::max(); // stop after this many ungap fails in a row
+	maxDpStreak        = std::numeric_limits<size_t>::max(); // stop after this many dp fails in a row
 	enable8            = true;  // use 8-bit SSE where possible?
 	refscan            = false; // use reference scanning?
 	defaultPreset      = "sensitive%LOCAL%"; // default preset; applied immediately
@@ -545,6 +549,8 @@ static struct option long_options[] = {
 	{(char*)"seed-boost-ival-mult", required_argument, 0,    ARG_SEED_BOOST_IVAL_MULT},
 	{(char*)"seed-boost-len-mult",  required_argument, 0,    ARG_SEED_BOOST_LEN_MULT},
 	{(char*)"read-times",       no_argument,       0,        ARG_READ_TIMES},
+	{(char*)"dp-fails",         required_argument, 0,        ARG_DP_FAIL_THRESH},
+	{(char*)"ug-fails",         required_argument, 0,        ARG_UG_FAIL_THRESH},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -979,6 +985,14 @@ static void parseOption(int next_option, const char *arg) {
 			ungappedThresh = DEFAULT_UNGAPPED_HITS;
 			polstr += ";UNGAP=";
 			polstr += arg;
+			break;
+		}
+		case ARG_DP_FAIL_THRESH: {
+			maxDpStreak = parse<size_t>(arg);
+			break;
+		}
+		case ARG_UG_FAIL_THRESH: {
+			maxUgStreak = parse<size_t>(arg);
 			break;
 		}
 		case ARG_MAXELT_PAIR_MULT: {
@@ -3072,6 +3086,8 @@ static void* multiseedSearchWorker(void *vp) {
 								maxhalf,        // max width on one DP side
 								doUngapped,     // do ungapped alignment
 								ungappedThresh, // # attempts before all ungapped
+								maxUgStreak,    // stop after streak of this many ungap fails
+								maxDpStreak,    // stop after streak of this many dp fails
 								enable8,        // use 8-bit SSE where possible
 								refscan,        // use reference scanning?
 								tighten,        // -M score tightening mode
@@ -3108,6 +3124,8 @@ static void* multiseedSearchWorker(void *vp) {
 								maxhalf,        // max width on one DP side
 								doUngapped,     // do ungapped alignment
 								ungappedThresh, // # attempts before all ungapped
+								maxUgStreak,    // stop after streak of this many ungap fails
+								maxDpStreak,    // stop after streak of this many dp fails
 								enable8,        // use 8-bit SSE where possible
 								refscan,        // use reference scanning?
 								tighten,        // -M score tightening mode
