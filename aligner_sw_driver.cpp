@@ -658,6 +658,7 @@ bool SwDriver::extendSeeds(
 				Coord refcoord(tidx, refoff, fw);
 				if(seenDiags1_.locusPresent(refcoord)) {
 					// Already handled alignments seeded on this diagonal
+					rd.nRedundants++;
 					swmSeed.rshit++;
 					continue;
 				}
@@ -687,7 +688,6 @@ bool SwDriver::extendSeeds(
 				int state = FOUND_NONE;
 				bool found = false;
 				if(eeMode) {
-					// Set up resEe_
 					resEe_.reset();
 					resEe_.alres.reset();
 					const EEHit& h = eehits_[i];
@@ -1366,6 +1366,7 @@ bool SwDriver::extendSeedsPaired(
 				Coord refcoord(tidx, refoff, fw);
 				if(seenDiags.locusPresent(refcoord)) {
 					// Already handled alignments seeded on this diagonal
+					rd.nRedundants++;
 					swmSeed.rshit++;
 					continue;
 				}

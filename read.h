@@ -67,6 +67,7 @@ struct Read {
 		nMateDps = 0;      // # mate DPs run on this read
 		nExUngaps = 0;     // # extend ungapped alignments run on this read
 		nMateUngaps = 0;   // # mate ungapped alignments run on this read
+		nRedundants = 0;   // # redundant seed hits
 		nDpFail = 0;       // number of failures in a row up unti lnow
 		nDpFailStreak = 0; // longest streak of failures
 		nDpLastSucc = 0;   // index of last dp attempt that succeeded
@@ -329,14 +330,15 @@ struct Read {
 	uint64_t nMateDps;      // # mate DPs run on this read
 	uint64_t nExUngaps;     // # extend ungapped alignments run on this read
 	uint64_t nMateUngaps;   // # mate ungapped alignments run on this read
+	uint64_t nRedundants;   // # redundant seed hits
 	
-	size_t   nDpFail;       // number of dp failures in a row up until now
-	size_t   nDpFailStreak; // longest streak of dp failures
-	size_t   nDpLastSucc;   // index of last dp attempt that succeeded
+	uint64_t nDpFail;       // number of dp failures in a row up until now
+	uint64_t nDpFailStreak; // longest streak of dp failures
+	uint64_t nDpLastSucc;   // index of last dp attempt that succeeded
 	
-	size_t   nUgFail;       // number of ungap failures in a row up until now
-	size_t   nUgFailStreak; // longest streak of ungap failures
-	size_t   nUgLastSucc;   // index of last ungap attempt that succeeded
+	uint64_t nUgFail;       // number of ungap failures in a row up until now
+	uint64_t nUgFailStreak; // longest streak of ungap failures
+	uint64_t nUgLastSucc;   // index of last ungap attempt that succeeded
 };
 
 #endif /*READ_H_*/
