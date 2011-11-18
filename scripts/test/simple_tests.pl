@@ -489,7 +489,7 @@ my @cases = (
 	  hits_are_superset => [ 1 ],
 	  cigar  => [ "8M" ],
 	  samoptflags => [ {
-		  "AS:i:-6"  => 1, "XS:i:-6" => 1,
+		  "AS:i:-5"  => 1, "XS:i:-5" => 1,
 		  "YM:i:1"   => 1, "YT:Z:UU" => 1,
 		  "MD:Z:7A0" => 1,
 		  "NM:i:1"   => 1, "XM:i:1"  => 1 } ],

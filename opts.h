@@ -84,7 +84,6 @@ enum {
 	ARG_BWA_SW_LIKE,            // --bwa-sw-like
 	ARG_MULTISEED_IVAL,         // --multiseed
 	ARG_SCORE_MIN,              // --score-min
-	ARG_SCORES,                 // --scoring
 	ARG_SCORE_MA,               // --ma
 	ARG_SCORE_MMP,              // --mm
 	ARG_SCORE_NP,               // --nm
