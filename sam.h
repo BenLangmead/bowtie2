@@ -86,6 +86,8 @@ public:
 		bool print_yt,
 		bool print_ys,
 		bool print_xt,
+		bool print_xd,
+		bool print_xu,
 		bool print_seed_fields) :
 		truncQname_(truncQname),
 		omitsec_(omitsec),
@@ -115,6 +117,8 @@ public:
 		print_yt_(print_yt),
 		print_ys_(print_ys),
 		print_xt_(print_xt),
+		print_xd_(print_xd),
+		print_xu_(print_xu),
 		print_seed_fields_(print_seed_fields)
 	{
 		assert_eq(refnames_.size(), reflens_.size());
@@ -270,7 +274,10 @@ protected:
 	bool print_yp_; // YP:i: Read was repetitive when aligned paired?
 	bool print_yt_; // YT:Z: String representing alignment type
 	bool print_ys_; // YS:i: Score of other mate
+	
 	bool print_xt_; // XT:i: Time taken to align
+	bool print_xd_; // XD:i: DP problems
+	bool print_xu_; // XU:i: ungapped alignment
 	
 	bool print_seed_fields_; // print summary statistics about seed alignments
 

@@ -388,6 +388,30 @@ void SamConfig::printAlignedOptFlags(
 		o.writeChars("XT:i:");
 		o.writeChars(buf);
 	}
+	if(print_xd_) {
+		// XD:i: Extend DPs
+		WRITE_SEP();
+		itoa10<uint64_t>(rd.nExDps, buf);
+		o.writeChars("XD:i:");
+		o.writeChars(buf);
+		// Xd:i: Mate DPs
+		WRITE_SEP();
+		itoa10<uint64_t>(rd.nMateDps, buf);
+		o.writeChars("Xd:i:");
+		o.writeChars(buf);
+	}
+	if(print_xu_) {
+		// XU:i: Extend ungapped tries
+		WRITE_SEP();
+		itoa10<uint64_t>(rd.nExUngaps, buf);
+		o.writeChars("XU:i:");
+		o.writeChars(buf);
+		// Xu:i: Mate ungapped tries
+		WRITE_SEP();
+		itoa10<uint64_t>(rd.nMateUngaps, buf);
+		o.writeChars("Xu:i:");
+		o.writeChars(buf);
+	}
 }
 
 /**
@@ -524,6 +548,30 @@ void SamConfig::printEmptyOptFlags(
 			(tv_end.tv_usec - rd.tv_beg.tv_usec);
 		itoa10<size_t>(total_usecs, buf);
 		o.writeChars("XT:i:");
+		o.writeChars(buf);
+	}
+	if(print_xd_) {
+		// XD:i: Extend DPs
+		WRITE_SEP();
+		itoa10<uint64_t>(rd.nExDps, buf);
+		o.writeChars("XD:i:");
+		o.writeChars(buf);
+		// Xd:i: Mate DPs
+		WRITE_SEP();
+		itoa10<uint64_t>(rd.nMateDps, buf);
+		o.writeChars("Xd:i:");
+		o.writeChars(buf);
+	}
+	if(print_xu_) {
+		// XU:i: Extend ungapped tries
+		WRITE_SEP();
+		itoa10<uint64_t>(rd.nExUngaps, buf);
+		o.writeChars("XU:i:");
+		o.writeChars(buf);
+		// Xu:i: Mate ungapped tries
+		WRITE_SEP();
+		itoa10<uint64_t>(rd.nMateUngaps, buf);
+		o.writeChars("Xu:i:");
 		o.writeChars(buf);
 	}
 }

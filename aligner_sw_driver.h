@@ -267,7 +267,7 @@ public:
 	 * policy is satisfied and we can stop).  Otherwise, returns false.
 	 */
 	bool extendSeeds(
-		const Read& rd,              // read to align
+		Read& rd,              // read to align
 		bool mate1,                  // true iff rd is mate #1
 		bool color,                  // true -> read is colorspace
 		SeedResults& sh,             // seed hits to extend into full alignments
@@ -332,8 +332,8 @@ public:
 	 * policy is satisfied and we can stop).  Otherwise, returns false.
 	 */
 	bool extendSeedsPaired(
-		const Read& rd,              // mate to align as anchor
-		const Read& ord,             // mate to align as opposite
+		Read& rd,                    // mate to align as anchor
+		Read& ord,                   // mate to align as opposite
 		bool anchor1,                // true iff anchor mate is mate1
 		bool oppFilt,                // true iff opposite mate was filtered out
 		bool color,                  // true -> reads are colorspace

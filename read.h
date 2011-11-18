@@ -63,6 +63,10 @@ struct Read {
 		filter = '?';
 		seed = 0;
 		ns_ = 0;
+		nExDps = 0;      // # extend DPs run on this read
+		nMateDps = 0;    // # mate DPs run on this read
+		nExUngaps = 0;   // # extend ungapped alignments run on this read
+		nMateUngaps = 0; // # mate ungapped alignments run on this read
 	}
 	
 	/**
@@ -313,6 +317,12 @@ struct Read {
 	HitSet  *hitset;    // holds previously-found hits; for chaining
 	struct timeval  tv_beg; // timer start to measure how long alignment takes
 	struct timezone tz_beg; // timer start to measure how long alignment takes
+	
+	// TODO: This is not a very clever place to put these things
+	uint64_t nExDps;      // # extend DPs run on this read
+	uint64_t nMateDps;    // # mate DPs run on this read
+	uint64_t nExUngaps;   // # extend ungapped alignments run on this read
+	uint64_t nMateUngaps; // # mate ungapped alignments run on this read
 };
 
 #endif /*READ_H_*/
