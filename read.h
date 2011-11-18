@@ -70,6 +70,9 @@ struct Read {
 		nDpFail = 0;       // number of failures in a row up unti lnow
 		nDpFailStreak = 0; // longest streak of failures
 		nDpLastSucc = 0;   // index of last dp attempt that succeeded
+		nUgFail = 0;       // number of ungap failures in a row up until now
+		nUgFailStreak = 0; // longest streak of ungap failures
+		nUgLastSucc = 0;   // index of last ungap attempt that succeeded
 	}
 	
 	/**
@@ -327,9 +330,13 @@ struct Read {
 	uint64_t nExUngaps;     // # extend ungapped alignments run on this read
 	uint64_t nMateUngaps;   // # mate ungapped alignments run on this read
 	
-	size_t   nDpFail;       // number of failures in a row up unti lnow
-	size_t   nDpFailStreak; // longest streak of failures
+	size_t   nDpFail;       // number of dp failures in a row up until now
+	size_t   nDpFailStreak; // longest streak of dp failures
 	size_t   nDpLastSucc;   // index of last dp attempt that succeeded
+	
+	size_t   nUgFail;       // number of ungap failures in a row up until now
+	size_t   nUgFailStreak; // longest streak of ungap failures
+	size_t   nUgLastSucc;   // index of last ungap attempt that succeeded
 };
 
 #endif /*READ_H_*/

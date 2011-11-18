@@ -714,7 +714,6 @@ bool SwDriver::extendSeeds(
 					seenDiags1_.add(refival);
 				} else if(doUngapped && ungapped) {
 					resUngap_.reset();
-					rd.nExUngaps++;
 					int al = swa.ungappedAlign(
 						fw ? rd.patFw : rd.patRc,
 						fw ? rd.qual  : rd.qualRev,
@@ -728,12 +727,20 @@ bool SwDriver::extendSeeds(
 						resUngap_);
 					Interval refival(refcoord, 1);
 					seenDiags1_.add(refival);
+					rd.nExUngaps++;
 					if(al == 0) {
+						rd.nUgFail++;
 						swmSeed.ungapfail++;
 						continue;
 					} else if(al == -1) {
+						rd.nUgFail++; // count this as failure
 						swmSeed.ungapnodec++;
 					} else {
+						rd.nUgLastSucc = rd.nExUngaps-1;
+						if(rd.nUgFail > rd.nUgFailStreak) {
+							rd.nUgFailStreak = rd.nUgFail;
+						}
+						rd.nUgFail = 0;
 						found = true;
 						state = FOUND_UNGAPPED;
 						swmSeed.ungapsucc++;
@@ -1403,7 +1410,6 @@ bool SwDriver::extendSeedsPaired(
 					seenDiags.add(refival);
 				} else if(doUngapped && ungapped) {
 					resUngap_.reset();
-					rd.nExUngaps++;
 					int al = swa.ungappedAlign(
 						fw ? rd.patFw : rd.patRc,
 						fw ? rd.qual  : rd.qualRev,
@@ -1417,12 +1423,20 @@ bool SwDriver::extendSeedsPaired(
 						resUngap_);
 					Interval refival(refcoord, 1);
 					seenDiags.add(refival);
+					rd.nExUngaps++;
 					if(al == 0) {
+						rd.nUgFail++;
 						swmSeed.ungapfail++;
 						continue;
 					} else if(al == -1) {
+						rd.nUgFail++; // count this as failure
 						swmSeed.ungapnodec++;
 					} else {
+						rd.nUgLastSucc = rd.nExUngaps-1;
+						if(rd.nUgFail > rd.nUgFailStreak) {
+							rd.nUgFailStreak = rd.nUgFail;
+						}
+						rd.nUgFail = 0;
 						found = true;
 						state = FOUND_UNGAPPED;
 						swmSeed.ungapsucc++;
