@@ -259,7 +259,7 @@ static void resetOptions() {
 	outType					= OUTPUT_SAM;  // style of output
 	noRefNames				= false; // true -> print reference indexes; not names
 	khits					= 1;     // number of hits per read; >1 is much slower
-	mhits					= 1;     // don't report any hits if there are > mhits
+	mhits					= 50;    // stop after finding this many alignments+1
 	partitionSz				= 0;     // output a partitioning key in first field
 	useSpinlock				= true;  // false -> don't use of spinlocks even if they're #defines
 	fileParallel			= false; // separate threads read separate input files in parallel
@@ -374,8 +374,8 @@ static void resetOptions() {
 	seedSummaryOnly    = false; // print summary information about seed hits, not alignments
 	doUngapped         = true;  // do ungapped alignment
 	ungappedThresh     = std::numeric_limits<size_t>::max(); // all attempts after this many are ungapped
-	maxUgStreak        = std::numeric_limits<size_t>::max(); // stop after this many ungap fails in a row
-	maxDpStreak        = std::numeric_limits<size_t>::max(); // stop after this many dp fails in a row
+	maxUgStreak        = 25;    // stop after this many ungap fails in a row
+	maxDpStreak        = 25;    // stop after this many dp fails in a row
 	enable8            = true;  // use 8-bit SSE where possible?
 	refscan            = false; // use reference scanning?
 	defaultPreset      = "sensitive%LOCAL%"; // default preset; applied immediately
