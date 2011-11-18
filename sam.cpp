@@ -418,6 +418,11 @@ void SamConfig::printAlignedOptFlags(
 		itoa10<uint64_t>(rd.nDpFail, buf);
 		o.writeChars("YE:i:");
 		o.writeChars(buf);
+		// Ye:i: Streak of failed ungaps at end
+		WRITE_SEP();
+		itoa10<uint64_t>(rd.nUgFail, buf);
+		o.writeChars("Ye:i:");
+		o.writeChars(buf);
 	}
 	if(print_yl_) {
 		// YL:i: Longest streak of failed DPs
@@ -425,12 +430,22 @@ void SamConfig::printAlignedOptFlags(
 		itoa10<uint64_t>(rd.nDpFailStreak, buf);
 		o.writeChars("YL:i:");
 		o.writeChars(buf);
+		// Yl:i: Longest streak of failed ungaps
+		WRITE_SEP();
+		itoa10<uint64_t>(rd.nUgFailStreak, buf);
+		o.writeChars("Yl:i:");
+		o.writeChars(buf);
 	}
 	if(print_yu_) {
 		// YU:i: Index of last succesful DP
 		WRITE_SEP();
 		itoa10<uint64_t>(rd.nDpLastSucc, buf);
 		o.writeChars("YU:i:");
+		o.writeChars(buf);
+		// Yu:i: Index of last succesful DP
+		WRITE_SEP();
+		itoa10<uint64_t>(rd.nUgLastSucc, buf);
+		o.writeChars("Yu:i:");
 		o.writeChars(buf);
 	}
 }
@@ -601,6 +616,11 @@ void SamConfig::printEmptyOptFlags(
 		itoa10<uint64_t>(rd.nDpFail, buf);
 		o.writeChars("YE:i:");
 		o.writeChars(buf);
+		// Ye:i: Streak of failed ungaps at end
+		WRITE_SEP();
+		itoa10<uint64_t>(rd.nUgFail, buf);
+		o.writeChars("Ye:i:");
+		o.writeChars(buf);
 	}
 	if(print_yl_) {
 		// YL:i: Longest streak of failed DPs
@@ -608,12 +628,22 @@ void SamConfig::printEmptyOptFlags(
 		itoa10<uint64_t>(rd.nDpFailStreak, buf);
 		o.writeChars("YL:i:");
 		o.writeChars(buf);
+		// Yl:i: Longest streak of failed ungaps
+		WRITE_SEP();
+		itoa10<uint64_t>(rd.nUgFailStreak, buf);
+		o.writeChars("Yl:i:");
+		o.writeChars(buf);
 	}
 	if(print_yu_) {
 		// YU:i: Index of last succesful DP
 		WRITE_SEP();
 		itoa10<uint64_t>(rd.nDpLastSucc, buf);
 		o.writeChars("YU:i:");
+		o.writeChars(buf);
+		// Yu:i: Index of last succesful DP
+		WRITE_SEP();
+		itoa10<uint64_t>(rd.nUgLastSucc, buf);
+		o.writeChars("Yu:i:");
 		o.writeChars(buf);
 	}
 }
