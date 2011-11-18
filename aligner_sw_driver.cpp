@@ -847,11 +847,18 @@ bool SwDriver::extendSeeds(
 					// Now fill the dynamic programming matrix and return true iff
 					// there is at least one valid alignment
 					found = swa.align(rnd);
-					rd.nExDps++;
 					swmSeed.tallyGappedDp(readGaps, refGaps);
 					if(!found) {
+						rd.nDpFail++;
 						continue; // Look for more anchor alignments
+					} else {
+						rd.nDpLastSucc = rd.nExDps;
+						if(rd.nDpFail > rd.nDpFailStreak) {
+							rd.nDpFailStreak = rd.nDpFail;
+						}
+						rd.nDpFail = 0;
 					}
+					rd.nExDps++;
 				}
 				bool firstInner = true;
 				while(true) {
@@ -1529,11 +1536,18 @@ bool SwDriver::extendSeedsPaired(
 					// Now fill the dynamic programming matrix and return true iff
 					// there is at least one valid alignment
 					found = swa.align(rnd);
-					rd.nExDps++;
 					swmSeed.tallyGappedDp(readGaps, refGaps);
 					if(!found) {
+						rd.nDpFail++;
 						continue; // Look for more anchor alignments
+					} else {
+						rd.nDpLastSucc = rd.nExDps;
+						if(rd.nDpFail > rd.nDpFailStreak) {
+							rd.nDpFailStreak = rd.nDpFail;
+						}
+						rd.nDpFail = 0;
 					}
+					rd.nExDps++;
 				}
 				bool firstInner = true;
 				while(true) {
