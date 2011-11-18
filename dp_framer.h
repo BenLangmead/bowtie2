@@ -98,21 +98,15 @@ struct DPRect {
 		return tr;
 	}
 	
-	// Designating some columns as "illegal" starting or ending columns is
-	// problematic.  This artificially disallows some alignments that
-	// rightfully ought to trump others because they score higher.  However,
-	// there are some situations where were interested only in alignments that
-	// start or end in certain columns.  Instead of using 'st' and 'en', we
-	// enforce this using
-	
-	//EList<bool> st; // legal starting columns
-	//EList<bool> en; // legal ending columns
-	
 	bool repOk() const {
 		assert_geq(corer, corel);
 		return true;
 	}
 	
+	/**
+	 * Set the given interval to the range of diagonals that are "covered" by
+	 * this dynamic programming problem.
+	 */
 	void initIval(Interval& iv) {
 		iv.setOff(refl_pretrim + (int64_t)corel);
 		iv.setLen(corer - corel + 1);

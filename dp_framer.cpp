@@ -50,13 +50,14 @@ using namespace std;
  *
  * Ref      1
  * off: 67890123456   0: seed diagonal
- *      **OO0oo----   o: "RHS gap" diagonals
- *      -**OO0oo---   O: "LHS gap" diagonals
- *      --**OO0oo--   *: "LHS extra" diagonals
- *      ---**OO0oo-   -: cells that can't possibly be involved in a valid    
- *      ----**OO0oo      alignment that overlaps one of the core diagonals
+ *      **OO0oo++----   o: "RHS gap" diagonals
+ *      -**OO0oo++---   O: "LHS gap" diagonals
+ *      --**OO0oo++--   *: "LHS extra" diagonals
+ *      ---**OO0oo++-   +: "RHS extra" diagonals
+ *      ----**OO0oo++   -: cells that can't possibly be involved in a valid    
+ *                         alignment that overlaps one of the core diagonals
  *
- * The "core diagonals" are marked with 0s or Os.
+ * The "core diagonals" are marked with 0's, O's or o's.
  *
  * A caveat is that, for performance reasons, we place an upper limit on N -
  * the maximum number of read or reference gaps.  It is constrained to be no
@@ -95,8 +96,10 @@ bool DynProgFramer::frameSeedExtensionRect(
 	// is larger.  Also, enforce ceiling: can't be larger than 'maxhalf'.
 	size_t maxgap = max(maxrdgap, maxrfgap);
 	maxgap = min(maxgap, maxhalf);
-	int64_t refl = off - 2*maxgap;             // inclusive
-	int64_t refr = off + (rdlen - 1) + maxgap; // inclusive
+	// Leave room for "LHS gap" and "LHS extra" diagonals
+	int64_t refl = off - 2 * maxgap;               // inclusive
+	// Leave room for "RHS gap" and "RHS extra" diagonals
+	int64_t refr = off + (rdlen - 1) + 2 * maxgap; // inclusive
 	size_t triml = 0, trimr = 0;
 	// Check if we have to trim to fit the extents of the reference
 	if(trimToRef_) {
@@ -122,7 +125,7 @@ bool DynProgFramer::frameSeedExtensionRect(
 	// Remember which diagonals are "core" as offsets from the LHS of the
 	// untrimmed rectangle
 	rect.corel = maxgap;
-	rect.corer = rect.corel + maxgap; // inclusive
+	rect.corer = rect.corel + 2 * maxgap; // inclusive
 	assert(rect.repOk());
 	return !rect.entirelyTrimmed();
 }
