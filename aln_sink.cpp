@@ -621,12 +621,14 @@ int AlnSinkWrap::nextRead(
 	// Keep copy of new read, so that we can compare it with the
 	// next one
 	if(rd1 != NULL) {
-		rd1buf_ = *rd1;
-		rd1_ = &rd1buf_;
+		//rd1buf_ = *rd1;
+		//rd1_ = &rd1buf_;
+		rd1_ = rd1;
 	} else rd1_ = NULL;
 	if(rd2 != NULL) {
-		rd2buf_ = *rd2;
-		rd2_ = &rd2buf_;
+		//rd2buf_ = *rd2;
+		//rd2_ = &rd2buf_;
+		rd2_ = rd2;
 	} else rd2_ = NULL;
 	rdid_ = rdid;
 	if(same) {
