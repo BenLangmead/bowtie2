@@ -172,7 +172,8 @@ static bool  msNoCache;      // true -> disable local cache
 static int   bonusMatchType; // how to reward matches
 static int   bonusMatch;     // constant reward if bonusMatchType=constant
 static int   penMmcType;     // how to penalize mismatches
-static int   penMmc;         // constant if mm penMmcType=constant
+static int   penMmcMax;      // max mm penalty
+static int   penMmcMin;      // min mm penalty
 static int   penSnp;         // penalty for nucleotide mismatches in decoded colorspace als
 static int   penNType;       // how to penalize Ns in the read
 static int   penN;           // constant if N pelanty is a constant
@@ -344,7 +345,8 @@ static void resetOptions() {
 	bonusMatchType  = DEFAULT_MATCH_BONUS_TYPE;
 	bonusMatch      = DEFAULT_MATCH_BONUS;
 	penMmcType      = DEFAULT_MM_PENALTY_TYPE;
-	penMmc          = DEFAULT_MM_PENALTY;
+	penMmcMax       = DEFAULT_MM_PENALTY_MAX;
+	penMmcMin       = DEFAULT_MM_PENALTY_MIN;
 	penSnp          = DEFAULT_SNP_PENALTY;
 	penNType        = DEFAULT_N_PENALTY_TYPE;
 	penN            = DEFAULT_N_PENALTY;
@@ -509,7 +511,6 @@ static struct option long_options[] = {
 	{(char*)"np",               required_argument, 0,        ARG_SCORE_NP},
 	{(char*)"rdg",              required_argument, 0,        ARG_SCORE_RDG},
 	{(char*)"rfg",              required_argument, 0,        ARG_SCORE_RFG},
-	{(char*)"scores",           required_argument, 0,        ARG_SCORES},
 	{(char*)"score-min",        required_argument, 0,        ARG_SCORE_MIN},
 	{(char*)"min-score",        required_argument, 0,        ARG_SCORE_MIN},
 	{(char*)"n-ceil",           required_argument, 0,        ARG_N_CEIL},
@@ -1202,35 +1203,11 @@ static void parseOption(int next_option, const char *arg) {
 			}
 			break;
 		}
-		case ARG_SCORE_MA:  polstr += ";MA=";   polstr += arg; break;
-		case ARG_SCORE_MMP: polstr += ";MMP=Q"; polstr += arg; break;
-		case ARG_SCORE_NP:  polstr += ";NP=C";  polstr += arg; break;
-		case ARG_SCORE_RDG: polstr += ";RDG=";  polstr += arg; break;
-		case ARG_SCORE_RFG: polstr += ";RFG=";  polstr += arg; break;
-		case ARG_SCORES: {
-			// MA=xx (default: MA=0, or MA=2 if --local is set)
-			// MMP={Cxx|Qxx} (default: MMP=Q6)
-			// NP={Cxx|Qxx} (default: NP=C1)
-			// RDG=xx,yy (default: RDG=5,3)
-			// RFG=xx,yy (default: RFG=5,3)
-			// Split argument by comma
-			EList<string> args;
-			tokenize(arg, ",", args);
-			if(args.size() > 7 || args.size() == 0) {
-				cerr << "Error: expected 7 or fewer comma-separated "
-					 << "arguments to --scores option, got "
-					 << args.size() << endl;
-				throw 1;
-			}
-			if(args.size() > 0) polstr += (";MA=" + args[0]);
-			if(args.size() > 1) polstr += (";MMP=" + args[1]);
-			if(args.size() > 2) polstr += (";NP=" + args[2]);
-			if(args.size() > 3) polstr += (";RDG=" + args[3]);
-			if(args.size() > 4) polstr += ("," + args[4]);
-			if(args.size() > 5) polstr += (";RFG=" + args[5]);
-			if(args.size() > 6) polstr += ("," + args[6]);
-			break;
-		}
+		case ARG_SCORE_MA:  polstr += ";MA=";    polstr += arg; break;
+		case ARG_SCORE_MMP: polstr += ";MMP=Q,"; polstr += arg; break;
+		case ARG_SCORE_NP:  polstr += ";NP=C";   polstr += arg; break;
+		case ARG_SCORE_RDG: polstr += ";RDG=";   polstr += arg; break;
+		case ARG_SCORE_RFG: polstr += ";RFG=";   polstr += arg; break;
 		case ARG_SCORE_MIN: {
 			polstr += ";";
 			EList<string> args;
@@ -1325,7 +1302,8 @@ static void parseOptions(int argc, const char **argv) {
 		bonusMatchType,
 		bonusMatch,
 		penMmcType,
-		penMmc,
+		penMmcMax,
+		penMmcMin,
 		penSnp,
 		penNType,
 		penN,
@@ -3441,7 +3419,8 @@ static void driver(
 		Scoring sc(
 			bonusMatch,     // constant reward for match
 			penMmcType,     // how to penalize mismatches
-			penMmc,         // constant if mm pelanty is a constant
+			penMmcMax,      // max mm pelanty
+			penMmcMin,      // min mm pelanty
 			penSnp,         // pena for nuc mm in decoded colorspace alns
 			scoreMin,       // min score as function of read len
 			scoreFloor,     // floor score as function of read len

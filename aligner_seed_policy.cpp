@@ -261,7 +261,8 @@ void SeedAlignmentPolicy::parseString(
 	int&   bonusMatchType,
 	int&   bonusMatch,
 	int&   penMmcType,
-	int&   penMmc,
+	int&   penMmcMax,
+	int&   penMmcMin,
 	int&   penSnp,
 	int&   penNType,
 	int&   penN,
@@ -288,7 +289,8 @@ void SeedAlignmentPolicy::parseString(
 	
 	penMmcType        = ignoreQuals ? DEFAULT_MM_PENALTY_TYPE_IGNORE_QUALS :
 	                                  DEFAULT_MM_PENALTY_TYPE;
-	penMmc            = DEFAULT_MM_PENALTY;
+	penMmcMax         = DEFAULT_MM_PENALTY_MAX;
+	penMmcMin         = DEFAULT_MM_PENALTY_MIN;
 	penSnp            = DEFAULT_SNP_PENALTY;
 	penNType          = DEFAULT_N_PENALTY_TYPE;
 	penN              = DEFAULT_N_PENALTY;
@@ -408,10 +410,10 @@ void SeedAlignmentPolicy::parseString(
 		//        R   = equal to maq-rounded quality value (rounded to nearest
 		//              10, can't be greater than 30)
 		else if(tag == "MMP") {
-			if(ctoks.size() != 1) {
+			if(ctoks.size() > 3) {
 				cerr << "Error parsing alignment policy setting "
 				     << "'" << tag << "'"
-				     << "; RHS must have 1 token" << endl
+				     << "; RHS must have at most 3 tokens" << endl
 					 << "Policy: '" << s << "'" << endl;
 				assert(false); throw 1;
 			}
@@ -419,14 +421,25 @@ void SeedAlignmentPolicy::parseString(
 				string tmp = ctoks[0].substr(1);
 				// Parse constant penalty
 				istringstream tmpss(tmp);
-				tmpss >> penMmc;
+				tmpss >> penMmcMax;
+				penMmcMin = penMmcMax;
 				// Parse constant penalty
 				penMmcType = COST_MODEL_CONSTANT;
 			} else if(ctoks[0][0] == 'Q') {
-				string tmp = ctoks[0].substr(1);
-				// Parse constant penalty
-				istringstream tmpss(tmp);
-				tmpss >> penMmc;
+				if(ctoks.size() >= 2) {
+					string tmp = ctoks[1];
+					istringstream tmpss(tmp);
+					tmpss >> penMmcMax;
+				} else {
+					penMmcMax = DEFAULT_MM_PENALTY_MAX;
+				}
+				if(ctoks.size() >= 3) {
+					string tmp = ctoks[2];
+					istringstream tmpss(tmp);
+					tmpss >> penMmcMin;
+				} else {
+					penMmcMin = DEFAULT_MM_PENALTY_MIN;
+				}
 				// Set type to =quality
 				penMmcType = COST_MODEL_QUAL;
 			} else if(ctoks[0][0] == 'R') {
@@ -715,7 +728,8 @@ int main() {
 		assert_eq(DEFAULT_MATCH_BONUS_TYPE,   bonusMatchType);
 		assert_eq(DEFAULT_MATCH_BONUS,        bonusMatch);
 		assert_eq(DEFAULT_MM_PENALTY_TYPE,    penMmcType);
-		assert_eq(DEFAULT_MM_PENALTY,         penMmc);
+		assert_eq(DEFAULT_MM_PENALTY_MAX,     penMmcMax);
+		assert_eq(DEFAULT_MM_PENALTY_MIN,     penMmcMin);
 		assert_eq(DEFAULT_SNP_PENALTY,        penSnp);
 		assert_eq(DEFAULT_N_PENALTY_TYPE,     penNType);
 		assert_eq(DEFAULT_N_PENALTY,          penN);
@@ -774,7 +788,8 @@ int main() {
 		assert_eq(DEFAULT_MATCH_BONUS_TYPE,   bonusMatchType);
 		assert_eq(DEFAULT_MATCH_BONUS,        bonusMatch);
 		assert_eq(DEFAULT_MM_PENALTY_TYPE,    penMmcType);
-		assert_eq(DEFAULT_MM_PENALTY,         penMmc);
+		assert_eq(DEFAULT_MM_PENALTY_MAX,     penMmc);
+		assert_eq(DEFAULT_MM_PENALTY_MIN,     penMmc);
 		assert_eq(DEFAULT_SNP_PENALTY,        penSnp);
 		assert_eq(DEFAULT_N_PENALTY_TYPE,     penNType);
 		assert_eq(DEFAULT_N_PENALTY,          penN);
@@ -833,7 +848,8 @@ int main() {
 		assert_eq(DEFAULT_MATCH_BONUS_TYPE_LOCAL,   bonusMatchType);
 		assert_eq(DEFAULT_MATCH_BONUS_LOCAL,        bonusMatch);
 		assert_eq(DEFAULT_MM_PENALTY_TYPE,    penMmcType);
-		assert_eq(DEFAULT_MM_PENALTY,         penMmc);
+		assert_eq(DEFAULT_MM_PENALTY_MAX,     penMmcMax);
+		assert_eq(DEFAULT_MM_PENALTY_MIN,     penMmcMin);
 		assert_eq(DEFAULT_SNP_PENALTY,        penSnp);
 		assert_eq(DEFAULT_N_PENALTY_TYPE,     penNType);
 		assert_eq(DEFAULT_N_PENALTY,          penN);

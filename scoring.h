@@ -37,7 +37,8 @@
 // Default type of penalty to assess against mismatches
 #define DEFAULT_MM_PENALTY_TYPE_IGNORE_QUALS COST_MODEL_CONSTANT
 // When mismatch penalty type is constant, use this constant
-#define DEFAULT_MM_PENALTY 6
+#define DEFAULT_MM_PENALTY_MAX 6
+#define DEFAULT_MM_PENALTY_MIN 2
 
 // Default type of penalty to assess against mismatches
 #define DEFAULT_N_PENALTY_TYPE COST_MODEL_CONSTANT
@@ -114,26 +115,30 @@ class Scoring {
 	 */
 	template<typename T>
 	void initPens(
-		T *pens,  // array to fill
-		int type,   // penalty type; qual | rounded qual | constant
-		int cons)   // constant for when penalty type is constant
+		T *pens,     // array to fill
+		int type,    // penalty type; qual | rounded qual | constant
+		int consMin, // constant for when penalty type is constant
+		int consMax) // constant for when penalty type is constant
 	{
 		if(type == COST_MODEL_ROUNDED_QUAL) {
 			for(int i = 0; i < 256; i++) {
 				pens[i] = (T)qualRounds[i];
 			}
 		} else if(type == COST_MODEL_QUAL) {
+			assert_neq(consMin, 0);
+			assert_neq(consMax, 0);
 			for(int i = 0; i < 256; i++) {
-				int ii = (i > 30 ? 30 : i);
-				float frac = (float)ii / 30.0f;
-				pens[i] = (T)(frac * cons);
-				if(pens[i] == 0) {
-					pens[i] = ((cons > 0) ? (T)1 : (T)-1);
-				}
+				int ii = min(i, 40); // TODO: Bit hacky, this
+				float frac = (float)ii / 40.0f;
+				pens[i] = consMin + (T)(frac * (consMax-consMin));
+				assert_gt(pens[i], 0);
+				//if(pens[i] == 0) {
+				//	pens[i] = ((consMax > 0) ? (T)1 : (T)-1);
+				//}
 			}
 		} else if(type == COST_MODEL_CONSTANT) {
 			for(int i = 0; i < 256; i++) {
-				pens[i] = (T)cons;
+				pens[i] = (T)consMax;
 			}
 		} else {
 			throw 1;
@@ -145,7 +150,8 @@ public:
 	Scoring(
 		int   mat,          // reward for a match
 		int   mmcType,      // how to penalize mismatches
-	    int   mmc,          // constant if mm pelanty is a constant
+	    int   mmpMax_,      // maximum mismatch penalty
+	    int   mmpMin_,      // minimum mismatch penalty
 		int   sn,           // penalty for nuc mismatch in decoded color alns
 		const SimpleFunc& scoreMin_,   // minimum score for valid alignment; const coeff
 		const SimpleFunc& scoreFloor_, // local-alignment score floor; const coeff
@@ -164,7 +170,8 @@ public:
 		matchType    = COST_MODEL_CONSTANT;
 		matchConst   = mat;
 		mmcostType   = mmcType;
-		mmcost       = mmc;
+		mmpMax       = mmpMax_;
+		mmpMin       = mmpMin_;
 		snp          = sn;
 		scoreMin     = scoreMin_;
 		scoreFloor   = scoreFloor_;
@@ -181,9 +188,9 @@ public:
 		rowlo        = rowlo_;
 		rowFirst     = rowFirst_;
 		monotone     = matchType == COST_MODEL_CONSTANT && matchConst == 0;
-		initPens<int>(mmpens, mmcostType, mmcost);
-		initPens<int>(npens, npenType, npen);
-		initPens<float>(matchBonuses, matchType, matchConst);
+		initPens<int>(mmpens, mmcostType, mmpMin_, mmpMax_);
+		initPens<int>(npens, npenType, npen, npen);
+		initPens<float>(matchBonuses, matchType, matchConst, matchConst);
 		assert(repOk());
 	}
 	
@@ -193,17 +200,18 @@ public:
 	void setMatchBonus(int bonus) {
 		matchType  = COST_MODEL_CONSTANT;
 		matchConst = bonus;
-		initPens<float>(matchBonuses, matchType, matchConst);
+		initPens<float>(matchBonuses, matchType, matchConst, matchConst);
 		assert(repOk());
 	}
 	
 	/**
 	 * Set the mismatch penalty.
 	 */
-	void setMmPen(int mmType, int c) {
+	void setMmPen(int mmType, int mmpMax_, int mmpMin_) {
 		mmcostType = mmType;
-		mmcost     = c;
-		initPens<int>(mmpens, mmcostType, mmcost);
+		mmpMax     = mmpMax;
+		mmpMin     = mmpMin;
+		initPens<int>(mmpens, mmcostType, mmpMin, mmpMax);
 	}
 	
 	/**
@@ -212,7 +220,7 @@ public:
 	void setNPen(int nType, int n) {
 		npenType     = nType;
 		npen         = n;
-		initPens<int>(npens, npenType, npen);
+		initPens<int>(npens, npenType, npen, npen);
 	}
 	
 	/**
@@ -455,7 +463,8 @@ public:
 	int     matchType;    // how to reward matches
 	int     matchConst;   // reward for a match
 	int     mmcostType;   // based on qual? rounded? just a constant?
-	int     mmcost;       // if mmcosttype=constant, this is the const
+	int     mmpMax;       // maximum mismatch penalty
+	int     mmpMin;       // minimum mismatch penalty
 	int     snp;          // penalty for nuc mismatch in decoded colorspace als
 	SimpleFunc scoreMin;  // minimum score for valid alignment, constant coeff
 	SimpleFunc scoreFloor;// local-alignment score floor, constant coeff
@@ -472,33 +481,8 @@ public:
 	bool    rowFirst;     // sort results first by row then by score?
 	bool    monotone;     // scores can only go down?
 	float   matchBonuses[256]; // map from qualities to match bonus
-	int     mmpens[256];  // map from qualities to mm penalty
-	int     npens[256];   // map from N qualities to penalty
-	
-	static Scoring bwaSwLike() {
-		const double DMAX = std::numeric_limits<double>::max();
-		SimpleFunc scoreFloor(SIMPLE_FUNC_CONST, 0.0f, 0.0f, 0.0f, 0.0f);
-		SimpleFunc scoreMin(SIMPLE_FUNC_LINEAR, 0.0f, DMAX, 37.0f, 0.3f);
-		SimpleFunc nCeil(SIMPLE_FUNC_LINEAR, 0.0f, DMAX, 2.0f, 0.1f);
-		return Scoring(
-			1,                       // reward for a match
-			COST_MODEL_CONSTANT,     // how to penalize mismatches
-			3,                       // constant if mm pelanty is a constant
-			3,                       // penalty for nuc mm when decoding colors
-			scoreMin,                // score min: 37 + 0.3x
-			scoreFloor,              // score floor: constant = 0
-			nCeil,                   // n ceiling: 2 + 0.1x
-			COST_MODEL_CONSTANT,     // how to penalize Ns in the read
-			3,                       // constant if N pelanty is a constant
-			false,                   // concatenate mates before N filtering?
-			5,                       // constant coeff for gap in read
-			5,                       // constant coeff for gap in ref
-			2,                       // linear coeff for gap in read
-			2,                       // linear coeff for gap in ref
-			5,                       // 5 rows @ top/bot diagonal-entrance-only
-			-1,                      // no restriction on row
-			false);                  // score prioritized over row
-	}
+	int     mmpens[256];       // map from qualities to mm penalty
+	int     npens[256];        // map from N qualities to penalty
 
 	static Scoring base1() {
 		const double DMAX = std::numeric_limits<double>::max();
@@ -508,7 +492,8 @@ public:
 		return Scoring(
 			1,                       // reward for a match
 			COST_MODEL_CONSTANT,     // how to penalize mismatches
-			3,                       // constant if mm pelanty is a constant
+			3,                       // max mismatch pelanty
+			3,                       // min mismatch pelanty
 			3,                       // penalty for nuc mm when decoding colors
 			scoreMin,                // score min: 37 + 0.3x
 			scoreFloor,              // score floor: constant = 0
