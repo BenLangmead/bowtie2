@@ -63,10 +63,13 @@ struct Read {
 		filter = '?';
 		seed = 0;
 		ns_ = 0;
-		nExDps = 0;      // # extend DPs run on this read
-		nMateDps = 0;    // # mate DPs run on this read
-		nExUngaps = 0;   // # extend ungapped alignments run on this read
-		nMateUngaps = 0; // # mate ungapped alignments run on this read
+		nExDps = 0;        // # extend DPs run on this read
+		nMateDps = 0;      // # mate DPs run on this read
+		nExUngaps = 0;     // # extend ungapped alignments run on this read
+		nMateUngaps = 0;   // # mate ungapped alignments run on this read
+		nDpFail = 0;       // number of failures in a row up unti lnow
+		nDpFailStreak = 0; // longest streak of failures
+		nDpLastSucc = 0;   // index of last dp attempt that succeeded
 	}
 	
 	/**
@@ -319,10 +322,14 @@ struct Read {
 	struct timezone tz_beg; // timer start to measure how long alignment takes
 	
 	// TODO: This is not a very clever place to put these things
-	uint64_t nExDps;      // # extend DPs run on this read
-	uint64_t nMateDps;    // # mate DPs run on this read
-	uint64_t nExUngaps;   // # extend ungapped alignments run on this read
-	uint64_t nMateUngaps; // # mate ungapped alignments run on this read
+	uint64_t nExDps;        // # extend DPs run on this read
+	uint64_t nMateDps;      // # mate DPs run on this read
+	uint64_t nExUngaps;     // # extend ungapped alignments run on this read
+	uint64_t nMateUngaps;   // # mate ungapped alignments run on this read
+	
+	size_t   nDpFail;       // number of failures in a row up unti lnow
+	size_t   nDpFailStreak; // longest streak of failures
+	size_t   nDpLastSucc;   // index of last dp attempt that succeeded
 };
 
 #endif /*READ_H_*/

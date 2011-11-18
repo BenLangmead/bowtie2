@@ -140,6 +140,9 @@ static bool sam_print_ys;
 static bool sam_print_xt;
 static bool sam_print_xd;
 static bool sam_print_xu;
+static bool sam_print_yl;
+static bool sam_print_ye;
+static bool sam_print_yu;
 static bool sam_print_seed_fields;
 static bool bwaSwLike;
 static float bwaSwLikeC;
@@ -306,6 +309,9 @@ static void resetOptions() {
 	sam_print_xt            = false;
 	sam_print_xd            = false;
 	sam_print_xu            = false;
+	sam_print_yl            = false;
+	sam_print_ye            = false;
+	sam_print_yu            = false;
 	sam_print_seed_fields   = false;
 	bwaSwLike               = false;
 	bwaSwLikeC              = 5.5f;
@@ -1046,6 +1052,9 @@ static void parseOption(int next_option, const char *arg) {
 			sam_print_xt = true;
 			sam_print_xd = true;
 			sam_print_xu = true;
+			sam_print_yl = true;
+			sam_print_ye = true;
+			sam_print_yu = true;
 			break;
 		}
 		case ARG_SAM_RG: {
@@ -3458,6 +3467,9 @@ static void driver(
 			sam_print_xt,
 			sam_print_xd,
 			sam_print_xu,
+			sam_print_yl,
+			sam_print_ye,
+			sam_print_yu,
 			sam_print_seed_fields);
 		// Set up hit sink; if sanityCheck && !os.empty() is true,
 		// then instruct the sink to "retain" hits in a vector in

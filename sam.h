@@ -88,6 +88,9 @@ public:
 		bool print_xt,
 		bool print_xd,
 		bool print_xu,
+		bool print_ye, // streak of failed DPs at end
+		bool print_yl, // longest streak of failed DPs
+		bool print_yu, // index of last succeeded DP
 		bool print_seed_fields) :
 		truncQname_(truncQname),
 		omitsec_(omitsec),
@@ -98,8 +101,8 @@ public:
 		rgs_(rgs),
 		refnames_(refnames),
 		reflens_(reflens),
-		print_as_(print_as),
-		print_xs_(print_xs),
+		print_as_(print_as), // alignment score of best alignment
+		print_xs_(print_xs), // alignment score of second-best alignment
 		print_xn_(print_xn),
 		print_cs_(print_cs),
 		print_cq_(print_cq),
@@ -116,9 +119,12 @@ public:
 		print_yp_(print_yp),
 		print_yt_(print_yt),
 		print_ys_(print_ys),
-		print_xt_(print_xt),
-		print_xd_(print_xd),
-		print_xu_(print_xu),
+		print_xt_(print_xt), // time elapsed in microseconds
+		print_xd_(print_xd), // DP extend attempts
+		print_xu_(print_xu), // ungapped extend attempts
+		print_ye_(print_ye), // streak of failed DPs at end
+		print_yl_(print_yl), // longest streak of failed DPs
+		print_yu_(print_yu), // index of last succeeded DP
 		print_seed_fields_(print_seed_fields)
 	{
 		assert_eq(refnames_.size(), reflens_.size());
@@ -278,6 +284,9 @@ protected:
 	bool print_xt_; // XT:i: Time taken to align
 	bool print_xd_; // XD:i: DP problems
 	bool print_xu_; // XU:i: ungapped alignment
+	bool print_ye_; // YE:i: streak of failed DPs at end
+	bool print_yl_; // YL:i: longest streak of failed DPs
+	bool print_yu_; // YU:i: index of last succeeded DP
 	
 	bool print_seed_fields_; // print summary statistics about seed alignments
 
