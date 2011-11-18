@@ -106,6 +106,7 @@ struct SwMetrics {
 	
 	void reset() {
 		sws = swcups = swrows = swskiprows = swskip = swsucc = swfail = swbts =
+		sws10 = sws5 = sws3 =
 		rshit = ungapsucc = ungapfail = ungapnodec = 0;
 		exatts = exranges = exrows = exsucc = exooms = 0;
 		mm1atts = mm1ranges = mm1rows = mm1succ = mm1ooms = 0;
@@ -113,6 +114,9 @@ struct SwMetrics {
 	
 	void init(
 		uint64_t sws_,
+		uint64_t sws10_,
+		uint64_t sws5_,
+		uint64_t sws3_,
 		uint64_t swcups_,
 		uint64_t swrows_,
 		uint64_t swskiprows_,
@@ -136,6 +140,9 @@ struct SwMetrics {
 		uint64_t mm1ooms_)
 	{
 		sws        = sws_;
+		sws10      = sws10_;
+		sws5       = sws5_;
+		sws3       = sws3_;
 		swcups     = swcups_;
 		swrows     = swrows_;
 		swskiprows = swskiprows_;
@@ -181,6 +188,9 @@ struct SwMetrics {
 	void merge(const SwMetrics& r, bool getLock = false) {
 		ThreadSafe ts(&lock, getLock);
 		sws        += r.sws;
+		sws10      += r.sws10;
+		sws5       += r.sws5;
+		sws3       += r.sws3;
 		swcups     += r.swcups;
 		swrows     += r.swrows;
 		swskiprows += r.swskiprows;
@@ -203,8 +213,18 @@ struct SwMetrics {
 		mm1succ    += r.mm1succ;
 		mm1ooms    += r.mm1ooms;
 	}
+	
+	void tallyGappedDp(size_t readGaps, size_t refGaps) {
+		size_t mx = max(readGaps, refGaps);
+		if(mx < 10) sws10++;
+		if(mx < 5)  sws5++;
+		if(mx < 3)  sws3++;
+	}
 
 	uint64_t sws;        // # DP problems solved
+	uint64_t sws10;      // # DP problems solved where max gaps < 10
+	uint64_t sws5;       // # DP problems solved where max gaps < 5
+	uint64_t sws3;       // # DP problems solved where max gaps < 3
 	uint64_t swcups;     // # DP cell updates
 	uint64_t swrows;     // # DP row updates
 	uint64_t swskiprows; // # skipped DP rows (b/c no valid alns go thru row)

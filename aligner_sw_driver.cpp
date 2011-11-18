@@ -461,7 +461,7 @@ enum {
  * stop).  Otherwise, returns false.
  */
 bool SwDriver::extendSeeds(
-	const Read& rd,              // read to align
+	Read& rd,                    // read to align
 	bool mate1,                  // true iff rd is mate #1
 	bool color,                  // true -> read is colorspace
 	SeedResults& sh,             // seed hits to extend into full alignments
@@ -714,6 +714,7 @@ bool SwDriver::extendSeeds(
 					seenDiags1_.add(refival);
 				} else if(doUngapped && ungapped) {
 					resUngap_.reset();
+					rd.nExUngaps++;
 					int al = swa.ungappedAlign(
 						fw ? rd.patFw : rd.patRc,
 						fw ? rd.qual  : rd.qualRev,
@@ -846,6 +847,8 @@ bool SwDriver::extendSeeds(
 					// Now fill the dynamic programming matrix and return true iff
 					// there is at least one valid alignment
 					found = swa.align(rnd);
+					rd.nExDps++;
+					swmSeed.tallyGappedDp(readGaps, refGaps);
 					if(!found) {
 						continue; // Look for more anchor alignments
 					}
@@ -1101,8 +1104,8 @@ bool SwDriver::sw(
  *
  */
 bool SwDriver::extendSeedsPaired(
-	const Read& rd,              // mate to align as anchor
-	const Read& ord,             // mate to align as opposite
+	Read& rd,                    // mate to align as anchor
+	Read& ord,                   // mate to align as opposite
 	bool anchor1,                // true iff anchor mate is mate1
 	bool oppFilt,                // true iff opposite mate was filtered out
 	bool color,                  // true -> reads are colorspace
@@ -1394,6 +1397,7 @@ bool SwDriver::extendSeedsPaired(
 					seenDiags.add(refival);
 				} else if(doUngapped && ungapped) {
 					resUngap_.reset();
+					rd.nExUngaps++;
 					int al = swa.ungappedAlign(
 						fw ? rd.patFw : rd.patRc,
 						fw ? rd.qual  : rd.qualRev,
@@ -1525,6 +1529,8 @@ bool SwDriver::extendSeedsPaired(
 					// Now fill the dynamic programming matrix and return true iff
 					// there is at least one valid alignment
 					found = swa.align(rnd);
+					rd.nExDps++;
+					swmSeed.tallyGappedDp(readGaps, refGaps);
 					if(!found) {
 						continue; // Look for more anchor alignments
 					}
@@ -1742,6 +1748,8 @@ bool SwDriver::extendSeedsPaired(
 							// Now fill the dynamic programming matrix, return true
 							// iff there is at least one valid alignment
 							foundMate = oswa.align(rnd);
+							ord.nMateDps++;
+							swmMate.tallyGappedDp(oreadGaps, orefGaps);
 						}
 						bool didAnchor = false;
 						do {

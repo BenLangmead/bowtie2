@@ -483,7 +483,7 @@ bool SwAligner::align(RandomSource& rnd) {
 #ifndef NDEBUG
 			int flag2 = 0;
 			TAlScore best2 = alignNucleotidesEnd2EndSseI16(flag2);
-			assert(flag == -2 || best == best2);
+			assert(flag < 0 || best == best2);
 			sse16succ_ = (flag2 == 0);
 #endif /*ndef NDEBUG*/
 		} else {
@@ -504,7 +504,7 @@ bool SwAligner::align(RandomSource& rnd) {
 #ifndef NDEBUG
 			int flag2 = 0;
 			TAlScore best2 = alignNucleotidesLocalSseI16(flag2);
-			assert(flag2 == -2 || best == best2);
+			assert(flag2 < 0 || best == best2);
 			sse16succ_ = (flag2 == 0);
 #endif /*ndef NDEBUG*/
 		}
