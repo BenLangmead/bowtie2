@@ -546,6 +546,7 @@ static struct option long_options[] = {
 	{(char*)"ungap-thresh",     required_argument, 0,        'g'},
 	{(char*)"maxelt-pair-mult", required_argument, 0,        ARG_MAXELT_PAIR_MULT},
 	{(char*)"seed-info",        no_argument,       0,        ARG_SEED_INFO},
+	{(char*)"no-seed-boost",    no_argument,       0,        ARG_SEED_BOOST_DISABLE},
 	{(char*)"seed-boost",       required_argument, 0,        ARG_SEED_BOOST_THRESH},
 	{(char*)"seed-boost-iters", required_argument, 0,        ARG_SEED_BOOST_ITERS},
 	{(char*)"seed-boost-ival-mult", required_argument, 0,    ARG_SEED_BOOST_IVAL_MULT},
@@ -1003,6 +1004,10 @@ static void parseOption(int next_option, const char *arg) {
 		}
 		case ARG_SEED_BOOST_THRESH: {
 			seedBoostThresh = parse<int>(arg);
+			break;
+		}
+		case ARG_SEED_BOOST_DISABLE: {
+			seedBoostThresh = std::numeric_limits<int>::max();
 			break;
 		}
 		case ARG_SEED_BOOST_ITERS: {
