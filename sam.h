@@ -91,6 +91,7 @@ public:
 		bool print_ye, // streak of failed DPs at end
 		bool print_yl, // longest streak of failed DPs
 		bool print_yu, // index of last succeeded DP
+		bool print_yr, // # redundant seed hits
 		bool print_seed_fields) :
 		truncQname_(truncQname),
 		omitsec_(omitsec),
@@ -125,6 +126,8 @@ public:
 		print_ye_(print_ye), // streak of failed DPs at end
 		print_yl_(print_yl), // longest streak of failed DPs
 		print_yu_(print_yu), // index of last succeeded DP
+		print_yr_(print_yr), // index of last succeeded DP
+		// # redundant seed hits
 		print_seed_fields_(print_seed_fields)
 	{
 		assert_eq(refnames_.size(), reflens_.size());
@@ -287,6 +290,7 @@ protected:
 	bool print_ye_; // YE:i: streak of failed DPs at end
 	bool print_yl_; // YL:i: longest streak of failed DPs
 	bool print_yu_; // YU:i: index of last succeeded DP
+	bool print_yr_; // YR:i: # redundant seed hits
 	
 	bool print_seed_fields_; // print summary statistics about seed alignments
 

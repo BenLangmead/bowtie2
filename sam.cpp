@@ -448,6 +448,13 @@ void SamConfig::printAlignedOptFlags(
 		o.writeChars("Yu:i:");
 		o.writeChars(buf);
 	}
+	if(print_yr_) {
+		// YR:i: Redundant seed hits
+		WRITE_SEP();
+		itoa10<uint64_t>(rd.nRedundants, buf);
+		o.writeChars("YR:i:");
+		o.writeChars(buf);
+	}
 }
 
 /**
@@ -644,6 +651,13 @@ void SamConfig::printEmptyOptFlags(
 		WRITE_SEP();
 		itoa10<uint64_t>(rd.nUgLastSucc, buf);
 		o.writeChars("Yu:i:");
+		o.writeChars(buf);
+	}
+	if(print_yr_) {
+		// YR:i: Redundant seed hits
+		WRITE_SEP();
+		itoa10<uint64_t>(rd.nRedundants, buf);
+		o.writeChars("YR:i:");
 		o.writeChars(buf);
 	}
 }
