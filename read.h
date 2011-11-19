@@ -63,6 +63,7 @@ struct Read {
 		filter = '?';
 		seed = 0;
 		ns_ = 0;
+		nExIters = 0;      // iterations of seed hit extend loop
 		nExDps = 0;        // # extend DPs run on this read
 		nMateDps = 0;      // # mate DPs run on this read
 		nExUngaps = 0;     // # extend ungapped alignments run on this read
@@ -326,6 +327,7 @@ struct Read {
 	struct timezone tz_beg; // timer start to measure how long alignment takes
 	
 	// TODO: This is not a very clever place to put these things
+	uint64_t nExIters;      // iterations of seed hit extend loop
 	uint64_t nExDps;        // # extend DPs run on this read
 	uint64_t nMateDps;      // # mate DPs run on this read
 	uint64_t nExUngaps;     // # extend ungapped alignments run on this read

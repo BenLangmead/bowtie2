@@ -431,6 +431,13 @@ void SamConfig::printAlignedOptFlags(
 		o.writeChars("YR:i:");
 		o.writeChars(buf);
 	}
+	if(print_zi_) {
+		// ZI:i: Seed extend loop iterations
+		WRITE_SEP();
+		itoa10<uint64_t>(rd.nExIters, buf);
+		o.writeChars("ZI:i:");
+		o.writeChars(buf);
+	}
 }
 
 /**
@@ -634,6 +641,13 @@ void SamConfig::printEmptyOptFlags(
 		WRITE_SEP();
 		itoa10<uint64_t>(rd.nRedundants, buf);
 		o.writeChars("YR:i:");
+		o.writeChars(buf);
+	}
+	if(print_zi_) {
+		// ZI:i: Seed extend loop iterations
+		WRITE_SEP();
+		itoa10<uint64_t>(rd.nExIters, buf);
+		o.writeChars("ZI:i:");
 		o.writeChars(buf);
 	}
 }

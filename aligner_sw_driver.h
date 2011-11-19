@@ -301,6 +301,7 @@ public:
 		size_t maxhalf,              // maximum width on one side of DP table
 		bool doUngapped,             // do ungapped alignment
 		size_t ungappedThresh,       // all attempts after this many are ungapped
+		size_t maxIters,             // stop after this many seed-extend loop iters
 		size_t maxUg,                // max # ungapped extends
 		size_t maxDp,                // max # DPs
 		size_t maxUgStreak,          // stop after streak of this many ungap fails
@@ -354,6 +355,7 @@ public:
 		size_t maxhalf,              // maximum width on one side of DP table
 		bool doUngapped,             // do ungapped alignment
 		size_t ungappedThresh,       // all attempts after this many are ungapped
+		size_t maxIters,             // stop after this many seed-extend loop iters
 		size_t maxUg,                // max # ungapped extends
 		size_t maxDp,                // max # DPs
 		size_t maxUgStreak,          // stop after streak of this many ungap fails

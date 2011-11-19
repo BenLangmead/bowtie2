@@ -145,6 +145,7 @@ static bool sam_print_yl;
 static bool sam_print_ye;
 static bool sam_print_yu;
 static bool sam_print_yr;
+static bool sam_print_zi;
 static bool sam_print_seed_fields;
 static bool bwaSwLike;
 static float bwaSwLikeC;
@@ -195,6 +196,7 @@ static size_t maxhalf;       // max width on one side of DP table
 static bool seedSumm; // print summary information about seed hits, not alignments
 static bool doUngapped;      // do ungapped alignment
 static size_t ungappedThresh;// all attempts after this many are ungapped
+static size_t maxIters;      // stop after this many extend loop iterations
 static size_t maxUg;         // stop after this many ungap extends
 static size_t maxDp;         // stop after this many DPs
 static size_t maxUgStreak;   // stop after this many ungap fails in a row
@@ -314,6 +316,7 @@ static void resetOptions() {
 	sam_print_ye            = false;
 	sam_print_yu            = false;
 	sam_print_yr            = false;
+	sam_print_zi            = false;
 	sam_print_seed_fields   = false;
 	bwaSwLike               = false;
 	bwaSwLikeC              = 5.5f;
@@ -363,6 +366,7 @@ static void resetOptions() {
 	seedSumm    = false; // print summary information about seed hits, not alignments
 	doUngapped         = true;  // do ungapped alignment
 	ungappedThresh     = std::numeric_limits<size_t>::max(); // all attempts after this many are ungapped
+	maxIters           = 400;   // max iterations of extend loop
 	maxUg              = 300;   // stop after this many ungap extends
 	maxDp              = 300;   // stop after this many dp extends
 	maxUgStreak        = 25;    // stop after this many ungap fails in a row
@@ -547,6 +551,7 @@ static struct option long_options[] = {
 	{(char*)"ug-fail-streak",   required_argument, 0,        ARG_UG_FAIL_STREAK_THRESH},
 	{(char*)"dp-fails",         required_argument, 0,        ARG_DP_FAIL_THRESH},
 	{(char*)"ug-fails",         required_argument, 0,        ARG_UG_FAIL_THRESH},
+	{(char*)"extends",          required_argument, 0,        ARG_EXTEND_ITERS},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -966,6 +971,10 @@ static void parseOption(int next_option, const char *arg) {
 			polstr += arg;
 			break;
 		}
+		case ARG_EXTEND_ITERS: {
+			maxIters = parse<size_t>(arg);
+			break;
+		}
 		case ARG_DP_FAIL_STREAK_THRESH: {
 			maxDpStreak = parse<size_t>(arg);
 			break;
@@ -1061,6 +1070,7 @@ static void parseOption(int next_option, const char *arg) {
 			sam_print_ye = true;
 			sam_print_yu = true;
 			sam_print_yr = true;
+			sam_print_zi = true;
 			break;
 		}
 		case ARG_SAM_RG: {
@@ -2927,6 +2937,7 @@ static void* multiseedSearchWorker(void *vp) {
 								maxhalf,        // max width on one DP side
 								doUngapped,     // do ungapped alignment
 								ungappedThresh, // # attempts before all ungapped
+								maxIters,       // max extend loop iters
 								maxUg,          // max # ungapped extends
 								maxDp,          // max # DPs
 								maxUgStreak,    // stop after streak of this many ungap fails
@@ -2966,6 +2977,7 @@ static void* multiseedSearchWorker(void *vp) {
 								maxhalf,        // max width on one DP side
 								doUngapped,     // do ungapped alignment
 								ungappedThresh, // # attempts before all ungapped
+								maxIters,       // max extend loop iters
 								maxUg,          // max # ungapped extends
 								maxDp,          // max # DPs
 								maxUgStreak,    // stop after streak of this many ungap fails
@@ -3095,6 +3107,7 @@ static void* multiseedSearchWorker(void *vp) {
 								maxhalf,        // max width on one DP side
 								doUngapped,     // do ungapped alignment
 								ungappedThresh, // # attempts before all ungapped
+								maxIters,       // max extend loop iters
 								maxUg,          // max # ungapped extends
 								maxDp,          // max # DPs
 								maxUgStreak,    // stop after streak of this many ungap fails
@@ -3134,6 +3147,7 @@ static void* multiseedSearchWorker(void *vp) {
 								maxhalf,        // max width on one DP side
 								doUngapped,     // do ungapped alignment
 								ungappedThresh, // # attempts before all ungapped
+								maxIters,       // max extend loop iters
 								maxUg,          // max # ungapped extends
 								maxDp,          // max # DPs
 								maxUgStreak,    // stop after streak of this many ungap fails
@@ -3335,6 +3349,7 @@ static void* multiseedSearchWorker(void *vp) {
 								maxhalf,        // max width on one DP side
 								doUngapped,     // do ungapped alignment
 								ungappedThresh, // # attempts before all ungapped
+								maxIters,       // max extend loop iters
 								maxUg,          // max # ungapped extends
 								maxDp,          // max # DPs
 								maxUgStreak,    // stop after streak of this many ungap fails
@@ -3374,6 +3389,7 @@ static void* multiseedSearchWorker(void *vp) {
 								maxhalf,        // max width on one DP side
 								doUngapped,     // do ungapped alignment
 								ungappedThresh, // # attempts before all ungapped
+								maxIters,       // max extend loop iters
 								maxUg,          // max # ungapped extends
 								maxDp,          // max # DPs
 								maxUgStreak,    // stop after streak of this many ungap fails
@@ -3416,6 +3432,7 @@ static void* multiseedSearchWorker(void *vp) {
 					} // if(!seedSumm)
 				} // for(size_t matei = 0; matei < 2; matei++)
 				for(size_t i = 0; i < 2; i++) {
+					assert_leq(rds[i]->nExIters,      maxIters);
 					assert_leq(rds[i]->nExDps,        maxDp);
 					assert_leq(rds[i]->nMateDps,      maxDp);
 					assert_leq(rds[i]->nExUngaps,     maxUg);
@@ -3750,6 +3767,7 @@ static void driver(
 			sam_print_ye,
 			sam_print_yu,
 			sam_print_yr,
+			sam_print_zi,
 			sam_print_seed_fields);
 		// Set up hit sink; if sanityCheck && !os.empty() is true,
 		// then instruct the sink to "retain" hits in a vector in

@@ -478,6 +478,7 @@ int SwDriver::extendSeeds(
 	size_t maxhalf,  	         // max width in either direction for DP tables
 	bool doUngapped,             // do ungapped alignment
 	size_t ungappedThresh,       // all attempts after this many are ungapped
+	size_t maxIters,             // stop after this many seed-extend loop iters
 	size_t maxUg,                // stop after this many ungaps
 	size_t maxDp,                // stop after this many dps
 	size_t maxUgStreak,          // stop after streak of this many ungap fails
@@ -605,6 +606,10 @@ int SwDriver::extendSeeds(
 				if(rd.nExUngaps >= maxUg || rd.nMateUngaps >= maxUg) {
 					return EXTEND_EXCEEDED_LIMIT;
 				}
+				if(rd.nExIters >= maxIters) {
+					return EXTEND_EXCEEDED_LIMIT;
+				}
+				rd.nExIters++;
 				first = false;
 				assert(!gws_[i].done());
 				// Resolve next element offset
@@ -1106,6 +1111,7 @@ int SwDriver::extendSeedsPaired(
 	size_t maxhalf,              // max width in either direction for DP tables
 	bool doUngapped,             // do ungapped alignment
 	size_t ungappedThresh,       // all attempts after this many are ungapped
+	size_t maxIters,             // stop after this many seed-extend loop iters
 	size_t maxUg,                // stop after this many ungaps
 	size_t maxDp,                // stop after this many dps
 	size_t maxUgStreak,          // stop after streak of this many ungap fails
@@ -1269,6 +1275,10 @@ int SwDriver::extendSeedsPaired(
 				if(rd.nExUngaps >= maxUg || rd.nMateUngaps >= maxUg) {
 					return EXTEND_EXCEEDED_LIMIT;
 				}
+				if(rd.nExIters >= maxIters) {
+					return EXTEND_EXCEEDED_LIMIT;
+				}
+				rd.nExIters++;
 				first = false;
 				assert(!gws_[i].done());
 				// Resolve next element offset
