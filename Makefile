@@ -86,8 +86,7 @@ BUILD_LIBS =
 SHARED_CPPS = ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
               edit.cpp bt2_idx.cpp bt2_io.cpp bt2_util.cpp \
               reference.cpp ds.cpp multikey_qsort.cpp
-SEARCH_CPPS = qual.cpp pat.cpp \
-              log.cpp sam.cpp \
+SEARCH_CPPS = qual.cpp pat.cpp sam.cpp \
               read_qseq.cpp aligner_seed_policy.cpp \
               aligner_seed.cpp aligner_sw.cpp \
 			  aligner_sw_driver.cpp aligner_cache.cpp \
