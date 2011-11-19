@@ -3044,22 +3044,24 @@ static void* multiseedSearchWorker(void *vp) {
 						assert(shs[mate].repOk(&ca.current()));
 						bool yfw = minedfw[mate] <= 1 && !nofw[mate];
 						bool yrc = minedrc[mate] <= 1 && !norc[mate];
-						// Clear out the exact hits
-						swmSeed.mm1atts++;
-						al.oneMmSearch(
-							&ebwtFw,        // BWT index
-							&ebwtBw,        // BWT' index
-							*rds[mate],     // read
-							sc,             // scoring scheme
-							minsc[mate],    // minimum score
-							!yfw,           // don't align forward read
-							!yrc,           // don't align revcomp read
-							localAlign,     // must be legal local alns?
-							false,          // do exact match
-							true,           // do 1mm
-							shs[mate],      // seed hits (hits installed here)
-							sdm);           // metrics
-						nelt[mate] = shs[mate].num1mmE2eHits();
+						if(yfw || yrc) {
+							// Clear out the exact hits
+							swmSeed.mm1atts++;
+							al.oneMmSearch(
+								&ebwtFw,        // BWT index
+								&ebwtBw,        // BWT' index
+								*rds[mate],     // read
+								sc,             // scoring scheme
+								minsc[mate],    // minimum score
+								!yfw,           // don't align forward read
+								!yrc,           // don't align revcomp read
+								localAlign,     // must be legal local alns?
+								false,          // do exact match
+								true,           // do 1mm
+								shs[mate],      // seed hits (hits installed here)
+								sdm);           // metrics
+							nelt[mate] = shs[mate].num1mmE2eHits();
+						}
 					}
 					// Possibly reorder the mates
 					matemap[0] = 0; matemap[1] = 1;
