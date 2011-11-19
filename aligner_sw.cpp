@@ -38,7 +38,6 @@ void SwAligner::initRead(
 	const BTString& qurc,    // reverse read qualities
 	size_t rdi,              // offset of first read char to align
 	size_t rdf,              // offset of last read char to align
-	bool color,              // true iff read is colorspace
 	const Scoring& sc,       // scoring scheme
 	TAlScore floorsc)        // local-alignment score floor
 {
@@ -50,7 +49,6 @@ void SwAligner::initRead(
 	qurc_    = &qurc;      // read qualities
 	rdi_     = rdi;        // offset of first read char to align
 	rdf_     = rdf;        // offset of last read char to align
-	color_   = color;      // true iff read is colorspace
 	sc_      = &sc;        // scoring scheme
 	floorsc_ = floorsc;    // local-alignment score floor
 	nceil_   = nceil;      // max # Ns allowed in ref portion of aln
@@ -419,7 +417,6 @@ int SwAligner::ungappedAlign(
 		coord.off()+rowi, // 0-based ref offset
 		fw,           // aligned to Watson?
 		len,          // read length
-		false,        // read was colorspace?
 		true,         // pretrim soft?
 		0,            // pretrim 5' end
 		0,            // pretrim 3' end
@@ -453,8 +450,7 @@ int SwAligner::ungappedAlign(
 
 /**
  * Align read 'rd' to reference using read & reference information given
- * last time init() was called.  If the read is colorspace, the decoding is
- * determined simultaneously with alignment.  Uses dynamic programming.
+ * last time init() was called.
  */
 bool SwAligner::align(RandomSource& rnd) {
 	//struct timeval tv_i, tv_f;
@@ -888,17 +884,13 @@ bool SwAligner::nextAlignment(
 #include <getopt.h>
 #include "scoring.h"
 #include "aligner_seed_policy.h"
-#include "color.h"
 
 int  gGapBarrier;
 int  gSnpPhred;
-bool gColor;
-bool gColorExEnds;
 static int bonusMatchType;   // how to reward matches
 static int bonusMatch;       // constant if match bonus is a constant
 static int penMmcType;       // how to penalize mismatches
 static int penMmc;           // constant if mm pelanty is a constant
-static int penSnp;           // penalty for nucleotide mm in decoded color aln
 static int penNType;         // how to penalize Ns in the read
 static int penN;             // constant if N pelanty is a constant
 static bool nPairCat;        // true -> concatenate mates before N filter
@@ -931,7 +923,6 @@ static struct option long_opts[] = {
 	{(char*)"snppen",       required_argument, 0, 's'},
 	{(char*)"misspen",      required_argument, 0, 'm'},
 	{(char*)"seed",         required_argument, 0, 'r'},
-	{(char*)"color",        no_argument,       0, 'C'},
 	{(char*)"align-policy", no_argument,       0, 'A'},
 	{(char*)"test",         no_argument,       0, ARG_TESTS},
 };
@@ -939,7 +930,6 @@ static struct option long_opts[] = {
 static void printUsage(ostream& os) {
 	os << "Usage: aligner_sw <read-seq> <ref-nuc-seq> [options]*" << endl;
 	os << "Options:" << endl;
-	os << "  -C/--color          reads are colorspace" << endl;
 	os << "  -s/--snppen <int>   penalty incurred by SNP; used for decoding"
 	   << endl;
 	os << "  -m/--misspen <int>  quality to use for read chars" << endl;
@@ -982,7 +972,6 @@ static void doTestCase(
 	TAlScore           minsc,
 	TAlScore           floorsc,
 	SwResult&          res,
-	bool               color,
 	bool               nsInclusive,
 	bool               filterns,
 	uint32_t           seed)
@@ -991,7 +980,6 @@ static void doTestCase(
 	btref2 = refin;
 	assert_eq(read.length(), qual.length());
 	size_t nrow = read.length();
-	nrow += (color ? 1 : 0);
 	int64_t rfi, rff;
 	// Calculate the largest possible number of read and reference gaps given
 	// 'minsc' and 'pens'
@@ -1068,7 +1056,6 @@ static void doTestCase(
 		qualrc,
 		0,             // offset of first character within 'read' to consider
 		read.length(), // offset of last char (exclusive) in 'read' to consider
-		color,         // whether read is nucleotide-space or colorspace
 		floorsc);      // local-alignment score floor
 	al.initRef(
 		fw,            // 'read' is forward version of read?
@@ -1103,12 +1090,11 @@ static void doTestCase2(
 	float              costMinConst,
 	float              costMinLinear,
 	SwResult&          res,
-	bool               color,
 	bool               nsInclusive = false,
 	bool               filterns = false,
 	uint32_t           seed = 0)
 {
-	btread.install(read, true, color);
+	btread.install(read, true);
 	TAlScore minsc = (TAlScore)(Scoring::linearFunc(
 		btread.length(),
 		costMinConst,
@@ -1130,7 +1116,6 @@ static void doTestCase2(
 		minsc,
 		floorsc,
 		res,
-		color,
 		nsInclusive,
 		filterns,
 		seed
@@ -1152,12 +1137,11 @@ static void doTestCase3(
 	float              nCeilConst,
 	float              nCeilLinear,
 	SwResult&          res,
-	bool               color,
 	bool               nsInclusive = false,
 	bool               filterns = false,
 	uint32_t           seed = 0)
 {
-	btread.install(read, true, color);
+	btread.install(read, true);
 	// Calculate the penalty ceiling for the read
 	TAlScore minsc = (TAlScore)(Scoring::linearFunc(
 		btread.length(),
@@ -1183,7 +1167,6 @@ static void doTestCase3(
 		minsc,
 		floorsc,
 		res,
-		color,
 		nsInclusive,
 		filterns,
 		seed
@@ -1207,12 +1190,11 @@ static void doTestCase4(
 	float              nCeilConst,
 	float              nCeilLinear,
 	SwResult&          res,
-	bool               color,
 	bool               nsInclusive = false,
 	bool               filterns = false,
 	uint32_t           seed = 0)
 {
-	btread.install(read, true, color);
+	btread.install(read, true);
 	// Calculate the penalty ceiling for the read
 	TAlScore minsc = (TAlScore)(Scoring::linearFunc(
 		btread.length(),
@@ -1238,7 +1220,6 @@ static void doTestCase4(
 		minsc,
 		floorsc,
 		res,
-		color,
 		nsInclusive,
 		filterns,
 		seed
@@ -1354,7 +1335,6 @@ static void doTests() {
 			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		assert(!al.done());
@@ -1365,7 +1345,7 @@ static void doTests() {
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), 0);
 		assert_eq(res.alres.score().ns(), 0);
-		assert(res.alres.ned().empty()); assert(res.alres.ced().empty());
+		assert(res.alres.ned().empty());
 		assert(res.alres.aed().empty());
 		res.reset();
 		al.nextAlignment(res, rnd);
@@ -1388,7 +1368,6 @@ static void doTests() {
 			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		assert(!al.done());
@@ -1417,7 +1396,6 @@ static void doTests() {
 			-40.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		assert(!al.done());
@@ -1456,7 +1434,6 @@ static void doTests() {
 			-40.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		assert(!al.done());
@@ -1487,7 +1464,6 @@ static void doTests() {
 			-40.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		assert(!al.done());
@@ -1517,7 +1493,6 @@ static void doTests() {
 			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		assert(!al.done());
@@ -1530,7 +1505,6 @@ static void doTests() {
 		assert_eq(res.alres.score().ns(), 0);
 		assert_eq(1, res.alres.ned().size());
 		assert_eq(0, res.alres.aed().size());
-		assert_eq(0, res.alres.ced().size());
 		res.reset();
 		al.nextAlignment(res, rnd);
 		assert(res.empty());
@@ -1551,7 +1525,6 @@ static void doTests() {
 			1.0f,               // allow 1 N
 			0.0f,               // allow 1 N
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		assert(!al.done());
@@ -1582,7 +1555,6 @@ static void doTests() {
 			2.0f,               // const coeff for N ceiling
 			0.0f,               // linear coeff for N ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		assert(!al.done());
@@ -1611,7 +1583,6 @@ static void doTests() {
 			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		assert(!al.done());
@@ -1640,7 +1611,6 @@ static void doTests() {
 			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		assert(!al.done());
@@ -1669,7 +1639,6 @@ static void doTests() {
 			-10.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		al.nextAlignment(res, rnd);
@@ -1695,7 +1664,6 @@ static void doTests() {
 			-40.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		assert(!al.done());
@@ -1728,7 +1696,6 @@ static void doTests() {
 			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		al.nextAlignment(res, rnd);
@@ -1750,7 +1717,6 @@ static void doTests() {
 			-40.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		assert(!al.done());
@@ -1784,7 +1750,6 @@ static void doTests() {
 			-40.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		sc.gapbar = 1;
@@ -1808,7 +1773,6 @@ static void doTests() {
 			-40.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		sc.gapbar = 1;
@@ -1840,7 +1804,6 @@ static void doTests() {
 			-40.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		sc.gapbar = 1;
@@ -1870,7 +1833,6 @@ static void doTests() {
 			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		al.nextAlignment(res, rnd);
@@ -1892,7 +1854,6 @@ static void doTests() {
 			-40.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		sc.gapbar = 1;
@@ -1919,7 +1880,6 @@ static void doTests() {
 			-40.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		assert(!al.done());
@@ -1952,7 +1912,6 @@ static void doTests() {
 			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		al.nextAlignment(res, rnd);
@@ -1979,7 +1938,6 @@ static void doTests() {
 			-40.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		assert(!al.done());
@@ -2008,7 +1966,6 @@ static void doTests() {
 			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		al.nextAlignment(res, rnd);
@@ -2033,7 +1990,6 @@ static void doTests() {
 			-40.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		assert(!al.done());
@@ -2062,7 +2018,6 @@ static void doTests() {
 			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		al.nextAlignment(res, rnd);
@@ -2087,7 +2042,6 @@ static void doTests() {
 			-40.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		assert(!al.done());
@@ -2115,7 +2069,6 @@ static void doTests() {
 			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		al.nextAlignment(res, rnd);
@@ -2143,7 +2096,6 @@ static void doTests() {
 			1.0,                // const coeff for N ceiling
 			0.0,                // linear coeff for N ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			true);              // filter Ns
 		assert(!al.done());
@@ -2188,7 +2140,6 @@ static void doTests() {
 			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		al.nextAlignment(res, rnd);
@@ -2222,7 +2173,6 @@ static void doTests() {
 			1.0f,               // needed to avoid overhang alignments
 			0.0f,               // needed to avoid overhang alignments
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			true);              // filter Ns
 		if(i == 0) {
@@ -2266,7 +2216,6 @@ static void doTests() {
 			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		al.nextAlignment(res, rnd);
@@ -2291,7 +2240,6 @@ static void doTests() {
 			-30.0f,             // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		al.nextAlignment(res, rnd);
@@ -2315,7 +2263,6 @@ static void doTests() {
 				-30.0f,             // const coeff for cost ceiling
 				0.0f,               // linear coeff for cost ceiling
 				res,                // result
-				false,              // color
 				nIncl,              // Ns inclusive (not mismatches)
 				nfilter);           // filter Ns
 			al.nextAlignment(res, rnd);
@@ -2339,7 +2286,6 @@ static void doTests() {
 			-150.0f,            // const coeff for cost ceiling
 			0.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		al.nextAlignment(res, rnd);
@@ -2364,7 +2310,6 @@ static void doTests() {
 				-150.0f,            // const coeff for cost ceiling
 				0.0f,               // linear coeff for cost ceiling
 				res,                // result
-				false,              // color
 				nIncl,              // Ns inclusive (not mismatches)
 				nfilter);           // filter Ns
 			al.nextAlignment(res, rnd);
@@ -2375,494 +2320,6 @@ static void doTests() {
 			res.reset();
 			cerr << "PASSED" << endl;
 		}
-	}
-
-	for(int i = 0; i < 3; i++) {
-		if(i == 0) {
-			cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
-				 << ", exact)...";
-			doTestCase2(
-				al,
-				"131",
-				"III",
-				"ACGT",
-				i*4,                // off
-				sc,                 // scoring scheme
-				-30.0f,             // const coeff for cost ceiling
-				0.0f,               // linear coeff for cost ceiling
-				res,                // result
-				true,               // color
-				nIncl,              // Ns inclusive (not mismatches)
-				nfilter);           // filter Ns
-			al.nextAlignment(res, rnd);
-			assert(!res.empty());
-			assert_eq(res.alres.score().gaps(), 0);
-			assert_eq(res.alres.score().score(), 0);
-			assert(res.alres.ned().empty()); assert(res.alres.ced().empty());
-			assert(res.alres.aed().empty());
-			res.reset();
-			cerr << "PASSED" << endl;
-		}
-
-		cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
-		     << ", exact)...";
-		sc.rfGapConst = 40;
-		sc.rdGapConst = 40;
-		doTestCase2(
-			al,
-			"1313131",
-			"IIIIIII",
-			"ACGTACGTACGTACGT",
-			i*4,                // off
-			sc,                 // scoring scheme
-			-30.0f,             // const coeff for cost ceiling
-			0.0f,               // linear coeff for cost ceiling
-			res,                // result
-			true,               // color
-			nIncl,              // Ns inclusive (not mismatches)
-			nfilter);           // filter Ns
-		al.nextAlignment(res, rnd);
-		assert(!res.empty());
-		assert_eq(res.alres.score().gaps(), 0);
-		assert_eq(res.alres.score().score(), 0);
-		assert(res.alres.ned().empty()); assert(res.alres.ced().empty());
-		assert(res.alres.aed().empty());
-		res.reset();
-		cerr << "PASSED" << endl;
-
-		cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
-		     << ", exact2)...";
-		sc.rfGapConst = 40;
-		sc.rdGapConst = 40;
-		doTestCase2(
-			al,
-			"1313131",
-			"IIIIIII",
-			"ACGTACGTACGTACGT",
-			i*4,                // off
-			sc,                 // scoring scheme
-			-40.0f,             // const coeff for cost ceiling
-			0.0f,               // linear coeff for cost ceiling
-			res,                // result
-			true,               // color
-			nIncl,              // Ns inclusive (not mismatches)
-			nfilter);           // filter Ns
-		al.nextAlignment(res, rnd);
-		assert(!res.empty());
-		assert_eq(res.alres.score().gaps(), 0);
-		assert_eq(res.alres.score().score(), 0);
-		assert(res.alres.ned().empty());
-		assert(res.alres.ced().empty());
-		assert(res.alres.aed().empty());
-		res.reset();
-		cerr << "PASSED" << endl;
-
-		cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
-		     << ", exact3)...";
-		sc.rfGapConst = 50;
-		sc.rdGapConst = 40;
-		doTestCase2(
-			al,
-			"131313131",
-			"IIIIIIIII",
-			"ACGTACGTACGTACGT",
-			i*4,                // off
-			sc,                 // scoring scheme
-			-80.0f,             // const coeff for cost ceiling
-			0.0f,               // linear coeff for cost ceiling
-			res,                // result
-			true,               // color
-			nIncl,              // Ns inclusive (not mismatches)
-			nfilter);           // filter Ns
-		al.nextAlignment(res, rnd);
-		assert(!res.empty());
-		assert_eq(res.alres.score().gaps(), 0);
-		assert_eq(res.alres.score().score(), 0);
-		assert(res.alres.ned().empty());
-		assert(res.alres.ced().empty());
-		assert(res.alres.aed().empty());
-		res.reset();
-		cerr << "PASSED" << endl;
-
-		cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
-		     << ", exact4)...";
-		sc.rfGapConst = 40;
-		sc.rdGapConst = 50;
-		doTestCase2(
-			al,
-			"131313131",
-			"IIIIIIIII",
-			"ACGTACGTACGTACGT",
-			i*4,                // off
-			sc,                 // scoring scheme
-			-80.0f,             // const coeff for cost ceiling
-			0.0f,               // linear coeff for cost ceiling
-			res,                // result
-			true,               // color
-			nIncl,              // Ns inclusive (not mismatches)
-			nfilter);           // filter Ns
-		al.nextAlignment(res, rnd);
-		assert(!res.empty());
-		assert_eq(res.alres.score().gaps(), 0);
-		assert_eq(res.alres.score().score(), 0);
-		assert_eq(res.alres.score().ns(), 0);
-		assert(res.alres.ned().empty()); assert(res.alres.ced().empty());
-		assert(res.alres.aed().empty());
-		res.reset();
-		cerr << "PASSED" << endl;
-
-		cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
-		     << ", 1 N allowed by minsc)...";
-		sc.rfGapConst = 40;
-		sc.rdGapConst = 40;
-		sc.snp = 30;
-		doTestCase3(
-			al,
-			"131.131",
-			"IIIIIII",
-			"ACGTACGTACGTACGT",
-			i*4,                // off
-			sc,                 // scoring scheme
-			-30.0f,             // const coeff for cost ceiling
-			0.0f,               // linear coeff for cost ceiling
-			1.0f,               // allow 1 N
-			0.0f,               // allow 1 N
-			res,                // result
-			true,               // color
-			nIncl,              // Ns inclusive (not mismatches)
-			nfilter);           // filter Ns
-		al.nextAlignment(res, rnd);
-		assert(!res.empty());
-		assert_eq(res.alres.score().gaps(), 0);
-		assert_eq(res.alres.score().score(), -1);
-		assert_eq(1, res.alres.score().ns());
-		assert_eq(0, res.alres.ned().size());
-		assert_eq(1, res.alres.ced().size());
-		assert(res.alres.aed().empty());
-		res.reset();
-		cerr << "PASSED" << endl;
-
-		cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
-		     << ", 1 ref N and 1 read N)...";
-		sc.rfGapConst = 40;
-		sc.rdGapConst = 40;
-		sc.snp = 30;
-		doTestCase3(
-			al,
-			".313131",
-			"IIIIIII",
-			"ACGTACNTACGTACNT",
-			i*4,                // off
-			sc,                 // scoring scheme
-			-30.0f,             // const coeff for cost ceiling
-			0.0f,               // linear coeff for cost ceiling
-			1.0f,               // allow 2 Ns
-			0.2f,               // allow 2 Ns
-			res,                // result
-			true,               // color
-			nIncl,              // Ns inclusive (not mismatches)
-			nfilter);           // filter Ns
-		al.nextAlignment(res, rnd);
-		assert(!res.empty());
-		assert_eq(res.alres.score().gaps(), 0);
-		assert_eq(res.alres.score().score(), -2);
-		assert_eq(res.alres.score().ns(), 2);
-		assert_eq(2, res.alres.score().ns());
-		assert_eq(1, res.alres.ned().size());
-		assert_eq(1, res.alres.ced().size());
-		assert(res.alres.aed().empty());
-		res.reset();
-		cerr << "PASSED" << endl;
-
-		cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
-		     << ", 2 Nn allowed by minsc)...";
-		sc.rfGapConst = 40;
-		sc.rdGapConst = 40;
-		sc.snp = 30;
-		doTestCase2(
-			al,
-			".31313.",
-			"IIIIIII",
-			"ACGTACGTACGTACGT",
-			i*4,                // off
-			sc,                 // scoring scheme
-			-30.0f,             // const coeff for cost ceiling
-			0.0f,               // linear coeff for cost ceiling
-			res,                // result
-			true,               // color
-			nIncl,              // Ns inclusive (not mismatches)
-			nfilter);           // filter Ns
-		al.nextAlignment(res, rnd);
-		assert(!res.empty());
-		assert_eq(res.alres.score().gaps(), 0);
-		assert_eq(res.alres.score().score(), -2);
-		assert_eq(2, res.alres.score().ns());
-		assert_eq(0, res.alres.ned().size());
-		assert_eq(2, res.alres.ced().size());
-		assert(res.alres.aed().empty());
-		res.reset();
-		cerr << "PASSED" << endl;
-
-		if(i == 0) {
-			cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
-			     << ", 2 Ns allowed by minsc)...";
-			sc.rfGapConst = 40;
-			sc.rdGapConst = 40;
-			sc.snp = 30;
-			doTestCase2(
-				al,
-				"..13131",
-				"IIIIIII",
-				"ANGTACGT",
-				i*4,                // off
-				sc,                 // scoring scheme
-				-30.0f,             // const coeff for cost ceiling
-				0.0f,               // linear coeff for cost ceiling
-				res,                // result
-				true,               // color
-				nIncl,              // Ns inclusive (not mismatches)
-				nfilter);           // filter Ns
-			al.nextAlignment(res, rnd);
-			assert(!res.empty());
-			assert_eq(res.alres.score().gaps(), 0);
-			// TODO: should be -2
-			assert_eq(res.alres.score().score(), -3);
-			// 2 or 3?
-			assert_eq(3, res.alres.score().ns());
-			assert_eq(1, res.alres.ned().size());
-			assert_eq(2, res.alres.ced().size());
-			assert(res.alres.aed().empty());
-			res.reset();
-			cerr << "PASSED" << endl;
-		}
-
-		cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
-		     << ", 1 SNP allowed by minsc)...";
-		sc.rfGapConst = 40;
-		sc.rdGapConst = 40;
-		sc.snp = 30;
-		doTestCase2(
-			al,
-			"1310231",
-			"IIIIIII",
-			"ACGTACGTACGTACGT",
-			i*4,                // off
-			sc,                 // scoring scheme
-			-30.0f,             // const coeff for cost ceiling
-			0.0f,               // linear coeff for cost ceiling
-			res,                // result
-			true,               // color
-			nIncl,              // Ns inclusive (not mismatches)
-			nfilter);           // filter Ns
-		al.nextAlignment(res, rnd);
-		assert(!res.empty());
-		assert_eq(res.alres.score().gaps(), 0);
-		assert_eq(res.alres.score().score(), -30);
-		assert_eq(1, res.alres.ned().size());
-		assert(res.alres.ced().empty());
-		assert(res.alres.aed().empty());
-		res.reset();
-		cerr << "PASSED" << endl;
-
-		cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
-		     << ", 1 SNP allowed by minsc)...";
-		sc.rfGapConst = 40;
-		sc.rdGapConst = 40;
-		sc.snp = 30;
-		doTestCase2(
-			al,
-			"0213131",
-			"IIIIIII",
-			"ACGTACGTACGTACGT",
-			i*4,                // off
-			sc,                 // scoring scheme
-			-30.0f,             // const coeff for cost ceiling
-			0.0f,               // linear coeff for cost ceiling
-			res,                // result
-			true,               // color
-			nIncl,              // Ns inclusive (not mismatches)
-			nfilter);           // filter Ns
-		al.nextAlignment(res, rnd);
-		assert(!res.empty());
-		assert_eq(res.alres.score().gaps(), 0);
-		assert_eq(res.alres.score().score(), -30);
-		assert_eq(1, res.alres.ned().size());
-		assert(res.alres.ced().empty());
-		assert(res.alres.aed().empty());
-		res.reset();
-		cerr << "PASSED" << endl;
-
-		cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
-		     << ", 1 SNP allowed by minsc 2)...";
-		sc.rfGapConst = 20;
-		sc.rdGapConst = 20;
-		sc.snp = 20;
-		doTestCase2(
-			al,
-			"1310231",
-			"IIIIIII",
-			"ACGTACGTACGTACGT",
-			i*4,                // off
-			sc,                 // scoring scheme
-			-20.0f,             // const coeff for cost ceiling
-			0.0f,               // linear coeff for cost ceiling
-			res,                // result
-			true,               // color
-			nIncl,              // Ns inclusive (not mismatches)
-			nfilter);           // filter Ns
-		al.nextAlignment(res, rnd);
-		assert(!res.empty());
-		assert_eq(res.alres.score().gaps(), 0);
-		assert_eq(res.alres.score().score(), -20);
-		assert_eq(1, res.alres.ned().size());
-		assert(res.alres.ced().empty());
-		assert(res.alres.aed().empty());
-		res.reset();
-		cerr << "PASSED" << endl;
-
-		cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
-		     << ", 1 MM allowed by minsc)...";
-		sc.rfGapConst = 40;
-		sc.rdGapConst = 40;
-		sc.snp = 30;
-		doTestCase2(
-			al,
-			"1310131",
-			"IIIIIII",
-			"ACGTACGTACGTACGT",
-			i*4,                // off
-			sc,                 // scoring scheme
-			-30.0f,             // const coeff for cost ceiling
-			0.0f,               // linear coeff for cost ceiling
-			res,                // result
-			true,               // color
-			nIncl,              // Ns inclusive (not mismatches)
-			nfilter);           // filter Ns
-		al.nextAlignment(res, rnd);
-		assert(!res.empty());
-		assert_eq(res.alres.score().gaps(), 0);
-		assert_eq(res.alres.score().score(), -30);
-		assert_eq(0, res.alres.ned().size());
-		assert_eq(1, res.alres.ced().size());
-		assert(res.alres.aed().empty());
-		res.reset();
-		cerr << "PASSED" << endl;
-
-		cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
-		     << ", 1 MM allowed by minsc 2)...";
-		sc.snp = 20;
-		doTestCase2(
-			al,
-			"1310131",
-			"5555555",
-			"ACGTACGTACGTACGT",
-			i*4,                // off
-			sc2,                // scoring scheme
-			-20.0f,             // const coeff for cost ceiling
-			0.0f,               // linear coeff for cost ceiling
-			res,                // result
-			true,               // color
-			nIncl,              // Ns inclusive (not mismatches)
-			nfilter);           // filter Ns
-		al.nextAlignment(res, rnd);
-		assert(!res.empty());
-		assert_eq(res.alres.score().gaps(), 0);
-		assert_eq(res.alres.score().score(), -20);
-		assert_eq(0, res.alres.ned().size());
-		assert_eq(1, res.alres.ced().size());
-		assert(res.alres.aed().empty());
-		res.reset();
-		cerr << "PASSED" << endl;
-
-		cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
-		     << ", 1 read gap)...";
-		sc.rfGapConst = 25;
-		sc.rdGapConst = 25;
-		sc.rfGapLinear = 14;
-		sc.rdGapLinear = 14;
-		sc.snp = 30;
-		doTestCase2(
-			al,
-			"131231",
-			"IIIIII",
-			"ACGTACGTACGTACGT",
-			i*4,                // off
-			sc,                 // scoring scheme
-			-40.0f,             // const coeff for cost ceiling
-			0.0f,               // linear coeff for cost ceiling
-			res,                // result
-			true,               // color
-			nIncl,              // Ns inclusive (not mismatches)
-			nfilter);           // filter Ns
-		al.nextAlignment(res, rnd);
-		assert(!res.empty());
-		assert_eq(res.alres.score().gaps(), 1);
-		assert_eq(res.alres.score().score(), -39);
-		assert_eq(1, res.alres.ned().size());
-		assert(res.alres.ced().empty());
-		assert(res.alres.aed().empty());
-		res.reset();
-		cerr << "PASSED" << endl;
-
-		cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
-		     << ", 1 ref gap)...";
-		sc.rfGapConst = 25;
-		sc.rdGapConst = 25;
-		sc.rfGapLinear = 14;
-		sc.rdGapLinear = 14;
-		sc.snp = 30;
-		doTestCase2(
-			al,
-			"13130131",
-			"IIIIIIII",
-			"ACGTACGTACGTACGT",
-			i*4,                // off
-			sc,                 // scoring scheme
-			-40.0f,             // const coeff for cost ceiling
-			0.0f,               // linear coeff for cost ceiling
-			res,                // result
-			true,               // color
-			nIncl,              // Ns inclusive (not mismatches)
-			nfilter);           // filter Ns
-		al.nextAlignment(res, rnd);
-		assert(!res.empty());
-		assert_eq(res.alres.score().gaps(), 1);
-		assert_eq(res.alres.score().score(), -39);
-		assert_eq(1, res.alres.ned().size());
-		assert(res.alres.ced().empty());
-		assert(res.alres.aed().empty());
-		res.reset();
-		cerr << "PASSED" << endl;
-
-		cerr << "  Test " << tests++ << " (color space, offset " << (i*4)
-		     << ", 2 ref gaps)...";
-		sc.rfGapConst  = 25;
-		sc.rdGapConst  = 25;
-		sc.rfGapLinear = 15;
-		sc.rdGapLinear = 15;
-		sc.snp = 30;
-		doTestCase2(
-			al,
-			"131003131",
-			"IIIIIIIII",
-			"ACGTACGTACGTACGT",
-			i*4,                // off
-			sc,                 // scoring scheme
-			-60.0f,             // const coeff for cost ceiling
-			0.0f,               // linear coeff for cost ceiling
-			res,                // result
-			true,               // color
-			nIncl,              // Ns inclusive (not mismatches)
-			nfilter);           // filter Ns
-		al.nextAlignment(res, rnd);
-		assert(!res.empty());
-		assert_eq(res.alres.score().gaps(), 2);
-		assert_eq(res.alres.score().score(), -55);
-		assert_eq(2, res.alres.ned().size());
-		assert(res.alres.ced().empty());
-		assert(res.alres.aed().empty());
-		res.reset();
-		cerr << "PASSED" << endl;
 	}
 
 	// A test case where a valid alignment with a worse score should be
@@ -2891,7 +2348,6 @@ static void doTests() {
 		-25.0f,     // const coeff for cost ceiling
 		0.0f,       // linear coeff for cost ceiling
 		res,        // result
-		false,      // colorspace
 		false,      // ns are in inclusive
 		true,       // nfilter
 		0);
@@ -2914,7 +2370,6 @@ static void doTests() {
 		1.0f,       // constant coefficient for # Ns allowed
 		0.0f,       // linear coefficient for # Ns allowed
 		res,        // result
-		false,      // colorspace
 		false,      // ns are in inclusive
 		false,      // nfilter - NOTE: FILTER OFF
 		0);
@@ -2951,7 +2406,6 @@ static void doTests() {
 			1.0f,       // constant coefficient for # Ns allowed
 			0.0f,       // linear coefficient for # Ns allowed
 			res,        // result
-			false,      // colorspace
 			false,      // ns are in inclusive
 			false,      // nfilter - NOTE: FILTER OFF
 			0);
@@ -2979,7 +2433,6 @@ static void doTests() {
 		-25.0f,     // const coeff for cost ceiling
 		0.0f,       // linear coeff for cost ceiling
 		res,        // result
-		false,      // colorspace
 		false,      // ns are in inclusive
 		true,       // nfilter - NOTE: FILTER ON
 		0);
@@ -3013,7 +2466,6 @@ static void doTests() {
 		-25.0f,     // const coeff for cost ceiling
 		-5.0f,      // linear coeff for cost ceiling
 		res,        // result
-		false,      // colorspace
 		false,      // ns are in inclusive
 		true,       // nfilter - NOTE: FILTER ON
 		0);
@@ -3107,7 +2559,6 @@ static void doLocalTests() {
 			0.0f,               // const coeff for cost ceiling
 			8.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		assert(!al.done());
@@ -3118,7 +2569,7 @@ static void doLocalTests() {
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), 40);
 		assert_eq(res.alres.score().ns(), 0);
-		assert(res.alres.ned().empty()); assert(res.alres.ced().empty());
+		assert(res.alres.ned().empty());
 		assert(res.alres.aed().empty());
 		res.reset();
 		al.nextAlignment(res, rnd);
@@ -3148,7 +2599,6 @@ static void doLocalTests() {
 			0.0f,               // const coeff for cost ceiling
 			7.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		assert(!al.done());
@@ -3159,7 +2609,7 @@ static void doLocalTests() {
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), 30);
 		assert_eq(res.alres.score().ns(), 0);
-		assert(res.alres.ned().empty()); assert(res.alres.ced().empty());
+		assert(res.alres.ned().empty());
 		assert(res.alres.aed().empty());
 		res.reset();
 		al.nextAlignment(res, rnd);
@@ -3182,7 +2632,6 @@ static void doLocalTests() {
 			0.0f,               // const coeff for cost ceiling
 			7.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		assert(!al.done());
@@ -3193,7 +2642,7 @@ static void doLocalTests() {
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), 30);
 		assert_eq(res.alres.score().ns(), 0);
-		assert(res.alres.ned().empty()); assert(res.alres.ced().empty());
+		assert(res.alres.ned().empty());
 		assert(res.alres.aed().empty());
 		res.reset();
 		al.nextAlignment(res, rnd);
@@ -3218,7 +2667,6 @@ static void doLocalTests() {
 				25.0f,               // const coeff for cost ceiling
 				0.0f,               // linear coeff for cost ceiling
 				res,                // result
-				false,              // color
 				nIncl,              // Ns inclusive (not mismatches)
 				nfilter);           // filter Ns
 			assert(!al.done());
@@ -3229,7 +2677,7 @@ static void doLocalTests() {
 			assert_eq(res.alres.score().gaps(), 0);
 			assert_eq(res.alres.score().score(), 60);
 			assert_eq(res.alres.score().ns(), 0);
-			assert(res.alres.ned().empty()); assert(res.alres.ced().empty());
+			assert(res.alres.ned().empty());
 			assert(res.alres.aed().empty());
 			res.reset();
 			al.nextAlignment(res, rnd);
@@ -3254,7 +2702,6 @@ static void doLocalTests() {
 			0.0f,               // const coeff for cost ceiling
 			8.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		assert(!al.done());
@@ -3265,7 +2712,7 @@ static void doLocalTests() {
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), 80);
 		assert_eq(res.alres.score().ns(), 0);
-		assert(res.alres.ned().empty()); assert(res.alres.ced().empty());
+		assert(res.alres.ned().empty());
 		assert(res.alres.aed().empty());
 		res.reset();
 		al.nextAlignment(res, rnd);
@@ -3291,7 +2738,6 @@ static void doLocalTests() {
 			0.0f,               // const coeff for cost ceiling
 			8.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		assert(!al.done());
@@ -3302,7 +2748,7 @@ static void doLocalTests() {
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), 210);
 		assert_eq(res.alres.score().ns(), 0);
-		assert(res.alres.ned().empty()); assert(res.alres.ced().empty());
+		assert(res.alres.ned().empty());
 		assert(res.alres.aed().empty());
 		res.reset();
 		al.nextAlignment(res, rnd);
@@ -3323,7 +2769,6 @@ static void doLocalTests() {
 			0.0f,               // const coeff for cost ceiling
 			5.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		assert(!al.done());
@@ -3359,7 +2804,6 @@ static void doLocalTests() {
 			0.0f,               // const coeff for cost ceiling
 			1.0f,               // linear coeff for cost ceiling
 			res,                // result
-			false,              // color
 			nIncl,              // Ns inclusive (not mismatches)
 			nfilter);           // filter Ns
 		assert(!al.done());
@@ -3370,7 +2814,7 @@ static void doLocalTests() {
 		assert_eq(res.alres.score().gaps(), 0);
 		assert_eq(res.alres.score().score(), 80);
 		assert_eq(res.alres.score().ns(), 0);
-		assert(res.alres.ned().empty()); assert(res.alres.ced().empty());
+		assert(res.alres.ned().empty());
 		assert(res.alres.aed().empty());
 		res.reset();
 		al.nextAlignment(res, rnd);
@@ -3385,8 +2829,6 @@ int main(int argc, char **argv) {
 	unsigned seed = 0;
 	gGapBarrier = 1;
 	gSnpPhred = 30;
-	gColor = false;
-	gColorExEnds = true;
 	bool nsInclusive = false;
 	bool nfilter = false;
 	bonusMatchType  = DEFAULT_MATCH_BONUS_TYPE;
@@ -3419,7 +2861,6 @@ int main(int argc, char **argv) {
 	do {
 		next_option = getopt_long(argc, argv, short_opts, long_opts, &option_index);
 		switch (next_option) {
-			case 'C': gColor     = true; break;
 			case 's': gSnpPhred  = parse<int>(optarg); break;
 			case 'r': seed       = parse<unsigned>(optarg); break;
 			case ARG_TESTS: {
@@ -3442,7 +2883,6 @@ int main(int argc, char **argv) {
 					bonusMatch,
 					penMmcType,
 					penMmc,
-					penSnp,
 					penNType,
 					penN,
 					penRdExConst,
@@ -3484,11 +2924,7 @@ int main(int argc, char **argv) {
 	BTDnaString read;
 	BTString ref, qual;
 	// Get read
-	if(isalpha(argv[optind][0])) {
-		read.installChars(argv[optind]);
-	} else {
-		read.installColors(argv[optind]);
-	}
+	read.installChars(argv[optind]);
 	// Get qualities
 	qual.install(argv[optind+1]);
 	assert_eq(read.length(), qual.length());
@@ -3504,7 +2940,6 @@ int main(int argc, char **argv) {
 		bonusMatch,
 		penMmcType,    // how to penalize mismatches
 		penMmc,        // constant if mm pelanty is a constant
-		penSnp,        // penalty for nucleotide mismatch in decoded color alns
 		costMinConst,
 		costMinLinear,
 		costFloorConst,
@@ -3541,7 +2976,6 @@ int main(int argc, char **argv) {
 		minsc,
 		floorsc,
 		res,
-		gColor,
 		nsInclusive,
 		nfilter,
 		seed);

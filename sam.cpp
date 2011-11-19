@@ -118,7 +118,6 @@ void SamConfig::printPgLine(OutFileBuf& o) const {
 void SamConfig::printAlignedOptFlags(
 	OutFileBuf& o,          // output buffer
 	bool first,             // first opt flag printed is first overall?
-	bool exEnds,            // exclude ends of sequence?
 	const Read& rd,         // the read
 	const AlnRes& res,      // individual alignment result
 	const AlnFlags& flags,  // alignment flags
@@ -134,27 +133,6 @@ void SamConfig::printAlignedOptFlags(
 		WRITE_SEP();
 		o.writeChars("AS:i:");
 		o.writeChars(buf);
-	}
-	if(res.color()) {
-		if(print_cs_) {
-			// CS:Z: Color read sequence on the original strand
-			// Note: the 'primer' and 'trimc' fields of the Read data structure
-			// are set to '?' unless the primer base is present in the input.
-			WRITE_SEP();
-			o.writeChars("CS:Z:");
-			if(rd.primer != '?') {
-				assert_neq('?', rd.trimc);
-				o.write(rd.primer);
-				o.write(rd.trimc);
-			}
-			o.writeString(rd.patFw);
-		}
-		if(print_cq_) {
-			// CQ:Z: Color read quality on the original strand
-			WRITE_SEP();
-			o.writeChars("CQ:Z:");
-			o.writeString(rd.qual);
-		}
 	}
 	if(print_xs_) {
 		// XS:i: Suboptimal alignment score
@@ -240,8 +218,6 @@ void SamConfig::printAlignedOptFlags(
 		WRITE_SEP();
 		o.writeChars("MD:Z:");
 		res.printMD(
-			false,      // print colors
-			exEnds,     // exclude nucleotide ends
 			const_cast<EList<char>&>(tmpmdop_),    // MD operations
 			const_cast<EList<char>&>(tmpmdch_),    // MD chars
 			const_cast<EList<size_t>&>(tmpmdrun_), // MD run lengths

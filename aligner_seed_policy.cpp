@@ -101,15 +101,6 @@ static int parseFuncType(const std::string& otype) {
  *         rounded quality value.  Qualities are rounded off to the
  *         nearest 10, and qualities greater than 30 are rounded to 30.
  *
- * Penalty for a SNP in a colorspace alignment
- * -------------------------------------------
- *
- * SNP=xx (default: SNP=6)
- *
- *    xx = Each nucleotide difference in a decoded colorspace alignment
- *         costs xx.  This should be about equal to -10 * log10(expected
- *         fraction of positions that are SNPs)
- * 
  * Penalty for position with N (in either read or reference)
  * ---------------------------------------------------------
  *
@@ -263,7 +254,6 @@ void SeedAlignmentPolicy::parseString(
 	int&   penMmcType,
 	int&   penMmcMax,
 	int&   penMmcMin,
-	int&   penSnp,
 	int&   penNType,
 	int&   penN,
 	int&   penRdExConst,
@@ -291,7 +281,6 @@ void SeedAlignmentPolicy::parseString(
 	                                  DEFAULT_MM_PENALTY_TYPE;
 	penMmcMax         = DEFAULT_MM_PENALTY_MAX;
 	penMmcMin         = DEFAULT_MM_PENALTY_MIN;
-	penSnp            = DEFAULT_SNP_PENALTY;
 	penNType          = DEFAULT_N_PENALTY_TYPE;
 	penN              = DEFAULT_N_PENALTY;
 	
@@ -384,24 +373,8 @@ void SeedAlignmentPolicy::parseString(
 				assert(false); throw 1;
 			}
 			string tmp = ctoks[0];
-			// Parse SNP penalty
 			istringstream tmpss(tmp);
 			tmpss >> bonusMatch;
-		}
-		// Penalties for SNPs in colorspace alignments
-		// SNP=xx
-		//        xx = penalty
-		else if(tag == "SNP") {
-			if(ctoks.size() != 1) {
-				cerr << "Error parsing alignment policy setting " << setting
-				     << "; RHS must have 1 token" << endl
-					 << "Policy: " << s << endl;
-				assert(false); throw 1;
-			}
-			string tmp = ctoks[0];
-			// Parse SNP penalty
-			istringstream tmpss(tmp);
-			tmpss >> penSnp;
 		}
 		// Scoring for mismatches
 		// MMP={Cxx|Q|RQ}
@@ -678,7 +651,6 @@ int main() {
 	int bonusMatch;
 	int penMmcType;
 	int penMmc;
-	int penSnp;
 	int penNType;
 	int penN;
 	int penRdExConst;
@@ -708,7 +680,6 @@ int main() {
 			bonusMatch,
 			penMmcType,
 			penMmc,
-			penSnp,
 			penNType,
 			penN,
 			penRdExConst,
@@ -730,7 +701,6 @@ int main() {
 		assert_eq(DEFAULT_MM_PENALTY_TYPE,    penMmcType);
 		assert_eq(DEFAULT_MM_PENALTY_MAX,     penMmcMax);
 		assert_eq(DEFAULT_MM_PENALTY_MIN,     penMmcMin);
-		assert_eq(DEFAULT_SNP_PENALTY,        penSnp);
 		assert_eq(DEFAULT_N_PENALTY_TYPE,     penNType);
 		assert_eq(DEFAULT_N_PENALTY,          penN);
 		assert_eq(DEFAULT_MIN_CONST,          costMin.getConst());
@@ -768,7 +738,6 @@ int main() {
 			bonusMatch,
 			penMmcType,
 			penMmc,
-			penSnp,
 			penNType,
 			penN,
 			penRdExConst,
@@ -790,7 +759,6 @@ int main() {
 		assert_eq(DEFAULT_MM_PENALTY_TYPE,    penMmcType);
 		assert_eq(DEFAULT_MM_PENALTY_MAX,     penMmc);
 		assert_eq(DEFAULT_MM_PENALTY_MIN,     penMmc);
-		assert_eq(DEFAULT_SNP_PENALTY,        penSnp);
 		assert_eq(DEFAULT_N_PENALTY_TYPE,     penNType);
 		assert_eq(DEFAULT_N_PENALTY,          penN);
 		assert_eq(DEFAULT_MIN_CONST,          costMin.getConst());
@@ -828,7 +796,6 @@ int main() {
 			bonusMatch,
 			penMmcType,
 			penMmc,
-			penSnp,
 			penNType,
 			penN,
 			penRdExConst,
@@ -850,7 +817,6 @@ int main() {
 		assert_eq(DEFAULT_MM_PENALTY_TYPE,    penMmcType);
 		assert_eq(DEFAULT_MM_PENALTY_MAX,     penMmcMax);
 		assert_eq(DEFAULT_MM_PENALTY_MIN,     penMmcMin);
-		assert_eq(DEFAULT_SNP_PENALTY,        penSnp);
 		assert_eq(DEFAULT_N_PENALTY_TYPE,     penNType);
 		assert_eq(DEFAULT_N_PENALTY,          penN);
 		assert_eq(DEFAULT_MIN_CONST_LOCAL,    costMin.getConst());
@@ -879,7 +845,7 @@ int main() {
 
 	{
 		cout << "Case 4: Simple string 1 ... ";
-		const char *pol = "MMP=C44;MA=4;RFG=24,12;FL=C,8;RDG=2;SNP=10;NP=C4;MIN=C,7";
+		const char *pol = "MMP=C44;MA=4;RFG=24,12;FL=C,8;RDG=2;NP=C4;MIN=C,7";
 		SeedAlignmentPolicy::parseString(
 			string(pol),
 			true,               // --local?
@@ -889,7 +855,6 @@ int main() {
 			bonusMatch,
 			penMmcType,
 			penMmc,
-			penSnp,
 			penNType,
 			penN,
 			penRdExConst,
@@ -910,7 +875,6 @@ int main() {
 		assert_eq(4,                          bonusMatch);
 		assert_eq(COST_MODEL_CONSTANT,        penMmcType);
 		assert_eq(44,                         penMmc);
-		assert_eq(10,                         penSnp);
 		assert_eq(COST_MODEL_CONSTANT,        penNType);
 		assert_eq(4.0f,                       penN);
 		assert_eq(7,                          costMin.getConst());

@@ -212,7 +212,6 @@ int main() {
 			assert_eq(3, sc.n(i));
 			assert_eq(3, sc.mm(i));
 		}
-		assert_eq(3, sc.snp);
 		assert_eq(5, sc.gapbar);
 		assert_eq(-1, sc.rowlo);
 		assert(!sc.rowFirst);
@@ -279,7 +278,6 @@ int main() {
 			assert_eq(i, sc.n(i));
 			assert_eq(i, sc.mm(i));
 		}
-		assert_eq(30, sc.snp);
 
 		assert_eq(5, sc.gapbar);
 		assert_eq(-1, sc.rowlo);

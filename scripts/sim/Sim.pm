@@ -674,15 +674,6 @@ sub genPolicyMMP() {
 }
 
 ##
-# Generate a setting for SNP (nucleotide mismatch penalty for colorspace
-# alignment).
-#
-sub genPolicySNP() {
-	return "" if int(rand(2)) == 0;
-	return "SNP=".Math::Random::random_uniform(1, 1, 40).";";
-}
-
-##
 # Generate a setting for NP (penalty for a mismatch involving an N).
 #
 sub genPolicyNP() {
@@ -808,7 +799,6 @@ sub genPolicyArg($) {
 	my $args = "";
 	$args .= genPolicyMA($local);
 	$args .= genPolicyMMP();
-	$args .= genPolicySNP();
 	$args .= genPolicyNP();
 	$args .= genPolicyRDG();
 	$args .= genPolicyRFG();

@@ -211,7 +211,6 @@ public:
 	void printAlignedOptFlags(
 		OutFileBuf& o,          // output buffer
 		bool first,             // first opt flag printed is first overall?
-		bool exEnds,            // exclude ends of sequence?
 		const Read& rd,         // the read
 		const AlnRes& res,      // individual alignment result
 		const AlnFlags& flags,  // alignment flags

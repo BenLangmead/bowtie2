@@ -944,7 +944,7 @@ my @cases = (
 	  #       NNNNNGA------A-------------------G-NTTT
 	  #            ||||||||||||||||||||||||||||||||||
 	  #       CCAAT-ATTTTTAATTTCCTCTATTTTTCTCTCGTCTTG
-	  args   => "--policy \"SNP=18.5740807665497;NP=Q;RDG=46.3220993654702;RFG=41.3796024365659;MIN=L,5.57015383125426,-3.28597145122829;NCEIL=L,0.263054599454459,0.130843661549367;SEED=2,29;IVAL=L,0.0169183264663712,3.75762168662522\" --overhang --trim5 6",
+	  args   => "--policy \"NP=Q;RDG=46.3220993654702;RFG=41.3796024365659;MIN=L,5.57015383125426,-3.28597145122829;NCEIL=L,0.263054599454459,0.130843661549367;SEED=2,29;IVAL=L,0.0169183264663712,3.75762168662522\" --overhang --trim5 6",
 	  reads  => [ "CTTTGCACCCCTCCCTTGTCGGCTCCCACCCATCCCCATCCGTTGTCCCCGCCCCCGCCCGCCGGTCGTCACTCCCCGTTTGCGTCATGCCCCTCACCCTCCCTTTGTCGGCTCGCACCCCTCCCCATCCGTTGTCCCCGCCCCCGCTCTCGGGGTCTTCACGCCCCGCTTGCTTCATGCCCCTCACTCGCACCCCG" ],
 	},
 	
@@ -3069,22 +3069,6 @@ my @cases = (
 		"YT:Z:UU" => 1, "MD:Z:6^G6" => 1 }]
 	},
 
-	# Alignment with 1 read gap - colorspace
-	{ name   => "Gap penalties 1 (colorspace)",
-	  ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "01102200110" ], # budget = 3 + 11 * 3 = 36
-	  #           "TTGTTCTTTGTT"
-	  args   =>   "--policy \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=26,10;RFG=25,15;MIN=L,-3,-3\"",
-	  report =>   "-a",
-	  hits   => [ { 1 => 1 } ],
-	  color  => 1,
-	  flags  => [ "XM:0,XP:0,XT:UU,XC:5=1D5=" ],
-	  cigar  => [ "5M1D5M" ],
-	  samoptflags => [{
-		"AS:i:-36" => 1, "NM:i:1" => 1, "XO:i:1" => 1, "XG:i:1" => 1,
-		"YT:Z:UU" => 1, "MD:Z:5^G5" => 1 }]
-	},
-
 	# Alignment with 1 read gap, but not enough budget
 	{ name   => "Gap penalties 2",
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
@@ -3092,20 +3076,6 @@ my @cases = (
 	  args   =>   "--policy \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=30,10;RFG=25,15;MIN=L,-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { "*" => 1 } ],
-	  flags  => [ "XM:0,XP:0,XT:UU" ],
-	  cigar  => [ "*" ],
-	  samoptflags => [{ "YT:Z:UU" => 1 }]
-	},
-
-	# Alignment with 1 read gap, but not enough budget - colorspace
-	{ name   => "Gap penalties 2 (colorspace)",
-	  ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "01102200110" ], # budget = 3 + 11 * 3 = 36
-	  #           "TTGTTCTTTGTT"
-	  args   =>   "--policy \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=27,10;RFG=25,15;MIN=L,-3,-3\"",
-	  report =>   "-a",
-	  hits   => [ { "*" => 1 } ],
-	  color  => 1,
 	  flags  => [ "XM:0,XP:0,XT:UU" ],
 	  cigar  => [ "*" ],
 	  samoptflags => [{ "YT:Z:UU" => 1 }]
@@ -3156,20 +3126,6 @@ my @cases = (
 	# 3 T
 	#
 
-	# Alignment with 1 reference gap - colorspace
-	{ name   => "Gap penalties 3 (colorspace)",
-	  ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "0110232300110" ], # budget = 3 + 13 * 3 = 42
-	  #           "TTGTTCGATTTGTT"
-	  args   =>   "--policy \"SEED=0,3;IVAL=C,1,0;RFG=27,15\"",
-	  report =>   "-a",
-	  hits   => [ { 1 => 1 } ],
-	  color  => 1,
-	  flags  => [ "XM:0,XP:0,XT:UU,XC:6=1I5=" ],
-	  cigar  => [ "6M1I5M" ],
-	  samoptflags => [ { "AS:i:-42" => 1, "NM:i:1" => 1, "XO:i:1" => 1,
-	                     "XG:i:1" => 1, "YT:Z:UU" => 1, "MD:Z:11" => 1} ] },
-
 	# Alignment with 1 reference gap, but not enough budget
 	{ name   => "Gap penalties 4",
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
@@ -3177,19 +3133,6 @@ my @cases = (
 	  args   =>   "--policy \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=25,15;RFG=30,16;MIN=L,-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { "*" => 1 } ],
-	  flags  => [ "XM:0,XP:0,XT:UU" ],
-	  cigar  => [ "*" ],
-	  samoptflags => [ { "YT:Z:UU" => 1 } ] },
-
-	# Alignment with 1 reference gap, but not enough budget - colorspace
-	{ name   => "Gap penalties 4 (colorspace)",
-	  ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "0110232300110" ], # budget = 3 + 13 * 3 = 42
-	  #           "TTGTTCGATTTGTT"
-	  args   =>   "--policy \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=25,15;RFG=27,16;MIN=L,-3,-3\"",
-	  report =>   "-a",
-	  hits   => [ { "*" => 1 } ],
-	  color  => 1,
 	  flags  => [ "XM:0,XP:0,XT:UU" ],
 	  cigar  => [ "*" ],
 	  samoptflags => [ { "YT:Z:UU" => 1 } ] },
@@ -3205,19 +3148,6 @@ my @cases = (
 	  cigar  => [ "*" ],
 	  samoptflags => [ { "YT:Z:UU" => 1 } ] },
 
-	# Alignment with 1 reference gap, but not enough budget - colorspace
-	{ name   => "Gap penalties 5 (colorspace)",
-	  ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "0110232300110" ], # budget = 3 + 13 * 3 = 42
-	  #           "TTGTTCGATTTGTT"
-	  args   =>   "--policy \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=25,15;RFG=28,15;MIN=L,-3,-3\"",
-	  report =>   "-a",
-	  hits   => [ { "*" => 1 } ],
-	  color  => 1,
-	  flags  => [ "XM:0,XP:0,XT:UU" ],
-	  cigar  => [ "*" ],
-	  samoptflags => [ { "YT:Z:UU" => 1 } ] },
-
 	# Alignment with 1 reference gap and 1 read gap
 	{ name   => "Gap penalties 6",
 	  ref    => [ "ATTGTTCGTTTGTTCGTA" ],
@@ -3228,18 +3158,6 @@ my @cases = (
 	  flags  => [ "XM:0,XP:0,XT:UU,XC:6=1D5=1I6=" ],
 	  cigar  => [ "6M1D5M1I6M" ] },
 
-	# Alignment with 1 reference gap and 1 read gap - colorspace
-	{ name   => "Gap penalties 6 (colorspace)",
-	  ref    => [ "ATTGTTCGTTTGTTCGTA" ],
-	  reads  => [ "30110110012302313" ], # budget = 3 + 17 * 3 = 54
-	  #           "ATTGTTGTTTGATTCGTA"
-	  args   =>   "--policy \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=16,10;RFG=18,10;MIN=L,-3,-3\"",
-	  report =>   "-a",
-	  hits   => [ { 1 => 1 } ],
-	  color  => 1,
-	  flags  => [ "XM:0,XP:0,XT:UU,XC:5=1D5=1I5=" ],
-	  cigar  => [ "5M1D5M1I5M" ] },
-
 	# Alignment with 1 reference gap and 1 read gap, but not enough budget
 	{ name   => "Gap penalties 7",
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
@@ -3247,19 +3165,6 @@ my @cases = (
 	  args   =>   "--policy \"MMP=C30;SEED=0,3;IVAL=C,1,0;RDG=16,10;RFG=16,10;MIN=L,-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { "*" => 1 } ],
-	  flags  => [ "XM:0,XP:0,XT:UU" ],
-	  cigar  => [ "*" ] },
-
-	# Alignment with 1 reference gap and 1 read gap, but not enough budget -
-	# colorspace
-	{ name   => "Gap penalties 7 (colorspace)",
-	  ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "011011001230231" ], # budget = 3 + 15 * 3 = 48
-	  #           "TTGTTGTTTGATTCGT"
-	  args   =>   "--policy \"MMP=C30;SEED=0,3;IVAL=C,1,0;RFG=16,10;RDG=13,10;MIN=L,-3,-3\"",
-	  report =>   "-a",
-	  hits   => [ { "*" => 1 } ],
-	  color  => 1,
 	  flags  => [ "XM:0,XP:0,XT:UU" ],
 	  cigar  => [ "*" ] },
 
@@ -3709,127 +3614,6 @@ my @cases = (
 			"YT:Z:CP"  => 1, # type of alignment (concordant/discordant/etc)
 		}
 	  }]
-	},
-
-	#
-	# Colorspace alignment
-	#
-
-	# 1 SNP and 1 N
-	{ ref      => [ "TTGTTC" ],
-	  #         Ref: TTGTTCn
-	  #               TGTACA
-	  #                  ^snp
-	  reads    => [ "11311" ],
-	  dec_seq  => [ "TGTACA" ],
-	  dec_qual => [ "IqqqqI" ],
-	  args     =>   "--col-keepends --norc --overhang --policy \"NCEIL=L,1,0;MIN=L,-10,0;SEED=0,2;IVAL=C,1,0;MMP=C5;SNP=9\"",
-	  hits     => [ { 1 => 1 } ],
-	  color    => 1,
-	  flags => [ "XM:0,XP:0,XT:UU,XC:3=1X1=1X" ]
-	},
-
-	{ ref      => [ "TTGTTC" ],
-	  reads    => [ "01102"  ],
-	  dec_seq  => [ "TTGTTC" ],
-	  dec_qual => [ "IqqqqI" ],
-	  args     =>   "--col-keepends",
-	  hits     => [ { 0 => 1 } ],
-	  color    => 1,
-	  flags => [ "XM:0,XP:0,XT:UU,XC:6=" ],
-	  cigar  => [ "6M" ],
-	  samoptflags => [
-		{ "YT:Z:UU" => 1, "MD:Z:6" => 1 }
-	  ]
-	},
-
-	{ ref      => [ "TTGTTC" ],
-	  reads    => [ "01102"  ],
-	  dec_seq  => [ "TTGTTC" ],
-	  dec_qual => [ "IqqqqI" ],
-	  args     =>   "--col-keepends --policy \"SEED=0,3;IVAL=C,1,0\"",
-	  hits     => [ { 0 => 1 } ],
-	  color    => 1,
-	  flags => [ "XM:0,XP:0,XT:UU,XC:6=" ],
-	  cigar  => [ "6M" ],
-	  samoptflags => [
-		{ "YT:Z:UU" => 1, "MD:Z:6" => 1 }
-	  ]
-	},
-
-	{ ref      => [ "TTGTTC" ],
-	  reads    => [ "01102" ],
-	  dec_seq  => [ "TGTT" ],
-	  dec_qual => [ "qqqq" ],
-	  args     =>   "--policy \"SEED=0,3;IVAL=C,1,0\"",
-	  hits     => [ { 1 => 1 } ],
-	  color    => 1,
-	  flags => [ "XM:0,XP:0,XT:UU,XC:4=" ],
-	  cigar  => [ "4M" ],
-	  samoptflags => [
-		{ "YT:Z:UU" => 1, "MD:Z:4" => 1 }
-	  ]
-	},
-
-	{ ref      => [ "TTGTTC" ],
-	  reads    => [ "01112" ],
-	  #                 ^mm
-	  args     =>   "--col-keepends --policy \"SEED=0,4;IVAL=C,1,0;MMP=C5\"",
-	  hits     => [ { "*" => 1 } ],
-	  color    => 1,
-	  cigar  => [ "*" ],
-	  samoptflags => [{ "YT:Z:UU" => 1 }]
-	},
-
-	{ ref      => [ "TTGTTC" ],
-	  reads    => [ "01112" ],
-	  #              21110
-	  #                 ^mm
-	  dec_seq  => [ "TTGTTC" ],
-	  dec_qual => [ "Iqq!!I" ],
-	  args     =>   "--col-keepends --policy \"SEED=0,3;IVAL=C,1,0;MMP=C7\"",
-	  hits     => [ { 0 => 1 } ],
-	  color    => 1,
-	  flags => [ "XM:0,XP:0,XT:UU,XC:6=" ],
-	  cigar  => [ "6M" ],
-	  samoptflags => [
-		{ "AS:i:-7" => 1, "YT:Z:UU" => 1, "MD:Z:6" => 1 }
-	  ]
-	},
-
-	# Two color mismatches carry a smaller penalty than 1 SNP
-	{ ref      => [ "TTGTTC" ],
-	  #              TTGTAC
-	  #                  ^snp
-	  reads    => [ "01131" ],
-	  dec_seq  => [ "TTGTTC" ],
-	  dec_qual => [ "Iqq!!!" ],
-	  args     =>   "--col-keepends --policy \"SEED=0,3;IVAL=C,1,0;MMP=C5;SNP=11\"",
-	  hits     => [ { 0 => 1 } ],
-	  color    => 1,
-	  flags => [ "XM:0,XP:0,XT:UU,XC:6=" ],
-	  cigar  => [ "6M" ],
-	  samoptflags => [
-		{ "AS:i:-10" => 1, "YT:Z:UU" => 1, "MD:Z:6" => 1 }
-	  ]
-	},
-
-	# 1 SNP carries a smaller penalty than 2 color mismatches
-	{ ref      => [ "TTGTTC" ],
-	  #              TTGTAC
-	  #                  ^snp
-	  reads    => [ "01131" ],
-	  dec_seq  => [ "TTGTAC" ],
-	  dec_qual => [ "IqqqqI" ],
-	  args     =>   "--col-keepends --policy \"SEED=0,3;IVAL=C,1,0;MMP=C5;SNP=9\"",
-	  hits     => [ { 0 => 1 } ],
-	  color    => 1,
-	  flags => [ "XM:0,XP:0,XT:UU,XC:4=1X1=" ],
-	  cigar  => [ "6M" ],
-	  samoptflags => [
-		{ "NM:i:1" => 1, "XM:i:1" => 1, "AS:i:-9" => 1,
-		  "YT:Z:UU" => 1, "MD:Z:4T1" => 1 }
-	  ]
 	},
 
 	# Check that pseudo-random generation is always the same for

@@ -1320,7 +1320,6 @@ public:
 		int                offBase,    // add to 0-based offsets before printing
 		bool               colorSeq,   // color: print color seq, not decoded nucs
 		bool               colorQual,  // color: print color quals, not decoded quals
-		bool               exEnds,     // exclude ends for decoded colors alns
 		bool               printPlaceholders, // print maxs and unals
 		bool               printFlags, // print alignment flags a la SAM
 		bool               printCost,  // print penalty in extra column
@@ -1336,7 +1335,6 @@ public:
 		offBase_(offBase),
 		colorSeq_(colorSeq),
 		colorQual_(colorQual),
-		exEnds_(exEnds),
 		printPlaceholders_(printPlaceholders),
 		printFlags_(printFlags),
 		printCost_(printCost),
@@ -1398,7 +1396,6 @@ protected:
 	int           offBase_;    // add to 0-based reference offsets
 	bool          colorSeq_;   // cspace: print color seq, not decoded nucs
 	bool          colorQual_;  // cspace: print color quals,  not decoded quals
-	bool          exEnds_;     // exclude ends for decoded colorspace alignments
 	bool    printPlaceholders_;// print maxs and unals
 	bool          printFlags_; // print alignment flags
 	bool          printCost_;  // print penalty in extra column
@@ -1432,15 +1429,13 @@ public:
 		const SamConfig& samc,       // settings & routines for SAM output
 		bool             deleteOuts, // delete output objects upon destruction
 		const StrList&   refnames,   // reference names
-		bool             quiet,      // don't print alignment summary at end
-		bool             exEnds) :   // exclude ends for decoded colors alns
+		bool             quiet) :    // don't print alignment summary at end
 		AlnSink(
 			out,
 			deleteOuts,
 			refnames,
 			quiet),
-		samc_(samc),
-		exEnds_(exEnds)
+		samc_(samc)
 	{ }
 
 	/**
@@ -1495,7 +1490,6 @@ protected:
 		const Mapq&   mapq);
 
 	const SamConfig& samc_;    // settings & routines for SAM output
-	bool             exEnds_;  // exclude ends for decoded colorspace alignments
 	BTDnaString      dseq_;    // buffer for decoded read sequence
 	BTString         dqual_;   // buffer for decoded quality sequence
 	

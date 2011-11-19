@@ -61,9 +61,10 @@ static EList<string> mates1;  // mated reads (first mate)
 static EList<string> mates2;  // mated reads (second mate)
 static EList<string> mates12; // mated reads (1st/2nd interleaved in 1 file)
 static string adjIdxBase;
-int gVerbose;      // be talkative
+bool gColor;              // colorspace (not supported)
+int gVerbose;             // be talkative
 static bool startVerbose; // be talkative at startup
-int gQuiet;        // print nothing but the alignments
+int gQuiet;               // print nothing but the alignments
 static int sanityCheck;   // enable expensive sanity checks
 static int format;        // default read format is FASTQ
 static string origString; // reference text, or filename(s)
@@ -77,34 +78,34 @@ static bool allHits;      // for multihits, report just one
 static bool showVersion;  // just print version and quit?
 static int ipause;        // pause before maching?
 static uint32_t qUpto;    // max # of queries to read
-int gTrim5;         // amount to trim from 5' end
-int gTrim3;         // amount to trim from 3' end
+int gTrim5;               // amount to trim from 5' end
+int gTrim3;               // amount to trim from 3' end
 static int offRate;       // keep default offRate
 static bool solexaQuals;  // quality strings are solexa quals, not phred, and subtract 64 (not 33)
 static bool phred64Quals; // quality chars are phred, but must subtract 64 (not 33)
 static bool integerQuals; // quality strings are space-separated strings of integers, not ASCII
 static int nthreads;      // number of pthreads operating concurrently
-static int outType;  // style of output
-static bool noRefNames;       // true -> print reference indexes; not names
-static uint32_t khits;  // number of hits per read; >1 is much slower
-static uint32_t mhits;  // don't report any hits if there are > mhits
-static int partitionSz; // output a partitioning key in first field
+static int outType;       // style of output
+static bool noRefNames;   // true -> print reference indexes; not names
+static uint32_t khits;    // number of hits per read; >1 is much slower
+static uint32_t mhits;    // don't report any hits if there are > mhits
+static int partitionSz;   // output a partitioning key in first field
 static bool useSpinlock;  // false -> don't use of spinlocks even if they're #defines
 static bool fileParallel; // separate threads read separate input files in parallel
 static bool useShmem;     // use shared memory to hold the index
 static bool useMm;        // use memory-mapped files to hold the index
 static bool mmSweep;      // sweep through memory-mapped files immediately after mapping
-int gMinInsert;          // minimum insert size
-int gMaxInsert;          // maximum insert size
-bool gMate1fw;           // -1 mate aligns in fw orientation on fw strand
-bool gMate2fw;           // -2 mate aligns in rc orientation on fw strand
-bool gFlippedMatesOK;  // allow mates to be in wrong order
-bool gDovetailMatesOK; // allow one mate to extend off the end of the other
-bool gContainMatesOK;  // allow one mate to contain the other in PE alignment
-bool gOlapMatesOK;     // allow mates to overlap in PE alignment
-bool gExpandToFrag;    // incr max frag length to =larger mate len if necessary
-bool gReportDiscordant; // find and report discordant paired-end alignments
-bool gReportMixed;      // find and report unpaired alignments for paired reads
+int gMinInsert;           // minimum insert size
+int gMaxInsert;           // maximum insert size
+bool gMate1fw;            // -1 mate aligns in fw orientation on fw strand
+bool gMate2fw;            // -2 mate aligns in rc orientation on fw strand
+bool gFlippedMatesOK;     // allow mates to be in wrong order
+bool gDovetailMatesOK;    // allow one mate to extend off the end of the other
+bool gContainMatesOK;     // allow one mate to contain the other in PE alignment
+bool gOlapMatesOK;        // allow mates to overlap in PE alignment
+bool gExpandToFrag;       // incr max frag length to =larger mate len if necessary
+bool gReportDiscordant;   // find and report discordant paired-end alignments
+bool gReportMixed;        // find and report unpaired alignments for paired reads
 static uint32_t cacheLimit;      // ranges w/ size > limit will be cached
 static uint32_t cacheSize;       // # words per range cache
 static uint32_t skipReads;       // # reads/read pairs to skip
@@ -150,17 +151,11 @@ static float bwaSwLikeC;
 static float bwaSwLikeT;
 static bool qcFilter;
 static bool sortByScore;   // prioritize alignments to report by score?
-bool gColor;     // true -> inputs are colorspace
-bool gColorExEnds; // true -> nucleotides on either end of decoded cspace alignment should be excluded
 bool gReportOverhangs; // false -> filter out alignments that fall off the end of a reference sequence
 static string rgid; // ID: setting for @RG header line
 static string rgs;  // SAM outputs for @RG header line
 static string rgs_optflag; // SAM optional flag to add corresponding to @RG ID
-int gSnpPhred; // probability of SNP, for scoring colorspace alignments
 static bool msample; // whether to report a random alignment when maxed-out via -m/-M
-bool gColorSeq; // true -> show colorspace alignments as colors, not decoded bases
-bool gColorEdit; // true -> show edits as colors, not decoded bases
-bool gColorQual; // true -> show colorspace qualities as original quals, not decoded quals
 int      gGapBarrier; // # diags on top/bot only to be entered diagonally
 int64_t  gRowLow;     // backtraces start from row w/ idx >= this (-1=no limit)
 bool     gRowFirst;   // sort alignments by row then score?
@@ -174,7 +169,6 @@ static int   bonusMatch;     // constant reward if bonusMatchType=constant
 static int   penMmcType;     // how to penalize mismatches
 static int   penMmcMax;      // max mm penalty
 static int   penMmcMin;      // min mm penalty
-static int   penSnp;         // penalty for nucleotide mismatches in decoded colorspace als
 static int   penNType;       // how to penalize Ns in the read
 static int   penN;           // constant if N pelanty is a constant
 static bool  penNCatPair;    // concatenate mates before N filtering?
@@ -198,9 +192,11 @@ static uint32_t seedCacheCurrentMB; // # MB to use for current-read seed hit cac
 static uint32_t exactCacheCurrentMB; // # MB to use for current-read seed hit cacheing
 static SimpleFunc maxelt;    // max # elts to extend for any given batch of seed hits
 static size_t maxhalf;       // max width on one side of DP table
-static bool seedSummaryOnly; // print summary information about seed hits, not alignments
+static bool seedSumm; // print summary information about seed hits, not alignments
 static bool doUngapped;      // do ungapped alignment
 static size_t ungappedThresh;// all attempts after this many are ungapped
+static size_t maxUg;         // stop after this many ungap extends
+static size_t maxDp;         // stop after this many DPs
 static size_t maxUgStreak;   // stop after this many ungap fails in a row
 static size_t maxDpStreak;   // stop after this many dp fails in a row
 static bool enable8;         // use 8-bit SSE where possible?
@@ -233,6 +229,7 @@ static void resetOptions() {
 	mates2.clear();
 	mates12.clear();
 	adjIdxBase	            = "";
+	gColor                  = false;
 	gVerbose                = 0;
 	startVerbose			= 0;
 	gQuiet					= false;
@@ -271,7 +268,7 @@ static void resetOptions() {
 	gMate1fw				= true;  // -1 mate aligns in fw orientation on fw strand
 	gMate2fw				= false; // -2 mate aligns in rc orientation on fw strand
 	gFlippedMatesOK         = false; // allow mates to be in wrong order
-	gDovetailMatesOK        = true;  // allow one mate to extend off the end of the other
+	gDovetailMatesOK        = false; // allow one mate to extend off the end of the other
 	gContainMatesOK         = true;  // allow one mate to contain the other in PE alignment
 	gOlapMatesOK            = true;  // allow mates to overlap in PE alignment
 	gExpandToFrag           = true;  // incr max frag length to =larger mate len if necessary
@@ -323,17 +320,10 @@ static void resetOptions() {
 	bwaSwLikeT              = 20.0f;
 	qcFilter                = false; // don't believe upstream qc by default
 	sortByScore             = true;  // prioritize alignments to report by score?
-	gColor					= false; // don't align in colorspace by default
-	gColorExEnds			= true;  // true -> nucleotides on either end of decoded cspace alignment should be excluded
-	gReportOverhangs        = false; // false -> filter out alignments that fall off the end of a reference sequence
 	rgid					= "";    // SAM outputs for @RG header line
 	rgs						= "";    // SAM outputs for @RG header line
 	rgs_optflag				= "";    // SAM optional flag to add corresponding to @RG ID
-	gSnpPhred				= 30;    // probability of SNP, for scoring colorspace alignments
 	msample				    = true;
-	gColorSeq				= false; // true -> show colorspace alignments as colors, not decoded bases
-	gColorEdit				= false; // true -> show edits as colors, not decoded bases
-	gColorQual				= false; // true -> show colorspace qualities as original quals, not decoded quals
 	gGapBarrier				= 4;     // disallow gaps within this many chars of either end of alignment
 	gRowLow                 = -1;    // backtraces start from row w/ idx >= this (-1=no limit)
 	gRowFirst               = false; // sort alignments by row then score?
@@ -347,7 +337,6 @@ static void resetOptions() {
 	penMmcType      = DEFAULT_MM_PENALTY_TYPE;
 	penMmcMax       = DEFAULT_MM_PENALTY_MAX;
 	penMmcMin       = DEFAULT_MM_PENALTY_MIN;
-	penSnp          = DEFAULT_SNP_PENALTY;
 	penNType        = DEFAULT_N_PENALTY_TYPE;
 	penN            = DEFAULT_N_PENALTY;
 	penNCatPair     = DEFAULT_N_CAT_PAIR; // concatenate mates before N filtering?
@@ -371,9 +360,11 @@ static void resetOptions() {
 	seedCacheCurrentMB = 20; // # MB to use for current-read seed hit cacheing
 	exactCacheCurrentMB = 20; // # MB to use for current-read seed hit cacheing
 	maxhalf            = 15; // max width on one side of DP table
-	seedSummaryOnly    = false; // print summary information about seed hits, not alignments
+	seedSumm    = false; // print summary information about seed hits, not alignments
 	doUngapped         = true;  // do ungapped alignment
 	ungappedThresh     = std::numeric_limits<size_t>::max(); // all attempts after this many are ungapped
+	maxUg              = 300;   // stop after this many ungap extends
+	maxDp              = 300;   // stop after this many dp extends
 	maxUgStreak        = 25;    // stop after this many ungap fails in a row
 	maxDpStreak        = 25;    // stop after this many dp fails in a row
 	enable8            = true;  // use 8-bit SSE where possible?
@@ -475,10 +466,6 @@ static struct option long_options[] = {
 	{(char*)"sam-rg",       required_argument, 0,            ARG_SAM_RG},
 	{(char*)"snpphred",     required_argument, 0,            ARG_SNPPHRED},
 	{(char*)"snpfrac",      required_argument, 0,            ARG_SNPFRAC},
-	{(char*)"col-cseq",     no_argument,       0,            ARG_COLOR_SEQ},
-	{(char*)"col-cqual",    no_argument,       0,            ARG_COLOR_QUAL},
-	{(char*)"col-cedit",    no_argument,       0,            ARG_COLOR_EDIT},
-	{(char*)"col-keepends", no_argument,       0,            ARG_COLOR_KEEP_ENDS},
 	{(char*)"gbar",         required_argument, 0,            ARG_GAP_BAR},
 	{(char*)"gopen",        required_argument, 0,            'O'},
 	{(char*)"gextend",      required_argument, 0,            'E'},
@@ -535,8 +522,11 @@ static struct option long_options[] = {
 	{(char*)"unpaired",         required_argument, 0,        'U'},
 	{(char*)"output",           required_argument, 0,        'S'},
 	{(char*)"mapq-v",           required_argument, 0,        ARG_MAPQ_V},
+	{(char*)"dovetail",         no_argument,       0,        ARG_DOVETAIL},
 	{(char*)"no-dovetail",      no_argument,       0,        ARG_NO_DOVETAIL},
+	{(char*)"contain",          no_argument,       0,        ARG_CONTAIN},
 	{(char*)"no-contain",       no_argument,       0,        ARG_NO_CONTAIN},
+	{(char*)"overlap",          no_argument,       0,        ARG_OVERLAP},
 	{(char*)"no-overlap",       no_argument,       0,        ARG_NO_OVERLAP},
 	{(char*)"tighten",          required_argument, 0,        ARG_TIGHTEN},
 	{(char*)"exact-upfront",    no_argument,       0,        ARG_EXACT_UPFRONT},
@@ -553,6 +543,8 @@ static struct option long_options[] = {
 	{(char*)"seed-boost-ival-mult", required_argument, 0,    ARG_SEED_BOOST_IVAL_MULT},
 	{(char*)"seed-boost-len-mult",  required_argument, 0,    ARG_SEED_BOOST_LEN_MULT},
 	{(char*)"read-times",       no_argument,       0,        ARG_READ_TIMES},
+	{(char*)"dp-fail-streak",   required_argument, 0,        ARG_DP_FAIL_STREAK_THRESH},
+	{(char*)"ug-fail-streak",   required_argument, 0,        ARG_UG_FAIL_STREAK_THRESH},
 	{(char*)"dp-fails",         required_argument, 0,        ARG_DP_FAIL_THRESH},
 	{(char*)"ug-fails",         required_argument, 0,        ARG_UG_FAIL_THRESH},
 	{(char*)0, 0, 0, 0} // terminator
@@ -881,10 +873,7 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_FR: gMate1fw = true;  gMate2fw = false; break;
 		case ARG_USE_SPINLOCK: useSpinlock = false; break;
 		case ARG_SHMEM: useShmem = true; break;
-		case ARG_COLOR_SEQ: gColorSeq = true; break;
-		case ARG_COLOR_EDIT: gColorEdit = true; break;
-		case ARG_COLOR_QUAL: gColorQual = true; break;
-		case ARG_SEED_SUMM: seedSummaryOnly = true; break;
+		case ARG_SEED_SUMM: seedSumm = true; break;
 		case ARG_MM: {
 #ifdef BOWTIE_MM
 			useMm = true;
@@ -903,23 +892,9 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_INTEGER_QUALS: integerQuals = true; break;
 		case ARG_PHRED64: phred64Quals = true; break;
 		case ARG_PHRED33: solexaQuals = false; phred64Quals = false; break;
-		case ARG_COLOR_KEEP_ENDS: gColorExEnds = false; break;
 		case ARG_OVERHANG: gReportOverhangs = true; break;
 		case ARG_NO_CACHE: msNoCache = true; break;
 		case ARG_USE_CACHE: msNoCache = false; break;
-		case ARG_SNPPHRED: gSnpPhred = parseInt(0, "--snpphred must be at least 0", arg); break;
-		case ARG_SNPFRAC: {
-			double p = parse<double>(arg);
-			if(p <= 0.0) {
-				cerr << "Error: --snpfrac parameter must be > 0.0" << endl;
-				throw 1;
-			}
-			p = (log10(p) * -10);
-			gSnpPhred = (int)(p + 0.5);
-			if(gSnpPhred < 10)
-			cout << "gSnpPhred: " << gSnpPhred << endl;
-			break;
-		}
 		case ARG_REFIDX: noRefNames = true; break;
 		case ARG_FUZZY: fuzzy = true; break;
 		case ARG_FULLREF: fullRef = true; break;
@@ -991,12 +966,20 @@ static void parseOption(int next_option, const char *arg) {
 			polstr += arg;
 			break;
 		}
-		case ARG_DP_FAIL_THRESH: {
+		case ARG_DP_FAIL_STREAK_THRESH: {
 			maxDpStreak = parse<size_t>(arg);
 			break;
 		}
-		case ARG_UG_FAIL_THRESH: {
+		case ARG_UG_FAIL_STREAK_THRESH: {
 			maxUgStreak = parse<size_t>(arg);
+			break;
+		}
+		case ARG_DP_FAIL_THRESH: {
+			maxDp = parse<size_t>(arg);
+			break;
+		}
+		case ARG_UG_FAIL_THRESH: {
+			maxUg = parse<size_t>(arg);
 			break;
 		}
 		case ARG_MAXELT_PAIR_MULT: {
@@ -1113,8 +1096,11 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_UNGAPPED: doUngapped = true; break;
 		case ARG_UNGAPPED_NO: doUngapped = false; break;
 		case ARG_NO_DOVETAIL: gDovetailMatesOK = false; break;
-		case ARG_NO_CONTAIN:  gContainMatesOK = false; break;
-		case ARG_NO_OVERLAP:  gOlapMatesOK = false; break;
+		case ARG_NO_CONTAIN:  gContainMatesOK  = false; break;
+		case ARG_NO_OVERLAP:  gOlapMatesOK     = false; break;
+		case ARG_DOVETAIL:    gDovetailMatesOK = true;  break;
+		case ARG_CONTAIN:     gContainMatesOK  = true;  break;
+		case ARG_OVERLAP:     gOlapMatesOK     = true;  break;
 		case ARG_QC_FILTER: qcFilter = true; break;
 		case ARG_NO_SCORE_PRIORITY: sortByScore = false; break;
 		case ARG_IGNORE_QUALS: ignoreQuals = true; break;
@@ -1304,7 +1290,6 @@ static void parseOptions(int argc, const char **argv) {
 		penMmcType,
 		penMmcMax,
 		penMmcMin,
-		penSnp,
 		penNType,
 		penN,
 		penRdGapConst,
@@ -1348,28 +1333,13 @@ static void parseOptions(int argc, const char **argv) {
 		     << "enabled.  -Q works only in combination with -f and -C." << endl;
 		throw 1;
 	}
-	if(qualities.size() && !gColor) {
-		cerr << "Error: one or more quality files were specified with -Q but -C was not" << endl
-		     << "enabled.  -Q works only in combination with -f and -C." << endl;
-		throw 1;
-	}
 	if(qualities1.size() && format != FASTA) {
 		cerr << "Error: one or more quality files were specified with --Q1 but -f was not" << endl
 		     << "enabled.  --Q1 works only in combination with -f and -C." << endl;
 		throw 1;
 	}
-	if(qualities1.size() && !gColor) {
-		cerr << "Error: one or more quality files were specified with --Q1 but -C was not" << endl
-		     << "enabled.  --Q1 works only in combination with -f and -C." << endl;
-		throw 1;
-	}
 	if(qualities2.size() && format != FASTA) {
 		cerr << "Error: one or more quality files were specified with --Q2 but -f was not" << endl
-		     << "enabled.  --Q2 works only in combination with -f and -C." << endl;
-		throw 1;
-	}
-	if(qualities2.size() && !gColor) {
-		cerr << "Error: one or more quality files were specified with --Q2 but -C was not" << endl
 		     << "enabled.  --Q2 works only in combination with -f and -C." << endl;
 		throw 1;
 	}
@@ -1405,16 +1375,10 @@ static void parseOptions(int argc, const char **argv) {
 		cerr << "Warning: --shmem overrides --mm..." << endl;
 		useMm = false;
 	}
-	if(gSnpPhred <= 10 && gColor && !gQuiet) {
-		cerr << "Warning: the colorspace SNP penalty (--snpphred) is very low: " << gSnpPhred << endl;
-	}
 	if(gGapBarrier < 1) {
 		cerr << "Warning: --gbar was set less than 1 (=" << gGapBarrier
 		     << "); setting to 1 instead" << endl;
 		gGapBarrier = 1;
-	}
-	if(gColor && gColorExEnds) {
-		gGapBarrier++;
 	}
 	if(multiseedMms >= multiseedLen) {
 		assert_gt(multiseedLen, 0);
@@ -2440,23 +2404,6 @@ static inline void printLenSkipMsg(
 	}
 }
 
-static inline void printColorLenSkipMsg(
-	const PatternSourcePerThread& ps,
-	bool paired,
-	bool mate1)
-{
-	if(paired) {
-		cerr << "Warning: skipping mate #" << (mate1 ? '1' : '2')
-		     << " of read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
-		     << "' because it was colorspace, --col-keepends was not "
-			 << "specified, and length was < 3" << endl;
-	} else {
-		cerr << "Warning: skipping read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
-		     << "' because it was colorspace, --col-keepends was not "
-			 << "specified, and length was < 3" << endl;
-	}
-}
-
 static inline void printLocalScoreMsg(
 	const PatternSourcePerThread& ps,
 	bool paired,
@@ -2518,6 +2465,18 @@ static inline void printEEScoreMsg(
 	sseU8MateMet.reset(); \
 	sseI16ExtendMet.reset(); \
 	sseI16MateMet.reset(); \
+}
+
+#define MERGE_SW(x) { \
+	x.merge( \
+		sseU8ExtendMet, \
+		sseU8MateMet, \
+		sseI16ExtendMet, \
+		sseI16MateMet, \
+		nbtfiltst, \
+		nbtfiltsc, \
+		nbtfiltdo); \
+	x.resetCounters(); \
 }
 
 /**
@@ -2642,7 +2601,8 @@ static void* multiseedSearchWorker(void *vp) {
 	
 	PerfMetrics metricsPt; // per-thread metrics object; for read-level metrics
 	BTString nametmp;
-	EList<Seed> seeds;
+	EList<Seed> seeds1, seeds2;
+	EList<Seed> *seeds[2] = { &seeds1, &seeds2 };
 
 	// Used by thread with threadid == 1 to measure time elapsed
 	time_t iTime = time(0);
@@ -2708,7 +2668,7 @@ static void* multiseedSearchWorker(void *vp) {
 			while(retry) {
 				qv = NULL;
 				retry = false;
-				assert_eq(ps->bufa().color, gColor);
+				assert_eq(ps->bufa().color, false);
 				ca.nextRead(); // clear the cache
 				olm.reads++;
 				assert(!ca.aligning());
@@ -2746,8 +2706,8 @@ static void* multiseedSearchWorker(void *vp) {
 						sortByScore,          // prioritize by alignment score
 						rnd,                  // pseudo-random generator
 						rpm,                  // reporting metrics
-						!seedSummaryOnly,     // suppress seed summaries?
-						seedSummaryOnly);     // suppress alignments?
+						!seedSumm,            // suppress seed summaries?
+						seedSumm);            // suppress alignments?
 					break; // next read
 				}
 				size_t rdlens[2] = { rdlen1, rdlen2 };
@@ -2840,43 +2800,73 @@ static void* multiseedSearchWorker(void *vp) {
 				sd.nextRead(paired, rdrows[0], rdrows[1]); // SwDriver
 				size_t minedfw[2] = { 0, 0 };
 				size_t minedrc[2] = { 0, 0 };
+				// Calcualte nofw / no rc
 				bool nofw[2] = { false, false };
 				bool norc[2] = { false, false };
 				nofw[0] = paired ? (gMate1fw ? gNofw : gNorc) : gNofw;
 				norc[0] = paired ? (gMate1fw ? gNorc : gNofw) : gNorc;
 				nofw[1] = paired ? (gMate2fw ? gNofw : gNorc) : gNofw;
 				norc[1] = paired ? (gMate2fw ? gNorc : gNofw) : gNorc;
+				// Calculate nceil
+				int nceil[2] = { 0, 0 };
+				nceil[0] = nCeil.f<int>((double)rdlens[0]);
+				nceil[0] = min(nceil[0], (int)rdlens[0]);
+				if(paired) {
+					nceil[1] = nCeil.f<int>((double)rdlens[1]);
+					nceil[1] = min(nceil[1], (int)rdlens[1]);
+				}
 				exhaustive[0] = exhaustive[1] = false;
-				bool matemap[2] = { 0, 1 };
+				size_t matemap[2] = { 0, 1 };
 				bool pairPostFilt = filt[0] && filt[1];
 				if(pairPostFilt) {
 					rnd.init(ROTL((rds[0]->seed ^ rds[1]->seed), 10));
-					if(rnd.nextU2() == 0) {
-						// Swap order in which mates are investigated
-						std::swap(matemap[0], matemap[1]);
+				}
+				// Calculate interval length for both mates
+				int interval[2] = { 0, 0 };
+				for(size_t mate = 0; mate < (pair ? 2:1); mate++) {
+					interval[mate] = msIval.f<int>((double)rdlens[mate]);
+					interval[mate] = max(interval[mate], 1);
+				}
+				// Set the read in both the SeedResults
+				for(size_t mate = 0; mate < (pair ? 2:1); mate++) {
+					// Clear all state, including end-to-end hits and seed hits
+					shs[mate].clear();
+					shs[mate].nextRead(*rds[mate]);
+				}
+				// Increment counters according to what got filtered
+				for(size_t mate = 0; mate < (pair ? 2:1); mate++) {
+					if(!filt[mate]) {
+						// Mate was rejected by N filter
+						olm.freads++;               // reads filtered out
+						olm.fbases += rdlens[mate]; // bases filtered out
+					} else {
+						olm.ureads++;               // reads passing filter
+						olm.ubases += rdlens[mate]; // bases passing filter
 					}
 				}
+				// Whether we're done with mate1 / mate2
+				bool done[2] = { false, false };
+				// Find end-to-end exact alignments for each read
 				if(doExactUpFront) {
 					swmSeed.exatts++;
+					size_t nelt[2] = {0, 0};
 					for(size_t matei = 0; matei < (pair ? 2:1); matei++) {
 						size_t mate = matemap[matei];
-						if(!filt[mate]) {
+						if(!filt[mate] || done[mate] || msinkwrap.state().doneWithMate(mate == 0)) {
 							continue;
 						}
-						shs[mate].clear(); // clear seed hits
-						assert_geq(rds[mate]->length(), 0);
-						al.exactSweep(
-							ebwtFw,
-							*rds[mate],
-							sc,
-							nofw[mate],
-							norc[mate],
-							2,
-							minedfw[mate],
-							minedrc[mate],
-							true, // report 0mm hits
-							shs[mate],
-							sdm);
+						nelt[mate] = al.exactSweep(
+							ebwtFw,        // index
+							*rds[mate],    // read
+							sc,            // scoring scheme
+							nofw[mate],    // nofw?
+							norc[mate],    // norc?
+							2,             // max # edits we care about
+							minedfw[mate], // minimum # edits for fw mate
+							minedrc[mate], // minimum # edits for rc mate
+							true,          // report 0mm hits
+							shs[mate],     // put end-to-end results here
+							sdm);          // metrics
 						size_t bestmin = min(minedfw[mate], minedrc[mate]);
 						if(bestmin == 0) {
 							sdm.bestmin0++;
@@ -2887,169 +2877,34 @@ static void* multiseedSearchWorker(void *vp) {
 							sdm.bestmin2++;
 						}
 					}
-				}	
-				for(size_t matei = 0; matei < (pair ? 2:1); matei++) {
-					size_t mate = matemap[matei];
-					if(!filt[mate]) {
-						// Mate was rejected by N filter
-						olm.freads++;               // reads filtered out
-						olm.fbases += rdlens[mate]; // bases filtered out
-						continue; // on to next mate
-					} else {
-						olm.ureads++;               // reads passing filter
-						olm.ubases += rdlens[mate]; // bases passing filter
+					matemap[0] = 0; matemap[1] = 1;
+					if(nelt[0] > 0 && nelt[1] > 0 && nelt[0] > nelt[1]) {
+						// Do the mate with fewer exact hits first
+						// TODO: Consider mates & orientations separately?
+						matemap[0] = 1; matemap[1] = 0;
 					}
-					if(msinkwrap.state().doneWithMate(mate == 0)) {
-						// Done with this mate
-						continue;
-					}
-					assert_geq(rds[mate]->length(), 0);
-					assert(!msinkwrap.maxed());
-					assert(msinkwrap.repOk());
-					rnd.init(ROTL(rds[mate]->seed, 10));
-					assert(shs[mate].repOk(&ca.current()));
-					// Calculate seed interval as function of read length
-					int interval;
-					if(filt[mate ^ 1]) {
-						// Both mates made it through the filter; base the
-						// interval calculation on the combined length
-						interval = msIval.f<int>((double)(rdlens[0] + rdlens[1]));
-					} else {
-						// Just aligning this mate
-						interval = msIval.f<int>((double)rdlens[mate]);
-					}
-					if(interval < 1) {
-						interval = 1;
-					}
-					assert_geq(interval, 1);
-					int seedlen = multiseedLen;
-					int iters = 0;
-					bool skip = false;
-					while(true) {
-						// Set up seeds
-						Constraint gc = Constraint::penaltyFuncBased(scoreMin);
-						seeds.clear();
-						ca.nextRead();
-						shs[mate].clearSeeds();
-						Seed::mmSeeds(
-							multiseedMms,    // max # mms per seed
-							seedlen,         // length of a multiseed seed
-							seeds,           // seeds
-							gc);             // global constraint
-						// Instantiate the seeds
-						std::pair<int, int> inst = al.instantiateSeeds(
-							seeds,       // search seeds
-							interval,    // interval between seeds
-							*rds[mate],  // read to align
-							sc,          // scoring scheme
-							nofw[mate],  // don't align forward read
-							norc[mate],  // don't align revcomp read
-							ca,          // holds some seed hits from previous reads
-							shs[mate],   // holds all the seed hits
-							sdm);        // metrics
-						assert(shs[mate].repOk(&ca.current()));
-						if(inst.first + inst.second == 0) {
-							skip = true;
-							break; // on to next mate
+					for(size_t matei = 0; matei < (seedSumm ? 0:2); matei++) {
+						size_t mate = matemap[matei];
+						if(nelt[mate] == 0) {
+							continue;
 						}
-						// Align seeds
-						al.searchAllSeeds(
-							seeds,            // search seeds
-							&ebwtFw,          // BWT index
-							&ebwtBw,          // BWT' index
-							*rds[mate],       // read
-							sc,               // scoring scheme
-							ca,               // alignment cache
-							shs[mate],        // store seed hits here
-							sdm);             // metrics
-						assert(shs[mate].repOk(&ca.current()));
-						if(iters >= seedBoostMaxIters ||
-						   shs[mate].averageHitsPerSeed() < seedBoostThresh)
-						{
-							break;
+						if(msinkwrap.state().doneWithMate(mate == 0)) {
+							done[mate] = true;
+							continue;
 						}
-						// Decrease interval, increase seed length
-						bool changed = false;
-						if(interval > 1) {
-							interval = (int)(interval * seedBoostIvalMult + 0.5);
-							if(interval < 1) {
-								interval = 1;
-							}
-							changed = true;
-						}
-						if(seedlen < 32) {
-							seedlen = (int)(seedlen * seedBoostLenMult);
-							if(seedlen > 32) {
-								seedlen = 32;
-							}
-							changed = true;
-						}
-						if(!changed) {
-							// Can't do much more
-							break;
-						}
-						iters++;
-					}
-					if(skip) {
-						continue;
-					}
-					if(!seedSummaryOnly) {
-						// If there aren't any seed hits...
-						if(shs[mate].empty()) {
-							continue; // on to the next mate
-						}
-						// If all seeds hit, then an exact end-to-end alignment
-						// is possible; search for it here
-						size_t fewestEditsFw = shs[mate].fewestEditsEE(
-							true, multiseedLen, interval);
-						size_t fewestEditsRc = shs[mate].fewestEditsEE(
-							false, multiseedLen, interval);
-						fewestEditsFw = max(fewestEditsFw, minedfw[mate]);
-						fewestEditsRc = max(fewestEditsRc, minedfw[mate]);
-						if(do1mmUpFront &&
-						   (fewestEditsFw <= 1 || fewestEditsRc <= 1))
-						{
-							bool yfw = fewestEditsFw <= 1 && !nofw[mate];
-							bool yrc = fewestEditsRc <= 1 && !norc[mate];
-							bool do1mm = do1mmUpFront;
-							if(do1mm && minsc[mate] == sc.perfectScore(rdlens[mate])) {
-								do1mm = false;
-							}
-							if(do1mm && rdlens[mate] < do1mmMinLen) {
-								do1mm = false;
-							}
-							if(do1mm) {
-								swmSeed.mm1atts++;
-							}
-							al.oneMmSearch(
-								&ebwtFw,        // BWT index
-								&ebwtBw,        // BWT' index
-								*rds[mate],     // read
-								sc,             // scoring scheme
-								minsc[mate],    // minimum score
-								!yfw,           // don't align forward read
-								!yrc,           // don't align revcomp read
-								localAlign,     // must be legal local alns?
-								false,          // do exact match
-								do1mm,          // do 1mm
-								shs[mate],      // seed hits (hits installed here)
-								sdm);           // metrics
-						}
-						// Sort seed hits into ranks
-						shs[mate].rankSeedHits(rnd);
-						int nceil = nCeil.f<int>((double)rdlens[mate]);
-						nceil = min(nceil, (int)rdlens[mate]);
-						bool done = false;
+						assert(filt[mate]);
+						assert(matei == 0 || pair);
+						assert(!msinkwrap.maxed());
+						assert(msinkwrap.repOk());
+						rnd.init(ROTL(rds[mate]->seed, 10));
+						int ret = 0;
 						if(pair) {
-							int onceil = nCeil.f<int>((double)rdlens[mate ^ 1]);
-							onceil = min(onceil, (int)rdlens[mate ^ 1]);
 							// Paired-end dynamic programming driver
-							done = sd.extendSeedsPaired(
+							ret = sd.extendSeedsPaired(
 								*rds[mate],     // mate to align as anchor
 								*rds[mate ^ 1], // mate to align as opp.
 								mate == 0,      // anchor is mate 1?
 								!filt[mate ^ 1],// opposite mate filtered out?
-								gColor,         // colorspace?
 								shs[mate],      // seed hits for anchor
 								ebwtFw,         // bowtie index
 								ref,            // packed reference strings
@@ -3057,21 +2912,23 @@ static void* multiseedSearchWorker(void *vp) {
 								osw,            // dyn prog aligner, opposite
 								sc,             // scoring scheme
 								pepol,          // paired-end policy
-								multiseedMms,   // # mms allowed in a seed
-								multiseedLen,   // length of a seed
-								interval,       // interval between seeds
+								-1,             // # mms allowed in a seed
+								0,              // length of a seed
+								0,              // interval between seeds
 								minsc[mate],    // min score for anchor
 								minsc[mate^1],  // min score for opp.
 								floorsc[mate],  // floor score for anchor
 								floorsc[mate^1],// floor score for opp.
-								nceil,          // N ceil for anchor
-								onceil,         // N ceil for opp.
+								nceil[mate],    // N ceil for anchor
+								nceil[mate^1],  // N ceil for opp.
 								nofw[mate],     // don't align forward read
 								norc[mate],     // don't align revcomp read
 								myMaxeltPair,   // max elts to extend
 								maxhalf,        // max width on one DP side
 								doUngapped,     // do ungapped alignment
 								ungappedThresh, // # attempts before all ungapped
+								maxUg,          // max # ungapped extends
+								maxDp,          // max # DPs
 								maxUgStreak,    // stop after streak of this many ungap fails
 								maxDpStreak,    // stop after streak of this many dp fails
 								enable8,        // use 8-bit SSE where possible
@@ -3091,25 +2948,26 @@ static void* multiseedSearchWorker(void *vp) {
 							// Might be done, but just with this mate
 						} else {
 							// Unpaired dynamic programming driver
-							done = sd.extendSeeds(
+							ret = sd.extendSeeds(
 								*rds[mate],     // read
 								mate == 0,      // mate #1?
-								gColor,         // colorspace?
 								shs[mate],      // seed hits
 								ebwtFw,         // bowtie index
 								ref,            // packed reference strings
 								sw,             // dynamic prog aligner
 								sc,             // scoring scheme
-								multiseedMms,   // # mms allowed in a seed
-								multiseedLen,   // length of a seed
-								interval,       // interval between seeds
+								-1,             // # mms allowed in a seed
+								0,              // length of a seed
+								0,              // interval between seeds
 								minsc[mate],    // minimum score for valid
 								floorsc[mate],  // floor score
-								nceil,          // N ceil for anchor
+								nceil[mate],    // N ceil for anchor
 								myMaxelt,       // max elts to extend
 								maxhalf,        // max width on one DP side
 								doUngapped,     // do ungapped alignment
 								ungappedThresh, // # attempts before all ungapped
+								maxUg,          // max # ungapped extends
+								maxDp,          // max # DPs
 								maxUgStreak,    // stop after streak of this many ungap fails
 								maxDpStreak,    // stop after streak of this many dp fails
 								enable8,        // use 8-bit SSE where possible
@@ -3123,29 +2981,439 @@ static void* multiseedSearchWorker(void *vp) {
 								true,           // report hits once found
 								exhaustive[mate]);
 						}
-						sw.merge(
-							sseU8ExtendMet,  // metrics for SSE 8-bit seed extends
-							sseU8MateMet,    // metrics for SSE 8-bit mate finding
-							sseI16ExtendMet, // metrics for SSE 16-bit seed extends
-							sseI16MateMet,   // metrics for SSE 16-bit mate finding
-							nbtfiltst,
-							nbtfiltsc,
-							nbtfiltdo);
-						sw.resetCounters();
-						osw.merge(
-							sseU8ExtendMet,  // metrics for SSE 8-bit seed extends
-							sseU8MateMet,    // metrics for SSE 8-bit mate finding
-							sseI16ExtendMet, // metrics for SSE 16-bit seed extends
-							sseI16MateMet,   // metrics for SSE 16-bit mate finding
-							nbtfiltst,
-							nbtfiltsc,
-							nbtfiltdo);
-						osw.resetCounters();
-						// Are we done with this read/pair?
-						if(done) {
-							break; // ...break out of the loop over mates
+						assert_gt(ret, 0);
+						MERGE_SW(sw);
+						MERGE_SW(osw);
+						// Clear out the exact hits so that we don't try to
+						// extend them again later!
+						shs[mate].clearExactE2eHits();
+						if(ret == EXTEND_EXHAUSTED_CANDIDATES) {
+							// Not done yet
+						} else if(ret == EXTEND_POLICY_FULFILLED) {
+							// Policy is satisfied for this mate at least
+							if(msinkwrap.state().doneWithMate(mate == 0)) {
+								done[mate] = true;
+							}
+							if(msinkwrap.state().doneWithMate(mate == 1)) {
+								done[mate^1] = true;
+							}
+						} else if(ret == EXTEND_PERFECT_SCORE) {
+							// We exhausted this mode at least
+							done[mate] = true;
+						} else if(ret == EXTEND_EXCEEDED_LIMIT) {
+							// We exceeded a per-read limit
+							done[0] = done[1] = true;
+						} else {
+							//
+							cerr << "Bad return value: " << ret << endl;
+							throw 1;
 						}
-					} // if(!seedSummaryOnly)
+						if(!done[mate]) {
+							TAlScore perfectScore = sc.perfectScore(rdlens[mate]);
+							if(!done[mate] && minsc[mate] == perfectScore) {
+								done[mate] = true;
+							}
+						}
+					}
+				}
+				// 1-mismatch
+				if(do1mmUpFront && !seedSumm) {
+					size_t nelt[2] = { 0, 0 };
+					for(size_t matei = 0; matei < (pair ? 2:1); matei++) {
+						size_t mate = matemap[matei];
+						if(!filt[mate] || done[mate] || msinkwrap.state().doneWithMate(mate == 0)) {
+							// Done with this mate
+							done[mate] = true;
+							continue;
+						}
+						assert(!msinkwrap.maxed());
+						assert(msinkwrap.repOk());
+						rnd.init(ROTL(rds[mate]->seed, 10));
+						assert(shs[mate].repOk(&ca.current()));
+						bool yfw = minedfw[mate] <= 1 && !nofw[mate];
+						bool yrc = minedrc[mate] <= 1 && !norc[mate];
+						// Clear out the exact hits
+						swmSeed.mm1atts++;
+						al.oneMmSearch(
+							&ebwtFw,        // BWT index
+							&ebwtBw,        // BWT' index
+							*rds[mate],     // read
+							sc,             // scoring scheme
+							minsc[mate],    // minimum score
+							!yfw,           // don't align forward read
+							!yrc,           // don't align revcomp read
+							localAlign,     // must be legal local alns?
+							false,          // do exact match
+							true,           // do 1mm
+							shs[mate],      // seed hits (hits installed here)
+							sdm);           // metrics
+						nelt[mate] = shs[mate].num1mmE2eHits();
+					}
+					// Possibly reorder the mates
+					matemap[0] = 0; matemap[1] = 1;
+					if(nelt[0] > 0 && nelt[1] > 0 && nelt[0] > nelt[1]) {
+						// Do the mate with fewer exact hits first
+						// TODO: Consider mates & orientations separately?
+						matemap[0] = 1; matemap[1] = 0;
+					}
+					for(size_t matei = 0; matei < (seedSumm ? 0:2); matei++) {
+						size_t mate = matemap[matei];
+						if(nelt[mate] == 0) {
+							continue;
+						}
+						if(msinkwrap.state().doneWithMate(mate == 0)) {
+							done[mate] = true;
+							continue;
+						}
+						int ret = 0;
+						if(pair) {
+							// Paired-end dynamic programming driver
+							ret = sd.extendSeedsPaired(
+								*rds[mate],     // mate to align as anchor
+								*rds[mate ^ 1], // mate to align as opp.
+								mate == 0,      // anchor is mate 1?
+								!filt[mate ^ 1],// opposite mate filtered out?
+								shs[mate],      // seed hits for anchor
+								ebwtFw,         // bowtie index
+								ref,            // packed reference strings
+								sw,             // dyn prog aligner, anchor
+								osw,            // dyn prog aligner, opposite
+								sc,             // scoring scheme
+								pepol,          // paired-end policy
+								-1,             // # mms allowed in a seed
+								0,              // length of a seed
+								0,              // interval between seeds
+								minsc[mate],    // min score for anchor
+								minsc[mate^1],  // min score for opp.
+								floorsc[mate],  // floor score for anchor
+								floorsc[mate^1],// floor score for opp.
+								nceil[mate],    // N ceil for anchor
+								nceil[mate^1],  // N ceil for opp.
+								nofw[mate],     // don't align forward read
+								norc[mate],     // don't align revcomp read
+								myMaxeltPair,   // max elts to extend
+								maxhalf,        // max width on one DP side
+								doUngapped,     // do ungapped alignment
+								ungappedThresh, // # attempts before all ungapped
+								maxUg,          // max # ungapped extends
+								maxDp,          // max # DPs
+								maxUgStreak,    // stop after streak of this many ungap fails
+								maxDpStreak,    // stop after streak of this many dp fails
+								enable8,        // use 8-bit SSE where possible
+								refscan,        // use reference scanning?
+								tighten,        // -M score tightening mode
+								ca,             // seed alignment cache
+								rnd,            // pseudo-random source
+								wlm,            // group walk left metrics
+								swmSeed,        // DP metrics, seed extend
+								swmMate,        // DP metrics, mate finding
+								&msinkwrap,     // for organizing hits
+								true,           // seek mate immediately
+								true,           // report hits once found
+								gReportDiscordant,// look for discordant alns?
+								gReportMixed,   // look for unpaired alns?
+								exhaustive[mate]);
+							// Might be done, but just with this mate
+						} else {
+							// Unpaired dynamic programming driver
+							ret = sd.extendSeeds(
+								*rds[mate],     // read
+								mate == 0,      // mate #1?
+								shs[mate],      // seed hits
+								ebwtFw,         // bowtie index
+								ref,            // packed reference strings
+								sw,             // dynamic prog aligner
+								sc,             // scoring scheme
+								-1,             // # mms allowed in a seed
+								0,              // length of a seed
+								0,              // interval between seeds
+								minsc[mate],    // minimum score for valid
+								floorsc[mate],  // floor score
+								nceil[mate],    // N ceil for anchor
+								myMaxelt,       // max elts to extend
+								maxhalf,        // max width on one DP side
+								doUngapped,     // do ungapped alignment
+								ungappedThresh, // # attempts before all ungapped
+								maxUg,          // max # ungapped extends
+								maxDp,          // max # DPs
+								maxUgStreak,    // stop after streak of this many ungap fails
+								maxDpStreak,    // stop after streak of this many dp fails
+								enable8,        // use 8-bit SSE where possible
+								refscan,        // use reference scanning?
+								tighten,        // -M score tightening mode
+								ca,             // seed alignment cache
+								rnd,            // pseudo-random source
+								wlm,            // group walk left metrics
+								swmSeed,        // DP metrics, seed extend
+								&msinkwrap,     // for organizing hits
+								true,           // report hits once found
+								exhaustive[mate]);
+						}
+						assert_gt(ret, 0);
+						MERGE_SW(sw);
+						MERGE_SW(osw);
+						// Clear out the 1mm hits so that we don't try to
+						// extend them again later!
+						shs[mate].clear1mmE2eHits();
+						if(ret == EXTEND_EXHAUSTED_CANDIDATES) {
+							// Not done yet
+						} else if(ret == EXTEND_POLICY_FULFILLED) {
+							// Policy is satisfied for this mate at least
+							if(msinkwrap.state().doneWithMate(mate == 0)) {
+								done[mate] = true;
+							}
+							if(msinkwrap.state().doneWithMate(mate == 1)) {
+								done[mate^1] = true;
+							}
+						} else if(ret == EXTEND_PERFECT_SCORE) {
+							// We exhausted this mode at least
+							done[mate] = true;
+						} else if(ret == EXTEND_EXCEEDED_LIMIT) {
+							// We exceeded a per-read limit
+							done[0] = done[1] = true;
+						} else {
+							//
+							cerr << "Bad return value: " << ret << endl;
+							throw 1;
+						}
+						if(!done[mate]) {
+							TAlScore perfectScore = sc.perfectScore(rdlens[mate]);
+							if(!done[mate] && minsc[mate] == perfectScore) {
+								done[mate] = true;
+							}
+						}
+					}
+				}
+				
+				// TODO: If we're going to proceed to seed search, do all seed
+				// finidng here so that, for paired-end reads, we can be smart
+				// about which mate to try first.
+				int seedlens[2] = { multiseedLen, multiseedLen };
+				double uniqFactor[2] = { 0.0f, 0.0f };
+				ca.nextRead();
+				for(size_t matei = 0; matei < (pair ? 2:1); matei++) {
+					size_t mate = matemap[matei];
+					if(done[mate] || msinkwrap.state().doneWithMate(mate == 0)) {
+						// Done with this mate
+						done[mate] = true;
+						continue;
+					}
+					assert(!msinkwrap.maxed());
+					assert(msinkwrap.repOk());
+					rnd.init(ROTL(rds[mate]->seed, 10));
+					assert(shs[mate].repOk(&ca.current()));
+					int iters = 0;
+					while(true) {
+						// Set up seeds
+						Constraint gc = Constraint::penaltyFuncBased(scoreMin);
+						seeds[mate]->clear();
+						shs[mate].clearSeeds();
+						Seed::mmSeeds(
+							multiseedMms,    // max # mms per seed
+							seedlens[mate],  // length of a multiseed seed
+							*seeds[mate],    // seeds
+							gc);             // global constraint
+						// Instantiate the seeds
+						std::pair<int, int> inst = al.instantiateSeeds(
+							*seeds[mate],   // search seeds
+							interval[mate], // interval between seeds
+							*rds[mate],     // read to align
+							sc,             // scoring scheme
+							nofw[mate],     // don't align forward read
+							norc[mate],     // don't align revcomp read
+							ca,             // holds some seed hits from previous reads
+							shs[mate],      // holds all the seed hits
+							sdm);           // metrics
+						assert(shs[mate].repOk(&ca.current()));
+						if(inst.first + inst.second == 0) {
+							// No seed hits!  Done with this mate.
+							done[mate] = true;
+							break;
+						}
+						// Align seeds
+						al.searchAllSeeds(
+							*seeds[mate],     // search seeds
+							&ebwtFw,          // BWT index
+							&ebwtBw,          // BWT' index
+							*rds[mate],       // read
+							sc,               // scoring scheme
+							ca,               // alignment cache
+							shs[mate],        // store seed hits here
+							sdm);             // metrics
+						assert(shs[mate].repOk(&ca.current()));
+						if(shs[mate].empty()) {
+							done[mate] = true;
+							break;
+						}
+						if(iters >= seedBoostMaxIters ||
+						   shs[mate].averageHitsPerSeed() < seedBoostThresh)
+						{
+							break;
+						}
+						// Decrease interval, increase seed length
+						bool changed = false;
+						if(interval[mate] > 1) {
+							interval[mate] = (int)(interval[mate] * seedBoostIvalMult + 0.5);
+							interval[mate] = max(interval[mate], 1);
+							changed = true;
+						}
+						if(seedlens[mate] < 32) {
+							seedlens[mate] = (int)(seedlens[mate] * seedBoostLenMult);
+							if(seedlens[mate] > 32) {
+								seedlens[mate] = 32;
+							}
+							changed = true;
+						}
+						if(!changed) {
+							// Can't do much more
+							break;
+						}
+						iters++;
+					} // while(true) (deciding on seed params)
+				}
+				
+				for(size_t i = 0; i < 2; i++) {
+					if(!shs[i].empty()) {
+						uniqFactor[i] = shs[i].uniquenessFactor();
+					}
+				}
+				
+				// Possibly reorder the mates
+				matemap[0] = 0; matemap[1] = 1;
+				if(!shs[0].empty() && !shs[1].empty() && uniqFactor[1] > uniqFactor[0]) {
+					// Do the mate with fewer exact hits first
+					// TODO: Consider mates & orientations separately?
+					matemap[0] = 1; matemap[1] = 0;
+				}
+				
+				// Find end-to-end 1-mismatch alignments for each read
+				for(size_t matei = 0; matei < (pair ? 2:1); matei++) {
+					size_t mate = matemap[matei];
+					if(done[mate] || msinkwrap.state().doneWithMate(mate == 0)) {
+						// Done with this mate
+						done[mate] = true;
+						continue;
+					}
+					assert(!msinkwrap.maxed());
+					assert(msinkwrap.repOk());
+					rnd.init(ROTL(rds[mate]->seed, 10));
+					assert(shs[mate].repOk(&ca.current()));
+					if(!seedSumm) {
+						// If there aren't any seed hits...
+						if(shs[mate].empty()) {
+							continue; // on to the next mate
+						}
+						// Sort seed hits into ranks
+						shs[mate].rankSeedHits(rnd);
+						int ret = 0;
+						if(pair) {
+							// Paired-end dynamic programming driver
+							ret = sd.extendSeedsPaired(
+								*rds[mate],     // mate to align as anchor
+								*rds[mate ^ 1], // mate to align as opp.
+								mate == 0,      // anchor is mate 1?
+								!filt[mate ^ 1],// opposite mate filtered out?
+								shs[mate],      // seed hits for anchor
+								ebwtFw,         // bowtie index
+								ref,            // packed reference strings
+								sw,             // dyn prog aligner, anchor
+								osw,            // dyn prog aligner, opposite
+								sc,             // scoring scheme
+								pepol,          // paired-end policy
+								multiseedMms,   // # mms allowed in a seed
+								seedlens[mate], // length of a seed
+								interval[mate], // interval between seeds
+								minsc[mate],    // min score for anchor
+								minsc[mate^1],  // min score for opp.
+								floorsc[mate],  // floor score for anchor
+								floorsc[mate^1],// floor score for opp.
+								nceil[mate],    // N ceil for anchor
+								nceil[mate^1],  // N ceil for opp.
+								nofw[mate],     // don't align forward read
+								norc[mate],     // don't align revcomp read
+								myMaxeltPair,   // max elts to extend
+								maxhalf,        // max width on one DP side
+								doUngapped,     // do ungapped alignment
+								ungappedThresh, // # attempts before all ungapped
+								maxUg,          // max # ungapped extends
+								maxDp,          // max # DPs
+								maxUgStreak,    // stop after streak of this many ungap fails
+								maxDpStreak,    // stop after streak of this many dp fails
+								enable8,        // use 8-bit SSE where possible
+								refscan,        // use reference scanning?
+								tighten,        // -M score tightening mode
+								ca,             // seed alignment cache
+								rnd,            // pseudo-random source
+								wlm,            // group walk left metrics
+								swmSeed,        // DP metrics, seed extend
+								swmMate,        // DP metrics, mate finding
+								&msinkwrap,     // for organizing hits
+								true,           // seek mate immediately
+								true,           // report hits once found
+								gReportDiscordant,// look for discordant alns?
+								gReportMixed,   // look for unpaired alns?
+								exhaustive[mate]);
+							// Might be done, but just with this mate
+						} else {
+							// Unpaired dynamic programming driver
+							ret = sd.extendSeeds(
+								*rds[mate],     // read
+								mate == 0,      // mate #1?
+								shs[mate],      // seed hits
+								ebwtFw,         // bowtie index
+								ref,            // packed reference strings
+								sw,             // dynamic prog aligner
+								sc,             // scoring scheme
+								multiseedMms,   // # mms allowed in a seed
+								seedlens[mate], // length of a seed
+								interval[mate], // interval between seeds
+								minsc[mate],    // minimum score for valid
+								floorsc[mate],  // floor score
+								nceil[mate],    // N ceil for anchor
+								myMaxelt,       // max elts to extend
+								maxhalf,        // max width on one DP side
+								doUngapped,     // do ungapped alignment
+								ungappedThresh, // # attempts before all ungapped
+								maxUg,          // max # ungapped extends
+								maxDp,          // max # DPs
+								maxUgStreak,    // stop after streak of this many ungap fails
+								maxDpStreak,    // stop after streak of this many dp fails
+								enable8,        // use 8-bit SSE where possible
+								refscan,        // use reference scanning?
+								tighten,        // -M score tightening mode
+								ca,             // seed alignment cache
+								rnd,            // pseudo-random source
+								wlm,            // group walk left metrics
+								swmSeed,        // DP metrics, seed extend
+								&msinkwrap,     // for organizing hits
+								true,           // report hits once found
+								exhaustive[mate]);
+						}
+						assert_gt(ret, 0);
+						MERGE_SW(sw);
+						MERGE_SW(osw);
+						if(ret == EXTEND_EXHAUSTED_CANDIDATES) {
+							// Not done yet
+						} else if(ret == EXTEND_POLICY_FULFILLED) {
+							// Policy is satisfied for this mate at least
+							if(msinkwrap.state().doneWithMate(mate == 0)) {
+								done[mate] = true;
+							}
+							if(msinkwrap.state().doneWithMate(mate == 1)) {
+								done[mate^1] = true;
+							}
+						} else if(ret == EXTEND_PERFECT_SCORE) {
+							// We exhausted this made at least
+							done[mate] = true;
+						} else if(ret == EXTEND_EXCEEDED_LIMIT) {
+							// We exceeded a per-read limit
+							done[0] = done[1] = true;
+						} else {
+							//
+							cerr << "Bad return value: " << ret << endl;
+							throw 1;
+						}
+					} // if(!seedSumm)
 				} // for(size_t matei = 0; matei < 2; matei++)
 				
 				// Commit and report paired-end/unpaired alignments
@@ -3167,8 +3435,8 @@ static void* multiseedSearchWorker(void *vp) {
 					sortByScore,          // prioritize by alignment score
 					rnd,                  // pseudo-random generator
 					rpm,                  // reporting metrics
-					!seedSummaryOnly,     // suppress seed summaries?
-					seedSummaryOnly);     // suppress alignments?
+					!seedSumm,     // suppress seed summaries?
+					seedSumm);     // suppress alignments?
 				assert(!retry || msinkwrap.empty());
 			} // while(retry)
 		} // if(patid >= skipReads && patid < qUpto)
@@ -3216,7 +3484,7 @@ static void multiseedSearch(
 	auto_ptr<BitPairReference> refs(
 		new BitPairReference(
 			adjIdxBase,
-			gColor,
+			false,
 			sanityCheck,
 			NULL,
 			NULL,
@@ -3239,7 +3507,7 @@ static void multiseedSearch(
 		assert(!ebwtFw.isInMemory());
 		Timer _t(cerr, "Time loading forward index: ", timing);
 		ebwtFw.loadIntoMemory(
-			gColor ? 1 : 0, // colorspace?
+			0,  // colorspace?
 			-1, // not the reverse index
 			true,         // load SA samp? (yes, need forward index's SA samp)
 			true,         // load ftab (in forward index)
@@ -3252,7 +3520,7 @@ static void multiseedSearch(
 		assert(!ebwtBw.isInMemory());
 		Timer _t(cerr, "Time loading mirror index: ", timing);
 		ebwtBw.loadIntoMemory(
-			gColor ? 1 : 0, // colorspace?
+			0, // colorspace?
 			// It's bidirectional search, so we need the reverse to be
 			// constructed as the reverse of the concatenated strings.
 			1,
@@ -3347,7 +3615,7 @@ static void driver(
 	adjIdxBase = adjustEbwtBase(argv0, bt2indexBase, gVerbose);
 	Ebwt ebwt(
 		adjIdxBase,
-	    gColor,   // index is colorspace
+	    0,        // index is colorspace
 		-1,       // fw index
 	    true,     // index is for the forward direction
 	    /* overriding: */ offRate,
@@ -3371,7 +3639,7 @@ static void driver(
 		}
 		ebwtBw = new Ebwt(
 			adjIdxBase + ".rev",
-			gColor,  // index is colorspace
+			0,       // index is colorspace
 			1,       // TODO: maybe not
 		    false, // index is for the reverse direction
 		    /* overriding: */ offRate,
@@ -3393,20 +3661,20 @@ static void driver(
 		// against original strings
 		assert_eq(os.size(), ebwt.nPat());
 		for(size_t i = 0; i < os.size(); i++) {
-			assert_eq(os[i].length(), ebwt.plen()[i] + (gColor ? 1 : 0));
+			assert_eq(os[i].length(), ebwt.plen()[i]);
 		}
 	}
 	// Sanity-check the restored version of the Ebwt
 	if(sanityCheck && !os.empty()) {
 		ebwt.loadIntoMemory(
-			gColor ? 1 : 0,
+			0,
 			-1, // fw index
 			true, // load SA sample
 			true, // load ftab
 			true, // load rstarts
 			!noRefNames,
 			startVerbose);
-		ebwt.checkOrigs(os, gColor, false);
+		ebwt.checkOrigs(os, false, false);
 		ebwt.evictFromMemory();
 	}
 	{
@@ -3421,7 +3689,6 @@ static void driver(
 			penMmcType,     // how to penalize mismatches
 			penMmcMax,      // max mm pelanty
 			penMmcMin,      // min mm pelanty
-			penSnp,         // pena for nuc mm in decoded colorspace alns
 			scoreMin,       // min score as function of read len
 			scoreFloor,     // floor score as function of read len
 			nCeil,          // max # Ns as function of read len
@@ -3488,8 +3755,7 @@ static void driver(
 					samc,         // settings & routines for SAM output
 					false,        // delete output stream objects upon destruction
 					refnames,     // reference names
-					gQuiet,       // don't print alignment summary at end
-					gColorExEnds);// exclude ends from decoded colorspace alns?
+					gQuiet);      // don't print alignment summary at end
 				if(!samNoHead) {
 					bool printHd = true, printSq = true;
 					samc.printHeader(*fout, rgid, rgs, printHd, !samNoSQ, printSq);
@@ -3525,7 +3791,7 @@ static void driver(
 		if(ebwtBw != NULL) {
 			delete ebwtBw;
 		}
-		if(!gQuiet && !seedSummaryOnly) {
+		if(!gQuiet && !seedSumm) {
 			size_t repThresh = mhits;
 			if(repThresh == 0) {
 				repThresh = std::numeric_limits<size_t>::max();

@@ -70,15 +70,6 @@ public:
 	 *         rounded quality value.  Qualities are rounded off to the
 	 *         nearest 10, and qualities greater than 30 are rounded to 30.
 	 *
-	 * Penalty for a SNP in a colorspace alignment
-	 * -------------------------------------------
-	 *
-	 * SNP=xx (default: SNP=6)
-	 *
-	 *    xx = Each nucleotide difference in a decoded colorspace alignment
-	 *         costs xx.  This should be about equal to -10 * log10(expected
-	 *         fraction of positions that are SNPs)
-	 * 
 	 * Penalty for position with N (in either read or reference)
 	 * ---------------------------------------------------------
 	 *
@@ -232,7 +223,6 @@ public:
 		int&   penMmcType,
 		int&   penMmcMax,
 		int&   penMmcMin,
-		int&   penSnp,
 		int&   penNType,
 		int&   penN,
 		int&   penRdExConst,

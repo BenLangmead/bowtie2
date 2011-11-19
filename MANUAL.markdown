@@ -15,13 +15,13 @@ reads to long reference sequences.  It is particularly good at aligning reads of
 about 50 up to 100s or 1,000s of characters to relatively long (e.g. mammalian)
 genomes.  Bowtie 2 indexes the genome with an [FM Index] (based on the
 [Burrows-Wheeler Transform] or [BWT]) to keep its memory footprint small: for
-the human genome, its memory footprint is typically around 3.2 GB.  Bowtie 2
-supports gapped, local, and paired-end alignment modes.  Multiple processors can
-be used simultaneously to achieve greater alignment speed.  Bowtie 2 outputs
-alignments in [SAM] format, enabling interoperation with a large number of other
-tools (e.g. [SAMtools], [GATK]) that use SAM.  Bowtie 2 is distributed under the
-[GPLv3 license], and it runs on the command line under Windows, Mac OS X and
-Linux.
+the human genome, its memory footprint is typically around 3.2 gigabytes of RAM.
+ Bowtie 2 supports gapped, local, and paired-end alignment modes.  Multiple
+processors can be used simultaneously to achieve greater alignment speed. 
+Bowtie 2 outputs alignments in [SAM] format, enabling interoperation with a
+large number of other tools (e.g. [SAMtools], [GATK]) that use SAM.  Bowtie 2 is
+distributed under the [GPLv3 license], and it runs on the command line under
+Windows, Mac OS X and Linux.
 
 [Bowtie 2] is often the first step in pipelines for comparative genomics,
 including for variation calling, ChIP-seq, RNA-seq, BS-seq.  [Bowtie 2] and
@@ -471,13 +471,15 @@ mates seemingly extending "past" each other as in this example:
     Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
 
 In some situations, it's desirable for the aligner to consider all these cases
-as "concordant" as long as other paired-end constraints are not violated; this
-is Bowtie 2's default behavior. In other situations, the aligner should consider
-one or more of these cases to be non-concordant.  Setting [`--no-overlap`]
-causes Bowtie 2 to consider overlapping mates as non-concordant.  Setting
-[`--no-contain`] causes Bowtie 2 to consider cases where one mate alignment
-contains the other as non-concordant. Setting [`--no-dovetail`] causes Bowtie 2
-to consider cases where the mate alignments dovetail as non-concordant.
+as "concordant" as long as other paired-end constraints are not violated. 
+Bowtie 2's default behavior, however, is to consider dovetailing mates
+non-concordant.
+
+These defaults can be overridden.  Setting [`--no-overlap`] causes Bowtie 2 to
+consider overlapping mates as non-concordant.  Setting [`--no-contain`] causes
+Bowtie 2 to consider cases where one mate alignment contains the other as
+non-concordant. Setting [`--dovetail`] causes Bowtie 2 to consider cases where
+the mate alignments dovetail as concordant.
 
 Reporting
 ---------

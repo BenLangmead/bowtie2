@@ -64,10 +64,6 @@ enum {
 	ARG_SAM_NOHEAD,             // --sam-noHD/--sam-nohead
 	ARG_SAM_NOSQ,               // --sam-nosq/--sam-noSQ
 	ARG_SAM_RG,                 // --sam-RG
-	ARG_COLOR_SEQ,              // --col-cseq
-	ARG_COLOR_EDIT,             // --col-cedit
-	ARG_COLOR_QUAL,             // --col-cqual
-	ARG_COLOR_KEEP_ENDS,        // --col-keepends
 	ARG_GAP_BAR,                // --gbar
 	ARG_QUALS1,                 // --Q1
 	ARG_QUALS2,                 // --Q2
@@ -107,8 +103,11 @@ enum {
 	ARG_TAB5,                   // --tab5
 	ARG_TAB6,                   // --tab6
 	ARG_WRAPPER,                // --wrapper
+	ARG_DOVETAIL,               // --dovetail
 	ARG_NO_DOVETAIL,            // --no-dovetail
+	ARG_CONTAIN,                // --contain
 	ARG_NO_CONTAIN,             // --no-contain
+	ARG_OVERLAP,                // --overlap
 	ARG_NO_OVERLAP,             // --no-overlap
 	ARG_MAPQ_V,                 // --mapq-v
 	ARG_REFSCAN,                // --refscan
@@ -133,8 +132,10 @@ enum {
 	ARG_SEED_BOOST_IVAL_MULT,   // --seed-boost-ival-mult
 	ARG_SEED_BOOST_LEN_MULT,    // --seed-boost-len-mult
 	ARG_READ_TIMES,             // --read-times
-	ARG_DP_FAIL_THRESH,         // --dp-fail
-	ARG_UG_FAIL_THRESH          // --ug-fail
+	ARG_DP_FAIL_STREAK_THRESH,  // --dp-fail-streak
+	ARG_UG_FAIL_STREAK_THRESH,  // --ug-fail-streak
+	ARG_DP_FAIL_THRESH,         // --dp-fails
+	ARG_UG_FAIL_THRESH          // --ug-fails
 };
 
 #endif

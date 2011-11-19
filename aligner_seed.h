@@ -610,6 +610,13 @@ public:
 	{
 		clear();
 	}
+	
+	/**
+	 * Set the current read.
+	 */
+	void nextRead(const Read& read) {
+		read_ = &read;
+	}
 
 	/**
 	 * Set the appropriate element of either hitsFw_ or hitsRc_ to the given
@@ -688,9 +695,17 @@ public:
 		sortedRc_.clear();
 		rankOffs_.clear();
 		rankFws_.clear();
+		offIdx2off_.clear();
+		hitsFw_.clear();
+		hitsRc_.clear();
+		isFw_.clear();
+		isRc_.clear();
+		seqFw_.clear();
+		seqRc_.clear();
 		nonzTot_ = 0;
 		nonzFw_ = 0;
 		nonzRc_ = 0;
+		numOffs_ = 0;
 		numRanges_ = 0;
 		numElts_ = 0;
 		numRangesFw_ = 0;
@@ -775,6 +790,25 @@ public:
 	float averageHitsPerSeed() const {
 		return (float)numElts_ / (float)nonzTot_;
 	}
+	
+	/**
+	 * Return a number that's meant to quantify how hopeful we are that this
+	 * set of seed hits will lead to good alignments.
+	 */
+	double uniquenessFactor() const {
+		double result = 0.0;
+		for(size_t i = 0; i < numOffs_; i++) {
+			if(hitsFw_[i].valid()) {
+				size_t nelt = hitsFw_[i].numElts();
+				result += (1.0 / (double)(nelt * nelt));
+			}
+			if(hitsRc_[i].valid()) {
+				size_t nelt = hitsRc_[i].numElts();
+				result += (1.0 / (double)(nelt * nelt));
+			}
+		}
+		return result;
+	}
 
 	/**
 	 * Return the number of ranges being held.
@@ -854,8 +888,7 @@ public:
 		if(requireInited) {
 			assert(read_ != NULL);
 		}
-		if(read_ != NULL) {
-			assert_gt(numOffs_, 0);
+		if(numOffs_ > 0) {
 			assert_eq(numOffs_, hitsFw_.size());
 			assert_eq(numOffs_, hitsRc_.size());
 			assert_leq(numRanges_, numElts_);
@@ -1118,6 +1151,23 @@ public:
 	{
 		exactRcHit_.init(top, bot, e1, e2, fw, score);
 	}
+	
+	/**
+	 * Clear out the end-to-end exact alignments.
+	 */
+	void clearExactE2eHits() {
+		exactFwHit_.reset();
+		exactRcHit_.reset();
+	}
+	
+	/**
+	 * Clear out the end-to-end 1-mismatch alignments.
+	 */
+	void clear1mmE2eHits() {
+		mm1Hit_.clear();     // 1-mismatch end-to-end hits
+		mm1Elt_ = 0;         // number of 1-mismatch hit rows
+		mm1Sorted_ = false;  // true iff we've sorted the mm1Hit_ list
+	}
 
 	/**
 	 * Return the number of distinct exact and 1-mismatch end-to-end hits
@@ -1132,6 +1182,13 @@ public:
 	 */
 	size_t numExactE2eHits() const {
 		return exactFwHit_.size() + exactRcHit_.size();
+	}
+
+	/**
+	 * Return the number of distinct 1-mismatch end-to-end hits found.
+	 */
+	size_t num1mmE2eHits() const {
+		return mm1Elt_;
 	}
 	
 	/**
@@ -1355,7 +1412,7 @@ public:
 	 * Do an exact-matching sweet to establish a lower bound on number of edits
 	 * and to find exact alignments.
 	 */
-	void exactSweep(
+	size_t exactSweep(
 		const Ebwt&        ebwt,    // BWT index
 		const Read&        read,    // read to align
 		const Scoring&     sc,      // scoring scheme
