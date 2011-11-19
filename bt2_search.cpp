@@ -3415,7 +3415,14 @@ static void* multiseedSearchWorker(void *vp) {
 						}
 					} // if(!seedSumm)
 				} // for(size_t matei = 0; matei < 2; matei++)
-				
+				for(size_t i = 0; i < 2; i++) {
+					assert_leq(rds[i]->nExDps,        maxDp);
+					assert_leq(rds[i]->nMateDps,      maxDp);
+					assert_leq(rds[i]->nExUngaps,     maxUg);
+					assert_leq(rds[i]->nMateUngaps,   maxUg);
+					assert_leq(rds[i]->nDpFailStreak, maxDpStreak);
+					assert_leq(rds[i]->nUgFailStreak, maxUgStreak);
+				}
 				// Commit and report paired-end/unpaired alignments
 				uint32_t seed = rds[0]->seed ^ rds[1]->seed;
 				rnd.init(ROTL(seed, 20));
