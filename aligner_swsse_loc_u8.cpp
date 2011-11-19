@@ -1495,7 +1495,6 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 		off + rfi_ + rect_->refl, // 0-based ref offset
 		fw_,                      // aligned to Watson?
 		rdf_ - rdi_,              // read length
-		color_,                   // read was colorspace?
 		true,                     // pretrim soft?
 		0,                        // pretrim 5' end
 		0,                        // pretrim 3' end

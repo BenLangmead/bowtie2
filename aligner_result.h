@@ -623,22 +623,20 @@ struct SeedAlSumm {
 };
 
 /**
- * Encapsulates an alignment result, including for colorspace alignments.  The
- * result comprises:
+ * Encapsulates an alignment result.  The result comprises:
  *
  * 1. All the nucleotide edits for both mates ('ned').
  * 2. All "edits" where an ambiguous reference char is resolved to an
  *    unambiguous char ('aed').
- * 3. All the color miscalls (if in colorspace) ('ced').
- * 4. The score for the alginment, including summary information about the
+ * 3. The score for the alginment, including summary information about the
  *    number of gaps and Ns involved.
- * 5. The reference id, strand, and 0-based offset of the leftmost character
+ * 4. The reference id, strand, and 0-based offset of the leftmost character
  *    involved in the alignment.
- * 6. Information about trimming prior to alignment and whether it was hard or
+ * 5. Information about trimming prior to alignment and whether it was hard or
  *    soft.
- * 7. Information about trimming during alignment and whether it was hard or
+ * 6. Information about trimming during alignment and whether it was hard or
  *    soft.  Local-alignment trimming is usually soft when aligning nucleotide
- *    reads and usually hard when aligning colorspace reads.
+ *    reads.
  *
  * Note that the AlnRes, together with the Read and an AlnSetSumm (*and* the
  * opposite mate's AlnRes and Read in the case of a paired-end alignment),
@@ -654,12 +652,6 @@ struct SeedAlSumm {
  * 4. The read extent and the read sequence and length, if trimming is hard.
  *
  * Handling 1. is not too difficult.  2., 3., and 4. are handled in setShape().
- *
- * Another subtlety is that, in colorspace alignment, there can be soft and/or
- * hard trimming of the colorspace sequence, but that trimming "becomes" hard
- * when it is transferred to the decoded nucleotide sequence.  This is because
- * nucleotide positions not adjacent to an aligned color are not decoded, and
- * so must be omitted entirely instead of soft-clipped.
  */
 class AlnRes {
 
@@ -667,8 +659,7 @@ public:
 
 	AlnRes() :
 		ned_(RES_CAT),
-		aed_(RES_CAT),
-		ced_(RES_CAT)
+		aed_(RES_CAT)
 	{
 		reset();
 	}
@@ -684,7 +675,6 @@ public:
 	void reverseEdits() {
 		ned_.reverse();
 		aed_.reverse();
-		ced_.reverse();
 	}
 	
 	/**
@@ -699,11 +689,6 @@ public:
 		assert_gt(rdrows_, 0);
 		Edit::invertPoss(ned_, rdexrows_);
 		Edit::invertPoss(aed_, rdexrows_);
-		if(color_) {
-			Edit::invertPoss(ced_, rdextent_);
-		} else {
-			assert(ced_.empty());
-		}
 	}
 	
 	/**
@@ -713,7 +698,6 @@ public:
 		if(!VALID_AL_SCORE(score_)) {
 			assert(ned_.empty());
 			assert(aed_.empty());
-			assert(ced_.empty());
 			assert(!refcoord_.valid());
 			assert(!refival_.valid());
 			return true;
@@ -794,7 +778,6 @@ public:
 		TRefOff off,         // offset of first aligned char into ref seq
 		bool    fw,          // aligned to Watson strand?
 		size_t  rdlen,       // length of read after hard trimming, before soft
-		bool    color,       // colorspace alignment?
 		bool    pretrimSoft, // whether trimming prior to alignment was soft
 		size_t  pretrim5p,   // # poss trimmed form 5p end before alignment
 		size_t  pretrim3p,   // # poss trimmed form 3p end before alignment
@@ -872,19 +855,16 @@ public:
 	AlnScore           oscore()         const { return oscore_;   }
 	EList<Edit>&       ned()                  { return ned_;      }
 	EList<Edit>&       aed()                  { return aed_;      }
-	EList<Edit>&       ced()                  { return ced_;      }
 	const EList<Edit>& ned()            const { return ned_;      }
 	const EList<Edit>& aed()            const { return aed_;      }
-	const EList<Edit>& ced()            const { return ced_;      }
 	size_t             readExtent()     const { return rdextent_; }
 	size_t             readExtentRows() const { return rdexrows_; }
 	size_t             readLength()     const { return rdlen_;    }
 
 	/**
-	 * Return the number of reference nucleotides or colors involved in the
-	 * alignment (i.e. the number of characters in the inclusive range from the
-	 * first matched-up ref char to the last).  If alignment was in colorspace,
-	 * this is the extent measured in colors.
+	 * Return the number of reference nucleotides involved in the alignment
+	 * (i.e. the number of characters in the inclusive range from the first
+	 * matched-up ref char to the last).
 	 */
 	size_t refExtent() const {
 		return rfextent_;
@@ -896,7 +876,7 @@ public:
 	 * ref char to the last).
 	 */
 	size_t refNucExtent() const {
-		return rfextent_ + (color_ ? 1 : 0);
+		return rfextent_;
 	}
 
 	/**
@@ -909,8 +889,6 @@ public:
 	 * and soft trimming are represented with H and S operators, repsectively.
 	 */
  	void printCigar(
-		bool printColors,     // print CIGAR for colorspace alignment?
-		bool exEnds,          // exclude ends nucleotides for decoded nucs?
 		bool distinguishMm,   // use =/X instead of just M
 		EList<char>& op,      // stick CIGAR operations here
 		EList<size_t>& run,   // stick CIGAR run lengths here
@@ -927,8 +905,6 @@ public:
 	 * alignment after all trimming.
 	 */
  	void printMD(
-		bool printColors,     // print CIGAR for colorspace alignment?
-		bool exEnds,          // exclude ends nucleotides for decoded nucs?
 		EList<char>& op,      // stick operations here
 		EList<char>& ch,      // stick reference characters here
 		EList<size_t>& run,   // stick run lengths here
@@ -938,28 +914,20 @@ public:
 	/**
 	 * Print the sequence for the read that aligned using A, C, G and
 	 * T.  This will simply print the read sequence (or its reverse
-	 * complement) unless this is a colorspace read and printColors is
-	 * false.  In that case, we print the decoded sequence rather than
-	 * the original ones.
+	 * complement).
 	 */
  	void printSeq(
 		const Read& rd,
 		const BTDnaString* dns,
-		bool printColors,
-		bool exEnds,
 		OutFileBuf& o) const;
 
 	/**
 	 * Print the quality string for the read that aligned.  This will
-	 * simply print the read qualities (or their reverse) unless this
-	 * is a colorspace read and printColors is false.  In that case,
-	 * we print the decoded qualities rather than the original ones.
+	 * simply print the read qualities (or their reverse).
 	 */
  	void printQuals(
 		const Read& rd,
 		const BTString* dqs,
-		bool printColors,
-		bool exEnds,
 		OutFileBuf& o) const;
 	
 	/**
@@ -995,7 +963,6 @@ public:
 		assert(refival_.repOk());
 		assert(VALID_AL_SCORE(score_) || ned_.empty());
 		assert(VALID_AL_SCORE(score_) || aed_.empty());
-		assert(VALID_AL_SCORE(score_) || ced_.empty());
 		assert(empty() || refcoord_.valid());
 		assert(empty() || refival_.valid());
 		assert_geq(rdexrows_, rdextent_);
@@ -1044,7 +1011,6 @@ public:
 	int     seedival()   const { return seedival_; }
 	int64_t minScore()   const { return minsc_;    }
 	int64_t floorScore() const { return floorsc_;  }
-	bool    color()      const { return color_;    }
 
 	/**
 	 * Get the decoded nucleotide sequence 
@@ -1240,9 +1206,7 @@ public:
 		AlnScore           score,           // alignment score
 		const EList<Edit>* ned,             // nucleotide edits
 		const EList<Edit>* aed,             // ambiguous base resolutions
-		const EList<Edit>* ced,             // color edits
 		Coord              refcoord,        // leftmost ref pos of 1st al char
-		bool               color,           // colorspace?
 		int                seedmms      = -1,// # seed mms allowed
 		int                seedlen      = -1,// seed length
 		int                seedival     = -1,// space between seeds
@@ -1255,13 +1219,7 @@ public:
 		size_t             pretrim3p    = 0, // trimming prior to alignment
 		bool               trimSoft     = true,
 		size_t             trim5p       = 0, // trimming from alignment
-		size_t             trim3p       = 0, // trimming from alignment
-		bool               cPretrimSoft = false,
-		size_t             cPretrim5p   = 0, // trimming prior to alignment
-		size_t             cPretrim3p   = 0, // trimming prior to alignment
-		bool               cTrimSoft    = true,
-		size_t             cTrim5p      = 0, // trimming from alignment
-		size_t             cTrim3p      = 0);// trimming from alignment
+		size_t             trim3p       = 0);// trimming from alignment
 
 	size_t softTrimmed5p() const {
 		size_t trim = 0;
@@ -1336,7 +1294,6 @@ public:
 			//oscore_       == o.oscore_ &&
 			ned_          == o.ned_ &&
 			aed_          == o.aed_ &&
-			ced_          == o.ced_ &&
 			refcoord_     == o.refcoord_ &&
 			refival_      == o.refival_ &&
 			rdextent_     == o.rdextent_ &&
@@ -1347,7 +1304,6 @@ public:
 			seedival_     == o.seedival_ &&
 			minsc_        == o.minsc_ &&
 			floorsc_      == o.floorsc_ &&
-			color_        == o.color_ &&
 			nuc5p_        == o.nuc5p_ &&
 			nuc3p_        == o.nuc3p_ &&
 			refns_        == o.refns_ &&
@@ -1358,13 +1314,7 @@ public:
 			pretrim3p_    == o.pretrim3p_ &&
 			trimSoft_     == o.trimSoft_ &&
 			trim5p_       == o.trim5p_ &&
-			trim3p_       == o.trim3p_ &&
-			cPretrimSoft_ == o.cPretrimSoft_ &&
-			cPretrim5p_   == o.cPretrim5p_ &&
-			cPretrim3p_   == o.cPretrim3p_ &&
-			cTrimSoft_    == o.cTrimSoft_ &&
-			cTrim5p_      == o.cTrim5p_ &&
-			cTrim3p_      == o.cTrim3p_;
+			trim3p_       == o.trim3p_;
 	}
 
 protected:
@@ -1388,7 +1338,6 @@ protected:
 	AlnScore    oscore_;       // score of opposite mate
 	EList<Edit> ned_;          // base edits
 	EList<Edit> aed_;          // ambiguous base resolutions
-	EList<Edit> ced_;          // color miscalls
 	Coord       refcoord_;     // ref coordinates (seq idx, offset, orient)
 	Interval    refival_;      // ref interval (coord + length)
 	size_t      rdextent_;     // number of read chars involved in alignment
@@ -1399,7 +1348,6 @@ protected:
 	int         seedival_;     // interval between seeds
 	int64_t     minsc_;        // minimum score
 	int64_t     floorsc_;      // floor score
-	bool        color_;        // colorspace alignment?
 	int         nuc5p_;        // 5'-most decoded base; clipped if excluding end
 	int         nuc3p_;        // 3'-most decoded base; clipped if excluding end
 	size_t      refns_;        // # of reference Ns overlapped
@@ -1420,14 +1368,6 @@ protected:
 	bool        trimSoft_;     // trimming by local alignment is soft?
 	size_t      trim5p_;       // # bases trimmed from 5p end by local alignment
 	size_t      trim3p_;       // # bases trimmed from 3p end by local alignment
-
-	// Colorspace-sequence trimming; only relevant in colorspace
-	bool        cPretrimSoft_; // trimming prior to alignment is soft?
-	size_t      cPretrim5p_;   // # bases trimmed from 5p end prior to alignment
-	size_t      cPretrim3p_;   // # bases trimmed from 3p end prior to alignment
-	bool        cTrimSoft_;    // trimming by local alignment is soft?
-	size_t      cTrim5p_;      // # bases trimmed from 5p end by local alignment
-	size_t      cTrim3p_;      // # bases trimmed from 3p end by local alignment
 };
 
 /**

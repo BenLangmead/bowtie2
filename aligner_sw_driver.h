@@ -238,6 +238,23 @@ protected:
 	EList<double> masses_;  // mass of each range
 };
 
+/**
+ * Return values from extendSeeds and extendSeedsPaired.
+ */
+enum {
+	// All end-to-end and seed hits were examined
+	EXTEND_EXHAUSTED_CANDIDATES = 1,
+	// The policy does not need us to look any further
+	EXTEND_POLICY_FULFILLED,
+	// We stopped because we reached a point where the only remaining
+	// alignments of interest have perfect scores, but we already investigated
+	// perfect alignments
+	EXTEND_PERFECT_SCORE,
+	// We stopped because we ran up against a limit on how much work we should
+	// do, e.g. the limit on number of consecutive unproductive DP extensions
+	EXTEND_EXCEEDED_LIMIT,
+};
+
 class SwDriver {
 
 	typedef PList<uint32_t, CACHE_PAGE_SZ> TSAList;
@@ -266,10 +283,9 @@ public:
 	 * mhs->report() returned true (indicating that the reporting
 	 * policy is satisfied and we can stop).  Otherwise, returns false.
 	 */
-	bool extendSeeds(
-		Read& rd,              // read to align
+	int extendSeeds(
+		Read& rd,                    // read to align
 		bool mate1,                  // true iff rd is mate #1
-		bool color,                  // true -> read is colorspace
 		SeedResults& sh,             // seed hits to extend into full alignments
 		const Ebwt& ebwt,            // BWT
 		const BitPairReference& ref, // Reference strings
@@ -278,13 +294,15 @@ public:
 		int seedmms,                 // # mismatches allowed in seed
 		int seedlen,                 // length of seed
 		int seedival,                // interval between seeds
-		TAlScore minsc,              // minimum score for anchor
+		TAlScore& minsc,             // minimum score for anchor
 		TAlScore floorsc,            // local-alignment floor for anchor score
 		int nceil,                   // maximum # Ns permitted in ref portion
 		const SimpleFunc& maxelt,    // # elts to explore as function of total elts
 		size_t maxhalf,              // maximum width on one side of DP table
 		bool doUngapped,             // do ungapped alignment
 		size_t ungappedThresh,       // all attempts after this many are ungapped
+		size_t maxUg,                // max # ungapped extends
+		size_t maxDp,                // max # DPs
 		size_t maxUgStreak,          // stop after streak of this many ungap fails
 		size_t maxDpStreak,          // stop after streak of this many dp fails
 		bool enable8,                // use 8-bit SSE where possible
@@ -299,30 +317,6 @@ public:
 		bool& exhaustive);
 
 	/**
-	 * Given a read, perform full dynamic programming against the entire
-	 * reference.  Optionally report alignments to a AlnSinkWrap object
-	 * as they are discovered.
-	 *
-	 * If 'reportImmediately' is true, returns true iff a call to
-	 * mhs->report() returned true (indicating that the reporting
-	 * policy is satisfied and we can stop).  Otherwise, returns false.
-	 */
-	bool sw(
-		const Read& rd,              // read to align
-		bool color,                  // true -> read is colorspace
-		const BitPairReference& ref, // Reference strings
-		SwAligner& swa,              // dynamic programming aligner
-		const Scoring& sc,           // scoring scheme
-		TAlScore minsc,              // minimum score for anchor
-		TAlScore floorsc,            // local-alignment floor for anchor score
-		RandomSource& rnd,           // pseudo-random source
-		SwMetrics& swm,              // dynamic programming metrics
-		AlnSinkWrap* mhs,            // HitSink for multiseed-style aligner
-		bool reportImmediately,      // whether to report hits immediately to mhs
-		EList<SwCounterSink*>* swCounterSinks, // send counter updates to these
-		EList<SwActionSink*>* swActionSinks);  // send action-list updates to these
-
-	/**
 	 * Given a collection of SeedHits for a read pair, extend seed
 	 * alignments into full alignments and then look for the opposite
 	 * mate using dynamic programming.  Where possible, try to avoid
@@ -333,12 +327,11 @@ public:
 	 * mhs->report() returned true (indicating that the reporting
 	 * policy is satisfied and we can stop).  Otherwise, returns false.
 	 */
-	bool extendSeedsPaired(
+	int extendSeedsPaired(
 		Read& rd,                    // mate to align as anchor
 		Read& ord,                   // mate to align as opposite
 		bool anchor1,                // true iff anchor mate is mate1
 		bool oppFilt,                // true iff opposite mate was filtered out
-		bool color,                  // true -> reads are colorspace
 		SeedResults& sh,             // seed hits for anchor
 		const Ebwt& ebwt,            // BWT
 		const BitPairReference& ref, // Reference strings
@@ -349,8 +342,8 @@ public:
 		int seedmms,                 // # mismatches allowed in seed
 		int seedlen,                 // length of seed
 		int seedival,                // interval between seeds
-		TAlScore minsc,              // minimum score for anchor
-		TAlScore ominsc,             // minimum score for opposite
+		TAlScore& minsc,             // minimum score for anchor
+		TAlScore& ominsc,            // minimum score for opposite
 		TAlScore floorsc,            // local-alignment floor for anchor score
 		TAlScore ofloorsc,           // local-alignment floor for opposite score
 		int nceil,                   // max # Ns permitted in ref for anchor
@@ -361,6 +354,8 @@ public:
 		size_t maxhalf,              // maximum width on one side of DP table
 		bool doUngapped,             // do ungapped alignment
 		size_t ungappedThresh,       // all attempts after this many are ungapped
+		size_t maxUg,                // max # ungapped extends
+		size_t maxDp,                // max # DPs
 		size_t maxUgStreak,          // stop after streak of this many ungap fails
 		size_t maxDpStreak,          // stop after streak of this many dp fails
 		bool enable8,                // use 8-bit SSE where possible

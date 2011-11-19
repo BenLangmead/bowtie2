@@ -23,7 +23,6 @@
  * Classes and routines for solving dynamic programming problems in aid of read
  * alignment.  Goals include the ability to handle:
  *
- * - Both nucleotide queries and colorspace queries
  * - Both read alignment, where the query must align end-to-end, and local
  *   alignment, where we seek a high-scoring alignment that need not involve
  *   the entire query.
@@ -97,9 +96,7 @@
  * =========
  *
  * Ensapsulates facilities for alignment using dynamic programming.  Handles
- * alignment of nucleotide or colorspace reads against known reference
- * nucleotides.  In the colorspace case, decoding takes place simultaneously
- * with alignment.
+ * alignment of nucleotide reads against known reference nucleotides.
  *
  * The class is stateful.  First the user must call init() to initialize the
  * object with details regarding the dynamic programming problem to be solved.
@@ -241,7 +238,6 @@ public:
 		const BTString& qurc,    // read qualities for rc read
 		size_t rdi,            // offset of first read char to align
 		size_t rdf,            // offset of last read char to align
-		bool color,            // true iff read is colorspace
 		const Scoring& sc,     // scoring scheme
 		TAlScore floorsc);     // local-alignment score floor
 
@@ -313,8 +309,7 @@ public:
 
 	/**
 	 * Align read 'rd' to reference using read & reference information given
-	 * last time init() was called.  If the read is colorspace, the decoding is
-	 * determined simultaneously with alignment.  Uses dynamic programming.
+	 * last time init() was called.  Uses dynamic programming.
 	 */
 	bool align(RandomSource& rnd);
 	
@@ -437,7 +432,7 @@ protected:
 	 */
 	inline size_t dpRows() const {
 		assert(initedRead_);
-		return rdf_ - rdi_ + (color_ ? 1 : 0);
+		return rdf_ - rdi_;
 	}
 
 	/**
@@ -525,7 +520,6 @@ protected:
 	size_t              rdi_;    // offset of first read char to align
 	size_t              rdf_;    // offset of last read char to align
 	bool                fw_;     // true iff read sequence is original fw read
-	bool                color_;  // true iff read is colorspace
 	uint32_t            refidx_; // id of reference aligned against
 	const DPRect*       rect_;   // DP rectangle
 	char               *rf_;     // reference sequence

@@ -460,10 +460,9 @@ enum {
  * returned true (indicating that the reporting policy is satisfied and we can
  * stop).  Otherwise, returns false.
  */
-bool SwDriver::extendSeeds(
+int SwDriver::extendSeeds(
 	Read& rd,                    // read to align
 	bool mate1,                  // true iff rd is mate #1
-	bool color,                  // true -> read is colorspace
 	SeedResults& sh,             // seed hits to extend into full alignments
 	const Ebwt& ebwt,            // BWT
 	const BitPairReference& ref, // Reference strings
@@ -472,13 +471,15 @@ bool SwDriver::extendSeeds(
 	int seedmms,                 // # mismatches allowed in seed
 	int seedlen,                 // length of seed
 	int seedival,                // interval between seeds
-	TAlScore minsc,              // minimum score for anchor
+	TAlScore& minsc,             // minimum score for anchor
 	TAlScore floorsc,            // local-alignment floor for anchor score
 	int nceil,                   // maximum # Ns permitted in reference portion
 	const SimpleFunc& maxeltf,   // # elts to explore as function of total elts
 	size_t maxhalf,  	         // max width in either direction for DP tables
 	bool doUngapped,             // do ungapped alignment
 	size_t ungappedThresh,       // all attempts after this many are ungapped
+	size_t maxUg,                // stop after this many ungaps
+	size_t maxDp,                // stop after this many dps
 	size_t maxUgStreak,          // stop after streak of this many ungap fails
 	size_t maxDpStreak,          // stop after streak of this many dp fails
 	bool enable8,                // use 8-bit SSE where possible
@@ -492,13 +493,10 @@ bool SwDriver::extendSeeds(
 	bool reportImmediately,      // whether to report hits immediately to msink
 	bool& exhaustive)            // set to true iff we searched all seeds exhaustively
 {
-	//TIMER_START();
 	typedef std::pair<uint32_t, uint32_t> U32Pair;
 
 	assert(!reportImmediately || msink != NULL);
-	assert(!reportImmediately || msink->empty());
 	assert(!reportImmediately || !msink->maxed());
-	assert_gt(seedlen, 0);
 
 	assert_geq(nceil, 0);
 	assert_leq((size_t)nceil, rd.length());
@@ -518,24 +516,12 @@ bool SwDriver::extendSeeds(
 	// resolution of offsets.
 	const size_t nsm = 3;
 	const size_t nonz = sh.nonzeroOffsets(); // non-zero positions
-	assert_gt(nonz, 0);
-	double maxelt_db = maxeltf.f<double>((double)nonz);
-	if(maxelt_db < std::numeric_limits<double>::max()) {
-		maxelt_db *= 32.0/pow((double)max<size_t>(rdlen, 100), 0.75);
-		maxelt_db = max<double>(maxelt_db, 2.0f);
-	}
-	size_t maxelt = (size_t)maxelt_db;
-	if(maxelt_db == std::numeric_limits<double>::max()) {
-		maxelt = std::numeric_limits<size_t>::max();
-	}
-
 	size_t eeHits = sh.numE2eHits();
 	bool eeMode = eeHits > 0;
 	bool firstEe = true;
 	bool firstExtend = true;
-
 	size_t nelt = 0, neltLeft = 0;
-	size_t rows = rdlen + (color ? 1 : 0);
+	size_t rows = rdlen;
 	size_t eltsDone = 0;
 	while(true) {
 		if(eeMode) {
@@ -556,64 +542,68 @@ bool SwDriver::extendSeeds(
 			}
 		}
 		if(!eeMode) {
+			if(nonz == 0) {
+				// No seed hits!  Bail.
+				return EXTEND_EXHAUSTED_CANDIDATES;
+			}
 			if(minsc == perfectScore) {
 				// Already found all perfect hits!
-				return false;
+				return EXTEND_PERFECT_SCORE;
 			}
 			if(firstExtend) {
 				nelt = 0;
 				prioritizeSATups(
-					sh,           // seed hits to extend into full alignments
-					ebwt,         // BWT
-					ref,          // Reference strings
-					refscan,      // do reference scanning?
-					maxelt,       // max rows to consider per position
-					nsm,          // smallness threshold
-					ca,           // alignment cache for seed hits
-					rnd,          // pseudo-random generator
-					wlm,          // group walk left metrics
-					nelt);        // out: # elements total
+					sh,            // seed hits to extend into full alignments
+					ebwt,          // BWT
+					ref,           // Reference strings
+					refscan,       // do reference scanning?
+					maxUg + maxDp, // max rows to consider per position
+					nsm,           // smallness threshold
+					ca,            // alignment cache for seed hits
+					rnd,           // pseudo-random generator
+					wlm,           // group walk left metrics
+					nelt);         // out: # elements total
 				assert_eq(gws_.size(), rands_.size());
 				assert_eq(gws_.size(), satpos_.size());
 				neltLeft = nelt;
 				firstExtend = false;
 			}
-			if(!(neltLeft > 0 && eltsDone < maxelt)) {
+			if(neltLeft == 0) {
 				// Finished examining gapped candidates
 				break;
 			}
 		}
-		// neltLeft is initialized separately, once for the end-to-end hits and
-		// once for the seed hits.  eltsDone and maxelt are initialized once
-		// and carried over across end-to-end & seed modes.
 		for(size_t i = 0; i < gws_.size(); i++) {
 			if(eeMode && eehits_[i].score < minsc) {
-				break;
+				return EXTEND_PERFECT_SCORE;
 			}
-			bool small       = satpos_[i].sat.size() < nsm;
-			bool fw          = satpos_[i].pos.fw;
-			uint32_t rdoff   = satpos_[i].pos.rdoff;
-			uint32_t seedlen = satpos_[i].pos.seedlen;
+			bool small          = satpos_[i].sat.size() < nsm;
+			bool fw             = satpos_[i].pos.fw;
+			uint32_t rdoff      = satpos_[i].pos.rdoff;
+			uint32_t seedhitlen = satpos_[i].pos.seedlen;
 			if(!fw) {
 				// 'rdoff' and 'offidx' are with respect to the 5' end of
 				// the read.  Here we convert rdoff to be with respect to
 				// the upstream (3') end of ther read.
-				rdoff = (uint32_t)(rdlen - rdoff - seedlen);
+				rdoff = (uint32_t)(rdlen - rdoff - seedhitlen);
 			}
 			bool first = true;
-			assert_leq(eltsDone, maxelt);
 			// If the range is small, investigate all elements now.  If the
 			// range is large, just investigate one and move on - we might come
 			// back to this range later.
-			while(!rands_[i].done() &&
-			      (eltsDone < maxelt && (first || small || eeMode)))
-			{
+			while(!rands_[i].done() && (first || small || eeMode)) {
 				if(minsc == perfectScore) {
 					if(!eeMode || eehits_[i].score < perfectScore) {
-						return false;
+						return EXTEND_PERFECT_SCORE;
 					}
 				} else if(eeMode && eehits_[i].score < minsc) {
 					break;
+				}
+				if(rd.nExDps >= maxDp || rd.nMateDps >= maxDp) {
+					return EXTEND_EXCEEDED_LIMIT;
+				}
+				if(rd.nExUngaps >= maxUg || rd.nMateUngaps >= maxUg) {
+					return EXTEND_EXCEEDED_LIMIT;
 				}
 				first = false;
 				assert(!gws_[i].done());
@@ -634,7 +624,6 @@ bool SwDriver::extendSeeds(
 					tidx,
 					toff,
 					tlen);
-				tlen += (color ? 1 : 0);
 				if(tidx == 0xffffffff) {
 					// The seed hit straddled a reference boundary so the seed hit
 					// isn't valid
@@ -698,7 +687,6 @@ bool SwDriver::extendSeeds(
 						refcoord.off(),  // 0-based ref offset
 						fw,              // aligned to Watson?
 						rdlen,           // read length
-						false,           // read was colorspace?
 						true,            // pretrim soft?
 						0,               // pretrim 5' end
 						0,               // pretrim 3' end
@@ -733,14 +721,14 @@ bool SwDriver::extendSeeds(
 					if(al == 0) {
 						rd.nUgFail++;
 						if(rd.nUgFail > maxUgStreak) {
-							return false;
+							return EXTEND_EXCEEDED_LIMIT;
 						}
 						swmSeed.ungapfail++;
 						continue;
 					} else if(al == -1) {
 						rd.nUgFail++; // count this as failure
 						if(rd.nUgFail > maxUgStreak) {
-							return false;
+							return EXTEND_EXCEEDED_LIMIT;
 						}
 						swmSeed.ungapnodec++;
 					} else {
@@ -759,8 +747,7 @@ bool SwDriver::extendSeeds(
 				if(state == FOUND_NONE) {
 					found = dpframe.frameSeedExtensionRect(
 						refoff,   // ref offset implied by seed hit assuming no gaps
-						rows,     // length of read sequence used in DP table (so len
-								  // of +1 nucleotide sequence for colorspace reads)
+						rows,     // length of read sequence used in DP table
 						tlen,     // length of reference
 						readGaps, // max # of read gaps permitted in opp mate alignment
 						refGaps,  // max # of ref gaps permitted in opp mate alignment
@@ -795,7 +782,6 @@ bool SwDriver::extendSeeds(
 							rd.qualRev,// rc version of qualities
 							0,         // off of first char in 'rd' to consider
 							rdlen,     // off of last char (excl) in 'rd' to consider
-							color,     // colorspace?
 							sc,        // scoring scheme
 							floorsc);  // local-alignment floor score
 					}
@@ -866,7 +852,7 @@ bool SwDriver::extendSeeds(
 					if(!found) {
 						rd.nDpFail++;
 						if(rd.nDpFail > maxDpStreak) {
-							return false;
+							return EXTEND_EXCEEDED_LIMIT;
 						}
 						continue; // Look for more anchor alignments
 					} else {
@@ -969,10 +955,7 @@ bool SwDriver::extendSeeds(
 						{
 							// Short-circuited because a limit, e.g. -k, -m or
 							// -M, was exceeded
-							//IF_TIMER_END() {
-							//	cerr << "Saw a long extendSeeds (" << total_usecs << ")" << endl;
-							//}
-							return true;
+							return EXTEND_POLICY_FULFILLED;
 						}
 						if(tighten > 0 &&
 						   msink->Mmode() &&
@@ -1007,38 +990,7 @@ bool SwDriver::extendSeeds(
 		}
 	}
 	// Short-circuited because a limit, e.g. -k, -m or -M, was exceeded
-	//IF_TIMER_END() {
-	//	cerr << "Saw a long extendSeeds (" << total_usecs << ")" << endl;
-	//}
-	return false;
-}
-
-/**
- * Given a read, perform full dynamic programming against the entire
- * reference.  Optionally report alignments to a AlnSinkWrap object
- * as they are discovered.
- *
- * If 'reportImmediately' is true, returns true iff a call to
- * msink->report() returned true (indicating that the reporting
- * policy is satisfied and we can stop).  Otherwise, returns false.
- */
-bool SwDriver::sw(
-	const Read& rd,              // read to align
-	bool color,                  // true -> read is colorspace
-	const BitPairReference& ref, // Reference strings
-	SwAligner& swa,              // dynamic programming aligner
-	const Scoring& sc,           // scoring scheme
-	TAlScore minsc,              // minimum score for valid alignment
-	TAlScore floorsc,            // local-alignment floor score
-	RandomSource& rnd,           // pseudo-random source
-	SwMetrics& swm,              // dynamic programming metrics
-	AlnSinkWrap* msink,          // HitSink for multiseed-style aligner
-	bool reportImmediately,      // whether to report hits immediately to msink
-	EList<SwCounterSink*>* swCounterSinks, // send counter updates to these
-	EList<SwActionSink*>* swActionSinks)   // send action-list updates to these
-{
-	assert(!reportImmediately || msink != NULL);
-	return false;
+	return EXTEND_EXHAUSTED_CANDIDATES;
 }
 
 /**
@@ -1127,12 +1079,11 @@ bool SwDriver::sw(
  *     - 
  *
  */
-bool SwDriver::extendSeedsPaired(
+int SwDriver::extendSeedsPaired(
 	Read& rd,                    // mate to align as anchor
 	Read& ord,                   // mate to align as opposite
 	bool anchor1,                // true iff anchor mate is mate1
 	bool oppFilt,                // true iff opposite mate was filtered out
-	bool color,                  // true -> reads are colorspace
 	SeedResults& sh,             // seed hits for anchor
 	const Ebwt& ebwt,            // BWT
 	const BitPairReference& ref, // Reference strings
@@ -1143,8 +1094,8 @@ bool SwDriver::extendSeedsPaired(
 	int seedmms,                 // # mismatches allowed in seed
 	int seedlen,                 // length of seed
 	int seedival,                // interval between seeds
-	TAlScore minsc,              // minimum score for valid anchor aln
-	TAlScore ominsc,             // minimum score for valid opposite aln
+	TAlScore& minsc,             // minimum score for valid anchor aln
+	TAlScore& ominsc,            // minimum score for valid opposite aln
 	TAlScore floorsc,            // local-alignment score floor for anchor
 	TAlScore ofloorsc,           // local-alignment score floor for opposite
 	int nceil,                   // max # Ns permitted in ref for anchor
@@ -1155,6 +1106,8 @@ bool SwDriver::extendSeedsPaired(
 	size_t maxhalf,              // max width in either direction for DP tables
 	bool doUngapped,             // do ungapped alignment
 	size_t ungappedThresh,       // all attempts after this many are ungapped
+	size_t maxUg,                // stop after this many ungaps
+	size_t maxDp,                // stop after this many dps
 	size_t maxUgStreak,          // stop after streak of this many ungap fails
 	size_t maxDpStreak,          // stop after streak of this many dp fails
 	bool enable8,                // use 8-bit SSE where possible
@@ -1177,7 +1130,6 @@ bool SwDriver::extendSeedsPaired(
 	assert(!reportImmediately || msink != NULL);
 	assert(!reportImmediately || !msink->maxed());
 	assert(!msink->state().doneWithMate(anchor1));
-	assert_gt(seedlen, 0);
 
 	assert_geq(nceil, 0);
 	assert_geq(onceil, 0);
@@ -1225,25 +1177,14 @@ bool SwDriver::extendSeedsPaired(
 	// resolution of offsets.
 	const size_t nsm = 3;
 	const size_t nonz = sh.nonzeroOffsets(); // non-zero positions
-	assert_gt(nonz, 0);
-	double maxelt_db = maxeltf.f<double>((double)nonz);
-	if(maxelt_db < std::numeric_limits<double>::max()) {
-		maxelt_db *= 32.0/pow((double)max<size_t>(rdlen, 100), 0.75);
-		maxelt_db = max<double>(maxelt_db, 2.0f);
-	}
-	size_t maxelt = (size_t)maxelt_db;
-	if(maxelt_db == std::numeric_limits<double>::max()) {
-		maxelt = std::numeric_limits<size_t>::max();
-	}
-	
 	size_t eeHits = sh.numE2eHits();
 	bool eeMode = eeHits > 0;
 	bool firstEe = true;
 	bool firstExtend = true;
 
 	size_t nelt = 0, neltLeft = 0;
-	const size_t rows = rdlen + (color ? 1 : 0);
-	const size_t orows  = ordlen + (color ? 1 : 0);
+	const size_t rows = rdlen;
+	const size_t orows  = ordlen;
 	size_t eltsDone = 0;
 	while(true) {
 		if(eeMode) {
@@ -1265,9 +1206,13 @@ bool SwDriver::extendSeedsPaired(
 			}
 		}
 		if(!eeMode) {
-			if(minsc == perfectScore) {
+			if(nonz == 0) {
+				// No seed hits!  Bail.
+				return EXTEND_EXHAUSTED_CANDIDATES;
+			}
+			if(msink->Mmode() && minsc == perfectScore) {
 				// Already found all perfect hits!
-				return false;
+				return EXTEND_PERFECT_SCORE;
 			}
 			if(firstExtend) {
 				nelt = 0;
@@ -1276,7 +1221,7 @@ bool SwDriver::extendSeedsPaired(
 					ebwt,         // BWT
 					ref,          // Reference strings
 					refscan,      // do reference scanning?
-					maxelt,       // max rows to consider per position
+					maxUg + maxDp,// max rows to consider per position
 					nsm,          // smallness threshold
 					ca,           // alignment cache for seed hits
 					rnd,          // pseudo-random generator
@@ -1287,42 +1232,42 @@ bool SwDriver::extendSeedsPaired(
 				neltLeft = nelt;
 				firstExtend = false;
 			}
-			if(!(neltLeft > 0 && eltsDone < maxelt)) {
+			if(neltLeft == 0) {
 				// Finished examining gapped candidates
 				break;
 			}
 		}
-		// neltLeft is initialized separately, once for the end-to-end hits and
-		// once for the seed hits.  eltsDone and maxelt are initialized once
-		// and carried over across end-to-end & seed modes.
 		for(size_t i = 0; i < gws_.size(); i++) {
 			if(eeMode && eehits_[i].score < minsc) {
-				break;
+				return EXTEND_PERFECT_SCORE;
 			}
-			bool small       = satpos_[i].sat.size() < nsm;
-			bool fw          = satpos_[i].pos.fw;
-			uint32_t rdoff   = satpos_[i].pos.rdoff;
-			uint32_t seedlen = satpos_[i].pos.seedlen;
+			bool small          = satpos_[i].sat.size() < nsm;
+			bool fw             = satpos_[i].pos.fw;
+			uint32_t rdoff      = satpos_[i].pos.rdoff;
+			uint32_t seedhitlen = satpos_[i].pos.seedlen;
 			if(!fw) {
 				// 'rdoff' and 'offidx' are with respect to the 5' end of
 				// the read.  Here we convert rdoff to be with respect to
 				// the upstream (3') end of ther read.
-				rdoff = (uint32_t)(rdlen - rdoff - seedlen);
+				rdoff = (uint32_t)(rdlen - rdoff - seedhitlen);
 			}
 			bool first = true;
-			assert_leq(eltsDone, maxelt);
 			// If the range is small, investigate all elements now.  If the
 			// range is large, just investigate one and move on - we might come
 			// back to this range later.
-			while(!rands_[i].done() &&
-			      (eltsDone < maxelt && (first || small || eeMode)))
-			{
+			while(!rands_[i].done() && (first || small || eeMode)) {
 				if(minsc == perfectScore) {
 					if(!eeMode || eehits_[i].score < perfectScore) {
-						return false;
+						return EXTEND_PERFECT_SCORE;
 					}
 				} else if(eeMode && eehits_[i].score < minsc) {
 					break;
+				}
+				if(rd.nExDps >= maxDp || rd.nMateDps >= maxDp) {
+					return EXTEND_EXCEEDED_LIMIT;
+				}
+				if(rd.nExUngaps >= maxUg || rd.nMateUngaps >= maxUg) {
+					return EXTEND_EXCEEDED_LIMIT;
 				}
 				first = false;
 				assert(!gws_[i].done());
@@ -1341,7 +1286,6 @@ bool SwDriver::extendSeedsPaired(
 					tidx,
 					toff,
 					tlen);
-				tlen += (color ? 1 : 0);
 				if(tidx == 0xffffffff) {
 					// The seed hit straddled a reference boundary so the seed hit
 					// isn't valid
@@ -1406,7 +1350,6 @@ bool SwDriver::extendSeedsPaired(
 						refcoord.off(),  // 0-based ref offset
 						fw,              // aligned to Watson?
 						rdlen,           // read length
-						false,           // read was colorspace?
 						true,            // pretrim soft?
 						0,               // pretrim 5' end
 						0,               // pretrim 3' end
@@ -1441,14 +1384,14 @@ bool SwDriver::extendSeedsPaired(
 					if(al == 0) {
 						rd.nUgFail++;
 						if(rd.nUgFail > maxUgStreak) {
-							return false;
+							return EXTEND_EXCEEDED_LIMIT;
 						}
 						swmSeed.ungapfail++;
 						continue;
 					} else if(al == -1) {
 						rd.nUgFail++; // count this as failure
 						if(rd.nUgFail > maxUgStreak) {
-							return false;
+							return EXTEND_EXCEEDED_LIMIT;
 						}
 						swmSeed.ungapnodec++;
 					} else {
@@ -1467,8 +1410,7 @@ bool SwDriver::extendSeedsPaired(
 				if(state == FOUND_NONE) {
 					found = dpframe.frameSeedExtensionRect(
 						refoff,   // ref offset implied by seed hit assuming no gaps
-						rows,     // length of read sequence used in DP table (so len
-								  // of +1 nucleotide sequence for colorspace reads)
+						rows,     // length of read sequence used in DP table
 						tlen,     // length of reference
 						readGaps, // max # of read gaps permitted in opp mate alignment
 						refGaps,  // max # of ref gaps permitted in opp mate alignment
@@ -1503,7 +1445,6 @@ bool SwDriver::extendSeedsPaired(
 							rd.qualRev,// rc version of qualities
 							0,         // off of first char in 'rd' to consider
 							rdlen,     // off of last char (excl) in 'rd' to consider
-							color,     // colorspace?
 							sc,        // scoring scheme
 							floorsc);  // local-alignment floor score
 					}
@@ -1574,7 +1515,7 @@ bool SwDriver::extendSeedsPaired(
 					if(!found) {
 						rd.nDpFail++;
 						if(rd.nDpFail > maxDpStreak) {
-							return false;
+							return EXTEND_EXCEEDED_LIMIT;
 						}
 						continue; // Look for more anchor alignments
 					} else {
@@ -1756,7 +1697,6 @@ bool SwDriver::extendSeedsPaired(
 									ord.qualRev,// qualities
 									0,          // off of first char to consider
 									ordlen,     // off of last char (ex) to consider
-									color,      // colorspace?
 									sc,         // scoring scheme
 									ofloorsc);  // local-alignment floor score
 							}
@@ -1966,13 +1906,13 @@ bool SwDriver::extendSeedsPaired(
 										}
 									} // if(pairCl != PE_ALS_DISCORD)
 									if(donePaired || doneUnpaired) {
-										return true;
+										return EXTEND_POLICY_FULFILLED;
 									}
 									if(msink->state().doneWithMate(anchor1)) {
 										// We're now done with the mate that we're
 										// currently using as our anchor.  We're not
 										// with the read overall.
-										return false;
+										return EXTEND_POLICY_FULFILLED;
 									}
 								} else if((mixed || discord) && !didAnchor) {
 									didAnchor = true;
@@ -2003,13 +1943,13 @@ bool SwDriver::extendSeedsPaired(
 										if(!red.overlap(r)) {
 											red.add(r);
 											if(msink->report(0, r1, r2)) {
-												return true; // Short-circuited
+												return EXTEND_POLICY_FULFILLED; // Short-circuited
 											}
 										}
 									}
 									if(msink->state().doneWithMate(anchor1)) {
 										// Done with mate, but not read overall
-										return false;
+										return EXTEND_POLICY_FULFILLED;
 									}
 								}
 							}
@@ -2048,13 +1988,13 @@ bool SwDriver::extendSeedsPaired(
 								if(!red.overlap(r)) {
 									red.add(r);
 									if(msink->report(0, r1, r2)) {
-										return true; // Short-circuited
+										return EXTEND_POLICY_FULFILLED; // Short-circuited
 									}
 								}
 							}
 							if(msink->state().doneWithMate(anchor1)) {
 								// Done with mate, but not read overall
-								return false;
+								return EXTEND_POLICY_FULFILLED;
 							}
 						}
 					}
@@ -2064,7 +2004,7 @@ bool SwDriver::extendSeedsPaired(
 
 			} // while(!gw.done())
 		} // for(size_t i = 0; i < gws_.size(); i++)
-	} // while(neltLeft > 0 && eltsDone < maxelt)
-	return false;
+	}
+	return EXTEND_EXHAUSTED_CANDIDATES;
 }
 

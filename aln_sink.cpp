@@ -1601,23 +1601,18 @@ void AlnSink::appendSeedSummary(
 static void printEdits(
 	const EList<Edit>& es,
 	size_t len,
-	bool exEnds,
 	OutFileBuf& o)
 {
 	char buf[1024];
 	size_t elen = es.size();
 	bool first = true;
-	int posAdj = exEnds ? -1 : 0;
+	int posAdj = 0;
 	for(size_t i = 0; i < elen; i++) {
 		const Edit& e = es[i];
 		assert(i == elen-1 || e.pos <= es[i+1].pos);
 		assert_neq(e.chr, e.qchr);
 		assert( e.isReadGap() || e.pos < len);
 		assert(!e.isReadGap() || e.pos <= len);
-		if(exEnds && (e.pos == 0 || e.pos >= len-1)) {
-			// Omit edits that are excluded by exEnds
-			continue;
-		}
 		if(!first) o.write(',');
 		first = false;
 		itoa10(e.pos + posAdj, buf);
@@ -1660,7 +1655,7 @@ void AlnSinkVerbose::appendMate(
 	if(rs == NULL && !printPlaceholders_) return;
 	bool spill = false;
 	int spillAmt = 0;
-	int offAdj = ((rd.color && exEnds_) ? 1 : 0);
+	int offAdj = 0;
 	if(rs == NULL) offAdj = 0;
 	size_t rdlen = rd.length();
 	TRefOff pdiv = std::numeric_limits<TRefOff>::max();
@@ -1710,8 +1705,6 @@ void AlnSinkVerbose::appendMate(
 				assert_neq(std::numeric_limits<TRefOff>::max(), pdiv);
 				assert_neq(0xffffffff, pmod);
 				assert(!dospill || spillAmt > 0);
-				// TODO: is colorspace being properly accounted for in the
-				// following?
 				if(partition_ > 0 &&
 				   (pmod + rdlen) >= ((uint32_t)pospart * (spillAmt + 1))) {
 					// Spills into the next partition so we need to
@@ -1797,23 +1790,12 @@ void AlnSinkVerbose::appendMate(
 			}
 			// end else clause of if(partition != 0)
 		}
-		// Set to false until we decode the colorspace alignment, at which point 
-		bool decoded = false;
 		if(NOT_SUPPRESSED) {
 			WRITE_TAB;
-			bool printColors = rd.color && colorSeq_;
-			bool exEnds = rd.color && exEnds_ && !printColors;
-			if(rs != NULL && rd.color && !colorSeq_) {
-				// decode colorspace alignment
-				rs->decodedNucsAndQuals(rd, dseq_, dqual_);
-				decoded = true;
-			}
 			if(rs != NULL) {
 				rs->printSeq(
 					rd,
 					&dseq_,
-					printColors,
-					exEnds,
 					o);
 			} else {
 				// Print the read
@@ -1822,19 +1804,10 @@ void AlnSinkVerbose::appendMate(
 		}
 		if(NOT_SUPPRESSED) {
 			WRITE_TAB;
-			bool printColors = rd.color && colorQual_;
-			bool exEnds = rd.color && exEnds_ && !printColors;
-			if(rs != NULL && rd.color && !decoded && !colorQual_) {
-				// decode colorspace alignment
-				rs->decodedNucsAndQuals(rd, dseq_, dqual_);
-				decoded = true;
-			}
 			if(rs != NULL) {
 				rs->printQuals(
 					rd,
 					&dqual_,
-					printColors,
-					exEnds,
 					o);
 			} else {
 				// Print the quals
@@ -1859,7 +1832,6 @@ void AlnSinkVerbose::appendMate(
 				printEdits(
 					rs->ned(),            // edits to print
 					rs->readExtentRows(), // len of string edits refer to (post trim)
-					rd.color && exEnds_,  // true -> exclude edits at ends and adjust poss
 					o);                   // output stream
 			} else o.write('*');
 		}
@@ -1912,11 +1884,7 @@ void AlnSinkVerbose::appendMate(
 					// Print CIGAR string
 					if(!first) o.write(',');
 					o.writeChars("XC:");
-					bool printColors = rd.color && colorSeq_;
-					bool exEnds = rd.color && exEnds_ && !printColors;
 					rs->printCigar(
-						printColors,
-						exEnds,
 						true,
 						tmpop_,      // temporary EList to store CIGAR ops
 						tmprun_,     // temporary EList to store run lengths
@@ -1973,7 +1941,7 @@ void AlnSinkSam::appendMate(
 	const Mapq& mapqCalc)
 {
 	char buf[1024];
-	int offAdj = ((rd.color && exEnds_) ? 1 : 0);
+	int offAdj = 0;
 	// QNAME
 	samc_.printReadName(o, rd.name);
 	o.write('\t');
@@ -2056,10 +2024,7 @@ void AlnSinkSam::appendMate(
 	}
 	// CIGAR
 	if(rs != NULL) {
-		bool exEnds = rd.color && exEnds_;
 		rs->printCigar(
-			false,
-			exEnds,
 			false,       // like BWA, we don't distinguish = from X
 			tmpop_,      // temporary EList to store CIGAR ops
 			tmprun_,     // temporary EList to store run lengths
@@ -2117,33 +2082,17 @@ void AlnSinkSam::appendMate(
 		o.writeChars("0\t");
 	}
 	// SEQ
-	bool exEnds = rd.color && exEnds_;
-	bool decoded = false;
 	if(!flags.isPrimary() && samc_.omitSecondarySeqQual()) {
 		o.write('*');
 	} else {
-		if(rs != NULL && rd.color) {
-			// decode colorspace alignment
-			if(!decoded) {
-				rs->decodedNucsAndQuals(rd, dseq_, dqual_);
-				decoded = true;
-			}
-			rs->printSeq(
-				rd,
-				&dseq_,
-				false,
-				exEnds,
-				o);
+		// Print the read
+		if(rd.patFw.length() == 0) {
+			o.write('*');
 		} else {
-			// Print the read
-			if(rd.patFw.length() == 0) {
-				o.write('*');
+			if(rs == NULL || rs->fw()) {
+				o.writeChars(rd.patFw.toZBuf());
 			} else {
-				if(rs == NULL || rs->fw()) {
-					o.writeChars(rd.patFw.toZBuf());
-				} else {
-					o.writeChars(rd.patRc.toZBuf());
-				}
+				o.writeChars(rd.patRc.toZBuf());
 			}
 		}
 	}
@@ -2152,28 +2101,14 @@ void AlnSinkSam::appendMate(
 	if(!flags.isPrimary()) {
 		o.write('*');
 	} else {
-		if(rs != NULL && rd.color) {
-			// decode colorspace alignment
-			if(!decoded) {
-				rs->decodedNucsAndQuals(rd, dseq_, dqual_);
-				decoded = true;
-			}
-			rs->printQuals(
-				rd,
-				&dqual_,
-				false,
-				exEnds,
-				o);
+		// Print the quals
+		if(rd.qual.length() == 0) {
+			o.write('*');
 		} else {
-			// Print the quals
-			if(rd.qual.length() == 0) {
-				o.write('*');
+			if(rs == NULL || rs->fw()) {
+				o.writeChars(rd.qual.toZBuf());
 			} else {
-				if(rs == NULL || rs->fw()) {
-					o.writeChars(rd.qual.toZBuf());
-				} else {
-					o.writeChars(rd.qualRev.toZBuf());
-				}
+				o.writeChars(rd.qualRev.toZBuf());
 			}
 		}
 	}
@@ -2185,7 +2120,6 @@ void AlnSinkSam::appendMate(
 		samc_.printAlignedOptFlags(
 			o,      // output buffer
 			true,   // first opt flag printed is first overall?
-			exEnds, // exclude ends?
 			rd,     // read
 			*rs,    // individual alignment result
 			flags,  // alignment flags

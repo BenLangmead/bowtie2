@@ -75,11 +75,6 @@
 // filting each mate separately)
 #define DEFAULT_N_CAT_PAIR false
 
-// Default penalty to assess against SNPs in colorspace alignments.
-// Decoding must have occurred in order to distinguish SNPs from
-// patterns of mismatches.
-#define DEFAULT_SNP_PENALTY 6
-
 // Default read gap penalties for when homopolymer calling is reliable	
 #define DEFAULT_READ_GAP_CONST 5
 #define DEFAULT_READ_GAP_LINEAR 3
@@ -152,7 +147,6 @@ public:
 		int   mmcType,      // how to penalize mismatches
 	    int   mmpMax_,      // maximum mismatch penalty
 	    int   mmpMin_,      // minimum mismatch penalty
-		int   sn,           // penalty for nuc mismatch in decoded color alns
 		const SimpleFunc& scoreMin_,   // minimum score for valid alignment; const coeff
 		const SimpleFunc& scoreFloor_, // local-alignment score floor; const coeff
 		const SimpleFunc& nCeil_,      // max # ref Ns allowed in alignment; const coeff
@@ -172,7 +166,6 @@ public:
 		mmcostType   = mmcType;
 		mmpMax       = mmpMax_;
 		mmpMin       = mmpMin_;
-		snp          = sn;
 		scoreMin     = scoreMin_;
 		scoreFloor   = scoreFloor_;
 		nCeil        = nCeil_;
@@ -228,7 +221,6 @@ public:
 	 */
 	bool repOk() const {
 		assert_geq(matchConst, 0);
-		assert_gt(snp, 0);
 		assert_gt(rdGapConst, 0);
 		assert_gt(rdGapLinear, 0);
 		assert_gt(rfGapConst, 0);
@@ -465,7 +457,6 @@ public:
 	int     mmcostType;   // based on qual? rounded? just a constant?
 	int     mmpMax;       // maximum mismatch penalty
 	int     mmpMin;       // minimum mismatch penalty
-	int     snp;          // penalty for nuc mismatch in decoded colorspace als
 	SimpleFunc scoreMin;  // minimum score for valid alignment, constant coeff
 	SimpleFunc scoreFloor;// local-alignment score floor, constant coeff
 	SimpleFunc nCeil;     // max # Ns involved in alignment, constant coeff
@@ -494,7 +485,6 @@ public:
 			COST_MODEL_CONSTANT,     // how to penalize mismatches
 			3,                       // max mismatch pelanty
 			3,                       // min mismatch pelanty
-			3,                       // penalty for nuc mm when decoding colors
 			scoreMin,                // score min: 37 + 0.3x
 			scoreFloor,              // score floor: constant = 0
 			nCeil,                   // n ceiling: 2 + 0.1x

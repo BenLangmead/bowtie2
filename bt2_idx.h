@@ -50,7 +50,6 @@
 #include "str_util.h"
 #include "mm.h"
 #include "timer.h"
-#include "color_dec.h"
 #include "reference.h"
 #include "search_globals.h"
 #include "ds.h"

@@ -34,7 +34,6 @@ using namespace std;
 void AlnRes::reset() {
 	ned_.clear();
 	aed_.clear();
-	ced_.clear();
 	score_.invalidate();
 	refcoord_.invalidate();
 	refival_.invalidate();
@@ -47,21 +46,12 @@ void AlnRes::reset() {
 	refns_        = 0;
 	type_         = ALN_RES_TYPE_UNPAIRED;
 	fraglen_      = -1;
-	// Trimming of the nucleotide read or the decoded nucleotides of a
-	// colorspace read
 	trimSoft_     = false;
 	trim5p_       = 0;
 	trim3p_       = 0;
 	pretrimSoft_  = true;
 	pretrim5p_    = 0;
 	pretrim3p_    = 0;
-	// Trimming of the colorspace read
-	cTrimSoft_    = false;
-	cTrim5p_      = 0;
-	cTrim3p_      = 0;
-	cPretrimSoft_ = true;
-	cPretrim5p_   = 0;
-	cPretrim3p_   = 0;
 	seedmms_      = 0; // number of mismatches allowed in seed
 	seedlen_      = 0; // length of seed
 	seedival_     = 0; // interval between seeds
@@ -82,7 +72,6 @@ void AlnRes::setShape(
 	TRefOff off,         // offset of first aligned char into ref seq
 	bool    fw,          // aligned to Watson strand?
 	size_t  rdlen,       // length of read after hard trimming, before soft
-	bool    color,       // colorspace alignment?
 	bool    pretrimSoft, // whether trimming prior to alignment was soft
 	size_t  pretrim5p,   // # poss trimmed form 5p end before alignment
 	size_t  pretrim3p,   // # poss trimmed form 3p end before alignment
@@ -91,39 +80,14 @@ void AlnRes::setShape(
 	size_t  trim3p)      // # poss trimmed form 3p end during alignment
 {
 	rdlen_       = rdlen;
-	rdrows_      = rdlen + (color ? 1 : 0);
-	color_       = color;
+	rdrows_      = rdlen;
 	refcoord_.init(id, off, fw);
-	if(color) {
-		// In effect, all that trimming becomes hard trimming for the
-		// decoded nucleotide-space sequence.
-		pretrimSoft_  = false;
-		pretrim5p_    = pretrim5p;
-		pretrim3p_    = pretrim3p;
-		trimSoft_     = false;
-		trim5p_       = trim5p;
-		trim3p_       = trim3p;
-		// All trimming so far has been to colorspace sequence
-		cPretrimSoft_ = pretrimSoft;
-		cPretrim5p_   = pretrim5p;
-		cPretrim3p_   = pretrim3p;
-		cTrimSoft_    = trimSoft;
-		cTrim5p_      = trim5p;
-		cTrim3p_      = trim3p;
-	} else {
-		pretrimSoft_  = pretrimSoft;
-		pretrim5p_    = pretrim5p;
-		pretrim3p_    = pretrim3p;
-		trimSoft_     = trimSoft;
-		trim5p_       = trim5p;
-		trim3p_       = trim3p;
-		cTrimSoft_    = false;
-		cTrim5p_      = 0;
-		cTrim3p_      = 0;
-		cPretrimSoft_ = true;
-		cPretrim5p_   = 0;
-		cPretrim3p_   = 0;
-	}
+	pretrimSoft_  = pretrimSoft;
+	pretrim5p_    = pretrim5p;
+	pretrim3p_    = pretrim3p;
+	trimSoft_     = trimSoft;
+	trim5p_       = trim5p;
+	trim3p_       = trim3p;
 	// Propagate trimming to the edits.  We assume that the pos fields of the
 	// edits are set w/r/t to the rows of the dynamic programming table, and
 	// haven't taken trimming into account yet.
@@ -147,92 +111,10 @@ void AlnRes::setShape(
 	}
 	rdextent_ -= (trim5p + trim3p); // soft or hard trim from alignment
 	assert_gt(rdextent_, 0);
-	rdexrows_ = rdextent_ + (color ? 1 : 0);
+	rdexrows_ = rdextent_;
 	calcRefExtent();
 	refival_.init(id, off, fw, rfextent_);
 	shapeSet_ = true;
-}
-	
-/**
- * Get the decoded nucleotide sequence.  The alignment must have been
- * colorspace.
- */
-void AlnRes::decodedNucsAndQuals(
-	const Read& rd,        // read that led to alignment
-	BTDnaString& ns,       // out: decoded nucleotides
-	BTString& qs) const    // out: decoded qualities
-{
-	assert(shapeSet_);
-	assert(color_);
-	// Walk along the colors
-	bool fw = refcoord_.fw();
-	// How long is the color-to-color alignment after all trimming?
-	const size_t rdext = readExtent();
-	assert_gt(rdext, 0);
-	// How long is the decoded string?  (Note that if user has requested that
-	// ends be excluded, that happens later on.)  
-	size_t len = rdext+1;
-	ns.resize(rdext);
-	qs.resize(rdext);
-	for(size_t i = 0; i < rdext; i++) {
-		ns.set(rd.patFw[trim5p_ + i], i); // set to original colors at first
-		qs.set(rd.qual[trim5p_ + i],  i); // set to original qualities at first
-	}
-	if(!fw) {
-		// Reverse the read to make it upstream-to-downstream.  It's in
-		// colorspace, so no need to complement.
-		ns.reverse();
-		qs.reverse();
-		// Flip edit,making them upstream-to-downstream.
-		Edit::invertPoss(const_cast<EList<Edit>& >(ced_), rdextent_);
-	}
-	ns.resize(len); ns.set(4, len-1);
-	qs.resize(len);
-	
-	// Convert 3' and 5' nucleotides to upstream and downstream
-	// nucleotides
-	int nup = fw ? nuc5p_ : nuc3p_;
-	ASSERT_ONLY(int ndn = fw ? nuc3p_ : nuc5p_);
-	
-	// Note: the nucleotides in the ned and aed lists are already
-	// w/r/t to the Watson strand so there's no need to complement
-	// them
-	int lastn = nup;
-	size_t cedidx = 0;
-	int c = ns[0], q = qs[0]-33;
-	int lastq = 0;
-	for(size_t i = 0; i < rdext; i++) {
-		// If it was a miscall, get the true subject color
-		if(cedidx < ced_.size() && ced_[cedidx].pos == i) {
-			assert_neq("ACGTN"[c], ced_[cedidx].chr);
-			assert_eq ("ACGTN"[c], ced_[cedidx].qchr);
-			c = ced_[cedidx].chr;
-			c = asc2dnaOrCol[c];
-			q = -q;
-			cedidx++;
-		}
-		// Determine next nucleotide by combining previous nucleotide and
-		// current color
-		int n = nuccol2nuc[lastn][c];
-		c = ns[i+1];
-		ns.set(n, i+1);
-		
-		int dq = max(q + lastq, 0);
-		dq = min(dq, 127);
-		lastq = q;
-		q = qs[i+1]-33;
-		qs.set(dq+33, i);
-		lastn = n;
-	}
-	ns.set(nup, 0);
-	int dq = max(lastq, 0)+33;
-	qs.set(min(dq, 127) , len-1);
-	assert_eq(ndn, ns[rdext]);
-	assert_eq(cedidx, ced_.size());
-	if(!fw) {
-		// Need to re-flip edits to make them 5'-to-3' again.
-		Edit::invertPoss(const_cast<EList<Edit>& >(ced_), rdextent_);
-	}
 }
 
 /**
@@ -243,9 +125,7 @@ void AlnRes::init(
 	AlnScore           score,           // alignment score
 	const EList<Edit>* ned,             // nucleotide edits
 	const EList<Edit>* aed,             // ambiguous base resolutions
-	const EList<Edit>* ced,             // color edits
 	Coord              refcoord,        // leftmost ref pos of 1st al char
-	bool               color,           // colorspace?
 	int                seedmms,         // # seed mms allowed
 	int                seedlen,         // seed length
 	int                seedival,        // space between seeds
@@ -258,25 +138,16 @@ void AlnRes::init(
 	size_t             pretrim3p,       // trimming prior to alignment
 	bool               trimSoft,
 	size_t             trim5p,          // trimming from alignment
-	size_t             trim3p,          // trimming from alignment
-	bool               cPretrimSoft,
-	size_t             cPretrim5p,      // trimming prior to alignment
-	size_t             cPretrim3p,      // trimming prior to alignment
-	bool               cTrimSoft,
-	size_t             cTrim5p,         // trimming from alignment
-	size_t             cTrim3p)         // trimming from alignment
+	size_t             trim3p)          // trimming from alignment
 {
 	rdlen_  = rdlen;
-	rdrows_ = rdlen + (color ? 1 : 0);
+	rdrows_ = rdlen;
 	score_  = score;
 	ned_.clear();
 	aed_.clear();
-	ced_.clear();
 	if(ned != NULL) ned_ = *ned;
 	if(aed != NULL) aed_ = *aed;
-	if(ced != NULL) ced_ = *ced;
 	refcoord_     = refcoord;
-	color_        = color;
 	seedmms_      = seedmms;
 	seedlen_      = seedlen;
 	seedival_     = seedival;
@@ -290,12 +161,6 @@ void AlnRes::init(
 	trimSoft_     = trimSoft;
 	trim5p_       = trim5p;
 	trim3p_       = trim3p;
-	cPretrimSoft_ = cPretrimSoft;
-	cPretrim5p_   = cPretrim5p;
-	cPretrim3p_   = cPretrim3p;
-	cTrimSoft_    = cTrimSoft;
-	cTrim5p_      = cTrim5p;
-	cTrim3p_      = cTrim3p;
 	rdextent_     = rdlen;      // # read characters after any hard trimming
 	if(pretrimSoft) {
 		rdextent_ -= (pretrim5p + pretrim3p);
@@ -303,7 +168,7 @@ void AlnRes::init(
 	if(trimSoft) {
 		rdextent_ -= (trim5p + trim3p);
 	}
-	rdexrows_ = rdextent_ + (color ? 1 : 0);
+	rdexrows_ = rdextent_;
 	calcRefExtent();
 	shapeSet_ = true;
 }
@@ -322,12 +187,10 @@ void AlnRes::clipLeft(size_t rd_amt, size_t rf_amt) {
 		trim5p_ += rd_amt;
 		Edit::clipLo(ned_, rdexrows_, rd_amt);
 		Edit::clipLo(aed_, rdexrows_, rd_amt);
-		Edit::clipLo(ced_, rdextent_, rd_amt);
 	} else {
 		trim3p_ += rd_amt;
 		Edit::clipHi(ned_, rdexrows_, rd_amt);
 		Edit::clipHi(aed_, rdexrows_, rd_amt);
-		Edit::clipHi(ced_, rdextent_, rd_amt);
 	}
 	rdexrows_ -= rd_amt;
 	rdextent_ -= rd_amt;
@@ -351,12 +214,10 @@ void AlnRes::clipRight(size_t rd_amt, size_t rf_amt) {
 		trim3p_ += rd_amt;
 		Edit::clipHi(ned_, rdexrows_, rd_amt);
 		Edit::clipHi(aed_, rdexrows_, rd_amt);
-		Edit::clipHi(ced_, rdextent_, rd_amt);
 	} else {
 		trim5p_ += rd_amt;
 		Edit::clipLo(ned_, rdexrows_, rd_amt);
 		Edit::clipLo(aed_, rdexrows_, rd_amt);
-		Edit::clipLo(ced_, rdextent_, rd_amt);
 	}
 	rdexrows_ -= rd_amt;
 	rdextent_ -= rd_amt;
@@ -583,33 +444,20 @@ bool AlnRes::matchesRef(
 		trimBeg += (fw ? pretrim5p_ : pretrim3p_);
 		trimEnd += (fw ? pretrim3p_ : pretrim5p_);
 	}
-	// All decoded-nucleotide trimming for colorspace alignments is hard
-	// trimming
-	assert(!color_ || trimBeg == 0);
-	assert(!color_ || trimEnd == 0);
 	rf.clear();
 	rdseq.clear();
-	if(rd.color) {
-		// Decode the nucleotide sequence from the alignment
-		qseq.clear();
-		decodedNucsAndQuals(rd, rdseq, qseq);
-		assert_eq(rdexrows_, rdseq.length());
-		assert_eq(rdseq.length(), qseq.length());
-	} else {
-		rdseq = rd.patFw;
-		if(!fw) {
-			rdseq.reverseComp(false);
-		}
-		assert_eq(rdrows_, rdseq.length());
+	rdseq = rd.patFw;
+	if(!fw) {
+		rdseq.reverseComp(false);
 	}
+	assert_eq(rdrows_, rdseq.length());
 	if(!fw) {
 		// Invert the nucleotide edits so that they go from upstream to
 		// downstream on the Watson strand
 		Edit::invertPoss(ned_, rdexrows_);
 	}
-	// rdseq is the nucleotide sequence (decoded in the case of a
-	// colorspace read) from upstream to downstream on the Watson
-	// strand.  ned_ are the nucleotide edits from upstream to
+	// rdseq is the nucleotide sequence from upstream to downstream on the
+	// Watson strand.  ned_ are the nucleotide edits from upstream to
 	// downstream.  rf contains the reference characters.
 	Edit::toRef(rdseq, ned_, rf, trimBeg, trimEnd);
 	if(!fw) {
@@ -679,8 +527,6 @@ bool AlnRes::matchesRef(
  * operator) indicating how many times in a row that feature occurs.
  */
 void AlnRes::printCigar(
-	bool printColors,     // print CIGAR for colorspace alignment?
-	bool exEnds,          // exclude ends in CIGAR?
 	bool distinguishMm,   // use =/X instead of just M
 	EList<char>& op,      // stick CIGAR operations here
 	EList<size_t>& run,   // stick CIGAR run lengths here
@@ -721,7 +567,7 @@ void AlnRes::printCigar(
 	if(!fw()) {
 		const_cast<AlnRes*>(this)->invertEdits();
 	}
-	const EList<Edit>& ed = (printColors ? ced_ : ned_);
+	const EList<Edit>& ed = ned_;
 	size_t last = 0;
 	for(size_t i = 0; i < ed.size(); i++) {
 		if(ed[i].isMismatch() && !distinguishMm) {
@@ -782,7 +628,7 @@ void AlnRes::printCigar(
 			run.push_back(len);
 		}
 	}
-	size_t end = printColors ? rdrows_ : rdexrows_;
+	size_t end = rdexrows_;
 	if(last < end) {
 		// There's a run of matches prior to the end.
 		op.push_back(distinguishMm ? '=' : 'M');
@@ -807,15 +653,15 @@ void AlnRes::printCigar(
 		char buf[128];
 		bool printed = false;
 		for(size_t i = 0; i < op.size(); i++) {
-			bool first = (i == 0);
-			bool last  = (i == op.size()-1);
+			//bool first = (i == 0);
+			//bool last  = (i == op.size()-1);
 			size_t r = run[i];
-			if(first && exEnds && r > 0) {
-				r--;
-			}
-			if(last && exEnds && r > 0) {
-				r--;
-			}
+			//if(first && exEnds && r > 0) {
+			//	r--;
+			//}
+			//if(last && exEnds && r > 0) {
+			//	r--;
+			//}
 			if(r > 0) {
 				itoa10<size_t>(r, buf);
 				printed = true;
@@ -849,8 +695,6 @@ void AlnRes::printCigar(
  * either end, the end is capped with a "0".
  */
 void AlnRes::printMD(
-	bool printColors,     // print CIGAR for colorspace alignment?
-	bool exEnds,          // exclude ends nucleotides for decoded nucs?
 	EList<char>& op,      // stick operations here
 	EList<char>& ch,      // stick reference characters here
 	EList<size_t>& run,   // stick run lengths here
@@ -865,7 +709,7 @@ void AlnRes::printMD(
 	if(!fw()) {
 		const_cast<AlnRes*>(this)->invertEdits();
 	}
-	const EList<Edit>& ed = (printColors ? ced_ : ned_);
+	const EList<Edit>& ed = ned_;
 	size_t last = 0;
 	for(size_t i = 0; i < ed.size(); i++) {
 		// Ignore ref gaps
@@ -896,7 +740,7 @@ void AlnRes::printMD(
 			run.push_back(1);
 		}
 	}
-	size_t end = printColors ? rdrows_ : rdexrows_;
+	size_t end = rdexrows_;
 	if(last < end) {
 		// There's a run of matches prior to the end.
 		op.push_back('=');
@@ -915,15 +759,15 @@ void AlnRes::printMD(
 		bool rdgap_last = false;
 		bool first_print = true;
 		for(size_t i = 0; i < op.size(); i++) {
-			bool first = (i == 0);
-			bool last  = (i == op.size()-1);
+			//bool first = (i == 0);
+			//bool last  = (i == op.size()-1);
 			size_t r = run[i];
-			if(first && exEnds && r > 0) {
-				r--;
-			}
-			if(last && exEnds && r > 0) {
-				r--;
-			}
+			//if(first && exEnds && r > 0) {
+			//	r--;
+			//}
+			//if(last && exEnds && r > 0) {
+			//	r--;
+			//}
 			if(r > 0) {
 				if(op[i] == '=') {
 					itoa10<size_t>(r, buf);
@@ -1000,113 +844,63 @@ void AlnRes::printMD(
 /**
  * Print the sequence for the read that aligned using A, C, G and
  * T.  This will simply print the read sequence (or its reverse
- * complement) unless this is a colorspace read and printColors is
- * false.  In that case, we print the decoded sequence rather than
- * the original ones.
+ * complement).
  */
 void AlnRes::printSeq(
 	const Read& rd,         // read
 	const BTDnaString* dns, // already-decoded nucleotides
-	bool printColors,       // print colors instead of decoded nucleotides?
-	bool exEnds,            // exclude ends when printing decoded nucleotides?
 	OutFileBuf& o) const    // output stream to write to
 {
 	assert(!rd.patFw.empty());
-	bool fw = refcoord_.fw();
-	assert(!printColors || rd.color);
 	ASSERT_ONLY(size_t written = 0);
-	if(!rd.color || printColors) {
-		// Should not have had hard clipping during alignment
-		assert(trimSoft_ || (trim3p_ + trim5p_ == 0));
-		// Print nucleotides or colors
-		size_t len = rd.patFw.length();
-		for(size_t i = 0; i < len; i++) {
-			int c;
-			if(fw) {
-				c = rd.patFw[i];
-			} else {
-				// Reverse-complement
-				c = rd.patFw[len-i-1];
-				if(c < 4) c = c ^ 3;
-			}
-			assert_range(0, 4, c);
-			o.write("ACGTN"[c]);
-			ASSERT_ONLY(written++);
-		}
-#ifndef NDEBUG
-		for(size_t i = 0; i < ced_.size(); i++) {
-			if(ced_[i].isReadGap()) {
-				assert_leq(ced_[i].pos, written);
-			} else {
-				assert_lt(ced_[i].pos, written);
-			}
-		}
-#endif
-	} else {
-		// Print decoded nucleotides
-		assert(dns != NULL);
-		size_t len = dns->length();
-		size_t st = 0;
-		size_t en = len;
-		if(exEnds) {
-			st++; en--;
-		}
-		for(size_t i = st; i < en; i++) {
-			int c = dns->get(i);
-			assert_range(0, 3, c);
-			o.write("ACGT"[c]);
-			ASSERT_ONLY(written++);
-		}
-#ifndef NDEBUG
-		for(size_t i = 0; i < ned_.size(); i++) {
-			if(ned_[i].isReadGap()) {
-				assert_leq(ned_[i].pos, dns->length());
-			} else {
-				assert_lt(ned_[i].pos, dns->length());
-			}
-		}
-#endif
+	// Print decoded nucleotides
+	assert(dns != NULL);
+	size_t len = dns->length();
+	size_t st = 0;
+	size_t en = len;
+	//if(exEnds) {
+	//	st++; en--;
+	//}
+	for(size_t i = st; i < en; i++) {
+		int c = dns->get(i);
+		assert_range(0, 3, c);
+		o.write("ACGT"[c]);
+		ASSERT_ONLY(written++);
 	}
+#ifndef NDEBUG
+	for(size_t i = 0; i < ned_.size(); i++) {
+		if(ned_[i].isReadGap()) {
+			assert_leq(ned_[i].pos, dns->length());
+		} else {
+			assert_lt(ned_[i].pos, dns->length());
+		}
+	}
+#endif
 }
 
 /**
  * Print the quality string for the read that aligned.  This will simply print
- * the read qualities (or their reverse) unless this is a colorspace read and
- * printColors is false.  In that case, we print the decoded qualities rather
- * than the original ones.
+ * the read qualities (or their reverse).
  */
 void AlnRes::printQuals(
 	const Read& rd,         // read
 	const BTString* dqs,    // already-decoded qualities
-	bool printColors,       // true -> print colors instead of decoded nucleotides for colorspace alignment
-	bool exEnds,            // true -> exclude ends when printing decoded nucleotides
 	OutFileBuf& o) const    // output stream to write to
 {
-	bool fw = refcoord_.fw();
-	assert(!printColors || rd.color);
-	if(!rd.color || printColors) {
-		size_t len = rd.qual.length();
-		// Print original qualities from upstream to downstream Watson
-		for(size_t i = 0; i < len; i++) {
-			int c = (fw ? rd.qual[i] : rd.qual[len-i-1]);
-			o.write(c);
-		}
-	} else {
-		assert(dqs != NULL);
-		size_t len = dqs->length();
-		// Print decoded qualities from upstream to downstream Watson
-		if(!exEnds) {
-			// Print upstream-most quality
-			o.write(dqs->get(0));
-		}
-		for(size_t i = 1; i < len-1; i++) {
-			o.write(dqs->get(i));
-		}
-		if(!exEnds) {
-			// Print downstream-most quality
-			o.write(dqs->get(len-1));
-		}
+	assert(dqs != NULL);
+	size_t len = dqs->length();
+	// Print decoded qualities from upstream to downstream Watson
+	//if(!exEnds) {
+	//	// Print upstream-most quality
+	//	o.write(dqs->get(0));
+	//}
+	for(size_t i = 1; i < len-1; i++) {
+		o.write(dqs->get(i));
 	}
+	//if(!exEnds) {
+	//	// Print downstream-most quality
+	//	o.write(dqs->get(len-1));
+	//}
 }
 
 /**
@@ -2111,41 +1905,6 @@ int main() {
 		assert_eq(0, strcmp(buf, "4M1I1M2I1M4D2M"));
 		res.printCigar(false, false, true, op, run, NULL, buf);
 		assert_eq(0, strcmp(buf, "1X3=1I1=2I1=4D1=1X"));
-		cerr << "PASSED" << endl;
-	}
-
-	{
-		cerr << "Test case 16, Single colorspace 1 ... ";
-		EList<Edit> ned(RES_CAT);
-		// 2 steps to the right in the middle of the alignment
-		ned.push_back(Edit(0, 'C', 'A', EDIT_TYPE_MM));
-		ned.push_back(Edit(4, '-', 'C', EDIT_TYPE_REF_GAP));
-		ned.push_back(Edit(6, '-', 'C', EDIT_TYPE_REF_GAP));
-		ned.push_back(Edit(7, '-', 'C', EDIT_TYPE_REF_GAP));
-		ned.push_back(Edit(9, '-', 'A', EDIT_TYPE_READ_GAP));
-		ned.push_back(Edit(9, '-', 'A', EDIT_TYPE_READ_GAP));
-		ned.push_back(Edit(9, '-', 'A', EDIT_TYPE_READ_GAP));
-		ned.push_back(Edit(9, '-', 'A', EDIT_TYPE_READ_GAP));
-		ned.push_back(Edit(10, '-', 'A', EDIT_TYPE_MM));
-		AlnRes res; res.init(
-			11,
-			AlnScore(),
-			&ned,
-			NULL,
-			NULL,
-			Coord(0, 44, true),
-			false);
-		char buf[1024];
-		// Don't exclude ends
-		res.printCigar(false, false, false, op, run, NULL, buf);
-		assert_eq(0, strcmp(buf, "4M1I1M2I1M4D2M"));
-		res.printCigar(false, false, true, op, run, NULL, buf);
-		assert_eq(0, strcmp(buf, "1X3=1I1=2I1=4D1=1X"));
-		// Exclude ends
-		res.printCigar(false, true, false, op, run, NULL, buf);
-		assert_eq(0, strcmp(buf, "3M1I1M2I1M4D1M"));
-		res.printCigar(false, true, true, op, run, NULL, buf);
-		assert_eq(0, strcmp(buf, "3=1I1=2I1=4D1="));
 		cerr << "PASSED" << endl;
 	}
 

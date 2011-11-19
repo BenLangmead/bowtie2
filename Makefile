@@ -88,7 +88,6 @@ SHARED_CPPS = ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
               reference.cpp ds.cpp multikey_qsort.cpp
 SEARCH_CPPS = qual.cpp pat.cpp \
               log.cpp sam.cpp \
-              color.cpp color_dec.cpp \
               read_qseq.cpp aligner_seed_policy.cpp \
               aligner_seed.cpp aligner_sw.cpp \
 			  aligner_sw_driver.cpp aligner_cache.cpp \

@@ -623,7 +623,7 @@ bool SeedAligner::sanityPartial(
  * any.  Calculate a lower bound on the number of edits in an end-to-end
  * alignment.
  */
-void SeedAligner::exactSweep(
+size_t SeedAligner::exactSweep(
 	const Ebwt&        ebwt,    // BWT index
 	const Read&        read,    // read to align
 	const Scoring&     sc,      // scoring scheme
@@ -640,6 +640,7 @@ void SeedAligner::exactSweep(
 	uint32_t top = 0, bot = 0;
 	SideLocus tloc, bloc;
 	const size_t len = read.length();
+	size_t nelt = 0;
 	for(int fwi = 0; fwi < 2; fwi++) {
 		bool fw = (fwi == 0);
 		if( fw && nofw) continue;
@@ -725,22 +726,26 @@ void SeedAligner::exactSweep(
 				// Set the minimum # edits
 				if(fw) { mineFw = nedit; } else { mineRc = nedit; }
 				// Done
-				if(nedit == 0 && bot > top && repex) {
-					// This is an exact hit
-					int64_t score = len * sc.match();
-					if(fw) {
-						hits.addExactEeFw(top, bot, NULL, NULL, fw, score);
-						assert(ebwt.contains(seq, NULL, NULL));
-					} else {
-						hits.addExactEeRc(top, bot, NULL, NULL, fw, score);
-						assert(ebwt.contains(seq, NULL, NULL));
+				if(nedit == 0 && bot > top) {
+					if(repex) {
+						// This is an exact hit
+						int64_t score = len * sc.match();
+						if(fw) {
+							hits.addExactEeFw(top, bot, NULL, NULL, fw, score);
+							assert(ebwt.contains(seq, NULL, NULL));
+						} else {
+							hits.addExactEeRc(top, bot, NULL, NULL, fw, score);
+							assert(ebwt.contains(seq, NULL, NULL));
+						}
 					}
+					nelt = bot - top;
 				}
 				break;
 			}
 			dep++;
 		}
 	}
+	return nelt;
 }
 
 /**
