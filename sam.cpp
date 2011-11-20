@@ -116,14 +116,15 @@ void SamConfig::printPgLine(OutFileBuf& o) const {
  * Print the optional flags to the given OutFileBuf.
  */
 void SamConfig::printAlignedOptFlags(
-	OutFileBuf& o,          // output buffer
-	bool first,             // first opt flag printed is first overall?
-	const Read& rd,         // the read
-	const AlnRes& res,      // individual alignment result
-	const AlnFlags& flags,  // alignment flags
-	const AlnSetSumm& summ, // summary of alignments for this read
-	const SeedAlSumm& ssm,  // seed alignment summary
-	const char *mapqInp)    // inputs to MAPQ calculation
+	OutFileBuf& o,             // output buffer
+	bool first,                // first opt flag printed is first overall?
+	const Read& rd,            // the read
+	const AlnRes& res,         // individual alignment result
+	const AlnFlags& flags,     // alignment flags
+	const AlnSetSumm& summ,    // summary of alignments for this read
+	const SeedAlSumm& ssm,     // seed alignment summary
+	const PerReadMetrics& prm, // per-read metrics
+	const char *mapqInp)       // inputs to MAPQ calculation
 	const
 {
 	char buf[1024];
@@ -358,8 +359,8 @@ void SamConfig::printAlignedOptFlags(
 		struct timezone tz_end;
 		gettimeofday(&tv_end, &tz_end);
 		size_t total_usecs =
-			(tv_end.tv_sec  - rd.tv_beg.tv_sec) * 1000000 +
-			(tv_end.tv_usec - rd.tv_beg.tv_usec);
+			(tv_end.tv_sec  - prm.tv_beg.tv_sec) * 1000000 +
+			(tv_end.tv_usec - prm.tv_beg.tv_usec);
 		itoa10<size_t>(total_usecs, buf);
 		o.writeChars("XT:i:");
 		o.writeChars(buf);
@@ -367,74 +368,86 @@ void SamConfig::printAlignedOptFlags(
 	if(print_xd_) {
 		// XD:i: Extend DPs
 		WRITE_SEP();
-		itoa10<uint64_t>(rd.nExDps, buf);
+		itoa10<uint64_t>(prm.nExDps, buf);
 		o.writeChars("XD:i:");
 		o.writeChars(buf);
 		// Xd:i: Mate DPs
 		WRITE_SEP();
-		itoa10<uint64_t>(rd.nMateDps, buf);
+		itoa10<uint64_t>(prm.nMateDps, buf);
 		o.writeChars("Xd:i:");
 		o.writeChars(buf);
 	}
 	if(print_xu_) {
 		// XU:i: Extend ungapped tries
 		WRITE_SEP();
-		itoa10<uint64_t>(rd.nExUngaps, buf);
+		itoa10<uint64_t>(prm.nExUngaps, buf);
 		o.writeChars("XU:i:");
 		o.writeChars(buf);
 		// Xu:i: Mate ungapped tries
 		WRITE_SEP();
-		itoa10<uint64_t>(rd.nMateUngaps, buf);
+		itoa10<uint64_t>(prm.nMateUngaps, buf);
 		o.writeChars("Xu:i:");
 		o.writeChars(buf);
 	}
 	if(print_ye_) {
 		// YE:i: Streak of failed DPs at end
 		WRITE_SEP();
-		itoa10<uint64_t>(rd.nDpFail, buf);
+		itoa10<uint64_t>(prm.nDpFail, buf);
 		o.writeChars("YE:i:");
 		o.writeChars(buf);
 		// Ye:i: Streak of failed ungaps at end
 		WRITE_SEP();
-		itoa10<uint64_t>(rd.nUgFail, buf);
+		itoa10<uint64_t>(prm.nUgFail, buf);
 		o.writeChars("Ye:i:");
 		o.writeChars(buf);
 	}
 	if(print_yl_) {
 		// YL:i: Longest streak of failed DPs
 		WRITE_SEP();
-		itoa10<uint64_t>(rd.nDpFailStreak, buf);
+		itoa10<uint64_t>(prm.nDpFailStreak, buf);
 		o.writeChars("YL:i:");
 		o.writeChars(buf);
 		// Yl:i: Longest streak of failed ungaps
 		WRITE_SEP();
-		itoa10<uint64_t>(rd.nUgFailStreak, buf);
+		itoa10<uint64_t>(prm.nUgFailStreak, buf);
 		o.writeChars("Yl:i:");
 		o.writeChars(buf);
 	}
 	if(print_yu_) {
 		// YU:i: Index of last succesful DP
 		WRITE_SEP();
-		itoa10<uint64_t>(rd.nDpLastSucc, buf);
+		itoa10<uint64_t>(prm.nDpLastSucc, buf);
 		o.writeChars("YU:i:");
 		o.writeChars(buf);
 		// Yu:i: Index of last succesful DP
 		WRITE_SEP();
-		itoa10<uint64_t>(rd.nUgLastSucc, buf);
+		itoa10<uint64_t>(prm.nUgLastSucc, buf);
 		o.writeChars("Yu:i:");
 		o.writeChars(buf);
 	}
 	if(print_yr_) {
 		// YR:i: Redundant seed hits
 		WRITE_SEP();
-		itoa10<uint64_t>(rd.nRedundants, buf);
+		itoa10<uint64_t>(prm.nRedundants, buf);
 		o.writeChars("YR:i:");
+		o.writeChars(buf);
+	}
+	if(print_zf_) {
+		// ZF:i: FM Index ops for seed alignment
+		WRITE_SEP();
+		itoa10<uint64_t>(prm.nSdFmops, buf);
+		o.writeChars("ZF:i:");
+		o.writeChars(buf);
+		// Zf:i: FM Index ops for offset resolution
+		WRITE_SEP();
+		itoa10<uint64_t>(prm.nExFmops, buf);
+		o.writeChars("Zf:i:");
 		o.writeChars(buf);
 	}
 	if(print_zi_) {
 		// ZI:i: Seed extend loop iterations
 		WRITE_SEP();
-		itoa10<uint64_t>(rd.nExIters, buf);
+		itoa10<uint64_t>(prm.nExIters, buf);
 		o.writeChars("ZI:i:");
 		o.writeChars(buf);
 	}
@@ -444,12 +457,13 @@ void SamConfig::printAlignedOptFlags(
  * Print the optional flags to the given OutFileBuf.
  */
 void SamConfig::printEmptyOptFlags(
-	OutFileBuf& o,          // output buffer
-	bool first,             // first opt flag printed is first overall?
-	const Read& rd,         // read
-	const AlnFlags& flags,  // alignment flags
-	const AlnSetSumm& summ, // summary of alignments for this read
-	const SeedAlSumm& ssm)  // seed alignment summary
+	OutFileBuf& o,             // output buffer
+	bool first,                // first opt flag printed is first overall?
+	const Read& rd,            // read
+	const AlnFlags& flags,     // alignment flags
+	const AlnSetSumm& summ,    // summary of alignments for this read
+	const SeedAlSumm& ssm,     // seed alignment summary
+	const PerReadMetrics& prm) // per-read metrics
 	const
 {
 	char buf[1024];
@@ -570,8 +584,8 @@ void SamConfig::printEmptyOptFlags(
 		struct timezone tz_end;
 		gettimeofday(&tv_end, &tz_end);
 		size_t total_usecs =
-			(tv_end.tv_sec  - rd.tv_beg.tv_sec) * 1000000 +
-			(tv_end.tv_usec - rd.tv_beg.tv_usec);
+			(tv_end.tv_sec  - prm.tv_beg.tv_sec) * 1000000 +
+			(tv_end.tv_usec - prm.tv_beg.tv_usec);
 		itoa10<size_t>(total_usecs, buf);
 		o.writeChars("XT:i:");
 		o.writeChars(buf);
@@ -579,74 +593,86 @@ void SamConfig::printEmptyOptFlags(
 	if(print_xd_) {
 		// XD:i: Extend DPs
 		WRITE_SEP();
-		itoa10<uint64_t>(rd.nExDps, buf);
+		itoa10<uint64_t>(prm.nExDps, buf);
 		o.writeChars("XD:i:");
 		o.writeChars(buf);
 		// Xd:i: Mate DPs
 		WRITE_SEP();
-		itoa10<uint64_t>(rd.nMateDps, buf);
+		itoa10<uint64_t>(prm.nMateDps, buf);
 		o.writeChars("Xd:i:");
 		o.writeChars(buf);
 	}
 	if(print_xu_) {
 		// XU:i: Extend ungapped tries
 		WRITE_SEP();
-		itoa10<uint64_t>(rd.nExUngaps, buf);
+		itoa10<uint64_t>(prm.nExUngaps, buf);
 		o.writeChars("XU:i:");
 		o.writeChars(buf);
 		// Xu:i: Mate ungapped tries
 		WRITE_SEP();
-		itoa10<uint64_t>(rd.nMateUngaps, buf);
+		itoa10<uint64_t>(prm.nMateUngaps, buf);
 		o.writeChars("Xu:i:");
 		o.writeChars(buf);
 	}
 	if(print_ye_) {
 		// YE:i: Streak of failed DPs at end
 		WRITE_SEP();
-		itoa10<uint64_t>(rd.nDpFail, buf);
+		itoa10<uint64_t>(prm.nDpFail, buf);
 		o.writeChars("YE:i:");
 		o.writeChars(buf);
 		// Ye:i: Streak of failed ungaps at end
 		WRITE_SEP();
-		itoa10<uint64_t>(rd.nUgFail, buf);
+		itoa10<uint64_t>(prm.nUgFail, buf);
 		o.writeChars("Ye:i:");
 		o.writeChars(buf);
 	}
 	if(print_yl_) {
 		// YL:i: Longest streak of failed DPs
 		WRITE_SEP();
-		itoa10<uint64_t>(rd.nDpFailStreak, buf);
+		itoa10<uint64_t>(prm.nDpFailStreak, buf);
 		o.writeChars("YL:i:");
 		o.writeChars(buf);
 		// Yl:i: Longest streak of failed ungaps
 		WRITE_SEP();
-		itoa10<uint64_t>(rd.nUgFailStreak, buf);
+		itoa10<uint64_t>(prm.nUgFailStreak, buf);
 		o.writeChars("Yl:i:");
 		o.writeChars(buf);
 	}
 	if(print_yu_) {
 		// YU:i: Index of last succesful DP
 		WRITE_SEP();
-		itoa10<uint64_t>(rd.nDpLastSucc, buf);
+		itoa10<uint64_t>(prm.nDpLastSucc, buf);
 		o.writeChars("YU:i:");
 		o.writeChars(buf);
 		// Yu:i: Index of last succesful DP
 		WRITE_SEP();
-		itoa10<uint64_t>(rd.nUgLastSucc, buf);
+		itoa10<uint64_t>(prm.nUgLastSucc, buf);
 		o.writeChars("Yu:i:");
 		o.writeChars(buf);
 	}
 	if(print_yr_) {
 		// YR:i: Redundant seed hits
 		WRITE_SEP();
-		itoa10<uint64_t>(rd.nRedundants, buf);
+		itoa10<uint64_t>(prm.nRedundants, buf);
 		o.writeChars("YR:i:");
+		o.writeChars(buf);
+	}
+	if(print_zf_) {
+		// ZF:i: FM Index ops for seed alignment
+		WRITE_SEP();
+		itoa10<uint64_t>(prm.nSdFmops, buf);
+		o.writeChars("ZF:i:");
+		o.writeChars(buf);
+		// Zf:i: FM Index ops for offset resolution
+		WRITE_SEP();
+		itoa10<uint64_t>(prm.nExFmops, buf);
+		o.writeChars("Zf:i:");
 		o.writeChars(buf);
 	}
 	if(print_zi_) {
 		// ZI:i: Seed extend loop iterations
 		WRITE_SEP();
-		itoa10<uint64_t>(rd.nExIters, buf);
+		itoa10<uint64_t>(prm.nExIters, buf);
 		o.writeChars("ZI:i:");
 		o.writeChars(buf);
 	}

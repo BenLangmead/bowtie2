@@ -817,7 +817,8 @@ public:
 		EList<GWState, S1>& st,      // EList of GWStates for range being advanced
 		EList<bool, S2>* masks,      // temporary storage for masks
 		EList<uint32_t, S3>& newmap, // temporary storage for new 'map'
-		WalkMetrics& met)
+		WalkMetrics& met,
+		PerReadMetrics& prm)
 	{
 		ASSERT_ONLY(uint32_t origTop = top);
 		ASSERT_ONLY(uint32_t origBot = bot);
@@ -839,6 +840,7 @@ public:
 			upto[2] = in[2] = upto[3] = in[3] = 0;
 			assert_eq(bot, bloc.toBWRow());
 			met.bwops++;
+			prm.nExFmops++;
 			// Assert that there's not a dollar sign in the middle of
 			// this range
 			assert(bot <= ebwt._zOff || top > ebwt._zOff);
@@ -941,6 +943,7 @@ public:
 			// Sets top, returns char walked through (which we ignore)
 			ASSERT_ONLY(uint32_t oldtop = top);
 			met.bwops++;
+			prm.nExFmops++;
 			ebwt.mapLF1(top, tloc);
 			assert_neq(top, oldtop);
 			bot = top+1;
@@ -1110,10 +1113,10 @@ public:
 	/**
 	 * Advance the GroupWalk until all elements have been resolved.
 	 */
-	void resolveAll(WalkMetrics& met) {
+	void resolveAll(WalkMetrics& met, PerReadMetrics& prm) {
 		WalkResult res; // ignore results for now
 		for(size_t i = 0; i < elt_; i++) {
-			advanceElement((uint32_t)i, res, met);
+			advanceElement((uint32_t)i, res, met, prm);
 		}
 	}
 
@@ -1124,7 +1127,8 @@ public:
 	bool advanceElement(
 		uint32_t elt,     // element within the range
 		WalkResult& res,  // put the result here
-		WalkMetrics& met)
+		WalkMetrics& met,
+		PerReadMetrics& prm)
 	{
 		assert(inited_);
 		assert(!done());
@@ -1151,7 +1155,8 @@ public:
 				st_,
 				masksTmp_,
 				mapTmp_,
-				met);
+				met,
+				prm);
 			assert(satup_->offs[elt] != 0xffffffff ||
 			       !st_[hit_.fmap[elt].first].doneResolving(hit_));
 		}

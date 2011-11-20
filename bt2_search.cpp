@@ -145,6 +145,7 @@ static bool sam_print_yl;
 static bool sam_print_ye;
 static bool sam_print_yu;
 static bool sam_print_yr;
+static bool sam_print_zf;
 static bool sam_print_zi;
 static bool sam_print_seed_fields;
 static bool bwaSwLike;
@@ -316,6 +317,7 @@ static void resetOptions() {
 	sam_print_ye            = false;
 	sam_print_yu            = false;
 	sam_print_yr            = false;
+	sam_print_zf            = false;
 	sam_print_zi            = false;
 	sam_print_seed_fields   = false;
 	bwaSwLike               = false;
@@ -1070,6 +1072,7 @@ static void parseOption(int next_option, const char *arg) {
 			sam_print_ye = true;
 			sam_print_yu = true;
 			sam_print_yr = true;
+			sam_print_zf = true;
 			sam_print_zi = true;
 			break;
 		}
@@ -2613,6 +2616,8 @@ static void* multiseedSearchWorker(void *vp) {
 	BTString nametmp;
 	EList<Seed> seeds1, seeds2;
 	EList<Seed> *seeds[2] = { &seeds1, &seeds2 };
+	
+	PerReadMetrics prm;
 
 	// Used by thread with threadid == 1 to measure time elapsed
 	time_t iTime = time(0);
@@ -2644,12 +2649,6 @@ static void* multiseedSearchWorker(void *vp) {
 		}
 		TReadId patid = ps->patid();
 		if(patid >= skipReads && patid < qUpto) {
-			if(sam_print_xt) {
-				gettimeofday(&ps->bufa().tv_beg, &ps->bufa().tz_beg);
-				if(paired) {
-					gettimeofday(&ps->bufb().tv_beg, &ps->bufb().tz_beg);
-				}
-			}
 			// Align this read/pair
 			bool retry = true;
 			//
@@ -2673,6 +2672,10 @@ static void* multiseedSearchWorker(void *vp) {
 						iTime = curTime;
 					}
 				}
+			}
+			prm.reset(); // per-read metrics
+			if(sam_print_xt) {
+				gettimeofday(&prm.tv_beg, &prm.tz_beg);
 			}
 			// Try to align this read
 			while(retry) {
@@ -2716,6 +2719,7 @@ static void* multiseedSearchWorker(void *vp) {
 						sortByScore,          // prioritize by alignment score
 						rnd,                  // pseudo-random generator
 						rpm,                  // reporting metrics
+						prm,                  // per-read metrics
 						!seedSumm,            // suppress seed summaries?
 						seedSumm);            // suppress alignments?
 					break; // next read
@@ -2804,6 +2808,7 @@ static void* multiseedSearchWorker(void *vp) {
 				}
 				filt[0] = (nfilt[0] && scfilt[0] && lenfilt[0] && qcfilt[0]);
 				filt[1] = (nfilt[1] && scfilt[1] && lenfilt[1] && qcfilt[1]);
+				prm.nFilt += (filt[0] ? 0 : 1) + (filt[1] ? 0 : 1);
 				Read* rds[2] = { &ps->bufa(), &ps->bufb() };
 				// For each mate...
 				assert(msinkwrap.empty());
@@ -2858,13 +2863,13 @@ static void* multiseedSearchWorker(void *vp) {
 				bool done[2] = { false, false };
 				// Find end-to-end exact alignments for each read
 				if(doExactUpFront) {
-					swmSeed.exatts++;
 					size_t nelt[2] = {0, 0};
 					for(size_t matei = 0; matei < (pair ? 2:1); matei++) {
 						size_t mate = matemap[matei];
 						if(!filt[mate] || done[mate] || msinkwrap.state().doneWithMate(mate == 0)) {
 							continue;
 						}
+						swmSeed.exatts++;
 						nelt[mate] = al.exactSweep(
 							ebwtFw,        // index
 							*rds[mate],    // read
@@ -2950,6 +2955,7 @@ static void* multiseedSearchWorker(void *vp) {
 								wlm,            // group walk left metrics
 								swmSeed,        // DP metrics, seed extend
 								swmMate,        // DP metrics, mate finding
+								prm,            // per-read metrics
 								&msinkwrap,     // for organizing hits
 								true,           // seek mate immediately
 								true,           // report hits once found
@@ -2989,6 +2995,7 @@ static void* multiseedSearchWorker(void *vp) {
 								rnd,            // pseudo-random source
 								wlm,            // group walk left metrics
 								swmSeed,        // DP metrics, seed extend
+								prm,            // per-read metrics
 								&msinkwrap,     // for organizing hits
 								true,           // report hits once found
 								exhaustive[mate]);
@@ -3122,6 +3129,7 @@ static void* multiseedSearchWorker(void *vp) {
 								wlm,            // group walk left metrics
 								swmSeed,        // DP metrics, seed extend
 								swmMate,        // DP metrics, mate finding
+								prm,            // per-read metrics
 								&msinkwrap,     // for organizing hits
 								true,           // seek mate immediately
 								true,           // report hits once found
@@ -3161,6 +3169,7 @@ static void* multiseedSearchWorker(void *vp) {
 								rnd,            // pseudo-random source
 								wlm,            // group walk left metrics
 								swmSeed,        // DP metrics, seed extend
+								prm,            // per-read metrics
 								&msinkwrap,     // for organizing hits
 								true,           // report hits once found
 								exhaustive[mate]);
@@ -3219,6 +3228,7 @@ static void* multiseedSearchWorker(void *vp) {
 					rnd.init(ROTL(rds[mate]->seed, 10));
 					assert(shs[mate].repOk(&ca.current()));
 					int iters = 0;
+					swmSeed.sdatts++;
 					while(true) {
 						// Set up seeds
 						Constraint gc = Constraint::penaltyFuncBased(scoreMin);
@@ -3243,6 +3253,7 @@ static void* multiseedSearchWorker(void *vp) {
 						assert(shs[mate].repOk(&ca.current()));
 						if(inst.first + inst.second == 0) {
 							// No seed hits!  Done with this mate.
+							assert(shs[mate].empty());
 							done[mate] = true;
 							break;
 						}
@@ -3255,7 +3266,8 @@ static void* multiseedSearchWorker(void *vp) {
 							sc,               // scoring scheme
 							ca,               // alignment cache
 							shs[mate],        // store seed hits here
-							sdm);             // metrics
+							sdm,              // metrics
+							prm);             // per-read metrics
 						assert(shs[mate].repOk(&ca.current()));
 						if(shs[mate].empty()) {
 							done[mate] = true;
@@ -3290,6 +3302,7 @@ static void* multiseedSearchWorker(void *vp) {
 				
 				for(size_t i = 0; i < 2; i++) {
 					if(!shs[i].empty()) {
+						swmSeed.sdsucc++;
 						uniqFactor[i] = shs[i].uniquenessFactor();
 					}
 				}
@@ -3364,6 +3377,7 @@ static void* multiseedSearchWorker(void *vp) {
 								wlm,            // group walk left metrics
 								swmSeed,        // DP metrics, seed extend
 								swmMate,        // DP metrics, mate finding
+								prm,            // per-read metrics
 								&msinkwrap,     // for organizing hits
 								true,           // seek mate immediately
 								true,           // report hits once found
@@ -3403,6 +3417,7 @@ static void* multiseedSearchWorker(void *vp) {
 								rnd,            // pseudo-random source
 								wlm,            // group walk left metrics
 								swmSeed,        // DP metrics, seed extend
+								prm,            // per-read metrics
 								&msinkwrap,     // for organizing hits
 								true,           // report hits once found
 								exhaustive[mate]);
@@ -3434,13 +3449,13 @@ static void* multiseedSearchWorker(void *vp) {
 					} // if(!seedSumm)
 				} // for(size_t matei = 0; matei < 2; matei++)
 				for(size_t i = 0; i < 2; i++) {
-					assert_leq(rds[i]->nExIters,      maxIters);
-					assert_leq(rds[i]->nExDps,        maxDp);
-					assert_leq(rds[i]->nMateDps,      maxDp);
-					assert_leq(rds[i]->nExUngaps,     maxUg);
-					assert_leq(rds[i]->nMateUngaps,   maxUg);
-					assert_leq(rds[i]->nDpFailStreak, maxDpStreak);
-					assert_leq(rds[i]->nUgFailStreak, maxUgStreak);
+					assert_leq(prm.nExIters,      maxIters);
+					assert_leq(prm.nExDps,        maxDp);
+					assert_leq(prm.nMateDps,      maxDp);
+					assert_leq(prm.nExUngaps,     maxUg);
+					assert_leq(prm.nMateUngaps,   maxUg);
+					assert_leq(prm.nDpFailStreak, maxDpStreak);
+					assert_leq(prm.nUgFailStreak, maxUgStreak);
 				}
 				// Commit and report paired-end/unpaired alignments
 				uint32_t seed = rds[0]->seed ^ rds[1]->seed;
@@ -3461,8 +3476,9 @@ static void* multiseedSearchWorker(void *vp) {
 					sortByScore,          // prioritize by alignment score
 					rnd,                  // pseudo-random generator
 					rpm,                  // reporting metrics
-					!seedSumm,     // suppress seed summaries?
-					seedSumm);     // suppress alignments?
+					prm,                  // per-read metrics
+					!seedSumm,            // suppress seed summaries?
+					seedSumm);            // suppress alignments?
 				assert(!retry || msinkwrap.empty());
 			} // while(retry)
 		} // if(patid >= skipReads && patid < qUpto)
@@ -3769,6 +3785,7 @@ static void driver(
 			sam_print_ye,
 			sam_print_yu,
 			sam_print_yr,
+			sam_print_zf,
 			sam_print_zi,
 			sam_print_seed_fields);
 		// Set up hit sink; if sanityCheck && !os.empty() is true,

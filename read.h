@@ -63,18 +63,6 @@ struct Read {
 		filter = '?';
 		seed = 0;
 		ns_ = 0;
-		nExIters = 0;      // iterations of seed hit extend loop
-		nExDps = 0;        // # extend DPs run on this read
-		nMateDps = 0;      // # mate DPs run on this read
-		nExUngaps = 0;     // # extend ungapped alignments run on this read
-		nMateUngaps = 0;   // # mate ungapped alignments run on this read
-		nRedundants = 0;   // # redundant seed hits
-		nDpFail = 0;       // number of failures in a row up unti lnow
-		nDpFailStreak = 0; // longest streak of failures
-		nDpLastSucc = 0;   // index of last dp attempt that succeeded
-		nUgFail = 0;       // number of ungap failures in a row up until now
-		nUgFailStreak = 0; // longest streak of ungap failures
-		nUgLastSucc = 0;   // index of last ungap attempt that succeeded
 	}
 	
 	/**
@@ -323,16 +311,35 @@ struct Read {
 	int      trimmed5;  // amount actually trimmed off 5' end
 	int      trimmed3;  // amount actually trimmed off 3' end
 	HitSet  *hitset;    // holds previously-found hits; for chaining
+};
+
+/**
+ * Key per-read metrics.  These are used for thresholds, allowing us to bail
+ * for unproductive reads.  They also the basis of what's printed when the user
+ * specifies --read-times.
+ */
+struct PerReadMetrics {
+
+	PerReadMetrics() { reset(); }
+
+	void reset() {
+		nExIters = nExDps = nMateDps = nExUngaps = nMateUngaps = nRedundants =
+		nSdFmops = nExFmops = nDpFail = nDpFailStreak = nDpLastSucc =
+		nUgFail = nUgFailStreak = nUgLastSucc = nFilt = 0;
+	}
+
 	struct timeval  tv_beg; // timer start to measure how long alignment takes
 	struct timezone tz_beg; // timer start to measure how long alignment takes
-	
-	// TODO: This is not a very clever place to put these things
+
 	uint64_t nExIters;      // iterations of seed hit extend loop
 	uint64_t nExDps;        // # extend DPs run on this read
 	uint64_t nMateDps;      // # mate DPs run on this read
 	uint64_t nExUngaps;     // # extend ungapped alignments run on this read
 	uint64_t nMateUngaps;   // # mate ungapped alignments run on this read
 	uint64_t nRedundants;   // # redundant seed hits
+	
+	uint64_t nSdFmops;      // FM Index ops used to align seeds
+	uint64_t nExFmops;      // FM Index ops used to resolve offsets
 	
 	uint64_t nDpFail;       // number of dp failures in a row up until now
 	uint64_t nDpFailStreak; // longest streak of dp failures
@@ -341,6 +348,8 @@ struct Read {
 	uint64_t nUgFail;       // number of ungap failures in a row up until now
 	uint64_t nUgFailStreak; // longest streak of ungap failures
 	uint64_t nUgLastSucc;   // index of last ungap attempt that succeeded
+	
+	uint64_t nFilt;         // # mates filtered
 };
 
 #endif /*READ_H_*/

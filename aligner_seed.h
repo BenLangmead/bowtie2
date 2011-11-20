@@ -1391,7 +1391,8 @@ public:
 		const Scoring& pens,        // scoring scheme
 		AlignmentCacheIface& cache, // local seed alignment cache
 		SeedResults& hits,          // holds all the seed hits
-		SeedSearchMetrics& met);    // metrics
+		SeedSearchMetrics& met,     // metrics
+		PerReadMetrics& prm);       // per-read metrics
 
 	/**
 	 * Sanity-check a partial alignment produced during oneMmSearch.
