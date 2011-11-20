@@ -202,6 +202,7 @@ static size_t maxUg;         // stop after this many ungap extends
 static size_t maxDp;         // stop after this many DPs
 static size_t maxUgStreak;   // stop after this many ungap fails in a row
 static size_t maxDpStreak;   // stop after this many dp fails in a row
+static size_t maxMateStreak; // stop seed range after this many mate-find fails
 static bool enable8;         // use 8-bit SSE where possible?
 static bool refscan;         // use reference scanning?
 static string defaultPreset; // default preset; applied immediately
@@ -373,6 +374,7 @@ static void resetOptions() {
 	maxDp              = 300;   // stop after this many dp extends
 	maxUgStreak        = 25;    // stop after this many ungap fails in a row
 	maxDpStreak        = 25;    // stop after this many dp fails in a row
+	maxMateStreak      = 8;     // in PE: abort seed range after N mate-find fails
 	enable8            = true;  // use 8-bit SSE where possible?
 	refscan            = false; // use reference scanning?
 	defaultPreset      = "sensitive%LOCAL%"; // default preset; applied immediately
@@ -975,6 +977,10 @@ static void parseOption(int next_option, const char *arg) {
 		}
 		case ARG_EXTEND_ITERS: {
 			maxIters = parse<size_t>(arg);
+			break;
+		}
+		case ARG_DP_MATE_STREAK_THRESH: {
+			maxMateStreak = parse<size_t>(arg);
 			break;
 		}
 		case ARG_DP_FAIL_STREAK_THRESH: {
@@ -2947,6 +2953,7 @@ static void* multiseedSearchWorker(void *vp) {
 								maxDp,          // max # DPs
 								maxUgStreak,    // stop after streak of this many ungap fails
 								maxDpStreak,    // stop after streak of this many dp fails
+								maxMateStreak,  // max mate fails per seed range
 								enable8,        // use 8-bit SSE where possible
 								refscan,        // use reference scanning?
 								tighten,        // -M score tightening mode
@@ -3121,6 +3128,7 @@ static void* multiseedSearchWorker(void *vp) {
 								maxDp,          // max # DPs
 								maxUgStreak,    // stop after streak of this many ungap fails
 								maxDpStreak,    // stop after streak of this many dp fails
+								maxMateStreak,  // max mate fails per seed range
 								enable8,        // use 8-bit SSE where possible
 								refscan,        // use reference scanning?
 								tighten,        // -M score tightening mode
@@ -3369,6 +3377,7 @@ static void* multiseedSearchWorker(void *vp) {
 								maxDp,          // max # DPs
 								maxUgStreak,    // stop after streak of this many ungap fails
 								maxDpStreak,    // stop after streak of this many dp fails
+								maxMateStreak,  // max mate fails per seed range
 								enable8,        // use 8-bit SSE where possible
 								refscan,        // use reference scanning?
 								tighten,        // -M score tightening mode
@@ -3452,8 +3461,8 @@ static void* multiseedSearchWorker(void *vp) {
 					assert_leq(prm.nExIters,      maxIters);
 					assert_leq(prm.nExDps,        maxDp);
 					assert_leq(prm.nMateDps,      maxDp);
-					assert_leq(prm.nExUngaps,     maxUg);
-					assert_leq(prm.nMateUngaps,   maxUg);
+					assert_leq(prm.nExUgs,        maxUg);
+					assert_leq(prm.nMateUgs,      maxUg);
 					assert_leq(prm.nDpFailStreak, maxDpStreak);
 					assert_leq(prm.nUgFailStreak, maxUgStreak);
 				}

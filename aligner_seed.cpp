@@ -740,7 +740,7 @@ size_t SeedAligner::exactSweep(
 							assert(ebwt.contains(seq, NULL, NULL));
 						}
 					}
-					nelt = bot - top;
+					nelt += (bot - top);
 				}
 				break;
 			}
@@ -781,7 +781,7 @@ bool SeedAligner::oneMmSearch(
 	assert_geq(len, 2);
 	assert(!rep1mm || ebwtBw->eh().ftabChars() == ebwtFw->eh().ftabChars());
 #ifndef NDEBUG
-	if(rep1mm) {
+	if(ebwtBw != NULL) {
 		for(int i = 0; i < 4; i++) {
 			assert_eq(ebwtBw->fchr()[i], ebwtFw->fchr()[i]);
 		}

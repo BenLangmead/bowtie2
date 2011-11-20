@@ -323,21 +323,42 @@ struct PerReadMetrics {
 	PerReadMetrics() { reset(); }
 
 	void reset() {
-		nExIters = nExDps = nMateDps = nExUngaps = nMateUngaps = nRedundants =
-		nSdFmops = nExFmops = nDpFail = nDpFailStreak = nDpLastSucc =
-		nUgFail = nUgFailStreak = nUgLastSucc = nFilt = 0;
+		nExIters =
+		nExDps   = nExDpSuccs   = nExDpFails   =
+		nMateDps = nMateDpSuccs = nMateDpFails =
+		nExUgs   = nExUgSuccs   = nExUgFails   =
+		nMateUgs = nMateUgSuccs = nMateUgFails =
+		nRedundants =
+		nEeFmops = nSdFmops = nExFmops =
+		nDpFail = nDpFailStreak = nDpLastSucc =
+		nUgFail = nUgFailStreak = nUgLastSucc =
+		nFilt = 0;
 	}
 
 	struct timeval  tv_beg; // timer start to measure how long alignment takes
 	struct timezone tz_beg; // timer start to measure how long alignment takes
 
 	uint64_t nExIters;      // iterations of seed hit extend loop
+
 	uint64_t nExDps;        // # extend DPs run on this read
+	uint64_t nExDpSuccs;    // # extend DPs run on this read
+	uint64_t nExDpFails;    // # extend DPs run on this read
+	
+	uint64_t nExUgs;        // # extend ungapped alignments run on this read
+	uint64_t nExUgSuccs;    // # extend ungapped alignments run on this read
+	uint64_t nExUgFails;    // # extend ungapped alignments run on this read
+
 	uint64_t nMateDps;      // # mate DPs run on this read
-	uint64_t nExUngaps;     // # extend ungapped alignments run on this read
-	uint64_t nMateUngaps;   // # mate ungapped alignments run on this read
+	uint64_t nMateDpSuccs;  // # mate DPs run on this read
+	uint64_t nMateDpFails;  // # mate DPs run on this read
+	
+	uint64_t nMateUgs;      // # mate ungapped alignments run on this read
+	uint64_t nMateUgSuccs;  // # mate ungapped alignments run on this read
+	uint64_t nMateUgFails;  // # mate ungapped alignments run on this read
+
 	uint64_t nRedundants;   // # redundant seed hits
 	
+	uint64_t nEeFmops;      // FM Index ops for end-to-end alignment
 	uint64_t nSdFmops;      // FM Index ops used to align seeds
 	uint64_t nExFmops;      // FM Index ops used to resolve offsets
 	

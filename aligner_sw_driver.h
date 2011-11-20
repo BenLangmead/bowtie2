@@ -361,6 +361,7 @@ public:
 		size_t maxDp,                // max # DPs
 		size_t maxUgStreak,          // stop after streak of this many ungap fails
 		size_t maxDpStreak,          // stop after streak of this many dp fails
+		size_t maxMateStreak,        // stop seed range after N mate-find fails
 		bool enable8,                // use 8-bit SSE where possible
 		bool refscan,                // use reference scanning
 		int tighten,                 // -M score tightening mode
@@ -429,6 +430,7 @@ protected:
 	EList<SATuple, 16>       satups_;  // holds SATuples to explore elements from
 	EList<SAResolveCombiner, 16> sacomb_; // temporary holder for combiners
 	EList<GroupWalk2>        gws_;         // list of GroupWalks; no particular order
+	EList<size_t>            mateStreaks_; // mate-find fail streaks
 	RowSampler               rowsamp_;     // row sampler
 
 	SeedScanner    sscan_;      // reference scanner for resolving seed hits

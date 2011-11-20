@@ -560,7 +560,7 @@ int SwDriver::extendSeeds(
 				if(prm.nExDps >= maxDp || prm.nMateDps >= maxDp) {
 					return EXTEND_EXCEEDED_LIMIT;
 				}
-				if(prm.nExUngaps >= maxUg || prm.nMateUngaps >= maxUg) {
+				if(prm.nExUgs >= maxUg || prm.nMateUgs >= maxUg) {
 					return EXTEND_EXCEEDED_LIMIT;
 				}
 				if(prm.nExIters >= maxIters) {
@@ -679,8 +679,9 @@ int SwDriver::extendSeeds(
 						resUngap_);
 					Interval refival(refcoord, 1);
 					seenDiags1_.add(refival);
-					prm.nExUngaps++;
+					prm.nExUgs++;
 					if(al == 0) {
+						prm.nExUgFails++;
 						prm.nUgFail++;
 						if(prm.nUgFail > maxUgStreak) {
 							return EXTEND_EXCEEDED_LIMIT;
@@ -688,13 +689,15 @@ int SwDriver::extendSeeds(
 						swmSeed.ungapfail++;
 						continue;
 					} else if(al == -1) {
+						prm.nExUgFails++;
 						prm.nUgFail++; // count this as failure
 						if(prm.nUgFail > maxUgStreak) {
 							return EXTEND_EXCEEDED_LIMIT;
 						}
 						swmSeed.ungapnodec++;
 					} else {
-						prm.nUgLastSucc = prm.nExUngaps-1;
+						prm.nExUgSuccs++;
+						prm.nUgLastSucc = prm.nExUgs-1;
 						if(prm.nUgFail > prm.nUgFailStreak) {
 							prm.nUgFailStreak = prm.nUgFail;
 						}
@@ -812,12 +815,14 @@ int SwDriver::extendSeeds(
 					swmSeed.tallyGappedDp(readGaps, refGaps);
 					prm.nExDps++;
 					if(!found) {
+						prm.nExDpFails++;
 						prm.nDpFail++;
 						if(prm.nDpFail > maxDpStreak) {
 							return EXTEND_EXCEEDED_LIMIT;
 						}
 						continue; // Look for more anchor alignments
 					} else {
+						prm.nExDpSuccs++;
 						prm.nDpLastSucc = prm.nExDps-1;
 						if(prm.nDpFail > prm.nDpFailStreak) {
 							prm.nDpFailStreak = prm.nDpFail;
@@ -1073,6 +1078,7 @@ int SwDriver::extendSeedsPaired(
 	size_t maxDp,                // stop after this many dps
 	size_t maxUgStreak,          // stop after streak of this many ungap fails
 	size_t maxDpStreak,          // stop after streak of this many dp fails
+	size_t maxMateStreak,        // stop seed range after N mate-find fails
 	bool enable8,                // use 8-bit SSE where possible
 	bool refscan,                // use reference scanning
 	int tighten,                 // -M score tightening mode
@@ -1165,6 +1171,10 @@ int SwDriver::extendSeedsPaired(
 				assert_eq(gws_.size(), rands_.size());
 				assert_eq(gws_.size(), satpos_.size());
 				neltLeft = nelt;
+				// Initialize list that contains the mate-finding failure
+				// streak for each range
+				mateStreaks_.resize(gws_.size());
+				mateStreaks_.fill(0);
 			} else {
 				eeMode = false;
 			}
@@ -1195,6 +1205,8 @@ int SwDriver::extendSeedsPaired(
 				assert_eq(gws_.size(), satpos_.size());
 				neltLeft = nelt;
 				firstExtend = false;
+				mateStreaks_.resize(gws_.size());
+				mateStreaks_.fill(0);
 			}
 			if(neltLeft == 0) {
 				// Finished examining gapped candidates
@@ -1230,11 +1242,16 @@ int SwDriver::extendSeedsPaired(
 				if(prm.nExDps >= maxDp || prm.nMateDps >= maxDp) {
 					return EXTEND_EXCEEDED_LIMIT;
 				}
-				if(prm.nExUngaps >= maxUg || prm.nMateUngaps >= maxUg) {
+				if(prm.nExUgs >= maxUg || prm.nMateUgs >= maxUg) {
 					return EXTEND_EXCEEDED_LIMIT;
 				}
 				if(prm.nExIters >= maxIters) {
 					return EXTEND_EXCEEDED_LIMIT;
+				}
+				if(mateStreaks_[i] >= maxMateStreak) {
+					// Don't try this seed range anymore
+					rands_[i].setDone();
+					break;
 				}
 				prm.nExIters++;
 				first = false;
@@ -1348,8 +1365,9 @@ int SwDriver::extendSeedsPaired(
 						resUngap_);
 					Interval refival(refcoord, 1);
 					seenDiags.add(refival);
-					prm.nExUngaps++;
+					prm.nExUgs++;
 					if(al == 0) {
+						prm.nExUgFails++;
 						prm.nUgFail++;
 						if(prm.nUgFail > maxUgStreak) {
 							return EXTEND_EXCEEDED_LIMIT;
@@ -1357,13 +1375,15 @@ int SwDriver::extendSeedsPaired(
 						swmSeed.ungapfail++;
 						continue;
 					} else if(al == -1) {
+						prm.nExUgFails++;
 						prm.nUgFail++; // count this as failure
 						if(prm.nUgFail > maxUgStreak) {
 							return EXTEND_EXCEEDED_LIMIT;
 						}
 						swmSeed.ungapnodec++;
 					} else {
-						prm.nUgLastSucc = prm.nExUngaps-1;
+						prm.nExUgSuccs++;
+						prm.nUgLastSucc = prm.nExUgs-1;
 						if(prm.nUgFail > prm.nUgFailStreak) {
 							prm.nUgFailStreak = prm.nUgFail;
 						}
@@ -1481,12 +1501,14 @@ int SwDriver::extendSeedsPaired(
 					swmSeed.tallyGappedDp(readGaps, refGaps);
 					prm.nExDps++;
 					if(!found) {
+						prm.nExDpFails++;
 						prm.nDpFail++;
 						if(prm.nDpFail > maxDpStreak) {
 							return EXTEND_EXCEEDED_LIMIT;
 						}
 						continue; // Look for more anchor alignments
 					} else {
+						prm.nExDpSuccs++;
 						prm.nDpLastSucc = prm.nExDps-1;
 						if(prm.nDpFail > prm.nDpFailStreak) {
 							prm.nDpFailStreak = prm.nDpFail;
@@ -1707,6 +1729,13 @@ int SwDriver::extendSeedsPaired(
 							// iff there is at least one valid alignment
 							foundMate = oswa.align(rnd);
 							prm.nMateDps++;
+							if(foundMate) {
+								prm.nMateDpSuccs++;
+								mateStreaks_[i] = 0;
+							} else {
+								prm.nMateDpFails++;
+								mateStreaks_[i]++;
+							}
 							swmMate.tallyGappedDp(oreadGaps, orefGaps);
 						}
 						bool didAnchor = false;
