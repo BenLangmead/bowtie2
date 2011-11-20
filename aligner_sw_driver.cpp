@@ -1248,6 +1248,12 @@ int SwDriver::extendSeedsPaired(
 				if(prm.nExIters >= maxIters) {
 					return EXTEND_EXCEEDED_LIMIT;
 				}
+				if(prm.nDpFail >= maxDpStreak) {
+					return EXTEND_EXCEEDED_LIMIT;
+				}
+				if(prm.nUgFail >= maxUgStreak) {
+					return EXTEND_EXCEEDED_LIMIT;
+				}
 				if(mateStreaks_[i] >= maxMateStreak) {
 					// Don't try this seed range anymore
 					rands_[i].setDone();
@@ -1324,6 +1330,12 @@ int SwDriver::extendSeedsPaired(
 				}
 				int state = FOUND_NONE;
 				bool found = false;
+				bool anchorDp = false; // true -> DP was used to find anchor
+				// In unpaired mode, a seed extension is successful if it
+				// results in a full alignment that meets the minimum score
+				// threshold.  In paired-end mode, a seed extension is
+				// successful if it results in a *full paired-end* alignment
+				// that meets the minimum score threshold.
 				if(eeMode) {
 					resEe_.reset();
 					resEe_.alres.reset();
@@ -1366,28 +1378,14 @@ int SwDriver::extendSeedsPaired(
 					Interval refival(refcoord, 1);
 					seenDiags.add(refival);
 					prm.nExUgs++;
+					prm.nUgFail++; // say it's failed until proven successful
+					prm.nExUgFails++;
 					if(al == 0) {
-						prm.nExUgFails++;
-						prm.nUgFail++;
-						if(prm.nUgFail > maxUgStreak) {
-							return EXTEND_EXCEEDED_LIMIT;
-						}
 						swmSeed.ungapfail++;
 						continue;
 					} else if(al == -1) {
-						prm.nExUgFails++;
-						prm.nUgFail++; // count this as failure
-						if(prm.nUgFail > maxUgStreak) {
-							return EXTEND_EXCEEDED_LIMIT;
-						}
 						swmSeed.ungapnodec++;
 					} else {
-						prm.nExUgSuccs++;
-						prm.nUgLastSucc = prm.nExUgs-1;
-						if(prm.nUgFail > prm.nUgFailStreak) {
-							prm.nUgFailStreak = prm.nUgFail;
-						}
-						prm.nUgFail = 0;
 						found = true;
 						state = FOUND_UNGAPPED;
 						swmSeed.ungapsucc++;
@@ -1500,21 +1498,12 @@ int SwDriver::extendSeedsPaired(
 					found = swa.align(rnd);
 					swmSeed.tallyGappedDp(readGaps, refGaps);
 					prm.nExDps++;
+					prm.nDpFail++;    // failed until proven successful
+					prm.nExDpFails++; // failed until proven successful
 					if(!found) {
-						prm.nExDpFails++;
-						prm.nDpFail++;
-						if(prm.nDpFail > maxDpStreak) {
-							return EXTEND_EXCEEDED_LIMIT;
-						}
 						continue; // Look for more anchor alignments
-					} else {
-						prm.nExDpSuccs++;
-						prm.nDpLastSucc = prm.nExDps-1;
-						if(prm.nDpFail > prm.nDpFailStreak) {
-							prm.nDpFailStreak = prm.nDpFail;
-						}
-						prm.nDpFail = 0;
 					}
+					anchorDp = true;
 				}
 				bool firstInner = true;
 				while(true) {
@@ -1732,6 +1721,26 @@ int SwDriver::extendSeedsPaired(
 							if(foundMate) {
 								prm.nMateDpSuccs++;
 								mateStreaks_[i] = 0;
+								// Register this as a success.  Now we need to
+								// make the streak variables reflect the
+								// success.
+								if(anchorDp) {
+									prm.nExDpFails--;
+									prm.nExDpSuccs++;
+									prm.nDpLastSucc = prm.nExDps-1;
+									if(prm.nDpFail > prm.nDpFailStreak) {
+										prm.nDpFailStreak = prm.nDpFail;
+									}
+									prm.nDpFail = 0;
+								} else {
+									prm.nExUgFails--;
+									prm.nExUgSuccs++;
+									prm.nUgLastSucc = prm.nExUgs-1;
+									if(prm.nUgFail > prm.nUgFailStreak) {
+										prm.nUgFailStreak = prm.nUgFail;
+									}
+									prm.nUgFail = 0;
+								}
 							} else {
 								prm.nMateDpFails++;
 								mateStreaks_[i]++;
