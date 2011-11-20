@@ -372,8 +372,8 @@ static void resetOptions() {
 	maxIters           = 400;   // max iterations of extend loop
 	maxUg              = 300;   // stop after this many ungap extends
 	maxDp              = 300;   // stop after this many dp extends
-	maxUgStreak        = 25;    // stop after this many ungap fails in a row
-	maxDpStreak        = 25;    // stop after this many dp fails in a row
+	maxUgStreak        = 30;    // stop after this many ungap fails in a row
+	maxDpStreak        = 20;    // stop after this many dp fails in a row
 	maxMateStreak      = 8;     // in PE: abort seed range after N mate-find fails
 	enable8            = true;  // use 8-bit SSE where possible?
 	refscan            = false; // use reference scanning?
@@ -390,7 +390,7 @@ static void resetOptions() {
 	doExactUpFront = true;   // do exact search up front if seeds seem good enough
 	do1mmUpFront = true;     // do 1mm search up front if seeds seem good enough
 	maxeltPairMult = 0.25f;  // multiply maxelt by this for paired-end
-	seedBoostThresh = 100;   // if average non-zero position has more than this many elements
+	seedBoostThresh = 1000;  // if average non-zero position has more than this many elements
 	seedBoostMaxIters = 1;   // maximum # of seed-boosting iterations
 	seedBoostIvalMult = 0.33;
 	seedBoostLenMult = 1.5;
