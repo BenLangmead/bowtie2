@@ -92,6 +92,7 @@ public:
 		bool print_yl, // longest streak of failed DPs
 		bool print_yu, // index of last succeeded DP
 		bool print_yr, // # redundant seed hits
+		bool print_zf, // # FM Index ops
 		bool print_zi, // # seed extend loop iters
 		bool print_seed_fields) :
 		truncQname_(truncQname),
@@ -128,6 +129,7 @@ public:
 		print_yl_(print_yl), // longest streak of failed DPs
 		print_yu_(print_yu), // index of last succeeded DP
 		print_yr_(print_yr), // index of last succeeded DP
+		print_zf_(print_zf), // # FM Index ops
 		print_zi_(print_zi), // # seed extend loop iters
 		// # redundant seed hits
 		print_seed_fields_(print_seed_fields)
@@ -211,26 +213,28 @@ public:
 	 * Print the optional flags to the given OutFileBuf.
 	 */
 	void printAlignedOptFlags(
-		OutFileBuf& o,          // output buffer
-		bool first,             // first opt flag printed is first overall?
-		const Read& rd,         // the read
-		const AlnRes& res,      // individual alignment result
-		const AlnFlags& flags,  // alignment flags
-		const AlnSetSumm& summ, // summary of alignments for this read
-		const SeedAlSumm& ssm,  // seed alignment summary
-		const char *mapqInp)    // inputs to MAPQ calculation
+		OutFileBuf& o,             // output buffer
+		bool first,                // first opt flag printed is first overall?
+		const Read& rd,            // the read
+		const AlnRes& res,         // individual alignment result
+		const AlnFlags& flags,     // alignment flags
+		const AlnSetSumm& summ,    // summary of alignments for this read
+		const SeedAlSumm& ssm,     // seed alignment summary
+		const PerReadMetrics& prm, // per-read metics
+		const char *mapqInp)       // inputs to MAPQ calculation
 		const;
 
 	/**
 	 * Print the optional flags to the given OutFileBuf.
 	 */
 	void printEmptyOptFlags(
-		OutFileBuf& o,          // output buffer
-		bool first,             // first opt flag printed is first overall?
-		const Read& rd,         // the read
-		const AlnFlags& flags,  // alignment flags
-		const AlnSetSumm& summ, // summary of alignments for this read
-		const SeedAlSumm& ssm)  // seed alignment summary
+		OutFileBuf& o,             // output buffer
+		bool first,                // first opt flag printed is first overall?
+		const Read& rd,            // the read
+		const AlnFlags& flags,     // alignment flags
+		const AlnSetSumm& summ,    // summary of alignments for this read
+		const SeedAlSumm& ssm,     // seed alignment summary
+		const PerReadMetrics& prm) // per-read metrics
 		const;
 	
 	/**
@@ -292,6 +296,7 @@ protected:
 	bool print_yl_; // YL:i: longest streak of failed DPs
 	bool print_yu_; // YU:i: index of last succeeded DP
 	bool print_yr_; // YR:i: # redundant seed hits
+	bool print_zf_; // ZF:i: # FM Index ops
 	bool print_zi_; // ZI:i: # extend loop iters
 	
 	bool print_seed_fields_; // print summary statistics about seed alignments

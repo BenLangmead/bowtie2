@@ -687,23 +687,24 @@ int AlnSinkWrap::nextRead(
  *  uint64_t unal_pair;   // # pairs where neither mate aligned
  */
 void AlnSinkWrap::finishRead(
-	const SeedResults *sr1,         //
-	const SeedResults *sr2,         //
-	bool               exhaust1,    //
-	bool               exhaust2,    //
-	bool               nfilt1,      //
-	bool               nfilt2,      //
-	bool               scfilt1,     //
-	bool               scfilt2,     //
-	bool               lenfilt1,    //
-	bool               lenfilt2,    //
-	bool               qcfilt1,     //
-	bool               qcfilt2,     //
+	const SeedResults *sr1,         // seed alignment results for mate 1
+	const SeedResults *sr2,         // seed alignment results for mate 2
+	bool               exhaust1,    // mate 1 exhausted?
+	bool               exhaust2,    // mate 2 exhausted?
+	bool               nfilt1,      // mate 1 N-filtered?
+	bool               nfilt2,      // mate 2 N-filtered?
+	bool               scfilt1,     // mate 1 score-filtered?
+	bool               scfilt2,     // mate 2 score-filtered?
+	bool               lenfilt1,    // mate 1 length-filtered?
+	bool               lenfilt2,    // mate 2 length-filtered?
+	bool               qcfilt1,     // mate 1 qc-filtered?
+	bool               qcfilt2,     // mate 2 qc-filtered?
 	bool               sortByScore, // prioritize alignments by score
-	RandomSource&      rnd,         //
-	ReportingMetrics&  met,         //
-	bool suppressSeedSummary, // = true
-	bool suppressAlignments)  // = false
+	RandomSource&      rnd,         // pseudo-random generator
+	ReportingMetrics&  met,         // reporting metrics
+	const PerReadMetrics& prm,      // per-read metrics
+	bool suppressSeedSummary,       // = true
+	bool suppressAlignments)        // = false
 {
 	assert(init_);
 	if(!suppressSeedSummary) {
@@ -817,6 +818,7 @@ void AlnSinkWrap::finishRead(
 				ssm2,
 				&flags1,
 				&flags2,
+				prm,
 				mapq_);
 			if(pairMax) {
 				met.nconcord_rep++;
@@ -900,6 +902,7 @@ void AlnSinkWrap::finishRead(
 				ssm2,
 				&flags1,
 				&flags2,
+				prm,
 				mapq_);
 			met.nconcord_0++;
 			met.ndiscord++;
@@ -1045,6 +1048,7 @@ void AlnSinkWrap::finishRead(
 				ssm2,
 				&flags1,
 				NULL,
+				prm,
 				mapq_);
 			assert_lt(select_[0], rs1u_.size());
 			refid = rs1u_[select_[0]].refid();
@@ -1104,6 +1108,7 @@ void AlnSinkWrap::finishRead(
 				ssm2,
 				&flags2,
 				NULL,
+				prm,
 				mapq_);
 			assert_lt(select_[0], rs2u_.size());
 			refid = rs2u_[select_[0]].refid();
@@ -1153,6 +1158,7 @@ void AlnSinkWrap::finishRead(
 				ssm2,
 				&flags1, // flags 1
 				NULL,    // flags 2
+				prm,
 				mapq_,   // MAPQ calculator
 				true);   // get lock?
 		}
@@ -1194,6 +1200,7 @@ void AlnSinkWrap::finishRead(
 				ssm2,
 				&flags2, // flags 1
 				NULL,    // flags 2
+				prm,
 				mapq_,   // MAPQ calculator
 				true);   // get lock?
 		}
@@ -1650,6 +1657,7 @@ void AlnSinkVerbose::appendMate(
 	const SeedAlSumm& ssm,
 	const SeedAlSumm& ssmo,
 	const AlnFlags& flags,
+	const PerReadMetrics& prm,
 	const Mapq& mapqCalc)
 {
 	if(rs == NULL && !printPlaceholders_) return;
@@ -1938,6 +1946,7 @@ void AlnSinkSam::appendMate(
 	const SeedAlSumm& ssm,
 	const SeedAlSumm& ssmo,
 	const AlnFlags& flags,
+	const PerReadMetrics& prm,
 	const Mapq& mapqCalc)
 {
 	char buf[1024];
@@ -2118,22 +2127,24 @@ void AlnSinkSam::appendMate(
 	//
 	if(rs != NULL) {
 		samc_.printAlignedOptFlags(
-			o,      // output buffer
-			true,   // first opt flag printed is first overall?
-			rd,     // read
-			*rs,    // individual alignment result
-			flags,  // alignment flags
-			summ,   // summary of alignments for this read
-			ssm,    // seed alignment summary
+			o,           // output buffer
+			true,        // first opt flag printed is first overall?
+			rd,          // read
+			*rs,         // individual alignment result
+			flags,       // alignment flags
+			summ,        // summary of alignments for this read
+			ssm,         // seed alignment summary
+			prm,         // per-read metrics
 			mapqInps_);  // inputs to MAPQ calculation
 	} else {
 		samc_.printEmptyOptFlags(
-			o,      // output buffer
-			true,   // first opt flag printed is first overall?
-			rd,     // read
-			flags,  // alignment flags
-			summ,   // summary of alignments for this read
-			ssm);   // seed alignment summary
+			o,           // output buffer
+			true,        // first opt flag printed is first overall?
+			rd,          // read
+			flags,       // alignment flags
+			summ,        // summary of alignments for this read
+			ssm,         // seed alignment summary
+			prm);        // per-read metrics
 	}
 	o.write('\n');
 }

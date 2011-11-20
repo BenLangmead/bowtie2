@@ -110,6 +110,7 @@ struct SwMetrics {
 		rshit = ungapsucc = ungapfail = ungapnodec = 0;
 		exatts = exranges = exrows = exsucc = exooms = 0;
 		mm1atts = mm1ranges = mm1rows = mm1succ = mm1ooms = 0;
+		sdatts = sdranges = sdrows = sdsucc = sdooms = 0;
 	}
 	
 	void init(
@@ -137,7 +138,12 @@ struct SwMetrics {
 		uint64_t mm1ranges_,
 		uint64_t mm1rows_,
 		uint64_t mm1succ_,
-		uint64_t mm1ooms_)
+		uint64_t mm1ooms_,
+		uint64_t sdatts_,
+		uint64_t sdranges_,
+		uint64_t sdrows_,
+		uint64_t sdsucc_,
+		uint64_t sdooms_)
 	{
 		sws        = sws_;
 		sws10      = sws10_;
@@ -153,16 +159,27 @@ struct SwMetrics {
 		ungapsucc  = ungapsucc_;
 		ungapfail  = ungapfail_;
 		ungapnodec = ungapnodec_;
+		
+		// Exact end-to-end attempts
 		exatts     = exatts_;
 		exranges   = exranges_;
 		exrows     = exrows_;
 		exsucc     = exsucc_;
 		exooms     = exooms_;
+
+		// 1-mismatch end-to-end attempts
 		mm1atts    = mm1atts_;
 		mm1ranges  = mm1ranges_;
 		mm1rows    = mm1rows_;
 		mm1succ    = mm1succ_;
 		mm1ooms    = mm1ooms_;
+		
+		// Seed attempts
+		sdatts     = sdatts_;
+		sdranges   = sdranges_;
+		sdrows     = sdrows_;
+		sdsucc     = sdsucc_;
+		sdooms     = sdooms_;
 	}
 	
 	/**
@@ -212,6 +229,11 @@ struct SwMetrics {
 		mm1rows    += r.mm1rows;
 		mm1succ    += r.mm1succ;
 		mm1ooms    += r.mm1ooms;
+		sdatts     += r.sdatts;
+		sdranges   += r.sdranges;
+		sdrows     += r.sdrows;
+		sdsucc     += r.sdsucc;
+		sdooms     += r.sdooms;
 	}
 	
 	void tallyGappedDp(size_t readGaps, size_t refGaps) {
@@ -248,6 +270,12 @@ struct SwMetrics {
 	uint64_t mm1rows;    // total # rows returned by 1mm-hit queries
 	uint64_t mm1succ;    // 1mm-hit yielded non-empty result
 	uint64_t mm1ooms;    // 1mm-hit offset memory exhausted
+
+	uint64_t sdatts;     // total # attempts to find seed alignments
+	uint64_t sdranges;   // total # seed-alignment ranges found
+	uint64_t sdrows;     // total # seed-alignment rows found
+	uint64_t sdsucc;     // # times seed alignment yielded >= 1 hit
+	uint64_t sdooms;     // # times an OOM occurred during seed alignment
 	
 	MUTEX_T lock;
 };

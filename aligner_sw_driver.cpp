@@ -55,50 +55,6 @@
 
 using namespace std;
 
-void SwDriver::resolveAll(
-	SeedResults& sh,             // seed hits to extend into full alignments
-	const Ebwt& ebwt,            // BWT
-	const BitPairReference& ref, // Reference strings
-	AlignmentCacheIface& ca,     // alignment cache for seed hits
-	RandomSource& rnd,           // pseudo-random generator
-	WalkMetrics& wlm,            // group walk left metrics
-	size_t& nelt_out)            // out: # elements total
-{
-	const size_t nonz = sh.nonzeroOffsets(); // non-zero positions
-	gws_.clear();
-	satpos_.clear();
-	for(size_t i = 0; i < nonz; i++) {
-		satups_.clear();
-		bool fw = true;
-		uint32_t offidx = 0, rdoff = 0, seedlen = 0;
-		QVal qv = sh.hitsByRank(i, offidx, rdoff, fw, seedlen);
-		assert(qv.valid());
-		assert(!qv.empty());
-		assert(qv.repOk(ca.current()));
-		size_t nrange = 0;
-		ca.queryQval(qv, satups_, nrange, nelt_out);
-		for(size_t j = 0; j < satups_.size(); j++) {
-			satpos_.expand();
-			satpos_.back().sat = satups_[j];
-			satpos_.back().origSz = satups_[j].size();
-			satpos_.back().pos.init(fw, offidx, rdoff, seedlen);
-			gws_.expand();
-			gws_.back().init(
-				ebwt,               // forward Bowtie index
-				ref,                // reference sequences
-				satpos_.back().sat, // SA tuples: ref hit, salist range
-				NULL,               // Combiner for resolvers
-				rnd,                // pseudo-random generator
-				wlm);               // metrics
-			TIMER_START();
-			gws_.back().resolveAll(wlm);
-			IF_TIMER_END() {
-				cerr << "Saw a long resolveAll (" << total_usecs << ")" << endl;
-			}
-		}
-	}
-}
-
 /**
  * Given end-to-end alignment results stored in the SeedResults structure, set
  * up all of our state for resolving and keeping track of reference offsets for
@@ -490,6 +446,7 @@ int SwDriver::extendSeeds(
 	RandomSource& rnd,           // pseudo-random source
 	WalkMetrics& wlm,            // group walk left metrics
 	SwMetrics& swmSeed,          // DP metrics for seed-extend
+	PerReadMetrics& prm,         // per-read metrics
 	AlnSinkWrap* msink,          // AlnSink wrapper for multiseed-style aligner
 	bool reportImmediately,      // whether to report hits immediately to msink
 	bool& exhaustive)            // set to true iff we searched all seeds exhaustively
@@ -600,22 +557,22 @@ int SwDriver::extendSeeds(
 				} else if(eeMode && eehits_[i].score < minsc) {
 					break;
 				}
-				if(rd.nExDps >= maxDp || rd.nMateDps >= maxDp) {
+				if(prm.nExDps >= maxDp || prm.nMateDps >= maxDp) {
 					return EXTEND_EXCEEDED_LIMIT;
 				}
-				if(rd.nExUngaps >= maxUg || rd.nMateUngaps >= maxUg) {
+				if(prm.nExUngaps >= maxUg || prm.nMateUngaps >= maxUg) {
 					return EXTEND_EXCEEDED_LIMIT;
 				}
-				if(rd.nExIters >= maxIters) {
+				if(prm.nExIters >= maxIters) {
 					return EXTEND_EXCEEDED_LIMIT;
 				}
-				rd.nExIters++;
+				prm.nExIters++;
 				first = false;
 				assert(!gws_[i].done());
 				// Resolve next element offset
 				WalkResult wr;
 				uint32_t elt = rands_[i].next(rnd);
-				gws_[i].advanceElement(elt, wr, wlm);
+				gws_[i].advanceElement(elt, wr, wlm, prm);
 				eltsDone++;
 				if(!eeMode) {
 					assert_gt(neltLeft, 0);
@@ -652,7 +609,7 @@ int SwDriver::extendSeeds(
 				Coord refcoord(tidx, refoff, fw);
 				if(seenDiags1_.locusPresent(refcoord)) {
 					// Already handled alignments seeded on this diagonal
-					rd.nRedundants++;
+					prm.nRedundants++;
 					swmSeed.rshit++;
 					continue;
 				}
@@ -722,26 +679,26 @@ int SwDriver::extendSeeds(
 						resUngap_);
 					Interval refival(refcoord, 1);
 					seenDiags1_.add(refival);
-					rd.nExUngaps++;
+					prm.nExUngaps++;
 					if(al == 0) {
-						rd.nUgFail++;
-						if(rd.nUgFail > maxUgStreak) {
+						prm.nUgFail++;
+						if(prm.nUgFail > maxUgStreak) {
 							return EXTEND_EXCEEDED_LIMIT;
 						}
 						swmSeed.ungapfail++;
 						continue;
 					} else if(al == -1) {
-						rd.nUgFail++; // count this as failure
-						if(rd.nUgFail > maxUgStreak) {
+						prm.nUgFail++; // count this as failure
+						if(prm.nUgFail > maxUgStreak) {
 							return EXTEND_EXCEEDED_LIMIT;
 						}
 						swmSeed.ungapnodec++;
 					} else {
-						rd.nUgLastSucc = rd.nExUngaps-1;
-						if(rd.nUgFail > rd.nUgFailStreak) {
-							rd.nUgFailStreak = rd.nUgFail;
+						prm.nUgLastSucc = prm.nExUngaps-1;
+						if(prm.nUgFail > prm.nUgFailStreak) {
+							prm.nUgFailStreak = prm.nUgFail;
 						}
-						rd.nUgFail = 0;
+						prm.nUgFail = 0;
 						found = true;
 						state = FOUND_UNGAPPED;
 						swmSeed.ungapsucc++;
@@ -853,19 +810,19 @@ int SwDriver::extendSeeds(
 					// there is at least one valid alignment
 					found = swa.align(rnd);
 					swmSeed.tallyGappedDp(readGaps, refGaps);
-					rd.nExDps++;
+					prm.nExDps++;
 					if(!found) {
-						rd.nDpFail++;
-						if(rd.nDpFail > maxDpStreak) {
+						prm.nDpFail++;
+						if(prm.nDpFail > maxDpStreak) {
 							return EXTEND_EXCEEDED_LIMIT;
 						}
 						continue; // Look for more anchor alignments
 					} else {
-						rd.nDpLastSucc = rd.nExDps-1;
-						if(rd.nDpFail > rd.nDpFailStreak) {
-							rd.nDpFailStreak = rd.nDpFail;
+						prm.nDpLastSucc = prm.nExDps-1;
+						if(prm.nDpFail > prm.nDpFailStreak) {
+							prm.nDpFailStreak = prm.nDpFail;
 						}
-						rd.nDpFail = 0;
+						prm.nDpFail = 0;
 					}
 				}
 				bool firstInner = true;
@@ -1124,6 +1081,7 @@ int SwDriver::extendSeedsPaired(
 	WalkMetrics& wlm,            // group walk left metrics
 	SwMetrics& swmSeed,          // DP metrics for seed-extend
 	SwMetrics& swmMate,          // DP metrics for mate finidng
+	PerReadMetrics& prm,         // per-read metrics
 	AlnSinkWrap* msink,          // AlnSink wrapper for multiseed-style aligner
 	bool swMateImmediately,      // whether to look for mate immediately
 	bool reportImmediately,      // whether to report hits immediately to msink
@@ -1269,22 +1227,22 @@ int SwDriver::extendSeedsPaired(
 				} else if(eeMode && eehits_[i].score < minsc) {
 					break;
 				}
-				if(rd.nExDps >= maxDp || rd.nMateDps >= maxDp) {
+				if(prm.nExDps >= maxDp || prm.nMateDps >= maxDp) {
 					return EXTEND_EXCEEDED_LIMIT;
 				}
-				if(rd.nExUngaps >= maxUg || rd.nMateUngaps >= maxUg) {
+				if(prm.nExUngaps >= maxUg || prm.nMateUngaps >= maxUg) {
 					return EXTEND_EXCEEDED_LIMIT;
 				}
-				if(rd.nExIters >= maxIters) {
+				if(prm.nExIters >= maxIters) {
 					return EXTEND_EXCEEDED_LIMIT;
 				}
-				rd.nExIters++;
+				prm.nExIters++;
 				first = false;
 				assert(!gws_[i].done());
 				// Resolve next element offset
 				WalkResult wr;
 				uint32_t elt = rands_[i].next(rnd);
-				gws_[i].advanceElement(elt, wr, wlm);
+				gws_[i].advanceElement(elt, wr, wlm, prm);
 				eltsDone++;
 				assert_gt(neltLeft, 0);
 				neltLeft--;
@@ -1320,7 +1278,7 @@ int SwDriver::extendSeedsPaired(
 				Coord refcoord(tidx, refoff, fw);
 				if(seenDiags.locusPresent(refcoord)) {
 					// Already handled alignments seeded on this diagonal
-					rd.nRedundants++;
+					prm.nRedundants++;
 					swmSeed.rshit++;
 					continue;
 				}
@@ -1390,26 +1348,26 @@ int SwDriver::extendSeedsPaired(
 						resUngap_);
 					Interval refival(refcoord, 1);
 					seenDiags.add(refival);
-					rd.nExUngaps++;
+					prm.nExUngaps++;
 					if(al == 0) {
-						rd.nUgFail++;
-						if(rd.nUgFail > maxUgStreak) {
+						prm.nUgFail++;
+						if(prm.nUgFail > maxUgStreak) {
 							return EXTEND_EXCEEDED_LIMIT;
 						}
 						swmSeed.ungapfail++;
 						continue;
 					} else if(al == -1) {
-						rd.nUgFail++; // count this as failure
-						if(rd.nUgFail > maxUgStreak) {
+						prm.nUgFail++; // count this as failure
+						if(prm.nUgFail > maxUgStreak) {
 							return EXTEND_EXCEEDED_LIMIT;
 						}
 						swmSeed.ungapnodec++;
 					} else {
-						rd.nUgLastSucc = rd.nExUngaps-1;
-						if(rd.nUgFail > rd.nUgFailStreak) {
-							rd.nUgFailStreak = rd.nUgFail;
+						prm.nUgLastSucc = prm.nExUngaps-1;
+						if(prm.nUgFail > prm.nUgFailStreak) {
+							prm.nUgFailStreak = prm.nUgFail;
 						}
-						rd.nUgFail = 0;
+						prm.nUgFail = 0;
 						found = true;
 						state = FOUND_UNGAPPED;
 						swmSeed.ungapsucc++;
@@ -1521,19 +1479,19 @@ int SwDriver::extendSeedsPaired(
 					// there is at least one valid alignment
 					found = swa.align(rnd);
 					swmSeed.tallyGappedDp(readGaps, refGaps);
-					rd.nExDps++;
+					prm.nExDps++;
 					if(!found) {
-						rd.nDpFail++;
-						if(rd.nDpFail > maxDpStreak) {
+						prm.nDpFail++;
+						if(prm.nDpFail > maxDpStreak) {
 							return EXTEND_EXCEEDED_LIMIT;
 						}
 						continue; // Look for more anchor alignments
 					} else {
-						rd.nDpLastSucc = rd.nExDps-1;
-						if(rd.nDpFail > rd.nDpFailStreak) {
-							rd.nDpFailStreak = rd.nDpFail;
+						prm.nDpLastSucc = prm.nExDps-1;
+						if(prm.nDpFail > prm.nDpFailStreak) {
+							prm.nDpFailStreak = prm.nDpFail;
 						}
-						rd.nDpFail = 0;
+						prm.nDpFail = 0;
 					}
 				}
 				bool firstInner = true;
@@ -1748,7 +1706,7 @@ int SwDriver::extendSeedsPaired(
 							// Now fill the dynamic programming matrix, return true
 							// iff there is at least one valid alignment
 							foundMate = oswa.align(rnd);
-							ord.nMateDps++;
+							prm.nMateDps++;
 							swmMate.tallyGappedDp(oreadGaps, orefGaps);
 						}
 						bool didAnchor = false;

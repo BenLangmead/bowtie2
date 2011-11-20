@@ -489,7 +489,8 @@ void SeedAligner::searchAllSeeds(
 	const Scoring& pens,         // scoring scheme
 	AlignmentCacheIface& cache,  // local cache for seed alignments
 	SeedResults& sr,             // holds all the seed hits
-	SeedSearchMetrics& met)      // metrics
+	SeedSearchMetrics& met,      // metrics
+	PerReadMetrics& prm)         // per-read metrics
 {
 	assert(!seeds.empty());
 	assert(ebwtFw != NULL);
@@ -562,6 +563,7 @@ void SeedAligner::searchAllSeeds(
 			}
 		}
 	}
+	prm.nSdFmops += bwops_;
 	met.seedsearch += seedsearches;
 	met.possearch += possearches;
 	met.intrahit += intrahits;

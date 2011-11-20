@@ -650,18 +650,19 @@ public:
 	 * already grabbed the appropriate lock.
 	 */
 	virtual void append(
-		OutFileBuf&        o,
-		const Read        *rd1,
-		const Read        *rd2,
-		const TReadId      rdid,
-		const AlnRes      *rs1,
-		const AlnRes      *rs2,
-		const AlnSetSumm&  summ,
-		const SeedAlSumm&  ssm1,
-		const SeedAlSumm&  ssm2,
-		const AlnFlags*    flags1,
-		const AlnFlags*    flags2,
-		const Mapq&        mapq) = 0;
+		OutFileBuf&           o,
+		const Read           *rd1,
+		const Read           *rd2,
+		const TReadId         rdid,
+		const AlnRes         *rs1,
+		const AlnRes         *rs2,
+		const AlnSetSumm&     summ,
+		const SeedAlSumm&     ssm1,
+		const SeedAlSumm&     ssm2,
+		const AlnFlags*       flags1,
+		const AlnFlags*       flags2,
+		const PerReadMetrics& prm,
+		const Mapq&           mapq) = 0;
 
 	/**
 	 * Report a given batch of hits for the given read pair.  Should be
@@ -674,20 +675,21 @@ public:
 	 * convey this.
 	 */
 	virtual void reportHits(
-		const Read          *rd1,            // mate #1
-		const Read          *rd2,            // mate #2
-		const TReadId        rdid,           // read ID
-		const EList<size_t>& select,         // random subset
-		const EList<AlnRes> *rs1,            // alignments for mate #1
-		const EList<AlnRes> *rs2,            // alignments for mate #2
-		bool                 maxed,          // true iff -m/-M exceeded
-		const AlnSetSumm&    summ,           // summary
-		const SeedAlSumm&    ssm1,           // seed alignment summ
-		const SeedAlSumm&    ssm2,           // seed alignment summ
-		const AlnFlags*      flags1,         // flags for mate #1
-		const AlnFlags*      flags2,         // flags for mate #2
-		const Mapq&          mapq,           // MAPQ generator
-		bool                 getLock = true) // true iff lock held by caller
+		const Read           *rd1,            // mate #1
+		const Read           *rd2,            // mate #2
+		const TReadId         rdid,           // read ID
+		const EList<size_t>&  select,         // random subset
+		const EList<AlnRes>  *rs1,            // alignments for mate #1
+		const EList<AlnRes>  *rs2,            // alignments for mate #2
+		bool                  maxed,          // true iff -m/-M exceeded
+		const AlnSetSumm&     summ,           // summary
+		const SeedAlSumm&     ssm1,           // seed alignment summ
+		const SeedAlSumm&     ssm2,           // seed alignment summ
+		const AlnFlags*       flags1,         // flags for mate #1
+		const AlnFlags*       flags2,         // flags for mate #2
+		const PerReadMetrics& prm,            // per-read metrics
+		const Mapq&           mapq,           // MAPQ generator
+		bool                  getLock = true) // true iff lock held by caller
 	{
 		assert(rd1 != NULL || rd2 != NULL);
 		assert(rs1 != NULL || rs2 != NULL);
@@ -718,7 +720,7 @@ public:
 				const AlnRes* r2 = ((rs2 != NULL) ? &rs2->get(select[i]) : NULL);
 				assert_lt(sid, locks_.size());
 				{
-					append(out(sid), rd1, rd2, rdid, r1, r2, summ, ssm1, ssm2, flags1, flags2, mapq);
+					append(out(sid), rd1, rd2, rdid, r1, r2, summ, ssm1, ssm2, flags1, flags2, prm, mapq);
 				}
 				if(flags1 != NULL) {
 					flagscp1.setPrimary(false);
@@ -735,22 +737,23 @@ public:
 	 * want to print a placeholder when output is chained.
 	 */
 	virtual void reportUnaligned(
-		const Read          *rd1,            // mate #1
-		const Read          *rd2,            // mate #2
-		const TReadId        rdid,           // read ID
-		const AlnSetSumm&    summ,           // summary
-		const SeedAlSumm&    ssm1,           // seed alignment summary
-		const SeedAlSumm&    ssm2,           // seed alignment summary
-		const AlnFlags*      flags1,         // flags for mate #1
-		const AlnFlags*      flags2,         // flags for mate #2
-		const Mapq&          mapq,
-		bool                 getLock = true) // true iff lock held by caller
+		const Read           *rd1,            // mate #1
+		const Read           *rd2,            // mate #2
+		const TReadId         rdid,           // read ID
+		const AlnSetSumm&     summ,           // summary
+		const SeedAlSumm&     ssm1,           // seed alignment summary
+		const SeedAlSumm&     ssm2,           // seed alignment summary
+		const AlnFlags*       flags1,         // flags for mate #1
+		const AlnFlags*       flags2,         // flags for mate #2
+		const PerReadMetrics& prm,            // per-read metrics
+		const Mapq&           mapq,           // MAPQ calculator
+		bool                  getLock = true) // true iff lock held by caller
 	{
 		Coord c(0, 0, true);
 		size_t sid = streamId(rdid, c);
 		assert_lt(sid, locks_.size());
 		ThreadSafe ts(&locks_[sid], getLock);
-		append(out(sid), rd1, rd2, rdid, NULL, NULL, summ, ssm1, ssm2, flags1, flags2, mapq);
+		append(out(sid), rd1, rd2, rdid, NULL, NULL, summ, ssm1, ssm2, flags1, flags2, prm, mapq);
 	}
 
 	/**
@@ -1063,21 +1066,22 @@ public:
 	 * to the appropriate output stream.
 	 */
 	void finishRead(
-		const SeedResults *sr1,         //
-		const SeedResults *sr2,         //
-		bool               exhaust1,    //
-		bool               exhaust2,    //
-		bool               nfilt1,      //
-		bool               nfilt2,      //
-		bool               scfilt1,     //
-		bool               scfilt2,     //
-		bool               lenfilt1,    //
-		bool               lenfilt2,    //
-		bool               qcfilt1,     //
-		bool               qcfilt2,     //
+		const SeedResults *sr1,         // seed alignment results for mate 1
+		const SeedResults *sr2,         // seed alignment results for mate 2
+		bool               exhaust1,    // mate 1 exhausted?
+		bool               exhaust2,    // mate 2 exhausted?
+		bool               nfilt1,      // mate 1 N-filtered?
+		bool               nfilt2,      // mate 2 N-filtered?
+		bool               scfilt1,     // mate 1 score-filtered?
+		bool               scfilt2,     // mate 2 score-filtered?
+		bool               lenfilt1,    // mate 1 length-filtered?
+		bool               lenfilt2,    // mate 2 length-filtered?
+		bool               qcfilt1,     // mate 1 qc-filtered?
+		bool               qcfilt2,     // mate 2 qc-filtered?
 		bool               sortByScore, // prioritize alignments by score
-		RandomSource&      rnd,         //
-		ReportingMetrics&  met,         //
+		RandomSource&      rnd,         // pseudo-random generator
+		ReportingMetrics&  met,         // reporting metrics
+		const PerReadMetrics& prm,      // per-read metrics
 		bool suppressSeedSummary = true,
 		bool suppressAlignments = false);
 	
@@ -1350,25 +1354,26 @@ public:
 	 * then mate2's alignment.
 	 */
 	virtual void append(
-		OutFileBuf&   o,        // file buffer to write to
-		const Read*   rd1,      // mate #1
-		const Read*   rd2,      // mate #2
-		const TReadId rdid,     // read ID
-		const AlnRes* rs1,      // alignments for mate #1
-		const AlnRes* rs2,      // alignments for mate #2
-		const AlnSetSumm& summ, // summary
-		const SeedAlSumm& ssm1, // seed alignment summary
-		const SeedAlSumm& ssm2, // seed alignment summary
-		const AlnFlags* flags1, // flags for mate #1
-		const AlnFlags* flags2, // flags for mate #2
-		const Mapq&   mapq)
+		OutFileBuf&   o,           // file buffer to write to
+		const Read*   rd1,         // mate #1
+		const Read*   rd2,         // mate #2
+		const TReadId rdid,        // read ID
+		const AlnRes* rs1,         // alignments for mate #1
+		const AlnRes* rs2,         // alignments for mate #2
+		const AlnSetSumm& summ,    // summary
+		const SeedAlSumm& ssm1,    // seed alignment summary
+		const SeedAlSumm& ssm2,    // seed alignment summary
+		const AlnFlags* flags1,    // flags for mate #1
+		const AlnFlags* flags2,    // flags for mate #2
+		const PerReadMetrics& prm, // per-read metrics
+		const Mapq&   mapq)        // MAPQ calculator
 	{
 		assert(rd1 != NULL || rd2 != NULL);
 		if(rd1 != NULL) {
-			appendMate(o, *rd1, rd2, rdid, rs1, rs2, summ, ssm1, ssm2, *flags1, mapq);
+			appendMate(o, *rd1, rd2, rdid, rs1, rs2, summ, ssm1, ssm2, *flags1, prm, mapq);
 		}
 		if(rd2 != NULL) {
-			appendMate(o, *rd2, rd1, rdid, rs2, rs1, summ, ssm2, ssm1, *flags2, mapq);
+			appendMate(o, *rd2, rd1, rdid, rs2, rs1, summ, ssm2, ssm1, *flags2, prm, mapq);
 		}
 	}
 
@@ -1390,6 +1395,7 @@ protected:
 		const SeedAlSumm& ssm,
 		const SeedAlSumm& ssmo,
 		const AlnFlags& flags,
+		const PerReadMetrics& prm, // per-read metrics
 		const Mapq& mapq);
 
 	const EList<bool>& suppress_; // bit mask of columns to suppress
@@ -1456,16 +1462,17 @@ public:
 		const SeedAlSumm& ssm2, // seed alignment summary
 		const AlnFlags* flags1, // flags for mate #1
 		const AlnFlags* flags2, // flags for mate #2
+		const PerReadMetrics& prm, // per-read metrics
 		const Mapq&   mapq)
 	{
 		assert(rd1 != NULL || rd2 != NULL);
 		if(rd1 != NULL) {
 			assert(flags1 != NULL);
-			appendMate(o, *rd1, rd2, rdid, rs1, rs2, summ, ssm1, ssm2, *flags1, mapq);
+			appendMate(o, *rd1, rd2, rdid, rs1, rs2, summ, ssm1, ssm2, *flags1, prm, mapq);
 		}
 		if(rd2 != NULL) {
 			assert(flags2 != NULL);
-			appendMate(o, *rd2, rd1, rdid, rs2, rs1, summ, ssm2, ssm1, *flags2, mapq);
+			appendMate(o, *rd2, rd1, rdid, rs2, rs1, summ, ssm2, ssm1, *flags2, prm, mapq);
 		}
 	}
 
@@ -1487,6 +1494,7 @@ protected:
 		const SeedAlSumm& ssm,
 		const SeedAlSumm& ssmo,
 		const AlnFlags& flags,
+		const PerReadMetrics& prm, // per-read metrics
 		const Mapq&   mapq);
 
 	const SamConfig& samc_;    // settings & routines for SAM output
