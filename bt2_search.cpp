@@ -3028,7 +3028,7 @@ static void* multiseedSearchWorker(void *vp) {
 							done[mate] = true;
 						} else if(ret == EXTEND_EXCEEDED_LIMIT) {
 							// We exceeded a per-read limit
-							done[0] = done[1] = true;
+							done[mate] = true;
 						} else {
 							//
 							cerr << "Bad return value: " << ret << endl;
@@ -3203,7 +3203,7 @@ static void* multiseedSearchWorker(void *vp) {
 							done[mate] = true;
 						} else if(ret == EXTEND_EXCEEDED_LIMIT) {
 							// We exceeded a per-read limit
-							done[0] = done[1] = true;
+							done[mate] = true;
 						} else {
 							//
 							cerr << "Bad return value: " << ret << endl;
@@ -3449,7 +3449,7 @@ static void* multiseedSearchWorker(void *vp) {
 							done[mate] = true;
 						} else if(ret == EXTEND_EXCEEDED_LIMIT) {
 							// We exceeded a per-read limit
-							done[0] = done[1] = true;
+							done[mate] = true;
 						} else {
 							//
 							cerr << "Bad return value: " << ret << endl;
