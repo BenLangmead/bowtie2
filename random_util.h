@@ -76,6 +76,8 @@ public:
 	
 	bool inited() { return n_ > 0; }
 	
+	void setDone() { cur_ = n_; }
+	
 	bool done() { return inited() && cur_ >= n_; }
 
 	size_t size() const { return n_; }

@@ -380,12 +380,12 @@ void SamConfig::printAlignedOptFlags(
 	if(print_xu_) {
 		// XU:i: Extend ungapped tries
 		WRITE_SEP();
-		itoa10<uint64_t>(prm.nExUngaps, buf);
+		itoa10<uint64_t>(prm.nExUgs, buf);
 		o.writeChars("XU:i:");
 		o.writeChars(buf);
 		// Xu:i: Mate ungapped tries
 		WRITE_SEP();
-		itoa10<uint64_t>(prm.nMateUngaps, buf);
+		itoa10<uint64_t>(prm.nMateUgs, buf);
 		o.writeChars("Xu:i:");
 		o.writeChars(buf);
 	}
@@ -605,12 +605,12 @@ void SamConfig::printEmptyOptFlags(
 	if(print_xu_) {
 		// XU:i: Extend ungapped tries
 		WRITE_SEP();
-		itoa10<uint64_t>(prm.nExUngaps, buf);
+		itoa10<uint64_t>(prm.nExUgs, buf);
 		o.writeChars("XU:i:");
 		o.writeChars(buf);
 		// Xu:i: Mate ungapped tries
 		WRITE_SEP();
-		itoa10<uint64_t>(prm.nMateUngaps, buf);
+		itoa10<uint64_t>(prm.nMateUgs, buf);
 		o.writeChars("Xu:i:");
 		o.writeChars(buf);
 	}

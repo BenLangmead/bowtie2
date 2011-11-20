@@ -133,6 +133,7 @@ enum {
 	ARG_SEED_BOOST_LEN_MULT,    // --seed-boost-len-mult
 	ARG_READ_TIMES,             // --read-times
 	ARG_EXTEND_ITERS,           // --extends
+	ARG_DP_MATE_STREAK_THRESH,  // --db-mate-streak
 	ARG_DP_FAIL_STREAK_THRESH,  // --dp-fail-streak
 	ARG_UG_FAIL_STREAK_THRESH,  // --ug-fail-streak
 	ARG_DP_FAIL_THRESH,         // --dp-fails
