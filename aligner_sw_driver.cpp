@@ -1959,7 +1959,6 @@ int SwDriver::extendSeedsPaired(
 							if(state == FOUND_UNGAPPED) {
 								assert_gt(prm.nUgFail, 0);
 								assert_gt(prm.nExUgFails, 0);
-								prm.nUgFail--;
 								prm.nExUgFails--;
 								prm.nExUgSuccs++;
 								prm.nUgLastSucc = prm.nExUgs-1;
@@ -1970,7 +1969,6 @@ int SwDriver::extendSeedsPaired(
 							} else if(state == FOUND_EE) {
 								assert_gt(prm.nEeFail, 0);
 								assert_gt(prm.nExEeFails, 0);
-								prm.nEeFail--;
 								prm.nExEeFails--;
 								prm.nExEeSuccs++;
 								prm.nEeLastSucc = prm.nExEes-1;
@@ -1981,7 +1979,6 @@ int SwDriver::extendSeedsPaired(
 							} else {
 								assert_gt(prm.nDpFail, 0);
 								assert_gt(prm.nExDpFails, 0);
-								prm.nDpFail--;
 								prm.nExDpFails--;
 								prm.nExDpSuccs++;
 								prm.nDpLastSucc = prm.nExDps-1;
