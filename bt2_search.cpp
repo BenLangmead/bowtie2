@@ -200,6 +200,7 @@ static size_t ungappedThresh;// all attempts after this many are ungapped
 static size_t maxIters;      // stop after this many extend loop iterations
 static size_t maxUg;         // stop after this many ungap extends
 static size_t maxDp;         // stop after this many DPs
+static size_t maxEeStreak;   // stop after this many end-to-end fails in a row
 static size_t maxUgStreak;   // stop after this many ungap fails in a row
 static size_t maxDpStreak;   // stop after this many dp fails in a row
 static size_t maxMateStreak; // stop seed range after this many mate-find fails
@@ -372,9 +373,10 @@ static void resetOptions() {
 	maxIters           = 400;   // max iterations of extend loop
 	maxUg              = 300;   // stop after this many ungap extends
 	maxDp              = 300;   // stop after this many dp extends
+	maxEeStreak        = 30;    // stop after this many end-to-end fails in a row
 	maxUgStreak        = 30;    // stop after this many ungap fails in a row
 	maxDpStreak        = 20;    // stop after this many dp fails in a row
-	maxMateStreak      = 8;     // in PE: abort seed range after N mate-find fails
+	maxMateStreak      = 9999;  // in PE: abort seed range after N mate-find fails
 	enable8            = true;  // use 8-bit SSE where possible?
 	refscan            = false; // use reference scanning?
 	defaultPreset      = "sensitive%LOCAL%"; // default preset; applied immediately
@@ -552,6 +554,7 @@ static struct option long_options[] = {
 	{(char*)"seed-boost-len-mult",  required_argument, 0,    ARG_SEED_BOOST_LEN_MULT},
 	{(char*)"read-times",       no_argument,       0,        ARG_READ_TIMES},
 	{(char*)"dp-fail-streak",   required_argument, 0,        ARG_DP_FAIL_STREAK_THRESH},
+	{(char*)"ee-fail-streak",   required_argument, 0,        ARG_EE_FAIL_STREAK_THRESH},
 	{(char*)"ug-fail-streak",   required_argument, 0,        ARG_UG_FAIL_STREAK_THRESH},
 	{(char*)"dp-fails",         required_argument, 0,        ARG_DP_FAIL_THRESH},
 	{(char*)"ug-fails",         required_argument, 0,        ARG_UG_FAIL_THRESH},
@@ -985,6 +988,10 @@ static void parseOption(int next_option, const char *arg) {
 		}
 		case ARG_DP_FAIL_STREAK_THRESH: {
 			maxDpStreak = parse<size_t>(arg);
+			break;
+		}
+		case ARG_EE_FAIL_STREAK_THRESH: {
+			maxEeStreak = parse<size_t>(arg);
 			break;
 		}
 		case ARG_UG_FAIL_STREAK_THRESH: {
@@ -2865,11 +2872,12 @@ static void* multiseedSearchWorker(void *vp) {
 						olm.ubases += rdlens[mate]; // bases passing filter
 					}
 				}
+				size_t eePeEeltLimit = 50;
 				// Whether we're done with mate1 / mate2
-				bool done[2] = { false, false };
+				bool done[2] = { !filt[0], !filt[1] };
+				size_t nelt[2] = {0, 0};
 				// Find end-to-end exact alignments for each read
 				if(doExactUpFront) {
-					size_t nelt[2] = {0, 0};
 					for(size_t matei = 0; matei < (pair ? 2:1); matei++) {
 						size_t mate = matemap[matei];
 						if(!filt[mate] || done[mate] || msinkwrap.state().doneWithMate(mate == 0)) {
@@ -2906,10 +2914,12 @@ static void* multiseedSearchWorker(void *vp) {
 					}
 					for(size_t matei = 0; matei < (seedSumm ? 0:2); matei++) {
 						size_t mate = matemap[matei];
-						if(nelt[mate] == 0) {
+						if(nelt[mate] == 0 || nelt[mate] > eePeEeltLimit) {
+							shs[mate].clearExactE2eHits();
 							continue;
 						}
 						if(msinkwrap.state().doneWithMate(mate == 0)) {
+							shs[mate].clearExactE2eHits();
 							done[mate] = true;
 							continue;
 						}
@@ -2951,6 +2961,7 @@ static void* multiseedSearchWorker(void *vp) {
 								maxIters,       // max extend loop iters
 								maxUg,          // max # ungapped extends
 								maxDp,          // max # DPs
+								maxEeStreak,    // stop after streak of this many end-to-end fails
 								maxUgStreak,    // stop after streak of this many ungap fails
 								maxDpStreak,    // stop after streak of this many dp fails
 								maxMateStreak,  // max mate fails per seed range
@@ -3044,14 +3055,18 @@ static void* multiseedSearchWorker(void *vp) {
 				}
 				// 1-mismatch
 				if(do1mmUpFront && !seedSumm) {
-					size_t nelt[2] = { 0, 0 };
 					for(size_t matei = 0; matei < (pair ? 2:1); matei++) {
 						size_t mate = matemap[matei];
-						if(!filt[mate] || done[mate] || msinkwrap.state().doneWithMate(mate == 0)) {
+						if(!filt[mate] || done[mate] ||
+						   nelt[mate] == 0 ||
+						   nelt[mate] > eePeEeltLimit)
+						{
 							// Done with this mate
-							done[mate] = true;
+							shs[mate].clear1mmE2eHits();
+							nelt[mate] = 0;
 							continue;
 						}
+						nelt[mate] = 0;
 						assert(!msinkwrap.maxed());
 						assert(msinkwrap.repOk());
 						rnd.init(ROTL(rds[mate]->seed, 10));
@@ -3086,7 +3101,7 @@ static void* multiseedSearchWorker(void *vp) {
 					}
 					for(size_t matei = 0; matei < (seedSumm ? 0:2); matei++) {
 						size_t mate = matemap[matei];
-						if(nelt[mate] == 0) {
+						if(nelt[mate] == 0 || nelt[mate] > eePeEeltLimit) {
 							continue;
 						}
 						if(msinkwrap.state().doneWithMate(mate == 0)) {
@@ -3126,6 +3141,7 @@ static void* multiseedSearchWorker(void *vp) {
 								maxIters,       // max extend loop iters
 								maxUg,          // max # ungapped extends
 								maxDp,          // max # DPs
+								maxEeStreak,    // stop after streak of this many end-to-end fails
 								maxUgStreak,    // stop after streak of this many ungap fails
 								maxDpStreak,    // stop after streak of this many dp fails
 								maxMateStreak,  // max mate fails per seed range
@@ -3323,7 +3339,6 @@ static void* multiseedSearchWorker(void *vp) {
 					matemap[0] = 1; matemap[1] = 0;
 				}
 				
-				// Find end-to-end 1-mismatch alignments for each read
 				for(size_t matei = 0; matei < (pair ? 2:1); matei++) {
 					size_t mate = matemap[matei];
 					if(done[mate] || msinkwrap.state().doneWithMate(mate == 0)) {
@@ -3375,6 +3390,7 @@ static void* multiseedSearchWorker(void *vp) {
 								maxIters,       // max extend loop iters
 								maxUg,          // max # ungapped extends
 								maxDp,          // max # DPs
+								maxEeStreak,    // stop after streak of this many end-to-end fails
 								maxUgStreak,    // stop after streak of this many ungap fails
 								maxDpStreak,    // stop after streak of this many dp fails
 								maxMateStreak,  // max mate fails per seed range
@@ -3465,6 +3481,7 @@ static void* multiseedSearchWorker(void *vp) {
 					assert_leq(prm.nMateUgs,      maxUg);
 					assert_leq(prm.nDpFailStreak, maxDpStreak);
 					assert_leq(prm.nUgFailStreak, maxUgStreak);
+					assert_leq(prm.nEeFailStreak, maxEeStreak);
 				}
 				// Commit and report paired-end/unpaired alignments
 				uint32_t seed = rds[0]->seed ^ rds[1]->seed;

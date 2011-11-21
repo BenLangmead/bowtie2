@@ -1076,6 +1076,7 @@ int SwDriver::extendSeedsPaired(
 	size_t maxIters,             // stop after this many seed-extend loop iters
 	size_t maxUg,                // stop after this many ungaps
 	size_t maxDp,                // stop after this many dps
+	size_t maxEeStreak,          // stop after streak of this many end-to-end fails
 	size_t maxUgStreak,          // stop after streak of this many ungap fails
 	size_t maxDpStreak,          // stop after streak of this many dp fails
 	size_t maxMateStreak,        // stop seed range after N mate-find fails
@@ -1248,15 +1249,19 @@ int SwDriver::extendSeedsPaired(
 				if(prm.nExIters >= maxIters) {
 					return EXTEND_EXCEEDED_LIMIT;
 				}
-				if(prm.nDpFail >= maxDpStreak) {
+				if(eeMode && prm.nEeFail >= maxEeStreak) {
 					return EXTEND_EXCEEDED_LIMIT;
 				}
-				if(prm.nUgFail >= maxUgStreak) {
+				if(!eeMode && prm.nDpFail >= maxDpStreak) {
+					return EXTEND_EXCEEDED_LIMIT;
+				}
+				if(!eeMode && prm.nUgFail >= maxUgStreak) {
 					return EXTEND_EXCEEDED_LIMIT;
 				}
 				if(mateStreaks_[i] >= maxMateStreak) {
 					// Don't try this seed range anymore
 					rands_[i].setDone();
+					assert(rands_[i].done());
 					break;
 				}
 				prm.nExIters++;
@@ -1362,6 +1367,9 @@ int SwDriver::extendSeedsPaired(
 					found = true;
 					Interval refival(refcoord, 1);
 					seenDiags.add(refival);
+					prm.nExEes++;
+					prm.nEeFail++; // say it's failed until proven successful
+					prm.nExEeFails++;
 				} else if(doUngapped && ungapped) {
 					resUngap_.reset();
 					int al = swa.ungappedAlign(
@@ -1717,37 +1725,10 @@ int SwDriver::extendSeedsPaired(
 							// Now fill the dynamic programming matrix, return true
 							// iff there is at least one valid alignment
 							foundMate = oswa.align(rnd);
-							prm.nMateDps++;
-							if(foundMate) {
-								prm.nMateDpSuccs++;
-								mateStreaks_[i] = 0;
-								// Register this as a success.  Now we need to
-								// make the streak variables reflect the
-								// success.
-								if(anchorDp) {
-									prm.nExDpFails--;
-									prm.nExDpSuccs++;
-									prm.nDpLastSucc = prm.nExDps-1;
-									if(prm.nDpFail > prm.nDpFailStreak) {
-										prm.nDpFailStreak = prm.nDpFail;
-									}
-									prm.nDpFail = 0;
-								} else {
-									prm.nExUgFails--;
-									prm.nExUgSuccs++;
-									prm.nUgLastSucc = prm.nExUgs-1;
-									if(prm.nUgFail > prm.nUgFailStreak) {
-										prm.nUgFailStreak = prm.nUgFail;
-									}
-									prm.nUgFail = 0;
-								}
-							} else {
-								prm.nMateDpFails++;
-								mateStreaks_[i]++;
-							}
 							swmMate.tallyGappedDp(oreadGaps, orefGaps);
 						}
 						bool didAnchor = false;
+						bool foundConcordant = false;
 						do {
 							oresGap_.reset();
 							assert(oresGap_.empty());
@@ -1876,6 +1857,7 @@ int SwDriver::extendSeedsPaired(
 									} // if(mixed || discord)
 									bool donePaired = false;
 									if(pairCl != PE_ALS_DISCORD) {
+										foundConcordant = true;
 										if(msink->report(
 										       0,
 										       anchor1 ? &res->alres : &oresGap_.alres,
@@ -1960,6 +1942,53 @@ int SwDriver::extendSeedsPaired(
 								}
 							}
 						} while(!oresGap_.empty());
+						// Now we know whether we were successful in finding a
+						// paired-end alignment
+						prm.nMateDps++;
+						if(foundConcordant) {
+							prm.nMateDpSuccs++;
+							mateStreaks_[i] = 0;
+							// Register this as a success.  Now we need to
+							// make the streak variables reflect the
+							// success.
+							if(state == FOUND_UNGAPPED) {
+								assert_gt(prm.nUgFail, 0);
+								assert_gt(prm.nExUgFails, 0);
+								prm.nUgFail--;
+								prm.nExUgFails--;
+								prm.nExUgSuccs++;
+								prm.nUgLastSucc = prm.nExUgs-1;
+								if(prm.nUgFail > prm.nUgFailStreak) {
+									prm.nUgFailStreak = prm.nUgFail;
+								}
+								prm.nUgFail = 0;
+							} else if(state == FOUND_EE) {
+								assert_gt(prm.nEeFail, 0);
+								assert_gt(prm.nExEeFails, 0);
+								prm.nEeFail--;
+								prm.nExEeFails--;
+								prm.nExEeSuccs++;
+								prm.nEeLastSucc = prm.nExEes-1;
+								if(prm.nEeFail > prm.nEeFailStreak) {
+									prm.nEeFailStreak = prm.nEeFail;
+								}
+								prm.nEeFail = 0;
+							} else {
+								assert_gt(prm.nDpFail, 0);
+								assert_gt(prm.nExDpFails, 0);
+								prm.nDpFail--;
+								prm.nExDpFails--;
+								prm.nExDpSuccs++;
+								prm.nDpLastSucc = prm.nExDps-1;
+								if(prm.nDpFail > prm.nDpFailStreak) {
+									prm.nDpFailStreak = prm.nDpFail;
+								}
+								prm.nDpFail = 0;
+							}
+						} else {
+							prm.nMateDpFails++;
+							mateStreaks_[i]++;
+						}
 					} // if(found && swMateImmediately)
 					else if(found) {
 						assert(!msink->state().doneWithMate(anchor1));
