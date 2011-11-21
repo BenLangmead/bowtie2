@@ -132,6 +132,8 @@ public:
 				assert_geq(best, s.secbest(mate1).score());
 				size_t diff = best - s.secbest(mate1).score();
 				size_t diff_bin = (size_t)((double)diff * (10.0 / (double)(scMax - scMin)) + 0.5);
+				assert_geq(diff_bin, 0);
+				assert_lt(diff_bin, 11);
 				// A valid second-best alignment was found
 				if(best == scMax) {
 					// Best alignment has perfect score
