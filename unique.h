@@ -182,22 +182,32 @@ public:
 	 */
 	virtual TMapq mapq(
 		const AlnSetSumm& s,
-		const AlnFlags& flags,
-		bool mate1,
-		size_t rdlen,
-		char *inps)     // put string representation of inputs here
+		const AlnFlags&   flags,
+		bool              mate1,
+		size_t            rdlen,
+		size_t            ordlen,
+		char             *inps)   // put string representation of inputs here
 		const
 	{
-		bool hasSecbest = VALID_AL_SCORE(s.secbest(mate1));
+		bool hasSecbest = s.paired() ?
+			VALID_AL_SCORE(s.secbestPair(mate1)) :
+			VALID_AL_SCORE(s.secbest(mate1));
 		if(!flags.canMax() && !s.exhausted(mate1) && !hasSecbest) {
 			return 255;
 		}
 		TAlScore scPer = (TAlScore)sc_.perfectScore(rdlen);
+		if(s.paired()) {
+			scPer += (TAlScore)sc_.perfectScore(ordlen);
+		}
 		TAlScore scMin = scoreMin_.f<TAlScore>((float)rdlen);
+		if(s.paired()) {
+			scMin += scoreMin_.f<TAlScore>((float)ordlen);
+		}
 		TAlScore secbest = scMin-1;
 		TAlScore diff = (scPer - scMin);  // scores can vary by up to this much
 		TMapq ret = 0;
-		TAlScore best = s.best(mate1).score(); // best score
+		TAlScore best = s.paired() ?
+			s.bestPair(mate1).score() : s.best(mate1).score();
 		// best score but normalized so that 0 = worst valid score
 		TAlScore bestOver = best - scMin;
 		if(!hasSecbest) {
@@ -218,7 +228,8 @@ public:
 				ret = 0;
 			}
 		} else {
-			secbest = s.secbest(mate1).score();
+			secbest = s.paired() ?
+				s.secbestPair(mate1).score() : s.secbest(mate1).score();
 			TAlScore bestdiff = abs(abs(best)-abs(secbest));
 			if(bestdiff >= diff * (double)0.9f) {
 				if(bestOver == diff) {
