@@ -226,7 +226,7 @@ public:
 			} else if(bestOver >= diff * (double)0.4f) {
 				ret = 8;
 			} else if(bestOver >= diff * (double)0.3f) {
-				ret = 2;
+				ret = 3;
 			} else {
 				ret = 0;
 			}
@@ -267,7 +267,7 @@ public:
 				} else if(bestOver >= diff * (double)0.68f) {
 					ret = 16;
 				} else {
-					ret = 4;
+					ret = 5;
 				}
 			} else if(bestdiff >= diff * (double)0.4f) {
 				// Top third is still pretty good
@@ -278,7 +278,7 @@ public:
 				} else if(bestOver >= diff * (double)0.68f) {
 					ret = 14;
 				} else {
-					ret = 3;
+					ret = 4;
 				}
 			} else if(bestdiff >= diff * (double)0.3f) {
 				// Top third is still pretty good
@@ -289,7 +289,7 @@ public:
 				} else if(bestOver >= diff * (double)0.67f) {
 					ret = 15;
 				} else {
-					ret = 1;
+					ret = 2;
 				}
 			} else if(bestdiff >= diff * (double)0.2f) {
 				// Top third is still pretty good
