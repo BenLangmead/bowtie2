@@ -138,7 +138,8 @@ enum {
 	ARG_UG_FAIL_STREAK_THRESH,  // --ug-fail-streak
 	ARG_EE_FAIL_STREAK_THRESH,  // --ee-fail-streak
 	ARG_DP_FAIL_THRESH,         // --dp-fails
-	ARG_UG_FAIL_THRESH          // --ug-fails
+	ARG_UG_FAIL_THRESH,         // --ug-fails
+	ARG_MAPQ_EX                 // --mapq-extra
 };
 
 #endif

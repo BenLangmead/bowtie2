@@ -147,7 +147,8 @@ static bool sam_print_yu;
 static bool sam_print_yr;
 static bool sam_print_zf;
 static bool sam_print_zi;
-static bool sam_print_seed_fields;
+static bool sam_print_zp;
+static bool sam_print_zu;
 static bool bwaSwLike;
 static float bwaSwLikeC;
 static float bwaSwLikeT;
@@ -320,7 +321,8 @@ static void resetOptions() {
 	sam_print_yr            = false;
 	sam_print_zf            = false;
 	sam_print_zi            = false;
-	sam_print_seed_fields   = false;
+	sam_print_zp            = false;
+	sam_print_zu            = false;
 	bwaSwLike               = false;
 	bwaSwLikeC              = 5.5f;
 	bwaSwLikeT              = 20.0f;
@@ -553,6 +555,7 @@ static struct option long_options[] = {
 	{(char*)"dp-fails",         required_argument, 0,        ARG_DP_FAIL_THRESH},
 	{(char*)"ug-fails",         required_argument, 0,        ARG_UG_FAIL_THRESH},
 	{(char*)"extends",          required_argument, 0,        ARG_EXTEND_ITERS},
+	{(char*)"mapq-extra",       no_argument,       0,        ARG_MAPQ_EX},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -1060,7 +1063,11 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_SAM_NOHEAD: samNoHead = true; break;
 		case ARG_SAM_NOSQ: samNoSQ = true; break;
 		case ARG_SAM_PRINT_YI: sam_print_yi = true; break;
-		case ARG_SEED_INFO: sam_print_seed_fields = true; break;
+		case ARG_MAPQ_EX: {
+			sam_print_zp = true;
+			sam_print_zu = true;
+			break;
+		}
 		case ARG_READ_TIMES: {
 			sam_print_xt = true;
 			sam_print_xd = true;
@@ -3776,7 +3783,8 @@ static void driver(
 			sam_print_yr,
 			sam_print_zf,
 			sam_print_zi,
-			sam_print_seed_fields);
+			sam_print_zp,
+			sam_print_zu);
 		// Set up hit sink; if sanityCheck && !os.empty() is true,
 		// then instruct the sink to "retain" hits in a vector in
 		// memory so that we can easily sanity check them later on
