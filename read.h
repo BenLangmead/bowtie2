@@ -328,10 +328,12 @@ struct PerReadMetrics {
 		nMateDps = nMateDpSuccs = nMateDpFails =
 		nExUgs   = nExUgSuccs   = nExUgFails   =
 		nMateUgs = nMateUgSuccs = nMateUgFails =
+		nExEes   = nExEeSuccs   = nExEeFails   =
 		nRedundants =
 		nEeFmops = nSdFmops = nExFmops =
 		nDpFail = nDpFailStreak = nDpLastSucc =
 		nUgFail = nUgFailStreak = nUgLastSucc =
+		nEeFail = nEeFailStreak = nEeLastSucc =
 		nFilt = 0;
 	}
 
@@ -347,6 +349,10 @@ struct PerReadMetrics {
 	uint64_t nExUgs;        // # extend ungapped alignments run on this read
 	uint64_t nExUgSuccs;    // # extend ungapped alignments run on this read
 	uint64_t nExUgFails;    // # extend ungapped alignments run on this read
+
+	uint64_t nExEes;        // # extend ungapped alignments run on this read
+	uint64_t nExEeSuccs;    // # extend ungapped alignments run on this read
+	uint64_t nExEeFails;    // # extend ungapped alignments run on this read
 
 	uint64_t nMateDps;      // # mate DPs run on this read
 	uint64_t nMateDpSuccs;  // # mate DPs run on this read
@@ -369,6 +375,10 @@ struct PerReadMetrics {
 	uint64_t nUgFail;       // number of ungap failures in a row up until now
 	uint64_t nUgFailStreak; // longest streak of ungap failures
 	uint64_t nUgLastSucc;   // index of last ungap attempt that succeeded
+
+	uint64_t nEeFail;       // number of ungap failures in a row up until now
+	uint64_t nEeFailStreak; // longest streak of ungap failures
+	uint64_t nEeLastSucc;   // index of last ungap attempt that succeeded
 	
 	uint64_t nFilt;         // # mates filtered
 };

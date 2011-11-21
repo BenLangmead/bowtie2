@@ -359,6 +359,7 @@ public:
 		size_t maxIters,             // stop after this many seed-extend loop iters
 		size_t maxUg,                // max # ungapped extends
 		size_t maxDp,                // max # DPs
+		size_t maxEeStreak,          // stop after streak of this many end-to-end fails
 		size_t maxUgStreak,          // stop after streak of this many ungap fails
 		size_t maxDpStreak,          // stop after streak of this many dp fails
 		size_t maxMateStreak,        // stop seed range after N mate-find fails
