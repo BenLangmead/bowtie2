@@ -309,14 +309,14 @@ public:
 				} else if(bestOver >= diff * (double)0.88f) {
 					ret = 12;
 				} else if(bestOver >= diff * (double)0.67f) {
-					ret = 6;
+					ret = 7;
 				} else {
 					ret = 0;
 				}
 			} else if(bestdiff > 0) {
 				// Top third is still pretty good
 				if(bestOver >= diff * (double)0.67f) {
-					ret = 7;
+					ret = 6;
 				} else {
 					ret = 2;
 				}
