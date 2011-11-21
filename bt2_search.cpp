@@ -401,7 +401,7 @@ static void resetOptions() {
 	do1mmMinLen = 60;        // length below which we disable 1mm search
 }
 
-static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:w:p:k:M:1:2:I:X:CQ:N:i:L:U:x:S:g:";
+static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:w:p:k:M:1:2:I:X:CQ:N:i:L:U:x:S:g:O:";
 
 static struct option long_options[] = {
 	{(char*)"verbose",      no_argument,       0,            ARG_VERBOSE},
