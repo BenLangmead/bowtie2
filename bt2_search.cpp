@@ -184,8 +184,9 @@ static SimpleFunc scoreMin;    // minimum valid score as function of read len
 static SimpleFunc scoreFloor;  // 
 static SimpleFunc nCeil;      // max # Ns allowed as function of read len
 static SimpleFunc msIval;     // interval between seeds as function of read len
-static int   multiseedMms;   // mismatches permitted in a multiseed seed
-static int   multiseedLen;   // length of multiseed seeds
+static int    multiseedMms;   // mismatches permitted in a multiseed seed
+static int    multiseedLen;   // length of multiseed seeds
+static size_t multiseedOff;   // offset to begin extracting seeds
 static string saCountersFn;  // filename to dump per-read SeedAligner counters to
 static string saActionsFn;   // filename to dump all alignment actions to
 static string saHitsFn;      // filename to dump all seed hits to
@@ -360,6 +361,7 @@ static void resetOptions() {
 	maxelt.init    (SIMPLE_FUNC_CONST,  1.0f, DMAX, DEFAULT_MAXELT_CONST, DEFAULT_MAXELT_COEFF);
 	multiseedMms    = DEFAULT_SEEDMMS;
 	multiseedLen    = DEFAULT_SEEDLEN;
+	multiseedOff    = 0;
 	saCountersFn.clear();    // filename to dump per-read SeedAligner counters to
 	saActionsFn.clear();     // filename to dump all alignment actions to
 	saHitsFn.clear();        // filename to dump all seed hits to
@@ -399,7 +401,7 @@ static void resetOptions() {
 	do1mmMinLen = 60;        // length below which we disable 1mm search
 }
 
-static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:o:w:p:k:M:1:2:I:X:CQ:N:i:L:U:x:S:g:";
+static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:w:p:k:M:1:2:I:X:CQ:N:i:L:U:x:S:g:";
 
 static struct option long_options[] = {
 	{(char*)"verbose",      no_argument,       0,            ARG_VERBOSE},
@@ -426,7 +428,6 @@ static struct option long_options[] = {
 	{(char*)"seed",         required_argument, 0,            ARG_SEED},
 	{(char*)"qupto",        required_argument, 0,            'u'},
 	{(char*)"upto",         required_argument, 0,            'u'},
-	{(char*)"offrate",      required_argument, 0,            'o'},
 	{(char*)"version",      no_argument,       0,            ARG_VERSION},
 	{(char*)"filepar",      no_argument,       0,            ARG_FILEPAR},
 	{(char*)"help",         no_argument,       0,            'h'},
@@ -477,8 +478,6 @@ static struct option long_options[] = {
 	{(char*)"snpphred",     required_argument, 0,            ARG_SNPPHRED},
 	{(char*)"snpfrac",      required_argument, 0,            ARG_SNPFRAC},
 	{(char*)"gbar",         required_argument, 0,            ARG_GAP_BAR},
-	{(char*)"gopen",        required_argument, 0,            'O'},
-	{(char*)"gextend",      required_argument, 0,            'E'},
 	{(char*)"qseq",         no_argument,       0,            ARG_QSEQ},
 	{(char*)"policy",       required_argument, 0,            ARG_ALIGN_POLICY},
 	{(char*)"preset",       required_argument, 0,            'P'},
@@ -548,6 +547,7 @@ static struct option long_options[] = {
 	{(char*)"maxelt-pair-mult", required_argument, 0,        ARG_MAXELT_PAIR_MULT},
 	{(char*)"seed-info",        no_argument,       0,        ARG_SEED_INFO},
 	{(char*)"no-seed-boost",    no_argument,       0,        ARG_SEED_BOOST_DISABLE},
+	{(char*)"seed-off",         required_argument, 0,        'O'},
 	{(char*)"seed-boost",       required_argument, 0,        ARG_SEED_BOOST_THRESH},
 	{(char*)"seed-boost-iters", required_argument, 0,        ARG_SEED_BOOST_ITERS},
 	{(char*)"seed-boost-ival-mult", required_argument, 0,    ARG_SEED_BOOST_IVAL_MULT},
@@ -1159,6 +1159,9 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_ALIGN_POLICY: { polstr += ";"; polstr += arg; break; }
 		case 'N': { polstr += ";SEED="; polstr += arg; break; }
 		case 'L': { polstr += ";SEEDLEN="; polstr += arg; break; }
+		case 'O':
+			multiseedOff = parse<size_t>(arg);
+			break;
 		case 'i': {
 			EList<string> args;
 			tokenize(arg, ",", args);
@@ -3263,6 +3266,7 @@ static void* multiseedSearchWorker(void *vp) {
 						// Instantiate the seeds
 						std::pair<int, int> inst = al.instantiateSeeds(
 							*seeds[mate],   // search seeds
+							multiseedOff,   // offset to begin extracting
 							interval[mate], // interval between seeds
 							*rds[mate],     // read to align
 							sc,             // scoring scheme
