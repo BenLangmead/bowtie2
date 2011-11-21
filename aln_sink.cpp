@@ -1828,7 +1828,7 @@ void AlnSinkVerbose::appendMate(
 			if(rs != NULL) {
 				itoa10<TMapq>(mapqCalc.mapq(
 					summ, flags, rd.mate < 2, rdlen,
-					rdo == NULL ? rdo->length() : 0, mapqInps_), buf);
+					rdo == NULL ? 0 : rdo->length(), mapqInps_), buf);
 				o.writeChars(buf);
 			} else o.write('0');
 		}
@@ -2026,7 +2026,7 @@ void AlnSinkSam::appendMate(
 	if(rs != NULL) {
 		itoa10<TMapq>(mapqCalc.mapq(
 			summ, flags, rd.mate < 2, rd.length(),
-			rdo == NULL ? rdo->length() : 0, mapqInps_), buf);
+			rdo == NULL ? 0 : rdo->length(), mapqInps_), buf);
 		o.writeChars(buf);
 		o.write('\t');
 	} else {
