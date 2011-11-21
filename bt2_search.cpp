@@ -390,7 +390,7 @@ static void resetOptions() {
 	tighten = 1;             // -M tightening mode
 	doExactUpFront = true;   // do exact search up front if seeds seem good enough
 	do1mmUpFront = true;     // do 1mm search up front if seeds seem good enough
-	seedBoostThresh = 1000;  // if average non-zero position has more than this many elements
+	seedBoostThresh = 300;   // if average non-zero position has more than this many elements
 	seedBoostMaxIters = 1;   // maximum # of seed-boosting iterations
 	seedBoostIvalMult = 0.33;
 	seedBoostLenMult = 1.5;
