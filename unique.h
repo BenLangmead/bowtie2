@@ -289,7 +289,7 @@ public:
 				} else if(bestOver >= diff * (double)0.67f) {
 					ret = 15;
 				} else {
-					ret = 2;
+					ret = 3;
 				}
 			} else if(bestdiff >= diff * (double)0.2f) {
 				// Top third is still pretty good
@@ -313,7 +313,15 @@ public:
 				} else {
 					ret = 0;
 				}
+			} else if(bestdiff > 0) {
+				// Top third is still pretty good
+				if(bestOver >= diff * (double)0.67f) {
+					ret = 7;
+				} else {
+					ret = 2;
+				}
 			} else {
+				assert_eq(bestdiff, 0);
 				// Top third is still pretty good
 				if(bestOver >= diff * (double)0.67f) {
 					ret = 1;
