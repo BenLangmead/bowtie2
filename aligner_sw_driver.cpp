@@ -430,7 +430,6 @@ int SwDriver::extendSeeds(
 	TAlScore& minsc,             // minimum score for anchor
 	TAlScore floorsc,            // local-alignment floor for anchor score
 	int nceil,                   // maximum # Ns permitted in reference portion
-	const SimpleFunc& maxeltf,   // # elts to explore as function of total elts
 	size_t maxhalf,  	         // max width in either direction for DP tables
 	bool doUngapped,             // do ungapped alignment
 	size_t ungappedThresh,       // all attempts after this many are ungapped
@@ -1069,7 +1068,6 @@ int SwDriver::extendSeedsPaired(
 	int onceil,                  // max # Ns permitted in ref for opposite
 	bool nofw,                   // don't align forward read
 	bool norc,                   // don't align revcomp read
-	const SimpleFunc& maxeltf,   // # elts to explore as function of total elts
 	size_t maxhalf,              // max width in either direction for DP tables
 	bool doUngapped,             // do ungapped alignment
 	size_t ungappedThresh,       // all attempts after this many are ungapped

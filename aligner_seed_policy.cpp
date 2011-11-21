@@ -267,7 +267,6 @@ void SeedAlignmentPolicy::parseString(
 	int&   multiseedMms,
 	int&   multiseedLen,
 	SimpleFunc& msIval,
-	SimpleFunc& maxelt,
 	uint32_t& mhits,
 	size_t& ungappedThresh)
 {
@@ -299,9 +298,6 @@ void SeedAlignmentPolicy::parseString(
 	msIval.init(
 		DEFAULT_IVAL, 1.0f, DMAX,
 		DEFAULT_IVAL_B, DEFAULT_IVAL_A);
-	maxelt.init(
-		SIMPLE_FUNC_CONST,  1.0f, DMAX,
-		DEFAULT_MAXELT_CONST, DEFAULT_MAXELT_COEFF);
 	nCatPair          = DEFAULT_N_CAT_PAIR;
 
 	if(!noisyHpolymer) {
@@ -518,14 +514,6 @@ void SeedAlignmentPolicy::parseString(
 		else if(tag == "MIN") {
 			PARSE_FUNC(costMin);
 		}
-		// Examine a maximum of this many BW elements when looking for
-		// alignments.
-		// MELT=xx,yy
-		//        xx = always examine at least this many poss
-		//        yy = examine this times N more
-		else if(tag == "MELT") {
-			PARSE_FUNC(maxelt);
-		}
 		// Local-alignment score floor as a function of read length
 		// FL=xx,yy
 		//        xx = constant coefficient
@@ -693,7 +681,6 @@ int main() {
 			multiseedMms,
 			multiseedLen,
 			msIval,
-			maxelt,
 			mhits);
 		
 		assert_eq(DEFAULT_MATCH_BONUS_TYPE,   bonusMatchType);
@@ -719,9 +706,6 @@ int main() {
 		assert_eq(DEFAULT_IVAL,               msIval.getType());
 		assert_eq(DEFAULT_IVAL_A,             msIval.getCoeff());
 		assert_eq(DEFAULT_IVAL_B,             msIval.getConst());
-
-		assert_eq(DEFAULT_MAXELT_CONST,       maxelt.getConst());
-		assert_eq(DEFAULT_MAXELT_COEFF,       maxelt.getCoeff());
 		
 		cout << "PASSED" << endl;
 	}
@@ -751,7 +735,6 @@ int main() {
 			multiseedMms,
 			multiseedLen,
 			msIval,
-			maxelt,
 			mhits);
 		
 		assert_eq(DEFAULT_MATCH_BONUS_TYPE,   bonusMatchType);
@@ -777,9 +760,6 @@ int main() {
 		assert_eq(DEFAULT_IVAL,               msIval.getType());
 		assert_eq(DEFAULT_IVAL_A,             msIval.getCoeff());
 		assert_eq(DEFAULT_IVAL_B,             msIval.getConst());
-
-		assert_eq(DEFAULT_MAXELT_CONST,       maxelt.getConst());
-		assert_eq(DEFAULT_MAXELT_COEFF,       maxelt.getCoeff());
 		
 		cout << "PASSED" << endl;
 	}
@@ -809,7 +789,6 @@ int main() {
 			multiseedMms,
 			multiseedLen,
 			msIval,
-			maxelt,
 			mhits);
 		
 		assert_eq(DEFAULT_MATCH_BONUS_TYPE_LOCAL,   bonusMatchType);
@@ -837,9 +816,6 @@ int main() {
 		assert_eq(DEFAULT_IVAL_A,             msIval.getCoeff());
 		assert_eq(DEFAULT_IVAL_B,             msIval.getConst());
 
-		assert_eq(DEFAULT_MAXELT_CONST,       maxelt.getConst());
-		assert_eq(DEFAULT_MAXELT_COEFF,       maxelt.getCoeff());
-		
 		cout << "PASSED" << endl;
 	}
 
@@ -868,7 +844,6 @@ int main() {
 			multiseedMms,
 			multiseedLen,
 			msIval,
-			maxelt,
 			mhits);
 		
 		assert_eq(COST_MODEL_CONSTANT,        bonusMatchType);
@@ -894,9 +869,6 @@ int main() {
 		assert_eq(DEFAULT_IVAL,               msIval.getType());
 		assert_eq(DEFAULT_IVAL_A,             msIval.getCoeff());
 		assert_eq(DEFAULT_IVAL_B,             msIval.getConst());
-
-		assert_eq(DEFAULT_MAXELT_CONST,       maxelt.getConst());
-		assert_eq(DEFAULT_MAXELT_COEFF,       maxelt.getCoeff());
 
 		cout << "PASSED" << endl;
 	}

@@ -30,9 +30,6 @@
 #define DEFAULT_IVAL_A 1.15f
 #define DEFAULT_IVAL_B 0.0f
 
-#define DEFAULT_MAXELT_CONST 0.0f
-#define DEFAULT_MAXELT_COEFF 1.0f
-
 #define DEFAULT_UNGAPPED_HITS 6
 
 /**
@@ -236,7 +233,6 @@ public:
 		int&   multiseedMms,
 		int&   multiseedLen,
 		SimpleFunc& multiseedIval,
-		SimpleFunc& maxelt,
 		uint32_t& mhits,
 		size_t& ungappedHits);
 };
