@@ -375,6 +375,7 @@ SeedAligner::instantiateSeq(
  */
 pair<int, int> SeedAligner::instantiateSeeds(
 	const EList<Seed>& seeds,  // search seeds
+	size_t off,                // offset into read to start extracting
 	int per,                   // interval between seeds
 	const Read& read,          // read to align
 	const Scoring& pens,       // scoring scheme
@@ -388,7 +389,7 @@ pair<int, int> SeedAligner::instantiateSeeds(
 	assert_gt(read.length(), 0);
 	// Check whether read has too many Ns
 	offIdx2off_.clear();
-	int len = seeds[0].len;
+	int len = seeds[0].len; // assume they're all the same length
 #ifndef NDEBUG
 	for(size_t i = 1; i < seeds.size(); i++) {
 		assert_eq(len, seeds[i].len);
@@ -396,11 +397,11 @@ pair<int, int> SeedAligner::instantiateSeeds(
 #endif
 	// Calc # seeds within read interval
 	int nseeds = 1;
-	if((int)read.length() > len) {
+	if((int)read.length() - (int)off > len) {
 		nseeds += ((int)read.length() - len) / per;
 	}
 	for(int i = 0; i < nseeds; i++) {
-		offIdx2off_.push_back(per * i);
+		offIdx2off_.push_back(per * i + (int)off);
 	}
 	pair<int, int> ret;
 	ret.first = 0;  // # seeds that require alignment
@@ -416,7 +417,7 @@ pair<int, int> SeedAligner::instantiateSeeds(
 		}
 		// For each seed position
 		for(int i = 0; i < nseeds; i++) {
-			int depth = i * per;
+			int depth = i * per + (int)off;
 			int seedlen = seeds[0].len;
 			// Extract the seed sequence at this offset
 			// If fw == true, we extract the characters from i*per to

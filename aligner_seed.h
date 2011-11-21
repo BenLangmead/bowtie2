@@ -1370,6 +1370,7 @@ public:
 	 */
 	std::pair<int, int> instantiateSeeds(
 		const EList<Seed>& seeds,   // search seeds
+		size_t off,                 // offset into read to start extracting
 		int per,                    // interval between seeds
 		const Read& read,           // read to align
 		const Scoring& pens,        // scoring scheme

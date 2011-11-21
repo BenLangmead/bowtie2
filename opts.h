@@ -125,6 +125,7 @@ enum {
 	ARG_1MM_MINLEN,             // --1mm-minlen
 	ARG_MAXELT_PAIR_MULT,       // --maxelt-pair-mult
 	ARG_VERSION,                // --version
+	ARG_SEED_OFF,               // --seed-off
 	ARG_SEED_INFO,              // --seed-info
 	ARG_SEED_BOOST_DISABLE,     // --no-seed-boost
 	ARG_SEED_BOOST_THRESH,      // --seed-boost
