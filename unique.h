@@ -82,6 +82,127 @@ public:
 };
 
 /**
+ * V3 of the MAPQ calculator
+ */
+class BowtieMapq3 : public Mapq {
+
+public:
+
+	BowtieMapq3(
+		const SimpleFunc& scoreMin,
+		const Scoring& sc) :
+		scoreMin_(scoreMin),
+		sc_(sc)
+	{ }
+
+	virtual ~BowtieMapq3() { }
+
+	/**
+	 * Given an AlnSetSumm, return a mapping quality calculated.
+	 */
+	virtual TMapq mapq(
+		const AlnSetSumm& s,
+		const AlnFlags& flags,
+		bool mate1,
+		size_t rdlen,
+		char *inps)     // put string representation of inputs here
+		const
+	{
+		if(flags.paired()) {
+			return 40;
+		} else {
+			bool hasSecbest = VALID_AL_SCORE(s.secbest(mate1));
+			if(!flags.canMax() && !s.exhausted(mate1) && !hasSecbest) {
+				return 255;
+			}
+			TAlScore scMax = (TAlScore)sc_.perfectScore(rdlen);
+			TAlScore scMin = scoreMin_.f<TAlScore>((float)rdlen);
+			assert_geq(scMax, scMin);
+			TAlScore best  = scMax - s.best(mate1).score(); // best score (lower=better)
+			size_t best_bin = (size_t)((double)best * (10.0 / (double)(scMax - scMin)) + 0.5);
+			assert_geq(best_bin, 0);
+			assert_lt(best_bin, 10);
+			if(hasSecbest) {
+				assert_geq(best, s.secbest(mate1));
+				size_t diff = best - s.secbest(mate1);
+				size_t diff_bin = (size_t)((double)diff * (10.0 / (double)(scMax - scMin)) + 0.5);
+				// A valid second-best alignment was found
+				if(best == scMax) {
+					// Best alignment has perfect score
+					return unp_sec_perf[best_bin];
+				} else {
+					// Best alignment has less than perfect score
+					return unp_sec[diff_bin][best_bin];
+				}
+			} else {
+				// No valid second-best alignment was found
+				if(best == scMax) {
+					// Best alignment has perfect score
+					return unp_nosec_perf;
+				} else {
+					// Best alignment has less than perfect score
+					return unp_nosec[best_bin];
+				}
+			}
+		}
+		return ret;
+	}
+
+protected:
+
+	//
+	// Unpaired mapping quality:
+	//
+
+	// There is no valid second-best alignment and the best alignment has a
+	// perfect score.
+	TMapq unp_nosec_perf = 44;
+	
+	// There is no valid second-best alignment.  We stratify the alignment
+	// score of the best alignment into 10 bins.
+	TMapq unp_nosec[10] = {
+		43, 42, 41, 36, 32, 27, 20, 11, 4, 1, 0
+	};
+
+	// The best alignment has a perfect score, and we stratify the distance
+	// between best and second-best alignment scores into 10 bins.
+	TMapq unp_sec_perf[10] = {
+		2, 16, 23, 30, 31, 32, 34, 36, 38, 40, 42
+	};
+
+	// The best alignment has a non-perfect score, and we stratify both by best
+	// alignment score (specifically, the maximum score minus the best "best")
+	// and by the distance between the best and second-best alignment scores
+	// ("difference").  Each is stratified into 10 bins.  Each row is a
+	// difference (smaller elts = smaller differences) and each column is a
+	// best score (smaller elts = higher best alignment scores).
+	TMapq unp_sec[10][10] = {
+		{  2,  2,  2,  1,  1, 0, 0, 0, 0, 0, 0},
+		{ 20, 14,  7,  3,  2, 1, 0, 0, 0, 0, 0},
+		{ 20, 16, 10,  6,  3, 1, 0, 0, 0, 0, 0},
+		{ 20, 17, 13,  9,  3, 1, 1, 0, 0, 0, 0},
+		{ 21, 19, 15,  9,  5, 2, 2, 0, 0, 0, 0},
+		{ 22, 21, 16, 11, 10, 5, 0, 0, 0, 0, 0},
+		{ 23, 22, 19, 16, 11, 0, 0, 0, 0, 0, 0},
+		{ 24, 25, 21, 30,  0, 0, 0, 0, 0, 0, 0},
+		{ 30, 26, 29,  0,  0, 0, 0, 0, 0, 0, 0},
+		{ 30, 27,  0,  0,  0, 0, 0, 0, 0, 0, 0},
+		{ 30,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0},
+	};
+	
+	//
+	// Paired mapping quality:
+	//
+	
+	// There is no valid second-best alignment and the best alignment has a
+	// perfect score.
+	TMapq unp_nosec_perf = 44;
+
+	SimpleFunc      scoreMin_;
+	const Scoring&  sc_;
+};
+
+/**
  * V2 of the MAPQ calculator
  */
 class BowtieMapq2 : public Mapq {
@@ -356,7 +477,9 @@ static inline Mapq *new_mapq(
 	const SimpleFunc& scoreMin,
 	const Scoring& sc)
 {
-	if(version == 2) {
+	if(version == 3) {
+		return new BowtieMapq3(scoreMin, sc);
+	} else if(version == 2) {
 		return new BowtieMapq2(scoreMin, sc);
 	} else {
 		return new BowtieMapq(scoreMin, sc);
