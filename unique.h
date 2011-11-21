@@ -330,9 +330,9 @@ public:
 				}
 			}
 		}
-		if(flags.alignedConcordant()) {
-			ret = (TMapq)(ret * (double)1.15f);
-		}
+		//if(flags.alignedConcordant()) {
+		//	ret = (TMapq)((double)ret * 1.15);
+		//}
 		if(inps != NULL) {
 			inps = itoa10<TAlScore>(best, inps);
 			*inps++ = ',';
