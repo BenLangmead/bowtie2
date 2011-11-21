@@ -129,8 +129,8 @@ public:
 			assert_geq(best_bin, 0);
 			assert_lt(best_bin, 11);
 			if(hasSecbest) {
-				assert_geq(best, s.secbest(mate1).score());
-				size_t diff = best - s.secbest(mate1).score();
+				assert_geq(s.best(mate1).score(), s.secbest(mate1).score());
+				size_t diff = s.best(mate1).score() - s.secbest(mate1).score();
 				size_t diff_bin = (size_t)((double)diff * (10.0 / (double)(scMax - scMin)) + 0.5);
 				assert_geq(diff_bin, 0);
 				assert_lt(diff_bin, 11);
