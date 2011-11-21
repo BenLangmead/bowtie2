@@ -398,7 +398,7 @@ pair<int, int> SeedAligner::instantiateSeeds(
 	// Calc # seeds within read interval
 	int nseeds = 1;
 	if((int)read.length() - (int)off > len) {
-		nseeds += ((int)read.length() - len) / per;
+		nseeds += ((int)read.length() - (int)off - len) / per;
 	}
 	for(int i = 0; i < nseeds; i++) {
 		offIdx2off_.push_back(per * i + (int)off);
