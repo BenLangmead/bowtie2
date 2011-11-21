@@ -2872,7 +2872,7 @@ static void* multiseedSearchWorker(void *vp) {
 						olm.ubases += rdlens[mate]; // bases passing filter
 					}
 				}
-				size_t eePeEeltLimit = 50;
+				size_t eePeEeltLimit = std::numeric_limits<size_t>::max();
 				// Whether we're done with mate1 / mate2
 				bool done[2] = { !filt[0], !filt[1] };
 				size_t nelt[2] = {0, 0};

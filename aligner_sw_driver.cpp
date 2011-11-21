@@ -1153,6 +1153,11 @@ int SwDriver::extendSeedsPaired(
 	bool firstEe = true;
 	bool firstExtend = true;
 
+	// Reset all the counters related to streaks
+	prm.nEeFail = 0;
+	prm.nUgFail = 0;
+	prm.nDpFail = 0;
+
 	size_t nelt = 0, neltLeft = 0;
 	const size_t rows = rdlen;
 	const size_t orows  = ordlen;
@@ -1250,13 +1255,13 @@ int SwDriver::extendSeedsPaired(
 					return EXTEND_EXCEEDED_LIMIT;
 				}
 				if(eeMode && prm.nEeFail >= maxEeStreak) {
-					return EXTEND_EXCEEDED_LIMIT;
+					return EXTEND_EXHAUSTED_CANDIDATES;
 				}
 				if(!eeMode && prm.nDpFail >= maxDpStreak) {
-					return EXTEND_EXCEEDED_LIMIT;
+					return EXTEND_EXHAUSTED_CANDIDATES;
 				}
 				if(!eeMode && prm.nUgFail >= maxUgStreak) {
-					return EXTEND_EXCEEDED_LIMIT;
+					return EXTEND_EXHAUSTED_CANDIDATES;
 				}
 				if(mateStreaks_[i] >= maxMateStreak) {
 					// Don't try this seed range anymore
