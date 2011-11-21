@@ -373,9 +373,9 @@ static void resetOptions() {
 	maxIters           = 400;   // max iterations of extend loop
 	maxUg              = 300;   // stop after this many ungap extends
 	maxDp              = 300;   // stop after this many dp extends
-	maxEeStreak        = 30;    // stop after this many end-to-end fails in a row
-	maxUgStreak        = 30;    // stop after this many ungap fails in a row
-	maxDpStreak        = 20;    // stop after this many dp fails in a row
+	maxEeStreak        = 45;    // stop after this many end-to-end fails in a row
+	maxUgStreak        = 45;    // stop after this many ungap fails in a row
+	maxDpStreak        = 45;    // stop after this many dp fails in a row
 	maxMateStreak      = 9999;  // in PE: abort seed range after N mate-find fails
 	enable8            = true;  // use 8-bit SSE where possible?
 	refscan            = false; // use reference scanning?
@@ -3057,10 +3057,7 @@ static void* multiseedSearchWorker(void *vp) {
 				if(do1mmUpFront && !seedSumm) {
 					for(size_t matei = 0; matei < (pair ? 2:1); matei++) {
 						size_t mate = matemap[matei];
-						if(!filt[mate] || done[mate] ||
-						   nelt[mate] == 0 ||
-						   nelt[mate] > eePeEeltLimit)
-						{
+						if(!filt[mate] || done[mate] || nelt[mate] > eePeEeltLimit) {
 							// Done with this mate
 							shs[mate].clear1mmE2eHits();
 							nelt[mate] = 0;
