@@ -53,6 +53,7 @@ void SwAligner::initRead(
 	floorsc_ = floorsc;    // local-alignment score floor
 	nceil_   = nceil;      // max # Ns allowed in ref portion of aln
 	solrowlo_= sc.rowlo;   // if row >= this, solutions are possible
+	readSse16_ = false;    // true -> sse16 from now on for this read
 	initedRead_ = true;
 #ifndef NO_SSE
 	sseU8fwBuilt_  = false;  // built fw query profile, 8-bit score
@@ -473,7 +474,7 @@ bool SwAligner::align(RandomSource& rnd) {
 	//gettimeofday(&tv_i, &tz_i);
 	
 	if(sc_->monotone) {
-		if(enable8_ && minsc_ >= -254) {
+		if(enable8_ && !readSse16_ && minsc_ >= -254) {
 			best = alignNucleotidesEnd2EndSseU8(flag);
 			sse8succ_ = (flag == 0);
 #ifndef NDEBUG
@@ -488,11 +489,12 @@ bool SwAligner::align(RandomSource& rnd) {
 		}
 	} else {
 		flag = -2;
-		if(enable8_) {
+		if(enable8_ && !readSse16_) {
 			best = alignNucleotidesLocalSseU8(flag);
 		}
 		if(flag == -2) {
 			flag = 0;
+			readSse16_ = true; // sse16 from now on for this read
 			best = alignNucleotidesLocalSseI16(flag);
 			sse16succ_ = (flag == 0);
 		} else {

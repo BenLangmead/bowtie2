@@ -413,6 +413,7 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag) {
 	// be the simplest and least disruptive way to deal with the st_ constraint.
 
 	colstop_ = rff_ - 1;
+	lastsolcol_ = 0;
 
 #if 0
 	size_t col = rfi_;

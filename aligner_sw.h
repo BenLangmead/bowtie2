@@ -213,6 +213,7 @@ public:
 		sseI32rc_(DP_CAT),
 		state_(STATE_UNINIT),
 		initedRead_(false),
+		readSse16_(false),
 		initedRef_(false),
 		rfwbuf_(DP_CAT),
 		btnstack_(DP_CAT),
@@ -222,6 +223,7 @@ public:
 		btncanddoneSucc_(0),
 		btncanddoneFail_(0),
 		colstop_(0),
+		lastsolcol_(0),
 		cural_(0)
 		ASSERT_ONLY(, cand_tmp_(DP_CAT))
 	{
@@ -242,8 +244,7 @@ public:
 		size_t rdf,            // offset of last read char to align
 		const Scoring& sc,     // scoring scheme
 		TAlScore floorsc);     // local-alignment score floor
-
-
+	
 	/**
 	 * Initialize with a new alignment problem.
 	 */
@@ -557,6 +558,7 @@ protected:
 
 	int                 state_;      // state
 	bool                initedRead_; // true iff initialized with initRead
+	bool                readSse16_;  // true -> sse16 from now on for this read
 	bool                initedRef_;  // true iff initialized with initRef
 	EList<uint32_t>     rfwbuf_;     // buffer for wordized refernece stretches
 	
@@ -569,7 +571,8 @@ protected:
 	size_t              btncanddoneSucc_; // # investigated and succeeded
 	size_t              btncanddoneFail_; // # investigated and failed
 	
-	size_t              colstop_;
+	size_t              colstop_; // bailed on DP loop after this many cols
+	size_t              lastsolcol_; // last DP col with valid cell
 	size_t              cural_;   // index of next alignment to be given
 	
 	SizeTPair           EXTREMES; // invalid, uninitialized range

@@ -425,6 +425,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag) {
 	// be the simplest and least disruptive way to deal with the st_ constraint.
 	
 	colstop_ = rff_ - rfi_;
+	lastsolcol_ = 0;
 	for(size_t i = rfi_; i < rff_; i++) {
 		assert(pvFStore == d.mat_.fvec(0, i - rfi_));
 		assert(pvHStore == d.mat_.hvec(0, i - rfi_));
@@ -698,6 +699,8 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag) {
 					colstop_ = (i+1) - rfi_;
 					break;
 				}
+			} else {
+				lastsolcol_ = i - rfi_;
 			}
 		}
 
@@ -810,7 +813,7 @@ bool SwAligner::gatherCellsNucleotidesLocalSseI16(TAlScore best) {
 	// alignment that meets the minimum score requirement?
 	assert(sse16succ_);
 	size_t bonus = (size_t)sc_->match(30);
-	const size_t ncol = colstop_;
+	const size_t ncol = lastsolcol_ + 1;
 	const size_t nrow = dpRows();
 	assert_gt(nrow, 0);
 	btncand_.clear();
