@@ -428,6 +428,7 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag) {
 	// be the simplest and least disruptive way to deal with the st_ constraint.
 	
 	colstop_ = rff_ - 1;
+	lastsolcol_ = 0;
 	for(size_t i = rfi_; i < rff_; i++) {
 		assert(pvFStore == d.mat_.fvec(0, i - rfi_));
 		assert(pvHStore == d.mat_.hvec(0, i - rfi_));
