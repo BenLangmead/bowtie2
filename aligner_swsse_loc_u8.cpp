@@ -688,9 +688,9 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag) {
 					// the rest of the matrix
 					colstop_ = (i+1) - rfi_;
 					break;
-				} else {
-					lastsolcol_ = i - rfi_;
 				}
+			} else {
+				lastsolcol_ = i - rfi_;
 			}
 		}
 		
