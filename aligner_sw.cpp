@@ -494,7 +494,7 @@ bool SwAligner::align(RandomSource& rnd) {
 		}
 		if(flag == -2) {
 			flag = 0;
-			readSse16_ = true; // sse16 from now on for this read
+			//readSse16_ = true; // sse16 from now on for this read
 			best = alignNucleotidesLocalSseI16(flag);
 			sse16succ_ = (flag == 0);
 		} else {
