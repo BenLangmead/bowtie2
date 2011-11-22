@@ -1517,6 +1517,7 @@ int SwDriver::extendSeedsPaired(
 					anchorDp = true;
 				}
 				bool firstInner = true;
+				bool foundConcordant = false;
 				while(true) {
 					assert(found);
 					SwResult *res = NULL;
@@ -1543,6 +1544,10 @@ int SwDriver::extendSeedsPaired(
 						}
 						res = &resGap_;
 					}
+					// TODO: If we're just taking anchor alignments out of the
+					// same rectangle, aren't we getting very similar
+					// rectangles for the opposite mate each time?  Seems like
+					// we could save some work by detecting this.
 					assert(res != NULL);
 					firstInner = false;
 					assert(res->alres.matchesRef(
@@ -1728,10 +1733,10 @@ int SwDriver::extendSeedsPaired(
 							// Now fill the dynamic programming matrix, return true
 							// iff there is at least one valid alignment
 							foundMate = oswa.align(rnd);
+							prm.nMateDps++;
 							swmMate.tallyGappedDp(oreadGaps, orefGaps);
 						}
 						bool didAnchor = false;
-						bool foundConcordant = false;
 						do {
 							oresGap_.reset();
 							assert(oresGap_.empty());
@@ -1945,50 +1950,6 @@ int SwDriver::extendSeedsPaired(
 								}
 							}
 						} while(!oresGap_.empty());
-						// Now we know whether we were successful in finding a
-						// paired-end alignment
-						prm.nMateDps++;
-						if(foundConcordant) {
-							prm.nMateDpSuccs++;
-							mateStreaks_[i] = 0;
-							// Register this as a success.  Now we need to
-							// make the streak variables reflect the
-							// success.
-							if(state == FOUND_UNGAPPED) {
-								assert_gt(prm.nUgFail, 0);
-								assert_gt(prm.nExUgFails, 0);
-								prm.nExUgFails--;
-								prm.nExUgSuccs++;
-								prm.nUgLastSucc = prm.nExUgs-1;
-								if(prm.nUgFail > prm.nUgFailStreak) {
-									prm.nUgFailStreak = prm.nUgFail;
-								}
-								prm.nUgFail = 0;
-							} else if(state == FOUND_EE) {
-								assert_gt(prm.nEeFail, 0);
-								assert_gt(prm.nExEeFails, 0);
-								prm.nExEeFails--;
-								prm.nExEeSuccs++;
-								prm.nEeLastSucc = prm.nExEes-1;
-								if(prm.nEeFail > prm.nEeFailStreak) {
-									prm.nEeFailStreak = prm.nEeFail;
-								}
-								prm.nEeFail = 0;
-							} else {
-								assert_gt(prm.nDpFail, 0);
-								assert_gt(prm.nExDpFails, 0);
-								prm.nExDpFails--;
-								prm.nExDpSuccs++;
-								prm.nDpLastSucc = prm.nExDps-1;
-								if(prm.nDpFail > prm.nDpFailStreak) {
-									prm.nDpFailStreak = prm.nDpFail;
-								}
-								prm.nDpFail = 0;
-							}
-						} else {
-							prm.nMateDpFails++;
-							mateStreaks_[i]++;
-						}
 					} // if(found && swMateImmediately)
 					else if(found) {
 						assert(!msink->state().doneWithMate(anchor1));
@@ -2035,6 +1996,47 @@ int SwDriver::extendSeedsPaired(
 					}
 				} // while(true)
 				
+				if(foundConcordant) {
+					prm.nMateDpSuccs++;
+					mateStreaks_[i] = 0;
+					// Register this as a success.  Now we need to
+					// make the streak variables reflect the
+					// success.
+					if(state == FOUND_UNGAPPED) {
+						assert_gt(prm.nUgFail, 0);
+						assert_gt(prm.nExUgFails, 0);
+						prm.nExUgFails--;
+						prm.nExUgSuccs++;
+						prm.nUgLastSucc = prm.nExUgs-1;
+						if(prm.nUgFail > prm.nUgFailStreak) {
+							prm.nUgFailStreak = prm.nUgFail;
+						}
+						prm.nUgFail = 0;
+					} else if(state == FOUND_EE) {
+						assert_gt(prm.nEeFail, 0);
+						assert_gt(prm.nExEeFails, 0);
+						prm.nExEeFails--;
+						prm.nExEeSuccs++;
+						prm.nEeLastSucc = prm.nExEes-1;
+						if(prm.nEeFail > prm.nEeFailStreak) {
+							prm.nEeFailStreak = prm.nEeFail;
+						}
+						prm.nEeFail = 0;
+					} else {
+						assert_gt(prm.nDpFail, 0);
+						assert_gt(prm.nExDpFails, 0);
+						prm.nExDpFails--;
+						prm.nExDpSuccs++;
+						prm.nDpLastSucc = prm.nExDps-1;
+						if(prm.nDpFail > prm.nDpFailStreak) {
+							prm.nDpFailStreak = prm.nDpFail;
+						}
+						prm.nDpFail = 0;
+					}
+				} else {
+					prm.nMateDpFails++;
+					mateStreaks_[i]++;
+				}
 				// At this point we know that we aren't bailing, and will continue to resolve seed hits.  
 
 			} // while(!gw.done())

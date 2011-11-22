@@ -3247,7 +3247,7 @@ static void* multiseedSearchWorker(void *vp) {
 							gc);             // global constraint
 						// Check whether the offset would drive the first seed
 						// off the end
-						if((*seeds[mate])[0].len + offset > rds[mate]->length()) {
+						if(offset > 0 && (*seeds[mate])[0].len + offset > rds[mate]->length()) {
 							continue;
 						}
 						// Instantiate the seeds

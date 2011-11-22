@@ -220,7 +220,9 @@ public:
 		btncand_(DP_CAT),
 		btncanddone_(DP_CAT),
 		btncanddoneSucc_(0),
-		btncanddoneFail_(0)
+		btncanddoneFail_(0),
+		colstop_(0),
+		cural_(0)
 		ASSERT_ONLY(, cand_tmp_(DP_CAT))
 	{
 		SwAligner::EXTREMES.first = std::numeric_limits<size_t>::max();
@@ -567,6 +569,7 @@ protected:
 	size_t              btncanddoneSucc_; // # investigated and succeeded
 	size_t              btncanddoneFail_; // # investigated and failed
 	
+	size_t              colstop_;
 	size_t              cural_;   // index of next alignment to be given
 	
 	SizeTPair           EXTREMES; // invalid, uninitialized range

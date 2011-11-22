@@ -519,7 +519,7 @@ bool SwAligner::align(RandomSource& rnd) {
 		assert_eq(d8.mat_.nrow(), d16.mat_.nrow());
 		assert_eq(d8.mat_.ncol(), d16.mat_.ncol());
 		for(size_t i = 0; i < d8.mat_.nrow(); i++) {
-			for(size_t j = 0; j < d8.mat_.ncol(); j++) {
+			for(size_t j = 0; j < colstop_; j++) {
 				int h8  = d8.mat_.helt(i, j);
 				int h16 = d16.mat_.helt(i, j);
 				int e8  = d8.mat_.eelt(i, j);
