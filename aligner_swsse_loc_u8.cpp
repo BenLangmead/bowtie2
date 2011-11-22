@@ -337,6 +337,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag) {
 	__m128i vhi      = _mm_setzero_si128();
 	__m128i vmax     = _mm_setzero_si128();
 	__m128i vcolmax  = _mm_setzero_si128();
+	__m128i vmaxtmp  = _mm_setzero_si128();
 	__m128i ve       = _mm_setzero_si128();
 	__m128i vf       = _mm_setzero_si128();
 	__m128i vh       = _mm_setzero_si128();
@@ -424,6 +425,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag) {
 	
 	assert_gt(sc_->gapbar, 0);
 	size_t nfixup = 0;
+	TAlScore matchsc = sc_->match(30);
 	
 	// Fill in the table as usual but instead of using the same gap-penalty
 	// vector for each iteration of the inner loop, load words out of a
@@ -437,6 +439,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag) {
 	// it difficult to use the first-row results in the next row, but it might
 	// be the simplest and least disruptive way to deal with the st_ constraint.
 	
+	colstop_ = rff_ - rfi_;
 	for(size_t i = rfi_; i < rff_; i++) {
 		assert(pvFStore == d.mat_.fvec(0, i - rfi_));
 		assert(pvHStore == d.mat_.hvec(0, i - rfi_));
@@ -652,16 +655,48 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag) {
 		}
 #endif
 
+		// Store column maximum vector in first element of tmp
+		vmax = _mm_max_epu8(vmax, vcolmax);
+		_mm_store_si128(d.mat_.tmpvec(0, i - rfi_), vcolmax);
+
+		{
+			// Get single largest score in this column
+			vmaxtmp = vcolmax;
+			vtmp = _mm_srli_si128(vmaxtmp, 8);
+			vmaxtmp = _mm_max_epu8(vmaxtmp, vtmp);
+			vtmp = _mm_srli_si128(vmaxtmp, 4);
+			vmaxtmp = _mm_max_epu8(vmaxtmp, vtmp);
+			vtmp = _mm_srli_si128(vmaxtmp, 2);
+			vmaxtmp = _mm_max_epu8(vmaxtmp, vtmp);
+			vtmp = _mm_srli_si128(vmaxtmp, 1);
+			vmaxtmp = _mm_max_epu8(vmaxtmp, vtmp);
+			int score = _mm_extract_epi16(vmaxtmp, 0);
+			score = score & 0x00ff;
+
+			// Could we have saturated?
+			if(score + d.bias_ >= 255) {
+				flag = -2; // yes
+				met.dpsat++;
+				return std::numeric_limits<TAlScore>::min();
+			}
+			
+			if(score < minsc_) {
+				size_t ncolleft = rff_ - i - 1;
+				if(score + (TAlScore)ncolleft * matchsc < minsc_) {
+					// Bail!  We're guaranteed not to see a valid alignment in
+					// the rest of the matrix
+					colstop_ = (i+1) - rfi_;
+					break;
+				}
+			}
+		}
+		
 		// pvELoad and pvHLoad are already where they need to be
 		
 		// Adjust the load and store vectors here.  
 		pvHStore = pvHLoad + colstride;
 		pvEStore = pvELoad + colstride;
 		pvFStore = pvFTmp;
-		
-		// Store column maximum vector in first element of tmp
-		vmax = _mm_max_epu8(vmax, vcolmax);
-		_mm_store_si128(d.mat_.tmpvec(0, i - rfi_), vcolmax);
 	}
 
 	// Find largest score in vmax
@@ -761,7 +796,7 @@ bool SwAligner::gatherCellsNucleotidesLocalSseU8(TAlScore best) {
 	// alignment that meets the minimum score requirement?
 	assert(sse8succ_);
 	size_t bonus = (size_t)sc_->match(30);
-	const size_t ncol = rff_ - rfi_;
+	const size_t ncol = colstop_;
 	const size_t nrow = dpRows();
 	assert_gt(nrow, 0);
 	btncand_.clear();
