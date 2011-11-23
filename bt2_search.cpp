@@ -3423,9 +3423,9 @@ static void* multiseedSearchWorker(void *vp) {
 					assert_leq(prm.nMateDps,      maxDp);
 					assert_leq(prm.nExUgs,        maxUg);
 					assert_leq(prm.nMateUgs,      maxUg);
-					assert_leq(prm.nDpFailStreak, maxDpStreak);
-					assert_leq(prm.nUgFailStreak, maxUgStreak);
-					assert_leq(prm.nEeFailStreak, maxEeStreak);
+					assert_leq(prm.nDpFail,       maxDpStreak);
+					assert_leq(prm.nUgFail,       maxUgStreak);
+					assert_leq(prm.nEeFail,       maxEeStreak);
 				}
 				// Commit and report paired-end/unpaired alignments
 				uint32_t seed = rds[0]->seed ^ rds[1]->seed;

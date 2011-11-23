@@ -188,7 +188,13 @@ public:
 	 * Initialze sampler with respect to a range of elements in a list of
 	 * SATupleAndPos's.
 	 */
-	void init(const EList<SATupleAndPos, 16>& salist, size_t sai, size_t saf) {
+	void init(
+		const EList<SATupleAndPos, 16>& salist,
+		size_t sai,
+		size_t saf,
+		bool lensq, // whether to square the numerator, which = extended length
+		bool szsq)  // whether to square denominator, which = 
+	{
 		assert_gt(saf, sai);
 		elim_.resize(saf - sai);
 		elim_.fill(false);
@@ -197,7 +203,15 @@ public:
 		masses_.resize(saf - sai);
 		for(size_t i = sai; i < saf; i++) {
 			size_t len = salist[i].nlex + salist[i].nrex + 1; // + salist[i].sat.key.len;
-			masses_[i - sai] = ((double)len * (double)len / ((double)salist[i].sat.size() * (double)salist[i].sat.size()));
+			double num = (double)len;
+			if(lensq) {
+				num *= num;
+			}
+			double denom = (double)salist[i].sat.size();
+			if(szsq) {
+				denom *= denom;
+			}
+			masses_[i - sai] = num / denom;
 			mass_ += masses_[i - sai];
 		}
 	}
@@ -454,6 +468,8 @@ protected:
 		const BitPairReference& ref, // Reference strings
 		int seedmms,                 // # seed mismatches allowed
 		size_t maxelt,               // max elts we'll consider
+		bool lensq,                  // square extended length
+		bool szsq,                   // square SA range size
 		size_t nsm,                  // if range as <= nsm elts, it's "small"
 		AlignmentCacheIface& ca,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random generator
