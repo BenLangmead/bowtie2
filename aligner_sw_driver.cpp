@@ -405,8 +405,7 @@ void SwDriver::prioritizeSATups(
 					size_t p5 = range[k].off;
 					size_t len = range[k].len;
 					if(p5 <= rdoff && p5 + len >= (rdoff + seedlen)) {
-						//assert_eq(sz, range[k].sz);
-						if(sz == range[k].sz) {
+						if(sz <= range[k].sz) {
 							skip = true;
 							break;
 						}
@@ -586,6 +585,7 @@ void SwDriver::prioritizeSATups(
 		rands_.back().init(1);
 		nelt_added++;
 	}
+	nelt = nelt_added;
 }
 
 enum {
