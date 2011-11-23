@@ -251,13 +251,13 @@ void SwDriver::extend(
 				int nonz = -1;
 				bool abort = false;
 				for(int j = 0; j < 4; j++) {
-					if(b[i] > t[i]) {
+					if(b[j] > t[j]) {
 						if(nonz >= 0) {
 							abort = true;
 							break;
 						}
 						nonz = j;
-						top = t[i]; bot = b[i];
+						top = t[j]; bot = b[j];
 					}
 				}
 				if(abort || nonz != rdc) {
@@ -314,13 +314,13 @@ void SwDriver::extend(
 				int nonz = -1;
 				bool abort = false;
 				for(int j = 0; j < 4; j++) {
-					if(b[i] > t[i]) {
+					if(b[j] > t[j]) {
 						if(nonz >= 0) {
 							abort = true;
 							break;
 						}
 						nonz = j;
-						top = t[i]; bot = b[i];
+						top = t[j]; bot = b[j];
 					}
 				}
 				if(abort || nonz != rdc) {
