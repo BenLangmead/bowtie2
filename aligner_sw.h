@@ -80,7 +80,6 @@
 #include "mem_ids.h"
 #include "aligner_result.h"
 #include "mask.h"
-#include "seed_scan.h"
 #include "dp_framer.h"
 #include "aligner_swsse.h"
 
@@ -283,7 +282,6 @@ public:
 		TAlScore minsc,        // minimum alignment score
 		bool enable8,          // use 8-bit SSE if possible?
 		bool extend,           // true iff this is a seed extension
-		SeedScanner *sscan,    // optional seed scanner to feed ref chars to
 		size_t  upto,          // count the number of Ns up to this offset
 		size_t& nsUpto);       // output: the number of Ns up to 'upto'
 

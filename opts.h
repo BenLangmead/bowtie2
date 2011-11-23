@@ -124,11 +124,7 @@ enum {
 	ARG_VERSION,                // --version
 	ARG_SEED_OFF,               // --seed-off
 	ARG_SEED_INFO,              // --seed-info
-	ARG_SEED_BOOST_DISABLE,     // --no-seed-boost
 	ARG_SEED_BOOST_THRESH,      // --seed-boost
-	ARG_SEED_BOOST_ITERS,       // --seed-boost-iters
-	ARG_SEED_BOOST_IVAL_MULT,   // --seed-boost-ival-mult
-	ARG_SEED_BOOST_LEN_MULT,    // --seed-boost-len-mult
 	ARG_READ_TIMES,             // --read-times
 	ARG_EXTEND_ITERS,           // --extends
 	ARG_DP_MATE_STREAK_THRESH,  // --db-mate-streak
@@ -137,7 +133,8 @@ enum {
 	ARG_EE_FAIL_STREAK_THRESH,  // --ee-fail-streak
 	ARG_DP_FAIL_THRESH,         // --dp-fails
 	ARG_UG_FAIL_THRESH,         // --ug-fails
-	ARG_MAPQ_EX                 // --mapq-extra
+	ARG_MAPQ_EX,                // --mapq-extra
+	ARG_SEED_ROUNDS             // --seed-rounds
 };
 
 #endif

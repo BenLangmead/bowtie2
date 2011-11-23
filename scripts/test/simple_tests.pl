@@ -151,6 +151,8 @@ my @cases = (
 
 	# Local alignment for a perfect hit
 	{ name   => "Local alignment 3",
+	  #            TTGTTCGT
+	  #                    TTGTTCGT
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  #            0123456789012345
 	  #            TTGTTCGTTTGTT

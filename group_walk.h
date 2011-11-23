@@ -455,12 +455,15 @@ public:
 					// the reference sequence underneath, which is what really
 					// matters here.
 					uint32_t tidx = 0xffffffff, tof, tlen;
+					bool straddled = false;
 					ebwt.joinedToTextOff(
 						hit.len, // length of seed
 						toff,    // offset in joined reference string
 						tidx,    // reference sequence id
 						tof,     // offset in reference coordinates
-						tlen);   // length of reference sequence
+						tlen,    // length of reference sequence
+						true,    // don't reject straddlers
+						straddled);
 					if(tidx != 0xffffffff &&
 					   hit.satup->key.seq != std::numeric_limits<uint64_t>::max())
 					{
@@ -470,17 +473,7 @@ public:
 						uint64_t key = hit.satup->key.seq;
 						for(int64_t j = tof + hit.len-1; j >= tof; j--) {
 							// Get next reference base to the left
-							int c;
-							if(ebwt.eh().color()) {
-								// Convert to color
-								int nup = ref.getBase(tidx, j);
-								assert_range(0, 3, nup);
-								int ndn = ref.getBase(tidx, j+1);
-								assert_range(0, 3, ndn);
-								c = dinuc2color[nup][ndn];
-							} else {
-								c = ref.getBase(tidx, j);
-							}
+							int c = ref.getBase(tidx, j);
 							assert_range(0, 3, c);
 							// Must equal least significant bitpair of key
 							if(c != (int)(key & 3)) {
@@ -493,16 +486,7 @@ public:
 								ebwt.restore(jref);
 								uint64_t key2 = hit.satup->key.seq;
 								for(int64_t k = toff + hit.len-1; k >= toff; k--) {
-									int c;
-									if(ebwt.eh().color()) {
-										int nup = jref[k+1];
-										assert_range(0, 3, nup);
-										int ndn = jref[k];
-										assert_range(0, 3, ndn);
-										c = dinuc2color[nup][ndn];
-									} else {
-										c = jref[k];
-									}
+									int c = jref[k];
 									assert_range(0, 3, c);
 									assert_eq(c, (int)(key2 & 3));
 									key2 >>= 2;

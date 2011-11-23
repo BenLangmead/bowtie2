@@ -250,6 +250,7 @@ void SwDriver::extend(
 				SANITY_CHECK_4TUP(t, b, tp, bp);
 				int nonz = -1;
 				bool abort = false;
+				size_t origSz = bot - top;
 				for(int j = 0; j < 4; j++) {
 					if(b[j] > t[j]) {
 						if(nonz >= 0) {
@@ -260,14 +261,15 @@ void SwDriver::extend(
 						top = t[j]; bot = b[j];
 					}
 				}
-				if(abort || nonz != rdc) {
+				assert_leq(bot - top, origSz);
+				if(abort || (nonz != rdc && rdc <= 3) || bot - top < origSz) {
 					break;
 				}
 			} else {
 				assert_eq(bot, top+1);
 				prm.nSdFmops++;
 				int c = ebwt->mapLF1(top, tloc);
-				if(c != rdc) {
+				if(c != rdc && rdc <= 3) {
 					break;
 				}
 				bot = top + 1;
@@ -294,7 +296,7 @@ void SwDriver::extend(
 		tp[0] = tp[1] = tp[2] = tp[3] = topf;
 		bp[0] = bp[1] = bp[2] = bp[3] = botf;
 		INIT_LOCS(top, bot, tloc, bloc, *ebwt);
-		for(size_t ii = 0; ii < off; ii++) {
+		for(size_t ii = 0; ii < lim; ii++) {
 			// Starting to right of seed (<off) and moving right
 			size_t i;
 			if(fw) {
@@ -313,6 +315,7 @@ void SwDriver::extend(
 				SANITY_CHECK_4TUP(t, b, tp, bp);
 				int nonz = -1;
 				bool abort = false;
+				size_t origSz = bot - top;
 				for(int j = 0; j < 4; j++) {
 					if(b[j] > t[j]) {
 						if(nonz >= 0) {
@@ -323,14 +326,15 @@ void SwDriver::extend(
 						top = t[j]; bot = b[j];
 					}
 				}
-				if(abort || nonz != rdc) {
+				assert_leq(bot - top, origSz);
+				if(abort || (nonz != rdc && rdc <= 3) || bot - top < origSz) {
 					break;
 				}
 			} else {
 				assert_eq(bot, top+1);
 				prm.nSdFmops++;
 				int c = ebwt->mapLF1(top, tloc);
-				if(c != rdc) {
+				if(c != rdc && rdc <= 3) {
 					break;
 				}
 				bot = top + 1;
@@ -358,6 +362,7 @@ void SwDriver::prioritizeSATups(
 	const Ebwt& ebwtFw,          // BWT
 	const Ebwt* ebwtBw,          // BWT
 	const BitPairReference& ref, // Reference strings
+	int seedmms,                 // # mismatches allowed in seed
 	size_t maxelt,               // max elts we'll consider
 	size_t nsm,                  // if range as <= nsm elts, it's "small"
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
@@ -367,6 +372,7 @@ void SwDriver::prioritizeSATups(
 	size_t& nelt_out)            // out: # elements total
 {
 	const size_t nonz = sh.nonzeroOffsets(); // non-zero positions
+	const int matei = (read.mate <= 1 ? 0 : 1);
 	satups_.clear();
 	gws_.clear();
 	rands_.clear();
@@ -386,6 +392,31 @@ void SwDriver::prioritizeSATups(
 		ca.queryQval(qv, satups_, nrange, nelt);
 		for(size_t j = 0; j < satups_.size(); j++) {
 			const size_t sz = satups_[j].size();
+			// Check whether this hit occurs inside the extended boundaries of
+			// another hit we already processed for this read.
+			if(seedmms == 0) {
+				// See if we're covered by a previous extended seed hit
+				EList<ExtendRange>& range =
+					fw ? seedExRangeFw_[matei] : seedExRangeRc_[matei];
+				bool skip = false;
+				for(size_t k = 0; k < range.size(); k++) {
+					size_t p5 = range[k].off;
+					size_t len = range[k].len;
+					if(p5 <= rdoff && p5 + len >= (rdoff + seedlen)) {
+						if(sz == range[k].sz) {
+							skip = true;
+							break;
+						}
+					}
+				}
+				if(skip) {
+					assert_gt(nrange, 0);
+					nrange--;
+					assert_geq(nelt, sz);
+					nelt -= sz;
+					continue; // Skip this seed
+				}
+			}
 			satpos.expand();
 			satpos.back().sat = satups_[j];
 			satpos.back().origSz = sz;
@@ -393,32 +424,44 @@ void SwDriver::prioritizeSATups(
 			if(sz <= nsm) {
 				nsmall++;
 				nsmall_elts += sz;
-			} else {
-				satpos.back().nlex = satpos.back().nrex = 0;
+			}
+			satpos.back().nlex = satpos.back().nrex = 0;
 #ifndef NDEBUG
-				tmp_rdseq_.clear();
-				uint64_t key = satpos.back().sat.key.seq;
-				for(size_t k = 0; k < seedlen; k++) {
-					int c = (int)(key & 3);
-					tmp_rdseq_.append(c);
-					key >>= 2;
-				}
-				tmp_rdseq_.reverse();
+			tmp_rdseq_.clear();
+			uint64_t key = satpos.back().sat.key.seq;
+			for(size_t k = 0; k < seedlen; k++) {
+				int c = (int)(key & 3);
+				tmp_rdseq_.append(c);
+				key >>= 2;
+			}
+			tmp_rdseq_.reverse();
 #endif
-				extend(
-					read,
-					ebwtFw,
-					ebwtBw,
-					satpos.back().sat.topf,
-					(uint32_t)(satpos.back().sat.topf + sz),
-					satpos.back().sat.topb,
-					(uint32_t)(satpos.back().sat.topb + sz),
-					fw,
-					rdoff,
-					seedlen,
-					prm,
-					satpos.back().nlex,
-					satpos.back().nrex);
+			size_t nlex = 0, nrex = 0;
+			extend(
+				read,
+				ebwtFw,
+				ebwtBw,
+				satpos.back().sat.topf,
+				(uint32_t)(satpos.back().sat.topf + sz),
+				satpos.back().sat.topb,
+				(uint32_t)(satpos.back().sat.topb + sz),
+				fw,
+				rdoff,
+				seedlen,
+				prm,
+				nlex,
+				nrex);
+			satpos.back().nlex = nlex;
+			satpos.back().nrex = nrex;
+			if(seedmms == 0 && (nlex > 0 || nrex > 0)) {
+				assert_geq(rdoff, (fw ? nlex : nrex));
+				size_t p5 = rdoff - (fw ? nlex : nrex);
+				EList<ExtendRange>& range =
+					fw ? seedExRangeFw_[matei] : seedExRangeRc_[matei];
+				range.expand();
+				range.back().off = p5;
+				range.back().len = seedlen + nlex + nrex;
+				range.back().sz = sz;
 			}
 		}
 		satups_.clear();
@@ -653,6 +696,7 @@ int SwDriver::extendSeeds(
 					ebwtFw,        // BWT
 					ebwtBw,        // BWT'
 					ref,           // Reference strings
+					seedmms,       // # seed mismatches allowed
 					maxUg + maxDp, // max rows to consider per position
 					nsm,           // smallness threshold
 					ca,            // alignment cache for seed hits
@@ -719,22 +763,26 @@ int SwDriver::extendSeeds(
 				}
 				assert_neq(0xffffffff, wr.toff);
 				uint32_t tidx = 0, toff = 0, tlen = 0;
+				bool straddled = false;
 				ebwtFw.joinedToTextOff(
 					wr.elt.len,
 					wr.toff,
 					tidx,
 					toff,
-					tlen);
+					tlen,
+					eeMode,     // reject straddlers?
+					straddled); // did it straddle?
 				if(tidx == 0xffffffff) {
 					// The seed hit straddled a reference boundary so the seed hit
 					// isn't valid
 					continue;
 				}
 #ifndef NDEBUG
-				if(!eeMode) { // Check that seed hit matches reference
+				if(!eeMode && !straddled) { // Check that seed hit matches reference
 					uint64_t key = satpos_[i].sat.key.seq;
 					for(size_t k = 0; k < wr.elt.len; k++) {
 						int c = ref.getBase(tidx, toff + wr.elt.len - k - 1);
+						assert_leq(c, 3);
 						int ck = (int)(key & 3);
 						key >>= 2;
 						assert_eq(c, ck);
@@ -876,7 +924,6 @@ int SwDriver::extendSeeds(
 				pastedRefoff -= leftShift;
 				size_t nsInLeftShift = 0;
 				if(state == FOUND_NONE) {
-					sscan_.init(sstab_);
 					if(!swa.initedRead()) {
 						// Initialize the aligner with a new read
 						swa.initRead(
@@ -899,7 +946,6 @@ int SwDriver::extendSeeds(
 						minsc,     // minimum score permitted
 						enable8,   // use 8-bit SSE if possible?
 						true,      // this is a seed extension - not finding a mate
-						&sscan_,   // reference scanner for resolving offsets
 						nwindow,
 						nsInLeftShift);
 					// Because of how we framed the problem, we can say that we've
@@ -1296,6 +1342,7 @@ int SwDriver::extendSeedsPaired(
 					ebwtFw,       // BWT
 					ebwtBw,       // BWT
 					ref,          // Reference strings
+					seedmms,       // # seed mismatches allowed
 					maxUg + maxDp,// max rows to consider per position
 					nsm,          // smallness threshold
 					ca,           // alignment cache for seed hits
@@ -1377,22 +1424,26 @@ int SwDriver::extendSeedsPaired(
 				neltLeft--;
 				assert_neq(0xffffffff, wr.toff);
 				uint32_t tidx = 0, toff = 0, tlen = 0;
+				bool straddled = false;
 				ebwtFw.joinedToTextOff(
 					wr.elt.len,
 					wr.toff,
 					tidx,
 					toff,
-					tlen);
+					tlen,
+					eeMode,       // reject straddlers?
+					straddled);   // straddled?
 				if(tidx == 0xffffffff) {
 					// The seed hit straddled a reference boundary so the seed hit
 					// isn't valid
 					continue;
 				}
 #ifndef NDEBUG
-				if(!eeMode) { // Check that seed hit matches reference
+				if(!eeMode && !straddled) { // Check that seed hit matches reference
 					uint64_t key = satpos_[i].sat.key.seq;
 					for(size_t k = 0; k < wr.elt.len; k++) {
 						int c = ref.getBase(tidx, toff + wr.elt.len - k - 1);
+						assert_leq(c, 3);
 						int ck = (int)(key & 3);
 						key >>= 2;
 						assert_eq(c, ck);
@@ -1530,7 +1581,6 @@ int SwDriver::extendSeedsPaired(
 				pastedRefoff -= leftShift;
 				size_t nsInLeftShift = 0;
 				if(state == FOUND_NONE) {
-					sscan_.init(sstab_);
 					if(!swa.initedRead()) {
 						// Initialize the aligner with a new read
 						swa.initRead(
@@ -1553,7 +1603,6 @@ int SwDriver::extendSeedsPaired(
 						minsc,     // minimum score permitted
 						enable8,   // use 8-bit SSE if possible?
 						true,      // this is a seed extension - not finding a mate
-						&sscan_,   // reference scanner for resolving offsets
 						nwindow,
 						nsInLeftShift);
 					// Because of how we framed the problem, we can say that we've
@@ -1768,7 +1817,6 @@ int SwDriver::extendSeedsPaired(
 								ominsc_cur,// min score for valid alignments
 								enable8,   // use 8-bit SSE if possible?
 								false,     // this is finding a mate - not seed ext
-								NULL,      // TODO: scan w/r/t other SeedResults
 								0,         // nwindow?
 								onsInLeftShift);
 							// TODO: Can't we add some diagonals to the

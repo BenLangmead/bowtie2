@@ -213,10 +213,7 @@ static bool doExactUpFront;   // do exact search up front if seeds seem good eno
 static bool do1mmUpFront;     // do 1mm search up front if seeds seem good enough
 static size_t do1mmMinLen;    // length below which we disable 1mm e2e search
 static int seedBoostThresh;   // if average non-zero position has more than this many elements
-static int seedBoostMaxIters; // maximum number of seed-boosting iterations
-static float seedBoostIvalMult;
-static float seedBoostLenMult;
-
+static size_t nSeedRounds;    // # seed rounds
 
 static string bt2index;      // read Bowtie 2 index from files with this prefix
 static EList<pair<int, string> > extra_opts;
@@ -384,9 +381,7 @@ static void resetOptions() {
 	doExactUpFront = true;   // do exact search up front if seeds seem good enough
 	do1mmUpFront = true;     // do 1mm search up front if seeds seem good enough
 	seedBoostThresh = 300;   // if average non-zero position has more than this many elements
-	seedBoostMaxIters = 1;   // maximum # of seed-boosting iterations
-	seedBoostIvalMult = 0.33;
-	seedBoostLenMult = 1.5;
+	nSeedRounds = 3;         // # rounds of seed searches to do for repetitive reads
 	do1mmMinLen = 60;        // length below which we disable 1mm search
 }
 
@@ -531,12 +526,8 @@ static struct option long_options[] = {
 	{(char*)"no-1mm-upfront",   no_argument,       0,        ARG_1MM_UPFRONT_NO},
 	{(char*)"1mm-minlen",       required_argument, 0,        ARG_1MM_MINLEN},
 	{(char*)"seed-info",        no_argument,       0,        ARG_SEED_INFO},
-	{(char*)"no-seed-boost",    no_argument,       0,        ARG_SEED_BOOST_DISABLE},
 	{(char*)"seed-off",         required_argument, 0,        'O'},
 	{(char*)"seed-boost",       required_argument, 0,        ARG_SEED_BOOST_THRESH},
-	{(char*)"seed-boost-iters", required_argument, 0,        ARG_SEED_BOOST_ITERS},
-	{(char*)"seed-boost-ival-mult", required_argument, 0,    ARG_SEED_BOOST_IVAL_MULT},
-	{(char*)"seed-boost-len-mult",  required_argument, 0,    ARG_SEED_BOOST_LEN_MULT},
 	{(char*)"read-times",       no_argument,       0,        ARG_READ_TIMES},
 	{(char*)"dp-fail-streak",   required_argument, 0,        ARG_DP_FAIL_STREAK_THRESH},
 	{(char*)"ee-fail-streak",   required_argument, 0,        ARG_EE_FAIL_STREAK_THRESH},
@@ -545,6 +536,7 @@ static struct option long_options[] = {
 	{(char*)"ug-fails",         required_argument, 0,        ARG_UG_FAIL_THRESH},
 	{(char*)"extends",          required_argument, 0,        ARG_EXTEND_ITERS},
 	{(char*)"mapq-extra",       no_argument,       0,        ARG_MAPQ_EX},
+	{(char*)"seed-rounds",      required_argument, 0,        ARG_SEED_ROUNDS},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -962,6 +954,10 @@ static void parseOption(int next_option, const char *arg) {
 			maxIters = parse<size_t>(arg);
 			break;
 		}
+		case ARG_SEED_ROUNDS: {
+			nSeedRounds = parse<size_t>(arg);
+			break;
+		}
 		case ARG_DP_MATE_STREAK_THRESH: {
 			maxMateStreak = parse<size_t>(arg);
 			break;
@@ -988,22 +984,6 @@ static void parseOption(int next_option, const char *arg) {
 		}
 		case ARG_SEED_BOOST_THRESH: {
 			seedBoostThresh = parse<int>(arg);
-			break;
-		}
-		case ARG_SEED_BOOST_DISABLE: {
-			seedBoostThresh = std::numeric_limits<int>::max();
-			break;
-		}
-		case ARG_SEED_BOOST_ITERS: {
-			seedBoostMaxIters = parse<int>(arg);
-			break;
-		}
-		case ARG_SEED_BOOST_IVAL_MULT: {
-			seedBoostIvalMult = parse<float>(arg);
-			break;
-		}
-		case ARG_SEED_BOOST_LEN_MULT: {
-			seedBoostLenMult = parse<float>(arg);
 			break;
 		}
 		case 'a': {
@@ -3190,15 +3170,21 @@ static void* multiseedSearchWorker(void *vp) {
 					}
 				}
 				int seedlens[2] = { multiseedLen, multiseedLen };
-				size_t nrounds = 3;
+				size_t nrounds[2] = { nSeedRounds, nSeedRounds };
+				nrounds[0] = min<size_t>(nrounds[0], interval[0]);
+				nrounds[1] = min<size_t>(nrounds[1], interval[1]);
 				Constraint gc = Constraint::penaltyFuncBased(scoreMin);
 				ca.nextRead(); // Clear cache in preparation for new search
-				for(size_t roundi = 0; roundi < nrounds; roundi++) {
+				for(size_t roundi = 0; roundi < nSeedRounds; roundi++) {
 					for(size_t matei = 0; matei < (pair ? 2:1); matei++) {
 						size_t mate = matemap[matei];
 						if(done[mate] || msinkwrap.state().doneWithMate(mate == 0)) {
 							// Done with this mate
 							done[mate] = true;
+							continue;
+						}
+						if(roundi >= nrounds[mate]) {
+							// Not doing this round for this mate
 							continue;
 						}
 						// Figure out the seed offset
@@ -3207,7 +3193,7 @@ static void* multiseedSearchWorker(void *vp) {
 							// tight as possible
 							continue; 
 						}
-						size_t offset = (interval[mate] * roundi) / ((interval[mate] == 2) ? 2 : 3);
+						size_t offset = (interval[mate] * roundi) / nrounds[mate];
 						assert(roundi == 0 || offset > 0);
 						assert(!msinkwrap.maxed());
 						assert(msinkwrap.repOk());

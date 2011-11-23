@@ -92,7 +92,7 @@ SEARCH_CPPS = qual.cpp pat.cpp sam.cpp \
 			  aligner_sw_driver.cpp aligner_cache.cpp \
 			  aligner_result.cpp ref_coord.cpp mask.cpp \
 			  pe.cpp aln_sink.cpp dp_framer.cpp \
-			  scoring.cpp seed_scan.cpp presets.cpp unique.cpp \
+			  scoring.cpp presets.cpp unique.cpp \
 			  aligner_swsse.cpp \
 			  aligner_swsse_loc_i16.cpp \
 			  aligner_swsse_ee_i16.cpp \

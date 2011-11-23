@@ -1388,7 +1388,7 @@ public:
 	void checkOrigs(const EList<SString<char> >& os, bool color, bool mirror) const;
 
 	// Searching and reporting
-	void joinedToTextOff(uint32_t qlen, uint32_t off, uint32_t& tidx, uint32_t& textoff, uint32_t& tlen) const;
+	void joinedToTextOff(uint32_t qlen, uint32_t off, uint32_t& tidx, uint32_t& textoff, uint32_t& tlen, bool rejectStraddle, bool& straddled) const;
 	int rowL(const SideLocus& l) const;
 	int rowL(uint32_t row) const;
 	inline uint32_t countUpTo(const SideLocus& l, int c) const;
