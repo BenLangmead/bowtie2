@@ -879,7 +879,7 @@ int SwDriver::extendSeeds(
 					if(al == 0) {
 						prm.nExUgFails++;
 						prm.nUgFail++;
-						if(prm.nUgFail > maxUgStreak) {
+						if(prm.nUgFail >= maxUgStreak) {
 							return EXTEND_EXCEEDED_SOFT_LIMIT;
 						}
 						swmSeed.ungapfail++;
@@ -887,7 +887,7 @@ int SwDriver::extendSeeds(
 					} else if(al == -1) {
 						prm.nExUgFails++;
 						prm.nUgFail++; // count this as failure
-						if(prm.nUgFail > maxUgStreak) {
+						if(prm.nUgFail >= maxUgStreak) {
 							return EXTEND_EXCEEDED_SOFT_LIMIT;
 						}
 						swmSeed.ungapnodec++;
@@ -971,7 +971,7 @@ int SwDriver::extendSeeds(
 					if(!found) {
 						prm.nExDpFails++;
 						prm.nDpFail++;
-						if(prm.nDpFail > maxDpStreak) {
+						if(prm.nDpFail >= maxDpStreak) {
 							return EXTEND_EXCEEDED_SOFT_LIMIT;
 						}
 						continue; // Look for more anchor alignments
