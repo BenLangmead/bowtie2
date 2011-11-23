@@ -3183,8 +3183,12 @@ static void* multiseedSearchWorker(void *vp) {
 				nrounds[0] = min<size_t>(nrounds[0], interval[0]);
 				nrounds[1] = min<size_t>(nrounds[1], interval[1]);
 				Constraint gc = Constraint::penaltyFuncBased(scoreMin);
-				ca.nextRead(); // Clear cache in preparation for new search
 				for(size_t roundi = 0; roundi < nSeedRounds; roundi++) {
+					ca.nextRead(); // Clear cache in preparation for new search
+					if(roundi > 0) {
+						if(seedlens[0] > 8) seedlens[0]--;
+						if(seedlens[1] > 8) seedlens[1]--;
+					}
 					for(size_t matei = 0; matei < (pair ? 2:1); matei++) {
 						size_t mate = matemap[matei];
 						if(done[mate] || msinkwrap.state().doneWithMate(mate == 0)) {
