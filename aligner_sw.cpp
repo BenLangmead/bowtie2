@@ -128,7 +128,6 @@ void SwAligner::initRef(
 	TAlScore minsc,        // minimum score
 	bool enable8,          // use 8-bit SSE if possible?
 	bool extend,           // true iff this is a seed extension
-	SeedScanner *sscan,    // optional seed scanner to feed ref chars to
 	size_t  upto,          // count the number of Ns up to this offset
 	size_t& nsUpto)        // output: the number of Ns up to 'upto'
 {
@@ -210,9 +209,6 @@ void SwAligner::initRef(
 	nsUpto = 0;
 	for(size_t i = 0; i < rflen; i++) {
 		// rf_[i] gets mask version of refence char, with N=16
-		if(sscan != NULL && !sscan->empty()) {
-			sscan->nextChar(rf_[i]);
-		}
 		if(i < upto && rf_[i] > 3) {
 			nsUpto++;
 		}

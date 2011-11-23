@@ -249,8 +249,8 @@ static void print_index_sequences(ostream& fout, Ebwt& ebwt)
 		uint32_t tidx = 0xffffffff;
 		uint32_t textoff = 0xffffffff;
 		tlen = 0xffffffff;
-
-		ebwt.joinedToTextOff(1 /* qlen */, (uint32_t)i, tidx, textoff, tlen);
+		bool straddled = false;
+		ebwt.joinedToTextOff(1 /* qlen */, (uint32_t)i, tidx, textoff, tlen, true, straddled);
 
 		if (tidx != 0xffffffff && textoff < tlen)
 		{

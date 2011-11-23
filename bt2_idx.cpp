@@ -567,7 +567,9 @@ void Ebwt::joinedToTextOff(
 	uint32_t off,
 	uint32_t& tidx,
     uint32_t& textoff,
-    uint32_t& tlen) const
+    uint32_t& tlen,
+	bool rejectStraddle,
+	bool& straddled) const
 {
 	assert(rstarts() != NULL); // must have loaded rstarts
 	uint32_t top = 0;
@@ -591,10 +593,13 @@ void Ebwt::joinedToTextOff(
 			if(upper > off) { // not last element, but it's within
 				// off is in this range; check if it falls off
 				if(off + qlen > upper) {
-					// it falls off; signal no-go and return
-					tidx = 0xffffffff;
-					assert_lt(elt, _nFrag-1);
-					return;
+					straddled = true;
+					if(rejectStraddle) {
+						// it falls off; signal no-go and return
+						tidx = 0xffffffff;
+						assert_lt(elt, _nFrag-1);
+						return;
+					}
 				}
 				// This is the correct text idx whether the index is
 				// forward or reverse
@@ -1607,9 +1612,22 @@ bool Ebwt::contains(
 	ASSERT_ONLY(uint32_t lastDiff = bot - top);
 	for(int i = (int)str.length()-2; i >= 0; i--) {
 		c = str[i];
-		assert_range(0, 3, c);
-		top = mapLF(tloc, c);
-		bot = mapLF(bloc, c);
+		assert_range(0, 4, c);
+		if(c <= 3) {
+			top = mapLF(tloc, c);
+			bot = mapLF(bloc, c);
+		} else {
+			size_t sz = bot - top;
+			int c1 = mapLF1(top, tloc);
+			bot = mapLF(bloc, c1);
+			assert_leq(bot - top, sz);
+			if(bot - top < sz) {
+				// Encountered an N and could not proceed through it because
+				// there was more than one possible nucleotide we could replace
+				// it with
+				return false;
+			}
+		}
 		assert_geq(bot, top);
 		assert_leq(bot-top, lastDiff);
 		ASSERT_ONLY(lastDiff = bot-top);

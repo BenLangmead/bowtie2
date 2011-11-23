@@ -256,6 +256,21 @@ enum {
 	EXTEND_EXCEEDED_LIMIT,
 };
 
+/**
+ * Data structure encapsulating a range that's been extended out in two
+ * directions.
+ */
+struct ExtendRange {
+
+	void init(size_t off_, size_t len_, size_t sz_) {
+		off = off_; len = len_; sz = sz_;
+	}
+
+	size_t off; // offset of extended region
+	size_t len; // length between extremes of extended region
+	size_t sz;  // # of elements in SA range
+};
+
 class SwDriver {
 
 	typedef PList<uint32_t, CACHE_PAGE_SZ> TSAList;
@@ -384,6 +399,10 @@ public:
 		redAnchor_.reset();
 		seenDiags1_.reset();
 		seenDiags2_.reset();
+		seedExRangeFw_[0].clear(); // mate 1 fw
+		seedExRangeFw_[1].clear(); // mate 2 fw
+		seedExRangeRc_[0].clear(); // mate 1 rc
+		seedExRangeRc_[1].clear(); // mate 2 rc
 		size_t maxlen = mate1len;
 		if(paired) {
 			redMate1_.reset();
@@ -429,6 +448,7 @@ protected:
 		const Ebwt& ebwtFw,          // BWT
 		const Ebwt* ebwtBw,          // BWT
 		const BitPairReference& ref, // Reference strings
+		int seedmms,                 // # seed mismatches allowed
 		size_t maxelt,               // max elts we'll consider
 		size_t nsm,                  // if range as <= nsm elts, it's "small"
 		AlignmentCacheIface& ca,     // alignment cache for seed hits
@@ -447,9 +467,10 @@ protected:
 	EList<GroupWalk2>        gws_;         // list of GroupWalks; no particular order
 	EList<size_t>            mateStreaks_; // mate-find fail streaks
 	RowSampler               rowsamp_;     // row sampler
-
-	SeedScanner    sscan_;      // reference scanner for resolving seed hits
-	SeedScanTable  sstab_;      // table of seeds to search for
+	
+	// Ranges that we've extended through when extending seed hits
+	EList<ExtendRange> seedExRangeFw_[2];
+	EList<ExtendRange> seedExRangeRc_[2];
 
 	// Data structures encapsulating the diagonals that have already been used
 	// to seed alignment for mate 1 and mate 2.
