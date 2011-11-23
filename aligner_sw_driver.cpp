@@ -364,6 +364,8 @@ void SwDriver::prioritizeSATups(
 	const BitPairReference& ref, // Reference strings
 	int seedmms,                 // # mismatches allowed in seed
 	size_t maxelt,               // max elts we'll consider
+	bool lensq,                  // square length in weight calculation
+	bool szsq,                   // square range size in weight calculation
 	size_t nsm,                  // if range as <= nsm elts, it's "small"
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
 	RandomSource& rnd,           // pseudo-random generator
@@ -403,6 +405,7 @@ void SwDriver::prioritizeSATups(
 					size_t p5 = range[k].off;
 					size_t len = range[k].len;
 					if(p5 <= rdoff && p5 + len >= (rdoff + seedlen)) {
+						//assert_eq(sz, range[k].sz);
 						if(sz == range[k].sz) {
 							skip = true;
 							break;
@@ -537,7 +540,7 @@ void SwDriver::prioritizeSATups(
 	}
 	// 2. do the non-smalls
 	// Initialize the row sampler
-	rowsamp_.init(satpos2_, nsmall, satpos2_.size());
+	rowsamp_.init(satpos2_, nsmall, satpos2_.size(), lensq, szsq);
 	// Initialize the random choosers
 	rands2_.resize(satpos2_.size());
 	for(size_t j = 0; j < satpos2_.size(); j++) {
@@ -652,7 +655,7 @@ int SwDriver::extendSeeds(
 
 	// Initialize a set of GroupWalks, one for each seed.  Also, intialize the
 	// accompanying lists of reference seed hits (satups*)
-	const size_t nsm = 3;
+	const size_t nsm = 5;
 	const size_t nonz = sh.nonzeroOffsets(); // non-zero positions
 	size_t eeHits = sh.numE2eHits();
 	bool eeMode = eeHits > 0;
@@ -695,7 +698,9 @@ int SwDriver::extendSeeds(
 					ebwtBw,        // BWT'
 					ref,           // Reference strings
 					seedmms,       // # seed mismatches allowed
-					maxUg + maxDp, // max rows to consider per position
+					75,            // max rows to consider per position
+					true,          // square extended length
+					true,          // square SA range size
 					nsm,           // smallness threshold
 					ca,            // alignment cache for seed hits
 					rnd,           // pseudo-random generator
@@ -1284,7 +1289,7 @@ int SwDriver::extendSeedsPaired(
 
 	// Initialize a set of GroupWalks, one for each seed.  Also, intialize the
 	// accompanying lists of reference seed hits (satups*)
-	const size_t nsm = 3;
+	const size_t nsm = 5;
 	const size_t nonz = sh.nonzeroOffsets(); // non-zero positions
 	size_t eeHits = sh.numE2eHits();
 	bool eeMode = eeHits > 0;
@@ -1336,18 +1341,20 @@ int SwDriver::extendSeedsPaired(
 				nelt = 0;
 				prioritizeSATups(
 					rd,            // read
-					sh,           // seed hits to extend into full alignments
-					ebwtFw,       // BWT
-					ebwtBw,       // BWT
-					ref,          // Reference strings
+					sh,            // seed hits to extend into full alignments
+					ebwtFw,        // BWT
+					ebwtBw,        // BWT'
+					ref,           // Reference strings
 					seedmms,       // # seed mismatches allowed
-					maxUg + maxDp,// max rows to consider per position
-					nsm,          // smallness threshold
-					ca,           // alignment cache for seed hits
-					rnd,          // pseudo-random generator
-					wlm,          // group walk left metrics
-					prm,          // per-read metrics
-					nelt);        // out: # elements total
+					75,            // max rows to consider per position
+					true,          // square extended length
+					true,          // square SA range size
+					nsm,           // smallness threshold
+					ca,            // alignment cache for seed hits
+					rnd,           // pseudo-random generator
+					wlm,           // group walk left metrics
+					prm,           // per-read metrics
+					nelt);         // out: # elements total
 				assert_eq(gws_.size(), rands_.size());
 				assert_eq(gws_.size(), satpos_.size());
 				neltLeft = nelt;
