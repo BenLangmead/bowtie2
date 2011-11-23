@@ -43,87 +43,6 @@ bool SAVal::repOk(const AlignmentCache& ac) const {
 }
 
 /**
- * Randomly narrow down a list of SATuples such that the result has no more
- * than 'maxrows' rows total.  Could involve splitting some ranges into
- * pieces.  Return the result in dst.
- */
-bool SATuple::randomNarrow(
-	const EList<SATuple, 16>& src,      // input list of SATuples
-	EList<SATuple, 16>& dst,            // output list of SATuples
-	RandomSource& rnd, // pseudo-random generator
-	const SimpleFunc& rowmult) // max # rows to keep, function of tot rows
-{
-	// Add up the total number of rows/elements in all the SARanges in src
-	size_t totrows = 0;
-	for(size_t i = 0; i < src.size(); i++) {
-		totrows += src[i].offs.size();
-	}
-	size_t maxrows = rowmult.f<size_t>((double)totrows);
-	assert_gt(maxrows, 0);
-	if(totrows <= maxrows) {
-		return false;
-	}
-	size_t totrowsSampled = 0;
-	uint32_t off = (uint32_t)(rnd.nextU32() % totrows);
-	bool on = false;
-	bool done = false;
-	totrows = 0;
-	for(int twice = 0; twice < 2; twice++) {
-		for(size_t i = 0; i < src.size(); i++) {
-			assert(src[i].repOk());
-			if(!on) {
-				// Do we start sampling in this range?
-				on = (off < totrows + src[i].offs.size());
-				if(on) {
-					// Grab the appropriate portion of this range
-					assert_geq(off, totrows);
-					dst.expand();
-					size_t first = off - totrows;
-					size_t last = first + maxrows;
-					if(last > src[i].offs.size()) {
-						last = src[i].offs.size();
-					}
-					assert_gt(last, first);
-					dst.back().init(src[i], first, last);
-					totrowsSampled += (last-first);
-					assert(dst.back().repOk());
-				}
-			} else {
-				// This range is either in the middle or at the end of
-				// the random sample.
-				assert_lt(totrowsSampled, maxrows);
-				dst.expand();
-				size_t first = 0;
-				size_t last = maxrows - totrowsSampled;
-				if(last > src[i].offs.size()) {
-					last = src[i].offs.size();
-				}
-				assert_gt(last, first);
-				dst.back().init(src[i], first, last);
-				totrowsSampled += (last-first);
-				assert(dst.back().repOk());
-			}
-			if(totrowsSampled == maxrows) {
-				done = true;
-				break;
-			}
-			totrows += src[i].offs.size();
-		}
-		if(done) break;
-		// Must have already encountered first range we're sampling
-		// from
-		assert(on);
-	}
-	// Destination must be non-empty can can't have more than 1+
-	// the number of elements in the source.  1+ because the
-	// sampled range could "wrap around" and touch the same source
-	// range twice.
-	assert(!dst.empty());
-	assert_leq(dst.size(), src.size()+1);
-	return true;
-}
-
-/**
  * Add a new association between a read sequnce ('seq') and a
  * reference sequence ('')
  */
@@ -132,6 +51,8 @@ bool AlignmentCache::addOnTheFly(
 	const SAKey& sak, // the key holding the reference substring
 	uint32_t topf,    // top range elt in BWT index
 	uint32_t botf,    // bottom range elt in BWT index
+	uint32_t topb,    // top range elt in BWT' index
+	uint32_t botb,    // bottom range elt in BWT' index
 	bool getLock)
 {
 	ThreadSafe ts(lockPtr(), shared_ && getLock);
@@ -161,7 +82,8 @@ bool AlignmentCache::addOnTheFly(
 	if(added) {
 		s->payload.i = (uint32_t)salist_.size();
 		s->payload.len = botf - topf;
-		s->payload.top = topf;
+		s->payload.topf = topf;
+		s->payload.topb = topb;
 		for(size_t j = 0; j < (botf-topf); j++) {
 			if(!salist_.add(pool(), 0xffffffff)) {
 				// Change the payload's len field

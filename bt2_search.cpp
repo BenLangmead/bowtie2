@@ -47,7 +47,6 @@
 #include "aligner_seed_policy.h"
 #include "aligner_sw.h"
 #include "aligner_sw_driver.h"
-#include "aligner_counters.h"
 #include "aligner_cache.h"
 #include "util.h"
 #include "pe.h"
@@ -188,9 +187,6 @@ static SimpleFunc msIval;     // interval between seeds as function of read len
 static int    multiseedMms;   // mismatches permitted in a multiseed seed
 static int    multiseedLen;   // length of multiseed seeds
 static size_t multiseedOff;   // offset to begin extracting seeds
-static string saCountersFn;  // filename to dump per-read SeedAligner counters to
-static string saActionsFn;   // filename to dump all alignment actions to
-static string saHitsFn;      // filename to dump all seed hits to
 static uint32_t seedCacheLocalMB;   // # MB to use for non-shared seed alignment cacheing
 static uint32_t seedCacheCurrentMB; // # MB to use for current-read seed hit cacheing
 static uint32_t exactCacheCurrentMB; // # MB to use for current-read seed hit cacheing
@@ -206,7 +202,6 @@ static size_t maxUgStreak;   // stop after this many ungap fails in a row
 static size_t maxDpStreak;   // stop after this many dp fails in a row
 static size_t maxMateStreak; // stop seed range after this many mate-find fails
 static bool enable8;         // use 8-bit SSE where possible?
-static bool refscan;         // use reference scanning?
 static string defaultPreset; // default preset; applied immediately
 static bool ignoreQuals;     // all mms incur same penalty, regardless of qual
 static string wrapper;        // type of wrapper script, so we can print correct usage
@@ -361,9 +356,6 @@ static void resetOptions() {
 	multiseedMms    = DEFAULT_SEEDMMS;
 	multiseedLen    = DEFAULT_SEEDLEN;
 	multiseedOff    = 0;
-	saCountersFn.clear();    // filename to dump per-read SeedAligner counters to
-	saActionsFn.clear();     // filename to dump all alignment actions to
-	saHitsFn.clear();        // filename to dump all seed hits to
 	seedCacheLocalMB   = 32; // # MB to use for non-shared seed alignment cacheing
 	seedCacheCurrentMB = 20; // # MB to use for current-read seed hit cacheing
 	exactCacheCurrentMB = 20; // # MB to use for current-read seed hit cacheing
@@ -379,7 +371,6 @@ static void resetOptions() {
 	maxDpStreak        = 15;    // stop after this many dp fails in a row
 	maxMateStreak      = 10;    // in PE: abort seed range after N mate-find fails
 	enable8            = true;  // use 8-bit SSE where possible?
-	refscan            = false; // use reference scanning?
 	defaultPreset      = "sensitive%LOCAL%"; // default preset; applied immediately
 	extra_opts.clear();
 	extra_opts_cur = 0;
@@ -490,8 +481,6 @@ static struct option long_options[] = {
 	{(char*)"no-discordant",no_argument,       0,            ARG_NO_DISCORDANT},
 	{(char*)"local",        no_argument,       0,            ARG_LOCAL},
 	{(char*)"end-to-end",   no_argument,       0,            ARG_END_TO_END},
-	{(char*)"refscan",      no_argument,       0,            ARG_REFSCAN},
-	{(char*)"no-refscan",   no_argument,       0,            ARG_REFSCAN_NO},
 	{(char*)"ungapped",     no_argument,       0,            ARG_UNGAPPED},
 	{(char*)"no-ungapped",  no_argument,       0,            ARG_UNGAPPED_NO},
 	{(char*)"sse8",         no_argument,       0,            ARG_SSE8},
@@ -1106,8 +1095,6 @@ static void parseOption(int next_option, const char *arg) {
 			break;
 		case ARG_LOCAL: localAlign = true; break;
 		case ARG_END_TO_END: localAlign = false; break;
-		case ARG_REFSCAN: refscan = true; break;
-		case ARG_REFSCAN_NO: refscan = false; break;
 		case ARG_SSE8: enable8 = true; break;
 		case ARG_SSE8_NO: enable8 = false; break;
 		case ARG_UNGAPPED: doUngapped = true; break;
@@ -1627,8 +1614,6 @@ struct PerfMetrics {
 				/* 29 */ "ResBWOp"        "\t"
 				/* 30 */ "ResBWBranch"    "\t"
 				/* 31 */ "ResResolve"     "\t"
-				/* 32 */ "RefScanHit"     "\t"
-				/* 33 */ "RefScanResolve" "\t"
 				/* 34 */ "ResReport"      "\t"
 				/* 35 */ "RedundantSHit"  "\t"
 
@@ -1897,14 +1882,6 @@ struct PerfMetrics {
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 		// 31. Burrows-Wheeler offset resolutions
 		itoa10<uint64_t>(wl.resolves, buf);
-		if(metricsStderr) cerr << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 32. Reference-scanner hits
-		itoa10<uint64_t>(wl.refscanhits, buf);
-		if(metricsStderr) cerr << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 33. Reference-scanning offset resolutions
-		itoa10<uint64_t>(wl.refresolves, buf);
 		if(metricsStderr) cerr << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 		// 34. Offset reports
@@ -2924,6 +2901,7 @@ static void* multiseedSearchWorker(void *vp) {
 								!filt[mate ^ 1],// opposite mate filtered out?
 								shs[mate],      // seed hits for anchor
 								ebwtFw,         // bowtie index
+								&ebwtBw,        // rev bowtie index
 								ref,            // packed reference strings
 								sw,             // dyn prog aligner, anchor
 								osw,            // dyn prog aligner, opposite
@@ -2951,7 +2929,6 @@ static void* multiseedSearchWorker(void *vp) {
 								maxDpStreak,    // stop after streak of this many dp fails
 								maxMateStreak,  // max mate fails per seed range
 								enable8,        // use 8-bit SSE where possible
-								refscan,        // use reference scanning?
 								tighten,        // -M score tightening mode
 								ca,             // seed alignment cache
 								rnd,            // pseudo-random source
@@ -2973,6 +2950,7 @@ static void* multiseedSearchWorker(void *vp) {
 								mate == 0,      // mate #1?
 								shs[mate],      // seed hits
 								ebwtFw,         // bowtie index
+								&ebwtBw,        // rev bowtie index
 								ref,            // packed reference strings
 								sw,             // dynamic prog aligner
 								sc,             // scoring scheme
@@ -2991,7 +2969,6 @@ static void* multiseedSearchWorker(void *vp) {
 								maxUgStreak,    // stop after streak of this many ungap fails
 								maxDpStreak,    // stop after streak of this many dp fails
 								enable8,        // use 8-bit SSE where possible
-								refscan,        // use reference scanning?
 								tighten,        // -M score tightening mode
 								ca,             // seed alignment cache
 								rnd,            // pseudo-random source
@@ -3099,6 +3076,7 @@ static void* multiseedSearchWorker(void *vp) {
 								!filt[mate ^ 1],// opposite mate filtered out?
 								shs[mate],      // seed hits for anchor
 								ebwtFw,         // bowtie index
+								&ebwtBw,        // rev bowtie index
 								ref,            // packed reference strings
 								sw,             // dyn prog aligner, anchor
 								osw,            // dyn prog aligner, opposite
@@ -3126,7 +3104,6 @@ static void* multiseedSearchWorker(void *vp) {
 								maxDpStreak,    // stop after streak of this many dp fails
 								maxMateStreak,  // max mate fails per seed range
 								enable8,        // use 8-bit SSE where possible
-								refscan,        // use reference scanning?
 								tighten,        // -M score tightening mode
 								ca,             // seed alignment cache
 								rnd,            // pseudo-random source
@@ -3148,6 +3125,7 @@ static void* multiseedSearchWorker(void *vp) {
 								mate == 0,      // mate #1?
 								shs[mate],      // seed hits
 								ebwtFw,         // bowtie index
+								&ebwtBw,        // rev bowtie index
 								ref,            // packed reference strings
 								sw,             // dynamic prog aligner
 								sc,             // scoring scheme
@@ -3166,7 +3144,6 @@ static void* multiseedSearchWorker(void *vp) {
 								maxUgStreak,    // stop after streak of this many ungap fails
 								maxDpStreak,    // stop after streak of this many dp fails
 								enable8,        // use 8-bit SSE where possible
-								refscan,        // use reference scanning?
 								tighten,        // -M score tightening mode
 								ca,             // seed alignment cache
 								rnd,            // pseudo-random source
@@ -3329,6 +3306,7 @@ static void* multiseedSearchWorker(void *vp) {
 									!filt[mate ^ 1],// opposite mate filtered out?
 									shs[mate],      // seed hits for anchor
 									ebwtFw,         // bowtie index
+									&ebwtBw,        // rev bowtie index
 									ref,            // packed reference strings
 									sw,             // dyn prog aligner, anchor
 									osw,            // dyn prog aligner, opposite
@@ -3356,7 +3334,6 @@ static void* multiseedSearchWorker(void *vp) {
 									maxDpStreak,    // stop after streak of this many dp fails
 									maxMateStreak,  // max mate fails per seed range
 									enable8,        // use 8-bit SSE where possible
-									refscan,        // use reference scanning?
 									tighten,        // -M score tightening mode
 									ca,             // seed alignment cache
 									rnd,            // pseudo-random source
@@ -3378,6 +3355,7 @@ static void* multiseedSearchWorker(void *vp) {
 									mate == 0,      // mate #1?
 									shs[mate],      // seed hits
 									ebwtFw,         // bowtie index
+									&ebwtBw,        // rev bowtie index
 									ref,            // packed reference strings
 									sw,             // dynamic prog aligner
 									sc,             // scoring scheme
@@ -3396,7 +3374,6 @@ static void* multiseedSearchWorker(void *vp) {
 									maxUgStreak,    // stop after streak of this many ungap fails
 									maxDpStreak,    // stop after streak of this many dp fails
 									enable8,        // use 8-bit SSE where possible
-									refscan,        // use reference scanning?
 									tighten,        // -M score tightening mode
 									ca,             // seed alignment cache
 									rnd,            // pseudo-random source

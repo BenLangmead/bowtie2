@@ -110,8 +110,6 @@ enum {
 	ARG_OVERLAP,                // --overlap
 	ARG_NO_OVERLAP,             // --no-overlap
 	ARG_MAPQ_V,                 // --mapq-v
-	ARG_REFSCAN,                // --refscan
-	ARG_REFSCAN_NO,             // --no-refscan
 	ARG_SSE8,                   // --sse8
 	ARG_SSE8_NO,                // --no-sse8
 	ARG_UNGAPPED,               // --ungapped

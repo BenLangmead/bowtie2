@@ -121,7 +121,7 @@ bool SwDriver::eeSaTups(
 				}
 				eehits_.push_back(hit);
 				satpos_.expand();
-				satpos_.back().sat.init(SAKey(), hit.top, o);
+				satpos_.back().sat.init(SAKey(), hit.top, 0xffffffff, o);
 				satpos_.back().sat.key.seq = std::numeric_limits<uint64_t>::max();
 				satpos_.back().sat.key.len = (uint32_t)sh.readLength();
 				satpos_.back().pos.init(hit.fw, 0, 0, (uint32_t)sh.readLength());
@@ -133,7 +133,6 @@ bool SwDriver::eeSaTups(
 					ebwt,               // forward Bowtie index
 					ref,                // reference sequences
 					satpos_.back().sat, // SATuple
-					NULL,               // Combiner for resolvers
 					rnd,                // pseudo-random generator
 					wlm);               // metrics
 				assert(gws_.back().repOk());
@@ -169,7 +168,7 @@ bool SwDriver::eeSaTups(
 			}
 			eehits_.push_back(hit);
 			satpos_.expand();
-			satpos_.back().sat.init(SAKey(), hit.top, o);
+			satpos_.back().sat.init(SAKey(), hit.top, 0xffffffff, o);
 			satpos_.back().sat.key.seq = std::numeric_limits<uint64_t>::max();
 			satpos_.back().sat.key.len = (uint32_t)sh.readLength();
 			satpos_.back().pos.init(hit.fw, 0, 0, (uint32_t)sh.readLength());
@@ -181,7 +180,6 @@ bool SwDriver::eeSaTups(
 				ebwt,               // forward Bowtie index
 				ref,                // reference sequences
 				satpos_.back().sat, // SATuple
-				NULL,               // Combiner for resolvers
 				rnd,                // pseudo-random generator
 				wlm);               // metrics
 			assert(gws_.back().repOk());
@@ -192,19 +190,180 @@ bool SwDriver::eeSaTups(
 }
 
 /**
+ * Extend a seed hit out on either side.  Requires that we know the seed hit's
+ * offset into the read and orientation.  Also requires that we know top/bot
+ * for the seed hit in both the forward and (if we want to extend to the right)
+ * reverse index.
+ */
+void SwDriver::extend(
+	const Read& rd,       // read
+	const Ebwt& ebwtFw,   // Forward Bowtie index
+	const Ebwt* ebwtBw,   // Backward Bowtie index
+	uint32_t topf,        // top in fw index
+	uint32_t botf,        // bot in fw index
+	uint32_t topb,        // top in bw index
+	uint32_t botb,        // bot in bw index
+	bool fw,              // seed orientation
+	size_t off,           // seed offset from 5' end
+	size_t len,           // seed length
+	PerReadMetrics& prm,  // per-read metrics
+	size_t& nlex,         // # positions we can extend to left w/o edit
+	size_t& nrex)         // # positions we can extend to right w/o edit
+{
+	uint32_t t[4], b[4];
+	uint32_t tp[4], bp[4];
+	SideLocus tloc, bloc;
+	size_t rdlen = rd.length();
+	size_t lim = fw ? off : rdlen - len - off;
+	// We're about to add onto the beginning, so reverse it
+	assert(ebwtFw.contains(tmp_rdseq_));
+	ASSERT_ONLY(tmp_rdseq_.reverse());
+	if(lim > 0) {
+		const Ebwt *ebwt = &ebwtFw;
+		assert(ebwt != NULL);
+		// Extend left using forward index
+		const BTDnaString& seq = fw ? rd.patFw : rd.patRc;
+		// See what we get by extending 
+		uint32_t top = topf, bot = botf;
+		t[0] = t[1] = t[2] = t[3] = 0;
+		b[0] = b[1] = b[2] = b[3] = 0;
+		tp[0] = tp[1] = tp[2] = tp[3] = topb;
+		bp[0] = bp[1] = bp[2] = bp[3] = botb;
+		SideLocus tloc, bloc;
+		INIT_LOCS(top, bot, tloc, bloc, *ebwt);
+		for(size_t ii = 0; ii < lim; ii++) {
+			// Starting to left of seed (<off) and moving left
+			size_t i = 0;
+			if(fw) {
+				i = off - ii - 1;
+			} else {
+				i = rdlen - off - len - 1 - ii;
+			}
+			// Get char from read
+			int rdc = seq.get(i);
+			// See what we get by extending 
+			if(bloc.valid()) {
+				prm.nSdFmops++;
+				t[0] = t[1] = t[2] = t[3] =
+				b[0] = b[1] = b[2] = b[3] = 0;
+				ebwt->mapBiLFEx(tloc, bloc, t, b, tp, bp);
+				SANITY_CHECK_4TUP(t, b, tp, bp);
+				int nonz = -1;
+				bool abort = false;
+				for(int j = 0; j < 4; j++) {
+					if(b[i] > t[i]) {
+						if(nonz >= 0) {
+							abort = true;
+							break;
+						}
+						nonz = j;
+						top = t[i]; bot = b[i];
+					}
+				}
+				if(abort || nonz != rdc) {
+					break;
+				}
+			} else {
+				assert_eq(bot, top+1);
+				prm.nSdFmops++;
+				int c = ebwt->mapLF1(top, tloc);
+				if(c != rdc) {
+					break;
+				}
+				bot = top + 1;
+			}
+			ASSERT_ONLY(tmp_rdseq_.append(rdc));
+			if(++nlex == 255) {
+				break;
+			}
+			INIT_LOCS(top, bot, tloc, bloc, *ebwt);
+		}
+	}
+	// We're about to add onto the end, so re-reverse
+	ASSERT_ONLY(tmp_rdseq_.reverse());
+	lim = fw ? rdlen - len - off : off;
+	if(lim > 0 && ebwtBw != NULL) {
+		const Ebwt *ebwt = ebwtBw;
+		assert(ebwt != NULL);
+		// Extend right using backward index
+		const BTDnaString& seq = fw ? rd.patFw : rd.patRc;
+		// See what we get by extending 
+		uint32_t top = topb, bot = botb;
+		t[0] = t[1] = t[2] = t[3] = 0;
+		b[0] = b[1] = b[2] = b[3] = 0;
+		tp[0] = tp[1] = tp[2] = tp[3] = topf;
+		bp[0] = bp[1] = bp[2] = bp[3] = botf;
+		INIT_LOCS(top, bot, tloc, bloc, *ebwt);
+		for(size_t ii = 0; ii < off; ii++) {
+			// Starting to right of seed (<off) and moving right
+			size_t i;
+			if(fw) {
+				i = ii + len + off;
+			} else {
+				i = rdlen - off + ii;
+			}
+			// Get char from read
+			int rdc = seq.get(i);
+			// See what we get by extending 
+			if(bloc.valid()) {
+				prm.nSdFmops++;
+				t[0] = t[1] = t[2] = t[3] =
+				b[0] = b[1] = b[2] = b[3] = 0;
+				ebwt->mapBiLFEx(tloc, bloc, t, b, tp, bp);
+				SANITY_CHECK_4TUP(t, b, tp, bp);
+				int nonz = -1;
+				bool abort = false;
+				for(int j = 0; j < 4; j++) {
+					if(b[i] > t[i]) {
+						if(nonz >= 0) {
+							abort = true;
+							break;
+						}
+						nonz = j;
+						top = t[i]; bot = b[i];
+					}
+				}
+				if(abort || nonz != rdc) {
+					break;
+				}
+			} else {
+				assert_eq(bot, top+1);
+				prm.nSdFmops++;
+				int c = ebwt->mapLF1(top, tloc);
+				if(c != rdc) {
+					break;
+				}
+				bot = top + 1;
+			}
+			ASSERT_ONLY(tmp_rdseq_.append(rdc));
+			if(++nrex == 255) {
+				break;
+			}
+			INIT_LOCS(top, bot, tloc, bloc, *ebwt);
+		}
+	}
+	assert(ebwtFw.contains(tmp_rdseq_));
+	assert_lt(nlex, rdlen);
+	assert_lt(nrex, rdlen);
+	return;
+}
+
+/**
  * Given seed results, set up all of our state for resolving and keeping
  * track of reference offsets for hits.
  */
 void SwDriver::prioritizeSATups(
+	const Read& read,            // read
 	SeedResults& sh,             // seed hits to extend into full alignments
-	const Ebwt& ebwt,            // BWT
+	const Ebwt& ebwtFw,          // BWT
+	const Ebwt* ebwtBw,          // BWT
 	const BitPairReference& ref, // Reference strings
-	bool refscan,                // Use reference scanning
 	size_t maxelt,               // max elts we'll consider
 	size_t nsm,                  // if range as <= nsm elts, it's "small"
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
 	RandomSource& rnd,           // pseudo-random generator
 	WalkMetrics& wlm,            // group walk left metrics
+	PerReadMetrics& prm,         // per-read metrics
 	size_t& nelt_out)            // out: # elements total
 {
 	const size_t nonz = sh.nonzeroOffsets(); // non-zero positions
@@ -214,12 +373,9 @@ void SwDriver::prioritizeSATups(
 	rands2_.clear();
 	satpos_.clear();
 	satpos2_.clear();
-	if(refscan) {
-		sacomb_.clear();
-		sstab_.init(4); // Seed = 4 DNA chars = 1 byte
-	}
 	size_t nrange = 0, nelt = 0, nsmall = 0, nsmall_elts = 0;
 	bool keepWhole = false;
+	EList<SATupleAndPos, 16>& satpos = keepWhole ? satpos_ : satpos2_;
 	for(size_t i = 0; i < nonz; i++) {
 		bool fw = true;
 		uint32_t offidx = 0, rdoff = 0, seedlen = 0;
@@ -230,50 +386,56 @@ void SwDriver::prioritizeSATups(
 		ca.queryQval(qv, satups_, nrange, nelt);
 		for(size_t j = 0; j < satups_.size(); j++) {
 			const size_t sz = satups_[j].size();
+			satpos.expand();
+			satpos.back().sat = satups_[j];
+			satpos.back().origSz = sz;
+			satpos.back().pos.init(fw, offidx, rdoff, seedlen);
 			if(sz <= nsm) {
 				nsmall++;
 				nsmall_elts += sz;
-			}
-			if(keepWhole) {
-				satpos_.expand();
-				satpos_.back().sat = satups_[j];
-				satpos_.back().origSz = sz;
-				satpos_.back().pos.init(fw, offidx, rdoff, seedlen);
 			} else {
-				satpos2_.expand();
-				satpos2_.back().sat = satups_[j];
-				satpos2_.back().origSz = sz;
-				satpos2_.back().pos.init(fw, offidx, rdoff, seedlen);
+				satpos.back().nlex = satpos.back().nrex = 0;
+#ifndef NDEBUG
+				tmp_rdseq_.clear();
+				uint64_t key = satpos.back().sat.key.seq;
+				for(size_t k = 0; k < seedlen; k++) {
+					int c = (int)(key & 3);
+					tmp_rdseq_.append(c);
+					key >>= 2;
+				}
+				tmp_rdseq_.reverse();
+#endif
+				extend(
+					read,
+					ebwtFw,
+					ebwtBw,
+					satpos.back().sat.topf,
+					(uint32_t)(satpos.back().sat.topf + sz),
+					satpos.back().sat.topb,
+					(uint32_t)(satpos.back().sat.topb + sz),
+					fw,
+					rdoff,
+					seedlen,
+					prm,
+					satpos.back().nlex,
+					satpos.back().nrex);
 			}
 		}
 		satups_.clear();
 	}
 	assert_leq(nsmall, nrange);
 	nelt_out = nelt; // return the total number of elements
+	assert_eq(nrange, satpos.size());
+	satpos.sort();
 	if(keepWhole) {
-		assert_eq(nrange, satpos_.size());
-		satpos_.sort();
-	} else {
-		assert_eq(nrange, satpos2_.size());
-		satpos2_.sort();
-	}
-	if(keepWhole) {
-		if(refscan) {
-			sacomb_.ensure(nrange);
-		}
 		gws_.ensure(nrange);
 		rands_.ensure(nrange);
 		for(size_t i = 0; i < nrange; i++) {
-			if(refscan) {
-				sacomb_.expand();
-				sacomb_.back().init(satpos_[i].sat);
-			}
 			gws_.expand();
 			gws_.back().init(
-				ebwt,           // forward Bowtie index
+				ebwtFw,         // forward Bowtie index
 				ref,            // reference sequences
 				satpos_[i].sat, // SA tuples: ref hit, salist range
-				refscan ? &sacomb_.back() : NULL, // Combiner for resolvers
 				rnd,            // pseudo-random generator
 				wlm);           // metrics
 			assert(gws_.back().initialized());
@@ -285,9 +447,6 @@ void SwDriver::prioritizeSATups(
 	// Resize satups_ list so that ranges having elements that we might
 	// possibly explore are present
 	satpos_.ensure(min(maxelt, nelt));
-	if(refscan) {
-		sacomb_.ensure(min(maxelt, nelt));
-	}
 	gws_.ensure(min(maxelt, nelt));
 	rands_.ensure(min(maxelt, nelt));
 	rands2_.ensure(min(maxelt, nelt));
@@ -313,29 +472,11 @@ void SwDriver::prioritizeSATups(
 	for(size_t j = 0; j < nsmall && nelt_added < maxelt; j++) {
 		satpos_.expand();
 		satpos_.back() = satpos2_[j];
-		// The following mechanism for ensuring we don't go over the maxelt
-		// limit is tricky because it can mess us up when we try to combine
-		// ref-scanning results with BW search results.
-		
-		//if(nelt_added + satpos_.back().sat.size() > maxelt) {
-		//	// Curtail so as not to exceed maxelt
-		//	size_t nlen = maxelt - nelt_added;
-		//	satpos_.back().sat.setLength(nlen);
-		//}
-		if(refscan) {
-			sstab_.add(
-				make_pair(j, 0),
-				satpos2_[j].sat.key.seq,
-				(size_t)satpos2_[j].pos.seedlen);
-			sacomb_.expand();
-			sacomb_.back().init(satpos_.back().sat);
-		}
 		gws_.expand();
 		gws_.back().init(
-			ebwt,               // forward Bowtie index
+			ebwtFw,             // forward Bowtie index
 			ref,                // reference sequences
 			satpos_.back().sat, // SA tuples: ref hit, salist range
-			refscan ? &sacomb_.back() : NULL, // Combiner for resolvers
 			rnd,                // pseudo-random generator
 			wlm);               // metrics
 		assert(gws_.back().initialized());
@@ -360,40 +501,41 @@ void SwDriver::prioritizeSATups(
 		rands2_[j].reset();
 	}
 	while(nelt_added < maxelt && nelt_added < nelt) {
+		// Pick a non-small range to sample from
 		size_t ri = rowsamp_.next(rnd) + nsmall;
 		assert_geq(ri, nsmall);
 		assert_lt(ri, satpos2_.size());
+		// Initialize random element chooser for that range
 		if(!rands2_[ri].inited()) {
 			rands2_[ri].init(satpos2_[ri].sat.size());
 			assert(!rands2_[ri].done());
 		}
 		assert(!rands2_[ri].done());
+		// Choose an element from the range
 		uint32_t r = rands2_[ri].next(rnd);
 		if(rands2_[ri].done()) {
 			// Tell the row sampler this range is done
 			rowsamp_.finishedRange(ri - nsmall);
 		}
+		// Add the element to the satpos_ list
 		SATuple sa;
 		TSlice o;
 		o.init(satpos2_[ri].sat.offs, r, r+1);
-		sa.init(satpos2_[ri].sat.key, satpos2_[ri].sat.top + r, o);
+		sa.init(satpos2_[ri].sat.key, satpos2_[ri].sat.topf + r, 0xffffffff, o);
 		satpos_.expand();
 		satpos_.back().sat = sa;
 		satpos_.back().origSz = satpos2_[ri].origSz;
 		satpos_.back().pos = satpos2_[ri].pos;
-		if(refscan) {
-			sacomb_.expand();
-			sacomb_.back().reset();
-		}
+		// Initialize GroupWalk object
 		gws_.expand();
 		gws_.back().init(
-			ebwt,               // forward Bowtie index
+			ebwtFw,             // forward Bowtie index
 			ref,                // reference sequences
 			satpos_.back().sat, // SA tuples: ref hit, salist range
-			refscan ? &sacomb_.back() : NULL, // Combiner for resolvers
 			rnd,                // pseudo-random generator
 			wlm);               // metrics
 		assert(gws_.back().initialized());
+		// Initialize random selector
 		rands_.expand();
 		rands_.back().init(1);
 		nelt_added++;
@@ -420,7 +562,8 @@ int SwDriver::extendSeeds(
 	Read& rd,                    // read to align
 	bool mate1,                  // true iff rd is mate #1
 	SeedResults& sh,             // seed hits to extend into full alignments
-	const Ebwt& ebwt,            // BWT
+	const Ebwt& ebwtFw,          // BWT
+	const Ebwt* ebwtBw,          // BWT'
 	const BitPairReference& ref, // Reference strings
 	SwAligner& swa,              // dynamic programming aligner
 	const Scoring& sc,           // scoring scheme
@@ -439,7 +582,6 @@ int SwDriver::extendSeeds(
 	size_t maxUgStreak,          // stop after streak of this many ungap fails
 	size_t maxDpStreak,          // stop after streak of this many dp fails
 	bool enable8,                // use 8-bit SSE where possible
-	bool refscan,                // use reference scanning
 	int tighten,                 // -M score tightening mode
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
 	RandomSource& rnd,           // pseudo-random source
@@ -466,11 +608,7 @@ int SwDriver::extendSeeds(
 	swa.reset();
 
 	// Initialize a set of GroupWalks, one for each seed.  Also, intialize the
-	// accompanying lists of reference seed hits (satups*) and the combiners
-	// that link the reference-scanning results to the BW walking results
-	// (sacomb_).  Finally, initialize the SeedScanTable and SeedScanner
-	// objects that will actually do the reference scanning and opportunistic
-	// resolution of offsets.
+	// accompanying lists of reference seed hits (satups*)
 	const size_t nsm = 3;
 	const size_t nonz = sh.nonzeroOffsets(); // non-zero positions
 	size_t eeHits = sh.numE2eHits();
@@ -486,7 +624,7 @@ int SwDriver::extendSeeds(
 				firstEe = false;
 				eeMode = eeSaTups(
 					sh,           // seed hits to extend into full alignments
-					ebwt,         // BWT
+					ebwtFw,       // BWT
 					ref,          // Reference strings
 					rnd,          // pseudo-random generator
 					wlm,          // group walk left metrics
@@ -510,15 +648,17 @@ int SwDriver::extendSeeds(
 			if(firstExtend) {
 				nelt = 0;
 				prioritizeSATups(
+					rd,            // read
 					sh,            // seed hits to extend into full alignments
-					ebwt,          // BWT
+					ebwtFw,        // BWT
+					ebwtBw,        // BWT'
 					ref,           // Reference strings
-					refscan,       // do reference scanning?
 					maxUg + maxDp, // max rows to consider per position
 					nsm,           // smallness threshold
 					ca,            // alignment cache for seed hits
 					rnd,           // pseudo-random generator
 					wlm,           // group walk left metrics
+					prm,           // per-read metrics
 					nelt);         // out: # elements total
 				assert_eq(gws_.size(), rands_.size());
 				assert_eq(gws_.size(), satpos_.size());
@@ -579,7 +719,7 @@ int SwDriver::extendSeeds(
 				}
 				assert_neq(0xffffffff, wr.toff);
 				uint32_t tidx = 0, toff = 0, tlen = 0;
-				ebwt.joinedToTextOff(
+				ebwtFw.joinedToTextOff(
 					wr.elt.len,
 					wr.toff,
 					tidx,
@@ -762,46 +902,6 @@ int SwDriver::extendSeeds(
 						&sscan_,   // reference scanner for resolving offsets
 						nwindow,
 						nsInLeftShift);
-					if(refscan) {
-						// Take reference-scanner hits and turn them into offset
-						// resolutions.
-						wlm.refscanhits += sscan_.hits().size();
-						pastedRefoff += nsInLeftShift;
-						for(size_t j = 0; j < sscan_.hits().size(); j++) {
-							// Get identifier for the appropriate combiner
-							U32Pair id = sscan_.hits()[j].id();
-							// Get the hit's offset in pasted-reference coordinates
-							int64_t off = sscan_.hits()[j].off() + pastedRefoff;
-							assert_geq(off, sscan_.hits()[j].ns());
-							off -= sscan_.hits()[j].ns();
-							assert_geq(off, 0);
-							assert_lt(off, (int64_t)ebwt.eh().lenNucs());
-							assert_lt(off, (int64_t)0xffffffff);
-							// Check that reference sequence actually matches seed
-#ifndef NDEBUG
-							uint32_t tidx2 = 0, toff2 = 0, tlen2 = 0;
-							ebwt.joinedToTextOff(
-								wr.elt.len,
-								(uint32_t)off,
-								tidx2,
-								toff2,
-								tlen2);
-							assert_neq(0xffffffff, tidx2);
-							uint64_t key = sacomb_[id.first].satup().key.seq;
-							for(size_t k = 0; k < wr.elt.len; k++) {
-								int c = ref.getBase(tidx2, toff2 + wr.elt.len - k - 1);
-								int ck = (int)(key & 3);
-								key >>= 2;
-								assert_eq(c, ck);
-							}
-#endif
-							// Install it
-							if(sacomb_[id.first].addRefscan((uint32_t)off)) {
-								// It was new; see if it leads to any resolutions
-								sacomb_[id.first].tryResolving(wlm.refresolves);
-							}
-						}
-					}
 					// Because of how we framed the problem, we can say that we've
 					// exhaustively scored the seed diagonal as well as maxgaps
 					// diagonals on either side
@@ -1051,7 +1151,8 @@ int SwDriver::extendSeedsPaired(
 	bool anchor1,                // true iff anchor mate is mate1
 	bool oppFilt,                // true iff opposite mate was filtered out
 	SeedResults& sh,             // seed hits for anchor
-	const Ebwt& ebwt,            // BWT
+	const Ebwt& ebwtFw,          // BWT
+	const Ebwt* ebwtBw,          // BWT'
 	const BitPairReference& ref, // Reference strings
 	SwAligner& swa,              // dynamic programming aligner for anchor
 	SwAligner& oswa,             // dynamic programming aligner for opposite
@@ -1079,7 +1180,6 @@ int SwDriver::extendSeedsPaired(
 	size_t maxDpStreak,          // stop after streak of this many dp fails
 	size_t maxMateStreak,        // stop seed range after N mate-find fails
 	bool enable8,                // use 8-bit SSE where possible
-	bool refscan,                // use reference scanning
 	int tighten,                 // -M score tightening mode
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
 	RandomSource& rnd,           // pseudo-random source
@@ -1139,11 +1239,7 @@ int SwDriver::extendSeedsPaired(
 	oswa.reset();
 
 	// Initialize a set of GroupWalks, one for each seed.  Also, intialize the
-	// accompanying lists of reference seed hits (satups*) and the combiners
-	// that link the reference-scanning results to the BW walking results
-	// (sacomb_).  Finally, initialize the SeedScanTable and SeedScanner
-	// objects that will actually do the reference scanning and opportunistic
-	// resolution of offsets.
+	// accompanying lists of reference seed hits (satups*)
 	const size_t nsm = 3;
 	const size_t nonz = sh.nonzeroOffsets(); // non-zero positions
 	size_t eeHits = sh.numE2eHits();
@@ -1166,7 +1262,7 @@ int SwDriver::extendSeedsPaired(
 				firstEe = false;
 				eeMode = eeSaTups(
 					sh,           // seed hits to extend into full alignments
-					ebwt,         // BWT
+					ebwtFw,       // BWT
 					ref,          // Reference strings
 					rnd,          // pseudo-random generator
 					wlm,          // group walk left metrics
@@ -1195,15 +1291,17 @@ int SwDriver::extendSeedsPaired(
 			if(firstExtend) {
 				nelt = 0;
 				prioritizeSATups(
+					rd,            // read
 					sh,           // seed hits to extend into full alignments
-					ebwt,         // BWT
+					ebwtFw,       // BWT
+					ebwtBw,       // BWT
 					ref,          // Reference strings
-					refscan,      // do reference scanning?
 					maxUg + maxDp,// max rows to consider per position
 					nsm,          // smallness threshold
 					ca,           // alignment cache for seed hits
 					rnd,          // pseudo-random generator
 					wlm,          // group walk left metrics
+					prm,          // per-read metrics
 					nelt);        // out: # elements total
 				assert_eq(gws_.size(), rands_.size());
 				assert_eq(gws_.size(), satpos_.size());
@@ -1279,7 +1377,7 @@ int SwDriver::extendSeedsPaired(
 				neltLeft--;
 				assert_neq(0xffffffff, wr.toff);
 				uint32_t tidx = 0, toff = 0, tlen = 0;
-				ebwt.joinedToTextOff(
+				ebwtFw.joinedToTextOff(
 					wr.elt.len,
 					wr.toff,
 					tidx,
@@ -1458,46 +1556,6 @@ int SwDriver::extendSeedsPaired(
 						&sscan_,   // reference scanner for resolving offsets
 						nwindow,
 						nsInLeftShift);
-					if(refscan) {
-						// Take reference-scanner hits and turn them into offset
-						// resolutions.
-						wlm.refscanhits += sscan_.hits().size();
-						pastedRefoff += nsInLeftShift;
-						for(size_t j = 0; j < sscan_.hits().size(); j++) {
-							// Get identifier for the appropriate combiner
-							U32Pair id = sscan_.hits()[j].id();
-							// Get the hit's offset in pasted-reference coordinates
-							int64_t off = sscan_.hits()[j].off() + pastedRefoff;
-							assert_geq(off, sscan_.hits()[j].ns());
-							off -= sscan_.hits()[j].ns();
-							assert_geq(off, 0);
-							assert_lt(off, (int64_t)ebwt.eh().lenNucs());
-							assert_lt(off, (int64_t)0xffffffff);
-							// Check that reference sequence actually matches seed
-#ifndef NDEBUG
-							uint32_t tidx2 = 0, toff2 = 0, tlen2 = 0;
-							ebwt.joinedToTextOff(
-								wr.elt.len,
-								(uint32_t)off,
-								tidx2,
-								toff2,
-								tlen2);
-							assert_neq(0xffffffff, tidx2);
-							uint64_t key = sacomb_[id.first].satup().key.seq;
-							for(size_t k = 0; k < wr.elt.len; k++) {
-								int c = ref.getBase(tidx2, toff2 + wr.elt.len - k - 1);
-								int ck = (int)(key & 3);
-								key >>= 2;
-								assert_eq(c, ck);
-							}
-#endif
-							// Install it
-							if(sacomb_[id.first].addRefscan((uint32_t)off)) {
-								// It was new; see if it leads to any resolutions
-								sacomb_[id.first].tryResolving(wlm.refresolves);
-							}
-						}
-					}
 					// Because of how we framed the problem, we can say that we've
 					// exhaustively scored the seed diagonal as well as maxgaps
 					// diagonals on either side
