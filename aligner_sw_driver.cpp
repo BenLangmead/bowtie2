@@ -585,7 +585,7 @@ void SwDriver::prioritizeSATups(
 		rands_.back().init(1);
 		nelt_added++;
 	}
-	nelt = nelt_added;
+	nelt_out = nelt_added;
 }
 
 enum {
