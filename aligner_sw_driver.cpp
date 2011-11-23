@@ -661,6 +661,12 @@ int SwDriver::extendSeeds(
 	bool eeMode = eeHits > 0;
 	bool firstEe = true;
 	bool firstExtend = true;
+
+	// Reset all the counters related to streaks
+	prm.nEeFail = 0;
+	prm.nUgFail = 0;
+	prm.nDpFail = 0;
+
 	size_t nelt = 0, neltLeft = 0;
 	size_t rows = rdlen;
 	size_t eltsDone = 0;
