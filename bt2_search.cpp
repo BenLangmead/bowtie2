@@ -532,6 +532,7 @@ static struct option long_options[] = {
 	{(char*)"dp-fail-streak",   required_argument, 0,        ARG_DP_FAIL_STREAK_THRESH},
 	{(char*)"ee-fail-streak",   required_argument, 0,        ARG_EE_FAIL_STREAK_THRESH},
 	{(char*)"ug-fail-streak",   required_argument, 0,        ARG_UG_FAIL_STREAK_THRESH},
+	{(char*)"fail-streak",      required_argument, 0,        ARG_FAIL_STREAKS},
 	{(char*)"dp-fails",         required_argument, 0,        ARG_DP_FAIL_THRESH},
 	{(char*)"ug-fails",         required_argument, 0,        ARG_UG_FAIL_THRESH},
 	{(char*)"extends",          required_argument, 0,        ARG_EXTEND_ITERS},
@@ -972,6 +973,10 @@ static void parseOption(int next_option, const char *arg) {
 		}
 		case ARG_UG_FAIL_STREAK_THRESH: {
 			maxUgStreak = parse<size_t>(arg);
+			break;
+		}
+		case ARG_FAIL_STREAKS: {
+			maxUgStreak = maxEeStreak = maxDpStreak = parse<size_t>(arg);
 			break;
 		}
 		case ARG_DP_FAIL_THRESH: {
@@ -2978,9 +2983,11 @@ static void* multiseedSearchWorker(void *vp) {
 						} else if(ret == EXTEND_PERFECT_SCORE) {
 							// We exhausted this mode at least
 							done[mate] = true;
-						} else if(ret == EXTEND_EXCEEDED_LIMIT) {
+						} else if(ret == EXTEND_EXCEEDED_HARD_LIMIT) {
 							// We exceeded a per-read limit
 							done[mate] = true;
+						} else if(ret == EXTEND_EXCEEDED_SOFT_LIMIT) {
+							// Not done yet
 						} else {
 							//
 							cerr << "Bad return value: " << ret << endl;
@@ -3153,9 +3160,11 @@ static void* multiseedSearchWorker(void *vp) {
 						} else if(ret == EXTEND_PERFECT_SCORE) {
 							// We exhausted this mode at least
 							done[mate] = true;
-						} else if(ret == EXTEND_EXCEEDED_LIMIT) {
+						} else if(ret == EXTEND_EXCEEDED_HARD_LIMIT) {
 							// We exceeded a per-read limit
 							done[mate] = true;
+						} else if(ret == EXTEND_EXCEEDED_SOFT_LIMIT) {
+							// Not done yet
 						} else {
 							//
 							cerr << "Bad return value: " << ret << endl;
@@ -3386,9 +3395,11 @@ static void* multiseedSearchWorker(void *vp) {
 							} else if(ret == EXTEND_PERFECT_SCORE) {
 								// We exhausted this made at least
 								done[mate] = true;
-							} else if(ret == EXTEND_EXCEEDED_LIMIT) {
+							} else if(ret == EXTEND_EXCEEDED_HARD_LIMIT) {
 								// We exceeded a per-read limit
 								done[mate] = true;
+							} else if(ret == EXTEND_EXCEEDED_SOFT_LIMIT) {
+								// Not done yet
 							} else {
 								//
 								cerr << "Bad return value: " << ret << endl;

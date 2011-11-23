@@ -252,8 +252,12 @@ enum {
 	// perfect alignments
 	EXTEND_PERFECT_SCORE,
 	// We stopped because we ran up against a limit on how much work we should
-	// do, e.g. the limit on number of consecutive unproductive DP extensions
-	EXTEND_EXCEEDED_LIMIT,
+	// do for one set of seed ranges, e.g. the limit on number of consecutive
+	// unproductive DP extensions
+	EXTEND_EXCEEDED_SOFT_LIMIT,
+	// We stopped because we ran up against a limit on how much work we should
+	// do for overall before giving up on a mate
+	EXTEND_EXCEEDED_HARD_LIMIT
 };
 
 /**

@@ -681,12 +681,10 @@ int SwDriver::extendSeeds(
 		}
 		if(!eeMode) {
 			if(nonz == 0) {
-				// No seed hits!  Bail.
-				return EXTEND_EXHAUSTED_CANDIDATES;
+				return EXTEND_EXHAUSTED_CANDIDATES; // No seed hits!  Bail.
 			}
 			if(minsc == perfectScore) {
-				// Already found all perfect hits!
-				return EXTEND_PERFECT_SCORE;
+				return EXTEND_PERFECT_SCORE; // Already found all perfect hits!
 			}
 			if(firstExtend) {
 				nelt = 0;
@@ -741,13 +739,13 @@ int SwDriver::extendSeeds(
 					break;
 				}
 				if(prm.nExDps >= maxDp || prm.nMateDps >= maxDp) {
-					return EXTEND_EXCEEDED_LIMIT;
+					return EXTEND_EXCEEDED_HARD_LIMIT;
 				}
 				if(prm.nExUgs >= maxUg || prm.nMateUgs >= maxUg) {
-					return EXTEND_EXCEEDED_LIMIT;
+					return EXTEND_EXCEEDED_HARD_LIMIT;
 				}
 				if(prm.nExIters >= maxIters) {
-					return EXTEND_EXCEEDED_LIMIT;
+					return EXTEND_EXCEEDED_HARD_LIMIT;
 				}
 				prm.nExIters++;
 				first = false;
@@ -871,7 +869,7 @@ int SwDriver::extendSeeds(
 						prm.nExUgFails++;
 						prm.nUgFail++;
 						if(prm.nUgFail > maxUgStreak) {
-							return EXTEND_EXCEEDED_LIMIT;
+							return EXTEND_EXCEEDED_SOFT_LIMIT;
 						}
 						swmSeed.ungapfail++;
 						continue;
@@ -879,7 +877,7 @@ int SwDriver::extendSeeds(
 						prm.nExUgFails++;
 						prm.nUgFail++; // count this as failure
 						if(prm.nUgFail > maxUgStreak) {
-							return EXTEND_EXCEEDED_LIMIT;
+							return EXTEND_EXCEEDED_SOFT_LIMIT;
 						}
 						swmSeed.ungapnodec++;
 					} else {
@@ -963,7 +961,7 @@ int SwDriver::extendSeeds(
 						prm.nExDpFails++;
 						prm.nDpFail++;
 						if(prm.nDpFail > maxDpStreak) {
-							return EXTEND_EXCEEDED_LIMIT;
+							return EXTEND_EXCEEDED_SOFT_LIMIT;
 						}
 						continue; // Look for more anchor alignments
 					} else {
@@ -1389,22 +1387,22 @@ int SwDriver::extendSeedsPaired(
 					break;
 				}
 				if(prm.nExDps >= maxDp || prm.nMateDps >= maxDp) {
-					return EXTEND_EXCEEDED_LIMIT;
+					return EXTEND_EXCEEDED_HARD_LIMIT;
 				}
 				if(prm.nExUgs >= maxUg || prm.nMateUgs >= maxUg) {
-					return EXTEND_EXCEEDED_LIMIT;
+					return EXTEND_EXCEEDED_HARD_LIMIT;
 				}
 				if(prm.nExIters >= maxIters) {
-					return EXTEND_EXCEEDED_LIMIT;
+					return EXTEND_EXCEEDED_HARD_LIMIT;
 				}
 				if(eeMode && prm.nEeFail >= maxEeStreak) {
-					return EXTEND_EXHAUSTED_CANDIDATES;
+					return EXTEND_EXCEEDED_SOFT_LIMIT;
 				}
 				if(!eeMode && prm.nDpFail >= maxDpStreak) {
-					return EXTEND_EXHAUSTED_CANDIDATES;
+					return EXTEND_EXCEEDED_SOFT_LIMIT;
 				}
 				if(!eeMode && prm.nUgFail >= maxUgStreak) {
-					return EXTEND_EXHAUSTED_CANDIDATES;
+					return EXTEND_EXCEEDED_SOFT_LIMIT;
 				}
 				if(mateStreaks_[i] >= maxMateStreak) {
 					// Don't try this seed range anymore
