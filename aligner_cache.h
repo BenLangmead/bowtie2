@@ -274,7 +274,7 @@ typedef QKey SAKey;
  */
 struct SAVal {
 
-	SAVal() : top(), i(), len(0xffffffff) { }
+	SAVal() : topf(), topb(), i(), len(0xffffffff) { }
 
 	/**
 	 * Return true iff the SAVal is valid.
@@ -290,15 +290,22 @@ struct SAVal {
 	/**
 	 * Initialize the SAVal.
 	 */
-	void init(uint32_t t, uint32_t ii, uint32_t ln) {
-		top = t;
+	void init(
+		uint32_t tf,
+		uint32_t tb,
+		uint32_t ii,
+		uint32_t ln)
+	{
+		topf = tf;
+		topb = tb;
 		i = ii;
 		len = ln;
 	}
 
-	uint32_t top; // top in BWT
-	uint32_t i;   // idx of first elt in salist
-	uint32_t len; // length of range
+	uint32_t topf;  // top in BWT
+	uint32_t topb;  // top in BWT'
+	uint32_t i;     // idx of first elt in salist
+	uint32_t len;   // length of range
 };
 
 /**
@@ -313,20 +320,22 @@ public:
 
 	SATuple() { reset(); };
 
-	SATuple(SAKey k, uint32_t t, TSlice o) {
-		init(k, t, o);
+	SATuple(SAKey k, uint32_t tf, uint32_t tb, TSlice o) {
+		init(k, tf, tb, o);
 	}
 	
-	void init(SAKey k, uint32_t t, TSlice o) {
-		key = k; top = t; offs = o;
+	void init(SAKey k, uint32_t tf, uint32_t tb, TSlice o) {
+		key = k; topf = tf; topb = tb; offs = o;
 	}
 
 	/**
 	 * Initialize this SATuple from a subrange of the SATuple 'src'.
 	 */
 	void init(const SATuple& src, size_t first, size_t last) {
+		assert_neq(0xffffffff, src.topb);
 		key = src.key;
-		top = src.top + (uint32_t)first;
+		topf = src.topf + (uint32_t)first;
+		topb = 0xffffffff; // unknown!
 		offs.init(src.offs, first, last);
 	}
 	
@@ -340,17 +349,6 @@ public:
 	}
 
 	/**
-	 * Randomly narrow down a list of SATuples such that the result has no more
-	 * than 'maxrows' rows total.  Could involve splitting some ranges into
-	 * pieces.  Return the result in dst.
-	 */
-	static bool randomNarrow(
-		const EList<SATuple, 16>& src, // input list of SATuples
-		EList<SATuple, 16>& dst,       // output list of SATuples
-		RandomSource& rnd,              // pseudo-random generator
-		const SimpleFunc& rowmult);     // max # rows to keep, function of tot rows
-	
-	/**
 	 * Function for ordering SATuples.  This is used when prioritizing which to
 	 * explore first when extending seed hits into full alignments.  Smaller
 	 * ranges get higher priority and we use 'top' to break ties, though any
@@ -363,7 +361,7 @@ public:
 		if(offs.size() > o.offs.size()) {
 			return false;
 		}
-		return top < o.top;
+		return topf < o.topf;
 	}
 	bool operator>(const SATuple& o) const {
 		if(offs.size() < o.offs.size()) {
@@ -372,14 +370,14 @@ public:
 		if(offs.size() > o.offs.size()) {
 			return true;
 		}
-		return top > o.top;
+		return topf > o.topf;
 	}
 	
 	bool operator==(const SATuple& o) const {
-		return key == o.key && top == o.top && offs == o.offs;
+		return key == o.key && topf == o.topf && topb == o.topb && offs == o.offs;
 	}
 
-	void reset() { top = 0xffffffff; offs.reset(); }
+	void reset() { topf = topb = 0xffffffff; offs.reset(); }
 	
 	/**
 	 * Set the length to be at most the original length.
@@ -397,7 +395,8 @@ public:
 
 	// bot/length of SA range equals offs.size()
 	SAKey    key;  // sequence key
-	uint32_t top;  // top in BWT index
+	uint32_t topf;  // top in BWT index
+	uint32_t topb;  // top in BWT' index
 	TSlice   offs; // offsets
 };
 
@@ -446,6 +445,7 @@ public:
 	 * more ranges corresponding to sequence 'k' in the cache.  Returns
 	 * NULL otherwise.
 	 */
+#if 0
 	inline QVal* query(const QKey& k, bool getLock = true) {
 		ThreadSafe ts(lockPtr(), shared_ && getLock);
 		QNode *n = qmap_.lookup(k);
@@ -475,7 +475,7 @@ public:
 			queryQval(*n, satups, nrange, nelt, false);
 		}
 	}
-
+#endif
 
 	/**
 	 * Given a QVal, populate the given EList of SATuples with records
@@ -509,14 +509,14 @@ public:
 			const SAVal& sav = n->payload;
 			assert(sav.repOk(*this));
 			satups.expand();
-			satups.back().init(sak, sav.top, TSlice(salist_, sav.i, sav.len));
+			satups.back().init(sak, sav.topf, sav.topb, TSlice(salist_, sav.i, sav.len));
 			nelt += sav.len;
 #ifndef NDEBUG
 			// Shouldn't add consecutive identical entries too satups
 			if(i > refi) {
 				const SATuple b1 = satups.back();
 				const SATuple b2 = satups[satups.size()-2];
-				assert(b1.key != b2.key || b1.top != b2.top || b1.offs != b2.offs);
+				assert(b1.key != b2.key || b1.topf != b2.topf || b1.offs != b2.offs);
 			}
 #endif
 		}
@@ -533,6 +533,7 @@ public:
 		return ret;
 	}
 	
+#if 0
 	/**
 	 * Copy the query key ('qk') and all associated QVals, SAKeys and
 	 * SAVals from the given cache to this cache.  Return true iff the
@@ -627,6 +628,7 @@ public:
 		}
 		return false;
 	}
+#endif
 
 	/**
 	 * Add a new query key ('qk'), usually a 2-bit encoded substring of
@@ -658,6 +660,8 @@ public:
 		const SAKey& sak, // the key holding the reference substring
 		uint32_t topf,    // top range elt in BWT index
 		uint32_t botf,    // bottom range elt in BWT index
+		uint32_t topb,    // top range elt in BWT' index
+		uint32_t botb,    // bottom range elt in BWT' index
 		bool getLock = true);
 
 	/**
@@ -762,6 +766,7 @@ public:
 		assert(current_ != NULL);
 	}
 
+#if 0
 	/**
 	 * Query the relevant set of caches, looking for a QVal to go with
 	 * the provided QKey.  If the QVal is found in a cache other than
@@ -818,6 +823,7 @@ public:
 		}
 		return NULL;
 	}
+#endif
 
 	/**
 	 * This function is called whenever we start to align a new read or
@@ -840,13 +846,14 @@ public:
 	{
 		assert(repOk());
 		qk_.init(seq ASSERT_ONLY(, tmpdnastr_));
-		if(qk_.cacheable() && (qv_ = current_->query(qk_, getLock)) != NULL) {
-			// qv_ holds the answer
-			assert(qv_->valid());
-			qv = *qv_;
-			resetRead();
-			return 1; // found in cache
-		} else if(qk_.cacheable()) {
+		//if(qk_.cacheable() && (qv_ = current_->query(qk_, getLock)) != NULL) {
+		//	// qv_ holds the answer
+		//	assert(qv_->valid());
+		//	qv = *qv_;
+		//	resetRead();
+		//	return 1; // found in cache
+		//} else
+		if(qk_.cacheable()) {
 			// Make a QNode for this key and possibly add the QNode to the
 			// Red-Black map; but if 'seq' isn't cacheable, just create the
 			// QNode (without adding it to the map).
@@ -882,6 +889,7 @@ public:
 		// Commit the contents of the current-read cache to the next
 		// cache up in the hierarchy.
 		// If qk is cacheable, then it must be in the cache
+#if 0
 		if(qk_.cacheable()) {
 			AlignmentCache* caches[3] = { current_, local_, shared_ };
 			ASSERT_ONLY(AlignmentCache* which);
@@ -898,6 +906,7 @@ public:
 				}
 			}
 		}
+#endif
 		// Reset the state in this iface in preparation for the next
 		// alignment.
 		resetRead();
@@ -941,6 +950,8 @@ public:
 		const BTDnaString& rfseq, // reference sequence close to read seq
 		uint32_t topf,            // top in BWT index
 		uint32_t botf,            // bot in BWT index
+		uint32_t topb,            // top in BWT' index
+		uint32_t botb,            // bot in BWT' index
 		bool getLock = true)      // true -> lock is not held by caller
 	{
 		
@@ -949,7 +960,7 @@ public:
 		ASSERT_ONLY(BTDnaString tmp);
 		SAKey sak(rfseq ASSERT_ONLY(, tmp));
 		//assert(sak.cacheable());
-		if(current_->addOnTheFly((*qv_), sak, topf, botf, getLock)) {
+		if(current_->addOnTheFly((*qv_), sak, topf, botf, topb, botb, getLock)) {
 			rangen_++;
 			eltsn_ += (botf-topf);
 			return true;
@@ -957,6 +968,7 @@ public:
 		return false;
 	}
 
+#if 0
 	/**
 	 * Given a QKey, populates an EList of SATuples with all of the
 	 * corresponding reference substring information.
@@ -970,7 +982,7 @@ public:
 		assert(k.cacheable());
 		current_->queryEx(k, satups, getLock);
 	}
-
+#endif
 
 	/**
 	 * Given a QVal, populate the given EList of SATuples with records

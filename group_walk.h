@@ -37,13 +37,6 @@
  * setting elements of the salist, so routines here should expect that elements
  * can go from unresolved to resolved at any time.
  *
- * BW walking is one way to resolve offsets, but so is scanning the reference
- * for the corresponding reference string aligned to.  The former associates a
- * resolved offset with a particular row of the BW, whereas the latter can only
- * say that a resolved offsets belongs to same element in a range.  The
- * SAResolveCombiner combines information from the two sources to fill in new
- * salist elements whenever possible.
- *
  * What bookkeeping do we have to do as we walk?  Before the first step, we
  * convert the initial QVal into a list of SATuples; the SATuples are our link
  * to the correpsonding ranges in the suffix array.  The list of SATuples is
@@ -94,9 +87,6 @@
 #include "aligner_seed.h"
 #include "reference.h"
 #include "mem_ids.h"
-#include "sa_rescomb.h"
-
-typedef std::pair<SATuple*, SAResolveCombiner*> SATupleEx;
 
 /**
  * Encapsulates counters that encode how much work the walk-left logic
@@ -115,7 +105,6 @@ struct WalkMetrics {
 		bwops += m.bwops;
 		branches += m.branches;
 		resolves += m.resolves;
-		refscanhits += m.refscanhits;
 		refresolves += m.refresolves;
 		reports += m.reports;
 	}
@@ -124,13 +113,12 @@ struct WalkMetrics {
 	 * Set all to 0.
 	 */
 	void reset() {
-		bwops = branches = resolves = refscanhits = refresolves = reports = 0;
+		bwops = branches = resolves = refresolves = reports = 0;
 	}
 
 	uint64_t bwops;       // Burrows-Wheeler operations
 	uint64_t branches;    // BW range branch-offs
 	uint64_t resolves;    // # offs resolved with BW walk-left
-	uint64_t refscanhits; // # reference-scanning hits
 	uint64_t refresolves; // # resolutions caused by reference scanning
 	uint64_t reports;     // # offs reported (1 can be reported many times)
 	MUTEX_T lock;
@@ -260,13 +248,11 @@ public:
 	 */
 	void init(
 		SATuple* satup_,
-		SAResolveCombiner* sacomb_,
 		uint32_t oi,
 		bool f,
 		uint32_t r)
 	{
 		satup = satup_;
-		sacomb = sacomb_;
 		nrep_ = 0;
 		offidx = oi;
 		fw = f;
@@ -353,7 +339,6 @@ public:
 	}
 
 	SATuple *satup;   // cache info for the range & combiner
-	SAResolveCombiner *sacomb; // combiner
 	EList<std::pair<uint32_t, uint32_t>, 16> fmap; // forward map; to GWState & elt
 	uint32_t offidx; // offset idx
 	bool fw;         // orientation
@@ -448,7 +433,7 @@ public:
 				// Elt not resolved yet; try to resolve it now
 				uint32_t bwrow = (uint32_t)(top - mapi_ + i);
 				uint32_t toff = ebwt.tryOffset(bwrow);
-				ASSERT_ONLY(uint32_t origBwRow = hit.satup->top + map(i));
+				ASSERT_ONLY(uint32_t origBwRow = hit.satup->topf + map(i));
 				assert_eq(bwrow, ebwt.walkLeft(origBwRow, step));
 				if(toff != 0xffffffff) {
 					// Yes, toff was resolvable
@@ -540,7 +525,7 @@ public:
 					uint32_t toff = off(i, hit);
 					assert(res != NULL);
 					res->expand();
-					uint32_t origBwRow = hit.satup->top + map(i);
+					uint32_t origBwRow = hit.satup->topf + map(i);
 					res->back().init(
 						hit.offidx, // offset idx
 						hit.fw,     // orientation
@@ -682,7 +667,7 @@ public:
 		int left = 0;
 		for(size_t i = mapi_; i < map_.size(); i++) {
 			ASSERT_ONLY(uint32_t row = (uint32_t)(top + i - mapi_));
-			ASSERT_ONLY(uint32_t origRow = hit.satup->top + map(i));
+			ASSERT_ONLY(uint32_t origRow = hit.satup->topf + map(i));
 			assert(step == 0 || row != origRow);
 			assert_eq(row, ebwt.walkLeft(origRow, step));
 			assert_lt(map_[i], hit.satup->offs.size());
@@ -787,11 +772,7 @@ public:
 		assert_lt(i+mapi_, map_.size());
 		assert_lt(map_[i+mapi_], hit.satup->offs.size());
 		size_t saoff = map_[i+mapi_];
-		if(hit.sacomb != NULL && hit.sacomb->inited()) {
-			hit.sacomb->setSalist(saoff, off, met.refresolves);
-		} else {
-			hit.satup->offs[saoff] = off;
-		}
+		hit.satup->offs[saoff] = off;
 		assert_eq(off, hit.satup->offs[saoff]);
 	}
 
@@ -878,7 +859,7 @@ public:
 								assert_lt(newmap.back(), hit.satup->size());
 								if(hit.satup->offs[newmap.back()] == 0xffffffff) {
 									assert_eq(newtop + newmap.size() - 1,
-											  ebwt.walkLeft(hit.satup->top + newmap.back(), step+1));
+											  ebwt.walkLeft(hit.satup->topf + newmap.back(), step+1));
 								}
 #endif
 							}
@@ -1053,7 +1034,6 @@ public:
 		elt_ = rep_ = 0;
 		inited_ = false;
 		satup_ = NULL;
-		sacomb_ = NULL;
 		assert(!initialized());
 	}
 	
@@ -1070,23 +1050,21 @@ public:
 		const Ebwt& ebwtFw,         // forward Bowtie index for walking left
 		const BitPairReference& ref,// bitpair-encoded reference
 		SATuple& satup,             // SATuples
-		SAResolveCombiner* sacomb,  // combiners
 		RandomSource& rnd,          // pseudo-random generator for sampling rows
 		WalkMetrics& met)           // update metrics here
 	{
 		reset();
 		satup_ = &satup;
-		sacomb_ = sacomb;
 		ebwtFw_ = &ebwtFw;
 		ref_ = &ref;
 		inited_ = true;
 		// Init GWHit
-		hit_.init(satup_, sacomb_, 0, false, 0);
+		hit_.init(satup_, 0, false, 0);
 		// Init corresponding GWState
 		st_.resize(1);
 		st_.back().reset();
 		assert(st_.back().repOkBasic());
-		uint32_t top = satup_->top;
+		uint32_t top = satup_->topf;
 		uint32_t bot = (uint32_t)(top + satup_->size());
 		st_.back().initMap(bot-top);
 		st_.ensure(4);
@@ -1171,9 +1149,9 @@ public:
 			false,   // orientation
 			0,       // range
 			elt,     // element
-			satup_->top + elt,  // bw row
-			satup_->key.len,    // length of hit
-			satup_->offs[elt]); // resolved text offset
+			satup_->topf + elt,  // bw row
+			satup_->key.len,     // length of hit
+			satup_->offs[elt]);  // resolved text offset
 		rep_++;
 		//assert(repOk());
 		return true;
@@ -1241,8 +1219,7 @@ protected:
 	GWHit hit_;
 
 	// -- Temporary lists and pointers --
-	SATuple *satup_;               // storage for SATuple and SAResolveCombiner
-	SAResolveCombiner *sacomb_;    // storage for SATuple and SAResolveCombiner
+	SATuple *satup_;               // storage for SATuple
 	EList<bool> masksTmp_[4];      // temporary list for masks; used in GWState
 	EList<uint32_t, 16> mapTmp_;   // temporary list of GWState maps
 };

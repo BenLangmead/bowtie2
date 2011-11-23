@@ -19,7 +19,6 @@
 
 #include "aligner_cache.h"
 #include "aligner_seed.h"
-#include "aligner_counters.h"
 #include "search_globals.h"
 #include "bt2_idx.h"
 #include <algorithm>
@@ -431,17 +430,17 @@ pair<int, int> SeedAligner::instantiateSeeds(
 				fw);
 			assert_leq(sr.seqs(fw)[i].length(), 32);
 			QKey qk(sr.seqs(fw)[i] ASSERT_ONLY(, tmpdnastr_));
-			QVal* qv;
-			if(qk.cacheable() && (qv = cache.queryCopy(qk)) != NULL) {
-				// This seed hit was found recently and the hitting QVal is
-				// still in the cache
-				assert(qv->repOk(cache.current()));
-				sr.add(*qv, cache.current(), i, fw);
-				met.interhit++; // inter-seed cache hit
-				if(!qv->empty()) {
-					ret.second++;
-				}
-			} else {
+			//QVal* qv;
+			//if(qk.cacheable() && (qv = cache.queryCopy(qk)) != NULL) {
+			//	// This seed hit was found recently and the hitting QVal is
+			//	// still in the cache
+			//	assert(qv->repOk(cache.current()));
+			//	sr.add(*qv, cache.current(), i, fw);
+			//	met.interhit++; // inter-seed cache hit
+			//	if(!qv->empty()) {
+			//		ret.second++;
+			//	}
+			//} else {
 				// For each search strategy
 				EList<InstantiatedSeed>& iss = sr.instantiatedSeeds(fw, i);
 				for(int j = 0; j < (int)seeds.size(); j++) {
@@ -468,7 +467,7 @@ pair<int, int> SeedAligner::instantiateSeeds(
 						iss.pop_back();
 					}
 				}
-			}
+			//}
 		}
 	}
 	return ret;
@@ -506,6 +505,7 @@ void SeedAligner::searchAllSeeds(
 	uint64_t possearches = 0, seedsearches = 0, intrahits = 0, interhits = 0, ooms = 0;
 	// For each instantiated seed
 	for(int i = 0; i < (int)sr.numOffs(); i++) {
+		size_t off = sr.idx2off(i);
 		for(int fwi = 0; fwi < 2; fwi++) {
 			bool fw = (fwi == 0);
 			assert(sr.repOk(&cache.current()));
@@ -515,8 +515,10 @@ void SeedAligner::searchAllSeeds(
 				continue;
 			}
 			QVal qv;
-			seq_ = &sr.seqs(fw)[i];
-			qual_ = &sr.quals(fw)[i];
+			seq_  = &sr.seqs(fw)[i];  // seed sequence
+			qual_ = &sr.quals(fw)[i]; // seed qualities
+			off_  = off;              // seed offset (from 5')
+			fw_   = fw;               // seed orientation
 			// Tell the cache that we've started aligning, so the cache can
 			// expect a series of on-the-fly updates
 			int ret = cache.beginAlign(*seq_, *qual_, qv);
@@ -528,6 +530,7 @@ void SeedAligner::searchAllSeeds(
 			}
 			bool abort = false;
 			if(ret == 0) {
+				// Not already in cache
 				assert(cache.aligning());
 				possearches++;
 				for(size_t j = 0; j < iss.size(); j++) {
@@ -536,7 +539,7 @@ void SeedAligner::searchAllSeeds(
 					assert_eq(fw, iss[j].fw);
 					assert_eq(i, (int)iss[j].seedoffidx);
 					s_ = &iss[j];
-					// Do the search!
+					// Do the search with respect to seq_, qual_ and s_.
 					if(!searchSeedBi()) {
 						// Memory exhausted during search
 						ooms++;
@@ -550,6 +553,7 @@ void SeedAligner::searchAllSeeds(
 					qv = cache.finishAlign();
 				}
 			} else {
+				// Already in cache
 				assert_eq(1, ret);
 				assert(qv.valid());
 				intrahits++;
@@ -572,22 +576,6 @@ void SeedAligner::searchAllSeeds(
 	met.ooms += ooms;
 	met.bwops += bwops_;
 	met.bweds += bwedits_;
-}
-
-#define INIT_LOCS(top, bot, tloc, bloc, e) { \
-	if(bot - top == 1) { \
-		tloc.initFromRow(top, (e).eh(), (e).ebwt()); \
-		bloc.invalidate(); \
-	} else { \
-		SideLocus::initFromTopBot(top, bot, (e).eh(), (e).ebwt(), tloc, bloc); \
-		assert(bloc.valid()); \
-	} \
-}
-
-#define SANITY_CHECK_4TUP(t, b, tp, bp) { \
-	ASSERT_ONLY(uint32_t tot = (b[0]-t[0])+(b[1]-t[1])+(b[2]-t[2])+(b[3]-t[3])); \
-	ASSERT_ONLY(uint32_t totp = (bp[0]-tp[0])+(bp[1]-tp[1])+(bp[2]-tp[2])+(bp[3]-tp[3])); \
-	assert_eq(tot, totp); \
 }
 
 bool SeedAligner::sanityPartial(
@@ -1193,9 +1181,142 @@ SeedAligner::nextLocsBi(
 }
 
 /**
- * Report a seed hit found by searchSeedBi() by adding it to the
- * SeedResults data structure.  Return false if the hit could not be
- * reported because of, e.g., cache exhaustion.
+ * Report a seed hit found by searchSeedBi(), but first try to extend it out in
+ * either direction as far as possible without hitting any edits.  This will
+ * allow us to prioritize the seed hits better later on.  Call reportHit() when
+ * we're done, which actually adds the hit to the cache.  Returns result from
+ * calling reportHit().
+ */
+bool
+SeedAligner::extendAndReportHit(
+	uint32_t topf,                     // top in BWT
+	uint32_t botf,                     // bot in BWT
+	uint32_t topb,                     // top in BWT'
+	uint32_t botb,                     // bot in BWT'
+	uint16_t len,                      // length of hit
+	DoublyLinkedList<Edit> *prevEdit)  // previous edit
+{
+	size_t nlex = 0, nrex = 0;
+	uint32_t t[4], b[4];
+	uint32_t tp[4], bp[4];
+	SideLocus tloc, bloc;
+	if(off_ > 0) {
+		const Ebwt *ebwt = ebwtFw_;
+		assert(ebwt != NULL);
+		// Extend left using forward index
+		const BTDnaString& seq = fw_ ? read_->patFw : read_->patRc;
+		// See what we get by extending 
+		uint32_t top = topf, bot = botf;
+		t[0] = t[1] = t[2] = t[3] = 0;
+		b[0] = b[1] = b[2] = b[3] = 0;
+		tp[0] = tp[1] = tp[2] = tp[3] = topb;
+		bp[0] = bp[1] = bp[2] = bp[3] = botb;
+		SideLocus tloc, bloc;
+		INIT_LOCS(top, bot, tloc, bloc, *ebwt);
+		for(size_t ii = off_; ii > 0; ii--) {
+			size_t i = ii-1;
+			// Get char from read
+			int rdc = seq.get(i);
+			// See what we get by extending 
+			if(bloc.valid()) {
+				bwops_++;
+				t[0] = t[1] = t[2] = t[3] =
+				b[0] = b[1] = b[2] = b[3] = 0;
+				ebwt->mapBiLFEx(tloc, bloc, t, b, tp, bp);
+				SANITY_CHECK_4TUP(t, b, tp, bp);
+				int nonz = -1;
+				bool abort = false;
+				for(int j = 0; j < 4; j++) {
+					if(b[i] > t[i]) {
+						if(nonz >= 0) {
+							abort = true;
+							break;
+						}
+						nonz = j;
+						top = t[i]; bot = b[i];
+					}
+				}
+				if(abort || nonz != rdc) {
+					break;
+				}
+			} else {
+				assert_eq(bot, top+1);
+				bwops_++;
+				int c = ebwt->mapLF1(top, tloc);
+				if(c != rdc) {
+					break;
+				}
+				bot = top + 1;
+			}
+			if(++nlex == 255) {
+				break;
+			}
+			INIT_LOCS(top, bot, tloc, bloc, *ebwt);
+		}
+	}
+	size_t rdlen = read_->length();
+	size_t nright = rdlen - off_ - len;
+	if(nright > 0 && ebwtBw_ != NULL) {
+		const Ebwt *ebwt = ebwtBw_;
+		assert(ebwt != NULL);
+		// Extend right using backward index
+		const BTDnaString& seq = fw_ ? read_->patFw : read_->patRc;
+		// See what we get by extending 
+		uint32_t top = topb, bot = botb;
+		t[0] = t[1] = t[2] = t[3] = 0;
+		b[0] = b[1] = b[2] = b[3] = 0;
+		tp[0] = tp[1] = tp[2] = tp[3] = topb;
+		bp[0] = bp[1] = bp[2] = bp[3] = botb;
+		INIT_LOCS(top, bot, tloc, bloc, *ebwt);
+		for(size_t i = off_ + len; i < rdlen; i++) {
+			// Get char from read
+			int rdc = seq.get(i);
+			// See what we get by extending 
+			if(bloc.valid()) {
+				bwops_++;
+				t[0] = t[1] = t[2] = t[3] =
+				b[0] = b[1] = b[2] = b[3] = 0;
+				ebwt->mapBiLFEx(tloc, bloc, t, b, tp, bp);
+				SANITY_CHECK_4TUP(t, b, tp, bp);
+				int nonz = -1;
+				bool abort = false;
+				for(int j = 0; j < 4; j++) {
+					if(b[i] > t[i]) {
+						if(nonz >= 0) {
+							abort = true;
+							break;
+						}
+						nonz = j;
+						top = t[i]; bot = b[i];
+					}
+				}
+				if(abort || nonz != rdc) {
+					break;
+				}
+			} else {
+				assert_eq(bot, top+1);
+				bwops_++;
+				int c = ebwt->mapLF1(top, tloc);
+				if(c != rdc) {
+					break;
+				}
+				bot = top + 1;
+			}
+			if(++nrex == 255) {
+				break;
+			}
+			INIT_LOCS(top, bot, tloc, bloc, *ebwt);
+		}
+	}
+	assert_lt(nlex, rdlen);
+	assert_leq(nlex, off_);
+	assert_lt(nrex, rdlen);
+	return reportHit(topf, botf, topb, botb, len, prevEdit);
+}
+
+/**
+ * Report a seed hit found by searchSeedBi() by adding it to the cache.  Return
+ * false if the hit could not be reported because of, e.g., cache exhaustion.
  */
 bool
 SeedAligner::reportHit(
@@ -1208,8 +1329,7 @@ SeedAligner::reportHit(
 {
 	// Add information about the seed hit to AlignmentCache.  This
 	// information eventually makes its way back to the SeedResults
-	// object when we call finishAlign(...).  finishAlign() will
-	// populate an ACRangeRange appropriately.
+	// object when we call finishAlign(...).
 	BTDnaString& rf = tmprfdnastr_;
 	rf.clear();
 	edits_.clear();
@@ -1227,7 +1347,7 @@ SeedAligner::reportHit(
 	// should return false in some cases.
 	assert_eq(hits_.size(), ca_->curNumRanges());
 	assert(hits_.insert(rf));
-	if(!ca_->addOnTheFly(rf, topf, botf)) {
+	if(!ca_->addOnTheFly(rf, topf, botf, topb, botb)) {
 		return false;
 	}
 	assert_eq(hits_.size(), ca_->curNumRanges());

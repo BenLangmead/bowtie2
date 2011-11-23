@@ -649,7 +649,9 @@ public:
 		}
 		numElts_ += qv.numElts();
 		numRanges_ += qv.numRanges();
-		if(qv.numRanges() > 0) nonzTot_++;
+		if(qv.numRanges() > 0) {
+			nonzTot_++;
+		}
 		assert(repOk(&ac));
 	}
 
@@ -845,6 +847,13 @@ public:
 	size_t numEltsRc() const { return numEltsRc_; }
 	
 	/**
+	 * Given an offset index, return the offset that has that index.
+	 */
+	size_t idx2off(size_t off) const {
+		return offIdx2off_[off];
+	}
+	
+	/**
 	 * Return true iff there are 0 hits being held.
 	 */
 	bool empty() const { return numRanges() == 0; }
@@ -1028,11 +1037,11 @@ public:
 	 * read.
 	 */
 	const QVal& hitsByRank(
-		size_t    r,      // in
-		uint32_t& offidx, // out
-		uint32_t& off,    // out
-		bool&     fw,     // out
-		uint32_t& seedlen)// out
+		size_t    r,       // in
+		uint32_t& offidx,  // out
+		uint32_t& off,     // out
+		bool&     fw,      // out
+		uint32_t& seedlen) // out
 	{
 		assert(sorted_);
 		assert_lt(r, nonzTot_);
@@ -1245,41 +1254,10 @@ protected:
 	bool                mm1Sorted_;  // true iff we've sorted the mm1Hit_ list
 };
 
-/**
- * A set of counters for characterizing the work done by the seed
- * aligner.
- */
-struct SACounters {
-	uint64_t seed;      // seeds searched
-	uint64_t ftab;      // ftab jumps
-	uint64_t fchr;      // fchr jumps
-	uint64_t match;     // match advances
-	uint64_t matchd[4]; // match advances at depth 0, 1, 2, >=3
-	uint64_t edit;      // edit advances
-	uint64_t editd[4];  // edit advances at depth 0, 1, 2, >=3
-	int hits;           // # valid alignments found
-	int maxDepth;       // maximum recursion depth
-	
-	/**
-	 * Set all counters to 0;
-	 */
-	void reset() {
-		hits = 0;
-		seed = 0;
-		ftab = 0;
-		fchr = 0;
-		maxDepth = 0;
-		match = 0;
-		matchd[0] = matchd[1] = matchd[2] = matchd[3] = 0;
-		edit = 0;
-		editd[0] = editd[1] = editd[2] = editd[3] = 0;
-	}
-};
 
 // Forward decl
 class Ebwt;
 class SideLocus;
-class ReadCounterSink;
 
 /**
  * Encapsulates a sumamry of what the searchAllSeeds aligner did.
@@ -1447,9 +1425,23 @@ public:
 protected:
 
 	/**
-	 * Report a seed hit found by searchSeedBi() by adding it to the back
-	 * of the hits_ list and adding its edits to the back of the edits_
-	 * list.
+	 * Report a seed hit found by searchSeedBi(), but first try to extend it out in
+	 * either direction as far as possible without hitting any edits.  This will
+	 * allow us to prioritize the seed hits better later on.  Call reportHit() when
+	 * we're done, which actually adds the hit to the cache.  Returns result from
+	 * calling reportHit().
+	 */
+	bool extendAndReportHit(
+		uint32_t topf,                     // top in BWT
+		uint32_t botf,                     // bot in BWT
+		uint32_t topb,                     // top in BWT'
+		uint32_t botb,                     // bot in BWT'
+		uint16_t len,                      // length of hit
+		DoublyLinkedList<Edit> *prevEdit); // previous edit
+
+	/**
+	 * Report a seed hit found by searchSeedBi() by adding it to the cache.  Return
+	 * false if the hit could not be reported because of, e.g., cache exhaustion.
 	 */
 	bool reportHit(
 		uint32_t topf,         // top in BWT
@@ -1500,9 +1492,15 @@ protected:
 	const Ebwt* ebwtBw_;       // backward/mirror index (BWT')
 	const Scoring* sc_;        // scoring scheme
 	const InstantiatedSeed* s_;// current instantiated seed
+	
 	const Read* read_;         // read whose seeds are currently being aligned
+	
+	// The following are set just before a call to searchSeedBi()
 	const BTDnaString* seq_;   // sequence of current seed
 	const BTString* qual_;     // quality string for current seed
+	size_t off_;               // offset of seed currently being searched
+	bool fw_;                  // orientation of seed currently being searched
+	
 	EList<Edit> edits_;        // temporary place to sort edits
 	AlignmentCacheIface *ca_;  // local alignment cache for seed alignments
 	EList<uint32_t> offIdx2off_;// offset idx to read offset map, set up instantiateSeeds()
@@ -1513,5 +1511,21 @@ protected:
 	ASSERT_ONLY(ESet<BTDnaString> hits_); // Ref hits so far for seed being aligned
 	BTDnaString tmpdnastr_;
 };
+
+#define INIT_LOCS(top, bot, tloc, bloc, e) { \
+	if(bot - top == 1) { \
+		tloc.initFromRow(top, (e).eh(), (e).ebwt()); \
+		bloc.invalidate(); \
+	} else { \
+		SideLocus::initFromTopBot(top, bot, (e).eh(), (e).ebwt(), tloc, bloc); \
+		assert(bloc.valid()); \
+	} \
+}
+
+#define SANITY_CHECK_4TUP(t, b, tp, bp) { \
+	ASSERT_ONLY(uint32_t tot = (b[0]-t[0])+(b[1]-t[1])+(b[2]-t[2])+(b[3]-t[3])); \
+	ASSERT_ONLY(uint32_t totp = (bp[0]-tp[0])+(bp[1]-tp[1])+(bp[2]-tp[2])+(bp[3]-tp[3])); \
+	assert_eq(tot, totp); \
+}
 
 #endif /*ALIGNER_SEED_H_*/

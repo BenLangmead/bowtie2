@@ -86,7 +86,6 @@
 #include "mem_ids.h"
 #include "aln_sink.h"
 #include "pe.h"
-#include "sa_rescomb.h"
 #include "ival_list.h"
 #include "simple_func.h"
 #include "random_util.h"
@@ -159,6 +158,8 @@ struct SATupleAndPos {
 	SATuple sat;    // result for this seed hit
 	SeedPos pos;    // seed position that yielded the range this was taken from
 	size_t  origSz; // size of range this was taken from
+	size_t  nlex;   // # position we can extend seed hit to left w/o edit
+	size_t  nrex;   // # position we can extend seed hit to right w/o edit
 	
 	bool operator<(const SATupleAndPos& o) const {
 		if(sat < o.sat) return true;
@@ -196,7 +197,8 @@ public:
 		masses_.resize(saf - sai);
 		for(size_t i = sai; i < saf; i++) {
 			//masses_[i - sai] = (1.0f / sqrt((double)salist[i].sat.size()));
-			masses_[i - sai] = (1.0 / ((double)salist[i].sat.size() * (double)salist[i].sat.size()));
+			size_t len = salist[i].nlex + salist[i].nrex + salist[i].sat.key.len;
+			masses_[i - sai] = ((double)len * (double)len / ((double)salist[i].sat.size() * (double)salist[i].sat.size()));
 			mass_ += masses_[i - sai];
 		}
 	}
@@ -263,7 +265,6 @@ public:
 
 	SwDriver(size_t bytes) :
 		satups_(DP_CAT),
-		sacomb_(DP_CAT),
 		gws_(DP_CAT),
 		seenDiags1_(DP_CAT),
 		seenDiags2_(DP_CAT),
@@ -287,7 +288,8 @@ public:
 		Read& rd,                    // read to align
 		bool mate1,                  // true iff rd is mate #1
 		SeedResults& sh,             // seed hits to extend into full alignments
-		const Ebwt& ebwt,            // BWT
+		const Ebwt& ebwtFw,          // BWT
+		const Ebwt* ebwtBw,          // BWT'
 		const BitPairReference& ref, // Reference strings
 		SwAligner& swa,              // dynamic programming aligner
 		const Scoring& sc,           // scoring scheme
@@ -306,7 +308,6 @@ public:
 		size_t maxUgStreak,          // stop after streak of this many ungap fails
 		size_t maxDpStreak,          // stop after streak of this many dp fails
 		bool enable8,                // use 8-bit SSE where possible
-		bool refscan,                // use reference scanning
 		int tighten,                 // -M score tightening mode
 		AlignmentCacheIface& ca,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random source
@@ -334,7 +335,8 @@ public:
 		bool anchor1,                // true iff anchor mate is mate1
 		bool oppFilt,                // true iff opposite mate was filtered out
 		SeedResults& sh,             // seed hits for anchor
-		const Ebwt& ebwt,            // BWT
+		const Ebwt& ebwtFw,          // BWT
+		const Ebwt* ebwtBw,          // BWT'
 		const BitPairReference& ref, // Reference strings
 		SwAligner& swa,              // dyn programming aligner for anchor
 		SwAligner& swao,             // dyn programming aligner for opposite
@@ -362,7 +364,6 @@ public:
 		size_t maxDpStreak,          // stop after streak of this many dp fails
 		size_t maxMateStreak,        // stop seed range after N mate-find fails
 		bool enable8,                // use 8-bit SSE where possible
-		bool refscan,                // use reference scanning
 		int tighten,                 // -M score tightening mode
 		AlignmentCacheIface& cs,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random source
@@ -408,17 +409,34 @@ protected:
 		SwMetrics& swmSeed,          // metrics for seed extensions
 		size_t& nelt_out);           // out: # elements total
 
+	void extend(
+		const Read& rd,       // read
+		const Ebwt& ebwtFw,   // Forward Bowtie index
+		const Ebwt* ebwtBw,   // Backward Bowtie index
+		uint32_t topf,        // top in fw index
+		uint32_t botf,        // bot in fw index
+		uint32_t topb,        // top in bw index
+		uint32_t botb,        // bot in bw index
+		bool fw,              // seed orientation
+		size_t off,           // seed offset from 5' end
+		size_t len,           // seed length
+		PerReadMetrics& prm,  // per-read metrics
+		size_t& nlex,         // # positions we can extend to left w/o edit
+		size_t& nrex);        // # positions we can extend to right w/o edit
+
 	void prioritizeSATups(
+		const Read& rd,              // read
 		SeedResults& sh,             // seed hits to extend into full alignments
-		const Ebwt& ebwt,            // BWT
+		const Ebwt& ebwtFw,          // BWT
+		const Ebwt* ebwtBw,          // BWT
 		const BitPairReference& ref, // Reference strings
-		bool refscan,                // do reference scanning?
 		size_t maxelt,               // max elts we'll consider
 		size_t nsm,                  // if range as <= nsm elts, it's "small"
 		AlignmentCacheIface& ca,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random generator
 		WalkMetrics& wlm,            // group walk left metrics
-		size_t& nelt);               // out: # elements total
+		PerReadMetrics& prm,         // per-read metrics
+		size_t& nelt_out);           // out: # elements total
 
 	Random1toN               rand_;    // random number generators
 	EList<Random1toN, 16>    rands_;   // random number generators
@@ -427,7 +445,6 @@ protected:
 	EList<SATupleAndPos, 16> satpos_;  // holds SATuple, SeedPos pairs
 	EList<SATupleAndPos, 16> satpos2_; // holds SATuple, SeedPos pairs
 	EList<SATuple, 16>       satups_;  // holds SATuples to explore elements from
-	EList<SAResolveCombiner, 16> sacomb_; // temporary holder for combiners
 	EList<GroupWalk2>        gws_;         // list of GroupWalks; no particular order
 	EList<size_t>            mateStreaks_; // mate-find fail streaks
 	RowSampler               rowsamp_;     // row sampler
