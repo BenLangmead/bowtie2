@@ -535,6 +535,7 @@ void SwDriver::prioritizeSATups(
 #endif
 	}
 	if(nelt_added >= maxelt || nsmall == satpos2_.size()) {
+		nelt_out = nelt_added;
 		return;
 	}
 	// 2. do the non-smalls
@@ -586,6 +587,7 @@ void SwDriver::prioritizeSATups(
 		nelt_added++;
 	}
 	nelt_out = nelt_added;
+	return;
 }
 
 enum {
