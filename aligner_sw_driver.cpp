@@ -1093,9 +1093,17 @@ int SwDriver::extendSeeds(
 										minsc++;
 									}
 								}
-							} else {
+							} else if(tighten == 2) {
 								if(msink->secondBestUnp1() >= minsc) {
 									minsc = msink->secondBestUnp1();
+									if(minsc < perfectScore) {
+										minsc++;
+									}
+								}
+							} else {
+								TAlScore bot = ((msink->secondBestUnp1() + msink->bestUnp1()) / 2);
+								if(bot >= minsc) {
+									minsc = bot;
 									if(minsc < perfectScore) {
 										minsc++;
 									}
@@ -1273,13 +1281,20 @@ int SwDriver::extendSeedsPaired(
 	TAlScore bestPairScore = perfectScore + operfectScore;
 	if(tighten > 0 && msink->Mmode() && msink->hasSecondBestPair()) {
 		// Paired-end alignments should have at least this score from now
-		TAlScore ps = ((tighten == 1) ? msink->bestPair() : msink->secondBestPair());
+		TAlScore ps;
+		if(tighten == 1) {
+			ps = msink->bestPair();
+		} else if(tighten == 2) {
+			ps = msink->secondBestPair();
+		} else {
+			ps = (msink->secondBestPair() + msink->bestPair()) / 2;
+		}
 		if(tighten == 1 && ps < bestPairScore &&
 		   msink->bestPair() == msink->secondBestPair())
 		{
 			ps++;
 		}
-		if(tighten == 2 && ps < bestPairScore) {
+		if(tighten >= 2 && ps < bestPairScore) {
 			ps++;
 		}
 		// Anchor mate must have score at least 'ps' minus the best possible
@@ -1733,13 +1748,20 @@ int SwDriver::extendSeedsPaired(
 							ominsc_cur = ominsc;
 							if(tighten > 0 && msink->Mmode() && msink->hasSecondBestPair()) {
 								// Paired-end alignments should have at least this score from now
-								TAlScore ps = ((tighten == 1) ? msink->bestPair() : msink->secondBestPair());
+								TAlScore ps;
+								if(tighten == 1) {
+									ps = msink->bestPair();
+								} else if(tighten == 2) {
+									ps = msink->secondBestPair();
+								} else {
+									ps = (msink->secondBestPair() + msink->bestPair()) / 2;
+								}
 								if(tighten == 1 && ps < bestPairScore &&
 								   msink->bestPair() == msink->secondBestPair())
 								{
 									ps++;
 								}
-								if(tighten == 2 && ps < bestPairScore) {
+								if(tighten >= 2 && ps < bestPairScore) {
 									ps++;
 								}
 								// Anchor mate must have score at least 'ps' minus the best possible
@@ -1996,13 +2018,20 @@ int SwDriver::extendSeedsPaired(
 										} else {
 											if(tighten > 0 && msink->Mmode() && msink->hasSecondBestPair()) {
 												// Paired-end alignments should have at least this score from now
-												TAlScore ps = ((tighten == 1) ? msink->bestPair() : msink->secondBestPair());
+												TAlScore ps;
+												if(tighten == 1) {
+													ps = msink->bestPair();
+												} else if(tighten == 2) {
+													ps = msink->secondBestPair();
+												} else {
+													ps = (msink->secondBestPair() + msink->bestPair()) / 2;
+												}
 												if(tighten == 1 && ps < bestPairScore &&
 												   msink->bestPair() == msink->secondBestPair())
 												{
 													ps++;
 												}
-												if(tighten == 2 && ps < bestPairScore) {
+												if(tighten >= 2 && ps < bestPairScore) {
 													ps++;
 												}
 												// Anchor mate must have score at least 'ps' minus the best possible

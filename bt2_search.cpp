@@ -377,7 +377,7 @@ static void resetOptions() {
 	queries.clear();         // list of query files
 	outfile.clear();         // write SAM output to this file
 	mapqv = 2;               // MAPQ calculation version
-	tighten = 1;             // -M tightening mode
+	tighten = 3;             // -M tightening mode
 	doExactUpFront = true;   // do exact search up front if seeds seem good enough
 	do1mmUpFront = true;     // do 1mm search up front if seeds seem good enough
 	seedBoostThresh = 300;   // if average non-zero position has more than this many elements
