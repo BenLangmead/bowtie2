@@ -2825,7 +2825,7 @@ static void* multiseedSearchWorker(void *vp) {
 				bool done[2] = { !filt[0], !filt[1] };
 				size_t nelt[2] = {0, 0};
 				// Find end-to-end exact alignments for each read
-				if(doExactUpFront) {
+				if(doExactUpFront && !localAlign) {
 					for(size_t matei = 0; matei < (pair ? 2:1); matei++) {
 						size_t mate = matemap[matei];
 						if(!filt[mate] || done[mate] || msinkwrap.state().doneWithMate(mate == 0)) {
@@ -3002,7 +3002,7 @@ static void* multiseedSearchWorker(void *vp) {
 					}
 				}
 				// 1-mismatch
-				if(do1mmUpFront && !seedSumm) {
+				if(do1mmUpFront && !localAlign && !seedSumm) {
 					for(size_t matei = 0; matei < (pair ? 2:1); matei++) {
 						size_t mate = matemap[matei];
 						if(!filt[mate] || done[mate] || nelt[mate] > eePeEeltLimit) {
