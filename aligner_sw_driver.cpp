@@ -1106,7 +1106,8 @@ int SwDriver::extendSeeds(
 									}
 								}
 							} else {
-								TAlScore bot = ((msink->secondBestUnp1() + msink->bestUnp1()) / 2);
+								TAlScore diff = msink->bestUnp1() - msink->secondBestUnp1();
+								TAlScore bot = msink->secondBestUnp1() + ((diff*3)/4);
 								if(bot >= minsc) {
 									minsc = bot;
 									if(minsc < perfectScore) {
@@ -1293,7 +1294,8 @@ int SwDriver::extendSeedsPaired(
 		} else if(tighten == 2) {
 			ps = msink->secondBestPair();
 		} else {
-			ps = (msink->secondBestPair() + msink->bestPair()) / 2;
+			TAlScore diff = msink->bestPair() - msink->secondBestPair();
+			ps = msink->secondBestPair() + (diff * 3)/4;
 		}
 		if(tighten == 1 && ps < bestPairScore &&
 		   msink->bestPair() == msink->secondBestPair())
@@ -1761,7 +1763,8 @@ int SwDriver::extendSeedsPaired(
 								} else if(tighten == 2) {
 									ps = msink->secondBestPair();
 								} else {
-									ps = (msink->secondBestPair() + msink->bestPair()) / 2;
+									TAlScore diff = msink->bestPair() - msink->secondBestPair();
+									ps = msink->secondBestPair() + (diff * 3)/4;
 								}
 								if(tighten == 1 && ps < bestPairScore &&
 								   msink->bestPair() == msink->secondBestPair())
@@ -2031,7 +2034,8 @@ int SwDriver::extendSeedsPaired(
 												} else if(tighten == 2) {
 													ps = msink->secondBestPair();
 												} else {
-													ps = (msink->secondBestPair() + msink->bestPair()) / 2;
+													TAlScore diff = msink->bestPair() - msink->secondBestPair();
+													ps = msink->secondBestPair() + (diff * 3)/4;
 												}
 												if(tighten == 1 && ps < bestPairScore &&
 												   msink->bestPair() == msink->secondBestPair())
