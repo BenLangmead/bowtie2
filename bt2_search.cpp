@@ -381,7 +381,7 @@ static void resetOptions() {
 	doExactUpFront = true;   // do exact search up front if seeds seem good enough
 	do1mmUpFront = true;     // do 1mm search up front if seeds seem good enough
 	seedBoostThresh = 300;   // if average non-zero position has more than this many elements
-	nSeedRounds = 3;         // # rounds of seed searches to do for repetitive reads
+	nSeedRounds = 2;         // # rounds of seed searches to do for repetitive reads
 	do1mmMinLen = 60;        // length below which we disable 1mm search
 }
 
@@ -2825,7 +2825,7 @@ static void* multiseedSearchWorker(void *vp) {
 				bool done[2] = { !filt[0], !filt[1] };
 				size_t nelt[2] = {0, 0};
 				// Find end-to-end exact alignments for each read
-				if(doExactUpFront && !localAlign) {
+				if(doExactUpFront) {
 					for(size_t matei = 0; matei < (pair ? 2:1); matei++) {
 						size_t mate = matemap[matei];
 						if(!filt[mate] || done[mate] || msinkwrap.state().doneWithMate(mate == 0)) {
@@ -3002,7 +3002,7 @@ static void* multiseedSearchWorker(void *vp) {
 					}
 				}
 				// 1-mismatch
-				if(do1mmUpFront && !localAlign && !seedSumm) {
+				if(do1mmUpFront && !seedSumm) {
 					for(size_t matei = 0; matei < (pair ? 2:1); matei++) {
 						size_t mate = matemap[matei];
 						if(!filt[mate] || done[mate] || nelt[mate] > eePeEeltLimit) {

@@ -326,21 +326,21 @@ public:
 		} else {
 			// Local alignment
 			if(!hasSecbest) {
-				if     (bestOver >= diff * (double)0.8f) ret = 42;
-				else if(bestOver >= diff * (double)0.7f) ret = 40;
-				else if(bestOver >= diff * (double)0.6f) ret = 24;
-				else if(bestOver >= diff * (double)0.5f) ret = 23;
-				else if(bestOver >= diff * (double)0.4f) ret = 8;
-				else if(bestOver >= diff * (double)0.3f) ret = 3;
-				else                                     ret = 1;
+				if     (bestOver >= diff * (double)0.8f) ret = 44;
+				else if(bestOver >= diff * (double)0.7f) ret = 42;
+				else if(bestOver >= diff * (double)0.6f) ret = 41;
+				else if(bestOver >= diff * (double)0.5f) ret = 36;
+				else if(bestOver >= diff * (double)0.4f) ret = 28;
+				else if(bestOver >= diff * (double)0.3f) ret = 24;
+				else                                     ret = 22;
 			} else {
 				secbest = s.paired() ?
 					s.secbestPaired().score() : s.secbest(mate1).score();
 				TAlScore bestdiff = abs(abs(best)-abs(secbest));
-				if     (bestdiff >= diff * (double)0.9f) ret = (bestOver == diff ? 39 : 33);
-				else if(bestdiff >= diff * (double)0.8f) ret = (bestOver == diff ? 38 : 27);
-				else if(bestdiff >= diff * (double)0.7f) ret = (bestOver == diff ? 37 : 26);
-				else if(bestdiff >= diff * (double)0.6f) ret = (bestOver == diff ? 36 : 22);
+				if     (bestdiff >= diff * (double)0.9f) ret = 40;
+				else if(bestdiff >= diff * (double)0.8f) ret = 39;
+				else if(bestdiff >= diff * (double)0.7f) ret = 38;
+				else if(bestdiff >= diff * (double)0.6f) ret = 37;
 				else if(bestdiff >= diff * (double)0.5f) {
 					if     (bestOver == diff)                 ret = 35;
 					else if(bestOver >= diff * (double)0.50f) ret = 25;
@@ -350,15 +350,15 @@ public:
 					else if(bestOver >= diff * (double)0.50f) ret = 21;
 					else                                      ret = 19;
 				} else if(bestdiff >= diff * (double)0.3f) {
-					if     (bestOver == diff)                 ret = 32;
+					if     (bestOver == diff)                 ret = 33;
 					else if(bestOver >= diff * (double)0.5f)  ret = 18;
 					else                                      ret = 16;
 				} else if(bestdiff >= diff * (double)0.2f) {
-					if     (bestOver == diff)                 ret = 31;
+					if     (bestOver == diff)                 ret = 32;
 					else if(bestOver >= diff * (double)0.5f)  ret = 17;
 					else                                      ret = 14;
 				} else if(bestdiff >= diff * (double)0.1f) {
-					if     (bestOver == diff)                 ret = 30;
+					if     (bestOver == diff)                 ret = 31;
 					else if(bestOver >= diff * (double)0.5f)  ret = 12;
 					else                                      ret = 9;
 				} else if(bestdiff > 0) {
