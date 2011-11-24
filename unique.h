@@ -213,120 +213,161 @@ public:
 			s.bestPaired().score() : s.best(mate1).score();
 		// best score but normalized so that 0 = worst valid score
 		TAlScore bestOver = best - scMin;
-		if(!hasSecbest) {
-			// Top third?
-			if(bestOver >= diff * (double)0.8f) {
-				ret = 42;
-			} else if(bestOver >= diff * (double)0.7f) {
-				ret = 40;
-			} else if(bestOver >= diff * (double)0.6f) {
-				ret = 24;
-			} else if(bestOver >= diff * (double)0.5f) {
-				ret = 23;
-			} else if(bestOver >= diff * (double)0.4f) {
-				ret = 8;
-			} else if(bestOver >= diff * (double)0.3f) {
-				ret = 3;
+		if(sc_.monotone) {
+			// End-to-end alignment
+			if(!hasSecbest) {
+				if     (bestOver >= diff * (double)0.8f) ret = 42;
+				else if(bestOver >= diff * (double)0.7f) ret = 40;
+				else if(bestOver >= diff * (double)0.6f) ret = 24;
+				else if(bestOver >= diff * (double)0.5f) ret = 23;
+				else if(bestOver >= diff * (double)0.4f) ret = 8;
+				else if(bestOver >= diff * (double)0.3f) ret = 3;
+				else                                     ret = 0;
 			} else {
-				ret = 0;
+				secbest = s.paired() ?
+					s.secbestPaired().score() : s.secbest(mate1).score();
+				TAlScore bestdiff = abs(abs(best)-abs(secbest));
+				if(bestdiff >= diff * (double)0.9f) {
+					if(bestOver == diff) {
+						ret = 39;
+					} else {
+						ret = 33;
+					}
+				} else if(bestdiff >= diff * (double)0.8f) {
+					if(bestOver == diff) {
+						ret = 38;
+					} else {
+						ret = 27;
+					}
+				} else if(bestdiff >= diff * (double)0.7f) {
+					if(bestOver == diff) {
+						ret = 37;
+					} else {
+						ret = 26;
+					}
+				} else if(bestdiff >= diff * (double)0.6f) {
+					if(bestOver == diff) {
+						ret = 36;
+					} else {
+						ret = 22;
+					}
+				} else if(bestdiff >= diff * (double)0.5f) {
+					// Top third is still pretty good
+					if       (bestOver == diff) {
+						ret = 35;
+					} else if(bestOver >= diff * (double)0.84f) {
+						ret = 25;
+					} else if(bestOver >= diff * (double)0.68f) {
+						ret = 16;
+					} else {
+						ret = 5;
+					}
+				} else if(bestdiff >= diff * (double)0.4f) {
+					// Top third is still pretty good
+					if       (bestOver == diff) {
+						ret = 34;
+					} else if(bestOver >= diff * (double)0.84f) {
+						ret = 21;
+					} else if(bestOver >= diff * (double)0.68f) {
+						ret = 14;
+					} else {
+						ret = 4;
+					}
+				} else if(bestdiff >= diff * (double)0.3f) {
+					// Top third is still pretty good
+					if       (bestOver == diff) {
+						ret = 32;
+					} else if(bestOver >= diff * (double)0.88f) {
+						ret = 18;
+					} else if(bestOver >= diff * (double)0.67f) {
+						ret = 15;
+					} else {
+						ret = 3;
+					}
+				} else if(bestdiff >= diff * (double)0.2f) {
+					// Top third is still pretty good
+					if       (bestOver == diff) {
+						ret = 31;
+					} else if(bestOver >= diff * (double)0.88f) {
+						ret = 17;
+					} else if(bestOver >= diff * (double)0.67f) {
+						ret = 11;
+					} else {
+						ret = 0;
+					}
+				} else if(bestdiff >= diff * (double)0.1f) {
+					// Top third is still pretty good
+					if       (bestOver == diff) {
+						ret = 30;
+					} else if(bestOver >= diff * (double)0.88f) {
+						ret = 12;
+					} else if(bestOver >= diff * (double)0.67f) {
+						ret = 7;
+					} else {
+						ret = 0;
+					}
+				} else if(bestdiff > 0) {
+					// Top third is still pretty good
+					if(bestOver >= diff * (double)0.67f) {
+						ret = 6;
+					} else {
+						ret = 2;
+					}
+				} else {
+					assert_eq(bestdiff, 0);
+					// Top third is still pretty good
+					if(bestOver >= diff * (double)0.67f) {
+						ret = 1;
+					} else {
+						ret = 0;
+					}
+				}
 			}
 		} else {
-			secbest = s.paired() ?
-				s.secbestPaired().score() : s.secbest(mate1).score();
-			TAlScore bestdiff = abs(abs(best)-abs(secbest));
-			if(bestdiff >= diff * (double)0.9f) {
-				if(bestOver == diff) {
-					ret = 39;
-				} else {
-					ret = 33;
-				}
-			} else if(bestdiff >= diff * (double)0.8f) {
-				if(bestOver == diff) {
-					ret = 38;
-				} else {
-					ret = 27;
-				}
-			} else if(bestdiff >= diff * (double)0.7f) {
-				if(bestOver == diff) {
-					ret = 37;
-				} else {
-					ret = 26;
-				}
-			} else if(bestdiff >= diff * (double)0.6f) {
-				if(bestOver == diff) {
-					ret = 36;
-				} else {
-					ret = 22;
-				}
-			} else if(bestdiff >= diff * (double)0.5f) {
-				// Top third is still pretty good
-				if       (bestOver == diff) {
-					ret = 35;
-				} else if(bestOver >= diff * (double)0.84f) {
-					ret = 25;
-				} else if(bestOver >= diff * (double)0.68f) {
-					ret = 16;
-				} else {
-					ret = 5;
-				}
-			} else if(bestdiff >= diff * (double)0.4f) {
-				// Top third is still pretty good
-				if       (bestOver == diff) {
-					ret = 34;
-				} else if(bestOver >= diff * (double)0.84f) {
-					ret = 21;
-				} else if(bestOver >= diff * (double)0.68f) {
-					ret = 14;
-				} else {
-					ret = 4;
-				}
-			} else if(bestdiff >= diff * (double)0.3f) {
-				// Top third is still pretty good
-				if       (bestOver == diff) {
-					ret = 32;
-				} else if(bestOver >= diff * (double)0.88f) {
-					ret = 18;
-				} else if(bestOver >= diff * (double)0.67f) {
-					ret = 15;
-				} else {
-					ret = 3;
-				}
-			} else if(bestdiff >= diff * (double)0.2f) {
-				// Top third is still pretty good
-				if       (bestOver == diff) {
-					ret = 31;
-				} else if(bestOver >= diff * (double)0.88f) {
-					ret = 17;
-				} else if(bestOver >= diff * (double)0.67f) {
-					ret = 11;
-				} else {
-					ret = 0;
-				}
-			} else if(bestdiff >= diff * (double)0.1f) {
-				// Top third is still pretty good
-				if       (bestOver == diff) {
-					ret = 30;
-				} else if(bestOver >= diff * (double)0.88f) {
-					ret = 12;
-				} else if(bestOver >= diff * (double)0.67f) {
-					ret = 7;
-				} else {
-					ret = 0;
-				}
-			} else if(bestdiff > 0) {
-				// Top third is still pretty good
-				if(bestOver >= diff * (double)0.67f) {
-					ret = 6;
-				} else {
-					ret = 2;
-				}
+			// Local alignment
+			if(!hasSecbest) {
+				if     (bestOver >= diff * (double)0.8f) ret = 42;
+				else if(bestOver >= diff * (double)0.7f) ret = 40;
+				else if(bestOver >= diff * (double)0.6f) ret = 24;
+				else if(bestOver >= diff * (double)0.5f) ret = 23;
+				else if(bestOver >= diff * (double)0.4f) ret = 8;
+				else if(bestOver >= diff * (double)0.3f) ret = 3;
+				else                                     ret = 1;
 			} else {
-				assert_eq(bestdiff, 0);
-				// Top third is still pretty good
-				if(bestOver >= diff * (double)0.67f) {
-					ret = 1;
+				secbest = s.paired() ?
+					s.secbestPaired().score() : s.secbest(mate1).score();
+				TAlScore bestdiff = abs(abs(best)-abs(secbest));
+				if     (bestdiff >= diff * (double)0.9f) ret = (bestOver == diff ? 39 : 33);
+				else if(bestdiff >= diff * (double)0.8f) ret = (bestOver == diff ? 38 : 27);
+				else if(bestdiff >= diff * (double)0.7f) ret = (bestOver == diff ? 37 : 26);
+				else if(bestdiff >= diff * (double)0.6f) ret = (bestOver == diff ? 36 : 22);
+				else if(bestdiff >= diff * (double)0.5f) {
+					if     (bestOver == diff)                 ret = 35;
+					else if(bestOver >= diff * (double)0.50f) ret = 25;
+					else                                      ret = 20;
+				} else if(bestdiff >= diff * (double)0.4f) {
+					if     (bestOver == diff)                 ret = 34;
+					else if(bestOver >= diff * (double)0.50f) ret = 21;
+					else                                      ret = 19;
+				} else if(bestdiff >= diff * (double)0.3f) {
+					if     (bestOver == diff)                 ret = 32;
+					else if(bestOver >= diff * (double)0.5f)  ret = 18;
+					else                                      ret = 16;
+				} else if(bestdiff >= diff * (double)0.2f) {
+					if     (bestOver == diff)                 ret = 31;
+					else if(bestOver >= diff * (double)0.5f)  ret = 17;
+					else                                      ret = 14;
+				} else if(bestdiff >= diff * (double)0.1f) {
+					if     (bestOver == diff)                 ret = 30;
+					else if(bestOver >= diff * (double)0.5f)  ret = 12;
+					else                                      ret = 9;
+				} else if(bestdiff > 0) {
+					if(bestOver >= diff * (double)0.5f)       ret = 11;
+					else                                      ret = 10;
 				} else {
-					ret = 0;
+					assert_eq(bestdiff, 0);
+					if(bestOver >= diff * (double)0.5f)       ret = 2;
+					else                                      ret = 0;
 				}
 			}
 		}
