@@ -135,7 +135,8 @@ enum {
 	ARG_DP_FAIL_THRESH,         // --dp-fails
 	ARG_UG_FAIL_THRESH,         // --ug-fails
 	ARG_MAPQ_EX,                // --mapq-extra
-	ARG_SEED_ROUNDS             // --seed-rounds
+	ARG_SEED_ROUNDS,            // --seed-rounds
+	ARG_NO_EXTEND               // --no-extend
 };
 
 #endif

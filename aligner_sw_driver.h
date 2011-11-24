@@ -339,6 +339,7 @@ public:
 		size_t maxDp,                // max # DPs
 		size_t maxUgStreak,          // stop after streak of this many ungap fails
 		size_t maxDpStreak,          // stop after streak of this many dp fails
+		bool doExtend,               // do seed extension
 		bool enable8,                // use 8-bit SSE where possible
 		int tighten,                 // -M score tightening mode
 		AlignmentCacheIface& ca,     // alignment cache for seed hits
@@ -395,6 +396,7 @@ public:
 		size_t maxUgStreak,          // stop after streak of this many ungap fails
 		size_t maxDpStreak,          // stop after streak of this many dp fails
 		size_t maxMateStreak,        // stop seed range after N mate-find fails
+		bool doExtend,               // do seed extension
 		bool enable8,                // use 8-bit SSE where possible
 		int tighten,                 // -M score tightening mode
 		AlignmentCacheIface& cs,     // alignment cache for seed hits
@@ -464,10 +466,11 @@ protected:
 		const Read& rd,              // read
 		SeedResults& sh,             // seed hits to extend into full alignments
 		const Ebwt& ebwtFw,          // BWT
-		const Ebwt* ebwtBw,          // BWT
+		const Ebwt* ebwtBw,          // BWT'
 		const BitPairReference& ref, // Reference strings
 		int seedmms,                 // # seed mismatches allowed
 		size_t maxelt,               // max elts we'll consider
+		bool doExtend,               // extend out seeds
 		bool lensq,                  // square extended length
 		bool szsq,                   // square SA range size
 		size_t nsm,                  // if range as <= nsm elts, it's "small"

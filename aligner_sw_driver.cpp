@@ -364,6 +364,7 @@ void SwDriver::prioritizeSATups(
 	const BitPairReference& ref, // Reference strings
 	int seedmms,                 // # mismatches allowed in seed
 	size_t maxelt,               // max elts we'll consider
+	bool doExtend,               // do extension of seed hits?
 	bool lensq,                  // square length in weight calculation
 	bool szsq,                   // square range size in weight calculation
 	size_t nsm,                  // if range as <= nsm elts, it's "small"
@@ -439,20 +440,22 @@ void SwDriver::prioritizeSATups(
 			tmp_rdseq_.reverse();
 #endif
 			size_t nlex = 0, nrex = 0;
-			extend(
-				read,
-				ebwtFw,
-				ebwtBw,
-				satpos.back().sat.topf,
-				(uint32_t)(satpos.back().sat.topf + sz),
-				satpos.back().sat.topb,
-				(uint32_t)(satpos.back().sat.topb + sz),
-				fw,
-				rdoff,
-				seedlen,
-				prm,
-				nlex,
-				nrex);
+			if(doExtend) {
+				extend(
+					read,
+					ebwtFw,
+					ebwtBw,
+					satpos.back().sat.topf,
+					(uint32_t)(satpos.back().sat.topf + sz),
+					satpos.back().sat.topb,
+					(uint32_t)(satpos.back().sat.topb + sz),
+					fw,
+					rdoff,
+					seedlen,
+					prm,
+					nlex,
+					nrex);
+			}
 			satpos.back().nlex = nlex;
 			satpos.back().nrex = nrex;
 			if(seedmms == 0 && (nlex > 0 || nrex > 0)) {
@@ -629,6 +632,7 @@ int SwDriver::extendSeeds(
 	size_t maxDp,                // stop after this many dps
 	size_t maxUgStreak,          // stop after streak of this many ungap fails
 	size_t maxDpStreak,          // stop after streak of this many dp fails
+	bool doExtend,               // do seed extension
 	bool enable8,                // use 8-bit SSE where possible
 	int tighten,                 // -M score tightening mode
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
@@ -707,6 +711,7 @@ int SwDriver::extendSeeds(
 					ref,           // Reference strings
 					seedmms,       // # seed mismatches allowed
 					75,            // max rows to consider per position
+					doExtend,      // extend out seeds
 					true,          // square extended length
 					true,          // square SA range size
 					nsm,           // smallness threshold
@@ -1244,6 +1249,7 @@ int SwDriver::extendSeedsPaired(
 	size_t maxUgStreak,          // stop after streak of this many ungap fails
 	size_t maxDpStreak,          // stop after streak of this many dp fails
 	size_t maxMateStreak,        // stop seed range after N mate-find fails
+	bool doExtend,               // do seed extension
 	bool enable8,                // use 8-bit SSE where possible
 	int tighten,                 // -M score tightening mode
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
@@ -1370,6 +1376,7 @@ int SwDriver::extendSeedsPaired(
 					ref,           // Reference strings
 					seedmms,       // # seed mismatches allowed
 					75,            // max rows to consider per position
+					doExtend,      // extend out seeds
 					true,          // square extended length
 					true,          // square SA range size
 					nsm,           // smallness threshold

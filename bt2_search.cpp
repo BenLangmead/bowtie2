@@ -201,6 +201,7 @@ static size_t maxEeStreak;   // stop after this many end-to-end fails in a row
 static size_t maxUgStreak;   // stop after this many ungap fails in a row
 static size_t maxDpStreak;   // stop after this many dp fails in a row
 static size_t maxMateStreak; // stop seed range after this many mate-find fails
+static bool doExtend;        // extend seed hits
 static bool enable8;         // use 8-bit SSE where possible?
 static string defaultPreset; // default preset; applied immediately
 static bool ignoreQuals;     // all mms incur same penalty, regardless of qual
@@ -367,6 +368,7 @@ static void resetOptions() {
 	maxUgStreak        = 15;    // stop after this many ungap fails in a row
 	maxDpStreak        = 15;    // stop after this many dp fails in a row
 	maxMateStreak      = 10;    // in PE: abort seed range after N mate-find fails
+	doExtend           = true;  // do seed extensions
 	enable8            = true;  // use 8-bit SSE where possible?
 	defaultPreset      = "sensitive%LOCAL%"; // default preset; applied immediately
 	extra_opts.clear();
@@ -536,6 +538,7 @@ static struct option long_options[] = {
 	{(char*)"dp-fails",         required_argument, 0,        ARG_DP_FAIL_THRESH},
 	{(char*)"ug-fails",         required_argument, 0,        ARG_UG_FAIL_THRESH},
 	{(char*)"extends",          required_argument, 0,        ARG_EXTEND_ITERS},
+	{(char*)"no-extend",        no_argument,       0,        ARG_NO_EXTEND},
 	{(char*)"mapq-extra",       no_argument,       0,        ARG_MAPQ_EX},
 	{(char*)"seed-rounds",      required_argument, 0,        ARG_SEED_ROUNDS},
 	{(char*)0, 0, 0, 0} // terminator
@@ -953,6 +956,10 @@ static void parseOption(int next_option, const char *arg) {
 		}
 		case ARG_EXTEND_ITERS: {
 			maxIters = parse<size_t>(arg);
+			break;
+		}
+		case ARG_NO_EXTEND: {
+			doExtend = false;
 			break;
 		}
 		case ARG_SEED_ROUNDS: {
@@ -2913,6 +2920,7 @@ static void* multiseedSearchWorker(void *vp) {
 								maxUgStreak,    // stop after streak of this many ungap fails
 								maxDpStreak,    // stop after streak of this many dp fails
 								maxMateStreak,  // max mate fails per seed range
+								doExtend,       // extend seed hits
 								enable8,        // use 8-bit SSE where possible
 								tighten,        // -M score tightening mode
 								ca,             // seed alignment cache
@@ -2953,6 +2961,7 @@ static void* multiseedSearchWorker(void *vp) {
 								maxDp,          // max # DPs
 								maxUgStreak,    // stop after streak of this many ungap fails
 								maxDpStreak,    // stop after streak of this many dp fails
+								doExtend,       // extend seed hits
 								enable8,        // use 8-bit SSE where possible
 								tighten,        // -M score tightening mode
 								ca,             // seed alignment cache
@@ -3090,6 +3099,7 @@ static void* multiseedSearchWorker(void *vp) {
 								maxUgStreak,    // stop after streak of this many ungap fails
 								maxDpStreak,    // stop after streak of this many dp fails
 								maxMateStreak,  // max mate fails per seed range
+								doExtend,       // extend seed hits
 								enable8,        // use 8-bit SSE where possible
 								tighten,        // -M score tightening mode
 								ca,             // seed alignment cache
@@ -3130,6 +3140,7 @@ static void* multiseedSearchWorker(void *vp) {
 								maxDp,          // max # DPs
 								maxUgStreak,    // stop after streak of this many ungap fails
 								maxDpStreak,    // stop after streak of this many dp fails
+								doExtend,       // extend seed hits
 								enable8,        // use 8-bit SSE where possible
 								tighten,        // -M score tightening mode
 								ca,             // seed alignment cache
@@ -3335,6 +3346,7 @@ static void* multiseedSearchWorker(void *vp) {
 									maxUgStreak,    // stop after streak of this many ungap fails
 									maxDpStreak,    // stop after streak of this many dp fails
 									maxMateStreak,  // max mate fails per seed range
+									doExtend,       // extend seed hits
 									enable8,        // use 8-bit SSE where possible
 									tighten,        // -M score tightening mode
 									ca,             // seed alignment cache
@@ -3375,6 +3387,7 @@ static void* multiseedSearchWorker(void *vp) {
 									maxDp,          // max # DPs
 									maxUgStreak,    // stop after streak of this many ungap fails
 									maxDpStreak,    // stop after streak of this many dp fails
+									doExtend,       // extend seed hits
 									enable8,        // use 8-bit SSE where possible
 									tighten,        // -M score tightening mode
 									ca,             // seed alignment cache
