@@ -3185,10 +3185,14 @@ static void* multiseedSearchWorker(void *vp) {
 				Constraint gc = Constraint::penaltyFuncBased(scoreMin);
 				for(size_t roundi = 0; roundi < nSeedRounds; roundi++) {
 					ca.nextRead(); // Clear cache in preparation for new search
-					if(roundi > 0) {
-						if(seedlens[0] > 8) seedlens[0]--;
-						if(seedlens[1] > 8) seedlens[1]--;
-					}
+					assert(shs[0].repOk(&ca.current()));
+					assert(shs[1].repOk(&ca.current()));
+					shs[0].clearSeeds();
+					shs[1].clearSeeds();
+					//if(roundi > 0) {
+					//	if(seedlens[0] > 8) seedlens[0]--;
+					//	if(seedlens[1] > 8) seedlens[1]--;
+					//}
 					for(size_t matei = 0; matei < (pair ? 2:1); matei++) {
 						size_t mate = matemap[matei];
 						if(done[mate] || msinkwrap.state().doneWithMate(mate == 0)) {
@@ -3215,7 +3219,6 @@ static void* multiseedSearchWorker(void *vp) {
 						swmSeed.sdatts++;
 						// Set up seeds
 						seeds[mate]->clear();
-						shs[mate].clearSeeds();
 						Seed::mmSeeds(
 							multiseedMms,    // max # mms per seed
 							seedlens[mate],  // length of a multiseed seed
