@@ -356,17 +356,17 @@ public:
 				} else if(bestdiff >= diff * (double)0.2f) {
 					if     (bestOver == diff)                 ret = 32;
 					else if(bestOver >= diff * (double)0.5f)  ret = 17;
-					else                                      ret = 14;
+					else                                      ret = 12;
 				} else if(bestdiff >= diff * (double)0.1f) {
 					if     (bestOver == diff)                 ret = 31;
-					else if(bestOver >= diff * (double)0.5f)  ret = 12;
+					else if(bestOver >= diff * (double)0.5f)  ret = 14;
 					else                                      ret = 9;
 				} else if(bestdiff > 0) {
 					if(bestOver >= diff * (double)0.5f)       ret = 11;
-					else                                      ret = 10;
+					else                                      ret = 2;
 				} else {
 					assert_eq(bestdiff, 0);
-					if(bestOver >= diff * (double)0.5f)       ret = 2;
+					if(bestOver >= diff * (double)0.5f)       ret = 1;
 					else                                      ret = 0;
 				}
 			}
