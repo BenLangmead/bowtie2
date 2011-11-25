@@ -996,8 +996,7 @@ public:
 		int seedmms,
 		int seedlen,
 		int seedival,
-		int64_t minsc,
-		int64_t floorsc)
+		int64_t minsc)
 	{
 		seedmms_ = seedmms;
 		seedlen_ = seedlen;
@@ -1010,7 +1009,6 @@ public:
 	int     seedlen()    const { return seedlen_;  }
 	int     seedival()   const { return seedival_; }
 	int64_t minScore()   const { return minsc_;    }
-	int64_t floorScore() const { return floorsc_;  }
 
 	/**
 	 * Get the decoded nucleotide sequence 
@@ -1211,7 +1209,6 @@ public:
 		int                seedlen      = -1,// seed length
 		int                seedival     = -1,// space between seeds
 		int64_t            minsc        = -1,// minimum score for valid aln
-		int64_t            floorsc      = -1,// local-alignment floor
 		int                nuc5p        = -1,//
 		int                nuc3p        = -1,
 		bool               pretrimSoft  = false,
@@ -1303,7 +1300,6 @@ public:
 			seedlen_      == o.seedlen_ &&
 			seedival_     == o.seedival_ &&
 			minsc_        == o.minsc_ &&
-			floorsc_      == o.floorsc_ &&
 			nuc5p_        == o.nuc5p_ &&
 			nuc3p_        == o.nuc3p_ &&
 			refns_        == o.refns_ &&
@@ -1347,7 +1343,6 @@ protected:
 	int         seedlen_;      // length of seed
 	int         seedival_;     // interval between seeds
 	int64_t     minsc_;        // minimum score
-	int64_t     floorsc_;      // floor score
 	int         nuc5p_;        // 5'-most decoded base; clipped if excluding end
 	int         nuc3p_;        // 3'-most decoded base; clipped if excluding end
 	size_t      refns_;        // # of reference Ns overlapped

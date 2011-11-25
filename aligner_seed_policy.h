@@ -114,15 +114,6 @@ public:
 	 *           mismatches and gaps) and all positive bonuses.  The minimum
 	 *           can be negative (and is by default in global alignment mode).
 	 *
-	 * Score floor for local alignment
-	 * -------------------------------
-	 *
-	 * FL=xx,yy (defaults: FL=-Infinity,0.0, or FL=0.0,0.0 if --local is set)
-	 *
-	 *   xx,yy = If a cell in the dynamic programming table has a score less
-	 *           than xx + (read length * yy), then no valid alignment can go
-	 *           through it.  Defaults are highly recommended.
-	 *
 	 * N ceiling
 	 * ---------
 	 *
@@ -211,30 +202,29 @@ public:
 	 *  Seed 1-: TACGATAGCA
 	 */
 	static void parseString(
-		const  std::string& s,
-		bool   local,
-		bool   noisyHpolymer,
-		bool   ignoreQuals,
-		int&   bonusMatchType,
-		int&   bonusMatch,
-		int&   penMmcType,
-		int&   penMmcMax,
-		int&   penMmcMin,
-		int&   penNType,
-		int&   penN,
-		int&   penRdExConst,
-		int&   penRfExConst,
-		int&   penRdExLinear,
-		int&   penRfExLinear,
+		const       std::string& s,
+		bool        local,
+		bool        noisyHpolymer,
+		bool        ignoreQuals,
+		int&        bonusMatchType,
+		int&        bonusMatch,
+		int&        penMmcType,
+		int&        penMmcMax,
+		int&        penMmcMin,
+		int&        penNType,
+		int&        penN,
+		int&        penRdExConst,
+		int&        penRfExConst,
+		int&        penRdExLinear,
+		int&        penRfExLinear,
 		SimpleFunc& costMin,
-		SimpleFunc& costFloor,
 		SimpleFunc& nCeil,
-		bool&  nCatPair,
-		int&   multiseedMms,
-		int&   multiseedLen,
+		bool&       nCatPair,
+		int&        multiseedMms,
+		int&        multiseedLen,
 		SimpleFunc& multiseedIval,
-		uint32_t& mhits,
-		size_t& ungappedHits);
+		size_t&     failStreak,
+		size_t&     seedRounds);
 };
 
 #endif /*ndef ALIGNER_SEED_POLICY_H_*/

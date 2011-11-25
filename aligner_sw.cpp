@@ -38,8 +38,7 @@ void SwAligner::initRead(
 	const BTString& qurc,    // reverse read qualities
 	size_t rdi,              // offset of first read char to align
 	size_t rdf,              // offset of last read char to align
-	const Scoring& sc,       // scoring scheme
-	TAlScore floorsc)        // local-alignment score floor
+	const Scoring& sc)       // scoring scheme
 {
 	assert_gt(rdf, rdi);
 	int nceil = sc.nCeil.f<int>((double)rdfw.length());
@@ -50,7 +49,6 @@ void SwAligner::initRead(
 	rdi_     = rdi;        // offset of first read char to align
 	rdf_     = rdf;        // offset of last read char to align
 	sc_      = &sc;        // scoring scheme
-	floorsc_ = floorsc;    // local-alignment score floor
 	nceil_   = nceil;      // max # Ns allowed in ref portion of aln
 	solrowlo_= sc.rowlo;   // if row >= this, solutions are possible
 	readSse16_ = false;    // true -> sse16 from now on for this read
@@ -247,7 +245,6 @@ int SwAligner::ungappedAlign(
 	const Scoring&          sc,     // scoring scheme
 	bool                    ohang,  // allow overhang?
 	TAlScore                minsc,  // minimum score
-	TAlScore                floorsc,// Smith-Waterman floor score
 	SwResult&               res)    // put alignment result here
 {
 	const size_t len = rd.length();
@@ -355,6 +352,7 @@ int SwAligner::ungappedAlign(
 	} else {
 		// Definitely ways to short-circuit this.  E.g. if diff between cur
 		// score and minsc can't be met by matches.
+		TAlScore floorsc = 0;
 		TAlScore scoreMax = floorsc;
 		size_t lastfloor = 0;
 		rowi = std::numeric_limits<size_t>::max();
@@ -968,7 +966,6 @@ static void doTestCase(
 	EList<bool>       *en,
 	const Scoring&     sc,
 	TAlScore           minsc,
-	TAlScore           floorsc,
 	SwResult&          res,
 	bool               nsInclusive,
 	bool               filterns,
@@ -2853,7 +2850,6 @@ int main(int argc, char **argv) {
 	multiseedIvalA    = DEFAULT_IVAL_A;
 	multiseedIvalB    = DEFAULT_IVAL_B;
 	mhits           = 1;
-	ungappedThresh  = 6;
 	do {
 		next_option = getopt_long(argc, argv, short_opts, long_opts, &option_index);
 		switch (next_option) {
@@ -2897,9 +2893,7 @@ int main(int argc, char **argv) {
 					multiseedIvalType,
 					multiseedIvalA,
 					multiseedIvalB,
-					posmin,
-					mhits,
-					ungappedThresh);
+					posmin);
 				break;
 			}
 			case -1: break;
@@ -2969,7 +2963,6 @@ int main(int argc, char **argv) {
 		NULL,
 		sc,  
 		minsc,
-		floorsc,
 		res,
 		nsInclusive,
 		nfilter,

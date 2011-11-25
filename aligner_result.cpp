@@ -56,7 +56,6 @@ void AlnRes::reset() {
 	seedlen_      = 0; // length of seed
 	seedival_     = 0; // interval between seeds
 	minsc_        = 0; // minimum score
-	floorsc_      = 0; // score floor
 	nuc5p_        = 0;
 	nuc3p_        = 0;
 	assert(!refcoord_.valid());
@@ -130,7 +129,6 @@ void AlnRes::init(
 	int                seedlen,         // seed length
 	int                seedival,        // space between seeds
 	int64_t            minsc,           // minimum score for valid aln
-	int64_t            floorsc,         // local-alignment floor
 	int                nuc5p,
 	int                nuc3p,
 	bool               pretrimSoft,
@@ -152,7 +150,6 @@ void AlnRes::init(
 	seedlen_      = seedlen;
 	seedival_     = seedival;
 	minsc_        = minsc;
-	floorsc_      = floorsc;
 	nuc5p_        = nuc5p;
 	nuc3p_        = nuc3p;
 	pretrimSoft_  = pretrimSoft;

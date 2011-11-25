@@ -1919,12 +1919,6 @@ void AlnSinkVerbose::appendMate(
 					WRITE_NUM(o, rs->seedlen());  o.write(',');
 					WRITE_NUM(o, rs->seedival()); o.write(',');
 					WRITE_NUM(o, rs->minScore()); o.write(',');
-					int64_t floorsc = rs->floorScore();
-					if(floorsc == std::numeric_limits<TAlScore>::min()) {
-						o.writeChars("-");
-					} else {
-						WRITE_NUM(o, floorsc);
-					}
 				} else o.write('*');
 			}
 		}

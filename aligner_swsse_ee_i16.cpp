@@ -802,7 +802,6 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseI16(
 	size_t         col,    // start in this column
 	RandomSource&  rand)   // random gen, to choose among equal paths
 {
-	assert_leq(floorsc_, 0);
 	assert_lt(row, dpRows());
 	assert_lt(col, rff_-rfi_);
 	SSEData& d = fw_ ? sseI16fw_ : sseI16rc_;
@@ -857,7 +856,7 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseI16(
 				{
 					gapsAllowed = false;
 				}
-				const TAlScore floorsc = floorsc_;
+				const TAlScore floorsc = std::numeric_limits<TAlScore>::min();
 				const int offsetsc = -0x7fff;
 				// Move to beginning of column/row
 				if(ct == SSEMatrix::E) { // AKA rdgap

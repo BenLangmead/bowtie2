@@ -245,37 +245,33 @@ static int parseFuncType(const std::string& otype) {
  *  Seed 1-: TACGATAGCA
  */
 void SeedAlignmentPolicy::parseString(
-	const  string& s,      // string to parse
-	bool   local,          // do local alignment
-	bool   noisyHpolymer,  // penalize gaps less for technology reasons
-	bool   ignoreQuals,    // ignore quality values, all mms penalized the same
-	int&   bonusMatchType,
-	int&   bonusMatch,
-	int&   penMmcType,
-	int&   penMmcMax,
-	int&   penMmcMin,
-	int&   penNType,
-	int&   penN,
-	int&   penRdExConst,
-	int&   penRfExConst,
-	int&   penRdExLinear,
-	int&   penRfExLinear,
+	const       std::string& s,
+	bool        local,
+	bool        noisyHpolymer,
+	bool        ignoreQuals,
+	int&        bonusMatchType,
+	int&        bonusMatch,
+	int&        penMmcType,
+	int&        penMmcMax,
+	int&        penMmcMin,
+	int&        penNType,
+	int&        penN,
+	int&        penRdExConst,
+	int&        penRfExConst,
+	int&        penRdExLinear,
+	int&        penRfExLinear,
 	SimpleFunc& costMin,
-	SimpleFunc& costFloor,
 	SimpleFunc& nCeil,
-	bool&  nCatPair,
-	int&   multiseedMms,
-	int&   multiseedLen,
-	SimpleFunc& msIval,
-	uint32_t& mhits,
-	size_t& ungappedThresh)
+	bool&       nCatPair,
+	int&        multiseedMms,
+	int&        multiseedLen,
+	SimpleFunc& multiseedIval,
+	size_t&     failStreak,
+	size_t&     seedRounds)
 {
 
-	bonusMatchType    = local ? DEFAULT_MATCH_BONUS_TYPE_LOCAL :
-	                            DEFAULT_MATCH_BONUS_TYPE;
-	bonusMatch        = local ? DEFAULT_MATCH_BONUS_LOCAL :
-	                            DEFAULT_MATCH_BONUS;
-	
+	bonusMatchType    = local ? DEFAULT_MATCH_BONUS_TYPE_LOCAL : DEFAULT_MATCH_BONUS_TYPE;
+	bonusMatch        = local ? DEFAULT_MATCH_BONUS_LOCAL : DEFAULT_MATCH_BONUS;
 	penMmcType        = ignoreQuals ? DEFAULT_MM_PENALTY_TYPE_IGNORE_QUALS :
 	                                  DEFAULT_MM_PENALTY_TYPE;
 	penMmcMax         = DEFAULT_MM_PENALTY_MAX;
@@ -288,14 +284,10 @@ void SeedAlignmentPolicy::parseString(
 		SIMPLE_FUNC_LINEAR,
 		local ? DEFAULT_MIN_CONST_LOCAL  : DEFAULT_MIN_CONST,
 		local ? DEFAULT_MIN_LINEAR_LOCAL : DEFAULT_MIN_LINEAR);
-	costFloor.init(
-		SIMPLE_FUNC_LINEAR,
-		local ? DEFAULT_FLOOR_CONST_LOCAL  : DEFAULT_FLOOR_CONST,
-		local ? DEFAULT_FLOOR_LINEAR_LOCAL : DEFAULT_FLOOR_LINEAR);
 	nCeil.init(
 		SIMPLE_FUNC_LINEAR, 0.0f, DMAX,
 		DEFAULT_N_CEIL_CONST, DEFAULT_N_CEIL_LINEAR);
-	msIval.init(
+	multiseedIval.init(
 		DEFAULT_IVAL, 1.0f, DMAX,
 		DEFAULT_IVAL_B, DEFAULT_IVAL_A);
 	nCatPair          = DEFAULT_N_CAT_PAIR;
@@ -514,13 +506,6 @@ void SeedAlignmentPolicy::parseString(
 		else if(tag == "MIN") {
 			PARSE_FUNC(costMin);
 		}
-		// Local-alignment score floor as a function of read length
-		// FL=xx,yy
-		//        xx = constant coefficient
-		//        yy = linear coefficient
-		else if(tag == "FL") {
-			PARSE_FUNC(costFloor);
-		}
 		// Per-read N ceiling as a function of read length
 		// NCEIL=xx,yy
 		//        xx = N ceiling constant coefficient
@@ -574,7 +559,7 @@ void SeedAlignmentPolicy::parseString(
 				tmpss >> multiseedLen;
 			}
 		}
-		else if(tag == "MHITS") {
+		else if(tag == "DPS") {
 			if(ctoks.size() > 1) {
 				cerr << "Error parsing alignment policy setting "
 				     << "'" << tag << "'; RHS must have 1 token, "
@@ -584,10 +569,10 @@ void SeedAlignmentPolicy::parseString(
 			}
 			if(ctoks.size() >= 1) {
 				istringstream tmpss(ctoks[0]);
-				tmpss >> mhits;
+				tmpss >> failStreak;
 			}
 		}
-		else if(tag == "UNGAP") {
+		else if(tag == "ROUNDS") {
 			if(ctoks.size() > 1) {
 				cerr << "Error parsing alignment policy setting "
 				     << "'" << tag << "'; RHS must have 1 token, "
@@ -597,7 +582,7 @@ void SeedAlignmentPolicy::parseString(
 			}
 			if(ctoks.size() >= 1) {
 				istringstream tmpss(ctoks[0]);
-				tmpss >> ungappedThresh;
+				tmpss >> seedRounds;
 			}
 		}
 		/*
@@ -620,7 +605,7 @@ void SeedAlignmentPolicy::parseString(
 		 *        root.
 		 */
 		else if(tag == "IVAL") {
-			PARSE_FUNC(msIval);
+			PARSE_FUNC(multiseedIval);
 		}
 		else {
 			// Unknown tag

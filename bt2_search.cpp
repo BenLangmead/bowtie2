@@ -181,7 +181,6 @@ static int   penRfGapConst;   // constant cost of extending a gap in the referen
 static int   penRdGapLinear;  // coeff of linear term for cost of gap extension in read
 static int   penRfGapLinear;  // coeff of linear term for cost of gap extension in ref
 static SimpleFunc scoreMin;    // minimum valid score as function of read len
-static SimpleFunc scoreFloor;  // 
 static SimpleFunc nCeil;      // max # Ns allowed as function of read len
 static SimpleFunc msIval;     // interval between seeds as function of read len
 static int    multiseedMms;   // mismatches permitted in a multiseed seed
@@ -193,7 +192,6 @@ static uint32_t exactCacheCurrentMB; // # MB to use for current-read seed hit ca
 static size_t maxhalf;       // max width on one side of DP table
 static bool seedSumm; // print summary information about seed hits, not alignments
 static bool doUngapped;      // do ungapped alignment
-static size_t ungappedThresh;// all attempts after this many are ungapped
 static size_t maxIters;      // stop after this many extend loop iterations
 static size_t maxUg;         // stop after this many ungap extends
 static size_t maxDp;         // stop after this many DPs
@@ -348,7 +346,6 @@ static void resetOptions() {
 	penRdGapLinear  = DEFAULT_READ_GAP_LINEAR;
 	penRfGapLinear  = DEFAULT_REF_GAP_LINEAR;
 	scoreMin.init  (SIMPLE_FUNC_LINEAR, DEFAULT_MIN_CONST,   DEFAULT_MIN_LINEAR);
-	scoreFloor.init(SIMPLE_FUNC_LINEAR, DEFAULT_FLOOR_CONST, DEFAULT_FLOOR_LINEAR);
 	nCeil.init     (SIMPLE_FUNC_LINEAR, 0.0f, DMAX, 2.0f, 0.1f);
 	msIval.init    (SIMPLE_FUNC_LINEAR, 1.0f, DMAX, DEFAULT_IVAL_B, DEFAULT_IVAL_A);
 	multiseedMms    = DEFAULT_SEEDMMS;
@@ -360,7 +357,6 @@ static void resetOptions() {
 	maxhalf            = 15; // max width on one side of DP table
 	seedSumm    = false; // print summary information about seed hits, not alignments
 	doUngapped         = true;  // do ungapped alignment
-	ungappedThresh     = std::numeric_limits<size_t>::max(); // all attempts after this many are ungapped
 	maxIters           = 400;   // max iterations of extend loop
 	maxUg              = 300;   // stop after this many ungap extends
 	maxDp              = 300;   // stop after this many dp extends
@@ -387,7 +383,7 @@ static void resetOptions() {
 	do1mmMinLen = 60;        // length below which we disable 1mm search
 }
 
-static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:w:p:k:M:1:2:I:X:CQ:N:i:L:U:x:S:g:O:";
+static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:w:p:k:M:1:2:I:X:CQ:N:i:L:U:x:S:g:O:D:R:";
 
 static struct option long_options[] = {
 	{(char*)"verbose",      no_argument,       0,            ARG_VERBOSE},
@@ -534,13 +530,13 @@ static struct option long_options[] = {
 	{(char*)"dp-fail-streak",   required_argument, 0,        ARG_DP_FAIL_STREAK_THRESH},
 	{(char*)"ee-fail-streak",   required_argument, 0,        ARG_EE_FAIL_STREAK_THRESH},
 	{(char*)"ug-fail-streak",   required_argument, 0,        ARG_UG_FAIL_STREAK_THRESH},
-	{(char*)"fail-streak",      required_argument, 0,        ARG_FAIL_STREAKS},
+	{(char*)"fail-streak",      required_argument, 0,        'D'},
 	{(char*)"dp-fails",         required_argument, 0,        ARG_DP_FAIL_THRESH},
 	{(char*)"ug-fails",         required_argument, 0,        ARG_UG_FAIL_THRESH},
 	{(char*)"extends",          required_argument, 0,        ARG_EXTEND_ITERS},
 	{(char*)"no-extend",        no_argument,       0,        ARG_NO_EXTEND},
 	{(char*)"mapq-extra",       no_argument,       0,        ARG_MAPQ_EX},
-	{(char*)"seed-rounds",      required_argument, 0,        ARG_SEED_ROUNDS},
+	{(char*)"seed-rounds",      required_argument, 0,        'R'},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -945,8 +941,7 @@ static void parseOption(int next_option, const char *arg) {
 		//
 		case 'M': {
 			msample = true;
-			polstr += ";MHITS=";
-			polstr += arg;
+			mhits = parse<uint32_t>(arg);
 			if(saw_a || saw_k) {
 				cerr << "Warning: -M, -k and -a are mutually exclusive. "
 					 << "-M will override" << endl;
@@ -962,10 +957,8 @@ static void parseOption(int next_option, const char *arg) {
 			doExtend = false;
 			break;
 		}
-		case ARG_SEED_ROUNDS: {
-			nSeedRounds = parse<size_t>(arg);
-			break;
-		}
+		case 'R': { polstr += ";ROUNDS="; polstr += arg; break; }
+		case 'D': { polstr += ";DPS=";    polstr += arg; break; }
 		case ARG_DP_MATE_STREAK_THRESH: {
 			maxMateStreak = parse<size_t>(arg);
 			break;
@@ -980,10 +973,6 @@ static void parseOption(int next_option, const char *arg) {
 		}
 		case ARG_UG_FAIL_STREAK_THRESH: {
 			maxUgStreak = parse<size_t>(arg);
-			break;
-		}
-		case ARG_FAIL_STREAKS: {
-			maxUgStreak = maxEeStreak = maxDpStreak = parse<size_t>(arg);
 			break;
 		}
 		case ARG_DP_FAIL_THRESH: {
@@ -1279,6 +1268,7 @@ static void parseOptions(int argc, const char **argv) {
 	if(gVerbose) {
 		cerr << "Final policy string: '" << polstr << "'" << endl;
 	}
+	size_t failStreakTmp = 0;
 	SeedAlignmentPolicy::parseString(
 		polstr,
 		localAlign,
@@ -1296,18 +1286,18 @@ static void parseOptions(int argc, const char **argv) {
 		penRdGapLinear,
 		penRfGapLinear,
 		scoreMin,
-		scoreFloor,
 		nCeil,
 		penNCatPair,
 		multiseedMms,
 		multiseedLen,
 		msIval,
-		mhits,
-		ungappedThresh);
-	// BLT: Overriding ungappedThresh because it performs so badly for long
-	// reads.  This doesn't preclude switching over to ungapped alignment mode
-	// when the minimum score allows.
-	ungappedThresh = std::numeric_limits<size_t>::max();
+		failStreakTmp,
+		nSeedRounds);
+	if(failStreakTmp > 0) {
+		maxEeStreak = failStreakTmp;
+		maxUgStreak = failStreakTmp;
+		maxDpStreak = failStreakTmp;
+	}
 	if(saw_a || saw_k) {
 		msample = false;
 		mhits = 0;
@@ -2730,15 +2720,6 @@ static void* multiseedSearchWorker(void *vp) {
 						}
 					}
 				}
-				// Calculate the local-alignment score floor for the read; it's
-				// pretty much always 0
-				TAlScore floorsc[2];
-				if(localAlign) {
-					floorsc[0] = scoreFloor.f<TAlScore>(rdlens[0]);
-					if(paired) floorsc[1] = scoreFloor.f<TAlScore>(rdlens[1]);
-				} else {
-					floorsc[0] = floorsc[1] = std::numeric_limits<TAlScore>::min();
-				}
 				// N filter; does the read have too many Ns?
 				size_t readns[2] = {0, 0};
 				sc.nFilterPair(
@@ -2904,15 +2885,12 @@ static void* multiseedSearchWorker(void *vp) {
 								0,              // interval between seeds
 								minsc[mate],    // min score for anchor
 								minsc[mate^1],  // min score for opp.
-								floorsc[mate],  // floor score for anchor
-								floorsc[mate^1],// floor score for opp.
 								nceil[mate],    // N ceil for anchor
 								nceil[mate^1],  // N ceil for opp.
 								nofw[mate],     // don't align forward read
 								norc[mate],     // don't align revcomp read
 								maxhalf,        // max width on one DP side
 								doUngapped,     // do ungapped alignment
-								ungappedThresh, // # attempts before all ungapped
 								maxIters,       // max extend loop iters
 								maxUg,          // max # ungapped extends
 								maxDp,          // max # DPs
@@ -2951,11 +2929,9 @@ static void* multiseedSearchWorker(void *vp) {
 								0,              // length of a seed
 								0,              // interval between seeds
 								minsc[mate],    // minimum score for valid
-								floorsc[mate],  // floor score
 								nceil[mate],    // N ceil for anchor
 								maxhalf,        // max width on one DP side
 								doUngapped,     // do ungapped alignment
-								ungappedThresh, // # attempts before all ungapped
 								maxIters,       // max extend loop iters
 								maxUg,          // max # ungapped extends
 								maxDp,          // max # DPs
@@ -3083,15 +3059,12 @@ static void* multiseedSearchWorker(void *vp) {
 								0,              // interval between seeds
 								minsc[mate],    // min score for anchor
 								minsc[mate^1],  // min score for opp.
-								floorsc[mate],  // floor score for anchor
-								floorsc[mate^1],// floor score for opp.
 								nceil[mate],    // N ceil for anchor
 								nceil[mate^1],  // N ceil for opp.
 								nofw[mate],     // don't align forward read
 								norc[mate],     // don't align revcomp read
 								maxhalf,        // max width on one DP side
 								doUngapped,     // do ungapped alignment
-								ungappedThresh, // # attempts before all ungapped
 								maxIters,       // max extend loop iters
 								maxUg,          // max # ungapped extends
 								maxDp,          // max # DPs
@@ -3130,11 +3103,9 @@ static void* multiseedSearchWorker(void *vp) {
 								0,              // length of a seed
 								0,              // interval between seeds
 								minsc[mate],    // minimum score for valid
-								floorsc[mate],  // floor score
 								nceil[mate],    // N ceil for anchor
 								maxhalf,        // max width on one DP side
 								doUngapped,     // do ungapped alignment
-								ungappedThresh, // # attempts before all ungapped
 								maxIters,       // max extend loop iters
 								maxUg,          // max # ungapped extends
 								maxDp,          // max # DPs
@@ -3330,15 +3301,12 @@ static void* multiseedSearchWorker(void *vp) {
 									interval[mate], // interval between seeds
 									minsc[mate],    // min score for anchor
 									minsc[mate^1],  // min score for opp.
-									floorsc[mate],  // floor score for anchor
-									floorsc[mate^1],// floor score for opp.
 									nceil[mate],    // N ceil for anchor
 									nceil[mate^1],  // N ceil for opp.
 									nofw[mate],     // don't align forward read
 									norc[mate],     // don't align revcomp read
 									maxhalf,        // max width on one DP side
 									doUngapped,     // do ungapped alignment
-									ungappedThresh, // # attempts before all ungapped
 									maxIters,       // max extend loop iters
 									maxUg,          // max # ungapped extends
 									maxDp,          // max # DPs
@@ -3377,11 +3345,9 @@ static void* multiseedSearchWorker(void *vp) {
 									seedlens[mate], // length of a seed
 									interval[mate], // interval between seeds
 									minsc[mate],    // minimum score for valid
-									floorsc[mate],  // floor score
 									nceil[mate],    // N ceil for anchor
 									maxhalf,        // max width on one DP side
 									doUngapped,     // do ungapped alignment
-									ungappedThresh, // # attempts before all ungapped
 									maxIters,       // max extend loop iters
 									maxUg,          // max # ungapped extends
 									maxDp,          // max # DPs
@@ -3722,7 +3688,6 @@ static void driver(
 			penMmcMax,      // max mm pelanty
 			penMmcMin,      // min mm pelanty
 			scoreMin,       // min score as function of read len
-			scoreFloor,     // floor score as function of read len
 			nCeil,          // max # Ns as function of read len
 			penNType,       // how to penalize Ns in the read
 			penN,           // constant if N pelanty is a constant
