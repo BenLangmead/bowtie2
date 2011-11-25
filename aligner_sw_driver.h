@@ -329,11 +329,9 @@ public:
 		int seedlen,                 // length of seed
 		int seedival,                // interval between seeds
 		TAlScore& minsc,             // minimum score for anchor
-		TAlScore floorsc,            // local-alignment floor for anchor score
 		int nceil,                   // maximum # Ns permitted in ref portion
 		size_t maxhalf,              // maximum width on one side of DP table
 		bool doUngapped,             // do ungapped alignment
-		size_t ungappedThresh,       // all attempts after this many are ungapped
 		size_t maxIters,             // stop after this many seed-extend loop iters
 		size_t maxUg,                // max # ungapped extends
 		size_t maxDp,                // max # DPs
@@ -380,15 +378,12 @@ public:
 		int seedival,                // interval between seeds
 		TAlScore& minsc,             // minimum score for anchor
 		TAlScore& ominsc,            // minimum score for opposite
-		TAlScore floorsc,            // local-alignment floor for anchor score
-		TAlScore ofloorsc,           // local-alignment floor for opposite score
 		int nceil,                   // max # Ns permitted in ref for anchor
 		int onceil,                  // max # Ns permitted in ref for opposite
 		bool nofw,                   // don't align forward read
 		bool norc,                   // don't align revcomp read
 		size_t maxhalf,              // maximum width on one side of DP table
 		bool doUngapped,             // do ungapped alignment
-		size_t ungappedThresh,       // all attempts after this many are ungapped
 		size_t maxIters,             // stop after this many seed-extend loop iters
 		size_t maxUg,                // max # ungapped extends
 		size_t maxDp,                // max # DPs

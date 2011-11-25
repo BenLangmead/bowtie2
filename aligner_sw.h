@@ -239,10 +239,9 @@ public:
 		const BTDnaString& rdrc, // read sequence for rc read
 		const BTString& qufw,    // read qualities for fw read
 		const BTString& qurc,    // read qualities for rc read
-		size_t rdi,            // offset of first read char to align
-		size_t rdf,            // offset of last read char to align
-		const Scoring& sc,     // scoring scheme
-		TAlScore floorsc);     // local-alignment score floor
+		size_t rdi,              // offset of first read char to align
+		size_t rdf,              // offset of last read char to align
+		const Scoring& sc);      // scoring scheme
 	
 	/**
 	 * Initialize with a new alignment problem.
@@ -305,7 +304,6 @@ public:
 		const Scoring&          sc,     // scoring scheme
 		bool                    ohang,  // allow overhang?
 		TAlScore                minsc,  // minimum score
-		TAlScore                floorsc,// Smith-Waterman floor score
 		SwResult&               res);   // put alignment result here
 
 	/**
@@ -532,7 +530,6 @@ protected:
 	bool                extend_; // true iff this is a seed-extend problem
 	const Scoring      *sc_;     // penalties for edit types
 	TAlScore            minsc_;  // penalty ceiling for valid alignments
-	TAlScore            floorsc_;// local-alignment score floor
 	int                 nceil_;  // max # Ns allowed in ref portion of aln
 	bool                monotone_; // true iff scores only go down
 

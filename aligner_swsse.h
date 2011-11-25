@@ -349,7 +349,6 @@ struct SSEMatrix {
 		int readq,
 		const Scoring& sc,   // scoring scheme
 		TAlScore offsetsc,   // offset to add to each score
-		TAlScore floorsc,    // local-alignment score floor
 		RandomSource& rand,  // rand gen for choosing among equal options
 		bool& empty,         // out: =true iff no way to backtrace
 		int& cur,            // out: =type of transition

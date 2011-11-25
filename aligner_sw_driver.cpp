@@ -622,11 +622,9 @@ int SwDriver::extendSeeds(
 	int seedlen,                 // length of seed
 	int seedival,                // interval between seeds
 	TAlScore& minsc,             // minimum score for anchor
-	TAlScore floorsc,            // local-alignment floor for anchor score
 	int nceil,                   // maximum # Ns permitted in reference portion
 	size_t maxhalf,  	         // max width in either direction for DP tables
 	bool doUngapped,             // do ungapped alignment
-	size_t ungappedThresh,       // all attempts after this many are ungapped
 	size_t maxIters,             // stop after this many seed-extend loop iters
 	size_t maxUg,                // stop after this many ungaps
 	size_t maxDp,                // stop after this many dps
@@ -837,7 +835,7 @@ int SwDriver::extendSeeds(
 				if(!eeMode) {
 					readGaps = sc.maxReadGaps(minsc, rdlen);
 					refGaps  = sc.maxRefGaps(minsc, rdlen);
-					ungapped = (readGaps == 0 && refGaps == 0) || eltsDone >= ungappedThresh;
+					ungapped = (readGaps == 0 && refGaps == 0);
 				}
 				int state = FOUND_NONE;
 				bool found = false;
@@ -878,7 +876,6 @@ int SwDriver::extendSeeds(
 						sc,
 						gReportOverhangs,
 						minsc,
-						floorsc,
 						resUngap_);
 					Interval refival(refcoord, 1);
 					seenDiags1_.add(refival);
@@ -949,8 +946,7 @@ int SwDriver::extendSeeds(
 							rd.qualRev,// rc version of qualities
 							0,         // off of first char in 'rd' to consider
 							rdlen,     // off of last char (excl) in 'rd' to consider
-							sc,        // scoring scheme
-							floorsc);  // local-alignment floor score
+							sc);       // scoring scheme
 					}
 					swa.initRef(
 						fw,        // whether to align forward or revcomp read
@@ -1057,8 +1053,7 @@ int SwDriver::extendSeeds(
 						seedmms,   // # mismatches allowed in seed
 						seedlen,   // length of seed
 						seedival,  // interval between seeds
-						minsc,     // minimum score for valid alignment
-						floorsc);  // local-alignment floor score
+						minsc);    // minimum score for valid alignment
 					
 					if(reportImmediately) {
 						assert(msink != NULL);
@@ -1234,15 +1229,12 @@ int SwDriver::extendSeedsPaired(
 	int seedival,                // interval between seeds
 	TAlScore& minsc,             // minimum score for valid anchor aln
 	TAlScore& ominsc,            // minimum score for valid opposite aln
-	TAlScore floorsc,            // local-alignment score floor for anchor
-	TAlScore ofloorsc,           // local-alignment score floor for opposite
 	int nceil,                   // max # Ns permitted in ref for anchor
 	int onceil,                  // max # Ns permitted in ref for opposite
 	bool nofw,                   // don't align forward read
 	bool norc,                   // don't align revcomp read
 	size_t maxhalf,              // max width in either direction for DP tables
 	bool doUngapped,             // do ungapped alignment
-	size_t ungappedThresh,       // all attempts after this many are ungapped
 	size_t maxIters,             // stop after this many seed-extend loop iters
 	size_t maxUg,                // stop after this many ungaps
 	size_t maxDp,                // stop after this many dps
@@ -1520,7 +1512,7 @@ int SwDriver::extendSeedsPaired(
 				if(!eeMode) {
 					readGaps = sc.maxReadGaps(minsc, rdlen);
 					refGaps  = sc.maxRefGaps(minsc, rdlen);
-					ungapped = (readGaps == 0 && refGaps == 0) || eltsDone >= ungappedThresh;
+					ungapped = (readGaps == 0 && refGaps == 0);
 				}
 				int state = FOUND_NONE;
 				bool found = false;
@@ -1569,8 +1561,7 @@ int SwDriver::extendSeedsPaired(
 						tlen,
 						sc,
 						gReportOverhangs,
-						minsc,
-						floorsc,
+						minsc, // minimum
 						resUngap_);
 					Interval refival(refcoord, 1);
 					seenDiags.add(refival);
@@ -1627,8 +1618,7 @@ int SwDriver::extendSeedsPaired(
 							rd.qualRev,// rc version of qualities
 							0,         // off of first char in 'rd' to consider
 							rdlen,     // off of last char (excl) in 'rd' to consider
-							sc,        // scoring scheme
-							floorsc);  // local-alignment floor score
+							sc);       // scoring scheme
 					}
 					swa.initRef(
 						fw,        // whether to align forward or revcomp read
@@ -1730,8 +1720,7 @@ int SwDriver::extendSeedsPaired(
 						seedmms,   // # mismatches allowed in seed
 						seedlen,   // length of seed
 						seedival,  // interval between seeds
-						minsc,     // minimum score for valid alignment
-						floorsc);  // local-alignment floor score
+						minsc);    // minimum score for valid alignment
 					bool foundMate = false;
 					TRefOff off = res->alres.refoff();
 					if( msink->state().doneWithMate(!anchor1) &&
@@ -1798,7 +1787,7 @@ int SwDriver::extendSeedsPaired(
 							//		sc,
 							//		gReportOverhangs,
 							//		ominsc_cur,
-							//		floorsc,
+							//		0,
 							//		oresUngap_);
 							//}
 							foundMate = pepol.otherMate(
@@ -1844,8 +1833,7 @@ int SwDriver::extendSeedsPaired(
 									ord.qualRev,// qualities
 									0,          // off of first char to consider
 									ordlen,     // off of last char (ex) to consider
-									sc,         // scoring scheme
-									ofloorsc);  // local-alignment floor score
+									sc);        // scoring scheme
 							}
 							// Given the boundaries defined by refi and reff, initilize
 							// the SwAligner with the dynamic programming problem that
@@ -1918,8 +1906,7 @@ int SwDriver::extendSeedsPaired(
 									seedmms,    // # mismatches allowed in seed
 									seedlen,    // length of seed
 									seedival,   // interval between seeds
-									ominsc,     // minimum score for valid alignment
-									ofloorsc);  // local-alignment floor score
+									ominsc);    // minimum score for valid alignment
 								assert_gt(oresGap_.alres.refExtent(), 0);
 								if(gReportOverhangs &&
 								   !refival.containsIgnoreOrient(oresGap_.alres.refival()))

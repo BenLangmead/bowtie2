@@ -55,15 +55,6 @@
 #define DEFAULT_MIN_LINEAR_LOCAL (0.66f)
 
 // Constant coefficient b in linear function f(x) = ax + b determining
-// what local-alignment score floor to impose when read length is x
-#define DEFAULT_FLOOR_CONST (-std::numeric_limits<float>::max())
-// Linear coefficient a
-#define DEFAULT_FLOOR_LINEAR 0.0f
-// Different defaults for --local mode
-#define DEFAULT_FLOOR_CONST_LOCAL 0.0f
-#define DEFAULT_FLOOR_LINEAR_LOCAL 0.0f
-
-// Constant coefficient b in linear function f(x) = ax + b determining
 // maximum permitted number of Ns f in a read before it is filtered &
 // the maximum number of Ns in an alignment before it is considered
 // invalid.
@@ -148,7 +139,6 @@ public:
 	    int   mmpMax_,      // maximum mismatch penalty
 	    int   mmpMin_,      // minimum mismatch penalty
 		const SimpleFunc& scoreMin_,   // minimum score for valid alignment; const coeff
-		const SimpleFunc& scoreFloor_, // local-alignment score floor; const coeff
 		const SimpleFunc& nCeil_,      // max # ref Ns allowed in alignment; const coeff
 	    int   nType,        // how to penalize Ns in the read
 	    int   n,            // constant if N pelanty is a constant
@@ -167,7 +157,6 @@ public:
 		mmpMax       = mmpMax_;
 		mmpMin       = mmpMin_;
 		scoreMin     = scoreMin_;
-		scoreFloor   = scoreFloor_;
 		nCeil        = nCeil_;
 		npenType     = nType;
 		npen         = n;
@@ -458,7 +447,6 @@ public:
 	int     mmpMax;       // maximum mismatch penalty
 	int     mmpMin;       // minimum mismatch penalty
 	SimpleFunc scoreMin;  // minimum score for valid alignment, constant coeff
-	SimpleFunc scoreFloor;// local-alignment score floor, constant coeff
 	SimpleFunc nCeil;     // max # Ns involved in alignment, constant coeff
 	int     npenType;     // N: based on qual? rounded? just a constant?
 	int     npen;         // N: if mmcosttype=constant, this is the const
@@ -477,7 +465,6 @@ public:
 
 	static Scoring base1() {
 		const double DMAX = std::numeric_limits<double>::max();
-		SimpleFunc scoreFloor(SIMPLE_FUNC_CONST, 0.0f, 0.0f, 0.0f, 0.0f);
 		SimpleFunc scoreMin(SIMPLE_FUNC_LINEAR, 0.0f, DMAX, 37.0f, 0.3f);
 		SimpleFunc nCeil(SIMPLE_FUNC_LINEAR, 0.0f, DMAX, 2.0f, 0.1f);
 		return Scoring(
@@ -486,7 +473,6 @@ public:
 			3,                       // max mismatch pelanty
 			3,                       // min mismatch pelanty
 			scoreMin,                // score min: 37 + 0.3x
-			scoreFloor,              // score floor: constant = 0
 			nCeil,                   // n ceiling: 2 + 0.1x
 			COST_MODEL_CONSTANT,     // how to penalize Ns in the read
 			3,                       // constant if N pelanty is a constant
