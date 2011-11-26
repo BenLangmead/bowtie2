@@ -77,8 +77,8 @@ void PresetsV0::apply(
 		policy += ";IVAL=S,1,0.75";
 	} else if(preset == "very-sensitive-local") {
 		policy += ";SEED=0,20";
-		policy += ";DPS=25";
-		policy += ";ROUNDS=4";
+		policy += ";DPS=20";
+		policy += ";ROUNDS=3";
 		policy += ";IVAL=S,1,0.50";
 	}
 	else {
