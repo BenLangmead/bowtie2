@@ -1605,7 +1605,24 @@ bool Ebwt::contains(
 	}
 	int c = str[str.length()-1];
 	assert_range(0, 4, c);
-	uint32_t top = fchr()[c], bot = fchr()[c+1];
+	uint32_t top = 0, bot = 0;
+	if(c < 4) {
+		top = fchr()[c];
+		bot = fchr()[c+1];
+	} else {
+		bool set = false;
+		for(int i = 0; i < 4; i++) {
+			if(fchr()[c] < fchr()[c+1]) {
+				if(set) {
+					return false;
+				} else {
+					set = true;
+					top = fchr()[c];
+					bot = fchr()[c+1];
+				}
+			}
+		}
+	}
 	assert_geq(bot, top);
 	tloc.initFromRow(top, eh(), ebwt());
 	bloc.initFromRow(bot, eh(), ebwt());
