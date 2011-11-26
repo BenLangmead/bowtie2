@@ -218,7 +218,12 @@ void SwDriver::extend(
 	size_t lim = fw ? off : rdlen - len - off;
 	// We're about to add onto the beginning, so reverse it
 #ifndef NDEBUG
-	{
+	if(false) {
+		// TODO: This will sometimes fail even when the extension is legitimate
+		// This is because contains() comes in from one extreme or the other,
+		// whereas we started from the inside and worked outwards.  This
+		// affects which Ns are OK and which are not OK.
+
 		// Have to do both because whether we can get through an N depends on
 		// which direction we're coming in
 		bool fwContains = ebwtFw.contains(tmp_rdseq_);
@@ -358,7 +363,12 @@ void SwDriver::extend(
 		}
 	}
 #ifndef NDEBUG
-	{
+	if(false) {
+		// TODO: This will sometimes fail even when the extension is legitimate
+		// This is because contains() comes in from one extreme or the other,
+		// whereas we started from the inside and worked outwards.  This
+		// affects which Ns are OK and which are not OK.
+	
 		// Have to do both because whether we can get through an N depends on
 		// which direction we're coming in
 		bool fwContains = ebwtFw.contains(tmp_rdseq_);
