@@ -357,7 +357,17 @@ void SwDriver::extend(
 			INIT_LOCS(top, bot, tloc, bloc, *ebwt);
 		}
 	}
-	assert(ebwtFw.contains(tmp_rdseq_));
+#ifndef NDEBUG
+	{
+		// Have to do both because whether we can get through an N depends on
+		// which direction we're coming in
+		bool fwContains = ebwtFw.contains(tmp_rdseq_);
+		tmp_rdseq_.reverse();
+		bool bwContains = ebwtBw != NULL && ebwtBw->contains(tmp_rdseq_);
+		tmp_rdseq_.reverse();
+		assert(fwContains || bwContains);
+	}
+#endif
 	assert_lt(nlex, rdlen);
 	assert_lt(nrex, rdlen);
 	return;
