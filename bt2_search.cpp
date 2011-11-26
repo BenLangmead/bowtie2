@@ -2814,6 +2814,8 @@ static void* multiseedSearchWorker(void *vp) {
 						olm.fbases += rdlens[mate]; // bases filtered out
 					} else {
 						shs[mate].nextRead(mate == 0 ? ps->bufa() : ps->bufb());
+						shs[mate].clearSeeds();
+						assert(shs[mate].empty());
 						olm.ureads++;               // reads passing filter
 						olm.ubases += rdlens[mate]; // bases passing filter
 					}
@@ -3010,6 +3012,7 @@ static void* multiseedSearchWorker(void *vp) {
 						assert(!msinkwrap.maxed());
 						assert(msinkwrap.repOk());
 						rnd.init(ROTL(rds[mate]->seed, 10));
+						assert(shs[mate].empty());
 						assert(shs[mate].repOk(&ca.current()));
 						bool yfw = minedfw[mate] <= 1 && !nofw[mate];
 						bool yrc = minedrc[mate] <= 1 && !norc[mate];
