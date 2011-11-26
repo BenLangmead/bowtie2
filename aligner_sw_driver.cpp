@@ -62,6 +62,7 @@ using namespace std;
  * alignments are examined before any 1mm end-to-end alignments.
  */
 bool SwDriver::eeSaTups(
+	const Read& rd,              // read
 	SeedResults& sh,             // seed hits to extend into full alignments
 	const Ebwt& ebwt,            // BWT
 	const BitPairReference& ref, // Reference strings
@@ -123,8 +124,8 @@ bool SwDriver::eeSaTups(
 				satpos_.expand();
 				satpos_.back().sat.init(SAKey(), hit.top, 0xffffffff, o);
 				satpos_.back().sat.key.seq = std::numeric_limits<uint64_t>::max();
-				satpos_.back().sat.key.len = (uint32_t)sh.readLength();
-				satpos_.back().pos.init(hit.fw, 0, 0, (uint32_t)sh.readLength());
+				satpos_.back().sat.key.len = (uint32_t)rd.length();
+				satpos_.back().pos.init(hit.fw, 0, 0, (uint32_t)rd.length());
 				satpos_.back().origSz = hit.bot - hit.top;
 				rands_.expand();
 				rands_.back().init(hit.bot - hit.top);
@@ -170,8 +171,8 @@ bool SwDriver::eeSaTups(
 			satpos_.expand();
 			satpos_.back().sat.init(SAKey(), hit.top, 0xffffffff, o);
 			satpos_.back().sat.key.seq = std::numeric_limits<uint64_t>::max();
-			satpos_.back().sat.key.len = (uint32_t)sh.readLength();
-			satpos_.back().pos.init(hit.fw, 0, 0, (uint32_t)sh.readLength());
+			satpos_.back().sat.key.len = (uint32_t)rd.length();
+			satpos_.back().pos.init(hit.fw, 0, 0, (uint32_t)rd.length());
 			satpos_.back().origSz = hit.bot - hit.top;
 			rands_.expand();
 			rands_.back().init(hit.bot - hit.top);
@@ -679,6 +680,7 @@ int SwDriver::extendSeeds(
 			if(firstEe) {
 				firstEe = false;
 				eeMode = eeSaTups(
+					rd,           // read
 					sh,           // seed hits to extend into full alignments
 					ebwtFw,       // BWT
 					ref,          // Reference strings
@@ -1333,6 +1335,7 @@ int SwDriver::extendSeedsPaired(
 			if(firstEe) {
 				firstEe = false;
 				eeMode = eeSaTups(
+					rd,           // read
 					sh,           // seed hits to extend into full alignments
 					ebwtFw,       // BWT
 					ref,          // Reference strings

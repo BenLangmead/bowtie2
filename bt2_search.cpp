@@ -2813,6 +2813,7 @@ static void* multiseedSearchWorker(void *vp) {
 						olm.freads++;               // reads filtered out
 						olm.fbases += rdlens[mate]; // bases filtered out
 					} else {
+						shs[mate].nextRead(mate == 0 ? ps->bufa() : ps->bufb());
 						olm.ureads++;               // reads passing filter
 						olm.ubases += rdlens[mate]; // bases passing filter
 					}

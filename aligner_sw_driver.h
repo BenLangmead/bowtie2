@@ -434,6 +434,7 @@ public:
 protected:
 
 	bool eeSaTups(
+		const Read& rd,              // read
 		SeedResults& sh,             // seed hits to extend into full alignments
 		const Ebwt& ebwt,            // BWT
 		const BitPairReference& ref, // Reference strings
