@@ -1604,7 +1604,7 @@ bool Ebwt::contains(
 		return true;
 	}
 	int c = str[str.length()-1];
-	assert_range(0, 3, c);
+	assert_range(0, 4, c);
 	uint32_t top = fchr()[c], bot = fchr()[c+1];
 	assert_geq(bot, top);
 	tloc.initFromRow(top, eh(), ebwt());
