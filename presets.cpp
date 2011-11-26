@@ -48,12 +48,12 @@ void PresetsV0::apply(
 		policy += ";SEED=0,22";
 		policy += ";DPS=15";
 		policy += ";ROUNDS=2";
-		policy += ";IVAL=S,0,1.15";
+		policy += ";IVAL=S,1,1.15";
 	} else if(preset == "very-sensitive") {
 		policy += ";SEED=0,20";
-		policy += ";DPS=25";
-		policy += ";ROUNDS=4";
-		policy += ";IVAL=S,0,0.50";
+		policy += ";DPS=20";
+		policy += ";ROUNDS=3";
+		policy += ";IVAL=S,1,0.50";
 	}
 	//  For --local:
 	//   --very-fast-local      -M 1 -N 0 -L 25 -i S,1,2.00
