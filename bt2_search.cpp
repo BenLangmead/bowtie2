@@ -2790,12 +2790,21 @@ static void* multiseedSearchWorker(void *vp) {
 				for(size_t mate = 0; mate < (pair ? 2:1); mate++) {
 					interval[mate] = msIval.f<int>((double)rdlens[mate]);
 					interval[mate] = max(interval[mate], 1);
+					if(filt[0] && filt[1]) {
+						interval[mate] *= 2;
+					}
 				}
-				// Set the read in both the SeedResults
-				for(size_t mate = 0; mate < (pair ? 2:1); mate++) {
-					// Clear all state, including end-to-end hits and seed hits
-					shs[mate].clear();
-					shs[mate].nextRead(*rds[mate]);
+				// Calculate streak length
+				size_t streak[2] = { maxDpStreak, maxDpStreak };
+				if(filt[0] && filt[1]) {
+					streak[0] = (streak[0] + 0.5)/2;
+					streak[1] = (streak[1] + 0.5)/2;
+				}
+				// Calculate # seed rounds for each mate
+				size_t nrounds[2] = { nSeedRounds, nSeedRounds };
+				if(filt[0] && filt[1]) {
+					nrounds[0] = (nrounds[0] + 0.5)/2;
+					nrounds[1] = (nrounds[1] + 0.5)/2;
 				}
 				// Increment counters according to what got filtered
 				for(size_t mate = 0; mate < (pair ? 2:1); mate++) {
@@ -2894,9 +2903,9 @@ static void* multiseedSearchWorker(void *vp) {
 								maxIters,       // max extend loop iters
 								maxUg,          // max # ungapped extends
 								maxDp,          // max # DPs
-								maxEeStreak,    // stop after streak of this many end-to-end fails
-								maxUgStreak,    // stop after streak of this many ungap fails
-								maxDpStreak,    // stop after streak of this many dp fails
+								streak[mate],   // stop after streak of this many end-to-end fails
+								streak[mate],   // stop after streak of this many ungap fails
+								streak[mate],   // stop after streak of this many dp fails
 								maxMateStreak,  // max mate fails per seed range
 								doExtend,       // extend seed hits
 								enable8,        // use 8-bit SSE where possible
@@ -2935,8 +2944,8 @@ static void* multiseedSearchWorker(void *vp) {
 								maxIters,       // max extend loop iters
 								maxUg,          // max # ungapped extends
 								maxDp,          // max # DPs
-								maxUgStreak,    // stop after streak of this many ungap fails
-								maxDpStreak,    // stop after streak of this many dp fails
+								streak[mate],   // stop after streak of this many ungap fails
+								streak[mate],   // stop after streak of this many dp fails
 								doExtend,       // extend seed hits
 								enable8,        // use 8-bit SSE where possible
 								tighten,        // -M score tightening mode
@@ -3068,9 +3077,9 @@ static void* multiseedSearchWorker(void *vp) {
 								maxIters,       // max extend loop iters
 								maxUg,          // max # ungapped extends
 								maxDp,          // max # DPs
-								maxEeStreak,    // stop after streak of this many end-to-end fails
-								maxUgStreak,    // stop after streak of this many ungap fails
-								maxDpStreak,    // stop after streak of this many dp fails
+								streak[mate],   // stop after streak of this many end-to-end fails
+								streak[mate],   // stop after streak of this many ungap fails
+								streak[mate],   // stop after streak of this many dp fails
 								maxMateStreak,  // max mate fails per seed range
 								doExtend,       // extend seed hits
 								enable8,        // use 8-bit SSE where possible
@@ -3109,8 +3118,8 @@ static void* multiseedSearchWorker(void *vp) {
 								maxIters,       // max extend loop iters
 								maxUg,          // max # ungapped extends
 								maxDp,          // max # DPs
-								maxUgStreak,    // stop after streak of this many ungap fails
-								maxDpStreak,    // stop after streak of this many dp fails
+								streak[mate],   // stop after streak of this many ungap fails
+								streak[mate],   // stop after streak of this many dp fails
 								doExtend,       // extend seed hits
 								enable8,        // use 8-bit SSE where possible
 								tighten,        // -M score tightening mode
@@ -3161,7 +3170,6 @@ static void* multiseedSearchWorker(void *vp) {
 					}
 				}
 				int seedlens[2] = { multiseedLen, multiseedLen };
-				size_t nrounds[2] = { nSeedRounds, nSeedRounds };
 				nrounds[0] = min<size_t>(nrounds[0], interval[0]);
 				nrounds[1] = min<size_t>(nrounds[1], interval[1]);
 				Constraint gc = Constraint::penaltyFuncBased(scoreMin);
@@ -3310,9 +3318,9 @@ static void* multiseedSearchWorker(void *vp) {
 									maxIters,       // max extend loop iters
 									maxUg,          // max # ungapped extends
 									maxDp,          // max # DPs
-									maxEeStreak,    // stop after streak of this many end-to-end fails
-									maxUgStreak,    // stop after streak of this many ungap fails
-									maxDpStreak,    // stop after streak of this many dp fails
+									streak[mate],   // stop after streak of this many end-to-end fails
+									streak[mate],   // stop after streak of this many ungap fails
+									streak[mate],   // stop after streak of this many dp fails
 									maxMateStreak,  // max mate fails per seed range
 									doExtend,       // extend seed hits
 									enable8,        // use 8-bit SSE where possible
@@ -3351,8 +3359,8 @@ static void* multiseedSearchWorker(void *vp) {
 									maxIters,       // max extend loop iters
 									maxUg,          // max # ungapped extends
 									maxDp,          // max # DPs
-									maxUgStreak,    // stop after streak of this many ungap fails
-									maxDpStreak,    // stop after streak of this many dp fails
+									streak[mate],   // stop after streak of this many ungap fails
+									streak[mate],   // stop after streak of this many dp fails
 									doExtend,       // extend seed hits
 									enable8,        // use 8-bit SSE where possible
 									tighten,        // -M score tightening mode
