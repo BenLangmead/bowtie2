@@ -2797,16 +2797,16 @@ static void* multiseedSearchWorker(void *vp) {
 				// Calculate streak length
 				size_t streak[2] = { maxDpStreak, maxDpStreak };
 				if(filt[0] && filt[1]) {
-					streak[0] = ceil(streak[0] / 2.0);
-					streak[1] = ceil(streak[1] / 2.0);
+					streak[0] = (size_t)ceil((double)streak[0] / 2.0);
+					streak[1] = (size_t)ceil((double)streak[1] / 2.0);
 					assert_gt(streak[1], 0);
 				}
 				assert_gt(streak[0], 0);
 				// Calculate # seed rounds for each mate
 				size_t nrounds[2] = { nSeedRounds, nSeedRounds };
 				if(filt[0] && filt[1]) {
-					nrounds[0] = ceil(nrounds[0] / 2.0);
-					nrounds[1] = ceil(nrounds[1] / 2.0);
+					nrounds[0] = (size_t)ceil((double)nrounds[0] / 2.0);
+					nrounds[1] = (size_t)ceil((double)nrounds[1] / 2.0);
 					assert_gt(nrounds[1], 0);
 				}
 				assert_gt(nrounds[0], 0);
