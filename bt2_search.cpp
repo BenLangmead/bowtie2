@@ -2789,10 +2789,11 @@ static void* multiseedSearchWorker(void *vp) {
 				int interval[2] = { 0, 0 };
 				for(size_t mate = 0; mate < (pair ? 2:1); mate++) {
 					interval[mate] = msIval.f<int>((double)rdlens[mate]);
-					interval[mate] = max(interval[mate], 1);
 					if(filt[0] && filt[1]) {
-						interval[mate] *= 2;
+						// Boost interval length by 20% for paired-end reads
+						interval[mate] = (int)(interval[mate] * 1.2 + 0.5);
 					}
+					interval[mate] = max(interval[mate], 1);
 				}
 				// Calculate streak length
 				size_t streak[2] = { maxDpStreak, maxDpStreak };
