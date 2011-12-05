@@ -58,6 +58,64 @@ if(! -x $bowtie2 || ! -x $bowtie2_build) {
 
 my @cases = (
 
+	# Checking MD:Z strings for alignment
+	{ name   => "MD:Z 1",
+	  ref    => [ "CACGATCGACTTGA"."C"."TCATCGACGCTATCATTAATATATATAAGCCCGCATCTA" ],
+	  reads  => [ "CACGATCGACTTGG".    "TCATCGACGCTATCATTAATATATATAAGCCCGCATCTA" ],
+	  hits   => [ { 0 => 1 } ],
+	  samoptflags => [ {
+		"AS:i:-14"      => 1, # alignment score
+		"XM:i:1"        => 1, # num mismatches
+		"XO:i:1"        => 1, # num gap opens
+		"XG:i:1"        => 1, # num gap extensions
+		"NM:i:2"        => 1, # num edits
+		"MD:Z:13^A0C39" => 1, # mismatching positions/bases
+		"YT:Z:UU"       => 1, # type of alignment (concordant/discordant/etc)
+	} ] },
+	{ name   => "MD:Z 2",
+	  ref    => [ "CACGATCGACTTGA"."A"."TCATCGACGCTATCATTAATATATATAAGCCCGCATCTA" ],
+	  reads  => [ "CACGATCGACTTGG".    "TCATCGACGCTATCATTAATATATATAAGCCCGCATCTA" ],
+	  #            0123456789012        012345678901234567890123456789012345678
+	  hits   => [ { 0 => 1 } ],
+	  samoptflags => [ {
+		"AS:i:-14"      => 1, # alignment score
+		"XM:i:1"        => 1, # num mismatches
+		"XO:i:1"        => 1, # num gap opens
+		"XG:i:1"        => 1, # num gap extensions
+		"NM:i:2"        => 1, # num edits
+		"MD:Z:13^A0A39" => 1, # mismatching positions/bases
+		"YT:Z:UU"       => 1, # type of alignment (concordant/discordant/etc)
+	} ] },
+	{ name   => "MD:Z 3",
+	  ref    => [ "CACGATCGACTTGT"."AA"."TCATCGACGCTATCATTAATATATATAAGCCCGCATCTA" ],
+	  reads  => [ "CACGATCGACTTGC".     "TCATCGACGCTATCATTAATATATATAAGCCCGCATCTA" ],
+	  #            0123456789012        012345678901234567890123456789012345678
+	  hits   => [ { 0 => 1 } ],
+	  samoptflags => [ {
+		"AS:i:-17"       => 1, # alignment score
+		"XM:i:1"         => 1, # num mismatches
+		"XO:i:1"         => 1, # num gap opens
+		"XG:i:2"         => 1, # num gap extensions
+		"NM:i:3"         => 1, # num edits
+		"MD:Z:13^TA0A39" => 1, # mismatching positions/bases
+		"YT:Z:UU"        => 1, # type of alignment (concordant/discordant/etc)
+	} ] },
+	{ name   => "MD:Z 4",
+	  ref    => [ "CACGATCGACTTGN"."NN"."TCATCGACGCTATCATTAATATATATAAGCCCGCATCTA" ],
+	  reads  => [ "CACGATCGACTTGC".     "TCATCGACGCTATCATTAATATATATAAGCCCGCATCTA" ],
+	  #            0123456789012        012345678901234567890123456789012345678
+	  hits   => [ { 0 => 1 } ],
+	  samoptflags => [ {
+		"AS:i:-12"       => 1, # alignment score
+		"XN:i:3"         => 1, # num ambiguous ref bases
+		"XM:i:1"         => 1, # num mismatches
+		"XO:i:1"         => 1, # num gap opens
+		"XG:i:2"         => 1, # num gap extensions
+		"NM:i:3"         => 1, # num edits
+		"MD:Z:13^NN0N39" => 1, # mismatching positions/bases
+		"YT:Z:UU"        => 1, # type of alignment (concordant/discordant/etc)
+	} ] },
+	
 	#
 	# Local alignment
 	#
@@ -946,7 +1004,7 @@ my @cases = (
 	  #       NNNNNGA------A-------------------G-NTTT
 	  #            ||||||||||||||||||||||||||||||||||
 	  #       CCAAT-ATTTTTAATTTCCTCTATTTTTCTCTCGTCTTG
-	  args   => "--policy \"NP=Q;RDG=46.3220993654702;RFG=41.3796024365659;MIN=L,5.57015383125426,-3.28597145122829;NCEIL=L,0.263054599454459,0.130843661549367;SEED=2,29;IVAL=L,0.0169183264663712,3.75762168662522\" --overhang --trim5 6",
+	  args   => "--policy \"NP=Q;RDG=46.3220993654702;RFG=41.3796024365659;MIN=L,5.57015383125426,-3.28597145122829;NCEIL=L,0.263054599454459,0.130843661549367;SEED=1,29;IVAL=L,0.0169183264663712,3.75762168662522\" --overhang --trim5 6",
 	  reads  => [ "CTTTGCACCCCTCCCTTGTCGGCTCCCACCCATCCCCATCCGTTGTCCCCGCCCCCGCCCGCCGGTCGTCACTCCCCGTTTGCGTCATGCCCCTCACCCTCCCTTTGTCGGCTCGCACCCCTCCCCATCCGTTGTCCCCGCCCCCGCTCTCGGGGTCTTCACGCCCCGCTTGCTTCATGCCCCTCACTCGCACCCCG" ],
 	},
 	
@@ -1685,84 +1743,88 @@ my @cases = (
 	  pairhits => [ { "0,8" => 1 }, { } ] },
 
 	# Paired-end reads that should align
-	{ name     => "Fastq paired 4",
-	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  args     => "-s 1 --policy \"SEED=2\"",
-	  #                  AGCATCGATC
-	  #                          TCAAAAACTGA
-	  #                  0123456789012345678
-	  fastq1  => "\n\n\r\n\@r0\nAGCATCGATC\r\n+\n\nIIIIIIIIII\n\n".
-	             "\n\n\@r1\nTC\r\n+\n\nII\n\n".
-	             "\n\n\@r2\nTCAGTTTTTGA\r\n+\n\nIIIIIIIIIII\n\n",
-	  fastq2  => "\n\n\r\n\@r0\nTCAGTTTTTGA\n+\n\nIIIIIIIIIII\n\n".
-	             "\n\n\r\n\@r1\nAG\r\n+\nII".
-	             "\n\@r2\nAGCATCGATC\r\n+\nIIIIIIIIII",
-	  paired   => 1,
-	  pairhits =>    [ { }, { "*,*" => 1 }, { "0,8" => 1 } ],
-	  samoptflags_map => [
-	  { },
-	  { "*" => { "YT:Z:UP" => 1, "YF:Z:LN"  => 1 } },
-	  { 0   => { "MD:Z:10" => 1, "YT:Z:CP" => 1 },
-		8   => { "MD:Z:11" => 1, "YT:Z:CP" => 1 } }]
-	},
+	#{ name     => "Fastq paired 4",
+	#  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	#  args     => "-s 1 -L 4 -i C,1,0",
+	#  #                  AGCATCGATC
+	#  #                          TCAAAAACTGA
+	#  #                  0123456789012345678
+	#  fastq1  => "\n\n\r\n\@r0\nAGCATCGATC\r\n+\n\nIIIIIIIIII\n\n".
+	#             #"\n\n\@r1\nTC\r\n+\n\nII\n\n".
+	#             "\n\n\@r2\nTCAGTTTTTGA\r\n+\n\nIIIIIIIIIII\n\n",
+	#  fastq2  => "\n\n\r\n\@r0\nTCAGTTTTTGA\n+\n\nIIIIIIIIIII\n\n".
+	#             #"\n\n\r\n\@r1\nAG\r\n+\nII".
+	#             "\n\@r2\nAGCATCGATC\r\n+\nIIIIIIIIII",
+	#  paired   => 1,
+	#  pairhits =>    [ { }, { "*,*" => 1 }, { "0,8" => 1 } ],
+	#  pairhits =>    [ { "0,8" => 1 } ],
+	#  samoptflags_map => [
+	#  { },
+	#  { "*" => { "YT:Z:UP" => 1, "YF:Z:LN"  => 1 } },
+	##  { 0   => { "MD:Z:10" => 1, "YT:Z:CP" => 1 },
+	#	8   => { "MD:Z:11" => 1, "YT:Z:CP" => 1 } }]
+	#},
 
-	{ name     => "Tabbed paired 4",
-	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  args     => "-s 1 --policy \"SEED=2\"",
-	  #                  AGCATCGATC
-	  #                          TCAAAAACTGA
-	  #                  0123456789012345678
-	  tabbed   => "\n\n\r\nr0\tAGCATCGATC\tIIIIIIIIII\tTCAGTTTTTGA\tIIIIIIIIIII\n\n".
-	              "\n\nr1\tTC\tII\tAG\tII".
-	              "\n\nr2\tTCAGTTTTTGA\tIIIIIIIIIII\tAGCATCGATC\tIIIIIIIIII\n\n",
-	  paired   => 1,
-	  pairhits =>    [ { }, { "*,*" => 1 }, { "0,8" => 1 } ],
-	  samoptflags_map => [
-	  { },
-	  { "*" => { "YT:Z:UP" => 1, "YF:Z:LN"  => 1 } },
-	  { 0   => { "MD:Z:10" => 1, "YT:Z:CP" => 1 },
-		8   => { "MD:Z:11" => 1, "YT:Z:CP" => 1 } }]
-	},
+	#{ name     => "Tabbed paired 4",
+	#  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	#  args     => "-s 1 -L 4 -i C,1,0",
+	#  #                  AGCATCGATC
+	#  #                          TCAAAAACTGA
+	#  #                  0123456789012345678
+	#  tabbed   => "\n\n\r\nr0\tAGCATCGATC\tIIIIIIIIII\tTCAGTTTTTGA\tIIIIIIIIIII\n\n".
+	#              "\n\nr1\tTC\tII\tAG\tII".
+	#              "\n\nr2\tTCAGTTTTTGA\tIIIIIIIIIII\tAGCATCGATC\tIIIIIIIIII\n\n",
+	#  paired   => 1,
+	#  #pairhits =>    [ { }, { "*,*" => 1 }, { "0,8" => 1 } ],
+	#  pairhits =>    [ { }, { "0,8" => 1 } ],
+	#  samoptflags_map => [
+	#  { },
+	#  #{ "*" => { "YT:Z:UP" => 1, "YF:Z:LN"  => 1 } },
+	#  { 0   => { "MD:Z:10" => 1, "YT:Z:CP" => 1 },
+#		8   => { "MD:Z:11" => 1, "YT:Z:CP" => 1 } }]
+	#},
 
-	{ name     => "Fasta paired 4",
-	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  args     => "-s 1 --policy \"SEED=2\"",
-	  #                  AGCATCGATC
-	  #                          TCAAAAACTGA
-	  #                  0123456789012345678
-	  fasta1  => "\n\n\r\n>r0\nAGCATCGATC\r\n".
-	             "\n\n>r1\nTC\r\n".
-	             "\n\n>r2\nTCAGTTTTTGA\r\n",
-	  fasta2  => "\n\n\r\n>r0\nTCAGTTTTTGA\n\n".
-	             "\n\n\r\n>r1\nAG".
-	             "\n>r2\nAGCATCGATC",
-	  pairhits =>    [ { }, { "*,*" => 1 }, { "0,8" => 1 } ],
-	  samoptflags_map => [
-	  { },
-	  { "*" => { "YT:Z:UP" => 1, "YF:Z:LN"  => 1 } },
-	  { 0   => { "MD:Z:10" => 1, "YT:Z:CP" => 1 },
-		8   => { "MD:Z:11" => 1, "YT:Z:CP" => 1 } }]
-	},
+	#{ name     => "Fasta paired 4",
+	#  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	#  args     => "-s 1 -L 4 -i C,1,0",
+	#  #                  AGCATCGATC
+	#  #                          TCAAAAACTGA
+	#  #                  0123456789012345678
+	#  fasta1  => "\n\n\r\n>r0\nAGCATCGATC\r\n".
+	#  #           "\n\n>r1\nTC\r\n".
+	#             "\n\n>r2\nTCAGTTTTTGA\r\n",
+	#  fasta2  => "\n\n\r\n>r0\nTCAGTTTTTGA\n\n".
+	#  #           "\n\n\r\n>r1\nAG".
+	#             "\n>r2\nAGCATCGATC",
+	# # pairhits =>    [ { }, { "*,*" => 1 }, { "0,8" => 1 } ],
+	#  pairhits =>    [ { }, { "0,8" => 1 } ],
+	#  samoptflags_map => [
+	#  { },
+	#  #{ "*" => { "YT:Z:UP" => 1, "YF:Z:LN"  => 1 } },
+	#  { 0   => { "MD:Z:10" => 1, "YT:Z:CP" => 1 },
+	#	8   => { "MD:Z:11" => 1, "YT:Z:CP" => 1 } }]
+	#},
 
-	{ name     => "Raw paired 4",
-	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  args     => "-s 1 --policy \"SEED=2\"",
-	  #                  AGCATCGATC
-	  #                          TCAAAAACTGA
-	  #                  0123456789012345678
-	  raw1    => "\n\n\r\nAGCATCGATC\r\n".
-	             "\n\nTC\r\n".
-	             "\n\nTCAGTTTTTGA\r\n",
-	  raw2    => "\n\n\r\nTCAGTTTTTGA\n\n".
-	             "\n\n\r\nAG".
-	             "\nAGCATCGATC",
-	  pairhits =>    [ { }, { "*,*" => 1 }, { "0,8" => 1 } ],
-	  samoptflags_map => [
-	  { },
-	  { "*" => { "YT:Z:UP" => 1, "YF:Z:LN"  => 1 } },
-	  { 0   => { "MD:Z:10" => 1, "YT:Z:CP" => 1 },
-		8   => { "MD:Z:11" => 1, "YT:Z:CP" => 1 } }]
-	},
+	#{ name     => "Raw paired 4",
+	#  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	#  args     => "-s 1 -L 4 -i C,1,0",
+	#  #                  AGCATCGATC
+	#  #                          TCAAAAACTGA
+	#  #                  0123456789012345678
+	#  raw1    => "\n\n\r\nAGCATCGATC\r\n".
+	##             "\n\nTC\r\n".
+	#             "\n\nTCAGTTTTTGA\r\n",
+	#  raw2    => "\n\n\r\nTCAGTTTTTGA\n\n".
+	#             "\n\n\r\nAG".
+	#             "\nAGCATCGATC",
+	#  pairhits =>    [ { }, { "*,*" => 1 }, { "0,8" => 1 } ],
+	#  pairhits =>    [ { }, { "0,8" => 1 } ],
+	#  samoptflags_map => [
+	#  { },
+	#  { "*" => { "YT:Z:UP" => 1, "YF:Z:LN"  => 1 } },
+	#  { 0   => { "MD:Z:10" => 1, "YT:Z:CP" => 1 },
+#		8   => { "MD:Z:11" => 1, "YT:Z:CP" => 1 } }]
+	#},
 
 	#
 	# Check that skipping of empty reads is handled correctly.  A read that is
@@ -3025,7 +3087,7 @@ my @cases = (
 	# Just enough budget for hits, so it should align
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCAT" ], # budget = 3 + 8 * 3 = 27
-	  args   => "--policy \"SEED=2;MMP=C27;MIN=L,-3,-3;RDG=25,15;RFG=25,15\"", # penalty = 27
+	  args   => "-L 6 -i C,1,0 --policy \"MMP=C27;MIN=L,-3,-3;RDG=25,15;RFG=25,15\"", # penalty = 27
 	  report => "-a",
 	  hits   => [ { 0 => 1, 8 => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU,XC:6=1X1=" ],
@@ -3036,7 +3098,7 @@ my @cases = (
 	# Not quite enough budget for hits, so it should NOT align
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCAT" ], # budget = 3 + 8 * 3 = 27
-	  args   =>   "--policy \"SEED=2;MMP=C28;MIN=L,-3,-3;RDG=25,15;RFG=25,15\"", # penalty = 28
+	  args   =>   "-L 6 -i C,1,0 --policy \"MMP=C28;MIN=L,-3,-3;RDG=25,15;RFG=25,15\"", # penalty = 28
 	  report =>   "-a",
 	  hits   => [ { "*" => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU" ],
@@ -3670,27 +3732,27 @@ my @cases = (
 	},
 
 	# Should align with 2 mismatches, provided the mismatches are in the right spots
-	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TAGTTCAT" ],
-	  #            TAGTTCAT
-	  #                    TAGTTCAT
-	  args   => "--policy \"SEED=2;MMP=C1\"",
-	  hits   => [ { 0 => 1, 8 => 1 } ],
-	  flags  => [ "XM:0,XP:0,XT:UU,XC:1=1X4=1X1=" ],
-	  cigar  => [ "8M" ],
-	  samoptflags => [{ "AS:i:-2" => 1, "XS:i:-2" => 1, "NM:i:2" => 1,
-	                    "XM:i:2" => 1, "YT:Z:UU" => 1, "MD:Z:1T4G1" => 1 }],
-	},
+	#{ ref    => [ "TTGTTCGTTTGTTCGT" ],
+	#  reads  => [ "TAGTTCAT" ],
+	#  #            TAGTTCAT
+	#  #                    TAGTTCAT
+	#  args   => "--policy \"SEED=2;MMP=C1\"",
+	#  hits   => [ { 0 => 1, 8 => 1 } ],
+	#  flags  => [ "XM:0,XP:0,XT:UU,XC:1=1X4=1X1=" ],
+	#  cigar  => [ "8M" ],
+	#  samoptflags => [{ "AS:i:-2" => 1, "XS:i:-2" => 1, "NM:i:2" => 1,
+	#                    "XM:i:2" => 1, "YT:Z:UU" => 1, "MD:Z:1T4G1" => 1 }],
+	#},
 
 	# Should align with 2 mismatches, provided the mismatches are in the right spots
-	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
-	  reads  => [ "TTATTAGT" ],
-	  args   =>   "--policy \"SEED=2;MMP=C1\"",
-	  hits   => [ { "*" => 1 } ],
-	  flags  => [ "XM:0,XP:0,XT:UU" ],
-	  cigar  => [ "*" ],
-	  samoptflags => [{ "YT:Z:UU" => 1 }],
-	},
+	#{ ref    => [ "TTGTTCGTTTGTTCGT" ],
+	#  reads  => [ "TTATTAGT" ],
+	#  args   =>   "--policy \"SEED=2;MMP=C1\"",
+	#  hits   => [ { "*" => 1 } ],
+	#  flags  => [ "XM:0,XP:0,XT:UU" ],
+	#  cigar  => [ "*" ],
+	#  samoptflags => [{ "YT:Z:UU" => 1 }],
+	#},
 
 	# Should align with 0 mismatches if we can wedge a seed into the 2
 	# matching characters between the two mismatches.  Here we fail to

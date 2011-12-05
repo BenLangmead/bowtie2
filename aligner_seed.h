@@ -566,6 +566,20 @@ struct EEHit {
 	 */
 	uint32_t size() const { return bot - top; }
 	
+	/**
+	 * Check that hit is sane w/r/t read.
+	 */
+	bool repOk(const Read& rd) const {
+		assert_gt(bot, top);
+		if(e1.inited()) {
+			assert_lt(e1.pos, rd.length());
+			if(e2.inited()) {
+				assert_lt(e2.pos, rd.length());
+			}
+		}
+		return true;
+	}
+	
 	uint32_t top;
 	uint32_t bot;
 	Edit     e1;

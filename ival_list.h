@@ -50,6 +50,13 @@ public:
 	{ }
 	
 	/**
+	 * Set the maximum size of the unsorted list.
+	 */
+	void setUnsortedSize(size_t usz) {
+		unsortedSz_ = usz;
+	} 
+	
+	/**
 	 * Add a new interval to the list.
 	 */
 	void add(const Interval& i) {
@@ -193,6 +200,97 @@ protected:
 	EList<Coord>    sortedLhs_;  // LHS, index into sorted_, sorted
 	EList<Interval> unsorted_;   // unsorted
 	size_t          unsortedSz_; // max allowed size of unsorted_
+};
+
+/**
+ * Binned version of the above.  We bin using the low bits of the reference
+ * sequence.
+ */
+class EIvalMergeListBinned {
+public:
+
+	static const size_t NBIN = 7;
+
+	explicit EIvalMergeListBinned(int cat = 0) : bins_(1 << NBIN, cat) {
+		bins_.resize(1 << NBIN);
+	}
+
+	explicit EIvalMergeListBinned(
+		size_t unsortedSz,
+		int cat = 0) : bins_(1 << NBIN, cat)
+	{
+		bins_.resize(1 << NBIN);
+		for(size_t i = 0; i < (1 << NBIN); i++) {
+			bins_[i].setUnsortedSize(unsortedSz);
+		}
+	}
+
+	/**
+	 * Add a new interval to the list.
+	 */
+	void add(const Interval& i) {
+		size_t bin = i.ref() & ~(0xffffffff << NBIN);
+		assert_lt(bin, bins_.size());
+		bins_[bin].add(i);
+	}
+
+	/**
+	 * Check that this interval list is internally consistent.
+	 */
+	bool repOk() const {
+		for(size_t i = 0; i < bins_.size(); i++) {
+			assert(bins_[i].repOk());
+		}
+		return true;
+	}
+	
+	/**
+	 * Remove all ranges from the list.
+	 */
+	void reset() { clear(); }
+	
+	/**
+	 * Remove all ranges from the list.
+	 */
+	void clear() {
+		for(size_t i = 0; i < bins_.size(); i++) {
+			bins_[i].clear();
+		}
+	}
+	
+	/**
+	 * Return true iff this locus is present in one of the intervals in the
+	 * list.
+	 */
+	bool locusPresent(const Coord& loc) const {
+		size_t bin = loc.ref() & ~(0xffffffff << NBIN);
+		assert_lt(bin, bins_.size());
+		return bins_[bin].locusPresent(loc);
+	}
+	
+	/**
+	 * Return the number of intervals added since the last call to reset() or
+	 * clear().
+	 */
+	size_t size() const {
+		// TODO: Keep track of size
+		size_t sz = 0;
+		for(size_t i = 0; i < bins_.size(); i++) {
+			sz += bins_[i].size();
+		}
+		return sz;
+	}
+	
+	/**
+	 * Return true iff list is empty.
+	 */
+	bool empty() const {
+		return size() == 0;
+	}
+	
+protected:
+	
+	EList<EIvalMergeList> bins_;
 };
 
 #endif /*ndef IVAL_LIST_H_*/

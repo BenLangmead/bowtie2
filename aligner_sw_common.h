@@ -81,6 +81,14 @@ struct SwResult {
 		assert(alres.repOk());
 		return true;
 	}
+	
+	/**
+	 * Check that result is internally consistent w/r/t read.
+	 */
+	bool repOk(const Read& rd) const {
+		assert(alres.repOk(rd));
+		return true;
+	}
 
 	AlnRes alres;
 	uint64_t sws;    // # DP problems solved

@@ -80,7 +80,7 @@ entirely.
 limit of around 1000 bp.
 
 5. Bowtie 2 allows alignments to [overlap ambiguous characters] (e.g. `N`s) in
-the reference.  Bowtie 1 did not.
+the reference.  Bowtie 1 does not.
 
 6. Bowtie 2 does away with Bowtie 1's notion of alignment "stratum", and its
 distinction between "Maq-like" and "end-to-end" modes.  In Bowtie 2 all
@@ -91,7 +91,10 @@ alignments lie along a continuous spectrum of alignment scores where the
 not align in a paired fashion, Bowtie 2 attempts to find unpaired alignments for
 each mate.
 
-8. Bowtie 2 does not align colorspace reads.
+8. Bowtie 2 reports a spectrum of mapping qualities, in contrast fo Bowtie 1
+which reports either 0 or high.
+
+9. Bowtie 2 does not align colorspace reads.
 
 Bowtie 2 is not a "drop-in" replacement for Bowtie 1.  Bowtie 2's command-line
 arguments and genome index format are both different from Bowtie 1's.
@@ -471,9 +474,10 @@ mates seemingly extending "past" each other as in this example:
     Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
 
 In some situations, it's desirable for the aligner to consider all these cases
-as "concordant" as long as other paired-end constraints are not violated. 
-Bowtie 2's default behavior, however, is to consider dovetailing mates
-non-concordant.
+as "concordant" as long as other paired-end constraints are not violated. Bowtie
+2's default behavior is to consider overlapping and containing as being
+consistent with concordant alignment.  By default, dovetailing is considered
+inconsistent with concordant alignment.
 
 These defaults can be overridden.  Setting [`--no-overlap`] causes Bowtie 2 to
 consider overlapping mates as non-concordant.  Setting [`--no-contain`] causes
@@ -514,7 +518,7 @@ Two alignments for the same pair are distinct if either the mate 1s in the two
 paired-end alignments are distinct or the mate 2s in the two alignments are
 distinct or both.
 
-### -M mode: search for multiple alignments, report the best
+### -M mode: search for multiple alignments, report the best one
 
 In [`-M`] mode, Bowtie 2 searches for at most N distinct, valid alignments for
 each read, where N equals the integer specified with the `-M` parameter plus
@@ -530,6 +534,19 @@ will find and report the correct alignment for a read that aligns many places.
 Bowtie 2 does not "find" alignments in any specific order, so for reads that
 have more than N distinct, valid alignments, Bowtie 2 does not gaurantee that
 the alignment reported is the best possible in terms of alignment score.
+
+See also: [`-D`], which puts an upper limit on the number of dynamic programming
+problems (i.e. seed extensions) that can "fail" in a row before Bowtie 2 stops
+searching.  Increasing [`-D`] makes Bowtie 2 slower, but increases the
+likelihood that it will report the correct alignment for a read that aligns many
+places.
+
+See also: [`-R`], which sets the maximum number of times Bowtie 2 will "re-seed"
+when attempting to align a read with repetitive seeds.  Increasing [`-R`] makes
+Bowtie 2 slower, but increases the likelihood that it will report the correct
+alignment for a read that aligns many places.
+
+i.e. re-align using a different set of seeds
 
 ### -k mode: search for one or more alignments, report each
 
@@ -597,21 +614,6 @@ Bowtie 2 uses the [FM Index] to find ungapped alignments for seeds.  This step
 accounts for the bulk of Bowtie 2's memory footprint, as the [FM Index] itself
 is typically the largest data structure used.  For instance, the memory
 footprint of the [FM Index] for the human genome is about 3.2 gigabytes of RAM.
-
-### Excessive backtracking and the `-N 2` heuristic
-
-When `-N 2` is specified, Bowtie 2 allows up to 2 mismatches in seed alignments.
-In theory, this can lead to "excessive backtracking," where the alignment
-procedure spends an inordinate amount of time trying various combinations of
-mismatches.  This is disucssed further in the [Bowtie 1 paper].  To avoid some
-types of excessive backtracking, Bowtie 2 uses the [bi-directional BWT approach]
-first proposed for use in the 2BWT aligner.  But as extra insurane against
-excessive backtracking, Bowtie 2 also employs a heuristic whereby some
-2-mismatch alignments won't be found.  Specifically, imagine the seed evenly
-divided into four sections: A, B, C and D.  Bowtie 2 could miss seed alignments
-with mismatches in sections A and C, or in sections B and D.  Since the
-seed-alignment step is a heuristic to begin with, this is not likely a major
-concern for users.
 
 [Bowtie 1 does]: http://genomebiology.com/2009/10/3/R25
 [Bowtie 1 paper]: http://genomebiology.com/2009/10/3/R25
@@ -1134,14 +1136,10 @@ Same as: `-M 3 -N 0 -L 20 -i S,1,0.50`
 </td><td>
 
 Sets the number of mismatches to allowed in a seed alignment during [multiseed
-alignment].  Can be set to 0, 1 or 2.  Note that [2-mismatch mode is heuristic].
-Setting this higher makes alignment slower (often much slower) but increases
-sensitivity.  Setting `-N` to 1 or 2 [yields a larger memory footprint] than
-setting `-N` to 0. Default: the [`--sensitive`] preset is used by default, which
-sets `-N` to 0 both in [`--end-to-end`] mode and in [`--local`] mode.
+alignment].  Can be set to 0 or 1. Setting this higher makes alignment slower
+(often much slower) but increases sensitivity.  Default: 0.
 
 [multiseed alignment]: #multiseed-heuristic
-[2-mismatch mode is heuristic]: #excessive-backtracking-and-the--n-2-heuristic
 [yields a larger memory footprint]: #fm-index-memory-footprint
 
 </td></tr>

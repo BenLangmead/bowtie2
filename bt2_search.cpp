@@ -195,9 +195,11 @@ static bool doUngapped;      // do ungapped alignment
 static size_t maxIters;      // stop after this many extend loop iterations
 static size_t maxUg;         // stop after this many ungap extends
 static size_t maxDp;         // stop after this many DPs
+static size_t maxItersIncr;  // amt to add to maxIters for each -k > 1
 static size_t maxEeStreak;   // stop after this many end-to-end fails in a row
 static size_t maxUgStreak;   // stop after this many ungap fails in a row
 static size_t maxDpStreak;   // stop after this many dp fails in a row
+static size_t maxStreakIncr; // amt to add to streak for each -k > 1
 static size_t maxMateStreak; // stop seed range after this many mate-find fails
 static bool doExtend;        // extend seed hits
 static bool enable8;         // use 8-bit SSE where possible?
@@ -360,9 +362,11 @@ static void resetOptions() {
 	maxIters           = 400;   // max iterations of extend loop
 	maxUg              = 300;   // stop after this many ungap extends
 	maxDp              = 300;   // stop after this many dp extends
+	maxItersIncr       = 20;    // amt to add to maxIters for each -k > 1
 	maxEeStreak        = 15;    // stop after this many end-to-end fails in a row
 	maxUgStreak        = 15;    // stop after this many ungap fails in a row
 	maxDpStreak        = 15;    // stop after this many dp fails in a row
+	maxStreakIncr      = 10;    // amt to add to streak for each -k > 1
 	maxMateStreak      = 10;    // in PE: abort seed range after N mate-find fails
 	doExtend           = true;  // do seed extensions
 	enable8            = true;  // use 8-bit SSE where possible?
@@ -639,7 +643,7 @@ static void printUsage(ostream& out) {
 		<< "   --very-sensitive-local -M 3 -N 0 -L 20 -i S,1,0.50" << endl
 		<< endl
 	    << " Alignment:" << endl
-		<< "  -N <int>           max # mismatches in seed alignment; can be 0 1 or 2 (0)" << endl
+		<< "  -N <int>           max # mismatches in seed alignment; can be 0 or 1 (0)" << endl
 		<< "  -L <int>           length of seed substrings; must be >3, <32 (22)" << endl
 		<< "  -i <func>          interval between seed substrings w/r/t read len (S,1,1.25)" << endl
 		<< "  --n-ceil <func>    func for max # non-A/C/G/Ts permitted in aln (L,0,0.15)" << endl
@@ -945,7 +949,9 @@ static void parseOption(int next_option, const char *arg) {
 			if(saw_a || saw_k) {
 				cerr << "Warning: -M, -k and -a are mutually exclusive. "
 					 << "-M will override" << endl;
+				khits = 1;
 			}
+			assert_eq(1, khits);
 			saw_M = true;
 			break;
 		}
@@ -1115,7 +1121,12 @@ static void parseOption(int next_option, const char *arg) {
 			presetList.push_back("very-sensitive%LOCAL%"); break;
 		}
 		case 'P': { presetList.push_back(arg); break; }
-		case ARG_ALIGN_POLICY: { polstr += ";"; polstr += arg; break; }
+		case ARG_ALIGN_POLICY: {
+			if(strlen(arg) > 0) {
+				polstr += ";"; polstr += arg;
+			}
+			break;
+		}
 		case 'N': { polstr += ";SEED="; polstr += arg; break; }
 		case 'L': { polstr += ";SEEDLEN="; polstr += arg; break; }
 		case 'O':
@@ -1171,7 +1182,7 @@ static void parseOption(int next_option, const char *arg) {
 					 << args.size() << endl;
 				throw 1;
 			}
-			polstr += ("NCEIL=" + args[0]);
+			polstr += ("NCEIL=L," + args[0]);
 			if(args.size() > 1) {
 				polstr += ("," + (args[1]));
 			}
@@ -2796,7 +2807,26 @@ static void* multiseedSearchWorker(void *vp) {
 					interval[mate] = max(interval[mate], 1);
 				}
 				// Calculate streak length
-				size_t streak[2] = { maxDpStreak, maxDpStreak };
+				size_t streak[2]    = { maxDpStreak,   maxDpStreak };
+				size_t mtStreak[2]  = { maxMateStreak, maxMateStreak };
+				size_t mxDp[2]      = { maxDp,         maxDp       };
+				size_t mxUg[2]      = { maxUg,         maxUg       };
+				size_t mxIter[2]    = { maxIters,      maxIters    };
+				if(allHits) {
+					streak[0]   = streak[1]   = std::numeric_limits<size_t>::max();
+					mtStreak[0] = mtStreak[1] = std::numeric_limits<size_t>::max();
+					mxDp[0]     = mxDp[1]     = std::numeric_limits<size_t>::max();
+					mxUg[0]     = mxUg[1]     = std::numeric_limits<size_t>::max();
+					mxIter[0]   = mxIter[1]   = std::numeric_limits<size_t>::max();
+				} else if(khits > 1) {
+					for(size_t mate = 0; mate < 2; mate++) {
+						streak[mate]   += (khits-1) * maxStreakIncr;
+						mtStreak[mate] += (khits-1) * maxStreakIncr;
+						mxDp[mate]     += (khits-1) * maxItersIncr;
+						mxUg[mate]     += (khits-1) * maxItersIncr;
+						mxIter[mate]   += (khits-1) * maxItersIncr;
+					}
+				}
 				if(filt[0] && filt[1]) {
 					streak[0] = (size_t)ceil((double)streak[0] / 2.0);
 					streak[1] = (size_t)ceil((double)streak[1] / 2.0);
@@ -2818,8 +2848,8 @@ static void* multiseedSearchWorker(void *vp) {
 						olm.freads++;               // reads filtered out
 						olm.fbases += rdlens[mate]; // bases filtered out
 					} else {
+						shs[mate].clear();
 						shs[mate].nextRead(mate == 0 ? ps->bufa() : ps->bufb());
-						shs[mate].clearSeeds();
 						assert(shs[mate].empty());
 						olm.ureads++;               // reads passing filter
 						olm.ubases += rdlens[mate]; // bases passing filter
@@ -2908,13 +2938,13 @@ static void* multiseedSearchWorker(void *vp) {
 								norc[mate],     // don't align revcomp read
 								maxhalf,        // max width on one DP side
 								doUngapped,     // do ungapped alignment
-								maxIters,       // max extend loop iters
-								maxUg,          // max # ungapped extends
-								maxDp,          // max # DPs
+								mxIter[mate],   // max extend loop iters
+								mxUg[mate],     // max # ungapped extends
+								mxDp[mate],     // max # DPs
 								streak[mate],   // stop after streak of this many end-to-end fails
 								streak[mate],   // stop after streak of this many ungap fails
 								streak[mate],   // stop after streak of this many dp fails
-								maxMateStreak,  // max mate fails per seed range
+								mtStreak[mate], // max mate fails per seed range
 								doExtend,       // extend seed hits
 								enable8,        // use 8-bit SSE where possible
 								tighten,        // -M score tightening mode
@@ -2949,11 +2979,11 @@ static void* multiseedSearchWorker(void *vp) {
 								nceil[mate],    // N ceil for anchor
 								maxhalf,        // max width on one DP side
 								doUngapped,     // do ungapped alignment
-								maxIters,       // max extend loop iters
-								maxUg,          // max # ungapped extends
-								maxDp,          // max # DPs
+								mxIter[mate],   // max extend loop iters
+								mxUg[mate],     // max # ungapped extends
+								mxDp[mate],     // max # DPs
+								streak[mate],   // stop after streak of this many end-to-end fails
 								streak[mate],   // stop after streak of this many ungap fails
-								streak[mate],   // stop after streak of this many dp fails
 								doExtend,       // extend seed hits
 								enable8,        // use 8-bit SSE where possible
 								tighten,        // -M score tightening mode
@@ -3083,13 +3113,13 @@ static void* multiseedSearchWorker(void *vp) {
 								norc[mate],     // don't align revcomp read
 								maxhalf,        // max width on one DP side
 								doUngapped,     // do ungapped alignment
-								maxIters,       // max extend loop iters
-								maxUg,          // max # ungapped extends
-								maxDp,          // max # DPs
+								mxIter[mate],   // max extend loop iters
+								mxUg[mate],     // max # ungapped extends
+								mxDp[mate],     // max # DPs
 								streak[mate],   // stop after streak of this many end-to-end fails
 								streak[mate],   // stop after streak of this many ungap fails
 								streak[mate],   // stop after streak of this many dp fails
-								maxMateStreak,  // max mate fails per seed range
+								mtStreak[mate], // max mate fails per seed range
 								doExtend,       // extend seed hits
 								enable8,        // use 8-bit SSE where possible
 								tighten,        // -M score tightening mode
@@ -3124,11 +3154,11 @@ static void* multiseedSearchWorker(void *vp) {
 								nceil[mate],    // N ceil for anchor
 								maxhalf,        // max width on one DP side
 								doUngapped,     // do ungapped alignment
-								maxIters,       // max extend loop iters
-								maxUg,          // max # ungapped extends
-								maxDp,          // max # DPs
+								mxIter[mate],   // max extend loop iters
+								mxUg[mate],     // max # ungapped extends
+								mxDp[mate],     // max # DPs
+								streak[mate],   // stop after streak of this many end-to-end fails
 								streak[mate],   // stop after streak of this many ungap fails
-								streak[mate],   // stop after streak of this many dp fails
 								doExtend,       // extend seed hits
 								enable8,        // use 8-bit SSE where possible
 								tighten,        // -M score tightening mode
@@ -3324,13 +3354,13 @@ static void* multiseedSearchWorker(void *vp) {
 									norc[mate],     // don't align revcomp read
 									maxhalf,        // max width on one DP side
 									doUngapped,     // do ungapped alignment
-									maxIters,       // max extend loop iters
-									maxUg,          // max # ungapped extends
-									maxDp,          // max # DPs
+									mxIter[mate],   // max extend loop iters
+									mxUg[mate],     // max # ungapped extends
+									mxDp[mate],     // max # DPs
 									streak[mate],   // stop after streak of this many end-to-end fails
 									streak[mate],   // stop after streak of this many ungap fails
 									streak[mate],   // stop after streak of this many dp fails
-									maxMateStreak,  // max mate fails per seed range
+									mtStreak[mate], // max mate fails per seed range
 									doExtend,       // extend seed hits
 									enable8,        // use 8-bit SSE where possible
 									tighten,        // -M score tightening mode
@@ -3365,11 +3395,11 @@ static void* multiseedSearchWorker(void *vp) {
 									nceil[mate],    // N ceil for anchor
 									maxhalf,        // max width on one DP side
 									doUngapped,     // do ungapped alignment
-									maxIters,       // max extend loop iters
-									maxUg,          // max # ungapped extends
-									maxDp,          // max # DPs
+									mxIter[mate],   // max extend loop iters
+									mxUg[mate],     // max # ungapped extends
+									mxDp[mate],     // max # DPs
+									streak[mate],   // stop after streak of this many end-to-end fails
 									streak[mate],   // stop after streak of this many ungap fails
-									streak[mate],   // stop after streak of this many dp fails
 									doExtend,       // extend seed hits
 									enable8,        // use 8-bit SSE where possible
 									tighten,        // -M score tightening mode
@@ -3421,14 +3451,14 @@ static void* multiseedSearchWorker(void *vp) {
 					}
 				}
 				for(size_t i = 0; i < 2; i++) {
-					assert_leq(prm.nExIters,      maxIters);
-					assert_leq(prm.nExDps,        maxDp);
-					assert_leq(prm.nMateDps,      maxDp);
-					assert_leq(prm.nExUgs,        maxUg);
-					assert_leq(prm.nMateUgs,      maxUg);
-					assert_leq(prm.nDpFail,       maxDpStreak);
-					assert_leq(prm.nUgFail,       maxUgStreak);
-					assert_leq(prm.nEeFail,       maxEeStreak);
+					assert_leq(prm.nExIters, mxIter[i]);
+					assert_leq(prm.nExDps,   mxDp[i]);
+					assert_leq(prm.nMateDps, mxDp[i]);
+					assert_leq(prm.nExUgs,   mxUg[i]);
+					assert_leq(prm.nMateUgs, mxUg[i]);
+					assert_leq(prm.nDpFail,  streak[i]);
+					assert_leq(prm.nUgFail,  streak[i]);
+					assert_leq(prm.nEeFail,  streak[i]);
 				}
 				// Commit and report paired-end/unpaired alignments
 				uint32_t seed = rds[0]->seed ^ rds[1]->seed;

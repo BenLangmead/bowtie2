@@ -432,14 +432,14 @@ bool AlnRes::matchesRef(
 		destU32);
 	assert_leq(off, 16);
 	char *refbuf = raw_refbuf.wbuf() + off;
-	size_t trimBeg = 0, trimEnd = 0;
+	size_t trim5 = 0, trim3 = 0;
 	if(trimSoft_) {
-		trimBeg += (fw ? trim5p_ : trim3p_);
-		trimEnd += (fw ? trim3p_ : trim5p_);
+		trim5 += trim5p_;
+		trim3 += trim3p_;
 	}
 	if(pretrimSoft_) {
-		trimBeg += (fw ? pretrim5p_ : pretrim3p_);
-		trimEnd += (fw ? pretrim3p_ : pretrim5p_);
+		trim5 += pretrim5p_;
+		trim3 += pretrim3p_;
 	}
 	rf.clear();
 	rdseq.clear();
@@ -448,19 +448,11 @@ bool AlnRes::matchesRef(
 		rdseq.reverseComp(false);
 	}
 	assert_eq(rdrows_, rdseq.length());
-	if(!fw) {
-		// Invert the nucleotide edits so that they go from upstream to
-		// downstream on the Watson strand
-		Edit::invertPoss(ned_, rdexrows_);
-	}
 	// rdseq is the nucleotide sequence from upstream to downstream on the
 	// Watson strand.  ned_ are the nucleotide edits from upstream to
 	// downstream.  rf contains the reference characters.
-	Edit::toRef(rdseq, ned_, rf, trimBeg, trimEnd);
-	if(!fw) {
-		// Re-invert the nucleotide edits so that they go from 5' to 3'
-		Edit::invertPoss(ned_, rdexrows_);
-	}
+	assert(Edit::repOk(ned_, rdseq, fw, trim5, trim3));
+	Edit::toRef(rdseq, ned_, rf, fw, trim5, trim3);
 	assert_eq(refallen, rf.length());
 	matches.clear();
 	bool matchesOverall = true;
@@ -767,13 +759,10 @@ void AlnRes::printMD(
 			//}
 			if(r > 0) {
 				if(op[i] == '=') {
+					// Write run length
 					itoa10<size_t>(r, buf);
-					if(o != NULL) {
-						o->writeChars(buf);
-					}
-					if(oc != NULL) {
-						COPY_BUF();
-					}
+					if(o != NULL)  { o->writeChars(buf); }
+					if(oc != NULL) { COPY_BUF(); }
 					first_print = false;
 					mm_last = false;
 					rdgap_last = false;
@@ -797,7 +786,7 @@ void AlnRes::printMD(
 					rdgap_last = false;
 				} else if(op[i] == 'G') {
 					if(o != NULL) {
-						if(first_print) {
+						if(mm_last || first_print) {
 							o->write('0');
 						}
 						if(!rdgap_last) {
@@ -806,13 +795,11 @@ void AlnRes::printMD(
 						o->write(ch[i]);
 					}
 					if(oc != NULL) {
-						if(first_print) {
-							*occ = '0';
-							occ++;
+						if(mm_last || first_print) {
+							*occ = '0'; occ++;
 						}
 						if(!rdgap_last) {
-							*occ = '^';
-							occ++;
+							*occ = '^'; occ++;
 						}
 						*occ = ch[i];
 						occ++;
@@ -824,17 +811,10 @@ void AlnRes::printMD(
 			} // if r > 0
 		} // for loop over ops
 		if(mm_last || rdgap_last) {
-			if(o != NULL) {
-				o->write('0');
-			}
-			if(oc != NULL) {
-				*occ = '0';
-				occ++;
-			}
+			if(o  != NULL) { o->write('0'); }
+			if(oc != NULL) { *occ = '0'; occ++; }
 		}
-		if(oc != NULL) {
-			*occ = '\0';
-		}
+		if(oc != NULL) { *occ = '\0'; }
 	}
 }
 

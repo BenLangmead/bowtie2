@@ -422,7 +422,7 @@ int SwAligner::ungappedAlign(
 	assert(res.repOk());
 #ifndef NDEBUG
 	BTDnaString editstr;
-	Edit::toRef(rd, ned, editstr, rowi, trimEnd);
+	Edit::toRef(rd, ned, editstr, true, rowi, trimEnd);
 	if(refstr != editstr) {
 		cerr << "Decoded nucleotides and edits don't match reference:" << endl;
 		cerr << "           score: " << res.alres.score().score() << endl;
