@@ -1,5 +1,5 @@
 <h1>Table of Contents</h1>
-<p>&nbsp;Version <b>2.0.0-beta3</b></p>
+<p>&nbsp;Version <b>2.0.0-beta4</b></p>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="style.css" type="text/css" />
 </head>
 <body>
+
 <div id="TOC"
 ><ul
   ><li
@@ -132,8 +133,8 @@
 	      >Distinct alignments map a read to different places</a
 	      ></li
 	    ><li
-	    ><a href="#m-mode-search-for-multiple-alignments-report-the-best"
-	      >-M mode: search for multiple alignments, report the best</a
+	    ><a href="#m-mode-search-for-multiple-alignments-report-the-best-one"
+	      >-M mode: search for multiple alignments, report the best one</a
 	      ></li
 	    ><li
 	    ><a href="#k-mode-search-for-one-or-more-alignments-report-each"
@@ -152,12 +153,6 @@
 	  ><li
 	    ><a href="#fm-index-memory-footprint"
 	      >FM Index memory footprint</a
-	      ></li
-	    ><li
-	    ><a href="#excessive-backtracking-and-the--n-2-heuristic"
-	      >Excessive backtracking and the <code
-		>-N 2</code
-		> heuristic</a
 	      ></li
 	    ></ul
 	  ></li
@@ -232,6 +227,10 @@
 		><li
 		><a href="#reporting-options"
 		  >Reporting options</a
+		  ></li
+		><li
+		><a href="#effort-options"
+		  >Effort options</a
 		  ></li
 		><li
 		><a href="#paired-end-options"
@@ -358,7 +357,7 @@
   >Burrows-Wheeler Transform</a
   > or <a href="http://en.wikipedia.org/wiki/Burrows-Wheeler_transform"
   >BWT</a
-  >) to keep its memory footprint small: for the human genome, its memory footprint is typically around 3.2 GB. Bowtie 2 supports gapped, local, and paired-end alignment modes. Multiple processors can be used simultaneously to achieve greater alignment speed. Bowtie 2 outputs alignments in <a href="http://samtools.sourceforge.net/SAM1.pdf"
+  >) to keep its memory footprint small: for the human genome, its memory footprint is typically around 3.2 gigabytes of RAM. Bowtie 2 supports gapped, local, and paired-end alignment modes. Multiple processors can be used simultaneously to achieve greater alignment speed. Bowtie 2 outputs alignments in <a href="http://samtools.sourceforge.net/SAM1.pdf"
   >SAM</a
   > format, enabling interoperation with a large number of other tools (e.g. <a href="http://samtools.sourceforge.net/"
   >SAMtools</a
@@ -426,7 +425,7 @@
       >overlap ambiguous characters</a
       > (e.g. <code
       >N</code
-      >s) in the reference. Bowtie 1 did not.</p
+      >s) in the reference. Bowtie 1 does not.</p
     ></li
   ><li
   ><p
@@ -443,6 +442,10 @@
     >Bowtie 2's <a href="#aligning-pairs"
       >paired-end alignment</a
       > is more flexible. E.g. for pairs that do not align in a paired fashion, Bowtie 2 attempts to find unpaired alignments for each mate.</p
+    ></li
+  ><li
+  ><p
+    >Bowtie 2 reports a spectrum of mapping qualities, in contrast fo Bowtie 1 which reports either 0 or high.</p
     ></li
   ><li
   ><p
@@ -854,7 +857,9 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
 </code
   ></pre
 ><p
->In some situations, it's desirable for the aligner to consider all these cases as &quot;concordant&quot; as long as other paired-end constraints are not violated; this is Bowtie 2's default behavior. In other situations, the aligner should consider one or more of these cases to be non-concordant. Setting <a href="#bowtie2-options-no-overlap"
+>In some situations, it's desirable for the aligner to consider all these cases as &quot;concordant&quot; as long as other paired-end constraints are not violated. Bowtie 2's default behavior is to consider overlapping and containing as being consistent with concordant alignment. By default, dovetailing is considered inconsistent with concordant alignment.</p
+><p
+>These defaults can be overridden. Setting <a href="#bowtie2-options-no-overlap"
   ><code
     >--no-overlap</code
     ></a
@@ -862,11 +867,11 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
   ><code
     >--no-contain</code
     ></a
-  > causes Bowtie 2 to consider cases where one mate alignment contains the other as non-concordant. Setting <a href="#bowtie2-options-no-dovetail"
+  > causes Bowtie 2 to consider cases where one mate alignment contains the other as non-concordant. Setting <a href="#bowtie2-options-dovetail"
   ><code
-    >--no-dovetail</code
+    >--dovetail</code
     ></a
-  > causes Bowtie 2 to consider cases where the mate alignments dovetail as non-concordant.</p
+  > causes Bowtie 2 to consider cases where the mate alignments dovetail as concordant.</p
 ><h2 id="reporting"
 ><a href="#TOC"
   >Reporting</a
@@ -893,9 +898,9 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
 >Two alignments for the same individual read are &quot;distinct&quot; if they map the same read to different places. Specifically, we say that two alignments are distinct if there are no alignment positions where a particular read offset is aligned opposite a particular reference offset in both alignments with the same orientation. E.g. if the first alignment is in the forward orientation and aligns the read character at read offset 10 to the reference character at chromosome 3, offset 3,445,245, and the second alignment is also in the forward orientation and also aligns the read character at read offset 10 to the reference character at chromosome 3, offset 3,445,245, they are not distinct alignments.</p
 ><p
 >Two alignments for the same pair are distinct if either the mate 1s in the two paired-end alignments are distinct or the mate 2s in the two alignments are distinct or both.</p
-><h3 id="m-mode-search-for-multiple-alignments-report-the-best"
+><h3 id="m-mode-search-for-multiple-alignments-report-the-best-one"
 ><a href="#TOC"
-  >-M mode: search for multiple alignments, report the best</a
+  >-M mode: search for multiple alignments, report the best one</a
   ></h3
 ><p
 >In <a href="#bowtie2-options-M"
@@ -921,6 +926,26 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
     >-M</code
     ></a
   > makes Bowtie 2 slower, but increases the likelihood that it will find and report the correct alignment for a read that aligns many places. Bowtie 2 does not &quot;find&quot; alignments in any specific order, so for reads that have more than N distinct, valid alignments, Bowtie 2 does not gaurantee that the alignment reported is the best possible in terms of alignment score.</p
+><p
+>See also: <a href="#bowtie2-options-D"
+  ><code
+    >-D</code
+    ></a
+  >, which puts an upper limit on the number of dynamic programming problems (i.e. seed extensions) that can &quot;fail&quot; in a row before Bowtie 2 stops searching. Increasing <a href="#bowtie2-options-D"
+  ><code
+    >-D</code
+    ></a
+  > makes Bowtie 2 slower, but increases the likelihood that it will report the correct alignment for a read that aligns many places.</p
+><p
+>See also: <a href="#bowtie2-options-R"
+  ><code
+    >-R</code
+    ></a
+  >, which sets the maximum number of times Bowtie 2 will &quot;re-seed&quot; when attempting to align a read with repetitive seeds. Increasing <a href="#bowtie2-options-R"
+  ><code
+    >-R</code
+    ></a
+  > makes Bowtie 2 slower, but increases the likelihood that it will report the correct alignment for a read that aligns many places.</p
 ><h3 id="k-mode-search-for-one-or-more-alignments-report-each"
 ><a href="#TOC"
   >-k mode: search for one or more alignments, report each</a
@@ -970,7 +995,7 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
 ><p
 >This initial step makes Bowtie 2 much faster than it would be without such a filter, but at the expense of missing some valid alignments. For instance, it is possible for a read to have a valid overall alignment but to have no valid seed alignments because each potential seed alignment is interruped by too many mismatches or gaps.</p
 ><p
->The tradeoff between speed and sensitivity can be adjusted by setting the seed length (<a href="#bowtie2-options-L"
+>The tradeoff between speed and sensitivity/accuracy can be adjusted by setting the seed length (<a href="#bowtie2-options-L"
   ><code
     >-L</code
     ></a
@@ -985,6 +1010,16 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
   >). For more sensitive alignment, set these parameters to (a) make the seeds closer together, (b) make the seeds shorter, and/or (c) allow more mismatches. You can adjust these options one-by-one, though Bowtie 2 comes with some useful combinations of options pre-packaged as &quot;<a href="#presets-setting-many-settings-at-once"
   >preset options</a
   >.&quot;</p
+><p
+><a href="#bowtie2-options-D"
+  ><code
+    >-D</code
+    ></a
+  > and <a href="#bowtie2-options-R"
+  ><code
+    >-R</code
+    ></a
+  > are also options that adjust the tradeoff between speed and sensitivity/accuracy.</p
 ><h3 id="fm-index-memory-footprint"
 ><a href="#TOC"
   >FM Index memory footprint</a
@@ -997,20 +1032,6 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
   > itself is typically the largest data structure used. For instance, the memory footprint of the <a href="http://portal.acm.org/citation.cfm?id=796543"
   >FM Index</a
   > for the human genome is about 3.2 gigabytes of RAM.</p
-><h3 id="excessive-backtracking-and-the--n-2-heuristic"
-><a href="#TOC"
-  >Excessive backtracking and the <code
-    >-N 2</code
-    > heuristic</a
-  ></h3
-><p
->When <code
-  >-N 2</code
-  > is specified, Bowtie 2 allows up to 2 mismatches in seed alignments. In theory, this can lead to &quot;excessive backtracking,&quot; where the alignment procedure spends an inordinate amount of time trying various combinations of mismatches. This is disucssed further in the <a href="http://genomebiology.com/2009/10/3/R25"
-  >Bowtie 1 paper</a
-  >. To avoid some types of excessive backtracking, Bowtie 2 uses the <a href="http://www.computer.org/portal/web/csdl/doi/10.1109/BIBM.2009.42"
-  >bi-directional BWT approach</a
-  > first proposed for use in the 2BWT aligner. But as extra insurane against excessive backtracking, Bowtie 2 also employs a heuristic whereby some 2-mismatch alignments won't be found. Specifically, imagine the seed evenly divided into four sections: A, B, C and D. Bowtie 2 could miss seed alignments with mismatches in sections A and C, or in sections B and D. Since the seed-alignment step is a heuristic to begin with, this is not likely a major concern for users.</p
 ><h2 id="ambiguous-characters"
 ><a href="#TOC"
   >Ambiguous characters</a
@@ -1047,7 +1068,7 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
 >Bowtie 2 comes with some useful combinations of parameters packaged into shorter &quot;preset&quot; parameters. For example, running Bowtie 2 with the <code
   >--very-sensitive</code
   > option is the same as running with options: <code
-  >-M 3 -N 0 -L 20 -i S,1,0.50</code
+  >-D 20 -R 3 -N 0 -L 20 -i S,1,0.50</code
   >. The preset options that come with Bowtie 2 are designed to cover a wide area of the speed/sensitivity/accuracy tradeoff space, with the presets ending in <code
   >fast</code
   > generally being faster but less sensitive and less accurate, and the presets ending in <code
@@ -1657,7 +1678,7 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
 ></td><td>
 <p
 >Same as: <code
-  >-M 1 -N 0 -L 22 -i S,1,2.50</code
+  >-D 5 -R 1 -N 0 -L 22 -i S,0,2.50</code
   ></p
 ></td></tr>
 <tr><td id="bowtie2-options-fast">
@@ -1671,7 +1692,7 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
 ></td><td>
 <p
 >Same as: <code
-  >-M 3 -N 0 -L 22 -i S,1,2.50</code
+  >-D 10 -R 2 -N 0 -L 22 -i S,0,2.50</code
   ></p
 ></td></tr>
 <tr><td id="bowtie2-options-sensitive">
@@ -1685,7 +1706,7 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
 ></td><td>
 <p
 >Same as: <code
-  >-M 3 -N 0 -L 22 -i S,1,1.25</code
+  >-D 15 -R 2 -L 22 -i S,1,1.15</code
   > (default in <a href="#bowtie2-options-end-to-end"
   ><code
     >--end-to-end</code
@@ -1703,7 +1724,7 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
 ></td><td>
 <p
 >Same as: <code
-  >-M 3 -N 0 -L 20 -i S,1,0.50</code
+  >-D 20 -R 3 -N 0 -L 20 -i S,1,0.50</code
   ></p
 ></td></tr>
 </table>
@@ -1725,7 +1746,7 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
 ></td><td>
 <p
 >Same as: <code
-  >-M 1 -N 0 -L 25 -i S,1,2.00</code
+  >-D 5 -R 1 -N 0 -L 25 -i S,1,2.00</code
   ></p
 ></td></tr>
 <tr><td id="bowtie2-options-fast-local">
@@ -1739,7 +1760,7 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
 ></td><td>
 <p
 >Same as: <code
-  >-M 2 -N 0 -L 22 -i S,1,1.75</code
+  >-D 10 -R 2 -N 0 -L 22 -i S,1,1.75</code
   ></p
 ></td></tr>
 <tr><td id="bowtie2-options-sensitive-local">
@@ -1753,7 +1774,7 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
 ></td><td>
 <p
 >Same as: <code
-  >-M 2 -N 0 -L 20 -i S,1,0.75</code
+  >-D 15 -R 2 -N 0 -L 20 -i S,1,0.75</code
   > (default in <a href="#bowtie2-options-local"
   ><code
     >--local</code
@@ -1771,7 +1792,7 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
 ></td><td>
 <p
 >Same as: <code
-  >-M 3 -N 0 -L 20 -i S,1,0.50</code
+  >-D 20 -R 3 -N 0 -L 20 -i S,1,0.50</code
   ></p
 ></td></tr>
 </table>
@@ -1793,29 +1814,7 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
 <p
 >Sets the number of mismatches to allowed in a seed alignment during <a href="#multiseed-heuristic"
   >multiseed alignment</a
-  >. Can be set to 0, 1 or 2. Note that <a href="#excessive-backtracking-and-the--n-2-heuristic"
-  >2-mismatch mode is heuristic</a
-  >. Setting this higher makes alignment slower (often much slower) but increases sensitivity. Setting <code
-  >-N</code
-  > to 1 or 2 <a href="#fm-index-memory-footprint"
-  >yields a larger memory footprint</a
-  > than setting <code
-  >-N</code
-  > to 0. Default: the <a href="#bowtie2-options-sensitive"
-  ><code
-    >--sensitive</code
-    ></a
-  > preset is used by default, which sets <code
-  >-N</code
-  > to 0 both in <a href="#bowtie2-options-end-to-end"
-  ><code
-    >--end-to-end</code
-    ></a
-  > mode and in <a href="#bowtie2-options-local"
-  ><code
-    >--local</code
-    ></a
-  > mode.</p
+  >. Can be set to 0 or 1. Setting this higher makes alignment slower (often much slower) but increases sensitivity. Default: 0.</p
 ></td></tr>
 <tr><td id="bowtie2-options-L">
 
@@ -2096,28 +2095,34 @@ Seed 4 rc:                   TTATGCATGA
 
 <pre
 ><code
-  >--mp &lt;int&gt;
+  >--mp MX,MN
 </code
   ></pre
 ></td><td>
 <p
->Sets the maximum mismatch penalty. A number less than or equal to <code
-  >&lt;int&gt;</code
-  > is subtracted from the alignment score for each position where a read character aligns to a reference character and the characters do not match. Unless <a href="#bowtie2-options-ignore-quals"
+>Sets the maximum (<code
+  >MX</code
+  >) and minimum (<code
+  >MN</code
+  >) mismatch penalties, both integers. A number less than or equal to <code
+  >MX</code
+  > and greater than or equal to <code
+  >MN</code
+  > is subtracted from the alignment score for each position where a read character aligns to a reference character, the characters do not match, and neither is an <code
+  >N</code
+  >. If <a href="#bowtie2-options-ignore-quals"
   ><code
     >--ignore-quals</code
     ></a
-  > is specified, the exact number subtracted depends on the quality value of the mismatched position; specifically, the number subtracted equals <code
-  >max(floor(30/min(30, Q) * N), 1)</code
-  > where Q is the Phred quality value and N is the <code
-  >&lt;int&gt;</code
-  > parameter to <code
-  >--mp</code
-  >. When <a href="#bowtie2-options-ignore-quals"
-  ><code
-    >--ignore-quals</code
-    ></a
-  > is specified, all mismatches incur the maximum penalty, regardless of quality value. Default: 6.</p
+  > is specified, the number subtracted quals <code
+  >MX</code
+  >. Otherwise, the number subtracted is <code
+  >MN + floor( (MX-MN)(MIN(Q, 40.0)/40.0) )</code
+  > where Q is the Phred quality value. Default: <code
+  >MX</code
+  > = 6, <code
+  >MN</code
+  > = 2.</p
 ></td></tr>
 <tr><td id="bowtie2-options-np">
 
@@ -2303,6 +2308,12 @@ Seed 4 rc:                   TTATGCATGA
     >-M</code
     ></a
   > is the default.</p
+><p
+>Note: Bowtie 2 is not particularly designed with large <code
+  >-k</code
+  > in mind, and when aligning reads to long, repetitive genomes large <code
+  >-k</code
+  > can be very, very slow.</p
 ></td></tr>
 <tr><td id="bowtie2-options-a">
 
@@ -2333,6 +2344,41 @@ Seed 4 rc:                   TTATGCATGA
     >-M</code
     ></a
   > is the default.</p
+><p
+>Note: Bowtie 2 is not particularly designed with <code
+  >-a</code
+  > mode in mind, and when aligning reads to long, repetitive genomes this mode can be very, very slow.</p
+></td></tr>
+</table>
+<h4 id="effort-options"
+><a href="#TOC"
+  >Effort options</a
+  ></h4
+><table>
+
+<tr><td id="bowtie2-options-D">
+
+
+<pre
+><code
+  >-D
+</code
+  ></pre
+></td><td>
+<p
+>The maximum number of consecutive seed extensions that can &quot;fail&quot; before Bowtie 2 moves on using the alignments found so far. A seed extension &quot;fails&quot; if it does not yield a new best or a new second-best alignment. This limit is automatically adjusted up when -k or -a are specified. Default: 15.</p
+></td></tr>
+<tr><td id="bowtie2-options-R">
+
+
+<pre
+><code
+  >-R
+</code
+  ></pre
+></td><td>
+<p
+>The maximum number of times Bowtie 2 will &quot;re-seed&quot; reads with repetitive seeds. When &quot;re-seeding,&quot; Bowtie 2 simply chooses a new set of reads (same length, same number of mismatches allowed) at different offsets and searches for more alignments. A read is considered to have repetitive seeds if the total number of seed hits divided by the number of seeds that aligned at least once is greater than 300. Default: 2.</p
 ></td></tr>
 </table>
 <h4 id="paired-end-options"
@@ -2476,19 +2522,19 @@ Seed 4 rc:                   TTATGCATGA
     ></a
   >). This option disables that behavior.</p
 ></td></tr>
-<tr><td id="bowtie2-options-no-dovetail">
+<tr><td id="bowtie2-options-dovetail">
 
 
 <pre
 ><code
-  >--no-dovetail
+  >--dovetail
 </code
   ></pre
 ></td><td>
 <p
->If the mates &quot;dovetail&quot;, that is if one mate alignment extends past the beginning of the other such that the wrong mate begins upstream, consider that to be non-concordant. See also: <a href="#mates-can-overlap-contain-or-dovetail-each-other"
+>If the mates &quot;dovetail&quot;, that is if one mate alignment extends past the beginning of the other such that the wrong mate begins upstream, consider that to be concordant. See also: <a href="#mates-can-overlap-contain-or-dovetail-each-other"
   >Mates can overlap, contain or dovetail each other</a
-  >. Default: mates can dovetail in a concordant alignment.</p
+  >. Default: mates cannot dovetail in a concordant alignment.</p
 ></td></tr>
 <tr><td id="bowtie2-options-no-contain">
 
@@ -3940,3 +3986,4 @@ r7  16  gi|9626243|ref|NC_001416.1| 4692    37  143M    *   0   0   TCAGCCGGACGC
   >Calling SNPs/INDELs with SAMtools/BCFtools</a
   > for more details and variations on this process.</p
 >
+
