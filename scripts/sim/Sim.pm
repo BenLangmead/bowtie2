@@ -689,26 +689,26 @@ sub genPolicyNP() {
 # Generate a setting for RDG (read gap open and extend penalties).
 #
 sub genPolicyRDG() {
-	return "" if int(rand(2)) == 0;
+	return undef if int(rand(2)) == 0;
 	my $op = Math::Random::random_uniform(1, 1, 50);
 	if(int(rand(2)) == 0) {
 		$op .= ",";
 		$op .= Math::Random::random_uniform(1, 1, 20);
 	}
-	return "RDG=$op;";
+	return "$op";
 }
 
 ##
 # Generate a setting for RFG (ref gap open and extend penalties).
 #
 sub genPolicyRFG() {
-	return "" if int(rand(2)) == 0;
+	return undef if int(rand(2)) == 0;
 	my $op = Math::Random::random_uniform(1, 1, 50);
 	if(int(rand(2)) == 0) {
 		$op .= ",";
 		$op .= Math::Random::random_uniform(1, 1, 20);
 	}
-	return "RFG=$op;";
+	return "$op";
 }
 
 ##
@@ -716,14 +716,14 @@ sub genPolicyRFG() {
 #
 sub genPolicyMIN($) {
 	my $local = shift;
-	return "" if ($local || int(rand(2)) == 0);
+	return undef if ($local || int(rand(2)) == 0);
 	my $xx = Math::Random::random_uniform(1, 1, 10);
 	my $yy = Math::Random::random_uniform(1, 1, 10);
 	if(!$local) {
 		$xx = -$xx if int(rand(2)) == 0;
 		$yy = -$yy;
 	}
-	return "MIN=L,$xx,$yy;";
+	return "L,$xx,$yy";
 }
 
 ##
@@ -731,24 +731,40 @@ sub genPolicyMIN($) {
 # allowed).
 #
 sub genPolicyNCEIL() {
-	return "" if int(rand(2)) == 0;
+	return undef if int(rand(2)) == 0;
 	my $xx = Math::Random::random_uniform(1, 0, 1.5);
 	my $yy = Math::Random::random_uniform(1, 0, 1.5);
-	return "NCEIL=L,$xx,$yy;";
+	return "$xx,$yy";
 }
 
 ##
 # Generate a setting for SEED (# mismatches, length, interval).
 #
 sub genPolicySEED() {
-	return "" if int(rand(2)) == 0;
+	return undef if int(rand(2)) == 0;
 	# Pick a number of mismatches
-	my $sd = substr("012", int(rand(3)), 1);
+	my $sd = substr("012", int(rand(2)), 1);
 	if(rand() < 0.9) {
 		# Length
 		$sd .= ",".int(Math::Random::random_uniform(1, 12, 32));
 	}
-	return "SEED=$sd;";
+	return $sd;
+}
+
+##
+# Generate a setting for -D (# DP fails in a row).
+#
+sub genPolicyFailStreak() {
+	return undef if int(rand(2)) == 0;
+	return int(Math::Random::random_uniform(1, 2, 50));
+}
+
+##
+# Generate a setting for -R (# seeding rounds).
+#
+sub genPolicySeedRounds() {
+	return undef if int(rand(2)) == 0;
+	return int(Math::Random::random_uniform(1, 1, 5));
 }
 
 ##
@@ -800,11 +816,6 @@ sub genPolicyArg($) {
 	$args .= genPolicyMA($local);
 	$args .= genPolicyMMP();
 	$args .= genPolicyNP();
-	$args .= genPolicyRDG();
-	$args .= genPolicyRFG();
-	$args .= genPolicyMIN($local);
-	$args .= genPolicyNCEIL();
-	$args .= genPolicySEED();
 	$args .= genPolicyIVAL();
 	if($args ne "") {
 		return substr($args, 0, -1);
@@ -836,6 +847,13 @@ sub genAlignArgs {
 	} elsif($rep == 2) {
 		$args{"-M"} = int(Math::Random::random_exponential(1, 3))+2;
 	}
+	$args{"--rdg"} = genPolicyRDG();
+	$args{"--rfg"} = genPolicyRFG();
+	$args{"--score-min"} = genPolicyMIN($local);
+	$args{"--n-ceil"} = genPolicyNCEIL();
+	$args{"-N"} = genPolicySEED();
+	$args{"-D"} = genPolicyFailStreak();
+	$args{"-R"} = genPolicySeedRounds();
 	$args{"--policy"} = ("\"".genPolicyArg($local)."\"") if rand() < 0.9;
 	return \%args;
 }
@@ -848,9 +866,11 @@ sub align {
 	my ($self, $fa, $idx, $input, $conf, $args) = @_;
 	my $argstr = "";
 	for (keys %$args) {
-		$argstr .= " $_";
-		if($args->{$_} ne "") {
-			$argstr .= " ".$args->{$_};
+		if(defined($args->{$_})) {
+			$argstr .= " $_";
+			if($args->{$_} ne "") {
+				$argstr .= " ".$args->{$_};
+			}
 		}
 	}
 	$argstr .= " -C" if $input->{color};

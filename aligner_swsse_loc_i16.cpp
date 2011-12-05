@@ -1567,6 +1567,7 @@ bool SwAligner::backtraceNucleotidesLocalSseI16(
 		}
 	}
 	res.alres.setRefNs(refns);
+	assert(Edit::repOk(ned, (*rd_), true, trimBeg, trimEnd));
 	assert(res.repOk());
 #ifndef NDEBUG
 	size_t gapsCheck = 0;
@@ -1579,7 +1580,7 @@ bool SwAligner::backtraceNucleotidesLocalSseI16(
 		refstr.append(firsts5[(int)rf_[rfi_+i]]);
 	}
 	BTDnaString editstr;
-	Edit::toRef((*rd_), ned, editstr, trimBeg, trimEnd);
+	Edit::toRef((*rd_), ned, editstr, true, trimBeg, trimEnd);
 	if(refstr != editstr) {
 		cerr << "Decoded nucleotides and edits don't match reference:" << endl;
 		cerr << "           score: " << score.score()

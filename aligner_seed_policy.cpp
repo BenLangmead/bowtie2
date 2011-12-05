@@ -538,6 +538,14 @@ void SeedAlignmentPolicy::parseString(
 			if(ctoks.size() >= 1) {
 				istringstream tmpss(ctoks[0]);
 				tmpss >> multiseedMms;
+				if(multiseedMms > 1) {
+					cerr << "Error: -N was set to " << multiseedMms << ", but cannot be set greater than 1" << endl;
+					throw 1;
+				}
+				if(multiseedMms < 0) {
+					cerr << "Error: -N was set to a number less than 0 (" << multiseedMms << ")" << endl;
+					throw 1;
+				}
 			}
 			if(ctoks.size() >= 2) {
 				istringstream tmpss(ctoks[1]);

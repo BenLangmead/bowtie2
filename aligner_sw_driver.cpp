@@ -147,6 +147,7 @@ bool SwDriver::eeSaTups(
 		size_t sz = sh.mm1EEHits().size();
 		for(size_t i = 0; i < sz; i++) {
 			EEHit hit = sh.mm1EEHits()[i];
+			assert(hit.repOk(rd));
 			assert(!hit.empty());
 			// Clear list where resolved offsets are stored
 			swmSeed.mm1ranges++;
@@ -740,7 +741,7 @@ int SwDriver::extendSeeds(
 					ebwtBw,        // BWT'
 					ref,           // Reference strings
 					seedmms,       // # seed mismatches allowed
-					75,            // max rows to consider per position
+					maxIters,      // max rows to consider per position
 					doExtend,      // extend out seeds
 					true,          // square extended length
 					true,          // square SA range size
@@ -891,8 +892,10 @@ int SwDriver::extendSeeds(
 					resEe_.alres.setRefNs(h.refns());
 					if(h.mms() > 0) {
 						assert_eq(1, h.mms());
+						assert_lt(h.e1.pos, rd.length());
 						resEe_.alres.ned().push_back(h.e1);
 					}
+					assert(resEe_.repOk(rd));
 					state = FOUND_EE;
 					found = true;
 					Interval refival(refcoord, 1);
@@ -1402,7 +1405,7 @@ int SwDriver::extendSeedsPaired(
 					ebwtBw,        // BWT'
 					ref,           // Reference strings
 					seedmms,       // # seed mismatches allowed
-					75,            // max rows to consider per position
+					maxIters,      // max rows to consider per position
 					doExtend,      // extend out seeds
 					true,          // square extended length
 					true,          // square SA range size
@@ -1515,7 +1518,7 @@ int SwDriver::extendSeedsPaired(
 				// Find offset of alignment's upstream base assuming net gaps=0
 				// between beginning of read and beginning of seed hit
 				int64_t refoff = (int64_t)toff - rdoff;
-				EIvalMergeList& seenDiags  = anchor1 ? seenDiags1_ : seenDiags2_;
+				EIvalMergeListBinned& seenDiags  = anchor1 ? seenDiags1_ : seenDiags2_;
 				// Coordinate of the seed hit w/r/t the pasted reference string
 				Coord refcoord(tidx, refoff, fw);
 				if(seenDiags.locusPresent(refcoord)) {
@@ -1575,8 +1578,10 @@ int SwDriver::extendSeedsPaired(
 					resEe_.alres.setRefNs(h.refns());
 					if(h.mms() > 0) {
 						assert_eq(1, h.mms());
+						assert_lt(h.e1.pos, rd.length());
 						resEe_.alres.ned().push_back(h.e1);
 					}
+					assert(resEe_.repOk(rd));
 					state = FOUND_EE;
 					found = true;
 					Interval refival(refcoord, 1);
@@ -1693,11 +1698,13 @@ int SwDriver::extendSeedsPaired(
 							break;
 						}
 						res = &resEe_;
+						assert(res->repOk(rd));
 					} else if(state == FOUND_UNGAPPED) {
 						if(!firstInner) {
 							break;
 						}
 						res = &resUngap_;
+						assert(res->repOk(rd));
 					} else {
 						resGap_.reset();
 						assert(resGap_.empty());
@@ -1710,6 +1717,7 @@ int SwDriver::extendSeedsPaired(
 							break;
 						}
 						res = &resGap_;
+						assert(res->repOk(rd));
 					}
 					// TODO: If we're just taking anchor alignments out of the
 					// same rectangle, aren't we getting very similar

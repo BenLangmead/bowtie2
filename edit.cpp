@@ -257,13 +257,20 @@ void Edit::toRef(
 	const BTDnaString& read,
 	const EList<Edit>& edits,
 	BTDnaString& ref,
-	size_t trimBeg,
-	size_t trimEnd)
+	bool fw,
+	size_t trim5,
+	size_t trim3)
 {
 	// edits should be sorted
 	size_t eidx = 0;
 	// Print reference
 	const size_t rdlen = read.length();
+	size_t trimBeg = fw ? trim5 : trim3;
+	size_t trimEnd = fw ? trim3 : trim5;
+	assert(Edit::repOk(edits, read, fw, trim5, trim3));
+	if(!fw) {
+		invertPoss(const_cast<EList<Edit>&>(edits), read.length()-trimBeg-trimEnd);
+	}
 	for(size_t i = 0; i < rdlen; i++) {
 		ASSERT_ONLY(int c = read[i]);
 		assert_range(0, 4, c);
@@ -300,12 +307,15 @@ void Edit::toRef(
 	}
 	if(trimEnd == 0) {
 		while(eidx < edits.size()) {
-			assert_eq(rdlen, edits[eidx].pos);
+			assert_gt(rdlen, edits[eidx].pos);
 			if(edits[eidx].isReadGap()) {
 				ref.appendChar((char)edits[eidx].chr);
 			}
 			eidx++;
 		}
+	}
+	if(!fw) {
+		invertPoss(const_cast<EList<Edit>&>(edits), read.length()-trimBeg-trimEnd);
 	}
 }
 
@@ -328,9 +338,17 @@ bool Edit::repOk() const {
  * sequence, check that the edits are consistent with respect to the
  * query.
  */
-bool Edit::repOk(const EList<Edit>& edits,
-                 const BTDnaString& s)
+bool Edit::repOk(
+	const EList<Edit>& edits,
+	const BTDnaString& s,
+	bool fw,
+	size_t trimBeg,
+	size_t trimEnd)
 {
+	if(!fw) {
+		invertPoss(const_cast<EList<Edit>&>(edits), s.length()-trimBeg-trimEnd);
+		swap(trimBeg, trimEnd);
+	}
 	for(size_t i = 0; i < edits.size(); i++) {
 		const Edit& e = edits[i];
 		size_t pos = e.pos;
@@ -343,7 +361,7 @@ bool Edit::repOk(const EList<Edit>& edits,
 			assert_lt(ee.pos, s.length());
 			if(ee.qchr != '-') {
 				assert(ee.isRefGap() || ee.isMismatch());
-				assert_eq((int)ee.qchr, s.toChar(ee.pos));
+				assert_eq((int)ee.qchr, s.toChar(ee.pos+trimBeg));
 			}
 			if(ee.isMismatch()) {
 				assert(!mm);
@@ -359,6 +377,9 @@ bool Edit::repOk(const EList<Edit>& edits,
 			}
 			i++;
 		}
+	}
+	if(!fw) {
+		invertPoss(const_cast<EList<Edit>&>(edits), s.length()-trimBeg-trimEnd);
 	}
 	return true;
 }

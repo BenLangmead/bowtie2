@@ -193,8 +193,9 @@ struct Edit {
 		const BTDnaString& read,
 		const EList<Edit>& edits,
 		BTDnaString& ref,
-		size_t trimBeg = 0,
-		size_t trimEnd = 0);
+		bool fw = true,
+		size_t trim5 = 0,
+		size_t trim3 = 0);
 
 	/**
 	 * Given a string and its edits with respect to some other string,
@@ -242,9 +243,17 @@ struct Edit {
 
 	bool repOk() const;
 
+	/**
+	 * Given a list of edits and a DNA string representing the query
+	 * sequence, check that the edits are consistent with respect to the
+	 * query.
+	 */
 	static bool repOk(
 		const EList<Edit>& edits,
-		const BTDnaString& s);
+		const BTDnaString& s,
+		bool fw = true,
+		size_t trim5 = 0,
+		size_t trim3 = 0);
 
 	uint8_t  chr;  // reference character involved (for subst and ins)
 	uint8_t  qchr; // read character involved (for subst and del)

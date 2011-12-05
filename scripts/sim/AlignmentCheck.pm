@@ -632,23 +632,23 @@ sub parseSamLines {
 		# Stick optional flags into a hash
 		for my $fl (@opt_flags_list) {
 			my @fs = split(/:/, $fl, -1);
-			scalar(@fs) > 2 || die "Bad optional flag: $fl";
+			scalar(@fs) > 2 || die "Bad optional flag: $fl\n$line\n";
 			$opt_flags{$fs[0]}{type} = $fs[1];
 			$opt_flags{$fs[0]}{value} = join(":", @fs[2..$#fs]);
 		}
-		defined($opt_flags{"MD"}) || die "No MD:Z flag";
-		$opt_flags{"MD"}{type} eq "Z" || die "Bad type for MD:Z flag";
+		defined($opt_flags{"MD"}) || die "No MD:Z flag:\n$line\n";
+		$opt_flags{"MD"}{type} eq "Z" || die "Bad type for MD:Z flag\n$line\n";
 		my $md = $opt_flags{"MD"}{value};
-		$pos   == int($pos)   || die "POS field (col 4) must be an int:\n$_";
-		$pnext == int($pnext) || die "PNEXT field (col 8) must be an int:\n$_";
-		$tlen  == int($tlen)  || die "TLEN field (col 9) must be an int:\n$_";
-		$mapq  == int($mapq)  || die "MAPQ field (col 5) must be an int:\n$_";
+		$pos   == int($pos)   || die "POS field (col 4) must be an int:\n$line\n";
+		$pnext == int($pnext) || die "PNEXT field (col 8) must be an int:\n$line\n";
+		$tlen  == int($tlen)  || die "TLEN field (col 9) must be an int:\n$line\n";
+		$mapq  == int($mapq)  || die "MAPQ field (col 5) must be an int:\n$line\n";
 		# TODO: deal with bisulfite strands??
 		my $fw = (($flag & 0x10) == 0);
 		my $orient = $fw ? "+" : "-";
 		my $reftype = $self->calcRefType($orient);
 		defined($self->refs->{$reftype}{$rname}) ||
-			die "No such refname as $rname for reftype $reftype:\n".
+			die "No such refname as $rname for reftype $reftype:\n$line\n".
 			Dumper($self->refs->{$reftype});
 		my $exoff = $pos-1; # expected 0-based reference offset
 		my ($alread, $alref, $htriml, $striml, $htrimr, $strimr) =

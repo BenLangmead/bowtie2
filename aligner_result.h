@@ -971,6 +971,14 @@ public:
 		return true;
 	}
 	
+	/**
+	 * Check that alignment score is internally consistent.
+	 */
+	bool repOk(const Read& rd) const {
+		assert(Edit::repOk(ned_, refcoord_.fw() ? rd.patFw : rd.patRc, refcoord_.fw(), softTrimmed5p(), softTrimmed3p()));
+		return repOk();
+	}
+
 #ifndef NDEBUG
 	/**
 	 * Assuming this AlnRes is an alignment for 'rd', check that the
