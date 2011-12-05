@@ -631,16 +631,16 @@ static void printUsage(ostream& out) {
 		<< endl
 	    << " Presets:                 Same as:" << endl
 		<< "  For --end-to-end:" << endl
-		<< "   --very-fast            -M 1 -N 0 -L 22 -i S,1,2.50" << endl
-		<< "   --fast                 -M 5 -N 0 -L 22 -i S,1,2.50" << endl
-		<< "   --sensitive            -M 5 -N 0 -L 22 -i S,1,1.25 (default)" << endl
-		<< "   --very-sensitive       -M 5 -N 0 -L 20 -i S,1,0.50" << endl
+		<< "   --very-fast            -D 5 -R 1 -N 0 -L 22 -i S,0,2.50" << endl
+		<< "   --fast                 -D 10 -R 2 -N 0 -L 22 -i S,0,2.50" << endl
+		<< "   --sensitive            -D 15 -R 2 -N 0 -L 22 -i S,1,1.25 (default)" << endl
+		<< "   --very-sensitive       -D 20 -R 3 -N 0 -L 20 -i S,1,0.50" << endl
 		<< endl
 		<< "  For --local:" << endl
-		<< "   --very-fast-local      -M 1 -N 0 -L 25 -i S,1,2.00" << endl
-		<< "   --fast-local           -M 2 -N 0 -L 22 -i S,1,1.75" << endl
-		<< "   --sensitive-local      -M 2 -N 0 -L 20 -i S,1,0.75 (default)" << endl
-		<< "   --very-sensitive-local -M 3 -N 0 -L 20 -i S,1,0.50" << endl
+		<< "   --very-fast-local      -D 5 -R 1 -N 0 -L 25 -i S,1,2.00" << endl
+		<< "   --fast-local           -D 10 -R 2 -N 0 -L 22 -i S,1,1.75" << endl
+		<< "   --sensitive-local      -D 15 -R 2 -N 0 -L 20 -i S,1,0.75 (default)" << endl
+		<< "   --very-sensitive-local -D 20 -R 3 -N 0 -L 20 -i S,1,0.50" << endl
 		<< endl
 	    << " Alignment:" << endl
 		<< "  -N <int>           max # mismatches in seed alignment; can be 0 or 1 (0)" << endl
@@ -664,7 +664,7 @@ static void printUsage(ostream& out) {
 		<< "  --rdg <int>,<int>  read gap open, extend penalties (5,3)" << endl
 		<< "  --rfg <int>,<int>  reference gap open, extend penalties (5,3)" << endl
 		<< "  --score-min <func> min acceptable alignment score w/r/t read length" << endl
-		<< "                     (L,0,0.66 for local, L,-0.6,-0.9 for end-to-end)" << endl
+		<< "                     (L,0,0.66 for local, L,-0.6,-0.6 for end-to-end)" << endl
 		<< endl
 	    << " Reporting:" << endl
 	    << "  -M <int>           look for up to <int>+1 alns; report best, with MAPQ (5 for" << endl
@@ -1189,7 +1189,24 @@ static void parseOption(int next_option, const char *arg) {
 			break;
 		}
 		case ARG_SCORE_MA:  polstr += ";MA=";    polstr += arg; break;
-		case ARG_SCORE_MMP: polstr += ";MMP=Q,"; polstr += arg; break;
+		case ARG_SCORE_MMP: {
+			EList<string> args;
+			tokenize(arg, ",", args);
+			if(args.size() > 2 || args.size() == 0) {
+				cerr << "Error: expected 1 or 2 comma-separated "
+					 << "arguments to --mmp option, got " << args.size() << endl;
+				throw 1;
+			}
+			if(args.size() >= 1) {
+				polstr += ";MMP=Q,";
+				polstr += args[0];
+				if(args.size() >= 2) {
+					polstr += ",";
+					polstr += args[1];
+				}
+			}
+			break;
+		}
 		case ARG_SCORE_NP:  polstr += ";NP=C";   polstr += arg; break;
 		case ARG_SCORE_RDG: polstr += ";RDG=";   polstr += arg; break;
 		case ARG_SCORE_RFG: polstr += ";RFG=";   polstr += arg; break;

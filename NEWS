@@ -3,7 +3,7 @@ Bowtie 2 NEWS
 
 Bowtie 2 is now available for download from the project website,
 http://bowtie-bio.sf.net/bowtie2.  2.0.0-beta1 is the first version released to
-the public and 2.0.0-beta3 is the latest version.  Bowtie 2 is licensed under
+the public and 2.0.0-beta4 is the latest version.  Bowtie 2 is licensed under
 the GPLv3 license.  See `COPYING' file for details.
 
 Reporting Issues
@@ -15,6 +15,24 @@ Please report any issues using the Sourceforge bug tracker:
 
 Version Release History
 =======================
+
+Version 2.0.0-beta4 - December 5, 2011
+   * Accuracy improvements.
+   * Speed improvements in some situations.
+   * Fixed a handful of crashing bugs.
+   * Fixed some documentation bugs.
+   * Fixed bug whereby --version worked incorrectly.
+   * Fixed formatting bug with MD:Z optional field that would sometimes fail to
+     follow a mismatch with a number.
+   * Added -D option for controlling the maximum number of seed extensions that
+     can fail in a row before we move on.  This option or something like it
+	 will eventually replace the argument to -M.
+   * Added -R option to control maximum number of times re-seeding is attempted
+     for a read with repetitive seeds.
+   * Changed default to --no-dovetail.  Specifying --dovetail turns it back on.
+   * Added second argument for --mp option so that user can set maximum and
+     minimum mismatch penalties at once.  Also tweaked the formula for
+     calculating the quality-aware mismatch penalty.
 
 Version 2.0.0-beta3 - November 1, 2011
    * Accuracy improvements.
