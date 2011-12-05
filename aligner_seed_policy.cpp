@@ -401,6 +401,12 @@ void SeedAlignmentPolicy::parseString(
 				} else {
 					penMmcMin = DEFAULT_MM_PENALTY_MIN;
 				}
+				if(penMmcMin > penMmcMax) {
+					cerr << "Error: Maximum mismatch penalty (" << penMmcMax
+					     << ") is less than minimum penalty (" << penMmcMin
+						 << endl;
+					throw 1;
+				}
 				// Set type to =quality
 				penMmcType = COST_MODEL_QUAL;
 			} else if(ctoks[0][0] == 'R') {

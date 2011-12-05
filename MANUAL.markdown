@@ -546,8 +546,6 @@ when attempting to align a read with repetitive seeds.  Increasing [`-R`] makes
 Bowtie 2 slower, but increases the likelihood that it will report the correct
 alignment for a read that aligns many places.
 
-i.e. re-align using a different set of seeds
-
 ### -k mode: search for one or more alignments, report each
 
 In [`-k`] mode, Bowtie 2 searches for up to N distinct, valid alignments for
@@ -648,9 +646,9 @@ Presets: setting many settings at once
 
 Bowtie 2 comes with some useful combinations of parameters packaged into shorter
 "preset" parameters.  For example, running Bowtie 2 with the `--very-sensitive`
-option is the same as running with options: `-M 3 -N 0 -L 20 -i S,1,0.50`.  The
-preset options that come with Bowtie 2 are designed to cover a wide area of the
-speed/sensitivity/accuracy tradeoff space, with the presets ending in `fast`
+option is the same as running with options: `-D 20 -R 3 -N 0 -L 20 -i S,1,0.50`.
+ The preset options that come with Bowtie 2 are designed to cover a wide area of
+the speed/sensitivity/accuracy tradeoff space, with the presets ending in `fast`
 generally being faster but less sensitive and less accurate, and the presets
 ending in `sensitive` generally being slower but more sensitive and more
 accurate.  See the [documentation for the preset options] for details.
@@ -1036,7 +1034,7 @@ Default: off.
 
 </td><td>
 
-Same as: `-M 1 -N 0 -L 22 -i S,1,2.50`
+Same as: `-D 5 -R 1 -N 0 -L 22 -i S,0,2.50`
 
 </td></tr>
 <tr><td id="bowtie2-options-fast">
@@ -1047,7 +1045,7 @@ Same as: `-M 1 -N 0 -L 22 -i S,1,2.50`
 
 </td><td>
 
-Same as: `-M 3 -N 0 -L 22 -i S,1,2.50`
+Same as: `-D 10 -R 2 -N 0 -L 22 -i S,0,2.50`
 
 </td></tr>
 <tr><td id="bowtie2-options-sensitive">
@@ -1058,7 +1056,7 @@ Same as: `-M 3 -N 0 -L 22 -i S,1,2.50`
 
 </td><td>
 
-Same as: `-M 3 -N 0 -L 22 -i S,1,1.25` (default in [`--end-to-end`] mode)
+Same as: `-D 15 -R 2 -L 22 -i S,1,1.15` (default in [`--end-to-end`] mode)
 
 </td></tr>
 <tr><td id="bowtie2-options-very-sensitive">
@@ -1069,7 +1067,7 @@ Same as: `-M 3 -N 0 -L 22 -i S,1,1.25` (default in [`--end-to-end`] mode)
 
 </td><td>
 
-Same as: `-M 3 -N 0 -L 20 -i S,1,0.50`
+Same as: `-D 20 -R 3 -N 0 -L 20 -i S,1,0.50`
 
 </td></tr>
 </table>
@@ -1085,7 +1083,7 @@ Same as: `-M 3 -N 0 -L 20 -i S,1,0.50`
 
 </td><td>
 
-Same as: `-M 1 -N 0 -L 25 -i S,1,2.00`
+Same as: `-D 5 -R 1 -N 0 -L 25 -i S,1,2.00`
 
 </td></tr>
 <tr><td id="bowtie2-options-fast-local">
@@ -1096,7 +1094,7 @@ Same as: `-M 1 -N 0 -L 25 -i S,1,2.00`
 
 </td><td>
 
-Same as: `-M 2 -N 0 -L 22 -i S,1,1.75`
+Same as: `-D 10 -R 2 -N 0 -L 22 -i S,1,1.75`
 
 </td></tr>
 <tr><td id="bowtie2-options-sensitive-local">
@@ -1107,7 +1105,7 @@ Same as: `-M 2 -N 0 -L 22 -i S,1,1.75`
 
 </td><td>
 
-Same as: `-M 2 -N 0 -L 20 -i S,1,0.75` (default in [`--local`] mode)
+Same as: `-D 15 -R 2 -N 0 -L 20 -i S,1,0.75` (default in [`--local`] mode)
 
 </td></tr>
 <tr><td id="bowtie2-options-very-sensitive-local">
@@ -1118,7 +1116,7 @@ Same as: `-M 2 -N 0 -L 20 -i S,1,0.75` (default in [`--local`] mode)
 
 </td><td>
 
-Same as: `-M 3 -N 0 -L 20 -i S,1,0.50`
+Same as: `-D 20 -R 3 -N 0 -L 20 -i S,1,0.50`
 
 </td></tr>
 </table>
@@ -1323,18 +1321,17 @@ and the characters match.  Not used in [`--end-to-end`] mode.  Default: 2.
 
 [`--mp`]: #bowtie2-options-mp
 
-    --mp <int>
+    --mp MX,MN
 
 </td><td>
 
-Sets the maximum mismatch penalty.  A number less than or equal to `<int>` is
+Sets the maximum (`MX`) and minimum (`MN`) mismatch penalties, both integers.  A
+number less than or equal to `MX` and greater than or equal to `MN` is
 subtracted from the alignment score for each position where a read character
-aligns to a reference character and the characters do not match.  Unless
-[`--ignore-quals`] is specified, the exact number subtracted depends on the
-quality value of the mismatched position; specifically, the number subtracted
-equals `max(floor(30/min(30, Q) * N), 1)` where Q is the Phred quality value and
-N is the `<int>` parameter to `--mp`.  When [`--ignore-quals`] is specified, all
-mismatches incur the maximum penalty, regardless of quality value.  Default: 6.
+aligns to a reference character, the characters do not match, and neither is an
+`N`.  If [`--ignore-quals`] is specified, the number subtracted quals `MX`.
+Otherwise, the number subtracted is `MN + floor( (MX-MN)(MIN(Q, 40.0)/40.0) )`
+where Q is the Phred quality value.  Default: `MX` = 6, `MN` = 2.
 
 </td></tr>
 <tr><td id="bowtie2-options-np">
@@ -1438,6 +1435,9 @@ that the `<int>` alignments reported are the best possible in terms of alignment
 score.  `-k` is mutually exclusive with [`-M`] and [`-a`], and [`-M`] is the
 default.
 
+Note: Bowtie 2 is not particularly designed with large `-k` in mind, and when
+aligning reads to long, repetitive genomes large `-k` can be very, very slow.
+
 </td></tr>
 <tr><td id="bowtie2-options-a">
 
@@ -1450,7 +1450,46 @@ default.
 Like [`-k`] but with no upper limit on number of alignments to search for.  `-a`
 is mutually exclusive with [`-M`] and [`-k`], and [`-M`] is the default.
 
+Note: Bowtie 2 is not particularly designed with `-a` mode in mind, and when
+aligning reads to long, repetitive genomes this mode can be very, very slow.
+
 [reporting]: #reporting
+
+</td></tr>
+</table>
+
+#### Effort options
+
+<table>
+
+<tr><td id="bowtie2-options-D">
+
+[`-D`]: #bowtie2-options-D
+
+    -D
+
+</td><td>
+
+The maximum number of consecutive seed extensions that can "fail" before Bowtie
+2 moves on using the alignments found so far.  A seed extension "fails" if it
+does not yield a new best or a new second-best alignment.  This limit is
+automatically adjusted up when -k or -a are specified.  Default: 15.
+
+</td></tr>
+<tr><td id="bowtie2-options-R">
+
+[`-R`]: #bowtie2-options-R
+
+    -R
+
+</td><td>
+
+The maximum number of times Bowtie 2 will "re-seed" reads with repetitive seeds.
+When "re-seeding," Bowtie 2 simply chooses a new set of reads (same length, same
+number of mismatches allowed) at different offsets and searches for more
+alignments.  A read is considered to have repetitive seeds if the total number
+of seed hits divided by the number of seeds that aligned at least once is
+greater than 300.  Default: 2.
 
 </td></tr>
 </table>
@@ -1544,18 +1583,18 @@ align uniquely, but that does not satisfy the paired-end constraints
 ([`--fr`/`--rf`/`--ff`], [`-I`], [`-X`]).  This option disables that behavior.
 
 </td></tr>
-<tr><td id="bowtie2-options-no-dovetail">
+<tr><td id="bowtie2-options-dovetail">
 
-[`--no-dovetail`]: #bowtie2-options-no-dovetail
+[`--dovetail`]: #bowtie2-options-dovetail
 
-    --no-dovetail
+    --dovetail
 
 </td><td>
 
 If the mates "dovetail", that is if one mate alignment extends past the
 beginning of the other such that the wrong mate begins upstream, consider that
-to be non-concordant.  See also: [Mates can overlap, contain or dovetail each
-other].  Default: mates can dovetail in a concordant alignment.
+to be concordant.  See also: [Mates can overlap, contain or dovetail each
+other].  Default: mates cannot dovetail in a concordant alignment.
 
 [Mates can overlap, contain or dovetail each other]: #mates-can-overlap-contain-or-dovetail-each-other
 
