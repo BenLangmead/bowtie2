@@ -44,7 +44,7 @@ public:
 	/**
 	 * Tally a memory allocation of size amt bytes.
 	 */
-	void add(int cat, size_t amt) {
+	void add(int cat, uint64_t amt) {
 		ThreadSafe ts(&lock_);
 		tots_[cat] += amt;
 		tot_ += amt;
@@ -59,7 +59,7 @@ public:
 	/**
 	 * Tally a memory free of size amt bytes.
 	 */
-	void del(int cat, size_t amt) {
+	void del(int cat, uint64_t amt) {
 		ThreadSafe ts(&lock_);
 		assert_geq(tots_[cat], amt);
 		assert_geq(tot_, amt);
@@ -70,30 +70,30 @@ public:
 	/**
 	 * Return the total amount of memory allocated.
 	 */
-	size_t total() { return tot_; }
+	uint64_t total() { return tot_; }
 
 	/**
 	 * Return the total amount of memory allocated in a particular
 	 * category.
 	 */
-	size_t total(int cat) { return tots_[cat]; }
+	uint64_t total(int cat) { return tots_[cat]; }
 
 	/**
 	 * Return the peak amount of memory allocated.
 	 */
-	size_t peak() { return peak_; }
+	uint64_t peak() { return peak_; }
 
 	/**
 	 * Return the peak amount of memory allocated in a particular
 	 * category.
 	 */
-	size_t peak(int cat) { return peaks_[cat]; }
+	uint64_t peak(int cat) { return peaks_[cat]; }
 	
 	/**
 	 * Check that memory tallies are internally consistent;
 	 */
 	bool repOk() const {
-		size_t tot = 0;
+		uint64_t tot = 0;
 		for(int i = 0; i < 256; i++) {
 			assert_leq(tots_[i], peaks_[i]);
 			tot += tots_[i];
@@ -105,10 +105,10 @@ public:
 protected:
 
 	MUTEX_T lock_;
-	size_t tots_[256];
-	size_t tot_;
-	size_t peaks_[256];
-	size_t peak_;
+	uint64_t tots_[256];
+	uint64_t tot_;
+	uint64_t peaks_[256];
+	uint64_t peak_;
 };
 
 extern MemoryTally gMemTally;

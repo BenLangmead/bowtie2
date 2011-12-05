@@ -10,13 +10,13 @@ reads to long reference sequences.  It is particularly good at aligning reads of
 about 50 up to 100s or 1,000s of characters to relatively long (e.g. mammalian)
 genomes.  Bowtie 2 indexes the genome with an [FM Index] (based on the
 [Burrows-Wheeler Transform] or [BWT]) to keep its memory footprint small: for
-the human genome, its memory footprint is typically around 3.2 GB.  Bowtie 2
-supports gapped, local, and paired-end alignment modes.  Multiple processors can
-be used simultaneously to achieve greater alignment speed.  Bowtie 2 outputs
-alignments in [SAM] format, enabling interoperation with a large number of other
-tools (e.g. [SAMtools], [GATK]) that use SAM.  Bowtie 2 is distributed under the
-[GPLv3 license], and it runs on the command line under Windows, Mac OS X and
-Linux.
+the human genome, its memory footprint is typically around 3.2 gigabytes of RAM.
+ Bowtie 2 supports gapped, local, and paired-end alignment modes.  Multiple
+processors can be used simultaneously to achieve greater alignment speed. 
+Bowtie 2 outputs alignments in [SAM] format, enabling interoperation with a
+large number of other tools (e.g. [SAMtools], [GATK]) that use SAM.  Bowtie 2 is
+distributed under the [GPLv3 license], and it runs on the command line under
+Windows, Mac OS X and Linux.
 
 [Bowtie 2] is often the first step in pipelines for comparative genomics,
 including for variation calling, ChIP-seq, RNA-seq, BS-seq.  [Bowtie 2] and
@@ -75,7 +75,7 @@ entirely.
 limit of around 1000 bp.
 
 5. Bowtie 2 allows alignments to [overlap ambiguous characters] (e.g. `N`s) in
-the reference.  Bowtie 1 did not.
+the reference.  Bowtie 1 does not.
 
 6. Bowtie 2 does away with Bowtie 1's notion of alignment "stratum", and its
 distinction between "Maq-like" and "end-to-end" modes.  In Bowtie 2 all
@@ -86,7 +86,10 @@ alignments lie along a continuous spectrum of alignment scores where the
 not align in a paired fashion, Bowtie 2 attempts to find unpaired alignments for
 each mate.
 
-8. Bowtie 2 does not align colorspace reads.
+8. Bowtie 2 reports a spectrum of mapping qualities, in contrast fo Bowtie 1
+which reports either 0 or high.
+
+9. Bowtie 2 does not align colorspace reads.
 
 Bowtie 2 is not a "drop-in" replacement for Bowtie 1.  Bowtie 2's command-line
 arguments and genome index format are both different from Bowtie 1's.
@@ -459,13 +462,16 @@ mates seemingly extending "past" each other as in this example:
     Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
 
 In some situations, it's desirable for the aligner to consider all these cases
-as "concordant" as long as other paired-end constraints are not violated; this
-is Bowtie 2's default behavior. In other situations, the aligner should consider
-one or more of these cases to be non-concordant.  Setting `--no-overlap`
-causes Bowtie 2 to consider overlapping mates as non-concordant.  Setting
-`--no-contain` causes Bowtie 2 to consider cases where one mate alignment
-contains the other as non-concordant. Setting `--no-dovetail` causes Bowtie 2
-to consider cases where the mate alignments dovetail as non-concordant.
+as "concordant" as long as other paired-end constraints are not violated. Bowtie
+2's default behavior is to consider overlapping and containing as being
+consistent with concordant alignment.  By default, dovetailing is considered
+inconsistent with concordant alignment.
+
+These defaults can be overridden.  Setting `--no-overlap` causes Bowtie 2 to
+consider overlapping mates as non-concordant.  Setting `--no-contain` causes
+Bowtie 2 to consider cases where one mate alignment contains the other as
+non-concordant. Setting `--dovetail` causes Bowtie 2 to consider cases where
+the mate alignments dovetail as concordant.
 
 Reporting
 ---------
@@ -499,7 +505,7 @@ Two alignments for the same pair are distinct if either the mate 1s in the two
 paired-end alignments are distinct or the mate 2s in the two alignments are
 distinct or both.
 
-### -M mode: search for multiple alignments, report the best
+### -M mode: search for multiple alignments, report the best one
 
 In `-M` mode, Bowtie 2 searches for at most N distinct, valid alignments for
 each read, where N equals the integer specified with the `-M` parameter plus
@@ -515,6 +521,17 @@ will find and report the correct alignment for a read that aligns many places.
 Bowtie 2 does not "find" alignments in any specific order, so for reads that
 have more than N distinct, valid alignments, Bowtie 2 does not gaurantee that
 the alignment reported is the best possible in terms of alignment score.
+
+See also: `-D`, which puts an upper limit on the number of dynamic programming
+problems (i.e. seed extensions) that can "fail" in a row before Bowtie 2 stops
+searching.  Increasing `-D` makes Bowtie 2 slower, but increases the
+likelihood that it will report the correct alignment for a read that aligns many
+places.
+
+See also: `-R`, which sets the maximum number of times Bowtie 2 will "re-seed"
+when attempting to align a read with repetitive seeds.  Increasing `-R` makes
+Bowtie 2 slower, but increases the likelihood that it will report the correct
+alignment for a read that aligns many places.
 
 ### -k mode: search for one or more alignments, report each
 
@@ -566,13 +583,16 @@ is possible for a read to have a valid overall alignment but to have no valid
 seed alignments because each potential seed alignment is interruped by too many
 mismatches or gaps.
 
-The tradeoff between speed and sensitivity can be adjusted by setting the seed
-length (`-L`), the interval between extracted seeds (`-i`), and the number
-of mismatches permitted per seed (`-N`).  For more sensitive alignment, set
-these parameters to (a) make the seeds closer together, (b) make the seeds
+The tradeoff between speed and sensitivity/accuracy can be adjusted by setting
+the seed length (`-L`), the interval between extracted seeds (`-i`), and the
+number of mismatches permitted per seed (`-N`).  For more sensitive alignment,
+set these parameters to (a) make the seeds closer together, (b) make the seeds
 shorter, and/or (c) allow more mismatches.  You can adjust these options
 one-by-one, though Bowtie 2 comes with some useful combinations of options
 pre-packaged as "[preset options]."
+
+`-D` and `-R` are also options that adjust the tradeoff between speed and
+sensitivity/accuracy.
 
 ### FM Index memory footprint
 
@@ -580,21 +600,6 @@ Bowtie 2 uses the [FM Index] to find ungapped alignments for seeds.  This step
 accounts for the bulk of Bowtie 2's memory footprint, as the [FM Index] itself
 is typically the largest data structure used.  For instance, the memory
 footprint of the [FM Index] for the human genome is about 3.2 gigabytes of RAM.
-
-### Excessive backtracking and the `-N 2` heuristic
-
-When `-N 2` is specified, Bowtie 2 allows up to 2 mismatches in seed alignments.
-In theory, this can lead to "excessive backtracking," where the alignment
-procedure spends an inordinate amount of time trying various combinations of
-mismatches.  This is disucssed further in the [Bowtie 1 paper].  To avoid some
-types of excessive backtracking, Bowtie 2 uses the [bi-directional BWT approach]
-first proposed for use in the 2BWT aligner.  But as extra insurane against
-excessive backtracking, Bowtie 2 also employs a heuristic whereby some
-2-mismatch alignments won't be found.  Specifically, imagine the seed evenly
-divided into four sections: A, B, C and D.  Bowtie 2 could miss seed alignments
-with mismatches in sections A and C, or in sections B and D.  Since the
-seed-alignment step is a heuristic to begin with, this is not likely a major
-concern for users.
 
 [Bowtie 1 does]: http://genomebiology.com/2009/10/3/R25
 [Bowtie 1 paper]: http://genomebiology.com/2009/10/3/R25
@@ -628,9 +633,9 @@ Presets: setting many settings at once
 
 Bowtie 2 comes with some useful combinations of parameters packaged into shorter
 "preset" parameters.  For example, running Bowtie 2 with the `--very-sensitive`
-option is the same as running with options: `-M 3 -N 0 -L 20 -i S,1,0.50`.  The
-preset options that come with Bowtie 2 are designed to cover a wide area of the
-speed/sensitivity/accuracy tradeoff space, with the presets ending in `fast`
+option is the same as running with options: `-D 20 -R 3 -N 0 -L 20 -i S,1,0.50`.
+ The preset options that come with Bowtie 2 are designed to cover a wide area of
+the speed/sensitivity/accuracy tradeoff space, with the presets ending in `fast`
 generally being faster but less sensitive and less accurate, and the presets
 ending in `sensitive` generally being slower but more sensitive and more
 accurate.  See the [documentation for the preset options] for details.
@@ -879,48 +884,45 @@ Default: off.
 
     --very-fast
 
-Same as: `-M 1 -N 0 -L 22 -i S,1,2.50`
+Same as: `-D 5 -R 1 -N 0 -L 22 -i S,0,2.50`
 
     --fast
 
-Same as: `-M 3 -N 0 -L 22 -i S,1,2.50`
+Same as: `-D 10 -R 2 -N 0 -L 22 -i S,0,2.50`
 
     --sensitive
 
-Same as: `-M 3 -N 0 -L 22 -i S,1,1.25` (default in `--end-to-end` mode)
+Same as: `-D 15 -R 2 -L 22 -i S,1,1.15` (default in `--end-to-end` mode)
 
     --very-sensitive
 
-Same as: `-M 3 -N 0 -L 20 -i S,1,0.50`
+Same as: `-D 20 -R 3 -N 0 -L 20 -i S,1,0.50`
 
 #### Preset options in `--local` mode
 
     --very-fast-local
 
-Same as: `-M 1 -N 0 -L 25 -i S,1,2.00`
+Same as: `-D 5 -R 1 -N 0 -L 25 -i S,1,2.00`
 
     --fast-local
 
-Same as: `-M 2 -N 0 -L 22 -i S,1,1.75`
+Same as: `-D 10 -R 2 -N 0 -L 22 -i S,1,1.75`
 
     --sensitive-local
 
-Same as: `-M 2 -N 0 -L 20 -i S,1,0.75` (default in `--local` mode)
+Same as: `-D 15 -R 2 -N 0 -L 20 -i S,1,0.75` (default in `--local` mode)
 
     --very-sensitive-local
 
-Same as: `-M 3 -N 0 -L 20 -i S,1,0.50`
+Same as: `-D 20 -R 3 -N 0 -L 20 -i S,1,0.50`
 
 #### Alignment options
 
     -N <int>
 
 Sets the number of mismatches to allowed in a seed alignment during [multiseed
-alignment].  Can be set to 0, 1 or 2.  Note that [2-mismatch mode is heuristic].
-Setting this higher makes alignment slower (often much slower) but increases
-sensitivity.  Setting `-N` to 1 or 2 [yields a larger memory footprint] than
-setting `-N` to 0. Default: the `--sensitive` preset is used by default, which
-sets `-N` to 0 both in `--end-to-end` mode and in `--local` mode.
+alignment].  Can be set to 0 or 1. Setting this higher makes alignment slower
+(often much slower) but increases sensitivity.  Default: 0.
 
     -L <int>
 
@@ -1017,16 +1019,15 @@ Sets the match bonus.  In `--local` mode `<int>` is added to the alignment
 score for each position where a read character aligns to a reference character
 and the characters match.  Not used in `--end-to-end` mode.  Default: 2.
 
-    --mp <int>
+    --mp MX,MN
 
-Sets the maximum mismatch penalty.  A number less than or equal to `<int>` is
+Sets the maximum (`MX`) and minimum (`MN`) mismatch penalties, both integers.  A
+number less than or equal to `MX` and greater than or equal to `MN` is
 subtracted from the alignment score for each position where a read character
-aligns to a reference character and the characters do not match.  Unless
-`--ignore-quals` is specified, the exact number subtracted depends on the
-quality value of the mismatched position; specifically, the number subtracted
-equals `max(floor(30/min(30, Q) * N), 1)` where Q is the Phred quality value and
-N is the `<int>` parameter to `--mp`.  When `--ignore-quals` is specified, all
-mismatches incur the maximum penalty, regardless of quality value.  Default: 6.
+aligns to a reference character, the characters do not match, and neither is an
+`N`.  If `--ignore-quals` is specified, the number subtracted quals `MX`.
+Otherwise, the number subtracted is `MN + floor( (MX-MN)(MIN(Q, 40.0)/40.0) )`
+where Q is the Phred quality value.  Default: `MX` = 6, `MN` = 2.
 
     --np <int>
 
@@ -1084,10 +1085,34 @@ that the `<int>` alignments reported are the best possible in terms of alignment
 score.  `-k` is mutually exclusive with `-M` and `-a`, and `-M` is the
 default.
 
+Note: Bowtie 2 is not particularly designed with large `-k` in mind, and when
+aligning reads to long, repetitive genomes large `-k` can be very, very slow.
+
     -a
 
 Like `-k` but with no upper limit on number of alignments to search for.  `-a`
 is mutually exclusive with `-M` and `-k`, and `-M` is the default.
+
+Note: Bowtie 2 is not particularly designed with `-a` mode in mind, and when
+aligning reads to long, repetitive genomes this mode can be very, very slow.
+
+#### Effort options
+
+    -D
+
+The maximum number of consecutive seed extensions that can "fail" before Bowtie
+2 moves on using the alignments found so far.  A seed extension "fails" if it
+does not yield a new best or a new second-best alignment.  This limit is
+automatically adjusted up when -k or -a are specified.  Default: 15.
+
+    -R
+
+The maximum number of times Bowtie 2 will "re-seed" reads with repetitive seeds.
+When "re-seeding," Bowtie 2 simply chooses a new set of reads (same length, same
+number of mismatches allowed) at different offsets and searches for more
+alignments.  A read is considered to have repetitive seeds if the total number
+of seed hits divided by the number of seeds that aligned at least once is
+greater than 300.  Default: 2.
 
 #### Paired-end options
 
@@ -1136,12 +1161,12 @@ concordant alignments.  A discordant alignment is an alignment where both mates
 align uniquely, but that does not satisfy the paired-end constraints
 (`--fr`/`--rf`/`--ff`, `-I`, `-X`).  This option disables that behavior.
 
-    --no-dovetail
+    --dovetail
 
 If the mates "dovetail", that is if one mate alignment extends past the
 beginning of the other such that the wrong mate begins upstream, consider that
-to be non-concordant.  See also: [Mates can overlap, contain or dovetail each
-other].  Default: mates can dovetail in a concordant alignment.
+to be concordant.  See also: [Mates can overlap, contain or dovetail each
+other].  Default: mates cannot dovetail in a concordant alignment.
 
     --no-contain
 

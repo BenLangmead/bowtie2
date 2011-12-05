@@ -1,3 +1,17 @@
+<h2>Version 2.0.0-beta4 - Coming soon</h2>
+<ul>
+  <li>Accuracy improvements.</li>
+  <li>Speed improvements in some situations.</li>
+  <li>Fixed a handful of crashing bugs.</li>
+  <li>Fixed some documentation bugs.</li>
+  <li>Fixed bug whereby <tt>--version</tt> worked incorrectly.</li>
+  <li>Fixed formatting bug with MD:Z optional field that would sometimes fail to follow a mismatch with a number.</li>
+  <li>Added <tt>-D</tt> option for controlling the maximum number of seed extensions that can fail in a row before we move on.  This option or something like it will eventually replace the argument to <tt>-M</tt>.</li>
+  <li>Added <tt>-R</tt> option to control maximum number of times re-seeding is attempted for a read with repetitive seeds.</li>
+  <li>Changed default to <tt>--no-dovetail</tt>.  Specifying <tt>--dovetail</tt> turns it back on.</li>
+  <li>Added second argument for <tt>--mp</tt> option so that user can set maximum and minimum mismatch penalties at once.  Also tweaked the formula for calculating the quality-aware mismatch penalty.</li>
+</ul>
+
 <h2>Version 2.0.0-beta3 - November 1, 2011</h2>
 <ul>
   <li>Accuracy improvements.</li>

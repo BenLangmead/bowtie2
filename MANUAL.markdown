@@ -596,13 +596,16 @@ is possible for a read to have a valid overall alignment but to have no valid
 seed alignments because each potential seed alignment is interruped by too many
 mismatches or gaps.
 
-The tradeoff between speed and sensitivity can be adjusted by setting the seed
-length ([`-L`]), the interval between extracted seeds ([`-i`]), and the number
-of mismatches permitted per seed ([`-N`]).  For more sensitive alignment, set
-these parameters to (a) make the seeds closer together, (b) make the seeds
+The tradeoff between speed and sensitivity/accuracy can be adjusted by setting
+the seed length ([`-L`]), the interval between extracted seeds ([`-i`]), and the
+number of mismatches permitted per seed ([`-N`]).  For more sensitive alignment,
+set these parameters to (a) make the seeds closer together, (b) make the seeds
 shorter, and/or (c) allow more mismatches.  You can adjust these options
 one-by-one, though Bowtie 2 comes with some useful combinations of options
 pre-packaged as "[preset options]."
+
+[`-D`] and [`-R`] are also options that adjust the tradeoff between speed and
+sensitivity/accuracy.
 
 [preset options]: #presets-setting-many-settings-at-once
 
