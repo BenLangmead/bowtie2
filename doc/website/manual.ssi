@@ -2361,24 +2361,28 @@ Seed 4 rc:                   TTATGCATGA
 
 <pre
 ><code
-  >-D
+  >-D &lt;int&gt;
 </code
   ></pre
 ></td><td>
 <p
->The maximum number of consecutive seed extensions that can &quot;fail&quot; before Bowtie 2 moves on using the alignments found so far. A seed extension &quot;fails&quot; if it does not yield a new best or a new second-best alignment. This limit is automatically adjusted up when -k or -a are specified. Default: 15.</p
+>Up to <code
+  >&lt;int&gt;</code
+  > consecutive seed extension attempts can &quot;fail&quot; before Bowtie 2 moves on, using the alignments found so far. A seed extension &quot;fails&quot; if it does not yield a new best or a new second-best alignment. This limit is automatically adjusted up when -k or -a are specified. Default: 15.</p
 ></td></tr>
 <tr><td id="bowtie2-options-R">
 
 
 <pre
 ><code
-  >-R
+  >-R &lt;int&gt;
 </code
   ></pre
 ></td><td>
 <p
->The maximum number of times Bowtie 2 will &quot;re-seed&quot; reads with repetitive seeds. When &quot;re-seeding,&quot; Bowtie 2 simply chooses a new set of reads (same length, same number of mismatches allowed) at different offsets and searches for more alignments. A read is considered to have repetitive seeds if the total number of seed hits divided by the number of seeds that aligned at least once is greater than 300. Default: 2.</p
+><code
+  >&lt;int&gt;</code
+  > is the maximum number of times Bowtie 2 will &quot;re-seed&quot; reads with repetitive seeds. When &quot;re-seeding,&quot; Bowtie 2 simply chooses a new set of reads (same length, same number of mismatches allowed) at different offsets and searches for more alignments. A read is considered to have repetitive seeds if the total number of seed hits divided by the number of seeds that aligned at least once is greater than 300. Default: 2.</p
 ></td></tr>
 </table>
 <h4 id="paired-end-options"
