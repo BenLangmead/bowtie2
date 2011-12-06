@@ -160,7 +160,7 @@ public:
 		size_t namelen = name.length();
 		if( namelen >= 2 &&
 			name[namelen-2] == '/' &&
-		   (name[namelen-1] == '1' || name[namelen-1] == '2'))
+		   (name[namelen-1] == '1' || name[namelen-1] == '2' || name[namelen-1] == '3'))
 		{
 			namelen -= 2;
 		}

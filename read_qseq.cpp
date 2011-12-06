@@ -189,7 +189,7 @@ int QseqPatternSource::parseQuals(
 	}
 	// TODO: How to detect too many qualities??
 	r.qual.resize(dstLen);
-	while(c != upto && (upto2 == -1 || c != upto2)) {
+	while(c != -1 && c != upto && (upto2 == -1 || c != upto2)) {
 		c = fb_.get();
 		c2 = c;
 	}
@@ -269,6 +269,10 @@ bool QseqPatternSource::read(
 		if(parseQuals(r, charsRead, dstLen, mytrim5, ct, '\t', -1) < 0) BAIL_UNPAIRED();
 		r.trimmed3 = gTrim3;
 		r.trimmed5 = mytrim5;
+		if(ct != '\t') {
+			cerr << "Error: QSEQ with name " << r.name << " did not have tab after qualities" << endl;
+			throw 1;
+		}
 		assert_eq(ct, '\t');
 	}
 	// 11. Filter flag

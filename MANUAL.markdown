@@ -1469,12 +1469,12 @@ aligning reads to long, repetitive genomes this mode can be very, very slow.
 
 [`-D`]: #bowtie2-options-D
 
-    -D
+    -D <int>
 
 </td><td>
 
-The maximum number of consecutive seed extensions that can "fail" before Bowtie
-2 moves on using the alignments found so far.  A seed extension "fails" if it
+Up to `<int>` consecutive seed extension attempts can "fail" before Bowtie 2
+moves on, using the alignments found so far.  A seed extension "fails" if it
 does not yield a new best or a new second-best alignment.  This limit is
 automatically adjusted up when -k or -a are specified.  Default: 15.
 
@@ -1483,16 +1483,16 @@ automatically adjusted up when -k or -a are specified.  Default: 15.
 
 [`-R`]: #bowtie2-options-R
 
-    -R
+    -R <int>
 
 </td><td>
 
-The maximum number of times Bowtie 2 will "re-seed" reads with repetitive seeds.
-When "re-seeding," Bowtie 2 simply chooses a new set of reads (same length, same
-number of mismatches allowed) at different offsets and searches for more
-alignments.  A read is considered to have repetitive seeds if the total number
-of seed hits divided by the number of seeds that aligned at least once is
-greater than 300.  Default: 2.
+`<int>` is the maximum number of times Bowtie 2 will "re-seed" reads with
+repetitive seeds. When "re-seeding," Bowtie 2 simply chooses a new set of reads
+(same length, same number of mismatches allowed) at different offsets and
+searches for more alignments.  A read is considered to have repetitive seeds if
+the total number of seed hits divided by the number of seeds that aligned at
+least once is greater than 300.  Default: 2.
 
 </td></tr>
 </table>

@@ -49,3 +49,6 @@ might want to try both Bowtie 1 and Bowtie 2 and see which gives better
 results in terms of speed and sensitivity.  In our experiments, Bowtie 2 is
 generally superior to Bowtie 1 for reads longer than 50 bp.  For reads shorter
 than 50 bp, Bowtie 1 may or may not be preferable.
+
+<h2>Why do so few of my paired-end reads align concordantly?</h2>
+Check that the 
