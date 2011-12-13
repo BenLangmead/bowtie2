@@ -3765,11 +3765,11 @@ static void driver(
 		ebwt.evictFromMemory();
 	}
 	OutputQueue oq(
-		*fout,        // out file buffer
-		reorder,      // whether to reorder when there's >1 thread
-		nthreads,     // # threads
-		nthreads > 1, // whether to be thread-safe
-		skipReads);   // first read will have this rdid
+		*fout,                   // out file buffer
+		reorder && nthreads > 1, // whether to reorder when there's >1 thread
+		nthreads,                // # threads
+		nthreads > 1,            // whether to be thread-safe
+		skipReads);              // first read will have this rdid
 	{
 		Timer _t(cerr, "Time searching: ", timing);
 		// Set up penalities
