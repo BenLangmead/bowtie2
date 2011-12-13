@@ -896,6 +896,7 @@ sub align {
 	my $als       = "$conf->{tempdir}/Sim.pm.$conf->{randstr}.als";
 	my $als_debug = "$conf->{tempdir}/Sim.pm.$conf->{randstr}.debug.als";
 	my $als_px    = "$conf->{tempdir}/Sim.pm.$conf->{randstr}.px.als";
+	my $als_px_reord = "$conf->{tempdir}/Sim.pm.$conf->{randstr}.px.reord.als";
 	my $cmd = "$conf->{bowtie2_debug} $argstr $idx $inputfn";
 	print "$cmd\n";
 	open(ALSDEB, ">$als_debug") || mydie("Could not open '$als_debug' for writing");
@@ -932,8 +933,8 @@ sub align {
 			mydie("diff found a difference between bowtie2 and bowtie2-align-debug ".
 			      "output for same input (above)\n");
 	}
-	# With some probability, also run debug Bowtie in -p X mode with
-	# X > 1 and check that results are identical
+	# With some probability, also run debug Bowtie in -p X mode with  X > 1 and
+	# without the --reorder argument and check that results are identical
 	if(int(rand(3)) == 0) {
 		print STDERR "ALSO checking that bowtie2 and bowtie2 -p X w/ X > 1 match up\n";
 		my $p = int(rand(3))+2;
@@ -962,6 +963,23 @@ sub align {
 		$? == 0 ||
 			mydie("diff found a difference between bowtie2-align-debug and bowtie2 ".
 			      "-p output for same input (above)\n");
+	}
+
+	# With some probability, also run debug Bowtie in -p X mode with X > 1 and
+	# with the --reorder argument and check that results are identical
+	if(int(rand(3)) == 0) {
+		print STDERR "ALSO checking that bowtie2 and bowtie2 -p X --reorder w/ X > 1 match up\n";
+		my $p = int(rand(3))+2;
+		$cmd = "$conf->{bowtie2} $argstr -p $p $idx --reorder $inputfn | grep -v '^\@PG' > $als_px_reord";
+		print "$cmd\n";
+		system($cmd);
+		$? == 0 || mydie("Command '$cmd' failed with exitlevel $?");
+		$cmd = "diff -uw $als_debug $als_px_reord";
+		print "$cmd\n";
+		system($cmd);
+		$? == 0 ||
+			mydie("diff found a difference between bowtie2-align-debug and bowtie2 ".
+			      "-p --reorder output for same input (above)\n");
 	}
 }
 

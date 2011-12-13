@@ -201,7 +201,8 @@ int QseqPatternSource::parseQuals(
  */
 bool QseqPatternSource::read(
 	Read& r,
-	TReadId& patid,
+	TReadId& rdid,
+	TReadId& endid,
 	bool& success,
 	bool& done)
 {
@@ -210,7 +211,7 @@ bool QseqPatternSource::read(
 	success = true;
 	done = false;
 	readCnt_++;
-	patid = readCnt_-1;
+	rdid = endid = readCnt_-1;
 	peekOverNewline(fb_);
 	fb_.resetLastN();
 	// 1. Machine name

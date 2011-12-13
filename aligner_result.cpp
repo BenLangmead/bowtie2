@@ -519,7 +519,7 @@ void AlnRes::printCigar(
 	bool distinguishMm,   // use =/X instead of just M
 	EList<char>& op,      // stick CIGAR operations here
 	EList<size_t>& run,   // stick CIGAR run lengths here
-	OutFileBuf *o,        // write to this buf if o != NULL
+	BTString *o,          // write to this buf if o != NULL
 	char *oc) const       // write to this buf if oc != NULL
 {
 	char *occ = oc;
@@ -642,21 +642,13 @@ void AlnRes::printCigar(
 		char buf[128];
 		bool printed = false;
 		for(size_t i = 0; i < op.size(); i++) {
-			//bool first = (i == 0);
-			//bool last  = (i == op.size()-1);
 			size_t r = run[i];
-			//if(first && exEnds && r > 0) {
-			//	r--;
-			//}
-			//if(last && exEnds && r > 0) {
-			//	r--;
-			//}
 			if(r > 0) {
 				itoa10<size_t>(r, buf);
 				printed = true;
 				if(o != NULL) {
-					o->writeChars(buf);
-					o->write(op[i]);
+					o->append(buf);
+					o->append(op[i]);
 				}
 				if(oc != NULL) {
 					COPY_BUF();
@@ -687,7 +679,7 @@ void AlnRes::printMD(
 	EList<char>& op,      // stick operations here
 	EList<char>& ch,      // stick reference characters here
 	EList<size_t>& run,   // stick run lengths here
-	OutFileBuf* o,        // write to this buf if o != NULL
+	BTString* o,          // write to this buf if o != NULL
 	char* oc) const       // write to this buf if oc != NULL
 {
 	char *occ = oc;
@@ -761,7 +753,7 @@ void AlnRes::printMD(
 				if(op[i] == '=') {
 					// Write run length
 					itoa10<size_t>(r, buf);
-					if(o != NULL)  { o->writeChars(buf); }
+					if(o != NULL)  { o->append(buf); }
 					if(oc != NULL) { COPY_BUF(); }
 					first_print = false;
 					mm_last = false;
@@ -769,9 +761,9 @@ void AlnRes::printMD(
 				} else if(op[i] == 'X') {
 					if(o != NULL) {
 						if(rdgap_last || mm_last || first_print) {
-							o->write('0');
+							o->append('0');
 						}
-						o->write(ch[i]);
+						o->append(ch[i]);
 					}
 					if(oc != NULL) {
 						if(rdgap_last || mm_last || first_print) {
@@ -787,12 +779,12 @@ void AlnRes::printMD(
 				} else if(op[i] == 'G') {
 					if(o != NULL) {
 						if(mm_last || first_print) {
-							o->write('0');
+							o->append('0');
 						}
 						if(!rdgap_last) {
-							o->write('^');
+							o->append('^');
 						}
-						o->write(ch[i]);
+						o->append(ch[i]);
 					}
 					if(oc != NULL) {
 						if(mm_last || first_print) {
@@ -811,7 +803,7 @@ void AlnRes::printMD(
 			} // if r > 0
 		} // for loop over ops
 		if(mm_last || rdgap_last) {
-			if(o  != NULL) { o->write('0'); }
+			if(o  != NULL) { o->append('0'); }
 			if(oc != NULL) { *occ = '0'; occ++; }
 		}
 		if(oc != NULL) { *occ = '\0'; }
@@ -826,7 +818,7 @@ void AlnRes::printMD(
 void AlnRes::printSeq(
 	const Read& rd,         // read
 	const BTDnaString* dns, // already-decoded nucleotides
-	OutFileBuf& o) const    // output stream to write to
+	BTString& o) const      // buffer to write to
 {
 	assert(!rd.patFw.empty());
 	ASSERT_ONLY(size_t written = 0);
@@ -835,13 +827,10 @@ void AlnRes::printSeq(
 	size_t len = dns->length();
 	size_t st = 0;
 	size_t en = len;
-	//if(exEnds) {
-	//	st++; en--;
-	//}
 	for(size_t i = st; i < en; i++) {
 		int c = dns->get(i);
 		assert_range(0, 3, c);
-		o.write("ACGT"[c]);
+		o.append("ACGT"[c]);
 		ASSERT_ONLY(written++);
 	}
 #ifndef NDEBUG
@@ -862,22 +851,14 @@ void AlnRes::printSeq(
 void AlnRes::printQuals(
 	const Read& rd,         // read
 	const BTString* dqs,    // already-decoded qualities
-	OutFileBuf& o) const    // output stream to write to
+	BTString& o) const      // output stream to write to
 {
 	assert(dqs != NULL);
 	size_t len = dqs->length();
 	// Print decoded qualities from upstream to downstream Watson
-	//if(!exEnds) {
-	//	// Print upstream-most quality
-	//	o.write(dqs->get(0));
-	//}
 	for(size_t i = 1; i < len-1; i++) {
-		o.write(dqs->get(i));
+		o.append(dqs->get(i));
 	}
-	//if(!exEnds) {
-	//	// Print downstream-most quality
-	//	o.write(dqs->get(len-1));
-	//}
 }
 
 /**
@@ -1077,16 +1058,16 @@ void AlnSetSumm::init(
  * Print out string representation of YF:i flag for indicating whether and
  * why the mate was filtered.
  */
-bool AlnFlags::printYF(OutFileBuf& o, bool first) const {
+bool AlnFlags::printYF(BTString& o, bool first) const {
 	const char *flag = "";
 	if     (!lenfilt_) flag = "LN";
 	else if(!nfilt_  ) flag = "NS";
 	else if(!scfilt_ ) flag = "SC";
 	else if(!qcfilt_ ) flag = "QC";
 	if(flag > 0) {
-		if(!first) o.write('\t');
-		o.writeChars("YF:Z:");
-		o.writeChars(flag);
+		if(!first) o.append('\t');
+		o.append("YF:Z:");
+		o.append(flag);
 		return false;
 	}
 	return true;
@@ -1097,33 +1078,33 @@ bool AlnFlags::printYF(OutFileBuf& o, bool first) const {
  * Print out string representation of YM:i flag for indicating with the
  * mate per se aligned repetitively.
  */
-void AlnFlags::printYM(OutFileBuf& o) const {
-	o.writeChars("YM:i:");
-	o.write(maxed() ? '1' : '0');
+void AlnFlags::printYM(BTString& o) const {
+	o.append("YM:i:");
+	o.append(maxed() ? '1' : '0');
 }
 
 /**
  * Print out string representation of YM:i flag for indicating with the
  * pair containing the mate aligned repetitively.
  */
-void AlnFlags::printYP(OutFileBuf& o) const {
-	o.writeChars("YP:i:");
-	o.write(maxedPair() ? '1' : '0');
+void AlnFlags::printYP(BTString& o) const {
+	o.append("YP:i:");
+	o.append(maxedPair() ? '1' : '0');
 }
 
 /**
  * Print out string representation of these flags.
  */
-void AlnFlags::printYT(OutFileBuf& o) const {
-	o.writeChars("YT:Z:");
+void AlnFlags::printYT(BTString& o) const {
+	o.append("YT:Z:");
 	if(alignedConcordant()) {
-		o.writeChars("CP");
+		o.append("CP");
 	} else if(alignedDiscordant()) {
-		o.writeChars("DP");
+		o.append("DP");
 	} else if(alignedUnpairedMate()) {
-		o.writeChars("UP");
+		o.append("UP");
 	} else if(alignedUnpaired()) {
-		o.writeChars("UU");
+		o.append("UU");
 	} else { throw 1; }
 }
 

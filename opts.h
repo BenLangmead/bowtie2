@@ -123,7 +123,6 @@ enum {
 	ARG_1MM_MINLEN,             // --1mm-minlen
 	ARG_VERSION,                // --version
 	ARG_SEED_OFF,               // --seed-off
-	ARG_SEED_INFO,              // --seed-info
 	ARG_SEED_BOOST_THRESH,      // --seed-boost
 	ARG_READ_TIMES,             // --read-times
 	ARG_EXTEND_ITERS,           // --extends
@@ -134,7 +133,10 @@ enum {
 	ARG_DP_FAIL_THRESH,         // --dp-fails
 	ARG_UG_FAIL_THRESH,         // --ug-fails
 	ARG_MAPQ_EX,                // --mapq-extra
-	ARG_NO_EXTEND               // --no-extend
+	ARG_NO_EXTEND,              // --no-extend
+	ARG_REORDER,                // --reorder
+	ARG_SHOW_RAND_SEED,         // --show-rand-seed
+	ARG_READ_PASSTHRU           // --passthrough
 };
 
 #endif

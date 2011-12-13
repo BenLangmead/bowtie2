@@ -400,24 +400,24 @@ public:
 	 * Print out string representation of YF:i flag for indicating whether and
 	 * why the mate was filtered.
 	 */
-	bool printYF(OutFileBuf& o, bool first) const;
+	bool printYF(BTString& o, bool first) const;
 
 	/**
 	 * Print out string representation of YM:i flag for indicating with the
 	 * mate per se aligned repetitively.
 	 */
-	void printYM(OutFileBuf& o) const;
+	void printYM(BTString& o) const;
 
 	/**
 	 * Print out string representation of YM:i flag for indicating with the
 	 * pair containing the mate aligned repetitively.
 	 */
-	void printYP(OutFileBuf& o) const;
+	void printYP(BTString& o) const;
 
 	/**
 	 * Print out string representation of these flags.
 	 */
-	void printYT(OutFileBuf& o) const;
+	void printYT(BTString& o) const;
 
 	inline int  pairing()   const { return pairing_; }
 	inline bool maxed()     const { return maxed_; }
@@ -892,7 +892,7 @@ public:
 		bool distinguishMm,   // use =/X instead of just M
 		EList<char>& op,      // stick CIGAR operations here
 		EList<size_t>& run,   // stick CIGAR run lengths here
-		OutFileBuf* o,        // write to this buf if o != NULL
+		BTString* o,          // write to this buf if o != NULL
 		char* oc) const;      // write to this buf if oc != NULL
 
 	/**
@@ -908,7 +908,7 @@ public:
 		EList<char>& op,      // stick operations here
 		EList<char>& ch,      // stick reference characters here
 		EList<size_t>& run,   // stick run lengths here
-		OutFileBuf* o,        // write to this buf if o != NULL
+		BTString* o,           // write to this buf if o != NULL
 		char* oc) const;      // write to this buf if oc != NULL
 	
 	/**
@@ -919,7 +919,7 @@ public:
  	void printSeq(
 		const Read& rd,
 		const BTDnaString* dns,
-		OutFileBuf& o) const;
+		BTString& o) const;
 
 	/**
 	 * Print the quality string for the read that aligned.  This will
@@ -928,7 +928,7 @@ public:
  	void printQuals(
 		const Read& rd,
 		const BTString* dqs,
-		OutFileBuf& o) const;
+		BTString& o) const;
 	
 	/**
 	 * Print a stacked alignment with the reference on top, query on bottom,
@@ -1371,6 +1371,17 @@ protected:
 	bool        trimSoft_;     // trimming by local alignment is soft?
 	size_t      trim5p_;       // # bases trimmed from 5p end by local alignment
 	size_t      trim3p_;       // # bases trimmed from 3p end by local alignment
+
+public:
+
+	// CIGAR parsing
+	EList<char>   cigop;       // CIGAR operations
+	EList<size_t> cigrun;      // CIGAR run lengths
+
+	// MD:Z parsing
+	EList<char>   mdop;        // MD:Z ops
+	EList<char>   mdch;        // MD:Z chars
+	EList<size_t> mdrun;       // MD:Z runs
 };
 
 /**

@@ -37,7 +37,8 @@ struct Read {
 	Read() { reset(); }
 
 	void reset() {
-		patid = 0;
+		rdid = 0;
+		endid = 0;
 		alts = 0;
 		trimmed5 = trimmed3 = 0;
 		readOrigBuf.clear();
@@ -298,7 +299,9 @@ struct Read {
 	SStringExpandable<char> qualOrigBuf;
 
 	BTString name;      // read name
-	TReadId  patid;     // unique 0-based id based on order in read file(s)
+	TReadId  rdid;      // 0-based id based on pair's offset in read file(s)
+	TReadId  endid;     // 0-based id based on pair's offset in read file(s)
+	                    // and which mate ("end") this is
 	int      mate;      // 0 = single-end, 1 = mate1, 2 = mate2
 	uint32_t seed;      // random seed
 	size_t   ns_;       // # Ns
