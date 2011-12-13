@@ -53,6 +53,7 @@
 #include "simple_func.h"
 #include "presets.h"
 #include "opts.h"
+#include "outq.h"
 
 using namespace std;
 
@@ -137,6 +138,8 @@ static bool sam_print_ym;
 static bool sam_print_yp;
 static bool sam_print_yt;
 static bool sam_print_ys;
+static bool sam_print_zs;
+static bool sam_print_xr;
 static bool sam_print_xt;
 static bool sam_print_xd;
 static bool sam_print_xu;
@@ -215,6 +218,7 @@ static bool do1mmUpFront;     // do 1mm search up front if seeds seem good enoug
 static size_t do1mmMinLen;    // length below which we disable 1mm e2e search
 static int seedBoostThresh;   // if average non-zero position has more than this many elements
 static size_t nSeedRounds;    // # seed rounds
+static bool reorder;          // true -> reorder SAM recs in -p mode
 
 static string bt2index;      // read Bowtie 2 index from files with this prefix
 static EList<pair<int, string> > extra_opts;
@@ -305,6 +309,8 @@ static void resetOptions() {
 	sam_print_yp            = false;
 	sam_print_yt            = true;
 	sam_print_ys            = true;
+	sam_print_zs            = false;
+	sam_print_xr            = false;
 	sam_print_xt            = false;
 	sam_print_xd            = false;
 	sam_print_xu            = false;
@@ -385,6 +391,7 @@ static void resetOptions() {
 	seedBoostThresh = 300;   // if average non-zero position has more than this many elements
 	nSeedRounds = 2;         // # rounds of seed searches to do for repetitive reads
 	do1mmMinLen = 60;        // length below which we disable 1mm search
+	reorder = false;         // reorder SAM records with -p > 1
 }
 
 static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:w:p:k:M:1:2:I:X:CQ:N:i:L:U:x:S:g:O:D:R:";
@@ -527,10 +534,10 @@ static struct option long_options[] = {
 	{(char*)"no-exact-upfront", no_argument,       0,        ARG_EXACT_UPFRONT_NO},
 	{(char*)"no-1mm-upfront",   no_argument,       0,        ARG_1MM_UPFRONT_NO},
 	{(char*)"1mm-minlen",       required_argument, 0,        ARG_1MM_MINLEN},
-	{(char*)"seed-info",        no_argument,       0,        ARG_SEED_INFO},
 	{(char*)"seed-off",         required_argument, 0,        'O'},
 	{(char*)"seed-boost",       required_argument, 0,        ARG_SEED_BOOST_THRESH},
 	{(char*)"read-times",       no_argument,       0,        ARG_READ_TIMES},
+	{(char*)"show-rand-seed",   no_argument,       0,        ARG_SHOW_RAND_SEED},
 	{(char*)"dp-fail-streak",   required_argument, 0,        ARG_DP_FAIL_STREAK_THRESH},
 	{(char*)"ee-fail-streak",   required_argument, 0,        ARG_EE_FAIL_STREAK_THRESH},
 	{(char*)"ug-fail-streak",   required_argument, 0,        ARG_UG_FAIL_STREAK_THRESH},
@@ -541,6 +548,8 @@ static struct option long_options[] = {
 	{(char*)"no-extend",        no_argument,       0,        ARG_NO_EXTEND},
 	{(char*)"mapq-extra",       no_argument,       0,        ARG_MAPQ_EX},
 	{(char*)"seed-rounds",      required_argument, 0,        'R'},
+	{(char*)"reorder",          no_argument,       0,        ARG_REORDER},
+	{(char*)"passthrough",      no_argument,       0,        ARG_READ_PASSTHRU},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -1039,9 +1048,18 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_SAM_NOHEAD: samNoHead = true; break;
 		case ARG_SAM_NOSQ: samNoSQ = true; break;
 		case ARG_SAM_PRINT_YI: sam_print_yi = true; break;
+		case ARG_REORDER: reorder = true; break;
 		case ARG_MAPQ_EX: {
 			sam_print_zp = true;
 			sam_print_zu = true;
+			break;
+		}
+		case ARG_SHOW_RAND_SEED: {
+			sam_print_zs = true;
+			break;
+		}
+		case ARG_READ_PASSTHRU: {
+			sam_print_xr = true;
 			break;
 		}
 		case ARG_READ_TIMES: {
@@ -1382,8 +1400,8 @@ static void parseOptions(int argc, const char **argv) {
 		}
 	}
 	// If both -s and -u are used, we need to adjust qUpto accordingly
-	// since it uses patid to know if we've reached the -u limit (and
-	// patids are all shifted up by skipReads characters)
+	// since it uses rdid to know if we've reached the -u limit (and
+	// rdids are all shifted up by skipReads characters)
 	if(qUpto + skipReads > qUpto) {
 		qUpto += skipReads;
 	}
@@ -2381,18 +2399,18 @@ static inline void printMmsSkipMsg(
 	bool mate1,
 	int seedmms)
 {
+	ostringstream os;
 	if(paired) {
-		cerr << "Warning: skipping mate #" << (mate1 ? '1' : '2')
-		     << " of read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
-		     << "' because length (" << (mate1 ? ps.bufa().patFw.length() :
-			                                     ps.bufb().patFw.length())
-			 << ") <= # seed mismatches (" << seedmms << ")" << endl;
+		os << "Warning: skipping mate #" << (mate1 ? '1' : '2')
+		   << " of read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
+		   << "' because length (" << (mate1 ? ps.bufa().patFw.length() : ps.bufb().patFw.length())
+		   << ") <= # seed mismatches (" << seedmms << ")" << endl;
 	} else {
-		cerr << "Warning: skipping read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
-		     << "' because length (" << (mate1 ? ps.bufa().patFw.length() :
-			                                     ps.bufb().patFw.length())
-			 << ") <= # seed mismatches (" << seedmms << ")" << endl;
+		os << "Warning: skipping read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
+		   << "' because length (" << (mate1 ? ps.bufa().patFw.length() : ps.bufb().patFw.length())
+		   << ") <= # seed mismatches (" << seedmms << ")" << endl;
 	}
+	cerr << os.str();
 }
 
 static inline void printLenSkipMsg(
@@ -2400,14 +2418,16 @@ static inline void printLenSkipMsg(
 	bool paired,
 	bool mate1)
 {
+	ostringstream os;
 	if(paired) {
-		cerr << "Warning: skipping mate #" << (mate1 ? '1' : '2')
-		     << " of read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
-		     << "' because it was < 2 characters long" << endl;
+		os << "Warning: skipping mate #" << (mate1 ? '1' : '2')
+		   << " of read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
+		   << "' because it was < 2 characters long" << endl;
 	} else {
-		cerr << "Warning: skipping read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
-		     << "' because it was < 2 characters long" << endl;
+		os << "Warning: skipping read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
+		   << "' because it was < 2 characters long" << endl;
 	}
+	cerr << os.str();
 }
 
 static inline void printLocalScoreMsg(
@@ -2415,16 +2435,18 @@ static inline void printLocalScoreMsg(
 	bool paired,
 	bool mate1)
 {
+	ostringstream os;
 	if(paired) {
-		cerr << "Warning: minimum score function gave negative number in "
-		     << "--local mode for mate #" << (mate1 ? '1' : '2')
-		     << " of read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
-			 << "; setting to 0 instead" << endl;
+		os << "Warning: minimum score function gave negative number in "
+		   << "--local mode for mate #" << (mate1 ? '1' : '2')
+		   << " of read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
+		   << "; setting to 0 instead" << endl;
 	} else {
-		cerr << "Warning: minimum score function gave negative number in "
-		     << "--local mode for read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
-			 << "; setting to 0 instead" << endl;
+		os << "Warning: minimum score function gave negative number in "
+		   << "--local mode for read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
+		   << "; setting to 0 instead" << endl;
 	}
+	cerr << os.str();
 }
 
 static inline void printEEScoreMsg(
@@ -2432,16 +2454,18 @@ static inline void printEEScoreMsg(
 	bool paired,
 	bool mate1)
 {
+	ostringstream os;
 	if(paired) {
-		cerr << "Warning: minimum score function gave positive number in "
-		     << "--end-to-end mode for mate #" << (mate1 ? '1' : '2')
-		     << " of read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
-			 << "; setting to 0 instead" << endl;
+		os << "Warning: minimum score function gave positive number in "
+		   << "--end-to-end mode for mate #" << (mate1 ? '1' : '2')
+		   << " of read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
+		   << "; setting to 0 instead" << endl;
 	} else {
-		cerr << "Warning: minimum score function gave positive number in "
-		     << "--end-to-end mode for read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
-			 << "; setting to 0 instead" << endl;
+		os << "Warning: minimum score function gave positive number in "
+		   << "--end-to-end mode for read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
+		   << "; setting to 0 instead" << endl;
 	}
+	cerr << os.str();
 }
 
 #define MERGE_METRICS(met, sync) { \
@@ -2552,7 +2576,8 @@ static void* multiseedSearchWorker(void *vp) {
 	AlnSinkWrap msinkwrap(
 		msink,         // global sink
 		rp,            // reporting parameters
-		*bmapq.get()); // MAPQ calculator
+		*bmapq.get(),  // MAPQ calculator
+		(size_t)tid);  // thread id
 
 	SeedAligner al;
 	SwDriver sd(exactCacheCurrentMB * 1024 * 1024);
@@ -2633,8 +2658,8 @@ static void* multiseedSearchWorker(void *vp) {
 		} else if(!success) {
 			continue;
 		}
-		TReadId patid = ps->patid();
-		if(patid >= skipReads && patid < qUpto) {
+		TReadId rdid = ps->rdid();
+		if(rdid >= skipReads && rdid < qUpto) {
 			// Align this read/pair
 			bool retry = true;
 			//
@@ -2680,7 +2705,7 @@ static void* multiseedSearchWorker(void *vp) {
 				int skipStages = msinkwrap.nextRead(
 					&ps->bufa(),
 					pair ? &ps->bufb() : NULL,
-					patid,
+					rdid,
 					sc.qualitiesMatter());
 				assert(msinkwrap.inited());
 				if(skipStages == -1) {
@@ -3501,8 +3526,8 @@ static void* multiseedSearchWorker(void *vp) {
 					seedSumm);            // suppress alignments?
 				assert(!retry || msinkwrap.empty());
 			} // while(retry)
-		} // if(patid >= skipReads && patid < qUpto)
-		else if(patid >= qUpto) {
+		} // if(rdid >= skipReads && rdid < qUpto)
+		else if(rdid >= qUpto) {
 			break;
 		}
 		if(metricsPerRead) {
@@ -3739,6 +3764,12 @@ static void driver(
 		ebwt.checkOrigs(os, false, false);
 		ebwt.evictFromMemory();
 	}
+	OutputQueue oq(
+		*fout,        // out file buffer
+		reorder,      // whether to reorder when there's >1 thread
+		nthreads,     // # threads
+		nthreads > 1, // whether to be thread-safe
+		skipReads);   // first read will have this rdid
 	{
 		Timer _t(cerr, "Time searching: ", timing);
 		// Set up penalities
@@ -3797,6 +3828,8 @@ static void driver(
 			sam_print_yp,
 			sam_print_yt,
 			sam_print_ys,
+			sam_print_zs,
+			sam_print_xr,
 			sam_print_xt,
 			sam_print_xd,
 			sam_print_xu,
@@ -3815,14 +3848,15 @@ static void driver(
 		switch(outType) {
 			case OUTPUT_SAM: {
 				mssink = new AlnSinkSam(
-					fout,         // initial output stream
+					oq,           // output queue
 					samc,         // settings & routines for SAM output
-					false,        // delete output stream objects upon destruction
 					refnames,     // reference names
 					gQuiet);      // don't print alignment summary at end
 				if(!samNoHead) {
 					bool printHd = true, printSq = true;
-					samc.printHeader(*fout, rgid, rgs, printHd, !samNoSQ, printSq);
+					BTString buf;
+					samc.printHeader(buf, rgid, rgs, printHd, !samNoSQ, printSq);
+					fout->writeString(buf);
 				}
 				break;
 			}
@@ -3866,10 +3900,15 @@ static void driver(
 				gReportMixed,
 				hadoopOut);
 		}
+		oq.flush(true);
+		assert_eq(oq.numStarted(), oq.numFinished());
+		assert_eq(oq.numStarted(), oq.numFlushed());
 		delete patsrc;
 		delete mssink;
 		delete metricsOfb;
-		if(fout != NULL) delete fout;
+		if(fout != NULL) {
+			delete fout;
+		}
 	}
 }
 

@@ -53,7 +53,7 @@ static inline bool matches(int i, int j) {
  * Given a mask with up to 5 bits, return an index corresponding to a
  * set bit in the mask, randomly chosen from among all set bits.
  */
-static inline int randFromMask(RandomSource& rand, int mask) {
+static inline int randFromMask(RandomSource& rnd, int mask) {
 	assert_gt(mask, 0);
 	if(alts5[mask] == 1) {
 		// only one to pick from, pick it via lookup table
@@ -61,7 +61,7 @@ static inline int randFromMask(RandomSource& rand, int mask) {
 	}
 	assert_gt(mask, 0);
 	assert_lt(mask, 32);
-	int r = rand.nextU32() % alts5[mask];
+	int r = rnd.nextU32() % alts5[mask];
 	assert_geq(r, 0);
 	assert_lt(r, alts5[mask]);
 	// could do the following via lookup table too

@@ -23,6 +23,20 @@ Bowtie 2 TODO list:
 - Why so much profile on vh = _mm_adds_epi16(vh, pvScore[1]);?
 - Restore --overhang flag
 
+Aggressive seeding:
+- Idea:
+  + Extend seeds as far as possible before trying any DPs
+  + Have various cutoffs; i.e. to extend from length 15 to 16 requires having
+	at least some score, etc
+  + Facility for noticing as soon as one seed is "subsumed" by another
+- Pros:
+  + Might be able to eliminate vast majority of large ranges
+  + Would be more reasonable to put an aggressive cap on large ranges
+  + Perhaps splicedness can be guessed at here?
+- Cons:
+  + Complicated
+  + Unknown effect
+
 Low priority:
 - Output locking can be economical.  SAM records can be written to strings,
   then flushed while locked.

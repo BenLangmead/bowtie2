@@ -706,23 +706,25 @@ void AlnSinkWrap::finishRead(
 	bool suppressSeedSummary,       // = true
 	bool suppressAlignments)        // = false
 {
+	obuf_.clear();
+	g_.outq().beginRead(rdid_, threadid_);
 	assert(init_);
 	if(!suppressSeedSummary) {
 		if(sr1 != NULL) {
 			assert(rd1_ != NULL);
 			// Mate exists and has non-empty SeedResults
-			g_.reportSeedSummary(*rd1_, rdid_, *sr1, true);
+			g_.reportSeedSummary(obuf_, *rd1_, rdid_, threadid_, *sr1, true);
 		} else if(rd1_ != NULL) {
 			// Mate exists but has NULL SeedResults
-			g_.reportEmptySeedSummary(*rd1_, rdid_, true);
+			g_.reportEmptySeedSummary(obuf_, *rd1_, rdid_, true);
 		}
 		if(sr2 != NULL) {
 			assert(rd2_ != NULL);
 			// Mate exists and has non-empty SeedResults
-			g_.reportSeedSummary(*rd2_, rdid_, *sr2, true);
+			g_.reportSeedSummary(obuf_, *rd2_, rdid_, threadid_, *sr2, true);
 		} else if(rd2_ != NULL) {
 			// Mate exists but has NULL SeedResults
-			g_.reportEmptySeedSummary(*rd2_, rdid_, true);
+			g_.reportEmptySeedSummary(obuf_, *rd2_, rdid_, true);
 		}
 	}
 	if(!suppressAlignments) {
@@ -806,6 +808,8 @@ void AlnSinkWrap::finishRead(
 			}
 			assert(!select_.empty());
 			g_.reportHits(
+				obuf_,
+				threadid_,
 				rd1_,
 				rd2_,
 				rdid_,
@@ -832,6 +836,7 @@ void AlnSinkWrap::finishRead(
 				}
 			}
 			init_ = false;
+			g_.outq().finishRead(obuf_, rdid_, threadid_);
 			return;
 		}
 		// Report concordant paired-end alignments if possible
@@ -890,6 +895,8 @@ void AlnSinkWrap::finishRead(
 			assert_eq(0, off);
 			assert(!select_.empty());
 			g_.reportHits(
+				obuf_,
+				threadid_,
 				rd1_,
 				rd2_,
 				rdid_,
@@ -907,6 +914,7 @@ void AlnSinkWrap::finishRead(
 			met.nconcord_0++;
 			met.ndiscord++;
 			init_ = false;
+			g_.outq().finishRead(obuf_, rdid_, threadid_);
 			return;
 		}
 		// If we're at this point, at least one mate failed to align.
@@ -1036,6 +1044,8 @@ void AlnSinkWrap::finishRead(
 			repRs1 = &rs1u_[off];
 			assert(!select_.empty());
 			g_.reportHits(
+				obuf_,
+				threadid_,
 				rd1_,
 				NULL,
 				rdid_,
@@ -1096,6 +1106,8 @@ void AlnSinkWrap::finishRead(
 			repRs2 = &rs2u_[off];
 			assert(!select_.empty());
 			g_.reportHits(
+				obuf_,
+				threadid_,
 				rd2_,
 				NULL,
 				rdid_,
@@ -1150,6 +1162,8 @@ void AlnSinkWrap::finishRead(
 				repRs2 != NULL, // opp aligned
 				(repRs2 != NULL) ? repRs2->fw() : false); // opp fw
 			g_.reportUnaligned(
+				obuf_,      // string to write output to
+				threadid_,
 				rd1_,    // read 1
 				NULL,    // read 2
 				rdid_,   // read id
@@ -1192,6 +1206,8 @@ void AlnSinkWrap::finishRead(
 				repRs1 != NULL, // opp aligned
 				(repRs1 != NULL) ? repRs1->fw() : false); // opp fw
 			g_.reportUnaligned(
+				obuf_,      // string to write output to
+				threadid_,
 				rd2_,    // read 1
 				NULL,    // read 2
 				rdid_,   // read id
@@ -1206,6 +1222,7 @@ void AlnSinkWrap::finishRead(
 		}
 	} // if(suppress alignments)
 	init_ = false;
+	g_.outq().finishRead(obuf_, rdid_, threadid_);
 	return;
 }
 
@@ -1396,29 +1413,30 @@ size_t AlnSinkWrap::selectAlnsToReport(
 #define NOT_SUPPRESSED !suppress_[field++]
 #define BEGIN_FIELD { \
 	if(firstfield) firstfield = false; \
-	else o.write('\t'); \
+	else o.append('\t'); \
 }
 #define WRITE_TAB { \
 	if(firstfield) firstfield = false; \
-	else o.write('\t'); \
+	else o.append('\t'); \
 }
 #define WRITE_NUM(o, x) { \
 	itoa10(x, buf); \
-	o.writeChars(buf); \
+	o.append(buf); \
 }
 
 /**
  * Print a seed summary to the first output stream in the outs_ list.
  */
 void AlnSink::reportSeedSummary(
+	BTString&          o,
 	const Read&        rd,
 	TReadId            rdid,
+	size_t             threadId,
 	const SeedResults& rs,
 	bool               getLock)
 {
-	ThreadSafe ts(&locks_[0], getLock);
 	appendSeedSummary(
-		*(outs_[0]),           // output stream to write to
+		o,                     // string to write to
 		rd,                    // read
 		rdid,                  // read id
 		rs.numOffs()*2,        // # seeds tried
@@ -1439,13 +1457,14 @@ void AlnSink::reportSeedSummary(
  * Print an empty seed summary to the first output stream in the outs_ list.
  */
 void AlnSink::reportEmptySeedSummary(
+	BTString&          o,
 	const Read&        rd,
 	TReadId            rdid,
+	size_t             threadId,
 	bool               getLock)
 {
-	ThreadSafe ts(&locks_[0], getLock);
 	appendSeedSummary(
-		*(outs_[0]),           // output stream to write to
+		o,                     // string to append to
 		rd,                    // read
 		rdid,                  // read id
 		0,                     // # seeds tried
@@ -1469,20 +1488,16 @@ void AlnSink::reportEmptySeedSummary(
  */
 template<typename T>
 static inline void printUptoWs(
-	OutFileBuf& o,
+	BTString& s,
 	const T& str,
 	bool chopws)
 {
-	if(!chopws) {
-		o.writeString(str);
-	} else {
-		size_t len = str.length();
-		for(size_t i = 0; i < len; i++) {
-			if(str[i] != ' ' && str[i] != '\t') {
-				o.write(str[i]);
-			} else {
-				break;
-			}
+	size_t len = str.length();
+	for(size_t i = 0; i < len; i++) {
+		if(!chopws || (str[i] != ' ' && str[i] != '\t')) {
+			s.append(str[i]);
+		} else {
+			break;
 		}
 	}
 }
@@ -1519,7 +1534,7 @@ static inline void printUptoWs(
  *    many Ns) have columns 2 through 13 set to 0.
  */
 void AlnSink::appendSeedSummary(
-	OutFileBuf&   o,
+	BTString&     o,
 	const Read&   rd,
 	const TReadId rdid,
 	size_t        seedsTried,
@@ -1599,331 +1614,7 @@ void AlnSink::appendSeedSummary(
 	BEGIN_FIELD;
 	WRITE_NUM(o, eltsRc);
 
-	o.write('\n');
-}
-
-/**
- * Print a list of edits to an OutFileBuf.
- */
-static void printEdits(
-	const EList<Edit>& es,
-	size_t len,
-	OutFileBuf& o)
-{
-	char buf[1024];
-	size_t elen = es.size();
-	bool first = true;
-	int posAdj = 0;
-	for(size_t i = 0; i < elen; i++) {
-		const Edit& e = es[i];
-		assert(i == elen-1 || e.pos <= es[i+1].pos);
-		assert_neq(e.chr, e.qchr);
-		assert( e.isReadGap() || e.pos < len);
-		assert(!e.isReadGap() || e.pos <= len);
-		if(!first) o.write(',');
-		first = false;
-		itoa10(e.pos + posAdj, buf);
-		o.writeChars(buf);
-		o.write(':');
-		o.write(e.chr);
-		while(
-			es[i].isReadGap() &&
-			i+1 < elen &&
-			es[i+1].isReadGap() &&
-			es[i+1].pos == es[i].pos)
-		{
-			i++;
-			o.write(es[i].chr);
-			assert_eq('-', (char)es[i].qchr);
-		}
-		o.write('>');
-		o.write(e.qchr);
-	}
-	if(es.empty()) o.write('-');
-}
-
-/**
- * Append a single hit to the given output stream in Bowtie's
- * verbose-mode format.
- */
-void AlnSinkVerbose::appendMate(
-	OutFileBuf&   o,
-	const Read&   rd,
-	const Read*   rdo,
-	const TReadId rdid,
-	const AlnRes* rs,
-	const AlnRes* rso,
-	const AlnSetSumm& summ,
-	const SeedAlSumm& ssm,
-	const SeedAlSumm& ssmo,
-	const AlnFlags& flags,
-	const PerReadMetrics& prm,
-	const Mapq& mapqCalc)
-{
-	if(rs == NULL && !printPlaceholders_) return;
-	bool spill = false;
-	int spillAmt = 0;
-	int offAdj = 0;
-	if(rs == NULL) offAdj = 0;
-	size_t rdlen = rd.length();
-	TRefOff pdiv = std::numeric_limits<TRefOff>::max();
-	uint32_t pmod = 0xffffffff;
-	char buf[1024];
-	do {
-		bool dospill = false;
-		if(spill) {
-			// The read spilled over a partition boundary in a
-			// previous iteration and so needs to be printed again
-			// in this iteration
-			spill = false;
-			dospill = true;
-			spillAmt++;
-		}
-		assert(!spill);
-		uint32_t field = 0;
-		bool firstfield = true;
-		if(partition_ != 0) {
-			int pospart = abs(partition_);
-			if(NOT_SUPPRESSED) {
-				WRITE_TAB;
-				if(rs != NULL) {
-					// Output a partitioning key
-					// First component of the key is the reference index
-					assert_geq(rs->refid(), 0);
-					if((size_t)rs->refid() < refnames_.size()) {
-						printUptoWs(o, refnames_[(size_t)rs->refid()], !fullRef_);
-					} else {
-						itoa10<TRefId>(rs->refid(), buf);
-						o.writeChars(buf);
-					}
-				} else {
-					o.write('*');
-				}
-			}
-			TRefOff off = rs != NULL ? rs->refoff() : 0;
-			pdiv = pmod = 0;
-			size_t pdivLen = 0;
-			char * buf2;
-			if(rs != NULL) {
-				// Next component of the key is the partition id
-				if(!dospill) {
-					pdiv = (uint32_t)((rs->refoff() + offAdj + offBase_) / pospart);
-					pmod = (uint32_t)((rs->refoff() + offAdj + offBase_) % pospart);
-				}
-				assert_neq(std::numeric_limits<TRefOff>::max(), pdiv);
-				assert_neq(0xffffffff, pmod);
-				assert(!dospill || spillAmt > 0);
-				if(partition_ > 0 &&
-				   (pmod + rdlen) >= ((uint32_t)pospart * (spillAmt + 1))) {
-					// Spills into the next partition so we need to
-					// output another alignment for that partition
-					spill = true;
-				}
-			}
-			buf2 = itoa10<TRefOff>(pdiv + (dospill ? spillAmt : 0), buf);
-			pdivLen = buf2 - buf;
-			assert_gt(pdivLen, 0);
-			if(NOT_SUPPRESSED) {
-				WRITE_TAB;
-				// Print partition id with leading 0s so that Hadoop
-				// can do lexicographical sort
-				size_t partDigits = 1;
-				if(pospart >= 10) partDigits++;
-				if(pospart >= 100) partDigits++;
-				if(pospart >= 1000) partDigits++;
-				if(pospart >= 10000) partDigits++;
-				if(pospart >= 100000) partDigits++;
-				for(size_t i = pdivLen; i < (10-partDigits); i++) {
-					o.write('0');
-				}
-				o.writeChars(buf);
-			}
-			if(NOT_SUPPRESSED) {
-				WRITE_TAB;
-				// Print offset with leading 0s
-				int base = (rs == NULL ? 0 : offBase_);
-				buf2 = itoa10<TRefOff>(off + offAdj + base, buf);
-				size_t offLen = buf2 - buf;
-				assert_gt(offLen, 0);
-				for(size_t i = offLen; i < 9; i++) o.write('0');
-				o.writeChars(buf);
-			}
-			if(NOT_SUPPRESSED) {
-				WRITE_TAB;
-				if(rs == NULL) {
-					o.write('*');
-				} else {
-					o.write(rs->refcoord().fw() ? '+' : '-');
-				}
-			}
-			// end if(partition != 0)
-		} else {
-			assert(!dospill);
-			if(NOT_SUPPRESSED) {
-				WRITE_TAB;
-				printUptoWs(o, rd.name, true);
-			}
-			if(NOT_SUPPRESSED) {
-				WRITE_TAB;
-				if(rs == NULL) {
-					o.write('*');
-				} else {
-					o.write(rs->refcoord().fw() ? '+' : '-');
-				}
-			}
-			if(NOT_SUPPRESSED) {
-				WRITE_TAB;
-				// .first is text id, .second is offset
-				if(rs != NULL) {
-					assert_geq(rs->refid(), 0);
-					if((size_t)rs->refid() < refnames_.size()) {
-						printUptoWs(o, refnames_[(size_t)rs->refid()], !fullRef_);
-					} else {
-						itoa10<TRefId>(rs->refid(), buf);
-						o.writeChars(buf);
-					}
-				} else {
-					o.write('*');
-				}
-			}
-			if(NOT_SUPPRESSED) {
-				WRITE_TAB;
-				if(rs != NULL) {
-					TRefOff off = rs->refoff();
-					itoa10<TRefOff>(off + offAdj + offBase_, buf);
-					o.writeChars(buf);
-				} else {
-					o.write('*');
-				}
-			}
-			// end else clause of if(partition != 0)
-		}
-		if(NOT_SUPPRESSED) {
-			WRITE_TAB;
-			if(rs != NULL) {
-				rs->printSeq(
-					rd,
-					&dseq_,
-					o);
-			} else {
-				// Print the read
-				o.writeChars(rd.patFw.toZBuf());
-			}
-		}
-		if(NOT_SUPPRESSED) {
-			WRITE_TAB;
-			if(rs != NULL) {
-				rs->printQuals(
-					rd,
-					&dqual_,
-					o);
-			} else {
-				// Print the quals
-				o.writeChars(rd.qual.toZBuf());
-			}
-		}
-		mapqInps_[0] = '\0';
-		if(NOT_SUPPRESSED) {
-			WRITE_TAB;
-			if(rs != NULL) {
-				itoa10<TMapq>(mapqCalc.mapq(
-					summ, flags, rd.mate < 2, rdlen,
-					rdo == NULL ? 0 : rdo->length(), mapqInps_), buf);
-				o.writeChars(buf);
-			} else o.write('0');
-		}
-		if(NOT_SUPPRESSED) {
-			WRITE_TAB;
-			// If ends are being excluded, we need to subtract 1 from
-			// .pos's of ned and aed, and exclude elements at the
-			// extreme ends.
-			if(rs != NULL) {
-				printEdits(
-					rs->ned(),            // edits to print
-					rs->readExtentRows(), // len of string edits refer to (post trim)
-					o);                   // output stream
-			} else o.write('*');
-		}
-		if(partition_ != 0) {
-			// Fields addded as of Crossbow 0.1.4
-			if(NOT_SUPPRESSED) {
-				WRITE_TAB;
-				WRITE_NUM(o, rd.mate);
-			}
-			if(NOT_SUPPRESSED) {
-				WRITE_TAB;
-				printUptoWs<BTString>(o, rd.name, true);
-			}
-		}
-		if(printFlags_) {
-			// Print alignment flags, including:
-			//
-			// a. Whether this is a (i) half a concordant paired-end alignment,
-			//    (ii) half a discordant paired-end alignment, (iii) an
-			//    unpaired alignment
-			// b. Whether the alignment is (i) itself repetitive, or (ii) is
-			//    associated with a paired-end read that has repetitive
-			//    concordant alignments
-			// c. Whether alignment was found using BW-DP or Mate-DP
-			// d. A CIGAR string of how it aligned
-			//
-			if(NOT_SUPPRESSED) {
-				WRITE_TAB;
-				bool first = true;
-				first = false;
-				o.writeChars("XM:");
-				o.write(flags.maxed() ? '1' : '0');
-				if(!first) o.write(',');
-				first = false;
-				o.writeChars("XP:");
-				o.write(flags.maxedPair() ? '1' : '0');
-				if(!first) o.write(',');
-				first = false;
-				o.writeChars("XT:");
-				if(flags.alignedConcordant()) {
-					o.writeChars("CP");
-				} else if(flags.alignedDiscordant()) {
-					o.writeChars("DP");
-				} else if(flags.alignedUnpairedMate()) {
-					o.writeChars("UP");
-				} else if(flags.alignedUnpaired()) {
-					o.writeChars("UU");
-				}
-				if(rs != NULL) {
-					// Print CIGAR string
-					if(!first) o.write(',');
-					o.writeChars("XC:");
-					rs->printCigar(
-						true,
-						tmpop_,      // temporary EList to store CIGAR ops
-						tmprun_,     // temporary EList to store run lengths
-						&o,
-						NULL);
-				}
-			}
-		}
-		if(printCost_) {
-			// Cost
-			if(NOT_SUPPRESSED) {
-				WRITE_TAB;
-				if(rs != NULL) {
-					WRITE_NUM(o, rs->score().penalty());
-				} else o.write('*');
-			}
-		}
-		if(printParams_) {
-			if(NOT_SUPPRESSED) {
-				WRITE_TAB;
-				if(rs != NULL) {
-					WRITE_NUM(o, rs->seedmms());  o.write(',');
-					WRITE_NUM(o, rs->seedlen());  o.write(',');
-					WRITE_NUM(o, rs->seedival()); o.write(',');
-					WRITE_NUM(o, rs->minScore()); o.write(',');
-				} else o.write('*');
-			}
-		}
-		o.write('\n');
-	} while(spill);
+	o.append('\n');
 }
 
 /**
@@ -1931,12 +1622,12 @@ void AlnSinkVerbose::appendMate(
  * verbose-mode format.
  */
 void AlnSinkSam::appendMate(
-	OutFileBuf&   o,
+	BTString&     o,           // append to this string
 	const Read&   rd,
 	const Read*   rdo,
 	const TReadId rdid,
-	const AlnRes* rs,
-	const AlnRes* rso,
+	AlnRes* rs,
+	AlnRes* rso,
 	const AlnSetSumm& summ,
 	const SeedAlSumm& ssm,
 	const SeedAlSumm& ssmo,
@@ -1948,7 +1639,7 @@ void AlnSinkSam::appendMate(
 	int offAdj = 0;
 	// QNAME
 	samc_.printReadName(o, rd.name);
-	o.write('\t');
+	o.append('\t');
 	// FLAG
 	int fl = 0;
 	if(flags.partOfPair()) {
@@ -1977,12 +1668,12 @@ void AlnSinkSam::appendMate(
 		fl |= SAM_FLAG_UNMAPPED;
 	}
 	itoa10<int>(fl, buf);
-	o.writeChars(buf);
-	o.write('\t');
+	o.append(buf);
+	o.append('\t');
 	// RNAME
 	if(rs != NULL) {
 		samc_.printRefNameFromIndex(o, (size_t)rs->refid());
-		o.write('\t');
+		o.append('\t');
 	} else {
 		if(summ.orefid() != -1) {
 			// Opposite mate aligned but this one didn't - print the opposite
@@ -1991,29 +1682,29 @@ void AlnSinkSam::appendMate(
 			samc_.printRefNameFromIndex(o, (size_t)summ.orefid());
 		} else {		
 			// No alignment
-			o.write('*');
+			o.append('*');
 		}
-		o.write('\t');
+		o.append('\t');
 	}
 	// POS
 	// Note: POS is *after* soft clipping.  I.e. POS points to the
 	// upstream-most character *involved in the clipped alignment*.
 	if(rs != NULL) {
 		itoa10<int64_t>(rs->refoff()+1+offAdj, buf);
-		o.writeChars(buf);
-		o.write('\t');
+		o.append(buf);
+		o.append('\t');
 	} else {
 		if(summ.orefid() != -1) {
 			// Opposite mate aligned but this one didn't - print the opposite
 			// mate's RNAME and POS as is customary
 			assert(flags.partOfPair());
 			itoa10<int64_t>(summ.orefoff()+1+offAdj, buf);
-			o.writeChars(buf);
+			o.append(buf);
 		} else {
 			// No alignment
-			o.write('0');
+			o.append('0');
 		}
-		o.write('\t');
+		o.append('\t');
 	}
 	// MAPQ
 	mapqInps_[0] = '\0';
@@ -2021,103 +1712,103 @@ void AlnSinkSam::appendMate(
 		itoa10<TMapq>(mapqCalc.mapq(
 			summ, flags, rd.mate < 2, rd.length(),
 			rdo == NULL ? 0 : rdo->length(), mapqInps_), buf);
-		o.writeChars(buf);
-		o.write('\t');
+		o.append(buf);
+		o.append('\t');
 	} else {
 		// No alignment
-		o.writeChars("0\t");
+		o.append("0\t");
 	}
 	// CIGAR
 	if(rs != NULL) {
 		rs->printCigar(
 			false,       // like BWA, we don't distinguish = from X
-			tmpop_,      // temporary EList to store CIGAR ops
-			tmprun_,     // temporary EList to store run lengths
+			rs->cigop,   // temporary EList to store CIGAR ops
+			rs->cigrun,  // temporary EList to store run lengths
 			&o,
 			NULL);
-		o.write('\t');
+		o.append('\t');
 	} else {
 		// No alignment
-		o.writeChars("*\t");
+		o.append("*\t");
 	}
 	// RNEXT
 	if(rs != NULL && flags.partOfPair()) {
 		if(rso != NULL && rs->refid() != rso->refid()) {
 			samc_.printRefNameFromIndex(o, (size_t)rso->refid());
-			o.write('\t');
+			o.append('\t');
 		} else {
-			o.writeChars("=\t");
+			o.append("=\t");
 		}
 	} else if(summ.orefid() != -1) {
 		// The convention if this mate fails to align but the other doesn't is
 		// to copy the mate's details into here
-		o.writeChars("=\t");
+		o.append("=\t");
 	} else {
-		o.writeChars("*\t");
+		o.append("*\t");
 	}
 	// PNEXT
 	if(rs != NULL && flags.partOfPair()) {
 		if(rso != NULL) {
 			itoa10<int64_t>(rso->refoff()+1, buf);
-			o.writeChars(buf);
-			o.write('\t');
+			o.append(buf);
+			o.append('\t');
 		} else {
 			// The convenstion is that if this mate aligns but the opposite
 			// doesn't, we print this mate's offset here
 			itoa10<int64_t>(rs->refoff()+1, buf);
-			o.writeChars(buf);
-			o.write('\t');
+			o.append(buf);
+			o.append('\t');
 		}
 	} else if(summ.orefid() != -1) {
 		// The convention if this mate fails to align but the other doesn't is
 		// to copy the mate's details into here
 		itoa10<int64_t>(summ.orefoff()+1, buf);
-		o.writeChars(buf);
-		o.write('\t');
+		o.append(buf);
+		o.append('\t');
 	} else {
-		o.writeChars("0\t");
+		o.append("0\t");
 	}
 	// ISIZE
 	if(rs != NULL && rs->alignedPaired()) {
 		itoa10<int64_t>(rs->fragmentLength(), buf);
-		o.writeChars(buf);
-		o.write('\t');
+		o.append(buf);
+		o.append('\t');
 	} else {
 		// No fragment
-		o.writeChars("0\t");
+		o.append("0\t");
 	}
 	// SEQ
 	if(!flags.isPrimary() && samc_.omitSecondarySeqQual()) {
-		o.write('*');
+		o.append('*');
 	} else {
 		// Print the read
 		if(rd.patFw.length() == 0) {
-			o.write('*');
+			o.append('*');
 		} else {
 			if(rs == NULL || rs->fw()) {
-				o.writeChars(rd.patFw.toZBuf());
+				o.append(rd.patFw.toZBuf());
 			} else {
-				o.writeChars(rd.patRc.toZBuf());
+				o.append(rd.patRc.toZBuf());
 			}
 		}
 	}
-	o.write('\t');
+	o.append('\t');
 	// QUAL
 	if(!flags.isPrimary()) {
-		o.write('*');
+		o.append('*');
 	} else {
 		// Print the quals
 		if(rd.qual.length() == 0) {
-			o.write('*');
+			o.append('*');
 		} else {
 			if(rs == NULL || rs->fw()) {
-				o.writeChars(rd.qual.toZBuf());
+				o.append(rd.qual.toZBuf());
 			} else {
-				o.writeChars(rd.qualRev.toZBuf());
+				o.append(rd.qualRev.toZBuf());
 			}
 		}
 	}
-	o.write('\t');
+	o.append('\t');
 	//
 	// Optional fields
 	//
@@ -2142,7 +1833,7 @@ void AlnSinkSam::appendMate(
 			ssm,         // seed alignment summary
 			prm);        // per-read metrics
 	}
-	o.write('\n');
+	o.append('\n');
 }
 
 #ifdef ALN_SINK_MAIN

@@ -173,7 +173,8 @@ public:
 	virtual bool nextReadPair(
 		Read& ra,
 		Read& rb,
-		TReadId& patid,
+		TReadId& rdid,
+		TReadId& endid,
 		bool& success,
 		bool& done,
 		bool& paired,
@@ -184,7 +185,8 @@ public:
 	 */
 	virtual bool nextRead(
 		Read& r,
-		TReadId& patid,
+		TReadId& rdid,
+		TReadId& endid,
 		bool& success,
 		bool& done);
 
@@ -198,7 +200,8 @@ public:
 	virtual bool nextReadPairImpl(
 		Read& ra,
 		Read& rb,
-		TReadId& patid,
+		TReadId& rdid,
+		TReadId& endid,
 		bool& success,
 		bool& done,
 		bool& paired) = 0;
@@ -212,7 +215,8 @@ public:
 	 */
 	virtual bool nextReadImpl(
 		Read& r,
-		TReadId& patid, 
+		TReadId& rdid, 
+		TReadId& endid, 
 		bool& success,
 		bool& done) = 0;
 
@@ -308,7 +312,8 @@ public:
 	virtual bool nextReadPair(
 		Read& ra,
 		Read& rb,
-		TReadId& patid,
+		TReadId& rdid,
+		TReadId& endid,
 		bool& success,
 		bool& done,
 		bool& paired,
@@ -417,7 +422,8 @@ public:
 	virtual bool nextReadPair(
 		Read& ra,
 		Read& rb,
-		TReadId& patid,
+		TReadId& rdid,
+		TReadId& endid,
 		bool& success,
 		bool& done,
 		bool& paired,
@@ -508,7 +514,8 @@ public:
 	virtual bool nextReadPair(
 		Read& ra,
 		Read& rb,
-		TReadId& patid,
+		TReadId& rdid,
+		TReadId& endid,
 		bool& success,
 		bool& done,
 		bool& paired,
@@ -538,7 +545,7 @@ class PatternSourcePerThread {
 public:
 
 	PatternSourcePerThread() :
-		buf1_(), buf2_(), patid_(0xffffffff) { }
+		buf1_(), buf2_(), rdid_(0xffffffff), endid_(0xffffffff) { }
 
 	virtual ~PatternSourcePerThread() { }
 
@@ -559,8 +566,9 @@ public:
 	const Read& bufa() const { return buf1_;    }
 	const Read& bufb() const { return buf2_;    }
 
-	TReadId       patid() const { return patid_;        }
-	virtual void  reset()       { patid_ = 0xffffffff;  }
+	TReadId       rdid()  const { return rdid_;  }
+	TReadId       endid() const { return endid_; }
+	virtual void  reset()       { rdid_ = endid_ = 0xffffffff;  }
 	
 	/**
 	 * Return the length of mate 1 or mate 2.
@@ -573,7 +581,8 @@ protected:
 
 	Read  buf1_;    // read buffer for mate a
 	Read  buf2_;    // read buffer for mate b
-	TReadId patid_; // index of read just read
+	TReadId rdid_;  // index of read just read
+	TReadId endid_; // index of read just read
 };
 
 /**
@@ -739,7 +748,8 @@ public:
 	
 	virtual bool nextReadImpl(
 		Read& r,
-		TReadId& patid,
+		TReadId& rdid,
+		TReadId& endid,
 		bool& success,
 		bool& done);
 	
@@ -749,7 +759,8 @@ public:
 	virtual bool nextReadPairImpl(
 		Read& ra,
 		Read& rb,
-		TReadId& patid,
+		TReadId& rdid,
+		TReadId& endid,
 		bool& success,
 		bool& done,
 		bool& paired);
@@ -822,14 +833,16 @@ public:
 	 */
 	virtual bool nextReadImpl(
 		Read& r,
-		TReadId& patid,
+		TReadId& rdid,
+		TReadId& endid,
 		bool& success,
 		bool& done)
 	{
 		// We'll be manipulating our file handle/filecur_ state
 		lock();
 		while(true) {
-			do { read(r, patid, success, done); } while(!success && !done);
+			do { read(r, rdid, endid, success, done); }
+			while(!success && !done);
 			if(!success && filecur_ < infiles_.size()) {
 				assert(done);
 				open();
@@ -851,7 +864,8 @@ public:
 	virtual bool nextReadPairImpl(
 		Read& ra,
 		Read& rb,
-		TReadId& patid,
+		TReadId& rdid,
+		TReadId& endid,
 		bool& success,
 		bool& done,
 		bool& paired)
@@ -859,7 +873,7 @@ public:
 		// We'll be manipulating our file handle/filecur_ state
 		lock();
 		while(true) {
-			do { readPair(ra, rb, patid, success, done, paired); }
+			do { readPair(ra, rb, rdid, endid, success, done, paired); }
 			while(!success && !done);
 			if(!success && filecur_ < infiles_.size()) {
 				assert(done);
@@ -895,7 +909,8 @@ protected:
 	/// to deal with specific file formats
 	virtual bool read(
 		Read& r,
-		TReadId& patid,
+		TReadId& rdid,
+		TReadId& endid,
 		bool& success,
 		bool& done) = 0;
 	
@@ -904,7 +919,8 @@ protected:
 	virtual bool readPair(
 		Read& ra,
 		Read& rb,
-		TReadId& patid,
+		TReadId& rdid,
+		TReadId& endid,
 		bool& success,
 		bool& done,
 		bool& paired) = 0;
@@ -1016,7 +1032,8 @@ protected:
 	/// Read another pattern from a FASTA input file
 	virtual bool read(
 		Read& r,
-		TReadId& patid,
+		TReadId& rdid,
+		TReadId& endid,
 		bool& success,
 		bool& done);
 	
@@ -1024,7 +1041,8 @@ protected:
 	virtual bool readPair(
 		Read& ra,
 		Read& rb,
-		TReadId& patid,
+		TReadId& rdid,
+		TReadId& endid,
 		bool& success,
 		bool& done,
 		bool& paired)
@@ -1087,7 +1105,8 @@ protected:
 	/// Read another pattern from a FASTA input file
 	virtual bool read(
 		Read& r,
-		TReadId& patid,
+		TReadId& rdid,
+		TReadId& endid,
 		bool& success,
 		bool& done);
 
@@ -1095,7 +1114,8 @@ protected:
 	virtual bool readPair(
 		Read& ra,
 		Read& rb,
-		TReadId& patid,
+		TReadId& rdid,
+		TReadId& endid,
 		bool& success,
 		bool& done,
 		bool& paired);
@@ -1222,7 +1242,8 @@ protected:
 	 */
 	virtual bool read(
 		Read& r,
-		TReadId& patid,
+		TReadId& rdid,
+		TReadId& endid,
 		bool& success,
 		bool& done);
 
@@ -1232,7 +1253,8 @@ protected:
 	virtual bool readPair(
 		Read& ra,
 		Read& rb,
-		TReadId& patid,
+		TReadId& rdid,
+		TReadId& endid,
 		bool& success,
 		bool& done,
 		bool& paired)
@@ -1274,7 +1296,8 @@ protected:
 	/// Read another pattern from a FASTA input file
 	virtual bool read(
 		Read& r,
-		TReadId& patid,
+		TReadId& rdid,
+		TReadId& endid,
 		bool& success,
 		bool& done)
 	{
@@ -1341,7 +1364,7 @@ protected:
 					eat_ = freq_-1;
 					readCnt_++;
 					beginning_ = false;
-					patid = readCnt_-1;
+					rdid = endid = readCnt_-1;
 					break;
 				}
 			}
@@ -1354,7 +1377,8 @@ protected:
 	virtual bool readPair(
 		Read& ra,
 		Read& rb,
-		TReadId& patid,
+		TReadId& rdid,
+		TReadId& endid,
 		bool& success,
 		bool& done,
 		bool& paired)
@@ -1465,7 +1489,8 @@ protected:
 	/// Read another pattern from a FASTQ input file
 	virtual bool read(
 		Read& r,
-		TReadId& patid,
+		TReadId& rdid,
+		TReadId& endid,
 		bool& success,
 		bool& done);
 	
@@ -1473,7 +1498,8 @@ protected:
 	virtual bool readPair(
 		Read& ra,
 		Read& rb,
-		TReadId& patid,
+		TReadId& rdid,
+		TReadId& endid,
 		bool& success,
 		bool& done,
 		bool& paired)
@@ -1530,7 +1556,8 @@ protected:
 	/// Read another pattern from a Raw input file
 	virtual bool read(
 		Read& r,
-		TReadId& patid,
+		TReadId& rdid,
+		TReadId& endid,
 		bool& success,
 		bool& done)
 	{
@@ -1617,7 +1644,7 @@ protected:
 		r.name.install(cbuf);
 		readCnt_++;
 
-		patid = readCnt_-1;
+		rdid = endid = readCnt_-1;
 		return success;
 	}
 	
@@ -1625,7 +1652,8 @@ protected:
 	virtual bool readPair(
 		Read& ra,
 		Read& rb,
-		TReadId& patid,
+		TReadId& rdid,
+		TReadId& endid,
 		bool& success,
 		bool& done,
 		bool& paired)

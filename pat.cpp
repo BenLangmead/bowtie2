@@ -63,7 +63,8 @@ PatternSource* PatternSource::patsrcFromStrings(
 bool PatternSource::nextReadPair(
 	Read& ra,
 	Read& rb,
-	TReadId& patid,
+	TReadId& rdid,
+	TReadId& endid,
 	bool& success,
 	bool& done,
 	bool& paired,
@@ -72,7 +73,7 @@ bool PatternSource::nextReadPair(
 	// nextPatternImpl does the reading from the ultimate source;
 	// it is implemented in concrete subclasses
 	success = done = paired = false;
-	nextReadPairImpl(ra, rb, patid, success, done, paired);
+	nextReadPairImpl(ra, rb, rdid, endid, success, done, paired);
 	if(success) {
 		// Construct reversed versions of fw and rc seqs/quals
 		ra.finalize();
@@ -95,13 +96,14 @@ bool PatternSource::nextReadPair(
  */
 bool PatternSource::nextRead(
 	Read& r,
-	TReadId& patid,
+	TReadId& rdid,
+	TReadId& endid,
 	bool& success,
 	bool& done)
 {
 	// nextPatternImpl does the reading from the ultimate source;
 	// it is implemented in concrete subclasses
-	nextReadImpl(r, patid, success, done);
+	nextReadImpl(r, rdid, endid, success, done);
 	if(success) {
 		// Construct the reversed versions of the fw and rc seqs
 		// and quals
@@ -125,11 +127,11 @@ bool WrappedPatternSourcePerThread::nextReadPair(
 	bool fixName)
 {
 	PatternSourcePerThread::nextReadPair(success, done, paired, fixName);
-	ASSERT_ONLY(TReadId lastPatid = patid_);
+	ASSERT_ONLY(TReadId lastRdId = rdid_);
 	buf1_.reset();
 	buf2_.reset();
-	patsrc_.nextReadPair(buf1_, buf2_, patid_, success, done, paired, fixName);
-	assert(!success || patid_ != lastPatid);
+	patsrc_.nextReadPair(buf1_, buf2_, rdid_, endid_, success, done, paired, fixName);
+	assert(!success || rdid_ != lastRdId);
 	return success;
 }
 
@@ -141,7 +143,8 @@ bool WrappedPatternSourcePerThread::nextReadPair(
 bool PairedSoloPatternSource::nextReadPair(
 	Read& ra,
 	Read& rb,
-	TReadId& patid,
+	TReadId& rdid,
+	TReadId& endid,
 	bool& success,
 	bool& done,
 	bool& paired,
@@ -153,7 +156,7 @@ bool PairedSoloPatternSource::nextReadPair(
 		// Patterns from srca_[cur_] are unpaired
 		do {
 			(*src_)[cur]->nextReadPair(
-				ra, rb, patid, success, done, paired, fixName);
+				ra, rb, rdid, endid, success, done, paired, fixName);
 		} while(!success && !done);
 		if(!success) {
 			assert(done);
@@ -174,9 +177,14 @@ bool PairedSoloPatternSource::nextReadPair(
 				rb.fixMateName(2);
 			}
 		}
-		ra.patid = patid;
-		ra.mate  = 1;
-		rb.mate  = 2;
+		ra.rdid = rdid;
+		ra.endid = endid;
+		if(!rb.empty()) {
+			rb.rdid = rdid;
+			rb.endid = endid+1;
+		}
+		ra.mate = 1;
+		rb.mate = 2;
 		return true; // paired
 	}
 	assert_leq(cur, src_->size());
@@ -192,7 +200,8 @@ bool PairedSoloPatternSource::nextReadPair(
 bool PairedDualPatternSource::nextReadPair(
 	Read& ra,
 	Read& rb,
-	TReadId& patid,
+	TReadId& rdid,
+	TReadId& endid,
 	bool& success,
 	bool& done,
 	bool& paired,
@@ -207,7 +216,7 @@ bool PairedDualPatternSource::nextReadPair(
 			paired = false;
 			// Patterns from srca_ are unpaired
 			do {
-				(*srca_)[cur]->nextRead(ra, patid, success, done);
+				(*srca_)[cur]->nextRead(ra, rdid, endid, success, done);
 			} while(!success && !done);
 			if(!success) {
 				assert(done);
@@ -217,26 +226,28 @@ bool PairedDualPatternSource::nextReadPair(
 				unlock();
 				continue; // on to next pair of PatternSources
 			}
-			ra.patid = patid;
+			ra.rdid = rdid;
+			ra.endid = endid;
 			ra.mate  = 0;
 			return success;
 		} else {
 			paired = true;
 			// Patterns from srca_[cur_] and srcb_[cur_] are paired
-			TReadId patid_a = 0;
-			TReadId patid_b = 0;
+			TReadId rdid_a = 0, endid_a = 0;
+			TReadId rdid_b = 0, endid_b = 0;
 			bool success_a = false, done_a = false;
 			bool success_b = false, done_b = false;
 			// Lock to ensure that this thread gets parallel reads
 			// in the two mate files
 			lock();
 			do {
-				(*srca_)[cur]->nextRead(ra, patid_a, success_a, done_a);
+				(*srca_)[cur]->nextRead(ra, rdid_a, endid_a, success_a, done_a);
 			} while(!success_a && !done_a);
 			do {
-				(*srcb_)[cur]->nextRead(rb, patid_b, success_b, done_b);
+				(*srcb_)[cur]->nextRead(rb, rdid_b, endid_b, success_b, done_b);
 			} while(!success_b && !done_b);
-			assert_eq(patid_a, patid_b);
+			assert_eq(rdid_a, rdid_b);
+			//assert_eq(endid_a+1, endid_b);
 			assert_eq(success_a, success_b);
 			if(!success_a) {
 				assert(done_a && done_b);
@@ -250,13 +261,18 @@ bool PairedDualPatternSource::nextReadPair(
 				ra.fixMateName(1);
 				rb.fixMateName(2);
 			}
-			patid = patid_a;
+			rdid = rdid_a;
+			endid = endid_a;
 			success = success_a;
 			done = done_a;
-			ra.patid = patid;
-			rb.patid = patid;
-			ra.mate  = 1;
-			rb.mate  = 2;
+			ra.rdid = rdid;
+			ra.endid = endid;
+			if(!rb.empty()) {
+				rb.rdid = rdid;
+				rb.endid = endid+1;
+			}
+			ra.mate = 1;
+			rb.mate = 2;
 			return success;
 		}
 	}
@@ -492,7 +508,8 @@ VectorPatternSource::VectorPatternSource(
 	
 bool VectorPatternSource::nextReadImpl(
 	Read& r,
-	TReadId& patid,
+	TReadId& rdid,
+	TReadId& endid,
 	bool& success,
 	bool& done)
 {
@@ -500,7 +517,8 @@ bool VectorPatternSource::nextReadImpl(
 	r.reset();
 	lock();
 	readCnt_++;
-	patid = readCnt_;
+	rdid = readCnt_;
+	endid = readCnt_;
 	if(cur_ >= v_.size()) {
 		unlock();
 		// Clear all the Strings, as a signal to the caller that
@@ -533,7 +551,8 @@ bool VectorPatternSource::nextReadImpl(
 bool VectorPatternSource::nextReadPairImpl(
 	Read& ra,
 	Read& rb,
-	TReadId& patid,
+	TReadId& rdid,
+	TReadId& endid,
 	bool& success,
 	bool& done,
 	bool& paired)
@@ -548,7 +567,7 @@ bool VectorPatternSource::nextReadPairImpl(
 	}
 	lock();
 	readCnt_++;
-	patid = readCnt_;
+	rdid = endid = readCnt_;
 	if(cur_ >= v_.size()-1) {
 		unlock();
 		// Clear all the Strings, as a signal to the caller that
@@ -667,7 +686,8 @@ int parseQuals(
 /// Read another pattern from a FASTA input file
 bool FastaPatternSource::read(
 	Read& r,
-	TReadId& patid,
+	TReadId& rdid,
+	TReadId& endid,
 	bool& success,
 	bool& done)
 {
@@ -681,7 +701,7 @@ bool FastaPatternSource::read(
 	r.color = gColor;
 	// Pick off the first carat
 	readCnt_++;
-	patid = readCnt_-1;
+	rdid = endid = readCnt_-1;
 	c = fb_.get();
 	if(c < 0) {
 		bail(r); success = false; done = true; return success;
@@ -840,14 +860,15 @@ bool FastaPatternSource::read(
 /// Read another pattern from a FASTQ input file
 bool FastqPatternSource::read(
 	Read& r,
-	TReadId& patid,
+	TReadId& rdid,
+	TReadId& endid,
 	bool& success,
 	bool& done)
 {
 	int c;
 	int dstLen = 0;
 	readCnt_++;
-	patid = readCnt_-1;
+	rdid = endid = readCnt_-1;
 	success = true;
 	done = false;
 	r.reset();
@@ -1144,14 +1165,15 @@ bool FastqPatternSource::read(
 /// Read another pattern from a FASTA input file
 bool TabbedPatternSource::read(
 	Read& r,
-	TReadId& patid,
+	TReadId& rdid,
+	TReadId& endid,
 	bool& success,
 	bool& done)
 {
 	r.reset();
 	r.color = gColor;
 	readCnt_++;
-	patid = readCnt_-1;
+	rdid = endid = readCnt_-1;
 	success = true;
 	done = false;
 	// fb_ is about to dish out the first character of the
@@ -1202,13 +1224,14 @@ bool TabbedPatternSource::read(
 bool TabbedPatternSource::readPair(
 	Read& ra,
 	Read& rb,
-	TReadId& patid,
+	TReadId& rdid,
+	TReadId& endid,
 	bool& success,
 	bool& done,
 	bool& paired)
 {
 	readCnt_++;
-	patid = readCnt_-1;
+	rdid = endid = readCnt_-1;
 	success = true;
 	done = false;
 	

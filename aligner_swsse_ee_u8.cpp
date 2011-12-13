@@ -1024,7 +1024,7 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseU8(
 	size_t&        nbts,   // out: # backtracks
 	size_t         row,    // start in this row
 	size_t         col,    // start in this column
-	RandomSource&  rand)   // random gen, to choose among equal paths
+	RandomSource&  rnd)    // random gen, to choose among equal paths
 {
 	assert_lt(row, dpRows());
 	assert_lt(col, rff_-rfi_);
@@ -1108,7 +1108,7 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseU8(
 						mask = (d.mat_.masks_[row][col] >> 8) & 3;
 					}
 					if(mask == 3) {
-						if(rand.nextU2()) {
+						if(rnd.nextU2()) {
 							// I chose the H cell
 							cur = SW_BT_OALL_READ_OPEN;
 							d.mat_.eMaskSet(row, col, 2); // might choose E later
@@ -1160,7 +1160,7 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseU8(
 						mask = (d.mat_.masks_[row][col] >> 11) & 3;
 					}
 					if(mask == 3) {
-						if(rand.nextU2()) {
+						if(rnd.nextU2()) {
 							// I chose the H cell
 							cur = SW_BT_OALL_REF_OPEN;
 							d.mat_.fMaskSet(row, col, 2); // might choose E later
@@ -1228,7 +1228,7 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseU8(
 						assert_geq(mask, 0);
 						d.mat_.hMaskSet(row, col, 0);
 					} else if(opts > 1) {
-						select = randFromMask(rand, mask);
+						select = randFromMask(rnd, mask);
 						assert_geq(mask, 0);
 						mask &= ~(1 << select);
 						assert(gapsAllowed || mask == (1 << 4) || mask == 0);

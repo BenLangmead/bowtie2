@@ -21,12 +21,12 @@
 #define ALN_SINK_H_
 
 #include <limits>
-#include "filebuf.h"
 #include "read.h"
 #include "unique.h"
 #include "sam.h"
 #include "ds.h"
 #include "simple_func.h"
+#include "outq.h"
 #include <utility>
 
 // Forward decl	
@@ -599,30 +599,18 @@ class AlnSink {
 public:
 
 	explicit AlnSink(
-		OutFileBuf*        out,
-		bool               deleteOuts,
-		const StrList&     refnames,
-		bool               quiet) :
-		outs_(),
-		outNames_(),
-		locks_(),
-		deleteOuts_(deleteOuts),
+		OutputQueue& oq,
+		const StrList& refnames,
+		bool quiet) :
+		oq_(oq),
 		refnames_(refnames),
 		quiet_(quiet)
-	{
-		// Add the default output stream
-		outs_.push_back(out);
-		// Add its lock
-		locks_.resize(1);
-		// Initialize locks
-		MUTEX_INIT(locks_[0]);
-		MUTEX_INIT(mainlock_);
-	}
+	{ }
 
 	/**
 	 * Destroy HitSinkobject;
 	 */
-	virtual ~AlnSink() { closeOuts(deleteOuts_); }
+	virtual ~AlnSink() { }
 
 	/**
 	 * Called when the AlnSink is wrapped by a new AlnSinkWrap.  This helps us
@@ -632,30 +620,18 @@ public:
 	void addWrapper() { numWrappers_++; }
 
 	/**
-	 * Maps a read id and a reference coordinate (usually corresponding
-	 * to the leftmost position on the Watson strand involved in the
-	 * alignment) to a stream id used to determine which output stream
-	 * to write results to.  If the user has requested that the output
-	 * alignments appear in an order corresponding to the input order,
-	 * it may be useful to partition by read id for a future sort step.
-	 * If the user has requested that alignments appear binned and/or
-	 * sorted by chromosome, then it may be useful to partition by
-	 * reference coordinate.
-	 */
-	size_t streamId(TReadId rdid, Coord c) { return 0; }
-
-	/**
 	 * Append a single hit to the given output stream.  If
 	 * synchronization is required, append() assumes the caller has
 	 * already grabbed the appropriate lock.
 	 */
 	virtual void append(
-		OutFileBuf&           o,
+		BTString&             o,
+		size_t                threadId,
 		const Read           *rd1,
 		const Read           *rd2,
 		const TReadId         rdid,
-		const AlnRes         *rs1,
-		const AlnRes         *rs2,
+		AlnRes               *rs1,
+		AlnRes               *rs2,
 		const AlnSetSumm&     summ,
 		const SeedAlSumm&     ssm1,
 		const SeedAlSumm&     ssm2,
@@ -675,12 +651,14 @@ public:
 	 * convey this.
 	 */
 	virtual void reportHits(
+		BTString&             o,              // write to this buffer
+		size_t                threadId,       // which thread am I?
 		const Read           *rd1,            // mate #1
 		const Read           *rd2,            // mate #2
 		const TReadId         rdid,           // read ID
 		const EList<size_t>&  select,         // random subset
-		const EList<AlnRes>  *rs1,            // alignments for mate #1
-		const EList<AlnRes>  *rs2,            // alignments for mate #2
+		EList<AlnRes>        *rs1,            // alignments for mate #1
+		EList<AlnRes>        *rs2,            // alignments for mate #2
 		bool                  maxed,          // true iff -m/-M exceeded
 		const AlnSetSumm&     summ,           // summary
 		const SeedAlSumm&     ssm1,           // seed alignment summ
@@ -707,20 +685,11 @@ public:
 		{
 			// ASSUMING that sid doesn't change from alignment to alignment
 			Coord c(0, 0, true);
-			size_t sid = streamId(rdid, c);
-			ThreadSafe ts(&locks_[sid], getLock);
 			for(size_t i = 0; i < select.size(); i++) {
-				// Determine the stream id using the coordinate of the
-				// upstream mate
-				//Coord c = ((rs1 != NULL) ?
-				//	rs1->get(select[i]).refcoord() :
-				//	rs2->get(select[i]).refcoord());
-				//size_t sid = streamId(rdid, c);
-				const AlnRes* r1 = ((rs1 != NULL) ? &rs1->get(select[i]) : NULL);
-				const AlnRes* r2 = ((rs2 != NULL) ? &rs2->get(select[i]) : NULL);
-				assert_lt(sid, locks_.size());
+				AlnRes* r1 = ((rs1 != NULL) ? &rs1->get(select[i]) : NULL);
+				AlnRes* r2 = ((rs2 != NULL) ? &rs2->get(select[i]) : NULL);
 				{
-					append(out(sid), rd1, rd2, rdid, r1, r2, summ, ssm1, ssm2, flags1, flags2, prm, mapq);
+					append(o, threadId, rd1, rd2, rdid, r1, r2, summ, ssm1, ssm2, flags1, flags2, prm, mapq);
 				}
 				if(flags1 != NULL) {
 					flagscp1.setPrimary(false);
@@ -737,6 +706,8 @@ public:
 	 * want to print a placeholder when output is chained.
 	 */
 	virtual void reportUnaligned(
+		BTString&             o,              // write to this string
+		size_t                threadId,       // which thread am I?
 		const Read           *rd1,            // mate #1
 		const Read           *rd2,            // mate #2
 		const TReadId         rdid,           // read ID
@@ -749,27 +720,7 @@ public:
 		const Mapq&           mapq,           // MAPQ calculator
 		bool                  getLock = true) // true iff lock held by caller
 	{
-		Coord c(0, 0, true);
-		size_t sid = streamId(rdid, c);
-		assert_lt(sid, locks_.size());
-		ThreadSafe ts(&locks_[sid], getLock);
-		append(out(sid), rd1, rd2, rdid, NULL, NULL, summ, ssm1, ssm2, flags1, flags2, prm, mapq);
-	}
-
-	/**
-	 * Commit a reported hit.
-	 */
-	virtual void commitHits(
-		const Read*          rd1,
-		const Read*          rd2,
-		const TReadId        rdid,
-		const EList<AlnRes>* rs1,
-		const EList<AlnRes>* rs2,
-		size_t               start,
-		size_t               end,
-		bool                 getLock = true)
-	{
-		
+		append(o, threadId, rd1, rd2, rdid, NULL, NULL, summ, ssm1, ssm2, flags1, flags2, prm, mapq);
 	}
 
 	/**
@@ -795,7 +746,6 @@ public:
 		bool hadoopOut)
 	{
 		// Close output streams
-		closeOuts(false);
 		if(!quiet_) {
 			printAlSumm(
 				met_,
@@ -807,33 +757,9 @@ public:
 	}
 
 	/**
-	 * Returns the output stream associated with the given stream id.
-	 * It lazily initializes the output stream first if necessary.
-	 */
-	OutFileBuf& out(size_t sid) {
-		assert_lt(sid, outs_.size());
-		if(outs_[sid] == NULL) {
-			outs_[sid] = new OutFileBuf(outNames_[sid]);
-		}
-		assert(outs_[sid] != NULL);
-		return *(outs_[sid]);
-	}
-	
-	/**
 	 * Check that hit sink is internally consistent.
 	 */
-	bool repOk() const {
-		return true;
-	}
-
-	void dumpMaxed(const Read* m1, const Read* m2, TReadId rdid) {
-	}
-	
-	void dumpUnal(const Read* m1, const Read* m2, TReadId rdid) {
-	}
-	
-	void dumpAlign(const Read* m1, const Read* m2, TReadId rdid) {
-	}
+	bool repOk() const { return true; }
 	
 	//
 	// Related to reporting seed hits
@@ -844,8 +770,10 @@ public:
 	 * print a record summarizing the seed hits.
 	 */
 	void reportSeedSummary(
+		BTString&          o,
 		const Read&        rd,
 		TReadId            rdid,
+		size_t             threadId,
 		const SeedResults& rs,
 		bool               getLock = true);
 
@@ -853,8 +781,10 @@ public:
 	 * Given a Read, print an empty record (all 0s).
 	 */
 	void reportEmptySeedSummary(
+		BTString&          o,
 		const Read&        rd,
 		TReadId            rdid,
+		size_t             threadId,
 		bool               getLock = true);
 
 	/**
@@ -865,7 +795,7 @@ public:
 	 * verbose-mode format.
 	 */
 	virtual void appendSeedSummary(
-		OutFileBuf&   o,
+		BTString&     o,
 		const Read&   rd,
 		const TReadId rdid,
 		size_t        seedsTried,
@@ -888,36 +818,19 @@ public:
 		met_.merge(met, getLock);
 	}
 
-protected:
-
 	/**
-	 * Close (and flush) all OutFileBufs.
+	 * Return mutable reference to the shared OutputQueue.
 	 */
-	void closeOuts(bool del) {
-		// Flush and close all non-NULL output streams
-		for(size_t i = 0; i < outs_.size(); i++) {
-			if(outs_[i] != NULL && !outs_[i]->closed()) {
-				outs_[i]->close();
-			}
-			if(del && outs_[i] != NULL) {
-				delete outs_[i];
-				outs_[i] = NULL;
-			}
-		}
+	OutputQueue& outq() {
+		return oq_;
 	}
 
-	// TODO: allow multiple output streams.  Right now, all output goes
-	// to outs_[0].
-	
-	EList<OutFileBuf*> outs_;         // the alignment output stream(s)
-	EList<std::string> outNames_;     // the filenames for the alignment output stream(s)
-	EList<MUTEX_T>     locks_;        // pthreads mutexes for per-file critical sections
-	bool               deleteOuts_;   // Whether to delete elements of outs_ upon exit
+protected:
+
+	OutputQueue&       oq_;           // output queue
 	int                numWrappers_;  // # threads owning a wrapper for this HitSink
-	MUTEX_T            mainlock_;     // pthreads mutexes for fields of this object
-	const StrList&     refnames_; // reference names
+	const StrList&     refnames_;     // reference names
 	bool               quiet_;        // true -> don't print alignment stats at the end
-	
 	ReportingMetrics   met_;          // global repository of reporting metrics
 };
 
@@ -1013,11 +926,13 @@ class AlnSinkWrap {
 public:
 
 	AlnSinkWrap(
-		AlnSink& g,                  // AlnSink being wrapped
-		const ReportingParams& rp,   // Parameters governing reporting
-		Mapq& mapq) :
+		AlnSink& g,                // AlnSink being wrapped
+		const ReportingParams& rp, // Parameters governing reporting
+		Mapq& mapq,                // Mapq calculator
+		size_t threadId) :         // Thread ID
 		g_(g),
 		rp_(rp),
+		threadid_(threadId),
 		mapq_(mapq),
 		init_(false),   
 		maxed1_(false),       // read is pair and we maxed out mate 1 unp alns
@@ -1280,6 +1195,7 @@ protected:
 
 	AlnSink&        g_;     // global alignment sink
 	ReportingParams rp_;    // reporting parameters: khits, mhits etc
+	size_t          threadid_; // thread ID
 	Mapq&           mapq_;  // mapq calculator
 	bool            init_;  // whether we're initialized w/ read pair
 	bool            maxed1_; // true iff # unpaired mate-1 alns reported so far exceeded -m/-M
@@ -1300,122 +1216,11 @@ protected:
 	EList<AlnRes>   rs2_;   // paired alignments for mate #2
 	EList<AlnRes>   rs1u_;  // unpaired alignments for mate #1
 	EList<AlnRes>   rs2u_;  // unpaired alignments for mate #2
-	EList<size_t>   select_;    // parallel to rs1_/rs2_ - which to report
-	ReportingState  st_;    // reporting state - what's left to do?
+	EList<size_t>   select_;  // parallel to rs1_/rs2_ - which to report
+	ReportingState  st_;      // reporting state - what's left to do?
 	
 	EList<std::pair<TAlScore, size_t> > selectBuf_;
-};
-
-/**
- * An AlnSink concrete subclass for printing Bowtie verbose-mode alignments.
- */
-class AlnSinkVerbose : public AlnSink {
-
-	typedef EList<std::string> StrList;
-
-public:
-
-	AlnSinkVerbose(
-		OutFileBuf*        out,        // initial output stream
-		const EList<bool>& suppress,   // suppress columns
-		bool               deleteOuts, // delete output objects upon destruction
-		const StrList&     refnames,   // reference names
-		bool               quiet,      // don't print alignment summary at end
-		int                offBase,    // add to 0-based offsets before printing
-		bool               colorSeq,   // color: print color seq, not decoded nucs
-		bool               colorQual,  // color: print color quals, not decoded quals
-		bool               printPlaceholders, // print maxs and unals
-		bool               printFlags, // print alignment flags a la SAM
-		bool               printCost,  // print penalty in extra column
-		bool               printParams,// print alignment parameters
-		bool               fullRef,    // print entire ref name incl whitespace
-		int                partition = 0) : // partition size
-		AlnSink(
-			out,
-			deleteOuts,
-			refnames,
-			quiet),
-		suppress_(suppress),
-		offBase_(offBase),
-		colorSeq_(colorSeq),
-		colorQual_(colorQual),
-		printPlaceholders_(printPlaceholders),
-		printFlags_(printFlags),
-		printCost_(printCost),
-		printParams_(printParams),
-		fullRef_(fullRef),
-		partition_(partition)
-	{ }
-
-	/**
-	 * Append a single alignment result, which might be paired or
-	 * unpaired, to the given output stream in Bowtie's verbose-mode
-	 * format.  If the alignment is paired-end, print mate1's alignment
-	 * then mate2's alignment.
-	 */
-	virtual void append(
-		OutFileBuf&   o,           // file buffer to write to
-		const Read*   rd1,         // mate #1
-		const Read*   rd2,         // mate #2
-		const TReadId rdid,        // read ID
-		const AlnRes* rs1,         // alignments for mate #1
-		const AlnRes* rs2,         // alignments for mate #2
-		const AlnSetSumm& summ,    // summary
-		const SeedAlSumm& ssm1,    // seed alignment summary
-		const SeedAlSumm& ssm2,    // seed alignment summary
-		const AlnFlags* flags1,    // flags for mate #1
-		const AlnFlags* flags2,    // flags for mate #2
-		const PerReadMetrics& prm, // per-read metrics
-		const Mapq&   mapq)        // MAPQ calculator
-	{
-		assert(rd1 != NULL || rd2 != NULL);
-		if(rd1 != NULL) {
-			appendMate(o, *rd1, rd2, rdid, rs1, rs2, summ, ssm1, ssm2, *flags1, prm, mapq);
-		}
-		if(rd2 != NULL) {
-			appendMate(o, *rd2, rd1, rdid, rs2, rs1, summ, ssm2, ssm1, *flags2, prm, mapq);
-		}
-	}
-
-protected:
-
-	/**
-	 * Append a single per-mate alignment result to the given output
-	 * stream.  If the alignment is part of a pair, information about
-	 * the opposite mate and its alignment are given in rdo/rso.
-	 */
-	void appendMate(
-		OutFileBuf&   o,
-		const Read&   rd,
-		const Read*   rdo,
-		const TReadId rdid,
-		const AlnRes* rs,
-		const AlnRes* rso,
-		const AlnSetSumm& summ,
-		const SeedAlSumm& ssm,
-		const SeedAlSumm& ssmo,
-		const AlnFlags& flags,
-		const PerReadMetrics& prm, // per-read metrics
-		const Mapq& mapq);
-
-	const EList<bool>& suppress_; // bit mask of columns to suppress
-	int           offBase_;    // add to 0-based reference offsets
-	bool          colorSeq_;   // cspace: print color seq, not decoded nucs
-	bool          colorQual_;  // cspace: print color quals,  not decoded quals
-	bool    printPlaceholders_;// print maxs and unals
-	bool          printFlags_; // print alignment flags
-	bool          printCost_;  // print penalty in extra column
-	bool          printParams_;// print alignment parameters
-	bool          fullRef_;    // print entire ref name including whitespace
-	int           partition_;  // partition size
-
-	char          mapqInps_[1024]; // summary of what went into MAPQ calculation
-	
-	BTDnaString   dseq_;       // buffer for decoded read sequence
-	BTString      dqual_;      // buffer for decoded quality sequence
-	
-	EList<char>   tmpop_;      // temporary holder for CIGAR ops
-	EList<size_t> tmprun_;     // temporary holder for CIGAR runs
+	BTString obuf_;
 };
 
 /**
@@ -1431,18 +1236,18 @@ class AlnSinkSam : public AlnSink {
 public:
 
 	AlnSinkSam(
-		OutFileBuf*      out,        // initial output stream
+		OutputQueue&     oq,         // output queue
 		const SamConfig& samc,       // settings & routines for SAM output
-		bool             deleteOuts, // delete output objects upon destruction
 		const StrList&   refnames,   // reference names
 		bool             quiet) :    // don't print alignment summary at end
 		AlnSink(
-			out,
-			deleteOuts,
+			oq,
 			refnames,
 			quiet),
 		samc_(samc)
 	{ }
+	
+	virtual ~AlnSinkSam() { }
 
 	/**
 	 * Append a single alignment result, which might be paired or
@@ -1451,28 +1256,31 @@ public:
 	 * then mate2's alignment.
 	 */
 	virtual void append(
-		OutFileBuf&   o,        // file buffer to write to
-		const Read*   rd1,      // mate #1
-		const Read*   rd2,      // mate #2
-		const TReadId rdid,     // read ID
-		const AlnRes* rs1,      // alignments for mate #1
-		const AlnRes* rs2,      // alignments for mate #2
-		const AlnSetSumm& summ, // summary
-		const SeedAlSumm& ssm1, // seed alignment summary
-		const SeedAlSumm& ssm2, // seed alignment summary
-		const AlnFlags* flags1, // flags for mate #1
-		const AlnFlags* flags2, // flags for mate #2
+		BTString&     o,           // write output to this string
+		size_t        threadId,    // which thread am I?
+		const Read*   rd1,         // mate #1
+		const Read*   rd2,         // mate #2
+		const TReadId rdid,        // read ID
+		AlnRes* rs1,               // alignments for mate #1
+		AlnRes* rs2,               // alignments for mate #2
+		const AlnSetSumm& summ,    // summary
+		const SeedAlSumm& ssm1,    // seed alignment summary
+		const SeedAlSumm& ssm2,    // seed alignment summary
+		const AlnFlags* flags1,    // flags for mate #1
+		const AlnFlags* flags2,    // flags for mate #2
 		const PerReadMetrics& prm, // per-read metrics
-		const Mapq&   mapq)
+		const Mapq& mapq)          // MAPQ calculator
 	{
 		assert(rd1 != NULL || rd2 != NULL);
 		if(rd1 != NULL) {
 			assert(flags1 != NULL);
-			appendMate(o, *rd1, rd2, rdid, rs1, rs2, summ, ssm1, ssm2, *flags1, prm, mapq);
+			appendMate(o, *rd1, rd2, rdid, rs1, rs2, summ, ssm1, ssm2,
+			           *flags1, prm, mapq);
 		}
 		if(rd2 != NULL) {
 			assert(flags2 != NULL);
-			appendMate(o, *rd2, rd1, rdid, rs2, rs1, summ, ssm2, ssm1, *flags2, prm, mapq);
+			appendMate(o, *rd2, rd1, rdid, rs2, rs1, summ, ssm2, ssm1,
+			           *flags2, prm, mapq);
 		}
 	}
 
@@ -1484,25 +1292,22 @@ protected:
 	 * the opposite mate and its alignment are given in rdo/rso.
 	 */
 	void appendMate(
-		OutFileBuf&   o,
+		BTString&     o,
 		const Read&   rd,
 		const Read*   rdo,
 		const TReadId rdid,
-		const AlnRes* rs,
-		const AlnRes* rso,
+		AlnRes* rs,
+		AlnRes* rso,
 		const AlnSetSumm& summ,
 		const SeedAlSumm& ssm,
 		const SeedAlSumm& ssmo,
 		const AlnFlags& flags,
 		const PerReadMetrics& prm, // per-read metrics
-		const Mapq&   mapq);
+		const Mapq& mapq);         // MAPQ calculator
 
 	const SamConfig& samc_;    // settings & routines for SAM output
 	BTDnaString      dseq_;    // buffer for decoded read sequence
 	BTString         dqual_;   // buffer for decoded quality sequence
-	
-	EList<char>      tmpop_;   // temporary holder for CIGAR ops
-	EList<size_t>    tmprun_;  // temporary holder for CIGAR runs
 	
 	char          mapqInps_[1024]; // summary of what went into MAPQ calculation
 

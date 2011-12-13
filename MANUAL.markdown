@@ -1768,16 +1768,18 @@ index.
 [`-p`/`--threads`]: #bowtie2-options-p
 [`-p`]: #bowtie2-options-p
 
-    -p/--threads <int>
+    -p/--threads NTHREADS
 
 </td><td>
 
-Launch `<int>` parallel search threads (default: 1).  Threads will run
-on separate processors/cores and synchronize when parsing reads and
-outputting alignments.  Searching for alignments is highly parallel,
-and speedup is fairly close to linear.  This option is only available
-if `bowtie` is linked with the `pthreads` library (i.e. if
-`BOWTIE_PTHREADS=0` is not specified at build time).
+Launch `NTHREADS` parallel search threads (default: 1).  Threads will run on
+separate processors/cores and synchronize when parsing reads and outputting
+alignments.  Searching for alignments is highly parallel, and speedup is close
+to linear.  Increasing `-p` increases Bowtie 2's memory footprint. E.g. when
+aligning to a human genome index, increasing `-p` from 1 to 8 increases the
+memory footprint by a few hundred megabytes.  This option is only available if
+`bowtie` is linked with the `pthreads` library (i.e. if `BOWTIE_PTHREADS=0` is
+not specified at build time).
 
 </td></tr>
 <tr><td id="bowtie2-options-mm">
@@ -1788,12 +1790,11 @@ if `bowtie` is linked with the `pthreads` library (i.e. if
 
 </td><td>
 
-Use memory-mapped I/O to load the index, rather than normal C file I/O.
-Memory-mapping the index allows many concurrent `bowtie` processes on
-the same computer to share the same memory image of the index (i.e. you
-pay the memory overhead just once).  This facilitates memory-efficient
-parallelization of `bowtie` in situations where using [`-p`] is not
-possible.
+Use memory-mapped I/O to load the index, rather than typical file I/O.
+Memory-mapping allows many concurrent `bowtie` processes on the same computer to
+share the same memory image of the index (i.e. you pay the memory overhead just
+once).  This facilitates memory-efficient parallelization of `bowtie` in
+situations where using [`-p`] is not possible or not preferable.
 
 </td></tr></table>
 

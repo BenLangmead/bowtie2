@@ -2050,7 +2050,7 @@ public:
 			const_cast<T&>(zeroT_) = 0;
 			return &zeroT_;
 		}
-		assert_lt(len_, sz_);
+		assert_leq(len_, sz_);
 		const_cast<T*>(cs_)[len_] = 0;
 		return cs_;
 	}

@@ -41,7 +41,6 @@ enum {
 	SAM_FLAG_DUPLICATE      = 1024 // PCR or optical duplicate
 };
 
-class OutFileBuf;
 class AlnRes;
 class AlnFlags;
 class AlnSetSumm;
@@ -85,6 +84,8 @@ public:
 		bool print_yp,
 		bool print_yt,
 		bool print_ys,
+		bool print_zs,
+		bool print_xr,
 		bool print_xt,
 		bool print_xd,
 		bool print_xu,
@@ -123,6 +124,8 @@ public:
 		print_yp_(print_yp),
 		print_yt_(print_yt),
 		print_ys_(print_ys),
+		print_zs_(print_zs),
+		print_xr_(print_xr),
 		print_xt_(print_xt), // time elapsed in microseconds
 		print_xd_(print_xd), // DP extend attempts
 		print_xu_(print_xu), // ungapped extend attempts
@@ -143,9 +146,32 @@ public:
 	 * constraints. \*|[!-()+-<>-~][!-~]*
 	 */
 	void printRefName(
-		OutFileBuf& o,
+		BTString& o,
 		const std::string& name)
 		const;
+
+	/**
+	 * Print a :Z optional field where certain characters (whitespace, colon
+	 * and percent) are escaped using % escapes.
+	 */
+	template<typename T>
+	void printOptFieldEscapedZ(BTString& o, const T& s) const {
+		size_t len = s.length();
+		for(size_t i = 0; i < len; i++) {
+			if(s[i] < 33 || s[i] > 126 || s[i] == ':' || s[i] == '%') {
+				// percent-encode it
+				o.append('%');
+				int ms = s[i] >> 4;
+				int ls = s[i] & 15;
+				assert_range(0, 15, ms);
+				assert_range(0, 15, ls);
+				o.append("0123456789ABCDEF"[ms]);
+				o.append("0123456789ABCDEF"[ls]);
+			} else {
+				o.append(s[i]);
+			}
+		}
+	}
 	
 	/**
 	 * Print a read name in a way that doesn't violate SAM's character
@@ -153,7 +179,7 @@ public:
 	 */
 	template<typename TStr>
 	void printReadName(
-		OutFileBuf& o,
+		BTString& o,
 		const TStr& name)
 		const
 	{
@@ -171,7 +197,7 @@ public:
 			if(isspace(name[i])) {
 				return;
 			}
-			o.write(name[i]);
+			o.append(name[i]);
 		}
 	}
 
@@ -179,7 +205,7 @@ public:
 	 * Print a reference name given a reference index.
 	 */
 	void printRefNameFromIndex(
-		OutFileBuf& o,
+		BTString& o,
 		size_t i)
 		const;
 	
@@ -187,7 +213,7 @@ public:
 	 * Print SAM header to given output buffer.
 	 */
 	void printHeader(
-		OutFileBuf& o,
+		BTString& o,
 		const std::string& rgid,
 		const std::string& rgs,
 		bool printHd,
@@ -196,28 +222,28 @@ public:
 		const;
 
 	/**
-	 * Print the @HD header line to the given OutFileBuf.
+	 * Print the @HD header line to the given string.
 	 */
-	void printHdLine(OutFileBuf& o, const char *samver) const;
+	void printHdLine(BTString& o, const char *samver) const;
 
 	/**
-	 * Print the @SQ header lines to the given OutFileBuf.
+	 * Print the @SQ header lines to the given string.
 	 */
-	void printSqLines(OutFileBuf& o) const;
+	void printSqLines(BTString& o) const;
 
 	/**
-	 * Print the @PG header line to the given OutFileBuf.
+	 * Print the @PG header line to the given string.
 	 */
-	void printPgLine(OutFileBuf& o) const;
+	void printPgLine(BTString& o) const;
 
 	/**
-	 * Print the optional flags to the given OutFileBuf.
+	 * Print the optional flags to the given string.
 	 */
 	void printAlignedOptFlags(
-		OutFileBuf& o,             // output buffer
+		BTString& o,               // output buffer
 		bool first,                // first opt flag printed is first overall?
 		const Read& rd,            // the read
-		const AlnRes& res,         // individual alignment result
+		AlnRes& res,               // individual alignment result
 		const AlnFlags& flags,     // alignment flags
 		const AlnSetSumm& summ,    // summary of alignments for this read
 		const SeedAlSumm& ssm,     // seed alignment summary
@@ -226,10 +252,10 @@ public:
 		const;
 
 	/**
-	 * Print the optional flags to the given OutFileBuf.
+	 * Print the optional flags to the given string.
 	 */
 	void printEmptyOptFlags(
-		OutFileBuf& o,             // output buffer
+		BTString& o,               // output buffer
 		bool first,                // first opt flag printed is first overall?
 		const Read& rd,            // the read
 		const AlnFlags& flags,     // alignment flags
@@ -289,7 +315,9 @@ protected:
 	bool print_yp_; // YP:i: Read was repetitive when aligned paired?
 	bool print_yt_; // YT:Z: String representing alignment type
 	bool print_ys_; // YS:i: Score of other mate
+	bool print_zs_; // ZS:i: Pseudo-random seed
 	
+	bool print_xr_; // XR:Z: Original read string
 	bool print_xt_; // XT:i: Time taken to align
 	bool print_xd_; // XD:i: DP problems
 	bool print_xu_; // XU:i: ungapped alignment
@@ -301,10 +329,6 @@ protected:
 	bool print_zi_; // ZI:i: # extend loop iters
 	bool print_zp_; // ZP:i: Score of best/second-best paired-end alignment
 	bool print_zu_; // ZU:i: Score of best/second-best unpaired alignment
-	
-	EList<char>   tmpmdop_;   // temporary holder for MD:Z ops
-	EList<char>   tmpmdch_;   // temporary holder for MD:Z chars
-	EList<size_t> tmpmdrun_;  // temporary holder for MD:Z runs
 };
 
 #endif /* SAM_H_ */
