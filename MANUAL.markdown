@@ -1646,6 +1646,86 @@ Print the wall-clock time required to load the index files and align the reads.
 This is printed to the "standard error" ("stderr") filehandle.  Default: off.
 
 </td></tr>
+<tr><td id="bowtie2-options-un">
+
+[`--un`]: #bowtie2-options-un
+[`--un-gz`]: #bowtie2-options-un
+[`--un-bz2`]: #bowtie2-options-un
+
+    --un <path>
+    --un-gz <path>
+    --un-bz2 <path>
+
+</td><td>
+
+Write unpaired reads that fail to align to file at `<path>`.  These reads
+correspond to the SAM records with the FLAGS `0x4` bit set and neither the
+`0x40` nor `0x80` bits set.  If `--un-gz` is specified, output will be gzip
+compressed. If `--un-bz2` is specified, output will be bzip2 compressed.
+
+</td></tr>
+<tr><td id="bowtie2-options-al">
+
+[`--al`]: #bowtie2-options-al
+[`--al-gz`]: #bowtie2-options-al
+[`--al-bz2`]: #bowtie2-options-al
+
+    --al <path>
+    --al-gz <path>
+    --al-bz2 <path>
+
+</td><td>
+
+Write unpaired reads that align at least once to file at `<path>`.  These reads
+correspond to the SAM records with the FLAGS `0x4`, `0x40`, and `0x80` bits
+unset.  If `--al-gz` is specified, output will be gzip compressed. If `--al-bz2`
+is specified, output will be bzip2 compressed.
+
+</td></tr>
+<tr><td id="bowtie2-options-un-conc">
+
+[`--un-conc`]: #bowtie2-options-un-conc
+[`--un-conc-gz`]: #bowtie2-options-un-conc
+[`--un-conc-bz2`]: #bowtie2-options-un-conc
+
+    --un-conc <path>
+    --un-conc-gz <path>
+    --un-conc-bz2 <path>
+
+</td><td>
+
+Write paired-end reads that fail to align concordantly to file(s) at `<path>`.
+These reads correspond to the SAM records with the FLAGS `0x4` bit set and
+either the `0x40` or `0x80` bit set (depending on whether it's mate #1 or #2).
+`.1` and `.2` strings are added to the filename to distinguish which file
+contains mate #1 and mate #2.  If a percent symbol, `%`, is used in `<path>`,
+the percent symbol is replaced with `1` or `2` to make the per-mate filenames.
+Otherwise, `.1` or `.2` are added before the final dot in `<path>` to make the
+per-mate filenames.
+
+</td></tr>
+<tr><td id="bowtie2-options-al-conc">
+
+[`--al-conc`]: #bowtie2-options-al-conc
+[`--al-conc-gz`]: #bowtie2-options-al-conc
+[`--al-conc-bz2`]: #bowtie2-options-al-conc
+
+    --al-conc <path>
+    --al-conc-gz <path>
+    --al-conc-bz2 <path>
+
+</td><td>
+
+Write paired-end reads that align concordantly at least once to file(s) at
+`<path>`. These reads correspond to the SAM records with the FLAGS `0x4` bit
+unset and either the `0x40` or `0x80` bit set (depending on whether it's mate #1
+or #2). `.1` and `.2` strings are added to the filename to distinguish which
+file contains mate #1 and mate #2.  If a percent symbol, `%`, is used in
+`<path>`, the percent symbol is replaced with `1` or `2` to make the per-mate
+filenames. Otherwise, `.1` or `.2` are added before the final dot in `<path>` to
+make the per-mate filenames.
+
+</td></tr>
 <tr><td id="bowtie2-options-quiet">
 
 [`--quiet`]: #bowtie2-options-quiet
@@ -1780,6 +1860,22 @@ aligning to a human genome index, increasing `-p` from 1 to 8 increases the
 memory footprint by a few hundred megabytes.  This option is only available if
 `bowtie` is linked with the `pthreads` library (i.e. if `BOWTIE_PTHREADS=0` is
 not specified at build time).
+
+</td></tr>
+<tr><td id="bowtie2-options-reorder">
+
+[`--reorder`]: #bowtie2-options-reorder
+
+    --reorder
+
+</td><td>
+
+Guarantees that output SAM records are printed in an order corresponding to the
+order of the reads in the original input file, even when [`-p`] is set greater
+than 1.  Specifying `--reorder` and setting [`-p`] greater than 1 causes Bowtie
+2 to run somewhat slower and use somewhat more memory then if `--reorder` were
+not specified.  Has no effect if [`-p`] is set to 1, since output order will
+naturally correspond to input order in that case.
 
 </td></tr>
 <tr><td id="bowtie2-options-mm">

@@ -16,10 +16,16 @@ Please report any issues using the Sourceforge bug tracker:
 Version Release History
 =======================
 
-Version 2.0.0-beta5 - December 13, 2011
-   * Added --reorder flag to put output back into input order when -p is set
-     greater than 1.  This is off by default; turning it on makes Bowtie 2
-     -p > 1 somewhat slower and use somewhat more memory.
+Version 2.0.0-beta5 - December 14, 2011
+   * Added --un, --al, --un-conc, and --al-conc options that write unpaired
+     and/or paired-end reads to files depending on whether they align at least
+	 once or fail to align.
+   * Added --reorder option.  When enabled, the order of the SAM records output
+     by Bowtie 2 will match the order of the input reads even when -p is set
+	 greater than 1.  This is disabled by default; enabling it makes Bowtie 2
+	 somewhat slower and use somewhat more memory when -p is set greater than
+	 1.
+   * Fixed some minor documentation issues.
 
 Version 2.0.0-beta4 - December 5, 2011
    * Accuracy improvements.

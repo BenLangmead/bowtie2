@@ -683,6 +683,10 @@ static void printUsage(ostream& out) {
 		<< "   OR" << endl
 	    << "  -a/--all           report all alignments; very slow (off)" << endl
 		<< endl
+	    << " Effort:" << endl
+	    << "  -D <int>           give up extending after <int> failed extends in a row (15)" << endl
+	    << "  -R <int>           for reads w/ repetitive seeds, try <int> sets of seeds (2)" << endl
+		<< endl
 		<< " Paired-end:" << endl
 	    << "  -I/--minins <int>  minimum fragment length (0)" << endl
 	    << "  -X/--maxins <int>  maximum fragment length (500)" << endl
@@ -697,8 +701,16 @@ static void printUsage(ostream& out) {
 	//if(wrapper == "basic-0") {
 	//	out << "  --bam              output directly to BAM (by piping through 'samtools view')" << endl;
 	//}
-	out << "  -t/--time          print wall-clock time taken by search phases" << endl
-	    << "  --quiet            print nothing to stderr except serious errors" << endl
+	out << "  -t/--time          print wall-clock time taken by search phases" << endl;
+	if(wrapper == "basic-0") {
+	out << "  --un <path>           write unpaired reads that didn't align to <path>" << endl
+	    << "  --al <path>           write unpaired reads that aligned at least once to <path>" << endl
+	    << "  --un-conc <path>      write pairs that didn't align concordantly to <path>" << endl
+	    << "  --al-conc <path>      write pairs that aligned concordantly at least once to <path>" << endl
+	    << "  (Note: for --un, --al, --un-conc, or --al-conc, add '-gz' to the option name, e.g." << endl
+		<< "  --un-gz <path>, to gzip compress output, or add '-bz2' to bzip2 compress output.)" << endl
+	}
+	out << "  --quiet            print nothing to stderr except serious errors" << endl
 	//  << "  --refidx           refer to ref. seqs by 0-based index rather than name" << endl
 		<< "  --met-file <path>  send metrics to file at <path> (off)" << endl
 		<< "  --met-stderr       send metrics to stderr (off)" << endl
@@ -711,6 +723,7 @@ static void printUsage(ostream& out) {
 	    << "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl
 #ifdef BOWTIE_PTHREADS
 	    << "  -p/--threads <int> number of alignment threads to launch (1)" << endl
+	    << "  --reorder          force SAM output order to match order of input reads" << endl
 #endif
 #ifdef BOWTIE_MM
 	    << "  --mm               use memory-mapped I/O for index; many 'bowtie's can share" << endl
@@ -3991,6 +4004,10 @@ int bowtie(int argc, const char **argv) {
 			// Get output filename
 			if(optind < argc && outfile.empty()) {
 				outfile = argv[optind++];
+				cerr << "Warning: Output file '" << outfile
+				     << "' was specified without -S.  This will not work in "
+					 << "future Bowtie 2 versions.  Please use -S instead."
+					 << endl;
 			}
 
 			// Extra parametesr?
