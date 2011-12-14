@@ -139,11 +139,11 @@ for(my $i = 0; $i < scalar(@bt2_args); $i++) {
 	}
 	for my $rarg ("un-conc", "al-conc", "un", "al") {
 		if($arg =~ /^--${rarg}/ || $arg =~ /^--${rarg}-gz/ || $arg =~ /^--${rarg}-bz2/) {
-			$i < scalar(@bt2_args)-1 || die "Error: --${rarg}* option takes an argument";
 			$bt2_args[$i] = undef;
-			if($args[1] ne "") {
+			if(scalar(@args) > 1 && $args[1] ne "") {
 				$read_fns{$rarg} = $args[1];
 			} else {
+				$i < scalar(@bt2_args)-1 || die "Error: --${rarg}* option takes an argument";
 				$read_fns{$rarg} = $bt2_args[$i+1];
 				$bt2_args[$i+1] = undef;
 			}
