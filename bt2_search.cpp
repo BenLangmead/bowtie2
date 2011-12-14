@@ -708,7 +708,7 @@ static void printUsage(ostream& out) {
 	    << "  --un-conc <path>      write pairs that didn't align concordantly to <path>" << endl
 	    << "  --al-conc <path>      write pairs that aligned concordantly at least once to <path>" << endl
 	    << "  (Note: for --un, --al, --un-conc, or --al-conc, add '-gz' to the option name, e.g." << endl
-		<< "  --un-gz <path>, to gzip compress output, or add '-bz2' to bzip2 compress output.)" << endl
+		<< "  --un-gz <path>, to gzip compress output, or add '-bz2' to bzip2 compress output.)" << endl;
 	}
 	out << "  --quiet            print nothing to stderr except serious errors" << endl
 	//  << "  --refidx           refer to ref. seqs by 0-based index rather than name" << endl
