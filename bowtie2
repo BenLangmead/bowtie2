@@ -37,6 +37,22 @@ use POSIX;
 (-x "$Bin/bowtie2-align") ||
 	die "Error: Expected bowtie2 to be in same directory with bowtie2-aligner:\n$Bin";
 
+# Return a version of the argument string where all percent escapes are
+# expanded into the unescaped character.
+sub unescape($) {
+	my $s = shift;
+	my $ret = "";
+	for(my $i = 0; $i < length($s); $i++) {
+		my $c = substr($s, $i, 1);
+		if($c eq "%" && $i < length($s)-2) {
+			$c = chr(hex(substr($s, $i+1, 2)));
+			$i += 2;
+		}
+		$ret .= $c;
+	}
+	return $ret;
+}
+
 # Get description of arguments from Bowtie 2 so that we can distinguish Bowtie
 # 2 args from wrapper args
 sub getBt2Desc($) {
@@ -80,14 +96,26 @@ if(!$saw_dd) {
 }
 
 my $debug = 0;
+my %read_fns = ();
+my %read_compress = ();
+my $cap_out = undef;       # Filename for passthrough
+
+# Remove whitespace
+for my $i (0..$#bt2_args) {
+	$bt2_args[$i]=~ s/^\s+//; $bt2_args[$i] =~ s/\s+$//;
+}
 
 # We've handled arguments that the user has explicitly directed either to the
 # wrapper or to bowtie2, now we capture some of the bowtie2 arguments that
 # ought to be handled in the wrapper
 for(my $i = 0; $i < scalar(@bt2_args); $i++) {
+	next unless defined($bt2_args[$i]);
 	my $arg = $bt2_args[$i];
-	$arg =~ s/^\s+//;
-	$arg =~ s/\s+$//;
+	my @args = split(/=/, $arg);
+	if(scalar(@args > 2)) {
+		$args[1] = join("=", $args[1..$#args]);
+	}
+	$arg = $args[0];
 	if($arg =~ /^--?([12])/ && $arg !~ /^--?12/) {
 		my $mate = $1;
 		$bt2_args[$i] = undef;
@@ -108,6 +136,36 @@ for(my $i = 0; $i < scalar(@bt2_args); $i++) {
 	if($arg eq "--debug") {
 		$debug = 1;
 		$bt2_args[$i] = undef;
+	}
+	for my $rarg ("un-conc", "al-conc", "un", "al") {
+		if($arg =~ /^--${rarg}/ || $arg =~ /^--${rarg}-gz/ || $arg =~ /^--${rarg}-bz2/) {
+			$i < scalar(@bt2_args)-1 || die "Error: --${rarg}* option takes an argument";
+			$bt2_args[$i] = undef;
+			if($args[1] ne "") {
+				$read_fns{$rarg} = $args[1];
+			} else {
+				$read_fns{$rarg} = $bt2_args[$i+1];
+				$bt2_args[$i+1] = undef;
+			}
+			$read_compress{$rarg} = "";
+			$read_compress{$rarg} = "gzip"  if $arg eq "--${rarg}-gz";
+			$read_compress{$rarg} = "bzip2" if $arg eq "--${rarg}-bz2";
+			last;
+		}
+	}
+}
+if(scalar(keys %read_fns) > 0) {
+	push @bt2_args, "--passthrough";
+	$cap_out = "-";
+	for(my $i = 0; $i < scalar(@bt2_args); $i++) {
+		next unless defined($bt2_args[$i]);
+		my $arg = $bt2_args[$i];
+		if($arg eq "-S" || $arg eq "--output") {
+			$i < scalar(@bt2_args)-1 || die "Error: -S/--output takes an argument";
+			$cap_out = $bt2_args[$i+1];
+			$bt2_args[$i] = undef;
+			$bt2_args[$i+1] = undef;
+		}
 	}
 }
 my @tmp = ();
@@ -238,6 +296,97 @@ if($verbose) {
 my $debug_str = ($debug ? "-debug" : "");
 my $cmd = "$Bin/bowtie2-align$debug_str --wrapper basic-0 ".join(" ", @bt2_args);
 print STDERR "$cmd\n" if $verbose;
-my $ret = system($cmd);
+my $ret;
+if(defined($cap_out)) {
+	# Open Bowtie 2 pipe
+	open(BT, "$cmd |") || die "Error: Could not open Bowtie 2 pipe: '$cmd |'";
+	# Open output pipe
+	my $ofh = *STDOUT;
+	my @fhs_to_close = ();
+	if($cap_out ne "-") {
+		open($ofh, ">$cap_out") ||
+			die "Error: Could not open output file '$cap_out' for writing";
+	}
+	my %read_fhs = ();
+	for my $i ("al", "un", "al-conc", "un-conc") {
+		if(defined($read_fns{$i})) {
+			if($i =~ /-conc$/) {
+				# Open 2 output files, one for mate 1, one for mate 2
+				my ($fn1, $fn2) = ($read_fns{$i}, $read_fns{$i});
+				if($fn1 =~ /%/) {
+					$fn1 =~ s/%/1/g; $fn2 =~ s/%/2/g;
+				} elsif($fn1 =~ /\.[^.]*$/) {
+					$fn1 =~ s/\.([^.]*)$/.1.$1/;
+					$fn2 =~ s/\.([^.]*)$/.2.$1/;
+				} else {
+					$fn1 .= ".1";
+					$fn2 .= ".2";
+				}
+				$fn1 ne $fn2 || die "$fn1\n$fn2\n";
+				my ($redir1, $redir2) = (">$fn1", ">$fn2");
+				$redir1 = "| gzip -c $redir1"  if $read_compress{$i} eq "gzip";
+				$redir1 = "| bzip2 -c $redir1" if $read_compress{$i} eq "bzip2";
+				$redir2 = "| gzip -c $redir2"  if $read_compress{$i} eq "gzip";
+				$redir2 = "| bzip2 -c $redir2" if $read_compress{$i} eq "bzip2";
+				open($read_fhs{$i}{1}, $redir1) || die "Error: Could not open --$i mate-1 output file '$fn1'";
+				open($read_fhs{$i}{2}, $redir2) || die "Error: Could not open --$i mate-2 output file '$fn2'";
+				push @fhs_to_close, $read_fhs{$i}{1};
+				push @fhs_to_close, $read_fhs{$i}{2};
+			} else {
+				my $redir = ">$read_fns{$i}";
+				$redir = "| gzip -c $redir"  if $read_compress{$i} eq "gzip";
+				$redir = "| bzip2 -c $redir" if $read_compress{$i} eq "bzip2";
+				open($read_fhs{$i}, $redir) || die "Error: Could not open --$i output file '$read_fns{$i}'";
+				push @fhs_to_close, $read_fhs{$i};
+			}
+		}
+	}
+	while(<BT>) {
+		chomp;
+		unless(/^\@/) {
+			if(scalar(keys %read_fns) > 0) {
+				/\tXR:Z:([^\t]*)/ || die "Could not parse passthrough output:\n$_\n";
+				my $read = $1;
+				$read = unescape($read);
+				my @ts = split(/\t/, $_);
+				my $mate1 = (($ts[1] &  64) != 0);
+				my $mate2 = (($ts[1] & 128) != 0);
+				my $unp = !$mate1 && !$mate2;
+				my $pair = !$unp;
+				if((defined($read_fhs{un}) || defined($read_fhs{al})) && $unp) {
+					if(($ts[1] & 4) != 0) {
+						# Failed to align
+						print {$read_fhs{un}} $read if defined($read_fhs{un});
+					} else {
+						# Aligned
+						print {$read_fhs{al}} $read if defined($read_fhs{al});
+					}
+				}
+				if((defined($read_fhs{"un-conc"}) || defined($read_fhs{"al-conc"})) && $pair) {
+					my $conc  = (($ts[1] &   2) != 0);
+					if     ($conc && $mate1) {
+						print {$read_fhs{"al-conc"}{1}} $read if defined($read_fhs{"al-conc"});
+					} elsif($conc && $mate2) {
+						print {$read_fhs{"al-conc"}{2}} $read if defined($read_fhs{"al-conc"});
+					} elsif(!$conc && $mate1) {
+						print {$read_fhs{"un-conc"}{1}} $read if defined($read_fhs{"un-conc"});
+					} elsif(!$conc && $mate2) {
+						print {$read_fhs{"un-conc"}{2}} $read if defined($read_fhs{"un-conc"});
+					}
+				}
+				# Remove the passthrough string
+				s/\tXR:Z:[^\t]*//;
+				s/\tXr:Z:[^\t]*//;
+			}
+		}
+		print {$ofh} "$_\n";
+	}
+	for my $k (@fhs_to_close) { close($k); }
+	close($ofh);
+	close(BT);
+	$ret = $?;
+} else {
+	$ret = system($cmd);
+}
 if(!$keep) { for(@to_delete) { unlink($_); } }
 exit $ret;

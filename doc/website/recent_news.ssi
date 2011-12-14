@@ -1,3 +1,25 @@
+<h2>Version 2.0.0-beta5 - Coming soon, circa December 14, 2011</h2>
+<ul>
+  <li>Added
+     <tt><a href="manual.shtml#bowtie2-options-un">--un</a></tt>,
+	 <tt><a href="manual.shtml#bowtie2-options-al">--al</a></tt>,
+	 <tt><a href="manual.shtml#bowtie2-options-un-conc">--un-conc</a></tt>, and
+	 <tt><a href="manual.shtml#bowtie2-options-al-conc">--al-conc</a></tt> options that write unpaired
+     and/or paired-end reads to files depending on whether they align at least
+	 once or fail to align.</li>
+  <li>Added
+     <tt><a href="manual.shtml#bowtie2-options-reorder">--reorder</a></tt>
+	 option.  When enabled, the order of the SAM records output
+     by Bowtie 2 will match the order of the input reads even when
+	 <tt><a href="manual.shtml#bowtie2-options-p">-p</a></tt>
+	 is set
+	 greater than 1.  This is disabled by default; enabling it makes Bowtie 2
+	 somewhat slower and use somewhat more memory when
+	 <tt><a href="manual.shtml#bowtie2-options-p">-p</a></tt>
+	 is set greater than 1.</li>
+  <li>Fixed some minor documentation issues.</li>
+</ul>
+
 <h2>Version 2.0.0-beta4 - December 6, 2011</h2>
 <ul>
   <li>Accuracy improvements.</li>

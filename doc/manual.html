@@ -2585,6 +2585,146 @@ Seed 4 rc:                   TTATGCATGA
 <p
 >Print the wall-clock time required to load the index files and align the reads. This is printed to the &quot;standard error&quot; (&quot;stderr&quot;) filehandle. Default: off.</p
 ></td></tr>
+<tr><td id="bowtie2-options-un">
+
+
+
+
+<pre
+><code
+  >--un &lt;path&gt;
+--un-gz &lt;path&gt;
+--un-bz2 &lt;path&gt;
+</code
+  ></pre
+></td><td>
+<p
+>Write unpaired reads that fail to align to file at <code
+  >&lt;path&gt;</code
+  >. These reads correspond to the SAM records with the FLAGS <code
+  >0x4</code
+  > bit set and neither the <code
+  >0x40</code
+  > nor <code
+  >0x80</code
+  > bits set. If <code
+  >--un-gz</code
+  > is specified, output will be gzip compressed. If <code
+  >--un-bz2</code
+  > is specified, output will be bzip2 compressed.</p
+></td></tr>
+<tr><td id="bowtie2-options-al">
+
+
+
+
+<pre
+><code
+  >--al &lt;path&gt;
+--al-gz &lt;path&gt;
+--al-bz2 &lt;path&gt;
+</code
+  ></pre
+></td><td>
+<p
+>Write unpaired reads that align at least once to file at <code
+  >&lt;path&gt;</code
+  >. These reads correspond to the SAM records with the FLAGS <code
+  >0x4</code
+  >, <code
+  >0x40</code
+  >, and <code
+  >0x80</code
+  > bits unset. If <code
+  >--al-gz</code
+  > is specified, output will be gzip compressed. If <code
+  >--al-bz2</code
+  > is specified, output will be bzip2 compressed.</p
+></td></tr>
+<tr><td id="bowtie2-options-un-conc">
+
+
+
+
+<pre
+><code
+  >--un-conc &lt;path&gt;
+--un-conc-gz &lt;path&gt;
+--un-conc-bz2 &lt;path&gt;
+</code
+  ></pre
+></td><td>
+<p
+>Write paired-end reads that fail to align concordantly to file(s) at <code
+  >&lt;path&gt;</code
+  >. These reads correspond to the SAM records with the FLAGS <code
+  >0x4</code
+  > bit set and either the <code
+  >0x40</code
+  > or <code
+  >0x80</code
+  > bit set (depending on whether it's mate #1 or #2). <code
+  >.1</code
+  > and <code
+  >.2</code
+  > strings are added to the filename to distinguish which file contains mate #1 and mate #2. If a percent symbol, <code
+  >%</code
+  >, is used in <code
+  >&lt;path&gt;</code
+  >, the percent symbol is replaced with <code
+  >1</code
+  > or <code
+  >2</code
+  > to make the per-mate filenames. Otherwise, <code
+  >.1</code
+  > or <code
+  >.2</code
+  > are added before the final dot in <code
+  >&lt;path&gt;</code
+  > to make the per-mate filenames.</p
+></td></tr>
+<tr><td id="bowtie2-options-al-conc">
+
+
+
+
+<pre
+><code
+  >--al-conc &lt;path&gt;
+--al-conc-gz &lt;path&gt;
+--al-conc-bz2 &lt;path&gt;
+</code
+  ></pre
+></td><td>
+<p
+>Write paired-end reads that align concordantly at least once to file(s) at <code
+  >&lt;path&gt;</code
+  >. These reads correspond to the SAM records with the FLAGS <code
+  >0x4</code
+  > bit unset and either the <code
+  >0x40</code
+  > or <code
+  >0x80</code
+  > bit set (depending on whether it's mate #1 or #2). <code
+  >.1</code
+  > and <code
+  >.2</code
+  > strings are added to the filename to distinguish which file contains mate #1 and mate #2. If a percent symbol, <code
+  >%</code
+  >, is used in <code
+  >&lt;path&gt;</code
+  >, the percent symbol is replaced with <code
+  >1</code
+  > or <code
+  >2</code
+  > to make the per-mate filenames. Otherwise, <code
+  >.1</code
+  > or <code
+  >.2</code
+  > are added before the final dot in <code
+  >&lt;path&gt;</code
+  > to make the per-mate filenames.</p
+></td></tr>
 <tr><td id="bowtie2-options-quiet">
 
 
@@ -2764,20 +2904,52 @@ Seed 4 rc:                   TTATGCATGA
 
 <pre
 ><code
-  >-p/--threads &lt;int&gt;
+  >-p/--threads NTHREADS
 </code
   ></pre
 ></td><td>
 <p
 >Launch <code
-  >&lt;int&gt;</code
-  > parallel search threads (default: 1). Threads will run on separate processors/cores and synchronize when parsing reads and outputting alignments. Searching for alignments is highly parallel, and speedup is fairly close to linear. This option is only available if <code
+  >NTHREADS</code
+  > parallel search threads (default: 1). Threads will run on separate processors/cores and synchronize when parsing reads and outputting alignments. Searching for alignments is highly parallel, and speedup is close to linear. Increasing <code
+  >-p</code
+  > increases Bowtie 2's memory footprint. E.g. when aligning to a human genome index, increasing <code
+  >-p</code
+  > from 1 to 8 increases the memory footprint by a few hundred megabytes. This option is only available if <code
   >bowtie</code
   > is linked with the <code
   >pthreads</code
   > library (i.e. if <code
   >BOWTIE_PTHREADS=0</code
   > is not specified at build time).</p
+></td></tr>
+<tr><td id="bowtie2-options-reorder">
+
+
+<pre
+><code
+  >--reorder
+</code
+  ></pre
+></td><td>
+<p
+>Guarantees that output SAM records are printed in an order corresponding to the order of the reads in the original input file, even when <a href="#bowtie2-options-p"
+  ><code
+    >-p</code
+    ></a
+  > is set greater than 1. Specifying <code
+  >--reorder</code
+  > and setting <a href="#bowtie2-options-p"
+  ><code
+    >-p</code
+    ></a
+  > greater than 1 causes Bowtie 2 to run somewhat slower and use somewhat more memory then if <code
+  >--reorder</code
+  > were not specified. Has no effect if <a href="#bowtie2-options-p"
+  ><code
+    >-p</code
+    ></a
+  > is set to 1, since output order will naturally correspond to input order in that case.</p
 ></td></tr>
 <tr><td id="bowtie2-options-mm">
 
@@ -2789,7 +2961,7 @@ Seed 4 rc:                   TTATGCATGA
   ></pre
 ></td><td>
 <p
->Use memory-mapped I/O to load the index, rather than normal C file I/O. Memory-mapping the index allows many concurrent <code
+>Use memory-mapped I/O to load the index, rather than typical file I/O. Memory-mapping allows many concurrent <code
   >bowtie</code
   > processes on the same computer to share the same memory image of the index (i.e. you pay the memory overhead just once). This facilitates memory-efficient parallelization of <code
   >bowtie</code
@@ -2797,7 +2969,7 @@ Seed 4 rc:                   TTATGCATGA
   ><code
     >-p</code
     ></a
-  > is not possible.</p
+  > is not possible or not preferable.</p
 ></td></tr></table>
 <h4 id="other-options"
 ><a href="#TOC"
