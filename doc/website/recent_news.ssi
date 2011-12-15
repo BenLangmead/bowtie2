@@ -1,4 +1,4 @@
-<h2>Version 2.0.0-beta5 - Coming soon, circa December 14, 2011</h2>
+<h2>Version 2.0.0-beta5 - December 15, 2011</h2>
 <ul>
   <li>Added
      <tt><a href="manual.shtml#bowtie2-options-un">--un</a></tt>,
@@ -20,7 +20,8 @@
   <li>Changed the default
     <tt><a href="manual.shtml#bowtie2-options-score-min">--score-min</a></tt> in
     <tt><a href="manual.shtml#bowtie2-options-local">--local</a></tt>
-	mode to `G,20,8`.  This ought to improve sensitivity and accuracy in many cases.</li>
+	mode to <tt>G,20,8</tt>.  This ought to improve sensitivity and accuracy in
+	many cases.</li>
   <li>Fixed some minor documentation issues.</li>
   <li>Note: I am aware of an issue whereby longer reads (>10,000 bp) drive the
      memory footprint way up and often cause an out-of-memory exception.  This
