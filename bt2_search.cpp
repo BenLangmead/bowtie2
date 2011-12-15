@@ -673,7 +673,7 @@ static void printUsage(ostream& out) {
 		<< "  --rdg <int>,<int>  read gap open, extend penalties (5,3)" << endl
 		<< "  --rfg <int>,<int>  reference gap open, extend penalties (5,3)" << endl
 		<< "  --score-min <func> min acceptable alignment score w/r/t read length" << endl
-		<< "                     (L,0,0.66 for local, L,-0.6,-0.6 for end-to-end)" << endl
+		<< "                     (G,20,8 for local, L,-0.6,-0.6 for end-to-end)" << endl
 		<< endl
 	    << " Reporting:" << endl
 	    << "  -M <int>           look for up to <int>+1 alns; report best, with MAPQ (5 for" << endl

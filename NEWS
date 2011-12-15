@@ -25,7 +25,13 @@ Version 2.0.0-beta5 - December 14, 2011
 	 greater than 1.  This is disabled by default; enabling it makes Bowtie 2
 	 somewhat slower and use somewhat more memory when -p is set greater than
 	 1.
+   * Changed the default --score-min in --local mode to G,20,8.  This ought to
+     improve sensitivity and accuracy in many cases.
+   * Improved error reporting.
    * Fixed some minor documentation issues.
+   * Note: I am aware of an issue whereby longer reads (>10,000 bp) drive the
+     memory footprint way up and often cause an out-of-memory exception.  This
+	 will be fixed in a future version.
 
 Version 2.0.0-beta4 - December 5, 2011
    * Accuracy improvements.

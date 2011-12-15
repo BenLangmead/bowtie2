@@ -281,7 +281,7 @@ void SeedAlignmentPolicy::parseString(
 	
 	const double DMAX = std::numeric_limits<double>::max();
 	costMin.init(
-		SIMPLE_FUNC_LINEAR,
+		local ? SIMPLE_FUNC_LOG : SIMPLE_FUNC_LINEAR,
 		local ? DEFAULT_MIN_CONST_LOCAL  : DEFAULT_MIN_CONST,
 		local ? DEFAULT_MIN_LINEAR_LOCAL : DEFAULT_MIN_LINEAR);
 	nCeil.init(

@@ -46,7 +46,7 @@ struct ReportingMetrics {
 	ReportingMetrics() { reset(); MUTEX_INIT(lock); }
 	
 	void reset() {
-		init(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+		init(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 	}
 	
 	void init(
@@ -73,7 +73,10 @@ struct ReportingMetrics {
 		uint64_t nunp_uni1_,
 		uint64_t nunp_uni2_,
 		uint64_t nunp_rep_,
-		uint64_t nunp_0_)
+		uint64_t nunp_0_,
+		uint64_t sum_best1_,
+		uint64_t sum_best2_,
+		uint64_t sum_best_)
 	{
 		nread         = nread_;
 		
@@ -105,6 +108,10 @@ struct ReportingMetrics {
 		nunp_uni2     = nunp_uni2_;
 		nunp_rep      = nunp_rep_;
 		nunp_0        = nunp_0_;
+
+		sum_best1     = sum_best1_;
+		sum_best2     = sum_best2_;
+		sum_best      = sum_best_;
 	}
 	
 	/**
@@ -145,6 +152,10 @@ struct ReportingMetrics {
 		nunp_uni2     += met.nunp_uni2;
 		nunp_rep      += met.nunp_rep;
 		nunp_0        += met.nunp_0;
+
+		sum_best1     += met.sum_best1;
+		sum_best2     += met.sum_best2;
+		sum_best      += met.sum_best;
 	}
 
 	uint64_t  nread;         // # reads
@@ -183,6 +194,11 @@ struct ReportingMetrics {
 	uint64_t  nunp_uni2;     // # pairs with >1 concordant aln, still unique
 	uint64_t  nunp_rep;      // # repetitive from 
 	uint64_t  nunp_0;        // # with 0 alignments
+
+	
+	uint64_t  sum_best1;     // Sum of all the best alignment scores
+	uint64_t  sum_best2;     // Sum of all the second-best alignment scores
+	uint64_t  sum_best;      // Sum of all the best and second-best
 
 	MUTEX_T lock;
 };

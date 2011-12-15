@@ -682,7 +682,13 @@ Alignment:
   >Valid alignments meet or exceed the minimum score threshold</a
   ></h3
 ><p
->For an alignment to be considered &quot;valid&quot; (i.e. &quot;good enough&quot;) by Bowtie 2, it must have an alignment score no less than the minimum score threshold. The threshold is configurable and is expressed as a function of the read length. In end-to-end alignment mode, the default minimum score threhsold is -0.6 + -0.9 * L, where L is the read length. In local alignment mdoe, the default minimum score threshold is 0.66 * L, where L is the read length. This can be configured with the <a href="#bowtie2-options-score-min"
+>For an alignment to be considered &quot;valid&quot; (i.e. &quot;good enough&quot;) by Bowtie 2, it must have an alignment score no less than the minimum score threshold. The threshold is configurable and is expressed as a function of the read length. In end-to-end alignment mode, the default minimum score threhsold is <code
+  >-0.6 + -0.6 * L</code
+  >, where <code
+  >L</code
+  > is the read length. In local alignment mdoe, the default minimum score threshold is <code
+  >20 + 8.0 * ln(L)</code
+  >, where L is the read length. This can be configured with the <a href="#bowtie2-options-score-min"
   ><code
     >--score-min</code
     ></a
@@ -2203,13 +2209,13 @@ Seed 4 rc:                   TTATGCATGA
     >--end-to-end</code
     ></a
   > mode is <code
-  >L,0,-0.6</code
+  >L,-0.6,-0.6</code
   > and the default in <a href="#bowtie2-options-local"
   ><code
     >--local</code
     ></a
   > mode is <code
-  >L,0,0.66</code
+  >G,20,8</code
   >.</p
 ></td></tr>
 </table>

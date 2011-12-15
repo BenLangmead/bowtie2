@@ -17,7 +17,14 @@
 	 somewhat slower and use somewhat more memory when
 	 <tt><a href="manual.shtml#bowtie2-options-p">-p</a></tt>
 	 is set greater than 1.</li>
+  <li>Changed the default
+    <tt><a href="manual.shtml#bowtie2-options-score-min">--score-min</a></tt> in
+    <tt><a href="manual.shtml#bowtie2-options-local">--local</a></tt>
+	mode to `G,20,8`.  This ought to improve sensitivity and accuracy in many cases.</li>
   <li>Fixed some minor documentation issues.</li>
+  <li>Note: I am aware of an issue whereby longer reads (>10,000 bp) drive the
+     memory footprint way up and often cause an out-of-memory exception.  This
+	 will be fixed in a future version.</li>
 </ul>
 
 <h2>Version 2.0.0-beta4 - December 6, 2011</h2>

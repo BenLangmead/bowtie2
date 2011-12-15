@@ -306,12 +306,12 @@ reference.
 For an alignment to be considered "valid" (i.e. "good enough") by Bowtie 2, it
 must have an alignment score no less than the minimum score threshold.  The
 threshold is configurable and is expressed as a function of the read length. In
-end-to-end alignment mode, the default minimum score threhsold is -0.6 + -0.9 *
-L, where L is the read length.  In local alignment mdoe, the default minimum
-score threshold is 0.66 * L, where L is the read length.  This can be configured
-with the [`--score-min`] option.  For details on how to set options like
-`--score-min` that correpond to functions, see the section on [setting function
-options].
+end-to-end alignment mode, the default minimum score threhsold is `-0.6 + -0.6 *
+L`, where `L` is the read length.  In local alignment mdoe, the default minimum
+score threshold is `20 + 8.0 * ln(L)`, where L is the read length.  This can be
+configured with the [`--score-min`] option.  For details on how to set options
+like `--score-min` that correpond to functions, see the section on [setting
+function options].
 
 [setting function options]: #setting-function-options
 
@@ -1386,8 +1386,8 @@ Sets a function governing the minimum alignment score needed for an alignment to
 be considered "valid" (i.e. good enough to report).  This is a function of read
 length. For instance, specifying `L,0,-0.6` sets the minimum-score function `f`
 to `f(x) = 0 + -0.6 * x`, where `x` is the read length.  See also: [setting
-function options].  The default in [`--end-to-end`] mode is `L,0,-0.6` and the
-default in [`--local`] mode is `L,0,0.66`.
+function options].  The default in [`--end-to-end`] mode is `L,-0.6,-0.6` and
+the default in [`--local`] mode is `G,20,8`.
 
 </td></tr>
 </table>
