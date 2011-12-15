@@ -11,6 +11,7 @@
 
 #include "assert_helpers.h"
 #include "ds.h"
+#include <iostream>
 #include <emmintrin.h>
 
 class EList_m128i {
@@ -193,7 +194,13 @@ private:
 	 * tally into the global memory tally.
 	 */
 	__m128i *alloc(size_t sz) {
-		__m128i* last_alloc_ = new __m128i[sz + 2];
+		__m128i* last_alloc_;
+		try {
+			last_alloc_ = new __m128i[sz + 2];
+		} catch(std::bad_alloc& e) {
+			std::cerr << "Error: Out of memory allocating __m128i's for DP matrix: '" << e.what() << "'" << std::endl;
+			throw e;
+		}
 		__m128i* tmp = last_alloc_;
 		size_t tmpint = (size_t)tmp;
 		// Align it!

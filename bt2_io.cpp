@@ -563,7 +563,13 @@ void Ebwt::readIntoMemory(
 					assert(!_useMm);
 					const uint32_t blockMaxSz = (2 * 1024 * 1024); // 2 MB block size
 					const uint32_t blockMaxSzU32 = (blockMaxSz >> 2); // # U32s per block
-					char *buf = new char[blockMaxSz];
+					char *buf;
+					try {
+						buf = new char[blockMaxSz];
+					} catch(std::bad_alloc& e) {
+						cerr << "Error: Out of memory allocating part of _offs array: '" << e.what() << "'" << endl;
+						throw e;
+					}
 					for(uint32_t i = 0; i < offsLen; i += blockMaxSzU32) {
 						uint32_t block = min<uint32_t>(blockMaxSzU32, offsLen - i);
 						MM_READ_RET r = MM_READ(_in2, (void *)buf, block << 2);

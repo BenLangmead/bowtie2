@@ -463,7 +463,7 @@ int main(int argc, char **argv) {
 		driver(ebwtFile, query);
 		return 0;
 	} catch(std::exception& e) {
-		cerr << "Error: Encountered exception " << e.what() << endl;
+		cerr << "Error: Encountered exception: '" << e.what() << "'" << endl;
 		cerr << "Command: ";
 		for(int i = 0; i < argc; i++) cerr << argv[i] << " ";
 		cerr << endl;
