@@ -1416,100 +1416,62 @@ scale and the encoding is ASCII-offset by 33 (ASCII char `!`), similarly to a
 of these optional fields for each alignment, depending on the type of the
 alignment:
 
-    <tr><td id="bowtie2-build-opt-fields-as">
-
         AS:i:<N>
-
-    <td>
 
     Alignment score.  Can be negative.  Can be greater than 0 in `--local`
     mode (but not in `--end-to-end` mode).  Only present if SAM record is for
     an aligned read.
 
-    <tr><td id="bowtie2-build-opt-fields-xs">
-
         XS:i:<N>
-
-    <td>
 
     Alignment score for second-best alignment.  Can be negative.  Can be greater
     than 0 in `--local` mode (but not in `--end-to-end` mode).  Only present
     if the SAM record is for an aligned read and more than one alignment was
     found for the read.
 
-    <tr><td id="bowtie2-build-opt-fields-ys">
-
         YS:i:<N>
-
-    <td>
 
     Alignment score for opposite mate in the paired-end alignment.  Only present
     if the SAM record is for a read that aligned as part of a paired-end
     alignment.
 
-    <tr><td id="bowtie2-build-opt-fields-xn">
-
         XN:i:<N>
-
-    <td>
 
     The number of ambiguous bases in the reference covering this alignment. 
     Only present if SAM record is for an aligned read.
 
-    <tr><td id="bowtie2-build-opt-fields-xm">
-
         XM:i:<N>
-
-    <td>
 
     The number of mismatches in the alignment.  Only present if SAM record is
     for an aligned read.
 
-    <tr><td id="bowtie2-build-opt-fields-xo">
-
         XO:i:<N>
-
-    <td>
 
     The number of gap opens, for both read and reference gaps, in the alignment.
     Only present if SAM record is for an aligned read.
 
-    <tr><td id="bowtie2-build-opt-fields-xg">
-
         XG:i:<N>
-
-    <td>
 
     The number of gap extensions, for both read and reference gaps, in the
     alignment. Only present if SAM record is for an aligned read.
 
-    <tr><td id="bowtie2-build-opt-fields-nm">
-
         NM:i:<N>
-
-    <td>
 
     The edit distance; that is, the minimal number of one-nucleotide edits
     (substitutions, insertions and deletions) needed to transform the read
     string into the reference string.  Only present if SAM record is for an
     aligned read.
 
-    <tr><td id="bowtie2-build-opt-fields-yp">
-
         YF:Z:<N>
 
     String indicating reason why the read was filtered out.  See also:
     [Filtering].  Only appears for reads that were filtered out.
-
-    <tr><td id="bowtie2-build-opt-fields-md">
 
         MD:Z:<S>
 
     A string representation of the mismatched reference bases in the alignment. 
     See [SAM] format specification for details.  Only present if SAM record is
     for an aligned read.
-
-    </table>
 
 [SAM format specification]: http://samtools.sf.net/SAM1.pdf
 [FASTQ]: http://en.wikipedia.org/wiki/FASTQ_format
@@ -1574,15 +1536,11 @@ Usage:
 
 ### Main arguments
 
-    <reference_in>
-
 A comma-separated list of FASTA files containing the reference sequences to be
 aligned to, or, if `-c` is specified, the sequences
 themselves. E.g., `<reference_in>` might be `chr1.fa,chr2.fa,chrX.fa,chrY.fa`,
 or, if `-c` is specified, this might be
 `GGTCATCCT,ACGGGTCGT,CCGTTCTATGCGGCTTA`.
-
-    <bt2_base>
 
 The basename of the index files to write.  By default, `bowtie2-build` writes
 files named `NAME.1.bt2`, `NAME.2.bt2`, `NAME.3.bt2`, `NAME.4.bt2`,
@@ -1714,8 +1672,6 @@ Usage:
     bowtie2-inspect [options]* <bt2_base>
 
 ### Main arguments
-
-    <bt2_base>
 
 The basename of the index to be inspected.  The basename is name of any of the
 index files but with the `.X.bt2` or `.rev.X.bt2` suffix omitted.

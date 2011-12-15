@@ -24,6 +24,7 @@ while(<>) {
 	# Skip HTML
 	next if /^\s*<table/;
 	next if /^\s*<\/td/;
+	next if /^\s*<.*>\s*$/;
 	# Strip [`...`]
 	s/\[`/`/g;
 	s/`\]/`/g;
