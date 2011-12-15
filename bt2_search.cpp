@@ -4053,7 +4053,7 @@ int bowtie(int argc, const char **argv) {
 		}
 		return 0;
 	} catch(std::exception& e) {
-		cerr << "Error: Encountered exception " << e.what() << endl;
+		cerr << "Error: Encountered exception: '" << e.what() << "'" << endl;
 		cerr << "Command: ";
 		for(int i = 0; i < argc; i++) cerr << argv[i] << " ";
 		cerr << endl;
