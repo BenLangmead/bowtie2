@@ -4052,13 +4052,15 @@ int bowtie(int argc, const char **argv) {
 			driver<SString<char> >("DNA", bt2index, outfile);
 		}
 		return 0;
-	} catch(exception& e) {
+	} catch(std::exception& e) {
+		cerr << "Error: Encountered exception " << e.what() << endl;
 		cerr << "Command: ";
 		for(int i = 0; i < argc; i++) cerr << argv[i] << " ";
 		cerr << endl;
 		return 1;
 	} catch(int e) {
 		if(e != 0) {
+			cerr << "Error: Encountered internal Bowtie 2 exception (#" << e << ")" << endl;
 			cerr << "Command: ";
 			for(int i = 0; i < argc; i++) cerr << argv[i] << " ";
 			cerr << endl;
