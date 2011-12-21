@@ -288,119 +288,13 @@ struct SwMetrics {
 	MUTEX_T lock;
 };
 
-/**
- * Counters characterizing work done by 
- */
-struct SwCounters {
-	uint64_t cups;    // cell updates
-	uint64_t bts;     // backtracks
-	
-	/**
-	 * Set all counters to 0.
-	 */
-	void reset() {
-		cups = bts = 0;
-	}
-};
-
-/**
- * Abstract parent class for encapsulating SeedAligner actions.
- */
-struct SwAction {
-};
-
-/**
- * Abstract parent for a class with a method that gets passed every
- * set of counters for every join attempt.
- */
-class SwCounterSink {
-public:
-	SwCounterSink() { MUTEX_INIT(lock_); }
-	virtual ~SwCounterSink() { }
-	/**
-	 * Grab the lock and call abstract member reportCountersImpl()
-	 */
-	virtual void reportCounters(const SwCounters& c) {
-		ThreadSafe(&this->lock_);
-		reportCountersImpl(c);
-	}
-protected:
-	virtual void reportCountersImpl(const SwCounters& c) = 0;
-	MUTEX_T lock_;
-};
-
-/**
- * Write each per-SW set of counters to an output stream using a
- * simple record-per-line tab-delimited format.
- */
-class StreamTabSwCounterSink : public SwCounterSink {
-public:
-	StreamTabSwCounterSink(std::ostream& os) : SwCounterSink(), os_(os) { }
-protected:
-	virtual void reportCountersImpl(const SwCounters& c)
-	{
-		os_ << c.cups << "\t"
-			<< c.bts  << "\n"; // avoid 'endl' b/c flush is unnecessary
-	}
-	std::ostream& os_;
-};
-
-/**
- * Abstract parent for a class with a method that gets passed every
- * set of counters for every join attempt.
- */
-class SwActionSink {
-public:
-	SwActionSink() { MUTEX_INIT(lock_); }
-	virtual ~SwActionSink() { }
-	/**
-	 * Grab the lock and call abstract member reportActionsImpl()
-	 */
-	virtual void reportActions(const EList<SwAction>& as) {
-		ThreadSafe(&this->lock_);
-		reportActionsImpl(as);
-	}
-protected:
-	virtual void reportActionsImpl(const EList<SwAction>& as) = 0;
-	MUTEX_T lock_;
-};
-
-/**
- * Write each per-SW set of Actions to an output stream using a
- * simple record-per-line tab-delimited format.
- */
-class StreamTabSwActionSink : public SwActionSink {
-public:
-	StreamTabSwActionSink(std::ostream& os) : SwActionSink(), os_(os) { }
-	virtual ~StreamTabSwActionSink() { }
-protected:
-	virtual void reportActionsImpl(const EList<SwAction>& as)
-	{
-		for(size_t i = 0; i < as.size(); i++) {
-			os_ << "\n"; // avoid 'endl' b/c flush is unnecessary
-		}
-	}
-	std::ostream& os_;
-};
-
-// The three types of cell that exist at each row, col
-enum {
-	SW_BT_CELL_OALL,  // currently in oall cell
-	SW_BT_CELL_RDGAP, // currently in rdgap cell
-	SW_BT_CELL_RFGAP  // currently in rfgap cell
-};
-
 // The various ways that one might backtrack from a later cell (either oall,
 // rdgap or rfgap) to an earlier cell
 enum {
 	SW_BT_OALL_DIAG,         // from oall cell to oall cell
 	SW_BT_OALL_REF_OPEN,     // from oall cell to oall cell
-	SW_BT_OALL_REF_EXTEND,   // from oall cell to rfgap cell
 	SW_BT_OALL_READ_OPEN,    // from oall cell to oall cell
-	SW_BT_OALL_READ_EXTEND,  // from oall cell to rdgap cell
-	SW_BT_RDGAP_OPEN,        // from rdgap cell to oall cell
 	SW_BT_RDGAP_EXTEND,      // from rdgap cell to rdgap cell
-	SW_BT_RFGAP_OPEN,        // from rfgap cell to oall cell
 	SW_BT_RFGAP_EXTEND       // from rfgap cell to rfgap cell
 };
 

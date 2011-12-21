@@ -398,7 +398,7 @@ struct SSEMatrix {
 	size_t           rowstride_;   // # vectors b/t adjacent cells in same col
 	EList_m128i      matbuf_;      // buffer for holding vectors
 	ELList<uint16_t> masks_;       // buffer for masks/backtracking flags
-	EList<bool>      reset_;       // true iff row has been reset
+	EList<bool>      reset_;       // true iff row in masks_ has been reset
 };
 
 /**

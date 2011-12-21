@@ -1088,14 +1088,14 @@ static void parseOption(int next_option, const char *arg) {
 			break;
 		}
 		case ARG_SAM_RG: {
-			string arg = arg;
-			if(arg.substr(0, 3) == "ID:") {
+			string argstr = arg;
+			if(argstr.substr(0, 3) == "ID:") {
 				rgid = "\t";
-				rgid += arg;
-				rgs_optflag = "RG:Z:" + arg.substr(3);
+				rgid += argstr;
+				rgs_optflag = "RG:Z:" + argstr.substr(3);
 			} else {
 				rgs += '\t';
-				rgs += arg;
+				rgs += argstr;
 			}
 			break;
 		}
