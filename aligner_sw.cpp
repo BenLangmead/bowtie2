@@ -50,7 +50,6 @@ void SwAligner::initRead(
 	rdf_     = rdf;        // offset of last read char to align
 	sc_      = &sc;        // scoring scheme
 	nceil_   = nceil;      // max # Ns allowed in ref portion of aln
-	solrowlo_= sc.rowlo;   // if row >= this, solutions are possible
 	readSse16_ = false;    // true -> sse16 from now on for this read
 	initedRead_ = true;
 #ifndef NO_SSE
@@ -59,14 +58,6 @@ void SwAligner::initRead(
 	sseI16fwBuilt_ = false;  // built fw query profile, 16-bit score
 	sseI16rcBuilt_ = false;  // built rc query profile, 16-bit score
 #endif
-	if(solrowlo_ == -1) {
-		if(sc_->monotone) {
-			solrowlo_ = (int64_t)dpRows()-1;
-		} else {
-			solrowlo_ = 0;
-		}
-		assert_geq(solrowlo_, 0);
-	}
 }
 
 /**
@@ -448,10 +439,6 @@ int SwAligner::ungappedAlign(
  * last time init() was called.
  */
 bool SwAligner::align(RandomSource& rnd) {
-	//struct timeval tv_i, tv_f;
-	//struct timezone tz_i, tz_f;
-	//gettimeofday(&tv_i, &tz_i);
-
 	assert(initedRef() && initedRead());
 	assert_eq(STATE_INITED, state_);
 	state_ = STATE_ALIGNED;
@@ -501,13 +488,6 @@ bool SwAligner::align(RandomSource& rnd) {
 #endif /*ndef NDEBUG*/
 		}
 	}
-
-	//gettimeofday(&tv_f, &tz_f);
-	//size_t total_usecs =
-	//	(tv_f.tv_sec - tv_i.tv_sec) * 1000000 + (tv_f.tv_usec - tv_i.tv_usec);
-	//if(total_usecs > 500000) {
-	//	cerr << "Saw a long DP (" << total_usecs << " usecs)" << endl;
-	//}
 #ifndef NDEBUG
 	if((rand() & 15) == 0 && sse8succ_ && sse16succ_) {
 		SSEData& d8  = fw_ ? sseU8fw_  : sseU8rc_;
@@ -612,12 +592,6 @@ bool SwAligner::align(RandomSource& rnd) {
 	if(!btncand_.empty()) {
 		btncand_.sort();
 	}
-	//gettimeofday(&tv_f, &tz_f);
-	//size_t total_usecs =
-	//	(tv_f.tv_sec - tv_i.tv_sec) * 1000000 + (tv_f.tv_usec - tv_i.tv_usec);
-	//if(total_usecs > 300000) {
-	//	cerr << "Saw a long call to align (" << total_usecs << " usecs)" << endl;
-	//}
 	return !btncand_.empty();
 }
 
@@ -638,10 +612,6 @@ bool SwAligner::nextAlignment(
 	TAlScore minsc,
 	RandomSource& rnd)
 {
-	//struct timeval tv_i, tv_f;
-	//struct timezone tz_i, tz_f;
-	//gettimeofday(&tv_i, &tz_i);
-	
 	assert(initedRead() && initedRef());
 	assert_eq(STATE_ALIGNED, state_);
 	assert(repOk());
@@ -846,12 +816,6 @@ bool SwAligner::nextAlignment(
 	} // while(cural_ < btncand_.size())
 	if(cural_ == btncand_.size()) {
 		assert(res.repOk());
-		//gettimeofday(&tv_f, &tz_f);
-		//size_t total_usecs =
-		//	(tv_f.tv_sec - tv_i.tv_sec) * 1000000 + (tv_f.tv_usec - tv_i.tv_usec);
-		//if(total_usecs > 300000) {
-		//	cerr << "Saw a long call to nextAlignment (" << total_usecs << " usecs)" << endl;
-		//}
 		return false;
 	}
 	assert(!res.alres.empty());
@@ -864,12 +828,6 @@ bool SwAligner::nextAlignment(
 	}
 	cural_++;
 	assert(res.repOk());
-	//gettimeofday(&tv_f, &tz_f);
-	//size_t total_usecs =
-	//	(tv_f.tv_sec - tv_i.tv_sec) * 1000000 + (tv_f.tv_usec - tv_i.tv_usec);
-	//if(total_usecs > 300000) {
-	//	cerr << "Saw a long call to nextAlignment (" << total_usecs << " usecs)" << endl;
-	//}
 	return true;
 }
 

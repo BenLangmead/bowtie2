@@ -1018,11 +1018,10 @@ Pipeline versions (prior to 1.3).  Default: off.
 
 </td><td>
 
-Quality values are represented in the read input file as
-space-separated ASCII integers, e.g., `40 40 30 40`..., rather than
-ASCII characters, e.g., `II?I`....  Integers are treated as being on
-the [Phred quality] scale unless [`--solexa-quals`] is also specified.
-Default: off.
+Quality values are represented in the read input file as space-separated ASCII
+integers, e.g., `40 40 30 40`..., rather than ASCII characters, e.g., `II?I`....
+ Integers are treated as being on the [Phred quality] scale unless
+[`--solexa-quals`] is also specified. Default: off.
 
 </td></tr></table>
 

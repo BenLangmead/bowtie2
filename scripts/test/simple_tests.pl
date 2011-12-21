@@ -216,7 +216,7 @@ my @cases = (
 	  #            TTGTTCGTTTGTT
 	  #                    TTGTTCGT-----
 	  reads  => [ "TTGTTCGTTTGTT" ],
-	  args   =>   "--local -L 8 -i C,1,0",
+	  args   =>   "--local -L 8 -i C,1,0 --score-min=C,12",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1, 8 => 1 } ],
 	  flags_map => [{
@@ -253,7 +253,7 @@ my @cases = (
 	{ name   => "Local alignment 4",
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCGTTTGT" ],
-	  args   =>   "--local --policy \"SEED=0,3;IVAL=C,1,0\"",
+	  args   =>   "--local --policy \"SEED=0,3;IVAL=C,1,0\" --score-min=C,12",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1, 8 => 1 } ],
 	  flags_map => [{

@@ -51,8 +51,8 @@
 // Linear coefficient a
 #define DEFAULT_MIN_LINEAR (-0.6f)
 // Different defaults for --local mode
-#define DEFAULT_MIN_CONST_LOCAL (20.0f)
-#define DEFAULT_MIN_LINEAR_LOCAL (8.0f)
+#define DEFAULT_MIN_CONST_LOCAL (0.0f)
+#define DEFAULT_MIN_LINEAR_LOCAL (10.0f)
 
 // Constant coefficient b in linear function f(x) = ax + b determining
 // maximum permitted number of Ns f in a read before it is filtered &

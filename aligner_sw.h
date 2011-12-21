@@ -208,8 +208,6 @@ public:
 		sseU8rc_(DP_CAT),
 		sseI16fw_(DP_CAT),
 		sseI16rc_(DP_CAT),
-		sseI32fw_(DP_CAT),
-		sseI32rc_(DP_CAT),
 		state_(STATE_UNINIT),
 		initedRead_(false),
 		readSse16_(false),
@@ -225,10 +223,7 @@ public:
 		lastsolcol_(0),
 		cural_(0)
 		ASSERT_ONLY(, cand_tmp_(DP_CAT))
-	{
-		SwAligner::EXTREMES.first = std::numeric_limits<size_t>::max();
-		SwAligner::EXTREMES.second = std::numeric_limits<size_t>::min();
-	}
+	{ }
 	
 	/**
 	 * Prepare the dynamic programming driver with a new read and a new scoring
@@ -373,7 +368,6 @@ public:
 		assert_gt(dpRows(), 0);
 		// Check btncand_
 		for(size_t i = 0; i < btncand_.size(); i++) {
-			assert(solrowlo_ < 0 || btncand_[i].row >= (size_t)solrowlo_);
 			assert(btncand_[i].repOk());
 			assert_geq(btncand_[i].score, minsc_);
 		}
@@ -531,7 +525,6 @@ protected:
 	const Scoring      *sc_;     // penalties for edit types
 	TAlScore            minsc_;  // penalty ceiling for valid alignments
 	int                 nceil_;  // max # Ns allowed in ref portion of aln
-	bool                monotone_; // true iff scores only go down
 
 	bool                sse8succ_;  // whether 8-bit worked
 	bool                sse16succ_; // whether 16-bit worked
@@ -543,8 +536,6 @@ protected:
 	bool                sseU8rcBuilt_;   // built rc query profile, 8-bit score
 	bool                sseI16fwBuilt_;  // built fw query profile, 16-bit score
 	bool                sseI16rcBuilt_;  // built rc query profile, 16-bit score
-	SSEData             sseI32fw_;  // buf for fw query, 32-bit score
-	SSEData             sseI32rc_;  // buf for rc query, 32-bit score
 
 	SSEMetrics			sseU8ExtendMet_;
 	SSEMetrics			sseU8MateMet_;
@@ -557,10 +548,9 @@ protected:
 	bool                initedRef_;  // true iff initialized with initRef
 	EList<uint32_t>     rfwbuf_;     // buffer for wordized refernece stretches
 	
-	EList<DpNucFrame>   btnstack_;// backtrace stack for nucleotides
-	EList<SizeTPair>    btcells_; // cells involved in current backtrace
+	EList<DpNucFrame>   btnstack_;   // backtrace stack for nucleotides
+	EList<SizeTPair>    btcells_;    // cells involved in current backtrace
 
-	int64_t             solrowlo_;// if row >= this, solutions are possible
 	EList<DpNucBtCandidate> btncand_;     // cells we might backtrace from
 	EList<DpNucBtCandidate> btncanddone_; // candidates that we investigated
 	size_t              btncanddoneSucc_; // # investigated and succeeded
@@ -569,8 +559,6 @@ protected:
 	size_t              colstop_; // bailed on DP loop after this many cols
 	size_t              lastsolcol_; // last DP col with valid cell
 	size_t              cural_;   // index of next alignment to be given
-	
-	SizeTPair           EXTREMES; // invalid, uninitialized range
 	
 	uint64_t nbtfiltst_; // # candidates filtered b/c starting cell was seen
 	uint64_t nbtfiltsc_; // # candidates filtered b/c score uninteresting
