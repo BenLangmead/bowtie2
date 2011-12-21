@@ -38,7 +38,15 @@ void SSEMatrix::init(
 	// The +1 is so that we don't have to special-case the final column;
 	// instead, we just write off the end of the useful part of the table
 	// with pvEStore.
-	matbuf_.resizeNoCopy((ncol+1) * nvecPerCell_ * nvecPerCol_);
+	try {
+		matbuf_.resizeNoCopy((ncol+1) * nvecPerCell_ * nvecPerCol_);
+	} catch(exception& e) {
+		cerr << "Tried to allocate DP matrix with " << (ncol+1)
+		     << " columns, " << nvecPerCol_
+			 << "vectors per column, and and " << nvecPerCell_
+			 << " vectors per cell" << endl;
+		throw e;
+	}
 	assert(wperv_ == 8 || wperv_ == 16);
 	vecshift_ = (wperv_ == 8) ? 3 : 4;
 	nvecrow_ = (nrow + (wperv_-1)) >> vecshift_;
