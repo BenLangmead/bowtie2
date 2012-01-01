@@ -43,7 +43,7 @@ void SSEMatrix::init(
 	} catch(exception& e) {
 		cerr << "Tried to allocate DP matrix with " << (ncol+1)
 		     << " columns, " << nvecPerCol_
-			 << "vectors per column, and and " << nvecPerCell_
+			 << " vectors per column, and and " << nvecPerCell_
 			 << " vectors per cell" << endl;
 		throw e;
 	}

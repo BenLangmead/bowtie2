@@ -445,6 +445,33 @@ protected:
 		int& flag);
 	
 	/**
+	 * Aligns by filling a dynamic programming matrix with the SSE-accelerated,
+	 * banded DP approach of Farrar.  As it goes, it determines which cells we
+	 * might backtrace from and tallies the best (highest-scoring) N backtrace
+	 * candidate cells per diagonal.  Also returns the alignment score of the best
+	 * alignment in the matrix.
+	 *
+	 * This routine does *not* maintain a matrix holding the entire matrix worth of
+	 * scores, nor does it maintain any other dense O(mn) data structure, as this
+	 * would quickly exhaust memory for queries longer than about 10,000 kb.
+	 * Instead, in the fill stage it maintains two columns worth of scores at a
+	 * time (current/previous, or right/left) - these take O(m) space.  When
+	 * finished with the current column, it determines which cells from the
+	 * previous column, if any, are candidates we might backtrace from to find a
+	 * full alignment.  A candidate cell has a score that rises above the threshold
+	 * and isn't improved upon by a match in the next column.  The best N
+	 * candidates per diagonal are stored in a O(m + n) data structure.
+	 */
+	TAlScore alignGatherEE8(                // unsigned 8-bit elements
+		int& flag);
+	TAlScore alignGatherLoc8(               // unsigned 8-bit elements
+		int& flag);
+	TAlScore alignGatherEE16(               // signed 16-bit elements
+		int& flag);
+	TAlScore alignGatherLoc16(              // signed 16-bit elements
+		int& flag);
+	
+	/**
 	 * Build query profile look up tables for the read.  The query profile look
 	 * up table is organized as a 1D array indexed by [i][j] where i is the
 	 * reference character in the current DP column (0=A, 1=C, etc), and j is

@@ -457,32 +457,74 @@ bool SwAligner::align(RandomSource& rnd) {
 	if(sc_->monotone) {
 		if(enable8_ && !readSse16_ && minsc_ >= -254) {
 			best = alignNucleotidesEnd2EndSseU8(flag);
+#ifndef NDEBUG
+			{
+				int flagtmp = 0;
+				TAlScore besttmp = alignGatherEE8(flagtmp);
+				assert_eq(flagtmp, flag);
+				assert_eq(besttmp, best);
+			}
+#endif
 			sse8succ_ = (flag == 0);
 #ifndef NDEBUG
 			int flag2 = 0;
 			TAlScore best2 = alignNucleotidesEnd2EndSseI16(flag2);
+			{
+				int flagtmp = 0;
+				TAlScore besttmp = alignGatherEE16(flagtmp);
+				assert_eq(flagtmp, flag2);
+				assert_eq(besttmp, best2);
+			}
 			assert(flag < 0 || best == best2);
 			sse16succ_ = (flag2 == 0);
 #endif /*ndef NDEBUG*/
 		} else {
 			best = alignNucleotidesEnd2EndSseI16(flag);
+#ifndef NDEBUG
+			{
+				int flagtmp = 0;
+				TAlScore besttmp = alignGatherEE16(flagtmp);
+				assert_eq(flagtmp, flag);
+				assert_eq(besttmp, best);
+			}
+#endif
 			sse16succ_ = (flag == 0);
 		}
 	} else {
 		flag = -2;
 		if(enable8_ && !readSse16_) {
 			best = alignNucleotidesLocalSseU8(flag);
+#ifndef NDEBUG
+			int flagtmp = 0;
+			TAlScore besttmp = alignGatherLoc8(flagtmp);
+			assert_eq(best, besttmp);
+			assert_eq(flag, flagtmp);
+#endif
 		}
 		if(flag == -2) {
 			flag = 0;
 			//readSse16_ = true; // sse16 from now on for this read
 			best = alignNucleotidesLocalSseI16(flag);
+#ifndef NDEBUG
+			{
+				int flagtmp = 0;
+				TAlScore besttmp = alignGatherLoc16(flagtmp);
+				assert_eq(best, besttmp);
+				assert_eq(flag, flagtmp);
+			}
+#endif
 			sse16succ_ = (flag == 0);
 		} else {
 			sse8succ_ = (flag == 0);
 #ifndef NDEBUG
 			int flag2 = 0;
 			TAlScore best2 = alignNucleotidesLocalSseI16(flag2);
+			{
+				int flagtmp = 0;
+				TAlScore besttmp = alignGatherLoc16(flagtmp);
+				assert_eq(best2, besttmp);
+				assert_eq(flag2, flagtmp);
+			}
 			assert(flag2 < 0 || best == best2);
 			sse16succ_ = (flag2 == 0);
 #endif /*ndef NDEBUG*/

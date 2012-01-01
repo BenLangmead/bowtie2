@@ -275,6 +275,386 @@ static bool cellOkEnd2EndI16(
 #endif
 
 #define ROWSTRIDE 4
+#define ROWSTRIDE_2COL 3
+
+/**
+ * Aligns by filling a dynamic programming matrix with the SSE-accelerated,
+ * banded DP approach of Farrar.  As it goes, it determines which cells we
+ * might backtrace from and tallies the best (highest-scoring) N backtrace
+ * candidate cells per diagonal.  Also returns the alignment score of the best
+ * alignment in the matrix.
+ *
+ * This routine does *not* maintain a matrix holding the entire matrix worth of
+ * scores, nor does it maintain any other dense O(mn) data structure, as this
+ * would quickly exhaust memory for queries longer than about 10,000 kb.
+ * Instead, in the fill stage it maintains two columns worth of scores at a
+ * time (current/previous, or right/left) - these take O(m) space.  When
+ * finished with the current column, it determines which cells from the
+ * previous column, if any, are candidates we might backtrace from to find a
+ * full alignment.  A candidate cell has a score that rises above the threshold
+ * and isn't improved upon by a match in the next column.  The best N
+ * candidates per diagonal are stored in a O(m + n) data structure.
+ */
+TAlScore SwAligner::alignGatherEE16(int& flag) {
+	assert_leq(rdf_, rd_->length());
+	assert_leq(rdf_, qu_->length());
+	assert_lt(rfi_, rff_);
+	assert_lt(rdi_, rdf_);
+	assert_eq(rd_->length(), qu_->length());
+	assert_geq(sc_->gapbar, 1);
+	assert(repOk());
+#ifndef NDEBUG
+	for(size_t i = rfi_; i < rff_; i++) {
+		assert_range(0, 16, (int)rf_[i]);
+	}
+#endif
+
+	SSEData& d = fw_ ? sseI16fw_ : sseI16rc_;
+	SSEMetrics& met = extend_ ? sseI16ExtendMet_ : sseI16MateMet_;
+	met.dp++;
+	buildQueryProfileEnd2EndSseI16(fw_);
+	assert(!d.profbuf_.empty());
+
+	assert_eq(0, d.maxBonus_);
+	size_t iter =
+		(dpRows() + (NWORDS_PER_REG-1)) / NWORDS_PER_REG; // iter = segLen
+	
+	// Now set up the score vectors.  We just need two columns worth, which
+	// we'll call "left" and "right".
+	d.vecbuf_.resize(4 * 2 * iter);
+	d.vecbuf_.zero();
+	__m128i *vbuf_l = d.vecbuf_.ptr();
+	__m128i *vbuf_r = d.vecbuf_.ptr() + (4 * iter);
+
+	// Many thanks to Michael Farrar for releasing his striped Smith-Waterman
+	// implementation:
+	//
+	//  http://sites.google.com/site/farrarmichael/smith-waterman
+	//
+	// Much of the implmentation below is adapted from Michael's code.
+
+	// Set all elts to reference gap open penalty
+	__m128i rfgapo   = _mm_setzero_si128();
+	__m128i rfgape   = _mm_setzero_si128();
+	__m128i rdgapo   = _mm_setzero_si128();
+	__m128i rdgape   = _mm_setzero_si128();
+	__m128i vlo      = _mm_setzero_si128();
+	__m128i vhi      = _mm_setzero_si128();
+	__m128i vhilsw   = _mm_setzero_si128();
+	__m128i vlolsw   = _mm_setzero_si128();
+	__m128i vmax     = _mm_setzero_si128();
+	__m128i ve       = _mm_setzero_si128();
+	__m128i vf       = _mm_setzero_si128();
+	__m128i vh       = _mm_setzero_si128();
+	__m128i vtmp     = _mm_setzero_si128();
+
+	assert_gt(sc_->refGapOpen(), 0);
+	assert_leq(sc_->refGapOpen(), std::numeric_limits<TCScore>::max());
+	rfgapo = _mm_insert_epi16(rfgapo, sc_->refGapOpen(), 0);
+	rfgapo = _mm_shufflelo_epi16(rfgapo, 0);
+	rfgapo = _mm_shuffle_epi32(rfgapo, 0);
+	
+	// Set all elts to reference gap extension penalty
+	assert_gt(sc_->refGapExtend(), 0);
+	assert_leq(sc_->refGapExtend(), std::numeric_limits<TCScore>::max());
+	assert_leq(sc_->refGapExtend(), sc_->refGapOpen());
+	rfgape = _mm_insert_epi16(rfgape, sc_->refGapExtend(), 0);
+	rfgape = _mm_shufflelo_epi16(rfgape, 0);
+	rfgape = _mm_shuffle_epi32(rfgape, 0);
+
+	// Set all elts to read gap open penalty
+	assert_gt(sc_->readGapOpen(), 0);
+	assert_leq(sc_->readGapOpen(), std::numeric_limits<TCScore>::max());
+	rdgapo = _mm_insert_epi16(rdgapo, sc_->readGapOpen(), 0);
+	rdgapo = _mm_shufflelo_epi16(rdgapo, 0);
+	rdgapo = _mm_shuffle_epi32(rdgapo, 0);
+	
+	// Set all elts to read gap extension penalty
+	assert_gt(sc_->readGapExtend(), 0);
+	assert_leq(sc_->readGapExtend(), std::numeric_limits<TCScore>::max());
+	assert_leq(sc_->readGapExtend(), sc_->readGapOpen());
+	rdgape = _mm_insert_epi16(rdgape, sc_->readGapExtend(), 0);
+	rdgape = _mm_shufflelo_epi16(rdgape, 0);
+	rdgape = _mm_shuffle_epi32(rdgape, 0);
+
+	// Set all elts to 0x8000 (min value for signed 16-bit)
+	vlo = _mm_cmpeq_epi16(vlo, vlo);             // all elts = 0xffff
+	vlo = _mm_slli_epi16(vlo, NBITS_PER_WORD-1); // all elts = 0x8000
+	
+	// Set all elts to 0x7fff (max value for signed 16-bit)
+	vhi = _mm_cmpeq_epi16(vhi, vhi);             // all elts = 0xffff
+	vhi = _mm_srli_epi16(vhi, 1);                // all elts = 0x7fff
+	
+	// Set all elts to 0x8000 (min value for signed 16-bit)
+	vmax = vlo;
+	
+	// vlolsw: topmost (least sig) word set to 0x8000, all other words=0
+	vlolsw = _mm_shuffle_epi32(vlo, 0);
+	vlolsw = _mm_srli_si128(vlolsw, NBYTES_PER_REG - NBYTES_PER_WORD);
+	
+	// vhilsw: topmost (least sig) word set to 0x7fff, all other words=0
+	vhilsw = _mm_shuffle_epi32(vhi, 0);
+	vhilsw = _mm_srli_si128(vhilsw, NBYTES_PER_REG - NBYTES_PER_WORD);
+	
+	// Points to a long vector of __m128i where each element is a block of
+	// contiguous cells in the E, F or H matrix.  If the index % 3 == 0, then
+	// the block of cells is from the E matrix.  If index % 3 == 1, they're
+	// from the F matrix.  If index % 3 == 2, then they're from the H matrix.
+	// Blocks of cells are organized in the same interleaved manner as they are
+	// calculated by the Farrar algorithm.
+	const __m128i *pvScore; // points into the query profile
+
+	const size_t colstride = ROWSTRIDE_2COL * iter;
+	
+	// Initialize the H and E vectors in the first matrix column
+	__m128i *pvELeft    = vbuf_l + 0; __m128i *pvERight   = vbuf_r + 0;
+	__m128i *pvFLeft    = vbuf_l + 1; __m128i *pvFRight   = vbuf_r + 1;
+	__m128i *pvHLeft    = vbuf_l + 2; __m128i *pvHRight   = vbuf_r + 2;
+	
+	// Maximum score in final row
+	bool found = false;
+	TCScore lrmax = std::numeric_limits<TCScore>::min();
+	
+	for(size_t i = 0; i < iter; i++) {
+		_mm_store_si128(pvERight, vlo); pvERight += ROWSTRIDE_2COL;
+		// Could initialize Hs to high or low.  If high, cells in the lower
+		// triangle will have somewhat more legitiate scores, but still won't
+		// be exhaustively scored.
+		_mm_store_si128(pvHRight, vlo); pvHRight += ROWSTRIDE_2COL;
+	}
+	
+	assert_gt(sc_->gapbar, 0);
+	size_t nfixup = 0;
+
+	// Fill in the table as usual but instead of using the same gap-penalty
+	// vector for each iteration of the inner loop, load words out of a
+	// pre-calculated gap vector parallel to the query profile.  The pre-
+	// calculated gap vectors enforce the gap barrier constraint by making it
+	// infinitely costly to introduce a gap in barrier rows.
+	//
+	// AND use a separate loop to fill in the first row of the table, enforcing
+	// the st_ constraints in the process.  This is awkward because it
+	// separates the processing of the first row from the others and might make
+	// it difficult to use the first-row results in the next row, but it might
+	// be the simplest and least disruptive way to deal with the st_ constraint.
+	
+	colstop_ = rff_ - 1;
+	lastsolcol_ = 0;
+	for(size_t i = rfi_; i < rff_; i++) {
+		// Swap left and right; vbuf_l is the vector on the left, which we
+		// generally load from, and vbuf_r is the vector on the right, which we
+		// generally store to.
+		swap(vbuf_l, vbuf_r);
+		pvELeft    = vbuf_l + 0; pvERight   = vbuf_r + 0;
+		pvFLeft    = vbuf_l + 1; pvFRight   = vbuf_r + 1;
+		pvHLeft    = vbuf_l + 2; pvHRight   = vbuf_r + 2;
+		
+		// Fetch the appropriate query profile.  Note that elements of rf_ must
+		// be numbers, not masks.
+		const int refc = (int)rf_[i];
+		
+		// Fetch the appropriate query profile
+		size_t off = (size_t)firsts5[refc] * iter * 2;
+		pvScore = d.profbuf_.ptr() + off; // even elts = query profile, odd = gap barrier
+		
+		// Set all cells to low value
+		vf = _mm_cmpeq_epi16(vf, vf);
+		vf = _mm_slli_epi16(vf, NBITS_PER_WORD-1);
+		vf = _mm_or_si128(vf, vlolsw);
+		
+		// Load H vector from the final row of the previous column
+		vh = _mm_load_si128(pvHLeft + colstride - ROWSTRIDE_2COL);
+		// Shift 2 bytes down so that topmost (least sig) cell gets 0
+		vh = _mm_slli_si128(vh, NBYTES_PER_WORD);
+		// Fill topmost (least sig) cell with high value
+		vh = _mm_or_si128(vh, vhilsw);
+		
+		// For each character in the reference text:
+		size_t j;
+		for(j = 0; j < iter; j++) {
+			// Load cells from E, calculated previously
+			ve = _mm_load_si128(pvELeft);
+			assert_all_lt(ve, vhi);
+			pvELeft += ROWSTRIDE_2COL;
+			
+			// Store cells in F, calculated previously
+			vf = _mm_adds_epi16(vf, pvScore[1]); // veto some ref gap extensions
+			vf = _mm_adds_epi16(vf, pvScore[1]); // veto some ref gap extensions
+			_mm_store_si128(pvFRight, vf);
+			pvFRight += ROWSTRIDE_2COL;
+			
+			// Factor in query profile (matches and mismatches)
+			vh = _mm_adds_epi16(vh, pvScore[0]);
+			
+			// Update H, factoring in E and F
+			vh = _mm_max_epi16(vh, ve);
+			vh = _mm_max_epi16(vh, vf);
+			
+			// Save the new vH values
+			_mm_store_si128(pvHRight, vh);
+			pvHRight += ROWSTRIDE_2COL;
+			
+			// Update vE value
+			vtmp = vh;
+			vh = _mm_subs_epi16(vh, rdgapo);
+			vh = _mm_adds_epi16(vh, pvScore[1]); // veto some read gap opens
+			vh = _mm_adds_epi16(vh, pvScore[1]); // veto some read gap opens
+			ve = _mm_subs_epi16(ve, rdgape);
+			ve = _mm_max_epi16(ve, vh);
+			assert_all_lt(ve, vhi);
+			
+			// Load the next h value
+			vh = _mm_load_si128(pvHLeft);
+			pvHLeft += ROWSTRIDE_2COL;
+			
+			// Save E values
+			_mm_store_si128(pvERight, ve);
+			pvERight += ROWSTRIDE_2COL;
+			
+			// Update vf value
+			vtmp = _mm_subs_epi16(vtmp, rfgapo);
+			vf = _mm_subs_epi16(vf, rfgape);
+			assert_all_lt(vf, vhi);
+			vf = _mm_max_epi16(vf, vtmp);
+			
+			pvScore += 2; // move on to next query profile / gap veto
+		}
+		// pvHStore, pvELoad, pvEStore have all rolled over to the next column
+		pvFRight -= colstride; // reset to start of column
+		vtmp = _mm_load_si128(pvFRight);
+		
+		pvHRight -= colstride; // reset to start of column
+		vh = _mm_load_si128(pvHRight);
+		
+		pvERight -= colstride; // reset to start of column
+		ve = _mm_load_si128(pvERight);
+		
+		pvScore = d.profbuf_.ptr() + off + 1; // reset veto vector
+		
+		// vf from last row gets shifted down by one to overlay the first row
+		// rfgape has already been subtracted from it.
+		vf = _mm_slli_si128(vf, NBYTES_PER_WORD);
+		vf = _mm_or_si128(vf, vlolsw);
+		
+		vf = _mm_adds_epi16(vf, *pvScore); // veto some ref gap extensions
+		vf = _mm_adds_epi16(vf, *pvScore); // veto some ref gap extensions
+		vf = _mm_max_epi16(vtmp, vf);
+		vtmp = _mm_cmpgt_epi16(vf, vtmp);
+		int cmp = _mm_movemask_epi8(vtmp);
+		
+		// If any element of vtmp is greater than H - gap-open...
+		j = 0;
+		while(cmp != 0x0000) {
+			// Store this vf
+			_mm_store_si128(pvFRight, vf);
+			pvFRight += ROWSTRIDE_2COL;
+			
+			// Update vh w/r/t new vf
+			vh = _mm_max_epi16(vh, vf);
+			
+			// Save vH values
+			_mm_store_si128(pvHRight, vh);
+			pvHRight += ROWSTRIDE_2COL;
+			
+			// Update E in case it can be improved using our new vh
+			vh = _mm_subs_epi16(vh, rdgapo);
+			vh = _mm_adds_epi16(vh, *pvScore); // veto some read gap opens
+			vh = _mm_adds_epi16(vh, *pvScore); // veto some read gap opens
+			ve = _mm_max_epi16(ve, vh);
+			_mm_store_si128(pvERight, ve);
+			pvERight += ROWSTRIDE_2COL;
+			pvScore += 2;
+			
+			assert_lt(j, iter);
+			if(++j == iter) {
+				pvFRight -= colstride;
+				vtmp = _mm_load_si128(pvFRight);   // load next vf ASAP
+				pvHRight -= colstride;
+				vh = _mm_load_si128(pvHRight);     // load next vh ASAP
+				pvERight -= colstride;
+				ve = _mm_load_si128(pvERight);     // load next ve ASAP
+				pvScore = d.profbuf_.ptr() + off + 1;
+				j = 0;
+				vf = _mm_slli_si128(vf, NBYTES_PER_WORD);
+				vf = _mm_or_si128(vf, vlolsw);
+			} else {
+				vtmp = _mm_load_si128(pvFRight);   // load next vf ASAP
+				vh = _mm_load_si128(pvHRight);     // load next vh ASAP
+				ve = _mm_load_si128(pvERight);     // load next vh ASAP
+			}
+			
+			// Update F with another gap extension
+			vf = _mm_subs_epi16(vf, rfgape);
+			vf = _mm_adds_epi16(vf, *pvScore); // veto some ref gap extensions
+			vf = _mm_adds_epi16(vf, *pvScore); // veto some ref gap extensions
+			vf = _mm_max_epi16(vtmp, vf);
+			vtmp = _mm_cmpgt_epi16(vf, vtmp);
+			cmp = _mm_movemask_epi8(vtmp);
+			nfixup++;
+		}
+		
+#ifndef NDEBUG
+		if((rand() & 15) == 0) {
+			// This is a work-intensive sanity check; each time we finish filling
+			// a column, we check that each H, E, and F is sensible.
+			for(size_t k = 0; k < dpRows(); k++) {
+				assert(cellOkEnd2EndI16(
+					d,
+					k,                   // row
+					i - rfi_,            // col
+					refc,                // reference mask
+					(int)(*rd_)[rdi_+k], // read char
+					(int)(*qu_)[rdi_+k], // read quality
+					*sc_));              // scoring scheme
+			}
+		}
+#endif
+		
+		// Check in the last row for the maximum so far
+		__m128i *vtmp = vbuf_r + 2 /* H */ + (d.lastIter_ * ROWSTRIDE_2COL);
+		// Note: we may not want to extract from the final row
+		TCScore lr = ((TCScore*)(vtmp))[d.lastWord_];
+		found = true;
+		if(lr > lrmax) {
+			lrmax = lr;
+		}
+	}
+	
+	// Update metrics
+	size_t ninner = (rff_ - rfi_) * iter;
+	met.col   += (rff_ - rfi_);             // DP columns
+	met.cell  += (ninner * NWORDS_PER_REG); // DP cells
+	met.inner += ninner;                    // DP inner loop iters
+	met.fixup += nfixup;                    // DP fixup loop iters
+
+	flag = 0;
+
+	// Did we find a solution?
+	TAlScore score = std::numeric_limits<TAlScore>::min();
+	if(!found) {
+		flag = -1; // no
+		met.dpfail++;
+		return std::numeric_limits<TAlScore>::min();
+	} else {
+		score = (TAlScore)(lrmax - 0x7fff);
+		if(score < minsc_) {
+			flag = -1; // no
+			met.dpfail++;
+			return score;
+		}
+	}
+	
+	// Could we have saturated?
+	if(lrmax == std::numeric_limits<TCScore>::min()) {
+		flag = -2; // yes
+		met.dpsat++;
+		return std::numeric_limits<TAlScore>::min();
+	}
+	
+	// Return largest score
+	met.dpsucc++;
+	return score;
+}
 
 /**
  * Solve the current alignment problem using SSE instructions that operate on 8
