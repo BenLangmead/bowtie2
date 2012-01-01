@@ -96,6 +96,15 @@ public:
 		}
 		cur_ = sz;
 	}
+	
+	/**
+	 * Zero out contents of vector.
+	 */
+	void zero() {
+		if(cur_ > 0) {
+			memset(list_, 0, cur_ * sizeof(__m128i));
+		}
+	}
 
 	/**
 	 * If size is less than requested size, resize up to at least sz

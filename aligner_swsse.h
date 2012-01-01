@@ -408,6 +408,7 @@ struct SSEMatrix {
 struct SSEData {
 	SSEData(int cat = 0) : profbuf_(cat), mat_(cat) { }
 	EList_m128i    profbuf_;     // buffer for query profile & temp vecs
+	EList_m128i    vecbuf_;      // buffer for 2 column vectors (not using mat_)
 	size_t         qprofStride_; // stride for query profile
 	size_t         gbarStride_;  // gap barrier for query profile
 	SSEMatrix      mat_;         // SSE matrix for holding all E, F, H vectors
