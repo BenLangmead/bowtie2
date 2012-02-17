@@ -707,7 +707,7 @@ void AlnSinkWrap::finishRead(
 	bool suppressAlignments)        // = false
 {
 	obuf_.clear();
-	g_.outq().beginRead(rdid_, threadid_);
+	OutputQueueMark qqm(g_.outq(), obuf_, rdid_, threadid_);
 	assert(init_);
 	if(!suppressSeedSummary) {
 		if(sr1 != NULL) {
@@ -836,7 +836,7 @@ void AlnSinkWrap::finishRead(
 				}
 			}
 			init_ = false;
-			g_.outq().finishRead(obuf_, rdid_, threadid_);
+			//g_.outq().finishRead(obuf_, rdid_, threadid_);
 			return;
 		}
 		// Report concordant paired-end alignments if possible
@@ -914,7 +914,7 @@ void AlnSinkWrap::finishRead(
 			met.nconcord_0++;
 			met.ndiscord++;
 			init_ = false;
-			g_.outq().finishRead(obuf_, rdid_, threadid_);
+			//g_.outq().finishRead(obuf_, rdid_, threadid_);
 			return;
 		}
 		// If we're at this point, at least one mate failed to align.
@@ -1222,7 +1222,7 @@ void AlnSinkWrap::finishRead(
 		}
 	} // if(suppress alignments)
 	init_ = false;
-	g_.outq().finishRead(obuf_, rdid_, threadid_);
+	//g_.outq().finishRead(obuf_, rdid_, threadid_);
 	return;
 }
 
