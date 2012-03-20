@@ -348,7 +348,7 @@ struct SSEMatrix {
 		int readc,
 		int readq,
 		const Scoring& sc,   // scoring scheme
-		TAlScore offsetsc,   // offset to add to each score
+		int64_t offsetsc,    // offset to add to each score
 		RandomSource& rand,  // rand gen for choosing among equal options
 		bool& empty,         // out: =true iff no way to backtrace
 		int& cur,            // out: =type of transition
@@ -493,5 +493,8 @@ inline void SSEMatrix::fMaskSet(
 	masks_[row][col] &= ~(7 << 10);
 	masks_[row][col] |=  (1 << 10 | mask << 11);
 }
+
+#define ROWSTRIDE_2COL 4
+#define ROWSTRIDE 4
 
 #endif /*ndef ALIGNER_SWSSE_H_*/

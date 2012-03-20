@@ -136,7 +136,8 @@ enum {
 	ARG_NO_EXTEND,              // --no-extend
 	ARG_REORDER,                // --reorder
 	ARG_SHOW_RAND_SEED,         // --show-rand-seed
-	ARG_READ_PASSTHRU           // --passthrough
+	ARG_READ_PASSTHRU,          // --passthrough
+	ARG_SAMPLE                  // --sample
 };
 
 #endif

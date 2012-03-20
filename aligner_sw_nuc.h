@@ -90,11 +90,11 @@ enum {
 /**
  * Encapsulates a cell that we might want to backtrace from.
  */
-struct DpNucBtCandidate {
+struct DpBtCandidate {
 
-	DpNucBtCandidate() { reset(); }
+	DpBtCandidate() { reset(); }
 	
-	DpNucBtCandidate(size_t row_, size_t col_, TAlScore score_) {
+	DpBtCandidate(size_t row_, size_t col_, TAlScore score_) {
 		init(row_, col_, score_);
 	}
 	
@@ -116,7 +116,7 @@ struct DpNucBtCandidate {
 	 * where N is an arbitrary number like 20, and (b) B's score is <= than
 	 * A's.
 	 */
-	inline bool dominatedBy(const DpNucBtCandidate& o) {
+	inline bool dominatedBy(const DpBtCandidate& o) {
 		const size_t SQ = 40;
 		size_t rowhi = row;
 		size_t rowlo = o.row;
@@ -132,7 +132,7 @@ struct DpNucBtCandidate {
 	 * Return true if this candidate is "greater than" (should be considered
 	 * later than) the given candidate.
 	 */
-	bool operator>(const DpNucBtCandidate& o) const {
+	bool operator>(const DpBtCandidate& o) const {
 		if(score < o.score) return true;
 		if(score > o.score) return false;
 		if(row   < o.row  ) return true;
@@ -146,7 +146,7 @@ struct DpNucBtCandidate {
 	 * Return true if this candidate is "less than" (should be considered
 	 * sooner than) the given candidate.
 	 */
-	bool operator<(const DpNucBtCandidate& o) const {
+	bool operator<(const DpBtCandidate& o) const {
 		if(score > o.score) return true;
 		if(score < o.score) return false;
 		if(row   > o.row  ) return true;
@@ -159,13 +159,13 @@ struct DpNucBtCandidate {
 	/**
 	 * Return true if this candidate equals the given candidate.
 	 */
-	bool operator==(const DpNucBtCandidate& o) const {
+	bool operator==(const DpBtCandidate& o) const {
 		return row   == o.row &&
 		       col   == o.col &&
 			   score == o.score;
 	}
-	bool operator>=(const DpNucBtCandidate& o) const { return !((*this) < o); }
-	bool operator<=(const DpNucBtCandidate& o) const { return !((*this) > o); }
+	bool operator>=(const DpBtCandidate& o) const { return !((*this) < o); }
+	bool operator<=(const DpBtCandidate& o) const { return !((*this) > o); }
 	
 	/**
 	 * Check internal consistency.
@@ -179,6 +179,69 @@ struct DpNucBtCandidate {
 	size_t   col;   // cell column w/r/t LHS of rectangle
 	TAlScore score; // score fo alignment
 	int      fate;  // flag indicating whether we succeeded, failed, skipped
+};
+
+template <typename T>
+class NBest {
+
+public:
+	NBest<T>() { nelt_ = nbest_ = 0; }
+	
+	bool inited() const { return nelt_ > 0; }
+	
+	void init(size_t nelt, size_t nbest) {
+		nelt_ = nelt;
+		nbest_ = nbest;
+		elts_.resize(nelt * nbest);
+		ncur_.resize(nelt);
+		ncur_.fill(0);
+	}
+	
+	/**
+	 * Add a new result to bin 'elt'.  Where it gets prioritized in the list of
+	 * results in that bin depends on the result of operator>.
+	 */
+	bool add(size_t elt, const T& o) {
+		assert_lt(elt, nelt_);
+		const size_t ncur = ncur_[elt];
+		assert_leq(ncur, nbest_);
+		for(size_t i = 0; i < nbest_ && i <= ncur; i++) {
+			if(o > elts_[nbest_ * elt + i] || i >= ncur) {
+				// Insert it here
+				// Move everyone from here on down by one slot
+				for(int j = (int)ncur; j > (int)i; j--) {
+					if(j < (int)nbest_) {
+						elts_[nbest_ * elt + j] = elts_[nbest_ * elt + j - 1];
+					}
+				}
+				elts_[nbest_ * elt + i] = o;
+				if(ncur < nbest_) {
+					ncur_[elt]++;
+				}
+				return true;
+			}
+		}
+		return false;
+	}
+	
+	/**
+	 * Dump all the items in our payload into the given EList.
+	 */
+	template<typename TList>
+	void dump(TList& l) const {
+		for(size_t i = 0; i < nelt_; i++) {
+			assert_leq(ncur_[i], nbest_);
+			for(size_t j = 0; j < ncur_[i]; j++) {
+				l.push_back(elts_[i * nbest_ + j]);
+			}
+		}
+	}
+
+protected:
+	size_t        nelt_;
+	size_t        nbest_;
+	EList<T>      elts_;
+	EList<size_t> ncur_;
 };
 
 #endif /*def ALIGNER_SW_NUC_H_*/

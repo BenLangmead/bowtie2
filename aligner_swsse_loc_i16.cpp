@@ -274,9 +274,6 @@ static bool cellOkLocalI16(
 }
 #endif
 
-#define ROWSTRIDE 4
-#define ROWSTRIDE_2COL 3
-
 /**
  * Aligns by filling a dynamic programming matrix with the SSE-accelerated,
  * banded DP approach of Farrar.  As it goes, it determines which cells we
@@ -302,6 +299,8 @@ TAlScore SwAligner::alignGatherLoc16(int& flag) {
 	assert_lt(rdi_, rdf_);
 	assert_eq(rd_->length(), qu_->length());
 	assert_geq(sc_->gapbar, 1);
+	assert_gt(minsc_, 0);
+	assert_leq(minsc_, std::numeric_limits<int16_t>::max());
 	assert(repOk());
 #ifndef NDEBUG
 	for(size_t i = rfi_; i < rff_; i++) {
@@ -321,10 +320,27 @@ TAlScore SwAligner::alignGatherLoc16(int& flag) {
 	
 	// Now set up the score vectors.  We just need two columns worth, which
 	// we'll call "left" and "right".
-	d.vecbuf_.resize(4 * 2 * iter);
+	d.vecbuf_.resize(ROWSTRIDE_2COL * iter * 2);
 	d.vecbuf_.zero();
 	__m128i *vbuf_l = d.vecbuf_.ptr();
-	__m128i *vbuf_r = d.vecbuf_.ptr() + (4 * iter);
+	__m128i *vbuf_r = d.vecbuf_.ptr() + (ROWSTRIDE_2COL * iter);
+	
+	// This is the data structure that holds candidate cells per diagonal.
+	const size_t ndiags = rff_ - rfi_ + dpRows() - 1;
+	btdiag_.init(ndiags, 2);
+	
+	// Data structure that holds checkpointed anti-diagonals
+	TAlScore perfectScore = sc_->perfectScore(dpRows());
+	cper_.init(
+		dpRows(),     // # rows
+		rff_ - rfi_,  // # columns
+		cperMinlen_,  // minimum length for using checkpointer
+		cperPerPow2_, // checkpoint every 1 << perpow2 diags (& next)
+		cperEf_,      // store E and F in addition to H?
+		false,        // matrix is 8-bit?
+		perfectScore, // perfect score (for sanity checks)
+		true);        // alignment is local?
+	bool checkpoint = cper_.doCheckpoints();
 
 	// Many thanks to Michael Farrar for releasing his striped Smith-Waterman
 	// implementation:
@@ -347,7 +363,13 @@ TAlScore SwAligner::alignGatherLoc16(int& flag) {
 	__m128i ve       = _mm_setzero_si128();
 	__m128i vf       = _mm_setzero_si128();
 	__m128i vh       = _mm_setzero_si128();
+#if 1
+	__m128i vhd      = _mm_setzero_si128();
+#endif
+	__m128i vm       = _mm_setzero_si128();
 	__m128i vtmp     = _mm_setzero_si128();
+	__m128i vzero    = _mm_setzero_si128();
+	__m128i vminsc   = _mm_setzero_si128();
 
 	assert_gt(sc_->refGapOpen(), 0);
 	assert_leq(sc_->refGapOpen(), std::numeric_limits<TCScore>::max());
@@ -377,6 +399,12 @@ TAlScore SwAligner::alignGatherLoc16(int& flag) {
 	rdgape = _mm_insert_epi16(rdgape, sc_->readGapExtend(), 0);
 	rdgape = _mm_shufflelo_epi16(rdgape, 0);
 	rdgape = _mm_shuffle_epi32(rdgape, 0);
+	
+	// Set all elts to minimum score threshold.  Actually, to 1 less than the
+	// threshold so we can use gt instead of geq.
+	vminsc = _mm_insert_epi16(vminsc, (int)minsc_-1, 0);
+	vminsc = _mm_shufflelo_epi16(vminsc, 0);
+	vminsc = _mm_shuffle_epi32(vminsc, 0);
 
 	// Set all elts to 0x8000 (min value for signed 16-bit)
 	vlo = _mm_cmpeq_epi16(vlo, vlo);             // all elts = 0xffff
@@ -407,16 +435,20 @@ TAlScore SwAligner::alignGatherLoc16(int& flag) {
 	__m128i *pvELeft = vbuf_l + 0; __m128i *pvERight = vbuf_r + 0;
 	__m128i *pvFLeft = vbuf_l + 1; __m128i *pvFRight = vbuf_r + 1;
 	__m128i *pvHLeft = vbuf_l + 2; __m128i *pvHRight = vbuf_r + 2;
+	__m128i *pvMLeft = vbuf_l + 3; __m128i *pvMRight = vbuf_r + 3;
 	
 	for(size_t i = 0; i < iter; i++) {
 		// start low in local mode
 		_mm_store_si128(pvERight, vlo); pvERight += ROWSTRIDE_2COL;
 		_mm_store_si128(pvHRight, vlo); pvHRight += ROWSTRIDE_2COL;
+		// Note: right and left are going to be swapped as soon as we enter
+		// the outer loop below
 	}
 	
 	assert_gt(sc_->gapbar, 0);
 	size_t nfixup = 0;
 	TAlScore matchsc = sc_->match(30);
+	TAlScore leftmax = std::numeric_limits<TAlScore>::min();
 
 	// Fill in the table as usual but instead of using the same gap-penalty
 	// vector for each iteration of the inner loop, load words out of a
@@ -440,6 +472,7 @@ TAlScore SwAligner::alignGatherLoc16(int& flag) {
 		pvELeft = vbuf_l + 0; pvERight = vbuf_r + 0;
 		pvFLeft = vbuf_l + 1; pvFRight = vbuf_r + 1;
 		pvHLeft = vbuf_l + 2; pvHRight = vbuf_r + 2;
+		pvMLeft = vbuf_l + 3; pvMRight = vbuf_r + 3;
 		
 		// Fetch this column's reference mask
 		const int refm = (int)rf_[i];
@@ -471,9 +504,15 @@ TAlScore SwAligner::alignGatherLoc16(int& flag) {
 		
 		// Load cells from E, calculated previously
 		ve = _mm_load_si128(pvELeft);
+#if 1
+		vhd = _mm_load_si128(pvHLeft);
+#endif
 		assert_all_lt(ve, vhi);
 		pvELeft += ROWSTRIDE_2COL;
 		// ve now contains the horizontal contribution
+		
+		// Compute the match mask
+		vm = _mm_cmpgt_epi16(pvScore[0], vzero);
 		
 		// Factor in query profile (matches and mismatches)
 		vh = _mm_adds_epi16(vh, pvScore[0]);
@@ -492,18 +531,34 @@ TAlScore SwAligner::alignGatherLoc16(int& flag) {
 		// Save the new vH values
 		_mm_store_si128(pvHRight, vh);
 		pvHRight += ROWSTRIDE_2COL;
+
+		// Save the new vM values
+		_mm_store_si128(pvMRight, vm);
+		pvMRight += ROWSTRIDE_2COL;
 		
 		// Update vE value
 		vf = vh;
+#if 1
+		vhd = _mm_subs_epi16(vhd, rdgapo);
+		vhd = _mm_adds_epi16(vhd, pvScore[1]); // veto some read gap opens
+		vhd = _mm_adds_epi16(vhd, pvScore[1]); // veto some read gap opens
+		ve = _mm_subs_epi16(ve, rdgape);
+		ve = _mm_max_epi16(ve, vhd);
+#else
 		vh = _mm_subs_epi16(vh, rdgapo);
 		vh = _mm_adds_epi16(vh, pvScore[1]); // veto some read gap opens
 		vh = _mm_adds_epi16(vh, pvScore[1]); // veto some read gap opens
 		ve = _mm_subs_epi16(ve, rdgape);
 		ve = _mm_max_epi16(ve, vh);
+#endif
 		assert_all_lt(ve, vhi);
 		
 		// Load the next h value
+#if 1
+		vh = vhd;
+#else
 		vh = _mm_load_si128(pvHLeft);
+#endif
 		pvHLeft += ROWSTRIDE_2COL;
 		
 		// Save E values
@@ -521,6 +576,9 @@ TAlScore SwAligner::alignGatherLoc16(int& flag) {
 		for(j = 1; j < iter; j++) {
 			// Load cells from E, calculated previously
 			ve = _mm_load_si128(pvELeft);
+#if 1
+			vhd = _mm_load_si128(pvHLeft);
+#endif
 			assert_all_lt(ve, vhi);
 			pvELeft += ROWSTRIDE_2COL;
 			
@@ -529,6 +587,9 @@ TAlScore SwAligner::alignGatherLoc16(int& flag) {
 			vf = _mm_adds_epi16(vf, pvScore[1]); // veto some ref gap extensions
 			_mm_store_si128(pvFRight, vf);
 			pvFRight += ROWSTRIDE_2COL;
+
+			// Compute the match mask
+			vm = _mm_cmpgt_epi16(pvScore[0], vzero);
 			
 			// Factor in query profile (matches and mismatches)
 			vh = _mm_adds_epi16(vh, pvScore[0]);
@@ -543,18 +604,34 @@ TAlScore SwAligner::alignGatherLoc16(int& flag) {
 			// Save the new vH values
 			_mm_store_si128(pvHRight, vh);
 			pvHRight += ROWSTRIDE_2COL;
-			
+
+			// Save the new vM values
+			_mm_store_si128(pvMRight, vm);
+			pvMRight += ROWSTRIDE_2COL;
+
 			// Update vE value
 			vtmp = vh;
+#if 1
+			vhd = _mm_subs_epi16(vhd, rdgapo);
+			vhd = _mm_adds_epi16(vhd, pvScore[1]); // veto some read gap opens
+			vhd = _mm_adds_epi16(vhd, pvScore[1]); // veto some read gap opens
+			ve = _mm_subs_epi16(ve, rdgape);
+			ve = _mm_max_epi16(ve, vhd);
+#else
 			vh = _mm_subs_epi16(vh, rdgapo);
 			vh = _mm_adds_epi16(vh, pvScore[1]); // veto some read gap opens
 			vh = _mm_adds_epi16(vh, pvScore[1]); // veto some read gap opens
 			ve = _mm_subs_epi16(ve, rdgape);
 			ve = _mm_max_epi16(ve, vh);
+#endif
 			assert_all_lt(ve, vhi);
 			
 			// Load the next h value
+#if 1
+			vh = vhd;
+#else
 			vh = _mm_load_si128(pvHLeft);
+#endif
 			pvHLeft += ROWSTRIDE_2COL;
 			
 			// Save E values
@@ -576,8 +653,11 @@ TAlScore SwAligner::alignGatherLoc16(int& flag) {
 		pvHRight -= colstride; // reset to start of column
 		vh = _mm_load_si128(pvHRight);
 		
+#if 1
+#else
 		pvERight -= colstride; // reset to start of column
 		ve = _mm_load_si128(pvERight);
+#endif
 		
 		pvScore = d.profbuf_.ptr() + off + 1; // reset veto vector
 		
@@ -606,16 +686,19 @@ TAlScore SwAligner::alignGatherLoc16(int& flag) {
 			_mm_store_si128(pvHRight, vh);
 			pvHRight += ROWSTRIDE_2COL;
 			
-			// Update highest score encountered this far
+			// Update highest score encountered so far.
 			vcolmax = _mm_max_epi16(vcolmax, vh);
 			
 			// Update E in case it can be improved using our new vh
+#if 1
+#else
 			vh = _mm_subs_epi16(vh, rdgapo);
 			vh = _mm_adds_epi16(vh, *pvScore); // veto some read gap opens
 			vh = _mm_adds_epi16(vh, *pvScore); // veto some read gap opens
 			ve = _mm_max_epi16(ve, vh);
 			_mm_store_si128(pvERight, ve);
 			pvERight += ROWSTRIDE_2COL;
+#endif			
 			pvScore += 2;
 			
 			assert_lt(j, iter);
@@ -624,8 +707,11 @@ TAlScore SwAligner::alignGatherLoc16(int& flag) {
 				vtmp = _mm_load_si128(pvFRight);   // load next vf ASAP
 				pvHRight -= colstride;
 				vh = _mm_load_si128(pvHRight);     // load next vh ASAP
+#if 1
+#else
 				pvERight -= colstride;
 				ve = _mm_load_si128(pvERight);     // load next ve ASAP
+#endif
 				pvScore = d.profbuf_.ptr() + off + 1;
 				j = 0;
 				vf = _mm_slli_si128(vf, NBYTES_PER_WORD);
@@ -633,7 +719,10 @@ TAlScore SwAligner::alignGatherLoc16(int& flag) {
 			} else {
 				vtmp = _mm_load_si128(pvFRight);   // load next vf ASAP
 				vh = _mm_load_si128(pvHRight);     // load next vh ASAP
+#if 1
+#else
 				ve = _mm_load_si128(pvERight);     // load next vh ASAP
+#endif
 			}
 			
 			// Update F with another gap extension
@@ -663,10 +752,67 @@ TAlScore SwAligner::alignGatherLoc16(int& flag) {
 		}
 #endif
 
-		// Store column maximum vector in first element of tmp
-		vmax = _mm_max_epi16(vmax, vcolmax);
-		//_mm_store_si128(d.mat_.tmpvec(0, i - rfi_), vcolmax);
+		// Now we'd like to know exactly which cells in the left column are
+		// candidates we might backtrace from.  First question is: did *any*
+		// elements in the column exceed the minimum score threshold?
+		if(leftmax >= minsc_) {
+			// Yes.  Next question is: which cells are candidates?  We have to
+			// allow matches in the right column to override matches above and
+			// to the left in the left column.
+			assert_gt(i - rfi_, 0);
+			pvHLeft = vbuf_l + 2;
+			pvMLeft = vbuf_l + 3;
+			pvMRight = vbuf_r + 3 + ROWSTRIDE_2COL;
+			vtmp = _mm_load_si128(pvMRight);
+			for(size_t k = 0; k < iter; k++) {
+				vm = _mm_load_si128(pvMLeft);
+				vm = _mm_and_si128(vm, vtmp);     // account for next-col mask
+				vh = _mm_load_si128(pvHLeft);
+				vtmp = _mm_cmpgt_epi16(vh, vminsc);
+				vm = _mm_and_si128(vm, vtmp);     // account for thresh mask
+				vm = _mm_cmpgt_epi16(vm, vzero);
+				int cmp = _mm_movemask_epi8(vm);
+				if(cmp != 0) {
+					// At least one candidate in this mask.  Now iterate
+					// through vm/vh to evaluate individual cells.
+					for(size_t m = 0; m < NWORDS_PER_REG; m++) {
+						if(((TCScore *)&vm)[m] > 0) {
+							TCScore sc = ((TCScore *)&vh)[m];
+							assert_geq(sc, minsc_);
+							// Add to data structure holding all candidates
+							size_t row = k + m * iter;
+							assert_lt(row, dpRows());
+							size_t col = i - rfi_ - 1; // -1 b/c prev col
+							size_t frombot = dpRows() - row - 1;
+							DpBtCandidate cand(row, col, sc);
+							btdiag_.add(frombot + col, cand);
+						}
+					}
+				}
+				pvHLeft += ROWSTRIDE_2COL;
+				pvMLeft += ROWSTRIDE_2COL;
+				if(k < iter - 1) {
+					pvMRight += ROWSTRIDE_2COL;
+					vtmp = _mm_load_si128(pvMRight);
+				} else {
+					// Back to the beginning
+					assert_eq(k, iter - 1);
+					pvMRight = vbuf_r + 3;
+					vtmp = _mm_load_si128(pvMRight);
+					vtmp = _mm_slli_si128(vtmp, NBYTES_PER_WORD);
+				}
+			}
+		}
+		
+		// Save some elements to checkpoints
+		if(checkpoint) {
+			pvERight = vbuf_r + 0;
+			pvFRight = vbuf_r + 1;
+			pvHRight = vbuf_r + 2;
+			cper_.commitCol(pvHRight, pvERight, pvFRight, i - rfi_);
+		}
 
+		vmax = _mm_max_epi16(vmax, vcolmax);
 		{
 			// Get single largest score in this column
 			vmaxtmp = vcolmax;
@@ -689,7 +835,48 @@ TAlScore SwAligner::alignGatherLoc16(int& flag) {
 				}
 			} else {
 				lastsolcol_ = i - rfi_;
+				// Yes, at least one element did rise above minimum score
+				// threshold.
 			}
+			
+			leftmax = score;
+		}
+	}
+	
+	// Now we'd like to know exactly which cells in the *rightmost* column are
+	// candidates we might backtrace from.  Did *any* elements exceed the
+	// minimum score threshold?
+	if(leftmax >= minsc_) {
+		// Yes.  Next question is: which cells are candidates?  We have to take
+		// score threshold into account.
+		pvHLeft = vbuf_r + 2;
+		pvMLeft = vbuf_r + 3;
+		for(size_t k = 0; k < iter; k++) {
+			vm = _mm_load_si128(pvMLeft);
+			vh = _mm_load_si128(pvHLeft);
+			vtmp = _mm_cmpgt_epi16(vh, vminsc);
+			vm = _mm_and_si128(vm, vtmp);     // account for thresh mask
+			vm = _mm_cmpgt_epi16(vm, vzero);
+			int cmp = _mm_movemask_epi8(vm);
+			if(cmp != 0) {
+				// At least one candidate in this mask.  Now iterate
+				// through vm/vh to evaluate individual cells.
+				for(size_t m = 0; m < NWORDS_PER_REG; m++) {
+					if(((TCScore *)&vm)[m] > 0) {
+						TCScore sc = ((TCScore *)&vh)[m];
+						assert_geq(sc, minsc_);
+						// Add to data structure holding all candidates
+						size_t row = k + m * iter;
+						assert_lt(row, dpRows());
+						size_t col = rff_ - rfi_ - 1;
+						size_t frombot = dpRows() - row - 1;
+						DpBtCandidate cand(row, col, sc);
+						btdiag_.add(frombot + col, cand);
+					}
+				}
+			}
+			pvHLeft += ROWSTRIDE_2COL;
+			pvMLeft += ROWSTRIDE_2COL;
 		}
 	}
 
@@ -710,6 +897,10 @@ TAlScore SwAligner::alignGatherLoc16(int& flag) {
 	met.fixup += nfixup;                    // DP fixup loop iters
 
 	flag = 0;
+	
+	// Now take all the backtrace candidates in the btdaig_ structure and dump
+	// them into the btncand_ array.  They'll be sorted later.
+	btdiag_.dump(btncand_);	
 
 	// Did we find a solution?
 	TAlScore score = std::numeric_limits<TAlScore>::min();
