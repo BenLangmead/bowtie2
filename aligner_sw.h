@@ -82,6 +82,7 @@
 #include "mask.h"
 #include "dp_framer.h"
 #include "aligner_swsse.h"
+#include "aligner_bt.h"
 
 #define QUAL2(d, f) sc_->mm((int)(*rd_)[rdi_ + d], \
 							(int)  rf_ [rfi_ + f], \
@@ -215,16 +216,21 @@ public:
 		rfwbuf_(DP_CAT),
 		btnstack_(DP_CAT),
 		btcells_(DP_CAT),
+		btdiag_(),
 		btncand_(DP_CAT),
 		btncanddone_(DP_CAT),
 		btncanddoneSucc_(0),
 		btncanddoneFail_(0),
+		cper_(),
+		cperMinlen_(),
+		cperPerPow2_(),
+		cperEf_(),
 		colstop_(0),
 		lastsolcol_(0),
 		cural_(0)
 		ASSERT_ONLY(, cand_tmp_(DP_CAT))
 	{ }
-	
+
 	/**
 	 * Prepare the dynamic programming driver with a new read and a new scoring
 	 * scheme.
@@ -531,6 +537,32 @@ protected:
 		size_t         col,    // start in this rectangle column
 		RandomSource&  rand);  // random gen, to choose among equal paths
 
+	bool backtrace(
+		TAlScore       escore, // in: expected score
+		bool           fill,   // in: use mini-fill?
+		bool           usecp,  // in: use checkpoints?
+		SwResult&      res,    // out: store results (edits and scores) here
+		size_t&        off,    // out: store diagonal projection of origin
+		size_t         row,    // start in this rectangle row
+		size_t         col,    // start in this rectangle column
+		size_t         maxiter,// max # extensions to try
+		size_t&        niter,  // # extensions tried
+		RandomSource&  rnd)    // random gen, to choose among equal paths
+	{
+		BtBranchTracer& bter = usecp ? bterCp_ : bter_;
+		bter.initBt(
+			escore,              // in: alignment score
+			row,                 // in: start in this row
+			col,                 // in: start in this column
+			fill,                // in: use mini-fill?
+			usecp,               // in: use checkpoints?
+			rnd);                // in: random gen, to choose among equal paths
+		assert(bter.inited());
+		assert(!bter.empty() || !bter.emptySolution());
+		size_t nrej = 0;
+		return bter.nextAlignment(maxiter, res, off, nrej, niter, rnd);
+	}
+
 	const BTDnaString  *rd_;     // read sequence
 	const BTString     *qu_;     // read qualities
 	const BTDnaString  *rdfw_;   // read sequence for fw read
@@ -569,23 +601,32 @@ protected:
 	SSEMetrics			sseI16ExtendMet_;
 	SSEMetrics			sseI16MateMet_;
 
-	int                 state_;      // state
-	bool                initedRead_; // true iff initialized with initRead
-	bool                readSse16_;  // true -> sse16 from now on for this read
-	bool                initedRef_;  // true iff initialized with initRef
-	EList<uint32_t>     rfwbuf_;     // buffer for wordized refernece stretches
+	int                 state_;        // state
+	bool                initedRead_;   // true iff initialized with initRead
+	bool                readSse16_;    // true -> sse16 from now on for read
+	bool                initedRef_;    // true iff initialized with initRef
+	EList<uint32_t>     rfwbuf_;       // buffer for wordized ref stretches
 	
-	EList<DpNucFrame>   btnstack_;   // backtrace stack for nucleotides
-	EList<SizeTPair>    btcells_;    // cells involved in current backtrace
+	EList<DpNucFrame>    btnstack_;    // backtrace stack for nucleotides
+	EList<SizeTPair>     btcells_;     // cells involved in current backtrace
 
-	EList<DpNucBtCandidate> btncand_;     // cells we might backtrace from
-	EList<DpNucBtCandidate> btncanddone_; // candidates that we investigated
+	NBest<DpBtCandidate> btdiag_;      // per-diagonal backtrace candidates
+	EList<DpBtCandidate> btncand_;     // cells we might backtrace from
+	EList<DpBtCandidate> btncanddone_; // candidates that we investigated
 	size_t              btncanddoneSucc_; // # investigated and succeeded
 	size_t              btncanddoneFail_; // # investigated and failed
 	
-	size_t              colstop_; // bailed on DP loop after this many cols
-	size_t              lastsolcol_; // last DP col with valid cell
-	size_t              cural_;   // index of next alignment to be given
+	BtBranchTracer       bter_;        // backtracer
+	BtBranchTracer       bterCp_;      // backtracer with checkpoints
+	
+	Checkpointer         cper_;        // structure for saving checkpoint cells
+	size_t               cperMinlen_;  // minimum length for using checkpointer
+	size_t               cperPerPow2_; // checkpoint every 1 << perpow2 diags (& next)
+	bool                 cperEf_;      // store E and F in addition to H?
+	
+	size_t              colstop_;      // bailed on DP loop after this many cols
+	size_t              lastsolcol_;   // last DP col with valid cell
+	size_t              cural_;        // index of next alignment to be given
 	
 	uint64_t nbtfiltst_; // # candidates filtered b/c starting cell was seen
 	uint64_t nbtfiltsc_; // # candidates filtered b/c score uninteresting
@@ -593,7 +634,7 @@ protected:
 	
 	ASSERT_ONLY(SStringExpandable<uint32_t> tmp_destU32_);
 	ASSERT_ONLY(BTDnaString tmp_editstr_, tmp_refstr_);
-	ASSERT_ONLY(EList<DpNucBtCandidate> cand_tmp_);
+	ASSERT_ONLY(EList<DpBtCandidate> cand_tmp_);
 };
 
 #endif /*ALIGNER_SW_H_*/

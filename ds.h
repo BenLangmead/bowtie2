@@ -2211,6 +2211,43 @@ private:
 	size_t cur_; // occupancy (AKA size)
 };
 
+template <typename T, int S = 128>
+class EFactory {
+
+public:
+
+	explicit EFactory(size_t isz, int cat = 0) : l_(isz, cat) { }
+	
+	explicit EFactory(int cat = 0) : l_(cat) { }
+	
+	void clear() {
+		l_.clear();
+	}
+	
+	size_t alloc() {
+		l_.expand();
+		return l_.size()-1;
+	}
+	
+	T& pop() {
+		T& ret = l_[l_.size()-1];
+		l_.resize(l_.size()-1);
+		return ret;
+	}
+	
+	T& operator[](size_t off) {
+		return l_[off];
+	}
+
+	const T& operator[](size_t off) const {
+		return l_[off];
+	}
+
+protected:
+
+	EList<T, S> l_;
+};
+
 /**
  * Dispenses pages of memory for all the lists in the cache, including
  * the sequence-to-range map, the range list, the edits list, and the

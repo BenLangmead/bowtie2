@@ -194,4 +194,6 @@ static inline void decodeNuc(char c , int& num, int *alts) {
 	}
 }
 
+extern void setIupacsCat(uint8_t cat);
+
 #endif /*ALPHABETS_H_*/

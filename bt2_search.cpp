@@ -219,6 +219,7 @@ static size_t do1mmMinLen;    // length below which we disable 1mm e2e search
 static int seedBoostThresh;   // if average non-zero position has more than this many elements
 static size_t nSeedRounds;    // # seed rounds
 static bool reorder;          // true -> reorder SAM recs in -p mode
+static float sampleFrac;      // only align random fraction of input reads
 
 static string bt2index;      // read Bowtie 2 index from files with this prefix
 static EList<pair<int, string> > extra_opts;
@@ -392,6 +393,7 @@ static void resetOptions() {
 	nSeedRounds = 2;         // # rounds of seed searches to do for repetitive reads
 	do1mmMinLen = 60;        // length below which we disable 1mm search
 	reorder = false;         // reorder SAM records with -p > 1
+	sampleFrac = 1.1f;       // align all reads
 }
 
 static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:w:p:k:M:1:2:I:X:CQ:N:i:L:U:x:S:g:O:D:R:";
@@ -550,6 +552,7 @@ static struct option long_options[] = {
 	{(char*)"seed-rounds",      required_argument, 0,        'R'},
 	{(char*)"reorder",          no_argument,       0,        ARG_REORDER},
 	{(char*)"passthrough",      no_argument,       0,        ARG_READ_PASSTHRU},
+	{(char*)"sample",           required_argument, 0,        ARG_SAMPLE},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -1077,6 +1080,9 @@ static void parseOption(int next_option, const char *arg) {
 			sam_print_zs = true;
 			break;
 		}
+		case ARG_SAMPLE:
+			sampleFrac = parse<float>(arg);
+			break;
 		case ARG_READ_PASSTHRU: {
 			sam_print_xr = true;
 			break;
@@ -2679,7 +2685,12 @@ static void* multiseedSearchWorker(void *vp) {
 			continue;
 		}
 		TReadId rdid = ps->rdid();
-		if(rdid >= skipReads && rdid < qUpto) {
+		bool sample = true;
+		if(sampleFrac < 1.0f) {
+			rnd.init(ROTL(ps->bufa().seed, 2));
+			sample = rnd.nextFloat() < sampleFrac;
+		}
+		if(rdid >= skipReads && rdid < qUpto && sample) {
 			// Align this read/pair
 			bool retry = true;
 			//

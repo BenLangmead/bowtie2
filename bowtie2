@@ -116,6 +116,22 @@ for(my $i = 0; $i < scalar(@bt2_args); $i++) {
 		$args[1] = join("=", $args[1..$#args]);
 	}
 	$arg = $args[0];
+	if($arg eq "-U" || $arg eq "--unpaired") {
+		$bt2_args[$i] = undef;
+		$arg =~ s/^-U//; $arg =~ s/^--unpaired//;
+		if($arg ne "") {
+			# Argument was part of this token
+			my @args = split(/,/, $arg);
+			for my $a (@args) { push @bt2w_args, ("-U", $a); }
+		} else {
+			# Argument is in the next token
+			$i < scalar(@bt2_args)-1 || die;
+			$i++;
+			my @args = split(/,/, $bt2_args[$i]);
+			for my $a (@args) { push @bt2w_args, ("-U", $a); }
+			$bt2_args[$i] = undef;
+		}
+	}
 	if($arg =~ /^--?([12])/ && $arg !~ /^--?12/) {
 		my $mate = $1;
 		$bt2_args[$i] = undef;
@@ -181,6 +197,7 @@ my $ref_str = undef;
 my $no_pipes = 0;
 my $keep = 0;
 my $verbose = 0;
+my $readpipe = undef;
 
 my @bt2w_args_cp = @bt2w_args;
 @ARGV = @bt2w_args;
@@ -188,6 +205,7 @@ GetOptions(
 	"1=s"                           => \@mate1s,
 	"2=s"                           => \@mate2s,
 	"reads=s"                       => \@mate1s,
+	"U=s"                           => \@mate1s,
 	"temp-directory=s"              => \$temp_dir,
 	"bam"                           => \$bam_out,
 	"no-named-pipes"                => \$no_pipes,
@@ -229,49 +247,64 @@ sub wrapInput($$) {
 }
 
 if(wrapInput(\@mate1s, \@mate2s)) {
-	# Put reads into temporary files or fork off processes to feed named pipes
-	scalar(@mate2s) == scalar(@mate1s) ||
-		die "Different number of files specified with --reads/-1 as with -2";
-	# Make a named pipe for delivering mate #1s
-	my $m1fn = "$temp_dir/$$.inpipe1";
-	push @to_delete, $m1fn;
-	push @bt2_args, "-1 $m1fn";
-	my $pid = 0;
-	$pid = fork() unless $no_pipes;
-	if($pid == 0) {
-		# Open named pipe 1 for writing
-		if(!$no_pipes) {
-			mkfifo($m1fn, 0700) ||
-				die "Error: mkfifo($m1fn) failed.  Try --no-named-pipes.";
-		}
-		open(my $ofh, ">$m1fn") || die "Can't open '$m1fn' for writing";
-		for my $ifn (@mate1s) { cat_file($ifn, $ofh); }
-		close($ofh);
-		exit 0 unless $no_pipes;
-	}
 	if(scalar(@mate2s) > 0) {
-		# Make a named pipe for delivering mate #2s
-		my $m2fn = "$temp_dir/$$.inpipe2";
-		push @to_delete, $m2fn;
-		push @bt2_args, "-2 $m2fn";
-		$pid = 0;
+		#
+		# Wrap paired-end inputs
+		#
+		# Put reads into temporary files or fork off processes to feed named pipes
+		scalar(@mate2s) == scalar(@mate1s) ||
+			die "Different number of files specified with --reads/-1 as with -2";
+		# Make a named pipe for delivering mate #1s
+		my $m1fn = "$temp_dir/$$.inpipe1";
+		push @to_delete, $m1fn;
+		push @bt2_args, "-1 $m1fn";
+		my $pid = 0;
 		$pid = fork() unless $no_pipes;
 		if($pid == 0) {
-			# Open named pipe 2 for writing
+			# Open named pipe 1 for writing
 			if(!$no_pipes) {
-				mkfifo($m2fn, 0700) ||
-					die "Error: mkfifo($m2fn) failed.  Try --no-named-pipes.";
+				mkfifo($m1fn, 0700) ||
+					die "Error: mkfifo($m1fn) failed.  Try --no-named-pipes.";
 			}
-			open(my $ofh, ">$m2fn") || die "Can't open '$m2fn' for writing";
-			for my $ifn (@mate2s) { cat_file($ifn, $ofh); }
+			open(my $ofh, ">$m1fn") || die "Can't open '$m1fn' for writing";
+			for my $ifn (@mate1s) { cat_file($ifn, $ofh); }
 			close($ofh);
 			exit 0 unless $no_pipes;
 		}
+		if(scalar(@mate2s) > 0) {
+			# Make a named pipe for delivering mate #2s
+			my $m2fn = "$temp_dir/$$.inpipe2";
+			push @to_delete, $m2fn;
+			push @bt2_args, "-2 $m2fn";
+			$pid = 0;
+			$pid = fork() unless $no_pipes;
+			if($pid == 0) {
+				# Open named pipe 2 for writing
+				if(!$no_pipes) {
+					mkfifo($m2fn, 0700) ||
+						die "Error: mkfifo($m2fn) failed.  Try --no-named-pipes.";
+				}
+				open(my $ofh, ">$m2fn") || die "Can't open '$m2fn' for writing";
+				for my $ifn (@mate2s) { cat_file($ifn, $ofh); }
+				close($ofh);
+				exit 0 unless $no_pipes;
+			}
+		}
+	} else {
+		#
+		# Wrap unpaired inputs
+		#
+		push @bt2_args, ("-U", "-"); # get unpaired input from stdin
+		my $readstr = join(" ", @mate1s);
+		$readpipe = "gzip -dc $readstr |";
 	}
 } elsif(scalar(@mate2s) > 0) {
 	# Just pass all the mate arguments along to the binary
 	push @bt2_args, ("-1", join(",", @mate1s));
 	push @bt2_args, ("-2", join(",", @mate2s));
+} else {
+	# Just pass all the mate arguments along to the binary
+	push @bt2_args, ("-U", join(",", @mate1s));
 }
 
 if(defined($ref_str)) {
@@ -294,7 +327,13 @@ if($verbose) {
 }
 
 my $debug_str = ($debug ? "-debug" : "");
+
+# Construct command invoking bowtie2-align
 my $cmd = "$Bin/bowtie2-align$debug_str --wrapper basic-0 ".join(" ", @bt2_args);
+
+# Possibly add read input on an anonymous pipe
+$cmd = "$readpipe $cmd" if defined($readpipe);
+
 print STDERR "$cmd\n" if $verbose;
 my $ret;
 if(defined($cap_out)) {

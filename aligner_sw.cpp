@@ -96,6 +96,42 @@ void SwAligner::initRef(
 	initedRef_ = true;       // indicate we've initialized the ref portion
 	enable8_   = enable8;    // use 8-bit SSE if possible?
 	extend_    = extend;     // true iff this is a seed extension
+	assert(initedRead_);
+	cperMinlen_ = 16;
+	cperPerPow2_ = 1;
+	cperEf_ = true;
+	bter_.initRef(
+		fw_ ? rdfw_->buf() : // in: read sequence
+			  rdrc_->buf(), 
+		fw_ ? qufw_->buf() : // in: quality sequence
+			  qurc_->buf(),
+		rd_->length(),       // in: read sequence length
+		rf_ + rfi_,          // in: reference sequence
+		rff_ - rfi_,         // in: reference sequence length
+		refidx_,             // in: reference id
+		rfi_,                // in: reference offset
+		fw_,                 // in: orientation
+		rect_,               // in: DP rectangle
+		&cper_,              // in: checkpointer
+		*sc_,                // in: scoring scheme
+		nceil_);             // in: N ceiling
+#ifndef NDEBUG
+	bterCp_.initRef(
+		fw_ ? rdfw_->buf() : // in: read sequence
+			  rdrc_->buf(), 
+		fw_ ? qufw_->buf() : // in: quality sequence
+			  qurc_->buf(),
+		rd_->length(),       // in: read sequence length
+		rf_ + rfi_,          // in: reference sequence
+		rff_ - rfi_,         // in: reference sequence length
+		refidx_,             // in: reference id
+		rfi_,                // in: reference offset
+		fw_,                 // in: orientation
+		rect_,               // in: DP rectangle
+		&cper_,              // in: checkpointer
+		*sc_,                // in: scoring scheme
+		nceil_);             // in: N ceiling
+#endif
 }
 	
 /**
@@ -715,6 +751,39 @@ bool SwAligner::nextAlignment(
 					col,    // start in this rectangle column
 					rnd);   // random gen, to choose among equal paths
 #ifndef NDEBUG
+				{
+					SwResult res2, res3;
+					size_t maxiter2 = std::numeric_limits<size_t>::max();
+					size_t niter2 = 0, niter3 = 0;
+					bool ret2 = backtrace(
+						btncand_[cural_].score, // in: expected score
+						true,   // in: use mini-fill?
+						true,   // in: use checkpoints?
+						res2,   // out: store results (edits and scores) here
+						off,    // out: store diagonal projection of origin
+						row,    // start in this rectangle row
+						col,    // start in this rectangle column
+						maxiter2,// max # extensions to try
+						niter2, // # extensions tried
+						rnd);   // random gen, to choose among equal paths
+					size_t maxiter3 = 1000;
+					bool ret3 = backtrace(
+						btncand_[cural_].score, // in: expected score
+						false,  // in: use mini-fill?
+						false,  // in: use checkpoints?
+						res3,   // out: store results (edits and scores) here
+						off,    // out: store diagonal projection of origin
+						row,    // start in this rectangle row
+						col,    // start in this rectangle column
+						maxiter3,// max # extensions to try
+						niter3, // # extensions tried
+						rnd);   // random gen, to choose among equal paths
+					Edit::printQAlign(cerr, *rd_, res2.alres.ned());
+					assert_eq(ret, ret2);
+					assert(niter3 >= maxiter3 || ret == ret3);
+				}
+#endif
+#ifndef NDEBUG
 				if(sse16succ_) {
 					SwResult res2;
 					size_t off2, nbts2 = 0;
@@ -752,6 +821,38 @@ bool SwAligner::nextAlignment(
 					row,    // start in this rectangle row
 					col,    // start in this rectangle column
 					rnd);   // random gen, to choose among equal paths
+#ifndef NDEBUG
+				{
+					SwResult res2, res3;
+					size_t maxiter2 = std::numeric_limits<size_t>::max();
+					size_t niter2 = 0, niter3 = 0;
+					bool ret2 = backtrace(
+						btncand_[cural_].score, // in: expected score
+						true,   // in: use mini-fill?
+						true,   // in: use checkpoints?
+						res2,   // out: store results (edits and scores) here
+						off,    // out: store diagonal projection of origin
+						row,    // start in this rectangle row
+						col,    // start in this rectangle column
+						maxiter2,// max # extensions to try
+						niter2, // # extensions tried
+						rnd);   // random gen, to choose among equal paths
+					size_t maxiter3 = 1000;
+					bool ret3 = backtrace(
+						btncand_[cural_].score, // in: expected score
+						false,  // in: use mini-fill?
+						false,  // in: use checkpoints?
+						res3,   // out: store results (edits and scores) here
+						off,    // out: store diagonal projection of origin
+						row,    // start in this rectangle row
+						col,    // start in this rectangle column
+						maxiter3,// max # extensions to try
+						niter3, // # extensions tried
+						rnd);   // random gen, to choose among equal paths
+					assert_eq(ret, ret2);
+					assert(niter3 >= maxiter3 || ret == ret3);
+				}
+#endif
 			}
 			if(ret) {
 				btncand_[cural_].fate = BT_CAND_FATE_SUCCEEDED;
@@ -804,6 +905,38 @@ bool SwAligner::nextAlignment(
 					col,    // start in this rectangle column
 					rnd);   // random gen, to choose among equal paths
 #ifndef NDEBUG
+				{
+					SwResult res2, res3;
+					size_t maxiter2 = std::numeric_limits<size_t>::max();
+					size_t niter2 = 0, niter3 = 0;
+					bool ret2 = backtrace(
+						btncand_[cural_].score, // in: expected score
+						true,   // in: use mini-fill?
+						true,   // in: use checkpoints?
+						res2,   // out: store results (edits and scores) here
+						off,    // out: store diagonal projection of origin
+						row,    // start in this rectangle row
+						col,    // start in this rectangle column
+						maxiter2,// max # extensions to try
+						niter2, // # extensions tried
+						rnd);   // random gen, to choose among equal paths
+					size_t maxiter3 = 1000;
+					bool ret3 = backtrace(
+						btncand_[cural_].score, // in: expected score
+						false,  // in: use mini-fill?
+						false,  // in: use checkpoints?
+						res3,   // out: store results (edits and scores) here
+						off,    // out: store diagonal projection of origin
+						row,    // start in this rectangle row
+						col,    // start in this rectangle column
+						maxiter3,// max # extensions to try
+						niter3, // # extensions tried
+						rnd);   // random gen, to choose among equal paths
+					assert_eq(ret, ret2);
+					assert(niter3 >= maxiter3 || ret == ret3);
+				}
+#endif
+#ifndef NDEBUG
 				if(sse16succ_) {
 					SwResult res2;
 					size_t off2, nbts2 = 0;
@@ -841,6 +974,38 @@ bool SwAligner::nextAlignment(
 					row,    // start in this rectangle row
 					col,    // start in this rectangle column
 					rnd);   // random gen, to choose among equal paths
+#ifndef NDEBUG
+				{
+					SwResult res2, res3;
+					size_t maxiter2 = std::numeric_limits<size_t>::max();
+					size_t niter2 = 0, niter3 = 0;
+					bool ret2 = backtrace(
+						btncand_[cural_].score, // in: expected score
+						true,   // in: use mini-fill?
+						true,   // in: use checkpoints?
+						res2,   // out: store results (edits and scores) here
+						off,    // out: store diagonal projection of origin
+						row,    // start in this rectangle row
+						col,    // start in this rectangle column
+						maxiter2,// max # extensions to try
+						niter2, // # extensions tried
+						rnd);   // random gen, to choose among equal paths
+					size_t maxiter3 = 1000;
+					bool ret3 = backtrace(
+						btncand_[cural_].score, // in: expected score
+						false,  // in: use mini-fill?
+						false,  // in: use checkpoints?
+						res3,   // out: store results (edits and scores) here
+						off,    // out: store diagonal projection of origin
+						row,    // start in this rectangle row
+						col,    // start in this rectangle column
+						maxiter3,// max # extensions to try
+						niter3, // # extensions tried
+						rnd);   // random gen, to choose among equal paths
+					assert_eq(ret, ret2);
+					assert(niter3 >= maxiter3 || ret == ret3);
+				}
+#endif
 			}
 			if(ret) {
 				btncand_[cural_].fate = BT_CAND_FATE_SUCCEEDED;

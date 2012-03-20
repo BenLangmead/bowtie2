@@ -316,4 +316,191 @@ private:
 	size_t   cur_;        // occupancy (AKA size)
 };
 
+struct  _CpQuad {
+	_CpQuad() { reset(); }
+	
+	void reset() { sc[0] = sc[1] = sc[2] = sc[3] = 0; }
+
+	int16_t sc[4];
+};
+
+/**
+ * Encapsulates a collection of checkpoints.  Assumes the scheme is to
+ * checkpoint adjacent pairs of anti-diagonals.
+ */
+class Checkpointer {
+
+public:
+
+	Checkpointer() { reset(); }
+	
+	/**
+	 * Set the checkpointer up for a new rectangle.
+	 */
+	void init(
+		size_t nrow,          // # of rows
+		size_t ncol,          // # of columns
+		size_t minlen,        // read must be >= minlen long to be checkpointed
+		size_t perpow2,       // checkpoint every 1 << perpow2 diags (& next)
+		bool ef,              // store E and F in addition to H?
+		bool is8,             // is the matrix 8-bit?  affects commitCol
+		int64_t perfectScore, // what is a perfect score?  for sanity checks
+		bool local)           // is alignment local?  for sanity checks
+	{
+		nrow_ = nrow;
+		ncol_ = ncol;
+		minlen_ = minlen;
+		perpow2_ = perpow2;
+		per_ = 1 << perpow2;
+		lomask_ = ~(0xffffffff << perpow2);
+		ef_ = ef;
+		is8_ = is8;
+		perf_ = perfectScore;
+		local_ = local;
+		if(is8) {
+			iter_ = (nrow + 15) / 16;
+		} else {
+			iter_ = (nrow + 7) / 8;
+		}
+		ndiag_ = (ncol + nrow - 1 + 1) / per_;
+		locol_ = std::numeric_limits<size_t>::max();
+		hicol_ = std::numeric_limits<size_t>::min();
+		if(doCheckpoints()) {
+			if(ef) {
+				qdiag1s_.resize(ndiag_ * nrow_);
+				qdiag2s_.resize(ndiag_ * nrow_);
+			} else {
+				diag1s_.resize(ndiag_ * nrow_);
+				diag2s_.resize(ndiag_ * nrow_);
+			}
+		}
+	}
+	
+	/**
+	 * Return true iff we're going to use checkpoints for this DP problem.
+	 */
+	bool doCheckpoints() const {
+		return ncol_ >= minlen_;
+	}
+	
+	/**
+	 * Return true iff the given row/col is checkpointed.
+	 */
+	bool isCheckpointed(size_t row, size_t col) const {
+		assert(doCheckpoints());
+		assert_leq(col, hicol_);
+		assert_geq(col, locol_);
+		size_t mod = (row + col) & lomask_;
+		assert_lt(mod, per_);
+		return mod >= per_ - 2;
+	}
+	
+	/**
+	 * Return the checkpointed H score from the given cell.  Assumes that we've
+	 * only checkpointed the H scores and not the E and F scores.
+	 */
+	inline int16_t hScore(size_t row, size_t col) const {
+		assert(!ef_);
+		assert(isCheckpointed(row, col));
+		bool diag1 = ((row + col) & lomask_) == per_ - 2;
+		size_t off = (row + col) >> perpow2_;
+		if(diag1) {
+			return diag1s_[off * nrow_ + row];
+		} else {
+			return diag2s_[off * nrow_ + row];
+		}
+	}
+
+	/**
+	 * Return the checkpointed H, E, or F score from the given cell.
+	 */
+	inline int64_t score(size_t row, size_t col, int hef) const {
+		assert(ef_);
+		assert(isCheckpointed(row, col));
+		bool diag1 = ((row + col) & lomask_) == per_ - 2;
+		size_t off = (row + col) >> perpow2_;
+		if(diag1) {
+			if(qdiag1s_[off * nrow_ + row].sc[hef] == std::numeric_limits<int16_t>::min()) {
+				return std::numeric_limits<int64_t>::min();
+			} else {
+				return qdiag1s_[off * nrow_ + row].sc[hef];
+			}
+		} else {
+			if(qdiag2s_[off * nrow_ + row].sc[hef] == std::numeric_limits<int16_t>::min()) {
+				return std::numeric_limits<int64_t>::min();
+			} else {
+				return qdiag2s_[off * nrow_ + row].sc[hef];
+			}
+		}
+	}
+
+	/**
+	 * Given a column of filled-in cells, save the checkpointed cells in cs_.
+	 */
+	void commitCol(__m128i *pvH, __m128i *pvE, __m128i *pvF, size_t coli);
+	
+	/**
+	 * Reset the state of the Checkpointer.
+	 */
+	void reset() {
+		minlen_ = perpow2_ = per_ = lomask_ = nrow_ = ncol_ = 0;
+		ef_ = is8_ = local_ = false;
+		iter_ = ndiag_ = locol_ = hicol_ = 0;
+		perf_ = 0;
+	}
+	
+	/**
+	 * Return true iff the Checkpointer has been initialized.
+	 */
+	bool inited() const {
+		return nrow_ > 0;
+	}
+	
+	/**
+	 * Return true iff we are 
+	 */
+	bool hasEF() const {
+		return ef_;
+	}
+	
+	size_t per()     const { return per_;     }
+	size_t perpow2() const { return perpow2_; }
+	size_t lomask()  const { return lomask_;  }
+	size_t locol()   const { return locol_;   }
+	size_t hicol()   const { return hicol_;   }
+	size_t nrow()    const { return nrow_;    }
+	size_t ncol()    const { return ncol_;    }
+	
+	const _CpQuad* qdiag1sPtr() const { return qdiag1s_.ptr(); }
+	const _CpQuad* qdiag2sPtr() const { return qdiag2s_.ptr(); }
+	
+protected:
+
+	size_t   minlen_;    // don't checkpoint for rectangles with fewer than
+	                     // this many columns
+	size_t   perpow2_;   // 1 << perpow2_ - 2 is the # of uncheckpointed
+	                     // anti-diags between checkpointed anti-diag pairs
+	size_t   per_;       // 1 << perpow2_
+	size_t   lomask_;    // mask for extracting low bits
+	
+	size_t   nrow_;      // # rows in current rectangle
+	size_t   ncol_;      // # cols in current rectangle
+	bool     ef_;        // store E and F in addition to H?
+	bool     is8_;       // true iff matrix cells are 8-bit
+	int64_t  perf_;      // perfect score
+	bool     local_;     // local alignment?
+	size_t   iter_;      // # 128-bit words required to encode a column
+	
+	size_t   ndiag_;     // # of double-diags
+	
+	size_t   locol_;     // leftmost column committed
+	size_t   hicol_;     // rightmost column committed
+	
+	EList<int16_t> diag1s_;  // checkpoint H values for diagonal 1
+	EList<int16_t> diag2s_;  // checkpoint H values for diagonal 2
+
+	EList<_CpQuad> qdiag1s_; // checkpoint H/E/F values for diagonal 1
+	EList<_CpQuad> qdiag2s_; // checkpoint H/E/F values for diagonal 2
+};
+
 #endif
