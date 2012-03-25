@@ -276,11 +276,34 @@ protected:
 };
 
 /**
- * Encapsulates a "branch" which is a diagonal stretch of the backtrace where
- * all the cells in the stretch are matches.
+ * Encapsulates a "branch" which is a diagonal of cells (possibly of length 0)
+ * in the matrix where all the cells are matches.  These stretches are linked
+ * together by edits to form a full backtrace path through the matrix.  Lengths
+ * are measured w/r/t to the number of rows traversed by the path, so a branch
+ * that represents a read gap extension could have length = 0.
+ *
+ * At the end of the day, the full backtrace path is represented as a list of
+ * BtBranch's where each BtBranch represents a stretch of matching cells (and
+ * up to one mismatching cell at its bottom extreme) ending in an edit (or in
+ * the bottommost row, in which case the edit is uninitialized).  Each
+ * BtBranch's row and col fields indicate the bottommost cell involved in the
+ * diagonal stretch of matches, and the len_ field indicates the length of the
+ * stretch of matches.  Note that the edits themselves also correspond to
+ * movement through the matrix.
+ *
+ * A related issue is how we record which cells have been visited so that we
+ * never report a pair of paths both traversing the same (row, col) of the
+ * overall DP matrix.  This gets a little tricky because we have to take into
+ * account the cells covered by *edits* in addition to the cells covered by the
+ * stretches of matches.  For instance: imagine a mismatch.  That takes up a
+ * cell of the DP matrix, but it may or may not be preceded by a string of
+ * matches.  It's hard to imagine how to represent this unless we let the
+ * mismatch "count toward" the len_ of the branch and let (row, col) refer to
+ * the cell where the mismatch occurs.
  *
  * We need BtBranches to "live forever" so that we can make some BtBranches
- * parents of others using parent pointers.
+ * parents of others using parent pointers.  For this reason, BtBranch's are
+ * stored in an EFactory object in the BtBranchTracer class.
  */
 class BtBranch {
 
@@ -291,12 +314,16 @@ public:
 	BtBranch(
 		const BtBranchProblem& prob,
 		size_t parentId,
+		TAlScore penalty,
 		TAlScore score_en,
 		int64_t row,
 		int64_t col,
-		Edit e)
+		Edit e,
+		int hef,
+		bool root,
+		bool extend)
 	{
-		init(prob, parentId, score_en, row, col, e);
+		init(prob, parentId, penalty, score_en, row, col, e, hef, root, extend);
 	}
 	
 	/**
@@ -304,7 +331,7 @@ public:
 	 */
 	void reset() {
 		parentId_ = 0;
-		score_st_ = score_en_ = score_best_ = len_ = row_ = col_ = 0;
+		score_st_ = score_en_ = len_ = row_ = col_ = 0;
 		curtailed_ = false;
 		e_.reset();
 	}
@@ -316,10 +343,14 @@ public:
 	void init(
 		const BtBranchProblem& prob,
 		size_t parentId,
+		TAlScore penalty,
 		TAlScore score_en,
 		int64_t row,
 		int64_t col,
-		Edit e);
+		Edit e,
+		int hef,
+		bool root,
+		bool extend);
 	
 	/**
 	 * Return true iff this branch ends in a solution to the backtrace problem.
@@ -351,6 +382,44 @@ public:
 			int64_t bonusLeft = (row_ + 1 - len_) * match;
 			return score_st_ + bonusLeft >= prob.targ_;
 		}
+	}
+	
+	/**
+	 * Return true iff this branch overlaps with the given branch.
+	 */
+	bool overlap(const BtBranchProblem& prob, const BtBranch& bt) const {
+		// Calculate this branch's diagonal
+		assert_lt(row_, (int64_t)prob.qrylen_);
+		size_t fromend = prob.qrylen_ - row_ - 1;
+		size_t diag = fromend + col_;
+		int64_t lo = 0, hi = row_ + 1;
+		if(len_ == 0) {
+			lo = row_;
+		} else {
+			lo = row_ - (len_ - 1);
+		}
+		// Calculate other branch's diagonal
+		assert_lt(bt.row_, (int64_t)prob.qrylen_);
+		size_t ofromend = prob.qrylen_ - bt.row_ - 1;
+		size_t odiag = ofromend + bt.col_;
+		if(diag != odiag) {
+			return false;
+		}
+		int64_t olo = 0, ohi = bt.row_ + 1;
+		if(bt.len_ == 0) {
+			olo = bt.row_;
+		} else {
+			olo = bt.row_ - (bt.len_ - 1);
+		}
+		int64_t losm = olo, hism = ohi;
+		if(hi - lo < ohi - olo) {
+			swap(lo, losm);
+			swap(hi, hism);
+		}
+		if((lo <= losm && hi > losm) || (lo <  hism && hi >= hism)) {
+			return true;
+		}
+		return false;
 	}
 	
 	/**
@@ -398,6 +467,8 @@ public:
 	 * Sanity-check this BtBranch.
 	 */
 	bool repOk() const {
+		assert(root_ || e_.inited());
+		assert_gt(len_, 0);
 		assert_geq(col_ + 1, (int64_t)len_);
 		assert_geq(row_ + 1, (int64_t)len_);
 		return true;
@@ -405,14 +476,42 @@ public:
 
 protected:
 
-	size_t   parentId_;   // pointer to parent branch
-	TAlScore score_best_; // best possible score leading through this branch
-	TAlScore score_st_;   // score at beginning of branch
-	TAlScore score_en_;   // score at end of branch
-	size_t   len_;        // length of branch
-	int64_t  row_;        // row of lower-right hand cell
-	int64_t  col_;        // col of lower-right hand cell
-	Edit     e_;          // edit that separates this branch from parent
+	// ID of the parent branch.
+	size_t   parentId_;
+
+	// Penalty associated with the edit at the bottom of this branch (0 if
+	// there is no edit)
+	TAlScore penalty_;
+	
+	// Score at the beginning of the branch
+	TAlScore score_st_;
+	
+	// Score at the end of the branch (taking the edit into account)
+	TAlScore score_en_;
+	
+	// Length of the branch.  That is, the total number of diagonal cells
+	// involved in all the matches and in the edit (if any).  Should always be
+	// > 0.
+	size_t   len_;
+	
+	// The row of the final (bottommost) cell in the branch.  This might be the
+	// bottommost match if the branch has no associated edit.  Otherwise, it's
+	// the cell occupied by the edit.
+	int64_t  row_;
+	
+	// The column of the final (bottommost) cell in the branch.
+	int64_t  col_;
+	
+	// The edit at the bottom of the branch.  If this is the bottommost branch
+	// in the alignment and it does not end in an edit, then this remains
+	// uninitialized.
+	Edit     e_;
+	
+	// True iff this is the bottommost branch in the alignment.  We can't just
+	// use row_ to tell us this because local alignments don't necessarily end
+	// in the last row.
+	bool     root_;
+	
 	bool     curtailed_;  // true -> pruned at a checkpoint where we otherwise
 	                      // would have had a match
 
@@ -455,6 +554,7 @@ public:
 		int64_t row,
 		int64_t col,
 		const Edit& e,
+		TAlScore pen,
 		TAlScore sc,
 		size_t parentId);
 
@@ -580,7 +680,9 @@ public:
 		bs_.clear();
 		if(!prob_.fill_) {
 			size_t id = bs_.alloc();
-			bs_[id].init(prob_, NULL, 0 /* starting score */, row, col, e);
+			bs_[id].init(prob_, NULL, 0, 0 /* starting score */, row, col, e, 0,
+			             true,  // this is the root
+						 true); // this should be extend with exact matches
 			if(bs_[id].isSolution(prob_)) {
 				addSolution(id);
 			} else {
@@ -589,7 +691,7 @@ public:
 		} else {
 			assert(prob_.cper_->doCheckpoints());
 			assert(prob_.cper_->hasEF());
-			size_t row = row_, col = col_;
+			int64_t row = row_, col = col_;
 			TAlScore targsc = prob_.targ_;
 			int hef = 0;
 			bool done = false;
@@ -603,18 +705,20 @@ public:
 				// used to populate the SwResult and check for various
 				// situations where we might reject the alignment (i.e. due to
 				// a cell having been visited previously).
-				cerr << "triangleFill(" << row << ", " << col << ", " << hef << ", " << targsc << ")" << endl;
+				//cerr << "triangleFill(" << row << ", " << col << ", " << hef << ", " << targsc << ")" << endl;
 				triangleFill(
 					row,          // row of cell to backtrace from
 					col,          // column of cell to backtrace from
 					hef,          // cell to backtrace from is H (0), E (1), or F (2)
 					targsc,       // score of cell to backtrace from
+					prob_.targ_,  // score of alignment we're looking for
 					rnd,          // pseudo-random generator
 					row,          // out: row we ended up in after backtrace
 					col,          // out: column we ended up in after backtrace
 					hef,          // out: H/E/F after backtrace
 					targsc,       // out: score up to cell we ended up in
 					done);        // whether we finished tracing out an alignment
+				assert((row >= 0 && col >= 0) || done);
 			}
 		}
 		ASSERT_ONLY(seen_.clear());
@@ -644,13 +748,14 @@ public:
 	 * a cell in the previous checkpoint, or to the terminal cell.
 	 */
 	void triangleFill(
-		size_t rw,          // row of cell to backtrace from
-		size_t cl,          // column of cell to backtrace from
+		int64_t rw,         // row of cell to backtrace from
+		int64_t cl,         // column of cell to backtrace from
 		int hef,            // cell to backtrace from is H (0), E (1), or F (2)
 		TAlScore targ,      // score of cell to backtrace from
+		TAlScore targ_final,// score of alignment we're looking for
 		RandomSource& rnd,  // pseudo-random generator
-		size_t& row_new,    // out: row we ended up in after backtrace
-		size_t& col_new,    // out: column we ended up in after backtrace
+		int64_t& row_new,   // out: row we ended up in after backtrace
+		int64_t& col_new,   // out: column we ended up in after backtrace
 		int& hef_new,       // out: H/E/F after backtrace
 		TAlScore& targ_new, // out: score up to cell we ended up in
 		bool& done);        // whether we finished tracing out an alignment
@@ -693,22 +798,7 @@ protected:
 		size_t& off,
 		size_t& nrej,
 		RandomSource& rnd,
-		bool& success)
-	{
-		if(solutions_.size() > 0) {
-			for(size_t i = 0; i < solutions_.size(); i++) {
-				int ret = trySolution(solutions_[i], res, off, nrej, rnd);
-				if(ret == BT_FOUND) {
-					success = true;
-					return true; // there were solutions and one was good
-				}
-			}
-			solutions_.clear();
-			success = false;
-			return true; // there were solutions but none were good
-		}
-		return false; // there were no solutions to check
-	}
+		bool& success);
 	
 	/**
 	 * See if a given solution branch works as a solution (i.e. doesn't overlap

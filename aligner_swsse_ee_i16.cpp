@@ -328,7 +328,6 @@ TAlScore SwAligner::alignGatherEE16(int& flag) {
 	cper_.init(
 		dpRows(),     // # rows
 		rff_ - rfi_,  // # columns
-		cperMinlen_,  // minimum length for using checkpointer
 		cperPerPow2_, // checkpoint every 1 << perpow2 diags (& next)
 		cperEf_,      // store E and F in addition to H?
 		false,        // matrix is 8-bit?
@@ -645,7 +644,7 @@ TAlScore SwAligner::alignGatherEE16(int& flag) {
 		}
 		
 #ifndef NDEBUG
-		if((rand() & 15) == 0) {
+		if(true || (rand() & 15) == 0) {
 			// This is a work-intensive sanity check; each time we finish filling
 			// a column, we check that each H, E, and F is sensible.
 			for(size_t k = 0; k < dpRows(); k++) {
@@ -1355,15 +1354,21 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseI16(
 						mask = (d.mat_.masks_[row][col] >> 8) & 3;
 					}
 					if(mask == 3) {
+#if 1
+						// Pick H -> E cell
+						cur = SW_BT_OALL_READ_OPEN;
+						d.mat_.eMaskSet(row, col, 2); // might choose E later
+#else
 						if(rnd.nextU2()) {
-							// I chose the H cell
+							// Pick H -> E cell
 							cur = SW_BT_OALL_READ_OPEN;
 							d.mat_.eMaskSet(row, col, 2); // might choose E later
 						} else {
-							// I chose the E cell
+							// Pick E -> E cell
 							cur = SW_BT_RDGAP_EXTEND;
 							d.mat_.eMaskSet(row, col, 1); // might choose H later
 						}
+#endif
 						branch = true;
 					} else if(mask == 2) {
 						// I chose the E cell
@@ -1407,6 +1412,11 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseI16(
 						mask = (d.mat_.masks_[row][col] >> 11) & 3;
 					}
 					if(mask == 3) {
+#if 1
+						// I chose the H cell
+						cur = SW_BT_OALL_REF_OPEN;
+						d.mat_.fMaskSet(row, col, 2); // might choose E later
+#else
 						if(rnd.nextU2()) {
 							// I chose the H cell
 							cur = SW_BT_OALL_REF_OPEN;
@@ -1416,6 +1426,7 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseI16(
 							cur = SW_BT_RFGAP_EXTEND;
 							d.mat_.fMaskSet(row, col, 1); // might choose E later
 						}
+#endif
 						branch = true;
 					} else if(mask == 2) {
 						// I chose the F cell
@@ -1475,7 +1486,21 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseI16(
 						assert_geq(mask, 0);
 						d.mat_.hMaskSet(row, col, 0);
 					} else if(opts > 1) {
+#if 1
+						if(       (mask & 16) != 0) {
+							select = 4; // H diag
+						} else if((mask & 1) != 0) {
+							select = 0; // H up
+						} else if((mask & 4) != 0) {
+							select = 2; // F up
+						} else if((mask & 2) != 0) {
+							select = 1; // H left
+						} else if((mask & 8) != 0) {
+							select = 3; // E left
+						}
+#else
 						select = randFromMask(rnd, mask);
+#endif
 						assert_geq(mask, 0);
 						mask &= ~(1 << select);
 						assert(gapsAllowed || mask == (1 << 4) || mask == 0);
@@ -1732,11 +1757,7 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseI16(
 				break;
 			}
 		}
-#ifndef NDEBUG
-		//assert(!d.mat_.reportedThrough(rw, cl));
-		//d.mat_.setReportedThrough(rw, cl);
 		assert(d.mat_.reportedThrough(rw, cl));
-#endif
 	}
 	if(!overlappedCoreDiag) {
 		// Must overlap a core diagonal.  Otherwise, we run the risk of

@@ -23,33 +23,39 @@
 
 using namespace std;
 
+#define MIN_I16 std::numeric_limits<int16_t>::min()
+#define MIN_I64 std::numeric_limits<int64_t>::min()
+
 /**
  * Fill in a triangle of the DP table and backtrace from the given cell to
  * a cell in the previous checkpoint, or to the terminal cell.
  */
 void BtBranchTracer::triangleFill(
-	size_t rw,          // row of cell to backtrace from
-	size_t cl,          // column of cell to backtrace from
+	int64_t rw,          // row of cell to backtrace from
+	int64_t cl,          // column of cell to backtrace from
 	int hef,            // cell to backtrace from is H (0), E (1), or F (2)
 	TAlScore targ,      // score of cell to backtrace from
+	TAlScore targ_final,// score of alignment we're looking for
 	RandomSource& rnd,  // pseudo-random generator
-	size_t& row_new,    // out: row we ended up in after backtrace
-	size_t& col_new,    // out: column we ended up in after backtrace
+	int64_t& row_new,    // out: row we ended up in after backtrace
+	int64_t& col_new,    // out: column we ended up in after backtrace
 	int& hef_new,       // out: H/E/F after backtrace
 	TAlScore& targ_new, // out: score up to cell we ended up in
 	bool& done)         // whether we finished tracing out an alignment
 {
+	assert_geq(rw, 0);
+	assert_geq(cl, 0);
 	assert_range(0, 2, hef);
-	assert_lt(rw, prob_.qrylen_);
-	assert_lt(cl, prob_.reflen_);
+	assert_lt(rw, (int64_t)prob_.qrylen_);
+	assert_lt(cl, (int64_t)prob_.reflen_);
 	assert(prob_.usecp_ && prob_.fill_ && prob_.cper_->doCheckpoints());
 	int64_t row = rw, col = cl;
 	const int64_t colmin = 0;
 	const int64_t rowmin = 0;
 	const int64_t colmax = prob_.reflen_ - 1;
 	const int64_t rowmax = prob_.qrylen_ - 1;
-	assert_leq(col, prob_.cper_->hicol());
-	assert_geq(col, prob_.cper_->locol());
+	assert_leq(col, (int64_t)prob_.cper_->hicol());
+	assert_geq(col, (int64_t)prob_.cper_->locol());
 	assert_geq(prob_.cper_->per(), 2);
 	size_t mod = (row + col) & prob_.cper_->lomask();
 	assert_lt(mod, prob_.cper_->per());
@@ -76,7 +82,6 @@ void BtBranchTracer::triangleFill(
 	const bool local = !prob_.sc_->monotone;
 	int64_t row_lo = row - (int64_t)mod;
 	const _CpQuad *prev2 = NULL, *prev1 = NULL;
-	ASSERT_ONLY(TAlScore bestFromCp = std::numeric_limits<TAlScore>::min());
 	if(!upperleft) {
 		// Read-only pointer to cells in diagonal -2.  Start one row above the
 		// target row.
@@ -85,18 +90,18 @@ void BtBranchTracer::triangleFill(
 		// target row
 		prev1 = prob_.cper_->qdiag2sPtr() + (off * prob_.cper_->nrow() + row_lo - 1);
 #ifndef NDEBUG
-		for(size_t i = 0; i < depth+1; i++) {
-			bestFromCp = max<TAlScore>(bestFromCp, prev1[i].sc[0]);
-			if(i < depth) {
-				bestFromCp = max<TAlScore>(bestFromCp, prev2[i].sc[0]);
+		if(row >= (int64_t)mod) {
+			size_t rowc = row - mod, colc = col;
+			if(rowc > 0 && prob_.cper_->isCheckpointed(rowc-1, colc)) {
+				TAlScore al = prev1[0].sc[0];
+				if(al == MIN_I16) al = MIN_I64;
+				assert_eq(prob_.cper_->score(rowc-1, colc, 0), al);
 			}
-		}
-		size_t rowc = row - mod, colc = col;
-		if(prob_.cper_->isCheckpointed(rowc-1, colc)) {
-			assert_eq(prob_.cper_->score(rowc-1, colc, 0), prev1[0].sc[0]);
-		}
-		if(prob_.cper_->isCheckpointed(rowc-1, colc-1)) {
-			assert_eq(prob_.cper_->score(rowc-1, colc-1, 0), prev2[0].sc[0]);
+			if(rowc > 0 && colc > 0 && prob_.cper_->isCheckpointed(rowc-1, colc-1)) {
+				TAlScore al = prev2[0].sc[0];
+				if(al == MIN_I16) al = MIN_I64;
+				assert_eq(prob_.cper_->score(rowc-1, colc-1, 0), al);
+			}
 		}
 #endif
 	}
@@ -106,7 +111,7 @@ void BtBranchTracer::triangleFill(
 		_CpQuad * cur = tri_[i].ptr();
 		_CpQuad * curc = cur;
 		size_t doff = mod - i; // # diagonals we are away from target diag
-		assert_geq(row, doff);
+		//assert_geq(row, (int64_t)doff);
 		int64_t rowc = row - doff;
 		int64_t colc = col;
 		size_t neval = 0; // # cells evaluated in this diag
@@ -131,130 +136,197 @@ void BtBranchTracer::triangleFill(
 				// Get character from reference
 				int rc = prob_.ref_[colc];
 				assert_range(0, 16, rc);
-				TAlScore sc_diag = prob_.sc_->score(qc, rc, qq - 33);
-				TAlScore sc_h_up = std::numeric_limits<TAlScore>::min();
-				TAlScore sc_f_up = std::numeric_limits<TAlScore>::min();
-				TAlScore sc_h_lf = std::numeric_limits<TAlScore>::min();
-				TAlScore sc_e_lf = std::numeric_limits<TAlScore>::min();
+				int16_t sc_diag = prob_.sc_->score(qc, rc, qq - 33);
+				int16_t sc_h_up = MIN_I16;
+				int16_t sc_f_up = MIN_I16;
+				int16_t sc_h_lf = MIN_I16;
+				int16_t sc_e_lf = MIN_I16;
 				if(allowGaps) {
 					if(rowc > 0) {
-						sc_h_up = prev1[j+0].sc[0] - sc_rfo;
-						sc_f_up = prev1[j+0].sc[2] - sc_rfe;
+						assert(local || prev1[j+0].sc[2] < 0);
+						if(prev1[j+0].sc[0] > MIN_I16) {
+							sc_h_up = prev1[j+0].sc[0] - sc_rfo;
+							if(local) sc_h_up = max<int16_t>(sc_h_up, 0);
+						}
+						if(prev1[j+0].sc[2] > MIN_I16) {
+							sc_f_up = prev1[j+0].sc[2] - sc_rfe;
+							if(local) sc_f_up = max<int16_t>(sc_f_up, 0);
+						}
+#ifndef NDEBUG
+						TAlScore hup = prev1[j+0].sc[0];
+						TAlScore fup = prev1[j+0].sc[2];
+						if(hup == MIN_I16) hup = MIN_I64;
+						if(fup == MIN_I16) fup = MIN_I64;
+						if(local) {
+							hup = max<int16_t>(hup, 0);
+							fup = max<int16_t>(fup, 0);
+						}
+						if(prob_.cper_->isCheckpointed(rowc-1, colc)) {
+							assert_eq(hup, prob_.cper_->score(rowc-1, colc, 0));
+							assert_eq(fup, prob_.cper_->score(rowc-1, colc, 2));
+						}
+#endif
 					}
 					if(colc > 0) {
-						sc_h_lf = prev1[j+1].sc[0] - sc_rdo;
-						sc_e_lf = prev1[j+1].sc[1] - sc_rde;
+						assert(local || prev1[j+1].sc[1] < 0);
+						if(prev1[j+1].sc[0] > MIN_I16) {
+							sc_h_lf = prev1[j+1].sc[0] - sc_rdo;
+							if(local) sc_h_lf = max<int16_t>(sc_h_lf, 0);
+						}
+						if(prev1[j+1].sc[1] > MIN_I16) {
+							sc_e_lf = prev1[j+1].sc[1] - sc_rde;
+							if(local) sc_e_lf = max<int16_t>(sc_e_lf, 0);
+						}
+#ifndef NDEBUG
+						TAlScore hlf = prev1[j+1].sc[0];
+						TAlScore elf = prev1[j+1].sc[1];
+						if(hlf == MIN_I16) hlf = MIN_I64;
+						if(elf == MIN_I16) elf = MIN_I64;
+						if(local) {
+							hlf = max<int16_t>(hlf, 0);
+							elf = max<int16_t>(elf, 0);
+						}
+						if(prob_.cper_->isCheckpointed(rowc, colc-1)) {
+							assert_eq(hlf, prob_.cper_->score(rowc, colc-1, 0));
+							assert_eq(elf, prob_.cper_->score(rowc, colc-1, 1));
+						}
+#endif
 					}
 				}
-				TAlScore sc_h_dg =
-					(rowc > 0 && colc > 0) ? (prev2[j+0].sc[0] + sc_diag) :
-					                         std::numeric_limits<TAlScore>::min();
-				if(local) {
-					// Local-alignment clamping
-					sc_h_up = max<TAlScore>(sc_h_up, 0);
-					sc_f_up = max<TAlScore>(sc_f_up, 0);
-					sc_h_lf = max<TAlScore>(sc_h_lf, 0);
-					sc_e_lf = max<TAlScore>(sc_e_lf, 0);
-					sc_h_dg = max<TAlScore>(sc_h_dg, 0);
+				assert(rowc <= 1 || colc <= 0 || prev2 != NULL);
+				int16_t sc_h_dg = ((rowc > 0 && colc > 0) ? prev2[j+0].sc[0] : 0);
+				if(colc == 0 && rowc > 0 && !local) {
+					sc_h_dg = MIN_I16;
 				}
-				int mask = 1;
+				if(sc_h_dg > MIN_I16) {
+					sc_h_dg += sc_diag;
+				}
+				if(local) sc_h_dg = max<int16_t>(sc_h_dg, 0);
+				int mask = 0;
 				// Calculate best ways into H, E, F cells starting with H.
 				// Mask bits:
 				// H: 1=diag, 2=hhoriz, 4=ehoriz, 8=hvert, 16=fvert
 				// E: 32=hhoriz, 64=ehoriz
 				// F: 128=hvert, 256=fvert
-				TAlScore sc_best = sc_h_dg;
-				if(sc_h_lf >= sc_best) {
+				int16_t sc_best = sc_h_dg;
+				if(sc_h_dg > MIN_I64) {
+					mask = 1;
+				}
+				if(colc > 0 && sc_h_lf >= sc_best && sc_h_lf > MIN_I64) {
 					if(sc_h_lf > sc_best) mask = 0;
 					mask |= 2;
 					sc_best = sc_h_lf;
 				}
-				if(sc_e_lf >= sc_best) {
+				if(colc > 0 && sc_e_lf >= sc_best && sc_e_lf > MIN_I64) {
 					if(sc_e_lf > sc_best) mask = 0;
 					mask |= 4;
 					sc_best = sc_e_lf;
 				}
-				if(sc_h_up >= sc_best) {
+				if(rowc > 0 && sc_h_up >= sc_best && sc_h_up > MIN_I64) {
 					if(sc_h_up > sc_best) mask = 0;
 					mask |= 8;
 					sc_best = sc_h_up;
 				}
-				if(sc_f_up >= sc_best) {
+				if(rowc > 0 && sc_f_up >= sc_best && sc_f_up > MIN_I64) {
 					if(sc_f_up > sc_best) mask = 0;
 					mask |= 16;
 					sc_best = sc_f_up;
 				}
-				assert(local || sc_best <= bestFromCp);
 				// Calculate best way into E cell
-				TAlScore sc_e_best = sc_h_lf;
-				if(sc_h_lf >= sc_e_lf) {
-					if(sc_h_lf == sc_e_lf) {
+				int16_t sc_e_best = sc_h_lf;
+				if(colc > 0) {
+					if(sc_h_lf >= sc_e_lf && sc_h_lf > MIN_I64) {
+						if(sc_h_lf == sc_e_lf) {
+							mask |= 64;
+						}
+						mask |= 32;
+					} else if(sc_e_lf > MIN_I64) {
+						sc_e_best = sc_e_lf;
 						mask |= 64;
 					}
-					mask |= 32;
-				} else {
-					sc_e_best = sc_e_lf;
-					mask |= 64;
 				}
-				assert(local || sc_e_best <= bestFromCp);
+				if(sc_e_best > sc_best) {
+					sc_best = sc_e_best;
+					mask &= ~31; // don't go diagonal
+				}
 				// Calculate best way into F cell
-				TAlScore sc_f_best = sc_h_up;
-				if(sc_h_up >= sc_f_up) {
-					if(sc_h_up == sc_f_up) {
+				int16_t sc_f_best = sc_h_up;
+				if(rowc > 0) {
+					if(sc_h_up >= sc_f_up && sc_h_up > MIN_I64) {
+						if(sc_h_up == sc_f_up) {
+							mask |= 256;
+						}
+						mask |= 128;
+					} else if(sc_f_up > MIN_I64) {
+						sc_f_best = sc_f_up;
 						mask |= 256;
 					}
-					mask |= 128;
-				} else {
-					sc_f_best = sc_f_up;
-					mask |= 256;
 				}
-				assert(local || sc_f_best <= bestFromCp);
+				if(sc_f_best > sc_best) {
+					sc_best = sc_f_best;
+					mask &= ~127; // don't go horizontal or diagonal
+				}
 				// Install results in cur
 				assert(!prob_.sc_->monotone || sc_best <= 0);
 				assert(!prob_.sc_->monotone || sc_e_best <= 0);
 				assert(!prob_.sc_->monotone || sc_f_best <= 0);
-				assert( prob_.sc_->monotone || sc_best >= 0);
-				assert( prob_.sc_->monotone || sc_e_best >= 0);
-				assert( prob_.sc_->monotone || sc_f_best >= 0);
 				curc->sc[0] = sc_best;
+				assert( local || sc_e_best < 0);
+				assert( local || sc_f_best < 0);
+				assert(!local || sc_e_best >= 0 || sc_e_best == MIN_I16);
+				assert(!local || sc_f_best >= 0 || sc_f_best == MIN_I16);
 				curc->sc[1] = sc_e_best;
 				curc->sc[2] = sc_f_best;
-#ifndef NDEBUG
-				if(prob_.cper_->isCheckpointed(rowc, colc)) {
-					assert_eq(prob_.cper_->score(rowc, colc, 0), sc_best);
-					assert_eq(prob_.cper_->score(rowc, colc, 1), sc_e_best);
-					assert_eq(prob_.cper_->score(rowc, colc, 2), sc_f_best);
-				}
-#endif
 				curc->sc[3] = mask;
 				last = curc;
+#ifndef NDEBUG
+				if(prob_.cper_->isCheckpointed(rowc, colc)) {
+					if(local) {
+						sc_e_best = max<int16_t>(sc_e_best, 0);
+						sc_f_best = max<int16_t>(sc_f_best, 0);
+					}
+					TAlScore sc_best64   = sc_best;   if(sc_best   == MIN_I16) sc_best64   = MIN_I64;
+					TAlScore sc_e_best64 = sc_e_best; if(sc_e_best == MIN_I16) sc_e_best64 = MIN_I64;
+					TAlScore sc_f_best64 = sc_f_best; if(sc_f_best == MIN_I16) sc_f_best64 = MIN_I64;
+					assert_eq(prob_.cper_->score(rowc, colc, 0), sc_best64);
+					assert_eq(prob_.cper_->score(rowc, colc, 1), sc_e_best64);
+					assert_eq(prob_.cper_->score(rowc, colc, 2), sc_f_best64);
+				}
+#endif
 			}
 			// Update row, col
-			assert_gt(colc, 0);
-			assert_lt(rowc, prob_.qrylen_);
+			assert_lt(rowc, (int64_t)prob_.qrylen_);
 			rowc++;
 			colc--;
 			curc++;
-		}
+		} // for(size_t j = 0; j < breadth; j++)
 		if(i == depth-1) {
 			// Final iteration
 			assert(last != NULL);
 			assert_eq(1, neval);
-			assert_eq(targ, last->sc[hef]);
 			assert_neq(0, last->sc[3]);
+			assert_eq(targ, last->sc[hef]);
 		} else {
 			breadth--;
 			prev2 = prev1 + 1;
 			prev1 = cur;
 		}
-	}
-	
-	//if(bs_.empty()) {
-	//	// Start an initial branch
-	//	size_t id = bs_.alloc();
-	//}
+	} // for(size_t i = 0; i < depth; i++)
 	// Now backtrack through the triangle
-	size_t rowc = row, colc = col;
+	int64_t rowc = row, colc = col;
+	size_t curid;
+	if(bs_.empty()) {
+		// Start an initial branch
+		curid = bs_.alloc();
+		assert_eq(0, curid);
+		Edit e; e.reset();
+		bs_[curid].init(prob_, 0, 0, 0, rowc, colc, e, 0,
+		                true,   // I am the root
+						false); // don't try to extend with exact matches
+		bs_[curid].len_ = 0;
+	} else {
+		curid = bs_.size()-1;
+	}
 	int hefc = hef;
 	size_t idx_orig = (row + col) >> prob_.cper_->perpow2();
 	while(true) {
@@ -262,60 +334,176 @@ void BtBranchTracer::triangleFill(
 		size_t mod = (rowc + colc) & prob_.cper_->lomask();
 		assert_lt(mod, prob_.cper_->per());
 		_CpQuad * cur = tri_[mod].ptr();
-		assert(!local || cur->sc[0] > 0);
 		int64_t row_off = rowc - row_lo - mod;
+		assert(!local || cur[row_off].sc[0] > 0);
 		assert_geq(row_off, 0);
 		int mask = cur[row_off].sc[3];
 		assert_gt(mask, 0);
 		int sel = -1;
+		// Select what type of move to make, which depends on whether we're
+		// currently in H, E, F:
 		if(hefc == 0) {
-			mask &= 31;
-			sel = randFromMask(rnd, mask);
+			if(       (mask & 1) != 0) {
+				// diagonal
+				sel = 0;
+			} else if((mask & 8) != 0) {
+				// up to H
+				sel = 3;
+			} else if((mask & 16) != 0) {
+				// up to F
+				sel = 4;
+			} else if((mask & 2) != 0) {
+				// left to H
+				sel = 1;
+			} else if((mask & 4) != 0) {
+				// left to E
+				sel = 2;
+			}
 		} else if(hefc == 1) {
-			mask >>= 5;
-			mask &= 3;
-			sel = randFromMask(rnd, mask);
+			if(       (mask & 32) != 0) {
+				// left to H
+				sel = 5;
+			} else if((mask & 64) != 0) {
+				// left to E
+				sel = 6;
+			}
 		} else {
 			assert_eq(2, hefc);
-			mask >>= 7;
-			mask &= 3;
-			sel = randFromMask(rnd, mask);
+			if(       (mask & 128) != 0) {
+				// up to H
+				sel = 7;
+			} else if((mask & 256) != 0) {
+				// up to F
+				sel = 8;
+			}
 		}
 		assert_geq(sel, 0);
+		// Get character from read
+		int qc = prob_.qry_[rowc], qq = prob_.qual_[rowc];
+		// Get character from reference
+		int rc = prob_.ref_[colc];
+		assert_range(0, 16, rc);
+		// Now that we know what type of move to make, make it, updating our
+		// row and column and moving updating the branch.
 		if(sel == 0) {
+			assert_geq(rowc, 0);
+			assert_geq(colc, 0);
+			TAlScore scd = prob_.sc_->score(qc, rc, qq - 33);
+			if((rc & (1 << qc)) == 0) {
+				// Mismatch
+				size_t id = curid;
+				// Check if the previous branch was the initial (bottommost)
+				// branch with no matches.  If so, the mismatch should be added
+				// to the initial branch, instead of starting a new branch.
+				bool empty = (bs_[curid].len_ == 0 && curid == 0);
+				if(!empty) {
+					id = bs_.alloc();
+				}
+				Edit e((int)rowc, mask2dna[rc], "ACGTN"[qc], EDIT_TYPE_MM);
+				assert_lt(scd, 0);
+				bs_[id].init(prob_, curid, -scd, bs_[curid].score_st_ + scd,
+				             rowc, colc, e, hefc, empty, false);
+				curid = id;
+			} else {
+				// Match
+				bs_[curid].score_st_ += prob_.sc_->match();
+				bs_[curid].len_++;
+				assert_leq((int64_t)bs_[curid].len_, bs_[curid].row_ + 1);
+			}
+			rowc--;
+			colc--;
+			assert(local || bs_[curid].score_st_ >= targ_final);
 			hefc = 0;
-			assert_gt(rowc, 0);
-			assert_gt(colc, 0);
-			rowc--;
-			colc--;
 		} else if((sel >= 1 && sel <= 2) || (sel >= 5 && sel <= 6)) {
-			hefc = 1;
 			assert_gt(colc, 0);
+			// Read gap
+			size_t id = bs_.alloc();
+			Edit e((int)rowc, mask2dna[rc], '-', EDIT_TYPE_READ_GAP);
+			TAlScore gapp = prob_.sc_->readGapOpen();
+			if(bs_[curid].len_ == 0 && bs_[curid].e_.inited() && bs_[curid].e_.isReadGap()) {
+				gapp = prob_.sc_->readGapExtend();
+			}
+			bs_[id].init(prob_, curid, gapp, bs_[curid].score_st_ - gapp,
+			             rowc, colc-1, e, hefc, false, false);
 			colc--;
+			curid = id;
+			assert(local || bs_[curid].score_st_ >= targ_final);
+			if(sel == 1 || sel == 5) {
+				hefc = 0;
+			} else {
+				hefc = 1;
+			}
 		} else {
-			hefc = 2;
 			assert_gt(rowc, 0);
+			// Reference gap
+			size_t id = bs_.alloc();
+			Edit e((int)rowc, '-', "ACGTN"[qc], EDIT_TYPE_REF_GAP);
+			TAlScore gapp = prob_.sc_->refGapOpen();
+			if(bs_[curid].len_ == 0 && bs_[curid].e_.inited() && bs_[curid].e_.isRefGap()) {
+				gapp = prob_.sc_->refGapExtend();
+			}
+			bs_[id].init(prob_, curid, gapp, bs_[curid].score_st_ - gapp,
+			             rowc-1, colc, e, hefc, false, false);
 			rowc--;
+			curid = id;
+			if(sel == 3 || sel == 7) {
+				hefc = 0;
+			} else {
+				hefc = 2;
+			}
 		}
 		size_t mod_new = (rowc + colc) & prob_.cper_->lomask();
 		size_t idx = (rowc + colc) >> prob_.cper_->perpow2();
 		assert_lt(mod_new, prob_.cper_->per());
-		_CpQuad * cur_new = tri_[mod_new].ptr();
 		int64_t row_off_new = rowc - row_lo - mod_new;
-		// Check whether we made it to the top row or to 
-		if(rowc == 0 || (local && cur->sc[0] == 0)) {
-			row_new = rowc; col_new = colc;
+		_CpQuad * cur_new = NULL;
+		if(colc >= 0 && rowc >= 0 && idx == idx_orig) {
+			cur_new = tri_[mod_new].ptr();
+		}
+		bool hit_new_tri = (idx < idx_orig && colc >= 0 && rowc >= 0);
+		// Check whether we made it to the top row or to a cell with score 0
+		if(colc < 0 || rowc < 0 ||
+		   (cur_new != NULL && (local && cur_new[row_off_new].sc[0] == 0)))
+		{
 			done = true;
-			targ_new = cur_new[row_off_new].sc[hefc];
-			hef_new = hefc;
+			assert(bs_[curid].isSolution(prob_));
+			addSolution(curid);
+#ifndef NDEBUG
+			// A check to see if any two adjacent branches in the backtrace
+			// overlap.  If they do, the whole alignment will be filtered out
+			// in trySolution(...)
+			size_t cur = curid;
+			if(!bs_[cur].root_) {
+				size_t next = bs_[cur].parentId_;
+				while(!bs_[next].root_) {
+					assert_neq(cur, next);
+					if(bs_[next].len_ != 0 || bs_[cur].len_ == 0) {
+						assert(!bs_[cur].overlap(prob_, bs_[next]));
+					}
+					cur = next;
+					next = bs_[cur].parentId_;
+				}
+			}
+#endif
 			return;
 		}
-		if(idx < idx_orig) {
-			assert(prob_.cper_->isCheckpointed(rowc, colc));
+		if(hit_new_tri) {
+			assert(rowc < 0 || colc < 0 || prob_.cper_->isCheckpointed(rowc, colc));
 			row_new = rowc; col_new = colc;
-			done = false;
-			targ_new = prob_.cper_->score(rowc, colc, hefc);
 			hef_new = hefc;
+			done = false;
+			if(rowc < 0 || colc < 0) {
+				assert(local);
+				targ_new = 0;
+			} else {
+				targ_new = prob_.cper_->score(rowc, colc, hefc);
+			}
+			if(local && targ_new == 0) {
+				done = true;
+				assert(bs_[curid].isSolution(prob_));
+				addSolution(curid);
+			}
+			assert((row_new >= 0 && col_new >= 0) || done);
 			return;
 		}
 	}
@@ -325,57 +513,85 @@ void BtBranchTracer::triangleFill(
 /**
  * Caller gives us score_en, row and col.  We figure out score_st and len_
  * by comparing characters from the strings.
+ *
+ * If this branch comes after a mismatch, (row, col) describe the cell that the
+ * mismatch occurs in.  len_ is initially set to 1, and the next cell we test
+ * is the next cell up and to the left (row-1, col-1).
+ *
+ * If this branch comes after a read gap, (row, col) describe the leftmost cell
+ * involved in the gap.  len_ is initially set to 0, and the next cell we test
+ * is the current cell (row, col).
+ *
+ * If this branch comes after a reference gap, (row, col) describe the upper
+ * cell involved in the gap.  len_ is initially set to 0, and the next cell we
+ * test is the current cell (row, col).
  */
 void BtBranch::init(
 	const BtBranchProblem& prob,
 	size_t parentId,
+	TAlScore penalty,
 	TAlScore score_en,
 	int64_t row,
 	int64_t col,
-	Edit e)
+	Edit e,
+	int hef,
+	bool root,
+	bool extend)
 {
-	// TODO: if the first cell is no good w/r/t checkpoint score, we should
-	// have aborted by now.  In this function we're only checking if cells that
-	// we would otherwise "match through" can be pruned.
 	score_en_ = score_en;
+	penalty_ = penalty;
 	score_st_ = score_en_;
 	row_ = row;
 	col_ = col;
 	parentId_ = parentId;
 	e_ = e;
+	root_ = root;
+	assert(!root_ || parentId == 0);
 	assert_lt(row, (int64_t)prob.qrylen_);
 	assert_lt(col, (int64_t)prob.reflen_);
-	int64_t rowc = row, colc = col;
+	// First match to check is diagonally above and to the left of the cell
+	// where the edit occurs
+	int64_t rowc = row;
+	int64_t colc = col;
 	len_ = 0;
+	if(e.inited() && e.isMismatch()) {
+		rowc--; colc--;
+		len_ = 1;
+	}
 	int64_t match = prob.sc_->match();
-	bool cp = prob.usecp_ && prob.cper_->doCheckpoints(); // Are there are any checkpoints?
+	bool cp = prob.usecp_ && prob.cper_->doCheckpoints();
 	size_t iters = 0;
 	curtailed_ = false;
-	while(rowc >= 0 && colc >= 0) {
-		int rfm = prob.ref_[colc];
-		assert_range(0, 16, rfm);
-		int rdc = prob.qry_[rowc];
-		//int rdq = prob.qual_[rowc];
-		bool matches = (rfm & (1 << rdc)) != 0;
-		if(!matches) {
-			// What's the mismatch penalty?
-			//int sc = prob.sc_->score(rdc, rfm, rdq - 33);
-			break;
-		}
-		// Get score from checkpointer
-		score_st_ += match;
-		if(cp && rowc - 1 >= 0 && colc - 1 >= 0 &&
-		   prob.cper_->isCheckpointed(rowc - 1, colc - 1))
-		{
-			// Possibly prune
-			int16_t cpsc = prob.cper_->hScore(rowc - 1, colc - 1);
-			if(cpsc + score_st_ < prob.targ_) {
-				curtailed_ = true;
+	if(extend) {
+		while(rowc >= 0 && colc >= 0) {
+			int rfm = prob.ref_[colc];
+			assert_range(0, 16, rfm);
+			int rdc = prob.qry_[rowc];
+			bool matches = (rfm & (1 << rdc)) != 0;
+			if(!matches) {
+				// What's the mismatch penalty?
 				break;
 			}
+			// Get score from checkpointer
+			score_st_ += match;
+			if(cp && rowc - 1 >= 0 && colc - 1 >= 0 &&
+			   prob.cper_->isCheckpointed(rowc - 1, colc - 1))
+			{
+				// Possibly prune
+				int16_t cpsc;
+				if(prob.cper_->hasEF()) {
+					cpsc = prob.cper_->score(rowc - 1, colc - 1, hef);
+				} else {
+					cpsc = prob.cper_->hScore(rowc - 1, colc - 1);
+				}
+				if(cpsc + score_st_ < prob.targ_) {
+					curtailed_ = true;
+					break;
+				}
+			}
+			iters++;
+			rowc--; colc--;
 		}
-		iters++;
-		rowc--; colc--;
 	}
 	assert_geq(rowc, -1);
 	assert_geq(colc, -1);
@@ -383,20 +599,6 @@ void BtBranch::init(
 	assert_leq((int64_t)len_, row_+1);
 	assert_leq((int64_t)len_, col_+1);
 	assert_leq((int64_t)score_st_, (int64_t)prob.qrylen_ * match);
-	//if(len_ > row_) {
-	//	assert_leq(score_st_, prob.targ_);
-	//}
-	if(uppermostRow() > 0) {
-		// Also, check if we're doing so well score-wise that no possible gap
-		// or mismatch could drive us 
-	
-		// If root edit is a gap, perhaps explore extensions?
-		
-		// Calculate a somewhat tighter upper bound on the score we could get
-		// by including this branch on our path. We do this by taking the
-		// smallest penalty of any of the penalties that could be incurred upon
-		// leaving this branch.
-	}
 }
 
 /**
@@ -408,11 +610,12 @@ void BtBranchTracer::examineBranch(
 	int64_t row,
 	int64_t col,
 	const Edit& e,
+	TAlScore pen,  // penalty associated with edit
 	TAlScore sc,
 	size_t parentId)
 {
 	size_t id = bs_.alloc();
-	bs_[id].init(prob_, parentId, sc, row, col, e);
+	bs_[id].init(prob_, parentId, pen, sc, row, col, e, 0, false, true);
 	if(bs_[id].isSolution(prob_)) {
 		assert(bs_[id].isValid(prob_));
 		addSolution(id);
@@ -434,12 +637,12 @@ void BtBranchTracer::addOffshoots(size_t bid) {
 	BtBranch& b = bs_[bid];
 	TAlScore sc = b.score_en_;
 	int64_t match = prob_.sc_->match();
-	int64_t scoreFloor = prob_.sc_->monotone ? std::numeric_limits<int64_t>::min() : 0;
+	int64_t scoreFloor = prob_.sc_->monotone ? MIN_I64 : 0;
 	bool cp = prob_.usecp_ && prob_.cper_->doCheckpoints(); // Are there are any checkpoints?
 	ASSERT_ONLY(TAlScore perfectScore = prob_.sc_->perfectScore(prob_.qrylen_));
 	assert_leq(prob_.targ_, perfectScore);
 	// For each cell in the branch
-	for(size_t i = 0 ; i <= b.len_; i++) {
+	for(size_t i = 0 ; i < b.len_; i++) {
 		assert_leq((int64_t)i, b.row_+1);
 		assert_leq((int64_t)i, b.col_+1);
 		int64_t row = b.row_ - i, col = b.col_ - i;
@@ -469,9 +672,9 @@ void BtBranchTracer::addOffshoots(size_t bid) {
 					if(extend) { nrdexPrune_++; } else { nrdopPrune_++; }
 				} else if(sc - rdgapPen >= scoreFloor && sc - rdgapPen + bonusLeft >= prob_.targ_) {
 					// Yes, we can introduce a read gap here
-					Edit e((int)row, mask2dna[(int)prob_.ref_[col]], '-', EDIT_TYPE_READ_GAP);
+					Edit e((int)row + 1, mask2dna[(int)prob_.ref_[col]], '-', EDIT_TYPE_READ_GAP);
 					assert(e.isReadGap());
-					examineBranch(row, col - 1, e, sc - rdgapPen, bid);
+					examineBranch(row, col - 1, e, rdgapPen, sc - rdgapPen, bid);
 					if(extend) { nrdex_++; } else { nrdop_++; }
 				}
 			}
@@ -499,7 +702,7 @@ void BtBranchTracer::addOffshoots(size_t bid) {
 					// Yes, we can introduce a ref gap here
 					Edit e((int)row, '-', "ACGTN"[(int)prob_.qry_[row]], EDIT_TYPE_REF_GAP);
 					assert(e.isRefGap());
-					examineBranch(row - 1, col, e, sc - rfgapPen, bid);
+					examineBranch(row - 1, col, e, rfgapPen, sc - rfgapPen, bid);
 					if(extend) { nrfex_++; } else { nrfop_++; }
 				}
 			}
@@ -531,7 +734,8 @@ void BtBranchTracer::addOffshoots(size_t bid) {
 					Edit e((int)row, mask2dna[rfm], "ACGTN"[rdc], EDIT_TYPE_MM);
 					bool nmm = (mask2dna[rfm] == 'N' || rdc > 4);
 					assert_neq(e.chr, e.qchr);
-					examineBranch(row - 1, col - 1, e, sc + scdiff, bid);
+					assert_lt(scdiff, 0);
+					examineBranch(row - 1, col - 1, e, -scdiff, sc + scdiff, bid);
 					if(nmm) { nnmm_++; } else { nmm_++; }
 				}
 			}
@@ -584,6 +788,33 @@ void BtBranchTracer::flushUnsorted() {
 }
 
 /**
+ * Try all the solutions accumulated so far.  Solutions might be rejected
+ * if they, for instance, overlap a previous solution, have too many Ns,
+ * fail to overlap a core diagonal, etc.
+ */
+bool BtBranchTracer::trySolutions(
+	SwResult& res,
+	size_t& off,
+	size_t& nrej,
+	RandomSource& rnd,
+	bool& success)
+{
+	if(solutions_.size() > 0) {
+		for(size_t i = 0; i < solutions_.size(); i++) {
+			int ret = trySolution(solutions_[i], res, off, nrej, rnd);
+			if(ret == BT_FOUND) {
+				success = true;
+				return true; // there were solutions and one was good
+			}
+		}
+		solutions_.clear();
+		success = false;
+		return true; // there were solutions but none were good
+	}
+	return false; // there were no solutions to check
+}
+
+/**
  * Given the id of a branch that completes a successful backtrace, turn the
  * chain of branches into 
  */
@@ -599,21 +830,26 @@ int BtBranchTracer::trySolution(
 	// 'br' corresponds to the leftmost edit in a right-to-left
 	// chain of edits.  
 	EList<Edit>& ned = res.alres.ned();
-	const BtBranch *cur = br;
+	const BtBranch *cur = br, *prev = NULL;
 	size_t ns = 0, nrefns = 0;
 	size_t ngap = 0;
-	while(cur->e_.inited()) {
-		if(cur->e_.isMismatch()) {
-			if(cur->e_.qchr == 'N' || cur->e_.chr == 'N') {
-				if(cur->e_.chr == 'N') {
-					nrefns++;
+	while(true) {
+		if(cur->e_.inited()) {
+			if(cur->e_.isMismatch()) {
+				if(cur->e_.qchr == 'N' || cur->e_.chr == 'N') {
+					if(cur->e_.chr == 'N') {
+						nrefns++;
+					}
+					ns++;
 				}
-				ns++;
+			} else if(cur->e_.isGap()) {
+				ngap++;
 			}
-		} else if(cur->e_.isGap()) {
-			ngap++;
+			ned.push_back(cur->e_);
 		}
-		ned.push_back(cur->e_);
+		if(cur->root_) {
+			break;
+		}
 		cur = &bs_[cur->parentId_];
 	}
 	if(ns > prob_.nceil_) {
@@ -640,22 +876,39 @@ int BtBranchTracer::trySolution(
 		// rectangle by adding on the amount trimmed from the left.
 		diagi += prob_.rect_->triml;
 		assert_lt(diag, seenPaths_.size());
-		int64_t newlo = (int64_t)cur->len_ > row ? 0 : (row - cur->len_);
-		int64_t newhi = row+1;
+		int64_t newlo, newhi;
+		if(cur->len_ == 0) {
+			if(prev != NULL && prev->len_ > 0) {
+				// If there's a gap at the base of a non-0 length branch, the
+				// gap will appear to overlap the branch if we give it length 1.
+				newhi = newlo = 0;
+			} else {
+				// Read or ref gap with no matches coming off of it
+				newlo = row;
+				newhi = row + 1;
+			}
+		} else {
+			// Diagonal with matches
+			newlo = row - (cur->len_ - 1);
+			newhi = row + 1;
+		}
 		assert_geq(newlo, 0);
 		assert_geq(newhi, 0);
-		assert((int64_t)cur->len_ > row || newhi > newlo);
-		if(newhi > newlo) {
-			bool added = false;
-			// Does it overlap a core diagonal?
-			if(diagi >= 0) {
-				size_t diag = (size_t)diagi;
-				if(diag >= prob_.rect_->corel &&
-				   diag <= prob_.rect_->corer)
-				{
-					rejCore = false;
-				}
+		// Does it overlap a core diagonal?
+		if(diagi >= 0) {
+			size_t diag = (size_t)diagi;
+			if(diag >= prob_.rect_->corel &&
+			   diag <= prob_.rect_->corer)
+			{
+				// Yes it does - it's OK
+				rejCore = false;
 			}
+		}
+		// Does the diagonal cover cells?
+		if(newhi > newlo) {
+			// Check whether there is any overlap with previously traversed
+			// cells
+			bool added = false;
 			const size_t sz = seenPaths_[diag].size();
 			for(size_t i = 0; i < sz; i++) {
 				// Does the new interval overlap this already-seen
@@ -681,10 +934,10 @@ int BtBranchTracer::trySolution(
 					seenPaths_[diag][i].second = max(hi, hi_sm);
 #ifndef NDEBUG
 					for(int64_t ii = seenPaths_[diag][i].first;
-					    ii < seenPaths_[diag][i].second;
+					    ii < (int64_t)seenPaths_[diag][i].second;
 						ii++)
 					{
-						cerr << "trySolution rejected (" << ii << ", " << (ii + col - row) << ")" << endl;
+						//cerr << "trySolution rejected (" << ii << ", " << (ii + col - row) << ")" << endl;
 					}
 #endif
 					added = true;
@@ -695,10 +948,10 @@ int BtBranchTracer::trySolution(
 					seenPaths_[diag][i].second = max(hi, hi_sm);
 #ifndef NDEBUG
 					for(int64_t ii = seenPaths_[diag][i].first;
-					    ii < seenPaths_[diag][i].second;
+					    ii < (int64_t)seenPaths_[diag][i].second;
 						ii++)
 					{
-						cerr << "trySolution rejected (" << ii << ", " << (ii + col - row) << ")" << endl;
+						//cerr << "trySolution rejected (" << ii << ", " << (ii + col - row) << ")" << endl;
 					}
 #endif
 					added = true;
@@ -714,10 +967,11 @@ int BtBranchTracer::trySolution(
 		// longer guarnateed that all the overlapping intervals in
 		// the list have been merged.  That's OK though.  We'll
 		// still get correct answers to overlap queries.
-		if(!cur->e_.inited()) {
+		if(cur->root_) {
 			assert_eq(0, cur->parentId_);
 			break;
 		}
+		prev = cur;
 		cur = &bs_[cur->parentId_];
 	} // while(cur->e_.inited())
 	if(rejSeen) {
@@ -788,6 +1042,7 @@ bool BtBranchTracer::nextAlignmentBacktrace(
 		size_t brid = best(rnd); // put best branch in 'br'
 		assert(!seen_.contains(brid));
 		ASSERT_ONLY(seen_.insert(brid));
+#if 0
 		BtBranch *br = &bs_[brid];
 		cerr << brid
 		     << ": targ:" << prob_.targ_
@@ -804,6 +1059,7 @@ bool BtBranchTracer::nextAlignmentBacktrace(
 			 << ", nrdex_pr: " << nrdexPrune_
 			 << ", nrfex_pr: " << nrfexPrune_
 			 << endl;
+#endif
 		addOffshoots(brid);
 	}
 	if(trySolutions(res, off, nrej, rnd, result)) {
@@ -825,8 +1081,14 @@ bool BtBranchTracer::nextAlignmentFill(
 	size_t& niter,
 	RandomSource& rnd)
 {
+	assert(prob_.inited());
 	assert(prob_.cper_->doCheckpoints());
 	assert(prob_.cper_->hasEF());
+	assert(!emptySolution());
+	bool result = false;
+	if(trySolutions(res, off, nrej, rnd, result)) {
+		return result;
+	}
 	return false;
 }
 

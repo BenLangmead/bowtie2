@@ -2229,6 +2229,14 @@ public:
 		return l_.size()-1;
 	}
 	
+	size_t size() const {
+		return l_.size();
+	}
+
+	bool empty() const {
+		return size() == 0;
+	}
+	
 	T& pop() {
 		T& ret = l_[l_.size()-1];
 		l_.resize(l_.size()-1);
