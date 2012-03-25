@@ -485,11 +485,6 @@ bool SwAligner::align(RandomSource& rnd) {
 	TAlScore best = 0;
 	sse8succ_ = sse16succ_ = false;
 	int flag = 0;
-	
-	//struct timeval tv_i, tv_f;
-	//struct timezone tz_i, tz_f;
-	//gettimeofday(&tv_i, &tz_i);
-	
 	if(sc_->monotone) {
 		if(enable8_ && !readSse16_ && minsc_ >= -254) {
 			best = alignNucleotidesEnd2EndSseU8(flag);
@@ -533,8 +528,8 @@ bool SwAligner::align(RandomSource& rnd) {
 #ifndef NDEBUG
 			int flagtmp = 0;
 			TAlScore besttmp = alignGatherLoc8(flagtmp);
-			assert_eq(best, besttmp);
 			assert_eq(flag, flagtmp);
+			assert_eq(best, besttmp);
 #endif
 		}
 		if(flag == -2) {
@@ -545,8 +540,8 @@ bool SwAligner::align(RandomSource& rnd) {
 			{
 				int flagtmp = 0;
 				TAlScore besttmp = alignGatherLoc16(flagtmp);
-				assert_eq(best, besttmp);
 				assert_eq(flag, flagtmp);
+				assert_eq(best, besttmp);
 			}
 #endif
 			sse16succ_ = (flag == 0);
@@ -740,8 +735,8 @@ bool SwAligner::nextAlignment(
 		if(sc_->monotone) {
 			bool ret = false;
 			if(sse8succ_) {
-				uint32_t reseed = rnd.nextU32();
-				rnd.init(reseed); // same b/t backtrace calls
+				uint32_t reseed = rnd.nextU32() + 1;
+				rnd.init(reseed);
 				ret = backtraceNucleotidesEnd2EndSseU8(
 					btncand_[cural_].score, // in: expected score
 					res,    // out: store results (edits and scores) here
@@ -752,42 +747,30 @@ bool SwAligner::nextAlignment(
 					rnd);   // random gen, to choose among equal paths
 #ifndef NDEBUG
 				{
-					SwResult res2, res3;
+					SwResult res2;
 					size_t maxiter2 = std::numeric_limits<size_t>::max();
-					size_t niter2 = 0, niter3 = 0;
+					size_t niter2 = 0;
 					bool ret2 = backtrace(
 						btncand_[cural_].score, // in: expected score
-						true,   // in: use mini-fill?
-						true,   // in: use checkpoints?
-						res2,   // out: store results (edits and scores) here
-						off,    // out: store diagonal projection of origin
-						row,    // start in this rectangle row
-						col,    // start in this rectangle column
-						maxiter2,// max # extensions to try
-						niter2, // # extensions tried
-						rnd);   // random gen, to choose among equal paths
-					size_t maxiter3 = 1000;
-					bool ret3 = backtrace(
-						btncand_[cural_].score, // in: expected score
-						false,  // in: use mini-fill?
-						false,  // in: use checkpoints?
-						res3,   // out: store results (edits and scores) here
-						off,    // out: store diagonal projection of origin
-						row,    // start in this rectangle row
-						col,    // start in this rectangle column
-						maxiter3,// max # extensions to try
-						niter3, // # extensions tried
-						rnd);   // random gen, to choose among equal paths
-					Edit::printQAlign(cerr, *rd_, res2.alres.ned());
-					assert_eq(ret, ret2);
-					assert(niter3 >= maxiter3 || ret == ret3);
+						true,     // in: use mini-fill?
+						true,     // in: use checkpoints?
+						res2,     // out: store results (edits and scores) here
+						off,      // out: store diagonal projection of origin
+						row,      // start in this rectangle row
+						col,      // start in this rectangle column
+						maxiter2, // max # extensions to try
+						niter2,   // # extensions tried
+						rnd);     // random gen, to choose among equal paths
+					// After the first alignment, there's no guarantee we'll
+					// get the same answer from both backtrackers because of
+					// differences in how they handle marking cells as
+					// reported-through.
+					assert(cural_ > 0 || !ret || ret == ret2);
 				}
-#endif
-#ifndef NDEBUG
 				if(sse16succ_) {
 					SwResult res2;
 					size_t off2, nbts2 = 0;
-					rnd.init(reseed); // same b/t backtrace calls
+					rnd.init(reseed);
 					bool ret2 = backtraceNucleotidesEnd2EndSseI16(
 						btncand_[cural_].score, // in: expected score
 						res2,   // out: store results (edits and scores) here
@@ -799,6 +782,7 @@ bool SwAligner::nextAlignment(
 					assert_eq(ret, ret2);
 					assert_eq(nbts, nbts2);
 					assert(!ret || res2.alres.score() == res.alres.score());
+#if 0
 					if((rand() & 15) == 0) {
 						// Check that same cells are reported through
 						SSEData& d8  = fw_ ? sseU8fw_  : sseU8rc_;
@@ -810,9 +794,12 @@ bool SwAligner::nextAlignment(
 							}
 						}
 					}
+#endif
 				}
 #endif
+				rnd.init(reseed+1); // debug/release pseudo-randoms in lock step
 			} else if(sse16succ_) {
+				uint32_t reseed = rnd.nextU32() + 1;
 				ret = backtraceNucleotidesEnd2EndSseI16(
 					btncand_[cural_].score, // in: expected score
 					res,    // out: store results (edits and scores) here
@@ -823,36 +810,28 @@ bool SwAligner::nextAlignment(
 					rnd);   // random gen, to choose among equal paths
 #ifndef NDEBUG
 				{
-					SwResult res2, res3;
+					SwResult res2;
 					size_t maxiter2 = std::numeric_limits<size_t>::max();
-					size_t niter2 = 0, niter3 = 0;
+					size_t niter2 = 0;
 					bool ret2 = backtrace(
 						btncand_[cural_].score, // in: expected score
-						true,   // in: use mini-fill?
-						true,   // in: use checkpoints?
-						res2,   // out: store results (edits and scores) here
-						off,    // out: store diagonal projection of origin
-						row,    // start in this rectangle row
-						col,    // start in this rectangle column
-						maxiter2,// max # extensions to try
-						niter2, // # extensions tried
-						rnd);   // random gen, to choose among equal paths
-					size_t maxiter3 = 1000;
-					bool ret3 = backtrace(
-						btncand_[cural_].score, // in: expected score
-						false,  // in: use mini-fill?
-						false,  // in: use checkpoints?
-						res3,   // out: store results (edits and scores) here
-						off,    // out: store diagonal projection of origin
-						row,    // start in this rectangle row
-						col,    // start in this rectangle column
-						maxiter3,// max # extensions to try
-						niter3, // # extensions tried
-						rnd);   // random gen, to choose among equal paths
-					assert_eq(ret, ret2);
-					assert(niter3 >= maxiter3 || ret == ret3);
+						true,     // in: use mini-fill?
+						true,     // in: use checkpoints?
+						res2,     // out: store results (edits and scores) here
+						off,      // out: store diagonal projection of origin
+						row,      // start in this rectangle row
+						col,      // start in this rectangle column
+						maxiter2, // max # extensions to try
+						niter2,   // # extensions tried
+						rnd);     // random gen, to choose among equal paths
+					// After the first alignment, there's no guarantee we'll
+					// get the same answer from both backtrackers because of
+					// differences in how they handle marking cells as
+					// reported-through.
+					assert(cural_ > 0 || !ret || ret == ret2);
 				}
 #endif
+				rnd.init(reseed); // debug/release pseudo-randoms in lock step
 			}
 			if(ret) {
 				btncand_[cural_].fate = BT_CAND_FATE_SUCCEEDED;
@@ -894,8 +873,8 @@ bool SwAligner::nextAlignment(
 			}
 			bool ret = false;
 			if(sse8succ_) {
-				uint32_t reseed = rnd.nextU32();
-				rnd.init(reseed); // same b/t backtrace calls
+				uint32_t reseed = rnd.nextU32() + 1;
+				rnd.init(reseed);
 				ret = backtraceNucleotidesLocalSseU8(
 					btncand_[cural_].score, // in: expected score
 					res,    // out: store results (edits and scores) here
@@ -906,37 +885,26 @@ bool SwAligner::nextAlignment(
 					rnd);   // random gen, to choose among equal paths
 #ifndef NDEBUG
 				{
-					SwResult res2, res3;
+					SwResult res2;
 					size_t maxiter2 = std::numeric_limits<size_t>::max();
-					size_t niter2 = 0, niter3 = 0;
+					size_t niter2 = 0;
 					bool ret2 = backtrace(
 						btncand_[cural_].score, // in: expected score
-						true,   // in: use mini-fill?
-						true,   // in: use checkpoints?
-						res2,   // out: store results (edits and scores) here
-						off,    // out: store diagonal projection of origin
-						row,    // start in this rectangle row
-						col,    // start in this rectangle column
-						maxiter2,// max # extensions to try
-						niter2, // # extensions tried
-						rnd);   // random gen, to choose among equal paths
-					size_t maxiter3 = 1000;
-					bool ret3 = backtrace(
-						btncand_[cural_].score, // in: expected score
-						false,  // in: use mini-fill?
-						false,  // in: use checkpoints?
-						res3,   // out: store results (edits and scores) here
-						off,    // out: store diagonal projection of origin
-						row,    // start in this rectangle row
-						col,    // start in this rectangle column
-						maxiter3,// max # extensions to try
-						niter3, // # extensions tried
-						rnd);   // random gen, to choose among equal paths
-					assert_eq(ret, ret2);
-					assert(niter3 >= maxiter3 || ret == ret3);
+						true,     // in: use mini-fill?
+						true,     // in: use checkpoints?
+						res2,     // out: store results (edits and scores) here
+						off,      // out: store diagonal projection of origin
+						row,      // start in this rectangle row
+						col,      // start in this rectangle column
+						maxiter2, // max # extensions to try
+						niter2,   // # extensions tried
+						rnd);     // random gen, to choose among equal paths
+					// After the first alignment, there's no guarantee we'll
+					// get the same answer from both backtrackers because of
+					// differences in how they handle marking cells as
+					// reported-through.
+					assert(cural_ > 0 || !ret || ret == ret2);
 				}
-#endif
-#ifndef NDEBUG
 				if(sse16succ_) {
 					SwResult res2;
 					size_t off2, nbts2 = 0;
@@ -952,20 +920,24 @@ bool SwAligner::nextAlignment(
 					assert_eq(ret, ret2);
 					assert_eq(nbts, nbts2);
 					assert(!ret || res2.alres.score() == res.alres.score());
-					//if((rand() & 15) == 0) {
+#if 0
+					if((rand() & 15) == 0) {
 						// Check that same cells are reported through
-						//SSEData& d8  = fw_ ? sseU8fw_  : sseU8rc_;
-						//SSEData& d16 = fw_ ? sseI16fw_ : sseI16rc_;
-						//for(size_t i = d8.mat_.nrow(); i > 0; i--) {
-						//	for(size_t j = 0; j < d8.mat_.ncol(); j++) {
-						//		assert_eq(d8.mat_.reportedThrough(i-1, j),
-						//				  d16.mat_.reportedThrough(i-1, j));
-						//	}
-						//}
-					//}
+						SSEData& d8  = fw_ ? sseU8fw_  : sseU8rc_;
+						SSEData& d16 = fw_ ? sseI16fw_ : sseI16rc_;
+						for(size_t i = d8.mat_.nrow(); i > 0; i--) {
+							for(size_t j = 0; j < d8.mat_.ncol(); j++) {
+								assert_eq(d8.mat_.reportedThrough(i-1, j),
+										  d16.mat_.reportedThrough(i-1, j));
+							}
+						}
+					}
+#endif
 				}
 #endif
+				rnd.init(reseed+1); // debug/release pseudo-randoms in lock step
 			} else if(sse16succ_) {
+				uint32_t reseed = rnd.nextU32() + 1;
 				ret = backtraceNucleotidesLocalSseI16(
 					btncand_[cural_].score, // in: expected score
 					res,    // out: store results (edits and scores) here
@@ -976,36 +948,28 @@ bool SwAligner::nextAlignment(
 					rnd);   // random gen, to choose among equal paths
 #ifndef NDEBUG
 				{
-					SwResult res2, res3;
+					SwResult res2;
 					size_t maxiter2 = std::numeric_limits<size_t>::max();
-					size_t niter2 = 0, niter3 = 0;
+					size_t niter2 = 0;
 					bool ret2 = backtrace(
 						btncand_[cural_].score, // in: expected score
-						true,   // in: use mini-fill?
-						true,   // in: use checkpoints?
-						res2,   // out: store results (edits and scores) here
-						off,    // out: store diagonal projection of origin
-						row,    // start in this rectangle row
-						col,    // start in this rectangle column
-						maxiter2,// max # extensions to try
-						niter2, // # extensions tried
-						rnd);   // random gen, to choose among equal paths
-					size_t maxiter3 = 1000;
-					bool ret3 = backtrace(
-						btncand_[cural_].score, // in: expected score
-						false,  // in: use mini-fill?
-						false,  // in: use checkpoints?
-						res3,   // out: store results (edits and scores) here
-						off,    // out: store diagonal projection of origin
-						row,    // start in this rectangle row
-						col,    // start in this rectangle column
-						maxiter3,// max # extensions to try
-						niter3, // # extensions tried
-						rnd);   // random gen, to choose among equal paths
-					assert_eq(ret, ret2);
-					assert(niter3 >= maxiter3 || ret == ret3);
+						true,     // in: use mini-fill?
+						true,     // in: use checkpoints?
+						res2,     // out: store results (edits and scores) here
+						off,      // out: store diagonal projection of origin
+						row,      // start in this rectangle row
+						col,      // start in this rectangle column
+						maxiter2, // max # extensions to try
+						niter2,   // # extensions tried
+						rnd);     // random gen, to choose among equal paths
+					// After the first alignment, there's no guarantee we'll
+					// get the same answer from both backtrackers because of
+					// differences in how they handle marking cells as
+					// reported-through.
+					assert(cural_ > 0 || !ret || ret == ret2);
 				}
 #endif
+				rnd.init(reseed); // same b/t backtrace calls
 			}
 			if(ret) {
 				btncand_[cural_].fate = BT_CAND_FATE_SUCCEEDED;

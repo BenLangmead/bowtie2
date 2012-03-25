@@ -334,7 +334,6 @@ TAlScore SwAligner::alignGatherLoc16(int& flag) {
 	cper_.init(
 		dpRows(),     // # rows
 		rff_ - rfi_,  // # columns
-		cperMinlen_,  // minimum length for using checkpointer
 		cperPerPow2_, // checkpoint every 1 << perpow2 diags (& next)
 		cperEf_,      // store E and F in addition to H?
 		false,        // matrix is 8-bit?
@@ -365,6 +364,7 @@ TAlScore SwAligner::alignGatherLoc16(int& flag) {
 	__m128i vh       = _mm_setzero_si128();
 #if 1
 	__m128i vhd      = _mm_setzero_si128();
+	__m128i vhdtmp   = _mm_setzero_si128();
 #endif
 	__m128i vm       = _mm_setzero_si128();
 	__m128i vtmp     = _mm_setzero_si128();
@@ -517,12 +517,43 @@ TAlScore SwAligner::alignGatherLoc16(int& flag) {
 		// Factor in query profile (matches and mismatches)
 		vh = _mm_adds_epi16(vh, pvScore[0]);
 		// vh now contains the diagonal contribution
-		
+
+		// Save the new vM values
+		_mm_store_si128(pvMRight, vm);
+		pvMRight += ROWSTRIDE_2COL;
+
+		// Update vE value
+#if 1
+		vhdtmp = vhd;
+		vhd = _mm_subs_epi16(vhd, rdgapo);
+		vhd = _mm_adds_epi16(vhd, pvScore[1]); // veto some read gap opens
+		vhd = _mm_adds_epi16(vhd, pvScore[1]); // veto some read gap opens
+		ve = _mm_subs_epi16(ve, rdgape);
+		ve = _mm_max_epi16(ve, vhd);
+
 		// Update H, factoring in E and F
 		vtmp = _mm_max_epi16(vh, ve);
 		// F won't change anything!
 		
 		vh = vtmp;
+		vf = vh;
+		
+		// Update highest score so far
+		vcolmax = vh;
+		
+		// Save the new vH values
+		_mm_store_si128(pvHRight, vh);
+
+		assert_all_lt(ve, vhi);
+
+		vh = vhdtmp;
+#else
+		// Update H, factoring in E and F
+		vtmp = _mm_max_epi16(vh, ve);
+		// F won't change anything!
+		
+		vh = vtmp;
+		vf = vh;
 		
 		// Update highest score so far
 		vcolmax = vlo;
@@ -530,35 +561,18 @@ TAlScore SwAligner::alignGatherLoc16(int& flag) {
 		
 		// Save the new vH values
 		_mm_store_si128(pvHRight, vh);
-		pvHRight += ROWSTRIDE_2COL;
-
-		// Save the new vM values
-		_mm_store_si128(pvMRight, vm);
-		pvMRight += ROWSTRIDE_2COL;
 		
-		// Update vE value
-		vf = vh;
-#if 1
-		vhd = _mm_subs_epi16(vhd, rdgapo);
-		vhd = _mm_adds_epi16(vhd, pvScore[1]); // veto some read gap opens
-		vhd = _mm_adds_epi16(vhd, pvScore[1]); // veto some read gap opens
-		ve = _mm_subs_epi16(ve, rdgape);
-		ve = _mm_max_epi16(ve, vhd);
-#else
 		vh = _mm_subs_epi16(vh, rdgapo);
 		vh = _mm_adds_epi16(vh, pvScore[1]); // veto some read gap opens
 		vh = _mm_adds_epi16(vh, pvScore[1]); // veto some read gap opens
 		ve = _mm_subs_epi16(ve, rdgape);
 		ve = _mm_max_epi16(ve, vh);
-#endif
-		assert_all_lt(ve, vhi);
-		
-		// Load the next h value
-#if 1
-		vh = vhd;
-#else
+
 		vh = _mm_load_si128(pvHLeft);
 #endif
+
+		assert_all_lt(ve, vhi);
+		pvHRight += ROWSTRIDE_2COL;
 		pvHLeft += ROWSTRIDE_2COL;
 		
 		// Save E values
@@ -593,45 +607,54 @@ TAlScore SwAligner::alignGatherLoc16(int& flag) {
 			
 			// Factor in query profile (matches and mismatches)
 			vh = _mm_adds_epi16(vh, pvScore[0]);
-			
-			// Update H, factoring in E and F
-			vh = _mm_max_epi16(vh, ve);
 			vh = _mm_max_epi16(vh, vf);
-			
-			// Update highest score encountered this far
-			vcolmax = _mm_max_epi16(vcolmax, vh);
-			
-			// Save the new vH values
-			_mm_store_si128(pvHRight, vh);
-			pvHRight += ROWSTRIDE_2COL;
 
 			// Save the new vM values
 			_mm_store_si128(pvMRight, vm);
 			pvMRight += ROWSTRIDE_2COL;
 
 			// Update vE value
-			vtmp = vh;
 #if 1
+			vhdtmp = vhd;
 			vhd = _mm_subs_epi16(vhd, rdgapo);
 			vhd = _mm_adds_epi16(vhd, pvScore[1]); // veto some read gap opens
 			vhd = _mm_adds_epi16(vhd, pvScore[1]); // veto some read gap opens
 			ve = _mm_subs_epi16(ve, rdgape);
 			ve = _mm_max_epi16(ve, vhd);
+
+			// Update H, factoring in E and F
+			vh = _mm_max_epi16(vh, ve);
+			vtmp = vh;
+			
+			// Update highest score encountered this far
+			vcolmax = _mm_max_epi16(vcolmax, vh);
+			
+			// Save the new vH values
+			_mm_store_si128(pvHRight, vh);
+			
+			vh = vhdtmp;
 #else
+			// Update H, factoring in E and F
+			vh = _mm_max_epi16(vh, ve);
+			vtmp = vh;
+			
+			// Update highest score encountered this far
+			vcolmax = _mm_max_epi16(vcolmax, vh);
+			
+			// Save the new vH values
+			_mm_store_si128(pvHRight, vh);
+			
 			vh = _mm_subs_epi16(vh, rdgapo);
 			vh = _mm_adds_epi16(vh, pvScore[1]); // veto some read gap opens
 			vh = _mm_adds_epi16(vh, pvScore[1]); // veto some read gap opens
 			ve = _mm_subs_epi16(ve, rdgape);
 			ve = _mm_max_epi16(ve, vh);
-#endif
-			assert_all_lt(ve, vhi);
 			
-			// Load the next h value
-#if 1
-			vh = vhd;
-#else
 			vh = _mm_load_si128(pvHLeft);
 #endif
+
+			assert_all_lt(ve, vhi);
+			pvHRight += ROWSTRIDE_2COL;
 			pvHLeft += ROWSTRIDE_2COL;
 			
 			// Save E values
@@ -736,7 +759,7 @@ TAlScore SwAligner::alignGatherLoc16(int& flag) {
 		}
 		
 #ifndef NDEBUG
-		if((rand() & 15) == 0) {
+		if(true || (rand() & 15) == 0) {
 			// This is a work-intensive sanity check; each time we finish filling
 			// a column, we check that each H, E, and F is sensible.
 			for(size_t k = 0; k < dpRows(); k++) {
@@ -1745,6 +1768,11 @@ bool SwAligner::backtraceNucleotidesLocalSseI16(
 					}
 					if(mask == 3) {
 						// Horiz H -> E or horiz E -> E moves possible
+#if 1
+						// Pick H -> E cell
+						cur = SW_BT_OALL_READ_OPEN;
+						d.mat_.eMaskSet(row, col, 2); // might choose E later
+#else
 						if(rnd.nextU2()) {
 							// Pick H -> E cell
 							cur = SW_BT_OALL_READ_OPEN;
@@ -1754,6 +1782,7 @@ bool SwAligner::backtraceNucleotidesLocalSseI16(
 							cur = SW_BT_RDGAP_EXTEND;
 							d.mat_.eMaskSet(row, col, 1); // might choose H later
 						}
+#endif
 						branch = true;
 					} else if(mask == 2) {
 						// Only horiz E -> E move possible, pick it
@@ -1800,6 +1829,11 @@ bool SwAligner::backtraceNucleotidesLocalSseI16(
 						mask = (d.mat_.masks_[row][col] >> 11) & 3;
 					}
 					if(mask == 3) {
+#if 1
+						// I chose the H cell
+						cur = SW_BT_OALL_REF_OPEN;
+						d.mat_.fMaskSet(row, col, 2); // might choose E later
+#else
 						if(rnd.nextU2()) {
 							// I chose the H cell
 							cur = SW_BT_OALL_REF_OPEN;
@@ -1809,6 +1843,7 @@ bool SwAligner::backtraceNucleotidesLocalSseI16(
 							cur = SW_BT_RFGAP_EXTEND;
 							d.mat_.fMaskSet(row, col, 1); // might choose E later
 						}
+#endif
 						branch = true;
 					} else if(mask == 2) {
 						// I chose the F cell
@@ -1853,7 +1888,7 @@ bool SwAligner::backtraceNucleotidesLocalSseI16(
 						}
 					}
 					if(sc_h_upleft > floorsc && sc_cur == sc_h_upleft + sc_diag) {
-						mask |= (1 << 4);
+						mask |= (1 << 4); // diagonal is 
 					}
 					origMask = mask;
 					assert(origMask > 0 || sc_cur <= sc_->match());
@@ -1868,7 +1903,21 @@ bool SwAligner::backtraceNucleotidesLocalSseI16(
 						assert_geq(mask, 0);
 						d.mat_.hMaskSet(row, col, 0);
 					} else if(opts > 1) {
+#if 1
+						if(       (mask & 16) != 0) {
+							select = 4; // H diag
+						} else if((mask & 1) != 0) {
+							select = 0; // H up
+						} else if((mask & 4) != 0) {
+							select = 2; // F up
+						} else if((mask & 2) != 0) {
+							select = 1; // H left
+						} else if((mask & 8) != 0) {
+							select = 3; // E left
+						}
+#else
 						select = randFromMask(rnd, mask);
+#endif
 						assert_geq(mask, 0);
 						mask &= ~(1 << select);
 						assert(gapsAllowed || mask == (1 << 4) || mask == 0);

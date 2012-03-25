@@ -340,7 +340,6 @@ public:
 	void init(
 		size_t nrow,          // # of rows
 		size_t ncol,          // # of columns
-		size_t minlen,        // read must be >= minlen long to be checkpointed
 		size_t perpow2,       // checkpoint every 1 << perpow2 diags (& next)
 		bool ef,              // store E and F in addition to H?
 		bool is8,             // is the matrix 8-bit?  affects commitCol
@@ -349,7 +348,6 @@ public:
 	{
 		nrow_ = nrow;
 		ncol_ = ncol;
-		minlen_ = minlen;
 		perpow2_ = perpow2;
 		per_ = 1 << perpow2;
 		lomask_ = ~(0xffffffff << perpow2);
@@ -380,7 +378,7 @@ public:
 	 * Return true iff we're going to use checkpoints for this DP problem.
 	 */
 	bool doCheckpoints() const {
-		return ncol_ >= minlen_;
+		return true;
 	}
 	
 	/**
@@ -443,7 +441,7 @@ public:
 	 * Reset the state of the Checkpointer.
 	 */
 	void reset() {
-		minlen_ = perpow2_ = per_ = lomask_ = nrow_ = ncol_ = 0;
+		perpow2_ = per_ = lomask_ = nrow_ = ncol_ = 0;
 		ef_ = is8_ = local_ = false;
 		iter_ = ndiag_ = locol_ = hicol_ = 0;
 		perf_ = 0;
@@ -476,8 +474,6 @@ public:
 	
 protected:
 
-	size_t   minlen_;    // don't checkpoint for rectangles with fewer than
-	                     // this many columns
 	size_t   perpow2_;   // 1 << perpow2_ - 2 is the # of uncheckpointed
 	                     // anti-diags between checkpointed anti-diag pairs
 	size_t   per_;       // 1 << perpow2_
