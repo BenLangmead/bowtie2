@@ -680,9 +680,17 @@ public:
 		bs_.clear();
 		if(!prob_.fill_) {
 			size_t id = bs_.alloc();
-			bs_[id].init(prob_, NULL, 0, 0 /* starting score */, row, col, e, 0,
-			             true,  // this is the root
-						 true); // this should be extend with exact matches
+			bs_[id].init(
+				prob_,
+				0,     // parent id
+				0,     // penalty
+				0,     // starting score
+				row,   // row
+				col,   // column
+				e,
+				0,
+			    true,  // this is the root
+				true); // this should be extend with exact matches
 			if(bs_[id].isSolution(prob_)) {
 				addSolution(id);
 			} else {
