@@ -855,6 +855,8 @@ sub genAlignArgs {
 	$args{"-D"} = genPolicyFailStreak();
 	$args{"-R"} = genPolicySeedRounds();
 	$args{"--policy"} = ("\"".genPolicyArg($local)."\"") if rand() < 0.9;
+	$args{"--cp-min"} = int(Math::Random::random_exponential(1, 3)) + 2;
+	$args{"--cp-ival"} = int(Math::Random::random_exponential(1, 1)) + 1;
 	return \%args;
 }
 

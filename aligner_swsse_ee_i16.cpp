@@ -292,7 +292,7 @@ static bool cellOkEnd2EndI16(
  * and isn't improved upon by a match in the next column.  The best N
  * candidates per diagonal are stored in a O(m + n) data structure.
  */
-TAlScore SwAligner::alignGatherEE16(int& flag) {
+TAlScore SwAligner::alignGatherEE16(int& flag, bool debug) {
 	assert_leq(rdf_, rd_->length());
 	assert_leq(rdf_, qu_->length());
 	assert_lt(rfi_, rff_);
@@ -308,7 +308,7 @@ TAlScore SwAligner::alignGatherEE16(int& flag) {
 
 	SSEData& d = fw_ ? sseI16fw_ : sseI16rc_;
 	SSEMetrics& met = extend_ ? sseI16ExtendMet_ : sseI16MateMet_;
-	met.dp++;
+	if(!debug) met.dp++;
 	buildQueryProfileEnd2EndSseI16(fw_);
 	assert(!d.profbuf_.empty());
 
@@ -322,6 +322,12 @@ TAlScore SwAligner::alignGatherEE16(int& flag) {
 	d.vecbuf_.zero();
 	__m128i *vbuf_l = d.vecbuf_.ptr();
 	__m128i *vbuf_r = d.vecbuf_.ptr() + (4 * iter);
+	
+	// This is the data structure that holds candidate cells per diagonal.
+	const size_t ndiags = rff_ - rfi_ + dpRows() - 1;
+	if(!debug) {
+		btdiag_.init(ndiags, 2);
+	}
 
 	// Data structure that holds checkpointed anti-diagonals
 	TAlScore perfectScore = sc_->perfectScore(dpRows());
@@ -355,10 +361,8 @@ TAlScore SwAligner::alignGatherEE16(int& flag) {
 	__m128i ve       = _mm_setzero_si128();
 	__m128i vf       = _mm_setzero_si128();
 	__m128i vh       = _mm_setzero_si128();
-#if 1
 	__m128i vhd      = _mm_setzero_si128();
 	__m128i vhdtmp   = _mm_setzero_si128();
-#endif
 	__m128i vtmp     = _mm_setzero_si128();
 
 	assert_gt(sc_->refGapOpen(), 0);
@@ -451,8 +455,6 @@ TAlScore SwAligner::alignGatherEE16(int& flag) {
 	// it difficult to use the first-row results in the next row, but it might
 	// be the simplest and least disruptive way to deal with the st_ constraint.
 	
-	colstop_ = rff_ - 1;
-	lastsolcol_ = 0;
 	for(size_t i = rfi_; i < rff_; i++) {
 		// Swap left and right; vbuf_l is the vector on the left, which we
 		// generally load from, and vbuf_r is the vector on the right, which we
@@ -487,9 +489,7 @@ TAlScore SwAligner::alignGatherEE16(int& flag) {
 		for(j = 0; j < iter; j++) {
 			// Load cells from E, calculated previously
 			ve = _mm_load_si128(pvELeft);
-#if 1
 			vhd = _mm_load_si128(pvHLeft);
-#endif
 			assert_all_lt(ve, vhi);
 			pvELeft += ROWSTRIDE_2COL;
 			
@@ -504,17 +504,8 @@ TAlScore SwAligner::alignGatherEE16(int& flag) {
 			
 			// Update H, factoring in E and F
 			vh = _mm_max_epi16(vh, vf);
-#if 1
-#else
-			vh = _mm_max_epi16(vh, ve);
-
-			// Save the new vH values
-			_mm_store_si128(pvHRight, vh);
-			pvHRight += ROWSTRIDE_2COL;
-#endif
 			
 			// Update vE value
-#if 1
 			vhdtmp = vhd;
 			vhd = _mm_subs_epi16(vhd, rdgapo);
 			vhd = _mm_adds_epi16(vhd, pvScore[1]); // veto some read gap opens
@@ -527,22 +518,10 @@ TAlScore SwAligner::alignGatherEE16(int& flag) {
 			_mm_store_si128(pvHRight, vh);
 			pvHRight += ROWSTRIDE_2COL;
 			vtmp = vh;
-#else
-			vtmp = vh;
-			vh = _mm_subs_epi16(vh, rdgapo);
-			vh = _mm_adds_epi16(vh, pvScore[1]); // veto some read gap opens
-			vh = _mm_adds_epi16(vh, pvScore[1]); // veto some read gap opens
-			ve = _mm_subs_epi16(ve, rdgape);
-			ve = _mm_max_epi16(ve, vh);
-#endif
 			assert_all_lt(ve, vhi);
 			
 			// Load the next h value
-#if 1
 			vh = vhdtmp;
-#else
-			vh = _mm_load_si128(pvHLeft);
-#endif
 			pvHLeft += ROWSTRIDE_2COL;
 
 			// Save E values
@@ -563,12 +542,6 @@ TAlScore SwAligner::alignGatherEE16(int& flag) {
 		
 		pvHRight -= colstride; // reset to start of column
 		vh = _mm_load_si128(pvHRight);
-		
-#if 1
-#else
-		pvERight -= colstride; // reset to start of column
-		ve = _mm_load_si128(pvERight);
-#endif
 		
 		pvScore = d.profbuf_.ptr() + off + 1; // reset veto vector
 		
@@ -597,16 +570,6 @@ TAlScore SwAligner::alignGatherEE16(int& flag) {
 			_mm_store_si128(pvHRight, vh);
 			pvHRight += ROWSTRIDE_2COL;
 			
-#if 1
-#else
-			// Update E in case it can be improved using our new vh
-			vh = _mm_subs_epi16(vh, rdgapo);
-			vh = _mm_adds_epi16(vh, *pvScore); // veto some read gap opens
-			vh = _mm_adds_epi16(vh, *pvScore); // veto some read gap opens
-			ve = _mm_max_epi16(ve, vh);
-			_mm_store_si128(pvERight, ve);
-			pvERight += ROWSTRIDE_2COL;
-#endif
 			pvScore += 2;
 			
 			assert_lt(j, iter);
@@ -615,11 +578,6 @@ TAlScore SwAligner::alignGatherEE16(int& flag) {
 				vtmp = _mm_load_si128(pvFRight);   // load next vf ASAP
 				pvHRight -= colstride;
 				vh = _mm_load_si128(pvHRight);     // load next vh ASAP
-#if 1
-#else
-				pvERight -= colstride;
-				ve = _mm_load_si128(pvERight);     // load next ve ASAP
-#endif
 				pvScore = d.profbuf_.ptr() + off + 1;
 				j = 0;
 				vf = _mm_slli_si128(vf, NBYTES_PER_WORD);
@@ -627,10 +585,6 @@ TAlScore SwAligner::alignGatherEE16(int& flag) {
 			} else {
 				vtmp = _mm_load_si128(pvFRight);   // load next vf ASAP
 				vh = _mm_load_si128(pvHRight);     // load next vh ASAP
-#if 1
-#else
-				ve = _mm_load_si128(pvERight);     // load next vh ASAP
-#endif
 			}
 			
 			// Update F with another gap extension
@@ -642,23 +596,7 @@ TAlScore SwAligner::alignGatherEE16(int& flag) {
 			cmp = _mm_movemask_epi8(vtmp);
 			nfixup++;
 		}
-		
-#ifndef NDEBUG
-		if(true || (rand() & 15) == 0) {
-			// This is a work-intensive sanity check; each time we finish filling
-			// a column, we check that each H, E, and F is sensible.
-			for(size_t k = 0; k < dpRows(); k++) {
-				assert(cellOkEnd2EndI16(
-					d,
-					k,                   // row
-					i - rfi_,            // col
-					refc,                // reference mask
-					(int)(*rd_)[rdi_+k], // read char
-					(int)(*qu_)[rdi_+k], // read quality
-					*sc_));              // scoring scheme
-			}
-		}
-#endif
+
 		
 		// Check in the last row for the maximum so far
 		__m128i *vtmp = vbuf_r + 2 /* H */ + (d.lastIter_ * ROWSTRIDE_2COL);
@@ -667,6 +605,18 @@ TAlScore SwAligner::alignGatherEE16(int& flag) {
 		found = true;
 		if(lr > lrmax) {
 			lrmax = lr;
+		}
+		
+		// Now we'd like to know whether the bottommost element of the right
+		// column is a candidate we might backtrace from.  First question is:
+		// did it exceed the minimum score threshold?
+		TAlScore score = (TAlScore)(lr - 0x7fff);
+		if(lr == std::numeric_limits<TCScore>::min()) {
+			score = std::numeric_limits<TAlScore>::min();
+		}
+		if(!debug && score >= minsc_) {
+			DpBtCandidate cand(dpRows() - 1, i - rfi_, score);
+			btdiag_.add(i - rfi_, cand);
 		}
 
 		// Save some elements to checkpoints
@@ -679,11 +629,13 @@ TAlScore SwAligner::alignGatherEE16(int& flag) {
 	}
 	
 	// Update metrics
-	size_t ninner = (rff_ - rfi_) * iter;
-	met.col   += (rff_ - rfi_);             // DP columns
-	met.cell  += (ninner * NWORDS_PER_REG); // DP cells
-	met.inner += ninner;                    // DP inner loop iters
-	met.fixup += nfixup;                    // DP fixup loop iters
+	if(!debug) {
+		size_t ninner = (rff_ - rfi_) * iter;
+		met.col   += (rff_ - rfi_);             // DP columns
+		met.cell  += (ninner * NWORDS_PER_REG); // DP cells
+		met.inner += ninner;                    // DP inner loop iters
+		met.fixup += nfixup;                    // DP fixup loop iters
+	}
 
 	flag = 0;
 
@@ -691,13 +643,13 @@ TAlScore SwAligner::alignGatherEE16(int& flag) {
 	TAlScore score = std::numeric_limits<TAlScore>::min();
 	if(!found) {
 		flag = -1; // no
-		met.dpfail++;
+		if(!debug) met.dpfail++;
 		return std::numeric_limits<TAlScore>::min();
 	} else {
 		score = (TAlScore)(lrmax - 0x7fff);
 		if(score < minsc_) {
 			flag = -1; // no
-			met.dpfail++;
+			if(!debug) met.dpfail++;
 			return score;
 		}
 	}
@@ -705,12 +657,19 @@ TAlScore SwAligner::alignGatherEE16(int& flag) {
 	// Could we have saturated?
 	if(lrmax == std::numeric_limits<TCScore>::min()) {
 		flag = -2; // yes
-		met.dpsat++;
+		if(!debug) met.dpsat++;
 		return std::numeric_limits<TAlScore>::min();
 	}
 	
+	// Now take all the backtrace candidates in the btdaig_ structure and
+	// dump them into the btncand_ array.  They'll be sorted later.
+	if(!debug) {
+		btdiag_.dump(btncand_);
+		assert(!btncand_.empty());
+	}
+	
 	// Return largest score
-	met.dpsucc++;
+	if(!debug) met.dpsucc++;
 	return score;
 }
 
@@ -718,7 +677,7 @@ TAlScore SwAligner::alignGatherEE16(int& flag) {
  * Solve the current alignment problem using SSE instructions that operate on 8
  * signed 16-bit values packed into a single 128-bit register.
  */
-TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag) {
+TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag, bool debug) {
 	assert_leq(rdf_, rd_->length());
 	assert_leq(rdf_, qu_->length());
 	assert_lt(rfi_, rff_);
@@ -734,7 +693,7 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag) {
 
 	SSEData& d = fw_ ? sseI16fw_ : sseI16rc_;
 	SSEMetrics& met = extend_ ? sseI16ExtendMet_ : sseI16MateMet_;
-	met.dp++;
+	if(!debug) met.dp++;
 	buildQueryProfileEnd2EndSseI16(fw_);
 	assert(!d.profbuf_.empty());
 
@@ -826,7 +785,6 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag) {
 
 	d.mat_.init(dpRows(), rff_ - rfi_, NWORDS_PER_REG);
 	const size_t colstride = d.mat_.colstride();
-	//const size_t rowstride = d.mat_.rowstride();
 	assert_eq(ROWSTRIDE, colstride / iter);
 	
 	// Initialize the H and E vectors in the first matrix column
@@ -871,13 +829,10 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag) {
 	
 	colstop_ = rff_ - 1;
 	lastsolcol_ = 0;
+	
 	for(size_t i = rfi_; i < rff_; i++) {
 		assert(pvFStore == d.mat_.fvec(0, i - rfi_));
 		assert(pvHStore == d.mat_.hvec(0, i - rfi_));
-		
-		// Calculate distance from RHS of paralellogram; helps us decide
-		// whether a solution can end in this column 
-		//size_t fromend = rff_ - i - 1;
 		
 		// Fetch the appropriate query profile.  Note that elements of rf_ must
 		// be numbers, not masks.
@@ -1052,7 +1007,7 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag) {
 		}
 
 #ifndef NDEBUG
-		if(true || (rand() & 15) == 0) {
+		if((rand() & 15) == 0) {
 			// This is a work-intensive sanity check; each time we finish filling
 			// a column, we check that each H, E, and F is sensible.
 			for(size_t k = 0; k < dpRows(); k++) {
@@ -1068,21 +1023,13 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag) {
 		}
 #endif
 		
-		// Check in the last row for the maximum so far
-		// Only check elements that we might backtrack from
-		// These elements have to satisfy two criteria: (a) must be
-		// exhaustively scored and (b) must not have en_ set.
-		//if(fromend < solwidth_) {
-		//	if(en_ == NULL || (*en_)[solwidth_ - fromend - 1]) {
-				__m128i *vtmp = d.mat_.hvec(d.lastIter_, i-rfi_);
-				// Note: we may not want to extract from the final row
-				TCScore lr = ((TCScore*)(vtmp))[d.lastWord_];
-				found = true;
-				if(lr > lrmax) {
-					lrmax = lr;
-				}
-		//	}
-		//}
+		__m128i *vtmp = d.mat_.hvec(d.lastIter_, i-rfi_);
+		// Note: we may not want to extract from the final row
+		TCScore lr = ((TCScore*)(vtmp))[d.lastWord_];
+		found = true;
+		if(lr > lrmax) {
+			lrmax = lr;
+		}
 
 		// pvELoad and pvHLoad are already where they need to be
 		
@@ -1093,11 +1040,13 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag) {
 	}
 	
 	// Update metrics
-	size_t ninner = (rff_ - rfi_) * iter;
-	met.col   += (rff_ - rfi_);             // DP columns
-	met.cell  += (ninner * NWORDS_PER_REG); // DP cells
-	met.inner += ninner;                    // DP inner loop iters
-	met.fixup += nfixup;                    // DP fixup loop iters
+	if(!debug) {
+		size_t ninner = (rff_ - rfi_) * iter;
+		met.col   += (rff_ - rfi_);             // DP columns
+		met.cell  += (ninner * NWORDS_PER_REG); // DP cells
+		met.inner += ninner;                    // DP inner loop iters
+		met.fixup += nfixup;                    // DP fixup loop iters
+	}
 	
 	flag = 0;
 	
@@ -1105,13 +1054,13 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag) {
 	TAlScore score = std::numeric_limits<TAlScore>::min();
 	if(!found) {
 		flag = -1; // no
-		met.dpfail++;
+		if(!debug) met.dpfail++;
 		return std::numeric_limits<TAlScore>::min();
 	} else {
 		score = (TAlScore)(lrmax - 0x7fff);
 		if(score < minsc_) {
 			flag = -1; // no
-			met.dpfail++;
+			if(!debug) met.dpfail++;
 			return score;
 		}
 	}
@@ -1119,12 +1068,12 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag) {
 	// Could we have saturated?
 	if(lrmax == std::numeric_limits<TCScore>::min()) {
 		flag = -2; // yes
-		met.dpsat++;
+		if(!debug) met.dpsat++;
 		return std::numeric_limits<TAlScore>::min();
 	}
 	
 	// Return largest score
-	met.dpsucc++;
+	if(!debug) met.dpsucc++;
 	return score;
 }
 

@@ -73,33 +73,34 @@ void SwAligner::initRef(
 	const Scoring& sc,     // scoring scheme
 	TAlScore minsc,        // minimum score
 	bool enable8,          // use 8-bit SSE if possible?
-	bool extend)           // true iff this is a seed extension
+	size_t cminlen,        // minimum length for using checkpointing scheme
+	size_t cpow2,          // interval b/t checkpointed diags; 1 << this
+	bool extend)           // is this a seed extension?
 {
 	size_t readGaps = sc.maxReadGaps(minsc, rdfw_->length());
 	size_t refGaps  = sc.maxRefGaps(minsc, rdfw_->length());
 	assert_geq(readGaps, 0);
 	assert_geq(refGaps, 0);
-	rdgap_   = readGaps;   // max # gaps in read
-	rfgap_   = refGaps;    // max # gaps in reference
 	assert_gt(rff, rfi);
-	state_     = STATE_INITED;
-	fw_        = fw;
-	rd_        = fw ? rdfw_ : rdrc_;
-	qu_        = fw ? qufw_ : qurc_;
-	refidx_    = refidx;     // id of reference aligned against
-	rf_        = rf;         // reference sequence
-	rfi_       = rfi;        // offset of first reference char to align to
-	rff_       = rff;        // offset of last reference char to align to
-	rect_      = &rect;      // DP rectangle
-	minsc_     = minsc;      // minimum score
-	cural_     = 0;          // idx of next alignment to give out
-	initedRef_ = true;       // indicate we've initialized the ref portion
-	enable8_   = enable8;    // use 8-bit SSE if possible?
-	extend_    = extend;     // true iff this is a seed extension
-	assert(initedRead_);
-	cperMinlen_ = 16;
-	cperPerPow2_ = 1;
-	cperEf_ = true;
+	rdgap_       = readGaps;  // max # gaps in read
+	rfgap_       = refGaps;   // max # gaps in reference
+	state_       = STATE_INITED;
+	fw_          = fw;       // orientation
+	rd_          = fw ? rdfw_ : rdrc_; // read sequence
+	qu_          = fw ? qufw_ : qurc_; // quality sequence
+	refidx_      = refidx;   // id of reference aligned against
+	rf_          = rf;       // reference sequence
+	rfi_         = rfi;      // offset of first reference char to align to
+	rff_         = rff;      // offset of last reference char to align to
+	rect_        = &rect;    // DP rectangle
+	minsc_       = minsc;    // minimum score
+	cural_       = 0;        // idx of next alignment to give out
+	initedRef_   = true;     // indicate we've initialized the ref portion
+	enable8_     = enable8;  // use 8-bit SSE if possible?
+	extend_      = extend;   // true iff this is a seed extension
+	cperMinlen_  = cminlen;  // reads shorter than this won't use checkpointer
+	cperPerPow2_ = cpow2;    // interval b/t checkpointed diags; 1 << this
+	cperEf_      = true;     // whether to checkpoint H, E, and F
 	bter_.initRef(
 		fw_ ? rdfw_->buf() : // in: read sequence
 			  rdrc_->buf(), 
@@ -115,23 +116,6 @@ void SwAligner::initRef(
 		&cper_,              // in: checkpointer
 		*sc_,                // in: scoring scheme
 		nceil_);             // in: N ceiling
-#ifndef NDEBUG
-	bterCp_.initRef(
-		fw_ ? rdfw_->buf() : // in: read sequence
-			  rdrc_->buf(), 
-		fw_ ? qufw_->buf() : // in: quality sequence
-			  qurc_->buf(),
-		rd_->length(),       // in: read sequence length
-		rf_ + rfi_,          // in: reference sequence
-		rff_ - rfi_,         // in: reference sequence length
-		refidx_,             // in: reference id
-		rfi_,                // in: reference offset
-		fw_,                 // in: orientation
-		rect_,               // in: DP rectangle
-		&cper_,              // in: checkpointer
-		*sc_,                // in: scoring scheme
-		nceil_);             // in: N ceiling
-#endif
 }
 	
 /**
@@ -152,6 +136,8 @@ void SwAligner::initRef(
 	const Scoring& sc,     // scoring scheme
 	TAlScore minsc,        // minimum score
 	bool enable8,          // use 8-bit SSE if possible?
+	size_t cminlen,        // minimum length for using checkpointing scheme
+	size_t cpow2,          // interval b/t checkpointed diags; 1 << this
 	bool extend,           // true iff this is a seed extension
 	size_t  upto,          // count the number of Ns up to this offset
 	size_t& nsUpto)        // output: the number of Ns up to 'upto'
@@ -251,6 +237,8 @@ void SwAligner::initRef(
 		sc,          // scoring scheme
 		minsc,       // minimum score
 		enable8,     // use 8-bit SSE if possible?
+		cminlen,     // minimum length for using checkpointing scheme
+		cpow2,       // interval b/t checkpointed diags; 1 << this
 		extend);     // true iff this is a seed extension
 }
 
@@ -485,76 +473,109 @@ bool SwAligner::align(RandomSource& rnd) {
 	TAlScore best = 0;
 	sse8succ_ = sse16succ_ = false;
 	int flag = 0;
+	size_t rdlen = rdf_ - rdi_;
+	bool checkpointed = rdlen >= cperMinlen_;
+	bool gathered = false; // Did gathering happen along with alignment?
 	if(sc_->monotone) {
+		// End-to-end
 		if(enable8_ && !readSse16_ && minsc_ >= -254) {
-			best = alignNucleotidesEnd2EndSseU8(flag);
+			// 8-bit end-to-end
+			if(checkpointed) {
+				best = alignGatherEE8(flag, false);
+				if(flag == 0) {
+					gathered = true;
+				}
+			} else {
+				best = alignNucleotidesEnd2EndSseU8(flag, false);
 #ifndef NDEBUG
-			{
 				int flagtmp = 0;
-				TAlScore besttmp = alignGatherEE8(flagtmp);
+				TAlScore besttmp = alignGatherEE8(flagtmp, true); // debug
 				assert_eq(flagtmp, flag);
 				assert_eq(besttmp, best);
-			}
 #endif
+			}
 			sse8succ_ = (flag == 0);
 #ifndef NDEBUG
-			int flag2 = 0;
-			TAlScore best2 = alignNucleotidesEnd2EndSseI16(flag2);
 			{
-				int flagtmp = 0;
-				TAlScore besttmp = alignGatherEE16(flagtmp);
-				assert_eq(flagtmp, flag2);
-				assert_eq(besttmp, best2);
+				int flag2 = 0;
+				TAlScore best2 = alignNucleotidesEnd2EndSseI16(flag2, true);
+				{
+					int flagtmp = 0;
+					TAlScore besttmp = alignGatherEE16(flagtmp, true);
+					assert_eq(flagtmp, flag2);
+					assert(flag2 != 0 || best2 == besttmp);
+				}
+				assert(flag < 0 || best == best2);
+				sse16succ_ = (flag2 == 0);
 			}
-			assert(flag < 0 || best == best2);
-			sse16succ_ = (flag2 == 0);
 #endif /*ndef NDEBUG*/
 		} else {
-			best = alignNucleotidesEnd2EndSseI16(flag);
+			// 16-bit end-to-end
+			if(checkpointed) {
+				best = alignGatherEE16(flag, false);
+				if(flag == 0) {
+					gathered = true;
+				}
+			} else {
+				best = alignNucleotidesEnd2EndSseI16(flag, false);
 #ifndef NDEBUG
-			{
 				int flagtmp = 0;
-				TAlScore besttmp = alignGatherEE16(flagtmp);
+				TAlScore besttmp = alignGatherEE16(flagtmp, true);
 				assert_eq(flagtmp, flag);
 				assert_eq(besttmp, best);
-			}
 #endif
+			}
 			sse16succ_ = (flag == 0);
 		}
 	} else {
+		// Local
 		flag = -2;
 		if(enable8_ && !readSse16_) {
-			best = alignNucleotidesLocalSseU8(flag);
+			// 8-bit local
+			if(checkpointed) {
+				best = alignGatherLoc8(flag, false);
+				if(flag == 0) {
+					gathered = true;
+				}
+			} else {
+				best = alignNucleotidesLocalSseU8(flag, false);
 #ifndef NDEBUG
-			int flagtmp = 0;
-			TAlScore besttmp = alignGatherLoc8(flagtmp);
-			assert_eq(flag, flagtmp);
-			assert_eq(best, besttmp);
-#endif
-		}
-		if(flag == -2) {
-			flag = 0;
-			//readSse16_ = true; // sse16 from now on for this read
-			best = alignNucleotidesLocalSseI16(flag);
-#ifndef NDEBUG
-			{
 				int flagtmp = 0;
-				TAlScore besttmp = alignGatherLoc16(flagtmp);
+				TAlScore besttmp = alignGatherLoc8(flagtmp, true);
 				assert_eq(flag, flagtmp);
 				assert_eq(best, besttmp);
-			}
 #endif
+			}
+		}
+		if(flag == -2) {
+			// 16-bit local
+			flag = 0;
+			if(checkpointed) {
+				best = alignNucleotidesLocalSseI16(flag, false);
+				best = alignGatherLoc16(flag, false);
+				if(flag == 0) {
+					gathered = true;
+				}
+			} else {
+				best = alignNucleotidesLocalSseI16(flag, false);
+#ifndef NDEBUG
+				int flagtmp = 0;
+				TAlScore besttmp = alignGatherLoc16(flagtmp, true);
+				assert_eq(flag, flagtmp);
+				assert_eq(best, besttmp);
+#endif
+			}
 			sse16succ_ = (flag == 0);
 		} else {
 			sse8succ_ = (flag == 0);
 #ifndef NDEBUG
 			int flag2 = 0;
-			TAlScore best2 = alignNucleotidesLocalSseI16(flag2);
+			TAlScore best2 = alignNucleotidesLocalSseI16(flag2, true);
 			{
 				int flagtmp = 0;
-				TAlScore besttmp = alignGatherLoc16(flagtmp);
-				assert_eq(best2, besttmp);
+				TAlScore besttmp = alignGatherLoc16(flagtmp, true);
 				assert_eq(flag2, flagtmp);
+				assert(flag2 != 0 || best2 == besttmp);
 			}
 			assert(flag2 < 0 || best == best2);
 			sse16succ_ = (flag2 == 0);
@@ -562,7 +583,7 @@ bool SwAligner::align(RandomSource& rnd) {
 		}
 	}
 #ifndef NDEBUG
-	if((rand() & 15) == 0 && sse8succ_ && sse16succ_) {
+	if(!checkpointed && (rand() & 15) == 0 && sse8succ_ && sse16succ_) {
 		SSEData& d8  = fw_ ? sseU8fw_  : sseU8rc_;
 		SSEData& d16 = fw_ ? sseI16fw_ : sseI16rc_;
 		assert_eq(d8.mat_.nrow(), d16.mat_.nrow());
@@ -621,45 +642,41 @@ bool SwAligner::align(RandomSource& rnd) {
 	assert(repOk());
 	cural_ = 0;
 	if(best == std::numeric_limits<TAlScore>::min() || best < minsc_) {
-		//gettimeofday(&tv_f, &tz_f);
-		//size_t total_usecs =
-		//	(tv_f.tv_sec - tv_i.tv_sec) * 1000000 + (tv_f.tv_usec - tv_i.tv_usec);
-		//if(total_usecs > 300000) {
-		//	cerr << "Saw a long call to align (" << total_usecs << " usecs)" << endl;
-		//}
 		return false;
 	}
-	// Look for solutions using SSE matrix
-	assert(sse8succ_ || sse16succ_);
-	if(sc_->monotone) {
-		if(sse8succ_) {
-			gatherCellsNucleotidesEnd2EndSseU8(best);
+	if(!gathered) {
+		// Look for solutions using SSE matrix
+		assert(sse8succ_ || sse16succ_);
+		if(sc_->monotone) {
+			if(sse8succ_) {
+				gatherCellsNucleotidesEnd2EndSseU8(best);
 #ifndef NDEBUG
-			if(sse16succ_) {
-				cand_tmp_ = btncand_;
+				if(sse16succ_) {
+					cand_tmp_ = btncand_;
+					gatherCellsNucleotidesEnd2EndSseI16(best);
+					cand_tmp_.sort();
+					btncand_.sort();
+					assert(cand_tmp_ == btncand_);
+				}
+#endif /*ndef NDEBUG*/
+			} else {
 				gatherCellsNucleotidesEnd2EndSseI16(best);
-				cand_tmp_.sort();
-				btncand_.sort();
-				assert(cand_tmp_ == btncand_);
 			}
-#endif /*ndef NDEBUG*/
 		} else {
-			gatherCellsNucleotidesEnd2EndSseI16(best);
-		}
-	} else {
-		if(sse8succ_) {
-			gatherCellsNucleotidesLocalSseU8(best);
+			if(sse8succ_) {
+				gatherCellsNucleotidesLocalSseU8(best);
 #ifndef NDEBUG
-			if(sse16succ_) {
-				cand_tmp_ = btncand_;
-				gatherCellsNucleotidesLocalSseI16(best);
-				cand_tmp_.sort();
-				btncand_.sort();
-				assert(cand_tmp_ == btncand_);
-			}
+				if(sse16succ_) {
+					cand_tmp_ = btncand_;
+					gatherCellsNucleotidesLocalSseI16(best);
+					cand_tmp_.sort();
+					btncand_.sort();
+					assert(cand_tmp_ == btncand_);
+				}
 #endif /*ndef NDEBUG*/
-		} else {
-			gatherCellsNucleotidesLocalSseI16(best);
+			} else {
+				gatherCellsNucleotidesLocalSseI16(best);
+			}
 		}
 	}
 	if(!btncand_.empty()) {
@@ -700,6 +717,8 @@ bool SwAligner::nextAlignment(
 	const size_t candsz = btncand_.size();
 	size_t SQ = dpRows() >> 4;
 	if(SQ == 0) SQ = 1;
+	size_t rdlen = rdf_ - rdi_;
+	bool checkpointed = rdlen >= cperMinlen_;
 	while(cural_ < candsz) {
 		// Doing 'continue' anywhere in here simply causes us to move on to the
 		// next candidate
@@ -715,7 +734,7 @@ bool SwAligner::nextAlignment(
 		assert_lt(col, rff_-rfi_);
 		if(sse16succ_) {
 			SSEData& d = fw_ ? sseI16fw_ : sseI16rc_;
-			if(d.mat_.reset_[row] && d.mat_.reportedThrough(row, col)) {
+			if(!checkpointed && d.mat_.reset_[row] && d.mat_.reportedThrough(row, col)) {
 				// Skipping this candidate because a previous candidate already
 				// moved through this cell
 				btncand_[cural_].fate = BT_CAND_FATE_FILT_START;
@@ -724,7 +743,7 @@ bool SwAligner::nextAlignment(
 			}
 		} else if(sse8succ_) {
 			SSEData& d = fw_ ? sseU8fw_ : sseU8rc_;
-			if(d.mat_.reset_[row] && d.mat_.reportedThrough(row, col)) {
+			if(!checkpointed && d.mat_.reset_[row] && d.mat_.reportedThrough(row, col)) {
 				// Skipping this candidate because a previous candidate already
 				// moved through this cell
 				btncand_[cural_].fate = BT_CAND_FATE_FILT_START;
@@ -737,16 +756,36 @@ bool SwAligner::nextAlignment(
 			if(sse8succ_) {
 				uint32_t reseed = rnd.nextU32() + 1;
 				rnd.init(reseed);
-				ret = backtraceNucleotidesEnd2EndSseU8(
-					btncand_[cural_].score, // in: expected score
-					res,    // out: store results (edits and scores) here
-					off,    // out: store diagonal projection of origin
-					nbts,   // out: # backtracks
-					row,    // start in this rectangle row
-					col,    // start in this rectangle column
-					rnd);   // random gen, to choose among equal paths
+				res.reset();
+				if(checkpointed) {
+					size_t maxiter = std::numeric_limits<size_t>::max();
+					size_t niter = 0;
+					ret = backtrace(
+						btncand_[cural_].score, // in: expected score
+						true,     // in: use mini-fill?
+						true,     // in: use checkpoints?
+						res,      // out: store results (edits and scores) here
+						off,      // out: store diagonal projection of origin
+						row,      // start in this rectangle row
+						col,      // start in this rectangle column
+						maxiter,  // max # extensions to try
+						niter,    // # extensions tried
+						rnd);     // random gen, to choose among equal paths
+				} else {
+					ret = backtraceNucleotidesEnd2EndSseU8(
+						btncand_[cural_].score, // in: expected score
+						res,    // out: store results (edits and scores) here
+						off,    // out: store diagonal projection of origin
+						nbts,   // out: # backtracks
+						row,    // start in this rectangle row
+						col,    // start in this rectangle column
+						rnd);   // random gen, to choose among equal paths
+				}
 #ifndef NDEBUG
-				{
+				// if(...) statement here should check not whether the primary
+				// alignment was checkpointed, but whether a checkpointed
+				// alignment was done at all.
+				if(!checkpointed) {
 					SwResult res2;
 					size_t maxiter2 = std::numeric_limits<size_t>::max();
 					size_t niter2 = 0;
@@ -766,8 +805,9 @@ bool SwAligner::nextAlignment(
 					// differences in how they handle marking cells as
 					// reported-through.
 					assert(cural_ > 0 || !ret || ret == ret2);
+					assert(cural_ > 0 || !ret || res.alres == res2.alres);
 				}
-				if(sse16succ_) {
+				if(sse16succ_ && !checkpointed) {
 					SwResult res2;
 					size_t off2, nbts2 = 0;
 					rnd.init(reseed);
@@ -783,7 +823,7 @@ bool SwAligner::nextAlignment(
 					assert_eq(nbts, nbts2);
 					assert(!ret || res2.alres.score() == res.alres.score());
 #if 0
-					if((rand() & 15) == 0) {
+					if(!checkpointed && (rand() & 15) == 0) {
 						// Check that same cells are reported through
 						SSEData& d8  = fw_ ? sseU8fw_  : sseU8rc_;
 						SSEData& d16 = fw_ ? sseI16fw_ : sseI16rc_;
@@ -800,16 +840,36 @@ bool SwAligner::nextAlignment(
 				rnd.init(reseed+1); // debug/release pseudo-randoms in lock step
 			} else if(sse16succ_) {
 				uint32_t reseed = rnd.nextU32() + 1;
-				ret = backtraceNucleotidesEnd2EndSseI16(
-					btncand_[cural_].score, // in: expected score
-					res,    // out: store results (edits and scores) here
-					off,    // out: store diagonal projection of origin
-					nbts,   // out: # backtracks
-					row,    // start in this rectangle row
-					col,    // start in this rectangle column
-					rnd);   // random gen, to choose among equal paths
+				res.reset();
+				if(checkpointed) {
+					size_t maxiter = std::numeric_limits<size_t>::max();
+					size_t niter = 0;
+					ret = backtrace(
+						btncand_[cural_].score, // in: expected score
+						true,     // in: use mini-fill?
+						true,     // in: use checkpoints?
+						res,      // out: store results (edits and scores) here
+						off,      // out: store diagonal projection of origin
+						row,      // start in this rectangle row
+						col,      // start in this rectangle column
+						maxiter,  // max # extensions to try
+						niter,    // # extensions tried
+						rnd);     // random gen, to choose among equal paths
+				} else {
+					ret = backtraceNucleotidesEnd2EndSseI16(
+						btncand_[cural_].score, // in: expected score
+						res,    // out: store results (edits and scores) here
+						off,    // out: store diagonal projection of origin
+						nbts,   // out: # backtracks
+						row,    // start in this rectangle row
+						col,    // start in this rectangle column
+						rnd);   // random gen, to choose among equal paths
+				}
 #ifndef NDEBUG
-				{
+				// if(...) statement here should check not whether the primary
+				// alignment was checkpointed, but whether a checkpointed
+				// alignment was done at all.
+				if(!checkpointed) {
 					SwResult res2;
 					size_t maxiter2 = std::numeric_limits<size_t>::max();
 					size_t niter2 = 0;
@@ -829,6 +889,7 @@ bool SwAligner::nextAlignment(
 					// differences in how they handle marking cells as
 					// reported-through.
 					assert(cural_ > 0 || !ret || ret == ret2);
+					assert(cural_ > 0 || !ret || res.alres == res2.alres);
 				}
 #endif
 				rnd.init(reseed); // debug/release pseudo-randoms in lock step
@@ -874,17 +935,37 @@ bool SwAligner::nextAlignment(
 			bool ret = false;
 			if(sse8succ_) {
 				uint32_t reseed = rnd.nextU32() + 1;
+				res.reset();
 				rnd.init(reseed);
-				ret = backtraceNucleotidesLocalSseU8(
-					btncand_[cural_].score, // in: expected score
-					res,    // out: store results (edits and scores) here
-					off,    // out: store diagonal projection of origin
-					nbts,   // out: # backtracks
-					row,    // start in this rectangle row
-					col,    // start in this rectangle column
-					rnd);   // random gen, to choose among equal paths
+				if(checkpointed) {
+					size_t maxiter = std::numeric_limits<size_t>::max();
+					size_t niter = 0;
+					ret = backtrace(
+						btncand_[cural_].score, // in: expected score
+						true,     // in: use mini-fill?
+						true,     // in: use checkpoints?
+						res,      // out: store results (edits and scores) here
+						off,      // out: store diagonal projection of origin
+						row,      // start in this rectangle row
+						col,      // start in this rectangle column
+						maxiter,  // max # extensions to try
+						niter,    // # extensions tried
+						rnd);     // random gen, to choose among equal paths
+				} else {
+					ret = backtraceNucleotidesLocalSseU8(
+						btncand_[cural_].score, // in: expected score
+						res,    // out: store results (edits and scores) here
+						off,    // out: store diagonal projection of origin
+						nbts,   // out: # backtracks
+						row,    // start in this rectangle row
+						col,    // start in this rectangle column
+						rnd);   // random gen, to choose among equal paths
+				}
 #ifndef NDEBUG
-				{
+				// if(...) statement here should check not whether the primary
+				// alignment was checkpointed, but whether a checkpointed
+				// alignment was done at all.
+				if(!checkpointed) {
 					SwResult res2;
 					size_t maxiter2 = std::numeric_limits<size_t>::max();
 					size_t niter2 = 0;
@@ -904,8 +985,9 @@ bool SwAligner::nextAlignment(
 					// differences in how they handle marking cells as
 					// reported-through.
 					assert(cural_ > 0 || !ret || ret == ret2);
+					assert(cural_ > 0 || !ret || res.alres == res2.alres);
 				}
-				if(sse16succ_) {
+				if(!checkpointed && sse16succ_) {
 					SwResult res2;
 					size_t off2, nbts2 = 0;
 					rnd.init(reseed); // same b/t backtrace calls
@@ -921,7 +1003,7 @@ bool SwAligner::nextAlignment(
 					assert_eq(nbts, nbts2);
 					assert(!ret || res2.alres.score() == res.alres.score());
 #if 0
-					if((rand() & 15) == 0) {
+					if(!checkpointed && (rand() & 15) == 0) {
 						// Check that same cells are reported through
 						SSEData& d8  = fw_ ? sseU8fw_  : sseU8rc_;
 						SSEData& d16 = fw_ ? sseI16fw_ : sseI16rc_;
@@ -938,16 +1020,36 @@ bool SwAligner::nextAlignment(
 				rnd.init(reseed+1); // debug/release pseudo-randoms in lock step
 			} else if(sse16succ_) {
 				uint32_t reseed = rnd.nextU32() + 1;
-				ret = backtraceNucleotidesLocalSseI16(
-					btncand_[cural_].score, // in: expected score
-					res,    // out: store results (edits and scores) here
-					off,    // out: store diagonal projection of origin
-					nbts,   // out: # backtracks
-					row,    // start in this rectangle row
-					col,    // start in this rectangle column
-					rnd);   // random gen, to choose among equal paths
+				res.reset();
+				if(checkpointed) {
+					size_t maxiter = std::numeric_limits<size_t>::max();
+					size_t niter = 0;
+					ret = backtrace(
+						btncand_[cural_].score, // in: expected score
+						true,     // in: use mini-fill?
+						true,     // in: use checkpoints?
+						res,      // out: store results (edits and scores) here
+						off,      // out: store diagonal projection of origin
+						row,      // start in this rectangle row
+						col,      // start in this rectangle column
+						maxiter,  // max # extensions to try
+						niter,    // # extensions tried
+						rnd);     // random gen, to choose among equal paths
+				} else {
+					ret = backtraceNucleotidesLocalSseI16(
+						btncand_[cural_].score, // in: expected score
+						res,    // out: store results (edits and scores) here
+						off,    // out: store diagonal projection of origin
+						nbts,   // out: # backtracks
+						row,    // start in this rectangle row
+						col,    // start in this rectangle column
+						rnd);   // random gen, to choose among equal paths
+				}
 #ifndef NDEBUG
-				{
+				// if(...) statement here should check not whether the primary
+				// alignment was checkpointed, but whether a checkpointed
+				// alignment was done at all.
+				if(!checkpointed) {
 					SwResult res2;
 					size_t maxiter2 = std::numeric_limits<size_t>::max();
 					size_t niter2 = 0;
@@ -967,6 +1069,7 @@ bool SwAligner::nextAlignment(
 					// differences in how they handle marking cells as
 					// reported-through.
 					assert(cural_ > 0 || !ret || ret == ret2);
+					assert(cural_ > 0 || !ret || res.alres == res2.alres);
 				}
 #endif
 				rnd.init(reseed); // same b/t backtrace calls

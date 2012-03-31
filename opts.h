@@ -137,7 +137,9 @@ enum {
 	ARG_REORDER,                // --reorder
 	ARG_SHOW_RAND_SEED,         // --show-rand-seed
 	ARG_READ_PASSTHRU,          // --passthrough
-	ARG_SAMPLE                  // --sample
+	ARG_SAMPLE,                 // --sample
+	ARG_CP_MIN,                 // --cp-min
+	ARG_CP_IVAL                 // --cp-ival
 };
 
 #endif

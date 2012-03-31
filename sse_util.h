@@ -346,6 +346,7 @@ public:
 		int64_t perfectScore, // what is a perfect score?  for sanity checks
 		bool local)           // is alignment local?  for sanity checks
 	{
+		assert_gt(perpow2, 0);
 		nrow_ = nrow;
 		ncol_ = ncol;
 		perpow2_ = perpow2;

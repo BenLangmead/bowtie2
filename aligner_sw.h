@@ -257,6 +257,8 @@ public:
 		const Scoring& sc,     // scoring scheme
 		TAlScore minsc,        // minimum score
 		bool enable8,          // use 8-bit SSE if possible?
+		size_t cminlen,        // minimum length for using checkpointing scheme
+		size_t cpow2,          // interval b/t checkpointed diags; 1 << this
 		bool extend);          // true iff this is a seed extension
 
 	/**
@@ -281,6 +283,8 @@ public:
 		const Scoring& sc,     // scoring scheme
 		TAlScore minsc,        // minimum alignment score
 		bool enable8,          // use 8-bit SSE if possible?
+		size_t cminlen,        // minimum length for using checkpointing scheme
+		size_t cpow2,          // interval b/t checkpointed diags; 1 << this
 		bool extend,           // true iff this is a seed extension
 		size_t  upto,          // count the number of Ns up to this offset
 		size_t& nsUpto);       // output: the number of Ns up to 'upto'
@@ -442,13 +446,13 @@ protected:
 	 * the score saturated at any point during alignment.
 	 */
 	TAlScore alignNucleotidesEnd2EndSseU8(  // unsigned 8-bit elements
-		int& flag);
+		int& flag, bool debug);
 	TAlScore alignNucleotidesLocalSseU8(    // unsigned 8-bit elements
-		int& flag);
+		int& flag, bool debug);
 	TAlScore alignNucleotidesEnd2EndSseI16( // signed 16-bit elements
-		int& flag);
+		int& flag, bool debug);
 	TAlScore alignNucleotidesLocalSseI16(   // signed 16-bit elements
-		int& flag);
+		int& flag, bool debug);
 	
 	/**
 	 * Aligns by filling a dynamic programming matrix with the SSE-accelerated,
@@ -469,13 +473,13 @@ protected:
 	 * candidates per diagonal are stored in a O(m + n) data structure.
 	 */
 	TAlScore alignGatherEE8(                // unsigned 8-bit elements
-		int& flag);
+		int& flag, bool debug);
 	TAlScore alignGatherLoc8(               // unsigned 8-bit elements
-		int& flag);
+		int& flag, bool debug);
 	TAlScore alignGatherEE16(               // signed 16-bit elements
-		int& flag);
+		int& flag, bool debug);
 	TAlScore alignGatherLoc16(              // signed 16-bit elements
-		int& flag);
+		int& flag, bool debug);
 	
 	/**
 	 * Build query profile look up tables for the read.  The query profile look
@@ -549,18 +553,17 @@ protected:
 		size_t&        niter,  // # extensions tried
 		RandomSource&  rnd)    // random gen, to choose among equal paths
 	{
-		BtBranchTracer& bter = usecp ? bterCp_ : bter_;
-		bter.initBt(
+		bter_.initBt(
 			escore,              // in: alignment score
 			row,                 // in: start in this row
 			col,                 // in: start in this column
 			fill,                // in: use mini-fill?
 			usecp,               // in: use checkpoints?
 			rnd);                // in: random gen, to choose among equal paths
-		assert(bter.inited());
-		assert(!bter.empty() || !bter.emptySolution());
+		assert(bter_.inited());
+		assert(!bter_.empty() || !bter_.emptySolution());
 		size_t nrej = 0;
-		return bter.nextAlignment(maxiter, res, off, nrej, niter, rnd);
+		return bter_.nextAlignment(maxiter, res, off, nrej, niter, rnd);
 	}
 
 	const BTDnaString  *rd_;     // read sequence
@@ -617,7 +620,6 @@ protected:
 	size_t              btncanddoneFail_; // # investigated and failed
 	
 	BtBranchTracer       bter_;        // backtracer
-	BtBranchTracer       bterCp_;      // backtracer with checkpoints
 	
 	Checkpointer         cper_;        // structure for saving checkpoint cells
 	size_t               cperMinlen_;  // minimum length for using checkpointer

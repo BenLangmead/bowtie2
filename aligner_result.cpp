@@ -486,6 +486,11 @@ bool AlnRes::matchesRef(
 			cerr << (matches[i] ? " " : "*");
 		}
 		cerr << endl;
+		cerr << "    ";
+		for(size_t i = 0; i < refallen-nsOnLeft; i++) {
+			cerr << "ACGTN"[(int)refbuf[i]];
+		}
+		cerr << endl;
 		Edit::printQAlign(
 			cerr,
 			"    ",
