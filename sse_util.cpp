@@ -72,9 +72,21 @@ void Checkpointer::commitCol(
 						int16_t e_sc = ((uint8_t*)(pvE + (word * ROWSTRIDE_2COL)))[elt];
 						int16_t f_sc = ((uint8_t*)(pvF + (word * ROWSTRIDE_2COL)))[elt];
 						if(!local_) {
-							h_sc -= 0xff;
-							e_sc -= 0xff;
-							f_sc -= 0xff;
+							if(h_sc == 0) {
+								h_sc = std::numeric_limits<int16_t>::min();
+							} else {
+								h_sc -= 0xff;
+							}
+							if(e_sc == 0) {
+								e_sc = std::numeric_limits<int16_t>::min();
+							} else {
+								e_sc -= 0xff;
+							}
+							if(f_sc == 0) {
+								f_sc = std::numeric_limits<int16_t>::min();
+							} else {
+								f_sc -= 0xff;
+							}
 						}
 						assert_leq(h_sc, perf_);
 						assert_leq(e_sc, perf_);

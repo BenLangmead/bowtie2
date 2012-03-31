@@ -664,6 +664,8 @@ int SwDriver::extendSeeds(
 	size_t maxDpStreak,          // stop after streak of this many dp fails
 	bool doExtend,               // do seed extension
 	bool enable8,                // use 8-bit SSE where possible
+	size_t cminlen,              // use checkpointer if read longer than this
+	size_t cpow2,                // interval between diagonals to checkpoint
 	int tighten,                 // -M score tightening mode
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
 	RandomSource& rnd,           // pseudo-random source
@@ -992,6 +994,8 @@ int SwDriver::extendSeeds(
 						sc,        // scoring scheme
 						minsc,     // minimum score permitted
 						enable8,   // use 8-bit SSE if possible?
+						cminlen,   // minimum length for using checkpointing scheme
+						cpow2,     // interval b/t checkpointed diags; 1 << this
 						true,      // this is a seed extension - not finding a mate
 						nwindow,
 						nsInLeftShift);
@@ -1279,6 +1283,8 @@ int SwDriver::extendSeedsPaired(
 	size_t maxMateStreak,        // stop seed range after N mate-find fails
 	bool doExtend,               // do seed extension
 	bool enable8,                // use 8-bit SSE where possible
+	size_t cminlen,              // use checkpointer if read longer than this
+	size_t cpow2,                // interval between diagonals to checkpoint
 	int tighten,                 // -M score tightening mode
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
 	RandomSource& rnd,           // pseudo-random source
@@ -1667,6 +1673,8 @@ int SwDriver::extendSeedsPaired(
 						sc,        // scoring scheme
 						minsc,     // minimum score permitted
 						enable8,   // use 8-bit SSE if possible?
+						cminlen,   // minimum length for using checkpointing scheme
+						cpow2,     // interval b/t checkpointed diags; 1 << this
 						true,      // this is a seed extension - not finding a mate
 						nwindow,
 						nsInLeftShift);
@@ -1890,6 +1898,8 @@ int SwDriver::extendSeedsPaired(
 								sc,        // scoring scheme
 								ominsc_cur,// min score for valid alignments
 								enable8,   // use 8-bit SSE if possible?
+								cminlen,   // minimum length for using checkpointing scheme
+								cpow2,     // interval b/t checkpointed diags; 1 << this
 								false,     // this is finding a mate - not seed ext
 								0,         // nwindow?
 								onsInLeftShift);

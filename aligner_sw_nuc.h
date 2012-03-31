@@ -185,7 +185,8 @@ template <typename T>
 class NBest {
 
 public:
-	NBest<T>() { nelt_ = nbest_ = 0; }
+
+	NBest<T>() { nelt_ = nbest_ = n_ = 0; }
 	
 	bool inited() const { return nelt_ > 0; }
 	
@@ -195,6 +196,7 @@ public:
 		elts_.resize(nelt * nbest);
 		ncur_.resize(nelt);
 		ncur_.fill(0);
+		n_ = 0;
 	}
 	
 	/**
@@ -205,6 +207,7 @@ public:
 		assert_lt(elt, nelt_);
 		const size_t ncur = ncur_[elt];
 		assert_leq(ncur, nbest_);
+		n_++;
 		for(size_t i = 0; i < nbest_ && i <= ncur; i++) {
 			if(o > elts_[nbest_ * elt + i] || i >= ncur) {
 				// Insert it here
@@ -225,10 +228,18 @@ public:
 	}
 	
 	/**
+	 * Return true iff there are no solutions.
+	 */
+	bool empty() const {
+		return n_ == 0;
+	}
+	
+	/**
 	 * Dump all the items in our payload into the given EList.
 	 */
 	template<typename TList>
 	void dump(TList& l) const {
+		if(empty()) return;
 		for(size_t i = 0; i < nelt_; i++) {
 			assert_leq(ncur_[i], nbest_);
 			for(size_t j = 0; j < ncur_[i]; j++) {
@@ -238,10 +249,12 @@ public:
 	}
 
 protected:
+
 	size_t        nelt_;
 	size_t        nbest_;
 	EList<T>      elts_;
 	EList<size_t> ncur_;
+	size_t        n_;     // total # results added
 };
 
 #endif /*def ALIGNER_SW_NUC_H_*/

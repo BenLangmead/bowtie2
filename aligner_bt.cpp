@@ -418,7 +418,7 @@ void BtBranchTracer::triangleFill(
 			assert_gt(colc, 0);
 			// Read gap
 			size_t id = bs_.alloc();
-			Edit e((int)rowc, mask2dna[rc], '-', EDIT_TYPE_READ_GAP);
+			Edit e((int)rowc+1, mask2dna[rc], '-', EDIT_TYPE_READ_GAP);
 			TAlScore gapp = prob_.sc_->readGapOpen();
 			if(bs_[curid].len_ == 0 && bs_[curid].e_.inited() && bs_[curid].e_.isReadGap()) {
 				gapp = prob_.sc_->readGapExtend();
@@ -837,13 +837,13 @@ int BtBranchTracer::trySolution(
 		if(cur->e_.inited()) {
 			if(cur->e_.isMismatch()) {
 				if(cur->e_.qchr == 'N' || cur->e_.chr == 'N') {
-					if(cur->e_.chr == 'N') {
-						nrefns++;
-					}
 					ns++;
 				}
 			} else if(cur->e_.isGap()) {
 				ngap++;
+			}
+			if(cur->e_.chr == 'N') {
+				nrefns++;
 			}
 			ned.push_back(cur->e_);
 		}
@@ -855,6 +855,7 @@ int BtBranchTracer::trySolution(
 	if(ns > prob_.nceil_) {
 		// Alignment has too many Ns in it!
 		res.reset();
+		assert(res.alres.ned().empty());
 		nrej++;
 		return BT_REJECTED_N;
 	}
@@ -975,9 +976,15 @@ int BtBranchTracer::trySolution(
 		cur = &bs_[cur->parentId_];
 	} // while(cur->e_.inited())
 	if(rejSeen) {
+		res.reset();
+		assert(res.alres.ned().empty());
+		nrej++;
 		return BT_NOT_FOUND;
 	}
 	if(rejCore) {
+		res.reset();
+		assert(res.alres.ned().empty());
+		nrej++;
 		return BT_REJECTED_CORE_DIAG;
 	}
 	off = br->leftmostCol();

@@ -155,35 +155,35 @@ static bool bwaSwLike;
 static float bwaSwLikeC;
 static float bwaSwLikeT;
 static bool qcFilter;
-static bool sortByScore;   // prioritize alignments to report by score?
-bool gReportOverhangs; // false -> filter out alignments that fall off the end of a reference sequence
-static string rgid; // ID: setting for @RG header line
-static string rgs;  // SAM outputs for @RG header line
-static string rgs_optflag; // SAM optional flag to add corresponding to @RG ID
-static bool msample; // whether to report a random alignment when maxed-out via -m/-M
-int      gGapBarrier; // # diags on top/bot only to be entered diagonally
-int64_t  gRowLow;     // backtraces start from row w/ idx >= this (-1=no limit)
-bool     gRowFirst;   // sort alignments by row then score?
+static bool sortByScore;      // prioritize alignments to report by score?
+bool gReportOverhangs;        // false -> filter out alignments that fall off the end of a reference sequence
+static string rgid;           // ID: setting for @RG header line
+static string rgs;            // SAM outputs for @RG header line
+static string rgs_optflag;    // SAM optional flag to add corresponding to @RG ID
+static bool msample;          // whether to report a random alignment when maxed-out via -m/-M
+int      gGapBarrier;         // # diags on top/bot only to be entered diagonally
+int64_t  gRowLow;             // backtraces start from row w/ idx >= this (-1=no limit)
+bool     gRowFirst;           // sort alignments by row then score?
 static EList<string> qualities;
 static EList<string> qualities1;
 static EList<string> qualities2;
-static string polstr; // temporary holder for policy string
-static bool  msNoCache;      // true -> disable local cache
-static int   bonusMatchType; // how to reward matches
-static int   bonusMatch;     // constant reward if bonusMatchType=constant
-static int   penMmcType;     // how to penalize mismatches
-static int   penMmcMax;      // max mm penalty
-static int   penMmcMin;      // min mm penalty
-static int   penNType;       // how to penalize Ns in the read
-static int   penN;           // constant if N pelanty is a constant
-static bool  penNCatPair;    // concatenate mates before N filtering?
-static bool  localAlign;     // do local alignment in DP steps
-static bool  noisyHpolymer;  // set to true if gap penalties should be reduced to be consistent with a sequencer that under- and overcalls homopolymers
+static string polstr;         // temporary holder for policy string
+static bool  msNoCache;       // true -> disable local cache
+static int   bonusMatchType;  // how to reward matches
+static int   bonusMatch;      // constant reward if bonusMatchType=constant
+static int   penMmcType;      // how to penalize mismatches
+static int   penMmcMax;       // max mm penalty
+static int   penMmcMin;       // min mm penalty
+static int   penNType;        // how to penalize Ns in the read
+static int   penN;            // constant if N pelanty is a constant
+static bool  penNCatPair;     // concatenate mates before N filtering?
+static bool  localAlign;      // do local alignment in DP steps
+static bool  noisyHpolymer;   // set to true if gap penalties should be reduced to be consistent with a sequencer that under- and overcalls homopolymers
 static int   penRdGapConst;   // constant cost of extending a gap in the read
 static int   penRfGapConst;   // constant cost of extending a gap in the reference
 static int   penRdGapLinear;  // coeff of linear term for cost of gap extension in read
 static int   penRfGapLinear;  // coeff of linear term for cost of gap extension in ref
-static SimpleFunc scoreMin;    // minimum valid score as function of read len
+static SimpleFunc scoreMin;   // minimum valid score as function of read len
 static SimpleFunc nCeil;      // max # Ns allowed as function of read len
 static SimpleFunc msIval;     // interval between seeds as function of read len
 static int    multiseedMms;   // mismatches permitted in a multiseed seed
@@ -192,22 +192,24 @@ static size_t multiseedOff;   // offset to begin extracting seeds
 static uint32_t seedCacheLocalMB;   // # MB to use for non-shared seed alignment cacheing
 static uint32_t seedCacheCurrentMB; // # MB to use for current-read seed hit cacheing
 static uint32_t exactCacheCurrentMB; // # MB to use for current-read seed hit cacheing
-static size_t maxhalf;       // max width on one side of DP table
-static bool seedSumm; // print summary information about seed hits, not alignments
-static bool doUngapped;      // do ungapped alignment
-static size_t maxIters;      // stop after this many extend loop iterations
-static size_t maxUg;         // stop after this many ungap extends
-static size_t maxDp;         // stop after this many DPs
-static size_t maxItersIncr;  // amt to add to maxIters for each -k > 1
-static size_t maxEeStreak;   // stop after this many end-to-end fails in a row
-static size_t maxUgStreak;   // stop after this many ungap fails in a row
-static size_t maxDpStreak;   // stop after this many dp fails in a row
-static size_t maxStreakIncr; // amt to add to streak for each -k > 1
-static size_t maxMateStreak; // stop seed range after this many mate-find fails
-static bool doExtend;        // extend seed hits
-static bool enable8;         // use 8-bit SSE where possible?
-static string defaultPreset; // default preset; applied immediately
-static bool ignoreQuals;     // all mms incur same penalty, regardless of qual
+static size_t maxhalf;        // max width on one side of DP table
+static bool seedSumm;         // print summary information about seed hits, not alignments
+static bool doUngapped;       // do ungapped alignment
+static size_t maxIters;       // stop after this many extend loop iterations
+static size_t maxUg;          // stop after this many ungap extends
+static size_t maxDp;          // stop after this many DPs
+static size_t maxItersIncr;   // amt to add to maxIters for each -k > 1
+static size_t maxEeStreak;    // stop after this many end-to-end fails in a row
+static size_t maxUgStreak;    // stop after this many ungap fails in a row
+static size_t maxDpStreak;    // stop after this many dp fails in a row
+static size_t maxStreakIncr;  // amt to add to streak for each -k > 1
+static size_t maxMateStreak;  // stop seed range after this many mate-find fails
+static bool doExtend;         // extend seed hits
+static bool enable8;          // use 8-bit SSE where possible?
+static size_t cminlen;        // longer reads use checkpointing
+static size_t cpow2;          // checkpoint interval log2
+static string defaultPreset;  // default preset; applied immediately
+static bool ignoreQuals;      // all mms incur same penalty, regardless of qual
 static string wrapper;        // type of wrapper script, so we can print correct usage
 static EList<string> queries; // list of query files
 static string outfile;        // write SAM output to this file
@@ -377,6 +379,8 @@ static void resetOptions() {
 	maxMateStreak      = 10;    // in PE: abort seed range after N mate-find fails
 	doExtend           = true;  // do seed extensions
 	enable8            = true;  // use 8-bit SSE where possible?
+	cminlen            = 2000;  // longer reads use checkpointing
+	cpow2              = 8;     // checkpoint interval log2
 	defaultPreset      = "sensitive%LOCAL%"; // default preset; applied immediately
 	extra_opts.clear();
 	extra_opts_cur = 0;
@@ -553,6 +557,8 @@ static struct option long_options[] = {
 	{(char*)"reorder",          no_argument,       0,        ARG_REORDER},
 	{(char*)"passthrough",      no_argument,       0,        ARG_READ_PASSTHRU},
 	{(char*)"sample",           required_argument, 0,        ARG_SAMPLE},
+	{(char*)"cp-min",           required_argument, 0,        ARG_CP_MIN},
+	{(char*)"cp-ival",          required_argument, 0,        ARG_CP_IVAL},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -1082,6 +1088,12 @@ static void parseOption(int next_option, const char *arg) {
 		}
 		case ARG_SAMPLE:
 			sampleFrac = parse<float>(arg);
+			break;
+		case ARG_CP_MIN:
+			cminlen = parse<size_t>(arg);
+			break;
+		case ARG_CP_IVAL:
+			cpow2 = parse<size_t>(arg);
 			break;
 		case ARG_READ_PASSTHRU: {
 			sam_print_xr = true;
@@ -3020,6 +3032,8 @@ static void* multiseedSearchWorker(void *vp) {
 								mtStreak[mate], // max mate fails per seed range
 								doExtend,       // extend seed hits
 								enable8,        // use 8-bit SSE where possible
+								cminlen,        // checkpoint if read is longer
+								cpow2,          // checkpointer interval, log2
 								tighten,        // -M score tightening mode
 								ca,             // seed alignment cache
 								rnd,            // pseudo-random source
@@ -3059,6 +3073,8 @@ static void* multiseedSearchWorker(void *vp) {
 								streak[mate],   // stop after streak of this many ungap fails
 								doExtend,       // extend seed hits
 								enable8,        // use 8-bit SSE where possible
+								cminlen,        // checkpoint if read is longer
+								cpow2,          // checkpointer interval, log2
 								tighten,        // -M score tightening mode
 								ca,             // seed alignment cache
 								rnd,            // pseudo-random source
@@ -3195,6 +3211,8 @@ static void* multiseedSearchWorker(void *vp) {
 								mtStreak[mate], // max mate fails per seed range
 								doExtend,       // extend seed hits
 								enable8,        // use 8-bit SSE where possible
+								cminlen,        // checkpoint if read is longer
+								cpow2,          // checkpointer interval, log2
 								tighten,        // -M score tightening mode
 								ca,             // seed alignment cache
 								rnd,            // pseudo-random source
@@ -3234,6 +3252,8 @@ static void* multiseedSearchWorker(void *vp) {
 								streak[mate],   // stop after streak of this many ungap fails
 								doExtend,       // extend seed hits
 								enable8,        // use 8-bit SSE where possible
+								cminlen,        // checkpoint if read is longer
+								cpow2,          // checkpointer interval, log2
 								tighten,        // -M score tightening mode
 								ca,             // seed alignment cache
 								rnd,            // pseudo-random source
@@ -3436,6 +3456,8 @@ static void* multiseedSearchWorker(void *vp) {
 									mtStreak[mate], // max mate fails per seed range
 									doExtend,       // extend seed hits
 									enable8,        // use 8-bit SSE where possible
+									cminlen,        // checkpoint if read is longer
+									cpow2,          // checkpointer interval, log2
 									tighten,        // -M score tightening mode
 									ca,             // seed alignment cache
 									rnd,            // pseudo-random source
@@ -3475,6 +3497,8 @@ static void* multiseedSearchWorker(void *vp) {
 									streak[mate],   // stop after streak of this many ungap fails
 									doExtend,       // extend seed hits
 									enable8,        // use 8-bit SSE where possible
+									cminlen,        // checkpoint if read is longer
+									cpow2,          // checkpointer interval, log2
 									tighten,        // -M score tightening mode
 									ca,             // seed alignment cache
 									rnd,            // pseudo-random source

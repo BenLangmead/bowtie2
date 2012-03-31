@@ -339,6 +339,8 @@ public:
 		size_t maxDpStreak,          // stop after streak of this many dp fails
 		bool doExtend,               // do seed extension
 		bool enable8,                // use 8-bit SSE where possible
+		size_t cminlen,              // use checkpointer if read longer than this
+		size_t cpow2,                // interval between diagonals to checkpoint
 		int tighten,                 // -M score tightening mode
 		AlignmentCacheIface& ca,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random source
@@ -393,6 +395,8 @@ public:
 		size_t maxMateStreak,        // stop seed range after N mate-find fails
 		bool doExtend,               // do seed extension
 		bool enable8,                // use 8-bit SSE where possible
+		size_t cminlen,              // use checkpointer if read longer than this
+		size_t cpow2,                // interval between diagonals to checkpoint
 		int tighten,                 // -M score tightening mode
 		AlignmentCacheIface& cs,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random source
