@@ -613,8 +613,6 @@ TAlScore SwAligner::alignGatherEE8(int& flag, bool debug) {
 			__m128i *pvF = vbuf_r + 1;
 			__m128i *pvH = vbuf_r + 2;
 			size_t coli = i - rfi_;
-			
-			assert(doCheckpoints());
 			if(coli < cper_.locol_) {
 				cper_.locol_ = coli;
 			}
@@ -623,7 +621,7 @@ TAlScore SwAligner::alignGatherEE8(int& flag, bool debug) {
 			}
 			size_t rc = coli;
 			size_t rc_mod = rc & cper_.lomask_;
-			assert_lt(rc_mod, per_);
+			assert_lt(rc_mod, cper_.per_);
 			int64_t row = -rc_mod-1;
 			int64_t row_mod = row;
 			int64_t row_div = 0;
@@ -663,9 +661,9 @@ TAlScore SwAligner::alignGatherEE8(int& flag, bool debug) {
 									if(f_sc == 0) f_sc = MIN_I16;
 									else f_sc -= 0xff;
 								}
-								assert_leq(h_sc, perf_);
-								assert_leq(e_sc, perf_);
-								assert_leq(f_sc, perf_);
+								assert_leq(h_sc, cper_.perf_);
+								assert_leq(e_sc, cper_.perf_);
+								assert_leq(f_sc, cper_.perf_);
 								_CpQuad *qdiags = ((j == 0) ? cper_.qdiag1s_.ptr() : cper_.qdiag2s_.ptr());
 								qdiags[delt].sc[0] = h_sc;
 								qdiags[delt].sc[1] = e_sc;
@@ -674,7 +672,7 @@ TAlScore SwAligner::alignGatherEE8(int& flag, bool debug) {
 								assert_lt(row_div, 16);
 								int sc = ((uint16_t*)pvH)[vecoff];
 								if(!cper_.local_) sc -= 0xff;
-								assert_leq(sc, perf_);
+								assert_leq(sc, cper_.perf_);
 								EList<int16_t>& diags = (j == 0 ? cper_.diag1s_  : cper_.diag2s_);
 								diags[delt] = (int16_t)sc;
 							}
@@ -694,9 +692,9 @@ TAlScore SwAligner::alignGatherEE8(int& flag, bool debug) {
 									e_sc += 0x8000; assert_geq(e_sc, 0);
 									f_sc += 0x8000; assert_geq(f_sc, 0);
 								}
-								assert_leq(h_sc, perf_);
-								assert_leq(e_sc, perf_);
-								assert_leq(f_sc, perf_);
+								assert_leq(h_sc, cper_.perf_);
+								assert_leq(e_sc, cper_.perf_);
+								assert_leq(f_sc, cper_.perf_);
 								_CpQuad *qdiags = ((j == 0) ? cper_.qdiag1s_.ptr() : cper_.qdiag2s_.ptr());
 								qdiags[delt].sc[0] = h_sc;
 								qdiags[delt].sc[1] = e_sc;
@@ -711,7 +709,7 @@ TAlScore SwAligner::alignGatherEE8(int& flag, bool debug) {
 								} else {
 									sc += 0x8000; assert_geq(sc, 0);
 								}
-								assert_leq(sc, perf_);
+								assert_leq(sc, cper_.perf_);
 								EList<int16_t>& diags = (j == 0 ? cper_.diag1s_  : cper_.diag2s_);
 								diags[delt] = (int16_t)sc;
 							}
