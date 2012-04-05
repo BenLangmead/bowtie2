@@ -1647,10 +1647,12 @@ public:
 	ESet(int cat = 0) :
 		cat_(cat),
 		list_(NULL),
-		sz_(128),
+		sz_(0),
 		cur_(0)
 	{
-		list_ = alloc(sz_);
+		if(sz_ > 0) {
+			list_ = alloc(sz_);
+		}
 	}
 
 	/**
@@ -1663,7 +1665,9 @@ public:
 		cur_(0)
 	{
 		assert_gt(isz, 0);
-		list_ = alloc(sz_);
+		if(sz_ > 0) {
+			list_ = alloc(sz_);
+		}
 	}
 
 	/**
@@ -1689,8 +1693,12 @@ public:
 		sz_ = o.sz_;
 		cur_ = o.cur_;
 		free();
-		list_ = alloc(sz_);
-		memcpy(list_, o.list_, cur_ * sizeof(T));
+		if(sz_ > 0) {
+			list_ = alloc(sz_);
+			memcpy(list_, o.list_, cur_ * sizeof(T));
+		} else {
+			list_ = NULL;
+		}
 		return *this;
 	}
 
@@ -1734,8 +1742,12 @@ public:
 	 * Return true iff this set contains 'el'.
 	 */
 	bool contains(const T& el) const {
-		if(cur_ == 0) return false;
-		else if(cur_ == 1) return el == list_[0];
+		if(cur_ == 0) {
+			return false;
+		}
+		else if(cur_ == 1) {
+			return el == list_[0];
+		}
 		size_t i;
 		if(cur_ < 16) {
 			// Linear scan
@@ -1781,6 +1793,40 @@ public:
 	 * Return memory category.
 	 */
 	int cat() const { return cat_; }
+	
+	/**
+	 * Set the memory category for this object.
+	 */
+	void setCat(int cat) {
+		cat_ = cat;
+	}
+
+	/**
+	 * Transfer the guts of another EList into this one without using
+	 * operator=, etc.  We have to set EList o's list_ field to NULL to
+	 * avoid o's destructor from deleting list_ out from under us.
+	 */
+	void xfer(ESet<T>& o) {
+		// What does it mean to transfer to a different-category list?
+		assert_eq(cat_, o.cat());
+		// Can only transfer into an empty object
+		free();
+		list_ = o.list_;
+		sz_ = o.sz_;
+		cur_ = o.cur_;
+		o.list_ = NULL;
+		o.sz_ = o.cur_ = 0;
+	}
+
+	/**
+	 * Return a pointer to the beginning of the buffer.
+	 */
+	T *ptr() { return list_; }
+
+	/**
+	 * Return a const pointer to the beginning of the buffer.
+	 */
+	const T *ptr() const { return list_; }
 
 private:
 
@@ -1907,7 +1953,7 @@ private:
 	 */
 	void expandCopy(size_t thresh) {
 		if(thresh <= sz_) return;
-		size_t newsz = sz_ * 2;
+		size_t newsz = (sz_ * 2)+1;
 		while(newsz < thresh) {
 			newsz *= 2;
 		}
@@ -1924,6 +1970,331 @@ private:
 	T *list_;    // list pointer, returned from new[]
 	size_t sz_;  // capacity
 	size_t cur_; // occupancy (AKA size)
+};
+
+template <typename T, int S = 128>
+class ELSet {
+
+public:
+
+	/**
+	 * Allocate initial default of 128 elements.
+	 */
+	explicit ELSet(int cat = 0) :
+		cat_(cat), list_(NULL), sz_(S), cur_(0)
+	{
+		assert_geq(cat, 0);
+	}
+
+	/**
+	 * Initially allocate given number of elements; should be > 0.
+	 */
+	explicit ELSet(size_t isz, int cat = 0) :
+		cat_(cat), list_(NULL), sz_(isz), cur_(0)
+	{
+		assert_gt(isz, 0);
+		assert_geq(cat, 0);
+	}
+
+	/**
+	 * Copy from another ELList using operator=.
+	 */
+	ELSet(const ELSet<T, S>& o) :
+		cat_(0), list_(NULL), sz_(0), cur_(0)
+	{
+		*this = o;
+	}
+
+	/**
+	 * Copy from another ELList using operator=.
+	 */
+	explicit ELSet(const ELSet<T, S>& o, int cat) :
+		cat_(cat), list_(NULL), sz_(0), cur_(0)
+	{
+		*this = o;
+		assert_geq(cat, 0);
+	}
+
+	/**
+	 * Destructor.
+	 */
+	~ELSet() { free(); }
+
+	/**
+	 * Make this object into a copy of o by allocating enough memory to
+	 * fit the number of elements in o (note: the number of elements
+	 * may be substantially less than the memory allocated in o) and
+	 * using operator= to copy them over.
+	 */
+	ELSet<T, S>& operator=(const ELSet<T, S>& o) {
+		assert_eq(cat_, o.cat());
+		if(list_ == NULL) {
+			lazyInit();
+		}
+		if(o.cur_ == 0) {
+			cur_ = 0;
+			return *this;
+		}
+		if(sz_ < o.cur_) expandNoCopy(o.cur_ + 1);
+		assert_geq(sz_, o.cur_);
+		cur_ = o.cur_;
+		for(size_t i = 0; i < cur_; i++) {
+			// Note: using operator=, not xfer
+			assert_eq(list_[i].cat(), o.list_[i].cat());
+			list_[i] = o.list_[i];
+		}
+		return *this;
+	}
+	
+	/**
+	 * Transfer the guts of another ESet into this one without using
+	 * operator=, etc.  We have to set ESet o's list_ field to NULL to
+	 * avoid o's destructor from deleting list_ out from under us.
+	 */
+	void xfer(ELSet<T, S>& o) {
+		assert_eq(cat_, o.cat());
+		list_ = o.list_; // list_ is an array of ESet<T>s
+		sz_   = o.sz_;
+		cur_  = o.cur_;
+		o.list_ = NULL;
+		o.sz_ = o.cur_ = 0;
+	}
+
+	/**
+	 * Return number of elements.
+	 */
+	inline size_t size() const { return cur_; }
+
+	/**
+	 * Return true iff there are no elements.
+	 */
+	inline bool empty() const { return cur_ == 0; }
+
+	/**
+	 * Return true iff list hasn't been initialized yet.
+	 */
+	inline bool null() const { return list_ == NULL; }
+
+	/**
+	 * Add an element to the back.  No intialization is done.
+	 */
+	void expand() {
+		if(list_ == NULL) lazyInit();
+		if(cur_ == sz_) expandCopy(sz_+1);
+		cur_++;
+	}
+
+	/**
+	 * If size is less than requested size, resize up to at least sz
+	 * and set cur_ to requested sz.
+	 */
+	void resize(size_t sz) {
+		if(sz > 0 && list_ == NULL) lazyInit();
+		if(sz <= cur_) {
+			cur_ = sz;
+			return;
+		}
+		if(sz_ < sz) {
+			expandCopy(sz);
+		}
+		cur_ = sz;
+	}
+
+	/**
+	 * Make the stack empty.
+	 */
+	void clear() {
+		cur_ = 0; // re-use stack memory
+		// Don't clear heap; re-use it
+	}
+
+	/**
+	 * Get the element on the top of the stack.
+	 */
+	inline ESet<T>& back() {
+		assert_gt(cur_, 0);
+		return list_[cur_-1];
+	}
+
+	/**
+	 * Get the element on the top of the stack, const version.
+	 */
+	inline const ESet<T>& back() const {
+		assert_gt(cur_, 0);
+		return list_[cur_-1];
+	}
+
+	/**
+	 * Get the frontmost element (bottom of stack).
+	 */
+	inline ESet<T>& front() {
+		assert_gt(cur_, 0);
+		return list_[0];
+	}
+
+	/**
+	 * Get the element on the bottom of the stack, const version.
+	 */
+	inline const ESet<T>& front() const { return front(); }
+
+	/**
+	 * Return a reference to the ith element.
+	 */
+	inline ESet<T>& operator[](size_t i) {
+		assert_lt(i, cur_);
+		return list_[i];
+	}
+
+	/**
+	 * Return a reference to the ith element.
+	 */
+	inline const ESet<T>& operator[](size_t i) const {
+		assert_lt(i, cur_);
+		return list_[i];
+	}
+
+	/**
+	 * Return a reference to the ith element.
+	 */
+	inline ESet<T>& get(size_t i) {
+		return operator[](i);
+	}
+	
+	/**
+	 * Return a reference to the ith element.
+	 */
+	inline const ESet<T>& get(size_t i) const {
+		return operator[](i);
+	}
+	
+	/**
+	 * Return a reference to the ith element.  This version is not
+	 * inlined, which guarantees we can use it from the debugger.
+	 */
+	ESet<T>& getSlow(size_t i) {
+		return operator[](i);
+	}
+	
+	/**
+	 * Return a reference to the ith element.  This version is not
+	 * inlined, which guarantees we can use it from the debugger.
+	 */
+	const ESet<T>& getSlow(size_t i) const {
+		return operator[](i);
+	}
+	
+	/**
+	 * Return a pointer to the beginning of the buffer.
+	 */
+	ESet<T> *ptr() { return list_; }
+
+	/**
+	 * Return a const pointer to the beginning of the buffer.
+	 */
+	const ESet<T> *ptr() const { return list_; }
+
+	/**
+	 * Set the memory category for this object and all children.
+	 */
+	void setCat(int cat) {
+		assert_gt(cat, 0);
+		cat_ = cat;
+		if(cat_ != 0) {
+			for(size_t i = 0; i < sz_; i++) {
+				assert(list_[i].null());
+				list_[i].setCat(cat_);
+			}
+		}
+	}
+
+	/**
+	 * Return memory category.
+	 */
+	int cat() const { return cat_; }
+
+protected:
+
+	/**
+	 * Initialize memory for ELSet.
+	 */
+	void lazyInit() {
+		assert(list_ == NULL);
+		list_ = alloc(sz_);
+	}
+
+	/**
+	 * Allocate a T array of length sz_ and store in list_.  Also,
+	 * tally into the global memory tally.
+	 */
+	ESet<T> *alloc(size_t sz) {
+		assert_gt(sz, 0);
+		ESet<T> *tmp = new ESet<T>[sz];
+		gMemTally.add(cat_, sz);
+		if(cat_ != 0) {
+			for(size_t i = 0; i < sz; i++) {
+				assert(tmp[i].ptr() == NULL);
+				tmp[i].setCat(cat_);
+			}
+		}
+		return tmp;
+	}
+
+	/**
+	 * Allocate a T array of length sz_ and store in list_.  Also,
+	 * tally into the global memory tally.
+	 */
+	void free() {
+		if(list_ != NULL) {
+			delete[] list_;
+			gMemTally.del(cat_, sz_);
+			list_ = NULL;
+		}
+	}
+
+	/**
+	 * Expand the list_ buffer until it has at least 'thresh' elements.
+	 * Expansions are quadratic.  Copy old contents into new buffer
+	 * using operator=.
+	 */
+	void expandCopy(size_t thresh) {
+		assert(list_ != NULL);
+		if(thresh <= sz_) return;
+		size_t newsz = (sz_ * 2)+1;
+		while(newsz < thresh) newsz *= 2;
+		ESet<T>* tmp = alloc(newsz);
+		if(list_ != NULL) {
+			for(size_t i = 0; i < cur_; i++) {
+				assert_eq(cat_, tmp[i].cat());
+				tmp[i].xfer(list_[i]);
+				assert_eq(cat_, tmp[i].cat());
+			}
+			free();
+		}
+		list_ = tmp;
+		sz_ = newsz;
+	}
+
+	/**
+	 * Expand the list_ buffer until it has at least 'thresh' elements.
+	 * Expansions are quadratic.  Don't copy old contents over.
+	 */
+	void expandNoCopy(size_t thresh) {
+		assert(list_ != NULL);
+		if(thresh <= sz_) return;
+		free();
+		size_t newsz = (sz_ * 2)+1;
+		while(newsz < thresh) newsz *= 2;
+		ESet<T>* tmp = alloc(newsz);
+		list_ = tmp;
+		sz_ = newsz;
+		assert_gt(sz_, 0);
+	}
+
+	int cat_;    // memory category, for accounting purposes
+	ESet<T> *list_; // list pointer, returned from new[]
+	size_t sz_;  // capacity
+	size_t cur_; // occupancy (AKA size)
+
 };
 
 /**
@@ -3227,6 +3598,13 @@ struct DoublyLinkedList {
 	T                    payload;
 	DoublyLinkedList<T> *prev;
 	DoublyLinkedList<T> *next;
+};
+
+template <typename T1, typename T2, typename T3>
+struct Triple {
+	T1 first;
+	T2 second;
+	T3 third;
 };
 
 #endif /* DS_H_ */

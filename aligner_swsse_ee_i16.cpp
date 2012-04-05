@@ -159,7 +159,7 @@ static bool cellOkEnd2EndI16(
 	const Scoring& sc)     // scoring scheme
 {
 	TCScore floorsc = 0x8000;
-	TCScore ceilsc = std::numeric_limits<TAlScore>::max();
+	TCScore ceilsc = MAX_I64;
 	TAlScore offsetsc = -0x7fff;
 	TAlScore sc_h_cur = (TAlScore)d.mat_.helt(row, col);
 	TAlScore sc_e_cur = (TAlScore)d.mat_.eelt(row, col);
@@ -366,14 +366,14 @@ TAlScore SwAligner::alignGatherEE16(int& flag, bool debug) {
 	__m128i vtmp     = _mm_setzero_si128();
 
 	assert_gt(sc_->refGapOpen(), 0);
-	assert_leq(sc_->refGapOpen(), std::numeric_limits<TCScore>::max());
+	assert_leq(sc_->refGapOpen(), MAX_I16);
 	rfgapo = _mm_insert_epi16(rfgapo, sc_->refGapOpen(), 0);
 	rfgapo = _mm_shufflelo_epi16(rfgapo, 0);
 	rfgapo = _mm_shuffle_epi32(rfgapo, 0);
 	
 	// Set all elts to reference gap extension penalty
 	assert_gt(sc_->refGapExtend(), 0);
-	assert_leq(sc_->refGapExtend(), std::numeric_limits<TCScore>::max());
+	assert_leq(sc_->refGapExtend(), MAX_I16);
 	assert_leq(sc_->refGapExtend(), sc_->refGapOpen());
 	rfgape = _mm_insert_epi16(rfgape, sc_->refGapExtend(), 0);
 	rfgape = _mm_shufflelo_epi16(rfgape, 0);
@@ -381,14 +381,14 @@ TAlScore SwAligner::alignGatherEE16(int& flag, bool debug) {
 
 	// Set all elts to read gap open penalty
 	assert_gt(sc_->readGapOpen(), 0);
-	assert_leq(sc_->readGapOpen(), std::numeric_limits<TCScore>::max());
+	assert_leq(sc_->readGapOpen(), MAX_I16);
 	rdgapo = _mm_insert_epi16(rdgapo, sc_->readGapOpen(), 0);
 	rdgapo = _mm_shufflelo_epi16(rdgapo, 0);
 	rdgapo = _mm_shuffle_epi32(rdgapo, 0);
 	
 	// Set all elts to read gap extension penalty
 	assert_gt(sc_->readGapExtend(), 0);
-	assert_leq(sc_->readGapExtend(), std::numeric_limits<TCScore>::max());
+	assert_leq(sc_->readGapExtend(), MAX_I16);
 	assert_leq(sc_->readGapExtend(), sc_->readGapOpen());
 	rdgape = _mm_insert_epi16(rdgape, sc_->readGapExtend(), 0);
 	rdgape = _mm_shufflelo_epi16(rdgape, 0);
@@ -430,7 +430,7 @@ TAlScore SwAligner::alignGatherEE16(int& flag, bool debug) {
 	
 	// Maximum score in final row
 	bool found = false;
-	TCScore lrmax = std::numeric_limits<TCScore>::min();
+	TCScore lrmax = MIN_I16;
 	
 	for(size_t i = 0; i < iter; i++) {
 		_mm_store_si128(pvERight, vlo); pvERight += ROWSTRIDE_2COL;
@@ -611,8 +611,8 @@ TAlScore SwAligner::alignGatherEE16(int& flag, bool debug) {
 		// column is a candidate we might backtrace from.  First question is:
 		// did it exceed the minimum score threshold?
 		TAlScore score = (TAlScore)(lr - 0x7fff);
-		if(lr == std::numeric_limits<TCScore>::min()) {
-			score = std::numeric_limits<TAlScore>::min();
+		if(lr == MIN_I16) {
+			score = MIN_I64;
 		}
 		if(!debug && score >= minsc_) {
 			DpBtCandidate cand(dpRows() - 1, i - rfi_, score);
@@ -640,11 +640,11 @@ TAlScore SwAligner::alignGatherEE16(int& flag, bool debug) {
 	flag = 0;
 
 	// Did we find a solution?
-	TAlScore score = std::numeric_limits<TAlScore>::min();
+	TAlScore score = MIN_I64;
 	if(!found) {
 		flag = -1; // no
 		if(!debug) met.dpfail++;
-		return std::numeric_limits<TAlScore>::min();
+		return MIN_I64;
 	} else {
 		score = (TAlScore)(lrmax - 0x7fff);
 		if(score < minsc_) {
@@ -655,10 +655,10 @@ TAlScore SwAligner::alignGatherEE16(int& flag, bool debug) {
 	}
 	
 	// Could we have saturated?
-	if(lrmax == std::numeric_limits<TCScore>::min()) {
+	if(lrmax == MIN_I16) {
 		flag = -2; // yes
 		if(!debug) met.dpsat++;
-		return std::numeric_limits<TAlScore>::min();
+		return MIN_I64;
 	}
 	
 	// Now take all the backtrace candidates in the btdaig_ structure and
@@ -728,14 +728,14 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag, bool debug) {
 	__m128i vtmp     = _mm_setzero_si128();
 
 	assert_gt(sc_->refGapOpen(), 0);
-	assert_leq(sc_->refGapOpen(), std::numeric_limits<TCScore>::max());
+	assert_leq(sc_->refGapOpen(), MAX_I16);
 	rfgapo = _mm_insert_epi16(rfgapo, sc_->refGapOpen(), 0);
 	rfgapo = _mm_shufflelo_epi16(rfgapo, 0);
 	rfgapo = _mm_shuffle_epi32(rfgapo, 0);
 	
 	// Set all elts to reference gap extension penalty
 	assert_gt(sc_->refGapExtend(), 0);
-	assert_leq(sc_->refGapExtend(), std::numeric_limits<TCScore>::max());
+	assert_leq(sc_->refGapExtend(), MAX_I16);
 	assert_leq(sc_->refGapExtend(), sc_->refGapOpen());
 	rfgape = _mm_insert_epi16(rfgape, sc_->refGapExtend(), 0);
 	rfgape = _mm_shufflelo_epi16(rfgape, 0);
@@ -743,14 +743,14 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag, bool debug) {
 
 	// Set all elts to read gap open penalty
 	assert_gt(sc_->readGapOpen(), 0);
-	assert_leq(sc_->readGapOpen(), std::numeric_limits<TCScore>::max());
+	assert_leq(sc_->readGapOpen(), MAX_I16);
 	rdgapo = _mm_insert_epi16(rdgapo, sc_->readGapOpen(), 0);
 	rdgapo = _mm_shufflelo_epi16(rdgapo, 0);
 	rdgapo = _mm_shuffle_epi32(rdgapo, 0);
 	
 	// Set all elts to read gap extension penalty
 	assert_gt(sc_->readGapExtend(), 0);
-	assert_leq(sc_->readGapExtend(), std::numeric_limits<TCScore>::max());
+	assert_leq(sc_->readGapExtend(), MAX_I16);
 	assert_leq(sc_->readGapExtend(), sc_->readGapOpen());
 	rdgape = _mm_insert_epi16(rdgape, sc_->readGapExtend(), 0);
 	rdgape = _mm_shufflelo_epi16(rdgape, 0);
@@ -793,7 +793,7 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag, bool debug) {
 	
 	// Maximum score in final row
 	bool found = false;
-	TCScore lrmax = std::numeric_limits<TCScore>::min();
+	TCScore lrmax = MIN_I16;
 	
 	for(size_t i = 0; i < iter; i++) {
 		_mm_store_si128(pvETmp, vlo);
@@ -1051,11 +1051,11 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag, bool debug) {
 	flag = 0;
 	
 	// Did we find a solution?
-	TAlScore score = std::numeric_limits<TAlScore>::min();
+	TAlScore score = MIN_I64;
 	if(!found) {
 		flag = -1; // no
 		if(!debug) met.dpfail++;
-		return std::numeric_limits<TAlScore>::min();
+		return MIN_I64;
 	} else {
 		score = (TAlScore)(lrmax - 0x7fff);
 		if(score < minsc_) {
@@ -1066,10 +1066,10 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag, bool debug) {
 	}
 	
 	// Could we have saturated?
-	if(lrmax == std::numeric_limits<TCScore>::min()) {
+	if(lrmax == MIN_I16) {
 		flag = -2; // yes
 		if(!debug) met.dpsat++;
-		return std::numeric_limits<TAlScore>::min();
+		return MIN_I64;
 	}
 	
 	// Return largest score
@@ -1275,7 +1275,7 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseI16(
 				{
 					gapsAllowed = false;
 				}
-				const TAlScore floorsc = std::numeric_limits<TAlScore>::min();
+				const TAlScore floorsc = MIN_I64;
 				const int offsetsc = -0x7fff;
 				// Move to beginning of column/row
 				if(ct == SSEMatrix::E) { // AKA rdgap

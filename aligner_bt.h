@@ -26,6 +26,7 @@
 #include "aligner_result.h"
 #include "scoring.h"
 #include "edit.h"
+#include "limit.h"
 #include "dp_framer.h"
 #include "sse_util.h"
 
@@ -53,11 +54,18 @@
  * Approach 3: Refilling with checkpoints.
  *
  *  Refill the matrix "backwards" starting from the candidate cell, but use
- *  checkpoints to ensure that only relatively small triangles need to be
- *  refilled.  Note that checkpoints must include elements from the H, E and F
- *  arrays; not just H. After each refill, we backtrace through the refilled
- *  area, then discard/reuse the fill memory.  I call each such fill/backtrace
- *  a mini-fill/backtrace  See following diagram.
+ *  checkpoints to ensure that only a series of relatively small triangles or
+ *  rectangles need to be refilled.  The checkpoints must include elements from
+ *  the H, E and F matrices; not just H.  After each refill, we backtrace
+ *  through the refilled area, then discard/reuse the fill memory.  I call each
+ *  such fill/backtrace a mini-fill/backtrace.
+ *
+ *  If there's only one path to be found, then this is O(m+n).  But what if
+ *  there are many?  And what if we would like to avoid paths that overlap in
+ *  one or more cells?  There are two ways we can make this more efficient:
+ *
+ *   1. Remember the re-calculated E/F/H values and try to retrieve them
+ *   2. Keep a record of cells that have already been traversed
  *
  *  Legend:
  *
@@ -364,7 +372,7 @@ public:
 	 * Return true iff this branch could potentially lead to a valid alignment.
 	 */
 	bool isValid(const BtBranchProblem& prob) const {
-		int64_t scoreFloor = prob.sc_->monotone ? std::numeric_limits<int64_t>::min() : 0;
+		int64_t scoreFloor = prob.sc_->monotone ? MIN_I64 : 0;
 		if(score_st_ < scoreFloor) {
 			// Dipped below the score floor
 			return false;
@@ -527,7 +535,7 @@ class BtBranchTracer {
 
 public:
 
-	BtBranchTracer() : prob_(), bs_() { }
+	BtBranchTracer() : prob_(), bs_(), seenPaths_(DP_CAT), sawcell_(DP_CAT) { }
 
 	/**
 	 * Add a branch to the queue.
@@ -643,6 +651,18 @@ public:
 		for(size_t i = 0; i < ndiag; i++) {
 			seenPaths_[i].clear();
 		}
+		// clear each of the per-column sets
+		if(sawcell_.size() < rflen) {
+			size_t isz = sawcell_.size();
+			sawcell_.resize(rflen);
+			for(size_t i = isz; i < rflen; i++) {
+				sawcell_[i].setCat(DP_CAT);
+			}
+		}
+		for(size_t i = 0; i < rflen; i++) {
+			sawcell_[i].setCat(DP_CAT);
+			sawcell_[i].clear(); // clear the set
+		}
 	}
 	
 	/**
@@ -702,8 +722,9 @@ public:
 			int64_t row = row_, col = col_;
 			TAlScore targsc = prob_.targ_;
 			int hef = 0;
-			bool done = false;
-			while(!done) {
+			bool done = false, abort = false;
+			size_t depth = 0;
+			while(!done && !abort) {
 				// Accumulate edits as we go.  We can do this by adding
 				// BtBranches to the bs_ structure.  Each step of the backtrace
 				// either involves an edit (thereby starting a new branch) or
@@ -713,7 +734,6 @@ public:
 				// used to populate the SwResult and check for various
 				// situations where we might reject the alignment (i.e. due to
 				// a cell having been visited previously).
-				//cerr << "triangleFill(" << row << ", " << col << ", " << hef << ", " << targsc << ")" << endl;
 				triangleFill(
 					row,          // row of cell to backtrace from
 					col,          // column of cell to backtrace from
@@ -725,7 +745,15 @@ public:
 					col,          // out: column we ended up in after backtrace
 					hef,          // out: H/E/F after backtrace
 					targsc,       // out: score up to cell we ended up in
-					done);        // whether we finished tracing out an alignment
+					done,         // out: finished tracing out an alignment?
+					abort);       // out: aborted b/c cell was seen before?
+				if(depth >= ntri_.size()) {
+					ntri_.resize(depth+1);
+					ntri_[depth] = 1;
+				} else {
+					ntri_[depth]++;
+				}
+				depth++;
 				assert((row >= 0 && col >= 0) || done);
 			}
 		}
@@ -766,7 +794,8 @@ public:
 		int64_t& col_new,   // out: column we ended up in after backtrace
 		int& hef_new,       // out: H/E/F after backtrace
 		TAlScore& targ_new, // out: score up to cell we ended up in
-		bool& done);        // whether we finished tracing out an alignment
+		bool& done,         // out: finished tracing out an alignment?
+		bool& abort);       // out: aborted b/c cell was seen before?
 
 protected:
 
@@ -802,6 +831,7 @@ protected:
 	 * fail to overlap a core diagonal, etc.
 	 */
 	bool trySolutions(
+		bool lookForOlap,
 		SwResult& res,
 		size_t& off,
 		size_t& nrej,
@@ -814,6 +844,7 @@ protected:
 	 */
 	int trySolution(
 		size_t id,
+		bool lookForOlap,
 		SwResult& res,
 		size_t& off,
 		size_t& nrej,
@@ -824,6 +855,7 @@ protected:
 	
 	// already reported alignments going through these diagonal segments
 	ELList<std::pair<size_t, size_t> > seenPaths_;
+	ELSet<size_t> sawcell_; // cells already backtraced through
 	
 	EList<std::pair<TAlScore, size_t> > unsorted_;  // unsorted list of as-yet-unflished BtBranches
 	EList<size_t> sorted1_;   // list of BtBranch, sorted by score
@@ -850,6 +882,7 @@ protected:
 	size_t        col_;         // column
 
 	ELList<_CpQuad> tri_;       // triangle to fill when doing mini-fills
+	EList<size_t> ntri_;        // # triangles mini-filled at various depths
 
 #ifndef NDEBUG
 	ESet<size_t>  seen_;      // seedn branch ids; should never see same twice

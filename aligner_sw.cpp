@@ -370,7 +370,7 @@ int SwAligner::ungappedAlign(
 		TAlScore floorsc = 0;
 		TAlScore scoreMax = floorsc;
 		size_t lastfloor = 0;
-		rowi = std::numeric_limits<size_t>::max();
+		rowi = MAX_SIZE_T;
 		size_t sols = 0;
 		for(size_t i = 0; i < len; i++) {
 			score += sc.score(rd[i], (int)(1 << rf_[i]), qu[i] - 33, ns);
@@ -641,7 +641,7 @@ bool SwAligner::align(RandomSource& rnd) {
 #endif
 	assert(repOk());
 	cural_ = 0;
-	if(best == std::numeric_limits<TAlScore>::min() || best < minsc_) {
+	if(best == MIN_I64 || best < minsc_) {
 		return false;
 	}
 	if(!gathered) {
@@ -758,7 +758,7 @@ bool SwAligner::nextAlignment(
 				rnd.init(reseed);
 				res.reset();
 				if(checkpointed) {
-					size_t maxiter = std::numeric_limits<size_t>::max();
+					size_t maxiter = MAX_SIZE_T;
 					size_t niter = 0;
 					ret = backtrace(
 						btncand_[cural_].score, // in: expected score
@@ -787,7 +787,7 @@ bool SwAligner::nextAlignment(
 				// alignment was done at all.
 				if(!checkpointed) {
 					SwResult res2;
-					size_t maxiter2 = std::numeric_limits<size_t>::max();
+					size_t maxiter2 = MAX_SIZE_T;
 					size_t niter2 = 0;
 					bool ret2 = backtrace(
 						btncand_[cural_].score, // in: expected score
@@ -842,7 +842,7 @@ bool SwAligner::nextAlignment(
 				uint32_t reseed = rnd.nextU32() + 1;
 				res.reset();
 				if(checkpointed) {
-					size_t maxiter = std::numeric_limits<size_t>::max();
+					size_t maxiter = MAX_SIZE_T;
 					size_t niter = 0;
 					ret = backtrace(
 						btncand_[cural_].score, // in: expected score
@@ -871,7 +871,7 @@ bool SwAligner::nextAlignment(
 				// alignment was done at all.
 				if(!checkpointed) {
 					SwResult res2;
-					size_t maxiter2 = std::numeric_limits<size_t>::max();
+					size_t maxiter2 = MAX_SIZE_T;
 					size_t niter2 = 0;
 					bool ret2 = backtrace(
 						btncand_[cural_].score, // in: expected score
@@ -938,7 +938,7 @@ bool SwAligner::nextAlignment(
 				res.reset();
 				rnd.init(reseed);
 				if(checkpointed) {
-					size_t maxiter = std::numeric_limits<size_t>::max();
+					size_t maxiter = MAX_SIZE_T;
 					size_t niter = 0;
 					ret = backtrace(
 						btncand_[cural_].score, // in: expected score
@@ -967,7 +967,7 @@ bool SwAligner::nextAlignment(
 				// alignment was done at all.
 				if(!checkpointed) {
 					SwResult res2;
-					size_t maxiter2 = std::numeric_limits<size_t>::max();
+					size_t maxiter2 = MAX_SIZE_T;
 					size_t niter2 = 0;
 					bool ret2 = backtrace(
 						btncand_[cural_].score, // in: expected score
@@ -1022,7 +1022,7 @@ bool SwAligner::nextAlignment(
 				uint32_t reseed = rnd.nextU32() + 1;
 				res.reset();
 				if(checkpointed) {
-					size_t maxiter = std::numeric_limits<size_t>::max();
+					size_t maxiter = MAX_SIZE_T;
 					size_t niter = 0;
 					ret = backtrace(
 						btncand_[cural_].score, // in: expected score
@@ -1051,7 +1051,7 @@ bool SwAligner::nextAlignment(
 				// alignment was done at all.
 				if(!checkpointed) {
 					SwResult res2;
-					size_t maxiter2 = std::numeric_limits<size_t>::max();
+					size_t maxiter2 = MAX_SIZE_T;
 					size_t niter2 = 0;
 					bool ret2 = backtrace(
 						btncand_[cural_].score, // in: expected score

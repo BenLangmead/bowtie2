@@ -380,7 +380,7 @@ static void resetOptions() {
 	doExtend           = true;  // do seed extensions
 	enable8            = true;  // use 8-bit SSE where possible?
 	cminlen            = 2000;  // longer reads use checkpointing
-	cpow2              = 8;     // checkpoint interval log2
+	cpow2              = 4;     // checkpoint interval log2
 	defaultPreset      = "sensitive%LOCAL%"; // default preset; applied immediately
 	extra_opts.clear();
 	extra_opts_cur = 0;
