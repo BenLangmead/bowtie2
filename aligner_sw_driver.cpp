@@ -123,7 +123,7 @@ bool SwDriver::eeSaTups(
 				eehits_.push_back(hit);
 				satpos_.expand();
 				satpos_.back().sat.init(SAKey(), hit.top, 0xffffffff, o);
-				satpos_.back().sat.key.seq = std::numeric_limits<uint64_t>::max();
+				satpos_.back().sat.key.seq = MAX_U64;
 				satpos_.back().sat.key.len = (uint32_t)rd.length();
 				satpos_.back().pos.init(hit.fw, 0, 0, (uint32_t)rd.length());
 				satpos_.back().origSz = hit.bot - hit.top;
@@ -171,7 +171,7 @@ bool SwDriver::eeSaTups(
 			eehits_.push_back(hit);
 			satpos_.expand();
 			satpos_.back().sat.init(SAKey(), hit.top, 0xffffffff, o);
-			satpos_.back().sat.key.seq = std::numeric_limits<uint64_t>::max();
+			satpos_.back().sat.key.seq = MAX_U64;
 			satpos_.back().sat.key.len = (uint32_t)rd.length();
 			satpos_.back().pos.init(hit.fw, 0, 0, (uint32_t)rd.length());
 			satpos_.back().origSz = hit.bot - hit.top;

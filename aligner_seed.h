@@ -55,7 +55,7 @@ struct Constraint {
 	 */
 	void init() {
 		edits = mms = ins = dels = penalty = editsCeil = mmsCeil =
-		insCeil = delsCeil = penaltyCeil = std::numeric_limits<int>::max();
+		insCeil = delsCeil = penaltyCeil = MAX_I;
 		penFunc.reset();
 		instantiated = false;
 	}
@@ -484,7 +484,7 @@ struct EEHit {
 		fw = false;
 		e1.reset();
 		e2.reset();
-		score = std::numeric_limits<int64_t>::min();
+		score = MIN_I64;
 	}
 	
 	void init(

@@ -23,8 +23,12 @@
 
 using namespace std;
 
-#define MIN_I16 std::numeric_limits<int16_t>::min()
-#define MIN_I64 std::numeric_limits<int64_t>::min()
+#define CHECK_ROW_COL(rowc, colc) \
+	if(rowc >= 0 && colc >= 0 && !sawcell_[colc].insert(rowc)) { \
+		/* was already in there */ \
+		abort = true; \
+		return; \
+	}
 
 /**
  * Fill in a triangle of the DP table and backtrace from the given cell to
@@ -33,15 +37,16 @@ using namespace std;
 void BtBranchTracer::triangleFill(
 	int64_t rw,          // row of cell to backtrace from
 	int64_t cl,          // column of cell to backtrace from
-	int hef,            // cell to backtrace from is H (0), E (1), or F (2)
-	TAlScore targ,      // score of cell to backtrace from
-	TAlScore targ_final,// score of alignment we're looking for
-	RandomSource& rnd,  // pseudo-random generator
+	int hef,             // cell to backtrace from is H (0), E (1), or F (2)
+	TAlScore targ,       // score of cell to backtrace from
+	TAlScore targ_final, // score of alignment we're looking for
+	RandomSource& rnd,   // pseudo-random generator
 	int64_t& row_new,    // out: row we ended up in after backtrace
 	int64_t& col_new,    // out: column we ended up in after backtrace
-	int& hef_new,       // out: H/E/F after backtrace
-	TAlScore& targ_new, // out: score up to cell we ended up in
-	bool& done)         // whether we finished tracing out an alignment
+	int& hef_new,        // out: H/E/F after backtrace
+	TAlScore& targ_new,  // out: score up to cell we ended up in
+	bool& done,          // out: finished tracing out an alignment?
+	bool& abort)         // out: aborted b/c cell was seen before?
 {
 	assert_geq(rw, 0);
 	assert_geq(cl, 0);
@@ -54,6 +59,7 @@ void BtBranchTracer::triangleFill(
 	const int64_t rowmin = 0;
 	const int64_t colmax = prob_.reflen_ - 1;
 	const int64_t rowmax = prob_.qrylen_ - 1;
+	assert_leq(prob_.reflen_, sawcell_.size());
 	assert_leq(col, (int64_t)prob_.cper_->hicol());
 	assert_geq(col, (int64_t)prob_.cper_->locol());
 	assert_geq(prob_.cper_->per(), 2);
@@ -202,6 +208,7 @@ void BtBranchTracer::triangleFill(
 					sc_h_dg += sc_diag;
 				}
 				if(local) sc_h_dg = max<int16_t>(sc_h_dg, 0);
+				// cerr << sc_diag << " " << sc_h_dg << " " << sc_h_up << " " << sc_f_up << " " << sc_h_lf << " " << sc_e_lf << endl;
 				int mask = 0;
 				// Calculate best ways into H, E, F cells starting with H.
 				// Mask bits:
@@ -278,6 +285,7 @@ void BtBranchTracer::triangleFill(
 				curc->sc[1] = sc_e_best;
 				curc->sc[2] = sc_f_best;
 				curc->sc[3] = mask;
+				// cerr << curc->sc[0] << " " << curc->sc[1] << " " << curc->sc[2] << " " << curc->sc[3] << endl;
 				last = curc;
 #ifndef NDEBUG
 				if(prob_.cper_->isCheckpointed(rowc, colc)) {
@@ -312,11 +320,15 @@ void BtBranchTracer::triangleFill(
 			prev1 = cur;
 		}
 	} // for(size_t i = 0; i < depth; i++)
-	// Now backtrack through the triangle
+	//
+	// Now backtrack through the triangle.  Abort as soon as we enter a cell
+	// that was visited by a previous backtrace.
+	//
 	int64_t rowc = row, colc = col;
 	size_t curid;
 	if(bs_.empty()) {
 		// Start an initial branch
+		CHECK_ROW_COL(rowc, colc);
 		curid = bs_.alloc();
 		assert_eq(0, curid);
 		Edit e; e.reset();
@@ -452,6 +464,7 @@ void BtBranchTracer::triangleFill(
 				hefc = 2;
 			}
 		}
+		CHECK_ROW_COL(rowc, colc);
 		size_t mod_new = (rowc + colc) & prob_.cper_->lomask();
 		size_t idx = (rowc + colc) >> prob_.cper_->perpow2();
 		assert_lt(mod_new, prob_.cper_->per());
@@ -793,6 +806,7 @@ void BtBranchTracer::flushUnsorted() {
  * fail to overlap a core diagonal, etc.
  */
 bool BtBranchTracer::trySolutions(
+	bool lookForOlap,
 	SwResult& res,
 	size_t& off,
 	size_t& nrej,
@@ -801,7 +815,7 @@ bool BtBranchTracer::trySolutions(
 {
 	if(solutions_.size() > 0) {
 		for(size_t i = 0; i < solutions_.size(); i++) {
-			int ret = trySolution(solutions_[i], res, off, nrej, rnd);
+			int ret = trySolution(solutions_[i], lookForOlap, res, off, nrej, rnd);
 			if(ret == BT_FOUND) {
 				success = true;
 				return true; // there were solutions and one was good
@@ -820,6 +834,7 @@ bool BtBranchTracer::trySolutions(
  */
 int BtBranchTracer::trySolution(
 	size_t id,
+	bool lookForOlap,
 	SwResult& res,
 	size_t& off,
 	size_t& nrej,
@@ -877,24 +892,6 @@ int BtBranchTracer::trySolution(
 		// rectangle by adding on the amount trimmed from the left.
 		diagi += prob_.rect_->triml;
 		assert_lt(diag, seenPaths_.size());
-		int64_t newlo, newhi;
-		if(cur->len_ == 0) {
-			if(prev != NULL && prev->len_ > 0) {
-				// If there's a gap at the base of a non-0 length branch, the
-				// gap will appear to overlap the branch if we give it length 1.
-				newhi = newlo = 0;
-			} else {
-				// Read or ref gap with no matches coming off of it
-				newlo = row;
-				newhi = row + 1;
-			}
-		} else {
-			// Diagonal with matches
-			newlo = row - (cur->len_ - 1);
-			newhi = row + 1;
-		}
-		assert_geq(newlo, 0);
-		assert_geq(newhi, 0);
 		// Does it overlap a core diagonal?
 		if(diagi >= 0) {
 			size_t diag = (size_t)diagi;
@@ -905,63 +902,83 @@ int BtBranchTracer::trySolution(
 				rejCore = false;
 			}
 		}
-		// Does the diagonal cover cells?
-		if(newhi > newlo) {
-			// Check whether there is any overlap with previously traversed
-			// cells
-			bool added = false;
-			const size_t sz = seenPaths_[diag].size();
-			for(size_t i = 0; i < sz; i++) {
-				// Does the new interval overlap this already-seen
-				// interval?  Also of interest: does it abut this
-				// already-seen interval?  If so, we should merge them.
-				size_t lo = seenPaths_[diag][i].first;
-				size_t hi = seenPaths_[diag][i].second;
-				assert_lt(lo, hi);
-				size_t lo_sm = newlo, hi_sm = newhi;
-				if(hi - lo < hi_sm - lo_sm) {
-					swap(lo, lo_sm);
-					swap(hi, hi_sm);
+		if(lookForOlap) {
+			int64_t newlo, newhi;
+			if(cur->len_ == 0) {
+				if(prev != NULL && prev->len_ > 0) {
+					// If there's a gap at the base of a non-0 length branch, the
+					// gap will appear to overlap the branch if we give it length 1.
+					newhi = newlo = 0;
+				} else {
+					// Read or ref gap with no matches coming off of it
+					newlo = row;
+					newhi = row + 1;
 				}
-				if((lo <= lo_sm && hi > lo_sm) ||
-				   (lo <  hi_sm && hi >= hi_sm))
-				{
-					// One or both of the shorter interval's end points
-					// are contained in the longer interval - so they
-					// overlap.
-					rejSeen = true;
-					// Merge them into one longer interval
-					seenPaths_[diag][i].first = min(lo, lo_sm);
-					seenPaths_[diag][i].second = max(hi, hi_sm);
-#ifndef NDEBUG
-					for(int64_t ii = seenPaths_[diag][i].first;
-					    ii < (int64_t)seenPaths_[diag][i].second;
-						ii++)
-					{
-						//cerr << "trySolution rejected (" << ii << ", " << (ii + col - row) << ")" << endl;
-					}
-#endif
-					added = true;
-					break;
-				} else if(hi == lo_sm || lo == hi_sm) {
-					// Merge them into one longer interval
-					seenPaths_[diag][i].first = min(lo, lo_sm);
-					seenPaths_[diag][i].second = max(hi, hi_sm);
-#ifndef NDEBUG
-					for(int64_t ii = seenPaths_[diag][i].first;
-					    ii < (int64_t)seenPaths_[diag][i].second;
-						ii++)
-					{
-						//cerr << "trySolution rejected (" << ii << ", " << (ii + col - row) << ")" << endl;
-					}
-#endif
-					added = true;
-					// Keep going in case it overlaps one of the other
-					// intervals
-				}
+			} else {
+				// Diagonal with matches
+				newlo = row - (cur->len_ - 1);
+				newhi = row + 1;
 			}
-			if(!added) {
-				seenPaths_[diag].push_back(make_pair(newlo, newhi));
+			assert_geq(newlo, 0);
+			assert_geq(newhi, 0);
+			// Does the diagonal cover cells?
+			if(newhi > newlo) {
+				// Check whether there is any overlap with previously traversed
+				// cells
+				bool added = false;
+				const size_t sz = seenPaths_[diag].size();
+				for(size_t i = 0; i < sz; i++) {
+					// Does the new interval overlap this already-seen
+					// interval?  Also of interest: does it abut this
+					// already-seen interval?  If so, we should merge them.
+					size_t lo = seenPaths_[diag][i].first;
+					size_t hi = seenPaths_[diag][i].second;
+					assert_lt(lo, hi);
+					size_t lo_sm = newlo, hi_sm = newhi;
+					if(hi - lo < hi_sm - lo_sm) {
+						swap(lo, lo_sm);
+						swap(hi, hi_sm);
+					}
+					if((lo <= lo_sm && hi > lo_sm) ||
+					   (lo <  hi_sm && hi >= hi_sm))
+					{
+						// One or both of the shorter interval's end points
+						// are contained in the longer interval - so they
+						// overlap.
+						rejSeen = true;
+						// Merge them into one longer interval
+						seenPaths_[diag][i].first = min(lo, lo_sm);
+						seenPaths_[diag][i].second = max(hi, hi_sm);
+#ifndef NDEBUG
+						for(int64_t ii = seenPaths_[diag][i].first;
+							ii < (int64_t)seenPaths_[diag][i].second;
+							ii++)
+						{
+							//cerr << "trySolution rejected (" << ii << ", " << (ii + col - row) << ")" << endl;
+						}
+#endif
+						added = true;
+						break;
+					} else if(hi == lo_sm || lo == hi_sm) {
+						// Merge them into one longer interval
+						seenPaths_[diag][i].first = min(lo, lo_sm);
+						seenPaths_[diag][i].second = max(hi, hi_sm);
+#ifndef NDEBUG
+						for(int64_t ii = seenPaths_[diag][i].first;
+							ii < (int64_t)seenPaths_[diag][i].second;
+							ii++)
+						{
+							//cerr << "trySolution rejected (" << ii << ", " << (ii + col - row) << ")" << endl;
+						}
+#endif
+						added = true;
+						// Keep going in case it overlaps one of the other
+						// intervals
+					}
+				}
+				if(!added) {
+					seenPaths_[diag].push_back(make_pair(newlo, newhi));
+				}
 			}
 		}
 		// After the merging that may have occurred above, it's no
@@ -1027,7 +1044,6 @@ bool BtBranchTracer::nextAlignmentBacktrace(
 {
 	assert(!empty() || !emptySolution());
 	assert(prob_.inited());
-	//ASSERT_ONLY(TAlScore lastScore = std::numeric_limits<TAlScore>::max());
 	// There's a subtle case where we might fail to backtracing in
 	// local-alignment mode.  The basic fact to remember is that when we're
 	// backtracing from the highest-scoring cell in the table, we're guaranteed
@@ -1040,7 +1056,7 @@ bool BtBranchTracer::nextAlignmentBacktrace(
 	bool result = false;
 	niter = 0;
 	while(!empty()) {
-		if(trySolutions(res, off, nrej, rnd, result)) {
+		if(trySolutions(true, res, off, nrej, rnd, result)) {
 			return result;
 		}
 		if(niter++ >= maxiter) {
@@ -1069,7 +1085,7 @@ bool BtBranchTracer::nextAlignmentBacktrace(
 #endif
 		addOffshoots(brid);
 	}
-	if(trySolutions(res, off, nrej, rnd, result)) {
+	if(trySolutions(true, res, off, nrej, rnd, result)) {
 		return result;
 	}
 	return false;
@@ -1093,7 +1109,7 @@ bool BtBranchTracer::nextAlignmentFill(
 	assert(prob_.cper_->hasEF());
 	assert(!emptySolution());
 	bool result = false;
-	if(trySolutions(res, off, nrej, rnd, result)) {
+	if(trySolutions(false, res, off, nrej, rnd, result)) {
 		return result;
 	}
 	return false;

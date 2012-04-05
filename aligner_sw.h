@@ -561,9 +561,13 @@ protected:
 			usecp,               // in: use checkpoints?
 			rnd);                // in: random gen, to choose among equal paths
 		assert(bter_.inited());
-		assert(!bter_.empty() || !bter_.emptySolution());
+		//assert(!bter_.empty() || !bter_.emptySolution());
 		size_t nrej = 0;
-		return bter_.nextAlignment(maxiter, res, off, nrej, niter, rnd);
+		if(bter_.emptySolution()) {
+			return false;
+		} else {
+			return bter_.nextAlignment(maxiter, res, off, nrej, niter, rnd);
+		}
 	}
 
 	const BTDnaString  *rd_;     // read sequence

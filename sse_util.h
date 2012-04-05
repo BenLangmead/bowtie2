@@ -22,6 +22,7 @@
 
 #include "assert_helpers.h"
 #include "ds.h"
+#include "limit.h"
 #include <iostream>
 #include <emmintrin.h>
 
@@ -362,8 +363,10 @@ public:
 			iter_ = (nrow + 7) / 8;
 		}
 		ndiag_ = (ncol + nrow - 1 + 1) / per_;
-		locol_ = std::numeric_limits<size_t>::max();
-		hicol_ = std::numeric_limits<size_t>::min();
+		locol_ = MAX_SIZE_T;
+		hicol_ = MIN_SIZE_T;
+		commitMap_.clear();
+		firstCommit_ = true;
 		if(doCheckpoints()) {
 			if(ef) {
 				qdiag1s_.resize(ndiag_ * nrow_);
@@ -419,14 +422,14 @@ public:
 		bool diag1 = ((row + col) & lomask_) == per_ - 2;
 		size_t off = (row + col) >> perpow2_;
 		if(diag1) {
-			if(qdiag1s_[off * nrow_ + row].sc[hef] == std::numeric_limits<int16_t>::min()) {
-				return std::numeric_limits<int64_t>::min();
+			if(qdiag1s_[off * nrow_ + row].sc[hef] == MIN_I16) {
+				return MIN_I64;
 			} else {
 				return qdiag1s_[off * nrow_ + row].sc[hef];
 			}
 		} else {
-			if(qdiag2s_[off * nrow_ + row].sc[hef] == std::numeric_limits<int16_t>::min()) {
-				return std::numeric_limits<int64_t>::min();
+			if(qdiag2s_[off * nrow_ + row].sc[hef] == MIN_I16) {
+				return MIN_I64;
 			} else {
 				return qdiag2s_[off * nrow_ + row].sc[hef];
 			}
@@ -446,6 +449,7 @@ public:
 		ef_ = is8_ = local_ = false;
 		iter_ = ndiag_ = locol_ = hicol_ = 0;
 		perf_ = 0;
+		firstCommit_ = true;
 	}
 	
 	/**
@@ -472,8 +476,6 @@ public:
 	
 	const _CpQuad* qdiag1sPtr() const { return qdiag1s_.ptr(); }
 	const _CpQuad* qdiag2sPtr() const { return qdiag2s_.ptr(); }
-	
-protected:
 
 	size_t   perpow2_;   // 1 << perpow2_ - 2 is the # of uncheckpointed
 	                     // anti-diags between checkpointed anti-diag pairs
@@ -492,6 +494,10 @@ protected:
 	
 	size_t   locol_;     // leftmost column committed
 	size_t   hicol_;     // rightmost column committed
+
+	// Map for committing scores from vector columns to checkpointed diagonals
+	EList<Triple<size_t, size_t, bool> > commitMap_;
+	bool firstCommit_;
 	
 	EList<int16_t> diag1s_;  // checkpoint H values for diagonal 1
 	EList<int16_t> diag2s_;  // checkpoint H values for diagonal 2

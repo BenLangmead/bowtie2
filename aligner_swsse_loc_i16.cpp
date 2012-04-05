@@ -158,8 +158,8 @@ static bool cellOkLocalI16(
 	int readq,
 	const Scoring& sc)     // scoring scheme
 {
-	TCScore floorsc = std::numeric_limits<int16_t>::min();
-	TCScore ceilsc = std::numeric_limits<int16_t>::max()-1;
+	TCScore floorsc = MIN_I16;
+	TCScore ceilsc = MIN_I16-1;
 	TAlScore offsetsc = 0x8000;
 	TAlScore sc_h_cur = (TAlScore)d.mat_.helt(row, col);
 	TAlScore sc_e_cur = (TAlScore)d.mat_.eelt(row, col);
@@ -300,7 +300,7 @@ TAlScore SwAligner::alignGatherLoc16(int& flag, bool debug) {
 	assert_eq(rd_->length(), qu_->length());
 	assert_geq(sc_->gapbar, 1);
 	assert_gt(minsc_, 0);
-	assert_leq(minsc_, std::numeric_limits<int16_t>::max());
+	assert_leq(minsc_, MAX_I16);
 	assert(repOk());
 #ifndef NDEBUG
 	for(size_t i = rfi_; i < rff_; i++) {
@@ -371,14 +371,14 @@ TAlScore SwAligner::alignGatherLoc16(int& flag, bool debug) {
 	__m128i vminsc   = _mm_setzero_si128();
 
 	assert_gt(sc_->refGapOpen(), 0);
-	assert_leq(sc_->refGapOpen(), std::numeric_limits<TCScore>::max());
+	assert_leq(sc_->refGapOpen(), MAX_I16);
 	rfgapo = _mm_insert_epi16(rfgapo, sc_->refGapOpen(), 0);
 	rfgapo = _mm_shufflelo_epi16(rfgapo, 0);
 	rfgapo = _mm_shuffle_epi32(rfgapo, 0);
 	
 	// Set all elts to reference gap extension penalty
 	assert_gt(sc_->refGapExtend(), 0);
-	assert_leq(sc_->refGapExtend(), std::numeric_limits<TCScore>::max());
+	assert_leq(sc_->refGapExtend(), MAX_I16);
 	assert_leq(sc_->refGapExtend(), sc_->refGapOpen());
 	rfgape = _mm_insert_epi16(rfgape, sc_->refGapExtend(), 0);
 	rfgape = _mm_shufflelo_epi16(rfgape, 0);
@@ -386,14 +386,14 @@ TAlScore SwAligner::alignGatherLoc16(int& flag, bool debug) {
 
 	// Set all elts to read gap open penalty
 	assert_gt(sc_->readGapOpen(), 0);
-	assert_leq(sc_->readGapOpen(), std::numeric_limits<TCScore>::max());
+	assert_leq(sc_->readGapOpen(), MAX_I16);
 	rdgapo = _mm_insert_epi16(rdgapo, sc_->readGapOpen(), 0);
 	rdgapo = _mm_shufflelo_epi16(rdgapo, 0);
 	rdgapo = _mm_shuffle_epi32(rdgapo, 0);
 	
 	// Set all elts to read gap extension penalty
 	assert_gt(sc_->readGapExtend(), 0);
-	assert_leq(sc_->readGapExtend(), std::numeric_limits<TCScore>::max());
+	assert_leq(sc_->readGapExtend(), MAX_I16);
 	assert_leq(sc_->readGapExtend(), sc_->readGapOpen());
 	rdgape = _mm_insert_epi16(rdgape, sc_->readGapExtend(), 0);
 	rdgape = _mm_shufflelo_epi16(rdgape, 0);
@@ -446,7 +446,7 @@ TAlScore SwAligner::alignGatherLoc16(int& flag, bool debug) {
 	assert_gt(sc_->gapbar, 0);
 	size_t nfixup = 0;
 	TAlScore matchsc = sc_->match(30);
-	TAlScore leftmax = std::numeric_limits<TAlScore>::min();
+	TAlScore leftmax = MIN_I64;
 
 	// Fill in the table as usual but instead of using the same gap-penalty
 	// vector for each iteration of the inner loop, load words out of a
@@ -460,7 +460,7 @@ TAlScore SwAligner::alignGatherLoc16(int& flag, bool debug) {
 	// it difficult to use the first-row results in the next row, but it might
 	// be the simplest and least disruptive way to deal with the st_ constraint.
 	
-	size_t off = std::numeric_limits<size_t>::max(), lastoff;
+	size_t off = MAX_SIZE_T, lastoff;
 	bool bailed = false;
 	for(size_t i = rfi_; i < rff_; i++) {
 		// Swap left and right; vbuf_l is the vector on the left, which we
@@ -680,7 +680,7 @@ TAlScore SwAligner::alignGatherLoc16(int& flag, bool debug) {
 			// to the left in the left column.
 			assert_gt(i - rfi_, 0);
 			pvHLeft  = vbuf_l + 2;
-			assert_lt(lastoff, std::numeric_limits<size_t>::max());
+			assert_lt(lastoff, MAX_SIZE_T);
 			pvScore = d.profbuf_.ptr() + lastoff; // even elts = query profile, odd = gap barrier
 			for(size_t k = 0; k < iter; k++) {
 				vh = _mm_load_si128(pvHLeft);
@@ -731,8 +731,8 @@ TAlScore SwAligner::alignGatherLoc16(int& flag, bool debug) {
 			vmaxtmp = _mm_max_epi16(vmaxtmp, vtmp);
 			int16_t ret = _mm_extract_epi16(vmaxtmp, 0);
 			TAlScore score = (TAlScore)(ret + 0x8000);
-			if(ret == std::numeric_limits<int16_t>::min()) {
-				score = std::numeric_limits<TAlScore>::min();
+			if(ret == MIN_I16) {
+				score = MIN_I64;
 			}
 			
 			if(score < minsc_) {
@@ -759,7 +759,7 @@ TAlScore SwAligner::alignGatherLoc16(int& flag, bool debug) {
 		// allow matches in the right column to override matches above and
 		// to the left in the left column.
 		pvHLeft  = vbuf_r + 2;
-		assert_lt(lastoff, std::numeric_limits<size_t>::max());
+		assert_lt(lastoff, MAX_SIZE_T);
 		pvScore = d.profbuf_.ptr() + lastoff; // even elts = query profile, odd = gap barrier
 		for(size_t k = 0; k < iter; k++) {
 			vh = _mm_load_si128(pvHLeft);
@@ -811,11 +811,11 @@ TAlScore SwAligner::alignGatherLoc16(int& flag, bool debug) {
 	flag = 0;
 
 	// Did we find a solution?
-	TAlScore score = std::numeric_limits<TAlScore>::min();
-	if(ret == std::numeric_limits<TCScore>::min()) {
+	TAlScore score = MIN_I64;
+	if(ret == MIN_I16) {
 		flag = -1; // no
 		if(!debug) met.dpfail++;
-		return std::numeric_limits<TAlScore>::min();
+		return MIN_I64;
 	} else {
 		score = (TAlScore)(ret + 0x8000);
 		if(score < minsc_) {
@@ -826,10 +826,10 @@ TAlScore SwAligner::alignGatherLoc16(int& flag, bool debug) {
 	}
 	
 	// Could we have saturated?
-	if(ret == std::numeric_limits<TCScore>::max()) {
+	if(ret == MAX_I16) {
 		flag = -2; // yes
 		if(!debug) met.dpsat++;
-		return std::numeric_limits<TAlScore>::min();
+		return MIN_I64;
 	}
 	
 	// Now take all the backtrace candidates in the btdaig_ structure and
@@ -896,14 +896,14 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag, bool debug) {
 	__m128i vtmp     = _mm_setzero_si128();
 
 	assert_gt(sc_->refGapOpen(), 0);
-	assert_leq(sc_->refGapOpen(), std::numeric_limits<TCScore>::max());
+	assert_leq(sc_->refGapOpen(), MAX_I16);
 	rfgapo = _mm_insert_epi16(rfgapo, sc_->refGapOpen(), 0);
 	rfgapo = _mm_shufflelo_epi16(rfgapo, 0);
 	rfgapo = _mm_shuffle_epi32(rfgapo, 0);
 	
 	// Set all elts to reference gap extension penalty
 	assert_gt(sc_->refGapExtend(), 0);
-	assert_leq(sc_->refGapExtend(), std::numeric_limits<TCScore>::max());
+	assert_leq(sc_->refGapExtend(), MAX_I16);
 	assert_leq(sc_->refGapExtend(), sc_->refGapOpen());
 	rfgape = _mm_insert_epi16(rfgape, sc_->refGapExtend(), 0);
 	rfgape = _mm_shufflelo_epi16(rfgape, 0);
@@ -911,14 +911,14 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag, bool debug) {
 
 	// Set all elts to read gap open penalty
 	assert_gt(sc_->readGapOpen(), 0);
-	assert_leq(sc_->readGapOpen(), std::numeric_limits<TCScore>::max());
+	assert_leq(sc_->readGapOpen(), MAX_I16);
 	rdgapo = _mm_insert_epi16(rdgapo, sc_->readGapOpen(), 0);
 	rdgapo = _mm_shufflelo_epi16(rdgapo, 0);
 	rdgapo = _mm_shuffle_epi32(rdgapo, 0);
 	
 	// Set all elts to read gap extension penalty
 	assert_gt(sc_->readGapExtend(), 0);
-	assert_leq(sc_->readGapExtend(), std::numeric_limits<TCScore>::max());
+	assert_leq(sc_->readGapExtend(), MAX_I16);
 	assert_leq(sc_->readGapExtend(), sc_->readGapOpen());
 	rdgape = _mm_insert_epi16(rdgape, sc_->readGapExtend(), 0);
 	rdgape = _mm_shufflelo_epi16(rdgape, 0);
@@ -1274,11 +1274,11 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag, bool debug) {
 	flag = 0;
 
 	// Did we find a solution?
-	TAlScore score = std::numeric_limits<TAlScore>::min();
-	if(ret == std::numeric_limits<TCScore>::min()) {
+	TAlScore score = MIN_I64;
+	if(ret == MIN_I16) {
 		flag = -1; // no
 		if(!debug) met.dpfail++;
-		return std::numeric_limits<TAlScore>::min();
+		return MIN_I64;
 	} else {
 		score = (TAlScore)(ret + 0x8000);
 		if(score < minsc_) {
@@ -1289,10 +1289,10 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag, bool debug) {
 	}
 	
 	// Could we have saturated?
-	if(ret == std::numeric_limits<TCScore>::max()) {
+	if(ret == MAX_I16) {
 		flag = -2; // yes
 		if(!debug) met.dpsat++;
-		return std::numeric_limits<TAlScore>::min();
+		return MIN_I64;
 	}
 	
 	// Return largest score
@@ -1375,7 +1375,7 @@ bool SwAligner::gatherCellsNucleotidesLocalSseI16(TAlScore best) {
 		// Establish the range of rows where a backtrace from the cell in this
 		// row/col is close enough to one of the core diagonals that it could
 		// conceivably count
-		size_t nrow_lo = std::numeric_limits<size_t>::min();
+		size_t nrow_lo = MIN_SIZE_T;
 		size_t nrow_hi = nrow;
 		// First, check if there is a cell in this column with a score
 		// above the score threshold

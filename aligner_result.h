@@ -28,12 +28,13 @@
 #include "filebuf.h"
 #include "ds.h"
 #include "edit.h"
+#include "limit.h"
 
 typedef int64_t TAlScore;
 
-#define VALID_AL_SCORE(x)   ((x).score_ > std::numeric_limits<TAlScore>::min())
-#define VALID_SCORE(x)      ((x) > std::numeric_limits<TAlScore>::min())
-#define INVALIDATE_SCORE(x) ((x) = std::numeric_limits<TAlScore>::min())
+#define VALID_AL_SCORE(x)   ((x).score_ > MIN_I64)
+#define VALID_SCORE(x)      ((x) > MIN_I64)
+#define INVALIDATE_SCORE(x) ((x) = MIN_I64)
 
 /**
  * A generic score object for an alignment.  Used for accounting during
@@ -90,14 +91,14 @@ public:
 	 * Return true iff this score has a valid value.
 	 */
 	inline bool valid() const {
-		return score_ != std::numeric_limits<TAlScore>::min();
+		return score_ != MIN_I64;
 	}
 
 	/**
 	 * Make this score invalid (and therefore <= all other scores).
 	 */
 	inline void invalidate() {
-		score_ = std::numeric_limits<TAlScore>::min();
+		score_ = MIN_I64;
 		assert(!valid());
 	}
 	

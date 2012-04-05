@@ -383,7 +383,7 @@ void AlnSink::printAlSumm(
 	// NOTE: there's a filtering step at the very beginning, so everything
 	// being reported here is post filtering
 
-	bool canRep = repThresh != std::numeric_limits<size_t>::max();
+	bool canRep = repThresh != MAX_SIZE_T;
 	if(hadoopOut) {
 		cerr << "reporter:counter:Bowtie,Reads processed," << met.nread << endl;
 	}
