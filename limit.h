@@ -21,6 +21,7 @@
 #define LIMIT_H_
 
 #include <stdint.h>
+#include <cstring>
 
 extern uint8_t  MIN_U8;
 extern uint8_t  MAX_U8;
