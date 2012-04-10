@@ -208,6 +208,7 @@ static bool doExtend;         // extend seed hits
 static bool enable8;          // use 8-bit SSE where possible?
 static size_t cminlen;        // longer reads use checkpointing
 static size_t cpow2;          // checkpoint interval log2
+static bool doTri;            // do triangular mini-fills?
 static string defaultPreset;  // default preset; applied immediately
 static bool ignoreQuals;      // all mms incur same penalty, regardless of qual
 static string wrapper;        // type of wrapper script, so we can print correct usage
@@ -381,6 +382,7 @@ static void resetOptions() {
 	enable8            = true;  // use 8-bit SSE where possible?
 	cminlen            = 2000;  // longer reads use checkpointing
 	cpow2              = 4;     // checkpoint interval log2
+	doTri              = false; // do triangular mini-fills?
 	defaultPreset      = "sensitive%LOCAL%"; // default preset; applied immediately
 	extra_opts.clear();
 	extra_opts_cur = 0;
@@ -559,6 +561,7 @@ static struct option long_options[] = {
 	{(char*)"sample",           required_argument, 0,        ARG_SAMPLE},
 	{(char*)"cp-min",           required_argument, 0,        ARG_CP_MIN},
 	{(char*)"cp-ival",          required_argument, 0,        ARG_CP_IVAL},
+	{(char*)"tri",              no_argument,       0,        ARG_TRI},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -1094,6 +1097,9 @@ static void parseOption(int next_option, const char *arg) {
 			break;
 		case ARG_CP_IVAL:
 			cpow2 = parse<size_t>(arg);
+			break;
+		case ARG_TRI:
+			doTri = true;
 			break;
 		case ARG_READ_PASSTHRU: {
 			sam_print_xr = true;
@@ -3034,6 +3040,7 @@ static void* multiseedSearchWorker(void *vp) {
 								enable8,        // use 8-bit SSE where possible
 								cminlen,        // checkpoint if read is longer
 								cpow2,          // checkpointer interval, log2
+								doTri,          // triangular mini-fills?
 								tighten,        // -M score tightening mode
 								ca,             // seed alignment cache
 								rnd,            // pseudo-random source
@@ -3075,6 +3082,7 @@ static void* multiseedSearchWorker(void *vp) {
 								enable8,        // use 8-bit SSE where possible
 								cminlen,        // checkpoint if read is longer
 								cpow2,          // checkpointer interval, log2
+								doTri,          // triangular mini-fills
 								tighten,        // -M score tightening mode
 								ca,             // seed alignment cache
 								rnd,            // pseudo-random source
@@ -3213,6 +3221,7 @@ static void* multiseedSearchWorker(void *vp) {
 								enable8,        // use 8-bit SSE where possible
 								cminlen,        // checkpoint if read is longer
 								cpow2,          // checkpointer interval, log2
+								doTri,          // triangular mini-fills?
 								tighten,        // -M score tightening mode
 								ca,             // seed alignment cache
 								rnd,            // pseudo-random source
@@ -3254,6 +3263,7 @@ static void* multiseedSearchWorker(void *vp) {
 								enable8,        // use 8-bit SSE where possible
 								cminlen,        // checkpoint if read is longer
 								cpow2,          // checkpointer interval, log2
+								doTri,          // triangular mini-fills?
 								tighten,        // -M score tightening mode
 								ca,             // seed alignment cache
 								rnd,            // pseudo-random source
@@ -3458,6 +3468,7 @@ static void* multiseedSearchWorker(void *vp) {
 									enable8,        // use 8-bit SSE where possible
 									cminlen,        // checkpoint if read is longer
 									cpow2,          // checkpointer interval, log2
+									doTri,          // triangular mini-fills?
 									tighten,        // -M score tightening mode
 									ca,             // seed alignment cache
 									rnd,            // pseudo-random source
@@ -3499,6 +3510,7 @@ static void* multiseedSearchWorker(void *vp) {
 									enable8,        // use 8-bit SSE where possible
 									cminlen,        // checkpoint if read is longer
 									cpow2,          // checkpointer interval, log2
+									doTri,          // triangular mini-fills?
 									tighten,        // -M score tightening mode
 									ca,             // seed alignment cache
 									rnd,            // pseudo-random source

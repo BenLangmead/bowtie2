@@ -666,6 +666,7 @@ int SwDriver::extendSeeds(
 	bool enable8,                // use 8-bit SSE where possible
 	size_t cminlen,              // use checkpointer if read longer than this
 	size_t cpow2,                // interval between diagonals to checkpoint
+	bool doTri,                  // triangular mini-fills?
 	int tighten,                 // -M score tightening mode
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
 	RandomSource& rnd,           // pseudo-random source
@@ -996,6 +997,7 @@ int SwDriver::extendSeeds(
 						enable8,   // use 8-bit SSE if possible?
 						cminlen,   // minimum length for using checkpointing scheme
 						cpow2,     // interval b/t checkpointed diags; 1 << this
+						doTri,     // triangular mini-fills?
 						true,      // this is a seed extension - not finding a mate
 						nwindow,
 						nsInLeftShift);
@@ -1285,6 +1287,7 @@ int SwDriver::extendSeedsPaired(
 	bool enable8,                // use 8-bit SSE where possible
 	size_t cminlen,              // use checkpointer if read longer than this
 	size_t cpow2,                // interval between diagonals to checkpoint
+	bool doTri,                  // triangular mini-fills?
 	int tighten,                 // -M score tightening mode
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
 	RandomSource& rnd,           // pseudo-random source
@@ -1675,6 +1678,7 @@ int SwDriver::extendSeedsPaired(
 						enable8,   // use 8-bit SSE if possible?
 						cminlen,   // minimum length for using checkpointing scheme
 						cpow2,     // interval b/t checkpointed diags; 1 << this
+						doTri,     // triangular mini-fills?
 						true,      // this is a seed extension - not finding a mate
 						nwindow,
 						nsInLeftShift);
@@ -1900,6 +1904,7 @@ int SwDriver::extendSeedsPaired(
 								enable8,   // use 8-bit SSE if possible?
 								cminlen,   // minimum length for using checkpointing scheme
 								cpow2,     // interval b/t checkpointed diags; 1 << this
+								doTri,     // triangular mini-fills?
 								false,     // this is finding a mate - not seed ext
 								0,         // nwindow?
 								onsInLeftShift);

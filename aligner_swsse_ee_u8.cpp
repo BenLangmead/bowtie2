@@ -334,16 +334,21 @@ TAlScore SwAligner::alignGatherEE8(int& flag, bool debug) {
 
 	// Data structure that holds checkpointed anti-diagonals
 	TAlScore perfectScore = sc_->perfectScore(dpRows());
+	bool checkpoint = true;
+	bool cpdebug = false;
+#ifndef NDEBUG
+	cpdebug = dpRows() < 1000;
+#endif
 	cper_.init(
-		dpRows(),     // # rows
-		rff_ - rfi_,  // # columns
-		cperPerPow2_, // checkpoint every 1 << perpow2 diags (& next)
-		cperEf_,      // store E and F in addition to H?
-		true,         // matrix is 8-bit?
-		perfectScore, // perfect score (for sanity checks)
-		false);       // alignment is local?
-	bool checkpoint = cper_.doCheckpoints();
-	
+		dpRows(),      // # rows
+		rff_ - rfi_,   // # columns
+		cperPerPow2_,  // checkpoint every 1 << perpow2 diags (& next)
+		perfectScore,  // perfect score (for sanity checks)
+		true,          // matrix cells have 8-bit scores?
+		cperTri_,      // triangular mini-fills?
+		false,         // alignment is local?
+		cpdebug);      // save all cells for debugging?
+
 	// Many thanks to Michael Farrar for releasing his striped Smith-Waterman
 	// implementation:
 	//
@@ -609,123 +614,126 @@ TAlScore SwAligner::alignGatherEE8(int& flag, bool debug) {
 
 		// Save some elements to checkpoints
 		if(checkpoint) {
+			
 			__m128i *pvE = vbuf_r + 0;
 			__m128i *pvF = vbuf_r + 1;
 			__m128i *pvH = vbuf_r + 2;
 			size_t coli = i - rfi_;
-			if(coli < cper_.locol_) {
-				cper_.locol_ = coli;
-			}
-			if(coli > cper_.hicol_) {
-				cper_.hicol_ = coli;
-			}
-			size_t rc = coli;
-			size_t rc_mod = rc & cper_.lomask_;
-			assert_lt(rc_mod, cper_.per_);
-			int64_t row = -rc_mod-1;
-			int64_t row_mod = row;
-			int64_t row_div = 0;
-
-			// Initialize idx, elt and word
-			size_t idx = rc >> cper_.perpow2_;
-			size_t idxrow = idx * cper_.nrow_;
-			assert_eq(4, ROWSTRIDE_2COL);
-
-			// Commit all the diag1 scores
-			bool done = false;
-			while(true) {
-				row += (cper_.per_ - 2);
-				row_mod += (cper_.per_ - 2);
-				for(size_t j = 0; j < 2; j++) {
-					row++;
-					row_mod++;
-					if(row >= 0 && (size_t)row < cper_.nrow_) {
-						// Update row divided by iter_ and mod iter_
-						while(row_mod >= (int64_t)cper_.iter_) {
-							row_mod -= (int64_t)cper_.iter_;
-							row_div++;
-						}
-						size_t delt = idxrow + row;
-						if(cper_.is8_) {
+			if(coli < cper_.locol_) cper_.locol_ = coli;
+			if(coli > cper_.hicol_) cper_.hicol_ = coli;
+			
+			if(cperTri_) {
+				size_t rc_mod = coli & cper_.lomask_;
+				assert_lt(rc_mod, cper_.per_);
+				int64_t row = -rc_mod-1;
+				int64_t row_mod = row;
+				int64_t row_div = 0;
+				size_t idx = coli >> cper_.perpow2_;
+				size_t idxrow = idx * cper_.nrow_;
+				assert_eq(4, ROWSTRIDE_2COL);
+				bool done = false;
+				while(true) {
+					row += (cper_.per_ - 2);
+					row_mod += (cper_.per_ - 2);
+					for(size_t j = 0; j < 2; j++) {
+						row++;
+						row_mod++;
+						if(row >= 0 && (size_t)row < cper_.nrow_) {
+							// Update row divided by iter_ and mod iter_
+							while(row_mod >= (int64_t)iter) {
+								row_mod -= (int64_t)iter;
+								row_div++;
+							}
+							size_t delt = idxrow + row;
 							size_t vecoff = (row_mod << 6) + row_div;
-							if(cper_.ef_) {
-								assert_lt(row_div, 16);
-								int16_t h_sc = ((uint8_t*)pvH)[vecoff];
-								int16_t e_sc = ((uint8_t*)pvE)[vecoff];
-								int16_t f_sc = ((uint8_t*)pvF)[vecoff];
-								if(!cper_.local_) {
-									if(h_sc == 0) h_sc = MIN_I16;
-									else h_sc -= 0xff;
-									if(e_sc == 0) e_sc = MIN_I16;
-									else e_sc -= 0xff;
-									if(f_sc == 0) f_sc = MIN_I16;
-									else f_sc -= 0xff;
-								}
-								assert_leq(h_sc, cper_.perf_);
-								assert_leq(e_sc, cper_.perf_);
-								assert_leq(f_sc, cper_.perf_);
-								_CpQuad *qdiags = ((j == 0) ? cper_.qdiag1s_.ptr() : cper_.qdiag2s_.ptr());
-								qdiags[delt].sc[0] = h_sc;
-								qdiags[delt].sc[1] = e_sc;
-								qdiags[delt].sc[2] = f_sc;
-							} else {
-								assert_lt(row_div, 16);
-								int sc = ((uint16_t*)pvH)[vecoff];
-								if(!cper_.local_) sc -= 0xff;
-								assert_leq(sc, cper_.perf_);
-								EList<int16_t>& diags = (j == 0 ? cper_.diag1s_  : cper_.diag2s_);
-								diags[delt] = (int16_t)sc;
-							}
-						} else {
-							size_t vecoff = (row_mod << 5) + row_div;
-							if(cper_.ef_) {
-								assert_lt(row_div, 8);
-								int16_t h_sc = ((int16_t*)pvH)[vecoff];
-								int16_t e_sc = ((int16_t*)pvE)[vecoff];
-								int16_t f_sc = ((int16_t*)pvF)[vecoff];
-								if(!cper_.local_) {
-									if(h_sc != MIN_I16) h_sc -= 0x7fff;
-									if(e_sc != MIN_I16) e_sc -= 0x7fff;
-									if(f_sc != MIN_I16) f_sc -= 0x7fff;
-								} else {
-									h_sc += 0x8000; assert_geq(h_sc, 0);
-									e_sc += 0x8000; assert_geq(e_sc, 0);
-									f_sc += 0x8000; assert_geq(f_sc, 0);
-								}
-								assert_leq(h_sc, cper_.perf_);
-								assert_leq(e_sc, cper_.perf_);
-								assert_leq(f_sc, cper_.perf_);
-								_CpQuad *qdiags = ((j == 0) ? cper_.qdiag1s_.ptr() : cper_.qdiag2s_.ptr());
-								qdiags[delt].sc[0] = h_sc;
-								qdiags[delt].sc[1] = e_sc;
-								qdiags[delt].sc[2] = f_sc;
-							} else {
-								assert_lt(row_div, 16);
-								int sc = ((uint16_t*)pvH)[vecoff];
-								if(!cper_.local_) {
-									if(sc == MIN_I16) {
-										sc = MIN_I;
-									} else sc -= 0x7fff;
-								} else {
-									sc += 0x8000; assert_geq(sc, 0);
-								}
-								assert_leq(sc, cper_.perf_);
-								EList<int16_t>& diags = (j == 0 ? cper_.diag1s_  : cper_.diag2s_);
-								diags[delt] = (int16_t)sc;
-							}
+							assert_lt(row_div, 16);
+							int16_t h_sc = ((uint8_t*)pvH)[vecoff];
+							int16_t e_sc = ((uint8_t*)pvE)[vecoff];
+							int16_t f_sc = ((uint8_t*)pvF)[vecoff];
+							if(h_sc == 0) h_sc = MIN_I16;
+							else h_sc -= 0xff;
+							if(e_sc == 0) e_sc = MIN_I16;
+							else e_sc -= 0xff;
+							if(f_sc == 0) f_sc = MIN_I16;
+							else f_sc -= 0xff;
+							assert_leq(h_sc, cper_.perf_);
+							assert_leq(e_sc, cper_.perf_);
+							assert_leq(f_sc, cper_.perf_);
+							CpQuad *qdiags = ((j == 0) ? cper_.qdiag1s_.ptr() : cper_.qdiag2s_.ptr());
+							qdiags[delt].sc[0] = h_sc;
+							qdiags[delt].sc[1] = e_sc;
+							qdiags[delt].sc[2] = f_sc;
+						} // if(row >= 0 && row < nrow_)
+						else if(row >= 0 && (size_t)row >= cper_.nrow_) {
+							done = true;
+							break;
 						}
-					} // if(row >= 0 && row < nrow_)
-					else if(row >= 0 && (size_t)row >= cper_.nrow_) {
-						done = true;
+					} // end of loop over anti-diags
+					if(done) {
 						break;
 					}
-				} // end of loop over anti-diags
-				if(done) {
-					break;
+					idx++;
+					idxrow += cper_.nrow_;
 				}
-				idx++;
-				idxrow += cper_.nrow_;
-			} // end of loop over strips
+			} else {
+				// If this is the first column, take this opportunity to
+				// pre-calculate the coordinates of the elements we're going to
+				// checkpoint.
+				if(coli == 0) {
+					size_t cpi    = cper_.per_-1;
+					size_t cpimod = cper_.per_-1;
+					size_t cpidiv = 0;
+					cper_.commitMap_.clear();
+					while(cpi < cper_.nrow_) {
+						while(cpimod >= iter) {
+							cpimod -= iter;
+							cpidiv++;
+						}
+						size_t vecoff = (cpimod << 6) + cpidiv;
+						cper_.commitMap_.push_back(vecoff);
+						cpi += cper_.per_;
+						cpimod += cper_.per_;
+					}
+				}
+				// Save all the rows
+				size_t rowoff = 0;
+				size_t sz = cper_.commitMap_.size();
+				for(size_t i = 0; i < sz; i++, rowoff += cper_.ncol_) {
+					size_t vecoff = cper_.commitMap_[i];
+					int16_t h_sc = ((uint8_t*)pvH)[vecoff];
+					int16_t e_sc = ((uint8_t*)pvE)[vecoff];
+					int16_t f_sc = ((uint8_t*)pvF)[vecoff];
+					if(h_sc == 0) h_sc = MIN_I16;
+					else h_sc -= 0xff;
+					if(e_sc == 0) e_sc = MIN_I16;
+					else e_sc -= 0xff;
+					if(f_sc == 0) f_sc = MIN_I16;
+					else f_sc -= 0xff;
+					assert_leq(h_sc, cper_.perf_);
+					assert_leq(e_sc, cper_.perf_);
+					assert_leq(f_sc, cper_.perf_);
+					CpQuad& dst = cper_.qrows_[rowoff + coli];
+					dst.sc[0] = h_sc;
+					dst.sc[1] = e_sc;
+					dst.sc[2] = f_sc;
+				}
+				// Is this a column we'd like to checkpoint?
+				if((coli & cper_.lomask_) == cper_.lomask_) {
+					// Save the column using memcpys
+					assert_gt(coli, 0);
+					size_t wordspercol = cper_.niter_ * ROWSTRIDE_2COL;
+					size_t coloff = (coli >> cper_.perpow2_) * wordspercol;
+					__m128i *dst = cper_.qcols_.ptr() + coloff;
+					memcpy(dst, vbuf_r, sizeof(__m128i) * wordspercol);
+				}
+			}
+			if(cper_.debug_) {
+				// Save the column using memcpys
+				size_t wordspercol = cper_.niter_ * ROWSTRIDE_2COL;
+				size_t coloff = coli * wordspercol;
+				__m128i *dst = cper_.qcolsD_.ptr() + coloff;
+				memcpy(dst, vbuf_r, sizeof(__m128i) * wordspercol);
+			}
 		}
 	}
 	
