@@ -588,7 +588,7 @@ void BtBranchTracer::squareFill(
 	const CpQuad *qup = NULL;
 	const __m128i *qlf = NULL;
 	size_t per = prob_.cper_->per_;
-	size_t nrow = prob_.cper_->nrow();
+	ASSERT_ONLY(size_t nrow = prob_.cper_->nrow());
 	size_t ncol = prob_.cper_->ncol();
 	assert_eq(prob_.qrylen_, nrow);
 	assert_eq(prob_.reflen_, ncol);
@@ -615,7 +615,7 @@ void BtBranchTracer::squareFill(
  		xi = xedge;
 		// Handling for first column is done outside the loop
 		size_t fromend = prob_.qrylen_ - yi - 1;
-		bool allowGaps = fromend >= prob_.sc_->gapbar && yi >= prob_.sc_->gapbar;
+		bool allowGaps = fromend >= (size_t)prob_.sc_->gapbar && yi >= (size_t)prob_.sc_->gapbar;
 		// Get character, quality from read
 		int qc = prob_.qry_[yi], qq = prob_.qual_[yi];
 		assert_geq(qq, 33);
