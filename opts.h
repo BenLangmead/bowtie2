@@ -139,7 +139,8 @@ enum {
 	ARG_READ_PASSTHRU,          // --passthrough
 	ARG_SAMPLE,                 // --sample
 	ARG_CP_MIN,                 // --cp-min
-	ARG_CP_IVAL                 // --cp-ival
+	ARG_CP_IVAL,                // --cp-ival
+	ARG_TRI                     // --tri
 };
 
 #endif

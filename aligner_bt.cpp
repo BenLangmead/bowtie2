@@ -24,10 +24,13 @@
 using namespace std;
 
 #define CHECK_ROW_COL(rowc, colc) \
-	if(rowc >= 0 && colc >= 0 && !sawcell_[colc].insert(rowc)) { \
-		/* was already in there */ \
-		abort = true; \
-		return; \
+	if(rowc >= 0 && colc >= 0) { \
+		if(!sawcell_[colc].insert(rowc)) { \
+			/* was already in there */ \
+			abort = true; \
+			return; \
+		} \
+		assert(local || prob_.cper_->debugCell(rowc, colc, hefc)); \
 	}
 
 /**
@@ -53,7 +56,7 @@ void BtBranchTracer::triangleFill(
 	assert_range(0, 2, hef);
 	assert_lt(rw, (int64_t)prob_.qrylen_);
 	assert_lt(cl, (int64_t)prob_.reflen_);
-	assert(prob_.usecp_ && prob_.fill_ && prob_.cper_->doCheckpoints());
+	assert(prob_.usecp_ && prob_.fill_);
 	int64_t row = rw, col = cl;
 	const int64_t colmin = 0;
 	const int64_t rowmin = 0;
@@ -87,7 +90,7 @@ void BtBranchTracer::triangleFill(
 	const TAlScore sc_rfe = prob_.sc_->refGapExtend();
 	const bool local = !prob_.sc_->monotone;
 	int64_t row_lo = row - (int64_t)mod;
-	const _CpQuad *prev2 = NULL, *prev1 = NULL;
+	const CpQuad *prev2 = NULL, *prev1 = NULL;
 	if(!upperleft) {
 		// Read-only pointer to cells in diagonal -2.  Start one row above the
 		// target row.
@@ -101,12 +104,12 @@ void BtBranchTracer::triangleFill(
 			if(rowc > 0 && prob_.cper_->isCheckpointed(rowc-1, colc)) {
 				TAlScore al = prev1[0].sc[0];
 				if(al == MIN_I16) al = MIN_I64;
-				assert_eq(prob_.cper_->score(rowc-1, colc, 0), al);
+				assert_eq(prob_.cper_->scoreTriangle(rowc-1, colc, 0), al);
 			}
 			if(rowc > 0 && colc > 0 && prob_.cper_->isCheckpointed(rowc-1, colc-1)) {
 				TAlScore al = prev2[0].sc[0];
 				if(al == MIN_I16) al = MIN_I64;
-				assert_eq(prob_.cper_->score(rowc-1, colc-1, 0), al);
+				assert_eq(prob_.cper_->scoreTriangle(rowc-1, colc-1, 0), al);
 			}
 		}
 #endif
@@ -114,14 +117,14 @@ void BtBranchTracer::triangleFill(
 	// Pointer to cells in current diagonal
 	// For each diagonal we need to fill in
 	for(size_t i = 0; i < depth; i++) {
-		_CpQuad * cur = tri_[i].ptr();
-		_CpQuad * curc = cur;
+		CpQuad * cur = tri_[i].ptr();
+		CpQuad * curc = cur;
 		size_t doff = mod - i; // # diagonals we are away from target diag
 		//assert_geq(row, (int64_t)doff);
 		int64_t rowc = row - doff;
 		int64_t colc = col;
 		size_t neval = 0; // # cells evaluated in this diag
-		const _CpQuad *last = NULL;
+		const CpQuad *last = NULL;
 		// Fill this diagonal from upper right to lower left
 		for(size_t j = 0; j < breadth; j++) {
 			if(rowc >= rowmin && rowc <= rowmax &&
@@ -168,8 +171,8 @@ void BtBranchTracer::triangleFill(
 							fup = max<int16_t>(fup, 0);
 						}
 						if(prob_.cper_->isCheckpointed(rowc-1, colc)) {
-							assert_eq(hup, prob_.cper_->score(rowc-1, colc, 0));
-							assert_eq(fup, prob_.cper_->score(rowc-1, colc, 2));
+							assert_eq(hup, prob_.cper_->scoreTriangle(rowc-1, colc, 0));
+							assert_eq(fup, prob_.cper_->scoreTriangle(rowc-1, colc, 2));
 						}
 #endif
 					}
@@ -193,8 +196,8 @@ void BtBranchTracer::triangleFill(
 							elf = max<int16_t>(elf, 0);
 						}
 						if(prob_.cper_->isCheckpointed(rowc, colc-1)) {
-							assert_eq(hlf, prob_.cper_->score(rowc, colc-1, 0));
-							assert_eq(elf, prob_.cper_->score(rowc, colc-1, 1));
+							assert_eq(hlf, prob_.cper_->scoreTriangle(rowc, colc-1, 0));
+							assert_eq(elf, prob_.cper_->scoreTriangle(rowc, colc-1, 1));
 						}
 #endif
 					}
@@ -296,9 +299,9 @@ void BtBranchTracer::triangleFill(
 					TAlScore sc_best64   = sc_best;   if(sc_best   == MIN_I16) sc_best64   = MIN_I64;
 					TAlScore sc_e_best64 = sc_e_best; if(sc_e_best == MIN_I16) sc_e_best64 = MIN_I64;
 					TAlScore sc_f_best64 = sc_f_best; if(sc_f_best == MIN_I16) sc_f_best64 = MIN_I64;
-					assert_eq(prob_.cper_->score(rowc, colc, 0), sc_best64);
-					assert_eq(prob_.cper_->score(rowc, colc, 1), sc_e_best64);
-					assert_eq(prob_.cper_->score(rowc, colc, 2), sc_f_best64);
+					assert_eq(prob_.cper_->scoreTriangle(rowc, colc, 0), sc_best64);
+					assert_eq(prob_.cper_->scoreTriangle(rowc, colc, 1), sc_e_best64);
+					assert_eq(prob_.cper_->scoreTriangle(rowc, colc, 2), sc_f_best64);
 				}
 #endif
 			}
@@ -326,6 +329,7 @@ void BtBranchTracer::triangleFill(
 	//
 	int64_t rowc = row, colc = col;
 	size_t curid;
+	int hefc = hef;
 	if(bs_.empty()) {
 		// Start an initial branch
 		CHECK_ROW_COL(rowc, colc);
@@ -339,13 +343,12 @@ void BtBranchTracer::triangleFill(
 	} else {
 		curid = bs_.size()-1;
 	}
-	int hefc = hef;
 	size_t idx_orig = (row + col) >> prob_.cper_->perpow2();
 	while(true) {
 		// What depth are we?
 		size_t mod = (rowc + colc) & prob_.cper_->lomask();
 		assert_lt(mod, prob_.cper_->per());
-		_CpQuad * cur = tri_[mod].ptr();
+		CpQuad * cur = tri_[mod].ptr();
 		int64_t row_off = rowc - row_lo - mod;
 		assert(!local || cur[row_off].sc[0] > 0);
 		assert_geq(row_off, 0);
@@ -469,7 +472,7 @@ void BtBranchTracer::triangleFill(
 		size_t idx = (rowc + colc) >> prob_.cper_->perpow2();
 		assert_lt(mod_new, prob_.cper_->per());
 		int64_t row_off_new = rowc - row_lo - mod_new;
-		_CpQuad * cur_new = NULL;
+		CpQuad * cur_new = NULL;
 		if(colc >= 0 && rowc >= 0 && idx == idx_orig) {
 			cur_new = tri_[mod_new].ptr();
 		}
@@ -509,7 +512,513 @@ void BtBranchTracer::triangleFill(
 				assert(local);
 				targ_new = 0;
 			} else {
-				targ_new = prob_.cper_->score(rowc, colc, hefc);
+				targ_new = prob_.cper_->scoreTriangle(rowc, colc, hefc);
+			}
+			if(local && targ_new == 0) {
+				done = true;
+				assert(bs_[curid].isSolution(prob_));
+				addSolution(curid);
+			}
+			assert((row_new >= 0 && col_new >= 0) || done);
+			return;
+		}
+	}
+	assert(false);
+}
+
+#ifndef NDEBUG
+#define DEBUG_CHECK(ss, row, col, hef) { \
+	if(prob_.cper_->debug() && row >= 0 && col >= 0) { \
+		TAlScore s = ss; \
+		if(s == MIN_I16) s = MIN_I64; \
+		if(local && s < 0) s = 0; \
+		TAlScore deb = prob_.cper_->debugCell(row, col, hef); \
+		if(local && deb < 0) deb = 0; \
+		assert_eq(s, deb); \
+	} \
+}
+#else
+#define DEBUG_CHECK(ss, row, col, hef)
+#endif
+
+
+/**
+ * Fill in a square of the DP table and backtrace from the given cell to
+ * a cell in the previous checkpoint, or to the terminal cell.
+ */
+void BtBranchTracer::squareFill(
+	int64_t rw,          // row of cell to backtrace from
+	int64_t cl,          // column of cell to backtrace from
+	int hef,             // cell to backtrace from is H (0), E (1), or F (2)
+	TAlScore targ,       // score of cell to backtrace from
+	TAlScore targ_final, // score of alignment we're looking for
+	RandomSource& rnd,   // pseudo-random generator
+	int64_t& row_new,    // out: row we ended up in after backtrace
+	int64_t& col_new,    // out: column we ended up in after backtrace
+	int& hef_new,        // out: H/E/F after backtrace
+	TAlScore& targ_new,  // out: score up to cell we ended up in
+	bool& done,          // out: finished tracing out an alignment?
+	bool& abort)         // out: aborted b/c cell was seen before?
+{
+	assert_geq(rw, 0);
+	assert_geq(cl, 0);
+	assert_range(0, 2, hef);
+	assert_lt(rw, (int64_t)prob_.qrylen_);
+	assert_lt(cl, (int64_t)prob_.reflen_);
+	assert(prob_.usecp_ && prob_.fill_);
+	const bool is8_ = prob_.cper_->is8_;
+	int64_t row = rw, col = cl;
+	assert_leq(prob_.reflen_, sawcell_.size());
+	assert_leq(col, (int64_t)prob_.cper_->hicol());
+	assert_geq(col, (int64_t)prob_.cper_->locol());
+	assert_geq(prob_.cper_->per(), 2);
+	size_t xmod = col & prob_.cper_->lomask();
+	size_t ymod = row & prob_.cper_->lomask();
+	size_t xdiv = col >> prob_.cper_->perpow2();
+	size_t ydiv = row >> prob_.cper_->perpow2();
+	size_t sq_ncol = xmod+1, sq_nrow = ymod+1;
+	sq_.resize(sq_ncol * sq_nrow);
+	bool upper = ydiv == 0;
+	bool left  = xdiv == 0;
+	const TAlScore sc_rdo = prob_.sc_->readGapOpen();
+	const TAlScore sc_rde = prob_.sc_->readGapExtend();
+	const TAlScore sc_rfo = prob_.sc_->refGapOpen();
+	const TAlScore sc_rfe = prob_.sc_->refGapExtend();
+	const bool local = !prob_.sc_->monotone;
+	const CpQuad *qup = NULL;
+	const __m128i *qlf = NULL;
+	size_t per = prob_.cper_->per_;
+	size_t nrow = prob_.cper_->nrow();
+	size_t ncol = prob_.cper_->ncol();
+	assert_eq(prob_.qrylen_, nrow);
+	assert_eq(prob_.reflen_, ncol);
+	size_t niter = prob_.cper_->niter_;
+	if(!upper) {
+		qup = prob_.cper_->qrows_.ptr() + (ncol * (ydiv-1)) + xdiv * per;
+	}
+	if(!left) {
+		// Set up the column pointers to point to the first __m128i word in the
+		// relevant column
+		size_t off = (niter << 2) * (xdiv-1);
+		qlf = prob_.cper_->qcols_.ptr() + off;
+	}
+	size_t xedge = xdiv * per; // absolute offset of leftmost cell in square
+	size_t yedge = ydiv * per; // absolute offset of topmost cell in square
+	size_t xi = xedge, yi = yedge; // iterators for columns, rows
+	size_t ii = 0; // iterator into packed square
+	// Iterate over rows, then over columns
+	size_t m128mod = yi % prob_.cper_->niter_;
+	size_t m128div = yi / prob_.cper_->niter_;
+	int16_t sc_h_dg_lastrow = MIN_I16;
+	for(size_t i = 0; i <= ymod; i++, yi++) {
+		assert_lt(yi, nrow);
+ 		xi = xedge;
+		// Handling for first column is done outside the loop
+		size_t fromend = prob_.qrylen_ - yi - 1;
+		bool allowGaps = fromend >= prob_.sc_->gapbar && yi >= prob_.sc_->gapbar;
+		// Get character, quality from read
+		int qc = prob_.qry_[yi], qq = prob_.qual_[yi];
+		assert_geq(qq, 33);
+		int16_t sc_h_lf_last = MIN_I16;
+		int16_t sc_e_lf_last = MIN_I16;
+		for(size_t j = 0; j <= xmod; j++, xi++) {
+			assert_lt(xi, ncol);
+			// Get character from reference
+			int rc = prob_.ref_[xi];
+			assert_range(0, 16, rc);
+			int16_t sc_diag = prob_.sc_->score(qc, rc, qq - 33);
+			int16_t sc_h_up = MIN_I16, sc_f_up = MIN_I16,
+			        sc_h_lf = MIN_I16, sc_e_lf = MIN_I16,
+					sc_h_dg = MIN_I16;
+			int16_t sc_h_up_c = MIN_I16, sc_f_up_c = MIN_I16,
+			        sc_h_lf_c = MIN_I16, sc_e_lf_c = MIN_I16,
+					sc_h_dg_c = MIN_I16;
+			if(yi == 0) {
+				// If I'm in the first first row or column set it to 0
+				sc_h_dg = 0;
+			} else if(xi == 0) {
+				// Do nothing; leave it at min
+				if(local) {
+					sc_h_dg = 0;
+				}
+			} else if(i == 0 && j == 0) {
+				// Otherwise, if I'm in the upper-left square corner, I can get
+				// it from the checkpoint 
+				sc_h_dg = qup[-1].sc[0];
+			} else if(j == 0) {
+				// Otherwise, if I'm in the leftmost cell of this row, I can
+				// get it from sc_h_lf in first column of previous row
+				sc_h_dg = sc_h_dg_lastrow;
+			} else {
+				// Otherwise, I can get it from qup
+				sc_h_dg = qup[j-1].sc[0];
+			}
+			if(yi > 0 && xi > 0) DEBUG_CHECK(sc_h_dg, yi-1, xi-1, 2);
+			
+			// If we're in the leftmost column, calculate sc_h_lf regardless of
+			// allowGaps.
+			if(j == 0 && xi > 0) {
+				// Get values for left neighbors from the checkpoint
+				if(is8_) {
+					size_t vecoff = (m128mod << 6) + m128div;
+					sc_e_lf = ((uint8_t*)(qlf + 0))[vecoff];
+					sc_h_lf = ((uint8_t*)(qlf + 2))[vecoff];
+					if(local) {
+						// No adjustment
+					} else {
+						if(sc_h_lf == 0) sc_h_lf = MIN_I16;
+						else sc_h_lf -= 0xff;
+						if(sc_e_lf == 0) sc_e_lf = MIN_I16;
+						else sc_e_lf -= 0xff;
+					}
+				} else {
+					size_t vecoff = (m128mod << 5) + m128div;
+					sc_e_lf = ((int16_t*)(qlf + 0))[vecoff];
+					sc_h_lf = ((int16_t*)(qlf + 2))[vecoff];
+					if(local) {
+						sc_h_lf += 0x8000; assert_geq(sc_h_lf, 0);
+						sc_e_lf += 0x8000; assert_geq(sc_e_lf, 0);
+					} else {
+						if(sc_h_lf != MIN_I16) sc_h_lf -= 0x7fff;
+						if(sc_e_lf != MIN_I16) sc_e_lf -= 0x7fff;
+					}
+				}
+				DEBUG_CHECK(sc_e_lf, yi, xi-1, 0);
+				DEBUG_CHECK(sc_h_lf, yi, xi-1, 2);
+				sc_h_dg_lastrow = sc_h_lf;
+			}
+			
+			if(allowGaps) {
+				if(j == 0 /* at left edge */ && xi > 0 /* not extreme */) {
+					sc_h_lf_c = sc_h_lf;
+					sc_e_lf_c = sc_e_lf;
+					if(sc_h_lf_c != MIN_I16) sc_h_lf_c -= sc_rdo;
+					if(sc_e_lf_c != MIN_I16) sc_e_lf_c -= sc_rde;
+					assert_leq(sc_h_lf_c, prob_.cper_->perf_);
+					assert_leq(sc_e_lf_c, prob_.cper_->perf_);
+				} else if(xi > 0) {
+					// Get values for left neighbors from the previous iteration
+					if(sc_h_lf_last != MIN_I16) {
+						sc_h_lf = sc_h_lf_last;
+						sc_h_lf_c = sc_h_lf - sc_rdo;
+					}
+					if(sc_e_lf_last != MIN_I16) {
+						sc_e_lf = sc_e_lf_last;
+						sc_e_lf_c = sc_e_lf - sc_rde;
+					}
+				}
+				if(yi > 0 /* not extreme */) {
+					// Get column values
+					assert(qup != NULL);
+					assert(local || qup[j].sc[2] < 0);
+					if(qup[j].sc[0] > MIN_I16) {
+						DEBUG_CHECK(qup[j].sc[0], yi-1, xi, 2);
+						sc_h_up = qup[j].sc[0];
+						sc_h_up_c = sc_h_up - sc_rfo;
+					}
+					if(qup[j].sc[2] > MIN_I16) {
+						DEBUG_CHECK(qup[j].sc[2], yi-1, xi, 1);
+						sc_f_up = qup[j].sc[2];
+						sc_f_up_c = sc_f_up - sc_rfe;
+					}
+				}
+				if(local) {
+					sc_h_up_c = max<int16_t>(sc_h_up_c, 0);
+					sc_f_up_c = max<int16_t>(sc_f_up_c, 0);
+					sc_h_lf_c = max<int16_t>(sc_h_lf_c, 0);
+					sc_e_lf_c = max<int16_t>(sc_e_lf_c, 0);
+				}
+			}
+			
+			if(sc_h_dg > MIN_I16) {
+				sc_h_dg_c = sc_h_dg + sc_diag;
+			}
+			if(local) sc_h_dg_c = max<int16_t>(sc_h_dg_c, 0);
+			
+			int mask = 0;
+			// Calculate best ways into H, E, F cells starting with H.
+			// Mask bits:
+			// H: 1=diag, 2=hhoriz, 4=ehoriz, 8=hvert, 16=fvert
+			// E: 32=hhoriz, 64=ehoriz
+			// F: 128=hvert, 256=fvert
+			int16_t sc_best = sc_h_dg_c;
+			if(sc_h_dg_c > MIN_I64) {
+				mask = 1;
+			}
+			if(xi > 0 && sc_h_lf_c >= sc_best && sc_h_lf_c > MIN_I64) {
+				if(sc_h_lf_c > sc_best) mask = 0;
+				mask |= 2;
+				sc_best = sc_h_lf_c;
+			}
+			if(xi > 0 && sc_e_lf_c >= sc_best && sc_e_lf_c > MIN_I64) {
+				if(sc_e_lf_c > sc_best) mask = 0;
+				mask |= 4;
+				sc_best = sc_e_lf_c;
+			}
+			if(yi > 0 && sc_h_up_c >= sc_best && sc_h_up_c > MIN_I64) {
+				if(sc_h_up_c > sc_best) mask = 0;
+				mask |= 8;
+				sc_best = sc_h_up_c;
+			}
+			if(yi > 0 && sc_f_up_c >= sc_best && sc_f_up_c > MIN_I64) {
+				if(sc_f_up_c > sc_best) mask = 0;
+				mask |= 16;
+				sc_best = sc_f_up_c;
+			}
+			// Calculate best way into E cell
+			int16_t sc_e_best = sc_h_lf_c;
+			if(xi > 0) {
+				if(sc_h_lf_c >= sc_e_lf_c && sc_h_lf_c > MIN_I64) {
+					if(sc_h_lf_c == sc_e_lf_c) {
+						mask |= 64;
+					}
+					mask |= 32;
+				} else if(sc_e_lf_c > MIN_I64) {
+					sc_e_best = sc_e_lf_c;
+					mask |= 64;
+				}
+			}
+			if(sc_e_best > sc_best) {
+				sc_best = sc_e_best;
+				mask &= ~31; // don't go diagonal
+			}
+			// Calculate best way into F cell
+			int16_t sc_f_best = sc_h_up_c;
+			if(yi > 0) {
+				if(sc_h_up_c >= sc_f_up_c && sc_h_up_c > MIN_I64) {
+					if(sc_h_up_c == sc_f_up_c) {
+						mask |= 256;
+					}
+					mask |= 128;
+				} else if(sc_f_up_c > MIN_I64) {
+					sc_f_best = sc_f_up_c;
+					mask |= 256;
+				}
+			}
+			if(sc_f_best > sc_best) {
+				sc_best = sc_f_best;
+				mask &= ~127; // don't go horizontal or diagonal
+			}
+			// Install results in cur
+			assert(!prob_.sc_->monotone || sc_best <= 0);
+			assert(!prob_.sc_->monotone || sc_e_best <= 0);
+			assert(!prob_.sc_->monotone || sc_f_best <= 0);
+			sq_[ii+j].sc[0] = sc_best;
+			assert( local || sc_e_best < 0);
+			assert( local || sc_f_best < 0);
+			assert(!local || sc_e_best >= 0 || sc_e_best == MIN_I16);
+			assert(!local || sc_f_best >= 0 || sc_f_best == MIN_I16);
+			sq_[ii+j].sc[1] = sc_e_best;
+			sq_[ii+j].sc[2] = sc_f_best;
+			sq_[ii+j].sc[3] = mask;
+			DEBUG_CHECK(sq_[ii+j].sc[0], yi, xi, 2); // H
+			DEBUG_CHECK(sq_[ii+j].sc[1], yi, xi, 0); // E
+			DEBUG_CHECK(sq_[ii+j].sc[2], yi, xi, 1); // F
+			// Update sc_h_lf_last, sc_e_lf_last
+			sc_h_lf_last = sc_best;
+			sc_e_lf_last = sc_e_best;
+		}
+		// Update m128mod, m128div
+		m128mod++;
+		if(m128mod == prob_.cper_->niter_) {
+			m128mod = 0;
+			m128div++;
+		}
+		// update qup
+		ii += sq_ncol;
+		// dimensions of sq_
+		qup = sq_.ptr() + sq_ncol * i;
+	}
+	assert_eq(targ, sq_[ymod * sq_ncol + xmod].sc[hef]);
+	//
+	// Now backtrack through the triangle.  Abort as soon as we enter a cell
+	// that was visited by a previous backtrace.
+	//
+	int64_t rowc = row, colc = col;
+	size_t curid;
+	int hefc = hef;
+	if(bs_.empty()) {
+		// Start an initial branch
+		CHECK_ROW_COL(rowc, colc);
+		curid = bs_.alloc();
+		assert_eq(0, curid);
+		Edit e; e.reset();
+		bs_[curid].init(prob_, 0, 0, 0, rowc, colc, e, 0,
+		                true,   // I am the root
+						false); // don't try to extend with exact matches
+		bs_[curid].len_ = 0;
+	} else {
+		curid = bs_.size()-1;
+	}
+	size_t ymodTimesNcol = ymod * sq_ncol;
+	while(true) {
+		// What depth are we?
+		assert_eq(ymodTimesNcol, ymod * sq_ncol);
+		CpQuad * cur = sq_.ptr() + ymodTimesNcol + xmod;
+		int mask = cur->sc[3];
+		assert_gt(mask, 0);
+		int sel = -1;
+		// Select what type of move to make, which depends on whether we're
+		// currently in H, E, F:
+		if(hefc == 0) {
+			if(       (mask & 1) != 0) {
+				// diagonal
+				sel = 0;
+			} else if((mask & 8) != 0) {
+				// up to H
+				sel = 3;
+			} else if((mask & 16) != 0) {
+				// up to F
+				sel = 4;
+			} else if((mask & 2) != 0) {
+				// left to H
+				sel = 1;
+			} else if((mask & 4) != 0) {
+				// left to E
+				sel = 2;
+			}
+		} else if(hefc == 1) {
+			if(       (mask & 32) != 0) {
+				// left to H
+				sel = 5;
+			} else if((mask & 64) != 0) {
+				// left to E
+				sel = 6;
+			}
+		} else {
+			assert_eq(2, hefc);
+			if(       (mask & 128) != 0) {
+				// up to H
+				sel = 7;
+			} else if((mask & 256) != 0) {
+				// up to F
+				sel = 8;
+			}
+		}
+		assert_geq(sel, 0);
+		// Get character from read
+		int qc = prob_.qry_[rowc], qq = prob_.qual_[rowc];
+		// Get character from reference
+		int rc = prob_.ref_[colc];
+		assert_range(0, 16, rc);
+		bool xexit = false, yexit = false;
+		// Now that we know what type of move to make, make it, updating our
+		// row and column and moving updating the branch.
+		if(sel == 0) {
+			assert_geq(rowc, 0);
+			assert_geq(colc, 0);
+			TAlScore scd = prob_.sc_->score(qc, rc, qq - 33);
+			if((rc & (1 << qc)) == 0) {
+				// Mismatch
+				size_t id = curid;
+				// Check if the previous branch was the initial (bottommost)
+				// branch with no matches.  If so, the mismatch should be added
+				// to the initial branch, instead of starting a new branch.
+				bool empty = (bs_[curid].len_ == 0 && curid == 0);
+				if(!empty) {
+					id = bs_.alloc();
+				}
+				Edit e((int)rowc, mask2dna[rc], "ACGTN"[qc], EDIT_TYPE_MM);
+				assert_lt(scd, 0);
+				bs_[id].init(prob_, curid, -scd, bs_[curid].score_st_ + scd,
+				             rowc, colc, e, hefc, empty, false);
+				curid = id;
+			} else {
+				// Match
+				bs_[curid].score_st_ += prob_.sc_->match();
+				bs_[curid].len_++;
+				assert_leq((int64_t)bs_[curid].len_, bs_[curid].row_ + 1);
+			}
+			if(xmod == 0) xexit = true;
+			if(ymod == 0) yexit = true;
+			rowc--; ymod--; ymodTimesNcol -= sq_ncol;
+			colc--; xmod--;
+			assert(local || bs_[curid].score_st_ >= targ_final);
+			hefc = 0;
+		} else if((sel >= 1 && sel <= 2) || (sel >= 5 && sel <= 6)) {
+			assert_gt(colc, 0);
+			// Read gap
+			size_t id = bs_.alloc();
+			Edit e((int)rowc+1, mask2dna[rc], '-', EDIT_TYPE_READ_GAP);
+			TAlScore gapp = prob_.sc_->readGapOpen();
+			if(bs_[curid].len_ == 0 && bs_[curid].e_.inited() && bs_[curid].e_.isReadGap()) {
+				gapp = prob_.sc_->readGapExtend();
+			}
+			bs_[id].init(prob_, curid, gapp, bs_[curid].score_st_ - gapp,
+			             rowc, colc-1, e, hefc, false, false);
+			if(xmod == 0) xexit = true;
+			colc--; xmod--;
+			curid = id;
+			assert(local || bs_[curid].score_st_ >= targ_final);
+			if(sel == 1 || sel == 5) {
+				hefc = 0;
+			} else {
+				hefc = 1;
+			}
+		} else {
+			assert_gt(rowc, 0);
+			// Reference gap
+			size_t id = bs_.alloc();
+			Edit e((int)rowc, '-', "ACGTN"[qc], EDIT_TYPE_REF_GAP);
+			TAlScore gapp = prob_.sc_->refGapOpen();
+			if(bs_[curid].len_ == 0 && bs_[curid].e_.inited() && bs_[curid].e_.isRefGap()) {
+				gapp = prob_.sc_->refGapExtend();
+			}
+			bs_[id].init(prob_, curid, gapp, bs_[curid].score_st_ - gapp,
+			             rowc-1, colc, e, hefc, false, false);
+			if(ymod == 0) yexit = true;
+			rowc--; ymod--; ymodTimesNcol -= sq_ncol;
+			curid = id;
+			assert(local || bs_[curid].score_st_ >= targ_final);
+			if(sel == 3 || sel == 7) {
+				hefc = 0;
+			} else {
+				hefc = 2;
+			}
+		}
+		CHECK_ROW_COL(rowc, colc);
+		CpQuad * cur_new = NULL;
+		if(!xexit && !yexit) {
+			cur_new = sq_.ptr() + ymodTimesNcol + xmod;
+		}
+		// Check whether we made it to the top row or to a cell with score 0
+		if(colc < 0 || rowc < 0 ||
+		   (cur_new != NULL && local && cur_new->sc[0] == 0))
+		{
+			done = true;
+			assert(bs_[curid].isSolution(prob_));
+			addSolution(curid);
+#ifndef NDEBUG
+			// A check to see if any two adjacent branches in the backtrace
+			// overlap.  If they do, the whole alignment will be filtered out
+			// in trySolution(...)
+			size_t cur = curid;
+			if(!bs_[cur].root_) {
+				size_t next = bs_[cur].parentId_;
+				while(!bs_[next].root_) {
+					assert_neq(cur, next);
+					if(bs_[next].len_ != 0 || bs_[cur].len_ == 0) {
+						assert(!bs_[cur].overlap(prob_, bs_[next]));
+					}
+					cur = next;
+					next = bs_[cur].parentId_;
+				}
+			}
+#endif
+			return;
+		}
+		if(xexit || yexit) {
+			//assert(rowc < 0 || colc < 0 || prob_.cper_->isCheckpointed(rowc, colc));
+			row_new = rowc; col_new = colc;
+			hef_new = hefc;
+			done = false;
+			if(rowc < 0 || colc < 0) {
+				assert(local);
+				targ_new = 0;
+			} else {
+				targ_new = prob_.cper_->scoreSquare(rowc, colc, hefc);
+				assert(!prob_.sc_->monotone || targ_new >= targ);
+				assert(!prob_.sc_->monotone || targ_new >= targ_final);
 			}
 			if(local && targ_new == 0) {
 				done = true;
@@ -572,7 +1081,7 @@ void BtBranch::init(
 		len_ = 1;
 	}
 	int64_t match = prob.sc_->match();
-	bool cp = prob.usecp_ && prob.cper_->doCheckpoints();
+	bool cp = prob.usecp_;
 	size_t iters = 0;
 	curtailed_ = false;
 	if(extend) {
@@ -592,11 +1101,7 @@ void BtBranch::init(
 			{
 				// Possibly prune
 				int16_t cpsc;
-				if(prob.cper_->hasEF()) {
-					cpsc = prob.cper_->score(rowc - 1, colc - 1, hef);
-				} else {
-					cpsc = prob.cper_->hScore(rowc - 1, colc - 1);
-				}
+				cpsc = prob.cper_->scoreTriangle(rowc - 1, colc - 1, hef);
 				if(cpsc + score_st_ < prob.targ_) {
 					curtailed_ = true;
 					break;
@@ -651,7 +1156,7 @@ void BtBranchTracer::addOffshoots(size_t bid) {
 	TAlScore sc = b.score_en_;
 	int64_t match = prob_.sc_->match();
 	int64_t scoreFloor = prob_.sc_->monotone ? MIN_I64 : 0;
-	bool cp = prob_.usecp_ && prob_.cper_->doCheckpoints(); // Are there are any checkpoints?
+	bool cp = prob_.usecp_; // Are there are any checkpoints?
 	ASSERT_ONLY(TAlScore perfectScore = prob_.sc_->perfectScore(prob_.qrylen_));
 	assert_leq(prob_.targ_, perfectScore);
 	// For each cell in the branch
@@ -672,7 +1177,7 @@ void BtBranchTracer::addOffshoots(size_t bid) {
 				assert_gt(rdgapPen, 0);
 				if(cp && prob_.cper_->isCheckpointed(row, col - 1)) {
 					// Possibly prune
-					int16_t cpsc = prob_.cper_->hScore(row, col - 1);
+					int16_t cpsc = prob_.cper_->scoreTriangle(row, col - 1, 0);
 					assert_leq(cpsc, perfectScore);
 					assert_geq(prob_.sc_->readGapOpen(), prob_.sc_->readGapExtend());
 					TAlScore bonus = prob_.sc_->readGapOpen() - prob_.sc_->readGapExtend();
@@ -700,7 +1205,7 @@ void BtBranchTracer::addOffshoots(size_t bid) {
 				assert_gt(rfgapPen, 0);
 				if(cp && prob_.cper_->isCheckpointed(row - 1, col)) {
 					// Possibly prune
-					int16_t cpsc = prob_.cper_->hScore(row - 1, col);
+					int16_t cpsc = prob_.cper_->scoreTriangle(row - 1, col, 0);
 					assert_leq(cpsc, perfectScore);
 					assert_geq(prob_.sc_->refGapOpen(), prob_.sc_->refGapExtend());
 					TAlScore bonus = prob_.sc_->refGapOpen() - prob_.sc_->refGapExtend();
@@ -732,7 +1237,7 @@ void BtBranchTracer::addOffshoots(size_t bid) {
 			bool prune = false;
 			if(cp && row > 0 && col > 0 && prob_.cper_->isCheckpointed(row - 1, col - 1)) {
 				// Possibly prune
-				int16_t cpsc = prob_.cper_->hScore(row - 1, col - 1);
+				int16_t cpsc = prob_.cper_->scoreTriangle(row - 1, col - 1, 0);
 				assert_leq(cpsc, perfectScore);
 				assert_leq(cpsc + scdiff + sc, perfectScore);
 				if(cpsc + scdiff + sc < prob_.targ_) {
@@ -1105,8 +1610,6 @@ bool BtBranchTracer::nextAlignmentFill(
 	RandomSource& rnd)
 {
 	assert(prob_.inited());
-	assert(prob_.cper_->doCheckpoints());
-	assert(prob_.cper_->hasEF());
 	assert(!emptySolution());
 	bool result = false;
 	if(trySolutions(false, res, off, nrej, rnd, result)) {

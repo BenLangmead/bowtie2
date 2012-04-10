@@ -224,7 +224,6 @@ public:
 		usecp_  = usecp;
 		if(fill) {
 			assert(usecp_);
-			assert(cper_->hasEF());
 		}
 	}
 
@@ -535,7 +534,8 @@ class BtBranchTracer {
 
 public:
 
-	BtBranchTracer() : prob_(), bs_(), seenPaths_(DP_CAT), sawcell_(DP_CAT) { }
+	explicit BtBranchTracer() :
+		prob_(), bs_(), seenPaths_(DP_CAT), sawcell_(DP_CAT), doTri_() { }
 
 	/**
 	 * Add a branch to the queue.
@@ -674,6 +674,7 @@ public:
 		size_t         col,    // in: start in this column
 		bool           fill,   // in: use mini-filling?
 		bool           usecp,  // in: use checkpointing?
+		bool           doTri,  // in: triangle-shaped mini-fills?
 		RandomSource&  rnd)    // in: random gen, to choose among equal paths
 	{
 		prob_.initBt(row, col, fill, usecp, escore);
@@ -697,6 +698,7 @@ public:
 		nrfexPrune_ = 0;  // number of ref gap extensions attempted
 		row_ = row;
 		col_ = col;
+		doTri_ = doTri;
 		bs_.clear();
 		if(!prob_.fill_) {
 			size_t id = bs_.alloc();
@@ -717,8 +719,6 @@ public:
 				add(id);
 			}
 		} else {
-			assert(prob_.cper_->doCheckpoints());
-			assert(prob_.cper_->hasEF());
 			int64_t row = row_, col = col_;
 			TAlScore targsc = prob_.targ_;
 			int hef = 0;
@@ -734,24 +734,40 @@ public:
 				// used to populate the SwResult and check for various
 				// situations where we might reject the alignment (i.e. due to
 				// a cell having been visited previously).
-				triangleFill(
-					row,          // row of cell to backtrace from
-					col,          // column of cell to backtrace from
-					hef,          // cell to backtrace from is H (0), E (1), or F (2)
-					targsc,       // score of cell to backtrace from
-					prob_.targ_,  // score of alignment we're looking for
-					rnd,          // pseudo-random generator
-					row,          // out: row we ended up in after backtrace
-					col,          // out: column we ended up in after backtrace
-					hef,          // out: H/E/F after backtrace
-					targsc,       // out: score up to cell we ended up in
-					done,         // out: finished tracing out an alignment?
-					abort);       // out: aborted b/c cell was seen before?
-				if(depth >= ntri_.size()) {
-					ntri_.resize(depth+1);
-					ntri_[depth] = 1;
+				if(doTri_) {
+					triangleFill(
+						row,          // row of cell to backtrace from
+						col,          // column of cell to backtrace from
+						hef,          // cell to bt from: H (0), E (1), or F (2)
+						targsc,       // score of cell to backtrace from
+						prob_.targ_,  // score of alignment we're looking for
+						rnd,          // pseudo-random generator
+						row,          // out: row we ended up in after bt
+						col,          // out: column we ended up in after bt
+						hef,          // out: H/E/F after backtrace
+						targsc,       // out: score up to cell we ended up in
+						done,         // out: finished tracing out an alignment?
+						abort);       // out: aborted b/c cell was seen before?
 				} else {
-					ntri_[depth]++;
+					squareFill(
+						row,          // row of cell to backtrace from
+						col,          // column of cell to backtrace from
+						hef,          // cell to bt from: H (0), E (1), or F (2)
+						targsc,       // score of cell to backtrace from
+						prob_.targ_,  // score of alignment we're looking for
+						rnd,          // pseudo-random generator
+						row,          // out: row we ended up in after bt
+						col,          // out: column we ended up in after bt
+						hef,          // out: H/E/F after backtrace
+						targsc,       // out: score up to cell we ended up in
+						done,         // out: finished tracing out an alignment?
+						abort);       // out: aborted b/c cell was seen before?
+				}
+				if(depth >= ndep_.size()) {
+					ndep_.resize(depth+1);
+					ndep_[depth] = 1;
+				} else {
+					ndep_[depth]++;
 				}
 				depth++;
 				assert((row >= 0 && col >= 0) || done);
@@ -778,24 +794,47 @@ public:
 	bool inited() const {
 		return prob_.inited();
 	}
+	
+	/**
+	 * Return true iff the mini-fills are triangle-shaped.
+	 */
+	bool doTri() const { return doTri_; }
 
 	/**
 	 * Fill in a triangle of the DP table and backtrace from the given cell to
 	 * a cell in the previous checkpoint, or to the terminal cell.
 	 */
 	void triangleFill(
-		int64_t rw,         // row of cell to backtrace from
-		int64_t cl,         // column of cell to backtrace from
-		int hef,            // cell to backtrace from is H (0), E (1), or F (2)
-		TAlScore targ,      // score of cell to backtrace from
-		TAlScore targ_final,// score of alignment we're looking for
-		RandomSource& rnd,  // pseudo-random generator
-		int64_t& row_new,   // out: row we ended up in after backtrace
-		int64_t& col_new,   // out: column we ended up in after backtrace
-		int& hef_new,       // out: H/E/F after backtrace
-		TAlScore& targ_new, // out: score up to cell we ended up in
-		bool& done,         // out: finished tracing out an alignment?
-		bool& abort);       // out: aborted b/c cell was seen before?
+		int64_t rw,          // row of cell to backtrace from
+		int64_t cl,          // column of cell to backtrace from
+		int hef,             // cell to backtrace from is H (0), E (1), or F (2)
+		TAlScore targ,       // score of cell to backtrace from
+		TAlScore targ_final, // score of alignment we're looking for
+		RandomSource& rnd,   // pseudo-random generator
+		int64_t& row_new,    // out: row we ended up in after backtrace
+		int64_t& col_new,    // out: column we ended up in after backtrace
+		int& hef_new,        // out: H/E/F after backtrace
+		TAlScore& targ_new,  // out: score up to cell we ended up in
+		bool& done,          // out: finished tracing out an alignment?
+		bool& abort);        // out: aborted b/c cell was seen before?
+
+	/**
+	 * Fill in a square of the DP table and backtrace from the given cell to
+	 * a cell in the previous checkpoint, or to the terminal cell.
+	 */
+	void squareFill(
+		int64_t rw,          // row of cell to backtrace from
+		int64_t cl,          // column of cell to backtrace from
+		int hef,             // cell to backtrace from is H (0), E (1), or F (2)
+		TAlScore targ,       // score of cell to backtrace from
+		TAlScore targ_final, // score of alignment we're looking for
+		RandomSource& rnd,   // pseudo-random generator
+		int64_t& row_new,    // out: row we ended up in after backtrace
+		int64_t& col_new,    // out: column we ended up in after backtrace
+		int& hef_new,        // out: H/E/F after backtrace
+		TAlScore& targ_new,  // out: score up to cell we ended up in
+		bool& done,          // out: finished tracing out an alignment?
+		bool& abort);        // out: aborted b/c cell was seen before?
 
 protected:
 
@@ -881,11 +920,13 @@ protected:
 	size_t        row_;         // row
 	size_t        col_;         // column
 
-	ELList<_CpQuad> tri_;       // triangle to fill when doing mini-fills
-	EList<size_t> ntri_;        // # triangles mini-filled at various depths
+	bool           doTri_;      // true -> fill in triangles; false -> squares
+	EList<CpQuad>  sq_;         // square to fill when doing mini-fills
+	ELList<CpQuad> tri_;        // triangle to fill when doing mini-fills
+	EList<size_t>  ndep_;       // # triangles mini-filled at various depths
 
 #ifndef NDEBUG
-	ESet<size_t>  seen_;      // seedn branch ids; should never see same twice
+	ESet<size_t>  seen_;        // seedn branch ids; should never see same twice
 #endif
 };
 

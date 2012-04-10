@@ -317,10 +317,17 @@ private:
 	size_t   cur_;        // occupancy (AKA size)
 };
 
-struct  _CpQuad {
-	_CpQuad() { reset(); }
+struct  CpQuad {
+	CpQuad() { reset(); }
 	
 	void reset() { sc[0] = sc[1] = sc[2] = sc[3] = 0; }
+	
+	bool operator==(const CpQuad& o) const {
+		return sc[0] == o.sc[0] &&
+		       sc[1] == o.sc[1] &&
+			   sc[2] == o.sc[2] &&
+			   sc[3] == o.sc[3];
+	}
 
 	int16_t sc[4];
 };
@@ -342,10 +349,11 @@ public:
 		size_t nrow,          // # of rows
 		size_t ncol,          // # of columns
 		size_t perpow2,       // checkpoint every 1 << perpow2 diags (& next)
-		bool ef,              // store E and F in addition to H?
-		bool is8,             // is the matrix 8-bit?  affects commitCol
 		int64_t perfectScore, // what is a perfect score?  for sanity checks
-		bool local)           // is alignment local?  for sanity checks
+		bool is8,             // 8-bit?
+		bool doTri,           // triangle shaped?
+		bool local,           // is alignment local?  for sanity checks
+		bool debug)           // gather debug checkpoints?
 	{
 		assert_gt(perpow2, 0);
 		nrow_ = nrow;
@@ -353,71 +361,86 @@ public:
 		perpow2_ = perpow2;
 		per_ = 1 << perpow2;
 		lomask_ = ~(0xffffffff << perpow2);
-		ef_ = ef;
-		is8_ = is8;
 		perf_ = perfectScore;
 		local_ = local;
-		if(is8) {
-			iter_ = (nrow + 15) / 16;
-		} else {
-			iter_ = (nrow + 7) / 8;
-		}
 		ndiag_ = (ncol + nrow - 1 + 1) / per_;
 		locol_ = MAX_SIZE_T;
 		hicol_ = MIN_SIZE_T;
+		debug_ = debug;
 		commitMap_.clear();
 		firstCommit_ = true;
-		if(doCheckpoints()) {
-			if(ef) {
-				qdiag1s_.resize(ndiag_ * nrow_);
-				qdiag2s_.resize(ndiag_ * nrow_);
-			} else {
-				diag1s_.resize(ndiag_ * nrow_);
-				diag2s_.resize(ndiag_ * nrow_);
-			}
+		size_t perword = (is8 ? 16 : 8);
+		is8_ = is8;
+		niter_ = ((nrow_ + perword - 1) / perword);
+		if(doTri) {
+			// Save a pair of anti-diagonals every per_ anti-diagonals for
+			// backtrace purposes
+			qdiag1s_.resize(ndiag_ * nrow_);
+			qdiag2s_.resize(ndiag_ * nrow_);
+		} else {
+			// Save every per_ columns and rows for backtrace purposes
+			qrows_.resize((nrow_ / per_) * ncol_);
+			qcols_.resize((ncol_ / per_) * (niter_ << 2));
+		}
+		if(debug_) {
+			// Save all columns for debug purposes
+			qcolsD_.resize(ncol_ * (niter_ << 2));
 		}
 	}
 	
 	/**
-	 * Return true iff we're going to use checkpoints for this DP problem.
+	 * Return true iff we've been collecting debug cells.
 	 */
-	bool doCheckpoints() const {
-		return true;
+	bool debug() const { return debug_; }
+	
+	/**
+	 * Check whether the given score matches the saved score at row, col, hef.
+	 */
+	int64_t debugCell(size_t row, size_t col, int hef) const {
+		assert(debug_);
+		const __m128i* ptr = qcolsD_.ptr() + hef;
+		// Fast forward to appropriate column
+		ptr += ((col * niter_) << 2);
+		size_t mod = row % niter_; // which m128i
+		size_t div = row / niter_; // offset into m128i
+		// Fast forward to appropriate word
+		ptr += (mod << 2);
+		// Extract score
+		int16_t sc = (is8_ ? ((uint8_t*)ptr)[div] : ((int16_t*)ptr)[div]);
+		int64_t asc = MIN_I64;
+		// Convert score
+		if(is8_) {
+			if(local_) {
+				asc = sc;
+			} else {
+				if(sc == 0) asc = MIN_I64;
+				else asc = sc - 0xff;
+			}
+		} else {
+			if(local_) {
+				asc = sc + 0x8000;
+			} else {
+				if(sc != MIN_I16) asc = sc - 0x7fff;
+			}
+		}
+		return asc;
 	}
 	
 	/**
 	 * Return true iff the given row/col is checkpointed.
 	 */
 	bool isCheckpointed(size_t row, size_t col) const {
-		assert(doCheckpoints());
 		assert_leq(col, hicol_);
 		assert_geq(col, locol_);
 		size_t mod = (row + col) & lomask_;
 		assert_lt(mod, per_);
 		return mod >= per_ - 2;
 	}
-	
-	/**
-	 * Return the checkpointed H score from the given cell.  Assumes that we've
-	 * only checkpointed the H scores and not the E and F scores.
-	 */
-	inline int16_t hScore(size_t row, size_t col) const {
-		assert(!ef_);
-		assert(isCheckpointed(row, col));
-		bool diag1 = ((row + col) & lomask_) == per_ - 2;
-		size_t off = (row + col) >> perpow2_;
-		if(diag1) {
-			return diag1s_[off * nrow_ + row];
-		} else {
-			return diag2s_[off * nrow_ + row];
-		}
-	}
 
 	/**
 	 * Return the checkpointed H, E, or F score from the given cell.
 	 */
-	inline int64_t score(size_t row, size_t col, int hef) const {
-		assert(ef_);
+	inline int64_t scoreTriangle(size_t row, size_t col, int hef) const {
 		assert(isCheckpointed(row, col));
 		bool diag1 = ((row + col) & lomask_) == per_ - 2;
 		size_t off = (row + col) >> perpow2_;
@@ -437,6 +460,48 @@ public:
 	}
 
 	/**
+	 * Return the checkpointed H, E, or F score from the given cell.
+	 */
+	inline int64_t scoreSquare(size_t row, size_t col, int hef) const {
+		// Is it in a checkpointed row?
+		if((row & lomask_) == lomask_) {
+			int64_t sc = qrows_[(row >> perpow2_) * ncol_ + col].sc[hef];
+			if(sc == MIN_I16) return MIN_I64;
+			return sc;
+		}
+		hef--;
+		if(hef == -1) hef = 2;
+		// It must be in a checkpointed column
+		assert_eq(lomask_, (col & lomask_));
+		// Fast forward to appropriate column
+		const __m128i* ptr = qcols_.ptr() + hef;
+		ptr += (((col >> perpow2_) * niter_) << 2);
+		size_t mod = row % niter_; // which m128i
+		size_t div = row / niter_; // offset into m128i
+		// Fast forward to appropriate word
+		ptr += (mod << 2);
+		// Extract score
+		int16_t sc = (is8_ ? ((uint8_t*)ptr)[div] : ((int16_t*)ptr)[div]);
+		int64_t asc = MIN_I64;
+		// Convert score
+		if(is8_) {
+			if(local_) {
+				asc = sc;
+			} else {
+				if(sc == 0) asc = MIN_I64;
+				else asc = sc - 0xff;
+			}
+		} else {
+			if(local_) {
+				asc = sc + 0x8000;
+			} else {
+				if(sc != MIN_I16) asc = sc - 0x7fff;
+			}
+		}
+		return asc;
+	}
+
+	/**
 	 * Given a column of filled-in cells, save the checkpointed cells in cs_.
 	 */
 	void commitCol(__m128i *pvH, __m128i *pvE, __m128i *pvF, size_t coli);
@@ -446,10 +511,11 @@ public:
 	 */
 	void reset() {
 		perpow2_ = per_ = lomask_ = nrow_ = ncol_ = 0;
-		ef_ = is8_ = local_ = false;
-		iter_ = ndiag_ = locol_ = hicol_ = 0;
+		local_ = false;
+		niter_ = ndiag_ = locol_ = hicol_ = 0;
 		perf_ = 0;
 		firstCommit_ = true;
+		is8_ = debug_ = false;
 	}
 	
 	/**
@@ -457,13 +523,6 @@ public:
 	 */
 	bool inited() const {
 		return nrow_ > 0;
-	}
-	
-	/**
-	 * Return true iff we are 
-	 */
-	bool hasEF() const {
-		return ef_;
 	}
 	
 	size_t per()     const { return per_;     }
@@ -474,21 +533,17 @@ public:
 	size_t nrow()    const { return nrow_;    }
 	size_t ncol()    const { return ncol_;    }
 	
-	const _CpQuad* qdiag1sPtr() const { return qdiag1s_.ptr(); }
-	const _CpQuad* qdiag2sPtr() const { return qdiag2s_.ptr(); }
+	const CpQuad* qdiag1sPtr() const { return qdiag1s_.ptr(); }
+	const CpQuad* qdiag2sPtr() const { return qdiag2s_.ptr(); }
 
 	size_t   perpow2_;   // 1 << perpow2_ - 2 is the # of uncheckpointed
 	                     // anti-diags between checkpointed anti-diag pairs
 	size_t   per_;       // 1 << perpow2_
 	size_t   lomask_;    // mask for extracting low bits
-	
 	size_t   nrow_;      // # rows in current rectangle
 	size_t   ncol_;      // # cols in current rectangle
-	bool     ef_;        // store E and F in addition to H?
-	bool     is8_;       // true iff matrix cells are 8-bit
 	int64_t  perf_;      // perfect score
 	bool     local_;     // local alignment?
-	size_t   iter_;      // # 128-bit words required to encode a column
 	
 	size_t   ndiag_;     // # of double-diags
 	
@@ -496,14 +551,21 @@ public:
 	size_t   hicol_;     // rightmost column committed
 
 	// Map for committing scores from vector columns to checkpointed diagonals
-	EList<Triple<size_t, size_t, bool> > commitMap_;
-	bool firstCommit_;
+	EList<size_t> commitMap_;
+	bool          firstCommit_;
 	
-	EList<int16_t> diag1s_;  // checkpoint H values for diagonal 1
-	EList<int16_t> diag2s_;  // checkpoint H values for diagonal 2
+	EList<CpQuad> qdiag1s_; // checkpoint H/E/F values for diagonal 1
+	EList<CpQuad> qdiag2s_; // checkpoint H/E/F values for diagonal 2
 
-	EList<_CpQuad> qdiag1s_; // checkpoint H/E/F values for diagonal 1
-	EList<_CpQuad> qdiag2s_; // checkpoint H/E/F values for diagonal 2
+	EList<CpQuad> qrows_;   // checkpoint H/E/F values for rows
+	
+	// We store columns in this way to reduce overhead of populating them
+	bool          is8_;     // true -> fill used 8-bit cells
+	size_t        niter_;   // # __m128i words per column
+	EList_m128i   qcols_;   // checkpoint E/F/H values for select columns
+	
+	bool          debug_;   // get debug checkpoints? (i.e. fill qcolsD_?)
+	EList_m128i   qcolsD_;  // checkpoint E/F/H values for all columns (debug)
 };
 
 #endif

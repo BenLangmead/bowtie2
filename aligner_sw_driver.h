@@ -341,6 +341,7 @@ public:
 		bool enable8,                // use 8-bit SSE where possible
 		size_t cminlen,              // use checkpointer if read longer than this
 		size_t cpow2,                // interval between diagonals to checkpoint
+		bool doTri,                  // triangular mini-fills
 		int tighten,                 // -M score tightening mode
 		AlignmentCacheIface& ca,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random source
@@ -397,6 +398,7 @@ public:
 		bool enable8,                // use 8-bit SSE where possible
 		size_t cminlen,              // use checkpointer if read longer than this
 		size_t cpow2,                // interval between diagonals to checkpoint
+		bool doTri,                  // triangular mini-fills
 		int tighten,                 // -M score tightening mode
 		AlignmentCacheIface& cs,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random source

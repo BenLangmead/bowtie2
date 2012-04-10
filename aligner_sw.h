@@ -225,6 +225,7 @@ public:
 		cperMinlen_(),
 		cperPerPow2_(),
 		cperEf_(),
+		cperTri_(),
 		colstop_(0),
 		lastsolcol_(0),
 		cural_(0)
@@ -259,6 +260,7 @@ public:
 		bool enable8,          // use 8-bit SSE if possible?
 		size_t cminlen,        // minimum length for using checkpointing scheme
 		size_t cpow2,          // interval b/t checkpointed diags; 1 << this
+		bool doTri,            // triangular mini-fills?
 		bool extend);          // true iff this is a seed extension
 
 	/**
@@ -285,6 +287,7 @@ public:
 		bool enable8,          // use 8-bit SSE if possible?
 		size_t cminlen,        // minimum length for using checkpointing scheme
 		size_t cpow2,          // interval b/t checkpointed diags; 1 << this
+		bool doTri,            // triangular mini-fills?
 		bool extend,           // true iff this is a seed extension
 		size_t  upto,          // count the number of Ns up to this offset
 		size_t& nsUpto);       // output: the number of Ns up to 'upto'
@@ -559,9 +562,9 @@ protected:
 			col,                 // in: start in this column
 			fill,                // in: use mini-fill?
 			usecp,               // in: use checkpoints?
+			cperTri_,            // in: triangle-shaped mini-fills?
 			rnd);                // in: random gen, to choose among equal paths
 		assert(bter_.inited());
-		//assert(!bter_.empty() || !bter_.emptySolution());
 		size_t nrej = 0;
 		if(bter_.emptySolution()) {
 			return false;
@@ -629,6 +632,7 @@ protected:
 	size_t               cperMinlen_;  // minimum length for using checkpointer
 	size_t               cperPerPow2_; // checkpoint every 1 << perpow2 diags (& next)
 	bool                 cperEf_;      // store E and F in addition to H?
+	bool                 cperTri_;     // checkpoint for triangular mini-fills?
 	
 	size_t              colstop_;      // bailed on DP loop after this many cols
 	size_t              lastsolcol_;   // last DP col with valid cell
