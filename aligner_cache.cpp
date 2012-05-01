@@ -37,7 +37,7 @@ bool QVal::repOk(const AlignmentCache& ac) const {
  * with the contents of the given cache.
  */
 bool SAVal::repOk(const AlignmentCache& ac) const {
-	assert_lt(i, ac.saSize());
+	assert_lt(len == 0 || i, ac.saSize());
 	assert_leq(i + len, ac.saSize());
 	return true;
 }
