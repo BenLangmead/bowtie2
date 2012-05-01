@@ -933,11 +933,9 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_USE_CACHE: msNoCache = false; break;
 		case ARG_LOCAL_SEED_CACHE_SZ:
 			seedCacheLocalMB = (uint32_t)parseInt(1, "--local-seed-cache-sz arg must be at least 1", arg);
-			seedCacheLocalMB *= (1024 * 1024); // convert from MB to B
 			break;
 		case ARG_CURRENT_SEED_CACHE_SZ:
 			seedCacheCurrentMB = (uint32_t)parseInt(1, "--seed-cache-sz arg must be at least 1", arg);
-			seedCacheCurrentMB *= (1024 * 1024); // convert from MB to B
 			break;
 		case ARG_REFIDX: noRefNames = true; break;
 		case ARG_FUZZY: fuzzy = true; break;
