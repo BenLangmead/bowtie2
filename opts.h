@@ -140,7 +140,9 @@ enum {
 	ARG_SAMPLE,                 // --sample
 	ARG_CP_MIN,                 // --cp-min
 	ARG_CP_IVAL,                // --cp-ival
-	ARG_TRI                     // --tri
+	ARG_TRI,                    // --tri
+	ARG_LOCAL_SEED_CACHE_SZ,    // --local-seed-cache-sz
+	ARG_CURRENT_SEED_CACHE_SZ   // --seed-cache-sz
 };
 
 #endif

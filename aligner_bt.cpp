@@ -1016,6 +1016,7 @@ void BtBranchTracer::squareFill(
 				assert(local);
 				targ_new = 0;
 			} else {
+				// TODO: Don't use scoreSquare
 				targ_new = prob_.cper_->scoreSquare(rowc, colc, hefc);
 				assert(!prob_.sc_->monotone || targ_new >= targ);
 				assert(!prob_.sc_->monotone || targ_new >= targ_final);

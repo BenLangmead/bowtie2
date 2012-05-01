@@ -700,7 +700,7 @@ public:
 		}
 		{
 			// ASSUMING that sid doesn't change from alignment to alignment
-			Coord c(0, 0, true);
+			//Coord c(0, 0, true);
 			for(size_t i = 0; i < select.size(); i++) {
 				AlnRes* r1 = ((rs1 != NULL) ? &rs1->get(select[i]) : NULL);
 				AlnRes* r2 = ((rs2 != NULL) ? &rs2->get(select[i]) : NULL);

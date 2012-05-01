@@ -57,6 +57,7 @@ public:
 		reorder_(reorder),
 		threadSafe_(threadSafe)
 	{
+		assert(nthreads <= 1 || threadSafe);
 		if(threadSafe_) {
 			MUTEX_INIT(lock_);
 		}

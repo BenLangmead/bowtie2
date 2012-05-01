@@ -31,6 +31,7 @@ void OutputQueue::beginRead(TReadId rdid, size_t threadId) {
 		assert_eq(lines_.size(), finished_.size());
 		assert_eq(lines_.size(), started_.size());
 		if(rdid - cur_ >= lines_.size()) {
+			// Make sure there's enough room in lines_, started_ and finished_
 			size_t oldsz = lines_.size();
 			lines_.resize(rdid - cur_ + 1);
 			started_.resize(rdid - cur_ + 1);
@@ -61,6 +62,7 @@ void OutputQueue::finishRead(const BTString& rec, TReadId rdid, size_t threadId)
 		finished_[rdid - cur_] = true;
 		flush(false, false); // don't force; already have lock
 	} else {
+		// obuf_ is the OutFileBuf for the output file
 		obuf_.writeString(rec);
 		nfinished_++;
 		nflushed_++;
