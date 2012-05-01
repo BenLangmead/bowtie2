@@ -802,17 +802,17 @@ TAlScore SwAligner::alignGatherLoc16(int& flag, bool debug) {
 				for(size_t i = 0; i < sz; i++, rowoff += cper_.ncol_) {
 					size_t vecoff = cper_.commitMap_[i];
 					int16_t h_sc = ((int16_t*)pvH)[vecoff];
-					int16_t e_sc = ((int16_t*)pvE)[vecoff];
+					//int16_t e_sc = ((int16_t*)pvE)[vecoff];
 					int16_t f_sc = ((int16_t*)pvF)[vecoff];
 					h_sc += 0x8000; assert_geq(h_sc, 0);
-					e_sc += 0x8000; assert_geq(e_sc, 0);
+					//e_sc += 0x8000; assert_geq(e_sc, 0);
 					f_sc += 0x8000; assert_geq(f_sc, 0);
 					assert_leq(h_sc, cper_.perf_);
-					assert_leq(e_sc, cper_.perf_);
+					//assert_leq(e_sc, cper_.perf_);
 					assert_leq(f_sc, cper_.perf_);
 					CpQuad& dst = cper_.qrows_[rowoff + coli];
 					dst.sc[0] = h_sc;
-					dst.sc[1] = e_sc;
+					//dst.sc[1] = e_sc;
 					dst.sc[2] = f_sc;
 				}
 				// Is this a column we'd like to checkpoint?

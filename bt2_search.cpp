@@ -562,6 +562,8 @@ static struct option long_options[] = {
 	{(char*)"cp-min",           required_argument, 0,        ARG_CP_MIN},
 	{(char*)"cp-ival",          required_argument, 0,        ARG_CP_IVAL},
 	{(char*)"tri",              no_argument,       0,        ARG_TRI},
+	{(char*)"local-seed-cache-sz", required_argument, 0,     ARG_LOCAL_SEED_CACHE_SZ},
+	{(char*)"seed-cache-sz",       required_argument, 0,     ARG_CURRENT_SEED_CACHE_SZ},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -929,6 +931,14 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_OVERHANG: gReportOverhangs = true; break;
 		case ARG_NO_CACHE: msNoCache = true; break;
 		case ARG_USE_CACHE: msNoCache = false; break;
+		case ARG_LOCAL_SEED_CACHE_SZ:
+			seedCacheLocalMB = (uint32_t)parseInt(1, "--local-seed-cache-sz arg must be at least 1", arg);
+			seedCacheLocalMB *= (1024 * 1024); // convert from MB to B
+			break;
+		case ARG_CURRENT_SEED_CACHE_SZ:
+			seedCacheCurrentMB = (uint32_t)parseInt(1, "--seed-cache-sz arg must be at least 1", arg);
+			seedCacheCurrentMB *= (1024 * 1024); // convert from MB to B
+			break;
 		case ARG_REFIDX: noRefNames = true; break;
 		case ARG_FUZZY: fuzzy = true; break;
 		case ARG_FULLREF: fullRef = true; break;
