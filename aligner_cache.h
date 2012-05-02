@@ -441,43 +441,6 @@ public:
 	}
 
 	/**
-	 * Returns a pointer to a corresponding QVal if there are one or
-	 * more ranges corresponding to sequence 'k' in the cache.  Returns
-	 * NULL otherwise.
-	 */
-#if 0
-	inline QVal* query(const QKey& k, bool getLock = true) {
-		ThreadSafe ts(lockPtr(), shared_ && getLock);
-		QNode *n = qmap_.lookup(k);
-		if(n != NULL) {
-			assert(n->payload.repOk(*this));
-			// Return a pointer to the payload
-			return &n->payload;
-		}
-		return NULL;
-	}
-
-	/**
-	 * Given a QKey, populates an EList of SATuples with all of the
-	 * corresponding reference substring information.
-	 */
-	template<int S>
-	void queryEx(
-		const QKey& k,
-		EList<SATuple, S>& satups,
-		size_t& nrange,
-		size_t& nelt,
-		bool getLock = true)
-	{
-		ThreadSafe ts(lockPtr(), shared_ && getLock);
-		QVal *n = query(k, getLock);
-		if(n != NULL) {
-			queryQval(*n, satups, nrange, nelt, false);
-		}
-	}
-#endif
-
-	/**
 	 * Given a QVal, populate the given EList of SATuples with records
 	 * describing all of the cached information about the QVal's
 	 * reference substrings.
@@ -508,17 +471,19 @@ public:
 			assert(n != NULL);
 			const SAVal& sav = n->payload;
 			assert(sav.repOk(*this));
-			satups.expand();
-			satups.back().init(sak, sav.topf, sav.topb, TSlice(salist_, sav.i, sav.len));
-			nelt += sav.len;
+			if(sav.len > 0) {
+				satups.expand();
+				satups.back().init(sak, sav.topf, sav.topb, TSlice(salist_, sav.i, sav.len));
+				nelt += sav.len;
 #ifndef NDEBUG
-			// Shouldn't add consecutive identical entries too satups
-			if(i > refi) {
-				const SATuple b1 = satups.back();
-				const SATuple b2 = satups[satups.size()-2];
-				assert(b1.key != b2.key || b1.topf != b2.topf || b1.offs != b2.offs);
-			}
+				// Shouldn't add consecutive identical entries too satups
+				if(i > refi) {
+					const SATuple b1 = satups.back();
+					const SATuple b2 = satups[satups.size()-2];
+					assert(b1.key != b2.key || b1.topf != b2.topf || b1.offs != b2.offs);
+				}
 #endif
+			}
 		}
 	}
 
@@ -533,103 +498,6 @@ public:
 		return ret;
 	}
 	
-#if 0
-	/**
-	 * Copy the query key ('qk') and all associated QVals, SAKeys and
-	 * SAVals from the given cache to this cache.  Return true iff the
-	 * copy was succesful.  False is returned if memory was exhausted
-	 * before the copy could complete.
-	 *
-	 * TODO: If the copy if aborted in the middle due to memory
-	 * exhaustion, remove the partial addition.
-	 */
-	bool copy(
-		const QKey& qk,
-		const QVal& qv,
-		AlignmentCache& c,
-		bool getLock = true)
-	{
-		ThreadSafe ts(lockPtr(), shared_ && getLock);
-		assert(qv.repOk(c));
-		assert(qk.cacheable());
-		// Try to add a new node; added will be false if we already
-		// have qk in this cache.
-		bool added = false;
-		QNode *n = qmap_.add(pool(), qk, &added);
-		if(!added) {
-			// Key was already present at destination.
-			// TODO: perhaps merge the offsets
-			return true;
-		}
-		assert(n != NULL);
-		assert(n->key.repOk());
-		// Set the new QVal's i and len
-		n->payload.init((uint32_t)qlist_.size(), qv.numRanges(), qv.numElts());
-		// Add the ref seqs to this cache's qlist
-		const size_t reff = qv.offset() + qv.numRanges();
-		for(size_t i = qv.offset(); i < reff; i++) {
-			SAKey sak = c.qlist_.get(i);
-			if(!qlist_.add(pool(), sak)) {
-				// Pool memory exhausted
-				assert(qlist_.back().repOk());
-				return false;
-			}
-			SANode *srcSaNode = c.samap_.lookup(sak);
-			assert(srcSaNode != NULL);
-			assert(srcSaNode->payload.repOk(c));
-			SANode *dstSaNode = samap_.add(pool(), sak, &added);
-			if(!added) {
-				// SAKey already in this cache's samap
-				// TODO: possibly merge offsets
-				continue;
-			}
-			if(dstSaNode == NULL) {
-				// Pool memory exhausted
-				return false;
-			}
-			uint32_t srci = srcSaNode->payload.i;
-			uint32_t top = srcSaNode->payload.top;
-			uint32_t len = srcSaNode->payload.len;
-			dstSaNode->payload.init(top, (uint32_t)salist_.size(), len);
-			// 
-			for(size_t j = 0; j < len; j++) {
-				if(!salist_.add(pool(), c.salist_.get(srci+j))) {
-					// Pool memory exhausted
-					return false;
-				}
-			}
-			assert(dstSaNode->payload.repOk(*this));
-		}
-		// Success
-		return true;
-	}
-
-	/**
-	 * Copy the query key ('qk') and all associated QVals, SAKeys and
-	 * SAVals from the given cache to this cache.  Return true iff we
-	 * had to clear the cache in order to complete the copy.
-	 */
-	bool clearCopy(
-		const QKey& qk,
-		const QVal& qv,
-		AlignmentCache& c,
-		bool getLock = true)
-	{
-		ThreadSafe ts(lockPtr(), shared_ && getLock);
-		if(!copy(qk, qv, c, false)) {
-			// Clear the whole cache
-			clear();
-			assert(empty());
-			// Try again
-			if(!copy(qk, qv, c, false)) {
-				std::cerr << "Warning: A key couldn't fit in an empty cache.  Try increasing the cache size." << std::endl;
-			}
-			return true;
-		}
-		return false;
-	}
-#endif
-
 	/**
 	 * Add a new query key ('qk'), usually a 2-bit encoded substring of
 	 * the read) as the key in a new Red-Black node in the qmap and
@@ -967,22 +835,6 @@ public:
 		}
 		return false;
 	}
-
-#if 0
-	/**
-	 * Given a QKey, populates an EList of SATuples with all of the
-	 * corresponding reference substring information.
-	 */
-	template<int S>
-	void queryEx(
-		const QKey& k,
-		EList<SATuple, S>& satups,
-		bool getLock = true)
-	{
-		assert(k.cacheable());
-		current_->queryEx(k, satups, getLock);
-	}
-#endif
 
 	/**
 	 * Given a QVal, populate the given EList of SATuples with records

@@ -62,7 +62,7 @@ bool AlignmentCache::addOnTheFly(
 	if(!qv.valid()) {
 		qv.init((uint32_t)qlist_.size(), 0, 0);
 	}
-	qv.addRange(botf-topf);
+	qv.addRange(botf-topf); // update tally for # ranges and # elts
 	if(!qlist_.add(pool(), sak)) {
 		return false; // Exhausted pool memory
 	}
@@ -93,6 +93,9 @@ bool AlignmentCache::addOnTheFly(
 		}
 		assert(s->payload.repOk(*this));
 	}
+	// Now that we know all allocations have succeeded, we can do a few final
+	// updates
+	
 	return true; 
 }
 
