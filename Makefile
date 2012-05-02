@@ -262,8 +262,8 @@ bowtie2-src: $(SRC_PKG_LIST)
 	zip tmp.zip $(SRC_PKG_LIST)
 	mv tmp.zip .src.tmp/bowtie2-$(VERSION)
 	cd .src.tmp/bowtie2-$(VERSION) ; unzip tmp.zip ; rm -f tmp.zip
-	cd .src.tmp ; zip -r bowtie2-$(VERSION).zip bowtie2-$(VERSION)
-	cp .src.tmp/bowtie2-$(VERSION).zip .
+	cd .src.tmp ; zip -r bowtie2-$(VERSION)-source.zip bowtie2-$(VERSION)
+	cp .src.tmp/bowtie2-$(VERSION)-source.zip .
 	rm -rf .src.tmp
 
 .PHONY: bowtie2-bin

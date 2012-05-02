@@ -148,7 +148,7 @@ Download Bowtie 2 sources and binaries from the [Download] section of the
 Sourceforge site.  Binaries are available for Intel architectures (`i386` and
 `x86_64`) running Linux, and Mac OS X.  A 32-bit version is available for
 Windows.  If you plan to compile Bowtie 2 yourself, make sure to get the source
-package, i.e., the filename that ends in "-src.zip".
+package, i.e., the filename that ends in "-source.zip".
 
 Building from source
 --------------------
@@ -162,11 +162,11 @@ building with MinGW, first install MinGW and [MSYS], the [zlib] library, and the
 drive the build process.
 
 First, download the source package from the [sourceforge site].  Make sure
-you're getting the source package; the file downloaded should end in `-src.zip`.
-Unzip the file, change to the unzipped directory, and build the Bowtie 2 tools
-by running GNU `make` (usually with the command `make`, but sometimes with
-`gmake`) with no arguments.  If building with MinGW, run `make` from the MSYS
-environment.
+you're getting the source package; the file downloaded should end in
+`-source.zip`. Unzip the file, change to the unzipped directory, and build the
+Bowtie 2 tools by running GNU `make` (usually with the command `make`, but
+sometimes with `gmake`) with no arguments.  If building with MinGW, run `make`
+from the MSYS environment.
 
 To support the [`-p`] (multithreading) option, Bowtie 2 needs the `pthreads`
 library.  To compile Bowtie 2 without `pthreads` (which disables [`-p`]), use
