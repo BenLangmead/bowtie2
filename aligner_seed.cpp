@@ -429,45 +429,32 @@ pair<int, int> SeedAligner::instantiateSeeds(
 				depth,
 				fw);
 			QKey qk(sr.seqs(fw)[i] ASSERT_ONLY(, tmpdnastr_));
-			//QVal* qv;
-			//if(qk.cacheable() && (qv = cache.queryCopy(qk)) != NULL) {
-			//  assert_leq(sr.seqs(fw)[i].length(), 32);
-			//	// This seed hit was found recently and the hitting QVal is
-			//	// still in the cache
-			//	assert(qv->repOk(cache.current()));
-			//	sr.add(*qv, cache.current(), i, fw);
-			//	met.interhit++; // inter-seed cache hit
-			//	if(!qv->empty()) {
-			//		ret.second++;
-			//	}
-			//} else {
-				// For each search strategy
-				EList<InstantiatedSeed>& iss = sr.instantiatedSeeds(fw, i);
-				for(int j = 0; j < (int)seeds.size(); j++) {
-					iss.expand();
-					assert_eq(seedlen, seeds[j].len);
-					InstantiatedSeed* is = &iss.back();
- 					if(seeds[j].instantiate(
-						read,
-						sr.seqs(fw)[i],
-						sr.quals(fw)[i],
-						pens,
-						depth,
-						i,
-						j,
-						fw,
-						*is))
-					{
-						// Can we fill this seed hit in from the cache?
-						ret.first++;
-					} else {
-						// Seed may fail to instantiate if there are Ns
-						// that prevent it from matching
-						met.filteredseed++;
-						iss.pop_back();
-					}
+			// For each search strategy
+			EList<InstantiatedSeed>& iss = sr.instantiatedSeeds(fw, i);
+			for(int j = 0; j < (int)seeds.size(); j++) {
+				iss.expand();
+				assert_eq(seedlen, seeds[j].len);
+				InstantiatedSeed* is = &iss.back();
+				if(seeds[j].instantiate(
+					read,
+					sr.seqs(fw)[i],
+					sr.quals(fw)[i],
+					pens,
+					depth,
+					i,
+					j,
+					fw,
+					*is))
+				{
+					// Can we fill this seed hit in from the cache?
+					ret.first++;
+				} else {
+					// Seed may fail to instantiate if there are Ns
+					// that prevent it from matching
+					met.filteredseed++;
+					iss.pop_back();
 				}
-			//}
+			}
 		}
 	}
 	return ret;

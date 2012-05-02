@@ -476,6 +476,7 @@ static struct option long_options[] = {
 	{(char*)"color",        no_argument,       0,            'C'},
 	{(char*)"sam-RG",       required_argument, 0,            ARG_SAM_RG},
 	{(char*)"sam-rg",       required_argument, 0,            ARG_SAM_RG},
+	{(char*)"sam-rg-id",    required_argument, 0,            ARG_SAM_RGID},
 	{(char*)"snpphred",     required_argument, 0,            ARG_SNPPHRED},
 	{(char*)"snpfrac",      required_argument, 0,            ARG_SNPFRAC},
 	{(char*)"gbar",         required_argument, 0,            ARG_GAP_BAR},
@@ -731,7 +732,9 @@ static void printUsage(ostream& out) {
 		<< "  --met <int>        report internal counters & metrics every <int> secs (1)" << endl
 	    << "  --sam-nohead       supppress header lines, i.e. lines starting with @" << endl
 	    << "  --sam-nosq         supppress @SQ header lines" << endl
-	    << "  --sam-RG <text>    add <text> (usually \"lab:value\") to @RG line of SAM header" << endl
+	    << "  --sam-rg-id <text> set read group id, reflected in @RG line and RG:Z: opt field" << endl
+	    << "  --sam-rg <text>    add <text> (\"lab:value\") to @RG line of SAM header." << endl
+	    << "                     only works when --sam-rg-id is also set." << endl
 		<< endl
 	    << " Performance:" << endl
 	    << "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl
@@ -1137,6 +1140,13 @@ static void parseOption(int next_option, const char *arg) {
 			}
 			break;
 		}
+		case ARG_SAM_RGID: {
+			string argstr = arg;
+			rgid = "\t";
+			rgid = "\tID:" + argstr;
+			rgs_optflag = "RG:Z:" + argstr;
+			break;
+		}
 		case ARG_PARTITION: partitionSz = parse<int>(arg); break;
 		case ARG_DPAD:
 			maxhalf = parseInt(0, "--dpad must be no less than 0", arg);
@@ -1197,7 +1207,18 @@ static void parseOption(int next_option, const char *arg) {
 			break;
 		}
 		case 'N': { polstr += ";SEED="; polstr += arg; break; }
-		case 'L': { polstr += ";SEEDLEN="; polstr += arg; break; }
+		case 'L': {
+			int64_t len = parse<size_t>(arg);
+			if(len < 0) {
+				cerr << "Error: -L argument must be >= 0; was " << arg << endl;
+				throw 1;
+			}
+			if(len > 32) {
+				cerr << "Error: -L argument must be <= 32; was" << arg << endl;
+				throw 1;
+			}
+			polstr += ";SEEDLEN="; polstr += arg; break;
+		}
 		case 'O':
 			multiseedOff = parse<size_t>(arg);
 			break;
