@@ -734,7 +734,7 @@ static void printUsage(ostream& out) {
 	    << "  --sam-nosq         supppress @SQ header lines" << endl
 	    << "  --sam-rg-id <text> set read group id, reflected in @RG line and RG:Z: opt field" << endl
 	    << "  --sam-rg <text>    add <text> (\"lab:value\") to @RG line of SAM header." << endl
-	    << "                     only works when --sam-rg-id is also set." << endl
+	    << "                     Note: @RG line only printed when --sam-rg-id is set." << endl
 		<< endl
 	    << " Performance:" << endl
 	    << "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl
@@ -1460,6 +1460,11 @@ static void parseOptions(int argc, const char **argv) {
 		     << "quality files were specified with --Q2.  The same number of mate and quality" << endl
 		     << "files must sequences must be specified with -2 and --Q2." << endl;
 		throw 1;
+	}
+	if(!rgs.empty() && rgid.empty()) {
+		cerr << "Warning: --sam-rg was specified without --sam-rg-id also "
+		     << "being specified.  @RG line is not printed unless --sam-rg-id "
+			 << "is specified." << endl;
 	}
 	// Check for duplicate mate input files
 	if(format != CMDLINE) {
