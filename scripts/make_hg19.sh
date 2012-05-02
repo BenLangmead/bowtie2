@@ -116,7 +116,7 @@ chr6_qbl_hap6 \
 chr6_ssto_hap7 \
 chr17_ctg5_hap1"
 
-CHRS_TO_INDEX=$BASE_CHRS
+CHRS_TO_INDEX="$BASE_CHRS $RANDOM_CHRS"
 
 UCSC_HG19_BASE=ftp://hgdownload.cse.ucsc.edu/goldenPath/hg19/chromosomes
 
