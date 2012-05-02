@@ -428,10 +428,10 @@ pair<int, int> SeedAligner::instantiateSeeds(
 				std::min<int>((int)seedlen, (int)read.length()),
 				depth,
 				fw);
-			assert_leq(sr.seqs(fw)[i].length(), 32);
 			QKey qk(sr.seqs(fw)[i] ASSERT_ONLY(, tmpdnastr_));
 			//QVal* qv;
 			//if(qk.cacheable() && (qv = cache.queryCopy(qk)) != NULL) {
+			//  assert_leq(sr.seqs(fw)[i].length(), 32);
 			//	// This seed hit was found recently and the hitting QVal is
 			//	// still in the cache
 			//	assert(qv->repOk(cache.current()));
