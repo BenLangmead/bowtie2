@@ -459,7 +459,6 @@ public:
 		const size_t reff = refi + qv.numRanges();
 		// For each reference sequence sufficiently similar to the
 		// query sequence in the QKey...
-		nrange += (reff - refi);
 		for(size_t i = refi; i < reff; i++) {
 			// Get corresponding SAKey, containing similar reference
 			// sequence & length
@@ -472,6 +471,7 @@ public:
 			const SAVal& sav = n->payload;
 			assert(sav.repOk(*this));
 			if(sav.len > 0) {
+				nrange++;
 				satups.expand();
 				satups.back().init(sak, sav.topf, sav.topb, TSlice(salist_, sav.i, sav.len));
 				nelt += sav.len;
