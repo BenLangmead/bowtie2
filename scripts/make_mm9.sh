@@ -41,21 +41,21 @@ chrY \
 chrM"
 
 RANDOM_CHRS="\
-1_random \
-3_random \
-4_random \
-5_random \
-7_random \
-8_random \
-9_random \
-13_random \
-16_random \
-17_random \
-X_random \
-Y_random \
-Un_random"
+chr1_random \
+chr3_random \
+chr4_random \
+chr5_random \
+chr7_random \
+chr8_random \
+chr9_random \
+chr13_random \
+chr16_random \
+chr17_random \
+chrX_random \
+chrY_random \
+chrUn_random"
 
-CHRS_TO_INDEX=$BASE_CHRS
+CHRS_TO_INDEX="$BASE_CHRS $RANDOM_CHRS"
 
 UCSC_MM9_BASE=ftp://hgdownload.cse.ucsc.edu/goldenPath/mm9/chromosomes
 
