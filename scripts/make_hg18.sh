@@ -72,7 +72,7 @@ chr5_h2_hap1 \
 chr6_cox_hap1 \
 chr6_qbl_hap2"
 
-CHRS_TO_INDEX=$BASE_CHRS
+CHRS_TO_INDEX="$BASE_CHRS $RANDOM_CHRS"
 
 UCSC_HG18_BASE=ftp://hgdownload.cse.ucsc.edu/goldenPath/hg18/chromosomes
 
