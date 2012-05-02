@@ -63,7 +63,8 @@ enum {
 	ARG_SAM_OMIT_SEC_SEQ,       // --sam-omit-sec-seq
 	ARG_SAM_NOHEAD,             // --sam-noHD/--sam-nohead
 	ARG_SAM_NOSQ,               // --sam-nosq/--sam-noSQ
-	ARG_SAM_RG,                 // --sam-RG
+	ARG_SAM_RG,                 // --sam-rg
+	ARG_SAM_RGID,               // --sam-rg-id
 	ARG_GAP_BAR,                // --gbar
 	ARG_QUALS1,                 // --Q1
 	ARG_QUALS2,                 // --Q2
