@@ -101,33 +101,6 @@ bool ReportingState::foundConcordant() {
 }
 
 /**
- * Caller uses this member function to indicate that one additional
- * discordant alignment has been found.
- */
-bool ReportingState::foundDiscordant() {
-	assert(paired_);
-	assert_gt(state_, ReportingState::NO_READ);
-	ndiscord_++;
-	// There can only be one discordant alignment per paired-end read, so
-	// there's no need to search for any more.
-	assert(!doneDiscord_);
-	doneDiscord_ = true;
-	exitDiscord_ = ReportingState::EXIT_WITH_ALIGNMENTS;
-	// If there are any discordant alignments found, there can't be any
-	// unpaired alignments reported.
-	if(!doneUnpair1_) {
-		doneUnpair1_ = true;
-		exitUnpair1_ = ReportingState::EXIT_SHORT_CIRCUIT_TRUMPED;
-	}
-	if(!doneUnpair2_) {
-		doneUnpair2_ = true;
-		exitUnpair2_ = ReportingState::EXIT_SHORT_CIRCUIT_TRUMPED;
-	}
-	updateDone();
-	return done();
-}
-
-/**
  * Caller uses this member function to indicate that one additional unpaired
  * mate alignment has been found for the specified mate.
  */
@@ -764,10 +737,10 @@ void AlnSinkWrap::finishRead(
 			size_t off;
 			if(sortByScore) {
 				// Sort by score then pick from low to high
-				off = selectByScore(&rs1_, &rs2_, nconcord, select_, rnd);
+				off = selectByScore(&rs1_, &rs2_, nconcord, select1_, rnd);
 			} else {
 				// Select subset randomly
-				off = selectAlnsToReport(rs1_, nconcord, select_, rnd);
+				off = selectAlnsToReport(rs1_, nconcord, select1_, rnd);
 			}
 			assert_lt(off, rs1_.size());
 			const AlnRes *rs1 = &rs1_[off];
@@ -806,14 +779,15 @@ void AlnSinkWrap::finishRead(
 				rs2_[i].setMateParams(ALN_RES_TYPE_MATE2, &rs1_[i], flags2);
 				assert_eq(abs(rs1_[i].fragmentLength()), abs(rs2_[i].fragmentLength()));
 			}
-			assert(!select_.empty());
+			assert(!select1_.empty());
 			g_.reportHits(
 				obuf_,
 				threadid_,
 				rd1_,
 				rd2_,
 				rdid_,
-				select_,
+				select1_,
+				NULL,
 				&rs1_,
 				&rs2_,
 				pairMax,
@@ -882,25 +856,27 @@ void AlnSinkWrap::finishRead(
 			for(size_t i = 0; i < rs1_.size(); i++) {
 				rs1_[i].setMateParams(ALN_RES_TYPE_MATE1, &rs2_[i], flags1);
 				rs2_[i].setMateParams(ALN_RES_TYPE_MATE2, &rs1_[i], flags2);
-				assert_eq(abs(rs1_[i].fragmentLength()), abs(rs2_[i].fragmentLength()));
+				assert(rs1_[i].isFraglenSet() == rs2_[i].isFraglenSet());
+				assert(!rs1_[i].isFraglenSet() || abs(rs1_[i].fragmentLength()) == abs(rs2_[i].fragmentLength()));
 			}
 			size_t off;
 			if(sortByScore) {
 				// Sort by score then pick from low to high
-				off = selectByScore(&rs1_, &rs2_, ndiscord, select_, rnd);
+				off = selectByScore(&rs1_, &rs2_, ndiscord, select1_, rnd);
 			} else {
 				// Select subset randomly
-				off = selectAlnsToReport(rs1_, ndiscord, select_, rnd);
+				off = selectAlnsToReport(rs1_, ndiscord, select1_, rnd);
 			}
 			assert_eq(0, off);
-			assert(!select_.empty());
+			assert(!select1_.empty());
 			g_.reportHits(
 				obuf_,
 				threadid_,
 				rd1_,
 				rd2_,
 				rdid_,
-				select_,
+				select1_,
+				NULL,
 				&rs1_,
 				&rs2_,
 				pairMax,
@@ -1005,13 +981,57 @@ void AlnSinkWrap::finishRead(
 		AlnSetSumm summ1, summ2;
 		AlnFlags flags1, flags2;
 		TRefId refid = -1; TRefOff refoff = -1;
-		
-		// Just examine mate 1
-		if(rd1_ != NULL && nunpair1 > 0) {
+		bool rep1 = rd1_ != NULL && nunpair1 > 0;
+		bool rep2 = rd2_ != NULL && nunpair2 > 0;
+
+		// This is the preliminary if statement for mate 1 - here we're
+		// gathering some preliminary information, making it possible to call
+		// g_.reportHits(...) with information about both mates potentially
+		if(rep1) {
 			// Mate 1 aligned at least once
 			summ1.init(
 				rd1_, NULL, NULL, NULL, &rs1u_, NULL,
 				exhaust1, exhaust2, -1, -1);
+			size_t off;
+			if(sortByScore) {
+				// Sort by score then pick from low to high
+				off = selectByScore(&rs1u_, NULL, nunpair1, select1_, rnd);
+			} else {
+				// Select subset randomly
+				off = selectAlnsToReport(rs1u_, nunpair1, select1_, rnd);
+			}
+			repRs1 = &rs1u_[off];
+		} else if(rd1_ != NULL) {
+			// Mate 1 failed to align - don't do anything yet.  First we want
+			// to collect information on mate 2 in case that factors into the
+			// summary
+			assert(!unpair1Max);
+		}
+		
+		if(rep2) {
+			summ2.init(
+				NULL, rd2_, NULL, NULL, NULL, &rs2u_,
+				exhaust1, exhaust2, -1, -1);
+			size_t off;
+			if(sortByScore) {
+				// Sort by score then pick from low to high
+				off = selectByScore(&rs2u_, NULL, nunpair2, select2_, rnd);
+			} else {
+				// Select subset randomly
+				off = selectAlnsToReport(rs2u_, nunpair2, select2_, rnd);
+			}
+			repRs2 = &rs2u_[off];
+		} else if(rd2_ != NULL) {
+			// Mate 2 failed to align - don't do anything yet.  First we want
+			// to collect information on mate 1 in case that factors into the
+			// summary
+			assert(!unpair2Max);
+		}
+
+		// Now set up flags
+		if(rep1) {
+			// Initialize flags.  Note: We want to have information about how
+			// the other mate aligned (if it did) at this point
 			flags1.init(
 				readIsPair() ?
 					ALN_FLAG_PAIR_UNPAIRED_MATE1 :
@@ -1025,55 +1045,15 @@ void AlnSinkWrap::finishRead(
 				qcfilt1,
 				st_.params().mixed,
 				true,   // primary
-				false,  // opp aligned
-				false); // opp fw
-			SeedAlSumm ssm1, ssm2;
-			if(sr1 != NULL) sr1->toSeedAlSumm(ssm1);
-			if(sr2 != NULL) sr2->toSeedAlSumm(ssm2);
+				repRs2 != NULL,                    // opp aligned
+				repRs2 == NULL || repRs2->fw());   // opp fw
 			for(size_t i = 0; i < rs1u_.size(); i++) {
 				rs1u_[i].setMateParams(ALN_RES_TYPE_UNPAIRED_MATE1, NULL, flags1);
 			}
-			size_t off;
-			if(sortByScore) {
-				// Sort by score then pick from low to high
-				off = selectByScore(&rs1u_, NULL, nunpair1, select_, rnd);
-			} else {
-				// Select subset randomly
-				off = selectAlnsToReport(rs1u_, nunpair1, select_, rnd);
-			}
-			repRs1 = &rs1u_[off];
-			assert(!select_.empty());
-			g_.reportHits(
-				obuf_,
-				threadid_,
-				rd1_,
-				NULL,
-				rdid_,
-				select_,
-				&rs1u_,
-				NULL,
-				unpair1Max,
-				summ1,
-				ssm1,
-				ssm2,
-				&flags1,
-				NULL,
-				prm,
-				mapq_);
-			assert_lt(select_[0], rs1u_.size());
-			refid = rs1u_[select_[0]].refid();
-			refoff = rs1u_[select_[0]].refoff();
-		} else if(rd1_ != NULL) {
-			// Mate 1 failed to align - don't do anything yet.  First we want
-			// to collect information on mate 2 in case that factors into the
-			// summary
-			assert(!unpair1Max);
 		}
-		if(rd2_ != NULL && nunpair2 > 0) {
-			// Mate 2 aligned at least once
-			summ2.init(
-				NULL, rd2_, NULL, NULL, NULL, &rs2u_,
-				exhaust1, exhaust2, -1, -1);
+		if(rep2) {
+			// Initialize flags.  Note: We want to have information about how
+			// the other mate aligned (if it did) at this point
 			flags2.init(
 				readIsPair() ?
 					ALN_FLAG_PAIR_UNPAIRED_MATE2 :
@@ -1087,49 +1067,69 @@ void AlnSinkWrap::finishRead(
 				qcfilt2,
 				st_.params().mixed,
 				true,   // primary
-				false,  // opp aligned
-				false); // opp fw
-			SeedAlSumm ssm1, ssm2;
-			if(sr1 != NULL) sr1->toSeedAlSumm(ssm1);
-			if(sr2 != NULL) sr2->toSeedAlSumm(ssm2);
+				repRs1 != NULL,                  // opp aligned
+				repRs1 == NULL || repRs1->fw()); // opp fw
 			for(size_t i = 0; i < rs2u_.size(); i++) {
 				rs2u_[i].setMateParams(ALN_RES_TYPE_UNPAIRED_MATE2, NULL, flags2);
 			}
-			size_t off;
-			if(sortByScore) {
-				// Sort by score then pick from low to high
-				off = selectByScore(&rs2u_, NULL, nunpair2, select_, rnd);
-			} else {
-				// Select subset randomly
-				off = selectAlnsToReport(rs2u_, nunpair2, select_, rnd);
-			}
-			repRs2 = &rs2u_[off];
-			assert(!select_.empty());
+		}
+		
+		// Now report mate 1
+		if(rep1) {
+			SeedAlSumm ssm1, ssm2;
+			if(sr1 != NULL) sr1->toSeedAlSumm(ssm1);
+			if(sr2 != NULL) sr2->toSeedAlSumm(ssm2);
+			assert(!select1_.empty());
+			g_.reportHits(
+				obuf_,
+				threadid_,
+				rd1_,
+				repRs2 != NULL ? rd2_ : NULL,
+				rdid_,
+				select1_,
+				repRs2 != NULL ? &select2_ : NULL,
+				&rs1u_,
+				repRs2 != NULL ? &rs2u_ : NULL,
+				unpair1Max,
+				summ1,
+				ssm1,
+				ssm2,
+				&flags1,
+				repRs2 != NULL ? &flags2 : NULL,
+				prm,
+				mapq_);
+			assert_lt(select1_[0], rs1u_.size());
+			refid = rs1u_[select1_[0]].refid();
+			refoff = rs1u_[select1_[0]].refoff();
+		}
+		
+		// Now report mate 2
+		if(rep2 && !rep1) {
+			SeedAlSumm ssm1, ssm2;
+			if(sr1 != NULL) sr1->toSeedAlSumm(ssm1);
+			if(sr2 != NULL) sr2->toSeedAlSumm(ssm2);
+			assert(!select2_.empty());
 			g_.reportHits(
 				obuf_,
 				threadid_,
 				rd2_,
-				NULL,
+				repRs1 != NULL ? rd1_ : NULL,
 				rdid_,
-				select_,
+				select2_,
+				repRs1 != NULL ? &select1_ : NULL,
 				&rs2u_,
-				NULL,
+				repRs1 != NULL ? &rs1u_ : NULL,
 				unpair2Max,
 				summ2,
 				ssm1,
 				ssm2,
 				&flags2,
-				NULL,
+				repRs1 != NULL ? &flags1 : NULL,
 				prm,
 				mapq_);
-			assert_lt(select_[0], rs2u_.size());
-			refid = rs2u_[select_[0]].refid();
-			refoff = rs2u_[select_[0]].refoff();
-		} else if(rd2_ != NULL) {
-			// Mate 2 failed to align - don't do anything yet.  First we want
-			// to collect information on mate 1 in case that factors into the
-			// summary
-			assert(!unpair2Max);
+			assert_lt(select2_[0], rs2u_.size());
+			refid = rs2u_[select2_[0]].refid();
+			refoff = rs2u_[select2_[0]].refoff();
 		}
 		
 		if(rd1_ != NULL && nunpair1 == 0) {
@@ -1769,7 +1769,7 @@ void AlnSinkSam::appendMate(
 		o.append("0\t");
 	}
 	// ISIZE
-	if(rs != NULL && rs->alignedPaired()) {
+	if(rs != NULL && rs->isFraglenSet()) {
 		itoa10<int64_t>(rs->fragmentLength(), buf);
 		o.append(buf);
 		o.append('\t');

@@ -51,4 +51,15 @@ generally superior to Bowtie 1 for reads longer than 50 bp.  For reads shorter
 than 50 bp, Bowtie 1 may or may not be preferable.
 
 <h2>Why do so few of my paired-end reads align concordantly?</h2>
-Check that the 
+Check that you have specified the correct range of fragment lengths
+
+<h2>How many mismatches and gaps does Bowtie 2 allow?</h2>
+I tried 
+
+<h2>How many mismatches and gaps does Bowtie 2 allow?</h2>
+Bowtie 2 using a scoring scheme that assigns various scores to matches,
+mismatches, gap opens, and gap extensions.  These are all user-configurable.
+An alignment with a total score that rises above a user-configurable threshold
+are considered "valid" and eligible for reporting.  For information on how to
+adjust these settings, see documentation for the <a> </a>, <a> </a>, <a> </a>, <a> </a>
+

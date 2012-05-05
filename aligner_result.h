@@ -1152,6 +1152,13 @@ public:
 	}
 	
 	/**
+	 * Return true iff fragment length is set.
+	 */
+	bool isFraglenSet() const {
+		return fraglenSet_;
+	}
+	
+	/**
 	 * Set whether this alignment is unpaired, or is mate #1 or mate #2 in a
 	 * paired-end alignment.
 	 */
@@ -1165,7 +1172,15 @@ public:
 		fraglen_ = 0;
 		if(omate != NULL) {
 			oscore_ = omate->score_;
-			if(flags.alignedConcordant()) {
+			// When should we calculate a fragment length here?  There are a
+			// couple reasonable ideas:
+			// 1. When mates align concordantly
+			// 2. When both mates align to the same reference string
+			// BWA seems to do 2., so that's what we'll do here.
+			bool sameChr = true;
+			if((sameChr && refcoord_.ref() == omate->refcoord_.ref()) ||
+			   flags.alignedConcordant())
+			{
 				setFragmentLength(*omate);
 			}
 		}
@@ -1193,6 +1208,7 @@ public:
 		if(!imUpstream) {
 			fraglen_ = -fraglen_;
 		}
+		fraglenSet_ = true;
 		return fraglen_;
 	}
 	
@@ -1202,6 +1218,7 @@ public:
 	 */
 	int64_t fragmentLength() const {
 		assert_gt(type_, 0);
+		assert(fraglenSet_);
 		return fraglen_;
 	}
 	
@@ -1356,6 +1373,7 @@ protected:
 	int         nuc3p_;        // 3'-most decoded base; clipped if excluding end
 	size_t      refns_;        // # of reference Ns overlapped
 	int         type_;         // unpaired or mate #1 or mate #2?
+	bool        fraglenSet_;   // true iff a fragment length has been inferred
 	int64_t     fraglen_;      // inferred fragment length
 	
 	// A tricky aspect of trimming is that we have to decide what the units are:
