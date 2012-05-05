@@ -267,30 +267,6 @@ struct ReportingParams {
 		return khits;
 	}
 
-#if 0
-	/**
-	 * Given ROWM, POSF thresholds, boost them according to mult().
-	 */
-	void boostThresholds(
-		SimpleFunc& posfrac,
-		SimpleFunc& rowmult)
-	{
-		THitInt mul = mult();
-		assert_gt(mul, 0);
-		if(mul == std::numeric_limits<THitInt>::max()) {
-			// If -a was specified, boost ROWM and POSF so that all hits are
-			// tried for al; positions
-			posfrac.setMin(std::numeric_limits<double>::max());
-			rowmult.setMin(std::numeric_limits<double>::max());
-		} else if(mul > 1) {
-			// If -k or -M were specified, boost ROWM and POSF so that an
-			// appropriately larger number of hits are tried for more
-			// positions
-			posfrac.mult(mul);
-			rowmult.mult(mul);
-		}
-	}
-#else
 	/**
 	 * Given ROWM, POSF thresholds, boost them according to mult().
 	 */
@@ -303,7 +279,6 @@ struct ReportingParams {
 			func.mult(mul);
 		}
 	}
-#endif
 
 	// Number of alignments to report
 	THitInt khits;
@@ -407,12 +382,6 @@ public:
 	 * concordant alignment has been found.
 	 */
 	bool foundConcordant();
-
-	/**
-	 * Caller uses this member function to indicate that one additional
-	 * discordant alignment has been found.
-	 */
-	bool foundDiscordant();
 
 	/**
 	 * Caller uses this member function to indicate that one additional
@@ -654,12 +623,13 @@ public:
 		const AlnFlags*       flags1,
 		const AlnFlags*       flags2,
 		const PerReadMetrics& prm,
-		const Mapq&           mapq) = 0;
+		const Mapq&           mapq,
+		bool                  report2) = 0;
 
 	/**
-	 * Report a given batch of hits for the given read pair.  Should be
-	 * called just once per read pair.  Assumes all the alignments are
-	 * paired, split between rs1 and rs2.
+	 * Report a given batch of hits for the given read or read pair.
+	 * Should be called just once per read pair.  Assumes all the
+	 * alignments are paired, split between rs1 and rs2.
 	 *
 	 * The caller hasn't decided which alignments get reported as primary
 	 * or secondary; that's up to the routine.  Because the caller might
@@ -672,7 +642,8 @@ public:
 		const Read           *rd1,            // mate #1
 		const Read           *rd2,            // mate #2
 		const TReadId         rdid,           // read ID
-		const EList<size_t>&  select,         // random subset
+		const EList<size_t>&  select1,        // random subset of rd1s
+		const EList<size_t>*  select2,        // random subset of rd2s
 		EList<AlnRes>        *rs1,            // alignments for mate #1
 		EList<AlnRes>        *rs2,            // alignments for mate #2
 		bool                  maxed,          // true iff -m/-M exceeded
@@ -685,6 +656,14 @@ public:
 		const Mapq&           mapq,           // MAPQ generator
 		bool                  getLock = true) // true iff lock held by caller
 	{
+		// There are a few scenarios:
+		// 1. Read is unpaired, in which case rd2 is NULL
+		// 2. Read is paired-end and we're reporting concordant alignments
+		// 3. Read is paired-end and we're reporting discordant alignments
+		// 4. Read is paired-end and we're reporting unpaired alignments for
+		//    both mates
+		// 5. Read is paired-end and we're reporting an unpaired alignments for
+		//    just one mate or the other
 		assert(rd1 != NULL || rd2 != NULL);
 		assert(rs1 != NULL || rs2 != NULL);
 		AlnFlags flagscp1, flagscp2;
@@ -698,15 +677,35 @@ public:
 			flags2 = &flagscp2;
 			flagscp2.setPrimary(true);
 		}
-		{
-			// ASSUMING that sid doesn't change from alignment to alignment
-			//Coord c(0, 0, true);
-			for(size_t i = 0; i < select.size(); i++) {
-				AlnRes* r1 = ((rs1 != NULL) ? &rs1->get(select[i]) : NULL);
-				AlnRes* r2 = ((rs2 != NULL) ? &rs2->get(select[i]) : NULL);
-				{
-					append(o, threadId, rd1, rd2, rdid, r1, r2, summ, ssm1, ssm2, flags1, flags2, prm, mapq);
-				}
+		if(select2 != NULL) {
+			// Handle case 5
+			assert(rd1 != NULL); assert(flags1 != NULL);
+			assert(rd2 != NULL); assert(flags2 != NULL);
+			assert_gt(select1.size(), 0);
+			assert_gt(select2->size(), 0);
+			AlnRes* r1pri = ((rs1 != NULL) ? &rs1->get(select1[0]) : NULL);
+			AlnRes* r2pri = ((rs2 != NULL) ? &rs2->get((*select2)[0]) : NULL);
+			append(o, threadId, rd1, rd2, rdid, r1pri, r2pri, summ, ssm1, ssm2,
+			       flags1, flags2, prm, mapq, true);
+			flagscp1.setPrimary(false);
+			flagscp2.setPrimary(false);
+			for(size_t i = 1; i < select1.size(); i++) {
+				AlnRes* r1 = ((rs1 != NULL) ? &rs1->get(select1[i]) : NULL);
+				append(o, threadId, rd1, rd2, rdid, r1, r2pri, summ,
+				       ssm1, ssm2, flags1, flags2, prm, mapq, false);
+			}
+			for(size_t i = 1; i < select2->size(); i++) {
+				AlnRes* r2 = ((rs2 != NULL) ? &rs2->get((*select2)[i]) : NULL);
+				append(o, threadId, rd2, rd1, rdid, r2, r1pri, summ,
+				       ssm2, ssm1, flags2, flags1, prm, mapq, false);
+			}
+		} else {
+			// Handle cases 1-4
+			for(size_t i = 0; i < select1.size(); i++) {
+				AlnRes* r1 = ((rs1 != NULL) ? &rs1->get(select1[i]) : NULL);
+				AlnRes* r2 = ((rs2 != NULL) ? &rs2->get(select1[i]) : NULL);
+				append(o, threadId, rd1, rd2, rdid, r1, r2, summ,
+				       ssm1, ssm2, flags1, flags2, prm, mapq, true);
 				if(flags1 != NULL) {
 					flagscp1.setPrimary(false);
 				}
@@ -734,9 +733,11 @@ public:
 		const AlnFlags*       flags2,         // flags for mate #2
 		const PerReadMetrics& prm,            // per-read metrics
 		const Mapq&           mapq,           // MAPQ calculator
+		bool                  report2,        // report alns for both mates?
 		bool                  getLock = true) // true iff lock held by caller
 	{
-		append(o, threadId, rd1, rd2, rdid, NULL, NULL, summ, ssm1, ssm2, flags1, flags2, prm, mapq);
+		append(o, threadId, rd1, rd2, rdid, NULL, NULL, summ,
+		       ssm1, ssm2, flags1, flags2, prm, mapq, report2);
 	}
 
 	/**
@@ -969,7 +970,8 @@ public:
 		rs2_(),        // mate 2 alignments for paired-end alignments
 		rs1u_(),       // mate 1 unpaired alignments
 		rs2u_(),       // mate 2 unpaired alignments
-		select_(),     // for selecting random subsets
+		select1_(),    // for selecting random subsets for mate 1
+		select2_(),    // for selecting random subsets for mate 2
 		st_(rp)        // reporting state - what's left to do?
 	{
 		assert(rp_.repOk());
@@ -1232,7 +1234,8 @@ protected:
 	EList<AlnRes>   rs2_;   // paired alignments for mate #2
 	EList<AlnRes>   rs1u_;  // unpaired alignments for mate #1
 	EList<AlnRes>   rs2u_;  // unpaired alignments for mate #2
-	EList<size_t>   select_;  // parallel to rs1_/rs2_ - which to report
+	EList<size_t>   select1_; // parallel to rs1_/rs2_ - which to report
+	EList<size_t>   select2_; // parallel to rs1_/rs2_ - which to report
 	ReportingState  st_;      // reporting state - what's left to do?
 	
 	EList<std::pair<TAlScore, size_t> > selectBuf_;
@@ -1285,7 +1288,8 @@ public:
 		const AlnFlags* flags1,    // flags for mate #1
 		const AlnFlags* flags2,    // flags for mate #2
 		const PerReadMetrics& prm, // per-read metrics
-		const Mapq& mapq)          // MAPQ calculator
+		const Mapq& mapq,          // MAPQ calculator
+		bool report2)              // report alns for both mates
 	{
 		assert(rd1 != NULL || rd2 != NULL);
 		if(rd1 != NULL) {
@@ -1293,7 +1297,7 @@ public:
 			appendMate(o, *rd1, rd2, rdid, rs1, rs2, summ, ssm1, ssm2,
 			           *flags1, prm, mapq);
 		}
-		if(rd2 != NULL) {
+		if(rd2 != NULL && report2) {
 			assert(flags2 != NULL);
 			appendMate(o, *rd2, rd1, rdid, rs2, rs1, summ, ssm2, ssm1,
 			           *flags2, prm, mapq);

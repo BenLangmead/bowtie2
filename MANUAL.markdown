@@ -1803,6 +1803,20 @@ Suppress SAM header lines (starting with `@`).
 Suppress `@SQ` SAM header lines.
 
 </td></tr>
+<tr><td id="bowtie2-options-sam-rg-id">
+
+[`--sam-rg-id`]: #bowtie2-options-sam-rg-id
+
+    --sam-rg-id <text>
+
+</td><td>
+
+Set the read group ID to `<text>`.  This causes the SAM `@RG` header line to be
+printed, with `<text>` as the value associated with the `ID:` tag.  It also
+causes the `RG:Z:` extra field to be attached to each SAM output record, with
+value set to `<text>`.
+
+</td></tr>
 <tr><td id="bowtie2-options-sam-rg">
 
 [`--sam-rg`]: #bowtie2-options-sam-rg
@@ -1811,12 +1825,11 @@ Suppress `@SQ` SAM header lines.
 
 </td><td>
 
-Add `<text>` (usually of the form `TAG:VAL`, e.g. `ID:IL7LANE2`) as a field on
-the `@RG` header line.  Specify `--sam-rg` multiple times to set multiple
-fields.  See the [SAM Spec][SAM] for details about what fields are legal.  Note
-that, if any `@RG` fields are set using this option, the `ID` and `SM` fields
-must both be among them to make the `@RG` line legal according to the [SAM
-Spec][SAM].
+Add `<text>` (usually of the form `TAG:VAL`, e.g. `SM:Pool1`) as a field on the
+`@RG` header line.  Note: in order for the `@RG` line to appear, [`--sam-rg-id`]
+must also be specified.  This is because the `ID` tag is required by the [SAM
+Spec][SAM].  Specify `--sam-rg` multiple times to set multiple fields.  See the
+[SAM Spec][SAM] for details about what fields are legal.
 
 </td></tr></table>
 

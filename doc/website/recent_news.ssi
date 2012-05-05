@@ -1,3 +1,30 @@
+<h2>Version 2.0.0-beta6 - May XX, 2012</h2>
+<ul>
+  <li>Bowtie 2 now handles longer reads in a more memory-economical fashion,
+      which should prevent many out-of-memory issues for longer reads.</li>
+  <li>Error message now produced when -L is set greater than 32.</li>
+  <li>Added a warning message to warn when <tt>bowtie2-align</tt> binary is
+      being run directly, rather than via the wrapper.  Some functionality is
+	  provided by the wrapper, so Bowtie 2 should always be run via the
+	  <tt>bowtie2</tt> executable rather than <tt>bowtie2-align</tt>.</li>
+  <li>Fixed an occasional crashing bug that was usually caused by setting the
+      seed length relatively short.</li>
+  <li>Added
+      <tt><a href="manual.shtml#bowtie2-options-no-unal">--no-unal</a></tt>
+	  option to suppress SAM records corresponding to unaligned
+      reads, i.e., records where <tt>FLAG</tt> field has <tt>0x4</tt> set.</li>
+  <li>Added
+      <tt><a href="manual.shtml#bowtie2-options-sam-rg-id">--sam-rg-id</a></tt>
+	  option and enhanced the documentation for both
+      <tt><a href="manual.shtml#bowtie2-options-sam-rg-id">--sam-rg-id</a></tt>
+	  and
+      <tt><a href="manual.shtml#bowtie2-options-sam-rg">--sam-rg</a></tt>.
+	  Users were confused by the need to specify
+	  <tt>--sam-rg "ID:(something)"</tt>
+	  in order for the <tt>@RG</tt> line to be printed; hopefully this is
+	  clearer now.</li>
+</ul>
+
 <h2>Version 2.0.0-beta5 - December 15, 2011</h2>
 <ul>
   <li>Added
