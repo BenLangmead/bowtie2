@@ -132,9 +132,11 @@ for(0..length($rf)-1) {
 print STDERR "Adding microindels...\n";
 my $newrf = "";
 my $microgap = 0;
-for(0..length($rf)-1) {
-	$newrf .= substr($rf, $_, 1);
+my $lasted = 0;
+for my $rfi (0..length($rf)-1) {
 	if(rand() < 0.0010) {
+		$newrf .= substr($rf, $lasted, $rfi - $lasted);
+		$lasted = $rfi;
 		my $len = int(random_exponential(1, 3))+1;
 		if(int(rand()) == 0) {
 			# Remove a bit of the reference
