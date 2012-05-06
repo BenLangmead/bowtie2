@@ -37,15 +37,25 @@ use Math::Random qw(random_normal random_exponential);
 use Getopt::Long;
 use List::Util qw(max min);
 
-my @fa_fn = ();       # files with reference FASTA
-my $rf = "";          # reference sequence
-my $long = 0;         # 1 -> generate long reads
-my $paired = 1;       # 1 -> generate paired-end reads
-my $prefix = "reads"; # output files start with this string
+my @fa_fn = ();        # files with reference FASTA
+my $rf = "";           # reference sequence
+my $long = 0;          # 1 -> generate long reads
+my $paired = 1;        # 1 -> generate paired-end reads
+my $prefix = "reads";  # output files start with this string
+my $nreads    = undef; # # reads
+my $rdlen_av  = undef; # average to use when drawing from exponential
+my $rdlen_min = undef; # minimum read length (added to exponential draw)
+my $frag_av   = undef; # mean fragment len
+my $frag_sd   = undef; # s.d. to use when drawing frag len from normal dist
 
 GetOptions (
 	"fasta|reference=s" => \@fa_fn,
 	"long"              => \$long,
+	"nreads=i"          => \$nreads,
+	"read-avg=i"        => \$rdlen_av,
+	"read-min=i"        => \$rdlen_min,
+	"frag-avg=i"        => \$frag_av,
+	"frag-sd=i"         => \$frag_sd,
 	"unpaired"          => sub { $paired = 0; },
 	"prefix=s"          => \$prefix
 ) || die "Bad option";
@@ -82,11 +92,11 @@ sub revcomp {
 	return $ret;
 }
 
-my $nreads    = 10000;  # number of reads/end to generate
-my $rdlen_av  = 75;     # average to use when drawing from exponential
-my $rdlen_min = 40;     # minimum read length (added to exponential draw)
-my $frag_av   = 250;    # mean fragment len
-my $frag_sd   = 45;     # s.d. to use when drawing frag len from normal dist
+$nreads    = $nreads    || 10000; # number of reads/end to generate
+$rdlen_av  = $rdlen_av  || 75;    # average when drawing from exponential
+$rdlen_min = $rdlen_min || 40;    # min read length (added to exponential draw)
+$frag_av   = $frag_av   || 250;   # mean fragment len
+$frag_sd   = $frag_sd   || 45;    # s.d. when drawing frag len from normal dist
 my @fraglens  = ();     # fragment lengths (for paired)
 my @readlens  = ();     # read/end lengths
 
