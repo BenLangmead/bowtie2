@@ -250,8 +250,9 @@ if($paired) {
 		$rd = revcomp($rd) if int(rand(2)) == 0;
 		# Generate random quality values
 		my $qu = rand_quals($rdlen);
+		length($rd) == length($qu) || die "length(seq) = ".length($rd).", length(qual) = ".length($qu);
 		$rd = add_seq_errs($rd, $qu);
-		length($rd) == length($qu) || die;
+		length($rd) == length($qu) || die "length(seq) = ".length($rd).", length(qual) = ".length($qu);
 		# Print
 		print RD1 "\@r".($i+1)."\n$rd\n+\n$qu\n";
 	}
