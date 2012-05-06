@@ -60,6 +60,8 @@ GetOptions (
 	"prefix=s"          => \$prefix
 ) || die "Bad option";
 
+scalar(@fa_fn) > 0 || die "Must specify at least one reference FASTA file with --fasta";
+
 for my $fn (@fa_fn) {
 	open(FN, $fn) || confess;
 	my $name = "";
