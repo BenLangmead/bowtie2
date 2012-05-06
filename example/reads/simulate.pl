@@ -166,6 +166,7 @@ print STDERR "Added $nrearr Rearrangements\n";
 # Simulate reads
 #
 
+print STDERR "Picking read and fragment lengths...\n";
 if($paired) {
 	# Pick random fragment and read lengths
 	@fraglens = random_normal($nreads, $frag_av, $frag_sd);
@@ -206,6 +207,7 @@ sub add_seq_errs($$) {
 }
 
 # Now simulate 
+print STDERR "Simulating reads...\n";
 my $rflen = length($rf);
 if($paired) {
 	open(RD1, ">${prefix}_1.fq") || die;
@@ -246,6 +248,7 @@ if($paired) {
 		my $rdlen = $readlens[$i];
 		my $off = int(rand($rflen - ($rdlen-1)));
 		my $rd = substr($rf, $off, $rdlen);
+		length($rd) == $rdlen || die;
 		# Possibly reverse complement
 		$rd = revcomp($rd) if int(rand(2)) == 0;
 		# Generate random quality values
