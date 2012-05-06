@@ -50,9 +50,10 @@
         </td>
       </tr>
       <tr>
-        <td colspan="2" style="font-size: x-small">&nbsp;or: <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/incl/hg18.1.zip">part 1</a> (1.4 GB),
-                                <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/incl/hg18.2.zip">part 2</a> (648 MB),
-                                <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/incl/hg18.3.zip">part 3</a> (1.4 GB)
+        <td colspan="2" style="font-size: x-small">&nbsp;or:
+		  <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/incl/hg18.1.zip">part 1</a> (1.4 GB),
+          <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/incl/hg18.2.zip">part 2</a> (648 MB),
+          <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/incl/hg18.3.zip">part 3</a> (1.4 GB)
         </td>
       </tr>
 
@@ -66,9 +67,10 @@
         </td>
       </tr>
       <tr>
-        <td colspan="2" style="font-size: x-small">&nbsp;or: <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/incl/hg19.1.zip">part 1</a> (1.5 GB),
-                                <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/incl/hg19.2.zip">part 2</a> (649 MB),
-                                <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/incl/hg19.3.zip">part 3</a> (1.5 GB)
+        <td colspan="2" style="font-size: x-small">&nbsp;or:
+		  <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/incl/hg19.1.zip">part 1</a> (1.5 GB),
+          <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/incl/hg19.2.zip">part 2</a> (649 MB),
+          <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/incl/hg19.3.zip">part 3</a> (1.5 GB)
         </td>
       </tr>
 
@@ -82,9 +84,10 @@
         </td>
       </tr>
       <tr>
-        <td colspan="2" style="font-size: x-small">&nbsp;or: <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/incl/mm10.1.zip">part 1</a> (1.3 GB),
-                                <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/incl/mm10.2.zip">part 2</a> (580 MB),
-                                <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/incl/mm10.3.zip">part 3</a> (1.3 GB)
+        <td colspan="2" style="font-size: x-small">&nbsp;or:
+		  <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/incl/mm10.1.zip">part 1</a> (1.3 GB),
+          <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/incl/mm10.2.zip">part 2</a> (580 MB),
+          <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/incl/mm10.3.zip">part 3</a> (1.3 GB)
         </td>
       </tr>
 
@@ -98,9 +101,10 @@
         </td>
       </tr>
       <tr>
-        <td colspan="2" style="font-size: x-small">&nbsp;or: <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/incl/mm9.1.zip">part 1</a> (1.3 GB),
-                                <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/incl/mm9.2.zip">part 2</a> (580 MB),
-                                <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/incl/mm9.3.zip">part 3</a> (1.3 GB)
+        <td colspan="2" style="font-size: x-small">&nbsp;or:
+          <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/incl/mm9.1.zip">part 1</a> (1.3 GB),
+          <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/incl/mm9.2.zip">part 2</a> (580 MB),
+          <a href="ftp://ftp.cbcb.umd.edu/pub/data/bowtie2_indexes/incl/mm9.3.zip">part 3</a> (1.3 GB)
         </td>
       </tr>
 

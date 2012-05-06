@@ -1635,6 +1635,9 @@ void AlnSinkSam::appendMate(
 	const PerReadMetrics& prm,
 	const Mapq& mapqCalc)
 {
+	if(rs == NULL && samc_.omitUnalignedReads()) {
+		return;
+	}
 	char buf[1024];
 	int offAdj = 0;
 	// QNAME

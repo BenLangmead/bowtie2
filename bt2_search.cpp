@@ -118,6 +118,7 @@ static bool fuzzy;
 static bool fullRef;
 static bool samTruncQname; // whether to truncate QNAME to 255 chars
 static bool samOmitSecSeqQual; // omit SEQ/QUAL for 2ndary alignments?
+static bool samNoUnal; // don't print records for unaligned reads
 static bool samNoHead; // don't print any header lines in SAM output
 static bool samNoSQ;   // don't print @SQ header lines
 static bool sam_print_as;
@@ -293,6 +294,7 @@ static void resetOptions() {
 	fullRef					= false; // print entire reference name instead of just up to 1st space
 	samTruncQname           = true;  // whether to truncate QNAME to 255 chars
 	samOmitSecSeqQual       = false; // omit SEQ/QUAL for 2ndary alignments?
+	samNoUnal               = false; // omit SAM records for unaligned reads
 	samNoHead				= false; // don't print any header lines in SAM output
 	samNoSQ					= false; // don't print @SQ header lines
 	sam_print_as            = true;
@@ -467,16 +469,26 @@ static struct option long_options[] = {
 	{(char*)"usage",        no_argument,       0,            ARG_USAGE},
 	{(char*)"sam-no-qname-trunc", no_argument, 0,            ARG_SAM_NO_QNAME_TRUNC},
 	{(char*)"sam-omit-sec-seq", no_argument,   0,            ARG_SAM_OMIT_SEC_SEQ},
+	{(char*)"sam-no-head",  no_argument,       0,            ARG_SAM_NOHEAD},
 	{(char*)"sam-nohead",   no_argument,       0,            ARG_SAM_NOHEAD},
 	{(char*)"sam-noHD",     no_argument,       0,            ARG_SAM_NOHEAD},
 	{(char*)"sam-no-hd",    no_argument,       0,            ARG_SAM_NOHEAD},
 	{(char*)"sam-nosq",     no_argument,       0,            ARG_SAM_NOSQ},
 	{(char*)"sam-no-sq",    no_argument,       0,            ARG_SAM_NOSQ},
 	{(char*)"sam-noSQ",     no_argument,       0,            ARG_SAM_NOSQ},
+	{(char*)"no-head",      no_argument,       0,            ARG_SAM_NOHEAD},
+	{(char*)"no-hd",        no_argument,       0,            ARG_SAM_NOHEAD},
+	{(char*)"no-sq",        no_argument,       0,            ARG_SAM_NOSQ},
+	{(char*)"no-HD",        no_argument,       0,            ARG_SAM_NOHEAD},
+	{(char*)"no-SQ",        no_argument,       0,            ARG_SAM_NOSQ},
+	{(char*)"no-unal",      no_argument,       0,            ARG_SAM_NO_UNAL},
 	{(char*)"color",        no_argument,       0,            'C'},
 	{(char*)"sam-RG",       required_argument, 0,            ARG_SAM_RG},
 	{(char*)"sam-rg",       required_argument, 0,            ARG_SAM_RG},
 	{(char*)"sam-rg-id",    required_argument, 0,            ARG_SAM_RGID},
+	{(char*)"RG",           required_argument, 0,            ARG_SAM_RG},
+	{(char*)"rg",           required_argument, 0,            ARG_SAM_RG},
+	{(char*)"rg-id",        required_argument, 0,            ARG_SAM_RGID},
 	{(char*)"snpphred",     required_argument, 0,            ARG_SNPPHRED},
 	{(char*)"snpfrac",      required_argument, 0,            ARG_SNPFRAC},
 	{(char*)"gbar",         required_argument, 0,            ARG_GAP_BAR},
@@ -565,6 +577,7 @@ static struct option long_options[] = {
 	{(char*)"tri",              no_argument,       0,        ARG_TRI},
 	{(char*)"local-seed-cache-sz", required_argument, 0,     ARG_LOCAL_SEED_CACHE_SZ},
 	{(char*)"seed-cache-sz",       required_argument, 0,     ARG_CURRENT_SEED_CACHE_SZ},
+	{(char*)"no-unal",          no_argument,       0,        ARG_SAM_NO_UNAL},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -730,11 +743,12 @@ static void printUsage(ostream& out) {
 		<< "  --met-file <path>  send metrics to file at <path> (off)" << endl
 		<< "  --met-stderr       send metrics to stderr (off)" << endl
 		<< "  --met <int>        report internal counters & metrics every <int> secs (1)" << endl
-	    << "  --sam-nohead       supppress header lines, i.e. lines starting with @" << endl
-	    << "  --sam-nosq         supppress @SQ header lines" << endl
-	    << "  --sam-rg-id <text> set read group id, reflected in @RG line and RG:Z: opt field" << endl
-	    << "  --sam-rg <text>    add <text> (\"lab:value\") to @RG line of SAM header." << endl
-	    << "                     Note: @RG line only printed when --sam-rg-id is set." << endl
+	    << "  --no-unal          supppress SAM records for unaligned reads" << endl
+	    << "  --no-head          supppress header lines, i.e. lines starting with @" << endl
+	    << "  --no-sq            supppress @SQ header lines" << endl
+	    << "  --rg-id <text>     set read group id, reflected in @RG line and RG:Z: opt field" << endl
+	    << "  --rg <text>        add <text> (\"lab:value\") to @RG line of SAM header." << endl
+	    << "                     Note: @RG line only printed when --rg-id is set." << endl
 		<< endl
 	    << " Performance:" << endl
 	    << "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl
@@ -1087,6 +1101,7 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_NO_RC: gNorc = true; break;
 		case ARG_SAM_NO_QNAME_TRUNC: samTruncQname = false; break;
 		case ARG_SAM_OMIT_SEC_SEQ: samOmitSecSeqQual = true; break;
+		case ARG_SAM_NO_UNAL: samNoUnal = true; break;
 		case ARG_SAM_NOHEAD: samNoHead = true; break;
 		case ARG_SAM_NOSQ: samNoSQ = true; break;
 		case ARG_SAM_PRINT_YI: sam_print_yi = true; break;
@@ -1462,8 +1477,8 @@ static void parseOptions(int argc, const char **argv) {
 		throw 1;
 	}
 	if(!rgs.empty() && rgid.empty()) {
-		cerr << "Warning: --sam-rg was specified without --sam-rg-id also "
-		     << "being specified.  @RG line is not printed unless --sam-rg-id "
+		cerr << "Warning: --rg was specified without --rg-id also "
+		     << "being specified.  @RG line is not printed unless --rg-id "
 			 << "is specified." << endl;
 	}
 	// Check for duplicate mate input files
@@ -3906,6 +3921,7 @@ static void driver(
 			reflens,                // reference sequence lengths
 			samTruncQname,          // whether to truncate QNAME to 255 chars
 			samOmitSecSeqQual,      // omit SEQ/QUAL for 2ndary alignments?
+			samNoUnal,              // omit unaligned-read records?
 			string("bowtie2"),      // program id
 			string("bowtie2"),      // program name
 			string(BOWTIE2_VERSION), // program version

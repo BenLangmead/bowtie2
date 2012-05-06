@@ -1255,10 +1255,10 @@ class AlnSinkSam : public AlnSink {
 public:
 
 	AlnSinkSam(
-		OutputQueue&     oq,         // output queue
-		const SamConfig& samc,       // settings & routines for SAM output
-		const StrList&   refnames,   // reference names
-		bool             quiet) :    // don't print alignment summary at end
+		OutputQueue&     oq,           // output queue
+		const SamConfig& samc,         // settings & routines for SAM output
+		const StrList&   refnames,     // reference names
+		bool             quiet) :      // don't print alignment summary at end
 		AlnSink(
 			oq,
 			refnames,
