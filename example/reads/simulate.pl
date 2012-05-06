@@ -155,10 +155,10 @@ print STDERR "Adding microindels...\n";
 			$newrf .= substr($rf, $lasti, $rfi - $lasted);
 			$lasti = $rfi;
 		}
-		if(indel{$rfi}{ty} eq "ins") {
-			$newrf .= rand_dna(indel{$rfi}{len});
+		if($indel{$rfi}{ty} eq "ins") {
+			$newrf .= rand_dna($indel{$rfi}{len});
 		} else {
-			$lasti += indel{$rfi}{len};
+			$lasti += $indel{$rfi}{len};
 		}
 	}
 	if($lasti < length($rf)-1) {
