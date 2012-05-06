@@ -132,28 +132,40 @@ for(0..length($rf)-1) {
 }
 
 print STDERR "Adding microindels...\n";
-my $newrf = "";
-my $microgap = 0;
-my $lasted = 0;
-for my $rfi (0..length($rf)-1) {
-	if(rand() < 0.0010) {
-		$newrf .= substr($rf, $lasted, $rfi - $lasted);
-		$lasted = $rfi;
-		my $len = int(random_exponential(1, 3))+1;
-		if(int(rand(2)) == 0) {
-			# Remove a bit of the reference
-			print "  adding deletion at $rfi ... \n" if $verbose;
-			$len = min($len, length($newrf));
-			$newrf = substr($newrf, 0, length($newrf)-$len);
-		} else {
-			# Add a bit to the reference
-			print "  adding insertion at $rfi ... \n" if $verbose;
-			$newrf .= rand_dna($len);
-		}
-		$microgap++;
+{
+	my $newrf = "";
+	my $microgap = 0;
+	my $lasted = 0;
+	my $nins = int(length($rf) * 0.0005 + 0.5);
+	my $ndel = int(length($rf) * 0.0005 + 0.5);
+	my %indel = ();
+	for(1..$nins) {
+		my $off = int(rand(length($rf)));
+		$indel{$off}{ty} = "ins";
+		$indel{$off}{len} = int(random_exponential(1, 3))+1;
 	}
+	for(1..$ndel) {
+		my $off = int(rand(length($rf)));
+		$indel{$off}{ty} = "del";
+		$indel{$off}{len} = int(random_exponential(1, 3))+1;
+	}
+	my $lasti = 0;
+	for my $rfi (sort {$a <=> $b} keys %indel) {
+		if($rfi > $lasti) {
+			$newrf .= substr($rf, $lasti, $rfi - $lasted);
+			$lasti = $rfi;
+		}
+		if(indel{$rfi}{ty} eq "ins") {
+			$newrf .= rand_dna(indel{$rfi}{len});
+		} else {
+			$lasti += indel{$rfi}{len};
+		}
+	}
+	if($lasti < length($rf)-1) {
+		$newrf .= substr($rf, $lasti, length($rf) - $lasti - 1);
+	}
+	$rf = $newrf;
 }
-$rf = $newrf;
 
 print STDERR "Adding larger rearrangements...\n";
 my $nrearr = int(random_exponential(1, 3)+1);
