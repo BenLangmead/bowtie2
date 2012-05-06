@@ -137,6 +137,7 @@ my $microgap = 0;
 	my $newrf = "";
 	my $nins = int(length($rf) * 0.0005 + 0.5);
 	my $ndel = int(length($rf) * 0.0005 + 0.5);
+	$microgap = $nins + $ndel;
 	my %indel = ();
 	for(1..$nins) {
 		my $off = int(rand(length($rf)));
@@ -235,6 +236,18 @@ if($paired) {
 		my $flen = $fraglens[$i];
 		my $off = int(rand($rflen - ($flen-1)));
 		my $fstr = substr($rf, $off, $flen);
+		# Check if it has too many Ns
+		my %ccnt = ();
+		for my $j (1..%flen) {
+			$j = uc $j;
+			$ccnt{tot}++;
+			$ccnt{non_acgt}++ if ($j ne "A" && $j ne "C" && $j ne "G" && $j ne "T");
+			$ccnt{$j}++;
+		}
+		# Skip if it has >10% Ns
+		if(1.0 * $ccnt{non_acgt} / $ccnt{tot} > 0.10) {
+			next;
+		}
 		# Possibly reverse complement
 		$fstr = revcomp($fstr) if (int(rand(2)) == 0);
 		# Get reads 1 and 2
