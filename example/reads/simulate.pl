@@ -47,10 +47,12 @@ my $rdlen_av  = undef; # average to use when drawing from exponential
 my $rdlen_min = undef; # minimum read length (added to exponential draw)
 my $frag_av   = undef; # mean fragment len
 my $frag_sd   = undef; # s.d. to use when drawing frag len from normal dist
+my $verbose   = 0;     # be talkative
 
 GetOptions (
 	"fasta|reference=s" => \@fa_fn,
 	"long"              => \$long,
+	"verbose"           => \$verbose,
 	"nreads=i"          => \$nreads,
 	"read-avg=i"        => \$rdlen_av,
 	"read-min=i"        => \$rdlen_min,
@@ -138,12 +140,14 @@ for my $rfi (0..length($rf)-1) {
 		$newrf .= substr($rf, $lasted, $rfi - $lasted);
 		$lasted = $rfi;
 		my $len = int(random_exponential(1, 3))+1;
-		if(int(rand()) == 0) {
+		if(int(rand(2)) == 0) {
 			# Remove a bit of the reference
+			print "  adding deletion at $rfi ... \n" if $verbose;
 			$len = min($len, length($newrf));
 			$newrf = substr($newrf, 0, length($newrf)-$len);
 		} else {
 			# Add a bit to the reference
+			print "  adding insertion at $rfi ... \n" if $verbose;
 			$newrf .= rand_dna($len);
 		}
 		$microgap++;
