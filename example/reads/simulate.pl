@@ -62,6 +62,7 @@ GetOptions (
 
 scalar(@fa_fn) > 0 || die "Must specify at least one reference FASTA file with --fasta";
 
+print STDERR "Loading reference files...\n";
 for my $fn (@fa_fn) {
 	open(FN, $fn) || confess;
 	my $name = "";
@@ -118,7 +119,7 @@ sub rand_dna($) {
 # Mutate the reference
 #
 
-# Add SNPs
+print STDERR "Adding single-base substitutions...\n";
 my $nsnp = 0;
 for(0..length($rf)-1) {
 	if(rand() < 0.0012) {
@@ -128,7 +129,7 @@ for(0..length($rf)-1) {
 	}
 }
 
-# Add microindels
+print STDERR "Adding microindels...\n";
 my $newrf = "";
 my $microgap = 0;
 for(0..length($rf)-1) {
@@ -148,7 +149,7 @@ for(0..length($rf)-1) {
 }
 $rf = $newrf;
 
-# Add some larger rearrangements
+print STDERR "Adding larger rearrangements...\n";
 my $nrearr = int(random_exponential(1, 3)+1);
 for(0..$nrearr) {
 	my $break = int(rand(length($rf)));
