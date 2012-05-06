@@ -189,6 +189,7 @@ sub rand_quals($) {
 
 sub add_seq_errs($$) {
 	my($rd, $qu) = @_;
+	my $origLen = length($rd);
 	for(0..length($rd)-1) {
 		my $c = substr($rd, $_, 1);
 		my $q = substr($qu, $_, 1);
@@ -200,6 +201,7 @@ sub add_seq_errs($$) {
 		substr($rd, $_, 1) = $c;
 		substr($qu, $_, 1) = $q;
 	}
+	length($rd) == $origLen || die;
 	return $rd;
 }
 
