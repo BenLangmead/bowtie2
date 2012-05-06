@@ -138,7 +138,7 @@ Download Bowtie 2 sources and binaries from the [Download] section of the
 Sourceforge site.  Binaries are available for Intel architectures (`i386` and
 `x86_64`) running Linux, and Mac OS X.  A 32-bit version is available for
 Windows.  If you plan to compile Bowtie 2 yourself, make sure to get the source
-package, i.e., the filename that ends in "-src.zip".
+package, i.e., the filename that ends in "-source.zip".
 
 Building from source
 --------------------
@@ -152,11 +152,11 @@ building with MinGW, first install MinGW and [MSYS], the [zlib] library, and the
 drive the build process.
 
 First, download the source package from the [sourceforge site].  Make sure
-you're getting the source package; the file downloaded should end in `-src.zip`.
-Unzip the file, change to the unzipped directory, and build the Bowtie 2 tools
-by running GNU `make` (usually with the command `make`, but sometimes with
-`gmake`) with no arguments.  If building with MinGW, run `make` from the MSYS
-environment.
+you're getting the source package; the file downloaded should end in
+`-source.zip`. Unzip the file, change to the unzipped directory, and build the
+Bowtie 2 tools by running GNU `make` (usually with the command `make`, but
+sometimes with `gmake`) with no arguments.  If building with MinGW, run `make`
+from the MSYS environment.
 
 To support the `-p` (multithreading) option, Bowtie 2 needs the `pthreads`
 library.  To compile Bowtie 2 without `pthreads` (which disables `-p`), use
@@ -1254,22 +1254,32 @@ either `--met-stderr` or `--met-file` are specified.  Default: 1.
 
 #### SAM options
 
-    --sam-no-hd
+    --no-unal
+
+Suppress SAM records for reads that failed to align.
+
+    --no-hd
 
 Suppress SAM header lines (starting with `@`).
 
-    --sam-no-sq
+    --no-sq
 
 Suppress `@SQ` SAM header lines.
 
-    --sam-rg <text>
+    --rg-id <text>
 
-Add `<text>` (usually of the form `TAG:VAL`, e.g. `ID:IL7LANE2`) as a field on
-the `@RG` header line.  Specify `--sam-rg` multiple times to set multiple
-fields.  See the [SAM Spec][SAM] for details about what fields are legal.  Note
-that, if any `@RG` fields are set using this option, the `ID` and `SM` fields
-must both be among them to make the `@RG` line legal according to the [SAM
-Spec][SAM].
+Set the read group ID to `<text>`.  This causes the SAM `@RG` header line to be
+printed, with `<text>` as the value associated with the `ID:` tag.  It also
+causes the `RG:Z:` extra field to be attached to each SAM output record, with
+value set to `<text>`.
+
+    --rg <text>
+
+Add `<text>` (usually of the form `TAG:VAL`, e.g. `SM:Pool1`) as a field on the
+`@RG` header line.  Note: in order for the `@RG` line to appear, `--rg-id`
+must also be specified.  This is because the `ID` tag is required by the [SAM
+Spec][SAM].  Specify `--rg` multiple times to set multiple fields.  See the
+[SAM Spec][SAM] for details about what fields are legal.
 
 #### Performance options
 
@@ -1336,8 +1346,8 @@ Following is a brief description of the [SAM] format as output by `bowtie2`.
 For more details, see the [SAM format specification][SAM].
 
 By default, `bowtie2` prints a SAM header with `@HD`, `@SQ` and `@PG` lines. 
-When one or more `--sam-rg` arguments are specified, `bowtie2` will also print
-an `@RG` line that includes all user-specified `--sam-rg` tokens separated by
+When one or more `--rg` arguments are specified, `bowtie2` will also print
+an `@RG` line that includes all user-specified `--rg` tokens separated by
 tabs.
 
 Each subsequnt line describes an alignment or, if the read failed to align, a

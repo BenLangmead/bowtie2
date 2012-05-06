@@ -9,20 +9,30 @@
 	  <tt>bowtie2</tt> executable rather than <tt>bowtie2-align</tt>.</li>
   <li>Fixed an occasional crashing bug that was usually caused by setting the
       seed length relatively short.</li>
+  <li>Fixed an issue whereby the FLAG, RNEXT and PNEXT fields were incorrect
+	  for some paired-end alignments.  Specifically, this affected paired-end
+	  alignments where both mates aligned and one or both mates aligned
+	  non-uniquely.</li>
+  <li>Renamed <tt>--sam-*</tt> options to omit the <tt>sam-</tt> part for
+      brevity.  The old option names will also work.</li>
   <li>Added
       <tt><a href="manual.shtml#bowtie2-options-no-unal">--no-unal</a></tt>
 	  option to suppress SAM records corresponding to unaligned
       reads, i.e., records where <tt>FLAG</tt> field has <tt>0x4</tt> set.</li>
   <li>Added
-      <tt><a href="manual.shtml#bowtie2-options-sam-rg-id">--sam-rg-id</a></tt>
+      <tt><a href="manual.shtml#bowtie2-options-rg-id">--rg-id</a></tt>
 	  option and enhanced the documentation for both
-      <tt><a href="manual.shtml#bowtie2-options-sam-rg-id">--sam-rg-id</a></tt>
+      <tt><a href="manual.shtml#bowtie2-options-rg-id">--rg-id</a></tt>
 	  and
-      <tt><a href="manual.shtml#bowtie2-options-sam-rg">--sam-rg</a></tt>.
+      <tt><a href="manual.shtml#bowtie2-options-rg">--rg</a></tt>.
 	  Users were confused by the need to specify
-	  <tt>--sam-rg "ID:(something)"</tt>
+	  <tt>--rg "ID:(something)"</tt>
 	  in order for the <tt>@RG</tt> line to be printed; hopefully this is
 	  clearer now.</li>
+  <li>Index updates: indexes linked to in the right-hand sidebar have been
+      updated to include the unplaced contigs appearing in the UCSC "random"
+	  FASTA files.  This makes the indexes more complete.  Also, an index for
+	  the latest mouse assembly, mm10 (AKA "GRCm38") has been added.</li>
 </ul>
 
 <h2>Version 2.0.0-beta5 - December 15, 2011</h2>

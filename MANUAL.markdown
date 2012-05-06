@@ -1781,33 +1781,44 @@ either [`--met-stderr`] or [`--met-file`] are specified.  Default: 1.
 
 <table>
 
-<tr><td id="bowtie2-options-sam-no-hd">
+<tr><td id="bowtie2-options-no-unal">
 
-[`--sam-no-hd`]: #bowtie2-options-sam-no-hd
+[`--no-unal`]: #bowtie2-options-no-unal
 
-    --sam-no-hd
+    --no-unal
+
+</td><td>
+
+Suppress SAM records for reads that failed to align.
+
+</td></tr>
+<tr><td id="bowtie2-options-no-hd">
+
+[`--no-hd`]: #bowtie2-options-no-hd
+
+    --no-hd
 
 </td><td>
 
 Suppress SAM header lines (starting with `@`).
 
 </td></tr>
-<tr><td id="bowtie2-options-sam-no-sq">
+<tr><td id="bowtie2-options-no-sq">
 
-[`--sam-no-sq`]: #bowtie2-options-sam-no-sq
+[`--no-sq`]: #bowtie2-options-no-sq
 
-    --sam-no-sq
+    --no-sq
 
 </td><td>
 
 Suppress `@SQ` SAM header lines.
 
 </td></tr>
-<tr><td id="bowtie2-options-sam-rg-id">
+<tr><td id="bowtie2-options-rg-id">
 
-[`--sam-rg-id`]: #bowtie2-options-sam-rg-id
+[`--rg-id`]: #bowtie2-options-rg-id
 
-    --sam-rg-id <text>
+    --rg-id <text>
 
 </td><td>
 
@@ -1817,18 +1828,18 @@ causes the `RG:Z:` extra field to be attached to each SAM output record, with
 value set to `<text>`.
 
 </td></tr>
-<tr><td id="bowtie2-options-sam-rg">
+<tr><td id="bowtie2-options-rg">
 
-[`--sam-rg`]: #bowtie2-options-sam-rg
+[`--rg`]: #bowtie2-options-rg
 
-    --sam-rg <text>
+    --rg <text>
 
 </td><td>
 
 Add `<text>` (usually of the form `TAG:VAL`, e.g. `SM:Pool1`) as a field on the
-`@RG` header line.  Note: in order for the `@RG` line to appear, [`--sam-rg-id`]
+`@RG` header line.  Note: in order for the `@RG` line to appear, [`--rg-id`]
 must also be specified.  This is because the `ID` tag is required by the [SAM
-Spec][SAM].  Specify `--sam-rg` multiple times to set multiple fields.  See the
+Spec][SAM].  Specify `--rg` multiple times to set multiple fields.  See the
 [SAM Spec][SAM] for details about what fields are legal.
 
 </td></tr></table>
@@ -1960,8 +1971,8 @@ Following is a brief description of the [SAM] format as output by `bowtie2`.
 For more details, see the [SAM format specification][SAM].
 
 By default, `bowtie2` prints a SAM header with `@HD`, `@SQ` and `@PG` lines. 
-When one or more [`--sam-rg`] arguments are specified, `bowtie2` will also print
-an `@RG` line that includes all user-specified [`--sam-rg`] tokens separated by
+When one or more [`--rg`] arguments are specified, `bowtie2` will also print
+an `@RG` line that includes all user-specified [`--rg`] tokens separated by
 tabs.
 
 Each subsequnt line describes an alignment or, if the read failed to align, a
