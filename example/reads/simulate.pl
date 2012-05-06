@@ -132,10 +132,9 @@ for(0..length($rf)-1) {
 }
 
 print STDERR "Adding microindels...\n";
+my $microgap = 0;
 {
 	my $newrf = "";
-	my $microgap = 0;
-	my $lasted = 0;
 	my $nins = int(length($rf) * 0.0005 + 0.5);
 	my $ndel = int(length($rf) * 0.0005 + 0.5);
 	my %indel = ();
@@ -152,7 +151,7 @@ print STDERR "Adding microindels...\n";
 	my $lasti = 0;
 	for my $rfi (sort {$a <=> $b} keys %indel) {
 		if($rfi > $lasti) {
-			$newrf .= substr($rf, $lasti, $rfi - $lasted);
+			$newrf .= substr($rf, $lasti, $rfi - $lasti);
 			$lasti = $rfi;
 		}
 		if($indel{$rfi}{ty} eq "ins") {
