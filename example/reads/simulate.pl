@@ -44,6 +44,7 @@ my $paired = 1;        # 1 -> generate paired-end reads
 my $prefix = "reads";  # output files start with this string
 my $nreads    = undef; # # reads
 my $rdlen_av  = undef; # average to use when drawing from exponential
+my $rdlen_exact = undef; # exact length for all reads, overrides randomness
 my $rdlen_min = undef; # minimum read length (added to exponential draw)
 my $frag_av   = undef; # mean fragment len
 my $frag_sd   = undef; # s.d. to use when drawing frag len from normal dist
@@ -55,6 +56,7 @@ GetOptions (
 	"verbose"           => \$verbose,
 	"nreads=i"          => \$nreads,
 	"read-avg=i"        => \$rdlen_av,
+	"read-len=i"        => \$rdlen_exact,
 	"read-min=i"        => \$rdlen_min,
 	"frag-avg=i"        => \$frag_av,
 	"frag-sd=i"         => \$frag_sd,
@@ -189,10 +191,18 @@ print STDERR "Picking read and fragment lengths...\n";
 if($paired) {
 	# Pick random fragment and read lengths
 	@fraglens = random_normal($nreads, $frag_av, $frag_sd);
-	@readlens = random_exponential($nreads*2, $rdlen_av);
+	if(defined($rdlen_exact)) {
+		@readlens = random_exponential($nreads*2, $rdlen_av);
+	} else {
+		@readlens = ($rdlen_exact) x ($nreads*2);
+	}
 } else {
 	# Pick random read lengths
-	@readlens = random_exponential($nreads, $rdlen_av);
+	if(defined($rdlen_exact)) {
+		@readlens = random_exponential($nreads, $rdlen_av);
+	} else {
+		@readlens = ($rdlen_exact) x $nreads;
+	}
 }
 @fraglens = map int, @fraglens;
 @readlens = map { int($_ + $rdlen_min) } @readlens;
