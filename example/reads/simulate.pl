@@ -239,10 +239,10 @@ if($paired) {
 		# Check if it has too many Ns
 		my %ccnt = ();
 		for my $j (1..$flen) {
-			$j = uc $j;
+			$c = uc substr($rd, $j, 1);
 			$ccnt{tot}++;
-			$ccnt{non_acgt}++ if ($j ne "A" && $j ne "C" && $j ne "G" && $j ne "T");
-			$ccnt{$j}++;
+			$ccnt{non_acgt}++ if ($c ne "A" && $c ne "C" && $c ne "G" && $c ne "T");
+			$ccnt{$c}++;
 		}
 		# Skip if it has >10% Ns
 		if(1.0 * $ccnt{non_acgt} / $ccnt{tot} > 0.10) {
@@ -282,10 +282,10 @@ if($paired) {
 		# Check if it has too many Ns
 		my %ccnt = ();
 		for my $j (1..$rdlen) {
-			$j = uc $j;
+			$c = uc substr($rd, $j, 1);
 			$ccnt{tot}++;
-			$ccnt{non_acgt}++ if ($j ne "A" && $j ne "C" && $j ne "G" && $j ne "T");
-			$ccnt{$j}++;
+			$ccnt{non_acgt}++ if ($c ne "A" && $c ne "C" && $c ne "G" && $c ne "T");
+			$ccnt{$c}++;
 		}
 		# Skip if it has >10% Ns
 		if(1.0 * $ccnt{non_acgt} / $ccnt{tot} > 0.10) {
