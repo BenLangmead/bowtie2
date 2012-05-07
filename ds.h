@@ -20,6 +20,7 @@
 #ifndef DS_H_
 #define DS_H_
 
+#include <algorithm>
 #include <stdexcept>
 #include <utility>
 #include <stdint.h>
