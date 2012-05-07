@@ -14,15 +14,15 @@
      <table width="100%">
       <tr>
       <td>
-        <a href="https://sourceforge.net/projects/bowtie-bio/files/bowtie2/2.0.0-beta5">Bowtie2 2.0.0-beta5</a>
+        <a href="https://sourceforge.net/projects/bowtie-bio/files/bowtie2/2.0.0-beta6">Bowtie2 2.0.0-beta6</a>
       </td>
       <td align="right">
-        12/15/11&nbsp;
+        5/7/12&nbsp;
       </td>
       </tr>
       <tr>
       <td colspan="2">
-        <!-- <li style="font-size: x-small; line-height: 130%">Please cite: Langmead B, Trapnell C, Pop M, Salzberg SL. <a href="http://genomebiology.com/2009/10/3/R25">Ultrafast and memory-efficient alignment of short DNA sequences to the human genome</a>. <i><a href="http://genomebiology.com">Genome Biol</a></i> 10:R25.</table> -->
+        <li style="font-size: x-small; line-height: 130%">Please cite: Langmead B, Salzberg S. <a href="http://www.nature.com/nmeth/journal/v9/n4/full/nmeth.1923.html">Fast gapped-read alignment with Bowtie 2</a>. <i><a href="http://www.nature.com/nmeth">Nature Methods</a></i>. 2012, 9:357-359.</li>
       </td>
       </tr>
      </table>
@@ -122,9 +122,8 @@
   <h2>Related publications</h2>
   <div class="box">
     <ul>
+      <li style="font-size: x-small; line-height: 130%">Langmead B, Salzberg S. <a href="http://www.nature.com/nmeth/journal/v9/n4/full/nmeth.1923.html">Fast gapped-read alignment with Bowtie 2</a>. <i><a href="http://www.nature.com/nmeth">Nature Methods</a></i>. 2012, 9:357-359.<br/><br/></li>
       <li style="font-size: x-small; line-height: 130%">Langmead B, Trapnell C, Pop M, Salzberg SL. <a href="http://genomebiology.com/2009/10/3/R25"><b>Ultrafast and memory-efficient alignment of short DNA sequences to the human genome</b></a>. <i><a href="http://genomebiology.com">Genome Biology</a></i> <b>10</b>:R25.<br/><br/></li>
-      <li style="font-size: x-small; line-height: 130%">Langmead B, Schatz M, Lin J, Pop M, Salzberg SL. <a href="http://genomebiology.com/2009/10/11/R134"><b>Searching for SNPs with cloud computing</b></a>. <i><a href="http://genomebiology.com">Genome Biology</a></i> <b>10</b>:R134.<br/><br/></li>
-      <li style="font-size: x-small; line-height: 130%">Langmead B, Hansen K, Leek J. <a href="http://genomebiology.com/2010/11/8/R83"><b>Cloud-scale RNA-sequencing differential expression analysis with Myrna</b></a>. <i><a href="http://genomebiology.com">Genome Biology</a></i> <b>11</b>:R83.</li>
     </ul>
   </div>
   <h2>Author</h2>
