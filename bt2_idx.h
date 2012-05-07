@@ -22,7 +22,6 @@
 
 #include <stdint.h>
 #include <string.h>
-#include <algorithm>
 #include <iostream>
 #include <fstream>
 #include <sstream>

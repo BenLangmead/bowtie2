@@ -22,7 +22,6 @@
 
 #include "ds.h"
 #include "ref_coord.h"
-#include <algorithm>
 #include <utility>
 
 /**

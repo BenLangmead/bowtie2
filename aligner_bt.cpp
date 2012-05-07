@@ -19,7 +19,6 @@
 
 #include "aligner_bt.h"
 #include "mask.h"
-#include <algorithm>
 
 using namespace std;
 

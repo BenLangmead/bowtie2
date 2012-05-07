@@ -17,7 +17,6 @@
  * along with Bowtie 2.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <algorithm>
 #include "assert_helpers.h"
 #include "pe.h"
 

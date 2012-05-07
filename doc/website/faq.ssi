@@ -50,16 +50,19 @@ results in terms of speed and sensitivity.  In our experiments, Bowtie 2 is
 generally superior to Bowtie 1 for reads longer than 50 bp.  For reads shorter
 than 50 bp, Bowtie 1 may or may not be preferable.
 
-<h2>Why do so few of my paired-end reads align concordantly?</h2>
-Check that you have specified the correct range of fragment lengths
+<h2>I used Bowtie 2 to align my paired-end data and very few of my paired-end
+reads align concordantly.  What could have happened?</h2>
 
-<h2>How many mismatches and gaps does Bowtie 2 allow?</h2>
-I tried 
+This is usually because Bowtie 2's paired-end options have been been set to
+properly reflect how the sequencing library was prepared.  See the
+<a href="manual.shtml#paired-end-options">Paired-end Options</a> section of the
+manual.
 
 <h2>How many mismatches and gaps does Bowtie 2 allow?</h2>
 Bowtie 2 using a scoring scheme that assigns various scores to matches,
 mismatches, gap opens, and gap extensions.  These are all user-configurable.
 An alignment with a total score that rises above a user-configurable threshold
 are considered "valid" and eligible for reporting.  For information on how to
-adjust these settings, see documentation for the <a> </a>, <a> </a>, <a> </a>, <a> </a>
-
+adjust these settings, see the
+<a href="manual.shtml#scoring-options">Scoring Options</a> section of the
+manual.

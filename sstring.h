@@ -22,7 +22,6 @@
 
 #include <string.h>
 #include <iostream>
-#include <algorithm>
 #include "assert_helpers.h"
 #include "alphabet.h"
 #include "random_source.h"

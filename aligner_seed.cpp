@@ -21,7 +21,6 @@
 #include "aligner_seed.h"
 #include "search_globals.h"
 #include "bt2_idx.h"
-#include <algorithm>
 
 using namespace std;
 
