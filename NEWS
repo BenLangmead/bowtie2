@@ -30,6 +30,7 @@ Version 2.0.0-beta6 - May 7, 2012
      some paired-end alignments.  Specifically, this affected paired-end
      alignments where both mates aligned and one or both mates aligned
      non-uniquely.
+   * Fixed issue whereby compressed input would sometimes be mishandled.
    * Renamed --sam-* options to omit the "sam-" prefix for brevity.  The old
      option names will also work.
    * Added --no-unal option to suppress SAM records corresponding to unaligned
