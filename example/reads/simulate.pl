@@ -188,24 +188,22 @@ print STDERR "Added $nrearr Rearrangements\n";
 #
 
 print STDERR "Picking read and fragment lengths...\n";
+# Pick random read lengths
+if(defined($rdlen_exact)) {
+	@readlens = ($rdlen_exact) x ($nreads * ($paired ? 2 : 1));
+} else {
+	@readlens = random_exponential($nreads * ($paired ? 2 : 1), $rdlen_av);
+	@readlens = map int, @readlens;
+	@readlens = map { int($_ + $rdlen_min) } @readlens;
+}
 if($paired) {
 	# Pick random fragment and read lengths
 	@fraglens = random_normal($nreads, $frag_av, $frag_sd);
-	if(defined($rdlen_exact)) {
-		@readlens = random_exponential($nreads*2, $rdlen_av);
-	} else {
-		@readlens = ($rdlen_exact) x ($nreads*2);
-	}
-} else {
-	# Pick random read lengths
-	if(defined($rdlen_exact)) {
-		@readlens = random_exponential($nreads, $rdlen_av);
-	} else {
-		@readlens = ($rdlen_exact) x $nreads;
+	@fraglens = map int, @fraglens;
+	for(my $i = 0; $i < scalar(@readlens); $i += 2) {
+		$fraglens[$i/2] = max($fraglens[$i/2], $readlens[$i] + $readlens[$i+1]);
 	}
 }
-@fraglens = map int, @fraglens;
-@readlens = map { int($_ + $rdlen_min) } @readlens;
 
 sub rand_quals($) {
 	my $ret = "";
