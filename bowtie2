@@ -35,7 +35,7 @@ use FindBin qw($Bin);
 use POSIX;
 
 (-x "$Bin/bowtie2-align") ||
-	die "Error: Expected bowtie2 to be in same directory with bowtie2-aligner:\n$Bin";
+	die "Error: Expected bowtie2 to be in same directory with bowtie2-align:\n$Bin";
 
 # Return a version of the argument string where all percent escapes are
 # expanded into the unescaped character.
@@ -188,6 +188,7 @@ my @tmp = ();
 for (@bt2_args) { push(@tmp, $_) if defined($_); }
 @bt2_args = @tmp;
 
+my @unps = ();
 my @mate1s = ();
 my @mate2s = ();
 my @to_delete = ();
@@ -204,8 +205,8 @@ my @bt2w_args_cp = @bt2w_args;
 GetOptions(
 	"1=s"                           => \@mate1s,
 	"2=s"                           => \@mate2s,
-	"reads=s"                       => \@mate1s,
-	"U=s"                           => \@mate1s,
+	"reads=s"                       => \@unps,
+	"U=s"                           => \@unps,
 	"temp-directory=s"              => \$temp_dir,
 	"bam"                           => \$bam_out,
 	"no-named-pipes"                => \$no_pipes,
@@ -238,15 +239,20 @@ sub cat_file($$) {
 
 # Return non-zero if and only if the input should be wrapped (i.e. because
 # it's compressed).
-sub wrapInput($$) {
-	my ($mate1s, $mate2s) = @_;
-	return 0 if scalar(@$mate1s) == 0;
-	return 1 if $mate1s->[0] =~ /\.gz$/;
-	return 1 if $mate1s->[0] =~ /\.bz2$/;
+sub wrapInput($$$) {
+	my ($unps, $mate1s, $mate2s) = @_;
+	if(scalar(@$unps) > 0) {
+		return 1 if $unps->[0] =~ /\.gz$/;
+		return 1 if $unps->[0] =~ /\.bz2$/;
+	}
+	if(scalar(@$mate1s) > 0) {
+		return 1 if $mate1s->[0] =~ /\.gz$/;
+		return 1 if $mate1s->[0] =~ /\.bz2$/;
+	}
 	return 0;
 }
 
-if(wrapInput(\@mate1s, \@mate2s)) {
+if(wrapInput(\@unps, \@mate1s, \@mate2s)) {
 	if(scalar(@mate2s) > 0) {
 		#
 		# Wrap paired-end inputs
@@ -271,40 +277,41 @@ if(wrapInput(\@mate1s, \@mate2s)) {
 			close($ofh);
 			exit 0 unless $no_pipes;
 		}
-		if(scalar(@mate2s) > 0) {
-			# Make a named pipe for delivering mate #2s
-			my $m2fn = "$temp_dir/$$.inpipe2";
-			push @to_delete, $m2fn;
-			push @bt2_args, "-2 $m2fn";
-			$pid = 0;
-			$pid = fork() unless $no_pipes;
-			if($pid == 0) {
-				# Open named pipe 2 for writing
-				if(!$no_pipes) {
-					mkfifo($m2fn, 0700) ||
-						die "Error: mkfifo($m2fn) failed.  Try --no-named-pipes.";
-				}
-				open(my $ofh, ">$m2fn") || die "Can't open '$m2fn' for writing";
-				for my $ifn (@mate2s) { cat_file($ifn, $ofh); }
-				close($ofh);
-				exit 0 unless $no_pipes;
+		# Make a named pipe for delivering mate #2s
+		my $m2fn = "$temp_dir/$$.inpipe2";
+		push @to_delete, $m2fn;
+		push @bt2_args, "-2 $m2fn";
+		$pid = 0;
+		$pid = fork() unless $no_pipes;
+		if($pid == 0) {
+			# Open named pipe 2 for writing
+			if(!$no_pipes) {
+				mkfifo($m2fn, 0700) ||
+					die "Error: mkfifo($m2fn) failed.  Try --no-named-pipes.";
 			}
+			open(my $ofh, ">$m2fn") || die "Can't open '$m2fn' for writing";
+			for my $ifn (@mate2s) { cat_file($ifn, $ofh); }
+			close($ofh);
+			exit 0 unless $no_pipes;
 		}
-	} else {
+	}
+	if(scalar(@unps) > 0) {
 		#
 		# Wrap unpaired inputs
 		#
 		push @bt2_args, ("-U", "-"); # get unpaired input from stdin
-		my $readstr = join(" ", @mate1s);
+		my $readstr = join(" ", @unps);
 		$readpipe = "gzip -dc $readstr |";
 	}
-} elsif(scalar(@mate2s) > 0) {
-	# Just pass all the mate arguments along to the binary
-	push @bt2_args, ("-1", join(",", @mate1s));
-	push @bt2_args, ("-2", join(",", @mate2s));
 } else {
-	# Just pass all the mate arguments along to the binary
-	push @bt2_args, ("-U", join(",", @mate1s));
+	if(scalar(@mate2s) > 0) {
+		# Just pass all the mate arguments along to the binary
+		push @bt2_args, ("-1", join(",", @mate1s));
+		push @bt2_args, ("-2", join(",", @mate2s));
+	}
+	if(scalar(@unps) > 0) {
+		push @bt2_args, ("-U", join(",", @unps));
+	}
 }
 
 if(defined($ref_str)) {
