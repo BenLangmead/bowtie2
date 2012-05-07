@@ -13,6 +13,7 @@
 	  for some paired-end alignments.  Specifically, this affected paired-end
 	  alignments where both mates aligned and one or both mates aligned
 	  non-uniquely.</li>
+  <li>Fixed issue whereby compressed input would sometimes be mishandled.</li>
   <li>Renamed <tt>--sam-*</tt> options to omit the <tt>sam-</tt> part for
       brevity.  The old option names will also work.</li>
   <li>Added
