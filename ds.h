@@ -638,7 +638,14 @@ public:
 	 * Reverse list elements.
 	 */
 	void reverse() {
-		if(cur_ > 1) std::reverse(list_, list_ + cur_);
+		if(cur_ > 1) {
+			size_t n = cur_ >> 1;
+			for(size_t i = 0; i < n; i++) {
+				T tmp = list_[i];
+				list_[i] = list_[cur_ - i - 1];
+				list_[cur_ - i - 1] = tmp;
+			}
+		}
 	}
 
 	/**
@@ -751,10 +758,19 @@ public:
 	}
 	
 	/**
+	 * Sort some of the contents.
+	 */
+	void sortPortion(size_t begin, size_t num) {
+		assert_leq(begin+num, cur_);
+		if(num < 2) return;
+		std::sort(list_ + begin, list_ + begin + num);
+	}
+	
+	/**
 	 * Sort contents
 	 */
 	void sort() {
-		if(cur_ > 1) std::sort(list_, list_ + cur_);
+		sortPortion(0, cur_);
 	}
 
 	/**
@@ -768,15 +784,6 @@ public:
 			}
 		}
 		return true;
-	}
-	
-	/**
-	 * Sort some of the contents.
-	 */
-	void sortPortion(size_t begin, size_t num) {
-		assert_leq(begin+num, cur_);
-		if(num < 2) return;
-		std::sort(list_ + begin, list_ + begin + num);
 	}
 
 	/**
