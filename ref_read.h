@@ -62,6 +62,7 @@ struct RefRecord {
 		first = fgetc(in) ? true : false;
 	}
 
+#ifdef BOWTIE_MM
 	RefRecord(int in, bool swap) {
 		off = readU32(in, swap);
 		len = readU32(in, swap);
@@ -72,6 +73,7 @@ struct RefRecord {
 		}
 		first = (c ? true : false);
 	}
+#endif
 
 	void write(std::ostream& out, bool be) {
 		writeU32(out, off, be);
