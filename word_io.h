@@ -81,6 +81,7 @@ static inline uint32_t readU32(std::istream& in, bool swap) {
  * Read a 32-bit unsigned from a file descriptor, optionally inverting
  * endianness.
  */
+#ifdef BOWTIE_MM
 static inline uint32_t readU32(int in, bool swap) {
 	uint32_t x;
 	if(read(in, (void *)&x, 4) != 4) {
@@ -92,6 +93,7 @@ static inline uint32_t readU32(int in, bool swap) {
 		return x;
 	}
 }
+#endif
 
 /**
  * Read a 32-bit unsigned from a FILE*, optionally inverting
@@ -129,6 +131,7 @@ static inline int32_t readI32(std::istream& in, bool swap) {
  * Read a 32-bit unsigned from a file descriptor, optionally inverting
  * endianness.
  */
+#ifdef BOWTIE_MM
 static inline uint32_t readI32(int in, bool swap) {
 	int32_t x;
 	if(read(in, (void *)&x, 4) != 4) {
@@ -140,6 +143,7 @@ static inline uint32_t readI32(int in, bool swap) {
 		return x;
 	}
 }
+#endif
 
 /**
  * Read a 32-bit unsigned from a FILE*, optionally inverting
