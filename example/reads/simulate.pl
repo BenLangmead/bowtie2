@@ -239,7 +239,7 @@ if($paired) {
 		# Check if it has too many Ns
 		my %ccnt = ();
 		for my $j (1..$flen) {
-			$c = uc substr($rd, $j, 1);
+			my $c = uc substr($fstr, $j, 1);
 			$ccnt{tot}++;
 			$ccnt{non_acgt}++ if ($c ne "A" && $c ne "C" && $c ne "G" && $c ne "T");
 			$ccnt{$c}++;
@@ -282,7 +282,7 @@ if($paired) {
 		# Check if it has too many Ns
 		my %ccnt = ();
 		for my $j (1..$rdlen) {
-			$c = uc substr($rd, $j, 1);
+			my $c = uc substr($rd, $j, 1);
 			$ccnt{tot}++;
 			$ccnt{non_acgt}++ if ($c ne "A" && $c ne "C" && $c ne "G" && $c ne "T");
 			$ccnt{$c}++;
