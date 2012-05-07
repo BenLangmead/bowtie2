@@ -21,7 +21,6 @@
 #include <iostream>
 #include <fstream>
 #include <string>
-#include <algorithm>
 #include <cassert>
 #include <stdexcept>
 #include <getopt.h>

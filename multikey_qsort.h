@@ -21,7 +21,6 @@
 #define MULTIKEY_QSORT_H_
 
 #include <iostream>
-#include <algorithm>
 #include "sequence_io.h"
 #include "alphabet.h"
 #include "assert_helpers.h"

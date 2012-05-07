@@ -43,7 +43,6 @@
  */
 
 #include <iostream>
-#include <algorithm>
 #include "aligner_cache.h"
 #include "aligner_sw_driver.h"
 #include "pe.h"

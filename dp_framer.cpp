@@ -17,7 +17,6 @@
  * along with Bowtie 2.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <algorithm>
 #include "dp_framer.h"
 
 using namespace std;

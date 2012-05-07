@@ -21,7 +21,6 @@
 #define SIMPLE_FUNC_H_
 
 #include <math.h>
-#include <algorithm>
 #include <cassert>
 #include <limits>
 
