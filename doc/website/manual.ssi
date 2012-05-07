@@ -1,5 +1,5 @@
 <h1>Table of Contents</h1>
-<p>&nbsp;Version <b>2.0.0-beta5</b></p>
+<p>&nbsp;Version <b>2.0.0-beta6</b></p>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
@@ -495,7 +495,7 @@
   >i386</code
   > and <code
   >x86_64</code
-  >) running Linux, and Mac OS X. A 32-bit version is available for Windows. If you plan to compile Bowtie 2 yourself, make sure to get the source package, i.e., the filename that ends in &quot;-src.zip&quot;.</p
+  >) running Linux, and Mac OS X. A 32-bit version is available for Windows. If you plan to compile Bowtie 2 yourself, make sure to get the source package, i.e., the filename that ends in &quot;-source.zip&quot;.</p
 ><h2 id="building-from-source"
 ><a href="#TOC"
   >Building from source</a
@@ -520,7 +520,7 @@
 >First, download the source package from the <a href="https://sourceforge.net/projects/bowtie-bio/files/bowtie/"
   >sourceforge site</a
   >. Make sure you're getting the source package; the file downloaded should end in <code
-  >-src.zip</code
+  >-source.zip</code
   >. Unzip the file, change to the unzipped directory, and build the Bowtie 2 tools by running GNU <code
   >make</code
   > (usually with the command <code
@@ -2818,12 +2818,24 @@ Seed 4 rc:                   TTATGCATGA
   ></h4
 ><table>
 
-<tr><td id="bowtie2-options-sam-no-hd">
+<tr><td id="bowtie2-options-no-unal">
 
 
 <pre
 ><code
-  >--sam-no-hd
+  >--no-unal
+</code
+  ></pre
+></td><td>
+<p
+>Suppress SAM records for reads that failed to align.</p
+></td></tr>
+<tr><td id="bowtie2-options-no-hd">
+
+
+<pre
+><code
+  >--no-hd
 </code
   ></pre
 ></td><td>
@@ -2832,12 +2844,12 @@ Seed 4 rc:                   TTATGCATGA
   >@</code
   >).</p
 ></td></tr>
-<tr><td id="bowtie2-options-sam-no-sq">
+<tr><td id="bowtie2-options-no-sq">
 
 
 <pre
 ><code
-  >--sam-no-sq
+  >--no-sq
 </code
   ></pre
 ></td><td>
@@ -2846,12 +2858,36 @@ Seed 4 rc:                   TTATGCATGA
   >@SQ</code
   > SAM header lines.</p
 ></td></tr>
-<tr><td id="bowtie2-options-sam-rg">
+<tr><td id="bowtie2-options-rg-id">
 
 
 <pre
 ><code
-  >--sam-rg &lt;text&gt;
+  >--rg-id &lt;text&gt;
+</code
+  ></pre
+></td><td>
+<p
+>Set the read group ID to <code
+  >&lt;text&gt;</code
+  >. This causes the SAM <code
+  >@RG</code
+  > header line to be printed, with <code
+  >&lt;text&gt;</code
+  > as the value associated with the <code
+  >ID:</code
+  > tag. It also causes the <code
+  >RG:Z:</code
+  > extra field to be attached to each SAM output record, with value set to <code
+  >&lt;text&gt;</code
+  >.</p
+></td></tr>
+<tr><td id="bowtie2-options-rg">
+
+
+<pre
+><code
+  >--rg &lt;text&gt;
 </code
   ></pre
 ></td><td>
@@ -2861,24 +2897,24 @@ Seed 4 rc:                   TTATGCATGA
   > (usually of the form <code
   >TAG:VAL</code
   >, e.g. <code
-  >ID:IL7LANE2</code
+  >SM:Pool1</code
   >) as a field on the <code
   >@RG</code
-  > header line. Specify <code
-  >--sam-rg</code
+  > header line. Note: in order for the <code
+  >@RG</code
+  > line to appear, <a href="#bowtie2-options-rg-id"
+  ><code
+    >--rg-id</code
+    ></a
+  > must also be specified. This is because the <code
+  >ID</code
+  > tag is required by the <a href="http://samtools.sourceforge.net/SAM1.pdf"
+  >SAM Spec</a
+  >. Specify <code
+  >--rg</code
   > multiple times to set multiple fields. See the <a href="http://samtools.sourceforge.net/SAM1.pdf"
   >SAM Spec</a
-  > for details about what fields are legal. Note that, if any <code
-  >@RG</code
-  > fields are set using this option, the <code
-  >ID</code
-  > and <code
-  >SM</code
-  > fields must both be among them to make the <code
-  >@RG</code
-  > line legal according to the <a href="http://samtools.sourceforge.net/SAM1.pdf"
-  >SAM Spec</a
-  >.</p
+  > for details about what fields are legal.</p
 ></td></tr></table>
 <h4 id="performance-options"
 ><a href="#TOC"
@@ -3057,17 +3093,17 @@ Seed 4 rc:                   TTATGCATGA
   >@SQ</code
   > and <code
   >@PG</code
-  > lines. When one or more <a href="#bowtie2-options-sam-rg"
+  > lines. When one or more <a href="#bowtie2-options-rg"
   ><code
-    >--sam-rg</code
+    >--rg</code
     ></a
   > arguments are specified, <code
   >bowtie2</code
   > will also print an <code
   >@RG</code
-  > line that includes all user-specified <a href="#bowtie2-options-sam-rg"
+  > line that includes all user-specified <a href="#bowtie2-options-rg"
   ><code
-    >--sam-rg</code
+    >--rg</code
     ></a
   > tokens separated by tabs.</p
 ><p
@@ -4168,3 +4204,4 @@ r7  16  gi|9626243|ref|NC_001416.1| 4692    37  143M    *   0   0   TCAGCCGGACGC
   >Calling SNPs/INDELs with SAMtools/BCFtools</a
   > for more details and variations on this process.</p
 >
+
