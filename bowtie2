@@ -241,13 +241,8 @@ sub cat_file($$) {
 # it's compressed).
 sub wrapInput($$$) {
 	my ($unps, $mate1s, $mate2s) = @_;
-	if(scalar(@$unps) > 0) {
-		return 1 if $unps->[0] =~ /\.gz$/;
-		return 1 if $unps->[0] =~ /\.bz2$/;
-	}
-	if(scalar(@$mate1s) > 0) {
-		return 1 if $mate1s->[0] =~ /\.gz$/;
-		return 1 if $mate1s->[0] =~ /\.bz2$/;
+	for my $fn (@$unps, @$mate1s, @$mate2s) {
+		return 1 if $fn =~ /\.gz$/ || $fn =~ /\.bz2$/;
 	}
 	return 0;
 }
@@ -269,8 +264,7 @@ if(wrapInput(\@unps, \@mate1s, \@mate2s)) {
 		if($pid == 0) {
 			# Open named pipe 1 for writing
 			if(!$no_pipes) {
-				mkfifo($m1fn, 0700) ||
-					die "Error: mkfifo($m1fn) failed.  Try --no-named-pipes.";
+				mkfifo($m1fn, 0700) || die "Error: mkfifo($m1fn) failed.";
 			}
 			open(my $ofh, ">$m1fn") || die "Can't open '$m1fn' for writing";
 			for my $ifn (@mate1s) { cat_file($ifn, $ofh); }
@@ -286,8 +280,7 @@ if(wrapInput(\@unps, \@mate1s, \@mate2s)) {
 		if($pid == 0) {
 			# Open named pipe 2 for writing
 			if(!$no_pipes) {
-				mkfifo($m2fn, 0700) ||
-					die "Error: mkfifo($m2fn) failed.  Try --no-named-pipes.";
+				mkfifo($m2fn, 0700) || die "Error: mkfifo($m2fn) failed.";
 			}
 			open(my $ofh, ">$m2fn") || die "Can't open '$m2fn' for writing";
 			for my $ifn (@mate2s) { cat_file($ifn, $ofh); }
@@ -297,11 +290,24 @@ if(wrapInput(\@unps, \@mate1s, \@mate2s)) {
 	}
 	if(scalar(@unps) > 0) {
 		#
-		# Wrap unpaired inputs
+		# Wrap unpaired inputs.
 		#
-		push @bt2_args, ("-U", "-"); # get unpaired input from stdin
-		my $readstr = join(" ", @unps);
-		$readpipe = "gzip -dc $readstr |";
+		# Make a named pipe for delivering unpaired reads
+		my $ufn = "$temp_dir/$$.unp";
+		push @to_delete, $ufn;
+		push @bt2_args, "-U $ufn";
+		my $pid = 0;
+		$pid = fork() unless $no_pipes;
+		if($pid == 0) {
+			# Open named pipe 2 for writing
+			if(!$no_pipes) {
+				mkfifo($ufn, 0700) || die "Error: mkfifo($ufn) failed.";
+			}
+			open(my $ofh, ">$ufn") || die "Can't open '$ufn' for writing";
+			for my $ifn (@unps) { cat_file($ifn, $ofh); }
+			close($ofh);
+			exit 0 unless $no_pipes;
+		}
 	}
 } else {
 	if(scalar(@mate2s) > 0) {
