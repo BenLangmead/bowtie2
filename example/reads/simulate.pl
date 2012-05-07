@@ -281,7 +281,7 @@ if($paired) {
 		my $rd = substr($rf, $off, $rdlen);
 		# Check if it has too many Ns
 		my %ccnt = ();
-		for my $j (1..$flen) {
+		for my $j (1..$rdlen) {
 			$j = uc $j;
 			$ccnt{tot}++;
 			$ccnt{non_acgt}++ if ($j ne "A" && $j ne "C" && $j ne "G" && $j ne "T");
