@@ -1,4 +1,4 @@
-<h2>Version 2.0.0-beta6 - May XX, 2012</h2>
+<h2>Version 2.0.0-beta6 - May 7, 2012</h2>
 <ul>
   <li>Bowtie 2 now handles longer reads in a more memory-economical fashion,
       which should prevent many out-of-memory issues for longer reads.</li>
