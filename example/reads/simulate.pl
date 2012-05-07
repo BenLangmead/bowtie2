@@ -231,7 +231,7 @@ my $rflen = length($rf);
 if($paired) {
 	open(RD1, ">${prefix}_1.fq") || die;
 	open(RD2, ">${prefix}_2.fq") || die;
-	for my $i (0..$#fraglens) {
+	for(my $i = 0; $i < scalar(@fraglens); $i++) {
 		# Extract fragment
 		my $flen = $fraglens[$i];
 		my $off = int(rand($rflen - ($flen-1)));
@@ -246,6 +246,7 @@ if($paired) {
 		}
 		# Skip if it has >10% Ns
 		if(1.0 * $ccnt{non_acgt} / $ccnt{tot} > 0.10) {
+			$i--;
 			next;
 		}
 		# Possibly reverse complement
@@ -274,7 +275,7 @@ if($paired) {
 	print STDERR "Made pairs: reads_1.fq/reads_2.fq\n";
 } else {
 	open(RD1, ">${prefix}.fq") || die;
-	for my $i (0..$#readlens) {
+	for(my $i = 0; $i < scalar(@readlens); $i++) {
 		# Extract fragment
 		my $rdlen = $readlens[$i];
 		my $off = int(rand($rflen - ($rdlen-1)));
@@ -289,6 +290,7 @@ if($paired) {
 		}
 		# Skip if it has >10% Ns
 		if(1.0 * $ccnt{non_acgt} / $ccnt{tot} > 0.10) {
+			$i--;
 			next;
 		}
 		length($rd) == $rdlen || die;
