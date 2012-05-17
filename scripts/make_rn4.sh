@@ -48,7 +48,7 @@ chr20_random \
 chrX_random \
 chrUn_random"
 
-CHRS_TO_INDEX=$BASE_CHRS
+CHRS_TO_INDEX="$BASE_CHRS $RANDOM_CHRS"
 
 RN4_BASE=ftp://hgdownload.cse.ucsc.edu/goldenPath/rn4/chromosomes
 
