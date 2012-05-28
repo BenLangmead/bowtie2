@@ -1639,6 +1639,11 @@ void AlnSinkSam::appendMate(
 		return;
 	}
 	char buf[1024];
+	StackedAln staln;
+	if(rs != NULL) {
+		rs->initStacked(rd, staln);
+		staln.leftAlign(false /* not past MMs */);
+	}
 	int offAdj = 0;
 	// QNAME
 	samc_.printReadName(o, rd.name);
@@ -1723,12 +1728,8 @@ void AlnSinkSam::appendMate(
 	}
 	// CIGAR
 	if(rs != NULL) {
-		rs->printCigar(
-			false,       // like BWA, we don't distinguish = from X
-			rs->cigop,   // temporary EList to store CIGAR ops
-			rs->cigrun,  // temporary EList to store run lengths
-			&o,
-			NULL);
+		staln.buildCigar(false);
+		staln.writeCigar(&o, NULL);
 		o.append('\t');
 	} else {
 		// No alignment
@@ -1821,6 +1822,7 @@ void AlnSinkSam::appendMate(
 			true,        // first opt flag printed is first overall?
 			rd,          // read
 			*rs,         // individual alignment result
+			staln,       // stacked alignment
 			flags,       // alignment flags
 			summ,        // summary of alignments for this read
 			ssm,         // seed alignment summary

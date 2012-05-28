@@ -624,6 +624,146 @@ struct SeedAlSumm {
 };
 
 /**
+ * Encapsulates a stacked alignment, a nice intermediate format for alignments
+ * from which to left-align gaps, print CIGAR strings, and print MD:Z strings.
+ */
+class StackedAln {
+
+public:
+
+	StackedAln() :
+		stackRef_(RES_CAT),
+		stackRel_(RES_CAT),
+		stackRead_(RES_CAT),
+		cigOp_(RES_CAT),
+		cigRun_(RES_CAT),
+		mdzOp_(RES_CAT),
+		mdzChr_(RES_CAT),
+		mdzRun_(RES_CAT)
+	{
+		reset();
+	}
+	
+	/**
+	 * Reset to an uninitialized state.
+	 */
+	void reset() {
+		inited_ = false;
+		trimLS_ = trimLH_ = trimRS_ = trimRH_ = 0;
+		stackRef_.clear();
+		stackRel_.clear();
+		stackRead_.clear();
+		cigDistMm_ = cigCalc_ = false;
+		cigOp_.clear();
+		cigRun_.clear();
+		mdzCalc_ = false;
+		mdzOp_.clear();
+		mdzChr_.clear();
+		mdzRun_.clear();
+	}
+	
+	/**
+	 * Return true iff the stacked alignment has been initialized.
+	 */
+	bool inited() const { return inited_; }
+	
+	/**
+	 * Initialized the stacked alignment with respect to a read string, a list of
+	 * edits (expressed left-to-right), and integers indicating how much hard and
+	 * soft trimming has occurred on either end of the read.
+	 *
+	 * s: read sequence
+	 * ed: all relevant edits, including ambiguous nucleotides
+	 * trimLS: # bases soft-trimmed from LHS
+	 * trimLH: # bases hard-trimmed from LHS
+	 * trimRS: # bases soft-trimmed from RHS
+	 * trimRH: # bases hard-trimmed from RHS
+	 */
+	void init(
+		const BTDnaString& s,
+		const EList<Edit>& ed,
+		size_t trimLS,
+		size_t trimLH,
+		size_t trimRS,
+		size_t trimRH);
+	
+	/**
+	 * Left-align all the gaps.  If this changes the alignment and the CIGAR or
+	 * MD:Z strings have already been calculated, this renders them invalid.
+	 *
+	 * We left-align gaps with in the following way: for each gap, we check
+	 * whether the character opposite the rightmost gap character is the same
+	 * as the character opposite the character just to the left of the gap.  If
+	 * this is the case, we can slide the gap to the left and make the
+	 * rightmost position previously covered by the gap into a non-gap.
+	 *
+	 * This scheme allows us to push the gap past a mismatch.  BWA does seem to
+	 * allow this.  It's not clear that Bowtie 2 should, since moving the
+	 * mismatch could cause a mismatch with one base quality to be replaced
+	 * with a mismatch with a different base quality.
+	 */
+	void leftAlign(bool pastMms);
+	
+	/**
+	 * Build the CIGAR list, if it hasn't already built.  Returns true iff it
+	 * was built for the first time.
+	 */
+	bool buildCigar(bool xeq);
+
+	/**
+	 * Build the MD:Z list, if it hasn't already built.  Returns true iff it
+	 * was built for the first time.
+	 */
+	bool buildMdz();
+
+	/**
+	 * Write a CIGAR representation of the alignment to the given string and/or
+	 * char buffer.
+	 */
+	void writeCigar(BTString* o, char* oc) const;
+	
+	/**
+	 * Write an MD:Z representation of the alignment to the given string and/or
+	 * char buffer.
+	 */
+	void writeMdz(BTString* o, char* oc) const;
+	
+	/**
+	 * Check internal consistency.
+	 */
+	bool repOk() const {
+		if(inited_) {
+			assert_eq(stackRef_.size(), stackRead_.size());
+			assert_eq(stackRef_.size(), stackRel_.size());
+		}
+		return true;
+	}
+
+protected:
+
+	bool          inited_;    // true iff stacked alignment is initialized
+
+	size_t        trimLS_;    // amount soft-trimmed from the LHS
+	size_t        trimLH_;    // amount hard-trimmed from the LHS
+	size_t        trimRS_;    // amount soft-trimmed from the RHS
+	size_t        trimRH_;    // amount hard-trimmed from the RHS
+
+	EList<char>   stackRef_;  // reference characters
+	EList<char>   stackRel_;  // bars relating reference to read characters
+	EList<char>   stackRead_; // read characters
+
+	bool          cigDistMm_; // distinguish between =/X, rather than just M
+	bool          cigCalc_;   // whether we've calculated CIGAR ops/runs
+	EList<char>   cigOp_;     // CIGAR operations
+	EList<size_t> cigRun_;    // CIGAR run lengths
+
+	bool          mdzCalc_;   // whether we've calculated MD:Z ops/runs
+	EList<char>   mdzOp_;     // MD:Z operations
+	EList<char>   mdzChr_;    // MD:Z operations
+	EList<size_t> mdzRun_;    // MD:Z run lengths
+};
+
+/**
  * Encapsulates an alignment result.  The result comprises:
  *
  * 1. All the nucleotide edits for both mates ('ned').
@@ -881,38 +1021,6 @@ public:
 	}
 
 	/**
-	 * Print a CIGAR-string representation of the alignment.  In the
-	 * CIGAR-string representation, edit operations are printed in an order
-	 * that corresponds to moving left-to-right along the Watson strand.  The
-	 * operators indicate one of: match, mismatch, read gap, and reference gap.
-	 * With each operator is an associated run length (printed prior to the
-	 * operator) indicating how many times in a row that feature occurs.  Hard
-	 * and soft trimming are represented with H and S operators, repsectively.
-	 */
- 	void printCigar(
-		bool distinguishMm,   // use =/X instead of just M
-		EList<char>& op,      // stick CIGAR operations here
-		EList<size_t>& run,   // stick CIGAR run lengths here
-		BTString* o,          // write to this buf if o != NULL
-		char* oc) const;      // write to this buf if oc != NULL
-
-	/**
-	 * Print a MD:Z:-string representation of the alignment, a la BWA.  In this
-	 * representation runs of either matches or reference gaps are represented
-	 * by a single number indicating the length of the run.  Mismatches are
-	 * indicated by the DNA character that occurs in the reference part of the
-	 * mismatch.  Read gaps are indicated by a carat (^) followed by the string
-	 * of reference characters that occur in the gap.  The string encodes the
-	 * alignment after all trimming.
-	 */
- 	void printMD(
-		EList<char>& op,      // stick operations here
-		EList<char>& ch,      // stick reference characters here
-		EList<size_t>& run,   // stick run lengths here
-		BTString* o,           // write to this buf if o != NULL
-		char* oc) const;      // write to this buf if oc != NULL
-	
-	/**
 	 * Print the sequence for the read that aligned using A, C, G and
 	 * T.  This will simply print the read sequence (or its reverse
 	 * complement).
@@ -976,7 +1084,8 @@ public:
 	 * Check that alignment score is internally consistent.
 	 */
 	bool repOk(const Read& rd) const {
-		assert(Edit::repOk(ned_, refcoord_.fw() ? rd.patFw : rd.patRc, refcoord_.fw(), softTrimmed5p(), softTrimmed3p()));
+		assert(Edit::repOk(ned_, refcoord_.fw() ? rd.patFw : rd.patRc,
+		       refcoord_.fw(), trimmed5p(true), trimmed3p(true)));
 		return repOk();
 	}
 
@@ -1019,14 +1128,6 @@ public:
 	int     seedival()   const { return seedival_; }
 	int64_t minScore()   const { return minsc_;    }
 
-	/**
-	 * Get the decoded nucleotide sequence 
-	 */
-	void decodedNucsAndQuals(
-		const Read& rd,       // read that led to alignment
-		BTDnaString& ns,      // out: decoded nucleotides
-		BTString& qs) const;  // out: decoded qualities
-	
 	/**
 	 * Is the ith row from the 5' end of the DP table one of the ones
 	 * soft-trimmed away by local alignment? 
@@ -1244,26 +1345,42 @@ public:
 		size_t             trim5p       = 0, // trimming from alignment
 		size_t             trim3p       = 0);// trimming from alignment
 
-	size_t softTrimmed5p() const {
+	/**
+	 * Return number of bases trimmed from the 5' end.  Argument determines
+	 * whether we're counting hard- or soft-trimmed bases.
+	 */
+	size_t trimmed5p(bool soft) const {
 		size_t trim = 0;
-		if(pretrimSoft_) {
-			trim += pretrim5p_;
-		}
-		if(trimSoft_) {
-			trim += trim5p_;
-		}
+		if(pretrimSoft_ == soft) trim += pretrim5p_;
+		if(trimSoft_ == soft) trim += trim5p_;
+		return trim;
+	}
+	
+	/**
+	 * Return number of bases trimmed from the 3' end.  Argument determines
+	 * whether we're counting hard- or soft-trimmed bases.
+	 */
+	size_t trimmed3p(bool soft) const {
+		size_t trim = 0;
+		if(pretrimSoft_ == soft) trim += pretrim3p_;
+		if(trimSoft_ == soft) trim += trim3p_;
 		return trim;
 	}
 
-	size_t softTrimmed3p() const {
-		size_t trim = 0;
-		if(pretrimSoft_) {
-			trim += pretrim3p_;
-		}
-		if(trimSoft_) {
-			trim += trim3p_;
-		}
-		return trim;
+	/**
+	 * Return number of bases trimmed from the left end.  Argument determines
+	 * whether we're counting hard- or soft-trimmed bases.
+	 */
+	size_t trimmedLeft(bool soft) const {
+		return fw() ? trimmed5p(soft) : trimmed3p(soft);
+	}
+
+	/**
+	 * Return number of bases trimmed from the right end.  Argument determines
+	 * whether we're counting hard- or soft-trimmed bases.
+	 */
+	size_t trimmedRight(bool soft) const {
+		return fw() ? trimmed3p(soft) : trimmed5p(soft);
 	}
 
 	/**
@@ -1283,7 +1400,6 @@ public:
 	 * Clipping is soft if soft == true, hard otherwise.
 	 */
 	void clipOutside(bool soft, TRefOff refi, TRefOff reff);
-
 
 	/**
 	 * Soft trim bases from the LHS of the alignment.
@@ -1338,6 +1454,28 @@ public:
 			trim5p_       == o.trim5p_ &&
 			trim3p_       == o.trim3p_;
 	}
+	
+	/**
+	 * Initialize a StackedAln (stacked alignment) object w/r/t this alignment.
+	 */
+	void initStacked(const Read& rd, StackedAln& st) const {
+		size_t trimLS = trimmed5p(true);
+		size_t trimLH = trimmed5p(false);
+		size_t trimRS = trimmed3p(true);
+		size_t trimRH = trimmed3p(false);
+		size_t len_trimmed = rd.length() - trimLS - trimRS;
+		if(!fw()) {
+			Edit::invertPoss(const_cast<EList<Edit>&>(ned_), len_trimmed);
+			swap(trimLS, trimRS);
+			swap(trimLH, trimRH);
+		}
+		st.init(
+			fw() ? rd.patFw : rd.patRc,
+			ned_, trimLS, trimLH, trimRS, trimRH);
+		if(!fw()) {
+			Edit::invertPoss(const_cast<EList<Edit>&>(ned_), len_trimmed);
+		}
+	}
 
 protected:
 
@@ -1390,17 +1528,6 @@ protected:
 	bool        trimSoft_;     // trimming by local alignment is soft?
 	size_t      trim5p_;       // # bases trimmed from 5p end by local alignment
 	size_t      trim3p_;       // # bases trimmed from 3p end by local alignment
-
-public:
-
-	// CIGAR parsing
-	EList<char>   cigop;       // CIGAR operations
-	EList<size_t> cigrun;      // CIGAR run lengths
-
-	// MD:Z parsing
-	EList<char>   mdop;        // MD:Z ops
-	EList<char>   mdch;        // MD:Z chars
-	EList<size_t> mdrun;       // MD:Z runs
 };
 
 /**

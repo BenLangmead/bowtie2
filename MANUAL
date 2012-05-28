@@ -168,8 +168,8 @@ library.  To compile Bowtie 2 without `pthreads` (which disables `-p`), use
 [zlib]:     http://cygwin.com/packages/mingw-zlib/
 [pthreads]: http://sourceware.org/pthreads-win32/
 [GnuWin32]: http://gnuwin32.sf.net/packages/coreutils.htm
-[Download]: https://sourceforge.net/projects/bowtie-bio/files/bowtie/
-[sourceforge site]: https://sourceforge.net/projects/bowtie-bio/files/bowtie/
+[Download]: https://sourceforge.net/projects/bowtie-bio/files/bowtie2/
+[sourceforge site]: https://sourceforge.net/projects/bowtie-bio/files/bowtie2/
 [Xcode]:    http://developer.apple.com/xcode/
 
 Adding to PATH

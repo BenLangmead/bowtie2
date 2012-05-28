@@ -335,9 +335,17 @@ void BtBranchTracer::triangleFill(
 		curid = bs_.alloc();
 		assert_eq(0, curid);
 		Edit e; e.reset();
-		bs_[curid].init(prob_, 0, 0, 0, rowc, colc, e, 0,
-		                true,   // I am the root
-						false); // don't try to extend with exact matches
+		bs_[curid].init(
+			prob_,
+			0,      // parent ID
+			0,      // penalty
+			0,      // score_en
+			rowc,   // row
+			colc,   // col
+			e,      // edit
+			0,      // hef
+			true,   // I am the root
+			false); // don't try to extend with exact matches
 		bs_[curid].len_ = 0;
 	} else {
 		curid = bs_.size()-1;
@@ -415,8 +423,19 @@ void BtBranchTracer::triangleFill(
 				}
 				Edit e((int)rowc, mask2dna[rc], "ACGTN"[qc], EDIT_TYPE_MM);
 				assert_lt(scd, 0);
-				bs_[id].init(prob_, curid, -scd, bs_[curid].score_st_ + scd,
-				             rowc, colc, e, hefc, empty, false);
+				TAlScore score_en = bs_[curid].score_st_ + scd;
+				bs_[id].init(
+					prob_,
+					curid,    // parent ID
+					-scd,     // penalty
+					score_en, // score_en
+					rowc,     // row
+					colc,     // col
+					e,        // edit
+					hefc,     // hef
+					empty,    // root?
+					false);   // don't try to extend with exact matches
+				//assert(!local || bs_[id].score_st_ >= 0);
 				curid = id;
 			} else {
 				// Match
@@ -437,11 +456,22 @@ void BtBranchTracer::triangleFill(
 			if(bs_[curid].len_ == 0 && bs_[curid].e_.inited() && bs_[curid].e_.isReadGap()) {
 				gapp = prob_.sc_->readGapExtend();
 			}
-			bs_[id].init(prob_, curid, gapp, bs_[curid].score_st_ - gapp,
-			             rowc, colc-1, e, hefc, false, false);
+			TAlScore score_en = bs_[curid].score_st_ - gapp;
+			bs_[id].init(
+				prob_,
+				curid,    // parent ID
+				gapp,     // penalty
+				score_en, // score_en
+				rowc,     // row
+				colc-1,   // col
+				e,        // edit
+				hefc,     // hef
+				false,    // root?
+				false);   // don't try to extend with exact matches
 			colc--;
 			curid = id;
-			assert(local || bs_[curid].score_st_ >= targ_final);
+			assert( local || bs_[curid].score_st_ >= targ_final);
+			//assert(!local || bs_[curid].score_st_ >= 0);
 			if(sel == 1 || sel == 5) {
 				hefc = 0;
 			} else {
@@ -456,10 +486,21 @@ void BtBranchTracer::triangleFill(
 			if(bs_[curid].len_ == 0 && bs_[curid].e_.inited() && bs_[curid].e_.isRefGap()) {
 				gapp = prob_.sc_->refGapExtend();
 			}
-			bs_[id].init(prob_, curid, gapp, bs_[curid].score_st_ - gapp,
-			             rowc-1, colc, e, hefc, false, false);
+			TAlScore score_en = bs_[curid].score_st_ - gapp;
+			bs_[id].init(
+				prob_,
+				curid,    // parent ID
+				gapp,     // penalty
+				score_en, // score_en
+				rowc-1,   // row
+				colc,     // col
+				e,        // edit
+				hefc,     // hef
+				false,    // root?
+				false);   // don't try to extend with exact matches
 			rowc--;
 			curid = id;
+			//assert(!local || bs_[curid].score_st_ >= 0);
 			if(sel == 3 || sel == 7) {
 				hefc = 0;
 			} else {
@@ -799,9 +840,7 @@ void BtBranchTracer::squareFill(
 				mask &= ~127; // don't go horizontal or diagonal
 			}
 			// Install results in cur
-			assert(!prob_.sc_->monotone || sc_best <= 0);
-			assert(!prob_.sc_->monotone || sc_e_best <= 0);
-			assert(!prob_.sc_->monotone || sc_f_best <= 0);
+			assert( local || sc_best <= 0);
 			sq_[ii+j].sc[0] = sc_best;
 			assert( local || sc_e_best < 0);
 			assert( local || sc_f_best < 0);
@@ -842,9 +881,17 @@ void BtBranchTracer::squareFill(
 		curid = bs_.alloc();
 		assert_eq(0, curid);
 		Edit e; e.reset();
-		bs_[curid].init(prob_, 0, 0, 0, rowc, colc, e, 0,
-		                true,   // I am the root
-						false); // don't try to extend with exact matches
+		bs_[curid].init(
+			prob_,
+			0,      // parent ID
+			0,      // penalty
+			0,      // score_en
+			rowc,   // row
+			colc,   // col
+			e,      // edit
+			0,      // hef
+			true,   // root?
+			false); // don't try to extend with exact matches
 		bs_[curid].len_ = 0;
 	} else {
 		curid = bs_.size()-1;
@@ -919,9 +966,20 @@ void BtBranchTracer::squareFill(
 				}
 				Edit e((int)rowc, mask2dna[rc], "ACGTN"[qc], EDIT_TYPE_MM);
 				assert_lt(scd, 0);
-				bs_[id].init(prob_, curid, -scd, bs_[curid].score_st_ + scd,
-				             rowc, colc, e, hefc, empty, false);
+				TAlScore score_en = bs_[curid].score_st_ + scd;
+				bs_[id].init(
+					prob_,
+					curid,    // parent ID
+					-scd,     // penalty
+					score_en, // score_en
+					rowc,     // row
+					colc,     // col
+					e,        // edit
+					hefc,     // hef
+					empty,    // root?
+					false);   // don't try to extend with exact matches
 				curid = id;
+				//assert(!local || bs_[curid].score_st_ >= 0);
 			} else {
 				// Match
 				bs_[curid].score_st_ += prob_.sc_->match();
@@ -943,12 +1001,24 @@ void BtBranchTracer::squareFill(
 			if(bs_[curid].len_ == 0 && bs_[curid].e_.inited() && bs_[curid].e_.isReadGap()) {
 				gapp = prob_.sc_->readGapExtend();
 			}
-			bs_[id].init(prob_, curid, gapp, bs_[curid].score_st_ - gapp,
-			             rowc, colc-1, e, hefc, false, false);
+			//assert(!local || bs_[curid].score_st_ >= gapp);
+			TAlScore score_en = bs_[curid].score_st_ - gapp;
+			bs_[id].init(
+				prob_,
+				curid,    // parent ID
+				gapp,     // penalty
+				score_en, // score_en
+				rowc,     // row
+				colc-1,   // col
+				e,        // edit
+				hefc,     // hef
+				false,    // root?
+				false);   // don't try to extend with exact matches
 			if(xmod == 0) xexit = true;
 			colc--; xmod--;
 			curid = id;
-			assert(local || bs_[curid].score_st_ >= targ_final);
+			assert( local || bs_[curid].score_st_ >= targ_final);
+			//assert(!local || bs_[curid].score_st_ >= 0);
 			if(sel == 1 || sel == 5) {
 				hefc = 0;
 			} else {
@@ -963,12 +1033,24 @@ void BtBranchTracer::squareFill(
 			if(bs_[curid].len_ == 0 && bs_[curid].e_.inited() && bs_[curid].e_.isRefGap()) {
 				gapp = prob_.sc_->refGapExtend();
 			}
-			bs_[id].init(prob_, curid, gapp, bs_[curid].score_st_ - gapp,
-			             rowc-1, colc, e, hefc, false, false);
+			//assert(!local || bs_[curid].score_st_ >= gapp);
+			TAlScore score_en = bs_[curid].score_st_ - gapp;
+			bs_[id].init(
+				prob_,
+				curid,    // parent ID
+				gapp,     // penalty
+				score_en, // score_en
+				rowc-1,   // row
+				colc,     // col
+				e,        // edit
+				hefc,     // hef
+				false,    // root?
+				false);   // don't try to extend with exact matches
 			if(ymod == 0) yexit = true;
 			rowc--; ymod--; ymodTimesNcol -= sq_ncol;
 			curid = id;
-			assert(local || bs_[curid].score_st_ >= targ_final);
+			assert( local || bs_[curid].score_st_ >= targ_final);
+			//assert(!local || bs_[curid].score_st_ >= 0);
 			if(sel == 3 || sel == 7) {
 				hefc = 0;
 			} else {
@@ -1006,6 +1088,8 @@ void BtBranchTracer::squareFill(
 #endif
 			return;
 		}
+		assert(!xexit || hefc == 0 || hefc == 1);
+		assert(!yexit || hefc == 0 || hefc == 2);
 		if(xexit || yexit) {
 			//assert(rowc < 0 || colc < 0 || prob_.cper_->isCheckpointed(rowc, colc));
 			row_new = rowc; col_new = colc;
@@ -1017,10 +1101,11 @@ void BtBranchTracer::squareFill(
 			} else {
 				// TODO: Don't use scoreSquare
 				targ_new = prob_.cper_->scoreSquare(rowc, colc, hefc);
-				assert(!prob_.sc_->monotone || targ_new >= targ);
-				assert(!prob_.sc_->monotone || targ_new >= targ_final);
+				assert(local || targ_new >= targ);
+				assert(local || targ_new >= targ_final);
 			}
 			if(local && targ_new == 0) {
+				assert_eq(0, hefc);
 				done = true;
 				assert(bs_[curid].isSolution(prob_));
 				addSolution(curid);

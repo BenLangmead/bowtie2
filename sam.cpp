@@ -120,6 +120,7 @@ void SamConfig::printAlignedOptFlags(
 	bool first,                // first opt flag printed is first overall?
 	const Read& rd,            // the read
 	AlnRes& res,               // individual alignment result
+	StackedAln& staln,         // stacked alignment
 	const AlnFlags& flags,     // alignment flags
 	const AlnSetSumm& summ,    // summary of alignments for this read
 	const SeedAlSumm& ssm,     // seed alignment summary
@@ -218,10 +219,8 @@ void SamConfig::printAlignedOptFlags(
 		// MD:Z: String for mms. [0-9]+(([A-Z]|\^[A-Z]+)[0-9]+)*2
 		WRITE_SEP();
 		o.append("MD:Z:");
-		res.printMD(
-			res.mdop,  // MD operations
-			res.mdch,  // MD chars
-			res.mdrun, // MD run lengths
+		staln.buildMdz();
+		staln.writeMdz(
 			&o,        // output buffer
 			NULL);     // no char buffer
 	}
