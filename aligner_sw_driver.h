@@ -258,8 +258,8 @@ protected:
  */
 enum {
 	// All end-to-end and seed hits were examined
-	EXTEND_EXHAUSTED_CANDIDATES = 1,
 	// The policy does not need us to look any further
+	EXTEND_EXHAUSTED_CANDIDATES = 1,
 	EXTEND_POLICY_FULFILLED,
 	// We stopped because we reached a point where the only remaining
 	// alignments of interest have perfect scores, but we already investigated

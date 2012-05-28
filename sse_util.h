@@ -463,8 +463,10 @@ public:
 	 * Return the checkpointed H, E, or F score from the given cell.
 	 */
 	inline int64_t scoreSquare(size_t row, size_t col, int hef) const {
-		// Is it in a checkpointed row?
-		if((row & lomask_) == lomask_) {
+		// Is it in a checkpointed row?  Note that checkpointed rows don't
+		// necessarily have the horizontal contributions calculated, so we want
+		// to use the column info in that case.
+		if((row & lomask_) == lomask_ && hef != 1) {
 			int64_t sc = qrows_[(row >> perpow2_) * ncol_ + col].sc[hef];
 			if(sc == MIN_I16) return MIN_I64;
 			return sc;

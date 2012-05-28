@@ -246,6 +246,7 @@ public:
 		bool first,                // first opt flag printed is first overall?
 		const Read& rd,            // the read
 		AlnRes& res,               // individual alignment result
+		StackedAln& staln,         // stacked alignment
 		const AlnFlags& flags,     // alignment flags
 		const AlnSetSumm& summ,    // summary of alignments for this read
 		const SeedAlSumm& ssm,     // seed alignment summary

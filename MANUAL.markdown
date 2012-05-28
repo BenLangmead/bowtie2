@@ -48,7 +48,6 @@ paper].  Thank you!
 [Cufflinks]:       http://cufflinks.cbcb.umd.edu/
 [Crossbow]:        http://bowtie-bio.sf.net/crossbow
 [Myrna]:           http://bowtie-bio.sf.net/myrna
-[BSmooth]:         http://bowtie-bio.sf.net/myrna
 [Bowtie paper]:    http://genomebiology.com/2009/10/3/R25
 [GPLv3 license]:   http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -178,8 +177,8 @@ library.  To compile Bowtie 2 without `pthreads` (which disables [`-p`]), use
 [zlib]:     http://cygwin.com/packages/mingw-zlib/
 [pthreads]: http://sourceware.org/pthreads-win32/
 [GnuWin32]: http://gnuwin32.sf.net/packages/coreutils.htm
-[Download]: https://sourceforge.net/projects/bowtie-bio/files/bowtie/
-[sourceforge site]: https://sourceforge.net/projects/bowtie-bio/files/bowtie/
+[Download]: https://sourceforge.net/projects/bowtie-bio/files/bowtie2/
+[sourceforge site]: https://sourceforge.net/projects/bowtie-bio/files/bowtie2/
 [Xcode]:    http://developer.apple.com/xcode/
 
 Adding to PATH
@@ -191,6 +190,11 @@ from the command line, you will get the version you just installed without
 having to specify the entire path.  This is recommended for most users.  To do
 this, follow your operating system's instructions for adding the directory to
 your [PATH].
+
+If you would like to install Bowtie 2 by copying the Bowtie 2 executable files
+to an existing directory in your [PATH], make sure that you copy all the
+executables, including `bowtie2`, `bowtie2-align`, `bowtie2-build` and
+`bowtie2-inspect`.
 
 [PATH environment variable]: http://en.wikipedia.org/wiki/PATH_(variable)
 [PATH]: http://en.wikipedia.org/wiki/PATH_(variable)
