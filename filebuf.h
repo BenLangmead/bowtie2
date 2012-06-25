@@ -422,7 +422,7 @@ public:
 	/**
 	 * Get current size of the last-N-chars buffer.
 	 */
-	const size_t lastNLen() const {
+	size_t lastNLen() const {
 		return _lastn_cur;
 	}
 

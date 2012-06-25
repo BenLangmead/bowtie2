@@ -1126,7 +1126,7 @@ public:
 	/**
 	 * Retrieve constant version of element i.
 	 */
-	const char operator[](size_t i) const {
+	char operator[](size_t i) const {
 		assert_lt(i, len_);
 		return get(i);
 	}
@@ -1134,7 +1134,7 @@ public:
 	/**
 	 * Retrieve constant version of element i.
 	 */
-	const char get(size_t i) const {
+	char get(size_t i) const {
 		assert_lt(i, len_);
 		size_t word = i >> 4;
 		size_t bpoff = (i & 15) << 1;
