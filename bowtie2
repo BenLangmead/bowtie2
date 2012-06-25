@@ -405,7 +405,7 @@ if(defined($cap_out)) {
 	while(<BT>) {
 		chomp;
 		my $filt = 0;
-		unless(/^\@/) {
+		unless(substr($_, 0, 1) eq "@") {
 			# If we are supposed to output certain reads to files...
 			my $tab1_i = index($_, "\t") + 1;
 			my $tab2_i = index($_, "\t", $tab1_i);
