@@ -2203,12 +2203,24 @@ alignment:
 
 [`YF:Z`]: #bowtie2-build-opt-fields-yf
 
-        YF:Z:<N>
+        YF:Z:<S>
 
     </td><td>
 
     String indicating reason why the read was filtered out.  See also:
     [Filtering].  Only appears for reads that were filtered out.
+
+[`YT:Z`]: #bowtie2-build-opt-fields-yt
+
+        YT:Z:<S>
+
+    </td><td>
+
+    Value of `UU` indicates the read was not part of a pair.  Value of `CP`
+    indicates the read was part of a pair and the pair aligned concordantly.
+    Value of `DP` indicates the read was part of a pair and the pair aligned
+    discordantly.  Value of `UP` indicates the read was part of a pair but the
+    pair failed to aligned either concordantly or discordantly.
 
 [Filtering]: #filtering
 
