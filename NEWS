@@ -21,12 +21,15 @@ Version 2.0.0-beta7 - June 23, 2012
      alignments were incorrectly curtailed on the left-hand side.
    * Fixed issue --un (or --un-*) would fail to output unaligned reads when
      --no-unal was also specified.
+   * Fixed issue whereby --un-* were significantly slowing down Bowtie 2 when
+     -p was set greater than 1.
    * -M option is now deprecated.  It will be removed in subsequent versions.
    * Gaps are now left-aligned in a manner similar to BWA and other tools.
      Note a couple caveats regarding left-alignment of gaps.
    * Fixed issue whereby wrapper script would not pass on exitlevel correctly,
      sometimes spuriously hiding non-0 exitlevel.
    * Added documentation for YT:Z to manual
+   * Fixed inconsistent documentation for the default value of the -i parameter
    * Compiles with g++ 2.7
 
 Version 2.0.0-beta6 - May 7, 2012

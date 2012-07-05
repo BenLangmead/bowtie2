@@ -68,7 +68,8 @@ bool SwDriver::eeSaTups(
 	RandomSource& rnd,           // pseudo-random generator
 	WalkMetrics& wlm,            // group walk left metrics
 	SwMetrics& swmSeed,          // metrics for seed extensions
-	size_t& nelt_out)            // out: # elements total
+	size_t& nelt_out,            // out: # elements total
+	bool all)                    // report all hits?
 {
 	gws_.clear();
 	rands_.clear();
@@ -127,7 +128,7 @@ bool SwDriver::eeSaTups(
 				satpos_.back().pos.init(hit.fw, 0, 0, (uint32_t)rd.length());
 				satpos_.back().origSz = hit.bot - hit.top;
 				rands_.expand();
-				rands_.back().init(hit.bot - hit.top);
+				rands_.back().init(hit.bot - hit.top, all);
 				gws_.expand();
 				gws_.back().init(
 					ebwt,               // forward Bowtie index
@@ -175,7 +176,7 @@ bool SwDriver::eeSaTups(
 			satpos_.back().pos.init(hit.fw, 0, 0, (uint32_t)rd.length());
 			satpos_.back().origSz = hit.bot - hit.top;
 			rands_.expand();
-			rands_.back().init(hit.bot - hit.top);
+			rands_.back().init(hit.bot - hit.top, all);
 			gws_.expand();
 			gws_.back().init(
 				ebwt,               // forward Bowtie index
@@ -403,7 +404,8 @@ void SwDriver::prioritizeSATups(
 	RandomSource& rnd,           // pseudo-random generator
 	WalkMetrics& wlm,            // group walk left metrics
 	PerReadMetrics& prm,         // per-read metrics
-	size_t& nelt_out)            // out: # elements total
+	size_t& nelt_out,            // out: # elements total
+	bool all)                    // report all hits?
 {
 	const size_t nonz = sh.nonzeroOffsets(); // non-zero positions
 	const int matei = (read.mate <= 1 ? 0 : 1);
@@ -519,7 +521,7 @@ void SwDriver::prioritizeSATups(
 				wlm);           // metrics
 			assert(gws_.back().initialized());
 			rands_.expand();
-			rands_.back().init(satpos_[i].sat.size());
+			rands_.back().init(satpos_[i].sat.size(), all);
 		}
 		return;
 	}
@@ -560,7 +562,7 @@ void SwDriver::prioritizeSATups(
 			wlm);               // metrics
 		assert(gws_.back().initialized());
 		rands_.expand();
-		rands_.back().init(satpos_.back().sat.size());
+		rands_.back().init(satpos_.back().sat.size(), all);
 		nelt_added += satpos_.back().sat.size();
 #ifndef NDEBUG
 		for(size_t k = 0; k < satpos_.size()-1; k++) {
@@ -587,7 +589,7 @@ void SwDriver::prioritizeSATups(
 		assert_lt(ri, satpos2_.size());
 		// Initialize random element chooser for that range
 		if(!rands2_[ri].inited()) {
-			rands2_[ri].init(satpos2_[ri].sat.size());
+			rands2_[ri].init(satpos2_[ri].sat.size(), all);
 			assert(!rands2_[ri].done());
 		}
 		assert(!rands2_[ri].done());
@@ -617,7 +619,7 @@ void SwDriver::prioritizeSATups(
 		assert(gws_.back().initialized());
 		// Initialize random selector
 		rands_.expand();
-		rands_.back().init(1);
+		rands_.back().init(1, all);
 		nelt_added++;
 	}
 	nelt_out = nelt_added;
@@ -676,6 +678,7 @@ int SwDriver::extendSeeds(
 	bool reportImmediately,      // whether to report hits immediately to msink
 	bool& exhaustive)            // set to true iff we searched all seeds exhaustively
 {
+	bool all = msink->allHits();
 	typedef std::pair<uint32_t, uint32_t> U32Pair;
 
 	assert(!reportImmediately || msink != NULL);
@@ -720,7 +723,8 @@ int SwDriver::extendSeeds(
 					rnd,          // pseudo-random generator
 					wlm,          // group walk left metrics
 					swmSeed,      // seed-extend metrics
-					nelt);        // out: # elements total
+					nelt,         // out: # elements total
+					all);         // report all hits?
 				assert_eq(gws_.size(), rands_.size());
 				assert_eq(gws_.size(), satpos_.size());
 			} else {
@@ -752,7 +756,8 @@ int SwDriver::extendSeeds(
 					rnd,           // pseudo-random generator
 					wlm,           // group walk left metrics
 					prm,           // per-read metrics
-					nelt);         // out: # elements total
+					nelt,          // out: # elements total
+					all);          // report all hits?
 				assert_eq(gws_.size(), rands_.size());
 				assert_eq(gws_.size(), satpos_.size());
 				neltLeft = nelt;
@@ -781,7 +786,10 @@ int SwDriver::extendSeeds(
 			// If the range is small, investigate all elements now.  If the
 			// range is large, just investigate one and move on - we might come
 			// back to this range later.
+			size_t riter = 0;
 			while(!rands_[i].done() && (first || small || eeMode)) {
+				assert(!gws_[i].done());
+				riter++;
 				if(minsc == perfectScore) {
 					if(!eeMode || eehits_[i].score < perfectScore) {
 						return EXTEND_PERFECT_SCORE;
@@ -800,7 +808,6 @@ int SwDriver::extendSeeds(
 				}
 				prm.nExIters++;
 				first = false;
-				assert(!gws_[i].done());
 				// Resolve next element offset
 				WalkResult wr;
 				uint32_t elt = rands_[i].next(rnd);
@@ -1301,6 +1308,7 @@ int SwDriver::extendSeedsPaired(
 	bool mixed,                  // look for unpaired as well as paired alns?
 	bool& exhaustive)
 {
+	bool all = msink->allHits();
 	typedef std::pair<uint32_t, uint32_t> U32Pair;
 
 	assert(!reportImmediately || msink != NULL);
@@ -1383,7 +1391,8 @@ int SwDriver::extendSeedsPaired(
 					rnd,          // pseudo-random generator
 					wlm,          // group walk left metrics
 					swmSeed,      // seed-extend metrics
-					nelt);        // out: # elements total
+					nelt,         // out: # elements total
+					all);         // report all hits
 				assert_eq(gws_.size(), rands_.size());
 				assert_eq(gws_.size(), satpos_.size());
 				neltLeft = nelt;
@@ -1422,7 +1431,8 @@ int SwDriver::extendSeedsPaired(
 					rnd,           // pseudo-random generator
 					wlm,           // group walk left metrics
 					prm,           // per-read metrics
-					nelt);         // out: # elements total
+					nelt,          // out: # elements total
+					all);          // report all hits?
 				assert_eq(gws_.size(), rands_.size());
 				assert_eq(gws_.size(), satpos_.size());
 				neltLeft = nelt;

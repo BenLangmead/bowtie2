@@ -447,7 +447,8 @@ protected:
 		RandomSource& rnd,           // pseudo-random generator
 		WalkMetrics& wlm,            // group walk left metrics
 		SwMetrics& swmSeed,          // metrics for seed extensions
-		size_t& nelt_out);           // out: # elements total
+		size_t& nelt_out,            // out: # elements total
+		bool all);                   // report all hits?
 
 	void extend(
 		const Read& rd,       // read
@@ -480,7 +481,8 @@ protected:
 		RandomSource& rnd,           // pseudo-random generator
 		WalkMetrics& wlm,            // group walk left metrics
 		PerReadMetrics& prm,         // per-read metrics
-		size_t& nelt_out);           // out: # elements total
+		size_t& nelt_out,            // out: # elements total
+		bool all);                   // report all hits?
 
 	Random1toN               rand_;    // random number generators
 	EList<Random1toN, 16>    rands_;   // random number generators
