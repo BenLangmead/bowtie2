@@ -703,12 +703,11 @@ static void printUsage(ostream& out) {
 		<< "                     (G,20,8 for local, L,-0.6,-0.6 for end-to-end)" << endl
 		<< endl
 	    << " Reporting:" << endl
-	    << "  -M <int>           look for up to <int>+1 alns; report best, with MAPQ (5 for" << endl
-		<< "                     --end-to-end, 2 for --local)" << endl
+	    << "  (default)          look for multiple alignments, report best, with MAPQ" << endl
 		<< "   OR" << endl
-	    << "  -k <int>           report up to <int> alns per read; MAPQ not meaningful (off)" << endl
+	    << "  -k <int>           report up to <int> alns per read; MAPQ not meaningful" << endl
 		<< "   OR" << endl
-	    << "  -a/--all           report all alignments; very slow (off)" << endl
+	    << "  -a/--all           report all alignments; very slow, MAPQ not meaningful" << endl
 		<< endl
 	    << " Effort:" << endl
 	    << "  -D <int>           give up extending after <int> failed extends in a row (15)" << endl
@@ -1018,6 +1017,8 @@ static void parseOption(int next_option, const char *arg) {
 			}
 			assert_eq(1, khits);
 			saw_M = true;
+			cerr << "Warning: -M is deprecated.  Use -D and -R to adjust " <<
+			        "effort instead." << endl;
 			break;
 		}
 		case ARG_EXTEND_ITERS: {

@@ -494,8 +494,8 @@ Reporting
 
 The reporting mode governs how many alignments Bowtie 2 looks for, and how to
 report them.  Bowtie 2 has three distinct reporting modes.  The default
-reporting mode, [`-M`], is similar to the default reporting mode of many other
-read alignment tools, including [BWA].  It is also similar to Bowtie 1's `-M`
+reporting mode is similar to the default reporting mode of many other read
+alignment tools, including [BWA].  It is also similar to Bowtie 1's `-M`
 alignment mode.
 
 In general, when we say that a read has an alignment, we mean that it has a
@@ -522,22 +522,17 @@ Two alignments for the same pair are distinct if either the mate 1s in the two
 paired-end alignments are distinct or the mate 2s in the two alignments are
 distinct or both.
 
-### -M mode: search for multiple alignments, report the best one
+### Default mode: search for multiple alignments, report the best one
 
-In [`-M`] mode, Bowtie 2 searches for at most N distinct, valid alignments for
-each read, where N equals the integer specified with the `-M` parameter plus
-one. That is, if `-M 3` is specified, Bowtie 2 will search for at most 4
-distinct alignments.  Bowtie 2 will stop searching when it can't find more
-distinct valid alignments, or when it finds N distinct alignments, whichever
-happens first.  It then reports the best alignment found using information about
-the other alignments to estimate mapping quality and to set SAM optional fields,
-such as the [`AS:i`] and [`XS:i`] fields.
-
-Increasing [`-M`] makes Bowtie 2 slower, but increases the likelihood that it
-will find and report the correct alignment for a read that aligns many places.
-Bowtie 2 does not "find" alignments in any specific order, so for reads that
-have more than N distinct, valid alignments, Bowtie 2 does not gaurantee that
-the alignment reported is the best possible in terms of alignment score.
+By default, Bowtie 2 searches for distinct, valid alignments for each read. When
+it finds a valid alignment, it generally will continue to look for alignments
+that are nearly as good or better.  It will eventually stop looking, either
+because it exceeded a limit placed on search effort (see [`-D`] and [`-R`]) or
+because it already knows all it needs to know to report an alignment.
+Information from the best alignments are used to estimate mapping quality (the
+`MAPQ` [SAM] field) and to set SAM optional fields, such as [`AS:i`] and
+[`XS:i`].  Bowtie 2 does not gaurantee that the alignment reported is the best
+possible in terms of alignment score.
 
 See also: [`-D`], which puts an upper limit on the number of dynamic programming
 problems (i.e. seed extensions) that can "fail" in a row before Bowtie 2 stops
@@ -1399,28 +1394,6 @@ the default in [`--local`] mode is `G,20,8`.
 
 <table>
 
-<tr><td id="bowtie2-options-M">
-
-[`-M`]: #bowtie2-options-M
-
-    -M <int>
-
-</td><td>
-
-In this mode, `bowtie2` searches for at most `<int>+1` distinct, valid
-alignments for each read.  The search terminates when it can't find more
-distinct valid alignments, or when it finds `<int>+1` distinct alignments,
-whichever happens first. Only the best alignment is reported.  Information from
-the other alignments is used to estimate mapping quality and to set SAM optional
-fields, such as [`AS:i`] and [`XS:i`].  Increasing `-M` makes `bowtie2` slower,
-but increases the likelihood that it will pick the correct alignment for a read
-that aligns many places.  For reads that have more than `<int>+1` distinct,
-valid alignments, Bowtie 2 does not gaurantee that the alignment reported is the
-best possible in terms of alignment score.  See also: [reporting].  `-M` is
-mutually exclusive with [`-k`] and [`-a`].  The default is 3 in [`--end-to-end`]
-mode and 2 in [`--local`] mode.
-
-</td></tr>
 <tr><td id="bowtie2-options-k">
 
 [`-k`]: #bowtie2-options-k
@@ -1429,19 +1402,26 @@ mode and 2 in [`--local`] mode.
 
 </td><td>
 
-In this mode, `bowtie2` searches for at most `<int>` distinct, valid alignments
-for each read.  The search terminates when it can't find more distinct valid
-alignments, or when it finds `<int>`, whichever happens first.  All alignments
-found are reported in descending order by alignment score. The alignment score
-for a paired-end alignment equals the sum of the alignment scores of the
-individual mates. Each reported read or pair alignment beyond the first has the
-SAM 'secondary' bit (which equals 256) set in its FLAGS field.  For reads that
-have more than `<int>` distinct, valid alignments, `bowtie2` does not gaurantee
-that the `<int>` alignments reported are the best possible in terms of alignment
-score.  `-k` is mutually exclusive with [`-M`] and [`-a`], and [`-M`] is the
-default.
+By default, `bowtie2` searches for distinct, valid alignments for each read.
+When it finds a valid alignment, it continues looking for alignments that are
+nearly as good or better.  The best alignment found is reported (randomly
+selected from among best if tied).  Information about the best alignments is
+used to estimate mapping quality and to set SAM optional fields, such as
+[`AS:i`] and [`XS:i`].
 
-Note: Bowtie 2 is not particularly designed with large `-k` in mind, and when
+When `-k` is specified, however, `bowtie2` behaves differently.  Instead, it
+searches for at most `<int>` distinct, valid alignments for each read.  The
+search terminates when it can't find more distinct valid alignments, or when it
+finds `<int>`, whichever happens first.  All alignments found are reported in
+descending order by alignment score. The alignment score for a paired-end
+alignment equals the sum of the alignment scores of the individual mates. Each
+reported read or pair alignment beyond the first has the SAM 'secondary' bit
+(which equals 256) set in its FLAGS field.  For reads that have more than
+`<int>` distinct, valid alignments, `bowtie2` does not gaurantee that the
+`<int>` alignments reported are the best possible in terms of alignment score. 
+`-k` is mutually exclusive with [`-a`].
+
+Note: Bowtie 2 is not designed with large values for `-k` in mind, and when
 aligning reads to long, repetitive genomes large `-k` can be very, very slow.
 
 </td></tr>
@@ -1454,9 +1434,9 @@ aligning reads to long, repetitive genomes large `-k` can be very, very slow.
 </td><td>
 
 Like [`-k`] but with no upper limit on number of alignments to search for.  `-a`
-is mutually exclusive with [`-M`] and [`-k`], and [`-M`] is the default.
+is mutually exclusive with [`-k`].
 
-Note: Bowtie 2 is not particularly designed with `-a` mode in mind, and when
+Note: Bowtie 2 is not designed with `-a` mode in mind, and when
 aligning reads to long, repetitive genomes this mode can be very, very slow.
 
 [reporting]: #reporting

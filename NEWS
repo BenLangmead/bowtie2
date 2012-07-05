@@ -16,16 +16,21 @@ Please report any issues using the Sourceforge bug tracker:
 Version Release History
 =======================
 
-Version 2.0.0-beta7 - June 23, 2012
+Version 2.0.0-beta7 - July 5, 2012
    * Fixed an issue in how Bowtie 2 aligns longer reads in --local mode.  Some
      alignments were incorrectly curtailed on the left-hand side.
    * Fixed issue --un (or --un-*) would fail to output unaligned reads when
      --no-unal was also specified.
    * Fixed issue whereby --un-* were significantly slowing down Bowtie 2 when
      -p was set greater than 1.
+   * Fixed issue that would could cause hangs in -a mode or when -k is set
+     high.
    * -M option is now deprecated.  It will be removed in subsequent versions.
+     What used to be called -M mode is still the default mode, and -k and -a
+     are still there alternatives to the default mode, but adjusting the -M
+     setting is deprecated.  Use the -D and -R options to adjust the effort
+     expended to find valid alignments.
    * Gaps are now left-aligned in a manner similar to BWA and other tools.
-     Note a couple caveats regarding left-alignment of gaps.
    * Fixed issue whereby wrapper script would not pass on exitlevel correctly,
      sometimes spuriously hiding non-0 exitlevel.
    * Added documentation for YT:Z to manual
