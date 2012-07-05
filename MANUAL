@@ -952,7 +952,7 @@ one-size-fits-all number.  For instance, specifying `-i S,1,2.5` sets the
 interval function `f` to `f(x) = 1 + 2.5 * sqrt(x)`, where x is the read length.
 See also: [setting function options]. If the function returns a result less than
 1, it is rounded up to 1. Default: the `--sensitive` preset is used by
-default, which sets `-i` to `S,1,1.25` in `--end-to-end` mode to `-i S,1,0.75`
+default, which sets `-i` to `S,1,1.15` in `--end-to-end` mode to `-i S,1,0.75`
 in `--local` mode.
 
     --n-ceil <func>

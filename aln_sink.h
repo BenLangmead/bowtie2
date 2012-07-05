@@ -279,6 +279,13 @@ struct ReportingParams {
 			func.mult(mul);
 		}
 	}
+	
+	/**
+	 * Return true iff we are reporting all hits.
+	 */
+	bool allHits() const {
+		return khits == std::numeric_limits<THitInt>::max();
+	}
 
 	// Number of alignments to report
 	THitInt khits;
@@ -1096,6 +1103,13 @@ public:
 	 */
 	bool Mmode() const {
 		return rp_.mhitsSet();
+	}
+	
+	/**
+	 * Return true iff the policy is to report all hits.
+	 */
+	bool allHits() const {
+		return rp_.allHits();
 	}
 	
 	/**

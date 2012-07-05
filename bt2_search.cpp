@@ -669,7 +669,7 @@ static void printUsage(ostream& out) {
 		<< "  For --end-to-end:" << endl
 		<< "   --very-fast            -D 5 -R 1 -N 0 -L 22 -i S,0,2.50" << endl
 		<< "   --fast                 -D 10 -R 2 -N 0 -L 22 -i S,0,2.50" << endl
-		<< "   --sensitive            -D 15 -R 2 -N 0 -L 22 -i S,1,1.25 (default)" << endl
+		<< "   --sensitive            -D 15 -R 2 -N 0 -L 22 -i S,1,1.15 (default)" << endl
 		<< "   --very-sensitive       -D 20 -R 3 -N 0 -L 20 -i S,1,0.50" << endl
 		<< endl
 		<< "  For --local:" << endl
@@ -681,7 +681,7 @@ static void printUsage(ostream& out) {
 	    << " Alignment:" << endl
 		<< "  -N <int>           max # mismatches in seed alignment; can be 0 or 1 (0)" << endl
 		<< "  -L <int>           length of seed substrings; must be >3, <32 (22)" << endl
-		<< "  -i <func>          interval between seed substrings w/r/t read len (S,1,1.25)" << endl
+		<< "  -i <func>          interval between seed substrings w/r/t read len (S,1,1.15)" << endl
 		<< "  --n-ceil <func>    func for max # non-A/C/G/Ts permitted in aln (L,0,0.15)" << endl
 		<< "  --dpad <int>       include <int> extra ref chars on sides of DP table (15)" << endl
 		<< "  --gbar <int>       disallow gaps within <int> nucs of read extremes (4)" << endl
