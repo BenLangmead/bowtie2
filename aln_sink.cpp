@@ -1664,8 +1664,7 @@ void AlnSinkSam::appendMate(
 		}
 		fl |= (flags.readMate1() ?
 			SAM_FLAG_FIRST_IN_PAIR : SAM_FLAG_SECOND_IN_PAIR);
-		if(flags.mateAligned()) {
-			assert(rso != NULL);
+		if(flags.mateAligned() && rso != NULL) {
 			if(!rso->fw()) {
 				fl |= SAM_FLAG_MATE_STRAND;
 			}
