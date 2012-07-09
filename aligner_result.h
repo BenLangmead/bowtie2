@@ -378,7 +378,6 @@ public:
 		mixedMode_  = mixedMode;
 		primary_    = primary;
 		oppAligned_ = oppAligned;
-		oppFw_      = oppFw;
 	}
 
 	/**
@@ -524,10 +523,6 @@ public:
 	bool mateAligned() const {
 		return oppAligned_;
 	}
-	
-	bool mateFw() const {
-		return oppFw_;
-	}
 
 protected:
 
@@ -560,8 +555,6 @@ protected:
 
 	// True iff the opposite mate aligned
 	bool oppAligned_;
-	// True iff the opposite mate aligned in fw orientation
-	bool oppFw_;
 };
 
 static inline ostream& operator<<(ostream& os, const AlnScore& o) {
