@@ -1649,7 +1649,7 @@ void AlnSinkSam::appendMate(
 	}
 	int offAdj = 0;
 	// QNAME
-	samc_.printReadName(o, rd.name);
+	samc_.printReadName(o, rd.name, flags.partOfPair());
 	o.append('\t');
 	// FLAG
 	int fl = 0;
