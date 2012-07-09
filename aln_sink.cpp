@@ -771,8 +771,9 @@ void AlnSinkWrap::finishRead(
 				false,      // primary
 				true,       // opp aligned
 				rs1->fw()); // opp fw
-			assert(flags1.mateFw() == rs2->fw());
-			assert(flags2.mateFw() == rs1->fw());
+			// Issue: we only set the flags once, but some of the flags might
+			// vary from pair to pair among the pairs we're reporting.  For
+			// instance, whether the a given mate aligns to the forward strand.
 			SeedAlSumm ssm1, ssm2;
 			sr1->toSeedAlSumm(ssm1);
 			sr2->toSeedAlSumm(ssm2);
@@ -1663,8 +1664,11 @@ void AlnSinkSam::appendMate(
 		}
 		fl |= (flags.readMate1() ?
 			SAM_FLAG_FIRST_IN_PAIR : SAM_FLAG_SECOND_IN_PAIR);
-		if(flags.mateAligned() && !flags.mateFw()) {
-			fl |= SAM_FLAG_MATE_STRAND;
+		if(flags.mateAligned()) {
+			assert(rso != NULL);
+			if(!rso->fw()) {
+				fl |= SAM_FLAG_MATE_STRAND;
+			}
 		}
 	}
 	if(!flags.isPrimary()) {
