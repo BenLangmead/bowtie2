@@ -771,6 +771,8 @@ void AlnSinkWrap::finishRead(
 				false,      // primary
 				true,       // opp aligned
 				rs1->fw()); // opp fw
+			assert(flags1.mateFw() == rs2->fw());
+			assert(flags2.mateFw() == rs1->fw());
 			SeedAlSumm ssm1, ssm2;
 			sr1->toSeedAlSumm(ssm1);
 			sr2->toSeedAlSumm(ssm2);

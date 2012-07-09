@@ -2127,7 +2127,7 @@ void Ebwt::buildToDisk(
 					uint32_t sufInt = 0;
 					for(int i = 0; i < eh._ftabChars; i++) {
 						sufInt <<= 2;
-						assert_lt(i, (int)(len-saElt));
+						assert_lt((uint32_t)i, len-saElt);
 						sufInt |= (unsigned char)(s[saElt+i]);
 					}
 					// Assert that this prefix-of-suffix is greater

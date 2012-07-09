@@ -1265,8 +1265,8 @@ public:
 	 */
 	void setMateParams(
 		int type,
-		const AlnRes* omate,
-		const AlnFlags& flags)
+		const AlnRes* omate,    // alignment result for the opposite mate
+		const AlnFlags& flags)  // flags for this mate
 	{
 		assert_gt(type, 0);
 		type_ = type;
