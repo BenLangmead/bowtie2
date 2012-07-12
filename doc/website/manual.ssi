@@ -1,5 +1,5 @@
 <h1>Table of Contents</h1>
-<p>&nbsp;Version <b>2.0.0-beta6</b></p>
+<p>&nbsp;Version <b>2.0.0-beta7</b></p>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
@@ -133,8 +133,8 @@
 	      >Distinct alignments map a read to different places</a
 	      ></li
 	    ><li
-	    ><a href="#m-mode-search-for-multiple-alignments-report-the-best-one"
-	      >-M mode: search for multiple alignments, report the best one</a
+	    ><a href="#default-mode-search-for-multiple-alignments-report-the-best-one"
+	      >Default mode: search for multiple alignments, report the best one</a
 	      ></li
 	    ><li
 	    ><a href="#k-mode-search-for-one-or-more-alignments-report-each"
@@ -562,6 +562,18 @@
   > from the command line, you will get the version you just installed without having to specify the entire path. This is recommended for most users. To do this, follow your operating system's instructions for adding the directory to your <a href="http://en.wikipedia.org/wiki/PATH_(variable)"
   >PATH</a
   >.</p
+><p
+>If you would like to install Bowtie 2 by copying the Bowtie 2 executable files to an existing directory in your <a href="http://en.wikipedia.org/wiki/PATH_(variable)"
+  >PATH</a
+  >, make sure that you copy all the executables, including <code
+  >bowtie2</code
+  >, <code
+  >bowtie2-align</code
+  >, <code
+  >bowtie2-build</code
+  > and <code
+  >bowtie2-inspect</code
+  >.</p
 ><h1 id="the-bowtie2-aligner"
 ><a href="#TOC"
   >The <code
@@ -883,11 +895,7 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
   >Reporting</a
   ></h2
 ><p
->The reporting mode governs how many alignments Bowtie 2 looks for, and how to report them. Bowtie 2 has three distinct reporting modes. The default reporting mode, <a href="#bowtie2-options-M"
-  ><code
-    >-M</code
-    ></a
-  >, is similar to the default reporting mode of many other read alignment tools, including <a href="http://bio-bwa.sourceforge.net/"
+>The reporting mode governs how many alignments Bowtie 2 looks for, and how to report them. Bowtie 2 has three distinct reporting modes. The default reporting mode is similar to the default reporting mode of many other read alignment tools, including <a href="http://bio-bwa.sourceforge.net/"
   >BWA</a
   >. It is also similar to Bowtie 1's <code
   >-M</code
@@ -904,20 +912,24 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
 >Two alignments for the same individual read are &quot;distinct&quot; if they map the same read to different places. Specifically, we say that two alignments are distinct if there are no alignment positions where a particular read offset is aligned opposite a particular reference offset in both alignments with the same orientation. E.g. if the first alignment is in the forward orientation and aligns the read character at read offset 10 to the reference character at chromosome 3, offset 3,445,245, and the second alignment is also in the forward orientation and also aligns the read character at read offset 10 to the reference character at chromosome 3, offset 3,445,245, they are not distinct alignments.</p
 ><p
 >Two alignments for the same pair are distinct if either the mate 1s in the two paired-end alignments are distinct or the mate 2s in the two alignments are distinct or both.</p
-><h3 id="m-mode-search-for-multiple-alignments-report-the-best-one"
+><h3 id="default-mode-search-for-multiple-alignments-report-the-best-one"
 ><a href="#TOC"
-  >-M mode: search for multiple alignments, report the best one</a
+  >Default mode: search for multiple alignments, report the best one</a
   ></h3
 ><p
->In <a href="#bowtie2-options-M"
+>By default, Bowtie 2 searches for distinct, valid alignments for each read. When it finds a valid alignment, it generally will continue to look for alignments that are nearly as good or better. It will eventually stop looking, either because it exceeded a limit placed on search effort (see <a href="#bowtie2-options-D"
   ><code
-    >-M</code
+    >-D</code
     ></a
-  > mode, Bowtie 2 searches for at most N distinct, valid alignments for each read, where N equals the integer specified with the <code
-  >-M</code
-  > parameter plus one. That is, if <code
-  >-M 3</code
-  > is specified, Bowtie 2 will search for at most 4 distinct alignments. Bowtie 2 will stop searching when it can't find more distinct valid alignments, or when it finds N distinct alignments, whichever happens first. It then reports the best alignment found using information about the other alignments to estimate mapping quality and to set SAM optional fields, such as the <a href="#bowtie2-build-opt-fields-as"
+  > and <a href="#bowtie2-options-R"
+  ><code
+    >-R</code
+    ></a
+  >) or because it already knows all it needs to know to report an alignment. Information from the best alignments are used to estimate mapping quality (the <code
+  >MAPQ</code
+  > <a href="http://samtools.sourceforge.net/SAM1.pdf"
+  >SAM</a
+  > field) and to set SAM optional fields, such as <a href="#bowtie2-build-opt-fields-as"
   ><code
     >AS:i</code
     ></a
@@ -925,13 +937,7 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
   ><code
     >XS:i</code
     ></a
-  > fields.</p
-><p
->Increasing <a href="#bowtie2-options-M"
-  ><code
-    >-M</code
-    ></a
-  > makes Bowtie 2 slower, but increases the likelihood that it will find and report the correct alignment for a read that aligns many places. Bowtie 2 does not &quot;find&quot; alignments in any specific order, so for reads that have more than N distinct, valid alignments, Bowtie 2 does not gaurantee that the alignment reported is the best possible in terms of alignment score.</p
+  >. Bowtie 2 does not gaurantee that the alignment reported is the best possible in terms of alignment score.</p
 ><p
 >See also: <a href="#bowtie2-options-D"
   ><code
@@ -1316,11 +1322,7 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC
   >.rev.1.bt2</code
   > / etc. <code
   >bowtie2</code
-  > looks for the specified index first in the current directory, then in the <code
-  >indexes</code
-  > subdirectory under the directory where the <code
-  >bowtie2</code
-  > executable is located, then looks in the directory specified in the <code
+  > looks for the specified index first in the current directory, then in the directory specified in the <code
   >BOWTIE2_INDEXES</code
   > environment variable.</p
 ></td></tr><tr><td>
@@ -1892,7 +1894,7 @@ Seed 4 rc:                   TTATGCATGA
   > preset is used by default, which sets <code
   >-i</code
   > to <code
-  >S,1,1.25</code
+  >S,1,1.15</code
   > in <a href="#bowtie2-options-end-to-end"
   ><code
     >--end-to-end</code
@@ -2225,58 +2227,6 @@ Seed 4 rc:                   TTATGCATGA
   ></h4
 ><table>
 
-<tr><td id="bowtie2-options-M">
-
-
-<pre
-><code
-  >-M &lt;int&gt;
-</code
-  ></pre
-></td><td>
-<p
->In this mode, <code
-  >bowtie2</code
-  > searches for at most <code
-  >&lt;int&gt;+1</code
-  > distinct, valid alignments for each read. The search terminates when it can't find more distinct valid alignments, or when it finds <code
-  >&lt;int&gt;+1</code
-  > distinct alignments, whichever happens first. Only the best alignment is reported. Information from the other alignments is used to estimate mapping quality and to set SAM optional fields, such as <a href="#bowtie2-build-opt-fields-as"
-  ><code
-    >AS:i</code
-    ></a
-  > and <a href="#bowtie2-build-opt-fields-xs"
-  ><code
-    >XS:i</code
-    ></a
-  >. Increasing <code
-  >-M</code
-  > makes <code
-  >bowtie2</code
-  > slower, but increases the likelihood that it will pick the correct alignment for a read that aligns many places. For reads that have more than <code
-  >&lt;int&gt;+1</code
-  > distinct, valid alignments, Bowtie 2 does not gaurantee that the alignment reported is the best possible in terms of alignment score. See also: <a href="#reporting"
-  >reporting</a
-  >. <code
-  >-M</code
-  > is mutually exclusive with <a href="#bowtie2-options-k"
-  ><code
-    >-k</code
-    ></a
-  > and <a href="#bowtie2-options-a"
-  ><code
-    >-a</code
-    ></a
-  >. The default is 3 in <a href="#bowtie2-options-end-to-end"
-  ><code
-    >--end-to-end</code
-    ></a
-  > mode and 2 in <a href="#bowtie2-options-local"
-  ><code
-    >--local</code
-    ></a
-  > mode.</p
-></td></tr>
 <tr><td id="bowtie2-options-k">
 
 
@@ -2287,9 +2237,23 @@ Seed 4 rc:                   TTATGCATGA
   ></pre
 ></td><td>
 <p
->In this mode, <code
+>By default, <code
   >bowtie2</code
-  > searches for at most <code
+  > searches for distinct, valid alignments for each read. When it finds a valid alignment, it continues looking for alignments that are nearly as good or better. The best alignment found is reported (randomly selected from among best if tied). Information about the best alignments is used to estimate mapping quality and to set SAM optional fields, such as <a href="#bowtie2-build-opt-fields-as"
+  ><code
+    >AS:i</code
+    ></a
+  > and <a href="#bowtie2-build-opt-fields-xs"
+  ><code
+    >XS:i</code
+    ></a
+  >.</p
+><p
+>When <code
+  >-k</code
+  > is specified, however, <code
+  >bowtie2</code
+  > behaves differently. Instead, it searches for at most <code
   >&lt;int&gt;</code
   > distinct, valid alignments for each read. The search terminates when it can't find more distinct valid alignments, or when it finds <code
   >&lt;int&gt;</code
@@ -2301,21 +2265,13 @@ Seed 4 rc:                   TTATGCATGA
   >&lt;int&gt;</code
   > alignments reported are the best possible in terms of alignment score. <code
   >-k</code
-  > is mutually exclusive with <a href="#bowtie2-options-M"
-  ><code
-    >-M</code
-    ></a
-  > and <a href="#bowtie2-options-a"
+  > is mutually exclusive with <a href="#bowtie2-options-a"
   ><code
     >-a</code
     ></a
-  >, and <a href="#bowtie2-options-M"
-  ><code
-    >-M</code
-    ></a
-  > is the default.</p
+  >.</p
 ><p
->Note: Bowtie 2 is not particularly designed with large <code
+>Note: Bowtie 2 is not designed with large values for <code
   >-k</code
   > in mind, and when aligning reads to long, repetitive genomes large <code
   >-k</code
@@ -2337,21 +2293,13 @@ Seed 4 rc:                   TTATGCATGA
     ></a
   > but with no upper limit on number of alignments to search for. <code
   >-a</code
-  > is mutually exclusive with <a href="#bowtie2-options-M"
-  ><code
-    >-M</code
-    ></a
-  > and <a href="#bowtie2-options-k"
+  > is mutually exclusive with <a href="#bowtie2-options-k"
   ><code
     >-k</code
     ></a
-  >, and <a href="#bowtie2-options-M"
-  ><code
-    >-M</code
-    ></a
-  > is the default.</p
+  >.</p
 ><p
->Note: Bowtie 2 is not particularly designed with <code
+>Note: Bowtie 2 is not designed with <code
   >-a</code
   > mode in mind, and when aligning reads to long, repetitive genomes this mode can be very, very slow.</p
 ></td></tr>
@@ -3369,7 +3317,7 @@ Seed 4 rc:                   TTATGCATGA
 
 <pre
     ><code
-      >YF:Z:&lt;N&gt;
+      >YF:Z:&lt;S&gt;
 </code
       ></pre
     ></td><td>
@@ -3377,6 +3325,22 @@ Seed 4 rc:                   TTATGCATGA
     >String indicating reason why the read was filtered out. See also: <a href="#filtering"
       >Filtering</a
       >. Only appears for reads that were filtered out.</p
+    ><pre
+    ><code
+      >YT:Z:&lt;S&gt;
+</code
+      ></pre
+    ></td><td>
+<p
+    >Value of <code
+      >UU</code
+      > indicates the read was not part of a pair. Value of <code
+      >CP</code
+      > indicates the read was part of a pair and the pair aligned concordantly. Value of <code
+      >DP</code
+      > indicates the read was part of a pair and the pair aligned discordantly. Value of <code
+      >UP</code
+      > indicates the read was part of a pair but the pair failed to aligned either concordantly or discordantly.</p
     ></td></tr>
 <tr><td id="bowtie2-build-opt-fields-md">
 
@@ -3905,11 +3869,7 @@ Seed 4 rc:                   TTATGCATGA
   >.rev.X.bt2</code
   > suffix omitted. <code
   >bowtie2-inspect</code
-  > first looks in the current directory for the index files, then looks in the <code
-  >indexes</code
-  > subdirectory under the directory where the currently-running <code
-  >bowtie</code
-  > executable is located, then looks in the directory specified in the <code
+  > first looks in the current directory for the index files, then in the directory specified in the <code
   >BOWTIE2_INDEXES</code
   > environment variable.</p
 ></td></tr></table>
@@ -4204,3 +4164,4 @@ r7  16  gi|9626243|ref|NC_001416.1| 4692    37  143M    *   0   0   TCAGCCGGACGC
   >Calling SNPs/INDELs with SAMtools/BCFtools</a
   > for more details and variations on this process.</p
 >
+

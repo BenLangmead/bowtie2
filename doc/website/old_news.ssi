@@ -1,0 +1,46 @@
+<h2>Version 2.0.0-beta3 - November 1, 2011</h2>
+<ul>
+  <li>Accuracy improvements.</li>
+  <li>Speed improvements in some situations.</li>
+  <li>Fixed a handful of crashing bugs.</li>
+  <li>Fixed a bug whereby number of repetitively aligned reads could be misreported in the summary output.</li>
+  <li>As always, thanks to everyone for their reports and feedback!  Please keep it coming.</li>
+</ul>
+
+<h2>Version 2.0.0-beta2 - October 16, 2011</h2>
+<ul>
+  <li>Added manual, both included in the download package and
+     <a href="manual.shtml">on the website</a>.
+     The website will always have the manual for the latest version.</li>
+  <li>Added Linux 32-bit and 64-bit binary packages.  Mac OS X packages to come.
+     Still working on a Windows package.</li>
+  <li>Fixed a bug that led to crashes when seed-alignment result memory was
+     exhausted.</li>
+  <li>Changed the
+     <tt><a href="manual.shtml#bowtie2-options-end-to-end">--end-to-end</a></tt>
+     mode
+     <tt><a href="manual.shtml#bowtie2-options-score-min">--score-min</a></tt>
+     default to be less permissive.
+     The previous threshold seemed to be having an adverse effect on accuracy,
+     though the fix implemented in this version comes at the expense of some
+     sensitivity.</li>
+  <li>Changed the
+     <tt><a href="manual.shtml#bowtie2-options-end-to-end">--end-to-end</a></tt>
+     mode
+     <tt><a href="manual.shtml#bowtie2-options-M">-M</a></tt>
+     default to be lower by 2 notches.  This
+     offsets any adverse effect that the previous change would have had on
+     speed, without a large adverse impact on accuracy.  As always, setting
+     <tt><a href="manual.shtml#bowtie2-options-M">-M</a></tt>
+     higher will yield still greater accuracy at the expense of speed.</li>
+</ul>
+
+<h2>Version 2.0.0-beta1 - September 22, 2011</h2>
+<ul>
+  <li>First public release</li>
+  <li>Caveats: as of now, the manual is incomplete, there's no tutorial, and no
+      example genome or example reads.  All these will be fixed in upcoming
+      releases.</li>
+  <li>Only a source package is currently available.  Platform-specific binaries
+      will be included in future releases.</li>
+</ul>

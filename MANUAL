@@ -43,7 +43,6 @@ paper].  Thank you!
 [Cufflinks]:       http://cufflinks.cbcb.umd.edu/
 [Crossbow]:        http://bowtie-bio.sf.net/crossbow
 [Myrna]:           http://bowtie-bio.sf.net/myrna
-[BSmooth]:         http://bowtie-bio.sf.net/myrna
 [Bowtie paper]:    http://genomebiology.com/2009/10/3/R25
 [GPLv3 license]:   http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -181,6 +180,11 @@ from the command line, you will get the version you just installed without
 having to specify the entire path.  This is recommended for most users.  To do
 this, follow your operating system's instructions for adding the directory to
 your [PATH].
+
+If you would like to install Bowtie 2 by copying the Bowtie 2 executable files
+to an existing directory in your [PATH], make sure that you copy all the
+executables, including `bowtie2`, `bowtie2-align`, `bowtie2-build` and
+`bowtie2-inspect`.
 
 [PATH environment variable]: http://en.wikipedia.org/wiki/PATH_(variable)
 [PATH]: http://en.wikipedia.org/wiki/PATH_(variable)
@@ -478,8 +482,8 @@ Reporting
 
 The reporting mode governs how many alignments Bowtie 2 looks for, and how to
 report them.  Bowtie 2 has three distinct reporting modes.  The default
-reporting mode, `-M`, is similar to the default reporting mode of many other
-read alignment tools, including [BWA].  It is also similar to Bowtie 1's `-M`
+reporting mode is similar to the default reporting mode of many other read
+alignment tools, including [BWA].  It is also similar to Bowtie 1's `-M`
 alignment mode.
 
 In general, when we say that a read has an alignment, we mean that it has a
@@ -505,22 +509,17 @@ Two alignments for the same pair are distinct if either the mate 1s in the two
 paired-end alignments are distinct or the mate 2s in the two alignments are
 distinct or both.
 
-### -M mode: search for multiple alignments, report the best one
+### Default mode: search for multiple alignments, report the best one
 
-In `-M` mode, Bowtie 2 searches for at most N distinct, valid alignments for
-each read, where N equals the integer specified with the `-M` parameter plus
-one. That is, if `-M 3` is specified, Bowtie 2 will search for at most 4
-distinct alignments.  Bowtie 2 will stop searching when it can't find more
-distinct valid alignments, or when it finds N distinct alignments, whichever
-happens first.  It then reports the best alignment found using information about
-the other alignments to estimate mapping quality and to set SAM optional fields,
-such as the `AS:i` and `XS:i` fields.
-
-Increasing `-M` makes Bowtie 2 slower, but increases the likelihood that it
-will find and report the correct alignment for a read that aligns many places.
-Bowtie 2 does not "find" alignments in any specific order, so for reads that
-have more than N distinct, valid alignments, Bowtie 2 does not gaurantee that
-the alignment reported is the best possible in terms of alignment score.
+By default, Bowtie 2 searches for distinct, valid alignments for each read. When
+it finds a valid alignment, it generally will continue to look for alignments
+that are nearly as good or better.  It will eventually stop looking, either
+because it exceeded a limit placed on search effort (see `-D` and `-R`) or
+because it already knows all it needs to know to report an alignment.
+Information from the best alignments are used to estimate mapping quality (the
+`MAPQ` [SAM] field) and to set SAM optional fields, such as `AS:i` and
+`XS:i`.  Bowtie 2 does not gaurantee that the alignment reported is the best
+possible in terms of alignment score.
 
 See also: `-D`, which puts an upper limit on the number of dynamic programming
 problems (i.e. seed extensions) that can "fail" in a row before Bowtie 2 stops
@@ -766,9 +765,7 @@ considered valid, and `x` is the read length.
 The basename of the index for the reference genome.  The basename is the name of
 any of the index files up to but not including the final `.1.bt2` / `.rev.1.bt2`
 / etc.  `bowtie2` looks for the specified index first in the current directory,
-then in the `indexes` subdirectory under the directory where the `bowtie2`
-executable is located, then looks in the directory specified in the
-`BOWTIE2_INDEXES` environment variable.
+then in the directory specified in the `BOWTIE2_INDEXES` environment variable.
 
     -1 <m1>
 
@@ -1055,44 +1052,36 @@ the default in `--local` mode is `G,20,8`.
 
 #### Reporting options
 
-    -M <int>
-
-In this mode, `bowtie2` searches for at most `<int>+1` distinct, valid
-alignments for each read.  The search terminates when it can't find more
-distinct valid alignments, or when it finds `<int>+1` distinct alignments,
-whichever happens first. Only the best alignment is reported.  Information from
-the other alignments is used to estimate mapping quality and to set SAM optional
-fields, such as `AS:i` and `XS:i`.  Increasing `-M` makes `bowtie2` slower,
-but increases the likelihood that it will pick the correct alignment for a read
-that aligns many places.  For reads that have more than `<int>+1` distinct,
-valid alignments, Bowtie 2 does not gaurantee that the alignment reported is the
-best possible in terms of alignment score.  See also: [reporting].  `-M` is
-mutually exclusive with `-k` and `-a`.  The default is 3 in `--end-to-end`
-mode and 2 in `--local` mode.
-
     -k <int>
 
-In this mode, `bowtie2` searches for at most `<int>` distinct, valid alignments
-for each read.  The search terminates when it can't find more distinct valid
-alignments, or when it finds `<int>`, whichever happens first.  All alignments
-found are reported in descending order by alignment score. The alignment score
-for a paired-end alignment equals the sum of the alignment scores of the
-individual mates. Each reported read or pair alignment beyond the first has the
-SAM 'secondary' bit (which equals 256) set in its FLAGS field.  For reads that
-have more than `<int>` distinct, valid alignments, `bowtie2` does not gaurantee
-that the `<int>` alignments reported are the best possible in terms of alignment
-score.  `-k` is mutually exclusive with `-M` and `-a`, and `-M` is the
-default.
+By default, `bowtie2` searches for distinct, valid alignments for each read.
+When it finds a valid alignment, it continues looking for alignments that are
+nearly as good or better.  The best alignment found is reported (randomly
+selected from among best if tied).  Information about the best alignments is
+used to estimate mapping quality and to set SAM optional fields, such as
+`AS:i` and `XS:i`.
 
-Note: Bowtie 2 is not particularly designed with large `-k` in mind, and when
+When `-k` is specified, however, `bowtie2` behaves differently.  Instead, it
+searches for at most `<int>` distinct, valid alignments for each read.  The
+search terminates when it can't find more distinct valid alignments, or when it
+finds `<int>`, whichever happens first.  All alignments found are reported in
+descending order by alignment score. The alignment score for a paired-end
+alignment equals the sum of the alignment scores of the individual mates. Each
+reported read or pair alignment beyond the first has the SAM 'secondary' bit
+(which equals 256) set in its FLAGS field.  For reads that have more than
+`<int>` distinct, valid alignments, `bowtie2` does not gaurantee that the
+`<int>` alignments reported are the best possible in terms of alignment score. 
+`-k` is mutually exclusive with `-a`.
+
+Note: Bowtie 2 is not designed with large values for `-k` in mind, and when
 aligning reads to long, repetitive genomes large `-k` can be very, very slow.
 
     -a
 
 Like `-k` but with no upper limit on number of alignments to search for.  `-a`
-is mutually exclusive with `-M` and `-k`, and `-M` is the default.
+is mutually exclusive with `-k`.
 
-Note: Bowtie 2 is not particularly designed with `-a` mode in mind, and when
+Note: Bowtie 2 is not designed with `-a` mode in mind, and when
 aligning reads to long, repetitive genomes this mode can be very, very slow.
 
 #### Effort options
@@ -1471,10 +1460,18 @@ alignment:
     string into the reference string.  Only present if SAM record is for an
     aligned read.
 
-        YF:Z:<N>
+        YF:Z:<S>
 
     String indicating reason why the read was filtered out.  See also:
     [Filtering].  Only appears for reads that were filtered out.
+
+        YT:Z:<S>
+
+    Value of `UU` indicates the read was not part of a pair.  Value of `CP`
+    indicates the read was part of a pair and the pair aligned concordantly.
+    Value of `DP` indicates the read was part of a pair and the pair aligned
+    discordantly.  Value of `UP` indicates the read was part of a pair but the
+    pair failed to aligned either concordantly or discordantly.
 
         MD:Z:<S>
 
@@ -1685,9 +1682,7 @@ Usage:
 The basename of the index to be inspected.  The basename is name of any of the
 index files but with the `.X.bt2` or `.rev.X.bt2` suffix omitted.
 `bowtie2-inspect` first looks in the current directory for the index files, then
-looks in the `indexes` subdirectory under the directory where the
-currently-running `bowtie` executable is located, then looks in the directory
-specified in the `BOWTIE2_INDEXES` environment variable.
+in the directory specified in the `BOWTIE2_INDEXES` environment variable.
 
 ### Options
 
