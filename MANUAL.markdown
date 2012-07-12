@@ -789,9 +789,7 @@ considered valid, and `x` is the read length.
 The basename of the index for the reference genome.  The basename is the name of
 any of the index files up to but not including the final `.1.bt2` / `.rev.1.bt2`
 / etc.  `bowtie2` looks for the specified index first in the current directory,
-then in the `indexes` subdirectory under the directory where the `bowtie2`
-executable is located, then looks in the directory specified in the
-`BOWTIE2_INDEXES` environment variable.
+then in the directory specified in the `BOWTIE2_INDEXES` environment variable.
 
 </td></tr><tr><td>
 
@@ -2530,9 +2528,7 @@ Usage:
 The basename of the index to be inspected.  The basename is name of any of the
 index files but with the `.X.bt2` or `.rev.X.bt2` suffix omitted.
 `bowtie2-inspect` first looks in the current directory for the index files, then
-looks in the `indexes` subdirectory under the directory where the
-currently-running `bowtie` executable is located, then looks in the directory
-specified in the `BOWTIE2_INDEXES` environment variable.
+in the directory specified in the `BOWTIE2_INDEXES` environment variable.
 
 </td></tr></table>
 

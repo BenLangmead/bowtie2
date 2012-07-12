@@ -1,3 +1,57 @@
+<h2>Version 2.0.0-beta7 - July 12, 2012</h2>
+<ul>
+ <li>Fixed an issue in how Bowtie 2 aligns longer reads in
+      <tt><a href="manual.shtml#bowtie2-options-local">--local</a></tt>.
+	 mode.  Some
+     alignments were incorrectly curtailed on the left-hand side.</li>
+ <li>Fixed issue whereby
+      <tt><a href="manual.shtml#bowtie2-options-un">--un</a></tt> or
+      <tt><a href="manual.shtml#bowtie2-options-un-conc">--un-conc</a></tt> 
+	 would fail to output unaligned reads when
+     <tt><a href="manual.shtml#bowtie2-options-no-unal">--no-unal</a></tt>
+	  was also specified.</li>
+ <li>Fixed issue whereby 
+      <tt><a href="manual.shtml#bowtie2-options-un">--un</a></tt> or
+      <tt><a href="manual.shtml#bowtie2-options-un-conc">--un-conc</a></tt> 
+      were significantly slowing down Bowtie 2 when
+     <tt><a href="manual.shtml#bowtie2-options-p">-p</a></tt>
+	 was set greater than 1.</li>
+ <li>Fixed issue that would could cause hangs in
+     <tt><a href="manual.shtml#bowtie2-options-a">-a</a></tt>
+	 mode or when
+	 <tt><a href="manual.shtml#bowtie2-options-k">-k</a></tt>
+	 was set high.</li>
+ <li>Fixed issue whereby the SAM FLAGS field could be set incorrectly for
+     secondary paired-end alignments with
+	 <tt><a href="manual.shtml#bowtie2-options-a">-a</a></tt>
+	 or
+	 <tt><a href="manual.shtml#bowtie2-options-k">-k</a></tt>
+	 > 1.</li>
+ <li>When input reads are unpaired, Bowtie 2 no longer removes the trailing
+     <tt>/1</tt> or <tt>/2</tt> from the read name.</li>
+ <li><tt>-M</tt> option is now deprecated.  It will be removed in subsequent versions.
+     What used to be called <tt>-M</tt> mode is still the default mode, and
+	 <tt><a href="manual.shtml#bowtie2-options-k">-k</a></tt>
+	 and
+	 <tt><a href="manual.shtml#bowtie2-options-a">-a</a></tt>
+     are still there alternatives to the default mode, but adjusting the <tt>-M</tt>
+     setting is deprecated.  Use the
+	 <tt><a href="manual.shtml#bowtie2-options-D">-D</a></tt>
+	 and
+	 <tt><a href="manual.shtml#bowtie2-options-R">-R</a></tt>
+	 options to adjust the effort
+     expended to find valid alignments.</li>
+ <li>Gaps are now left-aligned in a manner similar to BWA and other tools.</li>
+ <li>Fixed issue whereby wrapper script would not pass on exitlevel correctly,
+     sometimes spuriously hiding non-0 exitlevel.</li>
+ <li>Added documentation for <tt>YT:Z</tt> to manual.</li>
+ <li>Fixed documentation describing how Bowtie 2 searches for an index given an
+     index basename.</li>
+ <li>Fixed inconsistent documentation for the default value of the
+     <tt><a href="manual.shtml#bowtie2-options-i">-i</a></tt>
+	 parameter </li>
+</ul>
+
 <h2>Added rat pre-built index - May 17 2012</h2>
 
 <h2>Version 2.0.0-beta6 - May 7, 2012</h2>
@@ -90,49 +144,4 @@
       <tt><a href="manual.shtml#bowtie2-options-mp">--mp</a></tt> option so that user can set maximum and minimum mismatch penalties at once.  Also tweaked the formula for calculating the quality-aware mismatch penalty.</li>
 </ul>
 
-<h2>Version 2.0.0-beta3 - November 1, 2011</h2>
-<ul>
-  <li>Accuracy improvements.</li>
-  <li>Speed improvements in some situations.</li>
-  <li>Fixed a handful of crashing bugs.</li>
-  <li>Fixed a bug whereby number of repetitively aligned reads could be misreported in the summary output.</li>
-  <li>As always, thanks to everyone for their reports and feedback!  Please keep it coming.</li>
-</ul>
 
-<h2>Version 2.0.0-beta2 - October 16, 2011</h2>
-<ul>
-  <li>Added manual, both included in the download package and
-     <a href="manual.shtml">on the website</a>.
-     The website will always have the manual for the latest version.</li>
-  <li>Added Linux 32-bit and 64-bit binary packages.  Mac OS X packages to come.
-     Still working on a Windows package.</li>
-  <li>Fixed a bug that led to crashes when seed-alignment result memory was
-     exhausted.</li>
-  <li>Changed the
-     <tt><a href="manual.shtml#bowtie2-options-end-to-end">--end-to-end</a></tt>
-     mode
-     <tt><a href="manual.shtml#bowtie2-options-score-min">--score-min</a></tt>
-     default to be less permissive.
-     The previous threshold seemed to be having an adverse effect on accuracy,
-     though the fix implemented in this version comes at the expense of some
-     sensitivity.</li>
-  <li>Changed the
-     <tt><a href="manual.shtml#bowtie2-options-end-to-end">--end-to-end</a></tt>
-     mode
-     <tt><a href="manual.shtml#bowtie2-options-M">-M</a></tt>
-     default to be lower by 2 notches.  This
-     offsets any adverse effect that the previous change would have had on
-     speed, without a large adverse impact on accuracy.  As always, setting
-     <tt><a href="manual.shtml#bowtie2-options-M">-M</a></tt>
-     higher will yield still greater accuracy at the expense of speed.</li>
-</ul>
-
-<h2>Version 2.0.0-beta1 - September 22, 2011</h2>
-<ul>
-  <li>First public release</li>
-  <li>Caveats: as of now, the manual is incomplete, there's no tutorial, and no
-      example genome or example reads.  All these will be fixed in upcoming
-      releases.</li>
-  <li>Only a source package is currently available.  Platform-specific binaries
-      will be included in future releases.</li>
-</ul>

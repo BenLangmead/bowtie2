@@ -1677,30 +1677,15 @@ string adjustEbwtBase(const string& cmdline,
 	if(!in.is_open()) {
 		if(verbose) cout << "  didn't work" << endl;
 		in.close();
-		str = cmdline;
-		size_t st = str.find_last_of("/\\");
-		if(st != string::npos) {
-			str.erase(st);
-			str += "/indexes/";
-		} else {
-			str = "indexes/";
-		}
-		str += ebwtFileBase;
-		if(verbose) cout << "Trying " << str << endl;
-		in.open((str + ".1.bt2").c_str(), ios_base::in | ios::binary);
-		if(!in.is_open()) {
-			if(verbose) cout << "  didn't work" << endl;
-			in.close();
-			if(getenv("BOWTIE2_INDEXES") != NULL) {
-				str = string(getenv("BOWTIE2_INDEXES")) + "/" + ebwtFileBase;
-				if(verbose) cout << "Trying " << str << endl;
-				in.open((str + ".1.bt2").c_str(), ios_base::in | ios::binary);
-				if(!in.is_open()) {
-					if(verbose) cout << "  didn't work" << endl;
-					in.close();
-				} else {
-					if(verbose) cout << "  worked" << endl;
-				}
+		if(getenv("BOWTIE2_INDEXES") != NULL) {
+			str = string(getenv("BOWTIE2_INDEXES")) + "/" + ebwtFileBase;
+			if(verbose) cout << "Trying " << str << endl;
+			in.open((str + ".1.bt2").c_str(), ios_base::in | ios::binary);
+			if(!in.is_open()) {
+				if(verbose) cout << "  didn't work" << endl;
+				in.close();
+			} else {
+				if(verbose) cout << "  worked" << endl;
 			}
 		}
 	}
