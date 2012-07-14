@@ -1,4 +1,4 @@
-<h2>Version 2.0.0-beta7 - July 12, 2012</h2>
+<h2>Version 2.0.0-beta7 - July 13, 2012</h2>
 <ul>
  <li>Fixed an issue in how Bowtie 2 aligns longer reads in
       <tt><a href="manual.shtml#bowtie2-options-local">--local</a></tt>.
