@@ -12,5 +12,6 @@
 #
 
 [ -z "$SF_USER" ] && echo "Must set SF_USER" && exit 1
+[ -z "$BOWTIE_DOCS" ] && echo "Must set BOWTIE_DOCS" && exit 1
 
-scp -r ../style.css *.ssi *.shtml *.html $SF_USER,bowtie-bio@web.sourceforge.net:/home/groups/b/bo/bowtie-bio/htdocs/bowtie2/
+scp -r $BOWTIE_DOCS/other_tools.ssi ../style.css *.ssi *.shtml *.html $SF_USER,bowtie-bio@web.sourceforge.net:/home/groups/b/bo/bowtie-bio/htdocs/bowtie2/

@@ -1,0 +1,33 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>Bowtie 2: fast and sensitive read alignment</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" type="text/css" href="style.css" media="screen" />
+<meta name="verify-v1" content="YJT1CfXN3kzE9cr+jvNB+Q73lTfHrv8eivoY+xjblc0=" />
+</head>
+<body>
+<div id="wrap">
+  <!--#include virtual="top.ssi" -->
+  <div id="main">
+  	<!--#include virtual="rhsidebar.ssi" -->
+    <div id="leftside">
+    	<!--#include virtual="other_tools.ssi" -->
+    </div>
+  </div>
+  <!--#include virtual="foot.ssi" -->
+</div>
+
+<!-- Google analytics code -->
+<script type="text/javascript">
+var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
+document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
+</script>
+<script type="text/javascript">
+var pageTracker = _gat._getTracker("UA-5334290-1");
+pageTracker._trackPageview();
+</script>
+<!-- End google analytics code -->
+
+</body>
+</html>

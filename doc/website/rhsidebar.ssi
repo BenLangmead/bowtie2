@@ -7,6 +7,7 @@
       <li><a href="manual.shtml">Manual</a></li>
       <li><a href="manual.shtml#getting-started-with-bowtie-2-lambda-phage-example">Getting started</a></li>
       <li><a href="faq.shtml">Frequently Asked Questions</a></li>
+      <li><a href="other_tools.shtml">Tools that use Bowtie</a></li>
     </ul>
   </div>
   <h2>Latest Release</h2>
