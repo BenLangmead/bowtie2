@@ -280,7 +280,6 @@ fastaRefReadSizes(
 {
 	uint32_t unambigTot = 0;
 	uint32_t bothTot = 0;
-	RefReadInParams rpcp = rparms;
 	assert_gt(in.size(), 0);
 	// For each input istream
 	for(size_t i = 0; i < in.size(); i++) {
