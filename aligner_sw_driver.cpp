@@ -59,6 +59,9 @@ using namespace std;
  * up all of our state for resolving and keeping track of reference offsets for
  * hits.  Order the list of ranges to examine such that all exact end-to-end
  * alignments are examined before any 1mm end-to-end alignments.
+ *
+ * Note: there might be a lot of hits and a lot of wide ranges to look for
+ * here.  We use 'maxelt'.
  */
 bool SwDriver::eeSaTups(
 	const Read& rd,              // read
@@ -69,8 +72,10 @@ bool SwDriver::eeSaTups(
 	WalkMetrics& wlm,            // group walk left metrics
 	SwMetrics& swmSeed,          // metrics for seed extensions
 	size_t& nelt_out,            // out: # elements total
+    size_t maxelt,               // max elts we'll consider
 	bool all)                    // report all hits?
 {
+    assert_eq(0, nelt_out);
 	gws_.clear();
 	rands_.clear();
 	satpos_.clear();
@@ -81,18 +86,22 @@ bool SwDriver::eeSaTups(
 	if(!sh.exactFwEEHit().empty()) nobj++;
 	if(!sh.exactRcEEHit().empty()) nobj++;
 	nobj += sh.mm1EEHits().size();
+    nobj = min(nobj, maxelt);
 	gws_.ensure(nobj);
 	rands_.ensure(nobj);
 	satpos_.ensure(nobj);
-	eehits_.ensure(nobj);	
+	eehits_.ensure(nobj);
 	size_t tot = sh.exactFwEEHit().size() + sh.exactRcEEHit().size();
 	bool succ = false;
 	bool firstEe = true;
+    bool done = false;
 	if(tot > 0) {
+        // Pick fw / rc to go first in a weighted random fashion
 		uint32_t rn = rnd.nextU32() % (uint32_t)tot;
-		for(int fwi = 0; fwi < 2; fwi++) {
+		for(int fwi = 0; fwi < 2 && !done; fwi++) {
 			bool fw = (fwi == 0);
 			if(rn >= sh.exactFwEEHit().size()) {
+                // Picked RC first
 				fw = !fw;
 			}
 			EEHit hit = fw ? sh.exactFwEEHit() : sh.exactRcEEHit();
@@ -101,91 +110,159 @@ bool SwDriver::eeSaTups(
 			}
 			assert(hit.fw == fw);
 			if(hit.bot > hit.top) {
-				// Clear list where resolved offsets are stored
-				swmSeed.exranges++;
-				swmSeed.exrows += (hit.bot - hit.top);
-				if(!succ) {
-					swmSeed.exsucc++;
-					succ = true;
-				}
-				if(firstEe) {
-					salistEe_.clear();
-					pool_.clear();
-					firstEe = false;
-				}
-				TSlice o(salistEe_, (uint32_t)salistEe_.size(), hit.bot - hit.top);
-				for(size_t i = 0; i < hit.bot - hit.top; i++) {
-					if(!salistEe_.add(pool_, 0xffffffff)) {
-						swmSeed.exooms++;
-						return false;
-					}
-				}
-				eehits_.push_back(hit);
-				satpos_.expand();
-				satpos_.back().sat.init(SAKey(), hit.top, 0xffffffff, o);
-				satpos_.back().sat.key.seq = MAX_U64;
-				satpos_.back().sat.key.len = (uint32_t)rd.length();
-				satpos_.back().pos.init(hit.fw, 0, 0, (uint32_t)rd.length());
-				satpos_.back().origSz = hit.bot - hit.top;
-				rands_.expand();
-				rands_.back().init(hit.bot - hit.top, all);
-				gws_.expand();
-				gws_.back().init(
-					ebwt,               // forward Bowtie index
-					ref,                // reference sequences
-					satpos_.back().sat, // SATuple
-					rnd,                // pseudo-random generator
-					wlm);               // metrics
-				assert(gws_.back().repOk());
-				nelt_out += (hit.bot - hit.top);
+                // Possibly adjust bot and width if we would have exceeded maxelt
+                uint32_t tops[2] = { hit.top, 0 };
+                uint32_t bots[2] = { hit.bot, 0 };
+                uint32_t width = hit.bot - hit.top;
+                if(nelt_out + width > maxelt) {
+                    uint32_t trim = (uint32_t)((nelt_out + width) - maxelt);
+                    uint32_t rn = rnd.nextU32() % width;
+                    uint32_t newwidth = width - trim;
+                    if(hit.top + rn + newwidth > hit.bot) {
+                        // Two pieces
+                        tops[0] = hit.top + rn;
+                        bots[0] = hit.bot;
+                        tops[1] = hit.top;
+                        bots[1] = hit.top + newwidth - (bots[0] - tops[0]);
+                    } else {
+                        // One piece
+                        tops[0] = hit.top + rn;
+                        bots[0] = tops[0] + newwidth;
+                    }
+                    assert_leq(bots[0], hit.bot);
+                    assert_leq(bots[1], hit.bot);
+                    assert_geq(bots[0], tops[0]);
+                    assert_geq(bots[1], tops[1]);
+                    assert_eq(newwidth, (bots[0] - tops[0]) + (bots[1] - tops[1]));
+                }
+                for(int i = 0; i < 2 && !done; i++) {
+                    if(bots[i] <= tops[i]) break;
+                    uint32_t width = bots[i] - tops[i];
+                    uint32_t top = tops[i];
+                    // Clear list where resolved offsets are stored
+                    swmSeed.exranges++;
+                    swmSeed.exrows += width;
+                    if(!succ) {
+                        swmSeed.exsucc++;
+                        succ = true;
+                    }
+                    if(firstEe) {
+                        salistEe_.clear();
+                        pool_.clear();
+                        firstEe = false;
+                    }
+                    // We have to be careful not to allocate excessive amounts of memory here
+                    TSlice o(salistEe_, (uint32_t)salistEe_.size(), width);
+                    for(size_t i = 0; i < width; i++) {
+                        if(!salistEe_.add(pool_, 0xffffffff)) {
+                            swmSeed.exooms++;
+                            return false;
+                        }
+                    }
+                    assert(!done);
+                    eehits_.push_back(hit);
+                    satpos_.expand();
+                    satpos_.back().sat.init(SAKey(), top, 0xffffffff, o);
+                    satpos_.back().sat.key.seq = MAX_U64;
+                    satpos_.back().sat.key.len = (uint32_t)rd.length();
+                    satpos_.back().pos.init(fw, 0, 0, (uint32_t)rd.length());
+                    satpos_.back().origSz = width;
+                    rands_.expand();
+                    rands_.back().init(width, all);
+                    gws_.expand();
+                    gws_.back().init(
+                        ebwt,               // forward Bowtie index
+                        ref,                // reference sequences
+                        satpos_.back().sat, // SATuple
+                        rnd,                // pseudo-random generator
+                        wlm);               // metrics
+                    assert(gws_.back().repOk());
+                    nelt_out += width;
+                    if(nelt_out >= maxelt) {
+                        done = true;
+                    }
+                }
 			}
 		}
 	}
 	succ = false;
-	if(!sh.mm1EEHits().empty()) {
+	if(!done && !sh.mm1EEHits().empty()) {
 		sh.sort1mmEe();
 		size_t sz = sh.mm1EEHits().size();
-		for(size_t i = 0; i < sz; i++) {
+		for(size_t i = 0; i < sz && !done; i++) {
 			EEHit hit = sh.mm1EEHits()[i];
 			assert(hit.repOk(rd));
 			assert(!hit.empty());
-			// Clear list where resolved offsets are stored
-			swmSeed.mm1ranges++;
-			swmSeed.mm1rows += (hit.bot - hit.top);
-			if(!succ) {
-				swmSeed.mm1succ++;
-				succ = true;
-			}
-			if(firstEe) {
-				salistEe_.clear();
-				pool_.clear();
-				firstEe = false;
-			}
-			TSlice o(salistEe_, (uint32_t)salistEe_.size(), hit.bot - hit.top);
-			for(size_t i = 0; i < hit.bot - hit.top; i++) {
-				if(!salistEe_.add(pool_, 0xffffffff)) {
-					swmSeed.mm1ooms++;
-					return false;
-				}
-			}
-			eehits_.push_back(hit);
-			satpos_.expand();
-			satpos_.back().sat.init(SAKey(), hit.top, 0xffffffff, o);
-			satpos_.back().sat.key.seq = MAX_U64;
-			satpos_.back().sat.key.len = (uint32_t)rd.length();
-			satpos_.back().pos.init(hit.fw, 0, 0, (uint32_t)rd.length());
-			satpos_.back().origSz = hit.bot - hit.top;
-			rands_.expand();
-			rands_.back().init(hit.bot - hit.top, all);
-			gws_.expand();
-			gws_.back().init(
-				ebwt,               // forward Bowtie index
-				ref,                // reference sequences
-				satpos_.back().sat, // SATuple
-				rnd,                // pseudo-random generator
-				wlm);               // metrics
-			assert(gws_.back().repOk());
-			nelt_out += (hit.bot - hit.top);
+            // Possibly adjust bot and width if we would have exceeded maxelt
+            uint32_t tops[2] = { hit.top, 0 };
+            uint32_t bots[2] = { hit.bot, 0 };
+            uint32_t width = hit.bot - hit.top;
+            if(nelt_out + width > maxelt) {
+                uint32_t trim = (uint32_t)((nelt_out + width) - maxelt);
+                uint32_t rn = rnd.nextU32() % width;
+                uint32_t newwidth = width - trim;
+                if(hit.top + rn + newwidth > hit.bot) {
+                    // Two pieces
+                    tops[0] = hit.top + rn;
+                    bots[0] = hit.bot;
+                    tops[1] = hit.top;
+                    bots[1] = hit.top + newwidth - (bots[0] - tops[0]);
+                } else {
+                    // One piece
+                    tops[0] = hit.top + rn;
+                    bots[0] = tops[0] + newwidth;
+                }
+                assert_leq(bots[0], hit.bot);
+                assert_leq(bots[1], hit.bot);
+                assert_geq(bots[0], tops[0]);
+                assert_geq(bots[1], tops[1]);
+                assert_eq(newwidth, (bots[0] - tops[0]) + (bots[1] - tops[1]));
+            }
+            for(int i = 0; i < 2 && !done; i++) {
+                if(bots[i] <= tops[i]) break;
+                uint32_t width = bots[i] - tops[i];
+                uint32_t top = tops[i];
+                // Clear list where resolved offsets are stored
+                swmSeed.mm1ranges++;
+                swmSeed.mm1rows += width;
+                if(!succ) {
+                    swmSeed.mm1succ++;
+                    succ = true;
+                }
+                if(firstEe) {
+                    salistEe_.clear();
+                    pool_.clear();
+                    firstEe = false;
+                }
+                TSlice o(salistEe_, (uint32_t)salistEe_.size(), width);
+                for(size_t i = 0; i < width; i++) {
+                    if(!salistEe_.add(pool_, 0xffffffff)) {
+                        swmSeed.mm1ooms++;
+                        return false;
+                    }
+                }
+                eehits_.push_back(hit);
+                satpos_.expand();
+                satpos_.back().sat.init(SAKey(), top, 0xffffffff, o);
+                satpos_.back().sat.key.seq = MAX_U64;
+                satpos_.back().sat.key.len = (uint32_t)rd.length();
+                satpos_.back().pos.init(hit.fw, 0, 0, (uint32_t)rd.length());
+                satpos_.back().origSz = width;
+                rands_.expand();
+                rands_.back().init(width, all);
+                gws_.expand();
+                gws_.back().init(
+                    ebwt,               // forward Bowtie index
+                    ref,                // reference sequences
+                    satpos_.back().sat, // SATuple
+                    rnd,                // pseudo-random generator
+                    wlm);               // metrics
+                assert(gws_.back().repOk());
+                nelt_out += width;
+                if(nelt_out >= maxelt) {
+                    done = true;
+                }
+            }
 		}
 	}
 	return true;
@@ -724,6 +801,7 @@ int SwDriver::extendSeeds(
 					wlm,          // group walk left metrics
 					swmSeed,      // seed-extend metrics
 					nelt,         // out: # elements total
+                    maxIters,     // max # to report
 					all);         // report all hits?
 				assert_eq(gws_.size(), rands_.size());
 				assert_eq(gws_.size(), satpos_.size());
@@ -1392,6 +1470,7 @@ int SwDriver::extendSeedsPaired(
 					wlm,          // group walk left metrics
 					swmSeed,      // seed-extend metrics
 					nelt,         // out: # elements total
+                    maxIters,     // max elts to report
 					all);         // report all hits
 				assert_eq(gws_.size(), rands_.size());
 				assert_eq(gws_.size(), satpos_.size());

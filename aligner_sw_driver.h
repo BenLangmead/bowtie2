@@ -448,6 +448,7 @@ protected:
 		WalkMetrics& wlm,            // group walk left metrics
 		SwMetrics& swmSeed,          // metrics for seed extensions
 		size_t& nelt_out,            // out: # elements total
+        size_t maxelts,              // max # elts to report
 		bool all);                   // report all hits?
 
 	void extend(
