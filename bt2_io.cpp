@@ -111,7 +111,7 @@ void Ebwt::readIntoMemory(
 				}
 				mmFile[i] = (char*)mmap((void *)0, (size_t)sbuf.st_size,
 										PROT_READ, MAP_SHARED, fds[(size_t)i], 0);
-				if(mmFile == (void *)(-1)) {
+				if(mmFile[i] == (void *)(-1)) {
 					perror("mmap");
 					cerr << "Error: Could not memory-map the index file " << names[i] << endl;
 					throw 1;
