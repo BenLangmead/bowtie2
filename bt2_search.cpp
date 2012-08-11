@@ -162,8 +162,6 @@ static string rgs;            // SAM outputs for @RG header line
 static string rgs_optflag;    // SAM optional flag to add corresponding to @RG ID
 static bool msample;          // whether to report a random alignment when maxed-out via -m/-M
 int      gGapBarrier;         // # diags on top/bot only to be entered diagonally
-int64_t  gRowLow;             // backtraces start from row w/ idx >= this (-1=no limit)
-bool     gRowFirst;           // sort alignments by row then score?
 static EList<string> qualities;
 static EList<string> qualities1;
 static EList<string> qualities2;
@@ -337,8 +335,6 @@ static void resetOptions() {
 	rgs_optflag				= "";    // SAM optional flag to add corresponding to @RG ID
 	msample				    = true;
 	gGapBarrier				= 4;     // disallow gaps within this many chars of either end of alignment
-	gRowLow                 = -1;    // backtraces start from row w/ idx >= this (-1=no limit)
-	gRowFirst               = false; // sort alignments by row then score?
 	qualities.clear();
 	qualities1.clear();
 	qualities2.clear();
@@ -1438,11 +1434,6 @@ static void parseOptions(int argc, const char **argv) {
 	} else {
 		assert_gt(mhits, 0);
 		msample = true;
-	}
-	if(localAlign) {
-		gRowLow = 0;
-	} else {
-		gRowLow = -1;
 	}
 	if(mates1.size() != mates2.size()) {
 		cerr << "Error: " << mates1.size() << " mate files/sequences were specified with -1, but " << mates2.size() << endl
@@ -3908,9 +3899,7 @@ static void driver(
 			penRfGapConst,  // constant coeff for ref gap cost
 			penRdGapLinear, // linear coeff for read gap cost
 			penRfGapLinear, // linear coeff for ref gap cost
-			gGapBarrier,    // # rows at top/bot only entered diagonally
-			gRowLow,        // min row idx to backtrace from; -1 = no limit
-			gRowFirst);     // sort results first by row then by score?
+			gGapBarrier);   // # rows at top/bot only entered diagonally
 		EList<size_t> reflens;
 		for(size_t i = 0; i < ebwt.nPat(); i++) {
 			reflens.push_back(ebwt.plen()[i]);

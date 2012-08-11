@@ -38,9 +38,9 @@ public:
  * all assertion error messages more helpful.
  */
 #ifndef NDEBUG
-#define ASSERT_ONLY(x...) x
+#define ASSERT_ONLY(...) __VA_ARGS__
 #else
-#define ASSERT_ONLY(x...)
+#define ASSERT_ONLY(...)
 #endif
 
 #define rt_assert(b)  \

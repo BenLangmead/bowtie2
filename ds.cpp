@@ -20,3 +20,74 @@
 #include "ds.h"
 
 MemoryTally gMemTally;
+
+#ifdef MAIN_DS
+
+#include <limits>
+#include "random_source.h"
+
+using namespace std;
+
+int main(void) {
+	cerr << "Test EHeap 1...";
+	{
+		EHeap<float> h;
+		h.insert(0.5f);  // 1
+		h.insert(0.6f);  // 2
+		h.insert(0.25f); // 3
+		h.insert(0.75f); // 4
+		h.insert(0.1f);  // 5
+		h.insert(0.9f);  // 6
+		h.insert(0.4f);  // 7
+		assert_eq(7, h.size());
+		if(h.pop() != 0.1f) {
+			throw 1;
+		}
+		assert_eq(6, h.size());
+		if(h.pop() != 0.25f) {
+			throw 1;
+		}
+		assert_eq(5, h.size());
+		if(h.pop() != 0.4f) {
+			throw 1;
+		}
+		assert_eq(4, h.size());
+		if(h.pop() != 0.5f) {
+			throw 1;
+		}
+		assert_eq(3, h.size());
+		if(h.pop() != 0.6f) {
+			throw 1;
+		}
+		assert_eq(2, h.size());
+		if(h.pop() != 0.75f) {
+			throw 1;
+		}
+		assert_eq(1, h.size());
+		if(h.pop() != 0.9f) {
+			throw 1;
+		}
+		assert_eq(0, h.size());
+		assert(h.empty());
+	}
+	cerr << "PASSED" << endl;
+
+	cerr << "Test EHeap 2...";
+	{
+		EHeap<size_t> h;
+		RandomSource rnd(12);
+		size_t lim = 20000;
+		while(h.size() < lim) {
+			h.insert(rnd.nextU32());
+		}
+		size_t last = std::numeric_limits<size_t>::max();
+		while(!h.empty()) {
+			size_t p = h.pop();
+			assert_geq(p, last);
+			last = p;
+		}
+	}
+	cerr << "PASSED" << endl;
+}
+
+#endif /*def MAIN_SSTRING*/

@@ -1262,7 +1262,7 @@ void BtBranchTracer::addOffshoots(size_t bid) {
 				assert_gt(rdgapPen, 0);
 				if(cp && prob_.cper_->isCheckpointed(row, col - 1)) {
 					// Possibly prune
-					int16_t cpsc = prob_.cper_->scoreTriangle(row, col - 1, 0);
+					int16_t cpsc = (int16_t)prob_.cper_->scoreTriangle(row, col - 1, 0);
 					assert_leq(cpsc, perfectScore);
 					assert_geq(prob_.sc_->readGapOpen(), prob_.sc_->readGapExtend());
 					TAlScore bonus = prob_.sc_->readGapOpen() - prob_.sc_->readGapExtend();
@@ -1290,7 +1290,7 @@ void BtBranchTracer::addOffshoots(size_t bid) {
 				assert_gt(rfgapPen, 0);
 				if(cp && prob_.cper_->isCheckpointed(row - 1, col)) {
 					// Possibly prune
-					int16_t cpsc = prob_.cper_->scoreTriangle(row - 1, col, 0);
+					int16_t cpsc = (int16_t)prob_.cper_->scoreTriangle(row - 1, col, 0);
 					assert_leq(cpsc, perfectScore);
 					assert_geq(prob_.sc_->refGapOpen(), prob_.sc_->refGapExtend());
 					TAlScore bonus = prob_.sc_->refGapOpen() - prob_.sc_->refGapExtend();

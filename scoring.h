@@ -147,9 +147,7 @@ public:
 	    int   rfGpConst,    // constant coeff for cost of gap in the ref
 	    int   rdGpLinear,   // coeff of linear term for cost of gap in read
 	    int   rfGpLinear,   // coeff of linear term for cost of gap in ref
-		int     gapbar_,    // # rows at top/bot can only be entered diagonally
-		int64_t rowlo_,     // min row idx to backtrace from; -1 = no limit
-		bool    rowFirst_)  // sort results first by row then by score?
+		int     gapbar_)    // # rows at top/bot can only be entered diagonally
 	{
 		matchType    = COST_MODEL_CONSTANT;
 		matchConst   = mat;
@@ -167,8 +165,6 @@ public:
 		rfGapLinear  = rfGpLinear;
 		qualsMatter_ = mmcostType != COST_MODEL_CONSTANT;
 		gapbar       = gapbar_;
-		rowlo        = rowlo_;
-		rowFirst     = rowFirst_;
 		monotone     = matchType == COST_MODEL_CONSTANT && matchConst == 0;
 		initPens<int>(mmpens, mmcostType, mmpMin_, mmpMax_);
 		initPens<int>(npens, npenType, npen, npen);
@@ -456,8 +452,6 @@ public:
 	int     rdGapLinear;  // linear term coeffecient in extend cost
 	int     rfGapLinear;  // linear term coeffecient in extend cost
 	int     gapbar;       // # rows at top/bot can only be entered diagonally
-	int64_t rowlo;        // min row idx to backtrace from; -1 = no limit
-	bool    rowFirst;     // sort results first by row then by score?
 	bool    monotone;     // scores can only go down?
 	float   matchBonuses[256]; // map from qualities to match bonus
 	int     mmpens[256];       // map from qualities to mm penalty
@@ -481,9 +475,7 @@ public:
 			11,                      // constant coeff for gap in ref
 			4,                       // linear coeff for gap in read
 			4,                       // linear coeff for gap in ref
-			5,                       // 5 rows @ top/bot diagonal-entrance-only
-			-1,                      // no restriction on row
-			false);                  // score prioritized over row
+			5);                      // 5 rows @ top/bot diagonal-entrance-only
 	}
 
 protected:
