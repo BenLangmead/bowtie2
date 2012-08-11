@@ -325,12 +325,6 @@ public:
 	 * alignment if there is one.  If there isn't one, false is returned.  Note
 	 * that false might be returned even though a call to done() would have
 	 * returned false.
-	 *
-	 * Which alignment is "next best" depends on the 'rowfirst_' setting.  If
-	 * it's true, then alignments in rows further down in the DP matrix get
-	 * higher priority than rows higher up.  Within a row, alignments are
-	 * ordered according to their score.  If 'rowfirst_' is false, then
-	 * priority is given first according to score, then according to row.
 	 */
 	bool nextAlignment(
 		SwResult& res,

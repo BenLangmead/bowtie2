@@ -68,19 +68,19 @@ using namespace std;
 extern uint8_t cCntLUT_4[4][4][256];
 
 #ifndef VMSG_NL
-#define VMSG_NL(args...) \
+#define VMSG_NL(...) \
 if(this->verbose()) { \
 	stringstream tmp; \
-	tmp << args << endl; \
+	tmp << __VA_ARGS__ << endl; \
 	this->verbose(tmp.str()); \
 }
 #endif
 
 #ifndef VMSG
-#define VMSG(args...) \
+#define VMSG(...) \
 if(this->verbose()) { \
 	stringstream tmp; \
-	tmp << args; \
+	tmp << __VA_ARGS__; \
 	this->verbose(tmp.str()); \
 }
 #endif
@@ -1082,15 +1082,39 @@ public:
 			// have been consumed in a normal search.  For BWT, this
 			// means right-to-left order; for BWT' it's left-to-right.
 			int c = (fwex ? seq[lo + i] : seq[hi - i - 1]);
-			//cout << "ACGTN"[c];
 			assert_range(0, 3, c);
 			ftabOff <<= 2;
 			ftabOff |= c;
 		}
-		//cout << endl;
 		return ftabOff;
 	}
-	
+
+	/**
+	 * Turn a substring of 'seq' starting at offset 'off' and having
+	 * length equal to the index's 'ftabChars' into an int that can be
+	 * used to index into the ftab array.
+	 */
+	uint32_t ftabSeqToInt(
+		const char *seq,
+		size_t off,
+		bool rev) const
+	{
+		int fc = _eh._ftabChars;
+		size_t lo = off, hi = lo + fc;
+		uint32_t ftabOff = 0;
+		for(int i = 0; i < fc; i++) {
+			bool fwex = fw();
+			if(rev) fwex = !fwex;
+			// We add characters to the ftabOff in the order they would
+			// have been consumed in a normal search.  For BWT, this
+			// means right-to-left order; for BWT' it's left-to-right.
+			int c = (fwex ? seq[lo + i] : seq[hi - i - 1]);
+			assert_range(0, 3, c);
+			ftabOff <<= 2;
+			ftabOff |= c;
+		}
+		return ftabOff;
+	}
 	
 	/**
 	 * Non-static facade for static function ftabHi.
@@ -1160,7 +1184,11 @@ public:
 	}
 	
 	/**
-	 *
+	 * Extract characters from seq starting at offset 'off' and going either
+	 * forward or backward, depending on 'rev'.  Order matters when compiling
+	 * the integer that gets looked up in the ftab.  Each successive character
+	 * is ORed into the least significant bit-pair, and characters are
+	 * integrated in the direction of the search.
 	 */
 	void
 	ftabLoHi(
@@ -1174,17 +1202,20 @@ public:
 		top = ftabHi(fi);
 		bot = ftabLo(fi+1);
 		assert_geq(bot, top);
-#ifndef NDEBUG
-		BTDnaString q;
-		seq.windowGetDna(q, fw(), true, off, _eh._ftabChars);
-		assert_eq((int)q.length(), _eh._ftabChars);
-		//uint32_t top2 = 0, bot2 = 0;
-		//bool cont = contains(q, &top2, &bot2);
-		//assert(bot-top == 0 || top == top2);
-		//assert(bot-top == 0 || bot == bot2);
-		//assert(top == bot ||  cont);
-		//assert(top != bot || !cont);
-#endif
+	}
+
+	void
+	ftabLoHi(
+		const char *seq,        // sequence to extract from
+		size_t off,             // offset into seq to begin extracting
+		bool rev,               // reverse while extracting
+		uint32_t& top,
+		uint32_t& bot) const
+	{
+		uint32_t fi = ftabSeqToInt(seq, off, rev);
+		top = ftabHi(fi);
+		bot = ftabLo(fi+1);
+		assert_geq(bot, top);
 	}
 	
 	/**

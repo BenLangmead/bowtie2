@@ -213,8 +213,6 @@ int main() {
 			assert_eq(3, sc.mm(i));
 		}
 		assert_eq(5, sc.gapbar);
-		assert_eq(-1, sc.rowlo);
-		assert(!sc.rowFirst);
 		cout << "PASSED" << endl;
 	}
 	{
@@ -280,8 +278,6 @@ int main() {
 		}
 
 		assert_eq(5, sc.gapbar);
-		assert_eq(-1, sc.rowlo);
-		assert(!sc.rowFirst);
 
 		cout << "PASSED" << endl;
 	}
