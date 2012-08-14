@@ -259,32 +259,35 @@ void Descent::followBestOutgoing(
 		assert_leq(best, best2);
 		heap.insert(make_pair(best2, descid_));
 	}
+	// Allocate a new Descent object
 	TDescentId id = df.alloc();
-	// TODO: are we changing direction?
-	DescentRoot r(
-		e.e.pos,    // offset from 5' end
-		l2r_,       // true -> left-to-right
-		fw_,        // true -> aligning forward read, otherwise aligning revcomp
-		q.len,      // query length
-		rootpri_);  // root priority
-	//df[id].init(
-	//	q,          // query
-	//	r,          // root
-	//	cons,       // constraint scheme
-	//	sc,         // scoring scheme
-	//	e.topf,     // top of SA range in fw index
-	//	e.botf,     // bottom of SA range in fw index
-	//	e.topb,     // top of SA range in bw index
-	//	e.botb,     // bottom of SA range in bw index
-	//	e.e,        // edit
-	//	descid_,    // parent ID
-	//	id,         // self ID
-	//	e.pri.pen,  // total penalties so far
-	//	ebwtFw,     // forward index
-	//	ebwtBw,     // mirror index
-	//	pf,         // factory for descent poss
-	//	heap,       // priority queue for descents
-	//	met);       // metrics
+	// TODO
+	TReadOff al5pi_new = al5pi_, al5pf_new = al5pf_;
+	// TODO
+	TIndexOff topf, botf, topb, botb;
+	df[id].init(
+		q,         // query
+		cons,      // search constraints - for recalcOutgoing()
+		sc,        // scoring scheme
+		al5pi_new, // new near-5' extreme
+		al5pf_new, // new far-5' extreme
+		topf,      // SA range top in FW index
+		botf,      // SA range bottom in FW index
+		topb,      // SA range top in BW index
+		botb,      // SA range bottom in BW index
+		l2r_,      // direction this descent will go in
+		fw_,       // true -> fw, false -> revcomp
+		rootpri_,  // root priority
+		id,        // my ID
+		descid_,   // parent ID
+		best.pen,  // total penalties so far
+		e.e,       // edit for incoming edge; uninitialized if bounced
+		ebwtFw,    // forward index
+		ebwtBw,    // mirror index
+		df,        // Descent factory
+		pf,        // DescentPos factory
+		heap,      // heap
+		met);      // metrics
 }
 
 /**
