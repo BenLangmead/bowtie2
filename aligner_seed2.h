@@ -663,7 +663,6 @@ public:
 	 */
 	void init(
 		const DescentQuery& q,    // query
-		const DescentRoot& root,  // search root
 		DescentConstraints& cons, // search constraints - for recalcOutgoing()
 		const Scoring& sc,        // scoring scheme
 		TReadOff al5pi,
@@ -673,7 +672,8 @@ public:
 		TIndexOff topb,           // SA range top in BW index
 		TIndexOff botb,           // SA range bottom in BW index
 		bool l2r,                 // direction this descent will go in
-		TReadOff off5p,           // 5' offset of next read character to align
+		bool fw,                  // true -> fw, false -> revcomp
+		float rootpri,            // root priority
 		size_t descid,            // my ID
 		TDescentId parent,        // parent ID
 		TScore pen,               // total penalties so far
@@ -688,8 +688,8 @@ public:
 		al5pi_ = al5pi;       // lo offset from 5' end of aligned read char
 		al5pf_ = al5pf;       // hi offset from 5' end of aligned read char
 		l2r_ = l2r;           // left-to-right?
-		fw_ = root.fw;        // true -> fw, false -> revcomp
-		rootpri_ = root.pri;  // root priority
+		fw_ = fw;             // true -> fw, false -> revcomp
+		rootpri_ = rootpri;   // root priority
 		topf_ = topf;
 		botf_ = botf;
 		topb_ = topb;
