@@ -2625,6 +2625,13 @@ public:
 	size_t size() const {
 		return l_.size();
 	}
+    
+    /**
+     * Resize the list.
+     */
+    void resize(size_t sz) {
+        l_.resize(sz);
+    }
 
 	/**
 	 * Return true iff the list is empty.
@@ -2754,8 +2761,8 @@ public:
 	 * Check that heap property holds at and below this node.
 	 */
 	bool repOkNode(size_t cur) const {
-		size_t c1 = cur >> 1;
-		size_t c2 = c1 + 1;
+        size_t c1 = ((cur+1) << 1) - 1;
+        size_t c2 = c1 + 1;
 		if(c1 < l_.size()) {
 			assert_leq(l_[cur], l_[c1]);
 		}

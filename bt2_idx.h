@@ -148,22 +148,11 @@ public:
 		_offsSz = _offsLen*4;
 		_lineSz = 1 << _lineRate;
 		_sideSz = _lineSz * 1 /* lines per side */;
-#ifdef BOWTIE2
 		_sideBwtSz = _sideSz - 16;
-#else
-		_sideBwtSz = _sideSz - 8;
-#endif
 		_sideBwtLen = _sideBwtSz*4;
-#ifdef BOWTIE2
 		_numSides = (_bwtSz+(_sideBwtSz)-1)/(_sideBwtSz);
 		_numLines = _numSides * 1 /* lines per side */;
 		_ebwtTotLen = _numSides * _sideSz;
-#else
-		_numSidePairs = (_bwtSz+(2*_sideBwtSz)-1)/(2*_sideBwtSz);
-		_numSides = _numSidePairs*2;
-		_numLines = _numSides * 1 /* lines per side */;
-		_ebwtTotLen = _numSidePairs * (2*_sideSz);
-#endif
 		_ebwtTotSz = _ebwtTotLen;
 		assert(repOk());
 	}
@@ -188,9 +177,6 @@ public:
 	uint32_t sideSz() const        { return _sideSz; }
 	uint32_t sideBwtSz() const     { return _sideBwtSz; }
 	uint32_t sideBwtLen() const    { return _sideBwtLen; }
-#ifndef BOWTIE2
-	uint32_t numSidePairs() const  { return _numSidePairs; }
-#endif
 	uint32_t numSides() const      { return _numSides; }
 	uint32_t numLines() const      { return _numLines; }
 	uint32_t ebwtTotLen() const    { return _ebwtTotLen; }
@@ -221,11 +207,7 @@ public:
 		assert_eq(6, _lineRate);
 		//assert_lt(_lineRate, 32);
 		assert_lt(_ftabChars, 32);
-#ifdef BOWTIE2
 		assert_eq(0, _ebwtTotSz % _lineSz);
-#else
-		assert_eq(0, _ebwtTotSz % (2*_lineSz));
-#endif
 		return true;
 	}
 
@@ -252,9 +234,6 @@ public:
 		    << "    sideSz: "       << _sideSz << endl
 		    << "    sideBwtSz: "    << _sideBwtSz << endl
 		    << "    sideBwtLen: "   << _sideBwtLen << endl
-#ifndef BOWTIE2
-		    << "    numSidePairs: " << _numSidePairs << endl
-#endif
 		    << "    numSides: "     << _numSides << endl
 		    << "    numLines: "     << _numLines << endl
 		    << "    ebwtTotLen: "   << _ebwtTotLen << endl
@@ -282,9 +261,6 @@ public:
 	uint32_t _sideSz;
 	uint32_t _sideBwtSz;
 	uint32_t _sideBwtLen;
-#ifndef BOWTIE2
-	uint32_t _numSidePairs;
-#endif
 	uint32_t _numSides;
 	uint32_t _numLines;
 	uint32_t _ebwtTotLen;
@@ -613,6 +589,7 @@ public:
 		bool autoMem,
 		bool sanity)
 	{
+        assert(!strs.empty());
 		EList<FileBuf*> is(EBWT_CAT);
 		RefReadInParams refparams(color, REF_READ_FORWARD, false, false);
 		// Adapt sequence strings to stringstreams open for input
@@ -798,6 +775,8 @@ public:
 		}
 		int iter = 0;
 		bool first = true;
+		streampos out1pos = out1.tellp();
+		streampos out2pos = out2.tellp();
 		// Look for bmax/dcv parameters that work.
 		while(true) {
 			if(!first && bmax < 40 && _passMemExc) {
@@ -815,6 +794,10 @@ public:
 						 << "this executable is 32-bit." << endl;
 				}
 				throw 1;
+			}
+			if(!first) {
+				out1.seekp(out1pos);
+				out2.seekp(out2pos);
 			}
 			if(dcv > 4096) dcv = 4096;
 			if((iter % 6) == 5 && dcv < 4096 && dcv != 0) {
@@ -1088,33 +1071,6 @@ public:
 		}
 		return ftabOff;
 	}
-
-	/**
-	 * Turn a substring of 'seq' starting at offset 'off' and having
-	 * length equal to the index's 'ftabChars' into an int that can be
-	 * used to index into the ftab array.
-	 */
-	uint32_t ftabSeqToInt(
-		const char *seq,
-		size_t off,
-		bool rev) const
-	{
-		int fc = _eh._ftabChars;
-		size_t lo = off, hi = lo + fc;
-		uint32_t ftabOff = 0;
-		for(int i = 0; i < fc; i++) {
-			bool fwex = fw();
-			if(rev) fwex = !fwex;
-			// We add characters to the ftabOff in the order they would
-			// have been consumed in a normal search.  For BWT, this
-			// means right-to-left order; for BWT' it's left-to-right.
-			int c = (fwex ? seq[lo + i] : seq[hi - i - 1]);
-			assert_range(0, 3, c);
-			ftabOff <<= 2;
-			ftabOff |= c;
-		}
-		return ftabOff;
-	}
 	
 	/**
 	 * Non-static facade for static function ftabHi.
@@ -1193,20 +1149,6 @@ public:
 	void
 	ftabLoHi(
 		const BTDnaString& seq, // sequence to extract from
-		size_t off,             // offset into seq to begin extracting
-		bool rev,               // reverse while extracting
-		uint32_t& top,
-		uint32_t& bot) const
-	{
-		uint32_t fi = ftabSeqToInt(seq, off, rev);
-		top = ftabHi(fi);
-		bot = ftabLo(fi+1);
-		assert_geq(bot, top);
-	}
-
-	void
-	ftabLoHi(
-		const char *seq,        // sequence to extract from
 		size_t off,             // offset into seq to begin extracting
 		bool rev,               // reverse while extracting
 		uint32_t& top,
@@ -1321,14 +1263,6 @@ public:
 		assert_lt(_zEbwtByteOff, eh._sideBwtSz);
 		_zEbwtBpOff = sideCharOff & 3;
 		assert_lt(_zEbwtBpOff, 4);
-#ifndef BOWTIE2
-		if((sideNum & 1) == 0) {
-			// This is an even (backward) side
-			_zEbwtByteOff = eh._sideBwtSz - _zEbwtByteOff - 1;
-			_zEbwtBpOff = 3 - _zEbwtBpOff;
-			assert_lt(_zEbwtBpOff, 4);
-		}
-#endif
 		_zEbwtByteOff += sideByteOff;
 		assert(repOk(eh)); // Ebwt should be fully initialized now
 	}
@@ -1423,21 +1357,10 @@ public:
 	int rowL(uint32_t row) const;
 	inline uint32_t countUpTo(const SideLocus& l, int c) const;
 	inline void     countUpToEx(const SideLocus& l, uint32_t* pairs) const;
-#ifdef BOWTIE2
 	inline uint32_t countBt2Side(const SideLocus& l, int c) const;
 	inline void     countBt2SideEx(const SideLocus& l, uint32_t *pairs) const;
 	inline uint32_t countBt2SideRange2(const SideLocus& l, bool startAtLocus, uint32_t num, uint32_t* arrs, EList<bool> *masks, uint32_t maskOff) const;
 	inline void     countBt2SideRange(SideLocus& l, uint32_t num, uint32_t* cntsUpto, uint32_t* cntsIn, EList<bool> *masks) const;
-#else
-	inline uint32_t countFwSide(const SideLocus& l, int c) const;
-	inline void     countFwSideEx(const SideLocus& l, uint32_t *pairs) const;
-	inline uint32_t countBwSide(const SideLocus& l, int c) const;
-	inline void     countBwSideEx(const SideLocus& l, uint32_t *pairs) const;
-	inline uint32_t countFwSideRange2(const SideLocus& l, bool startAtLocus, uint32_t num, uint32_t* arrs, EList<bool> *masks, uint32_t maskOff) const;
-	inline uint32_t countBwSideRange2(const SideLocus& l, bool startAtLocus, uint32_t num, uint32_t* arrs, EList<bool> *masks, uint32_t maskOff) const;
-	inline void     countFwSideRange(SideLocus& l, uint32_t num, uint32_t* cntsUpto, uint32_t* cntsIn, EList<bool> *masks) const;
-	inline void     countBwSideRange(SideLocus& l, uint32_t num, uint32_t* cntsUpto, uint32_t* cntsIn, EList<bool> *masks) const;
-#endif
 
 	uint32_t mapLF(const SideLocus& l ASSERT_ONLY(, bool overrideSanity = false)) const;
 	void mapBiLFEx(const SideLocus& ltop, const SideLocus& lbot, uint32_t *tops, uint32_t *bots, uint32_t *topsP, uint32_t *botsP ASSERT_ONLY(, bool overrideSanity = false) ) const;
@@ -1564,9 +1487,6 @@ struct SideLocus {
 	_sideByteOff(0),
 	_sideNum(0),
 	_charOff(0),
-#ifndef BOWTIE2
-	fw_(true),
-#endif
 	_by(-1),
 	_bp(-1) { }
 
@@ -1601,13 +1521,6 @@ struct SideLocus {
 			lbot._by = lbot._charOff >> 2;
 			assert_lt(lbot._by, (int)ep._sideBwtSz);
 			lbot._bp = lbot._charOff & 3;
-#ifndef BOWTIE2
-			lbot.fw_ = ltop.fw_;
-			if(!lbot.fw_) {
-				lbot._by = ep._sideBwtSz - lbot._by - 1;
-				lbot._bp ^= 3;
-			}
-#endif
 		} else {
 			lbot.initFromRow(bot, ep, ebwt);
 		}
@@ -1621,15 +1534,9 @@ struct SideLocus {
 		const uint32_t sideSz     = ep._sideSz;
 		// Side length is hard-coded for now; this allows the compiler
 		// to do clever things to accelerate / and %.
-#ifdef BOWTIE2
 		_sideNum                  = row / 192;
 		assert_lt(_sideNum, ep._numSides);
 		_charOff                  = row % 192;
-#else
-		_sideNum                  = row / 224;
-		assert_lt(_sideNum, ep._numSides);
-		_charOff                  = row % 224;
-#endif
 		_sideByteOff              = _sideNum * sideSz;
 		assert_leq(row, ep._len);
 		assert_leq(_sideByteOff + sideSz, ep._ebwtTotSz);
@@ -1641,18 +1548,9 @@ struct SideLocus {
 #endif
 #endif
 		// Tons of cache misses on the next line
-#ifndef BOWTIE2
-		fw_ = (_sideNum & 1) != 0; // odd-numbered sides are forward
-#endif
 		_by = _charOff >> 2; // byte within side
 		assert_lt(_by, (int)ep._sideBwtSz);
 		_bp = _charOff & 3;  // bit-pair within byte
-#ifndef BOWTIE2
-		if(!fw_) {
-			_by = ep._sideBwtSz - _by - 1;
-			_bp ^= 3;
-		}
-#endif
 	}
 	
 	/**
@@ -1665,13 +1563,6 @@ struct SideLocus {
 		_sideByteOff += ep.sideSz();
 		_sideNum++;
 		_by = _bp = _charOff = 0;
-#ifndef BOWTIE2
-		fw_ = !fw_;
-		if(!fw_) {
-			_by = ep._sideBwtSz - _by - 1;
-			_bp ^= 3;
-		}
-#endif
 		assert(valid());
 	}
 
@@ -1689,11 +1580,7 @@ struct SideLocus {
 	 * Convert locus to BW row it corresponds to.
 	 */
 	uint32_t toBWRow() const {
-#ifdef BOWTIE2
 		return _sideNum * 192 + _charOff;
-#else
-		return _sideNum * 224 + _charOff;
-#endif
 	}
 	
 	/**
@@ -1701,11 +1588,7 @@ struct SideLocus {
 	 * with the (provided) EbwtParams.
 	 */
 	bool repOk(const EbwtParams& ep) const {
-#ifdef BOWTIE2
 		ASSERT_ONLY(uint32_t row = _sideNum * 192 + _charOff);
-#else
-		ASSERT_ONLY(uint32_t row = _sideNum * 224 + _charOff);
-#endif
 		assert_leq(row, ep._len);
 		assert_range(-1, 3, _bp);
 		assert_range(0, (int)ep._sideBwtSz, _by);
@@ -1732,22 +1615,9 @@ struct SideLocus {
 		return ebwt + _sideByteOff;
 	}
 
-	/**
-	 * Return a read-only pointer to the beginning of the side opposite
-	 * the top side.
-	 */
-#ifndef BOWTIE2
-	const uint8_t *oside(const uint8_t* ebwt) const {
-		return ebwt + _sideByteOff + (fw_? (-128) : (128));
-	}
-#endif
-
 	uint32_t _sideByteOff; // offset of top side within ebwt[]
 	uint32_t _sideNum;     // index of side
 	uint32_t _charOff;     // character offset within side
-#ifndef BOWTIE2
-	bool fw_;              // side is forward or backward?
-#endif
 	int32_t _by;           // byte within side (not adjusted for bw sides)
 	int32_t _bp;            // bitpair within byte (not adjusted for bw sides)
 };
@@ -2031,12 +1901,7 @@ void Ebwt::buildToDisk(
 
 	// Save # of occurrences of each character as we walk along the bwt
 	uint32_t occ[4] = {0, 0, 0, 0};
-#ifdef BOWTIE2
 	uint32_t occSave[4] = {0, 0, 0, 0};
-#else
-	// Save 'G' and 'T' occurrences between backward and forward buckets
-	uint32_t occSave[2] = {0, 0};
-#endif
 
 	// Record rows that should "absorb" adjacent rows in the ftab.
 	// The absorbed rows represent suffixes shorter than the ftabChars
@@ -2082,22 +1947,8 @@ void Ebwt::buildToDisk(
 
 	// Whether we're assembling a forward or a reverse bucket
 	bool fw;
-#ifdef BOWTIE2
 	int sideCur = 0;
 	fw = true;
-#else
-	// Points to a byte offset from 'side' within ebwt[] where next
-	// char should be written
-#ifdef SIXTY4_FORMAT
-	int sideCur = (eh._sideBwtSz >> 3) - 1;
-#else
-	int sideCur = eh._sideBwtSz - 1;
-#endif
-	fw = false;
-	// Did we just finish writing a forward bucket?  (Must be true when
-	// we exit the loop.)
-	bool wroteFwBucket = false;
-#endif
 
 	// Have we skipped the '$' in the last column yet?
 	ASSERT_ONLY(bool dollarSkipped = false);
@@ -2111,9 +1962,6 @@ void Ebwt::buildToDisk(
 	VMSG_NL("Entering Ebwt loop");
 	ASSERT_ONLY(uint32_t beforeEbwtOff = (uint32_t)out1.tellp());
 	while(side < ebwtTotSz) {
-#ifndef BOWTIE2
-		wroteFwBucket = false;
-#endif
 		// Sanity-check our cursor into the side buffer
 		assert_geq(sideCur, 0);
 		assert_lt(sideCur, (int)eh._sideBwtSz);
@@ -2235,7 +2083,6 @@ void Ebwt::buildToDisk(
 		assert_eq(0, si & 3);
 #endif
 
-#ifdef BOWTIE2
 		sideCur++;
 		if(sideCur == (int)eh._sideBwtSz) {
 			sideCur = 0;
@@ -2254,53 +2101,6 @@ void Ebwt::buildToDisk(
 			// Write backward side to primary file
 			out1.write((const char *)ebwtSide.ptr(), sideSz);
 		}
-#else
-
-		if(fw) sideCur++;
-		else   sideCur--;
-#ifdef SIXTY4_FORMAT
-		if(sideCur == (int)eh._sideBwtSz >> 3)
-#else
-		if(sideCur == (int)eh._sideBwtSz)
-#endif
-		{
-			// Forward side boundary
-			assert_eq(0, si % eh._sideBwtLen);
-#ifdef SIXTY4_FORMAT
-			sideCur = (eh._sideBwtSz >> 3) - 1;
-#else
-			sideCur = eh._sideBwtSz - 1;
-#endif
-			assert(fw);
-			fw = false;
-			wroteFwBucket = true;
-			// Write 'G' and 'T'
-			assert_leq(occSave[0], occ[2]);
-			assert_leq(occSave[1], occ[3]);
-			uint32_t *u32side = reinterpret_cast<uint32_t*>(ebwtSide.ptr());
-			side += sideSz;
-			assert_leq(side, eh._ebwtTotSz);
-			u32side[(sideSz >> 2)-2] = endianizeU32(occSave[0], this->toBe());
-			u32side[(sideSz >> 2)-1] = endianizeU32(occSave[1], this->toBe());
-			// Write forward side to primary file
-			out1.write((const char *)ebwtSide.ptr(), sideSz);
-		} else if (sideCur == -1) {
-			// Backward side boundary
-			assert_eq(0, si % eh._sideBwtLen);
-			sideCur = 0;
-			assert(!fw); fw = true;
-			// Write 'A' and 'C'
-			uint32_t *u32side = reinterpret_cast<uint32_t*>(ebwtSide.ptr());
-			side += sideSz;
-			assert_leq(side, eh._ebwtTotSz);
-			u32side[(sideSz >> 2)-2] = endianizeU32(occ[0], this->toBe());
-			u32side[(sideSz >> 2)-1] = endianizeU32(occ[1], this->toBe());
-			occSave[0] = occ[2]; // save 'G' count
-			occSave[1] = occ[3]; // save 'T' count
-			// Write backward side to primary file
-			out1.write((const char *)ebwtSide.ptr(), sideSz);
-		}
-#endif /*BOWTIE2*/
 	}
 	VMSG_NL("Exited Ebwt loop");
 	assert_neq(zOff, 0xffffffff);
@@ -2314,9 +2114,6 @@ void Ebwt::buildToDisk(
 	// Assert that we wrote the expected amount to out1
 	assert_eq(((uint32_t)out1.tellp() - beforeEbwtOff), eh._ebwtTotSz);
 	// assert that the last thing we did was write a forward bucket
-#ifndef BOWTIE2
-	assert(wroteFwBucket);
-#endif
 
 	//
 	// Write zOff to primary stream

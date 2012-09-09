@@ -43,6 +43,7 @@ typedef size_t   TReadOff;
 typedef int64_t  TScore;
 typedef float    TRootPri;
 typedef size_t   TDescentId;
+typedef size_t   TRootId;
 
 /**
  * enum encapsulating a few different policies for how we might extend descents
@@ -155,7 +156,7 @@ struct DescentPriority {
 		if(depth > o.depth) return true;
 		if(depth < o.depth) return false;
 		// 3rd priority: width of the SA range (i.e. uniqueness)
-		if(width < o.depth) return true;
+		if(width < o.width) return true;
 		if(width > o.width) return false;
 		// 4th priority: root priority
 		if(rootpri > o.rootpri) return true;
@@ -220,11 +221,20 @@ typedef std::pair<DescentPriority, TDescentId> TDescentPair;
  * Encapsulates the constraints limiting which outgoing edges are permitted.
  */
 struct DescentConstraints {
+
+	DescentConstraints() { reset(); }
 	
 	/**
 	 * Initialize with new constraint function.
 	 */
 	DescentConstraints(int type, double C, double L) {
+        init(type, C, L);
+	}
+    
+    /**
+     * Initialize with given function.
+     */
+    void init(int type, double C, double L) {
 		double mn = 0.0;
 		double mx = std::numeric_limits<double>::max();
 		f.init(type, mn, mx, C, L);
@@ -232,17 +242,32 @@ struct DescentConstraints {
 		for(size_t i = 0; i < 1024; i++) {
 			scs[i] = f.f<TScore>(i);
 		}
-	}
+    }
+    
+    /**
+     * Reset to uninitialized state.
+     */
+    void reset() {
+        scs.clear();
+    }
+    
+    /**
+     * Return true iff the DescentConstraints has been initialized.
+     */
+    bool inited() const {
+        return !scs.empty();
+    }
 	
 	/**
 	 * Get the maximum penalty total for depth 'off'.
 	 */
-	const TScore operator[](TReadOff off) {
+	const TScore operator[](TReadOff off) const {
 		if(off > scs.size()) {
 			size_t oldsz = scs.size();
-			scs.resize((size_t)(off * 1.5 + 0.5));
+            EList<TScore>& scs_rw = const_cast<EList<TScore>&>(scs);
+			scs_rw.resize((size_t)(off * 1.5 + 0.5));
 			for(size_t i = oldsz; i < scs.size(); i++) {
-				scs[i] = f.f<TScore>(i);
+				scs_rw[i] = f.f<TScore>(i);
 			}
 		}
 		return scs[off];
@@ -253,163 +278,24 @@ struct DescentConstraints {
 };
 
 /**
- * Encapsulates an edge outgoing from a descent.
+ * Encapsulates settings governing how we descent.
  */
-struct DescentEdge {
+struct DescentConfig {
 
-	DescentEdge() { reset(); }
+    DescentConfig() { reset(); }
+    
+    /**
+     * Reset the DescentConfig to an uninitialized state.
+     */
+    void reset() { expol = 0; }
+    
+    /**
+     * Return true iff this DescentConfig is initialized.
+     */
+    bool inited() const { return expol != 0; }
 
-	DescentEdge(
-		Edit e_,
-		DescentPriority pri_,
-		TReadOff nex_,
-		TIndexOff topf_,
-		TIndexOff botf_,
-		TIndexOff topb_,
-		TIndexOff botb_)
-	{
-		init(e_, pri_, topf_, botf_, topb_, botb_);
-	}
-
-	/**
-	 * Return true iff edge is initialized.
-	 */
-	bool inited() const { return e.inited(); }
-
-	/**
-	 * Reset to uninitialized state.
-	 */
-	void reset() { e.reset(); }
-	
-	/**
-	 * Initialize DescentEdge given 5' offset, nucleotide, and priority.
-	 */
-	void init(
-		Edit e_,
-		DescentPriority pri_,
-		TIndexOff topf_,
-		TIndexOff botf_,
-		TIndexOff topb_,
-		TIndexOff botb_)
-	{
-		e = e_;
-		pri = pri_;
-		topf = topf_;
-		botf = botf_;
-		topb = topb_;
-		botb = botb_;
-	}
-	
-	/**
-	 * Return true iff this edge has higher priority than the given edge.
-	 */
-	bool operator<(const DescentEdge& o) const {
-		return pri < o.pri;
-	}
-
-	DescentPriority pri;   // priority of the edge
-	TReadOff nex;          // # extends possible from this edge
-
-	// It's possible some of this stuff could be got by going back to the 
-	// Descent, which would save some room.  For now, I'm just putting it all
-	// here.
-	TIndexOff topf, botf, topb, botb;
-	Edit e;
-};
-
-/**
- * Encapsulates an incomplete summary of the outgoing edges from a descent.  We
- * don't try to store information about all outgoing edges, because doing so
- * will generally be wasteful.  We'll typically only try a handful of them per
- * descent.
- */
-class DescentOutgoing {
-
-public:
-
-	/**
-	 * Return the best edge and rotate in preparation for next call.
-	 */
-	DescentEdge rotate() {
-		DescentEdge tmp = best1;
-		best1 = best2;
-		best2 = best3;
-		best3 = best4;
-		best4 = best5;
-		best5.reset();
-		return tmp;
-	}
-	
-	/**
-	 * Given a potental outgoing edge, place it where it belongs in the running
-	 * list of best 5 outgoing edges from this descent.
-	 */
-	void update(DescentEdge e) {
-		if(!best1.inited()) {
-			best1 = e;
-		} else if(e < best1) {
-			best5 = best4;
-			best4 = best3;
-			best3 = best2;
-			best2 = best1;
-			best1 = e;
-		} else if(!best2.inited()) {
-			best2 = e;
-		} else if(e < best2) {
-			best5 = best4;
-			best4 = best3;
-			best3 = best2;
-			best2 = e;
-		} else if(!best3.inited()) {
-			best3 = e;
-		} else if(e < best3) {
-			best5 = best4;
-			best4 = best3;
-			best3 = e;
-		} else if(!best4.inited()) {
-			best4 = e;
-		} else if(e < best4) {
-			best5 = best4;
-			best4 = e;
-		}  else if(!best5.inited() || e < best5) {
-			best5 = e;
-		}
-	}
-	
-	/**
-	 * Clear all the outgoing edges stored here.
-	 */
-	void clear() {
-		best1.reset();
-		best2.reset();
-		best3.reset();
-		best4.reset();
-		best5.reset();
-	}
-	
-	/**
-	 * Return true iff there are no outgoing edges currently represented in
-	 * this summary.  There may still be outgoing edges, they just haven't
-	 * been added to the summary.
-	 */
-	bool empty() const {
-		return !best1.inited();
-	}
-	
-	/**
-	 * Return the DescentPriority of the best outgoing edge.
-	 */
-	DescentPriority bestPri() const {
-		assert(!empty());
-		return best1.pri;
-	}
-
-protected:
-	DescentEdge best1; // best
-	DescentEdge best2; // 2nd-best
-	DescentEdge best3; // 3rd-best
-	DescentEdge best4; // 4th-best
-	DescentEdge best5; // 5th-best
+    DescentConstraints cons; // constraints
+    int expol; // extend policy
 };
 
 /**
@@ -487,10 +373,26 @@ struct DescentPosFlags {
 	}
 	
 	/**
+	 * Return false iff the specified mismatch has already been explored.
+	 */
+	bool mmExplore(int c) {
+		assert_range(0, 3, c);
+		if(c == 0) {
+			return mm_a;
+		} else if(c == 1) {
+			return mm_c;
+		} else if(c == 2) {
+			return mm_g;
+		} else {
+			return mm_t;
+		}
+	}
+
+	/**
 	 * Try to explore a mismatch.  Return false iff it has already been
 	 * explored.
 	 */
-	bool mmExplore(int c) {
+	bool mmSet(int c) {
 		assert_range(0, 3, c);
 		if(c == 0) {
 			bool ret = mm_a; mm_a = 0; return ret;
@@ -504,10 +406,26 @@ struct DescentPosFlags {
 	}
 
 	/**
+	 * Return false iff specified read gap has already been explored.
+	 */
+	bool rdgExplore(int c) {
+		assert_range(0, 3, c);
+		if(c == 0) {
+			return rdg_a;
+		} else if(c == 1) {
+			return rdg_c;
+		} else if(c == 2) {
+			return rdg_g;
+		} else {
+			return rdg_t;
+		}
+	}
+
+	/**
 	 * Try to explore a read gap.  Return false iff it has already been
 	 * explored.
 	 */
-	bool rdgExplore(int c) {
+	bool rdgSet(int c) {
 		assert_range(0, 3, c);
 		if(c == 0) {
 			bool ret = rdg_a; rdg_a = 0; return ret;
@@ -521,10 +439,17 @@ struct DescentPosFlags {
 	}
 
 	/**
+	 * Return false iff the reference gap has already been explored.
+	 */
+	bool rfgExplore() {
+		return rfg;
+	}
+
+	/**
 	 * Try to explore a reference gap.  Return false iff it has already been
 	 * explored.
 	 */
-	bool rfgExplore() {
+	bool rfgSet() {
 		bool ret = rfg; rfg = 0; return ret;
 	}
 
@@ -558,14 +483,233 @@ struct DescentPos {
 		botf[0] = botf[1] = botf[2] = botf[3] = 0;
 		topb[0] = topb[1] = topb[2] = topb[3] = 0;
 		botb[0] = botb[1] = botb[2] = botb[3] = 0;
+        c = -1;
 		flags.reset();
 	}
+    
+    /**
+     * Return true iff DescentPos has been initialized.
+     */
+    bool inited() const {
+        return c >= 0;
+    }
 	
 	TIndexOff       topf[4]; // SA range top indexes in fw index
 	TIndexOff       botf[4]; // SA range bottom indexes (exclusive) in fw index
 	TIndexOff       topb[4]; // SA range top indexes in bw index
 	TIndexOff       botb[4]; // SA range bottom indexes (exclusive) in bw index
-	DescentPosFlags flags;
+    char            c;       // read char that would yield match
+	DescentPosFlags flags;   // flags 
+};
+
+/**
+ * Encapsulates an edge outgoing from a descent.
+ */
+struct DescentEdge {
+
+	DescentEdge() { reset(); }
+
+	DescentEdge(
+		Edit e_,
+		DescentPriority pri_,
+        size_t posFlag_,
+		TReadOff nex_
+#ifndef NDEBUG
+        ,
+        size_t d_,
+		TIndexOff topf_,
+		TIndexOff botf_,
+		TIndexOff topb_,
+		TIndexOff botb_
+#endif
+        )
+	{
+		init(e_, pri_, posFlag_
+#ifndef NDEBUG
+        , d_, topf_, botf_, topb_, botb_
+#endif
+        );
+	}
+
+	/**
+	 * Return true iff edge is initialized.
+	 */
+	bool inited() const { return e.inited(); }
+
+	/**
+	 * Reset to uninitialized state.
+	 */
+	void reset() { e.reset(); }
+	
+	/**
+	 * Initialize DescentEdge given 5' offset, nucleotide, and priority.
+	 */
+	void init(
+		Edit e_,
+		DescentPriority pri_,
+        size_t posFlag_
+#ifndef NDEBUG
+        ,
+        size_t d_,
+		TIndexOff topf_,
+		TIndexOff botf_,
+		TIndexOff topb_,
+		TIndexOff botb_
+#endif
+        )
+	{
+		e = e_;
+		pri = pri_;
+        posFlag = posFlag_;
+#ifndef NDEBUG
+        d = d_;
+		topf = topf_;
+		botf = botf_;
+		topb = topb_;
+		botb = botb_;
+#endif
+	}
+
+    /**
+     * Update flags to show this edge as visited.
+     */
+    void updateFlags(EFactory<DescentPos>& pf) {
+        if(inited()) {
+            if(e.isReadGap()) {
+                assert_neq('-', e.chr);
+                pf[posFlag].flags.rdgSet(asc2dna[e.chr]);
+            } else if(e.isRefGap()) {
+                pf[posFlag].flags.rfgSet();
+            } else {
+                assert_neq('-', e.chr);
+                pf[posFlag].flags.mmSet(asc2dna[e.chr]);
+            }
+        }
+    }
+	
+	/**
+	 * Return true iff this edge has higher priority than the given edge.
+	 */
+	bool operator<(const DescentEdge& o) const {
+        if(inited() && !o.inited()) {
+            return true;
+        } else if(!inited()) {
+            return false;
+        }
+		return pri < o.pri;
+	}
+
+	DescentPriority pri; // priority of the edge
+	TReadOff nex;        // # extends possible from this edge
+    size_t posFlag;      // depth of DescentPos where flag should be set
+
+
+#ifndef NDEBUG
+    // This can be recreated by looking at the edit, the paren't descent's
+    // len_, al5pi_, al5pf_.  I have it here so we can sanity check.
+    size_t d;
+	TIndexOff topf, botf, topb, botb;
+#endif
+
+	Edit e;
+};
+
+/**
+ * Encapsulates an incomplete summary of the outgoing edges from a descent.  We
+ * don't try to store information about all outgoing edges, because doing so
+ * will generally be wasteful.  We'll typically only try a handful of them per
+ * descent.
+ */
+class DescentOutgoing {
+
+public:
+
+	/**
+	 * Return the best edge and rotate in preparation for next call.
+	 */
+	DescentEdge rotate() {
+		DescentEdge tmp = best1;
+        assert(!(best2 < tmp));
+		best1 = best2;
+        assert(!(best3 < best2));
+		best2 = best3;
+        assert(!(best4 < best3));
+		best3 = best4;
+        assert(!(best5 < best4));
+		best4 = best5;
+		best5.reset();
+		return tmp;
+	}
+	
+	/**
+	 * Given a potental outgoing edge, place it where it belongs in the running
+	 * list of best 5 outgoing edges from this descent.
+	 */
+	void update(DescentEdge e) {
+		if(!best1.inited()) {
+			best1 = e;
+		} else if(e < best1) {
+			best5 = best4;
+			best4 = best3;
+			best3 = best2;
+			best2 = best1;
+			best1 = e;
+		} else if(!best2.inited()) {
+			best2 = e;
+		} else if(e < best2) {
+			best5 = best4;
+			best4 = best3;
+			best3 = best2;
+			best2 = e;
+		} else if(!best3.inited()) {
+			best3 = e;
+		} else if(e < best3) {
+			best5 = best4;
+			best4 = best3;
+			best3 = e;
+		} else if(!best4.inited()) {
+			best4 = e;
+		} else if(e < best4) {
+			best5 = best4;
+			best4 = e;
+		}  else if(!best5.inited() || e < best5) {
+			best5 = e;
+		}
+	}
+	
+	/**
+	 * Clear all the outgoing edges stored here.
+	 */
+	void clear() {
+		best1.reset();
+		best2.reset();
+		best3.reset();
+		best4.reset();
+		best5.reset();
+	}
+	
+	/**
+	 * Return true iff there are no outgoing edges currently represented in
+	 * this summary.  There may still be outgoing edges, they just haven't
+	 * been added to the summary.
+	 */
+	bool empty() const {
+		return !best1.inited();
+	}
+	
+	/**
+	 * Return the DescentPriority of the best outgoing edge.
+	 */
+	DescentPriority bestPri() const {
+		assert(!empty());
+		return best1.pri;
+	}
+
+	DescentEdge best1; // best
+	DescentEdge best2; // 2nd-best
+	DescentEdge best3; // 3rd-best
+	DescentEdge best4; // 4th-best
+	DescentEdge best5; // 5th-best
 };
 
 /**
@@ -580,9 +724,11 @@ struct DescentQuery {
 	 * If 'fw' is false, get the reverse complement.
 	 */
 	std::pair<int, int> get(TReadOff off5p, bool fw) const {
-		assert_lt(off5p, len);
-		int c = (int)seq[off5p];
-		return make_pair((!fw && c < 4) ? (c ^ 3) : c, (int)qual[off5p]);
+		assert_lt(off5p, length());
+		int c = (int)(*seq)[off5p];
+        int q = (*qual)[off5p];
+        assert_geq(q, 33);
+		return make_pair((!fw && c < 4) ? (c ^ 3) : c, q - 33);
 	}
 	
 	/**
@@ -590,8 +736,8 @@ struct DescentQuery {
 	 * If 'fw' is false, get the reverse complement.
 	 */
 	int getc(TReadOff off5p, bool fw) const {
-		assert_lt(off5p, len);
-		int c = (int)seq[off5p];
+		assert_lt(off5p, length());
+		int c = (int)(*seq)[off5p];
 		return (!fw && c < 4) ? (c ^ 3) : c;
 	}
 	
@@ -599,25 +745,25 @@ struct DescentQuery {
 	 * Get the quality value at the given offset from 5' end.
 	 */
 	int getq(TReadOff off5p) const {
-		assert_lt(off5p, len);
-		return (int)qual[off5p];
+		assert_lt(off5p, length());
+        int q = (*qual)[off5p];
+        assert_geq(q, 33);
+		return q-33;
 	}
 	
 	/**
 	 * Initialize.
 	 */
 	void init(
-		const char *seq_,
-		const char *qual_,
-		const char *seqrc_,
-		const char *qualrc_,
-		size_t len_)
+		const BTDnaString& seq_,
+		const BTString&    qual_,
+		const BTDnaString& seqrc_,
+		const BTString&    qualrc_)
 	{
-		seq = seq_;
-		qual = qual_;
-		seqrc = seqrc_;
-		qualrc = qualrc_;
-		len = len_;
+		seq = &seq_;
+		qual = &qual_;
+		seqrc = &seqrc_;
+		qualrc = &qualrc_;
 	}
 	
 	/**
@@ -633,15 +779,20 @@ struct DescentQuery {
 	bool inited() const {
 		return seq != NULL;
 	}
+    
+    size_t length() const {
+        assert(inited());
+        return seq->length();
+    }
 
-	const char *seq;     // query nucleotide string
-	const char *qual;    // query quality string
+    const BTDnaString* seq;
+    const BTString* qual;
 
-	const char *seqrc;   // query revcomp nucleotide string
-	const char *qualrc;  // query revcomp quality string
-
-	size_t      len;     // length of query string
+    const BTDnaString* seqrc;
+    const BTString* qualrc;
 };
+
+class DescentAlignmentSink;
 
 /**
  * Encapsulates a descent through a search tree, along a path of matches.
@@ -659,86 +810,53 @@ public:
 
 	/**
 	 * Initialize a new descent branching from the given descent via the given
-	 * edit.
+	 * edit.  Return false if the Descent has no outgoing edges (and can
+     * therefore have its memory freed), true otherwise.
 	 */
-	void init(
-		const DescentQuery& q,    // query
-		DescentConstraints& cons, // search constraints - for recalcOutgoing()
-		const Scoring& sc,        // scoring scheme
-		TReadOff al5pi,
-		TReadOff al5pf,
-		TIndexOff topf,           // SA range top in FW index
-		TIndexOff botf,           // SA range bottom in FW index
-		TIndexOff topb,           // SA range top in BW index
-		TIndexOff botb,           // SA range bottom in BW index
-		bool l2r,                 // direction this descent will go in
-		bool fw,                  // true -> fw, false -> revcomp
-		float rootpri,            // root priority
-		size_t descid,            // my ID
-		TDescentId parent,        // parent ID
-		TScore pen,               // total penalties so far
-		const Edit& e,            // edit for incoming edge; uninitialized if bounced
-		const Ebwt& ebwtFw,       // forward index
-		const Ebwt& ebwtBw,       // mirror index
-		EFactory<Descent>& df,    // Descent factory
-		EFactory<DescentPos>& pf, // DescentPos factory
-		EHeap<TDescentPair>& heap,// heap
-		DescentMetrics& met)      // metrics
-	{
-		al5pi_ = al5pi;       // lo offset from 5' end of aligned read char
-		al5pf_ = al5pf;       // hi offset from 5' end of aligned read char
-		l2r_ = l2r;           // left-to-right?
-		fw_ = fw;             // true -> fw, false -> revcomp
-		rootpri_ = rootpri;   // root priority
-		topf_ = topf;
-		botf_ = botf;
-		topb_ = topb;
-		botb_ = botb;
-		descid_ = descid;
-		parent_ = parent;
-		pen_ = pen;
-		posid_ = std::numeric_limits<size_t>::max();
-		len_ = 0;
-		out_.clear();
-		edit_ = e;
-		lastRecalc_ = false;
-		followMatches(q, ebwtFw, ebwtBw, pf, heap, met);
-		recalcOutgoing(q, cons, sc, pf);
-		assert(empty() == out_.empty());
-	}
+	bool init(
+		const DescentQuery& q,          // query
+		TRootId rid,                    // root id
+		const Scoring& sc,              // scoring scheme
+		TReadOff al5pi,                 // offset from 5' of 1st aligned char
+		TReadOff al5pf,                 // offset from 5' of last aligned char
+		TIndexOff topf,                 // SA range top in FW index
+		TIndexOff botf,                 // SA range bottom in FW index
+		TIndexOff topb,                 // SA range top in BW index
+		TIndexOff botb,                 // SA range bottom in BW index
+		bool l2r,                       // direction this descent will go in
+		size_t descid,                  // my ID
+		TDescentId parent,              // parent ID
+		TScore pen,                     // total penalties so far
+		const Edit& e,                  // edit for incoming edge
+		const Ebwt& ebwtFw,             // forward index
+		const Ebwt& ebwtBw,             // mirror index
+		EFactory<Descent>& df,          // Descent factory
+		EFactory<DescentPos>& pf,       // DescentPos factory
+        const EList<DescentRoot>& rs,   // roots
+        const EList<DescentConfig>& cs, // configs
+		EHeap<TDescentPair>& heap,      // heap
+        DescentAlignmentSink& alsink,   // alignment sink
+		DescentMetrics& met);           // metrics
 
 	/**
-	 * Initialize a new descent beginning at the given root.
+	 * Initialize a new descent beginning at the given root.  Return false if
+     * the Descent has no outgoing edges (and can therefore have its memory
+     * freed), true otherwise.
 	 */
-	void init(
-		const DescentQuery& q,
-		const DescentRoot& root,
-		DescentConstraints& cons,
-		const Scoring& sc,
-		size_t descid,
-		const Ebwt& ebwtFw, // forward index
-		const Ebwt& ebwtBw, // mirror index
-		EFactory<DescentPos>& pf,
-		EHeap<TDescentPair>& heap,
-		DescentMetrics& met)
-	{
-		al5pi_ = root.off5p;
-		al5pf_ = root.off5p;
-		l2r_ = root.l2r;
-		fw_ = root.fw;
-		rootpri_ = root.pri;
-		topf_ = botf_ = topb_ = botb_ = 0;
-		descid_ = descid;
-		parent_ = std::numeric_limits<size_t>::max();
-		pen_ = 0;
-		posid_ = std::numeric_limits<size_t>::max();
-		len_ = 0;
-		out_.clear();
-		edit_.reset();
-		lastRecalc_ = false;
-		followMatches(q, ebwtFw, ebwtBw, pf, heap, met);
-		recalcOutgoing(q, cons, sc, pf);
-	}
+	bool init(
+        const DescentQuery& q,          // query
+        TRootId rid,                    // root id
+        const Scoring& sc,              // scoring scheme
+        size_t descid,                  // id of this Descent
+        const Ebwt& ebwtFw,             // forward index
+        const Ebwt& ebwtBw,             // mirror index
+        EFactory<Descent>& df,          // Descent factory
+        EFactory<DescentPos>& pf,       // DescentPos factory
+        const EList<DescentRoot>& rs,   // roots
+        const EList<DescentConfig>& cs, // configs
+        EHeap<TDescentPair>& heap,      // heap
+        DescentAlignmentSink& alsink,   // alignment sink
+        DescentMetrics& met);           // metrics
 	
 	/**
 	 * Return true iff this Descent has been initialized.
@@ -751,6 +869,7 @@ public:
 	 * Reset to uninitialized state.
 	 */
 	void reset() {
+        lastRecalc_ = true;
 		descid_ = std::numeric_limits<size_t>::max();
 	}
 	
@@ -765,15 +884,17 @@ public:
 	 * Take the best outgoing edge and follow it.
 	 */
 	void followBestOutgoing(
-		const DescentQuery& q,     // query string
-		const Ebwt& ebwtFw,        // forward index
-		const Ebwt& ebwtBw,        // mirror index
-		DescentConstraints& cons,  // constraints
-		const Scoring& sc,         // scoring scheme
-		EFactory<DescentPos>& pf,  // factory with DescentPoss
-		EFactory<Descent>& df,     // factory with Descent
-		EHeap<TDescentPair>& heap, // heap of descents
-		DescentMetrics& met);      // metrics
+        const DescentQuery& q,          // query string
+        const Ebwt& ebwtFw,             // forward index
+        const Ebwt& ebwtBw,             // mirror index
+        const Scoring& sc,              // scoring scheme
+        EFactory<DescentPos>& pf,       // factory with DescentPoss
+        EFactory<Descent>& df,          // factory with Descent
+        const EList<DescentRoot>& rs,   // roots
+        const EList<DescentConfig>& cs, // configs
+        EHeap<TDescentPair>& heap,      // heap of descents
+        DescentAlignmentSink& alsink,   // alignment sink
+        DescentMetrics& met);           // metrics
 	
 	/**
 	 * Return true iff no outgoing edges from this descent remain unexplored.
@@ -784,13 +905,56 @@ public:
 	 * Turn the current descent and its chain of parents into a stacked
 	 * alignment string.
 	 */
-	void toStacked(/* writable string */ EFactory<Descent>& df) {
-		// TODO
+#ifndef NDEBUG
+	void toStacked(
+        std::ostream& os,
+        const DescentQuery& q,
+        const Ebwt& ebwtFw,             // forward index
+        const Ebwt& ebwtBw,             // mirror index
+        EFactory<DescentPos>& pf,       // factory with DescentPoss
+        EFactory<Descent>& df,          // factory with Descent
+        const EList<DescentRoot>& rs,   // roots
+        const EList<DescentConfig>& cs) // configs
+    {
+        // Take just the portion of the read that has aligned up until this
+        // point
 		TDescentId cur = descid_;
+        edittmp_.clear();
+        size_t nuninited = 0;
 		while(cur != std::numeric_limits<TDescentId>::max()) {
+            if(!df[cur].edit_.inited()) {
+                nuninited++;
+                assert_leq(nuninited, 2);
+            } else {
+                edittmp_.push_back(df[cur].edit_);
+            }
 			cur = df[cur].parent_;
 		}
+        edittmp_.sort();
+		const bool fw = rs[rid_].fw;
+        // Read on top, ref on bottom.  Printing this partial alignment is a
+		// little complicated since it might not involve all the characters
+		// from the read.  What's needed here is a function that prints all the
+		// read characters with the aligned characters in uppercase and the
+		// unaligned in lowercase.  And it just prints the reference characters
+		// involved in the alignment so far.
+		size_t len = q.length();
+		assert_lt(al5pf_, len);
+		size_t trimLf = fw ? al5pi_ : (len - al5pf_ - 1);
+		size_t trimRg = fw ? (len - al5pf_ - 1) : al5pi_;
+		BTDnaString& rf = tmprfdnastr_;
+		rf.clear();
+		print(os, "", q, trimLf, trimRg, fw, edittmp_, rf);
+        os << std::endl;
+		ASSERT_ONLY(uint32_t toptmp = 0);
+		ASSERT_ONLY(uint32_t bottmp = 0);
+        // Check that the edited string occurs in the reference
+		if(!ebwtFw.contains(rf, &toptmp, &bottmp)) {
+			os << rf << std::endl;
+			assert(false);
+		}
 	}
+#endif
 	
 	/**
 	 * Check whether this Descent is redundant with the given Descent.
@@ -811,12 +975,41 @@ public:
 		assert(!root() || !edit_.inited());
 		assert_eq(botf_ - topf_, botb_ - topb_);
 		if(q != NULL) {
-			assert_leq(len_, q->len);
+			assert_leq(len_, q->length());
 		}
 		return true;
 	}
 
 protected:
+
+#ifndef NDEBUG
+	void print(
+		std::ostream& os,
+		const char *prefix,
+        const DescentQuery& q,
+		size_t trimLf,
+		size_t trimRg,
+		bool fw,
+		const EList<Edit>& edits,
+		BTDnaString& rf);
+#endif
+
+    bool bounce(
+        const DescentQuery& q,          // query string
+        TIndexOff topf,                 // SA range top in fw index
+        TIndexOff botf,                 // SA range bottom in fw index
+        TIndexOff topb,                 // SA range top in bw index
+        TIndexOff botb,                 // SA range bottom in bw index
+        const Ebwt& ebwtFw,             // forward index
+        const Ebwt& ebwtBw,             // mirror index
+        const Scoring& sc,              // scoring scheme
+        EFactory<DescentPos>& pf,       // factory with DescentPoss
+        EFactory<Descent>& df,          // factory with Descent
+        const EList<DescentRoot>& rs,   // roots
+        const EList<DescentConfig>& cs, // configs
+        EHeap<TDescentPair>& heap,      // heap of descents
+        DescentAlignmentSink& alsink,   // alignment sink
+        DescentMetrics& met);           // metrics
 
 	/**
 	 * Given the forward and backward indexes, and given topf/botf/topb/botb,
@@ -835,13 +1028,25 @@ protected:
 	/**
 	 * Advance this descent by following read matches as far as possible.
 	 */
-	bool followMatches(
-		const DescentQuery& q, // query string
-		const Ebwt& ebwtFw,    // forward index
-		const Ebwt& ebwtBw,    // mirror index
-		EFactory<DescentPos>& pf,
-		EHeap<TDescentPair>& heap,
-		DescentMetrics& met);
+    void followMatches(
+        const DescentQuery& q,     // query string
+        const Ebwt& ebwtFw,        // forward index
+        const Ebwt& ebwtBw,        // mirror index
+        EFactory<Descent>& df,     // Descent factory
+        EFactory<DescentPos>& pf,  // DescentPos factory
+        const EList<DescentRoot>& rs,   // roots
+        const EList<DescentConfig>& cs, // configs
+        EHeap<TDescentPair>& heap, // heap
+        DescentAlignmentSink& alsink, // alignment sink
+        DescentMetrics& met,       // metrics
+        bool& branches,            // out: true -> there are > 0 ways to branch
+        bool& hitEnd,              // out: true -> hit read end with non-empty range
+        bool& done,                // out: true -> we made a full alignment
+        TReadOff& off5p_i,         // out: initial 5' offset
+        TIndexOff& topf_bounce,    // out: top of SA range for fw idx for bounce
+        TIndexOff& botf_bounce,    // out: bot of SA range for fw idx for bounce
+        TIndexOff& topb_bounce,    // out: top of SA range for bw idx for bounce
+        TIndexOff& botb_bounce);   // out: bot of SA range for bw idx for bounce
 
 	/**
 	 * Recalculate our summary of the outgoing edges from this descent.  When
@@ -853,16 +1058,18 @@ protected:
 	 * within 40 ply, etc.
 	 */
 	size_t recalcOutgoing(
-		const DescentQuery& q,     // query string
-		DescentConstraints& cons,  // constraints
-		const Scoring& sc,         // scoring scheme
-		EFactory<DescentPos>& pf); // factory with DescentPoss
+		const DescentQuery& q,           // query string
+		const Scoring& sc,               // scoring scheme
+		EFactory<DescentPos>& pf,        // factory with DescentPoss
+        const EList<DescentRoot>& rs,    // roots
+        const EList<DescentConfig>& cs); // configs
+
+    TRootId         rid_;         // root id
 
 	TReadOff        al5pi_;       // lo offset from 5' end of aligned read char
 	TReadOff        al5pf_;       // hi offset from 5' end of aligned read char
-	bool            fw_;          // true -> fw, false -> revcomp
 	bool            l2r_;         // left-to-right?
-	float           rootpri_;     // root priority
+    TReadOff        off5p_i_;     // offset we started out at for this descent
 
 	TIndexOff       topf_, botf_; // incoming SA range w/r/t forward index
 	TIndexOff       topb_, botb_; // incoming SA range w/r/t forward index
@@ -876,6 +1083,46 @@ protected:
 	DescentOutgoing out_;         // summary of outgoing edges
 	Edit            edit_;        // edit joining this descent with parent
 	bool            lastRecalc_;  // set by recalcOutgoing if out edges empty
+
+#ifndef NDEBUG
+    EList<Edit>     edittmp_;
+	BTDnaString     tmprfdnastr_;
+#endif
+};
+
+
+/**
+ * Class that accepts alignments found during descent.
+ */
+class DescentAlignmentSink {
+
+public:
+
+    /**
+     * If this is the final descent in a complete end-to-end alignment, report
+     * the alignment.
+     */
+    void reportAlignment(
+        const DescentQuery& q,          // query string
+        TDescentId id,
+        const Edit& e,
+        TScore pen,
+        EFactory<Descent>& df,          // factory with Descent
+        EFactory<DescentPos>& pf,       // factory with DescentPoss
+        const EList<DescentRoot>& rs,   // roots
+        const EList<DescentConfig>& cs) // configs
+    {
+        std::cerr << "Found an alignment with total penalty = " << pen << std::endl;
+    }
+    
+    /**
+     * Reset to uninitialized state.
+     */
+    void reset() {
+    }
+
+protected:
+
 };
 
 /**
@@ -886,24 +1133,19 @@ protected:
 class DescentDriver {
 public:
 
-	DescentDriver(size_t maxd) {
-		assert_gt(maxd, 0);
-		maxd_ = maxd;
-	}
+	DescentDriver() { reset(); }
 	
 	/**
 	 * Initialize driver with respect to a new read.
 	 */
 	void initRead(
-		const char* seq,
-		const char* qual,
-		const char* seqrc,
-		const char* qualrc,
-		size_t len,
-		const Scoring *sc)
+		const BTDnaString& seq,
+		const BTString& qual,
+		const BTDnaString& seqrc,
+		const BTString& qualrc)
 	{
 		reset();
-		q_.init(seq, qual, seqrc, qualrc, len);
+		q_.init(seq, qual, seqrc, qualrc);
 	}
 	
 	/**
@@ -911,8 +1153,15 @@ public:
 	 * direction, and might (b) be with respect to the read or its reverse
 	 * complement.
 	 */
-	void addRoot(TReadOff off, bool l2r, bool fw, float pri) {
-		roots_.push_back(DescentRoot(off, l2r, fw, q_.len, pri));
+	void addRoot(
+        const DescentConfig& conf,
+        TReadOff off,
+        bool l2r,
+        bool fw,
+        float pri)
+    {
+        confs_.push_back(conf);
+		roots_.push_back(DescentRoot(off, l2r, fw, q_.length(), pri));
 	}
 	
 	/**
@@ -920,16 +1169,21 @@ public:
 	 * for the current read.
 	 */
 	void reset() {
-		ds_.clear();    // clear Descents
-		ps_.clear();    // clear DescentPoss
-		heap_.clear();  // clear Heap
-		roots_.clear(); // clear roots
+		df_.clear();     // clear Descents
+		pf_.clear();     // clear DescentPoss
+		heap_.clear();   // clear Heap
+		roots_.clear();  // clear roots
+        alsink_.reset(); // clear alignment sink
 	}
 
 	/**
 	 * Perform seed alignment.
 	 */
-	void go();
+	void go(
+        const Scoring& sc,    // scoring scheme
+		const Ebwt& ebwtFw,   // forward index
+		const Ebwt& ebwtBw,   // mirror index
+        DescentMetrics& met); // metrics
 
 	/**
 	 * Return true iff this DescentDriver is well formed.  Throw an assertion
@@ -941,14 +1195,15 @@ public:
 
 protected:
 
-	DescentQuery         q_;     // query nucleotide and quality strings
-	size_t               maxd_;  // if we reach this number of descents, bail
-	EFactory<Descent>    ds_;    // factory holding all the Descents, which
-	                             // must be referred to by ID
-	EFactory<DescentPos> ps_;    // factory holding all the DescentPoss, which
-	                             // must be referred to by ID
-	EList<DescentRoot>   roots_; // search roots
-	EHeap<TDescentPair>  heap_;  // priority queue of Descents
+	DescentQuery         q_;      // query nucleotide and quality strings
+	EFactory<Descent>    df_;     // factory holding all the Descents, which
+	                              // must be referred to by ID
+	EFactory<DescentPos> pf_;     // factory holding all the DescentPoss, which
+	                              // must be referred to by ID
+	EList<DescentRoot>   roots_;  // search roots
+    EList<DescentConfig> confs_;  // configuration params for each root
+	EHeap<TDescentPair>  heap_;   // priority queue of Descents
+    DescentAlignmentSink alsink_; // alignment sink
 };
 
 #endif

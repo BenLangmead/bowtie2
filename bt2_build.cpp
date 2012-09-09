@@ -90,11 +90,7 @@ static void resetOptions() {
 	writeRef     = true;  // write compact reference to .3.bt2/.4.bt2
 	justRef      = false; // *just* write compact reference, don't index
 	color        = false;
-#ifdef BOWTIE2
 	reverseEach  = false;
-#else
-	reverseEach  = true;
-#endif
 }
 
 // Argument constants for getopts
