@@ -16,12 +16,14 @@ Please report any issues using the Sourceforge bug tracker:
 Version Release History
 =======================
 
-Version 2.0.0-beta8 - August 8, 2012
+Version 2.0.0-beta8 - September 9, 2012
    * Fixed an issue that would cause Bowtie 2 to use excessive amounts of
      memory for closely-matching and highly repetitive reads under some
      circumstances.
    * Fixed a bug in --mm mode that would fail to report when an index file
      could not be memory-mapped.
+   * Fixed a bug in bowtie2-build would yield corrupt index files when memory
+     settings were adjusted in the middle of indexing.
    * Clarified in manual that --un (or --un-*) options print reads exactly as
      they appeared in the input, and that they are not necessarily written in
      the same order as they appeared in the input.
