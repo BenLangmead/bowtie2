@@ -1642,7 +1642,11 @@ This is printed to the "standard error" ("stderr") filehandle.  Default: off.
 Write unpaired reads that fail to align to file at `<path>`.  These reads
 correspond to the SAM records with the FLAGS `0x4` bit set and neither the
 `0x40` nor `0x80` bits set.  If `--un-gz` is specified, output will be gzip
-compressed. If `--un-bz2` is specified, output will be bzip2 compressed.
+compressed. If `--un-bz2` is specified, output will be bzip2 compressed.  Reads
+written in this way will appear exactly as they did in the input file, without
+any modification (same sequence, same name, same quality string, same quality
+encoding).  Reads will not necessarily appear in the same order as they did in
+the input.
 
 </td></tr>
 <tr><td id="bowtie2-options-al">
@@ -1660,7 +1664,10 @@ compressed. If `--un-bz2` is specified, output will be bzip2 compressed.
 Write unpaired reads that align at least once to file at `<path>`.  These reads
 correspond to the SAM records with the FLAGS `0x4`, `0x40`, and `0x80` bits
 unset.  If `--al-gz` is specified, output will be gzip compressed. If `--al-bz2`
-is specified, output will be bzip2 compressed.
+is specified, output will be bzip2 compressed.  Reads written in this way will
+appear exactly as they did in the input file, without any modification (same
+sequence, same name, same quality string, same quality encoding).  Reads will
+not necessarily appear in the same order as they did in the input.
 
 </td></tr>
 <tr><td id="bowtie2-options-un-conc">
@@ -1682,7 +1689,10 @@ either the `0x40` or `0x80` bit set (depending on whether it's mate #1 or #2).
 contains mate #1 and mate #2.  If a percent symbol, `%`, is used in `<path>`,
 the percent symbol is replaced with `1` or `2` to make the per-mate filenames.
 Otherwise, `.1` or `.2` are added before the final dot in `<path>` to make the
-per-mate filenames.
+per-mate filenames.  Reads written in this way will appear exactly as they did
+in the input files, without any modification (same sequence, same name, same
+quality string, same quality encoding).  Reads will not necessarily appear in
+the same order as they did in the inputs.
 
 </td></tr>
 <tr><td id="bowtie2-options-al-conc">
@@ -1704,7 +1714,10 @@ or #2). `.1` and `.2` strings are added to the filename to distinguish which
 file contains mate #1 and mate #2.  If a percent symbol, `%`, is used in
 `<path>`, the percent symbol is replaced with `1` or `2` to make the per-mate
 filenames. Otherwise, `.1` or `.2` are added before the final dot in `<path>` to
-make the per-mate filenames.
+make the per-mate filenames.  Reads written in this way will appear exactly as
+they did in the input files, without any modification (same sequence, same name,
+same quality string, same quality encoding).  Reads will not necessarily appear
+in the same order as they did in the inputs.
 
 </td></tr>
 <tr><td id="bowtie2-options-quiet">
@@ -2720,11 +2733,9 @@ variant calls in VCF format.  This example assumes that `samtools` and
 `bcftools` are installed and that the directories containing these binaries are
 in your [PATH environment variable].
 
-If you haven't already done so above, run the paired-end example.  Run it in the
-same directory where you ran the initial index-building step.  Here is the
-command again:
+Run the paired-end example:
 
-    $BT2_HOME/bowtie2 -x lambda_virus -1 $BT2_HOME/example/reads/reads_1.fq -2 $BT2_HOME/example/reads/reads_2.fq -S eg2.sam
+    $BT2_HOME/bowtie2 -x $BT2_HOME/example/index/lambda_virus -1 $BT2_HOME/example/reads/reads_1.fq -2 $BT2_HOME/example/reads/reads_2.fq -S eg2.sam
 
 Use `samtools view` to convert the SAM file into a BAM file.  BAM is a the
 binary format corresponding to the SAM text format.  Run:

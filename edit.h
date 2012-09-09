@@ -39,8 +39,20 @@ enum {
 };
 
 /**
- * Encapsulates an edit between the read sequence and the reference
- * sequence.
+ * Encapsulates an edit between the read sequence and the reference sequence.
+ * We obey a few conventions when populating its fields.  The fields are:
+ *
+ * 	uint8_t  chr;  // reference character involved (for subst and ins)
+ *  uint8_t  qchr; // read character involved (for subst and del)
+ *  uint8_t  type; // 1 -> mm, 2 -> SNP, 3 -> ins, 4 -> del
+ *  uint32_t pos;  // position w/r/t search root
+ *
+ * One convention is that pos is always an offset w/r/t the 5' end of the read.
+ *
+ * Another is that chr and qchr are expressed in terms of the nucleotides on
+ * the forward version of the read.  So if we're aligning the reverse
+ * complement of the read, and an A in the reverse complement mismatches a C in
+ * the reference, chr should be G and qchr should be T.
  */
 struct Edit {
 
@@ -56,14 +68,23 @@ struct Edit {
 		init(po, ch, qc, ty, chrs);
 	}
 	
+    /**
+     * Reset Edit to uninitialized state.
+     */
 	void reset() {
 		pos = 0xffffffff;
 	}
 	
+    /**
+     * Return true iff the Edit is initialized.
+     */
 	bool inited() const {
 		return pos != 0xffffffff;
 	}
 	
+    /**
+     * Initialize a new Edit.
+     */
 	void init(
 		uint32_t po,
 		int ch,
