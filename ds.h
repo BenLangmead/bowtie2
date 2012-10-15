@@ -2390,9 +2390,9 @@ public:
 			// Binary search
 			i = bsearchLoBound(el.first);
 		}
-		if(list_[i] == el) return false;
+		if(list_[i] == el) return false; // already there
 		insert(el, i);
-		return true;
+		return true; // not already there
 	}
 
 	/**
@@ -2402,6 +2402,25 @@ public:
 		if(cur_ == 0) return false;
 		else if(cur_ == 1) return el == list_[0].first;
 		size_t i;
+		if(cur_ < 16) {
+			// Linear scan
+			i = scanLoBound(el);
+		} else {
+			// Binary search
+			i = bsearchLoBound(el);
+		}
+		return i != cur_ && list_[i].first == el;
+	}
+
+	/**
+	 * Return true iff this set contains 'el'.
+	 */
+	bool containsEx(const K& el, size_t& i) const {
+		if(cur_ == 0) return false;
+		else if(cur_ == 1) {
+			i = 0;
+			return el == list_[0].first;
+		}
 		if(cur_ < 16) {
 			// Linear scan
 			i = scanLoBound(el);
@@ -2536,9 +2555,12 @@ private:
 	 */
 	bool sorted() const {
 		if(cur_ <= 1) return true;
+#ifndef NDEBUG
 		for(size_t i = 0; i < cur_-1; i++) {
+			assert(!(list_[i] == list_[i+1]));
 			assert(list_[i] < list_[i+1]);
 		}
+#endif
 		return true;
 	}
 
@@ -2553,6 +2575,7 @@ private:
 			list_[i] = list_[i-1];
 		}
 		list_[idx] = el;
+		assert(idx == cur_ || list_[idx] < list_[idx+1]);
 		cur_++;
 		assert(sorted());
 	}
@@ -3762,20 +3785,53 @@ struct DoublyLinkedList {
 	DoublyLinkedList<T> *next;
 };
 
+template <typename T1, typename T2>
+struct Pair {
+	T1 a;
+	T2 b;
+
+	Pair() : a(), b() { }
+	
+	Pair(
+		const T1& a_,
+		const T2& b_) { a = a_; b = b_; }
+
+	bool operator==(const Pair& o) const {
+		return a == o.a && b == o.b;
+	}
+	
+	bool operator<(const Pair& o) const {
+		if(a < o.a) return true;
+		if(a > o.a) return false;
+		if(b < o.b) return true;
+		return false;
+	}
+};
+
 template <typename T1, typename T2, typename T3>
 struct Triple {
 	T1 a;
 	T2 b;
 	T3 c;
 
+	Triple() : a(), b(), c() { }
+
+	Triple(
+		const T1& a_,
+		const T2& b_,
+		const T3& c_) { a = a_; b = b_; c = c_; }
+
+	bool operator==(const Triple& o) const {
+		return a == o.a && b == o.b && c == o.c;
+	}
+	
 	bool operator<(const Triple& o) const {
 		if(a < o.a) return true;
 		if(a > o.a) return false;
 		if(b < o.b) return true;
 		if(b > o.b) return false;
 		if(c < o.c) return true;
-		if(c > o.c) return false;
-		return false; // equal
+		return false;
 	}
 };
 
@@ -3783,6 +3839,12 @@ template <typename T1, typename T2, typename T3, typename T4>
 struct Quad {
 
 	Quad() : a(), b(), c(), d() { }
+
+	Quad(
+		const T1& a_,
+		const T2& b_,
+		const T3& c_,
+		const T4& d_) { a = a_; b = b_; c = c_; d = d_; }
 
 	Quad(
 		const T1& a_,
@@ -3801,6 +3863,10 @@ struct Quad {
 	{
 		a = a_; b = b_; c = c_; d = d_;
 	}
+
+	bool operator==(const Quad& o) const {
+		return a == o.a && b == o.b && c == o.c && d == o.d;
+	}
 	
 	bool operator<(const Quad& o) const {
 		if(a < o.a) return true;
@@ -3810,8 +3876,7 @@ struct Quad {
 		if(c < o.c) return true;
 		if(c > o.c) return false;
 		if(d < o.d) return true;
-		if(d > o.d) return false;
-		return false; // equal
+		return false;
 	}
 
 	T1 a;

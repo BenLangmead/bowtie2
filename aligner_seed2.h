@@ -28,10 +28,74 @@
  * The heap is a min-heap over pairs, where the first element of each pair is
  * the score associated with a descent and the second element of each pair is
  * the descent ID.
+ *
+ * Weeding out redundant descents is key; otherwise we end up reporting slight
+ * variations on the same alignment repeatedly, including variations with poor
+ * scores.  What criteria do we use to determine whether two paths are
+ * redundant?
+ *
+ * Here's an example where the same set of read characters have been aligned in
+ * all three cases:
+ *
+ * Alignment 1 (sc = 0):
+ * Rd: GCTATATAGCGCGCTCGCATCATTTTGTGT
+ *     ||||||||||||||||||||||||||||||
+ * Rf: GCTATATAGCGCGCTCGCATCATTTTGTGT
+ *
+ * Alignment 2 (sc = -22):
+ * Rd: GCTATATAGCGCGCTCGCATCATTTTGTGT
+ *     |||||||||||||||||||||||  | |||
+ * Rf: GCTATATAGCGCGCTCGCATCAT--TTTGT
+ *
+ * Alignment 3 (sc = -22):
+ * Rd: GCTATATAGCGCGCTCGCATCATT--TTGTGT
+ *     ||||||||||||||||||||||||   |||||
+ * Rf: GCTATATAGCGCGCTCGCATCATTTTGTGTGT
+ *
+ * Rf from aln 1: GCTATATAGCGCGCTCGCATCATTTTGTGT
+ * Rf from aln 2: GCTATATAGCGCGCTCGCATCATTTTGT
+ * Rf from aln 3: GCTATATAGCGCGCTCGCATCATTTTGTGTGT
+ *
+ * Are alignments 2 and 3 redundant with alignment 1?  We can't totally say
+ * without knowing the associated SA ranges.  Take alignments 1 and 2.  Either
+ * the SA ranges are the same or the SA range for 2 contains the SA range for
+ * 1.  If they're the same, then alignment 2 is redundant with alignment 1.
+ * Otherwise, *some* of the elements in the SA range for alignment 2 are not
+ * redundant.
+ *
+ * In that example, the same read characters are aligned in all three
+ * alignments.  Is it possible and profitable to consider scenarios where an
+ * alignment might be redundant with another alignment 
+ *
+ * Another question is *when* do we try to detect the redundancy?  Before we
+ * try to extend through the matches, or after.  After is easier, but less work
+ * has been avoided.
+ *
+ * What data structure do we query to determine whether there's redundancy?
+ * The situation is harder when we try to detect overlaps between SA ranges
+ * rather than identical SA ranges.  Maybe: read intervals -> intersection tree -> penalties.
+ *
+ * 1. If we're introducing a gap and we could have introduced it deeper in the
+ *    descent with the same effect w/r/t homopolymer length.
+ * 2. If we have Descent A with penalty B and Descent a with penalty b, and A
+ *    aligns read characters [X, Y] to SA range [Z, W], and B aligns read
+ *    characters [x, y] to SA range [z, w], then A is redundant with B if
+ *    [x, y] is within [X, Y].
+ *
+ * Found an alignment with total penalty = 3
+ * GCAATATAGCGCGCTCGCATCATTTTGTGT
+ * || |||||||||||||||||||||||||||
+ * GCTATATAGCGCGCTCGCATCATTTTGTGT
+ *
+ * Found an alignment with total penalty = 27
+ * gCAATATAGCGCGCTCGCATCATTTTGTGT
+ *   |   ||||||||||||||||||||||||
+ *  TATA-TAGCGCGCTCGCATCATTTTGTGT
  */
 
 #include <stdint.h>
 #include <utility>
+#include "assert_helpers.h"
 #include "bt2_idx.h"
 #include "simple_func.h"
 #include "scoring.h"
@@ -298,6 +362,138 @@ struct DescentConfig {
     int expol; // extend policy
 };
 
+struct DescentRedundancyKey {
+
+	DescentRedundancyKey() { reset(); }
+	
+	DescentRedundancyKey(
+		TReadOff  al5pi_,
+		TReadOff  al5pf_,
+		size_t    rflen_,
+		TIndexOff topf_,
+		TIndexOff botf_)
+	{
+		init(al5pi_, al5pf_, rflen_, topf_, botf_);
+	}
+
+	void reset() {
+		al5pi = al5pf = 0;
+		rflen = 0;
+		topf = botf = 0;
+	}
+	
+	bool inited() const { return rflen > 0; }
+
+	void init(
+		TReadOff  al5pi_,
+		TReadOff  al5pf_,
+		size_t    rflen_,
+		TIndexOff topf_,
+		TIndexOff botf_)
+	{
+		al5pi = al5pi_;
+		al5pf = al5pf_;
+		rflen = rflen_;
+		topf = topf_;
+		botf = botf_;
+	}
+	
+	bool operator==(const DescentRedundancyKey& o) const {
+		return al5pi == o.al5pi && al5pf == o.al5pf &&
+		       rflen == o.rflen && topf == o.topf && botf == o.botf;
+	}
+
+	bool operator<(const DescentRedundancyKey& o) const {
+		if(al5pi < o.al5pi) return true;
+		if(al5pi > o.al5pi) return false;
+		if(al5pf < o.al5pf) return true;
+		if(al5pf > o.al5pf) return false;
+		if(rflen < o.rflen) return true;
+		if(rflen > o.rflen) return false;
+		if(topf < o.topf) return true;
+		if(topf > o.topf) return false;
+		return botf < o.botf;
+	}
+
+	TReadOff  al5pi;
+	TReadOff  al5pf;
+	size_t    rflen;
+	TIndexOff topf;
+	TIndexOff botf;
+};
+
+/**
+ * Map from pairs to top, bot, penalty triples.
+ */
+class DescentRedundancyChecker {
+
+public:
+
+	DescentRedundancyChecker() { reset(); }
+
+	void clear() { reset(); }
+	
+	void reset() {
+		map_.clear();
+	}
+
+	/**
+	 * Check if this partial alignment is redundant with one that we've already
+	 * explored.
+	 *
+	 * TODO: There might be situations where we can eliminate a redundant path
+	 * even though its SA range doesn't exactly match one seen already.  E.g.
+	 * if it's contained within an SA range seen already, and matches the same
+	 * read characters.
+	 */
+	bool check(
+		TReadOff al5pi,
+		TReadOff al5pf,
+		size_t rflen,
+		TIndexOff topf,
+		TIndexOff botf,
+		TScore pen)
+	{
+		DescentRedundancyKey k(al5pi, al5pf, rflen, topf, botf);
+		size_t i = std::numeric_limits<size_t>::max();
+		if(map_.containsEx(k, i)) {
+			// Already contains the key
+			assert_lt(i, map_.size());
+			assert_geq(pen, map_[i].second);
+			return false;
+		}
+		map_.insert(make_pair(k, pen));
+		return true;
+	}
+
+	/**
+	 * Check if this partial alignment is redundant with one that we've already
+	 * explored using the Bw index SA range.
+	 */
+	bool contains(
+		TReadOff al5pi,
+		TReadOff al5pf,
+		size_t rflen,
+		TIndexOff topf,
+		TIndexOff botf,
+		TScore pen)
+	{
+		DescentRedundancyKey k(al5pi, al5pf, rflen, topf, botf);
+		return map_.contains(k);
+	}
+
+	/**
+	 * Return the number of entries in the 
+	 */
+	size_t size() const {
+		return map_.size();
+	}
+
+protected:
+	EMap<DescentRedundancyKey, TScore> map_;
+
+};
+
 /**
  * A search root.  Consists of an offset from the 5' end read and flags
  * indicating (a) whether we're initially heading left-to-right or
@@ -494,6 +690,14 @@ struct DescentPos {
         return c >= 0;
     }
 	
+	/**
+	 * Check that DescentPos is internally consistent.
+	 */
+	bool repOk() const {
+		assert_range(0, 3, (int)c);
+		return true;
+	}
+	
 	TIndexOff       topf[4]; // SA range top indexes in fw index
 	TIndexOff       botf[4]; // SA range bottom indexes (exclusive) in fw index
 	TIndexOff       topb[4]; // SA range top indexes in bw index
@@ -511,6 +715,7 @@ struct DescentEdge {
 
 	DescentEdge(
 		Edit e_,
+		TReadOff off5p_,
 		DescentPriority pri_,
         size_t posFlag_,
 		TReadOff nex_
@@ -524,7 +729,7 @@ struct DescentEdge {
 #endif
         )
 	{
-		init(e_, pri_, posFlag_
+		init(e_, off5p_, pri_, posFlag_
 #ifndef NDEBUG
         , d_, topf_, botf_, topb_, botb_
 #endif
@@ -546,6 +751,7 @@ struct DescentEdge {
 	 */
 	void init(
 		Edit e_,
+		TReadOff off5p_,
 		DescentPriority pri_,
         size_t posFlag_
 #ifndef NDEBUG
@@ -559,6 +765,7 @@ struct DescentEdge {
         )
 	{
 		e = e_;
+		off5p = off5p_;
 		pri = pri_;
         posFlag = posFlag_;
 #ifndef NDEBUG
@@ -612,6 +819,7 @@ struct DescentEdge {
 #endif
 
 	Edit e;
+	TReadOff off5p;
 };
 
 /**
@@ -830,6 +1038,7 @@ public:
 		const Edit& e,                  // edit for incoming edge
 		const Ebwt& ebwtFw,             // forward index
 		const Ebwt& ebwtBw,             // mirror index
+		DescentRedundancyChecker& re,   // redundancy checker
 		EFactory<Descent>& df,          // Descent factory
 		EFactory<DescentPos>& pf,       // DescentPos factory
         const EList<DescentRoot>& rs,   // roots
@@ -850,6 +1059,7 @@ public:
         size_t descid,                  // id of this Descent
         const Ebwt& ebwtFw,             // forward index
         const Ebwt& ebwtBw,             // mirror index
+		DescentRedundancyChecker& re,   // redundancy checker
         EFactory<Descent>& df,          // Descent factory
         EFactory<DescentPos>& pf,       // DescentPos factory
         const EList<DescentRoot>& rs,   // roots
@@ -881,6 +1091,20 @@ public:
 	}
 	
 	/**
+	 * Return the edit.
+	 */
+	const Edit& edit() const {
+		return edit_;
+	}
+	
+	/**
+	 * Return id of parent.
+	 */
+	TDescentId parent() const {
+		return parent_;
+	}
+	
+	/**
 	 * Take the best outgoing edge and follow it.
 	 */
 	void followBestOutgoing(
@@ -888,8 +1112,9 @@ public:
         const Ebwt& ebwtFw,             // forward index
         const Ebwt& ebwtBw,             // mirror index
         const Scoring& sc,              // scoring scheme
-        EFactory<DescentPos>& pf,       // factory with DescentPoss
-        EFactory<Descent>& df,          // factory with Descent
+		DescentRedundancyChecker& re,   // redundancy checker
+		EFactory<Descent>& df,          // factory with Descent
+		EFactory<DescentPos>& pf,       // factory with DescentPoss
         const EList<DescentRoot>& rs,   // roots
         const EList<DescentConfig>& cs, // configs
         EHeap<TDescentPair>& heap,      // heap of descents
@@ -902,76 +1127,11 @@ public:
 	bool empty() const { return lastRecalc_ && out_.empty(); }
 	
 	/**
-	 * Turn the current descent and its chain of parents into a stacked
-	 * alignment string.
-	 */
-#ifndef NDEBUG
-	void toStacked(
-        std::ostream& os,
-        const DescentQuery& q,
-        const Ebwt& ebwtFw,             // forward index
-        const Ebwt& ebwtBw,             // mirror index
-        EFactory<DescentPos>& pf,       // factory with DescentPoss
-        EFactory<Descent>& df,          // factory with Descent
-        const EList<DescentRoot>& rs,   // roots
-        const EList<DescentConfig>& cs) // configs
-    {
-        // Take just the portion of the read that has aligned up until this
-        // point
-		TDescentId cur = descid_;
-        edittmp_.clear();
-        size_t nuninited = 0;
-		while(cur != std::numeric_limits<TDescentId>::max()) {
-            if(!df[cur].edit_.inited()) {
-                nuninited++;
-                assert_leq(nuninited, 2);
-            } else {
-                edittmp_.push_back(df[cur].edit_);
-            }
-			cur = df[cur].parent_;
-		}
-        edittmp_.sort();
-		const bool fw = rs[rid_].fw;
-        // Read on top, ref on bottom.  Printing this partial alignment is a
-		// little complicated since it might not involve all the characters
-		// from the read.  What's needed here is a function that prints all the
-		// read characters with the aligned characters in uppercase and the
-		// unaligned in lowercase.  And it just prints the reference characters
-		// involved in the alignment so far.
-		size_t len = q.length();
-		assert_lt(al5pf_, len);
-		size_t trimLf = fw ? al5pi_ : (len - al5pf_ - 1);
-		size_t trimRg = fw ? (len - al5pf_ - 1) : al5pi_;
-		BTDnaString& rf = tmprfdnastr_;
-		rf.clear();
-		print(os, "", q, trimLf, trimRg, fw, edittmp_, rf);
-        os << std::endl;
-		ASSERT_ONLY(uint32_t toptmp = 0);
-		ASSERT_ONLY(uint32_t bottmp = 0);
-        // Check that the edited string occurs in the reference
-		if(!ebwtFw.contains(rf, &toptmp, &bottmp)) {
-			os << rf << std::endl;
-			assert(false);
-		}
-	}
-#endif
-	
-	/**
-	 * Check whether this Descent is redundant with the given Descent.
-	 */
-	bool redundantTo(const Descent& o) const {
-		// Return true iff this Descent is redundant with the given Descent and
-		// the other descent should be preferred.
-		//
-		// Problem: we don't have a priority calculated in this class
-		return false;
-	}
-	
-	/**
 	 * Return true iff the Descent is internally consistent.
 	 */
 	bool repOk(const DescentQuery *q) const {
-		assert( root() ||  edit_.inited());
+		// A non-root can have an uninitialized edit_ if it is from a bounce
+		//assert( root() ||  edit_.inited());
 		assert(!root() || !edit_.inited());
 		assert_eq(botf_ - topf_, botb_ - topb_);
 		if(q != NULL) {
@@ -979,10 +1139,14 @@ public:
 		}
 		return true;
 	}
+	
+	size_t al5pi() const { return al5pi_; }
+	size_t al5pf() const { return al5pf_; }
+	bool l2r() const { return l2r_; }
 
-protected:
-
-#ifndef NDEBUG
+	/**
+	 * Print a stacked representation of this descent and all its parents.
+	 */
 	void print(
 		std::ostream& os,
 		const char *prefix,
@@ -991,8 +1155,11 @@ protected:
 		size_t trimRg,
 		bool fw,
 		const EList<Edit>& edits,
-		BTDnaString& rf);
-#endif
+		size_t ei,
+		size_t en,
+		BTDnaString& rf) const;
+
+protected:
 
     bool bounce(
         const DescentQuery& q,          // query string
@@ -1003,8 +1170,9 @@ protected:
         const Ebwt& ebwtFw,             // forward index
         const Ebwt& ebwtBw,             // mirror index
         const Scoring& sc,              // scoring scheme
-        EFactory<DescentPos>& pf,       // factory with DescentPoss
-        EFactory<Descent>& df,          // factory with Descent
+		DescentRedundancyChecker& re,   // redundancy checker
+		EFactory<Descent>& df,          // factory with Descent
+		EFactory<DescentPos>& pf,       // factory with DescentPoss
         const EList<DescentRoot>& rs,   // roots
         const EList<DescentConfig>& cs, // configs
         EHeap<TDescentPair>& heap,      // heap of descents
@@ -1028,10 +1196,11 @@ protected:
 	/**
 	 * Advance this descent by following read matches as far as possible.
 	 */
-    void followMatches(
+    bool followMatches(
         const DescentQuery& q,     // query string
         const Ebwt& ebwtFw,        // forward index
         const Ebwt& ebwtBw,        // mirror index
+		DescentRedundancyChecker& re, // redundancy checker
         EFactory<Descent>& df,     // Descent factory
         EFactory<DescentPos>& pf,  // DescentPos factory
         const EList<DescentRoot>& rs,   // roots
@@ -1060,6 +1229,7 @@ protected:
 	size_t recalcOutgoing(
 		const DescentQuery& q,           // query string
 		const Scoring& sc,               // scoring scheme
+		DescentRedundancyChecker& re,    // redundancy checker
 		EFactory<DescentPos>& pf,        // factory with DescentPoss
         const EList<DescentRoot>& rs,    // roots
         const EList<DescentConfig>& cs); // configs
@@ -1069,6 +1239,7 @@ protected:
 	TReadOff        al5pi_;       // lo offset from 5' end of aligned read char
 	TReadOff        al5pf_;       // hi offset from 5' end of aligned read char
 	bool            l2r_;         // left-to-right?
+	int             gapadd_;      // net ref characters additional
     TReadOff        off5p_i_;     // offset we started out at for this descent
 
 	TIndexOff       topf_, botf_; // incoming SA range w/r/t forward index
@@ -1083,13 +1254,55 @@ protected:
 	DescentOutgoing out_;         // summary of outgoing edges
 	Edit            edit_;        // edit joining this descent with parent
 	bool            lastRecalc_;  // set by recalcOutgoing if out edges empty
-
-#ifndef NDEBUG
-    EList<Edit>     edittmp_;
-	BTDnaString     tmprfdnastr_;
-#endif
 };
 
+/**
+ * An alignment result from a Descent.
+ */
+struct DescentAlignment {
+
+	DescentAlignment() { reset(); }
+
+	/**
+	 * Reset DescentAlignment to be uninitialized.
+	 */
+	void reset() {
+		topf = botf = 0;
+	}
+
+	/**
+	 * Initialize this DescentAlignment.
+	 */
+	void init(
+		TScore pen_,
+		TIndexOff topf_,
+		TIndexOff botf_,
+		size_t ei_,
+		size_t en_)
+	{
+		assert_gt(botf_, topf_);
+		pen = pen_;
+		topf = topf_;
+		botf = botf_;
+		ei = ei_;
+		en = en_;
+	}
+	
+	/**
+	 * Return true iff DescentAlignment is initialized.
+	 */
+	bool inited() const {
+		return botf > topf;
+	}
+
+	TScore pen; // score
+
+	TIndexOff topf; // top in forward index
+	TIndexOff botf; // bot in forward index
+
+	size_t ei; // First edit in DescentAlignmentSink::edits_ involved in aln
+	size_t en; // # edits in DescentAlignmentSink::edits_ involved in aln
+};
 
 /**
  * Class that accepts alignments found during descent.
@@ -1102,26 +1315,155 @@ public:
      * If this is the final descent in a complete end-to-end alignment, report
      * the alignment.
      */
-    void reportAlignment(
+    bool reportAlignment(
         const DescentQuery& q,          // query string
-        TDescentId id,
-        const Edit& e,
-        TScore pen,
+		const Ebwt& ebwtFw,             // forward index
+		const Ebwt& ebwtBw,             // mirror index
+		TIndexOff topf,                 // SA range top in forward index
+		TIndexOff botf,                 // SA range bottom in forward index
+		TIndexOff topb,                 // SA range top in backward index
+		TIndexOff botb,                 // SA range bottom in backward index
+        TDescentId id,                  // id of leaf Descent
+		TRootId rid,                    // id of search root
+        const Edit& e,                  // final edit, if needed
+        TScore pen,                     // total penalty
         EFactory<Descent>& df,          // factory with Descent
         EFactory<DescentPos>& pf,       // factory with DescentPoss
         const EList<DescentRoot>& rs,   // roots
         const EList<DescentConfig>& cs) // configs
     {
+		TDescentId cur = id;
+		const Descent& desc = df[id];
+		const bool fw = rs[rid].fw;
+		size_t len = q.length();
+		assert_lt(desc.al5pf(), len);
+		size_t al5pi = desc.al5pi(), al5pf = desc.al5pf();
+		size_t l, r;
+		// Adjust al5pi and al5pf to take the final edit into account (if
+		// there is one)
+		bool toward3p = (desc.l2r() == fw);
+		if(e.inited()) {
+			if(toward3p) {
+				assert_lt(al5pf, q.length()-1);
+				al5pf++;
+			} else {
+				assert_gt(al5pi, 0);
+				al5pi--;
+			}
+		}
+		if(fw) {
+			l = al5pi;
+			r = al5pf + 1;
+		} else {
+			l = q.length() - al5pf - 1;
+			r = q.length() - al5pi;
+		}
+		// Check if this is redundant with a previous reported alignment
+		Triple<TIndexOff, TIndexOff, size_t> lhs(topf, botf, l);
+		Triple<TIndexOff, TIndexOff, size_t> rhs(topb, botb, r);
+		if(!lhs_.insert(lhs)) {
+			rhs_.insert(rhs);
+			return false; // Already there
+		}
+		if(!rhs_.insert(rhs)) {
+			return false; // Already there
+		}
         std::cerr << "Found an alignment with total penalty = " << pen << std::endl;
+        // Take just the portion of the read that has aligned up until this
+        // point
+        size_t nuninited = 0;
+		size_t ei = edits_.size();
+		size_t en = 0;
+		if(e.inited()) {
+			edits_.push_back(e);
+			en++;
+		}
+		while(cur != std::numeric_limits<TDescentId>::max()) {
+            if(!df[cur].edit().inited()) {
+                nuninited++;
+                assert_leq(nuninited, 2);
+            } else {
+                edits_.push_back(df[cur].edit());
+				en++;
+            }
+			cur = df[cur].parent();
+		}
+		// Sort just the edits we just added
+		edits_.sortPortion(ei, en);
+#ifndef NDEBUG
+		{
+			// Now figure out how much we refrained from aligning on either
+			// side.
+			size_t trimLf = fw ? al5pi : (len - al5pf - 1);
+			size_t trimRg = fw ? (len - al5pf - 1) : al5pi;
+			BTDnaString& rf = tmprfdnastr_;
+			rf.clear();
+			desc.print(std::cerr, "", q, trimLf, trimRg, fw, edits_, ei, en, rf);
+			std::cerr << std::endl;
+			ASSERT_ONLY(uint32_t toptmp = 0);
+			ASSERT_ONLY(uint32_t bottmp = 0);
+			// Check that the edited string occurs in the reference
+			if(!ebwtFw.contains(rf, &toptmp, &bottmp)) {
+				std::cerr << rf << std::endl;
+				assert(false);
+			}
+		}
+#endif
+		als_.expand();
+		als_.back().init(pen, topf, botf, ei, en);
+		nelt_ += (botf - topf);
+		return true;
     }
     
     /**
      * Reset to uninitialized state.
      */
     void reset() {
+		edits_.clear();
+		als_.clear();
+		lhs_.clear();
+		rhs_.clear();
+		nelt_ = 0;
     }
+	
+	/**
+	 * Return number of alignments in sink.
+	 */
+	size_t size() const {
+		return als_.size();
+	}
+	
+	/**
+	 * Return the number of SA ranges found to have hits.
+	 */
+	size_t nrange() const {
+		return als_.size();
+	}
+
+	/**
+	 * Return the number of SA elements involved in hits.
+	 */
+	size_t nelt() const {
+		return nelt_;
+	}
+	
+	/**
+	 * Get a particular alignment.
+	 */
+	const DescentAlignment& operator[](size_t i) const {
+		return als_[i];
+	}
 
 protected:
+
+	EList<Edit> edits_;
+	EList<DescentAlignment> als_;
+	ESet<Triple<TIndexOff, TIndexOff, size_t> > lhs_;
+	ESet<Triple<TIndexOff, TIndexOff, size_t> > rhs_;
+	size_t nelt_;
+#ifndef NDEBUG
+	BTDnaString tmprfdnastr_;
+#endif
 
 };
 
@@ -1161,6 +1503,12 @@ public:
         float pri)
     {
         confs_.push_back(conf);
+		assert_lt(off, q_.length());
+		if(l2r && off == q_.length()-1) {
+			l2r = !l2r;
+		} else if(!l2r && off == 0) {
+			l2r = !l2r;
+		}
 		roots_.push_back(DescentRoot(off, l2r, fw, q_.length(), pri));
 	}
 	
@@ -1192,6 +1540,20 @@ public:
 	bool repOk() {
 		return true;
 	}
+	
+	/**
+	 * Return the number of end-to-end alignments reported.
+	 */
+	size_t numAlignments() const {
+		return alsink_.size();
+	}
+	
+	/**
+	 * Return the associated DescentAlignmentSink object.
+	 */
+	const DescentAlignmentSink& sink() const {
+		return alsink_;
+	}
 
 protected:
 
@@ -1204,6 +1566,7 @@ protected:
     EList<DescentConfig> confs_;  // configuration params for each root
 	EHeap<TDescentPair>  heap_;   // priority queue of Descents
     DescentAlignmentSink alsink_; // alignment sink
+	DescentRedundancyChecker re_; // redundancy checker
 };
 
 #endif

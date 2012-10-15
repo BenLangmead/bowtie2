@@ -185,10 +185,10 @@ public:
 	/**
 	 * Set the mismatch penalty.
 	 */
-	void setMmPen(int mmType, int mmpMax_, int mmpMin_) {
-		mmcostType = mmType;
-		mmpMax     = mmpMax;
-		mmpMin     = mmpMin;
+	void setMmPen(int mmType_, int mmpMax_, int mmpMin_) {
+		mmcostType = mmType_;
+		mmpMax     = mmpMax_;
+		mmpMin     = mmpMin_;
 		initPens<int>(mmpens, mmcostType, mmpMin, mmpMax);
 	}
 	
