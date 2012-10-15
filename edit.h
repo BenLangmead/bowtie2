@@ -72,14 +72,14 @@ struct Edit {
      * Reset Edit to uninitialized state.
      */
 	void reset() {
-		pos = 0xffffffff;
+		pos = std::numeric_limits<uint32_t>::max();
 	}
 	
     /**
      * Return true iff the Edit is initialized.
      */
 	bool inited() const {
-		return pos != 0xffffffff;
+		return pos != std::numeric_limits<uint32_t>::max();
 	}
 	
     /**
@@ -96,6 +96,7 @@ struct Edit {
 		qchr = qc;
 		type = ty;
 		pos = po;
+		pos2 = std::numeric_limits<uint32_t>::max() >> 1;
 		if(!chrs) {
 			assert_range(0, 4, (int)chr);
 			assert_range(0, 4, (int)qchr);
@@ -123,6 +124,8 @@ struct Edit {
 		assert(inited());
 		if(pos  < rhs.pos) return 1;
 		if(pos  > rhs.pos) return 0;
+		if(pos2 < rhs.pos2) return 1;
+		if(pos2 > rhs.pos2) return 0;
 		if(type < rhs.type) return 1;
 		if(type > rhs.type) return 0;
 		if(chr  < rhs.chr) return 1;
@@ -136,6 +139,7 @@ struct Edit {
 	int operator== (const Edit &rhs) const {
 		assert(inited());
 		return(pos  == rhs.pos &&
+			   pos2 == rhs.pos2 &&
 			   chr  == rhs.chr &&
 			   qchr == rhs.qchr &&
 			   type == rhs.type);
@@ -280,6 +284,9 @@ struct Edit {
 	uint8_t  qchr; // read character involved (for subst and del)
 	uint8_t  type; // 1 -> mm, 2 -> SNP, 3 -> ins, 4 -> del
 	uint32_t pos;  // position w/r/t search root
+	uint32_t pos2; // Second int to take into account when sorting.  Useful for
+	               // sorting read gap edits that are all part of the same long
+				   // gap.
 
 	friend std::ostream& operator<< (std::ostream& os, const Edit& e);
 
