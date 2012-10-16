@@ -367,16 +367,18 @@ struct DescentRedundancyKey {
 	DescentRedundancyKey() { reset(); }
 	
 	DescentRedundancyKey(
+	    bool      fw_,
 		TReadOff  al5pi_,
 		TReadOff  al5pf_,
 		size_t    rflen_,
 		TIndexOff topf_,
 		TIndexOff botf_)
 	{
-		init(al5pi_, al5pf_, rflen_, topf_, botf_);
+		init(fw_, al5pi_, al5pf_, rflen_, topf_, botf_);
 	}
 
 	void reset() {
+		fw = false;
 		al5pi = al5pf = 0;
 		rflen = 0;
 		topf = botf = 0;
@@ -385,12 +387,14 @@ struct DescentRedundancyKey {
 	bool inited() const { return rflen > 0; }
 
 	void init(
+	    bool      fw_,
 		TReadOff  al5pi_,
 		TReadOff  al5pf_,
 		size_t    rflen_,
 		TIndexOff topf_,
 		TIndexOff botf_)
 	{
+		fw = fw_;
 		al5pi = al5pi_;
 		al5pf = al5pf_;
 		rflen = rflen_;
@@ -399,13 +403,15 @@ struct DescentRedundancyKey {
 	}
 	
 	bool operator==(const DescentRedundancyKey& o) const {
-		return al5pi == o.al5pi && al5pf == o.al5pf &&
+		return fw == o.fw && al5pi == o.al5pi && al5pf == o.al5pf &&
 		       rflen == o.rflen && topf == o.topf && botf == o.botf;
 	}
 
 	bool operator<(const DescentRedundancyKey& o) const {
 		if(al5pi < o.al5pi) return true;
 		if(al5pi > o.al5pi) return false;
+		if(!fw && o.fw) return true;
+		if(fw && !o.fw) return false;
 		if(al5pf < o.al5pf) return true;
 		if(al5pf > o.al5pf) return false;
 		if(rflen < o.rflen) return true;
@@ -415,11 +421,12 @@ struct DescentRedundancyKey {
 		return botf < o.botf;
 	}
 
-	TReadOff  al5pi;
-	TReadOff  al5pf;
-	size_t    rflen;
-	TIndexOff topf;
-	TIndexOff botf;
+	bool fw;        // from fw read
+	TReadOff al5pi; // 5'-most aligned char, as offset from 5' end
+	TReadOff al5pf; // 3'-most aligned char, as offset from 5' end
+	size_t rflen;   // number of reference characters involved in alignment
+	TIndexOff topf; // top w/r/t forward index
+	TIndexOff botf; // bot w/r/t forward index
 };
 
 /**
@@ -447,6 +454,7 @@ public:
 	 * read characters.
 	 */
 	bool check(
+		bool fw,
 		TReadOff al5pi,
 		TReadOff al5pf,
 		size_t rflen,
@@ -454,7 +462,7 @@ public:
 		TIndexOff botf,
 		TScore pen)
 	{
-		DescentRedundancyKey k(al5pi, al5pf, rflen, topf, botf);
+		DescentRedundancyKey k(fw, al5pi, al5pf, rflen, topf, botf);
 		size_t i = std::numeric_limits<size_t>::max();
 		if(map_.containsEx(k, i)) {
 			// Already contains the key
@@ -471,6 +479,7 @@ public:
 	 * explored using the Bw index SA range.
 	 */
 	bool contains(
+		bool fw,
 		TReadOff al5pi,
 		TReadOff al5pf,
 		size_t rflen,
@@ -478,7 +487,7 @@ public:
 		TIndexOff botf,
 		TScore pen)
 	{
-		DescentRedundancyKey k(al5pi, al5pf, rflen, topf, botf);
+		DescentRedundancyKey k(fw, al5pi, al5pf, rflen, topf, botf);
 		return map_.contains(k);
 	}
 

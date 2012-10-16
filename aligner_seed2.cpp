@@ -392,7 +392,7 @@ size_t Descent::recalcOutgoing(
 					}
 					TIndexOff topf = pf[d].topf[j], botf = pf[d].botf[j];
 					TIndexOff topb = pf[d].topb[j], botb = pf[d].botb[j];
-					if(re.contains(cur5pi, cur5pf, cur5pf - cur5pi + 1 + gapadd_, topf, botf, pen_ + pen_mm)) {
+					if(re.contains(fw, cur5pi, cur5pf, cur5pf - cur5pi + 1 + gapadd_, topf, botf, pen_ + pen_mm)) {
 						continue; // Redundant with a path already explored
 					}
 					TIndexOff width = b[j] - t[j];
@@ -447,7 +447,7 @@ size_t Descent::recalcOutgoing(
 							TIndexOff topb = pf[d].topb[j], botb = pf[d].botb[j];
 							assert(topf != 0 || botf != 0);
 							assert(topb != 0 || botb != 0);
-							if(re.contains(cur5pi_i, cur5pf_i, cur5pf - cur5pi + 1 + gapadd_, topf, botf, pen_ + pen_rdg_ex)) {
+							if(re.contains(fw, cur5pi_i, cur5pf_i, cur5pf - cur5pi + 1 + gapadd_, topf, botf, pen_ + pen_rdg_ex)) {
 								continue; // Redundant with a path already explored
 							}
 							TIndexOff width = b[j] - t[j];
@@ -479,7 +479,7 @@ size_t Descent::recalcOutgoing(
 							assert(topf != 0 || botf != 0);
 							assert(topb != 0 || botb != 0);
 							size_t nrefal = cur5pf - cur5pi + gapadd_;
-							if(!re.contains(cur5pi, cur5pf, nrefal, topf, botf, pen_ + pen_rfg_ex)) {
+							if(!re.contains(fw, cur5pi, cur5pf, nrefal, topf, botf, pen_ + pen_rfg_ex)) {
 								TIndexOff width = bot - top;
 								Edit edit((uint32_t)off5p, '-', (int)("ACGTN"[c]), EDIT_TYPE_REF_GAP);
 								DescentPriority pri(pen_ + pen_rfg_ex, depth, width, rootpri);
@@ -517,7 +517,7 @@ size_t Descent::recalcOutgoing(
 						TIndexOff topb = pf[d].topb[j], botb = pf[d].botb[j];
 						assert(topf != 0 || botf != 0);
 						assert(topb != 0 || botb != 0);
-						if(re.contains(cur5pi_i, cur5pf_i, cur5pf - cur5pi + 1 + gapadd_, topf, botf, pen_ + pen_rdg_op)) {
+						if(re.contains(fw, cur5pi_i, cur5pf_i, cur5pf - cur5pi + 1 + gapadd_, topf, botf, pen_ + pen_rdg_op)) {
 							continue; // Redundant with a path already explored
 						}
 						TIndexOff width = b[j] - t[j];
@@ -546,7 +546,7 @@ size_t Descent::recalcOutgoing(
 						assert(topf != 0 || botf != 0);
 						assert(topb != 0 || botb != 0);
 						size_t nrefal = cur5pf - cur5pi + gapadd_;
-						if(!re.contains(cur5pi, cur5pf, nrefal, topf, botf, pen_ + pen_rfg_op)) {
+						if(!re.contains(fw, cur5pi, cur5pf, nrefal, topf, botf, pen_ + pen_rfg_op)) {
 							TIndexOff width = bot - top;
 							Edit edit((uint32_t)off5p, '-', (int)("ACGTN"[c]), EDIT_TYPE_REF_GAP);
 							DescentPriority pri(pen_ + pen_rfg_op, depth, width, rootpri);
@@ -1068,23 +1068,35 @@ bool Descent::followMatches(
 	SideLocus tloc, bloc;
 	TIndexOff topf = topf_, botf = botf_, topb = topb_, botb = botb_;
     bool fw = rs[rid_].fw;
-	bool toward3p = (l2r_ == fw);
+	bool toward3p;
 	size_t off5p;
-	assert_geq(al5pf_, al5pi_);
-	assert(al5pi_ != 0 || al5pf_ != q.length() - 1);
-	if(toward3p) {
-		if(al5pi_ == al5pf_) {
-			off5p = off5p_i = al5pi_;
+	while(true) {
+		toward3p = (l2r_ == fw);
+		assert_geq(al5pf_, al5pi_);
+		assert(al5pi_ != 0 || al5pf_ != q.length() - 1);
+		if(toward3p) {
+			if(al5pf_ == q.length()-1) {
+				l2r_ = !l2r_;
+				continue;
+			}
+			if(al5pi_ == al5pf_) {
+				off5p = off5p_i = al5pi_;
+			} else {
+				off5p = off5p_i = (al5pf_ + 1);
+			}
 		} else {
-			off5p = off5p_i = (al5pf_ + 1);
+			if(al5pi_ == 0) {
+				l2r_ = !l2r_;
+				continue;
+			}
+			assert_gt(al5pi_, 0);
+			if(al5pi_ == al5pf_) {
+				off5p = off5p_i = al5pi_;
+			} else {
+				off5p = off5p_i = (al5pi_ - 1);
+			}
 		}
-	} else {
-		assert_gt(al5pi_, 0);
-		if(al5pi_ == al5pf_) {
-			off5p = off5p_i = al5pi_;
-		} else {
-			off5p = off5p_i = (al5pi_ - 1);
-		}
+		break;
 	}
 	size_t off3p = q.length() - off5p - 1;
 	assert_lt(off5p, q.length());
@@ -1114,7 +1126,7 @@ bool Descent::followMatches(
 		}
 		if(ftabLen > 1 && ftabLen <= nobranchDepth && ftabFits) {
 			// Forward index: right-to-left
-			size_t off_r2l = off5p;
+			size_t off_r2l = fw ? off5p : q.length() - off5p - 1;
 			if(l2r_) {
 				//
 			} else {
@@ -1129,7 +1141,7 @@ bool Descent::followMatches(
 			}
 			int c_r2l = fw ? (*q.seq)[off_r2l] : (*q.seqrc)[off_r2l];
 			// Backward index: left-to-right
-			size_t off_l2r = off5p;
+			size_t off_l2r = fw ? off5p : q.length() - off5p - 1;
 			if(l2r_) {
 				//
 			} else {
@@ -1242,7 +1254,7 @@ bool Descent::followMatches(
 		assert_gt(botf, topf);
 		assert_eq(botf - topf, botb - topb);
 		// Check if this is redundant with an already-explored path
-		if(!re.check(al5pi_, al5pf_, al5pf_ - al5pi_ + 1 + gapadd_, topf, botf, pen_)) {
+		if(!re.check(fw, al5pi_, al5pf_, al5pf_ - al5pi_ + 1 + gapadd_, topf, botf, pen_)) {
 			return false;
 		}
 	}
@@ -1378,7 +1390,7 @@ bool Descent::followMatches(
 			} else {
 				al5pi--;
 			}
-			fail = !re.check(al5pi, al5pf, al5pf - al5pi + 1 + gapadd_, topf, botf, pen_);
+			fail = !re.check(fw, al5pi, al5pf, al5pf - al5pi + 1 + gapadd_, topf, botf, pen_);
 		}
 		if(!fail) {
 			len_++;
@@ -1688,7 +1700,8 @@ int main(int argc, char **argv) {
     ebwts.first->loadIntoMemory (color, -1, true, true, true, true, false);
     ebwts.second->loadIntoMemory(color,  1, true, true, true, true, false);
 	
-	// Query is longer than ftab and matches exactly once
+	// Query is longer than ftab and matches exactly once.  One search root for
+	// forward read.
 	{
 		size_t last_topf = std::numeric_limits<size_t>::max();
 		size_t last_botf = std::numeric_limits<size_t>::max();
@@ -1724,6 +1737,63 @@ int main(int argc, char **argv) {
 					i == 0, // left-to-right?
 					true,   // forward?
 					0.0);   // root priority
+				
+				// Do the search
+				Scoring sc = Scoring::base1();
+				dr.go(sc, *ebwts.first, *ebwts.second, mets);
+				
+				// Confirm that an exact-matching alignment was found
+				assert_eq(1, dr.sink().nrange());
+				assert(last_topf == std::numeric_limits<size_t>::max() || last_topf == dr.sink()[0].topf);
+				assert(last_botf == std::numeric_limits<size_t>::max() || last_botf == dr.sink()[0].botf);
+				assert_eq(1, dr.sink().nelt());
+			}
+		}
+	}
+
+	// Query is longer than ftab and its reverse complement matches exactly
+	// once.  Search roots on forward and reverse-comp reads.
+	{
+		size_t last_topf = std::numeric_limits<size_t>::max();
+		size_t last_botf = std::numeric_limits<size_t>::max();
+		for(int i = 0; i < 2; i++) {
+			BTDnaString seq ("GCTATATAGCGCGCTCGCATCATTTTGTGT", true);
+			BTString    qual("ABCDEFGHIabcdefghiABCDEFGHIabc");
+			for(size_t j = 0; j < seq.length(); j++) {
+				cerr << "Test " << (++testnum) << endl;
+				cerr << "  Query with length greater than ftab and reverse complement matches exactly once" << endl;
+				DescentMetrics mets;
+				DescentDriver dr;
+				
+				// Set up the read
+				BTDnaString seqrc = seq;
+				BTString    qualrc = qual;
+				seqrc.reverseComp();
+				qualrc.reverse();
+				dr.initRead(
+					seq,
+					qual,
+					seqrc,
+					qualrc);
+				
+				// Set up the DescentConfig
+				DescentConfig conf;
+				conf.cons.init(SIMPLE_FUNC_LINEAR, 0.0, 1.0);
+				conf.expol = DESC_EX_NONE;
+				
+				// Set up the search roots
+				dr.addRoot(
+					conf,   // DescentConfig
+					j,      // 5' offset into read of root
+					i == 0, // left-to-right?
+					true,   // forward?
+					0.0);   // root priority
+				dr.addRoot(
+					conf,   // DescentConfig
+					j,      // 5' offset into read of root
+					i == 0, // left-to-right?
+					false,  // forward?
+					1.0);   // root priority
 				
 				// Do the search
 				Scoring sc = Scoring::base1();
@@ -1815,6 +1885,102 @@ int main(int argc, char **argv) {
 					last_topf = dr.sink()[0].topf;
 					last_botf = dr.sink()[0].botf;
 				}
+			}
+		}
+    }
+
+	// Query is longer than ftab and matches exactly once with one mismatch
+	{
+		RandomSource rnd(77);
+		size_t last_topf = std::numeric_limits<size_t>::max();
+		size_t last_botf = std::numeric_limits<size_t>::max();
+		for(int i = 0; i < 2; i++) {
+			// Set up the read
+			//    Ref: CATGTCAGCTATATAGCGCGCTCGCATCATTTTGTGTGTAAACCA
+			//                ||||||||||||||||||||||||||||||
+			BTDnaString orig("GCTATATAGCGCGCTCGCATCATTTTGTGT", true);
+			//                012345678901234567890123456789
+			BTString    qual("ABCDEFGHIabcdefghiABCDEFGHIabc");
+			for(size_t k = 0; k < orig.length(); k++) {
+				BTDnaString seq = orig;
+				seq.set(seq[k] ^ 3, k);
+				cerr << "Test " << (++testnum) << endl;
+				cerr << "  Query with length greater than ftab and matches exactly once with 1mm.  Many search roots." << endl;
+				DescentMetrics mets;
+				DescentDriver dr;
+				
+				BTDnaString seqrc = seq;
+				BTString    qualrc = qual;
+				seqrc.reverseComp();
+				qualrc.reverse();
+				dr.initRead(
+					seq,
+					qual,
+					seqrc,
+					qualrc);
+				
+				// Set up the DescentConfig
+				DescentConfig conf;
+				// Changed 
+				conf.cons.init(SIMPLE_FUNC_LINEAR, 0.0, 1.0);
+				conf.expol = DESC_EX_NONE;
+				
+				// Set up several random search roots
+				bool onegood = false;
+				for(size_t y = 0; y < 10; y++) {
+					size_t j = rnd.nextU32() % seq.length();
+					bool ltr = (rnd.nextU2() == 0) ? true : false;
+					bool fw = (rnd.nextU2() == 0) ? true : false;
+					dr.addRoot(
+						conf,     // DescentConfig
+						j,        // 5' offset into read of root
+						ltr,      // left-to-right?
+						fw,       // forward?
+						y * 1.0); // root priority
+					// Assume left-to-right
+					size_t beg = j;
+					size_t end = j + Ebwt::default_ftabChars;
+					// Mismatch penalty is 3, so we have to skip starting
+					// points that are within 2 from the mismatch
+					if(!ltr) {
+						// Right-to-left
+						if(beg < Ebwt::default_ftabChars) {
+							beg = 0;
+						} else {
+							beg -= Ebwt::default_ftabChars;
+						}
+						end -= Ebwt::default_ftabChars;
+					}
+					bool good = true;
+					if(!fw) {
+						good = false;
+					}
+					if(beg <= k && end > k) {
+						good = false;
+					}
+					if((j > k) ? (j - k <= 2) : (k - j <= 2)) {
+						good = false;
+					}
+					if(good) {
+						onegood = true;
+					}
+				}
+				if(!onegood) {
+					continue;
+				}
+				
+				// Do the search
+				Scoring sc = Scoring::base1();
+				dr.go(sc, *ebwts.first, *ebwts.second, mets);
+				
+				// Confirm that an exact-matching alignment was found
+				assert_eq(1, dr.sink().nrange());
+				assert(last_topf == std::numeric_limits<size_t>::max() || last_topf == dr.sink()[0].topf);
+				assert(last_botf == std::numeric_limits<size_t>::max() || last_botf == dr.sink()[0].botf);
+				cerr << dr.sink()[0].topf << ", " << dr.sink()[0].botf << endl;
+				assert_eq(1, dr.sink().nelt());
+				last_topf = dr.sink()[0].topf;
+				last_botf = dr.sink()[0].botf;
 			}
 		}
     }
