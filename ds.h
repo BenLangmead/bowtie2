@@ -2570,7 +2570,9 @@ private:
 	 */
 	void insert(const std::pair<K, V>& el, size_t idx) {
 		assert_leq(idx, cur_);
-		if(cur_ == sz_) expandCopy(sz_+1);
+		if(cur_ == sz_) {
+			expandCopy(sz_+1);
+		}
 		for(size_t i = cur_; i > idx; i--) {
 			list_[i] = list_[i-1];
 		}
@@ -2601,6 +2603,9 @@ private:
 		size_t newsz = sz_ * 2;
 		while(newsz < thresh) newsz *= 2;
 		std::pair<K, V>* tmp = alloc(newsz);
+		for(size_t i = 0; i < cur_; i++) {
+			tmp[i] = list_[i];
+		}
 		free();
 		list_ = tmp;
 		sz_ = newsz;

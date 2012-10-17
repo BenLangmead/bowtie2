@@ -84,6 +84,116 @@ void DescentDriver::go(
 }
 
 /**
+ * If this is the final descent in a complete end-to-end alignment, report
+ * the alignment.
+ */
+bool DescentAlignmentSink::reportAlignment(
+	const DescentQuery& q,          // query string
+	const Ebwt& ebwtFw,             // forward index
+	const Ebwt& ebwtBw,             // mirror index
+	TIndexOff topf,                 // SA range top in forward index
+	TIndexOff botf,                 // SA range bottom in forward index
+	TIndexOff topb,                 // SA range top in backward index
+	TIndexOff botb,                 // SA range bottom in backward index
+	TDescentId id,                  // id of leaf Descent
+	TRootId rid,                    // id of search root
+	const Edit& e,                  // final edit, if needed
+	TScore pen,                     // total penalty
+	EFactory<Descent>& df,          // factory with Descent
+	EFactory<DescentPos>& pf,       // factory with DescentPoss
+	const EList<DescentRoot>& rs,   // roots
+	const EList<DescentConfig>& cs) // configs
+{
+	TDescentId cur = id;
+	const Descent& desc = df[id];
+	const bool fw = rs[rid].fw;
+	size_t len = q.length();
+	assert_lt(desc.al5pf(), len);
+	size_t al5pi = desc.al5pi(), al5pf = desc.al5pf();
+	size_t l, r;
+	// Adjust al5pi and al5pf to take the final edit into account (if
+	// there is one)
+	bool toward3p = (desc.l2r() == fw);
+	if(e.inited()) {
+		if(toward3p) {
+			assert_lt(al5pf, q.length()-1);
+			al5pf++;
+		} else {
+			assert_gt(al5pi, 0);
+			al5pi--;
+		}
+	}
+	if(fw) {
+		l = al5pi;
+		r = al5pf + 1;
+	} else {
+		l = q.length() - al5pf - 1;
+		r = q.length() - al5pi;
+	}
+	// Check if this is redundant with a previous reported alignment
+	Triple<TIndexOff, TIndexOff, size_t> lhs(topf, botf, l);
+	Triple<TIndexOff, TIndexOff, size_t> rhs(topb, botb, r);
+	if(!lhs_.insert(lhs)) {
+		rhs_.insert(rhs);
+		return false; // Already there
+	}
+	if(!rhs_.insert(rhs)) {
+		return false; // Already there
+	}
+	std::cerr << "Found an alignment with total penalty = " << pen << std::endl;
+	// Take just the portion of the read that has aligned up until this
+	// point
+	size_t nuninited = 0;
+	size_t ei = edits_.size();
+	size_t en = 0;
+	if(e.inited()) {
+		edits_.push_back(e);
+		en++;
+	}
+	while(cur != std::numeric_limits<TDescentId>::max()) {
+		if(!df[cur].edit().inited()) {
+			nuninited++;
+			assert_leq(nuninited, 2);
+		} else {
+			edits_.push_back(df[cur].edit());
+			en++;
+		}
+		cur = df[cur].parent();
+	}
+	// Sort just the edits we just added
+	edits_.sortPortion(ei, en);
+#ifndef NDEBUG
+	{
+		// Now figure out how much we refrained from aligning on either
+		// side.
+		size_t trimLf = fw ? al5pi : (len - al5pf - 1);
+		size_t trimRg = fw ? (len - al5pf - 1) : al5pi;
+		BTDnaString& rf = tmprfdnastr_;
+		rf.clear();
+		if(!fw) {
+			Edit::invertPoss(edits_, q.length(), ei, en);
+		}
+		desc.print(std::cerr, "", q, trimLf, trimRg, fw, edits_, ei, en, rf);
+		if(!fw) {
+			Edit::invertPoss(edits_, q.length(), ei, en);
+		}
+		std::cerr << std::endl;
+		ASSERT_ONLY(uint32_t toptmp = 0);
+		ASSERT_ONLY(uint32_t bottmp = 0);
+		// Check that the edited string occurs in the reference
+		if(!ebwtFw.contains(rf, &toptmp, &bottmp)) {
+			std::cerr << rf << std::endl;
+			assert(false);
+		}
+	}
+#endif
+	als_.expand();
+	als_.back().init(pen, topf, botf, ei, en);
+	nelt_ += (botf - topf);
+	return true;
+}
+
+/**
  * Initialize a new descent branching from the given descent via the given
  * edit.  Return false if the Descent has no outgoing edges (and can
  * therefore have its memory freed), true otherwise.
@@ -148,6 +258,7 @@ bool Descent::init(
 #endif
     bool matchSucc = followMatches(
         q,
+		sc,
         ebwtFw,
         ebwtBw,
 		re,
@@ -167,7 +278,8 @@ bool Descent::init(
         topb_new,
         botb_new);
     bool bounceSucc = false;
-    if(hitEnd && !done) {
+    if(matchSucc && hitEnd && !done) {
+		assert(topf_new > 0 || botf_new > 0);
         bounceSucc = bounce(
             q,
             topf_new,
@@ -236,6 +348,7 @@ bool Descent::init(
     off5p_i_ = 0;
     bool matchSucc = followMatches(
         q,
+		sc,
         ebwtFw,
         ebwtBw,
 		re,
@@ -255,7 +368,8 @@ bool Descent::init(
         topb_new,
         botb_new);
     bool bounceSucc = false;
-    if(hitEnd && !done) {
+    if(matchSucc && hitEnd && !done) {
+		assert(topf_new > 0 || botf_new > 0);
         bounceSucc = bounce(
             q,
             topf_new,
@@ -420,8 +534,8 @@ size_t Descent::recalcOutgoing(
 				                  (b[1] - t[1]) +
 								  (b[2] - t[2]) +
 								  (b[3] - t[3]);
-				assert_leq(b[c] - t[c], totwidth);
-				bool allmatch = (totwidth == (b[c] - t[c]));
+				assert(c > 3 || b[c] - t[c] <= totwidth);
+				bool allmatch = c < 4 && (totwidth == (b[c] - t[c]));
 				bool rdex = false, rfex = false;
 				size_t cur5pi_i = cur5pi, cur5pf_i = cur5pf;
 				if(toward3p) {
@@ -592,9 +706,12 @@ size_t Descent::recalcOutgoing(
 			cur5pi--;
         }
 		// Update top and bot
-		top = t[c], topp = tp[c];
-		bot = b[c], botp = bp[c];
-		assert_eq(bot-top, botp-topp);
+		if(off5p >= al5pi_ - extrai && off5p <= al5pf_ + extraf) {
+			assert_range(0, 3, c);
+			top = t[c], topp = tp[c];
+			bot = b[c], botp = bp[c];
+			assert_eq(bot-top, botp-topp);
+		}
 	}
 	lastRecalc_ = (nout <= 5);
     out_.best1.updateFlags(pf);
@@ -1038,6 +1155,7 @@ void Descent::nextLocsBi(
  */
 bool Descent::followMatches(
 	const DescentQuery& q,     // query string
+    const Scoring& sc,         // scoring scheme
 	const Ebwt& ebwtFw,        // forward index
 	const Ebwt& ebwtBw,        // mirror index
 	DescentRedundancyChecker& re, // redundancy checker
@@ -1057,7 +1175,10 @@ bool Descent::followMatches(
     TIndexOff& topb_bounce,    // out: top of SA range for bw idx for bounce
     TIndexOff& botb_bounce)    // out: bot of SA range for bw idx for bounce
 {
+	// TODO: make these full-fledged parameters
 	size_t nobranchDepth = 20;
+	bool stopOnN = true;
+	
 	assert(repOk(&q));
 	assert_eq(ebwtFw.eh().ftabChars(), ebwtBw.eh().ftabChars());
 #ifndef NDEBUG
@@ -1278,6 +1399,7 @@ bool Descent::followMatches(
             cs);      // configs
         return true;
     } else if(hitEnd) {
+		assert(botf > 0 || topf > 0);
         assert_gt(botf, topf);
         topf_bounce = topf;
         botf_bounce = botf;
@@ -1298,7 +1420,8 @@ bool Descent::followMatches(
 	while(!fail && !hitEnd) {
         assert(!done);
 		int rdc = q.getc(off5p, fw);
-		assert_range(0, 3, rdc); // TODO: handle Ns
+		int rdq = q.getq(off5p);
+		assert_range(0, 4, rdc);
 		assert_gt(botf, topf);
 		assert(botf - topf == 1 ||  bloc.valid());
 		assert(botf - topf > 1  || !bloc.valid());
@@ -1307,6 +1430,8 @@ bool Descent::followMatches(
 		bool ltr = l2r_;
 		const Ebwt& ebwt = ltr ? ebwtBw : ebwtFw;
 		t[0] = t[1] = t[2] = t[3] = b[0] = b[1] = b[2] = b[3] = 0;
+		int only = -1; // if we only get 1 non-empty range, this is the char
+		size_t nopts = 1;
 		if(bloc.valid()) {
 			// Set up initial values for the primes
 			if(ltr) {
@@ -1327,8 +1452,13 @@ bool Descent::followMatches(
 			assert_eq(tot, totp);
 			assert_leq(tot, lasttot);
 			ASSERT_ONLY(lasttot = tot);
-			fail = (b[rdc] <= t[rdc]);
-            if(b[rdc] - t[rdc] < width) {
+			fail = (rdc > 3 || b[rdc] <= t[rdc]);
+			size_t nopts = 0;
+			if(b[0] > t[0]) { nopts++; only = 0; }
+			if(b[1] > t[1]) { nopts++; only = 1; }
+			if(b[2] > t[2]) { nopts++; only = 2; }
+			if(b[3] > t[3]) { nopts++; only = 3; }
+            if(!fail && b[rdc] - t[rdc] < width) {
                 branches = true;
             }
 		} else {
@@ -1344,16 +1474,34 @@ bool Descent::followMatches(
                 branches = true;
             }
 			if(cc >= 0) {
+				only = cc;
 				t[cc] = ntop; b[cc] = ntop+1;
 				tp[cc] = ltr ? topf : topb;
 				bp[cc] = ltr ? botf : botb;
 			}
 		}
-        topf = ltr ? tp[rdc] : t[rdc];
-        botf = ltr ? bp[rdc] : b[rdc];
-        topb = ltr ? t[rdc] : tp[rdc];
-        botb = ltr ? b[rdc] : bp[rdc];
-		assert_eq(botf - topf, botb - topb);
+		// Now figure out what to do with our N.
+		int origRdc = rdc;
+		if(rdc == 4) {
+			fail = true;
+		} else {
+			topf = ltr ? tp[rdc] : t[rdc];
+			botf = ltr ? bp[rdc] : b[rdc];
+			topb = ltr ? t[rdc] : tp[rdc];
+			botb = ltr ? b[rdc] : bp[rdc];
+			assert_eq(botf - topf, botb - topb);
+		}
+		// The trouble with !stopOnN is that we don't have a way to store the N
+		// edits.  There could be several per Descent.
+		if(rdc == 4 && !stopOnN && nopts == 1) {
+			fail = false;
+			rdc = only;
+			int pen = sc.n(rdq);
+			assert_gt(pen, 0);
+			pen_ += pen;
+		}
+		assert_range(0, 4, origRdc);
+		assert_range(0, 4, rdc);
         // If 'fail' is true, we failed to align this read character.  We still
         // install the SA ranges into the DescentPos and increment len_ in this
         // case.
@@ -1372,8 +1520,7 @@ bool Descent::followMatches(
 		}
 		nalloc++;
 		pf[posid_ + len_].reset();
-		assert_range(0, 3, rdc);
-        pf[posid_ + len_].c = rdc;
+        pf[posid_ + len_].c = origRdc;
 		for(size_t i = 0; i < 4; i++) {
 			pf[posid_ + len_].topf[i] = tf[i];
 			pf[posid_ + len_].botf[i] = bf[i];
@@ -1440,6 +1587,7 @@ bool Descent::followMatches(
             cs);      // configs
         return true;
     } else if(hitEnd) {
+        assert(botf > 0 || topf > 0);
         assert_gt(botf, topf);
         topf_bounce = topf;
         botf_bounce = botf;
@@ -1448,6 +1596,7 @@ bool Descent::followMatches(
         return true; // Bounced
     }
     assert(repOk(&q));
+	assert(!hitEnd || topf_bounce > 0 || botf_bounce > 0);
 	return true;
 }
 
@@ -1498,46 +1647,51 @@ int main(int argc, char **argv) {
 	int testnum = 0;
     
 	// Query is longer than ftab and matches exactly twice
-    for(int i = 0; i < 2; i++) {
-		cerr << "Test " << (++testnum) << endl;
-		cerr << "  Query with length greater than ftab" << endl;
-        DescentMetrics mets;
-        DescentDriver dr;
-        
-        // Set up the read
-        BTDnaString seq ("GCTATATAGCGCGCTCGCATCATTTTGTGT", true);
-        BTString    qual("ABCDEFGHIabcdefghiABCDEFGHIabc");
-        BTDnaString seqrc = seq;
-        BTString    qualrc = qual;
-        seqrc.reverseComp();
-        qualrc.reverse();
-        dr.initRead(
-            seq,
-            qual,
-            seqrc,
-            qualrc);
-        
-        // Set up the DescentConfig
-        DescentConfig conf;
-        conf.cons.init(SIMPLE_FUNC_LINEAR, 0.0, 1.0);
-        conf.expol = DESC_EX_NONE;
-        
-        // Set up the search roots
-        dr.addRoot(
-            conf,   // DescentConfig
-            (i == 0) ? 0 : (seq.length() - 1), // 5' offset into read of root
-            (i == 0) ? true : false,           // left-to-right?
-            true,   // forward?
-            0.0);   // root priority
-        
-        // Do the search
-        Scoring sc = Scoring::base1();
-        dr.go(sc, *ebwts.first, *ebwts.second, mets);
-		
-		// Confirm that an exact-matching alignment was found
-		assert_eq(1, dr.sink().nrange());
-		assert_eq(2, dr.sink().nelt());
-    }
+    for(int rc = 0; rc < 2; rc++) {
+		for(int i = 0; i < 2; i++) {
+			cerr << "Test " << (++testnum) << endl;
+			cerr << "  Query with length greater than ftab" << endl;
+			DescentMetrics mets;
+			DescentDriver dr;
+			
+			// Set up the read
+			BTDnaString seq ("GCTATATAGCGCGCTCGCATCATTTTGTGT", true);
+			if(rc) {
+				seq.reverseComp();
+			}
+			BTString    qual("ABCDEFGHIabcdefghiABCDEFGHIabc");
+			BTDnaString seqrc = seq;
+			BTString    qualrc = qual;
+			seqrc.reverseComp();
+			qualrc.reverse();
+			dr.initRead(
+				seq,
+				qual,
+				seqrc,
+				qualrc);
+			
+			// Set up the DescentConfig
+			DescentConfig conf;
+			conf.cons.init(SIMPLE_FUNC_LINEAR, 0.0, 1.0);
+			conf.expol = DESC_EX_NONE;
+			
+			// Set up the search roots
+			dr.addRoot(
+				conf,   // DescentConfig
+				(i == 0) ? 0 : (seq.length() - 1), // 5' offset into read of root
+				(i == 0) ? true : false,           // left-to-right?
+				rc == 0,   // forward?
+				0.0);   // root priority
+			
+			// Do the search
+			Scoring sc = Scoring::base1();
+			dr.go(sc, *ebwts.first, *ebwts.second, mets);
+			
+			// Confirm that an exact-matching alignment was found
+			assert_eq(1, dr.sink().nrange());
+			assert_eq(2, dr.sink().nelt());
+		}
+	}
 	
 	// Query has length euqal to ftab and matches exactly twice
     for(int i = 0; i < 2; i++) {
@@ -1889,6 +2043,88 @@ int main(int argc, char **argv) {
 		}
     }
 
+	// Query is longer than ftab and matches exactly once with one N mismatch
+	{
+		size_t last_topf = std::numeric_limits<size_t>::max();
+		size_t last_botf = std::numeric_limits<size_t>::max();
+		for(int i = 0; i < 2; i++) {
+			// Set up the read
+			//    Ref: CATGTCAGCTATATAGCGCGCTCGCATCATTTTGTGTGTAAACCA
+			//                ||||||||||||||||||||||||||||||
+			BTDnaString orig("GCTATATAGCGCGCTCGCATCATTTTGTGT", true);
+			//                012345678901234567890123456789
+			BTString    qual("ABCDEFGHIabcdefghiABCDEFGHIabc");
+			for(size_t k = 0; k < orig.length(); k++) {
+				BTDnaString seq = orig;
+				seq.set(4, k);
+				for(size_t j = 0; j < seq.length(); j++) {
+					// Assume left-to-right
+					size_t beg = j;
+					size_t end = j + Ebwt::default_ftabChars;
+					// Mismatch penalty is 3, so we have to skip starting
+					// points that are within 2 from the mismatch
+					if((i > 0 && j > 0) || j == seq.length()-1) {
+						// Right-to-left
+						if(beg < Ebwt::default_ftabChars) {
+							beg = 0;
+						} else {
+							beg -= Ebwt::default_ftabChars;
+						}
+						end -= Ebwt::default_ftabChars;
+					}
+					if(beg <= k && end > k) {
+						continue;
+					}
+					if((j > k) ? (j - k <= 2) : (k - j <= 2)) {
+						continue;
+					}
+					cerr << "Test " << (++testnum) << endl;
+					cerr << "  Query with length greater than ftab and matches exactly once with 1mm" << endl;
+					DescentMetrics mets;
+					DescentDriver dr;
+					
+					BTDnaString seqrc = seq;
+					BTString    qualrc = qual;
+					seqrc.reverseComp();
+					qualrc.reverse();
+					dr.initRead(
+						seq,
+						qual,
+						seqrc,
+						qualrc);
+					
+					// Set up the DescentConfig
+					DescentConfig conf;
+					// Changed 
+					conf.cons.init(SIMPLE_FUNC_LINEAR, 0.0, 1.0);
+					conf.expol = DESC_EX_NONE;
+					
+					// Set up the search roots
+					dr.addRoot(
+						conf,   // DescentConfig
+						j,      // 5' offset into read of root
+						i == 0, // left-to-right?
+						true,   // forward?
+						0.0);   // root priority
+					
+					// Do the search
+					Scoring sc = Scoring::base1();
+					dr.go(sc, *ebwts.first, *ebwts.second, mets);
+					
+					// Confirm that an exact-matching alignment was found
+					assert_eq(1, dr.sink().nrange());
+					assert_eq(sc.n(40), dr.sink()[0].pen);
+					assert(last_topf == std::numeric_limits<size_t>::max() || last_topf == dr.sink()[0].topf);
+					assert(last_botf == std::numeric_limits<size_t>::max() || last_botf == dr.sink()[0].botf);
+					cerr << dr.sink()[0].topf << ", " << dr.sink()[0].botf << endl;
+					assert_eq(1, dr.sink().nelt());
+					last_topf = dr.sink()[0].topf;
+					last_botf = dr.sink()[0].botf;
+				}
+			}
+		}
+    }
+
 	// Query is longer than ftab and matches exactly once with one mismatch
 	{
 		RandomSource rnd(77);
@@ -1901,6 +2137,12 @@ int main(int argc, char **argv) {
 			BTDnaString orig("GCTATATAGCGCGCTCGCATCATTTTGTGT", true);
 			//                012345678901234567890123456789
 			BTString    qual("ABCDEFGHIabcdefghiABCDEFGHIabc");
+			//       revcomp: ACACAAAATGATGCGAGCGCGCTATATAGC
+			//       revqual: cbaIHGFEDCBAihgfedcbaIHGFEDCBA
+			bool fwi = (i == 0);
+			if(!fwi) {
+				orig.reverseComp();
+			}
 			for(size_t k = 0; k < orig.length(); k++) {
 				BTDnaString seq = orig;
 				seq.set(seq[k] ^ 3, k);
@@ -1914,7 +2156,7 @@ int main(int argc, char **argv) {
 				seqrc.reverseComp();
 				qualrc.reverse();
 				dr.initRead(
-					seq,
+					seq,     // i == 0 ? 
 					qual,
 					seqrc,
 					qualrc);
@@ -1952,7 +2194,7 @@ int main(int argc, char **argv) {
 						end -= Ebwt::default_ftabChars;
 					}
 					bool good = true;
-					if(!fw) {
+					if(fw != fwi) {
 						good = false;
 					}
 					if(beg <= k && end > k) {
@@ -2301,10 +2543,303 @@ int main(int argc, char **argv) {
 		}
     }
 
-	// Still haven't tested:
-	// 1. Alignments with ref gaps
-	// 2. Alignments with combos of read/ref gaps and mismatches
-	// 3. Multiple search roots
+	// Query is longer than ftab and matches exactly once with one read gap,
+	// one ref gap, and one mismatch
+	{
+		size_t last_topf = std::numeric_limits<size_t>::max();
+		size_t last_botf = std::numeric_limits<size_t>::max();
+		for(int i = 0; i < 2; i++) {
+			// Set up the read
+			//           Ref: CATGTCAGCT   ATATAGCGCGCT  CGCATCATTTTGTGTGTAAACCA
+			//                ||||||||||   ||||||||||||   |||||| |||||||||||||
+			BTDnaString seq ("CATGTCAGCT""GATATAGCGCGCT" "GCATCAATTTGTGTGTAAAC", true);
+			//                0123456789  0123456789012   34567890123456789012
+			BTString    qual("ABCDEFGHIa""bcdefghiACDEF" "GHIabcdefghijkABCDEF");
+			for(size_t j = 0; j < seq.length(); j++) {
+				// Assume left-to-right
+				size_t beg = j;
+				size_t end = j + Ebwt::default_ftabChars;
+				// Mismatch penalty is 3, so we have to skip starting
+				// points that are within 2 from the mismatch
+				if((i > 0 && j > 0) || j == seq.length()-1) {
+					// Right-to-left
+					if(beg < Ebwt::default_ftabChars) {
+						beg = 0;
+					} else {
+						beg -= Ebwt::default_ftabChars;
+					}
+					end -= Ebwt::default_ftabChars;
+				}
+				if(beg <= 10 && end >= 10) {
+					continue;
+				}
+				if(beg <= 22 && end >= 22) {
+					continue;
+				}
+				if(beg <= 30 && end >= 30) {
+					continue;
+				}
+				cerr << "Test " << (++testnum) << endl;
+				cerr << "  Query matches once with a read gap of length 1" << endl;
+				DescentMetrics mets;
+				DescentDriver dr;
+				
+				BTDnaString seqrc = seq;
+				BTString    qualrc = qual;
+				seqrc.reverseComp();
+				qualrc.reverse();
+				dr.initRead(
+					seq,
+					qual,
+					seqrc,
+					qualrc);
+				
+				// Set up the DescentConfig
+				DescentConfig conf;
+				// Changed 
+				conf.cons.init(SIMPLE_FUNC_LINEAR, 0.0, 1.5);
+				conf.expol = DESC_EX_NONE;
+				
+				// Set up the search roots
+				dr.addRoot(
+					conf,   // DescentConfig
+					j,      // 5' offset into read of root
+					i == 0, // left-to-right?
+					true,   // forward?
+					0.0);   // root priority
+				
+				// Do the search
+				Scoring sc = Scoring::base1();
+				dr.go(sc, *ebwts.first, *ebwts.second, mets);
+				
+				// Confirm that an exact-matching alignment was found
+				assert_eq(1, dr.sink().nrange());
+				assert_eq(sc.readGapOpen() + sc.refGapOpen() + sc.mm((int)'d' - 33), dr.sink()[0].pen);
+				assert(last_topf == std::numeric_limits<size_t>::max() || last_topf == dr.sink()[0].topf);
+				assert(last_botf == std::numeric_limits<size_t>::max() || last_botf == dr.sink()[0].botf);
+				cerr << dr.sink()[0].topf << ", " << dr.sink()[0].botf << endl;
+				assert_eq(1, dr.sink().nelt());
+				last_topf = dr.sink()[0].topf;
+				last_botf = dr.sink()[0].botf;
+			}
+		}
+    }
+
+	delete ebwts.first;
+	delete ebwts.second;
+	
+	//  Ref CATGTCAGCT-ATATAGCGCGCTCGCATCATTTTGTGTGTAAAC
+	//      |||||||||| |||||||||||| |||||| |||||||||||||
+	//  Rd  CATGTCAGCTGATATAGCGCGCT-GCATCAATTTGTGTGTAAAC
+	strs.clear();
+    strs.push_back(string("CATGTCAGCTATATAGCGCGCTCGCATCATTTTGTGTGTAAAC"
+                          "NNNNNNNNNN"
+                          "CATGTCAGCTGATATAGCGCGCTCGCATCATTTTGTGTGTAAAC" // same but without first ref gap
+                          "N"
+                          "CATGTCAGCTATATAGCGCGCTGCATCATTTTGTGTGTAAAC" // same but without first read gap
+                          "N"
+                          "CATGTCAGCTATATAGCGCGCTCGCATCAATTTGTGTGTAAAC" // same but without first mismatch
+                          "N"
+                          "CATGTCAGCTGATATAGCGCGCTGCATCAATTTGTGTGTAAAC" // Exact match for read
+						  ));
+	ebwts = Ebwt::fromStrings<SString<char> >(
+		strs,
+		packed,
+		color,
+		REF_READ_REVERSE,
+		Ebwt::default_bigEndian,
+		Ebwt::default_lineRate,
+		Ebwt::default_offRate,
+		Ebwt::default_ftabChars,
+		".aligner_seed2.cpp.tmp",
+		Ebwt::default_useBlockwise,
+		Ebwt::default_bmax,
+		Ebwt::default_bmaxMultSqrt,
+		Ebwt::default_bmaxDivN,
+		Ebwt::default_dcv,
+		Ebwt::default_seed,
+		false,  // verbose
+		false,  // autoMem
+		false); // sanity
+    
+    ebwts.first->loadIntoMemory (color, -1, true, true, true, true, false);
+    ebwts.second->loadIntoMemory(color,  1, true, true, true, true, false);
+
+	// Query is longer than ftab and matches exactly once with one read gap,
+	// one ref gap, and one mismatch
+	{
+		size_t last_topf = std::numeric_limits<size_t>::max();
+		size_t last_botf = std::numeric_limits<size_t>::max();
+		for(int i = 0; i < 2; i++) {
+			// Set up the read
+			//           Ref: CATGTCAGCT   ATATAGCGCGCT  CGCATCATTTTGTGTGTAAACCA
+			//                ||||||||||   ||||||||||||   |||||| |||||||||||||
+			BTDnaString seq ("CATGTCAGCT""GATATAGCGCGCT" "GCATCAATTTGTGTGTAAAC", true);
+			//                0123456789  0123456789012   34567890123456789012
+			BTString    qual("ABCDEFGHIa""bcdefghiACDEF" "GHIabcdefghijkABCDEF");
+			for(size_t j = 0; j < seq.length(); j++) {
+				// Assume left-to-right
+				size_t beg = j;
+				size_t end = j + Ebwt::default_ftabChars;
+				// Mismatch penalty is 3, so we have to skip starting
+				// points that are within 2 from the mismatch
+				if((i > 0 && j > 0) || j == seq.length()-1) {
+					// Right-to-left
+					if(beg < Ebwt::default_ftabChars) {
+						beg = 0;
+					} else {
+						beg -= Ebwt::default_ftabChars;
+					}
+					end -= Ebwt::default_ftabChars;
+				}
+				if(beg <= 10 && end >= 10) {
+					continue;
+				}
+				if(beg <= 22 && end >= 22) {
+					continue;
+				}
+				if(beg <= 30 && end >= 30) {
+					continue;
+				}
+				cerr << "Test " << (++testnum) << endl;
+				cerr << "  Query matches once with a read gap of length 1" << endl;
+				DescentMetrics mets;
+				DescentDriver dr;
+				
+				BTDnaString seqrc = seq;
+				BTString    qualrc = qual;
+				seqrc.reverseComp();
+				qualrc.reverse();
+				dr.initRead(
+					seq,
+					qual,
+					seqrc,
+					qualrc);
+				
+				// Set up the DescentConfig
+				DescentConfig conf;
+				// Changed 
+				conf.cons.init(SIMPLE_FUNC_LINEAR, 0.0, 1.5);
+				conf.expol = DESC_EX_NONE;
+				
+				// Set up the search roots
+				dr.addRoot(
+					conf,   // DescentConfig
+					j,      // 5' offset into read of root
+					i == 0, // left-to-right?
+					true,   // forward?
+					0.0);   // root priority
+				
+				// Do the search
+				Scoring sc = Scoring::base1();
+				dr.go(sc, *ebwts.first, *ebwts.second, mets);
+				
+				// Confirm that an exact-matching alignment was found
+				assert_eq(5, dr.sink().nrange());
+				assert_eq(0, dr.sink()[0].pen);
+				assert_eq(min(sc.readGapOpen(), sc.refGapOpen()) + sc.mm((int)'d' - 33), dr.sink()[1].pen);
+				assert_eq(max(sc.readGapOpen(), sc.refGapOpen()) + sc.mm((int)'d' - 33), dr.sink()[2].pen);
+				assert_eq(sc.readGapOpen() + sc.refGapOpen(), dr.sink()[3].pen);
+				assert_eq(sc.readGapOpen() + sc.refGapOpen() + sc.mm((int)'d' - 33), dr.sink()[4].pen);
+				assert(last_topf == std::numeric_limits<size_t>::max() || last_topf == dr.sink()[0].topf);
+				assert(last_botf == std::numeric_limits<size_t>::max() || last_botf == dr.sink()[0].botf);
+				cerr << dr.sink()[0].topf << ", " << dr.sink()[0].botf << endl;
+				assert_eq(5, dr.sink().nelt());
+				last_topf = dr.sink()[0].topf;
+				last_botf = dr.sink()[0].botf;
+			}
+		}
+    }
+
+	// Query is longer than ftab and matches exactly once with one read gap,
+	// one ref gap, one mismatch, and one N
+	{
+		size_t last_topf = std::numeric_limits<size_t>::max();
+		size_t last_botf = std::numeric_limits<size_t>::max();
+		for(int i = 0; i < 2; i++) {
+			// Set up the read
+			//           Ref: CATGTCAGCT   ATATAGCGCGCT  CGCATCATTTTGTGTGTAAACCA
+			//                ||||||||||   ||||||||||||   |||||| |||||| ||||||
+			BTDnaString seq ("CATGTCAGCT""GATATAGCGCGCT" "GCATCAATTTGTGNGTAAAC", true);
+			//                0123456789  0123456789012   34567890123456789012
+			BTString    qual("ABCDEFGHIa""bcdefghiACDEF" "GHIabcdefghijkABCDEF");
+			for(size_t j = 0; j < seq.length(); j++) {
+				// Assume left-to-right
+				size_t beg = j;
+				size_t end = j + Ebwt::default_ftabChars;
+				// Mismatch penalty is 3, so we have to skip starting
+				// points that are within 2 from the mismatch
+				if((i > 0 && j > 0) || j == seq.length()-1) {
+					// Right-to-left
+					if(beg < Ebwt::default_ftabChars) {
+						beg = 0;
+					} else {
+						beg -= Ebwt::default_ftabChars;
+					}
+					end -= Ebwt::default_ftabChars;
+				}
+				if(beg <= 10 && end >= 10) {
+					continue;
+				}
+				if(beg <= 22 && end >= 22) {
+					continue;
+				}
+				if(beg <= 30 && end >= 30) {
+					continue;
+				}
+				if(beg <= 36 && end >= 36) {
+					continue;
+				}
+				cerr << "Test " << (++testnum) << endl;
+				cerr << "  Query matches with various patterns of gaps, mismatches and Ns" << endl;
+				DescentMetrics mets;
+				DescentDriver dr;
+				
+				BTDnaString seqrc = seq;
+				BTString    qualrc = qual;
+				seqrc.reverseComp();
+				qualrc.reverse();
+				dr.initRead(
+					seq,
+					qual,
+					seqrc,
+					qualrc);
+				
+				// Set up the DescentConfig
+				DescentConfig conf;
+				// Changed 
+				conf.cons.init(SIMPLE_FUNC_LINEAR, 0.0, 1.5);
+				conf.expol = DESC_EX_NONE;
+				
+				// Set up the search roots
+				dr.addRoot(
+					conf,   // DescentConfig
+					j,      // 5' offset into read of root
+					i == 0, // left-to-right?
+					true,   // forward?
+					0.0);   // root priority
+				
+				// Do the search
+				Scoring sc = Scoring::base1();
+				sc.setNPen(COST_MODEL_CONSTANT, 1);
+				dr.go(sc, *ebwts.first, *ebwts.second, mets);
+				
+				// Confirm that an exact-matching alignment was found
+				assert_eq(5, dr.sink().nrange());
+				assert_eq(sc.n(40), dr.sink()[0].pen);
+				assert_eq(sc.n(40) + min(sc.readGapOpen(), sc.refGapOpen()) + sc.mm((int)'d' - 33), dr.sink()[1].pen);
+				assert_eq(sc.n(40) + max(sc.readGapOpen(), sc.refGapOpen()) + sc.mm((int)'d' - 33), dr.sink()[2].pen);
+				assert_eq(sc.n(40) + sc.readGapOpen() + sc.refGapOpen(), dr.sink()[3].pen);
+				assert_eq(sc.n(40) + sc.readGapOpen() + sc.refGapOpen() + sc.mm((int)'d' - 33), dr.sink()[4].pen);
+				assert(last_topf == std::numeric_limits<size_t>::max() || last_topf == dr.sink()[0].topf);
+				assert(last_botf == std::numeric_limits<size_t>::max() || last_botf == dr.sink()[0].botf);
+				cerr << dr.sink()[0].topf << ", " << dr.sink()[0].botf << endl;
+				assert_eq(5, dr.sink().nelt());
+				last_topf = dr.sink()[0].topf;
+				last_botf = dr.sink()[0].botf;
+			}
+		}
+    }
 
     delete ebwts.first;
     delete ebwts.second;
