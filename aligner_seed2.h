@@ -462,6 +462,7 @@ public:
 		TIndexOff botf,
 		TScore pen)
 	{
+		assert(topf > 0 || botf > 0);
 		DescentRedundancyKey k(fw, al5pi, al5pf, rflen, topf, botf);
 		size_t i = std::numeric_limits<size_t>::max();
 		if(map_.containsEx(k, i)) {
@@ -1207,6 +1208,7 @@ protected:
 	 */
     bool followMatches(
         const DescentQuery& q,     // query string
+		const Scoring& sc,         // scoring scheme
         const Ebwt& ebwtFw,        // forward index
         const Ebwt& ebwtBw,        // mirror index
 		DescentRedundancyChecker& re, // redundancy checker
@@ -1339,90 +1341,7 @@ public:
         EFactory<Descent>& df,          // factory with Descent
         EFactory<DescentPos>& pf,       // factory with DescentPoss
         const EList<DescentRoot>& rs,   // roots
-        const EList<DescentConfig>& cs) // configs
-    {
-		TDescentId cur = id;
-		const Descent& desc = df[id];
-		const bool fw = rs[rid].fw;
-		size_t len = q.length();
-		assert_lt(desc.al5pf(), len);
-		size_t al5pi = desc.al5pi(), al5pf = desc.al5pf();
-		size_t l, r;
-		// Adjust al5pi and al5pf to take the final edit into account (if
-		// there is one)
-		bool toward3p = (desc.l2r() == fw);
-		if(e.inited()) {
-			if(toward3p) {
-				assert_lt(al5pf, q.length()-1);
-				al5pf++;
-			} else {
-				assert_gt(al5pi, 0);
-				al5pi--;
-			}
-		}
-		if(fw) {
-			l = al5pi;
-			r = al5pf + 1;
-		} else {
-			l = q.length() - al5pf - 1;
-			r = q.length() - al5pi;
-		}
-		// Check if this is redundant with a previous reported alignment
-		Triple<TIndexOff, TIndexOff, size_t> lhs(topf, botf, l);
-		Triple<TIndexOff, TIndexOff, size_t> rhs(topb, botb, r);
-		if(!lhs_.insert(lhs)) {
-			rhs_.insert(rhs);
-			return false; // Already there
-		}
-		if(!rhs_.insert(rhs)) {
-			return false; // Already there
-		}
-        std::cerr << "Found an alignment with total penalty = " << pen << std::endl;
-        // Take just the portion of the read that has aligned up until this
-        // point
-        size_t nuninited = 0;
-		size_t ei = edits_.size();
-		size_t en = 0;
-		if(e.inited()) {
-			edits_.push_back(e);
-			en++;
-		}
-		while(cur != std::numeric_limits<TDescentId>::max()) {
-            if(!df[cur].edit().inited()) {
-                nuninited++;
-                assert_leq(nuninited, 2);
-            } else {
-                edits_.push_back(df[cur].edit());
-				en++;
-            }
-			cur = df[cur].parent();
-		}
-		// Sort just the edits we just added
-		edits_.sortPortion(ei, en);
-#ifndef NDEBUG
-		{
-			// Now figure out how much we refrained from aligning on either
-			// side.
-			size_t trimLf = fw ? al5pi : (len - al5pf - 1);
-			size_t trimRg = fw ? (len - al5pf - 1) : al5pi;
-			BTDnaString& rf = tmprfdnastr_;
-			rf.clear();
-			desc.print(std::cerr, "", q, trimLf, trimRg, fw, edits_, ei, en, rf);
-			std::cerr << std::endl;
-			ASSERT_ONLY(uint32_t toptmp = 0);
-			ASSERT_ONLY(uint32_t bottmp = 0);
-			// Check that the edited string occurs in the reference
-			if(!ebwtFw.contains(rf, &toptmp, &bottmp)) {
-				std::cerr << rf << std::endl;
-				assert(false);
-			}
-		}
-#endif
-		als_.expand();
-		als_.back().init(pen, topf, botf, ei, en);
-		nelt_ += (botf - topf);
-		return true;
-    }
+        const EList<DescentConfig>& cs);// configs
     
     /**
      * Reset to uninitialized state.

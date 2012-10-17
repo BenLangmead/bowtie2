@@ -47,11 +47,17 @@ void Edit::print(ostream& os, const EList<Edit>& edits, char delim) {
  * Flip all the edits.pos fields so that they're with respect to
  * the other end of the read (of length 'sz').
  */
-void Edit::invertPoss(EList<Edit>& edits, size_t sz) {
+void Edit::invertPoss(EList<Edit>& edits, size_t sz, size_t ei, size_t en) {
 	// Invert elements
-	edits.reverse();
+	size_t ii = 0;
+	for(size_t i = ei; i < (ei + en)/2; i++) {
+		Edit tmp = edits[i];
+		edits[i] = edits[ei + en - ii - 1];
+		edits[ei + en - ii - 1] = tmp;
+		ii++;
+	}
 	// Invert all the .pos's
-	for(size_t i = 0; i < edits.size(); i++) {
+	for(size_t i = ei; i < ei + en; i++) {
 		assert(edits[i].pos < sz ||
 		       (edits[i].isReadGap() && edits[i].pos == sz));
 		edits[i].pos =

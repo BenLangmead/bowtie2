@@ -192,16 +192,21 @@ public:
 		char             *inps)   // put string representation of inputs here
 		const
 	{
+		// Did the read have a second-best alignment?
 		bool hasSecbest = s.paired() ?
 			VALID_AL_SCORE(s.secbestPaired()) :
 			VALID_AL_SCORE(s.secbest(mate1));
+		// This corresponds to a scenario where we found one and only one
+		// alignment but didn't really look for a second one
 		if(!flags.canMax() && !s.exhausted(mate1) && !hasSecbest) {
 			return 255;
 		}
+		// scPer = score of a perfect match
 		TAlScore scPer = (TAlScore)sc_.perfectScore(rdlen);
 		if(s.paired()) {
 			scPer += (TAlScore)sc_.perfectScore(ordlen);
 		}
+		// scMin = score of a just barely valid match
 		TAlScore scMin = scoreMin_.f<TAlScore>((float)rdlen);
 		if(s.paired()) {
 			scMin += scoreMin_.f<TAlScore>((float)ordlen);
