@@ -1803,7 +1803,7 @@ void AlnSinkSam::appendMate(
 	}
 	o.append('\t');
 	// QUAL
-	if(!flags.isPrimary()) {
+	if(!flags.isPrimary() && samc_.omitSecondarySeqQual()) {
 		o.append('*');
 	} else {
 		// Print the quals
