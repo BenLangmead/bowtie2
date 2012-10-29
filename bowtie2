@@ -159,7 +159,7 @@ for(my $i = 0; $i < scalar(@bt2_args); $i++) {
 		$bt2_args[$i] = undef;
 	}
 	for my $rarg ("un-conc", "al-conc", "un", "al") {
-		if($arg =~ /^--${rarg}/ || $arg =~ /^--${rarg}-gz/ || $arg =~ /^--${rarg}-bz2/) {
+		if($arg =~ /^--${rarg}$/ || $arg =~ /^--${rarg}-gz$/ || $arg =~ /^--${rarg}-bz2$/) {
 			$bt2_args[$i] = undef;
 			if(scalar(@args) > 1 && $args[1] ne "") {
 				$read_fns{$rarg} = $args[1];
