@@ -2743,9 +2743,7 @@ static void* multiseedSearchWorker(void *vp) {
 	// Keep track of whether mates 1/2 were filtered out by upstream qc
 	bool qcfilt[2]  = { true, true };
 
-	if(arbitraryRandom) {
-		rndArb.init((uint32_t)time(0));
-	}
+	rndArb.init((uint32_t)time(0));
 	int mergei = 0;
 	int mergeival = 16;
 	while(true) {
