@@ -312,7 +312,6 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 	assert_eq(rd_->length(), qu_->length());
 	assert_geq(sc_->gapbar, 1);
 	assert_gt(minsc_, 0);
-	assert_leq(minsc_, MAX_U8);
 	assert(repOk());
 #ifndef NDEBUG
 	for(size_t i = rfi_; i < rff_; i++) {
