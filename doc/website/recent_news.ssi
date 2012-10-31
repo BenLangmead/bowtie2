@@ -1,14 +1,46 @@
-<h2>Hiring Postdocs - 9/12/2012</h2>
+<h2>Hiring Postdocs</h2>
 <ul>
 <li>
 The
 <a href="http://www.cs.jhu.edu/~langmea">Langmead</a>
 and
 <a href="http://bioinformatics.igm.jhmi.edu/salzberg">Salzberg</a>
-labs have open positions for postdoctoral researchers.  See
+labs currently have open positions for postdoctoral researchers.  See
 <a href="http://www.cs.jhu.edu/~langmea/positions.shtml">the posting</a>
 and please apply if you're interested in working with either or both of us.
 </li>
+</ul>
+
+<h2>Version 2.0.1 - Coming soon</h2>
+<ul>
+ <li>First non-beta release.</li>
+ <li>Fixed an issue that would cause Bowtie 2 to use excessive amounts of
+     memory for closely-matching and highly repetitive reads under some
+     circumstances.</li>
+ <li>Fixed a bug in
+     <tt><a href="manual.shtml#bowtie2-options-mm">--mm</a></tt>
+      mode that would fail to report when an index file
+     could not be memory-mapped.</li>
+ <li>Added
+     <tt><a href="manual.shtml#bowtie2-options-non-deterministic">--non-deterministic</a></tt>
+	 option, which better matches how some users
+     expect the pseudo-random generator inside Bowtie 2 to work.  Normally, if
+     you give the same read (same name, sequence and qualities) and
+	 <tt><a href="manual.shtml#bowtie2-options-seed">--seed</a></tt>, you
+     get the same answer.  
+     <tt><a href="manual.shtml#bowtie2-options-non-deterministic">--non-deterministic</a></tt>
+	 breaks that guarantee.  This can
+     be more appropriate for datasets where the input contains many identical
+     reads (same name, same sequence, same qualities).</li>
+ <li>Fixed a bug in <tt>bowtie2-build</tt> would yield corrupt index files when memory
+     settings were adjusted in the middle of indexing.</li>
+ <li>Clarified in manual that <tt>--un-*</tt> options print reads exactly as
+     they appeared in the input, and that they are not necessarily written in
+     the same order as they appeared in the input.</li>
+ <li>Fixed issue whereby wrapper would incorrectly interpret arguments with
+     <tt>--al</tt> as a prefix (e.g.
+	 <tt><a href="manual.shtml#bowtie2-options-a">--all</a></tt>) as
+	 <tt><a href="manual.shtml#bowtie2-options-al">--al</a></tt>.</li>
 </ul>
 
 <h2>Version 2.0.0-beta7 - July 13, 2012</h2>
@@ -19,7 +51,7 @@ and please apply if you're interested in working with either or both of us.
      alignments were incorrectly curtailed on the left-hand side.</li>
  <li>Fixed issue whereby
       <tt><a href="manual.shtml#bowtie2-options-un">--un</a></tt> or
-      <tt><a href="manual.shtml#bowtie2-options-un-conc">--un-conc</a></tt> 
+      <tt><a href="manual.shtml#bowtie2-options-un-conc">--un-conc</a></tt>
 	 would fail to output unaligned reads when
      <tt><a href="manual.shtml#bowtie2-options-no-unal">--no-unal</a></tt>
 	  was also specified.</li>
@@ -133,28 +165,6 @@ and please apply if you're interested in working with either or both of us.
   <li>Note: I am aware of an issue whereby longer reads (>10,000 bp) drive the
      memory footprint way up and often cause an out-of-memory exception.  This
 	 will be fixed in a future version.</li>
-</ul>
-
-<h2>Version 2.0.0-beta4 - December 6, 2011</h2>
-<ul>
-  <li>Accuracy improvements.</li>
-  <li>Speed improvements in some situations.</li>
-  <li>Fixed a handful of crashing bugs.</li>
-  <li>Fixed some documentation bugs.</li>
-  <li>Fixed bug whereby <tt><a href="manual.shtml#bowtie2-options-version">--version</tt></a> worked incorrectly.</li>
-  <li>Fixed formatting bug with MD:Z optional field that would sometimes fail to follow a mismatch with a number.</li>
-  <li>Added
-      <tt><a href="manual.shtml#bowtie2-options-D">-D</a></tt>
-	  option for controlling the maximum number of seed extensions that can fail in a row before we move on.  This option or something like it will eventually replace the argument to
-      <tt><a href="manual.shtml#bowtie2-options-M">-M</a></tt>.</li>
-  <li>Added
-      <tt><a href="manual.shtml#bowtie2-options-R">-R</a></tt>
-	  option to control maximum number of times re-seeding is attempted for a read with repetitive seeds.</li>
-  <li>Changed default to
-      <tt>--no-dovetail</tt>.  Specifying
-	  <tt><a href="manual.shtml#bowtie2-options-dovetail">--dovetail</a></tt> turns it back on.</li>
-  <li>Added second argument for
-      <tt><a href="manual.shtml#bowtie2-options-mp">--mp</a></tt> option so that user can set maximum and minimum mismatch penalties at once.  Also tweaked the formula for calculating the quality-aware mismatch penalty.</li>
 </ul>
 
 
