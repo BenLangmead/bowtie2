@@ -3,7 +3,7 @@ Bowtie 2 NEWS
 
 Bowtie 2 is now available for download from the project website,
 http://bowtie-bio.sf.net/bowtie2.  2.0.0-beta1 is the first version released to
-the public and 2.0.0-beta8 is the latest version.  Bowtie 2 is licensed under
+the public and 2.0.1 is the latest version.  Bowtie 2 is licensed under
 the GPLv3 license.  See `COPYING' file for details.
 
 Reporting Issues
@@ -16,17 +16,28 @@ Please report any issues using the Sourceforge bug tracker:
 Version Release History
 =======================
 
-Version 2.0.0-beta8 - September 9, 2012
+Version 2.0.1 - October 30, 2012
+   * First non-beta release.
    * Fixed an issue that would cause Bowtie 2 to use excessive amounts of
      memory for closely-matching and highly repetitive reads under some
      circumstances.
    * Fixed a bug in --mm mode that would fail to report when an index file
      could not be memory-mapped.
+   * Added --non-deterministic option, which better matches how some users
+     expect the pseudo-random generator inside Bowtie 2 to work.  Normally, if
+     you give the same read (same name, sequence and qualities) and --seed, you
+     get the same answer.  --non-deterministic breaks that guarantee.  This can
+     be more appropriate for datasets where the input contains many identical
+     reads (same name, same sequence, same qualities).
    * Fixed a bug in bowtie2-build would yield corrupt index files when memory
      settings were adjusted in the middle of indexing.
    * Clarified in manual that --un (or --un-*) options print reads exactly as
      they appeared in the input, and that they are not necessarily written in
      the same order as they appeared in the input.
+   * Fixed issue whereby wrapper would incorrectly interpret arguments with
+     --al as a prefix (e.g. --all) as --al.
+   * Added option --omit-sec-seq, which causes Bowtie 2 to set SEQ and QUAL
+     fields to "*" for secondary alignments.
 
 Version 2.0.0-beta7 - July 9, 2012
    * Fixed an issue in how Bowtie 2 aligns longer reads in --local mode.  Some

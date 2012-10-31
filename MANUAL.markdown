@@ -132,13 +132,12 @@ supported in future versions.
 [BLAT]:   http://genome.ucsc.edu/cgi-bin/hgBlat?command=start
 [Vmatch]: http://www.vmatch.de/
 
-What does it mean that Bowtie 2 is "beta"?
-------------------------------------------
+What does it mean that some older Bowtie 2 versions are "beta"?
+--------------------------------------------------------------
 
-We say Bowtie 2 is in "beta" to convey that it is not as polished as a tool that
-has been around for a while, and it's still in flux. Features, file formats, and
-performance characteristics (speed, sensitivity, and accuracy) may change from
-release to release until the "beta" disgnation is removed.
+We said those Bowtie 2 versions were in "beta" to convey that it was not as
+polished as a tool that had been around for a while, and was still in flux.
+Since version 2.0.1, we declared Bowtie 2 was no longer "beta".
 
 Obtaining Bowtie 2
 ==================
@@ -579,6 +578,31 @@ Some tools are designed with this reporting mode in mind.  Bowtie 2 is not!  For
 very large genomes, this mode is very slow.
 
 [SAM specification]: http://samtools.sourceforge.net/SAM1.pdf
+
+### Randomness in Bowtie 2
+
+Bowtie 2's search for alignments for a given read is "randomized."  That is,
+when Bowtie 2 encouters a set of equally-good choices, it uses a pseudo-random
+number to choose.  For example, if Bowtie 2 discovers a set of 3 equally-good
+alignments and wants to decide which to report, it picks a pseudo-random integer
+0, 1 or 2 and reports the corresponding alignment.  Abitrary choices can crop up
+at various points during alignment.
+
+The pseudo-random number generator is re-initialized for every read, and the
+seed used to initialize it is a function of the read name, nucleotide string,
+quality string, and the value specified with [`--seed`].  If you run the same
+version of Bowtie 2 on two reads with identical names, nucleotide strings, and
+quality strings, and if [`--seed`] is set the same for both runs, Bowtie 2 will
+produce the same output; i.e., it will align the read to the same place, even if
+there are multiple equally good alignments.  This is intuitive and desirable in
+most cases.  Most users expect Bowtie to produce the same output when run twice
+on the same input.
+
+However, when the user specifies the [`--non-deterministic`] option, Bowtie 2
+will use the current time to re-intiailize the pseud-random number generator.
+When this is specified, Bowtie 2 might report different alignments for identical
+reads.  This is counter-intuitive for some users, but might be more appropriate
+in situations where the input consists of many identical reads.
 
 Multiseed heuristic
 -------------------
@@ -1837,7 +1861,24 @@ must also be specified.  This is because the `ID` tag is required by the [SAM
 Spec][SAM].  Specify `--rg` multiple times to set multiple fields.  See the
 [SAM Spec][SAM] for details about what fields are legal.
 
-</td></tr></table>
+
+</td></tr>
+<tr><td id="bowtie2-options-omit-sec-seq">
+
+[`--omit-sec-seq`]: #bowtie2-options-omit-sec-seq
+
+    --omit-sec-seq
+
+</td><td>
+
+When printing secondary alignments, Bowtie 2 by default will write out the `SEQ`
+and `QUAL` strings.  Specifying this option causes Bowtie 2 to print an asterix
+in those fields instead.
+
+</td></tr>
+
+
+</table>
 
 #### Performance options
 
@@ -1936,6 +1977,27 @@ effect when read format is [`--qseq`].  Default: off.
 </td><td>
 
 Use `<int>` as the seed for pseudo-random number generator.  Default: 0.
+
+</td></tr>
+<tr><td id="bowtie2-options-non-deterministic">
+
+[`--non-deterministic`]: #bowtie2-options-non-deterministic
+
+    --non-deterministic
+
+</td><td>
+
+Normally, Bowtie 2 re-initializes its pseudo-random generator for each read.  It
+seeds the generator with a number derived from (a) the read name, (b) the
+nucleotide sequence, (c) the quality sequence, (d) the value of the [`--seed`]
+option.  This means that if two reads are identical (same name, same
+nucleotides, same qualities) Bowtie 2 will find and report the same alignment(s)
+for both, even if there was ambiguity.  When `--non-deterministic` is specified,
+Bowtie 2 re-initializes its pseudo-random generator for each read using the
+current time.  This means that Bowtie 2 will not necessarily report the same
+alignment for two identical reads.  This is counter-intuitive for some users,
+but might be more appropriate in situations where the input consists of many
+identical reads.
 
 </td></tr>
 <tr><td id="bowtie2-options-version">
@@ -2190,7 +2252,7 @@ alignment:
     aligned read.
 
     </td></tr>
-    <tr><td id="bowtie2-build-opt-fields-yp">
+    <tr><td id="bowtie2-build-opt-fields-yf">
 
 [`YF:Z`]: #bowtie2-build-opt-fields-yf
 
@@ -2200,6 +2262,9 @@ alignment:
 
     String indicating reason why the read was filtered out.  See also:
     [Filtering].  Only appears for reads that were filtered out.
+
+    </td></tr>
+    <tr><td id="bowtie2-build-opt-fields-yt">
 
 [`YT:Z`]: #bowtie2-build-opt-fields-yt
 
