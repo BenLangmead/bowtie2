@@ -144,7 +144,8 @@ enum {
 	ARG_TRI,                    // --tri
 	ARG_LOCAL_SEED_CACHE_SZ,    // --local-seed-cache-sz
 	ARG_CURRENT_SEED_CACHE_SZ,  // --seed-cache-sz
-	ARG_SAM_NO_UNAL             // --no-unal
+	ARG_SAM_NO_UNAL,            // --no-unal
+	ARG_NON_DETERMINISTIC       // --non-deterministic
 };
 
 #endif
