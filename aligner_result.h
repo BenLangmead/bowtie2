@@ -1276,6 +1276,8 @@ public:
 			   flags.alignedConcordant())
 			{
 				setFragmentLength(*omate);
+			} else {
+				assert(!isFraglenSet());
 			}
 		}
 	}
