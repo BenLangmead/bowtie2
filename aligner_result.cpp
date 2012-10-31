@@ -59,6 +59,7 @@ void AlnRes::reset() {
 	minsc_        = 0; // minimum score
 	nuc5p_        = 0;
 	nuc3p_        = 0;
+	fraglenSet_   = false;
 	assert(!refcoord_.valid());
 	assert(!refival_.valid());
 }
