@@ -744,7 +744,7 @@ bool FastaPatternSource::read(
 
 	// Read to the end of the id line, sticking everything after the '>'
 	// into *name
-	bool warning = false;
+	//bool warning = false;
 	while(true) {
 		if(c < 0 || qc < 0) {
 			bail(r); success = false; done = true; return success;
@@ -754,7 +754,7 @@ bool FastaPatternSource::read(
 			while(c == '\n' || c == '\r') {
 				if(doquals && c != qc) {
 					cerr << "Warning: one or more mismatched read names between FASTA and quality files" << endl;
-					warning = true;
+					//warning = true;
 				}
 				if(fb_.peek() == '>') {
 					// Empty sequence
@@ -770,7 +770,7 @@ bool FastaPatternSource::read(
 		}
 		if(doquals && c != qc) {
 			cerr << "Warning: one or more mismatched read names between FASTA and quality files" << endl;
-			warning = true;
+			//warning = true;
 		}
 		r.name.append(c);
 		if(fb_.peek() == '>') {

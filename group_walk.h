@@ -679,10 +679,10 @@ public:
 		for(size_t i = 0; i < hit.fmap.size(); i++) {
 			if(hit.satup->offs[i] == 0xffffffff) {
 				if(range == hit.fmap[i].first) {
-					bool found = false;
+					ASSERT_ONLY(bool found = false);
 					for(size_t j = mapi_; j < map_.size(); j++) {
 						if(map(j) == i) {
-							found = true;
+							ASSERT_ONLY(found = true);
 							break;
 						}
 					}

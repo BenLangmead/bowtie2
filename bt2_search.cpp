@@ -2678,7 +2678,6 @@ static void* multiseedSearchWorker(void *vp) {
 	SwDriver sd(exactCacheCurrentMB * 1024 * 1024);
 	SwAligner sw, osw;
 	SeedResults shs[2];
-	QVal *qv;
 	OuterLoopMetrics olm;
 	SeedSearchMetrics sdm;
 	WalkMetrics wlm;
@@ -2795,7 +2794,6 @@ static void* multiseedSearchWorker(void *vp) {
 			}
 			// Try to align this read
 			while(retry) {
-				qv = NULL;
 				retry = false;
 				assert_eq(ps->bufa().color, false);
 				ca.nextRead(); // clear the cache

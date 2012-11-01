@@ -609,7 +609,7 @@ BitPairReference::szsFromFasta(
 			// Make sure the .3.bt2 and .4.bt2 files contain
 			// nucleotides; not colors
 			int numSeqs = 0;
-			std::pair<size_t, size_t> sztot2 =
+			ASSERT_ONLY(std::pair<size_t, size_t> sztot2 =)
 			fastaRefReadSizes(is, szs, parms, &bpout, numSeqs);
 			parms.color = true;
 			writeU32(fout3, (uint32_t)szs.size(), bigEndian); // write # records
@@ -647,7 +647,7 @@ BitPairReference::szsFromFasta(
 			parms.color = false;
 			EList<RefRecord> szs2(EBWTB_CAT);
 			int numSeqs2 = 0;
-			std::pair<size_t, size_t> sztot2 =
+			ASSERT_ONLY(std::pair<size_t, size_t> sztot2 =)
 			fastaRefReadSizes(is, szs2, parms, NULL, numSeqs2);
 			assert_eq(numSeqs, numSeqs2);
 			// One less color than base

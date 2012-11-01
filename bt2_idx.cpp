@@ -739,14 +739,12 @@ inline void Ebwt::countBt2SideRange(
 	WITHIN_FCHR_DOLLARA(cntsUpto);
 	WITHIN_BWT_LEN(cntsUpto);
 	const uint8_t *side = l.side(this->ebwt());
-	bool adjustedForDollar = false;
 	if(l._sideByteOff <= _zEbwtByteOff && l._sideByteOff + l._by >= _zEbwtByteOff) {
 		// Adjust for the fact that we represented $ with an 'A', but
 		// shouldn't count it as an 'A' here
 		if((l._sideByteOff + l._by > _zEbwtByteOff) ||
 		   (l._sideByteOff + l._by == _zEbwtByteOff && l._bp > _zEbwtBpOff))
 		{
-			adjustedForDollar = true;
 			cntsUpto[0]--; // Adjust for '$' looking like an 'A'
 		}
 	}
