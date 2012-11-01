@@ -103,10 +103,9 @@ void Edit::printQAlign(
 	os << prefix;
 	// Print read
 	for(size_t i = 0; i < read.length(); i++) {
-		bool ins = false, del = false, mm = false;
+		bool del = false, mm = false;
 		while(eidx < edits.size() && edits[eidx].pos == i) {
 			if(edits[eidx].isReadGap()) {
-				ins = true;
 				os << '-';
 			} else if(edits[eidx].isRefGap()) {
 				del = true;
@@ -127,10 +126,9 @@ void Edit::printQAlign(
 	eidx = 0;
 	// Print match bars
 	for(size_t i = 0; i < read.length(); i++) {
-		bool ins = false, del = false, mm = false;
+		bool del = false, mm = false;
 		while(eidx < edits.size() && edits[eidx].pos == i) {
 			if(edits[eidx].isReadGap()) {
-				ins = true;
 				os << ' ';
 			} else if(edits[eidx].isRefGap()) {
 				del = true;
@@ -149,10 +147,9 @@ void Edit::printQAlign(
 	eidx = 0;
 	// Print reference
 	for(size_t i = 0; i < read.length(); i++) {
-		bool ins = false, del = false, mm = false;
+		bool del = false, mm = false;
 		while(eidx < edits.size() && edits[eidx].pos == i) {
 			if(edits[eidx].isReadGap()) {
-				ins = true;
 				os << (char)edits[eidx].chr;
 			} else if(edits[eidx].isRefGap()) {
 				del = true;
@@ -183,10 +180,9 @@ void Edit::printQAlignNoCheck(
 	os << prefix;
 	// Print read
 	for(size_t i = 0; i < read.length(); i++) {
-		bool ins = false, del = false, mm = false;
+		bool del = false, mm = false;
 		while(eidx < edits.size() && edits[eidx].pos == i) {
 			if(edits[eidx].isReadGap()) {
-				ins = true;
 				os << '-';
 			} else if(edits[eidx].isRefGap()) {
 				del = true;
@@ -204,10 +200,9 @@ void Edit::printQAlignNoCheck(
 	eidx = 0;
 	// Print match bars
 	for(size_t i = 0; i < read.length(); i++) {
-		bool ins = false, del = false, mm = false;
+		bool del = false, mm = false;
 		while(eidx < edits.size() && edits[eidx].pos == i) {
 			if(edits[eidx].isReadGap()) {
-				ins = true;
 				os << ' ';
 			} else if(edits[eidx].isRefGap()) {
 				del = true;
@@ -225,10 +220,9 @@ void Edit::printQAlignNoCheck(
 	eidx = 0;
 	// Print reference
 	for(size_t i = 0; i < read.length(); i++) {
-		bool ins = false, del = false, mm = false;
+		bool del = false, mm = false;
 		while(eidx < edits.size() && edits[eidx].pos == i) {
 			if(edits[eidx].isReadGap()) {
-				ins = true;
 				os << (char)edits[eidx].chr;
 			} else if(edits[eidx].isRefGap()) {
 				del = true;
@@ -280,12 +274,11 @@ void Edit::toRef(
 	for(size_t i = 0; i < rdlen; i++) {
 		ASSERT_ONLY(int c = read[i]);
 		assert_range(0, 4, c);
-		bool ins = false, del = false, mm = false;
+		bool del = false, mm = false;
 		bool append = i >= trimBeg && rdlen - i -1 >= trimEnd;
 		bool appendIns = i >= trimBeg && rdlen - i >= trimEnd;
 		while(eidx < edits.size() && edits[eidx].pos+trimBeg == i) {
 			if(edits[eidx].isReadGap()) {
-				ins = true;
 				// Inserted characters come before the position's
 				// character
 				if(appendIns) {
@@ -351,6 +344,7 @@ bool Edit::repOk(
 	size_t trimBeg,
 	size_t trimEnd)
 {
+#ifndef NDEBUG
 	if(!fw) {
 		invertPoss(const_cast<EList<Edit>&>(edits), s.length()-trimBeg-trimEnd);
 		swap(trimBeg, trimEnd);
@@ -361,7 +355,7 @@ bool Edit::repOk(
 		if(i > 0) {
 			assert_geq(pos, edits[i-1].pos);
 		}
-		bool del = false, ins = false, mm = false;
+		bool del = false, mm = false;
 		while(i < edits.size() && edits[i].pos == pos) {
 			const Edit& ee = edits[i];
 			assert_lt(ee.pos, s.length());
@@ -374,7 +368,6 @@ bool Edit::repOk(
 				mm = true;
 				assert(!del);
 			} else if(ee.isReadGap()) {
-				ins = true;
 				assert(!mm);
 			} else if(ee.isRefGap()) {
 				assert(!mm);
@@ -387,6 +380,7 @@ bool Edit::repOk(
 	if(!fw) {
 		invertPoss(const_cast<EList<Edit>&>(edits), s.length()-trimBeg-trimEnd);
 	}
+#endif
 	return true;
 }
 
