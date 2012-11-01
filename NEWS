@@ -3,7 +3,7 @@ Bowtie 2 NEWS
 
 Bowtie 2 is now available for download from the project website,
 http://bowtie-bio.sf.net/bowtie2.  2.0.0-beta1 is the first version released to
-the public and 2.0.1 is the latest version.  Bowtie 2 is licensed under
+the public and 2.0.2 is the latest version.  Bowtie 2 is licensed under
 the GPLv3 license.  See `COPYING' file for details.
 
 Reporting Issues
@@ -15,6 +15,14 @@ Please report any issues using the Sourceforge bug tracker:
 
 Version Release History
 =======================
+
+Version 2.0.2 - October 31, 2012
+   * Fixes a couple small issues pointed out to be immediately after 2.0.1
+     release
+   * Mac binaries now built on 10.6 in order to be forward-compatible with more
+     Mac OS versions
+   * Small changes to source to make it compile with gcc versions up to 4.7
+     without warnings
 
 Version 2.0.1 - October 31, 2012
    * First non-beta release.
