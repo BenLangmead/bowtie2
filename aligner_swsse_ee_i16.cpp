@@ -362,7 +362,6 @@ TAlScore SwAligner::alignGatherEE16(int& flag, bool debug) {
 	__m128i vhi      = _mm_setzero_si128();
 	__m128i vhilsw   = _mm_setzero_si128();
 	__m128i vlolsw   = _mm_setzero_si128();
-	__m128i vmax     = _mm_setzero_si128();
 	__m128i ve       = _mm_setzero_si128();
 	__m128i vf       = _mm_setzero_si128();
 	__m128i vh       = _mm_setzero_si128();
@@ -407,9 +406,6 @@ TAlScore SwAligner::alignGatherEE16(int& flag, bool debug) {
 	vhi = _mm_cmpeq_epi16(vhi, vhi);             // all elts = 0xffff
 	vhi = _mm_srli_epi16(vhi, 1);                // all elts = 0x7fff
 	
-	// Set all elts to 0x8000 (min value for signed 16-bit)
-	vmax = vlo;
-	
 	// vlolsw: topmost (least sig) word set to 0x8000, all other words=0
 	vlolsw = _mm_shuffle_epi32(vlo, 0);
 	vlolsw = _mm_srli_si128(vlolsw, NBYTES_PER_REG - NBYTES_PER_WORD);
@@ -430,7 +426,7 @@ TAlScore SwAligner::alignGatherEE16(int& flag, bool debug) {
 	
 	// Initialize the H and E vectors in the first matrix column
 	__m128i *pvELeft = vbuf_l + 0; __m128i *pvERight = vbuf_r + 0;
-	__m128i *pvFLeft = vbuf_l + 1; __m128i *pvFRight = vbuf_r + 1;
+	/* __m128i *pvFLeft = vbuf_l + 1; */ __m128i *pvFRight = vbuf_r + 1;
 	__m128i *pvHLeft = vbuf_l + 2; __m128i *pvHRight = vbuf_r + 2;
 	
 	// Maximum score in final row
@@ -466,7 +462,7 @@ TAlScore SwAligner::alignGatherEE16(int& flag, bool debug) {
 		// generally store to.
 		swap(vbuf_l, vbuf_r);
 		pvELeft = vbuf_l + 0; pvERight = vbuf_r + 0;
-		pvFLeft = vbuf_l + 1; pvFRight = vbuf_r + 1;
+		/* pvFLeft = vbuf_l + 1; */ pvFRight = vbuf_r + 1;
 		pvHLeft = vbuf_l + 2; pvHRight = vbuf_r + 2;
 		
 		// Fetch the appropriate query profile.  Note that elements of rf_ must
@@ -832,7 +828,6 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag, bool debug) {
 	__m128i vhi      = _mm_setzero_si128();
 	__m128i vhilsw   = _mm_setzero_si128();
 	__m128i vlolsw   = _mm_setzero_si128();
-	__m128i vmax     = _mm_setzero_si128();
 	__m128i ve       = _mm_setzero_si128();
 	__m128i vf       = _mm_setzero_si128();
 	__m128i vh       = _mm_setzero_si128();
@@ -878,9 +873,6 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag, bool debug) {
 	// Set all elts to 0x7fff (max value for signed 16-bit)
 	vhi = _mm_cmpeq_epi16(vhi, vhi);             // all elts = 0xffff
 	vhi = _mm_srli_epi16(vhi, 1);                // all elts = 0x7fff
-	
-	// Set all elts to 0x8000 (min value for signed 16-bit)
-	vmax = vlo;
 	
 	// vlolsw: topmost (least sig) word set to 0x8000, all other words=0
 	vlolsw = _mm_shuffle_epi32(vlo, 0);
