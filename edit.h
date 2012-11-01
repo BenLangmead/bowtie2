@@ -73,7 +73,8 @@ struct Edit {
      * Reset Edit to uninitialized state.
      */
 	void reset() {
-		pos = std::numeric_limits<uint32_t>::max();
+		pos = pos2 = std::numeric_limits<uint32_t>::max();
+		chr = qchr = type = 0;
 	}
 	
     /**

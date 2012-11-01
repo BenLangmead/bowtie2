@@ -862,13 +862,13 @@ void AlnSinkWrap::finishRead(
 				assert(rs1_[i].isFraglenSet() == rs2_[i].isFraglenSet());
 				assert(!rs1_[i].isFraglenSet() || abs(rs1_[i].fragmentLength()) == abs(rs2_[i].fragmentLength()));
 			}
-			size_t off;
+			ASSERT_ONLY(size_t off);
 			if(sortByScore) {
 				// Sort by score then pick from low to high
-				off = selectByScore(&rs1_, &rs2_, ndiscord, select1_, rnd);
+				ASSERT_ONLY(off =) selectByScore(&rs1_, &rs2_, ndiscord, select1_, rnd);
 			} else {
 				// Select subset randomly
-				off = selectAlnsToReport(rs1_, ndiscord, select1_, rnd);
+				ASSERT_ONLY(off =) selectAlnsToReport(rs1_, ndiscord, select1_, rnd);
 			}
 			assert_eq(0, off);
 			assert(!select1_.empty());

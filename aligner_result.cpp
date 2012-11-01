@@ -327,8 +327,6 @@ bool AlnRes::overlap(AlnRes& res) {
 	bool olap = false;
 	// For each row, going left to right along Watson reference strand...
 	for(size_t i = 0; i < rdexrows_; i++) {
-		size_t fivep = i;
-		if(!fw()) fivep = rdexrows_ - i - 1;
 		size_t diff = 1;  // amount to shift to right for next round
 		size_t odiff = 1; // amount to shift to right for next round
 		// Unless there are insertions before the next position, we say
@@ -906,12 +904,12 @@ void StackedAln::writeCigar(
 	assert_eq(op.size(), run.size());
 	if(o != NULL || occ != NULL) {
 		char buf[128];
-		bool printed = false;
+		ASSERT_ONLY(bool printed = false);
 		for(size_t i = 0; i < op.size(); i++) {
 			size_t r = run[i];
 			if(r > 0) {
 				itoa10<size_t>(r, buf);
-				printed = true;
+				ASSERT_ONLY(printed = true);
 				if(o != NULL) {
 					o->append(buf);
 					o->append(op[i]);

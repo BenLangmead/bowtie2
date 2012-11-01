@@ -1649,7 +1649,6 @@ int SwDriver::extendSeedsPaired(
 				}
 				int state = FOUND_NONE;
 				bool found = false;
-				bool anchorDp = false; // true -> DP was used to find anchor
 				// In unpaired mode, a seed extension is successful if it
 				// results in a full alignment that meets the minimum score
 				// threshold.  In paired-end mode, a seed extension is
@@ -1786,7 +1785,6 @@ int SwDriver::extendSeedsPaired(
 					if(!found) {
 						continue; // Look for more anchor alignments
 					}
-					anchorDp = true;
 				}
 				bool firstInner = true;
 				bool foundConcordant = false;
@@ -1878,7 +1876,7 @@ int SwDriver::extendSeedsPaired(
 						assert(!msink->state().done());
 						foundMate = !oppFilt;
 						TAlScore ominsc_cur = ominsc;
-						bool oungapped = false;
+						//bool oungapped = false;
 						int oreadGaps = 0, orefGaps = 0;
 						//int oungappedAlign = -1; // defer
 						if(foundMate) {
@@ -1914,7 +1912,7 @@ int SwDriver::extendSeedsPaired(
 							}
 							oreadGaps = sc.maxReadGaps(ominsc_cur, ordlen);
 							orefGaps  = sc.maxRefGaps (ominsc_cur, ordlen);
-							oungapped = (oreadGaps == 0 && orefGaps == 0);
+							//oungapped = (oreadGaps == 0 && orefGaps == 0);
 							// TODO: Something lighter-weight than DP to scan
 							// for other mate??
 							//if(oungapped) {
@@ -2066,14 +2064,14 @@ int SwDriver::extendSeedsPaired(
 									foundMate = false;
 								}
 							}
-							TRefId refid;
+							ASSERT_ONLY(TRefId refid);
 							TRefOff off1, off2;
 							TRefOff fragoff;
-							size_t len1, len2, fraglen;
+							size_t len1, len2;
 							bool fw1, fw2;
 							int pairCl = PE_ALS_DISCORD;
 							if(foundMate) {
-								refid = res->alres.refid();
+								ASSERT_ONLY(refid =) res->alres.refid();
 								assert_eq(refid, oresGap_.alres.refid());
 								off1 = anchor1 ? off : oresGap_.alres.refoff();
 								off2 = anchor1 ? oresGap_.alres.refoff() : off;
@@ -2084,9 +2082,6 @@ int SwDriver::extendSeedsPaired(
 								fw1  = anchor1 ? res->alres.fw() : oresGap_.alres.fw();
 								fw2  = anchor1 ? oresGap_.alres.fw() : res->alres.fw();
 								fragoff = min<TRefOff>(off1, off2);
-								fraglen = (size_t)max<TRefOff>(
-									off1 - fragoff + (TRefOff)len1,
-									off2 - fragoff + (TRefOff)len2);
 								// Check that final mate alignments are consistent with
 								// paired-end fragment constraints
 								pairCl = pepol.peClassifyPair(

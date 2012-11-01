@@ -424,7 +424,7 @@ TAlScore SwAligner::alignGatherEE8(int& flag, bool debug) {
 	
 	// Initialize the H and E vectors in the first matrix column
 	__m128i *pvELeft = vbuf_l + 0; __m128i *pvERight = vbuf_r + 0;
-	__m128i *pvFLeft = vbuf_l + 1; __m128i *pvFRight = vbuf_r + 1;
+	/* __m128i *pvFLeft = vbuf_l + 1; */ __m128i *pvFRight = vbuf_r + 1;
 	__m128i *pvHLeft = vbuf_l + 2; __m128i *pvHRight = vbuf_r + 2;
 	
 	// Maximum score in final row
@@ -460,7 +460,7 @@ TAlScore SwAligner::alignGatherEE8(int& flag, bool debug) {
 		// generally store to.
 		swap(vbuf_l, vbuf_r);
 		pvELeft = vbuf_l + 0; pvERight = vbuf_r + 0;
-		pvFLeft = vbuf_l + 1; pvFRight = vbuf_r + 1;
+		/* pvFLeft = vbuf_l + 1; */ pvFRight = vbuf_r + 1;
 		pvHLeft = vbuf_l + 2; pvHRight = vbuf_r + 2;
 		
 		// Fetch the appropriate query profile.  Note that elements of rf_ must

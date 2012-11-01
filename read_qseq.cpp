@@ -247,11 +247,11 @@ bool QseqPatternSource::read(
 	// Empty sequence??
 	if(fb_.peek() == '\t') {
 		// Get tab that separates seq from qual
-		int c = fb_.get();
+		ASSERT_ONLY(int c =) fb_.get();
 		assert_eq('\t', c);
 		assert_eq('\t', fb_.peek());
 		// Get tab that separates qual from filter
-		c = fb_.get();
+		ASSERT_ONLY(c =) fb_.get();
 		assert_eq('\t', c);
 		// Next char is first char of filter flag
 		assert_neq('\t', fb_.peek());
