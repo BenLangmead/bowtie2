@@ -2066,7 +2066,6 @@ int SwDriver::extendSeedsPaired(
 							}
 							ASSERT_ONLY(TRefId refid);
 							TRefOff off1, off2;
-							TRefOff fragoff;
 							size_t len1, len2;
 							bool fw1, fw2;
 							int pairCl = PE_ALS_DISCORD;
@@ -2081,7 +2080,6 @@ int SwDriver::extendSeedsPaired(
 									oresGap_.alres.refExtent() : res->alres.refExtent();
 								fw1  = anchor1 ? res->alres.fw() : oresGap_.alres.fw();
 								fw2  = anchor1 ? oresGap_.alres.fw() : res->alres.fw();
-								fragoff = min<TRefOff>(off1, off2);
 								// Check that final mate alignments are consistent with
 								// paired-end fragment constraints
 								pairCl = pepol.peClassifyPair(

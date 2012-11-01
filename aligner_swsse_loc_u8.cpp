@@ -457,7 +457,7 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 	
 	// Initialize the H and E vectors in the first matrix column
 	__m128i *pvELeft = vbuf_l + 0; __m128i *pvERight = vbuf_r + 0;
-	__m128i *pvFLeft = vbuf_l + 1; __m128i *pvFRight = vbuf_r + 1;
+	/* __m128i *pvFLeft = vbuf_l + 1; */ __m128i *pvFRight = vbuf_r + 1;
 	__m128i *pvHLeft = vbuf_l + 2; __m128i *pvHRight = vbuf_r + 2;
 	
 	for(size_t i = 0; i < iter; i++) {
@@ -491,7 +491,7 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 		// generally store to.
 		swap(vbuf_l, vbuf_r);
 		pvELeft = vbuf_l + 0; pvERight = vbuf_r + 0;
-		pvFLeft = vbuf_l + 1; pvFRight = vbuf_r + 1;
+		/* pvFLeft = vbuf_l + 1; */ pvFRight = vbuf_r + 1;
 		pvHLeft = vbuf_l + 2; pvHRight = vbuf_r + 2;
 		
 		// Fetch this column's reference mask
@@ -1482,7 +1482,7 @@ bool SwAligner::gatherCellsNucleotidesLocalSseU8(TAlScore best) {
 	SSEMetrics& met = extend_ ? sseU8ExtendMet_ : sseU8MateMet_;
 	assert(!d.profbuf_.empty());
 	//const size_t rowstride = d.mat_.rowstride();
-	const size_t colstride = d.mat_.colstride();
+	//const size_t colstride = d.mat_.colstride();
 	size_t iter = (dpRows() + (NWORDS_PER_REG - 1)) / NWORDS_PER_REG;
 	assert_gt(iter, 0);
 	assert_geq(minsc_, 0);
