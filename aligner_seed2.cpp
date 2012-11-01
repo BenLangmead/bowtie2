@@ -17,6 +17,7 @@
  * along with Bowtie 2.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <limits>
 #include <ctype.h>
 #include "aligner_seed2.h"
 #include "assert_helpers.h"

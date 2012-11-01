@@ -95,6 +95,7 @@
 
 #include <stdint.h>
 #include <utility>
+#include <limits>
 #include "assert_helpers.h"
 #include "bt2_idx.h"
 #include "simple_func.h"

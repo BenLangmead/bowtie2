@@ -22,6 +22,7 @@
 
 #include <iostream>
 #include <stdint.h>
+#include <limits>
 #include "assert_helpers.h"
 #include "filebuf.h"
 #include "sstring.h"
