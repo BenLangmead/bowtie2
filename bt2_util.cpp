@@ -39,7 +39,7 @@
 void Ebwt::sanityCheckUpToSide(int upToSide) const {
 	assert(isInMemory());
 	uint32_t occ[] = {0, 0, 0, 0};
-	uint32_t occ_save[] = {0, 0, 0, 0};
+	ASSERT_ONLY(uint32_t occ_save[] = {0, 0, 0, 0});
 	uint32_t cur = 0; // byte pointer
 	const EbwtParams& eh = this->_eh;
 	bool fw = false;
@@ -66,10 +66,12 @@ void Ebwt::sanityCheckUpToSide(int upToSide) const {
 		assert_eq(cs, occ_save[1]);
 		assert_eq(gs, occ_save[2]);
 		assert_eq(ts, occ_save[3]);
+#ifndef NDEBUG
 		occ_save[0] = occ[0];
 		occ_save[1] = occ[1];
 		occ_save[2] = occ[2];
 		occ_save[3] = occ[3];
+#endif
 		cur += eh._sideSz;
 	}
 }
