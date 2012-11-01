@@ -1534,23 +1534,12 @@ bool SwAligner::gatherCellsNucleotidesLocalSseI16(TAlScore best) {
 		// Get pointer to the vector in the following column that corresponds
 		// to the cells diagonally down and to the right from the cells in pvH
 		__m128i *pvHSucc = (j < ncol-1) ? d.mat_.hvec(0, j+1) : NULL;
-		__m128i *pvHPrevBase = (j > 0)  ? d.mat_.hvec(0, j-1) : NULL;
-		size_t succOff = 0;
-		size_t prevOff = 0;
 		// Start in upper vector row and move down
 		for(size_t i = 0; i < iter; i++) {
 			if(pvHSucc != NULL) {
 				pvHSucc += ROWSTRIDE;
 				if(i == iter-1) {
 					pvHSucc = d.mat_.hvec(0, j+1);
-					succOff = 1;
-				}
-			}
-			if(pvHPrevBase != NULL) {
-				if(i == 0) {
-					prevOff = 1;
-				} else {
-					prevOff = 0;
 				}
 			}
 			// Which elements of this vector are exhaustively scored?
