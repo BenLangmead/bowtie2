@@ -81,6 +81,7 @@
 #define GROUP_WALK_H_
 
 #include <stdint.h>
+#include <limits>
 #include "ds.h"
 #include "bt2_idx.h"
 #include "aligner_cache.h"
