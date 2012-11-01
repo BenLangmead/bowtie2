@@ -21,6 +21,7 @@
 #define WORD_IO_H_
 
 #include <stdint.h>
+#include <unistd.h>
 #include <iostream>
 #include <fstream>
 #include "assert_helpers.h"
