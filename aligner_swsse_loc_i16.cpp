@@ -1481,7 +1481,7 @@ bool SwAligner::gatherCellsNucleotidesLocalSseI16(TAlScore best) {
 	SSEMetrics& met = extend_ ? sseI16ExtendMet_ : sseI16MateMet_;
 	assert(!d.profbuf_.empty());
 	//const size_t rowstride = d.mat_.rowstride();
-	const size_t colstride = d.mat_.colstride();
+	//const size_t colstride = d.mat_.colstride();
 	size_t iter = (dpRows() + (NWORDS_PER_REG - 1)) / NWORDS_PER_REG;
 	assert_gt(iter, 0);
 	assert_geq(minsc_, 0);
