@@ -17,7 +17,7 @@ Version Release History
 =======================
 
 Version 2.0.2 - October 31, 2012
-   * Fixes a couple small issues pointed out to be immediately after 2.0.1
+   * Fixes a couple small issues pointed out to me immediately after 2.0.1
      release
    * Mac binaries now built on 10.6 in order to be forward-compatible with more
      Mac OS versions

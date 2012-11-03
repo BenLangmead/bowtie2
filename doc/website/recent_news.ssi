@@ -13,7 +13,7 @@ and please apply if you're interested in working with either or both of us.
 
 <h2>Version 2.0.2 - October 31, 2012</h2>
 <ul>
- <li>Fixes a couple small issues pointed out to be immediately after 2.0.1
+ <li>Fixes a couple small issues pointed out to me immediately after 2.0.1
      release</li>
  <li>Mac binaries now built on 10.6 in order to be forward-compatible with more
      Mac OS versions</li>
