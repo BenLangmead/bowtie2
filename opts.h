@@ -145,7 +145,8 @@ enum {
 	ARG_LOCAL_SEED_CACHE_SZ,    // --local-seed-cache-sz
 	ARG_CURRENT_SEED_CACHE_SZ,  // --seed-cache-sz
 	ARG_SAM_NO_UNAL,            // --no-unal
-	ARG_NON_DETERMINISTIC       // --non-deterministic
+	ARG_NON_DETERMINISTIC,      // --non-deterministic
+	ARG_TEST_25                 // --test-25
 };
 
 #endif

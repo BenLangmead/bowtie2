@@ -590,34 +590,15 @@ int AlnSinkWrap::nextRead(
 	assert(!init_);
 	assert(rd1 != NULL || rd2 != NULL);
 	init_ = true;
-	bool same = sameRead(rd1, rd2, qualitiesMatter);
 	// Keep copy of new read, so that we can compare it with the
 	// next one
 	if(rd1 != NULL) {
-		//rd1buf_ = *rd1;
-		//rd1_ = &rd1buf_;
 		rd1_ = rd1;
 	} else rd1_ = NULL;
 	if(rd2 != NULL) {
-		//rd2buf_ = *rd2;
-		//rd2_ = &rd2buf_;
 		rd2_ = rd2;
 	} else rd2_ = NULL;
 	rdid_ = rdid;
-	if(same) {
-#if 0
-		if(short_) {
-			// We were short circuited, so we start from the
-			// beginning of the short-circuited stage
-			if(lastStage_ > -1) return lastStage_ + 1;
-		} else {
-			// We were not short circuited, so we can skip the read
-			// entirely
-			return -1;
-		}
-#endif
-		// don't skip anything.  Need to think harder about how to do this.
-	}
 	// Caller must now align the read
 	maxed1_ = false;
 	maxed2_ = false;

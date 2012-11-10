@@ -428,6 +428,24 @@ public:
 	inline size_t capacity() const { return sz_; }
 	
 	/**
+	 * Return the total size in bytes occupied by this list.
+	 */
+	size_t totalSizeBytes() const {
+		return 	2 * sizeof(int) +
+		        2 * sizeof(size_t) +
+				cur_ * sizeof(T);
+	}
+
+	/**
+	 * Return the total capacity in bytes occupied by this list.
+	 */
+	size_t totalCapacityBytes() const {
+		return 	2 * sizeof(int) +
+		        2 * sizeof(size_t) +
+				sz_ * sizeof(T);
+	}
+	
+	/**
 	 * Ensure that there is sufficient capacity to expand to include
 	 * 'thresh' more elements without having to expand.
 	 */
@@ -1715,6 +1733,20 @@ public:
 	size_t size() const { return cur_; }
 
 	/**
+	 * Return the total size in bytes occupied by this set.
+	 */
+	size_t totalSizeBytes() const {
+		return sizeof(int) + cur_ * sizeof(T) + 2 * sizeof(size_t);
+	}
+
+	/**
+	 * Return the total capacity in bytes occupied by this set.
+	 */
+	size_t totalCapacityBytes() const {
+		return sizeof(int) + sz_ * sizeof(T) + 2 * sizeof(size_t);
+	}
+	
+	/**
 	 * Return true iff there are no elements.
 	 */
 	bool empty() const { return cur_ == 0; }
@@ -2368,6 +2400,24 @@ public:
 	 * Return number of elements.
 	 */
 	size_t size() const { return cur_; }
+	
+	/**
+	 * Return the total size in bytes occupied by this map.
+	 */
+	size_t totalSizeBytes() const {
+		return 	sizeof(int) +
+		        2 * sizeof(size_t) +
+				cur_ * sizeof(std::pair<K, V>);
+	}
+
+	/**
+	 * Return the total capacity in bytes occupied by this map.
+	 */
+	size_t totalCapacityBytes() const {
+		return 	sizeof(int) +
+		        2 * sizeof(size_t) +
+				sz_ * sizeof(std::pair<K, V>);
+	}
 
 	/**
 	 * Return true iff there are no elements.
@@ -2653,6 +2703,20 @@ public:
 	size_t size() const {
 		return l_.size();
 	}
+
+	/**
+	 * Return the number of items in the factory.
+	 */
+	size_t totalSizeBytes() const {
+		return l_.totalSizeBytes();
+	}
+
+	/**
+	 * Return the total capacity in bytes occupied by this factory.
+	 */
+	size_t totalCapacityBytes() const {
+		return 	l_.totalCapacityBytes();
+	}
     
     /**
      * Resize the list.
@@ -2768,6 +2832,20 @@ public:
 	 */
 	size_t size() const {
 		return l_.size();
+	}
+
+	/**
+	 * Return the total size in bytes occupied by this heap.
+	 */
+	size_t totalSizeBytes() const {
+		return 	l_.totalSizeBytes();
+	}
+
+	/**
+	 * Return the total capacity in bytes occupied by this heap.
+	 */
+	size_t totalCapacityBytes() const {
+		return 	l_.totalCapacityBytes();
 	}
 	
 	/**

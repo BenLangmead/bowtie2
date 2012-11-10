@@ -88,7 +88,9 @@ SHARED_CPPS = ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
               reference.cpp ds.cpp multikey_qsort.cpp limit.cpp
 SEARCH_CPPS = qual.cpp pat.cpp sam.cpp \
               read_qseq.cpp aligner_seed_policy.cpp \
-              aligner_seed.cpp aligner_sw.cpp \
+              aligner_seed.cpp \
+			  aligner_seed2.cpp \
+			  aligner_sw.cpp \
 			  aligner_sw_driver.cpp aligner_cache.cpp \
 			  aligner_result.cpp ref_coord.cpp mask.cpp \
 			  pe.cpp aln_sink.cpp dp_framer.cpp \
@@ -98,7 +100,8 @@ SEARCH_CPPS = qual.cpp pat.cpp sam.cpp \
 			  aligner_swsse_loc_i16.cpp \
 			  aligner_swsse_ee_i16.cpp \
 			  aligner_swsse_loc_u8.cpp \
-			  aligner_swsse_ee_u8.cpp
+			  aligner_swsse_ee_u8.cpp \
+			  aligner_driver.cpp
 SEARCH_CPPS_MAIN = $(SEARCH_CPPS) bowtie_main.cpp
 
 BUILD_CPPS = diff_sample.cpp
