@@ -295,6 +295,13 @@ struct DescentConstraints {
 	DescentConstraints(int type, double C, double L) {
         init(type, C, L);
 	}
+
+	/**
+	 * Initialize with new constraint function.
+	 */
+	DescentConstraints(const SimpleFunc& f_) {
+		f = f_;
+	}
     
     /**
      * Initialize with given function.
@@ -303,6 +310,17 @@ struct DescentConstraints {
 		double mn = 0.0;
 		double mx = std::numeric_limits<double>::max();
 		f.init(type, mn, mx, C, L);
+		scs.resize(1024);
+		for(size_t i = 0; i < 1024; i++) {
+			scs[i] = f.f<TScore>(i);
+		}
+    }
+
+    /**
+     * Initialize with given function.
+     */
+    void init(const SimpleFunc& f_) {
+		f = f_;
 		scs.resize(1024);
 		for(size_t i = 0; i < 1024; i++) {
 			scs[i] = f.f<TScore>(i);
@@ -498,6 +516,20 @@ public:
 	 */
 	size_t size() const {
 		return map_.size();
+	}
+	
+	/**
+	 * Return the total size of the redundancy map.
+	 */
+	size_t totalSizeBytes() const {
+		return map_.totalSizeBytes();
+	}
+
+	/**
+	 * Return the total capacity of the redundancy map.
+	 */
+	size_t totalCapacityBytes() const {
+		return map_.totalCapacityBytes();
 	}
 
 protected:
@@ -936,7 +968,17 @@ public:
  */
 struct DescentQuery {
 
+
 	DescentQuery() { reset(); }
+
+	DescentQuery(
+		const BTDnaString& seq_,
+		const BTString&    qual_,
+		const BTDnaString& seqrc_,
+		const BTString&    qualrc_)
+	{
+		init(seq_, qual_, seqrc_, qualrc_);
+	}
 
 	/**
 	 * Get the nucleotide and quality value at the given offset from 5' end.
@@ -999,6 +1041,9 @@ struct DescentQuery {
 		return seq != NULL;
 	}
     
+	/**
+	 * Return length of query string.
+	 */
     size_t length() const {
         assert(inited());
         return seq->length();
@@ -1361,6 +1406,30 @@ public:
 	size_t size() const {
 		return als_.size();
 	}
+
+	/**
+	 * Return the total size occupued by the Descent driver and all its
+	 * constituent parts.
+	 */
+	size_t totalSizeBytes() const {
+		return edits_.totalSizeBytes() +
+		       als_.totalSizeBytes() +
+			   lhs_.totalSizeBytes() +
+			   rhs_.totalSizeBytes() +
+			   sizeof(size_t);
+	}
+
+	/**
+	 * Return the total capacity of the Descent driver and all its constituent
+	 * parts.
+	 */
+	size_t totalCapacityBytes() const {
+		return edits_.totalCapacityBytes() +
+		       als_.totalCapacityBytes() +
+			   lhs_.totalCapacityBytes() +
+			   rhs_.totalCapacityBytes() +
+			   sizeof(size_t);
+	}
 	
 	/**
 	 * Return the number of SA ranges found to have hits.
@@ -1383,6 +1452,11 @@ public:
 		return als_[i];
 	}
 
+	size_t editsSize() const { return edits_.size(); }
+	size_t alsSize() const { return als_.size(); }
+	size_t lhsSize() const { return lhs_.size(); }
+	size_t rhsSize() const { return rhs_.size(); }
+
 protected:
 
 	EList<Edit> edits_;
@@ -1397,6 +1471,49 @@ protected:
 };
 
 /**
+ * Abstract parent for classes that select descent roots and descent
+ * configurations given information about the read.
+ */
+class DescentRootSelector {
+
+public:
+
+	virtual void select(
+		const DescentQuery& q,         // read that we're selecting roots for
+		const DescentQuery* qo,        // opposite mate, if applicable
+		EList<DescentConfig>& confs,   // put DescentConfigs here
+		EList<DescentRoot> roots) = 0; // put DescentRoot here
+};
+
+/**
+ * Encapsulates a set of conditions governing when the DescentDriver should
+ * stop.
+ */
+struct DescentStoppingConditions {
+
+	DescentStoppingConditions(size_t totsz_, size_t nfound_, size_t nbwop_) {
+		init(totsz_, nfound_, nbwop_);
+	}
+
+	void init(size_t totsz_, size_t nfound_, size_t nbwop_) {
+		totsz = totsz_;
+		nfound = nfound_;
+		nbwop = nbwop_;
+	}
+
+	size_t totsz;  // total size of all the expandable data structures in bytes
+	size_t nfound; // # alignments found
+	size_t nbwop;  // # Burrows-Wheeler (rank) operations performed
+};
+
+enum {
+	DESCENT_DRIVER_ALN = 1,
+	DESCENT_DRIVER_MEM = 2,
+	DESCENT_DRIVER_BWOPS = 4,
+	DESCENT_DRIVER_DONE = 8
+};
+
+/**
  * Class responsible for advancing all the descents.  The initial descents may
  * emanate from several different locations in the read.  Note that descents
  * may become redundant with each other, and should then be eliminated.
@@ -1407,16 +1524,18 @@ public:
 	DescentDriver() { reset(); }
 	
 	/**
-	 * Initialize driver with respect to a new read.
+	 * Initialize driver with respect to a new read.  If a DescentRootSelector
+	 * is specified, then it is used to obtain roots as well.
 	 */
 	void initRead(
-		const BTDnaString& seq,
-		const BTString& qual,
-		const BTDnaString& seqrc,
-		const BTString& qualrc)
+		const DescentQuery& q,
+		const DescentQuery* qu = NULL,
+		DescentRootSelector *sel = NULL)
 	{
-		reset();
-		q_.init(seq, qual, seqrc, qualrc);
+		q_ = q;
+		if(sel != NULL) {
+			sel->select(q_, qu, confs_, roots_);
+		}
 	}
 	
 	/**
@@ -1442,21 +1561,48 @@ public:
 	}
 	
 	/**
+	 * Clear out the DescentRoots currently configured.
+	 */
+	void clearRoots() {
+		confs_.clear();
+		roots_.clear();
+	}
+	
+	/**
 	 * Clear the Descent driver so that we're ready to re-start seed alignment
 	 * for the current read.
 	 */
-	void reset() {
+	void resetRead() {
 		df_.clear();     // clear Descents
 		pf_.clear();     // clear DescentPoss
 		heap_.clear();   // clear Heap
 		roots_.clear();  // clear roots
         alsink_.reset(); // clear alignment sink
+		rootsInited_ = 0; // haven't yet created initial descents
+	}
+	
+	/**
+	 * Clear the Descent driver so that we're ready to re-start seed alignment
+	 * for the current read.
+	 */
+	void reset() {
+		resetRead();
 	}
 
 	/**
 	 * Perform seed alignment.
 	 */
 	void go(
+        const Scoring& sc,    // scoring scheme
+		const Ebwt& ebwtFw,   // forward index
+		const Ebwt& ebwtBw,   // mirror index
+        DescentMetrics& met); // metrics
+
+	/**
+	 * Perform seed alignment until some stopping condition is satisfied.
+	 */
+	int advance(
+		const DescentStoppingConditions& stopc, // stopping conditions
         const Scoring& sc,    // scoring scheme
 		const Ebwt& ebwtFw,   // forward index
 		const Ebwt& ebwtBw,   // mirror index
@@ -1483,6 +1629,30 @@ public:
 	const DescentAlignmentSink& sink() const {
 		return alsink_;
 	}
+	
+	/**
+	 * Return the total size occupued by the Descent driver and all its
+	 * constituent parts.
+	 */
+	size_t totalSizeBytes() const {
+		return df_.totalSizeBytes() +
+		       pf_.totalSizeBytes() +
+			   heap_.totalSizeBytes() +
+		       alsink_.totalSizeBytes() +
+			   re_.totalSizeBytes();
+	}
+
+	/**
+	 * Return the total capacity of the Descent driver and all its constituent
+	 * parts.
+	 */
+	size_t totalCapacityBytes() const {
+		return df_.totalCapacityBytes() +
+		       pf_.totalCapacityBytes() +
+			   heap_.totalCapacityBytes() +
+		       alsink_.totalCapacityBytes() +
+			   re_.totalCapacityBytes();
+	}
 
 protected:
 
@@ -1493,6 +1663,7 @@ protected:
 	                              // must be referred to by ID
 	EList<DescentRoot>   roots_;  // search roots
     EList<DescentConfig> confs_;  // configuration params for each root
+	size_t rootsInited_;          // # initial Descents already created
 	EHeap<TDescentPair>  heap_;   // priority queue of Descents
     DescentAlignmentSink alsink_; // alignment sink
 	DescentRedundancyChecker re_; // redundancy checker

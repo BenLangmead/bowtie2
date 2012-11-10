@@ -970,8 +970,6 @@ public:
 		best2Unp2_(std::numeric_limits<TAlScore>::min()),
 		rd1_(NULL),    // mate 1
 		rd2_(NULL),    // mate 2
-		rd1buf_(),     // copy of mate 1 Read object
-		rd2buf_(),     // copy of mate 2 Read object
 		rdid_(std::numeric_limits<TReadId>::max()), // read id
 		rs1_(),        // mate 1 alignments for paired-end alignments
 		rs2_(),        // mate 2 alignments for paired-end alignments
@@ -1241,8 +1239,6 @@ protected:
 	TAlScore        best2Unp2_;    // second-greatest score so far for mate 2
 	const Read*     rd1_;   // mate #1
 	const Read*     rd2_;   // mate #2
-	Read            rd1buf_;// buffer for mate #1
-	Read            rd2buf_;// buffer for mate #2
 	TReadId         rdid_;  // read ID (potentially used for ordering)
 	EList<AlnRes>   rs1_;   // paired alignments for mate #1
 	EList<AlnRes>   rs2_;   // paired alignments for mate #2

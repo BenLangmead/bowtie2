@@ -45,7 +45,6 @@
 #include "random_source.h"
 #include "ref_read.h"
 #include "threading.h"
-#include "bitset.h"
 #include "str_util.h"
 #include "mm.h"
 #include "timer.h"

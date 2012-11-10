@@ -85,6 +85,88 @@ void DescentDriver::go(
 }
 
 /**
+ * Perform seed alignment until some stopping condition is satisfied.
+ */
+int DescentDriver::advance(
+	const DescentStoppingConditions& stopc, // stopping conditions
+    const Scoring& sc,    // scoring scheme
+    const Ebwt& ebwtFw,   // forward index
+    const Ebwt& ebwtBw,   // mirror index
+    DescentMetrics& met)  // metrics
+{
+	size_t nbwop_i = met.bwops;
+	while(rootsInited_ < roots_.size()) {
+		size_t dfsz = df_.size();
+		size_t pfsz = pf_.size();
+		TDescentId id = df_.alloc();
+		Edit e_null;
+		assert(!e_null.inited());
+        bool succ = df_[id].init(
+            q_,        // query
+            rootsInited_, // root and conf id
+            sc,        // scoring scheme
+            id,        // new Descent's id
+            ebwtFw,    // forward index
+            ebwtBw,    // mirror index
+			re_,       // redundancy checker
+            df_,       // Descent factory
+            pf_,       // DescentPos factory
+            roots_,    // DescentRoots
+            confs_,    // DescentConfs
+            heap_,     // heap
+            alsink_,   // alignment sink
+            met);      // metrics
+        if(!succ) {
+            // Reclaim memory we had used for this descent and its DescentPos info
+            df_.resize(dfsz);
+            pf_.resize(pfsz);
+        }
+		rootsInited_++;
+		if(stopc.nfound > 0 && alsink_.size() > stopc.nfound) {
+			return DESCENT_DRIVER_ALN;
+		}
+		if(stopc.nbwop > 0 && (met.bwops - nbwop_i) > stopc.nbwop) {
+			return DESCENT_DRIVER_BWOPS;
+		}
+		if(stopc.totsz > 0 && totalSizeBytes() > stopc.totsz) {
+			return DESCENT_DRIVER_MEM;
+		}
+    }
+    // Advance until some stopping condition
+    bool stop = heap_.empty();
+    while(!stop) {
+		// Pop off the highest-priority descent.  Note that some outgoing edges
+		// might have since been explored, which could reduce the priority of
+		// the descent once we .
+        TDescentPair p = heap_.pop();
+        df_[p.second].followBestOutgoing(
+            q_,
+            ebwtFw,
+            ebwtBw,
+            sc,
+			re_,       // redundancy checker
+            df_,       // Descent factory
+            pf_,       // DescentPos factory
+            roots_,
+            confs_,
+            heap_,
+            alsink_,
+            met);
+		if(stopc.nfound > 0 && alsink_.size() > stopc.nfound) {
+			return DESCENT_DRIVER_ALN;
+		}
+		if(stopc.nbwop > 0 && (met.bwops - nbwop_i) > stopc.nbwop) {
+			return DESCENT_DRIVER_BWOPS;
+		}
+		if(stopc.totsz > 0 && totalSizeBytes() > stopc.totsz) {
+			return DESCENT_DRIVER_MEM;
+		}
+        stop = heap_.empty();
+    }
+	return DESCENT_DRIVER_DONE;
+}
+
+/**
  * If this is the final descent in a complete end-to-end alignment, report
  * the alignment.
  */
@@ -117,7 +199,7 @@ bool DescentAlignmentSink::reportAlignment(
 	bool toward3p = (desc.l2r() == fw);
 	if(e.inited()) {
 		if(toward3p) {
-			assert_lt(al5pf, q.length()-1);
+			assert_lt(al5pf, len-1);
 			al5pf++;
 		} else {
 			assert_gt(al5pi, 0);
@@ -128,8 +210,8 @@ bool DescentAlignmentSink::reportAlignment(
 		l = al5pi;
 		r = al5pf + 1;
 	} else {
-		l = q.length() - al5pf - 1;
-		r = q.length() - al5pi;
+		l = len - al5pf - 1;
+		r = len - al5pi;
 	}
 	// Check if this is redundant with a previous reported alignment
 	Triple<TIndexOff, TIndexOff, size_t> lhs(topf, botf, l);
@@ -172,11 +254,11 @@ bool DescentAlignmentSink::reportAlignment(
 		BTDnaString& rf = tmprfdnastr_;
 		rf.clear();
 		if(!fw) {
-			Edit::invertPoss(edits_, q.length(), ei, en);
+			Edit::invertPoss(edits_, len, ei, en);
 		}
 		desc.print(std::cerr, "", q, trimLf, trimRg, fw, edits_, ei, en, rf);
 		if(!fw) {
-			Edit::invertPoss(edits_, q.length(), ei, en);
+			Edit::invertPoss(edits_, len, ei, en);
 		}
 		std::cerr << std::endl;
 		ASSERT_ONLY(uint32_t toptmp = 0);
@@ -506,7 +588,7 @@ size_t Descent::recalcOutgoing(
 						continue; // Already been explored
 					}
 					TIndexOff topf = pf[d].topf[j], botf = pf[d].botf[j];
-					TIndexOff topb = pf[d].topb[j], botb = pf[d].botb[j];
+					ASSERT_ONLY(TIndexOff topb = pf[d].topb[j], botb = pf[d].botb[j]);
 					if(re.contains(fw, cur5pi, cur5pf, cur5pf - cur5pi + 1 + gapadd_, topf, botf, pen_ + pen_mm)) {
 						continue; // Redundant with a path already explored
 					}
@@ -525,7 +607,7 @@ size_t Descent::recalcOutgoing(
 					nout++;
 				}
 			}
-			bool gapsAllowed = (off5p >= sc.gapbar && off3p >= sc.gapbar);
+			bool gapsAllowed = (off5p >= (size_t)sc.gapbar && off3p >= (size_t)sc.gapbar);
 			if(gapsAllowed) {
 				// An easy redundancy check is: if all ways of proceeding are
 				// matches, then there's no need to entertain gaps here.
@@ -559,7 +641,7 @@ size_t Descent::recalcOutgoing(
 								continue; // Already been explored
 							}
 							TIndexOff topf = pf[d].topf[j], botf = pf[d].botf[j];
-							TIndexOff topb = pf[d].topb[j], botb = pf[d].botb[j];
+							ASSERT_ONLY(TIndexOff topb = pf[d].topb[j], botb = pf[d].botb[j]);
 							assert(topf != 0 || botf != 0);
 							assert(topb != 0 || botb != 0);
 							if(re.contains(fw, cur5pi_i, cur5pf_i, cur5pf - cur5pi + 1 + gapadd_, topf, botf, pen_ + pen_rdg_ex)) {
@@ -589,8 +671,8 @@ size_t Descent::recalcOutgoing(
 						if(pf[d].flags.rfgExplore()) {
                             TIndexOff topf = l2r_ ? topp : top;
                             TIndexOff botf = l2r_ ? botp : bot;
-							TIndexOff topb = l2r_ ? top : topp;
-							TIndexOff botb = l2r_ ? bot : botp;
+							ASSERT_ONLY(TIndexOff topb = l2r_ ? top : topp);
+							ASSERT_ONLY(TIndexOff botb = l2r_ ? bot : botp);
 							assert(topf != 0 || botf != 0);
 							assert(topb != 0 || botb != 0);
 							size_t nrefal = cur5pf - cur5pi + gapadd_;
@@ -629,7 +711,7 @@ size_t Descent::recalcOutgoing(
 							continue; // Already been explored
 						}
 						TIndexOff topf = pf[d].topf[j], botf = pf[d].botf[j];
-						TIndexOff topb = pf[d].topb[j], botb = pf[d].botb[j];
+						ASSERT_ONLY(TIndexOff topb = pf[d].topb[j], botb = pf[d].botb[j]);
 						assert(topf != 0 || botf != 0);
 						assert(topb != 0 || botb != 0);
 						if(re.contains(fw, cur5pi_i, cur5pf_i, cur5pf - cur5pi + 1 + gapadd_, topf, botf, pen_ + pen_rdg_op)) {
@@ -656,8 +738,8 @@ size_t Descent::recalcOutgoing(
                     if(pf[d].flags.rfgExplore()) {
                         TIndexOff topf = l2r_ ? topp : top;
                         TIndexOff botf = l2r_ ? botp : bot;
-						TIndexOff topb = l2r_ ? top : topp;
-						TIndexOff botb = l2r_ ? bot : botp;
+						ASSERT_ONLY(TIndexOff topb = l2r_ ? top : topp);
+						ASSERT_ONLY(TIndexOff botb = l2r_ ? bot : botp);
 						assert(topf != 0 || botf != 0);
 						assert(topb != 0 || botb != 0);
 						size_t nrefal = cur5pf - cur5pi + gapadd_;
@@ -1243,10 +1325,10 @@ bool Descent::followMatches(
 		bool ftabFits = true;
 		if(toward3p && ftabLen + off5p > q.length()) {
 			ftabFits = false;
-		} else if(!toward3p && off5p < ftabLen) {
+		} else if(!toward3p && off5p < (size_t)ftabLen) {
 			ftabFits = false;
 		}
-		if(ftabLen > 1 && ftabLen <= nobranchDepth && ftabFits) {
+		if(ftabLen > 1 && (size_t)ftabLen <= nobranchDepth && ftabFits) {
 			// Forward index: right-to-left
 			size_t off_r2l = fw ? off5p : q.length() - off5p - 1;
 			if(l2r_) {
@@ -1665,11 +1747,7 @@ int main(int argc, char **argv) {
 			BTString    qualrc = qual;
 			seqrc.reverseComp();
 			qualrc.reverse();
-			dr.initRead(
-				seq,
-				qual,
-				seqrc,
-				qualrc);
+			dr.initRead(DescentQuery(seq, qual, seqrc, qualrc));
 			
 			// Set up the DescentConfig
 			DescentConfig conf;
@@ -1708,11 +1786,7 @@ int main(int argc, char **argv) {
         BTString    qualrc = qual;
         seqrc.reverseComp();
         qualrc.reverse();
-        dr.initRead(
-            seq,
-            qual,
-            seqrc,
-            qualrc);
+		dr.initRead(DescentQuery(seq, qual, seqrc, qualrc));
         
         // Set up the DescentConfig
         DescentConfig conf;
@@ -1750,11 +1824,7 @@ int main(int argc, char **argv) {
         BTString    qualrc = qual;
         seqrc.reverseComp();
         qualrc.reverse();
-        dr.initRead(
-            seq,
-            qual,
-            seqrc,
-            qualrc);
+		dr.initRead(DescentQuery(seq, qual, seqrc, qualrc));
         
         // Set up the DescentConfig
         DescentConfig conf;
@@ -1797,11 +1867,7 @@ int main(int argc, char **argv) {
         BTString    qualrc = qual;
         seqrc.reverseComp();
         qualrc.reverse();
-        dr.initRead(
-            seq,
-            qual,
-            seqrc,
-            qualrc);
+		dr.initRead(DescentQuery(seq, qual, seqrc, qualrc));
         
         // Set up the DescentConfig
         DescentConfig conf;
@@ -1874,11 +1940,7 @@ int main(int argc, char **argv) {
 				BTString    qualrc = qual;
 				seqrc.reverseComp();
 				qualrc.reverse();
-				dr.initRead(
-					seq,
-					qual,
-					seqrc,
-					qualrc);
+				dr.initRead(DescentQuery(seq, qual, seqrc, qualrc));
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
@@ -1925,11 +1987,7 @@ int main(int argc, char **argv) {
 				BTString    qualrc = qual;
 				seqrc.reverseComp();
 				qualrc.reverse();
-				dr.initRead(
-					seq,
-					qual,
-					seqrc,
-					qualrc);
+				dr.initRead(DescentQuery(seq, qual, seqrc, qualrc));
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
@@ -2007,11 +2065,7 @@ int main(int argc, char **argv) {
 					BTString    qualrc = qual;
 					seqrc.reverseComp();
 					qualrc.reverse();
-					dr.initRead(
-						seq,
-						qual,
-						seqrc,
-						qualrc);
+					dr.initRead(DescentQuery(seq, qual, seqrc, qualrc));
 					
 					// Set up the DescentConfig
 					DescentConfig conf;
@@ -2088,11 +2142,7 @@ int main(int argc, char **argv) {
 					BTString    qualrc = qual;
 					seqrc.reverseComp();
 					qualrc.reverse();
-					dr.initRead(
-						seq,
-						qual,
-						seqrc,
-						qualrc);
+					dr.initRead(DescentQuery(seq, qual, seqrc, qualrc));
 					
 					// Set up the DescentConfig
 					DescentConfig conf;
@@ -2156,11 +2206,7 @@ int main(int argc, char **argv) {
 				BTString    qualrc = qual;
 				seqrc.reverseComp();
 				qualrc.reverse();
-				dr.initRead(
-					seq,     // i == 0 ? 
-					qual,
-					seqrc,
-					qualrc);
+				dr.initRead(DescentQuery(seq, qual, seqrc, qualrc));
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
@@ -2266,11 +2312,7 @@ int main(int argc, char **argv) {
 				BTString    qualrc = qual;
 				seqrc.reverseComp();
 				qualrc.reverse();
-				dr.initRead(
-					seq,
-					qual,
-					seqrc,
-					qualrc);
+				dr.initRead(DescentQuery(seq, qual, seqrc, qualrc));
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
@@ -2342,11 +2384,7 @@ int main(int argc, char **argv) {
 				BTString    qualrc = qual;
 				seqrc.reverseComp();
 				qualrc.reverse();
-				dr.initRead(
-					seq,
-					qual,
-					seqrc,
-					qualrc);
+				dr.initRead(DescentQuery(seq, qual, seqrc, qualrc));
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
@@ -2420,11 +2458,7 @@ int main(int argc, char **argv) {
 				BTString    qualrc = qual;
 				seqrc.reverseComp();
 				qualrc.reverse();
-				dr.initRead(
-					seq,
-					qual,
-					seqrc,
-					qualrc);
+				dr.initRead(DescentQuery(seq, qual, seqrc, qualrc));
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
@@ -2504,11 +2538,7 @@ int main(int argc, char **argv) {
 				BTString    qualrc = qual;
 				seqrc.reverseComp();
 				qualrc.reverse();
-				dr.initRead(
-					seq,
-					qual,
-					seqrc,
-					qualrc);
+				dr.initRead(DescentQuery(seq, qual, seqrc, qualrc));
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
@@ -2589,11 +2619,7 @@ int main(int argc, char **argv) {
 				BTString    qualrc = qual;
 				seqrc.reverseComp();
 				qualrc.reverse();
-				dr.initRead(
-					seq,
-					qual,
-					seqrc,
-					qualrc);
+				dr.initRead(DescentQuery(seq, qual, seqrc, qualrc));
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
@@ -2711,11 +2737,7 @@ int main(int argc, char **argv) {
 				BTString    qualrc = qual;
 				seqrc.reverseComp();
 				qualrc.reverse();
-				dr.initRead(
-					seq,
-					qual,
-					seqrc,
-					qualrc);
+				dr.initRead(DescentQuery(seq, qual, seqrc, qualrc));
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
@@ -2800,11 +2822,7 @@ int main(int argc, char **argv) {
 				BTString    qualrc = qual;
 				seqrc.reverseComp();
 				qualrc.reverse();
-				dr.initRead(
-					seq,
-					qual,
-					seqrc,
-					qualrc);
+				dr.initRead(DescentQuery(seq, qual, seqrc, qualrc));
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
