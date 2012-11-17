@@ -1340,6 +1340,9 @@ struct DescentAlignment {
 	 */
 	void reset() {
 		topf = botf = 0;
+		pen = 0;
+		fw = false;
+		ei = en = 0;
 	}
 
 	/**
