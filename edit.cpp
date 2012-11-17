@@ -47,22 +47,32 @@ void Edit::print(ostream& os, const EList<Edit>& edits, char delim) {
  * Flip all the edits.pos fields so that they're with respect to
  * the other end of the read (of length 'sz').
  */
-void Edit::invertPoss(EList<Edit>& edits, size_t sz, size_t ei, size_t en) {
+void Edit::invertPoss(EList<Edit>& edits, size_t sz, size_t ei, size_t en, bool reverseElts) {
 	// Invert elements
 	size_t ii = 0;
-	for(size_t i = ei; i < (ei + en)/2; i++) {
+	for(size_t i = ei; i < ei + en/2; i++) {
 		Edit tmp = edits[i];
 		edits[i] = edits[ei + en - ii - 1];
 		edits[ei + en - ii - 1] = tmp;
 		ii++;
 	}
-	// Invert all the .pos's
 	for(size_t i = ei; i < ei + en; i++) {
 		assert(edits[i].pos < sz ||
-		       (edits[i].isReadGap() && edits[i].pos == sz));
+			   (edits[i].isReadGap() && edits[i].pos == sz));
+		// Adjust pos
 		edits[i].pos =
 			(uint32_t)(sz - edits[i].pos - (edits[i].isReadGap() ? 0 : 1));
+		// Adjust pos2
+		int64_t pos2diff = (int64_t)(uint64_t)edits[i].pos2 - (int64_t)((uint64_t)std::numeric_limits<uint32_t>::max() >> 1);
+		int64_t pos2new = (int64_t)(uint64_t)edits[i].pos2 - 2*pos2diff;
+		assert(pos2diff == 0 || (uint32_t)pos2new != (std::numeric_limits<uint32_t>::max() >> 1));
+		edits[i].pos2 = (uint32_t)pos2new;
 	}
+#ifndef NDEBUG
+	for(size_t i = ei + 1; i < ei + en; i++) {
+		assert_geq(edits[i].pos, edits[i-1].pos);
+	}
+#endif
 }
 
 /**

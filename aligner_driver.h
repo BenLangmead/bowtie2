@@ -79,8 +79,6 @@
 #include "simple_func.h"
 #include "aln_sink.h"
 
-typedef DescentQuery AlignerDriverQuery;
-
 /**
  * Concrete subclass of DescentRootSelector.  Puts a root every 'ival' chars,
  * where 'ival' is determined by user-specified parameters.  A root is filtered
@@ -102,16 +100,30 @@ public:
 	}
 
 	virtual void select(
-		const DescentQuery& q,         // read that we're selecting roots for
-		const DescentQuery* qo,        // opposite mate, if applicable
+		const Read& q,                 // read that we're selecting roots for
+		const Read* qo,                // opposite mate, if applicable
 		EList<DescentConfig>& confs,   // put DescentConfigs here
-		EList<DescentRoot> roots);     // put DescentRoot here
+		EList<DescentRoot>& roots);    // put DescentRoot here
 
 protected:
 
 	SimpleFunc descCons_;
 	SimpleFunc rootIval_;
 	size_t landing_;
+};
+
+/**
+ * Return values from extendSeeds and extendSeedsPaired.
+ */
+enum {
+	// Candidates were examined exhaustively
+	ALDRIVER_EXHAUSTED_CANDIDATES = 1,
+	// The policy does not need us to look any further
+	ALDRIVER_POLICY_FULFILLED,
+	// We stopped because we ran up against a limit on how much work we should
+	// do for one set of seed ranges, e.g. the limit on number of consecutive
+	// unproductive DP extensions
+	ALDRIVER_EXCEEDED_LIMIT
 };
 
 /**
@@ -130,7 +142,8 @@ public:
 		size_t landing,
 		size_t totsz) :
 		sel_(descCons, rootIval, landing),
-		stop_(totsz, 0, 0)
+		alsel_(),
+		stop_(totsz, 0, true, 0)
 	{
 	}
 	
@@ -138,13 +151,16 @@ public:
 	 * Initialize driver with respect to a new read or pair.
 	 */
 	void initRead(
-		const AlignerDriverQuery& q1,
-		const AlignerDriverQuery* q2)
+		const Read& q1,
+		TAlScore minsc,
+		const Read* q2)
 	{
-		dr1_.initRead(q1, q2, &sel_);
+		dr1_.initRead(q1, minsc, q2, &sel_);
+		red1_.init(q1.length());
 		paired_ = false;
 		if(q2 != NULL) {
-			dr2_.initRead(*q2, &q1, &sel_);
+			dr2_.initRead(*q2, minsc, &q1, &sel_);
+			red2_.init(q2->length());
 			paired_ = true;
 		} else {
 			dr2_.reset();
@@ -160,32 +176,16 @@ public:
 	 * iterated, with the search being occasioanally halted so that DPs can be
 	 * tried, then restarted, etc.
 	 */
-	void go(
+	int go(
 		const Scoring& sc,
 		const Ebwt& ebwtFw,
 		const Ebwt& ebwtBw,
+		const BitPairReference& ref,
 		DescentMetrics& met,
+		WalkMetrics& wlm,
+		PerReadMetrics& prm,
 		RandomSource& rnd,
-		AlnSinkWrap& sink)
-	{
-		if(paired_) {
-			// Paired-end - alternate between advancing dr1_ / dr2_ whenever a
-			// new full alignment is discovered in the one currently being
-			// advanced.  Whenever a new full alignment is found, check to see
-			// if it pairs with a previously discovered alignment.
-			bool first1 = (rnd.nextU2() == 0);
-			bool first = true;
-			while(true) {
-				if(first && first1) {
-					dr1_.advance(stop_, sc, ebwtFw, ebwtBw, met);
-				}
-				dr2_.advance(stop_, sc, ebwtFw, ebwtBw, met);
-				first = false;
-			}
-		} else {
-			// Unpaired
-		}
-	}
+		AlnSinkWrap& sink);
 	
 	/**
 	 * Reset state of all DescentDrivers.
@@ -193,15 +193,30 @@ public:
 	void reset() {
 		dr1_.reset();
 		dr2_.reset();
+		red1_.reset();
+		red2_.reset();
 	}
 
 protected:
 
-	AlignerDriverRootSelector sel_;
-	DescentDriver dr1_;
-	DescentDriver dr2_;
-	DescentStoppingConditions stop_;
-	bool paired_;
+	AlignerDriverRootSelector sel_;   // selects where roots should go
+	DescentAlignmentSelector alsel_;  // one selector can deal with >1 drivers
+	DescentDriver dr1_;               // driver for mate 1/unpaired reads
+	DescentDriver dr2_;               // driver for paired-end reads
+	DescentStoppingConditions stop_;  // when to pause index-assisted BFS
+	bool paired_;                     // current read is paired?
+
+	// For detecting redundant alignments
+	RedundantAlns  red1_;   // database of cells used for mate 1 alignments
+	RedundantAlns  red2_;   // database of cells used for mate 2 alignments
+
+	// For AlnRes::matchesRef
+	ASSERT_ONLY(SStringExpandable<char> raw_refbuf_);
+	ASSERT_ONLY(SStringExpandable<uint32_t> raw_destU32_);
+	ASSERT_ONLY(EList<bool> raw_matches_);
+	ASSERT_ONLY(BTDnaString tmp_rf_);
+	ASSERT_ONLY(BTDnaString tmp_rdseq_);
+	ASSERT_ONLY(BTString tmp_qseq_);
 };
 
 #endif /* defined(ALIGNER_DRIVER_H_) */

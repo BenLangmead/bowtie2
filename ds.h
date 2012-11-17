@@ -2785,6 +2785,14 @@ public:
 	}
 	
 	/**
+	 * Return the topmost element.
+	 */
+	T top() {
+		assert_gt(l_.size(), 0);
+		return l_[0];
+	}
+	
+	/**
 	 * Remove the topmost element.
 	 */
 	T pop() {
@@ -3207,7 +3215,137 @@ protected:
 };
 
 /**
- * An expandable list backed by a pool.
+ * A slice of an EList.
+ */
+template<typename T, int S>
+class EListSlice {
+
+public:
+	EListSlice() :
+		i_(0),
+		len_(0),
+		list_()
+	{ }
+
+	EListSlice(
+		EList<T, S>& list,
+		size_t i,
+		size_t len) :
+		i_(i),
+		len_(len),
+		list_(&list)
+	{ }
+	
+	/**
+	 * Initialize from a piece of another PListSlice.
+	 */
+	void init(const EListSlice<T, S>& sl, size_t first, size_t last) {
+		assert_gt(last, first);
+		assert_leq(last - first, sl.len_);
+		i_ = sl.i_ + first;
+		len_ = last - first;
+		list_ = sl.list_;
+	}
+	
+	/**
+	 * Reset state to be empty.
+	 */
+	void reset() {
+		i_ = len_ = 0;
+		list_ = NULL;
+	}
+	
+	/**
+	 * Get the ith element of the slice.
+	 */
+	inline const T& get(size_t i) const {
+		assert(valid());
+		assert_lt(i, len_);
+		return list_->get(i + i_);
+	}
+
+	/**
+	 * Get the ith element of the slice.
+	 */
+	inline T& get(size_t i) {
+		assert(valid());
+		assert_lt(i, len_);
+		return list_->get(i + i_);
+	}
+
+	/**
+	 * Return a reference to the ith element.
+	 */
+	inline T& operator[](size_t i) {
+		assert(valid());
+		assert_lt(i, len_);
+		return list_->get(i + i_);
+	}
+
+	/**
+	 * Return a reference to the ith element.
+	 */
+	inline const T& operator[](size_t i) const {
+		assert(valid());
+		assert_lt(i, len_);
+		return list_->get(i + i_);
+	}
+
+	/**
+	 * Return true iff this slice is initialized.
+	 */
+	bool valid() const {
+		return len_ != 0;
+	}
+	
+	/**
+	 * Return number of elements in the slice.
+	 */
+	size_t size() const {
+		return len_;
+	}
+	
+	/**
+	 * Ensure that the PListSlice is internally consistent and
+	 * consistent with the backing PList.
+	 */
+	bool repOk() const {
+		assert_leq(i_ + len_, list_->size());
+		return true;
+	}
+	
+	/**
+	 * Return true iff this slice refers to the same slice of the same
+	 * list as the given slice.
+	 */
+	bool operator==(const EListSlice& sl) const {
+		return i_ == sl.i_ && len_ == sl.len_ && list_ == sl.list_;
+	}
+
+	/**
+	 * Return false iff this slice refers to the same slice of the same
+	 * list as the given slice.
+	 */
+	bool operator!=(const EListSlice& sl) const {
+		return !(*this == sl);
+	}
+	
+	/**
+	 * Set the length.  This could leave things inconsistent (e.g. could
+	 * include elements that fall off the end of list_).
+	 */
+	void setLength(size_t nlen) {
+		len_ = (uint32_t)nlen;
+	}
+	
+protected:
+	size_t i_;
+	size_t len_;
+	EList<T, S>* list_;
+};
+
+/**
+ * A slice of a PList.
  */
 template<typename T, int S>
 class PListSlice {

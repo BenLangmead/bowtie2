@@ -27,6 +27,7 @@
 #include "filebuf.h"
 
 typedef uint64_t TReadId;
+typedef size_t TReadOff;
 
 class HitSet;
 
@@ -34,7 +35,10 @@ class HitSet;
  * A buffer for keeping all relevant information about a single read.
  */
 struct Read {
+
 	Read() { reset(); }
+	
+	Read(const char *nm, const char *seq, const char *ql) { init(nm, seq, ql); }
 
 	void reset() {
 		rdid = 0;
@@ -85,11 +89,9 @@ struct Read {
 	void init(
 		const char *nm,
 		const char *seq,
-		const char *ql,
-		bool col)
+		const char *ql)
 	{
 		reset();
-		color = col;
 		patFw.installChars(seq);
 		qual.install(ql);
 		for(size_t i = 0; i < patFw.length(); i++) {
@@ -266,6 +268,38 @@ struct Read {
 			}
 		}
 		return true;
+	}
+
+	/**
+	 * Get the nucleotide and quality value at the given offset from 5' end.
+	 * If 'fw' is false, get the reverse complement.
+	 */
+	std::pair<int, int> get(TReadOff off5p, bool fw) const {
+		assert_lt(off5p, length());
+		int c = (int)patFw[off5p];
+        int q = qual[off5p];
+        assert_geq(q, 33);
+		return make_pair((!fw && c < 4) ? (c ^ 3) : c, q - 33);
+	}
+	
+	/**
+	 * Get the nucleotide at the given offset from 5' end.
+	 * If 'fw' is false, get the reverse complement.
+	 */
+	int getc(TReadOff off5p, bool fw) const {
+		assert_lt(off5p, length());
+		int c = (int)patFw[off5p];
+		return (!fw && c < 4) ? (c ^ 3) : c;
+	}
+	
+	/**
+	 * Get the quality value at the given offset from 5' end.
+	 */
+	int getq(TReadOff off5p) const {
+		assert_lt(off5p, length());
+        int q = qual[off5p];
+        assert_geq(q, 33);
+		return q-33;
 	}
 
 	/**

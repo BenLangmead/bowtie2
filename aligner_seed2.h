@@ -97,11 +97,14 @@
 #include <utility>
 #include <limits>
 #include "assert_helpers.h"
+#include "random_util.h"
+#include "aligner_result.h"
 #include "bt2_idx.h"
 #include "simple_func.h"
 #include "scoring.h"
 #include "edit.h"
 #include "ds.h"
+#include "group_walk.h"
 
 typedef uint32_t TIndexOff;
 typedef size_t   TReadOff;
@@ -963,6 +966,7 @@ public:
 	DescentEdge best5; // 5th-best
 };
 
+#if 0
 /**
  * Encapsulates the string we're matching during our descent search.
  */
@@ -1048,6 +1052,16 @@ struct DescentQuery {
         assert(inited());
         return seq->length();
     }
+	
+	/**
+	 * Return true if the query is internally consistent.
+	 */
+	bool repOk() const {
+		assert_eq(seq->length(), qual->length());
+		assert_eq(seq->length(), seqrc->length());
+		assert_eq(seq->length(), qualrc->length());
+		return true;
+	}
 
     const BTDnaString* seq;
     const BTString* qual;
@@ -1055,6 +1069,7 @@ struct DescentQuery {
     const BTDnaString* seqrc;
     const BTString* qualrc;
 };
+#endif
 
 class DescentAlignmentSink;
 
@@ -1078,7 +1093,7 @@ public:
      * therefore have its memory freed), true otherwise.
 	 */
 	bool init(
-		const DescentQuery& q,          // query
+		const Read& q,          // query
 		TRootId rid,                    // root id
 		const Scoring& sc,              // scoring scheme
 		TReadOff al5pi,                 // offset from 5' of 1st aligned char
@@ -1109,7 +1124,7 @@ public:
      * freed), true otherwise.
 	 */
 	bool init(
-        const DescentQuery& q,          // query
+        const Read& q,          // query
         TRootId rid,                    // root id
         const Scoring& sc,              // scoring scheme
         size_t descid,                  // id of this Descent
@@ -1164,7 +1179,7 @@ public:
 	 * Take the best outgoing edge and follow it.
 	 */
 	void followBestOutgoing(
-        const DescentQuery& q,          // query string
+        const Read& q,          // query string
         const Ebwt& ebwtFw,             // forward index
         const Ebwt& ebwtBw,             // mirror index
         const Scoring& sc,              // scoring scheme
@@ -1185,7 +1200,7 @@ public:
 	/**
 	 * Return true iff the Descent is internally consistent.
 	 */
-	bool repOk(const DescentQuery *q) const {
+	bool repOk(const Read *q) const {
 		// A non-root can have an uninitialized edit_ if it is from a bounce
 		//assert( root() ||  edit_.inited());
 		assert(!root() || !edit_.inited());
@@ -1204,9 +1219,9 @@ public:
 	 * Print a stacked representation of this descent and all its parents.
 	 */
 	void print(
-		std::ostream& os,
+		std::ostream* os,
 		const char *prefix,
-        const DescentQuery& q,
+        const Read& q,
 		size_t trimLf,
 		size_t trimRg,
 		bool fw,
@@ -1218,7 +1233,7 @@ public:
 protected:
 
     bool bounce(
-        const DescentQuery& q,          // query string
+        const Read& q,          // query string
         TIndexOff topf,                 // SA range top in fw index
         TIndexOff botf,                 // SA range bottom in fw index
         TIndexOff topb,                 // SA range top in bw index
@@ -1253,7 +1268,7 @@ protected:
 	 * Advance this descent by following read matches as far as possible.
 	 */
     bool followMatches(
-        const DescentQuery& q,     // query string
+        const Read& q,     // query string
 		const Scoring& sc,         // scoring scheme
         const Ebwt& ebwtFw,        // forward index
         const Ebwt& ebwtBw,        // mirror index
@@ -1284,7 +1299,7 @@ protected:
 	 * within 40 ply, etc.
 	 */
 	size_t recalcOutgoing(
-		const DescentQuery& q,           // query string
+		const Read& q,           // query string
 		const Scoring& sc,               // scoring scheme
 		DescentRedundancyChecker& re,    // redundancy checker
 		EFactory<DescentPos>& pf,        // factory with DescentPoss
@@ -1332,6 +1347,7 @@ struct DescentAlignment {
 	 */
 	void init(
 		TScore pen_,
+		bool fw_,
 		TIndexOff topf_,
 		TIndexOff botf_,
 		size_t ei_,
@@ -1339,6 +1355,7 @@ struct DescentAlignment {
 	{
 		assert_gt(botf_, topf_);
 		pen = pen_;
+		fw = fw_;
 		topf = topf_;
 		botf = botf_;
 		ei = ei_;
@@ -1351,8 +1368,24 @@ struct DescentAlignment {
 	bool inited() const {
 		return botf > topf;
 	}
+	
+	/**
+	 * Return true iff the alignment is perfect (has no edits)
+	 */
+	bool perfect() const {
+		return pen == 0;
+	}
+	
+	/**
+	 * Return the number of elements in this range.
+	 */
+	size_t size() const {
+		return botf - topf;
+	}
 
 	TScore pen; // score
+	
+	bool fw; // forward or revcomp aligned?
 
 	TIndexOff topf; // top in forward index
 	TIndexOff botf; // bot in forward index
@@ -1362,7 +1395,22 @@ struct DescentAlignment {
 };
 
 /**
- * Class that accepts alignments found during descent.
+ * Class that accepts alignments found during descent and maintains the state
+ * required to dispense them to consumers in an appropriate order.
+ *
+ * As for order in which they are dispensed, in order to maintain uniform
+ * distribution over equal-scoring alignments, a good policy may be not to
+ * dispense alignments at a given score stratum until *all* alignments at that
+ * stratum have been accumulated (i.e. until our best-first search has moved on
+ * to a worse stratum).  This also has the advantage that, for each alignment,
+ * we can also report the number of other alignments in that cost stratum.
+ *
+ * A lazier alternative is to assume that the order in which alignments in a
+ * given stratum arrive is already pseudo-random, which frees us from having to
+ * wait until the entire stratum has been explored.  But there is reason to
+ * think that this order is not truly pseudo-random, since our root placement
+ * and root priorities will tend to first lead us to alignments with certain
+ * patterns of edits.
  */
 class DescentAlignmentSink {
 
@@ -1373,21 +1421,21 @@ public:
      * the alignment.
      */
     bool reportAlignment(
-        const DescentQuery& q,          // query string
-		const Ebwt& ebwtFw,             // forward index
-		const Ebwt& ebwtBw,             // mirror index
-		TIndexOff topf,                 // SA range top in forward index
-		TIndexOff botf,                 // SA range bottom in forward index
-		TIndexOff topb,                 // SA range top in backward index
-		TIndexOff botb,                 // SA range bottom in backward index
-        TDescentId id,                  // id of leaf Descent
-		TRootId rid,                    // id of search root
-        const Edit& e,                  // final edit, if needed
-        TScore pen,                     // total penalty
-        EFactory<Descent>& df,          // factory with Descent
-        EFactory<DescentPos>& pf,       // factory with DescentPoss
-        const EList<DescentRoot>& rs,   // roots
-        const EList<DescentConfig>& cs);// configs
+        const Read& q,           // query string
+		const Ebwt& ebwtFw,              // forward index
+		const Ebwt& ebwtBw,              // mirror index
+		TIndexOff topf,                  // SA range top in forward index
+		TIndexOff botf,                  // SA range bottom in forward index
+		TIndexOff topb,                  // SA range top in backward index
+		TIndexOff botb,                  // SA range bottom in backward index
+        TDescentId id,                   // id of leaf Descent
+		TRootId rid,                     // id of search root
+        const Edit& e,                   // final edit, if needed
+        TScore pen,                      // total penalty
+        EFactory<Descent>& df,           // factory with Descent
+        EFactory<DescentPos>& pf,        // factory with DescentPoss
+        const EList<DescentRoot>& rs,    // roots
+        const EList<DescentConfig>& cs); // configs
     
     /**
      * Reset to uninitialized state.
@@ -1398,14 +1446,8 @@ public:
 		lhs_.clear();
 		rhs_.clear();
 		nelt_ = 0;
+		bestPen_ = worstPen_ = std::numeric_limits<TAlScore>::max();
     }
-	
-	/**
-	 * Return number of alignments in sink.
-	 */
-	size_t size() const {
-		return als_.size();
-	}
 
 	/**
 	 * Return the total size occupued by the Descent driver and all its
@@ -1432,7 +1474,7 @@ public:
 	}
 	
 	/**
-	 * Return the number of SA ranges found to have hits.
+	 * Return the number of SA ranges involved in hits.
 	 */
 	size_t nrange() const {
 		return als_.size();
@@ -1446,16 +1488,79 @@ public:
 	}
 	
 	/**
+	 * The caller provides 'i', which is an offset of a particular element in
+	 * one of the SA ranges in the current stratum.  This function returns, in
+	 * 'al' and 'off', information about the element in terms of the range it's
+	 * part of and its offset into that range.
+	 */
+	void elt(size_t i, DescentAlignment& al, size_t& off) const {
+		assert_lt(i, nelt());
+		for(size_t j = 0; j < als_.size(); j++) {
+			if(i < als_[j].size()) {
+				al = als_[j];
+				off = i;
+				return;
+			}
+			i -= als_[j].size();
+		}
+		assert(false);
+	}
+	
+	/**
 	 * Get a particular alignment.
 	 */
 	const DescentAlignment& operator[](size_t i) const {
 		return als_[i];
 	}
 
+	/**
+	 * Return the number of alignment strata where (a) we found an alignment,
+	 * and (b) the penalty is better than the penalty associated with the best
+	 * heap node, which is passed in as 'best'.
+	 */
+	size_t stratumDone(TAlScore best) const {
+		if(nelt_ > 0 && best > worstPen_) {
+			return 1;
+		}
+		return 0;
+	}
+	
+	/**
+	 * The alignment consumer calls this to indicate that they are done with
+	 * all the alignments in the current best non-empty stratum.  We can
+	 * therefore mark all those alignments as "reported" and start collecting
+	 * results for the next stratum.
+	 */
+	void advanceStratum() {
+		assert_gt(nelt_, 0);
+		edits_.clear();
+		als_.clear();
+		// Don't reset lhs_ or rhs_
+		nelt_ = 0;
+		bestPen_ = worstPen_ = std::numeric_limits<TAlScore>::max();
+	}
+	
+	/**
+	 * Check that alignment sink is internally consistent.
+	 */
+	bool repOk() const {
+		assert_geq(nelt_, als_.size());
+		for(size_t i = 1; i < als_.size(); i++) {
+			assert_geq(als_[i].pen, als_[i-1].pen);
+		}
+		assert(bestPen_ == std::numeric_limits<TAlScore>::max() || worstPen_ >= bestPen_);
+		return true;
+	}
+	
+	TAlScore bestPenalty() const { return bestPen_; }
+	TAlScore worstPenalty() const { return worstPen_; }
+
 	size_t editsSize() const { return edits_.size(); }
 	size_t alsSize() const { return als_.size(); }
 	size_t lhsSize() const { return lhs_.size(); }
 	size_t rhsSize() const { return rhs_.size(); }
+	
+	const EList<Edit>& edits() const { return edits_; }
 
 protected:
 
@@ -1464,6 +1569,8 @@ protected:
 	ESet<Triple<TIndexOff, TIndexOff, size_t> > lhs_;
 	ESet<Triple<TIndexOff, TIndexOff, size_t> > rhs_;
 	size_t nelt_;
+	TAlScore bestPen_;  // best (smallest) penalty among as-yet-unreported alns
+	TAlScore worstPen_; // worst (greatest) penalty among as-yet-unreported alns
 #ifndef NDEBUG
 	BTDnaString tmprfdnastr_;
 #endif
@@ -1479,10 +1586,10 @@ class DescentRootSelector {
 public:
 
 	virtual void select(
-		const DescentQuery& q,         // read that we're selecting roots for
-		const DescentQuery* qo,        // opposite mate, if applicable
-		EList<DescentConfig>& confs,   // put DescentConfigs here
-		EList<DescentRoot> roots) = 0; // put DescentRoot here
+		const Read& q,          // read that we're selecting roots for
+		const Read* qo,         // opposite mate, if applicable
+		EList<DescentConfig>& confs,    // put DescentConfigs here
+		EList<DescentRoot>& roots) = 0; // put DescentRoot here
 };
 
 /**
@@ -1491,26 +1598,39 @@ public:
  */
 struct DescentStoppingConditions {
 
-	DescentStoppingConditions(size_t totsz_, size_t nfound_, size_t nbwop_) {
-		init(totsz_, nfound_, nbwop_);
+	DescentStoppingConditions(
+		size_t totsz_,
+		size_t nfound_,
+		bool stra_,
+		size_t nbwop_)
+	{
+		init(totsz_, nfound_, stra_, nbwop_);
 	}
 
-	void init(size_t totsz_, size_t nfound_, size_t nbwop_) {
+	void init(
+		size_t totsz_,
+		size_t nfound_,
+		bool stra_,
+		size_t nbwop_)
+	{
 		totsz = totsz_;
 		nfound = nfound_;
+		stra = stra_;
 		nbwop = nbwop_;
 	}
 
 	size_t totsz;  // total size of all the expandable data structures in bytes
 	size_t nfound; // # alignments found
+	bool stra;     // stop after each non-empty stratum
 	size_t nbwop;  // # Burrows-Wheeler (rank) operations performed
 };
 
 enum {
 	DESCENT_DRIVER_ALN = 1,
-	DESCENT_DRIVER_MEM = 2,
-	DESCENT_DRIVER_BWOPS = 4,
-	DESCENT_DRIVER_DONE = 8
+	DESCENT_DRIVER_STRATA = 2,
+	DESCENT_DRIVER_MEM = 4,
+	DESCENT_DRIVER_BWOPS = 8,
+	DESCENT_DRIVER_DONE = 16
 };
 
 /**
@@ -1528,11 +1648,14 @@ public:
 	 * is specified, then it is used to obtain roots as well.
 	 */
 	void initRead(
-		const DescentQuery& q,
-		const DescentQuery* qu = NULL,
+		const Read& q,
+		TAlScore minsc,
+		const Read* qu = NULL,
 		DescentRootSelector *sel = NULL)
 	{
+		reset();
 		q_ = q;
+		minsc_ = minsc;
 		if(sel != NULL) {
 			sel->select(q_, qu, confs_, roots_);
 		}
@@ -1574,11 +1697,19 @@ public:
 	 */
 	void resetRead() {
 		df_.clear();     // clear Descents
+		assert_leq(df_.totalSizeBytes(), 100);
 		pf_.clear();     // clear DescentPoss
+		assert_leq(pf_.totalSizeBytes(), 100);
 		heap_.clear();   // clear Heap
+		assert_leq(heap_.totalSizeBytes(), 100);
 		roots_.clear();  // clear roots
+		assert_leq(roots_.totalSizeBytes(), 100);
         alsink_.reset(); // clear alignment sink
+		assert_leq(alsink_.totalSizeBytes(), 100);
+		re_.reset();
+		assert_leq(re_.totalSizeBytes(), 100);
 		rootsInited_ = 0; // haven't yet created initial descents
+		curPen_ = 0;      //
 	}
 	
 	/**
@@ -1620,13 +1751,20 @@ public:
 	 * Return the number of end-to-end alignments reported.
 	 */
 	size_t numAlignments() const {
-		return alsink_.size();
+		return alsink_.nelt();
 	}
 	
 	/**
 	 * Return the associated DescentAlignmentSink object.
 	 */
 	const DescentAlignmentSink& sink() const {
+		return alsink_;
+	}
+
+	/**
+	 * Return the associated DescentAlignmentSink object.
+	 */
+	DescentAlignmentSink& sink() {
 		return alsink_;
 	}
 	
@@ -1653,10 +1791,26 @@ public:
 		       alsink_.totalCapacityBytes() +
 			   re_.totalCapacityBytes();
 	}
+	
+	/**
+	 * Return a const ref to the query.
+	 */
+	const Read& query() const {
+		return q_;
+	}
+	
+	/**
+	 * Return the minimum score that must be achieved by an alignment in order
+	 * for it to be considered "valid".
+	 */
+	TAlScore minScore() const {
+		return minsc_;
+	}
 
 protected:
 
-	DescentQuery         q_;      // query nucleotide and quality strings
+	Read         q_;      // query nucleotide and quality strings
+	TAlScore             minsc_;  // minimum score
 	EFactory<Descent>    df_;     // factory holding all the Descents, which
 	                              // must be referred to by ID
 	EFactory<DescentPos> pf_;     // factory holding all the DescentPoss, which
@@ -1667,6 +1821,172 @@ protected:
 	EHeap<TDescentPair>  heap_;   // priority queue of Descents
     DescentAlignmentSink alsink_; // alignment sink
 	DescentRedundancyChecker re_; // redundancy checker
+	TAlScore             curPen_; // current penalty
+};
+
+/**
+ * Selects alignments to report from a complete non-empty stratum of
+ * alignments stored in the DescentAlignmentSink.
+ */
+class DescentAlignmentSelector {
+
+public:
+
+	DescentAlignmentSelector() : gwstate_(GW_CAT) { reset(); }
+
+	/**
+	 * Initialize a new selector w/r/t a DescentAlignmentSink holding a
+	 * non-empty alignment stratum.
+	 */
+	void init(
+		const Read& q,
+		const DescentAlignmentSink& sink,
+		const Ebwt& ebwtFw,         // forward Bowtie index for walking left
+		const BitPairReference& ref,// bitpair-encoded reference
+		RandomSource& rnd,          // pseudo-random generator for sampling rows
+		WalkMetrics& met)
+	{
+		rnd_.init(
+			sink.nelt(), // # elements to choose from
+			true);       // without replacement
+		offs_.resize(sink.nelt());
+		offs_.fill(std::numeric_limits<TIndexOff>::max());
+		sas_.resize(sink.nrange());
+		gws_.resize(sink.nrange());
+		size_t ei = 0;
+		for(size_t i = 0; i < sas_.size(); i++) {
+			size_t en = sink[i].botf - sink[i].topf;
+			sas_[i].init(sink[i].topf, q.length(), EListSlice<TIndexOff, 16>(offs_, ei, en));
+			gws_[i].init(ebwtFw, ref, sas_[i], rnd, met);
+			ei += en;
+		}
+	}
+	
+	/**
+	 * Reset the selector.
+	 */
+	void reset() {
+		rnd_.reset();
+	}
+	
+	/**
+	 * Return true iff the selector is currently initialized.
+	 */
+	bool inited() const {
+		return rnd_.size() > 0;
+	}
+	
+	/**
+	 * Get next alignment and convert it to an AlnRes.
+	 */
+	bool next(
+		const DescentDriver& dr,
+		const Ebwt& ebwtFw,          // forward Bowtie index for walking left
+		const BitPairReference& ref, // bitpair-encoded reference
+		RandomSource& rnd,
+		AlnRes& rs,
+		WalkMetrics& met,
+		PerReadMetrics& prm)
+	{
+		size_t ri = (size_t)rnd_.next(rnd);
+		DescentAlignment al;
+		size_t off = 0;
+		dr.sink().elt(ri, al, off);
+		assert_lt(off, al.size());
+		Coord refcoord;
+		WalkResult wr;
+		size_t ri_left = ri;
+		uint32_t tidx = 0, toff = 0, tlen = 0;
+		for(size_t i = 0; i < gws_.size(); i++) {
+			if(ri_left < sas_[i].size()) {
+				gws_[i].advanceElement(
+					(uint32_t)ri_left,
+					ebwtFw,    // forward Bowtie index for walking left
+					ref,       // bitpair-encoded reference
+					sas_[i],   // SA range with offsets
+					gwstate_,  // GroupWalk state; scratch space
+					wr,        // put the result here
+					met,       // metrics
+					prm);      // per-read metrics
+				assert_neq(0xffffffff, wr.toff);
+				bool straddled = false;
+				ebwtFw.joinedToTextOff(
+					wr.elt.len,
+					wr.toff,
+					tidx,
+					toff,
+					tlen,
+					true,        // reject straddlers?
+					straddled);  // straddled?
+				if(tidx == 0xffffffff) {
+					// The seed hit straddled a reference boundary so the seed
+					// hit isn't valid
+					return false;
+				}
+				// Coordinate of the seed hit w/r/t the pasted reference string
+				refcoord.init(tidx, (int64_t)toff, dr.sink()[i].fw);
+				break;
+			}
+			ri_left -= sas_[i].size();
+		}
+		const EList<Edit>& edits = dr.sink().edits();
+		size_t ns = 0, ngap = 0, nrefn = 0;
+		for(size_t i = al.ei; i < al.ei + al.en; i++) {
+			if(edits[i].qchr == 'N' || edits[i].chr == 'N') {
+				ns++;
+			}
+			if(edits[i].chr == 'N') {
+				nrefn++;
+			}
+			if(edits[i].isGap()) {
+				ngap++;
+			}
+		}
+		AlnScore asc(
+			-dr.sink().bestPenalty(),  // numeric score
+			ns,                        // # Ns
+			ngap);                     // # gaps
+		rs.init(
+			dr.query().length(),       // # chars after hard trimming
+			asc,                       // alignment score
+			&dr.sink().edits(),
+			al.ei,
+			al.en,
+			NULL,
+			0,
+			0,
+			refcoord,              // leftmost ref pos of 1st al char
+			tlen,                  // length of reference aligned to
+			-1,
+			-1,
+			-1,
+			dr.minScore(),
+			-1,                    // nuc5p
+			-1,                    // nuc3p
+			false,                 // soft pre-trimming?
+			0,                     // 5p pre-trimming
+			0,                     // 3p pre-trimming
+			false,                 // soft trimming?
+			0,                     // 5p trimming
+			0);                    // 3p trimming
+		rs.setRefNs(nrefn);
+		return true;
+	}
+	
+	/**
+	 * Return true iff all elements have been reported.
+	 */
+	bool done() const {
+		return rnd_.done();
+	}
+
+protected:
+
+	Random1toN rnd_;
+	EList<TIndexOff, 16> offs_;
+	EList<SARangeWithOffs<EListSlice<TIndexOff, 16> > > sas_;
+	EList<GroupWalk2S<EListSlice<TIndexOff, 16>, 16> > gws_;
+	GroupWalkState gwstate_;
 };
 
 #endif

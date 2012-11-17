@@ -246,16 +246,22 @@ bool PairedDualPatternSource::nextReadPair(
 			do {
 				(*srcb_)[cur]->nextRead(rb, rdid_b, endid_b, success_b, done_b);
 			} while(!success_b && !done_b);
-			assert_eq(rdid_a, rdid_b);
-			//assert_eq(endid_a+1, endid_b);
-			assert_eq(success_a, success_b);
-			if(!success_a) {
+			if(!success_a && success_b) {
+				cerr << "Error, fewer reads in file specified with -1 than in file specified with -2" << endl;
+				throw 1;
+			} else if(!success_a) {
 				assert(done_a && done_b);
 				if(cur + 1 > cur_) cur_++;
 				cur = cur_; // Move on to next PatternSource
 				unlock();
 				continue; // on to next pair of PatternSources
+			} else if(!success_b) {
+				cerr << "Error, fewer reads in file specified with -2 than in file specified with -1" << endl;
+				throw 1;
 			}
+			assert_eq(rdid_a, rdid_b);
+			//assert_eq(endid_a+1, endid_b);
+			assert_eq(success_a, success_b);
 			unlock();
 			if(fixName) {
 				ra.fixMateName(1);

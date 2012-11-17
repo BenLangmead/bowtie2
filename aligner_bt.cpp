@@ -61,7 +61,7 @@ void BtBranchTracer::triangleFill(
 	const int64_t rowmin = 0;
 	const int64_t colmax = prob_.reflen_ - 1;
 	const int64_t rowmax = prob_.qrylen_ - 1;
-	assert_leq(prob_.reflen_, sawcell_.size());
+	assert_leq(prob_.reflen_, (TRefOff)sawcell_.size());
 	assert_leq(col, (int64_t)prob_.cper_->hicol());
 	assert_geq(col, (int64_t)prob_.cper_->locol());
 	assert_geq(prob_.cper_->per(), 2);
@@ -608,7 +608,7 @@ void BtBranchTracer::squareFill(
 	assert(prob_.usecp_ && prob_.fill_);
 	const bool is8_ = prob_.cper_->is8_;
 	int64_t row = rw, col = cl;
-	assert_leq(prob_.reflen_, sawcell_.size());
+	assert_leq(prob_.reflen_, (TRefOff)sawcell_.size());
 	assert_leq(col, (int64_t)prob_.cper_->hicol());
 	assert_geq(col, (int64_t)prob_.cper_->locol());
 	assert_geq(prob_.cper_->per(), 2);
@@ -631,7 +631,7 @@ void BtBranchTracer::squareFill(
 	ASSERT_ONLY(size_t nrow = prob_.cper_->nrow());
 	size_t ncol = prob_.cper_->ncol();
 	assert_eq(prob_.qrylen_, nrow);
-	assert_eq(prob_.reflen_, ncol);
+	assert_eq(prob_.reflen_, (TRefOff)ncol);
 	size_t niter = prob_.cper_->niter_;
 	if(!upper) {
 		qup = prob_.cper_->qrows_.ptr() + (ncol * (ydiv-1)) + xdiv * per;
@@ -1608,6 +1608,7 @@ int BtBranchTracer::trySolution(
 	res.alres.setShape(
 		prob_.refid_,                   // ref id
 		refoff,                         // 0-based ref offset
+		prob_.treflen(),                // ref length
 		prob_.fw_,                      // aligned to Watson?
 		prob_.qrylen_,                  // read length
 		true,                           // pretrim soft?

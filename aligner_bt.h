@@ -184,7 +184,8 @@ public:
 		const char          *qual,   // query quality string (along rows)
 		size_t               qrylen, // query string (along rows) length
 		const char          *ref,    // reference string (along columns)
-		size_t               reflen, // reference string (along columns) length
+		TRefOff              reflen, // in-rectangle reference string length
+		TRefOff              treflen,// total reference string length
 		TRefId               refid,  // reference id
 		TRefOff              refoff, // reference offset
 		bool                 fw,     // orientation of problem
@@ -193,18 +194,19 @@ public:
 		const Scoring       *sc,     // scoring scheme
 		size_t               nceil)  // max # Ns allowed in alignment
 	{
-		qry_    = qry;
-		qual_   = qual;
-		qrylen_ = qrylen;
-		ref_    = ref;
-		reflen_ = reflen;
-		refid_  = refid;
-		refoff_ = refoff;
-		fw_     = fw;
-		rect_   = rect;
-		cper_   = cper;
-		sc_     = sc;
-		nceil_  = nceil;
+		qry_     = qry;
+		qual_    = qual;
+		qrylen_  = qrylen;
+		ref_     = ref;
+		reflen_  = reflen;
+		treflen_ = treflen;
+		refid_   = refid;
+		refoff_  = refoff;
+		fw_      = fw;
+		rect_    = rect;
+		cper_    = cper;
+		sc_      = sc;
+		nceil_   = nceil;
 	}
 
 	/**
@@ -235,7 +237,7 @@ public:
 		cper_ = NULL;
 		rect_ = NULL;
 		sc_ = NULL;
-		qrylen_ = reflen_ = refid_ = refoff_ = row_ = col_ = targ_ = nceil_ = 0;
+		qrylen_ = reflen_ = treflen_ = refid_ = refoff_ = row_ = col_ = targ_ = nceil_ = 0;
 		fill_ = fw_ = usecp_ = false;
 	}
 	
@@ -252,10 +254,14 @@ public:
 	bool repOk() {
 		assert_gt(qrylen_, 0);
 		assert_gt(reflen_, 0);
+		assert_gt(treflen_, 0);
 		assert_lt(row_, qrylen_);
-		assert_lt(col_, reflen_);
+		assert_lt((TRefOff)col_, reflen_);
 		return true;
 	}
+	
+	size_t reflen() const { return reflen_; }
+	size_t treflen() const { return treflen_; }
 
 protected:
 
@@ -263,7 +269,8 @@ protected:
 	const char         *qual_;   // query quality string (along rows)
 	size_t              qrylen_; // query string (along rows) length
 	const char         *ref_;    // reference string (along columns)
-	size_t              reflen_; // reference string (along columns) length
+	TRefOff             reflen_; // in-rectangle reference string length
+	TRefOff             treflen_;// total reference string length
 	TRefId              refid_;  // reference id
 	TRefOff             refoff_; // reference offset
 	bool                fw_;     // orientation of problem
@@ -636,7 +643,8 @@ public:
 		const char*         qu,     // in: quality sequence
 		size_t              rdlen,  // in: read sequence length
 		const char*         rf,     // in: reference sequence
-		size_t              rflen,  // in: reference sequence length
+		size_t              rflen,  // in: in-rectangle reference sequence length
+		TRefOff             trflen, // in: total reference sequence length
 		TRefId              refid,  // in: reference id
 		TRefOff             refoff, // in: reference offset
 		bool                fw,     // in: orientation
@@ -645,7 +653,7 @@ public:
 		const Scoring&      sc,     // in: scoring scheme
 		size_t              nceil)  // in: N ceiling
 	{
-		prob_.initRef(rd, qu, rdlen, rf, rflen, refid, refoff, fw, rect, cper, &sc, nceil);
+		prob_.initRef(rd, qu, rdlen, rf, rflen, trflen, refid, refoff, fw, rect, cper, &sc, nceil);
 		const size_t ndiag = rflen + rdlen - 1;
 		seenPaths_.resize(ndiag);
 		for(size_t i = 0; i < ndiag; i++) {

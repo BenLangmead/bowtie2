@@ -20,6 +20,9 @@
 #ifndef RANDOM_UTIL_H_
 #define RANDOM_UTIL_H_
 
+#include "random_source.h"
+#include "ds.h"
+
 /**
  * Return a random integer in [1, N].  Each time it's called it samples again
  * without replacement.  done() indicates when all elements have been given
@@ -93,7 +96,7 @@ public:
 			// Get next pseudo-random using the swap-list
 			size_t r = cur_ + (rnd.nextU32() % (n_ - cur_));
 			if(r != cur_) {
-				swap(list_[cur_], list_[r]);
+				std::swap(list_[cur_], list_[r]);
 			}
 			return list_[cur_++];
 		} else {
@@ -150,7 +153,7 @@ public:
 	/**
 	 * Return true iff the generator was initialized.
 	 */
-	bool inited() { return n_ > 0; }
+	bool inited() const { return n_ > 0; }
 	
 	/**
 	 * Set so that there are no pseudo-randoms remaining.
@@ -160,7 +163,7 @@ public:
 	/**
 	 * Return true iff all pseudo-randoms have already been given out.
 	 */
-	bool done() { return inited() && cur_ >= n_; }
+	bool done() const { return inited() && cur_ >= n_; }
 
 	/**
 	 * Return the total number of pseudo-randoms we are initialized to give
