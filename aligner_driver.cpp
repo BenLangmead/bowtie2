@@ -20,10 +20,10 @@
 #include "aligner_driver.h"
 
 void AlignerDriverRootSelector::select(
-	const DescentQuery& q,
-	const DescentQuery* qo,
+	const Read& q,
+	const Read* qo,
 	EList<DescentConfig>& confs,
-	EList<DescentRoot> roots)
+	EList<DescentRoot>& roots)
 {
 	// Calculate interval length for both mates
 	int interval = rootIval_.f<int>((double)q.length());
@@ -71,4 +71,134 @@ void AlignerDriverRootSelector::select(
 			}
 		}
 	}
+}
+
+/**
+ * Start the driver.  The driver will begin by conducting a best-first,
+ * index-assisted search through the space of possible full and partial
+ * alignments.  This search may be followed up with a dynamic programming
+ * extension step, taking a prioritized set of partial SA ranges found
+ * during the search and extending each with DP.  The process might also be
+ * iterated, with the search being occasioanally halted so that DPs can be
+ * tried, then restarted, etc.
+ */
+int AlignerDriver::go(
+	const Scoring& sc,
+	const Ebwt& ebwtFw,
+	const Ebwt& ebwtBw,
+	const BitPairReference& ref,
+	DescentMetrics& met,
+	WalkMetrics& wlm,
+	PerReadMetrics& prm,
+	RandomSource& rnd,
+	AlnSinkWrap& sink)
+{
+	if(paired_) {
+		// Paired-end - alternate between advancing dr1_ / dr2_ whenever a
+		// new full alignment is discovered in the one currently being
+		// advanced.  Whenever a new full alignment is found, check to see
+		// if it pairs with a previously discovered alignment.
+		bool first1 = (rnd.nextU2() == 0);
+		bool first = true;
+		DescentStoppingConditions stopc1 = stop_;
+		DescentStoppingConditions stopc2 = stop_;
+		size_t totszIncr = (stop_.totsz + 7) / 8;
+		stopc1.totsz = totszIncr;
+		stopc2.totsz = totszIncr;
+		while(stopc1.totsz <= stop_.totsz && stopc2.totsz <= stop_.totsz) {
+			if(first && first1 && stopc1.totsz <= stop_.totsz) {
+				dr1_.advance(stop_, sc, ebwtFw, ebwtBw, met);
+				stopc1.totsz += totszIncr;
+			}
+			if(stopc2.totsz <= stop_.totsz) {
+				dr2_.advance(stop_, sc, ebwtFw, ebwtBw, met);
+				stopc2.totsz += totszIncr;
+			}
+			first = false;
+		}
+	} else {
+		// Unpaired
+		size_t iter = 1;
+		while(true) {
+			int ret = dr1_.advance(stop_, sc, ebwtFw, ebwtBw, met);
+			if(ret == DESCENT_DRIVER_ALN) {
+				//cerr << iter << ". DESCENT_DRIVER_ALN" << endl;
+			} else if(ret == DESCENT_DRIVER_MEM) {
+				//cerr << iter << ". DESCENT_DRIVER_MEM" << endl;
+				break;
+			} else if(ret == DESCENT_DRIVER_STRATA) {
+				AlnRes res;
+				//cerr << iter << ". DESCENT_DRIVER_STRATA" << endl;
+				alsel_.init(
+					dr1_.query(),
+					dr1_.sink(),
+					ebwtFw,
+					ref,
+					rnd,
+					wlm);
+				while(!alsel_.done() && !sink.state().doneWithMate(true)) {
+					res.reset();
+					bool ret2 = alsel_.next(
+						dr1_,
+						ebwtFw,
+						ref,
+						rnd,
+						res,
+						wlm,
+						prm);
+					if(ret2) {
+						// Got an alignment
+						assert(res.matchesRef(
+							dr1_.query(),
+							ref,
+							tmp_rf_,
+							tmp_rdseq_,
+							tmp_qseq_,
+							raw_refbuf_,
+							raw_destU32_,
+							raw_matches_));
+						Interval refival(res.refid(), 0, res.fw(), res.reflen());
+						assert_gt(res.refExtent(), 0);
+						if(gReportOverhangs &&
+						   !refival.containsIgnoreOrient(res.refival()))
+						{
+							res.clipOutside(true, 0, res.reflen());
+							if(res.refExtent() == 0) {
+								continue;
+							}
+						}
+						assert(gReportOverhangs ||
+							   refival.containsIgnoreOrient(res.refival()));
+						// Alignment fell entirely outside the reference?
+						if(!refival.overlapsIgnoreOrient(res.refival())) {
+							continue; // yes, fell outside
+						}
+						// Alignment redundant with one we've seen previously?
+						if(red1_.overlap(res)) {
+							continue; // yes, redundant
+						}
+						red1_.add(res);
+						// Report an unpaired alignment
+						assert(!sink.state().doneWithMate(true));
+						assert(!sink.maxed());
+						if(sink.report(0, &res, NULL)) {
+							// Short-circuited because a limit, e.g. -k, -m or
+							// -M, was exceeded
+							return ALDRIVER_POLICY_FULFILLED;
+						}
+					}
+				}
+				dr1_.sink().advanceStratum();
+			} else if(ret == DESCENT_DRIVER_BWOPS) {
+				//cerr << iter << ". DESCENT_DRIVER_BWOPS" << endl;
+			} else if(ret == DESCENT_DRIVER_DONE) {
+				//cerr << iter << ". DESCENT_DRIVER_DONE" << endl;
+				break;
+			} else {
+				assert(false);
+			}
+			iter++;
+		}
+	}
+	return ALDRIVER_EXHAUSTED_CANDIDATES;
 }

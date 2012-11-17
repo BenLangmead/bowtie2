@@ -65,11 +65,12 @@ void SwAligner::initRead(
  */
 void SwAligner::initRef(
 	bool fw,               // whether to forward or revcomp read is aligning
-	uint32_t refidx,       // id of reference aligned against
+	TRefId refidx,         // id of reference aligned against
 	const DPRect& rect,    // DP rectangle
 	char *rf,              // reference sequence
 	size_t rfi,            // offset of first reference char to align to
 	size_t rff,            // offset of last reference char to align to
+	TRefOff reflen,        // length of reference sequence
 	const Scoring& sc,     // scoring scheme
 	TAlScore minsc,        // minimum score
 	bool enable8,          // use 8-bit SSE if possible?
@@ -93,6 +94,7 @@ void SwAligner::initRef(
 	rf_          = rf;       // reference sequence
 	rfi_         = rfi;      // offset of first reference char to align to
 	rff_         = rff;      // offset of last reference char to align to
+	reflen_      = reflen;   // length of entire reference sequence
 	rect_        = &rect;    // DP rectangle
 	minsc_       = minsc;    // minimum score
 	cural_       = 0;        // idx of next alignment to give out
@@ -110,7 +112,8 @@ void SwAligner::initRef(
 			  qurc_->buf(),
 		rd_->length(),       // in: read sequence length
 		rf_ + rfi_,          // in: reference sequence
-		rff_ - rfi_,         // in: reference sequence length
+		rff_ - rfi_,         // in: in-rectangle reference sequence length
+		reflen,              // in: total reference sequence length
 		refidx_,             // in: reference id
 		rfi_,                // in: reference offset
 		fw_,                 // in: orientation
@@ -131,10 +134,10 @@ void SwAligner::initRef(
  */
 void SwAligner::initRef(
 	bool fw,               // whether to forward or revcomp read is aligning
-	uint32_t refidx,       // reference aligned against
+	TRefId refidx,         // reference aligned against
 	const DPRect& rect,    // DP rectangle
 	const BitPairReference& refs, // Reference strings
-	size_t reflen,         // length of reference sequence
+	TRefOff reflen,        // length of reference sequence
 	const Scoring& sc,     // scoring scheme
 	TAlScore minsc,        // minimum score
 	bool enable8,          // use 8-bit SSE if possible?
@@ -145,8 +148,8 @@ void SwAligner::initRef(
 	size_t  upto,          // count the number of Ns up to this offset
 	size_t& nsUpto)        // output: the number of Ns up to 'upto'
 {
-	int64_t rfi = rect.refl;
-	int64_t rff = rect.refr + 1;
+	TRefOff rfi = rect.refl;
+	TRefOff rff = rect.refr + 1;
 	assert_gt(rff, rfi);
 	// Capture an extra reference character outside the rectangle so that we
 	// can check matches in the next column over to the right
@@ -159,7 +162,7 @@ void SwAligner::initRef(
 		(rfi >= 0               ? 0 : (size_t)std::abs(rfi));
 	leftNs = min(leftNs, rflen);
 	size_t rightNs =
-		(rff <= (int64_t)reflen ? 0 : (size_t)std::abs(rff - (int64_t)reflen));
+		(rff <= (TRefOff)reflen ? 0 : (size_t)std::abs(rff - (TRefOff)reflen));
 	rightNs = min(rightNs, rflen);
 	// rflenInner = length of just the portion that doesn't overhang ref ends
 	assert_geq(rflen, leftNs + rightNs);
@@ -169,9 +172,9 @@ void SwAligner::initRef(
 	EList<char> rfbuf2(rflen);
 	// This is really slow, so only do it some of the time
 	if((rand() % 10) == 0) {
-		int64_t rfii = rfi;
+		TRefOff rfii = rfi;
 		for(size_t i = 0; i < rflen; i++) {
-			if(rfii < 0 || (size_t)rfii >= reflen) {
+			if(rfii < 0 || (TRefOff)rfii >= reflen) {
 				rfbuf2.push_back(4);
 			} else {
 				rfbuf2.push_back(refs.getBase(refidx, (uint32_t)rfii));
@@ -237,6 +240,7 @@ void SwAligner::initRef(
 		rf_,         // reference sequence, wrapped up in BTString object
 		0,           // use the whole thing
 		(size_t)(rff - rfi), // ditto
+		reflen,      // reference length
 		sc,          // scoring scheme
 		minsc,       // minimum score
 		enable8,     // use 8-bit SSE if possible?
@@ -269,8 +273,8 @@ int SwAligner::ungappedAlign(
 	const size_t len = rd.length();
 	int nceil = sc.nCeil.f<int>((double)len);
 	int ns = 0;
-	int64_t rfi = coord.off();
-	int64_t rff = rfi + (int64_t)len;
+	TRefOff rfi = coord.off();
+	TRefOff rff = rfi + (TRefOff)len;
 	TRefId refidx = coord.ref();
 	assert_gt(rff, rfi);
 	// Figure the number of Ns we're going to add to either side
@@ -283,9 +287,9 @@ int SwAligner::ungappedAlign(
 		}
 	}
 	size_t rightNs = 0;
-	if(rff > (int64_t)reflen) {
+	if(rff > (TRefOff)reflen) {
 		if(ohang) {
-			rightNs = (size_t)(rff - (int64_t)reflen);
+			rightNs = (size_t)(rff - (TRefOff)reflen);
 		} else {
 			return 0;
 		}
@@ -301,7 +305,7 @@ int SwAligner::ungappedAlign(
 	EList<char> rfbuf2(len);
 	// This is really slow, so only do it some of the time
 	if((rand() % 10) == 0) {
-		int64_t rfii = rfi;
+		TRefOff rfii = rfi;
 		for(size_t i = 0; i < len; i++) {
 			if(rfii < 0 || (size_t)rfii >= reflen) {
 				rfbuf2.push_back(4);
@@ -429,6 +433,7 @@ int SwAligner::ungappedAlign(
 	res.alres.setShape(
 		coord.ref(),  // ref id
 		coord.off()+rowi, // 0-based ref offset
+		reflen,       // length of reference sequence aligned to
 		fw,           // aligned to Watson?
 		len,          // read length
 		true,         // pretrim soft?
@@ -729,7 +734,7 @@ bool SwAligner::nextAlignment(
 		size_t row = btncand_[cural_].row;
 		size_t col = btncand_[cural_].col;
 		assert_lt(row, dpRows());
-		assert_lt(col, rff_-rfi_);
+		assert_lt((TRefOff)col, rff_-rfi_);
 		if(sse16succ_) {
 			SSEData& d = fw_ ? sseI16fw_ : sseI16rc_;
 			if(!checkpointed && d.mat_.reset_[row] && d.mat_.reportedThrough(row, col)) {
@@ -1192,7 +1197,7 @@ static void doTestCase(
 	const BTDnaString& read,
 	const BTString&    qual,
 	const BTString&    refin,
-	int64_t            off,
+	TRefOff            off,
 	EList<bool>       *en,
 	const Scoring&     sc,
 	TAlScore           minsc,
@@ -1205,7 +1210,7 @@ static void doTestCase(
 	btref2 = refin;
 	assert_eq(read.length(), qual.length());
 	size_t nrow = read.length();
-	int64_t rfi, rff;
+	TRefOff rfi, rff;
 	// Calculate the largest possible number of read and reference gaps given
 	// 'minsc' and 'pens'
 	size_t maxgaps;
@@ -1310,7 +1315,7 @@ static void doTestCase2(
 	const char        *read,
 	const char        *qual,
 	const char        *refin,
-	int64_t            off,
+	TRefOff            off,
 	const Scoring&     sc,
 	float              costMinConst,
 	float              costMinLinear,
@@ -1355,7 +1360,7 @@ static void doTestCase3(
 	const char        *read,
 	const char        *qual,
 	const char        *refin,
-	int64_t            off,
+	TRefOff            off,
 	Scoring&           sc,
 	float              costMinConst,
 	float              costMinLinear,
@@ -1407,7 +1412,7 @@ static void doTestCase4(
 	const char        *read,
 	const char        *qual,
 	const char        *refin,
-	int64_t            off,
+	TRefOff            off,
 	EList<bool>&       en,
 	Scoring&           sc,
 	float              costMinConst,

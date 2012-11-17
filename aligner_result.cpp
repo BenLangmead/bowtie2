@@ -40,6 +40,7 @@ void AlnRes::reset() {
 	refival_.invalidate();
 	shapeSet_     = false;
 	rdlen_        = 0;
+	reflen_       = 0;
 	rdrows_       = 0;
 	rdextent_     = 0;
 	rdexrows_     = 0;
@@ -71,6 +72,7 @@ void AlnRes::reset() {
 void AlnRes::setShape(
 	TRefId  id,          // id of reference aligned to
 	TRefOff off,         // offset of first aligned char into ref seq
+	TRefOff reflen,      // length of reference sequence aligned to
 	bool    fw,          // aligned to Watson strand?
 	size_t  rdlen,       // length of read after hard trimming, before soft
 	bool    pretrimSoft, // whether trimming prior to alignment was soft
@@ -115,6 +117,7 @@ void AlnRes::setShape(
 	rdexrows_ = rdextent_;
 	calcRefExtent();
 	refival_.init(id, off, fw, rfextent_);
+	reflen_ = reflen;
 	shapeSet_ = true;
 }
 
@@ -125,8 +128,13 @@ void AlnRes::init(
 	size_t             rdlen,           // # chars after hard trimming
 	AlnScore           score,           // alignment score
 	const EList<Edit>* ned,             // nucleotide edits
+	size_t             ned_i,           // first position to copy
+	size_t             ned_n,           // # positions to copy
 	const EList<Edit>* aed,             // ambiguous base resolutions
+	size_t             aed_i,           // first position to copy
+	size_t             aed_n,           // # positions to copy
 	Coord              refcoord,        // leftmost ref pos of 1st al char
+	TRefOff            reflen,          // length of ref aligned to
 	int                seedmms,         // # seed mms allowed
 	int                seedlen,         // seed length
 	int                seedival,        // space between seeds
@@ -145,9 +153,18 @@ void AlnRes::init(
 	score_  = score;
 	ned_.clear();
 	aed_.clear();
-	if(ned != NULL) ned_ = *ned;
-	if(aed != NULL) aed_ = *aed;
+	if(ned != NULL) {
+		for(size_t i = ned_i; i < ned_i + ned_n; i++) {
+			ned_.push_back((*ned)[i]);
+		}
+	}
+	if(aed != NULL) {
+		for(size_t i = aed_i; i < aed_i + aed_n; i++) {
+			aed_.push_back((*aed)[i]);
+		}
+	}
 	refcoord_     = refcoord;
+	reflen_       = reflen;
 	seedmms_      = seedmms;
 	seedlen_      = seedlen;
 	seedival_     = seedival;
@@ -169,6 +186,18 @@ void AlnRes::init(
 	}
 	rdexrows_ = rdextent_;
 	calcRefExtent();
+	setShape(
+		refcoord.ref(), // id of reference aligned to
+		refcoord.off(), // offset of first aligned char into ref seq
+		reflen,         // length of reference sequence aligned to
+		refcoord.fw(),  // aligned to Watson strand?
+		rdlen,          // length of read after hard trimming, before soft
+		pretrimSoft,    // whether trimming prior to alignment was soft
+		pretrim5p,      // # poss trimmed form 5p end before alignment
+		pretrim3p,      // # poss trimmed form 3p end before alignment
+		trimSoft,       // whether local-alignment trimming was soft
+		trim5p,         // # poss trimmed form 5p end during alignment
+		trim3p);        // # poss trimmed form 3p end during alignment
 	shapeSet_ = true;
 }
 
@@ -512,165 +541,6 @@ bool AlnRes::matchesRef(
 	} \
 }
 
-#if 0
-/**
- * Print a CIGAR-string representation of the alignment.  In the
- * CIGAR-string representation, edit operations are printed in an order
- * that corresponds to moving left-to-right along the Watson strand.  The
- * operators indicate one of: match, mismatch, read gap, and reference gap.
- * With each operator is an associated run length (printed prior to the
- * operator) indicating how many times in a row that feature occurs.
- */
-void AlnRes::printCigar(
-	bool distinguishMm,   // use =/X instead of just M
-	EList<char>& op,      // stick CIGAR operations here
-	EList<size_t>& run,   // stick CIGAR run lengths here
-	BTString *o,          // write to this buf if o != NULL
-	char *oc) const       // write to this buf if oc != NULL
-{
-	char *occ = oc;
-	op.clear();
-	run.clear();
-	// Any hard or soft clipping on the Beginning?
-	size_t trimHardBeg = 0, trimSoftBeg = 0;
-	size_t trimHardEnd = 0, trimSoftEnd = 0;
-	if(pretrimSoft_) {
-		trimSoftBeg = fw() ? pretrim5p_ : pretrim3p_;
-		trimSoftEnd = fw() ? pretrim3p_ : pretrim5p_;
-	} else {
-		trimHardBeg = fw() ? pretrim5p_ : pretrim3p_;
-		trimHardEnd = fw() ? pretrim3p_ : pretrim5p_;
-	}
-	if(trimSoft_) {
-		trimSoftBeg += fw() ? trim5p_ : trim3p_;
-		trimSoftEnd += fw() ? trim3p_ : trim5p_;
-	} else {
-		trimHardBeg += fw() ? trim5p_ : trim3p_;
-		trimHardEnd += fw() ? trim3p_ : trim5p_;
-	}
-	// Print hard clipping
-	if(trimHardBeg > 0) {
-		op.push_back('H');
-		run.push_back(trimHardBeg);
-	}
-	// Print soft clipping
-	if(trimSoftBeg > 0) {
-		op.push_back('S');
-		run.push_back(trimSoftBeg);
-	}
-	// Go through edits from front to back
-	if(!fw()) {
-		const_cast<AlnRes*>(this)->invertEdits();
-	}
-	const EList<Edit>& ed = ned_;
-	size_t last = 0;
-	for(size_t i = 0; i < ed.size(); i++) {
-		if(ed[i].isMismatch() && !distinguishMm) {
-			// If we're not distinguishing matches from mismatches, ignore
-			// mismatches here
-			continue;
-		}
-		// Print previous run of matches
-		if(ed[i].pos > last) {
-			// There's a run of matches prior to this edit.  
-			op.push_back(distinguishMm ? '=' : 'M');
-			run.push_back(ed[i].pos - last);
-		}
-		last = ed[i].pos;
-		// Print edit
-		if(ed[i].isMismatch()) {
-			size_t len = 1;
-			last++;
-			// Mismatches at successive positions?
-			while(i+1 < ed.size()) {
-				if(ed[i+1].isMismatch() && ed[i+1].pos == ed[i].pos+1) {
-					len++;  // increment length of mismatch run
-					i++;    // move to next edit
-					last++; // adjust beginning of next run
-				} else {
-					break;
-				}
-			}
-			op.push_back('X');
-			run.push_back(len);
-		} else if(ed[i].isRefGap()) {
-			size_t len = 1;
-			last++;
-			// Deletes at successive positions?
-			while(i+1 < ed.size()) {
-				if(ed[i+1].isRefGap() && ed[i+1].pos == ed[i].pos+1) {
-					len++;  // increment length of deletion run
-					i++;    // move to next edit
-					last++; // adjust beginning of next run
-				} else {
-					break;
-				}
-			}
-			op.push_back('I');
-			run.push_back(len);
-		} else if(ed[i].isReadGap()) {
-			size_t len = 1;
-			// Deletes at successive positions?
-			while(i+1 < ed.size()) {
-				if(ed[i+1].isReadGap() && ed[i+1].pos == ed[i].pos) {
-					len++;  // increment length of deletion run
-					i++;    // move to next edit
-				} else {
-					break;
-				}
-			}
-			op.push_back('D');
-			run.push_back(len);
-		}
-	}
-	size_t end = rdexrows_;
-	if(last < end) {
-		// There's a run of matches prior to the end.
-		op.push_back(distinguishMm ? '=' : 'M');
-		run.push_back(end - last);
-	}
-	if(!fw()) {
-		const_cast<AlnRes*>(this)->invertEdits();
-	}
-	// Print soft clipping
-	if(trimSoftEnd) {
-		op.push_back('S');
-		run.push_back(trimSoftEnd);
-	}
-	// Print hard clipping
-	if(trimHardEnd) {
-		op.push_back('H');
-		run.push_back(trimHardEnd);
-	}
-	// Write to the output file buffer and/or string buffer.
-	assert_eq(op.size(), run.size());
-	if(o != NULL || oc != NULL) {
-		char buf[128];
-		bool printed = false;
-		for(size_t i = 0; i < op.size(); i++) {
-			size_t r = run[i];
-			if(r > 0) {
-				itoa10<size_t>(r, buf);
-				printed = true;
-				if(o != NULL) {
-					o->append(buf);
-					o->append(op[i]);
-				}
-				if(oc != NULL) {
-					COPY_BUF();
-					*occ = op[i];
-					occ++;
-				}
-			}
-		}
-		assert(printed);
-		if(oc != NULL) {
-			*occ = '\0';
-		}
-	}
-}
-#endif
-
 /**
  * Initialized the stacked alignment with respect to a read string, a list of
  * edits (expressed left-to-right), and integers indicating how much hard and
@@ -1001,154 +871,6 @@ void StackedAln::writeMdz(BTString* o, char* occ) const {
 	}
 	if(occ != NULL) { *occ = '\0'; }
 }
-
-#if 0
-/**
- * Print a MD:Z:-string representation of the alignment, a la BWA.  In this
- * representation runs of either matches or reference gaps are represented
- * by a single number indicating the length of the run.  Mismatches are
- * indicated by the DNA character that occurs in the reference part of the
- * mismatch.  Read gaps are indicated by a carat (^) followed by the string
- * of reference characters that occur in the gap.  If a mismatch follows a read
- * gap, the read gap string (e.g. "^AAG") and the mismatch string (e.g. "T")
- * are separated by a "0" (e.g. "^AAAG0T").  Also, if a mismatch occurs at
- * either end, the end is capped with a "0".
- */
-void AlnRes::printMD(
-	EList<char>& op,      // stick operations here
-	EList<char>& ch,      // stick reference characters here
-	EList<size_t>& run,   // stick run lengths here
-	BTString* o,          // write to this buf if o != NULL
-	char* oc) const       // write to this buf if oc != NULL
-{
-	char *occ = oc;
-	op.clear();
-	ch.clear();
-	run.clear();
-	// Go through edits from front to back
-	if(!fw()) {
-		const_cast<AlnRes*>(this)->invertEdits();
-	}
-	const EList<Edit>& ed = ned_;
-	size_t last = 0;
-	for(size_t i = 0; i < ed.size(); i++) {
-		// Ignore ref gaps
-		if(ed[i].isRefGap()) {
-			// Ref gaps take up rows in the DP table, but don't count toward
-			// run length
-			last++;
-			continue;
-		}
-		// Print previous run of matches
-		if(ed[i].pos > last) {
-			// There's a run of matches prior to this edit.  
-			op.push_back('=');
-			ch.push_back('-');
-			run.push_back(ed[i].pos - last);
-		}
-		last = ed[i].pos;		// Print edit
-		if(ed[i].isMismatch()) {
-			last++;
-			op.push_back('X');
-			ch.push_back(ed[i].chr);
-			assert_neq('-', ed[i].chr);
-			run.push_back(1);
-		} else if(ed[i].isReadGap()) {
-			op.push_back('G');
-			ch.push_back(ed[i].chr);
-			assert_neq('-', ed[i].chr);
-			run.push_back(1);
-		}
-	}
-	size_t end = rdexrows_;
-	if(last < end) {
-		// There's a run of matches prior to the end.
-		op.push_back('=');
-		ch.push_back('-');
-		run.push_back(end - last);
-	}
-	if(!fw()) {
-		const_cast<AlnRes*>(this)->invertEdits();
-	}
-	// Write to the output file buffer and/or string buffer.
-	assert_eq(op.size(), run.size());
-	assert_eq(op.size(), ch.size());
-	if(o != NULL || oc != NULL) {
-		char buf[128];
-		bool mm_last = false;
-		bool rdgap_last = false;
-		bool first_print = true;
-		for(size_t i = 0; i < op.size(); i++) {
-			//bool first = (i == 0);
-			//bool last  = (i == op.size()-1);
-			size_t r = run[i];
-			//if(first && exEnds && r > 0) {
-			//	r--;
-			//}
-			//if(last && exEnds && r > 0) {
-			//	r--;
-			//}
-			if(r > 0) {
-				if(op[i] == '=') {
-					// Write run length
-					itoa10<size_t>(r, buf);
-					if(o != NULL)  { o->append(buf); }
-					if(oc != NULL) { COPY_BUF(); }
-					first_print = false;
-					mm_last = false;
-					rdgap_last = false;
-				} else if(op[i] == 'X') {
-					if(o != NULL) {
-						if(rdgap_last || mm_last || first_print) {
-							o->append('0');
-						}
-						o->append(ch[i]);
-					}
-					if(oc != NULL) {
-						if(rdgap_last || mm_last || first_print) {
-							*occ = '0';
-							occ++;
-						}
-						*occ = ch[i];
-						occ++;
-					}
-					first_print = false;
-					mm_last = true;
-					rdgap_last = false;
-				} else if(op[i] == 'G') {
-					if(o != NULL) {
-						if(mm_last || first_print) {
-							o->append('0');
-						}
-						if(!rdgap_last) {
-							o->append('^');
-						}
-						o->append(ch[i]);
-					}
-					if(oc != NULL) {
-						if(mm_last || first_print) {
-							*occ = '0'; occ++;
-						}
-						if(!rdgap_last) {
-							*occ = '^'; occ++;
-						}
-						*occ = ch[i];
-						occ++;
-					}
-					first_print = false;
-					mm_last = false;
-					rdgap_last = true;
-				}
-			} // if r > 0
-		} // for loop over ops
-		if(mm_last || rdgap_last) {
-			if(o  != NULL) { o->append('0'); }
-			if(oc != NULL) { *occ = '0'; occ++; }
-		}
-		if(oc != NULL) { *occ = '\0'; }
-	}
-}
-#endif
 
 /**
  * Print the sequence for the read that aligned using A, C, G and

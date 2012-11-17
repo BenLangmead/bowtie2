@@ -314,7 +314,7 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 	assert_gt(minsc_, 0);
 	assert(repOk());
 #ifndef NDEBUG
-	for(size_t i = rfi_; i < rff_; i++) {
+	for(size_t i = (size_t)rfi_; i < (size_t)rff_; i++) {
 		assert_range(0, 16, (int)rf_[i]);
 	}
 #endif
@@ -485,7 +485,7 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 	
 	size_t off = MAX_SIZE_T, lastoff;
 	bool bailed = false;
-	for(size_t i = rfi_; i < rff_; i++) {
+	for(size_t i = (size_t)rfi_; i < (size_t)rff_; i++) {
 		// Swap left and right; vbuf_l is the vector on the left, which we
 		// generally load from, and vbuf_r is the vector on the right, which we
 		// generally store to.
@@ -979,7 +979,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 	assert_geq(sc_->gapbar, 1);
 	assert(repOk());
 #ifndef NDEBUG
-	for(size_t i = rfi_; i < rff_; i++) {
+	for(size_t i = (size_t)rfi_; i < (size_t)rff_; i++) {
 		assert_range(0, 16, (int)rf_[i]);
 	}
 #endif
@@ -1113,7 +1113,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 	
 	colstop_ = rff_ - rfi_;
 	lastsolcol_ = 0;
-	for(size_t i = rfi_; i < rff_; i++) {
+	for(size_t i = (size_t)rfi_; i < (size_t)rff_; i++) {
 		assert(pvFStore == d.mat_.fvec(0, i - rfi_));
 		assert(pvHStore == d.mat_.hvec(0, i - rfi_));
 		
@@ -1686,7 +1686,7 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 	RandomSource&  rnd)    // random gen, to choose among equal paths
 {
 	assert_lt(row, dpRows());
-	assert_lt(col, rff_-rfi_);
+	assert_lt(col, (size_t)(rff_ - rfi_));
 	SSEData& d = fw_ ? sseU8fw_ : sseU8rc_;
 	SSEMetrics& met = extend_ ? sseU8ExtendMet_ : sseU8MateMet_;
 	met.bt++;
@@ -2211,12 +2211,13 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 	assert_eq(score.score(), escore);
 	assert_leq(gaps, rdgap_ + rfgap_);
 	off = col;
-	assert_lt(col + rfi_, rff_);
+	assert_lt(col + (size_t)rfi_, (size_t)rff_);
 	score.gaps_ = gaps;
 	res.alres.setScore(score);
 	res.alres.setShape(
 		refidx_,                  // ref id
 		off + rfi_ + rect_->refl, // 0-based ref offset
+		reflen_,                  // reference length
 		fw_,                      // aligned to Watson?
 		rdf_ - rdi_,              // read length
 		true,                     // pretrim soft?

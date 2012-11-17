@@ -1064,6 +1064,9 @@ public:
 			// have been consumed in a normal search.  For BWT, this
 			// means right-to-left order; for BWT' it's left-to-right.
 			int c = (fwex ? seq[lo + i] : seq[hi - i - 1]);
+			if(c > 3) {
+				return std::numeric_limits<uint32_t>::max();
+			}
 			assert_range(0, 3, c);
 			ftabOff <<= 2;
 			ftabOff |= c;
@@ -1145,7 +1148,7 @@ public:
 	 * is ORed into the least significant bit-pair, and characters are
 	 * integrated in the direction of the search.
 	 */
-	void
+	bool
 	ftabLoHi(
 		const BTDnaString& seq, // sequence to extract from
 		size_t off,             // offset into seq to begin extracting
@@ -1154,9 +1157,13 @@ public:
 		uint32_t& bot) const
 	{
 		uint32_t fi = ftabSeqToInt(seq, off, rev);
+		if(fi == std::numeric_limits<uint32_t>::max()) {
+			return false;
+		}
 		top = ftabHi(fi);
 		bot = ftabLo(fi+1);
 		assert_geq(bot, top);
+		return true;
 	}
 	
 	/**

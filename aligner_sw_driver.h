@@ -304,7 +304,8 @@ public:
 		redMate1_(DP_CAT),
 		redMate2_(DP_CAT),
 		pool_(bytes, CACHE_PAGE_SZ, DP_CAT),
-		salistEe_(DP_CAT) { }
+		salistEe_(DP_CAT),
+		gwstate_(GW_CAT) { }
 
 	/**
 	 * Given a collection of SeedHits for a single read, extend seed alignments
@@ -492,7 +493,7 @@ protected:
 	EList<SATupleAndPos, 16> satpos_;  // holds SATuple, SeedPos pairs
 	EList<SATupleAndPos, 16> satpos2_; // holds SATuple, SeedPos pairs
 	EList<SATuple, 16>       satups_;  // holds SATuples to explore elements from
-	EList<GroupWalk2>        gws_;         // list of GroupWalks; no particular order
+	EList<GroupWalk2S<TSlice, 16> > gws_;   // list of GroupWalks; no particular order
 	EList<size_t>            mateStreaks_; // mate-find fail streaks
 	RowSampler               rowsamp_;     // row sampler
 	
@@ -520,6 +521,7 @@ protected:
 	
 	Pool           pool_;      // memory pages for salistExact_
 	TSAList        salistEe_;  // PList for offsets for end-to-end hits
+	GroupWalkState gwstate_;   // some per-thread state shared by all GroupWalks
 	
 	// For AlnRes::matchesRef:
 	ASSERT_ONLY(SStringExpandable<char>     raw_refbuf_);

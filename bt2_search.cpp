@@ -365,7 +365,7 @@ static void resetOptions() {
 	msIval.init    (SIMPLE_FUNC_LINEAR, 1.0f, DMAX, DEFAULT_IVAL_B, DEFAULT_IVAL_A);
 	descentConstraint.init(SIMPLE_FUNC_LINEAR, 0.0f, DMAX, 0.0f, 0.2f);
 	descentLanding  = 20;
-	descentTotSz    = 5 * 1024 * 1024; // maximum space a DescentDriver can use
+	descentTotSz    = 256 * 1024; // maximum space a DescentDriver can use
 	multiseedMms    = DEFAULT_SEEDMMS;
 	multiseedLen    = DEFAULT_SEEDLEN;
 	multiseedOff    = 0;
@@ -4007,16 +4007,14 @@ static void* multiseedSearchWorker_2p5(void *vp) {
 					olm.ubases += rdlens[mate]; // bases passing filter
 				}
 			}
-			// Whether we're done with mate1 / mate2
-			AlignerDriverQuery qs[2];
-			qs[0].init(ps->bufa().patFw, ps->bufa().qual, ps->bufa().patRc, ps->bufa().qualRev);
-			qs[1].init(ps->bufb().patFw, ps->bufb().qual, ps->bufb().patRc, ps->bufb().qualRev);
 			if(filt[0]) {
-				ald.initRead(qs[0], filt[1] ? &qs[1] : NULL);
+				ald.initRead(ps->bufa(), minsc[0], filt[1] ? &ps->bufb() : NULL);
 			} else if(filt[1]) {
-				ald.initRead(qs[1], NULL);
+				ald.initRead(ps->bufb(), minsc[1], NULL);
 			}
-			ald.go(sc, ebwtFw, ebwtBw, descm, rnd, msinkwrap);
+			if(filt[0] || filt[1]) {
+				ald.go(sc, ebwtFw, ebwtBw, ref, descm, wlm, prm, rnd, msinkwrap);
+			}
 			// Commit and report paired-end/unpaired alignments
 			uint32_t sd = rds[0]->seed ^ rds[1]->seed;
 			rnd.init(ROTL(sd, 20));

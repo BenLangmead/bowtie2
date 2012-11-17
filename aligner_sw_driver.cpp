@@ -170,13 +170,17 @@ bool SwDriver::eeSaTups(
                     rands_.expand();
                     rands_.back().init(width, all);
                     gws_.expand();
+					SARangeWithOffs<TSlice> sa;
+					sa.topf = satpos_.back().sat.topf;
+					sa.len = satpos_.back().sat.key.len;
+					sa.offs = satpos_.back().sat.offs;
                     gws_.back().init(
                         ebwt,               // forward Bowtie index
                         ref,                // reference sequences
-                        satpos_.back().sat, // SATuple
+                        sa,                 // SATuple
                         rnd,                // pseudo-random generator
                         wlm);               // metrics
-                    assert(gws_.back().repOk());
+                    assert(gws_.back().repOk(sa));
                     nelt_out += width;
                     if(nelt_out >= maxelt) {
                         done = true;
@@ -251,13 +255,17 @@ bool SwDriver::eeSaTups(
                 rands_.expand();
                 rands_.back().init(width, all);
                 gws_.expand();
+				SARangeWithOffs<TSlice> sa;
+				sa.topf = satpos_.back().sat.topf;
+				sa.len = satpos_.back().sat.key.len;
+				sa.offs = satpos_.back().sat.offs;
                 gws_.back().init(
-                    ebwt,               // forward Bowtie index
-                    ref,                // reference sequences
-                    satpos_.back().sat, // SATuple
-                    rnd,                // pseudo-random generator
-                    wlm);               // metrics
-                assert(gws_.back().repOk());
+                    ebwt, // forward Bowtie index
+                    ref,  // reference sequences
+                    sa,   // SATuple
+                    rnd,  // pseudo-random generator
+                    wlm); // metrics
+                assert(gws_.back().repOk(sa));
                 nelt_out += width;
                 if(nelt_out >= maxelt) {
                     done = true;
@@ -590,12 +598,16 @@ void SwDriver::prioritizeSATups(
 		rands_.ensure(nrange);
 		for(size_t i = 0; i < nrange; i++) {
 			gws_.expand();
+			SARangeWithOffs<TSlice> sa;
+			sa.topf = satpos_.back().sat.topf;
+			sa.len = satpos_.back().sat.key.len;
+			sa.offs = satpos_.back().sat.offs;
 			gws_.back().init(
-				ebwtFw,         // forward Bowtie index
-				ref,            // reference sequences
-				satpos_[i].sat, // SA tuples: ref hit, salist range
-				rnd,            // pseudo-random generator
-				wlm);           // metrics
+				ebwtFw, // forward Bowtie index
+				ref,    // reference sequences
+				sa,     // SA tuples: ref hit, salist range
+				rnd,    // pseudo-random generator
+				wlm);   // metrics
 			assert(gws_.back().initialized());
 			rands_.expand();
 			rands_.back().init(satpos_[i].sat.size(), all);
@@ -631,12 +643,16 @@ void SwDriver::prioritizeSATups(
 		satpos_.expand();
 		satpos_.back() = satpos2_[j];
 		gws_.expand();
+		SARangeWithOffs<TSlice> sa;
+		sa.topf = satpos_.back().sat.topf;
+		sa.len = satpos_.back().sat.key.len;
+		sa.offs = satpos_.back().sat.offs;
 		gws_.back().init(
-			ebwtFw,             // forward Bowtie index
-			ref,                // reference sequences
-			satpos_.back().sat, // SA tuples: ref hit, salist range
-			rnd,                // pseudo-random generator
-			wlm);               // metrics
+			ebwtFw, // forward Bowtie index
+			ref,    // reference sequences
+			sa,     // SA tuples: ref hit, salist range
+			rnd,    // pseudo-random generator
+			wlm);   // metrics
 		assert(gws_.back().initialized());
 		rands_.expand();
 		rands_.back().init(satpos_.back().sat.size(), all);
@@ -677,22 +693,26 @@ void SwDriver::prioritizeSATups(
 			rowsamp_.finishedRange(ri - nsmall);
 		}
 		// Add the element to the satpos_ list
-		SATuple sa;
+		SATuple sat;
 		TSlice o;
 		o.init(satpos2_[ri].sat.offs, r, r+1);
-		sa.init(satpos2_[ri].sat.key, satpos2_[ri].sat.topf + r, 0xffffffff, o);
+		sat.init(satpos2_[ri].sat.key, satpos2_[ri].sat.topf + r, 0xffffffff, o);
 		satpos_.expand();
-		satpos_.back().sat = sa;
+		satpos_.back().sat = sat;
 		satpos_.back().origSz = satpos2_[ri].origSz;
 		satpos_.back().pos = satpos2_[ri].pos;
 		// Initialize GroupWalk object
 		gws_.expand();
+		SARangeWithOffs<TSlice> sa;
+		sa.topf = sat.topf;
+		sa.len = sat.key.len;
+		sa.offs = sat.offs;
 		gws_.back().init(
-			ebwtFw,             // forward Bowtie index
-			ref,                // reference sequences
-			satpos_.back().sat, // SA tuples: ref hit, salist range
-			rnd,                // pseudo-random generator
-			wlm);               // metrics
+			ebwtFw, // forward Bowtie index
+			ref,    // reference sequences
+			sa,     // SA tuples: ref hit, salist range
+			rnd,    // pseudo-random generator
+			wlm);   // metrics
 		assert(gws_.back().initialized());
 		// Initialize random selector
 		rands_.expand();
@@ -889,7 +909,11 @@ int SwDriver::extendSeeds(
 				// Resolve next element offset
 				WalkResult wr;
 				uint32_t elt = rands_[i].next(rnd);
-				gws_[i].advanceElement(elt, wr, wlm, prm);
+				SARangeWithOffs<TSlice> sa;
+				sa.topf = satpos_[i].sat.topf;
+				sa.len = satpos_[i].sat.key.len;
+				sa.offs = satpos_[i].sat.offs;
+				gws_[i].advanceElement(elt, ebwtFw, ref, sa, gwstate_, wr, wlm, prm);
 				eltsDone++;
 				if(!eeMode) {
 					assert_gt(neltLeft, 0);
@@ -968,6 +992,7 @@ int SwDriver::extendSeeds(
 					resEe_.alres.setShape(
 						refcoord.ref(),  // ref id
 						refcoord.off(),  // 0-based ref offset
+						tlen,            // length of reference
 						fw,              // aligned to Watson?
 						rdlen,           // read length
 						true,            // pretrim soft?
@@ -1580,7 +1605,11 @@ int SwDriver::extendSeedsPaired(
 				// Resolve next element offset
 				WalkResult wr;
 				uint32_t elt = rands_[i].next(rnd);
-				gws_[i].advanceElement(elt, wr, wlm, prm);
+				SARangeWithOffs<TSlice> sa;
+				sa.topf = satpos_[i].sat.topf;
+				sa.len = satpos_[i].sat.key.len;
+				sa.offs = satpos_[i].sat.offs;
+				gws_[i].advanceElement(elt, ebwtFw, ref, sa, gwstate_, wr, wlm, prm);
 				eltsDone++;
 				assert_gt(neltLeft, 0);
 				neltLeft--;
@@ -1663,6 +1692,7 @@ int SwDriver::extendSeedsPaired(
 					resEe_.alres.setShape(
 						refcoord.ref(),  // ref id
 						refcoord.off(),  // 0-based ref offset
+						tlen,            // reference length
 						fw,              // aligned to Watson?
 						rdlen,           // read length
 						true,            // pretrim soft?

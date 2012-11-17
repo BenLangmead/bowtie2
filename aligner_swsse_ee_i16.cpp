@@ -301,7 +301,7 @@ TAlScore SwAligner::alignGatherEE16(int& flag, bool debug) {
 	assert_geq(sc_->gapbar, 1);
 	assert(repOk());
 #ifndef NDEBUG
-	for(size_t i = rfi_; i < rff_; i++) {
+	for(size_t i = (size_t)rfi_; i < (size_t)rff_; i++) {
 		assert_range(0, 16, (int)rf_[i]);
 	}
 #endif
@@ -456,7 +456,7 @@ TAlScore SwAligner::alignGatherEE16(int& flag, bool debug) {
 	// it difficult to use the first-row results in the next row, but it might
 	// be the simplest and least disruptive way to deal with the st_ constraint.
 	
-	for(size_t i = rfi_; i < rff_; i++) {
+	for(size_t i = (size_t)rfi_; i < (size_t)rff_; i++) {
 		// Swap left and right; vbuf_l is the vector on the left, which we
 		// generally load from, and vbuf_r is the vector on the right, which we
 		// generally store to.
@@ -797,7 +797,7 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag, bool debug) {
 	assert_geq(sc_->gapbar, 1);
 	assert(repOk());
 #ifndef NDEBUG
-	for(size_t i = rfi_; i < rff_; i++) {
+	for(size_t i = (size_t)rfi_; i < (size_t)rff_; i++) {
 		assert_range(0, 16, (int)rf_[i]);
 	}
 #endif
@@ -937,7 +937,7 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag, bool debug) {
 	colstop_ = rff_ - 1;
 	lastsolcol_ = 0;
 	
-	for(size_t i = rfi_; i < rff_; i++) {
+	for(size_t i = (size_t)rfi_; i < (size_t)rff_; i++) {
 		assert(pvFStore == d.mat_.fvec(0, i - rfi_));
 		assert(pvHStore == d.mat_.hvec(0, i - rfi_));
 		
@@ -1329,7 +1329,7 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseI16(
 	RandomSource&  rnd)    // random gen, to choose among equal paths
 {
 	assert_lt(row, dpRows());
-	assert_lt(col, rff_-rfi_);
+	assert_lt(col, (size_t)(rff_ - rfi_));
 	SSEData& d = fw_ ? sseI16fw_ : sseI16rc_;
 	SSEMetrics& met = extend_ ? sseI16ExtendMet_ : sseI16MateMet_;
 	met.bt++;
@@ -1852,12 +1852,13 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseI16(
 	assert_eq(score.score(), escore);
 	assert_leq(gaps, rdgap_ + rfgap_);
 	off = col;
-	assert_lt(col + rfi_, rff_);
+	assert_lt(col + (size_t)rfi_, (size_t)rff_);
 	score.gaps_ = gaps;
 	res.alres.setScore(score);
 	res.alres.setShape(
 		refidx_,                  // ref id
 		off + rfi_ + rect_->refl, // 0-based ref offset
+		reflen_,                  // reference length
 		fw_,                      // aligned to Watson?
 		rdf_ - rdi_,              // read length
 		true,                     // pretrim soft?
