@@ -1585,6 +1585,8 @@ class DescentRootSelector {
 
 public:
 
+	virtual ~DescentRootSelector() { }
+
 	virtual void select(
 		const Read& q,          // read that we're selecting roots for
 		const Read* qo,         // opposite mate, if applicable
