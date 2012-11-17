@@ -98,6 +98,8 @@ public:
 		rootIval_ = rootIval;
 		landing_ = landing;
 	}
+	
+	virtual ~AlignerDriverRootSelector() { }
 
 	virtual void select(
 		const Read& q,                 // read that we're selecting roots for
