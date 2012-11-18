@@ -41,9 +41,11 @@ void DescentDriver::go(
         Edit e_null;
         assert(!e_null.inited());
         bool succ = df_[id].init(
-            q_,        // query
+            q_,        // read
             i,         // root and conf id
             sc,        // scoring scheme
+			minsc_,    // minimum score
+			maxpen_,   // maximum penalty
             id,        // new Descent's id
             ebwtFw,    // forward index
             ebwtBw,    // mirror index
@@ -69,10 +71,12 @@ void DescentDriver::go(
 		// the descent once we .
         TDescentPair p = heap_.pop();
         df_[p.second].followBestOutgoing(
-            q_,
-            ebwtFw,
-            ebwtBw,
-            sc,
+            q_,        // read
+            ebwtFw,    // index over text
+            ebwtBw,    // index over reverse text
+            sc,        // scoring scheme
+			minsc_,    // minimum score
+			maxpen_,   // maximum penalty
 			re_,       // redundancy checker
             df_,       // Descent factory
             pf_,       // DescentPos factory
@@ -106,6 +110,8 @@ int DescentDriver::advance(
             q_,        // query
             rootsInited_, // root and conf id
             sc,        // scoring scheme
+			minsc_,    // minimum score
+			maxpen_,   // maximum penalty
             id,        // new Descent's id
             ebwtFw,    // forward index
             ebwtBw,    // mirror index
@@ -152,6 +158,8 @@ int DescentDriver::advance(
             ebwtFw,
             ebwtBw,
             sc,
+			minsc_,    // minimum score
+			maxpen_,   // maximum penalty
 			re_,       // redundancy checker
             df_,       // Descent factory
             pf_,       // DescentPos factory
@@ -307,9 +315,11 @@ bool DescentAlignmentSink::reportAlignment(
  * therefore have its memory freed), true otherwise.
  */
 bool Descent::init(
-    const Read& q,          // query
+    const Read& q,                  // query
     TRootId rid,                    // root id
     const Scoring& sc,              // scoring scheme
+	TAlScore minsc,                 // minimum score
+	TAlScore maxpen,                // maximum penalty
     TReadOff al5pi,                 // offset from 5' of 1st aligned char
     TReadOff al5pf,                 // offset from 5' of last aligned char
     TIndexOff topf,                 // SA range top in FW index
@@ -362,8 +372,8 @@ bool Descent::init(
     off5p_i_ = 0;
 #ifndef NDEBUG
     size_t depth = al5pf_ - al5pi_ + 1;
-    TScore maxpen = cs[rid_].cons[depth]; // maximum penalty total at this position
-    assert_geq(maxpen, pen_);    // can't have already exceeded max penalty
+    TAlScore maxpend = cs[rid_].cons.get(depth, q.length(), maxpen);
+    assert_geq(maxpend, pen_);    // can't have already exceeded max penalty
 #endif
     bool matchSucc = followMatches(
         q,
@@ -398,6 +408,8 @@ bool Descent::init(
             ebwtFw,
             ebwtBw,
             sc,
+			minsc,    // minimum score
+			maxpen,   // maximum penalty
 			re,
             df,
             pf,
@@ -409,7 +421,7 @@ bool Descent::init(
     }
 	if(matchSucc) {
 		// Calculate info about outgoing edges
-		recalcOutgoing(q, sc, re, pf, rs, cs);
+		recalcOutgoing(q, sc, minsc, maxpen, re, pf, rs, cs);
 		if(!empty()) {
 			heap.insert(make_pair(out_.bestPri(), descid)); // Add to heap
 		}
@@ -423,9 +435,11 @@ bool Descent::init(
  * freed), true otherwise.
  */
 bool Descent::init(
-    const Read& q,          // query
+    const Read& q,                  // query
     TRootId rid,                    // root id
     const Scoring& sc,              // scoring scheme
+	TAlScore minsc,                 // minimum score
+	TAlScore maxpen,                // maximum penalty
     size_t descid,                  // id of this Descent
     const Ebwt& ebwtFw,             // forward index
     const Ebwt& ebwtBw,             // mirror index
@@ -490,6 +504,8 @@ bool Descent::init(
             ebwtFw,
             ebwtBw,
             sc,
+			minsc,    // minimum score
+			maxpen,   // maximum penalty
 			re,
             df,
             pf,
@@ -502,7 +518,7 @@ bool Descent::init(
     // Calculate info about outgoing edges
     assert(empty());
 	if(matchSucc) {
-		recalcOutgoing(q, sc, re, pf, rs, cs);
+		recalcOutgoing(q, sc, minsc, maxpen, re, pf, rs, cs);
 		if(!empty()) {
 			heap.insert(make_pair(out_.bestPri(), descid)); // Add to heap
 		}
@@ -526,8 +542,10 @@ bool Descent::init(
  *       "equivalent" homopolymer extensinos and retractions.
  */
 size_t Descent::recalcOutgoing(
-    const Read& q,           // query string
+    const Read& q,                   // query string
     const Scoring& sc,               // scoring scheme
+	TAlScore minsc,                  // minimum score
+	TAlScore maxpen,                 // maximum penalty
 	DescentRedundancyChecker& re,    // redundancy checker
     EFactory<DescentPos>& pf,        // factory with DescentPoss
     const EList<DescentRoot>& rs,    // roots
@@ -584,9 +602,10 @@ size_t Descent::recalcOutgoing(
 	while(off5p >= al5pi_ - extrai && off5p <= al5pf_ + extraf) {
         assert_lt(off5p, q.length());
         assert_lt(off3p, q.length());
-		TScore maxpen = cs[rid_].cons[depth]; // maximum penalty total at this position
-		assert_geq(maxpen, pen_);    // can't have already exceeded max penalty
-		TScore diff = maxpen - pen_; // room we have left
+		TScore maxpend = cs[rid_].cons.get(depth, q.length(), maxpen);
+		assert(depth > 0 || maxpend == 0);
+		assert_geq(maxpend, pen_);    // can't have already exceeded max penalty
+		TScore diff = maxpend - pen_; // room we have left
 		// Get pointer to SA ranges in the direction of descent
 		const TIndexOff *t  = l2r_ ? pf[d].topb : pf[d].topf;
 		const TIndexOff *b  = l2r_ ? pf[d].botb : pf[d].botf;
@@ -637,6 +656,7 @@ size_t Descent::recalcOutgoing(
 			}
 			bool gapsAllowed = (off5p >= (size_t)sc.gapbar && off3p >= (size_t)sc.gapbar);
 			if(gapsAllowed) {
+				assert_gt(depth, 0);
 				// An easy redundancy check is: if all ways of proceeding are
 				// matches, then there's no need to entertain gaps here.
 				// Shifting the gap one position further downstream is
@@ -954,7 +974,7 @@ void Descent::print(
  * Create a new Descent 
  */
 bool Descent::bounce(
-	const Read& q,          // query string
+	const Read& q,                  // query string
     TIndexOff topf,                 // SA range top in fw index
     TIndexOff botf,                 // SA range bottom in fw index
     TIndexOff topb,                 // SA range top in bw index
@@ -962,6 +982,8 @@ bool Descent::bounce(
 	const Ebwt& ebwtFw,             // forward index
 	const Ebwt& ebwtBw,             // mirror index
 	const Scoring& sc,              // scoring scheme
+	TAlScore minsc,                 // minimum score
+	TAlScore maxpen,                // maximum penalty
 	DescentRedundancyChecker& re,   // redundancy checker
 	EFactory<Descent>& df,          // factory with Descent
 	EFactory<DescentPos>& pf,       // factory with DescentPoss
@@ -984,6 +1006,8 @@ bool Descent::bounce(
 		q,         // query
         rid_,      // root id
 		sc,        // scoring scheme
+		minsc,     // minimum score
+		maxpen,    // maximum penalty
 		al5pi_,    // new near-5' extreme
 		al5pf_,    // new far-5' extreme
 		topf,      // SA range top in FW index
@@ -1022,10 +1046,12 @@ bool Descent::bounce(
  * within 40 ply, etc.
  */
 void Descent::followBestOutgoing(
-	const Read& q,          // query string
+	const Read& q,                  // query string
 	const Ebwt& ebwtFw,             // forward index
 	const Ebwt& ebwtBw,             // mirror index
 	const Scoring& sc,              // scoring scheme
+	TAlScore minsc,                 // minimum score
+	TAlScore maxpen,                // maximum penalty
 	DescentRedundancyChecker& re,   // redundancy checker
 	EFactory<Descent>& df,          // factory with Descent
 	EFactory<DescentPos>& pf,       // factory with DescentPoss
@@ -1051,7 +1077,7 @@ void Descent::followBestOutgoing(
 		assert_geq(edoff + 1, al5pi_);
 		if(out_.empty()) {
 			if(!lastRecalc_) {
-				recalcOutgoing(q, sc, re, pf, rs, cs);
+				recalcOutgoing(q, sc, minsc, maxpen, re, pf, rs, cs);
 				if(empty()) {
 					// Could happen, since some outgoing edges may have become
 					// redundant in the meantime.
@@ -1181,6 +1207,8 @@ void Descent::followBestOutgoing(
 			q,         // query
 			rid_,      // root id
 			sc,        // scoring scheme
+			minsc,     // minimum score
+			maxpen,    // maximum penalty
 			al5pi_new, // new near-5' extreme
 			al5pf_new, // new far-5' extreme
 			topf,      // SA range top in FW index
@@ -1329,7 +1357,7 @@ bool Descent::followMatches(
 				l2r_ = !l2r_;
 				continue;
 			}
-			if(al5pi_ == al5pf_) {
+			if(al5pi_ == al5pf_ && root()) {
 				off5p = off5p_i = al5pi_;
 			} else {
 				off5p = off5p_i = (al5pf_ + 1);
@@ -1340,7 +1368,7 @@ bool Descent::followMatches(
 				continue;
 			}
 			assert_gt(al5pi_, 0);
-			if(al5pi_ == al5pf_) {
+			if(al5pi_ == al5pf_ && root()) {
 				off5p = off5p_i = al5pi_;
 			} else {
 				off5p = off5p_i = (al5pi_ - 1);
@@ -1793,7 +1821,7 @@ int main(int argc, char **argv) {
     ebwts.second->loadIntoMemory(color,  1, true, true, true, true, false);
 	
 	int testnum = 0;
-    
+
 	// Query is longer than ftab and matches exactly twice
     for(int rc = 0; rc < 2; rc++) {
 		for(int i = 0; i < 2; i++) {
@@ -1809,11 +1837,11 @@ int main(int argc, char **argv) {
 				seq.reverseComp();
 				qual.reverse();
 			}
-			dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), 1);
+			dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
 
 			// Set up the DescentConfig
 			DescentConfig conf;
-			conf.cons.init(SIMPLE_FUNC_LINEAR, 0.0, 1.0);
+			conf.cons.init(Ebwt::default_ftabChars, 1.0);
 			conf.expol = DESC_EX_NONE;
 			
 			// Set up the search roots
@@ -1844,11 +1872,11 @@ int main(int argc, char **argv) {
         // Set up the read
         BTDnaString seq ("GCTATATAGC", true);
         BTString    qual("ABCDEFGHIa");
-		dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), 1);
+		dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
         
         // Set up the DescentConfig
         DescentConfig conf;
-        conf.cons.init(SIMPLE_FUNC_LINEAR, 0.0, 1.0);
+        conf.cons.init(Ebwt::default_ftabChars, 1.0);
         conf.expol = DESC_EX_NONE;
         
         // Set up the search roots
@@ -1878,11 +1906,11 @@ int main(int argc, char **argv) {
         // Set up the read
         BTDnaString seq ("GCTATATAG", true);
         BTString    qual("ABCDEFGHI");
-		dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), 1);
+		dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
         
         // Set up the DescentConfig
         DescentConfig conf;
-        conf.cons.init(SIMPLE_FUNC_LINEAR, 0.0, 1.0);
+        conf.cons.init(Ebwt::default_ftabChars, 1.0);
         conf.expol = DESC_EX_NONE;
         
         // Set up the search roots
@@ -1917,11 +1945,11 @@ int main(int argc, char **argv) {
 		top = bot = 0;
 		bool ret = ebwts.first->contains("GCGCTCGCATCATTTTGTGT", &top, &bot);
 		cerr << ret << ", " << top << ", " << bot << endl;
-		dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), 1);
+		dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
         
         // Set up the DescentConfig
         DescentConfig conf;
-        conf.cons.init(SIMPLE_FUNC_LINEAR, 0.0, 1.0);
+        conf.cons.init(Ebwt::default_ftabChars, 1.0);
         conf.expol = DESC_EX_NONE;
         
         // Set up the search roots
@@ -1986,11 +2014,11 @@ int main(int argc, char **argv) {
 				DescentDriver dr;
 				
 				// Set up the read
-				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), 1);
+				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
-				conf.cons.init(SIMPLE_FUNC_LINEAR, 0.0, 1.0);
+				conf.cons.init(Ebwt::default_ftabChars, 1.0);
 				conf.expol = DESC_EX_NONE;
 				
 				// Set up the search roots
@@ -2029,11 +2057,11 @@ int main(int argc, char **argv) {
 				DescentDriver dr;
 				
 				// Set up the read
-				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), 1);
+				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
-				conf.cons.init(SIMPLE_FUNC_LINEAR, 0.0, 1.0);
+				conf.cons.init(Ebwt::default_ftabChars, 1.0);
 				conf.expol = DESC_EX_NONE;
 				
 				// Set up the search roots
@@ -2107,12 +2135,12 @@ int main(int argc, char **argv) {
 					DescentMetrics mets;
 					DescentDriver dr;
 					
-					dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), 1);
+					dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
 					
 					// Set up the DescentConfig
 					DescentConfig conf;
 					// Changed 
-					conf.cons.init(SIMPLE_FUNC_LINEAR, 0.0, 1.0);
+					conf.cons.init(0, 1.0);
 					conf.expol = DESC_EX_NONE;
 					
 					// Set up the search roots
@@ -2180,12 +2208,12 @@ int main(int argc, char **argv) {
 					DescentMetrics mets;
 					DescentDriver dr;
 					
-					dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), 1);
+					dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
 					
 					// Set up the DescentConfig
 					DescentConfig conf;
 					// Changed 
-					conf.cons.init(SIMPLE_FUNC_LINEAR, 0.0, 1.0);
+					conf.cons.init(0, 1.0);
 					conf.expol = DESC_EX_NONE;
 					
 					// Set up the search roots
@@ -2242,12 +2270,12 @@ int main(int argc, char **argv) {
 				DescentMetrics mets;
 				DescentDriver dr;
 				
-				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), 1);
+				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
 				// Changed 
-				conf.cons.init(SIMPLE_FUNC_LINEAR, 0.0, 1.0);
+				conf.cons.init(Ebwt::default_ftabChars, 1.0);
 				conf.expol = DESC_EX_NONE;
 				
 				// Set up the search roots
@@ -2296,12 +2324,12 @@ int main(int argc, char **argv) {
 				DescentMetrics mets;
 				DescentDriver dr;
 				
-				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), 1);
+				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
 				// Changed 
-				conf.cons.init(SIMPLE_FUNC_LINEAR, 0.0, 1.0);
+				conf.cons.init(0, 1.0);
 				conf.expol = DESC_EX_NONE;
 				
 				// Set up several random search roots
@@ -2413,12 +2441,12 @@ int main(int argc, char **argv) {
 				
 				Read q("test", seq.toZBuf(), qual.toZBuf());
 				assert(q.repOk());
-				dr.initRead(q, 1);
+				dr.initRead(q, -30, 30);
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
 				// Changed 
-				conf.cons.init(SIMPLE_FUNC_LINEAR, 0.0, 1.5);
+				conf.cons.init(0, 0.5);
 				conf.expol = DESC_EX_NONE;
 				
 				// Set up the search roots
@@ -2491,12 +2519,12 @@ int main(int argc, char **argv) {
 				DescentMetrics mets;
 				DescentDriver dr;
 				
-				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), 1);
+				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
 				// Changed
-				conf.cons.init(SIMPLE_FUNC_LINEAR, 0.0, 2.5);
+				conf.cons.init(0, 0.2);
 				conf.expol = DESC_EX_NONE;
 				
 				// Set up the search roots
@@ -2561,12 +2589,12 @@ int main(int argc, char **argv) {
 				DescentMetrics mets;
 				DescentDriver dr;
 				
-				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), 1);
+				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
 				// Changed 
-				conf.cons.init(SIMPLE_FUNC_LINEAR, 0.0, 2.5);
+				conf.cons.init(1, 0.5);
 				conf.expol = DESC_EX_NONE;
 				
 				// Set up the search roots
@@ -2637,12 +2665,12 @@ int main(int argc, char **argv) {
 				DescentMetrics mets;
 				DescentDriver dr;
 				
-				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), 1);
+				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
 				// Changed 
-				conf.cons.init(SIMPLE_FUNC_LINEAR, 0.0, 2.5);
+				conf.cons.init(1, 0.25);
 				conf.expol = DESC_EX_NONE;
 				
 				// Set up the search roots
@@ -2714,12 +2742,12 @@ int main(int argc, char **argv) {
 				DescentMetrics mets;
 				DescentDriver dr;
 				
-				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), 1);
+				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -50, 50);
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
 				// Changed 
-				conf.cons.init(SIMPLE_FUNC_LINEAR, 0.0, 1.5);
+				conf.cons.init(1, 0.5);
 				conf.expol = DESC_EX_NONE;
 				
 				// Set up the search roots
@@ -2828,12 +2856,12 @@ int main(int argc, char **argv) {
 				DescentMetrics mets;
 				DescentDriver dr;
 				
-				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), 1);
+				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -50, 50);
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
 				// Changed 
-				conf.cons.init(SIMPLE_FUNC_LINEAR, 0.0, 1.5);
+				conf.cons.init(1, 0.5);
 				conf.expol = DESC_EX_NONE;
 				
 				// Set up the search roots
@@ -2909,12 +2937,12 @@ int main(int argc, char **argv) {
 				DescentMetrics mets;
 				DescentDriver dr;
 				
-				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), 1);
+				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -50, 50);
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
 				// Changed 
-				conf.cons.init(SIMPLE_FUNC_LINEAR, 0.0, 1.5);
+				conf.cons.init(1, 0.5);
 				conf.expol = DESC_EX_NONE;
 				
 				// Set up the search roots
