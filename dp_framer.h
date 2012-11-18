@@ -98,10 +98,12 @@ struct DPRect {
 		return tr;
 	}
 	
+#ifndef NDEBUG
 	bool repOk() const {
 		assert_geq(corer, corel);
 		return true;
 	}
+#endif
 	
 	/**
 	 * Set the given interval to the range of diagonals that are "covered" by

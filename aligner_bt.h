@@ -248,10 +248,11 @@ public:
 		return qry_ != NULL;
 	}
 	
+#ifndef NDEBUG
 	/**
 	 * Sanity-check the problem.
 	 */
-	bool repOk() {
+	bool repOk() const {
 		assert_gt(qrylen_, 0);
 		assert_gt(reflen_, 0);
 		assert_gt(treflen_, 0);
@@ -259,6 +260,7 @@ public:
 		assert_lt((TRefOff)col_, reflen_);
 		return true;
 	}
+#endif
 	
 	size_t reflen() const { return reflen_; }
 	size_t treflen() const { return treflen_; }
@@ -477,6 +479,7 @@ public:
 		return col_ + 1 - (int64_t)len_;
 	}
 	
+#ifndef NDEBUG
 	/**
 	 * Sanity-check this BtBranch.
 	 */
@@ -487,6 +490,7 @@ public:
 		assert_geq(row_ + 1, (int64_t)len_);
 		return true;
 	}
+#endif
 
 protected:
 
@@ -626,6 +630,7 @@ public:
 	 */
 	void flushUnsorted();
 	
+#ifndef NDEBUG
 	/**
 	 * Sanity-check the queue.
 	 */
@@ -633,6 +638,7 @@ public:
 		assert_lt(cur_, (sortedSel_ ? sorted1_.size() : sorted2_.size()));
 		return true;
 	}
+#endif
 	
 	/**
 	 * Initialize the tracer with respect to a new read.  This involves

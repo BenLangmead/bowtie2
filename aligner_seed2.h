@@ -305,6 +305,8 @@ struct DescentConstraints {
 	DescentConstraints(const SimpleFunc& f_) {
 		f = f_;
 	}
+	
+	static const size_t S = 64;
     
     /**
      * Initialize with given function.
@@ -313,8 +315,8 @@ struct DescentConstraints {
 		double mn = 0.0;
 		double mx = std::numeric_limits<double>::max();
 		f.init(type, mn, mx, C, L);
-		scs.resize(1024);
-		for(size_t i = 0; i < 1024; i++) {
+		scs.resize(S);
+		for(size_t i = 0; i < S; i++) {
 			scs[i] = f.f<TScore>(i);
 		}
     }
@@ -324,8 +326,8 @@ struct DescentConstraints {
      */
     void init(const SimpleFunc& f_) {
 		f = f_;
-		scs.resize(1024);
-		for(size_t i = 0; i < 1024; i++) {
+		scs.resize(S);
+		for(size_t i = 0; i < S; i++) {
 			scs[i] = f.f<TScore>(i);
 		}
     }
@@ -348,7 +350,7 @@ struct DescentConstraints {
 	 * Get the maximum penalty total for depth 'off'.
 	 */
 	const TScore operator[](TReadOff off) const {
-		if(off > scs.size()) {
+		if(off >= scs.size()) {
 			size_t oldsz = scs.size();
             EList<TScore>& scs_rw = const_cast<EList<TScore>&>(scs);
 			scs_rw.resize((size_t)(off * 1.5 + 0.5));
@@ -390,18 +392,19 @@ struct DescentRedundancyKey {
 	
 	DescentRedundancyKey(
 	    bool      fw_,
-		TReadOff  al5pi_,
+//		TReadOff  al5pi_,
 		TReadOff  al5pf_,
 		size_t    rflen_,
 		TIndexOff topf_,
 		TIndexOff botf_)
 	{
-		init(fw_, al5pi_, al5pf_, rflen_, topf_, botf_);
+		init(fw_, /*al5pi_,*/ al5pf_, rflen_, topf_, botf_);
 	}
 
 	void reset() {
 		fw = false;
-		al5pi = al5pf = 0;
+		//al5pi = 0;
+		al5pf = 0;
 		rflen = 0;
 		topf = botf = 0;
 	}
@@ -410,14 +413,14 @@ struct DescentRedundancyKey {
 
 	void init(
 	    bool      fw_,
-		TReadOff  al5pi_,
+		//TReadOff  al5pi_,
 		TReadOff  al5pf_,
 		size_t    rflen_,
 		TIndexOff topf_,
 		TIndexOff botf_)
 	{
 		fw = fw_;
-		al5pi = al5pi_;
+		//al5pi = al5pi_;
 		al5pf = al5pf_;
 		rflen = rflen_;
 		topf = topf_;
@@ -425,13 +428,15 @@ struct DescentRedundancyKey {
 	}
 	
 	bool operator==(const DescentRedundancyKey& o) const {
-		return fw == o.fw && al5pi == o.al5pi && al5pf == o.al5pf &&
+		return fw == o.fw && /*al5pi == o.al5pi &&*/ al5pf == o.al5pf &&
 		       rflen == o.rflen && topf == o.topf && botf == o.botf;
 	}
 
 	bool operator<(const DescentRedundancyKey& o) const {
+	/*
 		if(al5pi < o.al5pi) return true;
 		if(al5pi > o.al5pi) return false;
+	*/
 		if(!fw && o.fw) return true;
 		if(fw && !o.fw) return false;
 		if(al5pf < o.al5pf) return true;
@@ -444,7 +449,7 @@ struct DescentRedundancyKey {
 	}
 
 	bool fw;        // from fw read
-	TReadOff al5pi; // 5'-most aligned char, as offset from 5' end
+	//TReadOff al5pi; // 5'-most aligned char, as offset from 5' end
 	TReadOff al5pf; // 3'-most aligned char, as offset from 5' end
 	size_t rflen;   // number of reference characters involved in alignment
 	TIndexOff topf; // top w/r/t forward index
@@ -462,8 +467,36 @@ public:
 
 	void clear() { reset(); }
 	
+	/**
+	 * Reset to uninitialized state.
+	 */
 	void reset() {
-		map_.clear();
+		maplist_.clear();
+		inited_ = false;
+		totsz_ = 0;  // total size
+		totcap_ = 0; // total capacity
+	}
+
+	/**
+	 * Initialize using given read length.
+	 */
+	void init(TReadOff rdlen) {
+		reset();
+		maplist_.resize(rdlen);
+		totsz_ = maplist_.totalSizeBytes();
+		totcap_ = maplist_.totalCapacityBytes();
+		for(size_t i = 0; i < rdlen; i++) {
+			maplist_[i].clear();
+			totcap_ += maplist_[i].totalCapacityBytes();
+		}
+		inited_ = true;
+	}
+	
+	/**
+	 * Return true iff the checker is initialized.
+	 */
+	bool inited() const {
+		return inited_;
 	}
 
 	/**
@@ -484,16 +517,22 @@ public:
 		TIndexOff botf,
 		TScore pen)
 	{
+		assert(inited_);
+		assert_lt(al5pi, maplist_.size());
 		assert(topf > 0 || botf > 0);
-		DescentRedundancyKey k(fw, al5pi, al5pf, rflen, topf, botf);
+		DescentRedundancyKey k(fw, al5pf, rflen, topf, botf);
 		size_t i = std::numeric_limits<size_t>::max();
-		if(map_.containsEx(k, i)) {
+		if(maplist_[al5pi].containsEx(k, i)) {
 			// Already contains the key
-			assert_lt(i, map_.size());
-			assert_geq(pen, map_[i].second);
+			assert_lt(i, maplist_[al5pi].size());
+			assert_geq(pen, maplist_[al5pi][i].second);
 			return false;
 		}
-		map_.insert(make_pair(k, pen));
+		size_t oldsz = maplist_[al5pi].totalSizeBytes();
+		size_t oldcap = maplist_[al5pi].totalCapacityBytes();
+		maplist_[al5pi].insert(make_pair(k, pen));
+		totsz_ += (maplist_[al5pi].totalSizeBytes() - oldsz);
+		totcap_ += (maplist_[al5pi].totalCapacityBytes() - oldcap);
 		return true;
 	}
 
@@ -510,34 +549,35 @@ public:
 		TIndexOff botf,
 		TScore pen)
 	{
-		DescentRedundancyKey k(fw, al5pi, al5pf, rflen, topf, botf);
-		return map_.contains(k);
-	}
-
-	/**
-	 * Return the number of entries in the 
-	 */
-	size_t size() const {
-		return map_.size();
+		assert(inited_);
+		assert_lt(al5pi, maplist_.size());
+		DescentRedundancyKey k(fw, al5pf, rflen, topf, botf);
+		return maplist_[al5pi].contains(k);
 	}
 	
 	/**
 	 * Return the total size of the redundancy map.
 	 */
 	size_t totalSizeBytes() const {
-		return map_.totalSizeBytes();
+		return totsz_;
 	}
 
 	/**
 	 * Return the total capacity of the redundancy map.
 	 */
 	size_t totalCapacityBytes() const {
-		return map_.totalCapacityBytes();
+		return totcap_;
 	}
 
 protected:
-	EMap<DescentRedundancyKey, TScore> map_;
 
+	bool inited_;   // initialized?
+	size_t totsz_;  // total size
+	size_t totcap_; // total capacity
+	
+	// List of maps.  Each entry is a map for all the DescentRedundancyKeys
+	// with al5pi equal to the offset into the list.
+	EList<EMap<DescentRedundancyKey, TScore> > maplist_;
 };
 
 /**
@@ -736,6 +776,7 @@ struct DescentPos {
         return c >= 0;
     }
 	
+#ifndef NDEBUG
 	/**
 	 * Check that DescentPos is internally consistent.
 	 */
@@ -743,6 +784,7 @@ struct DescentPos {
 		assert_range(0, 3, (int)c);
 		return true;
 	}
+#endif
 	
 	TIndexOff       topf[4]; // SA range top indexes in fw index
 	TIndexOff       botf[4]; // SA range bottom indexes (exclusive) in fw index
@@ -1053,6 +1095,7 @@ struct DescentQuery {
         return seq->length();
     }
 	
+#ifndef NDEBUG
 	/**
 	 * Return true if the query is internally consistent.
 	 */
@@ -1062,6 +1105,7 @@ struct DescentQuery {
 		assert_eq(seq->length(), qualrc->length());
 		return true;
 	}
+#endif
 
     const BTDnaString* seq;
     const BTString* qual;
@@ -1197,6 +1241,7 @@ public:
 	 */
 	bool empty() const { return lastRecalc_ && out_.empty(); }
 	
+#ifndef NDEBUG
 	/**
 	 * Return true iff the Descent is internally consistent.
 	 */
@@ -1210,6 +1255,7 @@ public:
 		}
 		return true;
 	}
+#endif
 	
 	size_t al5pi() const { return al5pi_; }
 	size_t al5pf() const { return al5pf_; }
@@ -1543,6 +1589,7 @@ public:
 		bestPen_ = worstPen_ = std::numeric_limits<TAlScore>::max();
 	}
 	
+#ifndef NDEBUG
 	/**
 	 * Check that alignment sink is internally consistent.
 	 */
@@ -1554,6 +1601,7 @@ public:
 		assert(bestPen_ == std::numeric_limits<TAlScore>::max() || worstPen_ >= bestPen_);
 		return true;
 	}
+#endif
 	
 	TAlScore bestPenalty() const { return bestPen_; }
 	TAlScore worstPenalty() const { return worstPen_; }
@@ -1664,6 +1712,7 @@ public:
 		if(sel != NULL) {
 			sel->select(q_, qu, confs_, roots_);
 		}
+		re_.init(q.length());
 	}
 	
 	/**
@@ -1746,14 +1795,16 @@ public:
 		const Ebwt& ebwtBw,   // mirror index
         DescentMetrics& met); // metrics
 
+#ifndef NDEBUG
 	/**
 	 * Return true iff this DescentDriver is well formed.  Throw an assertion
 	 * otherwise.
 	 */
-	bool repOk() {
+	bool repOk() const {
 		return true;
 	}
-	
+#endif
+
 	/**
 	 * Return the number of end-to-end alignments reported.
 	 */

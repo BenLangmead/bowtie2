@@ -166,12 +166,14 @@ struct QKey {
 		return !(*this == o);
 	}
 	
+#ifndef NDEBUG
 	/**
 	 * Check that this is a valid, initialized QKey.
 	 */
 	bool repOk() const {
 		return len != 0xffffffff;
 	}
+#endif
 
 	uint64_t seq; // sequence
 	uint32_t len; // length of sequence
@@ -248,11 +250,13 @@ public:
 		eltn_ += numElts;
 	}
 	
+#ifndef NDEBUG
 	/**
 	 * Check that this QVal is internally consistent and consistent
 	 * with the contents of the given cache.
 	 */
 	bool repOk(const AlignmentCache& ac) const;
+#endif
 
 protected:
 
@@ -281,11 +285,13 @@ struct SAVal {
 	 */
 	bool valid() { return len != 0xffffffff; }
 
+#ifndef NDEBUG
 	/**
 	 * Check that this SAVal is internally consistent and consistent
 	 * with the contents of the given cache.
 	 */
 	bool repOk(const AlignmentCache& ac) const;
+#endif
 	
 	/**
 	 * Initialize the SAVal.
@@ -339,6 +345,7 @@ public:
 		offs.init(src.offs, first, last);
 	}
 	
+#ifndef NDEBUG
 	/**
 	 * Check that this SATuple is internally consistent and that its
 	 * PListSlice is consistent with its backing PList.
@@ -347,6 +354,7 @@ public:
 		assert(offs.repOk());
 		return true;
 	}
+#endif
 
 	/**
 	 * Function for ordering SATuples.  This is used when prioritizing which to
@@ -860,6 +868,7 @@ public:
 	size_t curNumRanges() const { return rangen_; }
 	size_t curNumElts()   const { return eltsn_;  }
 	
+#ifndef NDEBUG
 	/**
 	 * Check that AlignmentCacheIface is internally consistent.
 	 */
@@ -872,6 +881,7 @@ public:
 		}
 		return true;
 	}
+#endif
 	
 	/**
 	 * Return the alignment cache for the current read.

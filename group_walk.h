@@ -338,6 +338,7 @@ public:
 		len = 0xffffffff;
 	}
 	
+#ifndef NDEBUG
 	/**
 	 * Check that GWHit is internally consistent.  If a pointer to an
 	 * EList of GWStates is given, we assume that it is the EList
@@ -371,6 +372,7 @@ public:
 	bool repOkBasic() {
 		return true;
 	}
+#endif
 	
 	/**
 	 * Set the ith element to be reported.
@@ -698,6 +700,7 @@ public:
 		return ret;
 	}
 	
+#ifndef NDEBUG
 	/**
 	 * Check if this GWP is internally consistent.
 	 */
@@ -767,6 +770,7 @@ public:
 		}
 		return true;
 	}
+#endif
 	
 	/**
 	 * Return the offset currently assigned to the ith element.  If it
@@ -1205,6 +1209,7 @@ public:
 	 */
 	bool done() const { return rep_ == elt_; }
 	
+#ifndef NDEBUG
 	/**
 	 * Check that GroupWalk is internally consistent.
 	 */
@@ -1233,6 +1238,7 @@ public:
 		assert_eq(elt_, sz);
 		return true;
 	}
+#endif
 
 	/**
 	 * Return the number of BW elements that we can resolve.

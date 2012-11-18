@@ -167,6 +167,7 @@ struct DpBtCandidate {
 	bool operator>=(const DpBtCandidate& o) const { return !((*this) < o); }
 	bool operator<=(const DpBtCandidate& o) const { return !((*this) > o); }
 	
+#ifndef NDEBUG
 	/**
 	 * Check internal consistency.
 	 */
@@ -174,6 +175,7 @@ struct DpBtCandidate {
 		assert(VALID_SCORE(score));
 		return true;
 	}
+#endif
 
 	size_t   row;   // cell row
 	size_t   col;   // cell column w/r/t LHS of rectangle

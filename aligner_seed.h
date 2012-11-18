@@ -463,12 +463,14 @@ struct InstantiatedSeed {
 	// Seed this was instantiated from
 	Seed s;
 	
+#ifndef NDEBUG
 	/**
 	 * Check that InstantiatedSeed is internally consistent.
 	 */
 	bool repOk() const {
 		return true;
 	}
+#endif
 };
 
 /**
@@ -566,6 +568,7 @@ struct EEHit {
 	 */
 	uint32_t size() const { return bot - top; }
 	
+#ifndef NDEBUG
 	/**
 	 * Check that hit is sane w/r/t read.
 	 */
@@ -579,6 +582,7 @@ struct EEHit {
 		}
 		return true;
 	}
+#endif
 	
 	uint32_t top;
 	uint32_t bot;
@@ -901,6 +905,7 @@ public:
 	 */
 	const Read& read() const { return *read_; }
 	
+#ifndef NDEBUG
 	/**
 	 * Check that this SeedResults is internally consistent.
 	 */
@@ -934,6 +939,7 @@ public:
 		}
 		return true;
 	}
+#endif
 	
 	/**
 	 * Populate rankOffs_ and rankFws_ with the list of QVals that need to be

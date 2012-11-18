@@ -369,6 +369,7 @@ public:
 	 */
 	inline void reset() { initedRef_ = initedRead_ = false; }
 
+#ifndef NDEBUG
 	/**
 	 * Check that aligner is internally consistent.
 	 */
@@ -381,6 +382,7 @@ public:
 		}
 		return true;
 	}
+#endif
 	
 	/**
 	 * Return the number of alignments given out so far by nextAlignment().
