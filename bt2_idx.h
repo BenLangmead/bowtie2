@@ -194,6 +194,7 @@ public:
 		_offsSz = _offsLen*4;
 	}
 
+#ifndef NDEBUG
 	/// Check that this EbwtParams is internally consistent
 	bool repOk() const {
 		assert_gt(_len, 0);
@@ -209,6 +210,7 @@ public:
 		assert_eq(0, _ebwtTotSz % _lineSz);
 		return true;
 	}
+#endif
 
 	/**
 	 * Pretty-print the header contents to the given output stream.
@@ -1378,6 +1380,7 @@ public:
 	uint32_t mapLF1(uint32_t row, const SideLocus& l, int c ASSERT_ONLY(, bool overrideSanity = false)) const;
 	int mapLF1(uint32_t& row, const SideLocus& l ASSERT_ONLY(, bool overrideSanity = false)) const;
 
+#ifndef NDEBUG
 	/// Check that in-memory Ebwt is internally consistent with respect
 	/// to given EbwtParams; assert if not
 	bool inMemoryRepOk(const EbwtParams& eh) const {
@@ -1409,6 +1412,7 @@ public:
 	bool repOk() const {
 		return repOk(_eh);
 	}
+#endif
 
 	bool       _toBigEndian;
 	int32_t    _overrideOffRate;
@@ -1589,6 +1593,7 @@ struct SideLocus {
 		return _sideNum * 192 + _charOff;
 	}
 	
+#ifndef NDEBUG
 	/**
 	 * Check that SideLocus is internally consistent and consistent
 	 * with the (provided) EbwtParams.
@@ -1608,6 +1613,7 @@ struct SideLocus {
 	bool repOk(const Ebwt& ebwt) const {
 		return repOk(ebwt.eh());
 	}
+#endif
 
 	/// Make this look like an invalid SideLocus
 	void invalidate() {

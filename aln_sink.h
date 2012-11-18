@@ -239,6 +239,7 @@ struct ReportingParams {
 		mixed   = mixed_;
 	}
 	
+#ifndef NDEBUG
 	/**
 	 * Check that reporting parameters are internally consistent.
 	 */
@@ -247,6 +248,7 @@ struct ReportingParams {
 		assert_geq(mhits, 1);
 		return true;
 	}
+#endif
 	
 	/**
 	 * Return true iff a -m or -M limit was set by the user.
@@ -495,6 +497,7 @@ public:
 	inline int exitUnpaired1()  const { return exitUnpair1_; }
 	inline int exitUnpaired2()  const { return exitUnpair2_; }
 
+#ifndef NDEBUG
 	/**
 	 * Check that ReportingState is internally consistent.
 	 */
@@ -511,7 +514,8 @@ public:
 		assert(done() || !doneWithMate(true) || !doneWithMate(false));
 		return true;
 	}
-	
+#endif
+
 	/**
 	 * Return ReportingParams object governing this ReportingState.
 	 */
@@ -780,10 +784,12 @@ public:
 		}
 	}
 
+#ifndef NDEBUG
 	/**
 	 * Check that hit sink is internally consistent.
 	 */
 	bool repOk() const { return true; }
+#endif
 	
 	//
 	// Related to reporting seed hits
@@ -1037,6 +1043,7 @@ public:
 		const AlnRes* rs1,
 		const AlnRes* rs2);
 
+#ifndef NDEBUG
 	/**
 	 * Check that hit sink wrapper is internally consistent.
 	 */
@@ -1059,6 +1066,7 @@ public:
 		assert(st_.repOk());
 		return true;
 	}
+#endif
 	
 	/**
 	 * Return true iff no alignments have been reported to this wrapper

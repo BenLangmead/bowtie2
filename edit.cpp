@@ -328,6 +328,7 @@ void Edit::toRef(
 	}
 }
 
+#ifndef NDEBUG
 /**
  * Check that the edit is internally consistent.
  */
@@ -354,7 +355,6 @@ bool Edit::repOk(
 	size_t trimBeg,
 	size_t trimEnd)
 {
-#ifndef NDEBUG
 	if(!fw) {
 		invertPoss(const_cast<EList<Edit>&>(edits), s.length()-trimBeg-trimEnd);
 		swap(trimBeg, trimEnd);
@@ -390,9 +390,9 @@ bool Edit::repOk(
 	if(!fw) {
 		invertPoss(const_cast<EList<Edit>&>(edits), s.length()-trimBeg-trimEnd);
 	}
-#endif
 	return true;
 }
+#endif
 
 /**
  * Merge second argument into the first.  Assume both are sorted to

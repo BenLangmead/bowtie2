@@ -1822,7 +1822,7 @@ int main(int argc, char **argv) {
 				(i == 0) ? 0 : (seq.length() - 1), // 5' offset into read of root
 				(i == 0) ? true : false,           // left-to-right?
 				rc == 0,   // forward?
-				0.0);   // root priority
+				0.0f);   // root priority
 			
 			// Do the search
 			Scoring sc = Scoring::base1();
@@ -1857,7 +1857,7 @@ int main(int argc, char **argv) {
             (i == 0) ? 0 : (seq.length() - 1), // 5' offset into read of root
             (i == 0) ? true : false,           // left-to-right?
             true,   // forward?
-            0.0);   // root priority
+            0.0f);   // root priority
         
         // Do the search
         Scoring sc = Scoring::base1();
@@ -1891,7 +1891,7 @@ int main(int argc, char **argv) {
             (i == 0) ? 0 : (seq.length() - 1), // 5' offset into read of root
             (i == 0) ? true : false,           // left-to-right?
             true,   // forward?
-            0.0);   // root priority
+            0.0f);   // root priority
         
         // Do the search
         Scoring sc = Scoring::base1();
@@ -1930,7 +1930,7 @@ int main(int argc, char **argv) {
             (i == 0) ? 10 : (seq.length() - 1 - 10), // 5' offset into read of root
             (i == 0) ? true : false,                 // left-to-right?
             true,   // forward?
-            0.0);   // root priority
+            0.0f);   // root priority
         
         // Do the search
         Scoring sc = Scoring::base1();
@@ -1999,7 +1999,7 @@ int main(int argc, char **argv) {
 					j,      // 5' offset into read of root
 					i == 0, // left-to-right?
 					true,   // forward?
-					0.0);   // root priority
+					0.0f);   // root priority
 				
 				// Do the search
 				Scoring sc = Scoring::base1();
@@ -2042,13 +2042,13 @@ int main(int argc, char **argv) {
 					j,      // 5' offset into read of root
 					i == 0, // left-to-right?
 					true,   // forward?
-					0.0);   // root priority
+					0.0f);   // root priority
 				dr.addRoot(
 					conf,   // DescentConfig
 					j,      // 5' offset into read of root
 					i == 0, // left-to-right?
 					false,  // forward?
-					1.0);   // root priority
+					1.0f);   // root priority
 				
 				// Do the search
 				Scoring sc = Scoring::base1();
@@ -2121,7 +2121,7 @@ int main(int argc, char **argv) {
 						j,       // 5' offset into read of root
 						i == 0,  // left-to-right?
 						true,    // forward?
-						0.0);    // root priority
+						0.0f);    // root priority
 					
 					// Do the search
 					Scoring sc = Scoring::base1();
@@ -2194,7 +2194,7 @@ int main(int argc, char **argv) {
 						j,      // 5' offset into read of root
 						i == 0, // left-to-right?
 						true,   // forward?
-						0.0);   // root priority
+						0.0f);   // root priority
 					
 					// Do the search
 					Scoring sc = Scoring::base1();
@@ -2260,7 +2260,7 @@ int main(int argc, char **argv) {
 						j,      // 5' offset into read of root
 						ltr,    // left-to-right?
 						fw,     // forward?
-						0.0);   // root priority
+						0.0f);   // root priority
 				}
 				
 				// Do the search
@@ -2312,10 +2312,10 @@ int main(int argc, char **argv) {
 					bool fw = (rnd.nextU2() == 0) ? true : false;
 					dr.addRoot(
 						conf,     // DescentConfig
-						j,        // 5' offset into read of root
+						(TReadOff)j,        // 5' offset into read of root
 						ltr,      // left-to-right?
 						fw,       // forward?
-						y * 1.0); // root priority
+						(float)((float)y * 1.0f)); // root priority
 					// Assume left-to-right
 					size_t beg = j;
 					size_t end = j + Ebwt::default_ftabChars;
@@ -2427,7 +2427,7 @@ int main(int argc, char **argv) {
 					j,      // 5' offset into read of root
 					i == 0, // left-to-right?
 					k == 0, // forward?
-					0.0);   // root priority
+					0.0f);  // root priority
 				
 				// Do the search
 				Scoring sc = Scoring::base1();
@@ -2505,7 +2505,7 @@ int main(int argc, char **argv) {
 					j,      // 5' offset into read of root
 					i == 0, // left-to-right?
 					k == 0, // forward?
-					0.0);   // root priority
+					0.0f);  // root priority
 				
 				// Do the search
 				Scoring sc = Scoring::base1();
@@ -2575,7 +2575,7 @@ int main(int argc, char **argv) {
 					j,      // 5' offset into read of root
 					i == 0, // left-to-right?
 					true,   // forward?
-					0.0);   // root priority
+					0.0f);  // root priority
 				
 				// Do the search
 				Scoring sc = Scoring::base1();
@@ -2651,7 +2651,7 @@ int main(int argc, char **argv) {
 					j,      // 5' offset into read of root
 					i == 0, // left-to-right?
 					true,   // forward?
-					0.0);   // root priority
+					0.0f);  // root priority
 				
 				// Do the search
 				Scoring sc = Scoring::base1();
@@ -2728,7 +2728,7 @@ int main(int argc, char **argv) {
 					j,      // 5' offset into read of root
 					i == 0, // left-to-right?
 					true,   // forward?
-					0.0);   // root priority
+					0.0f);  // root priority
 				
 				// Do the search
 				Scoring sc = Scoring::base1();
@@ -2842,7 +2842,7 @@ int main(int argc, char **argv) {
 					j,      // 5' offset into read of root
 					i == 0, // left-to-right?
 					true,   // forward?
-					0.0);   // root priority
+					0.0f);  // root priority
 				
 				// Do the search
 				Scoring sc = Scoring::base1();
@@ -2923,7 +2923,7 @@ int main(int argc, char **argv) {
 					j,      // 5' offset into read of root
 					i == 0, // left-to-right?
 					true,   // forward?
-					0.0);   // root priority
+					0.0f);  // root priority
 				
 				// Do the search
 				Scoring sc = Scoring::base1();

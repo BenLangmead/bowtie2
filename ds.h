@@ -88,7 +88,8 @@ public:
 	 * category.
 	 */
 	uint64_t peak(int cat) { return peaks_[cat]; }
-	
+
+#ifndef NDEBUG
 	/**
 	 * Check that memory tallies are internally consistent;
 	 */
@@ -101,6 +102,7 @@ public:
 		assert_eq(tot, tot_);
 		return true;
 	}
+#endif
 
 protected:
 
@@ -2863,6 +2865,7 @@ public:
 		return l_.empty();
 	}
 	
+#ifndef NDEBUG
 	/**
 	 * Check that heap property holds.
 	 */
@@ -2890,6 +2893,7 @@ public:
 		}
 		return true;
 	}
+#endif
 	
 	/**
 	 * Clear the heap so that it's empty.
@@ -2964,6 +2968,7 @@ public:
 		// now is to clear the entire pool
 	}
 
+#ifndef NDEBUG
 	/**
 	 * Check that pool is internally consistent.
 	 */
@@ -2974,6 +2979,7 @@ public:
 		assert_gt(pagesz_, 0);
 		return true;
 	}
+#endif
 
 private:
 	int             cat_;    // memory category, for accounting purposes
@@ -3085,6 +3091,7 @@ public:
 		cur_ = curPage_ = 0;
 	}
 
+#ifndef NDEBUG
 	/**
 	 * Check that list is internally consistent.
 	 */
@@ -3093,6 +3100,7 @@ public:
 		assert_leq(cur_, PLIST_PER_PAGE);
 		return true;
 	}
+#endif
 
 	/**
 	 * Return the number of elements in the list.
@@ -3305,6 +3313,7 @@ public:
 		return len_;
 	}
 	
+#ifndef NDEBUG
 	/**
 	 * Ensure that the PListSlice is internally consistent and
 	 * consistent with the backing PList.
@@ -3313,6 +3322,7 @@ public:
 		assert_leq(i_ + len_, list_->size());
 		return true;
 	}
+#endif
 	
 	/**
 	 * Return true iff this slice refers to the same slice of the same
@@ -3435,6 +3445,7 @@ public:
 		return len_;
 	}
 	
+#ifndef NDEBUG
 	/**
 	 * Ensure that the PListSlice is internally consistent and
 	 * consistent with the backing PList.
@@ -3443,6 +3454,7 @@ public:
 		assert_leq(i_ + len_, list_->size());
 		return true;
 	}
+#endif
 	
 	/**
 	 * Return true iff this slice refers to the same slice of the same
@@ -3537,6 +3549,7 @@ public:
 		return ((left != NULL) ? 1 : 0) + ((right != NULL) ? 1 : 0);
 	}
 	
+#ifndef NDEBUG
 	/**
 	 * Check that node is internally consistent.
 	 */ 
@@ -3546,6 +3559,7 @@ public:
 		}
 		return true;
 	}
+#endif
 
 	/**
 	 * True -> my key is less than than the given node's key.
@@ -3672,6 +3686,7 @@ public:
 		return cur; // return the added or found node
 	}
 
+#ifndef NDEBUG
 	/**
 	 * Check that list is internally consistent.
 	 */
@@ -3681,6 +3696,7 @@ public:
 		assert(root_ == NULL || !root_->red);
 		return true;
 	}
+#endif
 	
 	/**
 	 * Clear all state.
@@ -3742,6 +3758,7 @@ public:
 
 protected:
 
+#ifndef NDEBUG
 	/**
 	 * Check specifically that the red-black invariants are satistfied.
 	 */
@@ -3820,6 +3837,7 @@ protected:
 		}
 		return true;
 	}
+#endif
 
 	/**
 	 * Rotate to the left such that n is replaced by its right child

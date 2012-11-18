@@ -388,6 +388,7 @@ public:
 		return pairing_ < ALN_FLAG_PAIR_UNPAIRED;
 	}
 	
+#ifndef NDEBUG
 	/**
 	 * Check that the flags are internally consistent.
 	 */
@@ -395,7 +396,8 @@ public:
 		assert(partOfPair() || !maxedPair_);
 		return true;
 	}
-	
+#endif
+
 	/**
 	 * Print out string representation of YF:i flag for indicating whether and
 	 * why the mate was filtered.
@@ -724,6 +726,7 @@ public:
 	/**
 	 * Check internal consistency.
 	 */
+#ifndef NDEBUG
 	bool repOk() const {
 		if(inited_) {
 			assert_eq(stackRef_.size(), stackRead_.size());
@@ -731,6 +734,7 @@ public:
 		}
 		return true;
 	}
+#endif
 
 protected:
 
@@ -1065,6 +1069,7 @@ public:
 		o << "(" << refcoord_.ref() << "," << refcoord_.off() << ")" << std::endl;
 	}
 	
+#ifndef NDEBUG
 	/**
 	 * Check that alignment score is internally consistent.
 	 */
@@ -1092,6 +1097,7 @@ public:
 		       refcoord_.fw(), trimmed5p(true), trimmed3p(true)));
 		return repOk();
 	}
+#endif
 
 #ifndef NDEBUG
 	/**
@@ -1803,6 +1809,7 @@ public:
 		return !VALID_AL_SCORE(best1_);
 	}
 	
+#ifndef NDEBUG
 	/**
 	 * Check that the summary is internally consistent.
 	 */
@@ -1813,6 +1820,7 @@ public:
 		assert(other2_ != 0 || !VALID_AL_SCORE(secbest2_));
 		return true;
 	}
+#endif
 	
 	AlnScore best1()         const { return best1_;         }
 	AlnScore secbest1()      const { return secbest1_;      }

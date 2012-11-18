@@ -281,6 +281,7 @@ struct Edit {
 		const BTDnaString& read,
 		const EList<Edit>& edits);
 
+#ifndef NDEBUG
 	bool repOk() const;
 
 	/**
@@ -294,6 +295,7 @@ struct Edit {
 		bool fw = true,
 		size_t trim5 = 0,
 		size_t trim3 = 0);
+#endif
 
 	uint8_t  chr;  // reference character involved (for subst and ins)
 	uint8_t  qchr; // read character involved (for subst and del)

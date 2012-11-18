@@ -201,6 +201,7 @@ public:
 		initPens<int>(npens, npenType, npen, npen);
 	}
 	
+#ifndef NDEBUG
 	/**
 	 * Check that scoring scheme is internally consistent.
 	 */
@@ -212,6 +213,7 @@ public:
 		assert_gt(rfGapLinear, 0);
 		return true;
 	}
+#endif
 
 	/**
 	 * Return a linear function of x where 'cnst' is the constant coefficiant

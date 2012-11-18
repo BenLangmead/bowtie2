@@ -19,6 +19,7 @@
 
 #include "aligner_cache.h"
 
+#ifndef NDEBUG
 /**
  * Check that this QVal is internally consistent and consistent
  * with the contents of the given cache.
@@ -31,7 +32,9 @@ bool QVal::repOk(const AlignmentCache& ac) const {
 	assert_geq(eltn_, rangen_);
 	return true;
 }
+#endif
 
+#ifndef NDEBUG
 /**
  * Check that this SAVal is internally consistent and consistent
  * with the contents of the given cache.
@@ -41,6 +44,7 @@ bool SAVal::repOk(const AlignmentCache& ac) const {
 	assert_leq(i + len, ac.saSize());
 	return true;
 }
+#endif
 
 /**
  * Add a new association between a read sequnce ('seq') and a

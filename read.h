@@ -302,6 +302,7 @@ struct Read {
 		return q-33;
 	}
 
+#ifndef NDEBUG
 	/**
 	 * Check that read info is internally consistent.
 	 */
@@ -310,6 +311,7 @@ struct Read {
 		assert_eq(qual.length(), patFw.length());
 		return true;
 	}
+#endif
 
 	BTDnaString patFw;            // forward-strand sequence
 	BTDnaString patRc;            // reverse-complement sequence

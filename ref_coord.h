@@ -149,6 +149,7 @@ public:
 		return orient_ == 1;
 	}
 	
+#ifndef NDEBUG
 	/**
 	 * Check that coord is internally consistent.
 	 */
@@ -160,6 +161,7 @@ public:
 		}
 		return true;
 	}
+#endif
 	
 	/**
 	 * Check whether an interval defined by this coord and having
@@ -401,6 +403,7 @@ public:
 	inline const Coord&  upstream()   const { return upstream_; }
 	inline TRefOff       len()      const { return len_;      }
 
+#ifndef NDEBUG
 	/**
 	 * Check that the Interval is internally consistent.
 	 */
@@ -409,6 +412,7 @@ public:
 		assert_geq(len_, 0);
 		return true;
 	}
+#endif
 
 	inline void adjustOff(TRefOff off) { upstream_.adjustOff(off); }
 
