@@ -185,7 +185,7 @@ static int   penRfGapLinear;  // coeff of linear term for cost of gap extension 
 static SimpleFunc scoreMin;   // minimum valid score as function of read len
 static SimpleFunc nCeil;      // max # Ns allowed as function of read len
 static SimpleFunc msIval;     // interval between seeds as function of read len
-static SimpleFunc descentConstraint; // how to adjust score minimum as we descent further into index-assisted alignment
+static double descConsExp;    // how to adjust score minimum as we descent further into index-assisted alignment
 static size_t descentLanding; // don't place a search root if it's within this many positions of end
 static size_t descentTotSz;   // maximum space a DescentDriver can use
 static int    multiseedMms;   // mismatches permitted in a multiseed seed
@@ -363,7 +363,7 @@ static void resetOptions() {
 	scoreMin.init  (SIMPLE_FUNC_LINEAR, DEFAULT_MIN_CONST,   DEFAULT_MIN_LINEAR);
 	nCeil.init     (SIMPLE_FUNC_LINEAR, 0.0f, DMAX, 2.0f, 0.1f);
 	msIval.init    (SIMPLE_FUNC_LINEAR, 1.0f, DMAX, DEFAULT_IVAL_B, DEFAULT_IVAL_A);
-	descentConstraint.init(SIMPLE_FUNC_LINEAR, 0.0f, DMAX, 0.0f, 0.2f);
+	descConsExp     = 1.0;
 	descentLanding  = 20;
 	descentTotSz    = 256 * 1024; // maximum space a DescentDriver can use
 	multiseedMms    = DEFAULT_SEEDMMS;
@@ -588,6 +588,10 @@ static struct option long_options[] = {
 	{(char*)"seed-cache-sz",       required_argument, 0,     ARG_CURRENT_SEED_CACHE_SZ},
 	{(char*)"no-unal",          no_argument,       0,        ARG_SAM_NO_UNAL},
 	{(char*)"test-25",          no_argument,       0,        ARG_TEST_25},
+	// TODO: following should be a function of read length?
+	{(char*)"desc-kb",          required_argument, 0,        ARG_DESC_KB},
+	{(char*)"desc-landing",     required_argument, 0,        ARG_DESC_LANDING},
+	{(char*)"desc-exp",         required_argument, 0,        ARG_DESC_EXP},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -888,6 +892,16 @@ static EList<string> presetList;
 static void parseOption(int next_option, const char *arg) {
 	switch (next_option) {
 		case ARG_TEST_25: bowtie2p5 = true; break;
+		case ARG_DESC_KB: descentTotSz = parse<int>(arg) * 1024; break;
+		case ARG_DESC_LANDING: descentLanding = parse<int>(arg); break;
+		case ARG_DESC_EXP: {
+			descConsExp = parse<double>(arg);
+			if(descConsExp < 0.0) {
+				cerr << "Error: --desc-exp must be greater than or equal to 0" << endl;
+				throw 1;
+			}
+			break;
+		}
 		case '1': tokenize(arg, ",", mates1); break;
 		case '2': tokenize(arg, ",", mates2); break;
 		case ARG_ONETWO: tokenize(arg, ",", mates12); format = TAB_MATE5; break;
@@ -2574,13 +2588,18 @@ static inline void printEEScoreMsg(
 	cerr << os.str();
 }
 
+/**
+ * Initialize the minsc and maxpen arrays given information about the reads,
+ * the alignment policy and the scoring scheme.
+ */
 static void setupMinScores(
 	const PatternSourcePerThread& ps,
 	bool paired,
 	bool localAlign,
 	const Scoring& sc,
 	const size_t *rdlens,
-	TAlScore *minsc)
+	TAlScore *minsc,
+	TAlScore *maxpen)
 {
 	if(bwaSwLike) {
 		// From BWA-SW manual: "Given an l-long query, the
@@ -2613,6 +2632,24 @@ static void setupMinScores(
 				if(!gQuiet) printEEScoreMsg(ps, paired, false);
 				minsc[1] = 0;
 			}
+		}
+	}
+	// Given minsc, calculate maxpen
+	if(localAlign) {
+		TAlScore perfect0 = sc.perfectScore(rdlens[0]);
+		assert_geq(perfect0, minsc[0]);
+		maxpen[0] = perfect0 - minsc[0];
+		if(paired) {
+			TAlScore perfect1 = sc.perfectScore(rdlens[1]);
+			assert_geq(perfect1, minsc[1]);
+			maxpen[1] = perfect1 - minsc[1];
+		}
+	} else {
+		assert_leq(minsc[0], 0);
+		maxpen[0] = -minsc[0];
+		if(paired) {
+			assert_leq(minsc[1], 0);
+			maxpen[1] = -minsc[1];
 		}
 	}
 }
@@ -3804,7 +3841,7 @@ static void* multiseedSearchWorker_2p5(void *vp) {
 		gOlapMatesOK,
 		gExpandToFrag);
 	
-	AlignerDriver ald(descentConstraint, msIval, descentLanding, descentTotSz);
+	AlignerDriver ald(descConsExp, msIval, descentLanding, descentTotSz);
 	
 	PerfMetrics metricsPt; // per-thread metrics object; for read-level metrics
 	BTString nametmp;
@@ -3896,9 +3933,9 @@ static void* multiseedSearchWorker_2p5(void *vp) {
 			assert(msinkwrap.inited());
 			size_t rdlens[2] = { rdlen1, rdlen2 };
 			// Calculate the minimum valid score threshold for the read
-			TAlScore minsc[2];
+			TAlScore minsc[2], maxpen[2];
 			minsc[0] = minsc[1] = std::numeric_limits<TAlScore>::max();
-			setupMinScores(*ps, paired, localAlign, sc, rdlens, minsc);
+			setupMinScores(*ps, paired, localAlign, sc, rdlens, minsc, maxpen);
 			// N filter; does the read have too many Ns?
 			size_t readns[2] = {0, 0};
 			sc.nFilterPair(
@@ -4008,9 +4045,9 @@ static void* multiseedSearchWorker_2p5(void *vp) {
 				}
 			}
 			if(filt[0]) {
-				ald.initRead(ps->bufa(), minsc[0], filt[1] ? &ps->bufb() : NULL);
+				ald.initRead(ps->bufa(), minsc[0], maxpen[0], filt[1] ? &ps->bufb() : NULL);
 			} else if(filt[1]) {
-				ald.initRead(ps->bufb(), minsc[1], NULL);
+				ald.initRead(ps->bufb(), minsc[1], maxpen[1], NULL);
 			}
 			if(filt[0] || filt[1]) {
 				ald.go(sc, ebwtFw, ebwtBw, ref, descm, wlm, prm, rnd, msinkwrap);

@@ -90,11 +90,11 @@ class AlignerDriverRootSelector : public DescentRootSelector {
 public:
 
 	AlignerDriverRootSelector(
-		const SimpleFunc& descCons,
+		double consExp,
 		const SimpleFunc& rootIval,
 		size_t landing)
 	{
-		descCons_ = descCons;
+		consExp_ = consExp;
 		rootIval_ = rootIval;
 		landing_ = landing;
 	}
@@ -109,7 +109,7 @@ public:
 
 protected:
 
-	SimpleFunc descCons_;
+	double consExp_;
 	SimpleFunc rootIval_;
 	size_t landing_;
 };
@@ -139,11 +139,11 @@ class AlignerDriver {
 public:
 
 	AlignerDriver(
-		const SimpleFunc& descCons,
+		double consExp,
 		const SimpleFunc& rootIval,
 		size_t landing,
 		size_t totsz) :
-		sel_(descCons, rootIval, landing),
+		sel_(consExp, rootIval, landing),
 		alsel_(),
 		stop_(totsz, 0, true, 0)
 	{
@@ -155,13 +155,14 @@ public:
 	void initRead(
 		const Read& q1,
 		TAlScore minsc,
+		TAlScore maxpen,
 		const Read* q2)
 	{
-		dr1_.initRead(q1, minsc, q2, &sel_);
+		dr1_.initRead(q1, minsc, maxpen, q2, &sel_);
 		red1_.init(q1.length());
 		paired_ = false;
 		if(q2 != NULL) {
-			dr2_.initRead(*q2, minsc, &q1, &sel_);
+			dr2_.initRead(*q2, minsc, maxpen, &q1, &sel_);
 			red2_.init(q2->length());
 			paired_ = true;
 		} else {

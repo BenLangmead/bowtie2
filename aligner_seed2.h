@@ -94,6 +94,7 @@
  */
 
 #include <stdint.h>
+#include <math.h>
 #include <utility>
 #include <limits>
 #include "assert_helpers.h"
@@ -287,6 +288,13 @@ typedef std::pair<DescentPriority, TDescentId> TDescentPair;
 
 /**
  * Encapsulates the constraints limiting which outgoing edges are permitted.
+ * Specifically, we constrain the total penalty accumulated so far so that some
+ * outgoing edges will exceed the limit and be pruned.  The limit is set
+ * according to our "depth" into the search, as measured by the number of read
+ * characters aligned so far.  We divide the depth domain into two pieces, a
+ * piece close to the root, where the penty is constrained to be 0, and the
+ * remainder, where the maximum penalty is an interpolation between 0 and the
+ * maximum penalty
  */
 struct DescentConstraints {
 
@@ -295,74 +303,58 @@ struct DescentConstraints {
 	/**
 	 * Initialize with new constraint function.
 	 */
-	DescentConstraints(int type, double C, double L) {
-        init(type, C, L);
+	DescentConstraints(size_t nzero, double exp) {
+        init(nzero, exp);
 	}
-
-	/**
-	 * Initialize with new constraint function.
-	 */
-	DescentConstraints(const SimpleFunc& f_) {
-		f = f_;
-	}
-	
-	static const size_t S = 64;
     
     /**
      * Initialize with given function.
      */
-    void init(int type, double C, double L) {
-		double mn = 0.0;
-		double mx = std::numeric_limits<double>::max();
-		f.init(type, mn, mx, C, L);
-		scs.resize(S);
-		for(size_t i = 0; i < S; i++) {
-			scs[i] = f.f<TScore>(i);
+    void init(size_t nzero_, double exp_) {
+		nzero = nzero_ > 0 ? nzero_ : 1;
+		exp = exp_;
+#ifndef NDEBUG
+		for(size_t i = 1; i < nzero_ + 5; i++) {
+			assert_geq(get(i, nzero_ + 10, 100), get(i-1, nzero_ + 10, 100));
 		}
-    }
-
-    /**
-     * Initialize with given function.
-     */
-    void init(const SimpleFunc& f_) {
-		f = f_;
-		scs.resize(S);
-		for(size_t i = 0; i < S; i++) {
-			scs[i] = f.f<TScore>(i);
-		}
+#endif
     }
     
     /**
      * Reset to uninitialized state.
      */
     void reset() {
-        scs.clear();
+        nzero = 0;
+		exp = -1.0f;
     }
     
     /**
      * Return true iff the DescentConstraints has been initialized.
      */
     bool inited() const {
-        return !scs.empty();
+        return exp >= 0.0f;
     }
 	
 	/**
 	 * Get the maximum penalty total for depth 'off'.
 	 */
-	const TScore operator[](TReadOff off) const {
-		if(off >= scs.size()) {
-			size_t oldsz = scs.size();
-            EList<TScore>& scs_rw = const_cast<EList<TScore>&>(scs);
-			scs_rw.resize((size_t)(off * 1.5 + 0.5));
-			for(size_t i = oldsz; i < scs.size(); i++) {
-				scs_rw[i] = f.f<TScore>(i);
+	inline TScore get(TReadOff off, TReadOff rdlen, TAlScore maxpen) const {
+		if(off < nzero || nzero >= rdlen) {
+			return 0;
+		}
+		double frac = (double)(off - nzero) / (rdlen - nzero);
+		if(fabs(exp - 1.0f) > 0.00001) {
+			if(fabs(exp - 2.0f) < 0.00001) {
+				frac *= frac;
+			} else {
+				frac = pow(frac, exp);
 			}
 		}
-		return scs[off];
+		return (TAlScore)(frac * maxpen + 0.5f);
 	}
 
-	EList<TScore> scs; // precalculated scores
-	SimpleFunc    f;   // maximum penalties w/r/t depth in the search tree
+	size_t nzero;
+	double exp;
 };
 
 /**
@@ -392,18 +384,16 @@ struct DescentRedundancyKey {
 	
 	DescentRedundancyKey(
 	    bool      fw_,
-//		TReadOff  al5pi_,
 		TReadOff  al5pf_,
 		size_t    rflen_,
 		TIndexOff topf_,
 		TIndexOff botf_)
 	{
-		init(fw_, /*al5pi_,*/ al5pf_, rflen_, topf_, botf_);
+		init(fw_, al5pf_, rflen_, topf_, botf_);
 	}
 
 	void reset() {
 		fw = false;
-		//al5pi = 0;
 		al5pf = 0;
 		rflen = 0;
 		topf = botf = 0;
@@ -413,14 +403,12 @@ struct DescentRedundancyKey {
 
 	void init(
 	    bool      fw_,
-		//TReadOff  al5pi_,
 		TReadOff  al5pf_,
 		size_t    rflen_,
 		TIndexOff topf_,
 		TIndexOff botf_)
 	{
 		fw = fw_;
-		//al5pi = al5pi_;
 		al5pf = al5pf_;
 		rflen = rflen_;
 		topf = topf_;
@@ -433,10 +421,6 @@ struct DescentRedundancyKey {
 	}
 
 	bool operator<(const DescentRedundancyKey& o) const {
-	/*
-		if(al5pi < o.al5pi) return true;
-		if(al5pi > o.al5pi) return false;
-	*/
 		if(!fw && o.fw) return true;
 		if(fw && !o.fw) return false;
 		if(al5pf < o.al5pf) return true;
@@ -449,7 +433,6 @@ struct DescentRedundancyKey {
 	}
 
 	bool fw;        // from fw read
-	//TReadOff al5pi; // 5'-most aligned char, as offset from 5' end
 	TReadOff al5pf; // 3'-most aligned char, as offset from 5' end
 	size_t rflen;   // number of reference characters involved in alignment
 	TIndexOff topf; // top w/r/t forward index
@@ -1137,9 +1120,11 @@ public:
      * therefore have its memory freed), true otherwise.
 	 */
 	bool init(
-		const Read& q,          // query
+		const Read& q,                  // query
 		TRootId rid,                    // root id
 		const Scoring& sc,              // scoring scheme
+		TAlScore minsc,                 // minimum score
+		TAlScore maxpen,                // maximum penalty
 		TReadOff al5pi,                 // offset from 5' of 1st aligned char
 		TReadOff al5pf,                 // offset from 5' of last aligned char
 		TIndexOff topf,                 // SA range top in FW index
@@ -1168,9 +1153,11 @@ public:
      * freed), true otherwise.
 	 */
 	bool init(
-        const Read& q,          // query
+        const Read& q,                  // query
         TRootId rid,                    // root id
         const Scoring& sc,              // scoring scheme
+		TAlScore minsc,                 // minimum score
+		TAlScore maxpen,                // maximum penalty
         size_t descid,                  // id of this Descent
         const Ebwt& ebwtFw,             // forward index
         const Ebwt& ebwtBw,             // mirror index
@@ -1223,10 +1210,12 @@ public:
 	 * Take the best outgoing edge and follow it.
 	 */
 	void followBestOutgoing(
-        const Read& q,          // query string
+        const Read& q,                  // read
         const Ebwt& ebwtFw,             // forward index
         const Ebwt& ebwtBw,             // mirror index
         const Scoring& sc,              // scoring scheme
+		TAlScore minsc,                 // minimum score
+		TAlScore maxpen,                // maximum penalty
 		DescentRedundancyChecker& re,   // redundancy checker
 		EFactory<Descent>& df,          // factory with Descent
 		EFactory<DescentPos>& pf,       // factory with DescentPoss
@@ -1287,6 +1276,8 @@ protected:
         const Ebwt& ebwtFw,             // forward index
         const Ebwt& ebwtBw,             // mirror index
         const Scoring& sc,              // scoring scheme
+		TAlScore minsc,                 // minimum score
+		TAlScore maxpen,                // maximum penalty
 		DescentRedundancyChecker& re,   // redundancy checker
 		EFactory<Descent>& df,          // factory with Descent
 		EFactory<DescentPos>& pf,       // factory with DescentPoss
@@ -1345,8 +1336,10 @@ protected:
 	 * within 40 ply, etc.
 	 */
 	size_t recalcOutgoing(
-		const Read& q,           // query string
+		const Read& q,                   // query string
 		const Scoring& sc,               // scoring scheme
+		TAlScore minsc,                  // minimum score
+		TAlScore maxpen,                 // maximum penalty
 		DescentRedundancyChecker& re,    // redundancy checker
 		EFactory<DescentPos>& pf,        // factory with DescentPoss
         const EList<DescentRoot>& rs,    // roots
@@ -1703,12 +1696,14 @@ public:
 	void initRead(
 		const Read& q,
 		TAlScore minsc,
+		TAlScore maxpen,
 		const Read* qu = NULL,
 		DescentRootSelector *sel = NULL)
 	{
 		reset();
 		q_ = q;
 		minsc_ = minsc;
+		maxpen_ = maxpen;
 		if(sel != NULL) {
 			sel->select(q_, qu, confs_, roots_);
 		}
@@ -1871,8 +1866,9 @@ public:
 
 protected:
 
-	Read         q_;      // query nucleotide and quality strings
+	Read                 q_;      // query nucleotide and quality strings
 	TAlScore             minsc_;  // minimum score
+	TAlScore             maxpen_; // maximum penalty
 	EFactory<Descent>    df_;     // factory holding all the Descents, which
 	                              // must be referred to by ID
 	EFactory<DescentPos> pf_;     // factory holding all the DescentPoss, which

@@ -40,7 +40,7 @@ void AlignerDriverRootSelector::select(
 			size_t i = 0;
 			while(first || (i + landing_ <= q.length())) {
 				confs.expand();
-				confs.back().cons.init(descCons_);
+				confs.back().cons.init(landing_, consExp_);
 				roots.expand();
 				roots.back().init(
 					i,          // offset from 5' end
@@ -58,7 +58,7 @@ void AlignerDriverRootSelector::select(
 			size_t i = 0;
 			while(first || (i + landing_ <= q.length())) {
 				confs.expand();
-				confs.back().cons.init(descCons_);
+				confs.back().cons.init(landing_, consExp_);
 				roots.expand();
 				roots.back().init(
 					q.length() - i - 1, // offset from 5' end

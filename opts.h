@@ -146,7 +146,10 @@ enum {
 	ARG_CURRENT_SEED_CACHE_SZ,  // --seed-cache-sz
 	ARG_SAM_NO_UNAL,            // --no-unal
 	ARG_NON_DETERMINISTIC,      // --non-deterministic
-	ARG_TEST_25                 // --test-25
+	ARG_TEST_25,                // --test-25
+	ARG_DESC_KB,                // --desc-kb
+	ARG_DESC_LANDING,           // --desc-landing
+	ARG_DESC_EXP                // --desc-exp
 };
 
 #endif
