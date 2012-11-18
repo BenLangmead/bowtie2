@@ -1709,6 +1709,8 @@ public:
 		assert_leq(heap_.totalSizeBytes(), 100);
 		roots_.clear();  // clear roots
 		assert_leq(roots_.totalSizeBytes(), 100);
+		confs_.clear();  // clear confs
+		assert_leq(confs_.totalSizeBytes(), 100);
         alsink_.reset(); // clear alignment sink
 		assert_leq(alsink_.totalSizeBytes(), 100);
 		re_.reset();
@@ -1781,6 +1783,8 @@ public:
 		return df_.totalSizeBytes() +
 		       pf_.totalSizeBytes() +
 			   heap_.totalSizeBytes() +
+			   roots_.totalSizeBytes() +
+			   confs_.totalSizeBytes() +
 		       alsink_.totalSizeBytes() +
 			   re_.totalSizeBytes();
 	}
@@ -1793,6 +1797,8 @@ public:
 		return df_.totalCapacityBytes() +
 		       pf_.totalCapacityBytes() +
 			   heap_.totalCapacityBytes() +
+			   roots_.totalCapacityBytes() +
+			   confs_.totalCapacityBytes() +
 		       alsink_.totalCapacityBytes() +
 			   re_.totalCapacityBytes();
 	}
