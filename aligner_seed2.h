@@ -104,6 +104,7 @@
 #include "simple_func.h"
 #include "scoring.h"
 #include "edit.h"
+#include "read.h"
 #include "ds.h"
 #include "group_walk.h"
 
@@ -1145,7 +1146,8 @@ public:
         const EList<DescentConfig>& cs, // configs
 		EHeap<TDescentPair>& heap,      // heap
         DescentAlignmentSink& alsink,   // alignment sink
-		DescentMetrics& met);           // metrics
+		DescentMetrics& met,            // metrics
+		PerReadMetrics& prm);           // per-read metrics
 
 	/**
 	 * Initialize a new descent beginning at the given root.  Return false if
@@ -1168,7 +1170,8 @@ public:
         const EList<DescentConfig>& cs, // configs
         EHeap<TDescentPair>& heap,      // heap
         DescentAlignmentSink& alsink,   // alignment sink
-        DescentMetrics& met);           // metrics
+        DescentMetrics& met,            // metrics
+		PerReadMetrics& prm);           // per-read metrics
 	
 	/**
 	 * Return true iff this Descent has been initialized.
@@ -1223,7 +1226,8 @@ public:
         const EList<DescentConfig>& cs, // configs
         EHeap<TDescentPair>& heap,      // heap of descents
         DescentAlignmentSink& alsink,   // alignment sink
-        DescentMetrics& met);           // metrics
+        DescentMetrics& met,            // metrics
+		PerReadMetrics& prm);           // per-read metrics
 	
 	/**
 	 * Return true iff no outgoing edges from this descent remain unexplored.
@@ -1285,7 +1289,8 @@ protected:
         const EList<DescentConfig>& cs, // configs
         EHeap<TDescentPair>& heap,      // heap of descents
         DescentAlignmentSink& alsink,   // alignment sink
-        DescentMetrics& met);           // metrics
+        DescentMetrics& met,            // metrics
+		PerReadMetrics& prm);           // per-read metrics
 
 	/**
 	 * Given the forward and backward indexes, and given topf/botf/topb/botb,
@@ -1317,6 +1322,7 @@ protected:
         EHeap<TDescentPair>& heap, // heap
         DescentAlignmentSink& alsink, // alignment sink
         DescentMetrics& met,       // metrics
+		PerReadMetrics& prm,       // per-read metrics
         bool& branches,            // out: true -> there are > 0 ways to branch
         bool& hitEnd,              // out: true -> hit read end with non-empty range
         bool& done,                // out: true -> we made a full alignment
@@ -1778,7 +1784,8 @@ public:
         const Scoring& sc,    // scoring scheme
 		const Ebwt& ebwtFw,   // forward index
 		const Ebwt& ebwtBw,   // mirror index
-        DescentMetrics& met); // metrics
+        DescentMetrics& met,  // metrics
+		PerReadMetrics& prm); // per-read metrics
 
 	/**
 	 * Perform seed alignment until some stopping condition is satisfied.
@@ -1788,7 +1795,8 @@ public:
         const Scoring& sc,    // scoring scheme
 		const Ebwt& ebwtFw,   // forward index
 		const Ebwt& ebwtBw,   // mirror index
-        DescentMetrics& met); // metrics
+        DescentMetrics& met,  // metrics
+		PerReadMetrics& prm); // per-read metrics
 
 #ifndef NDEBUG
 	/**

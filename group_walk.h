@@ -645,7 +645,6 @@ public:
 				}
 			}
 #endif
-			//assert(repOk(ebwt, hit, range));
 			return ret;
 		} else {
 			assert(!done());
@@ -956,7 +955,6 @@ public:
 							met);        // update these metrics
 						ret.first += rret.first;
 						ret.second += rret.second;
-						//assert(st.back().repOk(ebwt, hit, (uint32_t)st.size()-1));
 					}
 					ASSERT_ONLY(sum += in[i]);
 				}
