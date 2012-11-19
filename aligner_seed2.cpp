@@ -30,7 +30,8 @@ void DescentDriver::go(
     const Scoring& sc,    // scoring scheme
     const Ebwt& ebwtFw,   // forward index
     const Ebwt& ebwtBw,   // mirror index
-    DescentMetrics& met)  // metrics
+    DescentMetrics& met,  // metrics
+	PerReadMetrics& prm)  // per-read metrics
 {
 	assert(q_.repOk());
     // Convert DescentRoots to the initial Descents
@@ -56,7 +57,8 @@ void DescentDriver::go(
             confs_,    // DescentConfs
             heap_,     // heap
             alsink_,   // alignment sink
-            met);      // metrics
+            met,       // metrics
+			prm);      // per-read metrics
         if(!succ) {
             // Reclaim memory we had used for this descent and its DescentPos info
             df_.resize(dfsz);
@@ -80,11 +82,12 @@ void DescentDriver::go(
 			re_,       // redundancy checker
             df_,       // Descent factory
             pf_,       // DescentPos factory
-            roots_,
-            confs_,
-            heap_,
-            alsink_,
-            met);
+            roots_,    //
+            confs_,    //
+            heap_,     // priority queue for Descents
+            alsink_,   // alignment sink
+            met,       // metrics
+			prm);      // per-read metrics
         stop = heap_.empty();
     }
 }
@@ -97,7 +100,8 @@ int DescentDriver::advance(
     const Scoring& sc,    // scoring scheme
     const Ebwt& ebwtFw,   // forward index
     const Ebwt& ebwtBw,   // mirror index
-    DescentMetrics& met)  // metrics
+    DescentMetrics& met,  // metrics
+	PerReadMetrics& prm)  // per-read metrics
 {
 	size_t nbwop_i = met.bwops;
 	while(rootsInited_ < roots_.size()) {
@@ -122,7 +126,8 @@ int DescentDriver::advance(
             confs_,    // DescentConfs
             heap_,     // heap
             alsink_,   // alignment sink
-            met);      // metrics
+            met,       // metrics
+			prm);      // per-read metrics
         if(!succ) {
             // Reclaim memory we had used for this descent and its DescentPos info
             df_.resize(dfsz);
@@ -167,7 +172,8 @@ int DescentDriver::advance(
             confs_,
             heap_,
             alsink_,
-            met);
+            met,
+			prm);      // per-read metrics
 		TAlScore best = std::numeric_limits<TAlScore>::max();
 		if(!heap_.empty()) {
 			best = heap_.top().first.pen;
@@ -340,7 +346,8 @@ bool Descent::init(
     const EList<DescentConfig>& cs, // configs
     EHeap<TDescentPair>& heap,      // heap
     DescentAlignmentSink& alsink,   // alignment sink
-    DescentMetrics& met)            // metrics
+    DescentMetrics& met,            // metrics
+	PerReadMetrics& prm)            // per-read metrics
 {
 	assert(q.repOk());
     rid_ = rid;
@@ -388,6 +395,7 @@ bool Descent::init(
         heap,
         alsink,
         met,
+		prm,
         branches,
         hitEnd,
         done,
@@ -417,7 +425,8 @@ bool Descent::init(
             cs,
             heap,
             alsink,
-            met);
+            met,      // descent metrics
+			prm);     // per-read metrics
     }
 	if(matchSucc) {
 		// Calculate info about outgoing edges
@@ -450,7 +459,8 @@ bool Descent::init(
     const EList<DescentConfig>& cs, // configs
     EHeap<TDescentPair>& heap,      // heap
     DescentAlignmentSink& alsink,   // alignment sink
-    DescentMetrics& met)            // metrics
+    DescentMetrics& met,            // metrics
+	PerReadMetrics& prm)            // per-read metrics
 {
     rid_ = rid;
     al5pi_ = rs[rid].off5p;
@@ -484,6 +494,7 @@ bool Descent::init(
         heap,
         alsink,
         met,
+		prm,
         branches,
         hitEnd,
         done,
@@ -513,7 +524,8 @@ bool Descent::init(
             cs,
             heap,
             alsink,
-            met);
+            met,      // descent metrics
+			prm);     // per-read metrics
     }
     // Calculate info about outgoing edges
     assert(empty());
@@ -991,7 +1003,8 @@ bool Descent::bounce(
     const EList<DescentConfig>& cs, // configs
 	EHeap<TDescentPair>& heap,      // heap of descents
     DescentAlignmentSink& alsink,   // alignment sink
-    DescentMetrics& met)            // metrics
+    DescentMetrics& met,            // metrics
+	PerReadMetrics& prm)            // per-read metrics
 {
     assert_gt(botf, topf);
     assert(al5pi_ == 0 || al5pf_ == q.length()-1);
@@ -1028,7 +1041,8 @@ bool Descent::bounce(
         cs,        // DescentConfig list
 		heap,      // heap
         alsink,    // alignment sink
-		met);      // metrics
+		met,       // metrics
+		prm);      // per-read metrics
     if(!succ) {
         // Reclaim memory we had used for this descent and its DescentPos info
         df.resize(dfsz);
@@ -1059,7 +1073,8 @@ void Descent::followBestOutgoing(
     const EList<DescentConfig>& cs, // configs
 	EHeap<TDescentPair>& heap,      // heap of descents
     DescentAlignmentSink& alsink,   // alignment sink
-	DescentMetrics& met)            // metrics
+	DescentMetrics& met,            // metrics
+	PerReadMetrics& prm)            // per-read metrics
 {
 	// We assume this descent has been popped off the heap.  We'll re-add it if
 	// it hasn't been exhausted.
@@ -1229,7 +1244,8 @@ void Descent::followBestOutgoing(
 			cs,        // DescentConfig list
 			heap,      // heap
 			alsink,    // alignment sink
-			met);      // metrics
+			met,       // metrics
+			prm);      // per-read metrics
 		if(!succ) {
 			// Reclaim memory we had used for this descent and its DescentPos info
 			df.resize(dfsz);
@@ -1321,6 +1337,7 @@ bool Descent::followMatches(
 	EHeap<TDescentPair>& heap, // heap
     DescentAlignmentSink& alsink, // alignment sink
 	DescentMetrics& met,       // metrics
+	PerReadMetrics& prm,       // per-read metrics
     bool& branches,            // out: true -> there are > 0 ways to branch
     bool& hitEnd,              // out: true -> hit read end with non-empty range
     bool& done,                // out: true -> we made a full alignment
@@ -1620,6 +1637,7 @@ bool Descent::followMatches(
 			// we use a simpler query (see if(!bloc.valid()) blocks below)
 			met.bwops++;
 			met.bwops_bi++;
+			prm.nSdFmops++;
 			ebwt.mapBiLFEx(tloc, bloc, t, b, tp, bp);
 			// t, b, tp and bp now filled
 			ASSERT_ONLY(TIndexOff tot = (b[0]-t[0])+(b[1]-t[1])+(b[2]-t[2])+(b[3]-t[3]));
@@ -1642,6 +1660,7 @@ bool Descent::followMatches(
 			TIndexOff ntop = ltr ? topb : topf;
 			met.bwops++;
 			met.bwops_1++;
+			prm.nSdFmops++;
 			int cc = ebwt.mapLF1(ntop, tloc);
 			assert_range(-1, 3, cc);
             fail = (cc != rdc);
@@ -1828,6 +1847,7 @@ int main(int argc, char **argv) {
 			cerr << "Test " << (++testnum) << endl;
 			cerr << "  Query with length greater than ftab" << endl;
 			DescentMetrics mets;
+			PerReadMetrics prm;
 			DescentDriver dr;
 			
 			// Set up the read
@@ -1854,7 +1874,7 @@ int main(int argc, char **argv) {
 			
 			// Do the search
 			Scoring sc = Scoring::base1();
-			dr.go(sc, *ebwts.first, *ebwts.second, mets);
+			dr.go(sc, *ebwts.first, *ebwts.second, mets, prm);
 			
 			// Confirm that an exact-matching alignment was found
 			assert_eq(1, dr.sink().nrange());
@@ -1867,6 +1887,7 @@ int main(int argc, char **argv) {
 		cerr << "Test " << (++testnum) << endl;
 		cerr << "  Query with length equal to ftab" << endl;
         DescentMetrics mets;
+		PerReadMetrics prm;
         DescentDriver dr;
         
         // Set up the read
@@ -1889,7 +1910,7 @@ int main(int argc, char **argv) {
         
         // Do the search
         Scoring sc = Scoring::base1();
-        dr.go(sc, *ebwts.first, *ebwts.second, mets);
+        dr.go(sc, *ebwts.first, *ebwts.second, mets, prm);
 		
 		// Confirm that an exact-matching alignment was found
 		assert_eq(1, dr.sink().nrange());
@@ -1901,6 +1922,7 @@ int main(int argc, char **argv) {
 		cerr << "Test " << (++testnum) << endl;
 		cerr << "  Query with length less than ftab" << endl;
         DescentMetrics mets;
+		PerReadMetrics prm;
         DescentDriver dr;
         
         // Set up the read
@@ -1923,7 +1945,7 @@ int main(int argc, char **argv) {
         
         // Do the search
         Scoring sc = Scoring::base1();
-        dr.go(sc, *ebwts.first, *ebwts.second, mets);
+        dr.go(sc, *ebwts.first, *ebwts.second, mets, prm);
 		
 		// Confirm that an exact-matching alignment was found
 		assert_eq(1, dr.sink().nrange());
@@ -1935,6 +1957,7 @@ int main(int argc, char **argv) {
 		cerr << "Test " << (++testnum) << endl;
 		cerr << "  Search root in middle of read" << endl;
         DescentMetrics mets;
+		PerReadMetrics prm;
         DescentDriver dr;
         
         // Set up the read
@@ -1962,7 +1985,7 @@ int main(int argc, char **argv) {
         
         // Do the search
         Scoring sc = Scoring::base1();
-        dr.go(sc, *ebwts.first, *ebwts.second, mets);
+        dr.go(sc, *ebwts.first, *ebwts.second, mets, prm);
 		
 		// Confirm that an exact-matching alignment was found
 		assert_eq(1, dr.sink().nrange());
@@ -2011,6 +2034,7 @@ int main(int argc, char **argv) {
 				cerr << "Test " << (++testnum) << endl;
 				cerr << "  Query with length greater than ftab and matches exactly once" << endl;
 				DescentMetrics mets;
+				PerReadMetrics prm;
 				DescentDriver dr;
 				
 				// Set up the read
@@ -2031,7 +2055,7 @@ int main(int argc, char **argv) {
 				
 				// Do the search
 				Scoring sc = Scoring::base1();
-				dr.go(sc, *ebwts.first, *ebwts.second, mets);
+				dr.go(sc, *ebwts.first, *ebwts.second, mets, prm);
 				
 				// Confirm that an exact-matching alignment was found
 				assert_eq(1, dr.sink().nrange());
@@ -2054,6 +2078,7 @@ int main(int argc, char **argv) {
 				cerr << "Test " << (++testnum) << endl;
 				cerr << "  Query with length greater than ftab and reverse complement matches exactly once" << endl;
 				DescentMetrics mets;
+				PerReadMetrics prm;
 				DescentDriver dr;
 				
 				// Set up the read
@@ -2080,7 +2105,7 @@ int main(int argc, char **argv) {
 				
 				// Do the search
 				Scoring sc = Scoring::base1();
-				dr.go(sc, *ebwts.first, *ebwts.second, mets);
+				dr.go(sc, *ebwts.first, *ebwts.second, mets, prm);
 				
 				// Confirm that an exact-matching alignment was found
 				assert_eq(1, dr.sink().nrange());
@@ -2133,6 +2158,7 @@ int main(int argc, char **argv) {
 					cerr << "Test " << (++testnum) << endl;
 					cerr << "  Query with length greater than ftab and matches exactly once with 1mm" << endl;
 					DescentMetrics mets;
+					PerReadMetrics prm;
 					DescentDriver dr;
 					
 					dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
@@ -2153,7 +2179,7 @@ int main(int argc, char **argv) {
 					
 					// Do the search
 					Scoring sc = Scoring::base1();
-					dr.go(sc, *ebwts.first, *ebwts.second, mets);
+					dr.go(sc, *ebwts.first, *ebwts.second, mets, prm);
 					
 					// Confirm that an exact-matching alignment was found
 					assert_eq(1, dr.sink().nrange());
@@ -2206,6 +2232,7 @@ int main(int argc, char **argv) {
 					cerr << "Test " << (++testnum) << endl;
 					cerr << "  Query with length greater than ftab and matches exactly once with 1mm" << endl;
 					DescentMetrics mets;
+					PerReadMetrics prm;
 					DescentDriver dr;
 					
 					dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
@@ -2226,7 +2253,7 @@ int main(int argc, char **argv) {
 					
 					// Do the search
 					Scoring sc = Scoring::base1();
-					dr.go(sc, *ebwts.first, *ebwts.second, mets);
+					dr.go(sc, *ebwts.first, *ebwts.second, mets, prm);
 					
 					// Confirm that an exact-matching alignment was found
 					assert_eq(1, dr.sink().nrange());
@@ -2268,6 +2295,7 @@ int main(int argc, char **argv) {
 				cerr << "  Query with a bunch of Ns" << endl;
 				
 				DescentMetrics mets;
+				PerReadMetrics prm;
 				DescentDriver dr;
 				
 				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
@@ -2293,7 +2321,7 @@ int main(int argc, char **argv) {
 				
 				// Do the search
 				Scoring sc = Scoring::base1();
-				dr.go(sc, *ebwts.first, *ebwts.second, mets);
+				dr.go(sc, *ebwts.first, *ebwts.second, mets, prm);
 			}
 		}
     }
@@ -2322,6 +2350,7 @@ int main(int argc, char **argv) {
 				cerr << "Test " << (++testnum) << endl;
 				cerr << "  Query with length greater than ftab and matches exactly once with 1mm.  Many search roots." << endl;
 				DescentMetrics mets;
+				PerReadMetrics prm;
 				DescentDriver dr;
 				
 				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
@@ -2378,7 +2407,7 @@ int main(int argc, char **argv) {
 				
 				// Do the search
 				Scoring sc = Scoring::base1();
-				dr.go(sc, *ebwts.first, *ebwts.second, mets);
+				dr.go(sc, *ebwts.first, *ebwts.second, mets, prm);
 				
 				// Confirm that an exact-matching alignment was found
 				assert_eq(1, dr.sink().nrange());
@@ -2437,6 +2466,7 @@ int main(int argc, char **argv) {
 				cerr << "Test " << (++testnum) << endl;
 				cerr << "  Query matches once with a read gap of length 1" << endl;
 				DescentMetrics mets;
+				PerReadMetrics prm;
 				DescentDriver dr;
 				
 				Read q("test", seq.toZBuf(), qual.toZBuf());
@@ -2459,7 +2489,7 @@ int main(int argc, char **argv) {
 				
 				// Do the search
 				Scoring sc = Scoring::base1();
-				dr.go(sc, *ebwts.first, *ebwts.second, mets);
+				dr.go(sc, *ebwts.first, *ebwts.second, mets, prm);
 				
 				// Confirm that an exact-matching alignment was found
 				assert_eq(1, dr.sink().nrange());
@@ -2517,6 +2547,7 @@ int main(int argc, char **argv) {
 				cerr << "Test " << (++testnum) << endl;
 				cerr << "  Query matches once with a read gap of length 3" << endl;
 				DescentMetrics mets;
+				PerReadMetrics prm;
 				DescentDriver dr;
 				
 				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
@@ -2540,7 +2571,7 @@ int main(int argc, char **argv) {
 				// Need to adjust the mismatch penalty up to avoid alignments
 				// with lots of mismatches.
 				sc.setMmPen(COST_MODEL_CONSTANT, 6, 6);
-				dr.go(sc, *ebwts.first, *ebwts.second, mets);
+				dr.go(sc, *ebwts.first, *ebwts.second, mets, prm);
 				
 				// Confirm that an exact-matching alignment was found
 				assert_eq(1, dr.sink().nrange());
@@ -2587,6 +2618,7 @@ int main(int argc, char **argv) {
 				cerr << "Test " << (++testnum) << endl;
 				cerr << "  Query matches once with a reference gap of length 1" << endl;
 				DescentMetrics mets;
+				PerReadMetrics prm;
 				DescentDriver dr;
 				
 				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
@@ -2610,7 +2642,7 @@ int main(int argc, char **argv) {
 				// Need to adjust the mismatch penalty up to avoid alignments
 				// with lots of mismatches.
 				sc.setMmPen(COST_MODEL_CONSTANT, 6, 6);
-				dr.go(sc, *ebwts.first, *ebwts.second, mets);
+				dr.go(sc, *ebwts.first, *ebwts.second, mets, prm);
 				
 				// Confirm that an exact-matching alignment was found
 				assert_eq(1, dr.sink().nrange());
@@ -2663,6 +2695,7 @@ int main(int argc, char **argv) {
 				cerr << "Test " << (++testnum) << endl;
 				cerr << "  Query matches once with a reference gap of length 1" << endl;
 				DescentMetrics mets;
+				PerReadMetrics prm;
 				DescentDriver dr;
 				
 				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
@@ -2686,7 +2719,7 @@ int main(int argc, char **argv) {
 				// Need to adjust the mismatch penalty up to avoid alignments
 				// with lots of mismatches.
 				sc.setMmPen(COST_MODEL_CONSTANT, 6, 6);
-				dr.go(sc, *ebwts.first, *ebwts.second, mets);
+				dr.go(sc, *ebwts.first, *ebwts.second, mets, prm);
 				
 				// Confirm that an exact-matching alignment was found
 				assert_eq(1, dr.sink().nrange());
@@ -2740,6 +2773,7 @@ int main(int argc, char **argv) {
 				cerr << "Test " << (++testnum) << endl;
 				cerr << "  Query matches once with a read gap of length 1" << endl;
 				DescentMetrics mets;
+				PerReadMetrics prm;
 				DescentDriver dr;
 				
 				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -50, 50);
@@ -2760,7 +2794,7 @@ int main(int argc, char **argv) {
 				
 				// Do the search
 				Scoring sc = Scoring::base1();
-				dr.go(sc, *ebwts.first, *ebwts.second, mets);
+				dr.go(sc, *ebwts.first, *ebwts.second, mets, prm);
 				
 				// Confirm that an exact-matching alignment was found
 				assert_eq(1, dr.sink().nrange());
@@ -2854,6 +2888,7 @@ int main(int argc, char **argv) {
 				cerr << "Test " << (++testnum) << endl;
 				cerr << "  Query matches once with a read gap of length 1" << endl;
 				DescentMetrics mets;
+				PerReadMetrics prm;
 				DescentDriver dr;
 				
 				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -50, 50);
@@ -2874,7 +2909,7 @@ int main(int argc, char **argv) {
 				
 				// Do the search
 				Scoring sc = Scoring::base1();
-				dr.go(sc, *ebwts.first, *ebwts.second, mets);
+				dr.go(sc, *ebwts.first, *ebwts.second, mets, prm);
 				
 				// Confirm that an exact-matching alignment was found
 				assert_eq(5, dr.sink().nrange());
@@ -2935,6 +2970,7 @@ int main(int argc, char **argv) {
 				cerr << "Test " << (++testnum) << endl;
 				cerr << "  Query matches with various patterns of gaps, mismatches and Ns" << endl;
 				DescentMetrics mets;
+				PerReadMetrics prm;
 				DescentDriver dr;
 				
 				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -50, 50);
@@ -2956,7 +2992,7 @@ int main(int argc, char **argv) {
 				// Do the search
 				Scoring sc = Scoring::base1();
 				sc.setNPen(COST_MODEL_CONSTANT, 1);
-				dr.go(sc, *ebwts.first, *ebwts.second, mets);
+				dr.go(sc, *ebwts.first, *ebwts.second, mets, prm);
 				
 				// Confirm that an exact-matching alignment was found
 				assert_eq(5, dr.sink().nrange());

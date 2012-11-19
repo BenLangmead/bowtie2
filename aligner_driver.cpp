@@ -107,11 +107,11 @@ int AlignerDriver::go(
 		stopc2.totsz = totszIncr;
 		while(stopc1.totsz <= stop_.totsz && stopc2.totsz <= stop_.totsz) {
 			if(first && first1 && stopc1.totsz <= stop_.totsz) {
-				dr1_.advance(stop_, sc, ebwtFw, ebwtBw, met);
+				dr1_.advance(stop_, sc, ebwtFw, ebwtBw, met, prm);
 				stopc1.totsz += totszIncr;
 			}
 			if(stopc2.totsz <= stop_.totsz) {
-				dr2_.advance(stop_, sc, ebwtFw, ebwtBw, met);
+				dr2_.advance(stop_, sc, ebwtFw, ebwtBw, met, prm);
 				stopc2.totsz += totszIncr;
 			}
 			first = false;
@@ -120,7 +120,7 @@ int AlignerDriver::go(
 		// Unpaired
 		size_t iter = 1;
 		while(true) {
-			int ret = dr1_.advance(stop_, sc, ebwtFw, ebwtBw, met);
+			int ret = dr1_.advance(stop_, sc, ebwtFw, ebwtBw, met, prm);
 			if(ret == DESCENT_DRIVER_ALN) {
 				//cerr << iter << ". DESCENT_DRIVER_ALN" << endl;
 			} else if(ret == DESCENT_DRIVER_MEM) {
