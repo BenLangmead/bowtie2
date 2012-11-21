@@ -441,6 +441,7 @@ struct PerReadMetrics {
 		nUgFail = nUgFailStreak = nUgLastSucc =
 		nEeFail = nEeFailStreak = nEeLastSucc =
 		nFilt = 0;
+		nFtabs = 0;
 		doFmString = false;
 		fmString.reset();
 	}
@@ -475,6 +476,8 @@ struct PerReadMetrics {
 	uint64_t nEeFmops;      // FM Index ops for end-to-end alignment
 	uint64_t nSdFmops;      // FM Index ops used to align seeds
 	uint64_t nExFmops;      // FM Index ops used to resolve offsets
+	
+	uint64_t nFtabs;        // # ftab lookups
 	
 	uint64_t nDpFail;       // number of dp failures in a row up until now
 	uint64_t nDpFailStreak; // longest streak of dp failures
