@@ -222,30 +222,11 @@ bool DescentAlignmentSink::reportAlignment(
 	size_t len = q.length();
 	assert(q.repOk());
 	assert_lt(desc.al5pf(), len);
-	size_t al5pi = desc.al5pi(), al5pf = desc.al5pf();
-	size_t l, r;
 	// Adjust al5pi and al5pf to take the final edit into account (if
 	// there is one)
-	bool toward3p = (desc.l2r() == fw);
-	if(e.inited()) {
-		if(toward3p) {
-			assert_lt(al5pf, len-1);
-			al5pf++;
-		} else {
-			assert_gt(al5pi, 0);
-			al5pi--;
-		}
-	}
-	if(fw) {
-		l = al5pi;
-		r = al5pf + 1;
-	} else {
-		l = len - al5pf - 1;
-		r = len - al5pi;
-	}
 	// Check if this is redundant with a previous reported alignment
-	Triple<TIndexOff, TIndexOff, size_t> lhs(topf, botf, l);
-	Triple<TIndexOff, TIndexOff, size_t> rhs(topb, botb, r);
+	Triple<TIndexOff, TIndexOff, size_t> lhs(topf, botf, 0);
+	Triple<TIndexOff, TIndexOff, size_t> rhs(topb, botb, q.length()-1);
 	if(!lhs_.insert(lhs)) {
 		rhs_.insert(rhs);
 		return false; // Already there
@@ -253,7 +234,6 @@ bool DescentAlignmentSink::reportAlignment(
 	if(!rhs_.insert(rhs)) {
 		return false; // Already there
 	}
-	//std::cerr << "Found an alignment with total penalty = " << pen << std::endl;
 	// Take just the portion of the read that has aligned up until this
 	// point
 	size_t nuninited = 0;
@@ -277,10 +257,13 @@ bool DescentAlignmentSink::reportAlignment(
 	edits_.sortPortion(ei, en);
 #ifndef NDEBUG
 	{
+		for(size_t i = 1; i < en; i++) {
+			assert_geq(edits_[ei+i].pos, edits_[ei+i-1].pos);
+		}
 		// Now figure out how much we refrained from aligning on either
 		// side.
-		size_t trimLf = fw ? al5pi : (len - al5pf - 1);
-		size_t trimRg = fw ? (len - al5pf - 1) : al5pi;
+		size_t trimLf = 0;
+		size_t trimRg = 0;
 		BTDnaString& rf = tmprfdnastr_;
 		rf.clear();
 		if(!fw) {
@@ -293,7 +276,6 @@ bool DescentAlignmentSink::reportAlignment(
 			// Invert them back to how they were before
 			Edit::invertPoss(edits_, len, ei, en, false);
 		}
-		//std::cerr << std::endl;
 		ASSERT_ONLY(uint32_t toptmp = 0);
 		ASSERT_ONLY(uint32_t bottmp = 0);
 		// Check that the edited string occurs in the reference
@@ -715,6 +697,7 @@ size_t Descent::recalcOutgoing(
 							// by 1.
 							uint32_t off = (uint32_t)off5p + (toward3p ? 0 : 1);
 							Edit edit(off, (int)("ACGTN"[j]), '-', EDIT_TYPE_READ_GAP);
+							assert(edit.pos2 != std::numeric_limits<uint32_t>::max());
 							edit.pos2 = edit_.pos2 + (toward3p ? 1 : -1);
 							DescentPriority pri(pen_ + pen_rdg_ex, depth, width, rootpri);
                             assert(topf != 0 || botf != 0);
@@ -790,6 +773,7 @@ size_t Descent::recalcOutgoing(
 						// by 1.
 						uint32_t off = (uint32_t)off5p + (toward3p ? 0 : 1);
 						Edit edit(off, (int)("ACGTN"[j]), '-', EDIT_TYPE_READ_GAP);
+						assert(edit.pos2 != std::numeric_limits<uint32_t>::max());
 						DescentPriority pri(pen_ + pen_rdg_op, depth, width, rootpri);
                         assert(topf != 0 || botf != 0);
                         assert(topb != 0 || botb != 0);
@@ -1145,11 +1129,6 @@ void Descent::followBestOutgoing(
 			assert_leq(doff, len_);
 		}
 		// Check if this is redundant with an already-explored path
-		// TODO: This *can't* be right, because it prevents us from trying 2
-		// different outgoing mismatch edges from the same descent
-		//if(!re.check(al5pi_new, al5pf_new, topf_, botf_, topb_, botb_, best.pen)) {
-		//	continue; // try again
-		//}
 		bool l2r = l2r_; // gets overridden if we bounce
 		if(!done && hitEnd) {
 			// Alignment finsihed extending in one direction
