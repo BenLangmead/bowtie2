@@ -379,22 +379,31 @@ struct DescentConfig {
     int expol; // extend policy
 };
 
+/**
+ * Encapsulates the state of a Descent that allows us to determine whether it
+ * is redundant with another Descent.  Two Descents are redundant if:
+ *
+ * 1. Both are aligning the same read orientation (fw or rc)
+ * 2. Both are growing the alignment in the same direction (left-to-right or
+ *    right-to-left)
+ * 3. They have aligned exactly the same read characters (which are always
+ *    consecutive in the read)
+ * 4. The corresponding reference strings are identical
+ */
 struct DescentRedundancyKey {
 
 	DescentRedundancyKey() { reset(); }
 	
 	DescentRedundancyKey(
-	    bool      fw_,
 		TReadOff  al5pf_,
 		size_t    rflen_,
 		TIndexOff topf_,
 		TIndexOff botf_)
 	{
-		init(fw_, al5pf_, rflen_, topf_, botf_);
+		init(al5pf_, rflen_, topf_, botf_);
 	}
 
 	void reset() {
-		fw = false;
 		al5pf = 0;
 		rflen = 0;
 		topf = botf = 0;
@@ -403,13 +412,11 @@ struct DescentRedundancyKey {
 	bool inited() const { return rflen > 0; }
 
 	void init(
-	    bool      fw_,
 		TReadOff  al5pf_,
 		size_t    rflen_,
 		TIndexOff topf_,
 		TIndexOff botf_)
 	{
-		fw = fw_;
 		al5pf = al5pf_;
 		rflen = rflen_;
 		topf = topf_;
@@ -417,13 +424,10 @@ struct DescentRedundancyKey {
 	}
 	
 	bool operator==(const DescentRedundancyKey& o) const {
-		return fw == o.fw && /*al5pi == o.al5pi &&*/ al5pf == o.al5pf &&
-		       rflen == o.rflen && topf == o.topf && botf == o.botf;
+		return al5pf == o.al5pf && rflen == o.rflen && topf == o.topf && botf == o.botf;
 	}
 
 	bool operator<(const DescentRedundancyKey& o) const {
-		if(!fw && o.fw) return true;
-		if(fw && !o.fw) return false;
 		if(al5pf < o.al5pf) return true;
 		if(al5pf > o.al5pf) return false;
 		if(rflen < o.rflen) return true;
@@ -433,7 +437,6 @@ struct DescentRedundancyKey {
 		return botf < o.botf;
 	}
 
-	bool fw;        // from fw read
 	TReadOff al5pf; // 3'-most aligned char, as offset from 5' end
 	size_t rflen;   // number of reference characters involved in alignment
 	TIndexOff topf; // top w/r/t forward index
@@ -455,7 +458,10 @@ public:
 	 * Reset to uninitialized state.
 	 */
 	void reset() {
-		maplist_.clear();
+		maplist_fl_.clear();
+		maplist_fr_.clear();
+		maplist_rl_.clear();
+		maplist_rr_.clear();
 		inited_ = false;
 		totsz_ = 0;  // total size
 		totcap_ = 0; // total capacity
@@ -466,12 +472,27 @@ public:
 	 */
 	void init(TReadOff rdlen) {
 		reset();
-		maplist_.resize(rdlen);
-		totsz_ = maplist_.totalSizeBytes();
-		totcap_ = maplist_.totalCapacityBytes();
+		maplist_fl_.resize(rdlen);
+		maplist_fr_.resize(rdlen);
+		maplist_rl_.resize(rdlen);
+		maplist_rr_.resize(rdlen);
+		totsz_ =  maplist_fl_.totalSizeBytes() +
+		          maplist_fr_.totalSizeBytes() +
+		          maplist_rl_.totalSizeBytes() +
+		          maplist_rr_.totalSizeBytes();
+		totcap_ = maplist_fl_.totalCapacityBytes() +
+		          maplist_fr_.totalCapacityBytes() +
+		          maplist_rl_.totalCapacityBytes() +
+		          maplist_rr_.totalCapacityBytes();
 		for(size_t i = 0; i < rdlen; i++) {
-			maplist_[i].clear();
-			totcap_ += maplist_[i].totalCapacityBytes();
+			maplist_fl_[i].clear();
+			maplist_fr_[i].clear();
+			maplist_rl_[i].clear();
+			maplist_rr_[i].clear();
+			totcap_ += maplist_fl_[i].totalCapacityBytes();
+			totcap_ += maplist_fr_[i].totalCapacityBytes();
+			totcap_ += maplist_rl_[i].totalCapacityBytes();
+			totcap_ += maplist_rr_[i].totalCapacityBytes();
 		}
 		inited_ = true;
 	}
@@ -486,14 +507,10 @@ public:
 	/**
 	 * Check if this partial alignment is redundant with one that we've already
 	 * explored.
-	 *
-	 * TODO: There might be situations where we can eliminate a redundant path
-	 * even though its SA range doesn't exactly match one seen already.  E.g.
-	 * if it's contained within an SA range seen already, and matches the same
-	 * read characters.
 	 */
 	bool check(
 		bool fw,
+		bool l2r,
 		TReadOff al5pi,
 		TReadOff al5pf,
 		size_t rflen,
@@ -502,21 +519,23 @@ public:
 		TScore pen)
 	{
 		assert(inited_);
-		assert_lt(al5pi, maplist_.size());
 		assert(topf > 0 || botf > 0);
-		DescentRedundancyKey k(fw, al5pf, rflen, topf, botf);
+		DescentRedundancyKey k(al5pf, rflen, topf, botf);
 		size_t i = std::numeric_limits<size_t>::max();
-		if(maplist_[al5pi].containsEx(k, i)) {
+		EList<EMap<DescentRedundancyKey, TScore> >& maplist =
+			(fw ? (l2r ? maplist_fl_ : maplist_fr_) : (l2r ? maplist_rl_ : maplist_rr_));
+		assert_lt(al5pi, maplist.size());
+		if(maplist[al5pi].containsEx(k, i)) {
 			// Already contains the key
-			assert_lt(i, maplist_[al5pi].size());
-			assert_geq(pen, maplist_[al5pi][i].second);
+			assert_lt(i, maplist[al5pi].size());
+			assert_geq(pen, maplist[al5pi][i].second);
 			return false;
 		}
-		size_t oldsz = maplist_[al5pi].totalSizeBytes();
-		size_t oldcap = maplist_[al5pi].totalCapacityBytes();
-		maplist_[al5pi].insert(make_pair(k, pen));
-		totsz_ += (maplist_[al5pi].totalSizeBytes() - oldsz);
-		totcap_ += (maplist_[al5pi].totalCapacityBytes() - oldcap);
+		size_t oldsz = maplist[al5pi].totalSizeBytes();
+		size_t oldcap = maplist[al5pi].totalCapacityBytes();
+		maplist[al5pi].insert(make_pair(k, pen));
+		totsz_ += (maplist[al5pi].totalSizeBytes() - oldsz);
+		totcap_ += (maplist[al5pi].totalCapacityBytes() - oldcap);
 		return true;
 	}
 
@@ -526,6 +545,7 @@ public:
 	 */
 	bool contains(
 		bool fw,
+		bool l2r,
 		TReadOff al5pi,
 		TReadOff al5pf,
 		size_t rflen,
@@ -534,9 +554,11 @@ public:
 		TScore pen)
 	{
 		assert(inited_);
-		assert_lt(al5pi, maplist_.size());
-		DescentRedundancyKey k(fw, al5pf, rflen, topf, botf);
-		return maplist_[al5pi].contains(k);
+		DescentRedundancyKey k(al5pf, rflen, topf, botf);
+		EList<EMap<DescentRedundancyKey, TScore> >& maplist =
+			(fw ? (l2r ? maplist_fl_ : maplist_fr_) : (l2r ? maplist_rl_ : maplist_rr_));
+		assert_lt(al5pi, maplist.size());
+		return maplist[al5pi].contains(k);
 	}
 	
 	/**
@@ -561,7 +583,10 @@ protected:
 	
 	// List of maps.  Each entry is a map for all the DescentRedundancyKeys
 	// with al5pi equal to the offset into the list.
-	EList<EMap<DescentRedundancyKey, TScore> > maplist_;
+	EList<EMap<DescentRedundancyKey, TScore> > maplist_fl_; //  fw,  l2r
+	EList<EMap<DescentRedundancyKey, TScore> > maplist_rl_; // !fw,  l2r
+	EList<EMap<DescentRedundancyKey, TScore> > maplist_fr_; //  fw, !l2r
+	EList<EMap<DescentRedundancyKey, TScore> > maplist_rr_; // !fw, !l2r
 };
 
 /**
