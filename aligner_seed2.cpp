@@ -1638,6 +1638,9 @@ bool Descent::followMatches(
 			met.bwops++;
 			met.bwops_bi++;
 			prm.nSdFmops++;
+			if(prm.doFmString) {
+				prm.fmString.add(false, pen_, 1);
+			}
 			ebwt.mapBiLFEx(tloc, bloc, t, b, tp, bp);
 			// t, b, tp and bp now filled
 			ASSERT_ONLY(TIndexOff tot = (b[0]-t[0])+(b[1]-t[1])+(b[2]-t[2])+(b[3]-t[3]));
@@ -1661,6 +1664,9 @@ bool Descent::followMatches(
 			met.bwops++;
 			met.bwops_1++;
 			prm.nSdFmops++;
+			if(prm.doFmString) {
+				prm.fmString.add(false, pen_, 1);
+			}
 			int cc = ebwt.mapLF1(ntop, tloc);
 			assert_range(-1, 3, cc);
             fail = (cc != rdc);

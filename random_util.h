@@ -176,16 +176,34 @@ public:
 	 */
 	size_t left() const { return n_ - cur_; }
 
+	/**
+	 * Return the total size occupued by the Descent driver and all its
+	 * constituent parts.
+	 */
+	size_t totalSizeBytes() const {
+		return list_.totalSizeBytes() +
+		       seen_.totalSizeBytes();
+	}
+
+	/**
+	 * Return the total capacity of the Descent driver and all its constituent
+	 * parts.
+	 */
+	size_t totalCapacityBytes() const {
+		return list_.totalCapacityBytes() +
+		       seen_.totalCapacityBytes();
+	}
+
 protected:
 
-	size_t          sz_;        // domain to pick elts from
-	size_t          n_;         // number of elements in active list
-	bool            swaplist_;  // if small, use swapping
-	bool            converted_; // true iff seen-list was converted to swap-list
-	size_t          cur_;       // # times next() was called
-	EList<T> list_;             // pseudo-random swapping list
-	EList<T> seen_;             // prior to swaplist_ mode, list of
-	                            // pseudo-randoms given out
+	size_t   sz_;        // domain to pick elts from
+	size_t   n_;         // number of elements in active list
+	bool     swaplist_;  // if small, use swapping
+	bool     converted_; // true iff seen-list was converted to swap-list
+	size_t   cur_;       // # times next() was called
+	EList<T> list_;      // pseudo-random swapping list
+	EList<T> seen_;      // prior to swaplist_ mode, list of
+	                     // pseudo-randoms given out
 };
 
 #endif

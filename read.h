@@ -25,9 +25,11 @@
 #include "ds.h"
 #include "sstring.h"
 #include "filebuf.h"
+#include "util.h"
 
 typedef uint64_t TReadId;
 typedef size_t TReadOff;
+typedef int64_t TAlScore;
 
 class HitSet;
 
@@ -353,6 +355,71 @@ struct Read {
 };
 
 /**
+ * A string of FmStringOps represent a string of tasks performed by the
+ * best-first alignment search.  We model the search as a series of FM ops
+ * interspersed with reported alignments.
+ */
+struct FmStringOp {
+	bool alignment;  // true -> found an alignment
+	TAlScore pen;    // penalty of the FM op or alignment
+	size_t n;        // number of FM ops (only relevant for non-alignment)
+};
+
+/**
+ * A string that summarizes the progress of an FM-index-assistet best-first
+ * search.  Useful for trying to figure out what the aligner is spending its
+ * time doing for a given read.
+ */
+struct FmString {
+
+	/**
+	 * Add one or more FM index ops to the op string
+	 */
+	void add(bool alignment, TAlScore pen, size_t nops) {
+		if(ops.empty() || ops.back().pen != pen) {
+			ops.expand();
+			ops.back().alignment = alignment;
+			ops.back().pen = pen;
+			ops.back().n = 0;
+		}
+		ops.back().n++;
+	}
+	
+	/**
+	 * Reset FmString to uninitialized state.
+	 */
+	void reset() {
+		pen = std::numeric_limits<TAlScore>::max();
+		ops.clear();
+	}
+
+	/**
+	 * Print a :Z optional field where certain characters (whitespace, colon
+	 * and percent) are escaped using % escapes.
+	 */
+	void print(BTString& o, char *buf) const {
+		for(size_t i = 0; i < ops.size(); i++) {
+			if(i > 0) {
+				o.append(';');
+			}
+			if(ops[i].alignment) {
+				o.append("A,");
+				itoa10(ops[i].pen, buf);
+				o.append(buf);
+			} else {
+				o.append("F,");
+				itoa10(ops[i].pen, buf); o.append(buf);
+				o.append(',');
+				itoa10(ops[i].n, buf); o.append(buf);
+			}
+		}
+	}
+
+	TAlScore pen;          // current penalty
+	EList<FmStringOp> ops; // op string
+};
+
+/**
  * Key per-read metrics.  These are used for thresholds, allowing us to bail
  * for unproductive reads.  They also the basis of what's printed when the user
  * specifies --read-times.
@@ -374,6 +441,8 @@ struct PerReadMetrics {
 		nUgFail = nUgFailStreak = nUgLastSucc =
 		nEeFail = nEeFailStreak = nEeLastSucc =
 		nFilt = 0;
+		doFmString = false;
+		fmString.reset();
 	}
 
 	struct timeval  tv_beg; // timer start to measure how long alignment takes
@@ -420,6 +489,10 @@ struct PerReadMetrics {
 	uint64_t nEeLastSucc;   // index of last ungap attempt that succeeded
 	
 	uint64_t nFilt;         // # mates filtered
+	
+	// For collecting information to go into an FM string
+	bool doFmString;
+	FmString fmString;
 };
 
 #endif /*READ_H_*/
