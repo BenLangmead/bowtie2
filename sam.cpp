@@ -405,6 +405,12 @@ void SamConfig::printAlignedOptFlags(
 		o.append("Zf:i:");
 		o.append(buf);
 	}
+	if(print_zm_) {
+		// ZM:Z: Print FM index op string for best-first search
+		WRITE_SEP();
+		o.append("ZM:Z:");
+		prm.fmString.print(o, buf);
+	}
 	if(print_zi_) {
 		// ZI:i: Seed extend loop iterations
 		WRITE_SEP();
@@ -561,6 +567,12 @@ void SamConfig::printEmptyOptFlags(
 		itoa10<uint64_t>(prm.nExFmops, buf);
 		o.append("Zf:i:");
 		o.append(buf);
+	}
+	if(print_zm_) {
+		// ZM:Z: Print FM index op string for best-first search
+		WRITE_SEP();
+		prm.fmString.print(o, buf);
+		o.append("ZM:Z:");
 	}
 	if(print_zi_) {
 		// ZI:i: Seed extend loop iterations

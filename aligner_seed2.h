@@ -2046,6 +2046,28 @@ public:
 		return rnd_.done();
 	}
 
+	/**
+	 * Return the total size occupued by the Descent driver and all its
+	 * constituent parts.
+	 */
+	size_t totalSizeBytes() const {
+		return rnd_.totalSizeBytes() +
+		       offs_.totalSizeBytes() +
+			   sas_.totalSizeBytes() +
+			   gws_.totalSizeBytes();
+	}
+
+	/**
+	 * Return the total capacity of the Descent driver and all its constituent
+	 * parts.
+	 */
+	size_t totalCapacityBytes() const {
+		return rnd_.totalCapacityBytes() +
+		       offs_.totalCapacityBytes() +
+			   sas_.totalCapacityBytes() +
+			   gws_.totalCapacityBytes();
+	}
+	
 protected:
 
 	Random1toN rnd_;

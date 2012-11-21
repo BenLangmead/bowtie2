@@ -95,6 +95,7 @@ public:
 		bool print_yu, // index of last succeeded DP
 		bool print_yr, // # redundant seed hits
 		bool print_zf, // # FM Index ops
+		bool print_zm, // FM Index op string for best-first search
 		bool print_zi, // # seed extend loop iters
 		bool print_zp,
 		bool print_zu) :
@@ -136,6 +137,7 @@ public:
 		print_yu_(print_yu), // index of last succeeded DP
 		print_yr_(print_yr), // index of last succeeded DP
 		print_zf_(print_zf), // # FM Index ops
+		print_zm_(print_zm), // FM Index op string for best-first search
 		print_zi_(print_zi), // # seed extend loop iters
 		print_zp_(print_zp), // # seed extend loop iters
 		print_zu_(print_zu)  // # seed extend loop iters
@@ -336,6 +338,7 @@ protected:
 	bool print_yu_; // YU:i: index of last succeeded DP
 	bool print_yr_; // YR:i: # redundant seed hits
 	bool print_zf_; // ZF:i: # FM Index ops
+	bool print_zm_; // ZM:i: FM ops string for best-first search
 	bool print_zi_; // ZI:i: # extend loop iters
 	bool print_zp_; // ZP:i: Score of best/second-best paired-end alignment
 	bool print_zu_; // ZU:i: Score of best/second-best unpaired alignment

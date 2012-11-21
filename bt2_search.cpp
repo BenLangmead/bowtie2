@@ -149,6 +149,7 @@ static bool sam_print_ye;
 static bool sam_print_yu;
 static bool sam_print_yr;
 static bool sam_print_zf;
+static bool sam_print_zm;
 static bool sam_print_zi;
 static bool sam_print_zp;
 static bool sam_print_zu;
@@ -328,6 +329,7 @@ static void resetOptions() {
 	sam_print_yu            = false;
 	sam_print_yr            = false;
 	sam_print_zf            = false;
+	sam_print_zm            = false;
 	sam_print_zi            = false;
 	sam_print_zp            = false;
 	sam_print_zu            = false;
@@ -1172,6 +1174,7 @@ static void parseOption(int next_option, const char *arg) {
 			sam_print_yu = true;
 			sam_print_yr = true;
 			sam_print_zf = true;
+			sam_print_zm = true;
 			sam_print_zi = true;
 			break;
 		}
@@ -2880,6 +2883,7 @@ static void* multiseedSearchWorker(void *vp) {
 				}
 			}
 			prm.reset(); // per-read metrics
+			prm.doFmString = false;
 			if(sam_print_xt) {
 				gettimeofday(&prm.tv_beg, &prm.tz_beg);
 			}
@@ -3911,6 +3915,7 @@ static void* multiseedSearchWorker_2p5(void *vp) {
 				}
 			}
 			prm.reset(); // per-read metrics
+			prm.doFmString = sam_print_zm;
 			// If we're reporting how long each read takes, get the initial time
 			// measurement here
 			if(sam_print_xt) {
@@ -4393,6 +4398,7 @@ static void driver(
 			sam_print_yu,
 			sam_print_yr,
 			sam_print_zf,
+			sam_print_zm,
 			sam_print_zi,
 			sam_print_zp,
 			sam_print_zu);
