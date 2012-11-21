@@ -393,6 +393,13 @@ void SamConfig::printAlignedOptFlags(
 		o.append("YR:i:");
 		o.append(buf);
 	}
+	if(print_zb_) {
+		// ZB:i: Ftab ops for seed alignment
+		WRITE_SEP();
+		itoa10<uint64_t>(prm.nFtabs, buf);
+		o.append("ZB:i:");
+		o.append(buf);
+	}
 	if(print_zf_) {
 		// ZF:i: FM Index ops for seed alignment
 		WRITE_SEP();
@@ -556,6 +563,13 @@ void SamConfig::printEmptyOptFlags(
 		o.append("YR:i:");
 		o.append(buf);
 	}
+	if(print_zb_) {
+		// ZB:i: Ftab ops for seed alignment
+		WRITE_SEP();
+		itoa10<uint64_t>(prm.nFtabs, buf);
+		o.append("ZB:i:");
+		o.append(buf);
+	}
 	if(print_zf_) {
 		// ZF:i: FM Index ops for seed alignment
 		WRITE_SEP();
@@ -571,8 +585,8 @@ void SamConfig::printEmptyOptFlags(
 	if(print_zm_) {
 		// ZM:Z: Print FM index op string for best-first search
 		WRITE_SEP();
-		prm.fmString.print(o, buf);
 		o.append("ZM:Z:");
+		prm.fmString.print(o, buf);
 	}
 	if(print_zi_) {
 		// ZI:i: Seed extend loop iterations

@@ -1422,6 +1422,7 @@ bool Descent::followMatches(
 		bool useFtab = ftabLen > 1 && (size_t)ftabLen <= nobranchDepth && ftabFits;
 		bool ftabFailed = false;
 		if(useFtab) {
+			prm.nFtabs++;
 			// Forward index: right-to-left
 			size_t off_r2l = fw ? off5p : q.length() - off5p - 1;
 			if(l2r_) {
