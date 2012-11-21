@@ -98,7 +98,12 @@ struct Edit {
 		qchr = qc;
 		type = ty;
 		pos = po;
-		pos2 = std::numeric_limits<uint32_t>::max() >> 1;
+		if(qc == '-') {
+			// Read gap
+			pos2 = std::numeric_limits<uint32_t>::max() >> 1;
+		} else {
+			pos2 = std::numeric_limits<uint32_t>::max();
+		}
 		if(!chrs) {
 			assert_range(0, 4, (int)chr);
 			assert_range(0, 4, (int)qchr);

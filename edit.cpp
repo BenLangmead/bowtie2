@@ -63,11 +63,15 @@ void Edit::invertPoss(EList<Edit>& edits, size_t sz, size_t ei, size_t en, bool 
 		edits[i].pos =
 			(uint32_t)(sz - edits[i].pos - (edits[i].isReadGap() ? 0 : 1));
 		// Adjust pos2
-		int64_t pos2diff = (int64_t)(uint64_t)edits[i].pos2 - (int64_t)((uint64_t)std::numeric_limits<uint32_t>::max() >> 1);
-		int64_t pos2new = (int64_t)(uint64_t)edits[i].pos2 - 2*pos2diff;
-		assert(pos2diff == 0 || (uint32_t)pos2new != (std::numeric_limits<uint32_t>::max() >> 1));
-		edits[i].pos2 = (uint32_t)pos2new;
+		if(edits[i].isReadGap()) {
+			int64_t pos2diff = (int64_t)(uint64_t)edits[i].pos2 - (int64_t)((uint64_t)std::numeric_limits<uint32_t>::max() >> 1);
+			int64_t pos2new = (int64_t)(uint64_t)edits[i].pos2 - 2*pos2diff;
+			assert(pos2diff == 0 || (uint32_t)pos2new != (std::numeric_limits<uint32_t>::max() >> 1));
+			edits[i].pos2 = (uint32_t)pos2new;
+		}
 	}
+	// Edits might not necessarily be in same order after inversion
+	edits.sortPortion(ei, en);
 #ifndef NDEBUG
 	for(size_t i = ei + 1; i < ei + en; i++) {
 		assert_geq(edits[i].pos, edits[i-1].pos);
