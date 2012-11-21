@@ -648,7 +648,7 @@ size_t Descent::recalcOutgoing(
 					}
 					TIndexOff topf = pf[d].topf[j], botf = pf[d].botf[j];
 					ASSERT_ONLY(TIndexOff topb = pf[d].topb[j], botb = pf[d].botb[j]);
-					if(re.contains(fw, cur5pi, cur5pf, cur5pf - cur5pi + 1 + gapadd_, topf, botf, pen_ + pen_mm)) {
+					if(re.contains(fw, l2r_, cur5pi, cur5pf, cur5pf - cur5pi + 1 + gapadd_, topf, botf, pen_ + pen_mm)) {
 						continue; // Redundant with a path already explored
 					}
 					TIndexOff width = b[j] - t[j];
@@ -704,7 +704,7 @@ size_t Descent::recalcOutgoing(
 							ASSERT_ONLY(TIndexOff topb = pf[d].topb[j], botb = pf[d].botb[j]);
 							assert(topf != 0 || botf != 0);
 							assert(topb != 0 || botb != 0);
-							if(re.contains(fw, cur5pi_i, cur5pf_i, cur5pf - cur5pi + 1 + gapadd_, topf, botf, pen_ + pen_rdg_ex)) {
+							if(re.contains(fw, l2r_, cur5pi_i, cur5pf_i, cur5pf - cur5pi + 1 + gapadd_, topf, botf, pen_ + pen_rdg_ex)) {
 								continue; // Redundant with a path already explored
 							}
 							TIndexOff width = b[j] - t[j];
@@ -741,7 +741,7 @@ size_t Descent::recalcOutgoing(
 							assert(topf != 0 || botf != 0);
 							assert(topb != 0 || botb != 0);
 							size_t nrefal = cur5pf - cur5pi + gapadd_;
-							if(!re.contains(fw, cur5pi, cur5pf, nrefal, topf, botf, pen_ + pen_rfg_ex)) {
+							if(!re.contains(fw, l2r_, cur5pi, cur5pf, nrefal, topf, botf, pen_ + pen_rfg_ex)) {
 								TIndexOff width = bot - top;
 								Edit edit((uint32_t)off5p, '-', (int)("ACGTN"[c]), EDIT_TYPE_REF_GAP);
 								DescentPriority pri(pen_ + pen_rfg_ex, depth, width, rootpri);
@@ -779,7 +779,7 @@ size_t Descent::recalcOutgoing(
 						ASSERT_ONLY(TIndexOff topb = pf[d].topb[j], botb = pf[d].botb[j]);
 						assert(topf != 0 || botf != 0);
 						assert(topb != 0 || botb != 0);
-						if(re.contains(fw, cur5pi_i, cur5pf_i, cur5pf - cur5pi + 1 + gapadd_, topf, botf, pen_ + pen_rdg_op)) {
+						if(re.contains(fw, l2r_, cur5pi_i, cur5pf_i, cur5pf - cur5pi + 1 + gapadd_, topf, botf, pen_ + pen_rdg_op)) {
 							continue; // Redundant with a path already explored
 						}
 						TIndexOff width = b[j] - t[j];
@@ -813,7 +813,7 @@ size_t Descent::recalcOutgoing(
 						assert(topf != 0 || botf != 0);
 						assert(topb != 0 || botb != 0);
 						size_t nrefal = cur5pf - cur5pi + gapadd_;
-						if(!re.contains(fw, cur5pi, cur5pf, nrefal, topf, botf, pen_ + pen_rfg_op)) {
+						if(!re.contains(fw, l2r_, cur5pi, cur5pf, nrefal, topf, botf, pen_ + pen_rfg_op)) {
 							TIndexOff width = bot - top;
 							Edit edit((uint32_t)off5p, '-', (int)("ACGTN"[c]), EDIT_TYPE_REF_GAP);
 							DescentPriority pri(pen_ + pen_rfg_op, depth, width, rootpri);
@@ -1566,7 +1566,7 @@ bool Descent::followMatches(
 		assert_gt(botf, topf);
 		assert_eq(botf - topf, botb - topb);
 		// Check if this is redundant with an already-explored path
-		if(!re.check(fw, al5pi_, al5pf_, al5pf_ - al5pi_ + 1 + gapadd_, topf, botf, pen_)) {
+		if(!re.check(fw, l2r_, al5pi_, al5pf_, al5pf_ - al5pi_ + 1 + gapadd_, topf, botf, pen_)) {
 			return false;
 		}
 	}
@@ -1737,7 +1737,7 @@ bool Descent::followMatches(
 			} else {
 				al5pi--;
 			}
-			fail = !re.check(fw, al5pi, al5pf, al5pf - al5pi + 1 + gapadd_, topf, botf, pen_);
+			fail = !re.check(fw, l2r_, al5pi, al5pf, al5pf - al5pi + 1 + gapadd_, topf, botf, pen_);
 		}
 		if(!fail) {
 			len_++;
