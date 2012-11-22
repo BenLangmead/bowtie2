@@ -151,7 +151,7 @@ void Ebwt::restore(SString<char>& s) const {
 		assert_lt(jumps, this->_eh._len);
 		//if(_verbose) cout << "restore: i: " << i << endl;
 		// Not a marked row; go back a char in the original string
-		uint32_t newi = mapLF(l);
+		uint32_t newi = mapLF(l ASSERT_ONLY(, false));
 		assert_neq(newi, i);
 		s[this->_eh._len - jumps - 1] = rowL(l);
 		i = newi;

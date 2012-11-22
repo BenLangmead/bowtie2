@@ -122,7 +122,7 @@ uint32_t Ebwt::walkLeft(uint32_t row, uint32_t steps) const {
 	if(steps > 0) l.initFromRow(row, _eh, ebwt());
 	while(steps > 0) {
 		if(row == _zOff) return 0xffffffff;
-		uint32_t newrow = this->mapLF(l);
+		uint32_t newrow = this->mapLF(l ASSERT_ONLY(, false));
 		assert_neq(0xffffffff, newrow);
 		assert_neq(newrow, row);
 		row = newrow;
@@ -144,7 +144,7 @@ uint32_t Ebwt::getOffset(uint32_t row) const {
 	SideLocus l;
 	l.initFromRow(row, _eh, ebwt());
 	while(true) {
-		uint32_t newrow = this->mapLF(l);
+		uint32_t newrow = this->mapLF(l ASSERT_ONLY(, false));
 		jumps++;
 		assert_neq(0xffffffff, newrow);
 		assert_neq(newrow, row);
@@ -228,7 +228,7 @@ bool Ebwt::contains(
 			bot = mapLF(bloc, c);
 		} else {
 			size_t sz = bot - top;
-			int c1 = mapLF1(top, tloc);
+			int c1 = mapLF1(top, tloc ASSERT_ONLY(, false));
 			bot = mapLF(bloc, c1);
 			assert_leq(bot - top, sz);
 			if(bot - top < sz) {

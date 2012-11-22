@@ -689,11 +689,11 @@ public:
 		// Prepare SideLocus's for next step
 		if(bot-top > 1) {
 			SideLocus::initFromTopBot(top, bot, ebwt.eh(), ebwt.ebwt(), tloc, bloc);
-			assert(tloc.valid()); assert(tloc.repOk(ebwt));
-			assert(bloc.valid()); assert(bloc.repOk(ebwt));
+			assert(tloc.valid()); assert(tloc.repOk(ebwt.eh()));
+			assert(bloc.valid()); assert(bloc.repOk(ebwt.eh()));
 		} else {
 			tloc.initFromRow(top, ebwt.eh(), ebwt.ebwt());
-			assert(tloc.valid()); assert(tloc.repOk(ebwt));
+			assert(tloc.valid()); assert(tloc.repOk(ebwt.eh()));
 			bloc.invalidate();
 		}
 		return ret;
@@ -865,7 +865,7 @@ public:
 		assert_geq(step, 0);
 		assert_eq(step, lastStep_);
 		assert_geq(st.capacity(), st.size() + 4);
-		assert(tloc.valid()); assert(tloc.repOk(ebwt));
+		assert(tloc.valid()); assert(tloc.repOk(ebwt.eh()));
 		assert_eq(bot-top, map_.size()-mapi_);
 		pair<int, int> ret = make_pair(0, 0);
 		assert_eq(top, tloc.toBWRow());
@@ -995,7 +995,7 @@ public:
 		assert_gt(step, 0);
 		assert_leq((uint32_t)step, ebwt.eh().len());
 		pair<int, int> rret =
-		init(
+		init<S>(
 			ebwt,       // forward Bowtie index
 			ref,        // bitpair-encodede reference
 			sa,         // SA range with offsets
