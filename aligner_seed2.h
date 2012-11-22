@@ -478,7 +478,7 @@ public:
 		maplist_fr_.resize(NPARTS);
 		maplist_rl_.resize(NPARTS);
 		maplist_rr_.resize(NPARTS);
-		for(size_t i = 0; i < NPARTS; i++) {
+		for(int i = 0; i < NPARTS; i++) {
 			maplist_fl_[i].resize(rdlen);
 			maplist_fr_[i].resize(rdlen);
 			maplist_rl_[i].resize(rdlen);

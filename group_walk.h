@@ -709,8 +709,8 @@ public:
 		uint32_t range) const
 	{
 		assert(done() || bot > top);
-		assert(doneResolving(hit) || (tloc.valid() && tloc.repOk(ebwt)));
-		assert(doneResolving(hit) || bot == top+1 || (bloc.valid() && bloc.repOk(ebwt)));
+		assert(doneResolving(hit) || (tloc.valid() && tloc.repOk(ebwt.eh())));
+		assert(doneResolving(hit) || bot == top+1 || (bloc.valid() && bloc.repOk(ebwt.eh())));
 		assert_eq(map_.size()-mapi_, bot-top);
 		// Make sure that 'done' is compatible with whether we have >=
 		// 1 elements left to resolve.
