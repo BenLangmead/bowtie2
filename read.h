@@ -442,6 +442,9 @@ struct PerReadMetrics {
 		nEeFail = nEeFailStreak = nEeLastSucc =
 		nFilt = 0;
 		nFtabs = 0;
+		nRedSkip = 0;
+		nRedFail = 0;
+		nRedIns = 0;
 		doFmString = false;
 		fmString.reset();
 	}
@@ -478,6 +481,9 @@ struct PerReadMetrics {
 	uint64_t nExFmops;      // FM Index ops used to resolve offsets
 	
 	uint64_t nFtabs;        // # ftab lookups
+	uint64_t nRedSkip;      // # times redundant path was detected and aborted
+	uint64_t nRedFail;      // # times a path was deemed non-redundant
+	uint64_t nRedIns;       // # times a path was added to redundancy list
 	
 	uint64_t nDpFail;       // number of dp failures in a row up until now
 	uint64_t nDpFailStreak; // longest streak of dp failures

@@ -217,9 +217,9 @@ bool DescentAlignmentSink::reportAlignment(
 	const EList<DescentConfig>& cs) // configs
 {
 	TDescentId cur = id;
-	const Descent& desc = df[id];
+	ASSERT_ONLY(const Descent& desc = df[id]);
 	const bool fw = rs[rid].fw;
-	size_t len = q.length();
+	ASSERT_ONLY(size_t len = q.length());
 	assert(q.repOk());
 	assert_lt(desc.al5pf(), len);
 	// Adjust al5pi and al5pf to take the final edit into account (if
@@ -412,7 +412,7 @@ bool Descent::init(
     }
 	if(matchSucc) {
 		// Calculate info about outgoing edges
-		recalcOutgoing(q, sc, minsc, maxpen, re, pf, rs, cs);
+		recalcOutgoing(q, sc, minsc, maxpen, re, pf, rs, cs, prm);
 		if(!empty()) {
 			heap.insert(make_pair(out_.bestPri(), descid)); // Add to heap
 		}
@@ -512,7 +512,7 @@ bool Descent::init(
     // Calculate info about outgoing edges
     assert(empty());
 	if(matchSucc) {
-		recalcOutgoing(q, sc, minsc, maxpen, re, pf, rs, cs);
+		recalcOutgoing(q, sc, minsc, maxpen, re, pf, rs, cs, prm);
 		if(!empty()) {
 			heap.insert(make_pair(out_.bestPri(), descid)); // Add to heap
 		}
@@ -543,7 +543,8 @@ size_t Descent::recalcOutgoing(
 	DescentRedundancyChecker& re,    // redundancy checker
     EFactory<DescentPos>& pf,        // factory with DescentPoss
     const EList<DescentRoot>& rs,    // roots
-    const EList<DescentConfig>& cs)  // configs
+    const EList<DescentConfig>& cs,  // configs
+	PerReadMetrics& prm)             // per-read metrics
 {
     assert_eq(botf_ - topf_, botb_ - topb_);
 	assert(out_.empty());
@@ -631,8 +632,10 @@ size_t Descent::recalcOutgoing(
 					TIndexOff topf = pf[d].topf[j], botf = pf[d].botf[j];
 					ASSERT_ONLY(TIndexOff topb = pf[d].topb[j], botb = pf[d].botb[j]);
 					if(re.contains(fw, l2r_, cur5pi, cur5pf, cur5pf - cur5pi + 1 + gapadd_, topf, botf, pen_ + pen_mm)) {
+						prm.nRedSkip++;
 						continue; // Redundant with a path already explored
 					}
+					prm.nRedFail++;
 					TIndexOff width = b[j] - t[j];
 					Edit edit((uint32_t)off5p, (int)("ACGTN"[j]), (int)("ACGTN"[c]), EDIT_TYPE_MM);
 					DescentPriority pri(pen_ + pen_mm, depth, width, rootpri);
@@ -687,8 +690,10 @@ size_t Descent::recalcOutgoing(
 							assert(topf != 0 || botf != 0);
 							assert(topb != 0 || botb != 0);
 							if(re.contains(fw, l2r_, cur5pi_i, cur5pf_i, cur5pf - cur5pi + 1 + gapadd_, topf, botf, pen_ + pen_rdg_ex)) {
+								prm.nRedSkip++;
 								continue; // Redundant with a path already explored
 							}
+							prm.nRedFail++;
 							TIndexOff width = b[j] - t[j];
 							// off5p holds the offset from the 5' of the next
 							// character we were trying to align when we decided to
@@ -745,6 +750,9 @@ size_t Descent::recalcOutgoing(
 								);
 								out_.update(edge);
 								nout++;
+								prm.nRedFail++;
+							} else {
+								prm.nRedSkip++;
 							}
 						}
 					}
@@ -763,8 +771,10 @@ size_t Descent::recalcOutgoing(
 						assert(topf != 0 || botf != 0);
 						assert(topb != 0 || botb != 0);
 						if(re.contains(fw, l2r_, cur5pi_i, cur5pf_i, cur5pf - cur5pi + 1 + gapadd_, topf, botf, pen_ + pen_rdg_op)) {
+							prm.nRedSkip++;
 							continue; // Redundant with a path already explored
 						}
+						prm.nRedFail++;
 						TIndexOff width = b[j] - t[j];
 						// off5p holds the offset from the 5' of the next
 						// character we were trying to align when we decided to
@@ -818,6 +828,9 @@ size_t Descent::recalcOutgoing(
 							);
 							out_.update(edge);
 							nout++;
+							prm.nRedFail++;
+						} else {
+							prm.nRedSkip++;
 						}
                     }
 				}
@@ -1076,7 +1089,7 @@ void Descent::followBestOutgoing(
 		assert_geq(edoff + 1, al5pi_);
 		if(out_.empty()) {
 			if(!lastRecalc_) {
-				recalcOutgoing(q, sc, minsc, maxpen, re, pf, rs, cs);
+				recalcOutgoing(q, sc, minsc, maxpen, re, pf, rs, cs, prm);
 				if(empty()) {
 					// Could happen, since some outgoing edges may have become
 					// redundant in the meantime.
@@ -1435,7 +1448,8 @@ bool Descent::followMatches(
 								false, // don't reverse
 								topb, botb);
 				assert(ret == ret2);
-				int c_l2r = fw ? q.patFw[off_l2r + ftabLen - 1] : q.patRc[off_l2r + ftabLen - 1];
+				int c_l2r = fw ? q.patFw[off_l2r + ftabLen - 1] :
+				                 q.patRc[off_l2r + ftabLen - 1];
 				assert_eq(botf - topf, botb - topb);
 				if(toward3p) {
 					assert_geq((int)off3p, ftabLen - 1);
@@ -1546,9 +1560,14 @@ bool Descent::followMatches(
 		assert_gt(botf, topf);
 		assert_eq(botf - topf, botb - topb);
 		// Check if this is redundant with an already-explored path
-		if(!re.check(fw, l2r_, al5pi_, al5pf_, al5pf_ - al5pi_ + 1 + gapadd_, topf, botf, pen_)) {
+		if(!re.check(fw, l2r_, al5pi_, al5pf_, al5pf_ - al5pi_ + 1 + gapadd_,
+		             topf, botf, pen_))
+		{
+			prm.nRedSkip++;
 			return false;
 		}
+		prm.nRedFail++; // not pruned by redundancy list
+		prm.nRedIns++;  // inserted into redundancy list
 	}
     if(done) {
         Edit eempty;
@@ -1717,7 +1736,14 @@ bool Descent::followMatches(
 			} else {
 				al5pi--;
 			}
-			fail = !re.check(fw, l2r_, al5pi, al5pf, al5pf - al5pi + 1 + gapadd_, topf, botf, pen_);
+			fail = !re.check(fw, l2r_, al5pi, al5pf,
+			                 al5pf - al5pi + 1 + gapadd_, topf, botf, pen_);
+			if(fail) {
+				prm.nRedSkip++;
+			} else {
+				prm.nRedFail++; // not pruned by redundancy list
+				prm.nRedIns++;  // inserted into redundancy list
+			}
 		}
 		if(!fail) {
 			len_++;

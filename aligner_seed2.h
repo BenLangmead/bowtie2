@@ -458,41 +458,45 @@ public:
 	 * Reset to uninitialized state.
 	 */
 	void reset() {
-		maplist_fl_.clear();
-		maplist_fr_.clear();
-		maplist_rl_.clear();
-		maplist_rr_.clear();
+		bits_.reset();
 		inited_ = false;
 		totsz_ = 0;  // total size
 		totcap_ = 0; // total capacity
 	}
+	
+	const static int NPARTS = 8;
+	const static int PART_MASK = 7;
+	const static int NBITS = (1 << 16);
 
 	/**
 	 * Initialize using given read length.
 	 */
 	void init(TReadOff rdlen) {
 		reset();
-		maplist_fl_.resize(rdlen);
-		maplist_fr_.resize(rdlen);
-		maplist_rl_.resize(rdlen);
-		maplist_rr_.resize(rdlen);
-		totsz_ =  maplist_fl_.totalSizeBytes() +
-		          maplist_fr_.totalSizeBytes() +
-		          maplist_rl_.totalSizeBytes() +
-		          maplist_rr_.totalSizeBytes();
-		totcap_ = maplist_fl_.totalCapacityBytes() +
-		          maplist_fr_.totalCapacityBytes() +
-		          maplist_rl_.totalCapacityBytes() +
-		          maplist_rr_.totalCapacityBytes();
-		for(size_t i = 0; i < rdlen; i++) {
-			maplist_fl_[i].clear();
-			maplist_fr_[i].clear();
-			maplist_rl_[i].clear();
-			maplist_rr_[i].clear();
+		bits_.resize(NBITS);
+		maplist_fl_.resize(NPARTS);
+		maplist_fr_.resize(NPARTS);
+		maplist_rl_.resize(NPARTS);
+		maplist_rr_.resize(NPARTS);
+		for(size_t i = 0; i < NPARTS; i++) {
+			maplist_fl_[i].resize(rdlen);
+			maplist_fr_[i].resize(rdlen);
+			maplist_rl_[i].resize(rdlen);
+			maplist_rr_[i].resize(rdlen);
 			totcap_ += maplist_fl_[i].totalCapacityBytes();
 			totcap_ += maplist_fr_[i].totalCapacityBytes();
 			totcap_ += maplist_rl_[i].totalCapacityBytes();
 			totcap_ += maplist_rr_[i].totalCapacityBytes();
+			for(size_t j = 0; j < rdlen; j++) {
+				maplist_fl_[i][j].clear();
+				maplist_fr_[i][j].clear();
+				maplist_rl_[i][j].clear();
+				maplist_rr_[i][j].clear();
+				totcap_ += maplist_fl_[i][j].totalCapacityBytes();
+				totcap_ += maplist_fr_[i][j].totalCapacityBytes();
+				totcap_ += maplist_rl_[i][j].totalCapacityBytes();
+				totcap_ += maplist_rr_[i][j].totalCapacityBytes();
+			}
 		}
 		inited_ = true;
 	}
@@ -522,20 +526,24 @@ public:
 		assert(topf > 0 || botf > 0);
 		DescentRedundancyKey k(al5pf, rflen, topf, botf);
 		size_t i = std::numeric_limits<size_t>::max();
-		EList<EMap<DescentRedundancyKey, TScore> >& maplist =
-			(fw ? (l2r ? maplist_fl_ : maplist_fr_) : (l2r ? maplist_rl_ : maplist_rr_));
-		assert_lt(al5pi, maplist.size());
-		if(maplist[al5pi].containsEx(k, i)) {
+		size_t mask = topf & PART_MASK;
+		EMap<DescentRedundancyKey, TScore>& map =
+			(fw ? (l2r ? maplist_fl_[mask][al5pi] : maplist_fr_[mask][al5pi]) :
+			      (l2r ? maplist_rl_[mask][al5pi] : maplist_rr_[mask][al5pi]));
+		size_t key = (topf & 255) | ((botf & 255) << 8);
+		if(bits_.test(key) && map.containsEx(k, i)) {
 			// Already contains the key
-			assert_lt(i, maplist[al5pi].size());
-			assert_geq(pen, maplist[al5pi][i].second);
+			assert_lt(i, map.size());
+			assert_geq(pen, map[i].second);
 			return false;
 		}
-		size_t oldsz = maplist[al5pi].totalSizeBytes();
-		size_t oldcap = maplist[al5pi].totalCapacityBytes();
-		maplist[al5pi].insert(make_pair(k, pen));
-		totsz_ += (maplist[al5pi].totalSizeBytes() - oldsz);
-		totcap_ += (maplist[al5pi].totalCapacityBytes() - oldcap);
+		assert(!map.containsEx(k, i));
+		size_t oldsz = map.totalSizeBytes();
+		size_t oldcap = map.totalCapacityBytes();
+		map.insert(make_pair(k, pen));
+		bits_.set(key);
+		totsz_ += (map.totalSizeBytes() - oldsz);
+		totcap_ += (map.totalCapacityBytes() - oldcap);
 		return true;
 	}
 
@@ -554,11 +562,16 @@ public:
 		TScore pen)
 	{
 		assert(inited_);
+		size_t key = (topf & 255) | ((botf & 255) << 8);
+		if(!bits_.test(key)) {
+			return false;
+		}
 		DescentRedundancyKey k(al5pf, rflen, topf, botf);
-		EList<EMap<DescentRedundancyKey, TScore> >& maplist =
-			(fw ? (l2r ? maplist_fl_ : maplist_fr_) : (l2r ? maplist_rl_ : maplist_rr_));
-		assert_lt(al5pi, maplist.size());
-		return maplist[al5pi].contains(k);
+		size_t mask = topf & PART_MASK;
+		EMap<DescentRedundancyKey, TScore>& map =
+			(fw ? (l2r ? maplist_fl_[mask][al5pi] : maplist_fr_[mask][al5pi]) :
+			      (l2r ? maplist_rl_[mask][al5pi] : maplist_rr_[mask][al5pi]));
+		return map.contains(k);
 	}
 	
 	/**
@@ -583,10 +596,12 @@ protected:
 	
 	// List of maps.  Each entry is a map for all the DescentRedundancyKeys
 	// with al5pi equal to the offset into the list.
-	EList<EMap<DescentRedundancyKey, TScore> > maplist_fl_; //  fw,  l2r
-	EList<EMap<DescentRedundancyKey, TScore> > maplist_rl_; // !fw,  l2r
-	EList<EMap<DescentRedundancyKey, TScore> > maplist_fr_; //  fw, !l2r
-	EList<EMap<DescentRedundancyKey, TScore> > maplist_rr_; // !fw, !l2r
+	ELList<EMap<DescentRedundancyKey, TScore>, NPARTS, 100> maplist_fl_; //  fw,  l2r
+	ELList<EMap<DescentRedundancyKey, TScore>, NPARTS, 100> maplist_rl_; // !fw,  l2r
+	ELList<EMap<DescentRedundancyKey, TScore>, NPARTS, 100> maplist_fr_; //  fw, !l2r
+	ELList<EMap<DescentRedundancyKey, TScore>, NPARTS, 100> maplist_rr_; // !fw, !l2r
+		
+	EBitList<128> bits_;
 };
 
 /**
@@ -1017,113 +1032,6 @@ public:
 	DescentEdge best5; // 5th-best
 };
 
-#if 0
-/**
- * Encapsulates the string we're matching during our descent search.
- */
-struct DescentQuery {
-
-
-	DescentQuery() { reset(); }
-
-	DescentQuery(
-		const BTDnaString& seq_,
-		const BTString&    qual_,
-		const BTDnaString& seqrc_,
-		const BTString&    qualrc_)
-	{
-		init(seq_, qual_, seqrc_, qualrc_);
-	}
-
-	/**
-	 * Get the nucleotide and quality value at the given offset from 5' end.
-	 * If 'fw' is false, get the reverse complement.
-	 */
-	std::pair<int, int> get(TReadOff off5p, bool fw) const {
-		assert_lt(off5p, length());
-		int c = (int)(*seq)[off5p];
-        int q = (*qual)[off5p];
-        assert_geq(q, 33);
-		return make_pair((!fw && c < 4) ? (c ^ 3) : c, q - 33);
-	}
-	
-	/**
-	 * Get the nucleotide at the given offset from 5' end.
-	 * If 'fw' is false, get the reverse complement.
-	 */
-	int getc(TReadOff off5p, bool fw) const {
-		assert_lt(off5p, length());
-		int c = (int)(*seq)[off5p];
-		return (!fw && c < 4) ? (c ^ 3) : c;
-	}
-	
-	/**
-	 * Get the quality value at the given offset from 5' end.
-	 */
-	int getq(TReadOff off5p) const {
-		assert_lt(off5p, length());
-        int q = (*qual)[off5p];
-        assert_geq(q, 33);
-		return q-33;
-	}
-	
-	/**
-	 * Initialize.
-	 */
-	void init(
-		const BTDnaString& seq_,
-		const BTString&    qual_,
-		const BTDnaString& seqrc_,
-		const BTString&    qualrc_)
-	{
-		seq = &seq_;
-		qual = &qual_;
-		seqrc = &seqrc_;
-		qualrc = &qualrc_;
-	}
-	
-	/**
-	 * Reset to uninitialized state.
-	 */
-	void reset() {
-		seq = NULL;
-	}
-	
-	/**
-	 * Return true iff DescentQuery is initialized.
-	 */
-	bool inited() const {
-		return seq != NULL;
-	}
-    
-	/**
-	 * Return length of query string.
-	 */
-    size_t length() const {
-        assert(inited());
-        return seq->length();
-    }
-	
-#ifndef NDEBUG
-	/**
-	 * Return true if the query is internally consistent.
-	 */
-	bool repOk() const {
-		assert_eq(seq->length(), qual->length());
-		assert_eq(seq->length(), seqrc->length());
-		assert_eq(seq->length(), qualrc->length());
-		return true;
-	}
-#endif
-
-    const BTDnaString* seq;
-    const BTString* qual;
-
-    const BTDnaString* seqrc;
-    const BTString* qualrc;
-};
-#endif
-
 class DescentAlignmentSink;
 
 /**
@@ -1374,7 +1282,8 @@ protected:
 		DescentRedundancyChecker& re,    // redundancy checker
 		EFactory<DescentPos>& pf,        // factory with DescentPoss
         const EList<DescentRoot>& rs,    // roots
-        const EList<DescentConfig>& cs); // configs
+        const EList<DescentConfig>& cs,  // configs
+		PerReadMetrics& prm);            // per-read metrics
 
     TRootId         rid_;         // root id
 

@@ -208,7 +208,12 @@ bool PairedDualPatternSource::nextReadPair(
 	bool fixName)
 {
 	// 'cur' indexes the current pair of PatternSources
-	uint32_t cur = cur_;
+	uint32_t cur;
+	{
+		lock();
+		cur = cur_;
+		unlock();
+	}
 	success = false;
 	done = true;
 	while(cur < srca_->size()) {
