@@ -76,15 +76,51 @@ int main(void) {
 	{
 		EHeap<size_t> h;
 		RandomSource rnd(12);
-		size_t lim = 20000;
+		size_t lim = 2000;
 		while(h.size() < lim) {
 			h.insert(rnd.nextU32());
 		}
 		size_t last = std::numeric_limits<size_t>::max();
+		bool first = true;
 		while(!h.empty()) {
 			size_t p = h.pop();
-			assert_geq(p, last);
+			assert(first || p >= last);
 			last = p;
+			first = false;
+		}
+	}
+	cerr << "PASSED" << endl;
+
+	cerr << "Test EBitList 1...";
+	{
+		EBitList<128> l;
+		assert_eq(0, l.size());
+		assert_eq(std::numeric_limits<size_t>::max(), l.max());
+		
+		assert(!l.test(0));
+		assert(!l.test(1));
+		assert(!l.test(10));
+		
+		for(int i = 0; i < 3; i++) {
+			l.set(10);
+			assert(!l.test(0));
+			assert(!l.test(1));
+			assert(!l.test(9));
+			assert(l.test(10));
+			assert(!l.test(11));
+		}
+		
+		assert_eq(10, l.max());
+		l.clear();
+		assert(!l.test(10));
+		assert_eq(std::numeric_limits<size_t>::max(), l.max());
+		
+		RandomSource rnd(12);
+		size_t lim = 2000;
+		for(size_t i = 0; i < lim; i++) {
+			uint32_t ri = rnd.nextU32() % 10000;
+			l.set(ri);
+			assert(l.test(ri));
 		}
 	}
 	cerr << "PASSED" << endl;

@@ -376,16 +376,14 @@ public:
 				}
 			}
 		}
-		//if(flags.alignedConcordant()) {
-		//	ret = (TMapq)((double)ret * 1.15);
+		// Note: modifications to inps must be synchronized
+		//if(inps != NULL) {
+		//	inps = itoa10<TAlScore>(best, inps);
+		//	*inps++ = ',';
+		//	inps = itoa10<TAlScore>(secbest, inps);
+		//	*inps++ = ',';
+		//	inps = itoa10<TMapq>(ret, inps);
 		//}
-		if(inps != NULL) {
-			inps = itoa10<TAlScore>(best, inps);
-			*inps++ = ',';
-			inps = itoa10<TAlScore>(secbest, inps);
-			*inps++ = ',';
-			inps = itoa10<TMapq>(ret, inps);
-		}
 		return ret;
 	}
 
@@ -481,13 +479,14 @@ public:
 				ret = 1;
 			}
 		}
-		if(inps != NULL) {
-			inps = itoa10<TAlScore>(best, inps);
-			*inps++ = ',';
-			inps = itoa10<TAlScore>(secbest, inps);
-			*inps++ = ',';
-			inps = itoa10<TMapq>(ret, inps);
-		}
+		// Note: modifications to inps must be synchronized
+		//if(inps != NULL) {
+		//	inps = itoa10<TAlScore>(best, inps);
+		//	*inps++ = ',';
+		//	inps = itoa10<TAlScore>(secbest, inps);
+		//	*inps++ = ',';
+		//	inps = itoa10<TMapq>(ret, inps);
+		//}
 		return ret;
 	}
 

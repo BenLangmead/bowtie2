@@ -95,6 +95,7 @@ public:
 		bool print_yu, // index of last succeeded DP
 		bool print_yr, // # redundant seed hits
 		bool print_zb, // # Ftab lookups
+		bool print_zr, // # redundant path checks
 		bool print_zf, // # FM Index ops
 		bool print_zm, // FM Index op string for best-first search
 		bool print_zi, // # seed extend loop iters
@@ -138,6 +139,7 @@ public:
 		print_yu_(print_yu), // index of last succeeded DP
 		print_yr_(print_yr), // index of last succeeded DP
 		print_zb_(print_zb), // # Ftab lookups
+		print_zr_(print_zr), // # redundant path checks
 		print_zf_(print_zf), // # FM Index ops
 		print_zm_(print_zm), // FM Index op string for best-first search
 		print_zi_(print_zi), // # seed extend loop iters
@@ -340,6 +342,7 @@ protected:
 	bool print_yu_; // YU:i: index of last succeeded DP
 	bool print_yr_; // YR:i: # redundant seed hits
 	bool print_zb_; // ZB:i: # Ftab lookups
+	bool print_zr_; // ZR:i: # redundant path checks
 	bool print_zf_; // ZF:i: # FM Index ops
 	bool print_zm_; // ZM:i: FM ops string for best-first search
 	bool print_zi_; // ZI:i: # extend loop iters

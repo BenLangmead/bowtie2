@@ -2762,6 +2762,87 @@ protected:
 };
 
 /**
+ * An expandable bit vector based on EList
+ */
+template <int S = 128>
+class EBitList {
+
+public:
+
+	explicit EBitList(size_t isz, int cat = 0) : l_(isz, cat) { reset(); }
+	
+	explicit EBitList(int cat = 0) : l_(cat) { reset(); }
+
+	/**
+	 * Reset to empty state.
+	 */
+	void clear() {
+		reset();
+	}
+	
+	/**
+	 * Reset to empty state.
+	 */
+	void reset() {
+		l_.clear();
+		max_ = std::numeric_limits<size_t>::max();
+	}
+
+	/**
+	 * Set a bit.
+	 */
+	void set(size_t off) {
+		resize(off);
+		l_[off >> 3] |= (1 << (off & 7));
+		if(off > max_ || max_ == std::numeric_limits<size_t>::max()) {
+			max_ = off;
+		}
+	}
+
+	/**
+	 * Return mutable list item at offset 'off'
+	 */
+	bool test(size_t off) const {
+		if((size_t)(off >> 3) >= l_.size()) {
+			return false;
+		}
+		return (l_[off >> 3] & (1 << (off & 7))) != 0;
+	}
+	
+	/**
+	 * Return size of the underlying byte array.
+	 */
+	size_t size() const {
+		return l_.size();
+	}
+	
+	/**
+	 * Resize to accomodate at least the given number of bits.
+	 */
+	void resize(size_t off) {
+		if((size_t)(off >> 3) >= l_.size()) {
+			size_t oldsz = l_.size();
+			l_.resize((off >> 3) + 1);
+			for(size_t i = oldsz; i < l_.size(); i++) {
+				l_[i] = 0;
+			}
+		}
+	}
+	
+	/**
+	 * Return max set bit.
+	 */
+	size_t max() const {
+		return max_;
+	}
+
+protected:
+
+	EList<uint8_t, S> l_;
+	size_t max_;
+};
+
+/**
  * Implements a min-heap.
  */
 template <typename T, int S = 128>

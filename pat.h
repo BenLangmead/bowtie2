@@ -162,7 +162,9 @@ public:
 	 * whether locks will be contended.
 	 */
 	void addWrapper() {
+		lock();
 		numWrappers_++;
+		unlock();
 	}
 	
 	/**

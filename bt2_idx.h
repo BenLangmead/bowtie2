@@ -292,8 +292,191 @@ static inline int64_t fileSize(const char* name) {
 	return static_cast<int64_t>(f.tellg() - begin_pos);
 }
 
+/**
+ * Encapsulates a location in the bwt text in terms of the side it
+ * occurs in and its offset within the side.
+ */
+struct SideLocus {
+	SideLocus() :
+	_sideByteOff(0),
+	_sideNum(0),
+	_charOff(0),
+	_by(-1),
+	_bp(-1) { }
+
+	/**
+	 * Construct from row and other relevant information about the Ebwt.
+	 */
+	SideLocus(uint32_t row, const EbwtParams& ep, const uint8_t* ebwt) {
+		initFromRow(row, ep, ebwt);
+	}
+
+	/**
+	 * Init two SideLocus objects from a top/bot pair, using the result
+	 * from one call to initFromRow to possibly avoid a second call.
+	 */
+	static void initFromTopBot(
+		uint32_t top,
+		uint32_t bot,
+		const EbwtParams& ep,
+		const uint8_t* ebwt,
+		SideLocus& ltop,
+		SideLocus& lbot)
+	{
+		const uint32_t sideBwtLen = ep._sideBwtLen;
+		assert_gt(bot, top);
+		ltop.initFromRow(top, ep, ebwt);
+		uint32_t spread = bot - top;
+		// Many cache misses on the following lines
+		if(ltop._charOff + spread < sideBwtLen) {
+			lbot._charOff = ltop._charOff + spread;
+			lbot._sideNum = ltop._sideNum;
+			lbot._sideByteOff = ltop._sideByteOff;
+			lbot._by = lbot._charOff >> 2;
+			assert_lt(lbot._by, (int)ep._sideBwtSz);
+			lbot._bp = lbot._charOff & 3;
+		} else {
+			lbot.initFromRow(bot, ep, ebwt);
+		}
+	}
+
+	/**
+	 * Calculate SideLocus based on a row and other relevant
+	 * information about the shape of the Ebwt.
+	 */
+	void initFromRow(uint32_t row, const EbwtParams& ep, const uint8_t* ebwt) {
+		const uint32_t sideSz     = ep._sideSz;
+		// Side length is hard-coded for now; this allows the compiler
+		// to do clever things to accelerate / and %.
+		_sideNum                  = row / 192;
+		assert_lt(_sideNum, ep._numSides);
+		_charOff                  = row % 192;
+		_sideByteOff              = _sideNum * sideSz;
+		assert_leq(row, ep._len);
+		assert_leq(_sideByteOff + sideSz, ep._ebwtTotSz);
+		// Tons of cache misses on the next line
+		_by = _charOff >> 2; // byte within side
+		assert_lt(_by, (int)ep._sideBwtSz);
+		_bp = _charOff & 3;  // bit-pair within byte
+	}
+	
+	/**
+	 * Transform this SideLocus to refer to the next side (i.e. the one
+	 * corresponding to the next side downstream).  Set all cursors to
+	 * point to the beginning of the side.
+	 */
+	void nextSide(const EbwtParams& ep) {
+		assert(valid());
+		_sideByteOff += ep.sideSz();
+		_sideNum++;
+		_by = _bp = _charOff = 0;
+		assert(valid());
+	}
+
+	/**
+	 * Return true iff this is an initialized SideLocus
+	 */
+	bool valid() const {
+		if(_bp != -1) {
+			return true;
+		}
+		return false;
+	}
+	
+	/**
+	 * Convert locus to BW row it corresponds to.
+	 */
+	uint32_t toBWRow() const {
+		return _sideNum * 192 + _charOff;
+	}
+	
+#ifndef NDEBUG
+	/**
+	 * Check that SideLocus is internally consistent and consistent
+	 * with the (provided) EbwtParams.
+	 */
+	bool repOk(const EbwtParams& ep) const {
+		ASSERT_ONLY(uint32_t row = _sideNum * 192 + _charOff);
+		assert_leq(row, ep._len);
+		assert_range(-1, 3, _bp);
+		assert_range(0, (int)ep._sideBwtSz, _by);
+		return true;
+	}
+
+	/**
+	 * Check that SideLocus is internally consistent and consistent
+	 * with the (provided) Ebwt.
+	 */
+	bool repOk(const Ebwt& ebwt) const {
+		return repOk(ebwt.eh());
+	}
+#endif
+
+	/// Make this look like an invalid SideLocus
+	void invalidate() {
+		_bp = -1;
+	}
+
+	/**
+	 * Return a read-only pointer to the beginning of the top side.
+	 */
+	const uint8_t *side(const uint8_t* ebwt) const {
+		return ebwt + _sideByteOff;
+	}
+
+	uint32_t _sideByteOff; // offset of top side within ebwt[]
+	uint32_t _sideNum;     // index of side
+	uint32_t _charOff;     // character offset within side
+	int32_t _by;           // byte within side (not adjusted for bw sides)
+	int32_t _bp;            // bitpair within byte (not adjusted for bw sides)
+};
+
+// Use this standard bit-bashing population count
+inline static int pop64(uint64_t x) {
+	// Lots of cache misses on following lines (>10K)
+	x = x - ((x >> 1) & 0x5555555555555555llu);
+	x = (x & 0x3333333333333333llu) + ((x >> 2) & 0x3333333333333333llu);
+	x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0Fllu;
+	x = x + (x >> 8);
+	x = x + (x >> 16);
+	x = x + (x >> 32);
+	return (int)(x & 0x3Fllu);
+}
+
+/**
+ * Tricky-bit-bashing bitpair counting for given two-bit value (0-3)
+ * within a 64-bit argument.
+ */
+inline static int countInU64(int c, uint64_t dw) {
+	uint64_t dwA  = dw &  0xAAAAAAAAAAAAAAAAllu;
+	uint64_t dwNA = dw & ~0xAAAAAAAAAAAAAAAAllu;
+	uint64_t tmp;
+	switch(c) {
+		case 0:
+			tmp = (dwA >> 1) | dwNA;
+			break;
+		case 1:
+			tmp = ~(dwA >> 1) & dwNA;
+			break;
+		case 2:
+			tmp = (dwA >> 1) & ~dwNA;
+			break;
+		case 3:
+			tmp = (dwA >> 1) & dwNA;
+			break;
+		default:
+			throw;
+	}
+	tmp = pop64(tmp); // Gets 7.62% in profile
+	if(c == 0) {
+		tmp = 32 - tmp;
+	}
+	assert_leq(tmp, 32);
+	assert_geq(tmp, 0);
+	return (int)tmp;
+}
+
 // Forward declarations for Ebwt class
-class SideLocus;
 class EbwtSearchParams;
 
 /**
@@ -334,18 +517,6 @@ public:
 	    mmFile1_(NULL), \
 	    mmFile2_(NULL)
 
-#ifdef EBWT_STATS
-#define Ebwt_STAT_INITS \
-	,mapLFExs_(0llu), \
-	mapLFRanges_(0llu), \
-	mapLFs_(0llu), \
-	mapLFcs_(0llu), \
-	mapLF1cs_(0llu), \
-	mapLF1s_(0llu)
-#else
-#define Ebwt_STAT_INITS
-#endif
-
 	/// Construct an Ebwt from the given input file
 	Ebwt(const string& in,
 	     int color,
@@ -365,7 +536,6 @@ public:
 	     bool passMemExc, // = false,
 	     bool sanityCheck) : // = false) :
 	     Ebwt_INITS
-	     Ebwt_STAT_INITS
 	{
 		assert(!useMm || !useShmem);
 		packed_ = false;
@@ -425,8 +595,7 @@ public:
 		bool verbose = false,
 		bool passMemExc = false,
 		bool sanityCheck = false) :
-		Ebwt_INITS
-		Ebwt_STAT_INITS,
+		Ebwt_INITS,
 		_eh(
 			joinedLen(szs),
 			lineRate,
@@ -909,14 +1078,6 @@ public:
 		}
 		MM_FILE_CLOSE(_in1);
 		MM_FILE_CLOSE(_in2);
-#ifdef EBWT_STATS
-		cout << (fw_ ? "Forward index:" : "Mirror index:") << endl;
-		cout << "  mapLFEx:   " << mapLFExs_ << endl;
-		cout << "  mapLF:     " << mapLFs_   << endl;
-		cout << "  mapLF(c):  " << mapLFcs_  << endl;
-		cout << "  mapLF1(c): " << mapLF1cs_ << endl;
-		cout << "  mapLF(c):  " << mapLF1s_  << endl;
-#endif
 	}
 
 	/// Accessors
@@ -1361,24 +1522,666 @@ public:
 
 	// Searching and reporting
 	void joinedToTextOff(uint32_t qlen, uint32_t off, uint32_t& tidx, uint32_t& textoff, uint32_t& tlen, bool rejectStraddle, bool& straddled) const;
-	int rowL(const SideLocus& l) const;
-	int rowL(uint32_t row) const;
-	inline uint32_t countUpTo(const SideLocus& l, int c) const;
-	inline void     countUpToEx(const SideLocus& l, uint32_t* pairs) const;
-	inline uint32_t countBt2Side(const SideLocus& l, int c) const;
-	inline void     countBt2SideEx(const SideLocus& l, uint32_t *pairs) const;
-	inline uint32_t countBt2SideRange2(const SideLocus& l, bool startAtLocus, uint32_t num, uint32_t* arrs, EList<bool> *masks, uint32_t maskOff) const;
-	inline void     countBt2SideRange(SideLocus& l, uint32_t num, uint32_t* cntsUpto, uint32_t* cntsIn, EList<bool> *masks) const;
 
-	uint32_t mapLF(const SideLocus& l ASSERT_ONLY(, bool overrideSanity = false)) const;
-	void mapBiLFEx(const SideLocus& ltop, const SideLocus& lbot, uint32_t *tops, uint32_t *bots, uint32_t *topsP, uint32_t *botsP ASSERT_ONLY(, bool overrideSanity = false) ) const;
-	void mapLFEx  (const SideLocus& ltop, const SideLocus& lbot, uint32_t *tops, uint32_t *bots ASSERT_ONLY(, bool overrideSanity = false)) const;
-	void mapLFEx  (uint32_t          top, uint32_t          bot, uint32_t *tops, uint32_t *bots ASSERT_ONLY(, bool overrideSanity = false)) const;
-	void mapLFRange(SideLocus& ltop, SideLocus& lbot, uint32_t num, uint32_t* cntsUpto, uint32_t* cntsIn, EList<bool> *masks ASSERT_ONLY(, bool overrideSanity = false)) const;
-	inline void mapLFEx(const SideLocus& l, uint32_t *pairs ASSERT_ONLY(, bool overrideSanity = false)) const;
-	uint32_t mapLF(const SideLocus& l, int c ASSERT_ONLY(, bool overrideSanity = false)) const;
-	uint32_t mapLF1(uint32_t row, const SideLocus& l, int c ASSERT_ONLY(, bool overrideSanity = false)) const;
-	int mapLF1(uint32_t& row, const SideLocus& l ASSERT_ONLY(, bool overrideSanity = false)) const;
+#define WITHIN_BWT_LEN(x) \
+	assert_leq(x[0], this->_eh._sideBwtLen); \
+	assert_leq(x[1], this->_eh._sideBwtLen); \
+	assert_leq(x[2], this->_eh._sideBwtLen); \
+	assert_leq(x[3], this->_eh._sideBwtLen)
+
+#define WITHIN_FCHR(x) \
+	assert_leq(x[0], this->fchr()[1]); \
+	assert_leq(x[1], this->fchr()[2]); \
+	assert_leq(x[2], this->fchr()[3]); \
+	assert_leq(x[3], this->fchr()[4])
+
+#define WITHIN_FCHR_DOLLARA(x) \
+	assert_leq(x[0], this->fchr()[1]+1); \
+	assert_leq(x[1], this->fchr()[2]); \
+	assert_leq(x[2], this->fchr()[3]); \
+	assert_leq(x[3], this->fchr()[4])
+
+	/**
+	 * Count all occurrences of character c from the beginning of the
+	 * forward side to <by,bp> and add in the occ[] count up to the side
+	 * break just prior to the side.
+	 *
+	 * A Bowtie 2 side is shaped like:
+	 *
+	 * XXXXXXXXXXXXXXXX [A] [C] [G] [T]
+	 * --------48------ -4- -4- -4- -4-  (numbers in bytes)
+	 */
+	inline uint32_t countBt2Side(const SideLocus& l, int c) const {
+		assert_range(0, 3, c);
+		assert_range(0, (int)this->_eh._sideBwtSz-1, (int)l._by);
+		assert_range(0, 3, (int)l._bp);
+		const uint8_t *side = l.side(this->ebwt());
+		uint32_t cCnt = countUpTo(l, c);
+		assert_leq(cCnt, l.toBWRow());
+		assert_leq(cCnt, this->_eh._sideBwtLen);
+		if(c == 0 && l._sideByteOff <= _zEbwtByteOff && l._sideByteOff + l._by >= _zEbwtByteOff) {
+			// Adjust for the fact that we represented $ with an 'A', but
+			// shouldn't count it as an 'A' here
+			if((l._sideByteOff + l._by > _zEbwtByteOff) ||
+			   (l._sideByteOff + l._by == _zEbwtByteOff && l._bp > _zEbwtBpOff))
+			{
+				cCnt--; // Adjust for '$' looking like an 'A'
+			}
+		}
+		uint32_t ret;
+		// Now factor in the occ[] count at the side break
+		const uint8_t *acgt8 = side + _eh._sideBwtSz;
+		const uint32_t *acgt = reinterpret_cast<const uint32_t*>(acgt8);
+		assert_leq(acgt[0], this->_eh._numSides * this->_eh._sideBwtLen); // b/c it's used as padding
+		assert_leq(acgt[1], this->_eh._len);
+		assert_leq(acgt[2], this->_eh._len);
+		assert_leq(acgt[3], this->_eh._len);
+		ret = acgt[c] + cCnt + this->fchr()[c];
+	#ifndef NDEBUG
+		assert_leq(ret, this->fchr()[c+1]); // can't have jumpded into next char's section
+		if(c == 0) {
+			assert_leq(cCnt, this->_eh._sideBwtLen);
+		} else {
+			assert_leq(ret, this->_eh._bwtLen);
+		}
+	#endif
+		return ret;
+	}
+
+	/**
+	 * Count all occurrences of all four nucleotides up to the starting
+	 * point (which must be in a forward side) given by 'l' storing the
+	 * result in 'cntsUpto', then count nucleotide occurrences within the
+	 * range of length 'num' storing the result in 'cntsIn'.  Also, keep
+	 * track of the characters occurring within the range by setting
+	 * 'masks' accordingly (masks[1][10] == true -> 11th character is a
+	 * 'C', and masks[0][10] == masks[2][10] == masks[3][10] == false.
+	 */
+	inline void countBt2SideRange(
+		SideLocus& l,        // top locus
+		uint32_t num,        // number of elts in range to tall
+		uint32_t* cntsUpto,  // A/C/G/T counts up to top
+		uint32_t* cntsIn,    // A/C/G/T counts within range
+		EList<bool> *masks) const // masks indicating which range elts = A/C/G/T
+	{
+		assert_gt(num, 0);
+		assert_range(0, (int)this->_eh._sideBwtSz-1, (int)l._by);
+		assert_range(0, 3, (int)l._bp);
+		countUpToEx(l, cntsUpto);
+		WITHIN_FCHR_DOLLARA(cntsUpto);
+		WITHIN_BWT_LEN(cntsUpto);
+		const uint8_t *side = l.side(this->ebwt());
+		if(l._sideByteOff <= _zEbwtByteOff && l._sideByteOff + l._by >= _zEbwtByteOff) {
+			// Adjust for the fact that we represented $ with an 'A', but
+			// shouldn't count it as an 'A' here
+			if((l._sideByteOff + l._by > _zEbwtByteOff) ||
+			   (l._sideByteOff + l._by == _zEbwtByteOff && l._bp > _zEbwtBpOff))
+			{
+				cntsUpto[0]--; // Adjust for '$' looking like an 'A'
+			}
+		}
+		// Now factor in the occ[] count at the side break
+		const uint32_t *acgt = reinterpret_cast<const uint32_t*>(side + _eh._sideBwtSz);
+		assert_leq(acgt[0], this->fchr()[1] + this->_eh.sideBwtLen());
+		assert_leq(acgt[1], this->fchr()[2]-this->fchr()[1]);
+		assert_leq(acgt[2], this->fchr()[3]-this->fchr()[2]);
+		assert_leq(acgt[3], this->fchr()[4]-this->fchr()[3]);
+		assert_leq(acgt[0], this->_eh._len + this->_eh.sideBwtLen());
+		assert_leq(acgt[1], this->_eh._len);
+		assert_leq(acgt[2], this->_eh._len);
+		assert_leq(acgt[3], this->_eh._len);
+		cntsUpto[0] += (acgt[0] + this->fchr()[0]);
+		cntsUpto[1] += (acgt[1] + this->fchr()[1]);
+		cntsUpto[2] += (acgt[2] + this->fchr()[2]);
+		cntsUpto[3] += (acgt[3] + this->fchr()[3]);
+		masks[0].resize(num);
+		masks[1].resize(num);
+		masks[2].resize(num);
+		masks[3].resize(num);
+		WITHIN_FCHR_DOLLARA(cntsUpto);
+		WITHIN_FCHR_DOLLARA(cntsIn);
+		// 'cntsUpto' is complete now.
+		// Walk forward until we've tallied the entire 'In' range
+		uint32_t nm = 0;
+		// Rest of this side
+		nm += countBt2SideRange2(l, true, num - nm, cntsIn, masks, nm);
+		assert_eq(nm, cntsIn[0] + cntsIn[1] + cntsIn[2] + cntsIn[3]);
+		assert_leq(nm, num);
+		SideLocus lcopy = l;
+		while(nm < num) {
+			// Subsequent sides, if necessary
+			lcopy.nextSide(this->_eh);
+			nm += countBt2SideRange2(lcopy, false, num - nm, cntsIn, masks, nm);
+			WITHIN_FCHR_DOLLARA(cntsIn);
+			assert_leq(nm, num);
+			assert_eq(nm, cntsIn[0] + cntsIn[1] + cntsIn[2] + cntsIn[3]);
+		}
+		assert_eq(num, cntsIn[0] + cntsIn[1] + cntsIn[2] + cntsIn[3]);
+		WITHIN_FCHR_DOLLARA(cntsIn);
+	}
+
+	/**
+	 * Count all occurrences of character c from the beginning of the
+	 * forward side to <by,bp> and add in the occ[] count up to the side
+	 * break just prior to the side.
+	 *
+	 * A forward side is shaped like:
+	 *
+	 * [A] [C] XXXXXXXXXXXXXXXX
+	 * -4- -4- --------56------ (numbers in bytes)
+	 *         ^
+	 *         Side ptr (result from SideLocus.side())
+	 *
+	 * And following it is a reverse side shaped like:
+	 * 
+	 * [G] [T] XXXXXXXXXXXXXXXX
+	 * -4- -4- --------56------ (numbers in bytes)
+	 *         ^
+	 *         Side ptr (result from SideLocus.side())
+	 *
+	 */
+	inline void countBt2SideEx(const SideLocus& l, uint32_t* arrs) const {
+		assert_range(0, (int)this->_eh._sideBwtSz-1, (int)l._by);
+		assert_range(0, 3, (int)l._bp);
+		countUpToEx(l, arrs);
+		if(l._sideByteOff <= _zEbwtByteOff && l._sideByteOff + l._by >= _zEbwtByteOff) {
+			// Adjust for the fact that we represented $ with an 'A', but
+			// shouldn't count it as an 'A' here
+			if((l._sideByteOff + l._by > _zEbwtByteOff) ||
+			   (l._sideByteOff + l._by == _zEbwtByteOff && l._bp > _zEbwtBpOff))
+			{
+				arrs[0]--; // Adjust for '$' looking like an 'A'
+			}
+		}
+		WITHIN_FCHR(arrs);
+		WITHIN_BWT_LEN(arrs);
+		// Now factor in the occ[] count at the side break
+		const uint8_t *side = l.side(this->ebwt());
+		const uint8_t *acgt16 = side + this->_eh._sideSz - 16;
+		const uint32_t *acgt = reinterpret_cast<const uint32_t*>(acgt16);
+		assert_leq(acgt[0], this->fchr()[1] + this->_eh.sideBwtLen());
+		assert_leq(acgt[1], this->fchr()[2]-this->fchr()[1]);
+		assert_leq(acgt[2], this->fchr()[3]-this->fchr()[2]);
+		assert_leq(acgt[3], this->fchr()[4]-this->fchr()[3]);
+		assert_leq(acgt[0], this->_eh._len + this->_eh.sideBwtLen());
+		assert_leq(acgt[1], this->_eh._len);
+		assert_leq(acgt[2], this->_eh._len);
+		assert_leq(acgt[3], this->_eh._len);
+		arrs[0] += (acgt[0] + this->fchr()[0]);
+		arrs[1] += (acgt[1] + this->fchr()[1]);
+		arrs[2] += (acgt[2] + this->fchr()[2]);
+		arrs[3] += (acgt[3] + this->fchr()[3]);
+		WITHIN_FCHR(arrs);
+	}
+
+	/**
+	 * Counts the number of occurrences of character 'c' in the given Ebwt
+	 * side up to (but not including) the given byte/bitpair (by/bp).
+	 *
+	 * This is a performance-critical function.  This is the top search-
+	 * related hit in the time profile.
+	 *
+	 * Function gets 11.09% in profile
+	 */
+	inline uint32_t countUpTo(const SideLocus& l, int c) const {
+		// Count occurrences of c in each 64-bit (using bit trickery);
+		// Someday countInU64() and pop() functions should be
+		// vectorized/SSE-ized in case that helps.
+		uint32_t cCnt = 0;
+		const uint8_t *side = l.side(this->ebwt());
+		int i = 0;
+		for(; i + 7 < l._by; i += 8) {
+			cCnt += countInU64(c, *(uint64_t*)&side[i]);
+		}
+		// Count occurences of c in the rest of the side (using LUT)
+		for(; i < l._by; i++) {
+			cCnt += cCntLUT_4[0][c][side[i]];
+		}
+		// Count occurences of c in the rest of the byte
+		if(l._bp > 0) {
+			cCnt += cCntLUT_4[(int)l._bp][c][side[i]];
+		}
+		return cCnt;
+	}
+
+	/**
+	 * Tricky-bit-bashing bitpair counting for given two-bit value (0-3)
+	 * within a 64-bit argument.
+	 *
+	 * Function gets 2.32% in profile
+	 */
+	inline static void countInU64Ex(uint64_t dw, uint32_t* arrs) {
+		// Cache misses here (~9K)
+		uint64_t dwA  = dw &  0xAAAAAAAAAAAAAAAAllu;
+		uint64_t dwNA = dw & ~0xAAAAAAAAAAAAAAAAllu;
+		arrs[0] += (32 - pop64((dwA >> 1) | dwNA));
+		arrs[1] += pop64(~(dwA >> 1) & dwNA);
+		arrs[2] += pop64((dwA >> 1) & ~dwNA);
+		arrs[3] += pop64((dwA >> 1) & dwNA);
+	}
+
+	/**
+	 * Counts the number of occurrences of all four nucleotides in the
+	 * given side up to (but not including) the given byte/bitpair (by/bp).
+	 * Count for 'a' goes in arrs[0], 'c' in arrs[1], etc.
+	 */
+	inline void countUpToEx(const SideLocus& l, uint32_t* arrs) const {
+		int i = 0;
+		// Count occurrences of each nucleotide in each 64-bit word using
+		// bit trickery; note: this seems does not seem to lend a
+		// significant boost to performance in practice.  If you comment
+		// out this whole loop (which won't affect correctness - it will
+		// just cause the following loop to take up the slack) then runtime
+		// does not change noticeably. Someday the countInU64() and pop()
+		// functions should be vectorized/SSE-ized in case that helps.
+		const uint8_t *side = l.side(this->ebwt());
+		for(; i+7 < l._by; i += 8) {
+			countInU64Ex(*(uint64_t*)&side[i], arrs);
+		}
+		// Count occurences of nucleotides in the rest of the side (using LUT)
+		// Many cache misses on following lines (~20K)
+		for(; i < l._by; i++) {
+			arrs[0] += cCntLUT_4[0][0][side[i]];
+			arrs[1] += cCntLUT_4[0][1][side[i]];
+			arrs[2] += cCntLUT_4[0][2][side[i]];
+			arrs[3] += cCntLUT_4[0][3][side[i]];
+		}
+		// Count occurences of c in the rest of the byte
+		if(l._bp > 0) {
+			arrs[0] += cCntLUT_4[(int)l._bp][0][side[i]];
+			arrs[1] += cCntLUT_4[(int)l._bp][1][side[i]];
+			arrs[2] += cCntLUT_4[(int)l._bp][2][side[i]];
+			arrs[3] += cCntLUT_4[(int)l._bp][3][side[i]];
+		}
+	}
+
+	/**
+	 * Counts the number of occurrences of all four nucleotides in the
+	 * given side from the given byte/bitpair (l->_by/l->_bp) (or the
+	 * beginning of the side if l == 0).  Count for 'a' goes in arrs[0],
+	 * 'c' in arrs[1], etc.
+	 *
+	 * Note: must account for $.
+	 *
+	 * Must fill in masks
+	 */
+	inline uint32_t countBt2SideRange2(
+		const SideLocus& l,
+		bool startAtLocus,
+		uint32_t num,
+		uint32_t* arrs,
+		EList<bool> *masks,
+		uint32_t maskOff) const
+	{
+		assert(!masks[0].empty());
+		assert_eq(masks[0].size(), masks[1].size());
+		assert_eq(masks[0].size(), masks[2].size());
+		assert_eq(masks[0].size(), masks[3].size());
+		ASSERT_ONLY(uint32_t myarrs[4] = {0, 0, 0, 0});
+		uint32_t nm = 0; // number of nucleotides tallied so far
+		int iby = 0;      // initial byte offset
+		int ibp = 0;      // initial base-pair offset
+		if(startAtLocus) {
+			iby = l._by;
+			ibp = l._bp;
+		} else {
+			// Start at beginning
+		}
+		int by = iby, bp = ibp;
+		assert_lt(bp, 4);
+		assert_lt(by, (int)this->_eh._sideBwtSz);
+		const uint8_t *side = l.side(this->ebwt());
+		while(nm < num) {
+			int c = (side[by] >> (bp * 2)) & 3;
+			assert_lt(maskOff + nm, masks[c].size());
+			masks[0][maskOff + nm] = masks[1][maskOff + nm] =
+			masks[2][maskOff + nm] = masks[3][maskOff + nm] = false;
+			assert_range(0, 3, c);
+			// Note: we tally $ just like an A
+			arrs[c]++; // tally it
+			ASSERT_ONLY(myarrs[c]++);
+			masks[c][maskOff + nm] = true; // not dead
+			nm++;
+			if(++bp == 4) {
+				bp = 0;
+				by++;
+				assert_leq(by, (int)this->_eh._sideBwtSz);
+				if(by == (int)this->_eh._sideBwtSz) {
+					// Fell off the end of the side
+					break;
+				}
+			}
+		}
+		WITHIN_FCHR_DOLLARA(arrs);
+#ifndef NDEBUG
+		if(_sanity) {
+			// Make sure results match up with a call to mapLFEx.
+			uint32_t tops[4] = {0, 0, 0, 0};
+			uint32_t bots[4] = {0, 0, 0, 0};
+			uint32_t top = l.toBWRow();
+			uint32_t bot = top + nm;
+			mapLFEx(top, bot, tops, bots);
+			assert(myarrs[0] == (bots[0] - tops[0]) || myarrs[0] == (bots[0] - tops[0])+1);
+			assert_eq(myarrs[1], bots[1] - tops[1]);
+			assert_eq(myarrs[2], bots[2] - tops[2]);
+			assert_eq(myarrs[3], bots[3] - tops[3]);
+		}
+#endif
+		return nm;
+	}
+
+	/**
+	 * Return the final character in row i (i.e. the i'th character in the
+	 * BWT transform).  Note that the 'L' in the name of the function
+	 * stands for 'last', as in the literature.
+	 */
+	inline int rowL(const SideLocus& l) const {
+		// Extract and return appropriate bit-pair
+		return unpack_2b_from_8b(l.side(this->ebwt())[l._by], l._bp);
+	}
+
+	/**
+	 * Return the final character in row i (i.e. the i'th character in the
+	 * BWT transform).  Note that the 'L' in the name of the function
+	 * stands for 'last', as in the literature.
+	 */
+	inline int rowL(uint32_t i) const {
+		// Extract and return appropriate bit-pair
+		SideLocus l;
+		l.initFromRow(i, _eh, ebwt());
+		return rowL(l);
+	}
+
+	/**
+	 * Given top and bot rows, calculate counts of all four DNA chars up to
+	 * those loci.
+	 */
+	inline void mapLFEx(
+		uint32_t top,
+		uint32_t bot,
+		uint32_t *tops,
+		uint32_t *bots
+		ASSERT_ONLY(, bool overrideSanity)
+		) const
+	{
+		SideLocus ltop, lbot;
+		SideLocus::initFromTopBot(top, bot, _eh, ebwt(), ltop, lbot);
+		mapLFEx(ltop, lbot, tops, bots ASSERT_ONLY(, overrideSanity));
+	}
+
+	/**
+	 * Given top and bot loci, calculate counts of all four DNA chars up to
+	 * those loci.  Used for more advanced backtracking-search.
+	 */
+	inline void mapLFEx(
+		const SideLocus& ltop,
+		const SideLocus& lbot,
+		uint32_t *tops,
+		uint32_t *bots
+		ASSERT_ONLY(, bool overrideSanity)
+		) const
+	{
+		assert(ltop.repOk(*this));
+		assert(lbot.repOk(*this));
+		assert_eq(0, tops[0]); assert_eq(0, bots[0]);
+		assert_eq(0, tops[1]); assert_eq(0, bots[1]);
+		assert_eq(0, tops[2]); assert_eq(0, bots[2]);
+		assert_eq(0, tops[3]); assert_eq(0, bots[3]);
+		countBt2SideEx(ltop, tops);
+		countBt2SideEx(lbot, bots);
+#ifndef NDEBUG
+		if(_sanity && !overrideSanity) {
+			// Make sure results match up with individual calls to mapLF;
+			// be sure to override sanity-checking in the callee, or we'll
+			// have infinite recursion
+			assert_eq(mapLF(ltop, 0, true), tops[0]);
+			assert_eq(mapLF(ltop, 1, true), tops[1]);
+			assert_eq(mapLF(ltop, 2, true), tops[2]);
+			assert_eq(mapLF(ltop, 3, true), tops[3]);
+			assert_eq(mapLF(lbot, 0, true), bots[0]);
+			assert_eq(mapLF(lbot, 1, true), bots[1]);
+			assert_eq(mapLF(lbot, 2, true), bots[2]);
+			assert_eq(mapLF(lbot, 3, true), bots[3]);
+		}
+#endif
+	}
+
+	/**
+	 * Given top and bot loci, calculate counts of all four DNA chars up to
+	 * those loci.  Used for more advanced backtracking-search.
+	 */
+	inline void mapLFRange(
+		SideLocus& ltop,
+		SideLocus& lbot,
+		uint32_t num,        // Number of elts
+		uint32_t* cntsUpto,  // A/C/G/T counts up to top
+		uint32_t* cntsIn,    // A/C/G/T counts within range
+		EList<bool> *masks
+		ASSERT_ONLY(, bool overrideSanity)
+		) const
+	{
+		assert(ltop.repOk(*this));
+		assert(lbot.repOk(*this));
+		assert_eq(num, lbot.toBWRow() - ltop.toBWRow());
+		assert_eq(0, cntsUpto[0]); assert_eq(0, cntsIn[0]);
+		assert_eq(0, cntsUpto[1]); assert_eq(0, cntsIn[1]);
+		assert_eq(0, cntsUpto[2]); assert_eq(0, cntsIn[2]);
+		assert_eq(0, cntsUpto[3]); assert_eq(0, cntsIn[3]);
+		countBt2SideRange(ltop, num, cntsUpto, cntsIn, masks);
+		assert_eq(num, cntsIn[0] + cntsIn[1] + cntsIn[2] + cntsIn[3]);
+#ifndef NDEBUG
+		if(_sanity && !overrideSanity) {
+			// Make sure results match up with individual calls to mapLF;
+			// be sure to override sanity-checking in the callee, or we'll
+			// have infinite recursion
+			uint32_t tops[4] = {0, 0, 0, 0};
+			uint32_t bots[4] = {0, 0, 0, 0};
+			assert(ltop.repOk(*this));
+			assert(lbot.repOk(*this));
+			mapLFEx(ltop, lbot, tops, bots);
+			for(int i = 0; i < 4; i++) {
+				assert(cntsUpto[i] == tops[i] || tops[i] == bots[i]);
+				if(i == 0) {
+					assert(cntsIn[i] == bots[i]-tops[i] ||
+						   cntsIn[i] == bots[i]-tops[i]+1);
+				} else {
+					assert_eq(cntsIn[i], bots[i]-tops[i]);
+				}
+			}
+		}
+#endif
+	}
+
+#ifndef NDEBUG
+	/**
+	 * Given top and bot loci, calculate counts of all four DNA chars up to
+	 * those loci.  Used for more advanced backtracking-search.
+	 */
+	inline void Ebwt::mapLFEx(
+		const SideLocus& l,
+		uint32_t *arrs
+		ASSERT_ONLY(, bool overrideSanity)
+		) const
+	{
+		assert_eq(0, arrs[0]);
+		assert_eq(0, arrs[1]);
+		assert_eq(0, arrs[2]);
+		assert_eq(0, arrs[3]);
+		countBt2SideEx(l, arrs);
+		if(_sanity && !overrideSanity) {
+			// Make sure results match up with individual calls to mapLF;
+			// be sure to override sanity-checking in the callee, or we'll
+			// have infinite recursion
+			assert_eq(mapLF(l, 0, true), arrs[0]);
+			assert_eq(mapLF(l, 1, true), arrs[1]);
+			assert_eq(mapLF(l, 2, true), arrs[2]);
+			assert_eq(mapLF(l, 3, true), arrs[3]);
+		}
+	}
+#endif
+
+	/**
+	 * Given row i, return the row that the LF mapping maps i to.
+	 */
+	inline uint32_t Ebwt::mapLF(
+		const SideLocus& l
+		ASSERT_ONLY(, bool overrideSanity)
+		) const
+	{
+		ASSERT_ONLY(uint32_t srcrow = l.toBWRow());
+		uint32_t ret;
+		assert(l.side(this->ebwt()) != NULL);
+		int c = rowL(l);
+		assert_lt(c, 4);
+		assert_geq(c, 0);
+		ret = countBt2Side(l, c);
+		assert_lt(ret, this->_eh._bwtLen);
+		assert_neq(srcrow, ret);
+#ifndef NDEBUG
+		if(_sanity && !overrideSanity) {
+			// Make sure results match up with results from mapLFEx;
+			// be sure to override sanity-checking in the callee, or we'll
+			// have infinite recursion
+			uint32_t arrs[] = { 0, 0, 0, 0 };
+			mapLFEx(l, arrs, true);
+			assert_eq(arrs[c], ret);
+		}
+#endif
+		return ret;
+	}
+
+	/**
+	 * Given row i and character c, return the row that the LF mapping maps
+	 * i to on character c.
+	 */
+	inline uint32_t mapLF(
+		const SideLocus& l, int c
+		ASSERT_ONLY(, bool overrideSanity)
+		) const
+	{
+		uint32_t ret;
+		assert_lt(c, 4);
+		assert_geq(c, 0);
+		ret = countBt2Side(l, c);
+		assert_lt(ret, this->_eh._bwtLen);
+#ifndef NDEBUG
+		if(_sanity && !overrideSanity) {
+			// Make sure results match up with results from mapLFEx;
+			// be sure to override sanity-checking in the callee, or we'll
+			// have infinite recursion
+			uint32_t arrs[] = { 0, 0, 0, 0 };
+			mapLFEx(l, arrs, true);
+			assert_eq(arrs[c], ret);
+		}
+#endif
+		return ret;
+	}
+
+	/**
+	 * Given top and bot loci, calculate counts of all four DNA chars up to
+	 * those loci.  Also, update a set of tops and bots for the reverse
+	 * index/direction using the idea from the bi-directional BWT paper.
+	 */
+	inline void mapBiLFEx(
+		const SideLocus& ltop,
+		const SideLocus& lbot,
+		uint32_t *tops,
+		uint32_t *bots,
+		uint32_t *topsP, // topsP[0] = top
+		uint32_t *botsP
+		ASSERT_ONLY(, bool overrideSanity)
+		) const
+	{
+#ifndef NDEBUG
+		for(int i = 0; i < 4; i++) {
+			assert_eq(0, tops[0]);  assert_eq(0, bots[0]);
+		}
+#endif
+		countBt2SideEx(ltop, tops);
+		countBt2SideEx(lbot, bots);
+#ifndef NDEBUG
+		if(_sanity && !overrideSanity) {
+			// Make sure results match up with individual calls to mapLF;
+			// be sure to override sanity-checking in the callee, or we'll
+			// have infinite recursion
+			assert_eq(mapLF(ltop, 0, true), tops[0]);
+			assert_eq(mapLF(ltop, 1, true), tops[1]);
+			assert_eq(mapLF(ltop, 2, true), tops[2]);
+			assert_eq(mapLF(ltop, 3, true), tops[3]);
+			assert_eq(mapLF(lbot, 0, true), bots[0]);
+			assert_eq(mapLF(lbot, 1, true), bots[1]);
+			assert_eq(mapLF(lbot, 2, true), bots[2]);
+			assert_eq(mapLF(lbot, 3, true), bots[3]);
+		}
+#endif
+		// bots[0..3] - tops[0..3] = # of ways to extend the suffix with an
+		// A, C, G, T
+		botsP[0] = topsP[0] + (bots[0] - tops[0]);
+		topsP[1] = botsP[0];
+		botsP[1] = topsP[1] + (bots[1] - tops[1]);
+		topsP[2] = botsP[1];
+		botsP[2] = topsP[2] + (bots[2] - tops[2]);
+		topsP[3] = botsP[2];
+		botsP[3] = topsP[3] + (bots[3] - tops[3]);
+	}
+
+	/**
+	 * Given row and its locus information, proceed on the given character
+	 * and return the next row, or all-fs if we can't proceed on that
+	 * character.  Returns 0xffffffff if this row ends in $.
+	 */
+	inline uint32_t mapLF1(
+		uint32_t row,       // starting row
+		const SideLocus& l, // locus for starting row
+		int c               // character to proceed on
+		ASSERT_ONLY(, bool overrideSanity)) const
+	{
+		if(rowL(l) != c || row == _zOff) return 0xffffffff;
+		uint32_t ret;
+		assert_lt(c, 4);
+		assert_geq(c, 0);
+		ret = countBt2Side(l, c);
+		assert_lt(ret, this->_eh._bwtLen);
+#ifndef NDEBUG
+		if(_sanity && !overrideSanity) {
+			// Make sure results match up with results from mapLFEx;
+			// be sure to override sanity-checking in the callee, or we'll
+			// have infinite recursion
+			uint32_t arrs[] = { 0, 0, 0, 0 };
+			mapLFEx(l, arrs, true);
+			assert_eq(arrs[c], ret);
+		}
+#endif
+		return ret;
+	}
+
+
+	/**
+	 * Given row and its locus information, set the row to LF(row) and
+	 * return the character that was in the final column.
+	 */
+	inline int mapLF1(
+		uint32_t& row,      // starting row
+		const SideLocus& l  // locus for starting row
+		ASSERT_ONLY(, bool overrideSanity)) const
+	{
+		if(row == _zOff) return -1;
+		int c = rowL(l);
+		assert_range(0, 3, c);
+		row = countBt2Side(l, c);
+		assert_lt(row, this->_eh._bwtLen);
+#ifndef NDEBUG
+		if(_sanity && !overrideSanity) {
+			// Make sure results match up with results from mapLFEx;
+			// be sure to override sanity-checking in the callee, or we'll
+			// have infinite recursion
+			uint32_t arrs[] = { 0, 0, 0, 0 };
+			mapLFEx(l, arrs, true);
+			assert_eq(arrs[c], row);
+		}
+#endif
+		return c;
+	}
 
 #ifndef NDEBUG
 	/// Check that in-memory Ebwt is internally consistent with respect
@@ -1465,12 +2268,6 @@ public:
 	static const int      default_offRatePlus = 0;
 	static const int      default_ftabChars = 10;
 	static const bool     default_bigEndian = false;
-	
-#ifdef EBWT_STATS
-	uint64_t   mapLFExs_;
-	uint64_t   mapLFs_;
-	uint64_t   mapLFcs_;
-#endif
 
 private:
 
@@ -1486,152 +2283,6 @@ private:
 			this->log().flush();
 		}
 	}
-};
-
-/**
- * Encapsulates a location in the bwt text in terms of the side it
- * occurs in and its offset within the side.
- */
-struct SideLocus {
-	SideLocus() :
-	_sideByteOff(0),
-	_sideNum(0),
-	_charOff(0),
-	_by(-1),
-	_bp(-1) { }
-
-	/**
-	 * Construct from row and other relevant information about the Ebwt.
-	 */
-	SideLocus(uint32_t row, const EbwtParams& ep, const uint8_t* ebwt) {
-		initFromRow(row, ep, ebwt);
-	}
-
-	/**
-	 * Init two SideLocus objects from a top/bot pair, using the result
-	 * from one call to initFromRow to possibly avoid a second call.
-	 */
-	static void initFromTopBot(
-		uint32_t top,
-		uint32_t bot,
-		const EbwtParams& ep,
-		const uint8_t* ebwt,
-		SideLocus& ltop,
-		SideLocus& lbot)
-	{
-		const uint32_t sideBwtLen = ep._sideBwtLen;
-		assert_gt(bot, top);
-		ltop.initFromRow(top, ep, ebwt);
-		uint32_t spread = bot - top;
-		// Many cache misses on the following lines
-		if(ltop._charOff + spread < sideBwtLen) {
-			lbot._charOff = ltop._charOff + spread;
-			lbot._sideNum = ltop._sideNum;
-			lbot._sideByteOff = ltop._sideByteOff;
-			lbot._by = lbot._charOff >> 2;
-			assert_lt(lbot._by, (int)ep._sideBwtSz);
-			lbot._bp = lbot._charOff & 3;
-		} else {
-			lbot.initFromRow(bot, ep, ebwt);
-		}
-	}
-
-	/**
-	 * Calculate SideLocus based on a row and other relevant
-	 * information about the shape of the Ebwt.
-	 */
-	void initFromRow(uint32_t row, const EbwtParams& ep, const uint8_t* ebwt) {
-		const uint32_t sideSz     = ep._sideSz;
-		// Side length is hard-coded for now; this allows the compiler
-		// to do clever things to accelerate / and %.
-		_sideNum                  = row / 192;
-		assert_lt(_sideNum, ep._numSides);
-		_charOff                  = row % 192;
-		_sideByteOff              = _sideNum * sideSz;
-		assert_leq(row, ep._len);
-		assert_leq(_sideByteOff + sideSz, ep._ebwtTotSz);
-#if 0
-#ifndef NO_PREFETCH
-		__builtin_prefetch((const void *)(ebwt + _sideByteOff),
-		                   0 /* prepare for read */,
-		                   PREFETCH_LOCALITY);
-#endif
-#endif
-		// Tons of cache misses on the next line
-		_by = _charOff >> 2; // byte within side
-		assert_lt(_by, (int)ep._sideBwtSz);
-		_bp = _charOff & 3;  // bit-pair within byte
-	}
-	
-	/**
-	 * Transform this SideLocus to refer to the next side (i.e. the one
-	 * corresponding to the next side downstream).  Set all cursors to
-	 * point to the beginning of the side.
-	 */
-	void nextSide(const EbwtParams& ep) {
-		assert(valid());
-		_sideByteOff += ep.sideSz();
-		_sideNum++;
-		_by = _bp = _charOff = 0;
-		assert(valid());
-	}
-
-	/**
-	 * Return true iff this is an initialized SideLocus
-	 */
-	bool valid() const {
-		if(_bp != -1) {
-			return true;
-		}
-		return false;
-	}
-	
-	/**
-	 * Convert locus to BW row it corresponds to.
-	 */
-	uint32_t toBWRow() const {
-		return _sideNum * 192 + _charOff;
-	}
-	
-#ifndef NDEBUG
-	/**
-	 * Check that SideLocus is internally consistent and consistent
-	 * with the (provided) EbwtParams.
-	 */
-	bool repOk(const EbwtParams& ep) const {
-		ASSERT_ONLY(uint32_t row = _sideNum * 192 + _charOff);
-		assert_leq(row, ep._len);
-		assert_range(-1, 3, _bp);
-		assert_range(0, (int)ep._sideBwtSz, _by);
-		return true;
-	}
-
-	/**
-	 * Check that SideLocus is internally consistent and consistent
-	 * with the (provided) Ebwt.
-	 */
-	bool repOk(const Ebwt& ebwt) const {
-		return repOk(ebwt.eh());
-	}
-#endif
-
-	/// Make this look like an invalid SideLocus
-	void invalidate() {
-		_bp = -1;
-	}
-
-	/**
-	 * Return a read-only pointer to the beginning of the top side.
-	 */
-	const uint8_t *side(const uint8_t* ebwt) const {
-		return ebwt + _sideByteOff;
-	}
-
-	uint32_t _sideByteOff; // offset of top side within ebwt[]
-	uint32_t _sideNum;     // index of side
-	uint32_t _charOff;     // character offset within side
-	int32_t _by;           // byte within side (not adjusted for bw sides)
-	int32_t _bp;            // bitpair within byte (not adjusted for bw sides)
 };
 
 /**

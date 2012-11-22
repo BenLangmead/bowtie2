@@ -400,6 +400,16 @@ void SamConfig::printAlignedOptFlags(
 		o.append("ZB:i:");
 		o.append(buf);
 	}
+	if(print_zr_) {
+		// ZR:Z: Redundant path skips in seed alignment
+		WRITE_SEP();
+		o.append("ZR:Z:");
+		itoa10<uint64_t>(prm.nRedSkip, buf); o.append(buf);
+		o.append(',');
+		itoa10<uint64_t>(prm.nRedFail, buf); o.append(buf);
+		o.append(',');
+		itoa10<uint64_t>(prm.nRedIns, buf); o.append(buf);
+	}
 	if(print_zf_) {
 		// ZF:i: FM Index ops for seed alignment
 		WRITE_SEP();
@@ -569,6 +579,16 @@ void SamConfig::printEmptyOptFlags(
 		itoa10<uint64_t>(prm.nFtabs, buf);
 		o.append("ZB:i:");
 		o.append(buf);
+	}
+	if(print_zr_) {
+		// ZR:Z: Redundant path skips in seed alignment
+		WRITE_SEP();
+		o.append("ZR:Z:");
+		itoa10<uint64_t>(prm.nRedSkip, buf); o.append(buf);
+		o.append(',');
+		itoa10<uint64_t>(prm.nRedFail, buf); o.append(buf);
+		o.append(',');
+		itoa10<uint64_t>(prm.nRedIns, buf); o.append(buf);
 	}
 	if(print_zf_) {
 		// ZF:i: FM Index ops for seed alignment

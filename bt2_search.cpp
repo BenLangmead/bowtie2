@@ -149,6 +149,7 @@ static bool sam_print_ye;
 static bool sam_print_yu;
 static bool sam_print_yr;
 static bool sam_print_zb;
+static bool sam_print_zr;
 static bool sam_print_zf;
 static bool sam_print_zm;
 static bool sam_print_zi;
@@ -330,6 +331,7 @@ static void resetOptions() {
 	sam_print_yu            = false;
 	sam_print_yr            = false;
 	sam_print_zb            = false;
+	sam_print_zr            = false;
 	sam_print_zf            = false;
 	sam_print_zm            = false;
 	sam_print_zi            = false;
@@ -1176,6 +1178,7 @@ static void parseOption(int next_option, const char *arg) {
 			sam_print_yu = true;
 			sam_print_yr = true;
 			sam_print_zb = true;
+			sam_print_zr = true;
 			sam_print_zf = true;
 			sam_print_zm = true;
 			sam_print_zi = true;
@@ -1547,6 +1550,13 @@ static void parseOptions(int argc, const char **argv) {
 			 << " instead" << endl;
 		multiseedMms = multiseedLen-1;
 	}
+#ifndef NDEBUG
+	if(!gQuiet) {
+		cerr << "Warning: Running in debug mode.  Please use debug mode only "
+			 << "for diagnosing errors, and not for typical use of Bowtie 2."
+			 << endl;
+	}
+#endif
 }
 
 static const char *argv0 = NULL;
@@ -4401,6 +4411,7 @@ static void driver(
 			sam_print_yu,
 			sam_print_yr,
 			sam_print_zb,
+			sam_print_zr,
 			sam_print_zf,
 			sam_print_zm,
 			sam_print_zi,
