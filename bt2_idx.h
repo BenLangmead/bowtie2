@@ -402,14 +402,6 @@ struct SideLocus {
 		assert_range(0, (int)ep._sideBwtSz, _by);
 		return true;
 	}
-
-	/**
-	 * Check that SideLocus is internally consistent and consistent
-	 * with the (provided) Ebwt.
-	 */
-	bool repOk(const Ebwt& ebwt) const {
-		return repOk(ebwt.eh());
-	}
 #endif
 
 	/// Make this look like an invalid SideLocus
@@ -1795,6 +1787,88 @@ public:
 		}
 	}
 
+#ifndef NDEBUG
+	/**
+	 * Given top and bot loci, calculate counts of all four DNA chars up to
+	 * those loci.  Used for more advanced backtracking-search.
+	 */
+	inline void mapLFEx(
+		const SideLocus& l,
+		uint32_t *arrs
+		ASSERT_ONLY(, bool overrideSanity = false)
+		) const
+	{
+		assert_eq(0, arrs[0]);
+		assert_eq(0, arrs[1]);
+		assert_eq(0, arrs[2]);
+		assert_eq(0, arrs[3]);
+		countBt2SideEx(l, arrs);
+		if(_sanity && !overrideSanity) {
+			// Make sure results match up with individual calls to mapLF;
+			// be sure to override sanity-checking in the callee, or we'll
+			// have infinite recursion
+			assert_eq(mapLF(l, 0, true), arrs[0]);
+			assert_eq(mapLF(l, 1, true), arrs[1]);
+			assert_eq(mapLF(l, 2, true), arrs[2]);
+			assert_eq(mapLF(l, 3, true), arrs[3]);
+		}
+	}
+#endif
+
+	/**
+	 * Given top and bot rows, calculate counts of all four DNA chars up to
+	 * those loci.
+	 */
+	inline void mapLFEx(
+		uint32_t top,
+		uint32_t bot,
+		uint32_t *tops,
+		uint32_t *bots
+		ASSERT_ONLY(, bool overrideSanity = false)
+		) const
+	{
+		SideLocus ltop, lbot;
+		SideLocus::initFromTopBot(top, bot, _eh, ebwt(), ltop, lbot);
+		mapLFEx(ltop, lbot, tops, bots ASSERT_ONLY(, overrideSanity));
+	}
+
+	/**
+	 * Given top and bot loci, calculate counts of all four DNA chars up to
+	 * those loci.  Used for more advanced backtracking-search.
+	 */
+	inline void mapLFEx(
+		const SideLocus& ltop,
+		const SideLocus& lbot,
+		uint32_t *tops,
+		uint32_t *bots
+		ASSERT_ONLY(, bool overrideSanity = false)
+		) const
+	{
+		assert(ltop.repOk(this->eh()));
+		assert(lbot.repOk(this->eh()));
+		assert_eq(0, tops[0]); assert_eq(0, bots[0]);
+		assert_eq(0, tops[1]); assert_eq(0, bots[1]);
+		assert_eq(0, tops[2]); assert_eq(0, bots[2]);
+		assert_eq(0, tops[3]); assert_eq(0, bots[3]);
+		countBt2SideEx(ltop, tops);
+		countBt2SideEx(lbot, bots);
+#ifndef NDEBUG
+		if(_sanity && !overrideSanity) {
+			// Make sure results match up with individual calls to mapLF;
+			// be sure to override sanity-checking in the callee, or we'll
+			// have infinite recursion
+			assert_eq(mapLF(ltop, 0, true), tops[0]);
+			assert_eq(mapLF(ltop, 1, true), tops[1]);
+			assert_eq(mapLF(ltop, 2, true), tops[2]);
+			assert_eq(mapLF(ltop, 3, true), tops[3]);
+			assert_eq(mapLF(lbot, 0, true), bots[0]);
+			assert_eq(mapLF(lbot, 1, true), bots[1]);
+			assert_eq(mapLF(lbot, 2, true), bots[2]);
+			assert_eq(mapLF(lbot, 3, true), bots[3]);
+		}
+#endif
+	}
+
 	/**
 	 * Counts the number of occurrences of all four nucleotides in the
 	 * given side from the given byte/bitpair (l->_by/l->_bp) (or the
@@ -1860,7 +1934,7 @@ public:
 			uint32_t bots[4] = {0, 0, 0, 0};
 			uint32_t top = l.toBWRow();
 			uint32_t bot = top + nm;
-			mapLFEx(top, bot, tops, bots);
+			mapLFEx(top, bot, tops, bots, false);
 			assert(myarrs[0] == (bots[0] - tops[0]) || myarrs[0] == (bots[0] - tops[0])+1);
 			assert_eq(myarrs[1], bots[1] - tops[1]);
 			assert_eq(myarrs[2], bots[2] - tops[2]);
@@ -1893,60 +1967,6 @@ public:
 	}
 
 	/**
-	 * Given top and bot rows, calculate counts of all four DNA chars up to
-	 * those loci.
-	 */
-	inline void mapLFEx(
-		uint32_t top,
-		uint32_t bot,
-		uint32_t *tops,
-		uint32_t *bots
-		ASSERT_ONLY(, bool overrideSanity)
-		) const
-	{
-		SideLocus ltop, lbot;
-		SideLocus::initFromTopBot(top, bot, _eh, ebwt(), ltop, lbot);
-		mapLFEx(ltop, lbot, tops, bots ASSERT_ONLY(, overrideSanity));
-	}
-
-	/**
-	 * Given top and bot loci, calculate counts of all four DNA chars up to
-	 * those loci.  Used for more advanced backtracking-search.
-	 */
-	inline void mapLFEx(
-		const SideLocus& ltop,
-		const SideLocus& lbot,
-		uint32_t *tops,
-		uint32_t *bots
-		ASSERT_ONLY(, bool overrideSanity)
-		) const
-	{
-		assert(ltop.repOk(*this));
-		assert(lbot.repOk(*this));
-		assert_eq(0, tops[0]); assert_eq(0, bots[0]);
-		assert_eq(0, tops[1]); assert_eq(0, bots[1]);
-		assert_eq(0, tops[2]); assert_eq(0, bots[2]);
-		assert_eq(0, tops[3]); assert_eq(0, bots[3]);
-		countBt2SideEx(ltop, tops);
-		countBt2SideEx(lbot, bots);
-#ifndef NDEBUG
-		if(_sanity && !overrideSanity) {
-			// Make sure results match up with individual calls to mapLF;
-			// be sure to override sanity-checking in the callee, or we'll
-			// have infinite recursion
-			assert_eq(mapLF(ltop, 0, true), tops[0]);
-			assert_eq(mapLF(ltop, 1, true), tops[1]);
-			assert_eq(mapLF(ltop, 2, true), tops[2]);
-			assert_eq(mapLF(ltop, 3, true), tops[3]);
-			assert_eq(mapLF(lbot, 0, true), bots[0]);
-			assert_eq(mapLF(lbot, 1, true), bots[1]);
-			assert_eq(mapLF(lbot, 2, true), bots[2]);
-			assert_eq(mapLF(lbot, 3, true), bots[3]);
-		}
-#endif
-	}
-
-	/**
 	 * Given top and bot loci, calculate counts of all four DNA chars up to
 	 * those loci.  Used for more advanced backtracking-search.
 	 */
@@ -1957,11 +1977,11 @@ public:
 		uint32_t* cntsUpto,  // A/C/G/T counts up to top
 		uint32_t* cntsIn,    // A/C/G/T counts within range
 		EList<bool> *masks
-		ASSERT_ONLY(, bool overrideSanity)
+		ASSERT_ONLY(, bool overrideSanity = false)
 		) const
 	{
-		assert(ltop.repOk(*this));
-		assert(lbot.repOk(*this));
+		assert(ltop.repOk(this->eh()));
+		assert(lbot.repOk(this->eh()));
 		assert_eq(num, lbot.toBWRow() - ltop.toBWRow());
 		assert_eq(0, cntsUpto[0]); assert_eq(0, cntsIn[0]);
 		assert_eq(0, cntsUpto[1]); assert_eq(0, cntsIn[1]);
@@ -1976,9 +1996,9 @@ public:
 			// have infinite recursion
 			uint32_t tops[4] = {0, 0, 0, 0};
 			uint32_t bots[4] = {0, 0, 0, 0};
-			assert(ltop.repOk(*this));
-			assert(lbot.repOk(*this));
-			mapLFEx(ltop, lbot, tops, bots);
+			assert(ltop.repOk(this->eh()));
+			assert(lbot.repOk(this->eh()));
+			mapLFEx(ltop, lbot, tops, bots, false);
 			for(int i = 0; i < 4; i++) {
 				assert(cntsUpto[i] == tops[i] || tops[i] == bots[i]);
 				if(i == 0) {
@@ -1992,40 +2012,12 @@ public:
 #endif
 	}
 
-#ifndef NDEBUG
-	/**
-	 * Given top and bot loci, calculate counts of all four DNA chars up to
-	 * those loci.  Used for more advanced backtracking-search.
-	 */
-	inline void Ebwt::mapLFEx(
-		const SideLocus& l,
-		uint32_t *arrs
-		ASSERT_ONLY(, bool overrideSanity)
-		) const
-	{
-		assert_eq(0, arrs[0]);
-		assert_eq(0, arrs[1]);
-		assert_eq(0, arrs[2]);
-		assert_eq(0, arrs[3]);
-		countBt2SideEx(l, arrs);
-		if(_sanity && !overrideSanity) {
-			// Make sure results match up with individual calls to mapLF;
-			// be sure to override sanity-checking in the callee, or we'll
-			// have infinite recursion
-			assert_eq(mapLF(l, 0, true), arrs[0]);
-			assert_eq(mapLF(l, 1, true), arrs[1]);
-			assert_eq(mapLF(l, 2, true), arrs[2]);
-			assert_eq(mapLF(l, 3, true), arrs[3]);
-		}
-	}
-#endif
-
 	/**
 	 * Given row i, return the row that the LF mapping maps i to.
 	 */
-	inline uint32_t Ebwt::mapLF(
+	inline uint32_t mapLF(
 		const SideLocus& l
-		ASSERT_ONLY(, bool overrideSanity)
+		ASSERT_ONLY(, bool overrideSanity = false)
 		) const
 	{
 		ASSERT_ONLY(uint32_t srcrow = l.toBWRow());
@@ -2056,7 +2048,7 @@ public:
 	 */
 	inline uint32_t mapLF(
 		const SideLocus& l, int c
-		ASSERT_ONLY(, bool overrideSanity)
+		ASSERT_ONLY(, bool overrideSanity = false)
 		) const
 	{
 		uint32_t ret;
@@ -2089,7 +2081,7 @@ public:
 		uint32_t *bots,
 		uint32_t *topsP, // topsP[0] = top
 		uint32_t *botsP
-		ASSERT_ONLY(, bool overrideSanity)
+		ASSERT_ONLY(, bool overrideSanity = false)
 		) const
 	{
 #ifndef NDEBUG
@@ -2134,7 +2126,8 @@ public:
 		uint32_t row,       // starting row
 		const SideLocus& l, // locus for starting row
 		int c               // character to proceed on
-		ASSERT_ONLY(, bool overrideSanity)) const
+		ASSERT_ONLY(, bool overrideSanity = false)
+		) const
 	{
 		if(rowL(l) != c || row == _zOff) return 0xffffffff;
 		uint32_t ret;
@@ -2163,7 +2156,8 @@ public:
 	inline int mapLF1(
 		uint32_t& row,      // starting row
 		const SideLocus& l  // locus for starting row
-		ASSERT_ONLY(, bool overrideSanity)) const
+		ASSERT_ONLY(, bool overrideSanity = false)
+		) const
 	{
 		if(row == _zOff) return -1;
 		int c = rowL(l);
