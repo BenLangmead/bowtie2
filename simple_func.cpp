@@ -39,7 +39,13 @@ int SimpleFunc::parseType(const std::string& otype) {
 	throw 1;
 }
 
-SimpleFunc SimpleFunc::parse(const std::string& s) {
+SimpleFunc SimpleFunc::parse(
+	const std::string& s,
+	double defaultConst,
+	double defaultLinear,
+	double defaultMin,
+	double defaultMax)
+{
 	// Separate value into comma-separated tokens
 	EList<string> ctoks(MISC_CAT);
 	string ctok;
@@ -56,24 +62,32 @@ SimpleFunc SimpleFunc::parse(const std::string& s) {
 		istringstream tmpss(ctoks[1]);
 		tmpss >> co;
 		fv.setConst(co);
+	} else {
+		fv.setConst(defaultConst);
 	}
 	if(ctoks.size() >= 3) {
 		double ce;
 		istringstream tmpss(ctoks[2]);
 		tmpss >> ce;
 		fv.setCoeff(ce);
+	} else {
+		fv.setCoeff(defaultLinear);
 	}
 	if(ctoks.size() >= 4) {
 		double mn;
 		istringstream tmpss(ctoks[3]);
 		tmpss >> mn;
 		fv.setMin(mn);
+	} else {
+		fv.setMin(defaultMin);
 	}
 	if(ctoks.size() >= 5) {
 		double mx;
 		istringstream tmpss(ctoks[4]);
 		tmpss >> mx;
-		fv.setMin(mx);
+		fv.setMax(mx);
+	} else {
+		fv.setMax(defaultMax);
 	}
 	return fv;
 }
