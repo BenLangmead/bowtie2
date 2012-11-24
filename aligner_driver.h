@@ -142,11 +142,13 @@ public:
 		double consExp,
 		const SimpleFunc& rootIval,
 		size_t landing,
-		size_t totsz) :
+		const SimpleFunc& totsz,
+		const SimpleFunc& totfmops) :
 		sel_(consExp, rootIval, landing),
-		alsel_(),
-		stop_(totsz, 0, true, 0)
+		alsel_()
 	{
+		totsz_ = totsz;
+		totfmops_ = totfmops;
 	}
 	
 	/**
@@ -168,6 +170,11 @@ public:
 		} else {
 			dr2_.reset();
 		}
+		stop_.init(
+			totsz_.f<size_t>(q1.length()),
+			0,
+			true,
+			totfmops_.f<size_t>(q1.length()));
 	}
 	
 	/**
@@ -208,6 +215,9 @@ protected:
 	DescentDriver dr2_;               // driver for paired-end reads
 	DescentStoppingConditions stop_;  // when to pause index-assisted BFS
 	bool paired_;                     // current read is paired?
+
+	SimpleFunc totsz_;      // memory limit on best-first search data
+	SimpleFunc totfmops_;   // max # FM ops for best-first search
 
 	// For detecting redundant alignments
 	RedundantAlns  red1_;   // database of cells used for mate 1 alignments

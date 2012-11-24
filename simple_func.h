@@ -23,6 +23,7 @@
 #include <math.h>
 #include <cassert>
 #include <limits>
+#include "tokenize.h"
 
 #define SIMPLE_FUNC_CONST  1
 #define SIMPLE_FUNC_LINEAR 2
@@ -105,6 +106,10 @@ public:
 			return (T)ret;
 		}
 	}
+	
+	static int parseType(const std::string& otype);
+	
+	static SimpleFunc parse(const std::string& s);
 
 protected:
 
