@@ -370,7 +370,7 @@ static void resetOptions() {
 	scoreMin.init  (SIMPLE_FUNC_LINEAR, DEFAULT_MIN_CONST,   DEFAULT_MIN_LINEAR);
 	nCeil.init     (SIMPLE_FUNC_LINEAR, 0.0f, DMAX, 2.0f, 0.1f);
 	msIval.init    (SIMPLE_FUNC_LINEAR, 1.0f, DMAX, DEFAULT_IVAL_B, DEFAULT_IVAL_A);
-	descConsExp     = 1.0;
+	descConsExp     = 2.0;
 	descentLanding  = 20;
 	descentTotSz.init(SIMPLE_FUNC_LINEAR, 64 * 1024.0, DMAX, 0.0, 1024.0);
 	descentTotFmops.init(SIMPLE_FUNC_LINEAR, 100.0, DMAX, 0.0, 10.0);
