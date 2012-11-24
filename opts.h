@@ -149,7 +149,8 @@ enum {
 	ARG_TEST_25,                // --test-25
 	ARG_DESC_KB,                // --desc-kb
 	ARG_DESC_LANDING,           // --desc-landing
-	ARG_DESC_EXP                // --desc-exp
+	ARG_DESC_EXP,               // --desc-exp
+	ARG_DESC_FMOPS              // --desc-fmops
 };
 
 #endif

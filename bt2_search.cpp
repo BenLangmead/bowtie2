@@ -190,7 +190,8 @@ static SimpleFunc nCeil;      // max # Ns allowed as function of read len
 static SimpleFunc msIval;     // interval between seeds as function of read len
 static double descConsExp;    // how to adjust score minimum as we descent further into index-assisted alignment
 static size_t descentLanding; // don't place a search root if it's within this many positions of end
-static size_t descentTotSz;   // maximum space a DescentDriver can use
+static SimpleFunc descentTotSz;    // maximum space a DescentDriver can use in bytes
+static SimpleFunc descentTotFmops; // maximum # FM ops a DescentDriver can perform
 static int    multiseedMms;   // mismatches permitted in a multiseed seed
 static int    multiseedLen;   // length of multiseed seeds
 static size_t multiseedOff;   // offset to begin extracting seeds
@@ -371,7 +372,8 @@ static void resetOptions() {
 	msIval.init    (SIMPLE_FUNC_LINEAR, 1.0f, DMAX, DEFAULT_IVAL_B, DEFAULT_IVAL_A);
 	descConsExp     = 1.0;
 	descentLanding  = 20;
-	descentTotSz    = 256 * 1024; // maximum space a DescentDriver can use
+	descentTotSz.init(SIMPLE_FUNC_LINEAR, 64 * 1024.0, DMAX, 0.0, 1024.0);
+	descentTotFmops.init(SIMPLE_FUNC_LINEAR, 100.0, DMAX, 0.0, 10.0);
 	multiseedMms    = DEFAULT_SEEDMMS;
 	multiseedLen    = DEFAULT_SEEDLEN;
 	multiseedOff    = 0;
@@ -379,7 +381,7 @@ static void resetOptions() {
 	seedCacheCurrentMB = 20; // # MB to use for current-read seed hit cacheing
 	exactCacheCurrentMB = 20; // # MB to use for current-read seed hit cacheing
 	maxhalf            = 15; // max width on one side of DP table
-	seedSumm    = false; // print summary information about seed hits, not alignments
+	seedSumm           = false; // print summary information about seed hits, not alignments
 	doUngapped         = true;  // do ungapped alignment
 	maxIters           = 400;   // max iterations of extend loop
 	maxUg              = 300;   // stop after this many ungap extends
@@ -598,6 +600,7 @@ static struct option long_options[] = {
 	{(char*)"desc-kb",          required_argument, 0,        ARG_DESC_KB},
 	{(char*)"desc-landing",     required_argument, 0,        ARG_DESC_LANDING},
 	{(char*)"desc-exp",         required_argument, 0,        ARG_DESC_EXP},
+	{(char*)"desc-fmops",       required_argument, 0,        ARG_DESC_FMOPS},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -898,7 +901,8 @@ static EList<string> presetList;
 static void parseOption(int next_option, const char *arg) {
 	switch (next_option) {
 		case ARG_TEST_25: bowtie2p5 = true; break;
-		case ARG_DESC_KB: descentTotSz = parse<int>(arg) * 1024; break;
+		case ARG_DESC_KB: descentTotSz = SimpleFunc::parse(arg); break;
+		case ARG_DESC_FMOPS: descentTotFmops = SimpleFunc::parse(arg); break;
 		case ARG_DESC_LANDING: descentLanding = parse<int>(arg); break;
 		case ARG_DESC_EXP: {
 			descConsExp = parse<double>(arg);
@@ -3858,7 +3862,12 @@ static void* multiseedSearchWorker_2p5(void *vp) {
 		gOlapMatesOK,
 		gExpandToFrag);
 	
-	AlignerDriver ald(descConsExp, msIval, descentLanding, descentTotSz);
+	AlignerDriver ald(
+		descConsExp,       // exponent for interpolating maximum penalty
+		msIval,            // interval length, as function of read length
+		descentLanding,    // landing length
+		descentTotSz,      // limit on total bytes of best-first search data
+		descentTotFmops);  // limit on total number of FM index ops in BFS
 	
 	PerfMetrics metricsPt; // per-thread metrics object; for read-level metrics
 	BTString nametmp;

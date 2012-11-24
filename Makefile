@@ -95,6 +95,7 @@ SEARCH_CPPS = qual.cpp pat.cpp sam.cpp \
 			  aligner_result.cpp ref_coord.cpp mask.cpp \
 			  pe.cpp aln_sink.cpp dp_framer.cpp \
 			  scoring.cpp presets.cpp unique.cpp \
+			  simple_func.cpp \
 			  aligner_bt.cpp sse_util.cpp \
 			  aligner_swsse.cpp outq.cpp \
 			  aligner_swsse_loc_i16.cpp \

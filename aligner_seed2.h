@@ -1584,6 +1584,8 @@ public:
  */
 struct DescentStoppingConditions {
 
+	DescentStoppingConditions() { reset(); }
+
 	DescentStoppingConditions(
 		size_t totsz_,
 		size_t nfound_,
@@ -1592,7 +1594,19 @@ struct DescentStoppingConditions {
 	{
 		init(totsz_, nfound_, stra_, nbwop_);
 	}
+	
+	/**
+	 * Reset to uninitialized state.
+	 */
+	void reset() {
+		totsz = nfound = nbwop = std::numeric_limits<size_t>::max();
+		stra = false;
+		assert(!inited());
+	}
 
+	/**
+	 * Initialize this DescentStoppingConditions.
+	 */
 	void init(
 		size_t totsz_,
 		size_t nfound_,
@@ -1603,6 +1617,14 @@ struct DescentStoppingConditions {
 		nfound = nfound_;
 		stra = stra_;
 		nbwop = nbwop_;
+		assert(inited());
+	}
+	
+	/**
+	 * Return true iff this instance is initialized.
+	 */
+	bool inited() const {
+		return totsz != std::numeric_limits<size_t>::max();
 	}
 
 	size_t totsz;  // total size of all the expandable data structures in bytes
