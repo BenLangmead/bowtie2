@@ -72,6 +72,7 @@ void DescentDriver::go(
 		// might have since been explored, which could reduce the priority of
 		// the descent once we .
         TDescentPair p = heap_.pop();
+		df_.alloc(); df_.pop();
         df_[p.second].followBestOutgoing(
             q_,        // read
             ebwtFw,    // index over text
@@ -158,6 +159,7 @@ int DescentDriver::advance(
 		// might have since been explored, which could reduce the priority of
 		// the descent once we .
         TDescentPair p = heap_.pop();
+		df_.alloc(); df_.pop();
         df_[p.second].followBestOutgoing(
             q_,
             ebwtFw,
@@ -1089,6 +1091,7 @@ void Descent::followBestOutgoing(
 		assert_geq(edoff + 1, al5pi_);
 		if(out_.empty()) {
 			if(!lastRecalc_) {
+				// This might allocate new Descents
 				recalcOutgoing(q, sc, minsc, maxpen, re, pf, rs, cs, prm);
 				if(empty()) {
 					// Could happen, since some outgoing edges may have become
@@ -1149,7 +1152,6 @@ void Descent::followBestOutgoing(
 		}
 		size_t dfsz = df.size();
 		size_t pfsz = pf.size();
-		TDescentId id = df.alloc();
 		TIndexOff topf, botf, topb, botb;
 		size_t d = posid_ + doff;
 		if(e.e.isRefGap()) {
@@ -1210,6 +1212,7 @@ void Descent::followBestOutgoing(
 			return;
 		}
 		assert(al5pi_new != 0 || al5pf_new != q.length() - 1);
+		TDescentId id = df.alloc();
 		bool succ = df[id].init(
 			q,         // query
 			rid_,      // root id
