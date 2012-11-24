@@ -901,8 +901,8 @@ static EList<string> presetList;
 static void parseOption(int next_option, const char *arg) {
 	switch (next_option) {
 		case ARG_TEST_25: bowtie2p5 = true; break;
-		case ARG_DESC_KB: descentTotSz = SimpleFunc::parse(arg); break;
-		case ARG_DESC_FMOPS: descentTotFmops = SimpleFunc::parse(arg); break;
+		case ARG_DESC_KB: descentTotSz = SimpleFunc::parse(arg, 64 * 1024.0, DMAX, 0.0, 1024.0); break;
+		case ARG_DESC_FMOPS: descentTotFmops = SimpleFunc::parse(arg, 100.0, DMAX, 0.0, 10.0); break;
 		case ARG_DESC_LANDING: descentLanding = parse<int>(arg); break;
 		case ARG_DESC_EXP: {
 			descConsExp = parse<double>(arg);

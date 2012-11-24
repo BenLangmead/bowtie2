@@ -109,7 +109,12 @@ public:
 	
 	static int parseType(const std::string& otype);
 	
-	static SimpleFunc parse(const std::string& s);
+	static SimpleFunc parse(
+		const std::string& s,
+		double defaultConst = 0.0,
+		double defaultLinear = 0.0,
+		double defaultMin = 0.0,
+		double defaultMax = std::numeric_limits<double>::max());
 
 protected:
 
