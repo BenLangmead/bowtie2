@@ -170,11 +170,13 @@ public:
 		} else {
 			dr2_.reset();
 		}
+		size_t totsz = totsz_.f<size_t>(q1.length());
+		size_t totfmops = totfmops_.f<size_t>(q1.length());
 		stop_.init(
-			totsz_.f<size_t>(q1.length()),
+			totsz,
 			0,
 			true,
-			totfmops_.f<size_t>(q1.length()));
+			totfmops);
 	}
 	
 	/**
