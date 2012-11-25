@@ -372,7 +372,7 @@ static void resetOptions() {
 	msIval.init    (SIMPLE_FUNC_LINEAR, 1.0f, DMAX, DEFAULT_IVAL_B, DEFAULT_IVAL_A);
 	descConsExp     = 2.0;
 	descentLanding  = 20;
-	descentTotSz.init(SIMPLE_FUNC_LINEAR, 64 * 1024.0, DMAX, 0.0, 1024.0);
+	descentTotSz.init(SIMPLE_FUNC_LINEAR, 1024.0, DMAX, 0.0, 1024.0);
 	descentTotFmops.init(SIMPLE_FUNC_LINEAR, 100.0, DMAX, 0.0, 10.0);
 	multiseedMms    = DEFAULT_SEEDMMS;
 	multiseedLen    = DEFAULT_SEEDLEN;
@@ -901,7 +901,7 @@ static EList<string> presetList;
 static void parseOption(int next_option, const char *arg) {
 	switch (next_option) {
 		case ARG_TEST_25: bowtie2p5 = true; break;
-		case ARG_DESC_KB: descentTotSz = SimpleFunc::parse(arg, 0.0, 1024.0, 64 * 1024.0, DMAX); break;
+		case ARG_DESC_KB: descentTotSz = SimpleFunc::parse(arg, 0.0, 1024.0, 1024.0, DMAX); break;
 		case ARG_DESC_FMOPS: descentTotFmops = SimpleFunc::parse(arg, 0.0, 10.0, 100.0, DMAX); break;
 		case ARG_DESC_LANDING: descentLanding = parse<int>(arg); break;
 		case ARG_DESC_EXP: {
