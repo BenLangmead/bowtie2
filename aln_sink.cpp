@@ -1338,8 +1338,27 @@ size_t AlnSinkWrap::selectByScore(
 		}
 		buf[i].second = i; // original offset
 	}
-	buf.sort(); buf.reverse();
-	for(size_t i = 0; i < num; i++) { select[i] = selectBuf_[i].second; }
+	buf.sort(); buf.reverse(); // sort in descending order by score
+	
+	// Randomize streaks of alignments that are equal by score
+	size_t streak = 0;
+	for(size_t i = 1; i < buf.size(); i++) {
+		if(buf[i].first == buf[i-1].first) {
+			if(streak == 0) { streak = 1; }
+			streak++;
+		} else {
+			if(streak > 1) {
+				assert_geq(i-1, streak);
+				buf.shufflePortion(i-1-streak, i-1, rnd);
+			}
+			streak = 0;
+		}
+	}
+	if(streak > 1) {
+		buf.shufflePortion(buf.size() - streak, buf.size(), rnd);
+	}
+	
+	for(size_t i = 0; i < num; i++) { select[i] = buf[i].second; }
 	// Returns index of the representative alignment, but in 'select' also
 	// returns the indexes of the next best selected alignments in order by
 	// score.

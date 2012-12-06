@@ -98,7 +98,7 @@ int AlignerDriver::go(
 		// new full alignment is discovered in the one currently being
 		// advanced.  Whenever a new full alignment is found, check to see
 		// if it pairs with a previously discovered alignment.
-		bool first1 = (rnd.nextU2() == 0);
+		bool first1 = rnd.nextBool();
 		bool first = true;
 		DescentStoppingConditions stopc1 = stop_;
 		DescentStoppingConditions stopc2 = stop_;

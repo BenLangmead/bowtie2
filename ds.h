@@ -27,6 +27,7 @@
 #include <string.h>
 #include "assert_helpers.h"
 #include "threading.h"
+#include "random_source.h"
 
 /**
  * Tally how much memory is allocated to certain 
@@ -785,6 +786,22 @@ public:
 		assert_leq(begin+num, cur_);
 		if(num < 2) return;
 		std::sort(list_ + begin, list_ + begin + num);
+	}
+	
+	/**
+	 * Shuffle a portion of the list.
+	 */
+	void shufflePortion(size_t begin, size_t num, RandomSource& rnd) {
+		assert_leq(begin+num, cur_);
+		if(num < 2) return;
+		size_t left = num;
+		for(size_t i = begin; i < begin + num - 1; i++) {
+			uint32_t rndi = rnd.nextU32() % left;
+			if(rndi > 0) {
+				std::swap(list_[i], list_[i + rndi]);
+			}
+			left--;
+		}
 	}
 	
 	/**

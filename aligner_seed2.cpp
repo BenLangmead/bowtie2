@@ -59,6 +59,21 @@ void DescentDriver::go(
             alsink_,   // alignment sink
             met,       // metrics
 			prm);      // per-read metrics
+		if(veryVerbose_) {
+			bool fw = roots_[i].fw;
+			tmpedit_.clear();
+			df_[id].print(
+				&cerr,
+				"",
+				q_,
+				0,
+				0,
+				fw,
+				tmpedit_,
+				0,
+				tmpedit_.size(),
+				tmprfdnastr_);
+		}
         if(!succ) {
             // Reclaim memory we had used for this descent and its DescentPos info
             df_.resize(dfsz);
@@ -236,27 +251,9 @@ bool DescentAlignmentSink::reportAlignment(
 	if(!rhs_.insert(rhs)) {
 		return false; // Already there
 	}
-	// Take just the portion of the read that has aligned up until this
-	// point
-	size_t nuninited = 0;
 	size_t ei = edits_.size();
-	size_t en = 0;
-	if(e.inited()) {
-		edits_.push_back(e);
-		en++;
-	}
-	while(cur != std::numeric_limits<TDescentId>::max()) {
-		if(!df[cur].edit().inited()) {
-			nuninited++;
-			assert_leq(nuninited, 2);
-		} else {
-			edits_.push_back(df[cur].edit());
-			en++;
-		}
-		cur = df[cur].parent();
-	}
-	// Sort just the edits we just added
-	edits_.sortPortion(ei, en);
+	df[cur].collectEdits(edits_, &e, df);
+	size_t en = edits_.size() - ei;
 #ifndef NDEBUG
 	{
 		for(size_t i = 1; i < en; i++) {

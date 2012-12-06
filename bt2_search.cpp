@@ -2853,7 +2853,9 @@ static void* multiseedSearchWorker(void *vp) {
 	// Keep track of whether mates 1/2 were filtered out by upstream qc
 	bool qcfilt[2]  = { true, true };
 
-	rndArb.init((uint32_t)time(0));
+	if(arbitraryRandom) {
+		rndArb.init((uint32_t)time(0));
+	}
 	int mergei = 0;
 	int mergeival = 16;
 	while(true) {
@@ -2915,41 +2917,12 @@ static void* multiseedSearchWorker(void *vp) {
 				const size_t rdlen1 = ps->bufa().length();
 				const size_t rdlen2 = pair ? ps->bufb().length() : 0;
 				olm.bases += (rdlen1 + rdlen2);
-				// Check if read is identical to previous read
-				rnd.init(ROTL(ps->bufa().seed, 5));
-				int skipStages = msinkwrap.nextRead(
+				msinkwrap.nextRead(
 					&ps->bufa(),
 					pair ? &ps->bufb() : NULL,
 					rdid,
 					sc.qualitiesMatter());
 				assert(msinkwrap.inited());
-				if(skipStages == -1) {
-					// Read or pair is identical to previous.  Re-report from
-					// the msinkwrap immediately.
-					olm.srreads++;
-					olm.srbases += (rdlen1 + rdlen2);
-					rnd.init(ROTL(ps->bufa().seed, 20));
-					msinkwrap.finishRead(
-						NULL,                 // seed results for mate 1
-						NULL,                 // seed results for mate 2
-						exhaustive[0],        // exhausted seed results for 1?
-						exhaustive[1],        // exhausted seed results for 2?
-						nfilt[0],
-						nfilt[1],
-						scfilt[0],
-						scfilt[1],
-						lenfilt[0],
-						lenfilt[1],
-						qcfilt[0],
-						qcfilt[1],
-						sortByScore,          // prioritize by alignment score
-						rnd,                  // pseudo-random generator
-						rpm,                  // reporting metrics
-						prm,                  // per-read metrics
-						!seedSumm,            // suppress seed summaries?
-						seedSumm);            // suppress alignments?
-					break; // next read
-				}
 				size_t rdlens[2] = { rdlen1, rdlen2 };
 				size_t rdrows[2] = { rdlen1, rdlen2 };
 				// Calculate the minimum valid score threshold for the read
@@ -3051,7 +3024,9 @@ static void* multiseedSearchWorker(void *vp) {
 				size_t matemap[2] = { 0, 1 };
 				bool pairPostFilt = filt[0] && filt[1];
 				if(pairPostFilt) {
-					rnd.init(ROTL((rds[0]->seed ^ rds[1]->seed), 10));
+					rnd.init(ps->bufa().seed ^ ps->bufb().seed);
+				} else {
+					rnd.init(ps->bufa().seed);
 				}
 				// Calculate interval length for both mates
 				int interval[2] = { 0, 0 };
@@ -3168,7 +3143,6 @@ static void* multiseedSearchWorker(void *vp) {
 							assert(matei == 0 || pair);
 							assert(!msinkwrap.maxed());
 							assert(msinkwrap.repOk());
-							rnd.init(ROTL(rds[mate]->seed, 10));
 							int ret = 0;
 							if(pair) {
 								// Paired-end dynamic programming driver
@@ -3310,7 +3284,7 @@ static void* multiseedSearchWorker(void *vp) {
 							nelt[mate] = 0;
 							assert(!msinkwrap.maxed());
 							assert(msinkwrap.repOk());
-							rnd.init(ROTL(rds[mate]->seed, 10));
+							//rnd.init(ROTL(rds[mate]->seed, 10));
 							assert(shs[mate].empty());
 							assert(shs[mate].repOk(&ca.current()));
 							bool yfw = minedfw[mate] <= 1 && !nofw[mate];
@@ -3513,7 +3487,7 @@ static void* multiseedSearchWorker(void *vp) {
 							assert(roundi == 0 || offset > 0);
 							assert(!msinkwrap.maxed());
 							assert(msinkwrap.repOk());
-							rnd.init(ROTL(rds[mate]->seed, 10));
+							//rnd.init(ROTL(rds[mate]->seed, 10));
 							assert(shs[mate].repOk(&ca.current()));
 							swmSeed.sdatts++;
 							// Set up seeds
@@ -3588,7 +3562,7 @@ static void* multiseedSearchWorker(void *vp) {
 							}
 							assert(!msinkwrap.maxed());
 							assert(msinkwrap.repOk());
-							rnd.init(ROTL(rds[mate]->seed, 10));
+							//rnd.init(ROTL(rds[mate]->seed, 10));
 							assert(shs[mate].repOk(&ca.current()));
 							if(!seedSumm) {
 								// If there aren't any seed hits...
@@ -3738,8 +3712,8 @@ static void* multiseedSearchWorker(void *vp) {
 					}
 
 				// Commit and report paired-end/unpaired alignments
-				uint32_t sd = rds[0]->seed ^ rds[1]->seed;
-				rnd.init(ROTL(sd, 20));
+				//uint32_t sd = rds[0]->seed ^ rds[1]->seed;
+				//rnd.init(ROTL(sd, 20));
 				msinkwrap.finishRead(
 					&shs[0],              // seed results for mate 1
 					&shs[1],              // seed results for mate 2
@@ -3866,6 +3840,7 @@ static void* multiseedSearchWorker_2p5(void *vp) {
 		descConsExp,       // exponent for interpolating maximum penalty
 		msIval,            // interval length, as function of read length
 		descentLanding,    // landing length
+		gVerbose,          // verbose?
 		descentTotSz,      // limit on total bytes of best-first search data
 		descentTotFmops);  // limit on total number of FM index ops in BFS
 	

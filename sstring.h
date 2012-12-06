@@ -3406,7 +3406,7 @@ public:
 		if     (watson && !crick) fw = true;
 		else if(!watson && crick) fw = false;
 		else {
-			fw = (rnd.nextU2() == 0) ? true : false;
+			fw = rnd.nextBool();
 		}
 		if(fw) {
 			// Install Watson substring
