@@ -210,14 +210,14 @@ struct Edit {
 		size_t sz,
 		size_t ei,
 		size_t en,
-		bool reverseElts = true);
+		bool sort = false);
 
 	/**
 	 * Flip all the edits.pos fields so that they're with respect to
 	 * the other end of the read (of length 'sz').
 	 */
-	static void invertPoss(EList<Edit>& edits, size_t sz) {
-		invertPoss(edits, sz, 0, edits.size(), true);
+	static void invertPoss(EList<Edit>& edits, size_t sz, bool sort = false) {
+		invertPoss(edits, sz, 0, edits.size(), sort);
 	}
 	
 	/**

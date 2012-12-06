@@ -1348,14 +1348,14 @@ size_t AlnSinkWrap::selectByScore(
 			streak++;
 		} else {
 			if(streak > 1) {
-				assert_geq(i-1, streak);
-				buf.shufflePortion(i-1-streak, i-1, rnd);
+				assert_geq(i, streak);
+				buf.shufflePortion(i-streak, streak, rnd);
 			}
 			streak = 0;
 		}
 	}
 	if(streak > 1) {
-		buf.shufflePortion(buf.size() - streak, buf.size(), rnd);
+		buf.shufflePortion(buf.size() - streak, streak, rnd);
 	}
 	
 	for(size_t i = 0; i < num; i++) { select[i] = buf[i].second; }

@@ -269,7 +269,7 @@ void AlnRes::clipOutside(bool soft, TRefOff refi, TRefOff reff) {
 		size_t rf_i = rf_amt;
 		size_t nedsz = ned_.size();
 		if(!fw()) {
-			Edit::invertPoss(ned_, rdexrows_);
+			Edit::invertPoss(ned_, rdexrows_, false);
 		}
 		for(size_t i = 0; i < nedsz; i++) {
 			assert_lt(ned_[i].pos, rdexrows_);
@@ -277,7 +277,7 @@ void AlnRes::clipOutside(bool soft, TRefOff refi, TRefOff reff) {
 			if(ned_[i].isRefGap()) rf_i++;
 		}
 		if(!fw()) {
-			Edit::invertPoss(ned_, rdexrows_);
+			Edit::invertPoss(ned_, rdexrows_, false);
 		}
 		clipLeft(rf_i, rf_amt);
 	}
@@ -288,7 +288,7 @@ void AlnRes::clipOutside(bool soft, TRefOff refi, TRefOff reff) {
 		size_t rf_i = rf_amt;
 		size_t nedsz = ned_.size();
 		if(fw()) {
-			Edit::invertPoss(ned_, rdexrows_);
+			Edit::invertPoss(ned_, rdexrows_, false);
 		}
 		for(size_t i = 0; i < nedsz; i++) {
 			assert_lt(ned_[i].pos, rdexrows_);
@@ -296,7 +296,7 @@ void AlnRes::clipOutside(bool soft, TRefOff refi, TRefOff reff) {
 			if(ned_[i].isRefGap()) rf_i++;
 		}
 		if(fw()) {
-			Edit::invertPoss(ned_, rdexrows_);
+			Edit::invertPoss(ned_, rdexrows_, false);
 		}
 		clipRight(rf_i, rf_amt);
 	}

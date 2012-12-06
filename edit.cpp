@@ -47,7 +47,13 @@ void Edit::print(ostream& os, const EList<Edit>& edits, char delim) {
  * Flip all the edits.pos fields so that they're with respect to
  * the other end of the read (of length 'sz').
  */
-void Edit::invertPoss(EList<Edit>& edits, size_t sz, size_t ei, size_t en, bool reverseElts) {
+void Edit::invertPoss(
+	EList<Edit>& edits,
+	size_t sz,
+	size_t ei,
+	size_t en,
+	bool sort)
+{
 	// Invert elements
 	size_t ii = 0;
 	for(size_t i = ei; i < ei + en/2; i++) {
@@ -70,13 +76,15 @@ void Edit::invertPoss(EList<Edit>& edits, size_t sz, size_t ei, size_t en, bool 
 			edits[i].pos2 = (uint32_t)pos2new;
 		}
 	}
-	// Edits might not necessarily be in same order after inversion
-	edits.sortPortion(ei, en);
+	if(sort) {
+		// Edits might not necessarily be in same order after inversion
+		edits.sortPortion(ei, en);
 #ifndef NDEBUG
-	for(size_t i = ei + 1; i < ei + en; i++) {
-		assert_geq(edits[i].pos, edits[i-1].pos);
-	}
+		for(size_t i = ei + 1; i < ei + en; i++) {
+			assert_geq(edits[i].pos, edits[i-1].pos);
+		}
 #endif
+	}
 }
 
 /**
@@ -283,7 +291,7 @@ void Edit::toRef(
 	size_t trimEnd = fw ? trim3 : trim5;
 	assert(Edit::repOk(edits, read, fw, trim5, trim3));
 	if(!fw) {
-		invertPoss(const_cast<EList<Edit>&>(edits), read.length()-trimBeg-trimEnd);
+		invertPoss(const_cast<EList<Edit>&>(edits), read.length()-trimBeg-trimEnd, false);
 	}
 	for(size_t i = 0; i < rdlen; i++) {
 		ASSERT_ONLY(int c = read[i]);
@@ -328,7 +336,7 @@ void Edit::toRef(
 		}
 	}
 	if(!fw) {
-		invertPoss(const_cast<EList<Edit>&>(edits), read.length()-trimBeg-trimEnd);
+		invertPoss(const_cast<EList<Edit>&>(edits), read.length()-trimBeg-trimEnd, false);
 	}
 }
 
@@ -360,7 +368,7 @@ bool Edit::repOk(
 	size_t trimEnd)
 {
 	if(!fw) {
-		invertPoss(const_cast<EList<Edit>&>(edits), s.length()-trimBeg-trimEnd);
+		invertPoss(const_cast<EList<Edit>&>(edits), s.length()-trimBeg-trimEnd, false);
 		swap(trimBeg, trimEnd);
 	}
 	for(size_t i = 0; i < edits.size(); i++) {
@@ -392,7 +400,7 @@ bool Edit::repOk(
 		}
 	}
 	if(!fw) {
-		invertPoss(const_cast<EList<Edit>&>(edits), s.length()-trimBeg-trimEnd);
+		invertPoss(const_cast<EList<Edit>&>(edits), s.length()-trimBeg-trimEnd, false);
 	}
 	return true;
 }
