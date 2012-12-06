@@ -1188,7 +1188,7 @@ public:
 	bool l2r() const { return l2r_; }
 
 	/**
-	 * Print a stacked representation of this descent and all its parents.
+	 * Print a stacked representation of this descent and all its parents.  Assumes that
 	 */
 	void print(
 		std::ostream* os,
@@ -1201,11 +1201,46 @@ public:
 		size_t ei,
 		size_t en,
 		BTDnaString& rf) const;
+	
+	/**
+	 * Collect all the edits
+	 */
+	void collectEdits(
+		EList<Edit>& edits,
+		const Edit *e,
+		EFactory<Descent>& df)
+	{
+		// Take just the portion of the read that has aligned up until this
+		// point
+		size_t nuninited = 0;
+		size_t ei = edits.size();
+		size_t en = 0;
+		if(e != NULL && e->inited()) {
+			edits.push_back(*e);
+			en++;
+		}
+		size_t cur = descid_;
+		while(cur != std::numeric_limits<TDescentId>::max()) {
+			if(!df[cur].edit().inited()) {
+				nuninited++;
+				assert_leq(nuninited, 2);
+			} else {
+				edits.push_back(df[cur].edit());
+				en++;
+			}
+			cur = df[cur].parent();
+		}
+		// Sort just the edits we just added
+		edits.sortPortion(ei, en);
+	}
 
 protected:
 
+	/**
+	 *
+	 */
     bool bounce(
-        const Read& q,          // query string
+        const Read& q,                  // query string
         TIndexOff topf,                 // SA range top in fw index
         TIndexOff botf,                 // SA range bottom in fw index
         TIndexOff topb,                 // SA range top in bw index
@@ -1649,7 +1684,11 @@ enum {
 class DescentDriver {
 public:
 
-	DescentDriver() { reset(); }
+	DescentDriver(bool veryVerbose) :
+		veryVerbose_(veryVerbose)
+	{
+		reset();
+	}
 	
 	/**
 	 * Initialize driver with respect to a new read.  If a DescentRootSelector
@@ -1844,6 +1883,10 @@ protected:
     DescentAlignmentSink alsink_; // alignment sink
 	DescentRedundancyChecker re_; // redundancy checker
 	TAlScore             curPen_; // current penalty
+	bool veryVerbose_;            // print lots of partial alignments
+
+	EList<Edit> tmpedit_;
+	BTDnaString tmprfdnastr_;
 };
 
 /**

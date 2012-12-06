@@ -142,10 +142,13 @@ public:
 		double consExp,
 		const SimpleFunc& rootIval,
 		size_t landing,
+		bool veryVerbose,
 		const SimpleFunc& totsz,
 		const SimpleFunc& totfmops) :
 		sel_(consExp, rootIval, landing),
-		alsel_()
+		alsel_(),
+		dr1_(veryVerbose),
+		dr2_(veryVerbose)
 	{
 		totsz_ = totsz;
 		totfmops_ = totfmops;

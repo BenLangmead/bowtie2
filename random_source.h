@@ -23,6 +23,8 @@
 #include <stdint.h>
 #include "assert_helpers.h"
 
+#if 0
+
 /**
  * Simple pseudo-random linear congruential generator, a la Numerical
  * Recipes.
@@ -136,5 +138,92 @@ private:
 	uint32_t lastOff;
 	bool inited_;
 };
+
+#else
+
+class RandomSource { // Mersenne Twister random number generator
+
+public:
+
+	// default constructor: uses default seed only if this is the first instance
+	RandomSource() {
+		reset();
+	}
+	
+	// constructor with 32 bit int as seed
+	RandomSource(uint32_t s) {
+		init(s);
+	}
+	
+	// constructor with array of size 32 bit ints as seed
+	RandomSource(const uint32_t* array, int size) {
+		init(array, size);
+	}
+	
+	void reset() {
+		state_[0] = 0;
+		p_ = 0;
+		inited_ = false;
+	}
+	
+	virtual ~RandomSource() { }
+	
+	// the two seed functions
+	void init(uint32_t); // seed with 32 bit integer
+	void init(const uint32_t*, int size); // seed with array
+
+	/**
+	 * Return next 1-bit unsigned integer.
+	 */
+	bool nextBool() {
+		return (nextU32() & 1) == 0;
+	}
+	
+	/**
+	 * Get next unsigned 32-bit integer.
+	 */
+	inline uint32_t nextU32() {
+		assert(inited_);
+		if(p_ == n) {
+			gen_state(); // new state vector needed
+		}
+		// gen_state() is split off to be non-inline, because it is only called once
+		// in every 624 calls and otherwise irand() would become too big to get inlined
+		uint32_t x = state_[p_++];
+		x ^= (x >> 11);
+		x ^= (x << 7) & 0x9D2C5680UL;
+		x ^= (x << 15) & 0xEFC60000UL;
+		x ^= (x >> 18);
+		return x;
+	}
+	
+	/**
+	 * Return next float between 0 and 1.
+	 */
+	float nextFloat() {
+		assert(inited_);
+		return (float)nextU32() / (float)0xffffffff;
+	}
+	
+protected: // used by derived classes, otherwise not accessible; use the ()-operator
+
+	static const int n = 624, m = 397; // compile time constants
+
+	// the variables below are static (no duplicates can exist)
+	uint32_t state_[n]; // state vector array
+	int p_; // position in state array
+	
+	bool inited_; // true if init function has been called
+	
+	// private functions used to generate the pseudo random numbers
+	uint32_t twiddle(uint32_t u, uint32_t v) {
+		return (((u & 0x80000000UL) | (v & 0x7FFFFFFFUL)) >> 1) ^ ((v & 1UL) ? 0x9908B0DFUL : 0x0UL);
+	}
+	
+	void gen_state(); // generate new state
+	
+};
+
+#endif
 
 #endif /*RANDOM_GEN_H_*/

@@ -96,14 +96,15 @@ bool SwDriver::eeSaTups(
 	bool firstEe = true;
     bool done = false;
 	if(tot > 0) {
+		bool fwFirst = true;
         // Pick fw / rc to go first in a weighted random fashion
-		uint32_t rn = rnd.nextU32() % (uint32_t)tot;
+		uint32_t rn32 = rnd.nextU32();
+		uint32_t rn = rn32 % (uint32_t)tot;
+		if(rn >= sh.exactFwEEHit().size()) {
+			fwFirst = false;
+		}
 		for(int fwi = 0; fwi < 2 && !done; fwi++) {
-			bool fw = (fwi == 0);
-			if(rn >= sh.exactFwEEHit().size()) {
-                // Picked RC first
-				fw = !fw;
-			}
+			bool fw = ((fwi == 0) == fwFirst);
 			EEHit hit = fw ? sh.exactFwEEHit() : sh.exactRcEEHit();
 			if(hit.empty()) {
 				continue;
@@ -191,7 +192,7 @@ bool SwDriver::eeSaTups(
 	}
 	succ = false;
 	if(!done && !sh.mm1EEHits().empty()) {
-		sh.sort1mmEe();
+		sh.sort1mmEe(rnd);
 		size_t sz = sh.mm1EEHits().size();
 		for(size_t i = 0; i < sz && !done; i++) {
 			EEHit hit = sh.mm1EEHits()[i];
@@ -808,6 +809,7 @@ int SwDriver::extendSeeds(
 	size_t nelt = 0, neltLeft = 0;
 	size_t rows = rdlen;
 	size_t eltsDone = 0;
+	// cerr << "===" << endl;
 	while(true) {
 		if(eeMode) {
 			if(firstEe) {
@@ -909,6 +911,7 @@ int SwDriver::extendSeeds(
 				// Resolve next element offset
 				WalkResult wr;
 				uint32_t elt = rands_[i].next(rnd);
+				//cerr << "elt=" << elt << endl;
 				SARangeWithOffs<TSlice> sa;
 				sa.topf = satpos_[i].sat.topf;
 				sa.len = satpos_[i].sat.key.len;
