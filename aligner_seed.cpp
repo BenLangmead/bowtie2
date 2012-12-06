@@ -1023,9 +1023,9 @@ bool SeedAligner::oneMmSearch(
 								rf.clear();
 								edits_.clear();
 								edits_.push_back(e);
-								if(!fw) Edit::invertPoss(edits_, len);
+								if(!fw) Edit::invertPoss(edits_, len, false);
 								Edit::toRef(fw ? read.patFw : read.patRc, edits_, rf);
-								if(!fw) Edit::invertPoss(edits_, len);
+								if(!fw) Edit::invertPoss(edits_, len, false);
 								assert_eq(len, rf.length());
 								for(size_t i = 0; i < len; i++) {
 									assert_lt((int)rf[i], 4);

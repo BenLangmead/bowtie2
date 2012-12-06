@@ -20,7 +20,7 @@
 #include "random_source.h"
 #include "random_util.h"
 
-#if 1
+#ifdef MERSENNE_TWISTER
 
 void RandomSource::gen_state() {
 	for(int i = 0; i < (n - m); ++i) {

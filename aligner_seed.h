@@ -1141,14 +1141,14 @@ public:
 				streak++;
 			} else {
 				if(streak > 1) {
-					assert_geq(i-1, streak);
-					mm1Hit_.shufflePortion(i-1-streak, i-1, rnd);
+					assert_geq(i, streak);
+					mm1Hit_.shufflePortion(i-streak, streak, rnd);
 				}
 				streak = 0;
 			}
 		}
 		if(streak > 1) {
-			mm1Hit_.shufflePortion(mm1Hit_.size() - streak, mm1Hit_.size(), rnd);
+			mm1Hit_.shufflePortion(mm1Hit_.size() - streak, streak, rnd);
 		}
 		mm1Sorted_ = true;
 	}

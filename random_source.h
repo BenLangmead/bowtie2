@@ -23,7 +23,9 @@
 #include <stdint.h>
 #include "assert_helpers.h"
 
-#if 0
+//#define MERSENNE_TWISTER
+
+#ifndef MERSENNE_TWISTER
 
 /**
  * Simple pseudo-random linear congruential generator, a la Numerical

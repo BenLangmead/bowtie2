@@ -268,12 +268,12 @@ bool DescentAlignmentSink::reportAlignment(
 		if(!fw) {
 			// Edit offsets are w/r/t 5' end, but desc.print wants them w/r/t
 			// the *left* end of the read sequence that aligned
-			Edit::invertPoss(edits_, len, ei, en, false);
+			Edit::invertPoss(edits_, len, ei, en, true);
 		}
 		desc.print(NULL, "", q, trimLf, trimRg, fw, edits_, ei, en, rf);
 		if(!fw) {
 			// Invert them back to how they were before
-			Edit::invertPoss(edits_, len, ei, en, false);
+			Edit::invertPoss(edits_, len, ei, en, true);
 		}
 		ASSERT_ONLY(uint32_t toptmp = 0);
 		ASSERT_ONLY(uint32_t bottmp = 0);

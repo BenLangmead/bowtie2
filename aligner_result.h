@@ -825,8 +825,8 @@ public:
 		assert(shapeSet_);
 		assert_gt(rdlen_, 0);
 		assert_gt(rdrows_, 0);
-		Edit::invertPoss(ned_, rdexrows_);
-		Edit::invertPoss(aed_, rdexrows_);
+		Edit::invertPoss(ned_, rdexrows_, false);
+		Edit::invertPoss(aed_, rdexrows_, false);
 	}
 	
 	/**
@@ -1483,7 +1483,7 @@ public:
 		size_t trimRH = trimmed3p(false);
 		size_t len_trimmed = rd.length() - trimLS - trimRS;
 		if(!fw()) {
-			Edit::invertPoss(const_cast<EList<Edit>&>(ned_), len_trimmed);
+			Edit::invertPoss(const_cast<EList<Edit>&>(ned_), len_trimmed, false);
 			swap(trimLS, trimRS);
 			swap(trimLH, trimRH);
 		}
@@ -1491,7 +1491,7 @@ public:
 			fw() ? rd.patFw : rd.patRc,
 			ned_, trimLS, trimLH, trimRS, trimRH);
 		if(!fw()) {
-			Edit::invertPoss(const_cast<EList<Edit>&>(ned_), len_trimmed);
+			Edit::invertPoss(const_cast<EList<Edit>&>(ned_), len_trimmed, false);
 		}
 	}
 
