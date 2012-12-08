@@ -122,7 +122,8 @@ static bool samNoUnal; // don't print records for unaligned reads
 static bool samNoHead; // don't print any header lines in SAM output
 static bool samNoSQ;   // don't print @SQ header lines
 static bool sam_print_as;
-static bool sam_print_xs;
+static bool sam_print_xs;  // XS:i
+static bool sam_print_xss; // Xs:i and Ys:i
 static bool sam_print_xn;
 static bool sam_print_cs;
 static bool sam_print_cq;
@@ -307,6 +308,7 @@ static void resetOptions() {
 	samNoSQ					= false; // don't print @SQ header lines
 	sam_print_as            = true;
 	sam_print_xs            = true;
+	sam_print_xss           = false; // Xs:i and Ys:i
 	sam_print_xn            = true;
 	sam_print_cs            = false;
 	sam_print_cq            = false;
@@ -1154,6 +1156,7 @@ static void parseOption(int next_option, const char *arg) {
 			sam_print_zp = true;
 			sam_print_zu = true;
 			sam_print_xp = true;
+			sam_print_xss = true;
 			break;
 		}
 		case ARG_SHOW_RAND_SEED: {
@@ -4370,6 +4373,7 @@ static void driver(
 			rgs_optflag,            // read-group string
 			sam_print_as,
 			sam_print_xs,
+			sam_print_xss,
 			sam_print_xn,
 			sam_print_cs,
 			sam_print_cq,
