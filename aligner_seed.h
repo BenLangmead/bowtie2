@@ -805,10 +805,36 @@ public:
 	}
 	
 	/**
-	 * Return true iff this batch of seed results is very repetitive.  We say
+	 * Return average number of hits per seed.
 	 */
 	float averageHitsPerSeed() const {
 		return (float)numElts_ / (float)nonzTot_;
+	}
+	
+	/**
+	 * Return median of all the non-zero per-seed # hits
+	 */
+	float medianHitsPerSeed() const {
+		EList<size_t>& median = const_cast<EList<size_t>&>(tmpMedian_);
+		median.clear();
+		for(size_t i = 0; i < numOffs_; i++) {
+			if(hitsFw_[i].valid() && hitsFw_[i].numElts() > 0) {
+				median.push_back(hitsFw_[i].numElts());
+			}
+			if(hitsRc_[i].valid() && hitsRc_[i].numElts() > 0) {
+				median.push_back(hitsRc_[i].numElts());
+			}
+		}
+		if(tmpMedian_.empty()) {
+			return 0.0f;
+		}
+		median.sort();
+		float med1 = (float)median[tmpMedian_.size() >> 1];
+		float med2 = med1;
+		if((median.size() & 1) == 0) {
+			med2 = (float)median[(tmpMedian_.size() >> 1) - 1];
+		}
+		return med1 + med2 * 0.5f;
 	}
 	
 	/**
@@ -1288,6 +1314,8 @@ protected:
 	EList<EEHit>        mm1Hit_;     // 1-mismatch end-to-end hits
 	size_t              mm1Elt_;     // number of 1-mismatch hit rows
 	bool                mm1Sorted_;  // true iff we've sorted the mm1Hit_ list
+
+	EList<size_t> tmpMedian_; // temporary storage for calculating median
 };
 
 

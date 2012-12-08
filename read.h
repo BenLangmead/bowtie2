@@ -446,6 +446,10 @@ struct PerReadMetrics {
 		nRedFail = 0;
 		nRedIns = 0;
 		doFmString = false;
+		nSeedRanges = nSeedElts = 0;
+		nSeedRangesFw = nSeedEltsFw = 0;
+		nSeedRangesRc = nSeedEltsRc = 0;
+		seedMedian = seedMean = 0;
 		fmString.reset();
 	}
 
@@ -475,6 +479,18 @@ struct PerReadMetrics {
 	uint64_t nMateUgFails;  // # mate ungapped alignments run on this read
 
 	uint64_t nRedundants;   // # redundant seed hits
+	
+	uint64_t nSeedRanges;   // # BW ranges found for seeds
+	uint64_t nSeedElts;     // # BW elements found for seeds
+
+	uint64_t nSeedRangesFw; // # BW ranges found for seeds from fw read
+	uint64_t nSeedEltsFw;   // # BW elements found for seeds from fw read
+
+	uint64_t nSeedRangesRc; // # BW ranges found for seeds from fw read
+	uint64_t nSeedEltsRc;   // # BW elements found for seeds from fw read
+	
+	uint64_t seedMedian;    // median seed hit count
+	uint64_t seedMean;      // rounded mean seed hit count
 	
 	uint64_t nEeFmops;      // FM Index ops for end-to-end alignment
 	uint64_t nSdFmops;      // FM Index ops used to align seeds
