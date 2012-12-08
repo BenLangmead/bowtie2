@@ -1560,6 +1560,7 @@ static void parseOptions(int argc, const char **argv) {
 			 << " instead" << endl;
 		multiseedMms = multiseedLen-1;
 	}
+	sam_print_zm = sam_print_zm && bowtie2p5;
 #ifndef NDEBUG
 	if(!gQuiet) {
 		cerr << "Warning: Running in debug mode.  Please use debug mode only "
