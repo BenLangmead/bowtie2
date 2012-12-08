@@ -389,7 +389,7 @@ void SamConfig::printAlignedOptFlags(
 	if(print_xp_) {
 		// XP:Z: String describing seed hits
 		WRITE_SEP();
-		o.append("XP:BI,");
+		o.append("XP:B:I,");
 		itoa10<uint64_t>(prm.nSeedElts, buf);
 		o.append(buf);
 		o.append(',');
@@ -588,7 +588,7 @@ void SamConfig::printEmptyOptFlags(
 	if(print_xp_) {
 		// XP:Z: String describing seed hits
 		WRITE_SEP();
-		o.append("XP:BI,");
+		o.append("XP:B:I,");
 		itoa10<uint64_t>(prm.nSeedElts, buf);
 		o.append(buf);
 		o.append(',');
