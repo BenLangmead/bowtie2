@@ -1121,7 +1121,8 @@ int SwDriver::extendSeeds(
 					seenDiags1_.add(refival);
 					// Now fill the dynamic programming matrix and return true iff
 					// there is at least one valid alignment
-					found = swa.align(rnd);
+					TAlScore bestCell = std::numeric_limits<TAlScore>::min();
+					found = swa.align(rnd, bestCell);
 					swmSeed.tallyGappedDp(readGaps, refGaps);
 					prm.nExDps++;
 					if(!found) {
@@ -1129,6 +1130,9 @@ int SwDriver::extendSeeds(
 						prm.nDpFail++;
 						if(prm.nDpFail >= maxDpStreak) {
 							return EXTEND_EXCEEDED_SOFT_LIMIT;
+						}
+						if(bestCell > std::numeric_limits<TAlScore>::min() && bestCell > prm.bestLtMinscMate1) {
+							prm.bestLtMinscMate1 = bestCell;
 						}
 						continue; // Look for more anchor alignments
 					} else {
@@ -1810,12 +1814,21 @@ int SwDriver::extendSeedsPaired(
 					seenDiags.add(refival);
 					// Now fill the dynamic programming matrix and return true iff
 					// there is at least one valid alignment
-					found = swa.align(rnd);
+					TAlScore bestCell = std::numeric_limits<TAlScore>::min();
+					found = swa.align(rnd, bestCell);
 					swmSeed.tallyGappedDp(readGaps, refGaps);
 					prm.nExDps++;
 					prm.nDpFail++;    // failed until proven successful
 					prm.nExDpFails++; // failed until proven successful
 					if(!found) {
+						TAlScore bestLast = anchor1 ? prm.bestLtMinscMate1 : prm.bestLtMinscMate2;
+						if(bestCell > std::numeric_limits<TAlScore>::min() && bestCell > bestLast) {
+							if(anchor1) {
+								prm.bestLtMinscMate1 = bestCell;
+							} else {
+								prm.bestLtMinscMate2 = bestCell;
+							}
+						}
 						continue; // Look for more anchor alignments
 					}
 				}
@@ -2046,9 +2059,20 @@ int SwDriver::extendSeedsPaired(
 
 							// Now fill the dynamic programming matrix, return true
 							// iff there is at least one valid alignment
-							foundMate = oswa.align(rnd);
+							TAlScore bestCell = std::numeric_limits<TAlScore>::min();
+							foundMate = oswa.align(rnd, bestCell);
 							prm.nMateDps++;
 							swmMate.tallyGappedDp(oreadGaps, orefGaps);
+							if(!foundMate) {
+								TAlScore bestLast = anchor1 ? prm.bestLtMinscMate2 : prm.bestLtMinscMate1;
+								if(bestCell > std::numeric_limits<TAlScore>::min() && bestCell > bestLast) {
+									if(anchor1) {
+										prm.bestLtMinscMate2 = bestCell;
+									} else {
+										prm.bestLtMinscMate1 = bestCell;
+									}
+								}
+							}
 						}
 						bool didAnchor = false;
 						do {

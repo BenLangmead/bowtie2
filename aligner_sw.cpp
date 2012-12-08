@@ -471,7 +471,10 @@ int SwAligner::ungappedAlign(
  * Align read 'rd' to reference using read & reference information given
  * last time init() was called.
  */
-bool SwAligner::align(RandomSource& rnd) {
+bool SwAligner::align(
+	RandomSource& rnd, // source of pseudo-randoms
+	TAlScore& best)    // best alignment score observed in DP matrix
+{
 	assert(initedRef() && initedRead());
 	assert_eq(STATE_INITED, state_);
 	state_ = STATE_ALIGNED;
@@ -479,7 +482,7 @@ bool SwAligner::align(RandomSource& rnd) {
 	btncand_.clear();
 	btncanddone_.clear();
 	btncanddoneSucc_ = btncanddoneFail_ = 0;
-	TAlScore best = 0;
+	best = std::numeric_limits<TAlScore>::min();
 	sse8succ_ = sse16succ_ = false;
 	int flag = 0;
 	size_t rdlen = rdf_ - rdi_;

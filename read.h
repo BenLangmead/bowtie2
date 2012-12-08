@@ -450,6 +450,8 @@ struct PerReadMetrics {
 		nSeedRangesFw = nSeedEltsFw = 0;
 		nSeedRangesRc = nSeedEltsRc = 0;
 		seedMedian = seedMean = 0;
+		bestLtMinscMate1 =
+		bestLtMinscMate2 = std::numeric_limits<TAlScore>::min();
 		fmString.reset();
 	}
 
@@ -514,6 +516,9 @@ struct PerReadMetrics {
 	uint64_t nEeLastSucc;   // index of last ungap attempt that succeeded
 	
 	uint64_t nFilt;         // # mates filtered
+	
+	TAlScore bestLtMinscMate1; // best invalid score observed for mate 1
+	TAlScore bestLtMinscMate2; // best invalid score observed for mate 2
 	
 	// For collecting information to go into an FM string
 	bool doFmString;
