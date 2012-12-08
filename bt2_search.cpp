@@ -147,6 +147,7 @@ static bool sam_print_xu;
 static bool sam_print_yl;
 static bool sam_print_ye;
 static bool sam_print_yu;
+static bool sam_print_xp;
 static bool sam_print_yr;
 static bool sam_print_zb;
 static bool sam_print_zr;
@@ -330,6 +331,7 @@ static void resetOptions() {
 	sam_print_yl            = false;
 	sam_print_ye            = false;
 	sam_print_yu            = false;
+	sam_print_xp            = false;
 	sam_print_yr            = false;
 	sam_print_zb            = false;
 	sam_print_zr            = false;
@@ -1151,6 +1153,7 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_MAPQ_EX: {
 			sam_print_zp = true;
 			sam_print_zu = true;
+			sam_print_xp = true;
 			break;
 		}
 		case ARG_SHOW_RAND_SEED: {
@@ -4393,6 +4396,7 @@ static void driver(
 			sam_print_yl,
 			sam_print_ye,
 			sam_print_yu,
+			sam_print_xp,
 			sam_print_yr,
 			sam_print_zb,
 			sam_print_zr,

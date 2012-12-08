@@ -93,6 +93,7 @@ public:
 		bool print_ye, // streak of failed DPs at end
 		bool print_yl, // longest streak of failed DPs
 		bool print_yu, // index of last succeeded DP
+		bool print_xp, // print seed hit information
 		bool print_yr, // # redundant seed hits
 		bool print_zb, // # Ftab lookups
 		bool print_zr, // # redundant path checks
@@ -137,6 +138,7 @@ public:
 		print_ye_(print_ye), // streak of failed DPs at end
 		print_yl_(print_yl), // longest streak of failed DPs
 		print_yu_(print_yu), // index of last succeeded DP
+		print_xp_(print_xp), // print seed hit information
 		print_yr_(print_yr), // index of last succeeded DP
 		print_zb_(print_zb), // # Ftab lookups
 		print_zr_(print_zr), // # redundant path checks
@@ -340,6 +342,7 @@ protected:
 	bool print_ye_; // YE:i: streak of failed DPs at end
 	bool print_yl_; // YL:i: longest streak of failed DPs
 	bool print_yu_; // YU:i: index of last succeeded DP
+	bool print_xp_; // XP:BI: seed hit information
 	bool print_yr_; // YR:i: # redundant seed hits
 	bool print_zb_; // ZB:i: # Ftab lookups
 	bool print_zr_; // ZR:i: # redundant path checks

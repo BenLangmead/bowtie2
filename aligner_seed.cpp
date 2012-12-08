@@ -554,6 +554,15 @@ void SeedAligner::searchAllSeeds(
 			}
 		}
 	}
+	prm.nSeedRanges = sr.numRanges();
+	prm.nSeedElts = sr.numElts();
+	prm.nSeedRangesFw = sr.numRangesFw();
+	prm.nSeedRangesRc = sr.numRangesRc();
+	prm.nSeedEltsFw = sr.numEltsFw();
+	prm.nSeedEltsRc = sr.numEltsRc();
+	prm.seedMedian = (uint64_t)(sr.medianHitsPerSeed() + 0.5);
+	prm.seedMean = (uint64_t)sr.averageHitsPerSeed();
+
 	prm.nSdFmops += bwops_;
 	met.seedsearch += seedsearches;
 	met.possearch += possearches;

@@ -386,6 +386,25 @@ void SamConfig::printAlignedOptFlags(
 		o.append("Yu:i:");
 		o.append(buf);
 	}
+	if(print_xp_) {
+		// XP:Z: String describing seed hits
+		WRITE_SEP();
+		o.append("XP:BI,");
+		itoa10<uint64_t>(prm.nSeedElts, buf);
+		o.append(buf);
+		o.append(',');
+		itoa10<uint64_t>(prm.nSeedEltsFw, buf);
+		o.append(buf);
+		o.append(',');
+		itoa10<uint64_t>(prm.nSeedEltsRc, buf);
+		o.append(buf);
+		o.append(',');
+		itoa10<uint64_t>(prm.seedMean, buf);
+		o.append(buf);
+		o.append(',');
+		itoa10<uint64_t>(prm.seedMedian, buf);
+		o.append(buf);
+	}
 	if(print_yr_) {
 		// YR:i: Redundant seed hits
 		WRITE_SEP();
@@ -564,6 +583,25 @@ void SamConfig::printEmptyOptFlags(
 		WRITE_SEP();
 		itoa10<uint64_t>(prm.nUgLastSucc, buf);
 		o.append("Yu:i:");
+		o.append(buf);
+	}
+	if(print_xp_) {
+		// XP:Z: String describing seed hits
+		WRITE_SEP();
+		o.append("XP:BI,");
+		itoa10<uint64_t>(prm.nSeedElts, buf);
+		o.append(buf);
+		o.append(',');
+		itoa10<uint64_t>(prm.nSeedEltsFw, buf);
+		o.append(buf);
+		o.append(',');
+		itoa10<uint64_t>(prm.nSeedEltsRc, buf);
+		o.append(buf);
+		o.append(',');
+		itoa10<uint64_t>(prm.seedMean, buf);
+		o.append(buf);
+		o.append(',');
+		itoa10<uint64_t>(prm.seedMedian, buf);
 		o.append(buf);
 	}
 	if(print_yr_) {
