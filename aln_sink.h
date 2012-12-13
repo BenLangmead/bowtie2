@@ -1346,9 +1346,6 @@ protected:
 	const SamConfig& samc_;    // settings & routines for SAM output
 	BTDnaString      dseq_;    // buffer for decoded read sequence
 	BTString         dqual_;   // buffer for decoded quality sequence
-	
-	char          mapqInps_[1024]; // summary of what went into MAPQ calculation
-
 };
 
 #endif /*ndef ALN_SINK_H_*/
