@@ -25,6 +25,7 @@
 #include <utility>
 #include <stdint.h>
 #include <string.h>
+#include <limits>
 #include "assert_helpers.h"
 #include "threading.h"
 #include "random_source.h"
