@@ -408,7 +408,6 @@ if(defined($cap_out)) {
 			my $tab1_i = index($_, "\t") + 1;
 			my $tab2_i = index($_, "\t", $tab1_i);
 			my $fl = substr($_, $tab1_i, $tab2_i - $tab1_i);
-			my @ts = split(/\t/, $_);
 			my $unal = ($fl & 4) != 0;
 			if($passthru) {
 				# Parse the passthrough output
