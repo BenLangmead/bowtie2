@@ -22,6 +22,8 @@
 void AlignerDriverRootSelector::select(
 	const Read& q,
 	const Read* qo,
+	bool nofw,
+	bool norc,
 	EList<DescentConfig>& confs,
 	EList<DescentRoot>& roots)
 {
@@ -34,6 +36,9 @@ void AlignerDriverRootSelector::select(
 	float pri = 0.0f;
 	for(int fwi = 0; fwi < 2; fwi++) {
 		bool fw = (fwi == 0);
+		if((fw && nofw) || (!fw && norc)) {
+			continue;
+		}
 		// Put down left-to-right roots w/r/t forward and reverse-complement reads
 		{
 			bool first = true;

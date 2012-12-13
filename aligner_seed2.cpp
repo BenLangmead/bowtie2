@@ -892,10 +892,9 @@ void Descent::print(
 			if(os != NULL) { *os << (char)tolower(read.toChar(i)); }
 			continue;
 		}
-		bool ins = false, del = false, mm = false;
+		bool del = false, mm = false;
 		while(eidx < ei + en && edits[eidx].pos == i) {
 			if(edits[eidx].isReadGap()) {
-				ins = true;
 				if(os != NULL) { *os << '-'; }
 			} else if(edits[eidx].isRefGap()) {
 				del = true;
@@ -925,10 +924,9 @@ void Descent::print(
 			if(os != NULL) { *os << ' '; }
 			continue;
 		}
-		bool ins = false, del = false, mm = false;
+		bool del = false, mm = false;
 		while(eidx < ei + en && edits[eidx].pos == i) {
 			if(edits[eidx].isReadGap()) {
-				ins = true;
 				if(os != NULL) { *os << ' '; }
 			} else if(edits[eidx].isRefGap()) {
 				del = true;
@@ -953,10 +951,9 @@ void Descent::print(
 			if(os != NULL) { *os << ' '; }
 			continue;
 		}
-		bool ins = false, del = false, mm = false;
+		bool del = false, mm = false;
 		while(eidx < ei + en && edits[eidx].pos == i) {
 			if(edits[eidx].isReadGap()) {
-				ins = true;
 				rf.appendChar((char)edits[eidx].chr);
 				if(os != NULL) { *os << (char)edits[eidx].chr; }
 			} else if(edits[eidx].isRefGap()) {

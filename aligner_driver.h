@@ -104,6 +104,8 @@ public:
 	virtual void select(
 		const Read& q,                 // read that we're selecting roots for
 		const Read* qo,                // opposite mate, if applicable
+		bool nofw,                     // don't add roots for fw read
+		bool norc,                     // don't add roots for rc read
 		EList<DescentConfig>& confs,   // put DescentConfigs here
 		EList<DescentRoot>& roots);    // put DescentRoot here
 
@@ -159,15 +161,17 @@ public:
 	 */
 	void initRead(
 		const Read& q1,
+		bool nofw,
+		bool norc,
 		TAlScore minsc,
 		TAlScore maxpen,
 		const Read* q2)
 	{
-		dr1_.initRead(q1, minsc, maxpen, q2, &sel_);
+		dr1_.initRead(q1, nofw, norc, minsc, maxpen, q2, &sel_);
 		red1_.init(q1.length());
 		paired_ = false;
 		if(q2 != NULL) {
-			dr2_.initRead(*q2, minsc, maxpen, &q1, &sel_);
+			dr2_.initRead(*q2, nofw, norc, minsc, maxpen, &q1, &sel_);
 			red2_.init(q2->length());
 			paired_ = true;
 		} else {

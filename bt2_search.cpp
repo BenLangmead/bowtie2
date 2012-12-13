@@ -4052,9 +4052,9 @@ static void* multiseedSearchWorker_2p5(void *vp) {
 				}
 			}
 			if(filt[0]) {
-				ald.initRead(ps->bufa(), minsc[0], maxpen[0], filt[1] ? &ps->bufb() : NULL);
+				ald.initRead(ps->bufa(), nofw[0], norc[0], minsc[0], maxpen[0], filt[1] ? &ps->bufb() : NULL);
 			} else if(filt[1]) {
-				ald.initRead(ps->bufb(), minsc[1], maxpen[1], NULL);
+				ald.initRead(ps->bufb(), nofw[1], norc[1], minsc[1], maxpen[1], NULL);
 			}
 			if(filt[0] || filt[1]) {
 				ald.go(sc, ebwtFw, ebwtBw, ref, descm, wlm, prm, rnd, msinkwrap);
