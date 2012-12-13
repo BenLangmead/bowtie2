@@ -2670,6 +2670,8 @@ static void setupMinScores(
 			TAlScore perfect1 = sc.perfectScore(rdlens[1]);
 			assert_geq(perfect1, minsc[1]);
 			maxpen[1] = perfect1 - minsc[1];
+		} else {
+			maxpen[1] = std::numeric_limits<TAlScore>::min();
 		}
 	} else {
 		assert_leq(minsc[0], 0);
@@ -2677,6 +2679,8 @@ static void setupMinScores(
 		if(paired) {
 			assert_leq(minsc[1], 0);
 			maxpen[1] = -minsc[1];
+		} else {
+			maxpen[1] = std::numeric_limits<TAlScore>::min();
 		}
 	}
 }
