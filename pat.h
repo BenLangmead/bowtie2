@@ -964,7 +964,9 @@ protected:
 			}
 			return;
 		}
-		throw 1;
+		cerr << "Error: No input read files were valid" << endl;
+		exit(1);
+		return;
 	}
 	
 	EList<string> infiles_;  // filenames for read files

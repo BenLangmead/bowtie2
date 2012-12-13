@@ -3,7 +3,7 @@ Bowtie 2 NEWS
 
 Bowtie 2 is now available for download from the project website,
 http://bowtie-bio.sf.net/bowtie2.  2.0.0-beta1 is the first version released to
-the public and 2.0.2 is the latest version.  Bowtie 2 is licensed under
+the public and 2.0.3 is the latest version.  Bowtie 2 is licensed under
 the GPLv3 license.  See `COPYING' file for details.
 
 Reporting Issues
@@ -15,6 +15,13 @@ Please report any issues using the Sourceforge bug tracker:
 
 Version Release History
 =======================
+
+Version 2.0.3 - December 13, 2012
+   * Fixed several threading issues that could cause crashes with a large
+     number of threads.  Thanks to John O’Neill for identifying these thread
+	 safety issues.
+   * Fixed some numbers with pseudo-random number generation that could cause
+     unequal distribution of alignments across equally good candidate loci.
 
 Version 2.0.2 - October 31, 2012
    * Fixes a couple small issues pointed out to me immediately after 2.0.1

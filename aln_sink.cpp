@@ -1642,6 +1642,7 @@ void AlnSinkSam::appendMate(
 		return;
 	}
 	char buf[1024];
+	char mapqInps[1024];
 	StackedAln staln;
 	if(rs != NULL) {
 		rs->initStacked(rd, staln);
@@ -1720,11 +1721,11 @@ void AlnSinkSam::appendMate(
 		o.append('\t');
 	}
 	// MAPQ
-	mapqInps_[0] = '\0';
+	mapqInps[0] = '\0';
 	if(rs != NULL) {
 		itoa10<TMapq>(mapqCalc.mapq(
 			summ, flags, rd.mate < 2, rd.length(),
-			rdo == NULL ? 0 : rdo->length(), mapqInps_), buf);
+			rdo == NULL ? 0 : rdo->length(), mapqInps), buf);
 		o.append(buf);
 		o.append('\t');
 	} else {
@@ -1832,7 +1833,7 @@ void AlnSinkSam::appendMate(
 			summ,        // summary of alignments for this read
 			ssm,         // seed alignment summary
 			prm,         // per-read metrics
-			mapqInps_);  // inputs to MAPQ calculation
+			mapqInps);   // inputs to MAPQ calculation
 	} else {
 		samc_.printEmptyOptFlags(
 			o,           // output buffer
