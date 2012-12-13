@@ -1609,6 +1609,8 @@ public:
 	virtual void select(
 		const Read& q,          // read that we're selecting roots for
 		const Read* qo,         // opposite mate, if applicable
+		bool nofw,              // don't add roots for fw read
+		bool norc,              // don't add roots for rc read
 		EList<DescentConfig>& confs,    // put DescentConfigs here
 		EList<DescentRoot>& roots) = 0; // put DescentRoot here
 };
@@ -1696,6 +1698,8 @@ public:
 	 */
 	void initRead(
 		const Read& q,
+		bool nofw,
+		bool norc,
 		TAlScore minsc,
 		TAlScore maxpen,
 		const Read* qu = NULL,
@@ -1706,7 +1710,7 @@ public:
 		minsc_ = minsc;
 		maxpen_ = maxpen;
 		if(sel != NULL) {
-			sel->select(q_, qu, confs_, roots_);
+			sel->select(q_, qu, nofw, norc, confs_, roots_);
 		}
 		re_.init(q.length());
 	}
