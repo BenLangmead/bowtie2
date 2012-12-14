@@ -19,7 +19,7 @@ Version Release History
 Version 2.0.3 - December 14, 2012
    * Fixed thread safely issues that could cause crashes with a large number of
      threads.  Thanks to John O’Neill for identifying these issues.
-   * Fixed some numbers with pseudo-random number generation that could cause
+   * Fixed some problems with pseudo-random number generation that could cause
      unequal distribution of alignments across equally good candidate loci.
    * The --un, --al, --un-conc, and --al-conc options (and their compressed
      analogs) are all much faster now, making it less likely that they become
