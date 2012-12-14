@@ -48,7 +48,6 @@ struct Read {
 		alts = 0;
 		trimmed5 = trimmed3 = 0;
 		readOrigBuf.clear();
-		qualOrigBuf.clear();
 		patFw.clear();
 		patRc.clear();
 		qual.clear();
@@ -333,8 +332,6 @@ struct Read {
 
 	// For remembering the exact input text used to define a read
 	SStringExpandable<char> readOrigBuf;
-	// For when qualities are in a separate file
-	SStringExpandable<char> qualOrigBuf;
 
 	BTString name;      // read name
 	TReadId  rdid;      // 0-based id based on pair's offset in read file(s)
