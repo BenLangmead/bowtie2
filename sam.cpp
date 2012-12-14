@@ -479,16 +479,9 @@ void SamConfig::printAlignedOptFlags(
 		o.append(buf);
 	}
 	if(print_xr_) {
-		// XR:Z: Original read string
-		WRITE_SEP();
-		o.append("XR:Z:");
-		printOptFieldEscapedZ(o, rd.readOrigBuf);
-		if(!rd.qualOrigBuf.empty()) {
-			// Xr:Z: Original quality string
-			WRITE_SEP();
-			o.append("Xr:Z:");
-			printOptFieldEscapedZ(o, rd.qualOrigBuf);
-		}
+		// Original read string
+		o.append("\n");
+		printOptFieldNewlineEscapedZ(o, rd.readOrigBuf);
 	}
 }
 
@@ -678,15 +671,8 @@ void SamConfig::printEmptyOptFlags(
 		o.append(buf);
 	}
 	if(print_xr_) {
-		// XR:Z: Original read string
-		WRITE_SEP();
-		o.append("XR:Z:");
-		printOptFieldEscapedZ(o, rd.readOrigBuf);
-		if(!rd.qualOrigBuf.empty()) {
-			// Xr:Z: Original quality string
-			WRITE_SEP();
-			o.append("Xr:Z:");
-			printOptFieldEscapedZ(o, rd.qualOrigBuf);
-		}
+		// Original read string
+		o.append("\n");
+		printOptFieldNewlineEscapedZ(o, rd.readOrigBuf);
 	}
 }

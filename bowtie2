@@ -410,47 +410,81 @@ if(defined($cap_out)) {
 			my $fl = substr($_, $tab1_i, $tab2_i - $tab1_i);
 			my $unal = ($fl & 4) != 0;
 			if($passthru) {
-				# Parse the passthrough output
-				my $xrii = index($_, "XR:Z:");
-				$xrii > -1 || die;
-				my $xri = $xrii + 5; # skip over XR:Z:
-				my $xrf = index($_, "\t", $xri);
-				$xrf = length($_) if $xrf == -1;
-				my $read = substr($_, $xri, $xrf - $xri);
 				my $mate1 = (($fl &  64) != 0);
 				my $mate2 = (($fl & 128) != 0);
 				my $unp = !$mate1 && !$mate2;
 				my $pair = !$unp;
 				my $buf = "";
-				if((defined($read_fhs{un}) || defined($read_fhs{al})) && $unp) {
-					if($unal) {
-						# Failed to align
-						unescape($read, $buf);
-						print {$read_fhs{un}} $buf if defined($read_fhs{un});
-					} else {
-						# Aligned
-						unescape($read, $buf);
-						print {$read_fhs{al}} $buf if defined($read_fhs{al});
+				if(0) {
+					# Parse the passthrough output
+					my $xrii = index($_, "XR:Z:");
+					$xrii > -1 || die;
+					my $xri = $xrii + 5; # skip over XR:Z:
+					my $xrf = index($_, "\t", $xri);
+					$xrf = length($_) if $xrf == -1;
+					my $read = substr($_, $xri, $xrf - $xri);
+					if((defined($read_fhs{un}) || defined($read_fhs{al})) && $unp) {
+						if($unal) {
+							# Failed to align
+							unescape($read, $buf);
+							print {$read_fhs{un}} $buf if defined($read_fhs{un});
+						} else {
+							# Aligned
+							unescape($read, $buf);
+							print {$read_fhs{al}} $buf if defined($read_fhs{al});
+						}
 					}
-				}
-				if((defined($read_fhs{"un-conc"}) || defined($read_fhs{"al-conc"})) && $pair) {
-					my $conc  = (($fl &   2) != 0);
-					if     ($conc && $mate1) {
-						unescape($read, $buf);
-						print {$read_fhs{"al-conc"}{1}} $buf if defined($read_fhs{"al-conc"});
-					} elsif($conc && $mate2) {
-						unescape($read, $buf);
-						print {$read_fhs{"al-conc"}{2}} $buf if defined($read_fhs{"al-conc"});
-					} elsif(!$conc && $mate1) {
-						unescape($read, $buf);
-						print {$read_fhs{"un-conc"}{1}} $buf if defined($read_fhs{"un-conc"});
-					} elsif(!$conc && $mate2) {
-						unescape($read, $buf);
-						print {$read_fhs{"un-conc"}{2}} $buf if defined($read_fhs{"un-conc"});
+					if((defined($read_fhs{"un-conc"}) || defined($read_fhs{"al-conc"})) && $pair) {
+						my $conc  = (($fl &   2) != 0);
+						if     ($conc && $mate1) {
+							unescape($read, $buf);
+							print {$read_fhs{"al-conc"}{1}} $buf if defined($read_fhs{"al-conc"});
+						} elsif($conc && $mate2) {
+							unescape($read, $buf);
+							print {$read_fhs{"al-conc"}{2}} $buf if defined($read_fhs{"al-conc"});
+						} elsif(!$conc && $mate1) {
+							unescape($read, $buf);
+							print {$read_fhs{"un-conc"}{1}} $buf if defined($read_fhs{"un-conc"});
+						} elsif(!$conc && $mate2) {
+							unescape($read, $buf);
+							print {$read_fhs{"un-conc"}{2}} $buf if defined($read_fhs{"un-conc"});
+						}
 					}
+					# Remove the passthrough string
+					substr($_, $xrii - 1) = "";
+				} else {
+					# Next line is read with some whitespace escaped
+					my $l = <BT>;
+					chomp($l);
+					if((defined($read_fhs{un}) || defined($read_fhs{al})) && $unp) {
+						if($unal) {
+							# Failed to align
+							unescape($l, $buf);
+							print {$read_fhs{un}} $buf if defined($read_fhs{un});
+						} else {
+							# Aligned
+							unescape($l, $buf);
+							print {$read_fhs{al}} $buf if defined($read_fhs{al});
+						}
+					}
+					if((defined($read_fhs{"un-conc"}) || defined($read_fhs{"al-conc"})) && $pair) {
+						my $conc  = (($fl &   2) != 0);
+						if     ($conc && $mate1) {
+							unescape($l, $buf);
+							print {$read_fhs{"al-conc"}{1}} $buf if defined($read_fhs{"al-conc"});
+						} elsif($conc && $mate2) {
+							unescape($l, $buf);
+							print {$read_fhs{"al-conc"}{2}} $buf if defined($read_fhs{"al-conc"});
+						} elsif(!$conc && $mate1) {
+							unescape($l, $buf);
+							print {$read_fhs{"un-conc"}{1}} $buf if defined($read_fhs{"un-conc"});
+						} elsif(!$conc && $mate2) {
+							unescape($l, $buf);
+							print {$read_fhs{"un-conc"}{2}} $buf if defined($read_fhs{"un-conc"});
+						}
+					}
+					$filt = 1;
 				}
-				# Remove the passthrough string
-				substr($_, $xrii - 1) = "";
 			}
 			$filt = 1 if $no_unal && $unal;
 		}

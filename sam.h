@@ -184,6 +184,29 @@ public:
 			}
 		}
 	}
+
+	/**
+	 * Print a :Z optional field where newline characters are escaped using %
+	 * escapes.
+	 */
+	template<typename T>
+	void printOptFieldNewlineEscapedZ(BTString& o, const T& s) const {
+		size_t len = s.length();
+		for(size_t i = 0; i < len; i++) {
+			if(s[i] == 10 || s[i] == 13 || s[i] == '%') {
+				// percent-encode it
+				o.append('%');
+				int ms = s[i] >> 4;
+				int ls = s[i] & 15;
+				assert_range(0, 15, ms);
+				assert_range(0, 15, ls);
+				o.append("0123456789ABCDEF"[ms]);
+				o.append("0123456789ABCDEF"[ls]);
+			} else {
+				o.append(s[i]);
+			}
+		}
+	}
 	
 	/**
 	 * Print a read name in a way that doesn't violate SAM's character
