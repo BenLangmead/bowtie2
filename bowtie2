@@ -251,13 +251,14 @@ if(wrapInput(\@unps, \@mate1s, \@mate2s)) {
 		my $m1fn = "$temp_dir/$$.inpipe1";
 		push @to_delete, $m1fn;
 		push @bt2_args, "-1 $m1fn";
+		# Create named pipe 1 for writing
+		if(!$no_pipes) {
+			mkfifo($m1fn, 0700) || die "Error: mkfifo($m1fn) failed.";
+		}
 		my $pid = 0;
 		$pid = fork() unless $no_pipes;
 		if($pid == 0) {
 			# Open named pipe 1 for writing
-			if(!$no_pipes) {
-				mkfifo($m1fn, 0700) || die "Error: mkfifo($m1fn) failed.";
-			}
 			open(my $ofh, ">$m1fn") || die "Can't open '$m1fn' for writing";
 			for my $ifn (@mate1s) { cat_file($ifn, $ofh); }
 			close($ofh);
@@ -267,13 +268,14 @@ if(wrapInput(\@unps, \@mate1s, \@mate2s)) {
 		my $m2fn = "$temp_dir/$$.inpipe2";
 		push @to_delete, $m2fn;
 		push @bt2_args, "-2 $m2fn";
+		# Create named pipe 2 for writing
+		if(!$no_pipes) {
+			mkfifo($m2fn, 0700) || die "Error: mkfifo($m2fn) failed.";
+		}
 		$pid = 0;
 		$pid = fork() unless $no_pipes;
 		if($pid == 0) {
 			# Open named pipe 2 for writing
-			if(!$no_pipes) {
-				mkfifo($m2fn, 0700) || die "Error: mkfifo($m2fn) failed.";
-			}
 			open(my $ofh, ">$m2fn") || die "Can't open '$m2fn' for writing";
 			for my $ifn (@mate2s) { cat_file($ifn, $ofh); }
 			close($ofh);
@@ -288,13 +290,14 @@ if(wrapInput(\@unps, \@mate1s, \@mate2s)) {
 		my $ufn = "$temp_dir/$$.unp";
 		push @to_delete, $ufn;
 		push @bt2_args, "-U $ufn";
+		# Create named pipe 2 for writing
+		if(!$no_pipes) {
+			mkfifo($ufn, 0700) || die "Error: mkfifo($ufn) failed.";
+		}
 		my $pid = 0;
 		$pid = fork() unless $no_pipes;
 		if($pid == 0) {
 			# Open named pipe 2 for writing
-			if(!$no_pipes) {
-				mkfifo($ufn, 0700) || die "Error: mkfifo($ufn) failed.";
-			}
 			open(my $ofh, ">$ufn") || die "Can't open '$ufn' for writing";
 			for my $ifn (@unps) { cat_file($ifn, $ofh); }
 			close($ofh);

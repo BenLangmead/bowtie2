@@ -11,7 +11,7 @@ and please apply if you're interested in working with either or both of us.
 </li>
 </ul>
 
-<h2>Version 2.0.3 - Coming soon</h2>
+<h2>Version 2.0.3 - December 14, 2012</h2>
 <ul>
 <li>Fixed thread safely issues that could cause crashes with a large number of
      threads.  Thanks to John O’Neill for identifying these issues.</li>
