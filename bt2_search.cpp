@@ -1328,19 +1328,27 @@ static void parseOption(int next_option, const char *arg) {
 			break;
 		}
 		case ARG_N_CEIL: {
-			polstr += ";";
 			// Split argument by comma
 			EList<string> args;
 			tokenize(arg, ",", args);
-			if(args.size() > 2 || args.size() == 0) {
-				cerr << "Error: expected 2 or fewer comma-separated "
+			if(args.size() > 3) {
+				cerr << "Error: expected 3 or fewer comma-separated "
 					 << "arguments to --n-ceil option, got "
 					 << args.size() << endl;
 				throw 1;
 			}
-			polstr += ("NCEIL=L," + args[0]);
-			if(args.size() > 1) {
-				polstr += ("," + (args[1]));
+			if(args.size() == 0) {
+				cerr << "Error: expected at least one argument to --n-ceil option" << endl;
+				throw 1;
+			}
+			polstr += ";NCEIL=";
+			if(args.size() == 3) {
+				polstr += (args[0] + "," + args[1] + "," + args[2]);
+			} else {
+				polstr += ("L," + args[0]);
+				if(args.size() > 1) {
+					polstr += ("," + (args[1]));
+				}
 			}
 			break;
 		}

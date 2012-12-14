@@ -2163,7 +2163,7 @@ int SwDriver::extendSeedsPaired(
 									assert(!msink->maxed());
 									assert(!msink->state().done());
 									bool doneUnpaired = false;
-									if(mixed || discord) {
+									//if(mixed || discord) {
 										// Report alignment for mate #1 as an
 										// unpaired alignment.
 										if(!anchor1 || !didAnchor) {
@@ -2194,7 +2194,7 @@ int SwDriver::extendSeedsPaired(
 												}
 											}
 										}
-									} // if(mixed || discord)
+									//} // if(mixed || discord)
 									bool donePaired = false;
 									if(pairCl != PE_ALS_DISCORD) {
 										foundConcordant = true;
