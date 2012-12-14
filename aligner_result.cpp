@@ -1080,7 +1080,7 @@ void AlnSetSumm::init(
 		}
 		assert(rs != NULL);
 		szs[j] = rs->size();
-		assert_gt(szs[j], 0);
+		//assert_gt(szs[j], 0);
 		for(size_t i = 0; i < rs->size(); i++) {
 			AlnScore sc = (*rs)[i].score();
 			if(sc > best[j]) {

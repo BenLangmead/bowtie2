@@ -1400,7 +1400,12 @@ Each subsequnt line describes an alignment or, if the read failed to align, a
 read.  Each line is a collection of at least 12 fields separated by tabs; from
 left to right, the fields are:
 
-1.  Name of read that aligned
+1.  Name of read that aligned.
+
+    Note that the [SAM specification] disallows whitespace in the read name.
+	If the read name contains any whitespace characters, Bowtie 2 will truncate
+	the name at the first whitespace character.  This is similar to the
+	behavior of other tools.
 
 2.  Sum of all applicable flags.  Flags relevant to Bowtie are:
 

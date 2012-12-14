@@ -319,7 +319,7 @@ bool assertPartitionedSuf2(
  * legitimate suffix-offset list (at this time, we just check that it doesn't
  * list any suffix twice).
  */
-static void sanityCheckInputSufs(uint32_t *s, size_t slen) {
+static inline void sanityCheckInputSufs(uint32_t *s, size_t slen) {
 	assert_gt(slen, 0);
 	for(size_t i = 0; i < slen; i++) {
 		// Actually, it's convenient to allow the caller to provide

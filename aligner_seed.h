@@ -1321,7 +1321,7 @@ protected:
 
 // Forward decl
 class Ebwt;
-class SideLocus;
+struct SideLocus;
 
 /**
  * Encapsulates a sumamry of what the searchAllSeeds aligner did.
