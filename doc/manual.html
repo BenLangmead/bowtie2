@@ -1109,7 +1109,8 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 <p>By default, <code>bowtie2</code> prints a SAM header with <code>@HD</code>, <code>@SQ</code> and <code>@PG</code> lines. When one or more <a href="#bowtie2-options-rg"><code>--rg</code></a> arguments are specified, <code>bowtie2</code> will also print an <code>@RG</code> line that includes all user-specified <a href="#bowtie2-options-rg"><code>--rg</code></a> tokens separated by tabs.</p>
 <p>Each subsequnt line describes an alignment or, if the read failed to align, a read. Each line is a collection of at least 12 fields separated by tabs; from left to right, the fields are:</p>
 <ol style="list-style-type: decimal">
-<li><p>Name of read that aligned</p></li>
+<li><p>Name of read that aligned.</p>
+<p>Note that the <a href="http://samtools.sourceforge.net/SAM1.pdf">SAM specification</a> disallows whitespace in the read name. If the read name contains any whitespace characters, Bowtie 2 will truncate the name at the first whitespace character. This is similar to the behavior of other tools.</p></li>
 <li><p>Sum of all applicable flags. Flags relevant to Bowtie are:</p>
 <table><tr><td>
 
@@ -1168,7 +1169,7 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 <li><p>CIGAR string representation of alignment</p></li>
 <li><p>Name of reference sequence where mate's alignment occurs. Set to <code>=</code> if the mate's reference sequence is the same as this alignment's, or <code>*</code> if there is no mate.</p></li>
 <li><p>1-based offset into the forward reference strand where leftmost character of the mate's alignment occurs. Offset is 0 if there is no mate.</p></li>
-<li><p>Inferred fragment size. Size is negative if the mate's alignment occurs upstream of this alignment. Size is 0 if there is no mate.</p></li>
+<li><p>Inferred fragment length. Size is negative if the mate's alignment occurs upstream of this alignment. Size is 0 if the mates did not align concordantly. However, size is non-0 if the mates aligned discordantly to the same chromosome.</p></li>
 <li><p>Read sequence (reverse-complemented if aligned to the reverse strand)</p></li>
 <li><p>ASCII-encoded read qualities (reverse-complemented if the read aligned to the reverse strand). The encoded quality values are on the <a href="http://en.wikipedia.org/wiki/Phred_quality_score">Phred quality</a> scale and the encoding is ASCII-offset by 33 (ASCII char <code>!</code>), similarly to a <a href="http://en.wikipedia.org/wiki/FASTQ_format">FASTQ</a> file.</p></li>
 <li><p>Optional fields. Fields are tab-separated. <code>bowtie2</code> outputs zero or more of these optional fields for each alignment, depending on the type of the alignment:</p>

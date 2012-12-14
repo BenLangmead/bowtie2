@@ -1462,8 +1462,10 @@ mate.
 8.  1-based offset into the forward reference strand where leftmost character of
 the mate's alignment occurs.  Offset is 0 if there is no mate.
 
-9.  Inferred fragment size.  Size is negative if the mate's alignment occurs
-upstream of this alignment.  Size is 0 if there is no mate.
+9.  Inferred fragment length.  Size is negative if the mate's alignment occurs
+upstream of this alignment.  Size is 0 if the mates did not align concordantly.
+However, size is non-0 if the mates aligned discordantly to the same
+chromosome.
 
 10. Read sequence (reverse-complemented if aligned to the reverse strand)
 
