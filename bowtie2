@@ -34,7 +34,7 @@ use Getopt::Long;
 use FindBin qw($Bin);
 use POSIX;
 
-(-x "$Bin/bowtie2-align") ||
+(-x "$Bin/bowtie2-align.exe") || (-x "$Bin/bowtie2-align") ||
 	die "Error: Expected bowtie2 to be in same directory with bowtie2-align:\n$Bin";
 
 # Get description of arguments from Bowtie 2 so that we can distinguish Bowtie
