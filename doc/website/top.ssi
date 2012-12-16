@@ -1,10 +1,14 @@
   <div id="top">
     <div class="lefts">
     <table width="100%" cellpadding="2">
-      <tr><td>
-        <h1><a href="./index.shtml" style="color: white; text-decoration: none">Bowtie 2</a></h1>
-        <h2>Fast and sensitive read alignment</h2>
-      </td><td align="right" valign="middle">
+      <tr>
+        <td align="left" valign="middle" width="145">
+          <a href="./index.shtml"><img style="padding-left: 7pt; padding-top: 6pt" height="65" src="images/bowtie_logo.png"/></a>
+        </td>
+        <td align="left" valign="top">
+          <h1><a href="./index.shtml" style="color: white; text-decoration: none">Bowtie 2</a></h1>
+          <h2>Fast and sensitive read alignment</h2>
+        </td><td align="right" valign="middle">
         <a href="http://www.jhu.edu/"><img style="padding-top: 7pt; padding-right: 7pt" border=0 height="55" src="images/JHU_white_sm.png"></a>
       </td></tr>
     </table>
