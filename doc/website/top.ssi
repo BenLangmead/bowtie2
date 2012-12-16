@@ -5,14 +5,7 @@
         <h1><a href="./index.shtml" style="color: white; text-decoration: none">Bowtie 2</a></h1>
         <h2>Fast and sensitive read alignment</h2>
       </td><td align="right" valign="middle">
-        <h1>
-          <a href="http://www.cbcb.umd.edu/">
-            <img src="../images/cbcblogo.gif" alt="CBCB logo"></img>
-          </a>&nbsp;
-          <a href="http://www.biostat.jhsph.edu/">
-            <img src="../images/jhsph_white.png" alt="JHPSH logo"></img>
-          </a>&nbsp;&nbsp;
-        </h1>
+        <a href="http://www.jhu.edu/"><img style="padding-top: 7pt; padding-right: 7pt" border=0 height="55" src="images/JHU_white_sm.png"></a>
       </td></tr>
     </table>
     </div>
