@@ -8,9 +8,9 @@
 #
 
 GENOMES_MIRROR=ftp://ftp.flybase.net/genomes/Drosophila_melanogaster
-F=dmel-all-chromosome-r5.22.fasta
-REL=dmel_r5.22_FB2009_09
-IDX_NAME=d_melanogaster_fb5_22
+F=dmel-all-chromosome-r5.48.fasta
+REL=dmel_r5.48_FB2012_06
+IDX_NAME=d_melanogaster_fb5_48
 
 get() {
 	file=$1
@@ -50,3 +50,4 @@ if $CMD ; then
 else
 	echo "Index building failed; see error message"
 fi
+
