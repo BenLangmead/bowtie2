@@ -17,7 +17,13 @@ Version Release History
 =======================
 
 Version 2.0.4 - December 17, 2012
-   * Fixed issue whereby --un-conc would suppress
+   * Fixed issue whereby --un, --al, --un-conc and --al-conc options would
+     incorrectly suppress SAM output.
+   * Fixed minor command-line parsing issue in wrapper script.
+   * Fixed issue on Windows where wrapper script would fail to find
+     bowtie2-align.exe binary.
+   * Updated some of the index-building scripts and documentation.
+   * Updated author's contact info in usage message.
 
 Version 2.0.3 - December 14, 2012
    * Fixed thread safely issues that could cause crashes with a large number of
