@@ -1442,8 +1442,10 @@ int TabbedPatternSource::parseQuals(
 				break;
 			}
 		}
-		if(qualsRead != dstLen + trim5) {
-			assert(false);
+		if(qualsRead < dstLen + trim5) {
+			tooFewQualities(r.name);
+		} else if(qualsRead > dstLen + trim5) {
+			tooManyQualities(r.name);
 		}
 	}
 	r.qual.resize(dstLen);
