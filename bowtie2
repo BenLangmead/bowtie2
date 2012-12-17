@@ -97,8 +97,8 @@ for(my $i = 0; $i < scalar(@bt2_args); $i++) {
 	next unless defined($bt2_args[$i]);
 	my $arg = $bt2_args[$i];
 	my @args = split(/=/, $arg);
-	if(scalar(@args > 2)) {
-		$args[1] = join("=", $args[1..$#args]);
+	if(scalar(@args) > 2) {
+		$args[1] = join("=", @args[1..$#args]);
 	}
 	$arg = $args[0];
 	if($arg eq "-U" || $arg eq "--unpaired") {
@@ -428,7 +428,6 @@ if(defined($cap_out)) {
 						print {$read_fhs{"un-conc"}{2}} $l if defined($read_fhs{"un-conc"});
 					}
 				}
-				$filt = 1;
 			}
 			$filt = 1 if $no_unal && $unal;
 		}
