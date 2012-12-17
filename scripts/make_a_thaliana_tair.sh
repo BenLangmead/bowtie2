@@ -36,7 +36,7 @@ for c in 1 2 3 4 5 C M ; do
 	if [ ! -f TAIR10_chr$c.fas ] ; then
 		FN=TAIR10_chr$c.fas
 		F=${GENOMES_MIRROR}/Sequences/whole_chromosomes/${FN}
-		[ -n "$FC" ] && FC=",$FN"
+		[ -n "$FC" ] && FC="$FC,$FN"
 		[ -z "$FC" ] && FC=$FN
 		get $F || (echo "Error getting $F" && exit 1)
 	fi
