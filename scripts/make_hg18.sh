@@ -11,10 +11,9 @@
 # 2. The unplaced-sequence files, named chr??_random.fa.gz
 # 3. The alternative-haplotype files, named chr??_???_hap?.fa.gz
 #
-# By default, this script builds and index for just the base files,
-# since alignments to those sequences are the most useful.  To change
-# which categories are built by this script, edit the CHRS_TO_INDEX
-# variable below.
+# By default, this script indexes files from categories 1 and 2.  To
+# change which categories are built by this script, edit the
+# CHRS_TO_INDEX variable below.
 #
 
 BASE_CHRS="\
