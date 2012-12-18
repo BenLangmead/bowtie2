@@ -50,7 +50,6 @@ static int noDc;
 static int entireSA;
 static int seed;
 static int showVersion;
-static bool doubleEbwt;
 //   Ebwt parameters
 static int32_t lineRate;
 static int32_t linesPerSide;
@@ -63,7 +62,6 @@ static bool packed;
 static bool writeRef;
 static bool justRef;
 static bool reverseEach;
-bool color;
 
 static void resetOptions() {
 	verbose      = true;  // be talkative (default)
@@ -77,7 +75,6 @@ static void resetOptions() {
 	entireSA     = 0;     // 1 = disable blockwise SA
 	seed         = 0;     // srandom seed
 	showVersion  = 0;     // just print version and quit?
-	doubleEbwt   = true;  // build forward and reverse Ebwts
 	//   Ebwt parameters
 	lineRate     = 6;  // a "line" is 64 bytes
 	linesPerSide = 1;  // 1 64-byte line on a side
@@ -89,7 +86,6 @@ static void resetOptions() {
 	packed       = false; //
 	writeRef     = true;  // write compact reference to .3.bt2/.4.bt2
 	justRef      = false; // *just* write compact reference, don't index
-	color        = false;
 	reverseEach  = false;
 }
 
@@ -284,24 +280,23 @@ static void parseOptions(int argc, const char **argv) {
 	}
 }
 
+EList<string> filesWritten;
+
 /**
  * Delete all the index files that we tried to create.  For when we had to
  * abort the index-building process due to an error.
  */
-static void deleteIdxFiles(const string& outfile) {
-	cerr << "Deleting \"" << outfile << ".*.bt2\" files written by aborted indexing attempt." << endl;
-	string bt2_1 = outfile + ".1.bt2";
-	string bt2_2 = outfile + ".2.bt2";
-	string bt2_3 = outfile + ".3.bt2";
-	string bt2_4 = outfile + ".4.bt2";
-	string bt2_rev_1 = outfile + ".rev.1.bt2";
-	string bt2_rev_2 = outfile + ".rev.2.bt2";
-	remove(bt2_1.c_str());
-	remove(bt2_2.c_str());
-	remove(bt2_3.c_str());
-	remove(bt2_4.c_str());
-	remove(bt2_rev_1.c_str());
-	remove(bt2_rev_2.c_str());
+static void deleteIdxFiles(
+	const string& outfile,
+	bool doRef,
+	bool justRef)
+{
+	
+	for(size_t i = 0; i < filesWritten.size(); i++) {
+		cerr << "Deleting \"" << filesWritten[i]
+		     << "\" file written during aborted indexing attempt." << endl;
+		remove(filesWritten[i].c_str());
+	}
 }
 
 /**
@@ -318,7 +313,7 @@ static void driver(
 {
 	EList<FileBuf*> is(MISC_CAT);
 	bool bisulfite = false;
-	RefReadInParams refparams(color, reverse, nsToAs, bisulfite);
+	RefReadInParams refparams(false, reverse, nsToAs, bisulfite);
 	assert_gt(infiles.size(), 0);
 	if(format == CMDLINE) {
 		// Adapt sequence strings to stringstreams open for input
@@ -367,6 +362,8 @@ static void driver(
 		if(verbose) cout << "Reading reference sizes" << endl;
 		Timer _t(cout, "  Time reading reference sizes: ", verbose);
 		if(!reverse && (writeRef || justRef)) {
+			filesWritten.push_back(outfile + ".3.bt2");
+			filesWritten.push_back(outfile + ".4.bt2");
 			sztot = BitPairReference::szsFromFasta(is, outfile, bigEndian, refparams, szs, sanityCheck);
 		} else {
 			sztot = BitPairReference::szsFromFasta(is, string(), bigEndian, refparams, szs, sanityCheck);
@@ -377,10 +374,12 @@ static void driver(
 	assert_gt(sztot.second, 0);
 	assert_gt(szs.size(), 0);
 	// Construct index from input strings and parameters
+	filesWritten.push_back(outfile + ".1.bt2");
+	filesWritten.push_back(outfile + ".2.bt2");
 	Ebwt ebwt(
 		TStr(),
 		packed,
-		refparams.color ? 1 : 0,
+		0,
 		1,  // TODO: maybe not?
 		lineRate,
 		offRate,      // suffix-array sampling rate
@@ -412,7 +411,7 @@ static void driver(
 		// multiple texts, what we'll get back is the joined,
 		// padded string, not a list)
 		ebwt.loadIntoMemory(
-			refparams.color ? 1 : 0,
+			0,
 			reverse ? (refparams.reverse == REF_READ_REVERSE) : 0,
 			true,  // load SA sample?
 			true,  // load ftab?
@@ -569,24 +568,22 @@ int bowtie_build(int argc, const char **argv) {
 			}
 		}
 		int reverseType = reverseEach ? REF_READ_REVERSE_EACH : REF_READ_REVERSE;
-		if(doubleEbwt) {
-			srand(seed);
-			Timer timer(cout, "Total time for backward call to driver() for mirror index: ", verbose);
-			if(!packed) {
-				try {
-					driver<SString<char> >(infile, infiles, outfile + ".rev", false, reverseType);
-				} catch(bad_alloc& e) {
-					if(autoMem) {
-						cerr << "Switching to a packed string representation." << endl;
-						packed = true;
-					} else {
-						throw e;
-					}
+		srand(seed);
+		Timer timer(cout, "Total time for backward call to driver() for mirror index: ", verbose);
+		if(!packed) {
+			try {
+				driver<SString<char> >(infile, infiles, outfile + ".rev", false, reverseType);
+			} catch(bad_alloc& e) {
+				if(autoMem) {
+					cerr << "Switching to a packed string representation." << endl;
+					packed = true;
+				} else {
+					throw e;
 				}
 			}
-			if(packed) {
-				driver<S2bDnaString>(infile, infiles, outfile + ".rev", true, reverseType);
-			}
+		}
+		if(packed) {
+			driver<S2bDnaString>(infile, infiles, outfile + ".rev", true, reverseType);
 		}
 		return 0;
 	} catch(std::exception& e) {
@@ -594,7 +591,7 @@ int bowtie_build(int argc, const char **argv) {
 		cerr << "Command: ";
 		for(int i = 0; i < argc; i++) cerr << argv[i] << " ";
 		cerr << endl;
-		deleteIdxFiles(outfile);
+		deleteIdxFiles(outfile, writeRef || justRef, justRef);
 		return 1;
 	} catch(int e) {
 		if(e != 0) {
@@ -603,7 +600,7 @@ int bowtie_build(int argc, const char **argv) {
 			for(int i = 0; i < argc; i++) cerr << argv[i] << " ";
 			cerr << endl;
 		}
-		deleteIdxFiles(outfile);
+		deleteIdxFiles(outfile, writeRef || justRef, justRef);
 		return e;
 	}
 }
