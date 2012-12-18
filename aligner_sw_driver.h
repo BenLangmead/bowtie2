@@ -234,17 +234,19 @@ public:
 		double rd = rnd.nextFloat() * mass_;
 		double mass_sofar = 0.0f;
 		size_t sz = masses_.size();
+		size_t last_unelim = std::numeric_limits<size_t>::max();
 		for(size_t i = 0; i < sz; i++) {
 			if(!elim_[i]) {
+				last_unelim = i;
 				mass_sofar += masses_[i];
-				if(rd < mass_sofar || i == sz - 1) {
+				if(rd < mass_sofar) {
 					// This is the one we hit
 					return i;
 				}
 			}
 		}
-		assert(false);
-		return 0;
+		assert_neq(std::numeric_limits<size_t>::max(), last_unelim);
+		return last_unelim;
 	}
 
 protected:
