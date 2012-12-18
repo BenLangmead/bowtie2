@@ -76,9 +76,6 @@ PTHREAD_LIB = -lpthread
 endif
 endif
 
-PREFETCH_LOCALITY = 2
-PREF_DEF = -DPREFETCH_LOCALITY=$(PREFETCH_LOCALITY)
-
 LIBS = 
 SEARCH_LIBS = $(PTHREAD_LIB)
 BUILD_LIBS =
@@ -97,6 +94,7 @@ SEARCH_CPPS = qual.cpp pat.cpp sam.cpp \
 			  pe.cpp aln_sink.cpp dp_framer.cpp \
 			  scoring.cpp presets.cpp unique.cpp \
 			  simple_func.cpp \
+			  random_util.cpp \
 			  aligner_bt.cpp sse_util.cpp \
 			  aligner_swsse.cpp outq.cpp \
 			  aligner_swsse_loc_i16.cpp \

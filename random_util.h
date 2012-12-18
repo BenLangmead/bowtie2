@@ -20,6 +20,7 @@
 #ifndef RANDOM_UTIL_H_
 #define RANDOM_UTIL_H_
 
+#include <algorithm>
 #include "random_source.h"
 #include "ds.h"
 
@@ -37,18 +38,24 @@ public:
 	// A set with fewer than this many elements should kick us into swap-list
 	// mode immediately.  Otherwise we start in seen-list mode and then
 	// possibly proceed to swap-list mode later.
-	static const size_t SWAPLIST_THRESH = 128;
+	static const size_t SWAPLIST_THRESH;
 	
-	// Convert seen-list to swap-list after this many 
-	static const size_t CONVERSION_THRESH = 16;
+	// Convert seen-list to swap-list after this many entries in the seen-list.
+	static const size_t CONVERSION_THRESH;
+
+	// Convert seen-list to swap-list after this (this times n_) many entries
+	// in the seen-list.
+	static const float CONVERSION_FRAC;
 
 	Random1toN(int cat = 0) :
 		sz_(0), n_(0), cur_(0),
-		list_(SWAPLIST_THRESH, cat), seen_(CONVERSION_THRESH, cat) {}
+		list_(SWAPLIST_THRESH, cat), seen_(CONVERSION_THRESH, cat),
+		thresh_(0) {}
 	
 	Random1toN(size_t n, int cat = 0) :
 		sz_(0), n_(n), cur_(0),
-		list_(SWAPLIST_THRESH, cat), seen_(CONVERSION_THRESH, cat) {}
+		list_(SWAPLIST_THRESH, cat), seen_(CONVERSION_THRESH, cat),
+		thresh_(0) {}
 
 	/**
 	 * Initialize the set of pseudo-randoms to be given out without replacement.
@@ -60,6 +67,7 @@ public:
 		cur_ = 0;
 		list_.clear();
 		seen_.clear();
+		thresh_ = std::max(CONVERSION_THRESH, (size_t)(CONVERSION_FRAC * n));
 	}
 	
 	/**
@@ -69,6 +77,7 @@ public:
 	void reset() {
 		sz_ = n_ = cur_ = 0; swaplist_ = converted_ = false;
 		list_.clear(); seen_.clear();
+		thresh_ = 0;
 	}
 
 	/**
@@ -120,7 +129,8 @@ public:
 			cur_++;
 			assert_leq(cur_, n_);
 			// Move on to using the swap-list?
-			if(seen_.size() >= CONVERSION_THRESH && cur_ < n_) {
+			assert_gt(thresh_, 0);
+			if(seen_.size() >= thresh_ && cur_ < n_) {
 				// Add all elements not already in the seen list to the
 				// swap-list
 				assert(!seen_.empty());
@@ -204,6 +214,8 @@ protected:
 	EList<T> list_;      // pseudo-random swapping list
 	EList<T> seen_;      // prior to swaplist_ mode, list of
 	                     // pseudo-randoms given out
+	size_t   thresh_;    // conversion threshold for this instantiation, which
+	                     // depends both on CONVERSION_THRESH and on n_
 };
 
 #endif
