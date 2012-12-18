@@ -461,7 +461,9 @@ if ($ret == -1) {
 } elsif ($ret & 127) {
 	my $signm = "(unknown)";
 	$signm = $signame[$ret & 127] if defined($signame[$ret & 127]);
-    printf "bowtie2-align died with signal %d (%s)\n", ($ret & 127), ($ret & 128) ? 'with' : 'without', $signm;
+	my $ad = "";
+	$ad = "(core dumped)" if (($ret & 128) != 0);
+    printf "bowtie2-align died with signal %d (%s) $ad\n", ($ret & 127), $signm;
 	exit 1;
 } else {
     printf "bowtie2-align exited with value %d\n", $ret >> 8;
