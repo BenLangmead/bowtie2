@@ -34,11 +34,11 @@ use Getopt::Long;
 use FindBin qw($Bin);
 use POSIX;
 
+my %signo = ();
+my @signame = ();
 {
 	# Get signal info
 	use Config;
-	my %signo = ();
-	my @signame = ();
 	my $i = 0;
 	for my $name (split(' ', $Config{sig_name})) {
 		$signo{$name} = $i;
