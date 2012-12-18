@@ -446,9 +446,9 @@ if ($ret == -1) {
     print "Failed to execute bowtie2-align: $!\n";
 	exit 1;
 } elsif ($ret & 127) {
-    printf "bowtie2-align died with signal %d, %s coredump\n", ($ret & 127), ($ret & 128) ? 'with' : 'without';
+    printf "bowtie2-align died with signal %d, %s coredump\nSystem errir description (if available): %s", ($ret & 127), ($ret & 128) ? 'with' : 'without', $!;
 	exit 1;
 } else {
-    printf "bowtie2-align exited with value %d\n", $ret >> 8;
+    printf "bowtie2-align exited with value %d\n\nSystem errir description (if available): %s", $ret >> 8, $!;
 }
 exit $ret >> 8;
