@@ -1,5 +1,5 @@
 /*
- * Copyright 2011, Ben Langmead <blangmea@jhsph.edu>
+ * Copyright 2011, Ben Langmead <langmea@cs.jhu.edu>
  *
  * This file is part of Bowtie 2.
  *
