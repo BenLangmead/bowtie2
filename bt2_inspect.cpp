@@ -62,7 +62,7 @@ static struct option long_options[] = {
  * Print a summary usage message to the provided output stream.
  */
 static void printUsage(ostream& out) {
-	out << "Bowtie 2 version " << string(BOWTIE2_VERSION) << " by Ben Langmead (blangmea@jhsph.edu)" << endl;
+	out << "Bowtie 2 version " << string(BOWTIE2_VERSION) << " by Ben Langmead (langmea@cs.jhu.edu, www.cs.jhu.edu/~langmea)" << endl;
 	out
 	<< "Usage: bowtie2-inspect [options]* <bt2_base>" << endl
 	<< "  <bt2_base>         bt2 filename minus trailing .1.bt2/.2.bt2" << endl

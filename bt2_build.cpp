@@ -111,7 +111,7 @@ enum {
  * Print a detailed usage message to the provided output stream.
  */
 static void printUsage(ostream& out) {
-	out << "Bowtie 2 version " << string(BOWTIE2_VERSION) << " by Ben Langmead (blangmea@jhsph.edu)" << endl;
+	out << "Bowtie 2 version " << string(BOWTIE2_VERSION) << " by Ben Langmead (langmea@cs.jhu.edu, www.cs.jhu.edu/~langmea)" << endl;
 	out << "Usage: bowtie2-build [options]* <reference_in> <bt2_index_base>" << endl
 	    << "    reference_in            comma-separated list of files with ref sequences" << endl
 	    << "    bt2_index_base          write .bt2 data to files with this dir/basename" << endl
@@ -285,6 +285,26 @@ static void parseOptions(int argc, const char **argv) {
 }
 
 /**
+ * Delete all the index files that we tried to create.  For when we had to
+ * abort the index-building process due to an error.
+ */
+static void deleteIdxFiles(const string& outfile) {
+	cerr << "Deleting \"" << outfile << ".*.bt2\" files written by aborted indexing attempt." << endl;
+	string bt2_1 = outfile + ".1.bt2";
+	string bt2_2 = outfile + ".2.bt2";
+	string bt2_3 = outfile + ".3.bt2";
+	string bt2_4 = outfile + ".4.bt2";
+	string bt2_rev_1 = outfile + ".rev.1.bt2";
+	string bt2_rev_2 = outfile + ".rev.2.bt2";
+	remove(bt2_1.c_str());
+	remove(bt2_2.c_str());
+	remove(bt2_3.c_str());
+	remove(bt2_4.c_str());
+	remove(bt2_rev_1.c_str());
+	remove(bt2_rev_2.c_str());
+}
+
+/**
  * Drive the index construction process and optionally sanity-check the
  * result.
  */
@@ -432,6 +452,7 @@ extern "C" {
  * main function.  Parses command-line arguments.
  */
 int bowtie_build(int argc, const char **argv) {
+	string outfile;
 	try {
 		// Reset all global state, including getopt state
 		opterr = optind = 1;
@@ -439,7 +460,6 @@ int bowtie_build(int argc, const char **argv) {
 
 		string infile;
 		EList<string> infiles(MISC_CAT);
-		string outfile;
 
 		parseOptions(argc, argv);
 		argv0 = argv[0];
@@ -574,6 +594,7 @@ int bowtie_build(int argc, const char **argv) {
 		cerr << "Command: ";
 		for(int i = 0; i < argc; i++) cerr << argv[i] << " ";
 		cerr << endl;
+		deleteIdxFiles(outfile);
 		return 1;
 	} catch(int e) {
 		if(e != 0) {
@@ -582,6 +603,7 @@ int bowtie_build(int argc, const char **argv) {
 			for(int i = 0; i < argc; i++) cerr << argv[i] << " ";
 			cerr << endl;
 		}
+		deleteIdxFiles(outfile);
 		return e;
 	}
 }
