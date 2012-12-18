@@ -1239,7 +1239,6 @@ bool AlnSinkWrap::report(
 	bool one = (rs1 != NULL);
 	const AlnRes* rsa = one ? rs1 : rs2;
 	const AlnRes* rsb = one ? rs2 : rs1;
-	//assert(!st_.done());
 	if(paired) {
 		assert(readIsPair());
 		st_.foundConcordant();
@@ -1296,8 +1295,6 @@ bool AlnSinkWrap::prepareDiscordants() {
 		assert(rs2_.empty());
 		rs1_.push_back(rs1u_[0]);
 		rs2_.push_back(rs2u_[0]);
-		//rs1u_.clear();
-		//rs2u_.clear();
 		return true;
 	}
 	return false;
@@ -1650,6 +1647,7 @@ void AlnSinkSam::appendMate(
 	char buf[1024];
 	char mapqInps[1024];
 	if(rs != NULL) {
+		staln.reset();
 		rs->initStacked(rd, staln);
 		staln.leftAlign(false /* not past MMs */);
 	}

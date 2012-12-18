@@ -456,16 +456,16 @@ if(defined($cap_out)) {
 if(!$keep) { for(@to_delete) { unlink($_); } }
 
 if ($ret == -1) {
-    print "Failed to execute bowtie2-align: $!\n";
+    print STDERR "Failed to execute bowtie2-align: $!\n";
 	exit 1;
 } elsif ($ret & 127) {
 	my $signm = "(unknown)";
 	$signm = $signame[$ret & 127] if defined($signame[$ret & 127]);
 	my $ad = "";
 	$ad = "(core dumped)" if (($ret & 128) != 0);
-    printf "bowtie2-align died with signal %d (%s) $ad\n", ($ret & 127), $signm;
+    printf STDERR "bowtie2-align died with signal %d (%s) $ad\n", ($ret & 127), $signm;
 	exit 1;
-} else {
-    printf "bowtie2-align exited with value %d\n", $ret >> 8;
+} elsif($ret != 0) {
+	printf STDERR "bowtie2-align exited with value %d\n", $ret >> 8;
 }
 exit $ret >> 8;
