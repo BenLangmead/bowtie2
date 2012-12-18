@@ -766,6 +766,7 @@ void AlnSinkWrap::finishRead(
 			assert(!select1_.empty());
 			g_.reportHits(
 				obuf_,
+				staln_,
 				threadid_,
 				rd1_,
 				rd2_,
@@ -855,6 +856,7 @@ void AlnSinkWrap::finishRead(
 			assert(!select1_.empty());
 			g_.reportHits(
 				obuf_,
+				staln_,
 				threadid_,
 				rd1_,
 				rd2_,
@@ -1066,6 +1068,7 @@ void AlnSinkWrap::finishRead(
 			assert(!select1_.empty());
 			g_.reportHits(
 				obuf_,
+				staln_,
 				threadid_,
 				rd1_,
 				repRs2 != NULL ? rd2_ : NULL,
@@ -1095,6 +1098,7 @@ void AlnSinkWrap::finishRead(
 			assert(!select2_.empty());
 			g_.reportHits(
 				obuf_,
+				staln_,
 				threadid_,
 				rd2_,
 				repRs1 != NULL ? rd1_ : NULL,
@@ -1147,6 +1151,7 @@ void AlnSinkWrap::finishRead(
 				(repRs2 != NULL) ? repRs2->fw() : false); // opp fw
 			g_.reportUnaligned(
 				obuf_,      // string to write output to
+				staln_,
 				threadid_,
 				rd1_,    // read 1
 				NULL,    // read 2
@@ -1191,6 +1196,7 @@ void AlnSinkWrap::finishRead(
 				(repRs1 != NULL) ? repRs1->fw() : false); // opp fw
 			g_.reportUnaligned(
 				obuf_,      // string to write output to
+				staln_,
 				threadid_,
 				rd2_,    // read 1
 				NULL,    // read 2
@@ -1206,7 +1212,6 @@ void AlnSinkWrap::finishRead(
 		}
 	} // if(suppress alignments)
 	init_ = false;
-	//g_.outq().finishRead(obuf_, rdid_, threadid_);
 	return;
 }
 
@@ -1626,6 +1631,7 @@ void AlnSink::appendSeedSummary(
  */
 void AlnSinkSam::appendMate(
 	BTString&     o,           // append to this string
+	StackedAln&   staln,       // store stacked alignment struct here
 	const Read&   rd,
 	const Read*   rdo,
 	const TReadId rdid,
@@ -1643,7 +1649,6 @@ void AlnSinkSam::appendMate(
 	}
 	char buf[1024];
 	char mapqInps[1024];
-	StackedAln staln;
 	if(rs != NULL) {
 		rs->initStacked(rd, staln);
 		staln.leftAlign(false /* not past MMs */);

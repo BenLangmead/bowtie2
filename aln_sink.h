@@ -622,6 +622,7 @@ public:
 	 */
 	virtual void append(
 		BTString&             o,
+		StackedAln&           staln,
 		size_t                threadId,
 		const Read           *rd1,
 		const Read           *rd2,
@@ -649,6 +650,7 @@ public:
 	 */
 	virtual void reportHits(
 		BTString&             o,              // write to this buffer
+		StackedAln&           staln,       // StackedAln to write stacked alignment
 		size_t                threadId,       // which thread am I?
 		const Read           *rd1,            // mate #1
 		const Read           *rd2,            // mate #2
@@ -696,18 +698,18 @@ public:
 			assert_gt(select2->size(), 0);
 			AlnRes* r1pri = ((rs1 != NULL) ? &rs1->get(select1[0]) : NULL);
 			AlnRes* r2pri = ((rs2 != NULL) ? &rs2->get((*select2)[0]) : NULL);
-			append(o, threadId, rd1, rd2, rdid, r1pri, r2pri, summ, ssm1, ssm2,
-			       flags1, flags2, prm, mapq, true);
+			append(o, staln, threadId, rd1, rd2, rdid, r1pri, r2pri, summ,
+			       ssm1, ssm2, flags1, flags2, prm, mapq, true);
 			flagscp1.setPrimary(false);
 			flagscp2.setPrimary(false);
 			for(size_t i = 1; i < select1.size(); i++) {
 				AlnRes* r1 = ((rs1 != NULL) ? &rs1->get(select1[i]) : NULL);
-				append(o, threadId, rd1, rd2, rdid, r1, r2pri, summ,
+				append(o, staln, threadId, rd1, rd2, rdid, r1, r2pri, summ,
 				       ssm1, ssm2, flags1, flags2, prm, mapq, false);
 			}
 			for(size_t i = 1; i < select2->size(); i++) {
 				AlnRes* r2 = ((rs2 != NULL) ? &rs2->get((*select2)[i]) : NULL);
-				append(o, threadId, rd2, rd1, rdid, r2, r1pri, summ,
+				append(o, staln, threadId, rd2, rd1, rdid, r2, r1pri, summ,
 				       ssm2, ssm1, flags2, flags1, prm, mapq, false);
 			}
 		} else {
@@ -715,7 +717,7 @@ public:
 			for(size_t i = 0; i < select1.size(); i++) {
 				AlnRes* r1 = ((rs1 != NULL) ? &rs1->get(select1[i]) : NULL);
 				AlnRes* r2 = ((rs2 != NULL) ? &rs2->get(select1[i]) : NULL);
-				append(o, threadId, rd1, rd2, rdid, r1, r2, summ,
+				append(o, staln, threadId, rd1, rd2, rdid, r1, r2, summ,
 				       ssm1, ssm2, flags1, flags2, prm, mapq, true);
 				if(flags1 != NULL) {
 					flagscp1.setPrimary(false);
@@ -733,6 +735,7 @@ public:
 	 */
 	virtual void reportUnaligned(
 		BTString&             o,              // write to this string
+		StackedAln&           staln,       // StackedAln to write stacked alignment
 		size_t                threadId,       // which thread am I?
 		const Read           *rd1,            // mate #1
 		const Read           *rd2,            // mate #2
@@ -747,7 +750,7 @@ public:
 		bool                  report2,        // report alns for both mates?
 		bool                  getLock = true) // true iff lock held by caller
 	{
-		append(o, threadId, rd1, rd2, rdid, NULL, NULL, summ,
+		append(o, staln, threadId, rd1, rd2, rdid, NULL, NULL, summ,
 		       ssm1, ssm2, flags1, flags2, prm, mapq, report2);
 	}
 
@@ -1258,6 +1261,7 @@ protected:
 	
 	EList<std::pair<TAlScore, size_t> > selectBuf_;
 	BTString obuf_;
+	StackedAln staln_;
 };
 
 /**
@@ -1294,6 +1298,7 @@ public:
 	 */
 	virtual void append(
 		BTString&     o,           // write output to this string
+		StackedAln&   staln,       // StackedAln to write stacked alignment
 		size_t        threadId,    // which thread am I?
 		const Read*   rd1,         // mate #1
 		const Read*   rd2,         // mate #2
@@ -1312,12 +1317,12 @@ public:
 		assert(rd1 != NULL || rd2 != NULL);
 		if(rd1 != NULL) {
 			assert(flags1 != NULL);
-			appendMate(o, *rd1, rd2, rdid, rs1, rs2, summ, ssm1, ssm2,
+			appendMate(o, staln, *rd1, rd2, rdid, rs1, rs2, summ, ssm1, ssm2,
 			           *flags1, prm, mapq);
 		}
 		if(rd2 != NULL && report2) {
 			assert(flags2 != NULL);
-			appendMate(o, *rd2, rd1, rdid, rs2, rs1, summ, ssm2, ssm1,
+			appendMate(o, staln, *rd2, rd1, rdid, rs2, rs1, summ, ssm2, ssm1,
 			           *flags2, prm, mapq);
 		}
 	}
@@ -1331,6 +1336,7 @@ protected:
 	 */
 	void appendMate(
 		BTString&     o,
+		StackedAln&   staln,
 		const Read&   rd,
 		const Read*   rdo,
 		const TReadId rdid,
