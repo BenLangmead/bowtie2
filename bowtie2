@@ -34,6 +34,19 @@ use Getopt::Long;
 use FindBin qw($Bin);
 use POSIX;
 
+{
+	# Get signal info
+	use Config;
+	my %signo = ();
+	my @signame = ();
+	my $i = 0;
+	for my $name (split(' ', $Config{sig_name})) {
+		$signo{$name} = $i;
+		$signame[$i] = $name;
+		$i++;
+	}
+}
+
 (-x "$Bin/bowtie2-align.exe") || (-x "$Bin/bowtie2-align") ||
 	die "Error: Expected bowtie2 to be in same directory with bowtie2-align:\n$Bin";
 
@@ -446,7 +459,9 @@ if ($ret == -1) {
     print "Failed to execute bowtie2-align: $!\n";
 	exit 1;
 } elsif ($ret & 127) {
-    printf "bowtie2-align died with signal %d, %s coredump", ($ret & 127), ($ret & 128) ? 'with' : 'without';
+	my $signm = "(unknown)";
+	$signm = $signame[$ret & 127] if defined($signame[$ret & 127]);
+    printf "bowtie2-align died with signal %d (%s)\n", ($ret & 127), ($ret & 128) ? 'with' : 'without', $signm;
 	exit 1;
 } else {
     printf "bowtie2-align exited with value %d\n", $ret >> 8;
