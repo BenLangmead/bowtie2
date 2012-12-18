@@ -46,28 +46,12 @@ public:
 	/**
 	 * Tally a memory allocation of size amt bytes.
 	 */
-	void add(int cat, uint64_t amt) {
-		ThreadSafe ts(&lock_);
-		tots_[cat] += amt;
-		tot_ += amt;
-		if(tots_[cat] > peaks_[cat]) {
-			peaks_[cat] = tots_[cat];
-		}
-		if(tot_ > peak_) {
-			peak_ = tot_;
-		}
-	}
+	void add(int cat, uint64_t amt);
 
 	/**
 	 * Tally a memory free of size amt bytes.
 	 */
-	void del(int cat, uint64_t amt) {
-		ThreadSafe ts(&lock_);
-		assert_geq(tots_[cat], amt);
-		assert_geq(tot_, amt);
-		tots_[cat] -= amt;
-		tot_ -= amt;
-	}
+	void del(int cat, uint64_t amt);
 	
 	/**
 	 * Return the total amount of memory allocated.
