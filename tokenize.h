@@ -22,6 +22,7 @@
 
 #include <string>
 #include <sstream>
+#include <limits>
 
 using namespace std;
 
@@ -30,8 +31,11 @@ using namespace std;
  * from C++ Programming HOWTO 7.3.
  */
 template<typename T>
-static inline void tokenize(const string& s, const string& delims,
-                            T& ss, size_t max = 9999)
+static inline void tokenize(
+	const string& s,
+	const string& delims,
+	T& ss,
+	size_t max = std::numeric_limits<size_t>::max())
 {
 	//string::size_type lastPos = s.find_first_not_of(delims, 0);
 	string::size_type lastPos = 0;
