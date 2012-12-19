@@ -16,11 +16,15 @@ Please report any issues using the Sourceforge bug tracker:
 Version Release History
 =======================
 
-Version 2.0.5 - December 18, 2012
+Version 2.0.5 - December 19, 2012
    * Fixed an issue that would cause excessive memory allocation when aligning
      to very repetitive genomes.
    * Fixed an issue that would cause a pseudo-randomness-related assert to be
      thrown in debug mode under rare circumstances.
+   * When bowtie2-build fails, it will now delete index files created so far so
+     that invalid index files don't linger.
+   * Tokenizer no longer has limit of 10,000 tokens, which was a problem for
+     users trying to index a very large number of FASTA files.
 
 Version 2.0.4 - December 17, 2012
    * Fixed issue whereby --un, --al, --un-conc and --al-conc options would
