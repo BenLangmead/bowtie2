@@ -4,7 +4,7 @@ Bowtie 2 NEWS
 Bowtie 2 is now available for download from the project website,
 http://bowtie-bio.sf.net/bowtie2.  2.0.0-beta1 is the first version released to
 the public and 2.0.5 is the latest version.  Bowtie 2 is licensed under
-the GPLv3 license.  See `COPYING' file for details.
+the GPLv3 license.  See `LICENSE' file for details.
 
 Reporting Issues
 ================
@@ -25,6 +25,7 @@ Version 2.0.5 - December 19, 2012
      that invalid index files don't linger.
    * Tokenizer no longer has limit of 10,000 tokens, which was a problem for
      users trying to index a very large number of FASTA files.
+   * Renamed COPYING to LICENSE and created a README to be GitHub-friendly.
 
 Version 2.0.4 - December 17, 2012
    * Fixed issue whereby --un, --al, --un-conc and --al-conc options would
