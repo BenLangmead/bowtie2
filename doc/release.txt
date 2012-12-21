@@ -16,55 +16,62 @@ Prerequisites:
 - Need access to the GitHub repository.
 - Need a sourceforge account with the appropriate permissions.
 
-1. Check that the code compiles with no issues, including with very recent
-   versions of g++, and with clang on a Mac.
-   - To use clang on the Mac: "make CPP=clang++ bowtie2-align"
+ 1. Check that the code compiles with no issues, including with very recent
+    versions of g++, and with clang on a Mac.
+    - To use clang on the Mac: "make CPP=clang++ bowtie2-align"
 
-2. Check that all the simple tests pass: "sh scripts/test/simple_tests.sh"
+ 2. Check that all the simple tests pass: "sh scripts/test/simple_tests.sh"
 
-3. Check that random tests pass: "sh scripts/sim/run.sh 1"
+ 3. Check that random tests pass: "sh scripts/sim/run.sh 1"
 
-4. Check that performance, sensitivity and accuracy are not substantially
-   changed.
-   - TODO!  Need infrastructure for this.
+ 4. Check that performance, sensitivity and accuracy are not substantially
+    changed.
+    - TODO!  Need infrastructure for this.
 
-5. Update VERSION with new version number if this hasn't already been done.
+ 5. Update VERSION with new version number if this hasn't already been done.
 
-6. Update NEWS and doc/website/recent_news.ssi if this hasn't already been
-   done. (And even if it has, make sure the release date mentioned in those
-   documents is correct.)
-   - In both cases, add a section at the top describing the new release, along
-     with bullet points describing improvements and changes in that release.
-   - For recent_news.ssi, hyperlink concepts or command-line options so that
-     they point into the manual.
-   - Make sure to update the version numbers mentioned in the paragraph at the
-     beginning of the NEWS file.
-   - Potentially move an entry or two from the bottom of
-     doc/website/recent_news.ssi to the top of doc/website/old_news.ssi if it
-	 gets too long.
+ 6. Update NEWS and doc/website/recent_news.ssi if this hasn't already been
+    done. (And even if it has, make sure the release date mentioned in those
+    documents is correct.)
+    - In both cases, add a section at the top describing the new release, along
+      with bullet points describing improvements and changes in that release.
+    - For recent_news.ssi, hyperlink concepts or command-line options so that
+      they point into the manual.
+    - Make sure to update the version numbers mentioned in the paragraph at the
+      beginning of the NEWS file.
+    - Potentially move an entry or two from the bottom of
+      doc/website/recent_news.ssi to the top of doc/website/old_news.ssi if it
+      gets too long.
 
-7. Update the manual
-   - In Bowtie 2 root directory, do "make doc" (you'll have to have 'pandoc'
-     installed).  The output will be stored both in MANUAL and doc/manual.html.
-   - In doc/manual.html, highlight and copy everything from <div id="TOC"> down
-     to but not including </body>.  Then paste it in the corresponding part of
-	 doc/website/manual.ssi.
-   - Update the version number at the top of doc/website/manual.ssi.
+ 7. Update the text and html version of the manual, which are derived from the
+    source MANUAL.markdown file.
+    - In Bowtie 2 root directory, do "make doc" (you'll have to have 'pandoc'
+      installed).  The output will be stored both in MANUAL and
+      doc/manual.html.
+    - In doc/manual.html, highlight and copy everything from <div id="TOC">
+      down to but not including </body>.  Then paste it in the corresponding
+      part of doc/website/manual.ssi.
+    - Update the version number at the top of doc/website/manual.ssi.
 
-8. Upload updated webpages
+ 8. Go to the sourceforge site for the Bowtie 2 files:
+    https://sourceforge.net/projects/bowtie-bio/files/bowtie2/
+    And make a new directory (with "Add Folder" button) for the new version. 
+
+ 9. Update doc/website/rhsidebar.ssi to refer to the new version in the section
+    immediately following "<h2>Latest Release</h2>"
+
+10. Commit all changes due to the steps taken so far.
+
+11. Upload updated webpages
    - In doc/website directory, do "sh push.sh"
 
-9. Go to the sourceforge site for the Bowtie 2 files:
-   https://sourceforge.net/projects/bowtie-bio/files/bowtie2/
-   And make a new directory (with "Add Folder" button) for the new version. 
-
-9. Make Bowtie 2 source archive:
+12. Make Bowtie 2 source archive:
    - From the Bowtie 2 git root, run "make bowtie2-src"
    - Upload to sourceforge:
      scp bowtie2-X.Y.Z-source.zip USERNAME@frs.sourceforge.net:/home/frs/project/bowtie-bio/bowtie2/X.Y.Z/
      (But replace X.Y.Z and USERNAME with appropriate values)
 
-10. Make Bowtie 2 Linux 32-bit and 64-bit binaries.
+13. Make Bowtie 2 Linux 32-bit and 64-bit binaries.
    - On a Linux machine (e.g. igmX), from the Bowtie 2 git root run
      "make BITS=32 bowtie2-bin".  (Use "make -j12" or similar to use many CPUs
      at once).
@@ -76,7 +83,7 @@ Prerequisites:
    - Repeat from the beginning but replacing "32" with "64" and "i386" with
      "x86-64".
 
-11. Make Bowtie 2 Mac OS X 32-bit and 64-bit binaries.
+14. Make Bowtie 2 Mac OS X 32-bit and 64-bit binaries.
    - On a computer with Mac OS X 10.6, from the Bowtie 2 git root run
      "make BITS=32 bowtie2-bin".  (Use "make -j12" or similar to use many CPUs
      at once).
@@ -88,13 +95,13 @@ Prerequisites:
    - Repeat from the beginning but replacing "32" with "64" and "i386" with
      "x86-64".
 
-12. Make Windows 32-bit and 64-bit binaries
+15. Make Windows 32-bit and 64-bit binaries
    - TODO!  Need to regularly build Bowtie 2 on Windows.
 
-13. Make a git tag for the new version using "git tag -l"
+16. Make a git tag for the new version using "git tag -l"
    - See: http://git-scm.com/book/en/Git-Basics-Tagging
 
-14. Update the sourceforge "Looking for the latest version?" pointers:
+17. Update the sourceforge "Looking for the latest version?" pointers:
    - Go to: https://sourceforge.net/projects/bowtie-bio/files/bowtie2/X.Y.Z
    - Click the "i" ("info") button next to the Mac OS X 64-bit archive.  Check
      the Mac os "Default Download For:" checkbox and save.
@@ -103,7 +110,7 @@ Prerequisites:
    - Click the "i" ("info") button next to the source archive.  Check all the
      "Default Download For:" checkboxes not checked so far and save.
 
-15. Send an email to bowtie-bio-announce@lists.sourceforge.net announcing the
+18. Send an email to bowtie-bio-announce@lists.sourceforge.net announcing the
     release.
    - Subject: "Bowtie 2 X.Y.Z released"
    - Body: Basically a copy and paste of the release notes for the most recent
