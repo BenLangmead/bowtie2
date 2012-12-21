@@ -1,0 +1,6 @@
+.project
+bowtie2-align
+bowtie2-build
+bowtie2-inspect
+*.zip
+*.dSYM
