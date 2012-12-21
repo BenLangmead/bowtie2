@@ -152,7 +152,7 @@ GENERAL_LIST = $(wildcard scripts/*.sh) \
                $(PTHREAD_PKG) \
 			   bowtie2 \
                AUTHORS \
-               COPYING \
+               LICENSE \
                NEWS \
                MANUAL \
                MANUAL.markdown \
