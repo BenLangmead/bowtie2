@@ -147,7 +147,7 @@
   <h2>Author</h2>
   <div class="box">
     <ul>
-      <li><a href="http://www.cbcb.umd.edu/~langmead">Ben Langmead</a></li>
+      <li><a href="http://www.cs.jhu.edu/~langmea/index.shtml">Ben Langmead</a></li>
     </ul>
   </div>
   <h2>Other Documentation</h2>
@@ -159,20 +159,18 @@
   <h2>Links</h2>
   <div class="box">
     <ul>
-      <li>Bowtie <a href="https://sourceforge.net/projects/bowtie-bio/">sourceforge.net project</a></li>
+      <li>Bowtie 2 <a href="https://sourceforge.net/projects/bowtie-bio/">sourceforge.net project</a></li>
       <li>
         <ul>
           <li>&nbsp;&nbsp;<a href="https://sourceforge.net/tracker/?func=add&amp;group_id=236897&amp;atid=1101609">Request a feature</a></li>
           <li>&nbsp;&nbsp;<a href="https://sourceforge.net/tracker/?func=add&amp;group_id=236897&amp;atid=1101606">Report a bug</a></li>
         </ul>
       </li>
+	  <li><a href="http://scholar.google.com/scholar?oi=bibs&hl=en&cites=4636016874467197548">Papers citing Bowtie 2</a></li>
+      <li><a href="http://www.jhu.edu/">Johns Hopkins University</a></li>
+      <li><a href="http://www.cs.jhu.edu/">JHU Computer Science</a></li>
+      <li><a href="http://www.biostat.jhsph.edu/">JHSPH Biostatistics</a></li>
       <li><a href="http://seqanswers.com/">SEQanswers</a></li>
-      <li><a href="http://www.umd.edu/">University of Maryland</a></li>
-      <li>&nbsp;<a href="http://www.cbcb.umd.edu/">UMD CBCB</a></li>
-      <li>&nbsp;<a href="http://www.cs.umd.edu/">UMD Computer Science</a></li>
-      <li>&nbsp;<a href="http://www.umiacs.umd.edu/">UMIACS</a></li>
-      <li><a href="http://www.jhsph.edu/">J.H. Bloomberg School of Public Health</a></li>
-      <li>&nbsp;<a href="http://www.biostat.jhsph.edu/">JHSPH Biostatistics</a></li>
     </ul>
   </div>
 </div> <!-- End of "rightside" -->
