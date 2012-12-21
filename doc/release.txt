@@ -1,20 +1,38 @@
 Instructions for releasing a new version of Bowtie 2
 ====================================================
 
+Author: Ben Langmead (langmea@cs.jhu.edu)
+Date: 12/21/2012
+
+Prerequisites:
+- Need a way of building Linux binaries.  It's recommended that you not build
+  on a Linux 3.X distro (for portability reasons)
+- Need a way of building binaries for Mac OS X 10.6.  It will be
+  forward-compatible with later versions of Mac OS X, and I don't currently
+  know of a good way to build a backward-compatible binary on a more recent
+  Mac OS X.  (if you know, please enlighten me)
+- Need a way of building Windows binaries, both 32-bit and 64-bit.
+- Need "pandoc" installed on at least one of those machines.
+- Need access to the GitHub repository.
+- Need a sourceforge account with the appropriate permissions.
+
 1. Check that the code compiles with no issues, including with very recent
    versions of g++, and with clang on a Mac.
-   - To get clang on the Mac: "make CPP=clang++ bowtie2-align"
+   - To use clang on the Mac: "make CPP=clang++ bowtie2-align"
 
 2. Check that all the simple tests pass: "sh scripts/test/simple_tests.sh"
 
 3. Check that random tests pass: "sh scripts/sim/run.sh 1"
 
 4. Check that performance, sensitivity and accuracy are not substantially
-   changed.  (Need infrastructure for this!)
+   changed.
+   - TODO!  Need infrastructure for this.
 
-5. Update VERSION with new version number
+5. Update VERSION with new version number if this hasn't already been done.
 
-6. Update NEWS and doc/website/recent_news.ssi
+6. Update NEWS and doc/website/recent_news.ssi if this hasn't already been
+   done. (And even if it has, make sure the release date mentioned in those
+   documents is correct.)
    - In both cases, add a section at the top describing the new release, along
      with bullet points describing improvements and changes in that release.
    - For recent_news.ssi, hyperlink concepts or command-line options so that
@@ -36,18 +54,57 @@ Instructions for releasing a new version of Bowtie 2
 8. Upload updated webpages
    - In doc/website directory, do "sh push.sh"
 
-9. Make source archive: "make bowtie2-src"
+9. Go to the sourceforge site for the Bowtie 2 files:
+   https://sourceforge.net/projects/bowtie-bio/files/bowtie2/
+   And make a new directory (with "Add Folder" button) for the new version. 
 
-10. Make Mac OS X 32-bit and 64-bit binaries.
-   - On a computer with Mac OS X 10.6, run "make BITS=32 bowtie2-bin".  Then
-     rename and upload.
-   - On a computer with Mac OS X 10.6, run "make BITS=64 bowtie2-bin".  Then
-     rename and upload.
+9. Make Bowtie 2 source archive:
+   - From the Bowtie 2 git root, run "make bowtie2-src"
+   - Upload to sourceforge:
+     scp bowtie2-X.Y.Z-source.zip USERNAME@frs.sourceforge.net:/home/frs/project/bowtie-bio/bowtie2/X.Y.Z/
+     (But replace X.Y.Z and USERNAME with appropriate values)
 
-11. Make Linux 32-bit and 64-bit binaries.
-   - On a Linux machine, run "make BITS=32 bowtie2-bin".  Then rename and
-     upload.
-   - On a Linux machine, run "make BITS=64 bowtie2-bin".  Then rename and
-     upload.
+10. Make Bowtie 2 Linux 32-bit and 64-bit binaries.
+   - On a Linux machine (e.g. igmX), from the Bowtie 2 git root run
+     "make BITS=32 bowtie2-bin".  (Use "make -j12" or similar to use many CPUs
+     at once).
+   - Rename the resulting archive to match the typical naming scheme.  E.g.:
+     "mv bowtie2-X.Y.Z-64.zip bowtie2-X.Y.Z-linux-i386.zip"
+   - Upload to sourceforge:
+     scp bowtie2-X.Y.Z-linux-i386.zip USERNAME@frs.sourceforge.net:/home/frs/project/bowtie-bio/bowtie2/X.Y.Z/
+     (But replace X.Y.Z and USERNAME with appropriate values)
+   - Repeat from the beginning but replacing "32" with "64" and "i386" with
+     "x86-64".
 
-X. Make an SVN tag for the new version
+11. Make Bowtie 2 Mac OS X 32-bit and 64-bit binaries.
+   - On a computer with Mac OS X 10.6, from the Bowtie 2 git root run
+     "make BITS=32 bowtie2-bin".  (Use "make -j12" or similar to use many CPUs
+     at once).
+   - Rename the resulting archive to match the typical naming scheme.  E.g.:
+     "mv bowtie2-X.Y.Z-64.zip bowtie2-X.Y.Z-macos-i386.zip"
+   - Upload to sourceforge:
+     scp bowtie2-X.Y.Z-macos-i386.zip USERNAME@frs.sourceforge.net:/home/frs/project/bowtie-bio/bowtie2/X.Y.Z/
+     (But replace X.Y.Z and USERNAME with appropriate values)
+   - Repeat from the beginning but replacing "32" with "64" and "i386" with
+     "x86-64".
+
+12. Make Windows 32-bit and 64-bit binaries
+   - TODO!  Need to regularly build Bowtie 2 on Windows.
+
+13. Make a git tag for the new version using "git tag -l"
+   - See: http://git-scm.com/book/en/Git-Basics-Tagging
+
+14. Update the sourceforge "Looking for the latest version?" pointers:
+   - Go to: https://sourceforge.net/projects/bowtie-bio/files/bowtie2/X.Y.Z
+   - Click the "i" ("info") button next to the Mac OS X 64-bit archive.  Check
+     the Mac os "Default Download For:" checkbox and save.
+   - Do same for Linux 64-bit archive and the Linux checkbox.
+   - Do same for Windows.
+   - Click the "i" ("info") button next to the source archive.  Check all the
+     "Default Download For:" checkboxes not checked so far and save.
+
+15. Send an email to bowtie-bio-announce@lists.sourceforge.net announcing the
+    release.
+   - Subject: "Bowtie 2 X.Y.Z released"
+   - Body: Basically a copy and paste of the release notes for the most recent
+     release from the NEWS file.
