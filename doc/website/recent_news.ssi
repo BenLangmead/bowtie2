@@ -21,6 +21,10 @@ and please apply if you're interested in working with either or both of us.
      that invalid index files don't linger.</li>
  <li>Tokenizer no longer has limit of 10,000 tokens, which was a problem for
      users trying to index a very large number of FASTA files.</li>
+ <li>Updated manual's discussion of the
+ <tt><a href="manual.shtml#bowtie2-options-I">-I</a></tt> and
+ <tt><a href="manual.shtml#bowtie2-options-X">-X</a></tt> options to mention that
+     setting them farther apart makes Bowtie 2 slower.</li>
  <li>Renamed <tt>COPYING</tt> to <tt>LICENSE</tt> and created a <tt>README</tt> to be GitHub-friendly.</li>
 </ul>
 

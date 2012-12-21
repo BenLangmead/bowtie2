@@ -25,6 +25,8 @@ Version 2.0.5 - December 21, 2012
      that invalid index files don't linger.
    * Tokenizer no longer has limit of 10,000 tokens, which was a problem for
      users trying to index a very large number of FASTA files.
+   * Updated manual's discussion of the -I and -X options to mention that
+     setting them farther apart makes Bowtie 2 slower.
    * Renamed COPYING to LICENSE and created a README to be GitHub-friendly.
 
 Version 2.0.4 - December 17, 2012
