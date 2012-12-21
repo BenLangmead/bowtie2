@@ -305,6 +305,7 @@ doc/manual.html: MANUAL.markdown
 	       --css style.css -o $@ \
 	       --from markdown --to HTML \
 	       --table-of-contents $^
+	rm -f .tmp.head
 
 MANUAL: MANUAL.markdown
 	perl doc/strip_markdown.pl < $^ > $@
