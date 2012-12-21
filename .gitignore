@@ -4,3 +4,6 @@ bowtie2-build
 bowtie2-inspect
 *.zip
 *.dSYM
+bowtie2-align-debug
+bowtie2-build-debug
+bowtie2-inspect-debug
