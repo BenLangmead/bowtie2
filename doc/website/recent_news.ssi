@@ -11,7 +11,7 @@ and please apply if you're interested in working with either or both of us.
 </li>
 </ul>
 
-<h2>Version 2.0.5 - December 21, 2012</h2>
+<h2>Version 2.0.5 - Coming soon</h2>
 <ul>
  <li>Fixed an issue that would cause excessive memory allocation when aligning
      to very repetitive genomes.</li>
