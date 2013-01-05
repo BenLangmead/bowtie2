@@ -7,10 +7,7 @@ Date: 12/21/2012
 Prerequisites:
 - Need a way of building Linux binaries.  It's recommended that you not build
   on a Linux 3.X distro (for portability reasons)
-- Need a way of building binaries for Mac OS X 10.6.  It will be
-  forward-compatible with later versions of Mac OS X, and I don't currently
-  know of a good way to build a backward-compatible binary on a more recent
-  Mac OS X.  (if you know, please enlighten me)
+- Need a way of building binaries for Mac OS X.
 - Need a way of building Windows binaries, both 32-bit and 64-bit.
 - Need "pandoc" installed on at least one of those machines.
 - Need access to the GitHub repository.
@@ -18,7 +15,7 @@ Prerequisites:
 
  1. Check that the code compiles with no issues, including with very recent
     versions of g++, and with clang on a Mac.
-    - To use clang on the Mac: "make CPP=clang++ bowtie2-align"
+    - To use clang on the Mac: "make CPP=clang++ allall"
 
  2. Check that all the simple tests pass: "sh scripts/test/simple_tests.sh"
 
@@ -84,9 +81,11 @@ Prerequisites:
      "x86-64".
 
 14. Make Bowtie 2 Mac OS X 32-bit and 64-bit binaries.
-   - On a computer with Mac OS X 10.6, from the Bowtie 2 git root run
-     "make BITS=32 bowtie2-bin".  (Use "make -j12" or similar to use many CPUs
-     at once).
+   - From the Bowtie 2 git root run
+     "make EXTRA_FLAGS=-mmacosx-version-min=10.5 BITS=32 bowtie2-bin".  (Use
+     "make -j12" or similar to use many CPUs at once).  The -mmacosx... flag
+     forces the binaries to be backward compatible with Mac OS version 10.5 and
+     up.
    - Rename the resulting archive to match the typical naming scheme.  E.g.:
      "mv bowtie2-X.Y.Z-64.zip bowtie2-X.Y.Z-macos-i386.zip"
    - Upload to sourceforge:
