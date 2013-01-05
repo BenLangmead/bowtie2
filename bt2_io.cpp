@@ -60,32 +60,32 @@ void Ebwt::readIntoMemory(
 		// Initialize our primary and secondary input-stream fields
 		if(_in1 != -1) close(_in1);
 		if(_verbose || startVerbose) {
-			cerr << "Opening \"" << _in1Str << "\"" << endl;
+			cerr << "Opening \"" << _in1Str.c_str() << "\"" << endl;
 		}
 		if((_in1 = open(_in1Str.c_str(), O_RDONLY)) < 0) {
-			cerr << "Could not open index file " << _in1Str << endl;
+			cerr << "Could not open index file " << _in1Str.c_str() << endl;
 		}
 		if(loadSASamp) {
 			if(_in2 != -1) close(_in2);
 			if(_verbose || startVerbose) {
-				cerr << "Opening \"" << _in2Str << "\"" << endl;
+				cerr << "Opening \"" << _in2Str.c_str() << "\"" << endl;
 			}
 			if((_in2 = open(_in2Str.c_str(), O_RDONLY)) < 0) {
-				cerr << "Could not open index file " << _in2Str << endl;
+				cerr << "Could not open index file " << _in2Str.c_str() << endl;
 			}
 		}
 #else
 		// Initialize our primary and secondary input-stream fields
 		if(_in1 != NULL) fclose(_in1);
-		if(_verbose || startVerbose) cerr << "Opening \"" << _in1Str << "\"" << endl;
+		if(_verbose || startVerbose) cerr << "Opening \"" << _in1Str.c_str() << "\"" << endl;
 		if((_in1 = fopen(_in1Str.c_str(), "rb")) == NULL) {
-			cerr << "Could not open index file " << _in1Str << endl;
+			cerr << "Could not open index file " << _in1Str.c_str() << endl;
 		}
 		if(loadSASamp) {
 			if(_in2 != NULL) fclose(_in2);
-			if(_verbose || startVerbose) cerr << "Opening \"" << _in2Str << "\"" << endl;
+			if(_verbose || startVerbose) cerr << "Opening \"" << _in2Str.c_str() << "\"" << endl;
 			if((_in2 = fopen(_in2Str.c_str(), "rb")) == NULL) {
-				cerr << "Could not open index file " << _in2Str << endl;
+				cerr << "Could not open index file " << _in2Str.c_str() << endl;
 			}
 		}
 #endif

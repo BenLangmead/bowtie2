@@ -82,6 +82,6 @@ void PresetsV0::apply(
 		policy += ";IVAL=S,1,0.50";
 	}
 	else {
-		cerr << "Unknown preset: " << preset << endl;
+		cerr << "Unknown preset: " << preset.c_str() << endl;
 	}
 }

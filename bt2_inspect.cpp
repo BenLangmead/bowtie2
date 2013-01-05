@@ -62,7 +62,7 @@ static struct option long_options[] = {
  * Print a summary usage message to the provided output stream.
  */
 static void printUsage(ostream& out) {
-	out << "Bowtie 2 version " << string(BOWTIE2_VERSION) << " by Ben Langmead (langmea@cs.jhu.edu, www.cs.jhu.edu/~langmea)" << endl;
+	out << "Bowtie 2 version " << string(BOWTIE2_VERSION).c_str() << " by Ben Langmead (langmea@cs.jhu.edu, www.cs.jhu.edu/~langmea)" << endl;
 	out
 	<< "Usage: bowtie2-inspect [options]* <bt2_base>" << endl
 	<< "  <bt2_base>         bt2 filename minus trailing .1.bt2/.2.bt2" << endl
@@ -142,19 +142,19 @@ static void print_fasta_record(
 	const string& seq)
 {
 	fout << ">";
-	fout << defline << endl;
+	fout << defline.c_str() << endl;
 
 	if(across > 0) {
 		size_t i = 0;
 		while (i + across < seq.length())
 		{
-			fout << seq.substr(i, across) << endl;
+			fout << seq.substr(i, across).c_str() << endl;
 			i += across;
 		}
 		if (i < seq.length())
-			fout << seq.substr(i) << endl;
+			fout << seq.substr(i).c_str() << endl;
 	} else {
-		fout << seq << endl;
+		fout << seq.c_str() << endl;
 	}
 }
 
@@ -174,7 +174,7 @@ static void print_ref_sequence(
 	int myacross = across > 0 ? across : 60;
 	size_t incr = myacross * 1000;
 	uint32_t *buf = new uint32_t[(incr + 128)/4];
-	fout << ">" << name << "\n";
+	fout << ">" << name.c_str() << "\n";
 	ASSERT_ONLY(SStringExpandable<uint32_t> destU32);
 	for(size_t i = 0; i < len; i += incr) {
 		size_t amt = min(incr, len-i);
@@ -299,7 +299,7 @@ static void print_index_sequence_names(const string& fname, ostream& fout)
 	EList<string> p_refnames;
 	readEbwtRefnames(fname, p_refnames);
 	for(size_t i = 0; i < p_refnames.size(); i++) {
-		cout << p_refnames[i] << endl;
+		cout << p_refnames[i].c_str() << endl;
 	}
 }
 
@@ -343,7 +343,7 @@ static void print_index_summary(
 	assert_eq(ebwt.nPat(), p_refnames.size());
 	for(size_t i = 0; i < p_refnames.size(); i++) {
 		cout << "Sequence-" << (i+1)
-		     << '\t' << p_refnames[i]
+		     << '\t' << p_refnames[i].c_str()
 		     << '\t' << (ebwt.plen()[i] + (color ? 1 : 0))
 		     << endl;
 	}
@@ -451,8 +451,8 @@ int main(int argc, char **argv) {
 
 		// Optionally summarize
 		if(verbose) {
-			cout << "Input ebwt file: \"" << ebwtFile << "\"" << endl;
-			cout << "Output file: \"" << outfile << "\"" << endl;
+			cout << "Input ebwt file: \"" << ebwtFile.c_str() << "\"" << endl;
+			cout << "Output file: \"" << outfile.c_str() << "\"" << endl;
 			cout << "Local endianness: " << (currentlyBigEndian()? "big":"little") << endl;
 #ifdef NDEBUG
 			cout << "Assertions: disabled" << endl;

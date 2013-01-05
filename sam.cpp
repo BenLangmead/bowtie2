@@ -120,11 +120,12 @@ void SamConfig::printAlignedOptFlags(
 	bool first,                // first opt flag printed is first overall?
 	const Read& rd,            // the read
 	AlnRes& res,               // individual alignment result
-	StackedAln& staln,         // stacked alignment
+	StackedAln& staln,         // stacked alignment buffer
 	const AlnFlags& flags,     // alignment flags
 	const AlnSetSumm& summ,    // summary of alignments for this read
 	const SeedAlSumm& ssm,     // seed alignment summary
 	const PerReadMetrics& prm, // per-read metrics
+	const Scoring& sc,         // scoring scheme
 	const char *mapqInp)       // inputs to MAPQ calculation
 	const
 {
@@ -138,9 +139,9 @@ void SamConfig::printAlignedOptFlags(
 	}
 	if(print_xs_) {
 		// XS:i: Suboptimal alignment score
-		AlnScore sc = summ.secbestMate(rd.mate < 2);
-		if(sc.valid()) {
-			itoa10<TAlScore>(sc.score(), buf);
+		AlnScore sco = summ.secbestMate(rd.mate < 2);
+		if(sco.valid()) {
+			itoa10<TAlScore>(sco.score(), buf);
 			WRITE_SEP();
 			o.append("XS:i:");
 			o.append(buf);
@@ -230,6 +231,20 @@ void SamConfig::printAlignedOptFlags(
 		itoa10<TAlScore>(res.oscore().score(), buf);
 		WRITE_SEP();
 		o.append("YS:i:");
+		o.append(buf);
+	}
+	if(print_yn_) {
+		// YN:i: Minimum valid score for this mate
+		TAlScore mn = sc.scoreMin.f<TAlScore>(rd.length());
+		itoa10<TAlScore>(mn, buf);
+		WRITE_SEP();
+		o.append("YN:i:");
+		o.append(buf);
+		// Yn:i: Perfect score for this mate
+		TAlScore pe = sc.perfectScore(rd.length());
+		itoa10<TAlScore>(pe, buf);
+		WRITE_SEP();
+		o.append("Yn:i:");
 		o.append(buf);
 	}
 	if(print_xss_) {
@@ -495,10 +510,25 @@ void SamConfig::printEmptyOptFlags(
 	const AlnFlags& flags,     // alignment flags
 	const AlnSetSumm& summ,    // summary of alignments for this read
 	const SeedAlSumm& ssm,     // seed alignment summary
-	const PerReadMetrics& prm) // per-read metrics
+	const PerReadMetrics& prm, // per-read metrics
+	const Scoring& sc)         // scoring scheme
 	const
 {
 	char buf[1024];
+	if(print_yn_) {
+		// YN:i: Minimum valid score for this mate
+		TAlScore mn = sc.scoreMin.f<TAlScore>(rd.length());
+		itoa10<TAlScore>(mn, buf);
+		WRITE_SEP();
+		o.append("YN:i:");
+		o.append(buf);
+		// Yn:i: Perfect score for this mate
+		TAlScore pe = sc.perfectScore(rd.length());
+		itoa10<TAlScore>(pe, buf);
+		WRITE_SEP();
+		o.append("Yn:i:");
+		o.append(buf);
+	}
 	if(print_zs_) {
 		// ZS:i: Pseudo-random seed for read
 		itoa10<uint32_t>(rd.seed, buf);

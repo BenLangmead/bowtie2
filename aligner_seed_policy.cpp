@@ -38,7 +38,7 @@ static int parseFuncType(const std::string& otype) {
 	} else if(type == "G" || type == "Log") {
 		return SIMPLE_FUNC_LOG;
 	}
-	std::cerr << "Error: Bad function type '" << otype
+	std::cerr << "Error: Bad function type '" << otype.c_str()
 	          << "'.  Should be C (constant), L (linear), "
 	          << "S (square root) or G (natural log)." << std::endl;
 	throw 1;
@@ -325,7 +325,7 @@ void SeedAlignmentPolicy::parseString(
 		if(etoks.size() != 2) {
 			cerr << "Error parsing alignment policy setting " << setting
 			     << "; must be bisected by = sign" << endl
-				 << "Policy: " << s << endl;
+				 << "Policy: " << s.c_str() << endl;
 			assert(false); throw 1;
 		}
 		// LHS is tag, RHS value
@@ -340,14 +340,14 @@ void SeedAlignmentPolicy::parseString(
 		if(ctoks.size() == 0) {
 			cerr << "Error parsing alignment policy setting " << setting
 			     << "; RHS must have at least 1 token" << endl
-				 << "Policy: " << s << endl;
+				 << "Policy: " << s.c_str() << endl;
 			assert(false); throw 1;
 		}
 		for(size_t i = 0; i < ctoks.size(); i++) {
 			if(ctoks[i].length() == 0) {
 				cerr << "Error parsing alignment policy setting " << setting
 				     << "; token " << i+1 << " on RHS had length=0" << endl
-					 << "Policy: " << s << endl;
+					 << "Policy: " << s.c_str() << endl;
 				assert(false); throw 1;
 			}
 		}
@@ -357,7 +357,7 @@ void SeedAlignmentPolicy::parseString(
 			if(ctoks.size() != 1) {
 				cerr << "Error parsing alignment policy setting " << setting
 				     << "; RHS must have 1 token" << endl
-					 << "Policy: " << s << endl;
+					 << "Policy: " << s.c_str() << endl;
 				assert(false); throw 1;
 			}
 			string tmp = ctoks[0];
@@ -373,9 +373,9 @@ void SeedAlignmentPolicy::parseString(
 		else if(tag == "MMP") {
 			if(ctoks.size() > 3) {
 				cerr << "Error parsing alignment policy setting "
-				     << "'" << tag << "'"
+				     << "'" << tag.c_str() << "'"
 				     << "; RHS must have at most 3 tokens" << endl
-					 << "Policy: '" << s << "'" << endl;
+					 << "Policy: '" << s.c_str() << "'" << endl;
 				assert(false); throw 1;
 			}
 			if(ctoks[0][0] == 'C') {
@@ -414,9 +414,9 @@ void SeedAlignmentPolicy::parseString(
 				penMmcType = COST_MODEL_ROUNDED_QUAL;
 			} else {
 				cerr << "Error parsing alignment policy setting "
-				     << "'" << tag << "'"
+				     << "'" << tag.c_str() << "'"
 				     << "; RHS must start with C, Q or R" << endl
-					 << "Policy: '" << s << "'" << endl;
+					 << "Policy: '" << s.c_str() << "'" << endl;
 				assert(false); throw 1;
 			}
 		}
@@ -429,9 +429,9 @@ void SeedAlignmentPolicy::parseString(
 		else if(tag == "NP") {
 			if(ctoks.size() != 1) {
 				cerr << "Error parsing alignment policy setting "
-				     << "'" << tag << "'"
+				     << "'" << tag.c_str() << "'"
 				     << "; RHS must have 1 token" << endl
-					 << "Policy: '" << s << "'" << endl;
+					 << "Policy: '" << s.c_str() << "'" << endl;
 				assert(false); throw 1;
 			}
 			if(ctoks[0][0] == 'C') {
@@ -449,9 +449,9 @@ void SeedAlignmentPolicy::parseString(
 				penNType = COST_MODEL_ROUNDED_QUAL;
 			} else {
 				cerr << "Error parsing alignment policy setting "
-				     << "'" << tag << "'"
+				     << "'" << tag.c_str() << "'"
 				     << "; RHS must start with C, Q or R" << endl
-					 << "Policy: '" << s << "'" << endl;
+					 << "Policy: '" << s.c_str() << "'" << endl;
 				assert(false); throw 1;
 			}
 		}
@@ -536,9 +536,9 @@ void SeedAlignmentPolicy::parseString(
 		else if(tag == "SEED") {
 			if(ctoks.size() > 2) {
 				cerr << "Error parsing alignment policy setting "
-				     << "'" << tag << "'; RHS must have 1 or 2 tokens, "
+				     << "'" << tag.c_str() << "'; RHS must have 1 or 2 tokens, "
 					 << "had " << ctoks.size() << ".  "
-					 << "Policy: '" << s << "'" << endl;
+					 << "Policy: '" << s.c_str() << "'" << endl;
 				assert(false); throw 1;
 			}
 			if(ctoks.size() >= 1) {
@@ -563,9 +563,9 @@ void SeedAlignmentPolicy::parseString(
 		else if(tag == "SEEDLEN") {
 			if(ctoks.size() > 1) {
 				cerr << "Error parsing alignment policy setting "
-				     << "'" << tag << "'; RHS must have 1 token, "
+				     << "'" << tag.c_str() << "'; RHS must have 1 token, "
 					 << "had " << ctoks.size() << ".  "
-					 << "Policy: '" << s << "'" << endl;
+					 << "Policy: '" << s.c_str() << "'" << endl;
 				assert(false); throw 1;
 			}
 			if(ctoks.size() >= 1) {
@@ -576,9 +576,9 @@ void SeedAlignmentPolicy::parseString(
 		else if(tag == "DPS") {
 			if(ctoks.size() > 1) {
 				cerr << "Error parsing alignment policy setting "
-				     << "'" << tag << "'; RHS must have 1 token, "
+				     << "'" << tag.c_str() << "'; RHS must have 1 token, "
 					 << "had " << ctoks.size() << ".  "
-					 << "Policy: '" << s << "'" << endl;
+					 << "Policy: '" << s.c_str() << "'" << endl;
 				assert(false); throw 1;
 			}
 			if(ctoks.size() >= 1) {
@@ -589,9 +589,9 @@ void SeedAlignmentPolicy::parseString(
 		else if(tag == "ROUNDS") {
 			if(ctoks.size() > 1) {
 				cerr << "Error parsing alignment policy setting "
-				     << "'" << tag << "'; RHS must have 1 token, "
+				     << "'" << tag.c_str() << "'; RHS must have 1 token, "
 					 << "had " << ctoks.size() << ".  "
-					 << "Policy: '" << s << "'" << endl;
+					 << "Policy: '" << s.c_str() << "'" << endl;
 				assert(false); throw 1;
 			}
 			if(ctoks.size() >= 1) {
@@ -624,8 +624,8 @@ void SeedAlignmentPolicy::parseString(
 		else {
 			// Unknown tag
 			cerr << "Unexpected alignment policy setting "
-				 << "'" << tag << "'" << endl
-				 << "Policy: '" << s << "'" << endl;
+				 << "'" << tag.c_str() << "'" << endl
+				 << "Policy: '" << s.c_str() << "'" << endl;
 			assert(false); throw 1;
 		}
 	}
