@@ -597,14 +597,14 @@ public:
 		// Open output files
 		ofstream fout1(_in1Str.c_str(), ios::binary);
 		if(!fout1.good()) {
-			cerr << "Could not open index file for writing: \"" << _in1Str << "\"" << endl
+			cerr << "Could not open index file for writing: \"" << _in1Str.c_str() << "\"" << endl
 			     << "Please make sure the directory exists and that permissions allow writing by" << endl
 			     << "Bowtie." << endl;
 			throw 1;
 		}
 		ofstream fout2(_in2Str.c_str(), ios::binary);
 		if(!fout2.good()) {
-			cerr << "Could not open index file for writing: \"" << _in2Str << "\"" << endl
+			cerr << "Could not open index file for writing: \"" << _in2Str.c_str() << "\"" << endl
 			     << "Please make sure the directory exists and that permissions allow writing by" << endl
 			     << "Bowtie." << endl;
 			throw 1;
@@ -627,21 +627,21 @@ public:
 		// Close output files
 		fout1.flush();
 		int64_t tellpSz1 = (int64_t)fout1.tellp();
-		VMSG_NL("Wrote " << fout1.tellp() << " bytes to primary EBWT file: " << _in1Str);
+		VMSG_NL("Wrote " << fout1.tellp() << " bytes to primary EBWT file: " << _in1Str.c_str());
 		fout1.close();
 		bool err = false;
 		if(tellpSz1 > fileSize(_in1Str.c_str())) {
 			err = true;
-			cerr << "Index is corrupt: File size for " << _in1Str << " should have been " << tellpSz1
+			cerr << "Index is corrupt: File size for " << _in1Str.c_str() << " should have been " << tellpSz1
 			     << " but is actually " << fileSize(_in1Str.c_str()) << "." << endl;
 		}
 		fout2.flush();
 		int64_t tellpSz2 = (int64_t)fout2.tellp();
-		VMSG_NL("Wrote " << fout2.tellp() << " bytes to secondary EBWT file: " << _in2Str);
+		VMSG_NL("Wrote " << fout2.tellp() << " bytes to secondary EBWT file: " << _in2Str.c_str());
 		fout2.close();
 		if(tellpSz2 > fileSize(_in2Str.c_str())) {
 			err = true;
-			cerr << "Index is corrupt: File size for " << _in2Str << " should have been " << tellpSz2
+			cerr << "Index is corrupt: File size for " << _in2Str.c_str() << " should have been " << tellpSz2
 			     << " but is actually " << fileSize(_in2Str.c_str()) << "." << endl;
 		}
 		if(err) {
@@ -1023,7 +1023,7 @@ public:
 		// Now write reference sequence names on the end
 		assert_eq(this->_refnames.size(), this->_nPat);
 		for(size_t i = 0; i < this->_refnames.size(); i++) {
-			out1 << this->_refnames[i] << endl;
+			out1 << this->_refnames[i].c_str() << endl;
 		}
 		out1 << '\0';
 		out1.flush(); out2.flush();
@@ -2268,7 +2268,7 @@ private:
 	/// debugging)
 	void verbose(const string& s) const {
 		if(this->verbose()) {
-			this->log() << s;
+			this->log() << s.c_str();
 			this->log().flush();
 		}
 	}

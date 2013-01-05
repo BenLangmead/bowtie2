@@ -533,7 +533,7 @@ public:
 	{
 		out_ = fopen(out.c_str(), binary ? "wb" : "w");
 		if(out_ == NULL) {
-			std::cerr << "Error: Could not open alignment output file " << out << std::endl;
+			std::cerr << "Error: Could not open alignment output file " << out.c_str() << std::endl;
 			throw 1;
 		}
 	}

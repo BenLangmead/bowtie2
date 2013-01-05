@@ -265,14 +265,14 @@ string adjustEbwtBase(const string& cmdline,
 {
 	string str = ebwtFileBase;
 	ifstream in;
-	if(verbose) cout << "Trying " << str << endl;
+	if(verbose) cout << "Trying " << str.c_str() << endl;
 	in.open((str + ".1.bt2").c_str(), ios_base::in | ios::binary);
 	if(!in.is_open()) {
 		if(verbose) cout << "  didn't work" << endl;
 		in.close();
 		if(getenv("BOWTIE2_INDEXES") != NULL) {
 			str = string(getenv("BOWTIE2_INDEXES")) + "/" + ebwtFileBase;
-			if(verbose) cout << "Trying " << str << endl;
+			if(verbose) cout << "Trying " << str.c_str() << endl;
 			in.open((str + ".1.bt2").c_str(), ios_base::in | ios::binary);
 			if(!in.is_open()) {
 				if(verbose) cout << "  didn't work" << endl;
@@ -283,7 +283,7 @@ string adjustEbwtBase(const string& cmdline,
 		}
 	}
 	if(!in.is_open()) {
-		cerr << "Could not locate a Bowtie index corresponding to basename \"" << ebwtFileBase << "\"" << endl;
+		cerr << "Could not locate a Bowtie index corresponding to basename \"" << ebwtFileBase.c_str() << "\"" << endl;
 		throw 1;
 	}
 	return str;
