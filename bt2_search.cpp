@@ -124,6 +124,7 @@ static bool samNoSQ;   // don't print @SQ header lines
 static bool sam_print_as;
 static bool sam_print_xs;  // XS:i
 static bool sam_print_xss; // Xs:i and Ys:i
+static bool sam_print_yn;  // YN:i and Yn:i
 static bool sam_print_xn;
 static bool sam_print_cs;
 static bool sam_print_cq;
@@ -309,6 +310,7 @@ static void resetOptions() {
 	sam_print_as            = true;
 	sam_print_xs            = true;
 	sam_print_xss           = false; // Xs:i and Ys:i
+	sam_print_yn            = false; // YN:i and Yn:i
 	sam_print_xn            = true;
 	sam_print_cs            = false;
 	sam_print_cq            = false;
@@ -649,13 +651,13 @@ static void printArgDesc(ostream& out) {
  * Print a summary usage message to the provided output stream.
  */
 static void printUsage(ostream& out) {
-	out << "Bowtie 2 version " << string(BOWTIE2_VERSION) << " by Ben Langmead (langmea@cs.jhu.edu, www.cs.jhu.edu/~langmea)" << endl;
+	out << "Bowtie 2 version " << string(BOWTIE2_VERSION).c_str() << " by Ben Langmead (langmea@cs.jhu.edu, www.cs.jhu.edu/~langmea)" << endl;
 	string tool_name = "bowtie2-align";
 	if(wrapper == "basic-0") {
 		tool_name = "bowtie2";
 	}
 	out << "Usage: " << endl
-	    << "  " << tool_name << " [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r>} [-S <sam>]" << endl
+	    << "  " << tool_name.c_str() << " [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r>} [-S <sam>]" << endl
 	    << endl
 		<<     "  <bt2-idx>  Index filename prefix (minus trailing .X.bt2)." << endl
 		<<     "             NOTE: Bowtie 1 and Bowtie 2 indexes are not compatible." << endl
@@ -882,7 +884,7 @@ static string applyPreset(const string& sorig, Presets& presets) {
 		s.replace(found, strlen("%LOCAL%"), localAlign ? "-local" : "");
 	}
 	if(gVerbose) {
-		cerr << "Applying preset: '" << s << "' using preset menu '"
+		cerr << "Applying preset: '" << s.c_str() << "' using preset menu '"
 			 << presets.name() << "'" << endl;
 	}
 	string pol;
@@ -1157,6 +1159,7 @@ static void parseOption(int next_option, const char *arg) {
 			sam_print_zu = true;
 			sam_print_xp = true;
 			sam_print_xss = true;
+			sam_print_yn = true;
 			break;
 		}
 		case ARG_SHOW_RAND_SEED: {
@@ -1458,7 +1461,7 @@ static void parseOptions(int argc, const char **argv) {
 		polstr = polstr.substr(1);
 	}
 	if(gVerbose) {
-		cerr << "Final policy string: '" << polstr << "'" << endl;
+		cerr << "Final policy string: '" << polstr.c_str() << "'" << endl;
 	}
 	size_t failStreakTmp = 0;
 	SeedAlignmentPolicy::parseString(
@@ -1540,7 +1543,7 @@ static void parseOptions(int argc, const char **argv) {
 		for(size_t i = 0; i < mates1.size(); i++) {
 			for(size_t j = 0; j < mates2.size(); j++) {
 				if(mates1[i] == mates2[j] && !gQuiet) {
-					cerr << "Warning: Same mate file \"" << mates1[i] << "\" appears as argument to both -1 and -2" << endl;
+					cerr << "Warning: Same mate file \"" << mates1[i].c_str() << "\" appears as argument to both -1 and -2" << endl;
 				}
 			}
 		}
@@ -2474,7 +2477,7 @@ struct PerfMetrics {
 		if(o != NULL) { o->writeChars(buf); }
 
 		if(o != NULL) { o->write('\n'); }
-		if(metricsStderr) cerr << stderrSs.str() << endl;
+		if(metricsStderr) cerr << stderrSs.str().c_str() << endl;
 		if(!total) mergeIncrementals();
 	}
 	
@@ -2565,7 +2568,7 @@ static inline void printMmsSkipMsg(
 		   << "' because length (" << (mate1 ? ps.bufa().patFw.length() : ps.bufb().patFw.length())
 		   << ") <= # seed mismatches (" << seedmms << ")" << endl;
 	}
-	cerr << os.str();
+	cerr << os.str().c_str();
 }
 
 static inline void printLenSkipMsg(
@@ -2582,7 +2585,7 @@ static inline void printLenSkipMsg(
 		os << "Warning: skipping read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
 		   << "' because it was < 2 characters long" << endl;
 	}
-	cerr << os.str();
+	cerr << os.str().c_str();
 }
 
 static inline void printLocalScoreMsg(
@@ -2601,7 +2604,7 @@ static inline void printLocalScoreMsg(
 		   << "--local mode for read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
 		   << "; setting to 0 instead" << endl;
 	}
-	cerr << os.str();
+	cerr << os.str().c_str();
 }
 
 static inline void printEEScoreMsg(
@@ -2620,7 +2623,7 @@ static inline void printEEScoreMsg(
 		   << "--end-to-end mode for read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
 		   << "; setting to 0 instead" << endl;
 	}
-	cerr << os.str();
+	cerr << os.str().c_str();
 }
 
 /**
@@ -3748,6 +3751,7 @@ static void* multiseedSearchWorker(void *vp) {
 					rnd,                  // pseudo-random generator
 					rpm,                  // reporting metrics
 					prm,                  // per-read metrics
+					sc,                   // scoring scheme
 					!seedSumm,            // suppress seed summaries?
 					seedSumm);            // suppress alignments?
 				assert(!retry || msinkwrap.empty());
@@ -4091,6 +4095,7 @@ static void* multiseedSearchWorker_2p5(void *vp) {
 				rnd,                  // pseudo-random generator
 				rpm,                  // reporting metrics
 				prm,                  // per-read metrics
+				sc,                   // scoring scheme
 				!seedSumm,            // suppress seed summaries?
 				seedSumm);            // suppress alignments?
 		} // if(rdid >= skipReads && rdid < qUpto)
@@ -4387,6 +4392,7 @@ static void driver(
 			sam_print_as,
 			sam_print_xs,
 			sam_print_xss,
+			sam_print_yn,
 			sam_print_xn,
 			sam_print_cs,
 			sam_print_cq,
@@ -4570,7 +4576,7 @@ int bowtie(int argc, const char **argv) {
 			// Get output filename
 			if(optind < argc && outfile.empty()) {
 				outfile = argv[optind++];
-				cerr << "Warning: Output file '" << outfile
+				cerr << "Warning: Output file '" << outfile.c_str()
 				     << "' was specified without -S.  This will not work in "
 					 << "future Bowtie 2 versions.  Please use -S instead."
 					 << endl;
@@ -4593,16 +4599,16 @@ int bowtie(int argc, const char **argv) {
 
 			// Optionally summarize
 			if(gVerbose) {
-				cout << "Input bt2 file: \"" << bt2index << "\"" << endl;
-				cout << "Query inputs (DNA, " << file_format_names[format] << "):" << endl;
+				cout << "Input bt2 file: \"" << bt2index.c_str() << "\"" << endl;
+				cout << "Query inputs (DNA, " << file_format_names[format].c_str() << "):" << endl;
 				for(size_t i = 0; i < queries.size(); i++) {
-					cout << "  " << queries[i] << endl;
+					cout << "  " << queries[i].c_str() << endl;
 				}
 				cout << "Quality inputs:" << endl;
 				for(size_t i = 0; i < qualities.size(); i++) {
-					cout << "  " << qualities[i] << endl;
+					cout << "  " << qualities[i].c_str() << endl;
 				}
-				cout << "Output file: \"" << outfile << "\"" << endl;
+				cout << "Output file: \"" << outfile.c_str() << "\"" << endl;
 				cout << "Local endianness: " << (currentlyBigEndian()? "big":"little") << endl;
 				cout << "Sanity checking: " << (sanityCheck? "enabled":"disabled") << endl;
 			#ifdef NDEBUG

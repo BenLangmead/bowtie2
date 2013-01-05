@@ -107,7 +107,7 @@ enum {
  * Print a detailed usage message to the provided output stream.
  */
 static void printUsage(ostream& out) {
-	out << "Bowtie 2 version " << string(BOWTIE2_VERSION) << " by Ben Langmead (langmea@cs.jhu.edu, www.cs.jhu.edu/~langmea)" << endl;
+	out << "Bowtie 2 version " << string(BOWTIE2_VERSION).c_str() << " by Ben Langmead (langmea@cs.jhu.edu, www.cs.jhu.edu/~langmea)" << endl;
 	out << "Usage: bowtie2-build [options]* <reference_in> <bt2_index_base>" << endl
 	    << "    reference_in            comma-separated list of files with ref sequences" << endl
 	    << "    bt2_index_base          write .bt2 data to files with this dir/basename" << endl
@@ -293,7 +293,7 @@ static void deleteIdxFiles(
 {
 	
 	for(size_t i = 0; i < filesWritten.size(); i++) {
-		cerr << "Deleting \"" << filesWritten[i]
+		cerr << "Deleting \"" << filesWritten[i].c_str()
 		     << "\" file written during aborted indexing attempt." << endl;
 		remove(filesWritten[i].c_str());
 	}
@@ -319,7 +319,7 @@ static void driver(
 		// Adapt sequence strings to stringstreams open for input
 		stringstream *ss = new stringstream();
 		for(size_t i = 0; i < infiles.size(); i++) {
-			(*ss) << ">" << i << endl << infiles[i] << endl;
+			(*ss) << ">" << i << endl << infiles[i].c_str() << endl;
 		}
 		FileBuf *fb = new FileBuf(ss);
 		assert(fb != NULL);
@@ -333,13 +333,13 @@ static void driver(
 		for(size_t i = 0; i < infiles.size(); i++) {
 			FILE *f = fopen(infiles[i].c_str(), "r");
 			if (f == NULL) {
-				cerr << "Error: could not open "<< infiles[i] << endl;
+				cerr << "Error: could not open "<< infiles[i].c_str() << endl;
 				throw 1;
 			}
 			FileBuf *fb = new FileBuf(f);
 			assert(fb != NULL);
 			if(fb->peek() == -1 || fb->eof()) {
-				cerr << "Warning: Empty fasta file: '" << infile << "'" << endl;
+				cerr << "Warning: Empty fasta file: '" << infile.c_str() << "'" << endl;
 				continue;
 			}
 			assert(!fb->eof());
@@ -463,7 +463,7 @@ int bowtie_build(int argc, const char **argv) {
 		parseOptions(argc, argv);
 		argv0 = argv[0];
 		if(showVersion) {
-			cout << argv0 << " version " << string(BOWTIE2_VERSION) << endl;
+			cout << argv0 << " version " << string(BOWTIE2_VERSION).c_str() << endl;
 			if(sizeof(void*) == 4) {
 				cout << "32-bit" << endl;
 			} else if(sizeof(void*) == 8) {
@@ -509,7 +509,7 @@ int bowtie_build(int argc, const char **argv) {
 		// Optionally summarize
 		if(verbose) {
 			cout << "Settings:" << endl
-				 << "  Output files: \"" << outfile << ".*.bt2\"" << endl
+				 << "  Output files: \"" << outfile.c_str() << ".*.bt2\"" << endl
 				 << "  Line rate: " << lineRate << " (line is " << (1<<lineRate) << " bytes)" << endl
 				 << "  Lines per side: " << linesPerSide << " (side is " << ((1<<lineRate)*linesPerSide) << " bytes)" << endl
 				 << "  Offset rate: " << offRate << " (one in " << (1<<offRate) << ")" << endl
@@ -542,9 +542,9 @@ int bowtie_build(int argc, const char **argv) {
 	#endif
 			cout << "  Random seed: " << seed << endl;
 			cout << "  Sizeofs: void*:" << sizeof(void*) << ", int:" << sizeof(int) << ", long:" << sizeof(long) << ", size_t:" << sizeof(size_t) << endl;
-			cout << "Input files DNA, " << file_format_names[format] << ":" << endl;
+			cout << "Input files DNA, " << file_format_names[format].c_str() << ":" << endl;
 			for(size_t i = 0; i < infiles.size(); i++) {
-				cout << "  " << infiles[i] << endl;
+				cout << "  " << infiles[i].c_str() << endl;
 			}
 		}
 		// Seed random number generator

@@ -657,6 +657,7 @@ void AlnSinkWrap::finishRead(
 	RandomSource&      rnd,         // pseudo-random generator
 	ReportingMetrics&  met,         // reporting metrics
 	const PerReadMetrics& prm,      // per-read metrics
+	const Scoring& sc,              // scoring scheme
 	bool suppressSeedSummary,       // = true
 	bool suppressAlignments)        // = false
 {
@@ -782,7 +783,8 @@ void AlnSinkWrap::finishRead(
 				&flags1,
 				&flags2,
 				prm,
-				mapq_);
+				mapq_,
+				sc);
 			if(pairMax) {
 				met.nconcord_rep++;
 			} else {
@@ -872,7 +874,8 @@ void AlnSinkWrap::finishRead(
 				&flags1,
 				&flags2,
 				prm,
-				mapq_);
+				mapq_,
+				sc);
 			met.nconcord_0++;
 			met.ndiscord++;
 			init_ = false;
@@ -1084,7 +1087,8 @@ void AlnSinkWrap::finishRead(
 				&flags1,
 				repRs2 != NULL ? &flags2 : NULL,
 				prm,
-				mapq_);
+				mapq_,
+				sc);
 			assert_lt(select1_[0], rs1u_.size());
 			refid = rs1u_[select1_[0]].refid();
 			refoff = rs1u_[select1_[0]].refoff();
@@ -1114,7 +1118,8 @@ void AlnSinkWrap::finishRead(
 				&flags2,
 				repRs1 != NULL ? &flags1 : NULL,
 				prm,
-				mapq_);
+				mapq_,
+				sc);
 			assert_lt(select2_[0], rs2u_.size());
 			refid = rs2u_[select2_[0]].refid();
 			refoff = rs2u_[select2_[0]].refoff();
@@ -1161,8 +1166,9 @@ void AlnSinkWrap::finishRead(
 				ssm2,
 				&flags1, // flags 1
 				NULL,    // flags 2
-				prm,
+				prm,     // per-read metrics
 				mapq_,   // MAPQ calculator
+				sc,      // scoring scheme
 				true);   // get lock?
 		}
 		if(rd2_ != NULL && nunpair2 == 0) {
@@ -1206,8 +1212,9 @@ void AlnSinkWrap::finishRead(
 				ssm2,
 				&flags2, // flags 1
 				NULL,    // flags 2
-				prm,
+				prm,     // per-read metrics
 				mapq_,   // MAPQ calculator
+				sc,      // scoring scheme
 				true);   // get lock?
 		}
 	} // if(suppress alignments)
@@ -1639,7 +1646,8 @@ void AlnSinkSam::appendMate(
 	const SeedAlSumm& ssmo,
 	const AlnFlags& flags,
 	const PerReadMetrics& prm,
-	const Mapq& mapqCalc)
+	const Mapq& mapqCalc,
+	const Scoring& sc)
 {
 	if(rs == NULL && samc_.omitUnalignedReads()) {
 		return;
@@ -1836,6 +1844,7 @@ void AlnSinkSam::appendMate(
 			summ,        // summary of alignments for this read
 			ssm,         // seed alignment summary
 			prm,         // per-read metrics
+			sc,          // scoring scheme
 			mapqInps);   // inputs to MAPQ calculation
 	} else {
 		samc_.printEmptyOptFlags(
@@ -1845,7 +1854,8 @@ void AlnSinkSam::appendMate(
 			flags,       // alignment flags
 			summ,        // summary of alignments for this read
 			ssm,         // seed alignment summary
-			prm);        // per-read metrics
+			prm,         // per-read metrics
+			sc);         // scoring scheme
 	}
 	o.append('\n');
 }

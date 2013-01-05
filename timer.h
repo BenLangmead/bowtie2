@@ -58,7 +58,7 @@ public:
 		oss << _msg << setfill ('0') << setw (2) << hours << ":"
 		           << setfill ('0') << setw (2) << minutes << ":"
 		           << setfill ('0') << setw (2) << seconds << endl;
-		out << oss.str();
+		out << oss.str().c_str();
 	}
 	
 private:
@@ -81,7 +81,7 @@ static inline void logTime(std::ostream& os, bool nl = true) {
 	    << setfill('0') << setw(2)
 	    << current->tm_sec;
 	if(nl) oss << std::endl;
-	os << oss.str();
+	os << oss.str().c_str();
 }
 
 #endif /*TIMER_H_*/
