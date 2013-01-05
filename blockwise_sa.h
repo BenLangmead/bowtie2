@@ -164,7 +164,7 @@ protected:
 	/// Optionally output a verbose message
 	void verbose(const string& s) const {
 		if(this->verbose()) {
-			this->log() << s;
+			this->log() << s.c_str();
 			this->log().flush();
 		}
 	}

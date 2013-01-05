@@ -16,7 +16,7 @@ Please report any issues using the Sourceforge bug tracker:
 Version Release History
 =======================
 
-Version 2.0.5 - December 21, 2012
+Version 2.0.5 - January 4, 2013
    * Fixed an issue that would cause excessive memory allocation when aligning
      to very repetitive genomes.
    * Fixed an issue that would cause a pseudo-randomness-related assert to be

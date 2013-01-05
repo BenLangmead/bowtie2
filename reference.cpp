@@ -17,6 +17,7 @@
  * along with Bowtie 2.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <string>
 #include <string.h>
 #include "reference.h"
 #include "mem_ids.h"
@@ -52,7 +53,7 @@ BitPairReference::BitPairReference(
 #ifdef BOWTIE_MM
 	int f3, f4;
 	if((f3 = open(s3.c_str(), O_RDONLY)) < 0) {
-		cerr << "Could not open reference-string index file " << s3 << " for reading." << endl;
+		cerr << "Could not open reference-string index file " << s3.c_str() << " for reading." << endl;
 		cerr << "This is most likely because your index was built with an older version" << endl
 		<< "(<= 0.9.8.1) of bowtie-build.  Please re-run bowtie-build to generate a new" << endl
 		<< "index (or download one from the Bowtie website) and try again." << endl;
@@ -60,14 +61,14 @@ BitPairReference::BitPairReference(
 		return;
 	}
 	if((f4 = open(s4.c_str(), O_RDONLY)) < 0) {
-		cerr << "Could not open reference-string index file " << s4 << " for reading." << endl;
+		cerr << "Could not open reference-string index file " << s4.c_str() << " for reading." << endl;
 		loaded_ = false;
 		return;
 	}
 	char *mmFile = NULL;
 	if(useMm_) {
 		if(verbose_ || startVerbose) {
-			cerr << "  Memory-mapping reference index file " << s4 << ": ";
+			cerr << "  Memory-mapping reference index file " << s4.c_str() << ": ";
 			logTime(cerr);
 		}
 		struct stat sbuf;
@@ -128,7 +129,7 @@ BitPairReference::BitPairReference(
 	uint32_t sz;
 	sz = readU32(f3, swap);
 	if(sz == 0) {
-		cerr << "Error: number of reference records is 0 in " << s3 << endl;
+		cerr << "Error: number of reference records is 0 in " << s3.c_str() << endl;
 		throw 1;
 	}
 	
@@ -193,7 +194,7 @@ BitPairReference::BitPairReference(
 			sanityBuf_ = new uint8_t[cumsz >> 2];
 			size_t ret = fread(sanityBuf_, 1, cumsz >> 2, ftmp);
 			if(ret != (cumsz >> 2)) {
-				cerr << "Only read " << ret << " bytes (out of " << (cumsz >> 2) << ") from reference index file " << s4 << endl;
+				cerr << "Only read " << ret << " bytes (out of " << (cumsz >> 2) << ") from reference index file " << s4.c_str() << endl;
 				throw 1;
 			}
 			fclose(ftmp);
@@ -226,7 +227,7 @@ BitPairReference::BitPairReference(
 			// Open the bitpair-encoded reference file
 			FILE *f4 = fopen(s4.c_str(), "rb");
 			if(f4 == NULL) {
-				cerr << "Could not open reference-string index file " << s4 << " for reading." << endl;
+				cerr << "Could not open reference-string index file " << s4.c_str() << " for reading." << endl;
 				cerr << "This is most likely because your index was built with an older version" << endl
 				<< "(<= 0.9.8.1) of bowtie-build.  Please re-run bowtie-build to generate a new" << endl
 				<< "index (or download one from the Bowtie website) and try again." << endl;
@@ -237,7 +238,7 @@ BitPairReference::BitPairReference(
 			size_t ret = fread(buf_, 1, cumsz >> 2, f4);
 			// Didn't read all of it?
 			if(ret != (cumsz >> 2)) {
-				cerr << "Only read " << ret << " bytes (out of " << (cumsz >> 2) << ") from reference index file " << s4 << endl;
+				cerr << "Only read " << ret << " bytes (out of " << (cumsz >> 2) << ") from reference index file " << s4.c_str() << endl;
 				throw 1;
 			}
 			// Make sure there's no more
@@ -593,7 +594,7 @@ BitPairReference::szsFromFasta(
 		// hold the size records.
 		ofstream fout3(file3.c_str(), ios::binary);
 		if(!fout3.good()) {
-			cerr << "Could not open index file for writing: \"" << file3 << "\"" << endl
+			cerr << "Could not open index file for writing: \"" << file3.c_str() << "\"" << endl
 				 << "Please make sure the directory exists and that permissions allow writing by" << endl
 				 << "Bowtie." << endl;
 			throw 1;

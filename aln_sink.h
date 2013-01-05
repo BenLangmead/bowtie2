@@ -636,6 +636,7 @@ public:
 		const AlnFlags*       flags2,
 		const PerReadMetrics& prm,
 		const Mapq&           mapq,
+		const Scoring&        sc,
 		bool                  report2) = 0;
 
 	/**
@@ -667,6 +668,7 @@ public:
 		const AlnFlags*       flags2,         // flags for mate #2
 		const PerReadMetrics& prm,            // per-read metrics
 		const Mapq&           mapq,           // MAPQ generator
+		const Scoring&        sc,             // scoring scheme
 		bool                  getLock = true) // true iff lock held by caller
 	{
 		// There are a few scenarios:
@@ -699,18 +701,18 @@ public:
 			AlnRes* r1pri = ((rs1 != NULL) ? &rs1->get(select1[0]) : NULL);
 			AlnRes* r2pri = ((rs2 != NULL) ? &rs2->get((*select2)[0]) : NULL);
 			append(o, staln, threadId, rd1, rd2, rdid, r1pri, r2pri, summ,
-			       ssm1, ssm2, flags1, flags2, prm, mapq, true);
+			       ssm1, ssm2, flags1, flags2, prm, mapq, sc, true);
 			flagscp1.setPrimary(false);
 			flagscp2.setPrimary(false);
 			for(size_t i = 1; i < select1.size(); i++) {
 				AlnRes* r1 = ((rs1 != NULL) ? &rs1->get(select1[i]) : NULL);
 				append(o, staln, threadId, rd1, rd2, rdid, r1, r2pri, summ,
-				       ssm1, ssm2, flags1, flags2, prm, mapq, false);
+				       ssm1, ssm2, flags1, flags2, prm, mapq, sc, false);
 			}
 			for(size_t i = 1; i < select2->size(); i++) {
 				AlnRes* r2 = ((rs2 != NULL) ? &rs2->get((*select2)[i]) : NULL);
 				append(o, staln, threadId, rd2, rd1, rdid, r2, r1pri, summ,
-				       ssm2, ssm1, flags2, flags1, prm, mapq, false);
+				       ssm2, ssm1, flags2, flags1, prm, mapq, sc, false);
 			}
 		} else {
 			// Handle cases 1-4
@@ -718,7 +720,7 @@ public:
 				AlnRes* r1 = ((rs1 != NULL) ? &rs1->get(select1[i]) : NULL);
 				AlnRes* r2 = ((rs2 != NULL) ? &rs2->get(select1[i]) : NULL);
 				append(o, staln, threadId, rd1, rd2, rdid, r1, r2, summ,
-				       ssm1, ssm2, flags1, flags2, prm, mapq, true);
+				       ssm1, ssm2, flags1, flags2, prm, mapq, sc, true);
 				if(flags1 != NULL) {
 					flagscp1.setPrimary(false);
 				}
@@ -735,7 +737,7 @@ public:
 	 */
 	virtual void reportUnaligned(
 		BTString&             o,              // write to this string
-		StackedAln&           staln,       // StackedAln to write stacked alignment
+		StackedAln&           staln,          // StackedAln to write stacked alignment
 		size_t                threadId,       // which thread am I?
 		const Read           *rd1,            // mate #1
 		const Read           *rd2,            // mate #2
@@ -747,11 +749,12 @@ public:
 		const AlnFlags*       flags2,         // flags for mate #2
 		const PerReadMetrics& prm,            // per-read metrics
 		const Mapq&           mapq,           // MAPQ calculator
+		const Scoring&        sc,             // scoring scheme
 		bool                  report2,        // report alns for both mates?
 		bool                  getLock = true) // true iff lock held by caller
 	{
 		append(o, staln, threadId, rd1, rd2, rdid, NULL, NULL, summ,
-		       ssm1, ssm2, flags1, flags2, prm, mapq, report2);
+		       ssm1, ssm2, flags1, flags2, prm, mapq, sc, report2);
 	}
 
 	/**
@@ -1029,6 +1032,7 @@ public:
 		RandomSource&      rnd,         // pseudo-random generator
 		ReportingMetrics&  met,         // reporting metrics
 		const PerReadMetrics& prm,      // per-read metrics
+		const Scoring& sc,              // scoring scheme
 		bool suppressSeedSummary = true,
 		bool suppressAlignments = false);
 	
@@ -1312,18 +1316,19 @@ public:
 		const AlnFlags* flags2,    // flags for mate #2
 		const PerReadMetrics& prm, // per-read metrics
 		const Mapq& mapq,          // MAPQ calculator
+		const Scoring& sc,         // scoring scheme
 		bool report2)              // report alns for both mates
 	{
 		assert(rd1 != NULL || rd2 != NULL);
 		if(rd1 != NULL) {
 			assert(flags1 != NULL);
 			appendMate(o, staln, *rd1, rd2, rdid, rs1, rs2, summ, ssm1, ssm2,
-			           *flags1, prm, mapq);
+			           *flags1, prm, mapq, sc);
 		}
 		if(rd2 != NULL && report2) {
 			assert(flags2 != NULL);
 			appendMate(o, staln, *rd2, rd1, rdid, rs2, rs1, summ, ssm2, ssm1,
-			           *flags2, prm, mapq);
+			           *flags2, prm, mapq, sc);
 		}
 	}
 
@@ -1347,7 +1352,8 @@ protected:
 		const SeedAlSumm& ssmo,
 		const AlnFlags& flags,
 		const PerReadMetrics& prm, // per-read metrics
-		const Mapq& mapq);         // MAPQ calculator
+		const Mapq& mapq,          // MAPQ calculator
+		const Scoring& sc);        // scoring scheme
 
 	const SamConfig& samc_;    // settings & routines for SAM output
 	BTDnaString      dseq_;    // buffer for decoded read sequence
