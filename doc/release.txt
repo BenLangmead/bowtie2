@@ -97,8 +97,11 @@ Prerequisites:
 15. Make Windows 32-bit and 64-bit binaries
    - TODO!  Need to regularly build Bowtie 2 on Windows.
 
-16. Make a git tag for the new version using "git tag -l"
+16. Make a git annotated tag for the new version using "git tag -a"
    - See: http://git-scm.com/book/en/Git-Basics-Tagging
+   - Basically, do something like:
+     + git tag -a v2.0.5 -m 'Just prior to 2.0.5 release on 1/4/2013'
+     + git push origin --tags
 
 17. Update the sourceforge "Looking for the latest version?" pointers:
    - Go to: https://sourceforge.net/projects/bowtie-bio/files/bowtie2/X.Y.Z
