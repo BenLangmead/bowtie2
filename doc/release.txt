@@ -73,7 +73,7 @@ Prerequisites:
      "make BITS=32 bowtie2-bin".  (Use "make -j12" or similar to use many CPUs
      at once).
    - Rename the resulting archive to match the typical naming scheme.  E.g.:
-     "mv bowtie2-X.Y.Z-64.zip bowtie2-X.Y.Z-linux-i386.zip"
+     "mv bowtie2-X.Y.Z-32.zip bowtie2-X.Y.Z-linux-i386.zip"
    - Upload to sourceforge:
      scp bowtie2-X.Y.Z-linux-i386.zip USERNAME@frs.sourceforge.net:/home/frs/project/bowtie-bio/bowtie2/X.Y.Z/
      (But replace X.Y.Z and USERNAME with appropriate values)
@@ -87,7 +87,7 @@ Prerequisites:
      forces the binaries to be backward compatible with Mac OS version 10.5 and
      up.
    - Rename the resulting archive to match the typical naming scheme.  E.g.:
-     "mv bowtie2-X.Y.Z-64.zip bowtie2-X.Y.Z-macos-i386.zip"
+     "mv bowtie2-X.Y.Z-32.zip bowtie2-X.Y.Z-macos-i386.zip"
    - Upload to sourceforge:
      scp bowtie2-X.Y.Z-macos-i386.zip USERNAME@frs.sourceforge.net:/home/frs/project/bowtie-bio/bowtie2/X.Y.Z/
      (But replace X.Y.Z and USERNAME with appropriate values)
