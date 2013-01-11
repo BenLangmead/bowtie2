@@ -34,14 +34,18 @@ BOWTIE_SHARED_MEM = 0
 
 # Detect Cygwin or MinGW
 WINDOWS = 0
+CYGWIN = 0
+MINGW = 0
 ifneq (,$(findstring CYGWIN,$(shell uname)))
-WINDOWS = 1
+WINDOWS = 1 
+CYGWIN = 1
 # POSIX memory-mapped files not currently supported on Windows
 BOWTIE_MM = 0
 BOWTIE_SHARED_MEM = 0
 else
 ifneq (,$(findstring MINGW,$(shell uname)))
 WINDOWS = 1
+MINGW = 1
 # POSIX memory-mapped files not currently supported on Windows
 BOWTIE_MM = 0
 BOWTIE_SHARED_MEM = 0
@@ -66,13 +70,11 @@ PTHREAD_LIB =
 PTHREAD_DEF =
 ifeq (1,$(BOWTIE_PTHREADS))
 PTHREAD_DEF = -DBOWTIE_PTHREADS
-ifeq (1,$(WINDOWS))
-# pthreads for windows forces us to be specific about the library
+PTHREAD_LIB = -lpthread
+ifeq (1,$(MINGW))
+# pthreads for windows under mingw forces us to be specific about the library
 PTHREAD_LIB = -lpthreadGC2
 PTHREAD_PKG = pthreadGC2.dll
-else
-# There's also -pthread, but that only seems to work on Linux
-PTHREAD_LIB = -lpthread
 endif
 endif
 
