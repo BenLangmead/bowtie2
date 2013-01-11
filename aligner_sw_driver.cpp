@@ -872,7 +872,7 @@ int SwDriver::extendSeeds(
 			if(eeMode && eehits_[i].score < minsc) {
 				return EXTEND_PERFECT_SCORE;
 			}
-			bool small          = satpos_[i].sat.size() < nsm;
+			bool is_small       = satpos_[i].sat.size() < nsm;
 			bool fw             = satpos_[i].pos.fw;
 			uint32_t rdoff      = satpos_[i].pos.rdoff;
 			uint32_t seedhitlen = satpos_[i].pos.seedlen;
@@ -887,7 +887,7 @@ int SwDriver::extendSeeds(
 			// range is large, just investigate one and move on - we might come
 			// back to this range later.
 			size_t riter = 0;
-			while(!rands_[i].done() && (first || small || eeMode)) {
+			while(!rands_[i].done() && (first || is_small || eeMode)) {
 				assert(!gws_[i].done());
 				riter++;
 				if(minsc == perfectScore) {
@@ -1560,7 +1560,7 @@ int SwDriver::extendSeedsPaired(
 			if(eeMode && eehits_[i].score < minsc) {
 				return EXTEND_PERFECT_SCORE;
 			}
-			bool small          = satpos_[i].sat.size() < nsm;
+			bool is_small       = satpos_[i].sat.size() < nsm;
 			bool fw             = satpos_[i].pos.fw;
 			uint32_t rdoff      = satpos_[i].pos.rdoff;
 			uint32_t seedhitlen = satpos_[i].pos.seedlen;
@@ -1574,7 +1574,7 @@ int SwDriver::extendSeedsPaired(
 			// If the range is small, investigate all elements now.  If the
 			// range is large, just investigate one and move on - we might come
 			// back to this range later.
-			while(!rands_[i].done() && (first || small || eeMode)) {
+			while(!rands_[i].done() && (first || is_small || eeMode)) {
 				if(minsc == perfectScore) {
 					if(!eeMode || eehits_[i].score < perfectScore) {
 						return EXTEND_PERFECT_SCORE;

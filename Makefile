@@ -81,6 +81,11 @@ endif
 LIBS = 
 SEARCH_LIBS = $(PTHREAD_LIB)
 BUILD_LIBS =
+INSPECT_LIBS =
+ifeq (1,$(MINGW))
+BUILD_LIBS = $(SEARCH_LIBS)
+INSPECT_LIBS = $(SEARCH_LIBS)
+endif
 
 SHARED_CPPS = ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
               edit.cpp bt2_idx.cpp bt2_io.cpp bt2_util.cpp \
@@ -207,7 +212,7 @@ bowtie2-build: bt2_build.cpp $(SHARED_CPPS) $(HEADERS)
 		-o $@ $< \
 		$(SHARED_CPPS) $(BUILD_CPPS_MAIN) \
 		$(LIBS) $(BUILD_LIBS)
-
+        
 bowtie2-build-debug: bt2_build.cpp $(SHARED_CPPS) $(HEADERS)
 	$(CXX) $(DEBUG_FLAGS) $(DEBUG_DEFS) $(EXTRA_FLAGS) \
 		$(DEFS) -DBOWTIE2 -Wall \
@@ -248,7 +253,7 @@ bowtie2-inspect: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 		$(INC) -I . \
 		-o $@ $< \
 		$(SHARED_CPPS) \
-		$(LIBS)
+		$(LIBS) $(INSPECT_LIBS)
 
 bowtie2-inspect-debug: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS) 
 	$(CXX) $(DEBUG_FLAGS) \
@@ -257,7 +262,7 @@ bowtie2-inspect-debug: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 		$(INC) -I . \
 		-o $@ $< \
 		$(SHARED_CPPS) \
-		$(LIBS)
+		$(LIBS) $(INSPECT_LIBS)
 
 .PHONY: bowtie2-src
 bowtie2-src: $(SRC_PKG_LIST)
