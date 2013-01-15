@@ -83,8 +83,8 @@ SEARCH_LIBS = $(PTHREAD_LIB)
 BUILD_LIBS =
 INSPECT_LIBS =
 ifeq (1,$(MINGW))
-BUILD_LIBS = $(SEARCH_LIBS)
-INSPECT_LIBS = $(SEARCH_LIBS)
+BUILD_LIBS = $(PTHREAD_LIB)
+INSPECT_LIBS = $(PTHREAD_LIB)
 endif
 
 SHARED_CPPS = ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
