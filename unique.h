@@ -231,7 +231,7 @@ public:
 			} else {
 				secbest = s.paired() ?
 					s.secbestPaired().score() : s.secbest(mate1).score();
-				TAlScore bestdiff = abs(abs(best)-abs(secbest));
+				TAlScore bestdiff = abs(abs(static_cast<long>(best))-abs(static_cast<long>(secbest)));
 				if(bestdiff >= diff * (double)0.9f) {
 					if(bestOver == diff) {
 						ret = 39;
@@ -341,7 +341,7 @@ public:
 			} else {
 				secbest = s.paired() ?
 					s.secbestPaired().score() : s.secbest(mate1).score();
-				TAlScore bestdiff = abs(abs(best)-abs(secbest));
+				TAlScore bestdiff = abs(abs(static_cast<long>(best))-abs(static_cast<long>(secbest)));
 				if     (bestdiff >= diff * (double)0.9f) ret = 40;
 				else if(bestdiff >= diff * (double)0.8f) ret = 39;
 				else if(bestdiff >= diff * (double)0.7f) ret = 38;
@@ -464,7 +464,7 @@ public:
 			}
 		} else {
 			secbest = s.secbest(mate1).score();
-			TAlScore bestdiff = abs(abs(best)-abs(secbest));
+			TAlScore bestdiff = abs(abs(static_cast<long>(best))-abs(static_cast<long>(secbest)));
 			if(bestdiff >= diff * 0.1666 * 5) {
 				ret = 6;
 			} else if(bestdiff >= diff * 0.1666 * 4) {

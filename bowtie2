@@ -31,11 +31,20 @@
 use strict;
 use warnings;
 use Getopt::Long;
-use FindBin qw($Bin);
+use File::Spec;
 use POSIX;
 
-my %signo = ();
-my @signame = ();
+my ($vol,$script_path,$prog) 
+                = File::Spec->splitpath(File::Spec->rel2abs( __FILE__ ));
+my $os_is_nix   = ($^O eq "linux") || ($^O eq "darwin");
+my $align_bin   = $os_is_nix ? 'bowtie2-align' : 'bowtie2-align.exe'; 
+my $build_bin   = $os_is_nix ? 'bowtie2-build' : 'bowtie2-build.exe';               
+my $align_prog  = File::Spec->catpath($vol,$script_path,$align_bin);
+my $build_prog  = File::Spec->catpath($vol,$script_path,$build_bin);
+my %signo       = ();
+my @signame     = ();
+
+
 {
 	# Get signal info
 	use Config;
@@ -47,14 +56,14 @@ my @signame = ();
 	}
 }
 
-(-x "$Bin/bowtie2-align.exe") || (-x "$Bin/bowtie2-align") ||
-	die "Error: Expected bowtie2 to be in same directory with bowtie2-align:\n$Bin";
+(-x "$align_prog") ||
+	die "Error: Expected bowtie2 to be in same directory with bowtie2-align:\n$script_path";
 
 # Get description of arguments from Bowtie 2 so that we can distinguish Bowtie
 # 2 args from wrapper args
 sub getBt2Desc($) {
 	my $d = shift;
-	my $cmd = "$Bin/bowtie2-align --wrapper basic-0 --arg-desc";
+	my $cmd = "$align_prog --wrapper basic-0 --arg-desc";
 	open(my $fh, "$cmd |") || die "Failed to run command '$cmd'";
 	while(readline $fh) {
 		chomp;
@@ -337,7 +346,7 @@ if(defined($ref_str)) {
 	print {$ofh} ">1\n$ref_str\n";
 	close($ofh);
 	push @to_delete, $ofn;
-	system("$Bin/bowtie2-build $ofn $ofn") == 0 ||
+	system("$build_bin $ofn $ofn") == 0 ||
 		die "Error: bowtie2-build returned non-0 exit level";
 	push @bt2_args, ("--index", "$ofn");
 	push @to_delete, ("$ofn.1.bt2", "$ofn.2.bt2", "$ofn.3.bt2", "$ofn.4.bt2",
@@ -352,7 +361,7 @@ if($verbose) {
 my $debug_str = ($debug ? "-debug" : "");
 
 # Construct command invoking bowtie2-align
-my $cmd = "$Bin/bowtie2-align$debug_str --wrapper basic-0 ".join(" ", @bt2_args);
+my $cmd = "$align_prog $debug_str --wrapper basic-0 ".join(" ", @bt2_args);
 
 # Possibly add read input on an anonymous pipe
 $cmd = "$readpipe $cmd" if defined($readpipe);
