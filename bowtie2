@@ -361,7 +361,7 @@ if($verbose) {
 my $debug_str = ($debug ? "-debug" : "");
 
 # Construct command invoking bowtie2-align
-my $cmd = "$align_prog $debug_str --wrapper basic-0 ".join(" ", @bt2_args);
+my $cmd = "$align_prog$debug_str --wrapper basic-0 ".join(" ", @bt2_args);
 
 # Possibly add read input on an anonymous pipe
 $cmd = "$readpipe $cmd" if defined($readpipe);
