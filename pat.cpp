@@ -535,8 +535,8 @@ bool VectorPatternSource::nextReadImpl(
 	r.name = os.str();
 	cur_++;
 	done = cur_ == v_.size();
+	rdid = endid = readCnt_;
 	readCnt_++;
-	rdid = endid = readCnt_ - 1;
 	unlock();
 	success = true;
 	return true;
@@ -592,8 +592,8 @@ bool VectorPatternSource::nextReadPairImpl(
 	ra.color = rb.color = gColor;
 	cur_++;
 	done = cur_ >= v_.size()-1;
-	readCnt_++;
 	rdid = endid = readCnt_;
+	readCnt_++;
 	unlock();
 	success = true;
 	return true;
@@ -749,8 +749,8 @@ bool FastaPatternSource::read(
 		// Empty sequences!
 		cerr << "Warning: skipping empty FASTA read with name '" << r.name << "'" << endl;
 		fb_.resetLastN();
+		rdid = endid = readCnt_;
 		readCnt_++;
-		rdid = endid = readCnt_-1;
 		success = true; done = false; return success;
 	}
 	assert_neq('>', c);
@@ -802,8 +802,8 @@ bool FastaPatternSource::read(
 	assert_gt(r.name.length(), 0);
 	r.readOrigBuf.install(fb_.lastN(), fb_.lastNLen());
 	fb_.resetLastN();
+	rdid = endid = readCnt_;
 	readCnt_++;
-	rdid = endid = readCnt_-1;
 	return success;
 }
 
@@ -947,8 +947,8 @@ bool FastqPatternSource::read(
 		assert_eq('@', pk);
 		fb_.get();
 		fb_.resetLastN();
+		rdid = endid = readCnt_;
 		readCnt_++;
-		rdid = endid = readCnt_-1;
 		return success;
 	}
 
@@ -1109,8 +1109,8 @@ bool FastqPatternSource::read(
 	}
 	r.trimmed3 = gTrim3;
 	r.trimmed5 = mytrim5;
+	rdid = endid = readCnt_;
 	readCnt_++;
-	rdid = endid = readCnt_-1;
 	return success;
 }
 
@@ -1167,8 +1167,8 @@ bool TabbedPatternSource::read(
 	assert_neq('\n', fb_.peek());
 	r.readOrigBuf.install(fb_.lastN(), fb_.lastNLen());
 	fb_.resetLastN();
+	rdid = endid = readCnt_;
 	readCnt_++;
-	rdid = endid = readCnt_-1;
 	return true;
 }
 
@@ -1243,8 +1243,8 @@ bool TabbedPatternSource::readPair(
 		success = true;
 		done = false;
 		paired = false;
+		rdid = endid = readCnt_;
 		readCnt_++;
-		rdid = endid = readCnt_-1;
 		return success;
 	}
 	paired = true;
@@ -1295,8 +1295,8 @@ bool TabbedPatternSource::readPair(
 	fb_.resetLastN();
 	rb.trimmed3 = gTrim3;
 	rb.trimmed5 = mytrim5_2;
+	rdid = endid = readCnt_;
 	readCnt_++;
-	rdid = endid = readCnt_-1;
 	return true;
 }
 
