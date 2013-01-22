@@ -132,8 +132,13 @@ int AlignerDriver::go(
 				//cerr << iter << ". DESCENT_DRIVER_MEM" << endl;
 				break;
 			} else if(ret == DESCENT_DRIVER_STRATA) {
+				// DESCENT_DRIVER_STRATA is returned by DescentDriver.advance()
+				// when it has finished with a "non-empty" stratum: a stratum
+				// in which at least one alignment was found.  Here we report
+				// the alignments in an arbitrary order.
 				AlnRes res;
-				//cerr << iter << ". DESCENT_DRIVER_STRATA" << endl;
+				// Initialize alignment selector with the DescentDriver's
+				// alignment sink
 				alsel_.init(
 					dr1_.query(),
 					dr1_.sink(),
@@ -162,8 +167,10 @@ int AlignerDriver::go(
 							raw_refbuf_,
 							raw_destU32_,
 							raw_matches_));
+						// Get reference interval involved in alignment
 						Interval refival(res.refid(), 0, res.fw(), res.reflen());
 						assert_gt(res.refExtent(), 0);
+						// Does alignment falls off end of reference?
 						if(gReportOverhangs &&
 						   !refival.containsIgnoreOrient(res.refival()))
 						{
@@ -182,7 +189,7 @@ int AlignerDriver::go(
 						if(red1_.overlap(res)) {
 							continue; // yes, redundant
 						}
-						red1_.add(res);
+						red1_.add(res); // so we find subsequent redundancies
 						// Report an unpaired alignment
 						assert(!sink.state().doneWithMate(true));
 						assert(!sink.maxed());

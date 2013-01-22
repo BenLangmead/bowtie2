@@ -2948,6 +2948,13 @@ public:
 		return l_.empty();
 	}
 	
+	/**
+	 * Return element at offset i.
+	 */
+	const T& operator[](size_t i) const {
+		return l_[i];
+	}
+	
 #ifndef NDEBUG
 	/**
 	 * Check that heap property holds.

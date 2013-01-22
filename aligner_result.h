@@ -836,8 +836,8 @@ public:
 		if(!VALID_AL_SCORE(score_)) {
 			assert(ned_.empty());
 			assert(aed_.empty());
-			assert(!refcoord_.valid());
-			assert(!refival_.valid());
+			assert(!refcoord_.inited());
+			assert(!refival_.inited());
 			return true;
 		} else {
 			return false;
@@ -1081,8 +1081,8 @@ public:
 		assert(refival_.repOk());
 		assert(VALID_AL_SCORE(score_) || ned_.empty());
 		assert(VALID_AL_SCORE(score_) || aed_.empty());
-		assert(empty() || refcoord_.valid());
-		assert(empty() || refival_.valid());
+		assert(empty() || refcoord_.inited());
+		assert(empty() || refival_.inited());
 		assert_geq(rdexrows_, rdextent_);
 		assert(empty() || rdextent_ > 0);
 		assert(empty() || rfextent_ > 0);

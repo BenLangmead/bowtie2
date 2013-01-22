@@ -36,8 +36,8 @@ void AlnRes::reset() {
 	ned_.clear();
 	aed_.clear();
 	score_.invalidate();
-	refcoord_.invalidate();
-	refival_.invalidate();
+	refcoord_.reset();
+	refival_.reset();
 	shapeSet_     = false;
 	rdlen_        = 0;
 	reflen_       = 0;
@@ -61,8 +61,8 @@ void AlnRes::reset() {
 	nuc5p_        = 0;
 	nuc3p_        = 0;
 	fraglenSet_   = false;
-	assert(!refcoord_.valid());
-	assert(!refival_.valid());
+	assert(!refcoord_.inited());
+	assert(!refival_.inited());
 }
 
 /**
@@ -442,7 +442,7 @@ bool AlnRes::matchesRef(
 {
 	assert(!empty());
 	assert(repOk());
-	assert(refcoord_.valid());
+	assert(refcoord_.inited());
 	bool fw = refcoord_.fw();
 	// Adjust reference string length according to edits
 	size_t refallen = refNucExtent();

@@ -36,7 +36,7 @@ class Coord {
 
 public:
 
-	Coord() { invalidate(); }
+	Coord() { reset(); }
 
 	Coord(const Coord& c) { init(c); }
 	
@@ -64,8 +64,8 @@ public:
 	 * Return true iff this Coord is identical to the given Coord.
 	 */
 	bool operator==(const Coord& o) const {
-		assert(valid());
-		assert(o.valid());
+		assert(inited());
+		assert(o.inited());
 		return ref_ == o.ref_ && off_ == o.off_ && fw() == o.fw();
 	}
 
@@ -75,8 +75,6 @@ public:
 	 * less, or (c) its offset is less.
 	 */
 	bool operator<(const Coord& o) const {
-		//assert(valid());
-		//assert(o.valid());
 		if(ref_ < o.ref_) return true;
 		if(ref_ > o.ref_) return false;
 		if(orient_ < o.orient_) return true;
@@ -99,8 +97,6 @@ public:
 	 * orientation is greater, or (c) its offset is greater.
 	 */
 	bool operator>(const Coord& o) const {
-		//assert(valid());
-		//assert(o.valid());
 		if(ref_ > o.ref_) return true;
 		if(ref_ < o.ref_) return false;
 		if(orient_ > o.orient_) return true;
@@ -118,19 +114,19 @@ public:
 	}
 	
 	/**
-	 * Make this coord invalid.
+	 * Reset this coord to uninitialized state.
 	 */
-	void invalidate() {
+	void reset() {
 		ref_ = std::numeric_limits<TRefId>::max();
 		off_ = std::numeric_limits<TRefOff>::max();
 		orient_ = -1;
 	}
 	
 	/**
-	 * Return true iff this Coord is valid (i.e. ref and off have both
-	 * been set since the last call to invalidate()).
+	 * Return true iff this Coord is initialized (i.e. ref and off have both
+	 * been set since the last call to reset()).
 	 */
-	bool valid() const {
+	bool inited() const {
 		if(ref_ != std::numeric_limits<TRefId>::max() &&
 		   off_ != std::numeric_limits<TRefOff>::max())
 		{
@@ -144,7 +140,7 @@ public:
 	 * Get orientation of the Coord.
 	 */
 	bool fw() const {
-		assert(valid());
+		assert(inited());
 		assert(orient_ == 0 || orient_ == 1);
 		return orient_ == 1;
 	}
@@ -197,7 +193,7 @@ class Interval {
 
 public:
 	
-	Interval() { invalidate(); }
+	Interval() { reset(); }
 	
 	explicit Interval(const Coord& upstream, TRefOff len) {
 		init(upstream, len);
@@ -232,18 +228,18 @@ public:
 	}
 
 	/**
-	 * Make this coord invalid.
+	 * Reset this interval to uninitialized state.
 	 */
-	void invalidate() {
-		upstream_.invalidate();
+	void reset() {
+		upstream_.reset();
 		len_ = 0;
 	}
 	
 	/**
-	 * Return true iff this Interval is valid.
+	 * Return true iff this Interval is initialized.
 	 */
-	bool valid() const {
-		if(upstream_.valid()) {
+	bool inited() const {
+		if(upstream_.inited()) {
 			assert_gt(len_, 0);
 			return true;
 		} else {
