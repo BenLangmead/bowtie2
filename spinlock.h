@@ -45,7 +45,7 @@
 #ifdef USE_SPINLOCK
 
 #if defined(__x86_64__)
-#define SPINLOCK_WORD long
+#define SPINLOCK_WORD long long
 #else
 #define SPINLOCK_WORD int
 #endif

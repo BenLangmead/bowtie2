@@ -16,6 +16,16 @@ Please report any issues using the Sourceforge bug tracker:
 Version Release History
 =======================
 
+
+Version 2.0.6 -  
+   * Fixed spinlock datatype for Win64 API (LLP64 data model) which made it
+     crash when compiled under Windows 7 x64.
+   * Fixed bowtie2 wrapper to hadle filename/paths operations in a more 
+     platform independent manner.
+   * Added pthread as a default library option under cygwin, and pthreadGC
+     for MinGW.
+   * Fixed some minor issue that made MinGW compilation fail.
+
 Version 2.0.5 - January 4, 2013
    * Fixed an issue that would cause excessive memory allocation when aligning
      to very repetitive genomes.
