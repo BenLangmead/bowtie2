@@ -149,7 +149,7 @@ protected:
 				Coord dn = std::max(sorted_[i-1].downstream(), sorted_[i].downstream());
 				sorted_[i].setUpstream(up);
 				sorted_[i].setLength(dn.off() - up.off());
-				sorted_[i-1].invalidate();
+				sorted_[i-1].reset();
 			}
 		}
 		sorted_.sort();
@@ -157,7 +157,7 @@ protected:
 		sorted_.resize(sorted_.size()-nmerged);
 #ifndef NDEBUG
 		for(size_t i = 0; i < sorted_.size(); i++) {
-			assert(sorted_[i].valid());
+			assert(sorted_[i].inited());
 		}
 #endif
 	}
