@@ -514,9 +514,6 @@ bool VectorPatternSource::nextReadImpl(
 	// Let Strings begin at the beginning of the respective bufs
 	r.reset();
 	lock();
-	readCnt_++;
-	rdid = readCnt_;
-	endid = readCnt_;
 	if(cur_ >= v_.size()) {
 		unlock();
 		// Clear all the Strings, as a signal to the caller that
@@ -538,6 +535,8 @@ bool VectorPatternSource::nextReadImpl(
 	r.name = os.str();
 	cur_++;
 	done = cur_ == v_.size();
+	rdid = endid = readCnt_;
+	readCnt_++;
 	unlock();
 	success = true;
 	return true;
@@ -564,8 +563,6 @@ bool VectorPatternSource::nextReadPairImpl(
 		cur_ <<= 1;
 	}
 	lock();
-	readCnt_++;
-	rdid = endid = readCnt_;
 	if(cur_ >= v_.size()-1) {
 		unlock();
 		// Clear all the Strings, as a signal to the caller that
@@ -595,6 +592,8 @@ bool VectorPatternSource::nextReadPairImpl(
 	ra.color = rb.color = gColor;
 	cur_++;
 	done = cur_ >= v_.size()-1;
+	rdid = endid = readCnt_;
+	readCnt_++;
 	unlock();
 	success = true;
 	return true;
@@ -696,8 +695,6 @@ bool FastaPatternSource::read(
 	r.reset();
 	r.color = gColor;
 	// Pick off the first carat
-	readCnt_++;
-	rdid = endid = readCnt_-1;
 	c = fb_.get();
 	if(c < 0) {
 		bail(r); success = false; done = true; return success;
@@ -752,6 +749,8 @@ bool FastaPatternSource::read(
 		// Empty sequences!
 		cerr << "Warning: skipping empty FASTA read with name '" << r.name << "'" << endl;
 		fb_.resetLastN();
+		rdid = endid = readCnt_;
+		readCnt_++;
 		success = true; done = false; return success;
 	}
 	assert_neq('>', c);
@@ -803,6 +802,8 @@ bool FastaPatternSource::read(
 	assert_gt(r.name.length(), 0);
 	r.readOrigBuf.install(fb_.lastN(), fb_.lastNLen());
 	fb_.resetLastN();
+	rdid = endid = readCnt_;
+	readCnt_++;
 	return success;
 }
 
@@ -816,8 +817,6 @@ bool FastqPatternSource::read(
 {
 	int c;
 	int dstLen = 0;
-	readCnt_++;
-	rdid = endid = readCnt_-1;
 	success = true;
 	done = false;
 	r.reset();
@@ -948,6 +947,8 @@ bool FastqPatternSource::read(
 		assert_eq('@', pk);
 		fb_.get();
 		fb_.resetLastN();
+		rdid = endid = readCnt_;
+		readCnt_++;
 		return success;
 	}
 
@@ -1108,6 +1109,8 @@ bool FastqPatternSource::read(
 	}
 	r.trimmed3 = gTrim3;
 	r.trimmed5 = mytrim5;
+	rdid = endid = readCnt_;
+	readCnt_++;
 	return success;
 }
 
@@ -1121,8 +1124,6 @@ bool TabbedPatternSource::read(
 {
 	r.reset();
 	r.color = gColor;
-	readCnt_++;
-	rdid = endid = readCnt_-1;
 	success = true;
 	done = false;
 	// fb_ is about to dish out the first character of the
@@ -1166,6 +1167,8 @@ bool TabbedPatternSource::read(
 	assert_neq('\n', fb_.peek());
 	r.readOrigBuf.install(fb_.lastN(), fb_.lastNLen());
 	fb_.resetLastN();
+	rdid = endid = readCnt_;
+	readCnt_++;
 	return true;
 }
 
@@ -1179,8 +1182,6 @@ bool TabbedPatternSource::readPair(
 	bool& done,
 	bool& paired)
 {
-	readCnt_++;
-	rdid = endid = readCnt_-1;
 	success = true;
 	done = false;
 	
@@ -1242,6 +1243,8 @@ bool TabbedPatternSource::readPair(
 		success = true;
 		done = false;
 		paired = false;
+		rdid = endid = readCnt_;
+		readCnt_++;
 		return success;
 	}
 	paired = true;
@@ -1292,6 +1295,8 @@ bool TabbedPatternSource::readPair(
 	fb_.resetLastN();
 	rb.trimmed3 = gTrim3;
 	rb.trimmed5 = mytrim5_2;
+	rdid = endid = readCnt_;
+	readCnt_++;
 	return true;
 }
 

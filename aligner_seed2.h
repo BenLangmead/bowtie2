@@ -1412,6 +1412,74 @@ struct DescentAlignment {
 };
 
 /**
+ * A partial alignment result from a Descent where the reference offset has
+ * been resolved.
+ */
+struct DescentPartialResolvedAlignment {
+
+	DescentPartialResolvedAlignment() { reset(); }
+
+	/**
+	 * Reset DescentAlignment to be uninitialized.
+	 */
+	void reset() {
+		topf = botf = 0;
+		pen = 0;
+		fw = false;
+		ei = en = 0;
+		refcoord.reset();
+	}
+
+	/**
+	 * Initialize this DescentAlignment.
+	 */
+	void init(
+		TScore pen_,
+		bool fw_,
+		TIndexOff topf_,
+		TIndexOff botf_,
+		size_t ei_,
+		size_t en_,
+		const Coord& refcoord_)
+	{
+		assert_gt(botf_, topf_);
+		pen = pen_;
+		fw = fw_;
+		topf = topf_;
+		botf = botf_;
+		ei = ei_;
+		en = en_;
+		refcoord = refcoord_;
+	}
+	
+	/**
+	 * Return true iff DescentAlignment is initialized.
+	 */
+	bool inited() const {
+		return botf > topf;
+	}
+	
+	/**
+	 * Return the number of elements in this range.
+	 */
+	size_t size() const {
+		return botf - topf;
+	}
+
+	TScore pen;     // score
+	
+	bool fw;        // forward or revcomp aligned?
+
+	TIndexOff topf; // top in forward index
+	TIndexOff botf; // bot in forward index
+
+	size_t ei;      // First edit in DescentAlignmentSink::edits_ involved in aln
+	size_t en;      // # edits in DescentAlignmentSink::edits_ involved in aln
+	
+	Coord refcoord; // reference coord of leftmost ref char involved
+};
+
+/**
  * Class that accepts alignments found during descent and maintains the state
  * required to dispense them to consumers in an appropriate order.
  *
@@ -1510,11 +1578,12 @@ public:
 	 * 'al' and 'off', information about the element in terms of the range it's
 	 * part of and its offset into that range.
 	 */
-	void elt(size_t i, DescentAlignment& al, size_t& off) const {
+	void elt(size_t i, DescentAlignment& al, size_t& ri, size_t& off) const {
 		assert_lt(i, nelt());
 		for(size_t j = 0; j < als_.size(); j++) {
 			if(i < als_[j].size()) {
 				al = als_[j];
+				ri = j;
 				off = i;
 				return;
 			}
@@ -1531,15 +1600,17 @@ public:
 	}
 
 	/**
-	 * Return the number of alignment strata where (a) we found an alignment,
-	 * and (b) the penalty is better than the penalty associated with the best
-	 * heap node, which is passed in as 'best'.
+	 * Return true iff (a) we found an alignment since the sink was initialized
+	 * or since the last time advanceStratum() was called, and (b) the penalty
+	 * associated with the current-best task on the heap ('best') is worse
+	 * (higher) than the penalty associated with the alignments found most
+	 * recently (worstPen_).
 	 */
-	size_t stratumDone(TAlScore best) const {
-		if(nelt_ > 0 && best > worstPen_) {
-			return 1;
+	bool stratumDone(TAlScore bestPen) const {
+		if(nelt_ > 0 && bestPen > worstPen_) {
+			return true;
 		}
-		return 0;
+		return false;
 	}
 	
 	/**
@@ -1594,6 +1665,144 @@ protected:
 	BTDnaString tmprfdnastr_;
 #endif
 
+};
+
+/**
+ * Class that aggregates partial alignments taken from a snapshot of the
+ * DescentDriver heap.
+ */
+class DescentPartialResolvedAlignmentSink {
+
+public:
+   
+    /**
+     * Reset to uninitialized state.
+     */
+    void reset() {
+		edits_.clear();
+		als_.clear();
+		nelt_ = 0;
+		bestPen_ = worstPen_ = std::numeric_limits<TAlScore>::max();
+    }
+
+	/**
+	 * Return the total size occupued by the Descent driver and all its
+	 * constituent parts.
+	 */
+	size_t totalSizeBytes() const {
+		return edits_.totalSizeBytes() +
+		       als_.totalSizeBytes() +
+			   sizeof(size_t);
+	}
+
+	/**
+	 * Return the total capacity of the Descent driver and all its constituent
+	 * parts.
+	 */
+	size_t totalCapacityBytes() const {
+		return edits_.totalCapacityBytes() +
+		       als_.totalCapacityBytes() +
+			   sizeof(size_t);
+	}
+	
+	/**
+	 * Return the number of SA ranges involved in hits.
+	 */
+	size_t nrange() const {
+		return als_.size();
+	}
+
+	/**
+	 * Return the number of SA elements involved in hits.
+	 */
+	size_t nelt() const {
+		return nelt_;
+	}
+	
+	/**
+	 * The caller provides 'i', which is an offset of a particular element in
+	 * one of the SA ranges in the current stratum.  This function returns, in
+	 * 'al' and 'off', information about the element in terms of the range it's
+	 * part of and its offset into that range.
+	 */
+	void elt(size_t i, DescentPartialResolvedAlignment& al, size_t& ri, size_t& off) const {
+		assert_lt(i, nelt());
+		for(size_t j = 0; j < als_.size(); j++) {
+			if(i < als_[j].size()) {
+				al = als_[j];
+				ri = j;
+				off = i;
+				return;
+			}
+			i -= als_[j].size();
+		}
+		assert(false);
+	}
+	
+	/**
+	 * Get a particular alignment.
+	 */
+	const DescentPartialResolvedAlignment& operator[](size_t i) const {
+		return als_[i];
+	}
+
+	/**
+	 * Return true iff (a) we found an alignment since the sink was initialized
+	 * or since the last time advanceStratum() was called, and (b) the penalty
+	 * associated with the current-best task on the heap ('best') is worse
+	 * (higher) than the penalty associated with the alignments found most
+	 * recently (worstPen_).
+	 */
+	bool stratumDone(TAlScore bestPen) const {
+		if(nelt_ > 0 && bestPen > worstPen_) {
+			return true;
+		}
+		return false;
+	}
+	
+	/**
+	 * The alignment consumer calls this to indicate that they are done with
+	 * all the alignments in the current best non-empty stratum.  We can
+	 * therefore mark all those alignments as "reported" and start collecting
+	 * results for the next stratum.
+	 */
+	void advanceStratum() {
+		assert_gt(nelt_, 0);
+		edits_.clear();
+		als_.clear();
+		nelt_ = 0;
+		bestPen_ = worstPen_ = std::numeric_limits<TAlScore>::max();
+	}
+	
+#ifndef NDEBUG
+	/**
+	 * Check that partial alignment sink is internally consistent.
+	 */
+	bool repOk() const {
+		assert_geq(nelt_, als_.size());
+		//for(size_t i = 1; i < als_.size(); i++) {
+		//	assert_geq(als_[i].pen, als_[i-1].pen);
+		//}
+		assert(bestPen_ == std::numeric_limits<TAlScore>::max() || worstPen_ >= bestPen_);
+		return true;
+	}
+#endif
+	
+	TAlScore bestPenalty() const { return bestPen_; }
+	TAlScore worstPenalty() const { return worstPen_; }
+
+	size_t editsSize() const { return edits_.size(); }
+	size_t alsSize() const { return als_.size(); }
+	
+	const EList<Edit>& edits() const { return edits_; }
+
+protected:
+
+	EList<Edit> edits_;
+	EList<DescentPartialResolvedAlignment> als_;
+	size_t nelt_;
+	TAlScore bestPen_;  // best (smallest) penalty among as-yet-unreported alns
+	TAlScore worstPen_; // worst (greatest) penalty among as-yet-unreported alns
 };
 
 /**
@@ -1915,6 +2124,9 @@ public:
 		RandomSource& rnd,          // pseudo-random generator for sampling rows
 		WalkMetrics& met)
 	{
+		// We're going to sample from space of *alignments*, not ranges.  So
+		// when we extract a sample, we'll have to do a little extra work to
+		// convert it to a <range, offset> coordinate.
 		rnd_.init(
 			sink.nelt(), // # elements to choose from
 			true);       // without replacement
@@ -1957,59 +2169,49 @@ public:
 		WalkMetrics& met,
 		PerReadMetrics& prm)
 	{
+		// Sample one alignment randomly from pool of remaining alignments
 		size_t ri = (size_t)rnd_.next(rnd);
-		DescentAlignment al;
 		size_t off = 0;
-		dr.sink().elt(ri, al, off);
+		DescentAlignment al;
+		size_t rangei = 0;
+		// Convert random alignment index into a <range, offset> coordinate
+		dr.sink().elt(ri, al, rangei, off);
 		assert_lt(off, al.size());
 		Coord refcoord;
 		WalkResult wr;
-		size_t ri_left = ri;
 		uint32_t tidx = 0, toff = 0, tlen = 0;
-		for(size_t i = 0; i < gws_.size(); i++) {
-			if(ri_left < sas_[i].size()) {
-				gws_[i].advanceElement(
-					(uint32_t)ri_left,
-					ebwtFw,    // forward Bowtie index for walking left
-					ref,       // bitpair-encoded reference
-					sas_[i],   // SA range with offsets
-					gwstate_,  // GroupWalk state; scratch space
-					wr,        // put the result here
-					met,       // metrics
-					prm);      // per-read metrics
-				assert_neq(0xffffffff, wr.toff);
-				bool straddled = false;
-				ebwtFw.joinedToTextOff(
-					wr.elt.len,
-					wr.toff,
-					tidx,
-					toff,
-					tlen,
-					true,        // reject straddlers?
-					straddled);  // straddled?
-				if(tidx == 0xffffffff) {
-					// The seed hit straddled a reference boundary so the seed
-					// hit isn't valid
-					return false;
-				}
-				// Coordinate of the seed hit w/r/t the pasted reference string
-				refcoord.init(tidx, (int64_t)toff, dr.sink()[i].fw);
-				break;
-			}
-			ri_left -= sas_[i].size();
+		gws_[rangei].advanceElement(
+			(uint32_t)off,
+			ebwtFw,       // forward Bowtie index for walking left
+			ref,          // bitpair-encoded reference
+			sas_[rangei], // SA range with offsets
+			gwstate_,     // GroupWalk state; scratch space
+			wr,           // put the result here
+			met,          // metrics
+			prm);         // per-read metrics
+		assert_neq(0xffffffff, wr.toff);
+		bool straddled = false;
+		ebwtFw.joinedToTextOff(
+			wr.elt.len,
+			wr.toff,
+			tidx,
+			toff,
+			tlen,
+			true,        // reject straddlers?
+			straddled);  // straddled?
+		if(tidx == 0xffffffff) {
+			// The seed hit straddled a reference boundary so the seed
+			// hit isn't valid
+			return false;
 		}
+		// Coordinate of the seed hit w/r/t the pasted reference string
+		refcoord.init(tidx, (int64_t)toff, dr.sink()[rangei].fw);
 		const EList<Edit>& edits = dr.sink().edits();
 		size_t ns = 0, ngap = 0, nrefn = 0;
 		for(size_t i = al.ei; i < al.ei + al.en; i++) {
-			if(edits[i].qchr == 'N' || edits[i].chr == 'N') {
-				ns++;
-			}
-			if(edits[i].chr == 'N') {
-				nrefn++;
-			}
-			if(edits[i].isGap()) {
-				ngap++;
-			}
+			if(edits[i].qchr == 'N' || edits[i].chr == 'N') ns++;
+			if(edits[i].chr == 'N') nrefn++;
+			if(edits[i].isGap()) ngap++;
 		}
 		AlnScore asc(
 			-dr.sink().bestPenalty(),  // numeric score
@@ -2018,26 +2220,26 @@ public:
 		rs.init(
 			dr.query().length(),       // # chars after hard trimming
 			asc,                       // alignment score
-			&dr.sink().edits(),
-			al.ei,
-			al.en,
-			NULL,
-			0,
-			0,
-			refcoord,              // leftmost ref pos of 1st al char
-			tlen,                  // length of reference aligned to
-			-1,
-			-1,
-			-1,
-			dr.minScore(),
-			-1,                    // nuc5p
-			-1,                    // nuc3p
-			false,                 // soft pre-trimming?
-			0,                     // 5p pre-trimming
-			0,                     // 3p pre-trimming
-			false,                 // soft trimming?
-			0,                     // 5p trimming
-			0);                    // 3p trimming
+			&dr.sink().edits(),        // nucleotide edits array
+			al.ei,                     // nucleotide edits first pos
+			al.en,                     // nucleotide edits last pos
+			NULL,                      // ambig base array
+			0,                         // ambig base first pos
+			0,                         // ambig base last pos
+			refcoord,                  // coord of leftmost aligned char in ref
+			tlen,                      // length of reference aligned to
+			-1,                        // # seed mms allowed
+			-1,                        // seed length
+			-1,                        // seed interval
+			dr.minScore(),             // minimum score for valid alignment
+			-1,                        // nuc5p (for colorspace)
+			-1,                        // nuc3p (for colorspace)
+			false,                     // soft pre-trimming?
+			0,                         // 5p pre-trimming
+			0,                         // 3p pre-trimming
+			false,                     // soft trimming?
+			0,                         // 5p trimming
+			0);                        // 3p trimming
 		rs.setRefNs(nrefn);
 		return true;
 	}
@@ -2072,6 +2274,205 @@ public:
 	}
 	
 protected:
+
+	Random1toN rnd_;
+	EList<TIndexOff, 16> offs_;
+	EList<SARangeWithOffs<EListSlice<TIndexOff, 16> > > sas_;
+	EList<GroupWalk2S<EListSlice<TIndexOff, 16>, 16> > gws_;
+	GroupWalkState gwstate_;
+};
+
+/**
+ * Selects and prioritizes partial alignments from the heap of the
+ * DescentDriver.  We assume that the heap is no longer changing (i.e. that the
+ * DescentDriver is done).  Usually, the user will then attempt to extend the
+ * partial alignments into full alignments.  This can happen incrementally;
+ * that is, the user might ask for the partial alignments one "batch" at a
+ * time, and the selector will only do as much work is necessary to supply each
+ * requesteded batch.
+ *
+ * The actual work done here includes: (a) scanning the heap for high-priority
+ * partial alignments, (b) setting up the rnd_, offs_, sas_, gws_, and gwstate_
+ * fields and resolving offsets of partial alignments, (c) packaging and
+ * delivering batches of results to the caller.
+ *
+ * How to prioritize partial alignments?  One idea is to use the same
+ * penalty-based prioritization used in the heap.  This has pros: (a) maintains
+ * the guarantee that we're visiting alignments in best-to-worst order in
+ * end-to-end alignment mode, (b) the heap is already prioritized this way, so
+ * it's easier for us to compile high-priority partial alignments.  But the con
+ * is that it doesn't take depth into account, which could mean that we're
+ * extending a lot of very short partial alignments first.
+ *
+ * A problem we should keep in mind is that some 
+ */
+class DescentPartialAlignmentSelector {
+
+public:
+
+	DescentPartialAlignmentSelector() : gwstate_(GW_CAT) { reset(); }
+
+	/**
+	 * Initialize a new selector w/r/t a read, index and heap of partial
+	 * alignments.
+	 */
+	void init(
+		const Read& q,                   // read
+		const EHeap<TDescentPair>& heap, // the heap w/ the partial alns
+		TAlScore depthBonus,             // use depth when prioritizing
+		size_t nbatch,                   // # of alignments in a batch
+		const Ebwt& ebwtFw,              // forward Bowtie index for walk-left
+		const BitPairReference& ref,     // bitpair-encoded reference
+		RandomSource& rnd,               // pseudo-randoms for sampling rows
+		WalkMetrics& met)                // metrics re: offset resolution
+	{
+		// Make our internal heap
+		if(depthBonus > 0) {
+			heap_.clear();
+			for(size_t i = 0; i < heap.size(); i++) {
+				TDescentPair p = heap[i];
+				p.first.pen += depthBonus * p.first.depth;
+				heap_.insert(p);
+			}
+		} else {
+			heap_ = heap;
+		}
+#if 0
+		// We're going to sample from space of *alignments*, not ranges.  So
+		// when we extract a sample, we'll have to do a little extra work to
+		// convert it to a <range, offset> coordinate.
+		rnd_.init(
+			sink.nelt(), // # elements to choose from
+			true);       // without replacement
+		offs_.resize(sink.nelt());
+		offs_.fill(std::numeric_limits<TIndexOff>::max());
+		sas_.resize(sink.nrange());
+		gws_.resize(sink.nrange());
+		size_t ei = 0;
+		for(size_t i = 0; i < sas_.size(); i++) {
+			size_t en = sink[i].botf - sink[i].topf;
+			sas_[i].init(sink[i].topf, q.length(), EListSlice<TIndexOff, 16>(offs_, ei, en));
+			gws_[i].init(ebwtFw, ref, sas_[i], rnd, met);
+			ei += en;
+		}
+#endif
+	}
+	
+	/**
+	 *
+	 */
+	void compileBatch() {
+	}
+	
+	/**
+	 * Reset the selector.
+	 */
+	void reset() {
+		heap_.clear();
+	}
+	
+	/**
+	 * Return true iff the selector is currently initialized.
+	 */
+	bool inited() const {
+		return !heap_.empty();
+	}
+	
+	/**
+	 * Get next alignment and convert it to an AlnRes.
+	 */
+	bool next(
+		const DescentDriver& dr,
+		const Ebwt& ebwtFw,          // forward Bowtie index for walking left
+		const BitPairReference& ref, // bitpair-encoded reference
+		RandomSource& rnd,
+		AlnRes& rs,
+		WalkMetrics& met,
+		PerReadMetrics& prm)
+	{
+		// Sample one alignment randomly from pool of remaining alignments
+		size_t ri = (size_t)rnd_.next(rnd);
+		size_t off = 0;
+		DescentAlignment al;
+		size_t rangei = 0;
+		// Convert random alignment index into a <range, offset> coordinate
+		dr.sink().elt(ri, al, rangei, off);
+		assert_lt(off, al.size());
+		Coord refcoord;
+		WalkResult wr;
+		uint32_t tidx = 0, toff = 0, tlen = 0;
+		gws_[rangei].advanceElement(
+			(uint32_t)off,
+			ebwtFw,       // forward Bowtie index for walking left
+			ref,          // bitpair-encoded reference
+			sas_[rangei], // SA range with offsets
+			gwstate_,     // GroupWalk state; scratch space
+			wr,           // put the result here
+			met,          // metrics
+			prm);         // per-read metrics
+		assert_neq(0xffffffff, wr.toff);
+		bool straddled = false;
+		ebwtFw.joinedToTextOff(
+			wr.elt.len,
+			wr.toff,
+			tidx,
+			toff,
+			tlen,
+			true,        // reject straddlers?
+			straddled);  // straddled?
+		if(tidx == 0xffffffff) {
+			// The seed hit straddled a reference boundary so the seed
+			// hit isn't valid
+			return false;
+		}
+		// Coordinate of the seed hit w/r/t the pasted reference string
+		refcoord.init(tidx, (int64_t)toff, dr.sink()[rangei].fw);
+		const EList<Edit>& edits = dr.sink().edits();
+		size_t ns = 0, ngap = 0, nrefn = 0;
+		for(size_t i = al.ei; i < al.ei + al.en; i++) {
+			if(edits[i].qchr == 'N' || edits[i].chr == 'N') ns++;
+			if(edits[i].chr == 'N') nrefn++;
+			if(edits[i].isGap()) ngap++;
+		}
+		return true;
+	}
+	
+	/**
+	 * Return true iff all elements have been reported.
+	 */
+	bool done() const {
+		return rnd_.done();
+	}
+
+	/**
+	 * Return the total size occupued by the Descent driver and all its
+	 * constituent parts.
+	 */
+	size_t totalSizeBytes() const {
+		return heap_.totalSizeBytes() +
+		       rnd_.totalSizeBytes() +
+		       offs_.totalSizeBytes() +
+			   sas_.totalSizeBytes() +
+			   gws_.totalSizeBytes();
+	}
+
+	/**
+	 * Return the total capacity of the Descent driver and all its constituent
+	 * parts.
+	 */
+	size_t totalCapacityBytes() const {
+		return heap_.totalCapacityBytes() +
+		       rnd_.totalCapacityBytes() +
+		       offs_.totalCapacityBytes() +
+			   sas_.totalCapacityBytes() +
+			   gws_.totalCapacityBytes();
+	}
+	
+protected:
+
+	// This class's working heap.  This might simply be a copy of the original
+	// heap, or it might be re-prioritized in some way.
+	EHeap<TDescentPair> heap_;
 
 	Random1toN rnd_;
 	EList<TIndexOff, 16> offs_;

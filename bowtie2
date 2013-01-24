@@ -184,7 +184,9 @@ for(my $i = 0; $i < scalar(@bt2_args); $i++) {
 # If the user asked us to redirect some reads to files, or to suppress
 # unaligned reads, then we need to capture the output from Bowtie 2 and pass it
 # through this wrapper.
+my $passthru = 0;
 if(scalar(keys %read_fns) > 0 || $no_unal) {
+	$passthru = 1;
 	push @bt2_args, "--passthrough";
 	$cap_out = "-";
 	for(my $i = 0; $i < scalar(@bt2_args); $i++) {
@@ -359,7 +361,7 @@ if($verbose) {
 my $debug_str = ($debug ? "-debug" : "");
 
 # Construct command invoking bowtie2-align
-my $cmd = "$align_prog $debug_str --wrapper basic-0 ".join(" ", @bt2_args);
+my $cmd = "$align_prog$debug_str --wrapper basic-0 ".join(" ", @bt2_args);
 
 # Possibly add read input on an anonymous pipe
 $cmd = "$readpipe $cmd" if defined($readpipe);
@@ -410,7 +412,6 @@ if(defined($cap_out)) {
 			}
 		}
 	}
-	my $passthru = scalar(keys %read_fns) > 0;
 	while(<BT>) {
 		chomp;
 		my $filt = 0;
@@ -420,38 +421,44 @@ if(defined($cap_out)) {
 			my $tab2_i = index($_, "\t", $tab1_i);
 			my $fl = substr($_, $tab1_i, $tab2_i - $tab1_i);
 			my $unal = ($fl & 4) != 0;
+			$filt = 1 if $no_unal && $unal;
 			if($passthru) {
-				my $mate1 = (($fl &  64) != 0);
-				my $mate2 = (($fl & 128) != 0);
-				my $unp = !$mate1 && !$mate2;
-				my $pair = !$unp;
-				# Next line is read with some whitespace escaped
-				my $l = <BT>;
-				chomp($l);
-				$l =~ s/%(..)/chr(hex($1))/eg;
-				if((defined($read_fhs{un}) || defined($read_fhs{al})) && $unp) {
-					if($unal) {
-						# Failed to align
-						print {$read_fhs{un}} $l if defined($read_fhs{un});
-					} else {
-						# Aligned
-						print {$read_fhs{al}} $l if defined($read_fhs{al});
+				if($filt) {
+					# Next line is read with some whitespace escaped, which we
+					# ignore b/c the record is filtered out by --no-unal
+					my $l = <BT>;
+				} else {
+					my $mate1 = (($fl &  64) != 0);
+					my $mate2 = (($fl & 128) != 0);
+					my $unp = !$mate1 && !$mate2;
+					my $pair = !$unp;
+					# Next line is read with some whitespace escaped
+					my $l = <BT>;
+					chomp($l);
+					$l =~ s/%(..)/chr(hex($1))/eg;
+					if((defined($read_fhs{un}) || defined($read_fhs{al})) && $unp) {
+						if($unal) {
+							# Failed to align
+							print {$read_fhs{un}} $l if defined($read_fhs{un});
+						} else {
+							# Aligned
+							print {$read_fhs{al}} $l if defined($read_fhs{al});
+						}
 					}
-				}
-				if((defined($read_fhs{"un-conc"}) || defined($read_fhs{"al-conc"})) && $pair) {
-					my $conc  = (($fl &   2) != 0);
-					if     ($conc && $mate1) {
-						print {$read_fhs{"al-conc"}{1}} $l if defined($read_fhs{"al-conc"});
-					} elsif($conc && $mate2) {
-						print {$read_fhs{"al-conc"}{2}} $l if defined($read_fhs{"al-conc"});
-					} elsif(!$conc && $mate1) {
-						print {$read_fhs{"un-conc"}{1}} $l if defined($read_fhs{"un-conc"});
-					} elsif(!$conc && $mate2) {
-						print {$read_fhs{"un-conc"}{2}} $l if defined($read_fhs{"un-conc"});
+					if((defined($read_fhs{"un-conc"}) || defined($read_fhs{"al-conc"})) && $pair) {
+						my $conc  = (($fl &   2) != 0);
+						if     ($conc && $mate1) {
+							print {$read_fhs{"al-conc"}{1}} $l if defined($read_fhs{"al-conc"});
+						} elsif($conc && $mate2) {
+							print {$read_fhs{"al-conc"}{2}} $l if defined($read_fhs{"al-conc"});
+						} elsif(!$conc && $mate1) {
+							print {$read_fhs{"un-conc"}{1}} $l if defined($read_fhs{"un-conc"});
+						} elsif(!$conc && $mate2) {
+							print {$read_fhs{"un-conc"}{2}} $l if defined($read_fhs{"un-conc"});
+						}
 					}
 				}
 			}
-			$filt = 1 if $no_unal && $unal;
 		}
 		print {$ofh} "$_\n" if !$filt;
 	}
@@ -475,6 +482,6 @@ if ($ret == -1) {
     printf STDERR "bowtie2-align died with signal %d (%s) $ad\n", ($ret & 127), $signm;
 	exit 1;
 } elsif($ret != 0) {
-	printf STDERR "bowtie2-align exited with value %d\n", $ret >> 8;
+	printf STDERR "bowtie2-align exited with value %d\n", ($ret >> 8);
 }
-exit $ret >> 8;
+exit ($ret >> 8);
