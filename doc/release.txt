@@ -69,9 +69,9 @@ Prerequisites:
      (But replace X.Y.Z and USERNAME with appropriate values)
 
 13. Make Bowtie 2 Linux 32-bit and 64-bit binaries.
-   - On a Linux machine (e.g. igmX), from the Bowtie 2 git root run
-     "make BITS=32 bowtie2-bin".  (Use "make -j12" or similar to use many CPUs
-     at once).
+   - On a Linux machine (e.g. igmX), from the Bowtie 2 git root run "make clean"
+   - Then "make BITS=32 bowtie2-bin".  (Use "make -j12" or similar to use many
+     CPUs at once).
    - Rename the resulting archive to match the typical naming scheme.  E.g.:
      "mv bowtie2-X.Y.Z-32.zip bowtie2-X.Y.Z-linux-i386.zip"
    - Upload to sourceforge:
@@ -81,11 +81,11 @@ Prerequisites:
      "x86-64".
 
 14. Make Bowtie 2 Mac OS X 32-bit and 64-bit binaries.
-   - From the Bowtie 2 git root run
-     "make EXTRA_FLAGS=-mmacosx-version-min=10.5 BITS=32 bowtie2-bin".  (Use
-     "make -j12" or similar to use many CPUs at once).  The -mmacosx... flag
-     forces the binaries to be backward compatible with Mac OS version 10.5 and
-     up.
+   - From the Bowtie 2 git root run "make clean"
+   - Then "make EXTRA_FLAGS=-mmacosx-version-min=10.5 BITS=32 bowtie2-bin".
+     (Use "make -j12" or similar to use many CPUs at once).  The -mmacosx...
+	 flag forces the binaries to be backward compatible with Mac OS version
+	 10.5 and up.
    - Rename the resulting archive to match the typical naming scheme.  E.g.:
      "mv bowtie2-X.Y.Z-32.zip bowtie2-X.Y.Z-macos-i386.zip"
    - Upload to sourceforge:
