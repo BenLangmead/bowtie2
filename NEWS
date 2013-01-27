@@ -3,7 +3,7 @@ Bowtie 2 NEWS
 
 Bowtie 2 is now available for download from the project website,
 http://bowtie-bio.sf.net/bowtie2.  2.0.0-beta1 is the first version released to
-the public and 2.0.5 is the latest version.  Bowtie 2 is licensed under
+the public and 2.0.6 is the latest version.  Bowtie 2 is licensed under
 the GPLv3 license.  See `LICENSE' file for details.
 
 Reporting Issues
@@ -16,8 +16,10 @@ Please report any issues using the Sourceforge bug tracker:
 Version Release History
 =======================
 
-
-Version 2.0.6 -  
+Version 2.0.6 - January 27, 2013
+   * Fixed issue whereby spurious output would be written in --no-unal mode.
+   * Fixed issue whereby multiple input files combined with --reorder would
+     cause truncated output and a memory spike.
    * Fixed spinlock datatype for Win64 API (LLP64 data model) which made it
      crash when compiled under Windows 7 x64.
    * Fixed bowtie2 wrapper to hadle filename/paths operations in a more 
