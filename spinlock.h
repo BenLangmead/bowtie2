@@ -36,7 +36,7 @@
 
 #if defined(__GNUC__)
 #if defined(__x86_64__) || defined(__i386__)
-#ifdef TRY_SPINLOCK
+#ifndef NO_TRY_SPINLOCK
 #define USE_SPINLOCK
 #endif
 #endif
