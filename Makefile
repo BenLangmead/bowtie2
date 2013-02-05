@@ -73,14 +73,17 @@ PTHREAD_DEF = -DBOWTIE_PTHREADS
 PTHREAD_LIB = -lpthread
 ifeq (1,$(MINGW))
 # pthreads for windows under mingw forces us to be specific about the library
-PTHREAD_LIB = -lpthreadGC2
-PTHREAD_PKG = pthreadGC2.dll
+#EXTRA_FLAGS = -DTRY_SPINLOCK
+#EXTRA_FLAGS = -static-libgcc -static-libstdc++
+PTHREAD_LIB = -lpthread
+#PTHREAD_LIB = -lpthreadGC2
+#PTHREAD_PKG = pthreadGC2.dll
 endif
 endif
 
-LIBS = 
-SEARCH_LIBS = $(PTHREAD_LIB)
-BUILD_LIBS =
+LIBS = $(PTHREAD_LIB)
+SEARCH_LIBS = 
+BUILD_LIBS = 
 INSPECT_LIBS =
 ifeq (1,$(MINGW))
 BUILD_LIBS = $(PTHREAD_LIB)
@@ -90,7 +93,7 @@ endif
 SHARED_CPPS = ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
               edit.cpp bt2_idx.cpp bt2_io.cpp bt2_util.cpp \
               reference.cpp ds.cpp multikey_qsort.cpp limit.cpp \
-			  random_source.cpp
+			  random_source.cpp tinythread.cpp
 SEARCH_CPPS = qual.cpp pat.cpp sam.cpp \
               read_qseq.cpp aligner_seed_policy.cpp \
               aligner_seed.cpp \
@@ -116,11 +119,14 @@ BUILD_CPPS_MAIN = $(BUILD_CPPS) bowtie_build_main.cpp
 
 SEARCH_FRAGMENTS = $(wildcard search_*_phase*.c)
 VERSION = $(shell cat VERSION)
-EXTRA_FLAGS =
 
 # Convert BITS=?? to a -m flag
 BITS=32
 ifeq (x86_64,$(shell uname -m))
+BITS=64
+endif
+# msys will always be 32 bit so look at the cpu arch instead.
+ifneq (,$(findstring AMD64,$(PROCESSOR_ARCHITEW6432)))
 BITS=64
 endif
 BITS_FLAG =
@@ -130,7 +136,6 @@ endif
 ifeq (64,$(BITS))
 BITS_FLAG = -m64
 endif
-
 SSE_FLAG=-msse2
 
 DEBUG_FLAGS    = -O0 -g3 $(BITS_FLAG) $(SSE_FLAG)

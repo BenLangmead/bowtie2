@@ -69,11 +69,11 @@
 #include <stdint.h>
 #include <iostream>
 #include <limits>
+#include "threading.h"
 #include <emmintrin.h>
 #include "aligner_sw_common.h"
 #include "aligner_sw_nuc.h"
 #include "ds.h"
-#include "threading.h"
 #include "aligner_seed.h"
 #include "reference.h"
 #include "random_source.h"

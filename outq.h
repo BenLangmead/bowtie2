@@ -59,7 +59,8 @@ public:
 	{
 		assert(nthreads <= 1 || threadSafe);
 		if(threadSafe_) {
-			MUTEX_INIT(lock_);
+			// TODO: TTR
+		    //MUTEX_INIT(lock_);
 		}
 	}
 
@@ -119,7 +120,7 @@ protected:
 	EList<bool>     finished_;
 	bool            reorder_;
 	bool            threadSafe_;
-	MUTEX_T         lock_;
+	MUTEX_T         mutex_m;
 };
 
 class OutputQueueMark {

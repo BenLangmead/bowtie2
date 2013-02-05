@@ -40,7 +40,8 @@ public:
 	MemoryTally() : tot_(0), peak_(0) {
 		memset(tots_,  0, 256 * sizeof(uint64_t));
 		memset(peaks_, 0, 256 * sizeof(uint64_t));
-		MUTEX_INIT(lock_);
+		// TODO: TTR
+		//MUTEX_INIT(lock_);
 	}
 	
 	/**
@@ -92,7 +93,7 @@ public:
 
 protected:
 
-	MUTEX_T lock_;
+	MUTEX_T mutex_m;
 	uint64_t tots_[256];
 	uint64_t tot_;
 	uint64_t peaks_[256];

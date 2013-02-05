@@ -366,7 +366,8 @@ public:
 		ndiag_ = (ncol + nrow - 1 + 1) / per_;
 		locol_ = MAX_SIZE_T;
 		hicol_ = MIN_SIZE_T;
-		debug_ = debug;
+//		debug_ = debug;
+		debug_ = true;
 		commitMap_.clear();
 		firstCommit_ = true;
 		size_t perword = (is8 ? 16 : 8);

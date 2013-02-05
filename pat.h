@@ -149,9 +149,12 @@ public:
 		numWrappers_(0),
 		doLocking_(true),
 		useSpinlock_(p.useSpinlock),
-		lock_()
+		// TODO: TTR
+		//lock_()
+		mutex()
 	{
-		MUTEX_INIT(lock_);
+		// TODO: TTR
+	    //MUTEX_INIT(lock_);
 	}
 
 	virtual ~PatternSource() { }
@@ -238,7 +241,7 @@ public:
 			spinlock_.Enter();
 		} else {
 #endif
-			MUTEX_LOCK(lock_);
+			mutex.lock();
 #ifdef USE_SPINLOCK
 		}
 #endif
@@ -257,7 +260,7 @@ public:
 			spinlock_.Leave();
 		} else {
 #endif
-			MUTEX_UNLOCK(lock_);
+			mutex.unlock();
 #ifdef USE_SPINLOCK
 		}
 #endif
@@ -293,7 +296,9 @@ protected:
 #ifdef USE_SPINLOCK
 	SpinLock spinlock_;
 #endif
-	MUTEX_T lock_; /// mutex for locking critical regions
+	// TODO: TTR
+	//MUTEX_T lock_; /// mutex for locking critical regions
+	MUTEX_T mutex;
 };
 
 /**
@@ -302,8 +307,9 @@ protected:
  */
 class PairedPatternSource {
 public:
-	PairedPatternSource(const PatternParams& p) : seed_(p.seed) {
-		MUTEX_INIT(lock_);
+	PairedPatternSource(const PatternParams& p) : mutex_m(), seed_(p.seed) {
+	    // TODO: TTR
+	    //MUTEX_INIT(lock_);
 	}
 	virtual ~PairedPatternSource() { }
 
@@ -330,7 +336,7 @@ public:
 #ifdef USE_SPINLOCK
 		spinlock_.Enter();
 #else
-		MUTEX_LOCK(lock_);
+		mutex_m.lock();
 #endif
 	}
 
@@ -341,7 +347,7 @@ public:
 #ifdef USE_SPINLOCK
 		spinlock_.Leave();
 #else
-		MUTEX_UNLOCK(lock_);
+		mutex_m.unlock();
 #endif
 	}
 
@@ -366,7 +372,7 @@ protected:
 #ifdef USE_SPINLOCK
 	SpinLock spinlock_;
 #endif
-	MUTEX_T lock_; /// mutex for locking critical regions
+	MUTEX_T mutex_m; /// mutex for locking critical regions
 	uint32_t seed_;
 };
 

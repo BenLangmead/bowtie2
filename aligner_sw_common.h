@@ -22,6 +22,9 @@
 
 #include "aligner_result.h"
 
+//using std::auto_ptr;
+//using tthread::lock_guard;
+
 /**
  * Encapsulates the result of a dynamic programming alignment, including
  * colorspace alignments.  In our case, the result is a combination of:
@@ -112,7 +115,11 @@ struct SwResult {
  */
 struct SwMetrics {
 
-	SwMetrics() { reset(); MUTEX_INIT(lock); }
+	SwMetrics() : mutex_m() {
+	    reset();
+	    // TODO: TTR
+	    //MUTEX_INIT(lock);
+	}
 	
 	void reset() {
 		sws = swcups = swrows = swskiprows = swskip = swsucc = swfail = swbts =
@@ -213,7 +220,13 @@ struct SwMetrics {
 	 * by multiple threads.
 	 */
 	void merge(const SwMetrics& r, bool getLock = false) {
-		ThreadSafe ts(&lock, getLock);
+		// TODO: TTR
+	    //ThreadSafe ts(&lock, getLock);
+        ThreadSafe ts(&mutex_m, getLock);
+//        auto_ptr<lock_guard<MUTEX_T> > pguard;
+//        if (getLock)
+//            pguard = auto_ptr<lock_guard<MUTEX_T> >(new lock_guard(mutex_m));
+
 		sws        += r.sws;
 		sws10      += r.sws10;
 		sws5       += r.sws5;
@@ -287,7 +300,7 @@ struct SwMetrics {
 	uint64_t sdsucc;     // # times seed alignment yielded >= 1 hit
 	uint64_t sdooms;     // # times an OOM occurred during seed alignment
 	
-	MUTEX_T lock;
+	MUTEX_T mutex_m;
 };
 
 // The various ways that one might backtrack from a later cell (either oall,

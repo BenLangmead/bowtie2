@@ -24,7 +24,6 @@
 #include <cassert>
 #include <stdexcept>
 #include <getopt.h>
-#include <pthread.h>
 #include <math.h>
 #include <utility>
 #include <limits>
@@ -1612,7 +1611,11 @@ static OutFileBuf*              multiseed_metricsOfb;
  */
 struct OuterLoopMetrics {
 
-	OuterLoopMetrics() { reset(); MUTEX_INIT(lock); }
+	OuterLoopMetrics() {
+	    reset();
+	    // TODO: TTR
+	    //MUTEX_INIT(lock);
+	}
 
 	/**
 	 * Set all counters to 0.
@@ -1631,7 +1634,7 @@ struct OuterLoopMetrics {
 		const OuterLoopMetrics& m,
 		bool getLock = false)
 	{
-		ThreadSafe ts(&lock, getLock);
+		ThreadSafe ts(&mutex_m, getLock);
 		reads += m.reads;
 		bases += m.bases;
 		srreads += m.srreads;
@@ -1650,7 +1653,7 @@ struct OuterLoopMetrics {
 	uint64_t fbases;  // filtered bases
 	uint64_t ureads;  // unfiltered reads
 	uint64_t ubases;  // unfiltered bases
-	MUTEX_T lock;
+	MUTEX_T mutex_m;
 };
 
 /**
@@ -1713,7 +1716,7 @@ struct PerfMetrics {
 		uint64_t nbtfiltdo_,
 		bool getLock)
 	{
-		ThreadSafe ts(&lock, getLock);
+		ThreadSafe ts(&mutex_m, getLock);
 		if(ol != NULL) {
 			olmu.merge(*ol, false);
 		}
@@ -1761,7 +1764,7 @@ struct PerfMetrics {
 		bool sync,            //  synchronize output
 		const BTString *name) // non-NULL name pointer if is per-read record
 	{
-		ThreadSafe ts(&lock, sync);
+		ThreadSafe ts(&mutex_m, sync);
 		ostringstream stderrSs;
 		time_t curtime = time(0);
 		char buf[1024];
@@ -2540,7 +2543,7 @@ struct PerfMetrics {
 	uint64_t          nbtfiltsc_u;
 	uint64_t          nbtfiltdo_u;
 
-	MUTEX_T           lock;  // lock for when one ob
+	MUTEX_T           mutex_m;  // lock for when one ob
 	bool              first; // yet to print first line?
 	time_t            lastElapsed; // used in reportInterval to measure time since last call
 };
@@ -2752,7 +2755,7 @@ static void setupMinScores(
  *   + If not identical, continue
  * - 
  */
-static void* multiseedSearchWorker(void *vp) {
+static void multiseedSearchWorker(void *vp) {
 	int tid = *((int*)vp);
 	assert(multiseed_ebwtFw != NULL);
 	assert(multiseedMms == 0 || multiseed_ebwtBw != NULL);
@@ -3772,13 +3775,13 @@ static void* multiseedSearchWorker(void *vp) {
 	// One last metrics merge
 	MERGE_METRICS(metrics, nthreads > 1);
 
-#ifdef BOWTIE_PTHREADS
-	if(tid > 0) { pthread_exit(NULL); }
-#endif
-	return NULL;
+//#ifdef BOWTIE_PTHREADS
+//	if(tid > 0) { pthread_exit(NULL); }
+//#endif
+	return;
 }
 
-static void* multiseedSearchWorker_2p5(void *vp) {
+static void multiseedSearchWorker_2p5(void *vp) {
 	int tid = *((int*)vp);
 	assert(multiseed_ebwtFw != NULL);
 	assert(multiseedMms == 0 || multiseed_ebwtBw != NULL);
@@ -4114,10 +4117,11 @@ static void* multiseedSearchWorker_2p5(void *vp) {
 	// One last metrics merge
 	MERGE_METRICS(metrics, nthreads > 1);
 
-#ifdef BOWTIE_PTHREADS
-	if(tid > 0) { pthread_exit(NULL); }
-#endif
-	return NULL;
+//#ifdef BOWTIE_PTHREADS
+//	if(tid > 0) { pthread_exit(NULL); }
+//#endif
+	//return NULL;
+	return;
 }
 
 /**
@@ -4158,7 +4162,7 @@ static void multiseedSearch(
 	if(!refs->loaded()) throw 1;
 	multiseed_refs = refs.get();
 #ifdef BOWTIE_PTHREADS
-	AutoArray<pthread_t> threads(nthreads-1);
+	AutoArray<tthread::thread*> threads(nthreads-1);
 	AutoArray<int> tids(nthreads-1);
 #endif
 	{
@@ -4197,10 +4201,14 @@ static void multiseedSearch(
 			// Thread IDs start at 1
 			tids[i] = i+1;
 			if(bowtie2p5) {
-				createThread(&threads[i], multiseedSearchWorker_2p5, (void*)&tids[i]);
+				threads[i] = new tthread::thread(multiseedSearchWorker_2p5, (void*)&tids[i]);
+				// TODO: TTR
+			    //createThread(&threads[i], multiseedSearchWorker_2p5, (void*)&tids[i]);
 			} else {
-				createThread(&threads[i], multiseedSearchWorker, (void*)&tids[i]);
+			    threads[i] = new tthread::thread(multiseedSearchWorker, (void*)&tids[i]);
+				//createThread(&threads[i], multiseedSearchWorker, (void*)&tids[i]);
 			}
+            threads[i]->join();
 		}
 #endif
 		int tmp = 0;
@@ -4209,9 +4217,6 @@ static void multiseedSearch(
 		} else {
 			multiseedSearchWorker((void*)&tmp);
 		}
-#ifdef BOWTIE_PTHREADS
-		for(int i = 0; i < nthreads-1; i++) joinThread(threads[i]);
-#endif
 	}
 	if(!metricsPerRead && (metricsOfb != NULL || metricsStderr)) {
 		metrics.reportInterval(metricsOfb, metricsStderr, true, false, NULL);

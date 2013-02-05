@@ -18,6 +18,11 @@
  */
 
 #include "aligner_cache.h"
+#include <memory>
+#include "tinythread.h"
+
+//using std::auto_ptr;
+//using tthread::lock_guard;
 
 #ifndef NDEBUG
 /**
@@ -59,7 +64,13 @@ bool AlignmentCache::addOnTheFly(
 	uint32_t botb,    // bottom range elt in BWT' index
 	bool getLock)
 {
-	ThreadSafe ts(lockPtr(), shared_ && getLock);
+	// TODO: TTR
+    //ThreadSafe ts(lockPtr(), shared_ && getLock);
+    ThreadSafe ts(lockPtr(), shared_ && getLock);
+//    auto_ptr<lock_guard<MUTEX_T> > pguard;
+//    if( shared_ && getLock )
+//        pguard = auto_ptr<lock_guard<MUTEX_T> >(new lock_guard<MUTEX_T>(mutex));
+
 	bool added = true;
 	// If this is the first reference sequence we're associating with
 	// the query sequence, initialize the QVal.
