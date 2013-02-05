@@ -29,6 +29,9 @@
 #include "outq.h"
 #include <utility>
 
+//using std::auto_ptr;
+//using tthread::lock_guard;
+
 // Forward decl	
 class SeedResults;
 
@@ -43,7 +46,11 @@ enum {
  */
 struct ReportingMetrics {
 
-	ReportingMetrics() { reset(); MUTEX_INIT(lock); }
+	ReportingMetrics():mutex_m() {
+	    reset();
+	    // TODO: TTR
+	    //MUTEX_INIT(lock);
+	}
 	
 	void reset() {
 		init(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
@@ -120,8 +127,13 @@ struct ReportingMetrics {
 	 * ReportingMetrics shared by multiple threads.
 	 */
 	void merge(const ReportingMetrics& met, bool getLock = false) {
-		ThreadSafe ts(&lock, getLock);
-		
+	    // TODO: TTR
+		//ThreadSafe ts(&lock, getLock);
+        ThreadSafe ts(&mutex_m, getLock);
+        //auto_ptr<lock_guard<MUTEX_T> > pguard;
+        //if (getLock)
+        //    pguard = auto_ptr<lock_guard<MUTEX_T> >(new lock_guard(mutex_m));
+
 		nread         += met.nread;
 		
 		npaired       += met.npaired;
@@ -200,7 +212,7 @@ struct ReportingMetrics {
 	uint64_t  sum_best2;     // Sum of all the second-best alignment scores
 	uint64_t  sum_best;      // Sum of all the best and second-best
 
-	MUTEX_T lock;
+	MUTEX_T mutex_m;
 };
 
 // Type for expression numbers of hits

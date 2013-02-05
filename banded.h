@@ -20,7 +20,7 @@
 #ifndef BANDED_H_
 #define BANDED_H_
 
-#include <emmintrin.h>
+//#include <emmintrin.h>
 #include "sse_util.h"
 
 /**

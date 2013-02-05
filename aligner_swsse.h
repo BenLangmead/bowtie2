@@ -26,12 +26,15 @@
 #include "scoring.h"
 #include "mask.h"
 #include "sse_util.h"
-#include <emmintrin.h>
+//#include <emmintrin.h>
 #include <strings.h>
+
+//using std::auto_ptr;
+//using tthread::lock_guard;
 
 struct SSEMetrics {
 	
-	SSEMetrics() { reset(); }
+	SSEMetrics():mutex_m() { reset(); }
 
 	void clear() { reset(); }
 	void reset() {
@@ -42,7 +45,13 @@ struct SSEMetrics {
 	}
 	
 	void merge(const SSEMetrics& o, bool getLock = false) {
-		ThreadSafe ts(&lock, getLock);
+	    // TODO: TTR
+		//ThreadSafe ts(&lock, getLock);
+        ThreadSafe ts(&mutex_m, getLock);
+//        auto_ptr<lock_guard<MUTEX_T> > pguard;
+//        if (getLock)
+//            pguard = auto_ptr<lock_guard<MUTEX_T> >(new lock_guard(mutex_m));
+
 		dp       += o.dp;
 		dpsat    += o.dpsat;
 		dpfail   += o.dpfail;
@@ -75,7 +84,7 @@ struct SSEMetrics {
 	uint64_t btcell;   // DP backtrace cells traversed
 	uint64_t corerej;  // DP backtrace core rejections
 	uint64_t nrej;     // DP backtrace N rejections
-	MUTEX_T  lock;
+	MUTEX_T  mutex_m;
 };
 
 /**

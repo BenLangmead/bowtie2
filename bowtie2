@@ -44,7 +44,6 @@ my $build_prog  = File::Spec->catpath($vol,$script_path,$build_bin);
 my %signo       = ();
 my @signame     = ();
 
-
 {
 	# Get signal info
 	use Config;
