@@ -19,6 +19,10 @@ The file ls.h includes an implementation of the Larsson-Sadakane suffix sorting
 algorithm.  The implementation is by N. Jesper Larsson and was adapted somewhat
 for use in Bowtie 2.
 
+TinyThreads is a portable thread implementation with a fairly compatible subset 
+of C++11 thread management classes written by Marcus Geelnard. For more info
+check http://tinythreadpp.bitsnbites.eu/ 
+
 Various users have kindly supplied patches, bug reports and feature requests
 over the years.  Many, many thanks go to them.
 
