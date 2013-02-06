@@ -157,8 +157,6 @@ struct WalkMetrics {
 
 	WalkMetrics() {
 	    reset();
-	    // TODO: TTR
-	    //MUTEX_INIT(lock);
 	}
 
 	/**

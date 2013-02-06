@@ -22,8 +22,6 @@
 
 #include "aligner_result.h"
 
-//using std::auto_ptr;
-//using tthread::lock_guard;
 
 /**
  * Encapsulates the result of a dynamic programming alignment, including
@@ -117,8 +115,6 @@ struct SwMetrics {
 
 	SwMetrics() : mutex_m() {
 	    reset();
-	    // TODO: TTR
-	    //MUTEX_INIT(lock);
 	}
 	
 	void reset() {
@@ -220,12 +216,7 @@ struct SwMetrics {
 	 * by multiple threads.
 	 */
 	void merge(const SwMetrics& r, bool getLock = false) {
-		// TODO: TTR
-	    //ThreadSafe ts(&lock, getLock);
         ThreadSafe ts(&mutex_m, getLock);
-//        auto_ptr<lock_guard<MUTEX_T> > pguard;
-//        if (getLock)
-//            pguard = auto_ptr<lock_guard<MUTEX_T> >(new lock_guard(mutex_m));
 
 		sws        += r.sws;
 		sws10      += r.sws10;

@@ -1613,8 +1613,6 @@ struct OuterLoopMetrics {
 
 	OuterLoopMetrics() {
 	    reset();
-	    // TODO: TTR
-	    //MUTEX_INIT(lock);
 	}
 
 	/**
@@ -3775,9 +3773,6 @@ static void multiseedSearchWorker(void *vp) {
 	// One last metrics merge
 	MERGE_METRICS(metrics, nthreads > 1);
 
-//#ifdef BOWTIE_PTHREADS
-//	if(tid > 0) { pthread_exit(NULL); }
-//#endif
 	return;
 }
 
@@ -4117,10 +4112,6 @@ static void multiseedSearchWorker_2p5(void *vp) {
 	// One last metrics merge
 	MERGE_METRICS(metrics, nthreads > 1);
 
-//#ifdef BOWTIE_PTHREADS
-//	if(tid > 0) { pthread_exit(NULL); }
-//#endif
-	//return NULL;
 	return;
 }
 
@@ -4202,14 +4193,12 @@ static void multiseedSearch(
 			tids[i] = i+1;
 			if(bowtie2p5) {
 				threads[i] = new tthread::thread(multiseedSearchWorker_2p5, (void*)&tids[i]);
-				// TODO: TTR
-			    //createThread(&threads[i], multiseedSearchWorker_2p5, (void*)&tids[i]);
 			} else {
 			    threads[i] = new tthread::thread(multiseedSearchWorker, (void*)&tids[i]);
-				//createThread(&threads[i], multiseedSearchWorker, (void*)&tids[i]);
 			}
-            threads[i]->join();
 		}
+        for (int i = 0; i < nthreads-1; i++)
+            threads[i]->join();
 #endif
 		int tmp = 0;
 		if(bowtie2p5) {

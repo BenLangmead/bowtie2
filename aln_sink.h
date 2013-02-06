@@ -29,8 +29,6 @@
 #include "outq.h"
 #include <utility>
 
-//using std::auto_ptr;
-//using tthread::lock_guard;
 
 // Forward decl	
 class SeedResults;
@@ -48,8 +46,6 @@ struct ReportingMetrics {
 
 	ReportingMetrics():mutex_m() {
 	    reset();
-	    // TODO: TTR
-	    //MUTEX_INIT(lock);
 	}
 	
 	void reset() {
@@ -127,12 +123,7 @@ struct ReportingMetrics {
 	 * ReportingMetrics shared by multiple threads.
 	 */
 	void merge(const ReportingMetrics& met, bool getLock = false) {
-	    // TODO: TTR
-		//ThreadSafe ts(&lock, getLock);
         ThreadSafe ts(&mutex_m, getLock);
-        //auto_ptr<lock_guard<MUTEX_T> > pguard;
-        //if (getLock)
-        //    pguard = auto_ptr<lock_guard<MUTEX_T> >(new lock_guard(mutex_m));
 
 		nread         += met.nread;
 		
