@@ -130,7 +130,9 @@ BITS=64
 endif
 # msys will always be 32 bit so look at the cpu arch instead.
 ifneq (,$(findstring AMD64,$(PROCESSOR_ARCHITEW6432)))
-	BITS=64
+	ifeq (1,$(MINGW))
+		BITS=64
+	endif
 endif
 BITS_FLAG =
 
