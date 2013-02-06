@@ -16,6 +16,9 @@ Please report any issues using the Sourceforge bug tracker:
 Version Release History
 =======================
 
+Version 2.0.7 - 
+   * Improved multithreading support
+
 Version 2.0.6 - January 27, 2013
    * Fixed issue whereby spurious output would be written in --no-unal mode.
    * Fixed issue whereby multiple input files combined with --reorder would
