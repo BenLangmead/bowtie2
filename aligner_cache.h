@@ -56,8 +56,6 @@
  */
 
 #include <iostream>
-// TODO: TTR
-//#include <memory>
 #include "ds.h"
 #include "read.h"
 #include "threading.h"
@@ -68,8 +66,6 @@
 
 typedef PListSlice<uint32_t, CACHE_PAGE_SZ> TSlice;
 
-//using tthread::lock_guard;
-//using std::auto_ptr;
 
 /**
  * Key for the query multimap: the read substring and its length.
@@ -451,8 +447,6 @@ public:
         mutex_m(),
 		version_(0)
 	{
-	    // TODO: TTR
-		// MUTEX_INIT(lock_);
 	}
 
 	/**
@@ -468,12 +462,7 @@ public:
 		size_t& nelt,
 		bool getLock = true)
 	{
-		// TODO: TTR
-	    //ThreadSafe ts(lockPtr(), shared_ && getLock);
         ThreadSafe ts(lockPtr(), shared_ && getLock);
-//	    std::auto_ptr<tthread::lock_guard<MUTEX_T> > pguard;
-//	    if(shared_ && getLock)
-//	        pguard = new tthread::lock_guard<MUTEX_T>(mutex);
 
 		assert(qv.repOk(*this));
 		const size_t refi = qv.offset();
@@ -534,12 +523,7 @@ public:
 		bool *added,
 		bool getLock = true)
 	{
-		// TODO: TTR
-	    //ThreadSafe ts(lockPtr(), shared_ && getLock);
         ThreadSafe ts(lockPtr(), shared_ && getLock);
-//	    auto_ptr< lock_guard<MUTEX_T> > pguard;
-//	    if (shared_ && getLock)
-//	        pguard = auto_ptr<lock_guard<MUTEX_T> >( new lock_guard<MUTEX_T>(mutex));
 
 		assert(qk.cacheable());
 		QNode *n = qmap_.add(pool(), qk, added);
@@ -565,13 +549,7 @@ public:
 	 * reads will have to be re-aligned.
 	 */
 	void clear(bool getLock = true) {
-		// TODO: TTR
-	    //ThreadSafe ts(lockPtr(), shared_ && getLock);
         ThreadSafe ts(lockPtr(), shared_ && getLock);
-//	    auto_ptr<lock_guard<MUTEX_T> > pguard;
-//	    if (shared_ && getLock)
-//	        pguard = auto_ptr<lock_guard<MUTEX_T> >(new lock_guard<MUTEX_T>(mutex));
-
 		pool_.clear();
 		qmap_.clear();
 		qlist_.clear();
@@ -609,8 +587,6 @@ public:
 	 * Return the lock object.
 	 */
 	MUTEX_T& lock() {
-	    // TODO: TTR
-	    //return lock_;
 	    return mutex_m;
 	}
 
@@ -642,9 +618,7 @@ protected:
 	TSAList                salist_; // list of SA ranges
 	
 	bool     shared_;  // true -> this cache is global
-	// TODO: TTR
-	//MUTEX_T  lock_;    // lock to grab during writes if this cache is shared
-	MUTEX_T mutex_m;
+	MUTEX_T mutex_m;    // mutex used for syncronization in case the the cache is shared.
 	uint32_t version_; // cache version
 };
 

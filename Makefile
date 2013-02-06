@@ -37,57 +37,60 @@ WINDOWS = 0
 CYGWIN = 0
 MINGW = 0
 ifneq (,$(findstring CYGWIN,$(shell uname)))
-WINDOWS = 1 
-CYGWIN = 1
-# POSIX memory-mapped files not currently supported on Windows
-BOWTIE_MM = 0
-BOWTIE_SHARED_MEM = 0
+	WINDOWS = 1 
+	CYGWIN = 1
+	# POSIX memory-mapped files not currently supported on Windows
+	BOWTIE_MM = 0
+	BOWTIE_SHARED_MEM = 0
 else
-ifneq (,$(findstring MINGW,$(shell uname)))
-WINDOWS = 1
-MINGW = 1
-# POSIX memory-mapped files not currently supported on Windows
-BOWTIE_MM = 0
-BOWTIE_SHARED_MEM = 0
-endif
+	ifneq (,$(findstring MINGW,$(shell uname)))
+		WINDOWS = 1
+		MINGW = 1
+		# POSIX memory-mapped files not currently supported on Windows
+		BOWTIE_MM = 0
+		BOWTIE_SHARED_MEM = 0
+	endif
 endif
 
 MACOS = 0
 ifneq (,$(findstring Darwin,$(shell uname)))
-MACOS = 1
+	MACOS = 1
 endif
 
 MM_DEF = 
+
 ifeq (1,$(BOWTIE_MM))
-MM_DEF = -DBOWTIE_MM
+	MM_DEF = -DBOWTIE_MM
 endif
+
 SHMEM_DEF = 
+
 ifeq (1,$(BOWTIE_SHARED_MEM))
-SHMEM_DEF = -DBOWTIE_SHARED_MEM
+	SHMEM_DEF = -DBOWTIE_SHARED_MEM
 endif
+
 PTHREAD_PKG =
-PTHREAD_LIB =
+PTHREAD_LIB = 
 PTHREAD_DEF =
+
 ifeq (1,$(BOWTIE_PTHREADS))
 PTHREAD_DEF = -DBOWTIE_PTHREADS
-PTHREAD_LIB = -lpthread
-ifeq (1,$(MINGW))
-# pthreads for windows under mingw forces us to be specific about the library
-#EXTRA_FLAGS = -DTRY_SPINLOCK
-#EXTRA_FLAGS = -static-libgcc -static-libstdc++
-PTHREAD_LIB = -lpthread
-#PTHREAD_LIB = -lpthreadGC2
-#PTHREAD_PKG = pthreadGC2.dll
-endif
+	ifeq (1,$(MINGW))
+		#EXTRA_FLAGS = -DTRY_SPINLOCK
+		PTHREAD_LIB = 
+	else
+		PTHREAD_LIB = -lpthread
+	endif
 endif
 
 LIBS = $(PTHREAD_LIB)
 SEARCH_LIBS = 
 BUILD_LIBS = 
 INSPECT_LIBS =
+
 ifeq (1,$(MINGW))
-BUILD_LIBS = $(PTHREAD_LIB)
-INSPECT_LIBS = $(PTHREAD_LIB)
+BUILD_LIBS = 
+INSPECT_LIBS = 
 endif
 
 SHARED_CPPS = ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
@@ -127,14 +130,16 @@ BITS=64
 endif
 # msys will always be 32 bit so look at the cpu arch instead.
 ifneq (,$(findstring AMD64,$(PROCESSOR_ARCHITEW6432)))
-BITS=64
+	BITS=64
 endif
 BITS_FLAG =
+
 ifeq (32,$(BITS))
-BITS_FLAG = -m32
+	BITS_FLAG = -m32
 endif
+
 ifeq (64,$(BITS))
-BITS_FLAG = -m64
+	BITS_FLAG = -m64
 endif
 SSE_FLAG=-msse2
 

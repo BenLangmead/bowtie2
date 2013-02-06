@@ -149,12 +149,8 @@ public:
 		numWrappers_(0),
 		doLocking_(true),
 		useSpinlock_(p.useSpinlock),
-		// TODO: TTR
-		//lock_()
 		mutex()
 	{
-		// TODO: TTR
-	    //MUTEX_INIT(lock_);
 	}
 
 	virtual ~PatternSource() { }
@@ -296,8 +292,6 @@ protected:
 #ifdef USE_SPINLOCK
 	SpinLock spinlock_;
 #endif
-	// TODO: TTR
-	//MUTEX_T lock_; /// mutex for locking critical regions
 	MUTEX_T mutex;
 };
 
@@ -307,10 +301,7 @@ protected:
  */
 class PairedPatternSource {
 public:
-	PairedPatternSource(const PatternParams& p) : mutex_m(), seed_(p.seed) {
-	    // TODO: TTR
-	    //MUTEX_INIT(lock_);
-	}
+	PairedPatternSource(const PatternParams& p) : mutex_m(), seed_(p.seed) {}
 	virtual ~PairedPatternSource() { }
 
 	virtual void addWrapper() = 0;
@@ -372,7 +363,7 @@ protected:
 #ifdef USE_SPINLOCK
 	SpinLock spinlock_;
 #endif
-	MUTEX_T mutex_m; /// mutex for locking critical regions
+	MUTEX_T mutex_m; /// mutex for syncing over critical regions
 	uint32_t seed_;
 };
 
