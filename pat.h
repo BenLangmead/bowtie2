@@ -32,7 +32,6 @@
 #include "assert_helpers.h"
 #include "tokenize.h"
 #include "random_source.h"
-#include "spinlock.h"
 #include "threading.h"
 #include "filebuf.h"
 #include "qual.h"
@@ -230,17 +229,7 @@ public:
 	 */
 	void lock() {
 		if(!doLocking_) return; // no contention
-#ifdef USE_SPINLOCK
-		if(useSpinlock_) {
-			// User can ask to use the normal pthreads lock even if
-			// spinlocks are compiled in.
-			spinlock_.Enter();
-		} else {
-#endif
-			mutex.lock();
-#ifdef USE_SPINLOCK
-		}
-#endif
+        mutex.lock();
 	}
 
 	/**
@@ -249,17 +238,7 @@ public:
 	 */
 	void unlock() {
 		if(!doLocking_) return; // no contention
-#ifdef USE_SPINLOCK
-		if(useSpinlock_) {
-			// User can ask to use the normal pthreads lock even if
-			// spinlocks are compiled in.
-			spinlock_.Leave();
-		} else {
-#endif
-			mutex.unlock();
-#ifdef USE_SPINLOCK
-		}
-#endif
+        mutex.unlock();
 	}
 
 	/**
@@ -289,9 +268,6 @@ protected:
 	/// spinlocks is enabled and compiled in.  This is sometimes better
 	/// if we expect bad I/O latency on some reads.
 	bool useSpinlock_;
-#ifdef USE_SPINLOCK
-	SpinLock spinlock_;
-#endif
 	MUTEX_T mutex;
 };
 
@@ -324,22 +300,14 @@ public:
 	 * fields is being updated.
 	 */
 	void lock() {
-#ifdef USE_SPINLOCK
-		spinlock_.Enter();
-#else
 		mutex_m.lock();
-#endif
 	}
 
 	/**
 	 * Unlock this PairedPatternSource.
 	 */
 	void unlock() {
-#ifdef USE_SPINLOCK
-		spinlock_.Leave();
-#else
 		mutex_m.unlock();
-#endif
 	}
 
 	/**
@@ -360,9 +328,6 @@ public:
 
 protected:
 
-#ifdef USE_SPINLOCK
-	SpinLock spinlock_;
-#endif
 	MUTEX_T mutex_m; /// mutex for syncing over critical regions
 	uint32_t seed_;
 };

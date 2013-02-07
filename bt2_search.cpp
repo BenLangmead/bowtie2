@@ -4197,8 +4197,6 @@ static void multiseedSearch(
 			    threads[i] = new tthread::thread(multiseedSearchWorker, (void*)&tids[i]);
 			}
 		}
-        for (int i = 0; i < nthreads-1; i++)
-            threads[i]->join();
 #endif
 		int tmp = 0;
 		if(bowtie2p5) {
@@ -4206,6 +4204,10 @@ static void multiseedSearch(
 		} else {
 			multiseedSearchWorker((void*)&tmp);
 		}
+#ifdef BOWTIE_PTHREADS
+        for (int i = 0; i < nthreads-1; i++)
+            threads[i]->join();
+#endif
 	}
 	if(!metricsPerRead && (metricsOfb != NULL || metricsStderr)) {
 		metrics.reportInterval(metricsOfb, metricsStderr, true, false, NULL);
