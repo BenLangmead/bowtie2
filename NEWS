@@ -17,7 +17,11 @@ Version Release History
 =======================
 
 Version 2.0.7 - 
-   * Improved multithreading support
+   * Improved multithreading support allows now bowtie to use on windows
+     platforms native Win32 API threads which provides the best performance
+     for these platforms.
+   * Updated threads and build process can, will properly discover and 
+     subsequently build 64bit binaries for Windows x64 platforms.    
 
 Version 2.0.6 - January 27, 2013
    * Fixed issue whereby spurious output would be written in --no-unal mode.
