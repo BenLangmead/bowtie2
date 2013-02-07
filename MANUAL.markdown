@@ -154,10 +154,15 @@ Building from source
 Building Bowtie 2 from source requires a GNU-like environment with GCC, GNU Make
 and other basics.  It should be possible to build Bowtie 2 on most vanilla Linux
 installations or on a Mac installation with [Xcode] installed.  Bowtie 2 can
-also be built on Windows using [Cygwin] or [MinGW] (MinGW recommended).  If
-building with MinGW, first install MinGW and [MSYS], the [zlib] library, and the
-[pthreads] library. You may also need the [GnuWin32] core and other utilities to
-drive the build process.
+also be built on Windows using [Cygwin] or [MinGW] (MinGW recommended). For a 
+MinGW build the choice of what compiler is to be used is important since this
+will determine if a 32 or 64 bit code can be successfully compiled using it. If 
+there is a need to generate both 32 and 64 bit on the same machine then a multilib 
+MinGW has to be properly installed. [MSYS], the [zlib] library, and depending on 
+architecture [pthreads] library are also required. We are recommending a 64 bit
+build since it has some clear advantages in real life research problems. In order 
+to simplify the MinGW setup it might be worth investigating popular MinGW personal 
+builds since these are coming already prepared with most of the toolchains needed.
 
 First, download the source package from the [sourceforge site].  Make sure
 you're getting the source package; the file downloaded should end in
