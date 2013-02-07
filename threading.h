@@ -27,11 +27,7 @@
 #  	include "fast_mutex.h"
 #  	define MUTEX_T tthread::fast_mutex
 #else
-#  	ifdef BOWTIE_PTHREADS
-#       define MUTEX_T tthread::mutex
-#  	else
-#       define MUTEX_T tthread::mutex
-#  endif /* BOWTIE_PTHREADS */
+#   define MUTEX_T tthread::mutex
 #endif /* USE_SPINLOCK */
 
 
