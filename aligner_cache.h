@@ -66,7 +66,6 @@
 
 typedef PListSlice<uint32_t, CACHE_PAGE_SZ> TSlice;
 
-
 /**
  * Key for the query multimap: the read substring and its length.
  */
@@ -463,7 +462,6 @@ public:
 		bool getLock = true)
 	{
         ThreadSafe ts(lockPtr(), shared_ && getLock);
-
 		assert(qv.repOk(*this));
 		const size_t refi = qv.offset();
 		const size_t reff = refi + qv.numRanges();
@@ -524,7 +522,6 @@ public:
 		bool getLock = true)
 	{
         ThreadSafe ts(lockPtr(), shared_ && getLock);
-
 		assert(qk.cacheable());
 		QNode *n = qmap_.add(pool(), qk, added);
 		return (n != NULL ? &n->payload : NULL);

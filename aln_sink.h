@@ -29,7 +29,6 @@
 #include "outq.h"
 #include <utility>
 
-
 // Forward decl	
 class SeedResults;
 
@@ -47,11 +46,11 @@ struct ReportingMetrics {
 	ReportingMetrics():mutex_m() {
 	    reset();
 	}
-	
+
 	void reset() {
 		init(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 	}
-	
+
 	void init(
 		uint64_t nread_,
 		uint64_t npaired_,
@@ -124,20 +123,19 @@ struct ReportingMetrics {
 	 */
 	void merge(const ReportingMetrics& met, bool getLock = false) {
         ThreadSafe ts(&mutex_m, getLock);
-
 		nread         += met.nread;
-		
+
 		npaired       += met.npaired;
 		nunpaired     += met.nunpaired;
-		
+
 		nconcord_uni  += met.nconcord_uni;
 		nconcord_uni1 += met.nconcord_uni1;
 		nconcord_uni2 += met.nconcord_uni2;
 		nconcord_rep  += met.nconcord_rep;
 		nconcord_0    += met.nconcord_0;
-		
+
 		ndiscord      += met.ndiscord;
-		
+
 		nunp_0_uni    += met.nunp_0_uni;
 		nunp_0_uni1   += met.nunp_0_uni1;
 		nunp_0_uni2   += met.nunp_0_uni2;

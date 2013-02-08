@@ -18,9 +18,7 @@
  */
 
 #include "aligner_cache.h"
-#include <memory>
 #include "tinythread.h"
-
 
 #ifndef NDEBUG
 /**
@@ -63,7 +61,6 @@ bool AlignmentCache::addOnTheFly(
 	bool getLock)
 {
     ThreadSafe ts(lockPtr(), shared_ && getLock);
-
 	bool added = true;
 	// If this is the first reference sequence we're associating with
 	// the query sequence, initialize the QVal.
