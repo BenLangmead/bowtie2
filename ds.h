@@ -41,7 +41,7 @@ public:
 		memset(tots_,  0, 256 * sizeof(uint64_t));
 		memset(peaks_, 0, 256 * sizeof(uint64_t));
 	}
-	
+
 	/**
 	 * Tally a memory allocation of size amt bytes.
 	 */

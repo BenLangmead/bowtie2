@@ -55,11 +55,10 @@ public:
 		started_(RES_CAT),
 		finished_(RES_CAT),
 		reorder_(reorder),
-		threadSafe_(threadSafe)
+		threadSafe_(threadSafe),
+        mutex_m()
 	{
 		assert(nthreads <= 1 || threadSafe);
-		if(threadSafe_) {
-		}
 	}
 
 	/**

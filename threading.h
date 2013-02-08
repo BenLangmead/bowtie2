@@ -49,6 +49,7 @@ public:
 	    if (ptr_mutex != NULL)
 	        ptr_mutex->unlock();
 	}
+    
 private:
 	MUTEX_T *ptr_mutex;
 };
