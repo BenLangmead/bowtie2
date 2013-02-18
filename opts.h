@@ -35,7 +35,6 @@ enum {
 	ARG_SANITY,                 // --sanity
 	ARG_PARTITION,              // --partition
 	ARG_INTEGER_QUALS,          // --int-quals
-	ARG_USE_SPINLOCK,           // --nospin
 	ARG_FILEPAR,                // --filepar
 	ARG_SHMEM,                  // --shmem
 	ARG_MM,                     // --mm

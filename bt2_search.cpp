@@ -462,7 +462,6 @@ static struct option long_options[] = {
 	{(char*)"Q2",           required_argument, 0,            ARG_QUALS2},
 	{(char*)"refidx",       no_argument,       0,            ARG_REFIDX},
 	{(char*)"partition",    required_argument, 0,            ARG_PARTITION},
-	{(char*)"nospin",       no_argument,       0,            ARG_USE_SPINLOCK},
 	{(char*)"ff",           no_argument,       0,            ARG_FF},
 	{(char*)"fr",           no_argument,       0,            ARG_FR},
 	{(char*)"rf",           no_argument,       0,            ARG_RF},
@@ -964,7 +963,6 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_FF: gMate1fw = true;  gMate2fw = true;  break;
 		case ARG_RF: gMate1fw = false; gMate2fw = true;  break;
 		case ARG_FR: gMate1fw = true;  gMate2fw = false; break;
-		case ARG_USE_SPINLOCK: useSpinlock = false; break;
 		case ARG_SHMEM: useShmem = true; break;
 		case ARG_SEED_SUMM: seedSumm = true; break;
 		case ARG_MM: {

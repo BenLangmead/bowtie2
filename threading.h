@@ -22,13 +22,13 @@
 
 #include <iostream>
 #include "tinythread.h"
+#include "fast_mutex.h"
 
-#ifdef USE_SPINLOCK
-#  	include "fast_mutex.h"
-#  	define MUTEX_T tthread::fast_mutex
-#else
+#ifdef NO_SPINLOCK
 #   define MUTEX_T tthread::mutex
-#endif /* USE_SPINLOCK */
+#else
+#  	define MUTEX_T tthread::fast_mutex
+#endif /* NO_SPINLOCK */
 
 
 /**
