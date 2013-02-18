@@ -28,7 +28,6 @@ CC = $(GCC_PREFIX)/gcc$(GCC_SUFFIX)
 CPP = $(GCC_PREFIX)/g++$(GCC_SUFFIX)
 CXX = $(CPP)
 HEADERS = $(wildcard *.h)
-BOWTIE_PTHREADS = 1
 BOWTIE_MM = 1
 BOWTIE_SHARED_MEM = 0
 
@@ -71,16 +70,11 @@ endif
 
 PTHREAD_PKG =
 PTHREAD_LIB = 
-PTHREAD_DEF =
 
-ifeq (1,$(BOWTIE_PTHREADS))
-PTHREAD_DEF = -DBOWTIE_PTHREADS
-	ifeq (1,$(MINGW))
-		#EXTRA_FLAGS = -DTRY_SPINLOCK
-		PTHREAD_LIB = 
-	else
-		PTHREAD_LIB = -lpthread
-	endif
+ifeq (1,$(MINGW))
+	PTHREAD_LIB = 
+else
+	PTHREAD_LIB = -lpthread
 endif
 
 LIBS = $(PTHREAD_LIB)
@@ -89,8 +83,8 @@ BUILD_LIBS =
 INSPECT_LIBS =
 
 ifeq (1,$(MINGW))
-BUILD_LIBS = 
-INSPECT_LIBS = 
+	BUILD_LIBS = 
+	INSPECT_LIBS = 
 endif
 
 SHARED_CPPS = ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
@@ -208,7 +202,6 @@ DEFS=-fno-strict-aliasing \
      -DBUILD_TIME="\"`date`\"" \
      -DCOMPILER_VERSION="\"`$(CXX) -v 2>&1 | tail -1`\"" \
      $(FILE_FLAGS) \
-     $(PTHREAD_DEF) \
      $(PREF_DEF) \
      $(MM_DEF) \
      $(SHMEM_DEF)
