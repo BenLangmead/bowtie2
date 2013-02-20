@@ -171,9 +171,12 @@ Bowtie 2 tools by running GNU `make` (usually with the command `make`, but
 sometimes with `gmake`) with no arguments.  If building with MinGW, run `make`
 from the MSYS environment.
 
-To support the [`-p`] (multithreading) option, Bowtie 2 needs the `pthreads`
-library.  To compile Bowtie 2 without `pthreads` (which disables [`-p`]), use
-`make BOWTIE_PTHREADS=0`.
+Bowtie 2 is using the multithreading software model in order to speed up 
+execution times on SMP architectures where this is possible. On POSIX 
+platforms (like linux, Mac OS, etc) it needs the pthread library. Although
+it is possible to use pthread library on non-POSIX platform like Windows, due
+to performance reasons bowtie 2 will try to use Windows native multithreading
+if possible.
 
 [Cygwin]:   http://www.cygwin.com/
 [MinGW]:    http://www.mingw.org/
