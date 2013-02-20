@@ -11,6 +11,18 @@ and please apply if you're interested in working with either or both of us.
 </li>
 </ul>
 
+<h2>Version 2.1.0 - February 21, 2013</h2>
+<ul>
+   <li>Improved multithreading support so that Bowtie 2 now uses native Windows
+     threads when compiled on Windows and uses a faster mutex.  Threading
+     performance should improve on all platforms.
+   <li>Improved support for building 64-bit binaries for Windows x64 platforms.
+   <li>Bowtie is using a spinlocking mechanism by default. 
+   <li>Test option --nospin is no longer available. However bowtie2 can always
+     be recompiled with EXTRA_FLAGS="-DNO_SPINLOCK" in order to drop the 
+     default spinlock usage.
+</ul>  
+   
 <h2>Version 2.0.6 - January 27, 2013</h2>
 <ul>
  <li>Fixed issue whereby spurious output would be written in
