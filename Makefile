@@ -287,7 +287,7 @@ bowtie2-bin: $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)
 	rm -rf .bin.tmp
 	mkdir .bin.tmp
 	mkdir .bin.tmp/bowtie2-$(VERSION)
-	if [ -f bowtie.exe ] ; then \
+	if [ -f bowtie2-align.exe ] ; then \
 		zip tmp.zip $(BIN_PKG_LIST) $(addsuffix .exe,$(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)) ; \
 	else \
 		zip tmp.zip $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX) ; \
