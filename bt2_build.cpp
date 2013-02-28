@@ -56,7 +56,9 @@ static int32_t linesPerSide;
 static int32_t offRate;
 static int32_t ftabChars;
 static int  bigEndian;
-static bool nsToAs;
+static bool nsToAs;    // convert Ns to As
+static bool doSaFile;  // make a file with just the suffix array in it
+static bool doBwtFile; // make a file with just the BWT string in it
 static bool autoMem;
 static bool packed;
 static bool writeRef;
@@ -82,6 +84,8 @@ static void resetOptions() {
 	ftabChars    = 10; // 10 chars in initial lookup table
 	bigEndian    = 0;  // little endian
 	nsToAs       = false; // convert reference Ns to As prior to indexing
+	doSaFile     = false; // make a file with just the suffix array in it
+	doBwtFile    = false; // make a file with just the BWT string in it
 	autoMem      = true;  // automatically adjust memory usage parameters
 	packed       = false; //
 	writeRef     = true;  // write compact reference to .3.bt2/.4.bt2
@@ -100,7 +104,8 @@ enum {
 	ARG_PMAP,
 	ARG_NTOA,
 	ARG_USAGE,
-	ARG_REVERSE_EACH
+	ARG_REVERSE_EACH,
+	ARG_SA
 };
 
 /**
@@ -163,6 +168,7 @@ static struct option long_options[] = {
 	{(char*)"justref",      no_argument,       0,            '3'},
 	{(char*)"noref",        no_argument,       0,            'r'},
 	{(char*)"color",        no_argument,       0,            'C'},
+	{(char*)"sa",           no_argument,       0,            ARG_SA},
 	{(char*)"reverse-each", no_argument,       0,            ARG_REVERSE_EACH},
 	{(char*)"usage",        no_argument,       0,            ARG_USAGE},
 	{(char*)0, 0, 0, 0} // terminator
@@ -256,6 +262,9 @@ static void parseOptions(int argc, const char **argv) {
 				break;
 			case ARG_REVERSE_EACH:
 				reverseEach = true;
+				break;
+			case ARG_SA:
+				doSaFile = true;
 				break;
 			case ARG_NTOA: nsToAs = true; break;
 			case 'a': autoMem = false; break;
@@ -397,6 +406,8 @@ static void driver(
 		refparams,    // reference read-in parameters
 		seed,         // pseudo-random number generator seed
 		-1,           // override offRate
+		doSaFile,     // make a file with just the suffix array in it
+		doBwtFile,    // make a file with just the BWT string in it
 		verbose,      // be talkative
 		autoMem,      // pass exceptions up to the toplevel so that we can adjust memory settings automatically
 		sanityCheck); // verify results and internal consistency
