@@ -412,6 +412,12 @@ PairedPatternSource* PairedPatternSource::setupPatternSources(
 	return patsrc;
 }
 
+void PairedPatternSource::free_EList_pmembers( const EList<PatternSource*> &elist) {
+    for (size_t i = 0; i < elist.size(); i++)
+        if (elist[i] != NULL)
+            delete elist[i];
+}
+
 VectorPatternSource::VectorPatternSource(
 	const EList<string>& v,
 	const PatternParams& p) :

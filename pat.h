@@ -327,6 +327,7 @@ public:
 		bool verbose);              // be talkative?
 
 protected:
+        static void free_EList_pmembers(const EList<PatternSource*>&);
 
 	MUTEX_T mutex_m; /// mutex for syncing over critical regions
 	uint32_t seed_;
@@ -353,7 +354,10 @@ public:
 		}
 	}
 
-	virtual ~PairedSoloPatternSource() { delete src_; }
+	virtual ~PairedSoloPatternSource() { 
+            free_EList_pmembers(*src_);
+            delete src_; 
+        }
 
 	/**
 	 * Call this whenever this PairedPatternSource is wrapped by a new
@@ -402,7 +406,6 @@ public:
 	}
 
 protected:
-
 	volatile uint32_t cur_; // current element in parallel srca_, srcb_ vectors
 	const EList<PatternSource*>* src_; /// PatternSources for paired-end reads
 };
@@ -437,7 +440,9 @@ public:
 	}
 
 	virtual ~PairedDualPatternSource() {
-		delete srca_;
+		free_EList_pmembers(*srca_);
+                delete srca_;
+                free_EList_pmembers(*srcb_);
 		delete srcb_;
 	}
 

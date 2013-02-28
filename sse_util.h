@@ -222,6 +222,7 @@ private:
 			std::cerr << "Error: Out of memory allocating " << sz << " __m128i's for DP matrix: '" << e.what() << "'" << std::endl;
 			throw e;
 		}
+                this->last_alloc_ = last_alloc_;
 		__m128i* tmp = last_alloc_;
 		size_t tmpint = (size_t)tmp;
 		// Align it!
@@ -267,6 +268,7 @@ private:
 	 */
 	void expandCopyExact(size_t newsz) {
 		if(newsz <= sz_) return;
+                __m128i* prev_last_alloc = last_alloc_;
 		__m128i* tmp = alloc(newsz);
 		assert(tmp != NULL);
 		size_t cur = cur_;
@@ -275,7 +277,10 @@ private:
 				// Note: operator= is used
 				tmp[i] = list_[i];
 			}
+                        __m128i* current_last_alloc = last_alloc_;
+                        last_alloc_ = prev_last_alloc;
 			free();
+                        last_alloc_ = current_last_alloc;
 		}
 		list_ = tmp;
 		sz_ = newsz;
