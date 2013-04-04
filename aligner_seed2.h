@@ -620,8 +620,34 @@ struct DescentRoot {
 
 	DescentRoot() { reset(); }
 
-	DescentRoot(size_t off5p_, bool l2r_, bool fw_, size_t len, float pri_) {
-		init(off5p_, l2r_, fw_, len, pri_);
+	DescentRoot(
+		size_t off5p_,
+		bool l2r_,
+		bool fw_,
+		size_t landing_,
+		size_t len,
+		float pri_)
+	{
+		init(off5p_, l2r_, fw_, landing_, len, pri_);
+	}
+	
+	/**
+	 * Initialize a new descent root.
+	 */
+	void init(
+		size_t off5p_,
+		bool l2r_,
+		bool fw_,
+		size_t landing_,
+		size_t len,
+		float pri_)
+	{
+		off5p = off5p_;
+		l2r = l2r_;
+		fw = fw_;
+		landing = landing_;
+		pri = pri_;
+		assert_lt(off5p, len);
 	}
 	
 	/**
@@ -639,19 +665,42 @@ struct DescentRoot {
 	}
 	
 	/**
-	 * Initialize a new descent root.
+	 * Determine if two DescentRoots are equal.
 	 */
-	void init(size_t off5p_, bool l2r_, bool fw_, size_t len, float pri_) {
-		off5p = off5p_;
-		l2r = l2r_;
-		fw = fw_;
-		pri = pri_;
-		assert_lt(off5p, len);
+	bool operator==(const DescentRoot& o) const {
+		return pri == o.pri && off5p == o.off5p && l2r == o.l2r &&
+		       fw == o.fw && landing == o.landing;
 	}
+	
+	/**
+	 * Determine the relative order of two DescentRoots.
+	 */
+	bool operator<(const DescentRoot& o) const {
+		if(pri > o.pri)         return true;
+		if(pri < o.pri)         return false;
+		if(off5p < o.off5p)     return true;
+		if(off5p > o.off5p)     return false;
+		if(fw != o.fw)          return fw;
+		if(l2r != o.l2r)        return l2r;
+		if(landing < o.landing) return true;
+		if(landing > o.landing) return false;
+		return false; // they're equal
+	}
+
+	/**
+	 * Return true iff this DescentRoot is either less than or equal to o.
+	 */
+	bool operator<=(const DescentRoot& o) const {
+		return (*this) < o || (*this) == o;
+	}
+
+	// Maybe add an array of bools indicating how the landing area of this
+	// root overlaps landing areas of already-chosen roots?
 
 	TReadOff off5p;   // root origin offset, expressed as offset from 5' end
 	bool     l2r;     // true -> move in left-to-right direction
 	bool     fw;      // true -> work with forward read, false -> revcomp
+	size_t   landing; // length of the "landing" in front of the root
 	float    pri;     // priority of seed
 };
 
@@ -1233,11 +1282,15 @@ public:
 		// Sort just the edits we just added
 		edits.sortPortion(ei, en);
 	}
+	
+	TIndexOff topf() const { return topf_; }
+	TIndexOff botf() const { return botf_; }
 
 protected:
 
 	/**
-	 *
+	 * When the search reaches the edge of the read and needs to "bounce" and
+	 * extend in the other direction.
 	 */
     bool bounce(
         const Read& q,                  // query string
@@ -1400,7 +1453,7 @@ struct DescentAlignment {
 		return botf - topf;
 	}
 
-	TScore pen; // score
+	TScore pen; // penalty
 	
 	bool fw; // forward or revcomp aligned?
 
@@ -1473,8 +1526,8 @@ struct DescentPartialResolvedAlignment {
 	TIndexOff topf; // top in forward index
 	TIndexOff botf; // bot in forward index
 
-	size_t ei;      // First edit in DescentAlignmentSink::edits_ involved in aln
-	size_t en;      // # edits in DescentAlignmentSink::edits_ involved in aln
+	size_t ei;      // First edit in DescentPartialResolvedAlignmentSink::edits_ involved in aln
+	size_t en;      // # edits in DescentPartialResolvedAlignmentSink::edits_ involved in aln
 	
 	Coord refcoord; // reference coord of leftmost ref char involved
 };
@@ -1681,8 +1734,6 @@ public:
     void reset() {
 		edits_.clear();
 		als_.clear();
-		nelt_ = 0;
-		bestPen_ = worstPen_ = std::numeric_limits<TAlScore>::max();
     }
 
 	/**
@@ -1706,91 +1757,12 @@ public:
 	}
 	
 	/**
-	 * Return the number of SA ranges involved in hits.
-	 */
-	size_t nrange() const {
-		return als_.size();
-	}
-
-	/**
-	 * Return the number of SA elements involved in hits.
-	 */
-	size_t nelt() const {
-		return nelt_;
-	}
-	
-	/**
-	 * The caller provides 'i', which is an offset of a particular element in
-	 * one of the SA ranges in the current stratum.  This function returns, in
-	 * 'al' and 'off', information about the element in terms of the range it's
-	 * part of and its offset into that range.
-	 */
-	void elt(size_t i, DescentPartialResolvedAlignment& al, size_t& ri, size_t& off) const {
-		assert_lt(i, nelt());
-		for(size_t j = 0; j < als_.size(); j++) {
-			if(i < als_[j].size()) {
-				al = als_[j];
-				ri = j;
-				off = i;
-				return;
-			}
-			i -= als_[j].size();
-		}
-		assert(false);
-	}
-	
-	/**
 	 * Get a particular alignment.
 	 */
 	const DescentPartialResolvedAlignment& operator[](size_t i) const {
 		return als_[i];
 	}
-
-	/**
-	 * Return true iff (a) we found an alignment since the sink was initialized
-	 * or since the last time advanceStratum() was called, and (b) the penalty
-	 * associated with the current-best task on the heap ('best') is worse
-	 * (higher) than the penalty associated with the alignments found most
-	 * recently (worstPen_).
-	 */
-	bool stratumDone(TAlScore bestPen) const {
-		if(nelt_ > 0 && bestPen > worstPen_) {
-			return true;
-		}
-		return false;
-	}
 	
-	/**
-	 * The alignment consumer calls this to indicate that they are done with
-	 * all the alignments in the current best non-empty stratum.  We can
-	 * therefore mark all those alignments as "reported" and start collecting
-	 * results for the next stratum.
-	 */
-	void advanceStratum() {
-		assert_gt(nelt_, 0);
-		edits_.clear();
-		als_.clear();
-		nelt_ = 0;
-		bestPen_ = worstPen_ = std::numeric_limits<TAlScore>::max();
-	}
-	
-#ifndef NDEBUG
-	/**
-	 * Check that partial alignment sink is internally consistent.
-	 */
-	bool repOk() const {
-		assert_geq(nelt_, als_.size());
-		//for(size_t i = 1; i < als_.size(); i++) {
-		//	assert_geq(als_[i].pen, als_[i-1].pen);
-		//}
-		assert(bestPen_ == std::numeric_limits<TAlScore>::max() || worstPen_ >= bestPen_);
-		return true;
-	}
-#endif
-	
-	TAlScore bestPenalty() const { return bestPen_; }
-	TAlScore worstPenalty() const { return worstPen_; }
-
 	size_t editsSize() const { return edits_.size(); }
 	size_t alsSize() const { return als_.size(); }
 	
@@ -1800,9 +1772,6 @@ protected:
 
 	EList<Edit> edits_;
 	EList<DescentPartialResolvedAlignment> als_;
-	size_t nelt_;
-	TAlScore bestPen_;  // best (smallest) penalty among as-yet-unreported alns
-	TAlScore worstPen_; // worst (greatest) penalty among as-yet-unreported alns
 };
 
 /**
@@ -1895,7 +1864,7 @@ enum {
 class DescentDriver {
 public:
 
-	DescentDriver(bool veryVerbose) :
+	DescentDriver(bool veryVerbose = false) :
 		veryVerbose_(veryVerbose)
 	{
 		reset();
@@ -1911,17 +1880,24 @@ public:
 		bool norc,
 		TAlScore minsc,
 		TAlScore maxpen,
-		const Read* qu = NULL,
+		const Read* qmate = NULL,
 		DescentRootSelector *sel = NULL)
 	{
 		reset();
-		q_ = q;
-		minsc_ = minsc;
-		maxpen_ = maxpen;
+		q_ = q;           // copy the read itself
+		minsc_ = minsc;   // minimum score
+		maxpen_ = maxpen; // maximum penalty
 		if(sel != NULL) {
-			sel->select(q_, qu, nofw, norc, confs_, roots_);
+			sel->select(  // Select search roots
+				q_,       // in: read
+				qmate,    // in: opposite mate, if paired
+				nofw,     // in: true -> don't put roots on fw read
+				norc,     // in: true -> don't put roots on rc read
+				confs_,   // out: search configs for each root
+				roots_);  // out: roots
+			//printRoots(std::cerr);
 		}
-		re_.init(q.length());
+		re_.init(q.length()); // initialize redundancy checker
 	}
 	
 	/**
@@ -1934,6 +1910,7 @@ public:
         TReadOff off,
         bool l2r,
         bool fw,
+		size_t landing,
         float pri)
     {
         confs_.push_back(conf);
@@ -1943,7 +1920,7 @@ public:
 		} else if(!l2r && off == 0) {
 			l2r = !l2r;
 		}
-		roots_.push_back(DescentRoot(off, l2r, fw, q_.length(), pri));
+		roots_.push_back(DescentRoot(off, l2r, fw, landing, q_.length(), pri));
 	}
 	
 	/**
@@ -1952,6 +1929,36 @@ public:
 	void clearRoots() {
 		confs_.clear();
 		roots_.clear();
+	}
+	
+	/**
+	 * Print ASCII picture of where we put the roots.
+	 */
+	void printRoots(std::ostream& os) {
+		std::ostringstream fwstr, rcstr;
+		fwstr << q_.patFw << std::endl << q_.qual << std::endl;
+		rcstr << q_.patRc << std::endl << q_.qualRev << std::endl;
+		for(size_t i = 0; i < roots_.size(); i++) {
+			if(roots_[i].fw) {
+				for(size_t j = 0; j < roots_[i].off5p; j++) {
+					fwstr << " ";
+				}
+				fwstr << (roots_[i].l2r ? ">" : "<");
+				fwstr << " " << i << ":";
+				fwstr << roots_[i].pri;
+				fwstr << "\n";
+			} else {
+				size_t off = q_.length() - roots_[i].off5p - 1;
+				for(size_t j = 0; j < off; j++) {
+					rcstr << " ";
+				}
+				rcstr << (roots_[i].l2r ? ">" : "<");
+				rcstr << " " << i << ":";
+				rcstr << roots_[i].pri;
+				rcstr << "\n";
+			}
+		}
+		os << fwstr.str() << rcstr.str();
 	}
 	
 	/**
@@ -2079,6 +2086,19 @@ public:
 	TAlScore minScore() const {
 		return minsc_;
 	}
+	
+	const EList<DescentRoot>& roots() { return roots_; }
+	
+	/**
+	 * Called to pause the index-assisted search, and collect a set of partial
+	 * alignments to try using dynamic programming.
+	 *
+	 * The space explored so far is represented by the prioritized collection
+	 * of Descents in the heap.  Each Descent has one or more outgoing edges.
+	 * Each outgoing edge is a set of >=1 partial alignments we might try.
+	 */
+	void nextPartial() {
+	}
 
 protected:
 
@@ -2097,7 +2117,7 @@ protected:
 	DescentRedundancyChecker re_; // redundancy checker
 	TAlScore             curPen_; // current penalty
 	bool veryVerbose_;            // print lots of partial alignments
-
+	
 	EList<Edit> tmpedit_;
 	BTDnaString tmprfdnastr_;
 };
@@ -2137,7 +2157,7 @@ public:
 		size_t ei = 0;
 		for(size_t i = 0; i < sas_.size(); i++) {
 			size_t en = sink[i].botf - sink[i].topf;
-			sas_[i].init(sink[i].topf, q.length(), EListSlice<TIndexOff, 16>(offs_, ei, en));
+			sas_[i].init(sink[i].topf, EListSlice<TIndexOff, 16>(offs_, ei, en));
 			gws_[i].init(ebwtFw, ref, sas_[i], rnd, met);
 			ei += en;
 		}
@@ -2297,18 +2317,28 @@ protected:
  * delivering batches of results to the caller.
  *
  * How to prioritize partial alignments?  One idea is to use the same
- * penalty-based prioritization used in the heap.  This has pros: (a) maintains
- * the guarantee that we're visiting alignments in best-to-worst order in
- * end-to-end alignment mode, (b) the heap is already prioritized this way, so
- * it's easier for us to compile high-priority partial alignments.  But the con
- * is that it doesn't take depth into account, which could mean that we're
- * extending a lot of very short partial alignments first.
+ * penalty-based prioritization used in the heap.  This has pros: (a) we can
+ * visit the partial alignments in best-to-worst order w/r/t penalty, (b) the
+ * heap is already prioritized this way, so it's easier for us to compile
+ * high-priority partial alignments.  But the con is that it doesn't take depth
+ * into account, which could mean that we're extending a lot of very short
+ * partial alignments first.
  *
- * A problem we should keep in mind is that some 
+ * Some ranges will be large and others will be small.  It's a good idea to try
+ * all the elements in the small ranges, but it's also good not to ignore the
+ * large ranges.  One idea is to keep all the large ranges in one category and
+ * all the small ranges in another and alternate between the two.
  */
 class DescentPartialAlignmentSelector {
 
 public:
+
+	// Ranges bigger than this are considered "big" and put in their own
+	// category.
+	static const size_t BIG_RANGE = 5;
+
+	// Number of ranges to pull out of the heap in one go
+	static const size_t NRANGE_AT_A_TIME = 3;
 
 	DescentPartialAlignmentSelector() : gwstate_(GW_CAT) { reset(); }
 
@@ -2319,6 +2349,8 @@ public:
 	void init(
 		const Read& q,                   // read
 		const EHeap<TDescentPair>& heap, // the heap w/ the partial alns
+        EFactory<Descent>& df,           // Descent factory
+        EFactory<DescentPos>& pf,        // DescentPos factory
 		TAlScore depthBonus,             // use depth when prioritizing
 		size_t nbatch,                   // # of alignments in a batch
 		const Ebwt& ebwtFw,              // forward Bowtie index for walk-left
@@ -2334,34 +2366,17 @@ public:
 				p.first.pen += depthBonus * p.first.depth;
 				heap_.insert(p);
 			}
-		} else {
-			heap_ = heap;
-		}
-#if 0
-		// We're going to sample from space of *alignments*, not ranges.  So
-		// when we extract a sample, we'll have to do a little extra work to
-		// convert it to a <range, offset> coordinate.
-		rnd_.init(
-			sink.nelt(), // # elements to choose from
-			true);       // without replacement
-		offs_.resize(sink.nelt());
-		offs_.fill(std::numeric_limits<TIndexOff>::max());
-		sas_.resize(sink.nrange());
-		gws_.resize(sink.nrange());
-		size_t ei = 0;
-		for(size_t i = 0; i < sas_.size(); i++) {
-			size_t en = sink[i].botf - sink[i].topf;
-			sas_[i].init(sink[i].topf, q.length(), EListSlice<TIndexOff, 16>(offs_, ei, en));
-			gws_[i].init(ebwtFw, ref, sas_[i], rnd, met);
-			ei += en;
-		}
-#endif
+		} else heap_ = heap;
+		assert(!heap_.empty());
+		nextRanges(df, pf, ebwtFw, ref, rnd, met);
+		assert(!rangeExhausted());
 	}
 	
 	/**
-	 *
+	 * Return true iff there are no more partial alignments to extend.
 	 */
-	void compileBatch() {
+	bool empty() const {
+		return heap_.empty();
 	}
 	
 	/**
@@ -2369,6 +2384,9 @@ public:
 	 */
 	void reset() {
 		heap_.clear();
+		offs_.clear();
+		sas_.clear();
+		gws_.clear();
 	}
 	
 	/**
@@ -2379,9 +2397,9 @@ public:
 	}
 	
 	/**
-	 * Get next alignment and convert it to an AlnRes.
+	 * Get next partial alignment and convert it to an AlnRes.
 	 */
-	bool next(
+	bool nextPartial(
 		const DescentDriver& dr,
 		const Ebwt& ebwtFw,          // forward Bowtie index for walking left
 		const BitPairReference& ref, // bitpair-encoded reference
@@ -2425,7 +2443,6 @@ public:
 			// hit isn't valid
 			return false;
 		}
-		// Coordinate of the seed hit w/r/t the pasted reference string
 		refcoord.init(tidx, (int64_t)toff, dr.sink()[rangei].fw);
 		const EList<Edit>& edits = dr.sink().edits();
 		size_t ns = 0, ngap = 0, nrefn = 0;
@@ -2438,13 +2455,6 @@ public:
 	}
 	
 	/**
-	 * Return true iff all elements have been reported.
-	 */
-	bool done() const {
-		return rnd_.done();
-	}
-
-	/**
 	 * Return the total size occupued by the Descent driver and all its
 	 * constituent parts.
 	 */
@@ -2455,7 +2465,7 @@ public:
 			   sas_.totalSizeBytes() +
 			   gws_.totalSizeBytes();
 	}
-
+	
 	/**
 	 * Return the total capacity of the Descent driver and all its constituent
 	 * parts.
@@ -2469,6 +2479,40 @@ public:
 	}
 	
 protected:
+	
+	/**
+	 * Return true iff all elements in the current range have been extended.
+	 */
+	bool rangeExhausted() const {
+		return rnd_.left() == 0;
+	}
+	
+	/**
+	 *
+	 */
+	void nextRanges(
+        EFactory<Descent>& df,           // Descent factory
+        EFactory<DescentPos>& pf,        // DescentPos factory
+		const Ebwt& ebwtFw,              // forward Bowtie index for walk-left
+		const BitPairReference& ref,     // bitpair-encoded reference
+		RandomSource& rnd,               // pseudo-randoms for sampling rows
+		WalkMetrics& met)                // metrics re: offset resolution
+	{
+		// Pop off the topmost
+		assert(!heap_.empty());
+		TDescentPair p = heap_.pop();
+		TIndexOff topf = df[p.second].topf(), botf = df[p.second].botf();
+		assert_gt(botf, topf);
+		offs_.resize(botf - topf);
+		offs_.fill(std::numeric_limits<TIndexOff>::max());
+		rnd_.init(botf - topf, true); // without replacement
+		sas_.resize(1);
+		gws_.resize(1);
+		sas_[0].init(topf, EListSlice<TIndexOff, 16>(offs_, 0, botf - topf));
+		gws_[0].init(ebwtFw, ref, sas_[0], rnd, met);
+	}
+	
+	DescentPartialResolvedAlignmentSink palsink_;
 
 	// This class's working heap.  This might simply be a copy of the original
 	// heap, or it might be re-prioritized in some way.
