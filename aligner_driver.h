@@ -85,11 +85,11 @@
  * out if the end of the read is less than 'landing' positions away, in the
  * direction of the search.
  */
-class AlignerDriverRootSelector : public DescentRootSelector {
+class IntervalRootSelector : public DescentRootSelector {
 
 public:
 
-	AlignerDriverRootSelector(
+	IntervalRootSelector(
 		double consExp,
 		const SimpleFunc& rootIval,
 		size_t landing)
@@ -99,7 +99,7 @@ public:
 		landing_ = landing;
 	}
 	
-	virtual ~AlignerDriverRootSelector() { }
+	virtual ~IntervalRootSelector() { }
 
 	virtual void select(
 		const Read& q,                 // read that we're selecting roots for
@@ -114,6 +114,46 @@ protected:
 	double consExp_;
 	SimpleFunc rootIval_;
 	size_t landing_;
+};
+
+/**
+ * Concrete subclass of DescentRootSelector.  Puts a root every 'ival' chars,
+ * where 'ival' is determined by user-specified parameters.  A root is filtered
+ * out if the end of the read is less than 'landing' positions away, in the
+ * direction of the search.
+ */
+class PrioritizedRootSelector : public DescentRootSelector {
+
+public:
+
+	PrioritizedRootSelector(
+		double consExp,
+		const SimpleFunc& rootIval,
+		size_t landing)
+	{
+		consExp_ = consExp;
+		rootIval_ = rootIval;
+		landing_ = landing;
+	}
+	
+	virtual ~PrioritizedRootSelector() { }
+
+	virtual void select(
+		const Read& q,                 // read that we're selecting roots for
+		const Read* qo,                // opposite mate, if applicable
+		bool nofw,                     // don't add roots for fw read
+		bool norc,                     // don't add roots for rc read
+		EList<DescentConfig>& confs,   // put DescentConfigs here
+		EList<DescentRoot>& roots);    // put DescentRoot here
+
+protected:
+
+	double consExp_;
+	SimpleFunc rootIval_;
+	size_t landing_;
+	EHeap<DescentRoot> rootHeap_;
+	EList<int> scoresOrig_[2];
+	EList<int> scores_[2];
 };
 
 /**
@@ -135,6 +175,9 @@ enum {
  * implementations in Bowtie 2.  The DescentDriver is used to find some very
  * high-scoring alignments, but is additionally used to rank partial alignments
  * so that they can be extended using dynamic programming.
+ *
+ * It is also the glue between the DescentDrivers and the DescentRootSelector
+ * concrete subclasses that decide where to put the search roots.
  */
 class AlignerDriver {
 
@@ -142,20 +185,35 @@ public:
 
 	AlignerDriver(
 		double consExp,
+		bool prioritizeRoots,
 		const SimpleFunc& rootIval,
 		size_t landing,
 		bool veryVerbose,
 		const SimpleFunc& totsz,
 		const SimpleFunc& totfmops) :
-		sel_(consExp, rootIval, landing),
 		alsel_(),
 		dr1_(veryVerbose),
 		dr2_(veryVerbose)
 	{
+		assert_gt(landing, 0);
 		totsz_ = totsz;
 		totfmops_ = totfmops;
+		if(prioritizeRoots) {
+			// Prioritize roots according the quality info & Ns
+			sel_ = new PrioritizedRootSelector(consExp, rootIval, landing);
+		} else {
+			// Take a root every so many positions
+			sel_ = new IntervalRootSelector(consExp, rootIval, landing);
+		}
 	}
-	
+
+	/**
+	 * Destroy this AlignerDriver.
+	 */
+	virtual ~AlignerDriver() {
+		delete sel_;
+	}
+
 	/**
 	 * Initialize driver with respect to a new read or pair.
 	 */
@@ -167,16 +225,23 @@ public:
 		TAlScore maxpen,
 		const Read* q2)
 	{
-		dr1_.initRead(q1, nofw, norc, minsc, maxpen, q2, &sel_);
+		// Initialize search for mate 1.  This includes instantiating and
+		// prioritizing all the search roots.
+		dr1_.initRead(q1, nofw, norc, minsc, maxpen, q2, sel_);
 		red1_.init(q1.length());
 		paired_ = false;
 		if(q2 != NULL) {
-			dr2_.initRead(*q2, nofw, norc, minsc, maxpen, &q1, &sel_);
+			// Initialize search for mate 1.  This includes instantiating and
+			// prioritizing all the search roots.
+			dr2_.initRead(*q2, nofw, norc, minsc, maxpen, &q1, sel_);
 			red2_.init(q2->length());
 			paired_ = true;
 		} else {
 			dr2_.reset();
 		}
+		// Initialize stopping conditions.  We use two conditions:
+		// totsz: when memory footprint exceeds this many bytes
+		// totfmops: when we've exceeded this many FM Index ops
 		size_t totsz = totsz_.f<size_t>(q1.length());
 		size_t totfmops = totfmops_.f<size_t>(q1.length());
 		stop_.init(
@@ -215,10 +280,13 @@ public:
 		red1_.reset();
 		red2_.reset();
 	}
+	
+	const DescentDriver& dr1() { return dr1_; }
+	const DescentDriver& dr2() { return dr2_; }
 
 protected:
 
-	AlignerDriverRootSelector sel_;   // selects where roots should go
+	DescentRootSelector *sel_;        // selects where roots should go
 	DescentAlignmentSelector alsel_;  // one selector can deal with >1 drivers
 	DescentDriver dr1_;               // driver for mate 1/unpaired reads
 	DescentDriver dr2_;               // driver for paired-end reads

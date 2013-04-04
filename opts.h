@@ -149,6 +149,7 @@ enum {
 	ARG_DESC_KB,                // --desc-kb
 	ARG_DESC_LANDING,           // --desc-landing
 	ARG_DESC_EXP,               // --desc-exp
+	ARG_DESC_PRIORITIZE,        // --desc-prioritize
 	ARG_DESC_FMOPS              // --desc-fmops
 };
 

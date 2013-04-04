@@ -191,7 +191,8 @@ static SimpleFunc scoreMin;   // minimum valid score as function of read len
 static SimpleFunc nCeil;      // max # Ns allowed as function of read len
 static SimpleFunc msIval;     // interval between seeds as function of read len
 static double descConsExp;    // how to adjust score minimum as we descent further into index-assisted alignment
-static size_t descentLanding; // don't place a search root if it's within this many positions of end
+static bool descPrioritizeRoots; // whether to prioritize search roots with scores
+static size_t descLanding;    // don't place a search root if it's within this many positions of end
 static SimpleFunc descentTotSz;    // maximum space a DescentDriver can use in bytes
 static SimpleFunc descentTotFmops; // maximum # FM ops a DescentDriver can perform
 static int    multiseedMms;   // mismatches permitted in a multiseed seed
@@ -376,7 +377,8 @@ static void resetOptions() {
 	nCeil.init     (SIMPLE_FUNC_LINEAR, 0.0f, DMAX, 2.0f, 0.1f);
 	msIval.init    (SIMPLE_FUNC_LINEAR, 1.0f, DMAX, DEFAULT_IVAL_B, DEFAULT_IVAL_A);
 	descConsExp     = 2.0;
-	descentLanding  = 20;
+	descPrioritizeRoots = false;
+	descLanding = 20;
 	descentTotSz.init(SIMPLE_FUNC_LINEAR, 1024.0, DMAX, 0.0, 1024.0);
 	descentTotFmops.init(SIMPLE_FUNC_LINEAR, 100.0, DMAX, 0.0, 10.0);
 	multiseedMms    = DEFAULT_SEEDMMS;
@@ -604,6 +606,7 @@ static struct option long_options[] = {
 	{(char*)"desc-kb",          required_argument, 0,        ARG_DESC_KB},
 	{(char*)"desc-landing",     required_argument, 0,        ARG_DESC_LANDING},
 	{(char*)"desc-exp",         required_argument, 0,        ARG_DESC_EXP},
+	{(char*)"desc-prioritize",  no_argument,       0,        ARG_DESC_PRIORITIZE},
 	{(char*)"desc-fmops",       required_argument, 0,        ARG_DESC_FMOPS},
 	{(char*)0, 0, 0, 0} // terminator
 };
@@ -905,7 +908,14 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_TEST_25: bowtie2p5 = true; break;
 		case ARG_DESC_KB: descentTotSz = SimpleFunc::parse(arg, 0.0, 1024.0, 1024.0, DMAX); break;
 		case ARG_DESC_FMOPS: descentTotFmops = SimpleFunc::parse(arg, 0.0, 10.0, 100.0, DMAX); break;
-		case ARG_DESC_LANDING: descentLanding = parse<int>(arg); break;
+		case ARG_DESC_LANDING: {
+			descLanding = parse<int>(arg);
+			if(descLanding < 1) {
+				cerr << "Error: --desc-landing must be greater than or equal to 1" << endl;
+				throw 1;
+			}
+			break;
+		}
 		case ARG_DESC_EXP: {
 			descConsExp = parse<double>(arg);
 			if(descConsExp < 0.0) {
@@ -914,6 +924,7 @@ static void parseOption(int next_option, const char *arg) {
 			}
 			break;
 		}
+		case ARG_DESC_PRIORITIZE: descPrioritizeRoots = true; break;
 		case '1': tokenize(arg, ",", mates1); break;
 		case '2': tokenize(arg, ",", mates2); break;
 		case ARG_ONETWO: tokenize(arg, ",", mates12); format = TAB_MATE5; break;
@@ -3837,12 +3848,13 @@ static void multiseedSearchWorker_2p5(void *vp) {
 		gExpandToFrag);
 	
 	AlignerDriver ald(
-		descConsExp,       // exponent for interpolating maximum penalty
-		msIval,            // interval length, as function of read length
-		descentLanding,    // landing length
-		gVerbose,          // verbose?
-		descentTotSz,      // limit on total bytes of best-first search data
-		descentTotFmops);  // limit on total number of FM index ops in BFS
+		descConsExp,         // exponent for interpolating maximum penalty
+		descPrioritizeRoots, // whether to select roots with scores and weights
+		msIval,              // interval length, as function of read length
+		descLanding,         // landing length
+		gVerbose,            // verbose?
+		descentTotSz,        // limit on total bytes of best-first search data
+		descentTotFmops);    // limit on total number of FM index ops in BFS
 	
 	PerfMetrics metricsPt; // per-thread metrics object; for read-level metrics
 	BTString nametmp;
@@ -4027,14 +4039,6 @@ static void multiseedSearchWorker_2p5(void *vp) {
 				assert_gt(streak[1], 0);
 			}
 			assert_gt(streak[0], 0);
-			// Calculate # seed rounds for each mate
-			size_t nrounds[2] = { nSeedRounds, nSeedRounds };
-			if(filt[0] && filt[1]) {
-				nrounds[0] = (size_t)ceil((double)nrounds[0] / 2.0);
-				nrounds[1] = (size_t)ceil((double)nrounds[1] / 2.0);
-				assert_gt(nrounds[1], 0);
-			}
-			assert_gt(nrounds[0], 0);
 			// Increment counters according to what got filtered
 			for(size_t mate = 0; mate < (pair ? 2:1); mate++) {
 				if(!filt[mate]) {

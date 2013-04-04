@@ -244,7 +244,7 @@ Seed::zeroMmSeeds(int ln, EList<Seed>& pols, Constraint& oall) {
 	pols.back().type = SEED_TYPE_EXACT;
 	pols.back().zones[0] = Constraint::exact();
 	pols.back().zones[1] = Constraint::exact();
-	pols.back().zones[2] = Constraint::exact(); // not used
+	pols.back().zones[2] = Constraint::exact();
 	pols.back().overall = &oall;
 }
 

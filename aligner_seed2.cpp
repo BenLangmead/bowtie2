@@ -170,26 +170,24 @@ int DescentDriver::advance(
     // Advance until some stopping condition
     bool stop = heap_.empty();
     while(!stop) {
-		// Pop off the highest-priority descent.  Note that some outgoing edges
-		// might have since been explored, which could reduce the priority of
-		// the descent once we .
+		// Pop off the highest-priority descent.
         TDescentPair p = heap_.pop();
-		df_.alloc(); df_.pop();
+		df_.alloc(); df_.pop(); // Create new descent
         df_[p.second].followBestOutgoing(
-            q_,
-            ebwtFw,
-            ebwtBw,
-            sc,
+            q_,        // read
+            ebwtFw,    // forward index
+            ebwtBw,    // backward index
+            sc,        // scoring scheme
 			minsc_,    // minimum score
 			maxpen_,   // maximum penalty
 			re_,       // redundancy checker
             df_,       // Descent factory
             pf_,       // DescentPos factory
-            roots_,
-            confs_,
-            heap_,
-            alsink_,
-            met,
+            roots_,    // search roots
+            confs_,    // search root configurations
+            heap_,     // descent heap
+            alsink_,   // alignment sink
+            met,       // metrics
 			prm);      // per-read metrics
 		TAlScore best = std::numeric_limits<TAlScore>::max();
 		if(!heap_.empty()) {
@@ -1808,8 +1806,11 @@ bool Descent::followMatches(
 
 #include <string>
 #include "sstring.h"
+#include "aligner_driver.h"
 
 using namespace std;
+
+bool gReportOverhangs = true;
 
 /**
  * A way of feeding simply tests to the seed alignment infrastructure.
@@ -1866,7 +1867,12 @@ int main(int argc, char **argv) {
 				seq.reverseComp();
 				qual.reverse();
 			}
-			dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
+			dr.initRead(
+				Read("test", seq.toZBuf(), qual.toZBuf()),
+				false, // nofw
+				false, // norc
+				-30,   // minsc
+				30);   // maxpen
 
 			// Set up the DescentConfig
 			DescentConfig conf;
@@ -1879,6 +1885,7 @@ int main(int argc, char **argv) {
 				(i == 0) ? 0 : (seq.length() - 1), // 5' offset into read of root
 				(i == 0) ? true : false,           // left-to-right?
 				rc == 0,   // forward?
+				1,         // landing
 				0.0f);   // root priority
 			
 			// Do the search
@@ -1902,7 +1909,12 @@ int main(int argc, char **argv) {
         // Set up the read
         BTDnaString seq ("GCTATATAGC", true);
         BTString    qual("ABCDEFGHIa");
-		dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
+		dr.initRead(
+			Read("test", seq.toZBuf(), qual.toZBuf()),
+			false, // nofw
+			false, // norc
+			-30,   // minsc
+			30);   // maxpen
         
         // Set up the DescentConfig
         DescentConfig conf;
@@ -1915,7 +1927,8 @@ int main(int argc, char **argv) {
             (i == 0) ? 0 : (seq.length() - 1), // 5' offset into read of root
             (i == 0) ? true : false,           // left-to-right?
             true,   // forward?
-            0.0f);   // root priority
+			1,      // landing
+            0.0f);  // root priority
         
         // Do the search
         Scoring sc = Scoring::base1();
@@ -1937,7 +1950,12 @@ int main(int argc, char **argv) {
         // Set up the read
         BTDnaString seq ("GCTATATAG", true);
         BTString    qual("ABCDEFGHI");
-		dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
+		dr.initRead(
+			Read("test", seq.toZBuf(), qual.toZBuf()),
+			false, // nofw
+			false, // norc
+			-30,   // minsc
+			30);   // maxpen
         
         // Set up the DescentConfig
         DescentConfig conf;
@@ -1950,6 +1968,7 @@ int main(int argc, char **argv) {
             (i == 0) ? 0 : (seq.length() - 1), // 5' offset into read of root
             (i == 0) ? true : false,           // left-to-right?
             true,   // forward?
+			1,      // landing
             0.0f);   // root priority
         
         // Do the search
@@ -1977,7 +1996,12 @@ int main(int argc, char **argv) {
 		top = bot = 0;
 		bool ret = ebwts.first->contains("GCGCTCGCATCATTTTGTGT", &top, &bot);
 		cerr << ret << ", " << top << ", " << bot << endl;
-		dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
+		dr.initRead(
+			Read("test", seq.toZBuf(), qual.toZBuf()),
+			false, // nofw
+			false, // norc
+			-30,   // minsc
+			30);   // maxpen
         
         // Set up the DescentConfig
         DescentConfig conf;
@@ -1990,6 +2014,7 @@ int main(int argc, char **argv) {
             (i == 0) ? 10 : (seq.length() - 1 - 10), // 5' offset into read of root
             (i == 0) ? true : false,                 // left-to-right?
             true,   // forward?
+			1,      // landing
             0.0f);   // root priority
         
         // Do the search
@@ -2030,6 +2055,61 @@ int main(int argc, char **argv) {
     
     ebwts.first->loadIntoMemory (color, -1, true, true, true, true, false);
     ebwts.second->loadIntoMemory(color,  1, true, true, true, true, false);
+
+	// Test to see if the root selector works as we expect
+	{
+		BTDnaString seq ("GCTATATAGCGCGCTCGCATCATTTTGTGT", true);
+		BTString    qual("ABCDEFGHIabcdefghiABCDEFGHIabc");
+		//                012345678901234567890123456789
+		//                         abcdefghiA: 644
+		//                                    CDEFGHIabc : 454 + 100 = 554
+		DescentDriver dr;
+		PrioritizedRootSelector sel(
+			2.0,
+			SimpleFunc(SIMPLE_FUNC_CONST, 10.0, 10.0, 10.0, 10.0), // 6 roots
+			10);
+		// Set up the read
+		dr.initRead(
+			Read("test", seq.toZBuf(), qual.toZBuf()),
+			false, // nofw
+			false, // norc
+			-30,   // minsc
+			30,    // maxpen
+			NULL,  // opposite mate
+			&sel); // root selector
+		dr.printRoots(std::cerr);
+		assert_eq(12, dr.roots().size());
+		assert_eq(652, dr.roots()[0].pri);
+		assert_eq(652, dr.roots()[1].pri);
+	}
+
+	// Test to see if the root selector works as we expect; this time the
+	// string is longer (64 chars) and there are a couple Ns
+	{
+		BTDnaString seq ("NCTATATAGCGCGCTCGCATCNTTTTGTGTGCTATATAGCGCGCTCGCATCATTTTGTGTTTAT", true);
+		BTString    qual("ABCDEFGHIJKLMNOPabcdefghijklmnopABCDEFGHIJKLMNOPabcdefghijklmnop");
+		//                0123456789012345678901234567890123456789012345678901234567890123
+		//                                 bcdefghijklmnop: 1080 - 150     bcdefghijklmnop: 1080 + 150 = 1230
+		//                                                 = 930
+		DescentDriver dr;
+		PrioritizedRootSelector sel(
+			2.0,
+			SimpleFunc(SIMPLE_FUNC_CONST, 10.0, 10.0, 10.0, 10.0), // 6 * 4 = 24 roots
+			15);  // landing size
+		// Set up the read
+		dr.initRead(
+			Read("test", seq.toZBuf(), qual.toZBuf()),
+			false, // nofw
+			false, // norc
+			-30,   // minsc
+			30,    // maxpen
+			NULL,  // opposite mate
+			&sel); // root selector
+		dr.printRoots(std::cerr);
+		assert_eq(24, dr.roots().size());
+		assert_eq(1230, dr.roots()[0].pri);
+		assert_eq(1230, dr.roots()[1].pri);
+	}
 	
 	// Query is longer than ftab and matches exactly once.  One search root for
 	// forward read.
@@ -2047,7 +2127,12 @@ int main(int argc, char **argv) {
 				DescentDriver dr;
 				
 				// Set up the read
-				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
+				dr.initRead(
+					Read("test", seq.toZBuf(), qual.toZBuf()),
+					false, // nofw
+					false, // norc
+					-30,   // minsc
+					30);   // maxpen
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
@@ -2060,6 +2145,7 @@ int main(int argc, char **argv) {
 					j,      // 5' offset into read of root
 					i == 0, // left-to-right?
 					true,   // forward?
+					1,      // landing
 					0.0f);   // root priority
 				
 				// Do the search
@@ -2091,7 +2177,12 @@ int main(int argc, char **argv) {
 				DescentDriver dr;
 				
 				// Set up the read
-				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
+				dr.initRead(
+					Read("test", seq.toZBuf(), qual.toZBuf()),
+					false, // nofw
+					false, // norc
+					-30,   // minsc
+					30);   // maxpen
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
@@ -2104,12 +2195,14 @@ int main(int argc, char **argv) {
 					j,      // 5' offset into read of root
 					i == 0, // left-to-right?
 					true,   // forward?
+					1,      // landing
 					0.0f);   // root priority
 				dr.addRoot(
 					conf,   // DescentConfig
 					j,      // 5' offset into read of root
 					i == 0, // left-to-right?
 					false,  // forward?
+					1,      // landing
 					1.0f);   // root priority
 				
 				// Do the search
@@ -2170,7 +2263,12 @@ int main(int argc, char **argv) {
 					PerReadMetrics prm;
 					DescentDriver dr;
 					
-					dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
+					dr.initRead(
+						Read("test", seq.toZBuf(), qual.toZBuf()),
+						false, // nofw
+						false, // norc
+						-30,   // minsc
+						30);   // maxpen
 					
 					// Set up the DescentConfig
 					DescentConfig conf;
@@ -2184,6 +2282,7 @@ int main(int argc, char **argv) {
 						j,       // 5' offset into read of root
 						i == 0,  // left-to-right?
 						true,    // forward?
+						1,      // landing
 						0.0f);    // root priority
 					
 					// Do the search
@@ -2244,7 +2343,12 @@ int main(int argc, char **argv) {
 					PerReadMetrics prm;
 					DescentDriver dr;
 					
-					dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
+					dr.initRead(
+						Read("test", seq.toZBuf(), qual.toZBuf()),
+						false, // nofw
+						false, // norc
+						-30,   // minsc
+						30);   // maxpen
 					
 					// Set up the DescentConfig
 					DescentConfig conf;
@@ -2258,6 +2362,7 @@ int main(int argc, char **argv) {
 						j,      // 5' offset into read of root
 						i == 0, // left-to-right?
 						true,   // forward?
+						1,      // landing
 						0.0f);   // root priority
 					
 					// Do the search
@@ -2307,7 +2412,12 @@ int main(int argc, char **argv) {
 				PerReadMetrics prm;
 				DescentDriver dr;
 				
-				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
+				dr.initRead(
+					Read("test", seq.toZBuf(), qual.toZBuf()),
+					false, // nofw
+					false, // norc
+					-30,   // minsc
+					30);   // maxpen
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
@@ -2325,6 +2435,7 @@ int main(int argc, char **argv) {
 						j,      // 5' offset into read of root
 						ltr,    // left-to-right?
 						fw,     // forward?
+						1,      // landing
 						0.0f);   // root priority
 				}
 				
@@ -2362,7 +2473,12 @@ int main(int argc, char **argv) {
 				PerReadMetrics prm;
 				DescentDriver dr;
 				
-				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
+				dr.initRead(
+					Read("test", seq.toZBuf(), qual.toZBuf()),
+					false, // nofw
+					false, // norc
+					-30,   // minsc
+					30);   // maxpen
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
@@ -2381,6 +2497,7 @@ int main(int argc, char **argv) {
 						(TReadOff)j,        // 5' offset into read of root
 						ltr,      // left-to-right?
 						fw,       // forward?
+						1,        // landing
 						(float)((float)y * 1.0f)); // root priority
 					// Assume left-to-right
 					size_t beg = j;
@@ -2480,7 +2597,12 @@ int main(int argc, char **argv) {
 				
 				Read q("test", seq.toZBuf(), qual.toZBuf());
 				assert(q.repOk());
-				dr.initRead(q, -30, 30);
+				dr.initRead(
+					q,     // read
+					false, // nofw
+					false, // norc
+					-30,   // minsc
+					30);   // maxpen
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
@@ -2494,6 +2616,7 @@ int main(int argc, char **argv) {
 					j,      // 5' offset into read of root
 					i == 0, // left-to-right?
 					k == 0, // forward?
+					1,      // landing
 					0.0f);  // root priority
 				
 				// Do the search
@@ -2559,7 +2682,12 @@ int main(int argc, char **argv) {
 				PerReadMetrics prm;
 				DescentDriver dr;
 				
-				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
+				dr.initRead(
+					Read("test", seq.toZBuf(), qual.toZBuf()),
+					false, // nofw
+					false, // norc
+					-30,   // minsc
+					30);   // maxpen
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
@@ -2573,6 +2701,7 @@ int main(int argc, char **argv) {
 					j,      // 5' offset into read of root
 					i == 0, // left-to-right?
 					k == 0, // forward?
+					1,      // landing
 					0.0f);  // root priority
 				
 				// Do the search
@@ -2630,7 +2759,12 @@ int main(int argc, char **argv) {
 				PerReadMetrics prm;
 				DescentDriver dr;
 				
-				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
+				dr.initRead(
+					Read("test", seq.toZBuf(), qual.toZBuf()),
+					false, // nofw
+					false, // norc
+					-30,   // minsc
+					30);   // maxpen
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
@@ -2644,6 +2778,7 @@ int main(int argc, char **argv) {
 					j,      // 5' offset into read of root
 					i == 0, // left-to-right?
 					true,   // forward?
+					1,      // landing
 					0.0f);  // root priority
 				
 				// Do the search
@@ -2707,7 +2842,12 @@ int main(int argc, char **argv) {
 				PerReadMetrics prm;
 				DescentDriver dr;
 				
-				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -30, 30);
+				dr.initRead(
+					Read("test", seq.toZBuf(), qual.toZBuf()),
+					false, // nofw
+					false, // norc
+					-30,   // minsc
+					30);   // maxpen
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
@@ -2721,6 +2861,7 @@ int main(int argc, char **argv) {
 					j,      // 5' offset into read of root
 					i == 0, // left-to-right?
 					true,   // forward?
+					1,      // landing
 					0.0f);  // root priority
 				
 				// Do the search
@@ -2785,7 +2926,12 @@ int main(int argc, char **argv) {
 				PerReadMetrics prm;
 				DescentDriver dr;
 				
-				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -50, 50);
+				dr.initRead(
+					Read("test", seq.toZBuf(), qual.toZBuf()),
+					false, // nofw
+					false, // norc
+					-50,   // minsc
+					50);   // maxpen
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
@@ -2799,6 +2945,7 @@ int main(int argc, char **argv) {
 					j,      // 5' offset into read of root
 					i == 0, // left-to-right?
 					true,   // forward?
+					1,      // landing
 					0.0f);  // root priority
 				
 				// Do the search
@@ -2900,7 +3047,12 @@ int main(int argc, char **argv) {
 				PerReadMetrics prm;
 				DescentDriver dr;
 				
-				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -50, 50);
+				dr.initRead(
+					Read("test", seq.toZBuf(), qual.toZBuf()),
+					false, // nofw
+					false, // norc
+					-50,   // minsc
+					50);   // maxpen
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
@@ -2914,6 +3066,7 @@ int main(int argc, char **argv) {
 					j,      // 5' offset into read of root
 					i == 0, // left-to-right?
 					true,   // forward?
+					1,      // landing
 					0.0f);  // root priority
 				
 				// Do the search
@@ -2982,7 +3135,12 @@ int main(int argc, char **argv) {
 				PerReadMetrics prm;
 				DescentDriver dr;
 				
-				dr.initRead(Read("test", seq.toZBuf(), qual.toZBuf()), -50, 50);
+				dr.initRead(
+					Read("test", seq.toZBuf(), qual.toZBuf()),
+					false, // nofw
+					false, // norc
+					-50,   // minsc
+					50);   // maxpen
 				
 				// Set up the DescentConfig
 				DescentConfig conf;
@@ -2996,6 +3154,7 @@ int main(int argc, char **argv) {
 					j,      // 5' offset into read of root
 					i == 0, // left-to-right?
 					true,   // forward?
+					1,      // landing
 					0.0f);  // root priority
 				
 				// Do the search

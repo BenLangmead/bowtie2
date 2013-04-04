@@ -2970,10 +2970,10 @@ public:
         size_t c1 = ((cur+1) << 1) - 1;
         size_t c2 = c1 + 1;
 		if(c1 < l_.size()) {
-			assert_leq(l_[cur], l_[c1]);
+			assert(l_[cur] <= l_[c1]);
 		}
 		if(c2 < l_.size()) {
-			assert_leq(l_[cur], l_[c2]);
+			assert(l_[cur] <= l_[c2]);
 		}
 		if(c2 < l_.size()) {
 			return repOkNode(c1) && repOkNode(c2);

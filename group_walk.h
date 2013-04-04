@@ -105,8 +105,8 @@ public:
 		init(tf, len, o);
 	}
 	
-	void init(TIndexOff tf, size_t len_, const T& o) {
-		topf = tf; len = len_, offs = o;
+	void init(TIndexOff tf, const T& o) {
+		topf = tf, offs = o;
 	}
 
 	/**
