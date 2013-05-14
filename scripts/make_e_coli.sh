@@ -24,11 +24,11 @@ if [ ! -f NC_008253.fna ] ; then
 			echo curl not found either, aborting...
 		else
 			# Use curl
-			curl ${GENOMES_MIRROR}/Bacteria/Escherichia_coli_536/NC_008253.fna -o NC_008253.fna
+			curl ${GENOMES_MIRROR}/Bacteria/Escherichia_coli_536_uid58531/NC_008253.fna -o NC_008253.fna
 		fi
 	else
 		# Use wget
-		wget ${GENOMES_MIRROR}/Bacteria/Escherichia_coli_536/NC_008253.fna
+		wget ${GENOMES_MIRROR}/Bacteria/Escherichia_coli_536_uid58531/NC_008253.fna
 	fi
 fi
 
