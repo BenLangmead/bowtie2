@@ -161,7 +161,6 @@ static bool bwaSwLike;
 static float bwaSwLikeC;
 static float bwaSwLikeT;
 static bool qcFilter;
-static bool sortByScore;      // prioritize alignments to report by score?
 bool gReportOverhangs;        // false -> filter out alignments that fall off the end of a reference sequence
 static string rgid;           // ID: setting for @RG header line
 static string rgs;            // SAM outputs for @RG header line
@@ -348,7 +347,6 @@ static void resetOptions() {
 	bwaSwLikeC              = 5.5f;
 	bwaSwLikeT              = 20.0f;
 	qcFilter                = false; // don't believe upstream qc by default
-	sortByScore             = true;  // prioritize alignments to report by score?
 	rgid					= "";    // SAM outputs for @RG header line
 	rgs						= "";    // SAM outputs for @RG header line
 	rgs_optflag				= "";    // SAM optional flag to add corresponding to @RG ID
@@ -553,7 +551,6 @@ static struct option long_options[] = {
 	{(char*)"fast-local",           no_argument,   0,        ARG_PRESET_FAST_LOCAL},
 	{(char*)"sensitive-local",      no_argument,   0,        ARG_PRESET_SENSITIVE_LOCAL},
 	{(char*)"very-sensitive-local", no_argument,   0,        ARG_PRESET_VERY_SENSITIVE_LOCAL},
-	{(char*)"no-score-priority",no_argument,       0,        ARG_NO_SCORE_PRIORITY},
 	{(char*)"seedlen",          required_argument, 0,        'L'},
 	{(char*)"seedmms",          required_argument, 0,        'N'},
 	{(char*)"seedival",         required_argument, 0,        'i'},
@@ -1149,8 +1146,6 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_REORDER: reorder = true; break;
 		case ARG_MAPQ_EX: {
 			sam_print_zp = true;
-			sam_print_zu = true;
-			sam_print_xp = true;
 			sam_print_xss = true;
 			sam_print_yn = true;
 			break;
@@ -1234,7 +1229,6 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_CONTAIN:     gContainMatesOK  = true;  break;
 		case ARG_OVERLAP:     gOlapMatesOK     = true;  break;
 		case ARG_QC_FILTER: qcFilter = true; break;
-		case ARG_NO_SCORE_PRIORITY: sortByScore = false; break;
 		case ARG_IGNORE_QUALS: ignoreQuals = true; break;
 		case ARG_MAPQ_V: mapqv = parse<int>(arg); break;
 		case ARG_TIGHTEN: tighten = parse<int>(arg); break;
@@ -3740,7 +3734,6 @@ static void multiseedSearchWorker(void *vp) {
 					lenfilt[1],
 					qcfilt[0],
 					qcfilt[1],
-					sortByScore,          // prioritize by alignment score
 					rnd,                  // pseudo-random generator
 					rpm,                  // reporting metrics
 					prm,                  // per-read metrics
@@ -4074,7 +4067,6 @@ static void multiseedSearchWorker_2p5(void *vp) {
 				lenfilt[1],
 				qcfilt[0],
 				qcfilt[1],
-				sortByScore,          // prioritize by alignment score
 				rnd,                  // pseudo-random generator
 				rpm,                  // reporting metrics
 				prm,                  // per-read metrics

@@ -653,7 +653,6 @@ void AlnSinkWrap::finishRead(
 	bool               lenfilt2,    // mate 2 length-filtered?
 	bool               qcfilt1,     // mate 1 qc-filtered?
 	bool               qcfilt2,     // mate 2 qc-filtered?
-	bool               sortByScore, // prioritize alignments by score
 	RandomSource&      rnd,         // pseudo-random generator
 	ReportingMetrics&  met,         // reporting metrics
 	const PerReadMetrics& prm,      // per-read metrics
@@ -715,15 +714,17 @@ void AlnSinkWrap::finishRead(
 			AlnSetSumm concordSumm(
 				rd1_, rd2_, &rs1_, &rs2_, &rs1u_, &rs2u_,
 				exhaust1, exhaust2, -1, -1);
-			// Possibly select a random subset
-			size_t off;
-			if(sortByScore) {
-				// Sort by score then pick from low to high
-				off = selectByScore(&rs1_, &rs2_, nconcord, select1_, rnd);
-			} else {
-				// Select subset randomly
-				off = selectAlnsToReport(rs1_, nconcord, select1_, rnd);
-			}
+			// Sort by score then pick from low to high
+			AlnScore bestUnchosen1, bestUnchosen2, bestUnchosenC;
+			size_t off = selectByScore(
+				&rs1_, &rs2_,
+				nconcord, select1_,
+				&rs1u_, &rs2u_,
+				bestUnchosen1, bestUnchosen2, bestUnchosenC,
+				rnd);
+			concordSumm.setUnchosen(bestUnchosen1, bestUnchosen2, bestUnchosenC);
+			assert(concordSumm.best(true).valid());
+			assert(concordSumm.best(false).valid());
 			assert_lt(off, rs1_.size());
 			const AlnRes *rs1 = &rs1_[off];
 			const AlnRes *rs2 = &rs2_[off];
@@ -784,7 +785,8 @@ void AlnSinkWrap::finishRead(
 				&flags2,
 				prm,
 				mapq_,
-				sc);
+				sc,
+				false);
 			if(pairMax) {
 				met.nconcord_rep++;
 			} else {
@@ -846,14 +848,13 @@ void AlnSinkWrap::finishRead(
 				assert(rs1_[i].isFraglenSet() == rs2_[i].isFraglenSet());
 				assert(!rs1_[i].isFraglenSet() || abs(rs1_[i].fragmentLength()) == abs(rs2_[i].fragmentLength()));
 			}
-			ASSERT_ONLY(size_t off);
-			if(sortByScore) {
-				// Sort by score then pick from low to high
-				ASSERT_ONLY(off =) selectByScore(&rs1_, &rs2_, ndiscord, select1_, rnd);
-			} else {
-				// Select subset randomly
-				ASSERT_ONLY(off =) selectAlnsToReport(rs1_, ndiscord, select1_, rnd);
-			}
+			AlnScore bestUnchosen1, bestUnchosen2, bestUnchosenC;
+			ASSERT_ONLY(size_t off =) selectByScore(
+				&rs1_, &rs2_,
+				ndiscord, select1_,
+				&rs1u_, &rs2u_,
+				bestUnchosen1, bestUnchosen2, bestUnchosenC,
+				rnd);
 			assert_eq(0, off);
 			assert(!select1_.empty());
 			g_.reportHits(
@@ -875,7 +876,8 @@ void AlnSinkWrap::finishRead(
 				&flags2,
 				prm,
 				mapq_,
-				sc);
+				sc,
+				false);
 			met.nconcord_0++;
 			met.ndiscord++;
 			init_ = false;
@@ -981,14 +983,10 @@ void AlnSinkWrap::finishRead(
 			summ1.init(
 				rd1_, NULL, NULL, NULL, &rs1u_, NULL,
 				exhaust1, exhaust2, -1, -1);
-			size_t off;
-			if(sortByScore) {
-				// Sort by score then pick from low to high
-				off = selectByScore(&rs1u_, NULL, nunpair1, select1_, rnd);
-			} else {
-				// Select subset randomly
-				off = selectAlnsToReport(rs1u_, nunpair1, select1_, rnd);
-			}
+			// Sort by score then pick from low to high
+			AlnScore tmp;
+			size_t off = selectByScore(
+				&rs1u_, NULL, nunpair1, select1_, NULL, NULL, tmp, tmp, tmp, rnd);
 			repRs1 = &rs1u_[off];
 		} else if(rd1_ != NULL) {
 			// Mate 1 failed to align - don't do anything yet.  First we want
@@ -1001,14 +999,10 @@ void AlnSinkWrap::finishRead(
 			summ2.init(
 				NULL, rd2_, NULL, NULL, NULL, &rs2u_,
 				exhaust1, exhaust2, -1, -1);
-			size_t off;
-			if(sortByScore) {
-				// Sort by score then pick from low to high
-				off = selectByScore(&rs2u_, NULL, nunpair2, select2_, rnd);
-			} else {
-				// Select subset randomly
-				off = selectAlnsToReport(rs2u_, nunpair2, select2_, rnd);
-			}
+			// Sort by score then pick from low to high
+			AlnScore tmp;
+			size_t off = selectByScore(
+				&rs2u_, NULL, nunpair2, select2_, NULL, NULL, tmp, tmp, tmp, rnd);
 			repRs2 = &rs2u_[off];
 		} else if(rd2_ != NULL) {
 			// Mate 2 failed to align - don't do anything yet.  First we want
@@ -1088,14 +1082,16 @@ void AlnSinkWrap::finishRead(
 				repRs2 != NULL ? &flags2 : NULL,
 				prm,
 				mapq_,
-				sc);
+				sc,
+				false);
 			assert_lt(select1_[0], rs1u_.size());
 			refid = rs1u_[select1_[0]].refid();
 			refoff = rs1u_[select1_[0]].refoff();
 		}
 		
 		// Now report mate 2
-		if(rep2 && !rep1) {
+		//if(rep2 && !rep1) {
+		if(rep2) {
 			SeedAlSumm ssm1, ssm2;
 			if(sr1 != NULL) sr1->toSeedAlSumm(ssm1);
 			if(sr2 != NULL) sr2->toSeedAlSumm(ssm2);
@@ -1119,7 +1115,8 @@ void AlnSinkWrap::finishRead(
 				repRs1 != NULL ? &flags1 : NULL,
 				prm,
 				mapq_,
-				sc);
+				sc,
+				false);
 			assert_lt(select2_[0], rs2u_.size());
 			refid = rs2u_[select2_[0]].refid();
 			refoff = rs2u_[select2_[0]].refoff();
@@ -1318,6 +1315,11 @@ size_t AlnSinkWrap::selectByScore(
 	const EList<AlnRes>* rs2,    // alignments to select from (mate 2, or NULL)
 	uint64_t             num,    // number of alignments to select
 	EList<size_t>&       select, // prioritized list to put results in
+	const EList<AlnRes>* rs1u,   // alignments to select from (mate 1)
+	const EList<AlnRes>* rs2u,   // alignments to select from (mate 2, or NULL)
+	AlnScore&            bestUnchosen1,
+	AlnScore&            bestUnchosen2,
+	AlnScore&            bestUnchosenC,
 	RandomSource&        rnd)
 	const
 {
@@ -1325,25 +1327,31 @@ size_t AlnSinkWrap::selectByScore(
 	assert(repOk());
 	assert_gt(num, 0);
 	assert(rs1 != NULL);
+	
+	if(rs2 != NULL) {
+		assert(rs1u != NULL);
+		assert(rs2u != NULL);
+	}
+	
 	size_t sz = rs1->size(); // sz = # alignments found
 	assert_leq(num, sz);
 	if(sz < num) {
 		num = sz;
 	}
 	// num = # to select
-	if(sz < 1) {
+	if(sz == 0) {
 		return 0;
 	}
 	select.resize((size_t)num);
 	// Use 'selectBuf_' as a temporary list for sorting purposes
-	EList<std::pair<TAlScore, size_t> >& buf =
-		const_cast<EList<std::pair<TAlScore, size_t> >& >(selectBuf_);
+	EList<std::pair<AlnScore, size_t> >& buf =
+		const_cast<EList<std::pair<AlnScore, size_t> >& >(selectBuf_);
 	buf.resize(sz);
 	// Sort by score.  If reads are pairs, sort by sum of mate scores.
 	for(size_t i = 0; i < sz; i++) {
-		buf[i].first = (*rs1)[i].score().score();
+		buf[i].first = (*rs1)[i].score();
 		if(rs2 != NULL) {
-			buf[i].first += (*rs2)[i].score().score();
+			buf[i].first += (*rs2)[i].score();
 		}
 		buf[i].second = i; // original offset
 	}
@@ -1368,6 +1376,29 @@ size_t AlnSinkWrap::selectByScore(
 	}
 	
 	for(size_t i = 0; i < num; i++) { select[i] = buf[i].second; }
+	
+	if(rs2 != NULL) {
+		for(size_t i = 0; i < rs1u->size(); i++) {
+			if((*rs1u)[i].refcoord() == (*rs1)[select[0]].refcoord()) {
+				continue;
+			}
+			if((*rs1u)[i].score() > bestUnchosen1) {
+				bestUnchosen1 = (*rs1u)[i].score();
+			}
+		}
+		for(size_t i = 0; i < rs2u->size(); i++) {
+			if((*rs2u)[i].refcoord() == (*rs2)[select[0]].refcoord()) {
+				continue;
+			}
+			if((*rs2u)[i].score() > bestUnchosen2) {
+				bestUnchosen2 = (*rs2u)[i].score();
+			}
+		}
+		if(buf.size() > 1) {
+			bestUnchosenC = buf[1].first;
+		}
+	}
+	
 	// Returns index of the representative alignment, but in 'select' also
 	// returns the indexes of the next best selected alignments in order by
 	// score.
@@ -1838,6 +1869,7 @@ void AlnSinkSam::appendMate(
 			o,           // output buffer
 			true,        // first opt flag printed is first overall?
 			rd,          // read
+			rdo,         // opposite read
 			*rs,         // individual alignment result
 			staln,       // stacked alignment
 			flags,       // alignment flags

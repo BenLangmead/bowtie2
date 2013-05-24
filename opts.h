@@ -97,7 +97,6 @@ enum {
 	ARG_PRESET_FAST_LOCAL,           // --fast-local
 	ARG_PRESET_SENSITIVE_LOCAL,      // --sensitive-local
 	ARG_PRESET_VERY_SENSITIVE_LOCAL, // --very-sensitive-local
-	ARG_NO_SCORE_PRIORITY,      // --no-score-priority
 	ARG_IGNORE_QUALS,           // --ignore-quals
 	ARG_DESC,                   // --arg-desc
 	ARG_TAB5,                   // --tab5
