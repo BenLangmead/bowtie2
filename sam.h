@@ -283,6 +283,7 @@ public:
 		BTString& o,               // output buffer
 		bool first,                // first opt flag printed is first overall?
 		const Read& rd,            // the read
+		const Read* rdo,           // the opposite read
 		AlnRes& res,               // individual alignment result
 		StackedAln& staln,         // stacked alignment
 		const AlnFlags& flags,     // alignment flags

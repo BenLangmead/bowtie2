@@ -1055,12 +1055,15 @@ void AlnSetSumm::init(
 	bestPaired.invalidate(); secbestPaired.invalidate();
 	bool paired = (rs1 != NULL && rs2 != NULL);
 	szs[0] = szs[1] = 0;
+	// Set bestPaired and secbestPaired
 	if(paired) {
 		// Paired alignments
 		assert_eq(rs1->size(), rs2->size());
 		szs[0] = szs[1] = rs1->size();
 		assert_gt(szs[0], 0);
 		for(size_t i = 0; i < rs1->size(); i++) {
+			// Combine mate scores into a concordant alignment score by
+			// summing them
 			AlnScore sc = (*rs1)[i].score() + (*rs2)[i].score();
 			if(sc > bestPaired) {
 				secbestPaired = bestPaired;
@@ -1073,14 +1076,13 @@ void AlnSetSumm::init(
 			}
 		}
 	}
+	// Set best[] and secbest[]
 	for(int j = 0; j < 2; j++) {
 		const EList<AlnRes>* rs = (j == 0 ? rs1u : rs2u);
 		if(rs == NULL) {
 			continue;
 		}
-		assert(rs != NULL);
 		szs[j] = rs->size();
-		//assert_gt(szs[j], 0);
 		for(size_t i = 0; i < rs->size(); i++) {
 			AlnScore sc = (*rs)[i].score();
 			if(sc > best[j]) {

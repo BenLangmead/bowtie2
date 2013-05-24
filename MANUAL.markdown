@@ -2197,10 +2197,12 @@ alignment:
     </td>
     <td>
 
-    Alignment score for second-best alignment.  Can be negative.  Can be greater
-    than 0 in [`--local`] mode (but not in [`--end-to-end`] mode).  Only present
-    if the SAM record is for an aligned read and more than one alignment was
-    found for the read.
+    Alignment score for the best-scoring alignment found other than the
+	alignment reported.  Can be negative.  Can be greater than 0 in [`--local`]
+	mode (but not in [`--end-to-end`] mode).  Only present if the SAM record is
+	for an aligned read and more than one alignment was found for the read.
+	Note that, when the read is part of a concordantly-aligned pair, this score
+	could be greater than [`AS:i`].
 
     </td></tr>
     <tr><td id="bowtie2-build-opt-fields-ys">

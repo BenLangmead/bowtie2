@@ -1835,25 +1835,26 @@ public:
 	bool     exhausted2()    const { return exhausted2_;    }
 	TRefId   orefid()        const { return orefid_;        }
 	TRefOff  orefoff()       const { return orefoff_;       }
+	AlnScore bestUnchosen1() const { return bestUnchosen1_; }
+	AlnScore bestUnchosen2() const { return bestUnchosen2_; }
+	AlnScore bestUnchosenC() const { return bestUnchosenC_; }
 
 	/**
-	 *
+	 * Return best alignment score for 
 	 */
-	AlnScore best(bool mate1) const { return mate1 ? best1_ : best2_; }
+	AlnScore bestUnchosen(bool mate1) const {
+		return mate1 ? bestUnchosen1_ : bestUnchosen2_;
+	}
 
 	bool exhausted(bool mate1) const {
 		return mate1 ? exhausted1_ : exhausted2_;
 	}
-
+	
 	/**
-	 * Return the second-best score for the specified mate.  If the alignment
-	 * is paired and the specified mate aligns uniquely, return an invalid
-	 * second-best score.  This allows us to treat mates separately, so that
-	 * repetitive paired-end alignments don't trump potentially unique unpaired
-	 * alignments.
+	 * Return best alignment score for mate 1 or mate 2, depending on argument.
 	 */
-	AlnScore secbestMate(bool mate1) const {
-		return mate1 ? secbest1_ : secbest2_;
+	AlnScore best(bool mate1) const {
+		return mate1 ? best1_ : best2_;
 	}
 	
 	/**
@@ -1864,20 +1865,23 @@ public:
 	 * alignments.
 	 */
 	AlnScore secbest(bool mate1) const {
-		if(paired_) {
-			if(mate1) {
-				//if(!secbest1_.valid()) {
-					return secbest1_;
-				//}
-			} else {
-				//if(!secbest2_.valid()) {
-					return secbest2_;
-				//}
-			}
-			//return secbestPaired_;
-		} else {
-			return mate1 ? secbest1_ : secbest2_;
-		}
+		return mate1 ? secbest1_ : secbest2_;
+	}
+	
+	/**
+	 * Add information about unchosen alignments to the summary.  This is
+	 * helpful for concordant alignments; when calculating mapping quality,
+	 * we might like to know about how good the unchosen mate and pair
+	 * alignments were.
+	 */
+	void setUnchosen(
+		AlnScore bestUnchosen1,
+		AlnScore bestUnchosen2,
+		AlnScore bestUnchosenC)
+	{
+		bestUnchosen1_ = bestUnchosen1;
+		bestUnchosen2_ = bestUnchosen2;
+		bestUnchosenC_ = bestUnchosenC;
 	}
 	
 protected:
@@ -1895,6 +1899,10 @@ protected:
 	bool     exhausted2_;    // searched exhaustively for mate 2 alignments?
 	TRefId   orefid_;
 	TRefOff  orefoff_;
+
+	AlnScore bestUnchosen1_;
+	AlnScore bestUnchosen2_;
+	AlnScore bestUnchosenC_;
 };
 
 #endif

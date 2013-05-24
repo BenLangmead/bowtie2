@@ -670,6 +670,7 @@ public:
 		const PerReadMetrics& prm,            // per-read metrics
 		const Mapq&           mapq,           // MAPQ generator
 		const Scoring&        sc,             // scoring scheme
+		bool                  reportBoth,
 		bool                  getLock = true) // true iff lock held by caller
 	{
 		// There are a few scenarios:
@@ -694,7 +695,7 @@ public:
 			flagscp2.setPrimary(true);
 		}
 		if(select2 != NULL) {
-			// Handle case 5
+			// Handle case 4
 			assert(rd1 != NULL); assert(flags1 != NULL);
 			assert(rd2 != NULL); assert(flags2 != NULL);
 			assert_gt(select1.size(), 0);
@@ -702,7 +703,7 @@ public:
 			AlnRes* r1pri = ((rs1 != NULL) ? &rs1->get(select1[0]) : NULL);
 			AlnRes* r2pri = ((rs2 != NULL) ? &rs2->get((*select2)[0]) : NULL);
 			append(o, staln, threadId, rd1, rd2, rdid, r1pri, r2pri, summ,
-			       ssm1, ssm2, flags1, flags2, prm, mapq, sc, true);
+			       ssm1, ssm2, flags1, flags2, prm, mapq, sc, false);
 			flagscp1.setPrimary(false);
 			flagscp2.setPrimary(false);
 			for(size_t i = 1; i < select1.size(); i++) {
@@ -710,13 +711,15 @@ public:
 				append(o, staln, threadId, rd1, rd2, rdid, r1, r2pri, summ,
 				       ssm1, ssm2, flags1, flags2, prm, mapq, sc, false);
 			}
-			for(size_t i = 1; i < select2->size(); i++) {
-				AlnRes* r2 = ((rs2 != NULL) ? &rs2->get((*select2)[i]) : NULL);
-				append(o, staln, threadId, rd2, rd1, rdid, r2, r1pri, summ,
-				       ssm2, ssm1, flags2, flags1, prm, mapq, sc, false);
+			if(reportBoth) {
+				for(size_t i = 1; i < select2->size(); i++) {
+					AlnRes* r2 = ((rs2 != NULL) ? &rs2->get((*select2)[i]) : NULL);
+					append(o, staln, threadId, rd2, rd1, rdid, r2, r1pri, summ,
+						   ssm2, ssm1, flags2, flags1, prm, mapq, sc, false);
+				}
 			}
 		} else {
-			// Handle cases 1-4
+			// Handle cases 1-3 and 5
 			for(size_t i = 0; i < select1.size(); i++) {
 				AlnRes* r1 = ((rs1 != NULL) ? &rs1->get(select1[i]) : NULL);
 				AlnRes* r2 = ((rs2 != NULL) ? &rs2->get(select1[i]) : NULL);
@@ -1029,7 +1032,6 @@ public:
 		bool               lenfilt2,    // mate 2 length-filtered?
 		bool               qcfilt1,     // mate 1 qc-filtered?
 		bool               qcfilt2,     // mate 2 qc-filtered?
-		bool               sortByScore, // prioritize alignments by score
 		RandomSource&      rnd,         // pseudo-random generator
 		ReportingMetrics&  met,         // reporting metrics
 		const PerReadMetrics& prm,      // per-read metrics
@@ -1236,6 +1238,11 @@ protected:
 		const EList<AlnRes>* rs2,    // alignments to select from (mate 2, or NULL)
 		uint64_t             num,    // number of alignments to select
 		EList<size_t>&       select, // prioritized list to put results in
+		const EList<AlnRes>* rs1u,   // alignments to select from (mate 1)
+		const EList<AlnRes>* rs2u,   // alignments to select from (mate 2, or NULL)
+		AlnScore&            bestUnchosen1,
+		AlnScore&            bestUnchosen2,
+		AlnScore&            bestUnchosenC,
 		RandomSource&        rnd)
 		const;
 
@@ -1264,7 +1271,7 @@ protected:
 	EList<size_t>   select2_; // parallel to rs1_/rs2_ - which to report
 	ReportingState  st_;      // reporting state - what's left to do?
 	
-	EList<std::pair<TAlScore, size_t> > selectBuf_;
+	EList<std::pair<AlnScore, size_t> > selectBuf_;
 	BTString obuf_;
 	StackedAln staln_;
 };

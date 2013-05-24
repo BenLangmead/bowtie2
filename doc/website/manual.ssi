@@ -1197,7 +1197,7 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td>
 <td>
 
-<p>Alignment score for second-best alignment. Can be negative. Can be greater than 0 in <a href="#bowtie2-options-local"><code>--local</code></a> mode (but not in <a href="#bowtie2-options-end-to-end"><code>--end-to-end</code></a> mode). Only present if the SAM record is for an aligned read and more than one alignment was found for the read.</p>
+<p>Alignment score for the best-scoring alignment found other than the alignment reported. Can be negative. Can be greater than 0 in <a href="#bowtie2-options-local"><code>--local</code></a> mode (but not in <a href="#bowtie2-options-end-to-end"><code>--end-to-end</code></a> mode). Only present if the SAM record is for an aligned read and more than one alignment was found for the read. Note that, when the read is part of a concordantly-aligned pair, this score could be greater than <a href="#bowtie2-build-opt-fields-as"><code>AS:i</code></a>.</p>
 </td></tr>
 <tr><td id="bowtie2-build-opt-fields-ys">
 
