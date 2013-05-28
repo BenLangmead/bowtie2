@@ -204,7 +204,7 @@ class SwAligner {
 
 public:
 
-	explicit SwAligner() :
+	explicit SwAligner(std::ostream *dpLog) :
 		sseU8fw_(DP_CAT),
 		sseU8rc_(DP_CAT),
 		sseI16fw_(DP_CAT),
@@ -228,7 +228,9 @@ public:
 		cperTri_(),
 		colstop_(0),
 		lastsolcol_(0),
-		cural_(0)
+		cural_(0),
+		dpLog_(dpLog),
+		firstRead_(true)
 		ASSERT_ONLY(, cand_tmp_(DP_CAT))
 	{ }
 
@@ -300,9 +302,11 @@ public:
 	 * only be one solution.
 	 *
 	 * The caller has already narrowed down the relevant portion of the
-	 * reference using, e.g., the location of a seed hit, or the range of
-	 * possible fragment lengths if we're searching for the opposite mate in a
-	 * pair.
+	 * reference.
+	 *
+	 * Does not handle the case where we'd like to scan a large section of the
+	 * reference for an ungapped alignment, e.g., if we're searching for the
+	 * opposite mate after finding an alignment for the anchor mate.
 	 */
 	int ungappedAlign(
 		const BTDnaString&      rd,     // read sequence (could be RC)
@@ -569,6 +573,8 @@ protected:
 			return bter_.nextAlignment(maxiter, res, off, nrej, niter, rnd);
 		}
 	}
+	
+	
 
 	const BTDnaString  *rd_;     // read sequence
 	const BTString     *qu_;     // read qualities
@@ -639,6 +645,9 @@ protected:
 	uint64_t nbtfiltst_; // # candidates filtered b/c starting cell was seen
 	uint64_t nbtfiltsc_; // # candidates filtered b/c score uninteresting
 	uint64_t nbtfiltdo_; // # candidates filtered b/c dominated by other cell
+	
+	std::ostream *dpLog_;
+	bool firstRead_;
 	
 	ASSERT_ONLY(SStringExpandable<uint32_t> tmp_destU32_);
 	ASSERT_ONLY(BTDnaString tmp_editstr_, tmp_refstr_);
