@@ -58,6 +58,13 @@ void SwAligner::initRead(
 	sseI16fwBuilt_ = false;  // built fw query profile, 16-bit score
 	sseI16rcBuilt_ = false;  // built rc query profile, 16-bit score
 #endif
+	if(dpLog_ != NULL) {
+		if(!firstRead_) {
+			(*dpLog_) << '\n';
+		}
+		(*dpLog_) << rdfw.toZBuf();
+	}
+	firstRead_ = false;
 }
 
 /**
@@ -121,6 +128,13 @@ void SwAligner::initRef(
 		&cper_,              // in: checkpointer
 		*sc_,                // in: scoring scheme
 		nceil_);             // in: N ceiling
+	// Record the reference sequence in the log
+	if(dpLog_ != NULL) {
+		(*dpLog_) << '\t' << (fw ? '+' : '-');
+		for(TRefOff i = rfi_; i < rff_; i++) {
+			(*dpLog_) << mask2dna[(int)rf[i]];
+		}
+	}
 }
 	
 /**
@@ -251,13 +265,17 @@ void SwAligner::initRef(
 }
 
 /**
- * Given a read, an alignment orientation, a range of characters in a referece
- * sequence, and a bit-encoded version of the reference, set up and execute the
- * corresponding ungapped alignment problem.  There can only be one solution.
+ * Given a read, an alignment orientation, a range of characters in a
+ * referece sequence, and a bit-encoded version of the reference, set up
+ * and execute the corresponding ungapped alignment problem.  There can
+ * only be one solution.
  *
- * The caller has already narrowed down the relevant portion of the reference
- * using, e.g., the location of a seed hit, or the range of possible fragment
- * lengths if we're searching for the opposite mate in a pair.
+ * The caller has already narrowed down the relevant portion of the
+ * reference.
+ *
+ * Does not handle the case where we'd like to scan a large section of the
+ * reference for an ungapped alignment, e.g., if we're searching for the
+ * opposite mate after finding an alignment for the anchor mate.
  */
 int SwAligner::ungappedAlign(
 	const BTDnaString&      rd,     // read sequence (could be RC)

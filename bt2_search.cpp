@@ -233,6 +233,7 @@ static bool reorder;          // true -> reorder SAM recs in -p mode
 static float sampleFrac;      // only align random fraction of input reads
 static bool arbitraryRandom;  // pseudo-randoms no longer a function of read properties
 static bool bowtie2p5;
+static string logDps;         // log dynamic programming problems
 
 static string bt2index;      // read Bowtie 2 index from files with this prefix
 static EList<pair<int, string> > extra_opts;
@@ -421,6 +422,7 @@ static void resetOptions() {
 	sampleFrac = 1.1f;       // align all reads
 	arbitraryRandom = false; // let pseudo-random seeds be a function of read properties
 	bowtie2p5 = false;
+	logDps.clear();          // log dynamic programming problems
 }
 
 static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:w:p:k:M:1:2:I:X:CQ:N:i:L:U:x:S:g:O:D:R:";
@@ -605,6 +607,7 @@ static struct option long_options[] = {
 	{(char*)"desc-exp",         required_argument, 0,        ARG_DESC_EXP},
 	{(char*)"desc-prioritize",  no_argument,       0,        ARG_DESC_PRIORITIZE},
 	{(char*)"desc-fmops",       required_argument, 0,        ARG_DESC_FMOPS},
+	{(char*)"log-dp",           required_argument, 0,        ARG_LOG_DP},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -905,6 +908,7 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_TEST_25: bowtie2p5 = true; break;
 		case ARG_DESC_KB: descentTotSz = SimpleFunc::parse(arg, 0.0, 1024.0, 1024.0, DMAX); break;
 		case ARG_DESC_FMOPS: descentTotFmops = SimpleFunc::parse(arg, 0.0, 10.0, 100.0, DMAX); break;
+		case ARG_LOG_DP: logDps = arg; break;
 		case ARG_DESC_LANDING: {
 			descLanding = parse<int>(arg);
 			if(descLanding < 1) {
@@ -2793,10 +2797,17 @@ static void multiseedSearchWorker(void *vp) {
 		rp,            // reporting parameters
 		*bmapq.get(),  // MAPQ calculator
 		(size_t)tid);  // thread id
-
+	
+	// Write dynamic-programming problem descriptions here
+	ofstream *dpLog = NULL;
+	if(!logDps.empty()) {
+		dpLog = new ofstream(logDps.c_str(), ofstream::out);
+		dpLog->sync_with_stdio(false);
+	}
+	
 	SeedAligner al;
 	SwDriver sd(exactCacheCurrentMB * 1024 * 1024);
-	SwAligner sw, osw;
+	SwAligner sw(dpLog), osw(dpLog);
 	SeedResults shs[2];
 	OuterLoopMetrics olm;
 	SeedSearchMetrics sdm;
@@ -3757,6 +3768,8 @@ static void multiseedSearchWorker(void *vp) {
 	
 	// One last metrics merge
 	MERGE_METRICS(metrics, nthreads > 1);
+	
+	if(dpLog != NULL) dpLog->close();
 
 	return;
 }
