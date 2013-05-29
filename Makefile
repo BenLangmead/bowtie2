@@ -111,6 +111,11 @@ SEARCH_CPPS = qual.cpp pat.cpp sam.cpp \
 			  aligner_driver.cpp
 SEARCH_CPPS_MAIN = $(SEARCH_CPPS) bowtie_main.cpp
 
+DP_CPPS = qual.cpp aligner_sw.cpp aligner_result.cpp ref_coord.cpp mask.cpp \
+          simple_func.cpp sse_util.cpp aligner_bt.cpp aligner_swsse.cpp \
+		  aligner_swsse_loc_i16.cpp aligner_swsse_ee_i16.cpp \
+		  aligner_swsse_loc_u8.cpp aligner_swsse_ee_u8.cpp scoring.cpp
+
 BUILD_CPPS = diff_sample.cpp
 BUILD_CPPS_MAIN = $(BUILD_CPPS) bowtie_build_main.cpp
 
@@ -217,7 +222,7 @@ bowtie2-build: bt2_build.cpp $(SHARED_CPPS) $(HEADERS)
 		-o $@ $< \
 		$(SHARED_CPPS) $(BUILD_CPPS_MAIN) \
 		$(LIBS) $(BUILD_LIBS)
-        
+
 bowtie2-build-debug: bt2_build.cpp $(SHARED_CPPS) $(HEADERS)
 	$(CXX) $(DEBUG_FLAGS) $(DEBUG_DEFS) $(EXTRA_FLAGS) \
 		$(DEFS) -DBOWTIE2 -Wall \
@@ -227,7 +232,7 @@ bowtie2-build-debug: bt2_build.cpp $(SHARED_CPPS) $(HEADERS)
 		$(LIBS) $(BUILD_LIBS)
 
 #
-# bowtie targets
+# bowtie2-align targets
 #
 
 bowtie2-align: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
@@ -268,6 +273,28 @@ bowtie2-inspect-debug: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 		-o $@ $< \
 		$(SHARED_CPPS) \
 		$(LIBS) $(INSPECT_LIBS)
+
+#
+# bowtie2-dp targets
+#
+
+bowtie2-dp: bt2_dp.cpp $(HEADERS) $(SHARED_CPPS) $(DP_CPPS)
+	$(CXX) $(RELEASE_FLAGS) \
+		$(RELEASE_DEFS) $(EXTRA_FLAGS) \
+		$(DEFS) -DBOWTIE2 -DBOWTIE_DP_MAIN -Wall \
+		$(INC) -I . \
+		-o $@ $< \
+		$(DP_CPPS) $(SHARED_CPPS) \
+		$(LIBS) $(SEARCH_LIBS)
+
+bowtie2-dp-debug: bt2_dp.cpp $(HEADERS) $(SHARED_CPPS) $(DP_CPPS)
+	$(CXX) $(DEBUG_FLAGS) \
+		$(DEBUG_DEFS) $(EXTRA_FLAGS) \
+		$(DEFS) -DBOWTIE2 -DBOWTIE_DP_MAIN -Wall \
+		$(INC) -I . \
+		-o $@ $< \
+		$(DP_CPPS) $(SHARED_CPPS) \
+		$(LIBS) $(SEARCH_LIBS)
 
 .PHONY: bowtie2-src
 bowtie2-src: $(SRC_PKG_LIST)
