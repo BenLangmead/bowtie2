@@ -1122,7 +1122,7 @@ int SwDriver::extendSeeds(
 					// Now fill the dynamic programming matrix and return true iff
 					// there is at least one valid alignment
 					TAlScore bestCell = std::numeric_limits<TAlScore>::min();
-					found = swa.align(rnd, bestCell);
+					found = swa.align(bestCell);
 					swmSeed.tallyGappedDp(readGaps, refGaps);
 					prm.nExDps++;
 					if(!found) {
@@ -1815,7 +1815,7 @@ int SwDriver::extendSeedsPaired(
 					// Now fill the dynamic programming matrix and return true iff
 					// there is at least one valid alignment
 					TAlScore bestCell = std::numeric_limits<TAlScore>::min();
-					found = swa.align(rnd, bestCell);
+					found = swa.align(bestCell);
 					swmSeed.tallyGappedDp(readGaps, refGaps);
 					prm.nExDps++;
 					prm.nDpFail++;    // failed until proven successful
@@ -2060,7 +2060,7 @@ int SwDriver::extendSeedsPaired(
 							// Now fill the dynamic programming matrix, return true
 							// iff there is at least one valid alignment
 							TAlScore bestCell = std::numeric_limits<TAlScore>::min();
-							foundMate = oswa.align(rnd, bestCell);
+							foundMate = oswa.align(bestCell);
 							prm.nMateDps++;
 							swmMate.tallyGappedDp(oreadGaps, orefGaps);
 							if(!foundMate) {

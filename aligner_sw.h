@@ -323,7 +323,7 @@ public:
 	 * Align read 'rd' to reference using read & reference information given
 	 * last time init() was called.  Uses dynamic programming.
 	 */
-	bool align(RandomSource& rnd, TAlScore& best);
+	bool align(TAlScore& best);
 	
 	/**
 	 * Populate the given SwResult with information about the "next best"

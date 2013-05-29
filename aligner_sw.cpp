@@ -62,7 +62,7 @@ void SwAligner::initRead(
 		if(!firstRead_) {
 			(*dpLog_) << '\n';
 		}
-		(*dpLog_) << rdfw.toZBuf();
+		(*dpLog_) << rdfw.toZBuf() << '\t' << qufw.toZBuf();
 	}
 	firstRead_ = false;
 }
@@ -130,7 +130,13 @@ void SwAligner::initRef(
 		nceil_);             // in: N ceiling
 	// Record the reference sequence in the log
 	if(dpLog_ != NULL) {
-		(*dpLog_) << '\t' << (fw ? '+' : '-');
+		(*dpLog_) << '\t';
+		(*dpLog_) << refidx_ << ',';
+		(*dpLog_) << reflen_ << ',';
+		(*dpLog_) << minsc_ << ',';
+		(*dpLog_) << (fw ? '+' : '-') << ',';
+		rect_->write(*dpLog_);
+		(*dpLog_) << ',';
 		for(TRefOff i = rfi_; i < rff_; i++) {
 			(*dpLog_) << mask2dna[(int)rf[i]];
 		}
@@ -490,7 +496,6 @@ int SwAligner::ungappedAlign(
  * last time init() was called.
  */
 bool SwAligner::align(
-	RandomSource& rnd, // source of pseudo-randoms
 	TAlScore& best)    // best alignment score observed in DP matrix
 {
 	assert(initedRef() && initedRead());
@@ -672,6 +677,9 @@ bool SwAligner::align(
 	assert(repOk());
 	cural_ = 0;
 	if(best == MIN_I64 || best < minsc_) {
+		if(dpLog_ != NULL) {
+			(*dpLog_) << ",0,0";
+		}
 		return false;
 	}
 	if(!gathered) {
@@ -711,6 +719,9 @@ bool SwAligner::align(
 	}
 	if(!btncand_.empty()) {
 		btncand_.sort();
+	}
+	if(dpLog_ != NULL) {
+		(*dpLog_) << ",1," << best;
 	}
 	return !btncand_.empty();
 }

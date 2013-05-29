@@ -87,6 +87,12 @@ struct DPRect {
 	
 	size_t  maxgap; // max # gaps - width of the gap bands
 	
+	void write(std::ostream& os) const {
+		os << refl << ',' << refr << ',' << refl_pretrim << ','
+		   << refr_pretrim << ',' << triml << ',' << trimr << ','
+		   << corel << ',' << corer << ',' << maxgap;
+	}
+	
 	/**
 	 * Return true iff the combined effect of triml and trimr is to trim away
 	 * the entire rectangle.

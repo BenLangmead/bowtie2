@@ -7,3 +7,5 @@ bowtie2-inspect
 bowtie2-align-debug
 bowtie2-build-debug
 bowtie2-inspect-debug
+bowtie2-dp
+bowtie2-dp-debug
