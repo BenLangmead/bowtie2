@@ -280,7 +280,7 @@ bowtie2-inspect-debug: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 
 bowtie2-dp: bt2_dp.cpp $(HEADERS) $(SHARED_CPPS) $(DP_CPPS)
 	$(CXX) $(RELEASE_FLAGS) \
-		$(RELEASE_DEFS) $(EXTRA_FLAGS) \
+		$(RELEASE_DEFS) $(EXTRA_FLAGS) $(NOASSERT_FLAGS) \
 		$(DEFS) -DBOWTIE2 -DBOWTIE_DP_MAIN -Wall \
 		$(INC) -I . \
 		-o $@ $< \
