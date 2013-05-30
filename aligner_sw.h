@@ -204,7 +204,7 @@ class SwAligner {
 
 public:
 
-	explicit SwAligner(std::ostream *dpLog) :
+	explicit SwAligner(std::ostream *dpLog, bool firstRead = true) :
 		sseU8fw_(DP_CAT),
 		sseU8rc_(DP_CAT),
 		sseI16fw_(DP_CAT),
@@ -230,7 +230,7 @@ public:
 		lastsolcol_(0),
 		cural_(0),
 		dpLog_(dpLog),
-		firstRead_(true)
+		firstRead_(firstRead)
 		ASSERT_ONLY(, cand_tmp_(DP_CAT))
 	{ }
 
