@@ -32,10 +32,6 @@ int gVerbose;               // be talkative
 int gQuiet;                 // print nothing but the alignments
 static int sanityCheck;     // enable expensive sanity checks
 static int seed;            // srandom() seed
-static int metricsIval;     // interval between alignment metrics messages (0 = no messages)
-static string metricsFile;  // output file to put alignment metrics in
-static bool metricsStderr;  // output file to put alignment metrics in
-static bool metricsPerRead; // report a metrics tuple for every read
 static bool showVersion;    // just print version and quit?
 static uint32_t qUpto;      // max # of queries to read
 static int nthreads;        // number of pthreads operating concurrently
@@ -66,17 +62,11 @@ static bool ignoreQuals;      // all mms incur same penalty, regardless of qual
 static EList<string> queries; // list of query files
 static string outfile;        // write output to this file
 
-#define DMAX std::numeric_limits<double>::max()
-
 static void resetOptions() {
 	gVerbose                = 0;
 	gQuiet					= false;
 	sanityCheck				= 0;  // enable expensive sanity checks
 	seed					= 0; // srandom() seed
-	metricsIval				= 1; // interval between alignment metrics messages (0 = no messages)
-	metricsFile             = ""; // output file to put alignment metrics in
-	metricsStderr           = false; // print metrics to stderr (in addition to --metrics-file if it's specified
-	metricsPerRead          = false; // report a metrics tuple for every read?
 	showVersion				= false; // just print version and quit?
 	qUpto					= 0xffffffff; // max # of queries to read
 	nthreads				= 1;     // number of pthreads operating concurrently
@@ -97,8 +87,8 @@ static void resetOptions() {
 	penRdGapLinear  = DEFAULT_READ_GAP_LINEAR;
 	penRfGapLinear  = DEFAULT_REF_GAP_LINEAR;
 	scoreMin.init  (SIMPLE_FUNC_LINEAR, DEFAULT_MIN_CONST,   DEFAULT_MIN_LINEAR);
-	nCeil.init     (SIMPLE_FUNC_LINEAR, 0.0f, DMAX, 2.0f, 0.1f);
-	msIval.init    (SIMPLE_FUNC_LINEAR, 1.0f, DMAX, DEFAULT_IVAL_B, DEFAULT_IVAL_A);
+	nCeil.init     (SIMPLE_FUNC_LINEAR, 0.0f, std::numeric_limits<double>::max(), 2.0f, 0.1f);
+	msIval.init    (SIMPLE_FUNC_LINEAR, 1.0f, std::numeric_limits<double>::max(), DEFAULT_IVAL_B, DEFAULT_IVAL_A);
 	enable8            = true;  // use 8-bit SSE where possible?
 	cminlen            = 2000;  // longer reads use checkpointing
 	cpow2              = 4;     // checkpoint interval log2
@@ -114,14 +104,6 @@ static struct option long_options[] = {
 	{(char*)"verbose",          no_argument,       0, ARG_VERBOSE},
 	{(char*)"quiet",            no_argument,       0, ARG_QUIET},
 	{(char*)"sanity",           no_argument,       0, ARG_SANITY},
-	{(char*)"metrics",          required_argument, 0, ARG_METRIC_IVAL},
-	{(char*)"metrics-file",     required_argument, 0, ARG_METRIC_FILE},
-	{(char*)"metrics-stderr",   no_argument,       0, ARG_METRIC_STDERR},
-	{(char*)"metrics-per-read", no_argument,       0, ARG_METRIC_PER_READ},
-	{(char*)"met-read",         no_argument,       0, ARG_METRIC_PER_READ},
-	{(char*)"met",              required_argument, 0, ARG_METRIC_IVAL},
-	{(char*)"met-file",         required_argument, 0, ARG_METRIC_FILE},
-	{(char*)"met-stderr",       no_argument,       0, ARG_METRIC_STDERR},
 	{(char*)"qupto",            required_argument, 0, 'u'},
 	{(char*)"upto",             required_argument, 0, 'u'},
 	{(char*)"version",          no_argument,       0, ARG_VERSION},
@@ -188,9 +170,6 @@ static void printUsage(ostream& out) {
 		<< "  --score-min <func> min acceptable alignment score w/r/t read length" << endl
 		<< "                     (G,20,8 for local, L,-0.6,-0.6 for end-to-end)" << endl
 	    << "  --quiet            print nothing to stderr except serious errors" << endl
-		<< "  --met-file <path>  send metrics to file at <path> (off)" << endl
-		<< "  --met-stderr       send metrics to stderr (off)" << endl
-		<< "  --met <int>        report internal counters & metrics every <int> secs (1)" << endl
 		<< endl
 	    << " Performance:" << endl
 	    << "  -p/--threads <int> number of alignment threads to launch (1)" << endl
@@ -315,12 +294,6 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_VERBOSE: gVerbose = 1; break;
 		case ARG_QUIET: gQuiet = true; break;
 		case ARG_SANITY: sanityCheck = true; break;
-		case ARG_METRIC_IVAL:
-			metricsIval = parseInt(1, "--metrics arg must be at least 1", arg);
-			break;
-		case ARG_METRIC_FILE: metricsFile = arg; break;
-		case ARG_METRIC_STDERR: metricsStderr = true; break;
-		case ARG_METRIC_PER_READ: metricsPerRead = true; break;
 		case ARG_CP_MIN:
 			cminlen = parse<size_t>(arg);
 			break;
@@ -585,6 +558,12 @@ public:
 		}
 		ln_.clear();
 		getline(ih_, ln_);
+		while(ln_.empty() && ih_.good()) {
+			getline(ih_, ln_);
+		}
+		if(ln_.empty() && !ih_.good()) {
+			return false;
+		}
 		EList<string> buf;
 		tokenize(ln_, '\t', buf);
 		assert_gt(buf.size(), 2);
@@ -725,18 +704,21 @@ int main(int argc, const char **argv) {
 			gGapBarrier);   // # rows at top/bot only entered diagonally
 		RandomSource rnd(seed);
 		{
+			Timer tim(std::cerr, "Alignment ", true);
 			BTDnaString seq, seqrc;
 			BTString qual, qualrc;
 			EList<DpProblem> probs;
 			size_t qid = 0;
+			size_t totnuc = 0, totcup = 0;
 			for(size_t i = 0; i < queries.size(); i++) {
 				logrd.init(queries[i]);
 				while(logrd.nextRead(seq, qual, probs)) {
+					totnuc += seq.length();
 					seqrc = seq;
 					seqrc.reverseComp();
 					qualrc = qual;
 					qualrc.reverse();
-					cerr << "Initing read with " << probs.size() << " problems" << endl;
+					//cerr << "Initing read with " << probs.size() << " problems" << endl;
 					sw.initRead(seq, seqrc, qual, qualrc, 0, seq.length(), sc);
 					// Calculate minimum score
 					bool extend = true;
@@ -759,9 +741,10 @@ int main(int argc, const char **argv) {
 						// Now fill the dynamic programming matrix and return true iff
 						// there is at least one valid alignment
 						TAlScore bestCell = std::numeric_limits<TAlScore>::min();
-						bool aligned = sw.align(bestCell);
+						ASSERT_ONLY(bool aligned =) sw.align(bestCell);
 						assert(aligned == probs[j].aligned);
 						assert(!aligned || bestCell == probs[j].score);
+						totcup += (seq.length() * probs[j].ref.length());
 					}
 					seq.clear();  seqrc.clear();
 					qual.clear(); qualrc.clear();
@@ -769,6 +752,21 @@ int main(int argc, const char **argv) {
 					qid++;
 				}
 			}
+			size_t el = (size_t)tim.elapsed();
+			double cups = 0.0;
+			double totnucps = 0.0;
+			double readps = 0.0;
+			if(el > 0) {
+				cups = totcup / (double)el;
+				totnucps = totnuc / (double)el;
+				readps = qid / (double)el;
+			}
+			cerr << qid << " reads" << endl;
+			cerr << std::setprecision(4) << "  " << readps << " reads per second" << endl;
+			cerr << totnuc << " nucleotides" << endl;
+			cerr << std::setprecision(4) << "  " << totnucps << " nucleotides per second" << endl;
+			cerr << totcup << " cell updates" << endl;
+			cerr << std::setprecision(4) << "  " << cups << " cell updates per second (CUPS)" << endl;
 		}
 		return 0;
 	} catch(std::exception& e) {
