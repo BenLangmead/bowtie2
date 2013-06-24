@@ -54,6 +54,10 @@
 #include "random_source.h"
 #include "mem_ids.h"
 
+#ifdef POPCNT_CAPABILITY 
+    #include "processor_support.h" 
+#endif 
+
 using namespace std;
 
 #define EBWT_EXT ".bt2"
@@ -424,7 +428,9 @@ struct SideLocus {
 	int32_t _by;           // byte within side (not adjusted for bw sides)
 	int32_t _bp;            // bitpair within byte (not adjusted for bw sides)
 };
-
+#ifdef POPCNT_CAPABILITY   // wrapping of "struct"
+struct USE_POPCNT_GENERIC {
+#endif
 // Use this standard bit-bashing population count
 inline static int pop64(uint64_t x) {
 	// Lots of cache misses on following lines (>10K)
@@ -436,18 +442,36 @@ inline static int pop64(uint64_t x) {
 	x = x + (x >> 32);
 	return (int)(x & 0x3Fllu);
 }
+#ifdef POPCNT_CAPABILITY  // wrapping a "struct"
+};
+#endif
+
+#ifdef POPCNT_CAPABILITY
+    struct USE_POPCNT_INSTRUCTION {
+        inline static int pop64(uint64_t x) {
+            return _mm_popcnt_u64(x);
+        }
+    };
+#endif
 
 /**
  * Tricky-bit-bashing bitpair counting for given two-bit value (0-3)
  * within a 64-bit argument.
  */
+#ifdef POPCNT_CAPABILITY
+template<typename Operation>
+#endif
 inline static int countInU64(int c, uint64_t dw) {
 	uint64_t c0 = c_table[c];
 	uint64_t x0 = dw ^ c0;
 	uint64_t x1 = (x0 >> 1);
 	uint64_t x2 = x1 & (0x5555555555555555);
 	uint64_t x3 = x0 & x2;
-	uint64_t tmp = pop64(x3);
+#ifdef POPCNT_CAPABILITY
+    uint64_t tmp = Operation().pop64(x3);
+#else
+    uint64_t tmp = pop64(x3);
+#endif
 	return (int) tmp;
 }
 
@@ -513,6 +537,10 @@ public:
 	     Ebwt_INITS
 	{
 		assert(!useMm || !useShmem);
+#ifdef POPCNT_CAPABILITY 
+        ProcessorSupport ps; 
+        _usePOPCNTinstruction = ps.POPCNTenabled(); 
+#endif 
 		packed_ = false;
 		_useMm = useMm;
 		useShmem_ = useShmem;
@@ -581,6 +609,10 @@ public:
 			color,
 			refparams.reverse == REF_READ_REVERSE)
 	{
+#ifdef POPCNT_CAPABILITY 
+        ProcessorSupport ps; 
+        _usePOPCNTinstruction = ps.POPCNTenabled(); 
+#endif 
 		_in1Str = file + ".1.bt2";
 		_in2Str = file + ".2.bt2";
 		packed_ = packed;
@@ -1145,6 +1177,9 @@ public:
 	bool        sanityCheck() const  { return _sanity; }
 	EList<string>& refnames()        { return _refnames; }
 	bool        fw() const           { return fw_; }
+#ifdef POPCNT_CAPABILITY 
+    bool _usePOPCNTinstruction; 
+#endif 
 
 	/**
 	 * Returns true iff the index contains the given string (exactly).  The
@@ -1769,9 +1804,22 @@ public:
 		uint32_t cCnt = 0;
 		const uint8_t *side = l.side(this->ebwt());
 		int i = 0;
-		for(; i + 7 < l._by; i += 8) {
-			cCnt += countInU64(c, *(uint64_t*)&side[i]);
-		}
+#ifdef POPCNT_CAPABILITY
+        if ( _usePOPCNTinstruction) {
+            for(; i + 7 < l._by; i += 8) {
+                cCnt += countInU64<USE_POPCNT_INSTRUCTION>(c, *(uint64_t*)&side[i]);
+            }
+        } 
+        else {
+            for(; i + 7 < l._by; i += 8) {
+                cCnt += countInU64<USE_POPCNT_GENERIC>(c, *(uint64_t*)&side[i]);
+            }
+        }
+#else
+        for(; i + 7 < l._by; i += 8) {
+            cCnt += countInU64(c, *(uint64_t*)&side[i]);
+        }
+#endif		
 		// Count occurences of c in the rest of the side (using LUT)
 		for(; i < l._by; i++) {
 			cCnt += cCntLUT_4[0][c][side[i]];
@@ -1789,14 +1837,57 @@ public:
 	 *
 	 * Function gets 2.32% in profile
 	 */
+#ifdef POPCNT_CAPABILITY
+template<typename Operation>
+#endif
 	inline static void countInU64Ex(uint64_t dw, uint32_t* arrs) {
-		// Cache misses here (~9K)
-		uint64_t dwA  = dw &  0xAAAAAAAAAAAAAAAAllu;
-		uint64_t dwNA = dw & ~0xAAAAAAAAAAAAAAAAllu;
-		arrs[0] += (32 - pop64((dwA >> 1) | dwNA));
-		arrs[1] += pop64(~(dwA >> 1) & dwNA);
-		arrs[2] += pop64((dwA >> 1) & ~dwNA);
-		arrs[3] += pop64((dwA >> 1) & dwNA);
+	uint64_t c0 = c_table[0];
+	uint64_t x0 = dw ^ c0;
+	uint64_t x1 = (x0 >> 1);
+	uint64_t x2 = x1 & (0x5555555555555555llu);
+	uint64_t x3 = x0 & x2;
+#ifdef POPCNT_CAPABILITY
+	uint64_t tmp = Operation().pop64(x3);
+#else
+	uint64_t tmp = pop64(x3);
+#endif
+	arrs[0] += (uint32_t) tmp;
+
+        c0 = c_table[1];
+        x0 = dw ^ c0;
+        x1 = (x0 >> 1);
+        x2 = x1 & (0x5555555555555555llu);
+        x3 = x0 & x2;
+#ifdef POPCNT_CAPABILITY
+        tmp = Operation().pop64(x3);
+#else
+        tmp = pop64(x3);
+#endif
+        arrs[1] += (uint32_t) tmp;
+
+        c0 = c_table[2];
+        x0 = dw ^ c0;
+        x1 = (x0 >> 1);
+        x2 = x1 & (0x5555555555555555llu);
+        x3 = x0 & x2;
+#ifdef POPCNT_CAPABILITY
+        tmp = Operation().pop64(x3);
+#else
+        tmp = pop64(x3);
+#endif
+        arrs[2] += (uint32_t) tmp;
+	
+        c0 = c_table[3];
+        x0 = dw ^ c0;
+        x1 = (x0 >> 1);
+        x2 = x1 & (0x5555555555555555llu);
+        x3 = x0 & x2;
+#ifdef POPCNT_CAPABILITY
+        tmp = Operation().pop64(x3);
+#else
+        tmp = pop64(x3);
+#endif
+        arrs[3] += (uint32_t) tmp;
 	}
 
 	/**
@@ -1814,9 +1905,23 @@ public:
 		// does not change noticeably. Someday the countInU64() and pop()
 		// functions should be vectorized/SSE-ized in case that helps.
 		const uint8_t *side = l.side(this->ebwt());
-		for(; i+7 < l._by; i += 8) {
-			countInU64Ex(*(uint64_t*)&side[i], arrs);
-		}
+
+#ifdef POPCNT_CAPABILITY
+        if (_usePOPCNTinstruction) {
+            for(; i+7 < l._by; i += 8) {
+                countInU64Ex<USE_POPCNT_INSTRUCTION>(*(uint64_t*)&side[i], arrs);
+            }
+        } 
+        else {
+            for(; i+7 < l._by; i += 8) {
+                countInU64Ex<USE_POPCNT_GENERIC>(*(uint64_t*)&side[i], arrs);
+            }
+        }
+#else 
+        for(; i+7 < l._by; i += 8) {
+            countInU64Ex(*(uint64_t*)&side[i], arrs);
+        }
+#endif
 		// Count occurences of nucleotides in the rest of the side (using LUT)
 		// Many cache misses on following lines (~20K)
 		for(; i < l._by; i++) {
