@@ -41,6 +41,13 @@
   <h2>Indexes</h2>
   <div class="box">
     <table width="100%">
+    <p style="font-size: small; line-height: 130%">
+      Consider using Illumina's
+      <a href="http://support.illumina.com/sequencing/sequencing_software/igenome.ilmn">iGenomes</a>
+      collection.  Each iGenomes archive contains pre-built
+      Bowtie 2 and <a href="http://bowtie-bio.sourceforge.net/index.shtml">Bowtie</a> indexes.
+      <br/><br/>
+    </p>
       <!-- hg18 -->
       <tr>
         <td>
