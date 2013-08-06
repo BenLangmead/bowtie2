@@ -1340,6 +1340,8 @@ struct SeedSearchMetrics {
 	void merge(const SeedSearchMetrics& m, bool getLock = false) {
         ThreadSafe ts(&mutex_m, getLock);
 		seedsearch   += m.seedsearch;
+		nrange       += m.nrange;
+		nelt         += m.nelt;
 		possearch    += m.possearch;
 		intrahit     += m.intrahit;
 		interhit     += m.interhit;
@@ -1357,6 +1359,8 @@ struct SeedSearchMetrics {
 	 */
 	void reset() {
 		seedsearch =
+		nrange =
+		nelt =
 		possearch =
 		intrahit =
 		interhit =
@@ -1370,6 +1374,8 @@ struct SeedSearchMetrics {
 	}
 
 	uint64_t seedsearch;   // # times we executed strategy in InstantiatedSeed
+	uint64_t nrange;       // # ranges found
+	uint64_t nelt;         // # range elements found
 	uint64_t possearch;    // # offsets where aligner executed >= 1 strategy
 	uint64_t intrahit;     // # offsets where current-read cache gave answer
 	uint64_t interhit;     // # offsets where across-read cache gave answer

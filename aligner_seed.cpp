@@ -565,6 +565,8 @@ void SeedAligner::searchAllSeeds(
 
 	prm.nSdFmops += bwops_;
 	met.seedsearch += seedsearches;
+	met.nrange += sr.numRanges();
+	met.nelt += sr.numElts();
 	met.possearch += possearches;
 	met.intrahit += intrahits;
 	met.interhit += interhits;
