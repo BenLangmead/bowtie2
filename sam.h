@@ -234,7 +234,7 @@ public:
 			namelen = 255;
 		}
 		for(size_t i = 0; i < namelen; i++) {
-			if(isspace(name[i])) {
+			if(truncQname_ && isspace(name[i])) {
 				return;
 			}
 			o.append(name[i]);
