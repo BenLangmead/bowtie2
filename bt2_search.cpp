@@ -1787,14 +1787,16 @@ struct PerfMetrics {
 				/* 22 */ "AlUnpFail"      "\t"
 				
 				/* 23 */ "SeedSearch"     "\t"
-				/* 24 */ "IntraSCacheHit" "\t"
-				/* 25 */ "InterSCacheHit" "\t"
-				/* 26 */ "OutOfMemory"    "\t"
-				/* 27 */ "AlBWOp"         "\t"
-				/* 28 */ "AlBWBranch"     "\t"
-				/* 29 */ "ResBWOp"        "\t"
-				/* 30 */ "ResBWBranch"    "\t"
-				/* 31 */ "ResResolve"     "\t"
+				/* 24 */ "NRange"         "\t"
+				/* 25 */ "NElt"           "\t"
+				/* 26 */ "IntraSCacheHit" "\t"
+				/* 27 */ "InterSCacheHit" "\t"
+				/* 28 */ "OutOfMemory"    "\t"
+				/* 29 */ "AlBWOp"         "\t"
+				/* 30 */ "AlBWBranch"     "\t"
+				/* 31 */ "ResBWOp"        "\t"
+				/* 32 */ "ResBWBranch"    "\t"
+				/* 33 */ "ResResolve"     "\t"
 				/* 34 */ "ResReport"      "\t"
 				/* 35 */ "RedundantSHit"  "\t"
 
@@ -2030,38 +2032,46 @@ struct PerfMetrics {
 		itoa10<uint64_t>(sd.seedsearch, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 24. Hits in 'current' cache
+		// 24. Seed ranges found
+		itoa10<uint64_t>(sd.nrange, buf);
+		if(metricsStderr) stderrSs << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 25. Seed elements found
+		itoa10<uint64_t>(sd.nelt, buf);
+		if(metricsStderr) stderrSs << buf << '\t';
+		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+		// 26. Hits in 'current' cache
 		itoa10<uint64_t>(sd.intrahit, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 25. Hits in 'local' cache
+		// 27. Hits in 'local' cache
 		itoa10<uint64_t>(sd.interhit, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 26. Out of memory
+		// 28. Out of memory
 		itoa10<uint64_t>(sd.ooms, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 27. Burrows-Wheeler ops in aligner
+		// 29. Burrows-Wheeler ops in aligner
 		itoa10<uint64_t>(sd.bwops, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 28. Burrows-Wheeler branches (edits) in aligner
+		// 30. Burrows-Wheeler branches (edits) in aligner
 		itoa10<uint64_t>(sd.bweds, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 		
 		const WalkMetrics& wl = total ? wlm : wlmu;
 		
-		// 29. Burrows-Wheeler ops in resolver
+		// 31. Burrows-Wheeler ops in resolver
 		itoa10<uint64_t>(wl.bwops, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 30. Burrows-Wheeler branches in resolver
+		// 32. Burrows-Wheeler branches in resolver
 		itoa10<uint64_t>(wl.branches, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 31. Burrows-Wheeler offset resolutions
+		// 33. Burrows-Wheeler offset resolutions
 		itoa10<uint64_t>(wl.resolves, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
