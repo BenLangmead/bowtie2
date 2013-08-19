@@ -659,28 +659,28 @@ done: // Exit hatch for both justHeader and !justHeader
  * file and store them in 'refnames'.
  */
 void
-readEbwtRefnames(istream& in, EList<string>& refnames) {
+readEbwtRefnames(FILE* fin, EList<string>& refnames) {
 	// _in1 must already be open with the get cursor at the
 	// beginning and no error flags set.
-	assert(in.good());
-	assert_eq((streamoff)in.tellg(), ios::beg);
+	assert_neq(fin, NULL);
+	assert_eq(ftello(fin), 0);
 	
 	// Read endianness hints from both streams
 	bool switchEndian = false;
-	uint32_t one = readU32(in, switchEndian); // 1st word of primary stream
+	uint32_t one = readU32(fin, switchEndian); // 1st word of primary stream
 	if(one != 1) {
 		assert_eq((1u<<24), one);
 		switchEndian = true;
 	}
 	
 	// Reads header entries one by one from primary stream
-	uint32_t len          = readU32(in, switchEndian);
-	int32_t  lineRate     = readI32(in, switchEndian);
-	/*int32_t  linesPerSide =*/ readI32(in, switchEndian);
-	int32_t  offRate      = readI32(in, switchEndian);
-	int32_t  ftabChars    = readI32(in, switchEndian);
+	uint32_t len          = readU32(fin, switchEndian);
+	int32_t  lineRate     = readI32(fin, switchEndian);
+	/*int32_t  linesPerSide =*/ readI32(fin, switchEndian);
+	int32_t  offRate      = readI32(fin, switchEndian);
+	int32_t  ftabChars    = readI32(fin, switchEndian);
 	// BTL: chunkRate is now deprecated
-	int32_t flags = readI32(in, switchEndian);
+	int32_t flags = readI32(fin, switchEndian);
 	bool color = false;
 	bool entireReverse = false;
 	if(flags < 0) {
@@ -691,33 +691,35 @@ readEbwtRefnames(istream& in, EList<string>& refnames) {
 	// Create a new EbwtParams from the entries read from primary stream
 	EbwtParams eh(len, lineRate, offRate, ftabChars, color, entireReverse);
 	
-	uint32_t nPat = readI32(in, switchEndian); // nPat
-	in.seekg(nPat*4, ios_base::cur); // skip plen
+	uint32_t nPat = readI32(fin, switchEndian); // nPat
+	fseeko(fin, nPat*4, SEEK_CUR);
 	
 	// Skip rstarts
-	uint32_t nFrag = readU32(in, switchEndian);
-	in.seekg(nFrag*4*3, ios_base::cur);
+	uint32_t nFrag = readU32(fin, switchEndian);
+	fseeko(fin, nFrag*4*3, SEEK_CUR);
 	
 	// Skip ebwt
-	in.seekg(eh._ebwtTotLen, ios_base::cur);
+	fseeko(fin, eh._ebwtTotLen, SEEK_CUR);
 	
 	// Skip zOff from primary stream
-	readU32(in, switchEndian);
+	readU32(fin, switchEndian);
 	
 	// Skip fchr
-	in.seekg(5 * 4, ios_base::cur);
+	fseeko(fin, 5 * 4, SEEK_CUR);
 	
 	// Skip ftab
-	in.seekg(eh._ftabLen*4, ios_base::cur);
+	fseeko(fin, eh._ftabLen*4, SEEK_CUR);
 	
 	// Skip eftab
-	in.seekg(eh._eftabLen*4, ios_base::cur);
+	fseeko(fin, eh._eftabLen*4, SEEK_CUR);
 	
 	// Read reference sequence names from primary index file
 	while(true) {
 		char c = '\0';
-		in.read(&c, 1);
-		if(in.eof()) break;
+		int read_value = 0;
+        read_value = fgetc(fin);
+		if(read_value == EOF) break;
+        c = read_value;
 		if(c == '\0') break;
 		else if(c == '\n') {
 			refnames.push_back("");
@@ -733,8 +735,8 @@ readEbwtRefnames(istream& in, EList<string>& refnames) {
 	}
 	
 	// Be kind
-	in.clear(); in.seekg(0, ios::beg);
-	assert(in.good());
+    fseeko(fin, 0, SEEK_SET);
+	assert(ferror(fin) == 0);
 }
 
 /**
@@ -743,16 +745,15 @@ readEbwtRefnames(istream& in, EList<string>& refnames) {
  */
 void
 readEbwtRefnames(const string& instr, EList<string>& refnames) {
-	ifstream in;
+    FILE* fin;
 	// Initialize our primary and secondary input-stream fields
-	in.open((instr + ".1.bt2").c_str(), ios_base::in | ios::binary);
-	if(!in.is_open()) {
+    fin = fopen((instr + ".1.bt2").c_str(),"rb");
+	if(fin == NULL) {
 		throw EbwtFileOpenException("Cannot open file " + instr);
 	}
-	assert(in.is_open());
-	assert(in.good());
-	assert_eq((streamoff)in.tellg(), ios::beg);
-	readEbwtRefnames(in, refnames);
+	assert_eq(ftello(fin), 0);
+	readEbwtRefnames(fin, refnames);
+    fclose(fin);
 }
 
 /**
