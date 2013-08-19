@@ -2455,7 +2455,7 @@ private:
  * Read reference names from an input stream 'in' for an Ebwt primary
  * file and store them in 'refnames'.
  */
-void readEbwtRefnames(istream& in, EList<string>& refnames);
+void readEbwtRefnames(FILE* fin, EList<string>& refnames);
 
 /**
  * Read reference names from the index with basename 'in' and store
