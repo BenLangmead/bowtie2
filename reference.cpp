@@ -85,9 +85,9 @@ BitPairReference::BitPairReference(
 			throw 1;
 		}
 		if(mmSweep) {
-			int sum = 0;
+			TIndexOff sum = 0;
 			for(off_t i = 0; i < sbuf.st_size; i += 1024) {
-				sum += (int) mmFile[i];
+				sum += (TIndexOff) mmFile[i];
 			}
 			if(startVerbose) {
 				cerr << "  Swept the memory-mapped ref index file; checksum: " << sum << ": ";
@@ -115,7 +115,7 @@ BitPairReference::BitPairReference(
 	// Read endianness sentinel, set 'swap'
 	uint32_t one;
 	bool swap = false;
-	one = readU32(f3, swap);
+	one = readU<int32_t>(f3, swap);
 	if(one != 1) {
 		if(useMm_) {
 			cerr << "Error: Can't use memory-mapped files when the index is the opposite endianness" << endl;
@@ -126,8 +126,8 @@ BitPairReference::BitPairReference(
 	}
 	
 	// Read # records
-	uint32_t sz;
-	sz = readU32(f3, swap);
+	TIndexOffU sz;
+	sz = readU<TIndexOffU>(f3, swap);
 	if(sz == 0) {
 		cerr << "Error: number of reference records is 0 in " << s3.c_str() << endl;
 		throw 1;
@@ -139,15 +139,15 @@ BitPairReference::BitPairReference(
 	// Cumulative count of all unambiguous characters on a per-
 	// stretch 8-bit alignment (i.e. count of bytes we need to
 	// allocate in buf_)
-	uint32_t cumsz = 0;
-	uint32_t cumlen = 0;
+	size_t cumsz = 0;
+	size_t cumlen = 0;
 	// For each unambiguous stretch...
-	for(uint32_t i = 0; i < sz; i++) {
+	for(TIndexOffU i = 0; i < sz; i++) {
 		recs_.push_back(RefRecord(f3, swap));
 		if(recs_.back().first) {
 			// This is the first record for this reference sequence (and the
 			// last record for the one before)
-			refRecOffs_.push_back((uint32_t)recs_.size()-1);
+			refRecOffs_.push_back((TIndexOffU)recs_.size()-1);
 			// refOffs_ links each reference sequence with the total number of
 			// unambiguous characters preceding it in the pasted reference
 			refOffs_.push_back(cumsz);
@@ -173,7 +173,7 @@ BitPairReference::BitPairReference(
 		logTime(cerr);
 	}
 	// Store a cap entry for the end of the last reference seq
-	refRecOffs_.push_back((uint32_t)recs_.size());
+	refRecOffs_.push_back((TIndexOffU)recs_.size());
 	refOffs_.push_back(cumsz);
 	refLens_.push_back(cumlen);
 	bufSz_ = cumsz;
@@ -339,26 +339,26 @@ BitPairReference::~BitPairReference() {
  * there are many records, binary search would be more appropriate.
  */
 int BitPairReference::getBase(size_t tidx, size_t toff) const {
-	uint32_t reci = refRecOffs_[tidx];   // first record for target reference sequence
-	uint32_t recf = refRecOffs_[tidx+1]; // last record (exclusive) for target seq
+	uint64_t reci = refRecOffs_[tidx];   // first record for target reference sequence
+	uint64_t recf = refRecOffs_[tidx+1]; // last record (exclusive) for target seq
 	assert_gt(recf, reci);
-	uint32_t bufOff = refOffs_[tidx];
-	uint32_t off = 0;
+	uint64_t bufOff = refOffs_[tidx];
+	uint64_t off = 0;
 	// For all records pertaining to the target reference sequence...
-	for(uint32_t i = reci; i < recf; i++) {
+	for(uint64_t i = reci; i < recf; i++) {
 		assert_geq(toff, off);
 		off += recs_[i].off;
 		if(toff < off) {
 			return 4;
 		}
 		assert_geq(toff, off);
-		uint32_t recOff = off + recs_[i].len;
+		uint64_t recOff = off + recs_[i].len;
 		if(toff < recOff) {
 			toff -= off;
-			bufOff += (uint32_t)toff;
+			bufOff += (uint64_t)toff;
 			assert_lt(bufOff, bufSz_);
-			const uint32_t bufElt = (bufOff) >> 2;
-			const uint32_t shift = (bufOff & 3) << 1;
+			const uint64_t bufElt = (bufOff) >> 2;
+			const uint64_t shift = (bufOff & 3) << 1;
 			return ((buf_[bufElt] >> shift) & 3);
 		}
 		bufOff += recs_[i].len;
@@ -382,14 +382,14 @@ int BitPairReference::getStretchNaive(
 	size_t count) const
 {
 	uint8_t *dest = (uint8_t*)destU32;
-	uint32_t reci = refRecOffs_[tidx];   // first record for target reference sequence
-	uint32_t recf = refRecOffs_[tidx+1]; // last record (exclusive) for target seq
+	uint64_t reci = refRecOffs_[tidx];   // first record for target reference sequence
+	uint64_t recf = refRecOffs_[tidx+1]; // last record (exclusive) for target seq
 	assert_gt(recf, reci);
-	uint32_t cur = 0;
-	uint32_t bufOff = refOffs_[tidx];
-	uint32_t off = 0;
+	uint64_t cur = 0;
+	uint64_t bufOff = refOffs_[tidx];
+	uint64_t off = 0;
 	// For all records pertaining to the target reference sequence...
-	for(uint32_t i = reci; i < recf; i++) {
+	for(uint64_t i = reci; i < recf; i++) {
 		assert_geq(toff, off);
 		off += recs_[i].off;
 		for(; toff < off && count > 0; toff++) {
@@ -406,8 +406,8 @@ int BitPairReference::getStretchNaive(
 		off += recs_[i].len;
 		for(; toff < off && count > 0; toff++) {
 			assert_lt(bufOff, bufSz_);
-			const uint32_t bufElt = (bufOff) >> 2;
-			const uint32_t shift = (bufOff & 3) << 1;
+			const uint64_t bufElt = (bufOff) >> 2;
+			const uint64_t shift = (bufOff & 3) << 1;
 			dest[cur++] = (buf_[bufElt] >> shift) & 3;
 			bufOff++;
 			count--;
@@ -454,22 +454,22 @@ int BitPairReference::getStretch(
 	}
 #endif
 	destU32[0] = 0x04040404; // Add Ns, which we might end up using later
-	uint32_t reci = refRecOffs_[tidx];   // first record for target reference sequence
-	uint32_t recf = refRecOffs_[tidx+1]; // last record (exclusive) for target seq
+	uint64_t reci = refRecOffs_[tidx];   // first record for target reference sequence
+	uint64_t recf = refRecOffs_[tidx+1]; // last record (exclusive) for target seq
 	assert_gt(recf, reci);
-	uint32_t cur = 4; // keep a cushion of 4 bases at the beginning
-	uint32_t bufOff = refOffs_[tidx];
-	uint32_t off = 0;
-	int offset = 4;
+	uint64_t cur = 4; // keep a cushion of 4 bases at the beginning
+	uint64_t bufOff = refOffs_[tidx];
+	uint64_t off = 0;
+	int64_t offset = 4;
 	bool firstStretch = true;
 	// For all records pertaining to the target reference sequence...
-	for(uint32_t i = reci; i < recf; i++) {
-		ASSERT_ONLY(uint32_t origBufOff = bufOff);
+	for(uint64_t i = reci; i < recf; i++) {
+		ASSERT_ONLY(uint64_t origBufOff = bufOff);
 		assert_geq(toff, off);
 		off += recs_[i].off;
 		assert_gt(count, 0);
 		if(toff < off) {
-			size_t cpycnt = min(off - toff, count);
+			size_t cpycnt = min((size_t)(off - toff), count);
 			memset(&dest[cur], 4, cpycnt);
 			count -= cpycnt;
 			toff += cpycnt;
@@ -478,7 +478,7 @@ int BitPairReference::getStretch(
 		}
 		assert_geq(toff, off);
 		if(toff < off + recs_[i].len) {
-			bufOff += (uint32_t)(toff - off); // move bufOff pointer forward
+			bufOff += toff - off; // move bufOff pointer forward
 		} else {
 			bufOff += recs_[i].len;
 		}
@@ -492,11 +492,11 @@ int BitPairReference::getStretch(
 					if(cur & 3) {
 						offset -= (cur & 3);
 					}
-					uint32_t curU32 = cur >> 2;
+					uint64_t curU32 = cur >> 2;
 					// Do the initial few bases
 					if(bufOff & 3) {
-						const uint32_t bufElt = (bufOff) >> 2;
-						const int low2 = bufOff & 3;
+						const uint64_t bufElt = (bufOff) >> 2;
+						const int64_t low2 = bufOff & 3;
 						// Lots of cache misses on the following line
 						destU32[curU32] = byteToU32_[buf_[bufElt]];
 						for(int j = 0; j < low2; j++) {
@@ -504,18 +504,18 @@ int BitPairReference::getStretch(
 						}
 						curU32++;
 						offset += low2;
-						const int chars = 4 - low2;
+						const int64_t chars = 4 - low2;
 						count -= chars;
 						bufOff += chars;
 						toff += chars;
 					}
 					assert_eq(0, bufOff & 3);
-					uint32_t bufOffU32 = bufOff >> 2;
-					uint32_t countLim = (uint32_t)count >> 2;
-					uint32_t offLim = (uint32_t)((off - (toff + 4)) >> 2);
-					uint32_t lim = min(countLim, offLim);
+					uint64_t bufOffU32 = bufOff >> 2;
+					uint64_t countLim = (uint32_t)count >> 2;
+					uint64_t offLim = (uint32_t)((off - (toff + 4)) >> 2);
+					uint64_t lim = min(countLim, offLim);
 					// Do the fast thing for as far as possible
-					for(uint32_t j = 0; j < lim; j++) {
+					for(uint64_t j = 0; j < lim; j++) {
 						// Lots of cache misses on the following line
 						destU32[curU32] = byteToU32_[buf_[bufOffU32++]];
 #ifndef NDEBUG
@@ -538,8 +538,8 @@ int BitPairReference::getStretch(
 				// Do the slow thing for the rest
 				for(; toff < off && count > 0; toff++) {
 					assert_lt(bufOff, bufSz_);
-					const uint32_t bufElt = (bufOff) >> 2;
-					const uint32_t shift = (bufOff & 3) << 1;
+					const uint64_t bufElt = (bufOff) >> 2;
+					const uint64_t shift = (bufOff & 3) << 1;
 					dest[cur++] = (buf_[bufElt] >> shift) & 3;
 					bufOff++;
 					count--;
@@ -549,8 +549,8 @@ int BitPairReference::getStretch(
 				// Do the slow thing
 				for(; toff < off && count > 0; toff++) {
 					assert_lt(bufOff, bufSz_);
-					const uint32_t bufElt = (bufOff) >> 2;
-					const uint32_t shift = (bufOff & 3) << 1;
+					const uint64_t bufElt = (bufOff) >> 2;
+					const uint64_t shift = (bufOff & 3) << 1;
 					dest[cur++] = (buf_[bufElt] >> shift) & 3;
 					bufOff++;
 					count--;
@@ -568,7 +568,7 @@ int BitPairReference::getStretch(
 		dest[cur++] = 4;
 	}
 	assert_eq(0, count);
-	return offset;
+	return (int)offset;
 }
 
 
@@ -603,31 +603,31 @@ BitPairReference::szsFromFasta(
 		// Read in the sizes of all the unambiguous stretches of the genome
 		// into a vector of RefRecords.  The input streams are reset once
 		// it's done.
-		writeU32(fout3, 1, bigEndian); // endianness sentinel
+		writeU<int32_t>(fout3, 1, bigEndian); // endianness sentinel
 		bool color = parms.color;
 		if(color) {
 			parms.color = false;
 			// Make sure the .3.bt2 and .4.bt2 files contain
 			// nucleotides; not colors
-			int numSeqs = 0;
+			TIndexOff numSeqs = 0;
 			ASSERT_ONLY(std::pair<size_t, size_t> sztot2 =)
 			fastaRefReadSizes(is, szs, parms, &bpout, numSeqs);
 			parms.color = true;
-			writeU32(fout3, (uint32_t)szs.size(), bigEndian); // write # records
+			writeU<TIndexOffU>(fout3, (TIndexOffU)szs.size(), bigEndian); // write # records
 			for(size_t i = 0; i < szs.size(); i++) {
 				szs[i].write(fout3, bigEndian);
 			}
 			szs.clear();
 			// Now read in the colorspace size records; these are
 			// the ones that were indexed
-			int numSeqs2 = 0;
+			TIndexOff numSeqs2 = 0;
 			sztot = fastaRefReadSizes(is, szs, parms, NULL, numSeqs2);
 			assert_eq(numSeqs, numSeqs2);
 			assert_eq(sztot2.second, sztot.second + numSeqs);
 		} else {
 			int numSeqs = 0;
 			sztot = fastaRefReadSizes(is, szs, parms, &bpout, numSeqs);
-			writeU32(fout3, (uint32_t)szs.size(), bigEndian); // write # records
+			writeU<TIndexOffU>(fout3, (TIndexOffU)szs.size(), bigEndian); // write # records
 			for(size_t i = 0; i < szs.size(); i++) szs[i].write(fout3, bigEndian);
 		}
 		if(sztot.first == 0) {
@@ -641,13 +641,13 @@ BitPairReference::szsFromFasta(
 	} else {
 		// Read in the sizes of all the unambiguous stretches of the
 		// genome into a vector of RefRecords
-		int numSeqs = 0;
+		TIndexOff numSeqs = 0;
 		sztot = fastaRefReadSizes(is, szs, parms, NULL, numSeqs);
 #ifndef NDEBUG
 		if(parms.color) {
 			parms.color = false;
 			EList<RefRecord> szs2(EBWTB_CAT);
-			int numSeqs2 = 0;
+			TIndexOff numSeqs2 = 0;
 			ASSERT_ONLY(std::pair<size_t, size_t> sztot2 =)
 			fastaRefReadSizes(is, szs2, parms, NULL, numSeqs2);
 			assert_eq(numSeqs, numSeqs2);

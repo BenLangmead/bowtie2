@@ -40,33 +40,32 @@ using namespace std;
  * sorted list of reference fragment ranges t
  */
 void Ebwt::joinedToTextOff(
-	uint32_t qlen,
-	TIndexOff off,
-	TIndexOff& tidx,
-	TIndexOff& textoff,
-	TIndexOff& tlen,
+	uint32_t qlen, // @double-check
+	TIndexOffU off,
+	TIndexOffU& tidx,
+	TIndexOffU& textoff,
+	TIndexOffU& tlen,
 	bool rejectStraddle,
 	bool& straddled) const
 {
 	assert(rstarts() != NULL); // must have loaded rstarts
-	TIndexOff top = 0;
-	TIndexOff bot = _nFrag; // 1 greater than largest addressable element
-	// TODO: fix line below
-	TIndexOff elt = 0xffffffff;
+	TIndexOffU top = 0;
+	TIndexOffU bot = _nFrag; // 1 greater than largest addressable element
+	TIndexOffU elt = OFF_MASK;
 	// Begin binary search
 	while(true) {
-		ASSERT_ONLY(TIndexOff oldelt = elt);
+		ASSERT_ONLY(TIndexOffU oldelt = elt);
 		elt = top + ((bot - top) >> 1);
 		assert_neq(oldelt, elt); // must have made progress
-		TIndexOff lower = rstarts()[elt*3];
-		TIndexOff upper;
+		TIndexOffU lower = rstarts()[elt*3];
+		TIndexOffU upper;
 		if(elt == _nFrag-1) {
 			upper = _eh._len;
 		} else {
 			upper = rstarts()[((elt+1)*3)];
 		}
 		assert_gt(upper, lower);
-		TIndexOff fraglen = upper - lower;
+		TIndexOffU fraglen = upper - lower;
 		if(lower <= off) {
 			if(upper > off) { // not last element, but it's within
 				// off is in this range; check if it falls off
@@ -74,8 +73,7 @@ void Ebwt::joinedToTextOff(
 					straddled = true;
 					if(rejectStraddle) {
 						// it falls off; signal no-go and return
-						// TODO: fix line below
-						tidx = 0xffffffff;
+						tidx = OFF_MASK;
 						assert_lt(elt, _nFrag-1);
 						return;
 					}
@@ -88,7 +86,7 @@ void Ebwt::joinedToTextOff(
 				// it doesn't fall off; now calculate textoff.
 				// Initially it's the number of characters that precede
 				// the alignment in the fragment
-				TIndexOff fragoff = off - rstarts()[(elt*3)];
+				TIndexOffU fragoff = off - rstarts()[(elt*3)];
 				if(!this->fw_) {
 					fragoff = fraglen - fragoff - 1;
 					fragoff -= (qlen-1);
@@ -117,18 +115,15 @@ void Ebwt::joinedToTextOff(
  * Walk 'steps' steps to the left and return the row arrived at.  If we
  * walk through the dollar sign, return max value.
  */
-TIndexOff Ebwt::walkLeft(TIndexOff row, TIndexOff steps) const {
+TIndexOffU Ebwt::walkLeft(TIndexOffU row, TIndexOffU steps) const {
 	assert(offs() != NULL);
-	// TODO: fix line below
-	assert_neq(0xffffffff, row);
+	assert_neq(OFF_MASK, row);
 	SideLocus l;
 	if(steps > 0) l.initFromRow(row, _eh, ebwt());
 	while(steps > 0) {
-		// TODO: line below
-		if(row == _zOff) return 0xffffffff;
-		TIndexOff newrow = this->mapLF(l ASSERT_ONLY(, false));
-		// TODO: line below
-		assert_neq(0xffffffff, newrow);
+		if(row == _zOff) return OFF_MASK;
+		TIndexOffU newrow = this->mapLF(l ASSERT_ONLY(, false));
+		assert_neq(OFF_MASK, newrow);
 		assert_neq(newrow, row);
 		row = newrow;
 		steps--;
@@ -140,20 +135,18 @@ TIndexOff Ebwt::walkLeft(TIndexOff row, TIndexOff steps) const {
 /**
  * Resolve the reference offset of the BW element 'elt'.
  */
-TIndexOff Ebwt::getOffset(TIndexOff row) const {
+TIndexOffU Ebwt::getOffset(TIndexOffU row) const {
 	assert(offs() != NULL);
-	// TODO: fix line below
-	assert_neq(0xffffffff, row);
+	assert_neq(OFF_MASK, row);
 	if(row == _zOff) return 0;
 	if((row & _eh._offMask) == row) return this->offs()[row >> _eh._offRate];
-	int jumps = 0;
+	TIndexOffU jumps = 0;
 	SideLocus l;
 	l.initFromRow(row, _eh, ebwt());
 	while(true) {
-		TIndexOff newrow = this->mapLF(l ASSERT_ONLY(, false));
+		TIndexOffU newrow = this->mapLF(l ASSERT_ONLY(, false));
 		jumps++;
-		// TODO: fix line below
-		assert_neq(0xffffffff, newrow);
+		assert_neq(OFF_MASK, newrow);
 		assert_neq(newrow, row);
 		row = newrow;
 		if(row == _zOff) {
@@ -170,14 +163,13 @@ TIndexOff Ebwt::getOffset(TIndexOff row) const {
  * the offset returned is at the right-hand side of the forward
  * reference substring involved in the hit.
  */
-TIndexOff Ebwt::getOffset(
-	TIndexOff elt,
+TIndexOffU Ebwt::getOffset(
+	TIndexOffU elt,
 	bool fw,
 	uint32_t hitlen) const
 {
-	TIndexOff off = getOffset(elt);
-	// TODO: fix line below
-	assert_neq(0xffffffff, off);
+	TIndexOffU off = getOffset(elt);
+	assert_neq(OFF_MASK, off);
 	if(!fw) {
 		assert_lt(off, _eh._len);
 		off = _eh._len - off - 1;
@@ -195,8 +187,8 @@ TIndexOff Ebwt::getOffset(
  */
 bool Ebwt::contains(
 	const BTDnaString& str,
-	TIndexOff *otop,
-	TIndexOff *obot) const
+	TIndexOffU *otop,
+	TIndexOffU *obot) const
 {
 	assert(isInMemory());
 	SideLocus tloc, bloc;
@@ -206,7 +198,7 @@ bool Ebwt::contains(
 	}
 	int c = str[str.length()-1];
 	assert_range(0, 4, c);
-	TIndexOff top = 0, bot = 0;
+	TIndexOffU top = 0, bot = 0;
 	if(c < 4) {
 		top = fchr()[c];
 		bot = fchr()[c+1];
@@ -227,15 +219,15 @@ bool Ebwt::contains(
 	assert_geq(bot, top);
 	tloc.initFromRow(top, eh(), ebwt());
 	bloc.initFromRow(bot, eh(), ebwt());
-	ASSERT_ONLY(TIndexOff lastDiff = bot - top);
-	for(int i = (int)str.length()-2; i >= 0; i--) {
+	ASSERT_ONLY(TIndexOffU lastDiff = bot - top);
+	for(TIndexOff i = (TIndexOff)str.length()-2; i >= 0; i--) {
 		c = str[i];
 		assert_range(0, 4, c);
 		if(c <= 3) {
 			top = mapLF(tloc, c);
 			bot = mapLF(bloc, c);
 		} else {
-			size_t sz = bot - top;
+			TIndexOffU sz = bot - top;
 			int c1 = mapLF1(top, tloc ASSERT_ONLY(, false));
 			bot = mapLF(bloc, c1);
 			assert_leq(bot - top, sz);

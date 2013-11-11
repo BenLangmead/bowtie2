@@ -36,11 +36,11 @@
  * including) the given side index by re-counting the chars and
  * comparing against the embedded occ[] arrays.
  */
-void Ebwt::sanityCheckUpToSide(int upToSide) const {
+void Ebwt::sanityCheckUpToSide(TIndexOff upToSide) const {
 	assert(isInMemory());
-	uint32_t occ[] = {0, 0, 0, 0};
-	ASSERT_ONLY(uint32_t occ_save[] = {0, 0, 0, 0});
-	uint32_t cur = 0; // byte pointer
+	TIndexOffU occ[] = {0, 0, 0, 0};
+	ASSERT_ONLY(TIndexOffU occ_save[] = {0, 0, 0, 0});
+	TIndexOffU cur = 0; // byte pointer
 	const EbwtParams& eh = this->_eh;
 	bool fw = false;
 	while(cur < (upToSide * eh._sideSz)) {
@@ -57,11 +57,11 @@ void Ebwt::sanityCheckUpToSide(int upToSide) const {
 		assert_eq(0, (occ[0] + occ[1] + occ[2] + occ[3]) % eh._sideBwtLen);
 		// Finished forward bucket; check saved [A], [C], [G] and [T]
 		// against the uint32_ts encoded here
-		ASSERT_ONLY(const uint32_t *u32ebwt = reinterpret_cast<const uint32_t*>(&ebwt()[cur + eh._sideBwtSz]));
-		ASSERT_ONLY(uint32_t as = u32ebwt[0]);
-		ASSERT_ONLY(uint32_t cs = u32ebwt[1]);
-		ASSERT_ONLY(uint32_t gs = u32ebwt[2]);
-		ASSERT_ONLY(uint32_t ts = u32ebwt[3]);
+		ASSERT_ONLY(const TIndexOffU *u_ebwt = reinterpret_cast<const TIndexOffU*>(&ebwt()[cur + eh._sideBwtSz]));
+		ASSERT_ONLY(TIndexOffU as = u_ebwt[0]);
+		ASSERT_ONLY(TIndexOffU cs = u_ebwt[1]);
+		ASSERT_ONLY(TIndexOffU gs = u_ebwt[2]);
+		ASSERT_ONLY(TIndexOffU ts = u_ebwt[3]);
 		assert(as == occ_save[0] || as == occ_save[0]-1);
 		assert_eq(cs, occ_save[1]);
 		assert_eq(gs, occ_save[2]);
@@ -83,7 +83,7 @@ void Ebwt::sanityCheckAll(int reverse) const {
 	const EbwtParams& eh = this->_eh;
 	assert(isInMemory());
 	// Check ftab
-	for(uint32_t i = 1; i < eh._ftabLen; i++) {
+	for(TIndexOffU i = 1; i < eh._ftabLen; i++) {
 		assert_geq(this->ftabHi(i), this->ftabLo(i-1));
 		assert_geq(this->ftabLo(i), this->ftabHi(i-1));
 		assert_leq(this->ftabHi(i), eh._bwtLen+1);
@@ -91,7 +91,7 @@ void Ebwt::sanityCheckAll(int reverse) const {
 	assert_eq(this->ftabHi(eh._ftabLen-1), eh._bwtLen);
 	
 	// Check offs
-	int seenLen = (eh._bwtLen + 31) >> 5;
+	TIndexOff seenLen = (eh._bwtLen + 31) >> 5;
 	uint32_t *seen;
 	try {
 		seen = new uint32_t[seenLen]; // bitvector marking seen offsets
@@ -100,11 +100,11 @@ void Ebwt::sanityCheckAll(int reverse) const {
 		throw e;
 	}
 	memset(seen, 0, 4 * seenLen);
-	uint32_t offsLen = eh._offsLen;
-	for(uint32_t i = 0; i < offsLen; i++) {
+	TIndexOffU offsLen = eh._offsLen;
+	for(TIndexOffU i = 0; i < offsLen; i++) {
 		assert_lt(this->offs()[i], eh._bwtLen);
-		int w = this->offs()[i] >> 5;
-		int r = this->offs()[i] & 31;
+		TIndexOff w = this->offs()[i] >> 5;
+		TIndexOff r = this->offs()[i] & 31;
 		assert_eq(0, (seen[w] >> r) & 1); // shouldn't have been seen before
 		seen[w] |= (1 << r);
 	}
@@ -114,13 +114,13 @@ void Ebwt::sanityCheckAll(int reverse) const {
 	assert_gt(this->_nPat, 0);
 	
 	// Check plen, flen
-	for(uint32_t i = 0; i < this->_nPat; i++) {
+	for(TIndexOffU i = 0; i < this->_nPat; i++) {
 		assert_geq(this->plen()[i], 0);
 	}
 	
 	// Check rstarts
 	if(this->rstarts() != NULL) {
-		for(uint32_t i = 0; i < this->_nFrag-1; i++) {
+		for(TIndexOffU i = 0; i < this->_nFrag-1; i++) {
 			assert_gt(this->rstarts()[(i+1)*3], this->rstarts()[i*3]);
 			if(reverse == REF_READ_REVERSE) {
 				assert(this->rstarts()[(i*3)+1] >= this->rstarts()[((i+1)*3)+1]);
@@ -144,14 +144,14 @@ void Ebwt::sanityCheckAll(int reverse) const {
 void Ebwt::restore(SString<char>& s) const {
 	assert(isInMemory());
 	s.resize(this->_eh._len);
-	uint32_t jumps = 0;
-	uint32_t i = this->_eh._len; // should point to final SA elt (starting with '$')
+	TIndexOffU jumps = 0;
+	TIndexOffU i = this->_eh._len; // should point to final SA elt (starting with '$')
 	SideLocus l(i, this->_eh, this->ebwt());
 	while(i != _zOff) {
 		assert_lt(jumps, this->_eh._len);
 		//if(_verbose) cout << "restore: i: " << i << endl;
 		// Not a marked row; go back a char in the original string
-		uint32_t newi = mapLF(l ASSERT_ONLY(, false));
+		TIndexOffU newi = mapLF(l ASSERT_ONLY(, false));
 		assert_neq(newi, i);
 		s[this->_eh._len - jumps - 1] = rowL(l);
 		i = newi;
@@ -172,7 +172,7 @@ void Ebwt::checkOrigs(
 {
 	SString<char> rest;
 	restore(rest);
-	uint32_t restOff = 0;
+	TIndexOffU restOff = 0;
 	size_t i = 0, j = 0;
 	if(mirror) {
 		// TODO: FIXME

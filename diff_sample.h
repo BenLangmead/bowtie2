@@ -28,6 +28,7 @@
 #include "ds.h"
 #include "mem_ids.h"
 #include "ls.h"
+#include "btypes.h"
 
 using namespace std;
 
@@ -452,7 +453,7 @@ public:
 		_isaPrime(),
 		_dInv(),
 		_log2v(myLog2(_v)),
-		_vmask(0xffffffff << _log2v),
+		_vmask(OFF_MASK << _log2v),
 		_logger(__logger)
 	{
 		assert_gt(_d, 0);
@@ -478,15 +479,15 @@ public:
 		size_t sPrimeSz = (len / v) * ds.size();
 		// sPrime, sPrimeOrder, _isaPrime all exist in memory at
 		// once and that's the peak
-		AutoArray<uint32_t> aa(sPrimeSz * 3 + (1024 * 1024 /*out of caution*/), EBWT_CAT);
+		AutoArray<TIndexOffU> aa(sPrimeSz * 3 + (1024 * 1024 /*out of caution*/), EBWT_CAT);
 		return sPrimeSz * 4; // sPrime array
 	}
 
 	uint32_t v() const                   { return _v; }
 	uint32_t log2v() const               { return _log2v; }
 	uint32_t vmask() const               { return _vmask; }
-	uint32_t modv(uint32_t i) const      { return i & ~_vmask; }
-	uint32_t divv(uint32_t i) const      { return i >> _log2v; }
+	uint32_t modv(TIndexOffU i) const    { return (uint32_t)(i & ~_vmask); }
+	TIndexOffU divv(TIndexOffU i) const  { return i >> _log2v; }
 	uint32_t d() const                   { return _d; }
 	bool verbose() const                 { return _verbose; }
 	bool sanityCheck() const             { return _sanity; }
@@ -496,10 +497,10 @@ public:
 	ostream& log() const                 { return _logger; }
 
 	void     build();
-	uint32_t tieBreakOff(uint32_t i, uint32_t j) const;
-	int64_t  breakTie(uint32_t i, uint32_t j) const;
-	bool     isCovered(uint32_t i) const;
-	uint32_t rank(uint32_t i) const;
+	uint32_t tieBreakOff(TIndexOffU i, TIndexOffU j) const;
+	int64_t  breakTie(TIndexOffU i, TIndexOffU j) const;
+	bool     isCovered(TIndexOffU i) const;
+	TIndexOffU rank(TIndexOffU i) const;
 
 	/**
 	 * Print out the suffix array such that every sample offset has its
@@ -522,7 +523,7 @@ public:
 private:
 
 	void doBuiltSanityCheck() const;
-	void buildSPrime(EList<uint32_t>& sPrime, size_t padding);
+	void buildSPrime(EList<TIndexOffU>& sPrime, size_t padding);
 
 	bool built() const {
 		return _isaPrime.size() > 0;
@@ -542,11 +543,11 @@ private:
 	EList<uint32_t>  _ds;       // samples: idx -> d
 	EList<uint32_t>  _dmap;     // delta map
 	uint32_t         _d;        // |D| - size of sample
-	EList<uint32_t>  _doffs;    // offsets into sPrime/isaPrime for each d idx
-	EList<uint32_t>  _isaPrime; // ISA' array
+	EList<TIndexOffU>  _doffs;    // offsets into sPrime/isaPrime for each d idx
+	EList<TIndexOffU>  _isaPrime; // ISA' array
 	EList<uint32_t>  _dInv;     // Map from d -> idx
 	uint32_t         _log2v;
-	uint32_t         _vmask;
+	TIndexOffU         _vmask;
 	ostream&         _logger;
 };
 
@@ -559,17 +560,17 @@ void DifferenceCoverSample<TStr>::doBuiltSanityCheck() const {
 	uint32_t v = this->v();
 	assert(built());
 	VMSG_NL("  Doing sanity check");
-	uint32_t added = 0;
-	EList<uint32_t> sorted;
+	TIndexOffU added = 0;
+	EList<TIndexOffU> sorted;
 	sorted.resizeExact(_isaPrime.size());
-	sorted.fill(0xffffffff);
+	sorted.fill(OFF_MASK);
 	for(size_t di = 0; di < this->d(); di++) {
 		uint32_t d = _ds[di];
 		size_t i = 0;
 		for(size_t doi = _doffs[di]; doi < _doffs[di+1]; doi++, i++) {
-			assert_eq(0xffffffff, sorted[_isaPrime[doi]]);
+			assert_eq(OFF_MASK, sorted[_isaPrime[doi]]);
 			// Maps the offset of the suffix to its rank
-			sorted[_isaPrime[doi]] = (uint32_t)(v*i + d);
+			sorted[_isaPrime[doi]] = (TIndexOffU)(v*i + d);
 			added++;
 		}
 	}
@@ -591,25 +592,25 @@ void DifferenceCoverSample<TStr>::doBuiltSanityCheck() const {
  */
 template <typename TStr>
 void DifferenceCoverSample<TStr>::buildSPrime(
-	EList<uint32_t>& sPrime,
+	EList<TIndexOffU>& sPrime,
 	size_t padding)
 {
 	const TStr& t = this->text();
 	const EList<uint32_t>& ds = this->ds();
-	uint32_t tlen = (uint32_t)t.length();
+	TIndexOffU tlen = (TIndexOffU)t.length();
 	uint32_t v = this->v();
 	uint32_t d = this->d();
 	assert_gt(v, 2);
 	assert_lt(d, v);
 	// Record where each d section should begin in sPrime
-	uint32_t tlenDivV = this->divv(tlen);
+	TIndexOffU tlenDivV = this->divv(tlen);
 	uint32_t tlenModV = this->modv(tlen);
-	uint32_t sPrimeSz = 0;
+	TIndexOffU sPrimeSz = 0;
 	assert(_doffs.empty());
 	_doffs.resizeExact((size_t)d+1);
 	for(uint32_t di = 0; di < d; di++) {
 		// mu mapping
-		uint32_t sz = tlenDivV + ((ds[di] <= tlenModV) ? 1 : 0);
+		TIndexOffU sz = tlenDivV + ((ds[di] <= tlenModV) ? 1 : 0);
 		assert_geq(sz, 0);
 		_doffs[di] = sPrimeSz;
 		sPrimeSz += sz;
@@ -619,7 +620,7 @@ void DifferenceCoverSample<TStr>::buildSPrime(
 	if(tlenDivV > 0) {
 		for(size_t i = 0; i < d; i++) {
 			assert_gt(_doffs[i+1], _doffs[i]);
-			uint32_t diff = _doffs[i+1] - _doffs[i];
+			TIndexOffU diff = _doffs[i+1] - _doffs[i];
 			assert(diff == tlenDivV || diff == tlenDivV+1);
 		}
 	}
@@ -627,20 +628,20 @@ void DifferenceCoverSample<TStr>::buildSPrime(
 	assert_eq(_doffs.size(), d+1);
 	// Size sPrime appropriately
 	sPrime.resizeExact((size_t)sPrimeSz + padding);
-	sPrime.fill(0xffffffff);
+	sPrime.fill(OFF_MASK);
 	// Slot suffixes from text into sPrime according to the mu
 	// mapping; where the mapping would leave a blank, insert a 0
-	uint32_t added = 0;
-	uint32_t i = 0;
-	for(uint32_t ti = 0; ti <= tlen; ti += v) {
+	TIndexOffU added = 0;
+	TIndexOffU i = 0;
+	for(TIndexOffU ti = 0; ti <= tlen; ti += v) {
 		for(uint32_t di = 0; di < d; di++) {
-			uint32_t tti = ti + ds[di];
+			TIndexOffU tti = ti + ds[di];
 			if(tti > tlen) break;
-			uint32_t spi = _doffs[di] + i;
+			TIndexOffU spi = _doffs[di] + i;
 			assert_lt(spi, _doffs[di+1]);
 			assert_leq(tti, tlen);
 			assert_lt(spi, sPrimeSz);
-			assert_eq(0xffffffff, sPrime[spi]);
+			assert_eq(OFF_MASK, sPrime[spi]);
 			sPrime[spi] = tti; added++;
 		}
 		i++;
@@ -655,11 +656,11 @@ void DifferenceCoverSample<TStr>::buildSPrime(
 template <typename TStr>
 static inline bool suffixSameUpTo(
 	const TStr& host,
-	uint32_t suf1,
-	uint32_t suf2,
-	uint32_t v)
+	TIndexOffU suf1,
+	TIndexOffU suf2,
+	TIndexOffU v)
 {
-	for(uint32_t i = 0; i < v; i++) {
+	for(TIndexOffU i = 0; i < v; i++) {
 		bool endSuf1 = suf1+i >= host.length();
 		bool endSuf2 = suf2+i >= host.length();
 		if((endSuf1 && !endSuf2) || (!endSuf1 && endSuf2)) return false;
@@ -682,7 +683,7 @@ void DifferenceCoverSample<TStr>::build() {
 	uint32_t v = this->v();
 	assert_gt(v, 2);
 	// Build s'
-	EList<uint32_t> sPrime;
+	EList<TIndexOffU> sPrime;
 	// Need to allocate 2 extra elements at the end of the sPrime and _isaPrime
 	// arrays.  One element that's less than all others, and another that acts
 	// as needed padding for the Larsson-Sadakane sorting code.
@@ -692,12 +693,12 @@ void DifferenceCoverSample<TStr>::build() {
 	size_t sPrimeSz = sPrime.size() - padding;
 	assert_gt(sPrime.size(), padding);
 	assert_leq(sPrime.size(), t.length() + padding + 1);
-	uint32_t nextRank = 0;
+	TIndexOffU nextRank = 0;
 	{
 		VMSG_NL("  Building sPrimeOrder");
-		EList<uint32_t> sPrimeOrder;
+		EList<TIndexOffU> sPrimeOrder;
 		sPrimeOrder.resizeExact(sPrimeSz);
-		for(uint32_t i = 0; i < sPrimeSz; i++) {
+		for(TIndexOffU i = 0; i < sPrimeSz; i++) {
 			sPrimeOrder[i] = i;
 		}
 		// sPrime now holds suffix-offsets for DC samples.
@@ -707,10 +708,10 @@ void DifferenceCoverSample<TStr>::build() {
 			// Extract backing-store array from sPrime and sPrimeOrder;
 			// the mkeyQSortSuf2 routine works on the array for maximum
 			// efficiency
-			uint32_t *sPrimeArr = (uint32_t*)sPrime.ptr();
+			TIndexOffU *sPrimeArr = (TIndexOffU*)sPrime.ptr();
 			assert_eq(sPrimeArr[0], sPrime[0]);
 			assert_eq(sPrimeArr[sPrimeSz-1], sPrime[sPrimeSz-1]);
-			uint32_t *sPrimeOrderArr = (uint32_t*)sPrimeOrder.ptr();
+			TIndexOffU *sPrimeOrderArr = (TIndexOffU*)sPrimeOrder.ptr();
 			assert_eq(sPrimeOrderArr[0], sPrimeOrder[0]);
 			assert_eq(sPrimeOrderArr[sPrimeSz-1], sPrimeOrder[sPrimeSz-1]);
 			// Sort sample suffixes up to the vth character using a
@@ -734,7 +735,7 @@ void DifferenceCoverSample<TStr>::build() {
 		// arrays back into sPrime.
 		VMSG_NL("  Allocating rank array");
 		_isaPrime.resizeExact(sPrime.size());
-		ASSERT_ONLY(_isaPrime.fill(0xffffffff));
+		ASSERT_ONLY(_isaPrime.fill(OFF_MASK));
 		assert_gt(_isaPrime.size(), 0);
 		{
 			Timer timer(cout, "  Ranking v-sort output time: ", this->verbose());
@@ -749,7 +750,7 @@ void DifferenceCoverSample<TStr>::build() {
 			_isaPrime[sPrimeOrder[sPrimeSz-1]] = nextRank; // finish off
 #ifndef NDEBUG
 			for(size_t i = 0; i < sPrimeSz; i++) {
-				assert_neq(0xffffffff, _isaPrime[i]);
+				assert_neq(OFF_MASK, _isaPrime[i]);
 				assert_lt(_isaPrime[i], sPrimeSz);
 			}
 #endif
@@ -757,23 +758,23 @@ void DifferenceCoverSample<TStr>::build() {
 		// sPrimeOrder is destroyed
 		// All the information we need is now in _isaPrime
 	}
-	_isaPrime[_isaPrime.size()-1] = (uint32_t)sPrimeSz;
-	sPrime[sPrime.size()-1] = (uint32_t)sPrimeSz;
+	_isaPrime[_isaPrime.size()-1] = (TIndexOffU)sPrimeSz;
+	sPrime[sPrime.size()-1] = (TIndexOffU)sPrimeSz;
 	// _isaPrime[_isaPrime.size()-1] and sPrime[sPrime.size()-1] are just
 	// spacer for the Larsson-Sadakane routine to use
 	{
 		Timer timer(cout, "  Invoking Larsson-Sadakane on ranks time: ", this->verbose());
 		VMSG_NL("  Invoking Larsson-Sadakane on ranks");
-		if(sPrime.size() >= 0x10000000) {
+		if(sPrime.size() >= LS_SIZE) {
 			cerr << "Error; sPrime array has so many elements that it can't be converted to a signed array without overflow." << endl;
 			throw 1;
 		}
 		LarssonSadakane<int> ls;
 		ls.suffixsort(
-			(int*)_isaPrime.ptr(),
-			(int*)sPrime.ptr(),
-			(int)sPrimeSz,
-			(int)sPrime.size(),
+			(TIndexOff*)_isaPrime.ptr(),
+			(TIndexOff*)sPrime.ptr(),
+			(TIndexOff)sPrimeSz,
+			(TIndexOff)sPrime.size(),
 			0);
 	}
 	// chop off final character of _isaPrime
@@ -797,7 +798,7 @@ void DifferenceCoverSample<TStr>::build() {
  * logic elsewhere.
  */
 template <typename TStr>
-bool DifferenceCoverSample<TStr>::isCovered(uint32_t i) const {
+bool DifferenceCoverSample<TStr>::isCovered(TIndexOffU i) const {
 	assert(built());
 	uint32_t modi = this->modv(i);
 	assert_lt(modi, _dInv.size());
@@ -809,16 +810,16 @@ bool DifferenceCoverSample<TStr>::isCovered(uint32_t i) const {
  * among the sample suffixes.
  */
 template <typename TStr>
-uint32_t DifferenceCoverSample<TStr>::rank(uint32_t i) const {
+TIndexOffU DifferenceCoverSample<TStr>::rank(TIndexOffU i) const {
 	assert(built());
 	assert_lt(i, this->text().length());
 	uint32_t imodv = this->modv(i);
 	assert_neq(0xffffffff, _dInv[imodv]); // must be in the sample
-	uint32_t ioff = this->divv(i);
+	TIndexOffU ioff = this->divv(i);
 	assert_lt(ioff, _doffs[_dInv[imodv]+1] - _doffs[_dInv[imodv]]);
-	uint32_t isaIIdx = _doffs[_dInv[imodv]] + ioff;
+	TIndexOffU isaIIdx = _doffs[_dInv[imodv]] + ioff;
 	assert_lt(isaIIdx, _isaPrime.size());
-	uint32_t isaPrimeI = _isaPrime[isaIIdx];
+	TIndexOffU isaPrimeI = _isaPrime[isaIIdx];
 	assert_leq(isaPrimeI, _isaPrime.size());
 	return isaPrimeI;
 }
@@ -828,7 +829,7 @@ uint32_t DifferenceCoverSample<TStr>::rank(uint32_t i) const {
  * if suffix j is lexicographically greater.
  */
 template <typename TStr>
-int64_t DifferenceCoverSample<TStr>::breakTie(uint32_t i, uint32_t j) const {
+int64_t DifferenceCoverSample<TStr>::breakTie(TIndexOffU i, TIndexOffU j) const {
 	assert(built());
 	assert_neq(i, j);
 	assert_lt(i, this->text().length());
@@ -839,20 +840,20 @@ int64_t DifferenceCoverSample<TStr>::breakTie(uint32_t i, uint32_t j) const {
 	assert_neq(0xffffffff, _dInv[jmodv]); // must be in the sample
 	uint32_t dimodv = _dInv[imodv];
 	uint32_t djmodv = _dInv[jmodv];
-	uint32_t ioff = this->divv(i);
-	uint32_t joff = this->divv(j);
+	TIndexOffU ioff = this->divv(i);
+	TIndexOffU joff = this->divv(j);
 	assert_lt(dimodv+1, _doffs.size());
 	assert_lt(djmodv+1, _doffs.size());
 	// assert_lt: expected (32024) < (0)
 	assert_lt(ioff, _doffs[dimodv+1] - _doffs[dimodv]);
 	assert_lt(joff, _doffs[djmodv+1] - _doffs[djmodv]);
-	uint32_t isaIIdx = _doffs[dimodv] + ioff;
-	uint32_t isaJIdx = _doffs[djmodv] + joff;
+	TIndexOffU isaIIdx = _doffs[dimodv] + ioff;
+	TIndexOffU isaJIdx = _doffs[djmodv] + joff;
 	assert_lt(isaIIdx, _isaPrime.size());
 	assert_lt(isaJIdx, _isaPrime.size());
 	assert_neq(isaIIdx, isaJIdx); // ranks must be unique
-	uint32_t isaPrimeI = _isaPrime[isaIIdx];
-	uint32_t isaPrimeJ = _isaPrime[isaJIdx];
+	TIndexOffU isaPrimeI = _isaPrime[isaIIdx];
+	TIndexOffU isaPrimeJ = _isaPrime[isaJIdx];
 	assert_neq(isaPrimeI, isaPrimeJ); // ranks must be unique
 	assert_leq(isaPrimeI, _isaPrime.size());
 	assert_leq(isaPrimeJ, _isaPrime.size());
@@ -864,7 +865,7 @@ int64_t DifferenceCoverSample<TStr>::breakTie(uint32_t i, uint32_t j) const {
  * be compared before the difference cover can break the tie.
  */
 template <typename TStr>
-uint32_t DifferenceCoverSample<TStr>::tieBreakOff(uint32_t i, uint32_t j) const {
+uint32_t DifferenceCoverSample<TStr>::tieBreakOff(TIndexOffU i, TIndexOffU j) const {
 	const TStr& t = this->text();
 	const EList<uint32_t>& dmap = this->dmap();
 	assert(built());

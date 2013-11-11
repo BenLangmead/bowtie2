@@ -61,10 +61,11 @@
 #include "threading.h"
 #include "mem_ids.h"
 #include "simple_func.h"
+#include "btypes.h"
 
 #define CACHE_PAGE_SZ (16 * 1024)
 
-typedef PListSlice<uint32_t, CACHE_PAGE_SZ> TSlice;
+typedef PListSlice<TIndexOffU, CACHE_PAGE_SZ> TSlice;
 
 /**
  * Key for the query multimap: the read substring and its length.
@@ -194,13 +195,13 @@ public:
 	/**
 	 * Return the offset of the first reference substring in the qlist.
 	 */
-	uint32_t offset() const { return i_; }
+	TIndexOffU offset() const { return i_; }
 
 	/**
 	 * Return the number of reference substrings associated with a read
 	 * substring.
 	 */
-	uint32_t numRanges() const {
+	TIndexOffU numRanges() const {
 		assert(valid());
 		return rangen_;
 	}
@@ -209,7 +210,7 @@ public:
 	 * Return the number of elements associated with all associated
 	 * reference substrings.
 	 */
-	uint32_t numElts() const {
+	TIndexOffU numElts() const {
 		assert(valid());
 		return eltn_;
 	}
@@ -226,26 +227,26 @@ public:
 	/**
 	 * Return true iff the QVal is valid.
 	 */
-	bool valid() const { return rangen_ != 0xffffffff; }
+	bool valid() const { return rangen_ != OFF_MASK; }
 	
 	/**
 	 * Reset to invalid state.
 	 */
 	void reset() {
-		i_ = 0; rangen_ = eltn_ = 0xffffffff;
+		i_ = 0; rangen_ = eltn_ = OFF_MASK;
 	}
 	
 	/**
 	 * Initialize Qval.
 	 */
-	void init(uint32_t i, uint32_t ranges, uint32_t elts) {
+	void init(TIndexOffU i, TIndexOffU ranges, TIndexOffU elts) {
 		i_ = i; rangen_ = ranges; eltn_ = elts;
 	}
 	
 	/**
 	 * Tally another range with given number of elements.
 	 */
-	void addRange(uint32_t numElts) {
+	void addRange(TIndexOffU numElts) {
 		rangen_++;
 		eltn_ += numElts;
 	}
@@ -260,9 +261,9 @@ public:
 
 protected:
 
-	uint32_t i_;      // idx of first elt in qlist
-	uint32_t rangen_; // # ranges (= # associated reference substrings)
-	uint32_t eltn_;   // # elements (total)
+	TIndexOffU i_;      // idx of first elt in qlist
+	TIndexOffU rangen_; // # ranges (= # associated reference substrings)
+	TIndexOffU eltn_;   // # elements (total)
 };
 
 /**
@@ -278,12 +279,12 @@ typedef QKey SAKey;
  */
 struct SAVal {
 
-	SAVal() : topf(), topb(), i(), len(0xffffffff) { }
+	SAVal() : topf(), topb(), i(), len(OFF_MASK) { }
 
 	/**
 	 * Return true iff the SAVal is valid.
 	 */
-	bool valid() { return len != 0xffffffff; }
+	bool valid() { return len != OFF_MASK; }
 
 #ifndef NDEBUG
 	/**
@@ -297,10 +298,10 @@ struct SAVal {
 	 * Initialize the SAVal.
 	 */
 	void init(
-		uint32_t tf,
-		uint32_t tb,
-		uint32_t ii,
-		uint32_t ln)
+		TIndexOffU tf,
+		TIndexOffU tb,
+		TIndexOffU ii,
+		TIndexOffU ln)
 	{
 		topf = tf;
 		topb = tb;
@@ -308,10 +309,10 @@ struct SAVal {
 		len = ln;
 	}
 
-	uint32_t topf;  // top in BWT
-	uint32_t topb;  // top in BWT'
-	uint32_t i;     // idx of first elt in salist
-	uint32_t len;   // length of range
+	TIndexOffU topf;  // top in BWT
+	TIndexOffU topb;  // top in BWT'
+	TIndexOffU i;     // idx of first elt in salist
+	TIndexOffU len;   // length of range
 };
 
 /**
@@ -326,11 +327,11 @@ public:
 
 	SATuple() { reset(); };
 
-	SATuple(SAKey k, uint32_t tf, uint32_t tb, TSlice o) {
+	SATuple(SAKey k, TIndexOffU tf, TIndexOffU tb, TSlice o) {
 		init(k, tf, tb, o);
 	}
 	
-	void init(SAKey k, uint32_t tf, uint32_t tb, TSlice o) {
+	void init(SAKey k, TIndexOffU tf, TIndexOffU tb, TSlice o) {
 		key = k; topf = tf; topb = tb; offs = o;
 	}
 
@@ -338,10 +339,10 @@ public:
 	 * Initialize this SATuple from a subrange of the SATuple 'src'.
 	 */
 	void init(const SATuple& src, size_t first, size_t last) {
-		assert_neq(0xffffffff, src.topb);
+		assert_neq(OFF_MASK, src.topb);
 		key = src.key;
 		topf = src.topf + (uint32_t)first;
-		topb = 0xffffffff; // unknown!
+		topb = OFF_MASK; // unknown!
 		offs.init(src.offs, first, last);
 	}
 	
@@ -385,7 +386,7 @@ public:
 		return key == o.key && topf == o.topf && topb == o.topb && offs == o.offs;
 	}
 
-	void reset() { topf = topb = 0xffffffff; offs.reset(); }
+	void reset() { topf = topb = OFF_MASK; offs.reset(); }
 	
 	/**
 	 * Set the length to be at most the original length.
@@ -403,8 +404,8 @@ public:
 
 	// bot/length of SA range equals offs.size()
 	SAKey    key;  // sequence key
-	uint32_t topf;  // top in BWT index
-	uint32_t topb;  // top in BWT' index
+	TIndexOffU topf;  // top in BWT index
+	TIndexOffU topb;  // top in BWT' index
 	TSlice   offs; // offsets
 };
 
@@ -430,7 +431,7 @@ class AlignmentCache {
 	typedef RedBlackNode<SAKey, SAVal> SANode;
 
 	typedef PList<SAKey, CACHE_PAGE_SZ> TQList;
-	typedef PList<uint32_t, CACHE_PAGE_SZ> TSAList;
+	typedef PList<TIndexOffU, CACHE_PAGE_SZ> TSAList;
 
 public:
 
@@ -534,10 +535,10 @@ public:
 	bool addOnTheFly(
 		QVal& qv,         // qval that points to the range of reference substrings
 		const SAKey& sak, // the key holding the reference substring
-		uint32_t topf,    // top range elt in BWT index
-		uint32_t botf,    // bottom range elt in BWT index
-		uint32_t topb,    // top range elt in BWT' index
-		uint32_t botb,    // bottom range elt in BWT' index
+		TIndexOffU topf,    // top range elt in BWT index
+		TIndexOffU botf,    // bottom range elt in BWT index
+		TIndexOffU topb,    // top range elt in BWT' index
+		TIndexOffU botb,    // bottom range elt in BWT' index
 		bool getLock = true);
 
 	/**
@@ -826,10 +827,10 @@ public:
 	 */
 	bool addOnTheFly(
 		const BTDnaString& rfseq, // reference sequence close to read seq
-		uint32_t topf,            // top in BWT index
-		uint32_t botf,            // bot in BWT index
-		uint32_t topb,            // top in BWT' index
-		uint32_t botb,            // bot in BWT' index
+		TIndexOffU topf,            // top in BWT index
+		TIndexOffU botf,            // bot in BWT index
+		TIndexOffU topb,            // top in BWT' index
+		TIndexOffU botb,            // bot in BWT' index
 		bool getLock = true)      // true -> lock is not held by caller
 	{
 		

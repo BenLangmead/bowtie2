@@ -54,10 +54,10 @@ bool SAVal::repOk(const AlignmentCache& ac) const {
 bool AlignmentCache::addOnTheFly(
 	QVal& qv,         // qval that points to the range of reference substrings
 	const SAKey& sak, // the key holding the reference substring
-	uint32_t topf,    // top range elt in BWT index
-	uint32_t botf,    // bottom range elt in BWT index
-	uint32_t topb,    // top range elt in BWT' index
-	uint32_t botb,    // bottom range elt in BWT' index
+	TIndexOffU topf,    // top range elt in BWT index
+	TIndexOffU botf,    // bottom range elt in BWT index
+	TIndexOffU topb,    // top range elt in BWT' index
+	TIndexOffU botb,    // bottom range elt in BWT' index
 	bool getLock)
 {
     ThreadSafe ts(lockPtr(), shared_ && getLock);
@@ -90,7 +90,7 @@ bool AlignmentCache::addOnTheFly(
 		s->payload.topf = topf;
 		s->payload.topb = topb;
 		for(size_t j = 0; j < (botf-topf); j++) {
-			if(!salist_.add(pool(), 0xffffffff)) {
+			if(!salist_.add(pool(), OFF_MASK)) {
 				// Change the payload's len field
 				s->payload.len = (uint32_t)j;
 				return false; // Exhausted pool memory

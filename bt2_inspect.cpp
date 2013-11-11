@@ -200,7 +200,7 @@ static void print_ref_sequences(
 	ostream& fout,
 	bool color,
 	const EList<string>& refnames,
-	const uint32_t* plen,
+	const TIndexOffU* plen,
 	const string& adjustedEbwtFileBase)
 {
 	BitPairReference ref(
@@ -238,25 +238,25 @@ static void print_index_sequences(ostream& fout, Ebwt& ebwt)
 	TStr cat_ref;
 	ebwt.restore(cat_ref);
 
-	uint32_t curr_ref = 0xffffffff;
+	uint32_t curr_ref = OFF_MASK;
 	string curr_ref_seq = "";
-	uint32_t curr_ref_len = 0xffffffff;
+	uint32_t curr_ref_len = OFF_MASK;
 	uint32_t last_text_off = 0;
 	size_t orig_len = cat_ref.length();
-	uint32_t tlen = 0xffffffff;
+	uint32_t tlen = OFF_MASK;
 	bool first = true;
 	for(size_t i = 0; i < orig_len; i++) {
-		uint32_t tidx = 0xffffffff;
-		uint32_t textoff = 0xffffffff;
-		tlen = 0xffffffff;
+		uint32_t tidx = OFF_MASK;
+		uint32_t textoff = OFF_MASK;
+		tlen = OFF_MASK;
 		bool straddled = false;
-		ebwt.joinedToTextOff(1 /* qlen */, (uint32_t)i, tidx, textoff, tlen, true, straddled);
+		ebwt.joinedToTextOff(1 /* qlen */, (TIndexOffU)i, tidx, textoff, tlen, true, straddled);
 
-		if (tidx != 0xffffffff && textoff < tlen)
+		if (tidx != OFF_MASK && textoff < tlen)
 		{
 			if (curr_ref != tidx)
 			{
-				if (curr_ref != 0xffffffff)
+				if (curr_ref != OFF_MASK)
 				{
 					// Add trailing gaps, if any exist
 					if(curr_ref_seq.length() < curr_ref_len) {
@@ -271,7 +271,7 @@ static void print_index_sequences(ostream& fout, Ebwt& ebwt)
 				first = true;
 			}
 
-			uint32_t textoff_adj = textoff;
+			TIndexOffU textoff_adj = textoff;
 			if(first && textoff > 0) textoff_adj++;
 			if (textoff_adj - last_text_off > 1)
 				curr_ref_seq += string(textoff_adj - last_text_off - 1, 'N');

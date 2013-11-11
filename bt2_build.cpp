@@ -42,8 +42,8 @@
 int verbose;
 static int sanityCheck;
 static int format;
-static uint32_t bmax;
-static uint32_t bmaxMultSqrt;
+static TIndexOffU bmax;
+static TIndexOffU bmaxMultSqrt;
 static uint32_t bmaxDivN;
 static int dcv;
 static int noDc;
@@ -69,8 +69,8 @@ static void resetOptions() {
 	verbose      = true;  // be talkative (default)
 	sanityCheck  = 0;     // do slow sanity checks
 	format       = FASTA; // input sequence format
-	bmax         = 0xffffffff; // max blockwise SA bucket size
-	bmaxMultSqrt = 0xffffffff; // same, as multplier of sqrt(n)
+	bmax         = OFF_MASK; // max blockwise SA bucket size
+	bmaxMultSqrt = OFF_MASK; // same, as multplier of sqrt(n)
 	bmaxDivN     = 4;          // same, as divisor of n
 	dcv          = 1024;  // bwise SA difference-cover sample sz
 	noDc         = 0;     // disable difference-cover sample
@@ -78,7 +78,7 @@ static void resetOptions() {
 	seed         = 0;     // srandom seed
 	showVersion  = 0;     // just print version and quit?
 	//   Ebwt parameters
-	lineRate     = 6;  // a "line" is 64 bytes
+	lineRate     = 7;  // a "line" is 64 bytes
 	linesPerSide = 1;  // 1 64-byte line on a side
 	offRate      = 4;  // sample 1 out of 16 SA elts
 	ftabChars    = 10; // 10 chars in initial lookup table
@@ -180,7 +180,7 @@ static struct option long_options[] = {
  * exit with an error and a usage message.
  */
 template<typename T>
-static int parseNumber(T lower, const char *errmsg) {
+static T parseNumber(T lower, const char *errmsg) {
 	char *endPtr= NULL;
 	T t = (T)strtoll(optarg, &endPtr, 10);
 	if (endPtr != NULL) {
@@ -240,19 +240,19 @@ static void parseOptions(int argc, const char **argv) {
 				throw 0;
 				break;
 			case ARG_BMAX:
-				bmax = parseNumber<uint32_t>(1, "--bmax arg must be at least 1");
-				bmaxMultSqrt = 0xffffffff; // don't use multSqrt
+				bmax = parseNumber<TIndexOffU>(1, "--bmax arg must be at least 1");
+				bmaxMultSqrt = OFF_MASK; // don't use multSqrt
 				bmaxDivN = 0xffffffff;     // don't use multSqrt
 				break;
 			case ARG_BMAX_MULT:
-				bmaxMultSqrt = parseNumber<uint32_t>(1, "--bmaxmultsqrt arg must be at least 1");
-				bmax = 0xffffffff;     // don't use bmax
+				bmaxMultSqrt = parseNumber<TIndexOffU>(1, "--bmaxmultsqrt arg must be at least 1");
+				bmax = OFF_MASK;     // don't use bmax
 				bmaxDivN = 0xffffffff; // don't use multSqrt
 				break;
 			case ARG_BMAX_DIV:
 				bmaxDivN = parseNumber<uint32_t>(1, "--bmaxdivn arg must be at least 1");
-				bmax = 0xffffffff;         // don't use bmax
-				bmaxMultSqrt = 0xffffffff; // don't use multSqrt
+				bmax = OFF_MASK;         // don't use bmax
+				bmaxMultSqrt = OFF_MASK; // don't use multSqrt
 				break;
 			case ARG_DCV:
 				dcv = parseNumber<int>(3, "--dcv arg must be at least 3");
@@ -402,7 +402,7 @@ static void driver(
 		noDc? 0 : dcv,// difference-cover period
 		is,           // list of input streams
 		szs,          // list of reference sizes
-		(uint32_t)sztot.first,  // total size of all unambiguous ref chars
+		(TIndexOffU)sztot.first,  // total size of all unambiguous ref chars
 		refparams,    // reference read-in parameters
 		seed,         // pseudo-random number generator seed
 		-1,           // override offRate
@@ -436,7 +436,7 @@ static void driver(
 			SString<char> joinedss = Ebwt::join<SString<char> >(
 				is,          // list of input streams
 				szs,         // list of reference sizes
-				(uint32_t)sztot.first, // total size of all unambiguous ref chars
+				(TIndexOffU)sztot.first, // total size of all unambiguous ref chars
 				refparams,   // reference read-in parameters
 				seed);       // pseudo-random number generator seed
 			if(refparams.reverse == REF_READ_REVERSE) {
@@ -527,12 +527,12 @@ int bowtie_build(int argc, const char **argv) {
 				 << "  FTable chars: " << ftabChars << endl
 				 << "  Strings: " << (packed? "packed" : "unpacked") << endl
 				 ;
-			if(bmax == 0xffffffff) {
+			if(bmax == OFF_MASK) {
 				cout << "  Max bucket size: default" << endl;
 			} else {
 				cout << "  Max bucket size: " << bmax << endl;
 			}
-			if(bmaxMultSqrt == 0xffffffff) {
+			if(bmaxMultSqrt == OFF_MASK) {
 				cout << "  Max bucket size, sqrt multiplier: default" << endl;
 			} else {
 				cout << "  Max bucket size, sqrt multiplier: " << bmaxMultSqrt << endl;

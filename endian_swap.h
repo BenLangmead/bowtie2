@@ -23,6 +23,14 @@
 #include <stdint.h>
 #include <inttypes.h>
 
+#ifdef BOWTIE_64BIT_INDEX
+#   define endianSwapU(x) endianSwapU64(x)
+#   define endianSwapI(x) endianSwapI64(x)
+#else
+#   define endianSwapU(x) endianSwapU32(x)
+#   define endianSwapI(x) endianSwapI32(x)
+#endif
+
 /**
  * Return true iff the machine running this program is big-endian.
  */
@@ -73,25 +81,44 @@ static inline int32_t endianSwapI32(int32_t i) {
 }
 
 /**
- * Convert uint32_t argument to the specified endianness.  It's assumed
- * that u currently has the endianness of the current machine.
+ * Return copy of int64_t argument with byte order reversed.
  */
-static inline uint32_t endianizeU32(uint32_t u, bool toBig) {
-	if(toBig == currentlyBigEndian()) {
-		return u;
-	}
-	return endianSwapU32(u);
+static inline int64_t endianSwapI64(int64_t u) {
+        int64_t tmp = 0;
+        tmp |= ((u >> 56) & (0xffull <<  0));
+        tmp |= ((u >> 40) & (0xffull <<  8));
+        tmp |= ((u >> 24) & (0xffull << 16));
+        tmp |= ((u >>  8) & (0xffull << 24));
+        tmp |= ((u <<  8) & (0xffull << 32));
+        tmp |= ((u << 24) & (0xffull << 40));
+        tmp |= ((u << 40) & (0xffull << 48));
+        tmp |= ((u << 56) & (0xffull << 56));
+        return tmp;
 }
 
 /**
- * Convert int32_t argument to the specified endianness.  It's assumed
+ * Convert uint32_t/uint64_t argument to the specified endianness.  It's assumed
  * that u currently has the endianness of the current machine.
  */
-static inline int32_t endianizeI32(int32_t i, bool toBig) {
+template <typename T>
+static inline T endianizeU(T u, bool toBig) {
+	if(toBig == currentlyBigEndian()) {
+		return u;
+	}
+	return endianSwapU(u);
+}
+
+
+/**
+ * Convert int32_t/int64_t argument to the specified endianness.  It's assumed
+ * that u currently has the endianness of the current machine.
+ */
+template <typename T>
+static inline T endianizeI(T i, bool toBig) {
 	if(toBig == currentlyBigEndian()) {
 		return i;
 	}
-	return endianSwapI32(i);
+	return endianSwapI(i);
 }
 
 #endif

@@ -43,29 +43,29 @@ using namespace std;
  */
 struct RefRecord {
 	RefRecord() : off(), len(), first() { }
-	RefRecord(uint32_t _off, uint32_t _len, bool _first) :
+	RefRecord(TIndexOffU _off, TIndexOffU _len, bool _first) :
 		off(_off), len(_len), first(_first)
 	{ }
 
 	RefRecord(FILE *in, bool swap) {
 		assert(in != NULL);
-		if(!fread(&off, 4, 1, in)) {
+		if(!fread(&off, OFF_SIZE, 1, in)) {
 			cerr << "Error reading RefRecord offset from FILE" << endl;
 			throw 1;
 		}
-		if(swap) off = endianSwapU32(off);
-		if(!fread(&len, 4, 1, in)) {
+		if(swap) off = endianSwapU<TIndexOffU>(off);
+		if(!fread(&len, OFF_SIZE, 1, in)) {
 			cerr << "Error reading RefRecord offset from FILE" << endl;
 			throw 1;
 		}
-		if(swap) len = endianSwapU32(len);
+		if(swap) len = endianSwapU<TIndexOffU>(len);
 		first = fgetc(in) ? true : false;
 	}
 
 #ifdef BOWTIE_MM
 	RefRecord(int in, bool swap) {
-		off = readU32(in, swap);
-		len = readU32(in, swap);
+		off = readU<TIndexOffU>(in, swap);
+		len = readU<TIndexOffU>(in, swap);
 		char c;
 		if(!read(in, &c, 1)) {
 			cerr << "Error reading RefRecord 'first' flag" << endl;
@@ -76,13 +76,13 @@ struct RefRecord {
 #endif
 
 	void write(std::ostream& out, bool be) {
-		writeU32(out, off, be);
-		writeU32(out, len, be);
+		writeU<TIndexOffU>(out, off, be);
+		writeU<TIndexOffU>(out, len, be);
 		out.put(first ? 1 : 0);
 	}
 
-	uint32_t off; /// Offset of the first character in the record
-	uint32_t len; /// Length of the record
+	TIndexOffU off; /// Offset of the first character in the record
+	TIndexOffU len; /// Length of the record
 	bool   first; /// Whether this record is the first for a reference sequence
 };
 
@@ -121,7 +121,7 @@ fastaRefReadSizes(
 	EList<RefRecord>& recs,
 	const RefReadInParams& rparms,
 	BitpairOutFileBuf* bpout,
-	int& numSeqs);
+	TIndexOff& numSeqs);
 
 extern void
 reverseRefRecords(
