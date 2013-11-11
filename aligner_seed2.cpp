@@ -273,8 +273,8 @@ bool DescentAlignmentSink::reportAlignment(
 			// Invert them back to how they were before
 			Edit::invertPoss(edits_, len, ei, en, true);
 		}
-		ASSERT_ONLY(uint32_t toptmp = 0);
-		ASSERT_ONLY(uint32_t bottmp = 0);
+		ASSERT_ONLY(TIndexOffU toptmp = 0);
+		ASSERT_ONLY(TIndexOffU bottmp = 0);
 		// Check that the edited string occurs in the reference
 		if(!ebwtFw.contains(rf, &toptmp, &bottmp)) {
 			std::cerr << rf << std::endl;

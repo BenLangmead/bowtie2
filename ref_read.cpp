@@ -273,10 +273,10 @@ fastaRefReadSizes(
 	EList<RefRecord>& recs,
 	const RefReadInParams& rparms,
 	BitpairOutFileBuf* bpout,
-	int& numSeqs)
+	TIndexOff& numSeqs)
 {
-	uint32_t unambigTot = 0;
-	uint32_t bothTot = 0;
+	size_t unambigTot = 0;
+	size_t bothTot = 0;
 	assert_gt(in.size(), 0);
 	// For each input istream
 	for(size_t i = 0; i < in.size(); i++) {

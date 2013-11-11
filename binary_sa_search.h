@@ -25,6 +25,7 @@
 #include "alphabet.h"
 #include "assert_helpers.h"
 #include "ds.h"
+#include "btypes.h"
 
 /**
  * Do a binary search using the suffix of 'host' beginning at offset
@@ -44,12 +45,12 @@
 template<typename TStr, typename TSufElt> inline
 uint32_t binarySASearch(
 	const TStr& host,
-	uint32_t qry,
+	TIndexOffU qry,
 	const EList<TSufElt>& sa)
 {
-	uint32_t lLcp = 0, rLcp = 0; // greatest observed LCPs on left and right
+	TIndexOffU lLcp = 0, rLcp = 0; // greatest observed LCPs on left and right
 	uint32_t l = 0, r = (uint32_t)sa.size()+1; // binary-search window
-	uint32_t hostLen = (uint32_t)host.length();
+	TIndexOffU hostLen = (TIndexOffU)host.length();
 	while(true) {
 		assert_gt(r, l);
 		uint32_t m = (l+r) >> 1;
@@ -60,9 +61,9 @@ uint32_t binarySASearch(
 			return m; // Return index of right-hand suffix
 		}
 		assert_gt(m, 0);
-		uint32_t suf = sa[m-1];
+		TIndexOffU suf = sa[m-1];
 		if(suf == qry) return 0xffffffff; // query matches an elt of sa
-		uint32_t lcp = min(lLcp, rLcp);
+		TIndexOffU lcp = min(lLcp, rLcp);
 #ifndef NDEBUG
 		if(sstr_suf_upto_neq(host, qry, host, suf, lcp)) {
 			assert(0);

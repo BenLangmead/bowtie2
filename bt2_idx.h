@@ -53,6 +53,7 @@
 #include "ds.h"
 #include "random_source.h"
 #include "mem_ids.h"
+#include "btypes.h"
 
 #ifdef POPCNT_CAPABILITY 
     #include "processor_support.h" 
@@ -90,8 +91,6 @@ if(this->verbose()) { \
 }
 #endif
 
-typedef uint32_t TIndexOff;
-
 /**
  * Flags describing type of Ebwt.
  */
@@ -113,7 +112,7 @@ public:
 	EbwtParams() { }
 
 	EbwtParams(
-		TIndexOff len,
+		TIndexOffU len,
 		int32_t lineRate,
 		int32_t offRate,
 		int32_t ftabChars,
@@ -129,7 +128,7 @@ public:
 	}
 
 	void init(
-		TIndexOff len,
+		TIndexOffU len,
 		int32_t lineRate,
 		int32_t offRate,
 		int32_t ftabChars,
@@ -145,18 +144,17 @@ public:
 		_lineRate = lineRate;
 		_origOffRate = offRate;
 		_offRate = offRate;
-		// TODO: line below
-		_offMask = 0xffffffff << _offRate;
+		_offMask = OFF_MASK << _offRate;
 		_ftabChars = ftabChars;
 		_eftabLen = _ftabChars*2;
-		_eftabSz = _eftabLen*4;
+		_eftabSz = _eftabLen*OFF_SIZE;
 		_ftabLen = (1 << (_ftabChars*2))+1;
-		_ftabSz = _ftabLen*4;
+		_ftabSz = _ftabLen*OFF_SIZE;
 		_offsLen = (_bwtLen + (1 << _offRate) - 1) >> _offRate;
-		_offsSz = _offsLen*4;
+		_offsSz = _offsLen*OFF_SIZE;
 		_lineSz = 1 << _lineRate;
 		_sideSz = _lineSz * 1 /* lines per side */;
-		_sideBwtSz = _sideSz - 16;
+		_sideBwtSz = _sideSz - OFF_SIZE*4;
 		_sideBwtLen = _sideBwtSz*4;
 		_numSides = (_bwtSz+(_sideBwtSz)-1)/(_sideBwtSz);
 		_numLines = _numSides * 1 /* lines per side */;
@@ -165,30 +163,30 @@ public:
 		assert(repOk());
 	}
 
-	TIndexOff len() const           { return _len; }
-	TIndexOff lenNucs() const       { return _len + (_color ? 1 : 0); }
-	TIndexOff bwtLen() const        { return _bwtLen; }
-	TIndexOff sz() const            { return _sz; }
-	TIndexOff bwtSz() const         { return _bwtSz; }
+	TIndexOffU len() const           { return _len; }
+	TIndexOffU lenNucs() const       { return _len + (_color ? 1 : 0); }
+	TIndexOffU bwtLen() const        { return _bwtLen; }
+	TIndexOffU sz() const            { return _sz; }
+	TIndexOffU bwtSz() const         { return _bwtSz; }
 	int32_t   lineRate() const      { return _lineRate; }
 	int32_t   origOffRate() const   { return _origOffRate; }
 	int32_t   offRate() const       { return _offRate; }
-	TIndexOff offMask() const       { return _offMask; }
+	TIndexOffU offMask() const       { return _offMask; }
 	int32_t   ftabChars() const     { return _ftabChars; }
-	TIndexOff eftabLen() const      { return _eftabLen; }
-	TIndexOff eftabSz() const       { return _eftabSz; }
-	TIndexOff ftabLen() const       { return _ftabLen; }
-	TIndexOff ftabSz() const        { return _ftabSz; }
-	TIndexOff offsLen() const       { return _offsLen; }
-	TIndexOff offsSz() const        { return _offsSz; }
-	TIndexOff lineSz() const        { return _lineSz; }
-	TIndexOff sideSz() const        { return _sideSz; }
-	TIndexOff sideBwtSz() const     { return _sideBwtSz; }
-	TIndexOff sideBwtLen() const    { return _sideBwtLen; }
-	TIndexOff numSides() const      { return _numSides; }
-	TIndexOff numLines() const      { return _numLines; }
-	TIndexOff ebwtTotLen() const    { return _ebwtTotLen; }
-	TIndexOff ebwtTotSz() const     { return _ebwtTotSz; }
+	int32_t eftabLen() const      { return _eftabLen; } 
+	int32_t eftabSz() const       { return _eftabSz; } 
+	TIndexOffU ftabLen() const       { return _ftabLen; }
+	TIndexOffU ftabSz() const        { return _ftabSz; }
+	TIndexOffU offsLen() const       { return _offsLen; }
+	TIndexOffU offsSz() const        { return _offsSz; }
+	int32_t lineSz() const        { return _lineSz; } 
+	int32_t sideSz() const        { return _sideSz; } 
+	int32_t sideBwtSz() const     { return _sideBwtSz; } 
+	int32_t sideBwtLen() const    { return _sideBwtLen; } 
+	TIndexOffU numSides() const      { return _numSides; }
+	TIndexOffU numLines() const      { return _numLines; }
+	TIndexOffU ebwtTotLen() const    { return _ebwtTotLen; }
+	TIndexOffU ebwtTotSz() const     { return _ebwtTotSz; }
 	bool color() const             { return _color; }
 	bool entireReverse() const     { return _entireReverse; }
 
@@ -198,8 +196,7 @@ public:
 	 */
 	void setOffRate(int __offRate) {
 		_offRate = __offRate;
-		// TODO: line below
-		_offMask = 0xffffffff << _offRate;
+		_offMask = OFF_MASK << _offRate;
 		_offsLen = (_bwtLen + (1 << _offRate) - 1) >> _offRate;
 		_offsSz = _offsLen*4;
 	}
@@ -214,7 +211,11 @@ public:
 		assert_geq(_ftabChars, 1);
 		// Only 6 supported for now, due to hardcoded constants in
 		// SideLocus.
+#ifdef BOWTIE_64BIT_INDEX
+		assert_eq(7, _lineRate);
+#else
 		assert_eq(6, _lineRate);
+#endif
 		//assert_lt(_lineRate, 32);
 		assert_lt(_ftabChars, 32);
 		assert_eq(0, _ebwtTotSz % _lineSz);
@@ -253,29 +254,29 @@ public:
 		    << "    reverse: "      << _entireReverse << endl;
 	}
 
-	TIndexOff _len;
-	TIndexOff _bwtLen;
-	TIndexOff _sz;
-	TIndexOff _bwtSz;
+	TIndexOffU _len;
+	TIndexOffU _bwtLen;
+	TIndexOffU _sz;
+	TIndexOffU _bwtSz;
 	int32_t  _lineRate;
 	int32_t  _origOffRate;
 	int32_t  _offRate;
-	TIndexOff _offMask;
+	TIndexOffU _offMask;
 	int32_t  _ftabChars;
-	TIndexOff _eftabLen;
-	TIndexOff _eftabSz;
-	TIndexOff _ftabLen;
-	TIndexOff _ftabSz;
-	TIndexOff _offsLen;
-	TIndexOff _offsSz;
-	TIndexOff _lineSz;
-	TIndexOff _sideSz;
-	TIndexOff _sideBwtSz;
-	TIndexOff _sideBwtLen;
-	TIndexOff _numSides;
-	TIndexOff _numLines;
-	TIndexOff _ebwtTotLen;
-	TIndexOff _ebwtTotSz;
+	int32_t _eftabLen;
+	int32_t _eftabSz;
+	TIndexOffU _ftabLen; 
+	TIndexOffU _ftabSz; 
+	TIndexOffU _offsLen;
+	TIndexOffU _offsSz;
+	int32_t _lineSz; 
+	int32_t _sideSz; 
+	int32_t _sideBwtSz; 
+	int32_t _sideBwtLen; 
+	TIndexOffU _numSides;
+	TIndexOffU _numLines;
+	TIndexOffU _ebwtTotLen;
+	TIndexOffU _ebwtTotSz;
 	bool     _color;
 	bool     _entireReverse;
 };
@@ -317,7 +318,7 @@ struct SideLocus {
 	/**
 	 * Construct from row and other relevant information about the Ebwt.
 	 */
-	SideLocus(TIndexOff row, const EbwtParams& ep, const uint8_t* ebwt) {
+	SideLocus(TIndexOffU row, const EbwtParams& ep, const uint8_t* ebwt) {
 		initFromRow(row, ep, ebwt);
 	}
 
@@ -326,20 +327,20 @@ struct SideLocus {
 	 * from one call to initFromRow to possibly avoid a second call.
 	 */
 	static void initFromTopBot(
-		TIndexOff top,
-		TIndexOff bot,
+		TIndexOffU top,
+		TIndexOffU bot,
 		const EbwtParams& ep,
 		const uint8_t* ebwt,
 		SideLocus& ltop,
 		SideLocus& lbot)
 	{
-		const TIndexOff sideBwtLen = ep._sideBwtLen;
+		const TIndexOffU sideBwtLen = ep._sideBwtLen;
 		assert_gt(bot, top);
 		ltop.initFromRow(top, ep, ebwt);
-		TIndexOff spread = bot - top;
+		TIndexOffU spread = bot - top;
 		// Many cache misses on the following lines
 		if(ltop._charOff + spread < sideBwtLen) {
-			lbot._charOff = ltop._charOff + spread;
+			lbot._charOff = ltop._charOff + spread; 
 			lbot._sideNum = ltop._sideNum;
 			lbot._sideByteOff = ltop._sideByteOff;
 			lbot._by = lbot._charOff >> 2;
@@ -354,13 +355,13 @@ struct SideLocus {
 	 * Calculate SideLocus based on a row and other relevant
 	 * information about the shape of the Ebwt.
 	 */
-	void initFromRow(TIndexOff row, const EbwtParams& ep, const uint8_t* ebwt) {
-		const TIndexOff sideSz     = ep._sideSz;
+	void initFromRow(TIndexOffU row, const EbwtParams& ep, const uint8_t* ebwt) {
+		const int32_t sideSz     = ep._sideSz;
 		// Side length is hard-coded for now; this allows the compiler
 		// to do clever things to accelerate / and %.
-		_sideNum                  = row / 192;
+		_sideNum                  = row / (48*OFF_SIZE);
 		assert_lt(_sideNum, ep._numSides);
-		_charOff                  = row % 192;
+		_charOff                  = row % (48*OFF_SIZE);
 		_sideByteOff              = _sideNum * sideSz;
 		assert_leq(row, ep._len);
 		assert_leq(_sideByteOff + sideSz, ep._ebwtTotSz);
@@ -396,8 +397,8 @@ struct SideLocus {
 	/**
 	 * Convert locus to BW row it corresponds to.
 	 */
-	TIndexOff toBWRow() const {
-		return _sideNum * 192 + _charOff;
+	TIndexOffU toBWRow() const {
+		return _sideNum * 48*OFF_SIZE + _charOff;
 	}
 	
 #ifndef NDEBUG
@@ -406,7 +407,7 @@ struct SideLocus {
 	 * with the (provided) EbwtParams.
 	 */
 	bool repOk(const EbwtParams& ep) const {
-		ASSERT_ONLY(TIndexOff row = _sideNum * 192 + _charOff);
+		ASSERT_ONLY(TIndexOffU row = _sideNum * 48*OFF_SIZE + _charOff);
 		assert_leq(row, ep._len);
 		assert_range(-1, 3, _bp);
 		assert_range(0, (int)ep._sideBwtSz, _by);
@@ -426,8 +427,8 @@ struct SideLocus {
 		return ebwt + _sideByteOff;
 	}
 
-	TIndexOff _sideByteOff; // offset of top side within ebwt[]
-	TIndexOff _sideNum;     // index of side
+	TIndexOffU _sideByteOff; // offset of top side within ebwt[]
+	TIndexOffU _sideNum;     // index of side
 	uint32_t _charOff;      // character offset within side
 	int32_t _by;            // byte within side (not adjusted for bw sides)
 	int32_t _bp;            // bitpair within byte (not adjusted for bw sides)
@@ -493,7 +494,6 @@ class EbwtSearchParams;
  */
 class Ebwt {
 public:
-	// TODO: intialization for _zOff and _zEbwtByteOff below
 	#define Ebwt_INITS \
 	    _toBigEndian(currentlyBigEndian()), \
 	    _overrideOffRate(overrideOffRate), \
@@ -503,8 +503,8 @@ public:
 	    fw_(fw), \
 	    _in1(MM_FILE_INIT), \
 	    _in2(MM_FILE_INIT), \
-	    _zOff(0xffffffff), \
-	    _zEbwtByteOff(0xffffffff), \
+	    _zOff(OFF_MASK), \
+	    _zEbwtByteOff(OFF_MASK), \
 	    _zEbwtBpOff(-1), \
 	    _nPat(0), \
 	    _nFrag(0), \
@@ -590,13 +590,13 @@ public:
 		const string& file,   // base filename for EBWT files
 		bool fw,
 		bool useBlockwise,
-		TIndexOff bmax,
-		TIndexOff bmaxSqrtMult,
-		TIndexOff bmaxDivN,
+		TIndexOffU bmax,
+		TIndexOffU bmaxSqrtMult,
+		TIndexOffU bmaxDivN,
 		int dcv,
 		EList<FileBuf*>& is,
 		EList<RefRecord>& szs,
-		TIndexOff sztot,
+		TIndexOffU sztot,
 		const RefReadInParams& refparams,
 		uint32_t seed,
 		int32_t overrideOffRate = -1,
@@ -766,9 +766,9 @@ public:
 		int32_t ftabChars,
 		const string& file,
 		bool useBlockwise,
-		TIndexOff bmax,
-		TIndexOff bmaxSqrtMult,
-		TIndexOff bmaxDivN,
+		TIndexOffU bmax,
+		TIndexOffU bmaxSqrtMult,
+		TIndexOffU bmaxDivN,
 		int dcv,
 		uint32_t seed,
 		bool verbose,
@@ -815,9 +815,9 @@ public:
 		int32_t ftabChars,
 		const string& file,
 		bool useBlockwise,
-		TIndexOff bmax,
-		TIndexOff bmaxSqrtMult,
-		TIndexOff bmaxDivN,
+		TIndexOffU bmax,
+		TIndexOffU bmaxSqrtMult,
+		TIndexOffU bmaxDivN,
 		int dcv,
 		uint32_t seed,
 		bool verbose,
@@ -829,7 +829,7 @@ public:
 		RefReadInParams refparams(color, REF_READ_FORWARD, false, false);
 		// Adapt sequence strings to stringstreams open for input
 		auto_ptr<stringstream> ss(new stringstream());
-		for(TIndexOff i = 0; i < strs.size(); i++) {
+		for(TIndexOffU i = 0; i < strs.size(); i++) {
 			(*ss) << ">" << i << endl << strs[i] << endl;
 		}
 		auto_ptr<FileBuf> fb(new FileBuf(ss.get()));
@@ -842,7 +842,7 @@ public:
 		// sequences.  A record represents a stretch of unambiguous
 		// characters in one of the input sequences.
 		EList<RefRecord> szs(EBWT_CAT);
-		std::pair<TIndexOff, TIndexOff> sztot;
+		std::pair<TIndexOffU, TIndexOffU> sztot;
 		sztot = BitPairReference::szsFromFasta(is, file, bigEndian, refparams, szs, sanity);
 		// Construct Ebwt from input strings and parameters
 		Ebwt *ebwtFw = new Ebwt(
@@ -921,16 +921,16 @@ public:
 	template <typename TStr>
 	void initFromVector(EList<FileBuf*>& is,
 	                    EList<RefRecord>& szs,
-	                    TIndexOff sztot,
+	                    TIndexOffU sztot,
 	                    const RefReadInParams& refparams,
 	                    ofstream& out1,
 	                    ofstream& out2,
 	                    ofstream* saOut,
 	                    ofstream* bwtOut,
 	                    bool useBlockwise,
-	                    TIndexOff bmax,
-	                    TIndexOff bmaxSqrtMult,
-	                    TIndexOff bmaxDivN,
+	                    TIndexOffU bmax,
+	                    TIndexOffU bmaxSqrtMult,
+	                    TIndexOffU bmaxDivN,
 	                    int dcv,
 	                    uint32_t seed,
 	                    bool verbose)
@@ -938,7 +938,7 @@ public:
 		// Compose text strings into single string
 		VMSG_NL("Calculating joined length");
 		TStr s; // holds the entire joined reference after call to joinToDisk
-		TIndexOff jlen;
+		TIndexOffU jlen;
 		jlen = joinedLen(szs);
 		assert_geq(jlen, sztot);
 		VMSG_NL("Writing header");
@@ -995,22 +995,19 @@ public:
 		}
 		// Succesfully obtained joined reference string
 		assert_geq(s.length(), jlen);
-		// TODO: line below
-		if(bmax != 0xffffffff) {
+		if(bmax != OFF_MASK) {
 			VMSG_NL("bmax according to bmax setting: " << bmax);
 		}
-		// TODO: line below
-		else if(bmaxSqrtMult != 0xffffffff) {
+		else if(bmaxSqrtMult != OFF_MASK) {
 			bmax *= bmaxSqrtMult;
 			VMSG_NL("bmax according to bmaxSqrtMult setting: " << bmax);
 		}
-		// TODO: line below
-		else if(bmaxDivN != 0xffffffff) {
-			bmax = max<TIndexOff>(jlen / bmaxDivN, 1);
+		else if(bmaxDivN != OFF_MASK) {
+			bmax = max<TIndexOffU>(jlen / bmaxDivN, 1);
 			VMSG_NL("bmax according to bmaxDivN setting: " << bmax);
 		}
 		else {
-			bmax = (TIndexOff)sqrt(s.length());
+			bmax = (TIndexOffU)sqrt(s.length());
 			VMSG_NL("bmax defaulted to: " << bmax);
 		}
 		int iter = 0;
@@ -1059,7 +1056,7 @@ public:
 					// we would have thrown one eventually as part of
 					// constructing the DifferenceCoverSample
 					dcv <<= 1;
-					TIndexOff sz = DifferenceCoverSample<TStr>::simulateAllocs(s, dcv >> 1);
+					TIndexOffU sz = DifferenceCoverSample<TStr>::simulateAllocs(s, dcv >> 1);
 					AutoArray<uint8_t> tmp(sz, EBWT_CAT);
 					dcv >>= 1;
 					// Likewise with the KarkkainenBlockwiseSA
@@ -1067,7 +1064,7 @@ public:
 					AutoArray<uint8_t> tmp2(sz, EBWT_CAT);
 					// Now throw in the 'ftab' and 'isaSample' structures
 					// that we'll eventually allocate in buildToDisk
-					AutoArray<TIndexOff> ftab(_eh._ftabLen * 2, EBWT_CAT);
+					AutoArray<TIndexOffU> ftab(_eh._ftabLen * 2, EBWT_CAT);
 					AutoArray<uint8_t> side(_eh._sideSz, EBWT_CAT);
 					// Grab another 20 MB out of caution
 					AutoArray<uint32_t> extra(20*1024*1024, EBWT_CAT);
@@ -1114,7 +1111,7 @@ public:
 		assert(repOk());
 		// Now write reference sequence names on the end
 		assert_eq(this->_refnames.size(), this->_nPat);
-		for(TIndexOff i = 0; i < this->_refnames.size(); i++) {
+		for(TIndexOffU i = 0; i < this->_refnames.size(); i++) {
 			out1 << this->_refnames[i].c_str() << endl;
 		}
 		out1 << '\0';
@@ -1132,8 +1129,8 @@ public:
 	 * fragments correspond to input sequences - it just cares about
 	 * the lengths of the fragments.
 	 */
-	TIndexOff joinedLen(EList<RefRecord>& szs) {
-		TIndexOff ret = 0;
+	TIndexOffU joinedLen(EList<RefRecord>& szs) {
+		TIndexOffU ret = 0;
 		for(unsigned int i = 0; i < szs.size(); i++) {
 			ret += szs[i].len;
 		}
@@ -1161,24 +1158,24 @@ public:
 
 	/// Accessors
 	inline const EbwtParams& eh() const     { return _eh; }
-	TIndexOff    zOff() const         { return _zOff; }
-	TIndexOff    zEbwtByteOff() const { return _zEbwtByteOff; }
-	int         zEbwtBpOff() const   { return _zEbwtBpOff; }
-	TIndexOff    nPat() const         { return _nPat; }
-	TIndexOff    nFrag() const        { return _nFrag; }
-	inline TIndexOff*   fchr()              { return _fchr.get(); }
-	inline TIndexOff*   ftab()              { return _ftab.get(); }
-	inline TIndexOff*   eftab()             { return _eftab.get(); }
-	inline TIndexOff*   offs()              { return _offs.get(); }
-	inline TIndexOff*   plen()              { return _plen.get(); }
-	inline TIndexOff*   rstarts()           { return _rstarts.get(); }
+	TIndexOffU    zOff() const         { return _zOff; }
+	TIndexOffU    zEbwtByteOff() const { return _zEbwtByteOff; }
+	TIndexOff         zEbwtBpOff() const   { return _zEbwtBpOff; } 
+	TIndexOffU    nPat() const         { return _nPat; }
+	TIndexOffU    nFrag() const        { return _nFrag; }
+	inline TIndexOffU*   fchr()              { return _fchr.get(); }
+	inline TIndexOffU*   ftab()              { return _ftab.get(); }
+	inline TIndexOffU*   eftab()             { return _eftab.get(); }
+	inline TIndexOffU*   offs()              { return _offs.get(); }
+	inline TIndexOffU*   plen()              { return _plen.get(); }
+	inline TIndexOffU*   rstarts()           { return _rstarts.get(); }
 	inline uint8_t*    ebwt()              { return _ebwt.get(); }
-	inline const TIndexOff* fchr() const    { return _fchr.get(); }
-	inline const TIndexOff* ftab() const    { return _ftab.get(); }
-	inline const TIndexOff* eftab() const   { return _eftab.get(); }
-	inline const TIndexOff* offs() const    { return _offs.get(); }
-	inline const TIndexOff* plen() const    { return _plen.get(); }
-	inline const TIndexOff* rstarts() const { return _rstarts.get(); }
+	inline const TIndexOffU* fchr() const    { return _fchr.get(); }
+	inline const TIndexOffU* ftab() const    { return _ftab.get(); }
+	inline const TIndexOffU* eftab() const   { return _eftab.get(); }
+	inline const TIndexOffU* offs() const    { return _offs.get(); }
+	inline const TIndexOffU* plen() const    { return _plen.get(); }
+	inline const TIndexOffU* rstarts() const { return _rstarts.get(); }
 	inline const uint8_t*  ebwt() const    { return _ebwt.get(); }
 	bool        toBe() const         { return _toBigEndian; }
 	bool        verbose() const      { return _verbose; }
@@ -1196,8 +1193,8 @@ public:
 	 */
 	bool contains(
 		const BTDnaString& str,
-		TIndexOff *top = NULL,
-		TIndexOff *bot = NULL) const;
+		TIndexOffU *top = NULL,
+		TIndexOffU *bot = NULL) const;
 
 	/**
 	 * Returns true iff the index contains the given string (exactly).  The
@@ -1206,8 +1203,8 @@ public:
 	 */
 	bool contains(
 		const char *str,
-		TIndexOff *top = NULL,
-		TIndexOff *bot = NULL) const
+		TIndexOffU *top = NULL,
+		TIndexOffU *bot = NULL) const
 	{
 		return contains(BTDnaString(str, true), top, bot);
 	}
@@ -1224,8 +1221,7 @@ public:
 			assert(fchr() != NULL);
 			//assert(_offs != NULL);
 			//assert(_rstarts != NULL);
-			// TODO: line below
-			assert_neq(_zEbwtByteOff, 0xffffffff);
+			assert_neq(_zEbwtByteOff, OFF_MASK);
 			assert_neq(_zEbwtBpOff, -1);
 			return true;
 		} else {
@@ -1234,8 +1230,7 @@ public:
 			assert(fchr() == NULL);
 			assert(offs() == NULL);
 			assert(rstarts() == NULL);
-			// TODO: line below
-			assert_eq(_zEbwtByteOff, 0xffffffff);
+			assert_eq(_zEbwtByteOff, OFF_MASK);
 			assert_eq(_zEbwtBpOff, -1);
 			return false;
 		}
@@ -1286,8 +1281,7 @@ public:
 		// Keep plen; it's small and the client may want to seq it
 		// even when the others are evicted.
 		//_plen  = NULL;
-		// TODO: line below
-		_zEbwtByteOff = 0xffffffff;
+		_zEbwtByteOff = OFF_MASK;
 		_zEbwtBpOff = -1;
 	}
 
@@ -1296,7 +1290,7 @@ public:
 	 * length equal to the index's 'ftabChars' into an int that can be
 	 * used to index into the ftab array.
 	 */
-	TIndexOff ftabSeqToInt(
+	TIndexOffU ftabSeqToInt(
 		const BTDnaString& seq,
 		size_t off,
 		bool rev) const
@@ -1304,7 +1298,7 @@ public:
 		int fc = _eh._ftabChars;
 		size_t lo = off, hi = lo + fc;
 		assert_leq(hi, seq.length());
-		TIndexOff ftabOff = 0;
+		TIndexOffU ftabOff = 0;
 		for(int i = 0; i < fc; i++) {
 			bool fwex = fw();
 			if(rev) fwex = !fwex;
@@ -1313,7 +1307,7 @@ public:
 			// means right-to-left order; for BWT' it's left-to-right.
 			int c = (fwex ? seq[lo + i] : seq[hi - i - 1]);
 			if(c > 3) {
-				return std::numeric_limits<TIndexOff>::max();
+				return std::numeric_limits<TIndexOffU>::max();
 			}
 			assert_range(0, 3, c);
 			ftabOff <<= 2;
@@ -1325,7 +1319,7 @@ public:
 	/**
 	 * Non-static facade for static function ftabHi.
 	 */
-	TIndexOff ftabHi(TIndexOff i) const {
+	TIndexOffU ftabHi(TIndexOffU i) const {
 		return Ebwt::ftabHi(
 			ftab(),
 			eftab(),
@@ -1344,20 +1338,19 @@ public:
 	 * It's a static member because it's convenient to ask this
 	 * question before the Ebwt is fully initialized.
 	 */
-	static TIndexOff ftabHi(
-		const TIndexOff *ftab,
-		const TIndexOff *eftab,
-		TIndexOff len,
-		TIndexOff ftabLen,
-		TIndexOff eftabLen,
-		TIndexOff i)
+	static TIndexOffU ftabHi(
+		const TIndexOffU *ftab,
+		const TIndexOffU *eftab,
+		TIndexOffU len,
+		TIndexOffU ftabLen,
+		TIndexOffU eftabLen,
+		TIndexOffU i)
 	{
 		assert_lt(i, ftabLen);
 		if(ftab[i] <= len) {
 			return ftab[i];
 		} else {
-			// TODO: line below
-			TIndexOff efIdx = ftab[i] ^ 0xffffffff;
+			TIndexOffU efIdx = ftab[i] ^ OFF_MASK;
 			assert_lt(efIdx*2+1, eftabLen);
 			return eftab[efIdx*2+1];
 		}
@@ -1366,7 +1359,7 @@ public:
 	/**
 	 * Non-static facade for static function ftabLo.
 	 */
-	TIndexOff ftabLo(TIndexOff i) const {
+	TIndexOffU ftabLo(TIndexOffU i) const {
 		return Ebwt::ftabLo(
 			ftab(),
 			eftab(),
@@ -1379,14 +1372,14 @@ public:
 	/**
 	 * Get low bound of ftab range.
 	 */
-	TIndexOff ftabLo(const BTDnaString& seq, size_t off) const {
+	TIndexOffU ftabLo(const BTDnaString& seq, size_t off) const {
 		return ftabLo(ftabSeqToInt(seq, off, false));
 	}
 
 	/**
 	 * Get high bound of ftab range.
 	 */
-	TIndexOff ftabHi(const BTDnaString& seq, size_t off) const {
+	TIndexOffU ftabHi(const BTDnaString& seq, size_t off) const {
 		return ftabHi(ftabSeqToInt(seq, off, false));
 	}
 	
@@ -1402,11 +1395,11 @@ public:
 		const BTDnaString& seq, // sequence to extract from
 		size_t off,             // offset into seq to begin extracting
 		bool rev,               // reverse while extracting
-		TIndexOff& top,
-		TIndexOff& bot) const
+		TIndexOffU& top,
+		TIndexOffU& bot) const
 	{
-		TIndexOff fi = ftabSeqToInt(seq, off, rev);
-		if(fi == std::numeric_limits<TIndexOff>::max()) {
+		TIndexOffU fi = ftabSeqToInt(seq, off, rev);
+		if(fi == std::numeric_limits<TIndexOffU>::max()) {
 			return false;
 		}
 		top = ftabHi(fi);
@@ -1424,20 +1417,19 @@ public:
 	 * It's a static member because it's convenient to ask this
 	 * question before the Ebwt is fully initialized.
 	 */
-	static TIndexOff ftabLo(
-		const TIndexOff *ftab,
-		const TIndexOff *eftab,
-		TIndexOff len,
-		TIndexOff ftabLen,
-		TIndexOff eftabLen,
-		TIndexOff i)
+	static TIndexOffU ftabLo(
+		const TIndexOffU *ftab,
+		const TIndexOffU *eftab,
+		TIndexOffU len,
+		TIndexOffU ftabLen,
+		TIndexOffU eftabLen,
+		TIndexOffU i)
 	{
 		assert_lt(i, ftabLen);
 		if(ftab[i] <= len) {
 			return ftab[i];
 		} else {
-			// TODO: line below
-			TIndexOff efIdx = ftab[i] ^ 0xffffffff;
+			TIndexOffU efIdx = ftab[i] ^ OFF_MASK;
 			assert_lt(efIdx*2+1, eftabLen);
 			return eftab[efIdx*2];
 		}
@@ -1448,20 +1440,18 @@ public:
 	 * it can be resolved immediately, return the reference offset.  If
 	 * it cannot be resolved immediately, return max value.
 	 */
-	TIndexOff tryOffset(TIndexOff elt) const {
+	TIndexOffU tryOffset(TIndexOffU elt) const {
 		assert(offs() != NULL);
 		if(elt == _zOff) return 0;
 		if((elt & _eh._offMask) == elt) {
-			TIndexOff eltOff = elt >> _eh._offRate;
+			TIndexOffU eltOff = elt >> _eh._offRate;
 			assert_lt(eltOff, _eh._offsLen);
-			TIndexOff off = offs()[eltOff];
-			// TODO: line below
-			assert_neq(0xffffffff, off);
+			TIndexOffU off = offs()[eltOff];
+			assert_neq(OFF_MASK, off);
 			return off;
 		} else {
-			// TODO: line below
 			// Try looking at zoff
-			return 0xffffffff;
+			return OFF_MASK;
 		}
 	}
 
@@ -1470,14 +1460,13 @@ public:
 	 * that the offset returned is at the right-hand side of the
 	 * forward reference substring involved in the hit.
 	 */
-	TIndexOff tryOffset(
-		TIndexOff elt,
+	TIndexOffU tryOffset(
+		TIndexOffU elt,
 		bool fw,
-		TIndexOff hitlen) const
+		TIndexOffU hitlen) const
 	{
-		TIndexOff off = tryOffset(elt);
-		// TODO: line below
-		if(off != 0xffffffff && !fw) {
+		TIndexOffU off = tryOffset(elt);
+		if(off != OFF_MASK && !fw) {
 			assert_lt(off, _eh._len);
 			off = _eh._len - off - 1;
 			assert_geq(off, hitlen-1);
@@ -1490,22 +1479,22 @@ public:
 	/**
 	 * Walk 'steps' steps to the left and return the row arrived at.
 	 */
-	TIndexOff walkLeft(TIndexOff row, TIndexOff steps) const;
+	TIndexOffU walkLeft(TIndexOffU row, TIndexOffU steps) const;
 
 	/**
 	 * Resolve the reference offset of the BW element 'elt'.
 	 */
-	TIndexOff getOffset(TIndexOff row) const;
+	TIndexOffU getOffset(TIndexOffU row) const;
 
 	/**
 	 * Resolve the reference offset of the BW element 'elt' such that
 	 * the offset returned is at the right-hand side of the forward
 	 * reference substring involved in the hit.
 	 */
-	TIndexOff getOffset(
-		TIndexOff elt,
+	TIndexOffU getOffset(
+		TIndexOffU elt,
 		bool fw,
-		TIndexOff hitlen) const;
+		TIndexOffU hitlen) const;
 
 	/**
 	 * When using read() to create an Ebwt, we have to set a couple of
@@ -1515,9 +1504,9 @@ public:
 	 * _zEbwtBpOff from _zOff.
 	 */
 	void postReadInit(EbwtParams& eh) {
-		TIndexOff sideNum     = _zOff / eh._sideBwtLen;
-		TIndexOff sideCharOff = _zOff % eh._sideBwtLen;
-		TIndexOff sideByteOff = sideNum * eh._sideSz;
+		TIndexOffU sideNum     = _zOff / eh._sideBwtLen;
+		TIndexOffU sideCharOff = _zOff % eh._sideBwtLen;
+		TIndexOffU sideByteOff = sideNum * eh._sideSz;
 		_zEbwtByteOff = sideCharOff >> 2;
 		assert_lt(_zEbwtByteOff, eh._sideBwtSz);
 		_zEbwtBpOff = sideCharOff & 3;
@@ -1595,8 +1584,8 @@ public:
 
 	// Building
 	template <typename TStr> static TStr join(EList<TStr>& l, uint32_t seed);
-	template <typename TStr> static TStr join(EList<FileBuf*>& l, EList<RefRecord>& szs, TIndexOff sztot, const RefReadInParams& refparams, uint32_t seed);
-	template <typename TStr> void joinToDisk(EList<FileBuf*>& l, EList<RefRecord>& szs, TIndexOff sztot, const RefReadInParams& refparams, TStr& ret, ostream& out1, ostream& out2);
+	template <typename TStr> static TStr join(EList<FileBuf*>& l, EList<RefRecord>& szs, TIndexOffU sztot, const RefReadInParams& refparams, uint32_t seed);
+	template <typename TStr> void joinToDisk(EList<FileBuf*>& l, EList<RefRecord>& szs, TIndexOffU sztot, const RefReadInParams& refparams, TStr& ret, ostream& out1, ostream& out2);
 	template <typename TStr> void buildToDisk(InorderBlockwiseSA<TStr>& sa, const TStr& s, ostream& out1, ostream& out2, ostream* saOut, ostream* bwtOut);
 
 	// I/O
@@ -1611,7 +1600,7 @@ public:
 	void checkOrigs(const EList<SString<char> >& os, bool color, bool mirror) const;
 
 	// Searching and reporting
-	void joinedToTextOff(uint32_t qlen, TIndexOff off, TIndexOff& tidx, TIndexOff& textoff, TIndexOff& tlen, bool rejectStraddle, bool& straddled) const;
+	void joinedToTextOff(uint32_t qlen, TIndexOffU off, TIndexOffU& tidx, TIndexOffU& textoff, TIndexOffU& tlen, bool rejectStraddle, bool& straddled) const;
 
 #define WITHIN_BWT_LEN(x) \
 	assert_leq(x[0], this->_eh._sideBwtLen); \
@@ -1641,12 +1630,12 @@ public:
 	 * XXXXXXXXXXXXXXXX [A] [C] [G] [T]
 	 * --------48------ -4- -4- -4- -4-  (numbers in bytes)
 	 */
-	inline TIndexOff countBt2Side(const SideLocus& l, int c) const {
+	inline TIndexOffU countBt2Side(const SideLocus& l, int c) const {
 		assert_range(0, 3, c);
 		assert_range(0, (int)this->_eh._sideBwtSz-1, (int)l._by);
 		assert_range(0, 3, (int)l._bp);
 		const uint8_t *side = l.side(this->ebwt());
-		TIndexOff cCnt = countUpTo(l, c);
+		TIndexOffU cCnt = countUpTo(l, c);
 		assert_leq(cCnt, l.toBWRow());
 		assert_leq(cCnt, this->_eh._sideBwtLen);
 		if(c == 0 && l._sideByteOff <= _zEbwtByteOff && l._sideByteOff + l._by >= _zEbwtByteOff) {
@@ -1658,10 +1647,10 @@ public:
 				cCnt--; // Adjust for '$' looking like an 'A'
 			}
 		}
-		TIndexOff ret;
+		TIndexOffU ret;
 		// Now factor in the occ[] count at the side break
 		const uint8_t *acgt8 = side + _eh._sideBwtSz;
-		const TIndexOff *acgt = reinterpret_cast<const TIndexOff*>(acgt8);
+		const TIndexOffU *acgt = reinterpret_cast<const TIndexOffU*>(acgt8);
 		assert_leq(acgt[0], this->_eh._numSides * this->_eh._sideBwtLen); // b/c it's used as padding
 		assert_leq(acgt[1], this->_eh._len);
 		assert_leq(acgt[2], this->_eh._len);
@@ -1689,9 +1678,9 @@ public:
 	 */
 	inline void countBt2SideRange(
 		SideLocus& l,        // top locus
-		uint32_t num,        // number of elts in range to tall
-		TIndexOff* cntsUpto, // A/C/G/T counts up to top
-		TIndexOff* cntsIn,   // A/C/G/T counts within range
+		TIndexOffU num,        // number of elts in range to tall // @double-check
+		TIndexOffU* cntsUpto, // A/C/G/T counts up to top
+		TIndexOffU* cntsIn,   // A/C/G/T counts within range
 		EList<bool> *masks) const // masks indicating which range elts = A/C/G/T
 	{
 		assert_gt(num, 0);
@@ -1711,7 +1700,7 @@ public:
 			}
 		}
 		// Now factor in the occ[] count at the side break
-		const TIndexOff *acgt = reinterpret_cast<const TIndexOff*>(side + _eh._sideBwtSz);
+		const TIndexOffU *acgt = reinterpret_cast<const TIndexOffU*>(side + _eh._sideBwtSz);
 		assert_leq(acgt[0], this->fchr()[1] + this->_eh.sideBwtLen());
 		assert_leq(acgt[1], this->fchr()[2]-this->fchr()[1]);
 		assert_leq(acgt[2], this->fchr()[3]-this->fchr()[2]);
@@ -1732,7 +1721,7 @@ public:
 		WITHIN_FCHR_DOLLARA(cntsIn);
 		// 'cntsUpto' is complete now.
 		// Walk forward until we've tallied the entire 'In' range
-		TIndexOff nm = 0;
+		TIndexOffU nm = 0;
 		// Rest of this side
 		nm += countBt2SideRange2(l, true, num - nm, cntsIn, masks, nm);
 		assert_eq(nm, cntsIn[0] + cntsIn[1] + cntsIn[2] + cntsIn[3]);
@@ -1770,7 +1759,7 @@ public:
 	 *         Side ptr (result from SideLocus.side())
 	 *
 	 */
-	inline void countBt2SideEx(const SideLocus& l, TIndexOff* arrs) const {
+	inline void countBt2SideEx(const SideLocus& l, TIndexOffU* arrs) const {
 		assert_range(0, (int)this->_eh._sideBwtSz-1, (int)l._by);
 		assert_range(0, 3, (int)l._bp);
 		countUpToEx(l, arrs);
@@ -1787,8 +1776,8 @@ public:
 		WITHIN_BWT_LEN(arrs);
 		// Now factor in the occ[] count at the side break
 		const uint8_t *side = l.side(this->ebwt());
-		const uint8_t *acgt16 = side + this->_eh._sideSz - 16;
-		const TIndexOff *acgt = reinterpret_cast<const TIndexOff*>(acgt16);
+		const uint8_t *acgt16 = side + this->_eh._sideSz - OFF_SIZE*4;
+		const TIndexOffU *acgt = reinterpret_cast<const TIndexOffU*>(acgt16);
 		assert_leq(acgt[0], this->fchr()[1] + this->_eh.sideBwtLen());
 		assert_leq(acgt[1], this->fchr()[2]-this->fchr()[1]);
 		assert_leq(acgt[2], this->fchr()[3]-this->fchr()[2]);
@@ -1813,11 +1802,11 @@ public:
 	 *
 	 * Function gets 11.09% in profile
 	 */
-	inline TIndexOff countUpTo(const SideLocus& l, int c) const {
+	inline TIndexOffU countUpTo(const SideLocus& l, int c) const { // @double-check
 		// Count occurrences of c in each 64-bit (using bit trickery);
 		// Someday countInU64() and pop() functions should be
 		// vectorized/SSE-ized in case that helps.
-		TIndexOff cCnt = 0;
+		TIndexOffU cCnt = 0;
 		const uint8_t *side = l.side(this->ebwt());
 		int i = 0;
 #ifdef POPCNT_CAPABILITY
@@ -1856,7 +1845,7 @@ public:
 #ifdef POPCNT_CAPABILITY
 template<typename Operation>
 #endif
-	inline static void countInU64Ex(uint64_t dw, TIndexOff* arrs) {
+	inline static void countInU64Ex(uint64_t dw, TIndexOffU* arrs) {
 		uint64_t c0 = c_table[0];
 		uint64_t x0 = dw ^ c0;
 		uint64_t x1 = (x0 >> 1);
@@ -1911,7 +1900,7 @@ template<typename Operation>
 	 * given side up to (but not including) the given byte/bitpair (by/bp).
 	 * Count for 'a' goes in arrs[0], 'c' in arrs[1], etc.
 	 */
-	inline void countUpToEx(const SideLocus& l, TIndexOff* arrs) const {
+	inline void countUpToEx(const SideLocus& l, TIndexOffU* arrs) const {
 		int i = 0;
 		// Count occurrences of each nucleotide in each 64-bit word using
 		// bit trickery; note: this seems does not seem to lend a
@@ -1962,7 +1951,7 @@ template<typename Operation>
 	 */
 	inline void mapLFEx(
 		const SideLocus& l,
-		TIndexOff *arrs
+		TIndexOffU *arrs
 		ASSERT_ONLY(, bool overrideSanity = false)
 		) const
 	{
@@ -1988,10 +1977,10 @@ template<typename Operation>
 	 * those loci.
 	 */
 	inline void mapLFEx(
-		TIndexOff top,
-		TIndexOff bot,
-		TIndexOff *tops,
-		TIndexOff *bots
+		TIndexOffU top,
+		TIndexOffU bot,
+		TIndexOffU *tops,
+		TIndexOffU *bots
 		ASSERT_ONLY(, bool overrideSanity = false)
 		) const
 	{
@@ -2007,8 +1996,8 @@ template<typename Operation>
 	inline void mapLFEx(
 		const SideLocus& ltop,
 		const SideLocus& lbot,
-		TIndexOff *tops,
-		TIndexOff *bots
+		TIndexOffU *tops,
+		TIndexOffU *bots
 		ASSERT_ONLY(, bool overrideSanity = false)
 		) const
 	{
@@ -2047,20 +2036,20 @@ template<typename Operation>
 	 *
 	 * Must fill in masks
 	 */
-	inline TIndexOff countBt2SideRange2(
+	inline TIndexOffU countBt2SideRange2( // @double-check
 		const SideLocus& l,
 		bool startAtLocus,
-		uint32_t num,
-		TIndexOff* arrs,
+		TIndexOffU num,
+		TIndexOffU* arrs,
 		EList<bool> *masks,
-		TIndexOff maskOff) const
+		TIndexOffU maskOff) const
 	{
 		assert(!masks[0].empty());
 		assert_eq(masks[0].size(), masks[1].size());
 		assert_eq(masks[0].size(), masks[2].size());
 		assert_eq(masks[0].size(), masks[3].size());
-		ASSERT_ONLY(TIndexOff myarrs[4] = {0, 0, 0, 0});
-		TIndexOff nm = 0; // number of nucleotides tallied so far
+		ASSERT_ONLY(TIndexOffU myarrs[4] = {0, 0, 0, 0});
+		TIndexOffU nm = 0; // number of nucleotides tallied so far
 		int iby = 0;      // initial byte offset
 		int ibp = 0;      // initial base-pair offset
 		if(startAtLocus) {
@@ -2098,10 +2087,10 @@ template<typename Operation>
 #ifndef NDEBUG
 		if(_sanity) {
 			// Make sure results match up with a call to mapLFEx.
-			TIndexOff tops[4] = {0, 0, 0, 0};
-			TIndexOff bots[4] = {0, 0, 0, 0};
-			TIndexOff top = l.toBWRow();
-			TIndexOff bot = top + nm;
+			TIndexOffU tops[4] = {0, 0, 0, 0};
+			TIndexOffU bots[4] = {0, 0, 0, 0};
+			TIndexOffU top = l.toBWRow();
+			TIndexOffU bot = top + nm;
 			mapLFEx(top, bot, tops, bots, false);
 			assert(myarrs[0] == (bots[0] - tops[0]) || myarrs[0] == (bots[0] - tops[0])+1);
 			assert_eq(myarrs[1], bots[1] - tops[1]);
@@ -2127,7 +2116,7 @@ template<typename Operation>
 	 * BWT transform).  Note that the 'L' in the name of the function
 	 * stands for 'last', as in the literature.
 	 */
-	inline int rowL(TIndexOff i) const {
+	inline int rowL(TIndexOffU i) const {
 		// Extract and return appropriate bit-pair
 		SideLocus l;
 		l.initFromRow(i, _eh, ebwt());
@@ -2141,9 +2130,9 @@ template<typename Operation>
 	inline void mapLFRange(
 		SideLocus& ltop,
 		SideLocus& lbot,
-		TIndexOff num,        // Number of elts
-		TIndexOff* cntsUpto,  // A/C/G/T counts up to top
-		TIndexOff* cntsIn,    // A/C/G/T counts within range
+		TIndexOffU num,        // Number of elts
+		TIndexOffU* cntsUpto,  // A/C/G/T counts up to top
+		TIndexOffU* cntsIn,    // A/C/G/T counts within range
 		EList<bool> *masks
 		ASSERT_ONLY(, bool overrideSanity = false)
 		) const
@@ -2162,8 +2151,8 @@ template<typename Operation>
 			// Make sure results match up with individual calls to mapLF;
 			// be sure to override sanity-checking in the callee, or we'll
 			// have infinite recursion
-			TIndexOff tops[4] = {0, 0, 0, 0};
-			TIndexOff bots[4] = {0, 0, 0, 0};
+			TIndexOffU tops[4] = {0, 0, 0, 0};
+			TIndexOffU bots[4] = {0, 0, 0, 0};
 			assert(ltop.repOk(this->eh()));
 			assert(lbot.repOk(this->eh()));
 			mapLFEx(ltop, lbot, tops, bots, false);
@@ -2183,13 +2172,13 @@ template<typename Operation>
 	/**
 	 * Given row i, return the row that the LF mapping maps i to.
 	 */
-	inline TIndexOff mapLF(
+	inline TIndexOffU mapLF(
 		const SideLocus& l
 		ASSERT_ONLY(, bool overrideSanity = false)
 		) const
 	{
-		ASSERT_ONLY(TIndexOff srcrow = l.toBWRow());
-		TIndexOff ret;
+		ASSERT_ONLY(TIndexOffU srcrow = l.toBWRow());
+		TIndexOffU ret;
 		assert(l.side(this->ebwt()) != NULL);
 		int c = rowL(l);
 		assert_lt(c, 4);
@@ -2202,7 +2191,7 @@ template<typename Operation>
 			// Make sure results match up with results from mapLFEx;
 			// be sure to override sanity-checking in the callee, or we'll
 			// have infinite recursion
-			TIndexOff arrs[] = { 0, 0, 0, 0 };
+			TIndexOffU arrs[] = { 0, 0, 0, 0 };
 			mapLFEx(l, arrs, true);
 			assert_eq(arrs[c], ret);
 		}
@@ -2214,12 +2203,12 @@ template<typename Operation>
 	 * Given row i and character c, return the row that the LF mapping maps
 	 * i to on character c.
 	 */
-	inline TIndexOff mapLF(
+	inline TIndexOffU mapLF(
 		const SideLocus& l, int c
 		ASSERT_ONLY(, bool overrideSanity = false)
 		) const
 	{
-		TIndexOff ret;
+		TIndexOffU ret;
 		assert_lt(c, 4);
 		assert_geq(c, 0);
 		ret = countBt2Side(l, c);
@@ -2229,7 +2218,7 @@ template<typename Operation>
 			// Make sure results match up with results from mapLFEx;
 			// be sure to override sanity-checking in the callee, or we'll
 			// have infinite recursion
-			TIndexOff arrs[] = { 0, 0, 0, 0 };
+			TIndexOffU arrs[] = { 0, 0, 0, 0 };
 			mapLFEx(l, arrs, true);
 			assert_eq(arrs[c], ret);
 		}
@@ -2245,10 +2234,10 @@ template<typename Operation>
 	inline void mapBiLFEx(
 		const SideLocus& ltop,
 		const SideLocus& lbot,
-		TIndexOff *tops,
-		TIndexOff *bots,
-		TIndexOff *topsP, // topsP[0] = top
-		TIndexOff *botsP
+		TIndexOffU *tops,
+		TIndexOffU *bots,
+		TIndexOffU *topsP, // topsP[0] = top
+		TIndexOffU *botsP
 		ASSERT_ONLY(, bool overrideSanity = false)
 		) const
 	{
@@ -2290,16 +2279,15 @@ template<typename Operation>
 	 * and return the next row, or all-fs if we can't proceed on that
 	 * character.  Returns max value if this row ends in $.
 	 */
-	inline TIndexOff mapLF1(
-		TIndexOff row,       // starting row
+	inline TIndexOffU mapLF1(
+		TIndexOffU row,       // starting row
 		const SideLocus& l, // locus for starting row
 		int c               // character to proceed on
 		ASSERT_ONLY(, bool overrideSanity = false)
 		) const
 	{
-		// TODO: line below
-		if(rowL(l) != c || row == _zOff) return 0xffffffff;
-		TIndexOff ret;
+		if(rowL(l) != c || row == _zOff) return OFF_MASK;
+		TIndexOffU ret;
 		assert_lt(c, 4);
 		assert_geq(c, 0);
 		ret = countBt2Side(l, c);
@@ -2309,7 +2297,7 @@ template<typename Operation>
 			// Make sure results match up with results from mapLFEx;
 			// be sure to override sanity-checking in the callee, or we'll
 			// have infinite recursion
-			TIndexOff arrs[] = { 0, 0, 0, 0 };
+			TIndexOffU arrs[] = { 0, 0, 0, 0 };
 			mapLFEx(l, arrs, true);
 			assert_eq(arrs[c], ret);
 		}
@@ -2323,7 +2311,7 @@ template<typename Operation>
 	 * return the character that was in the final column.
 	 */
 	inline int mapLF1(
-		TIndexOff& row,      // starting row
+		TIndexOffU& row,      // starting row
 		const SideLocus& l  // locus for starting row
 		ASSERT_ONLY(, bool overrideSanity = false)
 		) const
@@ -2338,7 +2326,7 @@ template<typename Operation>
 			// Make sure results match up with results from mapLFEx;
 			// be sure to override sanity-checking in the callee, or we'll
 			// have infinite recursion
-			TIndexOff arrs[] = { 0, 0, 0, 0 };
+			TIndexOffU arrs[] = { 0, 0, 0, 0 };
 			mapLFEx(l, arrs, true);
 			assert_eq(arrs[c], row);
 		}
@@ -2392,24 +2380,24 @@ template<typename Operation>
 	string     _in2Str; // filename for secondary index file
 	string     _inSaStr;  // filename for suffix-array file
 	string     _inBwtStr; // filename for BWT file
-	TIndexOff  _zOff;
-	TIndexOff  _zEbwtByteOff;
-	int        _zEbwtBpOff;
-	TIndexOff  _nPat;  /// number of reference texts
-	TIndexOff  _nFrag; /// number of fragments
-	APtrWrap<TIndexOff> _plen;
-	APtrWrap<TIndexOff> _rstarts; // starting offset of fragments / text indexes
+	TIndexOffU  _zOff;
+	TIndexOffU  _zEbwtByteOff;
+	TIndexOff   _zEbwtBpOff; 
+	TIndexOffU  _nPat;  /// number of reference texts
+	TIndexOffU  _nFrag; /// number of fragments
+	APtrWrap<TIndexOffU> _plen;
+	APtrWrap<TIndexOffU> _rstarts; // starting offset of fragments / text indexes
 	// _fchr, _ftab and _eftab are expected to be relatively small
 	// (usually < 1MB, perhaps a few MB if _fchr is particularly large
 	// - like, say, 11).  For this reason, we don't bother with writing
 	// them to disk through separate output streams; we
-	APtrWrap<TIndexOff> _fchr;
-	APtrWrap<TIndexOff> _ftab;
-	APtrWrap<TIndexOff> _eftab; // "extended" entries for _ftab
+	APtrWrap<TIndexOffU> _fchr;
+	APtrWrap<TIndexOffU> _ftab;
+	APtrWrap<TIndexOffU> _eftab; // "extended" entries for _ftab
 	// _offs may be extremely large.  E.g. for DNA w/ offRate=4 (one
 	// offset every 16 rows), the total size of _offs is the same as
 	// the total size of the input sequence
-	APtrWrap<TIndexOff> _offs;
+	APtrWrap<TIndexOffU> _offs;
 	// _ebwt is the Extended Burrows-Wheeler Transform itself, and thus
 	// is at least as large as the input sequence.
 	APtrWrap<uint8_t> _ebwt;
@@ -2421,10 +2409,9 @@ template<typename Operation>
 	EbwtParams _eh;
 	bool packed_;
 
-	// TODO: lines below
-	static const TIndexOff default_bmax = 0xffffffff;
-	static const TIndexOff default_bmaxMultSqrt = 0xffffffff;
-	static const TIndexOff default_bmaxDivN = 4;
+	static const TIndexOffU default_bmax = OFF_MASK;
+	static const TIndexOffU default_bmaxMultSqrt = OFF_MASK;
+	static const TIndexOffU default_bmaxDivN = 4;
 	static const int      default_dcv = 1024;
 	static const bool     default_noDc = false;
 	static const bool     default_useBlockwise = true;
@@ -2494,12 +2481,12 @@ TStr Ebwt::join(EList<TStr>& l, uint32_t seed) {
 	RandomSource rand; // reproducible given same seed
 	rand.init(seed);
 	TStr ret;
-	TIndexOff guessLen = 0;
-	for(TIndexOff i = 0; i < l.size(); i++) {
+	TIndexOffU guessLen = 0;
+	for(TIndexOffU i = 0; i < l.size(); i++) {
 		guessLen += length(l[i]);
 	}
 	ret.resize(guessLen);
-	TIndexOff off = 0;
+	TIndexOffU off = 0;
 	for(size_t i = 0; i < l.size(); i++) {
 		TStr& s = l[i];
 		assert_gt(s.length(), 0);
@@ -2521,7 +2508,7 @@ TStr Ebwt::join(EList<TStr>& l, uint32_t seed) {
 template<typename TStr>
 TStr Ebwt::join(EList<FileBuf*>& l,
                 EList<RefRecord>& szs,
-                TIndexOff sztot,
+                TIndexOffU sztot,
                 const RefReadInParams& refparams,
                 uint32_t seed)
 {
@@ -2529,18 +2516,18 @@ TStr Ebwt::join(EList<FileBuf*>& l,
 	rand.init(seed);
 	RefReadInParams rpcp = refparams;
 	TStr ret;
-	TIndexOff guessLen = sztot;
+	TIndexOffU guessLen = sztot;
 	ret.resize(guessLen);
-	ASSERT_ONLY(TIndexOff szsi = 0);
-	TIndexOff dstoff = 0;
-	for(TIndexOff i = 0; i < l.size(); i++) {
+	ASSERT_ONLY(TIndexOffU szsi = 0);
+	TIndexOffU dstoff = 0;
+	for(TIndexOffU i = 0; i < l.size(); i++) {
 		// For each sequence we can pull out of istream l[i]...
 		assert(!l[i]->eof());
 		bool first = true;
 		while(!l[i]->eof()) {
 			RefRecord rec = fastaRefReadAppend(*l[i], first, ret, dstoff, rpcp);
 			first = false;
-			TIndexOff bases = rec.len;
+			TIndexOffU bases = rec.len;
 			assert_eq(rec.off, szs[szsi].off);
 			assert_eq(rec.len, szs[szsi].len);
 			assert_eq(rec.first, szs[szsi].first);
@@ -2566,7 +2553,7 @@ template<typename TStr>
 void Ebwt::joinToDisk(
 	EList<FileBuf*>& l,
 	EList<RefRecord>& szs,
-	TIndexOff sztot,
+	TIndexOffU sztot,
 	const RefReadInParams& refparams,
 	TStr& ret,
 	ostream& out1,
@@ -2582,30 +2569,28 @@ void Ebwt::joinToDisk(
 	// fragments.
 	this->_nPat = 0;
 	this->_nFrag = 0;
-	for(TIndexOff i = 0; i < szs.size(); i++) {
+	for(TIndexOffU i = 0; i < szs.size(); i++) {
 		if(szs[i].len > 0) this->_nFrag++;
 		if(szs[i].first && szs[i].len > 0) this->_nPat++;
 	}
 	assert_gt(this->_nPat, 0);
 	assert_geq(this->_nFrag, this->_nPat);
 	_rstarts.reset();
-	// TODO: make line below 64-bit
-	writeU32(out1, this->_nPat, this->toBe());
+	writeU<TIndexOffU>(out1, this->_nPat, this->toBe());
 	// Allocate plen[]
 	try {
-		this->_plen.init(new TIndexOff[this->_nPat], this->_nPat);
+		this->_plen.init(new TIndexOffU[this->_nPat], this->_nPat);
 	} catch(bad_alloc& e) {
 		cerr << "Out of memory allocating plen[] in Ebwt::join()"
 		     << " at " << __FILE__ << ":" << __LINE__ << endl;
 		throw e;
 	}
 	// For each pattern, set plen
-	int npat = -1;
-	for(TIndexOff i = 0; i < szs.size(); i++) {
+	TIndexOff npat = -1;
+	for(TIndexOffU i = 0; i < szs.size(); i++) {
 		if(szs[i].first && szs[i].len > 0) {
 			if(npat >= 0) {
-				// TODO: make line below 64-bit
-				writeU32(out1, this->plen()[npat], this->toBe());
+				writeU<TIndexOffU>(out1, this->plen()[npat], this->toBe());
 			}
 			npat++;
 			this->plen()[npat] = (szs[i].len + szs[i].off);
@@ -2614,20 +2599,18 @@ void Ebwt::joinToDisk(
 		}
 	}
 	assert_eq((TIndexOff)npat, this->_nPat-1);
-	// TODO: make line below 64-bit
-	writeU32(out1, this->plen()[npat], this->toBe());
-	// TODO: make line below 64-bit
+	writeU<TIndexOffU>(out1, this->plen()[npat], this->toBe());
 	// Write the number of fragments
-	writeU32(out1, this->_nFrag, this->toBe());
-	TIndexOff seqsRead = 0;
-	ASSERT_ONLY(TIndexOff szsi = 0);
-	ASSERT_ONLY(TIndexOff entsWritten = 0);
-	TIndexOff dstoff = 0;
+	writeU<TIndexOffU>(out1, this->_nFrag, this->toBe());
+	TIndexOffU seqsRead = 0;
+	ASSERT_ONLY(TIndexOffU szsi = 0);
+	ASSERT_ONLY(TIndexOffU entsWritten = 0);
+	TIndexOffU dstoff = 0;
 	// For each filebuf
 	for(unsigned int i = 0; i < l.size(); i++) {
 		assert(!l[i]->eof());
 		bool first = true;
-		TIndexOff patoff = 0;
+		TIndexOffU patoff = 0;
 		// For each *fragment* (not necessary an entire sequence) we
 		// can pull out of istream l[i]...
 		while(!l[i]->eof()) {
@@ -2637,7 +2620,7 @@ void Ebwt::joinToDisk(
 			RefRecord rec = fastaRefReadAppend(
 				*l[i], first, ret, dstoff, rpcp, &_refnames.back());
 			first = false;
-			TIndexOff bases = rec.len;
+			TIndexOffU bases = rec.len;
 			if(rec.first && rec.len > 0) {
 				if(_refnames.back().length() == 0) {
 					// If name was empty, replace with an index
@@ -2671,7 +2654,7 @@ void Ebwt::joinToDisk(
 			//writeU32(out1, oldRetLen, this->toBe()); // offset from beginning of joined string
 			//writeU32(out1, seq,       this->toBe()); // sequence id
 			//writeU32(out1, patoff,    this->toBe()); // offset into sequence
-			patoff += (TIndexOff)bases;
+			patoff += bases;
 		}
 		assert_gt(szsi, 0);
 		l[i]->reset();
@@ -2726,18 +2709,17 @@ void Ebwt::buildToDisk(
 	assert_gt(eh._lineRate, 3);
 	assert(sa.suffixItrIsReset());
 
-	TIndexOff len = eh._len;
-	TIndexOff ftabLen = eh._ftabLen;
-	TIndexOff sideSz = eh._sideSz;
-	TIndexOff ebwtTotSz = eh._ebwtTotSz;
-	TIndexOff fchr[] = {0, 0, 0, 0, 0};
-	EList<TIndexOff> ftab(EBWT_CAT);
-	// TODO: line below
-	TIndexOff zOff = 0xffffffff;
+	TIndexOffU len = eh._len;
+	TIndexOffU ftabLen = eh._ftabLen;
+	TIndexOffU sideSz = eh._sideSz;
+	TIndexOffU ebwtTotSz = eh._ebwtTotSz;
+	TIndexOffU fchr[] = {0, 0, 0, 0, 0};
+	EList<TIndexOffU> ftab(EBWT_CAT);
+	TIndexOffU zOff = OFF_MASK;
 
 	// Save # of occurrences of each character as we walk along the bwt
-	TIndexOff occ[4] = {0, 0, 0, 0};
-	TIndexOff occSave[4] = {0, 0, 0, 0};
+	TIndexOffU occ[4] = {0, 0, 0, 0};
+	TIndexOffU occSave[4] = {0, 0, 0, 0};
 
 	// Record rows that should "absorb" adjacent rows in the ftab.
 	// The absorbed rows represent suffixes shorter than the ftabChars
@@ -2779,38 +2761,36 @@ void Ebwt::buildToDisk(
 
 	// Points to the base offset within ebwt for the side currently
 	// being written
-	TIndexOff side = 0;
+	TIndexOffU side = 0;
 
 	// Whether we're assembling a forward or a reverse bucket
 	bool fw;
-	int sideCur = 0;
+	TIndexOff sideCur = 0;
 	fw = true;
 
 	// Have we skipped the '$' in the last column yet?
 	ASSERT_ONLY(bool dollarSkipped = false);
 
-	TIndexOff si = 0;   // string offset (chars)
-	ASSERT_ONLY(TIndexOff lastSufInt = 0);
+	TIndexOffU si = 0;   // string offset (chars)
+	ASSERT_ONLY(TIndexOffU lastSufInt = 0);
 	ASSERT_ONLY(bool inSA = true); // true iff saI still points inside suffix
 	                               // array (as opposed to the padding at the
 	                               // end)
 	// Iterate over packed bwt bytes
 	VMSG_NL("Entering Ebwt loop");
-	ASSERT_ONLY(TIndexOff beforeEbwtOff = (TIndexOff)out1.tellp());
+	ASSERT_ONLY(TIndexOffU beforeEbwtOff = (TIndexOffU)out1.tellp()); // @double-check - pos_type, std::streampos 
 	
 	// First integer in the suffix-array output file is the length of the
 	// array, including $
 	if(saOut != NULL) {
 		// Write length word
-		// TODO: make line below 64-bit
-		writeU32(*saOut, len+1, this->toBe());
+		writeU<TIndexOffU>(*saOut, len+1, this->toBe());
 	}
 	
 	// First integer in the BWT output file is the length of BWT(T), including $
 	if(bwtOut != NULL) {
 		// Write length word
-		// TODO: make line below 64-bit
-		writeU32(*bwtOut, len+1, this->toBe());
+		writeU<TIndexOffU>(*bwtOut, len+1, this->toBe());
 	}
 	
 	while(side < ebwtTotSz) {
@@ -2831,11 +2811,10 @@ void Ebwt::buildToDisk(
 			bool count = true;
 			if(si <= len) {
 				// Still in the SA; extract the bwtChar
-				TIndexOff saElt = sa.nextSuffix();
+				TIndexOffU saElt = sa.nextSuffix();
 				// Write it to the optional suffix-array output file
 				if(saOut != NULL) {
-					// TODO: make line below 64-bit
-					writeU32(*saOut, saElt, this->toBe());
+					writeU<TIndexOffU>(*saOut, saElt, this->toBe());
 				}
 				// TODO: what exactly to write to the BWT output file?  How to
 				// represent $?  How to pack nucleotides into bytes/words?
@@ -2857,16 +2836,16 @@ void Ebwt::buildToDisk(
 					fchr[bwtChar]++;
 				}
 				// Update ftab
-				if((len-saElt) >= (TIndexOff)eh._ftabChars) {
+				if((len-saElt) >= (TIndexOffU)eh._ftabChars) {
 					// Turn the first ftabChars characters of the
 					// suffix into an integer index into ftab.  The
 					// leftmost (lowest index) character of the suffix
 					// goes in the most significant bit pair if the
 					// integer.
-					TIndexOff sufInt = 0;
+					TIndexOffU sufInt = 0;
 					for(int i = 0; i < eh._ftabChars; i++) {
 						sufInt <<= 2;
-						assert_lt((TIndexOff)i, len-saElt);
+						assert_lt((TIndexOffU)i, len-saElt);
 						sufInt |= (unsigned char)(s[saElt+i]);
 					}
 					// Assert that this prefix-of-suffix is greater
@@ -2897,8 +2876,7 @@ void Ebwt::buildToDisk(
 					assert_lt((si >> eh._offRate), eh._offsLen);
 					// Write offsets directly to the secondary output
 					// stream, thereby avoiding keeping them in memory
-					// TODO: make line below 64-bit
-					writeU32(out2, saElt, this->toBe());
+					writeU<TIndexOffU>(out2, saElt, this->toBe());
 				}
 			} else {
 				// Strayed off the end of the SA, now we're just
@@ -2947,14 +2925,14 @@ void Ebwt::buildToDisk(
 		sideCur++;
 		if(sideCur == (int)eh._sideBwtSz) {
 			sideCur = 0;
-			TIndexOff *u32side = reinterpret_cast<TIndexOff*>(ebwtSide.ptr());
+			TIndexOffU *u32side = reinterpret_cast<TIndexOffU*>(ebwtSide.ptr());
 			// Write 'A', 'C', 'G' and 'T' tallies
 			side += sideSz;
 			assert_leq(side, eh._ebwtTotSz);
-			u32side[(sideSz >> 2)-4] = endianizeU32(occSave[0], this->toBe());
-			u32side[(sideSz >> 2)-3] = endianizeU32(occSave[1], this->toBe());
-			u32side[(sideSz >> 2)-2] = endianizeU32(occSave[2], this->toBe());
-			u32side[(sideSz >> 2)-1] = endianizeU32(occSave[3], this->toBe());
+			u32side[(sideSz >> 2)-4] = endianizeU<TIndexOffU>(occSave[0], this->toBe());
+			u32side[(sideSz >> 2)-3] = endianizeU<TIndexOffU>(occSave[1], this->toBe());
+			u32side[(sideSz >> 2)-2] = endianizeU<TIndexOffU>(occSave[2], this->toBe());
+			u32side[(sideSz >> 2)-1] = endianizeU<TIndexOffU>(occSave[3], this->toBe());
 			occSave[0] = occ[0];
 			occSave[1] = occ[1];
 			occSave[2] = occ[2];
@@ -2964,8 +2942,7 @@ void Ebwt::buildToDisk(
 		}
 	}
 	VMSG_NL("Exited Ebwt loop");
-	// TODO: line below
-	assert_neq(zOff, 0xffffffff);
+	assert_neq(zOff, OFF_MASK);
 	if(absorbCnt > 0) {
 		// Absorb any trailing, as-yet-unabsorbed short suffixes into
 		// the last element of ftab
@@ -2974,14 +2951,13 @@ void Ebwt::buildToDisk(
 	// Assert that our loop counter got incremented right to the end
 	assert_eq(side, eh._ebwtTotSz);
 	// Assert that we wrote the expected amount to out1
-	assert_eq(((TIndexOff)out1.tellp() - beforeEbwtOff), eh._ebwtTotSz);
+	assert_eq(((TIndexOffU)out1.tellp() - beforeEbwtOff), eh._ebwtTotSz); // @double-check - pos_type
 	// assert that the last thing we did was write a forward bucket
 
 	//
 	// Write zOff to primary stream
 	//
-	// TODO: make line below 64-bit
-	writeU32(out1, zOff, this->toBe());
+	writeU<TIndexOffU>(out1, zOff, this->toBe());
 
 	//
 	// Finish building fchr
@@ -3002,22 +2978,21 @@ void Ebwt::buildToDisk(
 	}
 	// Write fchr to primary file
 	for(int i = 0; i < 5; i++) {
-		// TODO: make line below 64-bit
-		writeU32(out1, fchr[i], this->toBe());
+		writeU<TIndexOffU>(out1, fchr[i], this->toBe());
 	}
 
 	//
 	// Finish building ftab and build eftab
 	//
 	// Prefix sum on ftable
-	TIndexOff eftabLen = 0;
+	TIndexOffU eftabLen = 0;
 	assert_eq(0, absorbFtab[0]);
-	for(TIndexOff i = 1; i < ftabLen; i++) {
+	for(TIndexOffU i = 1; i < ftabLen; i++) {
 		if(absorbFtab[i] > 0) eftabLen += 2;
 	}
-	assert_leq(eftabLen, (TIndexOff)eh._ftabChars*2);
+	assert_leq(eftabLen, (TIndexOffU)eh._ftabChars*2);
 	eftabLen = eh._ftabChars*2;
-	EList<TIndexOff> eftab(EBWT_CAT);
+	EList<TIndexOffU> eftab(EBWT_CAT);
 	try {
 		eftab.resize(eftabLen);
 		eftab.fillZero();
@@ -3027,17 +3002,16 @@ void Ebwt::buildToDisk(
 		     << __LINE__ << endl;
 		throw e;
 	}
-	TIndexOff eftabCur = 0;
-	for(TIndexOff i = 1; i < ftabLen; i++) {
-		TIndexOff lo = ftab[i] + Ebwt::ftabHi(ftab.ptr(), eftab.ptr(), len, ftabLen, eftabLen, i-1);
+	TIndexOffU eftabCur = 0;
+	for(TIndexOffU i = 1; i < ftabLen; i++) {
+		TIndexOffU lo = ftab[i] + Ebwt::ftabHi(ftab.ptr(), eftab.ptr(), len, ftabLen, eftabLen, i-1);
 		if(absorbFtab[i] > 0) {
 			// Skip a number of short pattern indicated by absorbFtab[i]
-			TIndexOff hi = lo + absorbFtab[i];
+			TIndexOffU hi = lo + absorbFtab[i];
 			assert_lt(eftabCur*2+1, eftabLen);
 			eftab[eftabCur*2] = lo;
 			eftab[eftabCur*2+1] = hi;
-			// TODO: line below
-			ftab[i] = (eftabCur++) ^ 0xffffffff; // insert pointer into eftab
+			ftab[i] = (eftabCur++) ^ OFF_MASK; // insert pointer into eftab
 			assert_eq(lo, Ebwt::ftabLo(ftab.ptr(), eftab.ptr(), len, ftabLen, eftabLen, i));
 			assert_eq(hi, Ebwt::ftabHi(ftab.ptr(), eftab.ptr(), len, ftabLen, eftabLen, i));
 		} else {
@@ -3046,14 +3020,12 @@ void Ebwt::buildToDisk(
 	}
 	assert_eq(Ebwt::ftabHi(ftab.ptr(), eftab.ptr(), len, ftabLen, eftabLen, ftabLen-1), len+1);
 	// Write ftab to primary file
-	for(TIndexOff i = 0; i < ftabLen; i++) {
-		// TODO: make line below 64-bit
-		writeU32(out1, ftab[i], this->toBe());
+	for(TIndexOffU i = 0; i < ftabLen; i++) {
+		writeU<TIndexOffU>(out1, ftab[i], this->toBe());
 	}
 	// Write eftab to primary file
-	for(TIndexOff i = 0; i < eftabLen; i++) {
-		// TODO: make line below 64-bit
-		writeU32(out1, eftab[i], this->toBe());
+	for(TIndexOffU i = 0; i < eftabLen; i++) {
+		writeU<TIndexOffU>(out1, eftab[i], this->toBe());
 	}
 
 	// Note: if you'd like to sanity-check the Ebwt, you'll have to
