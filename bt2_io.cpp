@@ -152,13 +152,13 @@ void Ebwt::readIntoMemory(
 	// Read endianness hints from both streams
 	size_t bytesRead = 0;
 	switchEndian = false;
-	uint32_t one = readU32(_in1, switchEndian); // 1st word of primary stream
+	uint32_t one = readU<uint32_t>(_in1, switchEndian); // 1st word of primary stream
 	bytesRead += 4;
 	if(loadSASamp) {
 #ifndef NDEBUG
-		assert_eq(one, readU32(_in2, switchEndian)); // should match!
+		assert_eq(one, readU<uint32_t>(_in2, switchEndian)); // should match!
 #else
-		readU32(_in2, switchEndian);
+		readU<uint32_t>(_in2, switchEndian);
 #endif
 	}
 	if(one != 1) {
