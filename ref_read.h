@@ -31,6 +31,7 @@
 #include "filebuf.h"
 #include "word_io.h"
 #include "ds.h"
+#include "endian_swap.h"
 
 using namespace std;
 
@@ -53,12 +54,12 @@ struct RefRecord {
 			cerr << "Error reading RefRecord offset from FILE" << endl;
 			throw 1;
 		}
-		if(swap) off = endianSwapU<TIndexOffU>(off);
+		if(swap) off = endianSwapU(off);
 		if(!fread(&len, OFF_SIZE, 1, in)) {
 			cerr << "Error reading RefRecord offset from FILE" << endl;
 			throw 1;
 		}
-		if(swap) len = endianSwapU<TIndexOffU>(len);
+		if(swap) len = endianSwapU(len);
 		first = fgetc(in) ? true : false;
 	}
 
@@ -139,7 +140,7 @@ static RefRecord fastaRefReadAppend(
 	FileBuf& in,             // input file
 	bool first,              // true iff this is the first record in the file
 	TStr& dst,               // destination buf for parsed characters
-	size_t& dstoff,          // index of next character in dst to assign
+	TIndexOffU& dstoff,          // index of next character in dst to assign
 	RefReadInParams& rparms, // 
 	string* name = NULL)     // put parsed FASTA name here
 {
