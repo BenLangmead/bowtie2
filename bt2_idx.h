@@ -2598,7 +2598,7 @@ void Ebwt::joinToDisk(
 			this->plen()[npat] += (szs[i].len + szs[i].off);
 		}
 	}
-	assert_eq((TIndexOff)npat, this->_nPat-1);
+	assert_eq((TIndexOffU)npat, this->_nPat-1);
 	writeU<TIndexOffU>(out1, this->plen()[npat], this->toBe());
 	// Write the number of fragments
 	writeU<TIndexOffU>(out1, this->_nFrag, this->toBe());
