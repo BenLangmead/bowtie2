@@ -658,7 +658,7 @@ bool KarkkainenBlockwiseSA<TStr>::suffixCmp(
 	TIndexOffU len = (TIndexOffU)t.length();
 	// i is not covered by any previous match
 	TIndexOffU l;
-	if(i > k) {
+	if((int64_t)i > k) {
 		k = i; // so that i + lHi == kHi
 		l = 0; // erase any previous l
 		kSoft = false;
@@ -697,9 +697,9 @@ bool KarkkainenBlockwiseSA<TStr>::suffixCmp(
 
 	// Z box extends exactly as far as previous match (or there
 	// is neither a Z box nor a previous match)
-	if(i + l == k) {
+	if((int64_t)(i + l) == k) {
 		// Extend
-		while(l < len-cmp && k < len && t[(size_t)(cmp+l)] == t[(size_t)k]) {
+		while(l < len-cmp && k < (int64_t)len && t[(size_t)(cmp+l)] == t[(size_t)k]) {
 			k++; l++;
 		}
 		j = i; // update furthest-extending LHS
@@ -707,11 +707,11 @@ bool KarkkainenBlockwiseSA<TStr>::suffixCmp(
 		assert_eq(l, suffixLcp(t, i, cmp));
 	}
 	// Z box extends further than previous match
-	else if(i + l > k) {
+	else if((int64_t)(i + l) > k) {
 		l = (TIndexOffU)(k - i); // point to just after previous match
 		j = i; // update furthest-extending LHS
 		if(kSoft) {
-			while(l < len-cmp && k < len && t[(size_t)(cmp+l)] == t[(size_t)k]) {
+			while(l < len-cmp && k < (int64_t)len && t[(size_t)(cmp+l)] == t[(size_t)k]) {
 				k++; l++;
 			}
 			kSoft = false;

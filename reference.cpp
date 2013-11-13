@@ -625,7 +625,7 @@ BitPairReference::szsFromFasta(
 			assert_eq(numSeqs, numSeqs2);
 			assert_eq(sztot2.second, sztot.second + numSeqs);
 		} else {
-			int numSeqs = 0;
+			TIndexOff numSeqs = 0;
 			sztot = fastaRefReadSizes(is, szs, parms, &bpout, numSeqs);
 			writeU<TIndexOffU>(fout3, (TIndexOffU)szs.size(), bigEndian); // write # records
 			for(size_t i = 0; i < szs.size(); i++) szs[i].write(fout3, bigEndian);

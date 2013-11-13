@@ -43,7 +43,7 @@ void Ebwt::sanityCheckUpToSide(TIndexOff upToSide) const {
 	TIndexOffU cur = 0; // byte pointer
 	const EbwtParams& eh = this->_eh;
 	bool fw = false;
-	while(cur < (upToSide * eh._sideSz)) {
+	while(cur < (TIndexOffU)(upToSide * eh._sideSz)) {
 		assert_leq(cur + eh._sideSz, eh._ebwtTotLen);
 		for(uint32_t i = 0; i < eh._sideBwtSz; i++) {
 			uint8_t by = this->ebwt()[cur + (fw ? i : eh._sideBwtSz-i-1)];
