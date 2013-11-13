@@ -769,7 +769,7 @@ void DifferenceCoverSample<TStr>::build() {
 			cerr << "Error; sPrime array has so many elements that it can't be converted to a signed array without overflow." << endl;
 			throw 1;
 		}
-		LarssonSadakane<int> ls;
+		LarssonSadakane<TIndexOff> ls;
 		ls.suffixsort(
 			(TIndexOff*)_isaPrime.ptr(),
 			(TIndexOff*)sPrime.ptr(),

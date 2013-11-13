@@ -1594,7 +1594,7 @@ public:
 	void writeFromMemory(bool justHeader, const string& out1, const string& out2) const;
 
 	// Sanity checking
-	void sanityCheckUpToSide(int upToSide) const;
+	void sanityCheckUpToSide(TIndexOff upToSide) const;
 	void sanityCheckAll(int reverse) const;
 	void restore(SString<char>& s) const;
 	void checkOrigs(const EList<SString<char> >& os, bool color, bool mirror) const;

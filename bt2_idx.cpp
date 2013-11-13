@@ -166,7 +166,7 @@ TIndexOffU Ebwt::getOffset(TIndexOffU row) const {
 TIndexOffU Ebwt::getOffset(
 	TIndexOffU elt,
 	bool fw,
-	uint32_t hitlen) const
+	TIndexOffU hitlen) const
 {
 	TIndexOffU off = getOffset(elt);
 	assert_neq(OFF_MASK, off);

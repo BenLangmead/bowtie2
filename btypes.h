@@ -28,7 +28,7 @@
 #define OFF_SIZE 8
 
 typedef uint64_t TIndexOffU;
-typedef int64_t TIndexOff
+typedef int64_t TIndexOff;
     
 #else
 #define OFF_MASK 0xffffffff
