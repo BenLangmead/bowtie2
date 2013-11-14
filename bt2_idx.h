@@ -1600,7 +1600,7 @@ public:
 	void checkOrigs(const EList<SString<char> >& os, bool color, bool mirror) const;
 
 	// Searching and reporting
-	void joinedToTextOff(uint32_t qlen, TIndexOffU off, TIndexOffU& tidx, TIndexOffU& textoff, TIndexOffU& tlen, bool rejectStraddle, bool& straddled) const;
+	void joinedToTextOff(TIndexOffU qlen, TIndexOffU off, TIndexOffU& tidx, TIndexOffU& textoff, TIndexOffU& tlen, bool rejectStraddle, bool& straddled) const;
 
 #define WITHIN_BWT_LEN(x) \
 	assert_leq(x[0], this->_eh._sideBwtLen); \

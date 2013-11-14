@@ -238,16 +238,16 @@ static void print_index_sequences(ostream& fout, Ebwt& ebwt)
 	TStr cat_ref;
 	ebwt.restore(cat_ref);
 
-	uint32_t curr_ref = OFF_MASK;
+	TIndexOffU curr_ref = OFF_MASK;
 	string curr_ref_seq = "";
-	uint32_t curr_ref_len = OFF_MASK;
-	uint32_t last_text_off = 0;
+	TIndexOffU curr_ref_len = OFF_MASK;
+	TIndexOffU last_text_off = 0;
 	size_t orig_len = cat_ref.length();
-	uint32_t tlen = OFF_MASK;
+	TIndexOffU tlen = OFF_MASK;
 	bool first = true;
 	for(size_t i = 0; i < orig_len; i++) {
-		uint32_t tidx = OFF_MASK;
-		uint32_t textoff = OFF_MASK;
+		TIndexOffU tidx = OFF_MASK;
+		TIndexOffU textoff = OFF_MASK;
 		tlen = OFF_MASK;
 		bool straddled = false;
 		ebwt.joinedToTextOff(1 /* qlen */, (TIndexOffU)i, tidx, textoff, tlen, true, straddled);

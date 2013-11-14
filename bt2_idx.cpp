@@ -40,7 +40,7 @@ using namespace std;
  * sorted list of reference fragment ranges t
  */
 void Ebwt::joinedToTextOff(
-	uint32_t qlen, // @double-check
+	TIndexOffU qlen, 
 	TIndexOffU off,
 	TIndexOffU& tidx,
 	TIndexOffU& textoff,

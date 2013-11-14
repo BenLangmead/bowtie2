@@ -29,6 +29,7 @@
 #include "assert_helpers.h"
 #include "threading.h"
 #include "random_source.h"
+#include "btypes.h"
 
 /**
  * Tally how much memory is allocated to certain 
@@ -780,7 +781,7 @@ public:
 		if(num < 2) return;
 		size_t left = num;
 		for(size_t i = begin; i < begin + num - 1; i++) {
-			uint32_t rndi = rnd.nextU32() % left;
+			uint32_t rndi = rnd.nextU32() % (uint32_t)left;
 			if(rndi > 0) {
 				std::swap(list_[i], list_[i + rndi]);
 			}
@@ -3434,7 +3435,7 @@ public:
 	 * include elements that fall off the end of list_).
 	 */
 	void setLength(size_t nlen) {
-		len_ = (uint32_t)nlen;
+		len_ = nlen;
 	}
 	
 protected:
@@ -3458,8 +3459,8 @@ public:
 
 	PListSlice(
 		PList<T, S>& list,
-		uint32_t i,
-		uint32_t len) :
+		TIndexOffU i,
+		TIndexOffU len) :
 		i_(i),
 		len_(len),
 		list_(&list)
@@ -3471,8 +3472,8 @@ public:
 	void init(const PListSlice<T, S>& sl, size_t first, size_t last) {
 		assert_gt(last, first);
 		assert_leq(last - first, sl.len_);
-		i_ = (uint32_t)(sl.i_ + first);
-		len_ = (uint32_t)(last - first);
+		i_ = sl.i_ + first;
+		len_ = last - first;
 		list_ = sl.list_;
 	}
 	
@@ -3566,12 +3567,12 @@ public:
 	 * include elements that fall off the end of list_).
 	 */
 	void setLength(size_t nlen) {
-		len_ = (uint32_t)nlen;
+		len_ = nlen;
 	}
 	
 protected:
-	uint32_t i_;
-	uint32_t len_;
+	TIndexOffU i_;
+	TIndexOffU len_;
 	PList<T, S>* list_;
 };
 

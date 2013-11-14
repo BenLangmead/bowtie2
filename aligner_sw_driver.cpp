@@ -1078,7 +1078,7 @@ int SwDriver::extendSeeds(
 				}
 				int64_t leftShift = refoff - rect.refl;
 				size_t nwindow = 0;
-				if(toff >= rect.refl) {
+				if((int64_t)toff >= rect.refl) {
 					nwindow = (size_t)(toff - rect.refl);
 				}
 				// NOTE: We might be taking off more than we should because the
@@ -1771,7 +1771,7 @@ int SwDriver::extendSeedsPaired(
 				}
 				int64_t leftShift = refoff - rect.refl;
 				size_t nwindow = 0;
-				if(toff >= rect.refl) {
+				if((int64_t)toff >= rect.refl) {
 					nwindow = (size_t)(toff - rect.refl);
 				}
 				// NOTE: We might be taking off more than we should because the
