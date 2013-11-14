@@ -404,7 +404,11 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
 		// Randomly generate samples.  Allow duplicates for now.
 		VMSG_NL("Generating random suffixes");
 		for(size_t i = 0; i < numSamples; i++) {
-			_sampleSuffs[i] = (TIndexOffU)(_randomSrc.nextU32() % len); // TODO: @@ Check
+#ifdef BOWTIE_64BIT_INDEX         
+			_sampleSuffs[i] = (TIndexOffU)(_randomSrc.nextU64() % len); 
+#else
+			_sampleSuffs[i] = (TIndexOffU)(_randomSrc.nextU32() % len); 
+#endif
 		}
 	} else {
 		try {
@@ -412,7 +416,11 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
 			// Randomly generate samples.  Allow duplicates for now.
 			VMSG_NL("Generating random suffixes");
 			for(size_t i = 0; i < numSamples; i++) {
-				_sampleSuffs[i] = (TIndexOffU)(_randomSrc.nextU32() % len); // TODO: @@ Check
+#ifdef BOWTIE_64BIT_INDEX
+				_sampleSuffs[i] = (TIndexOffU)(_randomSrc.nextU64() % len); 
+#else
+				_sampleSuffs[i] = (TIndexOffU)(_randomSrc.nextU32() % len); 
+#endif                
 			}
 		} catch(bad_alloc &e) {
 			if(this->_passMemExc) {

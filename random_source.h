@@ -60,6 +60,14 @@ public:
 		return ret;
 	}
 
+    uint64_t nextU64() {
+		assert(inited_);
+		uint64_t first = nextU32();
+		first = first << 32;
+		uint64_t second = nextU32();
+		return first | second;
+	}
+    
 	/**
 	 * Return a pseudo-random unsigned 32-bit integer sampled uniformly
 	 * from [lo, hi].

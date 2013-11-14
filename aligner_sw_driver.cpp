@@ -98,8 +98,13 @@ bool SwDriver::eeSaTups(
 	if(tot > 0) {
 		bool fwFirst = true;
         // Pick fw / rc to go first in a weighted random fashion
-		TIndexOffU rn32 = rnd.nextU32(); // TODO: @@
-		TIndexOffU rn = rn32 % (TIndexOffU)tot;
+#ifdef BOWTIE_64BIT_INDEX
+		TIndexOffU rn64 = rnd.nextU64();
+		TIndexOffU rn = rn64 % (uint64_t)tot;
+#else
+		TIndexOffU rn32 = rnd.nextU32();
+		TIndexOffU rn = rn32 % (uint32_t)tot;
+#endif        
 		if(rn >= sh.exactFwEEHit().size()) {
 			fwFirst = false;
 		}
@@ -117,7 +122,11 @@ bool SwDriver::eeSaTups(
                 TIndexOffU width = hit.bot - hit.top;
                 if(nelt_out + width > maxelt) {
                     TIndexOffU trim = (TIndexOffU)((nelt_out + width) - maxelt);
-                    TIndexOffU rn = rnd.nextU32() % width; // TODO: @@
+#ifdef BOWTIE_64BIT_INDEX
+                    TIndexOffU rn = rnd.nextU64() % width;
+#else
+                    TIndexOffU rn = rnd.nextU32() % width;
+#endif
                     TIndexOffU newwidth = width - trim;
                     if(hit.top + rn + newwidth > hit.bot) {
                         // Two pieces
@@ -204,7 +213,11 @@ bool SwDriver::eeSaTups(
             TIndexOffU width = hit.bot - hit.top;
             if(nelt_out + width > maxelt) {
                 TIndexOffU trim = (TIndexOffU)((nelt_out + width) - maxelt);
-                TIndexOffU rn = rnd.nextU32() % width; // TODO: @@
+#ifdef BOWTIE_64BIT_INDEX
+                TIndexOffU rn = rnd.nextU64() % width;
+#else
+                TIndexOffU rn = rnd.nextU32() % width; 
+#endif
                 TIndexOffU newwidth = width - trim;
                 if(hit.top + rn + newwidth > hit.bot) {
                     // Two pieces
