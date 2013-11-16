@@ -22,6 +22,7 @@
 
 #include <stdint.h>
 #include <inttypes.h>
+#include "assert_helpers.h"
 
 #ifdef BOWTIE_64BIT_INDEX
 #   define endianSwapU(x) endianSwapU64(x)
@@ -105,7 +106,13 @@ static inline T endianizeU(T u, bool toBig) {
 	if(toBig == currentlyBigEndian()) {
 		return u;
 	}
-	return endianSwapU(u);
+	if(sizeof(T) == 4) {
+		return endianSwapU32((uint32_t)u);
+	} else if(sizeof(T) == 8) {
+		return endianSwapU64((uint64_t)u);
+	} else {
+		assert(false);
+	}
 }
 
 
@@ -118,7 +125,13 @@ static inline T endianizeI(T i, bool toBig) {
 	if(toBig == currentlyBigEndian()) {
 		return i;
 	}
-	return endianSwapI(i);
+	if(sizeof(T) == 4) {
+		return endianSwapI32((int32_t)i);
+	} else if(sizeof(T) == 8) {
+		return endianSwapI64((int64_t)i);
+	} else {
+		assert(false);
+	}
 }
 
 #endif

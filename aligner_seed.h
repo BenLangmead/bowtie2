@@ -977,8 +977,8 @@ public:
 	 */
 	void rankSeedHits(RandomSource& rnd) {
 		while(rankOffs_.size() < nonzTot_) {
-			TIndexOffU minsz = OFF_MASK;
-			TIndexOffU minidx = 0;
+			TIndexOffU minsz = MAX_U32;
+			uint32_t minidx = 0;
 			bool minfw = true;
 			// Rank seed-hit positions in ascending order by number of elements
 			// in all BW ranges
@@ -1004,7 +1004,7 @@ public:
 					}
 				}
 			}
-			assert_neq(OFF_MASK, minsz);
+			assert_neq(MAX_U32, minsz);
 			if(minfw) {
 				sortedFw_[minidx] = true;
 			} else {

@@ -78,7 +78,7 @@ static void resetOptions() {
 	seed         = 0;     // srandom seed
 	showVersion  = 0;     // just print version and quit?
 	//   Ebwt parameters
-	lineRate     = 7;  // a "line" is 64 bytes
+	lineRate     = Ebwt::default_lineRate; // a "line" is 64 or 128 bytes
 	linesPerSide = 1;  // 1 64-byte line on a side
 	offRate      = 4;  // sample 1 out of 16 SA elts
 	ftabChars    = 10; // 10 chars in initial lookup table

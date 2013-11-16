@@ -209,14 +209,7 @@ public:
 		assert_geq(_offRate, 0);
 		assert_leq(_ftabChars, 16);
 		assert_geq(_ftabChars, 1);
-		// Only 6 supported for now, due to hardcoded constants in
-		// SideLocus.
-#ifdef BOWTIE_64BIT_INDEX
-		assert_eq(7, _lineRate);
-#else
-		assert_eq(6, _lineRate);
-#endif
-		//assert_lt(_lineRate, 32);
+		assert_lt(_lineRate, 32);
 		assert_lt(_ftabChars, 32);
 		assert_eq(0, _ebwtTotSz % _lineSz);
 		return true;
@@ -340,7 +333,7 @@ struct SideLocus {
 		TIndexOffU spread = bot - top;
 		// Many cache misses on the following lines
 		if(ltop._charOff + spread < sideBwtLen) {
-			lbot._charOff = ltop._charOff + spread; 
+			lbot._charOff = (uint32_t)(ltop._charOff + spread);
 			lbot._sideNum = ltop._sideNum;
 			lbot._sideByteOff = ltop._sideByteOff;
 			lbot._by = lbot._charOff >> 2;
@@ -1056,11 +1049,11 @@ public:
 					// we would have thrown one eventually as part of
 					// constructing the DifferenceCoverSample
 					dcv <<= 1;
-					TIndexOffU sz = DifferenceCoverSample<TStr>::simulateAllocs(s, dcv >> 1);
+					TIndexOffU sz = (TIndexOffU)DifferenceCoverSample<TStr>::simulateAllocs(s, dcv >> 1);
 					AutoArray<uint8_t> tmp(sz, EBWT_CAT);
 					dcv >>= 1;
 					// Likewise with the KarkkainenBlockwiseSA
-					sz = KarkkainenBlockwiseSA<TStr>::simulateAllocs(s, bmax);
+					sz = (TIndexOffU)KarkkainenBlockwiseSA<TStr>::simulateAllocs(s, bmax);
 					AutoArray<uint8_t> tmp2(sz, EBWT_CAT);
 					// Now throw in the 'ftab' and 'isaSample' structures
 					// that we'll eventually allocate in buildToDisk
@@ -2416,7 +2409,11 @@ template<typename Operation>
 	static const bool     default_noDc = false;
 	static const bool     default_useBlockwise = true;
 	static const uint32_t default_seed = 0;
+#ifdef BOWTIE_64BIT_INDEX
+	static const int      default_lineRate = 7;
+#else
 	static const int      default_lineRate = 6;
+#endif
 	static const int      default_offRate = 5;
 	static const int      default_offRatePlus = 0;
 	static const int      default_ftabChars = 10;
@@ -2925,14 +2922,21 @@ void Ebwt::buildToDisk(
 		sideCur++;
 		if(sideCur == (int)eh._sideBwtSz) {
 			sideCur = 0;
-			TIndexOffU *u32side = reinterpret_cast<TIndexOffU*>(ebwtSide.ptr());
+			TIndexOffU *cpptr = reinterpret_cast<TIndexOffU*>(ebwtSide.ptr());
 			// Write 'A', 'C', 'G' and 'T' tallies
 			side += sideSz;
 			assert_leq(side, eh._ebwtTotSz);
-			u32side[(sideSz >> 2)-4] = endianizeU<TIndexOffU>(occSave[0], this->toBe());
-			u32side[(sideSz >> 2)-3] = endianizeU<TIndexOffU>(occSave[1], this->toBe());
-			u32side[(sideSz >> 2)-2] = endianizeU<TIndexOffU>(occSave[2], this->toBe());
-			u32side[(sideSz >> 2)-1] = endianizeU<TIndexOffU>(occSave[3], this->toBe());
+#ifdef BOWTIE_64BIT_INDEX
+			cpptr[(sideSz >> 3)-4] = endianizeU<TIndexOffU>(occSave[0], this->toBe());
+			cpptr[(sideSz >> 3)-3] = endianizeU<TIndexOffU>(occSave[1], this->toBe());
+			cpptr[(sideSz >> 3)-2] = endianizeU<TIndexOffU>(occSave[2], this->toBe());
+			cpptr[(sideSz >> 3)-1] = endianizeU<TIndexOffU>(occSave[3], this->toBe());
+#else
+			cpptr[(sideSz >> 2)-4] = endianizeU<TIndexOffU>(occSave[0], this->toBe());
+			cpptr[(sideSz >> 2)-3] = endianizeU<TIndexOffU>(occSave[1], this->toBe());
+			cpptr[(sideSz >> 2)-2] = endianizeU<TIndexOffU>(occSave[2], this->toBe());
+			cpptr[(sideSz >> 2)-1] = endianizeU<TIndexOffU>(occSave[3], this->toBe());
+#endif
 			occSave[0] = occ[0];
 			occSave[1] = occ[1];
 			occSave[2] = occ[2];

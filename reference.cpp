@@ -139,8 +139,8 @@ BitPairReference::BitPairReference(
 	// Cumulative count of all unambiguous characters on a per-
 	// stretch 8-bit alignment (i.e. count of bytes we need to
 	// allocate in buf_)
-	size_t cumsz = 0;
-	size_t cumlen = 0;
+	TIndexOffU cumsz = 0;
+	TIndexOffU cumlen = 0;
 	// For each unambiguous stretch...
 	for(TIndexOffU i = 0; i < sz; i++) {
 		recs_.push_back(RefRecord(f3, swap));
@@ -399,7 +399,7 @@ int BitPairReference::getStretchNaive(
 		if(count == 0) break;
 		assert_geq(toff, off);
 		if(toff < off + recs_[i].len) {
-			bufOff += (uint32_t)(toff - off); // move bufOff pointer forward
+			bufOff += (TIndexOffU)(toff - off); // move bufOff pointer forward
 		} else {
 			bufOff += recs_[i].len;
 		}
@@ -473,7 +473,7 @@ int BitPairReference::getStretch(
 			memset(&dest[cur], 4, cpycnt);
 			count -= cpycnt;
 			toff += cpycnt;
-			cur += (uint32_t)cpycnt;
+			cur += cpycnt;
 			if(count == 0) break;
 		}
 		assert_geq(toff, off);
@@ -511,8 +511,8 @@ int BitPairReference::getStretch(
 					}
 					assert_eq(0, bufOff & 3);
 					uint64_t bufOffU32 = bufOff >> 2;
-					uint64_t countLim = (uint32_t)count >> 2;
-					uint64_t offLim = (uint32_t)((off - (toff + 4)) >> 2);
+					uint64_t countLim = count >> 2;
+					uint64_t offLim = ((off - (toff + 4)) >> 2);
 					uint64_t lim = min(countLim, offLim);
 					// Do the fast thing for as far as possible
 					for(uint64_t j = 0; j < lim; j++) {

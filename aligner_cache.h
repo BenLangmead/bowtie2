@@ -341,7 +341,7 @@ public:
 	void init(const SATuple& src, size_t first, size_t last) {
 		assert_neq(OFF_MASK, src.topb);
 		key = src.key;
-		topf = src.topf + (uint32_t)first;
+		topf = (TIndexOffU)(src.topf + first);
 		topb = OFF_MASK; // unknown!
 		offs.init(src.offs, first, last);
 	}

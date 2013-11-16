@@ -91,15 +91,15 @@ void Ebwt::sanityCheckAll(int reverse) const {
 	assert_eq(this->ftabHi(eh._ftabLen-1), eh._bwtLen);
 	
 	// Check offs
-	TIndexOff seenLen = (eh._bwtLen + 31) >> 5;
-	uint32_t *seen;
+	TIndexOff seenLen = (eh._bwtLen + 31) >> ((TIndexOffU)5);
+	TIndexOff *seen;
 	try {
-		seen = new uint32_t[seenLen]; // bitvector marking seen offsets
+		seen = new TIndexOff[seenLen]; // bitvector marking seen offsets
 	} catch(bad_alloc& e) {
 		cerr << "Out of memory allocating seen[] at " << __FILE__ << ":" << __LINE__ << endl;
 		throw e;
 	}
-	memset(seen, 0, 4 * seenLen);
+	memset(seen, 0, OFF_SIZE * seenLen);
 	TIndexOffU offsLen = eh._offsLen;
 	for(TIndexOffU i = 0; i < offsLen; i++) {
 		assert_lt(this->offs()[i], eh._bwtLen);

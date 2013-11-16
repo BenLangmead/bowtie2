@@ -293,7 +293,7 @@ static RefRecord fastaRefReadAppend(
 		size_t nlen = dstoff;
 		dst.reverseWindow(ilen, nlen);
 	}
-	return RefRecord((uint32_t)off, (uint32_t)len, first);
+	return RefRecord((TIndexOffU)off, (TIndexOffU)len, first);
 }
 
 #endif /*ndef REF_READ_H_*/

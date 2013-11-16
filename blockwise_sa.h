@@ -396,7 +396,7 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
 	size_t len = this->text().length();
 	// Prepare _sampleSuffs array
 	_sampleSuffs.clear();
-	uint32_t numSamples = (uint32_t)((len/bsz)+1)<<1; // ~len/bsz x 2
+	TIndexOffU numSamples = (TIndexOffU)((len/bsz)+1)<<1; // ~len/bsz x 2
 	assert_gt(numSamples, 0);
 	VMSG_NL("Reserving space for " << numSamples << " sample suffixes");
 	if(this->_passMemExc) {
@@ -463,7 +463,7 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
 	while(--limit >= 0) {
 		// Calculate bucket sizes by doing a binary search for each
 		// suffix and noting where it lands
-		uint32_t numBuckets = (uint32_t)_sampleSuffs.size()+1;
+		TIndexOffU numBuckets = (TIndexOffU)_sampleSuffs.size()+1;
 		EList<TIndexOffU> bucketSzs(EBWTB_CAT); // holds computed bucket sizes
 		EList<TIndexOffU> bucketReps(EBWTB_CAT); // holds 1 member of each bucket (for splitting)
 		try {
@@ -498,8 +498,8 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
 				TIndexOffU itenNext = iten + lenDiv10;
 				if(ten > 0) VMSG_NL("  " << (ten * 10) << "%");
 				for(TIndexOffU i = iten; i < itenNext && i < len; i++) {
-					uint32_t r = binarySASearch(t, i, _sampleSuffs);
-					if(r == 0xffffffff) continue; // r was one of the samples
+					TIndexOffU r = binarySASearch(t, i, _sampleSuffs);
+					if(r == std::numeric_limits<TIndexOffU>::max()) continue; // r was one of the samples
 					assert_lt(r, numBuckets);
 					bucketSzs[r]++;
 					assert_lt(bucketSzs[r], len);
@@ -521,10 +521,10 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
 		{
 			Timer timer(cout, "  Splitting and merging time: ", this->verbose());
 			VMSG_NL("Splitting and merging");
-			for(int64_t i = 0; i < numBuckets; i++) {
+			for(TIndexOffU i = 0; i < numBuckets; i++) {
 				TIndexOffU mergedSz = bsz + 1;
 				assert(bucketSzs[(size_t)i] == 0 || bucketReps[(size_t)i] != OFF_MASK);
-				if(i < (int64_t)numBuckets-1) {
+				if(i < numBuckets-1) {
 					mergedSz = bucketSzs[(size_t)i] + bucketSzs[(size_t)i+1] + 1;
 				}
 				// Merge?
@@ -547,7 +547,7 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
 					// Add an additional sample from the bucketReps[]
 					// set accumulated in the binarySASearch loop; this
 					// effectively splits the bucket
-					_sampleSuffs.insert(bucketReps[(size_t)i], (uint32_t)(i + (added++)));
+					_sampleSuffs.insert(bucketReps[(size_t)i], (TIndexOffU)(i + (added++)));
 				}
 			}
 		}
@@ -887,7 +887,7 @@ void KarkkainenBlockwiseSA<TStr>::nextBlock() {
 			TIndexOffU itenNext = iten + lenDiv10;
 			if(ten > 0) VMSG_NL("  " << (ten * 10) << "%");
 			for(TIndexOffU i = iten; i < itenNext && i < len; i++) {
-				assert_lt(jLo, i); assert_lt(jHi, i);
+				assert_lt(jLo, (TIndexOff)i); assert_lt(jHi, (TIndexOff)i);
 				// Advance the upper-bound comparison by one character
 				if(i == hi || i == lo) continue; // equal to one of the bookends
 				if(hi != OFF_MASK && !suffixCmp(hi, i, jHi, kHi, kHiSoft, zHi)) {

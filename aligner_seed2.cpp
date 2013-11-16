@@ -1992,7 +1992,7 @@ int main(int argc, char **argv) {
 		//                012345678901234567890123456789
         BTDnaString seq ("GCTATATAGCGCGCTCGCATCATTTTGTGT", true);
         BTString    qual("ABCDEFGHIabcdefghiABCDEFGHIabc");
-		uint32_t top, bot;
+		TIndexOffU top, bot;
 		top = bot = 0;
 		bool ret = ebwts.first->contains("GCGCTCGCATCATTTTGTGT", &top, &bot);
 		cerr << ret << ", " << top << ", " << bot << endl;

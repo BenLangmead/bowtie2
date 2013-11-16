@@ -701,7 +701,7 @@ void SwDriver::prioritizeSATups(
 		}
 		assert(!rands2_[ri].done());
 		// Choose an element from the range
-		uint32_t r = rands2_[ri].next(rnd);
+		size_t r = rands2_[ri].next(rnd);
 		if(rands2_[ri].done()) {
 			// Tell the row sampler this range is done
 			rowsamp_.finishedRange(ri - nsmall);
@@ -710,7 +710,7 @@ void SwDriver::prioritizeSATups(
 		SATuple sat;
 		TSlice o;
 		o.init(satpos2_[ri].sat.offs, r, r+1);
-		sat.init(satpos2_[ri].sat.key, satpos2_[ri].sat.topf + r, OFF_MASK, o);
+		sat.init(satpos2_[ri].sat.key, (TIndexOffU)(satpos2_[ri].sat.topf + r), OFF_MASK, o);
 		satpos_.expand();
 		satpos_.back().sat = sat;
 		satpos_.back().origSz = satpos2_[ri].origSz;
@@ -790,7 +790,6 @@ int SwDriver::extendSeeds(
 	bool& exhaustive)            // set to true iff we searched all seeds exhaustively
 {
 	bool all = msink->allHits();
-	typedef std::pair<uint32_t, uint32_t> U32Pair;
 
 	assert(!reportImmediately || msink != NULL);
 	assert(!reportImmediately || !msink->maxed());
@@ -923,13 +922,13 @@ int SwDriver::extendSeeds(
 				first = false;
 				// Resolve next element offset
 				WalkResult wr;
-				uint32_t elt = rands_[i].next(rnd);
+				size_t elt = rands_[i].next(rnd);
 				//cerr << "elt=" << elt << endl;
 				SARangeWithOffs<TSlice> sa;
 				sa.topf = satpos_[i].sat.topf;
 				sa.len = satpos_[i].sat.key.len;
 				sa.offs = satpos_[i].sat.offs;
-				gws_[i].advanceElement(elt, ebwtFw, ref, sa, gwstate_, wr, wlm, prm);
+				gws_[i].advanceElement((TIndexOffU)elt, ebwtFw, ref, sa, gwstate_, wr, wlm, prm);
 				eltsDone++;
 				if(!eeMode) {
 					assert_gt(neltLeft, 0);
@@ -1432,7 +1431,6 @@ int SwDriver::extendSeedsPaired(
 	bool& exhaustive)
 {
 	bool all = msink->allHits();
-	typedef std::pair<uint32_t, uint32_t> U32Pair;
 
 	assert(!reportImmediately || msink != NULL);
 	assert(!reportImmediately || !msink->maxed());
@@ -1624,12 +1622,12 @@ int SwDriver::extendSeedsPaired(
 				assert(!gws_[i].done());
 				// Resolve next element offset
 				WalkResult wr;
-				uint32_t elt = rands_[i].next(rnd);
+				size_t elt = rands_[i].next(rnd);
 				SARangeWithOffs<TSlice> sa;
 				sa.topf = satpos_[i].sat.topf;
 				sa.len = satpos_[i].sat.key.len;
 				sa.offs = satpos_[i].sat.offs;
-				gws_[i].advanceElement(elt, ebwtFw, ref, sa, gwstate_, wr, wlm, prm);
+				gws_[i].advanceElement((TIndexOffU)elt, ebwtFw, ref, sa, gwstate_, wr, wlm, prm);
 				eltsDone++;
 				assert_gt(neltLeft, 0);
 				neltLeft--;
