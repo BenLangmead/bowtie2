@@ -38,6 +38,8 @@ my $bowtie_args = "";
 my $bowtie2 = "$Bin/../bowtie2";
 my $debug = 0;
 my $binsz = 10;
+my $mapq_cutoff = 30;
+my $upto = undef;
 
 sub dieusage {
 	my $msg = shift;
@@ -52,12 +54,13 @@ sub dieusage {
 #
 sub checkIndex($) {
 	my $idx = shift;
-	return -f "$idx.1.ebwt" &&
-	       -f "$idx.2.ebwt" &&
-	       -f "$idx.3.ebwt" &&
-	       -f "$idx.4.ebwt" &&
-	       -f "$idx.rev.1.ebwt" &&
-	       -f "$idx.rev.2.ebwt";
+	my $ext = "bt2";
+	return -f "$idx.1.$ext" &&
+	       -f "$idx.2.$ext" &&
+	       -f "$idx.3.$ext" &&
+	       -f "$idx.4.$ext" &&
+	       -f "$idx.rev.1.$ext" &&
+	       -f "$idx.rev.2.$ext";
 }
 
 GetOptions (
@@ -65,6 +68,8 @@ GetOptions (
 	"index=s"       => \$index,
 	"m1=s"          => \$m1,
 	"m2=s"          => \$m2,
+	"upto=i"        => \$upto,
+	"mapq_cutoff=i" => \$mapq_cutoff,
 	"debug"         => \$debug,
 	"bowtie-args=s" => \$bowtie_args) || dieusage("Bad option", 1);
 
@@ -81,8 +86,9 @@ die "Bad index: $index" if !checkIndex($index);
 my %fragments = ();
 my $m1cmd = ($m1 =~ /\.gz$/) ? "gzip -dc $m1" : "cat $m1";
 my $m2cmd = ($m2 =~ /\.gz$/) ? "gzip -dc $m2" : "cat $m2";
-my $cmd1 = "$m1cmd | $bowtie2 $bowtie_args -m 1 -S --sam-nohead $index - > .infer_fraglen.tmp";
-my $cmd2 = "$m2cmd | $bowtie2 $bowtie_args -m 1 -S --sam-nohead $index - |";
+my $cmd1 = "$m1cmd | $bowtie2 $bowtie_args --sam-nohead -x $index - > .infer_fraglen.tmp";
+my $cmd2 = "$m2cmd | $bowtie2 $bowtie_args --sam-nohead -x $index - |";
+my $tot = 0;
 system($cmd1) == 0 || die "Error running '$cmd1'";
 open (M1, ".infer_fraglen.tmp") || die "Could not open '.infer_fraglen.tmp'";
 open (M2, $cmd2) || die "Could not open '$cmd2'";
@@ -92,12 +98,14 @@ while(<M1>) {
 	chomp($lm1); chomp($lm2);
 	my @lms1 = split(/\t/, $lm1);
 	my @lms2 = split(/\t/, $lm2);
-	my ($name1, $flags1, $chr1, $off1, $slen1) = ($lms1[0], $lms1[1], $lms1[2], $lms1[3], length($lms1[9]));
-	my ($name2, $flags2, $chr2, $off2, $slen2) = ($lms2[0], $lms2[1], $lms2[2], $lms2[3], length($lms2[9]));
+	my ($name1, $flags1, $chr1, $off1, $mapq1, $slen1) = ($lms1[0], $lms1[1], $lms1[2], $lms1[3], $lms1[4], length($lms1[9]));
+	my ($name2, $flags2, $chr2, $off2, $mapq2, $slen2) = ($lms2[0], $lms2[1], $lms2[2], $lms2[3], $lms2[4], length($lms2[9]));
 	# One or both mates didn't align uniquely?
 	next if $chr1 eq "*" || $chr2 eq "*";
 	# Mates aligned to different chromosomes?
 	next if $chr1 ne $chr2;
+	# MAPQs too low?
+	next if $mapq1 < $mapq_cutoff || $mapq2 < $mapq_cutoff;
 	# This pairing can be used as an observation of fragment orientation and length
 	my $fw1 = (($flags1 & 16) == 0) ? "F" : "R";
 	my $fw2 = (($flags2 & 16) == 0) ? "F" : "R";
@@ -108,6 +116,7 @@ while(<M1>) {
 	# Install into bin
 	$frag = int(($frag + ($binsz/2))/$binsz); # Round to nearest bin
 	$fragments{"$fw1$fw2"}{$frag}++;
+	$tot++;
 }
 close(M1);
 close(M2);
