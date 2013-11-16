@@ -78,7 +78,7 @@ RefRecord fastaRefReadSize(
 			// Don't emit a warning, since this might legitimately be
 			// a gap on the end of the final sequence in the file
 			lastc = -1;
-			return RefRecord((uint32_t)off, (uint32_t)len, first);
+			return RefRecord((TIndexOffU)off, (TIndexOffU)len, first);
 		}
 	}
 
@@ -116,7 +116,7 @@ RefRecord fastaRefReadSize(
 			}
 			lastc = '>';
 			//return RefRecord(off, 0, false);
-			return RefRecord((uint32_t)off, 0, first);
+			return RefRecord((TIndexOffU)off, 0, first);
 		}
 		c = in.get();
 		if(c == -1) {
@@ -128,7 +128,7 @@ RefRecord fastaRefReadSize(
 			}
 			lastc = -1;
 			//return RefRecord(off, 0, false);
-			return RefRecord((uint32_t)off, 0, first);
+			return RefRecord((TIndexOffU)off, 0, first);
 		}
 	}
 	assert(!rparms.color || (lc != -1));
@@ -167,7 +167,7 @@ RefRecord fastaRefReadSize(
 			// It's an N or a gap
 			lastc = c;
 			assert(cc != 'A' && cc != 'C' && cc != 'G' && cc != 'T');
-			return RefRecord((uint32_t)off, (uint32_t)len, first);
+			return RefRecord((TIndexOffU)off, (TIndexOffU)len, first);
 		} else {
 			// Not DNA and not a gap, ignore it
 #ifndef NDEBUG
@@ -184,7 +184,7 @@ RefRecord fastaRefReadSize(
 		c = in.get();
 	}
 	lastc = c;
-	return RefRecord((uint32_t)off, (uint32_t)len, first);
+	return RefRecord((TIndexOffU)off, (TIndexOffU)len, first);
 }
 
 #if 0

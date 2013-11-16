@@ -495,7 +495,7 @@ public:
 			bool resolved = (off(i, sa) != OFF_MASK);
 			if(!resolved) {
 				// Elt not resolved yet; try to resolve it now
-				TIndexOffU bwrow = (uint32_t)(top - mapi_ + i);
+				TIndexOffU bwrow = (TIndexOff)(top - mapi_ + i);
 				TIndexOffU toff = ebwt.tryOffset(bwrow);
 				ASSERT_ONLY(TIndexOffU origBwRow = sa.topf + map(i));
 				assert_eq(bwrow, ebwt.walkLeft(origBwRow, step));

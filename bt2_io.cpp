@@ -563,7 +563,7 @@ void Ebwt::readIntoMemory(
 				// Allocate offs (big allocation)
 				if(switchEndian || offRateDiff > 0) {
 					assert(!_useMm);
-					const uint32_t blockMaxSz = (2 * 1024 * 1024); // 2 MB block size
+					const TIndexOffU blockMaxSz = (2 * 1024 * 1024); // 2 MB block size
 					const TIndexOffU blockMaxSzU = (blockMaxSz >> (OFF_SIZE/4 + 1)); // # U32s per block
 					char *buf;
 					try {
@@ -936,7 +936,7 @@ void Ebwt::writeFromMemory(bool justHeader,
 		for(TIndexOffU i = 0; i < this->nFrag*3; i++) {
 			assert_eq(this->_rstarts[i], copy.rstarts()[i]);
 		}
-		for(uint32_t i = 0; i < 5; i++)
+		for(int i = 0; i < 5; i++)
 			assert_eq(this->_fchr[i], copy.fchr()[i]);
 		for(TIndexOffU i = 0; i < eh._ftabLen; i++)
 			assert_eq(this->ftab()[i], copy.ftab()[i]);

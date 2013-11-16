@@ -85,14 +85,14 @@ bool AlignmentCache::addOnTheFly(
 	}
 	assert(s->key.repOk());
 	if(added) {
-		s->payload.i = (uint32_t)salist_.size();
+		s->payload.i = (TIndexOffU)salist_.size();
 		s->payload.len = botf - topf;
 		s->payload.topf = topf;
 		s->payload.topb = topb;
 		for(size_t j = 0; j < (botf-topf); j++) {
 			if(!salist_.add(pool(), OFF_MASK)) {
 				// Change the payload's len field
-				s->payload.len = (uint32_t)j;
+				s->payload.len = (TIndexOffU)j;
 				return false; // Exhausted pool memory
 			}
 		}
@@ -214,7 +214,7 @@ static void aligner_cache_tests() {
 	}
 	// Add all of the 4-mers in several different random orders
 	RandomSource rand;
-	for(uint32_t runs = 0; runs < 100; runs++) {
+	for(unsigned runs = 0; runs < 100; runs++) {
 		rb.clear();
 		p.clear();
 		assert_eq(0, rb.size());

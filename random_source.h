@@ -68,6 +68,15 @@ public:
 		return first | second;
 	}
     
+	
+	size_t nextSizeT() {
+		if(sizeof(size_t) == 4) {
+			return nextU32();
+		} else {
+			return nextU64();
+		}
+	}
+	
 	/**
 	 * Return a pseudo-random unsigned 32-bit integer sampled uniformly
 	 * from [lo, hi].

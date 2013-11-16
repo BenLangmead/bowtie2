@@ -160,11 +160,17 @@ NOASSERT_FLAGS = -DNDEBUG
 FILE_FLAGS     = -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
 
 BOWTIE2_BIN_LIST =     bowtie2-build \
+                       bowtie2-build-big \
                        bowtie2-align \
-                       bowtie2-inspect
+                       bowtie2-align-big \
+                       bowtie2-inspect \
+                       bowtie2-inspect-big
 BOWTIE2_BIN_LIST_AUX = bowtie2-build-debug \
+                       bowtie2-build-big-debug \
                        bowtie2-align-debug \
-                       bowtie2-inspect-debug
+                       bowtie2-align-big-debug \
+                       bowtie2-inspect-debug \
+                       bowtie2-inspect-big-debug
 
 GENERAL_LIST = $(wildcard scripts/*.sh) \
                $(wildcard scripts/*.pl) \
@@ -239,6 +245,14 @@ bowtie2-build-debug: bt2_build.cpp $(SHARED_CPPS) $(HEADERS)
 		$(SHARED_CPPS) $(BUILD_CPPS_MAIN) \
 		$(LIBS) $(BUILD_LIBS)
 
+bowtie2-build-big-debug: bt2_build.cpp $(SHARED_CPPS) $(HEADERS)
+	$(CXX) $(DEBUG_FLAGS) $(DEBUG_DEFS) $(EXTRA_FLAGS) \
+		$(DEFS) -DBOWTIE2 -DBOWTIE_64BIT_INDEX -Wall \
+		$(INC) \
+		-o $@ $< \
+		$(SHARED_CPPS) $(BUILD_CPPS_MAIN) \
+		$(LIBS) $(BUILD_LIBS)
+
 #
 # bowtie2-align targets
 #
@@ -255,6 +269,15 @@ bowtie2-align-debug: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(S
 	$(CXX) $(DEBUG_FLAGS) \
 		$(DEBUG_DEFS) $(EXTRA_FLAGS) \
 		$(DEFS) -DBOWTIE2 -Wall \
+		$(INC) \
+		-o $@ $< \
+		$(SHARED_CPPS) $(SEARCH_CPPS_MAIN) \
+		$(LIBS) $(SEARCH_LIBS)
+
+bowtie2-align-big-debug: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
+	$(CXX) $(DEBUG_FLAGS) \
+		$(DEBUG_DEFS) $(EXTRA_FLAGS) \
+		$(DEFS) -DBOWTIE2 -DBOWTIE_64BIT_INDEX -Wall \
 		$(INC) \
 		-o $@ $< \
 		$(SHARED_CPPS) $(SEARCH_CPPS_MAIN) \
@@ -277,6 +300,15 @@ bowtie2-inspect-debug: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 	$(CXX) $(DEBUG_FLAGS) \
 		$(DEBUG_DEFS) $(EXTRA_FLAGS) \
 		$(DEFS) -DBOWTIE2 -DBOWTIE_INSPECT_MAIN -Wall \
+		$(INC) -I . \
+		-o $@ $< \
+		$(SHARED_CPPS) \
+		$(LIBS) $(INSPECT_LIBS)
+
+bowtie2-inspect-big-debug: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS)
+	$(CXX) $(DEBUG_FLAGS) \
+		$(DEBUG_DEFS) $(EXTRA_FLAGS) \
+		$(DEFS) -DBOWTIE2 -DBOWTIE_64BIT_INDEX -DBOWTIE_INSPECT_MAIN -Wall \
 		$(INC) -I . \
 		-o $@ $< \
 		$(SHARED_CPPS) \

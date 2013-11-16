@@ -36,7 +36,7 @@
 template <typename T>
 static inline void writeU(std::ostream& out, T x, bool toBigEndian) {
 	T y = endianizeU<T>(x, toBigEndian);
-	out.write((const char*)&y, OFF_SIZE);
+	out.write((const char*)&y, sizeof(T));
 }
 
 /**
@@ -45,7 +45,7 @@ static inline void writeU(std::ostream& out, T x, bool toBigEndian) {
  */
 template <typename T>
 static inline void writeU(std::ostream& out, T x) {
-	out.write((const char*)&x, OFF_SIZE);
+	out.write((const char*)&x, sizeof(T));
 }
 
 /**
@@ -56,7 +56,7 @@ static inline void writeU(std::ostream& out, T x) {
 template <typename T>
 static inline void writeI(std::ostream& out, T x, bool toBigEndian) {
 	T y = endianizeI<T>(x, toBigEndian);
-	out.write((const char*)&y, OFF_SIZE);
+	out.write((const char*)&y, sizeof(T));
 }
 
 /**
@@ -65,20 +65,37 @@ static inline void writeI(std::ostream& out, T x, bool toBigEndian) {
  */
 template <typename T>
 static inline void writeI(std::ostream& out, T x) {
-	out.write((const char*)&x, OFF_SIZE);
+	out.write((const char*)&x, sizeof(T));
 }
 
 /**
  * Read a 32/64 bit unsigned from an input stream, inverting endianness
  * if necessary.
  */
+//template <typename T>
+//static inline T readU(std::istream& in, bool swap) {
+//	T x;
+//	in.read((char *)&x, OFF_SIZE);
+//	assert_eq(OFF_SIZE, in.gcount());
+//	if(swap) {
+//		return endianSwapU(x);
+//	} else {
+//		return x;
+//	}
+//}
 template <typename T>
 static inline T readU(std::istream& in, bool swap) {
 	T x;
-	in.read((char *)&x, OFF_SIZE);
-	assert_eq(OFF_SIZE, in.gcount());
+	in.read((char *)&x, sizeof(T));
+	assert_eq(sizeof(T), in.gcount());
 	if(swap) {
-		return endianSwapU(x);
+		if(sizeof(T) == 4) {
+			return endianSwapU32(x);
+		} else if(sizeof(T) == 8) {
+			return endianSwapU64(x);
+		} else {
+			assert(false);
+		}
 	} else {
 		return x;
 	}
@@ -89,14 +106,32 @@ static inline T readU(std::istream& in, bool swap) {
  * endianness.
  */
 #ifdef BOWTIE_MM
+//template <typename T>
+//static inline T readU(int in, bool swap) {
+//	T x;
+//	if(read(in, (void *)&x, OFF_SIZE) != OFF_SIZE) {
+//		assert(false);
+//	}
+//	if(swap) {
+//		return endianSwapU(x);
+//	} else {
+//		return x;
+//	}
+//}
 template <typename T>
 static inline T readU(int in, bool swap) {
 	T x;
-	if(read(in, (void *)&x, OFF_SIZE) != OFF_SIZE) {
+	if(read(in, (void *)&x, sizeof(T)) != sizeof(T)) {
 		assert(false);
 	}
 	if(swap) {
-		return endianSwapU(x);
+		if(sizeof(T) == 4) {
+			return endianSwapU32(x);
+		} else if(sizeof(T) == 8) {
+			return endianSwapU64(x);
+		} else {
+			assert(false);
+		}
 	} else {
 		return x;
 	}
@@ -107,14 +142,32 @@ static inline T readU(int in, bool swap) {
  * Read a 32/64 bit unsigned from a FILE*, optionally inverting
  * endianness.
  */
+//template <typename T>
+//static inline T readU(FILE* in, bool swap) {
+//	T x;
+//	if(fread((void *)&x, 1, OFF_SIZE, in) != OFF_SIZE) {
+//		assert(false);
+//	}
+//	if(swap) {
+//		return endianSwapU(x);
+//	} else {
+//		return x;
+//	}
+//}
 template <typename T>
 static inline T readU(FILE* in, bool swap) {
 	T x;
-	if(fread((void *)&x, 1, OFF_SIZE, in) != OFF_SIZE) {
+	if(fread((void *)&x, 1, sizeof(T), in) != sizeof(T)) {
 		assert(false);
 	}
 	if(swap) {
-		return endianSwapU(x);
+		if(sizeof(T) == 4) {
+			return endianSwapU32(x);
+		} else if(sizeof(T) == 8) {
+			return endianSwapU64(x);
+		} else {
+			assert(false);
+		}
 	} else {
 		return x;
 	}
@@ -125,13 +178,30 @@ static inline T readU(FILE* in, bool swap) {
  * Read a 32/64 bit signed from an input stream, inverting endianness
  * if necessary.
  */
+//template <typename T>
+//static inline T readI(std::istream& in, bool swap) {
+//	T x;
+//	in.read((char *)&x, OFF_SIZE);
+//	assert_eq(OFF_SIZE, in.gcount());
+//	if(swap) {
+//		return endianSwapI(x);
+//	} else {
+//		return x;
+//	}
+//}
 template <typename T>
 static inline T readI(std::istream& in, bool swap) {
 	T x;
-	in.read((char *)&x, OFF_SIZE);
-	assert_eq(OFF_SIZE, in.gcount());
+	in.read((char *)&x, sizeof(T));
+	assert_eq(sizeof(T), in.gcount());
 	if(swap) {
-		return endianSwapI(x);
+		if(sizeof(T) == 4) {
+			return endianSwapI32(x);
+		} else if(sizeof(T) == 8) {
+			return endianSwapI64(x);
+		} else {
+			assert(false);
+		}
 	} else {
 		return x;
 	}
@@ -142,14 +212,32 @@ static inline T readI(std::istream& in, bool swap) {
  * endianness.
  */
 #ifdef BOWTIE_MM
+//template <typename T>
+//static inline T readI(int in, bool swap) {
+//	T x;
+//	if(read(in, (void *)&x, OFF_SIZE) != OFF_SIZE) {
+//		assert(false);
+//	}
+//	if(swap) {
+//		return endianSwapI(x);
+//	} else {
+//		return x;
+//	}
+//}
 template <typename T>
 static inline T readI(int in, bool swap) {
 	T x;
-	if(read(in, (void *)&x, OFF_SIZE) != OFF_SIZE) {
+	if(read(in, (void *)&x, sizeof(T)) != sizeof(T)) {
 		assert(false);
 	}
 	if(swap) {
-		return endianSwapI(x);
+		if(sizeof(T) == 4) {
+			return endianSwapI32(x);
+		} else if(sizeof(T) == 8) {
+			return endianSwapI64(x);
+		} else {
+			assert(false);
+		}
 	} else {
 		return x;
 	}
@@ -160,14 +248,32 @@ static inline T readI(int in, bool swap) {
  * Read a 32/64 bit unsigned from a FILE*, optionally inverting
  * endianness.
  */
+//template <typename T>
+//static inline T readI(FILE* in, bool swap) {
+//	T x;
+//	if(fread((void *)&x, 1, OFF_SIZE, in) != OFF_SIZE) {
+//		assert(false);
+//	}
+//	if(swap) {
+//		return endianSwapI(x);
+//	} else {
+//		return x;
+//	}
+//}
 template <typename T>
 static inline T readI(FILE* in, bool swap) {
 	T x;
-	if(fread((void *)&x, 1, OFF_SIZE, in) != OFF_SIZE) {
+	if(fread((void *)&x, 1, sizeof(T), in) != sizeof(T)) {
 		assert(false);
 	}
 	if(swap) {
-		return endianSwapI(x);
+		if(sizeof(T) == 4) {
+			return endianSwapI32(x);
+		} else if(sizeof(T) == 8) {
+			return endianSwapI64(x);
+		} else {
+			assert(false);
+		}
 	} else {
 		return x;
 	}

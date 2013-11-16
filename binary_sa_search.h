@@ -22,6 +22,7 @@
 
 #include <stdint.h>
 #include <iostream>
+#include <limits>
 #include "alphabet.h"
 #include "assert_helpers.h"
 #include "ds.h"
@@ -40,29 +41,33 @@
  * hand sides and using the min of the two as a way of skipping over
  * characters at the beginning of a new round.
  *
- * Returns 0xffffffff if the query suffix matches an element of sa.
+ * Returns maximum value if the query suffix matches an element of sa.
  */
 template<typename TStr, typename TSufElt> inline
-uint32_t binarySASearch(
+TIndexOffU binarySASearch(
 	const TStr& host,
 	TIndexOffU qry,
 	const EList<TSufElt>& sa)
 {
 	TIndexOffU lLcp = 0, rLcp = 0; // greatest observed LCPs on left and right
-	uint32_t l = 0, r = (uint32_t)sa.size()+1; // binary-search window
+	TIndexOffU l = 0, r = (TIndexOffU)sa.size()+1; // binary-search window
 	TIndexOffU hostLen = (TIndexOffU)host.length();
 	while(true) {
 		assert_gt(r, l);
-		uint32_t m = (l+r) >> 1;
+		TIndexOffU m = (l+r) >> 1;
 		if(m == l) {
 			// Binary-search window has closed: we have an answer
-			if(m > 0 && sa[m-1] == qry) return 0xffffffff; // qry matches
+			if(m > 0 && sa[m-1] == qry) {
+				return std::numeric_limits<TIndexOffU>::max(); // qry matches
+			}
 			assert_leq(m, sa.size());
 			return m; // Return index of right-hand suffix
 		}
 		assert_gt(m, 0);
 		TIndexOffU suf = sa[m-1];
-		if(suf == qry) return 0xffffffff; // query matches an elt of sa
+		if(suf == qry) {
+			return std::numeric_limits<TIndexOffU>::max(); // query matches an elt of sa
+		}
 		TIndexOffU lcp = min(lLcp, rLcp);
 #ifndef NDEBUG
 		if(sstr_suf_upto_neq(host, qry, host, suf, lcp)) {
@@ -91,7 +96,7 @@ uint32_t binarySASearch(
 	}
 	// Shouldn't get here
 	assert(false);
-	return 0xffffffff;
+	return std::numeric_limits<TIndexOffU>::max();
 }
 
 #endif /*BINARY_SA_SEARCH_H_*/
