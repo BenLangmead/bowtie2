@@ -151,7 +151,7 @@ public:
 		_ftabLen = (1 << (_ftabChars*2))+1;
 		_ftabSz = _ftabLen*OFF_SIZE;
 		_offsLen = (_bwtLen + (1 << _offRate) - 1) >> _offRate;
-		_offsSz = _offsLen*OFF_SIZE;
+		_offsSz = (uint64_t)_offsLen*OFF_SIZE;
 		_lineSz = 1 << _lineRate;
 		_sideSz = _lineSz * 1 /* lines per side */;
 		_sideBwtSz = _sideSz - OFF_SIZE*4;
@@ -178,7 +178,7 @@ public:
 	TIndexOffU ftabLen() const       { return _ftabLen; }
 	TIndexOffU ftabSz() const        { return _ftabSz; }
 	TIndexOffU offsLen() const       { return _offsLen; }
-	TIndexOffU offsSz() const        { return _offsSz; }
+	uint64_t offsSz() const        { return _offsSz; }
 	int32_t lineSz() const        { return _lineSz; } 
 	int32_t sideSz() const        { return _sideSz; } 
 	int32_t sideBwtSz() const     { return _sideBwtSz; } 
@@ -198,7 +198,7 @@ public:
 		_offRate = __offRate;
 		_offMask = OFF_MASK << _offRate;
 		_offsLen = (_bwtLen + (1 << _offRate) - 1) >> _offRate;
-		_offsSz = _offsLen*OFF_SIZE;
+		_offsSz = (uint64_t)_offsLen * OFF_SIZE;
 	}
 
 #ifndef NDEBUG
@@ -261,7 +261,7 @@ public:
 	TIndexOffU _ftabLen; 
 	TIndexOffU _ftabSz; 
 	TIndexOffU _offsLen;
-	TIndexOffU _offsSz;
+	uint64_t _offsSz;
 	uint32_t _lineSz; 
 	uint32_t _sideSz; 
 	uint32_t _sideBwtSz; 

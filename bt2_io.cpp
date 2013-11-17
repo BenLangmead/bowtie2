@@ -150,7 +150,7 @@ void Ebwt::readIntoMemory(
 	}
 	
 	// Read endianness hints from both streams
-	size_t bytesRead = 0;
+	uint64_t bytesRead = 0;
 	switchEndian = false;
 	uint32_t one = readU<uint32_t>(_in1, switchEndian); // 1st word of primary stream
 	bytesRead += 4;
@@ -237,7 +237,7 @@ void Ebwt::readIntoMemory(
 	
 	// Set up overridden suffix-array-sample parameters
 	TIndexOffU offsLen = eh->_offsLen;
-	TIndexOffU offsSz = eh->_offsSz;
+	uint64_t offsSz = eh->_offsSz;
 	TIndexOffU offRateDiff = 0;
 	TIndexOffU offsLenSampled = offsLen;
 	if(_overrideOffRate > offRate) {
@@ -377,7 +377,6 @@ void Ebwt::readIntoMemory(
 		}
 		if(shmemLeader) {
 			// Read ebwt from primary stream
-            // TODO: Check!!!
 			MM_READ_RET r = MM_READ(_in1, (void *)this->ebwt(), eh->_ebwtTotLen);
 			if(r != (MM_READ_RET)eh->_ebwtTotLen) {
 				cerr << "Error reading _ebwt[] array: " << r << ", " << (eh->_ebwtTotLen) << endl;
@@ -596,32 +595,29 @@ void Ebwt::readIntoMemory(
 #ifdef BOWTIE_MM
 						_offs.init((TIndexOffU*)(mmFile[1] + bytesRead), offsLen, false);
 						bytesRead += offsSz;
-						MM_SEEK(_in2, offsSz), SEEK_CUR);
+						// Argument to lseek can be 64 bits if compiled with
+						// _FILE_OFFSET_BITS
+						MM_SEEK(_in2, offsSz, SEEK_CUR);
 #endif
 					} else {
-						// If any of the high two bits are set
-						if((offsLen & OFF_LEN_MASK) != 0) {
-							if(sizeof(char *) <= 4) {
-								cerr << "Sanity error: sizeof(char *) <= 4 but offsLen is " << hex << offsLen << endl;
+						// Workaround for small-index mode where MM_READ may
+						// not be able to handle read amounts greater than 2^32
+						// bytes.
+						uint64_t bytesLeft = offsSz;
+						char *offs = (char *)this->offs();
+						while(bytesLeft > 0) {
+							uint32_t thisRead = 0xffffffff;
+							if((uint64_t)thisRead > bytesLeft) {
+								thisRead = (uint32_t)bytesLeft;
+							}
+							MM_READ_RET r = MM_READ(_in2, (void*)offs, thisRead);
+							if(r != (MM_READ_RET)(thisRead)) {
+								cerr << "Error reading block of _offs[] array: "
+								     << r << ", " << thisRead << endl;
 								throw 1;
 							}
-							// offsLen << 2 overflows, so do it in 4 or 8 reads
-							char *offs = (char *)this->offs();
-							for(int i = 0; i < OFF_SIZE; i++) {
-								MM_READ_RET r = MM_READ(_in2, (void*)offs, offsLen);
-								if(r != (MM_READ_RET)(offsLen)) {
-									cerr << "Error reading block of _offs[] array: " << r << ", " << offsLen << endl;
-									throw 1;
-								}
-								offs += offsLen;
-							}
-						} else {
-							// Do it all in one read
-							MM_READ_RET r = MM_READ(_in2, (void*)this->offs(), offsSz);
-							if(r != (MM_READ_RET)(offsSz)) {
-								cerr << "Error reading _offs[] array: " << r << ", " << (offsSz) << endl;
-								throw 1;
-							}
+							offs += thisRead;
+							bytesLeft -= thisRead;
 						}
 					}
 				}
