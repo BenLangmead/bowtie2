@@ -785,7 +785,7 @@ static void printUsage(ostream& out) {
 	    << "  --omit-sec-seq     put '*' in SEQ and QUAL fields for secondary alignments." << endl
 		<< endl
 	    << " Performance:" << endl
-	    << "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl
+	//    << "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl
 	    << "  -p/--threads <int> number of alignment threads to launch (1)" << endl
 	    << "  --reorder          force SAM output order to match order of input reads" << endl
 #ifdef BOWTIE_MM
