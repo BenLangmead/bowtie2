@@ -237,6 +237,7 @@ void Ebwt::readIntoMemory(
 	
 	// Set up overridden suffix-array-sample parameters
 	TIndexOffU offsLen = eh->_offsLen;
+	TIndexOffU offsSz = eh->_offsSz;
 	TIndexOffU offRateDiff = 0;
 	TIndexOffU offsLenSampled = offsLen;
 	if(_overrideOffRate > offRate) {
@@ -594,8 +595,8 @@ void Ebwt::readIntoMemory(
 					if(_useMm) {
 #ifdef BOWTIE_MM
 						_offs.init((TIndexOffU*)(mmFile[1] + bytesRead), offsLen, false);
-						bytesRead += (offsLen << (OFF_SIZE/4 + 1));
-						MM_SEEK(_in2, (offsLen << (OFF_SIZE/4 + 1)), SEEK_CUR);
+						bytesRead += offsSz;
+						MM_SEEK(_in2, offsSz), SEEK_CUR);
 #endif
 					} else {
 						// If any of the high two bits are set
@@ -604,7 +605,7 @@ void Ebwt::readIntoMemory(
 								cerr << "Sanity error: sizeof(char *) <= 4 but offsLen is " << hex << offsLen << endl;
 								throw 1;
 							}
-							// offsLen << 2 overflows, so do it in four reads
+							// offsLen << 2 overflows, so do it in 4 or 8 reads
 							char *offs = (char *)this->offs();
 							for(int i = 0; i < OFF_SIZE; i++) {
 								MM_READ_RET r = MM_READ(_in2, (void*)offs, offsLen);
@@ -616,10 +617,9 @@ void Ebwt::readIntoMemory(
 							}
 						} else {
 							// Do it all in one read
-                            // TODO: Check!!!
-							MM_READ_RET r = MM_READ(_in2, (void*)this->offs(), offsLen << 2);
-							if(r != (MM_READ_RET)(offsLen << 2)) {
-								cerr << "Error reading _offs[] array: " << r << ", " << (offsLen << 2) << endl;
+							MM_READ_RET r = MM_READ(_in2, (void*)this->offs(), offsSz);
+							if(r != (MM_READ_RET)(offsSz)) {
+								cerr << "Error reading _offs[] array: " << r << ", " << (offsSz) << endl;
 								throw 1;
 							}
 						}
