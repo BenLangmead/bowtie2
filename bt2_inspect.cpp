@@ -276,7 +276,7 @@ static void print_index_sequences(ostream& fout, Ebwt& ebwt)
 			if (textoff_adj - last_text_off > 1)
 				curr_ref_seq += string(textoff_adj - last_text_off - 1, 'N');
 
-			curr_ref_seq.push_back(cat_ref[i]);
+			curr_ref_seq.push_back("ACGT"[cat_ref[i]]);
 			last_text_off = textoff;
 			first = false;
 		}
