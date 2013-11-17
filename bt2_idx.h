@@ -198,7 +198,7 @@ public:
 		_offRate = __offRate;
 		_offMask = OFF_MASK << _offRate;
 		_offsLen = (_bwtLen + (1 << _offRate) - 1) >> _offRate;
-		_offsSz = _offsLen*4;
+		_offsSz = _offsLen*OFF_SIZE;
 	}
 
 #ifndef NDEBUG
