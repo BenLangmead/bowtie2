@@ -25,7 +25,7 @@
 using namespace std;
 
 /**
- * Load from .3.bt2/.4.bt2 Bowtie index files.
+ * Load from .3.gEbwt_ext/.4.gEbwt_ext Bowtie index files.
  */
 BitPairReference::BitPairReference(
 	const string& in,
@@ -47,8 +47,8 @@ BitPairReference::BitPairReference(
 	useShmem_(useShmem),
 	verbose_(verbose)
 {
-	string s3 = in + ".3.bt2";
-	string s4 = in + ".4.bt2";
+	string s3 = in + ".3" + gEbwt_ext;
+	string s4 = in + ".4" + gEbwt_ext;
 	
 #ifdef BOWTIE_MM
 	int f3, f4;
@@ -179,7 +179,7 @@ BitPairReference::BitPairReference(
 	bufSz_ = cumsz;
 	assert_eq(nrefs_, refLens_.size());
 	assert_eq(sz, recs_.size());
-	MM_FILE_CLOSE(f3); // done with .3.bt2 file
+	MM_FILE_CLOSE(f3); // done with .3.gEbwt_ext file
 	// Round cumsz up to nearest byte boundary
 	if((cumsz & 3) != 0) {
 		cumsz += (4 - (cumsz & 3));
@@ -574,7 +574,7 @@ int BitPairReference::getStretch(
 
 /**
  * Parse the input fasta files, populating the szs list and writing the
- * .3.bt2 and .4.bt2 portions of the index as we go.
+ * .3.gEbwt_ext and .4.gEbwt_ext portions of the index as we go.
  */
 pair<size_t, size_t>
 BitPairReference::szsFromFasta(
@@ -588,9 +588,9 @@ BitPairReference::szsFromFasta(
 	RefReadInParams parms = refparams;
 	std::pair<size_t, size_t> sztot;
 	if(!outfile.empty()) {
-		string file3 = outfile + ".3.bt2";
-		string file4 = outfile + ".4.bt2";
-		// Open output stream for the '.3.bt2' file which will
+		string file3 = outfile + ".3" + gEbwt_ext;
+		string file4 = outfile + ".4" + gEbwt_ext;
+		// Open output stream for the '.3.gEbwt_ext' file which will
 		// hold the size records.
 		ofstream fout3(file3.c_str(), ios::binary);
 		if(!fout3.good()) {
@@ -607,7 +607,7 @@ BitPairReference::szsFromFasta(
 		bool color = parms.color;
 		if(color) {
 			parms.color = false;
-			// Make sure the .3.bt2 and .4.bt2 files contain
+			// Make sure the .3.gEbwt_ext and .4.gEbwt_ext files contain
 			// nucleotides; not colors
 			TIndexOff numSeqs = 0;
 			ASSERT_ONLY(std::pair<size_t, size_t> sztot2 =)

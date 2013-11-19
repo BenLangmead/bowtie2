@@ -41,6 +41,7 @@ typedef int TIndexOff;
 
 #endif /* BOWTIE_64BIT_INDEX */
 
+extern const std::string gEbwt_ext;
 
 #endif	/* BOWTIE_INDEX_TYPES_H */
 

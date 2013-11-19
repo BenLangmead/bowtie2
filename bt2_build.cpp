@@ -88,7 +88,7 @@ static void resetOptions() {
 	doBwtFile    = false; // make a file with just the BWT string in it
 	autoMem      = true;  // automatically adjust memory usage parameters
 	packed       = false; //
-	writeRef     = true;  // write compact reference to .3.bt2/.4.bt2
+	writeRef     = true;  // write compact reference to .3.gEbwt_ext/.4.gEbwt_ext
 	justRef      = false; // *just* write compact reference, don't index
 	reverseEach  = false;
 }
@@ -115,7 +115,7 @@ static void printUsage(ostream& out) {
 	out << "Bowtie 2 version " << string(BOWTIE2_VERSION).c_str() << " by Ben Langmead (langmea@cs.jhu.edu, www.cs.jhu.edu/~langmea)" << endl;
 	out << "Usage: bowtie2-build [options]* <reference_in> <bt2_index_base>" << endl
 	    << "    reference_in            comma-separated list of files with ref sequences" << endl
-	    << "    bt2_index_base          write .bt2 data to files with this dir/basename" << endl
+	    << "    bt2_index_base          write " + gEbwt_ext + " data to files with this dir/basename" << endl
 		<< "*** Bowtie 2 indexes work only with v2 (not v1).  Likewise for v1 indexes. ***" << endl
 	    << "Options:" << endl
 	    << "    -f                      reference files are Fasta (default)" << endl
@@ -126,8 +126,8 @@ static void printUsage(ostream& out) {
 	    << "    --bmaxdivn <int>        max bucket sz as divisor of ref len (default: 4)" << endl
 	    << "    --dcv <int>             diff-cover period for blockwise (default: 1024)" << endl
 	    << "    --nodc                  disable diff-cover (algorithm becomes quadratic)" << endl
-	    << "    -r/--noref              don't build .3/.4.bt2 (packed reference) portion" << endl
-	    << "    -3/--justref            just build .3/.4.bt2 (packed reference) portion" << endl
+	    << "    -r/--noref              don't build .3/.4." + gEbwt_ext + " (packed reference) portion" << endl
+	    << "    -3/--justref            just build .3/.4." + gEbwt_ext + " (packed reference) portion" << endl
 	    << "    -o/--offrate <int>      SA is sampled every 2^offRate BWT chars (default: 5)" << endl
 	    << "    -t/--ftabchars <int>    # of chars consumed in initial lookup (default: 10)" << endl
 	    //<< "    --ntoa                  convert Ns in reference to As" << endl
@@ -371,8 +371,8 @@ static void driver(
 		if(verbose) cout << "Reading reference sizes" << endl;
 		Timer _t(cout, "  Time reading reference sizes: ", verbose);
 		if(!reverse && (writeRef || justRef)) {
-			filesWritten.push_back(outfile + ".3.bt2");
-			filesWritten.push_back(outfile + ".4.bt2");
+			filesWritten.push_back(outfile + ".3." + gEbwt_ext);
+			filesWritten.push_back(outfile + ".4." + gEbwt_ext);
 			sztot = BitPairReference::szsFromFasta(is, outfile, bigEndian, refparams, szs, sanityCheck);
 		} else {
 			sztot = BitPairReference::szsFromFasta(is, string(), bigEndian, refparams, szs, sanityCheck);
@@ -383,8 +383,8 @@ static void driver(
 	assert_gt(sztot.second, 0);
 	assert_gt(szs.size(), 0);
 	// Construct index from input strings and parameters
-	filesWritten.push_back(outfile + ".1.bt2");
-	filesWritten.push_back(outfile + ".2.bt2");
+	filesWritten.push_back(outfile + ".1." + gEbwt_ext);
+	filesWritten.push_back(outfile + ".2." + gEbwt_ext);
 	Ebwt ebwt(
 		TStr(),
 		packed,
@@ -520,7 +520,7 @@ int bowtie_build(int argc, const char **argv) {
 		// Optionally summarize
 		if(verbose) {
 			cout << "Settings:" << endl
-				 << "  Output files: \"" << outfile.c_str() << ".*.bt2\"" << endl
+				 << "  Output files: \"" << outfile.c_str() << ".*." + gEbwt_ext + "\"" << endl
 				 << "  Line rate: " << lineRate << " (line is " << (1<<lineRate) << " bytes)" << endl
 				 << "  Lines per side: " << linesPerSide << " (side is " << ((1<<lineRate)*linesPerSide) << " bytes)" << endl
 				 << "  Offset rate: " << offRate << " (one in " << (1<<offRate) << ")" << endl
