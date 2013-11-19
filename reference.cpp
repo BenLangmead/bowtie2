@@ -47,8 +47,8 @@ BitPairReference::BitPairReference(
 	useShmem_(useShmem),
 	verbose_(verbose)
 {
-	string s3 = in + ".3" + gEbwt_ext;
-	string s4 = in + ".4" + gEbwt_ext;
+	string s3 = in + ".3." + gEbwt_ext;
+	string s4 = in + ".4." + gEbwt_ext;
 	
 #ifdef BOWTIE_MM
 	int f3, f4;
@@ -588,8 +588,8 @@ BitPairReference::szsFromFasta(
 	RefReadInParams parms = refparams;
 	std::pair<size_t, size_t> sztot;
 	if(!outfile.empty()) {
-		string file3 = outfile + ".3" + gEbwt_ext;
-		string file4 = outfile + ".4" + gEbwt_ext;
+		string file3 = outfile + ".3." + gEbwt_ext;
+		string file4 = outfile + ".4." + gEbwt_ext;
 		// Open output stream for the '.3.gEbwt_ext' file which will
 		// hold the size records.
 		ofstream fout3(file3.c_str(), ios::binary);
