@@ -65,7 +65,7 @@ static void printUsage(ostream& out) {
 	out << "Bowtie 2 version " << string(BOWTIE2_VERSION).c_str() << " by Ben Langmead (langmea@cs.jhu.edu, www.cs.jhu.edu/~langmea)" << endl;
 	out
 	<< "Usage: bowtie2-inspect [options]* <bt2_base>" << endl
-	<< "  <bt2_base>         bt2 filename minus trailing .1.bt2/.2.bt2" << endl
+	<< "  <bt2_base>         bt2 filename minus trailing .1." + gEbwt_ext + "/.2." + gEbwt_ext << endl
 	<< endl
 	<< "  By default, prints FASTA records of the indexed nucleotide sequences to" << endl
 	<< "  standard out.  With -n, just prints names.  With -s, just prints a summary of" << endl
@@ -75,7 +75,7 @@ static void printUsage(ostream& out) {
 	<< "  -a/--across <int>  Number of characters across in FASTA output (default: 60)" << endl
 	<< "  -n/--names         Print reference sequence names only" << endl
 	<< "  -s/--summary       Print summary incl. ref names, lengths, index properties" << endl
-	<< "  -e/--bt2-ref      Reconstruct reference from .bt2 (slow, preserves colors)" << endl
+	<< "  -e/--bt2-ref      Reconstruct reference from ." + gEbwt_ext + " (slow, preserves colors)" << endl
 	<< "  -v/--verbose       Verbose output (for debugging)" << endl
 	<< "  -h/--help          print detailed description of tool and its options" << endl
 	<< "  --help             print this usage message" << endl

@@ -746,7 +746,7 @@ void
 readEbwtRefnames(const string& instr, EList<string>& refnames) {
     FILE* fin;
 	// Initialize our primary and secondary input-stream fields
-    fin = fopen((instr + ".1.bt2").c_str(),"rb");
+    fin = fopen((instr + ".1." + gEbwt_ext).c_str(),"rb");
 	if(fin == NULL) {
 		throw EbwtFileOpenException("Cannot open file " + instr);
 	}
@@ -761,7 +761,7 @@ readEbwtRefnames(const string& instr, EList<string>& refnames) {
 int32_t Ebwt::readFlags(const string& instr) {
 	ifstream in;
 	// Initialize our primary and secondary input-stream fields
-	in.open((instr + ".1.bt2").c_str(), ios_base::in | ios::binary);
+	in.open((instr + ".1." + gEbwt_ext).c_str(), ios_base::in | ios::binary);
 	if(!in.is_open()) {
 		throw EbwtFileOpenException("Cannot open file " + instr);
 	}
