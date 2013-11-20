@@ -661,7 +661,7 @@ void
 readEbwtRefnames(FILE* fin, EList<string>& refnames) {
 	// _in1 must already be open with the get cursor at the
 	// beginning and no error flags set.
-	assert_neq(fin, NULL);
+	assert(fin != NULL);
 	assert_eq(ftello(fin), 0);
 	
 	// Read endianness hints from both streams
