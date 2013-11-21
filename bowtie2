@@ -39,8 +39,8 @@ my ($vol,$script_path,$prog)
 my $os_is_nix   = ($^O eq "linux") || ($^O eq "darwin");
 my $align_bin_s = $os_is_nix ? 'bowtie2-align' : 'bowtie2-align.exe'; 
 my $build_bin_s = $os_is_nix ? 'bowtie2-build' : 'bowtie2-build.exe';               
-my $align_bin_l = $os_is_nix ? 'bowtie2-align-btl' : 'bowtie2-align-btl.exe'; 
-my $build_bin_l = $os_is_nix ? 'bowtie2-build-btl' : 'bowtie2-build-btl.exe';               
+my $align_bin_l = $os_is_nix ? 'bowtie2-align-bt2l' : 'bowtie2-align-bt2l.exe'; 
+my $build_bin_l = $os_is_nix ? 'bowtie2-build-bt2l' : 'bowtie2-build-bt2l.exe';               
 my $align_prog_s= File::Spec->catpath($vol,$script_path,$align_bin_s);
 my $build_prog_s= File::Spec->catpath($vol,$script_path,$build_bin_s);
 my $align_prog_l= File::Spec->catpath($vol,$script_path,$align_bin_l);
@@ -48,7 +48,7 @@ my $build_prog_l= File::Spec->catpath($vol,$script_path,$build_bin_l);
 my $align_prog  = $align_prog_l;
 my $build_prog  = $build_prog_l;
 my $build_bin   = $build_bin_l;
-my $idx_ext_l     = 'btl'; 
+my $idx_ext_l     = 'bt2l'; 
 my $idx_ext_s     = 'bt2'; 
 my $idx_ext       = $idx_ext_l; 
 my %signo       = ();
@@ -333,7 +333,7 @@ if(wrapInput(\@unps, \@mate1s, \@mate2s)) {
 		}
 		# Make a named pipe for delivering mate #2s
 		my $m2fn = "$temp_dir/$$.inpipe2";
-		push @to_delete, $m2fn;Extract_IndexName_From
+		push @to_delete, $m2fn;
 		push @bt2_args, "-2 $m2fn";
 		# Create named pipe 2 for writing
 		if(!$no_pipes) {
