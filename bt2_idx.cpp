@@ -28,7 +28,7 @@ using namespace std;
 
 #ifdef BOWTIE_64BIT_INDEX
 
-const std::string gEbwt_ext("btl");
+const std::string gEbwt_ext("bt2l");
 
 #else
 
