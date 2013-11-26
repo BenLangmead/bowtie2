@@ -379,19 +379,16 @@ void Ebwt::readIntoMemory(
 			// Read ebwt from primary stream
 			uint64_t bytesLeft = eh->_ebwtTotLen;
 			char *pebwt = (char*)this->ebwt();
-			while (bytesLeft>0){
-				MM_READ_RET thisRead = std::numeric_limits<MM_READ_RET>::max();
-				if ((uint64_t)thisRead > bytesLeft)
-					thisRead = (MM_READ_RET)bytesLeft;
 
-				MM_READ_RET r = MM_READ(_in1, (void *)pebwt, thisRead);
-				if(r != thisRead) {
-					cerr << "Error reading _ebwt[] array: " << r << ", " << thisRead << endl;
+			while (bytesLeft>0){
+				MM_READ_RET r = MM_READ(_in1, (void *)pebwt, bytesLeft);
+				if(r < 0) {
+					cerr << "Error reading _ebwt[] array: " << r << ", " << bytesLeft
+						 << "ERRNO: " << errno << " ERR:" << strerror(errno) << endl;
 					throw 1;
 				}
-
-				pebwt += thisRead;
-				bytesLeft -= thisRead;
+				pebwt += r;
+				bytesLeft -= r;
 			}
 			if(switchEndian) {
 				uint8_t *side = this->ebwt();
@@ -616,19 +613,17 @@ void Ebwt::readIntoMemory(
 						// bytes.
 						uint64_t bytesLeft = offsSz;
 						char *offs = (char *)this->offs();
+
 						while(bytesLeft > 0) {
-							MM_READ_RET thisRead = std::numeric_limits<MM_READ_RET>::max();
-							if((uint64_t)thisRead > bytesLeft) {
-								thisRead = (MM_READ_RET)bytesLeft;
-							}
-							MM_READ_RET r = MM_READ(_in2, (void*)offs, thisRead);
-							if(r != thisRead) {
+							MM_READ_RET r = MM_READ(_in2, (void*)offs, bytesLeft);
+							if(r < 0) {
 								cerr << "Error reading block of _offs[] array: "
-								     << r << ", " << thisRead << endl;
+								     << r << ", " << bytesLeft << "ERRNO: "
+								     << errno << " ERR:" << strerror(errno) << endl;
 								throw 1;
 							}
-							offs += thisRead;
-							bytesLeft -= thisRead;
+							offs += r;
+							bytesLeft -= r;
 						}
 					}
 				}
