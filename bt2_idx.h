@@ -3047,4 +3047,28 @@ string adjustEbwtBase(const string& cmdline,
 					  const string& ebwtFileBase,
 					  bool verbose);
 
+
+extern string gLastIOErrMsg;
+
+/* Checks whether a call to read() failed or not. */
+inline bool is_read_err(int fdesc, ssize_t ret, size_t count){
+	if (ret < 0) {
+		std::stringstream sstm;
+		sstm << "ERRNO: " << errno << " ERR Msg:" << strerror(errno) << std::endl;
+		gLastIOErrMsg = sstm.str();
+		return true;
+	}
+	return false;
+}
+
+/* Checks whether a call to fread() failed or not. */
+inline bool is_fread_err(FILE* file_hd, size_t ret, size_t count){
+	if (ferror(file_hd)) {
+		gLastIOErrMsg = "Error Reading File!";
+		return true;
+	}
+	return false;
+}
+
+
 #endif /*EBWT_H_*/
