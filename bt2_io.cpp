@@ -382,9 +382,9 @@ void Ebwt::readIntoMemory(
 
 			while (bytesLeft>0){
 				MM_READ_RET r = MM_READ(_in1, (void *)pebwt, bytesLeft);
-				if(r < 0) {
-					cerr << "Error reading _ebwt[] array: " << r << ", " << bytesLeft
-						 << "ERRNO: " << errno << " ERR:" << strerror(errno) << endl;
+				if(MM_IS_IO_ERR(_in1,r,bytesLeft)) {
+					cerr << "Error reading _ebwt[] array: " << r << ", "
+						 << bytesLeft << gLastIOErrMsg << endl;
 					throw 1;
 				}
 				pebwt += r;
@@ -616,10 +616,9 @@ void Ebwt::readIntoMemory(
 
 						while(bytesLeft > 0) {
 							MM_READ_RET r = MM_READ(_in2, (void*)offs, bytesLeft);
-							if(r < 0) {
+							if(MM_IS_IO_ERR(_in2,r,bytesLeft)) {
 								cerr << "Error reading block of _offs[] array: "
-								     << r << ", " << bytesLeft << "ERRNO: "
-								     << errno << " ERR:" << strerror(errno) << endl;
+								     << r << ", " << bytesLeft << gLastIOErrMsg << endl;
 								throw 1;
 							}
 							offs += r;

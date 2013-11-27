@@ -36,6 +36,8 @@ const std::string gEbwt_ext("bt2");
 
 #endif  // BOWTIE_64BIT_INDEX
 
+string gLastIOErrMsg;
+
 ///////////////////////////////////////////////////////////////////////
 //
 // Functions for searching Ebwts
