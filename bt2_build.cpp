@@ -324,9 +324,6 @@ static void driver(
 	bool bisulfite = false;
 	RefReadInParams refparams(false, reverse, nsToAs, bisulfite);
 	assert_gt(infiles.size(), 0);
-#ifndef BOWTIE_64BIT_INDEX
-	off_t total_input_size = 0;
-#endif
 	if(format == CMDLINE) {
 		// Adapt sequence strings to stringstreams open for input
 		stringstream *ss = new stringstream();
@@ -340,9 +337,6 @@ static void driver(
 		ASSERT_ONLY(fb->reset());
 		assert(!fb->eof());
 		is.push_back(fb);
-#ifndef BOWTIE_64BIT_INDEX
-		total_input_size += ss->str().length();
-#endif
 	} else {
 		// Adapt sequence files to ifstreams
 		for(size_t i = 0; i < infiles.size(); i++) {
@@ -362,29 +356,12 @@ static void driver(
 			ASSERT_ONLY(fb->reset());
 			assert(!fb->eof());
 			is.push_back(fb);
-#ifndef BOWTIE_64BIT_INDEX
-			if (fseeko(f,0,SEEK_END)){
-				cerr << "ERROR: Failed to position at the end of the file for " << infile.c_str() << endl;
-				throw(1);
-			}
-			off_t position = ftello(f);
-			if (position < 0){
-				cerr << "ERROR: Failed to read the current position for " << infile.c_str() << endl;
-				throw(1);
-			}
-			rewind(f);
-			total_input_size += position;
-#endif
 		}
 	}
 	if(is.empty()) {
 		cerr << "Warning: All fasta inputs were empty" << endl;
 		throw 1;
 	}
-#ifndef BOWTIE_64BIT_INDEX
-	if (total_input_size > std::numeric_limits<uint32_t>::max())
-		cerr << "Warning: Total input size files might be too big. If indexing fails please consider building a large index instead." << endl;
-#endif
 	// Vector for the ordered list of "records" comprising the input
 	// sequences.  A record represents a stretch of unambiguous
 	// characters in one of the input sequences.
