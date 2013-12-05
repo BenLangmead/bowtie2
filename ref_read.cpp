@@ -275,7 +275,7 @@ fastaRefReadSizes(
 	BitpairOutFileBuf* bpout,
 	TIndexOff& numSeqs)
 {
-	size_t unambigTot = 0;
+	TIndexOffU unambigTot = 0;
 	size_t bothTot = 0;
 	assert_gt(in.size(), 0);
 	// For each input istream
@@ -286,9 +286,13 @@ fastaRefReadSizes(
 		while(!in[i]->eof()) {
 			RefRecord rec = fastaRefReadSize(*in[i], rparms, first, bpout);
 			if((unambigTot + rec.len) < unambigTot) {
-				cerr << "Error: Reference sequence has more than 2^32-1 characters!  Please divide the" << endl
-				     << "reference into batches or chunks of about 3.6 billion characters or less each" << endl
-				     << "and index each independently." << endl;
+#ifdef BOWTIE_64BIT_INDEX
+				cerr << "Error: Reference sequence has more than 2^64-1 characters!  Please divide the" << endl
+				     << "reference into smaller chunks and index each independently." << endl;
+#else
+				cerr << "Error: Reference sequence has more than 2^32-1 characters!  Please try to build" << endl
+				     << "a larger index instead by using the appropiate binary." << endl;
+#endif
 				throw 1;
 			}
 			// Add the length of this record.
