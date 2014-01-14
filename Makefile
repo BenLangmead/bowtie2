@@ -56,9 +56,9 @@ ifneq (,$(findstring Darwin,$(shell uname)))
 	MACOS = 1
 endif
 
-POPCNT_CAPABILITY ?= 0
+POPCNT_CAPABILITY ?= 1
 ifeq (1, $(POPCNT_CAPABILITY))
-    EXTRA_FLAGS += -DPOPCNT_CAPABILITY -msse4.2
+    EXTRA_FLAGS += -DPOPCNT_CAPABILITY
     ifeq (1,$(MACOS))
         INC += -I third_party/macos
     endif
@@ -150,7 +150,7 @@ endif
 ifeq (64,$(BITS))
 	BITS_FLAG = -m64
 endif
-SSE_FLAG=-msse2
+SSE_FLAG=-msse2 
 
 DEBUG_FLAGS    = -O0 -g3 $(BITS_FLAG) $(SSE_FLAG)
 DEBUG_DEFS     = -DCOMPILER_OPTIONS="\"$(DEBUG_FLAGS) $(EXTRA_FLAGS)\""
