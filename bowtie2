@@ -230,8 +230,16 @@ my $verbose = 0;
 my $readpipe = undef;
 my $small_idx = 0;
 my $log_fName = undef;
+my $help = 0;
+
+GetOptions("help|h|?" => \$help);
+if ($help) {
+    usage();
+    Fail("End Help.");    
+}
 
 my @bt2w_args_cp = @bt2w_args;
+
 @ARGV = @bt2w_args;
 GetOptions(
 	"1=s"                           => \@mate1s,
@@ -281,9 +289,10 @@ sub usage {
     print "bowtie2 [wrapper options] -- [bowtie2 options]\n";
     print "\n";
     print "Wrapper Options:\n";    
-    print "--reads <reads>\t\t \n";
+    print "--help\t\t : print full Help.";
+    print "--reads <reads>\t\t : Same as bowtie2 -U option.\n";
     print "--temp-directory <tmp_dir>\t : Set temporary working directory.\n";
-    print "--bam <bam_file>\t\t : Output in <bam_file>.\n";
+    print "--bam\t\t : Output bam format.\n";
     print "--no-named-pipes\t\t : Not use named pipes.\n";
     print "--ref-string <ref_string>\t : Use <ref_string> as a reference.\n";
     print "--reference-string <ref_string>\t : Same as --ref-string\n";
