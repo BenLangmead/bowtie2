@@ -110,6 +110,11 @@ if(!$saw_dd) {
 	@bt2w_args= ();
 }
 
+if (@bt2_args == 0){
+    usage();
+    Fail("Failed to find bowtie2 options!\n");   
+}
+
 my $debug = 0;
 my %read_fns = ();
 my %read_compress = ();
@@ -268,6 +273,24 @@ sub cat_file($$) {
 	}
 	while(readline $ifh) { print {$ofh} $_; }
 	close($ifh);
+}
+
+sub usage {
+    print "bowtie2 wrapper, by Ben Langmead (langmea\@cs.jhu.edu, www.cs.jhu.edu/~langmea)\n";
+    print "Usage:\n";
+    print "bowtie2 [wrapper options] -- [bowtie2 options]\n";
+    print "\n";
+    print "Wrapper Options:\n";    
+    print "--reads <reads>\t\t \n";
+    print "--temp-directory <tmp_dir>\t : Set temporary working directory.\n";
+    print "--bam <bam_file>\t\t : Output in <bam_file>.\n";
+    print "--no-named-pipes\t\t : Not use named pipes.\n";
+    print "--ref-string <ref_string>\t : Use <ref_string> as a reference.\n";
+    print "--reference-string <ref_string>\t : Same as --ref-string\n";
+    print "--keep\t\t\t\t : Keep intermediary results.\n"; 
+    print "--verbose\t\t\t : Set the verbose mode.\n";
+    print "--small-index\t\t\t : Force the use of the small index.\n";
+    print "--log-file <log_file>\t\t : Save log messages into <log_file>.\n";
 }
 
 # Return non-zero if and only if the input should be wrapped (i.e. because
