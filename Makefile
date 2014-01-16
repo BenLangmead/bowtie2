@@ -161,14 +161,14 @@ FILE_FLAGS     = -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
 
 BOWTIE2_BIN_LIST =     bowtie2-build-s \
                        bowtie2-build-l \
-                       bowtie2-align \
-                       bowtie2-align-bt2l \
+                       bowtie2-align-s \
+                       bowtie2-align-l \
                        bowtie2-inspect-s \
                        bowtie2-inspect-l
 BOWTIE2_BIN_LIST_AUX = bowtie2-build-s-debug \
                        bowtie2-build-l-debug \
-                       bowtie2-align-debug \
-                       bowtie2-align-bt2l-debug \
+                       bowtie2-align-s-debug \
+                       bowtie2-align-l-debug \
                        bowtie2-inspect-s-debug \
                        bowtie2-inspect-l-debug
 
@@ -211,9 +211,9 @@ all: $(BOWTIE2_BIN_LIST)
 
 allall: $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)
 
-both: bowtie2-align bowtie2-build-s bowtie2-align-bt2l bowtie2-build-l
+both: bowtie2-align-s bowtie2-build-s bowtie2-align-l bowtie2-build-l
 
-both-debug: bowtie2-align-debug bowtie2-build-s-debug bowtie2-align-bt2l-debug bowtie2-build-l-debug
+both-debug: bowtie2-align-s-debug bowtie2-build-s-debug bowtie2-align-l-debug bowtie2-build-l-debug
 
 DEFS=-fno-strict-aliasing \
      -DBOWTIE2_VERSION="\"`cat VERSION`\"" \
@@ -265,7 +265,7 @@ bowtie2-build-l-debug: bt2_build.cpp $(SHARED_CPPS) $(HEADERS)
 # bowtie2-align targets
 #
 
-bowtie2-align: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
+bowtie2-align-s: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
 	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(EXTRA_FLAGS) \
 		$(DEFS) -DBOWTIE2 $(NOASSERT_FLAGS) -Wall \
 		$(INC) \
@@ -273,7 +273,7 @@ bowtie2-align: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_
 		$(SHARED_CPPS) $(SEARCH_CPPS_MAIN) \
 		$(LIBS) $(SEARCH_LIBS)
 
-bowtie2-align-bt2l: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
+bowtie2-align-l: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
 	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(EXTRA_FLAGS) \
 		$(DEFS) -DBOWTIE2 -DBOWTIE_64BIT_INDEX $(NOASSERT_FLAGS) -Wall \
 		$(INC) \
@@ -281,7 +281,7 @@ bowtie2-align-bt2l: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SE
 		$(SHARED_CPPS) $(SEARCH_CPPS_MAIN) \
 		$(LIBS) $(SEARCH_LIBS)
 
-bowtie2-align-debug: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
+bowtie2-align-s-debug: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
 	$(CXX) $(DEBUG_FLAGS) \
 		$(DEBUG_DEFS) $(EXTRA_FLAGS) \
 		$(DEFS) -DBOWTIE2 -Wall \
@@ -290,7 +290,7 @@ bowtie2-align-debug: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(S
 		$(SHARED_CPPS) $(SEARCH_CPPS_MAIN) \
 		$(LIBS) $(SEARCH_LIBS)
 
-bowtie2-align-bt2l-debug: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
+bowtie2-align-l-debug: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
 	$(CXX) $(DEBUG_FLAGS) \
 		$(DEBUG_DEFS) $(EXTRA_FLAGS) \
 		$(DEFS) -DBOWTIE2 -DBOWTIE_64BIT_INDEX -Wall \
@@ -379,7 +379,7 @@ bowtie2-bin: $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)
 	rm -rf .bin.tmp
 	mkdir .bin.tmp
 	mkdir .bin.tmp/bowtie2-$(VERSION)
-	if [ -f bowtie2-align.exe ] ; then \
+	if [ -f bowtie2-align-s.exe ] ; then \
 		zip tmp.zip $(BIN_PKG_LIST) $(addsuffix .exe,$(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)) ; \
 	else \
 		zip tmp.zip $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX) ; \

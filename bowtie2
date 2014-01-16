@@ -37,9 +37,9 @@ use POSIX;
 my ($vol,$script_path,$prog) 
                 = File::Spec->splitpath(File::Spec->rel2abs( __FILE__ ));
 my $os_is_nix   = ($^O eq "linux") || ($^O eq "darwin");
-my $align_bin_s = $os_is_nix ? 'bowtie2-align' : 'bowtie2-align.exe'; 
+my $align_bin_s = $os_is_nix ? 'bowtie2-align-s' : 'bowtie2-align-s.exe'; 
 my $build_bin   = $os_is_nix ? 'bowtie2-build' : 'bowtie2-build.exe';               
-my $align_bin_l = $os_is_nix ? 'bowtie2-align-bt2l' : 'bowtie2-align-bt2l.exe'; 
+my $align_bin_l = $os_is_nix ? 'bowtie2-align-l' : 'bowtie2-align-l.exe'; 
 my $align_prog_s= File::Spec->catpath($vol,$script_path,$align_bin_s);
 my $align_prog_l= File::Spec->catpath($vol,$script_path,$align_bin_l);
 my $align_prog  = $align_prog_s;
