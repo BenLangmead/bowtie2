@@ -45,12 +45,12 @@ my $align_prog_s= File::Spec->catpath($vol,$script_path,$align_bin_s);
 my $build_prog_s= File::Spec->catpath($vol,$script_path,$build_bin_s);
 my $align_prog_l= File::Spec->catpath($vol,$script_path,$align_bin_l);
 my $build_prog_l= File::Spec->catpath($vol,$script_path,$build_bin_l);
-my $align_prog  = $align_prog_l;
-my $build_prog  = $build_prog_l;
-my $build_bin   = $build_bin_l;
+my $align_prog  = $align_prog_s;
+my $build_prog  = $build_prog_s;
+my $build_bin   = $build_bin_s;
 my $idx_ext_l     = 'bt2l'; 
 my $idx_ext_s     = 'bt2'; 
-my $idx_ext       = $idx_ext_l; 
+my $idx_ext       = $idx_ext_s; 
 my %signo       = ();
 my @signame     = ();
 
@@ -228,28 +228,27 @@ my $no_pipes = 0;
 my $keep = 0;
 my $verbose = 0;
 my $readpipe = undef;
-my $small_idx = 0;
+my $large_idx = 0;
 my $log_fName = undef;
 my $help = 0;
 
 my @bt2w_args_cp = ($saw_dd) ? @bt2w_args : @bt2_args;
 
-@bt2w_args_cp =() if (@bt2_args > 1);
+@bt2w_args_cp =() if (@bt2_args > 1 and !$saw_dd);
 GetOptionsFromArray(
     \@bt2w_args_cp,
 	"1=s"                           => \@mate1s,
 	"2=s"                           => \@mate2s,
-	"reads=s"                       => \@unps,
-	"U=s"                           => \@unps,
+	"reads|U=s"                     => \@unps,
 	"temp-directory=s"              => \$temp_dir,
 	"bam"                           => \$bam_out,
 	"no-named-pipes"                => \$no_pipes,
 	"ref-string|reference-string=s" => \$ref_str,
 	"keep"                          => \$keep,
 	"verbose"                       => \$verbose,
-	"small-index"                   => \$small_idx,
+	"large-index"                   => \$large_idx,
 	"log-file=s"                    => \$log_fName,
-	"help|h|?"                      => \$help
+	"help|h"                        => \$help
 ) || Fail("Bad option.\n");
 
 if ($help) {
@@ -268,7 +267,7 @@ if ($log_fName) {
 }
 
 Info("Before arg handling:\n");
-Info("  Wrapper args:\n[ @bt2w_args_cp ]\n");
+Info("  Wrapper args:\n[ @bt2w_args ]\n");
 Info("  Binary args:\n[ @bt2_args ]\n");
 
 sub cat_file($$) {
@@ -293,7 +292,7 @@ sub usage {
     print "bowtie2 [wrapper options] -- [bowtie2 options]\n";
     print "\n";
     print "Wrapper Options:\n";    
-    print "--help/-h/-?\t\t\t : print full help.\n";
+    print "--help/-h\t\t\t : print full help.\n";
     print "--reads <reads>\t\t\t : Same as bowtie2 -U option.\n";
     print "--temp-directory <tmp_dir>\t : Set temporary working directory.\n";
     print "--bam\t\t\t\t : Output bam format.\n";
@@ -302,7 +301,7 @@ sub usage {
     print "--reference-string <ref_string>\t : Same as --ref-string\n";
     print "--keep\t\t\t\t : Keep intermediary results.\n"; 
     print "--verbose\t\t\t : Set the verbose mode.\n";
-    print "--small-index\t\t\t : Force the use of the small index.\n";
+    print "--large-index\t\t\t : Force the use of the small index.\n";
     print "--log-file <log_file>\t\t : Save log messages into <log_file>.\n";
     print "\n";
 }
@@ -439,25 +438,29 @@ Info("  Binary args:\n[ @bt2_args ]\n");
 
 my $index_name = Extract_IndexName_From(@bt2_args);
 
-if ($small_idx) {
-    Info("Using a small index enforced by user.\n");
-    $align_prog  = $align_prog_s;
-    $build_prog  = $build_prog_s;
-    $build_bin   = $build_bin_s;
-    $idx_ext     = $idx_ext_s;
+if ($large_idx) {
+    Info("Using a large index enforced by user.\n");
+    $align_prog  = $align_prog_l;
+    $build_prog  = $build_prog_l;
+    $build_bin   = $build_bin_l;
+    $idx_ext     = $idx_ext_l;
+    if (not -f $index_name.".1.".$idx_ext_l) {
+        Fail("Cannot find the large index ${index_name}.1.${idx_ext_l}\n");
+    }
+    Info("Using large index (${index_name}.1.${idx_ext_l}).\n");
 }
 else {
-    if ((-f $index_name.".1.".$idx_ext_s) && 
-        (not -f $index_name.".1.".$idx_ext_l)) {
-        Info("Cannot find a large index but a small one seems to be present.\n");
-        Info("Falling back to using a small index.\n");
-        $align_prog  = $align_prog_s;
-        $build_prog  = $build_prog_s;
-        $build_bin   = $build_bin_s;
-        $idx_ext     = $idx_ext_s;
+    if ((-f $index_name.".1.".$idx_ext_l) && 
+        (not -f $index_name.".1.".$idx_ext_s)) {
+        Info("Cannot find a small index but a large one seems to be present.\n");
+        Info("Switching to using the large index (${index_name}.1.${idx_ext_l}).\n");
+        $align_prog  = $align_prog_l;
+        $build_prog  = $build_prog_l;
+        $build_bin   = $build_bin_l;
+        $idx_ext     = $idx_ext_l;
     }
     else {
-        Info("Using a large index.\n")
+        Info("Using the small index (${index_name}.1.${idx_ext_s}).\n")
     }
 }
 
