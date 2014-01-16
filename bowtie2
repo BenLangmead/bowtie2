@@ -335,7 +335,7 @@ sub Extract_IndexName_From {
             return $_[$i+1];
         }
     }
-    Fail("Cannot find the index option (-x) in the given command line.\n");    
+    Fail("Cannot find any index option (--reference-string, --ref-string or -x) in the given command line.\n");    
 }
 
 if(wrapInput(\@unps, \@mate1s, \@mate2s)) {
