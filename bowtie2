@@ -30,7 +30,7 @@
 
 use strict;
 use warnings;
-use Getopt::Long;
+use Getopt::Long qw(GetOptionsFromArray GetOptions);
 use File::Spec;
 use POSIX;
 
@@ -232,16 +232,11 @@ my $small_idx = 0;
 my $log_fName = undef;
 my $help = 0;
 
-GetOptions("help|h|?" => \$help);
-if ($help) {
-    usage();
-    Fail("End Help.");    
-}
+my @bt2w_args_cp = ($saw_dd) ? @bt2w_args : @bt2_args;
 
-my @bt2w_args_cp = @bt2w_args;
-
-@ARGV = @bt2w_args;
-GetOptions(
+@bt2w_args_cp =() if (@bt2_args > 1);
+GetOptionsFromArray(
+    \@bt2w_args_cp,
 	"1=s"                           => \@mate1s,
 	"2=s"                           => \@mate2s,
 	"reads=s"                       => \@unps,
@@ -253,8 +248,17 @@ GetOptions(
 	"keep"                          => \$keep,
 	"verbose"                       => \$verbose,
 	"small-index"                   => \$small_idx,
-	"log-file=s"                    => \$log_fName
+	"log-file=s"                    => \$log_fName,
+	"help|h|?"                      => \$help
 ) || Fail("Bad option.\n");
+
+if ($help) {
+    usage();
+    print "\n\n";
+    print "Bowtie2 options:\n";
+    system("$align_bin_s -h");
+    Fail("end full help message.\n")
+}
 
 my $old_stderr;
 
@@ -284,15 +288,15 @@ sub cat_file($$) {
 }
 
 sub usage {
-    print "bowtie2 wrapper, by Ben Langmead (langmea\@cs.jhu.edu, www.cs.jhu.edu/~langmea)\n";
+    print "bowtie2 wrapper, by Ben Langmead (langmea\@cs.jhu.edu, www.cs.jhu.edu/~langmea)\n\n";
     print "Usage:\n";
     print "bowtie2 [wrapper options] -- [bowtie2 options]\n";
     print "\n";
     print "Wrapper Options:\n";    
-    print "--help\t\t : print full Help.";
-    print "--reads <reads>\t\t : Same as bowtie2 -U option.\n";
+    print "--help/-h/-?\t\t\t : print full help.\n";
+    print "--reads <reads>\t\t\t : Same as bowtie2 -U option.\n";
     print "--temp-directory <tmp_dir>\t : Set temporary working directory.\n";
-    print "--bam\t\t : Output bam format.\n";
+    print "--bam\t\t\t\t : Output bam format.\n";
     print "--no-named-pipes\t\t : Not use named pipes.\n";
     print "--ref-string <ref_string>\t : Use <ref_string> as a reference.\n";
     print "--reference-string <ref_string>\t : Same as --ref-string\n";
@@ -300,6 +304,7 @@ sub usage {
     print "--verbose\t\t\t : Set the verbose mode.\n";
     print "--small-index\t\t\t : Force the use of the small index.\n";
     print "--log-file <log_file>\t\t : Save log messages into <log_file>.\n";
+    print "\n";
 }
 
 # Return non-zero if and only if the input should be wrapped (i.e. because
