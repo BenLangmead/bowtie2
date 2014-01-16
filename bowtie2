@@ -250,7 +250,7 @@ if ($help) {
     usage();
     print "\n\n";
     print "Bowtie2 options:\n";
-    system("$align_bin_s -h");
+    system("$align_prog_s -h");
     Fail("end full help message.\n")
 }
 
