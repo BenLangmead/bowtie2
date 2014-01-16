@@ -38,16 +38,11 @@ my ($vol,$script_path,$prog)
                 = File::Spec->splitpath(File::Spec->rel2abs( __FILE__ ));
 my $os_is_nix   = ($^O eq "linux") || ($^O eq "darwin");
 my $align_bin_s = $os_is_nix ? 'bowtie2-align' : 'bowtie2-align.exe'; 
-my $build_bin_s = $os_is_nix ? 'bowtie2-build' : 'bowtie2-build.exe';               
+my $build_bin   = $os_is_nix ? 'bowtie2-build' : 'bowtie2-build.exe';               
 my $align_bin_l = $os_is_nix ? 'bowtie2-align-bt2l' : 'bowtie2-align-bt2l.exe'; 
-my $build_bin_l = $os_is_nix ? 'bowtie2-build-bt2l' : 'bowtie2-build-bt2l.exe';               
 my $align_prog_s= File::Spec->catpath($vol,$script_path,$align_bin_s);
-my $build_prog_s= File::Spec->catpath($vol,$script_path,$build_bin_s);
 my $align_prog_l= File::Spec->catpath($vol,$script_path,$align_bin_l);
-my $build_prog_l= File::Spec->catpath($vol,$script_path,$build_bin_l);
 my $align_prog  = $align_prog_s;
-my $build_prog  = $build_prog_s;
-my $build_bin   = $build_bin_s;
 my $idx_ext_l     = 'bt2l'; 
 my $idx_ext_s     = 'bt2'; 
 my $idx_ext       = $idx_ext_s; 
@@ -441,8 +436,6 @@ my $index_name = Extract_IndexName_From(@bt2_args);
 if ($large_idx) {
     Info("Using a large index enforced by user.\n");
     $align_prog  = $align_prog_l;
-    $build_prog  = $build_prog_l;
-    $build_bin   = $build_bin_l;
     $idx_ext     = $idx_ext_l;
     if (not -f $index_name.".1.".$idx_ext_l) {
         Fail("Cannot find the large index ${index_name}.1.${idx_ext_l}\n");
@@ -455,8 +448,6 @@ else {
         Info("Cannot find a small index but a large one seems to be present.\n");
         Info("Switching to using the large index (${index_name}.1.${idx_ext_l}).\n");
         $align_prog  = $align_prog_l;
-        $build_prog  = $build_prog_l;
-        $build_bin   = $build_bin_l;
         $idx_ext     = $idx_ext_l;
     }
     else {
