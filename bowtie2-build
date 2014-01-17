@@ -67,11 +67,8 @@ def main():
         else:
             logging.info("Building a small index for %s" % ref_fname)
     
-    print build_bin_spec,"\n"
-    print "options %s\n" % options
-    print "arguments: %s" % arguments
-    
-    os.execl(build_bin_spec, build_bin_name, ' '.join(arguments))        
+    arguments.insert(0, build_bin_name)
+    os.execv(build_bin_spec, arguments)        
         
 
 if __name__ == "__main__":
