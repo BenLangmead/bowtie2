@@ -1,0 +1,83 @@
+#!/usr/bin/env python
+
+import os
+import sys
+import inspect
+import logging
+import subprocess
+from optparse import (OptionParser,BadOptionError,AmbiguousOptionError)
+
+
+class PassThroughOptionParser(OptionParser):
+    """
+    An unknown option pass-through implementation of OptionParser.
+    """
+    def _process_args(self, largs, rargs, values):
+        while rargs:
+            try:
+                OptionParser._process_args(self,largs,rargs,values)
+            except (BadOptionError,AmbiguousOptionError), e:
+                largs.append(e.opt_str)
+                
+    def format_epilog(self, formatter):
+        return self.epilog
+                
+
+def build_args(bin_spec):
+    """
+    Parse the wrapper arguments. Returns the options,<programm arguments> tuple.
+    """
+    usage = "bowtie2 wrapper by Ben Langmead (langmea@cs.jhu.edu, www.cs.jhu.edu/~langmea)\n"
+    usage += "\t%prog [wrapper options | program options] < program arguments>"
+    
+    p = subprocess.Popen([bin_spec,'-h'], stdout=subprocess.PIPE)
+    build_bin_help_msg = "\n\nProgram help:\n" + p.communicate()[0]  
+    
+    parser = PassThroughOptionParser(usage=usage, epilog=build_bin_help_msg)
+    parser.add_option("--large-index", action="store_true",
+                      default=False, dest="large_index",
+                      help="Force large index build.")
+    
+    (options, args) = parser.parse_args()
+    if len(args) < 1:
+        parser.error("Incorrect number of arguments!")
+    return(options, args)
+
+
+def main():
+    logging.basicConfig(level=logging.INFO)
+    small_index_max_size= 4 * 1024**3
+    build_bin_name      = "bowtie-build"
+    build_bin_s         = "bowtie2-build-s"
+    build_bin_l         = "bowtie2-build-l"
+    curr_script         = os.path.abspath(inspect.getsourcefile(main))
+    ex_path             = os.path.dirname(curr_script)
+    build_bin_spec      = os.path.join(ex_path,build_bin_s)
+    options,arguments   = build_args(build_bin_spec)
+
+    if options.large_index:
+        logging.info("Force build a large index.")
+        build_bin_spec = os.path.join(ex_path,build_bin_l)
+    else:
+        ref_fname = arguments[-2]
+        statinfo = os.stat(ref_fname)
+        if statinfo.st_size > small_index_max_size:
+            logging.info("Building a large index for %s" % ref_fname)
+            build_bin_spec = os.path.join(ex_path,build_bin_l)
+        else:
+            logging.info("Building a small index for %s" % ref_fname)
+    
+    print build_bin_spec,"\n"
+    print "options %s\n" % options
+    print "arguments: %s" % arguments
+    
+    os.execl(build_bin_spec, build_bin_name, ' '.join(arguments))        
+        
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+
