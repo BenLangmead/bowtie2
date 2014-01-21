@@ -1,0 +1,64 @@
+#!/usr/bin/env python
+
+"""
+ Copyright 2014, Ben Langmead <langmea@cs.jhu.edu>
+
+ This file is part of Bowtie 2.
+
+ Bowtie 2 is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+
+ Bowtie 2 is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with Bowtie 2.  If not, see <http://www.gnu.org/licenses/>.
+"""
+
+
+import os
+import imp
+import inspect
+import logging
+
+
+
+def main():
+    logging.basicConfig(level=logging.INFO)
+    inspect_bin_name      = "bowtie-inspect"
+    inspect_bin_s         = "bowtie2-inspect-s"
+    inspect_bin_l         = "bowtie2-inspect-l"
+    idx_ext_l             = '.1.bt2l'; 
+    idx_ext_s             = '.1.bt2'; 
+    curr_script           = os.path.abspath(inspect.getsourcefile(main))
+    ex_path               = os.path.dirname(curr_script)
+    inspect_bin_spec      = os.path.join(ex_path,inspect_bin_s)
+    bld                   = imp.load_source('bowtie2-build',os.path.join(ex_path,'bowtie2-build'))
+    options,arguments     = bld.build_args(inspect_bin_spec)
+
+    if options.large_index:
+        logging.info("Inspect the large index.")
+        inspect_bin_spec = os.path.join(ex_path,inspect_bin_l)
+    else:
+        idx_basename = arguments[-1]
+        if os.path.exists(idx_basename + idx_ext_s):
+            logging.info("Inspect the small index for %s" % idx_basename)
+        else:
+            logging.info("Inspect the large index for %s" % idx_basename)
+            inspect_bin_spec = os.path.join(ex_path,inspect_bin_l)
+    
+    arguments.insert(0, inspect_bin_name)
+    os.execv(inspect_bin_spec, arguments)        
+        
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+
