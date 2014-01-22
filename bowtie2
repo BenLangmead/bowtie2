@@ -227,9 +227,9 @@ my $large_idx = 0;
 my $log_fName = undef;
 my $help = 0;
 
-my @bt2w_args_cp = ($saw_dd) ? @bt2w_args : @bt2_args;
+my @bt2w_args_cp = (@bt2w_args>0) ? @bt2w_args : @bt2_args;
+Getopt::Long::Configure("pass_through");
 
-@bt2w_args_cp =() if (@bt2_args > 1 and !$saw_dd);
 GetOptionsFromArray(
     \@bt2w_args_cp,
 	"1=s"                           => \@mate1s,
@@ -244,7 +244,7 @@ GetOptionsFromArray(
 	"large-index"                   => \$large_idx,
 	"log-file=s"                    => \$log_fName,
 	"help|h"                        => \$help
-) || Fail("Bad option.\n");
+);
 
 if ($help) {
     usage();
