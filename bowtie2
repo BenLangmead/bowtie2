@@ -228,7 +228,7 @@ my $log_fName = undef;
 my $help = 0;
 
 my @bt2w_args_cp = (@bt2w_args>0) ? @bt2w_args : @bt2_args;
-Getopt::Long::Configure("pass_through");
+Getopt::Long::Configure("pass_through","no_ignore_case");
 
 GetOptionsFromArray(
     \@bt2w_args_cp,
