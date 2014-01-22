@@ -4190,10 +4190,10 @@ sub runbowtie2($$$$$$$$$$$$$$$$$$$$$) {
 	my $cmd;
 	if($pe) {
 		# Paired-end case
-		$cmd = "$bowtie2 --debug $args .simple_tests.tmp $formatarg -1 $mate1arg -2 $mate2arg";
+		$cmd = "$bowtie2 --debug $args -x .simple_tests.tmp $formatarg -1 $mate1arg -2 $mate2arg";
 	} else {
 		# Unpaired case
-		$cmd = "$bowtie2 --debug $args .simple_tests.tmp $formatarg $readarg";
+		$cmd = "$bowtie2 --debug $args -x .simple_tests.tmp $formatarg $readarg";
 	}
 	print "$cmd\n";
 	open(BT, "$cmd |") || die "Could not open pipe '$cmd |'";
