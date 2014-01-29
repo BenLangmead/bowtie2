@@ -191,6 +191,10 @@ GENERAL_LIST = $(wildcard scripts/*.sh) \
                TUTORIAL \
                VERSION
 
+ifeq (1,$(WINDOWS))
+	BOWTIE2_BIN_LIST := $(BOWTIE2_BIN_LIST) bowtie2.bat
+endif
+
 # This is helpful on Windows under MinGW/MSYS, where Make might go for
 # the Windows FIND tool instead.
 FIND=$(shell which find)
@@ -360,6 +364,10 @@ bowtie2-dp-debug: bt2_dp.cpp $(HEADERS) $(SHARED_CPPS) $(DP_CPPS)
 		-o $@ $< \
 		$(DP_CPPS) $(SHARED_CPPS) \
 		$(LIBS) $(SEARCH_LIBS)
+
+bowtie2.bat:
+	echo "@echo off" > bowtie2.bat
+	echo "perl %~dp0/bowtie2 %*" >> bowtie2.bat
 
 .PHONY: bowtie2-src
 bowtie2-src: $(SRC_PKG_LIST)
