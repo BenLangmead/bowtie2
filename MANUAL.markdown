@@ -752,9 +752,13 @@ The indentation indicates how subtotals relate to totals.
 Wrapper
 -------
 
-The `bowtie2` executable is actually a Perl wrapper script that calls the
-compiled `bowtie2-align` binary.  It is recommended that you always run the
-`bowtie2` wrapper and not run `bowtie2-align` directly.
+The `bowtie2`, `bowtie2-build` and `bowtie2-inspect` executables are actually 
+wrapper scripts that call the corresponding binaries. They will generally 
+try to use by default a small index but they will switch to the usage of a large
+one if necesary. Also the usage of a large index can be enforced with the 
+`--large-index` option.
+It is recommended that you always run the bowtie2 wrappers and not run the
+binaries directly.
 
 Performance tuning
 ------------------
@@ -2340,7 +2344,8 @@ The `bowtie2-build` indexer
 
 `bowtie2-build` builds a Bowtie index from a set of DNA sequences.
 `bowtie2-build` outputs a set of 6 files with suffixes `.1.bt2`, `.2.bt2`,
-`.3.bt2`, `.4.bt2`, `.rev.1.bt2`, and `.rev.2.bt2`.  These files together
+`.3.bt2`, `.4.bt2`, `.rev.1.bt2`, and `.rev.2.bt2`.  In the case of a large 
+index these suffixes will have a `bt2l` termination.  These files together
 constitute the index: they are all that is needed to align reads to that
 reference.  The original sequence FASTA files are no longer used by Bowtie 2
 once the index is built.
@@ -2363,12 +2368,16 @@ profitable trade-offs depending on the application.  They have been set to
 defaults that are reasonable for most cases according to our experiments.  See
 [Performance tuning] for details.
 
-Because `bowtie2-build` uses 32-bit pointers internally, it can handle up to a
-theoretical maximum of 2^32-1 (somewhat more than 4 billion) characters in an
-index, though, with other constraints, the actual ceiling is somewhat less than
-that.  If your reference exceeds 2^32-1 characters, `bowtie2-build` will print
-an error message and abort.  To resolve this, divide your reference sequences
-into smaller batches and/or chunks and build a separate index for each.
+`bowtie2-build` can generate small and large indexes and the wrapper will try 
+to guess which one will better suit the input data. Small indexes are using 
+32-bit pointers internally, and it can therefore handle up to a theoretical 
+maximum of 2^32-1 (somewhat more than 4 billion) characters in an index, 
+though, with other constraints, the actual ceiling is somewhat less than that. 
+Large indexes are using 64-bit pointers internally and will therefore raise the
+theoretical maximum to 2^64-1 chars in an index (over 18 quintillion). If the  
+reference does not exceeds 2^32-1 characters but a large index is still prefered 
+the user can use the `--large-index` option to enforce `bowtie2-build` to build 
+a large index instead.
 
 If your computer has more than 3-4 GB of memory and you would like to exploit
 that fact to make index building faster, use a 64-bit version of the
