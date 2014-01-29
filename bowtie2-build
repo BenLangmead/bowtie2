@@ -65,7 +65,8 @@ def build_args(bin_spec):
 
 def main():
     logging.basicConfig(level=logging.INFO)
-    small_index_max_size= 4 * 1024**3
+    delta               = 200
+    small_index_max_size= 4 * 1024**3 - delta
     build_bin_name      = "bowtie-build"
     build_bin_s         = "bowtie2-build-s"
     build_bin_l         = "bowtie2-build-l"
