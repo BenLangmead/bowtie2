@@ -34,8 +34,16 @@ use Getopt::Long qw(GetOptionsFromArray GetOptions);
 use File::Spec;
 use POSIX;
 
-my ($vol,$script_path,$prog) 
-                = File::Spec->splitpath(File::Spec->rel2abs( __FILE__ ));
+
+my ($vol,$script_path,$prog);
+$prog = File::Spec->rel2abs( __FILE__ );
+
+while (-f $prog && -l $prog){
+    $prog = File::Spec->rel2abs(readlink($prog));   
+}
+
+($vol,$script_path,$prog) 
+                = File::Spec->splitpath($prog);
 my $os_is_nix   = ($^O eq "linux") || ($^O eq "darwin");
 my $align_bin_s = $os_is_nix ? 'bowtie2-align-s' : 'bowtie2-align-s.exe'; 
 my $build_bin   = $os_is_nix ? 'bowtie2-build' : 'bowtie2-build.exe';               
