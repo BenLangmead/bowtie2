@@ -70,7 +70,7 @@ def main():
     build_bin_name      = "bowtie-build"
     build_bin_s         = "bowtie2-build-s"
     build_bin_l         = "bowtie2-build-l"
-    curr_script         = os.path.abspath(inspect.getsourcefile(main))
+    curr_script         = os.path.realpath(inspect.getsourcefile(main))
     ex_path             = os.path.dirname(curr_script)
     build_bin_spec      = os.path.join(ex_path,build_bin_s)
     options,arguments   = build_args(build_bin_spec)
