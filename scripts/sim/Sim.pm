@@ -380,7 +380,7 @@ sub genRef {
 # Generate a hash of key/value arguments to pass to bowtie2.
 #
 sub genBuildArgs {
-	my ($self) = @_;
+	my ($self, $large_index) = @_;
 	my %args = ();
 	my $r1 = int(rand(3));
 	if($r1 == 0) {
@@ -400,6 +400,7 @@ sub genBuildArgs {
 	if($r4 == 0) {
 		$args{"--offrate"} = int(rand(8))+1;
 	}
+	$args{"--large-index"} = "" if $large_index;
 	return \%args;
 }
 
@@ -657,39 +658,36 @@ sub mutateSeq {
 #
 sub genPolicyMA($) {
 	my $local = shift;
-	return "" if ($local || int(rand(2)) == 0);
-	return "MA=".Math::Random::random_uniform(1, 1, 40).";";
+	return undef if $local;
+	return Math::Random::random_uniform(1, 1, 40)
 }
 
 ##
 # Generate a setting for MMP (mismatch penalty).
 #
 sub genPolicyMMP() {
-	return "" if int(rand(2)) == 0;
 	my $op = substr("CQR", int(rand(3)), 1);
 	if($op eq "C") {
 		$op .= Math::Random::random_uniform(1, 1, 40);
 	}
-	return "MMP=$op;";
+	return $op;
 }
 
 ##
 # Generate a setting for NP (penalty for a mismatch involving an N).
 #
 sub genPolicyNP() {
-	return "" if int(rand(2)) == 0;
 	my $op = substr("CQR", int(rand(3)), 1);
 	if($op eq "C") {
 		$op .= int(Math::Random::random_exponential(1, 3))+1;
 	}
-	return "NP=$op;";
+	return $op;
 }
 
 ##
 # Generate a setting for RDG (read gap open and extend penalties).
 #
 sub genPolicyRDG() {
-	return undef if int(rand(2)) == 0;
 	my $op = Math::Random::random_uniform(1, 1, 50);
 	if(int(rand(2)) == 0) {
 		$op .= ",";
@@ -702,7 +700,6 @@ sub genPolicyRDG() {
 # Generate a setting for RFG (ref gap open and extend penalties).
 #
 sub genPolicyRFG() {
-	return undef if int(rand(2)) == 0;
 	my $op = Math::Random::random_uniform(1, 1, 50);
 	if(int(rand(2)) == 0) {
 		$op .= ",";
@@ -772,7 +769,7 @@ sub genPolicySeedRounds() {
 # read length OR sqaure root of read length OR cube root of read length.
 #
 sub genPolicyIVAL() {
-	return "" if int(rand(2)) == 0;
+	return undef if int(rand(2)) == 0;
 	# Pick a number of mismatches
 	my $iv = substr("LSC", int(rand(3)), 1);
 	if($iv eq "L") {
@@ -803,35 +800,18 @@ sub genPolicyIVAL() {
 			$iv .= ",".Math::Random::random_uniform(1, 0.0, 14.0);
 		}
 	}
-	return "IVAL=$iv;";
-}
-
-##
-# Generate a random but meaningful string of policy arguments to specify using
-# the -P option.
-#
-sub genPolicyArg($) {
-	my $local = shift;
-	my $args = "";
-	$args .= genPolicyMA($local);
-	$args .= genPolicyMMP();
-	$args .= genPolicyNP();
-	$args .= genPolicyIVAL();
-	if($args ne "") {
-		return substr($args, 0, -1);
-	} else { return ""; }
+	return $iv;
 }
 
 ##
 # Generate a hash of key/value arguments to pass to bowtie2.
 #
 sub genAlignArgs {
-	my ($self, $input, $color, $conf) = @_;
+	my ($self, $input, $color, $large_index, $conf) = @_;
 	my %args = ();
 	my $local = int(rand(2)) == 0;
 	$args{"-u"}         = $conf->{maxreads} if defined($conf->{maxreads});
 	$args{"--mm"}       = "" if int(rand(2)) == 0;
-	#$args{"--overhang"} = "" if int(rand(2)) == 0;
 	$args{"--trim3"}    = int(rand(10)) if int(rand(2)) == 0;
 	$args{"--trim5"}    = int(rand(10)) if int(rand(2)) == 0;
 	$args{"--nofw"}     = "" if int(rand(4)) == 0;
@@ -847,14 +827,18 @@ sub genAlignArgs {
 	} elsif($rep == 2) {
 		$args{"-M"} = int(Math::Random::random_exponential(1, 3))+2;
 	}
-	$args{"--rdg"} = genPolicyRDG();
-	$args{"--rfg"} = genPolicyRFG();
-	$args{"--score-min"} = genPolicyMIN($local);
-	$args{"--n-ceil"} = genPolicyNCEIL();
-	$args{"-N"} = genPolicySEED();
-	$args{"-D"} = genPolicyFailStreak();
-	$args{"-R"} = genPolicySeedRounds();
-	$args{"--policy"} = ("\"".genPolicyArg($local)."\"") if rand() < 0.9;
+	$args{"--rdg"} = genPolicyRDG() if rand() < 0.5;
+	$args{"--rfg"} = genPolicyRFG() if rand() < 0.5;
+	$args{"--score-min"} = genPolicyMIN($local) if rand() < 0.5;
+	$args{"--n-ceil"} = genPolicyNCEIL() if rand() < 0.5;
+	$args{"-N"} = genPolicySEED() if rand() < 0.5;
+	$args{"-D"} = genPolicyFailStreak() if rand() < 0.5;
+	$args{"-R"} = genPolicySeedRounds() if rand() < 0.5;
+	$args{"--ma"} = genPolicyMA($local) if rand() < 0.5;
+	$args{"--mp"} = genPolicyMMP() if rand() < 0.5;
+	$args{"--np"} = genPolicyNP() if rand() < 0.5;
+	$args{"-i"} = genPolicyIVAL() if rand() < 0.5;
+	$args{"--large-index"} = "" if $large_index;
 	$args{"--cp-min"} = int(Math::Random::random_exponential(1, 3)) + 2;
 	$args{"--cp-ival"} = int(Math::Random::random_exponential(1, 1)) + 1;
 	return \%args;
@@ -899,7 +883,7 @@ sub align {
 	my $als_debug = "$conf->{tempdir}/Sim.pm.$conf->{randstr}.debug.als";
 	my $als_px    = "$conf->{tempdir}/Sim.pm.$conf->{randstr}.px.als";
 	my $als_px_reord = "$conf->{tempdir}/Sim.pm.$conf->{randstr}.px.reord.als";
-	my $cmd = "$conf->{bowtie2_debug} $argstr $idx $inputfn";
+	my $cmd = "$conf->{bowtie2_debug} $argstr -x $idx $inputfn";
 	print "$cmd\n";
 	open(ALSDEB, ">$als_debug") || mydie("Could not open '$als_debug' for writing");
 	open(ALSDEBCMD, "$cmd |") || mydie("Could not open pipe '$cmd |'");
@@ -923,7 +907,7 @@ sub align {
 	if(int(rand(3)) == 0) {
 		print STDERR "ALSO checking that bowtie2 and bowtie2-align-debug match up\n";
 		# Remove @PG line because CL: tag can legitimately differ
-		$cmd = "$conf->{bowtie2} $argstr $idx $inputfn | grep -v '^\@PG' > $als";
+		$cmd = "$conf->{bowtie2} $argstr -x $idx $inputfn | grep -v '^\@PG' > $als";
 		print "$cmd\n";
 		system($cmd);
 		$? == 0 ||
@@ -940,7 +924,7 @@ sub align {
 	if(int(rand(3)) == 0) {
 		print STDERR "ALSO checking that bowtie2 and bowtie2 -p X w/ X > 1 match up\n";
 		my $p = int(rand(3))+2;
-		$cmd = "$conf->{bowtie2} $argstr -p $p $idx $inputfn | grep -v '^\@PG' > $als_px";
+		$cmd = "$conf->{bowtie2} $argstr -p $p -x $idx $inputfn | grep -v '^\@PG' > $als_px";
 		print "$cmd\n";
 		system($cmd);
 		$? == 0 ||
@@ -972,7 +956,7 @@ sub align {
 	if(int(rand(3)) == 0) {
 		print STDERR "ALSO checking that bowtie2 and bowtie2 -p X --reorder w/ X > 1 match up\n";
 		my $p = int(rand(3))+2;
-		$cmd = "$conf->{bowtie2} $argstr -p $p $idx --reorder $inputfn | grep -v '^\@PG' > $als_px_reord";
+		$cmd = "$conf->{bowtie2} $argstr -p $p -x $idx --reorder $inputfn | grep -v '^\@PG' > $als_px_reord";
 		print "$cmd\n";
 		system($cmd);
 		$? == 0 || mydie("Command '$cmd' failed with exitlevel $?");
@@ -1002,15 +986,18 @@ sub align {
 sub nextCase {
 	my ($self, $conf) = @_;
 
-	$conf->{bowtie2_build}       = "bowtie2-build"       unless defined($conf->{bowtie2_build});
-	$conf->{bowtie2}             = "bowtie2-align"       unless defined($conf->{bowtie2});
-	$conf->{bowtie2_build_debug} = "bowtie2-build-debug" unless defined($conf->{bowtie2_build_debug});
-	$conf->{bowtie2_debug}       = "bowtie2-align-debug" unless defined($conf->{bowtie2_debug});
-	$conf->{tempdir}             = "/tmp"                unless defined($conf->{tempdir});
+	$conf->{bowtie2_build}       = "bowtie2-build"         unless defined($conf->{bowtie2_build});
+	$conf->{bowtie2}             = "bowtie2-align"         unless defined($conf->{bowtie2});
+	$conf->{bowtie2_build_debug} = "bowtie2-build --debug" unless defined($conf->{bowtie2_build_debug});
+	$conf->{bowtie2_debug}       = "bowtie2-align --debug" unless defined($conf->{bowtie2_debug});
+	$conf->{tempdir}             = "/tmp"                  unless defined($conf->{tempdir});
 	srand(time ^ $$);
 	$conf->{randstr} = randStr(8);
 
 	print "*** TEST CASE ***\n";
+	
+	# Build a large index?
+	my $large_index = int(rand(2)) == 0;
 	
 	# Generate the references
 	my $refdnagen = $self->genDNAgen();
@@ -1020,7 +1007,7 @@ sub nextCase {
 	$self->genRef(\%refs, $refdnagen, $conf, $tmpfn);
 	# Run bowtie2-build
 	my $tmpidxfn = "$conf->{tempdir}/Sim.pm.$conf->{randstr}";
-	my $buildArgs = $self->genBuildArgs();
+	my $buildArgs = $self->genBuildArgs($large_index);
 	$self->build($tmpfn, $tmpidxfn, $conf, $buildArgs);
 	my $numruns = 10;
 	$numruns *= 10 if $conf->{small}; # Lots of short runs
@@ -1035,7 +1022,7 @@ sub nextCase {
 		# Mutate the input
 		my $mutinput = $self->mutateSeq($input);
 		# Select Bowtie arguments
-		my $args = $self->genAlignArgs($mutinput, $input->{color}, $conf);
+		my $args = $self->genAlignArgs($mutinput, $input->{color}, $large_index, $conf);
 		$self->align($tmpfn, $tmpidxfn, $mutinput, $conf, $args);
 		# Sanity check output.  Possible sanity checks are:
 		# 1. Check alignments & edits against reference
