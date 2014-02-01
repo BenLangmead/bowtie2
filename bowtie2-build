@@ -68,7 +68,7 @@ def main():
         build_bin_s += '-debug'
         build_bin_l += '-debug'
 
-    if '--large_index' in options:
+    if '--large-index' in options:
         #logging.info("Force build a large index.")
         build_bin_spec = os.path.join(ex_path,build_bin_l)
     elif len(argv) >= 2:
