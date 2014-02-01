@@ -180,6 +180,9 @@ for(my $i = 0; $i < scalar(@bt2_args); $i++) {
 		$no_unal = 1;
 		$bt2_args[$i] = undef;
 	}
+	if($arg eq "--large-index") {
+		$bt2_args[$i] = undef;
+	}
 	for my $rarg ("un-conc", "al-conc", "un", "al") {
 		if($arg =~ /^--${rarg}$/ || $arg =~ /^--${rarg}-gz$/ || $arg =~ /^--${rarg}-bz2$/) {
 			$bt2_args[$i] = undef;
