@@ -123,6 +123,7 @@ my %read_fns = ();
 my %read_compress = ();
 my $cap_out = undef;       # Filename for passthrough
 my $no_unal = 0;
+my $large_idx = 0;
 # Remove whitespace
 for my $i (0..$#bt2_args) {
 	$bt2_args[$i]=~ s/^\s+//; $bt2_args[$i] =~ s/\s+$//;
@@ -181,6 +182,7 @@ for(my $i = 0; $i < scalar(@bt2_args); $i++) {
 		$bt2_args[$i] = undef;
 	}
 	if($arg eq "--large-index") {
+		$large_idx = 1;
 		$bt2_args[$i] = undef;
 	}
 	for my $rarg ("un-conc", "al-conc", "un", "al") {
@@ -234,7 +236,6 @@ my $no_pipes = 0;
 my $keep = 0;
 my $verbose = 0;
 my $readpipe = undef;
-my $large_idx = 0;
 my $log_fName = undef;
 my $help = 0;
 
@@ -252,7 +253,6 @@ GetOptionsFromArray(
 	"ref-string|reference-string=s" => \$ref_str,
 	"keep"                          => \$keep,
 	"verbose"                       => \$verbose,
-	"large-index"                   => \$large_idx,
 	"log-file=s"                    => \$log_fName,
 	"help|h"                        => \$help
 );
