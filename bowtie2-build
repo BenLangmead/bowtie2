@@ -56,7 +56,9 @@ def build_args(bin_spec):
     parser.add_option("--large-index", action="store_true",
                       default=False, dest="large_index",
                       help="Force large index build.")
-    
+    parser.add_option("--debug", action="store_true",
+                      default=False, help="Run in debug mode.")
+
     (options, args) = parser.parse_args()
     if len(args) < 1:
         parser.error("Incorrect number of arguments!")
@@ -75,6 +77,10 @@ def main():
     build_bin_spec      = os.path.join(ex_path,build_bin_s)
     options,arguments   = build_args(build_bin_spec)
 
+    if options.debug:
+        build_bin_s += '-debug'
+        build_bin_l += '-debug'
+
     if options.large_index:
         logging.info("Force build a large index.")
         build_bin_spec = os.path.join(ex_path,build_bin_l)
@@ -86,7 +92,8 @@ def main():
             build_bin_spec = os.path.join(ex_path,build_bin_l)
         else:
             logging.info("Building a small index for %s" % ref_fname)
-    
+            build_bin_spec = os.path.join(ex_path,build_bin_s)
+
     arguments.insert(0, build_bin_name)
     os.execv(build_bin_spec, arguments)        
         
