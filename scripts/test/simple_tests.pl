@@ -4113,7 +4113,7 @@ my  $idx_type = "";
 	$args .= " -C" if $color;
 	$args .= " $reportargs";
 	if ($large_idx){
-	    $idx_type = "--large-index --";
+	    $idx_type = "--large-index";
 	}
 	# Write the reference to a fasta file
 	print "References:\n";
