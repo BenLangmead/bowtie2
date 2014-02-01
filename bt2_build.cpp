@@ -64,6 +64,7 @@ static bool packed;
 static bool writeRef;
 static bool justRef;
 static bool reverseEach;
+static string wrapper;
 
 static void resetOptions() {
 	verbose      = true;  // be talkative (default)
@@ -91,6 +92,7 @@ static void resetOptions() {
 	writeRef     = true;  // write compact reference to .3.gEbwt_ext/.4.gEbwt_ext
 	justRef      = false; // *just* write compact reference, don't index
 	reverseEach  = false;
+	wrapper.clear();
 }
 
 // Argument constants for getopts
@@ -105,7 +107,8 @@ enum {
 	ARG_NTOA,
 	ARG_USAGE,
 	ARG_REVERSE_EACH,
-	ARG_SA
+	ARG_SA,
+	ARG_WRAPPER
 };
 
 /**
@@ -113,22 +116,39 @@ enum {
  */
 static void printUsage(ostream& out) {
 	out << "Bowtie 2 version " << string(BOWTIE2_VERSION).c_str() << " by Ben Langmead (langmea@cs.jhu.edu, www.cs.jhu.edu/~langmea)" << endl;
-	out << "Usage: bowtie2-build [options]* <reference_in> <bt2_index_base>" << endl
+	
+#ifdef BOWTIE_64BIT_INDEX
+	string tool_name = "bowtie2-build-l";
+#else
+	string tool_name = "bowtie2-build-s";
+#endif
+	if(wrapper == "basic-0") {
+		tool_name = "bowtie2-build";
+	}
+	
+	//               1         2         3         4         5         6         7         8
+	//      12345678901234567890123456789012345678901234567890123456789012345678901234567890
+	out << "Usage: " << tool_name << " [options]* <reference_in> <bt2_index_base>" << endl
 	    << "    reference_in            comma-separated list of files with ref sequences" << endl
 	    << "    bt2_index_base          write " + gEbwt_ext + " data to files with this dir/basename" << endl
 		<< "*** Bowtie 2 indexes work only with v2 (not v1).  Likewise for v1 indexes. ***" << endl
 	    << "Options:" << endl
 	    << "    -f                      reference files are Fasta (default)" << endl
-	    << "    -c                      reference sequences given on cmd line (as <seq_in>)" << endl
-	    << "    -a/--noauto             disable automatic -p/--bmax/--dcv memory-fitting" << endl
-	    << "    -p/--packed             use packed strings internally; slower, uses less mem" << endl
+	    << "    -c                      reference sequences given on cmd line (as" << endl
+		<< "                            <reference_in>)" << endl;
+	if(wrapper == "basic-0") {
+	out << "    --large-index           force generated index to be 'large', even if ref" << endl
+		<< "                            has fewer than 4 billion nucleotides" << endl;
+	}
+	out << "    -a/--noauto             disable automatic -p/--bmax/--dcv memory-fitting" << endl
+	    << "    -p/--packed             use packed strings internally; slower, less memory" << endl
 	    << "    --bmax <int>            max bucket sz for blockwise suffix-array builder" << endl
 	    << "    --bmaxdivn <int>        max bucket sz as divisor of ref len (default: 4)" << endl
 	    << "    --dcv <int>             diff-cover period for blockwise (default: 1024)" << endl
 	    << "    --nodc                  disable diff-cover (algorithm becomes quadratic)" << endl
-	    << "    -r/--noref              don't build .3/.4." + gEbwt_ext + " (packed reference) portion" << endl
-	    << "    -3/--justref            just build .3/.4." + gEbwt_ext + " (packed reference) portion" << endl
-	    << "    -o/--offrate <int>      SA is sampled every 2^offRate BWT chars (default: 5)" << endl
+	    << "    -r/--noref              don't build .3/.4 index files" << endl
+	    << "    -3/--justref            just build .3/.4 index files" << endl
+	    << "    -o/--offrate <int>      SA is sampled every 2^<int> BWT chars (default: 5)" << endl
 	    << "    -t/--ftabchars <int>    # of chars consumed in initial lookup (default: 10)" << endl
 	    //<< "    --ntoa                  convert Ns in reference to As" << endl
 	    //<< "    --big --little          endianness (default: little, this host: "
@@ -139,6 +159,13 @@ static void printUsage(ostream& out) {
 	    << "    --usage                 print this usage message" << endl
 	    << "    --version               print version information and quit" << endl
 	    ;
+	if(wrapper.empty()) {
+		cerr << endl
+		     << "*** Warning ***" << endl
+			 << "'" << tool_name << "' was run directly.  It is recommended "
+			 << "that you run the wrapper script 'bowtie2-build' instead."
+			 << endl << endl;
+	}
 }
 
 static const char *short_options = "qraph?nscfl:i:o:t:h:3C";
@@ -171,6 +198,7 @@ static struct option long_options[] = {
 	{(char*)"sa",           no_argument,       0,            ARG_SA},
 	{(char*)"reverse-each", no_argument,       0,            ARG_REVERSE_EACH},
 	{(char*)"usage",        no_argument,       0,            ARG_USAGE},
+	{(char*)"wrapper",      required_argument, 0,            ARG_WRAPPER},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -200,14 +228,18 @@ static T parseNumber(T lower, const char *errmsg) {
 /**
  * Read command-line arguments
  */
-static void parseOptions(int argc, const char **argv) {
+static bool parseOptions(int argc, const char **argv) {
 	int option_index = 0;
 	int next_option;
+	bool abort = false;
 	do {
 		next_option = getopt_long(
 			argc, const_cast<char**>(argv),
 			short_options, long_options, &option_index);
 		switch (next_option) {
+			case ARG_WRAPPER:
+				wrapper = optarg;
+				break;
 			case 'f': format = FASTA; break;
 			case 'c': format = CMDLINE; break;
 			case 'p': packed = true; break;
@@ -237,7 +269,7 @@ static void parseOptions(int argc, const char **argv) {
 			case 'h':
 			case ARG_USAGE:
 				printUsage(cout);
-				throw 0;
+				abort = true;
 				break;
 			case ARG_BMAX:
 				bmax = parseNumber<TIndexOffU>(1, "--bmax arg must be at least 1");
@@ -287,6 +319,7 @@ static void parseOptions(int argc, const char **argv) {
 		     << "extremely slow performance and memory exhaustion.  Perhaps you meant to specify" << endl
 		     << "a small --bmaxdivn?" << endl;
 	}
+	return abort;
 }
 
 EList<string> filesWritten;
@@ -471,7 +504,9 @@ int bowtie_build(int argc, const char **argv) {
 		string infile;
 		EList<string> infiles(MISC_CAT);
 
-		parseOptions(argc, argv);
+		if(parseOptions(argc, argv)) {
+			return 0;
+		}
 		argv0 = argv[0];
 		if(showVersion) {
 			cout << argv0 << " version " << string(BOWTIE2_VERSION).c_str() << endl;
