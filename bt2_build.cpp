@@ -395,11 +395,13 @@ static void driver(
 		cerr << "Warning: All fasta inputs were empty" << endl;
 		throw 1;
 	}
+	if(!reverse) {
 #ifdef BOWTIE_64BIT_INDEX
-    cerr << "Building a LARGE index" << endl;
+		cerr << "Building a LARGE index" << endl;
 #else
-    cerr << "Building a SMALL index" << endl;
+		cerr << "Building a SMALL index" << endl;
 #endif
+	}
 	// Vector for the ordered list of "records" comprising the input
 	// sequences.  A record represents a stretch of unambiguous
 	// characters in one of the input sequences.
