@@ -21,87 +21,79 @@
 
 
 import os
+import sys
 import inspect
 import logging
-import subprocess
-from optparse import (OptionParser,BadOptionError,AmbiguousOptionError)
 
 
-class PassThroughOptionParser(OptionParser):
-    """
-    An unknown option pass-through implementation of OptionParser.
-    """
-    def _process_args(self, largs, rargs, values):
-        while rargs:
-            try:
-                OptionParser._process_args(self,largs,rargs,values)
-            except (BadOptionError,AmbiguousOptionError), e:
-                largs.append(e.opt_str)
-                
-    def format_epilog(self, formatter):
-        return self.epilog
-                
-
-def build_args(bin_spec):
+def build_args():
     """
     Parse the wrapper arguments. Returns the options,<programm arguments> tuple.
     """
-    usage = "bowtie2 wrapper by Ben Langmead (langmea@cs.jhu.edu, www.cs.jhu.edu/~langmea)\n"
-    usage += "\t%prog [wrapper options | program options] < program arguments>"
-    
-    p = subprocess.Popen([bin_spec,'-h'], stdout=subprocess.PIPE)
-    build_bin_help_msg = "\n\nProgram help:\n" + p.communicate()[0]  
-    
-    parser = PassThroughOptionParser(usage=usage, epilog=build_bin_help_msg)
-    parser.add_option("--large-index", action="store_true",
-                      default=False, dest="large_index",
-                      help="Force large index build.")
-    parser.add_option("--debug", action="store_true",
-                      default=False, help="Run in debug mode.")
 
-    (options, args) = parser.parse_args()
-    if len(args) < 1:
-        parser.error("Incorrect number of arguments!")
-    return(options, args)
+    parsed_args = {}
+    to_remove = []
+    argv = sys.argv[:]
+    for i, arg in enumerate(argv):
+        if arg == '--large-index':
+            parsed_args[arg] = ""
+            to_remove.append(i)
+        elif arg == '--debug':
+            parsed_args[arg] = ""
+            to_remove.append(i)
+        elif arg == '--verbose':
+            parsed_args[arg] = ""
+            to_remove.append(i)
+
+    for i in reversed(to_remove):
+        del argv[i]
+
+    return parsed_args, argv
 
 
 def main():
     logging.basicConfig(level=logging.INFO)
     delta               = 200
     small_index_max_size= 4 * 1024**3 - delta
-    build_bin_name      = "bowtie-build"
+    build_bin_name      = "bowtie2-build"
     build_bin_s         = "bowtie2-build-s"
     build_bin_l         = "bowtie2-build-l"
     curr_script         = os.path.realpath(inspect.getsourcefile(main))
     ex_path             = os.path.dirname(curr_script)
     build_bin_spec      = os.path.join(ex_path,build_bin_s)
-    options,arguments   = build_args(build_bin_spec)
 
-    if options.debug:
+    options, argv = build_args()
+
+    if '--debug' in options:
         build_bin_s += '-debug'
         build_bin_l += '-debug'
 
-    if options.large_index:
-        logging.info("Force build a large index.")
+    if '--large_index' in options:
+        #logging.info("Force build a large index.")
         build_bin_spec = os.path.join(ex_path,build_bin_l)
-    else:
-        ref_fname = arguments[-2]
-        statinfo = os.stat(ref_fname)
-        if statinfo.st_size > small_index_max_size:
-            logging.info("Building a large index for %s" % ref_fname)
+    elif len(argv) >= 2:
+        ref_fnames = argv[-2]
+        tot_size = 0
+        for fn in ref_fnames.split(','):
+            if os.path.exists(fn):
+                statinfo = os.stat(fn)
+                tot_size += statinfo.st_size
+        if tot_size > small_index_max_size:
+            #logging.info("Building a large index for %s" % ref_fname)
             build_bin_spec = os.path.join(ex_path,build_bin_l)
         else:
-            logging.info("Building a small index for %s" % ref_fname)
+            #logging.info("Building a small index for %s" % ref_fname)
             build_bin_spec = os.path.join(ex_path,build_bin_s)
 
-    arguments.insert(0, build_bin_name)
-    os.execv(build_bin_spec, arguments)        
-        
+    argv[0] = build_bin_spec
+    argv.insert(1, 'basic-0')
+    argv.insert(1, '--wrapper')
+    if '--verbose' in options:
+        print >> sys.stderr, 'Command: %s %s' % (build_bin_spec, ' '.join(argv))
+    os.execv(build_bin_spec, argv)
 
 if __name__ == "__main__":
     main()
-
-
 
 
 
