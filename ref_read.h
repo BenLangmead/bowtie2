@@ -35,6 +35,34 @@
 
 using namespace std;
 
+class RefTooLongException : public exception {
+
+public:
+	RefTooLongException() {
+#ifdef BOWTIE_64BIT_INDEX
+		// This should never happen!
+		msg = "Error: Reference sequence has more than 2^64-1 characters!  "
+		      "Please divide the reference into smaller chunks and index each "
+			  "independently.";
+#else
+		msg = "Error: Reference sequence has more than 2^32-1 characters!  "
+		      "Please build a large index by passing the --large-index option "
+			  "to bowtie2-build";
+#endif
+	}
+	
+	~RefTooLongException() throw() {}
+	
+	const char* what() const throw() {
+		return msg.c_str();
+	}
+
+protected:
+	
+	string msg;
+	
+};
+
 /**
  * Encapsulates a stretch of the reference containing only unambiguous
  * characters.  From an ordered list of RefRecords, one can (almost)

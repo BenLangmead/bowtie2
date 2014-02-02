@@ -35,7 +35,7 @@ RefRecord fastaRefReadSize(
 	static int lastc = '>'; // last character seen
 
 	// RefRecord params
-	size_t len = 0; // 'len' counts toward total length
+	TIndexOffU len = 0; // 'len' counts toward total length
 	// 'off' counts number of ambiguous characters before first
 	// unambiguous character
 	size_t off = 0;
@@ -150,6 +150,10 @@ RefRecord fastaRefReadSize(
 		if(cat == 1) {
 			// It's a DNA character
 			assert(cc == 'A' || cc == 'C' || cc == 'G' || cc == 'T');
+			// Check for overflow
+			if((TIndexOffU)(len + 1) < len) {
+				throw RefTooLongException();
+			}
 			// Consume it
 			len++;
 			// Output it
@@ -284,15 +288,15 @@ fastaRefReadSizes(
 		assert(!in[i]->eof());
 		// For each pattern in this istream
 		while(!in[i]->eof()) {
-			RefRecord rec = fastaRefReadSize(*in[i], rparms, first, bpout);
-			if((unambigTot + rec.len) < unambigTot) {
-#ifdef BOWTIE_64BIT_INDEX
-				cerr << "Error: Reference sequence has more than 2^64-1 characters!  Please divide the" << endl
-				     << "reference into smaller chunks and index each independently." << endl;
-#else
-				cerr << "Error: Reference sequence has more than 2^32-1 characters!  Please try to build" << endl
-				     << "a larger index instead by using the appropiate binary." << endl;
-#endif
+			RefRecord rec;
+			try {
+				rec = fastaRefReadSize(*in[i], rparms, first, bpout);
+				if((unambigTot + rec.len) < unambigTot) {
+					throw RefTooLongException();
+				}
+			}
+			catch(RefTooLongException& e) {
+				cerr << e.what() << endl;
 				throw 1;
 			}
 			// Add the length of this record.
