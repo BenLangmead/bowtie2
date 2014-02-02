@@ -69,7 +69,6 @@ def main():
         build_bin_l += '-debug'
 
     if '--large-index' in options:
-        #logging.info("Force build a large index.")
         build_bin_spec = os.path.join(ex_path,build_bin_l)
     elif len(argv) >= 2:
         ref_fnames = argv[-2]
@@ -79,10 +78,8 @@ def main():
                 statinfo = os.stat(fn)
                 tot_size += statinfo.st_size
         if tot_size > small_index_max_size:
-            #logging.info("Building a large index for %s" % ref_fname)
             build_bin_spec = os.path.join(ex_path,build_bin_l)
         else:
-            #logging.info("Building a small index for %s" % ref_fname)
             build_bin_spec = os.path.join(ex_path,build_bin_s)
 
     argv[0] = build_bin_spec
