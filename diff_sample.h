@@ -633,7 +633,7 @@ void DifferenceCoverSample<TStr>::buildSPrime(
 	// mapping; where the mapping would leave a blank, insert a 0
 	TIndexOffU added = 0;
 	TIndexOffU i = 0;
-	for(TIndexOffU ti = 0; ti <= tlen; ti += v) {
+	for(uint64_t ti = 0; ti <= tlen; ti += v) {
 		for(uint32_t di = 0; di < d; di++) {
 			TIndexOffU tti = ti + ds[di];
 			if(tti > tlen) break;
