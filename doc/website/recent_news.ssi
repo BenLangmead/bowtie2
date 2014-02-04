@@ -108,24 +108,3 @@ are specified at the same time.</li>
 <li>Fixed race condition in <tt>bowtie2</tt> script when named pipes are used.</li>
 <li>Added more discussion of whitespace in read names to manual.</li>
 </ul>
-
-<h2>Sourceforge spam</h2>
-<ul>
-<li>Spam on the sourceforge tracker (i.e. where feature requests and bug
-    reports go) was getting out of control, so I disabled posting by anonymous
-	users.  This means you'll have to use some set of credentials when posting
-	on the tracker.  Sourceforge allows you to use various, e.g., your Google
-	credentials.   Sorry for the invonvenience, but I think this will make the
-	experience better overall.
-</ul>
-
-<h2>Version 2.0.2 - October 31, 2012</h2>
-<ul>
- <li>Fixes a couple small issues pointed out to me immediately after 2.0.1
-     release</li>
- <li>Mac binaries now built on 10.6 in order to be forward-compatible with more
-     Mac OS versions</li>
- <li>Small changes to source to make it compile with gcc versions up to 4.7
-     without warnings</li>
-</ul>
-
