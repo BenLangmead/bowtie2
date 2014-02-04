@@ -2461,6 +2461,8 @@ a comma-separated list of sequences rather than a list of FASTA files.
 </td></tr>
 </td></tr><tr><td id="bowtie2-build-options-large-index">
 
+[`--large-index`]: #bowtie2-build-options-large-index
+
     --large-index
 
 </td><td>
