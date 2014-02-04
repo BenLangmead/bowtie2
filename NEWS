@@ -32,6 +32,10 @@ Version 2.2.0 - February 6, 2014
    * Credits to the Intel(r) enabling team for performance optimizations
      included in this release.  Thank you!
 
+Bowtie 2 on GitHub - February 4, 2014
+   * Bowtie 2 source now lives in a public GitHub repository:
+     https://github.com/BenLangmead/bowtie2.
+
 Version 2.1.0 - February 21, 2013
    * Improved multithreading support so that Bowtie 2 now uses native Windows
      threads when compiled on Windows and uses a faster mutex.  Threading
