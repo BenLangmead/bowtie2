@@ -143,10 +143,10 @@ Obtaining Bowtie 2
 ==================
 
 Download Bowtie 2 sources and binaries from the [Download] section of the
-Sourceforge site.  Binaries are available for Intel architectures (`i386` and
-`x86_64`) running Linux, and Mac OS X.  A 32-bit version is available for
-Windows.  If you plan to compile Bowtie 2 yourself, make sure to get the source
-package, i.e., the filename that ends in "-source.zip".
+Sourceforge site.  Binaries are available for the Intel `x86_64` architecture
+running Linux, Mac OS X, and Windows.  If you plan to compile Bowtie 2 yourself,
+make sure to get the source package, i.e., the filename that ends in
+"-source.zip".
 
 Building from source
 --------------------
@@ -790,12 +790,11 @@ Performance tuning
 
     If you are using [`-k`] or [`-a`] options and Bowtie 2 is reporting many
     alignments per read, using an index with a denser SA sample can speed
-    things up considerably.
-
-    To do this, specify a smaller-than-default [`-o`/`--offrate`](#bowtie2-build-options-o) value
-    when running `bowtie2-build`.  A denser SA sample yields a larger
-    index, but is also particularly effective at speeding up alignment
-    when many alignments are reported per read.
+    things up considerably.  To do this, specify a smaller-than-default
+    [`-o`/`--offrate`](#bowtie2-build-options-o) value when running `bowtie2-build`.
+    A denser SA sample yields a larger index, but is also particularly
+    effective at speeding up alignment when many alignments are reported per
+    read.
 
 3.  If `bowtie2` "thrashes", try increasing `bowtie2-build --offrate`
 
@@ -2395,13 +2394,6 @@ will decide which based on the length of the input genome.  If the reference
 does not exceed 4 billion characters but a large index is preferred,  the user
 can specify [`--large-index`] to force `bowtie2-build` to build a large index
 instead.
-
-If your computer has more than 3-4 GB of memory and you would like to exploit
-that fact to make index building faster, use a 64-bit version of the
-`bowtie2-build` binary.  The 32-bit version of the binary is restricted to using
-less than 4 GB of memory.  If a 64-bit pre-built binary does not yet exist for
-your platform on the sourceforge download site, you will need to build one from
-source.
 
 The Bowtie 2 index is based on the [FM Index] of Ferragina and Manzini, which in
 turn is based on the [Burrows-Wheeler] transform.  The algorithm used to build
