@@ -749,8 +749,8 @@ For datasets consisting of pairs, the summary might look like this:
 
 The indentation indicates how subtotals relate to totals.
 
-Wrapper
--------
+Wrapper scripts
+---------------
 
 The `bowtie2`, `bowtie2-build` and `bowtie2-inspect` executables are actually 
 wrapper scripts that call binary programs as appropriate.  The wrappers shield
@@ -2382,16 +2382,11 @@ profitable trade-offs depending on the application.  They have been set to
 defaults that are reasonable for most cases according to our experiments.  See
 [Performance tuning] for details.
 
-`bowtie2-build` can generate small and large indexes and the wrapper will try 
-to guess which one will better suit the input data. Small indexes are using 
-32-bit pointers internally, and it can therefore handle up to a theoretical 
-maximum of 2^32-1 (somewhat more than 4 billion) characters in an index, 
-though, with other constraints, the actual ceiling is somewhat less than that. 
-Large indexes are using 64-bit pointers internally and will therefore raise the
-theoretical maximum to 2^64-1 chars in an index (over 18 quintillion). If the  
-reference does not exceeds 2^32-1 characters but a large index is still prefered 
-the user can use the `--large-index` option to enforce `bowtie2-build` to build 
-a large index instead.
+`bowtie2-build` can generate either [small or large indexes](#small-and-large-indexes).  The wrapper
+will decide which based on the length of the input genome.  If the reference
+does not exceed 4 billion characters but a large index is preferred,  the user
+can specify [`--large-index`] to force `bowtie2-build` to build a large index
+instead.
 
 If your computer has more than 3-4 GB of memory and you would like to exploit
 that fact to make index building faster, use a 64-bit version of the
