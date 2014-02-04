@@ -753,12 +753,26 @@ Wrapper
 -------
 
 The `bowtie2`, `bowtie2-build` and `bowtie2-inspect` executables are actually 
-wrapper scripts that call the corresponding binaries. They will generally 
-try to use by default a small index but they will switch to the usage of a large
-one if necesary. Also the usage of a large index can be enforced with the 
-`--large-index` option.
+wrapper scripts that call binary programs as appropriate.  The wrappers shield
+users from having to distinguish between "small" and "large" index formats,
+discussed briefly in the following section.  Also, the `bowtie2` wrapper
+provides some key functionality, like the ability to handle compressed inputs,
+and the fucntionality for [`--un`], [`--al`] and related options.
+
 It is recommended that you always run the bowtie2 wrappers and not run the
 binaries directly.
+
+Small and large indexes
+-----------------------
+
+`bowtie2-build` can index reference genomes of any size.  For genomes less than
+about 4 billion nucleotides in length, `bowtie2-build` builds a "small" index
+using 32-bit numbers in various parts of the index.  When the genome is longer,
+`bowtie2-build` builds a "large" index using 64-bit numbers.  Small indexes are
+stored in files with the `.bt2` extension, and large indexes are stored in
+files with the `.bt2l` extension.  The user need not worry about whether a
+particular index is small or large; the wrapper scripts will automatically build
+and use the appropriate index.
 
 Performance tuning
 ------------------
