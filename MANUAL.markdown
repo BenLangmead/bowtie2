@@ -788,7 +788,7 @@ Performance tuning
 2.  If reporting many alignments per read, try reducing
     `bowtie2-build --offrate`
 
-    If you are using [`-k`] or [`-a`] optionsand Bowtie 2 is reporting many
+    If you are using [`-k`] or [`-a`] options and Bowtie 2 is reporting many
     alignments per read, using an index with a denser SA sample can speed
     things up considerably.
 
@@ -797,19 +797,11 @@ Performance tuning
     index, but is also particularly effective at speeding up alignment
     when many alignments are reported per read.
 
-    On the other hand, decreasing [`-o`/`--offrate`](#bowtie2-build-options-o) increases the size
-    of the index, both on disk and in memory when aligning
-    reads.  At the default [`-o`/`--offrate`](#bowtie2-build-options-o) of 5, the SA sample for the
-    human genome occupies about 375 MB of memory when aligning reads.
-    Decreasing the [`-o`/`--offrate`](#bowtie2-build-options-o) by 1 doubles the memory taken by
-    the SA sample, and decreasing by 2 quadruples the memory taken,
-    etc.
-
 3.  If `bowtie2` "thrashes", try increasing `bowtie2-build --offrate`
 
-    If `bowtie2` runs very slowly on a relatively low-memory computer,
-    try setting [`-o`/`--offrate`] to a *larger* value when building
-    the index.  This decreases the memory footprint of the index.
+    If `bowtie2` runs very slowly on a relatively low-memory computer, try
+    setting [`-o`/`--offrate`] to a *larger* value when building the index.
+    This decreases the memory footprint of the index.
 
 Command Line
 ------------
