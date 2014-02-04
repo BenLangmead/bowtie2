@@ -777,23 +777,39 @@ and use the appropriate index.
 Performance tuning
 ------------------
 
-1.  Use 64-bit version if possible
-
-    The 64-bit version of Bowtie 2 is faster than the 32-bit version, owing to
-    its use of 64-bit arithmetic.  If possible, download the 64-bit binaries for
-    Bowtie 2 and run on a 64-bit computer.  If you are building Bowtie 2 from
-    sources, you may need to pass the `-m64` option to `g++` to compile the
-    64-bit version; you can do this by including `BITS=64` in the arguments to
-    the `make` command; e.g.: `make BITS=64 bowtie2`.  To determine whether your
-    version of bowtie is 64-bit or 32-bit, run `bowtie2 --version`.
-
-2.  If your computer has multiple processors/cores, use `-p`
+1.  If your computer has multiple processors/cores, use `-p`
 
     The [`-p`] option causes Bowtie 2 to launch a specified number of parallel
     search threads.  Each thread runs on a different processor/core and all
     threads find alignments in parallel, increasing alignment throughput by
     approximately a multiple of the number of threads (though in practice,
     speedup is somewhat worse than linear).
+
+2.  If reporting many alignments per read, try reducing
+    `bowtie2-build --offrate`
+
+    If you are using [`-k`] or [`-a`] optionsand Bowtie 2 is reporting many
+    alignments per read, using an index with a denser SA sample can speed
+    things up considerably.
+
+    To do this, specify a smaller-than-default [`-o`/`--offrate`](#bowtie2-build-options-o) value
+    when running `bowtie2-build`.  A denser SA sample yields a larger
+    index, but is also particularly effective at speeding up alignment
+    when many alignments are reported per read.
+
+    On the other hand, decreasing [`-o`/`--offrate`](#bowtie2-build-options-o) increases the size
+    of the index, both on disk and in memory when aligning
+    reads.  At the default [`-o`/`--offrate`](#bowtie2-build-options-o) of 5, the SA sample for the
+    human genome occupies about 375 MB of memory when aligning reads.
+    Decreasing the [`-o`/`--offrate`](#bowtie2-build-options-o) by 1 doubles the memory taken by
+    the SA sample, and decreasing by 2 quadruples the memory taken,
+    etc.
+
+3.  If `bowtie2` "thrashes", try increasing `bowtie2-build --offrate`
+
+    If `bowtie2` runs very slowly on a relatively low-memory computer,
+    try setting [`-o`/`--offrate`] to a *larger* value when building
+    the index.  This decreases the memory footprint of the index.
 
 Command Line
 ------------
