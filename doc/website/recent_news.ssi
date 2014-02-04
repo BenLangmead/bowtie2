@@ -1,3 +1,22 @@
+<h2>Version 2.2.0 - February 6, 2013</h2>
+<ul>
+   <li>Improved index querying efficiency using "population count"
+       instructions available since
+       <a href="http://en.wikipedia.org/wiki/SSE4.2#SSE4.2">SSE4.2</a></li>
+   <li>Added support for large and small indexes, removing 4-billion-nucleotide
+       barrier.  Bowtie 2 can now be used with reference genomes of any size.</li>
+   <li>Fixed bug that could cause bowtie2-build to crash when reference length
+       is close to 4 billion.</li>
+   <li>Added a <tt>CL:</tt> string to the <tt>@PG</tt> SAM header to preserve information about
+       the aligner binary and paramteres.</li>
+   <li>Fixed bug that could cause <tt>bowtie2-build</tt> to crash when reference length
+       is close to 4 billion.</li>
+   <li>No longer releasing 32-bit binaries.  Simplified manual and Makefile
+       accordingly.</li>
+   <li>Credits to the Intel&reg; enabling team for performance optimizations
+       included in this release.  Thank you!</li>
+</ul>
+
 <h2>Version 2.1.0 - February 21, 2013</h2>
 <ul>
    <li>Improved multithreading support so that Bowtie 2 now uses native Windows
@@ -10,7 +29,7 @@
      can always be recompiled with <tt>EXTRA_FLAGS="-DNO_SPINLOCK"</tt> in
 	 order to drop the default spinlock usage.
 </ul>  
-   
+
 <h2>Version 2.0.6 - January 27, 2013</h2>
 <ul>
  <li>Fixed issue whereby spurious output would be written in
