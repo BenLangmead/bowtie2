@@ -2459,6 +2459,16 @@ The reference sequences are given on the command line.  I.e. `<reference_in>` is
 a comma-separated list of sequences rather than a list of FASTA files.
 
 </td></tr>
+</td></tr><tr><td id="bowtie2-build-options-large-index">
+
+    --large-index
+
+</td><td>
+
+Force `bowtie2-build` to build a [large index](#small-and-large-indexes), even if the reference is less
+than ~ 4 billion nucleotides inlong.
+
+</td></tr>
 <tr><td id="bowtie2-build-options-a">
 
 [`-a`/`--noauto`]: #bowtie2-build-options-a
