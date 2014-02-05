@@ -130,10 +130,9 @@ BUILD_CPPS_MAIN = $(BUILD_CPPS) bowtie_build_main.cpp
 SEARCH_FRAGMENTS = $(wildcard search_*_phase*.c)
 VERSION = $(shell cat VERSION)
 
-# Convert BITS=?? to a -m flag
 BITS=32
 ifeq (x86_64,$(shell uname -m))
-BITS=64
+	BITS=64
 endif
 # msys will always be 32 bit so look at the cpu arch instead.
 ifneq (,$(findstring AMD64,$(PROCESSOR_ARCHITEW6432)))
@@ -141,20 +140,15 @@ ifneq (,$(findstring AMD64,$(PROCESSOR_ARCHITEW6432)))
 		BITS=64
 	endif
 endif
-BITS_FLAG =
-
 ifeq (32,$(BITS))
-	BITS_FLAG = -m32
+	$(error bowtie2 compilation requires a 64-bit platform )
 endif
 
-ifeq (64,$(BITS))
-	BITS_FLAG = -m64
-endif
 SSE_FLAG=-msse2 
 
-DEBUG_FLAGS    = -O0 -g3 $(BITS_FLAG) $(SSE_FLAG)
+DEBUG_FLAGS    = -O0 -g3 -m64 $(SSE_FLAG)
 DEBUG_DEFS     = -DCOMPILER_OPTIONS="\"$(DEBUG_FLAGS) $(EXTRA_FLAGS)\""
-RELEASE_FLAGS  = -O3 $(BITS_FLAG) $(SSE_FLAG) -funroll-loops -g3
+RELEASE_FLAGS  = -O3 -m64 $(SSE_FLAG) -funroll-loops -g3
 RELEASE_DEFS   = -DCOMPILER_OPTIONS="\"$(RELEASE_FLAGS) $(EXTRA_FLAGS)\""
 NOASSERT_FLAGS = -DNDEBUG
 FILE_FLAGS     = -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
@@ -394,8 +388,8 @@ bowtie2-bin: $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)
 	fi
 	mv tmp.zip .bin.tmp/bowtie2-$(VERSION)
 	cd .bin.tmp/bowtie2-$(VERSION) ; unzip tmp.zip ; rm -f tmp.zip
-	cd .bin.tmp ; zip -r bowtie2-$(VERSION)-$(BITS).zip bowtie2-$(VERSION)
-	cp .bin.tmp/bowtie2-$(VERSION)-$(BITS).zip .
+	cd .bin.tmp ; zip -r bowtie2-$(VERSION).zip bowtie2-$(VERSION)
+	cp .bin.tmp/bowtie2-$(VERSION).zip .
 	rm -rf .bin.tmp
 
 bowtie2-seeds-debug: aligner_seed.cpp ccnt_lut.cpp alphabet.cpp aligner_seed.h bt2_idx.cpp bt2_io.cpp
