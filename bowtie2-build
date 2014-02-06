@@ -52,7 +52,9 @@ def build_args():
 
 
 def main():
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.ERROR,
+                        format='%(levelname)s: %(message)s'
+                        )
     delta               = 200
     small_index_max_size= 4 * 1024**3 - delta
     build_bin_name      = "bowtie2-build"
@@ -64,6 +66,9 @@ def main():
 
     options, argv = build_args()
 
+    if '--verbose' in options:
+        logging.getLogger().setLevel(logging.INFO)
+        
     if '--debug' in options:
         build_bin_s += '-debug'
         build_bin_l += '-debug'
@@ -79,14 +84,11 @@ def main():
                 tot_size += statinfo.st_size
         if tot_size > small_index_max_size:
             build_bin_spec = os.path.join(ex_path,build_bin_l)
-        else:
-            build_bin_spec = os.path.join(ex_path,build_bin_s)
 
     argv[0] = build_bin_spec
     argv.insert(1, 'basic-0')
     argv.insert(1, '--wrapper')
-    if '--verbose' in options:
-        print >> sys.stderr, 'Command: %s %s' % (build_bin_spec, ' '.join(argv))
+    logging.info('Command: %s %s' % (build_bin_spec, ' '.join(argv)))
     os.execv(build_bin_spec, argv)
 
 if __name__ == "__main__":

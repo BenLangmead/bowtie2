@@ -28,7 +28,9 @@ import logging
 
 
 def main():
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.ERROR,
+                        format='%(levelname)s: %(message)s'
+                        )
     inspect_bin_name      = "bowtie-inspect"
     inspect_bin_s         = "bowtie2-inspect-s"
     inspect_bin_l         = "bowtie2-inspect-l"
@@ -38,20 +40,22 @@ def main():
     ex_path               = os.path.dirname(curr_script)
     inspect_bin_spec      = os.path.join(ex_path,inspect_bin_s)
     bld                   = imp.load_source('bowtie2-build',os.path.join(ex_path,'bowtie2-build'))
-    options,arguments     = bld.build_args(inspect_bin_spec)
+    options,arguments     = bld.build_args()
 
-    if options.large_index:
-        logging.info("Inspect the large index.")
+    if '--verbose' in options:
+        logging.getLogger().setLevel(logging.INFO)
+        
+    if '--large-index' in options:
         inspect_bin_spec = os.path.join(ex_path,inspect_bin_l)
-    else:
+    elif len(arguments) >= 1:
         idx_basename = arguments[-1]
-        if os.path.exists(idx_basename + idx_ext_s):
-            logging.info("Inspect the small index for %s" % idx_basename)
-        else:
-            logging.info("Inspect the large index for %s" % idx_basename)
+        if os.path.exists(idx_basename + idx_ext_l):
             inspect_bin_spec = os.path.join(ex_path,inspect_bin_l)
     
     arguments.insert(0, inspect_bin_name)
+    arguments.insert(1, 'basic-0')
+    arguments.insert(1, '--wrapper')
+    logging.info('Command: %s %s' % (inspect_bin_spec, ' '.join(arguments)))
     os.execv(inspect_bin_spec, arguments)        
         
 
