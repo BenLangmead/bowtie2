@@ -53,16 +53,18 @@ def main():
         inspect_bin_spec = os.path.join(ex_path,inspect_bin_l)
     elif len(arguments) >= 1:
         idx_basename = arguments[-1]
-        if os.path.exists(idx_basename + idx_ext_l):
+        large_idx_exists = os.path.exists(idx_basename + idx_ext_l)
+        small_idx_exists = os.path.exists(idx_basename + idx_ext_s)
+        if large_idx_exists and not small_idx_exists:
             inspect_bin_spec = os.path.join(ex_path,inspect_bin_l)
     
-    arguments.insert(0, inspect_bin_name)
+    arguments[0] = inspect_bin_name
     arguments.insert(1, 'basic-0')
     arguments.insert(1, '--wrapper')
-    logging.info('Command: %s %s' % (inspect_bin_spec, ' '.join(arguments)))
+    logging.info('Command: %s %s' %  (inspect_bin_spec,' '.join(arguments[1:])))
     os.execv(inspect_bin_spec, arguments)        
         
-
+        
 if __name__ == "__main__":
     main()
 
