@@ -85,10 +85,10 @@ def main():
         if tot_size > small_index_max_size:
             build_bin_spec = os.path.join(ex_path,build_bin_l)
 
-    argv[0] = build_bin_spec
+    argv[0] = build_bin_name
     argv.insert(1, 'basic-0')
     argv.insert(1, '--wrapper')
-    logging.info('Command: %s %s' % (build_bin_spec, ' '.join(argv)))
+    logging.info('Command: %s %s' % (build_bin_spec, ' '.join(argv[1:])))
     os.execv(build_bin_spec, argv)
 
 if __name__ == "__main__":
