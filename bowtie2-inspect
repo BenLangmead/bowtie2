@@ -45,6 +45,10 @@ def main():
     if '--verbose' in options:
         logging.getLogger().setLevel(logging.INFO)
         
+    if '--debug' in options:
+        inspect_bin_spec += '-debug'
+        inspect_bin_l += '-debug'
+        
     if '--large-index' in options:
         inspect_bin_spec = os.path.join(ex_path,inspect_bin_l)
     elif len(arguments) >= 1:

@@ -70,7 +70,7 @@ def main():
         logging.getLogger().setLevel(logging.INFO)
         
     if '--debug' in options:
-        build_bin_s += '-debug'
+        build_bin_spec += '-debug'
         build_bin_l += '-debug'
 
     if '--large-index' in options:
