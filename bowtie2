@@ -113,11 +113,6 @@ if(!$saw_dd) {
 	@bt2w_args= ();
 }
 
-if (@bt2_args == 0){
-    usage();
-    Fail("Failed to find bowtie2 options!\n");   
-}
-
 my $debug = 0;
 my %read_fns = ();
 my %read_compress = ();
@@ -257,13 +252,6 @@ GetOptionsFromArray(
 	"help|h"                        => \$help
 );
 
-if ($help) {
-    usage();
-    print "\n\n";
-    print "Bowtie2 options:\n";
-    system("$align_prog_s -h");
-    Fail("end full help message.\n")
-}
 
 my $old_stderr;
 
@@ -290,26 +278,6 @@ sub cat_file($$) {
 	}
 	while(readline $ifh) { print {$ofh} $_; }
 	close($ifh);
-}
-
-sub usage {
-    print "bowtie2 wrapper, by Ben Langmead (langmea\@cs.jhu.edu, www.cs.jhu.edu/~langmea)\n\n";
-    print "Usage:\n";
-    print "bowtie2 [wrapper options] -- [bowtie2 options]\n";
-    print "\n";
-    print "Wrapper Options:\n";    
-    print "--help/-h\t\t\t : print full help.\n";
-    print "--reads <reads>\t\t\t : Same as bowtie2 -U option.\n";
-    print "--temp-directory <tmp_dir>\t : Set temporary working directory.\n";
-    print "--bam\t\t\t\t : Output bam format.\n";
-    print "--no-named-pipes\t\t : Not use named pipes.\n";
-    print "--ref-string <ref_string>\t : Use <ref_string> as a reference.\n";
-    print "--reference-string <ref_string>\t : Same as --ref-string\n";
-    print "--keep\t\t\t\t : Keep intermediary results.\n"; 
-    print "--verbose\t\t\t : Set the verbose mode.\n";
-    print "--large-index\t\t\t : Force the use of the small index.\n";
-    print "--log-file <log_file>\t\t : Save log messages into <log_file>.\n";
-    print "\n";
 }
 
 # Return non-zero if and only if the input should be wrapped (i.e. because
@@ -346,7 +314,7 @@ sub Extract_IndexName_From {
             return $_[$i+1];
         }
     }
-    Fail("Cannot find any index option (--reference-string, --ref-string or -x) in the given command line.\n");    
+    Info("Cannot find any index option (--reference-string, --ref-string or -x) in the given command line.\n");    
 }
 
 if(wrapInput(\@unps, \@mate1s, \@mate2s)) {
