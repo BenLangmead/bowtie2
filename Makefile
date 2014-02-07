@@ -186,7 +186,7 @@ GENERAL_LIST = $(wildcard scripts/*.sh) \
                VERSION
 
 ifeq (1,$(WINDOWS))
-	BOWTIE2_BIN_LIST := $(BOWTIE2_BIN_LIST) bowtie2.bat
+	BOWTIE2_BIN_LIST := $(BOWTIE2_BIN_LIST) bowtie2.bat bowtie2-build.bat bowtie2-inspect.bat 
 endif
 
 # This is helpful on Windows under MinGW/MSYS, where Make might go for
@@ -362,6 +362,14 @@ bowtie2-dp-debug: bt2_dp.cpp $(HEADERS) $(SHARED_CPPS) $(DP_CPPS)
 bowtie2.bat:
 	echo "@echo off" > bowtie2.bat
 	echo "perl %~dp0/bowtie2 %*" >> bowtie2.bat
+
+bowtie2-build.bat:
+	echo "@echo off" > bowtie2-build.bat
+	echo "python %~dp0/bowtie2-build %*" >> bowtie2-build.bat
+
+bowtie2-inspect.bat:
+	echo "@echo off" > bowtie2-inspect.bat
+	echo "python %~dp0/bowtie2-inspect %*" >> bowtie2-inspect.bat
 
 .PHONY: bowtie2-src
 bowtie2-src: $(SRC_PKG_LIST)
