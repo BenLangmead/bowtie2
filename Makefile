@@ -166,6 +166,7 @@ BOWTIE2_BIN_LIST_AUX = bowtie2-build-s-debug \
 
 GENERAL_LIST = $(wildcard scripts/*.sh) \
                $(wildcard scripts/*.pl) \
+               $(wildcard scripts/test/*) \
                doc/manual.html \
                doc/README \
                doc/style.css \
@@ -175,7 +176,7 @@ GENERAL_LIST = $(wildcard scripts/*.sh) \
 			   example/reference/lambda_virus.fa \
                $(PTHREAD_PKG) \
 			   bowtie2 \
-			   bowtie2-align \
+			   bowtie2-build \
 			   bowtie2-inspect \
                AUTHORS \
                LICENSE \
