@@ -59,7 +59,7 @@ endif
 POPCNT_CAPABILITY ?= 1
 ifeq (1, $(POPCNT_CAPABILITY))
     EXTRA_FLAGS += -DPOPCNT_CAPABILITY
-    INC += -I third_party/macos
+    INC += -I third_party
 endif
 
 MM_DEF = 
@@ -139,7 +139,7 @@ ifneq (,$(findstring AMD64,$(PROCESSOR_ARCHITEW6432)))
 	endif
 endif
 ifeq (32,$(BITS))
-	$(error bowtie2 compilation requires a 64-bit platform )
+  $(error bowtie2 compilation requires a 64-bit platform )
 endif
 
 SSE_FLAG=-msse2 
@@ -167,6 +167,7 @@ BOWTIE2_BIN_LIST_AUX = bowtie2-build-s-debug \
 GENERAL_LIST = $(wildcard scripts/*.sh) \
                $(wildcard scripts/*.pl) \
                $(wildcard scripts/test/*) \
+               $(wildcard third_party/*) \
                doc/manual.html \
                doc/README \
                doc/style.css \
