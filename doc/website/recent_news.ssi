@@ -15,6 +15,10 @@
        accordingly.</li>
    <li>Credits to the Intel&reg; enabling team for performance optimizations
        included in this release. Thank you!</li>
+   <li>Phased out CygWin support. MinGW can still be used for Windows building.</li>
+   <li>Added the .bat generation for Windows.</li>
+   <li>Fixed some issues with some uncommon chars in fasta files.</li>
+   <li>Fixed wrappers so bowtie can now be used with symlinks.</li>
 </ul>
 
 <h2>Bowtie 2 on GitHub - February 4, 2014</h2>

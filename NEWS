@@ -33,8 +33,7 @@ Version 2.2.0 - February 10, 2014
      included in this release.  Thank you!
    * Phased out CygWin support.
    * Added the .bat generation for Windows.
-   * Fixed issue with very large one sequence reference.
-   * Fixed some issues with rare chars in fasta files.
+   * Fixed some issues with some uncommon chars in fasta files.
    * Fixed wrappers so bowtie can now be used with symlinks.
 
 Bowtie 2 on GitHub - February 4, 2014
