@@ -166,7 +166,6 @@ BOWTIE2_BIN_LIST_AUX = bowtie2-build-s-debug \
 
 GENERAL_LIST = $(wildcard scripts/*.sh) \
                $(wildcard scripts/*.pl) \
-               $(wildcard scripts/test/*) \
                $(wildcard third_party/*) \
                doc/manual.html \
                doc/README \
