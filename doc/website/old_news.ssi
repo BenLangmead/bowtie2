@@ -1,3 +1,55 @@
+<h2>Sourceforge spam</h2>
+<ul>
+<li>Spam on the sourceforge tracker (i.e. where feature requests and bug
+    reports go) was getting out of control, so I disabled posting by anonymous
+	users.  This means you'll have to use some set of credentials when posting
+	on the tracker.  Sourceforge allows you to use various, e.g., your Google
+	credentials.   Sorry for the invonvenience, but I think this will make the
+	experience better overall.
+</ul>
+
+<h2>Version 2.0.2 - October 31, 2012</h2>
+<ul>
+ <li>Fixes a couple small issues pointed out to me immediately after 2.0.1
+     release</li>
+ <li>Mac binaries now built on 10.6 in order to be forward-compatible with more
+     Mac OS versions</li>
+ <li>Small changes to source to make it compile with gcc versions up to 4.7
+     without warnings</li>
+</ul>
+
+<h2>Version 2.0.1 - October 31, 2012</h2>
+<ul>
+ <li>First non-beta release.</li>
+ <li>Fixed an issue that would cause Bowtie 2 to use excessive amounts of
+     memory for closely-matching and highly repetitive reads under some
+     circumstances.</li>
+ <li>Fixed a bug in
+     <tt><a href="manual.shtml#bowtie2-options-mm">--mm</a></tt>
+      mode that would fail to report when an index file
+     could not be memory-mapped.</li>
+ <li>Added
+     <tt><a href="manual.shtml#bowtie2-options-non-deterministic">--non-deterministic</a></tt>
+	 option, which better matches how some users
+     expect the pseudo-random generator inside Bowtie 2 to work.  Normally, if
+     you give the same read (same name, sequence and qualities) and
+	 <tt><a href="manual.shtml#bowtie2-options-seed">--seed</a></tt>, you
+     get the same answer.  
+     <tt><a href="manual.shtml#bowtie2-options-non-deterministic">--non-deterministic</a></tt>
+	 breaks that guarantee.  This can
+     be more appropriate for datasets where the input contains many identical
+     reads (same name, same sequence, same qualities).</li>
+ <li>Fixed a bug in <tt>bowtie2-build</tt> would yield corrupt index files when memory
+     settings were adjusted in the middle of indexing.</li>
+ <li>Clarified in manual that <tt>--un-*</tt> options print reads exactly as
+     they appeared in the input, and that they are not necessarily written in
+     the same order as they appeared in the input.</li>
+ <li>Fixed issue whereby wrapper would incorrectly interpret arguments with
+     <tt>--al</tt> as a prefix (e.g.
+	 <tt><a href="manual.shtml#bowtie2-options-a">--all</a></tt>) as
+	 <tt><a href="manual.shtml#bowtie2-options-al">--al</a></tt>.</li>
+</ul>
+
 <h2>Version 2.0.0-beta7 - July 13, 2012</h2>
 <ul>
  <li>Fixed an issue in how Bowtie 2 aligns longer reads in

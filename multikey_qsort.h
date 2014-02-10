@@ -26,6 +26,7 @@
 #include "assert_helpers.h"
 #include "diff_sample.h"
 #include "sstring.h"
+#include "btypes.h"
 
 using namespace std;
 
@@ -248,7 +249,7 @@ static inline void vecswap2(TVal* s, size_t slen, TVal* s2, TPos i, TPos j, TPos
 template<typename THost>
 bool assertPartitionedSuf(
 	const THost& host,
-	uint32_t *s,
+	TIndexOffU *s,
 	size_t slen,
 	int hi,
 	int pivot,
@@ -287,7 +288,7 @@ bool assertPartitionedSuf(
 template<typename THost>
 bool assertPartitionedSuf2(
 	const THost& host,
-	uint32_t *s,
+	TIndexOffU *s,
 	size_t slen,
 	int hi,
 	int pivot,
@@ -319,7 +320,7 @@ bool assertPartitionedSuf2(
  * legitimate suffix-offset list (at this time, we just check that it doesn't
  * list any suffix twice).
  */
-static inline void sanityCheckInputSufs(uint32_t *s, size_t slen) {
+static inline void sanityCheckInputSufs(TIndexOffU *s, size_t slen) {
 	assert_gt(slen, 0);
 	for(size_t i = 0; i < slen; i++) {
 		// Actually, it's convenient to allow the caller to provide
@@ -340,11 +341,11 @@ template <typename T>
 void sanityCheckOrderedSufs(
 	const T& host,
 	size_t hlen,
-	uint32_t *s,
+	TIndexOffU *s,
 	size_t slen,
 	size_t upto,
 	size_t lower = 0,
-	size_t upper = 0xffffffff)
+	size_t upper = OFF_MASK)
 {
 	assert_lt(s[0], hlen);
 	upper = min<size_t>(upper, slen-1);
@@ -353,7 +354,7 @@ void sanityCheckOrderedSufs(
 		// convenient for some callers
 		if(s[i+1] >= hlen) continue;
 #ifndef NDEBUG
-		if(upto == 0xffffffff) {
+		if(upto == OFF_MASK) {
 			assert(sstr_suf_lt(host, s[i], hlen, host, s[i+1], hlen, false));
 		} else {
 			if(sstr_suf_upto_lt(host, s[i], host, s[i+1], upto, false)) {
@@ -392,13 +393,13 @@ template<typename T>
 void mkeyQSortSuf(
 	const T& host,
 	size_t hlen,
-	uint32_t *s,
+	TIndexOffU *s,
 	size_t slen,
 	int hi,
 	size_t begin,
 	size_t end,
 	size_t depth,
-	size_t upto = 0xffffffff)
+	size_t upto = OFF_MASK)
 {
 	// Helper for making the recursive call; sanity-checks arguments to
 	// make sure that the problem actually got smaller.
@@ -481,12 +482,12 @@ void mkeyQSortSuf(
 template<typename T>
 void mkeyQSortSuf(
 	const T& host,
-	uint32_t *s,
+	TIndexOffU *s,
 	size_t slen,
 	int hi,
 	bool verbose = false,
 	bool sanityCheck = false,
-	size_t upto = 0xffffffff)
+	size_t upto = OFF_MASK)
 {
 	size_t hlen = host.length();
 	assert_gt(slen, 0);
@@ -506,14 +507,14 @@ template<typename T>
 void mkeyQSortSuf2(
 	const T& host,
 	size_t hlen,
-	uint32_t *s,
+	TIndexOffU *s,
 	size_t slen,
-	uint32_t *s2,
+	TIndexOffU *s2,
 	int hi,
 	size_t begin,
 	size_t end,
 	size_t depth,
-	size_t upto = 0xffffffff)
+	size_t upto = OFF_MASK)
 {
 	// Helper for making the recursive call; sanity-checks arguments to
 	// make sure that the problem actually got smaller.
@@ -598,20 +599,20 @@ void mkeyQSortSuf2(
 template<typename T>
 void mkeyQSortSuf2(
 	const T& host,
-	uint32_t *s,
+	TIndexOffU *s,
 	size_t slen,
-	uint32_t *s2,
+	TIndexOffU *s2,
 	int hi,
 	bool verbose = false,
 	bool sanityCheck = false,
-	size_t upto = 0xffffffff)
+	size_t upto = OFF_MASK)
 {
 	size_t hlen = host.length();
 	if(sanityCheck) sanityCheckInputSufs(s, slen);
-	uint32_t *sOrig = NULL;
+	TIndexOffU *sOrig = NULL;
 	if(sanityCheck) {
-		sOrig = new uint32_t[slen];
-		memcpy(sOrig, s, 4 * slen);
+		sOrig = new TIndexOffU[slen];
+		memcpy(sOrig, s, OFF_SIZE * slen);
 	}
 	mkeyQSortSuf2(host, hlen, s, slen, s2, hi, (size_t)0, slen, (size_t)0, upto);
 	if(sanityCheck) {
@@ -665,7 +666,7 @@ template<typename T> inline
 void qsortSufDc(
 	const T& host,
 	size_t hlen,
-	uint32_t* s,
+	TIndexOffU* s,
 	size_t slen,
 	const DifferenceCoverSample<T>& dc,
 	size_t begin,
@@ -709,7 +710,7 @@ void mkeyQSortSufDcU8(
 	const T1& host1,
 	const T2& host,
 	size_t hlen,
-	uint32_t* s,
+	TIndexOffU* s,
 	size_t slen,
 	const DifferenceCoverSample<T1>& dc,
 	int hi,
@@ -718,7 +719,7 @@ void mkeyQSortSufDcU8(
 {
 	if(sanityCheck) sanityCheckInputSufs(s, slen);
 	mkeyQSortSufDcU8(host1, host, hlen, s, slen, dc, hi, 0, slen, 0, sanityCheck);
-	if(sanityCheck) sanityCheckOrderedSufs(host1, hlen, s, slen, 0xffffffff);
+	if(sanityCheck) sanityCheckOrderedSufs(host1, hlen, s, slen, OFF_MASK);
 }
 
 /**
@@ -736,7 +737,7 @@ bool sufDcLtU8(
 	bool sanityCheck = false)
 {
 	hlen += 0;
-	size_t diff = dc.tieBreakOff((uint32_t)s1, (uint32_t)s2);
+	size_t diff = dc.tieBreakOff((TIndexOffU)s1, (TIndexOffU)s2);
 	assert_lt(diff, dc.v());
 	assert_lt(diff, hlen-s1);
 	assert_lt(diff, hlen-s2);
@@ -745,7 +746,7 @@ bool sufDcLtU8(
 			assert_eq(host[s1+i], host1[s2+i]);
 		}
 	}
-	bool ret = dc.breakTie((uint32_t)(s1+diff), (uint32_t)(s2+diff)) < 0;
+	bool ret = dc.breakTie((TIndexOffU)(s1+diff), (TIndexOffU)(s2+diff)) < 0;
 	// Sanity-check return value using dollarLt
 #ifndef NDEBUG
 	bool ret2 = sstr_suf_lt(host1, s1, hlen, host, s2, hlen, false);
@@ -762,7 +763,7 @@ void qsortSufDcU8(
 	const T1& host1,
 	const T2& host,
 	size_t hlen,
-	uint32_t* s,
+	TIndexOffU* s,
 	size_t slen,
 	const DifferenceCoverSample<T1>& dc,
 	size_t begin,
@@ -805,7 +806,7 @@ void qsortSufDcU8(
 #define SELECTION_SORT_CUTOFF 6
 
 // 5 64-element buckets for bucket-sorting A, C, G, T, $
-extern uint32_t bkts[4][4 * 1024 * 1024];
+extern TIndexOffU bkts[4][4 * 1024 * 1024];
 
 /**
  * Straightforwardly obtain a uint8_t-ized version of t[off].  This
@@ -834,7 +835,7 @@ template<typename TStr>
 static inline int char_at_suf_u8(
 	const TStr& host,
 	size_t hlen,
-	uint32_t* s,
+	TIndexOffU* s,
 	size_t si,
 	size_t off,
 	uint8_t hi)
@@ -847,7 +848,7 @@ static void selectionSortSufDcU8(
 		const T1& host1,
 		const T2& host,
         size_t hlen,
-        uint32_t* s,
+        TIndexOffU* s,
         size_t slen,
         const DifferenceCoverSample<T1>& dc,
         uint8_t hi,
@@ -871,16 +872,16 @@ static void selectionSortSufDcU8(
 		if(off + s[begin] >= hlen ||
 		   off + s[begin+1] >= hlen)
 		{
-			off = 0xffffffff;
+			off = OFF_MASK;
 		}
-		if(off != 0xffffffff) {
+		if(off != OFF_MASK) {
 			if(off < depth) {
 				qsortSufDcU8<T1,T2>(host1, host, hlen, s, slen, dc,
 				                    begin, end, sanityCheck);
 				// It's helpful for debugging if we call this here
 				if(sanityCheck) {
 					sanityCheckOrderedSufs(host1, hlen, s, slen,
-					                       0xffffffff, begin, end);
+					                       OFF_MASK, begin, end);
 				}
 				return;
 			}
@@ -955,7 +956,7 @@ static void selectionSortSufDcU8(
 		if(i != targ) {
 			ASSERT_SUF_LT(targ, i);
 			// swap i and targ
-			uint32_t tmp = s[i];
+			TIndexOffU tmp = s[i];
 			s[i] = s[targ];
 			s[targ] = tmp;
 		}
@@ -964,7 +965,7 @@ static void selectionSortSufDcU8(
 		}
 	}
 	if(sanityCheck) {
-		sanityCheckOrderedSufs(host1, hlen, s, slen, 0xffffffff, begin, end);
+		sanityCheckOrderedSufs(host1, hlen, s, slen, OFF_MASK, begin, end);
 	}
 }
 
@@ -973,7 +974,7 @@ static void bucketSortSufDcU8(
 		const T1& host1,
 		const T2& host,
         size_t hlen,
-        uint32_t* s,
+        TIndexOffU* s,
         size_t slen,
         const DifferenceCoverSample<T1>& dc,
         uint8_t hi,
@@ -1004,7 +1005,7 @@ static void bucketSortSufDcU8(
 		                     begin, end, depth, sanityCheck);
 		if(sanityCheck) {
 			sanityCheckOrderedSufs(host1, hlen, s, slen,
-			                       0xffffffff, begin, end);
+			                       OFF_MASK, begin, end);
 		}
 		return;
 	}
@@ -1020,10 +1021,10 @@ static void bucketSortSufDcU8(
 	}
 	assert_eq(cnts[0] + cnts[1] + cnts[2] + cnts[3] + cnts[4], end - begin);
 	size_t cur = begin + cnts[0];
-	if(cnts[1] > 0) { memcpy(&s[cur], bkts[0], cnts[1] << 2); cur += cnts[1]; }
-	if(cnts[2] > 0) { memcpy(&s[cur], bkts[1], cnts[2] << 2); cur += cnts[2]; }
-	if(cnts[3] > 0) { memcpy(&s[cur], bkts[2], cnts[3] << 2); cur += cnts[3]; }
-	if(cnts[4] > 0) { memcpy(&s[cur], bkts[3], cnts[4] << 2); }
+	if(cnts[1] > 0) { memcpy(&s[cur], bkts[0], cnts[1] << (OFF_SIZE/4 + 1)); cur += cnts[1]; }
+	if(cnts[2] > 0) { memcpy(&s[cur], bkts[1], cnts[2] << (OFF_SIZE/4 + 1)); cur += cnts[2]; }
+	if(cnts[3] > 0) { memcpy(&s[cur], bkts[2], cnts[3] << (OFF_SIZE/4 + 1)); cur += cnts[3]; }
+	if(cnts[4] > 0) { memcpy(&s[cur], bkts[3], cnts[4] << (OFF_SIZE/4 + 1)); }
 	// This frame is now totally finished with bkts[][], so recursive
 	// callees can safely clobber it; we're not done with cnts[], but
 	// that's local to the stack frame.
@@ -1067,7 +1068,7 @@ void mkeyQSortSufDcU8(
 	const T1& host1,
 	const T2& host,
 	size_t hlen,
-	uint32_t* s,
+	TIndexOffU* s,
 	size_t slen,
 	const DifferenceCoverSample<T1>& dc,
 	int hi,
@@ -1092,7 +1093,7 @@ void mkeyQSortSufDcU8(
 		// k=(end-begin)
 		qsortSufDcU8<T1,T2>(host1, host, hlen, s, slen, dc, begin, end, sanityCheck);
 		if(sanityCheck) {
-			sanityCheckOrderedSufs(host1, hlen, s, slen, 0xffffffff, begin, end);
+			sanityCheckOrderedSufs(host1, hlen, s, slen, OFF_MASK, begin, end);
 		}
 		return;
 	}
@@ -1101,7 +1102,7 @@ void mkeyQSortSufDcU8(
 		bucketSortSufDcU8(host1, host, hlen, s, slen, dc,
 		                  (uint8_t)hi, begin, end, depth, sanityCheck);
 		if(sanityCheck) {
-			sanityCheckOrderedSufs(host1, hlen, s, slen, 0xffffffff, begin, end);
+			sanityCheckOrderedSufs(host1, hlen, s, slen, OFF_MASK, begin, end);
 		}
 		return;
 	}

@@ -218,10 +218,10 @@ bool DescentAlignmentSink::reportAlignment(
 	const Read& q,                  // query string
 	const Ebwt& ebwtFw,             // forward index
 	const Ebwt& ebwtBw,             // mirror index
-	TIndexOff topf,                 // SA range top in forward index
-	TIndexOff botf,                 // SA range bottom in forward index
-	TIndexOff topb,                 // SA range top in backward index
-	TIndexOff botb,                 // SA range bottom in backward index
+	TIndexOffU topf,                 // SA range top in forward index
+	TIndexOffU botf,                 // SA range bottom in forward index
+	TIndexOffU topb,                 // SA range top in backward index
+	TIndexOffU botb,                 // SA range bottom in backward index
 	TDescentId id,                  // id of leaf Descent
 	TRootId rid,                    // id of search root
 	const Edit& e,                  // final edit, if needed
@@ -240,8 +240,8 @@ bool DescentAlignmentSink::reportAlignment(
 	// Adjust al5pi and al5pf to take the final edit into account (if
 	// there is one)
 	// Check if this is redundant with a previous reported alignment
-	Triple<TIndexOff, TIndexOff, size_t> lhs(topf, botf, 0);
-	Triple<TIndexOff, TIndexOff, size_t> rhs(topb, botb, q.length()-1);
+	Triple<TIndexOffU, TIndexOffU, size_t> lhs(topf, botf, 0);
+	Triple<TIndexOffU, TIndexOffU, size_t> rhs(topb, botb, q.length()-1);
 	if(!lhs_.insert(lhs)) {
 		rhs_.insert(rhs);
 		return false; // Already there
@@ -273,8 +273,8 @@ bool DescentAlignmentSink::reportAlignment(
 			// Invert them back to how they were before
 			Edit::invertPoss(edits_, len, ei, en, true);
 		}
-		ASSERT_ONLY(uint32_t toptmp = 0);
-		ASSERT_ONLY(uint32_t bottmp = 0);
+		ASSERT_ONLY(TIndexOffU toptmp = 0);
+		ASSERT_ONLY(TIndexOffU bottmp = 0);
 		// Check that the edited string occurs in the reference
 		if(!ebwtFw.contains(rf, &toptmp, &bottmp)) {
 			std::cerr << rf << std::endl;
@@ -307,10 +307,10 @@ bool Descent::init(
 	TAlScore maxpen,                // maximum penalty
     TReadOff al5pi,                 // offset from 5' of 1st aligned char
     TReadOff al5pf,                 // offset from 5' of last aligned char
-    TIndexOff topf,                 // SA range top in FW index
-    TIndexOff botf,                 // SA range bottom in FW index
-    TIndexOff topb,                 // SA range top in BW index
-    TIndexOff botb,                 // SA range bottom in BW index
+    TIndexOffU topf,                 // SA range top in FW index
+    TIndexOffU botf,                 // SA range bottom in FW index
+    TIndexOffU topb,                 // SA range top in BW index
+    TIndexOffU botb,                 // SA range bottom in BW index
     bool l2r,                       // direction this descent will go in
     size_t descid,                  // my ID
     TDescentId parent,              // parent ID
@@ -354,7 +354,7 @@ bool Descent::init(
 		}
 	}
     bool branches = false, hitEnd = false, done = false;
-    TIndexOff topf_new = 0, botf_new = 0, topb_new = 0, botb_new = 0;
+    TIndexOffU topf_new = 0, botf_new = 0, topb_new = 0, botb_new = 0;
     off5p_i_ = 0;
 #ifndef NDEBUG
     size_t depth = al5pf_ - al5pi_ + 1;
@@ -458,7 +458,7 @@ bool Descent::init(
     lastRecalc_ = true;
 	gapadd_ = 0;
     bool branches = false, hitEnd = false, done = false;
-    TIndexOff topf_new = 0, botf_new = 0, topb_new = 0, botb_new = 0;
+    TIndexOffU topf_new = 0, botf_new = 0, topb_new = 0, botb_new = 0;
     off5p_i_ = 0;
     bool matchSucc = followMatches(
         q,
@@ -576,11 +576,11 @@ size_t Descent::recalcOutgoing(
 	TScore pen_rdg_ex = sc.readGapExtend(), pen_rfg_ex = sc.refGapExtend();
 	TScore pen_rdg_op = sc.readGapOpen(),   pen_rfg_op = sc.refGapOpen();
 	// Top and bot in the direction of the descent
-	TIndexOff top  = l2r_ ? topb_ : topf_;
-	TIndexOff bot  = l2r_ ? botb_ : botf_;
+	TIndexOffU top  = l2r_ ? topb_ : topf_;
+	TIndexOffU bot  = l2r_ ? botb_ : botf_;
 	// Top and bot in the opposite direction
-	TIndexOff topp = l2r_ ? topf_ : topb_;
-	TIndexOff botp = l2r_ ? botf_ : botb_;
+	TIndexOffU topp = l2r_ ? topf_ : topb_;
+	TIndexOffU botp = l2r_ ? botf_ : botb_;
 	assert_eq(botp - topp, bot - top);
 	DescentEdge edge;
 	size_t nout = 0;
@@ -599,10 +599,10 @@ size_t Descent::recalcOutgoing(
 		assert_geq(maxpend, pen_);    // can't have already exceeded max penalty
 		TScore diff = maxpend - pen_; // room we have left
 		// Get pointer to SA ranges in the direction of descent
-		const TIndexOff *t  = l2r_ ? pf[d].topb : pf[d].topf;
-		const TIndexOff *b  = l2r_ ? pf[d].botb : pf[d].botf;
-		const TIndexOff *tp = l2r_ ? pf[d].topf : pf[d].topb;
-		const TIndexOff *bp = l2r_ ? pf[d].botf : pf[d].botb;
+		const TIndexOffU *t  = l2r_ ? pf[d].topb : pf[d].topf;
+		const TIndexOffU *b  = l2r_ ? pf[d].botb : pf[d].botf;
+		const TIndexOffU *tp = l2r_ ? pf[d].topf : pf[d].topb;
+		const TIndexOffU *bp = l2r_ ? pf[d].botf : pf[d].botb;
 		assert_eq(pf[d].botf - pf[d].topf, pf[d].botb - pf[d].topb);
 		// What are the read char / quality?
 		std::pair<int, int> p = q.get(off5p, fw);
@@ -626,14 +626,14 @@ size_t Descent::recalcOutgoing(
 					if(!pf[d].flags.mmExplore(j)) {
 						continue; // Already been explored
 					}
-					TIndexOff topf = pf[d].topf[j], botf = pf[d].botf[j];
-					ASSERT_ONLY(TIndexOff topb = pf[d].topb[j], botb = pf[d].botb[j]);
+					TIndexOffU topf = pf[d].topf[j], botf = pf[d].botf[j];
+					ASSERT_ONLY(TIndexOffU topb = pf[d].topb[j], botb = pf[d].botb[j]);
 					if(re.contains(fw, l2r_, cur5pi, cur5pf, cur5pf - cur5pi + 1 + gapadd_, topf, botf, pen_ + pen_mm)) {
 						prm.nRedSkip++;
 						continue; // Redundant with a path already explored
 					}
 					prm.nRedFail++;
-					TIndexOff width = b[j] - t[j];
+					TIndexOffU width = b[j] - t[j];
 					Edit edit((uint32_t)off5p, (int)("ACGTN"[j]), (int)("ACGTN"[c]), EDIT_TYPE_MM);
 					DescentPriority pri(pen_ + pen_mm, depth, width, rootpri);
                     assert(topf != 0 || botf != 0);
@@ -682,8 +682,8 @@ size_t Descent::recalcOutgoing(
 							if(!pf[d].flags.rdgExplore(j)) {
 								continue; // Already been explored
 							}
-							TIndexOff topf = pf[d].topf[j], botf = pf[d].botf[j];
-							ASSERT_ONLY(TIndexOff topb = pf[d].topb[j], botb = pf[d].botb[j]);
+							TIndexOffU topf = pf[d].topf[j], botf = pf[d].botf[j];
+							ASSERT_ONLY(TIndexOffU topb = pf[d].topb[j], botb = pf[d].botb[j]);
 							assert(topf != 0 || botf != 0);
 							assert(topb != 0 || botb != 0);
 							if(re.contains(fw, l2r_, cur5pi_i, cur5pf_i, cur5pf - cur5pi + 1 + gapadd_, topf, botf, pen_ + pen_rdg_ex)) {
@@ -691,7 +691,7 @@ size_t Descent::recalcOutgoing(
 								continue; // Redundant with a path already explored
 							}
 							prm.nRedFail++;
-							TIndexOff width = b[j] - t[j];
+							TIndexOffU width = b[j] - t[j];
 							// off5p holds the offset from the 5' of the next
 							// character we were trying to align when we decided to
 							// introduce a read gap (before that character).  If we
@@ -719,15 +719,15 @@ size_t Descent::recalcOutgoing(
 						// Extension of a reference gap
 						rfex = true;
 						if(pf[d].flags.rfgExplore()) {
-                            TIndexOff topf = l2r_ ? topp : top;
-                            TIndexOff botf = l2r_ ? botp : bot;
-							ASSERT_ONLY(TIndexOff topb = l2r_ ? top : topp);
-							ASSERT_ONLY(TIndexOff botb = l2r_ ? bot : botp);
+                            TIndexOffU topf = l2r_ ? topp : top;
+                            TIndexOffU botf = l2r_ ? botp : bot;
+							ASSERT_ONLY(TIndexOffU topb = l2r_ ? top : topp);
+							ASSERT_ONLY(TIndexOffU botb = l2r_ ? bot : botp);
 							assert(topf != 0 || botf != 0);
 							assert(topb != 0 || botb != 0);
 							size_t nrefal = cur5pf - cur5pi + gapadd_;
 							if(!re.contains(fw, l2r_, cur5pi, cur5pf, nrefal, topf, botf, pen_ + pen_rfg_ex)) {
-								TIndexOff width = bot - top;
+								TIndexOffU width = bot - top;
 								Edit edit((uint32_t)off5p, '-', (int)("ACGTN"[c]), EDIT_TYPE_REF_GAP);
 								DescentPriority pri(pen_ + pen_rfg_ex, depth, width, rootpri);
 								assert(topf != 0 || botf != 0);
@@ -763,8 +763,8 @@ size_t Descent::recalcOutgoing(
 						if(!pf[d].flags.rdgExplore(j)) {
 							continue; // Already been explored
 						}
-						TIndexOff topf = pf[d].topf[j], botf = pf[d].botf[j];
-						ASSERT_ONLY(TIndexOff topb = pf[d].topb[j], botb = pf[d].botb[j]);
+						TIndexOffU topf = pf[d].topf[j], botf = pf[d].botf[j];
+						ASSERT_ONLY(TIndexOffU topb = pf[d].topb[j], botb = pf[d].botb[j]);
 						assert(topf != 0 || botf != 0);
 						assert(topb != 0 || botb != 0);
 						if(re.contains(fw, l2r_, cur5pi_i, cur5pf_i, cur5pf - cur5pi + 1 + gapadd_, topf, botf, pen_ + pen_rdg_op)) {
@@ -772,7 +772,7 @@ size_t Descent::recalcOutgoing(
 							continue; // Redundant with a path already explored
 						}
 						prm.nRedFail++;
-						TIndexOff width = b[j] - t[j];
+						TIndexOffU width = b[j] - t[j];
 						// off5p holds the offset from the 5' of the next
 						// character we were trying to align when we decided to
 						// introduce a read gap (before that character).  If we
@@ -797,15 +797,15 @@ size_t Descent::recalcOutgoing(
 				if(!allmatch && pen_rfg_op <= diff && !rfex) {
 					// Opening a new reference gap
                     if(pf[d].flags.rfgExplore()) {
-                        TIndexOff topf = l2r_ ? topp : top;
-                        TIndexOff botf = l2r_ ? botp : bot;
-						ASSERT_ONLY(TIndexOff topb = l2r_ ? top : topp);
-						ASSERT_ONLY(TIndexOff botb = l2r_ ? bot : botp);
+                        TIndexOffU topf = l2r_ ? topp : top;
+                        TIndexOffU botf = l2r_ ? botp : bot;
+						ASSERT_ONLY(TIndexOffU topb = l2r_ ? top : topp);
+						ASSERT_ONLY(TIndexOffU botb = l2r_ ? bot : botp);
 						assert(topf != 0 || botf != 0);
 						assert(topb != 0 || botb != 0);
 						size_t nrefal = cur5pf - cur5pi + gapadd_;
 						if(!re.contains(fw, l2r_, cur5pi, cur5pf, nrefal, topf, botf, pen_ + pen_rfg_op)) {
-							TIndexOff width = bot - top;
+							TIndexOffU width = bot - top;
 							Edit edit((uint32_t)off5p, '-', (int)("ACGTN"[c]), EDIT_TYPE_REF_GAP);
 							DescentPriority pri(pen_ + pen_rfg_op, depth, width, rootpri);
 							assert(topf != 0 || botf != 0);
@@ -978,10 +978,10 @@ void Descent::print(
  */
 bool Descent::bounce(
 	const Read& q,                  // query string
-    TIndexOff topf,                 // SA range top in fw index
-    TIndexOff botf,                 // SA range bottom in fw index
-    TIndexOff topb,                 // SA range top in bw index
-    TIndexOff botb,                 // SA range bottom in bw index
+    TIndexOffU topf,                 // SA range top in fw index
+    TIndexOffU botf,                 // SA range bottom in fw index
+    TIndexOffU topb,                 // SA range top in bw index
+    TIndexOffU botb,                 // SA range bottom in bw index
 	const Ebwt& ebwtFw,             // forward index
 	const Ebwt& ebwtBw,             // mirror index
 	const Scoring& sc,              // scoring scheme
@@ -1144,7 +1144,7 @@ void Descent::followBestOutgoing(
 		}
 		size_t dfsz = df.size();
 		size_t pfsz = pf.size();
-		TIndexOff topf, botf, topb, botb;
+		TIndexOffU topf, botf, topb, botb;
 		size_t d = posid_ + doff;
 		if(e.e.isRefGap()) {
 			d--; // might underflow
@@ -1255,10 +1255,10 @@ void Descent::nextLocsBi(
 	const Ebwt& ebwtBw, // mirror index
 	SideLocus& tloc,    // top locus
 	SideLocus& bloc,    // bot locus
-	TIndexOff topf,     // top in BWT
-	TIndexOff botf,     // bot in BWT
-	TIndexOff topb,     // top in BWT'
-	TIndexOff botb)     // bot in BWT'
+	TIndexOffU topf,     // top in BWT
+	TIndexOffU botf,     // bot in BWT
+	TIndexOffU topb,     // top in BWT'
+	TIndexOffU botb)     // bot in BWT'
 {
 	assert_gt(botf, 0);
 	// Which direction are we going in next?
@@ -1329,10 +1329,10 @@ bool Descent::followMatches(
     bool& hitEnd,              // out: true -> hit read end with non-empty range
     bool& done,                // out: true -> we made a full alignment
     TReadOff& off5p_i,         // out: initial 5' offset
-    TIndexOff& topf_bounce,    // out: top of SA range for fw idx for bounce
-    TIndexOff& botf_bounce,    // out: bot of SA range for fw idx for bounce
-    TIndexOff& topb_bounce,    // out: top of SA range for bw idx for bounce
-    TIndexOff& botb_bounce)    // out: bot of SA range for bw idx for bounce
+    TIndexOffU& topf_bounce,    // out: top of SA range for fw idx for bounce
+    TIndexOffU& botf_bounce,    // out: bot of SA range for fw idx for bounce
+    TIndexOffU& topb_bounce,    // out: top of SA range for bw idx for bounce
+    TIndexOffU& botb_bounce)    // out: bot of SA range for bw idx for bounce
 {
 	// TODO: make these full-fledged parameters
 	size_t nobranchDepth = 20;
@@ -1346,7 +1346,7 @@ bool Descent::followMatches(
 	}
 #endif
 	SideLocus tloc, bloc;
-	TIndexOff topf = topf_, botf = botf_, topb = topb_, botb = botb_;
+	TIndexOffU topf = topf_, botf = botf_, topb = topb_, botb = botb_;
     bool fw = rs[rid_].fw;
 	bool toward3p;
 	size_t off5p;
@@ -1599,9 +1599,9 @@ bool Descent::followMatches(
     assert(tloc.valid());
 	assert(botf - topf == 1 ||  bloc.valid());
 	assert(botf - topf > 1  || !bloc.valid());
-	TIndexOff t[4], b[4];   // dest BW ranges
-	TIndexOff tp[4], bp[4]; // dest BW ranges for "prime" index
-	ASSERT_ONLY(TIndexOff lasttot = botf - topf);
+	TIndexOffU t[4], b[4];   // dest BW ranges
+	TIndexOffU tp[4], bp[4]; // dest BW ranges for "prime" index
+	ASSERT_ONLY(TIndexOffU lasttot = botf - topf);
 	bool fail = false;
 	while(!fail && !hitEnd) {
         assert(!done);
@@ -1612,7 +1612,7 @@ bool Descent::followMatches(
 		assert(botf - topf == 1 ||  bloc.valid());
 		assert(botf - topf > 1  || !bloc.valid());
 		assert(tloc.valid());
-        TIndexOff width = botf - topf;
+        TIndexOffU width = botf - topf;
 		bool ltr = l2r_;
 		const Ebwt& ebwt = ltr ? ebwtBw : ebwtFw;
 		t[0] = t[1] = t[2] = t[3] = b[0] = b[1] = b[2] = b[3] = 0;
@@ -1637,8 +1637,8 @@ bool Descent::followMatches(
 			}
 			ebwt.mapBiLFEx(tloc, bloc, t, b, tp, bp);
 			// t, b, tp and bp now filled
-			ASSERT_ONLY(TIndexOff tot = (b[0]-t[0])+(b[1]-t[1])+(b[2]-t[2])+(b[3]-t[3]));
-			ASSERT_ONLY(TIndexOff totp = (bp[0]-tp[0])+(bp[1]-tp[1])+(bp[2]-tp[2])+(bp[3]-tp[3]));
+			ASSERT_ONLY(TIndexOffU tot = (b[0]-t[0])+(b[1]-t[1])+(b[2]-t[2])+(b[3]-t[3]));
+			ASSERT_ONLY(TIndexOffU totp = (bp[0]-tp[0])+(bp[1]-tp[1])+(bp[2]-tp[2])+(bp[3]-tp[3]));
 			assert_eq(tot, totp);
 			assert_leq(tot, lasttot);
 			ASSERT_ONLY(lasttot = tot);
@@ -1654,7 +1654,7 @@ bool Descent::followMatches(
 		} else {
 			tp[0] = tp[1] = tp[2] = tp[3] = bp[0] = bp[1] = bp[2] = bp[3] = 0;
 			// Range delimited by tloc/bloc has size 1
-			TIndexOff ntop = ltr ? topb : topf;
+			TIndexOffU ntop = ltr ? topb : topf;
 			met.bwops++;
 			met.bwops_1++;
 			prm.nSdFmops++;
@@ -1701,10 +1701,10 @@ bool Descent::followMatches(
         // case.
         
 		// Convert t, tp, b, bp info tf, bf, tb, bb
-		TIndexOff *tf = ltr ? tp : t;
-		TIndexOff *bf = ltr ? bp : b;
-		TIndexOff *tb = ltr ? t : tp;
-		TIndexOff *bb = ltr ? b : bp;
+		TIndexOffU *tf = ltr ? tp : t;
+		TIndexOffU *bf = ltr ? bp : b;
+		TIndexOffU *tb = ltr ? t : tp;
+		TIndexOffU *bb = ltr ? b : bp;
 		// Allocate DescentPos data structure.
 		if(firstPos) {
 			posid_ = pf.alloc();
@@ -1992,7 +1992,7 @@ int main(int argc, char **argv) {
 		//                012345678901234567890123456789
         BTDnaString seq ("GCTATATAGCGCGCTCGCATCATTTTGTGT", true);
         BTString    qual("ABCDEFGHIabcdefghiABCDEFGHIabc");
-		uint32_t top, bot;
+		TIndexOffU top, bot;
 		top = bot = 0;
 		bool ret = ebwts.first->contains("GCGCTCGCATCATTTTGTGT", &top, &bot);
 		cerr << ret << ", " << top << ", " << bot << endl;

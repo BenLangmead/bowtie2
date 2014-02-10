@@ -26,6 +26,18 @@
 
 using namespace std;
 
+#ifdef BOWTIE_64BIT_INDEX
+
+const std::string gEbwt_ext("bt2l");
+
+#else
+
+const std::string gEbwt_ext("bt2");
+
+#endif  // BOWTIE_64BIT_INDEX
+
+string gLastIOErrMsg;
+
 ///////////////////////////////////////////////////////////////////////
 //
 // Functions for searching Ebwts
@@ -40,32 +52,32 @@ using namespace std;
  * sorted list of reference fragment ranges t
  */
 void Ebwt::joinedToTextOff(
-	uint32_t qlen,
-	uint32_t off,
-	uint32_t& tidx,
-    uint32_t& textoff,
-    uint32_t& tlen,
+	TIndexOffU qlen, 
+	TIndexOffU off,
+	TIndexOffU& tidx,
+	TIndexOffU& textoff,
+	TIndexOffU& tlen,
 	bool rejectStraddle,
 	bool& straddled) const
 {
 	assert(rstarts() != NULL); // must have loaded rstarts
-	uint32_t top = 0;
-	uint32_t bot = _nFrag; // 1 greater than largest addressable element
-	uint32_t elt = 0xffffffff;
+	TIndexOffU top = 0;
+	TIndexOffU bot = _nFrag; // 1 greater than largest addressable element
+	TIndexOffU elt = OFF_MASK;
 	// Begin binary search
 	while(true) {
-		ASSERT_ONLY(uint32_t oldelt = elt);
+		ASSERT_ONLY(TIndexOffU oldelt = elt);
 		elt = top + ((bot - top) >> 1);
 		assert_neq(oldelt, elt); // must have made progress
-		uint32_t lower = rstarts()[elt*3];
-		uint32_t upper;
+		TIndexOffU lower = rstarts()[elt*3];
+		TIndexOffU upper;
 		if(elt == _nFrag-1) {
 			upper = _eh._len;
 		} else {
 			upper = rstarts()[((elt+1)*3)];
 		}
 		assert_gt(upper, lower);
-		uint32_t fraglen = upper - lower;
+		TIndexOffU fraglen = upper - lower;
 		if(lower <= off) {
 			if(upper > off) { // not last element, but it's within
 				// off is in this range; check if it falls off
@@ -73,7 +85,7 @@ void Ebwt::joinedToTextOff(
 					straddled = true;
 					if(rejectStraddle) {
 						// it falls off; signal no-go and return
-						tidx = 0xffffffff;
+						tidx = OFF_MASK;
 						assert_lt(elt, _nFrag-1);
 						return;
 					}
@@ -86,7 +98,7 @@ void Ebwt::joinedToTextOff(
 				// it doesn't fall off; now calculate textoff.
 				// Initially it's the number of characters that precede
 				// the alignment in the fragment
-				uint32_t fragoff = off - rstarts()[(elt*3)];
+				TIndexOffU fragoff = off - rstarts()[(elt*3)];
 				if(!this->fw_) {
 					fragoff = fraglen - fragoff - 1;
 					fragoff -= (qlen-1);
@@ -113,17 +125,17 @@ void Ebwt::joinedToTextOff(
 
 /**
  * Walk 'steps' steps to the left and return the row arrived at.  If we
- * walk through the dollar sign, return 0xffffffff.
+ * walk through the dollar sign, return max value.
  */
-uint32_t Ebwt::walkLeft(uint32_t row, uint32_t steps) const {
+TIndexOffU Ebwt::walkLeft(TIndexOffU row, TIndexOffU steps) const {
 	assert(offs() != NULL);
-	assert_neq(0xffffffff, row);
+	assert_neq(OFF_MASK, row);
 	SideLocus l;
 	if(steps > 0) l.initFromRow(row, _eh, ebwt());
 	while(steps > 0) {
-		if(row == _zOff) return 0xffffffff;
-		uint32_t newrow = this->mapLF(l ASSERT_ONLY(, false));
-		assert_neq(0xffffffff, newrow);
+		if(row == _zOff) return OFF_MASK;
+		TIndexOffU newrow = this->mapLF(l ASSERT_ONLY(, false));
+		assert_neq(OFF_MASK, newrow);
 		assert_neq(newrow, row);
 		row = newrow;
 		steps--;
@@ -135,18 +147,18 @@ uint32_t Ebwt::walkLeft(uint32_t row, uint32_t steps) const {
 /**
  * Resolve the reference offset of the BW element 'elt'.
  */
-uint32_t Ebwt::getOffset(uint32_t row) const {
+TIndexOffU Ebwt::getOffset(TIndexOffU row) const {
 	assert(offs() != NULL);
-	assert_neq(0xffffffff, row);
+	assert_neq(OFF_MASK, row);
 	if(row == _zOff) return 0;
 	if((row & _eh._offMask) == row) return this->offs()[row >> _eh._offRate];
-	int jumps = 0;
+	TIndexOffU jumps = 0;
 	SideLocus l;
 	l.initFromRow(row, _eh, ebwt());
 	while(true) {
-		uint32_t newrow = this->mapLF(l ASSERT_ONLY(, false));
+		TIndexOffU newrow = this->mapLF(l ASSERT_ONLY(, false));
 		jumps++;
-		assert_neq(0xffffffff, newrow);
+		assert_neq(OFF_MASK, newrow);
 		assert_neq(newrow, row);
 		row = newrow;
 		if(row == _zOff) {
@@ -163,13 +175,13 @@ uint32_t Ebwt::getOffset(uint32_t row) const {
  * the offset returned is at the right-hand side of the forward
  * reference substring involved in the hit.
  */
-uint32_t Ebwt::getOffset(
-	uint32_t elt,
+TIndexOffU Ebwt::getOffset(
+	TIndexOffU elt,
 	bool fw,
-	uint32_t hitlen) const
+	TIndexOffU hitlen) const
 {
-	uint32_t off = getOffset(elt);
-	assert_neq(0xffffffff, off);
+	TIndexOffU off = getOffset(elt);
+	assert_neq(OFF_MASK, off);
 	if(!fw) {
 		assert_lt(off, _eh._len);
 		off = _eh._len - off - 1;
@@ -187,8 +199,8 @@ uint32_t Ebwt::getOffset(
  */
 bool Ebwt::contains(
 	const BTDnaString& str,
-	uint32_t *otop,
-	uint32_t *obot) const
+	TIndexOffU *otop,
+	TIndexOffU *obot) const
 {
 	assert(isInMemory());
 	SideLocus tloc, bloc;
@@ -198,7 +210,7 @@ bool Ebwt::contains(
 	}
 	int c = str[str.length()-1];
 	assert_range(0, 4, c);
-	uint32_t top = 0, bot = 0;
+	TIndexOffU top = 0, bot = 0;
 	if(c < 4) {
 		top = fchr()[c];
 		bot = fchr()[c+1];
@@ -219,15 +231,15 @@ bool Ebwt::contains(
 	assert_geq(bot, top);
 	tloc.initFromRow(top, eh(), ebwt());
 	bloc.initFromRow(bot, eh(), ebwt());
-	ASSERT_ONLY(uint32_t lastDiff = bot - top);
-	for(int i = (int)str.length()-2; i >= 0; i--) {
+	ASSERT_ONLY(TIndexOffU lastDiff = bot - top);
+	for(TIndexOff i = (TIndexOff)str.length()-2; i >= 0; i--) {
 		c = str[i];
 		assert_range(0, 4, c);
 		if(c <= 3) {
 			top = mapLF(tloc, c);
 			bot = mapLF(bloc, c);
 		} else {
-			size_t sz = bot - top;
+			TIndexOffU sz = bot - top;
 			int c1 = mapLF1(top, tloc ASSERT_ONLY(, false));
 			bot = mapLF(bloc, c1);
 			assert_leq(bot - top, sz);
@@ -266,14 +278,14 @@ string adjustEbwtBase(const string& cmdline,
 	string str = ebwtFileBase;
 	ifstream in;
 	if(verbose) cout << "Trying " << str.c_str() << endl;
-	in.open((str + ".1.bt2").c_str(), ios_base::in | ios::binary);
+	in.open((str + ".1." + gEbwt_ext).c_str(), ios_base::in | ios::binary);
 	if(!in.is_open()) {
 		if(verbose) cout << "  didn't work" << endl;
 		in.close();
 		if(getenv("BOWTIE2_INDEXES") != NULL) {
 			str = string(getenv("BOWTIE2_INDEXES")) + "/" + ebwtFileBase;
 			if(verbose) cout << "Trying " << str.c_str() << endl;
-			in.open((str + ".1.bt2").c_str(), ios_base::in | ios::binary);
+			in.open((str + ".1." + gEbwt_ext).c_str(), ios_base::in | ios::binary);
 			if(!in.is_open()) {
 				if(verbose) cout << "  didn't work" << endl;
 				in.close();

@@ -293,7 +293,7 @@ struct ExtendRange {
 
 class SwDriver {
 
-	typedef PList<uint32_t, CACHE_PAGE_SZ> TSAList;
+	typedef PList<TIndexOffU, CACHE_PAGE_SZ> TSAList;
 
 public:
 
@@ -458,10 +458,10 @@ protected:
 		const Read& rd,       // read
 		const Ebwt& ebwtFw,   // Forward Bowtie index
 		const Ebwt* ebwtBw,   // Backward Bowtie index
-		uint32_t topf,        // top in fw index
-		uint32_t botf,        // bot in fw index
-		uint32_t topb,        // top in bw index
-		uint32_t botb,        // bot in bw index
+		TIndexOffU topf,        // top in fw index
+		TIndexOffU botf,        // bot in fw index
+		TIndexOffU topb,        // top in bw index
+		TIndexOffU botb,        // bot in bw index
 		bool fw,              // seed orientation
 		size_t off,           // seed offset from 5' end
 		size_t len,           // seed length

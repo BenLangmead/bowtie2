@@ -42,8 +42,8 @@
 int verbose;
 static int sanityCheck;
 static int format;
-static uint32_t bmax;
-static uint32_t bmaxMultSqrt;
+static TIndexOffU bmax;
+static TIndexOffU bmaxMultSqrt;
 static uint32_t bmaxDivN;
 static int dcv;
 static int noDc;
@@ -64,13 +64,14 @@ static bool packed;
 static bool writeRef;
 static bool justRef;
 static bool reverseEach;
+static string wrapper;
 
 static void resetOptions() {
 	verbose      = true;  // be talkative (default)
 	sanityCheck  = 0;     // do slow sanity checks
 	format       = FASTA; // input sequence format
-	bmax         = 0xffffffff; // max blockwise SA bucket size
-	bmaxMultSqrt = 0xffffffff; // same, as multplier of sqrt(n)
+	bmax         = OFF_MASK; // max blockwise SA bucket size
+	bmaxMultSqrt = OFF_MASK; // same, as multplier of sqrt(n)
 	bmaxDivN     = 4;          // same, as divisor of n
 	dcv          = 1024;  // bwise SA difference-cover sample sz
 	noDc         = 0;     // disable difference-cover sample
@@ -78,7 +79,7 @@ static void resetOptions() {
 	seed         = 0;     // srandom seed
 	showVersion  = 0;     // just print version and quit?
 	//   Ebwt parameters
-	lineRate     = 6;  // a "line" is 64 bytes
+	lineRate     = Ebwt::default_lineRate; // a "line" is 64 or 128 bytes
 	linesPerSide = 1;  // 1 64-byte line on a side
 	offRate      = 4;  // sample 1 out of 16 SA elts
 	ftabChars    = 10; // 10 chars in initial lookup table
@@ -88,9 +89,10 @@ static void resetOptions() {
 	doBwtFile    = false; // make a file with just the BWT string in it
 	autoMem      = true;  // automatically adjust memory usage parameters
 	packed       = false; //
-	writeRef     = true;  // write compact reference to .3.bt2/.4.bt2
+	writeRef     = true;  // write compact reference to .3.gEbwt_ext/.4.gEbwt_ext
 	justRef      = false; // *just* write compact reference, don't index
 	reverseEach  = false;
+	wrapper.clear();
 }
 
 // Argument constants for getopts
@@ -105,7 +107,8 @@ enum {
 	ARG_NTOA,
 	ARG_USAGE,
 	ARG_REVERSE_EACH,
-	ARG_SA
+	ARG_SA,
+	ARG_WRAPPER
 };
 
 /**
@@ -113,22 +116,39 @@ enum {
  */
 static void printUsage(ostream& out) {
 	out << "Bowtie 2 version " << string(BOWTIE2_VERSION).c_str() << " by Ben Langmead (langmea@cs.jhu.edu, www.cs.jhu.edu/~langmea)" << endl;
-	out << "Usage: bowtie2-build [options]* <reference_in> <bt2_index_base>" << endl
+	
+#ifdef BOWTIE_64BIT_INDEX
+	string tool_name = "bowtie2-build-l";
+#else
+	string tool_name = "bowtie2-build-s";
+#endif
+	if(wrapper == "basic-0") {
+		tool_name = "bowtie2-build";
+	}
+	
+	//               1         2         3         4         5         6         7         8
+	//      12345678901234567890123456789012345678901234567890123456789012345678901234567890
+	out << "Usage: " << tool_name << " [options]* <reference_in> <bt2_index_base>" << endl
 	    << "    reference_in            comma-separated list of files with ref sequences" << endl
-	    << "    bt2_index_base          write .bt2 data to files with this dir/basename" << endl
+	    << "    bt2_index_base          write " + gEbwt_ext + " data to files with this dir/basename" << endl
 		<< "*** Bowtie 2 indexes work only with v2 (not v1).  Likewise for v1 indexes. ***" << endl
 	    << "Options:" << endl
 	    << "    -f                      reference files are Fasta (default)" << endl
-	    << "    -c                      reference sequences given on cmd line (as <seq_in>)" << endl
-	    << "    -a/--noauto             disable automatic -p/--bmax/--dcv memory-fitting" << endl
-	    << "    -p/--packed             use packed strings internally; slower, uses less mem" << endl
+	    << "    -c                      reference sequences given on cmd line (as" << endl
+		<< "                            <reference_in>)" << endl;
+	if(wrapper == "basic-0") {
+	out << "    --large-index           force generated index to be 'large', even if ref" << endl
+		<< "                            has fewer than 4 billion nucleotides" << endl;
+	}
+	out << "    -a/--noauto             disable automatic -p/--bmax/--dcv memory-fitting" << endl
+	    << "    -p/--packed             use packed strings internally; slower, less memory" << endl
 	    << "    --bmax <int>            max bucket sz for blockwise suffix-array builder" << endl
 	    << "    --bmaxdivn <int>        max bucket sz as divisor of ref len (default: 4)" << endl
 	    << "    --dcv <int>             diff-cover period for blockwise (default: 1024)" << endl
 	    << "    --nodc                  disable diff-cover (algorithm becomes quadratic)" << endl
-	    << "    -r/--noref              don't build .3/.4.bt2 (packed reference) portion" << endl
-	    << "    -3/--justref            just build .3/.4.bt2 (packed reference) portion" << endl
-	    << "    -o/--offrate <int>      SA is sampled every 2^offRate BWT chars (default: 5)" << endl
+	    << "    -r/--noref              don't build .3/.4 index files" << endl
+	    << "    -3/--justref            just build .3/.4 index files" << endl
+	    << "    -o/--offrate <int>      SA is sampled every 2^<int> BWT chars (default: 5)" << endl
 	    << "    -t/--ftabchars <int>    # of chars consumed in initial lookup (default: 10)" << endl
 	    //<< "    --ntoa                  convert Ns in reference to As" << endl
 	    //<< "    --big --little          endianness (default: little, this host: "
@@ -139,6 +159,13 @@ static void printUsage(ostream& out) {
 	    << "    --usage                 print this usage message" << endl
 	    << "    --version               print version information and quit" << endl
 	    ;
+	if(wrapper.empty()) {
+		cerr << endl
+		     << "*** Warning ***" << endl
+			 << "'" << tool_name << "' was run directly.  It is recommended "
+			 << "that you run the wrapper script 'bowtie2-build' instead."
+			 << endl << endl;
+	}
 }
 
 static const char *short_options = "qraph?nscfl:i:o:t:h:3C";
@@ -171,6 +198,7 @@ static struct option long_options[] = {
 	{(char*)"sa",           no_argument,       0,            ARG_SA},
 	{(char*)"reverse-each", no_argument,       0,            ARG_REVERSE_EACH},
 	{(char*)"usage",        no_argument,       0,            ARG_USAGE},
+	{(char*)"wrapper",      required_argument, 0,            ARG_WRAPPER},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -180,7 +208,7 @@ static struct option long_options[] = {
  * exit with an error and a usage message.
  */
 template<typename T>
-static int parseNumber(T lower, const char *errmsg) {
+static T parseNumber(T lower, const char *errmsg) {
 	char *endPtr= NULL;
 	T t = (T)strtoll(optarg, &endPtr, 10);
 	if (endPtr != NULL) {
@@ -200,14 +228,18 @@ static int parseNumber(T lower, const char *errmsg) {
 /**
  * Read command-line arguments
  */
-static void parseOptions(int argc, const char **argv) {
+static bool parseOptions(int argc, const char **argv) {
 	int option_index = 0;
 	int next_option;
+	bool abort = false;
 	do {
 		next_option = getopt_long(
 			argc, const_cast<char**>(argv),
 			short_options, long_options, &option_index);
 		switch (next_option) {
+			case ARG_WRAPPER:
+				wrapper = optarg;
+				break;
 			case 'f': format = FASTA; break;
 			case 'c': format = CMDLINE; break;
 			case 'p': packed = true; break;
@@ -237,22 +269,22 @@ static void parseOptions(int argc, const char **argv) {
 			case 'h':
 			case ARG_USAGE:
 				printUsage(cout);
-				throw 0;
+				abort = true;
 				break;
 			case ARG_BMAX:
-				bmax = parseNumber<uint32_t>(1, "--bmax arg must be at least 1");
-				bmaxMultSqrt = 0xffffffff; // don't use multSqrt
+				bmax = parseNumber<TIndexOffU>(1, "--bmax arg must be at least 1");
+				bmaxMultSqrt = OFF_MASK; // don't use multSqrt
 				bmaxDivN = 0xffffffff;     // don't use multSqrt
 				break;
 			case ARG_BMAX_MULT:
-				bmaxMultSqrt = parseNumber<uint32_t>(1, "--bmaxmultsqrt arg must be at least 1");
-				bmax = 0xffffffff;     // don't use bmax
+				bmaxMultSqrt = parseNumber<TIndexOffU>(1, "--bmaxmultsqrt arg must be at least 1");
+				bmax = OFF_MASK;     // don't use bmax
 				bmaxDivN = 0xffffffff; // don't use multSqrt
 				break;
 			case ARG_BMAX_DIV:
 				bmaxDivN = parseNumber<uint32_t>(1, "--bmaxdivn arg must be at least 1");
-				bmax = 0xffffffff;         // don't use bmax
-				bmaxMultSqrt = 0xffffffff; // don't use multSqrt
+				bmax = OFF_MASK;         // don't use bmax
+				bmaxMultSqrt = OFF_MASK; // don't use multSqrt
 				break;
 			case ARG_DCV:
 				dcv = parseNumber<int>(3, "--dcv arg must be at least 3");
@@ -287,6 +319,7 @@ static void parseOptions(int argc, const char **argv) {
 		     << "extremely slow performance and memory exhaustion.  Perhaps you meant to specify" << endl
 		     << "a small --bmaxdivn?" << endl;
 	}
+	return abort;
 }
 
 EList<string> filesWritten;
@@ -340,7 +373,7 @@ static void driver(
 	} else {
 		// Adapt sequence files to ifstreams
 		for(size_t i = 0; i < infiles.size(); i++) {
-			FILE *f = fopen(infiles[i].c_str(), "r");
+			FILE *f = fopen(infiles[i].c_str(), "rb");
 			if (f == NULL) {
 				cerr << "Error: could not open "<< infiles[i].c_str() << endl;
 				throw 1;
@@ -362,6 +395,13 @@ static void driver(
 		cerr << "Warning: All fasta inputs were empty" << endl;
 		throw 1;
 	}
+	if(!reverse) {
+#ifdef BOWTIE_64BIT_INDEX
+		cerr << "Building a LARGE index" << endl;
+#else
+		cerr << "Building a SMALL index" << endl;
+#endif
+	}
 	// Vector for the ordered list of "records" comprising the input
 	// sequences.  A record represents a stretch of unambiguous
 	// characters in one of the input sequences.
@@ -371,8 +411,8 @@ static void driver(
 		if(verbose) cout << "Reading reference sizes" << endl;
 		Timer _t(cout, "  Time reading reference sizes: ", verbose);
 		if(!reverse && (writeRef || justRef)) {
-			filesWritten.push_back(outfile + ".3.bt2");
-			filesWritten.push_back(outfile + ".4.bt2");
+			filesWritten.push_back(outfile + ".3." + gEbwt_ext);
+			filesWritten.push_back(outfile + ".4." + gEbwt_ext);
 			sztot = BitPairReference::szsFromFasta(is, outfile, bigEndian, refparams, szs, sanityCheck);
 		} else {
 			sztot = BitPairReference::szsFromFasta(is, string(), bigEndian, refparams, szs, sanityCheck);
@@ -383,8 +423,8 @@ static void driver(
 	assert_gt(sztot.second, 0);
 	assert_gt(szs.size(), 0);
 	// Construct index from input strings and parameters
-	filesWritten.push_back(outfile + ".1.bt2");
-	filesWritten.push_back(outfile + ".2.bt2");
+	filesWritten.push_back(outfile + ".1." + gEbwt_ext);
+	filesWritten.push_back(outfile + ".2." + gEbwt_ext);
 	Ebwt ebwt(
 		TStr(),
 		packed,
@@ -402,7 +442,7 @@ static void driver(
 		noDc? 0 : dcv,// difference-cover period
 		is,           // list of input streams
 		szs,          // list of reference sizes
-		(uint32_t)sztot.first,  // total size of all unambiguous ref chars
+		(TIndexOffU)sztot.first,  // total size of all unambiguous ref chars
 		refparams,    // reference read-in parameters
 		seed,         // pseudo-random number generator seed
 		-1,           // override offRate
@@ -436,7 +476,7 @@ static void driver(
 			SString<char> joinedss = Ebwt::join<SString<char> >(
 				is,          // list of input streams
 				szs,         // list of reference sizes
-				(uint32_t)sztot.first, // total size of all unambiguous ref chars
+				(TIndexOffU)sztot.first, // total size of all unambiguous ref chars
 				refparams,   // reference read-in parameters
 				seed);       // pseudo-random number generator seed
 			if(refparams.reverse == REF_READ_REVERSE) {
@@ -471,7 +511,9 @@ int bowtie_build(int argc, const char **argv) {
 		string infile;
 		EList<string> infiles(MISC_CAT);
 
-		parseOptions(argc, argv);
+		if(parseOptions(argc, argv)) {
+			return 0;
+		}
 		argv0 = argv[0];
 		if(showVersion) {
 			cout << argv0 << " version " << string(BOWTIE2_VERSION).c_str() << endl;
@@ -520,19 +562,19 @@ int bowtie_build(int argc, const char **argv) {
 		// Optionally summarize
 		if(verbose) {
 			cout << "Settings:" << endl
-				 << "  Output files: \"" << outfile.c_str() << ".*.bt2\"" << endl
+				 << "  Output files: \"" << outfile.c_str() << ".*." + gEbwt_ext + "\"" << endl
 				 << "  Line rate: " << lineRate << " (line is " << (1<<lineRate) << " bytes)" << endl
 				 << "  Lines per side: " << linesPerSide << " (side is " << ((1<<lineRate)*linesPerSide) << " bytes)" << endl
 				 << "  Offset rate: " << offRate << " (one in " << (1<<offRate) << ")" << endl
 				 << "  FTable chars: " << ftabChars << endl
 				 << "  Strings: " << (packed? "packed" : "unpacked") << endl
 				 ;
-			if(bmax == 0xffffffff) {
+			if(bmax == OFF_MASK) {
 				cout << "  Max bucket size: default" << endl;
 			} else {
 				cout << "  Max bucket size: " << bmax << endl;
 			}
-			if(bmaxMultSqrt == 0xffffffff) {
+			if(bmaxMultSqrt == OFF_MASK) {
 				cout << "  Max bucket size, sqrt multiplier: default" << endl;
 			} else {
 				cout << "  Max bucket size, sqrt multiplier: " << bmaxMultSqrt << endl;

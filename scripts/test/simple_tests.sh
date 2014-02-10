@@ -21,7 +21,14 @@
 
 #  simple_tests.sh
 
-make $* bowtie2-align bowtie2-align-debug bowtie2-build bowtie2-build-debug && \
+make $* bowtie2-align-s \
+		bowtie2-align-l \
+		bowtie2-align-s-debug \
+		bowtie2-align-l-debug \
+		bowtie2-build-s \
+		bowtie2-build-l \
+		bowtie2-build-s-debug \
+		bowtie2-build-l-debug && \
 perl scripts/test/simple_tests.pl \
 	--bowtie2=./bowtie2 \
-	--bowtie2-build=./bowtie2-build-debug
+	--bowtie2-build=./bowtie2-build

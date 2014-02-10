@@ -237,7 +237,7 @@ class LarssonSadakane {
 		  b=b<<s|(x[r]-l+1);        /* b is start of x in chunk alphabet.*/
 		  d=c;                      /* d is max symbol in chunk alphabet.*/
 	   }
-	   m=(1<<(r-1)*s)-1;            /* m masks off top old symbol from chunk.*/
+	   m=(((T)1)<<(r-1)*s)-1;            /* m masks off top old symbol from chunk.*/
 	   x[n]=l-1;                    /* emulate zero terminator.*/
 	   if (d<=n) {                  /* if bucketing possible, compact alphabet.*/
 		  for (pi=p; pi<=p+d; ++pi)

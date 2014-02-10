@@ -98,8 +98,13 @@ bool SwDriver::eeSaTups(
 	if(tot > 0) {
 		bool fwFirst = true;
         // Pick fw / rc to go first in a weighted random fashion
-		uint32_t rn32 = rnd.nextU32();
-		uint32_t rn = rn32 % (uint32_t)tot;
+#ifdef BOWTIE_64BIT_INDEX
+		TIndexOffU rn64 = rnd.nextU64();
+		TIndexOffU rn = rn64 % (uint64_t)tot;
+#else
+		TIndexOffU rn32 = rnd.nextU32();
+		TIndexOffU rn = rn32 % (uint32_t)tot;
+#endif        
 		if(rn >= sh.exactFwEEHit().size()) {
 			fwFirst = false;
 		}
@@ -112,13 +117,17 @@ bool SwDriver::eeSaTups(
 			assert(hit.fw == fw);
 			if(hit.bot > hit.top) {
                 // Possibly adjust bot and width if we would have exceeded maxelt
-                uint32_t tops[2] = { hit.top, 0 };
-                uint32_t bots[2] = { hit.bot, 0 };
-                uint32_t width = hit.bot - hit.top;
+                TIndexOffU tops[2] = { hit.top, 0 };
+                TIndexOffU bots[2] = { hit.bot, 0 };
+                TIndexOffU width = hit.bot - hit.top;
                 if(nelt_out + width > maxelt) {
-                    uint32_t trim = (uint32_t)((nelt_out + width) - maxelt);
-                    uint32_t rn = rnd.nextU32() % width;
-                    uint32_t newwidth = width - trim;
+                    TIndexOffU trim = (TIndexOffU)((nelt_out + width) - maxelt);
+#ifdef BOWTIE_64BIT_INDEX
+                    TIndexOffU rn = rnd.nextU64() % width;
+#else
+                    TIndexOffU rn = rnd.nextU32() % width;
+#endif
+                    TIndexOffU newwidth = width - trim;
                     if(hit.top + rn + newwidth > hit.bot) {
                         // Two pieces
                         tops[0] = hit.top + rn;
@@ -138,8 +147,8 @@ bool SwDriver::eeSaTups(
                 }
                 for(int i = 0; i < 2 && !done; i++) {
                     if(bots[i] <= tops[i]) break;
-                    uint32_t width = bots[i] - tops[i];
-                    uint32_t top = tops[i];
+                    TIndexOffU width = bots[i] - tops[i];
+                    TIndexOffU top = tops[i];
                     // Clear list where resolved offsets are stored
                     swmSeed.exranges++;
                     swmSeed.exrows += width;
@@ -153,9 +162,9 @@ bool SwDriver::eeSaTups(
                         firstEe = false;
                     }
                     // We have to be careful not to allocate excessive amounts of memory here
-                    TSlice o(salistEe_, (uint32_t)salistEe_.size(), width);
-                    for(size_t i = 0; i < width; i++) {
-                        if(!salistEe_.add(pool_, 0xffffffff)) {
+                    TSlice o(salistEe_, (TIndexOffU)salistEe_.size(), width);
+                    for(TIndexOffU i = 0; i < width; i++) {
+                        if(!salistEe_.add(pool_, OFF_MASK)) {
                             swmSeed.exooms++;
                             return false;
                         }
@@ -163,7 +172,7 @@ bool SwDriver::eeSaTups(
                     assert(!done);
                     eehits_.push_back(hit);
                     satpos_.expand();
-                    satpos_.back().sat.init(SAKey(), top, 0xffffffff, o);
+                    satpos_.back().sat.init(SAKey(), top, OFF_MASK, o);
                     satpos_.back().sat.key.seq = MAX_U64;
                     satpos_.back().sat.key.len = (uint32_t)rd.length();
                     satpos_.back().pos.init(fw, 0, 0, (uint32_t)rd.length());
@@ -199,13 +208,17 @@ bool SwDriver::eeSaTups(
 			assert(hit.repOk(rd));
 			assert(!hit.empty());
             // Possibly adjust bot and width if we would have exceeded maxelt
-            uint32_t tops[2] = { hit.top, 0 };
-            uint32_t bots[2] = { hit.bot, 0 };
-            uint32_t width = hit.bot - hit.top;
+            TIndexOffU tops[2] = { hit.top, 0 };
+            TIndexOffU bots[2] = { hit.bot, 0 };
+            TIndexOffU width = hit.bot - hit.top;
             if(nelt_out + width > maxelt) {
-                uint32_t trim = (uint32_t)((nelt_out + width) - maxelt);
-                uint32_t rn = rnd.nextU32() % width;
-                uint32_t newwidth = width - trim;
+                TIndexOffU trim = (TIndexOffU)((nelt_out + width) - maxelt);
+#ifdef BOWTIE_64BIT_INDEX
+                TIndexOffU rn = rnd.nextU64() % width;
+#else
+                TIndexOffU rn = rnd.nextU32() % width; 
+#endif
+                TIndexOffU newwidth = width - trim;
                 if(hit.top + rn + newwidth > hit.bot) {
                     // Two pieces
                     tops[0] = hit.top + rn;
@@ -225,8 +238,8 @@ bool SwDriver::eeSaTups(
             }
             for(int i = 0; i < 2 && !done; i++) {
                 if(bots[i] <= tops[i]) break;
-                uint32_t width = bots[i] - tops[i];
-                uint32_t top = tops[i];
+                TIndexOffU width = bots[i] - tops[i];
+                TIndexOffU top = tops[i];
                 // Clear list where resolved offsets are stored
                 swmSeed.mm1ranges++;
                 swmSeed.mm1rows += width;
@@ -239,16 +252,16 @@ bool SwDriver::eeSaTups(
                     pool_.clear();
                     firstEe = false;
                 }
-                TSlice o(salistEe_, (uint32_t)salistEe_.size(), width);
+                TSlice o(salistEe_, (TIndexOffU)salistEe_.size(), width);
                 for(size_t i = 0; i < width; i++) {
-                    if(!salistEe_.add(pool_, 0xffffffff)) {
+                    if(!salistEe_.add(pool_, OFF_MASK)) {
                         swmSeed.mm1ooms++;
                         return false;
                     }
                 }
                 eehits_.push_back(hit);
                 satpos_.expand();
-                satpos_.back().sat.init(SAKey(), top, 0xffffffff, o);
+                satpos_.back().sat.init(SAKey(), top, OFF_MASK, o);
                 satpos_.back().sat.key.seq = MAX_U64;
                 satpos_.back().sat.key.len = (uint32_t)rd.length();
                 satpos_.back().pos.init(hit.fw, 0, 0, (uint32_t)rd.length());
@@ -287,10 +300,10 @@ void SwDriver::extend(
 	const Read& rd,       // read
 	const Ebwt& ebwtFw,   // Forward Bowtie index
 	const Ebwt* ebwtBw,   // Backward Bowtie index
-	uint32_t topf,        // top in fw index
-	uint32_t botf,        // bot in fw index
-	uint32_t topb,        // top in bw index
-	uint32_t botb,        // bot in bw index
+	TIndexOffU topf,        // top in fw index
+	TIndexOffU botf,        // bot in fw index
+	TIndexOffU topb,        // top in bw index
+	TIndexOffU botb,        // bot in bw index
 	bool fw,              // seed orientation
 	size_t off,           // seed offset from 5' end
 	size_t len,           // seed length
@@ -298,8 +311,8 @@ void SwDriver::extend(
 	size_t& nlex,         // # positions we can extend to left w/o edit
 	size_t& nrex)         // # positions we can extend to right w/o edit
 {
-	uint32_t t[4], b[4];
-	uint32_t tp[4], bp[4];
+	TIndexOffU t[4], b[4];
+	TIndexOffU tp[4], bp[4];
 	SideLocus tloc, bloc;
 	size_t rdlen = rd.length();
 	size_t lim = fw ? off : rdlen - len - off;
@@ -327,7 +340,7 @@ void SwDriver::extend(
 		// Extend left using forward index
 		const BTDnaString& seq = fw ? rd.patFw : rd.patRc;
 		// See what we get by extending 
-		uint32_t top = topf, bot = botf;
+		TIndexOffU top = topf, bot = botf;
 		t[0] = t[1] = t[2] = t[3] = 0;
 		b[0] = b[1] = b[2] = b[3] = 0;
 		tp[0] = tp[1] = tp[2] = tp[3] = topb;
@@ -393,7 +406,7 @@ void SwDriver::extend(
 		// Extend right using backward index
 		const BTDnaString& seq = fw ? rd.patFw : rd.patRc;
 		// See what we get by extending 
-		uint32_t top = topb, bot = botb;
+		TIndexOffU top = topb, bot = botb;
 		t[0] = t[1] = t[2] = t[3] = 0;
 		b[0] = b[1] = b[2] = b[3] = 0;
 		tp[0] = tp[1] = tp[2] = tp[3] = topf;
@@ -565,9 +578,9 @@ void SwDriver::prioritizeSATups(
 					ebwtFw,
 					ebwtBw,
 					satpos.back().sat.topf,
-					(uint32_t)(satpos.back().sat.topf + sz),
+					(TIndexOffU)(satpos.back().sat.topf + sz),
 					satpos.back().sat.topb,
-					(uint32_t)(satpos.back().sat.topb + sz),
+					(TIndexOffU)(satpos.back().sat.topb + sz),
 					fw,
 					rdoff,
 					seedlen,
@@ -688,7 +701,7 @@ void SwDriver::prioritizeSATups(
 		}
 		assert(!rands2_[ri].done());
 		// Choose an element from the range
-		uint32_t r = rands2_[ri].next(rnd);
+		size_t r = rands2_[ri].next(rnd);
 		if(rands2_[ri].done()) {
 			// Tell the row sampler this range is done
 			rowsamp_.finishedRange(ri - nsmall);
@@ -697,7 +710,7 @@ void SwDriver::prioritizeSATups(
 		SATuple sat;
 		TSlice o;
 		o.init(satpos2_[ri].sat.offs, r, r+1);
-		sat.init(satpos2_[ri].sat.key, satpos2_[ri].sat.topf + r, 0xffffffff, o);
+		sat.init(satpos2_[ri].sat.key, (TIndexOffU)(satpos2_[ri].sat.topf + r), OFF_MASK, o);
 		satpos_.expand();
 		satpos_.back().sat = sat;
 		satpos_.back().origSz = satpos2_[ri].origSz;
@@ -777,7 +790,6 @@ int SwDriver::extendSeeds(
 	bool& exhaustive)            // set to true iff we searched all seeds exhaustively
 {
 	bool all = msink->allHits();
-	typedef std::pair<uint32_t, uint32_t> U32Pair;
 
 	assert(!reportImmediately || msink != NULL);
 	assert(!reportImmediately || !msink->maxed());
@@ -910,20 +922,20 @@ int SwDriver::extendSeeds(
 				first = false;
 				// Resolve next element offset
 				WalkResult wr;
-				uint32_t elt = rands_[i].next(rnd);
+				size_t elt = rands_[i].next(rnd);
 				//cerr << "elt=" << elt << endl;
 				SARangeWithOffs<TSlice> sa;
 				sa.topf = satpos_[i].sat.topf;
 				sa.len = satpos_[i].sat.key.len;
 				sa.offs = satpos_[i].sat.offs;
-				gws_[i].advanceElement(elt, ebwtFw, ref, sa, gwstate_, wr, wlm, prm);
+				gws_[i].advanceElement((TIndexOffU)elt, ebwtFw, ref, sa, gwstate_, wr, wlm, prm);
 				eltsDone++;
 				if(!eeMode) {
 					assert_gt(neltLeft, 0);
 					neltLeft--;
 				}
-				assert_neq(0xffffffff, wr.toff);
-				uint32_t tidx = 0, toff = 0, tlen = 0;
+				assert_neq(OFF_MASK, wr.toff);
+				TIndexOffU tidx = 0, toff = 0, tlen = 0;
 				bool straddled = false;
 				ebwtFw.joinedToTextOff(
 					wr.elt.len,
@@ -933,7 +945,7 @@ int SwDriver::extendSeeds(
 					tlen,
 					eeMode,     // reject straddlers?
 					straddled); // did it straddle?
-				if(tidx == 0xffffffff) {
+				if(tidx == OFF_MASK) {
 					// The seed hit straddled a reference boundary so the seed hit
 					// isn't valid
 					continue;
@@ -1078,7 +1090,7 @@ int SwDriver::extendSeeds(
 				}
 				int64_t leftShift = refoff - rect.refl;
 				size_t nwindow = 0;
-				if(toff >= rect.refl) {
+				if((int64_t)toff >= rect.refl) {
 					nwindow = (size_t)(toff - rect.refl);
 				}
 				// NOTE: We might be taking off more than we should because the
@@ -1419,7 +1431,6 @@ int SwDriver::extendSeedsPaired(
 	bool& exhaustive)
 {
 	bool all = msink->allHits();
-	typedef std::pair<uint32_t, uint32_t> U32Pair;
 
 	assert(!reportImmediately || msink != NULL);
 	assert(!reportImmediately || !msink->maxed());
@@ -1611,17 +1622,17 @@ int SwDriver::extendSeedsPaired(
 				assert(!gws_[i].done());
 				// Resolve next element offset
 				WalkResult wr;
-				uint32_t elt = rands_[i].next(rnd);
+				size_t elt = rands_[i].next(rnd);
 				SARangeWithOffs<TSlice> sa;
 				sa.topf = satpos_[i].sat.topf;
 				sa.len = satpos_[i].sat.key.len;
 				sa.offs = satpos_[i].sat.offs;
-				gws_[i].advanceElement(elt, ebwtFw, ref, sa, gwstate_, wr, wlm, prm);
+				gws_[i].advanceElement((TIndexOffU)elt, ebwtFw, ref, sa, gwstate_, wr, wlm, prm);
 				eltsDone++;
 				assert_gt(neltLeft, 0);
 				neltLeft--;
-				assert_neq(0xffffffff, wr.toff);
-				uint32_t tidx = 0, toff = 0, tlen = 0;
+				assert_neq(OFF_MASK, wr.toff);
+				TIndexOffU tidx = 0, toff = 0, tlen = 0;
 				bool straddled = false;
 				ebwtFw.joinedToTextOff(
 					wr.elt.len,
@@ -1631,7 +1642,7 @@ int SwDriver::extendSeedsPaired(
 					tlen,
 					eeMode,       // reject straddlers?
 					straddled);   // straddled?
-				if(tidx == 0xffffffff) {
+				if(tidx == OFF_MASK) {
 					// The seed hit straddled a reference boundary so the seed hit
 					// isn't valid
 					continue;
@@ -1771,7 +1782,7 @@ int SwDriver::extendSeedsPaired(
 				}
 				int64_t leftShift = refoff - rect.refl;
 				size_t nwindow = 0;
-				if(toff >= rect.refl) {
+				if((int64_t)toff >= rect.refl) {
 					nwindow = (size_t)(toff - rect.refl);
 				}
 				// NOTE: We might be taking off more than we should because the

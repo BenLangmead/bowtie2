@@ -20,6 +20,8 @@
 #ifndef ZBOX_H_
 #define ZBOX_H_
 
+#include "btypes.h"
+
 /**
  * Fill z with Z-box information for s.  String z will not be resized
  * and will only be filled up to its size cap.  This is the linear-time
@@ -28,8 +30,8 @@
  */
 template<typename T>
 void calcZ(const T& s,
-           uint32_t off,
-           EList<uint32_t>& z,
+           TIndexOffU off,
+           EList<TIndexOffU>& z,
            bool verbose = false,
            bool sanityCheck = false)
 {
@@ -46,7 +48,7 @@ void calcZ(const T& s,
 			// compare starting at k with prefix starting at 0
 			size_t ki = k;
 			while(off+ki < s.length() && s[off+ki] == s[off+ki-k]) ki++;
-			z[k] = (uint32_t)(ki - k);
+			z[k] = (TIndexOffU)(ki - k);
 			assert_lt(off+z[k], slen);
 			if(z[k] > 0) {
 				lCur = k;
@@ -64,7 +66,7 @@ void calcZ(const T& s,
 			} else if (z[kPrime] > 0) {
 				int q = 0;
 				while (off+q+rCur+1 < s.length() && s[off+q+rCur+1] == s[off+betaLen+q]) q++;
-				z[k] = (uint32_t)(betaLen + q);
+				z[k] = (TIndexOffU)(betaLen + q);
 				assert_lt(off+z[k], slen);
 				rCur = rCur + q;
 				assert_geq(k, lCur);

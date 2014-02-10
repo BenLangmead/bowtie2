@@ -663,7 +663,7 @@ static void printUsage(ostream& out) {
 	out << "Usage: " << endl
 	    << "  " << tool_name.c_str() << " [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r>} [-S <sam>]" << endl
 	    << endl
-		<<     "  <bt2-idx>  Index filename prefix (minus trailing .X.bt2)." << endl
+		<<     "  <bt2-idx>  Index filename prefix (minus trailing .X." + gEbwt_ext + ")." << endl
 		<<     "             NOTE: Bowtie 1 and Bowtie 2 indexes are not compatible." << endl
 	    <<     "  <m1>       Files with #1 mates, paired with files in <m2>." << endl;
 	if(wrapper == "basic-0") {
@@ -785,7 +785,7 @@ static void printUsage(ostream& out) {
 	    << "  --omit-sec-seq     put '*' in SEQ and QUAL fields for secondary alignments." << endl
 		<< endl
 	    << " Performance:" << endl
-	    << "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl
+	//    << "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl
 	    << "  -p/--threads <int> number of alignment threads to launch (1)" << endl
 	    << "  --reorder          force SAM output order to match order of input reads" << endl
 #ifdef BOWTIE_MM
@@ -4595,7 +4595,7 @@ int bowtie(int argc, const char **argv) {
 
 			// Optionally summarize
 			if(gVerbose) {
-				cout << "Input bt2 file: \"" << bt2index.c_str() << "\"" << endl;
+				cout << "Input " + gEbwt_ext +" file: \"" << bt2index.c_str() << "\"" << endl;
 				cout << "Query inputs (DNA, " << file_format_names[format].c_str() << "):" << endl;
 				for(size_t i = 0; i < queries.size(); i++) {
 					cout << "  " << queries[i].c_str() << endl;

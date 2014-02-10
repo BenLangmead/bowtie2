@@ -12,15 +12,12 @@
 
 #if defined(__INTEL_COMPILER)
 #   define USING_INTEL_COMPILER
-#   include <immintrin.h>
 #elif defined(__GNUC__)
 #   define USING_GCC_COMPILER
-#   include <smmintrin.h>
 #   include <cpuid.h>
 #elif defined(_MSC_VER)
 // __MSC_VER defined by Microsoft compiler
 #define USING MSC_COMPILER
-#   include <intrin.h>
 #endif
 
 struct regs_t {unsigned int EAX, EBX, ECX, EDX;};

@@ -31,7 +31,7 @@
  */
 class Random1toN {
 
-	typedef uint32_t T;
+	typedef size_t T;
 
 public:
 

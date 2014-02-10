@@ -512,7 +512,7 @@ private:
 	static const size_t BUF_SZ = 128 * 1024;
 	FILE    *out_;
 	int      bpPtr_;
-	uint32_t cur_;
+	size_t   cur_;
 	char     buf_[BUF_SZ]; // (large) input buffer
 };
 

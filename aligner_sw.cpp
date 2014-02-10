@@ -197,7 +197,7 @@ void SwAligner::initRef(
 			if(rfii < 0 || (TRefOff)rfii >= reflen) {
 				rfbuf2.push_back(4);
 			} else {
-				rfbuf2.push_back(refs.getBase(refidx, (uint32_t)rfii));
+				rfbuf2.push_back(refs.getBase(refidx, (size_t)rfii));
 			}
 			rfii++;
 		}
@@ -334,7 +334,7 @@ int SwAligner::ungappedAlign(
 			if(rfii < 0 || (size_t)rfii >= reflen) {
 				rfbuf2.push_back(4);
 			} else {
-				rfbuf2.push_back(refs.getBase(refidx, (uint32_t)rfii));
+				rfbuf2.push_back(refs.getBase(refidx, (size_t)rfii));
 			}
 			rfii++;
 		}
