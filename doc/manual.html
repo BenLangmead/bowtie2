@@ -55,7 +55,8 @@
 <li><a href="#presets-setting-many-settings-at-once">Presets: setting many settings at once</a></li>
 <li><a href="#filtering">Filtering</a></li>
 <li><a href="#alignment-summmary">Alignment summmary</a></li>
-<li><a href="#wrapper">Wrapper</a></li>
+<li><a href="#wrapper-scripts">Wrapper scripts</a></li>
+<li><a href="#small-and-large-indexes">Small and large indexes</a></li>
 <li><a href="#performance-tuning">Performance tuning</a></li>
 <li><a href="#command-line">Command Line</a><ul>
 <li><a href="#setting-function-options">Setting function options</a></li>
@@ -132,7 +133,7 @@
 <h2 id="what-does-it-mean-that-some-older-bowtie-2-versions-are-beta"><a href="#TOC">What does it mean that some older Bowtie 2 versions are &quot;beta&quot;?</a></h2>
 <p>We said those Bowtie 2 versions were in &quot;beta&quot; to convey that it was not as polished as a tool that had been around for a while, and was still in flux. Since version 2.0.1, we declared Bowtie 2 was no longer &quot;beta&quot;.</p>
 <h1 id="obtaining-bowtie-2"><a href="#TOC">Obtaining Bowtie 2</a></h1>
-<p>Download Bowtie 2 sources and binaries from the <a href="https://sourceforge.net/projects/bowtie-bio/files/bowtie2/">Download</a> section of the Sourceforge site. Binaries are available for Intel architectures (<code>i386</code> and <code>x86_64</code>) running Linux, and Mac OS X. A 32-bit version is available for Windows. If you plan to compile Bowtie 2 yourself, make sure to get the source package, i.e., the filename that ends in &quot;-source.zip&quot;.</p>
+<p>Download Bowtie 2 sources and binaries from the <a href="https://sourceforge.net/projects/bowtie-bio/files/bowtie2/">Download</a> section of the Sourceforge site. Binaries are available for the Intel <code>x86_64</code> architecture running Linux, Mac OS X, and Windows. If you plan to compile Bowtie 2 yourself, make sure to get the source package, i.e., the filename that ends in &quot;-source.zip&quot;.</p>
 <h2 id="building-from-source"><a href="#TOC">Building from source</a></h2>
 <p>Building Bowtie 2 from source requires a GNU-like environment with GCC, GNU Make and other basics. It should be possible to build Bowtie 2 on most vanilla Linux installations or on a Mac installation with <a href="http://developer.apple.com/xcode/">Xcode</a> installed. Bowtie 2 can also be built on Windows using <a href="http://www.cygwin.com/">Cygwin</a> or <a href="http://www.mingw.org/">MinGW</a> (MinGW recommended). For a MinGW build the choice of what compiler is to be used is important since this will determine if a 32 or 64 bit code can be successfully compiled using it. If there is a need to generate both 32 and 64 bit on the same machine then a multilib MinGW has to be properly installed. <a href="http://www.mingw.org/wiki/msys">MSYS</a>, the <a href="http://cygwin.com/packages/mingw-zlib/">zlib</a> library, and depending on architecture <a href="http://sourceware.org/pthreads-win32/">pthreads</a> library are also required. We are recommending a 64 bit build since it has some clear advantages in real life research problems. In order to simplify the MinGW setup it might be worth investigating popular MinGW personal builds since these are coming already prepared with most of the toolchains needed.</p>
 <p>First, download the source package from the <a href="https://sourceforge.net/projects/bowtie-bio/files/bowtie2/">sourceforge site</a>. Make sure you're getting the source package; the file downloaded should end in <code>-source.zip</code>. Unzip the file, change to the unzipped directory, and build the Bowtie 2 tools by running GNU <code>make</code> (usually with the command <code>make</code>, but sometimes with <code>gmake</code>) with no arguments. If building with MinGW, run <code>make</code> from the MSYS environment.</p>
@@ -291,14 +292,19 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC</code></pr
         1 (0.08%) aligned &gt;1 times
 96.70% overall alignment rate</code></pre>
 <p>The indentation indicates how subtotals relate to totals.</p>
-<h2 id="wrapper"><a href="#TOC">Wrapper</a></h2>
-<p>The <code>bowtie2</code> executable is actually a Perl wrapper script that calls the compiled <code>bowtie2-align</code> binary. It is recommended that you always run the <code>bowtie2</code> wrapper and not run <code>bowtie2-align</code> directly.</p>
+<h2 id="wrapper-scripts"><a href="#TOC">Wrapper scripts</a></h2>
+<p>The <code>bowtie2</code>, <code>bowtie2-build</code> and <code>bowtie2-inspect</code> executables are actually wrapper scripts that call binary programs as appropriate. The wrappers shield users from having to distinguish between &quot;small&quot; and &quot;large&quot; index formats, discussed briefly in the following section. Also, the <code>bowtie2</code> wrapper provides some key functionality, like the ability to handle compressed inputs, and the fucntionality for <a href="#bowtie2-options-un"><code>--un</code></a>, <a href="#bowtie2-options-al"><code>--al</code></a> and related options.</p>
+<p>It is recommended that you always run the bowtie2 wrappers and not run the binaries directly.</p>
+<h2 id="small-and-large-indexes"><a href="#TOC">Small and large indexes</a></h2>
+<p><code>bowtie2-build</code> can index reference genomes of any size. For genomes less than about 4 billion nucleotides in length, <code>bowtie2-build</code> builds a &quot;small&quot; index using 32-bit numbers in various parts of the index. When the genome is longer, <code>bowtie2-build</code> builds a &quot;large&quot; index using 64-bit numbers. Small indexes are stored in files with the <code>.bt2</code> extension, and large indexes are stored in files with the <code>.bt2l</code> extension. The user need not worry about whether a particular index is small or large; the wrapper scripts will automatically build and use the appropriate index.</p>
 <h2 id="performance-tuning"><a href="#TOC">Performance tuning</a></h2>
 <ol style="list-style-type: decimal">
-<li><p>Use 64-bit version if possible</p>
-<p>The 64-bit version of Bowtie 2 is faster than the 32-bit version, owing to its use of 64-bit arithmetic. If possible, download the 64-bit binaries for Bowtie 2 and run on a 64-bit computer. If you are building Bowtie 2 from sources, you may need to pass the <code>-m64</code> option to <code>g++</code> to compile the 64-bit version; you can do this by including <code>BITS=64</code> in the arguments to the <code>make</code> command; e.g.: <code>make BITS=64 bowtie2</code>. To determine whether your version of bowtie is 64-bit or 32-bit, run <code>bowtie2 --version</code>.</p></li>
 <li><p>If your computer has multiple processors/cores, use <code>-p</code></p>
 <p>The <a href="#bowtie2-options-p"><code>-p</code></a> option causes Bowtie 2 to launch a specified number of parallel search threads. Each thread runs on a different processor/core and all threads find alignments in parallel, increasing alignment throughput by approximately a multiple of the number of threads (though in practice, speedup is somewhat worse than linear).</p></li>
+<li><p>If reporting many alignments per read, try reducing <code>bowtie2-build --offrate</code></p>
+<p>If you are using <a href="#bowtie2-options-k"><code>-k</code></a> or <a href="#bowtie2-options-a"><code>-a</code></a> options and Bowtie 2 is reporting many alignments per read, using an index with a denser SA sample can speed things up considerably. To do this, specify a smaller-than-default <a href="#bowtie2-build-options-o"><code>-o</code>/<code>--offrate</code></a> value when running <code>bowtie2-build</code>. A denser SA sample yields a larger index, but is also particularly effective at speeding up alignment when many alignments are reported per read.</p></li>
+<li><p>If <code>bowtie2</code> &quot;thrashes&quot;, try increasing <code>bowtie2-build --offrate</code></p>
+<p>If <code>bowtie2</code> runs very slowly on a relatively low-memory computer, try setting <a href="#bowtie2-options-o"><code>-o</code>/<code>--offrate</code></a> to a <em>larger</em> value when building the index. This decreases the memory footprint of the index.</p></li>
 </ol>
 <h2 id="command-line"><a href="#TOC">Command Line</a></h2>
 <h3 id="setting-function-options"><a href="#TOC">Setting function options</a></h3>
@@ -1294,12 +1300,11 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </li>
 </ol>
 <h1 id="the-bowtie2-build-indexer"><a href="#TOC">The <code>bowtie2-build</code> indexer</a></h1>
-<p><code>bowtie2-build</code> builds a Bowtie index from a set of DNA sequences. <code>bowtie2-build</code> outputs a set of 6 files with suffixes <code>.1.bt2</code>, <code>.2.bt2</code>, <code>.3.bt2</code>, <code>.4.bt2</code>, <code>.rev.1.bt2</code>, and <code>.rev.2.bt2</code>. These files together constitute the index: they are all that is needed to align reads to that reference. The original sequence FASTA files are no longer used by Bowtie 2 once the index is built.</p>
+<p><code>bowtie2-build</code> builds a Bowtie index from a set of DNA sequences. <code>bowtie2-build</code> outputs a set of 6 files with suffixes <code>.1.bt2</code>, <code>.2.bt2</code>, <code>.3.bt2</code>, <code>.4.bt2</code>, <code>.rev.1.bt2</code>, and <code>.rev.2.bt2</code>. In the case of a large index these suffixes will have a <code>bt2l</code> termination. These files together constitute the index: they are all that is needed to align reads to that reference. The original sequence FASTA files are no longer used by Bowtie 2 once the index is built.</p>
 <p>Bowtie 2's <code>.bt2</code> index format is different from Bowtie 1's <code>.ebwt</code> format, and they are not compatible with each other.</p>
 <p>Use of Karkkainen's <a href="http://portal.acm.org/citation.cfm?id=1314852">blockwise algorithm</a> allows <code>bowtie2-build</code> to trade off between running time and memory usage. <code>bowtie2-build</code> has three options governing how it makes this trade: <a href="#bowtie2-build-options-p"><code>-p</code>/<code>--packed</code></a>, <a href="#bowtie2-build-options-bmax"><code>--bmax</code></a>/<a href="#bowtie2-build-options-bmaxdivn"><code>--bmaxdivn</code></a>, and <a href="#bowtie2-build-options-dcv"><code>--dcv</code></a>. By default, <code>bowtie2-build</code> will automatically search for the settings that yield the best running time without exhausting memory. This behavior can be disabled using the <a href="#bowtie2-build-options-a"><code>-a</code>/<code>--noauto</code></a> option.</p>
 <p>The indexer provides options pertaining to the &quot;shape&quot; of the index, e.g. <a href="#bowtie2-build-options-o"><code>--offrate</code></a> governs the fraction of <a href="http://en.wikipedia.org/wiki/Burrows-Wheeler_transform">Burrows-Wheeler</a> rows that are &quot;marked&quot; (i.e., the density of the suffix-array sample; see the original <a href="http://portal.acm.org/citation.cfm?id=796543">FM Index</a> paper for details). All of these options are potentially profitable trade-offs depending on the application. They have been set to defaults that are reasonable for most cases according to our experiments. See <a href="#performance-tuning">Performance tuning</a> for details.</p>
-<p>Because <code>bowtie2-build</code> uses 32-bit pointers internally, it can handle up to a theoretical maximum of 2^32-1 (somewhat more than 4 billion) characters in an index, though, with other constraints, the actual ceiling is somewhat less than that. If your reference exceeds 2^32-1 characters, <code>bowtie2-build</code> will print an error message and abort. To resolve this, divide your reference sequences into smaller batches and/or chunks and build a separate index for each.</p>
-<p>If your computer has more than 3-4 GB of memory and you would like to exploit that fact to make index building faster, use a 64-bit version of the <code>bowtie2-build</code> binary. The 32-bit version of the binary is restricted to using less than 4 GB of memory. If a 64-bit pre-built binary does not yet exist for your platform on the sourceforge download site, you will need to build one from source.</p>
+<p><code>bowtie2-build</code> can generate either <a href="#small-and-large-indexes">small or large indexes</a>. The wrapper will decide which based on the length of the input genome. If the reference does not exceed 4 billion characters but a large index is preferred, the user can specify <a href="#bowtie2-build-options-large-index"><code>--large-index</code></a> to force <code>bowtie2-build</code> to build a large index instead.</p>
 <p>The Bowtie 2 index is based on the <a href="http://portal.acm.org/citation.cfm?id=796543">FM Index</a> of Ferragina and Manzini, which in turn is based on the <a href="http://en.wikipedia.org/wiki/Burrows-Wheeler_transform">Burrows-Wheeler</a> transform. The algorithm used to build the index is based on the <a href="http://portal.acm.org/citation.cfm?id=1314852">blockwise algorithm</a> of Karkkainen.</p>
 <h2 id="command-line-1"><a href="#TOC">Command Line</a></h2>
 <p>Usage:</p>
@@ -1332,6 +1337,15 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td><td>
 
 <p>The reference sequences are given on the command line. I.e. <code>&lt;reference_in&gt;</code> is a comma-separated list of sequences rather than a list of FASTA files.</p>
+</td></tr>
+</td></tr><tr><td id="bowtie2-build-options-large-index">
+
+
+
+<pre><code>--large-index</code></pre>
+</td><td>
+
+<p>Force <code>bowtie2-build</code> to build a <a href="#small-and-large-indexes">large index</a>, even if the reference is less than ~ 4 billion nucleotides inlong.</p>
 </td></tr>
 <tr><td id="bowtie2-build-options-a">
 
