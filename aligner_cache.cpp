@@ -54,10 +54,10 @@ bool SAVal::repOk(const AlignmentCache& ac) const {
 bool AlignmentCache::addOnTheFly(
 	QVal& qv,         // qval that points to the range of reference substrings
 	const SAKey& sak, // the key holding the reference substring
-	uint32_t topf,    // top range elt in BWT index
-	uint32_t botf,    // bottom range elt in BWT index
-	uint32_t topb,    // top range elt in BWT' index
-	uint32_t botb,    // bottom range elt in BWT' index
+	TIndexOffU topf,    // top range elt in BWT index
+	TIndexOffU botf,    // bottom range elt in BWT index
+	TIndexOffU topb,    // top range elt in BWT' index
+	TIndexOffU botb,    // bottom range elt in BWT' index
 	bool getLock)
 {
     ThreadSafe ts(lockPtr(), shared_ && getLock);
@@ -85,14 +85,14 @@ bool AlignmentCache::addOnTheFly(
 	}
 	assert(s->key.repOk());
 	if(added) {
-		s->payload.i = (uint32_t)salist_.size();
+		s->payload.i = (TIndexOffU)salist_.size();
 		s->payload.len = botf - topf;
 		s->payload.topf = topf;
 		s->payload.topb = topb;
 		for(size_t j = 0; j < (botf-topf); j++) {
-			if(!salist_.add(pool(), 0xffffffff)) {
+			if(!salist_.add(pool(), OFF_MASK)) {
 				// Change the payload's len field
-				s->payload.len = (uint32_t)j;
+				s->payload.len = (TIndexOffU)j;
 				return false; // Exhausted pool memory
 			}
 		}
@@ -214,7 +214,7 @@ static void aligner_cache_tests() {
 	}
 	// Add all of the 4-mers in several different random orders
 	RandomSource rand;
-	for(uint32_t runs = 0; runs < 100; runs++) {
+	for(unsigned runs = 0; runs < 100; runs++) {
 		rb.clear();
 		p.clear();
 		assert_eq(0, rb.size());

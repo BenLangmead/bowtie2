@@ -1,3 +1,27 @@
+<h2>Version 2.2.0 - Coming soon</h2>
+<ul>
+   <li>Improved index querying efficiency using "population count"
+       instructions available since
+       <a href="http://en.wikipedia.org/wiki/SSE4.2#SSE4.2">SSE4.2</a></li>
+   <li>Added support for large and small indexes, removing 4-billion-nucleotide
+       barrier. Bowtie 2 can now be used with reference genomes of any size.</li>
+   <li>Fixed bug that could cause bowtie2-build to crash when reference length
+       is close to 4 billion.</li>
+   <li>Added a <tt>CL:</tt> string to the <tt>@PG</tt> SAM header to preserve information about
+       the aligner binary and paramteres.</li>
+   <li>Fixed bug that could cause <tt>bowtie2-build</tt> to crash when reference length
+       is close to 4 billion.</li>
+   <li>No longer releasing 32-bit binaries. Simplified manual and Makefile
+       accordingly.</li>
+   <li>Credits to the Intel&reg; enabling team for performance optimizations
+       included in this release. Thank you!</li>
+</ul>
+
+<h2>Bowtie 2 on GitHub - February 4, 2014</h2>
+<ul>
+   <li>Bowtie 2 source now lives in a <a href="https://github.com/BenLangmead/bowtie2">public GitHub repository</a>.</li>
+</ul>
+
 <h2>Version 2.1.0 - February 21, 2013</h2>
 <ul>
    <li>Improved multithreading support so that Bowtie 2 now uses native Windows
@@ -84,57 +108,3 @@ are specified at the same time.</li>
 <li>Fixed race condition in <tt>bowtie2</tt> script when named pipes are used.</li>
 <li>Added more discussion of whitespace in read names to manual.</li>
 </ul>
-
-<h2>Sourceforge spam</h2>
-<ul>
-<li>Spam on the sourceforge tracker (i.e. where feature requests and bug
-    reports go) was getting out of control, so I disabled posting by anonymous
-	users.  This means you'll have to use some set of credentials when posting
-	on the tracker.  Sourceforge allows you to use various, e.g., your Google
-	credentials.   Sorry for the invonvenience, but I think this will make the
-	experience better overall.
-</ul>
-
-<h2>Version 2.0.2 - October 31, 2012</h2>
-<ul>
- <li>Fixes a couple small issues pointed out to me immediately after 2.0.1
-     release</li>
- <li>Mac binaries now built on 10.6 in order to be forward-compatible with more
-     Mac OS versions</li>
- <li>Small changes to source to make it compile with gcc versions up to 4.7
-     without warnings</li>
-</ul>
-
-
-<h2>Version 2.0.1 - October 31, 2012</h2>
-<ul>
- <li>First non-beta release.</li>
- <li>Fixed an issue that would cause Bowtie 2 to use excessive amounts of
-     memory for closely-matching and highly repetitive reads under some
-     circumstances.</li>
- <li>Fixed a bug in
-     <tt><a href="manual.shtml#bowtie2-options-mm">--mm</a></tt>
-      mode that would fail to report when an index file
-     could not be memory-mapped.</li>
- <li>Added
-     <tt><a href="manual.shtml#bowtie2-options-non-deterministic">--non-deterministic</a></tt>
-	 option, which better matches how some users
-     expect the pseudo-random generator inside Bowtie 2 to work.  Normally, if
-     you give the same read (same name, sequence and qualities) and
-	 <tt><a href="manual.shtml#bowtie2-options-seed">--seed</a></tt>, you
-     get the same answer.  
-     <tt><a href="manual.shtml#bowtie2-options-non-deterministic">--non-deterministic</a></tt>
-	 breaks that guarantee.  This can
-     be more appropriate for datasets where the input contains many identical
-     reads (same name, same sequence, same qualities).</li>
- <li>Fixed a bug in <tt>bowtie2-build</tt> would yield corrupt index files when memory
-     settings were adjusted in the middle of indexing.</li>
- <li>Clarified in manual that <tt>--un-*</tt> options print reads exactly as
-     they appeared in the input, and that they are not necessarily written in
-     the same order as they appeared in the input.</li>
- <li>Fixed issue whereby wrapper would incorrectly interpret arguments with
-     <tt>--al</tt> as a prefix (e.g.
-	 <tt><a href="manual.shtml#bowtie2-options-a">--all</a></tt>) as
-	 <tt><a href="manual.shtml#bowtie2-options-al">--al</a></tt>.</li>
-</ul>
-

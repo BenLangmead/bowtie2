@@ -38,11 +38,12 @@ static int names_only   = 0;  // just print the sequence names in the index
 static int summarize_only = 0; // just print summary of index and quit
 static int across       = 60; // number of characters across in FASTA output
 static bool refFromEbwt = false; // true -> when printing reference, decode it from Ebwt instead of reading it from BitPairReference
-
+static string wrapper;
 static const char *short_options = "vhnsea:";
 
 enum {
 	ARG_VERSION = 256,
+	ARG_WRAPPER,
 	ARG_USAGE,
 };
 
@@ -55,6 +56,7 @@ static struct option long_options[] = {
 	{(char*)"help",     no_argument,        0, 'h'},
 	{(char*)"across",   required_argument,  0, 'a'},
 	{(char*)"ebwt-ref", no_argument,        0, 'e'},
+	{(char*)"wrapper",  required_argument,  0, ARG_WRAPPER},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -65,21 +67,32 @@ static void printUsage(ostream& out) {
 	out << "Bowtie 2 version " << string(BOWTIE2_VERSION).c_str() << " by Ben Langmead (langmea@cs.jhu.edu, www.cs.jhu.edu/~langmea)" << endl;
 	out
 	<< "Usage: bowtie2-inspect [options]* <bt2_base>" << endl
-	<< "  <bt2_base>         bt2 filename minus trailing .1.bt2/.2.bt2" << endl
+	<< "  <bt2_base>         bt2 filename minus trailing .1." + gEbwt_ext + "/.2." + gEbwt_ext << endl
 	<< endl
 	<< "  By default, prints FASTA records of the indexed nucleotide sequences to" << endl
 	<< "  standard out.  With -n, just prints names.  With -s, just prints a summary of" << endl
 	<< "  the index parameters and sequences.  With -e, preserves colors if applicable." << endl
 	<< endl
-	<< "Options:" << endl
-	<< "  -a/--across <int>  Number of characters across in FASTA output (default: 60)" << endl
+	<< "Options:" << endl;
+	if(wrapper == "basic-0") {
+		out << "  --large-index      force inspection of the 'large' index, even if a" << endl
+			<< "                     'small' one is present." << endl;
+	}
+	out << "  -a/--across <int>  Number of characters across in FASTA output (default: 60)" << endl
 	<< "  -n/--names         Print reference sequence names only" << endl
 	<< "  -s/--summary       Print summary incl. ref names, lengths, index properties" << endl
-	<< "  -e/--bt2-ref      Reconstruct reference from .bt2 (slow, preserves colors)" << endl
+	<< "  -e/--bt2-ref      Reconstruct reference from ." + gEbwt_ext + " (slow, preserves colors)" << endl
 	<< "  -v/--verbose       Verbose output (for debugging)" << endl
 	<< "  -h/--help          print detailed description of tool and its options" << endl
 	<< "  --help             print this usage message" << endl
 	;
+	if(wrapper.empty()) {
+		cerr << endl
+		     << "*** Warning ***" << endl
+			 << "'boowtie2-inspect' was run directly.  It is recommended "
+			 << "to use the wrapper script instead."
+			 << endl << endl;
+	}
 }
 
 /**
@@ -114,6 +127,9 @@ static void parseOptions(int argc, char **argv) {
 	do {
 		next_option = getopt_long(argc, argv, short_options, long_options, &option_index);
 		switch (next_option) {
+			case ARG_WRAPPER:
+				wrapper = optarg;
+				break;
 			case ARG_USAGE:
 			case 'h':
 				printUsage(cout);
@@ -200,7 +216,7 @@ static void print_ref_sequences(
 	ostream& fout,
 	bool color,
 	const EList<string>& refnames,
-	const uint32_t* plen,
+	const TIndexOffU* plen,
 	const string& adjustedEbwtFileBase)
 {
 	BitPairReference ref(
@@ -238,25 +254,25 @@ static void print_index_sequences(ostream& fout, Ebwt& ebwt)
 	TStr cat_ref;
 	ebwt.restore(cat_ref);
 
-	uint32_t curr_ref = 0xffffffff;
+	TIndexOffU curr_ref = OFF_MASK;
 	string curr_ref_seq = "";
-	uint32_t curr_ref_len = 0xffffffff;
-	uint32_t last_text_off = 0;
+	TIndexOffU curr_ref_len = OFF_MASK;
+	TIndexOffU last_text_off = 0;
 	size_t orig_len = cat_ref.length();
-	uint32_t tlen = 0xffffffff;
+	TIndexOffU tlen = OFF_MASK;
 	bool first = true;
 	for(size_t i = 0; i < orig_len; i++) {
-		uint32_t tidx = 0xffffffff;
-		uint32_t textoff = 0xffffffff;
-		tlen = 0xffffffff;
+		TIndexOffU tidx = OFF_MASK;
+		TIndexOffU textoff = OFF_MASK;
+		tlen = OFF_MASK;
 		bool straddled = false;
-		ebwt.joinedToTextOff(1 /* qlen */, (uint32_t)i, tidx, textoff, tlen, true, straddled);
+		ebwt.joinedToTextOff(1 /* qlen */, (TIndexOffU)i, tidx, textoff, tlen, true, straddled);
 
-		if (tidx != 0xffffffff && textoff < tlen)
+		if (tidx != OFF_MASK && textoff < tlen)
 		{
 			if (curr_ref != tidx)
 			{
-				if (curr_ref != 0xffffffff)
+				if (curr_ref != OFF_MASK)
 				{
 					// Add trailing gaps, if any exist
 					if(curr_ref_seq.length() < curr_ref_len) {
@@ -271,12 +287,12 @@ static void print_index_sequences(ostream& fout, Ebwt& ebwt)
 				first = true;
 			}
 
-			uint32_t textoff_adj = textoff;
+			TIndexOffU textoff_adj = textoff;
 			if(first && textoff > 0) textoff_adj++;
 			if (textoff_adj - last_text_off > 1)
 				curr_ref_seq += string(textoff_adj - last_text_off - 1, 'N');
 
-			curr_ref_seq.push_back(cat_ref[i]);
+			curr_ref_seq.push_back("ACGT"[int(cat_ref[i])]);
 			last_text_off = textoff;
 			first = false;
 		}

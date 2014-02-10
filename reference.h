@@ -35,6 +35,8 @@
 #include "shmem.h"
 #include "timer.h"
 #include "sstring.h"
+#include "btypes.h"
+
 
 /**
  * Concrete reference representation that bulk-loads the reference from
@@ -116,7 +118,7 @@ public:
 	/**
 	 * Return the number of reference sequences.
 	 */
-	uint32_t numRefs() const {
+	TIndexOffU numRefs() const {
 		return nrefs_;
 	}
 
@@ -126,7 +128,7 @@ public:
 	 *
 	 * TODO: Is it still true that it might leave off Ns?
 	 */
-	uint32_t approxLen(uint32_t elt) const {
+	TIndexOffU approxLen(TIndexOffU elt) const {
 		assert_lt(elt, nrefs_);
 		return refLens_[elt];
 	}
@@ -143,7 +145,7 @@ public:
 	 * reference string; i.e., return the number of unambiguous nucleotides
 	 * preceding it.
 	 */
-	uint32_t pastedOffset(uint32_t idx) const {
+	TIndexOffU pastedOffset(TIndexOffU idx) const {
 		return refOffs_[idx];
 	}
 
@@ -165,14 +167,14 @@ protected:
 	uint32_t byteToU32_[256];
 
 	EList<RefRecord> recs_;       /// records describing unambiguous stretches
-	EList<uint32_t>  refLens_;    /// approx lens of ref seqs (excludes trailing ambig chars)
-	EList<uint32_t>  refOffs_;    /// buf_ begin offsets per ref seq
-	EList<uint32_t>  refRecOffs_; /// record begin/end offsets per ref seq
+	EList<TIndexOffU>  refLens_;    /// approx lens of ref seqs (excludes trailing ambig chars)
+	EList<TIndexOffU>  refOffs_;    /// buf_ begin offsets per ref seq
+	EList<TIndexOffU>  refRecOffs_; /// record begin/end offsets per ref seq
 	uint8_t *buf_;      /// the whole reference as a big bitpacked byte array
 	uint8_t *sanityBuf_;/// for sanity-checking buf_
-	uint32_t bufSz_;    /// size of buf_
-	uint32_t bufAllocSz_;
-	uint32_t nrefs_;    /// the number of reference sequences
+	TIndexOffU bufSz_;    /// size of buf_
+	TIndexOffU bufAllocSz_;
+	TIndexOffU nrefs_;    /// the number of reference sequences
 	bool     loaded_;   /// whether it's loaded
 	bool     sanity_;   /// do sanity checking
 	bool     useMm_;    /// load the reference as a memory-mapped file

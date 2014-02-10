@@ -35,7 +35,7 @@ RefRecord fastaRefReadSize(
 	static int lastc = '>'; // last character seen
 
 	// RefRecord params
-	size_t len = 0; // 'len' counts toward total length
+	TIndexOffU len = 0; // 'len' counts toward total length
 	// 'off' counts number of ambiguous characters before first
 	// unambiguous character
 	size_t off = 0;
@@ -78,7 +78,7 @@ RefRecord fastaRefReadSize(
 			// Don't emit a warning, since this might legitimately be
 			// a gap on the end of the final sequence in the file
 			lastc = -1;
-			return RefRecord((uint32_t)off, (uint32_t)len, first);
+			return RefRecord((TIndexOffU)off, (TIndexOffU)len, first);
 		}
 	}
 
@@ -116,7 +116,7 @@ RefRecord fastaRefReadSize(
 			}
 			lastc = '>';
 			//return RefRecord(off, 0, false);
-			return RefRecord((uint32_t)off, 0, first);
+			return RefRecord((TIndexOffU)off, 0, first);
 		}
 		c = in.get();
 		if(c == -1) {
@@ -128,7 +128,7 @@ RefRecord fastaRefReadSize(
 			}
 			lastc = -1;
 			//return RefRecord(off, 0, false);
-			return RefRecord((uint32_t)off, 0, first);
+			return RefRecord((TIndexOffU)off, 0, first);
 		}
 	}
 	assert(!rparms.color || (lc != -1));
@@ -150,6 +150,10 @@ RefRecord fastaRefReadSize(
 		if(cat == 1) {
 			// It's a DNA character
 			assert(cc == 'A' || cc == 'C' || cc == 'G' || cc == 'T');
+			// Check for overflow
+			if((TIndexOffU)(len + 1) < len) {
+				throw RefTooLongException();
+			}
 			// Consume it
 			len++;
 			// Output it
@@ -167,7 +171,7 @@ RefRecord fastaRefReadSize(
 			// It's an N or a gap
 			lastc = c;
 			assert(cc != 'A' && cc != 'C' && cc != 'G' && cc != 'T');
-			return RefRecord((uint32_t)off, (uint32_t)len, first);
+			return RefRecord((TIndexOffU)off, (TIndexOffU)len, first);
 		} else {
 			// Not DNA and not a gap, ignore it
 #ifndef NDEBUG
@@ -184,7 +188,7 @@ RefRecord fastaRefReadSize(
 		c = in.get();
 	}
 	lastc = c;
-	return RefRecord((uint32_t)off, (uint32_t)len, first);
+	return RefRecord((TIndexOffU)off, (TIndexOffU)len, first);
 }
 
 #if 0
@@ -273,10 +277,10 @@ fastaRefReadSizes(
 	EList<RefRecord>& recs,
 	const RefReadInParams& rparms,
 	BitpairOutFileBuf* bpout,
-	int& numSeqs)
+	TIndexOff& numSeqs)
 {
-	uint32_t unambigTot = 0;
-	uint32_t bothTot = 0;
+	TIndexOffU unambigTot = 0;
+	size_t bothTot = 0;
 	assert_gt(in.size(), 0);
 	// For each input istream
 	for(size_t i = 0; i < in.size(); i++) {
@@ -284,11 +288,15 @@ fastaRefReadSizes(
 		assert(!in[i]->eof());
 		// For each pattern in this istream
 		while(!in[i]->eof()) {
-			RefRecord rec = fastaRefReadSize(*in[i], rparms, first, bpout);
-			if((unambigTot + rec.len) < unambigTot) {
-				cerr << "Error: Reference sequence has more than 2^32-1 characters!  Please divide the" << endl
-				     << "reference into batches or chunks of about 3.6 billion characters or less each" << endl
-				     << "and index each independently." << endl;
+			RefRecord rec;
+			try {
+				rec = fastaRefReadSize(*in[i], rparms, first, bpout);
+				if((unambigTot + rec.len) < unambigTot) {
+					throw RefTooLongException();
+				}
+			}
+			catch(RefTooLongException& e) {
+				cerr << e.what() << endl;
 				throw 1;
 			}
 			// Add the length of this record.

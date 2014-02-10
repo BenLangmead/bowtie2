@@ -38,6 +38,7 @@
 #include "scoring.h"
 #include "mem_ids.h"
 #include "simple_func.h"
+#include "btypes.h"
 
 /**
  * A constraint to apply to an alignment zone, or to an overall
@@ -490,8 +491,8 @@ struct EEHit {
 	}
 	
 	void init(
-		uint32_t top_,
-		uint32_t bot_,
+		TIndexOffU top_,
+		TIndexOffU bot_,
 		const Edit* e1_,
 		const Edit* e2_,
 		bool fw_,
@@ -566,7 +567,7 @@ struct EEHit {
 	/**
 	 * Return the size of the alignments SA range.s
 	 */
-	uint32_t size() const { return bot - top; }
+	TIndexOffU size() const { return bot - top; }
 	
 #ifndef NDEBUG
 	/**
@@ -584,8 +585,8 @@ struct EEHit {
 	}
 #endif
 	
-	uint32_t top;
-	uint32_t bot;
+	TIndexOffU top;
+	TIndexOffU bot;
 	Edit     e1;
 	Edit     e2;
 	bool     fw;
@@ -976,7 +977,7 @@ public:
 	 */
 	void rankSeedHits(RandomSource& rnd) {
 		while(rankOffs_.size() < nonzTot_) {
-			uint32_t minsz = 0xffffffff;
+			TIndexOffU minsz = MAX_U32;
 			uint32_t minidx = 0;
 			bool minfw = true;
 			// Rank seed-hit positions in ascending order by number of elements
@@ -1003,7 +1004,7 @@ public:
 					}
 				}
 			}
-			assert_neq(0xffffffff, minsz);
+			assert_neq(MAX_U32, minsz);
 			if(minfw) {
 				sortedFw_[minidx] = true;
 			} else {
@@ -1183,8 +1184,8 @@ public:
 	 * Add an end-to-end 1-mismatch alignment.
 	 */
 	void add1mmEe(
-		uint32_t top,
-		uint32_t bot,
+		TIndexOffU top,
+		TIndexOffU bot,
 		const Edit* e1,
 		const Edit* e2,
 		bool fw,
@@ -1199,8 +1200,8 @@ public:
 	 * Add an end-to-end exact alignment.
 	 */
 	void addExactEeFw(
-		uint32_t top,
-		uint32_t bot,
+		TIndexOffU top,
+		TIndexOffU bot,
 		const Edit* e1,
 		const Edit* e2,
 		bool fw,
@@ -1213,8 +1214,8 @@ public:
 	 * Add an end-to-end exact alignment.
 	 */
 	void addExactEeRc(
-		uint32_t top,
-		uint32_t bot,
+		TIndexOffU top,
+		TIndexOffU bot,
 		const Edit* e1,
 		const Edit* e2,
 		bool fw,
@@ -1455,10 +1456,10 @@ public:
 		size_t             dep,
 		size_t             len,
 		bool               do1mm,
-		uint32_t           topfw,
-		uint32_t           botfw,
-		uint32_t           topbw,
-		uint32_t           botbw);
+		TIndexOffU           topfw,
+		TIndexOffU           botfw,
+		TIndexOffU           topbw,
+		TIndexOffU           botbw);
 
 	/**
 	 * Do an exact-matching sweet to establish a lower bound on number of edits
@@ -1504,10 +1505,10 @@ protected:
 	 * calling reportHit().
 	 */
 	bool extendAndReportHit(
-		uint32_t topf,                     // top in BWT
-		uint32_t botf,                     // bot in BWT
-		uint32_t topb,                     // top in BWT'
-		uint32_t botb,                     // bot in BWT'
+		TIndexOffU topf,                     // top in BWT
+		TIndexOffU botf,                     // bot in BWT
+		TIndexOffU topb,                     // top in BWT'
+		TIndexOffU botb,                     // bot in BWT'
 		uint16_t len,                      // length of hit
 		DoublyLinkedList<Edit> *prevEdit); // previous edit
 
@@ -1516,10 +1517,10 @@ protected:
 	 * false if the hit could not be reported because of, e.g., cache exhaustion.
 	 */
 	bool reportHit(
-		uint32_t topf,         // top in BWT
-		uint32_t botf,         // bot in BWT
-		uint32_t topb,         // top in BWT'
-		uint32_t botb,         // bot in BWT'
+		TIndexOffU topf,         // top in BWT
+		TIndexOffU botf,         // bot in BWT
+		TIndexOffU topb,         // top in BWT'
+		TIndexOffU botb,         // bot in BWT'
 		uint16_t len,          // length of hit
 		DoublyLinkedList<Edit> *prevEdit);  // previous edit
 	
@@ -1534,10 +1535,10 @@ protected:
 	bool searchSeedBi(
 		int step,              // depth into steps_[] array
 		int depth,             // recursion depth
-		uint32_t topf,         // top in BWT
-		uint32_t botf,         // bot in BWT
-		uint32_t topb,         // top in BWT'
-		uint32_t botb,         // bot in BWT'
+		TIndexOffU topf,         // top in BWT
+		TIndexOffU botf,         // bot in BWT
+		TIndexOffU topb,         // top in BWT'
+		TIndexOffU botb,         // bot in BWT'
 		SideLocus tloc,        // locus for top (perhaps unititialized)
 		SideLocus bloc,        // locus for bot (perhaps unititialized)
 		Constraint c0,         // constraints to enforce in seed zone 0
@@ -1552,10 +1553,10 @@ protected:
 	inline void nextLocsBi(
 		SideLocus& tloc,            // top locus
 		SideLocus& bloc,            // bot locus
-		uint32_t topf,              // top in BWT
-		uint32_t botf,              // bot in BWT
-		uint32_t topb,              // top in BWT'
-		uint32_t botb,              // bot in BWT'
+		TIndexOffU topf,              // top in BWT
+		TIndexOffU botf,              // bot in BWT
+		TIndexOffU topb,              // top in BWT'
+		TIndexOffU botb,              // bot in BWT'
 		int step);                  // step to get ready for
 	
 	// Following are set in searchAllSeeds then used by searchSeed()
@@ -1595,8 +1596,8 @@ protected:
 }
 
 #define SANITY_CHECK_4TUP(t, b, tp, bp) { \
-	ASSERT_ONLY(uint32_t tot = (b[0]-t[0])+(b[1]-t[1])+(b[2]-t[2])+(b[3]-t[3])); \
-	ASSERT_ONLY(uint32_t totp = (bp[0]-tp[0])+(bp[1]-tp[1])+(bp[2]-tp[2])+(bp[3]-tp[3])); \
+	ASSERT_ONLY(TIndexOffU tot = (b[0]-t[0])+(b[1]-t[1])+(b[2]-t[2])+(b[3]-t[3])); \
+	ASSERT_ONLY(TIndexOffU totp = (bp[0]-tp[0])+(bp[1]-tp[1])+(bp[2]-tp[2])+(bp[3]-tp[3])); \
 	assert_eq(tot, totp); \
 }
 

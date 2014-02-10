@@ -107,8 +107,8 @@
 #include "read.h"
 #include "ds.h"
 #include "group_walk.h"
+#include "btypes.h"
 
-typedef uint32_t TIndexOff;
 typedef size_t   TReadOff;
 typedef int64_t  TScore;
 typedef float    TRootPri;
@@ -180,7 +180,7 @@ struct DescentPriority {
 	DescentPriority(
 		TScore pen_,
 		size_t depth_,
-		TIndexOff width_,
+		TIndexOffU width_,
 		float rootpri_)
 	{
 		pen = pen_;
@@ -192,7 +192,7 @@ struct DescentPriority {
 	/**
 	 * Initialize new DescentPriority.
 	 */
-	void init(TScore pen_, size_t depth_, TIndexOff width_, float rootpri_) {
+	void init(TScore pen_, size_t depth_, TIndexOffU width_, float rootpri_) {
 		pen = pen_;
 		depth = depth_;
 		width = width_;
@@ -264,7 +264,7 @@ struct DescentPriority {
 
 	TScore pen;      // total penalty accumulated so far
 	size_t depth;    // depth from root of descent
-	TIndexOff width; // width of the SA range
+	TIndexOffU width; // width of the SA range
 	float  rootpri;  // priority of the root
 };
 
@@ -397,8 +397,8 @@ struct DescentRedundancyKey {
 	DescentRedundancyKey(
 		TReadOff  al5pf_,
 		size_t    rflen_,
-		TIndexOff topf_,
-		TIndexOff botf_)
+		TIndexOffU topf_,
+		TIndexOffU botf_)
 	{
 		init(al5pf_, rflen_, topf_, botf_);
 	}
@@ -414,8 +414,8 @@ struct DescentRedundancyKey {
 	void init(
 		TReadOff  al5pf_,
 		size_t    rflen_,
-		TIndexOff topf_,
-		TIndexOff botf_)
+		TIndexOffU topf_,
+		TIndexOffU botf_)
 	{
 		al5pf = al5pf_;
 		rflen = rflen_;
@@ -439,8 +439,8 @@ struct DescentRedundancyKey {
 
 	TReadOff al5pf; // 3'-most aligned char, as offset from 5' end
 	size_t rflen;   // number of reference characters involved in alignment
-	TIndexOff topf; // top w/r/t forward index
-	TIndexOff botf; // bot w/r/t forward index
+	TIndexOffU topf; // top w/r/t forward index
+	TIndexOffU botf; // bot w/r/t forward index
 };
 
 /**
@@ -518,8 +518,8 @@ public:
 		TReadOff al5pi,
 		TReadOff al5pf,
 		size_t rflen,
-		TIndexOff topf,
-		TIndexOff botf,
+		TIndexOffU topf,
+		TIndexOffU botf,
 		TScore pen)
 	{
 		assert(inited_);
@@ -557,8 +557,8 @@ public:
 		TReadOff al5pi,
 		TReadOff al5pf,
 		size_t rflen,
-		TIndexOff topf,
-		TIndexOff botf,
+		TIndexOffU topf,
+		TIndexOffU botf,
 		TScore pen)
 	{
 		assert(inited_);
@@ -859,10 +859,10 @@ struct DescentPos {
 	}
 #endif
 	
-	TIndexOff       topf[4]; // SA range top indexes in fw index
-	TIndexOff       botf[4]; // SA range bottom indexes (exclusive) in fw index
-	TIndexOff       topb[4]; // SA range top indexes in bw index
-	TIndexOff       botb[4]; // SA range bottom indexes (exclusive) in bw index
+	TIndexOffU       topf[4]; // SA range top indexes in fw index
+	TIndexOffU       botf[4]; // SA range bottom indexes (exclusive) in fw index
+	TIndexOffU       topb[4]; // SA range top indexes in bw index
+	TIndexOffU       botb[4]; // SA range bottom indexes (exclusive) in bw index
     char            c;       // read char that would yield match
 	DescentPosFlags flags;   // flags 
 };
@@ -883,10 +883,10 @@ struct DescentEdge {
 #ifndef NDEBUG
         ,
         size_t d_,
-		TIndexOff topf_,
-		TIndexOff botf_,
-		TIndexOff topb_,
-		TIndexOff botb_
+		TIndexOffU topf_,
+		TIndexOffU botf_,
+		TIndexOffU topb_,
+		TIndexOffU botb_
 #endif
         )
 	{
@@ -918,10 +918,10 @@ struct DescentEdge {
 #ifndef NDEBUG
         ,
         size_t d_,
-		TIndexOff topf_,
-		TIndexOff botf_,
-		TIndexOff topb_,
-		TIndexOff botb_
+		TIndexOffU topf_,
+		TIndexOffU botf_,
+		TIndexOffU topb_,
+		TIndexOffU botb_
 #endif
         )
 	{
@@ -976,7 +976,7 @@ struct DescentEdge {
     // This can be recreated by looking at the edit, the paren't descent's
     // len_, al5pi_, al5pf_.  I have it here so we can sanity check.
     size_t d;
-	TIndexOff topf, botf, topb, botb;
+	TIndexOffU topf, botf, topb, botb;
 #endif
 
 	Edit e;
@@ -1110,10 +1110,10 @@ public:
 		TAlScore maxpen,                // maximum penalty
 		TReadOff al5pi,                 // offset from 5' of 1st aligned char
 		TReadOff al5pf,                 // offset from 5' of last aligned char
-		TIndexOff topf,                 // SA range top in FW index
-		TIndexOff botf,                 // SA range bottom in FW index
-		TIndexOff topb,                 // SA range top in BW index
-		TIndexOff botb,                 // SA range bottom in BW index
+		TIndexOffU topf,                 // SA range top in FW index
+		TIndexOffU botf,                 // SA range bottom in FW index
+		TIndexOffU topb,                 // SA range top in BW index
+		TIndexOffU botb,                 // SA range bottom in BW index
 		bool l2r,                       // direction this descent will go in
 		size_t descid,                  // my ID
 		TDescentId parent,              // parent ID
@@ -1283,8 +1283,8 @@ public:
 		edits.sortPortion(ei, en);
 	}
 	
-	TIndexOff topf() const { return topf_; }
-	TIndexOff botf() const { return botf_; }
+	TIndexOffU topf() const { return topf_; }
+	TIndexOffU botf() const { return botf_; }
 
 protected:
 
@@ -1294,10 +1294,10 @@ protected:
 	 */
     bool bounce(
         const Read& q,                  // query string
-        TIndexOff topf,                 // SA range top in fw index
-        TIndexOff botf,                 // SA range bottom in fw index
-        TIndexOff topb,                 // SA range top in bw index
-        TIndexOff botb,                 // SA range bottom in bw index
+        TIndexOffU topf,                 // SA range top in fw index
+        TIndexOffU botf,                 // SA range bottom in fw index
+        TIndexOffU topb,                 // SA range top in bw index
+        TIndexOffU botb,                 // SA range bottom in bw index
         const Ebwt& ebwtFw,             // forward index
         const Ebwt& ebwtBw,             // mirror index
         const Scoring& sc,              // scoring scheme
@@ -1322,10 +1322,10 @@ protected:
 		const Ebwt& ebwtBw, // mirror index
 		SideLocus& tloc,    // top locus
 		SideLocus& bloc,    // bot locus
-		uint32_t topf,      // top in BWT
-		uint32_t botf,      // bot in BWT
-		uint32_t topb,      // top in BWT'
-		uint32_t botb);     // bot in BWT'
+		TIndexOffU topf,      // top in BWT
+		TIndexOffU botf,      // bot in BWT
+		TIndexOffU topb,      // top in BWT'
+		TIndexOffU botb);     // bot in BWT'
 
 	/**
 	 * Advance this descent by following read matches as far as possible.
@@ -1348,10 +1348,10 @@ protected:
         bool& hitEnd,              // out: true -> hit read end with non-empty range
         bool& done,                // out: true -> we made a full alignment
         TReadOff& off5p_i,         // out: initial 5' offset
-        TIndexOff& topf_bounce,    // out: top of SA range for fw idx for bounce
-        TIndexOff& botf_bounce,    // out: bot of SA range for fw idx for bounce
-        TIndexOff& topb_bounce,    // out: top of SA range for bw idx for bounce
-        TIndexOff& botb_bounce);   // out: bot of SA range for bw idx for bounce
+        TIndexOffU& topf_bounce,    // out: top of SA range for fw idx for bounce
+        TIndexOffU& botf_bounce,    // out: bot of SA range for fw idx for bounce
+        TIndexOffU& topb_bounce,    // out: top of SA range for bw idx for bounce
+        TIndexOffU& botb_bounce);   // out: bot of SA range for bw idx for bounce
 
 	/**
 	 * Recalculate our summary of the outgoing edges from this descent.  When
@@ -1381,8 +1381,8 @@ protected:
 	int             gapadd_;      // net ref characters additional
     TReadOff        off5p_i_;     // offset we started out at for this descent
 
-	TIndexOff       topf_, botf_; // incoming SA range w/r/t forward index
-	TIndexOff       topb_, botb_; // incoming SA range w/r/t forward index
+	TIndexOffU       topf_, botf_; // incoming SA range w/r/t forward index
+	TIndexOffU       topb_, botb_; // incoming SA range w/r/t forward index
 
 	size_t          descid_;      // ID of this descent
 	TDescentId      parent_;      // ID of parent descent
@@ -1418,8 +1418,8 @@ struct DescentAlignment {
 	void init(
 		TScore pen_,
 		bool fw_,
-		TIndexOff topf_,
-		TIndexOff botf_,
+		TIndexOffU topf_,
+		TIndexOffU botf_,
 		size_t ei_,
 		size_t en_)
 	{
@@ -1457,8 +1457,8 @@ struct DescentAlignment {
 	
 	bool fw; // forward or revcomp aligned?
 
-	TIndexOff topf; // top in forward index
-	TIndexOff botf; // bot in forward index
+	TIndexOffU topf; // top in forward index
+	TIndexOffU botf; // bot in forward index
 
 	size_t ei; // First edit in DescentAlignmentSink::edits_ involved in aln
 	size_t en; // # edits in DescentAlignmentSink::edits_ involved in aln
@@ -1489,8 +1489,8 @@ struct DescentPartialResolvedAlignment {
 	void init(
 		TScore pen_,
 		bool fw_,
-		TIndexOff topf_,
-		TIndexOff botf_,
+		TIndexOffU topf_,
+		TIndexOffU botf_,
 		size_t ei_,
 		size_t en_,
 		const Coord& refcoord_)
@@ -1523,8 +1523,8 @@ struct DescentPartialResolvedAlignment {
 	
 	bool fw;        // forward or revcomp aligned?
 
-	TIndexOff topf; // top in forward index
-	TIndexOff botf; // bot in forward index
+	TIndexOffU topf; // top in forward index
+	TIndexOffU botf; // bot in forward index
 
 	size_t ei;      // First edit in DescentPartialResolvedAlignmentSink::edits_ involved in aln
 	size_t en;      // # edits in DescentPartialResolvedAlignmentSink::edits_ involved in aln
@@ -1562,10 +1562,10 @@ public:
         const Read& q,           // query string
 		const Ebwt& ebwtFw,              // forward index
 		const Ebwt& ebwtBw,              // mirror index
-		TIndexOff topf,                  // SA range top in forward index
-		TIndexOff botf,                  // SA range bottom in forward index
-		TIndexOff topb,                  // SA range top in backward index
-		TIndexOff botb,                  // SA range bottom in backward index
+		TIndexOffU topf,                  // SA range top in forward index
+		TIndexOffU botf,                  // SA range bottom in forward index
+		TIndexOffU topb,                  // SA range top in backward index
+		TIndexOffU botb,                  // SA range bottom in backward index
         TDescentId id,                   // id of leaf Descent
 		TRootId rid,                     // id of search root
         const Edit& e,                   // final edit, if needed
@@ -1709,8 +1709,8 @@ protected:
 
 	EList<Edit> edits_;
 	EList<DescentAlignment> als_;
-	ESet<Triple<TIndexOff, TIndexOff, size_t> > lhs_;
-	ESet<Triple<TIndexOff, TIndexOff, size_t> > rhs_;
+	ESet<Triple<TIndexOffU, TIndexOffU, size_t> > lhs_;
+	ESet<Triple<TIndexOffU, TIndexOffU, size_t> > rhs_;
 	size_t nelt_;
 	TAlScore bestPen_;  // best (smallest) penalty among as-yet-unreported alns
 	TAlScore worstPen_; // worst (greatest) penalty among as-yet-unreported alns
@@ -2151,13 +2151,13 @@ public:
 			sink.nelt(), // # elements to choose from
 			true);       // without replacement
 		offs_.resize(sink.nelt());
-		offs_.fill(std::numeric_limits<TIndexOff>::max());
+		offs_.fill(std::numeric_limits<TIndexOffU>::max());
 		sas_.resize(sink.nrange());
 		gws_.resize(sink.nrange());
 		size_t ei = 0;
 		for(size_t i = 0; i < sas_.size(); i++) {
 			size_t en = sink[i].botf - sink[i].topf;
-			sas_[i].init(sink[i].topf, EListSlice<TIndexOff, 16>(offs_, ei, en));
+			sas_[i].init(sink[i].topf, EListSlice<TIndexOffU, 16>(offs_, ei, en));
 			gws_[i].init(ebwtFw, ref, sas_[i], rnd, met);
 			ei += en;
 		}
@@ -2199,9 +2199,9 @@ public:
 		assert_lt(off, al.size());
 		Coord refcoord;
 		WalkResult wr;
-		uint32_t tidx = 0, toff = 0, tlen = 0;
+		TIndexOffU tidx = 0, toff = 0, tlen = 0;
 		gws_[rangei].advanceElement(
-			(uint32_t)off,
+			(TIndexOffU)off,
 			ebwtFw,       // forward Bowtie index for walking left
 			ref,          // bitpair-encoded reference
 			sas_[rangei], // SA range with offsets
@@ -2209,7 +2209,7 @@ public:
 			wr,           // put the result here
 			met,          // metrics
 			prm);         // per-read metrics
-		assert_neq(0xffffffff, wr.toff);
+		assert_neq(OFF_MASK, wr.toff);
 		bool straddled = false;
 		ebwtFw.joinedToTextOff(
 			wr.elt.len,
@@ -2219,7 +2219,7 @@ public:
 			tlen,
 			true,        // reject straddlers?
 			straddled);  // straddled?
-		if(tidx == 0xffffffff) {
+		if(tidx == OFF_MASK) {
 			// The seed hit straddled a reference boundary so the seed
 			// hit isn't valid
 			return false;
@@ -2296,9 +2296,9 @@ public:
 protected:
 
 	Random1toN rnd_;
-	EList<TIndexOff, 16> offs_;
-	EList<SARangeWithOffs<EListSlice<TIndexOff, 16> > > sas_;
-	EList<GroupWalk2S<EListSlice<TIndexOff, 16>, 16> > gws_;
+	EList<TIndexOffU, 16> offs_;
+	EList<SARangeWithOffs<EListSlice<TIndexOffU, 16> > > sas_;
+	EList<GroupWalk2S<EListSlice<TIndexOffU, 16>, 16> > gws_;
 	GroupWalkState gwstate_;
 };
 
@@ -2418,9 +2418,9 @@ public:
 		assert_lt(off, al.size());
 		Coord refcoord;
 		WalkResult wr;
-		uint32_t tidx = 0, toff = 0, tlen = 0;
+		TIndexOffU tidx = 0, toff = 0, tlen = 0;
 		gws_[rangei].advanceElement(
-			(uint32_t)off,
+			(TIndexOffU)off,
 			ebwtFw,       // forward Bowtie index for walking left
 			ref,          // bitpair-encoded reference
 			sas_[rangei], // SA range with offsets
@@ -2428,7 +2428,7 @@ public:
 			wr,           // put the result here
 			met,          // metrics
 			prm);         // per-read metrics
-		assert_neq(0xffffffff, wr.toff);
+		assert_neq(OFF_MASK, wr.toff);
 		bool straddled = false;
 		ebwtFw.joinedToTextOff(
 			wr.elt.len,
@@ -2438,7 +2438,7 @@ public:
 			tlen,
 			true,        // reject straddlers?
 			straddled);  // straddled?
-		if(tidx == 0xffffffff) {
+		if(tidx == OFF_MASK) {
 			// The seed hit straddled a reference boundary so the seed
 			// hit isn't valid
 			return false;
@@ -2501,14 +2501,14 @@ protected:
 		// Pop off the topmost
 		assert(!heap_.empty());
 		TDescentPair p = heap_.pop();
-		TIndexOff topf = df[p.second].topf(), botf = df[p.second].botf();
+		TIndexOffU topf = df[p.second].topf(), botf = df[p.second].botf();
 		assert_gt(botf, topf);
 		offs_.resize(botf - topf);
-		offs_.fill(std::numeric_limits<TIndexOff>::max());
+		offs_.fill(std::numeric_limits<TIndexOffU>::max());
 		rnd_.init(botf - topf, true); // without replacement
 		sas_.resize(1);
 		gws_.resize(1);
-		sas_[0].init(topf, EListSlice<TIndexOff, 16>(offs_, 0, botf - topf));
+		sas_[0].init(topf, EListSlice<TIndexOffU, 16>(offs_, 0, botf - topf));
 		gws_[0].init(ebwtFw, ref, sas_[0], rnd, met);
 	}
 	
@@ -2519,9 +2519,9 @@ protected:
 	EHeap<TDescentPair> heap_;
 
 	Random1toN rnd_;
-	EList<TIndexOff, 16> offs_;
-	EList<SARangeWithOffs<EListSlice<TIndexOff, 16> > > sas_;
-	EList<GroupWalk2S<EListSlice<TIndexOff, 16>, 16> > gws_;
+	EList<TIndexOffU, 16> offs_;
+	EList<SARangeWithOffs<EListSlice<TIndexOffU, 16> > > sas_;
+	EList<GroupWalk2S<EListSlice<TIndexOffU, 16>, 16> > gws_;
 	GroupWalkState gwstate_;
 };
 

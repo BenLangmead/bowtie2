@@ -32,8 +32,8 @@ use ForkManager;
 my %conf = (
 	bowtie2_build       => "bowtie2-build",
 	bowtie2             => "bowtie2",
-	bowtie2_build_debug => "bowtie2-build-debug",
-	bowtie2_debug       => "bowtie2-debug",
+	bowtie2_build_debug => "bowtie2-build --debug",
+	bowtie2_debug       => "bowtie2 --debug",
 	tempdir             => "/tmp",
 	no_color            => 1,
 	small               => 1

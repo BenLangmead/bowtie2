@@ -29,6 +29,7 @@
 #include "assert_helpers.h"
 #include "threading.h"
 #include "random_source.h"
+#include "btypes.h"
 
 /**
  * Tally how much memory is allocated to certain 
@@ -780,7 +781,7 @@ public:
 		if(num < 2) return;
 		size_t left = num;
 		for(size_t i = begin; i < begin + num - 1; i++) {
-			uint32_t rndi = rnd.nextU32() % left;
+			size_t rndi = rnd.nextSizeT() % left;
 			if(rndi > 0) {
 				std::swap(list_[i], list_[i + rndi]);
 			}
@@ -3072,9 +3073,9 @@ public:
 
 private:
 	int             cat_;    // memory category, for accounting purposes
-	uint32_t        cur_;    // next page to hand out
-	const uint64_t  bytes_;  // total bytes in the pool
-	const uint32_t  pagesz_; // size of a single page
+	size_t          cur_;    // next page to hand out
+	const size_t    bytes_;  // total bytes in the pool
+	const size_t    pagesz_; // size of a single page
 	EList<uint8_t*> pages_;  // the pages themselves
 };
 
@@ -3434,7 +3435,7 @@ public:
 	 * include elements that fall off the end of list_).
 	 */
 	void setLength(size_t nlen) {
-		len_ = (uint32_t)nlen;
+		len_ = nlen;
 	}
 	
 protected:
@@ -3458,8 +3459,8 @@ public:
 
 	PListSlice(
 		PList<T, S>& list,
-		uint32_t i,
-		uint32_t len) :
+		TIndexOffU i,
+		TIndexOffU len) :
 		i_(i),
 		len_(len),
 		list_(&list)
@@ -3471,8 +3472,8 @@ public:
 	void init(const PListSlice<T, S>& sl, size_t first, size_t last) {
 		assert_gt(last, first);
 		assert_leq(last - first, sl.len_);
-		i_ = (uint32_t)(sl.i_ + first);
-		len_ = (uint32_t)(last - first);
+		i_ = (TIndexOffU)(sl.i_ + first);
+		len_ = (TIndexOffU)(last - first);
 		list_ = sl.list_;
 	}
 	
@@ -3566,12 +3567,12 @@ public:
 	 * include elements that fall off the end of list_).
 	 */
 	void setLength(size_t nlen) {
-		len_ = (uint32_t)nlen;
+		len_ = (TIndexOffU)nlen;
 	}
 	
 protected:
-	uint32_t i_;
-	uint32_t len_;
+	TIndexOffU i_;
+	TIndexOffU len_;
 	PList<T, S>* list_;
 };
 
@@ -3698,7 +3699,7 @@ public:
 	 * Initialize the current-edit pointer to 0 and set the number of
 	 * edits per memory page.
 	 */
-	RedBlack(uint32_t pageSz, int cat = 0) :
+	RedBlack(size_t pageSz, int cat = 0) :
 		perPage_(pageSz/sizeof(TNode)), pages_(cat) { clear(); }
 
 	/**

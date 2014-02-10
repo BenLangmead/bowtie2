@@ -582,22 +582,22 @@ bool SeedAligner::sanityPartial(
 	size_t dep,
 	size_t len,
 	bool do1mm,
-	uint32_t topfw,
-	uint32_t botfw,
-	uint32_t topbw,
-	uint32_t botbw)
+	TIndexOffU topfw,
+	TIndexOffU botfw,
+	TIndexOffU topbw,
+	TIndexOffU botbw)
 {
 	tmpdnastr_.clear();
 	for(size_t i = dep; i < len; i++) {
 		tmpdnastr_.append(seq[i]);
 	}
-	uint32_t top_fw = 0, bot_fw = 0;
+	TIndexOffU top_fw = 0, bot_fw = 0;
 	ebwtFw->contains(tmpdnastr_, &top_fw, &bot_fw);
 	assert_eq(top_fw, topfw);
 	assert_eq(bot_fw, botfw);
 	if(do1mm && ebwtBw != NULL) {
 		tmpdnastr_.reverse();
-		uint32_t top_bw = 0, bot_bw = 0;
+		TIndexOffU top_bw = 0, bot_bw = 0;
 		ebwtBw->contains(tmpdnastr_, &top_bw, &bot_bw);
 		assert_eq(top_bw, topbw);
 		assert_eq(bot_bw, botbw);
@@ -625,7 +625,7 @@ size_t SeedAligner::exactSweep(
 	SeedSearchMetrics& met)     // metrics
 {
 	assert_gt(mineMax, 0);
-	uint32_t top = 0, bot = 0;
+	TIndexOffU top = 0, bot = 0;
 	SideLocus tloc, bloc;
 	const size_t len = read.length();
 	size_t nelt = 0;
@@ -689,7 +689,7 @@ size_t SeedAligner::exactSweep(
 					} else {
 						bwops_++;
 						top = ebwt.mapLF1(top, tloc, c);
-						if(top == 0xffffffff) {
+						if(top == OFF_MASK) {
 							top = bot = 0;
 						} else {
 							bot = top+1;
@@ -781,13 +781,13 @@ bool SeedAligner::oneMmSearch(
 	assert_geq(halfFw, 1);
 	assert_geq(halfBw, 1);
 	SideLocus tloc, bloc;
-	uint32_t t[4], b[4];   // dest BW ranges for BWT
+	TIndexOffU t[4], b[4];   // dest BW ranges for BWT
 	t[0] = t[1] = t[2] = t[3] = 0;
 	b[0] = b[1] = b[2] = b[3] = 0;
-	uint32_t tp[4], bp[4]; // dest BW ranges for BWT'
+	TIndexOffU tp[4], bp[4]; // dest BW ranges for BWT'
 	tp[0] = tp[1] = tp[2] = tp[3] = 0;
 	bp[0] = bp[1] = bp[2] = bp[3] = 0;
-	uint32_t top = 0, bot = 0, topp = 0, botp = 0;
+	TIndexOffU top = 0, bot = 0, topp = 0, botp = 0;
 	// Align fw read / rc read
 	bool results = false;
 	for(int fwi = 0; fwi < 2; fwi++) {
@@ -876,7 +876,7 @@ bool SeedAligner::oneMmSearch(
 					assert(!rep1mm || botp == topp+1);
 					bwops_++;
 					top = ebwt->mapLF1(top, tloc, rdc);
-					if(top == 0xffffffff) {
+					if(top == OFF_MASK) {
 						do_continue = true;
 						break;
 					}
@@ -939,15 +939,15 @@ bool SeedAligner::oneMmSearch(
 						}
 						// Potential mismatch - next, try
 						size_t depm = dep + 1;
-						uint32_t topm = t[j], botm = b[j];
-						uint32_t topmp = tp[j], botmp = bp[j];
+						TIndexOffU topm = t[j], botm = b[j];
+						TIndexOffU topmp = tp[j], botmp = bp[j];
 						assert_eq(botm - topm, botmp - topmp);
-						uint32_t tm[4], bm[4];   // dest BW ranges for BWT
+						TIndexOffU tm[4], bm[4];   // dest BW ranges for BWT
 						tm[0] = t[0]; tm[1] = t[1];
 						tm[2] = t[2]; tm[3] = t[3];
 						bm[0] = b[0]; bm[1] = t[1];
 						bm[2] = b[2]; bm[3] = t[3];
-						uint32_t tmp[4], bmp[4]; // dest BW ranges for BWT'
+						TIndexOffU tmp[4], bmp[4]; // dest BW ranges for BWT'
 						tmp[0] = tp[0]; tmp[1] = tp[1];
 						tmp[2] = tp[2]; tmp[3] = tp[3];
 						bmp[0] = bp[0]; bmp[1] = tp[1];
@@ -974,7 +974,7 @@ bool SeedAligner::oneMmSearch(
 								assert_eq(botmp, topmp+1);
 								bwops_++;
 								topm = ebwt->mapLF1(topm, tlocm, rdcm);
-								if(topm == 0xffffffff) {
+								if(topm == OFF_MASK) {
 									break;
 								}
 								botm = topm + 1;
@@ -1041,12 +1041,12 @@ bool SeedAligner::oneMmSearch(
 								for(size_t i = 0; i < len; i++) {
 									assert_lt((int)rf[i], 4);
 								}
-								ASSERT_ONLY(uint32_t toptmp = 0);
-								ASSERT_ONLY(uint32_t bottmp = 0);
+								ASSERT_ONLY(TIndexOffU toptmp = 0);
+								ASSERT_ONLY(TIndexOffU bottmp = 0);
 								assert(ebwtFw->contains(rf, &toptmp, &bottmp));
 #endif
-								uint32_t toprep = ebwtfw ? topm : topmp;
-								uint32_t botrep = ebwtfw ? botm : botmp;
+								TIndexOffU toprep = ebwtfw ? topm : topmp;
+								TIndexOffU botrep = ebwtfw ? botm : botmp;
 								assert_eq(toprep, toptmp);
 								assert_eq(botrep, bottmp);
 								hits.add1mmEe(toprep, botrep, &e, NULL, fw, score);
@@ -1112,10 +1112,10 @@ inline void
 SeedAligner::nextLocsBi(
 	SideLocus& tloc,            // top locus
 	SideLocus& bloc,            // bot locus
-	uint32_t topf,              // top in BWT
-	uint32_t botf,              // bot in BWT
-	uint32_t topb,              // top in BWT'
-	uint32_t botb,              // bot in BWT'
+	TIndexOffU topf,              // top in BWT
+	TIndexOffU botf,              // bot in BWT
+	TIndexOffU topb,              // top in BWT'
+	TIndexOffU botb,              // bot in BWT'
 	int step                    // step to get ready for
 #if 0
 	, const SABWOffTrack* prevOt, // previous tracker
@@ -1186,16 +1186,16 @@ SeedAligner::nextLocsBi(
  */
 bool
 SeedAligner::extendAndReportHit(
-	uint32_t topf,                     // top in BWT
-	uint32_t botf,                     // bot in BWT
-	uint32_t topb,                     // top in BWT'
-	uint32_t botb,                     // bot in BWT'
+	TIndexOffU topf,                     // top in BWT
+	TIndexOffU botf,                     // bot in BWT
+	TIndexOffU topb,                     // top in BWT'
+	TIndexOffU botb,                     // bot in BWT'
 	uint16_t len,                      // length of hit
 	DoublyLinkedList<Edit> *prevEdit)  // previous edit
 {
 	size_t nlex = 0, nrex = 0;
-	uint32_t t[4], b[4];
-	uint32_t tp[4], bp[4];
+	TIndexOffU t[4], b[4];
+	TIndexOffU tp[4], bp[4];
 	SideLocus tloc, bloc;
 	if(off_ > 0) {
 		const Ebwt *ebwt = ebwtFw_;
@@ -1203,7 +1203,7 @@ SeedAligner::extendAndReportHit(
 		// Extend left using forward index
 		const BTDnaString& seq = fw_ ? read_->patFw : read_->patRc;
 		// See what we get by extending 
-		uint32_t top = topf, bot = botf;
+		TIndexOffU top = topf, bot = botf;
 		t[0] = t[1] = t[2] = t[3] = 0;
 		b[0] = b[1] = b[2] = b[3] = 0;
 		tp[0] = tp[1] = tp[2] = tp[3] = topb;
@@ -1259,7 +1259,7 @@ SeedAligner::extendAndReportHit(
 		// Extend right using backward index
 		const BTDnaString& seq = fw_ ? read_->patFw : read_->patRc;
 		// See what we get by extending 
-		uint32_t top = topb, bot = botb;
+		TIndexOffU top = topb, bot = botb;
 		t[0] = t[1] = t[2] = t[3] = 0;
 		b[0] = b[1] = b[2] = b[3] = 0;
 		tp[0] = tp[1] = tp[2] = tp[3] = topb;
@@ -1317,10 +1317,10 @@ SeedAligner::extendAndReportHit(
  */
 bool
 SeedAligner::reportHit(
-	uint32_t topf,                     // top in BWT
-	uint32_t botf,                     // bot in BWT
-	uint32_t topb,                     // top in BWT'
-	uint32_t botb,                     // bot in BWT'
+	TIndexOffU topf,                     // top in BWT
+	TIndexOffU botf,                     // bot in BWT
+	TIndexOffU topb,                     // top in BWT'
+	TIndexOffU botb,                     // bot in BWT'
 	uint16_t len,                      // length of hit
 	DoublyLinkedList<Edit> *prevEdit)  // previous edit
 {
@@ -1353,7 +1353,7 @@ SeedAligner::reportHit(
 	// correspond to the reference sequence aligned to
 	{
 		BTDnaString rfr;
-		uint32_t tpf, btf, tpb, btb;
+		TIndexOffU tpf, btf, tpb, btb;
 		tpf = btf = tpb = btb = 0;
 		assert(ebwtFw_->contains(rf, &tpf, &btf));
 		if(ebwtBw_ != NULL) {
@@ -1381,10 +1381,10 @@ bool
 SeedAligner::searchSeedBi(
 	int step,             // depth into steps_[] array
 	int depth,            // recursion depth
-	uint32_t topf,        // top in BWT
-	uint32_t botf,        // bot in BWT
-	uint32_t topb,        // top in BWT'
-	uint32_t botb,        // bot in BWT'
+	TIndexOffU topf,        // top in BWT
+	TIndexOffU botf,        // bot in BWT
+	TIndexOffU topb,        // top in BWT'
+	TIndexOffU botb,        // bot in BWT'
 	SideLocus tloc,       // locus for top (perhaps unititialized)
 	SideLocus bloc,       // locus for bot (perhaps unititialized)
 	Constraint c0,        // constraints to enforce in seed zone 0
@@ -1423,7 +1423,7 @@ SeedAligner::searchSeedBi(
 	}
 #endif
 	int off;
-	uint32_t tp[4], bp[4]; // dest BW ranges for "prime" index
+	TIndexOffU tp[4], bp[4]; // dest BW ranges for "prime" index
 	if(step == 0) {
 		// Just starting
 		assert(prevEdit == NULL);
@@ -1486,9 +1486,9 @@ SeedAligner::searchSeedBi(
 	assert(botf - topf == 1 ||  bloc.valid());
 	assert(botf - topf > 1  || !bloc.valid());
 	assert_geq(step, 0);
-	uint32_t t[4], b[4]; // dest BW ranges
+	TIndexOffU t[4], b[4]; // dest BW ranges
 	Constraint* zones[3] = { &c0, &c1, &c2 };
-	ASSERT_ONLY(uint32_t lasttot = botf - topf);
+	ASSERT_ONLY(TIndexOffU lasttot = botf - topf);
 	for(int i = step; i < (int)s.steps.size(); i++) {
 		assert_gt(botf, topf);
 		assert(botf - topf == 1 ||  bloc.valid());
@@ -1512,14 +1512,14 @@ SeedAligner::searchSeedBi(
 			// we use a simpler query (see if(!bloc.valid()) blocks below)
 			bwops_++;
 			ebwt->mapBiLFEx(tloc, bloc, t, b, tp, bp);
-			ASSERT_ONLY(uint32_t tot = (b[0]-t[0])+(b[1]-t[1])+(b[2]-t[2])+(b[3]-t[3]));
-			ASSERT_ONLY(uint32_t totp = (bp[0]-tp[0])+(bp[1]-tp[1])+(bp[2]-tp[2])+(bp[3]-tp[3]));
+			ASSERT_ONLY(TIndexOffU tot = (b[0]-t[0])+(b[1]-t[1])+(b[2]-t[2])+(b[3]-t[3]));
+			ASSERT_ONLY(TIndexOffU totp = (bp[0]-tp[0])+(bp[1]-tp[1])+(bp[2]-tp[2])+(bp[3]-tp[3]));
 			assert_eq(tot, totp);
 			assert_leq(tot, lasttot);
 			ASSERT_ONLY(lasttot = tot);
 		}
-		uint32_t *tf = ltr ? tp : t, *tb = ltr ? t : tp;
-		uint32_t *bf = ltr ? bp : b, *bb = ltr ? b : bp;
+		TIndexOffU *tf = ltr ? tp : t, *tb = ltr ? t : tp;
+		TIndexOffU *bf = ltr ? bp : b, *bb = ltr ? b : bp;
 		off = abs(off)-1;
 		//
 		bool leaveZone = s.zones[i].first < 0;
@@ -1534,7 +1534,7 @@ SeedAligner::searchSeedBi(
 			bool bail = false;
 			if(!bloc.valid()) {
 				// Range delimited by tloc/bloc has size 1
-				uint32_t ntop = ltr ? topb : topf;
+				TIndexOffU ntop = ltr ? topb : topf;
 				bwops_++;
 				int cc = ebwt->mapLF1(ntop, tloc);
 				assert_range(-1, 3, cc);
@@ -1619,10 +1619,10 @@ SeedAligner::searchSeedBi(
 		if(!bloc.valid()) {
 			assert(ebwtBw_ == NULL || bp[c] == tp[c]+1);
 			// Range delimited by tloc/bloc has size 1
-			uint32_t top = ltr ? topb : topf;
+			TIndexOffU top = ltr ? topb : topf;
 			bwops_++;
 			t[c] = ebwt->mapLF1(top, tloc, c);
-			if(t[c] == 0xffffffff) {
+			if(t[c] == OFF_MASK) {
 				return true;
 			}
 			assert_geq(t[c], ebwt->fchr()[c]);
@@ -1723,8 +1723,8 @@ bool gReportOverhangs = true;
 extern void aligner_seed_tests();
 extern void aligner_random_seed_tests(
 	int num_tests,
-	uint32_t qslo,
-	uint32_t qshi,
+	TIndexOffU qslo,
+	TIndexOffU qshi,
 	bool color,
 	uint32_t seed);
 

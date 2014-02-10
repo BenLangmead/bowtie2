@@ -3,7 +3,7 @@ Bowtie 2 NEWS
 
 Bowtie 2 is now available for download from the project website,
 http://bowtie-bio.sf.net/bowtie2.  2.0.0-beta1 is the first version released to
-the public and 2.0.7 is the latest version.  Bowtie 2 is licensed under
+the public and 2.2.0 is the latest version.  Bowtie 2 is licensed under
 the GPLv3 license.  See `LICENSE' file for details.
 
 Reporting Issues
@@ -15,6 +15,26 @@ Please report any issues using the Sourceforge bug tracker:
 
 Version Release History
 =======================
+
+Version 2.2.0 - February 6, 2014
+   * Improved index querying efficiency using "population count" instructions
+     available since SSE4.2.
+   * Added support for large and small indexes, removing 4-billion-nucleotide
+     barrier.  Bowtie 2 can now be used with reference genomes of any size.
+   * Fixed bug that could cause bowtie2-build to crash when reference length
+     is close to 4 billion.
+   * Fixed issue in bowtie2-inspect that caused -e mode not to output
+     nucleotides properly.
+   * Added a CL: string to the @PG SAM header to preserve information about
+     the aligner binary and paramteres.
+   * No longer releasing 32-bit binaries.  Simplified manual and Makefile
+     accordingly.
+   * Credits to the Intel(r) enabling team for performance optimizations
+     included in this release.  Thank you!
+
+Bowtie 2 on GitHub - February 4, 2014
+   * Bowtie 2 source now lives in a public GitHub repository:
+     https://github.com/BenLangmead/bowtie2.
 
 Version 2.1.0 - February 21, 2013
    * Improved multithreading support so that Bowtie 2 now uses native Windows
