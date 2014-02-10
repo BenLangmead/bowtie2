@@ -16,7 +16,7 @@ Please report any issues using the Sourceforge bug tracker:
 Version Release History
 =======================
 
-Version 2.2.0 - February 6, 2014
+Version 2.2.0 - February 10, 2014
    * Improved index querying efficiency using "population count" instructions
      available since SSE4.2.
    * Added support for large and small indexes, removing 4-billion-nucleotide
