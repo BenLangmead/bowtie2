@@ -57,25 +57,6 @@ void Ebwt::readIntoMemory(
 			cerr << "  About to open input files: ";
 			logTime(cerr);
 		}
-#ifdef BOWTIE_MM
-		// Initialize our primary and secondary input-stream fields
-		if(_in1 != -1) close(_in1);
-		if(_verbose || startVerbose) {
-			cerr << "Opening \"" << _in1Str.c_str() << "\"" << endl;
-		}
-		if((_in1 = open(_in1Str.c_str(), O_RDONLY)) < 0) {
-			cerr << "Could not open index file " << _in1Str.c_str() << endl;
-		}
-		if(loadSASamp) {
-			if(_in2 != -1) close(_in2);
-			if(_verbose || startVerbose) {
-				cerr << "Opening \"" << _in2Str.c_str() << "\"" << endl;
-			}
-			if((_in2 = open(_in2Str.c_str(), O_RDONLY)) < 0) {
-				cerr << "Could not open index file " << _in2Str.c_str() << endl;
-			}
-		}
-#else
 		// Initialize our primary and secondary input-stream fields
 		if(_in1 != NULL) fclose(_in1);
 		if(_verbose || startVerbose) cerr << "Opening \"" << _in1Str.c_str() << "\"" << endl;
@@ -89,7 +70,6 @@ void Ebwt::readIntoMemory(
 				cerr << "Could not open index file " << _in2Str.c_str() << endl;
 			}
 		}
-#endif
 		if(_verbose || startVerbose) {
 			cerr << "  Finished opening input files: ";
 			logTime(cerr);
@@ -98,7 +78,7 @@ void Ebwt::readIntoMemory(
 #ifdef BOWTIE_MM
 		if(_useMm /*&& !justHeader*/) {
 			const char *names[] = {_in1Str.c_str(), _in2Str.c_str()};
-			int fds[] = { _in1, _in2 };
+			int fds[] = { fileno(_in1), fileno(_in2) };
 			for(int i = 0; i < (loadSASamp ? 2 : 1); i++) {
 				if(_verbose || startVerbose) {
 					cerr << "  Memory-mapping input file " << (i+1) << ": ";

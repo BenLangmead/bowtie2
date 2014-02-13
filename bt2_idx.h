@@ -2367,8 +2367,8 @@ template<typename Operation>
 	bool       _passMemExc;
 	bool       _sanity;
 	bool       fw_;     // true iff this is a forward index
-	MM_FILE    _in1;    // input fd for primary index file
-	MM_FILE    _in2;    // input fd for secondary index file
+	FILE       *_in1;    // input fd for primary index file
+	FILE       *_in2;    // input fd for secondary index file
 	string     _in1Str; // filename for primary index file
 	string     _in2Str; // filename for secondary index file
 	string     _inSaStr;  // filename for suffix-array file
