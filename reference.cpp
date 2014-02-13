@@ -50,22 +50,22 @@ BitPairReference::BitPairReference(
 	string s3 = in + ".3." + gEbwt_ext;
 	string s4 = in + ".4." + gEbwt_ext;
 	
-#ifdef BOWTIE_MM
-	int f3, f4;
-	if((f3 = open(s3.c_str(), O_RDONLY)) < 0) {
-		cerr << "Could not open reference-string index file " << s3.c_str() << " for reading." << endl;
+	FILE *f3, *f4;
+	if((f3 = fopen(s3.c_str(), "rb")) == NULL) {
+	    cerr << "Could not open reference-string index file " << s3 << " for reading." << endl;
 		cerr << "This is most likely because your index was built with an older version" << endl
 		<< "(<= 0.9.8.1) of bowtie-build.  Please re-run bowtie-build to generate a new" << endl
 		<< "index (or download one from the Bowtie website) and try again." << endl;
 		loaded_ = false;
 		return;
 	}
-	if((f4 = open(s4.c_str(), O_RDONLY)) < 0) {
-		cerr << "Could not open reference-string index file " << s4.c_str() << " for reading." << endl;
+    if((f4 = fopen(s4.c_str(), "rb"))  == NULL) {
+        cerr << "Could not open reference-string index file " << s4 << " for reading." << endl;
 		loaded_ = false;
 		return;
 	}
-	char *mmFile = NULL;
+#ifdef BOWTIE_MM
+    char *mmFile = NULL;
 	if(useMm_) {
 		if(verbose_ || startVerbose) {
 			cerr << "  Memory-mapping reference index file " << s4.c_str() << ": ";
@@ -78,7 +78,7 @@ BitPairReference::BitPairReference(
 			throw 1;
 		}
 		mmFile = (char*)mmap((void *)0, (size_t)sbuf.st_size,
-							 PROT_READ, MAP_SHARED, f4, 0);
+				     PROT_READ, MAP_SHARED, fileno(f4), 0);
 		if(mmFile == (void *)(-1) || mmFile == NULL) {
 			perror("mmap");
 			cerr << "Error: Could not memory-map the index file " << s4.c_str() << endl;
@@ -94,21 +94,6 @@ BitPairReference::BitPairReference(
 				logTime(cerr);
 			}
 		}
-	}
-#else
-	FILE *f3, *f4;
-	if((f3 = fopen(s3.c_str(), "rb")) == NULL) {
-		cerr << "Could not open reference-string index file " << s3 << " for reading." << endl;
-		cerr << "This is most likely because your index was built with an older version" << endl
-		<< "(<= 0.9.8.1) of bowtie-build.  Please re-run bowtie-build to generate a new" << endl
-		<< "index (or download one from the Bowtie website) and try again." << endl;
-		loaded_ = false;
-		return;
-	}
-	if((f4 = fopen(s4.c_str(), "rb"))  == NULL) {
-		cerr << "Could not open reference-string index file " << s4 << " for reading." << endl;
-		loaded_ = false;
-		return;
 	}
 #endif
 	
@@ -179,7 +164,7 @@ BitPairReference::BitPairReference(
 	bufSz_ = cumsz;
 	assert_eq(nrefs_, refLens_.size());
 	assert_eq(sz, recs_.size());
-	MM_FILE_CLOSE(f3); // done with .3.gEbwt_ext file
+	if (f3 != NULL) fclose(f3); // done with .3.gEbwt_ext file
 	// Round cumsz up to nearest byte boundary
 	if((cumsz & 3) != 0) {
 		cumsz += (4 - (cumsz & 3));
