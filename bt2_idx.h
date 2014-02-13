@@ -494,8 +494,8 @@ public:
 	    _passMemExc(passMemExc), \
 	    _sanity(sanityCheck), \
 	    fw_(fw), \
-	    _in1(MM_FILE_INIT), \
-	    _in2(MM_FILE_INIT), \
+	    _in1(NULL), \
+	    _in2(NULL), \
 	    _zOff(OFF_MASK), \
 	    _zEbwtByteOff(OFF_MASK), \
 	    _zEbwtBpOff(-1), \
@@ -1145,8 +1145,8 @@ public:
 		if(ebwt() != NULL && useShmem_) {
 			FREE_SHARED(ebwt());
 		}
-		MM_FILE_CLOSE(_in1);
-		MM_FILE_CLOSE(_in2);
+		if (_in1 != NULL) fclose(_in1);
+		if (_in2 != NULL) fclose(_in2);
 	}
 
 	/// Accessors
