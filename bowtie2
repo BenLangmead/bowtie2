@@ -30,7 +30,7 @@
 
 use strict;
 use warnings;
-use Getopt::Long qw(GetOptionsFromArray GetOptions);
+use Getopt::Long qw(GetOptions);
 use File::Spec;
 use POSIX;
 
@@ -237,8 +237,10 @@ my $help = 0;
 my @bt2w_args_cp = (@bt2w_args>0) ? @bt2w_args : @bt2_args;
 Getopt::Long::Configure("pass_through","no_ignore_case");
 
-GetOptionsFromArray(
-    \@bt2w_args_cp,
+my @old_ARGV = @ARGV;
+@ARGV = @bt2w_args_cp;
+
+GetOptions(
 	"1=s"                           => \@mate1s,
 	"2=s"                           => \@mate2s,
 	"reads|U=s"                     => \@unps,
@@ -252,6 +254,7 @@ GetOptionsFromArray(
 	"help|h"                        => \$help
 );
 
+@ARGV = @old_ARGV;
 
 my $old_stderr;
 
