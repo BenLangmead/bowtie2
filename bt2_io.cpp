@@ -247,7 +247,7 @@ void Ebwt::readIntoMemory(
 #ifdef BOWTIE_MM
 		_plen.init((TIndexOffU*)(mmFile[0] + bytesRead), _nPat, false);
 		bytesRead += _nPat*OFF_SIZE;
-		fseek(_in1, _nPat*OFF_SIZE, SEEK_CUR);
+		fseeko(_in1, _nPat*OFF_SIZE, SEEK_CUR);
 #endif
 	} else {
 		try {
@@ -261,7 +261,7 @@ void Ebwt::readIntoMemory(
 					plen()[i] = readU<TIndexOffU>(_in1, switchEndian);
 				}
 			} else {
-				size_t = MM_READ(_in1, (void*)(plen()), _nPat*OFF_SIZE);
+				size_t r = MM_READ(_in1, (void*)(plen()), _nPat*OFF_SIZE);
 				if(r != (size_t)(_nPat*OFF_SIZE)) {
 					cerr << "Error reading _plen[] array: " << r << ", " << _nPat*OFF_SIZE << endl;
 					throw 1;
@@ -295,7 +295,7 @@ void Ebwt::readIntoMemory(
 #ifdef BOWTIE_MM
 			_rstarts.init((TIndexOffU*)(mmFile[0] + bytesRead), _nFrag*3, false);
 			bytesRead += this->_nFrag*OFF_SIZE*3;
-			fseek(_in1, this->_nFrag*OFF_SIZE*3, SEEK_CUR);
+			fseeko(_in1, this->_nFrag*OFF_SIZE*3, SEEK_CUR);
 #endif
 		} else {
 			_rstarts.init(new TIndexOffU[_nFrag*3], _nFrag*3, true);
@@ -319,7 +319,7 @@ void Ebwt::readIntoMemory(
 		// Skip em
 		assert(rstarts() == NULL);
 		bytesRead += this->_nFrag*OFF_SIZE*3;
-		fseek(_in1, this->_nFrag*OFF_SIZE*3, SEEK_CUR);
+		fseeko(_in1, this->_nFrag*OFF_SIZE*3, SEEK_CUR);
 	}
 	
 	_ebwt.reset();
@@ -384,7 +384,7 @@ void Ebwt::readIntoMemory(
 #endif
 		} else {
 			// Seek past the data and wait until master is finished
-			fseek(_in1, eh->_ebwtTotLen, SEEK_CUR);
+			fseeko(_in1, eh->_ebwtTotLen, SEEK_CUR);
 #ifdef BOWTIE_SHARED_MEM
 			if(useShmem_) WAIT_SHARED(ebwt(), eh->_ebwtTotLen);
 #endif
@@ -430,7 +430,7 @@ void Ebwt::readIntoMemory(
 #ifdef BOWTIE_MM
 				_ftab.init((TIndexOffU*)(mmFile[0] + bytesRead), eh->_ftabLen, false);
 				bytesRead += eh->_ftabLen*OFF_SIZE;
-				fseek(_in1, eh->_ftabLen*OFF_SIZE, SEEK_CUR);
+				fseeko(_in1, eh->_ftabLen*OFF_SIZE, SEEK_CUR);
 #endif
 			} else {
 				_ftab.init(new TIndexOffU[eh->_ftabLen], eh->_ftabLen, true);
@@ -460,7 +460,7 @@ void Ebwt::readIntoMemory(
 #ifdef BOWTIE_MM
 				_eftab.init((TIndexOffU*)(mmFile[0] + bytesRead), eh->_eftabLen, false);
 				bytesRead += eh->_eftabLen*OFF_SIZE;
-				fseek(_in1, eh->_eftabLen*OFF_SIZE, SEEK_CUR);
+				fseeko(_in1, eh->_eftabLen*OFF_SIZE, SEEK_CUR);
 #endif
 			} else {
 				_eftab.init(new TIndexOffU[eh->_eftabLen], eh->_eftabLen, true);
@@ -487,10 +487,10 @@ void Ebwt::readIntoMemory(
 			assert(eftab() == NULL);
 			// Skip ftab
 			bytesRead += eh->_ftabLen*OFF_SIZE;
-			fseek(_in1, eh->_ftabLen*OFF_SIZE, SEEK_CUR);
+			fseeko(_in1, eh->_ftabLen*OFF_SIZE, SEEK_CUR);
 			// Skip eftab
 			bytesRead += eh->_eftabLen*OFF_SIZE;
-			fseek(_in1, eh->_eftabLen*OFF_SIZE, SEEK_CUR);
+			fseeko(_in1, eh->_eftabLen*OFF_SIZE, SEEK_CUR);
 		}
 	} catch(bad_alloc& e) {
 		cerr << "Out of memory allocating fchr[], ftab[] or eftab[] arrays for the Bowtie index." << endl
@@ -583,9 +583,7 @@ void Ebwt::readIntoMemory(
 #ifdef BOWTIE_MM
 						_offs.init((TIndexOffU*)(mmFile[1] + bytesRead), offsLen, false);
 						bytesRead += offsSz;
-						// Argument to lseek can be 64 bits if compiled with
-						// _FILE_OFFSET_BITS
-						fseek(_in2, offsSz, SEEK_CUR);
+						fseeko(_in2, offsSz, SEEK_CUR);
 #endif
 					} else {
 						// Workaround for small-index mode where MM_READ may
@@ -611,7 +609,7 @@ void Ebwt::readIntoMemory(
 #endif
 			} else {
 				// Not the shmem leader
-				fseek(_in2, offsLenSampled*OFF_SIZE, SEEK_CUR);
+				fseeko(_in2, offsLenSampled*OFF_SIZE, SEEK_CUR);
 #ifdef BOWTIE_SHARED_MEM				
 				if(useShmem_) WAIT_SHARED(offs(), offsLenSampled*OFF_SIZE);
 #endif
@@ -630,8 +628,8 @@ done: // Exit hatch for both justHeader and !justHeader
 	
 	// Be kind
 	if(deleteEh) delete eh;
-	fseek(_in1, 0, SEEK_SET);
-	fseek(_in2, 0, SEEK_SET);
+	rewind(_in1);
+	rewind(_in2);
 }
 
 /**
