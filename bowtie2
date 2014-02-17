@@ -39,7 +39,8 @@ my ($vol,$script_path,$prog);
 $prog = File::Spec->rel2abs( __FILE__ );
 
 while (-f $prog && -l $prog){
-    $prog = File::Spec->rel2abs(readlink($prog));   
+    my (undef, $dir, undef) = File::Spec->splitpath($prog);
+    $prog = File::Spec->rel2abs(readlink($prog), $dir);
 }
 
 ($vol,$script_path,$prog) 
