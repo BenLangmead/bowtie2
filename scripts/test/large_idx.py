@@ -214,8 +214,8 @@ class TestLargeIndex(unittest.TestCase):
         genome = g_bdata.joint_genomes['ms_hum']
         genome_fasta = os.path.join(wdir,genome['ref_name'])
         genome_index = os.path.join(wdir,'ms_hum')
-        reads_human  = os.path.join(rdir,'human_reads.fa'
-        reads_mouse  = os.path.join(rdir,'mouse_reads.fa'
+        reads_human  = os.path.join(rdir,'human_reads.fa')
+        reads_mouse  = os.path.join(rdir,'mouse_reads.fa')
         ret = g_bt.build("%s ms_hum" % genome_fasta)
         self.assertEqual(ret,0)
         args = "-x %s -f -U %s" % (genome_index,reads_human)
