@@ -508,6 +508,11 @@ if(defined($cap_out)) {
 					# Next line is read with some whitespace escaped, which we
 					# ignore b/c the record is filtered out by --no-unal
 					my $l = <BT>;
+                    if ($read_fhs{'un'}){
+                       chomp($l);
+                       $l =~ s/%(..)/chr(hex($1))/eg;
+                       print {$read_fhs{'un'}} $l; 
+                    }
 				} else {
 					my $mate1 = (($fl &  64) != 0);
 					my $mate2 = (($fl & 128) != 0);
