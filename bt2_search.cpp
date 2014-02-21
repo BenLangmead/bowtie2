@@ -415,7 +415,7 @@ static void resetOptions() {
 	mapqv = 2;               // MAPQ calculation version
 	tighten = 3;             // -M tightening mode
 	doExactUpFront = true;   // do exact search up front if seeds seem good enough
-	do1mmUpFront = false;    // do 1mm search up front if seeds seem good enough
+	do1mmUpFront = true;    // do 1mm search up front if seeds seem good enough
 	seedBoostThresh = 300;   // if average non-zero position has more than this many elements
 	nSeedRounds = 2;         // # rounds of seed searches to do for repetitive reads
 	do1mmMinLen = 60;        // length below which we disable 1mm search
