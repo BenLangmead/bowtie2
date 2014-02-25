@@ -27,23 +27,69 @@ class TestRegressions(unittest.TestCase):
         ref_index = os.path.join(g_bdata.index_dir_path,'lambda_virus')
         reads     = os.path.join(g_bdata.reads_dir_path,'longreads.fq')
 
-        args = "--quiet -x %s -U %s -a --un %s > %s" % (ref_index,reads,not_algn,out_sam)
+        args = "--quiet -x %s -U %s -a --un %s -S %s" % (ref_index,reads,not_algn,out_sam)
         ret = g_bt.run(args)
         self.assertEqual(ret,0)
         sam_size     = dataface.SamFile(out_sam).size()
         no_algn_size = dataface.FastaQFile(not_algn).size()
-        args = "--quiet -x %s -U %s -a --un %s --no-unal > %s" % (ref_index,reads,not_algn,out_sam)
+        args = "--quiet -x %s -U %s -a --un %s --no-unal -S %s" % (ref_index,reads,not_algn,out_sam)
         ret = g_bt.run(args)
         self.assertEqual(ret,0)
         no_al_sam_size = dataface.SamFile(out_sam).size()
         self.assertEqual(no_al_sam_size + no_algn_size, sam_size)
         os.remove(out_sam)
         os.remove(not_algn)
-    
+
+
+    def test_279(self):
+        """ Check if --un-conc option works correctly when used with --no-unal
+        """
+        out_no_conc = 'test279_nconc.fq'
+        out_conc    = 'test279_conc.fq'
+        out_sam     = 'test279.sam'
+        out_p1_nc   = 'test279_nconc.1.fq'
+        out_p2_nc   = 'test279_nconc.2.fq'
+        out_p1_conc = 'test279_conc.1.fq'
+        out_p2_conc = 'test279_conc.2.fq'
+        ref_index   = os.path.join(g_bdata.index_dir_path,'lambda_virus')
+        pairs_1     = os.path.join(g_bdata.reads_dir_path,'reads_1.fq')
+        pairs_2     = os.path.join(g_bdata.reads_dir_path,'reads_2.fq')
+
+        args = "--quiet -x %s -1 %s -2 %s --un-conc %s --dovetail --al-conc %s -S %s" % (ref_index,pairs_1,pairs_2,out_no_conc,out_conc,out_sam)
+        ret = g_bt.run(args)
+        self.assertEqual(ret,0)
+        conc_p1_size_step1 = dataface.FastaQFile(out_p1_conc).size()
+        conc_p2_size_step1 = dataface.FastaQFile(out_p2_conc).size()
+        nc_p1_size_step1   = dataface.FastaQFile(out_p1_nc).size()
+        nc_p2_size_step1   = dataface.FastaQFile(out_p2_nc).size()
+        self.assertEqual(conc_p1_size_step1, conc_p2_size_step1, "Number of concordant sequences in pass 1 should match.")
+        self.assertEqual(nc_p1_size_step1, nc_p2_size_step1, "Number of non-concordant sequences in pass 1 should match.")
+
+        args = "--quiet -x %s -1 %s -2 %s --no-unal --un-conc %s --dovetail --al-conc %s -S %s" % (ref_index,pairs_1,pairs_2,out_no_conc,out_conc,out_sam)
+        ret = g_bt.run(args)
+        self.assertEqual(ret,0)
+        conc_p1_size_step2 = dataface.FastaQFile(out_p1_conc).size()
+        conc_p2_size_step2 = dataface.FastaQFile(out_p2_conc).size()
+        nc_p1_size_step2   = dataface.FastaQFile(out_p1_nc).size()
+        nc_p2_size_step2   = dataface.FastaQFile(out_p2_nc).size()
+        self.assertEqual(conc_p1_size_step2, conc_p2_size_step2, "Number of concordant sequences in pass 2 should match.")
+        self.assertEqual(nc_p1_size_step2, nc_p2_size_step2, "Number of non-concordant sequences in pass 2 should match.")
+        self.assertEqual(conc_p1_size_step1, conc_p1_size_step2, "Number of concordant sequences in both steps should match.")
+        self.assertEqual(conc_p2_size_step1, conc_p2_size_step2, "Number of concordant sequences in both steps should match.")
+        self.assertEqual(nc_p1_size_step1, nc_p1_size_step2, "Number of non-concordant sequences in both steps should match.")
+        self.assertEqual(nc_p2_size_step1, nc_p2_size_step2, "Number of non-concordant sequences in both steps should match.")
+
+        self.assertTrue(1,"temp")
+        os.remove(out_p1_conc)
+        os.remove(out_p2_conc)
+        os.remove(out_p1_nc)
+        os.remove(out_p2_nc)
+        os.remove(out_sam)
+         
     
    
 def get_suite():
-    tests = ['test_288']
+    tests = ['test_288','test_279']
     return unittest.TestSuite(map(TestRegressions,tests))
 
             
