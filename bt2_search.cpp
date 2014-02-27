@@ -415,7 +415,7 @@ static void resetOptions() {
 	mapqv = 2;               // MAPQ calculation version
 	tighten = 3;             // -M tightening mode
 	doExactUpFront = true;   // do exact search up front if seeds seem good enough
-	do1mmUpFront = true;     // do 1mm search up front if seeds seem good enough
+	do1mmUpFront = true;    // do 1mm search up front if seeds seem good enough
 	seedBoostThresh = 300;   // if average non-zero position has more than this many elements
 	nSeedRounds = 2;         // # rounds of seed searches to do for repetitive reads
 	do1mmMinLen = 60;        // length below which we disable 1mm search
@@ -722,7 +722,9 @@ static void printUsage(ostream& out) {
 		<< "  --ignore-quals     treat all quality values as 30 on Phred scale (off)" << endl
 	    << "  --nofw             do not align forward (original) version of read (off)" << endl
 	    << "  --norc             do not align reverse-complement version of read (off)" << endl
-		<< endl
+	    << "  --no-1mm-upfront   do not allow 1 mismatch alignments before attempting to" << endl
+	    << "                     scan for the optimal seeded alignments"
+	    << endl
 		<< "  --end-to-end       entire read must align; no clipping (on)" << endl
 		<< "   OR" << endl
 		<< "  --local            local alignment; ends might be soft clipped (off)" << endl
