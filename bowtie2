@@ -504,33 +504,38 @@ if(defined($cap_out)) {
 			my $unal = ($fl & 4) != 0;
 			$filt = 1 if $no_unal && $unal;
 			if($passthru) {
-				my $mate1 = (($fl &  64) != 0);
-				my $mate2 = (($fl & 128) != 0);
-				my $unp = !$mate1 && !$mate2;
-				my $pair = !$unp;
-				# Next line is read with some whitespace escaped
-				my $l = <BT>;
-				chomp($l);
-				$l =~ s/%(..)/chr(hex($1))/eg;
-				if((defined($read_fhs{un}) || defined($read_fhs{al})) && $unp) {
-					if($unal) {
-						# Failed to align
-						print {$read_fhs{un}} $l if defined($read_fhs{un});
-					} else {
-						# Aligned
-						print {$read_fhs{al}} $l if defined($read_fhs{al});
+				if(scalar(%read_fhs) == 0) {
+					# Next line is read with some whitespace escaped
+					my $l = <BT>;
+				} else {
+					my $mate1 = (($fl &  64) != 0);
+					my $mate2 = (($fl & 128) != 0);
+					my $unp = !$mate1 && !$mate2;
+					my $pair = !$unp;
+					# Next line is read with some whitespace escaped
+					my $l = <BT>;
+					chomp($l);
+					$l =~ s/%(..)/chr(hex($1))/eg;
+					if((defined($read_fhs{un}) || defined($read_fhs{al})) && $unp) {
+						if($unal) {
+							# Failed to align
+							print {$read_fhs{un}} $l if defined($read_fhs{un});
+						} else {
+							# Aligned
+							print {$read_fhs{al}} $l if defined($read_fhs{al});
+						}
 					}
-				}
-				if((defined($read_fhs{"un-conc"}) || defined($read_fhs{"al-conc"})) && $pair) {
-					my $conc  = (($fl &   2) != 0);
-					if     ($conc && $mate1) {
-						print {$read_fhs{"al-conc"}{1}} $l if defined($read_fhs{"al-conc"});
-					} elsif($conc && $mate2) {
-						print {$read_fhs{"al-conc"}{2}} $l if defined($read_fhs{"al-conc"});
-					} elsif(!$conc && $mate1) {
-						print {$read_fhs{"un-conc"}{1}} $l if defined($read_fhs{"un-conc"});
-					} elsif(!$conc && $mate2) {
-						print {$read_fhs{"un-conc"}{2}} $l if defined($read_fhs{"un-conc"});
+					if((defined($read_fhs{"un-conc"}) || defined($read_fhs{"al-conc"})) && $pair) {
+						my $conc  = (($fl &   2) != 0);
+						if     ($conc && $mate1) {
+							print {$read_fhs{"al-conc"}{1}} $l if defined($read_fhs{"al-conc"});
+						} elsif($conc && $mate2) {
+							print {$read_fhs{"al-conc"}{2}} $l if defined($read_fhs{"al-conc"});
+						} elsif(!$conc && $mate1) {
+							print {$read_fhs{"un-conc"}{1}} $l if defined($read_fhs{"un-conc"});
+						} elsif(!$conc && $mate2) {
+							print {$read_fhs{"un-conc"}{2}} $l if defined($read_fhs{"un-conc"});
+						}
 					}
 				}
 			}
