@@ -16,6 +16,19 @@ Please report any issues using the Sourceforge bug tracker:
 Version Release History
 =======================
 
+Version 2.2.1 - February 28, 2014
+   * Improved index file access for all situations.
+   * Fixed a bug that made older systems unable to correctly deal with bowtie 
+     relative symlinks.
+   * Fixed a bug that would make possible in the case of some very big indexes
+     to incorrectly determine file offsets. 
+   * Fixed a bug where using --no-unal option leads to --un-conc malfunction.
+   * Fixed a bug where --no-unal option leads to --un option malfunction.
+   * Dropped a perl dependencies that on very old systems would require a perl
+     module update.
+   * Added --no-1mm-upfront option and documented the functionality associated
+     with other multiseed heuristics options.
+
 Version 2.2.0 - February 10, 2014
    * Improved index querying efficiency using "population count" instructions
      available since SSE4.2.

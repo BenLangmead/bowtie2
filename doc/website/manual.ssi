@@ -1,5 +1,5 @@
 <h1>Table of Contents</h1>
-<p>&nbsp;Version <b>2.1.0</b></p>
+<p>&nbsp;Version <b>2.2.1</b></p>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
@@ -649,7 +649,15 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 
 <p>If <code>--nofw</code> is specified, <code>bowtie2</code> will not attempt to align unpaired reads to the forward (Watson) reference strand. If <code>--norc</code> is specified, <code>bowtie2</code> will not attempt to align unpaired reads against the reverse-complement (Crick) reference strand. In paired-end mode, <code>--nofw</code> and <code>--norc</code> pertain to the fragments; i.e. specifying <code>--nofw</code> causes <code>bowtie2</code> to explore only those paired-end configurations corresponding to fragments from the reverse-complement (Crick) strand. Default: both strands enabled.</p>
 </td></tr>
-<tr><td id="bowtie2-options-end-to-end">
+<tr><td id="bowtie2-options-no-1mm-upfront">
+
+
+
+<pre><code>--no-1mm-upfront</code></pre>
+</td><td>
+
+<p>By default, Bowtie 2 will attempt to find either an exact or a 1-mismatch end-to-end alignment for the read <em>before</em> trying the <a href="#multiseed-heuristic">multiseed heuristic</a>. Such alignments can be found very quickly, and many short read alignments have exact or near-exact end-to-end alignments. However, this can lead to unexpected alignments when the user also sets options governing the <a href="#multiseed-heuristic">multiseed heuristic</a>, like <a href="#bowtie2-options-L"><code>-L</code></a> and <a href="#bowtie2-options-N"><code>-N</code></a>. For instance, if the user specifies <code>-N 0</code> and <code>-L</code> equal to the length of the read, the user will be surprised to find 1-mismatch alignments reported. This option prevents Bowtie 2 from searching for 1-mismatch end-to-end alignments before using the <a href="#multiseed-heuristic">multiseed heuristic</a>, which leads to the expected behavior when combined with options such as <a href="#bowtie2-options-L"><code>-L</code></a> and <a href="#bowtie2-options-N"><code>-N</code></a>. This comes at the expense of speed.</p>
+</td></tr><tr><td id="bowtie2-options-end-to-end">
 
 
 
