@@ -504,7 +504,7 @@ if(defined($cap_out)) {
 			my $unal = ($fl & 4) != 0;
 			$filt = 1 if $no_unal && $unal;
 			if($passthru) {
-				if(scalar(%read_fhs) == 0) {
+				if(scalar(keys %read_fhs) == 0) {
 					# Next line is read with some whitespace escaped
 					my $l = <BT>;
 				} else {
