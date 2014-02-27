@@ -504,9 +504,8 @@ if(defined($cap_out)) {
 			my $unal = ($fl & 4) != 0;
 			$filt = 1 if $no_unal && $unal;
 			if($passthru) {
-				if($filt) {
-					# Next line is read with some whitespace escaped, which we
-					# ignore b/c the record is filtered out by --no-unal
+				if(scalar(keys %read_fhs) == 0) {
+					# Next line is read with some whitespace escaped
 					my $l = <BT>;
 				} else {
 					my $mate1 = (($fl &  64) != 0);
