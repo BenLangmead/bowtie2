@@ -494,8 +494,8 @@ public:
 	    _passMemExc(passMemExc), \
 	    _sanity(sanityCheck), \
 	    fw_(fw), \
-	    _in1(MM_FILE_INIT), \
-	    _in2(MM_FILE_INIT), \
+	    _in1(NULL), \
+	    _in2(NULL), \
 	    _zOff(OFF_MASK), \
 	    _zEbwtByteOff(OFF_MASK), \
 	    _zEbwtBpOff(-1), \
@@ -1145,8 +1145,8 @@ public:
 		if(ebwt() != NULL && useShmem_) {
 			FREE_SHARED(ebwt());
 		}
-		MM_FILE_CLOSE(_in1);
-		MM_FILE_CLOSE(_in2);
+		if (_in1 != NULL) fclose(_in1);
+		if (_in2 != NULL) fclose(_in2);
 	}
 
 	/// Accessors
@@ -2367,8 +2367,8 @@ template<typename Operation>
 	bool       _passMemExc;
 	bool       _sanity;
 	bool       fw_;     // true iff this is a forward index
-	MM_FILE    _in1;    // input fd for primary index file
-	MM_FILE    _in2;    // input fd for secondary index file
+	FILE       *_in1;    // input fd for primary index file
+	FILE       *_in2;    // input fd for secondary index file
 	string     _in1Str; // filename for primary index file
 	string     _in2Str; // filename for secondary index file
 	string     _inSaStr;  // filename for suffix-array file
