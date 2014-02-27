@@ -1314,7 +1314,27 @@ paired-end configurations corresponding to fragments from the reverse-complement
 (Crick) strand.  Default: both strands enabled. 
 
 </td></tr>
-<tr><td id="bowtie2-options-end-to-end">
+<tr><td id="bowtie2-options-no-1mm-upfront">
+
+[`--no-1mm-upfront`]: #bowtie2-options-no-1mm-upfront
+
+    --no-1mm-upfront
+
+</td><td>
+
+By default, Bowtie 2 will attempt to find either an exact or a 1-mismatch
+end-to-end alignment for the read *before* trying the [multiseed heuristic].  Such
+alignments can be found very quickly, and many short read alignments have exact or
+near-exact end-to-end alignments.  However, this can lead to unexpected
+alignments when the user also sets options governing the [multiseed heuristic],
+like [`-L`] and [`-N`].  For instance, if the user specifies `-N 0` and `-L` equal
+to the length of the read, the user will be surprised to find 1-mismatch alignments
+reported.  This option prevents Bowtie 2 from searching for 1-mismatch end-to-end
+alignments before using the [multiseed heuristic], which leads to the expected
+behavior when combined with options such as [`-L`] and [`-N`].  This comes at the
+expense of speed.
+
+</td></tr><tr><td id="bowtie2-options-end-to-end">
 
 [`--end-to-end`]: #bowtie2-options-end-to-end
 
