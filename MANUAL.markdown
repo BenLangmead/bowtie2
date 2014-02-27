@@ -1322,12 +1322,17 @@ paired-end configurations corresponding to fragments from the reverse-complement
 
 </td><td>
 
-By default Bowtie2 will allow 1-missmatch alignments before performing seeded
-alignments. This will considerably speed up the [multiseed heuristic] and it will
-therefore happen regardless of what other input options are provided. However under 
-some options combination like [`-L`] and [`-N`] this behaviour may not yield exactly 
-the expected results. For these rare circumstances this option will shut down the 
-1-missmatch bahavior entirely.  
+By default, Bowtie 2 will attempt to find either an exact or a 1-mismatch
+end-to-end alignment for the read *before* trying the [multiseed heuristic].  Such
+alignments can be found very quickly, and many short read alignments have exact or
+near-exact end-to-end alignments.  However, this can lead to unexpected
+alignments when the user also sets options governing the [multiseed heuristic],
+like [`-L`] and [`-N`].  For instance, if the user specifies `-N 0` and `-L` equal
+to the length of the read, the user will be surprised to find 1-mismatch alignments
+reported.  This option prevents Bowtie 2 from searching for 1-mismatch end-to-end
+alignments before using the [multiseed heuristic], which leads to the expected
+behavior when combined with options such as [`-L`] and [`-N`].  This comes at the
+expense of speed.
 
 </td></tr><tr><td id="bowtie2-options-end-to-end">
 
