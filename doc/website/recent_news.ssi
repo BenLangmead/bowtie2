@@ -13,7 +13,7 @@
      governing the multiseed heuristic.</li>
 </ul>
 
-<h2>Version 2.2.0 - Coming soon</h2>
+<h2>Version 2.2.0 - February 17, 2014</h2>
 <ul>
    <li>Improved index querying efficiency using "population count"
        instructions available since
