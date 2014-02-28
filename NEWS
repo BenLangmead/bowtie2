@@ -3,7 +3,7 @@ Bowtie 2 NEWS
 
 Bowtie 2 is now available for download from the project website,
 http://bowtie-bio.sf.net/bowtie2.  2.0.0-beta1 is the first version released to
-the public and 2.2.0 is the latest version.  Bowtie 2 is licensed under
+the public and 2.2.1 is the latest version.  Bowtie 2 is licensed under
 the GPLv3 license.  See `LICENSE' file for details.
 
 Reporting Issues
@@ -17,17 +17,17 @@ Version Release History
 =======================
 
 Version 2.2.1 - February 28, 2014
-   * Improved index file access for all situations.
+   * Improved way in which index files are loaded for alignment.  Should fix
+     efficiency problems on some filesystems.
    * Fixed a bug that made older systems unable to correctly deal with bowtie 
-     relative symlinks.
-   * Fixed a bug that would make possible in the case of some very big indexes
-     to incorrectly determine file offsets. 
-   * Fixed a bug where using --no-unal option leads to --un-conc malfunction.
-   * Fixed a bug where --no-unal option leads to --un option malfunction.
-   * Dropped a perl dependencies that on very old systems would require a perl
-     module update.
-   * Added --no-1mm-upfront option and documented the functionality associated
-     with other multiseed heuristics options.
+     relative symbolic links.
+   * Fixed a bug that, for very big indexes, could determine to determine file
+     offsets correctly.
+   * Fixed a bug where using --no-unal option incorrectly suppressed
+     --un/--un-conc output.
+   * Dropped a perl dependency that could cause problems on old systems.
+   * Added --no-1mm-upfront option and clarified documentation for parameters
+     governing the multiseed heuristic.
 
 Version 2.2.0 - February 10, 2014
    * Improved index querying efficiency using "population count" instructions
