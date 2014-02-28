@@ -1,16 +1,16 @@
 <h2>Version 2.2.1 - February 28, 2014</h2>
 <ul>
-   <li>Improved index file access for all situations.</li>
+   <li>Improved way in which index files are loaded for alignment.  Should fix
+     efficiency problems on some filesystems.</li>
    <li>Fixed a bug that made older systems unable to correctly deal with bowtie 
-       relative symlinks.</li>
-   <li>Fixed a bug that would make possible in the case of some very big indexes 
-       to incorrectly determine file offsets.</li>
-   <li>Fixed a bug where using --no-unal option leads to --un-conc malfunction.</li>
-   <li>Fixed a bug where --no-unal option leads to --un option malfunction.</li>
-   <li>Dropped a perl dependencies that on very old systems would require a perl
-       module update.</li>
-   <li>Added --no-1mm-upfront option and documented the functionality associated
-       with other multiseed heuristics options.</li>
+     relative symbolic links.</li>
+   <li>Fixed a bug that, for very big indexes, could determine to determine file
+     offsets correctly.</li>
+   <li>Fixed a bug where using --no-unal option incorrectly suppressed
+     --un/--un-conc output.</li>
+   <li>Dropped a perl dependency that could cause problems on old systems.</li>
+   <li>Added --no-1mm-upfront option and clarified documentation for parameters
+     governing the multiseed heuristic.</li>
 </ul>
 
 <h2>Version 2.2.0 - Coming soon</h2>
