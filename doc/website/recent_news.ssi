@@ -6,10 +6,10 @@
      relative symbolic links.</li>
    <li>Fixed a bug that, for very big indexes, could determine to determine file
      offsets correctly.</li>
-   <li>Fixed a bug where using --no-unal option incorrectly suppressed
-     --un/--un-conc output.</li>
+   <li>Fixed a bug where using <tt><a href="manual.shtml#bowtie2-options-no-unal">--no-unal</a></tt> option incorrectly suppressed
+     <tt><a href="manual.shtml#bowtie2-options-un">--un</a></tt>/<tt><a href="manual.shtml#bowtie2-options-un-conc">--un-conc</a></tt> output.</li>
    <li>Dropped a perl dependency that could cause problems on old systems.</li>
-   <li>Added --no-1mm-upfront option and clarified documentation for parameters
+   <li>Added <tt><a href="manual.shtml#bowtie2-options-no-1mm-upfront">--no-1mm-upfront</a></tt> option and clarified documentation for parameters
      governing the multiseed heuristic.</li>
 </ul>
 
