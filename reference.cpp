@@ -447,10 +447,33 @@ int BitPairReference::getStretch(
 	uint64_t off = 0;
 	int64_t offset = 4;
 	bool firstStretch = true;
+	uint64_t left  = reci;
+	uint64_t right = recf;
+	uint64_t mid   = 0;
+	EList<uint64_t> cum_off;
+	EList<uint64_t> cum_len;
+	cum_len.push_back(recs_[0].len);
+	cum_off.push_back(recs_[0].off);
 	// For all records pertaining to the target reference sequence...
 	for(uint64_t i = reci; i < recf; i++) {
 		ASSERT_ONLY(uint64_t origBufOff = bufOff);
 		assert_geq(toff, off);
+		if (firstStretch){
+			while (left < right) {
+				mid = left + ((right - left) >> 1);
+				for (uint64_t i = cum_off.size(); i <= mid; i++) {
+					cum_off.push_back(recs_[i].off + cum_off[i-1]);
+					cum_len.push_back(recs_[i].len + cum_len[i-1]);
+				}
+				if (toff > cum_len[mid] + cum_off[mid])
+					left = mid + 1;
+				else
+					right = mid;
+			}
+			off  = cum_len[left] + cum_off[left] - recs_[left].len - recs_[left].off;
+			bufOff += cum_len[left] - recs_[left].len;
+			i = left;
+		}
 		off += recs_[i].off;
 		assert_gt(count, 0);
 		if(toff < off) {
