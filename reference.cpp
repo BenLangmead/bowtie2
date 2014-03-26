@@ -456,7 +456,7 @@ int BitPairReference::getStretch(
 	cum_off.push_back(recs_[0].off);
 	// For all records pertaining to the target reference sequence...
 	for(uint64_t i = reci; i < recf; i++) {
-		ASSERT_ONLY(uint64_t origBufOff = bufOff);
+		uint64_t origBufOff = bufOff;
 		assert_geq(toff, off);
 		if (firstStretch){
 			while (left < right) {
@@ -472,6 +472,7 @@ int BitPairReference::getStretch(
 			}
 			off  = cum_len[left] + cum_off[left] - recs_[left].len - recs_[left].off;
 			bufOff += cum_len[left] - recs_[left].len;
+			origBufOff = bufOff;
 			i = left;
 		}
 		off += recs_[i].off;
