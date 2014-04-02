@@ -129,8 +129,6 @@ BitPairReference::BitPairReference(
 	// For each unambiguous stretch...
 	for(TIndexOffU i = 0; i < sz; i++) {
 		recs_.push_back(RefRecord(f3, swap));
-		cumUnambig_.expand();
-		cumRefOff_.expand();
 		if(recs_.back().first) {
 			// This is the first record for this reference sequence (and the
 			// last record for the one before)
@@ -150,8 +148,8 @@ BitPairReference::BitPairReference(
 			     << "'first'" << endl;
 			throw 1;
 		}
-		cumUnambig_.back() = cumsz;
-		cumRefOff_.back() = cumlen;
+		cumUnambig_.push_back(cumsz);
+		cumRefOff_.push_back(cumlen);
 		cumsz += recs_.back().len;
 		cumlen += recs_.back().off;
 		cumlen += recs_.back().len;
@@ -165,6 +163,8 @@ BitPairReference::BitPairReference(
 	refRecOffs_.push_back((TIndexOffU)recs_.size());
 	refOffs_.push_back(cumsz);
 	refLens_.push_back(cumlen);
+	cumUnambig_.push_back(cumsz);
+	cumRefOff_.push_back(cumlen);
 	bufSz_ = cumsz;
 	assert_eq(nrefs_, refLens_.size());
 	assert_eq(sz, recs_.size());
@@ -447,6 +447,7 @@ int BitPairReference::getStretch(
 	uint64_t off = 0;
 	int64_t offset = 4;
 	bool firstStretch = true;
+	bool binarySearched = false;
 	uint64_t left  = reci;
 	uint64_t right = recf;
 	uint64_t mid   = 0;
@@ -467,6 +468,7 @@ int BitPairReference::getStretch(
 			bufOff = cumUnambig_[left];
 			origBufOff = bufOff;
 			i = left;
+			binarySearched = true;
 		}
 		off += recs_[i].off; // skip Ns at beginning of stretch
 		assert_gt(count, 0);
@@ -485,6 +487,8 @@ int BitPairReference::getStretch(
 			bufOff += recs_[i].len;
 		}
 		off += recs_[i].len;
+		assert(off == cumRefOff_[i+1] || cumRefOff_[i+1] == 0);
+		assert(!binarySearched || toff < off);
 		if(toff < off) {
 			if(firstStretch) {
 				if(toff + 8 < off && count > 8) {
