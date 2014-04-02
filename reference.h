@@ -167,9 +167,12 @@ protected:
 	uint32_t byteToU32_[256];
 
 	EList<RefRecord> recs_;       /// records describing unambiguous stretches
-	EList<TIndexOffU>  refLens_;    /// approx lens of ref seqs (excludes trailing ambig chars)
-	EList<TIndexOffU>  refOffs_;    /// buf_ begin offsets per ref seq
-	EList<TIndexOffU>  refRecOffs_; /// record begin/end offsets per ref seq
+	// following two lists are purely for the binary search in getStretch
+	EList<TIndexOffU> cumUnambig_; // # unambig ref chars up to each record
+	EList<TIndexOffU> cumRefOff_;  // # ref chars up to each record
+	EList<TIndexOffU> refLens_;    /// approx lens of ref seqs (excludes trailing ambig chars)
+	EList<TIndexOffU> refOffs_;    /// buf_ begin offsets per ref seq
+	EList<TIndexOffU> refRecOffs_; /// record begin/end offsets per ref seq
 	uint8_t *buf_;      /// the whole reference as a big bitpacked byte array
 	uint8_t *sanityBuf_;/// for sanity-checking buf_
 	TIndexOffU bufSz_;    /// size of buf_
