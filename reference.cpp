@@ -129,6 +129,8 @@ BitPairReference::BitPairReference(
 	// For each unambiguous stretch...
 	for(TIndexOffU i = 0; i < sz; i++) {
 		recs_.push_back(RefRecord(f3, swap));
+		cumUnambig_.expand();
+		cumRefOff_.expand();
 		if(recs_.back().first) {
 			// This is the first record for this reference sequence (and the
 			// last record for the one before)
@@ -148,6 +150,8 @@ BitPairReference::BitPairReference(
 			     << "'first'" << endl;
 			throw 1;
 		}
+		cumUnambig_.back() = cumsz;
+		cumRefOff_.back() = cumlen;
 		cumsz += recs_.back().len;
 		cumlen += recs_.back().off;
 		cumlen += recs_.back().len;
@@ -412,10 +416,6 @@ int BitPairReference::getStretchNaive(
 
 /**
  * Load a stretch of the reference string into memory at 'dest'.
- *
- * This implementation scans linearly through the records for the
- * unambiguous stretches of the target reference sequence.  When
- * there are many records, binary search would be more appropriate.
  */
 int BitPairReference::getStretch(
 	uint32_t *destU32,
@@ -450,32 +450,25 @@ int BitPairReference::getStretch(
 	uint64_t left  = reci;
 	uint64_t right = recf;
 	uint64_t mid   = 0;
-	EList<uint64_t> cum_off;
-	EList<uint64_t> cum_len;
-	cum_len.push_back(recs_[0].len);
-	cum_off.push_back(recs_[0].off);
 	// For all records pertaining to the target reference sequence...
 	for(uint64_t i = reci; i < recf; i++) {
 		uint64_t origBufOff = bufOff;
 		assert_geq(toff, off);
-		if (firstStretch){
-			while (left < right) {
+		if (firstStretch && recf > reci + 16){
+			// binary search finds smallest i s.t. toff >= cumRefOff_[i]
+			while (left < right-1) {
 				mid = left + ((right - left) >> 1);
-				for (uint64_t i = cum_off.size(); i <= mid; i++) {
-					cum_off.push_back(recs_[i].off + cum_off[i-1]);
-					cum_len.push_back(recs_[i].len + cum_len[i-1]);
-				}
-				if (toff > cum_len[mid] + cum_off[mid])
-					left = mid + 1;
+				if (toff > cumRefOff_[mid])
+					left = mid;
 				else
 					right = mid;
 			}
-			off  = cum_len[left] + cum_off[left] - recs_[left].len - recs_[left].off;
-			bufOff += cum_len[left] - recs_[left].len;
+			off = cumRefOff_[left];
+			bufOff = cumUnambig_[left];
 			origBufOff = bufOff;
 			i = left;
 		}
-		off += recs_[i].off;
+		off += recs_[i].off; // skip Ns at beginning of stretch
 		assert_gt(count, 0);
 		if(toff < off) {
 			size_t cpycnt = min((size_t)(off - toff), count);
