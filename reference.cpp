@@ -459,7 +459,7 @@ int BitPairReference::getStretch(
 			// binary search finds smallest i s.t. toff >= cumRefOff_[i]
 			while (left < right-1) {
 				mid = left + ((right - left) >> 1);
-				if (toff > cumRefOff_[mid])
+				if (cumRefOff_[mid] <= toff)
 					left = mid;
 				else
 					right = mid;
@@ -468,6 +468,7 @@ int BitPairReference::getStretch(
 			bufOff = cumUnambig_[left];
 			origBufOff = bufOff;
 			i = left;
+			assert_gt(cumRefOff_[i+1], toff);
 			binarySearched = true;
 		}
 		off += recs_[i].off; // skip Ns at beginning of stretch
