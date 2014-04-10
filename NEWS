@@ -16,6 +16,10 @@ Please report any issues using the Sourceforge bug tracker:
 Version Release History
 =======================
 
+Version 2.2.2 - April 10, 2014
+   * Improved performance for cases where the reference contains ambiguous 
+     or masked nucleobases represented by Ns.  
+
 Version 2.2.1 - February 28, 2014
    * Improved way in which index files are loaded for alignment.  Should fix
      efficiency problems on some filesystems.
