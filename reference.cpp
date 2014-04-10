@@ -148,6 +148,8 @@ BitPairReference::BitPairReference(
 			     << "'first'" << endl;
 			throw 1;
 		}
+		cumUnambig_.push_back(cumsz);
+		cumRefOff_.push_back(cumlen);
 		cumsz += recs_.back().len;
 		cumlen += recs_.back().off;
 		cumlen += recs_.back().len;
@@ -161,6 +163,8 @@ BitPairReference::BitPairReference(
 	refRecOffs_.push_back((TIndexOffU)recs_.size());
 	refOffs_.push_back(cumsz);
 	refLens_.push_back(cumlen);
+	cumUnambig_.push_back(cumsz);
+	cumRefOff_.push_back(cumlen);
 	bufSz_ = cumsz;
 	assert_eq(nrefs_, refLens_.size());
 	assert_eq(sz, recs_.size());
@@ -412,10 +416,6 @@ int BitPairReference::getStretchNaive(
 
 /**
  * Load a stretch of the reference string into memory at 'dest'.
- *
- * This implementation scans linearly through the records for the
- * unambiguous stretches of the target reference sequence.  When
- * there are many records, binary search would be more appropriate.
  */
 int BitPairReference::getStretch(
 	uint32_t *destU32,
@@ -447,11 +447,31 @@ int BitPairReference::getStretch(
 	uint64_t off = 0;
 	int64_t offset = 4;
 	bool firstStretch = true;
+	bool binarySearched = false;
+	uint64_t left  = reci;
+	uint64_t right = recf;
+	uint64_t mid   = 0;
 	// For all records pertaining to the target reference sequence...
 	for(uint64_t i = reci; i < recf; i++) {
-		ASSERT_ONLY(uint64_t origBufOff = bufOff);
+		uint64_t origBufOff = bufOff;
 		assert_geq(toff, off);
-		off += recs_[i].off;
+		if (firstStretch && recf > reci + 16){
+			// binary search finds smallest i s.t. toff >= cumRefOff_[i]
+			while (left < right-1) {
+				mid = left + ((right - left) >> 1);
+				if (cumRefOff_[mid] <= toff)
+					left = mid;
+				else
+					right = mid;
+			}
+			off = cumRefOff_[left];
+			bufOff = cumUnambig_[left];
+			origBufOff = bufOff;
+			i = left;
+			assert_gt(cumRefOff_[i+1], toff);
+			binarySearched = true;
+		}
+		off += recs_[i].off; // skip Ns at beginning of stretch
 		assert_gt(count, 0);
 		if(toff < off) {
 			size_t cpycnt = min((size_t)(off - toff), count);
@@ -468,6 +488,8 @@ int BitPairReference::getStretch(
 			bufOff += recs_[i].len;
 		}
 		off += recs_[i].len;
+		assert(off == cumRefOff_[i+1] || cumRefOff_[i+1] == 0);
+		assert(!binarySearched || toff < off);
 		if(toff < off) {
 			if(firstStretch) {
 				if(toff + 8 < off && count > 8) {
