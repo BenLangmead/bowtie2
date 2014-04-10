@@ -182,8 +182,9 @@ your [PATH].
 
 If you would like to install Bowtie 2 by copying the Bowtie 2 executable files
 to an existing directory in your [PATH], make sure that you copy all the
-executables, including `bowtie2`, `bowtie2-align`, `bowtie2-build` and
-`bowtie2-inspect`.
+executables, including `bowtie2`, `bowtie2-align-s`, `bowtie2-align-l`,
+`bowtie2-build`, `bowtie2-build-s`, `bowtie2-build-l`, `bowtie2-inspect`,
+`bowtie2-inspect-s` and `bowtie2-inspect-l`.
 
 [PATH environment variable]: http://en.wikipedia.org/wiki/PATH_(variable)
 [PATH]: http://en.wikipedia.org/wiki/PATH_(variable)
