@@ -4544,12 +4544,9 @@ int bowtie(int argc, const char **argv) {
 
 			// Get index basename (but only if it wasn't specified via --index)
 			if(bt2index.empty()) {
-				if(optind >= argc) {
-					cerr << "No index, query, or output file specified!" << endl;
-					printUsage(cerr);
-					return 1;
-				}
-				bt2index = argv[optind++];
+				cerr << "No index, query, or output file specified!" << endl;
+				printUsage(cerr);
+				return 1;
 			}
 
 			// Get query filename
