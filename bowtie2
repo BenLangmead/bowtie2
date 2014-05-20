@@ -308,7 +308,6 @@ sub Error {
 
 sub Fail {
     Error(@_);
-    system("$align_prog --wrapper basic-0 ");
     die("Exiting now ...\n");    
 }
 
@@ -319,7 +318,7 @@ sub Extract_IndexName_From {
             return $_[$i+1];
         }
     }
-    Fail("Cannot find any index option (--reference-string, --ref-string or -x) in the given command line.\n");    
+    Info("Cannot find any index option (--reference-string, --ref-string or -x) in the given command line.\n");    
 }
 
 if(wrapInput(\@unps, \@mate1s, \@mate2s)) {
