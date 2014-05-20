@@ -16,7 +16,12 @@ class BowtieSuite(object):
 
     def run(self, *args):
         cmd = self.bowtie_bin + " " + " ".join([i for i in args])
-        return(subprocess.check_call(cmd,shell=True))        
+        return(subprocess.call(cmd,shell=True))        
+        
+        
+    def silent_run(self, *args):
+        cmd = self.bowtie_bin + " " + " ".join([i for i in args])
+        return(subprocess.call(cmd,shell=True,stderr=open(os.devnull, 'w')))        
         
         
     def build(self, *args):

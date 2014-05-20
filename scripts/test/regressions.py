@@ -87,9 +87,33 @@ class TestRegressions(unittest.TestCase):
         os.remove(out_sam)
          
     
+    def test_version(self):
+        """ Check if --version option works correctly. 
+        """
+        args = "--version"
+        ret  = g_bt.silent_run(args)
+        self.assertEqual(ret,0)
+        
+       
+    def test_x_option(self):
+        """ Check if -x is indeed mandatory. 
+        """
+        ref_index = os.path.join(g_bdata.index_dir_path,'lambda_virus')
+        reads     = os.path.join(g_bdata.reads_dir_path,'longreads.fq')
+        out_sam   = 'test_x_option.sam'
+
+        args = "%s -U %s -S %s " % (ref_index,reads,out_sam)
+        ret = g_bt.silent_run(args)
+        self.assertNotEqual(ret,0)
+        args = "-x %s -U %s -S %s " % (ref_index,reads,out_sam)
+        ret = g_bt.silent_run(args)
+        self.assertEqual(ret, 0)
+        os.remove(out_sam)
+
+
    
 def get_suite():
-    tests = ['test_288','test_279']
+    tests = ['test_288','test_279','test_version','test_x_option']
     return unittest.TestSuite(map(TestRegressions,tests))
 
             
