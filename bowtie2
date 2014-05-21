@@ -464,7 +464,18 @@ if(defined($cap_out)) {
 		if(defined($read_fns{$i})) {
 			if($i =~ /-conc$/) {
 				# Open 2 output files, one for mate 1, one for mate 2
-				my ($fn1, $fn2) = ($read_fns{$i}, $read_fns{$i});
+                my ($vol, $base_spec_dir, $base_fname) = File::Spec->splitpath($read_fns{$i});
+                if (-d $read_fns{$i}) {
+                    $base_spec_dir = $read_fns{$i};
+                    $base_fname = undef;
+                }
+				my ($fn1, $fn2);
+                if ($base_fname) {
+                    ($fn1, $fn2) = ($base_fname,$base_fname);
+                }
+                else {
+                    ($fn1, $fn2) = ('mate','mate');
+                }
 				if($fn1 =~ /%/) {
 					$fn1 =~ s/%/1/g; $fn2 =~ s/%/2/g;
 				} elsif($fn1 =~ /\.[^.]*$/) {
@@ -474,6 +485,8 @@ if(defined($cap_out)) {
 					$fn1 .= ".1";
 					$fn2 .= ".2";
 				}
+                $fn1 = File::Spec->catpath($vol,$base_spec_dir,$fn1);
+                $fn2 = File::Spec->catpath($vol,$base_spec_dir,$fn2);
 				$fn1 ne $fn2 || Fail("$fn1\n$fn2\n");
 				my ($redir1, $redir2) = (">$fn1", ">$fn2");
 				$redir1 = "| gzip -c $redir1"  if $read_compress{$i} eq "gzip";
