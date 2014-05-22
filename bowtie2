@@ -474,7 +474,7 @@ if(defined($cap_out)) {
                     ($fn1, $fn2) = ($base_fname,$base_fname);
                 }
                 else {
-                    ($fn1, $fn2) = ('mate','mate');
+                    ($fn1, $fn2) = ($i.'-mate',$i.'-mate');
                 }
 				if($fn1 =~ /%/) {
 					$fn1 =~ s/%/1/g; $fn2 =~ s/%/2/g;
