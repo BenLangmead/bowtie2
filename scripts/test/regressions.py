@@ -166,10 +166,9 @@ class TestRegressions(unittest.TestCase):
 
    
 def get_suite():
-    tests = ['test_313']
-#    tests = ['test_288','test_279','test_version','test_x_option','test_313']
-    return unittest.TestSuite(map(TestRegressions,tests))
-
+    loader = unittest.TestLoader()
+    return loader.loadTestsFromTestCase(TestRegressions)
+    
             
 def parse_args():
     usage = " %prog [options] \n\n"
