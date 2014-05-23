@@ -4,6 +4,7 @@ import os
 import inspect
 import unittest
 import logging
+import shutil
 import bt2face
 import dataface
 import btdata
@@ -111,9 +112,62 @@ class TestRegressions(unittest.TestCase):
         os.remove(out_sam)
 
 
+    def test_313(self):
+        """ Check if --un-conc, --al-conc, --un, --al do not fail in case of a dot 
+            character present in their path name.
+        """
+        ref_index   = os.path.join(g_bdata.index_dir_path,'lambda_virus')
+        pairs_1     = os.path.join(g_bdata.reads_dir_path,'reads_1.fq')
+        pairs_2     = os.path.join(g_bdata.reads_dir_path,'reads_2.fq')
+        no_dot_dir  = 'nodotdir'
+        dot_dir     = 'v.12_.test'
+        un_basename = 'bname'
+        out_spec    = os.path.join(no_dot_dir,un_basename)
+        out_spec_dot= os.path.join(dot_dir,un_basename)
+        args        = "--quiet -x %s -1 %s -2 %s --un-conc %s -S %s" % (ref_index,pairs_1,pairs_2,out_spec,os.devnull)
+        
+        try:
+            os.makedirs(no_dot_dir)
+            os.makedirs(dot_dir)
+        except:
+            pass
+
+        ret = g_bt.silent_run(args)
+        self.assertEqual(ret, 0)
+        mate1_count = dataface.FastaQFile(out_spec + '.1').size()
+        args        = "--quiet -x %s -1 %s -2 %s --un-conc %s -S %s" % (ref_index,pairs_1,pairs_2,out_spec_dot,os.devnull)
+        ret = g_bt.silent_run(args)
+        self.assertEqual(ret, 0, "--un-conc should work with dots in its path.")
+        mate1_count_dot = dataface.FastaQFile(out_spec_dot + '.1').size()
+        self.assertEqual(mate1_count, mate1_count_dot, "Number of seqs should be the same.")
+
+        args        = "--quiet -x %s -1 %s -2 %s --un-conc %s -S %s" % (ref_index,pairs_1,pairs_2,dot_dir,os.devnull)
+        ret = g_bt.silent_run(args)
+        self.assertEqual(ret, 0, "--un-conc should work with a path only.")
+        mate1_fs    = os.path.join(dot_dir,"un-conc-mate.1")
+        self.assertTrue(os.path.isfile(mate1_fs), "--un-conc output is missing for path only case.")
+        mate1_count_dot_only = dataface.FastaQFile(mate1_fs).size()
+        self.assertEqual(mate1_count, mate1_count_dot_only, "Number of seqs should be the same.")
+
+        args= "--quiet -x %s -1 %s -2 %s --un-conc %s --al-conc %s --un %s -S %s" % (ref_index,pairs_1,pairs_2,dot_dir,dot_dir,dot_dir,os.devnull)
+        ret = g_bt.run(args)
+        self.assertEqual(ret, 0)
+        mate1_al    = os.path.join(dot_dir,"al-conc-mate.1")
+        mate1_un    = os.path.join(dot_dir,"un-seqs")
+        self.assertTrue(
+            os.path.isfile(mate1_fs) and 
+            os.path.isfile(mate1_al) and 
+            os.path.isfile(mate1_un),
+            "--un-conc, --al-conc and --un should not clobber"
+        )
+        shutil.rmtree(no_dot_dir)
+        shutil.rmtree(dot_dir)
+        
+
    
 def get_suite():
-    tests = ['test_288','test_279','test_version','test_x_option']
+    tests = ['test_313']
+#    tests = ['test_288','test_279','test_version','test_x_option','test_313']
     return unittest.TestSuite(map(TestRegressions,tests))
 
             
