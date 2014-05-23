@@ -462,13 +462,13 @@ if(defined($cap_out)) {
 	my %read_fhs = ();
 	for my $i ("al", "un", "al-conc", "un-conc") {
 		if(defined($read_fns{$i})) {
+            my ($vol, $base_spec_dir, $base_fname) = File::Spec->splitpath($read_fns{$i});
+            if (-d $read_fns{$i}) {
+                $base_spec_dir = $read_fns{$i};
+                $base_fname = undef;
+            }
 			if($i =~ /-conc$/) {
 				# Open 2 output files, one for mate 1, one for mate 2
-                my ($vol, $base_spec_dir, $base_fname) = File::Spec->splitpath($read_fns{$i});
-                if (-d $read_fns{$i}) {
-                    $base_spec_dir = $read_fns{$i};
-                    $base_fname = undef;
-                }
 				my ($fn1, $fn2);
                 if ($base_fname) {
                     ($fn1, $fn2) = ($base_fname,$base_fname);
@@ -498,7 +498,10 @@ if(defined($cap_out)) {
 				push @fhs_to_close, $read_fhs{$i}{1};
 				push @fhs_to_close, $read_fhs{$i}{2};
 			} else {
-				my $redir = ">$read_fns{$i}";
+			    my $redir = ">".File::Spec->catpath($vol,$base_spec_dir,$i."-seqs");
+			    if ($base_fname) {
+				    $redir = ">$read_fns{$i}";
+			    }
 				$redir = "| gzip -c $redir"  if $read_compress{$i} eq "gzip";
 				$redir = "| bzip2 -c $redir" if $read_compress{$i} eq "bzip2";
 				open($read_fhs{$i}, $redir) || Fail("Could not open --$i output file '$read_fns{$i}'\n");
