@@ -468,7 +468,7 @@ int BitPairReference::getStretch(
 			bufOff = cumUnambig_[left];
 			origBufOff = bufOff;
 			i = left;
-			assert_gt(cumRefOff_[i+1], toff);
+			assert(cumRefOff_[i+1] == 0 || cumRefOff_[i+1] > toff);
 			binarySearched = true;
 		}
 		off += recs_[i].off; // skip Ns at beginning of stretch
