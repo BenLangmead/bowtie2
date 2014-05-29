@@ -166,7 +166,6 @@ BOWTIE2_BIN_LIST_AUX = bowtie2-build-s-debug \
 
 GENERAL_LIST = $(wildcard scripts/*.sh) \
                $(wildcard scripts/*.pl) \
-               $(wildcard third_party/*) \
                doc/manual.html \
                doc/README \
                doc/style.css \
@@ -198,11 +197,16 @@ SRC_PKG_LIST = $(wildcard *.h) \
                $(wildcard *.hh) \
                $(wildcard *.c) \
                $(wildcard *.cpp) \
+               $(wildcard third_party/*) \
                doc/strip_markdown.pl \
                Makefile \
                $(GENERAL_LIST)
 
-BIN_PKG_LIST = $(GENERAL_LIST)
+ifeq (1,$(WINDOWS))
+	BIN_PKG_LIST = $(GENERAL_LIST) bowtie2.bat bowtie2-build.bat bowtie2-inspect.bat 
+else
+	BIN_PKG_LIST = $(GENERAL_LIST)
+endif
 
 .PHONY: all allall both both-debug
 
