@@ -1,3 +1,19 @@
+<h2>Version 2.0.4 - December 17, 2012</h2>
+<ul>
+ <li>Fixed issue whereby
+<tt><a href="manual.shtml#bowtie2-options-un">--un</a></tt>,
+<tt><a href="manual.shtml#bowtie2-options-al">--al</a></tt>,
+<tt><a href="manual.shtml#bowtie2-options-un-conc">--un-conc</a></tt>, and
+<tt><a href="manual.shtml#bowtie2-options-al-conc">--al-conc</a></tt>
+ options would
+     incorrectly suppress SAM output.</li>
+ <li>Fixed minor command-line parsing issue in wrapper script.</li>
+ <li>Fixed issue on Windows where wrapper script would fail to find
+     <tt>bowtie2-align.exe</tt> binary.</li>
+ <li>Updated some of the index-building scripts and documentation.</li>
+ <li>Updated author's contact info in usage message</li>
+</ul>
+
 <h2>Version 2.0.3 - December 14, 2012</h2>
 <ul>
 <li>Fixed thread safely issues that could cause crashes with a large number of
