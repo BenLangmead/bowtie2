@@ -36,22 +36,13 @@ BOWTIE_SHARED_MEM = 0
 
 # Detect Cygwin or MinGW
 WINDOWS = 0
-CYGWIN = 0
 MINGW = 0
-ifneq (,$(findstring CYGWIN,$(shell uname)))
-	WINDOWS = 1 
-	CYGWIN = 1
+ifneq (,$(findstring MINGW,$(shell uname)))
+	WINDOWS = 1
+	MINGW = 1
 	# POSIX memory-mapped files not currently supported on Windows
 	BOWTIE_MM = 0
 	BOWTIE_SHARED_MEM = 0
-else
-	ifneq (,$(findstring MINGW,$(shell uname)))
-		WINDOWS = 1
-		MINGW = 1
-		# POSIX memory-mapped files not currently supported on Windows
-		BOWTIE_MM = 0
-		BOWTIE_SHARED_MEM = 0
-	endif
 endif
 
 MACOS = 0
@@ -91,7 +82,7 @@ else
 	PTHREAD_LIB = -lpthread
 endif
 
-LIBS = $(PTHREAD_LIB)
+LIBS = $(PTHREAD_LIB) -ltbb
 SEARCH_LIBS = 
 BUILD_LIBS = 
 INSPECT_LIBS =
