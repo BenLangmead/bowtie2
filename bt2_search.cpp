@@ -53,6 +53,7 @@
 #include "opts.h"
 #include "outq.h"
 #include "aligner_seed2.h"
+#include "bt2_search.h"
 
 using namespace std;
 
@@ -2763,8 +2764,7 @@ static void setupMinScores(
  *   + If not identical, continue
  * - 
  */
-static void multiseedSearchWorker(void *vp) {
-	int tid = *((int*)vp);
+void multiseedSearchWorker::operator()() {
 	assert(multiseed_ebwtFw != NULL);
 	assert(multiseedMms == 0 || multiseed_ebwtBw != NULL);
 	PairedPatternSource&    patsrc   = *multiseed_patsrc;
@@ -3829,8 +3829,7 @@ static void multiseedSearchWorker(void *vp) {
 	return;
 }
 
-static void multiseedSearchWorker_2p5(void *vp) {
-	int tid = *((int*)vp);
+void multiseedSearchWorker_2p5::operator()() {
 	assert(multiseed_ebwtFw != NULL);
 	assert(multiseedMms == 0 || multiseed_ebwtBw != NULL);
 	PairedPatternSource&    patsrc   = *multiseed_patsrc;
@@ -4197,8 +4196,7 @@ static void multiseedSearch(
 	delete _t;
 	if(!refs->loaded()) throw 1;
 	multiseed_refs = refs.get();
-	AutoArray<tthread::thread*> threads(nthreads);
-	AutoArray<int> tids(nthreads);
+	tbb::task_group tbb_grp;
 	{
 		// Load the other half of the index into memory
 		assert(!ebwtFw.isInMemory());
@@ -4231,19 +4229,14 @@ static void multiseedSearch(
 	{
 		Timer _t(cerr, "Multiseed full-index search: ", timing);
 
-		for(int i = 0; i < nthreads; i++) {
-			// Thread IDs start at 1
-			tids[i] = i+1;
+		for(int i = 1; i <= nthreads; i++) {
 			if(bowtie2p5) {
-				threads[i] = new tthread::thread(multiseedSearchWorker_2p5, (void*)&tids[i]);
+				tbb_grp.run(multiseedSearchWorker_2p5(i));
 			} else {
-			    threads[i] = new tthread::thread(multiseedSearchWorker, (void*)&tids[i]);
+			    tbb_grp.run(multiseedSearchWorker(i));
 			}
 		}
-
-        for (int i = 0; i < nthreads; i++)
-            threads[i]->join();
-
+        tbb_grp.wait();
 	}
 	if(!metricsPerRead && (metricsOfb != NULL || metricsStderr)) {
 		metrics.reportInterval(metricsOfb, metricsStderr, true, false, NULL);
