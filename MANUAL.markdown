@@ -601,7 +601,7 @@ most cases.  Most users expect Bowtie to produce the same output when run twice
 on the same input.
 
 However, when the user specifies the [`--non-deterministic`] option, Bowtie 2
-will use the current time to re-intiailize the pseud-random number generator.
+will use the current time to re-initialize the pseudo-random number generator.
 When this is specified, Bowtie 2 might report different alignments for identical
 reads.  This is counter-intuitive for some users, but might be more appropriate
 in situations where the input consists of many identical reads.
@@ -1486,7 +1486,7 @@ descending order by alignment score. The alignment score for a paired-end
 alignment equals the sum of the alignment scores of the individual mates. Each
 reported read or pair alignment beyond the first has the SAM 'secondary' bit
 (which equals 256) set in its FLAGS field.  For reads that have more than
-`<int>` distinct, valid alignments, `bowtie2` does not gaurantee that the
+`<int>` distinct, valid alignments, `bowtie2` does not guarantee that the
 `<int>` alignments reported are the best possible in terms of alignment score. 
 `-k` is mutually exclusive with [`-a`].
 
