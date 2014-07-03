@@ -4,19 +4,19 @@
 # Run it from bowtie2 directory. 
 
 
-SAMPLE_POINTS=3
-MAX_THREADS=3
-#CMD_SKEL="/usr/bin/time ./bowtie2 -x ../data/genomes/hg19 -U ../data/reads/ERR000589.fastq -p "
-CMD_SKEL="/usr/bin/time ./bowtie2 -x ecoli_s -U example/reads/longreads.fq -p "
+SAMPLE_POINTS=2
+MAX_THREADS=5
+#CMD_SKEL="/usr/bin/time -f \"%U %S %E %PCPU \" ./bowtie2 -x ../data/genomes/hg19 -U ../data/reads/ERR000589.fastq -p "
+CMD_SKEL="/usr/bin/time -f %U,%S,%E ./bowtie2 -x ecoli_s -U example/reads/longreads.fq -p "
 DATA_DIR=$(pwd)
 DATA_DIR+="/scripts/test/scalability"
 DATA_FILE_PREFIX=$1
 
 get_sample_points() {
-    local cmd=$@
+    local cmd="$@"
     for ((i=0; i<SAMPLE_POINTS; i++))
     do
-        echo $cmd
+        echo $cmd >&2
         $($cmd)
     done
 }
@@ -38,5 +38,5 @@ collect_all_data() {
 
 collect_all_data
 
-
+# format data definitely maybe
 
