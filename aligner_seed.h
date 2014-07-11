@@ -975,43 +975,64 @@ public:
 	 * that are more unique) will be tried first and QVals with more elements
 	 * (i.e. seed sequences
 	 */
-	void rankSeedHits(RandomSource& rnd) {
-		while(rankOffs_.size() < nonzTot_) {
-			TIndexOffU minsz = MAX_U32;
-			uint32_t minidx = 0;
-			bool minfw = true;
-			// Rank seed-hit positions in ascending order by number of elements
-			// in all BW ranges
-			bool rb = rnd.nextBool();
-			assert(rb == 0 || rb == 1);
-			for(int fwi = 0; fwi <= 1; fwi++) {
-				bool fw = (fwi == (rb ? 1 : 0));
-				EList<QVal>& rrs = (fw ? hitsFw_ : hitsRc_);
-				EList<bool>& sorted = (fw ? sortedFw_ : sortedRc_);
-				uint32_t i = (rnd.nextU32() % (uint32_t)numOffs_);
-				for(uint32_t ii = 0; ii < numOffs_; ii++) {
-					if(rrs[i].valid() &&         // valid QVal
-					   rrs[i].numElts() > 0 &&   // non-empty
-					   !sorted[i] &&             // not already sorted
-					   rrs[i].numElts() < minsz) // least elts so far?
-					{
-						minsz = rrs[i].numElts();
-						minidx = i;
-						minfw = (fw == 1);
-					}
-					if((++i) == numOffs_) {
-						i = 0;
+	void rankSeedHits(RandomSource& rnd, bool all) {
+		if(all) {
+			for(uint32_t i = 1; i < numOffs_; i++) {
+				for(int fwi = 0; fwi <= 1; fwi++) {
+					bool fw = fwi == 0;
+					EList<QVal>& rrs = (fw ? hitsFw_ : hitsRc_);
+					if(rrs[i].valid() && rrs[i].numElts() > 0) {
+						rankOffs_.push_back(i);
+						rankFws_.push_back(fw);
 					}
 				}
 			}
-			assert_neq(MAX_U32, minsz);
-			if(minfw) {
-				sortedFw_[minidx] = true;
-			} else {
-				sortedRc_[minidx] = true;
+			if(hitsFw_[0].valid() && hitsFw_[0].numElts() > 0) {
+				rankOffs_.push_back(0);
+				rankFws_.push_back(true);
 			}
-			rankOffs_.push_back(minidx);
-			rankFws_.push_back(minfw);
+			if(hitsRc_[0].valid() && hitsRc_[0].numElts() > 0) {
+				rankOffs_.push_back(0);
+				rankFws_.push_back(false);
+			}
+		} else {
+			while(rankOffs_.size() < nonzTot_) {
+				TIndexOffU minsz = MAX_U32;
+				uint32_t minidx = 0;
+				bool minfw = true;
+				// Rank seed-hit positions in ascending order by number of elements
+				// in all BW ranges
+				bool rb = rnd.nextBool();
+				assert(rb == 0 || rb == 1);
+				for(int fwi = 0; fwi <= 1; fwi++) {
+					bool fw = (fwi == (rb ? 1 : 0));
+					EList<QVal>& rrs = (fw ? hitsFw_ : hitsRc_);
+					EList<bool>& sorted = (fw ? sortedFw_ : sortedRc_);
+					uint32_t i = (rnd.nextU32() % (uint32_t)numOffs_);
+					for(uint32_t ii = 0; ii < numOffs_; ii++) {
+						if(rrs[i].valid() &&         // valid QVal
+						   rrs[i].numElts() > 0 &&   // non-empty
+						   !sorted[i] &&             // not already sorted
+						   rrs[i].numElts() < minsz) // least elts so far?
+						{
+							minsz = rrs[i].numElts();
+							minidx = i;
+							minfw = (fw == 1);
+						}
+						if((++i) == numOffs_) {
+							i = 0;
+						}
+					}
+				}
+				assert_neq(MAX_U32, minsz);
+				if(minfw) {
+					sortedFw_[minidx] = true;
+				} else {
+					sortedRc_[minidx] = true;
+				}
+				rankOffs_.push_back(minidx);
+				rankFws_.push_back(minfw);
+			}
 		}
 		assert_eq(rankOffs_.size(), rankFws_.size());
 		sorted_ = true;

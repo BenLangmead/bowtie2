@@ -3608,7 +3608,7 @@ static void multiseedSearchWorker(void *vp) {
 									continue; // on to the next mate
 								}
 								// Sort seed hits into ranks
-								shs[mate].rankSeedHits(rnd);
+								shs[mate].rankSeedHits(rnd, msinkwrap.allHits());
 								int ret = 0;
 								if(pair) {
 									// Paired-end dynamic programming driver
