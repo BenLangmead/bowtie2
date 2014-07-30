@@ -950,8 +950,9 @@ bool FastqPatternSource::read(
 	// Chew up the optional name on the '+' line
 	ASSERT_ONLY(int pk =) peekToEndOfLine(fb_);
 	if(charsRead == 0) {
-		assert_eq('@', pk);
+		assert(pk == '@' || pk == -1);
 		fb_.get();
+		r.readOrigBuf.install(fb_.lastN(), fb_.lastNLen());
 		fb_.resetLastN();
 		rdid = endid = readCnt_;
 		readCnt_++;
