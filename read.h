@@ -449,6 +449,7 @@ struct PerReadMetrics {
 		seedMedian = seedMean = 0;
 		bestLtMinscMate1 =
 		bestLtMinscMate2 = std::numeric_limits<TAlScore>::min();
+		seedPctUnique = seedPctRep = seedsPerNuc = 0.0f;
 		fmString.reset();
 	}
 
@@ -516,6 +517,10 @@ struct PerReadMetrics {
 	
 	TAlScore bestLtMinscMate1; // best invalid score observed for mate 1
 	TAlScore bestLtMinscMate2; // best invalid score observed for mate 2
+	
+	float seedPctUnique; // % of read covered by unique seed hits
+	float seedPctRep;    // % of read covered by repetitive seed hits
+	float seedsPerNuc;   // # seeds tried / # alignable nucleotides
 	
 	// For collecting information to go into an FM string
 	bool doFmString;

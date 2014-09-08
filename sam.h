@@ -104,7 +104,8 @@ public:
 		bool print_zm, // FM Index op string for best-first search
 		bool print_zi, // # seed extend loop iters
 		bool print_zp,
-		bool print_zu) :
+		bool print_zu,
+		bool print_zt) :
 		truncQname_(truncQname),
 		omitsec_(omitsec),
 		noUnal_(noUnal),
@@ -151,7 +152,8 @@ public:
 		print_zm_(print_zm), // FM Index op string for best-first search
 		print_zi_(print_zi), // # seed extend loop iters
 		print_zp_(print_zp), // # seed extend loop iters
-		print_zu_(print_zu)  // # seed extend loop iters
+		print_zu_(print_zu), // # seed extend loop iters
+		print_zt_(print_zt)  // extra features for MAPQ estimation
 	{
 		assert_eq(refnames_.size(), reflens_.size());
 	}
@@ -384,6 +386,7 @@ protected:
 	bool print_zi_; // ZI:i: # extend loop iters
 	bool print_zp_; // ZP:i: Score of best/second-best paired-end alignment
 	bool print_zu_; // ZU:i: Score of best/second-best unpaired alignment
+	bool print_zt_; // ZT:Z: Extra features for MAPQ estimation
 };
 
 #endif /* SAM_H_ */

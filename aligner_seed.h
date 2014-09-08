@@ -670,6 +670,11 @@ public:
 		numRanges_ += qv.numRanges();
 		if(qv.numRanges() > 0) {
 			nonzTot_++;
+			if(qv.numRanges() == 1 and qv.numElts() == 1) {
+				uniTot_++;
+			} else {
+				repTot_++;
+			}
 		}
 		assert(repOk(&ac));
 	}
@@ -724,6 +729,8 @@ public:
 		seqFw_.clear();
 		seqRc_.clear();
 		nonzTot_ = 0;
+		uniTot_ = 0;
+		repTot_ = 0;
 		nonzFw_ = 0;
 		nonzRc_ = 0;
 		numOffs_ = 0;
@@ -810,6 +817,20 @@ public:
 	 */
 	float averageHitsPerSeed() const {
 		return (float)numElts_ / (float)nonzTot_;
+	}
+
+	/**
+	 * Return fraction of seeds that align uniquely.
+	 */
+	size_t numUniqueSeeds() const {
+		return uniTot_;
+	}
+
+	/**
+	 * Return fraction of seeds that align repetitively.
+	 */
+	size_t numRepeatSeeds() const {
+		return repTot_;
 	}
 	
 	/**
@@ -1307,6 +1328,8 @@ protected:
 	EList<bool>         sortedFw_;    // true iff fw QVal was sorted/ranked
 	EList<bool>         sortedRc_;    // true iff rc QVal was sorted/ranked
 	size_t              nonzTot_;     // # offsets with non-zero size
+	size_t              uniTot_;      // # offsets unique hit
+	size_t              repTot_;      // # offsets repetitive hit
 	size_t              nonzFw_;      // # offsets into fw read with non-0 size
 	size_t              nonzRc_;      // # offsets into rc read with non-0 size
 	size_t              numRanges_;   // # ranges added
