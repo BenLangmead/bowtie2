@@ -1158,6 +1158,7 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_REORDER: reorder = true; break;
 		case ARG_MAPQ_EX: {
 			sam_print_zp = true;
+			// TODO: remove next line
 			sam_print_xss = true;
 			sam_print_yn = true;
 			sam_print_zt = true;
@@ -3498,7 +3499,7 @@ static void multiseedSearchWorker(void *vp) {
 					nrounds[1] = min<size_t>(nrounds[1], interval[1]);
 					Constraint gc = Constraint::penaltyFuncBased(scoreMin);
 					size_t seedsTried = 0;
-					size_t nUniqueSeeds = 0, nRepeatSeeds = 0;
+					size_t nUniqueSeeds = 0, nRepeatSeeds = 0, seedHitTot = 0;
 					for(size_t roundi = 0; roundi < nSeedRounds; roundi++) {
 						ca.nextRead(); // Clear cache in preparation for new search
 						shs[0].clearSeeds();
@@ -3591,6 +3592,7 @@ static void multiseedSearchWorker(void *vp) {
 							if(!shs[mate].empty()) {
 								nUniqueSeeds += shs[mate].numUniqueSeeds();
 								nRepeatSeeds += shs[mate].numRepeatSeeds();
+								seedHitTot += shs[mate].numElts();
 							}
 						}
 						double uniqFactor[2] = { 0.0f, 0.0f };
@@ -3757,6 +3759,7 @@ static void multiseedSearchWorker(void *vp) {
 					if(seedsTried != 0) {
 						prm.seedPctUnique = (float)nUniqueSeeds / seedsTried;
 						prm.seedPctRep = (float)nRepeatSeeds / seedsTried;
+						prm.seedHitAvg = (float)seedHitTot / seedsTried;
 					}
 					size_t totnucs = 0;
 					for(size_t mate = 0; mate < (pair ? 2:1); mate++) {
