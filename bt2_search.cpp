@@ -157,6 +157,7 @@ static bool sam_print_zm;
 static bool sam_print_zi;
 static bool sam_print_zp;
 static bool sam_print_zu;
+static bool sam_print_zt;
 static bool bwaSwLike;
 static float bwaSwLikeC;
 static float bwaSwLikeT;
@@ -345,6 +346,7 @@ static void resetOptions() {
 	sam_print_zi            = false;
 	sam_print_zp            = false;
 	sam_print_zu            = false;
+	sam_print_zt            = false;
 	bwaSwLike               = false;
 	bwaSwLikeC              = 5.5f;
 	bwaSwLikeT              = 20.0f;
@@ -1156,8 +1158,10 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_REORDER: reorder = true; break;
 		case ARG_MAPQ_EX: {
 			sam_print_zp = true;
+			// TODO: remove next line
 			sam_print_xss = true;
 			sam_print_yn = true;
+			sam_print_zt = true;
 			break;
 		}
 		case ARG_SHOW_RAND_SEED: {
@@ -3494,10 +3498,14 @@ static void multiseedSearchWorker(void *vp) {
 					nrounds[0] = min<size_t>(nrounds[0], interval[0]);
 					nrounds[1] = min<size_t>(nrounds[1], interval[1]);
 					Constraint gc = Constraint::penaltyFuncBased(scoreMin);
+					size_t seedsTried = 0;
+					size_t nUniqueSeeds = 0, nRepeatSeeds = 0, seedHitTot = 0;
 					for(size_t roundi = 0; roundi < nSeedRounds; roundi++) {
 						ca.nextRead(); // Clear cache in preparation for new search
 						shs[0].clearSeeds();
 						shs[1].clearSeeds();
+						assert(shs[0].empty());
+						assert(shs[1].empty());
 						assert(shs[0].repOk(&ca.current()));
 						assert(shs[1].repOk(&ca.current()));
 						//if(roundi > 0) {
@@ -3559,6 +3567,7 @@ static void multiseedSearchWorker(void *vp) {
 								done[mate] = true;
 								break;
 							}
+							seedsTried += (inst.first + inst.second);
 							// Align seeds
 							al.searchAllSeeds(
 								*seeds[mate],     // search seeds
@@ -3575,6 +3584,15 @@ static void multiseedSearchWorker(void *vp) {
 								// No seed alignments!  Done with this mate.
 								done[mate] = true;
 								break;
+							}
+						}
+						// shs contain what we need to know to update our seed
+						// summaries for this seeding
+						for(size_t mate = 0; mate < 2; mate++) {
+							if(!shs[mate].empty()) {
+								nUniqueSeeds += shs[mate].numUniqueSeeds();
+								nRepeatSeeds += shs[mate].numRepeatSeeds();
+								seedHitTot += shs[mate].numElts();
 							}
 						}
 						double uniqFactor[2] = { 0.0f, 0.0f };
@@ -3737,7 +3755,23 @@ static void multiseedSearchWorker(void *vp) {
 								done[mate] = true;
 							}
 						}
+					} // end loop over reseeding rounds
+					if(seedsTried != 0) {
+						prm.seedPctUnique = (float)nUniqueSeeds / seedsTried;
+						prm.seedPctRep = (float)nRepeatSeeds / seedsTried;
+						prm.seedHitAvg = (float)seedHitTot / seedsTried;
 					}
+					size_t totnucs = 0;
+					for(size_t mate = 0; mate < (pair ? 2:1); mate++) {
+						if(filt[mate]) {
+							size_t len = rdlens[mate];
+							if(!nofw[mate] && !norc[mate]) {
+								len *= 2;
+							}
+							totnucs += len;
+						}
+					}
+					prm.seedsPerNuc = (float)seedsTried / totnucs;
 					for(size_t i = 0; i < 2; i++) {
 						assert_leq(prm.nExIters, mxIter[i]);
 						assert_leq(prm.nExDps,   mxDp[i]);
@@ -4423,7 +4457,8 @@ static void driver(
 			sam_print_zm,
 			sam_print_zi,
 			sam_print_zp,
-			sam_print_zu);
+			sam_print_zu,
+			sam_print_zt);
 		// Set up hit sink; if sanityCheck && !os.empty() is true,
 		// then instruct the sink to "retain" hits in a vector in
 		// memory so that we can easily sanity check them later on
