@@ -1719,21 +1719,23 @@ This is printed to the "standard error" ("stderr") filehandle.  Default: off.
 [`--un`]: #bowtie2-options-un
 [`--un-gz`]: #bowtie2-options-un
 [`--un-bz2`]: #bowtie2-options-un
+[`--un-lz4`]: #bowtie2-options-un
 
     --un <path>
     --un-gz <path>
     --un-bz2 <path>
+    --un-lz4 <path>
 
 </td><td>
 
 Write unpaired reads that fail to align to file at `<path>`.  These reads
 correspond to the SAM records with the FLAGS `0x4` bit set and neither the
 `0x40` nor `0x80` bits set.  If `--un-gz` is specified, output will be gzip
-compressed. If `--un-bz2` is specified, output will be bzip2 compressed.  Reads
-written in this way will appear exactly as they did in the input file, without
-any modification (same sequence, same name, same quality string, same quality
-encoding).  Reads will not necessarily appear in the same order as they did in
-the input.
+compressed. If `--un-bz2` or `--un-lz4` is specified, output will be bzip2 or 
+lz4 compressed. Reads written in this way will appear exactly as they did in 
+the input file, without any modification (same sequence, same name, same quality 
+string, same quality encoding). Reads will not necessarily appear in the same 
+order as they did in the input.
 
 </td></tr>
 <tr><td id="bowtie2-options-al">
@@ -1741,17 +1743,20 @@ the input.
 [`--al`]: #bowtie2-options-al
 [`--al-gz`]: #bowtie2-options-al
 [`--al-bz2`]: #bowtie2-options-al
+[`--al-lz4`]: #bowtie2-options-al
 
     --al <path>
     --al-gz <path>
     --al-bz2 <path>
+    --al-lz4 <path>
 
 </td><td>
 
 Write unpaired reads that align at least once to file at `<path>`.  These reads
 correspond to the SAM records with the FLAGS `0x4`, `0x40`, and `0x80` bits
 unset.  If `--al-gz` is specified, output will be gzip compressed. If `--al-bz2`
-is specified, output will be bzip2 compressed.  Reads written in this way will
+is specified, output will be bzip2 compressed. Similarly if `--al-lz4` is specified, 
+output will be lz4 compressed.  Reads written in this way will
 appear exactly as they did in the input file, without any modification (same
 sequence, same name, same quality string, same quality encoding).  Reads will
 not necessarily appear in the same order as they did in the input.
@@ -1762,10 +1767,12 @@ not necessarily appear in the same order as they did in the input.
 [`--un-conc`]: #bowtie2-options-un-conc
 [`--un-conc-gz`]: #bowtie2-options-un-conc
 [`--un-conc-bz2`]: #bowtie2-options-un-conc
+[`--un-conc-lz4`]: #bowtie2-options-un-conc
 
     --un-conc <path>
     --un-conc-gz <path>
     --un-conc-bz2 <path>
+    --un-conc-lz4 <path>
 
 </td><td>
 
@@ -1787,10 +1794,12 @@ the same order as they did in the inputs.
 [`--al-conc`]: #bowtie2-options-al-conc
 [`--al-conc-gz`]: #bowtie2-options-al-conc
 [`--al-conc-bz2`]: #bowtie2-options-al-conc
+[`--al-conc-lz4`]: #bowtie2-options-al-conc
 
     --al-conc <path>
     --al-conc-gz <path>
     --al-conc-bz2 <path>
+    --al-conc-lz4 <path>
 
 </td><td>
 
