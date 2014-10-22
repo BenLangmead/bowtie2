@@ -752,25 +752,28 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 
 <pre><code>--un &lt;path&gt;
 --un-gz &lt;path&gt;
---un-bz2 &lt;path&gt;</code></pre>
+--un-bz2 &lt;path&gt;
+--un-lz4 &lt;path&gt;</code></pre>
 </td><td>
 
-<p>Write unpaired reads that fail to align to file at <code>&lt;path&gt;</code>. These reads correspond to the SAM records with the FLAGS <code>0x4</code> bit set and neither the <code>0x40</code> nor <code>0x80</code> bits set. If <code>--un-gz</code> is specified, output will be gzip compressed. If <code>--un-bz2</code> is specified, output will be bzip2 compressed. Reads written in this way will appear exactly as they did in the input file, without any modification (same sequence, same name, same quality string, same quality encoding). Reads will not necessarily appear in the same order as they did in the input.</p>
+<p>Write unpaired reads that fail to align to file at <code>&lt;path&gt;</code>. These reads correspond to the SAM records with the FLAGS <code>0x4</code> bit set and neither the <code>0x40</code> nor <code>0x80</code> bits set. If <code>--un-gz</code> is specified, output will be gzip compressed. If <code>--un-bz2</code> or <code>--un-lz4</code> is specified, output will be bzip2 or lz4 compressed. Reads written in this way will appear exactly as they did in the input file, without any modification (same sequence, same name, same quality string, same quality encoding). Reads will not necessarily appear in the same order as they did in the input.</p>
 </td></tr>
 <tr><td id="bowtie2-options-al">
 
 <pre><code>--al &lt;path&gt;
 --al-gz &lt;path&gt;
---al-bz2 &lt;path&gt;</code></pre>
+--al-bz2 &lt;path&gt;
+--al-lz4 &lt;path&gt;</code></pre>
 </td><td>
 
-<p>Write unpaired reads that align at least once to file at <code>&lt;path&gt;</code>. These reads correspond to the SAM records with the FLAGS <code>0x4</code>, <code>0x40</code>, and <code>0x80</code> bits unset. If <code>--al-gz</code> is specified, output will be gzip compressed. If <code>--al-bz2</code> is specified, output will be bzip2 compressed. Reads written in this way will appear exactly as they did in the input file, without any modification (same sequence, same name, same quality string, same quality encoding). Reads will not necessarily appear in the same order as they did in the input.</p>
+<p>Write unpaired reads that align at least once to file at <code>&lt;path&gt;</code>. These reads correspond to the SAM records with the FLAGS <code>0x4</code>, <code>0x40</code>, and <code>0x80</code> bits unset. If <code>--al-gz</code> is specified, output will be gzip compressed. If <code>--al-bz2</code> is specified, output will be bzip2 compressed. Similarly if <code>--al-lz4</code> is specified, output will be lz4 compressed. Reads written in this way will appear exactly as they did in the input file, without any modification (same sequence, same name, same quality string, same quality encoding). Reads will not necessarily appear in the same order as they did in the input.</p>
 </td></tr>
 <tr><td id="bowtie2-options-un-conc">
 
 <pre><code>--un-conc &lt;path&gt;
 --un-conc-gz &lt;path&gt;
---un-conc-bz2 &lt;path&gt;</code></pre>
+--un-conc-bz2 &lt;path&gt;
+--un-conc-lz4 &lt;path&gt;</code></pre>
 </td><td>
 
 <p>Write paired-end reads that fail to align concordantly to file(s) at <code>&lt;path&gt;</code>. These reads correspond to the SAM records with the FLAGS <code>0x4</code> bit set and either the <code>0x40</code> or <code>0x80</code> bit set (depending on whether it's mate #1 or #2). <code>.1</code> and <code>.2</code> strings are added to the filename to distinguish which file contains mate #1 and mate #2. If a percent symbol, <code>%</code>, is used in <code>&lt;path&gt;</code>, the percent symbol is replaced with <code>1</code> or <code>2</code> to make the per-mate filenames. Otherwise, <code>.1</code> or <code>.2</code> are added before the final dot in <code>&lt;path&gt;</code> to make the per-mate filenames. Reads written in this way will appear exactly as they did in the input files, without any modification (same sequence, same name, same quality string, same quality encoding). Reads will not necessarily appear in the same order as they did in the inputs.</p>
@@ -779,7 +782,8 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 
 <pre><code>--al-conc &lt;path&gt;
 --al-conc-gz &lt;path&gt;
---al-conc-bz2 &lt;path&gt;</code></pre>
+--al-conc-bz2 &lt;path&gt;
+--al-conc-lz4 &lt;path&gt;</code></pre>
 </td><td>
 
 <p>Write paired-end reads that align concordantly at least once to file(s) at <code>&lt;path&gt;</code>. These reads correspond to the SAM records with the FLAGS <code>0x4</code> bit unset and either the <code>0x40</code> or <code>0x80</code> bit set (depending on whether it's mate #1 or #2). <code>.1</code> and <code>.2</code> strings are added to the filename to distinguish which file contains mate #1 and mate #2. If a percent symbol, <code>%</code>, is used in <code>&lt;path&gt;</code>, the percent symbol is replaced with <code>1</code> or <code>2</code> to make the per-mate filenames. Otherwise, <code>.1</code> or <code>.2</code> are added before the final dot in <code>&lt;path&gt;</code> to make the per-mate filenames. Reads written in this way will appear exactly as they did in the input files, without any modification (same sequence, same name, same quality string, same quality encoding). Reads will not necessarily appear in the same order as they did in the inputs.</p>
