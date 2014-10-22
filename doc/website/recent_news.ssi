@@ -1,3 +1,14 @@
+<h2>Version 2.2.4 - Oct 22, 2014</h2>
+<ul>
+   <li>Fixed a Mavericks OSX specific bug caused by some linkage ambiguities.</li>
+   <li>Added lz4 compression option for the wrapper.</li>
+   <li>Fixed the vanishing --no-unal help line.</li>
+   <li>Added the static linkage for MinGW builds.</li>
+   <li>Added extra seed-hit output.</li>
+   <li>Fixed missing 0-length read in fastq --passthrough output.</li>
+   <li>Fixed an issue that would cause different output in -a mode depending on random seed.</li>
+</ul>
+
 <h2>Version 2.2.3 - May 30, 2014</h2>
 <ul>
    <li>Fixed a bug that made loading an index into memory crash sometimes.</li>
