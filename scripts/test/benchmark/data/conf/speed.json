@@ -1,0 +1,44 @@
+{"description":"A simple speed test",
+ "name" : "Speed_1",
+ "tests": [
+    {"description":"A speed test.",
+     "name":"pair wise speed",
+     "input_data":{
+            "files": [
+                 "hg19.1.bt2",
+                 "hg19.2.bt2",
+                 "hg19.3.bt2",
+                 "hg19.4.bt2",
+                 "hg19.rev.1.bt2",
+                 "hg19.rev.2.bt2",
+                 "hg19.fa",
+                 "art_150_mil_1.fq",
+                 "art_150_mil_2.fq"
+            ],
+            "loading":[ " ln -s ../work/genomes/human_hg19/hg19.fa ##DATADIR##/",
+                        " ln -s ../work/genomes/human_hg19/hg19.1.bt2 ##DATADIR##/",
+                        " ln -s ../work/genomes/human_hg19/hg19.2.bt2 ##DATADIR##/",
+                        " ln -s ../work/genomes/human_hg19/hg19.3.bt2 ##DATADIR##/",
+                        " ln -s ../work/genomes/human_hg19/hg19.4.bt2 ##DATADIR##/",
+                        " ln -s ../work/genomes/human_hg19/hg19.rev.1.bt2 ##DATADIR##/",
+                        " ln -s ../work/genomes/human_hg19/hg19.rev.2.bt2 ##DATADIR##/",
+                        "art_illumina -sam -mp -l 150 -m 200 -s 10 -o ##DATADIR##/art_150 -f 5 -i ##DATADIR##/hg19.fa -rs 1415911971",
+                        "cat ##DATADIR##/art_1501.fq | head -4000000 > ##DATADIR##/art_150_mil_1.fq",
+                        "cat ##DATADIR##/art_1502.fq | head -4000000 > ##DATADIR##/art_150_mil_2.fq"
+             ] 
+      },
+     "runable":{
+            "program":"bowtie2",
+            "options":[
+                "-x ##DATADIR##/hg19",
+                "-1 ##DATADIR##/art_150_mil_1.fq",
+                "-2 ##DATADIR##/art_150_mil_2.fq",
+                "-S /dev/null" 
+            ],
+            "parameters":[],
+            "outfiles":[]
+       },
+     "metric":"TestTime"
+    }
+ ]
+}
