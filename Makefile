@@ -54,12 +54,11 @@ endif
 MACOS = 0
 ifneq (,$(findstring Darwin,$(shell uname)))
 	MACOS = 1
-endif
-
-ifneq (,$(findstring 13,$(shell uname -r)))
-	CPP = clang++
-	CC = clang
-	EXTRA_FLAGS += -stdlib=libstdc++
+	ifneq (,$(findstring 13,$(shell uname -r)))
+		CPP = clang++
+		CC = clang
+		EXTRA_FLAGS += -stdlib=libstdc++
+	endif
 endif
 
 POPCNT_CAPABILITY ?= 1
