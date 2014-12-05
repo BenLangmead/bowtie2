@@ -182,7 +182,7 @@ Alignment:
 <h3 id="paired-sam-output">Paired SAM output</h3>
 <p>When Bowtie 2 prints a SAM alignment for a pair, it prints two records (i.e. two lines of output), one for each mate. The first record describes the alignment for mate 1 and the second record describes the alignment for mate 2. In both records, some of the fields of the SAM record describe various properties of the alignment; for instance, the 7th and 8th fields (<code>RNEXT</code> and <code>PNEXT</code> respectively) indicate the reference name and position where the other mate aligned, and the 9th field indicates the inferred length of the DNA fragment from which the two mates were sequenced. See the <a href="http://samtools.sourceforge.net/SAM1.pdf">SAM specification</a> for more details regarding these fields.</p>
 <h3 id="concordant-pairs-match-pair-expectations-discordant-pairs-dont">Concordant pairs match pair expectations, discordant pairs don't</h3>
-<p>A pair that aligns with the expected relative mate orientation and with the expected range of distances between mates is said to align &quot;concordantly&quot;. If both mates have unique alignments, but the alignments do not match paired-end expectations (i.e. the mates aren't in the expcted relative orientation, or aren't within the expected disatance range, or both), the pair is said to align &quot;discordantly&quot;. Discordant alignments may be of particular interest, for instance, when seeking <a href="http://www.ncbi.nlm.nih.gov/dbvar/content/overview/">structural variants</a>.</p>
+<p>A pair that aligns with the expected relative mate orientation and with the expected range of distances between mates is said to align &quot;concordantly&quot;. If both mates have unique alignments, but the alignments do not match paired-end expectations (i.e. the mates aren't in the expected relative orientation, or aren't within the expected distance range, or both), the pair is said to align &quot;discordantly&quot;. Discordant alignments may be of particular interest, for instance, when seeking <a href="http://www.ncbi.nlm.nih.gov/dbvar/content/overview/">structural variants</a>.</p>
 <p>The expected relative orientation of the mates is set using the <a href="#bowtie2-options-fr"><code>--ff</code></a>, <a href="#bowtie2-options-fr"><code>--fr</code></a>, or <a href="#bowtie2-options-fr"><code>--rf</code></a> options. The expected range of inter-mates distances (as measured from the furthest extremes of the mates; also called &quot;outer distance&quot;) is set with the <a href="#bowtie2-options-I"><code>-I</code></a> and <a href="#bowtie2-options-X"><code>-X</code></a> options. Note that setting <a href="#bowtie2-options-I"><code>-I</code></a> and <a href="#bowtie2-options-X"><code>-X</code></a> far apart makes Bowtie 2 slower. See documentation for <a href="#bowtie2-options-I"><code>-I</code></a> and <a href="#bowtie2-options-X"><code>-X</code></a>.</p>
 <p>To declare that a pair aligns discordantly, Bowtie 2 requires that both mates align uniquely. This is a conservative threshold, but this is often desirable when seeking structural variants.</p>
 <p>By default, Bowtie 2 searches for both concordant and discordant alignments, though searching for discordant alignments can be disabled with the <a href="#bowtie2-options-no-discordant"><code>--no-discordant</code></a> option.</p>
@@ -220,17 +220,17 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC</code></pr
 <p>Two alignments for the same individual read are &quot;distinct&quot; if they map the same read to different places. Specifically, we say that two alignments are distinct if there are no alignment positions where a particular read offset is aligned opposite a particular reference offset in both alignments with the same orientation. E.g. if the first alignment is in the forward orientation and aligns the read character at read offset 10 to the reference character at chromosome 3, offset 3,445,245, and the second alignment is also in the forward orientation and also aligns the read character at read offset 10 to the reference character at chromosome 3, offset 3,445,245, they are not distinct alignments.</p>
 <p>Two alignments for the same pair are distinct if either the mate 1s in the two paired-end alignments are distinct or the mate 2s in the two alignments are distinct or both.</p>
 <h3 id="default-mode-search-for-multiple-alignments-report-the-best-one">Default mode: search for multiple alignments, report the best one</h3>
-<p>By default, Bowtie 2 searches for distinct, valid alignments for each read. When it finds a valid alignment, it generally will continue to look for alignments that are nearly as good or better. It will eventually stop looking, either because it exceeded a limit placed on search effort (see <a href="#bowtie2-options-D"><code>-D</code></a> and <a href="#bowtie2-options-R"><code>-R</code></a>) or because it already knows all it needs to know to report an alignment. Information from the best alignments are used to estimate mapping quality (the <code>MAPQ</code> <a href="http://samtools.sourceforge.net/SAM1.pdf">SAM</a> field) and to set SAM optional fields, such as <a href="#bowtie2-build-opt-fields-as"><code>AS:i</code></a> and <a href="#bowtie2-build-opt-fields-xs"><code>XS:i</code></a>. Bowtie 2 does not gaurantee that the alignment reported is the best possible in terms of alignment score.</p>
+<p>By default, Bowtie 2 searches for distinct, valid alignments for each read. When it finds a valid alignment, it generally will continue to look for alignments that are nearly as good or better. It will eventually stop looking, either because it exceeded a limit placed on search effort (see <a href="#bowtie2-options-D"><code>-D</code></a> and <a href="#bowtie2-options-R"><code>-R</code></a>) or because it already knows all it needs to know to report an alignment. Information from the best alignments are used to estimate mapping quality (the <code>MAPQ</code> <a href="http://samtools.sourceforge.net/SAM1.pdf">SAM</a> field) and to set SAM optional fields, such as <a href="#bowtie2-build-opt-fields-as"><code>AS:i</code></a> and <a href="#bowtie2-build-opt-fields-xs"><code>XS:i</code></a>. Bowtie 2 does not garantee that the alignment reported is the best possible in terms of alignment score.</p>
 <p>See also: <a href="#bowtie2-options-D"><code>-D</code></a>, which puts an upper limit on the number of dynamic programming problems (i.e. seed extensions) that can &quot;fail&quot; in a row before Bowtie 2 stops searching. Increasing <a href="#bowtie2-options-D"><code>-D</code></a> makes Bowtie 2 slower, but increases the likelihood that it will report the correct alignment for a read that aligns many places.</p>
 <p>See also: <a href="#bowtie2-options-R"><code>-R</code></a>, which sets the maximum number of times Bowtie 2 will &quot;re-seed&quot; when attempting to align a read with repetitive seeds. Increasing <a href="#bowtie2-options-R"><code>-R</code></a> makes Bowtie 2 slower, but increases the likelihood that it will report the correct alignment for a read that aligns many places.</p>
 <h3 id="k-mode-search-for-one-or-more-alignments-report-each">-k mode: search for one or more alignments, report each</h3>
 <p>In <a href="#bowtie2-options-k"><code>-k</code></a> mode, Bowtie 2 searches for up to N distinct, valid alignments for each read, where N equals the integer specified with the <code>-k</code> parameter. That is, if <code>-k 2</code> is specified, Bowtie 2 will search for at most 2 distinct alignments. It reports all alignments found, in descending order by alignment score. The alignment score for a paired-end alignment equals the sum of the alignment scores of the individual mates. Each reported read or pair alignment beyond the first has the SAM 'secondary' bit (which equals 256) set in its FLAGS field. See the <a href="http://samtools.sourceforge.net/SAM1.pdf">SAM specification</a> for details.</p>
-<p>Bowtie 2 does not &quot;find&quot; alignments in any specific order, so for reads that have more than N distinct, valid alignments, Bowtie 2 does not gaurantee that the N alignments reported are the best possible in terms of alignment score. Still, this mode can be effective and fast in situations where the user cares more about whether a read aligns (or aligns a certain number of times) than where exactly it originated.</p>
+<p>Bowtie 2 does not &quot;find&quot; alignments in any specific order, so for reads that have more than N distinct, valid alignments, Bowtie 2 does not garantee that the N alignments reported are the best possible in terms of alignment score. Still, this mode can be effective and fast in situations where the user cares more about whether a read aligns (or aligns a certain number of times) than where exactly it originated.</p>
 <h3 id="a-mode-search-for-and-report-all-alignments">-a mode: search for and report all alignments</h3>
 <p><a href="#bowtie2-options-a"><code>-a</code></a> mode is similar to <a href="#bowtie2-options-k"><code>-k</code></a> mode except that there is no upper limit on the number of alignments Bowtie 2 should report. Alignments are reported in descending order by alignment score. The alignment score for a paired-end alignment equals the sum of the alignment scores of the individual mates. Each reported read or pair alignment beyond the first has the SAM 'secondary' bit (which equals 256) set in its FLAGS field. See the <a href="http://samtools.sourceforge.net/SAM1.pdf">SAM specification</a> for details.</p>
 <p>Some tools are designed with this reporting mode in mind. Bowtie 2 is not! For very large genomes, this mode is very slow.</p>
 <h3 id="randomness-in-bowtie-2">Randomness in Bowtie 2</h3>
-<p>Bowtie 2's search for alignments for a given read is &quot;randomized.&quot; That is, when Bowtie 2 encouters a set of equally-good choices, it uses a pseudo-random number to choose. For example, if Bowtie 2 discovers a set of 3 equally-good alignments and wants to decide which to report, it picks a pseudo-random integer 0, 1 or 2 and reports the corresponding alignment. Abitrary choices can crop up at various points during alignment.</p>
+<p>Bowtie 2's search for alignments for a given read is &quot;randomized.&quot; That is, when Bowtie 2 encounters a set of equally-good choices, it uses a pseudo-random number to choose. For example, if Bowtie 2 discovers a set of 3 equally-good alignments and wants to decide which to report, it picks a pseudo-random integer 0, 1 or 2 and reports the corresponding alignment. Abitrary choices can crop up at various points during alignment.</p>
 <p>The pseudo-random number generator is re-initialized for every read, and the seed used to initialize it is a function of the read name, nucleotide string, quality string, and the value specified with <a href="#bowtie2-options-seed"><code>--seed</code></a>. If you run the same version of Bowtie 2 on two reads with identical names, nucleotide strings, and quality strings, and if <a href="#bowtie2-options-seed"><code>--seed</code></a> is set the same for both runs, Bowtie 2 will produce the same output; i.e., it will align the read to the same place, even if there are multiple equally good alignments. This is intuitive and desirable in most cases. Most users expect Bowtie to produce the same output when run twice on the same input.</p>
 <p>However, when the user specifies the <a href="#bowtie2-options-non-deterministic"><code>--non-deterministic</code></a> option, Bowtie 2 will use the current time to re-initialize the pseudo-random number generator. When this is specified, Bowtie 2 might report different alignments for identical reads. This is counter-intuitive for some users, but might be more appropriate in situations where the input consists of many identical reads.</p>
 <h2 id="multiseed-heuristic">Multiseed heuristic</h2>
@@ -1005,129 +1005,85 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 <li><p>Inferred fragment length. Size is negative if the mate's alignment occurs upstream of this alignment. Size is 0 if the mates did not align concordantly. However, size is non-0 if the mates aligned discordantly to the same chromosome.</p></li>
 <li><p>Read sequence (reverse-complemented if aligned to the reverse strand)</p></li>
 <li><p>ASCII-encoded read qualities (reverse-complemented if the read aligned to the reverse strand). The encoded quality values are on the <a href="http://en.wikipedia.org/wiki/Phred_quality_score">Phred quality</a> scale and the encoding is ASCII-offset by 33 (ASCII char <code>!</code>), similarly to a <a href="http://en.wikipedia.org/wiki/FASTQ_format">FASTQ</a> file.</p></li>
-<li><p>Optional fields. Fields are tab-separated. <code>bowtie2</code> outputs zero or more of these optional fields for each alignment, depending on the type of the alignment:</p>
+<li><p>Optional fields. Fields are tab-separated. <code>bowtie2</code> outputs zero or more of these optional fields for each alignment, depending on the type of the alignment:</p></li>
+</ol>
 <table>
 <tr><td id="bowtie2-build-opt-fields-as">
-</li>
-</ol>
-<pre><code>    AS:i:&lt;N&gt;
+<pre><code>    AS:i:&lt;N&gt;</code></pre>
+</td>
+<td>
+    
+Alignment score. Can be negative. Can be greater than 0 in <a href="#bowtie2-options-local"><code>--local</code></a> mode (but not in <a href="#bowtie2-options-end-to-end"><code>--end-to-end</code></a> mode). Only present if SAM record is for an aligned read.
+</td></tr>
+<tr><td id="bowtie2-build-opt-fields-xs">
+<pre><code>    XS:i:&lt;N&gt;</code></pre>
+</td>
+<td>
+    
+Alignment score for the best-scoring alignment found other than the alignment reported. Can be negative. Can be greater than 0 in <a href="#bowtie2-options-local"><code>--local</code></a> mode (but not in <a href="#bowtie2-options-end-to-end"><code>--end-to-end</code></a> mode). Only present if the SAM record is for an aligned read and more than one alignment was found for the read. Note that, when the read is part of a concordantly-aligned pair, this score could be greater than <a href="#bowtie2-build-opt-fields-as"><code>AS:i</code></a>.
+</td></tr>
+<tr><td id="bowtie2-build-opt-fields-ys">
+<pre><code>    YS:i:&lt;N&gt;</code></pre>
+</td>
+<td>
+    
+Alignment score for opposite mate in the paired-end alignment. Only present if the SAM record is for a read that aligned as part of a paired-end alignment.
+</td></tr>
+<tr><td id="bowtie2-build-opt-fields-xn">
+<pre><code>    XN:i:&lt;N&gt;</code></pre>
+</td>
+<td>
+    
+The number of ambiguous bases in the reference covering this alignment. Only present if SAM record is for an aligned read.
+</td></tr>
+<tr><td id="bowtie2-build-opt-fields-xm">
+<pre><code>    XM:i:&lt;N&gt;</code></pre>
+</td>
+<td>
+    
+The number of mismatches in the alignment. Only present if SAM record is for an aligned read.
+</td></tr>
+<tr><td id="bowtie2-build-opt-fields-xo">
+<pre><code>    XO:i:&lt;N&gt;</code></pre>
+</td>
+<td>
+    
+The number of gap opens, for both read and reference gaps, in the alignment. Only present if SAM record is for an aligned read.
+</td></tr>
+<tr><td id="bowtie2-build-opt-fields-xg">
+<pre><code>    XG:i:&lt;N&gt;</code></pre>
+</td>
+<td>
+    
+The number of gap extensions, for both read and reference gaps, in the alignment. Only present if SAM record is for an aligned read.
+</td></tr>
+<tr><td id="bowtie2-build-opt-fields-nm">
+<pre><code>    NM:i:&lt;N&gt;</code></pre>
+</td>
+<td>
+    
+The edit distance; that is, the minimal number of one-nucleotide edits (substitutions, insertions and deletions) needed to transform the read string into the reference string. Only present if SAM record is for an aligned read.
+</td></tr>
+<tr><td id="bowtie2-build-opt-fields-yf">
+<pre><code>    YF:Z:&lt;S&gt;</code></pre>
+</td><td>
+    
+String indicating reason why the read was filtered out. See also: <a href="#filtering">Filtering</a>. Only appears for reads that were filtered out.
+</td></tr>
+<tr><td id="bowtie2-build-opt-fields-yt">
+<pre><code>    YT:Z:&lt;S&gt;</code></pre>
+</td><td>
+    
+Value of <code>UU</code> indicates the read was not part of a pair. Value of <code>CP</code> indicates the read was part of a pair and the pair aligned concordantly. Value of <code>DP</code> indicates the read was part of a pair and the pair aligned discordantly. Value of <code>UP</code> indicates the read was part of a pair but the pair failed to aligned either concordantly or discordantly. <a href="#filtering">Filtering</a>: #filtering
+</td></tr>
+<tr><td id="bowtie2-build-opt-fields-md">
+<pre><code>    MD:Z:&lt;S&gt;</code></pre>
+</td><td>
+    
+A string representation of the mismatched reference bases in the alignment. See <a href="http://samtools.sourceforge.net/SAM1.pdf">SAM</a> format specification for details. Only present if SAM record is for an aligned read.
+</td></tr>
+</table>
 
-&lt;/td&gt;
-&lt;td&gt;
-
-Alignment score.  Can be negative.  Can be greater than 0 in [`--local`]
-mode (but not in [`--end-to-end`] mode).  Only present if SAM record is for
-an aligned read.
-
-&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td id=&quot;bowtie2-build-opt-fields-xs&quot;&gt;</code></pre>
-<pre><code>    XS:i:&lt;N&gt;
-
-&lt;/td&gt;
-&lt;td&gt;
-
-Alignment score for the best-scoring alignment found other than the
-alignment reported.  Can be negative.  Can be greater than 0 in [`--local`]
-mode (but not in [`--end-to-end`] mode).  Only present if the SAM record is
-for an aligned read and more than one alignment was found for the read.
-Note that, when the read is part of a concordantly-aligned pair, this score
-could be greater than [`AS:i`].
-
-&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td id=&quot;bowtie2-build-opt-fields-ys&quot;&gt;</code></pre>
-<pre><code>    YS:i:&lt;N&gt;
-
-&lt;/td&gt;
-&lt;td&gt;
-
-Alignment score for opposite mate in the paired-end alignment.  Only present
-if the SAM record is for a read that aligned as part of a paired-end
-alignment.
-
-&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td id=&quot;bowtie2-build-opt-fields-xn&quot;&gt;</code></pre>
-<pre><code>    XN:i:&lt;N&gt;
-
-&lt;/td&gt;
-&lt;td&gt;
-
-The number of ambiguous bases in the reference covering this alignment. 
-Only present if SAM record is for an aligned read.
-
-&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td id=&quot;bowtie2-build-opt-fields-xm&quot;&gt;</code></pre>
-<pre><code>    XM:i:&lt;N&gt;
-
-&lt;/td&gt;
-&lt;td&gt;
-
-The number of mismatches in the alignment.  Only present if SAM record is
-for an aligned read.
-
-&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td id=&quot;bowtie2-build-opt-fields-xo&quot;&gt;</code></pre>
-<pre><code>    XO:i:&lt;N&gt;
-
-&lt;/td&gt;
-&lt;td&gt;
-
-The number of gap opens, for both read and reference gaps, in the alignment.
-Only present if SAM record is for an aligned read.
-
-&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td id=&quot;bowtie2-build-opt-fields-xg&quot;&gt;</code></pre>
-<pre><code>    XG:i:&lt;N&gt;
-
-&lt;/td&gt;
-&lt;td&gt;
-
-The number of gap extensions, for both read and reference gaps, in the
-alignment. Only present if SAM record is for an aligned read.
-
-&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td id=&quot;bowtie2-build-opt-fields-nm&quot;&gt;</code></pre>
-<pre><code>    NM:i:&lt;N&gt;
-
-&lt;/td&gt;
-&lt;td&gt;
-
-The edit distance; that is, the minimal number of one-nucleotide edits
-(substitutions, insertions and deletions) needed to transform the read
-string into the reference string.  Only present if SAM record is for an
-aligned read.
-
-&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td id=&quot;bowtie2-build-opt-fields-yf&quot;&gt;</code></pre>
-<pre><code>    YF:Z:&lt;S&gt;
-
-&lt;/td&gt;&lt;td&gt;
-
-String indicating reason why the read was filtered out.  See also:
-[Filtering].  Only appears for reads that were filtered out.
-
-&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td id=&quot;bowtie2-build-opt-fields-yt&quot;&gt;</code></pre>
-<pre><code>    YT:Z:&lt;S&gt;
-
-&lt;/td&gt;&lt;td&gt;
-
-Value of `UU` indicates the read was not part of a pair.  Value of `CP`
-indicates the read was part of a pair and the pair aligned concordantly.
-Value of `DP` indicates the read was part of a pair and the pair aligned
-discordantly.  Value of `UP` indicates the read was part of a pair but the
-pair failed to aligned either concordantly or discordantly.</code></pre>
-<pre><code>&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td id=&quot;bowtie2-build-opt-fields-md&quot;&gt;</code></pre>
-<pre><code>    MD:Z:&lt;S&gt;
-
-&lt;/td&gt;&lt;td&gt;
-
-A string representation of the mismatched reference bases in the alignment. 
-See [SAM] format specification for details.  Only present if SAM record is
-for an aligned read.
-
-&lt;/td&gt;&lt;/tr&gt;
-&lt;/table&gt;</code></pre>
 <h1 id="the-bowtie2-build-indexer">The <code>bowtie2-build</code> indexer</h1>
 <p><code>bowtie2-build</code> builds a Bowtie index from a set of DNA sequences. <code>bowtie2-build</code> outputs a set of 6 files with suffixes <code>.1.bt2</code>, <code>.2.bt2</code>, <code>.3.bt2</code>, <code>.4.bt2</code>, <code>.rev.1.bt2</code>, and <code>.rev.2.bt2</code>. In the case of a large index these suffixes will have a <code>bt2l</code> termination. These files together constitute the index: they are all that is needed to align reads to that reference. The original sequence FASTA files are no longer used by Bowtie 2 once the index is built.</p>
 <p>Bowtie 2's <code>.bt2</code> index format is different from Bowtie 1's <code>.ebwt</code> format, and they are not compatible with each other.</p>
