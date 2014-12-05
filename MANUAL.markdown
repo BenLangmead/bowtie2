@@ -2220,162 +2220,128 @@ scale and the encoding is ASCII-offset by 33 (ASCII char `!`), similarly to a
 of these optional fields for each alignment, depending on the type of the
 alignment:
 
-    <table>
-    <tr><td id="bowtie2-build-opt-fields-as">
-
+<table>
+<tr><td id="bowtie2-build-opt-fields-as">
 [`AS:i`]: #bowtie2-build-opt-fields-as
 
         AS:i:<N>
 
-    </td>
-    <td>
-
+</td>
+<td>
     Alignment score.  Can be negative.  Can be greater than 0 in [`--local`]
     mode (but not in [`--end-to-end`] mode).  Only present if SAM record is for
     an aligned read.
-
-    </td></tr>
-    <tr><td id="bowtie2-build-opt-fields-xs">
-
+</td></tr>
+<tr><td id="bowtie2-build-opt-fields-xs">
 [`XS:i`]: #bowtie2-build-opt-fields-xs
 
         XS:i:<N>
 
-    </td>
-    <td>
-
+</td>
+<td>
     Alignment score for the best-scoring alignment found other than the
 	alignment reported.  Can be negative.  Can be greater than 0 in [`--local`]
 	mode (but not in [`--end-to-end`] mode).  Only present if the SAM record is
 	for an aligned read and more than one alignment was found for the read.
 	Note that, when the read is part of a concordantly-aligned pair, this score
 	could be greater than [`AS:i`].
-
-    </td></tr>
-    <tr><td id="bowtie2-build-opt-fields-ys">
-
+</td></tr>
+<tr><td id="bowtie2-build-opt-fields-ys">
 [`YS:i`]: #bowtie2-build-opt-fields-ys
 
         YS:i:<N>
 
-    </td>
-    <td>
-
+</td>
+<td>
     Alignment score for opposite mate in the paired-end alignment.  Only present
     if the SAM record is for a read that aligned as part of a paired-end
     alignment.
-
-    </td></tr>
-    <tr><td id="bowtie2-build-opt-fields-xn">
-
+</td></tr>
+<tr><td id="bowtie2-build-opt-fields-xn">
 [`XN:i`]: #bowtie2-build-opt-fields-xn
 
         XN:i:<N>
 
-    </td>
-    <td>
-
+</td>
+<td>
     The number of ambiguous bases in the reference covering this alignment. 
     Only present if SAM record is for an aligned read.
-
-    </td></tr>
-    <tr><td id="bowtie2-build-opt-fields-xm">
-
+</td></tr>
+<tr><td id="bowtie2-build-opt-fields-xm">
 [`XM:i`]: #bowtie2-build-opt-fields-xm
 
         XM:i:<N>
 
-    </td>
-    <td>
-
+</td>
+<td>
     The number of mismatches in the alignment.  Only present if SAM record is
     for an aligned read.
-
-    </td></tr>
-    <tr><td id="bowtie2-build-opt-fields-xo">
-
+</td></tr>
+<tr><td id="bowtie2-build-opt-fields-xo">
 [`XO:i`]: #bowtie2-build-opt-fields-xo
 
         XO:i:<N>
 
-    </td>
-    <td>
-
+</td>
+<td>
     The number of gap opens, for both read and reference gaps, in the alignment.
     Only present if SAM record is for an aligned read.
-
-    </td></tr>
-    <tr><td id="bowtie2-build-opt-fields-xg">
-
+</td></tr>
+<tr><td id="bowtie2-build-opt-fields-xg">
 [`XG:i`]: #bowtie2-build-opt-fields-xg
 
         XG:i:<N>
 
-    </td>
-    <td>
-
+</td>
+<td>
     The number of gap extensions, for both read and reference gaps, in the
     alignment. Only present if SAM record is for an aligned read.
-
-    </td></tr>
-    <tr><td id="bowtie2-build-opt-fields-nm">
-
+</td></tr>
+<tr><td id="bowtie2-build-opt-fields-nm">
 [`NM:i`]: #bowtie2-build-opt-fields-nm
 
         NM:i:<N>
 
-    </td>
-    <td>
-
+</td>
+<td>
     The edit distance; that is, the minimal number of one-nucleotide edits
     (substitutions, insertions and deletions) needed to transform the read
     string into the reference string.  Only present if SAM record is for an
     aligned read.
-
-    </td></tr>
-    <tr><td id="bowtie2-build-opt-fields-yf">
-
+</td></tr>
+<tr><td id="bowtie2-build-opt-fields-yf">
 [`YF:Z`]: #bowtie2-build-opt-fields-yf
 
         YF:Z:<S>
 
-    </td><td>
-
+</td><td>
     String indicating reason why the read was filtered out.  See also:
     [Filtering].  Only appears for reads that were filtered out.
-
-    </td></tr>
-    <tr><td id="bowtie2-build-opt-fields-yt">
-
+</td></tr>
+<tr><td id="bowtie2-build-opt-fields-yt">
 [`YT:Z`]: #bowtie2-build-opt-fields-yt
 
         YT:Z:<S>
 
-    </td><td>
-
+</td><td>
     Value of `UU` indicates the read was not part of a pair.  Value of `CP`
     indicates the read was part of a pair and the pair aligned concordantly.
     Value of `DP` indicates the read was part of a pair and the pair aligned
     discordantly.  Value of `UP` indicates the read was part of a pair but the
     pair failed to aligned either concordantly or discordantly.
-
 [Filtering]: #filtering
-
-    </td></tr>
-    <tr><td id="bowtie2-build-opt-fields-md">
-
+</td></tr>
+<tr><td id="bowtie2-build-opt-fields-md">
 [`MD:Z`]: #bowtie2-build-opt-fields-md
 
         MD:Z:<S>
 
-    </td><td>
-
+</td><td>
     A string representation of the mismatched reference bases in the alignment. 
     See [SAM] format specification for details.  Only present if SAM record is
     for an aligned read.
-
-    </td></tr>
-    </table>
+</td></tr>
+</table>
 
 [SAM format specification]: http://samtools.sf.net/SAM1.pdf
 [FASTQ]: http://en.wikipedia.org/wiki/FASTQ_format

@@ -381,8 +381,8 @@ details regarding these fields.
 A pair that aligns with the expected relative mate orientation and with the
 expected range of distances between mates is said to align "concordantly".  If
 both mates have unique alignments, but the alignments do not match paired-end
-expectations (i.e. the mates aren't in the expcted relative orientation, or
-aren't within the expected disatance range, or both), the pair is said to align
+expectations (i.e. the mates aren't in the expected relative orientation, or
+aren't within the expected distance range, or both), the pair is said to align
 "discordantly".  Discordant alignments may be of particular interest, for
 instance, when seeking [structural variants].
 
@@ -519,7 +519,7 @@ because it exceeded a limit placed on search effort (see `-D` and `-R`) or
 because it already knows all it needs to know to report an alignment.
 Information from the best alignments are used to estimate mapping quality (the
 `MAPQ` [SAM] field) and to set SAM optional fields, such as `AS:i` and
-`XS:i`.  Bowtie 2 does not gaurantee that the alignment reported is the best
+`XS:i`.  Bowtie 2 does not garantee that the alignment reported is the best
 possible in terms of alignment score.
 
 See also: `-D`, which puts an upper limit on the number of dynamic programming
@@ -545,7 +545,7 @@ beyond the first has the SAM 'secondary' bit (which equals 256) set in its FLAGS
 field.  See the [SAM specification] for details.
 
 Bowtie 2 does not "find" alignments in any specific order, so for reads that
-have more than N distinct, valid alignments, Bowtie 2 does not gaurantee that
+have more than N distinct, valid alignments, Bowtie 2 does not garantee that
 the N alignments reported are the best possible in terms of alignment score.
 Still, this mode can be effective and fast in situations where the user cares
 more about whether a read aligns (or aligns a certain number of times) than
@@ -571,7 +571,7 @@ very large genomes, this mode is very slow.
 ### Randomness in Bowtie 2
 
 Bowtie 2's search for alignments for a given read is "randomized."  That is,
-when Bowtie 2 encouters a set of equally-good choices, it uses a pseudo-random
+when Bowtie 2 encounters a set of equally-good choices, it uses a pseudo-random
 number to choose.  For example, if Bowtie 2 discovers a set of 3 equally-good
 alignments and wants to decide which to report, it picks a pseudo-random integer
 0, 1 or 2 and reports the corresponding alignment.  Abitrary choices can crop up
