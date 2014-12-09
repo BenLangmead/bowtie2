@@ -36,6 +36,7 @@
       <tr><td><a href="http://bowtie-bio.sf.net/myrna">Myrna</a>: Cloud, differential gene expression</td></tr>
       <tr><td><a href="http://tophat.cbcb.umd.edu">Tophat</a>: RNA-Seq splice junction mapper</td></tr>
       <tr><td><a href="http://cufflinks.cbcb.umd.edu">Cufflinks</a>: Isoform assembly, quantitation</td></tr>
+      <tr><td><a href="https://github.com/mourisl/Lighter">Lighter</a>: Fast error correction</td></tr>
       </table>
   </div>
   <h2>Indexes</h2>
