@@ -76,13 +76,18 @@ endif
 PTHREAD_PKG =
 PTHREAD_LIB = 
 
-ifeq (1,$(MINGW))
-	PTHREAD_LIB = 
-else
+ifeq (1,$(NO_SPINLOCK))
 	PTHREAD_LIB = -lpthread
+	EXTRA_FLAGS += -DNO_SPIN_LOCK
+else
+	PTHREAD_LIB = 	
 endif
 
-LIBS = $(PTHREAD_LIB) -ltbb
+ifeq (1,$(WITH_TBB))
+	LIBS = $(PTHREAD_LIB) -ltbb -ltbbmalloc_proxy
+else
+	LIBS = $(PTHREAD_LIB)
+endif
 SEARCH_LIBS = 
 BUILD_LIBS = 
 INSPECT_LIBS =
