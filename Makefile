@@ -97,8 +97,8 @@ SHARED_CPPS = ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
               edit.cpp bt2_idx.cpp bt2_io.cpp bt2_util.cpp \
               reference.cpp ds.cpp multikey_qsort.cpp limit.cpp \
 			  random_source.cpp
-ifneq(1,$(WITH_TBB))
-    SHARED_CPPS += tinythread.cpp
+ifneq (1,$(WITH_TBB))
+	SHARED_CPPS += tinythread.cpp
 endif
 
 SEARCH_CPPS = qual.cpp pat.cpp sam.cpp \
