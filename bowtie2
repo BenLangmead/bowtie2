@@ -58,6 +58,22 @@ my $idx_ext       = $idx_ext_s;
 my %signo       = ();
 my @signame     = ();
 
+sub quote_params {
+    my %params_2_quote = ('--rg' => 1, '--rg-id' => 1);
+    my $param_list = shift;
+    my $quoting = 0;
+    
+    for (my $i=0; $i<scalar(@{$param_list}); $i++){
+        if($quoting){
+            $quoting = 0;
+            $param_list->[$i] = "\"".$param_list->[$i]."\"";
+            next;
+        }
+    	$quoting = 1 if( exists($params_2_quote{$param_list->[$i]}));
+    }
+}
+
+
 {
 	# Get signal info
 	use Config;
@@ -268,6 +284,8 @@ if ($log_fName) {
 Info("Before arg handling:\n");
 Info("  Wrapper args:\n[ @bt2w_args ]\n");
 Info("  Binary args:\n[ @bt2_args ]\n");
+
+quote_params(\@bt2_args);
 
 sub cat_file($$) {
 	my ($ifn, $ofh) = @_;
