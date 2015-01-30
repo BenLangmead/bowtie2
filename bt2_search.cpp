@@ -1284,7 +1284,7 @@ static void parseOption(int next_option, const char *arg) {
 				throw 1;
 			}
 			if(len > 32) {
-				cerr << "Error: -L argument must be <= 32; was" << arg << endl;
+				cerr << "Error: -L argument must be <= 32; was " << arg << endl;
 				throw 1;
 			}
 			polstr += ";SEEDLEN="; polstr += arg; break;
