@@ -59,7 +59,10 @@ my %signo       = ();
 my @signame     = ();
 
 sub quote_params {
-    my %params_2_quote = ('--rg' => 1, '--rg-id' => 1);
+    my %params_2_quote = ('--rg' => 1, '--rg-id' => 1,
+                          '-S' => 1, '-U' => 1,
+                          '-1' => 1, '-2' => 1
+    );
     my $param_list = shift;
     my $quoting = 0;
     
@@ -69,7 +72,7 @@ sub quote_params {
             $param_list->[$i] = "\"".$param_list->[$i]."\"";
             next;
         }
-    	$quoting = 1 if( exists($params_2_quote{$param_list->[$i]}));
+    	$quoting = 1 if(exists($params_2_quote{$param_list->[$i]}));
     }
 }
 
@@ -285,19 +288,17 @@ Info("Before arg handling:\n");
 Info("  Wrapper args:\n[ @bt2w_args ]\n");
 Info("  Binary args:\n[ @bt2_args ]\n");
 
-quote_params(\@bt2_args);
-
 sub cat_file($$) {
 	my ($ifn, $ofh) = @_;
 	my $ifh = undef;
 	if($ifn =~ /\.gz$/) {
-		open($ifh, "gzip -dc $ifn |") ||
+		open($ifh, "gzip -dc \"$ifn\" |") ||
 			 Fail("Could not open gzipped read file: $ifn \n");
 	} elsif($ifn =~ /\.bz2/) {
-		open($ifh, "bzip2 -dc $ifn |") ||
+		open($ifh, "bzip2 -dc \"$ifn\" |") ||
 			Fail("Could not open bzip2ed read file: $ifn \n");
 	} elsif($ifn =~ /\.lz4/) {
-		open($ifh, "lz4 -dc $ifn |") ||
+		open($ifh, "lz4 -dc \"$ifn\" |") ||
 			Fail("Could not open lz4ed read file: $ifn \n");
 	} else {
 		open($ifh, $ifn) || Fail("Could not open read file: $ifn \n");
@@ -464,6 +465,7 @@ else {
 my $debug_str = ($debug ? "-debug" : "");
 
 # Construct command invoking bowtie2-align
+quote_params(\@bt2_args);
 my $cmd = "$align_prog$debug_str --wrapper basic-0 ".join(" ", @bt2_args);
 
 # Possibly add read input on an anonymous pipe
