@@ -95,7 +95,7 @@ sub quote_params {
 # 2 args from wrapper args
 sub getBt2Desc($) {
 	my $d = shift;
-	my $cmd = "$align_prog --wrapper basic-0 --arg-desc";
+	my $cmd = "\"$align_prog\" --wrapper basic-0 --arg-desc";
 	open(my $fh, "$cmd |") || Fail("Failed to run command '$cmd'\n");
 	while(readline $fh) {
 		chomp;
@@ -466,7 +466,7 @@ my $debug_str = ($debug ? "-debug" : "");
 
 # Construct command invoking bowtie2-align
 quote_params(\@bt2_args);
-my $cmd = "$align_prog$debug_str --wrapper basic-0 ".join(" ", @bt2_args);
+my $cmd = "\"$align_prog$debug_str\" --wrapper basic-0 ".join(" ", @bt2_args);
 
 # Possibly add read input on an anonymous pipe
 $cmd = "$readpipe $cmd" if defined($readpipe);
