@@ -930,6 +930,7 @@ void RedundantAlns::add(const AlnRes& res) {
 	assert(!cells_.empty());
 	TRefOff left = res.refoff(), right;
 	const size_t len = res.readExtentRows();
+        const size_t alignmentStart = res.trimmedLeft(true);
 	if(!res.fw()) {
 		const_cast<AlnRes&>(res).invertEdits();
 	}
@@ -937,7 +938,7 @@ void RedundantAlns::add(const AlnRes& res) {
 	size_t nedidx = 0;
 	assert_leq(len, cells_.size());
 	// For each row...
-	for(size_t i = 0; i < len; i++) {
+	for(size_t i = alignmentStart; i < alignmentStart + len; i++) {
 		size_t diff = 1;  // amount to shift to right for next round
 		right = left + 1;
 		while(nedidx < ned.size() && ned[nedidx].pos == i) {
@@ -947,7 +948,7 @@ void RedundantAlns::add(const AlnRes& res) {
 			}
 			nedidx++;
 		}
-		if(i < len - 1) {
+		if(i < alignmentStart + len - 1) {
 			// See how many inserts there are before the next read
 			// character
 			size_t nedidx_next = nedidx;
@@ -980,6 +981,7 @@ bool RedundantAlns::overlap(const AlnRes& res) {
 	assert(!cells_.empty());
 	TRefOff left = res.refoff(), right;
 	const size_t len = res.readExtentRows();
+        const size_t alignmentStart = res.trimmedLeft(true);
 	if(!res.fw()) {
 		const_cast<AlnRes&>(res).invertEdits();
 	}
@@ -988,7 +990,7 @@ bool RedundantAlns::overlap(const AlnRes& res) {
 	// For each row...
 	bool olap = false;
 	assert_leq(len, cells_.size());
-	for(size_t i = 0; i < len; i++) {
+	for(size_t i = alignmentStart; i < alignmentStart + len; i++) {
 		size_t diff = 1;  // amount to shift to right for next round
 		right = left + 1;
 		while(nedidx < ned.size() && ned[nedidx].pos == i) {
@@ -998,7 +1000,7 @@ bool RedundantAlns::overlap(const AlnRes& res) {
 			}
 			nedidx++;
 		}
-		if(i < len - 1) {
+		if(i < alignmentStart + len - 1) {
 			// See how many inserts there are before the next read
 			// character
 			size_t nedidx_next = nedidx;
