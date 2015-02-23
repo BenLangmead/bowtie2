@@ -6,8 +6,10 @@
 
 SAMPLE_POINTS=3
 MAX_THREADS=56
+CMD_SKEL="/usr/bin/time -f %U,%S,%E  ./bowtie2 -x ../data/genomes/hg19 -1 ../data/reads/SRR034966_1.fastq  -2 ../data/reads/SRR034966_2.fastq -p "
+#CMD_SKEL="/usr/bin/time -f %U,%S,%E  ./bowtie2 -x ../data/genomes/hg19 -U ../data/reads/SRR034966.fastq.gz -p "
 #CMD_SKEL="/usr/bin/time -f \"%U %S %E %PCPU \" ./bowtie2 -x ../data/genomes/hg19 -U ../data/reads/ERR000589.fastq -p "
-CMD_SKEL="/usr/bin/time -f %U,%S,%E ./bowtie2 -x ecoli_s -U example/reads/longreads.fq -p "
+#CMD_SKEL="/usr/bin/time -f %U,%S,%E ./bowtie2 -x ecoli_s -U example/reads/longreads.fq -p "
 DATA_DIR=$(pwd)
 DATA_DIR+="/scripts/test/scalability"
 DATA_FILE_PREFIX=$1
