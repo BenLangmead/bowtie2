@@ -1026,7 +1026,13 @@ bool FastqPatternSource::read(
 			}
 			if (c != '\r' && c != '\n') {
 				if (*qualsReadCur >= trim5) {
-					c = charToPhred33(c, solQuals_, phred64Quals_);
+					try {
+						c = charToPhred33(c, solQuals_, phred64Quals_);
+					}
+					catch (...) {
+						cout << "Error encountered at sequence id: " << r.name << endl;
+						throw;
+					}
 					assert_geq(c, 33);
 					qbuf->append(c);
 				}
