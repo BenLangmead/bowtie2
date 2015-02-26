@@ -58,6 +58,25 @@ my $idx_ext       = $idx_ext_s;
 my %signo       = ();
 my @signame     = ();
 
+sub quote_params {
+    my %params_2_quote = ('--rg' => 1, '--rg-id' => 1,
+                          '-S' => 1, '-U' => 1,
+                          '-1' => 1, '-2' => 1
+    );
+    my $param_list = shift;
+    my $quoting = 0;
+    
+    for (my $i=0; $i<scalar(@{$param_list}); $i++){
+        if($quoting){
+            $quoting = 0;
+            $param_list->[$i] = "\"".$param_list->[$i]."\"";
+            next;
+        }
+    	$quoting = 1 if(exists($params_2_quote{$param_list->[$i]}));
+    }
+}
+
+
 {
 	# Get signal info
 	use Config;
@@ -76,7 +95,7 @@ my @signame     = ();
 # 2 args from wrapper args
 sub getBt2Desc($) {
 	my $d = shift;
-	my $cmd = "$align_prog --wrapper basic-0 --arg-desc";
+	my $cmd = "\"$align_prog\" --wrapper basic-0 --arg-desc";
 	open(my $fh, "$cmd |") || Fail("Failed to run command '$cmd'\n");
 	while(readline $fh) {
 		chomp;
@@ -273,13 +292,13 @@ sub cat_file($$) {
 	my ($ifn, $ofh) = @_;
 	my $ifh = undef;
 	if($ifn =~ /\.gz$/) {
-		open($ifh, "gzip -dc $ifn |") ||
+		open($ifh, "gzip -dc \"$ifn\" |") ||
 			 Fail("Could not open gzipped read file: $ifn \n");
 	} elsif($ifn =~ /\.bz2/) {
-		open($ifh, "bzip2 -dc $ifn |") ||
+		open($ifh, "bzip2 -dc \"$ifn\" |") ||
 			Fail("Could not open bzip2ed read file: $ifn \n");
 	} elsif($ifn =~ /\.lz4/) {
-		open($ifh, "lz4 -dc $ifn |") ||
+		open($ifh, "lz4 -dc \"$ifn\" |") ||
 			Fail("Could not open lz4ed read file: $ifn \n");
 	} else {
 		open($ifh, $ifn) || Fail("Could not open read file: $ifn \n");
@@ -446,7 +465,8 @@ else {
 my $debug_str = ($debug ? "-debug" : "");
 
 # Construct command invoking bowtie2-align
-my $cmd = "$align_prog$debug_str --wrapper basic-0 ".join(" ", @bt2_args);
+quote_params(\@bt2_args);
+my $cmd = "\"$align_prog$debug_str\" --wrapper basic-0 ".join(" ", @bt2_args);
 
 # Possibly add read input on an anonymous pipe
 $cmd = "$readpipe $cmd" if defined($readpipe);
