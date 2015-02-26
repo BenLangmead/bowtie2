@@ -54,6 +54,7 @@
 #include "outq.h"
 #include "aligner_seed2.h"
 #include "bt2_search.h"
+#include "mock_outq.h"
 
 using namespace std;
 
@@ -4335,7 +4336,7 @@ static void driver(
 		ebwt.checkOrigs(os, false, false);
 		ebwt.evictFromMemory();
 	}
-	OutputQueue oq(
+	MockOutputQueue oq(
 		*fout,                   // out file buffer
 		reorder && nthreads > 1, // whether to reorder when there's >1 thread
 		nthreads,                // # threads
