@@ -3,6 +3,18 @@
    <li>Lighter is an extremely fast and memory-efficient program for correcting sequencing errors in DNA sequencing data.  For details on how error correction can help improve the speed and accuracy of downstream analysis tools, see the <a href="http://genomebiology.com/2014/15/11/509">paper in Genome Biology</a>.  Source and software <a href="https://github.com/mourisl/Lighter">available at GitHub</a>.
 </ul>
 
+<h2>Version 2.2.5 - Mar 9, 2015</h2>
+   <li>Fixed some situations where incorrectly we could detect a Mavericks platform.</li>
+   <li>Fixed some manual issues including some HTML bad formating.</li>
+   <li>Make sure the wrapper correctly identifies the platform under OSX.</li>
+   <li>Fixed --rg/--rg-id options where included spaces were incorrectly treated.</li>
+   <li>Various documentation fixes added by contributors.</li>
+   <li>Fixed the incorrect behavior where parameter file names may contain spaces.</li>
+   <li>Fixed bugs related with the presence of spaces in the path where bowtie binaries are stored.</li>
+   <li>Improved exception handling for missformated quality values.</li>
+   <li>Improved redundancy checks by correctly account for soft clipping.</li>
+</ul>
+
 <h2>Version 2.2.4 - Oct 22, 2014</h2>
 <ul>
    <li>Fixed a Mavericks OSX specific bug caused by some linkage ambiguities.</li>
@@ -64,58 +76,6 @@
    <li>Added the .bat generation for Windows.</li>
    <li>Fixed some issues with some uncommon chars in fasta files.</li>
    <li>Fixed wrappers so bowtie can now be used with symlinks.</li>
-</ul>
-
-<h2>Bowtie 2 on GitHub - February 4, 2014</h2>
-<ul>
-   <li>Bowtie 2 source now lives in a <a href="https://github.com/BenLangmead/bowtie2">public GitHub repository</a>.</li>
-</ul>
-
-<h2>Version 2.1.0 - February 21, 2013</h2>
-<ul>
-   <li>Improved multithreading support so that Bowtie 2 now uses native Windows
-     threads when compiled on Windows and uses a faster mutex.  Threading
-     performance should improve on all platforms.</li>
-   <li>Improved support for building 64-bit binaries for Windows x64
-    platforms.</li>
-   <li>Bowtie 2 uses a lightweight mutex by default.</li>
-   <li>Test option <tt>--nospin</tt> is no longer available. However bowtie2
-     can always be recompiled with <tt>EXTRA_FLAGS="-DNO_SPINLOCK"</tt> in
-	 order to drop the default spinlock usage.
-</ul>  
-
-<h2>Version 2.0.6 - January 27, 2013</h2>
-<ul>
- <li>Fixed issue whereby spurious output would be written in
- <tt><a href="manual.shtml#bowtie2-options-no-unal">--no-unal</a></tt> mode.
- <li>Fixed issue whereby multiple input files combined with
- <tt><a href="manual.shtml#bowtie2-options-reorder">--reorder</a></tt>
- would
-     cause truncated output and a memory spike.
- <li>Fixed spinlock datatype for Win64 API (LLP64 data model) which made it
-     crash when compiled under Windows 7 x64.
- <li>Fixed bowtie2 wrapper to handle filename/paths operations in a more
-     platform independent manner.
- <li>Added pthread as a default library option under cygwin, and pthreadGC
-     for MinGW.
- <li>Fixed some minor issues that made MinGW compilation fail.
-</ul>
-
-<h2>Version 2.0.5 - January 4, 2013</h2>
-<ul>
- <li>Fixed an issue that would cause excessive memory allocation when aligning
-     to very repetitive genomes.</li>
- <li>Fixed an issue that would cause a pseudo-randomness-related assert to be
-     thrown in debug mode under rare circumstances.</li>
- <li>When <tt>bowtie2-build</tt> fails, it will now delete index files created so far so
-     that invalid index files don't linger.</li>
- <li>Tokenizer no longer has limit of 10,000 tokens, which was a problem for
-     users trying to index a very large number of FASTA files.</li>
- <li>Updated manual's discussion of the
- <tt><a href="manual.shtml#bowtie2-options-I">-I</a></tt> and
- <tt><a href="manual.shtml#bowtie2-options-X">-X</a></tt> options to mention that
-     setting them farther apart makes Bowtie 2 slower.</li>
- <li>Renamed <tt>COPYING</tt> to <tt>LICENSE</tt> and created a <tt>README</tt> to be GitHub-friendly.</li>
 </ul>
 
 

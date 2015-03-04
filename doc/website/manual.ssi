@@ -1,5 +1,5 @@
 <h1>Table of Contents</h1>
-<p>&nbsp;Version <b>2.2.4</b></p>
+<p>&nbsp;Version <b>2.2.5</b></p>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
@@ -510,7 +510,7 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC</code></pr
 <pre><code>-L &lt;int&gt;</code></pre>
 </td><td>
 
-<p>Sets the length of the seed substrings to align during <a href="#multiseed-heuristic">multiseed alignment</a>. Smaller values make alignment slower but more senstive. Default: the <a href="#bowtie2-options-sensitive"><code>--sensitive</code></a> preset is used by default, which sets <code>-L</code> to 20 both in <a href="#bowtie2-options-end-to-end"><code>--end-to-end</code></a> mode and in <a href="#bowtie2-options-local"><code>--local</code></a> mode.</p>
+<p>Sets the length of the seed substrings to align during <a href="#multiseed-heuristic">multiseed alignment</a>. Smaller values make alignment slower but more senstive. Default: the <a href="#bowtie2-options-sensitive"><code>--sensitive</code></a> preset is used by default, which sets <code>-L</code> to 22 in <a href="#bowtie2-options-end-to-end"><code>--end-to-end</code></a> mode and to 20 in <a href="#bowtie2-options-local"><code>--local</code></a> mode.</p>
 </td></tr>
 <tr><td id="bowtie2-options-i">
 
@@ -527,7 +527,7 @@ Seed 3 fw:             ACGCTATCAT
 Seed 3 rc:             ATGATAGCGT
 Seed 4 fw:                   TCATGCATAA
 Seed 4 rc:                   TTATGCATGA</code></pre>
-<p>Since it's best to use longer intervals for longer reads, this parameter sets the interval as a function of the read length, rather than a single one-size-fits-all number. For instance, specifying <code>-i S,1,2.5</code> sets the interval function <code>f</code> to <code>f(x) = 1 + 2.5 * sqrt(x)</code>, where x is the read length. See also: <a href="#setting-function-options">setting function options</a>. If the function returns a result less than 1, it is rounded up to 1. Default: the <a href="#bowtie2-options-sensitive"><code>--sensitive</code></a> preset is used by default, which sets <code>-i</code> to <code>S,1,1.15</code> in <a href="#bowtie2-options-end-to-end"><code>--end-to-end</code></a> mode to <code>-i S,1,0.75</code> in <a href="#bowtie2-options-local"><code>--local</code></a> mode.</p>
+<p>Since it's best to use longer intervals for longer reads, this parameter sets the interval as a function of the read length, rather than a single one-size-fits-all number. For instance, specifying <code>-i S,1,2.5</code> sets the interval function <code>f</code> to <code>f(x) = 1 + 2.5 * sqrt(x)</code>, where x is the read length. See also: <a href="#setting-function-options">setting function options</a>. If the function returns a result less than 1, it is rounded up to 1. Default: the <a href="#bowtie2-options-sensitive"><code>--sensitive</code></a> preset is used by default, which sets <code>-i</code> to <code>S,1,1.15</code> in <a href="#bowtie2-options-end-to-end"><code>--end-to-end</code></a> mode and to <code>-i S,1,0.75</code> in <a href="#bowtie2-options-local"><code>--local</code></a> mode.</p>
 </td></tr>
 <tr><td id="bowtie2-options-n-ceil">
 
