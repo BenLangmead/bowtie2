@@ -207,12 +207,10 @@ bool PairedDualPatternSource::nextReadPair(
 	bool fixName)
 {
 	// 'cur' indexes the current pair of PatternSources
+	//NOTE: Changed for testing.
+	//NO PRODUCTION!
 	uint32_t cur;
-	{
-		lock();
-		cur = cur_;
-		unlock();
-	}
+	cur = cur_;
 	success = false;
 	done = true;
 	while(cur < srca_->size()) {
@@ -224,10 +222,8 @@ bool PairedDualPatternSource::nextReadPair(
 			} while(!success && !done);
 			if(!success) {
 				assert(done);
-				lock();
 				if(cur + 1 > cur_) cur_++;
 				cur = cur_; // Move on to next PatternSource
-				unlock();
 				continue; // on to next pair of PatternSources
 			}
 			ra.rdid = rdid;
@@ -243,7 +239,6 @@ bool PairedDualPatternSource::nextReadPair(
 			bool success_b = false, done_b = false;
 			// Lock to ensure that this thread gets parallel reads
 			// in the two mate files
-			lock();
 			do {
 				(*srca_)[cur]->nextRead(ra, rdid_a, endid_a, success_a, done_a);
 			} while(!success_a && !done_a);
@@ -257,7 +252,6 @@ bool PairedDualPatternSource::nextReadPair(
 				assert(done_a && done_b);
 				if(cur + 1 > cur_) cur_++;
 				cur = cur_; // Move on to next PatternSource
-				unlock();
 				continue; // on to next pair of PatternSources
 			} else if(!success_b) {
 				cerr << "Error, fewer reads in file specified with -2 than in file specified with -1" << endl;
@@ -266,7 +260,6 @@ bool PairedDualPatternSource::nextReadPair(
 			assert_eq(rdid_a, rdid_b);
 			//assert_eq(endid_a+1, endid_b);
 			assert_eq(success_a, success_b);
-			unlock();
 			if(fixName) {
 				ra.fixMateName(1);
 				rb.fixMateName(2);
