@@ -834,7 +834,6 @@ public:
 		bool& done)
 	{
 		// We'll be manipulating our file handle/filecur_ state
-		lock();
 		while(true) {
 			do { read(r, rdid, endid, success, done); }
 			while(!success && !done);
@@ -849,7 +848,6 @@ public:
 		}
 		assert(r.repOk());
 		// Leaving critical region
-		unlock();
 		return success;
 	}
 	
