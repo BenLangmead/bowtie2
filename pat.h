@@ -553,49 +553,6 @@ protected:
 	TReadId endid_; // index of read just read
 };
 
-class MockPatternSourcePerThread : public PatternSourcePerThread {
-
-public:
-
-	MockPatternSourcePerThread() : total_loops(MAX_LOOPS), seq_idx(0) { }
-
-	virtual ~MockPatternSourcePerThread() { }
-
-	/**
-	 * Read the next read pair.
-	 */
-	virtual bool nextReadPair(
-		bool& success,
-		bool& done,
-		bool& paired,
-		bool fixName)
-	{
-		return success;
-	}
-
-	Read& bufa()             { return buf1_;    }
-	Read& bufb()             { return buf2_;    }
-	const Read& bufa() const { return buf1_;    }
-	const Read& bufb() const { return buf2_;    }
-
-	TReadId       rdid()  const { return rdid_;  }
-	TReadId       endid() const { return endid_; }
-	virtual void  reset()       { rdid_ = endid_ = 0xffffffff;  }
-
-	/**
-	 * Return the length of mate 1 or mate 2.
-	 */
-	size_t length(int mate) const {
-		return (mate == 1) ? buf1_.length() : buf2_.length();
-	}
-
-protected:
-
-	const int MAX_LOOPS = 5000;
-	int total_loops; // Max total loops allowed
-	int seq_idx; // Next seq
-};
-
 /**
  * Abstract parent factory for PatternSourcePerThreads.
  */
@@ -654,6 +611,30 @@ private:
 	PairedPatternSource& patsrc_;
 };
 
+class MemoryMockPatternSourcePerThread : public PatternSourcePerThread {
+public:
+	MemoryMockPatternSourcePerThread(PairedPatternSource& __patsrc) :
+		patsrc_(__patsrc)
+	{
+		patsrc_.addWrapper();
+	}
+
+	/**
+	 * Get the next paired or unpaired read from the wrapped
+	 * PairedPatternSource.
+	 */
+	virtual bool nextReadPair(
+		bool& success,
+		bool& done,
+		bool& paired,
+		bool fixName);
+
+private:
+
+	/// Container for obtaining paired reads from PatternSources
+	PairedPatternSource& patsrc_;
+};
+
 /**
  * Abstract parent factory for PatternSourcePerThreads.
  */
@@ -677,6 +658,36 @@ public:
 		EList<PatternSourcePerThread*>* v = new EList<PatternSourcePerThread*>;
 		for(size_t i = 0; i < n; i++) {
 			v->push_back(new WrappedPatternSourcePerThread(patsrc_));
+			assert(v->back() != NULL);
+		}
+		return v;
+	}
+
+private:
+	/// Container for obtaining paired reads from PatternSources
+	PairedPatternSource& patsrc_;
+};
+
+class MemoryMockPatternSourcePerThreadFactory : public PatternSourcePerThreadFactory {
+public:
+	MemoryMockPatternSourcePerThreadFactory(PairedPatternSource& patsrc) :
+		patsrc_(patsrc) { }
+
+	/**
+	 * Create a new heap-allocated WrappedPatternSourcePerThreads.
+	 */
+	virtual PatternSourcePerThread* create() const {
+		return new MemoryMockPatternSourcePerThread(patsrc_);
+	}
+
+	/**
+	 * Create a new heap-allocated vector of heap-allocated
+	 * WrappedPatternSourcePerThreads.
+	 */
+	virtual EList<PatternSourcePerThread*>* create(uint32_t n) const {
+		EList<PatternSourcePerThread*>* v = new EList<PatternSourcePerThread*>;
+		for(size_t i = 0; i < n; i++) {
+			v->push_back(new MemoryMockPatternSourcePerThread(patsrc_));
 			assert(v->back() != NULL);
 		}
 		return v;
@@ -834,6 +845,7 @@ public:
 		bool& done)
 	{
 		// We'll be manipulating our file handle/filecur_ state
+		lock();
 		while(true) {
 			do { read(r, rdid, endid, success, done); }
 			while(!success && !done);
@@ -848,6 +860,7 @@ public:
 		}
 		assert(r.repOk());
 		// Leaving critical region
+		unlock();
 		return success;
 	}
 	
