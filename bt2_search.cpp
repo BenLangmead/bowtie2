@@ -1589,7 +1589,7 @@ static const char *argv0 = NULL;
 static PatternSourcePerThreadFactory*
 createPatsrcFactory(PairedPatternSource& _patsrc, int tid) {
 	PatternSourcePerThreadFactory *patsrcFact;
-	patsrcFact = new WrappedPatternSourcePerThreadFactory(_patsrc);
+	patsrcFact = new MemoryMockPatternSourcePerThreadFactory(_patsrc);
 	assert(patsrcFact != NULL);
 	return patsrcFact;
 }
