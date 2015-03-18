@@ -90,7 +90,7 @@ bool PatternSource::nextReadPair(
 	return success;
 }
 
-const rawSeq MemoryMockPatternSourcePerThread::rawList[] = {
+const rawSeq MemoryMockPatternSourcePerThread::raw_list[] = {
 	{
 			"r1",
 			"CCAGCCGGACTTCAGGCCTGCCATCCAGTTCCCGCGAAGCTGGTCTTCAGCCGCCCAGGTCTTTTTCTGCTCTGACACGACGTTATTCAGCGCCAGCGGATTATCGCCATACTGTTCCTTCAGGCGCTGTTCCGTGGCTTCCCGTTCTGCCTGCCGGTCAGTCAGCCCCCGGCTTTTCGCATCAATGGCGGCCC",
@@ -153,11 +153,15 @@ bool MemoryMockPatternSourcePerThread::nextReadPair(
 	bool& paired,
 	bool fixName)
 {
-	PatternSourcePerThread::nextReadPair(success, done, paired, fixName);
+	//PatternSourcePerThread::nextReadPair(success, done, paired, fixName);
 	ASSERT_ONLY(TReadId lastRdId = rdid_);
 	buf1_.reset();
 	buf2_.reset();
-	patsrc_.nextReadPair(buf1_, buf2_, rdid_, endid_, success, done, paired, fixName);
+	//patsrc_.nextReadPair(buf1_, buf2_, rdid_, endid_, success, done, paired, fixName);
+	if (this->i > 999) return false;
+	success = true;
+	buf1_.name = raw_list[this->i].id;
+	this->i++;
 	assert(!success || rdid_ != lastRdId);
 	return success;
 }

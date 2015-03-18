@@ -612,7 +612,7 @@ private:
 };
 
 struct rawSeq {
-	string Id;
+	string id;
 	string seq;
 	string qual;
 };
@@ -640,7 +640,7 @@ private:
 	/// Container for obtaining paired reads from PatternSources
 	PairedPatternSource& patsrc_;
 	int i;
-	static const rawSeq rawList[];
+	static const rawSeq raw_list[];
 };
 
 /**
