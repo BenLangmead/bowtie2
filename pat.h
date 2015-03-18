@@ -611,10 +611,16 @@ private:
 	PairedPatternSource& patsrc_;
 };
 
+struct rawSeq {
+	string Id;
+	string seq;
+	string qual;
+};
+
 class MemoryMockPatternSourcePerThread : public PatternSourcePerThread {
 public:
 	MemoryMockPatternSourcePerThread(PairedPatternSource& __patsrc) :
-		patsrc_(__patsrc)
+		patsrc_(__patsrc),i(0)
 	{
 		patsrc_.addWrapper();
 	}
@@ -633,6 +639,8 @@ private:
 
 	/// Container for obtaining paired reads from PatternSources
 	PairedPatternSource& patsrc_;
+	int i;
+	static const rawSeq rawList[];
 };
 
 /**
