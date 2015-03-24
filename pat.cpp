@@ -91,16 +91,7 @@ bool PatternSource::nextReadPair(
 }
 
 const rawSeq MemoryMockPatternSourcePerThread::raw_list[] = {
-	{
-			"r1",
-			"CCAGCCGGACTTCAGGCCTGCCATCCAGTTCCCGCGAAGCTGGTCTTCAGCCGCCCAGGTCTTTTTCTGCTCTGACACGACGTTATTCAGCGCCAGCGGATTATCGCCATACTGTTCCTTCAGGCGCTGTTCCGTGGCTTCCCGTTCTGCCTGCCGGTCAGTCAGCCCCCGGCTTTTCGCATCAATGGCGGCCC",
-			"7%&%E,3@->*/4>0):4)17/4A=H<3!72\"$97HDB(*66B(,&$+41&A,8+=,7/216,C=2#B6!>)\"?&D44/6+@))30A91BA&=@(%0&-E.1-=959!B,\",,#FA94,7.B+-)2@5H;6E**#EA&;\"3F920A>1:<:8F-1.<A4.-/HE$02%1>;0HA6.*@(=37<:.E93+;52+8"
-	},
-	{
-			"r2",
-			"AAGCAGTAAGGGGCATACCCCGCGCGAAGCGAAGGACAACCTGAAGTCCACGCAGTTGCTGAGTGTGATCGATGCCATCAGCGAAGGGCCGATTGAAGGTCCGGTGGATGGCTTAAAAAGCGTGCTGCTGAACAGTACGCCGGTGCTGGACANTGAGGGNAATACCAACATATCCGGTGTCACGGTGGTGTTCCGGGCTGGTGAGCAGGAGCAGACTCCGCCGGAGGGATTTGAATCCTCCGGCTCCGAGACGGTGCTGGGTACGGAAGTGAAATATGACACGCCGATCACCCGCACCATTACGTCTGCAAAC",
-			"60./\".G76C,0220H8@4B)\"+&F2,0>$+%%%.&@><*%.=!!%G&$GB\"+!*G)5<!;&!C?<(:7<<2'5?,<(?0.3)<?5%B@+6>G.B&B4D0D>D93B?H9\"47!G$G50)AF(/A:005$*@,3>0F0'!3H<<B'/1!;+*3?&D3H%--HG*7,+#CH;.6)F!$4$FH;,?H:/-86!+7>93E,C1@,/.)H+8@C*(7/:4)*E2823.+>&EE/#A2A:*3>7(52@#,9-=@$$4)H,/F\"9$!$EG%=0.@B>1@H7*+;682>@$D@/@(*6F2;66#AFBE4-45E*04-6=75"
-	},
+#include "rawseqs.h"
 };
 
 /**
@@ -153,15 +144,27 @@ bool MemoryMockPatternSourcePerThread::nextReadPair(
 	bool& paired,
 	bool fixName)
 {
-	//PatternSourcePerThread::nextReadPair(success, done, paired, fixName);
+	// automate conversion from FASTQ to raw_list
 	ASSERT_ONLY(TReadId lastRdId = rdid_);
-	buf1_.reset();
-	buf2_.reset();
-	//patsrc_.nextReadPair(buf1_, buf2_, rdid_, endid_, success, done, paired, fixName);
-	if (this->i > 999) return false;
+	if (this->i > 1) {
+		if (this->loop_iter > 4) {
+			done = true;
+			return false;
+		}
+		else {
+			this->i = 0;
+			this->loop_iter++;
+		}
+	}
 	success = true;
-	buf1_.name = raw_list[this->i].id;
+	paired = false;
+	buf1_.init(
+			raw_list[this->i].id.c_str(),
+			raw_list[this->i].seq.c_str(),
+			raw_list[this->i].qual.c_str()
+	);
 	this->i++;
+	this->rdid_ = this->endid_ = this->i;
 	assert(!success || rdid_ != lastRdId);
 	return success;
 }
