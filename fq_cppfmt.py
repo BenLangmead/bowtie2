@@ -53,7 +53,7 @@ def parse_args():
     parser.add_option("-o", "--output-file",
                       action="store", type="string", dest="out_file", default='raw_fastq.h',
                       help="(Default: raw_fastq.h). C like file where rezults are written. ")
-    parser.add_option("-l", "--log-file",
+    parser.add_option("-c", "--count",
                       action="store", type="int", dest="seqs_count", default=100,
                       help="(Default: 100). Number of sequences to pull.")
 
@@ -70,12 +70,15 @@ def parse_args():
 if __name__ == "__main__":
     options = parse_args()
 
-    num_seqs = 0
+    num_seqs = 1
     with open(options.fastq_file, "r") as fin:
         fq = FqReader(fin)
         for rec in fq:
+            if num_seqs > options.seqs_count:
+                break
+            num_seqs += 1
             print "  {"
             print "   \"" + rec.seq_id + "\","
             print "   \"" + rec.seq + "\","
-            print "   \"" + rec.qual.replace('"','\\"') + "\""
+            print "   \"" + rec.qual.replace('"', '\\"') + "\""
             print "  },"
