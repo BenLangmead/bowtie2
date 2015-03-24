@@ -105,7 +105,7 @@ public:
 	/**
 	 * Write already-committed lines starting from cur_.
 	 */
-	void flush(bool force = false, bool getLock = true);
+	void flush(bool force = false, bool getLock = true){return;};
 
 protected:
 
