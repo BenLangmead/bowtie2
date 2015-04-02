@@ -90,6 +90,10 @@ bool PatternSource::nextReadPair(
 	return success;
 }
 
+const rawSeq MemoryMockPatternSourcePerThread::raw_list[] = {
+#include "rawseqs.h"
+};
+
 /**
  * The main member function for dispensing patterns.
  */
@@ -134,6 +138,45 @@ bool WrappedPatternSourcePerThread::nextReadPair(
 	return success;
 }
 
+void MemoryMockPatternSourcePerThread::dump(){
+	// not needed it for general debuggin purpose
+	using std::cerr;
+	using std::endl;
+	cerr << raw_list[this->i].id.c_str() << endl;
+}
+
+bool MemoryMockPatternSourcePerThread::nextReadPair(
+	bool& success,
+	bool& done,
+	bool& paired,
+	bool fixName)
+{
+	// automate conversion from FASTQ to raw_list
+	ASSERT_ONLY(TReadId lastRdId = rdid_);
+	if (this->i > 1999) {
+		if (this->loop_iter > 99) {
+			done = true;
+			return false;
+		}
+		else {
+			this->i = 0;
+			this->loop_iter++;
+		}
+	}
+	//ASSERT_ONLY(dump());
+	success = true;
+	paired = false;
+	buf1_.init(
+			raw_list[this->i].id.c_str(),
+			raw_list[this->i].seq.c_str(),
+			raw_list[this->i].qual.c_str()
+	);
+	this->i++;
+	this->rdid_ = this->endid_ = this->i;
+	assert(!success || rdid_ != lastRdId);
+	return success;
+}
+
 /**
  * The main member function for dispensing pairs of reads or
  * singleton reads.  Returns true iff ra and rb contain a new
@@ -161,10 +204,10 @@ bool PairedSoloPatternSource::nextReadPair(
 			assert(done);
 			// If patFw is empty, that's our signal that the
 			// input dried up
-			lock();
+		//	lock();
 			if(cur + 1 > cur_) cur_++;
 			cur = cur_;
-			unlock();
+		//	unlock();
 			continue; // on to next pair of PatternSources
 		}
 		assert(success);
@@ -209,9 +252,9 @@ bool PairedDualPatternSource::nextReadPair(
 	// 'cur' indexes the current pair of PatternSources
 	uint32_t cur;
 	{
-		lock();
+	//	lock();
 		cur = cur_;
-		unlock();
+	//	unlock();
 	}
 	success = false;
 	done = true;
@@ -224,10 +267,10 @@ bool PairedDualPatternSource::nextReadPair(
 			} while(!success && !done);
 			if(!success) {
 				assert(done);
-				lock();
+		//		lock();
 				if(cur + 1 > cur_) cur_++;
 				cur = cur_; // Move on to next PatternSource
-				unlock();
+		//		unlock();
 				continue; // on to next pair of PatternSources
 			}
 			ra.rdid = rdid;
@@ -243,7 +286,7 @@ bool PairedDualPatternSource::nextReadPair(
 			bool success_b = false, done_b = false;
 			// Lock to ensure that this thread gets parallel reads
 			// in the two mate files
-			lock();
+	//		lock();
 			do {
 				(*srca_)[cur]->nextRead(ra, rdid_a, endid_a, success_a, done_a);
 			} while(!success_a && !done_a);
@@ -257,7 +300,7 @@ bool PairedDualPatternSource::nextReadPair(
 				assert(done_a && done_b);
 				if(cur + 1 > cur_) cur_++;
 				cur = cur_; // Move on to next PatternSource
-				unlock();
+	//			unlock();
 				continue; // on to next pair of PatternSources
 			} else if(!success_b) {
 				cerr << "Error, fewer reads in file specified with -2 than in file specified with -1" << endl;
@@ -266,7 +309,7 @@ bool PairedDualPatternSource::nextReadPair(
 			assert_eq(rdid_a, rdid_b);
 			//assert_eq(endid_a+1, endid_b);
 			assert_eq(success_a, success_b);
-			unlock();
+	//		unlock();
 			if(fixName) {
 				ra.fixMateName(1);
 				rb.fixMateName(2);
@@ -950,8 +993,9 @@ bool FastqPatternSource::read(
 	// Chew up the optional name on the '+' line
 	ASSERT_ONLY(int pk =) peekToEndOfLine(fb_);
 	if(charsRead == 0) {
-		assert_eq('@', pk);
+		assert(pk == '@' || pk == -1);
 		fb_.get();
+		r.readOrigBuf.install(fb_.lastN(), fb_.lastNLen());
 		fb_.resetLastN();
 		rdid = endid = readCnt_;
 		readCnt_++;
@@ -1025,7 +1069,13 @@ bool FastqPatternSource::read(
 			}
 			if (c != '\r' && c != '\n') {
 				if (*qualsReadCur >= trim5) {
-					c = charToPhred33(c, solQuals_, phred64Quals_);
+					try {
+						c = charToPhred33(c, solQuals_, phred64Quals_);
+					}
+					catch (...) {
+						cout << "Error encountered at sequence id: " << r.name << endl;
+						throw;
+					}
 					assert_geq(c, 33);
 					qbuf->append(c);
 				}

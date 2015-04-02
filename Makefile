@@ -45,6 +45,11 @@ endif
 MACOS = 0
 ifneq (,$(findstring Darwin,$(shell uname)))
 	MACOS = 1
+	ifneq (,$(findstring 13,$(shell uname -r)))
+		CPP = clang++
+		CC = clang
+		EXTRA_FLAGS += -stdlib=libstdc++
+	endif
 endif
 
 POPCNT_CAPABILITY ?= 1
@@ -191,6 +196,7 @@ GENERAL_LIST = $(wildcard scripts/*.sh) \
 
 ifeq (1,$(WINDOWS))
 	BOWTIE2_BIN_LIST := $(BOWTIE2_BIN_LIST) bowtie2.bat bowtie2-build.bat bowtie2-inspect.bat 
+	EXTRA_FLAGS += -static-libgcc -static-libstdc++
 endif
 
 # This is helpful on Windows under MinGW/MSYS, where Make might go for

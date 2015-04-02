@@ -381,8 +381,8 @@ details regarding these fields.
 A pair that aligns with the expected relative mate orientation and with the
 expected range of distances between mates is said to align "concordantly".  If
 both mates have unique alignments, but the alignments do not match paired-end
-expectations (i.e. the mates aren't in the expcted relative orientation, or
-aren't within the expected disatance range, or both), the pair is said to align
+expectations (i.e. the mates aren't in the expected relative orientation, or
+aren't within the expected distance range, or both), the pair is said to align
 "discordantly".  Discordant alignments may be of particular interest, for
 instance, when seeking [structural variants].
 
@@ -519,7 +519,7 @@ because it exceeded a limit placed on search effort (see `-D` and `-R`) or
 because it already knows all it needs to know to report an alignment.
 Information from the best alignments are used to estimate mapping quality (the
 `MAPQ` [SAM] field) and to set SAM optional fields, such as `AS:i` and
-`XS:i`.  Bowtie 2 does not gaurantee that the alignment reported is the best
+`XS:i`.  Bowtie 2 does not garantee that the alignment reported is the best
 possible in terms of alignment score.
 
 See also: `-D`, which puts an upper limit on the number of dynamic programming
@@ -545,7 +545,7 @@ beyond the first has the SAM 'secondary' bit (which equals 256) set in its FLAGS
 field.  See the [SAM specification] for details.
 
 Bowtie 2 does not "find" alignments in any specific order, so for reads that
-have more than N distinct, valid alignments, Bowtie 2 does not gaurantee that
+have more than N distinct, valid alignments, Bowtie 2 does not garantee that
 the N alignments reported are the best possible in terms of alignment score.
 Still, this mode can be effective and fast in situations where the user cares
 more about whether a read aligns (or aligns a certain number of times) than
@@ -571,7 +571,7 @@ very large genomes, this mode is very slow.
 ### Randomness in Bowtie 2
 
 Bowtie 2's search for alignments for a given read is "randomized."  That is,
-when Bowtie 2 encouters a set of equally-good choices, it uses a pseudo-random
+when Bowtie 2 encounters a set of equally-good choices, it uses a pseudo-random
 number to choose.  For example, if Bowtie 2 discovers a set of 3 equally-good
 alignments and wants to decide which to report, it picks a pseudo-random integer
 0, 1 or 2 and reports the corresponding alignment.  Abitrary choices can crop up
@@ -588,7 +588,7 @@ most cases.  Most users expect Bowtie to produce the same output when run twice
 on the same input.
 
 However, when the user specifies the `--non-deterministic` option, Bowtie 2
-will use the current time to re-intiailize the pseud-random number generator.
+will use the current time to re-initialize the pseudo-random number generator.
 When this is specified, Bowtie 2 might report different alignments for identical
 reads.  This is counter-intuitive for some users, but might be more appropriate
 in situations where the input consists of many identical reads.
@@ -1134,7 +1134,7 @@ descending order by alignment score. The alignment score for a paired-end
 alignment equals the sum of the alignment scores of the individual mates. Each
 reported read or pair alignment beyond the first has the SAM 'secondary' bit
 (which equals 256) set in its FLAGS field.  For reads that have more than
-`<int>` distinct, valid alignments, `bowtie2` does not gaurantee that the
+`<int>` distinct, valid alignments, `bowtie2` does not guarantee that the
 `<int>` alignments reported are the best possible in terms of alignment score. 
 `-k` is mutually exclusive with `-a`.
 
@@ -1259,24 +1259,27 @@ This is printed to the "standard error" ("stderr") filehandle.  Default: off.
     --un <path>
     --un-gz <path>
     --un-bz2 <path>
+    --un-lz4 <path>
 
 Write unpaired reads that fail to align to file at `<path>`.  These reads
 correspond to the SAM records with the FLAGS `0x4` bit set and neither the
 `0x40` nor `0x80` bits set.  If `--un-gz` is specified, output will be gzip
-compressed. If `--un-bz2` is specified, output will be bzip2 compressed.  Reads
-written in this way will appear exactly as they did in the input file, without
-any modification (same sequence, same name, same quality string, same quality
-encoding).  Reads will not necessarily appear in the same order as they did in
-the input.
+compressed. If `--un-bz2` or `--un-lz4` is specified, output will be bzip2 or 
+lz4 compressed. Reads written in this way will appear exactly as they did in 
+the input file, without any modification (same sequence, same name, same quality 
+string, same quality encoding). Reads will not necessarily appear in the same 
+order as they did in the input.
 
     --al <path>
     --al-gz <path>
     --al-bz2 <path>
+    --al-lz4 <path>
 
 Write unpaired reads that align at least once to file at `<path>`.  These reads
 correspond to the SAM records with the FLAGS `0x4`, `0x40`, and `0x80` bits
 unset.  If `--al-gz` is specified, output will be gzip compressed. If `--al-bz2`
-is specified, output will be bzip2 compressed.  Reads written in this way will
+is specified, output will be bzip2 compressed. Similarly if `--al-lz4` is specified, 
+output will be lz4 compressed.  Reads written in this way will
 appear exactly as they did in the input file, without any modification (same
 sequence, same name, same quality string, same quality encoding).  Reads will
 not necessarily appear in the same order as they did in the input.
@@ -1284,6 +1287,7 @@ not necessarily appear in the same order as they did in the input.
     --un-conc <path>
     --un-conc-gz <path>
     --un-conc-bz2 <path>
+    --un-conc-lz4 <path>
 
 Write paired-end reads that fail to align concordantly to file(s) at `<path>`.
 These reads correspond to the SAM records with the FLAGS `0x4` bit set and
@@ -1300,6 +1304,7 @@ the same order as they did in the inputs.
     --al-conc <path>
     --al-conc-gz <path>
     --al-conc-bz2 <path>
+    --al-conc-lz4 <path>
 
 Write paired-end reads that align concordantly at least once to file(s) at
 `<path>`. These reads correspond to the SAM records with the FLAGS `0x4` bit
