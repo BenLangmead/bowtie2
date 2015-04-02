@@ -138,6 +138,13 @@ bool WrappedPatternSourcePerThread::nextReadPair(
 	return success;
 }
 
+void MemoryMockPatternSourcePerThread::dump(){
+	// not needed it for general debuggin purpose
+	using std::cerr;
+	using std::endl;
+	cerr << raw_list[this->i].id.c_str() << endl;
+}
+
 bool MemoryMockPatternSourcePerThread::nextReadPair(
 	bool& success,
 	bool& done,
@@ -146,8 +153,8 @@ bool MemoryMockPatternSourcePerThread::nextReadPair(
 {
 	// automate conversion from FASTQ to raw_list
 	ASSERT_ONLY(TReadId lastRdId = rdid_);
-	if (this->i > 1) {
-		if (this->loop_iter > 100) {
+	if (this->i > 1999) {
+		if (this->loop_iter > 99) {
 			done = true;
 			return false;
 		}
@@ -156,6 +163,7 @@ bool MemoryMockPatternSourcePerThread::nextReadPair(
 			this->loop_iter++;
 		}
 	}
+	//ASSERT_ONLY(dump());
 	success = true;
 	paired = false;
 	buf1_.init(
