@@ -3,7 +3,7 @@ Bowtie 2 NEWS
 
 Bowtie 2 is now available for download from the project website,
 http://bowtie-bio.sf.net/bowtie2.  2.0.0-beta1 is the first version released to
-the public and 2.2.1 is the latest version.  Bowtie 2 is licensed under
+the public and 2.2.5 is the latest version.  Bowtie 2 is licensed under
 the GPLv3 license.  See `LICENSE' file for details.
 
 Reporting Issues
@@ -15,6 +15,26 @@ Please report any issues using the Sourceforge bug tracker:
 
 Version Release History
 =======================
+
+Version 2.2.5 - Mar 9, 2015
+   * Fixed some situations where incorrectly we could detect a Mavericks platform.
+   * Fixed some manual issues including some HTML bad formating.
+   * Make sure the wrapper correctly identifies the platform under OSX.
+   * Fixed --rg/--rg-id options where included spaces were incorrectly treated.
+   * Various documentation fixes added by contributors.
+   * Fixed the incorrect behavior where parameter file names may contain spaces.
+   * Fixed bugs related with the presence of spaces in the path where bowtie binaries are stored.
+   * Improved exception handling for missformated quality values. 
+   * Improved redundancy checks by correctly account for soft clipping. 
+
+Version 2.2.4 - Oct 22, 2014
+   * Fixed a Mavericks OSX specific bug caused by some linkage ambiguities.
+   * Added lz4 compression option for the wrapper.
+   * Fixed the vanishing --no-unal help line.
+   * Added the static linkage for MinGW builds.
+   * Added extra seed-hit output.
+   * Fixed missing 0-length read in fastq --passthrough output.
+   * Fixed an issue that would cause different output in -a mode depending on random seed.
 
 Version 2.2.3 - May 30, 2014
    * Fixed a bug that made loading an index into memory crash sometimes.

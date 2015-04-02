@@ -1,5 +1,5 @@
 <h1>Table of Contents</h1>
-<p>&nbsp;Version <b>2.2.2</b></p>
+<p>&nbsp;Version <b>2.2.5</b></p>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
@@ -63,20 +63,7 @@
 <li><a href="#setting-function-options">Setting function options</a></li>
 <li><a href="#usage">Usage</a></li>
 <li><a href="#main-arguments">Main arguments</a></li>
-<li><a href="#options">Options</a><ul>
-<li><a href="#input-options">Input options</a></li>
-<li><a href="#preset-options-in---end-to-end-mode">Preset options in <code>--end-to-end</code> mode</a></li>
-<li><a href="#preset-options-in---local-mode">Preset options in <code>--local</code> mode</a></li>
-<li><a href="#alignment-options">Alignment options</a></li>
-<li><a href="#scoring-options">Scoring options</a></li>
-<li><a href="#reporting-options">Reporting options</a></li>
-<li><a href="#effort-options">Effort options</a></li>
-<li><a href="#paired-end-options">Paired-end options</a></li>
-<li><a href="#output-options">Output options</a></li>
-<li><a href="#sam-options">SAM options</a></li>
-<li><a href="#performance-options">Performance options</a></li>
-<li><a href="#other-options">Other options</a></li>
-</ul></li>
+<li><a href="#options">Options</a></li>
 </ul></li>
 <li><a href="#sam-output">SAM output</a></li>
 </ul></li>
@@ -107,12 +94,12 @@
  ! of this text document, or see the HTML manual online.
  ! -->
 
-<h1 id="introduction"><a href="#TOC">Introduction</a></h1>
-<h2 id="what-is-bowtie-2"><a href="#TOC">What is Bowtie 2?</a></h2>
+<h1 id="introduction">Introduction</h1>
+<h2 id="what-is-bowtie-2">What is Bowtie 2?</h2>
 <p><a href="http://bowtie-bio.sf.net/bowtie2">Bowtie 2</a> is an ultrafast and memory-efficient tool for aligning sequencing reads to long reference sequences. It is particularly good at aligning reads of about 50 up to 100s or 1,000s of characters to relatively long (e.g. mammalian) genomes. Bowtie 2 indexes the genome with an <a href="http://portal.acm.org/citation.cfm?id=796543">FM Index</a> (based on the <a href="http://en.wikipedia.org/wiki/Burrows-Wheeler_transform">Burrows-Wheeler Transform</a> or <a href="http://en.wikipedia.org/wiki/Burrows-Wheeler_transform">BWT</a>) to keep its memory footprint small: for the human genome, its memory footprint is typically around 3.2 gigabytes of RAM. Bowtie 2 supports gapped, local, and paired-end alignment modes. Multiple processors can be used simultaneously to achieve greater alignment speed. Bowtie 2 outputs alignments in <a href="http://samtools.sourceforge.net/SAM1.pdf">SAM</a> format, enabling interoperation with a large number of other tools (e.g. <a href="http://samtools.sourceforge.net/">SAMtools</a>, <a href="http://www.broadinstitute.org/gsa/wiki/index.php/The_Genome_Analysis_Toolkit">GATK</a>) that use SAM. Bowtie 2 is distributed under the <a href="http://www.gnu.org/licenses/gpl-3.0.html">GPLv3 license</a>, and it runs on the command line under Windows, Mac OS X and Linux.</p>
 <p><a href="http://bowtie-bio.sf.net/bowtie2">Bowtie 2</a> is often the first step in pipelines for comparative genomics, including for variation calling, ChIP-seq, RNA-seq, BS-seq. <a href="http://bowtie-bio.sf.net/bowtie2">Bowtie 2</a> and <a href="http://bowtie-bio.sf.net">Bowtie</a> (also called &quot;<a href="http://bowtie-bio.sf.net">Bowtie 1</a>&quot; here) are also tightly integrated into some tools, including <a href="http://tophat.cbcb.umd.edu/">TopHat</a>: a fast splice junction mapper for RNA-seq reads, <a href="http://cufflinks.cbcb.umd.edu/">Cufflinks</a>: a tool for transcriptome assembly and isoform quantitiation from RNA-seq reads, <a href="http://bowtie-bio.sf.net/crossbow">Crossbow</a>: a cloud-enabled software tool for analyzing reseuqncing data, and <a href="http://bowtie-bio.sf.net/myrna">Myrna</a>: a cloud-enabled software tool for aligning RNA-seq reads and measuring differential gene expression.</p>
 <p>If you use <a href="http://bowtie-bio.sf.net/bowtie2">Bowtie 2</a> for your published research, please cite the <a href="http://genomebiology.com/2009/10/3/R25">Bowtie paper</a>. Thank you!</p>
-<h2 id="how-is-bowtie-2-different-from-bowtie-1"><a href="#TOC">How is Bowtie 2 different from Bowtie 1?</a></h2>
+<h2 id="how-is-bowtie-2-different-from-bowtie-1">How is Bowtie 2 different from Bowtie 1?</h2>
 <p>Bowtie 1 was released in 2009 and was geared toward aligning the relatively short sequencing reads (up to 25-50 nucleotides) prevalent at the time. Since then, technology has improved both sequencing throughput (more nucleotides produced per sequencer per day) and read length (more nucleotides per read).</p>
 <p>The chief differences between Bowtie 1 and Bowtie 2 are:</p>
 <ol style="list-style-type: decimal">
@@ -127,22 +114,22 @@
 <li><p>Bowtie 2 does not align colorspace reads.</p></li>
 </ol>
 <p>Bowtie 2 is not a &quot;drop-in&quot; replacement for Bowtie 1. Bowtie 2's command-line arguments and genome index format are both different from Bowtie 1's.</p>
-<h2 id="what-isnt-bowtie-2"><a href="#TOC">What isn't Bowtie 2?</a></h2>
+<h2 id="what-isnt-bowtie-2">What isn't Bowtie 2?</h2>
 <p>Bowtie 1 and Bowtie 2 are not general-purpose alignment tools like <a href="http://mummer.sourceforge.net/">MUMmer</a>, <a href="http://blast.ncbi.nlm.nih.gov/Blast.cgi">BLAST</a> or <a href="http://www.vmatch.de/">Vmatch</a>. Bowtie 2 works best when aligning to large genomes, though it supports arbitrarily small reference sequences (e.g. amplicons). It handles very long reads (i.e. upwards of 10s or 100s of kilobases), but it is optimized for the read lengths and error modes yielded by recent sequencers, such as the Illumina HiSeq 2000, Roche 454, and Ion Torrent instruments.</p>
 <p>If your goal is to align two very large sequences (e.g. two genomes), consider using <a href="http://mummer.sourceforge.net/">MUMmer</a>. If your goal is very sensitive alignment to a relatively short reference sequence (e.g. a bacterial genome), this can be done with Bowtie 2 but you may want to consider using tools like <a href="http://mummer.sourceforge.net/manual/#nucmer">NUCmer</a>, <a href="http://genome.ucsc.edu/cgi-bin/hgBlat?command=start">BLAT</a>, or <a href="http://blast.ncbi.nlm.nih.gov/Blast.cgi">BLAST</a>. These tools can be extremely slow when the reference genome is long, but are often adequate when the reference is short.</p>
 <p>Bowtie 2 does not support alignment of colorspace reads. This might be supported in future versions.</p>
-<h2 id="what-does-it-mean-that-some-older-bowtie-2-versions-are-beta"><a href="#TOC">What does it mean that some older Bowtie 2 versions are &quot;beta&quot;?</a></h2>
+<h2 id="what-does-it-mean-that-some-older-bowtie-2-versions-are-beta">What does it mean that some older Bowtie 2 versions are &quot;beta&quot;?</h2>
 <p>We said those Bowtie 2 versions were in &quot;beta&quot; to convey that it was not as polished as a tool that had been around for a while, and was still in flux. Since version 2.0.1, we declared Bowtie 2 was no longer &quot;beta&quot;.</p>
-<h1 id="obtaining-bowtie-2"><a href="#TOC">Obtaining Bowtie 2</a></h1>
+<h1 id="obtaining-bowtie-2">Obtaining Bowtie 2</h1>
 <p>Download Bowtie 2 sources and binaries from the <a href="https://sourceforge.net/projects/bowtie-bio/files/bowtie2/">Download</a> section of the Sourceforge site. Binaries are available for the Intel <code>x86_64</code> architecture running Linux, Mac OS X, and Windows. If you plan to compile Bowtie 2 yourself, make sure to get the source package, i.e., the filename that ends in &quot;-source.zip&quot;.</p>
-<h2 id="building-from-source"><a href="#TOC">Building from source</a></h2>
+<h2 id="building-from-source">Building from source</h2>
 <p>Building Bowtie 2 from source requires a GNU-like environment with GCC, GNU Make and other basics. It should be possible to build Bowtie 2 on most vanilla Linux installations or on a Mac installation with <a href="http://developer.apple.com/xcode/">Xcode</a> installed. Bowtie 2 can also be built on Windows using a 64-bit MinGW distribution and MSYS. In order to simplify the MinGW setup it might be worth investigating popular MinGW personal builds since these are coming already prepared with most of the toolchains needed.</p>
 <p>First, download the source package from the <a href="https://sourceforge.net/projects/bowtie-bio/files/bowtie2/">sourceforge site</a>. Make sure you're getting the source package; the file downloaded should end in <code>-source.zip</code>. Unzip the file, change to the unzipped directory, and build the Bowtie 2 tools by running GNU <code>make</code> (usually with the command <code>make</code>, but sometimes with <code>gmake</code>) with no arguments. If building with MinGW, run <code>make</code> from the MSYS environment.</p>
 <p>Bowtie 2 is using the multithreading software model in order to speed up execution times on SMP architectures where this is possible. On POSIX platforms (like linux, Mac OS, etc) it needs the pthread library. Although it is possible to use pthread library on non-POSIX platform like Windows, due to performance reasons bowtie 2 will try to use Windows native multithreading if possible.</p>
-<h2 id="adding-to-path"><a href="#TOC">Adding to PATH</a></h2>
+<h2 id="adding-to-path">Adding to PATH</h2>
 <p>By adding your new Bowtie 2 directory to your <a href="http://en.wikipedia.org/wiki/PATH_(variable)">PATH environment variable</a>, you ensure that whenever you run <code>bowtie2</code>, <code>bowtie2-build</code> or <code>bowtie2-inspect</code> from the command line, you will get the version you just installed without having to specify the entire path. This is recommended for most users. To do this, follow your operating system's instructions for adding the directory to your <a href="http://en.wikipedia.org/wiki/PATH_(variable)">PATH</a>.</p>
 <p>If you would like to install Bowtie 2 by copying the Bowtie 2 executable files to an existing directory in your <a href="http://en.wikipedia.org/wiki/PATH_(variable)">PATH</a>, make sure that you copy all the executables, including <code>bowtie2</code>, <code>bowtie2-align-s</code>, <code>bowtie2-align-l</code>, <code>bowtie2-build</code>, <code>bowtie2-build-s</code>, <code>bowtie2-build-l</code>, <code>bowtie2-inspect</code>, <code>bowtie2-inspect-s</code> and <code>bowtie2-inspect-l</code>.</p>
-<h1 id="the-bowtie2-aligner"><a href="#TOC">The <code>bowtie2</code> aligner</a></h1>
+<h1 id="the-bowtie2-aligner">The <code>bowtie2</code> aligner</h1>
 <p><code>bowtie2</code> takes a Bowtie 2 index and a set of sequencing read files and outputs a set of alignments in SAM format.</p>
 <p>&quot;Alignment&quot; is the process by which we discover how and where the read sequences are similar to the reference sequence. An &quot;alignment&quot; is a result from this process, specifically: an alignment is a way of &quot;lining up&quot; some or all of the characters in the read with some characters from the reference in a way that reveals how they're similar. For example:</p>
 <pre><code>  Read:      GACTGGGCGATCTCGACTTCG
@@ -150,10 +137,10 @@
   Reference: GACTG--CGATCTCGACATCG</code></pre>
 <p>Where dash symbols represent gaps and vertical bars show where aligned characters match.</p>
 <p>We use alignment to make an educated guess as to where a read originated with respect to the reference genome. It's not always possible to determine this with certainty. For instance, if the reference genome contains several long stretches of As (<code>AAAAAAAAA</code> etc) and the read sequence is a short stretch of As (<code>AAAAAAA</code>), we cannot know for certain exactly where in the sea of <code>A</code>s the read originated.</p>
-<h2 id="end-to-end-alignment-versus-local-alignment"><a href="#TOC">End-to-end alignment versus local alignment</a></h2>
+<h2 id="end-to-end-alignment-versus-local-alignment">End-to-end alignment versus local alignment</h2>
 <p>By default, Bowtie 2 performs end-to-end read alignment. That is, it searches for alignments involving all of the read characters. This is also called an &quot;untrimmed&quot; or &quot;unclipped&quot; alignment.</p>
 <p>When the --local option is specified, Bowtie 2 performs local read alignment. In this mode, Bowtie 2 might &quot;trim&quot; or &quot;clip&quot; some read characters from one or both ends of the alignment if doing so maximizes the alignment score.</p>
-<h3 id="end-to-end-alignment-example"><a href="#TOC">End-to-end alignment example</a></h3>
+<h3 id="end-to-end-alignment-example">End-to-end alignment example</h3>
 <p>The following is an &quot;end-to-end&quot; alignment because it involves all the characters in the read. Such an alignment can be produced by Bowtie 2 in either end-to-end mode or in local mode.</p>
 <pre><code>Read:      GACTGGGCGATCTCGACTTCG
 Reference: GACTGCGATCTCGACATCG
@@ -162,7 +149,7 @@ Alignment:
   Read:      GACTGGGCGATCTCGACTTCG
              |||||  |||||||||| |||
   Reference: GACTG--CGATCTCGACATCG</code></pre>
-<h3 id="local-alignment-example"><a href="#TOC">Local alignment example</a></h3>
+<h3 id="local-alignment-example">Local alignment example</h3>
 <p>The following is a &quot;local&quot; alignment because some of the characters at the ends of the read do not participate. In this case, 4 characters are omitted (or &quot;soft trimmed&quot; or &quot;soft clipped&quot;) from the beginning and 3 characters are omitted from the end. This sort of alignment can be produced by Bowtie 2 only in local mode.</p>
 <pre><code>Read:      ACGGTTGCGTTAATCCGCCACG
 Reference: TAACTTGCGTTAAATCCGCCTGG
@@ -171,42 +158,42 @@ Alignment:
   Read:      ACGGTTGCGTTAA-TCCGCCACG
                  ||||||||| ||||||
   Reference: TAACTTGCGTTAAATCCGCCTGG</code></pre>
-<h2 id="scores-higher-more-similar"><a href="#TOC">Scores: higher = more similar</a></h2>
+<h2 id="scores-higher-more-similar">Scores: higher = more similar</h2>
 <p>An alignment score quantifies how similar the read sequence is to the reference sequence aligned to. The higher the score, the more similar they are. A score is calculated by subtracting penalties for each difference (mismatch, gap, etc) and, in local alignment mode, adding bonuses for each match.</p>
 <p>The scores can be configured with the <a href="#bowtie2-options-ma"><code>--ma</code></a> (match bonus), <a href="#bowtie2-options-mp"><code>--mp</code></a> (mismatch penalty), <a href="#bowtie2-options-np"><code>--np</code></a> (penalty for having an N in either the read or the reference), <a href="#bowtie2-options-rdg"><code>--rdg</code></a> (affine read gap penalty) and <a href="#bowtie2-options-rfg"><code>--rfg</code></a> (affine reference gap penalty) options.</p>
-<h3 id="end-to-end-alignment-score-example"><a href="#TOC">End-to-end alignment score example</a></h3>
+<h3 id="end-to-end-alignment-score-example">End-to-end alignment score example</h3>
 <p>A mismatched base at a high-quality position in the read receives a penalty of -6 by default. A length-2 read gap receives a penalty of -11 by default (-5 for the gap open, -3 for the first extension, -3 for the second extension). Thus, in end-to-end alignment mode, if the read is 50 bp long and it matches the reference exactly except for one mismatch at a high-quality position and one length-2 read gap, then the overall score is -(6 + 11) = -17.</p>
 <p>The best possible alignment score in end-to-end mode is 0, which happens when there are no differences between the read and the reference.</p>
-<h3 id="local-alignment-score-example"><a href="#TOC">Local alignment score example</a></h3>
+<h3 id="local-alignment-score-example">Local alignment score example</h3>
 <p>A mismatched base at a high-quality position in the read receives a penalty of -6 by default. A length-2 read gap receives a penalty of -11 by default (-5 for the gap open, -3 for the first extension, -3 for the second extension). A base that matches receives a bonus of +2 be default. Thus, in local alignment mode, if the read is 50 bp long and it matches the reference exactly except for one mismatch at a high-quality position and one length-2 read gap, then the overall score equals the total bonus, 2 * 49, minus the total penalty, 6 + 11, = 81.</p>
 <p>The best possible score in local mode equals the match bonus times the length of the read. This happens when there are no differences between the read and the reference.</p>
-<h3 id="valid-alignments-meet-or-exceed-the-minimum-score-threshold"><a href="#TOC">Valid alignments meet or exceed the minimum score threshold</a></h3>
+<h3 id="valid-alignments-meet-or-exceed-the-minimum-score-threshold">Valid alignments meet or exceed the minimum score threshold</h3>
 <p>For an alignment to be considered &quot;valid&quot; (i.e. &quot;good enough&quot;) by Bowtie 2, it must have an alignment score no less than the minimum score threshold. The threshold is configurable and is expressed as a function of the read length. In end-to-end alignment mode, the default minimum score threhsold is <code>-0.6 + -0.6 * L</code>, where <code>L</code> is the read length. In local alignment mdoe, the default minimum score threshold is <code>20 + 8.0 * ln(L)</code>, where L is the read length. This can be configured with the <a href="#bowtie2-options-score-min"><code>--score-min</code></a> option. For details on how to set options like <code>--score-min</code> that correpond to functions, see the section on <a href="#setting-function-options">setting function options</a>.</p>
-<h2 id="mapping-quality-higher-more-unique"><a href="#TOC">Mapping quality: higher = more unique</a></h2>
+<h2 id="mapping-quality-higher-more-unique">Mapping quality: higher = more unique</h2>
 <p>The aligner cannot always assign a read to its point of origin with high confidence. For instance, a read that originated inside a repeat element might align equally well to many occurrences of the element throughout the genome, leaving the aligner with no basis for preferring one over the others.</p>
 <p>Aligners characterize their degree of confidence in the point of origin by reporting a mapping quality: a non-negative integer Q = -10 log10 p, where p is an estimate of the probability that the alignment does not correspond to the read's true point of origin. Mapping quality is sometimes abbreviated MAPQ, and is recorded in the <a href="http://samtools.sourceforge.net/SAM1.pdf">SAM</a> <code>MAPQ</code> field.</p>
 <p>Mapping quality is related to &quot;uniqueness.&quot; We say an alignment is unique if it has a much higher alignment score than all the other possible alignments. The bigger the gap between the best alignment's score and the second-best alignment's score, the more unique the best alignment, and the higher its mapping quality should be.</p>
 <p>Accurate mapping qualities are useful for downstream tools like variant callers. For instance, a variant caller might choose to ignore evidence from alignments with mapping quality less than, say, 10. A mapping quality of 10 or less indicates that there is at least a 1 in 10 chance that the read truly originated elsewhere.</p>
-<h2 id="aligning-pairs"><a href="#TOC">Aligning pairs</a></h2>
+<h2 id="aligning-pairs">Aligning pairs</h2>
 <p>A &quot;paired-end&quot; or &quot;mate-pair&quot; read consists of pair of mates, called mate 1 and mate 2. Pairs come with a prior expectation about (a) the relative orientation of the mates, and (b) the distance separating them on the original DNA molecule. Exactly what expectations hold for a given dataset depends on the lab procedures used to generate the data. For example, a common lab procedure for producing pairs is Illumina's Paired-end Sequencing Assay, which yields pairs with a relative orientation of FR (&quot;forward, reverse&quot;) meaning that if mate 1 came from the Watson strand, mate 2 very likely came from the Crick strand and vice versa. Also, this protocol yields pairs where the expected genomic distance from end to end is about 200-500 base pairs.</p>
 <p>For simplicity, this manual uses the term &quot;paired-end&quot; to refer to any pair of reads with some expected relative orientation and distance. Depending on the protocol, these might actually be referred to as &quot;paired-end&quot; or &quot;mate-paired.&quot; Also, we always refer to the individual sequences making up the pair as &quot;mates.&quot;</p>
-<h3 id="paired-inputs"><a href="#TOC">Paired inputs</a></h3>
+<h3 id="paired-inputs">Paired inputs</h3>
 <p>Pairs are often stored in a pair of files, one file containing the mate 1s and the other containing the mates 2s. The first mate in the file for mate 1 forms a pair with the first mate in the file for mate 2, the second with the second, and so on. When aligning pairs with Bowtie 2, specify the file with the mate 1s mates using the <a href="#bowtie2-options-1"><code>-1</code></a> argument and the file with the mate 2s using the <a href="#bowtie2-options-2"><code>-2</code></a> argument. This causes Bowtie 2 to take the paired nature of the reads into account when aligning them.</p>
-<h3 id="paired-sam-output"><a href="#TOC">Paired SAM output</a></h3>
+<h3 id="paired-sam-output">Paired SAM output</h3>
 <p>When Bowtie 2 prints a SAM alignment for a pair, it prints two records (i.e. two lines of output), one for each mate. The first record describes the alignment for mate 1 and the second record describes the alignment for mate 2. In both records, some of the fields of the SAM record describe various properties of the alignment; for instance, the 7th and 8th fields (<code>RNEXT</code> and <code>PNEXT</code> respectively) indicate the reference name and position where the other mate aligned, and the 9th field indicates the inferred length of the DNA fragment from which the two mates were sequenced. See the <a href="http://samtools.sourceforge.net/SAM1.pdf">SAM specification</a> for more details regarding these fields.</p>
-<h3 id="concordant-pairs-match-pair-expectations-discordant-pairs-dont"><a href="#TOC">Concordant pairs match pair expectations, discordant pairs don't</a></h3>
-<p>A pair that aligns with the expected relative mate orientation and with the expected range of distances between mates is said to align &quot;concordantly&quot;. If both mates have unique alignments, but the alignments do not match paired-end expectations (i.e. the mates aren't in the expcted relative orientation, or aren't within the expected disatance range, or both), the pair is said to align &quot;discordantly&quot;. Discordant alignments may be of particular interest, for instance, when seeking <a href="http://www.ncbi.nlm.nih.gov/dbvar/content/overview/">structural variants</a>.</p>
+<h3 id="concordant-pairs-match-pair-expectations-discordant-pairs-dont">Concordant pairs match pair expectations, discordant pairs don't</h3>
+<p>A pair that aligns with the expected relative mate orientation and with the expected range of distances between mates is said to align &quot;concordantly&quot;. If both mates have unique alignments, but the alignments do not match paired-end expectations (i.e. the mates aren't in the expected relative orientation, or aren't within the expected distance range, or both), the pair is said to align &quot;discordantly&quot;. Discordant alignments may be of particular interest, for instance, when seeking <a href="http://www.ncbi.nlm.nih.gov/dbvar/content/overview/">structural variants</a>.</p>
 <p>The expected relative orientation of the mates is set using the <a href="#bowtie2-options-fr"><code>--ff</code></a>, <a href="#bowtie2-options-fr"><code>--fr</code></a>, or <a href="#bowtie2-options-fr"><code>--rf</code></a> options. The expected range of inter-mates distances (as measured from the furthest extremes of the mates; also called &quot;outer distance&quot;) is set with the <a href="#bowtie2-options-I"><code>-I</code></a> and <a href="#bowtie2-options-X"><code>-X</code></a> options. Note that setting <a href="#bowtie2-options-I"><code>-I</code></a> and <a href="#bowtie2-options-X"><code>-X</code></a> far apart makes Bowtie 2 slower. See documentation for <a href="#bowtie2-options-I"><code>-I</code></a> and <a href="#bowtie2-options-X"><code>-X</code></a>.</p>
 <p>To declare that a pair aligns discordantly, Bowtie 2 requires that both mates align uniquely. This is a conservative threshold, but this is often desirable when seeking structural variants.</p>
 <p>By default, Bowtie 2 searches for both concordant and discordant alignments, though searching for discordant alignments can be disabled with the <a href="#bowtie2-options-no-discordant"><code>--no-discordant</code></a> option.</p>
-<h3 id="mixed-mode-paired-where-possible-unpaired-otherwise"><a href="#TOC">Mixed mode: paired where possible, unpaired otherwise</a></h3>
+<h3 id="mixed-mode-paired-where-possible-unpaired-otherwise">Mixed mode: paired where possible, unpaired otherwise</h3>
 <p>If Bowtie 2 cannot find a paired-end alignment for a pair, by default it will go on to look for unpaired alignments for the constituent mates. This is called &quot;mixed mode.&quot; To disable mixed mode, set the <a href="#bowtie2-options-no-mixed"><code>--no-mixed</code></a> option.</p>
 <p>Bowtie 2 runs a little faster in <code>--no-mixed</code> mode, but will only consider alignment status of pairs per se, not individual mates.</p>
-<h3 id="some-sam-flags-describe-paired-end-properties"><a href="#TOC">Some SAM FLAGS describe paired-end properties</a></h3>
+<h3 id="some-sam-flags-describe-paired-end-properties">Some SAM FLAGS describe paired-end properties</h3>
 <p>The SAM <code>FLAGS</code> field, the second field in a SAM record, has multiple bits that describe the paired-end nature of the read and alignment. The first (least significant) bit (1 in decimal, 0x1 in hexidecimal) is set if the read is part of a pair. The second bit (2 in decimal, 0x2 in hexidecimal) is set if the read is part of a pair that aligned in a paired-end fashion. The fourth bit (8 in decimal, 0x8 in hexidecimal) is set if the read is part of a pair and the other mate in the pair had at least one valid alignment. The sixth bit (32 in decimal, 0x20 in hexidecimal) is set if the read is part of a pair and the other mate in the pair aligned to the Crick strand (or, equivalently, if the reverse complement of the other mate aligned to the Watson strand). The seventh bit (64 in decimal, 0x40 in hexidecimal) is set if the read is mate 1 in a pair. The eighth bit (128 in decimal, 0x80 in hexidecimal) is set if the read is mate 2 in a pair. See the <a href="http://samtools.sourceforge.net/SAM1.pdf">SAM specification</a> for a more detailed description of the <code>FLAGS</code> field.</p>
-<h3 id="some-sam-optional-fields-describe-more-paired-end-properties"><a href="#TOC">Some SAM optional fields describe more paired-end properties</a></h3>
+<h3 id="some-sam-optional-fields-describe-more-paired-end-properties">Some SAM optional fields describe more paired-end properties</h3>
 <p>The last severeal fields of each SAM record usually contain SAM optional fields, which are simply tab-separated strings conveying additional information about the reads and alignments. A SAM optional field is formatted like this: &quot;XP:i:1&quot; where &quot;XP&quot; is the <code>TAG</code>, &quot;i&quot; is the <code>TYPE</code> (&quot;integer&quot; in this case), and &quot;1&quot; is the <code>VALUE</code>. See the <a href="http://samtools.sourceforge.net/SAM1.pdf">SAM specification</a> for details regarding SAM optional fields.</p>
-<h3 id="mates-can-overlap-contain-or-dovetail-each-other"><a href="#TOC">Mates can overlap, contain, or dovetail each other</a></h3>
+<h3 id="mates-can-overlap-contain-or-dovetail-each-other">Mates can overlap, contain, or dovetail each other</h3>
 <p>The fragment and read lengths might be such that alignments for the two mates from a pair overlap each other. Consider this example:</p>
 <p>(For these examples, assume we expect mate 1 to align to the left of mate 2.)</p>
 <pre><code>Mate 1:    GCAGATTATATGAGTCAGCTACGATATTGTT
@@ -226,40 +213,40 @@ Mate 2:            TATGAGTCAGCTACGATATTGTTTGGGGTGACACAT
 Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC</code></pre>
 <p>In some situations, it's desirable for the aligner to consider all these cases as &quot;concordant&quot; as long as other paired-end constraints are not violated. Bowtie 2's default behavior is to consider overlapping and containing as being consistent with concordant alignment. By default, dovetailing is considered inconsistent with concordant alignment.</p>
 <p>These defaults can be overridden. Setting <a href="#bowtie2-options-no-overlap"><code>--no-overlap</code></a> causes Bowtie 2 to consider overlapping mates as non-concordant. Setting <a href="#bowtie2-options-no-contain"><code>--no-contain</code></a> causes Bowtie 2 to consider cases where one mate alignment contains the other as non-concordant. Setting <a href="#bowtie2-options-dovetail"><code>--dovetail</code></a> causes Bowtie 2 to consider cases where the mate alignments dovetail as concordant.</p>
-<h2 id="reporting"><a href="#TOC">Reporting</a></h2>
+<h2 id="reporting">Reporting</h2>
 <p>The reporting mode governs how many alignments Bowtie 2 looks for, and how to report them. Bowtie 2 has three distinct reporting modes. The default reporting mode is similar to the default reporting mode of many other read alignment tools, including <a href="http://bio-bwa.sourceforge.net/">BWA</a>. It is also similar to Bowtie 1's <code>-M</code> alignment mode.</p>
 <p>In general, when we say that a read has an alignment, we mean that it has a <a href="#valid-alignments-meet-or-exceed-the-minimum-score-threshold">valid alignment</a>. When we say that a read has multiple alignments, we mean that it has multiple alignments that are valid and distinct from one another.</p>
-<h3 id="distinct-alignments-map-a-read-to-different-places"><a href="#TOC">Distinct alignments map a read to different places</a></h3>
+<h3 id="distinct-alignments-map-a-read-to-different-places">Distinct alignments map a read to different places</h3>
 <p>Two alignments for the same individual read are &quot;distinct&quot; if they map the same read to different places. Specifically, we say that two alignments are distinct if there are no alignment positions where a particular read offset is aligned opposite a particular reference offset in both alignments with the same orientation. E.g. if the first alignment is in the forward orientation and aligns the read character at read offset 10 to the reference character at chromosome 3, offset 3,445,245, and the second alignment is also in the forward orientation and also aligns the read character at read offset 10 to the reference character at chromosome 3, offset 3,445,245, they are not distinct alignments.</p>
 <p>Two alignments for the same pair are distinct if either the mate 1s in the two paired-end alignments are distinct or the mate 2s in the two alignments are distinct or both.</p>
-<h3 id="default-mode-search-for-multiple-alignments-report-the-best-one"><a href="#TOC">Default mode: search for multiple alignments, report the best one</a></h3>
-<p>By default, Bowtie 2 searches for distinct, valid alignments for each read. When it finds a valid alignment, it generally will continue to look for alignments that are nearly as good or better. It will eventually stop looking, either because it exceeded a limit placed on search effort (see <a href="#bowtie2-options-D"><code>-D</code></a> and <a href="#bowtie2-options-R"><code>-R</code></a>) or because it already knows all it needs to know to report an alignment. Information from the best alignments are used to estimate mapping quality (the <code>MAPQ</code> <a href="http://samtools.sourceforge.net/SAM1.pdf">SAM</a> field) and to set SAM optional fields, such as <a href="#bowtie2-build-opt-fields-as"><code>AS:i</code></a> and <a href="#bowtie2-build-opt-fields-xs"><code>XS:i</code></a>. Bowtie 2 does not gaurantee that the alignment reported is the best possible in terms of alignment score.</p>
+<h3 id="default-mode-search-for-multiple-alignments-report-the-best-one">Default mode: search for multiple alignments, report the best one</h3>
+<p>By default, Bowtie 2 searches for distinct, valid alignments for each read. When it finds a valid alignment, it generally will continue to look for alignments that are nearly as good or better. It will eventually stop looking, either because it exceeded a limit placed on search effort (see <a href="#bowtie2-options-D"><code>-D</code></a> and <a href="#bowtie2-options-R"><code>-R</code></a>) or because it already knows all it needs to know to report an alignment. Information from the best alignments are used to estimate mapping quality (the <code>MAPQ</code> <a href="http://samtools.sourceforge.net/SAM1.pdf">SAM</a> field) and to set SAM optional fields, such as <a href="#bowtie2-build-opt-fields-as"><code>AS:i</code></a> and <a href="#bowtie2-build-opt-fields-xs"><code>XS:i</code></a>. Bowtie 2 does not garantee that the alignment reported is the best possible in terms of alignment score.</p>
 <p>See also: <a href="#bowtie2-options-D"><code>-D</code></a>, which puts an upper limit on the number of dynamic programming problems (i.e. seed extensions) that can &quot;fail&quot; in a row before Bowtie 2 stops searching. Increasing <a href="#bowtie2-options-D"><code>-D</code></a> makes Bowtie 2 slower, but increases the likelihood that it will report the correct alignment for a read that aligns many places.</p>
 <p>See also: <a href="#bowtie2-options-R"><code>-R</code></a>, which sets the maximum number of times Bowtie 2 will &quot;re-seed&quot; when attempting to align a read with repetitive seeds. Increasing <a href="#bowtie2-options-R"><code>-R</code></a> makes Bowtie 2 slower, but increases the likelihood that it will report the correct alignment for a read that aligns many places.</p>
-<h3 id="k-mode-search-for-one-or-more-alignments-report-each"><a href="#TOC">-k mode: search for one or more alignments, report each</a></h3>
+<h3 id="k-mode-search-for-one-or-more-alignments-report-each">-k mode: search for one or more alignments, report each</h3>
 <p>In <a href="#bowtie2-options-k"><code>-k</code></a> mode, Bowtie 2 searches for up to N distinct, valid alignments for each read, where N equals the integer specified with the <code>-k</code> parameter. That is, if <code>-k 2</code> is specified, Bowtie 2 will search for at most 2 distinct alignments. It reports all alignments found, in descending order by alignment score. The alignment score for a paired-end alignment equals the sum of the alignment scores of the individual mates. Each reported read or pair alignment beyond the first has the SAM 'secondary' bit (which equals 256) set in its FLAGS field. See the <a href="http://samtools.sourceforge.net/SAM1.pdf">SAM specification</a> for details.</p>
-<p>Bowtie 2 does not &quot;find&quot; alignments in any specific order, so for reads that have more than N distinct, valid alignments, Bowtie 2 does not gaurantee that the N alignments reported are the best possible in terms of alignment score. Still, this mode can be effective and fast in situations where the user cares more about whether a read aligns (or aligns a certain number of times) than where exactly it originated.</p>
-<h3 id="a-mode-search-for-and-report-all-alignments"><a href="#TOC">-a mode: search for and report all alignments</a></h3>
+<p>Bowtie 2 does not &quot;find&quot; alignments in any specific order, so for reads that have more than N distinct, valid alignments, Bowtie 2 does not garantee that the N alignments reported are the best possible in terms of alignment score. Still, this mode can be effective and fast in situations where the user cares more about whether a read aligns (or aligns a certain number of times) than where exactly it originated.</p>
+<h3 id="a-mode-search-for-and-report-all-alignments">-a mode: search for and report all alignments</h3>
 <p><a href="#bowtie2-options-a"><code>-a</code></a> mode is similar to <a href="#bowtie2-options-k"><code>-k</code></a> mode except that there is no upper limit on the number of alignments Bowtie 2 should report. Alignments are reported in descending order by alignment score. The alignment score for a paired-end alignment equals the sum of the alignment scores of the individual mates. Each reported read or pair alignment beyond the first has the SAM 'secondary' bit (which equals 256) set in its FLAGS field. See the <a href="http://samtools.sourceforge.net/SAM1.pdf">SAM specification</a> for details.</p>
 <p>Some tools are designed with this reporting mode in mind. Bowtie 2 is not! For very large genomes, this mode is very slow.</p>
-<h3 id="randomness-in-bowtie-2"><a href="#TOC">Randomness in Bowtie 2</a></h3>
-<p>Bowtie 2's search for alignments for a given read is &quot;randomized.&quot; That is, when Bowtie 2 encouters a set of equally-good choices, it uses a pseudo-random number to choose. For example, if Bowtie 2 discovers a set of 3 equally-good alignments and wants to decide which to report, it picks a pseudo-random integer 0, 1 or 2 and reports the corresponding alignment. Abitrary choices can crop up at various points during alignment.</p>
+<h3 id="randomness-in-bowtie-2">Randomness in Bowtie 2</h3>
+<p>Bowtie 2's search for alignments for a given read is &quot;randomized.&quot; That is, when Bowtie 2 encounters a set of equally-good choices, it uses a pseudo-random number to choose. For example, if Bowtie 2 discovers a set of 3 equally-good alignments and wants to decide which to report, it picks a pseudo-random integer 0, 1 or 2 and reports the corresponding alignment. Abitrary choices can crop up at various points during alignment.</p>
 <p>The pseudo-random number generator is re-initialized for every read, and the seed used to initialize it is a function of the read name, nucleotide string, quality string, and the value specified with <a href="#bowtie2-options-seed"><code>--seed</code></a>. If you run the same version of Bowtie 2 on two reads with identical names, nucleotide strings, and quality strings, and if <a href="#bowtie2-options-seed"><code>--seed</code></a> is set the same for both runs, Bowtie 2 will produce the same output; i.e., it will align the read to the same place, even if there are multiple equally good alignments. This is intuitive and desirable in most cases. Most users expect Bowtie to produce the same output when run twice on the same input.</p>
-<p>However, when the user specifies the <a href="#bowtie2-options-non-deterministic"><code>--non-deterministic</code></a> option, Bowtie 2 will use the current time to re-intiailize the pseud-random number generator. When this is specified, Bowtie 2 might report different alignments for identical reads. This is counter-intuitive for some users, but might be more appropriate in situations where the input consists of many identical reads.</p>
-<h2 id="multiseed-heuristic"><a href="#TOC">Multiseed heuristic</a></h2>
+<p>However, when the user specifies the <a href="#bowtie2-options-non-deterministic"><code>--non-deterministic</code></a> option, Bowtie 2 will use the current time to re-initialize the pseudo-random number generator. When this is specified, Bowtie 2 might report different alignments for identical reads. This is counter-intuitive for some users, but might be more appropriate in situations where the input consists of many identical reads.</p>
+<h2 id="multiseed-heuristic">Multiseed heuristic</h2>
 <p>To rapidly narrow the number of possible alignments that must be considered, Bowtie 2 begins by extracting substrings (&quot;seeds&quot;) from the read and its reverse complement and aligning them in an ungapped fashion with the help of the <a href="http://portal.acm.org/citation.cfm?id=796543">FM Index</a>. This is &quot;multiseed alignment&quot; and it is similar to what <a href="http://genomebiology.com/2009/10/3/R25">Bowtie 1 does</a>, except Bowtie 1 attempts to align the entire read this way.</p>
 <p>This initial step makes Bowtie 2 much faster than it would be without such a filter, but at the expense of missing some valid alignments. For instance, it is possible for a read to have a valid overall alignment but to have no valid seed alignments because each potential seed alignment is interruped by too many mismatches or gaps.</p>
 <p>The tradeoff between speed and sensitivity/accuracy can be adjusted by setting the seed length (<a href="#bowtie2-options-L"><code>-L</code></a>), the interval between extracted seeds (<a href="#bowtie2-options-I"><code>-i</code></a>), and the number of mismatches permitted per seed (<a href="#bowtie2-options-N"><code>-N</code></a>). For more sensitive alignment, set these parameters to (a) make the seeds closer together, (b) make the seeds shorter, and/or (c) allow more mismatches. You can adjust these options one-by-one, though Bowtie 2 comes with some useful combinations of options pre-packaged as &quot;<a href="#presets-setting-many-settings-at-once">preset options</a>.&quot;</p>
 <p><a href="#bowtie2-options-D"><code>-D</code></a> and <a href="#bowtie2-options-R"><code>-R</code></a> are also options that adjust the tradeoff between speed and sensitivity/accuracy.</p>
-<h3 id="fm-index-memory-footprint"><a href="#TOC">FM Index memory footprint</a></h3>
+<h3 id="fm-index-memory-footprint">FM Index memory footprint</h3>
 <p>Bowtie 2 uses the <a href="http://portal.acm.org/citation.cfm?id=796543">FM Index</a> to find ungapped alignments for seeds. This step accounts for the bulk of Bowtie 2's memory footprint, as the <a href="http://portal.acm.org/citation.cfm?id=796543">FM Index</a> itself is typically the largest data structure used. For instance, the memory footprint of the <a href="http://portal.acm.org/citation.cfm?id=796543">FM Index</a> for the human genome is about 3.2 gigabytes of RAM.</p>
-<h2 id="ambiguous-characters"><a href="#TOC">Ambiguous characters</a></h2>
+<h2 id="ambiguous-characters">Ambiguous characters</h2>
 <p>Non-whitespace characters besides A, C, G or T are considered &quot;ambiguous.&quot; N is a common ambiguous character that appears in reference sequences. Bowtie 2 considers all ambiguous characters in the reference (including <a href="http://www.bioinformatics.org/sms/iupac.html">IUPAC nucleotide codes</a>) to be Ns.</p>
 <p>Bowtie 2 allows alignments to overlap ambiguous characters in the reference. An alignment position that contains an ambiguous character in the read, reference, or both, is penalized according to <a href="#bowtie2-options-np"><code>--np</code></a>. <a href="#bowtie2-options-n-ceil"><code>--n-ceil</code></a> sets an upper limit on the number of positions that may contain ambiguous reference characters in a valid alignment. The optional field <a href="#bowtie2-build-opt-fields-xn"><code>XN:i</code></a> reports the number of ambiguous reference characters overlapped by an alignment.</p>
 <p>Note that the <a href="#multiseed-heuristic">multiseed heuristic</a> cannot find <em>seed</em> alignments that overlap ambiguous reference characters. For an alignment overlapping an ambiguous reference character to be found, it must have one or more seed alignments that do not overlap ambiguous reference characters.</p>
-<h2 id="presets-setting-many-settings-at-once"><a href="#TOC">Presets: setting many settings at once</a></h2>
+<h2 id="presets-setting-many-settings-at-once">Presets: setting many settings at once</h2>
 <p>Bowtie 2 comes with some useful combinations of parameters packaged into shorter &quot;preset&quot; parameters. For example, running Bowtie 2 with the <code>--very-sensitive</code> option is the same as running with options: <code>-D 20 -R 3 -N 0 -L 20 -i S,1,0.50</code>. The preset options that come with Bowtie 2 are designed to cover a wide area of the speed/sensitivity/accuracy tradeoff space, with the presets ending in <code>fast</code> generally being faster but less sensitive and less accurate, and the presets ending in <code>sensitive</code> generally being slower but more sensitive and more accurate. See the <a href="#preset-options-in---end-to-end-mode">documentation for the preset options</a> for details.</p>
-<h2 id="filtering"><a href="#TOC">Filtering</a></h2>
+<h2 id="filtering">Filtering</h2>
 <p>Some reads are skipped or &quot;filtered out&quot; by Bowtie 2. For example, reads may be filtered out because they are extremely short or have a high proportion of ambiguous nucleotides. Bowtie 2 will still print a SAM record for such a read, but no alignment will be reported and and the <code>YF:i</code> SAM optional field will be set to indicate the reason the read was filtered.</p>
 <ul>
 <li><code>YF:Z:LN</code>: the read was filtered becuase it had length less than or equal to the number of seed mismatches set with the <a href="#bowtie2-options-N"><code>-N</code></a> option.</li>
@@ -268,7 +255,7 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC</code></pr
 <li><code>YF:Z:QC</code>: the read was filtered because it was marked as failing quality control and the user specified the <a href="#bowtie2-options-qc-filter"><code>--qc-filter</code></a> option. This only happens when the input is in Illumina's QSEQ format (i.e. when <a href="#bowtie2-options-qseq"><code>--qseq</code></a> is specified) and the last (11th) field of the read's QSEQ record contains <code>1</code>.</li>
 </ul>
 <p>If a read could be filtered for more than one reason, the value <code>YF:Z</code> flag will reflect only one of those reasons.</p>
-<h2 id="alignment-summmary"><a href="#TOC">Alignment summmary</a></h2>
+<h2 id="alignment-summmary">Alignment summmary</h2>
 <p>When Bowtie 2 finishes running, it prints messages summarizing what happened. These messages are printed to the &quot;standard error&quot; (&quot;stderr&quot;) filehandle. For datasets consisting of unpaired reads, the summary might look like this:</p>
 <pre><code>20000 reads; of these:
   20000 (100.00%) were unpaired; of these:
@@ -293,12 +280,12 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC</code></pr
         1 (0.08%) aligned &gt;1 times
 96.70% overall alignment rate</code></pre>
 <p>The indentation indicates how subtotals relate to totals.</p>
-<h2 id="wrapper-scripts"><a href="#TOC">Wrapper scripts</a></h2>
+<h2 id="wrapper-scripts">Wrapper scripts</h2>
 <p>The <code>bowtie2</code>, <code>bowtie2-build</code> and <code>bowtie2-inspect</code> executables are actually wrapper scripts that call binary programs as appropriate. The wrappers shield users from having to distinguish between &quot;small&quot; and &quot;large&quot; index formats, discussed briefly in the following section. Also, the <code>bowtie2</code> wrapper provides some key functionality, like the ability to handle compressed inputs, and the fucntionality for <a href="#bowtie2-options-un"><code>--un</code></a>, <a href="#bowtie2-options-al"><code>--al</code></a> and related options.</p>
 <p>It is recommended that you always run the bowtie2 wrappers and not run the binaries directly.</p>
-<h2 id="small-and-large-indexes"><a href="#TOC">Small and large indexes</a></h2>
+<h2 id="small-and-large-indexes">Small and large indexes</h2>
 <p><code>bowtie2-build</code> can index reference genomes of any size. For genomes less than about 4 billion nucleotides in length, <code>bowtie2-build</code> builds a &quot;small&quot; index using 32-bit numbers in various parts of the index. When the genome is longer, <code>bowtie2-build</code> builds a &quot;large&quot; index using 64-bit numbers. Small indexes are stored in files with the <code>.bt2</code> extension, and large indexes are stored in files with the <code>.bt2l</code> extension. The user need not worry about whether a particular index is small or large; the wrapper scripts will automatically build and use the appropriate index.</p>
-<h2 id="performance-tuning"><a href="#TOC">Performance tuning</a></h2>
+<h2 id="performance-tuning">Performance tuning</h2>
 <ol style="list-style-type: decimal">
 <li><p>If your computer has multiple processors/cores, use <code>-p</code></p>
 <p>The <a href="#bowtie2-options-p"><code>-p</code></a> option causes Bowtie 2 to launch a specified number of parallel search threads. Each thread runs on a different processor/core and all threads find alignments in parallel, increasing alignment throughput by approximately a multiple of the number of threads (though in practice, speedup is somewhat worse than linear).</p></li>
@@ -307,20 +294,18 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC</code></pr
 <li><p>If <code>bowtie2</code> &quot;thrashes&quot;, try increasing <code>bowtie2-build --offrate</code></p>
 <p>If <code>bowtie2</code> runs very slowly on a relatively low-memory computer, try setting <a href="#bowtie2-options-o"><code>-o</code>/<code>--offrate</code></a> to a <em>larger</em> value when building the index. This decreases the memory footprint of the index.</p></li>
 </ol>
-<h2 id="command-line"><a href="#TOC">Command Line</a></h2>
-<h3 id="setting-function-options"><a href="#TOC">Setting function options</a></h3>
+<h2 id="command-line">Command Line</h2>
+<h3 id="setting-function-options">Setting function options</h3>
 <p>Some Bowtie 2 options specify a function rather than an individual number or setting. In these cases the user specifies three parameters: (a) a function type <code>F</code>, (b) a constant term <code>B</code>, and (c) a coefficient <code>A</code>. The available function types are constant (<code>C</code>), linear (<code>L</code>), square-root (<code>S</code>), and natural log (<code>G</code>). The parameters are specified as <code>F,B,A</code> - that is, the function type, the constant term, and the coefficient are separated by commas with no whitespace. The constant term and coefficient may be negative and/or floating-point numbers.</p>
 <p>For example, if the function specification is <code>L,-0.4,-0.6</code>, then the function defined is:</p>
 <pre><code>f(x) = -0.4 + -0.6 * x</code></pre>
 <p>If the function specification is <code>G,1,5.4</code>, then the function defined is:</p>
 <pre><code>f(x) = 1.0 + 5.4 * ln(x)</code></pre>
 <p>See the documentation for the option in question to learn what the parameter <code>x</code> is for. For example, in the case if the <a href="#bowtie2-options-score-min"><code>--score-min</code></a> option, the function <code>f(x)</code> sets the minimum alignment score necessary for an alignment to be considered valid, and <code>x</code> is the read length.</p>
-<h3 id="usage"><a href="#TOC">Usage</a></h3>
+<h3 id="usage">Usage</h3>
 <pre><code>bowtie2 [options]* -x &lt;bt2-idx&gt; {-1 &lt;m1&gt; -2 &lt;m2&gt; | -U &lt;r&gt;} -S [&lt;hit&gt;]</code></pre>
-<h3 id="main-arguments"><a href="#TOC">Main arguments</a></h3>
+<h3 id="main-arguments">Main arguments</h3>
 <table><tr><td>
-
-
 
 <pre><code>-x &lt;bt2-idx&gt;</code></pre>
 </td><td>
@@ -328,15 +313,11 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC</code></pr
 <p>The basename of the index for the reference genome. The basename is the name of any of the index files up to but not including the final <code>.1.bt2</code> / <code>.rev.1.bt2</code> / etc. <code>bowtie2</code> looks for the specified index first in the current directory, then in the directory specified in the <code>BOWTIE2_INDEXES</code> environment variable.</p>
 </td></tr><tr><td>
 
-
-
 <pre><code>-1 &lt;m1&gt;</code></pre>
 </td><td>
 
 <p>Comma-separated list of files containing mate 1s (filename usually includes <code>_1</code>), e.g. <code>-1 flyA_1.fq,flyB_1.fq</code>. Sequences specified with this option must correspond file-for-file and read-for-read with those specified in <code>&lt;m2&gt;</code>. Reads may be a mix of different lengths. If <code>-</code> is specified, <code>bowtie2</code> will read the mate 1s from the &quot;standard in&quot; or &quot;stdin&quot; filehandle.</p>
 </td></tr><tr><td>
-
-
 
 <pre><code>-2 &lt;m2&gt;</code></pre>
 </td><td>
@@ -344,15 +325,11 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC</code></pr
 <p>Comma-separated list of files containing mate 2s (filename usually includes <code>_2</code>), e.g. <code>-2 flyA_2.fq,flyB_2.fq</code>. Sequences specified with this option must correspond file-for-file and read-for-read with those specified in <code>&lt;m1&gt;</code>. Reads may be a mix of different lengths. If <code>-</code> is specified, <code>bowtie2</code> will read the mate 2s from the &quot;standard in&quot; or &quot;stdin&quot; filehandle.</p>
 </td></tr><tr><td>
 
-
-
 <pre><code>-U &lt;r&gt;</code></pre>
 </td><td>
 
 <p>Comma-separated list of files containing unpaired reads to be aligned, e.g. <code>lane1.fq,lane2.fq,lane3.fq,lane4.fq</code>. Reads may be a mix of different lengths. If <code>-</code> is specified, <code>bowtie2</code> gets the reads from the &quot;standard in&quot; or &quot;stdin&quot; filehandle.</p>
 </td></tr><tr><td>
-
-
 
 <pre><code>-S &lt;hit&gt;</code></pre>
 </td><td>
@@ -360,12 +337,10 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC</code></pr
 <p>File to write SAM alignments to. By default, alignments are written to the &quot;standard out&quot; or &quot;stdout&quot; filehandle (i.e. the console).</p>
 </td></tr></table>
 
-<h3 id="options"><a href="#TOC">Options</a></h3>
-<h4 id="input-options"><a href="#TOC">Input options</a></h4>
+<h3 id="options">Options</h3>
+<h4 id="input-options">Input options</h4>
 <table>
 <tr><td id="bowtie2-options-q">
-
-
 
 <pre><code>-q</code></pre>
 </td><td>
@@ -374,16 +349,12 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC</code></pr
 </td></tr>
 <tr><td id="bowtie2-options-qseq">
 
-
-
 <pre><code>--qseq</code></pre>
 </td><td>
 
 <p>Reads (specified with <code>&lt;m1&gt;</code>, <code>&lt;m2&gt;</code>, <code>&lt;s&gt;</code>) are QSEQ files. QSEQ files usually end in <code>_qseq.txt</code>. See also: <a href="#bowtie2-options-solexa-quals"><code>--solexa-quals</code></a> and <a href="#bowtie2-options-int-quals"><code>--int-quals</code></a>.</p>
 </td></tr>
 <tr><td id="bowtie2-options-f">
-
-
 
 <pre><code>-f</code></pre>
 </td><td>
@@ -392,16 +363,12 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC</code></pr
 </td></tr>
 <tr><td id="bowtie2-options-r">
 
-
-
 <pre><code>-r</code></pre>
 </td><td>
 
 <p>Reads (specified with <code>&lt;m1&gt;</code>, <code>&lt;m2&gt;</code>, <code>&lt;s&gt;</code>) are files with one input sequence per line, without any other information (no read names, no qualities). When <code>-r</code> is set, the result is as if <code>--ignore-quals</code> is also set.</p>
 </td></tr>
 <tr><td id="bowtie2-options-c">
-
-
 
 <pre><code>-c</code></pre>
 </td><td>
@@ -410,18 +377,12 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC</code></pr
 </td></tr>
 <tr><td id="bowtie2-options-s">
 
-
-
-
 <pre><code>-s/--skip &lt;int&gt;</code></pre>
 </td><td>
 
 <p>Skip (i.e. do not align) the first <code>&lt;int&gt;</code> reads or pairs in the input.</p>
 </td></tr>
 <tr><td id="bowtie2-options-u">
-
-
-
 
 <pre><code>-u/--qupto &lt;int&gt;</code></pre>
 </td><td>
@@ -430,9 +391,6 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC</code></pr
 </td></tr>
 <tr><td id="bowtie2-options-5">
 
-
-
-
 <pre><code>-5/--trim5 &lt;int&gt;</code></pre>
 </td><td>
 
@@ -440,16 +398,11 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC</code></pr
 </td></tr>
 <tr><td id="bowtie2-options-3">
 
-
-
-
 <pre><code>-3/--trim3 &lt;int&gt;</code></pre>
 </td><td>
 
 <p>Trim <code>&lt;int&gt;</code> bases from 3' (right) end of each read before alignment (default: 0).</p>
 </td></tr><tr><td id="bowtie2-options-phred33-quals">
-
-
 
 <pre><code>--phred33</code></pre>
 </td><td>
@@ -458,16 +411,12 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC</code></pr
 </td></tr>
 <tr><td id="bowtie2-options-phred64-quals">
 
-
-
 <pre><code>--phred64</code></pre>
 </td><td>
 
 <p>Input qualities are ASCII chars equal to the <a href="http://en.wikipedia.org/wiki/Phred_quality_score">Phred quality</a> plus 64. This is also called the &quot;Phred+64&quot; encoding.</p>
 </td></tr>
 <tr><td id="bowtie2-options-solexa-quals">
-
-
 
 <pre><code>--solexa-quals</code></pre>
 </td><td>
@@ -476,19 +425,15 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC</code></pr
 </td></tr>
 <tr><td id="bowtie2-options-int-quals">
 
-
-
 <pre><code>--int-quals</code></pre>
 </td><td>
 
 <p>Quality values are represented in the read input file as space-separated ASCII integers, e.g., <code>40 40 30 40</code>..., rather than ASCII characters, e.g., <code>II?I</code>.... Integers are treated as being on the <a href="http://en.wikipedia.org/wiki/Phred_quality_score">Phred quality</a> scale unless <a href="#bowtie2-options-solexa-quals"><code>--solexa-quals</code></a> is also specified. Default: off.</p>
 </td></tr></table>
 
-<h4 id="preset-options-in---end-to-end-mode"><a href="#TOC">Preset options in <code>--end-to-end</code> mode</a></h4>
+<h4 id="preset-options-in---end-to-end-mode">Preset options in <code>--end-to-end</code> mode</h4>
 <table>
 <tr><td id="bowtie2-options-very-fast">
-
-
 
 <pre><code>--very-fast</code></pre>
 </td><td>
@@ -497,16 +442,12 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC</code></pr
 </td></tr>
 <tr><td id="bowtie2-options-fast">
 
-
-
 <pre><code>--fast</code></pre>
 </td><td>
 
 <p>Same as: <code>-D 10 -R 2 -N 0 -L 22 -i S,0,2.50</code></p>
 </td></tr>
 <tr><td id="bowtie2-options-sensitive">
-
-
 
 <pre><code>--sensitive</code></pre>
 </td><td>
@@ -515,8 +456,6 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC</code></pr
 </td></tr>
 <tr><td id="bowtie2-options-very-sensitive">
 
-
-
 <pre><code>--very-sensitive</code></pre>
 </td><td>
 
@@ -524,11 +463,9 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC</code></pr
 </td></tr>
 </table>
 
-<h4 id="preset-options-in---local-mode"><a href="#TOC">Preset options in <code>--local</code> mode</a></h4>
+<h4 id="preset-options-in---local-mode">Preset options in <code>--local</code> mode</h4>
 <table>
 <tr><td id="bowtie2-options-very-fast-local">
-
-
 
 <pre><code>--very-fast-local</code></pre>
 </td><td>
@@ -537,16 +474,12 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC</code></pr
 </td></tr>
 <tr><td id="bowtie2-options-fast-local">
 
-
-
 <pre><code>--fast-local</code></pre>
 </td><td>
 
 <p>Same as: <code>-D 10 -R 2 -N 0 -L 22 -i S,1,1.75</code></p>
 </td></tr>
 <tr><td id="bowtie2-options-sensitive-local">
-
-
 
 <pre><code>--sensitive-local</code></pre>
 </td><td>
@@ -555,8 +488,6 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC</code></pr
 </td></tr>
 <tr><td id="bowtie2-options-very-sensitive-local">
 
-
-
 <pre><code>--very-sensitive-local</code></pre>
 </td><td>
 
@@ -564,12 +495,10 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC</code></pr
 </td></tr>
 </table>
 
-<h4 id="alignment-options"><a href="#TOC">Alignment options</a></h4>
+<h4 id="alignment-options">Alignment options</h4>
 <table>
 
 <tr><td id="bowtie2-options-N">
-
-
 
 <pre><code>-N &lt;int&gt;</code></pre>
 </td><td>
@@ -578,16 +507,12 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC</code></pr
 </td></tr>
 <tr><td id="bowtie2-options-L">
 
-
-
 <pre><code>-L &lt;int&gt;</code></pre>
 </td><td>
 
-<p>Sets the length of the seed substrings to align during <a href="#multiseed-heuristic">multiseed alignment</a>. Smaller values make alignment slower but more senstive. Default: the <a href="#bowtie2-options-sensitive"><code>--sensitive</code></a> preset is used by default, which sets <code>-L</code> to 20 both in <a href="#bowtie2-options-end-to-end"><code>--end-to-end</code></a> mode and in <a href="#bowtie2-options-local"><code>--local</code></a> mode.</p>
+<p>Sets the length of the seed substrings to align during <a href="#multiseed-heuristic">multiseed alignment</a>. Smaller values make alignment slower but more senstive. Default: the <a href="#bowtie2-options-sensitive"><code>--sensitive</code></a> preset is used by default, which sets <code>-L</code> to 22 in <a href="#bowtie2-options-end-to-end"><code>--end-to-end</code></a> mode and to 20 in <a href="#bowtie2-options-local"><code>--local</code></a> mode.</p>
 </td></tr>
 <tr><td id="bowtie2-options-i">
-
-
 
 <pre><code>-i &lt;func&gt;</code></pre>
 </td><td>
@@ -602,11 +527,9 @@ Seed 3 fw:             ACGCTATCAT
 Seed 3 rc:             ATGATAGCGT
 Seed 4 fw:                   TCATGCATAA
 Seed 4 rc:                   TTATGCATGA</code></pre>
-<p>Since it's best to use longer intervals for longer reads, this parameter sets the interval as a function of the read length, rather than a single one-size-fits-all number. For instance, specifying <code>-i S,1,2.5</code> sets the interval function <code>f</code> to <code>f(x) = 1 + 2.5 * sqrt(x)</code>, where x is the read length. See also: <a href="#setting-function-options">setting function options</a>. If the function returns a result less than 1, it is rounded up to 1. Default: the <a href="#bowtie2-options-sensitive"><code>--sensitive</code></a> preset is used by default, which sets <code>-i</code> to <code>S,1,1.15</code> in <a href="#bowtie2-options-end-to-end"><code>--end-to-end</code></a> mode to <code>-i S,1,0.75</code> in <a href="#bowtie2-options-local"><code>--local</code></a> mode.</p>
+<p>Since it's best to use longer intervals for longer reads, this parameter sets the interval as a function of the read length, rather than a single one-size-fits-all number. For instance, specifying <code>-i S,1,2.5</code> sets the interval function <code>f</code> to <code>f(x) = 1 + 2.5 * sqrt(x)</code>, where x is the read length. See also: <a href="#setting-function-options">setting function options</a>. If the function returns a result less than 1, it is rounded up to 1. Default: the <a href="#bowtie2-options-sensitive"><code>--sensitive</code></a> preset is used by default, which sets <code>-i</code> to <code>S,1,1.15</code> in <a href="#bowtie2-options-end-to-end"><code>--end-to-end</code></a> mode and to <code>-i S,1,0.75</code> in <a href="#bowtie2-options-local"><code>--local</code></a> mode.</p>
 </td></tr>
 <tr><td id="bowtie2-options-n-ceil">
-
-
 
 <pre><code>--n-ceil &lt;func&gt;</code></pre>
 </td><td>
@@ -615,16 +538,12 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td></tr>
 <tr><td id="bowtie2-options-dpad">
 
-
-
 <pre><code>--dpad &lt;int&gt;</code></pre>
 </td><td>
 
 <p>&quot;Pads&quot; dynamic programming problems by <code>&lt;int&gt;</code> columns on either side to allow gaps. Default: 15.</p>
 </td></tr>
 <tr><td id="bowtie2-options-gbar">
-
-
 
 <pre><code>--gbar &lt;int&gt;</code></pre>
 </td><td>
@@ -633,16 +552,12 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td></tr>
 <tr><td id="bowtie2-options-ignore-quals">
 
-
-
 <pre><code>--ignore-quals</code></pre>
 </td><td>
 
 <p>When calculating a mismatch penalty, always consider the quality value at the mismatched position to be the highest possible, regardless of the actual value. I.e. input is treated as though all quality values are high. This is also the default behavior when the input doesn't specify quality values (e.g. in <a href="#bowtie2-options-f"><code>-f</code></a>, <a href="#bowtie2-options-R"><code>-r</code></a>, or <a href="#bowtie2-options-c"><code>-c</code></a> modes).</p>
 </td></tr>
 <tr><td id="bowtie2-options-nofw">
-
-
 
 <pre><code>--nofw/--norc</code></pre>
 </td><td>
@@ -651,15 +566,11 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td></tr>
 <tr><td id="bowtie2-options-no-1mm-upfront">
 
-
-
 <pre><code>--no-1mm-upfront</code></pre>
 </td><td>
 
 <p>By default, Bowtie 2 will attempt to find either an exact or a 1-mismatch end-to-end alignment for the read <em>before</em> trying the <a href="#multiseed-heuristic">multiseed heuristic</a>. Such alignments can be found very quickly, and many short read alignments have exact or near-exact end-to-end alignments. However, this can lead to unexpected alignments when the user also sets options governing the <a href="#multiseed-heuristic">multiseed heuristic</a>, like <a href="#bowtie2-options-L"><code>-L</code></a> and <a href="#bowtie2-options-N"><code>-N</code></a>. For instance, if the user specifies <code>-N 0</code> and <code>-L</code> equal to the length of the read, the user will be surprised to find 1-mismatch alignments reported. This option prevents Bowtie 2 from searching for 1-mismatch end-to-end alignments before using the <a href="#multiseed-heuristic">multiseed heuristic</a>, which leads to the expected behavior when combined with options such as <a href="#bowtie2-options-L"><code>-L</code></a> and <a href="#bowtie2-options-N"><code>-N</code></a>. This comes at the expense of speed.</p>
 </td></tr><tr><td id="bowtie2-options-end-to-end">
-
-
 
 <pre><code>--end-to-end</code></pre>
 </td><td>
@@ -668,8 +579,6 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td></tr>
 <tr><td id="bowtie2-options-local">
 
-
-
 <pre><code>--local</code></pre>
 </td><td>
 
@@ -677,12 +586,10 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td></tr>
 </table>
 
-<h4 id="scoring-options"><a href="#TOC">Scoring options</a></h4>
+<h4 id="scoring-options">Scoring options</h4>
 <table>
 
 <tr><td id="bowtie2-options-ma">
-
-
 
 <pre><code>--ma &lt;int&gt;</code></pre>
 </td><td>
@@ -691,16 +598,12 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td></tr>
 <tr><td id="bowtie2-options-mp">
 
-
-
 <pre><code>--mp MX,MN</code></pre>
 </td><td>
 
 <p>Sets the maximum (<code>MX</code>) and minimum (<code>MN</code>) mismatch penalties, both integers. A number less than or equal to <code>MX</code> and greater than or equal to <code>MN</code> is subtracted from the alignment score for each position where a read character aligns to a reference character, the characters do not match, and neither is an <code>N</code>. If <a href="#bowtie2-options-ignore-quals"><code>--ignore-quals</code></a> is specified, the number subtracted quals <code>MX</code>. Otherwise, the number subtracted is <code>MN + floor( (MX-MN)(MIN(Q, 40.0)/40.0) )</code> where Q is the Phred quality value. Default: <code>MX</code> = 6, <code>MN</code> = 2.</p>
 </td></tr>
 <tr><td id="bowtie2-options-np">
-
-
 
 <pre><code>--np &lt;int&gt;</code></pre>
 </td><td>
@@ -709,16 +612,12 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td></tr>
 <tr><td id="bowtie2-options-rdg">
 
-
-
 <pre><code>--rdg &lt;int1&gt;,&lt;int2&gt;</code></pre>
 </td><td>
 
 <p>Sets the read gap open (<code>&lt;int1&gt;</code>) and extend (<code>&lt;int2&gt;</code>) penalties. A read gap of length N gets a penalty of <code>&lt;int1&gt;</code> + N * <code>&lt;int2&gt;</code>. Default: 5, 3.</p>
 </td></tr>
 <tr><td id="bowtie2-options-rfg">
-
-
 
 <pre><code>--rfg &lt;int1&gt;,&lt;int2&gt;</code></pre>
 </td><td>
@@ -727,8 +626,6 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td></tr>
 <tr><td id="bowtie2-options-score-min">
 
-
-
 <pre><code>--score-min &lt;func&gt;</code></pre>
 </td><td>
 
@@ -736,23 +633,19 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td></tr>
 </table>
 
-<h4 id="reporting-options"><a href="#TOC">Reporting options</a></h4>
+<h4 id="reporting-options">Reporting options</h4>
 <table>
 
 <tr><td id="bowtie2-options-k">
-
-
 
 <pre><code>-k &lt;int&gt;</code></pre>
 </td><td>
 
 <p>By default, <code>bowtie2</code> searches for distinct, valid alignments for each read. When it finds a valid alignment, it continues looking for alignments that are nearly as good or better. The best alignment found is reported (randomly selected from among best if tied). Information about the best alignments is used to estimate mapping quality and to set SAM optional fields, such as <a href="#bowtie2-build-opt-fields-as"><code>AS:i</code></a> and <a href="#bowtie2-build-opt-fields-xs"><code>XS:i</code></a>.</p>
-<p>When <code>-k</code> is specified, however, <code>bowtie2</code> behaves differently. Instead, it searches for at most <code>&lt;int&gt;</code> distinct, valid alignments for each read. The search terminates when it can't find more distinct valid alignments, or when it finds <code>&lt;int&gt;</code>, whichever happens first. All alignments found are reported in descending order by alignment score. The alignment score for a paired-end alignment equals the sum of the alignment scores of the individual mates. Each reported read or pair alignment beyond the first has the SAM 'secondary' bit (which equals 256) set in its FLAGS field. For reads that have more than <code>&lt;int&gt;</code> distinct, valid alignments, <code>bowtie2</code> does not gaurantee that the <code>&lt;int&gt;</code> alignments reported are the best possible in terms of alignment score. <code>-k</code> is mutually exclusive with <a href="#bowtie2-options-a"><code>-a</code></a>.</p>
+<p>When <code>-k</code> is specified, however, <code>bowtie2</code> behaves differently. Instead, it searches for at most <code>&lt;int&gt;</code> distinct, valid alignments for each read. The search terminates when it can't find more distinct valid alignments, or when it finds <code>&lt;int&gt;</code>, whichever happens first. All alignments found are reported in descending order by alignment score. The alignment score for a paired-end alignment equals the sum of the alignment scores of the individual mates. Each reported read or pair alignment beyond the first has the SAM 'secondary' bit (which equals 256) set in its FLAGS field. For reads that have more than <code>&lt;int&gt;</code> distinct, valid alignments, <code>bowtie2</code> does not guarantee that the <code>&lt;int&gt;</code> alignments reported are the best possible in terms of alignment score. <code>-k</code> is mutually exclusive with <a href="#bowtie2-options-a"><code>-a</code></a>.</p>
 <p>Note: Bowtie 2 is not designed with large values for <code>-k</code> in mind, and when aligning reads to long, repetitive genomes large <code>-k</code> can be very, very slow.</p>
 </td></tr>
 <tr><td id="bowtie2-options-a">
-
-
 
 <pre><code>-a</code></pre>
 </td><td>
@@ -762,12 +655,10 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td></tr>
 </table>
 
-<h4 id="effort-options"><a href="#TOC">Effort options</a></h4>
+<h4 id="effort-options">Effort options</h4>
 <table>
 
 <tr><td id="bowtie2-options-D">
-
-
 
 <pre><code>-D &lt;int&gt;</code></pre>
 </td><td>
@@ -776,8 +667,6 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td></tr>
 <tr><td id="bowtie2-options-R">
 
-
-
 <pre><code>-R &lt;int&gt;</code></pre>
 </td><td>
 
@@ -785,13 +674,10 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td></tr>
 </table>
 
-<h4 id="paired-end-options"><a href="#TOC">Paired-end options</a></h4>
+<h4 id="paired-end-options">Paired-end options</h4>
 <table>
 
 <tr><td id="bowtie2-options-I">
-
-
-
 
 <pre><code>-I/--minins &lt;int&gt;</code></pre>
 </td><td>
@@ -802,9 +688,6 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td></tr>
 <tr><td id="bowtie2-options-X">
 
-
-
-
 <pre><code>-X/--maxins &lt;int&gt;</code></pre>
 </td><td>
 
@@ -814,19 +697,12 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td></tr>
 <tr><td id="bowtie2-options-fr">
 
-
-
-
-
-
 <pre><code>--fr/--rf/--ff</code></pre>
 </td><td>
 
 <p>The upstream/downstream mate orientations for a valid paired-end alignment against the forward reference strand. E.g., if <code>--fr</code> is specified and there is a candidate paired-end alignment where mate 1 appears upstream of the reverse complement of mate 2 and the fragment length constraints (<a href="#bowtie2-options-I"><code>-I</code></a> and <a href="#bowtie2-options-X"><code>-X</code></a>) are met, that alignment is valid. Also, if mate 2 appears upstream of the reverse complement of mate 1 and all other constraints are met, that too is valid. <code>--rf</code> likewise requires that an upstream mate1 be reverse-complemented and a downstream mate2 be forward-oriented. <code>--ff</code> requires both an upstream mate 1 and a downstream mate 2 to be forward-oriented. Default: <code>--fr</code> (appropriate for Illumina's Paired-end Sequencing Assay).</p>
 </td></tr>
 <tr><td id="bowtie2-options-no-mixed">
-
-
 
 <pre><code>--no-mixed</code></pre>
 </td><td>
@@ -835,16 +711,12 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td></tr>
 <tr><td id="bowtie2-options-no-discordant">
 
-
-
 <pre><code>--no-discordant</code></pre>
 </td><td>
 
 <p>By default, <code>bowtie2</code> looks for discordant alignments if it cannot find any concordant alignments. A discordant alignment is an alignment where both mates align uniquely, but that does not satisfy the paired-end constraints (<a href="#bowtie2-options-fr"><code>--fr</code>/<code>--rf</code>/<code>--ff</code></a>, <a href="#bowtie2-options-I"><code>-I</code></a>, <a href="#bowtie2-options-X"><code>-X</code></a>). This option disables that behavior.</p>
 </td></tr>
 <tr><td id="bowtie2-options-dovetail">
-
-
 
 <pre><code>--dovetail</code></pre>
 </td><td>
@@ -853,8 +725,6 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td></tr>
 <tr><td id="bowtie2-options-no-contain">
 
-
-
 <pre><code>--no-contain</code></pre>
 </td><td>
 
@@ -862,21 +732,16 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td></tr>
 <tr><td id="bowtie2-options-no-overlap">
 
-
-
 <pre><code>--no-overlap</code></pre>
 </td><td>
 
 <p>If one mate alignment overlaps the other at all, consider that to be non-concordant. See also: <a href="#mates-can-overlap-contain-or-dovetail-each-other">Mates can overlap, contain or dovetail each other</a>. Default: mates can overlap in a concordant alignment.</p>
 </td></tr></table>
 
-<h4 id="output-options"><a href="#TOC">Output options</a></h4>
+<h4 id="output-options">Output options</h4>
 <table>
 
 <tr><td id="bowtie2-options-t">
-
-
-
 
 <pre><code>-t/--time</code></pre>
 </td><td>
@@ -885,59 +750,45 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td></tr>
 <tr><td id="bowtie2-options-un">
 
-
-
-
-
 <pre><code>--un &lt;path&gt;
 --un-gz &lt;path&gt;
---un-bz2 &lt;path&gt;</code></pre>
+--un-bz2 &lt;path&gt;
+--un-lz4 &lt;path&gt;</code></pre>
 </td><td>
 
-<p>Write unpaired reads that fail to align to file at <code>&lt;path&gt;</code>. These reads correspond to the SAM records with the FLAGS <code>0x4</code> bit set and neither the <code>0x40</code> nor <code>0x80</code> bits set. If <code>--un-gz</code> is specified, output will be gzip compressed. If <code>--un-bz2</code> is specified, output will be bzip2 compressed. Reads written in this way will appear exactly as they did in the input file, without any modification (same sequence, same name, same quality string, same quality encoding). Reads will not necessarily appear in the same order as they did in the input.</p>
+<p>Write unpaired reads that fail to align to file at <code>&lt;path&gt;</code>. These reads correspond to the SAM records with the FLAGS <code>0x4</code> bit set and neither the <code>0x40</code> nor <code>0x80</code> bits set. If <code>--un-gz</code> is specified, output will be gzip compressed. If <code>--un-bz2</code> or <code>--un-lz4</code> is specified, output will be bzip2 or lz4 compressed. Reads written in this way will appear exactly as they did in the input file, without any modification (same sequence, same name, same quality string, same quality encoding). Reads will not necessarily appear in the same order as they did in the input.</p>
 </td></tr>
 <tr><td id="bowtie2-options-al">
 
-
-
-
-
 <pre><code>--al &lt;path&gt;
 --al-gz &lt;path&gt;
---al-bz2 &lt;path&gt;</code></pre>
+--al-bz2 &lt;path&gt;
+--al-lz4 &lt;path&gt;</code></pre>
 </td><td>
 
-<p>Write unpaired reads that align at least once to file at <code>&lt;path&gt;</code>. These reads correspond to the SAM records with the FLAGS <code>0x4</code>, <code>0x40</code>, and <code>0x80</code> bits unset. If <code>--al-gz</code> is specified, output will be gzip compressed. If <code>--al-bz2</code> is specified, output will be bzip2 compressed. Reads written in this way will appear exactly as they did in the input file, without any modification (same sequence, same name, same quality string, same quality encoding). Reads will not necessarily appear in the same order as they did in the input.</p>
+<p>Write unpaired reads that align at least once to file at <code>&lt;path&gt;</code>. These reads correspond to the SAM records with the FLAGS <code>0x4</code>, <code>0x40</code>, and <code>0x80</code> bits unset. If <code>--al-gz</code> is specified, output will be gzip compressed. If <code>--al-bz2</code> is specified, output will be bzip2 compressed. Similarly if <code>--al-lz4</code> is specified, output will be lz4 compressed. Reads written in this way will appear exactly as they did in the input file, without any modification (same sequence, same name, same quality string, same quality encoding). Reads will not necessarily appear in the same order as they did in the input.</p>
 </td></tr>
 <tr><td id="bowtie2-options-un-conc">
 
-
-
-
-
 <pre><code>--un-conc &lt;path&gt;
 --un-conc-gz &lt;path&gt;
---un-conc-bz2 &lt;path&gt;</code></pre>
+--un-conc-bz2 &lt;path&gt;
+--un-conc-lz4 &lt;path&gt;</code></pre>
 </td><td>
 
 <p>Write paired-end reads that fail to align concordantly to file(s) at <code>&lt;path&gt;</code>. These reads correspond to the SAM records with the FLAGS <code>0x4</code> bit set and either the <code>0x40</code> or <code>0x80</code> bit set (depending on whether it's mate #1 or #2). <code>.1</code> and <code>.2</code> strings are added to the filename to distinguish which file contains mate #1 and mate #2. If a percent symbol, <code>%</code>, is used in <code>&lt;path&gt;</code>, the percent symbol is replaced with <code>1</code> or <code>2</code> to make the per-mate filenames. Otherwise, <code>.1</code> or <code>.2</code> are added before the final dot in <code>&lt;path&gt;</code> to make the per-mate filenames. Reads written in this way will appear exactly as they did in the input files, without any modification (same sequence, same name, same quality string, same quality encoding). Reads will not necessarily appear in the same order as they did in the inputs.</p>
 </td></tr>
 <tr><td id="bowtie2-options-al-conc">
 
-
-
-
-
 <pre><code>--al-conc &lt;path&gt;
 --al-conc-gz &lt;path&gt;
---al-conc-bz2 &lt;path&gt;</code></pre>
+--al-conc-bz2 &lt;path&gt;
+--al-conc-lz4 &lt;path&gt;</code></pre>
 </td><td>
 
 <p>Write paired-end reads that align concordantly at least once to file(s) at <code>&lt;path&gt;</code>. These reads correspond to the SAM records with the FLAGS <code>0x4</code> bit unset and either the <code>0x40</code> or <code>0x80</code> bit set (depending on whether it's mate #1 or #2). <code>.1</code> and <code>.2</code> strings are added to the filename to distinguish which file contains mate #1 and mate #2. If a percent symbol, <code>%</code>, is used in <code>&lt;path&gt;</code>, the percent symbol is replaced with <code>1</code> or <code>2</code> to make the per-mate filenames. Otherwise, <code>.1</code> or <code>.2</code> are added before the final dot in <code>&lt;path&gt;</code> to make the per-mate filenames. Reads written in this way will appear exactly as they did in the input files, without any modification (same sequence, same name, same quality string, same quality encoding). Reads will not necessarily appear in the same order as they did in the inputs.</p>
 </td></tr>
 <tr><td id="bowtie2-options-quiet">
-
-
 
 <pre><code>--quiet</code></pre>
 </td><td>
@@ -946,16 +797,12 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td></tr>
 <tr><td id="bowtie2-options-met-file">
 
-
-
 <pre><code>--met-file &lt;path&gt;</code></pre>
 </td><td>
 
 <p>Write <code>bowtie2</code> metrics to file <code>&lt;path&gt;</code>. Having alignment metric can be useful for debugging certain problems, especially performance issues. See also: <a href="#bowtie2-options-met"><code>--met</code></a>. Default: metrics disabled.</p>
 </td></tr>
 <tr><td id="bowtie2-options-met-stderr">
-
-
 
 <pre><code>--met-stderr &lt;path&gt;</code></pre>
 </td><td>
@@ -964,8 +811,6 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td></tr>
 <tr><td id="bowtie2-options-met">
 
-
-
 <pre><code>--met &lt;int&gt;</code></pre>
 </td><td>
 
@@ -973,12 +818,10 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td></tr>
 </table>
 
-<h4 id="sam-options"><a href="#TOC">SAM options</a></h4>
+<h4 id="sam-options">SAM options</h4>
 <table>
 
 <tr><td id="bowtie2-options-no-unal">
-
-
 
 <pre><code>--no-unal</code></pre>
 </td><td>
@@ -987,16 +830,12 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td></tr>
 <tr><td id="bowtie2-options-no-hd">
 
-
-
 <pre><code>--no-hd</code></pre>
 </td><td>
 
 <p>Suppress SAM header lines (starting with <code>@</code>).</p>
 </td></tr>
 <tr><td id="bowtie2-options-no-sq">
-
-
 
 <pre><code>--no-sq</code></pre>
 </td><td>
@@ -1005,8 +844,6 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td></tr>
 <tr><td id="bowtie2-options-rg-id">
 
-
-
 <pre><code>--rg-id &lt;text&gt;</code></pre>
 </td><td>
 
@@ -1014,16 +851,12 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td></tr>
 <tr><td id="bowtie2-options-rg">
 
-
-
 <pre><code>--rg &lt;text&gt;</code></pre>
 </td><td>
 
 <p>Add <code>&lt;text&gt;</code> (usually of the form <code>TAG:VAL</code>, e.g. <code>SM:Pool1</code>) as a field on the <code>@RG</code> header line. Note: in order for the <code>@RG</code> line to appear, <a href="#bowtie2-options-rg-id"><code>--rg-id</code></a> must also be specified. This is because the <code>ID</code> tag is required by the <a href="http://samtools.sourceforge.net/SAM1.pdf">SAM Spec</a>. Specify <code>--rg</code> multiple times to set multiple fields. See the <a href="http://samtools.sourceforge.net/SAM1.pdf">SAM Spec</a> for details about what fields are legal.</p>
 </td></tr>
 <tr><td id="bowtie2-options-omit-sec-seq">
-
-
 
 <pre><code>--omit-sec-seq</code></pre>
 </td><td>
@@ -1034,14 +867,10 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 
 </table>
 
-<h4 id="performance-options"><a href="#TOC">Performance options</a></h4>
+<h4 id="performance-options">Performance options</h4>
 <table><tr>
 
 <td id="bowtie2-options-o">
-
-
-
-
 
 <pre><code>-o/--offrate &lt;int&gt;</code></pre>
 </td><td>
@@ -1050,17 +879,12 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td></tr>
 <tr><td id="bowtie2-options-p">
 
-
-
-
 <pre><code>-p/--threads NTHREADS</code></pre>
 </td><td>
 
 <p>Launch <code>NTHREADS</code> parallel search threads (default: 1). Threads will run on separate processors/cores and synchronize when parsing reads and outputting alignments. Searching for alignments is highly parallel, and speedup is close to linear. Increasing <code>-p</code> increases Bowtie 2's memory footprint. E.g. when aligning to a human genome index, increasing <code>-p</code> from 1 to 8 increases the memory footprint by a few hundred megabytes. This option is only available if <code>bowtie</code> is linked with the <code>pthreads</code> library (i.e. if <code>BOWTIE_PTHREADS=0</code> is not specified at build time).</p>
 </td></tr>
 <tr><td id="bowtie2-options-reorder">
-
-
 
 <pre><code>--reorder</code></pre>
 </td><td>
@@ -1069,19 +893,15 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td></tr>
 <tr><td id="bowtie2-options-mm">
 
-
-
 <pre><code>--mm</code></pre>
 </td><td>
 
 <p>Use memory-mapped I/O to load the index, rather than typical file I/O. Memory-mapping allows many concurrent <code>bowtie</code> processes on the same computer to share the same memory image of the index (i.e. you pay the memory overhead just once). This facilitates memory-efficient parallelization of <code>bowtie</code> in situations where using <a href="#bowtie2-options-p"><code>-p</code></a> is not possible or not preferable.</p>
 </td></tr></table>
 
-<h4 id="other-options"><a href="#TOC">Other options</a></h4>
+<h4 id="other-options">Other options</h4>
 <table>
 <tr><td id="bowtie2-options-qc-filter">
-
-
 
 <pre><code>--qc-filter</code></pre>
 </td><td>
@@ -1090,8 +910,6 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td></tr>
 <tr><td id="bowtie2-options-seed">
 
-
-
 <pre><code>--seed &lt;int&gt;</code></pre>
 </td><td>
 
@@ -1099,16 +917,12 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td></tr>
 <tr><td id="bowtie2-options-non-deterministic">
 
-
-
 <pre><code>--non-deterministic</code></pre>
 </td><td>
 
 <p>Normally, Bowtie 2 re-initializes its pseudo-random generator for each read. It seeds the generator with a number derived from (a) the read name, (b) the nucleotide sequence, (c) the quality sequence, (d) the value of the <a href="#bowtie2-options-seed"><code>--seed</code></a> option. This means that if two reads are identical (same name, same nucleotides, same qualities) Bowtie 2 will find and report the same alignment(s) for both, even if there was ambiguity. When <code>--non-deterministic</code> is specified, Bowtie 2 re-initializes its pseudo-random generator for each read using the current time. This means that Bowtie 2 will not necessarily report the same alignment for two identical reads. This is counter-intuitive for some users, but might be more appropriate in situations where the input consists of many identical reads.</p>
 </td></tr>
 <tr><td id="bowtie2-options-version">
-
-
 
 <pre><code>--version</code></pre>
 </td><td>
@@ -1123,7 +937,7 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 <p>Print usage information and quit.</p>
 </td></tr></table>
 
-<h2 id="sam-output"><a href="#TOC">SAM output</a></h2>
+<h2 id="sam-output">SAM output</h2>
 <p>Following is a brief description of the <a href="http://samtools.sourceforge.net/SAM1.pdf">SAM</a> format as output by <code>bowtie2</code>. For more details, see the <a href="http://samtools.sourceforge.net/SAM1.pdf">SAM format specification</a>.</p>
 <p>By default, <code>bowtie2</code> prints a SAM header with <code>@HD</code>, <code>@SQ</code> and <code>@PG</code> lines. When one or more <a href="#bowtie2-options-rg"><code>--rg</code></a> arguments are specified, <code>bowtie2</code> will also print an <code>@RG</code> line that includes all user-specified <a href="#bowtie2-options-rg"><code>--rg</code></a> tokens separated by tabs.</p>
 <p>Each subsequnt line describes an alignment or, if the read failed to align, a read. Each line is a collection of at least 12 fields separated by tabs; from left to right, the fields are:</p>
@@ -1191,134 +1005,96 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 <li><p>Inferred fragment length. Size is negative if the mate's alignment occurs upstream of this alignment. Size is 0 if the mates did not align concordantly. However, size is non-0 if the mates aligned discordantly to the same chromosome.</p></li>
 <li><p>Read sequence (reverse-complemented if aligned to the reverse strand)</p></li>
 <li><p>ASCII-encoded read qualities (reverse-complemented if the read aligned to the reverse strand). The encoded quality values are on the <a href="http://en.wikipedia.org/wiki/Phred_quality_score">Phred quality</a> scale and the encoding is ASCII-offset by 33 (ASCII char <code>!</code>), similarly to a <a href="http://en.wikipedia.org/wiki/FASTQ_format">FASTQ</a> file.</p></li>
-<li><p>Optional fields. Fields are tab-separated. <code>bowtie2</code> outputs zero or more of these optional fields for each alignment, depending on the type of the alignment:</p>
+<li><p>Optional fields. Fields are tab-separated. <code>bowtie2</code> outputs zero or more of these optional fields for each alignment, depending on the type of the alignment:</p></li>
+</ol>
 <table>
 <tr><td id="bowtie2-build-opt-fields-as">
-
-
-
-<pre><code>AS:i:&lt;N&gt;</code></pre>
+<pre><code>    AS:i:&lt;N&gt;</code></pre>
 </td>
 <td>
-
-<p>Alignment score. Can be negative. Can be greater than 0 in <a href="#bowtie2-options-local"><code>--local</code></a> mode (but not in <a href="#bowtie2-options-end-to-end"><code>--end-to-end</code></a> mode). Only present if SAM record is for an aligned read.</p>
+    
+Alignment score. Can be negative. Can be greater than 0 in <a href="#bowtie2-options-local"><code>--local</code></a> mode (but not in <a href="#bowtie2-options-end-to-end"><code>--end-to-end</code></a> mode). Only present if SAM record is for an aligned read.
 </td></tr>
 <tr><td id="bowtie2-build-opt-fields-xs">
-
-
-
-<pre><code>XS:i:&lt;N&gt;</code></pre>
+<pre><code>    XS:i:&lt;N&gt;</code></pre>
 </td>
 <td>
-
-<p>Alignment score for the best-scoring alignment found other than the alignment reported. Can be negative. Can be greater than 0 in <a href="#bowtie2-options-local"><code>--local</code></a> mode (but not in <a href="#bowtie2-options-end-to-end"><code>--end-to-end</code></a> mode). Only present if the SAM record is for an aligned read and more than one alignment was found for the read. Note that, when the read is part of a concordantly-aligned pair, this score could be greater than <a href="#bowtie2-build-opt-fields-as"><code>AS:i</code></a>.</p>
+    
+Alignment score for the best-scoring alignment found other than the alignment reported. Can be negative. Can be greater than 0 in <a href="#bowtie2-options-local"><code>--local</code></a> mode (but not in <a href="#bowtie2-options-end-to-end"><code>--end-to-end</code></a> mode). Only present if the SAM record is for an aligned read and more than one alignment was found for the read. Note that, when the read is part of a concordantly-aligned pair, this score could be greater than <a href="#bowtie2-build-opt-fields-as"><code>AS:i</code></a>.
 </td></tr>
 <tr><td id="bowtie2-build-opt-fields-ys">
-
-
-
-<pre><code>YS:i:&lt;N&gt;</code></pre>
+<pre><code>    YS:i:&lt;N&gt;</code></pre>
 </td>
 <td>
-
-<p>Alignment score for opposite mate in the paired-end alignment. Only present if the SAM record is for a read that aligned as part of a paired-end alignment.</p>
+    
+Alignment score for opposite mate in the paired-end alignment. Only present if the SAM record is for a read that aligned as part of a paired-end alignment.
 </td></tr>
 <tr><td id="bowtie2-build-opt-fields-xn">
-
-
-
-<pre><code>XN:i:&lt;N&gt;</code></pre>
+<pre><code>    XN:i:&lt;N&gt;</code></pre>
 </td>
 <td>
-
-<p>The number of ambiguous bases in the reference covering this alignment. Only present if SAM record is for an aligned read.</p>
+    
+The number of ambiguous bases in the reference covering this alignment. Only present if SAM record is for an aligned read.
 </td></tr>
 <tr><td id="bowtie2-build-opt-fields-xm">
-
-
-
-<pre><code>XM:i:&lt;N&gt;</code></pre>
+<pre><code>    XM:i:&lt;N&gt;</code></pre>
 </td>
 <td>
-
-<p>The number of mismatches in the alignment. Only present if SAM record is for an aligned read.</p>
+    
+The number of mismatches in the alignment. Only present if SAM record is for an aligned read.
 </td></tr>
 <tr><td id="bowtie2-build-opt-fields-xo">
-
-
-
-<pre><code>XO:i:&lt;N&gt;</code></pre>
+<pre><code>    XO:i:&lt;N&gt;</code></pre>
 </td>
 <td>
-
-<p>The number of gap opens, for both read and reference gaps, in the alignment. Only present if SAM record is for an aligned read.</p>
+    
+The number of gap opens, for both read and reference gaps, in the alignment. Only present if SAM record is for an aligned read.
 </td></tr>
 <tr><td id="bowtie2-build-opt-fields-xg">
-
-
-
-<pre><code>XG:i:&lt;N&gt;</code></pre>
+<pre><code>    XG:i:&lt;N&gt;</code></pre>
 </td>
 <td>
-
-<p>The number of gap extensions, for both read and reference gaps, in the alignment. Only present if SAM record is for an aligned read.</p>
+    
+The number of gap extensions, for both read and reference gaps, in the alignment. Only present if SAM record is for an aligned read.
 </td></tr>
 <tr><td id="bowtie2-build-opt-fields-nm">
-
-
-
-<pre><code>NM:i:&lt;N&gt;</code></pre>
+<pre><code>    NM:i:&lt;N&gt;</code></pre>
 </td>
 <td>
-
-<p>The edit distance; that is, the minimal number of one-nucleotide edits (substitutions, insertions and deletions) needed to transform the read string into the reference string. Only present if SAM record is for an aligned read.</p>
+    
+The edit distance; that is, the minimal number of one-nucleotide edits (substitutions, insertions and deletions) needed to transform the read string into the reference string. Only present if SAM record is for an aligned read.
 </td></tr>
 <tr><td id="bowtie2-build-opt-fields-yf">
-
-
-
-<pre><code>YF:Z:&lt;S&gt;</code></pre>
+<pre><code>    YF:Z:&lt;S&gt;</code></pre>
 </td><td>
-
-<p>String indicating reason why the read was filtered out. See also: <a href="#filtering">Filtering</a>. Only appears for reads that were filtered out.</p>
+    
+String indicating reason why the read was filtered out. See also: <a href="#filtering">Filtering</a>. Only appears for reads that were filtered out.
 </td></tr>
 <tr><td id="bowtie2-build-opt-fields-yt">
-
-
-
-<pre><code>YT:Z:&lt;S&gt;</code></pre>
+<pre><code>    YT:Z:&lt;S&gt;</code></pre>
 </td><td>
-
-<p>Value of <code>UU</code> indicates the read was not part of a pair. Value of <code>CP</code> indicates the read was part of a pair and the pair aligned concordantly. Value of <code>DP</code> indicates the read was part of a pair and the pair aligned discordantly. Value of <code>UP</code> indicates the read was part of a pair but the pair failed to aligned either concordantly or discordantly.</p>
+    
+Value of <code>UU</code> indicates the read was not part of a pair. Value of <code>CP</code> indicates the read was part of a pair and the pair aligned concordantly. Value of <code>DP</code> indicates the read was part of a pair and the pair aligned discordantly. Value of <code>UP</code> indicates the read was part of a pair but the pair failed to aligned either concordantly or discordantly. <a href="#filtering">Filtering</a>: #filtering
 </td></tr>
 <tr><td id="bowtie2-build-opt-fields-md">
-
-
-
-<pre><code>MD:Z:&lt;S&gt;</code></pre>
+<pre><code>    MD:Z:&lt;S&gt;</code></pre>
 </td><td>
-
-<p>A string representation of the mismatched reference bases in the alignment. See <a href="http://samtools.sourceforge.net/SAM1.pdf">SAM</a> format specification for details. Only present if SAM record is for an aligned read.</p>
+    
+A string representation of the mismatched reference bases in the alignment. See <a href="http://samtools.sourceforge.net/SAM1.pdf">SAM</a> format specification for details. Only present if SAM record is for an aligned read.
 </td></tr>
 </table>
 
-
-
-
-
-</li>
-</ol>
-<h1 id="the-bowtie2-build-indexer"><a href="#TOC">The <code>bowtie2-build</code> indexer</a></h1>
+<h1 id="the-bowtie2-build-indexer">The <code>bowtie2-build</code> indexer</h1>
 <p><code>bowtie2-build</code> builds a Bowtie index from a set of DNA sequences. <code>bowtie2-build</code> outputs a set of 6 files with suffixes <code>.1.bt2</code>, <code>.2.bt2</code>, <code>.3.bt2</code>, <code>.4.bt2</code>, <code>.rev.1.bt2</code>, and <code>.rev.2.bt2</code>. In the case of a large index these suffixes will have a <code>bt2l</code> termination. These files together constitute the index: they are all that is needed to align reads to that reference. The original sequence FASTA files are no longer used by Bowtie 2 once the index is built.</p>
 <p>Bowtie 2's <code>.bt2</code> index format is different from Bowtie 1's <code>.ebwt</code> format, and they are not compatible with each other.</p>
 <p>Use of Karkkainen's <a href="http://portal.acm.org/citation.cfm?id=1314852">blockwise algorithm</a> allows <code>bowtie2-build</code> to trade off between running time and memory usage. <code>bowtie2-build</code> has three options governing how it makes this trade: <a href="#bowtie2-build-options-p"><code>-p</code>/<code>--packed</code></a>, <a href="#bowtie2-build-options-bmax"><code>--bmax</code></a>/<a href="#bowtie2-build-options-bmaxdivn"><code>--bmaxdivn</code></a>, and <a href="#bowtie2-build-options-dcv"><code>--dcv</code></a>. By default, <code>bowtie2-build</code> will automatically search for the settings that yield the best running time without exhausting memory. This behavior can be disabled using the <a href="#bowtie2-build-options-a"><code>-a</code>/<code>--noauto</code></a> option.</p>
 <p>The indexer provides options pertaining to the &quot;shape&quot; of the index, e.g. <a href="#bowtie2-build-options-o"><code>--offrate</code></a> governs the fraction of <a href="http://en.wikipedia.org/wiki/Burrows-Wheeler_transform">Burrows-Wheeler</a> rows that are &quot;marked&quot; (i.e., the density of the suffix-array sample; see the original <a href="http://portal.acm.org/citation.cfm?id=796543">FM Index</a> paper for details). All of these options are potentially profitable trade-offs depending on the application. They have been set to defaults that are reasonable for most cases according to our experiments. See <a href="#performance-tuning">Performance tuning</a> for details.</p>
 <p><code>bowtie2-build</code> can generate either <a href="#small-and-large-indexes">small or large indexes</a>. The wrapper will decide which based on the length of the input genome. If the reference does not exceed 4 billion characters but a large index is preferred, the user can specify <a href="#bowtie2-build-options-large-index"><code>--large-index</code></a> to force <code>bowtie2-build</code> to build a large index instead.</p>
 <p>The Bowtie 2 index is based on the <a href="http://portal.acm.org/citation.cfm?id=796543">FM Index</a> of Ferragina and Manzini, which in turn is based on the <a href="http://en.wikipedia.org/wiki/Burrows-Wheeler_transform">Burrows-Wheeler</a> transform. The algorithm used to build the index is based on the <a href="http://portal.acm.org/citation.cfm?id=1314852">blockwise algorithm</a> of Karkkainen.</p>
-<h2 id="command-line-1"><a href="#TOC">Command Line</a></h2>
+<h2 id="command-line-1">Command Line</h2>
 <p>Usage:</p>
 <pre><code>bowtie2-build [options]* &lt;reference_in&gt; &lt;bt2_base&gt;</code></pre>
-<h3 id="main-arguments-1"><a href="#TOC">Main arguments</a></h3>
+<h3 id="main-arguments-1">Main arguments</h3>
 <table><tr><td>
 
 <pre><code>&lt;reference_in&gt;</code></pre>
@@ -1333,7 +1109,7 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 <p>The basename of the index files to write. By default, <code>bowtie2-build</code> writes files named <code>NAME.1.bt2</code>, <code>NAME.2.bt2</code>, <code>NAME.3.bt2</code>, <code>NAME.4.bt2</code>, <code>NAME.rev.1.bt2</code>, and <code>NAME.rev.2.bt2</code>, where <code>NAME</code> is <code>&lt;bt2_base&gt;</code>.</p>
 </td></tr></table>
 
-<h3 id="options-1"><a href="#TOC">Options</a></h3>
+<h3 id="options-1">Options</h3>
 <table><tr><td>
 
 <pre><code>-f</code></pre>
@@ -1349,8 +1125,6 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td></tr>
 </td></tr><tr><td id="bowtie2-build-options-large-index">
 
-
-
 <pre><code>--large-index</code></pre>
 </td><td>
 
@@ -1358,16 +1132,11 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td></tr>
 <tr><td id="bowtie2-build-options-a">
 
-
-
 <pre><code>-a/--noauto</code></pre>
 </td><td>
 
 <p>Disable the default behavior whereby <code>bowtie2-build</code> automatically selects values for the <a href="#bowtie2-build-options-bmax"><code>--bmax</code></a>, <a href="#bowtie2-build-options-dcv"><code>--dcv</code></a> and <a href="#bowtie2-build-options-p"><code>--packed</code></a> parameters according to available memory. Instead, user may specify values for those parameters. If memory is exhausted during indexing, an error message will be printed; it is up to the user to try new parameters.</p>
 </td></tr><tr><td id="bowtie2-build-options-p">
-
-
-
 
 <pre><code>-p/--packed</code></pre>
 </td><td>
@@ -1375,15 +1144,11 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 <p>Use a packed (2-bits-per-nucleotide) representation for DNA strings. This saves memory but makes indexing 2-3 times slower. Default: off. This is configured automatically by default; use <a href="#bowtie2-build-options-a"><code>-a</code>/<code>--noauto</code></a> to configure manually.</p>
 </td></tr><tr><td id="bowtie2-build-options-bmax">
 
-
-
 <pre><code>--bmax &lt;int&gt;</code></pre>
 </td><td>
 
 <p>The maximum number of suffixes allowed in a block. Allowing more suffixes per block makes indexing faster, but increases peak memory usage. Setting this option overrides any previous setting for <a href="#bowtie2-build-options-bmax"><code>--bmax</code></a>, or <a href="#bowtie2-build-options-bmaxdivn"><code>--bmaxdivn</code></a>. Default (in terms of the <a href="#bowtie2-build-options-bmaxdivn"><code>--bmaxdivn</code></a> parameter) is <a href="#bowtie2-build-options-bmaxdivn"><code>--bmaxdivn</code></a> 4. This is configured automatically by default; use <a href="#bowtie2-build-options-a"><code>-a</code>/<code>--noauto</code></a> to configure manually.</p>
 </td></tr><tr><td id="bowtie2-build-options-bmaxdivn">
-
-
 
 <pre><code>--bmaxdivn &lt;int&gt;</code></pre>
 </td><td>
@@ -1391,15 +1156,11 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 <p>The maximum number of suffixes allowed in a block, expressed as a fraction of the length of the reference. Setting this option overrides any previous setting for <a href="#bowtie2-build-options-bmax"><code>--bmax</code></a>, or <a href="#bowtie2-build-options-bmaxdivn"><code>--bmaxdivn</code></a>. Default: <a href="#bowtie2-build-options-bmaxdivn"><code>--bmaxdivn</code></a> 4. This is configured automatically by default; use <a href="#bowtie2-build-options-a"><code>-a</code>/<code>--noauto</code></a> to configure manually.</p>
 </td></tr><tr><td id="bowtie2-build-options-dcv">
 
-
-
 <pre><code>--dcv &lt;int&gt;</code></pre>
 </td><td>
 
 <p>Use <code>&lt;int&gt;</code> as the period for the difference-cover sample. A larger period yields less memory overhead, but may make suffix sorting slower, especially if repeats are present. Must be a power of 2 no greater than 4096. Default: 1024. This is configured automatically by default; use <a href="#bowtie2-build-options-a"><code>-a</code>/<code>--noauto</code></a> to configure manually.</p>
 </td></tr><tr><td id="bowtie2-build-options-nodc">
-
-
 
 <pre><code>--nodc</code></pre>
 </td><td>
@@ -1461,12 +1222,12 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 <p>Print version information and quit.</p>
 </td></tr></table>
 
-<h1 id="the-bowtie2-inspect-index-inspector"><a href="#TOC">The <code>bowtie2-inspect</code> index inspector</a></h1>
+<h1 id="the-bowtie2-inspect-index-inspector">The <code>bowtie2-inspect</code> index inspector</h1>
 <p><code>bowtie2-inspect</code> extracts information from a Bowtie index about what kind of index it is and what reference sequences were used to build it. When run without any options, the tool will output a FASTA file containing the sequences of the original references (with all non-<code>A</code>/<code>C</code>/<code>G</code>/<code>T</code> characters converted to <code>N</code>s). It can also be used to extract just the reference sequence names using the <a href="#bowtie2-inspect-options-n"><code>-n</code>/<code>--names</code></a> option or a more verbose summary using the <a href="#bowtie2-inspect-options-s"><code>-s</code>/<code>--summary</code></a> option.</p>
-<h2 id="command-line-2"><a href="#TOC">Command Line</a></h2>
+<h2 id="command-line-2">Command Line</h2>
 <p>Usage:</p>
 <pre><code>bowtie2-inspect [options]* &lt;bt2_base&gt;</code></pre>
-<h3 id="main-arguments-2"><a href="#TOC">Main arguments</a></h3>
+<h3 id="main-arguments-2">Main arguments</h3>
 <table><tr><td>
 
 <pre><code>&lt;bt2_base&gt;</code></pre>
@@ -1475,7 +1236,7 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 <p>The basename of the index to be inspected. The basename is name of any of the index files but with the <code>.X.bt2</code> or <code>.rev.X.bt2</code> suffix omitted. <code>bowtie2-inspect</code> first looks in the current directory for the index files, then in the directory specified in the <code>BOWTIE2_INDEXES</code> environment variable.</p>
 </td></tr></table>
 
-<h3 id="options-2"><a href="#TOC">Options</a></h3>
+<h3 id="options-2">Options</h3>
 <table><tr><td>
 
 <pre><code>-a/--across &lt;int&gt;</code></pre>
@@ -1484,15 +1245,11 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 <p>When printing FASTA output, output a newline character every <code>&lt;int&gt;</code> bases (default: 60).</p>
 </td></tr><tr><td id="bowtie2-inspect-options-n">
 
-
-
 <pre><code>-n/--names</code></pre>
 </td><td>
 
 <p>Print reference sequence names, one per line, and quit.</p>
 </td></tr><tr><td id="bowtie2-inspect-options-s">
-
-
 
 <pre><code>-s/--summary</code></pre>
 </td><td>
@@ -1526,15 +1283,15 @@ Sequence-N  &lt;name&gt;  &lt;len&gt;</code></pre>
 <p>Print usage information and quit.</p>
 </td></tr></table>
 
-<h1 id="getting-started-with-bowtie-2-lambda-phage-example"><a href="#TOC">Getting started with Bowtie 2: Lambda phage example</a></h1>
+<h1 id="getting-started-with-bowtie-2-lambda-phage-example">Getting started with Bowtie 2: Lambda phage example</h1>
 <p>Bowtie 2 comes with some example files to get you started. The example files are not scientifically significant; we use the <a href="http://en.wikipedia.org/wiki/Lambda_phage">Lambda phage</a> reference genome simply because it's short, and the reads were generated by a computer program, not a sequencer. However, these files will let you start running Bowtie 2 and downstream tools right away.</p>
 <p>First follow the manual instructions to <a href="#obtaining-bowtie-2">obtain Bowtie 2</a>. Set the <code>BT2_HOME</code> environment variable to point to the new Bowtie 2 directory containing the <code>bowtie2</code>, <code>bowtie2-build</code> and <code>bowtie2-inspect</code> binaries. This is important, as the <code>BT2_HOME</code> variable is used in the commands below to refer to that directory.</p>
-<h2 id="indexing-a-reference-genome"><a href="#TOC">Indexing a reference genome</a></h2>
+<h2 id="indexing-a-reference-genome">Indexing a reference genome</h2>
 <p>To create an index for the <a href="http://en.wikipedia.org/wiki/Lambda_phage">Lambda phage</a> reference genome included with Bowtie 2, create a new temporary directory (it doesn't matter where), change into that directory, and run:</p>
 <pre><code>$BT2_HOME/bowtie2-build $BT2_HOME/example/reference/lambda_virus.fa lambda_virus</code></pre>
 <p>The command should print many lines of output then quit. When the command completes, the current directory will contain four new files that all start with <code>lambda_virus</code> and end with <code>.1.bt2</code>, <code>.2.bt2</code>, <code>.3.bt2</code>, <code>.4.bt2</code>, <code>.rev.1.bt2</code>, and <code>.rev.2.bt2</code>. These files constitute the index - you're done!</p>
 <p>You can use <code>bowtie2-build</code> to create an index for a set of FASTA files obtained from any source, including sites such as <a href="http://genome.ucsc.edu/cgi-bin/hgGateway">UCSC</a>, <a href="http://www.ncbi.nlm.nih.gov/sites/genome">NCBI</a>, and <a href="http://www.ensembl.org/">Ensembl</a>. When indexing multiple FASTA files, specify all the files using commas to separate file names. For more details on how to create an index with <code>bowtie2-build</code>, see the <a href="#the-bowtie2-build-indexer">manual section on index building</a>. You may also want to bypass this process by obtaining a pre-built index. See <a href="#using-a-pre-built-index">using a pre-built index</a> below for an example.</p>
-<h2 id="aligning-example-reads"><a href="#TOC">Aligning example reads</a></h2>
+<h2 id="aligning-example-reads">Aligning example reads</h2>
 <p>Stay in the directory created in the previous step, which now contains the <code>lambda_virus</code> index files. Next, run:</p>
 <pre><code>$BT2_HOME/bowtie2 -x lambda_virus -U $BT2_HOME/example/reads/reads_1.fq -S eg1.sam</code></pre>
 <p>This runs the Bowtie 2 aligner, which aligns a set of unpaired reads to the <a href="http://en.wikipedia.org/wiki/Lambda_phage">Lambda phage</a> reference genome using the index generated in the previous step. The alignment results in SAM format are written to the file <code>eg1.sam</code>, and a short alignment summary is written to the console. (Actually, the summary is written to the &quot;standard error&quot; or &quot;stderr&quot; filehandle, which is typically printed to the console.)</p>
@@ -1552,15 +1309,15 @@ r5  0   gi|9626243|ref|NC_001416.1| 48010   42  138M    *   0   0   GTCAGGAAAGTG
 r6  16  gi|9626243|ref|NC_001416.1| 41607   42  72M2D119M   *   0   0   TCGATTTGCAAATACCGGAACATCTCGGTAACTGCATATTCTGCATTAAAAAATCAACGCAAAAAATCGGACGCCTGCAAAGATGAGGAGGGATTGCAGCGTGTTTTTAATGAGGTCATCACGGGATNCCATGTGCGTGACGGNCATCGGGAAACGCCAAAGGAGATTATGTACCGAGGAAGAATGTCGCT 1H#G;H&quot;$E*E#&amp;&quot;*)2%66?=9/9&#39;=;4)4/&gt;@%+5#@#$4A*!&lt;D==&quot;8#1*A9BA=:(1+#C&amp;.#(3#H=9E)AC*5,AC#E&#39;536*2?)H14?&gt;9&#39;B=7(3H/B:+A:8%1-+#(E%&amp;$$&amp;14&quot;76D?&gt;7(&amp;20H5%*&amp;CF8!G5B+A4F$7(:&quot;&#39;?0$?G+$)B-?2&lt;0&lt;F=D!38BH,%=8&amp;5@+ AS:i:-13    XN:i:0  XM:i:2  XO:i:1  XG:i:2  NM:i:4  MD:Z:72^TT55C15A47  YT:Z:UU
 r7  16  gi|9626243|ref|NC_001416.1| 4692    42  143M    *   0   0   TCAGCCGGACGCGGGCGCTGCAGCCGTACTCGGGGATGACCGGTTACAACGGCATTATCGCCCGTCTGCAACAGGCTGCCAGCGATCCGATGGTGGACAGCATTCTGCTCGATATGGACANGCCCGGCGGGATGGTGGCGGGG -&quot;/@*7A0)&gt;2,AAH@&amp;&quot;%B)*5*23B/,)90.B@%=FE,E063C9?,:26$-0:,.,1849&#39;4.;F&gt;FA;76+5&amp;$&lt;C&quot;:$!A*,&lt;B,&lt;)@&lt;&#39;85D%C*:)30@85;?.B$05=@95DCDH&lt;53!8G:F:B7/A.E&#39;:434&gt; AS:i:-6 XN:i:0  XM:i:2  XO:i:0  XG:i:0  NM:i:2  MD:Z:98G21C22   YT:Z:UU</code></pre>
 <p>The first few lines (beginning with <code>@</code>) are SAM header lines, and the rest of the lines are SAM alignments, one line per read or mate. See the <a href="#sam-output">Bowtie 2 manual section on SAM output</a> and the <a href="http://samtools.sourceforge.net/SAM1.pdf">SAM specification</a> for details about how to interpret the SAM file format.</p>
-<h2 id="paired-end-example"><a href="#TOC">Paired-end example</a></h2>
+<h2 id="paired-end-example">Paired-end example</h2>
 <p>To align paired-end reads included with Bowtie 2, stay in the same directory and run:</p>
 <pre><code>$BT2_HOME/bowtie2 -x lambda_virus -1 $BT2_HOME/example/reads/reads_1.fq -2 $BT2_HOME/example/reads/reads_2.fq -S eg2.sam</code></pre>
 <p>This aligns a set of paired-end reads to the reference genome, with results written to the file <code>eg2.sam</code>.</p>
-<h2 id="local-alignment-example-1"><a href="#TOC">Local alignment example</a></h2>
+<h2 id="local-alignment-example-1">Local alignment example</h2>
 <p>To use <a href="#end-to-end-alignment-versus-local-alignment">local alignment</a> to align some longer reads included with Bowtie 2, stay in the same directory and run:</p>
 <pre><code>$BT2_HOME/bowtie2 --local -x lambda_virus -U $BT2_HOME/example/reads/longreads.fq -S eg3.sam</code></pre>
 <p>This aligns the long reads to the reference genome using local alignment, with results written to the file <code>eg3.sam</code>.</p>
-<h2 id="using-samtoolsbcftools-downstream"><a href="#TOC">Using SAMtools/BCFtools downstream</a></h2>
+<h2 id="using-samtoolsbcftools-downstream">Using SAMtools/BCFtools downstream</h2>
 <p><a href="http://samtools.sourceforge.net/">SAMtools</a> is a collection of tools for manipulating and analyzing SAM and BAM alignment files. <a href="http://samtools.sourceforge.net/mpileup.shtml">BCFtools</a> is a collection of tools for calling variants and manipulating VCF and BCF files, and it is typically distributed with <a href="http://samtools.sourceforge.net/">SAMtools</a>. Using these tools together allows you to get from alignments in SAM format to variant calls in VCF format. This example assumes that <code>samtools</code> and <code>bcftools</code> are installed and that the directories containing these binaries are in your <a href="http://en.wikipedia.org/wiki/PATH_(variable)">PATH environment variable</a>.</p>
 <p>Run the paired-end example:</p>
 <pre><code>$BT2_HOME/bowtie2 -x $BT2_HOME/example/index/lambda_virus -1 $BT2_HOME/example/reads/reads_1.fq -2 $BT2_HOME/example/reads/reads_2.fq -S eg2.sam</code></pre>

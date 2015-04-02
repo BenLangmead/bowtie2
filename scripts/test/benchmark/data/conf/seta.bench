@@ -1,0 +1,59 @@
+{"description":"A suite of simple tests like the one bowtie2 already comes with",
+ "name" : "set_a",
+ "tests": [
+    {"description":"The lambda virus genome test.",
+     "name":"lambda_long",
+     "input_data":{
+            "files": [
+                 "lambda_virus.1.bt2",
+                 "lambda_virus.2.bt2",
+                 "lambda_virus.3.bt2",
+                 "lambda_virus.4.bt2",
+                 "lambda_virus.rev.1.bt2",
+                 "lambda_virus.rev.2.bt2",
+                 "longreads.fq"
+            ],
+            "loading":[ " ##BT2DIR##/bowtie2-build ##BT2DIR##/example/reference/lambda_virus.fa ##DATADIR##/lambda_virus",
+                        "cp ##BT2DIR##/example/reads/longreads.fq ##DATADIR##/"
+             ] 
+      },
+     "runable":{
+            "program":"bowtie2",
+            "options":[
+                "-x ##DATADIR##/lambda_virus",
+                "-U ##DATADIR##/longreads.fq",
+                "-S /dev/null"  
+            ],
+            "parameters":[]
+      },
+     "metric":"TestTime"
+    },
+    {"description":"lambda virus long reads test.",
+     "name":"lambda_s",
+     "input_data":{
+            "files": [
+                 "lambda_virus.1.bt2",
+                 "lambda_virus.2.bt2",
+                 "lambda_virus.3.bt2",
+                 "lambda_virus.4.bt2",
+                 "lambda_virus.rev.1.bt2",
+                 "lambda_virus.rev.2.bt2",
+                 "longreads.fq"
+            ],
+            "loading":[ " ##BT2DIR##/bowtie2-build ##BT2DIR##/example/reference/lambda_virus.fa ##DATADIR##/lambda_virus",
+                        "cp ##BT2DIR##/example/reads/longreads.fq ##DATADIR##/"
+             ]
+      }, 
+     "runable":{
+            "program":"bowtie2",
+            "options":[
+                "-x ##DATADIR##/lambda_virus",
+                "-U ##DATADIR##/longreads.fq",
+                "-S /dev/null"  
+            ],
+            "parameters":[]
+      },
+     "metric":"TestTime"
+    }
+ ]
+}

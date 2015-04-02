@@ -393,8 +393,8 @@ details regarding these fields.
 A pair that aligns with the expected relative mate orientation and with the
 expected range of distances between mates is said to align "concordantly".  If
 both mates have unique alignments, but the alignments do not match paired-end
-expectations (i.e. the mates aren't in the expcted relative orientation, or
-aren't within the expected disatance range, or both), the pair is said to align
+expectations (i.e. the mates aren't in the expected relative orientation, or
+aren't within the expected distance range, or both), the pair is said to align
 "discordantly".  Discordant alignments may be of particular interest, for
 instance, when seeking [structural variants].
 
@@ -532,7 +532,7 @@ because it exceeded a limit placed on search effort (see [`-D`] and [`-R`]) or
 because it already knows all it needs to know to report an alignment.
 Information from the best alignments are used to estimate mapping quality (the
 `MAPQ` [SAM] field) and to set SAM optional fields, such as [`AS:i`] and
-[`XS:i`].  Bowtie 2 does not gaurantee that the alignment reported is the best
+[`XS:i`].  Bowtie 2 does not garantee that the alignment reported is the best
 possible in terms of alignment score.
 
 See also: [`-D`], which puts an upper limit on the number of dynamic programming
@@ -558,7 +558,7 @@ beyond the first has the SAM 'secondary' bit (which equals 256) set in its FLAGS
 field.  See the [SAM specification] for details.
 
 Bowtie 2 does not "find" alignments in any specific order, so for reads that
-have more than N distinct, valid alignments, Bowtie 2 does not gaurantee that
+have more than N distinct, valid alignments, Bowtie 2 does not garantee that
 the N alignments reported are the best possible in terms of alignment score.
 Still, this mode can be effective and fast in situations where the user cares
 more about whether a read aligns (or aligns a certain number of times) than
@@ -584,7 +584,7 @@ very large genomes, this mode is very slow.
 ### Randomness in Bowtie 2
 
 Bowtie 2's search for alignments for a given read is "randomized."  That is,
-when Bowtie 2 encouters a set of equally-good choices, it uses a pseudo-random
+when Bowtie 2 encounters a set of equally-good choices, it uses a pseudo-random
 number to choose.  For example, if Bowtie 2 discovers a set of 3 equally-good
 alignments and wants to decide which to report, it picks a pseudo-random integer
 0, 1 or 2 and reports the corresponding alignment.  Abitrary choices can crop up
@@ -601,7 +601,7 @@ most cases.  Most users expect Bowtie to produce the same output when run twice
 on the same input.
 
 However, when the user specifies the [`--non-deterministic`] option, Bowtie 2
-will use the current time to re-intiailize the pseud-random number generator.
+will use the current time to re-initialize the pseudo-random number generator.
 When this is specified, Bowtie 2 might report different alignments for identical
 reads.  This is counter-intuitive for some users, but might be more appropriate
 in situations where the input consists of many identical reads.
@@ -1486,7 +1486,7 @@ descending order by alignment score. The alignment score for a paired-end
 alignment equals the sum of the alignment scores of the individual mates. Each
 reported read or pair alignment beyond the first has the SAM 'secondary' bit
 (which equals 256) set in its FLAGS field.  For reads that have more than
-`<int>` distinct, valid alignments, `bowtie2` does not gaurantee that the
+`<int>` distinct, valid alignments, `bowtie2` does not guarantee that the
 `<int>` alignments reported are the best possible in terms of alignment score. 
 `-k` is mutually exclusive with [`-a`].
 
@@ -1719,21 +1719,23 @@ This is printed to the "standard error" ("stderr") filehandle.  Default: off.
 [`--un`]: #bowtie2-options-un
 [`--un-gz`]: #bowtie2-options-un
 [`--un-bz2`]: #bowtie2-options-un
+[`--un-lz4`]: #bowtie2-options-un
 
     --un <path>
     --un-gz <path>
     --un-bz2 <path>
+    --un-lz4 <path>
 
 </td><td>
 
 Write unpaired reads that fail to align to file at `<path>`.  These reads
 correspond to the SAM records with the FLAGS `0x4` bit set and neither the
 `0x40` nor `0x80` bits set.  If `--un-gz` is specified, output will be gzip
-compressed. If `--un-bz2` is specified, output will be bzip2 compressed.  Reads
-written in this way will appear exactly as they did in the input file, without
-any modification (same sequence, same name, same quality string, same quality
-encoding).  Reads will not necessarily appear in the same order as they did in
-the input.
+compressed. If `--un-bz2` or `--un-lz4` is specified, output will be bzip2 or 
+lz4 compressed. Reads written in this way will appear exactly as they did in 
+the input file, without any modification (same sequence, same name, same quality 
+string, same quality encoding). Reads will not necessarily appear in the same 
+order as they did in the input.
 
 </td></tr>
 <tr><td id="bowtie2-options-al">
@@ -1741,17 +1743,20 @@ the input.
 [`--al`]: #bowtie2-options-al
 [`--al-gz`]: #bowtie2-options-al
 [`--al-bz2`]: #bowtie2-options-al
+[`--al-lz4`]: #bowtie2-options-al
 
     --al <path>
     --al-gz <path>
     --al-bz2 <path>
+    --al-lz4 <path>
 
 </td><td>
 
 Write unpaired reads that align at least once to file at `<path>`.  These reads
 correspond to the SAM records with the FLAGS `0x4`, `0x40`, and `0x80` bits
 unset.  If `--al-gz` is specified, output will be gzip compressed. If `--al-bz2`
-is specified, output will be bzip2 compressed.  Reads written in this way will
+is specified, output will be bzip2 compressed. Similarly if `--al-lz4` is specified, 
+output will be lz4 compressed.  Reads written in this way will
 appear exactly as they did in the input file, without any modification (same
 sequence, same name, same quality string, same quality encoding).  Reads will
 not necessarily appear in the same order as they did in the input.
@@ -1762,10 +1767,12 @@ not necessarily appear in the same order as they did in the input.
 [`--un-conc`]: #bowtie2-options-un-conc
 [`--un-conc-gz`]: #bowtie2-options-un-conc
 [`--un-conc-bz2`]: #bowtie2-options-un-conc
+[`--un-conc-lz4`]: #bowtie2-options-un-conc
 
     --un-conc <path>
     --un-conc-gz <path>
     --un-conc-bz2 <path>
+    --un-conc-lz4 <path>
 
 </td><td>
 
@@ -1787,10 +1794,12 @@ the same order as they did in the inputs.
 [`--al-conc`]: #bowtie2-options-al-conc
 [`--al-conc-gz`]: #bowtie2-options-al-conc
 [`--al-conc-bz2`]: #bowtie2-options-al-conc
+[`--al-conc-lz4`]: #bowtie2-options-al-conc
 
     --al-conc <path>
     --al-conc-gz <path>
     --al-conc-bz2 <path>
+    --al-conc-lz4 <path>
 
 </td><td>
 
@@ -2211,162 +2220,128 @@ scale and the encoding is ASCII-offset by 33 (ASCII char `!`), similarly to a
 of these optional fields for each alignment, depending on the type of the
 alignment:
 
-    <table>
-    <tr><td id="bowtie2-build-opt-fields-as">
-
+<table>
+<tr><td id="bowtie2-build-opt-fields-as">
 [`AS:i`]: #bowtie2-build-opt-fields-as
 
         AS:i:<N>
 
-    </td>
-    <td>
-
+</td>
+<td>
     Alignment score.  Can be negative.  Can be greater than 0 in [`--local`]
     mode (but not in [`--end-to-end`] mode).  Only present if SAM record is for
     an aligned read.
-
-    </td></tr>
-    <tr><td id="bowtie2-build-opt-fields-xs">
-
+</td></tr>
+<tr><td id="bowtie2-build-opt-fields-xs">
 [`XS:i`]: #bowtie2-build-opt-fields-xs
 
         XS:i:<N>
 
-    </td>
-    <td>
-
+</td>
+<td>
     Alignment score for the best-scoring alignment found other than the
 	alignment reported.  Can be negative.  Can be greater than 0 in [`--local`]
 	mode (but not in [`--end-to-end`] mode).  Only present if the SAM record is
 	for an aligned read and more than one alignment was found for the read.
 	Note that, when the read is part of a concordantly-aligned pair, this score
 	could be greater than [`AS:i`].
-
-    </td></tr>
-    <tr><td id="bowtie2-build-opt-fields-ys">
-
+</td></tr>
+<tr><td id="bowtie2-build-opt-fields-ys">
 [`YS:i`]: #bowtie2-build-opt-fields-ys
 
         YS:i:<N>
 
-    </td>
-    <td>
-
+</td>
+<td>
     Alignment score for opposite mate in the paired-end alignment.  Only present
     if the SAM record is for a read that aligned as part of a paired-end
     alignment.
-
-    </td></tr>
-    <tr><td id="bowtie2-build-opt-fields-xn">
-
+</td></tr>
+<tr><td id="bowtie2-build-opt-fields-xn">
 [`XN:i`]: #bowtie2-build-opt-fields-xn
 
         XN:i:<N>
 
-    </td>
-    <td>
-
+</td>
+<td>
     The number of ambiguous bases in the reference covering this alignment. 
     Only present if SAM record is for an aligned read.
-
-    </td></tr>
-    <tr><td id="bowtie2-build-opt-fields-xm">
-
+</td></tr>
+<tr><td id="bowtie2-build-opt-fields-xm">
 [`XM:i`]: #bowtie2-build-opt-fields-xm
 
         XM:i:<N>
 
-    </td>
-    <td>
-
+</td>
+<td>
     The number of mismatches in the alignment.  Only present if SAM record is
     for an aligned read.
-
-    </td></tr>
-    <tr><td id="bowtie2-build-opt-fields-xo">
-
+</td></tr>
+<tr><td id="bowtie2-build-opt-fields-xo">
 [`XO:i`]: #bowtie2-build-opt-fields-xo
 
         XO:i:<N>
 
-    </td>
-    <td>
-
+</td>
+<td>
     The number of gap opens, for both read and reference gaps, in the alignment.
     Only present if SAM record is for an aligned read.
-
-    </td></tr>
-    <tr><td id="bowtie2-build-opt-fields-xg">
-
+</td></tr>
+<tr><td id="bowtie2-build-opt-fields-xg">
 [`XG:i`]: #bowtie2-build-opt-fields-xg
 
         XG:i:<N>
 
-    </td>
-    <td>
-
+</td>
+<td>
     The number of gap extensions, for both read and reference gaps, in the
     alignment. Only present if SAM record is for an aligned read.
-
-    </td></tr>
-    <tr><td id="bowtie2-build-opt-fields-nm">
-
+</td></tr>
+<tr><td id="bowtie2-build-opt-fields-nm">
 [`NM:i`]: #bowtie2-build-opt-fields-nm
 
         NM:i:<N>
 
-    </td>
-    <td>
-
+</td>
+<td>
     The edit distance; that is, the minimal number of one-nucleotide edits
     (substitutions, insertions and deletions) needed to transform the read
     string into the reference string.  Only present if SAM record is for an
     aligned read.
-
-    </td></tr>
-    <tr><td id="bowtie2-build-opt-fields-yf">
-
+</td></tr>
+<tr><td id="bowtie2-build-opt-fields-yf">
 [`YF:Z`]: #bowtie2-build-opt-fields-yf
 
         YF:Z:<S>
 
-    </td><td>
-
+</td><td>
     String indicating reason why the read was filtered out.  See also:
     [Filtering].  Only appears for reads that were filtered out.
-
-    </td></tr>
-    <tr><td id="bowtie2-build-opt-fields-yt">
-
+</td></tr>
+<tr><td id="bowtie2-build-opt-fields-yt">
 [`YT:Z`]: #bowtie2-build-opt-fields-yt
 
         YT:Z:<S>
 
-    </td><td>
-
+</td><td>
     Value of `UU` indicates the read was not part of a pair.  Value of `CP`
     indicates the read was part of a pair and the pair aligned concordantly.
     Value of `DP` indicates the read was part of a pair and the pair aligned
     discordantly.  Value of `UP` indicates the read was part of a pair but the
     pair failed to aligned either concordantly or discordantly.
-
 [Filtering]: #filtering
-
-    </td></tr>
-    <tr><td id="bowtie2-build-opt-fields-md">
-
+</td></tr>
+<tr><td id="bowtie2-build-opt-fields-md">
 [`MD:Z`]: #bowtie2-build-opt-fields-md
 
         MD:Z:<S>
 
-    </td><td>
-
+</td><td>
     A string representation of the mismatched reference bases in the alignment. 
     See [SAM] format specification for details.  Only present if SAM record is
     for an aligned read.
-
-    </td></tr>
-    </table>
+</td></tr>
+</table>
 
 [SAM format specification]: http://samtools.sf.net/SAM1.pdf
 [FASTQ]: http://en.wikipedia.org/wiki/FASTQ_format

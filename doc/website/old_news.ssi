@@ -1,3 +1,55 @@
+<h2>Bowtie 2 on GitHub - February 4, 2014</h2>
+<ul>
+   <li>Bowtie 2 source now lives in a <a href="https://github.com/BenLangmead/bowtie2">public GitHub repository</a>.</li>
+</ul>
+
+<h2>Version 2.1.0 - February 21, 2013</h2>
+<ul>
+   <li>Improved multithreading support so that Bowtie 2 now uses native Windows
+     threads when compiled on Windows and uses a faster mutex.  Threading
+     performance should improve on all platforms.</li>
+   <li>Improved support for building 64-bit binaries for Windows x64
+    platforms.</li>
+   <li>Bowtie 2 uses a lightweight mutex by default.</li>
+   <li>Test option <tt>--nospin</tt> is no longer available. However bowtie2
+     can always be recompiled with <tt>EXTRA_FLAGS="-DNO_SPINLOCK"</tt> in
+         order to drop the default spinlock usage.
+</ul>  
+
+<h2>Version 2.0.6 - January 27, 2013</h2>
+<ul>
+ <li>Fixed issue whereby spurious output would be written in
+ <tt><a href="manual.shtml#bowtie2-options-no-unal">--no-unal</a></tt> mode.
+ <li>Fixed issue whereby multiple input files combined with
+ <tt><a href="manual.shtml#bowtie2-options-reorder">--reorder</a></tt>
+ would
+     cause truncated output and a memory spike.
+ <li>Fixed spinlock datatype for Win64 API (LLP64 data model) which made it
+     crash when compiled under Windows 7 x64.
+ <li>Fixed bowtie2 wrapper to handle filename/paths operations in a more
+     platform independent manner.
+ <li>Added pthread as a default library option under cygwin, and pthreadGC
+     for MinGW.
+ <li>Fixed some minor issues that made MinGW compilation fail.
+</ul>
+
+<h2>Version 2.0.5 - January 4, 2013</h2>
+<ul>
+ <li>Fixed an issue that would cause excessive memory allocation when aligning
+     to very repetitive genomes.</li>
+ <li>Fixed an issue that would cause a pseudo-randomness-related assert to be
+     thrown in debug mode under rare circumstances.</li>
+ <li>When <tt>bowtie2-build</tt> fails, it will now delete index files created so far so
+     that invalid index files don't linger.</li>
+ <li>Tokenizer no longer has limit of 10,000 tokens, which was a problem for
+     users trying to index a very large number of FASTA files.</li>
+ <li>Updated manual's discussion of the
+ <tt><a href="manual.shtml#bowtie2-options-I">-I</a></tt> and
+ <tt><a href="manual.shtml#bowtie2-options-X">-X</a></tt> options to mention that
+     setting them farther apart makes Bowtie 2 slower.</li>
+ <li>Renamed <tt>COPYING</tt> to <tt>LICENSE</tt> and created a <tt>README</tt> to be GitHub-friendly.</li>
+</ul>
+
 <h2>Version 2.0.4 - December 17, 2012</h2>
 <ul>
  <li>Fixed issue whereby

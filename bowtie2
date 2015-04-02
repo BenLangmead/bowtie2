@@ -45,7 +45,7 @@ while (-f $prog && -l $prog){
 
 ($vol,$script_path,$prog) 
                 = File::Spec->splitpath($prog);
-my $os_is_nix   = ($^O eq "linux") || ($^O eq "darwin");
+my $os_is_nix   = $^O ne "MSWin32";
 my $align_bin_s = $os_is_nix ? 'bowtie2-align-s' : 'bowtie2-align-s.exe'; 
 my $build_bin   = $os_is_nix ? 'bowtie2-build' : 'bowtie2-build.exe';               
 my $align_bin_l = $os_is_nix ? 'bowtie2-align-l' : 'bowtie2-align-l.exe'; 
@@ -57,6 +57,25 @@ my $idx_ext_s     = 'bt2';
 my $idx_ext       = $idx_ext_s; 
 my %signo       = ();
 my @signame     = ();
+
+sub quote_params {
+    my %params_2_quote = ('--rg' => 1, '--rg-id' => 1,
+                          '-S' => 1, '-U' => 1,
+                          '-1' => 1, '-2' => 1
+    );
+    my $param_list = shift;
+    my $quoting = 0;
+    
+    for (my $i=0; $i<scalar(@{$param_list}); $i++){
+        if($quoting){
+            $quoting = 0;
+            $param_list->[$i] = "\"".$param_list->[$i]."\"";
+            next;
+        }
+    	$quoting = 1 if(exists($params_2_quote{$param_list->[$i]}));
+    }
+}
+
 
 {
 	# Get signal info
@@ -76,7 +95,7 @@ my @signame     = ();
 # 2 args from wrapper args
 sub getBt2Desc($) {
 	my $d = shift;
-	my $cmd = "$align_prog --wrapper basic-0 --arg-desc";
+	my $cmd = "\"$align_prog\" --wrapper basic-0 --arg-desc";
 	open(my $fh, "$cmd |") || Fail("Failed to run command '$cmd'\n");
 	while(readline $fh) {
 		chomp;
@@ -182,7 +201,7 @@ for(my $i = 0; $i < scalar(@bt2_args); $i++) {
 		$bt2_args[$i] = undef;
 	}
 	for my $rarg ("un-conc", "al-conc", "un", "al") {
-		if($arg =~ /^--${rarg}$/ || $arg =~ /^--${rarg}-gz$/ || $arg =~ /^--${rarg}-bz2$/) {
+		if($arg =~ /^--${rarg}$/ || $arg =~ /^--${rarg}-gz$/ || $arg =~ /^--${rarg}-bz2$/ || $arg =~ /^--${rarg}-lz4$/) {
 			$bt2_args[$i] = undef;
 			if(scalar(@args) > 1 && $args[1] ne "") {
 				$read_fns{$rarg} = $args[1];
@@ -194,6 +213,7 @@ for(my $i = 0; $i < scalar(@bt2_args); $i++) {
 			$read_compress{$rarg} = "";
 			$read_compress{$rarg} = "gzip"  if $arg eq "--${rarg}-gz";
 			$read_compress{$rarg} = "bzip2" if $arg eq "--${rarg}-bz2";
+			$read_compress{$rarg} = "lz4" if $arg eq "--${rarg}-lz4";
 			last;
 		}
 	}
@@ -272,11 +292,14 @@ sub cat_file($$) {
 	my ($ifn, $ofh) = @_;
 	my $ifh = undef;
 	if($ifn =~ /\.gz$/) {
-		open($ifh, "gzip -dc $ifn |") ||
+		open($ifh, "gzip -dc \"$ifn\" |") ||
 			 Fail("Could not open gzipped read file: $ifn \n");
 	} elsif($ifn =~ /\.bz2/) {
-		open($ifh, "bzip2 -dc $ifn |") ||
+		open($ifh, "bzip2 -dc \"$ifn\" |") ||
 			Fail("Could not open bzip2ed read file: $ifn \n");
+	} elsif($ifn =~ /\.lz4/) {
+		open($ifh, "lz4 -dc \"$ifn\" |") ||
+			Fail("Could not open lz4ed read file: $ifn \n");
 	} else {
 		open($ifh, $ifn) || Fail("Could not open read file: $ifn \n");
 	}
@@ -289,7 +312,7 @@ sub cat_file($$) {
 sub wrapInput($$$) {
 	my ($unps, $mate1s, $mate2s) = @_;
 	for my $fn (@$unps, @$mate1s, @$mate2s) {
-		return 1 if $fn =~ /\.gz$/ || $fn =~ /\.bz2$/;
+		return 1 if $fn =~ /\.gz$/ || $fn =~ /\.bz2$/ || $fn =~ /\.lz4$/;
 	}
 	return 0;
 }
@@ -442,7 +465,8 @@ else {
 my $debug_str = ($debug ? "-debug" : "");
 
 # Construct command invoking bowtie2-align
-my $cmd = "$align_prog$debug_str --wrapper basic-0 ".join(" ", @bt2_args);
+quote_params(\@bt2_args);
+my $cmd = "\"$align_prog$debug_str\" --wrapper basic-0 ".join(" ", @bt2_args);
 
 # Possibly add read input on an anonymous pipe
 $cmd = "$readpipe $cmd" if defined($readpipe);
@@ -491,8 +515,10 @@ if(defined($cap_out)) {
 				my ($redir1, $redir2) = (">$fn1", ">$fn2");
 				$redir1 = "| gzip -c $redir1"  if $read_compress{$i} eq "gzip";
 				$redir1 = "| bzip2 -c $redir1" if $read_compress{$i} eq "bzip2";
+				$redir1 = "| lz4 -c $redir1" if $read_compress{$i} eq "lz4";
 				$redir2 = "| gzip -c $redir2"  if $read_compress{$i} eq "gzip";
 				$redir2 = "| bzip2 -c $redir2" if $read_compress{$i} eq "bzip2";
+				$redir2 = "| lz4 -c $redir2" if $read_compress{$i} eq "lz4";
 				open($read_fhs{$i}{1}, $redir1) || Fail("Could not open --$i mate-1 output file '$fn1'\n");
 				open($read_fhs{$i}{2}, $redir2) || Fail("Could not open --$i mate-2 output file '$fn2'\n");
 				push @fhs_to_close, $read_fhs{$i}{1};
@@ -504,6 +530,7 @@ if(defined($cap_out)) {
 			    }
 				$redir = "| gzip -c $redir"  if $read_compress{$i} eq "gzip";
 				$redir = "| bzip2 -c $redir" if $read_compress{$i} eq "bzip2";
+				$redir = "| lz4 -c $redir" if $read_compress{$i} eq "lz4";
 				open($read_fhs{$i}, $redir) || Fail("Could not open --$i output file '$read_fns{$i}'\n");
 				push @fhs_to_close, $read_fhs{$i};
 			}
