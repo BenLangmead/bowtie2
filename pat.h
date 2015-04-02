@@ -632,7 +632,7 @@ public:
 		bool fixName);
 
 private:
-
+	void dump();
 	int i;
 	int loop_iter;
 	static const rawSeq raw_list[];
