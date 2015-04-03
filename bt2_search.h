@@ -20,8 +20,7 @@
 #ifndef BT2_SEARCH_H_
 #define BT2_SEARCH_H_
 
-#include <tbb/tbb.h>
-#include <tbb/task_group.h>
+#include "threading.h"
 
 class multiseedSearchWorker {
 	int tid;
