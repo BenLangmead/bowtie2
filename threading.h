@@ -21,16 +21,14 @@
 #define THREADING_H_
 
 #include <iostream>
-#include <tbb/mutex.h>
-#include <tbb/spin_mutex.h>
-#include <tbb/task_group.h>
+#include "tinythread.h"
+#include "fast_mutex.h"
 
 #ifdef NO_SPINLOCK
-#   define MUTEX_T tbb::mutex
+#   define MUTEX_T tthread::mutex
 #else
-#  	define MUTEX_T tbb::spin_mutex
+#  	define MUTEX_T tthread::fast_mutex
 #endif /* NO_SPINLOCK */
-
 
 /**
  * Wrap a lock; obtain lock upon construction, release upon destruction.
