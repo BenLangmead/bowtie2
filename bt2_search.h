@@ -19,6 +19,7 @@
 
 #ifndef BT2_SEARCH_H_
 #define BT2_SEARCH_H_
+#ifdef WITH_TBB
 
 #include <tbb/tbb.h>
 #include <tbb/task_group.h>
@@ -42,4 +43,5 @@ public:
 
 };
 
+#endif /* WITH_TBB */
 #endif /* BT2_SEARCH_H_ */
