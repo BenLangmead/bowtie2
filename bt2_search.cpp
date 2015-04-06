@@ -2764,7 +2764,12 @@ static void setupMinScores(
  *   + If not identical, continue
  * - 
  */
+#ifdef WITH_TBB
 void multiseedSearchWorker::operator()() {
+#else
+static void multiseedSearchWorker(void *vp) {
+	int tid = *((int*)vp);
+#endif
 	assert(multiseed_ebwtFw != NULL);
 	assert(multiseedMms == 0 || multiseed_ebwtBw != NULL);
 	PairedPatternSource&    patsrc   = *multiseed_patsrc;
@@ -3829,7 +3834,12 @@ void multiseedSearchWorker::operator()() {
 	return;
 }
 
+#ifdef WITH_TBB
 void multiseedSearchWorker_2p5::operator()() {
+#else
+static void multiseedSearchWorker_2p5(void *vp) {
+	int tid = *((int*)vp);
+#endif
 	assert(multiseed_ebwtFw != NULL);
 	assert(multiseedMms == 0 || multiseed_ebwtBw != NULL);
 	PairedPatternSource&    patsrc   = *multiseed_patsrc;
@@ -4196,7 +4206,12 @@ static void multiseedSearch(
 	delete _t;
 	if(!refs->loaded()) throw 1;
 	multiseed_refs = refs.get();
+#ifdef WITH_TBB
 	tbb::task_group tbb_grp;
+#else
+	AutoArray<tthread::thread*> threads(nthreads);
+	AutoArray<int> tids(nthreads);
+#endif
 	{
 		// Load the other half of the index into memory
 		assert(!ebwtFw.isInMemory());
@@ -4230,6 +4245,7 @@ static void multiseedSearch(
 		Timer _t(cerr, "Multiseed full-index search: ", timing);
 
 		for(int i = 1; i <= nthreads; i++) {
+#ifdef WITH_TBB
 			if(bowtie2p5) {
 				tbb_grp.run(multiseedSearchWorker_2p5(i));
 			} else {
@@ -4237,6 +4253,17 @@ static void multiseedSearch(
 			}
 		}
         tbb_grp.wait();
+#else
+		if(bowtie2p5) {
+			threads[i] = new tthread::thread(multiseedSearchWorker_2p5, (void*)&tids[i]);
+		} else {
+		    threads[i] = new tthread::thread(multiseedSearchWorker, (void*)&tids[i]);
+		}
+	}
+
+    for (int i = 1; i <= nthreads; i++)
+        threads[i]->join();
+#endif
 	}
 	if(!metricsPerRead && (metricsOfb != NULL || metricsStderr)) {
 		metrics.reportInterval(metricsOfb, metricsStderr, true, false, NULL);
