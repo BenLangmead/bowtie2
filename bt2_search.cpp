@@ -4175,8 +4175,8 @@ static void multiseedSearch(
 #ifdef WITH_TBB
 	tbb::task_group tbb_grp;
 #else
-	AutoArray<tthread::thread*> threads(nthreads);
-	AutoArray<int> tids(nthreads);
+	AutoArray<tthread::thread*> threads(nthreads+1);
+	AutoArray<int> tids(nthreads+1);
 #endif
 	{
 		// Load the other half of the index into memory
