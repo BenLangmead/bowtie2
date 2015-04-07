@@ -4217,6 +4217,8 @@ static void multiseedSearch(
             } else {
                 tbb_grp.run(multiseedSearchWorker(i));
             }
+        }
+   		tbb_grp.wait();
 #else
             // Thread IDs start at 1
             tids[i] = i;
@@ -4225,15 +4227,11 @@ static void multiseedSearch(
             } else {
                 threads[i] = new tthread::thread(multiseedSearchWorker, (void*)&tids[i]);
             }
+    }
+    for (int i = 1; i <= nthreads; i++)
+        threads[i]->join();
 #endif
-        }
 
-#ifdef WITH_TBB
-		tbb_grp.wait();
-#else
-        for (int i = 1; i <= nthreads; i++)
-            threads[i]->join();
-#endif
     }
 	if(!metricsPerRead && (metricsOfb != NULL || metricsStderr)) {
 		metrics.reportInterval(metricsOfb, metricsStderr, true, false, NULL);
