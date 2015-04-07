@@ -4210,14 +4210,13 @@ static void multiseedSearch(
 	{
 		Timer _t(cerr, "Multiseed full-index search: ", timing);
 
-		for(int i = 1; i <= nthreads; i++) {
+		for(int i = 0; i < nthreads; i++) {
 #ifdef WITH_TBB
             if(bowtie2p5) {
-                tbb_grp.run(multiseedSearchWorker_2p5(i));
+                tbb_grp.run(multiseedSearchWorker_2p5(i+1));
             } else {
-                tbb_grp.run(multiseedSearchWorker(i));
+                tbb_grp.run(multiseedSearchWorker(i+1));
             }
-            tbb_grp.wait();
 #else
             // Thread IDs start at 1
             tids[i] = i+1;
@@ -4229,8 +4228,10 @@ static void multiseedSearch(
 #endif
         }
 
-#ifndef WITH_TBB
-        for (int i = 1; i <= nthreads; i++)
+#ifdef WITH_TBB
+		tbb_grp.wait();
+#else
+        for (int i = 0; i < nthreads; i++)
             threads[i]->join();
 #endif
     }
