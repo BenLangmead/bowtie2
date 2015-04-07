@@ -4212,25 +4212,28 @@ static void multiseedSearch(
 
 		for(int i = 1; i <= nthreads; i++) {
 #ifdef WITH_TBB
-			if(bowtie2p5) {
-				tbb_grp.run(multiseedSearchWorker_2p5(i));
-			} else {
-			    tbb_grp.run(multiseedSearchWorker(i));
-			}
-		}
-        tbb_grp.wait();
+            if(bowtie2p5) {
+                tbb_grp.run(multiseedSearchWorker_2p5(i));
+            } else {
+                tbb_grp.run(multiseedSearchWorker(i));
+            }
+            tbb_grp.wait();
 #else
-		if(bowtie2p5) {
-			threads[i] = new tthread::thread(multiseedSearchWorker_2p5, (void*)&tids[i]);
-		} else {
-		    threads[i] = new tthread::thread(multiseedSearchWorker, (void*)&tids[i]);
-		}
-	}
-
-    for (int i = 1; i <= nthreads; i++)
-        threads[i]->join();
+            // Thread IDs start at 1
+            tids[i] = i+1;
+            if(bowtie2p5) {
+                threads[i] = new tthread::thread(multiseedSearchWorker_2p5, (void*)&tids[i]);
+            } else {
+                threads[i] = new tthread::thread(multiseedSearchWorker, (void*)&tids[i]);
+            }
 #endif
-	}
+        }
+
+#ifndef WITH_TBB
+        for (int i = 1; i <= nthreads; i++)
+            threads[i]->join();
+#endif
+    }
 	if(!metricsPerRead && (metricsOfb != NULL || metricsStderr)) {
 		metrics.reportInterval(metricsOfb, metricsStderr, true, false, NULL);
 	}
