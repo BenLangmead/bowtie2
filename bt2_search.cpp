@@ -2776,7 +2776,12 @@ static void multiseedSearchWorker(void *vp) {
 	AlignmentCache&         scShared = *multiseed_ca;
 	AlnSink&                msink    = *multiseed_msink;
 	OutFileBuf*             metricsOfb = multiseed_metricsOfb;
-	ASSERT_ONLY( std::stringstream s; std::string msg; s << "thread: " << tid << " time: "; msg = s.str(); Timer timer(std::cout, msg.c_str()););
+
+	std::stringstream s;
+	std::string msg;
+	s << "thread: " << tid << " time: ";
+	msg = s.str();
+	Timer timer(std::cout, msg.c_str());
 
 	// Sinks: these are so that we can print tables encoding counts for
 	// events of interest on a per-read, per-seed, per-join, or per-SW
