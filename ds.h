@@ -770,7 +770,7 @@ public:
 	void sortPortion(size_t begin, size_t num) {
 		assert_leq(begin+num, cur_);
 		if(num < 2) return;
-		std::sort(list_ + begin, list_ + begin + num);
+		std::stable_sort(list_ + begin, list_ + begin + num);
 	}
 	
 	/**
