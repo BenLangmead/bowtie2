@@ -553,6 +553,49 @@ protected:
 	TReadId endid_; // index of read just read
 };
 
+class MockPatternSourcePerThread : public PatternSourcePerThread {
+
+public:
+
+	MockPatternSourcePerThread() : total_loops(MAX_LOOPS), seq_idx(0) { }
+
+	virtual ~MockPatternSourcePerThread() { }
+
+	/**
+	 * Read the next read pair.
+	 */
+	virtual bool nextReadPair(
+		bool& success,
+		bool& done,
+		bool& paired,
+		bool fixName)
+	{
+		return success;
+	}
+
+	Read& bufa()             { return buf1_;    }
+	Read& bufb()             { return buf2_;    }
+	const Read& bufa() const { return buf1_;    }
+	const Read& bufb() const { return buf2_;    }
+
+	TReadId       rdid()  const { return rdid_;  }
+	TReadId       endid() const { return endid_; }
+	virtual void  reset()       { rdid_ = endid_ = 0xffffffff;  }
+
+	/**
+	 * Return the length of mate 1 or mate 2.
+	 */
+	size_t length(int mate) const {
+		return (mate == 1) ? buf1_.length() : buf2_.length();
+	}
+
+protected:
+
+	const int MAX_LOOPS = 5000;
+	int total_loops; // Max total loops allowed
+	int seq_idx; // Next seq
+};
+
 /**
  * Abstract parent factory for PatternSourcePerThreads.
  */
