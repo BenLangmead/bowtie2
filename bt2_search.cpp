@@ -160,6 +160,8 @@ static bool sam_print_zp;
 static bool sam_print_zu;
 static bool sam_print_zt;
 static bool bwaSwLike;
+static bool gSeedLenIsSet;
+
 static float bwaSwLikeC;
 static float bwaSwLikeT;
 static bool qcFilter;
@@ -349,6 +351,7 @@ static void resetOptions() {
 	sam_print_zu            = false;
 	sam_print_zt            = false;
 	bwaSwLike               = false;
+	gSeedLenIsSet			= false;
 	bwaSwLikeC              = 5.5f;
 	bwaSwLikeT              = 20.0f;
 	qcFilter                = false; // don't believe upstream qc by default
@@ -1277,7 +1280,13 @@ static void parseOption(int next_option, const char *arg) {
 			}
 			break;
 		}
-		case 'N': { polstr += ";SEED="; polstr += arg; break; }
+		case 'N': {
+			if (!gSeedLenIsSet){
+				polstr += ";SEED=";
+				polstr += arg;
+			}
+			break;
+		}
 		case 'L': {
 			int64_t len = parse<size_t>(arg);
 			if(len < 0) {
@@ -1288,7 +1297,10 @@ static void parseOption(int next_option, const char *arg) {
 				cerr << "Error: -L argument must be <= 32; was " << arg << endl;
 				throw 1;
 			}
-			polstr += ";SEEDLEN="; polstr += arg; break;
+			polstr += ";SEEDLEN=";
+			polstr += arg;
+			gSeedLenIsSet = true;
+			break;
 		}
 		case 'O':
 			multiseedOff = parse<size_t>(arg);
