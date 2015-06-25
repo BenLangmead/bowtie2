@@ -305,7 +305,7 @@ void SeedAlignmentPolicy::parseString(
 	}
 	
 	multiseedMms      = DEFAULT_SEEDMMS;
-	multiseedLen      = DEFAULT_SEEDLEN;
+	multiseedLen      = gDefaultSeedLen;
 	
 	EList<string> toks(MISC_CAT);
 	string tok;
@@ -557,7 +557,8 @@ void SeedAlignmentPolicy::parseString(
 				istringstream tmpss(ctoks[1]);
 				tmpss >> multiseedLen;
 			} else {
-				multiseedLen = DEFAULT_SEEDLEN;
+				multiseedLen = gDefaultSeedLen;
+;
 			}
 		}
 		else if(tag == "SEEDLEN") {
@@ -701,7 +702,6 @@ int main() {
 		assert_eq(DEFAULT_REF_GAP_CONST,      penRfExConst);
 		assert_eq(DEFAULT_REF_GAP_LINEAR,     penRfExLinear);
 		assert_eq(DEFAULT_SEEDMMS,            multiseedMms);
-		assert_eq(DEFAULT_SEEDLEN,            multiseedLen);
 		assert_eq(DEFAULT_IVAL,               msIval.getType());
 		assert_eq(DEFAULT_IVAL_A,             msIval.getCoeff());
 		assert_eq(DEFAULT_IVAL_B,             msIval.getConst());
@@ -755,7 +755,6 @@ int main() {
 		assert_eq(DEFAULT_REF_GAP_CONST_BADHPOLY,   penRfExConst);
 		assert_eq(DEFAULT_REF_GAP_LINEAR_BADHPOLY,  penRfExLinear);
 		assert_eq(DEFAULT_SEEDMMS,            multiseedMms);
-		assert_eq(DEFAULT_SEEDLEN,            multiseedLen);
 		assert_eq(DEFAULT_IVAL,               msIval.getType());
 		assert_eq(DEFAULT_IVAL_A,             msIval.getCoeff());
 		assert_eq(DEFAULT_IVAL_B,             msIval.getConst());
@@ -810,7 +809,6 @@ int main() {
 		assert_eq(DEFAULT_REF_GAP_CONST,      penRfExConst);
 		assert_eq(DEFAULT_REF_GAP_LINEAR,     penRfExLinear);
 		assert_eq(DEFAULT_SEEDMMS,            multiseedMms);
-		assert_eq(DEFAULT_SEEDLEN,            multiseedLen);
 		assert_eq(DEFAULT_IVAL,               msIval.getType());
 		assert_eq(DEFAULT_IVAL_A,             msIval.getCoeff());
 		assert_eq(DEFAULT_IVAL_B,             msIval.getConst());
@@ -864,7 +862,6 @@ int main() {
 		assert_eq(24.0f,                      penRfExConst);
 		assert_eq(12.0f,                      penRfExLinear);
 		assert_eq(DEFAULT_SEEDMMS,            multiseedMms);
-		assert_eq(DEFAULT_SEEDLEN,            multiseedLen);
 		assert_eq(DEFAULT_IVAL,               msIval.getType());
 		assert_eq(DEFAULT_IVAL_A,             msIval.getCoeff());
 		assert_eq(DEFAULT_IVAL_B,             msIval.getConst());
