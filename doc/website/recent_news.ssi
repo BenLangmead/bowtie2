@@ -1,9 +1,5 @@
-<h2>Lighter released</h2>
-<ul>
-   <li>Lighter is an extremely fast and memory-efficient program for correcting sequencing errors in DNA sequencing data.  For details on how error correction can help improve the speed and accuracy of downstream analysis tools, see the <a href="http://genomebiology.com/2014/15/11/509">paper in Genome Biology</a>.  Source and software <a href="https://github.com/mourisl/Lighter">available at GitHub</a>.
-</ul>
-
 <h2>Version 2.2.5 - Mar 9, 2015</h2>
+<ul>
    <li>Fixed some situations where incorrectly we could detect a Mavericks platform.</li>
    <li>Fixed some manual issues including some HTML bad formating.</li>
    <li>Make sure the wrapper correctly identifies the platform under OSX.</li>
@@ -14,6 +10,12 @@
    <li>Improved exception handling for missformated quality values.</li>
    <li>Improved redundancy checks by correctly account for soft clipping.</li>
 </ul>
+
+<h2>Lighter released</h2>
+<ul>
+   <li>Lighter is an extremely fast and memory-efficient program for correcting sequencing errors in DNA sequencing data.  For details on how error correction can help improve the speed and accuracy of downstream analysis tools, see the <a href="http://genomebiology.com/2014/15/11/509">paper in Genome Biology</a>.  Source and software <a href="https://github.com/mourisl/Lighter">available at GitHub</a>.
+</ul>
+
 
 <h2>Version 2.2.4 - Oct 22, 2014</h2>
 <ul>

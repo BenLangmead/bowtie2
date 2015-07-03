@@ -21,13 +21,28 @@
 #define THREADING_H_
 
 #include <iostream>
-#include "tinythread.h"
-#include "fast_mutex.h"
+
+#ifdef WITH_TBB
+# include <tbb/mutex.h>
+# include <tbb/spin_mutex.h>
+# include <tbb/task_group.h>
+#else
+# include "tinythread.h"
+# include "fast_mutex.h"
+#endif
 
 #ifdef NO_SPINLOCK
+# ifdef WITH_TBB
+#   define MUTEX_T tbb::mutex
+# else
 #   define MUTEX_T tthread::mutex
+# endif
 #else
+# ifdef WITH_TBB
+#  	define MUTEX_T tbb::spin_mutex
+# else
 #  	define MUTEX_T tthread::fast_mutex
+# endif
 #endif /* NO_SPINLOCK */
 
 /**
