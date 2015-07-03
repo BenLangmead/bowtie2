@@ -21,6 +21,9 @@
 # Makefile for bowtie, bowtie2-build, bowtie2-inspect
 #
 
+prefix = /usr/local
+bindir = $(prefix)/bin
+
 INC =
 GCC_PREFIX = $(shell dirname `which gcc`)
 GCC_SUFFIX =
@@ -103,7 +106,7 @@ SHARED_CPPS = ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
               reference.cpp ds.cpp multikey_qsort.cpp limit.cpp \
 			  random_source.cpp
 ifneq (1,$(WITH_TBB))
-    SHARED_CPPS += tinythread.cpp
+	SHARED_CPPS += tinythread.cpp
 endif
 
 SEARCH_CPPS = qual.cpp pat.cpp sam.cpp \
@@ -438,6 +441,13 @@ doc/manual.html: MANUAL.markdown
 
 MANUAL: MANUAL.markdown
 	perl doc/strip_markdown.pl < $^ > $@
+
+.PHONY: install
+install: all
+	mkdir -p $(DESTDIR)$(bindir)
+	for file in $(BOWTIE2_BIN_LIST) bowtie2-inspect bowtie2-build bowtie2 ; do \
+		cp -f $$file $(DESTDIR)$(bindir) ; \
+	done
 
 .PHONY: clean
 clean:
