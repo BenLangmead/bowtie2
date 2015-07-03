@@ -3010,7 +3010,6 @@ public:
 		int cat = 0) :
 		cat_(cat),
 		cur_(0),
-		bytes_(bytes),
 		pagesz_(pagesz),
 		pages_(cat)
 	{
@@ -3065,7 +3064,6 @@ public:
 	bool repOk() const {
 		assert_leq(cur_, pages_.size());
 		assert(!pages_.empty());
-		assert_gt(bytes_, 0);
 		assert_gt(pagesz_, 0);
 		return true;
 	}
@@ -3074,7 +3072,6 @@ public:
 private:
 	int             cat_;    // memory category, for accounting purposes
 	size_t          cur_;    // next page to hand out
-	const size_t    bytes_;  // total bytes in the pool
 	const size_t    pagesz_; // size of a single page
 	EList<uint8_t*> pages_;  // the pages themselves
 };
