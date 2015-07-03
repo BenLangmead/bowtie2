@@ -2781,6 +2781,14 @@ static void multiseedSearchWorker(void *vp) {
 	AlnSink&                msink    = *multiseed_msink;
 	OutFileBuf*             metricsOfb = multiseed_metricsOfb;
 
+#ifdef PER_THREAD_TIMING
+	std::stringstream s;
+	std::string msg;
+	s << "thread: " << tid << " time: ";
+	msg = s.str();
+	Timer timer(std::cout, msg.c_str());
+#endif
+
 	// Sinks: these are so that we can print tables encoding counts for
 	// events of interest on a per-read, per-seed, per-join, or per-SW
 	// level.  These in turn can be used to diagnose performance
