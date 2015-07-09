@@ -446,7 +446,7 @@ inline static int pop64(uint64_t x) {
     struct USE_POPCNT_INSTRUCTION {
         inline static int pop64(uint64_t x) {
             int64_t count;
-            asm ("popcntq %[x],%[count]\n": [count] "=&r" (count): [x] "r" (x));
+            asm ("popcnt %[x],%[count]\n": [count] "=&r" (count): [x] "r" (x));
             return count;
         }
     };
