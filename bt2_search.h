@@ -43,8 +43,5 @@ public:
 
 };
 
-
-extern int gDefaultSeedLen;
-
 #endif /* WITH_TBB */
 #endif /* BT2_SEARCH_H_ */
