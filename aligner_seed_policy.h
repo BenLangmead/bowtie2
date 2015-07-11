@@ -228,4 +228,8 @@ public:
 		size_t&     seedRounds);
 };
 
+
+extern int gDefaultSeedLen;
+
+
 #endif /*ndef ALIGNER_SEED_POLICY_H_*/
