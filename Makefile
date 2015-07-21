@@ -102,7 +102,6 @@ ifeq (1,$(MINGW))
 endif
 
 ifeq (1,$(WITH_THREAD_PROFILING))
-	LIBS += -lnuma
 	override EXTRA_FLAGS += -DPER_THREAD_TIMING=1
 endif
 
