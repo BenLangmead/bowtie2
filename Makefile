@@ -101,6 +101,11 @@ ifeq (1,$(MINGW))
 	INSPECT_LIBS = 
 endif
 
+ifeq (1,$(WITH_THREAD_PROFILING))
+	LIBS += -lnuma
+	EXTRA_FLAGS += -DPER_THREAD_TIMING=1
+endif
+
 SHARED_CPPS = ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
               edit.cpp bt2_idx.cpp bt2_io.cpp bt2_util.cpp \
               reference.cpp ds.cpp multikey_qsort.cpp limit.cpp \

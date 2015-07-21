@@ -54,6 +54,10 @@
 #include "outq.h"
 #include "aligner_seed2.h"
 #include "bt2_search.h"
+#ifdef PER_THREAD_TIMING
+#include <sched.h>
+#include <numa.h>
+#endif
 
 using namespace std;
 
@@ -2799,10 +2803,16 @@ static void multiseedSearchWorker(void *vp) {
 	OutFileBuf*             metricsOfb = multiseed_metricsOfb;
 
 #ifdef PER_THREAD_TIMING
-	std::stringstream s;
+	uint64_t ncpu_changeovers = 0;
+	uint64_t nnuma_changeovers = 0;
+	
+	int current_cpu = sched_getcpu();
+	int current_node = numa_node_of_cpu(current_cpu);
+	
+	std::stringstream ss;
 	std::string msg;
-	s << "thread: " << tid << " time: ";
-	msg = s.str();
+	ss << "thread: " << tid << " time: ";
+	msg = ss.str();
 	Timer timer(std::cout, msg.c_str());
 #endif
 
@@ -2978,6 +2988,18 @@ static void multiseedSearchWorker(void *vp) {
 			if(sam_print_xt) {
 				gettimeofday(&prm.tv_beg, &prm.tz_beg);
 			}
+#ifdef PER_THREAD_TIMING
+			int cpu = sched_getcpu();
+			if(cpu != current_cpu) {
+				ncpu_changeovers++;
+				current_cpu = cpu;
+			}
+			int node = numa_node_of_cpu(cpu);
+			if(node != current_node) {
+				nnuma_changeovers++;
+				current_node = node;
+			}
+#endif
 			// Try to align this read
 			while(retry) {
 				retry = false;
@@ -3856,6 +3878,14 @@ static void multiseedSearchWorker(void *vp) {
 	if(dpLog    != NULL) dpLog->close();
 	if(dpLogOpp != NULL) dpLogOpp->close();
 
+#ifdef PER_THREAD_TIMING
+	ss.str("");
+	ss.clear();
+	ss << "thread: " << tid << " cpu_changeovers: " << ncpu_changeovers << std::endl
+	   << "thread: " << tid << " node_changeovers: " << nnuma_changeovers << std::endl;
+	std::cout << ss.str();
+#endif
+
 	return;
 }
 
@@ -4271,27 +4301,27 @@ static void multiseedSearch(
 
 		for(int i = 1; i <= nthreads; i++) {
 #ifdef WITH_TBB
-            if(bowtie2p5) {
-                tbb_grp.run(multiseedSearchWorker_2p5(i));
-            } else {
-                tbb_grp.run(multiseedSearchWorker(i));
-            }
-        }
-   		tbb_grp.wait();
+			if(bowtie2p5) {
+				tbb_grp.run(multiseedSearchWorker_2p5(i));
+			} else {
+				tbb_grp.run(multiseedSearchWorker(i));
+			}
+		}
+		tbb_grp.wait();
 #else
-            // Thread IDs start at 1
-            tids[i] = i;
-            if(bowtie2p5) {
-                threads[i] = new tthread::thread(multiseedSearchWorker_2p5, (void*)&tids[i]);
-            } else {
-                threads[i] = new tthread::thread(multiseedSearchWorker, (void*)&tids[i]);
-            }
-    }
-    for (int i = 1; i <= nthreads; i++)
-        threads[i]->join();
+			// Thread IDs start at 1
+			tids[i] = i;
+			if(bowtie2p5) {
+				threads[i] = new tthread::thread(multiseedSearchWorker_2p5, (void*)&tids[i]);
+			} else {
+				threads[i] = new tthread::thread(multiseedSearchWorker, (void*)&tids[i]);
+			}
+		}
+		for (int i = 1; i <= nthreads; i++) {
+			threads[i]->join();
+		}
 #endif
-
-    }
+	}
 	if(!metricsPerRead && (metricsOfb != NULL || metricsStderr)) {
 		metrics.reportInterval(metricsOfb, metricsStderr, true, false, NULL);
 	}
