@@ -55,9 +55,9 @@
 #include <limits>
 #include "aligner_sw.h"
 
-static const size_t NBYTES_PER_REG  = 16;
+//static const size_t NBYTES_PER_REG  = 16;
 static const size_t NWORDS_PER_REG  = 16;
-static const size_t NBITS_PER_WORD  = 8;
+//static const size_t NBITS_PER_WORD  = 8;
 static const size_t NBYTES_PER_WORD = 1;
 
 // In local mode, we start low (0) and go high (255).  Factoring in a query
