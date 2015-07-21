@@ -27,9 +27,9 @@ bindir = $(prefix)/bin
 INC =
 GCC_PREFIX = $(shell dirname `which gcc`)
 GCC_SUFFIX =
-CC = $(GCC_PREFIX)/gcc$(GCC_SUFFIX)
-CPP = $(GCC_PREFIX)/g++$(GCC_SUFFIX)
-CXX = $(CPP)
+CC ?= $(GCC_PREFIX)/gcc$(GCC_SUFFIX)
+CPP ?= $(GCC_PREFIX)/g++$(GCC_SUFFIX)
+CXX ?= $(CPP)
 HEADERS = $(wildcard *.h)
 BOWTIE_MM = 1
 BOWTIE_SHARED_MEM = 0
@@ -146,6 +146,9 @@ VERSION = $(shell cat VERSION)
 
 BITS=32
 ifeq (x86_64,$(shell uname -m))
+	BITS=64
+endif
+ifeq (amd64,$(shell uname -m))
 	BITS=64
 endif
 # msys will always be 32 bit so look at the cpu arch instead.
