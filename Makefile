@@ -51,13 +51,13 @@ ifneq (,$(findstring Darwin,$(shell uname)))
 	ifneq (,$(findstring 13,$(shell uname -r)))
 		CPP = clang++
 		CC = clang
-		EXTRA_FLAGS += -stdlib=libstdc++
+		override EXTRA_FLAGS += -stdlib=libstdc++
 	endif
 endif
 
 POPCNT_CAPABILITY ?= 1
 ifeq (1, $(POPCNT_CAPABILITY))
-    EXTRA_FLAGS += -DPOPCNT_CAPABILITY
+    override EXTRA_FLAGS += -DPOPCNT_CAPABILITY
     INC += -I third_party
 endif
 
@@ -83,12 +83,12 @@ else
 endif
 
 ifeq (1,$(NO_SPINLOCK))
-	EXTRA_FLAGS += -DNO_SPIN_LOCK
+	override EXTRA_FLAGS += -DNO_SPIN_LOCK
 endif
 
 ifeq (1,$(WITH_TBB))
 	LIBS = $(PTHREAD_LIB) -ltbb -ltbbmalloc_proxy
-	EXTRA_FLAGS += -DWITH_TBB
+	override EXTRA_FLAGS += -DWITH_TBB
 else
 	LIBS = $(PTHREAD_LIB)
 endif
@@ -103,7 +103,7 @@ endif
 
 ifeq (1,$(WITH_THREAD_PROFILING))
 	LIBS += -lnuma
-	EXTRA_FLAGS += -DPER_THREAD_TIMING=1
+	override EXTRA_FLAGS += -DPER_THREAD_TIMING=1
 endif
 
 SHARED_CPPS = ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
