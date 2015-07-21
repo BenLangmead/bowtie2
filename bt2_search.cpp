@@ -55,10 +55,6 @@
 #include "aligner_seed2.h"
 #include "mock_outq.h"
 #include "bt2_search.h"
-#ifdef PER_THREAD_TIMING
-#include <sched.h>
-#include <numa.h>
-#endif
 
 using namespace std;
 
@@ -2754,6 +2750,16 @@ static void setupMinScores(
 	x.resetCounters(); \
 }
 
+#ifdef PER_THREAD_TIMING
+/// Based on http://stackoverflow.com/questions/16862620/numa-get-current-node-core
+void get_cpu_and_node(int& cpu, int& node) {
+	unsigned long a,d,c;
+	__asm__ volatile("rdtscp" : "=a" (a), "=d" (d), "=c" (c));
+	node = (c & 0xFFF000)>>12;
+	cpu = c & 0xFFF;
+}
+#endif
+
 /**
  * Called once per thread.  Sets up per-thread pointers to the shared global
  * data structures, creates per-thread structures, then enters the alignment
@@ -2790,8 +2796,8 @@ static void multiseedSearchWorker(void *vp) {
 	uint64_t ncpu_changeovers = 0;
 	uint64_t nnuma_changeovers = 0;
 	
-	int current_cpu = sched_getcpu();
-	int current_node = numa_node_of_cpu(current_cpu);
+	int current_cpu = 0, current_node = 0;
+	get_cpu_and_node(current_cpu, current_node);
 	
 	std::stringstream ss;
 	std::string msg;
@@ -2973,12 +2979,12 @@ static void multiseedSearchWorker(void *vp) {
 				gettimeofday(&prm.tv_beg, &prm.tz_beg);
 			}
 #ifdef PER_THREAD_TIMING
-			int cpu = sched_getcpu();
+			int cpu = 0, node = 0;
+			get_cpu_and_node(cpu, node);
 			if(cpu != current_cpu) {
 				ncpu_changeovers++;
 				current_cpu = cpu;
 			}
-			int node = numa_node_of_cpu(cpu);
 			if(node != current_node) {
 				nnuma_changeovers++;
 				current_node = node;
