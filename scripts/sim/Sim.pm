@@ -421,7 +421,7 @@ sub build {
 	$argstr .= " --sanity";
 	# Build nucleotide index
 	my $cmd = "$conf->{bowtie2_build_debug} $argstr $fa $idx";
-	print STDERR "$cmd\n";
+	print STDERR "Executing: $cmd\n";
 	system($cmd);
 	$? == 0 || mydie("Error running '$cmd'; exitlevel=$?");
 	print STDERR "Built nucleotide index '$idx'\n";
@@ -986,11 +986,11 @@ sub align {
 sub nextCase {
 	my ($self, $conf) = @_;
 
-	$conf->{bowtie2_build}       = "bowtie2-build"         unless defined($conf->{bowtie2_build});
-	$conf->{bowtie2}             = "bowtie2-align"         unless defined($conf->{bowtie2});
-	$conf->{bowtie2_build_debug} = "bowtie2-build --debug" unless defined($conf->{bowtie2_build_debug});
-	$conf->{bowtie2_debug}       = "bowtie2-align --debug" unless defined($conf->{bowtie2_debug});
-	$conf->{tempdir}             = "/tmp"                  unless defined($conf->{tempdir});
+	$conf->{bowtie2_build}       = "bowtie2-build"  unless defined($conf->{bowtie2_build});
+	$conf->{bowtie2}             = "bowtie2-align"  unless defined($conf->{bowtie2});
+	$conf->{bowtie2_build_debug} = $conf->{bowtie2_build}." --debug";
+	$conf->{bowtie2_debug}       = $conf->{bowtie2}." --debug";
+	$conf->{tempdir}             = "/tmp"           unless defined($conf->{tempdir});
 	srand(time ^ $$);
 	$conf->{randstr} = randStr(8);
 
