@@ -29,7 +29,7 @@ use Sim;
 use ForkManager;
 
 # Simulator configuration
-my %conf = (
+our %conf = (
 	bowtie2_build       => "bowtie2-build",
 	bowtie2             => "bowtie2",
 	bowtie2_build_debug => "bowtie2-build --debug",
@@ -69,9 +69,7 @@ my $dieWithChild = 1;
 
 GetOptions(
 	"bowtie2=s"             => \$conf{bowtie2},
-	"bowtie2-debug=s"       => \$conf{bowtie2_debug},
 	"bowtie2-build=s"       => \$conf{bowtie2_build},
-	"bowtie2-build-debug=s" => \$conf{bowtie2_build_debug},
 	"tempdir|tmpdir=s"      => \$conf{tempdir},
 	"cases-per-thread=i"    => \$ncases,
 	"small"                 => \$conf{small},
