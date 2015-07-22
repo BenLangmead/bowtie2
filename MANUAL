@@ -160,12 +160,16 @@ execution times on SMP architectures where this is possible. On POSIX
 platforms (like linux, Mac OS, etc) it needs the pthread library. Although
 it is possible to use pthread library on non-POSIX platform like Windows, due
 to performance reasons bowtie 2 will try to use Windows native multithreading
-if possible.
+if possible. We recommend that you first install the [Threading Building Blocks library],
+also known as TBB, and then build using `make WITH_TBB=1`. TBB comes installed
+by default on many popular linux distros. If TBB is not available, then simply omit 
+the `WITH_TBB=1` option.
 
 [MinGW]:    http://www.mingw.org/
 [MSYS]:     http://www.mingw.org/wiki/msys
 [pthreads]: http://sourceware.org/pthreads-win32/
 [GnuWin32]: http://gnuwin32.sf.net/packages/coreutils.htm
+[Threading Building Blocks library]: https://www.threadingbuildingblocks.org
 [Download]: https://sourceforge.net/projects/bowtie-bio/files/bowtie2/
 [sourceforge site]: https://sourceforge.net/projects/bowtie-bio/files/bowtie2/
 [Xcode]:    http://developer.apple.com/xcode/
