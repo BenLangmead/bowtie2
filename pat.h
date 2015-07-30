@@ -938,7 +938,7 @@ public:
 	FastaPatternSource(const EList<string>& infiles,
 	                   const PatternParams& p) :
 		BufferedFilePatternSource(infiles, p),
-		first_(true), solexa64_(p.solexa64), phred64_(p.phred64), intQuals_(p.intQuals)
+		first_(true)
 	{ }
 	virtual void reset() {
 		first_ = true;
@@ -993,9 +993,6 @@ protected:
 	
 private:
 	bool first_;
-	bool solexa64_;
-	bool phred64_;
-	bool intQuals_;
 };
 
 
