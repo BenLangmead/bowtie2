@@ -112,7 +112,12 @@ Prerequisites:
    - Click the "i" ("info") button next to the source archive.  Check all the
      "Default Download For:" checkboxes not checked so far and save.
 
-18. Send an email to bowtie-bio-announce@lists.sourceforge.net announcing the
+18. Upload the release binaries to github release area as well. 
+   - Go to the releases area and click 'Edit' button for the current release.
+   - Change the release description so it will include the NEWS.
+   - Upload the tgz archives for current release.
+
+19. Send an email to bowtie-bio-announce@lists.sourceforge.net announcing the
     release.
    - Subject: "Bowtie 2 X.Y.Z released"
    - Body: Basically a copy and paste of the release notes for the most recent
