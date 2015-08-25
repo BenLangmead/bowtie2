@@ -25,6 +25,7 @@
 
 #define DEFAULT_SEEDMMS 0
 #define DEFAULT_SEEDLEN 22
+#define DEFAULT_LOCAL_SEEDLEN 20
 
 #define DEFAULT_IVAL SIMPLE_FUNC_SQRT
 #define DEFAULT_IVAL_A 1.15f
@@ -226,5 +227,9 @@ public:
 		size_t&     failStreak,
 		size_t&     seedRounds);
 };
+
+
+extern int gDefaultSeedLen;
+
 
 #endif /*ndef ALIGNER_SEED_POLICY_H_*/
