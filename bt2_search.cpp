@@ -1919,7 +1919,7 @@ struct PerfMetrics {
 				/* 118 */ "DPBtFiltStart"  "\t"
 				/* 119 */ "DPBtFiltScore"  "\t"
 				/* 120 */ "DpBtFiltDom"    "\t"
-
+#ifdef USE_MEM_TALLY
 				/* 121 */ "MemPeak"        "\t"
 				/* 122 */ "UncatMemPeak"   "\t" // 0
 				/* 123 */ "EbwtMemPeak"    "\t" // EBWT_CAT
@@ -1929,7 +1929,7 @@ struct PerfMetrics {
 				/* 127 */ "DPMemPeak"      "\t" // DP_CAT
 				/* 128 */ "MiscMemPeak"    "\t" // MISC_CAT
 				/* 129 */ "DebugMemPeak"   "\t" // DEBUG_CAT
-				
+#endif
 				"\n";
 			
 			if(name != NULL) {
@@ -2468,6 +2468,7 @@ struct PerfMetrics {
 		if(metricsStderr) stderrSs << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 		
+#ifdef USE_MEM_TALLY
 		// 121. Overall memory peak
 		itoa10<size_t>(gMemTally.peak() >> 20, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
@@ -2504,6 +2505,7 @@ struct PerfMetrics {
 		itoa10<size_t>(gMemTally.peak(DEBUG_CAT) >> 20, buf);
 		if(metricsStderr) stderrSs << buf;
 		if(o != NULL) { o->writeChars(buf); }
+#endif
 
 		if(o != NULL) { o->write('\n'); }
 		if(metricsStderr) cerr << stderrSs.str().c_str() << endl;
