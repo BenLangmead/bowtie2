@@ -233,7 +233,9 @@ private:
 		}
 		assert_eq(0, (tmpint & 0xf)); // should be 16-byte aligned
 		assert(tmp != NULL);
+#ifdef USE_MEM_TALLY
 		gMemTally.add(cat_, sz);
+#endif
 		return tmp;
 	}
 
@@ -244,7 +246,9 @@ private:
 	void free() {
 		if(list_ != NULL) {
 			delete[] last_alloc_;
+#ifdef USE_MEM_TALLY
 			gMemTally.del(cat_, sz_);
+#endif
 			list_ = NULL;
 			sz_ = cur_ = 0;
 		}
