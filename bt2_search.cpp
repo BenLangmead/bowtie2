@@ -161,6 +161,7 @@ static bool sam_print_zp;
 static bool sam_print_zu;
 static bool sam_print_zt;
 static bool bwaSwLike;
+static bool gSeedLenIsSet;
 static float bwaSwLikeC;
 static float bwaSwLikeT;
 static bool qcFilter;
@@ -170,6 +171,7 @@ static string rgs;            // SAM outputs for @RG header line
 static string rgs_optflag;    // SAM optional flag to add corresponding to @RG ID
 static bool msample;          // whether to report a random alignment when maxed-out via -m/-M
 int      gGapBarrier;         // # diags on top/bot only to be entered diagonally
+int gDefaultSeedLen;
 static EList<string> qualities;
 static EList<string> qualities1;
 static EList<string> qualities2;
@@ -350,8 +352,10 @@ static void resetOptions() {
 	sam_print_zu            = false;
 	sam_print_zt            = false;
 	bwaSwLike               = false;
+	gSeedLenIsSet			= false;
 	bwaSwLikeC              = 5.5f;
 	bwaSwLikeT              = 20.0f;
+	gDefaultSeedLen			= DEFAULT_SEEDLEN;
 	qcFilter                = false; // don't believe upstream qc by default
 	rgid					= "";    // SAM outputs for @RG header line
 	rgs						= "";    // SAM outputs for @RG header line
@@ -386,7 +390,7 @@ static void resetOptions() {
 	descentTotSz.init(SIMPLE_FUNC_LINEAR, 1024.0, DMAX, 0.0, 1024.0);
 	descentTotFmops.init(SIMPLE_FUNC_LINEAR, 100.0, DMAX, 0.0, 10.0);
 	multiseedMms    = DEFAULT_SEEDMMS;
-	multiseedLen    = DEFAULT_SEEDLEN;
+	multiseedLen    = gDefaultSeedLen;
 	multiseedOff    = 0;
 	seedCacheLocalMB   = 32; // # MB to use for non-shared seed alignment cacheing
 	seedCacheCurrentMB = 20; // # MB to use for current-read seed hit cacheing
@@ -1232,7 +1236,11 @@ static void parseOption(int next_option, const char *arg) {
 			}
 			origString = arg;
 			break;
-		case ARG_LOCAL: localAlign = true; break;
+		case ARG_LOCAL: {
+			localAlign = true;
+			gDefaultSeedLen = DEFAULT_LOCAL_SEEDLEN;
+			break;
+		}
 		case ARG_END_TO_END: localAlign = false; break;
 		case ARG_SSE8: enable8 = true; break;
 		case ARG_SSE8_NO: enable8 = false; break;
@@ -1278,7 +1286,13 @@ static void parseOption(int next_option, const char *arg) {
 			}
 			break;
 		}
-		case 'N': { polstr += ";SEED="; polstr += arg; break; }
+		case 'N': {
+			if (!gSeedLenIsSet){
+				polstr += ";SEED=";
+				polstr += arg;
+			}
+			break;
+		}
 		case 'L': {
 			int64_t len = parse<size_t>(arg);
 			if(len < 0) {
@@ -1289,7 +1303,10 @@ static void parseOption(int next_option, const char *arg) {
 				cerr << "Error: -L argument must be <= 32; was " << arg << endl;
 				throw 1;
 			}
-			polstr += ";SEEDLEN="; polstr += arg; break;
+			polstr += ";SEEDLEN=";
+			polstr += arg;
+			gSeedLenIsSet = true;
+			break;
 		}
 		case 'O':
 			multiseedOff = parse<size_t>(arg);
@@ -1903,7 +1920,7 @@ struct PerfMetrics {
 				/* 118 */ "DPBtFiltStart"  "\t"
 				/* 119 */ "DPBtFiltScore"  "\t"
 				/* 120 */ "DpBtFiltDom"    "\t"
-
+#ifdef USE_MEM_TALLY
 				/* 121 */ "MemPeak"        "\t"
 				/* 122 */ "UncatMemPeak"   "\t" // 0
 				/* 123 */ "EbwtMemPeak"    "\t" // EBWT_CAT
@@ -1913,7 +1930,7 @@ struct PerfMetrics {
 				/* 127 */ "DPMemPeak"      "\t" // DP_CAT
 				/* 128 */ "MiscMemPeak"    "\t" // MISC_CAT
 				/* 129 */ "DebugMemPeak"   "\t" // DEBUG_CAT
-				
+#endif
 				"\n";
 			
 			if(name != NULL) {
@@ -2452,6 +2469,7 @@ struct PerfMetrics {
 		if(metricsStderr) stderrSs << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 		
+#ifdef USE_MEM_TALLY
 		// 121. Overall memory peak
 		itoa10<size_t>(gMemTally.peak() >> 20, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
@@ -2488,6 +2506,7 @@ struct PerfMetrics {
 		itoa10<size_t>(gMemTally.peak(DEBUG_CAT) >> 20, buf);
 		if(metricsStderr) stderrSs << buf;
 		if(o != NULL) { o->writeChars(buf); }
+#endif
 
 		if(o != NULL) { o->write('\n'); }
 		if(metricsStderr) cerr << stderrSs.str().c_str() << endl;
