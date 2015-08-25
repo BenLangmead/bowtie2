@@ -1,3 +1,14 @@
+<h2>Version 2.2.6 - Jul 22, 2015</h2>
+<ul>
+   <li>Switched to a stable sort to avoid some potential reproducibility confusions.</li>
+   <li>Added 'install' target for *nix platforms.</li>
+   <li>Added the Intel TBB option which provides in most situations a better performance output. TBB is not present by default in the current build but can be added by compiling the source code with WITH_TBB=1 option.</li>
+   <li>Fixed a bug that caused seed lenght to be dependent of the -L and -N parameters order.</li>
+   <li>Fixed a bug that caused --local followed by -N to reset seed lenght to 22 which is actually the default value for global.</li>
+   <li>Enable compilation on FreeBDS and clang, although gmake port is still required.</li>
+   <li>Fixed an issue that made bowtie2 compilation process to fail on Snow Leopard.</li>
+</ul>
+
 <h2>Version 2.2.5 - Mar 9, 2015</h2>
 <ul>
    <li>Fixed some situations where incorrectly we could detect a Mavericks platform.</li>

@@ -57,7 +57,7 @@
 
 static const size_t NBYTES_PER_REG  = 16;
 static const size_t NWORDS_PER_REG  = 16;
-static const size_t NBITS_PER_WORD  = 8;
+//static const size_t NBITS_PER_WORD  = 8;
 static const size_t NBYTES_PER_WORD = 1;
 
 // In end-to-end mode, we start high (255) and go low (0).  Factoring in
@@ -1347,7 +1347,8 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseU8(
 		int readq = (*qu_)[row];
 		assert_leq(col, origCol);
 		// Get score in this cell
-		bool empty, reportedThru, canMoveThru, branch = false;
+		bool empty = false;
+		bool reportedThru, canMoveThru, branch = false;
 		int cur = SSEMatrix::H;
 		if(!d.mat_.reset_[row]) {
 			d.mat_.resetRow(row);
