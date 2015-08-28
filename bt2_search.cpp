@@ -1160,9 +1160,6 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_SAM_PRINT_YI: sam_print_yi = true; break;
 		case ARG_REORDER: reorder = true; break;
 		case ARG_MAPQ_EX: {
-			//sam_print_zp = true;
-			//sam_print_xss = true;
-			//sam_print_yn = true;
 			sam_print_zt = true;
 			break;
 		}
