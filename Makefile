@@ -105,6 +105,10 @@ ifeq (1,$(WITH_THREAD_PROFILING))
 	override EXTRA_FLAGS += -DPER_THREAD_TIMING=1
 endif
 
+ifeq (1,$(WITH_AFFINITY))
+	override EXTRA_FLAGS += -DWITH_AFFINITY=1
+endif
+
 SHARED_CPPS = ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
               edit.cpp bt2_idx.cpp bt2_io.cpp bt2_util.cpp \
               reference.cpp ds.cpp multikey_qsort.cpp limit.cpp \
