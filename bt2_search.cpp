@@ -54,6 +54,7 @@
 #include "opts.h"
 #include "outq.h"
 #include "aligner_seed2.h"
+#include "mock_outq.h"
 
 using namespace std;
 
@@ -1588,7 +1589,7 @@ static const char *argv0 = NULL;
 static PatternSourcePerThreadFactory*
 createPatsrcFactory(PairedPatternSource& _patsrc, int tid) {
 	PatternSourcePerThreadFactory *patsrcFact;
-	patsrcFact = new WrappedPatternSourcePerThreadFactory(_patsrc);
+	patsrcFact = new MemoryMockPatternSourcePerThreadFactory(_patsrc);
 	assert(patsrcFact != NULL);
 	return patsrcFact;
 }
@@ -4388,7 +4389,7 @@ static void driver(
 		ebwt.checkOrigs(os, false, false);
 		ebwt.evictFromMemory();
 	}
-	OutputQueue oq(
+	MockOutputQueue oq(
 		*fout,                   // out file buffer
 		reorder && nthreads > 1, // whether to reorder when there's >1 thread
 		nthreads,                // # threads

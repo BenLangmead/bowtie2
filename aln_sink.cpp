@@ -22,6 +22,7 @@
 #include "aln_sink.h"
 #include "aligner_seed.h"
 #include "util.h"
+#include "mock_outq.h"
 
 using namespace std;
 
@@ -662,7 +663,8 @@ void AlnSinkWrap::finishRead(
 	bool suppressAlignments)        // = false
 {
 	obuf_.clear();
-	OutputQueueMark qqm(g_.outq(), obuf_, rdid_, threadid_);
+	//OutputQueueMark qqm(g_.outq(), obuf_, rdid_, threadid_);
+	MockOutputQueueMark qqm(g_.outq(), obuf_, rdid_, threadid_);
 	assert(init_);
 	if(!suppressSeedSummary) {
 		if(sr1 != NULL) {

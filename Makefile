@@ -25,7 +25,7 @@ INC =
 GCC_PREFIX = $(shell dirname `which gcc`)
 GCC_SUFFIX =
 CC = $(GCC_PREFIX)/gcc$(GCC_SUFFIX)
-CPP = $(GCC_PREFIX)/g++$(GCC_SUFFIX)
+CPP = $(GCC_PREFIX)/g++$(GCC_SUFFIX) -w
 CXX = $(CPP)
 HEADERS = $(wildcard *.h)
 BOWTIE_PTHREADS = 1
@@ -167,7 +167,7 @@ GENERAL_LIST = $(wildcard scripts/*.sh) \
                NEWS \
                MANUAL \
                MANUAL.markdown \
-               TUTORIAL \
+              TUTORIAL \
                VERSION
 
 # This is helpful on Windows under MinGW/MSYS, where Make might go for
