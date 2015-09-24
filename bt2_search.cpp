@@ -2737,6 +2737,16 @@ static void setupMinScores(
 	x.resetCounters(); \
 }
 
+#ifdef PER_THREAD_TIMING
+/// Based on http://stackoverflow.com/questions/16862620/numa-get-current-node-core
+void get_cpu_and_node(int& cpu, int& node) {
+	unsigned long a,d,c;
+	__asm__ volatile("rdtscp" : "=a" (a), "=d" (d), "=c" (c));
+	node = (c & 0xFFF000)>>12;
+	cpu = c & 0xFFF;
+}
+#endif
+
 /**
  * Called once per thread.  Sets up per-thread pointers to the shared global
  * data structures, creates per-thread structures, then enters the alignment
@@ -2764,6 +2774,20 @@ static void* multiseedSearchWorker(void *vp) {
 	AlignmentCache&         scShared = *multiseed_ca;
 	AlnSink&                msink    = *multiseed_msink;
 	OutFileBuf*             metricsOfb = multiseed_metricsOfb;
+
+#ifdef PER_THREAD_TIMING
+	uint64_t ncpu_changeovers = 0;
+	uint64_t nnuma_changeovers = 0;
+	
+	int current_cpu = 0, current_node = 0;
+	get_cpu_and_node(current_cpu, current_node);
+	
+	std::stringstream ss;
+	std::string msg;
+	ss << "thread: " << tid << " time: ";
+	msg = ss.str();
+	Timer timer(std::cout, msg.c_str());
+#endif
 
 	// Sinks: these are so that we can print tables encoding counts for
 	// events of interest on a per-read, per-seed, per-join, or per-SW
@@ -2926,6 +2950,18 @@ static void* multiseedSearchWorker(void *vp) {
 			if(sam_print_xt) {
 				gettimeofday(&prm.tv_beg, &prm.tz_beg);
 			}
+#ifdef PER_THREAD_TIMING
+			int cpu = 0, node = 0;
+			get_cpu_and_node(cpu, node);
+			if(cpu != current_cpu) {
+				ncpu_changeovers++;
+				current_cpu = cpu;
+			}
+			if(node != current_node) {
+				nnuma_changeovers++;
+				current_node = node;
+			}
+#endif
 			// Try to align this read
 			while(retry) {
 				retry = false;
@@ -3771,6 +3807,14 @@ static void* multiseedSearchWorker(void *vp) {
 	
 	// One last metrics merge
 	MERGE_METRICS(metrics, nthreads > 1);
+
+#ifdef PER_THREAD_TIMING
+	ss.str("");
+	ss.clear();
+	ss << "thread: " << tid << " cpu_changeovers: " << ncpu_changeovers << std::endl
+	   << "thread: " << tid << " node_changeovers: " << nnuma_changeovers << std::endl;
+	std::cout << ss.str();
+#endif
 
 #ifdef BOWTIE_PTHREADS
 	if(tid > 0) { pthread_exit(NULL); }

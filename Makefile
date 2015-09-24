@@ -87,6 +87,11 @@ BUILD_LIBS = $(PTHREAD_LIB)
 INSPECT_LIBS = $(PTHREAD_LIB)
 endif
 
+EXTRA_FLAGS =
+ifeq (1,$(WITH_THREAD_PROFILING))
+	override EXTRA_FLAGS += -DPER_THREAD_TIMING=1
+endif
+
 SHARED_CPPS = ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
               edit.cpp bt2_idx.cpp bt2_io.cpp bt2_util.cpp \
               reference.cpp ds.cpp multikey_qsort.cpp limit.cpp \
@@ -116,7 +121,6 @@ BUILD_CPPS_MAIN = $(BUILD_CPPS) bowtie_build_main.cpp
 
 SEARCH_FRAGMENTS = $(wildcard search_*_phase*.c)
 VERSION = $(shell cat VERSION)
-EXTRA_FLAGS =
 
 # Convert BITS=?? to a -m flag
 BITS=32
@@ -324,3 +328,4 @@ clean:
 	bowtie2-src.zip bowtie2-bin.zip
 	rm -f core.* .tmp.head
 	rm -rf *.dSYM
+	rm -rf bowtie2-align*
