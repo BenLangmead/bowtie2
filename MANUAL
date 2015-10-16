@@ -163,9 +163,7 @@ to performance reasons bowtie 2 will try to use Windows native multithreading
 if possible. We recommend that you first install the [Threading Building Blocks library],
 also known as TBB, and then build using `make WITH_TBB=1`. TBB comes installed
 by default on many popular linux distros. If TBB is not available, then simply omit 
-the `WITH_TBB=1` option.  If compiling with TBB you may also want to have Bowtie2
-threads affinitized to a particular core. Use `make WITH_TBB=1 WITH_AFFINITY=1` to 
-do this.  This currently assumes 2 hyperthreads per core.
+the `WITH_TBB=1` option.
 
 [MinGW]:    http://www.mingw.org/
 [MSYS]:     http://www.mingw.org/wiki/msys
