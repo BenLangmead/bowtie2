@@ -44,8 +44,8 @@ public:
 
     try {
 #if ( defined(USING_INTEL_COMPILER) || defined(USING_MSC_COMPILER) )
-        __cpuid((void *) &regs,0); // test if __cpuid() works, if not catch the exception
-        __cpuid((void *) &regs,0x1); // POPCNT bit is bit 23 in ECX
+        __cpuid((int *) &regs,0); // test if __cpuid() works, if not catch the exception
+        __cpuid((int *) &regs,0x1); // POPCNT bit is bit 23 in ECX
 #elif defined(USING_GCC_COMPILER)
         __get_cpuid(0x1, &regs.EAX, &regs.EBX, &regs.ECX, &regs.EDX);
 #else
