@@ -35,7 +35,6 @@ static int seed;            // srandom() seed
 static bool showVersion;    // just print version and quit?
 static uint32_t qUpto;      // max # of queries to read
 static int nthreads;        // number of pthreads operating concurrently
-static bool useSpinlock;    // false -> don't use of spinlocks even if they're #defines
 static uint32_t skipReads;  // # reads/read pairs to skip
 int gGapBarrier;            // # diags on top/bot only to be entered diagonally
 static int bonusMatchType;  // how to reward matches
@@ -70,7 +69,6 @@ static void resetOptions() {
 	showVersion				= false; // just print version and quit?
 	qUpto					= 0xffffffff; // max # of queries to read
 	nthreads				= 1;     // number of pthreads operating concurrently
-	useSpinlock				= true;  // false -> don't use of spinlocks even if they're #defines
 	skipReads				= 0;     // # reads/read pairs to skip
 	gGapBarrier				= 4;     // disallow gaps within this many chars of either end of alignment
 	bonusMatchType  = DEFAULT_MATCH_BONUS_TYPE;

@@ -98,7 +98,6 @@ struct PatternParams {
 		int format_,
 		bool fileParallel_,
 		uint32_t seed_,
-		bool useSpinlock_,
 		bool solexa64_,
 		bool phred64_,
 		bool intQuals_,
@@ -109,7 +108,6 @@ struct PatternParams {
 		format(format_),
 		fileParallel(fileParallel_),
 		seed(seed_),
-		useSpinlock(useSpinlock_),
 		solexa64(solexa64_),
 		phred64(phred64_),
 		intQuals(intQuals_),
@@ -121,7 +119,6 @@ struct PatternParams {
 	int format;           // file format
 	bool fileParallel;    // true -> wrap files with separate PairedPatternSources
 	uint32_t seed;        // pseudo-random seed
-	bool useSpinlock;     // use spin locks instead of pthreads
 	bool solexa64;        // true -> qualities are on solexa64 scale
 	bool phred64;         // true -> qualities are on phred64 scale
 	bool intQuals;        // true -> qualities are space-separated numbers
@@ -147,7 +144,6 @@ public:
 		readCnt_(0),
 		numWrappers_(0),
 		doLocking_(true),
-		useSpinlock_(p.useSpinlock),
 		mutex()
 	{
 	}
@@ -264,10 +260,6 @@ protected:
 
 	int numWrappers_;      /// # threads that own a wrapper for this PatternSource
 	bool doLocking_;       /// override whether to lock (true = don't override)
-	/// User can ask to use the normal pthreads-style lock even if
-	/// spinlocks is enabled and compiled in.  This is sometimes better
-	/// if we expect bad I/O latency on some reads.
-	bool useSpinlock_;
 	MUTEX_T mutex;
 };
 
