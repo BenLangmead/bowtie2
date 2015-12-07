@@ -1647,7 +1647,9 @@ struct OuterLoopMetrics {
 		const OuterLoopMetrics& m,
 		bool getLock = false)
 	{
-		ThreadSafe ts(&mutex_m, getLock);
+		//ThreadSafe ts(&mutex_m, getLock);
+		if(getLock)
+			MUTEX_T1::scoped_lock lock(mutex_m);
 		reads += m.reads;
 		bases += m.bases;
 		srreads += m.srreads;
@@ -1666,7 +1668,7 @@ struct OuterLoopMetrics {
 	uint64_t fbases;  // filtered bases
 	uint64_t ureads;  // unfiltered reads
 	uint64_t ubases;  // unfiltered bases
-	MUTEX_T mutex_m;
+	mutable MUTEX_T1 mutex_m;
 };
 
 /**
@@ -1729,7 +1731,9 @@ struct PerfMetrics {
 		uint64_t nbtfiltdo_,
 		bool getLock)
 	{
-		ThreadSafe ts(&mutex_m, getLock);
+		//ThreadSafe ts(&mutex_m, getLock);
+		//if(getLock)
+		MUTEX_T1::scoped_lock lock(mutex_m);
 		if(ol != NULL) {
 			olmu.merge(*ol, false);
 		}
@@ -1777,7 +1781,9 @@ struct PerfMetrics {
 		bool sync,            //  synchronize output
 		const BTString *name) // non-NULL name pointer if is per-read record
 	{
-		ThreadSafe ts(&mutex_m, sync);
+		//ThreadSafe ts(&mutex_m, sync);
+		//if(sync)
+		MUTEX_T1::scoped_lock lock(mutex_m);
 		ostringstream stderrSs;
 		time_t curtime = time(0);
 		char buf[1024];
@@ -2568,7 +2574,7 @@ struct PerfMetrics {
 	uint64_t          nbtfiltsc_u;
 	uint64_t          nbtfiltdo_u;
 
-	MUTEX_T           mutex_m;  // lock for when one ob
+	mutable MUTEX_T1           mutex_m;  // lock for when one ob
 	bool              first; // yet to print first line?
 	time_t            lastElapsed; // used in reportInterval to measure time since last call
 };

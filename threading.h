@@ -19,12 +19,14 @@
 
 #ifndef THREADING_H_
 #define THREADING_H_
-
 #include <iostream>
 
 #ifdef WITH_TBB
+# include <tbb/tbb.h>
 # include <tbb/mutex.h>
 # include <tbb/spin_mutex.h>
+# include <tbb/queuing_mutex.h>
+//typedef tbb::queuing_mutex MUTEX_T1;
 # ifdef WITH_AFFINITY
 #  include <cstdlib>
 #  include <sched.h>
@@ -41,12 +43,15 @@
 #ifdef NO_SPINLOCK
 # ifdef WITH_TBB
 #   define MUTEX_T tbb::mutex
+//#   define MUTEX_T tbb::queuing_mutex
 # else
 #   define MUTEX_T tthread::mutex
 # endif
 #else
 # ifdef WITH_TBB
 #  	define MUTEX_T tbb::spin_mutex
+#  	define MUTEX_T1 tbb::queuing_mutex
+//#  	define MUTEX_T tbb::queuing_mutex
 # else
 #  	define MUTEX_T tthread::fast_mutex
 # endif
@@ -58,7 +63,20 @@
  */
 class ThreadSafe {
 public:
-    ThreadSafe(MUTEX_T* ptr_mutex, bool locked = true) {
+    /*ThreadSafe(MUTEX_T1* ptr_mutex1, bool locked = true) {
+		if(locked) {
+                    ptr_mutex1 = MUTEX_T1();
+		    this->ptr_mutex1 = ptr_mutex1;
+		    //ptr_mutex->lock();
+		    //this->slock = MUTEX_T1::scoped_lock(this->ptr_mutex);
+		    MUTEX_T1::scoped_lock lock(*ptr_mutex1);
+		}
+		else
+		    this->ptr_mutex1 = NULL;
+                    //this->slock = NULL;
+	}*/
+    
+      ThreadSafe(MUTEX_T* ptr_mutex, bool locked = true) {
 		if(locked) {
 		    this->ptr_mutex = ptr_mutex;
 		    ptr_mutex->lock();
@@ -67,13 +85,18 @@ public:
 		    this->ptr_mutex = NULL;
 	}
 
+
 	~ThreadSafe() {
 	    if (ptr_mutex != NULL)
 	        ptr_mutex->unlock();
+	    /*if (ptr_mutex1 != NULL)
+	        this->slock.release();*/
 	}
     
 private:
 	MUTEX_T *ptr_mutex;
+	MUTEX_T1 *ptr_mutex1;
+        MUTEX_T1::scoped_lock slock;
 };
 
 #ifdef WITH_TBB

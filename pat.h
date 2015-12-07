@@ -156,7 +156,8 @@ public:
 	 * whether locks will be contended.
 	 */
 	void addWrapper() {
-		lock();
+		//lock();
+		MUTEX_T1::scoped_lock lock(mutex);
 		numWrappers_++;
 		unlock();
 	}
@@ -225,7 +226,7 @@ public:
 	 */
 	void lock() {
 		if(!doLocking_) return; // no contention
-        mutex.lock();
+        //mutex.lock();
 	}
 
 	/**
@@ -234,7 +235,7 @@ public:
 	 */
 	void unlock() {
 		if(!doLocking_) return; // no contention
-        mutex.unlock();
+        //mutex.unlock();
 	}
 
 	/**
@@ -260,7 +261,7 @@ protected:
 
 	int numWrappers_;      /// # threads that own a wrapper for this PatternSource
 	bool doLocking_;       /// override whether to lock (true = don't override)
-	MUTEX_T mutex;
+	MUTEX_T1 mutex;
 };
 
 /**
@@ -292,14 +293,14 @@ public:
 	 * fields is being updated.
 	 */
 	void lock() {
-		mutex_m.lock();
+		//mutex_m.lock();
 	}
 
 	/**
 	 * Unlock this PairedPatternSource.
 	 */
 	void unlock() {
-		mutex_m.unlock();
+		//mutex_m.unlock();
 	}
 
 	/**
@@ -321,7 +322,7 @@ public:
 protected:
         static void free_EList_pmembers(const EList<PatternSource*>&);
 
-	MUTEX_T mutex_m; /// mutex for syncing over critical regions
+	MUTEX_T1 mutex_m; /// mutex for syncing over critical regions
 	uint32_t seed_;
 };
 
@@ -783,7 +784,8 @@ public:
 		bool& done)
 	{
 		// We'll be manipulating our file handle/filecur_ state
-		lock();
+		//lock();
+		MUTEX_T1::scoped_lock lock(mutex);
 		while(true) {
 			do { read(r, rdid, endid, success, done); }
 			while(!success && !done);
@@ -815,7 +817,8 @@ public:
 		bool& paired)
 	{
 		// We'll be manipulating our file handle/filecur_ state
-		lock();
+		//lock();
+		MUTEX_T1::scoped_lock lock(mutex);
 		while(true) {
 			do { readPair(ra, rb, rdid, endid, success, done, paired); }
 			while(!success && !done);

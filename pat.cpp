@@ -161,7 +161,8 @@ bool PairedSoloPatternSource::nextReadPair(
 			assert(done);
 			// If patFw is empty, that's our signal that the
 			// input dried up
-			lock();
+			//lock();
+			MUTEX_T1::scoped_lock lock(mutex_m);
 			if(cur + 1 > cur_) cur_++;
 			cur = cur_;
 			unlock();
@@ -209,7 +210,8 @@ bool PairedDualPatternSource::nextReadPair(
 	// 'cur' indexes the current pair of PatternSources
 	uint32_t cur;
 	{
-		lock();
+		//lock();
+		MUTEX_T1::scoped_lock lock(mutex_m);
 		cur = cur_;
 		unlock();
 	}
@@ -224,7 +226,8 @@ bool PairedDualPatternSource::nextReadPair(
 			} while(!success && !done);
 			if(!success) {
 				assert(done);
-				lock();
+				//lock();
+				MUTEX_T1::scoped_lock lock(mutex_m);
 				if(cur + 1 > cur_) cur_++;
 				cur = cur_; // Move on to next PatternSource
 				unlock();
@@ -243,7 +246,9 @@ bool PairedDualPatternSource::nextReadPair(
 			bool success_b = false, done_b = false;
 			// Lock to ensure that this thread gets parallel reads
 			// in the two mate files
-			lock();
+			//lock();
+			{
+			MUTEX_T1::scoped_lock lock(mutex_m);
 			do {
 				(*srca_)[cur]->nextRead(ra, rdid_a, endid_a, success_a, done_a);
 			} while(!success_a && !done_a);
@@ -266,7 +271,8 @@ bool PairedDualPatternSource::nextReadPair(
 			assert_eq(rdid_a, rdid_b);
 			//assert_eq(endid_a+1, endid_b);
 			assert_eq(success_a, success_b);
-			unlock();
+			}
+			//unlock();
 			if(fixName) {
 				ra.fixMateName(1);
 				rb.fixMateName(2);
@@ -519,7 +525,8 @@ bool VectorPatternSource::nextReadImpl(
 {
 	// Let Strings begin at the beginning of the respective bufs
 	r.reset();
-	lock();
+	//lock();
+	MUTEX_T1::scoped_lock lock(mutex);
 	if(cur_ >= v_.size()) {
 		unlock();
 		// Clear all the Strings, as a signal to the caller that
@@ -568,7 +575,8 @@ bool VectorPatternSource::nextReadPairImpl(
 		paired_ = true;
 		cur_ <<= 1;
 	}
-	lock();
+	//lock();
+	MUTEX_T1::scoped_lock lock(mutex);
 	if(cur_ >= v_.size()-1) {
 		unlock();
 		// Clear all the Strings, as a signal to the caller that
