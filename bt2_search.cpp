@@ -1648,8 +1648,7 @@ struct OuterLoopMetrics {
 		bool getLock = false)
 	{
 		//ThreadSafe ts(&mutex_m, getLock);
-		if(getLock)
-			MUTEX_T1::scoped_lock lock(mutex_m);
+		MUTEX_T1::scoped_lock lock(mutex_m);
 		reads += m.reads;
 		bases += m.bases;
 		srreads += m.srreads;
