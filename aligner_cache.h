@@ -462,7 +462,8 @@ public:
 		size_t& nelt,
 		bool getLock = true)
 	{
-        ThreadSafe ts(lockPtr(), shared_ && getLock);
+        //ThreadSafe ts(lockPtr(), shared_ && getLock);
+		MUTEX_T1::scoped_lock lock(mutex_m);
 		assert(qv.repOk(*this));
 		const size_t refi = qv.offset();
 		const size_t reff = refi + qv.numRanges();
@@ -522,7 +523,8 @@ public:
 		bool *added,
 		bool getLock = true)
 	{
-        ThreadSafe ts(lockPtr(), shared_ && getLock);
+        //ThreadSafe ts(lockPtr(), shared_ && getLock);
+		MUTEX_T1::scoped_lock lock(mutex_m);
 		assert(qk.cacheable());
 		QNode *n = qmap_.add(pool(), qk, added);
 		return (n != NULL ? &n->payload : NULL);
@@ -547,7 +549,8 @@ public:
 	 * reads will have to be re-aligned.
 	 */
 	void clear(bool getLock = true) {
-        ThreadSafe ts(lockPtr(), shared_ && getLock);
+        //ThreadSafe ts(lockPtr(), shared_ && getLock);
+		MUTEX_T1::scoped_lock lock(mutex_m);
 		pool_.clear();
 		qmap_.clear();
 		qlist_.clear();
@@ -584,7 +587,7 @@ public:
 	/**
 	 * Return the lock object.
 	 */
-	MUTEX_T& lock() {
+	MUTEX_T1 lock() {
 	    return mutex_m;
 	}
 
@@ -592,8 +595,10 @@ public:
 	 * Return a const pointer to the lock object.  This allows us to
 	 * write const member functions that grab the lock.
 	 */
-	MUTEX_T* lockPtr() const {
-	    return const_cast<MUTEX_T*>(&mutex_m);
+	//MUTEX_T* lockPtr() const {
+	 //   return const_cast<MUTEX_T*>(&mutex_m);
+	MUTEX_T1 lockPtr() {
+	    return mutex_m;
 	}
 	
 	/**
@@ -616,7 +621,7 @@ protected:
 	TSAList                salist_; // list of SA ranges
 	
 	bool     shared_;  // true -> this cache is global
-	MUTEX_T mutex_m;    // mutex used for syncronization in case the the cache is shared.
+	mutable MUTEX_T1 mutex_m;    // mutex used for syncronization in case the the cache is shared.
 	uint32_t version_; // cache version
 };
 

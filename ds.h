@@ -92,7 +92,7 @@ public:
 
 protected:
 
-	MUTEX_T mutex_m;
+	MUTEX_T1 mutex_m;
 	uint64_t tots_[256];
 	uint64_t tot_;
 	uint64_t peaks_[256];

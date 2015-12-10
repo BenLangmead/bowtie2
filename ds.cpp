@@ -25,7 +25,8 @@ MemoryTally gMemTally;
  * Tally a memory allocation of size amt bytes.
  */
 void MemoryTally::add(int cat, uint64_t amt) {
-	ThreadSafe ts(&mutex_m);
+	//ThreadSafe ts(&mutex_m);
+	MUTEX_T1::scoped_lock lock(mutex_m);
 	tots_[cat] += amt;
 	tot_ += amt;
 	if(tots_[cat] > peaks_[cat]) {
@@ -40,7 +41,8 @@ void MemoryTally::add(int cat, uint64_t amt) {
  * Tally a memory free of size amt bytes.
  */
 void MemoryTally::del(int cat, uint64_t amt) {
-	ThreadSafe ts(&mutex_m);
+	//ThreadSafe ts(&mutex_m);
+	MUTEX_T1::scoped_lock lock(mutex_m);
 	assert_geq(tots_[cat], amt);
 	assert_geq(tot_, amt);
 	tots_[cat] -= amt;

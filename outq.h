@@ -117,7 +117,7 @@ protected:
 	EList<bool>     finished_;
 	bool            reorder_;
 	bool            threadSafe_;
-	MUTEX_T         mutex_m;
+	MUTEX_T1         mutex_m;
 };
 
 class OutputQueueMark {

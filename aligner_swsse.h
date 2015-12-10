@@ -42,7 +42,8 @@ struct SSEMetrics {
 	}
 
 	void merge(const SSEMetrics& o, bool getLock = false) {
-        ThreadSafe ts(&mutex_m, getLock);
+        //ThreadSafe ts(&mutex_m, getLock);
+		MUTEX_T1::scoped_lock lock(mutex_m);
 		dp       += o.dp;
 		dpsat    += o.dpsat;
 		dpfail   += o.dpfail;
@@ -75,7 +76,7 @@ struct SSEMetrics {
 	uint64_t btcell;   // DP backtrace cells traversed
 	uint64_t corerej;  // DP backtrace core rejections
 	uint64_t nrej;     // DP backtrace N rejections
-	MUTEX_T  mutex_m;
+	MUTEX_T1  mutex_m;
 };
 
 /**

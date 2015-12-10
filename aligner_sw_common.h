@@ -215,7 +215,8 @@ struct SwMetrics {
 	 * by multiple threads.
 	 */
 	void merge(const SwMetrics& r, bool getLock = false) {
-        ThreadSafe ts(&mutex_m, getLock);
+        //ThreadSafe ts(&mutex_m, getLock);
+		MUTEX_T1::scoped_lock lock(mutex_m);
 		sws        += r.sws;
 		sws10      += r.sws10;
 		sws5       += r.sws5;
@@ -289,7 +290,7 @@ struct SwMetrics {
 	uint64_t sdsucc;     // # times seed alignment yielded >= 1 hit
 	uint64_t sdooms;     // # times an OOM occurred during seed alignment
 
-	MUTEX_T mutex_m;
+	MUTEX_T1 mutex_m;
 };
 
 // The various ways that one might backtrack from a later cell (either oall,

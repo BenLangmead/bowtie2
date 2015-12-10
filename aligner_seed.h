@@ -1383,7 +1383,8 @@ struct SeedSearchMetrics {
 	 * SeedSearchMetrics object shread by multiple threads.
 	 */
 	void merge(const SeedSearchMetrics& m, bool getLock = false) {
-        ThreadSafe ts(&mutex_m, getLock);
+        //ThreadSafe ts(&mutex_m, getLock);
+		MUTEX_T1::scoped_lock lock(mutex_m);
 		seedsearch   += m.seedsearch;
 		nrange       += m.nrange;
 		nelt         += m.nelt;
@@ -1431,7 +1432,7 @@ struct SeedSearchMetrics {
 	uint64_t bestmin0;     // # times the best min # edits was 0
 	uint64_t bestmin1;     // # times the best min # edits was 1
 	uint64_t bestmin2;     // # times the best min # edits was 2
-	MUTEX_T  mutex_m;
+	MUTEX_T1  mutex_m;
 };
 
 /**

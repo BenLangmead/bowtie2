@@ -162,7 +162,8 @@ struct WalkMetrics {
 	 * to update a WalkMetrics shared by many threads.
 	 */
 	void merge(const WalkMetrics& m, bool getLock = false) {
-		ThreadSafe ts(&mutex_m, getLock);
+		//ThreadSafe ts(&mutex_m, getLock);
+		MUTEX_T1::scoped_lock lock(mutex_m);
 		bwops += m.bwops;
 		branches += m.branches;
 		resolves += m.resolves;
@@ -182,7 +183,7 @@ struct WalkMetrics {
 	uint64_t resolves;    // # offs resolved with BW walk-left
 	uint64_t refresolves; // # resolutions caused by reference scanning
 	uint64_t reports;     // # offs reported (1 can be reported many times)
-	MUTEX_T mutex_m;
+	MUTEX_T1 mutex_m;
 };
 
 /**

@@ -24,7 +24,8 @@
  * the read with the given id.
  */
 void OutputQueue::beginRead(TReadId rdid, size_t threadId) {
-	ThreadSafe t(&mutex_m, threadSafe_);
+	//ThreadSafe t(&mutex_m, threadSafe_);
+	MUTEX_T1::scoped_lock lock(mutex_m);
 	nstarted_++;
 	if(reorder_) {
 		assert_geq(rdid, cur_);
@@ -49,7 +50,8 @@ void OutputQueue::beginRead(TReadId rdid, size_t threadId) {
  * Writer is finished writing to 
  */
 void OutputQueue::finishRead(const BTString& rec, TReadId rdid, size_t threadId) {
-	ThreadSafe t(&mutex_m, threadSafe_);
+	//ThreadSafe t(&mutex_m, threadSafe_);
+	MUTEX_T1::scoped_lock lock(mutex_m);
 	if(reorder_) {
 		assert_geq(rdid, cur_);
 		assert_eq(lines_.size(), finished_.size());
@@ -76,7 +78,8 @@ void OutputQueue::flush(bool force, bool getLock) {
 	if(!reorder_) {
 		return;
 	}
-	ThreadSafe t(&mutex_m, getLock && threadSafe_);
+	//ThreadSafe t(&mutex_m, getLock && threadSafe_);
+	MUTEX_T1::scoped_lock lock(mutex_m);
 	size_t nflush = 0;
 	while(nflush < finished_.size() && finished_[nflush]) {
 		assert(started_[nflush]);

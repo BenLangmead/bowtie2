@@ -122,7 +122,8 @@ struct ReportingMetrics {
 	 * ReportingMetrics shared by multiple threads.
 	 */
 	void merge(const ReportingMetrics& met, bool getLock = false) {
-        ThreadSafe ts(&mutex_m, getLock);
+        //ThreadSafe ts(&mutex_m, getLock);
+		MUTEX_T1::scoped_lock lock(mutex_m);
 		nread         += met.nread;
 
 		npaired       += met.npaired;
@@ -201,7 +202,7 @@ struct ReportingMetrics {
 	uint64_t  sum_best2;     // Sum of all the second-best alignment scores
 	uint64_t  sum_best;      // Sum of all the best and second-best
 
-	MUTEX_T mutex_m;
+	MUTEX_T1 mutex_m;
 };
 
 // Type for expression numbers of hits
