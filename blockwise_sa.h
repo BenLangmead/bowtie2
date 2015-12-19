@@ -35,6 +35,7 @@
 #include "timer.h"
 #include "ds.h"
 #include "mem_ids.h"
+#include "word_io.h"
 
 using namespace std;
 
@@ -86,23 +87,7 @@ public:
 	/**
 	 * Get the next suffix; compute the next bucket if necessary.
 	 */
-	TIndexOffU nextSuffix() {
-		if(_itrPushedBackSuffix != OFF_MASK) {
-			TIndexOffU tmp = _itrPushedBackSuffix;
-			_itrPushedBackSuffix = OFF_MASK;
-			return tmp;
-		}
-		while(_itrBucketPos >= _itrBucket.size() ||
-		      _itrBucket.size() == 0)
-		{
-			if(!hasMoreBlocks()) {
-				throw out_of_range("No more suffixes");
-			}
-			nextBlock();
-			_itrBucketPos = 0;
-		}
-		return _itrBucket[_itrBucketPos++];
-	}
+    virtual TIndexOffU nextSuffix() = 0;
 
 	/**
 	 * Return true iff the next call to nextSuffix will succeed.
@@ -158,7 +143,7 @@ protected:
 	 * Grab the next block of sorted suffixes.  The block is guaranteed
 	 * to have at most _bucketSz elements.
 	 */
-	virtual void nextBlock() = 0;
+	virtual void nextBlock(int cur_block, int tid = 0) = 0;
 	/// Return true iff more blocks are available
 	virtual bool hasMoreBlocks() const = 0;
 	/// Optionally output a verbose message
@@ -206,48 +191,154 @@ class KarkkainenBlockwiseSA : public InorderBlockwiseSA<TStr> {
 public:
 	typedef DifferenceCoverSample<TStr> TDC;
 
-	KarkkainenBlockwiseSA(const TStr& __text,
-	                      TIndexOffU __bucketSz,
-	                      uint32_t __dcV,
-	                      uint32_t __seed = 0,
-	      	              bool __sanityCheck = false,
-	   	                  bool __passMemExc = false,
-	      	              bool __verbose = false,
-	      	              ostream& __logger = cout) :
-	InorderBlockwiseSA<TStr>(__text, __bucketSz, __sanityCheck, __passMemExc, __verbose, __logger),
-	_sampleSuffs(EBWTB_CAT), _cur(0), _dcV(__dcV), _dc(EBWTB_CAT), _built(false)
-	{ _randomSrc.init(__seed); reset(); }
+    KarkkainenBlockwiseSA(const TStr& __text,
+                          TIndexOffU __bucketSz,
+                          int __nthreads,
+                          uint32_t __dcV,
+                          uint32_t __seed = 0,
+                          bool __sanityCheck = false,
+                          bool __passMemExc = false,
+                          bool __verbose = false,
+                          string base_fname = "",
+                          ostream& __logger = cout) :
+    InorderBlockwiseSA<TStr>(__text, __bucketSz, __sanityCheck, __passMemExc, __verbose, __logger),
+    _sampleSuffs(EBWTB_CAT), _nthreads(__nthreads), _itrBucketIdx(0), _cur(0), _dcV(__dcV), _dc(EBWTB_CAT), _built(false), _base_fname(base_fname), _bigEndian(currentlyBigEndian())
+    { _randomSrc.init(__seed); reset(); }
+    
+    ~KarkkainenBlockwiseSA()
+    {
+        if(_threads.size() > 0) {
+            for (size_t tid = 0; tid < _threads.size(); tid++) {
+                _threads[tid]->join();
+                delete _threads[tid];
+            }
+        }
+    }
+    
+    /**
+     * Allocate an amount of memory that simulates the peak memory
+     * usage of the DifferenceCoverSample with the given text and v.
+     * Throws bad_alloc if it's not going to fit in memory.  Returns
+     * the approximate number of bytes the Cover takes at all times.
+     */
+    static size_t simulateAllocs(const TStr& text, TIndexOffU bucketSz) {
+        size_t len = text.length();
+        // _sampleSuffs and _itrBucket are in memory at the peak
+        size_t bsz = bucketSz;
+        size_t sssz = len / max<TIndexOffU>(bucketSz-1, 1);
+        AutoArray<TIndexOffU> tmp(bsz + sssz + (1024 * 1024 /*out of caution*/), EBWT_CAT);
+        return bsz;
+    }
 
-	~KarkkainenBlockwiseSA() { }
-
-	/**
-	 * Allocate an amount of memory that simulates the peak memory
-	 * usage of the DifferenceCoverSample with the given text and v.
-	 * Throws bad_alloc if it's not going to fit in memory.  Returns
-	 * the approximate number of bytes the Cover takes at all times.
-	 */
-	static size_t simulateAllocs(const TStr& text, TIndexOffU bucketSz) {
-		size_t len = text.length();
-		// _sampleSuffs and _itrBucket are in memory at the peak
-		size_t bsz = bucketSz;
-		size_t sssz = len / max<TIndexOffU>(bucketSz-1, 1);
-		AutoArray<TIndexOffU> tmp(bsz + sssz + (1024 * 1024 /*out of caution*/), EBWT_CAT);
-		return bsz;
-	}
-
-	/// Defined in blockwise_sa.cpp
-	virtual void nextBlock();
-
-	/// Defined in blockwise_sa.cpp
-	virtual void qsort(EList<TIndexOffU>& bucket);
-
-	/// Return true iff more blocks are available
-	virtual bool hasMoreBlocks() const {
-		return _cur <= _sampleSuffs.size();
-	}
-
-	/// Return the difference-cover period
-	uint32_t dcV() const { return _dcV; }
+    static void nextBlock_Worker(void *vp) {
+        pair<KarkkainenBlockwiseSA*, int> param = *(pair<KarkkainenBlockwiseSA*, int>*)vp;
+        KarkkainenBlockwiseSA* sa = param.first;
+        int tid = param.second;
+        while(true) {
+            size_t cur = 0;
+            {
+                ThreadSafe ts(&sa->_mutex, sa->_nthreads > 1);
+                cur = sa->_cur;
+                if(cur > sa->_sampleSuffs.size()) break;
+                sa->_cur++;
+            }
+            sa->nextBlock((int)cur, tid);
+            // Write suffixes into a file
+            std::ostringstream number; number << cur;
+            const string fname = sa->_base_fname + "." + number.str() + ".sa";
+            ofstream sa_file(fname.c_str(), ios::binary);
+            if(!sa_file.good()) {
+                cerr << "Could not open file for writing a reference graph: \"" << fname << "\"" << endl;
+                throw 1;
+            }
+            const EList<TIndexOffU>& bucket = sa->_itrBuckets[tid];
+            writeU<TIndexOffU>(sa_file, (TIndexOffU)bucket.size(), sa->_bigEndian);
+            for(size_t i = 0; i < bucket.size(); i++) {
+                writeU<TIndexOffU>(sa_file, bucket[i], sa->_bigEndian);
+            }
+            sa_file.close();
+            sa->_itrBuckets[tid].clear();
+            sa->_done[cur] = true;
+        }
+    }
+    
+    /**
+     * Get the next suffix; compute the next bucket if necessary.
+     */
+    virtual TIndexOffU nextSuffix() {
+        // Launch threads if not
+        if(this->_nthreads > 1) {
+            if(_threads.size() == 0) {
+                _done.resize(_sampleSuffs.size() + 1);
+                _done.fill(false);
+                _itrBuckets.resize(this->_nthreads);
+                for(int tid = 0; tid < this->_nthreads; tid++) {
+                    _tparams.expand();
+                    _tparams.back().first = this;
+                    _tparams.back().second = tid;
+                    _threads.push_back(new tthread::thread(nextBlock_Worker, (void*)&_tparams.back()));
+                }
+                assert_eq(_threads.size(), (size_t)this->_nthreads);
+            }
+        }
+        if(this->_itrPushedBackSuffix != OFF_MASK) {
+            TIndexOffU tmp = this->_itrPushedBackSuffix;
+            this->_itrPushedBackSuffix = OFF_MASK;
+            return tmp;
+        }
+        while(this->_itrBucketPos >= this->_itrBucket.size() ||
+              this->_itrBucket.size() == 0)
+        {
+            if(!hasMoreBlocks()) {
+                throw out_of_range("No more suffixes");
+            }
+            if(this->_nthreads == 1) {
+                nextBlock((int)_cur);
+                _cur++;
+            } else {
+                while(!_done[this->_itrBucketIdx]) {
+#if defined(_TTHREAD_WIN32_)
+                    Sleep(1);
+#elif defined(_TTHREAD_POSIX_)
+                    const static timespec ts = {0, 1000000};  // 1 millisecond
+                    nanosleep(&ts, NULL);
+#endif
+                }
+                // Read suffixes from a file
+                std::ostringstream number; number << this->_itrBucketIdx;
+                const string fname = _base_fname + "." + number.str() + ".sa";
+                ifstream sa_file(fname.c_str(), ios::binary);
+                if(!sa_file.good()) {
+                    cerr << "Could not open file for reading a reference graph: \"" << fname << "\"" << endl;
+                    throw 1;
+                }
+                size_t numSAs = readU<TIndexOffU>(sa_file, _bigEndian);
+                this->_itrBucket.resizeExact(numSAs);
+                for(size_t i = 0; i < numSAs; i++) {
+                    this->_itrBucket[i] = readU<TIndexOffU>(sa_file, _bigEndian);
+                }
+                sa_file.close();
+                std::remove(fname.c_str());
+            }
+            this->_itrBucketIdx++;
+            this->_itrBucketPos = 0;
+        }
+        return this->_itrBucket[this->_itrBucketPos++];
+    }
+    
+    /// Defined in blockwise_sa.cpp
+    virtual void nextBlock(int cur_block, int tid = 0);
+    
+    /// Defined in blockwise_sa.cpp
+    virtual void qsort(EList<TIndexOffU>& bucket);
+    
+    /// Return true iff more blocks are available
+    virtual bool hasMoreBlocks() const {
+        return this->_itrBucketIdx <= _sampleSuffs.size();
+    }
+    
+    /// Return the difference-cover period
+    uint32_t dcV() const { return _dcV; }
 
 protected:
 
@@ -272,27 +363,27 @@ protected:
 
 private:
 
-	/**
-	 * Calculate the difference-cover sample and sample suffixes.
-	 */
-	void build() {
-		// Calculate difference-cover sample
-		assert(_dc.get() == NULL);
-		if(_dcV != 0) {
-			_dc.init(new TDC(this->text(), _dcV, this->verbose(), this->sanityCheck()));
-			_dc.get()->build();
-		}
-		// Calculate sample suffixes
-		if(this->bucketSz() <= this->text().length()) {
-			VMSG_NL("Building samples");
-			buildSamples();
-		} else {
-			VMSG_NL("Skipping building samples since text length " <<
-			        this->text().length() << " is less than bucket size: " <<
-			        this->bucketSz());
-		}
-		_built = true;
-	}
+    /**
+     * Calculate the difference-cover sample and sample suffixes.
+     */
+    void build() {
+        // Calculate difference-cover sample
+        assert(_dc.get() == NULL);
+        if(_dcV != 0) {
+            _dc.init(new TDC(this->text(), _dcV, this->verbose(), this->sanityCheck()));
+            _dc.get()->build(this->_nthreads);
+        }
+        // Calculate sample suffixes
+        if(this->bucketSz() <= this->text().length()) {
+            VMSG_NL("Building samples");
+            buildSamples();
+        } else {
+            VMSG_NL("Skipping building samples since text length " <<
+                    this->text().length() << " is less than bucket size: " <<
+                    this->bucketSz());
+        }
+        _built = true;
+    }
 
 	/**
 	 * Calculate the lcp between two suffixes using the difference
@@ -318,12 +409,22 @@ private:
 
 	void buildSamples();
 
-	EList<TIndexOffU>  _sampleSuffs; /// sample suffixes
-	TIndexOffU         _cur;         /// offset to 1st elt of next block
-	const uint32_t   _dcV;         /// difference-cover periodicity
-	PtrWrap<TDC>     _dc;          /// queryable difference-cover data
-	bool             _built;       /// whether samples/DC have been built
-	RandomSource     _randomSrc;   /// source of pseudo-randoms
+    EList<TIndexOffU>  _sampleSuffs; /// sample suffixes
+    int                _nthreads;    /// # of threads
+    TIndexOffU         _itrBucketIdx;
+    TIndexOffU         _cur;         /// offset to 1st elt of next block
+    const uint32_t   _dcV;         /// difference-cover periodicity
+    PtrWrap<TDC>     _dc;          /// queryable difference-cover data
+    bool             _built;       /// whether samples/DC have been built
+    RandomSource     _randomSrc;   /// source of pseudo-randoms
+    
+    MUTEX_T                 _mutex;       /// synchronization of output message
+    string                  _base_fname;  /// base file name for storing SA blocks
+    bool                    _bigEndian;   /// bigEndian?
+    EList<tthread::thread*> _threads;     /// thread list
+    EList<pair<KarkkainenBlockwiseSA*, int> > _tparams;
+    ELList<TIndexOffU>      _itrBuckets;  /// buckets
+    EList<bool>             _done;        /// is a block processed?
 };
 
 /**
@@ -383,6 +484,47 @@ inline void KarkkainenBlockwiseSA<S2bDnaString>::qsort(
 	}
 }
 
+template<typename TStr>
+struct BinarySortingParam {
+    const TStr*              t;
+    const EList<TIndexOffU>* sampleSuffs;
+    EList<TIndexOffU>        bucketSzs;
+    EList<TIndexOffU>        bucketReps;
+    size_t                   begin;
+    size_t                   end;
+};
+
+template<typename TStr>
+static void BinarySorting_worker(void *vp)
+{
+    BinarySortingParam<TStr>* param = (BinarySortingParam<TStr>*)vp;
+    const TStr& t = *(param->t);
+    size_t len = t.length();
+    const EList<TIndexOffU>& sampleSuffs = *(param->sampleSuffs);
+    EList<TIndexOffU>& bucketSzs = param->bucketSzs;
+    EList<TIndexOffU>& bucketReps = param->bucketReps;
+    ASSERT_ONLY(size_t numBuckets = bucketSzs.size());
+    size_t begin = param->begin;
+    size_t end = param->end;
+    // Iterate through every suffix in the text, determine which
+    // bucket it falls into by doing a binary search across the
+    // sorted list of samples, and increment a counter associated
+    // with that bucket.  Also, keep one representative for each
+    // bucket so that we can split it later.  We loop in ten
+    // stretches so that we can print out a helpful progress
+    // message.  (This step can take a long time.)
+    for(TIndexOffU i = (TIndexOffU)begin; i < end && i < len; i++) {
+        TIndexOffU r = binarySASearch(t, i, sampleSuffs);
+        if(r == std::numeric_limits<TIndexOffU>::max()) continue; // r was one of the samples
+        assert_lt(r, numBuckets);
+        bucketSzs[r]++;
+        assert_lt(bucketSzs[r], len);
+        if(bucketReps[r] == OFF_MASK || (i & 100) == 0) {
+            bucketReps[r] = i; // clobbers previous one, but that's OK
+        }
+    }
+}
+
 /**
  * Select a set of bucket-delineating sample suffixes such that no
  * bucket is greater than the requested upper limit.  Some care is
@@ -391,186 +533,186 @@ inline void KarkkainenBlockwiseSA<S2bDnaString>::qsort(
  */
 template<typename TStr>
 void KarkkainenBlockwiseSA<TStr>::buildSamples() {
-	const TStr& t = this->text();
-	TIndexOffU bsz = this->bucketSz()-1; // subtract 1 to leave room for sample
-	size_t len = this->text().length();
-	// Prepare _sampleSuffs array
-	_sampleSuffs.clear();
-	TIndexOffU numSamples = (TIndexOffU)((len/bsz)+1)<<1; // ~len/bsz x 2
-	assert_gt(numSamples, 0);
-	VMSG_NL("Reserving space for " << numSamples << " sample suffixes");
-	if(this->_passMemExc) {
-		_sampleSuffs.resizeExact(numSamples);
-		// Randomly generate samples.  Allow duplicates for now.
-		VMSG_NL("Generating random suffixes");
-		for(size_t i = 0; i < numSamples; i++) {
-#ifdef BOWTIE_64BIT_INDEX         
-			_sampleSuffs[i] = (TIndexOffU)(_randomSrc.nextU64() % len); 
-#else
-			_sampleSuffs[i] = (TIndexOffU)(_randomSrc.nextU32() % len); 
-#endif
-		}
-	} else {
-		try {
-			_sampleSuffs.resizeExact(numSamples);
-			// Randomly generate samples.  Allow duplicates for now.
-			VMSG_NL("Generating random suffixes");
-			for(size_t i = 0; i < numSamples; i++) {
+    const TStr& t = this->text();
+    TIndexOffU bsz = this->bucketSz()-1; // subtract 1 to leave room for sample
+    size_t len = this->text().length();
+    // Prepare _sampleSuffs array
+    _sampleSuffs.clear();
+    TIndexOffU numSamples = (TIndexOffU)((len/bsz)+1)<<1; // ~len/bsz x 2
+    assert_gt(numSamples, 0);
+    VMSG_NL("Reserving space for " << numSamples << " sample suffixes");
+    if(this->_passMemExc) {
+        _sampleSuffs.resizeExact(numSamples);
+        // Randomly generate samples.  Allow duplicates for now.
+        VMSG_NL("Generating random suffixes");
+        for(size_t i = 0; i < numSamples; i++) {
 #ifdef BOWTIE_64BIT_INDEX
-				_sampleSuffs[i] = (TIndexOffU)(_randomSrc.nextU64() % len); 
+            _sampleSuffs[i] = (TIndexOffU)(_randomSrc.nextU64() % len);
 #else
-				_sampleSuffs[i] = (TIndexOffU)(_randomSrc.nextU32() % len); 
-#endif                
-			}
-		} catch(bad_alloc &e) {
-			if(this->_passMemExc) {
-				throw e; // rethrow immediately
-			} else {
-				cerr << "Could not allocate sample suffix container of " << (numSamples * OFF_SIZE) << " bytes." << endl
-				     << "Please try using a smaller number of blocks by specifying a larger --bmax or" << endl
-				     << "a smaller --bmaxdivn" << endl;
-				throw 1;
-			}
-		}
-	}
-	// Remove duplicates; very important to do this before the call to
-	// mkeyQSortSuf so that it doesn't try to calculate lexicographical
-	// relationships between very long, identical strings, which takes
-	// an extremely long time in general, and causes the stack to grow
-	// linearly with the size of the input
-	{
-		Timer timer(cout, "QSorting sample offsets, eliminating duplicates time: ", this->verbose());
-		VMSG_NL("QSorting " << _sampleSuffs.size() << " sample offsets, eliminating duplicates");
-		_sampleSuffs.sort();
-		size_t sslen = _sampleSuffs.size();
-		for(size_t i = 0; i < sslen-1; i++) {
-			if(_sampleSuffs[i] == _sampleSuffs[i+1]) {
-				_sampleSuffs.erase(i--);
-				sslen--;
-			}
-		}
-	}
-	// Multikey quicksort the samples
-	{
-		Timer timer(cout, "  Multikey QSorting samples time: ", this->verbose());
-		VMSG_NL("Multikey QSorting " << _sampleSuffs.size() << " samples");
-		this->qsort(_sampleSuffs);
-	}
-	// Calculate bucket sizes
-	VMSG_NL("Calculating bucket sizes");
-	int limit = 5;
-	// Iterate until all buckets are less than
-	while(--limit >= 0) {
-		// Calculate bucket sizes by doing a binary search for each
-		// suffix and noting where it lands
-		TIndexOffU numBuckets = (TIndexOffU)_sampleSuffs.size()+1;
-		EList<TIndexOffU> bucketSzs(EBWTB_CAT); // holds computed bucket sizes
-		EList<TIndexOffU> bucketReps(EBWTB_CAT); // holds 1 member of each bucket (for splitting)
-		try {
-			// Allocate and initialize containers for holding bucket
-			// sizes and representatives.
-			bucketSzs.resizeExact(numBuckets);
-			bucketReps.resizeExact(numBuckets);
-			bucketSzs.fillZero();
-			bucketReps.fill(OFF_MASK);
-		} catch(bad_alloc &e) {
-			if(this->_passMemExc) {
-				throw e; // rethrow immediately
-			} else {
-				cerr << "Could not allocate sizes, representatives (" << ((numBuckets*8)>>10) << " KB) for blocks." << endl
-				     << "Please try using a smaller number of blocks by specifying a larger --bmax or a" << endl
-				     << "smaller --bmaxdivn." << endl;
-				throw 1;
-			}
-		}
-		// Iterate through every suffix in the text, determine which
-		// bucket it falls into by doing a binary search across the
-		// sorted list of samples, and increment a counter associated
-		// with that bucket.  Also, keep one representative for each
-		// bucket so that we can split it later.  We loop in ten
-		// stretches so that we can print out a helpful progress
-		// message.  (This step can take a long time.)
-		{
-			VMSG_NL("  Binary sorting into buckets");
-			Timer timer(cout, "  Binary sorting into buckets time: ", this->verbose());
-			TIndexOffU lenDiv10 = (TIndexOffU)((len + 9) / 10);
-			for(TIndexOffU iten = 0, ten = 0; iten < len; iten += lenDiv10, ten++) {
-				TIndexOffU itenNext = iten + lenDiv10;
-				if(ten > 0) VMSG_NL("  " << (ten * 10) << "%");
-				for(TIndexOffU i = iten; i < itenNext && i < len; i++) {
-					TIndexOffU r = binarySASearch(t, i, _sampleSuffs);
-					if(r == std::numeric_limits<TIndexOffU>::max()) continue; // r was one of the samples
-					assert_lt(r, numBuckets);
-					bucketSzs[r]++;
-					assert_lt(bucketSzs[r], len);
-					if(bucketReps[r] == OFF_MASK ||
-					   (_randomSrc.nextU32() & 100) == 0)
-					{
-						bucketReps[r] = i; // clobbers previous one, but that's OK
-					}
-				}
-			}
-			VMSG_NL("  100%");
-		}
-		// Check for large buckets and mergeable pairs of small buckets
-		// and split/merge as necessary
-		TIndexOff added = 0;
-		TIndexOff merged = 0;
-		assert_eq(bucketSzs.size(), numBuckets);
-		assert_eq(bucketReps.size(), numBuckets);
-		{
-			Timer timer(cout, "  Splitting and merging time: ", this->verbose());
-			VMSG_NL("Splitting and merging");
-			for(TIndexOffU i = 0; i < numBuckets; i++) {
-				TIndexOffU mergedSz = bsz + 1;
-				assert(bucketSzs[(size_t)i] == 0 || bucketReps[(size_t)i] != OFF_MASK);
-				if(i < numBuckets-1) {
-					mergedSz = bucketSzs[(size_t)i] + bucketSzs[(size_t)i+1] + 1;
-				}
-				// Merge?
-				if(mergedSz <= bsz) {
-					bucketSzs[(size_t)i+1] += (bucketSzs[(size_t)i]+1);
-					// The following may look strange, but it's necessary
-					// to ensure that the merged bucket has a representative
-					bucketReps[(size_t)i+1] = _sampleSuffs[(size_t)i+added];
-					_sampleSuffs.erase((size_t)i+added);
-					bucketSzs.erase((size_t)i);
-					bucketReps.erase((size_t)i);
-					i--; // might go to -1 but ++ will overflow back to 0
-					numBuckets--;
-					merged++;
-					assert_eq(numBuckets, _sampleSuffs.size()+1-added);
-					assert_eq(numBuckets, bucketSzs.size());
-				}
-				// Split?
-				else if(bucketSzs[(size_t)i] > bsz) {
-					// Add an additional sample from the bucketReps[]
-					// set accumulated in the binarySASearch loop; this
-					// effectively splits the bucket
-					_sampleSuffs.insert(bucketReps[(size_t)i], (TIndexOffU)(i + (added++)));
-				}
-			}
-		}
-		if(added == 0) {
-			//if(this->verbose()) {
-			//	cout << "Final bucket sizes:" << endl;
-			//	cout << "  (begin): " << bucketSzs[0] << " (" << (int)(bsz - bucketSzs[0]) << ")" << endl;
-			//	for(uint32_t i = 1; i < numBuckets; i++) {
-			//		cout << "  " << bucketSzs[i] << " (" << (int)(bsz - bucketSzs[i]) << ")" << endl;
-			//	}
-			//}
-			break;
-		}
-		// Otherwise, continue until no more buckets need to be
-		// split
-		VMSG_NL("Split " << added << ", merged " << merged << "; iterating...");
-	}
-	// Do *not* force a do-over
-//	if(limit == 0) {
-//		VMSG_NL("Iterated too many times; trying again...");
-//		buildSamples();
-//	}
-	VMSG_NL("Avg bucket size: " << ((double)(len-_sampleSuffs.size()) / (_sampleSuffs.size()+1)) << " (target: " << bsz << ")");
+            _sampleSuffs[i] = (TIndexOffU)(_randomSrc.nextU32() % len);
+#endif
+        }
+    } else {
+        try {
+            _sampleSuffs.resizeExact(numSamples);
+            // Randomly generate samples.  Allow duplicates for now.
+            VMSG_NL("Generating random suffixes");
+            for(size_t i = 0; i < numSamples; i++) {
+#ifdef BOWTIE_64BIT_INDEX
+                _sampleSuffs[i] = (TIndexOffU)(_randomSrc.nextU64() % len);
+#else
+                _sampleSuffs[i] = (TIndexOffU)(_randomSrc.nextU32() % len);
+#endif
+            }
+        } catch(bad_alloc &e) {
+            if(this->_passMemExc) {
+                throw e; // rethrow immediately
+            } else {
+                cerr << "Could not allocate sample suffix container of " << (numSamples * OFF_SIZE) << " bytes." << endl
+                << "Please try using a smaller number of blocks by specifying a larger --bmax or" << endl
+                << "a smaller --bmaxdivn" << endl;
+                throw 1;
+            }
+        }
+    }
+    // Remove duplicates; very important to do this before the call to
+    // mkeyQSortSuf so that it doesn't try to calculate lexicographical
+    // relationships between very long, identical strings, which takes
+    // an extremely long time in general, and causes the stack to grow
+    // linearly with the size of the input
+    {
+        Timer timer(cout, "QSorting sample offsets, eliminating duplicates time: ", this->verbose());
+        VMSG_NL("QSorting " << _sampleSuffs.size() << " sample offsets, eliminating duplicates");
+        _sampleSuffs.sort();
+        size_t sslen = _sampleSuffs.size();
+        for(size_t i = 0; i < sslen-1; i++) {
+            if(_sampleSuffs[i] == _sampleSuffs[i+1]) {
+                _sampleSuffs.erase(i--);
+                sslen--;
+            }
+        }
+    }
+    // Multikey quicksort the samples
+    {
+        Timer timer(cout, "  Multikey QSorting samples time: ", this->verbose());
+        VMSG_NL("Multikey QSorting " << _sampleSuffs.size() << " samples");
+        this->qsort(_sampleSuffs);
+    }
+    // Calculate bucket sizes
+    VMSG_NL("Calculating bucket sizes");
+    int limit = 5;
+    // Iterate until all buckets are less than
+    while(--limit >= 0) {
+        TIndexOffU numBuckets = (TIndexOffU)_sampleSuffs.size()+1;
+        AutoArray<tthread::thread*> threads(this->_nthreads);
+        EList<BinarySortingParam<TStr> > tparams;
+        for(int tid = 0; tid < this->_nthreads; tid++) {
+            // Calculate bucket sizes by doing a binary search for each
+            // suffix and noting where it lands
+            tparams.expand();
+            try {
+                // Allocate and initialize containers for holding bucket
+                // sizes and representatives.
+                tparams.back().bucketSzs.resizeExact(numBuckets);
+                tparams.back().bucketReps.resizeExact(numBuckets);
+                tparams.back().bucketSzs.fillZero();
+                tparams.back().bucketReps.fill(OFF_MASK);
+            } catch(bad_alloc &e) {
+                if(this->_passMemExc) {
+                    throw e; // rethrow immediately
+                } else {
+                    cerr << "Could not allocate sizes, representatives (" << ((numBuckets*8)>>10) << " KB) for blocks." << endl
+                    << "Please try using a smaller number of blocks by specifying a larger --bmax or a" << endl
+                    << "smaller --bmaxdivn." << endl;
+                    throw 1;
+                }
+            }
+            tparams.back().t = &t;
+            tparams.back().sampleSuffs = &_sampleSuffs;
+            tparams.back().begin = (tid == 0 ? 0 : len / this->_nthreads * tid);
+            tparams.back().end = (tid + 1 == this->_nthreads ? len : len / this->_nthreads * (tid + 1));
+            if(this->_nthreads == 1) {
+                BinarySorting_worker<TStr>((void*)&tparams.back());
+            } else {
+                threads[tid] = new tthread::thread(BinarySorting_worker<TStr>, (void*)&tparams.back());
+            }
+        }
+        
+        if(this->_nthreads > 1) {
+            for (int tid = 0; tid < this->_nthreads; tid++) {
+                threads[tid]->join();
+            }
+        }
+        
+        EList<TIndexOffU>& bucketSzs = tparams[0].bucketSzs;
+        EList<TIndexOffU>& bucketReps = tparams[0].bucketReps;
+        for(int tid = 1; tid < this->_nthreads; tid++) {
+            for(size_t j = 0; j < numBuckets; j++) {
+                bucketSzs[j] += tparams[tid].bucketSzs[j];
+                if(bucketReps[j] == OFF_MASK) {
+                    bucketReps[j] = tparams[tid].bucketReps[j];
+                }
+            }
+        }
+        // Check for large buckets and mergeable pairs of small buckets
+        // and split/merge as necessary
+        TIndexOff added = 0;
+        TIndexOff merged = 0;
+        assert_eq(bucketSzs.size(), numBuckets);
+        assert_eq(bucketReps.size(), numBuckets);
+        {
+            Timer timer(cout, "  Splitting and merging time: ", this->verbose());
+            VMSG_NL("Splitting and merging");
+            for(TIndexOffU i = 0; i < numBuckets; i++) {
+                TIndexOffU mergedSz = bsz + 1;
+                assert(bucketSzs[(size_t)i] == 0 || bucketReps[(size_t)i] != OFF_MASK);
+                if(i < numBuckets-1) {
+                    mergedSz = bucketSzs[(size_t)i] + bucketSzs[(size_t)i+1] + 1;
+                }
+                // Merge?
+                if(mergedSz <= bsz) {
+                    bucketSzs[(size_t)i+1] += (bucketSzs[(size_t)i]+1);
+                    // The following may look strange, but it's necessary
+                    // to ensure that the merged bucket has a representative
+                    bucketReps[(size_t)i+1] = _sampleSuffs[(size_t)i+added];
+                    _sampleSuffs.erase((size_t)i+added);
+                    bucketSzs.erase((size_t)i);
+                    bucketReps.erase((size_t)i);
+                    i--; // might go to -1 but ++ will overflow back to 0
+                    numBuckets--;
+                    merged++;
+                    assert_eq(numBuckets, _sampleSuffs.size()+1-added);
+                    assert_eq(numBuckets, bucketSzs.size());
+                }
+                // Split?
+                else if(bucketSzs[(size_t)i] > bsz) {
+                    // Add an additional sample from the bucketReps[]
+                    // set accumulated in the binarySASearch loop; this
+                    // effectively splits the bucket
+                    _sampleSuffs.insert(bucketReps[(size_t)i], (TIndexOffU)(i + (added++)));
+                }
+            }
+        }
+        if(added == 0) {
+            //if(this->verbose()) {
+            //	cout << "Final bucket sizes:" << endl;
+            //	cout << "  (begin): " << bucketSzs[0] << " (" << (int)(bsz - bucketSzs[0]) << ")" << endl;
+            //	for(uint32_t i = 1; i < numBuckets; i++) {
+            //		cout << "  " << bucketSzs[i] << " (" << (int)(bsz - bucketSzs[i]) << ")" << endl;
+            //	}
+            //}
+            break;
+        }
+        // Otherwise, continue until no more buckets need to be
+        // split
+        VMSG_NL("Split " << added << ", merged " << merged << "; iterating...");
+    }
+    // Do *not* force a do-over
+    //	if(limit == 0) {
+    //		VMSG_NL("Iterated too many times; trying again...");
+    //		buildSamples();
+    //	}
+    VMSG_NL("Avg bucket size: " << ((double)(len-_sampleSuffs.size()) / (_sampleSuffs.size()+1)) << " (target: " << bsz << ")");
 }
 
 /**
@@ -774,166 +916,197 @@ bool KarkkainenBlockwiseSA<TStr>::suffixCmp(
  * of the blockwise suffix sorting process.
  */
 template<typename TStr>
-void KarkkainenBlockwiseSA<TStr>::nextBlock() {
-	EList<TIndexOffU>& bucket = this->_itrBucket;
-	VMSG_NL("Getting block " << (_cur+1) << " of " << _sampleSuffs.size()+1);
-	assert(_built);
-	assert_gt(_dcV, 3);
-	assert_leq(_cur, _sampleSuffs.size());
-	const TStr& t = this->text();
-	TIndexOffU len = (TIndexOffU)t.length();
-	// Set up the bucket
-	bucket.clear();
-	TIndexOffU lo = OFF_MASK, hi = OFF_MASK;
-	if(_sampleSuffs.size() == 0) {
-		// Special case: if _sampleSuffs is 0, then multikey-quicksort
-		// everything
-		VMSG_NL("  No samples; assembling all-inclusive block");
-		assert_eq(0, _cur);
-		try {
-			if(bucket.capacity() < this->bucketSz()) {
-				bucket.reserveExact(len+1);
-			}
-			bucket.resize(len);
-			for(TIndexOffU i = 0; i < len; i++) {
-				bucket[i] = i;
-			}
-		} catch(bad_alloc &e) {
-			if(this->_passMemExc) {
-				throw e; // rethrow immediately
-			} else {
-				cerr << "Could not allocate a master suffix-array block of " << ((len+1) * 4) << " bytes" << endl
-				     << "Please try using a larger number of blocks by specifying a smaller --bmax or" << endl
-				     << "a larger --bmaxdivn" << endl;
-				throw 1;
-			}
-		}
-	} else {
-		try {
-			VMSG_NL("  Reserving size (" << this->bucketSz() << ") for bucket");
-			// BTL: Add a +100 fudge factor; there seem to be instances
-			// where a bucket ends up having one more elt than bucketSz()
-			if(bucket.size() < this->bucketSz()+100) {
-				bucket.reserveExact(this->bucketSz()+100);
-			}
-		} catch(bad_alloc &e) {
-			if(this->_passMemExc) {
-				throw e; // rethrow immediately
-			} else {
-				cerr << "Could not allocate a suffix-array block of " << ((this->bucketSz()+1) * 4) << " bytes" << endl;
-				cerr << "Please try using a larger number of blocks by specifying a smaller --bmax or" << endl
-				     << "a larger --bmaxdivn" << endl;
-				throw 1;
-			}
-		}
-		// Select upper and lower bounds from _sampleSuffs[] and
-		// calculate the Z array up to the difference-cover periodicity
-		// for both.  Be careful about first/last buckets.
-		EList<TIndexOffU> zLo(EBWTB_CAT), zHi(EBWTB_CAT);
-		assert_geq(_cur, 0);
-		assert_leq(_cur, _sampleSuffs.size());
-		bool first = (_cur == 0);
-		bool last  = (_cur == _sampleSuffs.size());
-		try {
-			Timer timer(cout, "  Calculating Z arrays time: ", this->verbose());
-			VMSG_NL("  Calculating Z arrays");
-			if(!last) {
-				// Not the last bucket
-				assert_lt(_cur, _sampleSuffs.size());
-				hi = _sampleSuffs[_cur];
-				zHi.resizeExact(_dcV);
-				zHi.fillZero();
-				assert_eq(zHi[0], 0);
-				calcZ(t, hi, zHi, this->verbose(), this->sanityCheck());
-			}
-			if(!first) {
-				// Not the first bucket
-				assert_gt(_cur, 0);
-				assert_leq(_cur, _sampleSuffs.size());
-				lo = _sampleSuffs[_cur-1];
-				zLo.resizeExact(_dcV);
-				zLo.fillZero();
-				assert_gt(_dcV, 3);
-				assert_eq(zLo[0], 0);
-				calcZ(t, lo, zLo, this->verbose(), this->sanityCheck());
-			}
-		} catch(bad_alloc &e) {
-			if(this->_passMemExc) {
-				throw e; // rethrow immediately
-			} else {
-				cerr << "Could not allocate a z-array of " << (_dcV * 4) << " bytes" << endl;
-				cerr << "Please try using a larger number of blocks by specifying a smaller --bmax or" << endl
-				     << "a larger --bmaxdivn" << endl;
-				throw 1;
-			}
-		}
-
-		// This is the most critical loop in the algorithm; this is where
-		// we iterate over all suffixes in the text and pick out those that
-		// fall into the current bucket.
-		//
-		// This loop is based on the SMALLERSUFFIXES function outlined on
-		// p7 of the "Fast BWT" paper
-		//
-		int64_t kHi = -1, kLo = -1;
-		int64_t jHi = -1, jLo = -1;
-		bool kHiSoft = false, kLoSoft = false;
-		assert_eq(0, bucket.size());
-		{
-			Timer timer(cout, "  Block accumulator loop time: ", this->verbose());
-			VMSG_NL("  Entering block accumulator loop:");
-			TIndexOffU lenDiv10 = (len + 9) / 10;
-			for(TIndexOffU iten = 0, ten = 0; iten < len; iten += lenDiv10, ten++) {
-			TIndexOffU itenNext = iten + lenDiv10;
-			if(ten > 0) VMSG_NL("  " << (ten * 10) << "%");
-			for(TIndexOffU i = iten; i < itenNext && i < len; i++) {
-				assert_lt(jLo, (TIndexOff)i); assert_lt(jHi, (TIndexOff)i);
-				// Advance the upper-bound comparison by one character
-				if(i == hi || i == lo) continue; // equal to one of the bookends
-				if(hi != OFF_MASK && !suffixCmp(hi, i, jHi, kHi, kHiSoft, zHi)) {
-					continue; // not in the bucket
-				}
-				if(lo != OFF_MASK && suffixCmp(lo, i, jLo, kLo, kLoSoft, zLo)) {
-					continue; // not in the bucket
-				}
-				// In the bucket! - add it
-				assert_lt(i, len);
-				try {
-					bucket.push_back(i);
-				} catch(bad_alloc &e) {
-					cerr << "Could not append element to block of " << ((bucket.size()) * OFF_SIZE) << " bytes" << endl;
-					if(this->_passMemExc) {
-						throw e; // rethrow immediately
-					} else {
-						cerr << "Please try using a larger number of blocks by specifying a smaller --bmax or" << endl
-						     << "a larger --bmaxdivn" << endl;
-						throw 1;
-					}
-				}
-				// Not necessarily true; we allow overflowing buckets
-				// since we can't guarantee that a good set of sample
-				// suffixes can be found in a reasonable amount of time
-				//assert_lt(bucket.size(), this->bucketSz());
-			}
-			} // end loop over all suffixes of t
-			VMSG_NL("  100%");
-		}
-	} // end else clause of if(_sampleSuffs.size() == 0)
-	// Sort the bucket
-	if(bucket.size() > 0) {
-		Timer timer(cout, "  Sorting block time: ", this->verbose());
-		VMSG_NL("  Sorting block of length " << bucket.size());
-		this->qsort(bucket);
-	}
-	if(hi != OFF_MASK) {
-		// Not the final bucket; throw in the sample on the RHS
-		bucket.push_back(hi);
-	} else {
-		// Final bucket; throw in $ suffix
-		bucket.push_back(len);
-	}
-	VMSG_NL("Returning block of " << bucket.size());
-	_cur++; // advance to next bucket
+void KarkkainenBlockwiseSA<TStr>::nextBlock(int cur_block, int tid) {
+#ifndef NDEBUG
+    if(this->_nthreads > 1) {
+        assert_lt(tid, this->_itrBuckets.size());
+    }
+#endif
+    EList<TIndexOffU>& bucket = (this->_nthreads > 1 ? this->_itrBuckets[tid] : this->_itrBucket);
+    {
+        ThreadSafe ts(&_mutex, this->_nthreads > 1);
+        VMSG_NL("Getting block " << (cur_block+1) << " of " << _sampleSuffs.size()+1);
+    }
+    assert(_built);
+    assert_gt(_dcV, 3);
+    assert_leq(cur_block, _sampleSuffs.size());
+    const TStr& t = this->text();
+    TIndexOffU len = (TIndexOffU)t.length();
+    // Set up the bucket
+    bucket.clear();
+    TIndexOffU lo = OFF_MASK, hi = OFF_MASK;
+    if(_sampleSuffs.size() == 0) {
+        // Special case: if _sampleSuffs is 0, then multikey-quicksort
+        // everything
+        {
+            ThreadSafe ts(&_mutex, this->_nthreads > 1);
+            VMSG_NL("  No samples; assembling all-inclusive block");
+        }
+        assert_eq(0, cur_block);
+        try {
+            if(bucket.capacity() < this->bucketSz()) {
+                bucket.reserveExact(len+1);
+            }
+            bucket.resize(len);
+            for(TIndexOffU i = 0; i < len; i++) {
+                bucket[i] = i;
+            }
+        } catch(bad_alloc &e) {
+            if(this->_passMemExc) {
+                throw e; // rethrow immediately
+            } else {
+                cerr << "Could not allocate a master suffix-array block of " << ((len+1) * 4) << " bytes" << endl
+                << "Please try using a larger number of blocks by specifying a smaller --bmax or" << endl
+                << "a larger --bmaxdivn" << endl;
+                throw 1;
+            }
+        }
+    } else {
+        try {
+            {
+                ThreadSafe ts(&_mutex, this->_nthreads > 1);
+                VMSG_NL("  Reserving size (" << this->bucketSz() << ") for bucket " << (cur_block+1));
+            }
+            // BTL: Add a +100 fudge factor; there seem to be instances
+            // where a bucket ends up having one more elt than bucketSz()
+            if(bucket.size() < this->bucketSz()+100) {
+                bucket.reserveExact(this->bucketSz()+100);
+            }
+        } catch(bad_alloc &e) {
+            if(this->_passMemExc) {
+                throw e; // rethrow immediately
+            } else {
+                cerr << "Could not allocate a suffix-array block of " << ((this->bucketSz()+1) * 4) << " bytes" << endl;
+                cerr << "Please try using a larger number of blocks by specifying a smaller --bmax or" << endl
+                << "a larger --bmaxdivn" << endl;
+                throw 1;
+            }
+        }
+        // Select upper and lower bounds from _sampleSuffs[] and
+        // calculate the Z array up to the difference-cover periodicity
+        // for both.  Be careful about first/last buckets.
+        EList<TIndexOffU> zLo(EBWTB_CAT), zHi(EBWTB_CAT);
+        assert_geq(cur_block, 0);
+        assert_leq((size_t)cur_block, _sampleSuffs.size());
+        bool first = (cur_block == 0);
+        bool last  = ((size_t)cur_block == _sampleSuffs.size());
+        try {
+            // Timer timer(cout, "  Calculating Z arrays time: ", this->verbose());
+            {
+                ThreadSafe ts(&_mutex, this->_nthreads > 1);
+                VMSG_NL("  Calculating Z arrays for bucket " << (cur_block+1));
+            }
+            if(!last) {
+                // Not the last bucket
+                assert_lt(cur_block, _sampleSuffs.size());
+                hi = _sampleSuffs[cur_block];
+                zHi.resizeExact(_dcV);
+                zHi.fillZero();
+                assert_eq(zHi[0], 0);
+                calcZ(t, hi, zHi, this->verbose(), this->sanityCheck());
+            }
+            if(!first) {
+                // Not the first bucket
+                assert_gt(cur_block, 0);
+                assert_leq(cur_block, _sampleSuffs.size());
+                lo = _sampleSuffs[cur_block-1];
+                zLo.resizeExact(_dcV);
+                zLo.fillZero();
+                assert_gt(_dcV, 3);
+                assert_eq(zLo[0], 0);
+                calcZ(t, lo, zLo, this->verbose(), this->sanityCheck());
+            }
+        } catch(bad_alloc &e) {
+            if(this->_passMemExc) {
+                throw e; // rethrow immediately
+            } else {
+                cerr << "Could not allocate a z-array of " << (_dcV * 4) << " bytes" << endl;
+                cerr << "Please try using a larger number of blocks by specifying a smaller --bmax or" << endl
+                << "a larger --bmaxdivn" << endl;
+                throw 1;
+            }
+        }
+        
+        // This is the most critical loop in the algorithm; this is where
+        // we iterate over all suffixes in the text and pick out those that
+        // fall into the current bucket.
+        //
+        // This loop is based on the SMALLERSUFFIXES function outlined on
+        // p7 of the "Fast BWT" paper
+        //
+        int64_t kHi = -1, kLo = -1;
+        int64_t jHi = -1, jLo = -1;
+        bool kHiSoft = false, kLoSoft = false;
+        assert_eq(0, bucket.size());
+        {
+            // Timer timer(cout, "  Block accumulator loop time: ", this->verbose());
+            {
+                ThreadSafe ts(&_mutex, this->_nthreads > 1);
+                VMSG_NL("  Entering block accumulator loop for bucket " << (cur_block+1) << ":");
+            }
+            TIndexOffU lenDiv10 = (len + 9) / 10;
+            for(TIndexOffU iten = 0, ten = 0; iten < len; iten += lenDiv10, ten++) {
+                TIndexOffU itenNext = iten + lenDiv10;
+                {
+                    ThreadSafe ts(&_mutex, this->_nthreads > 1);
+                    if(ten > 0) VMSG_NL("  bucket " << (cur_block+1) << ": " << (ten * 10) << "%");
+                }
+                for(TIndexOffU i = iten; i < itenNext && i < len; i++) {
+                    assert_lt(jLo, (TIndexOff)i); assert_lt(jHi, (TIndexOff)i);
+                    // Advance the upper-bound comparison by one character
+                    if(i == hi || i == lo) continue; // equal to one of the bookends
+                    if(hi != OFF_MASK && !suffixCmp(hi, i, jHi, kHi, kHiSoft, zHi)) {
+                        continue; // not in the bucket
+                    }
+                    if(lo != OFF_MASK && suffixCmp(lo, i, jLo, kLo, kLoSoft, zLo)) {
+                        continue; // not in the bucket
+                    }
+                    // In the bucket! - add it
+                    assert_lt(i, len);
+                    try {
+                        bucket.push_back(i);
+                    } catch(bad_alloc &e) {
+                        cerr << "Could not append element to block of " << ((bucket.size()) * OFF_SIZE) << " bytes" << endl;
+                        if(this->_passMemExc) {
+                            throw e; // rethrow immediately
+                        } else {
+                            cerr << "Please try using a larger number of blocks by specifying a smaller --bmax or" << endl
+                            << "a larger --bmaxdivn" << endl;
+                            throw 1;
+                        }
+                    }
+                    // Not necessarily true; we allow overflowing buckets
+                    // since we can't guarantee that a good set of sample
+                    // suffixes can be found in a reasonable amount of time
+                    //assert_lt(bucket.size(), this->bucketSz());
+                }
+            } // end loop over all suffixes of t
+            {
+                ThreadSafe ts(&_mutex, this->_nthreads > 1);
+                VMSG_NL("  bucket " << (cur_block+1) << ": 100%");
+            }
+        }
+    } // end else clause of if(_sampleSuffs.size() == 0)
+    // Sort the bucket
+    if(bucket.size() > 0) {
+        Timer timer(cout, "  Sorting block time: ", this->verbose());
+        {
+            ThreadSafe ts(&_mutex, this->_nthreads > 1);
+            VMSG_NL("  Sorting block of length " << bucket.size() << " for bucket " << (cur_block+1));
+        }
+        this->qsort(bucket);
+    }
+    if(hi != OFF_MASK) {
+        // Not the final bucket; throw in the sample on the RHS
+        bucket.push_back(hi);
+    } else {
+        // Final bucket; throw in $ suffix
+        bucket.push_back(len);
+    }
+    {
+        ThreadSafe ts(&_mutex, this->_nthreads > 1);
+        VMSG_NL("Returning block of " << bucket.size() << " for bucket " << (cur_block+1));
+    }
 }
 
 #endif /*BLOCKWISE_SA_H_*/
