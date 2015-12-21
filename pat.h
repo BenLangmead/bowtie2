@@ -144,7 +144,8 @@ public:
 		readCnt_(0),
 		numWrappers_(0),
 		doLocking_(true),
-		mutex()
+		mutex(),
+		threadSafe()
 	{
 	}
 
@@ -156,9 +157,8 @@ public:
 	 * whether locks will be contended.
 	 */
 	void addWrapper() {
-		lock();
+		ThreadSafe ts(&mutex,doLocking_);
 		numWrappers_++;
-		unlock();
 	}
 	
 	/**
@@ -220,24 +220,6 @@ public:
 	virtual void reset() { readCnt_ = 0; }
 
 	/**
-	 * Concrete subclasses call lock() to enter a critical region.
-	 * What constitutes a critical region depends on the subclass.
-	 */
-	void lock() {
-		if(!doLocking_) return; // no contention
-        mutex.lock();
-	}
-
-	/**
-	 * Concrete subclasses call unlock() to exit a critical region
-	 * What constitutes a critical region depends on the subclass.
-	 */
-	void unlock() {
-		if(!doLocking_) return; // no contention
-        mutex.unlock();
-	}
-
-	/**
 	 * Return a new dynamically allocated PatternSource for the given
 	 * format, using the given list of strings as the filenames to read
 	 * from or as the sequences themselves (i.e. if -c was used).
@@ -261,6 +243,7 @@ protected:
 	int numWrappers_;      /// # threads that own a wrapper for this PatternSource
 	bool doLocking_;       /// override whether to lock (true = don't override)
 	MUTEX_T mutex;
+	ThreadSafe threadSafe;
 };
 
 /**
@@ -286,21 +269,6 @@ public:
 		bool fixName) = 0;
 	
 	virtual pair<TReadId, TReadId> readCnt() const = 0;
-
-	/**
-	 * Lock this PairedPatternSource, usually because one of its shared
-	 * fields is being updated.
-	 */
-	void lock() {
-		mutex_m.lock();
-	}
-
-	/**
-	 * Unlock this PairedPatternSource.
-	 */
-	void unlock() {
-		mutex_m.unlock();
-	}
 
 	/**
 	 * Given the values for all of the various arguments used to specify
@@ -783,7 +751,7 @@ public:
 		bool& done)
 	{
 		// We'll be manipulating our file handle/filecur_ state
-		lock();
+		ThreadSafe ts(&mutex,doLocking_);
 		while(true) {
 			do { read(r, rdid, endid, success, done); }
 			while(!success && !done);
@@ -798,7 +766,6 @@ public:
 		}
 		assert(r.repOk());
 		// Leaving critical region
-		unlock();
 		return success;
 	}
 	
@@ -815,7 +782,8 @@ public:
 		bool& paired)
 	{
 		// We'll be manipulating our file handle/filecur_ state
-		lock();
+		//lock with doLocking_
+		ThreadSafe ts(&mutex,doLocking_);
 		while(true) {
 			do { readPair(ra, rb, rdid, endid, success, done, paired); }
 			while(!success && !done);
@@ -831,7 +799,6 @@ public:
 		assert(ra.repOk());
 		assert(rb.repOk());
 		// Leaving critical region
-		unlock();
 		return success;
 	}
 	

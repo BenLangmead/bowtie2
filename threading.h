@@ -58,6 +58,11 @@
  */
 class ThreadSafe {
 public:
+
+    ThreadSafe() {
+	this->ptr_mutex = NULL;
+    }
+	
     ThreadSafe(MUTEX_T* ptr_mutex, bool locked = true) {
 		if(locked) {
 		    this->ptr_mutex = ptr_mutex;
