@@ -81,11 +81,9 @@ public:
 		if(locked) {
 #ifdef WITH_TBB
 #ifdef WITH_QUEUELOCK
-		    //printf("b4 scope locking\n");
-        	    /*MUTEX_T::scoped_lock new_lock(*ptr_mutex);
-		    this->lock = &new_lock;*/
+		    //have to use the heap as we can't copy
+		    //the scoped lock
 		    this->lock = new MUTEX_T::scoped_lock(*ptr_mutex);
-		    //printf("scope locking\n");
 #else
 		    this->ptr_mutex = ptr_mutex;
 		    ptr_mutex->lock();
@@ -105,8 +103,6 @@ public:
 	~ThreadSafe() {
 #ifdef WITH_TBB
 #ifdef WITH_QUEUELOCK
-	    //if (lock != NULL)
-	    // 	lock->release();
 	    delete this->lock;
 	}
 #else
