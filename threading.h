@@ -21,10 +21,14 @@
 #define THREADING_H_
 
 #include <iostream>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
 #ifdef WITH_TBB
 # include <tbb/mutex.h>
 # include <tbb/spin_mutex.h>
+# include <tbb/queuing_mutex.h>
 # ifdef WITH_AFFINITY
 #  include <cstdlib>
 #  include <sched.h>
@@ -40,7 +44,11 @@
 
 #ifdef NO_SPINLOCK
 # ifdef WITH_TBB
-#   define MUTEX_T tbb::mutex
+#   ifdef WITH_QUEUELOCK
+#  	define MUTEX_T tbb::queuing_mutex
+#   else
+#       define MUTEX_T tbb::mutex
+#   endif
 # else
 #   define MUTEX_T tthread::mutex
 # endif
@@ -60,25 +68,62 @@ class ThreadSafe {
 public:
 
     ThreadSafe() {
+#ifdef WITH_TBB
+#ifdef WITH_QUEUELOCK
+	this->lock = NULL;
+#else
 	this->ptr_mutex = NULL;
+#endif
+#endif
     }
 	
     ThreadSafe(MUTEX_T* ptr_mutex, bool locked = true) {
 		if(locked) {
+#ifdef WITH_TBB
+#ifdef WITH_QUEUELOCK
+		    //printf("b4 scope locking\n");
+        	    /*MUTEX_T::scoped_lock new_lock(*ptr_mutex);
+		    this->lock = &new_lock;*/
+		    this->lock = new MUTEX_T::scoped_lock(*ptr_mutex);
+		    //printf("scope locking\n");
+#else
 		    this->ptr_mutex = ptr_mutex;
 		    ptr_mutex->lock();
+#endif
+#endif
 		}
 		else
+#ifdef WITH_TBB
+#ifdef WITH_QUEUELOCK
+		    this->lock = NULL;
+#else
 		    this->ptr_mutex = NULL;
+#endif
+#endif
 	}
 
 	~ThreadSafe() {
+#ifdef WITH_TBB
+#ifdef WITH_QUEUELOCK
+	    //if (lock != NULL)
+	    // 	lock->release();
+	    delete this->lock;
+	}
+#else
 	    if (ptr_mutex != NULL)
 	        ptr_mutex->unlock();
 	}
+#endif
+#endif
     
 private:
+#ifdef WITH_TBB
+#ifdef WITH_QUEUELOCK
+	MUTEX_T::scoped_lock* lock;
+#else
 	MUTEX_T *ptr_mutex;
+#endif
+#endif
 };
 
 #ifdef WITH_TBB
