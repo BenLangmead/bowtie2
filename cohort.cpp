@@ -1,5 +1,4 @@
-#ifdef WITH_TBB
-#ifdef WITH_COHORT
+#if WITH_TBB && WITH_AFFINITY && WITH_COHORTLOCK
 
 #include "cohort.hpp"
 
@@ -43,11 +42,11 @@
 		return local_counter;
 	}	
 
-	CohortLock::CohortLock(int starvation_limit)
+	CohortLock::CohortLock()
 	{
 		assert(numa_available()!=-1);
 		this->num_numa_nodes = numa_max_possible_node();
-		this->starvation_limit = starvation_limit;
+		//this->starvation_limit = starvation_limit;
 		starvation_counters = new int [num_numa_nodes]();
 		own_global = new bool [num_numa_nodes]();
 		local_locks = new LocalLock [num_numa_nodes];
@@ -71,6 +70,7 @@
 		//int numa_idx = numa_preferred();
 		int numa_idx = -1;
 		int cpu_idx = -1;
+		//assume we're running WITH_AFFINITY
 		get_cpu_and_node_(cpu_idx, numa_idx);
 		return numa_idx;
 	}
@@ -103,7 +103,7 @@
 		//possible race condition, but shouldn't hurt us as then 
 		//lock contention is presumably low per NUMA node
 		if(local_locks[numa_idx].fetch_counter() == 0 
-			|| starvation_counters[numa_idx] > starvation_limit)
+			|| starvation_counters[numa_idx] > STARVATION_LIMIT)
 		{
 			//relinquish global lock
 			global_lock->unlock();
@@ -114,5 +114,4 @@
 		local_locks[numa_idx].unlock();
 	}	
 
-#endif
 #endif

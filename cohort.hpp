@@ -1,5 +1,4 @@
-#ifdef WITH_TBB
-#ifdef WITH_COHORT
+#if WITH_TBB && WITH_AFFINITY && WITH_COHORTLOCK
 
 #ifndef COHORT_H_
 #define COHORT_H_
@@ -14,6 +13,8 @@
 
 #define MUTEX_G tbb::mutex
 #define MUTEX_L tbb::queuing_mutex
+
+const int STARVATION_LIMIT=100;
 
 class LocalLock
 {
@@ -32,7 +33,7 @@ private:
 class CohortLock
 {
 public:
-	CohortLock(int starvation_counter);
+	CohortLock();
 	~CohortLock();
 	int determine_numa_idx();
 	void lock(int numa_idx);
@@ -50,5 +51,4 @@ private:
 
 #endif
 
-#endif
 #endif

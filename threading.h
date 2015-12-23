@@ -30,7 +30,9 @@
 # include <tbb/spin_mutex.h>
 # include <tbb/queuing_mutex.h>
 # ifdef WITH_AFFINITY
-#  include <cstdlib>
+#  ifdef WITH_COHORTLOCK
+#   include "cohort.hpp"
+#  endif
 #  include <sched.h>
 #  include <tbb/task_group.h>
 #  include <tbb/task_scheduler_observer.h>
@@ -54,7 +56,15 @@
 # endif
 #else
 # ifdef WITH_TBB
+#    ifdef WITH_AFFINITY
+#	ifdef WITH_COHORTLOCK
+#		define MUTEX_T CohortLock
+#	else
+#  		define MUTEX_T tbb::spin_mutex
+#	endif
+#    else
 #  	define MUTEX_T tbb::spin_mutex
+#    endif
 # else
 #  	define MUTEX_T tthread::fast_mutex
 # endif
@@ -68,57 +78,40 @@ class ThreadSafe {
 public:
 
     ThreadSafe() {
-#ifdef WITH_TBB
-#ifdef WITH_QUEUELOCK
-	this->lock = NULL;
-#else
 	this->ptr_mutex = NULL;
-#endif
-#endif
     }
 	
     ThreadSafe(MUTEX_T* ptr_mutex, bool locked = true) {
 		if(locked) {
-#ifdef WITH_TBB
-#ifdef WITH_QUEUELOCK
+#if WITH_TBB && WITH_QUEUELOCK
 		    //have to use the heap as we can't copy
 		    //the scoped lock
-		    this->lock = new MUTEX_T::scoped_lock(*ptr_mutex);
+		    this->ptr_mutex = new MUTEX_T::scoped_lock(*ptr_mutex);
 #else
+//TODO: need to add special conditional for CohortLock here
 		    this->ptr_mutex = ptr_mutex;
 		    ptr_mutex->lock();
 #endif
-#endif
 		}
 		else
-#ifdef WITH_TBB
-#ifdef WITH_QUEUELOCK
-		    this->lock = NULL;
-#else
 		    this->ptr_mutex = NULL;
-#endif
-#endif
 	}
 
 	~ThreadSafe() {
-#ifdef WITH_TBB
-#ifdef WITH_QUEUELOCK
-	    delete this->lock;
+	    if (ptr_mutex != NULL)
+#if WITH_TBB && WITH_QUEUELOCK
+	    	delete ptr_mutex;
 	}
 #else
-	    if (ptr_mutex != NULL)
-	        ptr_mutex->unlock();
+	    	ptr_mutex->unlock();
 	}
-#endif
 #endif
     
 private:
-#ifdef WITH_TBB
-#ifdef WITH_QUEUELOCK
-	MUTEX_T::scoped_lock* lock;
+#if WITH_TBB && WITH_QUEUELOCK
+	MUTEX_T::scoped_lock* ptr_mutex;
 #else
 	MUTEX_T *ptr_mutex;
-#endif
 #endif
 };
 
