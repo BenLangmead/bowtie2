@@ -17,7 +17,6 @@ class LocalLock
 public:
 	LocalLock();
 	~LocalLock();
-	//MUTEX_L::scoped_lock* lock();
 	void lock();
 	void unlock();
 	uint64_t fetch_counter();
@@ -30,10 +29,15 @@ private:
 class CohortLock
 {
 public:
-	CohortLock(uint64_t num_numa_nodes);
+	CohortLock(uint64_t num_numa_nodes,int starvation_counter);
 	~CohortLock();
+	void lock();
+	void unlock();
 private:
 	uint64_t num_numa_nodes;
+	int starvation_limit;
+	int* starvation_counters;
+	bool* own_global;
 	MUTEX_G* global_lock;
 	LocalLock* local_locks;
 };
