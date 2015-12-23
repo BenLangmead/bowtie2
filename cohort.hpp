@@ -5,6 +5,7 @@
 
 #include <numa.h>
 #include <iostream>
+#include <cstdio>
 #include <assert.h>
 #include <tbb/mutex.h>
 #include <tbb/queuing_mutex.h>
@@ -20,11 +21,13 @@ class LocalLock
 {
 public:
 	LocalLock();
+	LocalLock(int id);
 	~LocalLock();
 	void lock();
 	void unlock();
 	uint64_t fetch_counter();
 private:
+	int id;
 	MUTEX_L* local_lock;
 	MUTEX_L::scoped_lock* last_scoped_lock;
 	tbb::atomic<uint64_t> local_counter;

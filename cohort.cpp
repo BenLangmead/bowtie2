@@ -4,6 +4,12 @@
 
 	LocalLock::LocalLock()
 	{
+		return LocalLock(0);
+	}
+
+	LocalLock::LocalLock(int id)
+	{
+		this->id=id;
 		local_lock = new MUTEX_L();
 		local_counter = 0;
 		last_scoped_lock = NULL;
@@ -11,10 +17,12 @@
 
 	LocalLock::~LocalLock()
 	{
+		printf("LocalLock destructor b4 %d\n",id);
 		if(last_scoped_lock)
 			delete last_scoped_lock;
 		if(local_lock)
 			delete local_lock;
+		printf("LocalLock destructor af %d\n",id);
 	}
 
 	void LocalLock::lock()
@@ -55,10 +63,12 @@
 	
 	CohortLock::~CohortLock()
 	{
+		printf("CohortLock destructor b4\n");
 		delete[] starvation_counters;
 		delete[] own_global;
 		delete[] local_locks;
 		delete global_lock;
+		printf("CohortLock destructor af\n");
 	}
 
 	int CohortLock::determine_numa_idx()
