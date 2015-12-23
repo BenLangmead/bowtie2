@@ -43,9 +43,10 @@
 		return local_counter;
 	}	
 
-	CohortLock::CohortLock(uint64_t num_numa_nodes,int starvation_limit)
+	CohortLock::CohortLock(int starvation_limit)
 	{
-		this->num_numa_nodes = num_numa_nodes;
+		assert(numa_available()!=-1);
+		this->num_numa_nodes = numa_max_possible_node();
 		this->starvation_limit = starvation_limit;
 		starvation_counters = new int [num_numa_nodes]();
 		own_global = new bool [num_numa_nodes]();
@@ -61,10 +62,26 @@
 		delete global_lock;
 	}
 
-	void CohortLock::lock()
+	int CohortLock::determine_numa_idx()
 	{
 		//TODO: figure out numa idx
-		uint64_t numa_idx = 0;
+		//uint64_t numa_idx = 0;
+		//uint64_t numa_idx = numa_node_of_cpu(cpu_idx);
+		//TODO: check this, use perferred for now, not sure if this is OK
+		//int numa_idx = numa_preferred();
+		int numa_idx = -1;
+		int cpu_idx = -1;
+		get_cpu_and_node_(cpu_idx, numa_idx);
+		return numa_idx;
+	}
+
+	void CohortLock::lock()
+	{
+		this->lock(this->determine_numa_idx());
+	}
+		
+	void CohortLock::lock(int numa_idx)
+	{
 		//get the local lock
 		local_locks[numa_idx].lock();
 		if(!own_global[numa_idx])
@@ -78,8 +95,11 @@
 	
 	void CohortLock::unlock()
 	{
-		//TODO: figure out numa idx
-		uint64_t numa_idx = 0;
+		this->unlock(this->determine_numa_idx());
+	}
+
+	void CohortLock::unlock(int numa_idx)
+	{
 		//possible race condition, but shouldn't hurt us as then 
 		//lock contention is presumably low per NUMA node
 		if(local_locks[numa_idx].fetch_counter() == 0 
