@@ -4,12 +4,7 @@
 
 	LocalLock::LocalLock()
 	{
-		return LocalLock(0);
-	}
-
-	LocalLock::LocalLock(int id)
-	{
-		this->id=id;
+		this->id=0;
 		local_lock = new MUTEX_L();
 		local_counter = 0;
 		last_scoped_lock = NULL;
@@ -25,12 +20,18 @@
 		printf("LocalLock destructor af %d\n",id);
 	}
 
+	void LocalLock::set_id(int id)
+	{
+		this->id=id;
+	}
+
 	void LocalLock::lock()
 	{
 		//update local counter to implement the "alone?" 
 		//functionality of the local part of the cohort property
 		local_counter.fetch_and_increment();
 		//actually attempt to acquire lock
+		assert(local_lock!=NULL);
 		MUTEX_L::scoped_lock* temp_ = new MUTEX_L::scoped_lock(*(local_lock));
 		//now that lock is acquired update the pointer to the current held lock
 		//for unlocking and destructing
@@ -53,11 +54,21 @@
 	CohortLock::CohortLock()
 	{
 		assert(numa_available()!=-1);
-		this->num_numa_nodes = numa_max_possible_node();
+		num_numa_nodes = numa_max_node();
+		if(num_numa_nodes == 0)
+		{
+			num_numa_nodes=1;
+		}
+		printf("num numa nodes %d\n",num_numa_nodes);
 		//this->starvation_limit = starvation_limit;
 		starvation_counters = new int [num_numa_nodes]();
 		own_global = new bool [num_numa_nodes]();
 		local_locks = new LocalLock [num_numa_nodes];
+		int i = 0;
+		for(i=0;i<num_numa_nodes;i++)
+		{
+			local_locks[i].set_id(i+1);
+		}
 		global_lock = new MUTEX_G();
 	}
 	

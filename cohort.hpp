@@ -21,8 +21,8 @@ class LocalLock
 {
 public:
 	LocalLock();
-	LocalLock(int id);
 	~LocalLock();
+	void set_id(int id);
 	void lock();
 	void unlock();
 	uint64_t fetch_counter();
