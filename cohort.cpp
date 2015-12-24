@@ -13,8 +13,8 @@
 	LocalLock::~LocalLock()
 	{
 		printf("LocalLock destructor b4 %d\n",id);
-		if(last_scoped_lock)
-			delete last_scoped_lock;
+		/*if(last_scoped_lock)
+			delete last_scoped_lock;*/
 		if(local_lock)
 			delete local_lock;
 		printf("LocalLock destructor af %d\n",id);
@@ -54,11 +54,7 @@
 	CohortLock::CohortLock()
 	{
 		assert(numa_available()!=-1);
-		num_numa_nodes = numa_max_node();
-		if(num_numa_nodes == 0)
-		{
-			num_numa_nodes=1;
-		}
+		num_numa_nodes = numa_max_node()+1;
 		printf("num numa nodes %d\n",num_numa_nodes);
 		//this->starvation_limit = starvation_limit;
 		starvation_counters = new int [num_numa_nodes]();
