@@ -144,8 +144,7 @@ public:
 		readCnt_(0),
 		numWrappers_(0),
 		doLocking_(true),
-		mutex(),
-		threadSafe()
+		mutex()
 	{
 	}
 
@@ -243,7 +242,6 @@ protected:
 	int numWrappers_;      /// # threads that own a wrapper for this PatternSource
 	bool doLocking_;       /// override whether to lock (true = don't override)
 	MUTEX_T mutex;
-	ThreadSafe threadSafe;
 };
 
 /**
