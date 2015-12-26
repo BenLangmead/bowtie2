@@ -1,10 +1,12 @@
-#ifndef TKTLOCK_H_
-#define TKTLOCK_H_
+#ifndef PTLLOCK_H_
+#define PTLLOCK_H_
 
 #include <tbb/atomic.h>
 #include <assert.h>
 
 //from https://www.quora.com/How-does-an-MCS-lock-work
+//and Lock Cohorting: A General Technique for Designing NUMA Locks
+//(DAVID DICE and VIRENDRA J. MARATHE, Oracle Labs NIR SHAVIT, MIT)
 //Partition Lock
 class PTLLock
 {

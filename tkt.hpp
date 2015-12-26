@@ -4,6 +4,8 @@
 #include <tbb/atomic.h>
 
 //from https://www.quora.com/How-does-an-MCS-lock-work
+//and Lock Cohorting: A General Technique for Designing NUMA Locks
+//(DAVID DICE and VIRENDRA J. MARATHE, Oracle Labs NIR SHAVIT, MIT)
 class TKTLock
 {
 public:
