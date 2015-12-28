@@ -4363,7 +4363,8 @@ static void driver(
 		fuzzy,         // true -> try to parse fuzzy fastq
 		fastaContLen,  // length of sampled reads for FastaContinuous...
 		fastaContFreq, // frequency of sampled reads for FastaContinuous...
-		skipReads      // skip the first 'skip' patterns
+		skipReads,      // skip the first 'skip' patterns
+		nthreads	//number of threads for locking
 	);
 	if(gVerbose || startVerbose) {
 		cerr << "Creating PatternSource: "; logTime(cerr, true);

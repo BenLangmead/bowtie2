@@ -104,7 +104,8 @@ struct PatternParams {
 		bool fuzzy_,
 		int sampleLen_,
 		int sampleFreq_,
-		uint32_t skip_) :
+		uint32_t skip_,
+		int nthreads_) :
 		format(format_),
 		fileParallel(fileParallel_),
 		seed(seed_),
@@ -114,7 +115,8 @@ struct PatternParams {
 		fuzzy(fuzzy_),
 		sampleLen(sampleLen_),
 		sampleFreq(sampleFreq_),
-		skip(skip_) { }
+		skip(skip_),
+		nthreads(nthreads_) { }
 
 	int format;           // file format
 	bool fileParallel;    // true -> wrap files with separate PairedPatternSources
@@ -126,6 +128,7 @@ struct PatternParams {
 	int sampleLen;        // length of sampled reads for FastaContinuous...
 	int sampleFreq;       // frequency of sampled reads for FastaContinuous...
 	uint32_t skip;        // skip the first 'skip' patterns
+	int nthreads;         // number of threads for locking
 };
 
 /**
@@ -146,6 +149,7 @@ public:
 		doLocking_(true),
 		mutex()
 	{
+		mutex.reset_lock(p.nthreads);
 	}
 
 	virtual ~PatternSource() { }
@@ -250,7 +254,10 @@ protected:
  */
 class PairedPatternSource {
 public:
-	PairedPatternSource(const PatternParams& p) : mutex_m(), seed_(p.seed) {}
+	PairedPatternSource(const PatternParams& p) : mutex_m(), seed_(p.seed) 
+	{
+		mutex_m.reset_lock(p.nthreads);
+	}
 	virtual ~PairedPatternSource() { }
 
 	virtual void addWrapper() = 0;
