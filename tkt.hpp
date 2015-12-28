@@ -17,17 +17,25 @@ public:
 
 	void lock()
 	{
+		//printf("lock %p b4 request:%u grant:%u\n",this,request,grant);
 		uint64_t my_request = request.fetch_and_increment();
-		while(my_request != grant){}
+		//printf("lock %p mid request:%u my_request:%d grant:%u\n",this,request,my_request,grant);
+		while(my_request != grant)
+		{
+			//printf("lock %p mid request:%u my_request:%d grant:%u\r",this,request,my_request,grant);
+		}
+		//printf("lock %p af request:%u grant:%u\n",this,request,grant);
 	}
 
 	void unlock()
 	{
+		//printf("unlock %p b4 request:%u grant:%u\n",this,request,grant);
 		grant++;
+		//printf("unlock %p af request:%u grant:%u\n",this,request,grant);
 	}	
 private:
 	tbb::atomic<uint64_t> request;
-	uint64_t grant;
+	volatile uint64_t grant;
 };
 
 #endif

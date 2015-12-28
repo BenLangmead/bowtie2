@@ -56,7 +56,7 @@ private:
 	tbb::atomic<uint64_t> request;
 	uint64_t grant;
 	//use a large integer to avoid false sharing
-	uint64_t* partitions;
+	volatile uint64_t* partitions;
 	int num_partitions;
 };
 
