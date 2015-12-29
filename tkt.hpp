@@ -33,6 +33,10 @@ public:
 		grant++;
 		//printf("unlock %p af request:%u grant:%u\n",this,request,grant);
 	}	
+
+	//here for compatibility with PTLLock
+	void reset_lock(int void_){}
+
 private:
 	tbb::atomic<uint64_t> request;
 	volatile uint64_t grant;
