@@ -4,6 +4,10 @@
 #include <tbb/atomic.h>
 #include <assert.h>
 
+
+//same as number of threads unless that's not-appropriate
+const int DEFAULT_NUM_PARTITIONS=8;
+
 //from https://www.quora.com/How-does-an-MCS-lock-work
 //and Lock Cohorting: A General Technique for Designing NUMA Locks
 //(DAVID DICE and VIRENDRA J. MARATHE, Oracle Labs NIR SHAVIT, MIT)
@@ -13,7 +17,7 @@ class PTLLock
 public:
 	PTLLock()
 	{
-		this->reset_lock(1);
+		this->reset_lock(DEFAULT_NUM_PARTITIONS);
 	}
 
 	PTLLock(int num_partitions_)

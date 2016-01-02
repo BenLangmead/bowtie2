@@ -14,12 +14,12 @@
 
 	LocalLock::~LocalLock()
 	{
-		printf("LocalLock destructor b4 %d\n",id);
+		//printf("LocalLock destructor b4 %d\n",id);
 		/*if(last_scoped_lock)
 			delete last_scoped_lock;*/
 		if(local_lock)
 			delete local_lock;
-		printf("LocalLock destructor af %d\n",id);
+		//printf("LocalLock destructor af %d\n",id);
 	}
 
 	void LocalLock::set_id(int id)
@@ -65,7 +65,7 @@
 	{
 		assert(numa_available()!=-1);
 		num_numa_nodes = numa_max_node()+1;
-		printf("num numa nodes %d\n",num_numa_nodes);
+		//printf("num numa nodes %d\n",num_numa_nodes);
 		//this->starvation_limit = starvation_limit;
 		starvation_counters = new int [num_numa_nodes]();
 		own_global = new bool [num_numa_nodes]();
@@ -116,6 +116,7 @@
 		
 	void CohortLock::lock(int numa_idx)
 	{
+		printf("lock called %d\n",numa_idx);
 		//get the local lock
 		local_locks[numa_idx].lock();
 		if(!own_global[numa_idx])
@@ -140,6 +141,7 @@
 			|| starvation_counters[numa_idx] > STARVATION_LIMIT)
 		{
 			//relinquish global lock
+			printf("giving up global lock %d\n",numa_idx);
 			global_lock->unlock();
 			//reset NUMA node specific vars
 			starvation_counters[numa_idx]=0;

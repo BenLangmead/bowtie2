@@ -60,8 +60,8 @@
 # ifdef WITH_TBB
 #    ifdef WITH_AFFINITY
 #	ifdef WITH_COHORTLOCK
-//#		define MUTEX_T CohortLock
-#		define MUTEX_T TKTLock
+#		define MUTEX_T CohortLock
+//#		define MUTEX_T TKTLock
 //#		define MUTEX_T PTLLock
 #	else
 #  		define MUTEX_T tbb::spin_mutex
