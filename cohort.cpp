@@ -70,6 +70,8 @@
 		starvation_counters = new int [num_numa_nodes]();
 		own_global = new bool [num_numa_nodes]();
 		local_locks = new LocalLock [num_numa_nodes];
+		lock_called = new int [num_numa_nodes];
+		lock_released = new int [num_numa_nodes];
 		int i = 0;
 		for(i=0;i<num_numa_nodes;i++)
 		{
@@ -80,12 +82,17 @@
 	
 	CohortLock::~CohortLock()
 	{
-		printf("CohortLock destructor b4\n");
+		int i=0;
+		for(i=0;i<num_numa_nodes;i++)
+		{
+			printf("thread: %p lock calls/releases for %d numa node: %d/%d\n",this,i,lock_called[i],lock_released[i]);
+		} 
 		delete[] starvation_counters;
 		delete[] own_global;
 		delete[] local_locks;
+		delete[] lock_called;
+		delete[] lock_released;
 		delete global_lock;
-		printf("CohortLock destructor af\n");
 	}
 
 	void CohortLock::reset_lock(int nthreads)
@@ -116,7 +123,8 @@
 		
 	void CohortLock::lock(int numa_idx)
 	{
-		printf("lock called %d\n",numa_idx);
+		//printf("thread: lock called %d\n",numa_idx);
+		lock_called[numa_idx]++;
 		//get the local lock
 		local_locks[numa_idx].lock();
 		if(!own_global[numa_idx])
@@ -141,7 +149,8 @@
 			|| starvation_counters[numa_idx] > STARVATION_LIMIT)
 		{
 			//relinquish global lock
-			printf("giving up global lock %d\n",numa_idx);
+			//printf("thread: giving up global lock %d\n",numa_idx);
+			lock_released[numa_idx]++;
 			global_lock->unlock();
 			//reset NUMA node specific vars
 			starvation_counters[numa_idx]=0;

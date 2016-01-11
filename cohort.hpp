@@ -57,6 +57,8 @@ private:
 	uint64_t num_numa_nodes;
 	int starvation_limit;
 	int* starvation_counters;
+	int* lock_called;
+	int* lock_released;
 	bool* own_global;
 	MUTEX_G* global_lock;
 	LocalLock* local_locks;

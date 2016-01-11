@@ -6,7 +6,7 @@
 
 
 //same as number of threads unless that's not-appropriate
-const int DEFAULT_NUM_PARTITIONS=8;
+const int DEFAULT_NUM_PARTITIONS=120;
 
 //from https://www.quora.com/How-does-an-MCS-lock-work
 //and Lock Cohorting: A General Technique for Designing NUMA Locks
