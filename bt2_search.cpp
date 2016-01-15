@@ -783,9 +783,9 @@ static void printUsage(ostream& out) {
 		<< "  --met-stderr       send metrics to stderr (off)" << endl
 		<< "  --met <int>        report internal counters & metrics every <int> secs (1)" << endl
 	// Following is supported in the wrapper instead
-	    << "  --no-unal          supppress SAM records for unaligned reads" << endl
-	    << "  --no-head          supppress header lines, i.e. lines starting with @" << endl
-	    << "  --no-sq            supppress @SQ header lines" << endl
+	    << "  --no-unal          suppress SAM records for unaligned reads" << endl
+	    << "  --no-head          suppress header lines, i.e. lines starting with @" << endl
+	    << "  --no-sq            suppress @SQ header lines" << endl
 	    << "  --rg-id <text>     set read group id, reflected in @RG line and RG:Z: opt field" << endl
 	    << "  --rg <text>        add <text> (\"lab:value\") to @RG line of SAM header." << endl
 	    << "                     Note: @RG line only printed when --rg-id is set." << endl
