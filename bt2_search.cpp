@@ -3165,9 +3165,11 @@ static void multiseedSearchWorker(void *vp) {
 							}
 						}
 						matemap[0] = 0; matemap[1] = 1;
-						if(nelt[0] > 0 && nelt[1] > 0 && nelt[0] > nelt[1]) {
-							// Do the mate with fewer exact hits first
-							// TODO: Consider mates & orientations separately?
+						if((nelt[0] > 0 && nelt[1] > 0 && nelt[0] > nelt[1]) ||
+						   (nelt[0] == nelt[1] && rnd.nextFloat() < 0.5f))
+						{
+							// Do the mate with fewer exact hits first.  If
+							// there's a tie, pick a mate randomly.
 							matemap[0] = 1; matemap[1] = 0;
 						}
 						for(size_t matei = 0; matei < (seedSumm ? 0:2); matei++) {
@@ -3352,9 +3354,11 @@ static void multiseedSearchWorker(void *vp) {
 						}
 						// Possibly reorder the mates
 						matemap[0] = 0; matemap[1] = 1;
-						if(nelt[0] > 0 && nelt[1] > 0 && nelt[0] > nelt[1]) {
-							// Do the mate with fewer exact hits first
-							// TODO: Consider mates & orientations separately?
+						if((nelt[0] > 0 && nelt[1] > 0 && nelt[0] > nelt[1]) ||
+						   (nelt[0] == nelt[1] && rnd.nextFloat() < 0.5f))
+						{
+							// Do the mate with fewer exact hits first; if
+							// there is a tie, pick a mate randomly
 							matemap[0] = 1; matemap[1] = 0;
 						}
 						for(size_t matei = 0; matei < (seedSumm ? 0:2); matei++) {
@@ -3604,9 +3608,12 @@ static void multiseedSearchWorker(void *vp) {
 						}
 						// Possibly reorder the mates
 						matemap[0] = 0; matemap[1] = 1;
-						if(!shs[0].empty() && !shs[1].empty() && uniqFactor[1] > uniqFactor[0]) {
-							// Do the mate with fewer exact hits first
-							// TODO: Consider mates & orientations separately?
+						if(!shs[0].empty() && !shs[1].empty() &&
+						   (uniqFactor[1] > uniqFactor[0] ||
+							(uniqFactor[1] == uniqFactor[0] && rnd.nextFloat() < 0.5f)))
+						{
+							// Do the mate with fewer exact hits first; if
+							// there is a tie, pick a mate randomly
 							matemap[0] = 1; matemap[1] = 0;
 						}
 						for(size_t matei = 0; matei < (pair ? 2:1); matei++) {
