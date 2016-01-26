@@ -1024,12 +1024,17 @@ static void bucketSortSufDcU8(
         bkts[i] = new TIndexOffU[4 * 1024 * 1024];
     }
     ELList<size_t, 5, 1024> block_list;
+    bool first = true;
     while(true) {
         size_t begin = 0, end = 0;
-        if(block_list.size() == 0) {
+        if(first) {
             begin = _begin;
             end = _end;
+            first = false;
         } else {
+            if(block_list.size() == 0) {
+                break;
+            }
             if(block_list.back().size() > 1) {
                 end = block_list.back().back(); block_list.back().pop_back();
                 begin = block_list.back().back();
