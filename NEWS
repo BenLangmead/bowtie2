@@ -16,6 +16,17 @@ Please report any issues using the Sourceforge bug tracker:
 Version Release History
 =======================
 
+Version 2.2.7 - Feb 10, 2016
+   * Added a parralel index build option.
+   * Fixed a few misspelled words in documentation.
+   * Fix an extrem case of parallel index hanging for very small reference.
+   * Fixed a few old and deprecated options.
+   * Got rid of extraneous output.
+   * Fixed an issue that made Intel Compiler fail.
+   * Removed obsolete function definitions.
+   * Properly separated some debug code from release under USE_MEM_TALLY def.
+   
+
 Version 2.2.6 - Jul 22, 2015
    * Switched to a stable sort to avoid some potential reproducibility confusions.
    * Added 'install' target for *nix platforms.
