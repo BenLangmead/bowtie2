@@ -19,6 +19,8 @@ Version Release History
 Version 2.2.7 - Feb 10, 2016
    * Added a parralel index build option.
    * Fixed a few misspelled words in documentation.
+   * Fix a bug that resulted in non-ACGT sequence chars to be transformed into As. bowtie2 will now
+     transform all unknown chars into Ns.
    * Fix an extrem case of parallel index hanging for very small reference.
    * Fixed a few old and deprecated options.
    * Got rid of extraneous output.
