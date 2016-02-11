@@ -1330,4 +1330,3 @@ r7  16  gi|9626243|ref|NC_001416.1| 4692    42  143M    *   0   0   TCAGCCGGACGC
 <p>Then to view the variants, run:</p>
 <pre><code>bcftools view eg2.raw.bcf</code></pre>
 <p>See the official SAMtools guide to <a href="http://samtools.sourceforge.net/mpileup.shtml">Calling SNPs/INDELs with SAMtools/BCFtools</a> for more details and variations on this process.</p>
-
