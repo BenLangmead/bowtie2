@@ -86,7 +86,7 @@
       <!-- GRCh38 -->
       <tr>
         <td>
-          <a href="ftp://ftp.ncbi.nlm.nih.gov/genbank/genomes/Eukaryotes/vertebrates_mammals/Homo_sapiens/GRCh38/seqs_for_alignment_pipelines/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.bowtie_index.tar.gz"><i>H. sapiens</i>, NCBI GRCh38</a>
+          <a href="ftp://ftp.ncbi.nlm.nih.gov/genomes/archive/old_genbank/Eukaryotes/vertebrates_mammals/Homo_sapiens/GRCh38/seqs_for_alignment_pipelines/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.bowtie_index.tar.gz"><i>H. sapiens</i>, NCBI GRCh38</a>
         </td>
         <td align="right">
           <b>3.5 GB</b>
