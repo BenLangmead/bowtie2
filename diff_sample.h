@@ -20,6 +20,11 @@
 #ifndef DIFF_SAMPLE_H_
 #define DIFF_SAMPLE_H_
 
+#ifdef WITH_TBB
+#include <tbb/tbb.h>
+#include <tbb/task_group.h>
+#endif
+
 #include <stdint.h>
 #include <string.h>
 #include "assert_helpers.h"
@@ -683,8 +688,20 @@ struct VSortingParam {
 };
 
 template<typename TStr>
+#ifdef WITH_TBB
+class VSorting_worker {
+        void *vp;
+
+public:
+
+	VSorting_worker(const VSorting_worker& W): vp(W.vp) {};
+	VSorting_worker(void *vp_):vp(vp_) {};
+	void operator()() 
+	{
+#else
 static void VSorting_worker(void *vp)
 {
+#endif
     VSortingParam<TStr>* param = (VSortingParam<TStr>*)vp;
     DifferenceCoverSample<TStr>* dcs = param->dcs;
     const TStr& host = dcs->text();
@@ -715,6 +732,10 @@ static void VSorting_worker(void *vp)
                       v);
     }
 }
+
+#ifdef WITH_TBB
+};
+#endif
 
 /**
  * Calculates a ranking of all suffixes in the sample and stores them,
@@ -787,7 +808,11 @@ void DifferenceCoverSample<TStr>::build(int nthreads) {
                 mkeyQSortSuf2(t, sPrimeArr, sPrimeSz, sPrimeOrderArr, 4,
                               this->verbose(), false, query_depth, &boundaries);
                 if(boundaries.size() > 0) {
+#ifdef WITH_TBB
+		    tbb::task_group tbb_grp;
+#else
                     AutoArray<tthread::thread*> threads(nthreads);
+#endif
                     EList<VSortingParam<TStr> > tparams;
                     size_t cur = 0;
                     MUTEX_T mutex;
@@ -803,11 +828,17 @@ void DifferenceCoverSample<TStr>::build(int nthreads) {
                         tparams.back().boundaries = &boundaries;
                         tparams.back().cur = &cur;
                         tparams.back().mutex = &mutex;
+#ifdef WITH_TBB
+			tbb_grp.run(VSorting_worker<TStr>(((void*)&tparams.back())));
+		    }
+		    tbb_grp.wait();
+#else
                         threads[tid] = new tthread::thread(VSorting_worker<TStr>, (void*)&tparams.back());
                     }
                     for (int tid = 0; tid < nthreads; tid++) {
                         threads[tid]->join();
                     }
+#endif
                 }
                 if(this->sanityCheck()) {
                     sanityCheckOrderedSufs(t, t.length(), sPrimeArr, sPrimeSz, v);
