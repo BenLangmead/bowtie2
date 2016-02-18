@@ -4270,7 +4270,7 @@ static int read_dir(const char* dirname,int* num_pids)
     while ((ent = readdir (dir)) != NULL) {
       if(ent->d_name[0] == '.')
         continue;
-      printf ("%s\n", ent->d_name);
+      //printf ("%s\n", ent->d_name);
       int pid = atoi(ent->d_name);
       (*num_pids)++;
       if(pid < lowest_pid || lowest_pid == -1)
@@ -4302,17 +4302,17 @@ static void steal_threads(int pid,int *cur_threads,tbb::task_group* tbb_grp)
     int ncpu = sysconf(_SC_NPROCESSORS_ONLN);
     int num_pids = 0;
     int lowest_pid = read_dir("/tmp/bt2",&num_pids);
-    printf("pid %d, # cpus %d,num pids=%d,lowest pid %d\n",pid,ncpu,num_pids,lowest_pid);
+    //printf("pid %d, # cpus %d,num pids=%d,cur threads %d\n",pid,ncpu,num_pids,*cur_threads);
     int in_use = num_pids * (*cur_threads);
     float spare = (ncpu - in_use)/((float) in_use);
     int spare_r = floor(spare);
     float r = rand() % 100/100.0;
-    printf("rand1 %.3f spare %.3f spare_r %d\n",r,spare,spare_r);
+    //printf("rand1 %.3f spare %.3f spare_r %d\n",r,spare,spare_r);
     if (r <= (spare - spare_r))
     {
       spare_r = ceil(spare); 
     }
-    printf("rand2 %.3f spare %.3f spare_r %d\n",r,spare,spare_r);
+    //printf("rand2 %.3f spare %.3f spare_r %d\n",r,spare,spare_r);
     //if(spare > 0 && pid == lowest_pid)
     if(spare_r > 0)
     {
@@ -4399,7 +4399,7 @@ static void multiseedSearch(
 #ifdef WITH_TBB
     //srand(time(NULL));
     int pid = getpid();
-    printf("parent pid %d\n",pid);
+    //printf("parent pid %d\n",pid);
     write_pid("/tmp");
     thread_counter = 0;
 		for(int i = 1; i <= nthreads; i++) {
@@ -4417,6 +4417,7 @@ static void multiseedSearch(
       steal_threads(pid,&cur_threads,&tbb_grp);
     }
 		tbb_grp.wait();
+    del_pid("/tmp");
 #else
 			// Thread IDs start at 1
 			tids[i] = i;
