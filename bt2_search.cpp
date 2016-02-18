@@ -27,6 +27,12 @@
 #include <math.h>
 #include <utility>
 #include <limits>
+#include <cstring>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <dirent.h>
+#include <math.h>
 #include "alphabet.h"
 #include "assert_helpers.h"
 #include "endian_swap.h"
@@ -56,6 +62,8 @@
 #include "bt2_search.h"
 
 using namespace std;
+
+static tbb::atomic<int> thread_counter;
 
 static EList<string> mates1;  // mated reads (first mate)
 static EList<string> mates2;  // mated reads (second mate)
@@ -2827,6 +2835,7 @@ static void multiseedSearchWorker(void *vp) {
 	// problems, or generally characterize performance.
 	
 	//const BitPairReference& refs   = *multiseed_refs;
+  thread_counter.fetch_and_increment();
 	auto_ptr<PatternSourcePerThreadFactory> patsrcFact(createPatsrcFactory(patsrc, tid));
 	auto_ptr<PatternSourcePerThread> ps(patsrcFact->create());
 	
@@ -3890,6 +3899,7 @@ static void multiseedSearchWorker(void *vp) {
 	   << "thread: " << tid << " node_changeovers: " << nnuma_changeovers << std::endl;
 	std::cout << ss.str();
 #endif
+  thread_counter.fetch_and_decrement();
 
 	return;
 }
@@ -4229,6 +4239,88 @@ static void multiseedSearchWorker_2p5(void *vp) {
 	return;
 }
 
+//from http://stackoverflow.com/questions/18100097/portable-way-to-check-if-directory-exists-windows-linux-c
+static void write_pid(const char* dir)
+{
+  struct stat dinfo;
+  //std::string dirname = dir + "/bt2";
+  //char* dirname = strcat(dir,"/bt2");
+  char* dirname = (char*) calloc(100,sizeof(char));
+  int result = sprintf(dirname,"%s/bt2",dir);
+  if( stat( dirname, &dinfo) != 0)
+  { 
+    mkdir(dirname,0755);
+  }
+  //std::string fname = dirname << "/bt2." << ::getpid();
+  int pid = getpid();
+  char* fname = (char*) calloc(200,sizeof(char));
+  result = sprintf(fname,"%s/%d",dirname,pid);
+  FILE* f = fopen(fname,"w");
+  fclose(f);
+}
+
+//from  http://stackoverflow.com/questions/612097/how-can-i-get-the-list-of-files-in-a-directory-using-c-or-c
+static int read_dir(const char* dirname,int* num_pids)
+{
+  DIR *dir;
+  struct dirent *ent;
+  if ((dir = opendir (dirname)) != NULL) {
+     //print all the files and directories within directory
+    int lowest_pid = -1;
+    while ((ent = readdir (dir)) != NULL) {
+      if(ent->d_name[0] == '.')
+        continue;
+      printf ("%s\n", ent->d_name);
+      int pid = atoi(ent->d_name);
+      (*num_pids)++;
+      if(pid < lowest_pid || lowest_pid == -1)
+        lowest_pid = pid;
+    }
+    closedir (dir);
+    return lowest_pid;
+  } else {
+     //could not open directory 
+    perror ("");
+    return 1;
+  }
+  return 0;
+}
+
+void del_pid(char* dir)
+{
+  char* dirname = (char*) calloc(100,sizeof(char));
+  int result = sprintf(dirname,"%s/bt2",dir);
+  int pid = getpid();
+  char* fname = (char*) calloc(200,sizeof(char));
+  result = sprintf(fname,"%s/%d",dirname,pid);
+  unlink(fname);
+}
+
+static void steal_threads(int pid,int *cur_threads,tbb::task_group* tbb_grp)
+{
+    //from http://stackoverflow.com/questions/4586405/get-number-of-cpus-in-linux-using-c
+    int ncpu = sysconf(_SC_NPROCESSORS_ONLN);
+    int num_pids = 0;
+    int lowest_pid = read_dir("/tmp/bt2",&num_pids);
+    printf("pid %d, # cpus %d,num pids=%d,lowest pid %d\n",pid,ncpu,num_pids,lowest_pid);
+    int in_use = num_pids * (*cur_threads);
+    float spare = (ncpu - in_use)/((float) in_use);
+    int spare_r = floor(spare);
+    float r = rand() % 100/100.0;
+    printf("rand1 %.3f spare %.3f spare_r %d\n",r,spare,spare_r);
+    if (r <= (spare - spare_r))
+    {
+      spare_r = ceil(spare); 
+    }
+    printf("rand2 %.3f spare %.3f spare_r %d\n",r,spare,spare_r);
+    //if(spare > 0 && pid == lowest_pid)
+    if(spare_r > 0)
+    {
+	    tbb_grp->run(multiseedSearchWorker(++(*cur_threads)));
+      printf("pid %d worker %d started\n",pid,*cur_threads);
+    }
+}
+
 /**
  * Called once per alignment job.  Sets up global pointers to the
  * shared global data structures, creates per-thread structures, then
@@ -4304,14 +4396,26 @@ static void multiseedSearch(
 	{
 		Timer _t(cerr, "Multiseed full-index search: ", timing);
 
-		for(int i = 1; i <= nthreads; i++) {
 #ifdef WITH_TBB
+    //srand(time(NULL));
+    int pid = getpid();
+    printf("parent pid %d\n",pid);
+    write_pid("/tmp");
+    thread_counter = 0;
+		for(int i = 1; i <= nthreads; i++) {
 			if(bowtie2p5) {
 				tbb_grp.run(multiseedSearchWorker_2p5(i));
 			} else {
 				tbb_grp.run(multiseedSearchWorker(i));
+        printf("pid %d worker %d started\n",pid,i);
 			}
 		}
+    int cur_threads = nthreads;
+    sleep(5);
+    while(thread_counter > 0)
+    {
+      steal_threads(pid,&cur_threads,&tbb_grp);
+    }
 		tbb_grp.wait();
 #else
 			// Thread IDs start at 1
