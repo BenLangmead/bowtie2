@@ -27,6 +27,12 @@
 #include <math.h>
 #include <utility>
 #include <limits>
+#include <cstring>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <dirent.h>
+#include <math.h>
 #include "alphabet.h"
 #include "assert_helpers.h"
 #include "endian_swap.h"
@@ -57,6 +63,11 @@
 
 using namespace std;
 
+//static tbb::atomic<int> thread_counter;
+static int thread_counter;
+static MUTEX_T thread_counter_mutex; 
+static int FNAME_SIZE;
+
 static EList<string> mates1;  // mated reads (first mate)
 static EList<string> mates2;  // mated reads (second mate)
 static EList<string> mates12; // mated reads (1st/2nd interleaved in 1 file)
@@ -85,6 +96,8 @@ static bool solexaQuals;  // quality strings are solexa quals, not phred, and su
 static bool phred64Quals; // quality chars are phred, but must subtract 64 (not 33)
 static bool integerQuals; // quality strings are space-separated strings of integers, not ASCII
 static int nthreads;      // number of pthreads operating concurrently
+static int thread_ceiling;// maximum number of threads bowtie can ever use
+static string pid_dir;    // directory to store this process' pid and to look for other bt2 process's pids
 static int outType;       // style of output
 static bool noRefNames;   // true -> print reference indexes; not names
 static uint32_t khits;    // number of hits per read; >1 is much slower
@@ -274,6 +287,9 @@ static void resetOptions() {
 	phred64Quals			= false; // quality chars are phred, but must subtract 64 (not 33)
 	integerQuals			= false; // quality strings are space-separated strings of integers, not ASCII
 	nthreads				= 1;     // number of pthreads operating concurrently
+  thread_ceiling  = (sysconf(_SC_NPROCESSORS_ONLN)-2 >= 1?sysconf(_SC_NPROCESSORS_ONLN)-1:1);     // maximum number of threads bowtie can ever use
+  pid_dir         = "/tmp/bt2_pids-atcqqqrn"; //(secure_getenv("TMPDIR")?secure_getenv("TMPDIR"):"/tmp"); // directory to store this process' pid and to look for other bt2 process's pids
+  FNAME_SIZE = 200;
 	outType					= OUTPUT_SAM;  // style of output
 	noRefNames				= false; // true -> print reference indexes; not names
 	khits					= 1;     // number of hits per read; >1 is much slower
@@ -1053,6 +1069,13 @@ static void parseOption(int next_option, const char *arg) {
 		case 'p':
 			nthreads = parseInt(1, "-p/--threads arg must be at least 1", arg);
 			break;
+		/*case 'T':
+			thread_ceiling = parseInt(1, "-T arg must be at least 1 and must be equal to or greater than -p/--threads", arg);
+			break;
+		case 'G':
+			pid_dir = arg;
+			//pid_dir = parseInt(1, "-G arg denotes full path to directory to put this processes' pid and to look for other BT2 pids", arg);
+			break;*/
 		case ARG_FILEPAR:
 			fileParallel = true;
 			break;
@@ -2775,6 +2798,19 @@ void get_cpu_and_node(int& cpu, int& node) {
 }
 #endif
 
+void increment_thread_counter()
+{
+  ThreadSafe ts(&thread_counter_mutex);
+  thread_counter++;
+}
+
+void decrement_thread_counter()
+{
+  ThreadSafe ts(&thread_counter_mutex);
+  thread_counter--;
+}
+
+
 /**
  * Called once per thread.  Sets up per-thread pointers to the shared global
  * data structures, creates per-thread structures, then enters the alignment
@@ -2827,6 +2863,8 @@ static void multiseedSearchWorker(void *vp) {
 	// problems, or generally characterize performance.
 	
 	//const BitPairReference& refs   = *multiseed_refs;
+  //thread_counter.fetch_and_increment();
+  increment_thread_counter();
 	auto_ptr<PatternSourcePerThreadFactory> patsrcFact(createPatsrcFactory(patsrc, tid));
 	auto_ptr<PatternSourcePerThread> ps(patsrcFact->create());
 	
@@ -3890,6 +3928,8 @@ static void multiseedSearchWorker(void *vp) {
 	   << "thread: " << tid << " node_changeovers: " << nnuma_changeovers << std::endl;
 	std::cout << ss.str();
 #endif
+  //thread_counter.fetch_and_decrement();
+  decrement_thread_counter();
 
 	return;
 }
@@ -4229,6 +4269,108 @@ static void multiseedSearchWorker_2p5(void *vp) {
 	return;
 }
 
+//void del_pid(string dirname,int pid)
+void del_pid(const char* dirname,int pid)
+{
+  struct stat finfo;
+  char* fname = (char*) calloc(FNAME_SIZE,sizeof(char));
+  sprintf(fname,"%s/%d",dirname,pid);
+  //string fname = dirname + "/" + pid;
+  if( stat( fname, &finfo) != 0)
+  {
+    free(fname);
+    return;
+  }
+  unlink(fname);
+  free(fname);
+} 
+
+//from http://stackoverflow.com/questions/18100097/portable-way-to-check-if-directory-exists-windows-linux-c
+static void write_pid(const char* dirname,int pid)
+{
+  struct stat dinfo;
+  if( stat( dirname, &dinfo) != 0)
+  { 
+    mkdir(dirname,0755);
+  }
+  //std::string fname = dirname << "/bt2." << ::getpid();
+  char* fname = (char*) calloc(FNAME_SIZE,sizeof(char));
+  sprintf(fname,"%s/%d",dirname,pid);
+  FILE* f = fopen(fname,"w");
+  fclose(f);
+  free(fname);
+}
+
+//from  http://stackoverflow.com/questions/612097/how-can-i-get-the-list-of-files-in-a-directory-using-c-or-c
+static int read_dir(const char* dirname,int* num_pids)
+{
+  DIR *dir;
+  struct dirent *ent;
+  struct stat dinfo;
+  char* fname = (char*) calloc(FNAME_SIZE,sizeof(char));
+  int lowest_pid = -1;
+  if ((dir = opendir (dirname)) != NULL) {
+    while ((ent = readdir (dir)) != NULL) {
+      if(ent->d_name[0] == '.')
+        continue;
+      int pid = atoi(ent->d_name);
+      sprintf(fname,"/proc/%s",ent->d_name);
+      if( stat( fname, &dinfo) != 0) //pid in /proc doesn't exist
+      {
+        printf("deleting residual pid\n");
+        del_pid(dirname,pid);
+        continue;
+      }
+      (*num_pids)++;
+      if(pid < lowest_pid || lowest_pid == -1)
+        lowest_pid = pid;
+    }
+    closedir (dir);
+  } else {
+     //could not open directory 
+    perror ("");
+  }
+  free(fname);
+  return lowest_pid;
+}
+
+
+//static void steal_threads(int pid,int *cur_threads,tbb::task_group* tbb_grp)
+static void steal_threads(int pid,int *cur_threads,AutoArray<int>* tids,AutoArray<tthread::thread*>* threads)
+{
+    //from http://stackoverflow.com/questions/4586405/get-number-of-cpus-in-linux-using-c
+    //int ncpu = sysconf(_SC_NPROCESSORS_ONLN);
+    int ncpu = thread_ceiling;
+    if(thread_ceiling < nthreads)
+    {
+      printf("ERROR nthreads %d > thread_ceiling %d\n",nthreads,thread_ceiling);
+      exit(-1);
+    }
+    int num_pids = 0;
+    int lowest_pid = read_dir(pid_dir.c_str(),&num_pids);
+    if(lowest_pid != pid)
+      return;
+    //printf("pid %d, # cpus %d,num pids=%d,cur threads %d\n",pid,ncpu,num_pids,*cur_threads);
+    //int in_use = num_pids * (*cur_threads);
+    int in_use = ((num_pids-1)*nthreads) + (*cur_threads); //in_use is now baseline + ours
+    float spare = (ncpu - in_use)/((float) in_use);
+    int spare_r = floor(spare);
+    float r = rand() % 100/100.0;
+    //printf("rand1 %.3f spare %.3f spare_r %d\n",r,spare,spare_r);
+    if (r <= (spare - spare_r))
+    {
+      spare_r = ceil(spare); 
+    }
+    //printf("rand2 %.3f spare %.3f spare_r %d\n",r,spare,spare_r);
+    if(spare_r > 0)
+    {
+	    //tbb_grp->run(multiseedSearchWorker(++(*cur_threads)));
+      (*tids)[++(*cur_threads)] = *cur_threads;
+		  (*threads)[*cur_threads] = new tthread::thread(multiseedSearchWorker, (void*)&tids[*cur_threads]);
+      //printf("pid %d worker %d started\n",pid,*cur_threads);
+    }
+}
+
 /**
  * Called once per alignment job.  Sets up global pointers to the
  * shared global data structures, creates per-thread structures, then
@@ -4269,8 +4411,8 @@ static void multiseedSearch(
 #ifdef WITH_TBB
 	tbb::task_group tbb_grp;
 #else
-	AutoArray<tthread::thread*> threads(nthreads+1);
-	AutoArray<int> tids(nthreads+1);
+	AutoArray<tthread::thread*> threads(thread_ceiling+1);
+	AutoArray<int> tids(thread_ceiling+1);
 #endif
 	{
 		// Load the other half of the index into memory
@@ -4304,14 +4446,27 @@ static void multiseedSearch(
 	{
 		Timer _t(cerr, "Multiseed full-index search: ", timing);
 
+    //srand(time(NULL));
+    int pid = getpid();
+    //printf("parent pid %d\n",pid);
+    write_pid(pid_dir.c_str(),pid);
+    thread_counter = 0;
 		for(int i = 1; i <= nthreads; i++) {
 #ifdef WITH_TBB
 			if(bowtie2p5) {
 				tbb_grp.run(multiseedSearchWorker_2p5(i));
 			} else {
 				tbb_grp.run(multiseedSearchWorker(i));
+        printf("pid %d worker %d started\n",pid,i);
 			}
 		}
+    /*int cur_threads = nthreads;
+    sleep(5);
+    while(thread_counter > 0)
+    {
+      steal_threads(pid,&cur_threads,&tbb_grp);
+      sleep(60);
+    }*/
 		tbb_grp.wait();
 #else
 			// Thread IDs start at 1
@@ -4322,10 +4477,19 @@ static void multiseedSearch(
 				threads[i] = new tthread::thread(multiseedSearchWorker, (void*)&tids[i]);
 			}
 		}
-		for (int i = 1; i <= nthreads; i++) {
+    int cur_threads = nthreads;
+    sleep(5);
+    while(thread_counter > 0)
+    {
+      steal_threads(pid,&cur_threads,&tids,&threads);
+      sleep(60);
+    }
+		//for (int i = 1; i <= nthreads; i++) {
+		for (int i = 1; i <= cur_threads; i++) {
 			threads[i]->join();
 		}
 #endif
+    del_pid(pid_dir.c_str(),pid);
 	}
 	if(!metricsPerRead && (metricsOfb != NULL || metricsStderr)) {
 		metrics.reportInterval(metricsOfb, metricsStderr, true, false, NULL);
