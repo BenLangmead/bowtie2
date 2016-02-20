@@ -17,6 +17,8 @@
  * along with Bowtie 2.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <stdio.h>
+#include <time.h>
 #include <stdlib.h>
 #include <iostream>
 #include <fstream>
@@ -67,6 +69,9 @@ using namespace std;
 static int thread_counter;
 static MUTEX_T thread_counter_mutex; 
 static int FNAME_SIZE;
+/*tthread::thread* additional_threads[200];
+int additional_tids[200];
+int num_additional_threads;*/
 
 static EList<string> mates1;  // mated reads (first mate)
 static EList<string> mates2;  // mated reads (second mate)
@@ -287,7 +292,7 @@ static void resetOptions() {
 	phred64Quals			= false; // quality chars are phred, but must subtract 64 (not 33)
 	integerQuals			= false; // quality strings are space-separated strings of integers, not ASCII
 	nthreads				= 1;     // number of pthreads operating concurrently
-  thread_ceiling  = (sysconf(_SC_NPROCESSORS_ONLN)-2 >= 1?sysconf(_SC_NPROCESSORS_ONLN)-1:1);     // maximum number of threads bowtie can ever use
+  thread_ceiling  = (sysconf(_SC_NPROCESSORS_ONLN)-2 >= 1?sysconf(_SC_NPROCESSORS_ONLN)-2:1);     // maximum number of threads bowtie can ever use
   pid_dir         = "/tmp/bt2_pids-atcqqqrn"; //(secure_getenv("TMPDIR")?secure_getenv("TMPDIR"):"/tmp"); // directory to store this process' pid and to look for other bt2 process's pids
   FNAME_SIZE = 200;
 	outType					= OUTPUT_SAM;  // style of output
@@ -4270,10 +4275,12 @@ static void multiseedSearchWorker_2p5(void *vp) {
 }
 
 //void del_pid(string dirname,int pid)
+/*
 void del_pid(const char* dirname,int pid)
 {
   struct stat finfo;
   char* fname = (char*) calloc(FNAME_SIZE,sizeof(char));
+  //char* fname = (char*) malloc(FNAME_SIZE);
   sprintf(fname,"%s/%d",dirname,pid);
   //string fname = dirname + "/" + pid;
   if( stat( fname, &finfo) != 0)
@@ -4300,7 +4307,6 @@ static void write_pid(const char* dirname,int pid)
   fclose(f);
   free(fname);
 }
-
 //from  http://stackoverflow.com/questions/612097/how-can-i-get-the-list-of-files-in-a-directory-using-c-or-c
 static int read_dir(const char* dirname,int* num_pids)
 {
@@ -4317,8 +4323,8 @@ static int read_dir(const char* dirname,int* num_pids)
       sprintf(fname,"/proc/%s",ent->d_name);
       if( stat( fname, &dinfo) != 0) //pid in /proc doesn't exist
       {
-        printf("deleting residual pid\n");
-        del_pid(dirname,pid);
+        fprintf(stderr,"deleting residual pid\n");
+        //del_pid(dirname,pid);
         continue;
       }
       (*num_pids)++;
@@ -4332,44 +4338,117 @@ static int read_dir(const char* dirname,int* num_pids)
   }
   free(fname);
   return lowest_pid;
-}
+}*/
 
+static int ps_pids(int* num_pids)
+{
+  string ps_cmd = "ps -e -o pid,command | grep [b]owtie2-align | egrep -v -e \"sh -c\"";
+  FILE* instr = popen(ps_cmd.c_str(),"r");
+  int lowest_pid = -1; 
+  char* line = (char*) calloc(2048,sizeof(char));
+  //char* read = fgets(line,2047,instr);
+  while( fgets(line,2047,instr) != NULL)
+  {
+    int pid = atoi(line);
+    fprintf(stderr,"got pid %d from %s",pid,line);
+    if(pid < lowest_pid || lowest_pid == -1)
+      lowest_pid = pid;
+    (*num_pids)=(*num_pids) + 1;
+    //read = fgets(line,2047,instr);
+  }
+  free(line);
+  pclose(instr);
+  return lowest_pid;
+}
 
 //static void steal_threads(int pid,int *cur_threads,tbb::task_group* tbb_grp)
 static void steal_threads(int pid,int *cur_threads,AutoArray<int>* tids,AutoArray<tthread::thread*>* threads)
 {
+    fprintf(stderr,"entering steal_threads\n");
     //from http://stackoverflow.com/questions/4586405/get-number-of-cpus-in-linux-using-c
     //int ncpu = sysconf(_SC_NPROCESSORS_ONLN);
     int ncpu = thread_ceiling;
     if(thread_ceiling < nthreads)
     {
-      printf("ERROR nthreads %d > thread_ceiling %d\n",nthreads,thread_ceiling);
+      fprintf(stderr,"ERROR nthreads %d > thread_ceiling %d\n",nthreads,thread_ceiling);
       exit(-1);
     }
+    fprintf(stderr,"steal_threads before read_dir\n");
     int num_pids = 0;
-    int lowest_pid = read_dir(pid_dir.c_str(),&num_pids);
+    //int lowest_pid = read_dir(pid_dir.c_str(),&num_pids);
+    int lowest_pid = ps_pids(&num_pids);
     if(lowest_pid != pid)
       return;
-    //printf("pid %d, # cpus %d,num pids=%d,cur threads %d\n",pid,ncpu,num_pids,*cur_threads);
+    fprintf(stderr,"pid %d, # cpus %d,num pids=%d,cur threads %d\n",pid,ncpu,num_pids,*cur_threads);
     //int in_use = num_pids * (*cur_threads);
-    int in_use = ((num_pids-1)*nthreads) + (*cur_threads); //in_use is now baseline + ours
-    float spare = (ncpu - in_use)/((float) in_use);
+    //int in_use = ((num_pids-1) * nthreads) + (*cur_threads) + num_additional_threads; //in_use is now baseline + ours
+    int in_use = ((num_pids-1) * nthreads) + (*cur_threads); //in_use is now baseline + ours
+    //float spare = (ncpu - in_use)/((float) in_use);
+    float spare = ncpu - in_use;
     int spare_r = floor(spare);
     float r = rand() % 100/100.0;
-    //printf("rand1 %.3f spare %.3f spare_r %d\n",r,spare,spare_r);
+    fprintf(stderr,"rand1 %.3f spare %.3f spare_r %d\n",r,spare,spare_r);
     if (r <= (spare - spare_r))
     {
       spare_r = ceil(spare); 
     }
-    //printf("rand2 %.3f spare %.3f spare_r %d\n",r,spare,spare_r);
+    fprintf(stderr,"rand2 %.3f spare %.3f spare_r %d\n",r,spare,spare_r);
     if(spare_r > 0)
     {
 	    //tbb_grp->run(multiseedSearchWorker(++(*cur_threads)));
       *cur_threads = (*cur_threads) + 1;
       (*tids)[*cur_threads] = *cur_threads;
-		  (*threads)[*cur_threads] = new tthread::thread(multiseedSearchWorker, (void*)&tids[*cur_threads]);
-      //printf("pid %d worker %d started\n",pid,*cur_threads);
+      //int tid = *cur_threads;
+		  //(*threads)[*cur_threads] = new tthread::thread(multiseedSearchWorker, (void*)&((*tids)[*cur_threads]));
+		  (*threads)[*cur_threads] = new tthread::thread(multiseedSearchWorker, (void*)&((*tids)[*cur_threads]));
+      /*num_additional_threads++;
+      additional_threads[num_additional_threads] = new tthread::thread(multiseedSearchWorker, (void*)&num_additional_threads);
+      additional_tids[num_additional_threads] = num_additional_threads;
+      //fprintf(stderr,"pid %d worker %d started\n",pid,(*cur_threads) + num_additional_threads);*/
+      fprintf(stderr,"pid %d worker %d started\n",pid,*cur_threads);
     }
+}
+
+//from http://stackoverflow.com/questions/5141960/get-the-current-time-in-c
+static char* get_time()
+{
+  time_t rawtime;
+  struct tm * timeinfo;
+
+  time ( &rawtime );
+  timeinfo = localtime ( &rawtime );
+  return asctime (timeinfo);
+  //printf ( "Current local time and date: %s", asctime (timeinfo) );
+}
+
+struct monitor_args
+{
+  int pid;
+  int* cur_threads;
+  AutoArray<int>* tids; 
+  AutoArray<tthread::thread*>* threads;
+};
+
+
+static void thread_monitor(int pid,int *cur_threads,AutoArray<int>* tids,AutoArray<tthread::thread*>* threads)
+//static void thread_monitor(void* args)
+{
+      //struct monitor_args* a = (struct monitor_args*) args;
+      fprintf(stderr,"running on AWS EMR: turning on thread stealing\n");
+      sleep(10);
+      int steal_ctr = 1;
+      while(thread_counter > 0)
+      {
+        fprintf(stderr,"before steal_threads is called %d %d\n",thread_counter,steal_ctr);
+        //steal_threads(a->pid,a->cur_threads,a->tids,a->threads);
+        steal_threads(pid,cur_threads,tids,threads);
+        steal_ctr++;
+        for(int j=0;j<2;j++)
+        {
+          fprintf(stderr,"%d sleeping %s",j,get_time());
+          sleep(5);
+        }
+      }
 }
 
 /**
@@ -4412,8 +4491,8 @@ static void multiseedSearch(
 #ifdef WITH_TBB
 	tbb::task_group tbb_grp;
 #else
-	AutoArray<tthread::thread*> threads(thread_ceiling+1);
-	AutoArray<int> tids(thread_ceiling+1);
+	AutoArray<tthread::thread*> threads(thread_ceiling+2);
+	AutoArray<int> tids(thread_ceiling+2);
 #endif
 	{
 		// Load the other half of the index into memory
@@ -4449,16 +4528,17 @@ static void multiseedSearch(
 
     //srand(time(NULL));
     int pid = getpid();
-    //printf("parent pid %d\n",pid);
-    write_pid(pid_dir.c_str(),pid);
+    //fprintf(stderr,"parent pid %d\n",pid);
+    //write_pid(pid_dir.c_str(),pid);
     thread_counter = 0;
+    //num_additional_threads = 0;
 		for(int i = 1; i <= nthreads; i++) {
 #ifdef WITH_TBB
 			if(bowtie2p5) {
 				tbb_grp.run(multiseedSearchWorker_2p5(i));
 			} else {
 				tbb_grp.run(multiseedSearchWorker(i));
-        printf("pid %d worker %d started\n",pid,i);
+        fprintf(stderr,"pid %d worker %d started\n",pid,i);
 			}
 		}
     /*int cur_threads = nthreads;
@@ -4479,18 +4559,31 @@ static void multiseedSearch(
 			}
 		}
     int cur_threads = nthreads;
-    sleep(5);
-    while(thread_counter > 0)
+    char* fname = (char*) calloc(FNAME_SIZE,sizeof(char));
+    sprintf(fname,"/mnt/var/lib/info/instance.json");
+    struct stat finfo;
+    fprintf(stderr,"before instance.json check\n");
+    //tthread::thread* mthread;
+    if( stat( fname, &finfo) == 0) //check if we're running on AWS EMR
     {
-      steal_threads(pid,&cur_threads,&tids,&threads);
-      sleep(60);
+        thread_monitor(pid,&cur_threads,&tids,&threads);
+        /*struct monitor_args args;
+        args.pid = pid;
+        args.cur_threads = &cur_threads;
+        args.tids = &tids;
+        args.threads = &threads;
+        mthread = new tthread::thread(thread_monitor, (void *)&args);*/
     }
 		//for (int i = 1; i <= nthreads; i++) {
 		for (int i = 1; i <= cur_threads; i++) {
 			threads[i]->join();
 		}
+		/*for (int i = 1; i <= num_additional_threads; i++) {
+			additional_threads[i]->join();
+		}*/
+    free(fname);
 #endif
-    del_pid(pid_dir.c_str(),pid);
+    //del_pid(pid_dir.c_str(),pid);
 	}
 	if(!metricsPerRead && (metricsOfb != NULL || metricsStderr)) {
 		metrics.reportInterval(metricsOfb, metricsStderr, true, false, NULL);
