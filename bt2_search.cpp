@@ -63,9 +63,7 @@
 
 using namespace std;
 
-//static tbb::atomic<int> thread_counter;
-static int thread_counter;
-static MUTEX_T thread_counter_mutex; 
+static tbb::atomic<int> thread_counter;
 static int FNAME_SIZE;
 
 static EList<string> mates1;  // mated reads (first mate)
@@ -287,8 +285,8 @@ static void resetOptions() {
 	phred64Quals			= false; // quality chars are phred, but must subtract 64 (not 33)
 	integerQuals			= false; // quality strings are space-separated strings of integers, not ASCII
 	nthreads				= 1;     // number of pthreads operating concurrently
-  thread_ceiling  = (sysconf(_SC_NPROCESSORS_ONLN)-2 >= 1?sysconf(_SC_NPROCESSORS_ONLN)-1:1);     // maximum number of threads bowtie can ever use
-  pid_dir         = "/tmp/bt2_pids-atcqqqrn"; //(secure_getenv("TMPDIR")?secure_getenv("TMPDIR"):"/tmp"); // directory to store this process' pid and to look for other bt2 process's pids
+  thread_ceiling  = 1;     // maximum number of threads bowtie can ever use
+  pid_dir         = (secure_getenv("TMPDIR")?secure_getenv("TMPDIR"):"/tmp"); // directory to store this process' pid and to look for other bt2 process's pids
   FNAME_SIZE = 200;
 	outType					= OUTPUT_SAM;  // style of output
 	noRefNames				= false; // true -> print reference indexes; not names
@@ -1069,13 +1067,9 @@ static void parseOption(int next_option, const char *arg) {
 		case 'p':
 			nthreads = parseInt(1, "-p/--threads arg must be at least 1", arg);
 			break;
-		/*case 'T':
+		case 'T':
 			thread_ceiling = parseInt(1, "-T arg must be at least 1 and must be equal to or greater than -p/--threads", arg);
 			break;
-		case 'G':
-			pid_dir = arg;
-			//pid_dir = parseInt(1, "-G arg denotes full path to directory to put this processes' pid and to look for other BT2 pids", arg);
-			break;*/
 		case ARG_FILEPAR:
 			fileParallel = true;
 			break;
@@ -2798,19 +2792,6 @@ void get_cpu_and_node(int& cpu, int& node) {
 }
 #endif
 
-void increment_thread_counter()
-{
-  ThreadSafe ts(&thread_counter_mutex);
-  thread_counter++;
-}
-
-void decrement_thread_counter()
-{
-  ThreadSafe ts(&thread_counter_mutex);
-  thread_counter--;
-}
-
-
 /**
  * Called once per thread.  Sets up per-thread pointers to the shared global
  * data structures, creates per-thread structures, then enters the alignment
@@ -2863,8 +2844,7 @@ static void multiseedSearchWorker(void *vp) {
 	// problems, or generally characterize performance.
 	
 	//const BitPairReference& refs   = *multiseed_refs;
-  //thread_counter.fetch_and_increment();
-  increment_thread_counter();
+  thread_counter.fetch_and_increment();
 	auto_ptr<PatternSourcePerThreadFactory> patsrcFact(createPatsrcFactory(patsrc, tid));
 	auto_ptr<PatternSourcePerThread> ps(patsrcFact->create());
 	
@@ -3928,8 +3908,7 @@ static void multiseedSearchWorker(void *vp) {
 	   << "thread: " << tid << " node_changeovers: " << nnuma_changeovers << std::endl;
 	std::cout << ss.str();
 #endif
-  //thread_counter.fetch_and_decrement();
-  decrement_thread_counter();
+  thread_counter.fetch_and_decrement();
 
 	return;
 }
@@ -4269,16 +4248,13 @@ static void multiseedSearchWorker_2p5(void *vp) {
 	return;
 }
 
-//void del_pid(string dirname,int pid)
 void del_pid(const char* dirname,int pid)
 {
   struct stat finfo;
   char* fname = (char*) calloc(FNAME_SIZE,sizeof(char));
   sprintf(fname,"%s/%d",dirname,pid);
-  //string fname = dirname + "/" + pid;
   if( stat( fname, &finfo) != 0)
   {
-    free(fname);
     return;
   }
   unlink(fname);
@@ -4335,13 +4311,12 @@ static int read_dir(const char* dirname,int* num_pids)
 }
 
 
-//static void steal_threads(int pid,int *cur_threads,tbb::task_group* tbb_grp)
-static void steal_threads(int pid,int *cur_threads,AutoArray<int>* tids,AutoArray<tthread::thread*>* threads)
+static void steal_threads(int pid,int *cur_threads,tbb::task_group* tbb_grp)
 {
     //from http://stackoverflow.com/questions/4586405/get-number-of-cpus-in-linux-using-c
     //int ncpu = sysconf(_SC_NPROCESSORS_ONLN);
     int ncpu = thread_ceiling;
-    if(thread_ceiling < nthreads)
+    if(thread_ceiling > nthreads)
     {
       printf("ERROR nthreads %d > thread_ceiling %d\n",nthreads,thread_ceiling);
       exit(-1);
@@ -4352,7 +4327,7 @@ static void steal_threads(int pid,int *cur_threads,AutoArray<int>* tids,AutoArra
       return;
     //printf("pid %d, # cpus %d,num pids=%d,cur threads %d\n",pid,ncpu,num_pids,*cur_threads);
     //int in_use = num_pids * (*cur_threads);
-    int in_use = ((num_pids-1)*nthreads) + (*cur_threads); //in_use is now baseline + ours
+    int in_use = ((num_pids-1)*nthreads) + *cur_threads; //in_use is now baseline + ours
     float spare = (ncpu - in_use)/((float) in_use);
     int spare_r = floor(spare);
     float r = rand() % 100/100.0;
@@ -4364,10 +4339,8 @@ static void steal_threads(int pid,int *cur_threads,AutoArray<int>* tids,AutoArra
     //printf("rand2 %.3f spare %.3f spare_r %d\n",r,spare,spare_r);
     if(spare_r > 0)
     {
-	    //tbb_grp->run(multiseedSearchWorker(++(*cur_threads)));
-      (*tids)[++(*cur_threads)] = *cur_threads;
-		  (*threads)[*cur_threads] = new tthread::thread(multiseedSearchWorker, (void*)&tids[*cur_threads]);
-      //printf("pid %d worker %d started\n",pid,*cur_threads);
+	    tbb_grp->run(multiseedSearchWorker(++(*cur_threads)));
+      printf("pid %d worker %d started\n",pid,*cur_threads);
     }
 }
 
@@ -4411,8 +4384,8 @@ static void multiseedSearch(
 #ifdef WITH_TBB
 	tbb::task_group tbb_grp;
 #else
-	AutoArray<tthread::thread*> threads(thread_ceiling+1);
-	AutoArray<int> tids(thread_ceiling+1);
+	AutoArray<tthread::thread*> threads(nthreads+1);
+	AutoArray<int> tids(nthreads+1);
 #endif
 	{
 		// Load the other half of the index into memory
@@ -4446,13 +4419,13 @@ static void multiseedSearch(
 	{
 		Timer _t(cerr, "Multiseed full-index search: ", timing);
 
+#ifdef WITH_TBB
     //srand(time(NULL));
     int pid = getpid();
     //printf("parent pid %d\n",pid);
     write_pid(pid_dir.c_str(),pid);
     thread_counter = 0;
 		for(int i = 1; i <= nthreads; i++) {
-#ifdef WITH_TBB
 			if(bowtie2p5) {
 				tbb_grp.run(multiseedSearchWorker_2p5(i));
 			} else {
@@ -4460,14 +4433,15 @@ static void multiseedSearch(
         printf("pid %d worker %d started\n",pid,i);
 			}
 		}
-    /*int cur_threads = nthreads;
+    int cur_threads = nthreads;
     sleep(5);
     while(thread_counter > 0)
     {
       steal_threads(pid,&cur_threads,&tbb_grp);
       sleep(60);
-    }*/
+    }
 		tbb_grp.wait();
+    del_pid(pid_dir.c_str(),pid);
 #else
 			// Thread IDs start at 1
 			tids[i] = i;
@@ -4477,19 +4451,10 @@ static void multiseedSearch(
 				threads[i] = new tthread::thread(multiseedSearchWorker, (void*)&tids[i]);
 			}
 		}
-    int cur_threads = nthreads;
-    sleep(5);
-    while(thread_counter > 0)
-    {
-      steal_threads(pid,&cur_threads,&tids,&threads);
-      sleep(60);
-    }
-		//for (int i = 1; i <= nthreads; i++) {
-		for (int i = 1; i <= cur_threads; i++) {
+		for (int i = 1; i <= nthreads; i++) {
 			threads[i]->join();
 		}
 #endif
-    del_pid(pid_dir.c_str(),pid);
 	}
 	if(!metricsPerRead && (metricsOfb != NULL || metricsStderr)) {
 		metrics.reportInterval(metricsOfb, metricsStderr, true, false, NULL);
