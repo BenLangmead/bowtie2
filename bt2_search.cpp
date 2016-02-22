@@ -64,7 +64,6 @@
 using namespace std;
 
 static tbb::atomic<int> thread_counter;
-static int FNAME_SIZE;
 
 static EList<string> mates1;  // mated reads (first mate)
 static EList<string> mates2;  // mated reads (second mate)
@@ -94,8 +93,6 @@ static bool solexaQuals;  // quality strings are solexa quals, not phred, and su
 static bool phred64Quals; // quality chars are phred, but must subtract 64 (not 33)
 static bool integerQuals; // quality strings are space-separated strings of integers, not ASCII
 static int nthreads;      // number of pthreads operating concurrently
-static int thread_ceiling;// maximum number of threads bowtie can ever use
-static string pid_dir;    // directory to store this process' pid and to look for other bt2 process's pids
 static int outType;       // style of output
 static bool noRefNames;   // true -> print reference indexes; not names
 static uint32_t khits;    // number of hits per read; >1 is much slower
@@ -285,9 +282,6 @@ static void resetOptions() {
 	phred64Quals			= false; // quality chars are phred, but must subtract 64 (not 33)
 	integerQuals			= false; // quality strings are space-separated strings of integers, not ASCII
 	nthreads				= 1;     // number of pthreads operating concurrently
-  thread_ceiling  = 1;     // maximum number of threads bowtie can ever use
-  pid_dir         = (secure_getenv("TMPDIR")?secure_getenv("TMPDIR"):"/tmp"); // directory to store this process' pid and to look for other bt2 process's pids
-  FNAME_SIZE = 200;
 	outType					= OUTPUT_SAM;  // style of output
 	noRefNames				= false; // true -> print reference indexes; not names
 	khits					= 1;     // number of hits per read; >1 is much slower
@@ -1066,9 +1060,6 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_WRAPPER: wrapper = arg; break;
 		case 'p':
 			nthreads = parseInt(1, "-p/--threads arg must be at least 1", arg);
-			break;
-		case 'T':
-			thread_ceiling = parseInt(1, "-T arg must be at least 1 and must be equal to or greater than -p/--threads", arg);
 			break;
 		case ARG_FILEPAR:
 			fileParallel = true;
@@ -4248,33 +4239,24 @@ static void multiseedSearchWorker_2p5(void *vp) {
 	return;
 }
 
-void del_pid(const char* dirname,int pid)
-{
-  struct stat finfo;
-  char* fname = (char*) calloc(FNAME_SIZE,sizeof(char));
-  sprintf(fname,"%s/%d",dirname,pid);
-  if( stat( fname, &finfo) != 0)
-  {
-    return;
-  }
-  unlink(fname);
-  free(fname);
-} 
-
 //from http://stackoverflow.com/questions/18100097/portable-way-to-check-if-directory-exists-windows-linux-c
-static void write_pid(const char* dirname,int pid)
+static void write_pid(const char* dir)
 {
   struct stat dinfo;
+  //std::string dirname = dir + "/bt2";
+  //char* dirname = strcat(dir,"/bt2");
+  char* dirname = (char*) calloc(100,sizeof(char));
+  int result = sprintf(dirname,"%s/bt2",dir);
   if( stat( dirname, &dinfo) != 0)
   { 
     mkdir(dirname,0755);
   }
   //std::string fname = dirname << "/bt2." << ::getpid();
-  char* fname = (char*) calloc(FNAME_SIZE,sizeof(char));
-  sprintf(fname,"%s/%d",dirname,pid);
+  int pid = getpid();
+  char* fname = (char*) calloc(200,sizeof(char));
+  result = sprintf(fname,"%s/%d",dirname,pid);
   FILE* f = fopen(fname,"w");
   fclose(f);
-  free(fname);
 }
 
 //from  http://stackoverflow.com/questions/612097/how-can-i-get-the-list-of-files-in-a-directory-using-c-or-c
@@ -4282,52 +4264,46 @@ static int read_dir(const char* dirname,int* num_pids)
 {
   DIR *dir;
   struct dirent *ent;
-  struct stat dinfo;
-  char* fname = (char*) calloc(FNAME_SIZE,sizeof(char));
-  int lowest_pid = -1;
   if ((dir = opendir (dirname)) != NULL) {
+     //print all the files and directories within directory
+    int lowest_pid = -1;
     while ((ent = readdir (dir)) != NULL) {
       if(ent->d_name[0] == '.')
         continue;
+      //printf ("%s\n", ent->d_name);
       int pid = atoi(ent->d_name);
-      sprintf(fname,"/proc/%s",ent->d_name);
-      if( stat( fname, &dinfo) != 0) //pid in /proc doesn't exist
-      {
-        printf("deleting residual pid\n");
-        del_pid(dirname,pid);
-        continue;
-      }
       (*num_pids)++;
       if(pid < lowest_pid || lowest_pid == -1)
         lowest_pid = pid;
     }
     closedir (dir);
+    return lowest_pid;
   } else {
      //could not open directory 
     perror ("");
+    return 1;
   }
-  free(fname);
-  return lowest_pid;
+  return 0;
 }
 
+void del_pid(char* dir)
+{
+  char* dirname = (char*) calloc(100,sizeof(char));
+  int result = sprintf(dirname,"%s/bt2",dir);
+  int pid = getpid();
+  char* fname = (char*) calloc(200,sizeof(char));
+  result = sprintf(fname,"%s/%d",dirname,pid);
+  unlink(fname);
+}
 
 static void steal_threads(int pid,int *cur_threads,tbb::task_group* tbb_grp)
 {
     //from http://stackoverflow.com/questions/4586405/get-number-of-cpus-in-linux-using-c
-    //int ncpu = sysconf(_SC_NPROCESSORS_ONLN);
-    int ncpu = thread_ceiling;
-    if(thread_ceiling > nthreads)
-    {
-      printf("ERROR nthreads %d > thread_ceiling %d\n",nthreads,thread_ceiling);
-      exit(-1);
-    }
+    int ncpu = sysconf(_SC_NPROCESSORS_ONLN);
     int num_pids = 0;
-    int lowest_pid = read_dir(pid_dir.c_str(),&num_pids);
-    if(lowest_pid != pid)
-      return;
+    int lowest_pid = read_dir("/tmp/bt2",&num_pids);
     //printf("pid %d, # cpus %d,num pids=%d,cur threads %d\n",pid,ncpu,num_pids,*cur_threads);
-    //int in_use = num_pids * (*cur_threads);
-    int in_use = ((num_pids-1)*nthreads) + *cur_threads; //in_use is now baseline + ours
+    int in_use = num_pids * (*cur_threads);
     float spare = (ncpu - in_use)/((float) in_use);
     int spare_r = floor(spare);
     float r = rand() % 100/100.0;
@@ -4337,6 +4313,7 @@ static void steal_threads(int pid,int *cur_threads,tbb::task_group* tbb_grp)
       spare_r = ceil(spare); 
     }
     //printf("rand2 %.3f spare %.3f spare_r %d\n",r,spare,spare_r);
+    //if(spare > 0 && pid == lowest_pid)
     if(spare_r > 0)
     {
 	    tbb_grp->run(multiseedSearchWorker(++(*cur_threads)));
@@ -4423,7 +4400,7 @@ static void multiseedSearch(
     //srand(time(NULL));
     int pid = getpid();
     //printf("parent pid %d\n",pid);
-    write_pid(pid_dir.c_str(),pid);
+    write_pid("/tmp");
     thread_counter = 0;
 		for(int i = 1; i <= nthreads; i++) {
 			if(bowtie2p5) {
@@ -4438,10 +4415,9 @@ static void multiseedSearch(
     while(thread_counter > 0)
     {
       steal_threads(pid,&cur_threads,&tbb_grp);
-      sleep(60);
     }
 		tbb_grp.wait();
-    del_pid(pid_dir.c_str(),pid);
+    del_pid("/tmp");
 #else
 			// Thread IDs start at 1
 			tids[i] = i;
