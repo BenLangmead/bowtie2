@@ -4365,8 +4365,7 @@ static void steal_threads(int pid,int *cur_threads,AutoArray<int>* tids,AutoArra
     if(spare_r > 0)
     {
 	    //tbb_grp->run(multiseedSearchWorker(++(*cur_threads)));
-      *cur_threads = (*cur_threads) + 1;
-      (*tids)[*cur_threads] = *cur_threads;
+      (*tids)[++(*cur_threads)] = *cur_threads;
 		  (*threads)[*cur_threads] = new tthread::thread(multiseedSearchWorker, (void*)&tids[*cur_threads]);
       //printf("pid %d worker %d started\n",pid,*cur_threads);
     }
