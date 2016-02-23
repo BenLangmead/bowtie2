@@ -214,7 +214,9 @@ public:
     
     ~KarkkainenBlockwiseSA()
     {
-#ifndef WITH_TBB
+#ifdef WITH_TBB
+		    tbb_grp.wait();
+#else
         if(_threads.size() > 0) {
             for (size_t tid = 0; tid < _threads.size(); tid++) {
                 _threads[tid]->join();
@@ -243,13 +245,17 @@ public:
     /**
      * Get the next suffix; compute the next bucket if necessary.
      */
-    virtual TIndexOffU nextSuffix() {
+    virtual TIndexOffU nextSuffix() 
+    {
         // Launch threads if not
-        if(this->_nthreads > 1) {
+        if(this->_nthreads > 1) 
+        {
 #ifdef WITH_TBB
-            if(!thread_group_started) {
+            if(!thread_group_started)
+            {
 #else
-            if(_threads.size() == 0) {
+            if(_threads.size() == 0) 
+            {
 #endif
                 _done.resize(_sampleSuffs.size() + 1);
                 _done.fill(false);
@@ -259,16 +265,17 @@ public:
                     _tparams.back().first = this;
                     _tparams.back().second = tid;
 #ifdef WITH_TBB
-	 	    tbb_grp.run(nextBlock_Worker((void*)&_tparams.back()));
-		}
-		tbb_grp.wait();
-		thread_group_started = true;
+	 	                tbb_grp.run(nextBlock_Worker((void*)&_tparams.back()));
+		            }
+		            //tbb_grp.wait();
+		            thread_group_started = true;
+            }
 #else
                     _threads.push_back(new tthread::thread(nextBlock_Worker, (void*)&_tparams.back()));
                 }
                 assert_eq(_threads.size(), (size_t)this->_nthreads);
-#endif
             }
+#endif
         }
         if(this->_itrPushedBackSuffix != OFF_MASK) {
             TIndexOffU tmp = this->_itrPushedBackSuffix;
@@ -284,8 +291,11 @@ public:
             if(this->_nthreads == 1) {
                 nextBlock((int)_cur);
                 _cur++;
-            } else {
-                while(!_done[this->_itrBucketIdx]) {
+            } 
+            else 
+            {
+                while(!_done[this->_itrBucketIdx]) 
+                {
 #if defined(_TTHREAD_WIN32_)
                     Sleep(1);
 #elif defined(_TTHREAD_POSIX_)
