@@ -209,7 +209,7 @@ public:
                           string base_fname = "",
                           ostream& __logger = cout) :
     InorderBlockwiseSA<TStr>(__text, __bucketSz, __sanityCheck, __passMemExc, __verbose, __logger),
-    _sampleSuffs(EBWTB_CAT), _nthreads(__nthreads), _itrBucketIdx(0), _cur(0), _dcV(__dcV), _dc(EBWTB_CAT), _built(false), _base_fname(base_fname), _bigEndian(currentlyBigEndian())
+    _sampleSuffs(EBWTB_CAT), _nthreads(__nthreads), _itrBucketIdx(0), _cur(0), _dcV(__dcV), _dc(EBWTB_CAT), _built(false), _base_fname(base_fname), _bigEndian(currentlyBigEndian()),thread_group_started(false)
     { _randomSrc.init(__seed); reset(); }
     
     ~KarkkainenBlockwiseSA()
@@ -260,8 +260,9 @@ public:
                 _done.resize(_sampleSuffs.size() + 1);
                 _done.fill(false);
                 _itrBuckets.resize(this->_nthreads);
+                _tparams.resize(this->_nthreads);
                 for(int tid = 0; tid < this->_nthreads; tid++) {
-                    _tparams.expand();
+                    //_tparams.expand();
                     _tparams.back().first = this;
                     _tparams.back().second = tid;
 #ifdef WITH_TBB
