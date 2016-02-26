@@ -213,7 +213,7 @@ public:
 #ifdef WITH_TBB
 ,thread_group_started(false)
 #endif
-    { _randomSrc.init(__seed); reset(); }
+    { _randomSrc.init(__seed); reset(); _done = new bool[_nthreads]; }
     
     ~KarkkainenBlockwiseSA()
     {
@@ -226,6 +226,7 @@ public:
                 delete _threads[tid];
             }
         }
+        delete [] _done;
 #endif
     }
     
@@ -260,8 +261,6 @@ public:
             if(_threads.size() == 0) 
             {
 #endif
-                _done.resize(_sampleSuffs.size() + 1);
-                _done.fill(false);
                 _itrBuckets.resize(this->_nthreads);
                 _tparams.resize(this->_nthreads);
                 for(int tid = 0; tid < this->_nthreads; tid++) {
@@ -300,7 +299,7 @@ public:
                 {
 #if defined(_TTHREAD_WIN32_)
                     Sleep(1);
-#elif defined(_TTHREAD_POSIX_) || defined(WITH_TBB)
+#else
                     const static timespec ts = {0, 1000000};  // 1 millisecond
                     nanosleep(&ts, NULL);
 #endif
@@ -478,7 +477,7 @@ private:
 #endif
     EList<pair<KarkkainenBlockwiseSA*, int> > _tparams;
     ELList<TIndexOffU>      _itrBuckets;  /// buckets
-    EList<bool>             _done;        /// is a block processed?
+    bool*             _done;        /// is a block processed?
 };
 
 
