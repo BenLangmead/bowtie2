@@ -209,7 +209,10 @@ public:
                           string base_fname = "",
                           ostream& __logger = cout) :
     InorderBlockwiseSA<TStr>(__text, __bucketSz, __sanityCheck, __passMemExc, __verbose, __logger),
-    _sampleSuffs(EBWTB_CAT), _nthreads(__nthreads), _itrBucketIdx(0), _cur(0), _dcV(__dcV), _dc(EBWTB_CAT), _built(false), _base_fname(base_fname), _bigEndian(currentlyBigEndian()),thread_group_started(false)
+    _sampleSuffs(EBWTB_CAT), _nthreads(__nthreads), _itrBucketIdx(0), _cur(0), _dcV(__dcV), _dc(EBWTB_CAT), _built(false), _base_fname(base_fname), _bigEndian(currentlyBigEndian())
+#ifdef WITH_TBB
+,thread_group_started(false)
+#endif
     { _randomSrc.init(__seed); reset(); }
     
     ~KarkkainenBlockwiseSA()
@@ -262,17 +265,15 @@ public:
                 _itrBuckets.resize(this->_nthreads);
                 _tparams.resize(this->_nthreads);
                 for(int tid = 0; tid < this->_nthreads; tid++) {
-                    //_tparams.expand();
                     _tparams[tid].first = this;
                     _tparams[tid].second = tid;
 #ifdef WITH_TBB
 	 	                tbb_grp.run(nextBlock_Worker((void*)&_tparams[tid]));
 		            }
-		            //tbb_grp.wait();
 		            thread_group_started = true;
             }
 #else
-                    _threads.push_back(new tthread::thread(nextBlock_Worker, (void*)&_tparams.back()));
+                    _threads.push_back(new tthread::thread(nextBlock_Worker, (void*)&_tparams[tid]));
                 }
                 assert_eq(_threads.size(), (size_t)this->_nthreads);
             }
@@ -681,17 +682,17 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
         AutoArray<tthread::thread*> threads(this->_nthreads);
 #endif
         EList<BinarySortingParam<TStr> > tparams;
+        tparams.resize(this->_nthreads);
         for(int tid = 0; tid < this->_nthreads; tid++) {
             // Calculate bucket sizes by doing a binary search for each
             // suffix and noting where it lands
-            tparams.expand();
             try {
                 // Allocate and initialize containers for holding bucket
                 // sizes and representatives.
-                tparams.back().bucketSzs.resizeExact(numBuckets);
-                tparams.back().bucketReps.resizeExact(numBuckets);
-                tparams.back().bucketSzs.fillZero();
-                tparams.back().bucketReps.fill(OFF_MASK);
+                tparams[tid].bucketSzs.resizeExact(numBuckets);
+                tparams[tid].bucketReps.resizeExact(numBuckets);
+                tparams[tid].bucketSzs.fillZero();
+                tparams[tid].bucketReps.fill(OFF_MASK);
             } catch(bad_alloc &e) {
                 if(this->_passMemExc) {
                     throw e; // rethrow immediately
@@ -702,20 +703,20 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
                     throw 1;
                 }
             }
-            tparams.back().t = &t;
-            tparams.back().sampleSuffs = &_sampleSuffs;
-            tparams.back().begin = (tid == 0 ? 0 : len / this->_nthreads * tid);
-            tparams.back().end = (tid + 1 == this->_nthreads ? len : len / this->_nthreads * (tid + 1));
+            tparams[tid].t = &t;
+            tparams[tid].sampleSuffs = &_sampleSuffs;
+            tparams[tid].begin = (tid == 0 ? 0 : len / this->_nthreads * tid);
+            tparams[tid].end = (tid + 1 == this->_nthreads ? len : len / this->_nthreads * (tid + 1));
             if(this->_nthreads == 1) {
-                BinarySorting_worker<TStr>((void*)&tparams.back());
+                BinarySorting_worker<TStr>((void*)&tparams[tid]);
             } else {
 #ifdef WITH_TBB
-			tbb_grp.run(BinarySorting_worker<TStr>(((void*)&tparams.back())));
-		   }
+        			tbb_grp.run(BinarySorting_worker<TStr>(((void*)&tparams[tid])));
+		        }
         }
-	tbb_grp.wait();
+      	tbb_grp.wait();
 #else
-                threads[tid] = new tthread::thread(BinarySorting_worker<TStr>, (void*)&tparams.back());
+             threads[tid] = new tthread::thread(BinarySorting_worker<TStr>, (void*)&tparams[tid]);
             }
         }
         
