@@ -263,10 +263,10 @@ public:
                 _tparams.resize(this->_nthreads);
                 for(int tid = 0; tid < this->_nthreads; tid++) {
                     //_tparams.expand();
-                    _tparams.back().first = this;
-                    _tparams.back().second = tid;
+                    _tparams[tid].first = this;
+                    _tparams[tid].second = tid;
 #ifdef WITH_TBB
-	 	                tbb_grp.run(nextBlock_Worker((void*)&_tparams.back()));
+	 	                tbb_grp.run(nextBlock_Worker((void*)&_tparams[tid]));
 		            }
 		            //tbb_grp.wait();
 		            thread_group_started = true;
