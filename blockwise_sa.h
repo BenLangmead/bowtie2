@@ -300,7 +300,7 @@ public:
                 {
 #if defined(_TTHREAD_WIN32_)
                     Sleep(1);
-#elif defined(_TTHREAD_POSIX_)
+#elif defined(_TTHREAD_POSIX_) || defined(WITH_TBB)
                     const static timespec ts = {0, 1000000};  // 1 millisecond
                     nanosleep(&ts, NULL);
 #endif
