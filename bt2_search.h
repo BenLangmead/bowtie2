@@ -23,6 +23,7 @@
 
 #include <tbb/tbb.h>
 #include <tbb/task_group.h>
+#include <tbb/atomic.h>
 
 class multiseedSearchWorker {
 	int tid;
