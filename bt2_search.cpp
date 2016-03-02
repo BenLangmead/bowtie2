@@ -69,9 +69,6 @@ using namespace std;
 static int thread_counter;
 static MUTEX_T thread_counter_mutex; 
 static int FNAME_SIZE;
-/*tthread::thread* additional_threads[200];
-int additional_tids[200];
-int num_additional_threads;*/
 
 static EList<string> mates1;  // mated reads (first mate)
 static EList<string> mates2;  // mated reads (second mate)
@@ -3019,7 +3016,7 @@ static void multiseedSearchWorker(void *vp) {
 			{
 				// Do a periodic merge.  Update global metrics, in a
 				// synchronized manner if needed.
-				MERGE_METRICS(metrics, nthreads > 1);
+				MERGE_METRICS(metrics, nthreads > 0);
 				mergei = 0;
 				// Check if a progress message should be printed
 				if(tid == 0) {
@@ -3912,7 +3909,7 @@ static void multiseedSearchWorker(void *vp) {
 			break;
 		}
 		if(metricsPerRead) {
-			MERGE_METRICS(metricsPt, nthreads > 1);
+			MERGE_METRICS(metricsPt, nthreads > 0);
 			nametmp = ps->bufa().name;
 			metricsPt.reportInterval(
 				metricsOfb, metricsStderr, true, true, &nametmp);
@@ -3921,7 +3918,7 @@ static void multiseedSearchWorker(void *vp) {
 	} // while(true)
 	
 	// One last metrics merge
-	MERGE_METRICS(metrics, nthreads > 1);
+	MERGE_METRICS(metrics, nthreads > 0);
 	
 	if(dpLog    != NULL) dpLog->close();
 	if(dpLogOpp != NULL) dpLogOpp->close();
@@ -4086,7 +4083,7 @@ static void multiseedSearchWorker_2p5(void *vp) {
 			{
 				// Do a periodic merge.  Update global metrics, in a
 				// synchronized manner if needed.
-				MERGE_METRICS(metrics, nthreads > 1);
+				MERGE_METRICS(metrics, nthreads > 0);
 				mergei = 0;
 				// Check if a progress message should be printed
 				if(tid == 0) {
@@ -4260,7 +4257,7 @@ static void multiseedSearchWorker_2p5(void *vp) {
 			break;
 		}
 		if(metricsPerRead) {
-			MERGE_METRICS(metricsPt, nthreads > 1);
+			MERGE_METRICS(metricsPt, nthreads > 0);
 			nametmp = ps->bufa().name;
 			metricsPt.reportInterval(
 				metricsOfb, metricsStderr, true, true, &nametmp);
@@ -4269,13 +4266,13 @@ static void multiseedSearchWorker_2p5(void *vp) {
 	} // while(true)
 	
 	// One last metrics merge
-	MERGE_METRICS(metrics, nthreads > 1);
+	MERGE_METRICS(metrics, nthreads > 0);
 
 	return;
 }
 
 //void del_pid(string dirname,int pid)
-/*
+
 void del_pid(const char* dirname,int pid)
 {
   struct stat finfo;
@@ -4323,7 +4320,7 @@ static int read_dir(const char* dirname,int* num_pids)
       sprintf(fname,"/proc/%s",ent->d_name);
       if( stat( fname, &dinfo) != 0) //pid in /proc doesn't exist
       {
-        fprintf(stderr,"deleting residual pid\n");
+        //fprintf(stderr,"deleting residual pid\n");
         //del_pid(dirname,pid);
         continue;
       }
@@ -4338,7 +4335,7 @@ static int read_dir(const char* dirname,int* num_pids)
   }
   free(fname);
   return lowest_pid;
-}*/
+}
 
 static int ps_pids(int* num_pids)
 {
@@ -4361,12 +4358,15 @@ static int ps_pids(int* num_pids)
   return lowest_pid;
 }
 
-//static void steal_threads(int pid,int *cur_threads,tbb::task_group* tbb_grp)
-static void steal_threads(int pid,int *cur_threads,AutoArray<int>* tids,AutoArray<tthread::thread*>* threads)
+#ifdef WITH_TBB
+static void steal_threads(int pid,int *cur_threads_,tbb::task_group* tbb_grp)
+#else
+static void steal_threads(int pid,int *cur_threads_,AutoArray<int>* tids,AutoArray<tthread::thread*>* threads)
+#endif
 {
+    int* cur_threads = &nthreads;
     fprintf(stderr,"entering steal_threads\n");
     //from http://stackoverflow.com/questions/4586405/get-number-of-cpus-in-linux-using-c
-    //int ncpu = sysconf(_SC_NPROCESSORS_ONLN);
     int ncpu = thread_ceiling;
     if(thread_ceiling < nthreads)
     {
@@ -4375,15 +4375,12 @@ static void steal_threads(int pid,int *cur_threads,AutoArray<int>* tids,AutoArra
     }
     fprintf(stderr,"steal_threads before read_dir\n");
     int num_pids = 0;
-    //int lowest_pid = read_dir(pid_dir.c_str(),&num_pids);
-    int lowest_pid = ps_pids(&num_pids);
+    int lowest_pid = read_dir(pid_dir.c_str(),&num_pids);
+    //int lowest_pid = ps_pids(&num_pids);
     if(lowest_pid != pid)
       return;
     fprintf(stderr,"pid %d, # cpus %d,num pids=%d,cur threads %d\n",pid,ncpu,num_pids,*cur_threads);
-    //int in_use = num_pids * (*cur_threads);
-    //int in_use = ((num_pids-1) * nthreads) + (*cur_threads) + num_additional_threads; //in_use is now baseline + ours
-    int in_use = ((num_pids-1) * nthreads) + (*cur_threads); //in_use is now baseline + ours
-    //float spare = (ncpu - in_use)/((float) in_use);
+    int in_use = ((num_pids-1) * (*cur_threads_)) + nthreads; //in_use is now baseline + ours
     float spare = ncpu - in_use;
     int spare_r = floor(spare);
     float r = rand() % 100/100.0;
@@ -4395,16 +4392,13 @@ static void steal_threads(int pid,int *cur_threads,AutoArray<int>* tids,AutoArra
     fprintf(stderr,"rand2 %.3f spare %.3f spare_r %d\n",r,spare,spare_r);
     if(spare_r > 0)
     {
-	    //tbb_grp->run(multiseedSearchWorker(++(*cur_threads)));
       *cur_threads = (*cur_threads) + 1;
+#ifdef WITH_TBB
+		  tbb_grp->run(multiseedSearchWorker(*cur_threads));
+#else
       (*tids)[*cur_threads] = *cur_threads;
-      //int tid = *cur_threads;
-		  //(*threads)[*cur_threads] = new tthread::thread(multiseedSearchWorker, (void*)&((*tids)[*cur_threads]));
 		  (*threads)[*cur_threads] = new tthread::thread(multiseedSearchWorker, (void*)&((*tids)[*cur_threads]));
-      /*num_additional_threads++;
-      additional_threads[num_additional_threads] = new tthread::thread(multiseedSearchWorker, (void*)&num_additional_threads);
-      additional_tids[num_additional_threads] = num_additional_threads;
-      //fprintf(stderr,"pid %d worker %d started\n",pid,(*cur_threads) + num_additional_threads);*/
+#endif
       fprintf(stderr,"pid %d worker %d started\n",pid,*cur_threads);
     }
 }
@@ -4421,27 +4415,23 @@ static char* get_time()
   //printf ( "Current local time and date: %s", asctime (timeinfo) );
 }
 
-struct monitor_args
-{
-  int pid;
-  int* cur_threads;
-  AutoArray<int>* tids; 
-  AutoArray<tthread::thread*>* threads;
-};
-
-
+#ifdef WITH_TBB
+static void thread_monitor(int pid,int *cur_threads,tbb::task_group* tbb_grp)
+#else
 static void thread_monitor(int pid,int *cur_threads,AutoArray<int>* tids,AutoArray<tthread::thread*>* threads)
-//static void thread_monitor(void* args)
+#endif
 {
-      //struct monitor_args* a = (struct monitor_args*) args;
       fprintf(stderr,"running on AWS EMR: turning on thread stealing\n");
       sleep(10);
       int steal_ctr = 1;
       while(thread_counter > 0)
       {
         fprintf(stderr,"before steal_threads is called %d %d\n",thread_counter,steal_ctr);
-        //steal_threads(a->pid,a->cur_threads,a->tids,a->threads);
+#ifdef WITH_TBB
+        steal_threads(pid,cur_threads,tbb_grp);
+#else
         steal_threads(pid,cur_threads,tids,threads);
+#endif
         steal_ctr++;
         for(int j=0;j<2;j++)
         {
@@ -4526,12 +4516,9 @@ static void multiseedSearch(
 	{
 		Timer _t(cerr, "Multiseed full-index search: ", timing);
 
-    //srand(time(NULL));
     int pid = getpid();
-    //fprintf(stderr,"parent pid %d\n",pid);
-    //write_pid(pid_dir.c_str(),pid);
+    write_pid(pid_dir.c_str(),pid);
     thread_counter = 0;
-    //num_additional_threads = 0;
 		for(int i = 1; i <= nthreads; i++) {
 #ifdef WITH_TBB
 			if(bowtie2p5) {
@@ -4541,14 +4528,6 @@ static void multiseedSearch(
         fprintf(stderr,"pid %d worker %d started\n",pid,i);
 			}
 		}
-    /*int cur_threads = nthreads;
-    sleep(5);
-    while(thread_counter > 0)
-    {
-      steal_threads(pid,&cur_threads,&tbb_grp);
-      sleep(60);
-    }*/
-		tbb_grp.wait();
 #else
 			// Thread IDs start at 1
 			tids[i] = i;
@@ -4558,31 +4537,31 @@ static void multiseedSearch(
 				threads[i] = new tthread::thread(multiseedSearchWorker, (void*)&tids[i]);
 			}
 		}
-    int cur_threads = nthreads;
+#endif
+    int orig_threads = nthreads;
+    int* cur_threads = &nthreads;
     char* fname = (char*) calloc(FNAME_SIZE,sizeof(char));
     sprintf(fname,"/mnt/var/lib/info/instance.json");
     struct stat finfo;
     fprintf(stderr,"before instance.json check\n");
-    //tthread::thread* mthread;
     if( stat( fname, &finfo) == 0) //check if we're running on AWS EMR
     {
-        thread_monitor(pid,&cur_threads,&tids,&threads);
-        /*struct monitor_args args;
-        args.pid = pid;
-        args.cur_threads = &cur_threads;
-        args.tids = &tids;
-        args.threads = &threads;
-        mthread = new tthread::thread(thread_monitor, (void *)&args);*/
+#ifdef WITH_TBB
+        thread_monitor(pid,&orig_threads,&tbb_grp);
+#else
+        thread_monitor(pid,&orig_threads,&tids,&threads);
+#endif
     }
-		//for (int i = 1; i <= nthreads; i++) {
-		for (int i = 1; i <= cur_threads; i++) {
+#ifdef WITH_TBB
+		tbb_grp.wait();
+#else
+		//for (int i = 1; i <= *cur_threads; i++) {
+		for (int i = 1; i <= nthreads; i++) {
+		//for (int i = 1; i <= orig_threads; i++) {
 			threads[i]->join();
 		}
-		/*for (int i = 1; i <= num_additional_threads; i++) {
-			additional_threads[i]->join();
-		}*/
-    free(fname);
 #endif
+    free(fname);
     //del_pid(pid_dir.c_str(),pid);
 	}
 	if(!metricsPerRead && (metricsOfb != NULL || metricsStderr)) {
@@ -4717,9 +4696,9 @@ static void driver(
 	}
 	OutputQueue oq(
 		*fout,                   // out file buffer
-		reorder && nthreads > 1, // whether to reorder when there's >1 thread
+		reorder && nthreads > 0, // whether to reorder when there's >1 thread
 		nthreads,                // # threads
-		nthreads > 1,            // whether to be thread-safe
+		nthreads > 0,            // whether to be thread-safe
 		skipReads);              // first read will have this rdid
 	{
 		Timer _t(cerr, "Time searching: ", timing);
