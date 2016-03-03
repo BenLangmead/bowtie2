@@ -65,10 +65,13 @@
 
 using namespace std;
 
-//static tbb::atomic<int> thread_counter;
+static int FNAME_SIZE;
+#ifdef WITH_TBB
+static tbb::atomic<int> thread_counter;
+#else
 static int thread_counter;
 static MUTEX_T thread_counter_mutex; 
-static int FNAME_SIZE;
+#endif
 
 static EList<string> mates1;  // mated reads (first mate)
 static EList<string> mates2;  // mated reads (second mate)
@@ -290,7 +293,7 @@ static void resetOptions() {
 	integerQuals			= false; // quality strings are space-separated strings of integers, not ASCII
 	nthreads				= 1;     // number of pthreads operating concurrently
   thread_ceiling  = (sysconf(_SC_NPROCESSORS_ONLN)-2 >= 1?sysconf(_SC_NPROCESSORS_ONLN)-2:1);     // maximum number of threads bowtie can ever use
-  pid_dir         = "/tmp/bt2_pids-atcqqqrn"; //(secure_getenv("TMPDIR")?secure_getenv("TMPDIR"):"/tmp"); // directory to store this process' pid and to look for other bt2 process's pids
+  pid_dir         = "/tmp/bt2_pids-anellore"; //(secure_getenv("TMPDIR")?secure_getenv("TMPDIR"):"/tmp"); // directory to store this process' pid and to look for other bt2 process's pids
   FNAME_SIZE = 200;
 	outType					= OUTPUT_SAM;  // style of output
 	noRefNames				= false; // true -> print reference indexes; not names
@@ -2802,14 +2805,22 @@ void get_cpu_and_node(int& cpu, int& node) {
 
 void increment_thread_counter()
 {
+#ifdef WITH_TBB
+  thread_counter.fetch_and_increment();
+#else
   ThreadSafe ts(&thread_counter_mutex);
   thread_counter++;
+#endif
 }
 
 void decrement_thread_counter()
 {
+#ifdef WITH_TBB
+  thread_counter.fetch_and_decrement();
+#else
   ThreadSafe ts(&thread_counter_mutex);
   thread_counter--;
+#endif
 }
 
 
@@ -3930,7 +3941,6 @@ static void multiseedSearchWorker(void *vp) {
 	   << "thread: " << tid << " node_changeovers: " << nnuma_changeovers << std::endl;
 	std::cout << ss.str();
 #endif
-  //thread_counter.fetch_and_decrement();
   decrement_thread_counter();
 
 	return;
@@ -4271,8 +4281,6 @@ static void multiseedSearchWorker_2p5(void *vp) {
 	return;
 }
 
-//void del_pid(string dirname,int pid)
-
 void del_pid(const char* dirname,int pid)
 {
   struct stat finfo;
@@ -4321,6 +4329,9 @@ static int read_dir(const char* dirname,int* num_pids)
       if( stat( fname, &dinfo) != 0) //pid in /proc doesn't exist
       {
         //fprintf(stderr,"deleting residual pid\n");
+        //deleting pids can lead to race conditions if
+        //2 or more BT2 processes both try to delete
+        //so just skip instead
         //del_pid(dirname,pid);
         continue;
       }
@@ -4337,6 +4348,8 @@ static int read_dir(const char* dirname,int* num_pids)
   return lowest_pid;
 }
 
+//alternative to read/writing pids is to use ps
+//however not as portable
 static int ps_pids(int* num_pids)
 {
   string ps_cmd = "ps -e -o pid,command | grep [b]owtie2-align | egrep -v -e \"sh -c\"";
@@ -4359,12 +4372,12 @@ static int ps_pids(int* num_pids)
 }
 
 #ifdef WITH_TBB
-static void steal_threads(int pid,int *cur_threads_,tbb::task_group* tbb_grp)
+static void steal_threads(int pid,int *orig_nthreads,tbb::task_group* tbb_grp)
 #else
-static void steal_threads(int pid,int *cur_threads_,AutoArray<int>* tids,AutoArray<tthread::thread*>* threads)
+static void steal_threads(int pid,int *orig_nthreads,AutoArray<int>* tids,AutoArray<tthread::thread*>* threads)
 #endif
 {
-    int* cur_threads = &nthreads;
+    //int* cur_threads = &nthreads;
     fprintf(stderr,"entering steal_threads\n");
     //from http://stackoverflow.com/questions/4586405/get-number-of-cpus-in-linux-using-c
     int ncpu = thread_ceiling;
@@ -4379,8 +4392,8 @@ static void steal_threads(int pid,int *cur_threads_,AutoArray<int>* tids,AutoArr
     //int lowest_pid = ps_pids(&num_pids);
     if(lowest_pid != pid)
       return;
-    fprintf(stderr,"pid %d, # cpus %d,num pids=%d,cur threads %d\n",pid,ncpu,num_pids,*cur_threads);
-    int in_use = ((num_pids-1) * (*cur_threads_)) + nthreads; //in_use is now baseline + ours
+    fprintf(stderr,"pid %d, # cpus %d,num pids=%d,cur threads %d\n",pid,ncpu,num_pids,nthreads);
+    int in_use = ((num_pids-1) * (*orig_nthreads)) + nthreads; //in_use is now baseline + ours
     float spare = ncpu - in_use;
     int spare_r = floor(spare);
     float r = rand() % 100/100.0;
@@ -4392,14 +4405,14 @@ static void steal_threads(int pid,int *cur_threads_,AutoArray<int>* tids,AutoArr
     fprintf(stderr,"rand2 %.3f spare %.3f spare_r %d\n",r,spare,spare_r);
     if(spare_r > 0)
     {
-      *cur_threads = (*cur_threads) + 1;
+      nthreads++;
 #ifdef WITH_TBB
-		  tbb_grp->run(multiseedSearchWorker(*cur_threads));
+		  tbb_grp->run(multiseedSearchWorker(nthreads));
 #else
-      (*tids)[*cur_threads] = *cur_threads;
-		  (*threads)[*cur_threads] = new tthread::thread(multiseedSearchWorker, (void*)&((*tids)[*cur_threads]));
+      (*tids)[nthreads] = nthreads;
+		  (*threads)[nthreads] = new tthread::thread(multiseedSearchWorker, (void*)&((*tids)[nthreads]));
 #endif
-      fprintf(stderr,"pid %d worker %d started\n",pid,*cur_threads);
+      fprintf(stderr,"pid %d worker %d started\n",pid,nthreads);
     }
 }
 
@@ -4416,9 +4429,9 @@ static char* get_time()
 }
 
 #ifdef WITH_TBB
-static void thread_monitor(int pid,int *cur_threads,tbb::task_group* tbb_grp)
+static void thread_monitor(int pid,int *orig_threads,tbb::task_group* tbb_grp)
 #else
-static void thread_monitor(int pid,int *cur_threads,AutoArray<int>* tids,AutoArray<tthread::thread*>* threads)
+static void thread_monitor(int pid,int *orig_threads,AutoArray<int>* tids,AutoArray<tthread::thread*>* threads)
 #endif
 {
       fprintf(stderr,"running on AWS EMR: turning on thread stealing\n");
@@ -4426,11 +4439,11 @@ static void thread_monitor(int pid,int *cur_threads,AutoArray<int>* tids,AutoArr
       int steal_ctr = 1;
       while(thread_counter > 0)
       {
-        fprintf(stderr,"before steal_threads is called %d %d\n",thread_counter,steal_ctr);
+        //fprintf(stderr,"before steal_threads is called %d %d\n",thread_counter,steal_ctr);
 #ifdef WITH_TBB
-        steal_threads(pid,cur_threads,tbb_grp);
+        steal_threads(pid,orig_threads,tbb_grp);
 #else
-        steal_threads(pid,cur_threads,tids,threads);
+        steal_threads(pid,orig_threads,tids,threads);
 #endif
         steal_ctr++;
         for(int j=0;j<2;j++)
@@ -4481,8 +4494,8 @@ static void multiseedSearch(
 #ifdef WITH_TBB
 	tbb::task_group tbb_grp;
 #else
-	AutoArray<tthread::thread*> threads(thread_ceiling+2);
-	AutoArray<int> tids(thread_ceiling+2);
+	AutoArray<tthread::thread*> threads(thread_ceiling+1);
+	AutoArray<int> tids(thread_ceiling+1);
 #endif
 	{
 		// Load the other half of the index into memory
@@ -4539,8 +4552,9 @@ static void multiseedSearch(
 		}
 #endif
     int orig_threads = nthreads;
-    int* cur_threads = &nthreads;
     char* fname = (char*) calloc(FNAME_SIZE,sizeof(char));
+    //check to see if we're running on EMR, if so we want to enable
+    //multi-process dynamic thread additions
     sprintf(fname,"/mnt/var/lib/info/instance.json");
     struct stat finfo;
     fprintf(stderr,"before instance.json check\n");
@@ -4556,13 +4570,15 @@ static void multiseedSearch(
 		tbb_grp.wait();
 #else
 		//for (int i = 1; i <= *cur_threads; i++) {
+    //nthreads is getting dynamically modified to 
+    //increase to the number new threads upto and including
+    //the thread_ceiling
 		for (int i = 1; i <= nthreads; i++) {
-		//for (int i = 1; i <= orig_threads; i++) {
 			threads[i]->join();
 		}
 #endif
     free(fname);
-    //del_pid(pid_dir.c_str(),pid);
+    del_pid(pid_dir.c_str(),pid);
 	}
 	if(!metricsPerRead && (metricsOfb != NULL || metricsStderr)) {
 		metrics.reportInterval(metricsOfb, metricsStderr, true, false, NULL);
