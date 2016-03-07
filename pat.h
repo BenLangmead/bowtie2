@@ -149,7 +149,9 @@ public:
 		doLocking_(true),
 		mutex()
 	{
+#ifdef WITH_COHORTLOCK
 		mutex.reset_lock(p.nthreads);
+#endif
 	}
 
 	virtual ~PatternSource() { }
@@ -256,7 +258,9 @@ class PairedPatternSource {
 public:
 	PairedPatternSource(const PatternParams& p) : mutex_m(), seed_(p.seed) 
 	{
+#ifdef WITH_COHORTLOCK
 		mutex_m.reset_lock(p.nthreads);
+#endif
 	}
 	virtual ~PairedPatternSource() { }
 

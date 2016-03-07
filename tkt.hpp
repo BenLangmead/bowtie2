@@ -11,6 +11,7 @@ class TKTLock
 public:
 	TKTLock()
 	{
+		printf("TKTLock initialized\n");
 		request=0;
 		grant=0;
 	}

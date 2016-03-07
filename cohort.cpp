@@ -7,7 +7,7 @@
 		this->id=0;
 		local_lock = new MUTEX_L();
 		local_counter = 0;
-#if WITH_QUEUELOCK
+#if WITH_QUEUELOCK_
 		last_scoped_lock = NULL;
 #endif
 	}
@@ -34,7 +34,7 @@
 		local_counter.fetch_and_increment();
 		//actually attempt to acquire lock
 		assert(local_lock!=NULL);
-#if WITH_QUEUELOCK
+#if WITH_QUEUELOCK_
 		MUTEX_L::scoped_lock* temp_ = new MUTEX_L::scoped_lock(*(local_lock));
 		//now that lock is acquired update the pointer to the current held lock
 		//for unlocking and destructing
@@ -48,7 +48,7 @@
 
 	void LocalLock::unlock()
 	{
-#if WITH_QUEUELOCK
+#if WITH_QUEUELOCK_
 		if(last_scoped_lock)
 			delete last_scoped_lock;
 #else
@@ -97,7 +97,7 @@
 
 	void CohortLock::reset_lock(int nthreads)
 	{
-#if not WITH_QUEUELOCK
+#if not WITH_QUEUELOCK_
 		global_lock->reset_lock(nthreads);
 #endif
 	}
