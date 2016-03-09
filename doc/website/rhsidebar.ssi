@@ -157,10 +157,12 @@
       <li style="font-size: x-small; line-height: 130%">Langmead B, Trapnell C, Pop M, Salzberg SL. <a href="http://genomebiology.com/2009/10/3/R25"><b>Ultrafast and memory-efficient alignment of short DNA sequences to the human genome</b></a>. <i><a href="http://genomebiology.com">Genome Biology</a></i> <b>10</b>:R25.<br/><br/></li>
     </ul>
   </div>
-  <h2>Author</h2>
+  <h2>Contributors</h2>
   <div class="box">
     <ul>
       <li><a href="http://www.cs.jhu.edu/~langmea/index.shtml">Ben Langmead</a></li>
+      <li>Valentin Antonescu</li>
+      <li>Chris Wilks</li>
     </ul>
   </div>
   <h2>Other Documentation</h2>
