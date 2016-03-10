@@ -210,7 +210,11 @@ GENERAL_LIST = $(wildcard scripts/*.sh) \
 
 ifeq (1,$(WINDOWS))
 	BOWTIE2_BIN_LIST := $(BOWTIE2_BIN_LIST) bowtie2.bat bowtie2-build.bat bowtie2-inspect.bat 
-	override EXTRA_FLAGS += -static-libgcc -static-libstdc++
+    ifeq (1,$(WITH_TBB)) 
+	    override EXTRA_FLAGS += -static-libgcc -static-libstdc++
+	else
+	    override EXTRA_FLAGS += -static -static-libgcc -static-libstdc++
+	endif
 endif
 
 # This is helpful on Windows under MinGW/MSYS, where Make might go for
