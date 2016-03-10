@@ -16,6 +16,12 @@ Please report any issues using the Sourceforge bug tracker:
 Version Release History
 =======================
 
+Version 2.2.8 - Mar 10, 2016
+   * Various website updates.
+   * Fixed the bowtie2-build issue that made TBB compilation fail.
+   * Fixed the static build for Win32 platform.
+   
+
 Version 2.2.7 - Feb 10, 2016
    * Added a parallel index build option: bowtie2-build --threads <# threads>.
    * Fixed an issue whereby IUPAC codes (other than A/C/G/T/N) in reads were
