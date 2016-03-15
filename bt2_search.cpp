@@ -2791,7 +2791,7 @@ void get_cpu_and_node(int& cpu, int& node) {
  * - 
  */
 #ifdef WITH_TBB
-void multiseedSearchWorker::operator()() {
+void multiseedSearchWorker::operator()() const {
 #else
 static void multiseedSearchWorker(void *vp) {
 	int tid = *((int*)vp);
@@ -3895,7 +3895,7 @@ static void multiseedSearchWorker(void *vp) {
 }
 
 #ifdef WITH_TBB
-void multiseedSearchWorker_2p5::operator()() {
+void multiseedSearchWorker_2p5::operator()() const {
 #else
 static void multiseedSearchWorker_2p5(void *vp) {
 	int tid = *((int*)vp);
