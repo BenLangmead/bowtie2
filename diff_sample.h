@@ -696,7 +696,7 @@ public:
 
 	VSorting_worker(const VSorting_worker& W): vp(W.vp) {};
 	VSorting_worker(void *vp_):vp(vp_) {};
-	void operator()() 
+	void operator()() const
 	{
 #else
 static void VSorting_worker(void *vp)

@@ -350,7 +350,7 @@ public:
 
     nextBlock_Worker(const nextBlock_Worker& W): vp(W.vp) {};
     nextBlock_Worker(void *vp_):vp(vp_) {}; 
-    void operator()() {
+    void operator()() const {
 #else
     static void nextBlock_Worker(void *vp) {
 #endif
@@ -558,7 +558,7 @@ public:
 
 	BinarySorting_worker(const BinarySorting_worker& W): vp(W.vp) {};
 	BinarySorting_worker(void *vp_):vp(vp_) {};
-	void operator()() 
+	void operator()() const
 	{
 #else
 static void BinarySorting_worker(void *vp)
