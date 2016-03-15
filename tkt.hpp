@@ -11,7 +11,7 @@ class TKTLock
 public:
 	TKTLock()
 	{
-		printf("TKTLock initialized\n");
+		//printf("TKTLock initialized\n");
 		request=0;
 		grant=0;
 	}
@@ -19,7 +19,8 @@ public:
 	void lock()
 	{
 		//printf("lock %p b4 request:%u grant:%u\n",this,request,grant);
-		uint64_t my_request = request.fetch_and_increment();
+		uint64_t volatile my_request = request.fetch_and_increment();
+		//request.fetch_and_increment();
 		//printf("lock %p mid request:%u my_request:%d grant:%u\n",this,request,my_request,grant);
 		while(my_request != grant)
 		{

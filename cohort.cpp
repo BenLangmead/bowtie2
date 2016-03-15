@@ -72,7 +72,7 @@
 		local_locks = new LocalLock [num_numa_nodes];
 		lock_called = new int [num_numa_nodes];
 		lock_released = new int [num_numa_nodes];
-		int i = 0;
+		uint64_t i = 0;
 		for(i=0;i<num_numa_nodes;i++)
 		{
 			local_locks[i].set_id(i+1);
@@ -82,11 +82,11 @@
 	
 	CohortLock::~CohortLock()
 	{
-		int i=0;
+		/*uint64_t i=0;
 		for(i=0;i<num_numa_nodes;i++)
 		{
 			printf("thread: %p lock calls/releases for %d numa node: %d/%d\n",this,i,lock_called[i],lock_released[i]);
-		} 
+		}*/
 		delete[] starvation_counters;
 		delete[] own_global;
 		delete[] local_locks;
