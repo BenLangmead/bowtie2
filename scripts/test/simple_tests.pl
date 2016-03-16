@@ -36,12 +36,10 @@ use Test::Deep;
 
 my $bowtie2 = "";
 my $bowtie2_build = "";
-my $skipColor = 1;
 
 GetOptions(
 	"bowtie2=s"       => \$bowtie2,
-	"bowtie2-build=s" => \$bowtie2_build,
-	"skip-color"      => \$skipColor) || die "Bad options";
+	"bowtie2-build=s" => \$bowtie2_build) || die "Bad options";
 
 if(! -x $bowtie2 || ! -x $bowtie2_build) {
 	my $bowtie2_dir = `dirname $bowtie2`;
@@ -4080,14 +4078,13 @@ sub writeReads($$$$$$$$$) {
 ##
 # Run bowtie2 with given arguments
 #
-sub runbowtie2($$$$$$$$$$$$$$$$$$$$$$$) {
+sub runbowtie2($$$$$$$$$$$$$$$$$$$$$$) {
 	
 	my (
 		$do_build,
 		$large_idx,
 		$debug_mode,
 		$args,
-		$color,
 		$fa,
 		$reportargs,       #5
 		$read_file_format,
@@ -4110,7 +4107,6 @@ sub runbowtie2($$$$$$$$$$$$$$$$$$$$$$$) {
 my  $idx_type = "";
 	$args .= " --quiet";
 	$reportargs = "-a" unless defined($reportargs);
-	$args .= " -C" if $color;
 	$args .= " $reportargs";
 	if ($large_idx){
 	    $idx_type = "--large-index";
@@ -4121,7 +4117,7 @@ my  $idx_type = "";
 	while(<FA>) { print $_; }
 	close(FA);
 	if($do_build) {
-		my $build_args = ($color ? "-C" : "");
+		my $build_args = "";
 		my $cmd = "$bowtie2_build $idx_type --quiet --sanity $build_args $fa .simple_tests.tmp";
 		print "$cmd\n";
 		system($cmd);
@@ -4263,9 +4259,6 @@ foreach my $large_idx (undef,1) {
 			last unless defined($c);
 			# If there's any skipping of cases to be done, do it here prior to the
 			# eq_deeply check
-			my $color = 0;
-			$color = $c->{color} if defined($c->{color});
-			next if ($color && $skipColor);
 			my $do_build = 0;
 			unless(defined($last_ref) && eq_deeply($c->{ref}, $last_ref)) {
 				writeFasta($c->{ref}, $tmpfafn);
@@ -4343,12 +4336,12 @@ foreach my $large_idx (undef,1) {
 					my @q1 = (); @q1 = @$q1s if defined($q1s);
 					my @q2 = (); @q2 = @$q2s if defined($q2s);
 					for(0..scalar(@s)-1) {
-						$s[$_] = DNA::revcomp($s[$_], $color);
+						$s[$_] = DNA::revcomp($s[$_]);
 						$q[$_] = reverse $q[$_] if $_ < scalar(@q);
 					}
 					if($mate1fw == $mate2fw) {
-						for(0..$#m1) { $m1[$_] = DNA::revcomp($m1[$_], $color); }
-						for(0..$#m2) { $m2[$_] = DNA::revcomp($m2[$_], $color); }
+						for(0..$#m1) { $m1[$_] = DNA::revcomp($m1[$_]); }
+						for(0..$#m2) { $m2[$_] = DNA::revcomp($m2[$_]); }
 						for(0..$#q1) { $q1[$_] = reverse $q1[$_]; }
 						for(0..$#q2) { $q2[$_] = reverse $q2[$_]; }
 					}
@@ -4370,7 +4363,6 @@ foreach my $large_idx (undef,1) {
 					$large_idx,
 					$debug_mode,
 					"$a",
-					$color,
 					$tmpfafn,
 					$c->{report},
 					$read_file_format, # formate of read/mate files
@@ -4485,20 +4477,6 @@ foreach my $large_idx (undef,1) {
 							}
 						} 
 						$found || die "No specified name matched reported name $readname";
-					}
-					# Check that the sequence printed in the alignment is sane
-					if($color) {
-						# It's a decoded nucleotide sequence
-						my $dseq = $c->{dec_seq}->[$rdi];
-						if(defined($dseq)) {
-							$seq eq $dseq || die "Expected decoded sequence '$seq' from alignment to match '$dseq'";
-						}
-						my $dqual = $c->{dec_qual}->[$rdi];
-						if(defined($dqual)) {
-							$qual eq $dqual || die "Expected decoded qualities '$qual' from alignment to match '$dqual'";
-						}
-					} else {
-						
 					}
 					# Make simply-named copies of some portions of the test case
 					# 'hits'

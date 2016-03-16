@@ -27,7 +27,7 @@
 #
 
 my $bowtie2 = "./bowtie2";
-my $bowtie2_d = "./bowtie2-debug";
+my $bowtie2_d = "./bowtie2 --debug";
 if(system("$bowtie2 --version") != 0) {
 	print STDERR "Could not execute ./bowtie2; looking in PATH...\n";
 	$bowtie2 = `which bowtie2`;
@@ -45,21 +45,6 @@ if(system("$bowtie2_d --version") != 0) {
 	}
 }
 
-if(! -f "e_coli_c.1.ebwt") {
-	print STDERR "Making colorspace e_coli index\n";
-	my $bowtie2_build = "./bowtie2-build";
-	if(system("$bowtie2_build --version") != 0) {
-		print STDERR "Could not execute ./bowtie2-build; looking in PATH...\n";
-		$bowtie2_build = `which $bowtie2_build`;
-		chomp($bowtie2_build);
-		if(system("$bowtie2_build --version") != 0) {
-			die "Could not find bowtie2-build in current directory or in PATH\n";
-		}
-	}
-	system("$bowtie2_build -C genomes/NC_008253.fna e_coli_c") && die;
-} else {
-	print STDERR "Colorspace e_coli index already present...\n";
-}
 
 open TMP, ">.args.pl.1.fa" || die;
 print TMP ">\nT0120012002012030303023\n";
@@ -90,8 +75,6 @@ my @good = (
 );
 
 my @goodEx = (
-	"-C e_coli_c -f .args.pl.1.fa -Q .args.pl.1.qv",
-	"-C e_coli_c -f .args.pl.1.fa -Q .args.pl.2.qv"
 );
 
 sub run($) {

@@ -811,10 +811,7 @@ bool FastqPatternSource::read(
 	// sequence line, and c holds the first character
 	int charsRead = 0;
 	BTDnaString *sbuf = &r.patFw;
-	int dstLens[] = {0, 0, 0, 0};
-	int *dstLenCur = &dstLens[0];
 	int mytrim5 = gTrim5;
-	int altBufIdx = 0;
 	int trim5 = 0;
 	if(c != '+') {
 		trim5 = mytrim5;
@@ -824,7 +821,7 @@ bool FastqPatternSource::read(
 				// If it's past the 5'-end trim point
 				if(charsRead >= trim5) {
 					sbuf->append(asc2dna[c]);
-					(*dstLenCur)++;
+					dstLen++;
 				}
 				charsRead++;
 			}
@@ -833,7 +830,6 @@ bool FastqPatternSource::read(
 				bail(r); success = false; done = true; return success;
 			}
 		}
-		dstLen = dstLens[0];
 		charsRead = dstLen + mytrim5;
 	}
 	// Trim from 3' end
@@ -892,10 +888,8 @@ bool FastqPatternSource::read(
 		peekOverNewline(fb_);
 	} else {
 		// Non-integer qualities
-		altBufIdx = 0;
 		trim5 = mytrim5;
-		int qualsRead[4] = {0, 0, 0, 0};
-		int *qualsReadCur = &qualsRead[0];
+		int qualsRead = 0;
 		BTString *qbuf = &r.qual;
 		while(true) {
 			c = fb_.get();
@@ -907,7 +901,7 @@ bool FastqPatternSource::read(
 				//bail(r); success = false; done = true; return success;
 			}
 			if (c != '\r' && c != '\n') {
-				if (*qualsReadCur >= trim5) {
+				if (qualsRead >= trim5) {
 					try {
 						c = charToPhred33(c, solQuals_, phred64Quals_);
 					}
@@ -918,12 +912,12 @@ bool FastqPatternSource::read(
 					assert_geq(c, 33);
 					qbuf->append(c);
 				}
-				(*qualsReadCur)++;
+				qualsRead++;
 			} else {
 				break;
 			}
 		}
-		qualsRead[0] -= gTrim3;
+		qualsRead -= gTrim3;
 		r.qual.trimEnd(gTrim3);
 		if(r.qual.length() < r.patFw.length()) {
 			tooFewQualities(r.name);
