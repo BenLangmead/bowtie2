@@ -53,7 +53,6 @@ enum {
 	ARG_PHRED64,                // --phred64
 	ARG_PHRED33,                // --phred33
 	ARG_HADOOPOUT,              // --hadoopout
-	ARG_FUZZY,                  // --fuzzy
 	ARG_FULLREF,                // --fullref
 	ARG_USAGE,                  // --usage
 	ARG_SNPPHRED,               // --snpphred

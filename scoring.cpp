@@ -221,7 +221,6 @@ int main() {
 			4,               // reward for a match
 			COST_MODEL_QUAL, // how to penalize mismatches
 			0,               // constant if mm pelanty is a constant
-			30,              // penalty for nuc mm in decoded colorspace als
 			-3.0f,           // constant coeff for minimum score
 			-3.0f,           // linear coeff for minimum score
 			DEFAULT_FLOOR_CONST,  // constant coeff for score floor

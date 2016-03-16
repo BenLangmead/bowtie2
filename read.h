@@ -45,7 +45,6 @@ struct Read {
 	void reset() {
 		rdid = 0;
 		endid = 0;
-		alts = 0;
 		trimmed5 = trimmed3 = 0;
 		readOrigBuf.clear();
 		patFw.clear();
@@ -55,17 +54,6 @@ struct Read {
 		patRcRev.clear();
 		qualRev.clear();
 		name.clear();
-		for(int j = 0; j < 3; j++) {
-			altPatFw[j].clear();
-			altPatFwRev[j].clear();
-			altPatRc[j].clear();
-			altPatRcRev[j].clear();
-			altQual[j].clear();
-			altQualRev[j].clear();
-		}
-		color = fuzzy = false;
-		primer = '?';
-		trimc = '?';
 		filter = '?';
 		seed = 0;
 		ns_ = 0;
@@ -124,21 +112,10 @@ struct Read {
 
 	/**
 	 * Construct reverse complement of the pattern and the fuzzy
-	 * alternative patters.  If read is in colorspace, just reverse
-	 * them.
+	 * alternative patters.
 	 */
 	void constructRevComps() {
-		if(color) {
-			patRc.installReverse(patFw);
-			for(int j = 0; j < alts; j++) {
-				altPatRc[j].installReverse(altPatFw[j]);
-			}
-		} else {
-			patRc.installReverseComp(patFw);
-			for(int j = 0; j < alts; j++) {
-				altPatRc[j].installReverseComp(altPatFw[j]);
-			}
-		}
+		patRc.installReverseComp(patFw);
 	}
 
 	/**
@@ -149,11 +126,6 @@ struct Read {
 		patFwRev.installReverse(patFw);
 		patRcRev.installReverse(patRc);
 		qualRev.installReverse(qual);
-		for(int j = 0; j < alts; j++) {
-			altPatFwRev[j].installReverse(altPatFw[j]);
-			altPatRcRev[j].installReverse(altPatRc[j]);
-			altQualRev[j].installReverse(altQual[j]);
-		}
 	}
 
 	/**
@@ -192,55 +164,9 @@ struct Read {
 	void dump(std::ostream& os) const {
 		using namespace std;
 		os << name << ' ';
-		if(color) {
-			os << patFw.toZBufXForm("0123.");
-		} else {
-			os << patFw;
-		}
+		os << patFw;
 		os << ' ';
-		// Print out the fuzzy alternative sequences
-		for(int j = 0; j < 3; j++) {
-			bool started = false;
-			if(!altQual[j].empty()) {
-				for(size_t i = 0; i < length(); i++) {
-					if(altQual[j][i] != '!') {
-						started = true;
-					}
-					if(started) {
-						if(altQual[j][i] == '!') {
-							os << '-';
-						} else {
-							if(color) {
-								os << "0123."[(int)altPatFw[j][i]];
-							} else {
-								os << altPatFw[j][i];
-							}
-						}
-					}
-				}
-			}
-			cout << " ";
-		}
 		os << qual.toZBuf() << " ";
-		// Print out the fuzzy alternative quality strings
-		for(int j = 0; j < 3; j++) {
-			bool started = false;
-			if(!altQual[j].empty()) {
-				for(size_t i = 0; i < length(); i++) {
-					if(altQual[j][i] != '!') {
-						started = true;
-					}
-					if(started) {
-						os << altQual[j][i];
-					}
-				}
-			}
-			if(j == 2) {
-				os << endl;
-			} else {
-				os << " ";
-			}
-		}
 	}
 	
 	/**
@@ -318,17 +244,9 @@ struct Read {
 	BTDnaString patRc;            // reverse-complement sequence
 	BTString    qual;             // quality values
 
-	BTDnaString altPatFw[3];
-	BTDnaString altPatRc[3];
-	BTString    altQual[3];
-
 	BTDnaString patFwRev;
 	BTDnaString patRcRev;
 	BTString    qualRev;
-
-	BTDnaString altPatFwRev[3];
-	BTDnaString altPatRcRev[3];
-	BTString    altQualRev[3];
 
 	// For remembering the exact input text used to define a read
 	SStringExpandable<char> readOrigBuf;
@@ -340,11 +258,6 @@ struct Read {
 	int      mate;      // 0 = single-end, 1 = mate1, 2 = mate2
 	uint32_t seed;      // random seed
 	size_t   ns_;       // # Ns
-	int      alts;      // number of alternatives
-	bool     fuzzy;     // whether to employ fuzziness
-	bool     color;     // whether read is in color space
-	char     primer;    // primer base, for csfasta files
-	char     trimc;     // trimmed color, for csfasta files
 	char     filter;    // if read format permits filter char, set it here
 	int      trimmed5;  // amount actually trimmed off 5' end
 	int      trimmed3;  // amount actually trimmed off 3' end

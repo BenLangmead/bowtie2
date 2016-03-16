@@ -101,7 +101,6 @@ struct PatternParams {
 		bool solexa64_,
 		bool phred64_,
 		bool intQuals_,
-		bool fuzzy_,
 		int sampleLen_,
 		int sampleFreq_,
 		uint32_t skip_) :
@@ -111,7 +110,6 @@ struct PatternParams {
 		solexa64(solexa64_),
 		phred64(phred64_),
 		intQuals(intQuals_),
-		fuzzy(fuzzy_),
 		sampleLen(sampleLen_),
 		sampleFreq(sampleFreq_),
 		skip(skip_) { }
@@ -122,7 +120,6 @@ struct PatternParams {
 	bool solexa64;        // true -> qualities are on solexa64 scale
 	bool phred64;         // true -> qualities are on phred64 scale
 	bool intQuals;        // true -> qualities are space-separated numbers
-	bool fuzzy;           // true -> try to parse fuzzy fastq
 	int sampleLen;        // length of sampled reads for FastaContinuous...
 	int sampleFreq;       // frequency of sampled reads for FastaContinuous...
 	uint32_t skip;        // skip the first 'skip' patterns
@@ -922,8 +919,7 @@ int parseQuals(
 	bool solexa64);
 
 /**
- * Synchronized concrete pattern source for a list of FASTA or CSFASTA
- * (if color = true) files.
+ * Synchronized concrete pattern source for a list of FASTA files.
  */
 class FastaPatternSource : public BufferedFilePatternSource {
 public:
@@ -1228,7 +1224,6 @@ protected:
 		done = false;
 		r.reset();
 		while(true) {
-			r.color = gColor;
 			int c = fb_.get();
 			if(c < 0) { success = false; done = true; return success; }
 			if(c == '>') {
@@ -1353,8 +1348,7 @@ public:
 		first_(true),
 		solQuals_(p.solexa64),
 		phred64Quals_(p.phred64),
-		intQuals_(p.intQuals),
-		fuzzy_(p.fuzzy)
+		intQuals_(p.intQuals)
 	{ }
 	
 	virtual void reset() {
@@ -1453,7 +1447,6 @@ private:
 	bool solQuals_;
 	bool phred64Quals_;
 	bool intQuals_;
-	bool fuzzy_;
 	EList<string> qualToks_;
 };
 
@@ -1493,15 +1486,10 @@ protected:
 			bail(r); success = false; done = true; return success;
 		}
 		assert(!isspace(c));
-		r.color = gColor;
 		int mytrim5 = gTrim5;
 		if(first_) {
 			// Check that the first character is sane for a raw file
 			int cc = c;
-			if(gColor) {
-				if(cc >= '0' && cc <= '4') cc = "ACGTN"[(int)cc - '0'];
-				if(cc == '.') cc = 'N';
-			}
 			if(asc2dnacat[cc] == 0) {
 				cerr << "Error: reads file does not look like a Raw file" << endl;
 				if(c == '>') {
@@ -1514,33 +1502,10 @@ protected:
 			}
 			first_ = false;
 		}
-		if(gColor) {
-			// This may be a primer character.  If so, keep it in the
-			// 'primer' field of the read buf and parse the rest of the
-			// read without it.
-			c = toupper(c);
-			if(asc2dnacat[c] > 0) {
-				// First char is a DNA char
-				int c2 = toupper(fb_.peek());
-				// Second char is a color char
-				if(asc2colcat[c2] > 0) {
-					r.primer = c;
-					r.trimc = c2;
-					mytrim5 += 2; // trim primer and first color
-				}
-			}
-			if(c < 0) {
-				bail(r); success = false; done = true; return success;
-			}
-		}
 		// _in now points just past the first character of a sequence
 		// line, and c holds the first character
 		int chs = 0;
 		while(!isspace(c) && c >= 0) {
-			if(gColor) {
-				if(c >= '0' && c <= '4') c = "ACGTN"[(int)c - '0'];
-				if(c == '.') c = 'N';
-			}
 			// 5' trimming
 			if(isalpha(c) && chs >= mytrim5) {
 				//size_t len = chs - mytrim5;
