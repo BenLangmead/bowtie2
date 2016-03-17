@@ -28,6 +28,8 @@
 #include <cstring>
 #include <ctype.h>
 #include <fstream>
+#include <ctime>
+#include <sys/time.h>
 #include "alphabet.h"
 #include "assert_helpers.h"
 #include "tokenize.h"
@@ -147,14 +149,15 @@ public:
 		readCnt_(0),
 		numWrappers_(0),
 		doLocking_(true),
-		mutex()
+		mutex(),
+		timer_counter(0)
 	{
 #ifdef WITH_COHORTLOCK
 		mutex.reset_lock(p.nthreads);
 #endif
 	}
 
-	virtual ~PatternSource() { }
+	virtual ~PatternSource() { fprintf(stderr, "Time Taken In CS: %d\n",timer_counter); }
 
 	/**
 	 * Call this whenever this PatternSource is wrapped by a new
@@ -248,6 +251,7 @@ protected:
 	int numWrappers_;      /// # threads that own a wrapper for this PatternSource
 	bool doLocking_;       /// override whether to lock (true = don't override)
 	MUTEX_T mutex;
+	uint64_t timer_counter;
 };
 
 /**
@@ -761,6 +765,9 @@ public:
 	{
 		// We'll be manipulating our file handle/filecur_ state
 		ThreadSafe ts(&mutex,doLocking_);
+		//star timer here
+		timeval     _t;
+		gettimeofday(&_t, NULL);
 		while(true) {
 			do { read(r, rdid, endid, success, done); }
 			while(!success && !done);
@@ -774,6 +781,11 @@ public:
 			break;
 		}
 		assert(r.repOk());
+		//end timer here
+		//update timer counter
+		timeval f;
+		gettimeofday(&f, NULL);
+		timer_counter += f.tv_sec - _t.tv_sec;
 		// Leaving critical region
 		return success;
 	}
@@ -793,6 +805,8 @@ public:
 		// We'll be manipulating our file handle/filecur_ state
 		//lock with doLocking_
 		ThreadSafe ts(&mutex,doLocking_);
+		timeval     _t;
+		gettimeofday(&_t, NULL);
 		while(true) {
 			do { readPair(ra, rb, rdid, endid, success, done, paired); }
 			while(!success && !done);
@@ -807,6 +821,9 @@ public:
 		}
 		assert(ra.repOk());
 		assert(rb.repOk());
+		timeval f;
+		gettimeofday(&f, NULL);
+		timer_counter += f.tv_sec - _t.tv_sec;
 		// Leaving critical region
 		return success;
 	}
