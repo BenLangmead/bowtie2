@@ -1356,7 +1356,7 @@ my @cases = (
 	# Like Fastq 1 but with many extra newlines
 	{ name   => "Fastq 3",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  fastq  => "\n\n\r\n\@r0\nCATCGATCAGTATCTG\r\n+\n\nIIIIIIIIIIIIIIII\n\n",
+	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIIII\n",
 	  hits   => [{ 2 => 1 }] },
 
 	{ name   => "Tabbed 3",
@@ -1391,7 +1391,7 @@ my @cases = (
 	# Quality string length doesn't match (too short by 1)
 	{ name   => "Fastq 4",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  fastq  => "\n\n\r\n\@r0\nCATCGATCAGTATCTG\r\n+\n\nIIIIIIIIIIIIIII\n\n",
+	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIII\n",
 	  should_abort => 1},
 
 	{ name   => "Tabbed 4",
@@ -1416,7 +1416,7 @@ my @cases = (
 	# Name line doesn't start with @
 	{ name   => "Fastq 5",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  fastq  => "\n\n\r\nr0\nCATCGATCAGTATCTG\r\n+\n\nIIIIIIIIIIIIIII\n\n",
+	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIII\n",
 	  should_abort => 1,
 	  hits   => [{ }] },
 
@@ -1430,7 +1430,7 @@ my @cases = (
 	# Name line doesn't start with @ (2)
 	{ name   => "Fastq 6",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  fastq  => "r0\nCATCGATCAGTATCTG\r\n+\n\nIIIIIIIIIIIIIII\n\n",
+	  fastq  => "r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIII\n",
 	  should_abort => 1,
 	  hits   => [{ }] },
 
@@ -1444,7 +1444,7 @@ my @cases = (
 	# Part of sequence is trimmed
 	{ name   => "Fastq 7",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  fastq  => "\n\n\r\n\@r0\nCATCGATCAGTATCTG\r\n+\n\nIIIIIIIIIIIIIIII\n\n",
+	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIIII\n",
 	  args   => "--trim3 4",
 	  norc   => 1,
 	  hits   => [{ 2 => 1 }] },
@@ -1489,7 +1489,7 @@ my @cases = (
 	# Whole sequence is trimmed
 	{ name   => "Fastq 8",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  fastq  => "\n\n\r\n\@r0\nCATCGATCAGTATCTG\r\n+\n\nIIIIIIIIIIIIIIII\n\n",
+	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIIII\n",
 	  args   => "--trim5 16",
 	  hits   => [{ "*" => 1 }] },
 
@@ -1529,7 +1529,7 @@ my @cases = (
 	# Sequence is skipped
 	{ name   => "Fastq 9",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  fastq  => "\n\n\r\n\@r0\nCATCGATCAGTATCTG\r\n+\n\nIIIIIIIIIIIIIIII\n\n",
+	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIIII\n",
 	  args   => "-s 1",
 	  hits   => [{ }] },
 
@@ -1569,8 +1569,8 @@ my @cases = (
 	# Like Fastq 1 but with many extra newlines
 	{ name   => "Fastq multiread 1",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  fastq  => "\n\n\r\n\@r0\nCATCGATCAGTATCTG\r\n+\n\nIIIIIIIIIIIIIIII\n\n".
-	            "\n\n\r\n\@r1\nATCGATCAGTATCTG\r\n+\n\nIIIIIIIIIIIIIII\n\n",
+	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIIII\n".
+	            "\@r1\nATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIII\n",
 	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
 
 	{ name   => "Tabbed multiread 1",
@@ -1621,8 +1621,8 @@ my @cases = (
 	{ name   => "Fastq multiread 2",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
 	  args   =>   "-u 1",
-	  fastq  => "\n\n\r\n\@r0\nCATCGATCAGTATCTG\r\n+\n\nIIIIIIIIIIIIIIII\n\n".
-	            "\n\n\r\n\@r1\nATCGATCAGTATCTG\r\n+\n\nIIIIIIIIIIIIIII\n\n",
+	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIIII\n".
+	            "\@r1\nATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIII\n",
 	  hits   => [{ 2 => 1 }] },
 
 	{ name   => "Tabbed multiread 2",
@@ -1677,8 +1677,8 @@ my @cases = (
 	{ name   => "Fastq multiread 3",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
 	  args   =>   "-u 2",
-	  fastq  => "\n\n\r\n\@r0\nCATCGATCAGTATCTG\r\n+\n\nIIIIIIIIIIIIIIII\n\n".
-	            "\n\n\r\n\@r1\nATCGATCAGTATCTG\r\n+\n\nIIIIIIIIIIIIIII\n\n",
+	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIIII\n".
+	            "\@r1\nATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIII\n",
 	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
 
 	{ name   => "Tabbed multiread 3",
@@ -1735,10 +1735,10 @@ my @cases = (
 	  #                  AGCATCGATC
 	  #                          TCAAAAACTGA
 	  #                  0123456789012345678
-	  fastq1  => "\n\n\r\n\@r0\nAGCATCGATC\r\n+\n\nIIIIIIIIII\n\n".
-	             "\n\n\@r1\nTCAGTTTTTGA\r\n+\n\nIIIIIIIIIII\n\n",
-	  fastq2  => "\n\n\r\n\@r0\nTCAGTTTTTGA\n+\n\nIIIIIIIIIII\n\n".
-	             "\n\n\r\n\@r1\nAGCATCGATC\r\n+\n\nIIIIIIIIII",
+	  fastq1  => "\@r0\nAGCATCGATC\r\n+\nIIIIIIIIII\n".
+	             "\@r1\nTCAGTTTTTGA\r\n+\nIIIIIIIIIII\n",
+	  fastq2  => "\@r0\nTCAGTTTTTGA\n+\nIIIIIIIIIII\n".
+	             "\@r1\nAGCATCGATC\r\n+\nIIIIIIIIII",
 	  pairhits => [ { "0,8" => 1 }, { "0,8" => 1 } ] },
 
 	{ name     => "Tabbed paired 1",
@@ -1829,10 +1829,10 @@ my @cases = (
 	  #                  AGCATCGATC
 	  #                          TCAAAAACTGA
 	  #                  0123456789012345678
-	  fastq1  => "\@r0\nAGCATCGATC\r\n+\n\nIIIIIIIIII\n\n".
-	             "\n\n\@r1\nTCAGTTTTTGA\n+\n\nIIIIIIIIIII\n\n",
-	  fastq2  => "\n\n\r\n\@r0\nTCAGTTTTTGA\n+\n\nIIIIIIIIIII\n\n".
-	             "\n\n\r\n\@r1\nAGCATCGATC\r\n+\n\nIIIIIIIIII",
+	  fastq1  => "\@r0\nAGCATCGATC\r\n+\nIIIIIIIIII\n".
+	             "\@r1\nTCAGTTTTTGA\n+\nIIIIIIIIIII\n",
+	  fastq2  => "\@r0\nTCAGTTTTTGA\n+\nIIIIIIIIIII\n".
+	             "\@r1\nAGCATCGATC\r\n+\nIIIIIIIIII",
 	  pairhits => [ { }, { "0,8" => 1 } ] },
 
 	{ name     => "Tabbed paired 2",
@@ -1927,10 +1927,10 @@ my @cases = (
 	  #                  AGCATCGATC
 	  #                          TCAAAAACTGA
 	  #                  0123456789012345678
-	  fastq1  => "\n\n\r\n\@r0\nAGCATCGATC\r\n+\n\nIIIIIIIIII\n\n".
-	             "\n\n\@r1\nTCAGTTTTTGA\r\n+\n\nIIIIIIIIIII\n\n",
-	  fastq2  => "\n\n\r\n\@r0\nTCAGTTTTTGA\n+\n\nIIIIIIIIIII\n\n".
-	             "\n\n\r\n\@r1\nAGCATCGATC\r\n+\nIIIIIIIIII",
+	  fastq1  => "\@r0\nAGCATCGATC\r\n+\nIIIIIIIIII\n".
+	             "\@r1\nTCAGTTTTTGA\r\n+\nIIIIIIIIIII\n",
+	  fastq2  => "\@r0\nTCAGTTTTTGA\n+\nIIIIIIIIIII\n".
+	             "\@r1\nAGCATCGATC\r\n+\nIIIIIIIIII",
 	  pairhits => [ { "0,8" => 1 }, { } ] },
 
 	{ name     => "Tabbed paired 3",

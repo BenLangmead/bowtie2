@@ -72,22 +72,7 @@ bool PatternSource::nextReadPair(
 	// nextPatternImpl does the reading from the ultimate source;
 	// it is implemented in concrete subclasses
 	success = done = paired = false;
-	nextReadPairImpl(ra, rb, rdid, endid, success, done, paired);
-	if(success) {
-		// Construct reversed versions of fw and rc seqs/quals
-		ra.finalize();
-		if(!rb.empty()) {
-			rb.finalize();
-		}
-		// Fill in the random-seed field using a combination of
-		// information from the user-specified seed and the read
-		// sequence, qualities, and name
-		ra.seed = genRandSeed(ra.patFw, ra.qual, ra.name, seed_);
-		if(!rb.empty()) {
-			rb.seed = genRandSeed(rb.patFw, rb.qual, rb.name, seed_);
-		}
-	}
-	return success;
+	return nextReadPairImpl(ra, rb, rdid, endid, success, done, paired);
 }
 
 /**
@@ -102,17 +87,7 @@ bool PatternSource::nextRead(
 {
 	// nextPatternImpl does the reading from the ultimate source;
 	// it is implemented in concrete subclasses
-	nextReadImpl(r, rdid, endid, success, done);
-	if(success) {
-		// Construct the reversed versions of the fw and rc seqs
-		// and quals
-		r.finalize();
-		// Fill in the random-seed field using a combination of
-		// information from the user-specified seed and the read
-		// sequence, qualities, and name
-		r.seed = genRandSeed(r.patFw, r.qual, r.name, seed_);
-	}
-	return success;
+	return nextReadImpl(r, rdid, endid, success, done);
 }
 
 /**
@@ -159,30 +134,38 @@ bool PairedSoloPatternSource::nextReadPair(
 		} while(!success && !done);
 		if(!success) {
 			assert(done);
-			// If patFw is empty, that's our signal that the
-			// input dried up
+			// TODO: is this necessary?  advisable?
+			// Maybe just declare cur_ volatile?
+			// I guess this is really just trying to prevent cur_ from being
+			// incremented twice in quick succession
 			ThreadSafe ts(&mutex_m);
 			if(cur + 1 > cur_) cur_++;
 			cur = cur_;
 			continue; // on to next pair of PatternSources
 		}
 		assert(success);
+		ra.mate = 1;
+		ra.rdid = rdid;
+		ra.endid = endid;
+		(*src_)[cur]->finalize(ra);
 		ra.seed = genRandSeed(ra.patFw, ra.qual, ra.name, seed_);
-		if(!rb.empty()) {
+		ra.constructRevComps();
+		ra.constructReverses();
+		if(fixName) {
+			ra.fixMateName(1);
+		}
+		if(paired) {
+			rb.mate = 2;
+			rb.rdid = rdid;
+			rb.endid = endid+1;
+			(*src_)[cur]->finalize(rb);
 			rb.seed = genRandSeed(rb.patFw, rb.qual, rb.name, seed_);
+			rb.constructRevComps();
+			rb.constructReverses();
 			if(fixName) {
-				ra.fixMateName(1);
 				rb.fixMateName(2);
 			}
 		}
-		ra.rdid = rdid;
-		ra.endid = endid;
-		if(!rb.empty()) {
-			rb.rdid = rdid;
-			rb.endid = endid+1;
-		}
-		ra.mate = 1;
-		rb.mate = 2;
 		return true; // paired
 	}
 	assert_leq(cur, src_->size());
@@ -208,6 +191,7 @@ bool PairedDualPatternSource::nextReadPair(
 	// 'cur' indexes the current pair of PatternSources
 	uint32_t cur;
 	{
+		// TODO: is this necessary?
 		ThreadSafe ts(&mutex_m);
 		cur = cur_;
 	}
@@ -227,9 +211,14 @@ bool PairedDualPatternSource::nextReadPair(
 				cur = cur_; // Move on to next PatternSource
 				continue; // on to next pair of PatternSources
 			}
+			assert(success);
 			ra.rdid = rdid;
 			ra.endid = endid;
 			ra.mate  = 0;
+			ra.seed = genRandSeed(ra.patFw, ra.qual, ra.name, seed_);
+			(*srca_)[cur]->finalize(ra);
+			ra.constructRevComps();
+			ra.constructReverses();
 			return success;
 		} else {
 			paired = true;
@@ -240,46 +229,55 @@ bool PairedDualPatternSource::nextReadPair(
 			bool success_b = false, done_b = false;
 			// Lock to ensure that this thread gets parallel reads
 			// in the two mate files
-			ThreadSafe ts(&mutex_m);
-			do {
-				(*srca_)[cur]->nextRead(ra, rdid_a, endid_a, success_a, done_a);
-			} while(!success_a && !done_a);
-			do {
-				(*srcb_)[cur]->nextRead(rb, rdid_b, endid_b, success_b, done_b);
-			} while(!success_b && !done_b);
-			if(!success_a && success_b) {
-				cerr << "Error, fewer reads in file specified with -1 than in file specified with -2" << endl;
-				throw 1;
-			} else if(!success_a) {
-				assert(done_a && done_b);
-				if(cur + 1 > cur_) cur_++;
-				cur = cur_; // Move on to next PatternSource
-				ts.~ThreadSafe();
-				continue; // on to next pair of PatternSources
-			} else if(!success_b) {
-				cerr << "Error, fewer reads in file specified with -2 than in file specified with -1" << endl;
-				throw 1;
-			}
-			assert_eq(rdid_a, rdid_b);
-			//assert_eq(endid_a+1, endid_b);
-			assert_eq(success_a, success_b);
-			ts.~ThreadSafe();
-			if(fixName) {
-				ra.fixMateName(1);
-				rb.fixMateName(2);
+			{
+				ThreadSafe ts(&mutex_m);
+				do {
+					(*srca_)[cur]->nextRead(ra, rdid_a, endid_a, success_a, done_a);
+				} while(!success_a && !done_a);
+				do {
+					(*srcb_)[cur]->nextRead(rb, rdid_b, endid_b, success_b, done_b);
+				} while(!success_b && !done_b);
+				if(!success_a && success_b) {
+					cerr << "Error, fewer reads in file specified with -1 than in file specified with -2" << endl;
+					throw 1;
+				} else if(!success_a) {
+					assert(done_a && done_b);
+					if(cur + 1 > cur_) cur_++;
+					cur = cur_; // Move on to next PatternSource
+					continue; // on to next pair of PatternSources
+				} else if(!success_b) {
+					cerr << "Error, fewer reads in file specified with -2 than in file specified with -1" << endl;
+					throw 1;
+				}
+				assert_eq(rdid_a, rdid_b);
+				assert(success_a && success_b);
 			}
 			rdid = rdid_a;
 			endid = endid_a;
 			success = success_a;
 			done = done_a;
+			
 			ra.rdid = rdid;
 			ra.endid = endid;
-			if(!rb.empty()) {
-				rb.rdid = rdid;
-				rb.endid = endid+1;
-			}
 			ra.mate = 1;
+			(*srca_)[cur]->finalize(ra);
+			ra.seed = genRandSeed(ra.patFw, ra.qual, ra.name, seed_);
+			ra.constructRevComps();
+			ra.constructReverses();
+			if(fixName) {
+				ra.fixMateName(1);
+			}
+			
+			rb.rdid = rdid;
+			rb.endid = endid+1;
 			rb.mate = 2;
+			(*srcb_)[cur]->finalize(rb);
+			rb.seed = genRandSeed(rb.patFw, rb.qual, rb.name, seed_);
+			rb.constructRevComps();
+			rb.constructReverses();
+			if(fixName) {
+				rb.fixMateName(2);
+			}
 			return success;
 		}
 	}
@@ -493,7 +491,7 @@ bool VectorPatternSource::nextReadImpl(
 {
 	// Let Strings begin at the beginning of the respective bufs
 	r.reset();
-	ThreadSafe ts(&mutex,doLocking_);
+	ThreadSafe ts(&mutex, true);
 	if(cur_ >= v_.size()) {
 		ts.~ThreadSafe();
 		// Clear all the Strings, as a signal to the caller that
@@ -540,7 +538,7 @@ bool VectorPatternSource::nextReadPairImpl(
 		paired_ = true;
 		cur_ <<= 1;
 	}
-	ThreadSafe ts(&mutex,doLocking_);
+	ThreadSafe ts(&mutex);
 	if(cur_ >= v_.size()-1) {
 		ts.~ThreadSafe();
 		// Clear all the Strings, as a signal to the caller that
@@ -650,7 +648,7 @@ int parseQuals(
 }
 
 /// Read another pattern from a FASTA input file
-bool FastaPatternSource::read(
+bool FastaPatternSource::readLight(
 	Read& r,
 	TReadId& rdid,
 	TReadId& endid,
@@ -754,7 +752,7 @@ bool FastaPatternSource::read(
 }
 
 /// Read another pattern from a FASTQ input file
-bool FastqPatternSource::read(
+bool FastqPatternSource::readHeavy(
 	Read& r,
 	TReadId& rdid,
 	TReadId& endid,
@@ -946,8 +944,137 @@ bool FastqPatternSource::read(
 	return success;
 }
 
+/// Read another pattern from a FASTQ input file
+bool FastqPatternSource::readLight(
+	Read& r,
+	TReadId& rdid,
+	TReadId& endid,
+	bool& success,
+	bool& done)
+{
+	int c;
+	success = true;
+	done = false;
+	if(first_) {
+		c = fb_.get();
+		while(c == '\r' || c == '\n') {
+			c = fb_.get();
+		}
+		if(c != '@') {
+			cerr << "Error: reads file does not look like a FASTQ file" << endl;
+			throw 1;
+		}
+		assert_eq('@', c);
+		first_ = false;
+	}
+	int newlines = 0;
+	while(newlines < 4) {
+		c = fb_.get();
+		if(c == '\n' || (c < 0 && newlines == 3)) {
+			newlines++;
+		} else if(c < 0) {
+			bail(r); success = false; done = true; return success;
+		}
+	}
+	r.readOrigBuf.install(fb_.lastN(), fb_.lastNLen());
+	fb_.resetLastN();
+	rdid = endid = readCnt_;
+	readCnt_++;
+	return success;
+}
+
+/// Read another pattern from a FASTQ input file
+void FastqPatternSource::finalize(Read &r) const {
+	int c;
+	size_t cur = 1; // skip initial @
+
+	// Parse read name
+	assert(r.name.empty());
+	while(true) {
+		assert(cur < r.readOrigBuf.length());
+		c = r.readOrigBuf[cur++];
+		if(c == '\n' || c == '\r') {
+			do {
+				c = r.readOrigBuf[cur++];
+			} while(c == '\n' || c == '\r');
+			break;
+		}
+		r.name.append(c);
+	}
+	
+	// Parse sequence
+	size_t nchar = 0;
+	assert(r.patFw.empty());
+	while(c != '+') {
+		if(c == '.') {
+			c = 'N';
+		}
+		if(isalpha(c)) {
+			// If it's past the 5'-end trim point
+			if(nchar++ >= gTrim5) {
+				r.patFw.append(asc2dna[c]);
+			}
+		}
+		assert(cur < r.readOrigBuf.length());
+		c = r.readOrigBuf[cur++];
+	}
+	r.trimmed5 = (int)(nchar - r.patFw.length());
+	r.trimmed3 = (int)(r.patFw.trimEnd(gTrim3));
+	
+	assert_eq('+', c);
+	do {
+		assert(cur < r.readOrigBuf.length());
+		c = r.readOrigBuf[cur++];
+	} while(c != '\n' && c != '\r');
+	do {
+		assert(cur < r.readOrigBuf.length());
+		c = r.readOrigBuf[cur++];
+	} while(c == '\n' || c == '\r');
+	
+	// Now we're on the next non-blank line after the + line
+	if(r.patFw.empty()) {
+		return; // done parsing empty read
+	}
+
+	assert(r.qual.empty());
+	size_t nqual = 0;
+	if (intQuals_) {
+		throw 1; // not yet implemented
+	} else {
+		c = charToPhred33(c, solQuals_, phred64Quals_);
+		if(nqual++ >= r.trimmed5) {
+			r.qual.append(c);
+		}
+		while(cur < r.readOrigBuf.length()) {
+			c = r.readOrigBuf[cur++];
+			if (c == ' ') {
+				wrongQualityFormat(r.name);
+			}
+			if(c == '\r' || c == '\n') {
+				break;
+			}
+			c = charToPhred33(c, solQuals_, phred64Quals_);
+			if(nqual++ >= r.trimmed5) {
+				r.qual.append(c);
+			}
+		}
+		r.qual.trimEnd(r.trimmed3);
+		if(r.qual.length() < r.patFw.length()) {
+			tooFewQualities(r.name);
+		} else if(r.qual.length() > r.patFw.length()) {
+			tooManyQualities(r.name);
+		}
+	}
+	// Set up a default name if one hasn't been set
+	if(r.name.empty()) {
+		char cbuf[20];
+		itoa10<TReadId>(readCnt_, cbuf);
+		r.name.install(cbuf);
+	}
+}
+
 /// Read another pattern from a FASTA input file
-bool TabbedPatternSource::read(
+bool TabbedPatternSource::readLight(
 	Read& r,
 	TReadId& rdid,
 	TReadId& endid,
@@ -1004,7 +1131,7 @@ bool TabbedPatternSource::read(
 }
 
 /// Read another pair of patterns from a FASTA input file
-bool TabbedPatternSource::readPair(
+bool TabbedPatternSource::readPairLight(
 	Read& ra,
 	Read& rb,
 	TReadId& rdid,
@@ -1234,7 +1361,9 @@ int TabbedPatternSource::parseQuals(
 				++qualsRead;
 			}
 		} // done reading integer quality lines
-		if (charsRead > qualsRead) tooFewQualities(r.name);
+		if (charsRead > qualsRead) {
+			tooFewQualities(r.name);
+		}
 	} else {
 		// Non-integer qualities
 		while((qualsRead < dstLen + trim5) && c >= 0) {

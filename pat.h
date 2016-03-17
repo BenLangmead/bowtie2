@@ -143,7 +143,6 @@ public:
 		seed_(p.seed),
 		readCnt_(0),
 		numWrappers_(0),
-		doLocking_(true),
 		mutex()
 	{
 #ifdef WITH_COHORTLOCK
@@ -159,7 +158,7 @@ public:
 	 * whether locks will be contended.
 	 */
 	void addWrapper() {
-		ThreadSafe ts(&mutex,doLocking_);
+		ThreadSafe ts(&mutex);
 		numWrappers_++;
 	}
 	
@@ -218,6 +217,11 @@ public:
 		bool& success,
 		bool& done) = 0;
 
+	/**
+	 * Finishes parsing outside the critical section
+	 */
+	virtual void finalize(Read& r) const = 0;
+
 	/// Reset state to start over again with the first read
 	virtual void reset() { readCnt_ = 0; }
 
@@ -243,7 +247,6 @@ protected:
 	TReadId readCnt_;
 
 	int numWrappers_;      /// # threads that own a wrapper for this PatternSource
-	bool doLocking_;       /// override whether to lock (true = don't override)
 	MUTEX_T mutex;
 };
 
@@ -704,6 +707,11 @@ public:
 		cur_ = skip_;
 		paired_ = false;
 	}
+
+	/**
+	 * Finishes parsing outside the critical section
+	 */
+	virtual void finalize(Read& r) const { }
 	
 private:
 
@@ -756,11 +764,11 @@ public:
 		bool& success,
 		bool& done)
 	{
-		// We'll be manipulating our file handle/filecur_ state
-		ThreadSafe ts(&mutex,doLocking_);
+		ThreadSafe ts(&mutex);
 		while(true) {
-			do { read(r, rdid, endid, success, done); }
-			while(!success && !done);
+			do {
+				readLight(r, rdid, endid, success, done);
+			} while(!success && !done);
 			if(!success && filecur_ < infiles_.size()) {
 				assert(done);
 				open();
@@ -770,8 +778,6 @@ public:
 			}
 			break;
 		}
-		assert(r.repOk());
-		// Leaving critical region
 		return success;
 	}
 	
@@ -788,11 +794,11 @@ public:
 		bool& paired)
 	{
 		// We'll be manipulating our file handle/filecur_ state
-		//lock with doLocking_
-		ThreadSafe ts(&mutex,doLocking_);
+		ThreadSafe ts(&mutex);
 		while(true) {
-			do { readPair(ra, rb, rdid, endid, success, done, paired); }
-			while(!success && !done);
+			do {
+				readPairLight(ra, rb, rdid, endid, success, done, paired);
+			} while(!success && !done);
 			if(!success && filecur_ < infiles_.size()) {
 				assert(done);
 				open();
@@ -802,9 +808,6 @@ public:
 			}
 			break;
 		}
-		assert(ra.repOk());
-		assert(rb.repOk());
-		// Leaving critical region
 		return success;
 	}
 	
@@ -822,18 +825,22 @@ public:
 
 protected:
 
-	/// Read another pattern from the input file; this is overridden
-	/// to deal with specific file formats
-	virtual bool read(
+	/**
+	 * Do just enough parsing to ensure our file buffer has all the characters
+	 * for the read.
+	 */
+	virtual bool readLight(
 		Read& r,
 		TReadId& rdid,
 		TReadId& endid,
 		bool& success,
 		bool& done) = 0;
 	
-	/// Read another pattern pair from the input file; this is
-	/// overridden to deal with specific file formats
-	virtual bool readPair(
+	/**
+	 * Do just enough parsing to ensure our file buffer has all the characters
+	 * for the read.
+	 */
+	virtual bool readPairLight(
 		Read& ra,
 		Read& rb,
 		TReadId& rdid,
@@ -842,9 +849,17 @@ protected:
 		bool& done,
 		bool& paired) = 0;
 	
+	/**
+	 * Finalize parsing outside critical section.
+	 */
+	virtual void finalize(Read& r) const = 0;
+	
 	/// Reset state to handle a fresh file
 	virtual void resetForNextFile() { }
 	
+	/**
+	 * Open the next file in the list of input files.
+	 */
 	void open() {
 		if(fb_.isOpen()) fb_.close();
 		while(filecur_ < infiles_.size()) {
@@ -871,9 +886,12 @@ protected:
 	EList<string> infiles_;  // filenames for read files
 	EList<bool> errs_;       // whether we've already printed an error for each file
 	size_t filecur_;         // index into infiles_ of next file to read
+	// TODO: - consider using a raw FILE * instead
+	//       - using combination of setvbuf and getc_unlocked for speed
+	//       - biggest problem might be lack of peek()
 	FileBuf fb_;             // read file currently being read from
 	TReadId skip_;           // number of reads to skip
-	bool first_;
+	bool first_;             // parsing first record in first file?
 };
 
 /**
@@ -928,7 +946,7 @@ protected:
 	}
 
 	/// Read another pattern from a FASTA input file
-	virtual bool read(
+	virtual bool readLight(
 		Read& r,
 		TReadId& rdid,
 		TReadId& endid,
@@ -936,7 +954,7 @@ protected:
 		bool& done);
 	
 	/// Read another pair of patterns from a FASTA input file
-	virtual bool readPair(
+	virtual bool readPairLight(
 		Read& ra,
 		Read& rb,
 		TReadId& rdid,
@@ -954,6 +972,11 @@ protected:
 	virtual void resetForNextFile() {
 		first_ = true;
 	}
+
+	/**
+	 * Finalize FASTA parsing outside critical section.
+	 */
+	virtual void finalize(Read& r) const { }
 	
 private:
 	bool first_;
@@ -998,7 +1021,7 @@ public:
 protected:
 
 	/// Read another pattern from a FASTA input file
-	virtual bool read(
+	virtual bool readLight(
 		Read& r,
 		TReadId& rdid,
 		TReadId& endid,
@@ -1006,7 +1029,7 @@ protected:
 		bool& done);
 
 	/// Read another pair of patterns from a FASTA input file
-	virtual bool readPair(
+	virtual bool readPairLight(
 		Read& ra,
 		Read& rb,
 		TReadId& rdid,
@@ -1015,6 +1038,11 @@ protected:
 		bool& done,
 		bool& paired);
 	
+	/**
+	 * Finalize tabbed parsing outside critical section.
+	 */
+	virtual void finalize(Read& r) const { }
+
 private:
 
 	/**
@@ -1135,7 +1163,7 @@ protected:
 	/**
 	 * Read another pattern from a Qseq input file.
 	 */
-	virtual bool read(
+	virtual bool readLight(
 		Read& r,
 		TReadId& rdid,
 		TReadId& endid,
@@ -1145,7 +1173,7 @@ protected:
 	/**
 	 * Read a pair of patterns from 1 Qseq file.  Note: this is never used.
 	 */
-	virtual bool readPair(
+	virtual bool readPairLight(
 		Read& ra,
 		Read& rb,
 		TReadId& rdid,
@@ -1159,6 +1187,11 @@ protected:
 		throw 1;
 		return false;
 	}
+
+	/**
+	 * Finalize Qseq parsing outside critical section.
+	 */
+	virtual void finalize(Read& r) const { }
 
 	bool solQuals_;
 	bool phred64Quals_;
@@ -1189,7 +1222,7 @@ public:
 protected:
 
 	/// Read another pattern from a FASTA input file
-	virtual bool read(
+	virtual bool readLight(
 		Read& r,
 		TReadId& rdid,
 		TReadId& endid,
@@ -1268,7 +1301,7 @@ protected:
 	
 	/// Shouldn't ever be here; it's not sensible to obtain read pairs
 	// from a continuous input.
-	virtual bool readPair(
+	virtual bool readPairLight(
 		Read& ra,
 		Read& rb,
 		TReadId& rdid,
@@ -1292,6 +1325,11 @@ protected:
 		nameBuf_.clear();
 		subReadCnt_ = readCnt_;
 	}
+
+	/**
+	 * Finalize FASTA-continuous parsing outside critical section.
+	 */
+	virtual void finalize(Read& r) const { }
 
 private:
 	size_t length_;     /// length of reads to generate
@@ -1380,7 +1418,7 @@ protected:
 	}
 
 	/// Read another pattern from a FASTQ input file
-	virtual bool read(
+	virtual bool readLight(
 		Read& r,
 		TReadId& rdid,
 		TReadId& endid,
@@ -1388,7 +1426,7 @@ protected:
 		bool& done);
 	
 	/// Read another read pair from a FASTQ input file
-	virtual bool readPair(
+	virtual bool readPairLight(
 		Read& ra,
 		Read& rb,
 		TReadId& rdid,
@@ -1402,6 +1440,21 @@ protected:
 		throw 1;
 		return false;
 	}
+	
+	/**
+	 * All-in-one reading and parsing function.
+	 */
+	bool readHeavy(
+		Read& r,
+		TReadId& rdid,
+		TReadId& endid,
+		bool& success,
+		bool& done);
+	
+	/**
+	 * Finalize FASTQ parsing outside critical section.
+	 */
+	virtual void finalize(Read& r) const;
 	
 	virtual void resetForNextFile() {
 		first_ = true;
@@ -1446,7 +1499,7 @@ public:
 protected:
 
 	/// Read another pattern from a Raw input file
-	virtual bool read(
+	virtual bool readLight(
 		Read& r,
 		TReadId& rdid,
 		TReadId& endid,
@@ -1513,7 +1566,7 @@ protected:
 	}
 	
 	/// Read another read pair from a FASTQ input file
-	virtual bool readPair(
+	virtual bool readPairLight(
 		Read& ra,
 		Read& rb,
 		TReadId& rdid,
@@ -1531,6 +1584,11 @@ protected:
 	virtual void resetForNextFile() {
 		first_ = true;
 	}
+
+	/**
+	 * Finalize raw pattern parsing outside critical section.
+	 */
+	virtual void finalize(Read& r) const { }
 	
 private:
 

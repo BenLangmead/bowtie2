@@ -174,7 +174,7 @@ int QseqPatternSource::parseQuals(
 /**
  * Read another pattern from a Qseq input file.
  */
-bool QseqPatternSource::read(
+bool QseqPatternSource::readLight(
 	Read& r,
 	TReadId& rdid,
 	TReadId& endid,

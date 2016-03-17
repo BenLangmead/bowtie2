@@ -1977,9 +1977,14 @@ public:
 	/**
 	 * Trim len characters from the end of the string.
 	 */
-	void trimEnd(size_t len) {
-		if(len >= len_) len_ = 0;
-		else len_ -= len;
+	size_t trimEnd(size_t len) {
+		if(len >= len_) {
+			size_t ret = len_;
+			len_ = 0;
+			return ret;
+		}
+		len_ -= len;
+		return len;
 	}
 
 	/**
