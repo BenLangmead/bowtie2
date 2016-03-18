@@ -899,6 +899,183 @@ protected:
 };
 
 /**
+ *
+ */
+class CFilePatternSource : public PatternSource {
+public:
+	CFilePatternSource(
+		const EList<string>& infiles,
+		const PatternParams& p) :
+		PatternSource(p),
+		infiles_(infiles),
+		filecur_(0),
+		fp_(NULL),
+		is_open_(false),
+		skip_(p.skip),
+		first_(true)
+	{
+		assert_gt(infiles.size(), 0);
+		errs_.resize(infiles_.size());
+		errs_.fill(0, infiles_.size(), false);
+		open(); // open first file in the list
+		filecur_++;
+	}
+
+	virtual ~CFilePatternSource() {
+		if(is_open_) {
+			assert(fp_ != NULL);
+			fclose(fp_);
+		}
+	}
+
+	/**
+	 * Fill Read with the sequence, quality and name for the next
+	 * read in the list of read files.  This function gets called by
+	 * all the search threads, so we must handle synchronization.
+	 */
+	virtual bool nextReadImpl(
+		Read& r,
+		TReadId& rdid,
+		TReadId& endid,
+		bool& success,
+		bool& done,
+		bool lock = true)
+	{
+		ThreadSafe ts(&mutex, lock);
+		while(true) {
+			do {
+				readLight(r, rdid, endid, success, done);
+			} while(!success && !done);
+			if(!success && filecur_ < infiles_.size()) {
+				assert(done);
+				open();
+				resetForNextFile(); // reset state to handle a fresh file
+				filecur_++;
+				continue;
+			}
+			break;
+		}
+		return success;
+	}
+	
+	/**
+	 *
+	 */
+	virtual bool nextReadPairImpl(
+		Read& ra,
+		Read& rb,
+		TReadId& rdid,
+		TReadId& endid,
+		bool& success,
+		bool& done,
+		bool& paired)
+	{
+		// We'll be manipulating our file handle/filecur_ state
+		ThreadSafe ts(&mutex);
+		while(true) {
+			do {
+				readPairLight(ra, rb, rdid, endid, success, done, paired);
+			} while(!success && !done);
+			if(!success && filecur_ < infiles_.size()) {
+				assert(done);
+				open();
+				resetForNextFile(); // reset state to handle a fresh file
+				filecur_++;
+				continue;
+			}
+			break;
+		}
+		return success;
+	}
+	
+	/**
+	 * Reset state so that we read start reading again from the
+	 * beginning of the first file.  Should only be called by the
+	 * master thread.
+	 */
+	virtual void reset() {
+		PatternSource::reset();
+		filecur_ = 0,
+		open();
+		filecur_++;
+	}
+
+protected:
+
+	/**
+	 * Do just enough parsing to ensure our file buffer has all the characters
+	 * for the read.
+	 */
+	virtual bool readLight(
+		Read& r,
+		TReadId& rdid,
+		TReadId& endid,
+		bool& success,
+		bool& done) = 0;
+	
+	/**
+	 * Do just enough parsing to ensure our file buffer has all the characters
+	 * for the read.
+	 */
+	virtual bool readPairLight(
+		Read& ra,
+		Read& rb,
+		TReadId& rdid,
+		TReadId& endid,
+		bool& success,
+		bool& done,
+		bool& paired) = 0;
+	
+	/**
+	 * Finalize parsing outside critical section.
+	 */
+	virtual void finalize(Read& r) const = 0;
+	
+	/// Reset state to handle a fresh file
+	virtual void resetForNextFile() { }
+	
+	/**
+	 * Open the next file in the list of input files.
+	 */
+	void open() {
+		if(is_open_) {
+			is_open_ = false;
+			fclose(fp_);
+			fp_ = NULL;
+		}
+		while(filecur_ < infiles_.size()) {
+			if(infiles_[filecur_] == "-") {
+				fp_ = stdin;
+			} else if((fp_ = fopen(infiles_[filecur_].c_str(), "rb")) == NULL) {
+				if(!errs_[filecur_]) {
+					cerr << "Warning: Could not open read file \""
+					     << infiles_[filecur_].c_str()
+					     << "\" for reading; skipping..." << endl;
+					errs_[filecur_] = true;
+				}
+				filecur_++;
+				continue;
+			}
+			is_open_ = true;
+			setvbuf(fp_, buf_, _IOFBF, 64*1024);
+			return;
+		}
+		cerr << "Error: No input read files were valid" << endl;
+		exit(1);
+		return;
+	}
+	
+	EList<string> infiles_;  // filenames for read files
+	EList<bool> errs_;       // whether we've already printed an error for each file
+	size_t filecur_;         // index into infiles_ of next file to read
+	FILE *fp_;               // read file currently being read from
+	bool is_open_;           // whether fp_ is currently open
+	TReadId skip_;           // number of reads to skip
+	bool first_;             // parsing first record in first file?
+	char buf_[64*1024];      // file buffer
+};
+
+/**
  * Parse a single quality string from fb and store qualities in r.
  * Assume the next character obtained via fb.get() is the first
  * character of the quality string.  When returning, the next
@@ -1357,12 +1534,12 @@ private:
  * Read a FASTQ-format file.
  * See: http://maq.sourceforge.net/fastq.shtml
  */
-class FastqPatternSource : public BufferedFilePatternSource {
+class FastqPatternSource : public CFilePatternSource {
 
 public:
 
 	FastqPatternSource(const EList<string>& infiles, const PatternParams& p) :
-		BufferedFilePatternSource(infiles, p),
+		CFilePatternSource(infiles, p),
 		first_(true),
 		solQuals_(p.solexa64),
 		phred64Quals_(p.phred64),
@@ -1371,55 +1548,10 @@ public:
 	
 	virtual void reset() {
 		first_ = true;
-		fb_.resetLastN();
-		BufferedFilePatternSource::reset();
+		CFilePatternSource::reset();
 	}
 	
 protected:
-
-	/**
-	 * Scan to the next FASTQ record (starting with @) and return the first
-	 * character of the record (which will always be @).  Since the quality
-	 * line may start with @, we keep scanning until we've seen a line
-	 * beginning with @ where the line two lines back began with +.
-	 */
-	static int skipToNextFastqRecord(FileBuf& in, bool sawPlus) {
-		int line = 0;
-		int plusLine = -1;
-		int c = in.get();
-		int firstc = c;
-		while(true) {
-			if(line > 20) {
-				// If we couldn't find our desired '@' in the first 20
-				// lines, it's time to give up
-				if(firstc == '>') {
-					// That firstc is '>' may be a hint that this is
-					// actually a FASTA file, so return it intact
-					return '>';
-				}
-				// Return an error
-				return -1;
-			}
-			if(c == -1) return -1;
-			if(c == '\n') {
-				c = in.get();
-				if(c == '@' && sawPlus && plusLine == (line-2)) {
-					return '@';
-				}
-				else if(c == '+') {
-					// Saw a '+' at the beginning of a line; remember where
-					// we saw it
-					sawPlus = true;
-					plusLine = line;
-				}
-				else if(c == -1) {
-					return -1;
-				}
-				line++;
-			}
-			c = in.get();
-		}
-	}
 
 	/// Read another pattern from a FASTQ input file
 	virtual bool readLight(
@@ -1446,16 +1578,6 @@ protected:
 	}
 	
 	/**
-	 * All-in-one reading and parsing function.
-	 */
-	bool readHeavy(
-		Read& r,
-		TReadId& rdid,
-		TReadId& endid,
-		bool& success,
-		bool& done);
-	
-	/**
 	 * Finalize FASTQ parsing outside critical section.
 	 */
 	virtual void finalize(Read& r) const;
@@ -1465,16 +1587,6 @@ protected:
 	}
 	
 private:
-
-	/**
-	 * Do things we need to do if we have to bail in the middle of a
-	 * read, usually because we reached the end of the input without
-	 * finishing.
-	 */
-	void bail(Read& r) {
-		r.patFw.clear();
-		fb_.resetLastN();
-	}
 
 	bool first_;
 	bool solQuals_;

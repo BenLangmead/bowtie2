@@ -744,200 +744,13 @@ bool FastaPatternSource::readLight(
 	return success;
 }
 
-/// Read another pattern from a FASTQ input file
-bool FastqPatternSource::readHeavy(
-	Read& r,
-	TReadId& rdid,
-	TReadId& endid,
-	bool& success,
-	bool& done)
-{
-	int c;
-	int dstLen = 0;
-	success = true;
-	done = false;
-	r.reset();
-	// Pick off the first at
-	if(first_) {
-		c = fb_.get();
-		if(c != '@') {
-			c = getOverNewline(fb_);
-			if(c < 0) {
-				bail(r); success = false; done = true; return success;
-			}
-		}
-		if(c != '@') {
-			cerr << "Error: reads file does not look like a FASTQ file" << endl;
-			throw 1;
-		}
-		assert_eq('@', c);
-		first_ = false;
-	}
-
-	// Read to the end of the id line, sticking everything after the '@'
-	// into *name
-	while(true) {
-		c = fb_.get();
-		if(c < 0) {
-			bail(r); success = false; done = true; return success;
-		}
-		if(c == '\n' || c == '\r') {
-			// Break at end of line, after consuming all \r's, \n's
-			while(c == '\n' || c == '\r') {
-				c = fb_.get();
-				if(c < 0) {
-					bail(r); success = false; done = true; return success;
-				}
-			}
-			break;
-		}
-		r.name.append(c);
-	}
-	// fb_ now points just past the first character of a
-	// sequence line, and c holds the first character
-	int charsRead = 0;
-	BTDnaString *sbuf = &r.patFw;
-	int mytrim5 = gTrim5;
-	int trim5 = 0;
-	if(c != '+') {
-		trim5 = mytrim5;
-		while(c != '+') {
-			if(c == '.') c = 'N';
-			if(isalpha(c)) {
-				// If it's past the 5'-end trim point
-				if(charsRead >= trim5) {
-					sbuf->append(asc2dna[c]);
-					dstLen++;
-				}
-				charsRead++;
-			}
-			c = fb_.get();
-			if(c < 0) {
-				bail(r); success = false; done = true; return success;
-			}
-		}
-		charsRead = dstLen + mytrim5;
-	}
-	// Trim from 3' end
-	if(gTrim3 > 0) {
-		if((int)r.patFw.length() > gTrim3) {
-			r.patFw.resize(r.patFw.length() - gTrim3);
-			dstLen -= gTrim3;
-			assert_eq((int)r.patFw.length(), dstLen);
-		} else {
-			// Trimmed the whole read; we won't be using this read,
-			// but we proceed anyway so that fb_ is advanced
-			// properly
-			r.patFw.clear();
-			dstLen = 0;
-		}
-	}
-	assert_eq('+', c);
-
-	// Chew up the optional name on the '+' line
-	ASSERT_ONLY(int pk =) peekToEndOfLine(fb_);
-	if(charsRead == 0) {
-		assert(pk == '@' || pk == -1);
-		fb_.get();
-		r.readOrigBuf.install(fb_.lastN(), fb_.lastNLen());
-		fb_.resetLastN();
-		rdid = endid = readCnt_;
-		readCnt_++;
-		return success;
-	}
-
-	// Now read the qualities
-	if (intQuals_) {
-		int qualsRead = 0;
-		char buf[4096];
-		qualToks_.clear();
-		tokenizeQualLine(fb_, buf, 4096, qualToks_);
-		for(unsigned int j = 0; j < qualToks_.size(); ++j) {
-			char c = intToPhred33(atoi(qualToks_[j].c_str()), solQuals_);
-			assert_geq(c, 33);
-			if (qualsRead >= mytrim5) {
-				r.qual.append(c);
-			}
-			++qualsRead;
-		} // done reading integer quality lines
-		r.qual.trimEnd(gTrim3);
-		if(r.qual.length() < r.patFw.length()) {
-			tooFewQualities(r.name);
-		} else if(r.qual.length() > r.patFw.length() + 1) {
-			tooManyQualities(r.name);
-		}
-		// Trim qualities on 3' end
-		if(r.qual.length() > r.patFw.length()) {
-			r.qual.resize(r.patFw.length());
-			assert_eq((int)r.qual.length(), dstLen);
-		}
-		peekOverNewline(fb_);
-	} else {
-		// Non-integer qualities
-		trim5 = mytrim5;
-		int qualsRead = 0;
-		BTString *qbuf = &r.qual;
-		while(true) {
-			c = fb_.get();
-			if (c == ' ') {
-				wrongQualityFormat(r.name);
-			}
-			if(c < 0) {
-				break; // let the file end just at the end of a quality line
-				//bail(r); success = false; done = true; return success;
-			}
-			if (c != '\r' && c != '\n') {
-				if (qualsRead >= trim5) {
-					try {
-						c = charToPhred33(c, solQuals_, phred64Quals_);
-					}
-					catch (...) {
-						cout << "Error encountered at sequence id: " << r.name << endl;
-						throw;
-					}
-					assert_geq(c, 33);
-					qbuf->append(c);
-				}
-				qualsRead++;
-			} else {
-				break;
-			}
-		}
-		qualsRead -= gTrim3;
-		r.qual.trimEnd(gTrim3);
-		if(r.qual.length() < r.patFw.length()) {
-			tooFewQualities(r.name);
-		} else if(r.qual.length() > r.patFw.length()+1) {
-			tooManyQualities(r.name);
-		}
-
-		if(c == '\r' || c == '\n') {
-			c = peekOverNewline(fb_);
-		} else {
-			c = peekToEndOfLine(fb_);
-		}
-	}
-	r.readOrigBuf.install(fb_.lastN(), fb_.lastNLen());
-	fb_.resetLastN();
-
-	c = fb_.get();
-	// Should either be at end of file or at beginning of next record
-	assert(c == -1 || c == '@');
-
-	// Set up a default name if one hasn't been set
-	if(r.name.empty()) {
-		char cbuf[20];
-		itoa10<TReadId>(readCnt_, cbuf);
-		r.name.install(cbuf);
-	}
-	r.trimmed3 = gTrim3;
-	r.trimmed5 = mytrim5;
-	rdid = endid = readCnt_;
-	readCnt_++;
-	return success;
-}
-
-/// Read another pattern from a FASTQ input file
+/**
+ * "Light" parser.  This is inside the critical section, so the key is to do
+ * just enough parsing so that another function downstream (finalize()) can do
+ * the rest of the parsing.  Really this function's only job is to stick every
+ * for lines worth of the input file into a buffer (r.readOrigBuf).  finalize()
+ * then parses the contents of r.readOrigBuf later.
+ */
 bool FastqPatternSource::readLight(
 	Read& r,
 	TReadId& rdid,
@@ -948,38 +761,43 @@ bool FastqPatternSource::readLight(
 	int c;
 	success = true;
 	done = false;
+	r.readOrigBuf.clear();
 	if(first_) {
-		c = fb_.get();
+		c = getc_unlocked(fp_);
 		while(c == '\r' || c == '\n') {
-			c = fb_.get();
+			c = getc_unlocked(fp_);
 		}
 		if(c != '@') {
 			cerr << "Error: reads file does not look like a FASTQ file" << endl;
 			throw 1;
 		}
+		r.readOrigBuf.append(c);
 		assert_eq('@', c);
 		first_ = false;
 	}
-	int newlines = 0;
-	while(newlines < 4) {
-		c = fb_.get();
-		if(c == '\n' || (c < 0 && newlines == 3)) {
-			newlines++;
+	// Note: to reduce the number of times we have to enter the critical
+	// section (each entrance has some assocaited overhead), we could populate
+	// the buffer with several reads worth of data here, instead of just one.
+	int newlines = 4;
+	while(newlines) {
+		c = getc_unlocked(fp_);
+		if(c == '\n' || (c < 0 && newlines == 1)) {
+			newlines--;
+			c = '\n';
 		} else if(c < 0) {
-			bail(r); success = false; done = true; return success;
+			success = false; done = true; return false;
 		}
+		r.readOrigBuf.append(c);
 	}
-	r.readOrigBuf.install(fb_.lastN(), fb_.lastNLen());
-	fb_.resetLastN();
 	rdid = endid = readCnt_;
 	readCnt_++;
-	return success;
+	return true;
 }
 
 /// Read another pattern from a FASTQ input file
 void FastqPatternSource::finalize(Read &r) const {
 	int c;
-	size_t cur = 1; // skip initial @
+	size_t cur = 1;
 
 	// Parse read name
 	assert(r.name.empty());
