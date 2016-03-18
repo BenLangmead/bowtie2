@@ -814,7 +814,7 @@ void FastqPatternSource::finalize(Read &r) const {
 	}
 	
 	// Parse sequence
-	size_t nchar = 0;
+	int nchar = 0;
 	assert(r.patFw.empty());
 	while(c != '+') {
 		if(c == '.') {
@@ -848,7 +848,7 @@ void FastqPatternSource::finalize(Read &r) const {
 	}
 
 	assert(r.qual.empty());
-	size_t nqual = 0;
+	int nqual = 0;
 	if (intQuals_) {
 		throw 1; // not yet implemented
 	} else {
