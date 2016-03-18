@@ -83,11 +83,12 @@ bool PatternSource::nextRead(
 	TReadId& rdid,
 	TReadId& endid,
 	bool& success,
-	bool& done)
+	bool& done,
+	bool lock)
 {
 	// nextPatternImpl does the reading from the ultimate source;
 	// it is implemented in concrete subclasses
-	return nextReadImpl(r, rdid, endid, success, done);
+	return nextReadImpl(r, rdid, endid, success, done, lock);
 }
 
 /**
@@ -134,10 +135,6 @@ bool PairedSoloPatternSource::nextReadPair(
 		} while(!success && !done);
 		if(!success) {
 			assert(done);
-			// TODO: is this necessary?  advisable?
-			// Maybe just declare cur_ volatile?
-			// I guess this is really just trying to prevent cur_ from being
-			// incremented twice in quick succession
 			ThreadSafe ts(&mutex_m);
 			if(cur + 1 > cur_) cur_++;
 			cur = cur_;
@@ -189,12 +186,7 @@ bool PairedDualPatternSource::nextReadPair(
 	bool fixName)
 {
 	// 'cur' indexes the current pair of PatternSources
-	uint32_t cur;
-	{
-		// TODO: is this necessary?
-		ThreadSafe ts(&mutex_m);
-		cur = cur_;
-	}
+	uint32_t cur = cur_;
 	success = false;
 	done = true;
 	while(cur < srca_->size()) {
@@ -232,10 +224,10 @@ bool PairedDualPatternSource::nextReadPair(
 			{
 				ThreadSafe ts(&mutex_m);
 				do {
-					(*srca_)[cur]->nextRead(ra, rdid_a, endid_a, success_a, done_a);
+					(*srca_)[cur]->nextRead(ra, rdid_a, endid_a, success_a, done_a, false);
 				} while(!success_a && !done_a);
 				do {
-					(*srcb_)[cur]->nextRead(rb, rdid_b, endid_b, success_b, done_b);
+					(*srcb_)[cur]->nextRead(rb, rdid_b, endid_b, success_b, done_b, false);
 				} while(!success_b && !done_b);
 				if(!success_a && success_b) {
 					cerr << "Error, fewer reads in file specified with -1 than in file specified with -2" << endl;
@@ -487,11 +479,12 @@ bool VectorPatternSource::nextReadImpl(
 	TReadId& rdid,
 	TReadId& endid,
 	bool& success,
-	bool& done)
+	bool& done,
+	bool lock)
 {
 	// Let Strings begin at the beginning of the respective bufs
 	r.reset();
-	ThreadSafe ts(&mutex, true);
+	ThreadSafe ts(&mutex, lock);
 	if(cur_ >= v_.size()) {
 		ts.~ThreadSafe();
 		// Clear all the Strings, as a signal to the caller that

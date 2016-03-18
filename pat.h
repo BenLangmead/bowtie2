@@ -185,7 +185,8 @@ public:
 		TReadId& rdid,
 		TReadId& endid,
 		bool& success,
-		bool& done);
+		bool& done,
+		bool lock = true);
 
 	/**
 	 * Implementation to be provided by concrete subclasses.  An
@@ -215,7 +216,8 @@ public:
 		TReadId& rdid, 
 		TReadId& endid, 
 		bool& success,
-		bool& done) = 0;
+		bool& done,
+		bool lock = true) = 0;
 
 	/**
 	 * Finishes parsing outside the critical section
@@ -688,7 +690,8 @@ public:
 		TReadId& rdid,
 		TReadId& endid,
 		bool& success,
-		bool& done);
+		bool& done,
+		bool lock = true);
 	
 	/**
 	 * This is unused, but implementation is given for completeness.
@@ -762,9 +765,10 @@ public:
 		TReadId& rdid,
 		TReadId& endid,
 		bool& success,
-		bool& done)
+		bool& done,
+		bool lock = true)
 	{
-		ThreadSafe ts(&mutex);
+		ThreadSafe ts(&mutex, lock);
 		while(true) {
 			do {
 				readLight(r, rdid, endid, success, done);
