@@ -85,7 +85,7 @@ public:
 	
     ThreadSafe(MUTEX_T* ptr_mutex, bool locked = true) {
 		if(locked) {
-#if WITH_TBB && WITH_QUEUELOCK
+#if WITH_TBB && NO_SPINLOCK && WITH_QUEUELOCK
 		    //have to use the heap as we can't copy
 		    //the scoped lock
 		    this->ptr_mutex = new MUTEX_T::scoped_lock(*ptr_mutex);
@@ -101,7 +101,7 @@ public:
 
 	~ThreadSafe() {
 	    if (ptr_mutex != NULL)
-#if WITH_TBB && WITH_QUEUELOCK
+#if WITH_TBB && NO_SPINLOCK && WITH_QUEUELOCK
 	    	delete ptr_mutex;
 	}
 #else
@@ -110,7 +110,7 @@ public:
 #endif
     
 private:
-#if WITH_TBB && WITH_QUEUELOCK
+#if WITH_TBB && NO_SPINLOCK && WITH_QUEUELOCK
 	MUTEX_T::scoped_lock* ptr_mutex;
 #else
 	MUTEX_T *ptr_mutex;

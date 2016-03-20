@@ -11,7 +11,7 @@
 #include <tbb/atomic.h>
 #include "cpu_numa_info.h"
 
-#if WITH_QUEUELOCK_
+#if WITH_QUEUELOCK
 # include <tbb/queuing_mutex.h>
 # define MUTEX_G tbb::mutex
 # define MUTEX_L tbb::queuing_mutex
@@ -36,7 +36,7 @@ public:
 private:
 	int id;
 	MUTEX_L* local_lock;
-#if WITH_QUEUELOCK_
+#if WITH_QUEUELOCK
 	MUTEX_L::scoped_lock* last_scoped_lock;
 #endif
 	tbb::atomic<uint64_t> local_counter;
