@@ -94,6 +94,14 @@ const rawSeq MemoryMockPatternSourcePerThread::raw_list[] = {
 #include "rawseqs.h"
 };
 
+const rawSeq MemoryMockPatternSourcePerThread::raw_list_1[] = {
+#include "rawseqs_1.h"
+};
+
+const rawSeq MemoryMockPatternSourcePerThread::raw_list_2[] = {
+#include "rawseqs_2.h"
+};
+
 /**
  * The main member function for dispensing patterns.
  */
@@ -140,9 +148,7 @@ bool WrappedPatternSourcePerThread::nextReadPair(
 
 void MemoryMockPatternSourcePerThread::dump(){
 	// not needed it for general debuggin purpose
-	using std::cerr;
-	using std::endl;
-	cerr << raw_list[this->i].id.c_str() << endl;
+	std::cerr << raw_list[i_].id.c_str() << std::endl;
 }
 
 bool MemoryMockPatternSourcePerThread::nextReadPair(
@@ -151,29 +157,35 @@ bool MemoryMockPatternSourcePerThread::nextReadPair(
 	bool& paired,
 	bool fixName)
 {
-	// automate conversion from FASTQ to raw_list
-	ASSERT_ONLY(TReadId lastRdId = rdid_);
-	if (this->i > 1999) {
-		if (this->loop_iter > 99) {
-			done = true;
-			return false;
-		}
-		else {
-			this->i = 0;
-			this->loop_iter++;
-		}
+	if(i_ > 1999) { // NOTE: length of read list is hard-coded here
+		i_ = 0;
+		loop_iter_++;
 	}
-	//ASSERT_ONLY(dump());
 	success = true;
-	paired = false;
-	buf1_.init(
-			raw_list[this->i].id.c_str(),
-			raw_list[this->i].seq.c_str(),
-			raw_list[this->i].qual.c_str()
-	);
-	this->i++;
-	this->rdid_ = this->endid_ = this->i;
-	assert(!success || rdid_ != lastRdId);
+	paired = paired_;
+	if(!paired_) {
+		buf1_.init(
+			raw_list[i_].id.c_str(),
+			raw_list[i_].seq.c_str(),
+			raw_list[i_].qual.c_str()
+		);
+		buf1_.mate = 1;
+	} else {
+		buf1_.init(
+			raw_list_1[i_].id.c_str(),
+			raw_list_1[i_].seq.c_str(),
+			raw_list_1[i_].qual.c_str()
+		);
+		buf2_.init(
+			raw_list_2[i_].id.c_str(),
+			raw_list_2[i_].seq.c_str(),
+			raw_list_2[i_].qual.c_str()
+		);
+		buf1_.mate = 1;
+		buf2_.mate = 2;
+	}
+	rdid_ = endid_ = cur_;
+	i_++; cur_++;
 	return success;
 }
 

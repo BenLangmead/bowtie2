@@ -1608,7 +1608,9 @@ static const char *argv0 = NULL;
 static PatternSourcePerThreadFactory*
 createPatsrcFactory(PairedPatternSource& _patsrc, int tid) {
 	PatternSourcePerThreadFactory *patsrcFact;
-	patsrcFact = new MemoryMockPatternSourcePerThreadFactory(_patsrc);
+	size_t n = (size_t)(qUpto / nthreads);
+	bool paired = !mates2.empty();
+	patsrcFact = new MemoryMockPatternSourcePerThreadFactory(_patsrc, n, paired);
 	assert(patsrcFact != NULL);
 	return patsrcFact;
 }

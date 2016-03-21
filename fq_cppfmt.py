@@ -44,15 +44,12 @@ class FqReader(object):
 
 def parse_args():
     usage = " %prog [options] \n\n"
-    usage += "Extracts a specific number of FastQ records and writes them like\n"
-    usage += "a C records.\n"
+    usage += "Extracts a specific number of FastQ records and writes them to stdout\n"
+    usage += "as C records.\n"
     parser = OptionParser(usage=usage)
     parser.add_option("-i", "--fastq-file",
                       action="store", type="string", dest="fastq_file", default=None,
                       help="(mandatory).FastQ file to read from.")
-    parser.add_option("-o", "--output-file",
-                      action="store", type="string", dest="out_file", default='raw_fastq.h',
-                      help="(Default: raw_fastq.h). C like file where rezults are written. ")
     parser.add_option("-c", "--count",
                       action="store", type="int", dest="seqs_count", default=100,
                       help="(Default: 100). Number of sequences to pull.")
@@ -80,5 +77,5 @@ if __name__ == "__main__":
             print "  {"
             print "   \"" + rec.seq_id + "\","
             print "   \"" + rec.seq + "\","
-            print "   \"" + rec.qual.replace('"', '\\"') + "\""
+            print "   \"" + rec.qual.replace('\\', '\\\\').replace('"', '\\"').replace('?', '\\?') + "\""
             print "  },"

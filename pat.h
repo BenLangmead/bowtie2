@@ -619,7 +619,11 @@ struct rawSeq {
 
 class MemoryMockPatternSourcePerThread : public PatternSourcePerThread {
 public:
-	MemoryMockPatternSourcePerThread(PairedPatternSource& __patsrc) : i(0),loop_iter(1) {}
+	MemoryMockPatternSourcePerThread(PairedPatternSource& __patsrc, size_t n, bool paired) :
+		i_(0), cur_(0), loop_iter_(1), n_(n), paired_(paired)
+	{
+		// set up # loop iterations
+	}
 
 	/**
 	 * Get the next paired or unpaired read from the wrapped
@@ -633,9 +637,14 @@ public:
 
 private:
 	void dump();
-	int i;
-	int loop_iter;
-	static const rawSeq raw_list[];
+	size_t i_;
+	size_t cur_;
+	int loop_iter_;
+	size_t n_;
+	bool paired_;
+	static const rawSeq raw_list[];    /// unpaired
+	static const rawSeq raw_list_1[];  /// paired-end mate 1
+	static const rawSeq raw_list_2[];  /// paired-end mate 2
 };
 
 /**
@@ -673,14 +682,14 @@ private:
 
 class MemoryMockPatternSourcePerThreadFactory : public PatternSourcePerThreadFactory {
 public:
-	MemoryMockPatternSourcePerThreadFactory(PairedPatternSource& patsrc) :
-		patsrc_(patsrc) { }
+	MemoryMockPatternSourcePerThreadFactory(PairedPatternSource& patsrc, size_t n, bool paired) :
+		patsrc_(patsrc), n_(n), paired_(paired) { }
 
 	/**
 	 * Create a new heap-allocated WrappedPatternSourcePerThreads.
 	 */
 	virtual PatternSourcePerThread* create() const {
-		return new MemoryMockPatternSourcePerThread(patsrc_);
+		return new MemoryMockPatternSourcePerThread(patsrc_, n_, paired_);
 	}
 
 	/**
@@ -690,7 +699,7 @@ public:
 	virtual EList<PatternSourcePerThread*>* create(uint32_t n) const {
 		EList<PatternSourcePerThread*>* v = new EList<PatternSourcePerThread*>;
 		for(size_t i = 0; i < n; i++) {
-			v->push_back(new MemoryMockPatternSourcePerThread(patsrc_));
+			v->push_back(new MemoryMockPatternSourcePerThread(patsrc_, n_, paired_));
 			assert(v->back() != NULL);
 		}
 		return v;
@@ -699,6 +708,8 @@ public:
 private:
 	/// Container for obtaining paired reads from PatternSources
 	PairedPatternSource& patsrc_;
+	size_t n_;  /// total # reads each thread should iterate through
+	bool paired_;  /// generate paired-end reads?
 };
 
 /// Skip to the end of the current string of newline chars and return
