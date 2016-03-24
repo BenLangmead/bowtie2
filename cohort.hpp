@@ -59,6 +59,7 @@ private:
 	int* lock_called;
 	int* lock_released;
 	volatile bool* own_global;
+	volatile int lockers_numa_idx;
 	MUTEX_G* global_lock;
 	LocalLock* local_locks;
 };
