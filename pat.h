@@ -157,7 +157,7 @@ public:
 #endif
 	}
 
-	virtual ~PatternSource() { fprintf(stderr, "Time Taken In CS: %d\n",timer_counter); }
+	virtual ~PatternSource() { fprintf(stderr, "Time Taken In CS: %d\n", (int)timer_counter); }
 
 	/**
 	 * Call this whenever this PatternSource is wrapped by a new
