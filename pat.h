@@ -773,7 +773,7 @@ public:
 		bool lock = true)
 	{
 		ThreadSafe ts(&mutex, lock);
-		timeval     _t;
+		//timeval _t;
 		//gettimeofday(&_t, NULL);
 		while(true) {
 			do {
