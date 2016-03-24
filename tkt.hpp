@@ -19,7 +19,8 @@ public:
 	void lock()
 	{
 		//printf("lock %p b4 request:%u grant:%u\n",this,request,grant);
-		uint64_t volatile my_request = request.fetch_and_increment();
+		//volatile uint64_t my_request = request.fetch_and_increment();
+		volatile uint64_t my_request = request.fetch_and_increment();
 		//request.fetch_and_increment();
 		//printf("lock %p mid request:%u my_request:%d grant:%u\n",this,request,my_request,grant);
 		while(my_request != grant)

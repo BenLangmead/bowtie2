@@ -64,7 +64,7 @@
 	CohortLock::CohortLock()
 	{
 		assert(numa_available()!=-1);
-		num_numa_nodes = numa_max_node()+1;
+		num_numa_nodes = 1024;
 		//printf("num numa nodes %d\n",num_numa_nodes);
 		//this->starvation_limit = starvation_limit;
 		starvation_counters = new int [num_numa_nodes]();
@@ -118,18 +118,19 @@
 
 	void CohortLock::lock()
 	{
-		this->lock(this->determine_numa_idx());
+		assert(lockers_numa_idx == -1);
+		int idx = this->determine_numa_idx();
+		this->lock(idx);
+		lockers_numa_idx = idx;
 	}
-		
+
 	void CohortLock::lock(int numa_idx)
 	{
-		//printf("thread: lock called %d\n",numa_idx);
-		lock_called[numa_idx]++;
-		//get the local lock
+		// get the local lock
 		local_locks[numa_idx].lock();
 		if(!own_global[numa_idx])
 		{
-			//now try for global
+			// now try for global
 			global_lock->lock();
 		}
 		starvation_counters[numa_idx]++;
@@ -138,7 +139,10 @@
 	
 	void CohortLock::unlock()
 	{
-		this->unlock(this->determine_numa_idx());
+		assert(lockers_numa_idx != -1);
+		int idx = lockers_numa_idx;
+		lockers_numa_idx = -1;
+		this->unlock(idx);
 	}
 
 	void CohortLock::unlock(int numa_idx)

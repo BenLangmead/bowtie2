@@ -17,11 +17,15 @@ class PTLLock
 public:
 	PTLLock()
 	{
+		grant=0;
+		request=0;
 		this->reset_lock(DEFAULT_NUM_PARTITIONS);
 	}
 
 	PTLLock(int num_partitions_)
 	{
+		grant=0;
+		request=0;
 		this->reset_lock(num_partitions_);
 	}
 		
@@ -34,6 +38,10 @@ public:
 	{
 		assert(num_partitions_>=1);
 		this->num_partitions = num_partitions_;
+		if(grant >= 1)
+		{
+			delete[] partitions;
+		}
 		//offset by 1 since we're starting grant/request at 1 due to 
 		//defauls to 0
 		partitions = new uint64_t [num_partitions_+1]();

@@ -28,6 +28,8 @@
 #include <cstring>
 #include <ctype.h>
 #include <fstream>
+#include <ctime>
+#include <sys/time.h>
 #include "alphabet.h"
 #include "assert_helpers.h"
 #include "tokenize.h"
@@ -143,14 +145,15 @@ public:
 		seed_(p.seed),
 		readCnt_(0),
 		numWrappers_(0),
-		mutex()
+		mutex(),
+		timer_counter(0)
 	{
 #ifdef WITH_COHORTLOCK
 		mutex.reset_lock(p.nthreads);
 #endif
 	}
 
-	virtual ~PatternSource() { }
+	virtual ~PatternSource() { fprintf(stderr, "Time Taken In CS: %d\n", (int)timer_counter); }
 
 	/**
 	 * Call this whenever this PatternSource is wrapped by a new
@@ -250,6 +253,7 @@ protected:
 
 	int numWrappers_;      /// # threads that own a wrapper for this PatternSource
 	MUTEX_T mutex;
+	uint64_t timer_counter;
 };
 
 /**
@@ -769,6 +773,8 @@ public:
 		bool lock = true)
 	{
 		ThreadSafe ts(&mutex, lock);
+		timeval     _t;
+		//gettimeofday(&_t, NULL);
 		while(true) {
 			do {
 				readLight(r, rdid, endid, success, done);
@@ -782,6 +788,9 @@ public:
 			}
 			break;
 		}
+		//timeval f;
+		//gettimeofday(&f, NULL);
+		//timer_counter += f.tv_sec - _t.tv_sec;
 		return success;
 	}
 	
@@ -799,6 +808,8 @@ public:
 	{
 		// We'll be manipulating our file handle/filecur_ state
 		ThreadSafe ts(&mutex);
+		//timeval     _t;
+		//gettimeofday(&_t, NULL);
 		while(true) {
 			do {
 				readPairLight(ra, rb, rdid, endid, success, done, paired);
@@ -812,6 +823,9 @@ public:
 			}
 			break;
 		}
+		//timeval f;
+		//gettimeofday(&f, NULL);
+		//timer_counter += f.tv_sec - _t.tv_sec;
 		return success;
 	}
 	
