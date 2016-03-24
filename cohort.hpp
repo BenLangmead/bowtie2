@@ -3,7 +3,6 @@
 #ifndef COHORT_H_
 #define COHORT_H_
 
-#include <numa.h>
 #include <iostream>
 #include <cstdio>
 #include <assert.h>

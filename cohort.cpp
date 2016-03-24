@@ -118,18 +118,19 @@
 
 	void CohortLock::lock()
 	{
-		this->lock(this->determine_numa_idx());
+		assert(lockers_numa_idx == -1);
+		int idx = this->determine_numa_idx();
+		this->lock(idx);
+		lockers_numa_idx = idx;
 	}
-		
+
 	void CohortLock::lock(int numa_idx)
 	{
-		//printf("thread: lock called %d\n",numa_idx);
-		lock_called[numa_idx]++;
-		//get the local lock
+		// get the local lock
 		local_locks[numa_idx].lock();
 		if(!own_global[numa_idx])
 		{
-			//now try for global
+			// now try for global
 			global_lock->lock();
 		}
 		starvation_counters[numa_idx]++;
@@ -138,7 +139,10 @@
 	
 	void CohortLock::unlock()
 	{
-		this->unlock(this->determine_numa_idx());
+		assert(lockers_numa_idx != -1);
+		int idx = lockers_numa_idx;
+		lockers_numa_idx = -1;
+		this->unlock(idx);
 	}
 
 	void CohortLock::unlock(int numa_idx)
