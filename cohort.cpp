@@ -64,7 +64,7 @@
 	CohortLock::CohortLock()
 	{
 		assert(numa_available()!=-1);
-		num_numa_nodes = numa_max_node()+1;
+		num_numa_nodes = 1024;
 		//printf("num numa nodes %d\n",num_numa_nodes);
 		//this->starvation_limit = starvation_limit;
 		starvation_counters = new int [num_numa_nodes]();
