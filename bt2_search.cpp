@@ -1599,6 +1599,8 @@ static void parseOptions(int argc, const char **argv) {
 			 << endl;
 	}
 #endif
+	// BTL: important change for no-io
+	qUpto /= nthreads;
 }
 
 static const char *argv0 = NULL;
@@ -1608,9 +1610,8 @@ static const char *argv0 = NULL;
 static PatternSourcePerThreadFactory*
 createPatsrcFactory(PairedPatternSource& _patsrc, int tid) {
 	PatternSourcePerThreadFactory *patsrcFact;
-	size_t n = (size_t)(qUpto / nthreads);
 	bool paired = !mates2.empty();
-	patsrcFact = new MemoryMockPatternSourcePerThreadFactory(_patsrc, n, paired);
+	patsrcFact = new MemoryMockPatternSourcePerThreadFactory(_patsrc, qUpto, paired);
 	assert(patsrcFact != NULL);
 	return patsrcFact;
 }
