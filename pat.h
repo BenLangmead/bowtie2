@@ -618,11 +618,28 @@ struct rawSeq {
 };
 
 class MemoryMockPatternSourcePerThread : public PatternSourcePerThread {
+
 public:
-	MemoryMockPatternSourcePerThread(PairedPatternSource& __patsrc, size_t n, bool paired) :
-		i_(0), cur_(0), loop_iter_(1), n_(n), paired_(paired)
+
+	MemoryMockPatternSourcePerThread(
+		PairedPatternSource& __patsrc,
+		int threadid,
+		uint32_t seed,
+		bool paired) :
+		i_(0), cur_(0), loop_iter_(1), rnd_(), paired_(paired)
 	{
-		// set up # loop iterations
+		rnd_.init((seed + 31) * 7 * threadid);
+		for(size_t i = 0; i < 2000; i++) {
+			permutation_[i] = i;
+		}
+		for(size_t i = 0; i < 5000; i++) {
+			size_t j = rnd_.nextU32() % 2000;
+			size_t k = rnd_.nextU32() % 2000;
+			assert(j != k);
+			size_t tmp = permutation_[j];
+			permutation_[j] = permutation_[k];
+			permutation_[k] = tmp;
+		}
 	}
 
 	/**
@@ -637,11 +654,15 @@ public:
 
 private:
 	void dump();
+
 	size_t i_;
 	size_t cur_;
 	int loop_iter_;
-	size_t n_;
+	RandomSource rnd_;
 	bool paired_;
+ 
+	size_t permutation_[2000];
+
 	static const rawSeq raw_list[];    /// unpaired
 	static const rawSeq raw_list_1[];  /// paired-end mate 1
 	static const rawSeq raw_list_2[];  /// paired-end mate 2
@@ -681,17 +702,23 @@ private:
 };
 
 class MemoryMockPatternSourcePerThreadFactory : public PatternSourcePerThreadFactory {
+
 public:
-	MemoryMockPatternSourcePerThreadFactory(PairedPatternSource& patsrc, size_t n, bool paired) :
-		patsrc_(patsrc), n_(n), paired_(paired) { }
+
+	MemoryMockPatternSourcePerThreadFactory(
+		PairedPatternSource& patsrc,
+		int tid,
+		uint32_t seed,
+		bool paired) :
+		patsrc_(patsrc), paired_(paired) { }
 
 	/**
 	 * Create a new heap-allocated WrappedPatternSourcePerThreads.
 	 */
 	virtual PatternSourcePerThread* create() const {
-		return new MemoryMockPatternSourcePerThread(patsrc_, n_, paired_);
+		return new MemoryMockPatternSourcePerThread(patsrc_, tid_, seed_, paired_);
 	}
-
+	
 	/**
 	 * Create a new heap-allocated vector of heap-allocated
 	 * WrappedPatternSourcePerThreads.
@@ -699,7 +726,7 @@ public:
 	virtual EList<PatternSourcePerThread*>* create(uint32_t n) const {
 		EList<PatternSourcePerThread*>* v = new EList<PatternSourcePerThread*>;
 		for(size_t i = 0; i < n; i++) {
-			v->push_back(new MemoryMockPatternSourcePerThread(patsrc_, n_, paired_));
+			v->push_back(new MemoryMockPatternSourcePerThread(patsrc_, tid_, seed_, paired_));
 			assert(v->back() != NULL);
 		}
 		return v;
@@ -708,7 +735,8 @@ public:
 private:
 	/// Container for obtaining paired reads from PatternSources
 	PairedPatternSource& patsrc_;
-	size_t n_;  /// total # reads each thread should iterate through
+	int tid_;  /// thread id
+	uint32_t seed_;  /// pseudo-random seed
 	bool paired_;  /// generate paired-end reads?
 };
 

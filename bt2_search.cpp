@@ -1611,7 +1611,7 @@ static PatternSourcePerThreadFactory*
 createPatsrcFactory(PairedPatternSource& _patsrc, int tid) {
 	PatternSourcePerThreadFactory *patsrcFact;
 	bool paired = !mates2.empty();
-	patsrcFact = new MemoryMockPatternSourcePerThreadFactory(_patsrc, qUpto, paired);
+	patsrcFact = new MemoryMockPatternSourcePerThreadFactory(_patsrc, tid, seed, paired);
 	assert(patsrcFact != NULL);
 	return patsrcFact;
 }
