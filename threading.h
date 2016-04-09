@@ -79,36 +79,31 @@
 class ThreadSafe {
 public:
 
-    ThreadSafe() {
-	this->ptr_mutex = NULL;
-    }
+	ThreadSafe() : ptr_mutex(NULL) { }
 	
-    ThreadSafe(MUTEX_T* ptr_mutex, bool locked = true) {
+	ThreadSafe(MUTEX_T* ptr_mutex, bool locked = true) : ptr_mutex(NULL) {
 		if(locked) {
 #if WITH_TBB && NO_SPINLOCK && WITH_QUEUELOCK
-		    //have to use the heap as we can't copy
-		    //the scoped lock
-		    this->ptr_mutex = new MUTEX_T::scoped_lock(*ptr_mutex);
+			//have to use the heap as we can't copy
+			//the scoped lock
+			this->ptr_mutex = new MUTEX_T::scoped_lock(*ptr_mutex);
 #else
 //TODO: need to add special conditional for CohortLock here
-		    this->ptr_mutex = ptr_mutex;
-		    ptr_mutex->lock();
+			this->ptr_mutex = ptr_mutex;
+			ptr_mutex->lock();
 #endif
 		}
-		else
-		    this->ptr_mutex = NULL;
 	}
 
 	~ThreadSafe() {
-	    if (ptr_mutex != NULL)
+		if (ptr_mutex != NULL)
 #if WITH_TBB && NO_SPINLOCK && WITH_QUEUELOCK
-	    	delete ptr_mutex;
-	}
+			delete ptr_mutex;
 #else
-	    	ptr_mutex->unlock();
-	}
+			ptr_mutex->unlock();
 #endif
-    
+	}
+
 private:
 #if WITH_TBB && NO_SPINLOCK && WITH_QUEUELOCK
 	MUTEX_T::scoped_lock* ptr_mutex;
