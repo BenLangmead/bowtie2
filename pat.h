@@ -145,15 +145,21 @@ public:
 		seed_(p.seed),
 		readCnt_(0),
 		numWrappers_(0),
-		mutex(),
-		timer_counter(0)
+		mutex()
+#if 0
+		, timer_counter(0)
+#endif
 	{
 #ifdef WITH_COHORTLOCK
 		mutex.reset_lock(p.nthreads);
 #endif
 	}
 
-	virtual ~PatternSource() { fprintf(stderr, "Time Taken In CS: %d\n", (int)timer_counter); }
+	virtual ~PatternSource() {
+#if 0
+		fprintf(stderr, "Time Taken In CS: %d\n", (int)timer_counter);
+#endif
+	}
 
 	/**
 	 * Call this whenever this PatternSource is wrapped by a new
@@ -253,7 +259,9 @@ protected:
 
 	int numWrappers_;      /// # threads that own a wrapper for this PatternSource
 	MUTEX_T mutex;
+#if 0
 	uint64_t timer_counter;
+#endif
 };
 
 /**
@@ -773,8 +781,10 @@ public:
 		bool lock = true)
 	{
 		ThreadSafe ts(&mutex, lock);
-		//timeval _t;
-		//gettimeofday(&_t, NULL);
+#if 0
+		timeval _t;
+		gettimeofday(&_t, NULL);
+#endif
 		while(true) {
 			do {
 				readLight(r, rdid, endid, success, done);
@@ -788,9 +798,11 @@ public:
 			}
 			break;
 		}
-		//timeval f;
-		//gettimeofday(&f, NULL);
-		//timer_counter += f.tv_sec - _t.tv_sec;
+#if 0
+		timeval f;
+		gettimeofday(&f, NULL);
+		timer_counter += f.tv_sec - _t.tv_sec;
+#endif
 		return success;
 	}
 	
@@ -808,8 +820,10 @@ public:
 	{
 		// We'll be manipulating our file handle/filecur_ state
 		ThreadSafe ts(&mutex);
-		//timeval     _t;
-		//gettimeofday(&_t, NULL);
+#if 0
+		timeval _t;
+		gettimeofday(&_t, NULL);
+#endif
 		while(true) {
 			do {
 				readPairLight(ra, rb, rdid, endid, success, done, paired);
@@ -823,9 +837,11 @@ public:
 			}
 			break;
 		}
-		//timeval f;
-		//gettimeofday(&f, NULL);
-		//timer_counter += f.tv_sec - _t.tv_sec;
+#if 0
+		timeval f;
+		gettimeofday(&f, NULL);
+		timer_counter += f.tv_sec - _t.tv_sec;
+#endif
 		return success;
 	}
 	
