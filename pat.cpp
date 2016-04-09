@@ -207,8 +207,8 @@ bool PairedDualPatternSource::nextReadPair(
 			ra.rdid = rdid;
 			ra.endid = endid;
 			ra.mate  = 0;
-			ra.seed = genRandSeed(ra.patFw, ra.qual, ra.name, seed_);
 			(*srca_)[cur]->finalize(ra);
+			ra.seed = genRandSeed(ra.patFw, ra.qual, ra.name, seed_);
 			ra.constructRevComps();
 			ra.constructReverses();
 			return success;
