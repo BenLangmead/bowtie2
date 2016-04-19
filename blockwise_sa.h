@@ -1002,7 +1002,7 @@ template<typename TStr>
 void KarkkainenBlockwiseSA<TStr>::nextBlock(int cur_block, int tid) {
 #ifndef NDEBUG
     if(this->_nthreads > 1) {
-        assert_lt(tid, this->_itrBuckets.size());
+        assert_lt(tid, (int)this->_itrBuckets.size());
     }
 #endif
     EList<TIndexOffU>& bucket = (this->_nthreads > 1 ? this->_itrBuckets[tid] : this->_itrBucket);
@@ -1012,7 +1012,7 @@ void KarkkainenBlockwiseSA<TStr>::nextBlock(int cur_block, int tid) {
     }
     assert(_built);
     assert_gt(_dcV, 3);
-    assert_leq(cur_block, _sampleSuffs.size());
+    assert_leq(cur_block, (int)_sampleSuffs.size());
     const TStr& t = this->text();
     TIndexOffU len = (TIndexOffU)t.length();
     // Set up the bucket
@@ -1081,7 +1081,7 @@ void KarkkainenBlockwiseSA<TStr>::nextBlock(int cur_block, int tid) {
             }
             if(!last) {
                 // Not the last bucket
-                assert_lt(cur_block, _sampleSuffs.size());
+                assert_lt(cur_block, (int)_sampleSuffs.size());
                 hi = _sampleSuffs[cur_block];
                 zHi.resizeExact(_dcV);
                 zHi.fillZero();
@@ -1091,7 +1091,7 @@ void KarkkainenBlockwiseSA<TStr>::nextBlock(int cur_block, int tid) {
             if(!first) {
                 // Not the first bucket
                 assert_gt(cur_block, 0);
-                assert_leq(cur_block, _sampleSuffs.size());
+                assert_leq(cur_block, (int)_sampleSuffs.size());
                 lo = _sampleSuffs[cur_block-1];
                 zLo.resizeExact(_dcV);
                 zLo.fillZero();
