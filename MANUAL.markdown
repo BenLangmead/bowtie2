@@ -2616,6 +2616,16 @@ sequences) and ignore the rest.
 `bowtie2-build` is verbose by default.  With this option `bowtie2-build` will
 print only error messages.
 
+
+</td></tr><tr><td>
+
+    --threads <int>
+
+</td><td>
+
+By default `bowtie2-build` is using only one thread. Increasing the number
+of threads will speed up the index building considerably in most cases.
+ 
 </td></tr><tr><td>
 
     -h/--help
