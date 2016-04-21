@@ -1781,6 +1781,11 @@ sequences) and ignore the rest.
 `bowtie2-build` is verbose by default.  With this option `bowtie2-build` will
 print only error messages.
 
+    --threads <int>
+
+By default `bowtie2-build` is using only one thread. Increasing the number
+of threads will speed up the index building considerably in most cases.
+ 
     -h/--help
 
 Print usage information and quit.

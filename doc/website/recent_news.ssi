@@ -1,6 +1,11 @@
 
 <h2>Bowtie2 developers note</h2>
 <p>As of Nov 2015 we had to fix the bowtie2 github repo and relabel the entire history. Developers and contributors should re-clone the bowtie2 github repo from this current state. </p>
+<h2>Version 2.2.9 - Apr 22, 2016</h2>
+<ul>
+   <li>Fixed the multiple threads issue for the bowtie2-build.</li>
+   <li>Fixed a TBB related build issue impacting TBB v4.4.</li>
+</ul>
 <h2>Version 2.2.8 - Mar 10, 2016</h2>
 <ul>
    <li>Various website updates.</li>
