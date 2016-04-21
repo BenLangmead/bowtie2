@@ -16,6 +16,10 @@ Please report any issues using the Sourceforge bug tracker:
 Version Release History
 =======================
 
+Version 2.2.9 - Apr 22, 2016
+   * Fixed the multiple threads issue for the bowtie2-build.
+   * Fixed a TBB related build issue impacting TBB v4.4.
+
 Version 2.2.8 - Mar 10, 2016
    * Various website updates.
    * Fixed the bowtie2-build issue that made TBB compilation fail.
