@@ -174,18 +174,58 @@ int QseqPatternSource::parseQuals(
 /**
  * Read another pattern from a Qseq input file.
  */
-bool QseqPatternSource::readLight(
-	Read& r,
-	TReadId& rdid,
-	TReadId& endid,
-	bool& success,
-	bool& done)
+pair<bool, int> QseqPatternSource::nextBatchFromFile(
+	PerThreadReadBuf& pt,
+	bool batch_a)
 {
+	bool success = true;
+	int c;
+	EList<Read>& readbuf = batch_a ? pt.bufa_ : pt.bufb_;
+	if(first_) {
+		c = fb_.get();
+		while(c == '\r' || c == '\n') {
+			c = fb_.get();
+		}
+		if(c != '>') {
+			cerr << "Error: reads file does not look like a FASTQ file" << endl;
+			throw 1;
+		}
+		first_ = false;
+	}
+	bool done = false;
+	size_t readi = 0;
+	// Read until we run out of input or until we've filled the buffer
+	for(; readi < pt.max_buf_ && !done; readi++) {
+		SStringExpandable<char>& buf = readbuf[readi].readOrigBuf;
+		buf.clear();
+		buf.append('>'); // TODO: need to handle first char differently
+		while(true) {
+			c = fb_.get();
+			if(c < 0 || c == '>') {
+				done = true;
+				break;
+			}
+			buf.append(c);
+		}
+	}
+	return make_pair(success, readi);
+}
+
+#define BAIL_UNPAIRED() { \
+	peekOverNewline(fb_); \
+	r.reset(); \
+	success = false; \
+	done = true; \
+	return success; \
+}
+
+bool QseqPatternSource::parse(Read& ra, Read& rb) const {
+#if 0
 	r.reset();
 	success = true;
 	done = false;
 	readCnt_++;
-	rdid = endid = readCnt_-1;
+	rdid = readCnt_-1;
 	peekOverNewline(fb_);
 	fb_.resetLastN();
 	// 1. Machine name
@@ -274,5 +314,8 @@ bool QseqPatternSource::readLight(
 		assert_geq((int)r.qual[i], 33);
 	}
 #endif
-	return true;
+#endif
+	cerr << "In QseqPatternSource.parse()" << endl;
+	throw 1;
+	return false;
 }

@@ -89,6 +89,7 @@ static bool noRefNames;   // true -> print reference indexes; not names
 static uint32_t khits;    // number of hits per read; >1 is much slower
 static uint32_t mhits;    // don't report any hits if there are > mhits
 static int partitionSz;   // output a partitioning key in first field
+static int readsPerBatch; // # reads to read from input file at once
 static bool fileParallel; // separate threads read separate input files in parallel
 static bool useShmem;     // use shared memory to hold the index
 static bool useMm;        // use memory-mapped files to hold the index
@@ -274,6 +275,7 @@ static void resetOptions() {
 	khits					= 1;     // number of hits per read; >1 is much slower
 	mhits					= 50;    // stop after finding this many alignments+1
 	partitionSz				= 0;     // output a partitioning key in first field
+	readsPerBatch			= 16;    // # reads to read from input file at once
 	fileParallel			= false; // separate threads read separate input files in parallel
 	useShmem				= false; // use shared memory to hold the index
 	useMm					= false; // use memory-mapped files to hold the index
@@ -452,6 +454,7 @@ static struct option long_options[] = {
 	{(char*)"qupto",        required_argument, 0,            'u'},
 	{(char*)"upto",         required_argument, 0,            'u'},
 	{(char*)"version",      no_argument,       0,            ARG_VERSION},
+	{(char*)"reads-per-batch", required_argument, 0,         ARG_READS_PER_BATCH},
 	{(char*)"filepar",      no_argument,       0,            ARG_FILEPAR},
 	{(char*)"help",         no_argument,       0,            'h'},
 	{(char*)"threads",      required_argument, 0,            'p'},
@@ -1205,6 +1208,9 @@ static void parseOption(int next_option, const char *arg) {
 			break;
 		}
 		case ARG_PARTITION: partitionSz = parse<int>(arg); break;
+		case ARG_READS_PER_BATCH:
+			readsPerBatch = parseInt(1, "--reads-per-batch arg must be at least 1", arg);
+			break;
 		case ARG_DPAD:
 			maxhalf = parseInt(0, "--dpad must be no less than 0", arg);
 			break;
@@ -1586,16 +1592,21 @@ static const char *argv0 = NULL;
 /// Create a PatternSourcePerThread for the current thread according
 /// to the global params and return a pointer to it
 static PatternSourcePerThreadFactory*
-createPatsrcFactory(PairedPatternSource& _patsrc, int tid) {
+createPatsrcFactory(
+	PatternComposer& patcomp,
+	const PatternParams& pp,
+	int tid)
+{
 	PatternSourcePerThreadFactory *patsrcFact;
-	patsrcFact = new WrappedPatternSourcePerThreadFactory(_patsrc);
+	patsrcFact = new PatternSourcePerThreadFactory(patcomp, pp);
 	assert(patsrcFact != NULL);
 	return patsrcFact;
 }
 
 #define PTHREAD_ATTRS (PTHREAD_CREATE_JOINABLE | PTHREAD_CREATE_DETACHED)
 
-static PairedPatternSource*     multiseed_patsrc;
+static PatternComposer*         multiseed_patsrc;
+static PatternParams            multiseed_pp;
 static Ebwt*                    multiseed_ebwtFw;
 static Ebwt*                    multiseed_ebwtBw;
 static Scoring*                 multiseed_sc;
@@ -2572,12 +2583,12 @@ static inline void printMmsSkipMsg(
 	ostringstream os;
 	if(paired) {
 		os << "Warning: skipping mate #" << (mate1 ? '1' : '2')
-		   << " of read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
-		   << "' because length (" << (mate1 ? ps.bufa().patFw.length() : ps.bufb().patFw.length())
+		   << " of read '" << (mate1 ? ps.read_a().name : ps.read_b().name)
+		   << "' because length (" << (mate1 ? ps.read_a().patFw.length() : ps.read_b().patFw.length())
 		   << ") <= # seed mismatches (" << seedmms << ")" << endl;
 	} else {
-		os << "Warning: skipping read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
-		   << "' because length (" << (mate1 ? ps.bufa().patFw.length() : ps.bufb().patFw.length())
+		os << "Warning: skipping read '" << (mate1 ? ps.read_a().name : ps.read_b().name)
+		   << "' because length (" << (mate1 ? ps.read_a().patFw.length() : ps.read_b().patFw.length())
 		   << ") <= # seed mismatches (" << seedmms << ")" << endl;
 	}
 	cerr << os.str().c_str();
@@ -2591,10 +2602,10 @@ static inline void printLenSkipMsg(
 	ostringstream os;
 	if(paired) {
 		os << "Warning: skipping mate #" << (mate1 ? '1' : '2')
-		   << " of read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
+		   << " of read '" << (mate1 ? ps.read_a().name : ps.read_b().name)
 		   << "' because it was < 2 characters long" << endl;
 	} else {
-		os << "Warning: skipping read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
+		os << "Warning: skipping read '" << (mate1 ? ps.read_a().name : ps.read_b().name)
 		   << "' because it was < 2 characters long" << endl;
 	}
 	cerr << os.str().c_str();
@@ -2609,11 +2620,11 @@ static inline void printLocalScoreMsg(
 	if(paired) {
 		os << "Warning: minimum score function gave negative number in "
 		   << "--local mode for mate #" << (mate1 ? '1' : '2')
-		   << " of read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
+		   << " of read '" << (mate1 ? ps.read_a().name : ps.read_b().name)
 		   << "; setting to 0 instead" << endl;
 	} else {
 		os << "Warning: minimum score function gave negative number in "
-		   << "--local mode for read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
+		   << "--local mode for read '" << (mate1 ? ps.read_a().name : ps.read_b().name)
 		   << "; setting to 0 instead" << endl;
 	}
 	cerr << os.str().c_str();
@@ -2628,11 +2639,11 @@ static inline void printEEScoreMsg(
 	if(paired) {
 		os << "Warning: minimum score function gave positive number in "
 		   << "--end-to-end mode for mate #" << (mate1 ? '1' : '2')
-		   << " of read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
+		   << " of read '" << (mate1 ? ps.read_a().name : ps.read_b().name)
 		   << "; setting to 0 instead" << endl;
 	} else {
 		os << "Warning: minimum score function gave positive number in "
-		   << "--end-to-end mode for read '" << (mate1 ? ps.bufa().name : ps.bufb().name)
+		   << "--end-to-end mode for read '" << (mate1 ? ps.read_a().name : ps.read_b().name)
 		   << "; setting to 0 instead" << endl;
 	}
 	cerr << os.str().c_str();
@@ -2782,7 +2793,8 @@ static void multiseedSearchWorker(void *vp) {
 #endif
 	assert(multiseed_ebwtFw != NULL);
 	assert(multiseedMms == 0 || multiseed_ebwtBw != NULL);
-	PairedPatternSource&    patsrc   = *multiseed_patsrc;
+	PatternComposer&        patsrc   = *multiseed_patsrc;
+	PatternParams           pp       = multiseed_pp;
 	const Ebwt&             ebwtFw   = *multiseed_ebwtFw;
 	const Ebwt&             ebwtBw   = *multiseed_ebwtBw;
 	const Scoring&          sc       = *multiseed_sc;
@@ -2811,7 +2823,7 @@ static void multiseedSearchWorker(void *vp) {
 	// problems, or generally characterize performance.
 	
 	//const BitPairReference& refs   = *multiseed_refs;
-	auto_ptr<PatternSourcePerThreadFactory> patsrcFact(createPatsrcFactory(patsrc, tid));
+	auto_ptr<PatternSourcePerThreadFactory> patsrcFact(createPatsrcFactory(patsrc, pp, tid));
 	auto_ptr<PatternSourcePerThread> ps(patsrcFact->create());
 	
 	// Thread-local cache for seed alignments
@@ -2929,22 +2941,24 @@ static void multiseedSearchWorker(void *vp) {
 	rndArb.init((uint32_t)time(0));
 	int mergei = 0;
 	int mergeival = 16;
-	while(true) {
-		bool success = false, done = false, paired = false;
-		ps->nextReadPair(success, done, paired, outType != OUTPUT_SAM);
+	bool done = false;
+	while(!done) {
+		pair<bool, bool> ret = ps->nextReadPair();
+		bool success = ret.first;
+		done = ret.second;
 		if(!success && done) {
 			break;
 		} else if(!success) {
 			continue;
 		}
-		TReadId rdid = ps->rdid();
+		TReadId rdid = ps->read_a().rdid;
 		bool sample = true;
 		if(arbitraryRandom) {
-			ps->bufa().seed = rndArb.nextU32();
-			ps->bufb().seed = rndArb.nextU32();
+			ps->read_a().seed = rndArb.nextU32();
+			ps->read_b().seed = rndArb.nextU32();
 		}
 		if(sampleFrac < 1.0f) {
-			rnd.init(ROTL(ps->bufa().seed, 2));
+			rnd.init(ROTL(ps->read_a().seed, 2));
 			sample = rnd.nextFloat() < sampleFrac;
 		}
 		if(rdid >= skipReads && rdid < qUpto && sample) {
@@ -2995,13 +3009,13 @@ static void multiseedSearchWorker(void *vp) {
 				ca.nextRead(); // clear the cache
 				olm.reads++;
 				assert(!ca.aligning());
-				bool pair = paired;
-				const size_t rdlen1 = ps->bufa().length();
-				const size_t rdlen2 = pair ? ps->bufb().length() : 0;
+				bool paired = !ps->read_b().empty();
+				const size_t rdlen1 = ps->read_a().length();
+				const size_t rdlen2 = paired ? ps->read_b().length() : 0;
 				olm.bases += (rdlen1 + rdlen2);
 				msinkwrap.nextRead(
-					&ps->bufa(),
-					pair ? &ps->bufb() : NULL,
+					&ps->read_a(),
+					paired ? &ps->read_b() : NULL,
 					rdid,
 					sc.qualitiesMatter());
 				assert(msinkwrap.inited());
@@ -3046,8 +3060,8 @@ static void multiseedSearchWorker(void *vp) {
 				// N filter; does the read have too many Ns?
 				size_t readns[2] = {0, 0};
 				sc.nFilterPair(
-					&ps->bufa().patFw,
-					pair ? &ps->bufb().patFw : NULL,
+					&ps->read_a().patFw,
+					paired ? &ps->read_b().patFw : NULL,
 					readns[0],
 					readns[1],
 					nfilt[0],
@@ -3075,13 +3089,13 @@ static void multiseedSearchWorker(void *vp) {
 				}
 				qcfilt[0] = qcfilt[1] = true;
 				if(qcFilter) {
-					qcfilt[0] = (ps->bufa().filter != '0');
-					qcfilt[1] = (ps->bufb().filter != '0');
+					qcfilt[0] = (ps->read_a().filter != '0');
+					qcfilt[1] = (ps->read_b().filter != '0');
 				}
 				filt[0] = (nfilt[0] && scfilt[0] && lenfilt[0] && qcfilt[0]);
 				filt[1] = (nfilt[1] && scfilt[1] && lenfilt[1] && qcfilt[1]);
 				prm.nFilt += (filt[0] ? 0 : 1) + (filt[1] ? 0 : 1);
-				Read* rds[2] = { &ps->bufa(), &ps->bufb() };
+				Read* rds[2] = { &ps->read_a(), &ps->read_b() };
 				// For each mate...
 				assert(msinkwrap.empty());
 				sd.nextRead(paired, rdrows[0], rdrows[1]); // SwDriver
@@ -3106,13 +3120,13 @@ static void multiseedSearchWorker(void *vp) {
 				size_t matemap[2] = { 0, 1 };
 				bool pairPostFilt = filt[0] && filt[1];
 				if(pairPostFilt) {
-					rnd.init(ps->bufa().seed ^ ps->bufb().seed);
+					rnd.init(ps->read_a().seed ^ ps->read_b().seed);
 				} else {
-					rnd.init(ps->bufa().seed);
+					rnd.init(ps->read_a().seed);
 				}
 				// Calculate interval length for both mates
 				int interval[2] = { 0, 0 };
-				for(size_t mate = 0; mate < (pair ? 2:1); mate++) {
+				for(size_t mate = 0; mate < (paired ? 2:1); mate++) {
 					interval[mate] = msIval.f<int>((double)rdlens[mate]);
 					if(filt[0] && filt[1]) {
 						// Boost interval length by 20% for paired-end reads
@@ -3156,14 +3170,14 @@ static void multiseedSearchWorker(void *vp) {
 				}
 				assert_gt(nrounds[0], 0);
 				// Increment counters according to what got filtered
-				for(size_t mate = 0; mate < (pair ? 2:1); mate++) {
+				for(size_t mate = 0; mate < (paired ? 2:1); mate++) {
 					if(!filt[mate]) {
 						// Mate was rejected by N filter
 						olm.freads++;               // reads filtered out
 						olm.fbases += rdlens[mate]; // bases filtered out
 					} else {
 						shs[mate].clear();
-						shs[mate].nextRead(mate == 0 ? ps->bufa() : ps->bufb());
+						shs[mate].nextRead(mate == 0 ? ps->read_a() : ps->read_b());
 						assert(shs[mate].empty());
 						olm.ureads++;               // reads passing filter
 						olm.ubases += rdlens[mate]; // bases passing filter
@@ -3176,7 +3190,7 @@ static void multiseedSearchWorker(void *vp) {
 									
 					// Find end-to-end exact alignments for each read
 					if(doExactUpFront) {
-						for(size_t matei = 0; matei < (pair ? 2:1); matei++) {
+						for(size_t matei = 0; matei < (paired ? 2:1); matei++) {
 							size_t mate = matemap[matei];
 							if(!filt[mate] || done[mate] || msinkwrap.state().doneWithMate(mate == 0)) {
 								continue;
@@ -3222,11 +3236,11 @@ static void multiseedSearchWorker(void *vp) {
 								continue;
 							}
 							assert(filt[mate]);
-							assert(matei == 0 || pair);
+							assert(matei == 0 || paired);
 							assert(!msinkwrap.maxed());
 							assert(msinkwrap.repOk());
 							int ret = 0;
-							if(pair) {
+							if(paired) {
 								// Paired-end dynamic programming driver
 								ret = sd.extendSeedsPaired(
 									*rds[mate],     // mate to align as anchor
@@ -3355,7 +3369,7 @@ static void multiseedSearchWorker(void *vp) {
 					}
 					// 1-mismatch
 					if(do1mmUpFront && !seedSumm) {
-						for(size_t matei = 0; matei < (pair ? 2:1); matei++) {
+						for(size_t matei = 0; matei < (paired ? 2:1); matei++) {
 							size_t mate = matemap[matei];
 							if(!filt[mate] || done[mate] || nelt[mate] > eePeEeltLimit) {
 								// Done with this mate
@@ -3407,7 +3421,7 @@ static void multiseedSearchWorker(void *vp) {
 								continue;
 							}
 							int ret = 0;
-							if(pair) {
+							if(paired) {
 								// Paired-end dynamic programming driver
 								ret = sd.extendSeedsPaired(
 									*rds[mate],     // mate to align as anchor
@@ -3552,7 +3566,7 @@ static void multiseedSearchWorker(void *vp) {
 						//	if(seedlens[0] > 8) seedlens[0]--;
 						//	if(seedlens[1] > 8) seedlens[1]--;
 						//}
-						for(size_t matei = 0; matei < (pair ? 2:1); matei++) {
+						for(size_t matei = 0; matei < (paired ? 2:1); matei++) {
 							size_t mate = matemap[matei];
 							if(done[mate] || msinkwrap.state().doneWithMate(mate == 0)) {
 								// Done with this mate
@@ -3649,7 +3663,7 @@ static void multiseedSearchWorker(void *vp) {
 							// TODO: Consider mates & orientations separately?
 							matemap[0] = 1; matemap[1] = 0;
 						}
-						for(size_t matei = 0; matei < (pair ? 2:1); matei++) {
+						for(size_t matei = 0; matei < (paired ? 2:1); matei++) {
 							size_t mate = matemap[matei];
 							if(done[mate] || msinkwrap.state().doneWithMate(mate == 0)) {
 								// Done with this mate
@@ -3668,7 +3682,7 @@ static void multiseedSearchWorker(void *vp) {
 								// Sort seed hits into ranks
 								shs[mate].rankSeedHits(rnd, msinkwrap.allHits());
 								int ret = 0;
-								if(pair) {
+								if(paired) {
 									// Paired-end dynamic programming driver
 									ret = sd.extendSeedsPaired(
 										*rds[mate],     // mate to align as anchor
@@ -3802,7 +3816,7 @@ static void multiseedSearchWorker(void *vp) {
 						prm.seedHitAvg = (float)seedHitTot / seedsTried;
 					}
 					size_t totnucs = 0;
-					for(size_t mate = 0; mate < (pair ? 2:1); mate++) {
+					for(size_t mate = 0; mate < (paired ? 2:1); mate++) {
 						if(filt[mate]) {
 							size_t len = rdlens[mate];
 							if(!nofw[mate] && !norc[mate]) {
@@ -3853,7 +3867,7 @@ static void multiseedSearchWorker(void *vp) {
 		}
 		if(metricsPerRead) {
 			MERGE_METRICS(metricsPt, nthreads > 1);
-			nametmp = ps->bufa().name;
+			nametmp = ps->read_a().name;
 			metricsPt.reportInterval(
 				metricsOfb, metricsStderr, true, true, &nametmp);
 			metricsPt.reset();
@@ -3885,7 +3899,8 @@ static void multiseedSearchWorker_2p5(void *vp) {
 #endif
 	assert(multiseed_ebwtFw != NULL);
 	assert(multiseedMms == 0 || multiseed_ebwtBw != NULL);
-	PairedPatternSource&    patsrc   = *multiseed_patsrc;
+	PatternComposer&        patsrc   = *multiseed_patsrc;
+	PatternParams           pp       = multiseed_pp;
 	const Ebwt&             ebwtFw   = *multiseed_ebwtFw;
 	const Ebwt&             ebwtBw   = *multiseed_ebwtBw;
 	const Scoring&          sc       = *multiseed_sc;
@@ -3898,7 +3913,7 @@ static void multiseedSearchWorker_2p5(void *vp) {
 	// level.  These in turn can be used to diagnose performance
 	// problems, or generally characterize performance.
 	
-	auto_ptr<PatternSourcePerThreadFactory> patsrcFact(createPatsrcFactory(patsrc, tid));
+	auto_ptr<PatternSourcePerThreadFactory> patsrcFact(createPatsrcFactory(patsrc, pp, tid));
 	auto_ptr<PatternSourcePerThread> ps(patsrcFact->create());
 	
 	// Instantiate an object for holding reporting-related parameters.
@@ -3996,21 +4011,22 @@ static void multiseedSearchWorker_2p5(void *vp) {
 	int mergei = 0;
 	int mergeival = 16;
 	while(true) {
-		bool success = false, done = false, paired = false;
-		ps->nextReadPair(success, done, paired, outType != OUTPUT_SAM);
+		pair<bool, bool> ret = ps->nextReadPair();
+		bool success = ret.first;
+		bool done = ret.second;
 		if(!success && done) {
 			break;
 		} else if(!success) {
 			continue;
 		}
-		TReadId rdid = ps->rdid();
+		TReadId rdid = ps->read_a().rdid;
 		bool sample = true;
 		if(arbitraryRandom) {
-			ps->bufa().seed = rndArb.nextU32();
-			ps->bufb().seed = rndArb.nextU32();
+			ps->read_a().seed = rndArb.nextU32();
+			ps->read_b().seed = rndArb.nextU32();
 		}
 		if(sampleFrac < 1.0f) {
-			rnd.init(ROTL(ps->bufa().seed, 2));
+			rnd.init(ROTL(ps->read_a().seed, 2));
 			sample = rnd.nextFloat() < sampleFrac;
 		}
 		if(rdid >= skipReads && rdid < qUpto && sample) {
@@ -4045,15 +4061,15 @@ static void multiseedSearchWorker_2p5(void *vp) {
 			}
 			// Try to align this read
 			olm.reads++;
-			bool pair = paired;
-			const size_t rdlen1 = ps->bufa().length();
-			const size_t rdlen2 = pair ? ps->bufb().length() : 0;
+			bool paired = !ps->read_b().empty();
+			const size_t rdlen1 = ps->read_a().length();
+			const size_t rdlen2 = paired ? ps->read_b().length() : 0;
 			olm.bases += (rdlen1 + rdlen2);
 			// Check if read is identical to previous read
-			rnd.init(ROTL(ps->bufa().seed, 5));
+			rnd.init(ROTL(ps->read_a().seed, 5));
 			msinkwrap.nextRead(
-				&ps->bufa(),
-				pair ? &ps->bufb() : NULL,
+				&ps->read_a(),
+				paired ? &ps->read_b() : NULL,
 				rdid,
 				sc.qualitiesMatter());
 			assert(msinkwrap.inited());
@@ -4065,8 +4081,8 @@ static void multiseedSearchWorker_2p5(void *vp) {
 			// N filter; does the read have too many Ns?
 			size_t readns[2] = {0, 0};
 			sc.nFilterPair(
-				&ps->bufa().patFw,
-				pair ? &ps->bufb().patFw : NULL,
+				&ps->read_a().patFw,
+				paired ? &ps->read_b().patFw : NULL,
 				readns[0],
 				readns[1],
 				nfilt[0],
@@ -4094,13 +4110,13 @@ static void multiseedSearchWorker_2p5(void *vp) {
 			}
 			qcfilt[0] = qcfilt[1] = true;
 			if(qcFilter) {
-				qcfilt[0] = (ps->bufa().filter != '0');
-				qcfilt[1] = (ps->bufb().filter != '0');
+				qcfilt[0] = (ps->read_a().filter != '0');
+				qcfilt[1] = (ps->read_b().filter != '0');
 			}
 			filt[0] = (nfilt[0] && scfilt[0] && lenfilt[0] && qcfilt[0]);
 			filt[1] = (nfilt[1] && scfilt[1] && lenfilt[1] && qcfilt[1]);
 			prm.nFilt += (filt[0] ? 0 : 1) + (filt[1] ? 0 : 1);
-			Read* rds[2] = { &ps->bufa(), &ps->bufb() };
+			Read* rds[2] = { &ps->read_a(), &ps->read_b() };
 			assert(msinkwrap.empty());
 			// Calcualte nofw / no rc
 			bool nofw[2] = { false, false };
@@ -4152,7 +4168,7 @@ static void multiseedSearchWorker_2p5(void *vp) {
 			}
 			assert_gt(streak[0], 0);
 			// Increment counters according to what got filtered
-			for(size_t mate = 0; mate < (pair ? 2:1); mate++) {
+			for(size_t mate = 0; mate < (paired ? 2:1); mate++) {
 				if(!filt[mate]) {
 					// Mate was rejected by N filter
 					olm.freads++;               // reads filtered out
@@ -4163,9 +4179,9 @@ static void multiseedSearchWorker_2p5(void *vp) {
 				}
 			}
 			if(filt[0]) {
-				ald.initRead(ps->bufa(), nofw[0], norc[0], minsc[0], maxpen[0], filt[1] ? &ps->bufb() : NULL);
+				ald.initRead(ps->read_a(), nofw[0], norc[0], minsc[0], maxpen[0], filt[1] ? &ps->read_b() : NULL);
 			} else if(filt[1]) {
-				ald.initRead(ps->bufb(), nofw[1], norc[1], minsc[1], maxpen[1], NULL);
+				ald.initRead(ps->read_b(), nofw[1], norc[1], minsc[1], maxpen[1], NULL);
 			}
 			if(filt[0] || filt[1]) {
 				ald.go(sc, ebwtFw, ebwtBw, ref, descm, wlm, prm, rnd, msinkwrap);
@@ -4198,7 +4214,7 @@ static void multiseedSearchWorker_2p5(void *vp) {
 		}
 		if(metricsPerRead) {
 			MERGE_METRICS(metricsPt, nthreads > 1);
-			nametmp = ps->bufa().name;
+			nametmp = ps->read_a().name;
 			metricsPt.reportInterval(
 				metricsOfb, metricsStderr, true, true, &nametmp);
 			metricsPt.reset();
@@ -4218,13 +4234,15 @@ static void multiseedSearchWorker_2p5(void *vp) {
  */
 static void multiseedSearch(
 	Scoring& sc,
-	PairedPatternSource& patsrc,  // pattern source
-	AlnSink& msink,             // hit sink
+	const PatternParams& pp,
+	PatternComposer& patsrc,      // pattern source
+	AlnSink& msink,               // hit sink
 	Ebwt& ebwtFw,                 // index of original text
 	Ebwt& ebwtBw,                 // index of mirror text
 	OutFileBuf *metricsOfb)
 {
 	multiseed_patsrc = &patsrc;
+	multiseed_pp = pp;
 	multiseed_msink  = &msink;
 	multiseed_ebwtFw = &ebwtFw;
 	multiseed_ebwtBw = &ebwtBw;
@@ -4339,18 +4357,20 @@ static void driver(
 		format,        // file format
 		fileParallel,  // true -> wrap files with separate PairedPatternSources
 		seed,          // pseudo-random seed
+		readsPerBatch, // # reads in a light parsing batch
 		solexaQuals,   // true -> qualities are on solexa64 scale
 		phred64Quals,  // true -> qualities are on phred64 scale
 		integerQuals,  // true -> qualities are space-separated numbers
 		fastaContLen,  // length of sampled reads for FastaContinuous...
 		fastaContFreq, // frequency of sampled reads for FastaContinuous...
-		skipReads,      // skip the first 'skip' patterns
-		nthreads	//number of threads for locking
+		skipReads,     // skip the first 'skip' patterns
+		nthreads,      //number of threads for locking
+		outType != OUTPUT_SAM // whether to fix mate names
 	);
 	if(gVerbose || startVerbose) {
 		cerr << "Creating PatternSource: "; logTime(cerr, true);
 	}
-	PairedPatternSource *patsrc = PairedPatternSource::setupPatternSources(
+	PatternComposer *patsrc = PatternComposer::setupPatternComposer(
 		queries,     // singles, from argv
 		mates1,      // mate1's, from -1 arg
 		mates2,      // mate2's, from -2 arg
@@ -4556,6 +4576,7 @@ static void driver(
 		assert(mssink != NULL);
 		multiseedSearch(
 			sc,      // scoring scheme
+			pp,      // pattern params
 			*patsrc, // pattern source
 			*mssink, // hit sink
 			ebwt,    // BWT

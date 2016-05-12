@@ -44,7 +44,6 @@ struct Read {
 
 	void reset() {
 		rdid = 0;
-		endid = 0;
 		trimmed5 = trimmed3 = 0;
 		readOrigBuf.clear();
 		patFw.clear();
@@ -253,8 +252,6 @@ struct Read {
 
 	BTString name;      // read name
 	TReadId  rdid;      // 0-based id based on pair's offset in read file(s)
-	TReadId  endid;     // 0-based id based on pair's offset in read file(s)
-	                    // and which mate ("end") this is
 	int      mate;      // 0 = single-end, 1 = mate1, 2 = mate2
 	uint32_t seed;      // random seed
 	size_t   ns_;       // # Ns

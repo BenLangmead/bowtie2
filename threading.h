@@ -24,8 +24,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include "tkt.hpp"
-#include "ptl.hpp"
 
 #ifdef WITH_TBB
 # include <tbb/mutex.h>
@@ -33,6 +31,8 @@
 # include <tbb/queuing_mutex.h>
 # ifdef WITH_AFFINITY
 #  ifdef WITH_COHORTLOCK
+#   include "tkt.hpp"
+#   include "ptl.hpp"
 #   include "cohort.hpp"
 #  endif
 #  include <sched.h>

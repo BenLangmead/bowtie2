@@ -30,6 +30,50 @@
 using namespace std;
 
 /**
+ * Calculate a per-read random seed based on a combination of
+ * the read data (incl. sequence, name, quals) and the global
+ * seed in '_randSeed'.
+ */
+static uint32_t genRandSeed(
+	const BTDnaString& qry,
+	const BTString& qual,
+	const BTString& name,
+	uint32_t seed)
+{
+	// Calculate a per-read random seed based on a combination of
+	// the read data (incl. sequence, name, quals) and the global
+	// seed
+	uint32_t rseed = (seed + 101) * 59 * 61 * 67 * 71 * 73 * 79 * 83;
+	size_t qlen = qry.length();
+	// Throw all the characters of the read into the random seed
+	for(size_t i = 0; i < qlen; i++) {
+		int p = (int)qry[i];
+		assert_leq(p, 4);
+		size_t off = ((i & 15) << 1);
+		rseed ^= (p << off);
+	}
+	// Throw all the quality values for the read into the random
+	// seed
+	for(size_t i = 0; i < qlen; i++) {
+		int p = (int)qual[i];
+		assert_leq(p, 255);
+		size_t off = ((i & 3) << 3);
+		rseed ^= (p << off);
+	}
+	// Throw all the characters in the read name into the random
+	// seed
+	size_t namelen = name.length();
+	for(size_t i = 0; i < namelen; i++) {
+		int p = (int)name[i];
+		if(p == '/') break;
+		assert_leq(p, 255);
+		size_t off = ((i & 3) << 3);
+		rseed ^= (p << off);
+	}
+	return rseed;
+}
+
+/**
  * Return a new dynamically allocated PatternSource for the given
  * format, using the given list of strings as the filenames to read
  * from or as the sequences themselves (i.e. if -c was used).
@@ -55,59 +99,73 @@ PatternSource* PatternSource::patsrcFromStrings(
 }
 
 /**
- * The main member function for dispensing patterns.
- *
- * Returns true iff a pair was parsed succesfully.
+ * Once name/sequence/qualities have been parsed for an
+ * unpaired read, set all the other key fields of the Read
+ * struct.
  */
-bool PatternSource::nextReadPair(
-	Read& ra,
-	Read& rb,
-	TReadId& rdid,
-	TReadId& endid,
-	bool& success,
-	bool& done,
-	bool& paired,
-	bool fixName)
-{
-	// nextPatternImpl does the reading from the ultimate source;
-	// it is implemented in concrete subclasses
-	success = done = paired = false;
-	return nextReadPairImpl(ra, rb, rdid, endid, success, done, paired);
+void PatternSourcePerThread::finalize(Read& ra) {
+	ra.mate = 1;
+	ra.rdid = buf_.rdid();
+	ra.seed = genRandSeed(ra.patFw, ra.qual, ra.name, pp_.seed);
+	ra.finalize();
+	if(pp_.fixName) {
+		ra.fixMateName(1);
+	}
 }
 
 /**
- * The main member function for dispensing patterns.
+ * Once name/sequence/qualities have been parsed for a
+ * paired-end read, set all the other key fields of the Read
+ * structs.
  */
-bool PatternSource::nextRead(
-	Read& r,
-	TReadId& rdid,
-	TReadId& endid,
-	bool& success,
-	bool& done,
-	bool lock)
-{
-	// nextPatternImpl does the reading from the ultimate source;
-	// it is implemented in concrete subclasses
-	return nextReadImpl(r, rdid, endid, success, done, lock);
+void PatternSourcePerThread::finalizePair(Read& ra, Read& rb) {
+	ra.mate = 1;
+	rb.mate = 2;
+	ra.rdid = rb.rdid = buf_.rdid();
+	ra.seed = genRandSeed(ra.patFw, ra.qual, ra.name, pp_.seed);
+	rb.seed = genRandSeed(rb.patFw, rb.qual, rb.name, pp_.seed);
+	ra.finalize();
+	rb.finalize();
+	if(pp_.fixName) {
+		ra.fixMateName(1);
+		rb.fixMateName(2);
+	}
 }
 
 /**
  * Get the next paired or unpaired read from the wrapped
- * PairedPatternSource.
+ * PatternComposer.  Returns a pair of bools; first indicates
+ * whether we were successful, second indicates whether we're
+ * done.
  */
-bool WrappedPatternSourcePerThread::nextReadPair(
-	bool& success,
-	bool& done,
-	bool& paired,
-	bool fixName)
-{
-	PatternSourcePerThread::nextReadPair(success, done, paired, fixName);
-	ASSERT_ONLY(TReadId lastRdId = rdid_);
-	buf1_.reset();
-	buf2_.reset();
-	patsrc_.nextReadPair(buf1_, buf2_, rdid_, endid_, success, done, paired, fixName);
-	assert(!success || rdid_ != lastRdId);
-	return success;
+pair<bool, bool> PatternSourcePerThread::nextReadPair() {
+	// Prepare batch
+	if(buf_.exhausted()) {
+		pair<bool, int> res = nextBatch();
+		if(res.first && res.second == 0) {
+			return make_pair(false, true);
+		}
+		last_batch_ = res.first;
+		last_batch_size_ = res.second;
+		assert_eq(0, buf_.cur_buf_);
+	} else {
+		buf_.next(); // advance cursor
+		assert_gt(buf_.cur_buf_, 0);
+	}
+	// Parse read/pair
+	assert(!buf_.read_a().readOrigBuf.empty());
+	assert(buf_.read_a().empty());
+	if(!parse(buf_.read_a(), buf_.read_b())) {
+		return make_pair(false, false);
+	}
+	// Finalize read/pair
+	if(!buf_.read_b().readOrigBuf.empty()) {
+		finalizePair(buf_.read_a(), buf_.read_b());
+	} else {
+		finalize(buf_.read_a());
+	}
+	bool this_is_last = buf_.cur_buf_ == last_batch_size_-1;
+	return make_pair(true, this_is_last ? last_batch_ : false);
 }
 
 /**
@@ -115,59 +173,29 @@ bool WrappedPatternSourcePerThread::nextReadPair(
  * singleton reads.  Returns true iff ra and rb contain a new
  * pair; returns false if ra contains a new unpaired read.
  */
-bool PairedSoloPatternSource::nextReadPair(
-	Read& ra,
-	Read& rb,
-	TReadId& rdid,
-	TReadId& endid,
-	bool& success,
-	bool& done,
-	bool& paired,
-	bool fixName)
-{
-	uint32_t cur = cur_;
-	success = false;
+pair<bool, int> SoloPatternComposer::nextBatch(PerThreadReadBuf& pt) {
+	size_t cur = cur_;
 	while(cur < src_->size()) {
 		// Patterns from srca_[cur_] are unpaired
+		pair<bool, int> res;
 		do {
-			(*src_)[cur]->nextReadPair(
-				ra, rb, rdid, endid, success, done, paired, fixName);
-		} while(!success && !done);
-		if(!success) {
-			assert(done);
+			res = (*src_)[cur]->nextBatch(
+				pt,
+				true,  // batch A (or pairs)
+				true); // grab lock below
+		} while(!res.first && res.second == 0);
+		if(res.second == 0) {
 			ThreadSafe ts(&mutex_m);
-			if(cur + 1 > cur_) cur_++;
+			if(cur + 1 > cur_) {
+				cur_++;
+			}
 			cur = cur_;
 			continue; // on to next pair of PatternSources
 		}
-		assert(success);
-		ra.mate = 1;
-		ra.rdid = rdid;
-		ra.endid = endid;
-		(*src_)[cur]->finalize(ra);
-		ra.seed = genRandSeed(ra.patFw, ra.qual, ra.name, seed_);
-		ra.constructRevComps();
-		ra.constructReverses();
-		if(fixName) {
-			ra.fixMateName(1);
-		}
-		if(paired) {
-			rb.mate = 2;
-			rb.rdid = rdid;
-			rb.endid = endid+1;
-			(*src_)[cur]->finalize(rb);
-			rb.seed = genRandSeed(rb.patFw, rb.qual, rb.name, seed_);
-			rb.constructRevComps();
-			rb.constructReverses();
-			if(fixName) {
-				rb.fixMateName(2);
-			}
-		}
-		return true; // paired
+		return res;
 	}
 	assert_leq(cur, src_->size());
-	done = (cur == src_->size());
-	return false;
+	return make_pair(true, 0);
 }
 
 /**
@@ -175,121 +203,64 @@ bool PairedSoloPatternSource::nextReadPair(
  * singleton reads.  Returns true iff ra and rb contain a new
  * pair; returns false if ra contains a new unpaired read.
  */
-bool PairedDualPatternSource::nextReadPair(
-	Read& ra,
-	Read& rb,
-	TReadId& rdid,
-	TReadId& endid,
-	bool& success,
-	bool& done,
-	bool& paired,
-	bool fixName)
-{
+pair<bool, int> DualPatternComposer::nextBatch(PerThreadReadBuf& pt) {
 	// 'cur' indexes the current pair of PatternSources
-	uint32_t cur = cur_;
-	success = false;
-	done = true;
+	size_t cur = cur_;
 	while(cur < srca_->size()) {
 		if((*srcb_)[cur] == NULL) {
-			paired = false;
 			// Patterns from srca_ are unpaired
-			do {
-				(*srca_)[cur]->nextRead(ra, rdid, endid, success, done);
-			} while(!success && !done);
-			if(!success) {
-				assert(done);
+			pair<bool, int> res = (*srca_)[cur]->nextBatch(
+				pt,
+				true,  // batch A (or pairs)
+				true); // grab lock below
+			bool done = res.first;
+			if(!done && res.second == 0) {
 				ThreadSafe ts(&mutex_m);
 				if(cur + 1 > cur_) cur_++;
 				cur = cur_; // Move on to next PatternSource
 				continue; // on to next pair of PatternSources
 			}
-			assert(success);
-			ra.rdid = rdid;
-			ra.endid = endid;
-			ra.mate  = 0;
-			(*srca_)[cur]->finalize(ra);
-			ra.seed = genRandSeed(ra.patFw, ra.qual, ra.name, seed_);
-			ra.constructRevComps();
-			ra.constructReverses();
-			return success;
+			return make_pair(done, res.second);
 		} else {
-			paired = true;
-			// Patterns from srca_[cur_] and srcb_[cur_] are paired
-			TReadId rdid_a = 0, endid_a = 0;
-			TReadId rdid_b = 0, endid_b = 0;
-			bool success_a = false, done_a = false;
-			bool success_b = false, done_b = false;
+			pair<bool, int> resa, resb;
 			// Lock to ensure that this thread gets parallel reads
 			// in the two mate files
 			{
 				ThreadSafe ts(&mutex_m);
-				do {
-					(*srca_)[cur]->nextRead(ra, rdid_a, endid_a, success_a, done_a, false);
-				} while(!success_a && !done_a);
-				do {
-					(*srcb_)[cur]->nextRead(rb, rdid_b, endid_b, success_b, done_b, false);
-				} while(!success_b && !done_b);
-				if(!success_a && success_b) {
-					cerr << "Error, fewer reads in file specified with -1 than in file specified with -2" << endl;
-					throw 1;
-				} else if(!success_a) {
-					assert(done_a && done_b);
-					if(cur + 1 > cur_) cur_++;
-					cur = cur_; // Move on to next PatternSource
-					continue; // on to next pair of PatternSources
-				} else if(!success_b) {
-					cerr << "Error, fewer reads in file specified with -2 than in file specified with -1" << endl;
-					throw 1;
+				resa = (*srca_)[cur]->nextBatch(
+					pt,
+					true,   // batch A
+					false); // don't grab lock below
+				resb = (*srcb_)[cur]->nextBatch(
+					pt,
+					false,  // batch B
+					false); // don't grab lock below
+				assert_eq((*srca_)[cur]->readCount(),
+				          (*srcb_)[cur]->readCount());
+			}
+			if(resa.second < resb.second) {
+				cerr << "Error, fewer reads in file specified with -1 "
+				     << "than in file specified with -2" << endl;
+				throw 1;
+			} else if(resa.second == 0 && resb.second == 0) {
+				ThreadSafe ts(&mutex_m);
+				if(cur + 1 > cur_) {
+					cur_++;
 				}
-				assert_eq(rdid_a, rdid_b);
-				assert(success_a && success_b);
+				cur = cur_; // Move on to next PatternSource
+				continue; // on to next pair of PatternSources
+			} else if(resb.second < resa.second) {
+				cerr << "Error, fewer reads in file specified with -2 "
+				     << "than in file specified with -1" << endl;
+				throw 1;
 			}
-			rdid = rdid_a;
-			endid = endid_a;
-			success = success_a;
-			done = done_a;
-			
-			ra.rdid = rdid;
-			ra.endid = endid;
-			ra.mate = 1;
-			(*srca_)[cur]->finalize(ra);
-			ra.seed = genRandSeed(ra.patFw, ra.qual, ra.name, seed_);
-			ra.constructRevComps();
-			ra.constructReverses();
-			if(fixName) {
-				ra.fixMateName(1);
-			}
-			
-			rb.rdid = rdid;
-			rb.endid = endid+1;
-			rb.mate = 2;
-			(*srcb_)[cur]->finalize(rb);
-			rb.seed = genRandSeed(rb.patFw, rb.qual, rb.name, seed_);
-			rb.constructRevComps();
-			rb.constructReverses();
-			if(fixName) {
-				rb.fixMateName(2);
-			}
-			return success;
+			assert_eq(resa.first, resb.first);
+			assert_eq(resa.second, resb.second);
+			return make_pair(resa.first, resa.second);
 		}
 	}
-	return success;
-}
-
-/**
- * Return the number of reads attempted.
- */
-pair<TReadId, TReadId> PairedDualPatternSource::readCnt() const {
-	uint64_t rets = 0llu, retp = 0llu;
-	for(size_t i = 0; i < srca_->size(); i++) {
-		if((*srcb_)[i] == NULL) {
-			rets += (*srca_)[i]->readCnt();
-		} else {
-			assert_eq((*srca_)[i]->readCnt(), (*srcb_)[i]->readCnt());
-			retp += (*srca_)[i]->readCnt();
-		}
-	}
-	return make_pair(rets, retp);
+	assert_leq(cur, srca_->size());
+	return make_pair(true, 0);
 }
 
 /**
@@ -297,7 +268,7 @@ pair<TReadId, TReadId> PairedDualPatternSource::readCnt() const {
  * the read and quality input, create a list of pattern sources to
  * dispense them.
  */
-PairedPatternSource* PairedPatternSource::setupPatternSources(
+PatternComposer* PatternComposer::setupPatternComposer(
 	const EList<string>& si,   // singles, from argv
 	const EList<string>& m1,   // mate1's, from -1 arg
 	const EList<string>& m2,   // mate2's, from -2 arg
@@ -385,24 +356,171 @@ PairedPatternSource* PairedPatternSource::setupPatternSources(
 		}
 	}
 
-	PairedPatternSource *patsrc = NULL;
+	PatternComposer *patsrc = NULL;
 	if(m12.size() > 0) {
-		patsrc = new PairedSoloPatternSource(ab, p);
+		patsrc = new SoloPatternComposer(ab, p);
 		for(size_t i = 0; i < a->size(); i++) delete (*a)[i];
 		for(size_t i = 0; i < b->size(); i++) delete (*b)[i];
 		delete a; delete b;
 	} else {
-		patsrc = new PairedDualPatternSource(a, b, p);
+		patsrc = new DualPatternComposer(a, b, p);
 		for(size_t i = 0; i < ab->size(); i++) delete (*ab)[i];
 		delete ab;
 	}
 	return patsrc;
 }
 
-void PairedPatternSource::free_EList_pmembers( const EList<PatternSource*> &elist) {
+void PatternComposer::free_EList_pmembers( const EList<PatternSource*> &elist) {
     for (size_t i = 0; i < elist.size(); i++)
         if (elist[i] != NULL)
             delete elist[i];
+}
+
+/**
+ * Fill Read with the sequence, quality and name for the next
+ * read in the list of read files.  This function gets called by
+ * all the search threads, so we must handle synchronization.
+ *
+ * What does the return value signal?
+ * In the event that we read more data, it should at least signal how many
+ * reads were read, and whether we're totally done.  It's debatable whether
+ * it should convey anything about the individual read files, like whether
+ * we finished one of them.
+ */
+pair<bool, int> BufferedFilePatternSource::nextBatch(
+	PerThreadReadBuf& pt,
+	bool batch_a,
+	bool lock)
+{
+	bool done = false;
+	int nread = 0;
+	
+	// synchronization at this level because both reading and manipulation of
+	// current file pointer have to be protected
+	ThreadSafe ts(&mutex, lock);
+	pt.setReadId(readCnt_);
+	while(true) { // loop that moves on to next file when needed
+		do {
+			pair<bool, int> ret = nextBatchFromFile(pt, batch_a);
+			done = ret.first;
+			nread = ret.second;
+		} while(!done && nread == 0); // not sure why this would happen
+		if(done && filecur_ < infiles_.size()) { // finished with this file
+			open();
+			resetForNextFile(); // reset state to handle a fresh file
+			filecur_++;
+			if(nread == 0) {
+				continue;
+			}
+		}
+		break;
+	}
+	assert_geq(nread, 0);
+	readCnt_ += nread;
+	return make_pair(done, nread);
+}
+
+
+/**
+ * Fill Read with the sequence, quality and name for the next
+ * read in the list of read files.  This function gets called by
+ * all the search threads, so we must handle synchronization.
+ *
+ * Returns pair<bool, int> where bool indicates whether we're
+ * completely done, and int indicates how many reads were read.
+ */
+pair<bool, int> CFilePatternSource::nextBatch(
+	PerThreadReadBuf& pt,
+	bool batch_a,
+	bool lock)
+{
+	bool done = false;
+	int nread = 0;
+	
+	// synchronization at this level because both reading and manipulation of
+	// current file pointer have to be protected
+	ThreadSafe ts(&mutex, lock);
+	pt.setReadId(readCnt_);
+	while(true) { // loop that moves on to next file when needed
+		do {
+			pair<bool, int> ret = nextBatchFromFile(pt, batch_a);
+			done = ret.first;
+			nread = ret.second;
+		} while(!done && nread == 0); // not sure why this would happen
+		if(done && filecur_ < infiles_.size()) { // finished with this file
+			open();
+			resetForNextFile(); // reset state to handle a fresh file
+			filecur_++;
+			if(nread == 0) {
+				continue;
+			}
+		}
+		break;
+	}
+	assert_geq(nread, 0);
+	readCnt_ += nread;
+	return make_pair(done, nread);
+}
+
+/**
+ * Open the next file in the list of input files.
+ */
+void BufferedFilePatternSource::open() {
+	if(fb_.isOpen()) {
+		fb_.close();
+	}
+	while(filecur_ < infiles_.size()) {
+		// Open read
+		FILE *in;
+		if(infiles_[filecur_] == "-") {
+			in = stdin;
+		} else if((in = fopen(infiles_[filecur_].c_str(), "rb")) == NULL) {
+			if(!errs_[filecur_]) {
+				cerr << "Warning: Could not open read file \""
+					 << infiles_[filecur_].c_str()
+					 << "\" for reading; skipping..." << endl;
+				errs_[filecur_] = true;
+			}
+			filecur_++;
+			continue;
+		}
+		fb_.newFile(in);
+		return;
+	}
+	cerr << "Error: No input read files were valid" << endl;
+	exit(1);
+	return;
+}
+
+/**
+ * Open the next file in the list of input files.
+ */
+void CFilePatternSource::open() {
+	if(is_open_) {
+		is_open_ = false;
+		fclose(fp_);
+		fp_ = NULL;
+	}
+	while(filecur_ < infiles_.size()) {
+		if(infiles_[filecur_] == "-") {
+			fp_ = stdin;
+		} else if((fp_ = fopen(infiles_[filecur_].c_str(), "rb")) == NULL) {
+			if(!errs_[filecur_]) {
+				cerr << "Warning: Could not open read file \""
+				<< infiles_[filecur_].c_str()
+				<< "\" for reading; skipping..." << endl;
+				errs_[filecur_] = true;
+			}
+			filecur_++;
+			continue;
+		}
+		is_open_ = true;
+		setvbuf(fp_, buf_, _IOFBF, 64*1024);
+		return;
+	}
+	cerr << "Error: No input read files were valid" << endl;
+	exit(1);
+	return;
 }
 
 VectorPatternSource::VectorPatternSource(
@@ -467,62 +585,47 @@ VectorPatternSource::VectorPatternSource(
 		quals_.push_back(BTString(vq));
 		trimmed3_.push_back(gTrim3);
 		trimmed5_.push_back(mytrim5);
+		// TODO: more work-intensive than it should be
 		ostringstream os;
 		os << (names_.size());
 		names_.push_back(BTString(os.str()));
 	}
 	assert_eq(v_.size(), quals_.size());
 }
-	
-bool VectorPatternSource::nextReadImpl(
-	Read& r,
-	TReadId& rdid,
-	TReadId& endid,
-	bool& success,
-	bool& done,
+
+/**
+ * Read next batch.  However, batch concept is not very applicable for this
+ * PatternSource where all the info has already been parsed into the fields
+ * in the contsructor.  This essentially modifies the pt as though we read
+ * in some number of patterns.
+ */
+pair<bool, int> VectorPatternSource::nextBatch(
+	PerThreadReadBuf& pt,
+	bool batch_a,
 	bool lock)
 {
-	// Let Strings begin at the beginning of the respective bufs
-	r.reset();
+	bool success = true;
+	int nread = 0;
+	pt.reset();
 	ThreadSafe ts(&mutex, lock);
-	if(cur_ >= v_.size()) {
-		ts.~ThreadSafe();
-		// Clear all the Strings, as a signal to the caller that
-		// we're out of reads
-		r.reset();
-		success = false;
-		done = true;
-		assert(r.empty());
-		return false;
-	}
-	// Copy v_*, quals_* strings into the respective Strings
-	r.patFw  = v_[cur_];
-	r.qual = quals_[cur_];
-	r.trimmed3 = trimmed3_[cur_];
-	r.trimmed5 = trimmed5_[cur_];
-	ostringstream os;
-	os << cur_;
-	r.name = os.str();
-	cur_++;
-	done = cur_ == v_.size();
-	rdid = endid = readCnt_;
-	readCnt_++;
-	success = true;
-	return true;
+	pt.setReadId(readCnt_);
+#if 0
+	// TODO: set nread to min of pt.size() and total - cur_
+	// TODO: implement something like following function
+	pt.install_dummies(nread);
+#endif
+	readCnt_ += nread;
+	return make_pair(success, nread);
 }
-	
+
+#if 0
 /**
  * This is unused, but implementation is given for completeness.
  */
-bool VectorPatternSource::nextReadPairImpl(
-	Read& ra,
-	Read& rb,
-	TReadId& rdid,
-	TReadId& endid,
-	bool& success,
-	bool& done,
-	bool& paired)
+pair<bool, int> VectorPatternSource::nextBatchPair(PerThreadReadBuf& pt)
 {
+	bool success = true;
+	int nread = 0;
 	// Let Strings begin at the beginning of the respective bufs
 	ra.reset();
 	rb.reset();
@@ -532,6 +635,7 @@ bool VectorPatternSource::nextReadPairImpl(
 		cur_ <<= 1;
 	}
 	ThreadSafe ts(&mutex);
+	pt.setReadId(readCnt_);
 	if(cur_ >= v_.size()-1) {
 		ts.~ThreadSafe();
 		// Clear all the Strings, as a signal to the caller that
@@ -560,11 +664,12 @@ bool VectorPatternSource::nextReadPairImpl(
 	rb.name = os.str();
 	cur_++;
 	done = cur_ >= v_.size()-1;
-	rdid = endid = readCnt_;
+	rdid = readCnt_;
 	readCnt_++;
 	success = true;
-	return true;
+	return make_pair(success, nread);
 }
+#endif
 
 /**
  * Parse a single quality string from fb and store qualities in r.
@@ -573,7 +678,7 @@ bool VectorPatternSource::nextReadPairImpl(
  * character returned by fb.peek() or fb.get() should be the first
  * character of the following line.
  */
-int parseQuals(
+static int parseQuals(
 	Read& r,
 	FileBuf& fb,
 	int firstc,
@@ -641,107 +746,98 @@ int parseQuals(
 }
 
 /// Read another pattern from a FASTA input file
-bool FastaPatternSource::readLight(
-	Read& r,
-	TReadId& rdid,
-	TReadId& endid,
-	bool& success,
-	bool& done)
+pair<bool, int> FastaPatternSource::nextBatchFromFile(
+	PerThreadReadBuf& pt,
+	bool batch_a)
 {
-	int c, qc = 0;
-	success = true;
-	done = false;
-	assert(fb_.isOpen());
-	r.reset();
-	// Pick off the first carat
-	c = fb_.get();
-	if(c < 0) {
-		bail(r); success = false; done = true; return success;
-	}
-	while(c == '#' || c == ';' || c == '\r' || c == '\n') {
-		c = fb_.peekUptoNewline();
-		fb_.resetLastN();
-		c = fb_.get();
-	}
-	assert_eq(1, fb_.lastNLen());
-
-	// Pick off the first carat
+	int c;
+	EList<Read>& readbuf = batch_a ? pt.bufa_ : pt.bufb_;
 	if(first_) {
+		c = fb_.get();
+		while(c == '\r' || c == '\n') {
+			c = fb_.get();
+		}
 		if(c != '>') {
 			cerr << "Error: reads file does not look like a FASTA file" << endl;
 			throw 1;
 		}
 		first_ = false;
 	}
-	assert_eq('>', c);
-	c = fb_.get(); // get next char after '>'
-
-	// Read to the end of the id line, sticking everything after the '>'
-	// into *name
-	//bool warning = false;
-	while(true) {
-		if(c < 0 || qc < 0) {
-			bail(r); success = false; done = true; return success;
-		}
-		if(c == '\n' || c == '\r') {
-			// Break at end of line, after consuming all \r's, \n's
-			while(c == '\n' || c == '\r') {
-				if(fb_.peek() == '>') {
-					// Empty sequence
-					break;
-				}
-				c = fb_.get();
-				if(c < 0 || qc < 0) {
-					bail(r); success = false; done = true; return success;
-				}
+	bool done = false;
+	size_t readi = 0;
+	// Read until we run out of input or until we've filled the buffer
+	for(; readi < pt.max_buf_ && !done; readi++) {
+		SStringExpandable<char>& buf = readbuf[readi].readOrigBuf;
+		buf.clear();
+		buf.append('>');
+		while(true) {
+			c = fb_.get();
+			done = c < 0;
+			if(c < 0 || c == '>') {
+				break;
 			}
+			buf.append(c);
+		}
+	}
+	return make_pair(done, readi);
+}
+
+bool FastaPatternSource::parse(Read& r, Read& rb) const {
+	// We assume the light parser has put the raw data for the separate ends
+	// into separate Read objects.  That doesn't have to be the case, but
+	// that's how we've chosen to do it for FastqPatternSource
+	assert(!r.readOrigBuf.empty());
+	assert(r.empty());
+	int c;
+	size_t cur = 1;
+	
+	// Parse read name
+	assert(r.name.empty());
+	while(true) {
+		assert(cur < r.readOrigBuf.length());
+		c = r.readOrigBuf[cur++];
+		if(c == '\n' || c == '\r') {
+			do {
+				c = r.readOrigBuf[cur++];
+			} while(c == '\n' || c == '\r');
 			break;
 		}
 		r.name.append(c);
-		if(fb_.peek() == '>') {
-			// Empty sequence
-			break;
+	}
+	
+	// Parse sequence
+	int nchar = 0;
+	assert(r.patFw.empty());
+	while(c != '\n') {
+		if(c == '.') {
+			c = 'N';
 		}
-		c = fb_.get();
+		if(isalpha(c)) {
+			// If it's past the 5'-end trim point
+			if(nchar++ >= gTrim5) {
+				r.patFw.append(asc2dna[c]);
+			}
+		}
+		assert(cur < r.readOrigBuf.length());
+		c = r.readOrigBuf[cur++];
 	}
-	if(c == '>') {
-		// Empty sequences!
-		cerr << "Warning: skipping empty FASTA read with name '" << r.name << "'" << endl;
-		fb_.resetLastN();
-		rdid = endid = readCnt_;
-		readCnt_++;
-		success = true; done = false; return success;
+	r.trimmed5 = (int)(nchar - r.patFw.length());
+	r.trimmed3 = (int)(r.patFw.trimEnd(gTrim3));
+	
+	for(size_t i = 0; i < r.patFw.length(); i++) {
+		r.qual.append('I');
 	}
-	assert_neq('>', c);
 
-	// _in now points just past the first character of a sequence
-	// line, and c holds the first character
-	int begin = 0;
-	int mytrim5 = gTrim5;
-	while(c != '>' && c >= 0) {
-		if(asc2dnacat[c] > 0 && begin++ >= mytrim5) {
-			r.patFw.append(asc2dna[c]);
-			r.qual.append('I');
-		}
-		if(fb_.peek() == '>') break;
-		c = fb_.get();
-	}
-	r.patFw.trimEnd(gTrim3);
-	r.qual.trimEnd(gTrim3);
-	r.trimmed3 = gTrim3;
-	r.trimmed5 = mytrim5;
 	// Set up a default name if one hasn't been set
 	if(r.name.empty()) {
 		char cbuf[20];
-		itoa10<TReadId>(readCnt_, cbuf);
+		itoa10<TReadId>(static_cast<TReadId>(readCnt_), cbuf);
 		r.name.install(cbuf);
 	}
-	assert_gt(r.name.length(), 0);
-	r.readOrigBuf.install(fb_.lastN(), fb_.lastNLen());
-	fb_.resetLastN();
-	rdid = endid = readCnt_;
-	readCnt_++;
-	return success;
+	if(!rb.readOrigBuf.empty() && rb.patFw.empty()) {
+		return parse(rb, r);
+	}
+	return true;
 }
 
 /**
@@ -751,17 +847,104 @@ bool FastaPatternSource::readLight(
  * for lines worth of the input file into a buffer (r.readOrigBuf).  finalize()
  * then parses the contents of r.readOrigBuf later.
  */
-bool FastqPatternSource::readLight(
-	Read& r,
-	TReadId& rdid,
-	TReadId& endid,
-	bool& success,
-	bool& done)
+pair<bool, int> FastaContinuousPatternSource::nextBatchFromFile(
+	PerThreadReadBuf& pt,
+	bool batch_a)
+{
+	throw 1;
+	return make_pair(false, 0);
+}
+
+/// Read another pattern from a FASTA input file
+bool FastaContinuousPatternSource::parse(Read& r, Read& rb) const {
+	assert(r.empty());
+	assert(rb.empty());
+#if 0
+	r.reset();
+	while(true) {
+		int c = fb_.get();
+		if(c < 0) { return make_pair(true, 0); }
+		if(c == '>') {
+			resetForNextFile();
+			c = fb_.peek();
+			bool sawSpace = false;
+			while(c != '\n' && c != '\r') {
+				if(!sawSpace) {
+					sawSpace = isspace(c);
+				}
+				if(!sawSpace) {
+					nameBuf_.append(c);
+				}
+				fb_.get();
+				c = fb_.peek();
+			}
+			while(c == '\n' || c == '\r') {
+				fb_.get();
+				c = fb_.peek();
+			}
+			nameBuf_.append('_');
+		} else {
+			int cat = asc2dnacat[c];
+			if(cat >= 2) c = 'N';
+			if(cat == 0) {
+				// Encountered non-DNA, non-IUPAC char; skip it
+				continue;
+			} else {
+				// DNA char
+				buf_[bufCur_++] = c;
+				if(bufCur_ == 1024) bufCur_ = 0;
+				if(eat_ > 0) {
+					eat_--;
+					// Try to keep readCnt_ aligned with the offset
+					// into the reference; that lets us see where
+					// the sampling gaps are by looking at the read
+					// name
+					if(!beginning_) readCnt_++;
+					continue;
+				}
+				for(size_t i = 0; i < length_; i++) {
+					if(length_ - i <= bufCur_) {
+						c = buf_[bufCur_ - (length_ - i)];
+					} else {
+						// Rotate
+						c = buf_[bufCur_ - (length_ - i) + 1024];
+					}
+					r.patFw.append(asc2dna[c]);
+					r.qual.append('I');
+				}
+				// Set up a default name if one hasn't been set
+				r.name = nameBuf_;
+				char cbuf[20];
+				itoa10<TReadId>(readCnt_ - subReadCnt_, cbuf);
+				r.name.append(cbuf);
+				eat_ = freq_-1;
+				readCnt_++;
+				beginning_ = false;
+				rdid = readCnt_-1;
+				break;
+			}
+		}
+	}
+	return make_pair(false, 1);
+#endif
+	throw 1;
+	return false;
+}
+
+
+/**
+ * "Light" parser.  This is inside the critical section, so the key is to do
+ * just enough parsing so that another function downstream (finalize()) can do
+ * the rest of the parsing.  Really this function's only job is to stick every
+ * for lines worth of the input file into a buffer (r.readOrigBuf).  finalize()
+ * then parses the contents of r.readOrigBuf later.
+ */
+pair<bool, int> FastqPatternSource::nextBatchFromFile(
+	PerThreadReadBuf& pt,
+	bool batch_a)
 {
 	int c;
-	success = true;
-	done = false;
-	r.readOrigBuf.clear();
+	EList<Read>& readbuf = batch_a ? pt.bufa_ : pt.bufb_;
 	if(first_) {
 		c = getc_unlocked(fp_);
 		while(c == '\r' || c == '\n') {
@@ -771,31 +954,44 @@ bool FastqPatternSource::readLight(
 			cerr << "Error: reads file does not look like a FASTQ file" << endl;
 			throw 1;
 		}
-		r.readOrigBuf.append(c);
-		assert_eq('@', c);
 		first_ = false;
+		readbuf[0].readOrigBuf.append('@');
 	}
-	// Note: to reduce the number of times we have to enter the critical
-	// section (each entrance has some assocaited overhead), we could populate
-	// the buffer with several reads worth of data here, instead of just one.
-	int newlines = 4;
-	while(newlines) {
-		c = getc_unlocked(fp_);
-		if(c == '\n' || (c < 0 && newlines == 1)) {
-			newlines--;
-			c = '\n';
-		} else if(c < 0) {
-			success = false; done = true; return false;
+	bool done = false, aborted = false;
+	size_t readi = 0;
+	// Read until we run out of input or until we've filled the buffer
+	for(; readi < pt.max_buf_ && !done; readi++) {
+		SStringExpandable<char>& buf = readbuf[readi].readOrigBuf;
+		assert(readi == 0 || buf.empty());
+		int newlines = 4;
+		while(newlines) {
+			c = getc_unlocked(fp_);
+			done = c < 0;
+			if(c == '\n' || (done && newlines == 1)) {
+				// Saw newline, or EOF that we're
+				// interpreting as final newline
+				newlines--;
+				c = '\n';
+			} else if(done) {
+				aborted = true; // Unexpected EOF
+				break;
+			}
+			buf.append(c);
 		}
-		r.readOrigBuf.append(c);
 	}
-	rdid = endid = readCnt_;
-	readCnt_++;
-	return true;
+	if(aborted) {
+		readi--;
+	}
+	return make_pair(done, readi);
 }
 
 /// Read another pattern from a FASTQ input file
-void FastqPatternSource::finalize(Read &r) const {
+bool FastqPatternSource::parse(Read &r, Read& rb) const {
+	// We assume the light parser has put the raw data for the separate ends
+	// into separate Read objects.  That doesn't have to be the case, but
+	// that's how we've chosen to do it for FastqPatternSource
+	assert(!r.readOrigBuf.empty());
+	assert(r.empty());
 	int c;
 	size_t cur = 1;
 
@@ -844,7 +1040,7 @@ void FastqPatternSource::finalize(Read &r) const {
 	
 	// Now we're on the next non-blank line after the + line
 	if(r.patFw.empty()) {
-		return; // done parsing empty read
+		return true; // done parsing empty read
 	}
 
 	assert(r.qual.empty());
@@ -860,6 +1056,7 @@ void FastqPatternSource::finalize(Read &r) const {
 			c = r.readOrigBuf[cur++];
 			if (c == ' ') {
 				wrongQualityFormat(r.name);
+				return false;
 			}
 			if(c == '\r' || c == '\n') {
 				break;
@@ -872,88 +1069,65 @@ void FastqPatternSource::finalize(Read &r) const {
 		r.qual.trimEnd(r.trimmed3);
 		if(r.qual.length() < r.patFw.length()) {
 			tooFewQualities(r.name);
+			return false;
 		} else if(r.qual.length() > r.patFw.length()) {
 			tooManyQualities(r.name);
+			return false;
 		}
 	}
 	// Set up a default name if one hasn't been set
 	if(r.name.empty()) {
 		char cbuf[20];
-		itoa10<TReadId>(readCnt_, cbuf);
+		itoa10<TReadId>(static_cast<TReadId>(readCnt_), cbuf);
 		r.name.install(cbuf);
 	}
-}
-
-/// Read another pattern from a FASTA input file
-bool TabbedPatternSource::readLight(
-	Read& r,
-	TReadId& rdid,
-	TReadId& endid,
-	bool& success,
-	bool& done)
-{
-	r.reset();
-	success = true;
-	done = false;
-	// fb_ is about to dish out the first character of the
-	// name field
-	if(parseName(r, NULL, '\t') == -1) {
-		peekOverNewline(fb_); // skip rest of line
-		r.reset();
-		success = false;
-		done = true;
-		return false;
+	if(!rb.readOrigBuf.empty() && rb.patFw.empty()) {
+		return parse(rb, r);
 	}
-	assert_neq('\t', fb_.peek());
-
-	// fb_ is about to dish out the first character of the
-	// sequence field
-	int charsRead = 0;
-	int mytrim5 = gTrim5;
-	int dstLen = parseSeq(r, charsRead, mytrim5, '\t');
-	assert_neq('\t', fb_.peek());
-	if(dstLen < 0) {
-		peekOverNewline(fb_); // skip rest of line
-		r.reset();
-		success = false;
-		done = true;
-		return false;
-	}
-
-	// fb_ is about to dish out the first character of the
-	// quality-string field
-	char ct = 0;
-	if(parseQuals(r, charsRead, dstLen, mytrim5, ct, '\n') < 0) {
-		peekOverNewline(fb_); // skip rest of line
-		r.reset();
-		success = false;
-		done = true;
-		return false;
-	}
-	r.trimmed3 = gTrim3;
-	r.trimmed5 = mytrim5;
-	assert_eq(ct, '\n');
-	assert_neq('\n', fb_.peek());
-	r.readOrigBuf.install(fb_.lastN(), fb_.lastNLen());
-	fb_.resetLastN();
-	rdid = endid = readCnt_;
-	readCnt_++;
 	return true;
 }
 
-/// Read another pair of patterns from a FASTA input file
-bool TabbedPatternSource::readPairLight(
-	Read& ra,
-	Read& rb,
-	TReadId& rdid,
-	TReadId& endid,
-	bool& success,
-	bool& done,
-	bool& paired)
+/// Read another pattern from a FASTA input file
+pair<bool, int> TabbedPatternSource::nextBatchFromFile(
+	PerThreadReadBuf& pt,
+	bool batch_a)
 {
-	success = true;
-	done = false;
-	
+	bool success = true;
+	int c;
+	EList<Read>& readbuf = batch_a ? pt.bufa_ : pt.bufb_;
+	if(first_) {
+		c = fb_.get();
+		while(c == '\r' || c == '\n') {
+			c = fb_.get();
+		}
+		if(c != '>') {
+			cerr << "Error: reads file does not look like a FASTQ file" << endl;
+			throw 1;
+		}
+		first_ = false;
+	}
+	bool done = false;
+	size_t readi = 0;
+	// Read until we run out of input or until we've filled the buffer
+	for(; readi < pt.max_buf_ && !done; readi++) {
+		SStringExpandable<char>& buf = readbuf[readi].readOrigBuf;
+		buf.clear();
+		buf.append('>'); // TODO: need to handle first char differently
+		while(true) {
+			c = fb_.get();
+			if(c < 0 || c == '>') {
+				done = true;
+				break;
+			}
+			buf.append(c);
+		}
+	}
+	return make_pair(success, readi);
+}
+
+bool TabbedPatternSource::parse(Read& r, Read& rb) const {
+	r.reset();
+#if 0
 	// Skip over initial vertical whitespace
 	if(fb_.peek() == '\r' || fb_.peek() == '\n') {
 		fb_.peekUptoNewline();
@@ -968,9 +1142,7 @@ bool TabbedPatternSource::readPairLight(
 		ra.reset();
 		rb.reset();
 		fb_.resetLastN();
-		success = false;
-		done = true;
-		return false;
+		return make_pair(true, 0);
 	}
 	assert_neq('\t', fb_.peek());
 
@@ -983,9 +1155,7 @@ bool TabbedPatternSource::readPairLight(
 		ra.reset();
 		rb.reset();
 		fb_.resetLastN();
-		success = false;
-		done = true;
-		return false;
+		return make_pair(true, 0);
 	}
 	assert_neq('\t', fb_.peek());
 
@@ -997,9 +1167,7 @@ bool TabbedPatternSource::readPairLight(
 		ra.reset();
 		rb.reset();
 		fb_.resetLastN();
-		success = false;
-		done = true;
-		return false;
+		return make_pair(true, 0);
 	}
 	ra.trimmed3 = gTrim3;
 	ra.trimmed5 = mytrim5_1;
@@ -1012,7 +1180,7 @@ bool TabbedPatternSource::readPairLight(
 		success = true;
 		done = false;
 		paired = false;
-		rdid = endid = readCnt_;
+		rdid = readCnt_;
 		readCnt_++;
 		return success;
 	}
@@ -1027,9 +1195,7 @@ bool TabbedPatternSource::readPairLight(
 			ra.reset();
 			rb.reset();
 			fb_.resetLastN();
-			success = false;
-			done = true;
-			return false;
+			return make_pair(true, 0);;
 		}
 		assert_neq('\t', fb_.peek());
 	}
@@ -1043,9 +1209,7 @@ bool TabbedPatternSource::readPairLight(
 		ra.reset();
 		rb.reset();
 		fb_.resetLastN();
-		success = false;
-		done = true;
-		return false;
+		return return make_pair(true, 0);;
 	}
 	assert_neq('\t', fb_.peek());
 
@@ -1056,17 +1220,19 @@ bool TabbedPatternSource::readPairLight(
 		ra.reset();
 		rb.reset();
 		fb_.resetLastN();
-		success = false;
-		done = true;
-		return false;
+		return make_pair(true, 0);;
 	}
 	ra.readOrigBuf.install(fb_.lastN(), fb_.lastNLen());
 	fb_.resetLastN();
 	rb.trimmed3 = gTrim3;
 	rb.trimmed5 = mytrim5_2;
-	rdid = endid = readCnt_;
+	rdid = readCnt_;
 	readCnt_++;
-	return true;
+	return make_pair(false, 1);
+#endif
+	cerr << "In TabbedPatternSource.parse()" << endl;
+	throw 1;
+	return false;
 }
 
 /**
@@ -1101,7 +1267,7 @@ int TabbedPatternSource::parseName(
 	// Set up a default name if one hasn't been set
 	if(r.name.empty()) {
 		char cbuf[20];
-		itoa10<TReadId>(readCnt_, cbuf);
+		itoa10<TReadId>(static_cast<TReadId>(readCnt_), cbuf);
 		r.name.install(cbuf);
 		if(r2 != NULL) r2->name.install(cbuf);
 	}
@@ -1209,6 +1375,137 @@ int TabbedPatternSource::parseQuals(
 	}
 	return qualsRead;
 }
+
+/**
+ * Light-parse a batch into the given buffer.
+ */
+pair<bool, int> RawPatternSource::nextBatchFromFile(
+	PerThreadReadBuf& pt,
+	bool batch_a)
+{
+	bool success = true;
+	int c;
+	EList<Read>& readbuf = batch_a ? pt.bufa_ : pt.bufb_;
+	if(first_) {
+		c = fb_.get();
+		while(c == '\r' || c == '\n') {
+			c = fb_.get();
+		}
+		if(c != '>') {
+			cerr << "Error: reads file does not look like a FASTQ file" << endl;
+			throw 1;
+		}
+		first_ = false;
+	}
+	bool done = false;
+	size_t readi = 0;
+	// Read until we run out of input or until we've filled the buffer
+	for(; readi < pt.max_buf_ && !done; readi++) {
+		SStringExpandable<char>& buf = readbuf[readi].readOrigBuf;
+		buf.clear();
+		buf.append('>'); // TODO: need to handle first char differently
+		while(true) {
+			c = fb_.get();
+			if(c < 0 || c == '>') {
+				done = true;
+				break;
+			}
+			buf.append(c);
+		}
+	}
+	return make_pair(success, readi);
+}
+
+/// Skip to the end of the current string of newline chars and return
+/// the first character after the newline chars, or -1 for EOF
+static inline int getOverNewline(FileBuf& in) {
+	int c;
+	while(isspace(c = in.get()));
+	return c;
+}
+
+/// Skip to the end of the current line such that the next call to
+/// get() returns the first character on the next line
+static inline int peekToEndOfLine(FileBuf& in) {
+	while(true) {
+		int c = in.get(); if(c < 0) return c;
+		if(c == '\n' || c == '\r') {
+			c = in.peek();
+			while(c == '\n' || c == '\r') {
+				in.get(); if(c < 0) return c; // consume \r or \n
+				c = in.peek();
+			}
+			// next get() gets first character of next line
+			return c;
+		}
+	}
+}
+
+/// Read another pattern from a Raw input file
+bool RawPatternSource::parse(Read& r, Read& rb) const {
+#if 0
+	int c;
+	r.reset();
+	c = getOverNewline(this->fb_);
+	if(c < 0) {
+		bail(r);
+		return make_pair(true, 0);
+	}
+	assert(!isspace(c));
+	int mytrim5 = gTrim5;
+	if(first_) {
+		// Check that the first character is sane for a raw file
+		int cc = c;
+		if(asc2dnacat[cc] == 0) {
+			cerr << "Error: reads file does not look like a Raw file" << endl;
+			if(c == '>') {
+				cerr << "Reads file looks like a FASTA file; please use -f" << endl;
+			}
+			if(c == '@') {
+				cerr << "Reads file looks like a FASTQ file; please use -q" << endl;
+			}
+			throw 1;
+		}
+		first_ = false;
+	}
+	// _in now points just past the first character of a sequence
+	// line, and c holds the first character
+	int chs = 0;
+	while(!isspace(c) && c >= 0) {
+		// 5' trimming
+		if(isalpha(c) && chs >= mytrim5) {
+			//size_t len = chs - mytrim5;
+			//if(len >= 1024) tooManyQualities(BTString("(no name)"));
+			r.patFw.append(asc2dna[c]);
+			r.qual.append('I');
+		}
+		chs++;
+		if(isspace(fb_.peek())) break;
+		c = fb_.get();
+	}
+	// 3' trimming
+	r.patFw.trimEnd(gTrim3);
+	r.qual.trimEnd(gTrim3);
+	c = peekToEndOfLine(fb_);
+	r.trimmed3 = gTrim3;
+	r.trimmed5 = mytrim5;
+	r.readOrigBuf.install(fb_.lastN(), fb_.lastNLen());
+	fb_.resetLastN();
+	
+	// Set up name
+	char cbuf[20];
+	itoa10<TReadId>(readCnt_, cbuf);
+	r.name.install(cbuf);
+	readCnt_++;
+	
+	rdid = readCnt_-1;
+	return make_pair(false, 1);
+#endif
+	cerr << "In RawPatternSource.parse()" << endl;
+	throw 1;
+	return false;
+}
+
 
 void wrongQualityFormat(const BTString& read_name) {
 	cerr << "Error: Encountered one or more spaces while parsing the quality "
