@@ -13,6 +13,9 @@
   <h2>Latest Release</h2>
   <div class="box">
      <table width="100%">
+        <tr>
+        <td colspan="2"><a href="http://bioconda.github.io/recipes/bowtie2/README.html"><img src="https://img.shields.io/badge/install%20with-bioconda-brightgreen.svg?style=flat-square"/></a></td>
+        </tr>
       <tr>
       <td>
         <a href="https://sourceforge.net/projects/bowtie-bio/files/bowtie2/2.2.9">Bowtie2 2.2.9</a>
