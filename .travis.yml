@@ -2,6 +2,12 @@ language: c++
 compiler:
 - clang
 - gcc
+branches:
+  only:
+  - master
+  - cleaner_parsing
+  - batch_parsing
+  - no-io
 script: make allall
 notifications:
   slack:
