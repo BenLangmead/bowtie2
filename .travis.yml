@@ -2,6 +2,11 @@ language: c++
 compiler:
 - clang
 - gcc
+cache: apt
+addons:
+  apt:
+    packages:
+    - libtbb-dev
 branches:
   only:
   - master
