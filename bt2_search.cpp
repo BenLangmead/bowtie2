@@ -29,6 +29,11 @@
 #include <math.h>
 #include <utility>
 #include <limits>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <dirent.h>
+#include <math.h>
 #include "alphabet.h"
 #include "assert_helpers.h"
 #include "endian_swap.h"
@@ -95,6 +100,8 @@ static bool solexaQuals;  // quality strings are solexa quals, not phred, and su
 static bool phred64Quals; // quality chars are phred, but must subtract 64 (not 33)
 static bool integerQuals; // quality strings are space-separated strings of integers, not ASCII
 static int nthreads;      // number of pthreads operating concurrently
+static int thread_ceiling;// maximum number of threads bowtie can ever use
+static string pid_dir;    // directory to store this process' pid and to look for other bt2 process's pids
 static int outType;       // style of output
 static bool noRefNames;   // true -> print reference indexes; not names
 static uint32_t khits;    // number of hits per read; >1 is much slower
