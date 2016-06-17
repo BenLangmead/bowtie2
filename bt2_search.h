@@ -23,7 +23,6 @@
 
 #include <tbb/tbb.h>
 #include <tbb/task_group.h>
-#include <tbb/atomic.h>
 
 class multiseedSearchWorker {
 	int tid;
@@ -31,7 +30,7 @@ class multiseedSearchWorker {
 public:
 	multiseedSearchWorker(const multiseedSearchWorker& W): tid(W.tid) {};
 	multiseedSearchWorker(int id):tid(id) {};
-	void operator()();
+	void operator()() const;
 };
 
 class multiseedSearchWorker_2p5 {
@@ -40,7 +39,7 @@ class multiseedSearchWorker_2p5 {
 public:
 	multiseedSearchWorker_2p5(const multiseedSearchWorker_2p5& W): tid(W.tid) {};
 	multiseedSearchWorker_2p5(int id):tid(id) {};
-	void operator()();
+	void operator()() const;
 
 };
 

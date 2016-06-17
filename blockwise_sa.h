@@ -210,11 +210,16 @@ public:
                           ostream& __logger = cout) :
     InorderBlockwiseSA<TStr>(__text, __bucketSz, __sanityCheck, __passMemExc, __verbose, __logger),
     _sampleSuffs(EBWTB_CAT), _nthreads(__nthreads), _itrBucketIdx(0), _cur(0), _dcV(__dcV), _dc(EBWTB_CAT), _built(false), _base_fname(base_fname), _bigEndian(currentlyBigEndian())
+#ifdef WITH_TBB
+,thread_group_started(false)
+#endif
     { _randomSrc.init(__seed); reset(); }
     
     ~KarkkainenBlockwiseSA()
     {
-#ifndef WITH_TBB
+#ifdef WITH_TBB
+		    tbb_grp.wait();
+#else
         if(_threads.size() > 0) {
             for (size_t tid = 0; tid < _threads.size(); tid++) {
                 _threads[tid]->join();
@@ -243,32 +248,36 @@ public:
     /**
      * Get the next suffix; compute the next bucket if necessary.
      */
-    virtual TIndexOffU nextSuffix() {
+    virtual TIndexOffU nextSuffix() 
+    {
         // Launch threads if not
-        if(this->_nthreads > 1) {
+        if(this->_nthreads > 1) 
+        {
 #ifdef WITH_TBB
-            if(!thread_group_started) {
+            if(!thread_group_started)
+            {
 #else
-            if(_threads.size() == 0) {
+            if(_threads.size() == 0) 
+            {
 #endif
-                _done.resize(_sampleSuffs.size() + 1);
-                _done.fill(false);
+	      _done.resize(_sampleSuffs.size() + 1);
+	      _done.fill(false);
                 _itrBuckets.resize(this->_nthreads);
+                _tparams.resize(this->_nthreads);
                 for(int tid = 0; tid < this->_nthreads; tid++) {
-                    _tparams.expand();
-                    _tparams.back().first = this;
-                    _tparams.back().second = tid;
+                    _tparams[tid].first = this;
+                    _tparams[tid].second = tid;
 #ifdef WITH_TBB
-	 	    tbb_grp.run(nextBlock_Worker((void*)&_tparams.back()));
-		}
-		tbb_grp.wait();
-		thread_group_started = true;
+	 	                tbb_grp.run(nextBlock_Worker((void*)&_tparams[tid]));
+		            }
+		            thread_group_started = true;
+            }
 #else
-                    _threads.push_back(new tthread::thread(nextBlock_Worker, (void*)&_tparams.back()));
+                    _threads.push_back(new tthread::thread(nextBlock_Worker, (void*)&_tparams[tid]));
                 }
                 assert_eq(_threads.size(), (size_t)this->_nthreads);
-#endif
             }
+#endif
         }
         if(this->_itrPushedBackSuffix != OFF_MASK) {
             TIndexOffU tmp = this->_itrPushedBackSuffix;
@@ -284,11 +293,14 @@ public:
             if(this->_nthreads == 1) {
                 nextBlock((int)_cur);
                 _cur++;
-            } else {
-                while(!_done[this->_itrBucketIdx]) {
+            } 
+            else 
+            {
+                while(!_done[this->_itrBucketIdx]) 
+                {
 #if defined(_TTHREAD_WIN32_)
                     Sleep(1);
-#elif defined(_TTHREAD_POSIX_)
+#else
                     const static timespec ts = {0, 1000000};  // 1 millisecond
                     nanosleep(&ts, NULL);
 #endif
@@ -298,7 +310,7 @@ public:
                 const string fname = _base_fname + "." + number.str() + ".sa";
                 ifstream sa_file(fname.c_str(), ios::binary);
                 if(!sa_file.good()) {
-                    cerr << "Could not open file for reading a reference graph: \"" << fname << "\"" << endl;
+                    cerr << "Could not open file for reading a suffix array: \"" << fname << "\"" << endl;
                     throw 1;
                 }
                 size_t numSAs = readU<TIndexOffU>(sa_file, _bigEndian);
@@ -339,7 +351,7 @@ public:
 
     nextBlock_Worker(const nextBlock_Worker& W): vp(W.vp) {};
     nextBlock_Worker(void *vp_):vp(vp_) {}; 
-    void operator()() {
+    void operator()() const {
 #else
     static void nextBlock_Worker(void *vp) {
 #endif
@@ -547,7 +559,7 @@ public:
 
 	BinarySorting_worker(const BinarySorting_worker& W): vp(W.vp) {};
 	BinarySorting_worker(void *vp_):vp(vp_) {};
-	void operator()() 
+	void operator()() const
 	{
 #else
 static void BinarySorting_worker(void *vp)
@@ -670,17 +682,17 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
         AutoArray<tthread::thread*> threads(this->_nthreads);
 #endif
         EList<BinarySortingParam<TStr> > tparams;
+        tparams.resize(this->_nthreads);
         for(int tid = 0; tid < this->_nthreads; tid++) {
             // Calculate bucket sizes by doing a binary search for each
             // suffix and noting where it lands
-            tparams.expand();
             try {
                 // Allocate and initialize containers for holding bucket
                 // sizes and representatives.
-                tparams.back().bucketSzs.resizeExact(numBuckets);
-                tparams.back().bucketReps.resizeExact(numBuckets);
-                tparams.back().bucketSzs.fillZero();
-                tparams.back().bucketReps.fill(OFF_MASK);
+                tparams[tid].bucketSzs.resizeExact(numBuckets);
+                tparams[tid].bucketReps.resizeExact(numBuckets);
+                tparams[tid].bucketSzs.fillZero();
+                tparams[tid].bucketReps.fill(OFF_MASK);
             } catch(bad_alloc &e) {
                 if(this->_passMemExc) {
                     throw e; // rethrow immediately
@@ -691,20 +703,20 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
                     throw 1;
                 }
             }
-            tparams.back().t = &t;
-            tparams.back().sampleSuffs = &_sampleSuffs;
-            tparams.back().begin = (tid == 0 ? 0 : len / this->_nthreads * tid);
-            tparams.back().end = (tid + 1 == this->_nthreads ? len : len / this->_nthreads * (tid + 1));
+            tparams[tid].t = &t;
+            tparams[tid].sampleSuffs = &_sampleSuffs;
+            tparams[tid].begin = (tid == 0 ? 0 : len / this->_nthreads * tid);
+            tparams[tid].end = (tid + 1 == this->_nthreads ? len : len / this->_nthreads * (tid + 1));
             if(this->_nthreads == 1) {
-                BinarySorting_worker<TStr>((void*)&tparams.back());
+                BinarySorting_worker<TStr>((void*)&tparams[tid]);
             } else {
 #ifdef WITH_TBB
-			tbb_grp.run(BinarySorting_worker<TStr>(((void*)&tparams.back())));
-		   }
+        			tbb_grp.run(BinarySorting_worker<TStr>(((void*)&tparams[tid])));
+		        }
         }
-	tbb_grp.wait();
+      	tbb_grp.wait();
 #else
-                threads[tid] = new tthread::thread(BinarySorting_worker<TStr>, (void*)&tparams.back());
+             threads[tid] = new tthread::thread(BinarySorting_worker<TStr>, (void*)&tparams[tid]);
             }
         }
         
@@ -990,7 +1002,7 @@ template<typename TStr>
 void KarkkainenBlockwiseSA<TStr>::nextBlock(int cur_block, int tid) {
 #ifndef NDEBUG
     if(this->_nthreads > 1) {
-        assert_lt(tid, this->_itrBuckets.size());
+        assert_lt(tid, (int)this->_itrBuckets.size());
     }
 #endif
     EList<TIndexOffU>& bucket = (this->_nthreads > 1 ? this->_itrBuckets[tid] : this->_itrBucket);
@@ -1000,7 +1012,7 @@ void KarkkainenBlockwiseSA<TStr>::nextBlock(int cur_block, int tid) {
     }
     assert(_built);
     assert_gt(_dcV, 3);
-    assert_leq(cur_block, _sampleSuffs.size());
+    assert_leq(cur_block, (int)_sampleSuffs.size());
     const TStr& t = this->text();
     TIndexOffU len = (TIndexOffU)t.length();
     // Set up the bucket
@@ -1069,7 +1081,7 @@ void KarkkainenBlockwiseSA<TStr>::nextBlock(int cur_block, int tid) {
             }
             if(!last) {
                 // Not the last bucket
-                assert_lt(cur_block, _sampleSuffs.size());
+                assert_lt(cur_block, (int)_sampleSuffs.size());
                 hi = _sampleSuffs[cur_block];
                 zHi.resizeExact(_dcV);
                 zHi.fillZero();
@@ -1079,7 +1091,7 @@ void KarkkainenBlockwiseSA<TStr>::nextBlock(int cur_block, int tid) {
             if(!first) {
                 // Not the first bucket
                 assert_gt(cur_block, 0);
-                assert_leq(cur_block, _sampleSuffs.size());
+                assert_leq(cur_block, (int)_sampleSuffs.size());
                 lo = _sampleSuffs[cur_block-1];
                 zLo.resizeExact(_dcV);
                 zLo.fillZero();

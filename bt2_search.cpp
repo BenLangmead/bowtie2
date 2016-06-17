@@ -29,12 +29,6 @@
 #include <math.h>
 #include <utility>
 #include <limits>
-#include <cstring>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <dirent.h>
-#include <math.h>
 #include "alphabet.h"
 #include "assert_helpers.h"
 #include "endian_swap.h"
@@ -101,8 +95,6 @@ static bool solexaQuals;  // quality strings are solexa quals, not phred, and su
 static bool phred64Quals; // quality chars are phred, but must subtract 64 (not 33)
 static bool integerQuals; // quality strings are space-separated strings of integers, not ASCII
 static int nthreads;      // number of pthreads operating concurrently
-static int thread_ceiling;// maximum number of threads bowtie can ever use
-static string pid_dir;    // directory to store this process' pid and to look for other bt2 process's pids
 static int outType;       // style of output
 static bool noRefNames;   // true -> print reference indexes; not names
 static uint32_t khits;    // number of hits per read; >1 is much slower
@@ -1074,13 +1066,6 @@ static void parseOption(int next_option, const char *arg) {
 		case 'p':
 			nthreads = parseInt(1, "-p/--threads arg must be at least 1", arg);
 			break;
-		/*case 'T':
-			thread_ceiling = parseInt(1, "-T arg must be at least 1 and must be equal to or greater than -p/--threads", arg);
-			break;
-		case 'G':
-			pid_dir = arg;
-			//pid_dir = parseInt(1, "-G arg denotes full path to directory to put this processes' pid and to look for other BT2 pids", arg);
-			break;*/
 		case ARG_FILEPAR:
 			fileParallel = true;
 			break;
@@ -1188,9 +1173,6 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_SAM_PRINT_YI: sam_print_yi = true; break;
 		case ARG_REORDER: reorder = true; break;
 		case ARG_MAPQ_EX: {
-			//sam_print_zp = true;
-			//sam_print_xss = true;
-			//sam_print_yn = true;
 			sam_print_zt = true;
 			break;
 		}
@@ -2840,7 +2822,7 @@ void decrement_thread_counter()
  * - 
  */
 #ifdef WITH_TBB
-void multiseedSearchWorker::operator()() {
+void multiseedSearchWorker::operator()() const {
 #else
 static void multiseedSearchWorker(void *vp) {
 	int tid = *((int*)vp);
@@ -2876,8 +2858,6 @@ static void multiseedSearchWorker(void *vp) {
 	// problems, or generally characterize performance.
 	
 	//const BitPairReference& refs   = *multiseed_refs;
-  //thread_counter.fetch_and_increment();
-  increment_thread_counter();
 	auto_ptr<PatternSourcePerThreadFactory> patsrcFact(createPatsrcFactory(patsrc, tid));
 	auto_ptr<PatternSourcePerThread> ps(patsrcFact->create());
 	
@@ -3947,7 +3927,7 @@ static void multiseedSearchWorker(void *vp) {
 }
 
 #ifdef WITH_TBB
-void multiseedSearchWorker_2p5::operator()() {
+void multiseedSearchWorker_2p5::operator()() const {
 #else
 static void multiseedSearchWorker_2p5(void *vp) {
 	int tid = *((int*)vp);
@@ -4494,8 +4474,8 @@ static void multiseedSearch(
 #ifdef WITH_TBB
 	tbb::task_group tbb_grp;
 #else
-	AutoArray<tthread::thread*> threads(thread_ceiling+1);
-	AutoArray<int> tids(thread_ceiling+1);
+	AutoArray<tthread::thread*> threads(nthreads+1);
+	AutoArray<int> tids(nthreads+1);
 #endif
 	{
 		// Load the other half of the index into memory

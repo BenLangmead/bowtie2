@@ -333,8 +333,6 @@ enum {
 	SA_ACTION_TYPE_EDIT         // 6
 };
 
-#define MIN(x, y) ((x < y) ? x : y)
-
 /**
  * Given a read and a few coordinates that describe a substring of the read (or
  * its reverse complement), fill in 'seq' and 'qual' objects with the seed
