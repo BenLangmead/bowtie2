@@ -151,7 +151,8 @@ enum {
 	ARG_DESC_PRIORITIZE,        // --desc-prioritize
 	ARG_DESC_FMOPS,             // --desc-fmops
 	ARG_LOG_DP,                 // --log-dp
-	ARG_LOG_DP_OPP              // --log-dp-opp
+	ARG_LOG_DP_OPP,             // --log-dp-opp
+	ARG_THREAD_CEILING          // --thread-ceiling
 };
 
 #endif
