@@ -2853,7 +2853,7 @@ static void multiseedSearchWorker(void *vp) {
 	AlnSinkWrap msinkwrap(
 		msink,         // global sink
 		rp,            // reporting parameters
-		*bmapq.get(),  // MAPQ calculator
+		*bmapq,        // MAPQ calculator
 		(size_t)tid);  // thread id
 	
 	// Write dynamic-programming problem descriptions here
@@ -3929,7 +3929,7 @@ static void multiseedSearchWorker_2p5(void *vp) {
 	AlnSinkWrap msinkwrap(
 		msink,         // global sink
 		rp,            // reporting parameters
-		*bmapq.get(),  // MAPQ calculator
+		*bmapq,        // MAPQ calculator
 		(size_t)tid);  // thread id
 
 	OuterLoopMetrics olm;
