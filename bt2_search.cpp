@@ -2906,7 +2906,7 @@ static void multiseedSearchWorker(void *vp) {
 	AlnSinkWrap msinkwrap(
 		msink,         // global sink
 		rp,            // reporting parameters
-		*bmapq.get(),  // MAPQ calculator
+		*bmapq,        // MAPQ calculator
 		(size_t)tid);  // thread id
 	
 	// Write dynamic-programming problem descriptions here
@@ -3936,7 +3936,8 @@ static void multiseedSearchWorker(void *vp) {
 	   << "thread: " << tid << " node_changeovers: " << nnuma_changeovers << std::endl;
 	std::cout << ss.str();
 #endif
-  decrement_thread_counter();
+
+	decrement_thread_counter();
 
 	return;
 }
@@ -3983,7 +3984,7 @@ static void multiseedSearchWorker_2p5(void *vp) {
 	AlnSinkWrap msinkwrap(
 		msink,         // global sink
 		rp,            // reporting parameters
-		*bmapq.get(),  // MAPQ calculator
+		*bmapq,        // MAPQ calculator
 		(size_t)tid);  // thread id
 
 	OuterLoopMetrics olm;
@@ -4275,18 +4276,16 @@ static void multiseedSearchWorker_2p5(void *vp) {
 	// One last metrics merge
 	MERGE_METRICS(metrics, nthreads > 0);
 
+	decrement_thread_counter();
+
 	return;
 }
 
-void del_pid(const char* dirname,int pid)
-{
+void del_pid(const char* dirname,int pid) {
 	struct stat finfo;
 	char* fname = (char*) calloc(FNAME_SIZE,sizeof(char));
-	//char* fname = (char*) malloc(FNAME_SIZE);
 	sprintf(fname,"%s/%d",dirname,pid);
-	//string fname = dirname + "/" + pid;
-	if( stat( fname, &finfo) != 0)
-	{
+	if(stat( fname, &finfo) != 0) {
 		free(fname);
 		return;
 	}
@@ -4295,13 +4294,11 @@ void del_pid(const char* dirname,int pid)
 } 
 
 //from http://stackoverflow.com/questions/18100097/portable-way-to-check-if-directory-exists-windows-linux-c
-static void write_pid(const char* dirname,int pid)
-{
+static void write_pid(const char* dirname,int pid) {
 	struct stat dinfo;
 	if(stat(dirname, &dinfo) != 0) {
 		mkdir(dirname,0755);
 	}
-	//std::string fname = dirname << "/bt2." << ::getpid();
 	char* fname = (char*) calloc(FNAME_SIZE,sizeof(char));
 	sprintf(fname,"%s/%d",dirname,pid);
 	FILE* f = fopen(fname,"w");
@@ -4310,8 +4307,7 @@ static void write_pid(const char* dirname,int pid)
 }
 
 //from  http://stackoverflow.com/questions/612097/how-can-i-get-the-list-of-files-in-a-directory-using-c-or-c
-static int read_dir(const char* dirname,int* num_pids)
-{
+static int read_dir(const char* dirname,int* num_pids) {
 	DIR *dir;
 	struct dirent *ent;
 	char* fname = (char*) calloc(FNAME_SIZE,sizeof(char));
@@ -4335,109 +4331,71 @@ static int read_dir(const char* dirname,int* num_pids)
 		}
 		closedir (dir);
 	} else {
-		//could not open directory
-		perror ("");
+		perror (""); // could not open directory
 	}
 	free(fname);
 	return lowest_pid;
 }
 
-//alternative to read/writing pids is to use ps
-//however not as portable
-static int ps_pids(int* num_pids) {
-	string ps_cmd = "ps -e -o pid,command | grep [b]owtie2-align | egrep -v -e \"sh -c\"";
-	FILE* instr = popen(ps_cmd.c_str(),"r");
-	int lowest_pid = -1;
-	char* line = (char*) calloc(2048,sizeof(char));
-	//char* read = fgets(line,2047,instr);
-	while(fgets(line,2047,instr) != NULL) {
-		int pid = atoi(line);
-		fprintf(stderr,"got pid %d from %s",pid,line);
-		if(pid < lowest_pid || lowest_pid == -1) {
-			lowest_pid = pid;
-		}
-		(*num_pids)=(*num_pids) + 1;
-		//read = fgets(line,2047,instr);
-	}
-	free(line);
-	pclose(instr);
-	return lowest_pid;
-}
-
 #ifdef WITH_TBB
-static void steal_threads(int pid,int *orig_nthreads,tbb::task_group* tbb_grp)
+static void steal_threads(int pid, int *orig_nthreads, tbb::task_group* tbb_grp)
 #else
-static void steal_threads(int pid,int *orig_nthreads,AutoArray<int>* tids,AutoArray<tthread::thread*>* threads)
+static void steal_threads(int pid, int *orig_nthreads, EList<int>& tids, EList<tthread::thread*>& threads)
 #endif
 {
-	fprintf(stderr, "entering steal_threads\n");
 	int ncpu = thread_ceiling;
 	if(thread_ceiling <= nthreads) {
 		return;
 	}
-	fprintf(stderr,"steal_threads before read_dir\n");
 	int num_pids = 0;
 	int lowest_pid = read_dir(pid_dir.c_str(), &num_pids);
-	//int lowest_pid = ps_pids(&num_pids);
 	if(lowest_pid != pid) {
 		return;
 	}
-	fprintf(stderr,"pid %d, # cpus %d,num pids=%d,cur threads %d\n",pid,ncpu,num_pids,nthreads);
 	int in_use = ((num_pids-1) * (*orig_nthreads)) + nthreads; //in_use is now baseline + ours
 	float spare = ncpu - in_use;
 	int spare_r = floor(spare);
 	float r = rand() % 100/100.0;
-	fprintf(stderr,"rand1 %.3f spare %.3f spare_r %d\n",r,spare,spare_r);
-	if (r <= (spare - spare_r))
-	{
+	if(r <= (spare - spare_r)) {
 		spare_r = ceil(spare);
 	}
-	fprintf(stderr,"rand2 %.3f spare %.3f spare_r %d\n",r,spare,spare_r);
-	if(spare_r > 0)
-	{
+	if(spare_r > 0) {
 		nthreads++;
 #ifdef WITH_TBB
 		tbb_grp->run(multiseedSearchWorker(nthreads));
 #else
-		(*tids)[nthreads] = nthreads;
-		(*threads)[nthreads] = new tthread::thread(multiseedSearchWorker, (void*)&((*tids)[nthreads]));
+		tids.push_back(nthreads);
+		threads.push_back(new tthread::thread(multiseedSearchWorker, (void*)&tids.back()));
 #endif
-		fprintf(stderr,"pid %d worker %d started\n",pid,nthreads);
+		cerr << "pid " << pid << " started new worker # " << nthreads << endl;
 	}
 }
 
 //from http://stackoverflow.com/questions/5141960/get-the-current-time-in-c
-static char* get_time()
-{
+static char* get_time() {
 	time_t rawtime;
 	struct tm * timeinfo;
-
 	time ( &rawtime );
 	timeinfo = localtime ( &rawtime );
 	return asctime (timeinfo);
-	//printf ( "Current local time and date: %s", asctime (timeinfo) );
 }
 
 #ifdef WITH_TBB
-static void thread_monitor(int pid,int *orig_threads,tbb::task_group* tbb_grp)
+static void thread_monitor(int pid, int *orig_threads, tbb::task_group* tbb_grp)
 #else
-static void thread_monitor(int pid,int *orig_threads,AutoArray<int>* tids,AutoArray<tthread::thread*>* threads)
+static void thread_monitor(int pid, int *orig_threads, EList<int>& tids, EList<tthread::thread*>& threads)
 #endif
 {
-	fprintf(stderr, "turning on thread stealing\n");
 	sleep(10);
 	int steal_ctr = 1;
-	while(thread_counter > 0)
-	{
-		//fprintf(stderr,"before steal_threads is called %d %d\n",thread_counter,steal_ctr);
+	while(thread_counter > 0) {
 #ifdef WITH_TBB
-		steal_threads(pid,orig_threads,tbb_grp);
+		steal_threads(pid, orig_threads, tbb_grp);
 #else
-		steal_threads(pid,orig_threads,tids,threads);
+		steal_threads(pid, orig_threads, tids, threads);
 #endif
 		steal_ctr++;
-		for(int j=0;j<2;j++) {
-			fprintf(stderr,"%d sleeping %s",j,get_time());
+		for(int j = 0; j < 2; j++) {
 			sleep(5);
 		}
 	}
@@ -4483,8 +4441,8 @@ static void multiseedSearch(
 #ifdef WITH_TBB
 	tbb::task_group tbb_grp;
 #else
-	AutoArray<tthread::thread*> threads(nthreads+1);
-	AutoArray<int> tids(nthreads+1);
+	EList<tthread::thread*> threads;
+	EList<int> tids;
 #endif
 	{
 		// Load the other half of the index into memory
@@ -4531,18 +4489,19 @@ static void multiseedSearch(
 				tbb_grp.run(multiseedSearchWorker_2p5(i));
 			} else {
 				tbb_grp.run(multiseedSearchWorker(i));
-				fprintf(stderr,"pid %d worker %d started\n",pid,i);
 			}
 #else
 			// Thread IDs start at 1
-			tids[i] = i;
+			tids.push_back(i);
+			assert_eq(i, tids.size());
 			if(bowtie2p5) {
-				threads[i] = new tthread::thread(multiseedSearchWorker_2p5, (void*)&tids[i]);
+				threads.push_back(new tthread::thread(multiseedSearchWorker_2p5, (void*)&tids.back()));
 			} else {
-				threads[i] = new tthread::thread(multiseedSearchWorker, (void*)&tids[i]);
+				threads.push_back(new tthread::thread(multiseedSearchWorker, (void*)&tids.back()));
 			}
 #endif
 		}
+		assert_eq(tids.size(), nthreads);
 
 		char* fname = NULL;
 		if(thread_stealing) {
@@ -4550,18 +4509,14 @@ static void multiseedSearch(
 #ifdef WITH_TBB
 			thread_monitor(pid, &orig_threads, &tbb_grp);
 #else
-			thread_monitor(pid, &orig_threads, &tids, &threads);
+			thread_monitor(pid, &orig_threads, tids, threads);
 #endif
 		}
 	
 #ifdef WITH_TBB
 		tbb_grp.wait();
 #else
-		//for (int i = 1; i <= *cur_threads; i++) {
-		// nthreads is getting dynamically modified to
-		// increase to the number new threads upto and including
-		// the thread_ceiling
-		for (int i = 1; i <= nthreads; i++) {
+		for (int i = 0; i < nthreads; i++) {
 			threads[i]->join();
 		}
 #endif
