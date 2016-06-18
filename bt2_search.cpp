@@ -29,6 +29,7 @@
 #include <utility>
 #include <limits>
 #include <dirent.h>
+#include <signal.h>
 #include "alphabet.h"
 #include "assert_helpers.h"
 #include "endian_swap.h"
@@ -4372,15 +4373,6 @@ static void steal_threads(int pid, int *orig_nthreads, EList<int>& tids, EList<t
 	}
 }
 
-//from http://stackoverflow.com/questions/5141960/get-the-current-time-in-c
-static char* get_time() {
-	time_t rawtime;
-	struct tm * timeinfo;
-	time ( &rawtime );
-	timeinfo = localtime ( &rawtime );
-	return asctime (timeinfo);
-}
-
 #ifdef WITH_TBB
 static void thread_monitor(int pid, int *orig_threads, tbb::task_group* tbb_grp)
 #else
@@ -4494,7 +4486,7 @@ static void multiseedSearch(
 #else
 			// Thread IDs start at 1
 			tids.push_back(i);
-			assert_eq(i, tids.size());
+			assert_eq(i, (int)tids.size());
 			if(bowtie2p5) {
 				threads.push_back(new tthread::thread(multiseedSearchWorker_2p5, (void*)&tids.back()));
 			} else {
@@ -4502,7 +4494,7 @@ static void multiseedSearch(
 			}
 #endif
 		}
-		assert_eq(tids.size(), nthreads);
+		assert_eq((int)tids.size(), nthreads);
 
 		char* fname = NULL;
 		if(thread_stealing) {
