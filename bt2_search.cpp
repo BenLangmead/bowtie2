@@ -17,7 +17,6 @@
  * along with Bowtie 2.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
 #include <iostream>
@@ -29,11 +28,7 @@
 #include <math.h>
 #include <utility>
 #include <limits>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
 #include <dirent.h>
-#include <math.h>
 #include "alphabet.h"
 #include "assert_helpers.h"
 #include "endian_swap.h"
@@ -2798,8 +2793,7 @@ void get_cpu_and_node(int& cpu, int& node) {
 }
 #endif
 
-void increment_thread_counter()
-{
+void increment_thread_counter() {
 #ifdef WITH_TBB
 	thread_counter.fetch_and_increment();
 #else
@@ -2808,8 +2802,7 @@ void increment_thread_counter()
 #endif
 }
 
-void decrement_thread_counter()
-{
+void decrement_thread_counter() {
 #ifdef WITH_TBB
 	thread_counter.fetch_and_decrement();
 #else
@@ -2870,7 +2863,9 @@ static void multiseedSearchWorker(void *vp) {
 	// level.  These in turn can be used to diagnose performance
 	// problems, or generally characterize performance.
 
-	increment_thread_counter();
+	if(thread_stealing) {
+		increment_thread_counter();
+	}
 
 	//const BitPairReference& refs   = *multiseed_refs;
 	auto_ptr<PatternSourcePerThreadFactory> patsrcFact(createPatsrcFactory(patsrc, tid));
@@ -3022,7 +3017,7 @@ static void multiseedSearchWorker(void *vp) {
 			{
 				// Do a periodic merge.  Update global metrics, in a
 				// synchronized manner if needed.
-				MERGE_METRICS(metrics, nthreads > 0);
+				MERGE_METRICS(metrics, nthreads > 1 || thread_stealing);
 				mergei = 0;
 				// Check if a progress message should be printed
 				if(tid == 0) {
@@ -3915,7 +3910,7 @@ static void multiseedSearchWorker(void *vp) {
 			break;
 		}
 		if(metricsPerRead) {
-			MERGE_METRICS(metricsPt, nthreads > 0);
+			MERGE_METRICS(metricsPt, nthreads > 1 || thread_stealing);
 			nametmp = ps->bufa().name;
 			metricsPt.reportInterval(
 				metricsOfb, metricsStderr, true, true, &nametmp);
@@ -3924,7 +3919,7 @@ static void multiseedSearchWorker(void *vp) {
 	} // while(true)
 	
 	// One last metrics merge
-	MERGE_METRICS(metrics, nthreads > 0);
+	MERGE_METRICS(metrics, nthreads > 1 || thread_stealing);
 	
 	if(dpLog    != NULL) dpLog->close();
 	if(dpLogOpp != NULL) dpLogOpp->close();
@@ -3937,7 +3932,9 @@ static void multiseedSearchWorker(void *vp) {
 	std::cout << ss.str();
 #endif
 
-	decrement_thread_counter();
+	if(thread_stealing) {
+		decrement_thread_counter();
+	}
 
 	return;
 }
@@ -3963,7 +3960,9 @@ static void multiseedSearchWorker_2p5(void *vp) {
 	// level.  These in turn can be used to diagnose performance
 	// problems, or generally characterize performance.
 	
-	increment_thread_counter();
+	if(thread_stealing) {
+		increment_thread_counter();
+	}
 	
 	auto_ptr<PatternSourcePerThreadFactory> patsrcFact(createPatsrcFactory(patsrc, tid));
 	auto_ptr<PatternSourcePerThread> ps(patsrcFact->create());
@@ -4091,7 +4090,7 @@ static void multiseedSearchWorker_2p5(void *vp) {
 			{
 				// Do a periodic merge.  Update global metrics, in a
 				// synchronized manner if needed.
-				MERGE_METRICS(metrics, nthreads > 0);
+				MERGE_METRICS(metrics, nthreads > 1 || thread_stealing);
 				mergei = 0;
 				// Check if a progress message should be printed
 				if(tid == 0) {
@@ -4265,7 +4264,7 @@ static void multiseedSearchWorker_2p5(void *vp) {
 			break;
 		}
 		if(metricsPerRead) {
-			MERGE_METRICS(metricsPt, nthreads > 0);
+			MERGE_METRICS(metricsPt, nthreads > 1 || thread_stealing);
 			nametmp = ps->bufa().name;
 			metricsPt.reportInterval(
 				metricsOfb, metricsStderr, true, true, &nametmp);
@@ -4274,9 +4273,11 @@ static void multiseedSearchWorker_2p5(void *vp) {
 	} // while(true)
 	
 	// One last metrics merge
-	MERGE_METRICS(metrics, nthreads > 0);
+	MERGE_METRICS(metrics, nthreads > 1 || thread_stealing);
 
-	decrement_thread_counter();
+	if(thread_stealing) {
+		decrement_thread_counter();
+	}
 
 	return;
 }
@@ -4657,11 +4658,11 @@ static void driver(
 		ebwt.evictFromMemory();
 	}
 	OutputQueue oq(
-		*fout,                   // out file buffer
-		reorder && nthreads > 0, // whether to reorder when there's >1 thread
-		nthreads,                // # threads
-		nthreads > 0 || thread_stealing, // whether to be thread-safe
-		skipReads);              // first read will have this rdid
+		*fout,                           // out file buffer
+		reorder && (nthreads > 1 || thread_stealing), // whether to reorder
+		nthreads,                        // # threads
+		nthreads > 1 || thread_stealing, // whether to be thread-safe
+		skipReads);                      // first read will have this rdid
 	{
 		Timer _t(cerr, "Time searching: ", timing);
 		// Set up penalities
