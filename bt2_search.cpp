@@ -97,8 +97,8 @@ static bool phred64Quals; // quality chars are phred, but must subtract 64 (not 
 static bool integerQuals; // quality strings are space-separated strings of integers, not ASCII
 static int nthreads;      // number of pthreads operating concurrently
 static int thread_ceiling;// maximum number of threads user wants bowtie to use
+static string thread_stealing_dir; // keep track of pids in this directory
 static bool thread_stealing;// true iff thread stealing is in use
-static string pid_dir;    // directory to store this process' pid and to look for other bt2 process's pids
 static int outType;       // style of output
 static bool noRefNames;   // true -> print reference indexes; not names
 static uint32_t khits;    // number of hits per read; >1 is much slower
@@ -289,8 +289,8 @@ static void resetOptions() {
 	integerQuals			= false; // quality strings are space-separated strings of integers, not ASCII
 	nthreads				= 1;     // number of pthreads operating concurrently
 	thread_ceiling			= 0;     // max # threads user asked for
+	thread_stealing_dir		= ""; // keep track of pids in this directory
 	thread_stealing			= false; // true iff thread stealing is in use
-	pid_dir					= "/tmp/bt2_pids-anellore"; // hold pids of concurrent work-stealing processes
 	FNAME_SIZE				= 200;
 	outType					= OUTPUT_SAM;  // style of output
 	noRefNames				= false; // true -> print reference indexes; not names
@@ -635,6 +635,7 @@ static struct option long_options[] = {
 	{(char*)"log-dp",           required_argument, 0,        ARG_LOG_DP},
 	{(char*)"log-dp-opp",       required_argument, 0,        ARG_LOG_DP_OPP},
 	{(char*)"thread-ceiling",   required_argument, 0,        ARG_THREAD_CEILING},
+	{(char*)"thread-piddir",    required_argument, 0,        ARG_THREAD_PIDDIR},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -1074,6 +1075,9 @@ static void parseOption(int next_option, const char *arg) {
 			break;
 		case ARG_THREAD_CEILING:
 			thread_ceiling = parseInt(0, "--thread-ceiling must be at least 0", arg);
+			break;
+		case ARG_THREAD_PIDDIR:
+			thread_stealing_dir = arg;
 			break;
 		case ARG_FILEPAR:
 			fileParallel = true;
@@ -4350,7 +4354,7 @@ static void steal_threads(int pid, int orig_nthreads, EList<int>& tids, EList<tt
 		return;
 	}
 	int num_pids = 0;
-	int lowest_pid = read_dir(pid_dir.c_str(), &num_pids);
+	int lowest_pid = read_dir(thread_stealing_dir.c_str(), &num_pids);
 	if(lowest_pid != pid) {
 		return;
 	}
@@ -4474,7 +4478,7 @@ static void multiseedSearch(
 		int pid = 0;
 		if(thread_stealing) {
 			pid = getpid();
-			write_pid(pid_dir.c_str(), pid);
+			write_pid(thread_stealing_dir.c_str(), pid);
 			thread_counter = 0;
 		}
 		
@@ -4516,7 +4520,7 @@ static void multiseedSearch(
 #endif
 
 		if(thread_stealing) {
-			del_pid(pid_dir.c_str(), pid);
+			del_pid(thread_stealing_dir.c_str(), pid);
 		}
 	}
 	if(!metricsPerRead && (metricsOfb != NULL || metricsStderr)) {
@@ -4865,6 +4869,11 @@ int bowtie(int argc, const char **argv) {
 			}
 			
 			thread_stealing = thread_ceiling > nthreads;
+			if(thread_stealing && thread_stealing_dir.empty()) {
+				cerr << "When --thread-ceiling is specified, must also specify --thread-piddir" << endl;
+				printUsage(cerr);
+				return 1;
+			}
 
 			// Get query filename
 			bool got_reads = !queries.empty() || !mates1.empty() || !mates12.empty();
