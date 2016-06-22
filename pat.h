@@ -594,6 +594,63 @@ private:
 	PairedPatternSource& patsrc_;
 };
 
+struct rawSeq {
+	string id;
+	string seq;
+	string qual;
+};
+
+class MemoryMockPatternSourcePerThread : public PatternSourcePerThread {
+
+public:
+
+	MemoryMockPatternSourcePerThread(
+		PairedPatternSource& __patsrc,
+		int threadid,
+		uint32_t seed,
+		bool paired) :
+		i_(0), cur_(0), loop_iter_(1), rnd_(), paired_(paired)
+	{
+		rnd_.init((seed + 31) * 7 * threadid);
+		for(size_t i = 0; i < 2000; i++) {
+			permutation_[i] = i;
+		}
+		for(size_t i = 0; i < 5000; i++) {
+			size_t j = rnd_.nextU32() % 2000;
+			size_t k = rnd_.nextU32() % 2000;
+			assert(j != k);
+			size_t tmp = permutation_[j];
+			permutation_[j] = permutation_[k];
+			permutation_[k] = tmp;
+		}
+	}
+
+	/**
+	 * Get the next paired or unpaired read from the wrapped
+	 * PairedPatternSource.
+	 */
+	virtual bool nextReadPair(
+		bool& success,
+		bool& done,
+		bool& paired,
+		bool fixName);
+
+private:
+	void dump();
+
+	size_t i_;
+	size_t cur_;
+	int loop_iter_;
+	RandomSource rnd_;
+	bool paired_;
+ 
+	size_t permutation_[2000];
+
+	static const rawSeq raw_list[];    /// unpaired
+	static const rawSeq raw_list_1[];  /// paired-end mate 1
+	static const rawSeq raw_list_2[];  /// paired-end mate 2
+};
+
 /**
  * Abstract parent factory for PatternSourcePerThreads.
  */
@@ -625,6 +682,45 @@ public:
 private:
 	/// Container for obtaining paired reads from PatternSources
 	PairedPatternSource& patsrc_;
+};
+
+class MemoryMockPatternSourcePerThreadFactory : public PatternSourcePerThreadFactory {
+
+public:
+
+	MemoryMockPatternSourcePerThreadFactory(
+		PairedPatternSource& patsrc,
+		int tid,
+		uint32_t seed,
+		bool paired) :
+		patsrc_(patsrc), paired_(paired) { }
+
+	/**
+	 * Create a new heap-allocated WrappedPatternSourcePerThreads.
+	 */
+	virtual PatternSourcePerThread* create() const {
+		return new MemoryMockPatternSourcePerThread(patsrc_, tid_, seed_, paired_);
+	}
+	
+	/**
+	 * Create a new heap-allocated vector of heap-allocated
+	 * WrappedPatternSourcePerThreads.
+	 */
+	virtual EList<PatternSourcePerThread*>* create(uint32_t n) const {
+		EList<PatternSourcePerThread*>* v = new EList<PatternSourcePerThread*>;
+		for(size_t i = 0; i < n; i++) {
+			v->push_back(new MemoryMockPatternSourcePerThread(patsrc_, tid_, seed_, paired_));
+			assert(v->back() != NULL);
+		}
+		return v;
+	}
+
+private:
+	/// Container for obtaining paired reads from PatternSources
+	PairedPatternSource& patsrc_;
+	int tid_;  /// thread id
+	uint32_t seed_;  /// pseudo-random seed
+	bool paired_;  /// generate paired-end reads?
 };
 
 /// Skip to the end of the current string of newline chars and return

@@ -75,6 +75,18 @@ bool PatternSource::nextReadPair(
 	return nextReadPairImpl(ra, rb, rdid, endid, success, done, paired);
 }
 
+const rawSeq MemoryMockPatternSourcePerThread::raw_list[] = {
+#include "rawseqs.h"
+};
+
+const rawSeq MemoryMockPatternSourcePerThread::raw_list_1[] = {
+#include "rawseqs_1.h"
+};
+
+const rawSeq MemoryMockPatternSourcePerThread::raw_list_2[] = {
+#include "rawseqs_2.h"
+};
+
 /**
  * The main member function for dispensing patterns.
  */
@@ -107,6 +119,49 @@ bool WrappedPatternSourcePerThread::nextReadPair(
 	buf2_.reset();
 	patsrc_.nextReadPair(buf1_, buf2_, rdid_, endid_, success, done, paired, fixName);
 	assert(!success || rdid_ != lastRdId);
+	return success;
+}
+
+void MemoryMockPatternSourcePerThread::dump(){
+	// not needed it for general debuggin purpose
+	std::cerr << raw_list[i_].id.c_str() << std::endl;
+}
+
+bool MemoryMockPatternSourcePerThread::nextReadPair(
+	bool& success,
+	bool& done,
+	bool& paired,
+	bool fixName)
+{
+	if(i_ > 1999) { // NOTE: length of read list is hard-coded here
+		i_ = 0;
+		loop_iter_++;
+	}
+	success = true;
+	paired = paired_;
+	if(!paired_) {
+		buf1_.init(
+			raw_list[permutation_[i_]].id.c_str(),
+			raw_list[permutation_[i_]].seq.c_str(),
+			raw_list[permutation_[i_]].qual.c_str()
+		);
+		buf1_.mate = 1;
+	} else {
+		buf1_.init(
+			raw_list_1[permutation_[i_]].id.c_str(),
+			raw_list_1[permutation_[i_]].seq.c_str(),
+			raw_list_1[permutation_[i_]].qual.c_str()
+		);
+		buf2_.init(
+			raw_list_2[permutation_[i_]].id.c_str(),
+			raw_list_2[permutation_[i_]].seq.c_str(),
+			raw_list_2[permutation_[i_]].qual.c_str()
+		);
+		buf1_.mate = 1;
+		buf2_.mate = 2;
+	}
+	rdid_ = endid_ = cur_;
+	i_++; cur_++;
 	return success;
 }
 
