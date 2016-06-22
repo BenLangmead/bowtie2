@@ -4340,9 +4340,9 @@ static int read_dir(const char* dirname,int* num_pids) {
 }
 
 #ifdef WITH_TBB
-static void steal_threads(int pid, int *orig_nthreads, tbb::task_group* tbb_grp)
+static void steal_threads(int pid, int orig_nthreads, tbb::task_group* tbb_grp)
 #else
-static void steal_threads(int pid, int *orig_nthreads, EList<int>& tids, EList<tthread::thread*>& threads)
+static void steal_threads(int pid, int orig_nthreads, EList<int>& tids, EList<tthread::thread*>& threads)
 #endif
 {
 	int ncpu = thread_ceiling;
@@ -4354,7 +4354,7 @@ static void steal_threads(int pid, int *orig_nthreads, EList<int>& tids, EList<t
 	if(lowest_pid != pid) {
 		return;
 	}
-	int in_use = ((num_pids-1) * (*orig_nthreads)) + nthreads; //in_use is now baseline + ours
+	int in_use = ((num_pids-1) * orig_nthreads) + nthreads; //in_use is now baseline + ours
 	float spare = ncpu - in_use;
 	int spare_r = floor(spare);
 	float r = rand() % 100/100.0;
@@ -4374,12 +4374,14 @@ static void steal_threads(int pid, int *orig_nthreads, EList<int>& tids, EList<t
 }
 
 #ifdef WITH_TBB
-static void thread_monitor(int pid, int *orig_threads, tbb::task_group* tbb_grp)
+static void thread_monitor(int pid, int orig_threads, tbb::task_group* tbb_grp)
 #else
-static void thread_monitor(int pid, int *orig_threads, EList<int>& tids, EList<tthread::thread*>& threads)
+static void thread_monitor(int pid, int orig_threads, EList<int>& tids, EList<tthread::thread*>& threads)
 #endif
 {
-	sleep(10);
+	for(int j = 0; j < 10; j++) {
+		sleep(1);
+	}
 	int steal_ctr = 1;
 	while(thread_counter > 0) {
 #ifdef WITH_TBB
@@ -4388,8 +4390,8 @@ static void thread_monitor(int pid, int *orig_threads, EList<int>& tids, EList<t
 		steal_threads(pid, orig_threads, tids, threads);
 #endif
 		steal_ctr++;
-		for(int j = 0; j < 2; j++) {
-			sleep(5);
+		for(int j = 0; j < 10; j++) {
+			sleep(1);
 		}
 	}
 }
@@ -4496,13 +4498,12 @@ static void multiseedSearch(
 		}
 		assert_eq((int)tids.size(), nthreads);
 
-		char* fname = NULL;
 		if(thread_stealing) {
 			int orig_threads = nthreads;
 #ifdef WITH_TBB
-			thread_monitor(pid, &orig_threads, &tbb_grp);
+			thread_monitor(pid, orig_threads, &tbb_grp);
 #else
-			thread_monitor(pid, &orig_threads, tids, threads);
+			thread_monitor(pid, orig_threads, tids, threads);
 #endif
 		}
 	
@@ -4515,7 +4516,6 @@ static void multiseedSearch(
 #endif
 
 		if(thread_stealing) {
-			free(fname);
 			del_pid(pid_dir.c_str(), pid);
 		}
 	}
