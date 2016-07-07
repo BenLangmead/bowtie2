@@ -405,9 +405,9 @@ static void driver(
 	}
 	if(!reverse) {
 #ifdef BOWTIE_64BIT_INDEX
-		cerr << "Building a LARGE index" << endl;
+          if (verbose) cerr << "Building a LARGE index" << endl;
 #else
-		cerr << "Building a SMALL index" << endl;
+          if (verbose) cerr << "Building a SMALL index" << endl;
 #endif
 	}
 	// Vector for the ordered list of "records" comprising the input
