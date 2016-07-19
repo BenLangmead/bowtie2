@@ -92,6 +92,7 @@ public:
 		bool print_xr,
 		bool print_xt,
 		bool print_xd,
+		bool print_xh,
 		bool print_xu,
 		bool print_ye, // streak of failed DPs at end
 		bool print_yl, // longest streak of failed DPs
@@ -140,6 +141,7 @@ public:
 		print_xr_(print_xr),
 		print_xt_(print_xt), // time elapsed in microseconds
 		print_xd_(print_xd), // DP extend attempts
+		print_xh_(print_xh), // hint attempts
 		print_xu_(print_xu), // ungapped extend attempts
 		print_ye_(print_ye), // streak of failed DPs at end
 		print_yl_(print_yl), // longest streak of failed DPs
@@ -373,6 +375,7 @@ protected:
 	bool print_xr_; // XR:Z: Original read string
 	bool print_xt_; // XT:i: Time taken to align
 	bool print_xd_; // XD:i: DP problems
+	bool print_xh_; // XH:i/XI:i: hint attempts
 	bool print_xu_; // XU:i: ungapped alignment
 	bool print_ye_; // YE:i: streak of failed DPs at end
 	bool print_yl_; // YL:i: longest streak of failed DPs

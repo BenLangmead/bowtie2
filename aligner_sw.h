@@ -98,13 +98,13 @@
  * Ensapsulates facilities for alignment using dynamic programming.  Handles
  * alignment of nucleotide reads against known reference nucleotides.
  *
- * The class is stateful.  First the user must call init() to initialize the
- * object with details regarding the dynamic programming problem to be solved.
- * Next, the user calls align() to fill the dynamic programming matrix and
- * calculate summaries describing the solutions.  Finally the user calls 
- * nextAlignment(...), perhaps repeatedly, to populate the SwResult object with
- * the next result.  Results are dispensend in best-to-worst, left-to-right
- * order.
+ * The class is stateful.  First the user must call initRead() and initRef() to
+ * initialize the object with details regarding the dynamic programming problem
+ * to be solved.  Next, the user calls align() to fill the dynamic programming
+ * matrix and calculate summaries describing the solutions.  Finally the user
+ * calls nextAlignment(...), perhaps repeatedly, to populate the SwResult
+ * object with the next result.  Results are dispensend in best-to-worst,
+ * left-to-right order.
  *
  * The class expects the read string, quality string, and reference string
  * provided by the caller live at least until the user is finished aligning and
@@ -291,9 +291,7 @@ public:
 		size_t cminlen,        // minimum length for using checkpointing scheme
 		size_t cpow2,          // interval b/t checkpointed diags; 1 << this
 		bool doTri,            // triangular mini-fills?
-		bool extend,           // true iff this is a seed extension
-		size_t  upto,          // count the number of Ns up to this offset
-		size_t& nsUpto);       // output: the number of Ns up to 'upto'
+		bool extend);          // true iff this is a seed extension
 
 	/**
 	 * Given a read, an alignment orientation, a range of characters in a

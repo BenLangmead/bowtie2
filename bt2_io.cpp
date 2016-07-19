@@ -506,7 +506,7 @@ void Ebwt::readIntoMemory(
 			if(MM_READ(_in1, (void *)(&c), (size_t)1) != (size_t)1) break;
 			bytesRead++;
 			if(c == '\0') break;
-			else if(c == '\n') {
+			if(c == '\n') {
 				this->_refnames.push_back("");
 			} else {
 				if(this->_refnames.size() == 0) {
@@ -514,6 +514,19 @@ void Ebwt::readIntoMemory(
 				}
 				this->_refnames.back().push_back(c);
 			}
+		}
+		string truncated;
+		for(size_t i = 0; i < _refnames.size(); i++) {
+			refidMap_.insert(make_pair(_refnames[i], i));
+			truncated.clear();
+			for(size_t j = 0; j < _refnames[i].length(); j++) {
+				if(!isspace(_refnames[i][j])) {
+					truncated.push_back(_refnames[i][j]);
+				} else {
+					break;
+				}
+			}
+			refidMapTrunc_.insert(make_pair(truncated, i));
 		}
 	}
 	

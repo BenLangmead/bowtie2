@@ -753,6 +753,329 @@ enum {
  * returned true (indicating that the reporting policy is satisfied and we can
  * stop).  Otherwise, returns false.
  */
+int SwDriver::extendRefSeeds(
+	Read& rd,                    // read to align
+	bool mate1,                  // true iff rd is mate #1
+	const EList<SeedHit>& seeds, // seed hits to extend into full alignments
+	const Ebwt& ebwtFw,          // BWT
+	const Ebwt* ebwtBw,          // BWT'
+	const BitPairReference& ref, // Reference strings
+	SwAligner& swa,              // dynamic programming aligner
+	const Scoring& sc,           // scoring scheme
+	TAlScore& minsc,             // minimum score for anchor
+	int nceil,                   // maximum # Ns permitted in reference portion
+	size_t maxhalf,  	         // max width in either direction for DP tables
+	bool doUngapped,             // do ungapped alignment
+	bool enable8,                // use 8-bit SSE where possible
+	size_t cminlen,              // use checkpointer if read longer than this
+	size_t cpow2,                // interval between diagonals to checkpoint
+	bool doTri,                  // triangular mini-fills?
+	int tighten,                 // -M score tightening mode
+	RandomSource& rnd,           // pseudo-random source
+	SwMetrics& swmSeed,          // DP metrics for seed-extend
+	PerReadMetrics& prm,         // per-read metrics
+	AlnSinkWrap* msink,          // AlnSink wrapper for multiseed-style aligner
+	bool reportImmediately,      // whether to report hits immediately to msink
+	bool& exhaustive)            // =true iff we searched all seeds exhaustively
+{
+	if(seeds.empty()) {
+		return EXTEND_EXHAUSTED_CANDIDATES;
+	}
+
+	assert(!reportImmediately || msink != NULL);
+	assert(!reportImmediately || !msink->maxed());
+
+	assert_geq(nceil, 0);
+	assert_leq((size_t)nceil, rd.length());
+	
+	const size_t rdlen = rd.length();
+	TAlScore perfectScore = sc.perfectScore(rdlen);
+
+	swa.reset();
+	
+	EIvalMergeListBinned& seenDiags = mate1 ? seenDiags1_ : seenDiags2_;
+	DynProgFramer dpframe(!gReportOverhangs);
+	bool fw;
+	int readGaps, refGaps;
+	TRefOff tlen;
+	
+	// The seed hits need to have both an interval and an offset with respect
+	// to some end of the read
+	for(size_t i = 0; i < seeds.size(); i++) {
+		// TODO: this makes sense as long as we've already looked for exact
+		// end-to-end matches
+		if(minsc == perfectScore) {
+			return EXTEND_PERFECT_SCORE; // Already found all perfect hits!
+		}
+		// leftmost ref offset overlapped by seed hit
+		const Interval& refival = seeds[i].refival;
+		assert(refival.upstream().fw() == refival.downstream().fw());
+		fw = refival.upstream().fw();
+		// the same, but normalized by diagonal for use with seenDiags
+		Coord diagcoord = refival.upstream();
+		size_t rdLeftOff = seeds[i].rd5primeOff;
+		if(!fw) {
+			rdLeftOff = rdlen - rdLeftOff - refival.len();
+		}
+		assert_geq(diagcoord.off(), rdLeftOff);
+		diagcoord.setOff(diagcoord.off() - rdLeftOff);
+		if(seenDiags.locusPresent(diagcoord)) {
+			// Already handled alignments seeded on this diagonal
+			prm.nRedundants++;
+			swmSeed.rshit++;
+			continue;
+		}
+		TRefOff refoff = refival.upstream().off();
+		TRefId tidx = diagcoord.ref();
+		tlen = ref.approxLen(tidx);
+		// Now that we have a seed hit, there are many issues to solve
+		// before we have a completely framed dynamic programming problem.
+		// They include:
+		//
+		// 1. Setting reference offsets on either side of the seed hit,
+		//    accounting for where the seed occurs in the read
+		// 2. Adjusting the width of the banded dynamic programming problem
+		//    and adjusting reference bounds to allow for gaps in the
+		//    alignment
+		// 3. Accounting for the edges of the reference, which can impact
+		//    the width of the DP problem and reference bounds.
+		// 4. Perhaps filtering the problem down to a smaller problem based
+		//    on what DPs we've already solved for this read
+		//
+		// We do #1 here, since it is simple and we have all the seed-hit
+		// information here.  #2 and #3 are handled in the DynProgFramer.
+		readGaps = sc.maxReadGaps(minsc, rdlen);
+		refGaps  = sc.maxRefGaps(minsc, rdlen);
+		int state = FOUND_NONE;
+		bool found = false;
+		resHintUngap_.reset();
+		resHintUngap_.alres.reset();
+		if(doUngapped && readGaps == 0 && refGaps == 0) {
+			int al = swa.ungappedAlign(
+				fw ? rd.patFw : rd.patRc,
+				fw ? rd.qual  : rd.qualRev,
+				diagcoord,
+				ref,
+				tlen,
+				sc,
+				gReportOverhangs,
+				minsc,
+				resHintUngap_);
+			Interval diagival(diagcoord, 1);
+			seenDiags.add(diagival);
+			prm.nHintUgs++;
+			if(al != 0 && al != -1) {
+				found = true;
+				state = FOUND_UNGAPPED;
+			}
+		}
+		DPRect rect;
+		if(state == FOUND_NONE) {
+			found = dpframe.frameSeedExtensionRect(
+				refoff,   // ref offset implied by seed hit assuming no gaps
+				rdlen,    // length of read sequence used in DP table
+				tlen,     // length of reference
+				readGaps, // max # of read gaps permitted in opp mate alignment
+				refGaps,  // max # of ref gaps permitted in opp mate alignment
+				(size_t)nceil, // # Ns permitted
+				maxhalf,  // max width in either direction
+				rect);    // DP rectangle
+			assert(rect.repOk());
+			// Add the seed diagonal at least
+			seenDiags.add(Interval(diagcoord, 1));
+			if(!found) {
+				continue;
+			}
+		}
+		if(state == FOUND_NONE) {
+			if(!swa.initedRead()) {
+				// Initialize the aligner with a new read
+				swa.initRead(
+					rd.patFw,  // fw version of query
+					rd.patRc,  // rc version of query
+					rd.qual,   // fw version of qualities
+					rd.qualRev,// rc version of qualities
+					0,         // off of first char in 'rd' to consider
+					rdlen,     // off of last char (excl) in 'rd' to consider
+					sc);       // scoring scheme
+			}
+			swa.initRef(
+				fw,        // whether to align forward or revcomp read
+				tidx,      // reference aligned against
+				rect,      // DP rectangle
+				ref,       // Reference strings
+				tlen,      // length of reference sequence
+				sc,        // scoring scheme
+				minsc,     // minimum score permitted
+				enable8,   // use 8-bit SSE if possible?
+				cminlen,   // minimum length for using checkpointing scheme
+				cpow2,     // interval b/t checkpointed diags; 1 << this
+				doTri,     // triangular mini-fills?
+				true);     // this is a seed extension - not finding a mate
+			// Because of how we framed the problem, we can say that we've
+			// exhaustively scored the seed diagonal as well as maxgaps
+			// diagonals on either side
+			Interval diagival(tidx, 0, fw, 0);
+			rect.initIval(diagival); // adds all the "core" diags to diagival
+			seenDiags.add(diagival); // used to be seenDiags1_ -- why?
+			// Now fill the dynamic programming matrix and return true iff
+			// there is at least one valid alignment
+			TAlScore bestCell = std::numeric_limits<TAlScore>::min();
+			found = swa.align(bestCell);
+			swmSeed.tallyGappedDp(readGaps, refGaps);
+			prm.nHintDps++;
+			if(!found) {
+				prm.nHintDpFails++;
+				if(bestCell > std::numeric_limits<TAlScore>::min() && bestCell > prm.bestLtMinscMate1) {
+					prm.bestLtMinscMate1 = bestCell;
+				}
+				continue; // Look for more anchor alignments
+			} else {
+				prm.nHintDpSuccs++;
+			}
+		}
+		bool firstInner = true;
+		resHintGap_.reset();
+		resHintGap_.alres.reset();
+		while(true) {
+			assert(found);
+			SwResult *res = NULL;
+			if(state == FOUND_UNGAPPED) {
+				if(!firstInner) {
+					break;
+				}
+				res = &resHintUngap_;
+			} else {
+				resHintGap_.reset();
+				assert(resHintGap_.empty());
+				if(swa.done()) {
+					break;
+				}
+				swa.nextAlignment(resHintGap_, minsc, rnd);
+				found = !resHintGap_.empty();
+				if(!found) {
+					break;
+				}
+				res = &resHintGap_;
+			}
+			assert(res != NULL);
+			firstInner = false;
+			assert(res->alres.matchesRef(
+				rd,
+				ref,
+				tmp_rf_,
+				tmp_rdseq_,
+				tmp_qseq_,
+				raw_refbuf_,
+				raw_destU32_,
+				raw_matches_));
+			Interval refival(tidx, 0, fw, tlen);
+			assert_gt(res->alres.refExtent(), 0);
+			if(gReportOverhangs &&
+			   !refival.containsIgnoreOrient(res->alres.refival()))
+			{
+				res->alres.clipOutside(true, 0, tlen);
+				if(res->alres.refExtent() == 0) {
+					continue;
+				}
+			}
+			assert(gReportOverhangs ||
+				   refival.containsIgnoreOrient(res->alres.refival()));
+			// Did the alignment fall entirely outside the reference?
+			if(!refival.overlapsIgnoreOrient(res->alres.refival())) {
+				continue;
+			}
+			// Is this alignment redundant with one we've seen previously?
+			if(redAnchor_.overlap(res->alres)) {
+				// Redundant with an alignment we found already
+				continue;
+			}
+			redAnchor_.add(res->alres);
+			// Annotate the AlnRes object with some key parameters
+			// that were used to obtain the alignment.
+			res->alres.setParams(
+				0,                  // # mismatches allowed in seed
+				(int)refival.len(), // length of seed
+				0,                  // interval between seeds
+				minsc);             // minimum score for valid alignment
+			
+			if(reportImmediately) {
+				assert(msink != NULL);
+				assert(res->repOk());
+				// Check that alignment accurately reflects the
+				// reference characters aligned to
+				assert(res->alres.matchesRef(
+					rd,
+					ref,
+					tmp_rf_,
+					tmp_rdseq_,
+					tmp_qseq_,
+					raw_refbuf_,
+					raw_destU32_,
+					raw_matches_));
+				// Report an unpaired alignment
+				assert(!msink->maxed());
+				if(msink->report(
+					0,
+					mate1 ? &res->alres : NULL,
+					mate1 ? NULL : &res->alres))
+				{
+					// Short-circuited because a limit, e.g. -k, -m or
+					// -M, was exceeded
+					return EXTEND_POLICY_FULFILLED;
+				}
+				if(tighten > 0 &&
+				   msink->Mmode() &&
+				   msink->hasSecondBestUnp1())
+				{
+					if(tighten == 1) {
+						if(msink->bestUnp1() >= minsc) {
+							minsc = msink->bestUnp1();
+							if(minsc < perfectScore &&
+							   msink->bestUnp1() == msink->secondBestUnp1())
+							{
+								minsc++;
+							}
+						}
+					} else if(tighten == 2) {
+						if(msink->secondBestUnp1() >= minsc) {
+							minsc = msink->secondBestUnp1();
+							if(minsc < perfectScore) {
+								minsc++;
+							}
+						}
+					} else {
+						TAlScore diff = msink->bestUnp1() - msink->secondBestUnp1();
+						TAlScore bot = msink->secondBestUnp1() + ((diff*3)/4);
+						if(bot >= minsc) {
+							minsc = bot;
+							if(minsc < perfectScore) {
+								minsc++;
+							}
+						}
+					}
+					assert_leq(minsc, perfectScore);
+				}
+			}
+		}
+
+		// At this point we know that we aren't bailing, and will
+		// continue to resolve seed hits.  
+
+	} // while(!gws_[i].done())
+	return EXTEND_EXHAUSTED_CANDIDATES;
+}
+
+/**
+ * Given a collection of SeedHits for a single read, extend seed alignments
+ * into full alignments.  Where possible, try to avoid redundant offset lookups
+ * and dynamic programming wherever possible.  Optionally report alignments to
+ * a AlnSinkWrap object as they are discovered.
+ *
+ * If 'reportImmediately' is true, returns true iff a call to msink->report()
+ * returned true (indicating that the reporting policy is satisfied and we can
+ * stop).  Otherwise, returns false.
+ */
 int SwDriver::extendSeeds(
 	Read& rd,                    // read to align
 	bool mate1,                  // true iff rd is mate #1
@@ -1097,7 +1420,6 @@ int SwDriver::extendSeeds(
 				// pasted string omits non-A/C/G/T characters, but we included them
 				// when calculating leftShift.  We'll account for this later.
 				pastedRefoff -= leftShift;
-				size_t nsInLeftShift = 0;
 				if(state == FOUND_NONE) {
 					if(!swa.initedRead()) {
 						// Initialize the aligner with a new read
@@ -1122,9 +1444,7 @@ int SwDriver::extendSeeds(
 						cminlen,   // minimum length for using checkpointing scheme
 						cpow2,     // interval b/t checkpointed diags; 1 << this
 						doTri,     // triangular mini-fills?
-						true,      // this is a seed extension - not finding a mate
-						nwindow,
-						nsInLeftShift);
+						true);     // this is a seed extension - not finding a mate
 					// Because of how we framed the problem, we can say that we've
 					// exhaustively scored the seed diagonal as well as maxgaps
 					// diagonals on either side
@@ -1789,7 +2109,6 @@ int SwDriver::extendSeedsPaired(
 				// pasted string omits non-A/C/G/T characters, but we included them
 				// when calculating leftShift.  We'll account for this later.
 				pastedRefoff -= leftShift;
-				size_t nsInLeftShift = 0;
 				if(state == FOUND_NONE) {
 					if(!swa.initedRead()) {
 						// Initialize the aligner with a new read
@@ -1814,9 +2133,7 @@ int SwDriver::extendSeedsPaired(
 						cminlen,   // minimum length for using checkpointing scheme
 						cpow2,     // interval b/t checkpointed diags; 1 << this
 						doTri,     // triangular mini-fills?
-						true,      // this is a seed extension - not finding a mate
-						nwindow,
-						nsInLeftShift);
+						true);     // this is a seed extension - not finding a mate
 					// Because of how we framed the problem, we can say that we've
 					// exhaustively scored the seed diagonal as well as maxgaps
 					// diagonals on either side
@@ -2034,7 +2351,6 @@ int SwDriver::extendSeedsPaired(
 							// Given the boundaries defined by refi and reff, initilize
 							// the SwAligner with the dynamic programming problem that
 							// aligns the read to this reference stretch.
-							size_t onsInLeftShift = 0;
 							assert_geq(orect.refr, orect.refl);
 							oswa.initRef(
 								ofw,       // align forward or revcomp read?
@@ -2048,9 +2364,7 @@ int SwDriver::extendSeedsPaired(
 								cminlen,   // minimum length for using checkpointing scheme
 								cpow2,     // interval b/t checkpointed diags; 1 << this
 								doTri,     // triangular mini-fills?
-								false,     // this is finding a mate - not seed ext
-								0,         // nwindow?
-								onsInLeftShift);
+								false);    // this is finding a mate - not seed ext
 							// TODO: Can't we add some diagonals to the
 							// opposite mate's seenDiags when we fill in the
 							// opposite mate's DP?  Or can we?  We might want

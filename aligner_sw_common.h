@@ -267,9 +267,9 @@ struct SwMetrics {
 	uint64_t swfail;     // # DP problems not resulting in alignment
 	uint64_t swbts;      // # DP backtrace steps
 	uint64_t rshit;      // # DP problems avoided b/c seed hit was redundant
-	uint64_t ungapsucc;  // # DP problems avoided b/c seed hit was redundant
-	uint64_t ungapfail;  // # DP problems avoided b/c seed hit was redundant
-	uint64_t ungapnodec; // # DP problems avoided b/c seed hit was redundant
+	uint64_t ungapsucc;  // # ungapped problems resulting in alignment
+	uint64_t ungapfail;  // # ungapped problems not resulting in alignment
+	uint64_t ungapnodec; // # ungapped problems w/ multiple distinct solns
 
 	uint64_t exatts;     // total # attempts at exact-hit end-to-end aln
 	uint64_t exranges;   // total # ranges returned by exact-hit queries

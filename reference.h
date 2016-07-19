@@ -30,6 +30,7 @@
 #endif
 #include "endian_swap.h"
 #include "ref_read.h"
+#include "ref_coord.h"
 #include "sequence_io.h"
 #include "mm.h"
 #include "shmem.h"
@@ -128,7 +129,7 @@ public:
 	 *
 	 * TODO: Is it still true that it might leave off Ns?
 	 */
-	TIndexOffU approxLen(TIndexOffU elt) const {
+	TIndexOffU approxLen(TRefId elt) const {
 		assert_lt(elt, nrefs_);
 		return refLens_[elt];
 	}

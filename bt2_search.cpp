@@ -54,6 +54,7 @@
 #include "outq.h"
 #include "aligner_seed2.h"
 #include "bt2_search.h"
+#include "hints.h"
 
 using namespace std;
 
@@ -144,6 +145,7 @@ static bool sam_print_zs;
 static bool sam_print_xr;
 static bool sam_print_xt;
 static bool sam_print_xd;
+static bool sam_print_xh;
 static bool sam_print_xu;
 static bool sam_print_yl;
 static bool sam_print_ye;
@@ -238,6 +240,7 @@ static bool arbitraryRandom;  // pseudo-randoms no longer a function of read pro
 static bool bowtie2p5;
 static string logDps;         // log seed-extend dynamic programming problems
 static string logDpsOpp;      // log mate-search dynamic programming problems
+static bool hints;            // use dynamic programming hints?
 
 static string bt2index;      // read Bowtie 2 index from files with this prefix
 static EList<pair<int, string> > extra_opts;
@@ -334,6 +337,7 @@ static void resetOptions() {
 	sam_print_xr            = false;
 	sam_print_xt            = false;
 	sam_print_xd            = false;
+	sam_print_xh            = false;
 	sam_print_xu            = false;
 	sam_print_yl            = false;
 	sam_print_ye            = false;
@@ -430,6 +434,7 @@ static void resetOptions() {
 	bowtie2p5 = false;
 	logDps.clear();          // log seed-extend dynamic programming problems
 	logDpsOpp.clear();       // log mate-search dynamic programming problems
+	hints = false;           // use dynamic programming hints?
 }
 
 static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:w:p:k:M:1:2:I:X:CQ:N:i:L:U:x:S:g:O:D:R:";
@@ -616,6 +621,7 @@ static struct option long_options[] = {
 	{(char*)"desc-fmops",       required_argument, 0,        ARG_DESC_FMOPS},
 	{(char*)"log-dp",           required_argument, 0,        ARG_LOG_DP},
 	{(char*)"log-dp-opp",       required_argument, 0,        ARG_LOG_DP_OPP},
+	{(char*)"hints",            no_argument,       0,        ARG_HINTS},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -920,6 +926,7 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_DESC_FMOPS: descentTotFmops = SimpleFunc::parse(arg, 0.0, 10.0, 100.0, DMAX); break;
 		case ARG_LOG_DP: logDps = arg; break;
 		case ARG_LOG_DP_OPP: logDpsOpp = arg; break;
+		case ARG_HINTS: hints = true; break;
 		case ARG_DESC_LANDING: {
 			descLanding = parse<int>(arg);
 			if(descLanding < 1) {
@@ -1186,6 +1193,7 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_READ_TIMES: {
 			sam_print_xt = true;
 			sam_print_xd = true;
+			sam_print_xh = true;
 			sam_print_xu = true;
 			sam_print_yl = true;
 			sam_print_ye = true;
@@ -3187,7 +3195,7 @@ static void multiseedSearchWorker(void *vp) {
 				// Whether we're done with mate1 / mate2
 				bool done[2] = { !filt[0], !filt[1] };
 				size_t nelt[2] = {0, 0};
-									
+				
 					// Find end-to-end exact alignments for each read
 					if(doExactUpFront) {
 						for(size_t matei = 0; matei < (pair ? 2:1); matei++) {
@@ -3367,6 +3375,72 @@ static void multiseedSearchWorker(void *vp) {
 							}
 						}
 					}
+
+					if(hints && has_hint(*rds[0])) {
+						int ret;
+						if(pair) {
+							cerr << "Error: Hints for paired-end reads not "
+							     << "supported" << endl;
+							throw 1;
+						} else {
+							// Unpaired dynamic programming driver
+							EList<SeedHit> hints;
+							parse_hints(*rds[0], hints, ebwtFw.refidMap());
+							ret = sd.extendRefSeeds(
+								*rds[0],        // read
+								true,           // mate #1?
+								hints,          // hints from upstream tool
+								ebwtFw,         // bowtie index
+								&ebwtBw,        // rev bowtie index
+								ref,            // packed reference strings
+								sw,             // dynamic prog aligner
+								sc,             // scoring scheme
+								minsc[0],       // minimum score for valid
+								nceil[0],       // N ceil for anchor
+								maxhalf,        // max width on one DP side
+								doUngapped,     // do ungapped alignment
+								enable8,        // use 8-bit SSE where possible
+								cminlen,        // checkpoint if read is longer
+								cpow2,          // checkpointer interval, log2
+								doTri,          // triangular mini-fills
+								tighten,        // -M score tightening mode
+								rnd,            // pseudo-random source
+								swmSeed,        // DP metrics, seed extend
+								prm,            // per-read metrics
+								&msinkwrap,     // for organizing hits
+								true,           // report hits once found
+								exhaustive[0]);
+						}
+						assert_gt(ret, 0);
+						MERGE_SW(sw);
+						MERGE_SW(osw);
+						int mate = 0; // TODO
+						if(ret == EXTEND_EXHAUSTED_CANDIDATES) {
+							// Not done yet
+						} else if(ret == EXTEND_POLICY_FULFILLED) {
+							// Policy is satisfied for this mate at least
+							if(msinkwrap.state().doneWithMate(mate == 0)) {
+								done[mate] = true;
+							}
+							if(msinkwrap.state().doneWithMate(mate == 1)) {
+								done[mate^1] = true;
+							}
+						} else if(ret == EXTEND_PERFECT_SCORE) {
+							// We exhausted this mode at least
+							done[mate] = true;
+						} else {
+							//
+							cerr << "Bad return value: " << ret << endl;
+							throw 1;
+						}
+						if(!done[mate]) {
+							TAlScore perfectScore = sc.perfectScore(rdlens[mate]);
+							if(!done[mate] && minsc[mate] == perfectScore) {
+								done[mate] = true;
+							}
+						}
+					}
+
 					// 1-mismatch
 					if(do1mmUpFront && !seedSumm) {
 						for(size_t matei = 0; matei < (pair ? 2:1); matei++) {
@@ -4523,6 +4597,7 @@ static void driver(
 			sam_print_xr,
 			sam_print_xt,
 			sam_print_xd,
+			sam_print_xh,
 			sam_print_xu,
 			sam_print_yl,
 			sam_print_ye,

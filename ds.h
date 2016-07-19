@@ -2507,6 +2507,28 @@ public:
 	}
 
 	/**
+	 * If key is present, install value assicated with key into dest and
+	 * return true.  Otherwise return false without modifying dest.
+	 */
+	bool find(const K& el, V& dest) const {
+		if(cur_ == 0) return false;
+		else if(cur_ == 1) return el == list_[0].first;
+		size_t i;
+		if(cur_ < 16) {
+			// Linear scan
+			i = scanLoBound(el);
+		} else {
+			// Binary search
+			i = bsearchLoBound(el);
+		}
+		if(i != cur_ && list_[i].first == el) {
+			dest = list_[i].second;
+			return true;
+		}
+		return false;
+	}
+
+	/**
 	 * Return true iff this set contains 'el'.
 	 */
 	bool contains(const K& el) const {

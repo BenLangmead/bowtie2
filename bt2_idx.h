@@ -1180,6 +1180,8 @@ public:
 	bool        verbose() const      { return _verbose; }
 	bool        sanityCheck() const  { return _sanity; }
 	EList<string>& refnames()        { return _refnames; }
+	const EMap<string, TRefId>& refidMap() const { return refidMapTrunc_; }
+	const EMap<string, TRefId>& refidMapFull() const { return refidMap_; }
 	bool        fw() const           { return fw_; }
 #ifdef POPCNT_CAPABILITY 
     bool _usePOPCNTinstruction; 
@@ -2403,6 +2405,8 @@ template<typename Operation>
 	bool       _useMm;        /// use memory-mapped files to hold the index
 	bool       useShmem_;     /// use shared memory to hold large parts of the index
 	EList<string> _refnames; /// names of the reference sequences
+	EMap<string, TRefId> refidMap_; /// map from ref names back to ids
+	EMap<string, TRefId> refidMapTrunc_; /// map from truncated ref names back to ids
 	char *mmFile1_;
 	char *mmFile2_;
 	EbwtParams _eh;
@@ -2609,6 +2613,7 @@ void Ebwt::joinToDisk(
 	ASSERT_ONLY(TIndexOffU szsi = 0);
 	ASSERT_ONLY(TIndexOffU entsWritten = 0);
 	TIndexOffU dstoff = 0;
+	string truncated;
 	// For each filebuf
 	for(unsigned int i = 0; i < l.size(); i++) {
 		assert(!l[i]->eof());
@@ -2631,6 +2636,17 @@ void Ebwt::joinToDisk(
 					stm << seqsRead;
 					_refnames.back() = stm.str();
 				}
+				// add to map
+				truncated.clear();
+				for(size_t j = 0; j < _refnames.back().length(); j++) {
+					if(!isspace(_refnames.back()[j])) {
+						truncated.push_back(_refnames.back()[j]);
+					} else {
+						break;
+					}
+				}
+				refidMap_.insert(make_pair(_refnames.back(), _refnames.size()-1));
+				refidMapTrunc_.insert(make_pair(truncated, _refnames.size()-1));
 			} else {
 				// This record didn't actually start a new sequence so
 				// no need to add a name

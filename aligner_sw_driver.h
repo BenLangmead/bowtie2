@@ -89,6 +89,7 @@
 #include "ival_list.h"
 #include "simple_func.h"
 #include "random_util.h"
+#include "hints.h"
 
 struct SeedPos {
 
@@ -309,6 +310,31 @@ public:
 		salistEe_(DP_CAT),
 		gwstate_(GW_CAT) { }
 
+	int extendRefSeeds(
+		Read& rd,                    // read to align
+		bool mate1,                  // true iff rd is mate #1
+		const EList<SeedHit>& seeds, // seed hits to extend into full alignments
+		const Ebwt& ebwtFw,          // BWT
+		const Ebwt* ebwtBw,          // BWT'
+		const BitPairReference& ref, // Reference strings
+		SwAligner& swa,              // dynamic programming aligner
+		const Scoring& sc,           // scoring scheme
+		TAlScore& minsc,             // minimum score for anchor
+		int nceil,                   // maximum # Ns permitted in reference portion
+		size_t maxhalf,  	         // max width in either direction for DP tables
+		bool doUngapped,             // do ungapped alignment
+		bool enable8,                // use 8-bit SSE where possible
+		size_t cminlen,              // use checkpointer if read longer than this
+		size_t cpow2,                // interval between diagonals to checkpoint
+		bool doTri,                  // triangular mini-fills?
+		int tighten,                 // -M score tightening mode
+		RandomSource& rnd,           // pseudo-random source
+		SwMetrics& swmSeed,          // DP metrics for seed-extend
+		PerReadMetrics& prm,         // per-read metrics
+		AlnSinkWrap* msink,          // AlnSink wrapper for multiseed-style aligner
+		bool reportImmediately,      // whether to report hits immediately to msink
+		bool& exhaustive);           // =true iff we searched all seeds exhaustively
+
 	/**
 	 * Given a collection of SeedHits for a single read, extend seed alignments
 	 * into full alignments.  Where possible, try to avoid redundant offset
@@ -520,6 +546,10 @@ protected:
 	SwResult       oresUngap_; // temp holder for ungap. aln. opp mate
 	SwResult       resEe_;     // temp holder for ungapped alignment result
 	SwResult       oresEe_;    // temp holder for ungap. aln. opp mate
+	SwResult       resHintUngap_;   // temp holder for hint result
+	SwResult       oresHintUngap_;  // temp holder for hint opp mate
+	SwResult       resHintGap_;     // temp holder for hint result
+	SwResult       oresHintGap_;    // temp holder for hint opp mate
 	
 	Pool           pool_;      // memory pages for salistExact_
 	TSAList        salistEe_;  // PList for offsets for end-to-end hits

@@ -398,6 +398,28 @@ void SamConfig::printAlignedOptFlags(
 		o.append("Xd:i:");
 		o.append(buf);
 	}
+	if(print_xh_) {
+		// XH:i: Gapped hint DPs
+		WRITE_SEP();
+		itoa10<uint64_t>(prm.nHintDps, buf);
+		o.append("XH:i:");
+		o.append(buf);
+		// Xh:i: Ungapped hint tries
+		WRITE_SEP();
+		itoa10<uint64_t>(prm.nHintUgs, buf);
+		o.append("Xh:i:");
+		o.append(buf);
+		// XI:i: Gapped hint DPs successful
+		WRITE_SEP();
+		itoa10<uint64_t>(prm.nHintDpSuccs, buf);
+		o.append("XI:i:");
+		o.append(buf);
+		// Xi:i: Ungapped hint tries successful
+		WRITE_SEP();
+		itoa10<uint64_t>(prm.nHintUgSuccs, buf);
+		o.append("Xi:i:");
+		o.append(buf);
+	}
 	if(print_xu_) {
 		// XU:i: Extend ungapped tries
 		WRITE_SEP();
@@ -707,6 +729,28 @@ void SamConfig::printEmptyOptFlags(
 		WRITE_SEP();
 		itoa10<uint64_t>(prm.nMateDps, buf);
 		o.append("Xd:i:");
+		o.append(buf);
+	}
+	if(print_xh_) {
+		// XH:i: Gapped hint DPs
+		WRITE_SEP();
+		itoa10<uint64_t>(prm.nHintDps, buf);
+		o.append("XH:i:");
+		o.append(buf);
+		// Xh:i: Ungapped hint tries
+		WRITE_SEP();
+		itoa10<uint64_t>(prm.nHintUgs, buf);
+		o.append("Xh:i:");
+		o.append(buf);
+		// XI:i: Gapped hint DPs successful
+		WRITE_SEP();
+		itoa10<uint64_t>(prm.nHintDpSuccs, buf);
+		o.append("XI:i:");
+		o.append(buf);
+		// Xi:i: Ungapped hint tries successful
+		WRITE_SEP();
+		itoa10<uint64_t>(prm.nHintUgSuccs, buf);
+		o.append("Xi:i:");
 		o.append(buf);
 	}
 	if(print_xu_) {

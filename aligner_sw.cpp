@@ -164,9 +164,7 @@ void SwAligner::initRef(
 	size_t cminlen,        // minimum length for using checkpointing scheme
 	size_t cpow2,          // interval b/t checkpointed diags; 1 << this
 	bool doTri,            // triangular mini-fills?
-	bool extend,           // true iff this is a seed extension
-	size_t  upto,          // count the number of Ns up to this offset
-	size_t& nsUpto)        // output: the number of Ns up to 'upto'
+	bool extend)           // true iff this is a seed extension
 {
 	TRefOff rfi = rect.refl;
 	TRefOff rff = rect.refr + 1;
@@ -243,12 +241,7 @@ void SwAligner::initRef(
 	// nucleotides (IUPAC codes) have more than one mask bit set.  If a
 	// reference scanner was provided, use it to opportunistically resolve seed
 	// hits.
-	nsUpto = 0;
 	for(size_t i = 0; i < rflen; i++) {
-		// rf_[i] gets mask version of refence char, with N=16
-		if(i < upto && rf_[i] > 3) {
-			nsUpto++;
-		}
 		rf_[i] = (1 << rf_[i]);
 	}
 	// Correct for having captured an extra reference character
@@ -3085,6 +3078,12 @@ static void doLocalTests() {
 	}
 }
 
+/**
+ * Main driver; sends a single test case through the dynamic programming
+ * alignment code.  The user specifies the read sequence, the reference
+ * sequence, the reference offset
+ *
+ */
 int main(int argc, char **argv) {
 	int option_index = 0;
 	int next_option;

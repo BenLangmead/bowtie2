@@ -25,6 +25,7 @@
 #include "ds.h"
 #include "sstring.h"
 #include "filebuf.h"
+#include "ref_coord.h"
 #include "util.h"
 
 typedef uint64_t TReadId;
@@ -349,6 +350,14 @@ struct Read {
 	int      trimmed5;  // amount actually trimmed off 5' end
 	int      trimmed3;  // amount actually trimmed off 3' end
 	HitSet  *hitset;    // holds previously-found hits; for chaining
+
+	/**
+	 * Hints: sometimes we'd like to pass in a hint about where the aligner
+	 * should look first.  Trying a hint shouldn't be that time consuming --
+	 * it's just a few DPs.  On the other hand, if the hint leads to one or
+	 * more good alignments, that can short-circuit a lot of future work.
+	 */
+	EList<Coord> hints;
 };
 
 /**
@@ -426,11 +435,16 @@ struct PerReadMetrics {
 	PerReadMetrics() { reset(); }
 
 	void reset() {
+		// Extensions
 		nExIters =
 		nExDps   = nExDpSuccs   = nExDpFails   =
 		nMateDps = nMateDpSuccs = nMateDpFails =
 		nExUgs   = nExUgSuccs   = nExUgFails   =
 		nMateUgs = nMateUgSuccs = nMateUgFails =
+		// hints
+		nHintDps = nHintDpSuccs = nHintDpFails =
+		nHintUgs = nHintUgSuccs = nHintUgFails =
+		// End-to-ends
 		nExEes   = nExEeSuccs   = nExEeFails   =
 		nRedundants =
 		nEeFmops = nSdFmops = nExFmops =
@@ -465,6 +479,14 @@ struct PerReadMetrics {
 	uint64_t nExUgs;        // # extend ungapped alignments run on this read
 	uint64_t nExUgSuccs;    // # extend ungapped alignments run on this read
 	uint64_t nExUgFails;    // # extend ungapped alignments run on this read
+
+	uint64_t nHintDps;      // # hint DPs run on this read
+	uint64_t nHintDpSuccs;  // # hint DPs that yielded >= 1 alignment
+	uint64_t nHintDpFails;  // # hint DPs that yielded 0 alignments
+	
+	uint64_t nHintUgs;      // # hint ungappeds run on this read
+	uint64_t nHintUgSuccs;  // # hint ungappeds that yielded >= 1 alignment
+	uint64_t nHintUgFails;  // # hint ungappeds that yielded 0 alignments
 
 	uint64_t nExEes;        // # extend ungapped alignments run on this read
 	uint64_t nExEeSuccs;    // # extend ungapped alignments run on this read
