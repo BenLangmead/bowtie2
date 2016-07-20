@@ -33,13 +33,15 @@ void parse_hints(const Read& r,
                  EList<SeedHit>& hints,
                  const EMap<std::string, TRefId>& refidMap)
 {
-	const char *buf = r.name.buf();
+	const char *origbuf = r.name.buf();
+	const char *buf = origbuf;
+	const size_t namelen = r.name.length();
 	char refname[1024];
 	assert_eq(buf[0], '!');
 	assert_eq(buf[1], 'h');
 	assert_eq(buf[2], '!');
 	buf += 2;
-	while(*buf == '!') {
+	while(*buf == '!' && buf - origbuf < namelen) {
 		SeedHit hint;
 		assert_eq(*buf, '!');
 		// parse reference name
