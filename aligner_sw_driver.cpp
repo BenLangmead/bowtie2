@@ -814,7 +814,9 @@ int SwDriver::extendRefSeeds(
 		// the same, but normalized by diagonal for use with seenDiags
 		Coord diagcoord = refival.upstream();
 		size_t rdLeftOff = seeds[i].rd5primeOff;
+		assert_lt(rdLeftOff, rdlen);
 		if(!fw) {
+			assert_geq(rdlen,rdLeftOff + refival.len());
 			rdLeftOff = rdlen - rdLeftOff - refival.len();
 		}
 		assert_geq(diagcoord.off(), rdLeftOff);

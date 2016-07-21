@@ -84,7 +84,7 @@ void parse_hints(const Read& r,
 		buf++;
 		// parse read 5' off of seed hit
 		size_t fivepoff = 0;
-		while(isdigit(*buf)) {
+		while(isdigit(*buf) && buf - origbuf < namelen) {
 			fivepoff *= 10;
 			fivepoff += (*buf++) - '0';
 		}
