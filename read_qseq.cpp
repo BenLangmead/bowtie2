@@ -196,7 +196,7 @@ pair<bool, int> QseqPatternSource::nextBatchFromFile(
 	size_t readi = 0;
 	// Read until we run out of input or until we've filled the buffer
 	for(; readi < pt.max_buf_ && !done; readi++) {
-		SStringExpandable<char>& buf = readbuf[readi].readOrigBuf;
+		SStringExpandable<char, 1024, 2, 1024>& buf = readbuf[readi].readOrigBuf;
 		buf.clear();
 		buf.append('>'); // TODO: need to handle first char differently
 		while(true) {

@@ -1612,7 +1612,7 @@ protected:
 /**
  * Simple string class with backing memory that automatically expands as needed.
  */
-template<typename T, int S = 1024, int M = 2>
+template<typename T, int S = 1024, int M = 2, int I = 0>
 class SStringExpandable {
 
 public:
@@ -1622,7 +1622,11 @@ public:
 		printcs_(NULL),
 		len_(0),
 		sz_(0)
-	{ }
+	{
+		if(I > 0) {
+			expandNoCopy(I);
+		}
+	}
 
 	explicit SStringExpandable(size_t sz) :
 		cs_(NULL),

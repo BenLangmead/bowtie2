@@ -248,7 +248,7 @@ struct Read {
 	BTString    qualRev;
 
 	// For remembering the exact input text used to define a read
-	SStringExpandable<char> readOrigBuf;
+	SStringExpandable<char, 1024, 2, 1024> readOrigBuf;
 
 	BTString name;      // read name
 	TReadId  rdid;      // 0-based id based on pair's offset in read file(s)

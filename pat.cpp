@@ -767,7 +767,7 @@ pair<bool, int> FastaPatternSource::nextBatchFromFile(
 	size_t readi = 0;
 	// Read until we run out of input or until we've filled the buffer
 	for(; readi < pt.max_buf_ && !done; readi++) {
-		SStringExpandable<char>& buf = readbuf[readi].readOrigBuf;
+		SStringExpandable<char, 1024, 2, 1024>& buf = readbuf[readi].readOrigBuf;
 		buf.clear();
 		buf.append('>');
 		while(true) {
@@ -961,7 +961,7 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 	size_t readi = 0;
 	// Read until we run out of input or until we've filled the buffer
 	for(; readi < pt.max_buf_ && !done; readi++) {
-		SStringExpandable<char>& buf = readbuf[readi].readOrigBuf;
+		SStringExpandable<char, 1024, 2, 1024>& buf = readbuf[readi].readOrigBuf;
 		assert(readi == 0 || buf.empty());
 		int newlines = 4;
 		while(newlines) {
@@ -1110,7 +1110,7 @@ pair<bool, int> TabbedPatternSource::nextBatchFromFile(
 	size_t readi = 0;
 	// Read until we run out of input or until we've filled the buffer
 	for(; readi < pt.max_buf_ && !done; readi++) {
-		SStringExpandable<char>& buf = readbuf[readi].readOrigBuf;
+		SStringExpandable<char, 1024, 2, 1024>& buf = readbuf[readi].readOrigBuf;
 		buf.clear();
 		buf.append('>'); // TODO: need to handle first char differently
 		while(true) {
@@ -1401,7 +1401,7 @@ pair<bool, int> RawPatternSource::nextBatchFromFile(
 	size_t readi = 0;
 	// Read until we run out of input or until we've filled the buffer
 	for(; readi < pt.max_buf_ && !done; readi++) {
-		SStringExpandable<char>& buf = readbuf[readi].readOrigBuf;
+		SStringExpandable<char, 1024, 2, 1024>& buf = readbuf[readi].readOrigBuf;
 		buf.clear();
 		buf.append('>'); // TODO: need to handle first char differently
 		while(true) {
