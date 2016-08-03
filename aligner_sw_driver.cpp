@@ -828,6 +828,7 @@ int SwDriver::extendRefSeeds(
 			continue;
 		}
 		TRefOff refoff = refival.upstream().off();
+		TRefOff refoff_diag = diagcoord.off();
 		TRefId tidx = diagcoord.ref();
 		tlen = ref.approxLen(tidx);
 		// Now that we have a seed hit, there are many issues to solve
@@ -874,7 +875,7 @@ int SwDriver::extendRefSeeds(
 		DPRect rect;
 		if(state == FOUND_NONE) {
 			found = dpframe.frameSeedExtensionRect(
-				refoff,   // ref offset implied by seed hit assuming no gaps
+				refoff_diag, // ref offset implied by seed hit assuming no gaps
 				rdlen,    // length of read sequence used in DP table
 				tlen,     // length of reference
 				readGaps, // max # of read gaps permitted in opp mate alignment
