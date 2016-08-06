@@ -174,6 +174,7 @@ public:
 	
 	inline void setRef(TRefId  id)  { ref_ = id;  }
 	inline void setOff(TRefOff off) { off_ = off; }
+	inline void setFw(bool fw)      { orient_ = fw ? 1 : 0; }
 
 	inline void adjustOff(TRefOff off) { off_ += off; }
 

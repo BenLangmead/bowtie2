@@ -764,8 +764,9 @@ int SwDriver::extendRefSeeds(
 	const Scoring& sc,           // scoring scheme
 	TAlScore& minsc,             // minimum score for anchor
 	int nceil,                   // maximum # Ns permitted in reference portion
-	size_t maxhalf,  	         // max width in either direction for DP tables
+	size_t maxhalf,              // max width in either direction for DP tables
 	bool doUngapped,             // do ungapped alignment
+	bool tryUngappedFirst,       // always try ungapped alignment first
 	bool enable8,                // use 8-bit SSE where possible
 	size_t cminlen,              // use checkpointer if read longer than this
 	size_t cpow2,                // interval between diagonals to checkpoint
@@ -827,7 +828,6 @@ int SwDriver::extendRefSeeds(
 			swmSeed.rshit++;
 			continue;
 		}
-		TRefOff refoff = refival.upstream().off();
 		TRefOff refoff_diag = diagcoord.off();
 		TRefId tidx = diagcoord.ref();
 		tlen = ref.approxLen(tidx);
@@ -1066,6 +1066,141 @@ int SwDriver::extendRefSeeds(
 		// continue to resolve seed hits.  
 
 	} // while(!gws_[i].done())
+	return EXTEND_EXHAUSTED_CANDIDATES;
+}
+
+/**
+ * Given a list of hint intervals, execute some DP problems to
+ */
+int SwDriver::extendHintIntervals(
+	Read& rd,                    // read to align
+	bool mate1,                  // true iff rd is mate #1
+	const EList<IntervalHit>& ihits, // invervals in which to hunt for alignments
+	const Ebwt& ebwtFw,          // BWT
+	const Ebwt* ebwtBw,          // BWT'
+	const BitPairReference& ref, // Reference strings
+	SwAligner& swa,              // dynamic programming aligner
+	const Scoring& sc,           // scoring scheme
+	TAlScore& minsc,             // minimum score for anchor
+	int nceil,                   // maximum # Ns permitted in reference portion
+	size_t maxhalf,  	         // max width in either direction for DP tables
+	bool doUngapped,             // do ungapped alignment
+	bool tryUngappedFirst,       // always try ungapped alignment first
+	bool enable8,                // use 8-bit SSE where possible
+	size_t cminlen,              // use checkpointer if read longer than this
+	size_t cpow2,                // interval between diagonals to checkpoint
+	bool doTri,                  // triangular mini-fills?
+	int tighten,                 // -M score tightening mode
+	RandomSource& rnd,           // pseudo-random source
+	SwMetrics& swmSeed,          // DP metrics for seed-extend
+	PerReadMetrics& prm,         // per-read metrics
+	AlnSinkWrap* msink,          // AlnSink wrapper for multiseed-style aligner
+	bool reportImmediately,      // whether to report hits immediately to msink
+	bool& exhaustive)            // =true iff we searched all seeds exhaustively
+{
+	if(ihits.empty()) {
+		return EXTEND_EXHAUSTED_CANDIDATES;
+	}
+	const size_t rdlen = rd.length();
+	TAlScore perfectScore = sc.perfectScore(rdlen);
+	if(minsc == perfectScore) {
+		return EXTEND_PERFECT_SCORE; // Already found all perfect hits!
+	}
+	assert(seedhints_.empty());
+	EIvalMergeListBinned& seenDiags = mate1 ? seenDiags1_ : seenDiags2_;
+	
+	// The seed hits need to have both an interval and an offset with respect
+	// to some end of the read
+	for(size_t i = 0; i < ihits.size(); i++) {
+	
+		const Interval& ival = ihits[i].refival;
+		const Coord& upstream = ival.upstream();
+		assert_geq(upstream.off(), 0);
+
+		// rfbuf_ = uint32_t list large enough to accommodate both the reference
+		// sequence and any Ns we might add to either side.
+		ivalbuf_.resize((ival.len() + 16) / 4);
+		const size_t len = ival.len();
+		const size_t hitlen = ihits[i].hitlen;
+		assert_geq(len, hitlen);
+		int offset = ref.getStretch(
+			ivalbuf_.ptr(),               // buffer to store words in
+			ival.ref(),                   // which reference
+			upstream.off(),               // starting offset (can't be < 0)
+			len                          // length to grab (exclude overhang)
+			ASSERT_ONLY(, debugIvalbuf_));// for BitPairReference::getStretch()
+		assert_leq(offset, 16);
+		
+		char *rf = (char*)ivalbuf_.ptr() + offset;
+#ifndef NDEBUG
+		// Sanity check reference characters
+		for(size_t i = 0; i < len; i++) {
+			assert_range(0, 4, (int)rf[i]);
+		}
+#endif
+
+		for(int fwi = 0; fwi < 2; fwi++) {
+			const BTDnaString& seq = (fwi == 0 ? rd.patFw : rd.patRc);
+			size_t seqOff = ihits[i].rd5primeOff;
+			if(fwi > 0) {
+				seqOff = rd.length() - seqOff - hitlen;
+			}
+			for(size_t j = 0; j <= len - hitlen; j++) {
+				bool match = true;
+				for(size_t k = 0; k < hitlen; k++) {
+					if(seq[seqOff + k] != rf[j + k]) {
+						match = false;
+						break;
+					}
+				}
+				if(match) {
+					Coord c = upstream;
+					c.setOff(c.off() + j);
+					c.setFw(fwi == 0);
+					if(seenDiags.locusPresent(c)) {
+						// Already handled alignments seeded on this diagonal
+						prm.nRedundants++;
+						swmSeed.rshit++;
+					} else {
+						// Add to list of SeedHints
+						seedhints_.expand();
+						seedhints_.back().refival.init(c, hitlen);
+						seedhints_.back().rd5primeOff = ihits[i].rd5primeOff;
+					}
+				}
+			}
+		}
+	}
+	
+	if(!seedhints_.empty()) {
+		int ret = extendRefSeeds(
+			rd,                // read to align
+			mate1,             // true iff rd is mate #1
+			seedhints_,        // seed hits to extend into full alignments
+			ebwtFw,            // BWT
+			ebwtBw,            // BWT'
+			ref,               // Reference strings
+			swa,               // dynamic programming aligner
+			sc,                // scoring scheme
+			minsc,             // minimum score for anchor
+			nceil,             // maximum # Ns permitted in reference portion
+			maxhalf,           // max width in either direction for DP tables
+			doUngapped,        // do ungapped alignment
+			tryUngappedFirst,  // always try ungapped alignment first
+			enable8,           // use 8-bit SSE where possible
+			cminlen,           // use checkpointer if read longer than this
+			cpow2,             // interval between diagonals to checkpoint
+			doTri,             // triangular mini-fills?
+			tighten,           // -M score tightening mode
+			rnd,               // pseudo-random source
+			swmSeed,           // DP metrics for seed-extend
+			prm,               // per-read metrics
+			msink,             // AlnSink wrapper for multiseed-style aligner
+			reportImmediately, // whether to report hits immediately to msink
+			exhaustive);
+		seedhints_.clear();
+		return ret;
+	}
 	return EXTEND_EXHAUSTED_CANDIDATES;
 }
 

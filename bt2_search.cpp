@@ -3384,9 +3384,10 @@ static void multiseedSearchWorker(void *vp) {
 							throw 1;
 						} else {
 							// Unpaired dynamic programming driver
-							EList<SeedHit> hints;
-							parse_hints(*rds[0], hints, ebwtFw.refidMap());
-							ret = sd.extendRefSeeds(
+							EList<IntervalHit> hints;
+							parse_interval_hints(*rds[0], hints, ebwtFw.refidMap());
+							bool tryUngappedFirst = false; // TODO: investigate
+							ret = sd.extendHintIntervals(
 								*rds[0],        // read
 								true,           // mate #1?
 								hints,          // hints from upstream tool
@@ -3399,6 +3400,7 @@ static void multiseedSearchWorker(void *vp) {
 								nceil[0],       // N ceil for anchor
 								maxhalf,        // max width on one DP side
 								doUngapped,     // do ungapped alignment
+								tryUngappedFirst,// always try ungapped b4 DP
 								enable8,        // use 8-bit SSE where possible
 								cminlen,        // checkpoint if read is longer
 								cpow2,          // checkpointer interval, log2

@@ -301,6 +301,9 @@ public:
 	SwDriver(size_t bytes) :
 		satups_(DP_CAT),
 		gws_(DP_CAT),
+		ivalbuf_(DP_CAT),
+		debugIvalbuf_(DP_CAT),
+		seedhints_(DP_CAT),
 		seenDiags1_(DP_CAT),
 		seenDiags2_(DP_CAT),
 		redAnchor_(DP_CAT),
@@ -323,6 +326,36 @@ public:
 		int nceil,                   // maximum # Ns permitted in reference portion
 		size_t maxhalf,  	         // max width in either direction for DP tables
 		bool doUngapped,             // do ungapped alignment
+		bool tryUngappedFirst,       // always try ungapped alignment first
+		bool enable8,                // use 8-bit SSE where possible
+		size_t cminlen,              // use checkpointer if read longer than this
+		size_t cpow2,                // interval between diagonals to checkpoint
+		bool doTri,                  // triangular mini-fills?
+		int tighten,                 // -M score tightening mode
+		RandomSource& rnd,           // pseudo-random source
+		SwMetrics& swmSeed,          // DP metrics for seed-extend
+		PerReadMetrics& prm,         // per-read metrics
+		AlnSinkWrap* msink,          // AlnSink wrapper for multiseed-style aligner
+		bool reportImmediately,      // whether to report hits immediately to msink
+		bool& exhaustive);           // =true iff we searched all seeds exhaustively
+
+	/**
+	 * Given a list of hint intervals, execute some DP problems to
+	 */
+	int extendHintIntervals(
+		Read& rd,                    // read to align
+		bool mate1,                  // true iff rd is mate #1
+		const EList<IntervalHit>& ihits, // invervals in which to hunt for alignments
+		const Ebwt& ebwtFw,          // BWT
+		const Ebwt* ebwtBw,          // BWT'
+		const BitPairReference& ref, // Reference strings
+		SwAligner& swa,              // dynamic programming aligner
+		const Scoring& sc,           // scoring scheme
+		TAlScore& minsc,             // minimum score for anchor
+		int nceil,                   // maximum # Ns permitted in reference portion
+		size_t maxhalf,  	         // max width in either direction for DP tables
+		bool doUngapped,             // do ungapped alignment
+		bool tryUngappedFirst,       // always try ungapped alignment first
 		bool enable8,                // use 8-bit SSE where possible
 		size_t cminlen,              // use checkpointer if read longer than this
 		size_t cpow2,                // interval between diagonals to checkpoint
@@ -477,7 +510,7 @@ protected:
 		WalkMetrics& wlm,            // group walk left metrics
 		SwMetrics& swmSeed,          // metrics for seed extensions
 		size_t& nelt_out,            // out: # elements total
-        size_t maxelts,              // max # elts to report
+		size_t maxelts,              // max # elts to report
 		bool all);                   // report all hits?
 
 	void extend(
@@ -528,6 +561,10 @@ protected:
 	// Ranges that we've extended through when extending seed hits
 	EList<ExtendRange> seedExRangeFw_[2];
 	EList<ExtendRange> seedExRangeRc_[2];
+
+	EList<uint32_t> ivalbuf_;  // buffer for ref stretches for interval hints
+	SStringExpandable<uint32_t> debugIvalbuf_;
+	EList<SeedHit> seedhints_;  // buffer for seed hints to extend
 
 	// Data structures encapsulating the diagonals that have already been used
 	// to seed alignment for mate 1 and mate 2.
