@@ -129,16 +129,33 @@ void parse_interval_hints(const Read& r,
 		}
 		// parse left reference offset
 		TRefOff refoff_l = 0;
+		bool negative = false;
+		if(*buf == '-') {
+			negative = true;
+			buf++;
+		}
 		while(*buf != '!') {
-			assert(isdigit((int)*buf));
+			if(!isdigit((int)*buf)) {
+				cerr << "Error: While parsing hint left offset, expected digit but got \""
+				     << *buf << "\"" << endl;
+				throw 1;
+			}
 			refoff_l *= 10;
 			refoff_l += (*buf++) - '0';
 		}
 		assert_eq(*buf, '!');
+		if(negative) {
+			refoff_l = -refoff_l;
+		}
 		buf++;
 		// parse right reference offset
 		TRefOff refoff_r = 0;
 		while(*buf != '!') {
+			if(!isdigit((int)*buf)) {
+				cerr << "Error: While parsing hint right offset, expected digit but got \""
+				     << *buf << "\"" << endl;
+				throw 1;
+			}
 			assert(isdigit((int)*buf));
 			refoff_r *= 10;
 			refoff_r += (*buf++) - '0';
@@ -149,7 +166,11 @@ void parse_interval_hints(const Read& r,
 		// parse length of seed hit
 		size_t len = 0;
 		while(*buf != '!') {
-			assert(isdigit((int)*buf));
+			if(!isdigit((int)*buf)) {
+				cerr << "Error: While parsing hint seed length, expected digit but got \""
+				     << *buf << "\"" << endl;
+				throw 1;
+			}
 			len *= 10;
 			len += (*buf++) - '0';
 		}

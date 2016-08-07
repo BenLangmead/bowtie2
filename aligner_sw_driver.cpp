@@ -1282,7 +1282,6 @@ int SwDriver::extendSeeds(
 	size_t nelt = 0, neltLeft = 0;
 	size_t rows = rdlen;
 	size_t eltsDone = 0;
-	// cerr << "===" << endl;
 	while(true) {
 		if(eeMode) {
 			if(firstEe) {
@@ -1296,7 +1295,7 @@ int SwDriver::extendSeeds(
 					wlm,          // group walk left metrics
 					swmSeed,      // seed-extend metrics
 					nelt,         // out: # elements total
-                    maxIters,     // max # to report
+					maxIters,     // max # to report
 					all);         // report all hits?
 				assert_eq(gws_.size(), rands_.size());
 				assert_eq(gws_.size(), satpos_.size());
