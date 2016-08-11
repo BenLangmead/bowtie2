@@ -44,12 +44,13 @@ struct IntervalHit {
 };
 
 /** Return true iff read name indicates hints are present */
-extern bool has_hint(const Read& r);
+extern int has_hint(const Read& r);
 
 /**
  * Parse hints out of the read name and into the given list of SeedHits.
  */
 extern void parse_hints(const Read& r,
+                        int hint_off,
                         EList<SeedHit>& hints,
                         const EMap<std::string, TRefId>& refidMap);
 
@@ -57,6 +58,7 @@ extern void parse_hints(const Read& r,
  * Parse hints out of the read name and into the given list of SeedHits.
  */
 extern void parse_interval_hints(const Read& r,
+                                 int hint_off,
                                  EList<IntervalHit>& hints,
                                  const EMap<std::string, TRefId>& refidMap);
 

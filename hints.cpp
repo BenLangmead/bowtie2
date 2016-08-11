@@ -20,21 +20,28 @@
 #include "hints.h"
 
 /** Return true iff read name indicates hints are present */
-bool has_hint(const Read& r) {
-	return r.name[0] == '!' &&
-	       r.name[1] == 'h' &&
-	       r.name[2] == '!';
+int has_hint(const Read& r) {
+	for(int i = 0; i < r.name.length()-2; i++) {
+		if(r.name[i+0] == '!' &&
+		   r.name[i+1] == 'h' &&
+		   r.name[i+2] == '!')
+		{
+			return i;
+		}
+	}
+	return -1;
 }
 
 /**
  * Parse hints out of the read name and into the given list of SeedHits.
  */
 void parse_hints(const Read& r,
+                 int hint_off,
                  EList<SeedHit>& hints,
                  const EMap<std::string, TRefId>& refidMap)
 {
 	const char *origbuf = r.name.buf();
-	const char *buf = origbuf;
+	const char *buf = origbuf + hint_off;
 	const size_t namelen = r.name.length();
 	char refname[1024];
 	assert_eq(buf[0], '!');
@@ -97,11 +104,12 @@ void parse_hints(const Read& r,
  * Parse hints out of the read name and into the given list of SeedHits.
  */
 void parse_interval_hints(const Read& r,
+                          int hint_off,
                           EList<IntervalHit>& hints,
                           const EMap<std::string, TRefId>& refidMap)
 {
 	const char *origbuf = r.name.buf();
-	const char *buf = origbuf;
+	const char *buf = origbuf + hint_off;
 	const size_t namelen = r.name.length();
 	char refname[1024];
 	assert_eq(buf[0], '!');
@@ -173,6 +181,9 @@ void parse_interval_hints(const Read& r,
 			}
 			len *= 10;
 			len += (*buf++) - '0';
+		}
+		if(negative) {
+			len = -len;
 		}
 		// note: orientation is always true, but that is ignored
 		hint.refival.init(refid, refoff_l, true, refoff_r - refoff_l + 1);

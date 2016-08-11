@@ -3376,69 +3376,72 @@ static void multiseedSearchWorker(void *vp) {
 						}
 					}
 
-					if(hints && has_hint(*rds[0])) {
-						int ret;
-						if(pair) {
-							cerr << "Error: Hints for paired-end reads not "
-							     << "supported" << endl;
-							throw 1;
-						} else {
-							// Unpaired dynamic programming driver
-							EList<IntervalHit> hints;
-							parse_interval_hints(*rds[0], hints, ebwtFw.refidMap());
-							bool tryUngappedFirst = false; // TODO: investigate
-							ret = sd.extendHintIntervals(
-								*rds[0],        // read
-								true,           // mate #1?
-								hints,          // hints from upstream tool
-								ebwtFw,         // bowtie index
-								&ebwtBw,        // rev bowtie index
-								ref,            // packed reference strings
-								sw,             // dynamic prog aligner
-								sc,             // scoring scheme
-								minsc[0],       // minimum score for valid
-								nceil[0],       // N ceil for anchor
-								maxhalf,        // max width on one DP side
-								doUngapped,     // do ungapped alignment
-								tryUngappedFirst,// always try ungapped b4 DP
-								enable8,        // use 8-bit SSE where possible
-								cminlen,        // checkpoint if read is longer
-								cpow2,          // checkpointer interval, log2
-								doTri,          // triangular mini-fills
-								tighten,        // -M score tightening mode
-								rnd,            // pseudo-random source
-								swmSeed,        // DP metrics, seed extend
-								prm,            // per-read metrics
-								&msinkwrap,     // for organizing hits
-								true,           // report hits once found
-								exhaustive[0]);
-						}
-						assert_gt(ret, 0);
-						MERGE_SW(sw);
-						MERGE_SW(osw);
-						int mate = 0; // TODO
-						if(ret == EXTEND_EXHAUSTED_CANDIDATES) {
-							// Not done yet
-						} else if(ret == EXTEND_POLICY_FULFILLED) {
-							// Policy is satisfied for this mate at least
-							if(msinkwrap.state().doneWithMate(mate == 0)) {
-								done[mate] = true;
+					if(hints) {
+						int hint_off = has_hint(*rds[0]);
+						if(hint_off >= 0) {
+							int ret;
+							if(pair) {
+								cerr << "Error: Hints for paired-end reads not "
+									 << "supported" << endl;
+								throw 1;
+							} else {
+								// Unpaired dynamic programming driver
+								EList<IntervalHit> hints;
+								parse_interval_hints(*rds[0], hint_off, hints, ebwtFw.refidMap());
+								bool tryUngappedFirst = false; // TODO: investigate
+								ret = sd.extendHintIntervals(
+									*rds[0],        // read
+									true,           // mate #1?
+									hints,          // hints from upstream tool
+									ebwtFw,         // bowtie index
+									&ebwtBw,        // rev bowtie index
+									ref,            // packed reference strings
+									sw,             // dynamic prog aligner
+									sc,             // scoring scheme
+									minsc[0],       // minimum score for valid
+									nceil[0],       // N ceil for anchor
+									maxhalf,        // max width on one DP side
+									doUngapped,     // do ungapped alignment
+									tryUngappedFirst,// always try ungapped b4 DP
+									enable8,        // use 8-bit SSE where possible
+									cminlen,        // checkpoint if read is longer
+									cpow2,          // checkpointer interval, log2
+									doTri,          // triangular mini-fills
+									tighten,        // -M score tightening mode
+									rnd,            // pseudo-random source
+									swmSeed,        // DP metrics, seed extend
+									prm,            // per-read metrics
+									&msinkwrap,     // for organizing hits
+									true,           // report hits once found
+									exhaustive[0]);
 							}
-							if(msinkwrap.state().doneWithMate(mate == 1)) {
-								done[mate^1] = true;
-							}
-						} else if(ret == EXTEND_PERFECT_SCORE) {
-							// We exhausted this mode at least
-							done[mate] = true;
-						} else {
-							//
-							cerr << "Bad return value: " << ret << endl;
-							throw 1;
-						}
-						if(!done[mate]) {
-							TAlScore perfectScore = sc.perfectScore(rdlens[mate]);
-							if(!done[mate] && minsc[mate] == perfectScore) {
+							assert_gt(ret, 0);
+							MERGE_SW(sw);
+							MERGE_SW(osw);
+							int mate = 0; // TODO
+							if(ret == EXTEND_EXHAUSTED_CANDIDATES) {
+								// Not done yet
+							} else if(ret == EXTEND_POLICY_FULFILLED) {
+								// Policy is satisfied for this mate at least
+								if(msinkwrap.state().doneWithMate(mate == 0)) {
+									done[mate] = true;
+								}
+								if(msinkwrap.state().doneWithMate(mate == 1)) {
+									done[mate^1] = true;
+								}
+							} else if(ret == EXTEND_PERFECT_SCORE) {
+								// We exhausted this mode at least
 								done[mate] = true;
+							} else {
+								//
+								cerr << "Bad return value: " << ret << endl;
+								throw 1;
+							}
+							if(!done[mate]) {
+								TAlScore perfectScore = sc.perfectScore(rdlens[mate]);
+								if(!done[mate] && minsc[mate] == perfectScore) {
+									done[mate] = true;
+								}
 							}
 						}
 					}
