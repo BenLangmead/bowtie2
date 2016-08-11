@@ -1159,6 +1159,8 @@ int SwDriver::extendHintIntervals(
 					c.setFw(fwi == 0);
 					if(seenDiags.locusPresent(c)) {
 						// Already handled alignments seeded on this diagonal
+						// TODO: Might be better to catch this earlier, before
+						// we call getStretch or enter these nested loops
 						prm.nRedundants++;
 						swmSeed.rshit++;
 					} else {
