@@ -407,7 +407,10 @@ if(wrapInput(\@unps, \@mate1s, \@mate2s)) {
 			mkfifo($ufn, 0700) || Fail("mkfifo($ufn) failed.\n");
 		}
 		my $pid = 0;
-		$pid = fork() unless $no_pipes;
+		unless ($no_pipes) {
+			$pid = fork();
+			push @to_kill, $pid if $pid;
+		}
 		if($pid == 0) {
 			# Open named pipe 2 for writing
 			open(my $ofh, ">$ufn") || Fail("Can't open '$ufn' for writing.\n");
