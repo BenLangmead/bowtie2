@@ -64,6 +64,7 @@ static bool packed;
 static bool writeRef;
 static bool justRef;
 static bool reverseEach;
+static int nthreads;
 static string wrapper;
 
 static void resetOptions() {
@@ -92,6 +93,7 @@ static void resetOptions() {
 	writeRef     = true;  // write compact reference to .3.gEbwt_ext/.4.gEbwt_ext
 	justRef      = false; // *just* write compact reference, don't index
 	reverseEach  = false;
+    nthreads     = 1;
 	wrapper.clear();
 }
 
@@ -108,6 +110,7 @@ enum {
 	ARG_USAGE,
 	ARG_REVERSE_EACH,
 	ARG_SA,
+    ARG_THREADS,
 	ARG_WRAPPER
 };
 
@@ -150,6 +153,7 @@ static void printUsage(ostream& out) {
 	    << "    -3/--justref            just build .3/.4 index files" << endl
 	    << "    -o/--offrate <int>      SA is sampled every 2^<int> BWT chars (default: 5)" << endl
 	    << "    -t/--ftabchars <int>    # of chars consumed in initial lookup (default: 10)" << endl
+        << "    --threads <int>         # of threads" << endl
 	    //<< "    --ntoa                  convert Ns in reference to As" << endl
 	    //<< "    --big --little          endianness (default: little, this host: "
 	    //<< (currentlyBigEndian()? "big":"little") << ")" << endl
@@ -197,6 +201,7 @@ static struct option long_options[] = {
 	{(char*)"color",        no_argument,       0,            'C'},
 	{(char*)"sa",           no_argument,       0,            ARG_SA},
 	{(char*)"reverse-each", no_argument,       0,            ARG_REVERSE_EACH},
+    {(char*)"threads",      required_argument, 0,            ARG_THREADS},
 	{(char*)"usage",        no_argument,       0,            ARG_USAGE},
 	{(char*)"wrapper",      required_argument, 0,            ARG_WRAPPER},
 	{(char*)0, 0, 0, 0} // terminator
@@ -299,6 +304,9 @@ static bool parseOptions(int argc, const char **argv) {
 				doSaFile = true;
 				break;
 			case ARG_NTOA: nsToAs = true; break;
+            case ARG_THREADS:
+                nthreads = parseNumber<int>(0, "--threads arg must be at least 1");
+                break;
 			case 'a': autoMem = false; break;
 			case 'q': verbose = false; break;
 			case 's': sanityCheck = true; break;
@@ -397,9 +405,9 @@ static void driver(
 	}
 	if(!reverse) {
 #ifdef BOWTIE_64BIT_INDEX
-		cerr << "Building a LARGE index" << endl;
+          if (verbose) cerr << "Building a LARGE index" << endl;
 #else
-		cerr << "Building a SMALL index" << endl;
+          if (verbose) cerr << "Building a SMALL index" << endl;
 #endif
 	}
 	// Vector for the ordered list of "records" comprising the input
@@ -433,6 +441,7 @@ static void driver(
 		lineRate,
 		offRate,      // suffix-array sampling rate
 		ftabChars,    // number of chars in initial arrow-pair calc
+              nthreads,
 		outfile,      // basename for .?.ebwt files
 		reverse == 0, // fw
 		!entireSA,    // useBlockwise

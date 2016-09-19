@@ -90,7 +90,6 @@ static bool noRefNames;   // true -> print reference indexes; not names
 static uint32_t khits;    // number of hits per read; >1 is much slower
 static uint32_t mhits;    // don't report any hits if there are > mhits
 static int partitionSz;   // output a partitioning key in first field
-static bool useSpinlock;  // false -> don't use of spinlocks even if they're #defines
 static bool fileParallel; // separate threads read separate input files in parallel
 static bool useShmem;     // use shared memory to hold the index
 static bool useMm;        // use memory-mapped files to hold the index
@@ -280,7 +279,6 @@ static void resetOptions() {
 	khits					= 1;     // number of hits per read; >1 is much slower
 	mhits					= 50;    // stop after finding this many alignments+1
 	partitionSz				= 0;     // output a partitioning key in first field
-	useSpinlock				= true;  // false -> don't use of spinlocks even if they're #defines
 	fileParallel			= false; // separate threads read separate input files in parallel
 	useShmem				= false; // use shared memory to hold the index
 	useMm					= false; // use memory-mapped files to hold the index
@@ -785,9 +783,9 @@ static void printUsage(ostream& out) {
 		<< "  --met-stderr       send metrics to stderr (off)" << endl
 		<< "  --met <int>        report internal counters & metrics every <int> secs (1)" << endl
 	// Following is supported in the wrapper instead
-	    << "  --no-unal          supppress SAM records for unaligned reads" << endl
-	    << "  --no-head          supppress header lines, i.e. lines starting with @" << endl
-	    << "  --no-sq            supppress @SQ header lines" << endl
+	    << "  --no-unal          suppress SAM records for unaligned reads" << endl
+	    << "  --no-head          suppress header lines, i.e. lines starting with @" << endl
+	    << "  --no-sq            suppress @SQ header lines" << endl
 	    << "  --rg-id <text>     set read group id, reflected in @RG line and RG:Z: opt field" << endl
 	    << "  --rg <text>        add <text> (\"lab:value\") to @RG line of SAM header." << endl
 	    << "                     Note: @RG line only printed when --rg-id is set." << endl
@@ -2790,7 +2788,7 @@ void get_cpu_and_node(int& cpu, int& node) {
  * - 
  */
 #ifdef WITH_TBB
-void multiseedSearchWorker::operator()() {
+void multiseedSearchWorker::operator()() const {
 #else
 static void multiseedSearchWorker(void *vp) {
 	int tid = *((int*)vp);
@@ -2859,7 +2857,7 @@ static void multiseedSearchWorker(void *vp) {
 	AlnSinkWrap msinkwrap(
 		msink,         // global sink
 		rp,            // reporting parameters
-		*bmapq.get(),  // MAPQ calculator
+		*bmapq,        // MAPQ calculator
 		(size_t)tid);  // thread id
 	
 	// Write dynamic-programming problem descriptions here
@@ -3894,7 +3892,7 @@ static void multiseedSearchWorker(void *vp) {
 }
 
 #ifdef WITH_TBB
-void multiseedSearchWorker_2p5::operator()() {
+void multiseedSearchWorker_2p5::operator()() const {
 #else
 static void multiseedSearchWorker_2p5(void *vp) {
 	int tid = *((int*)vp);
@@ -3933,7 +3931,7 @@ static void multiseedSearchWorker_2p5(void *vp) {
 	AlnSinkWrap msinkwrap(
 		msink,         // global sink
 		rp,            // reporting parameters
-		*bmapq.get(),  // MAPQ calculator
+		*bmapq,        // MAPQ calculator
 		(size_t)tid);  // thread id
 
 	OuterLoopMetrics olm;
@@ -4356,7 +4354,6 @@ static void driver(
 		format,        // file format
 		fileParallel,  // true -> wrap files with separate PairedPatternSources
 		seed,          // pseudo-random seed
-		useSpinlock,   // use spin locks instead of pthreads
 		solexaQuals,   // true -> qualities are on solexa64 scale
 		phred64Quals,  // true -> qualities are on phred64 scale
 		integerQuals,  // true -> qualities are space-separated numbers
@@ -4622,6 +4619,13 @@ extern "C" {
  */
 int bowtie(int argc, const char **argv) {
 	try {
+	#ifdef WITH_TBB
+	#ifdef WITH_AFFINITY
+		//CWILKS: adjust this depending on # of hyperthreads per core
+		pinning_observer pinner( 2 /* the number of hyper threads on each core */ );
+        	pinner.observe( true );
+	#endif
+	#endif
 		// Reset all global state, including getopt state
 		opterr = optind = 1;
 		resetOptions();
@@ -4734,6 +4738,13 @@ int bowtie(int argc, const char **argv) {
 			}
 			driver<SString<char> >("DNA", bt2index, outfile);
 		}
+	#ifdef WITH_TBB
+	#ifdef WITH_AFFINITY
+		// Always disable observation before observers destruction
+    		//tracker.observe( false );
+    		pinner.observe( false );
+	#endif
+	#endif
 		return 0;
 	} catch(std::exception& e) {
 		cerr << "Error: Encountered exception: '" << e.what() << "'" << endl;

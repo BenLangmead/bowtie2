@@ -904,7 +904,7 @@ public:
 		trim_st += (fw() ? pretrim5p_ : pretrim3p_);
 		trim_en += (fw() ? pretrim3p_ : pretrim5p_);
 		st.adjustOff(-trim_st);
-		en.adjustOff( trim_st);
+		en.adjustOff( trim_en);
 	}
 	
 	/**

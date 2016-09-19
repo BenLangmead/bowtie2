@@ -83,7 +83,7 @@ else
 endif
 
 ifeq (1,$(NO_SPINLOCK))
-	override EXTRA_FLAGS += -DNO_SPIN_LOCK
+	override EXTRA_FLAGS += -DNO_SPINLOCK
 endif
 
 ifeq (1,$(WITH_TBB))
@@ -103,6 +103,10 @@ endif
 
 ifeq (1,$(WITH_THREAD_PROFILING))
 	override EXTRA_FLAGS += -DPER_THREAD_TIMING=1
+endif
+
+ifeq (1,$(WITH_AFFINITY))
+	override EXTRA_FLAGS += -DWITH_AFFINITY=1
 endif
 
 SHARED_CPPS = ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
@@ -206,7 +210,11 @@ GENERAL_LIST = $(wildcard scripts/*.sh) \
 
 ifeq (1,$(WINDOWS))
 	BOWTIE2_BIN_LIST := $(BOWTIE2_BIN_LIST) bowtie2.bat bowtie2-build.bat bowtie2-inspect.bat 
-	EXTRA_FLAGS += -static-libgcc -static-libstdc++
+    ifeq (1,$(WITH_TBB)) 
+	    override EXTRA_FLAGS += -static-libgcc -static-libstdc++
+	else
+	    override EXTRA_FLAGS += -static -static-libgcc -static-libstdc++
+	endif
 endif
 
 # This is helpful on Windows under MinGW/MSYS, where Make might go for

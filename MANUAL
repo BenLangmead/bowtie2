@@ -304,11 +304,11 @@ reference.
 For an alignment to be considered "valid" (i.e. "good enough") by Bowtie 2, it
 must have an alignment score no less than the minimum score threshold.  The
 threshold is configurable and is expressed as a function of the read length. In
-end-to-end alignment mode, the default minimum score threhsold is `-0.6 + -0.6 *
-L`, where `L` is the read length.  In local alignment mdoe, the default minimum
+end-to-end alignment mode, the default minimum score threshold is `-0.6 + -0.6 *
+L`, where `L` is the read length.  In local alignment mode, the default minimum
 score threshold is `20 + 8.0 * ln(L)`, where L is the read length.  This can be
 configured with the `--score-min` option.  For details on how to set options
-like `--score-min` that correpond to functions, see the section on [setting
+like `--score-min` that correspond to functions, see the section on [setting
 function options].
 
 Mapping quality: higher = more unique
@@ -419,16 +419,16 @@ alignment status of pairs per se, not individual mates.
 
 The SAM `FLAGS` field, the second field in a SAM record, has multiple bits that
 describe the paired-end nature of the read and alignment.  The first (least
-significant) bit (1 in decimal, 0x1 in hexidecimal) is set if the read is part
-of a pair.  The second bit (2 in decimal, 0x2 in hexidecimal) is set if the read
+significant) bit (1 in decimal, 0x1 in hexadecimal) is set if the read is part
+of a pair.  The second bit (2 in decimal, 0x2 in hexadecimal) is set if the read
 is part of a pair that aligned in a paired-end fashion.  The fourth bit (8 in
-decimal, 0x8 in hexidecimal) is set if the read is part of a pair and the other
+decimal, 0x8 in hexadecimal) is set if the read is part of a pair and the other
 mate in the pair had at least one valid alignment.  The sixth bit (32 in
-decimal, 0x20 in hexidecimal) is set if the read is part of a pair and the other
+decimal, 0x20 in hexadecimal) is set if the read is part of a pair and the other
 mate in the pair aligned to the Crick strand (or, equivalently, if the reverse
 complement of the other mate aligned to the Watson strand).  The seventh bit (64
-in decimal, 0x40 in hexidecimal) is set if the read is mate 1 in a pair.  The
-eighth bit (128 in decimal, 0x80 in hexidecimal) is set if the read is mate 2 in
+in decimal, 0x40 in hexadecimal) is set if the read is mate 1 in a pair.  The
+eighth bit (128 in decimal, 0x80 in hexadecimal) is set if the read is mate 2 in
 a pair.  See the [SAM specification] for a more detailed description of the
 `FLAGS` field.
 
@@ -523,7 +523,7 @@ because it exceeded a limit placed on search effort (see `-D` and `-R`) or
 because it already knows all it needs to know to report an alignment.
 Information from the best alignments are used to estimate mapping quality (the
 `MAPQ` [SAM] field) and to set SAM optional fields, such as `AS:i` and
-`XS:i`.  Bowtie 2 does not garantee that the alignment reported is the best
+`XS:i`.  Bowtie 2 does not guarantee that the alignment reported is the best
 possible in terms of alignment score.
 
 See also: `-D`, which puts an upper limit on the number of dynamic programming
@@ -678,7 +678,7 @@ ambiguous nucleotides.  Bowtie 2 will still print a SAM record for such a read,
 but no alignment will be reported and and the `YF:i` SAM optional field will be
 set to indicate the reason the read was filtered.
 
-* `YF:Z:LN`: the read was filtered becuase it had length less than or equal to
+* `YF:Z:LN`: the read was filtered because it had length less than or equal to
 the number of seed mismatches set with the `-N` option.
 * `YF:Z:NS`: the read was filtered because it contains a number of ambiguous
 characters (usually `N` or `.`) greater than the ceiling specified with
@@ -978,14 +978,14 @@ alignment].  Can be set to 0 or 1. Setting this higher makes alignment slower
     -L <int>
 
 Sets the length of the seed substrings to align during [multiseed alignment].
-Smaller values make alignment slower but more senstive. Default: the
+Smaller values make alignment slower but more sensitive. Default: the
 `--sensitive` preset is used by default, which sets `-L` to 20 both in
 `--end-to-end` mode and in `--local` mode.
 
     -i <func>
 
 Sets a function governing the interval between seed substrings to use during
-[multiseed alignment].  For instance, if the read has 30 characers, and seed
+[multiseed alignment].  For instance, if the read has 30 characters, and seed
 length is 10, and the seed interval is 6, the seeds extracted will be:
 
     Read:      TAGCTACGCTCTACGCTATCATGCATAAAC
@@ -1462,7 +1462,7 @@ When one or more `--rg` arguments are specified, `bowtie2` will also print
 an `@RG` line that includes all user-specified `--rg` tokens separated by
 tabs.
 
-Each subsequnt line describes an alignment or, if the read failed to align, a
+Each subsequent line describes an alignment or, if the read failed to align, a
 read.  Each line is a collection of at least 12 fields separated by tabs; from
 left to right, the fields are:
 
@@ -1781,6 +1781,11 @@ sequences) and ignore the rest.
 `bowtie2-build` is verbose by default.  With this option `bowtie2-build` will
 print only error messages.
 
+    --threads <int>
+
+By default `bowtie2-build` is using only one thread. Increasing the number
+of threads will speed up the index building considerably in most cases.
+ 
     -h/--help
 
 Print usage information and quit.
