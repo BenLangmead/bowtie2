@@ -3187,7 +3187,7 @@ static void multiseedSearchWorker(void *vp) {
 				// Whether we're done with mate1 / mate2
 				bool done[2] = { !filt[0], !filt[1] };
 				size_t nelt[2] = {0, 0};
-									
+
 					// Find end-to-end exact alignments for each read
 					if(doExactUpFront) {
 						for(size_t matei = 0; matei < (pair ? 2:1); matei++) {
@@ -3367,6 +3367,7 @@ static void multiseedSearchWorker(void *vp) {
 							}
 						}
 					}
+
 					// 1-mismatch
 					if(do1mmUpFront && !seedSumm) {
 						for(size_t matei = 0; matei < (pair ? 2:1); matei++) {
@@ -3553,7 +3554,11 @@ static void multiseedSearchWorker(void *vp) {
 					nrounds[1] = min<size_t>(nrounds[1], interval[1]);
 					Constraint gc = Constraint::penaltyFuncBased(scoreMin);
 					size_t seedsTried = 0;
+					size_t seedsTriedMS[] = {0, 0, 0, 0};
 					size_t nUniqueSeeds = 0, nRepeatSeeds = 0, seedHitTot = 0;
+					size_t nUniqueSeedsMS[] = {0, 0, 0, 0};
+					size_t nRepeatSeedsMS[] = {0, 0, 0, 0};
+					size_t seedHitTotMS[] = {0, 0, 0, 0};
 					for(size_t roundi = 0; roundi < nSeedRounds; roundi++) {
 						ca.nextRead(); // Clear cache in preparation for new search
 						shs[0].clearSeeds();
@@ -3603,6 +3608,7 @@ static void multiseedSearchWorker(void *vp) {
 								continue;
 							}
 							// Instantiate the seeds
+							std::pair<int, int> instFw, instRc;
 							std::pair<int, int> inst = al.instantiateSeeds(
 								*seeds[mate],   // search seeds
 								offset,         // offset to begin extracting
@@ -3613,7 +3619,9 @@ static void multiseedSearchWorker(void *vp) {
 								norc[mate],     // don't align revcomp read
 								ca,             // holds some seed hits from previous reads
 								shs[mate],      // holds all the seed hits
-								sdm);           // metrics
+								sdm,            // metrics
+								instFw,
+								instRc);
 							assert(shs[mate].repOk(&ca.current()));
 							if(inst.first + inst.second == 0) {
 								// No seed hits!  Done with this mate.
@@ -3622,6 +3630,8 @@ static void multiseedSearchWorker(void *vp) {
 								break;
 							}
 							seedsTried += (inst.first + inst.second);
+							seedsTriedMS[mate * 2 + 0] = instFw.first + instFw.second;
+							seedsTriedMS[mate * 2 + 1] = instRc.first + instRc.second;
 							// Align seeds
 							al.searchAllSeeds(
 								*seeds[mate],     // search seeds
@@ -3645,8 +3655,14 @@ static void multiseedSearchWorker(void *vp) {
 						for(size_t mate = 0; mate < 2; mate++) {
 							if(!shs[mate].empty()) {
 								nUniqueSeeds += shs[mate].numUniqueSeeds();
+								nUniqueSeedsMS[mate * 2 + 0] += shs[mate].numUniqueSeedsStrand(true);
+								nUniqueSeedsMS[mate * 2 + 1] += shs[mate].numUniqueSeedsStrand(false);
 								nRepeatSeeds += shs[mate].numRepeatSeeds();
+								nRepeatSeedsMS[mate * 2 + 0] += shs[mate].numRepeatSeedsStrand(true);
+								nRepeatSeedsMS[mate * 2 + 1] += shs[mate].numRepeatSeedsStrand(false);
 								seedHitTot += shs[mate].numElts();
+								seedHitTotMS[mate * 2 + 0] += shs[mate].numEltsFw();
+								seedHitTotMS[mate * 2 + 1] += shs[mate].numEltsRc();
 							}
 						}
 						double uniqFactor[2] = { 0.0f, 0.0f };
@@ -3814,6 +3830,11 @@ static void multiseedSearchWorker(void *vp) {
 						prm.seedPctUnique = (float)nUniqueSeeds / seedsTried;
 						prm.seedPctRep = (float)nRepeatSeeds / seedsTried;
 						prm.seedHitAvg = (float)seedHitTot / seedsTried;
+						for(int i = 0; i < 4; i++) {
+							prm.seedPctUniqueMS[i] = (float)nUniqueSeedsMS[i] / seedsTriedMS[i];
+							prm.seedPctRepMS[i] = (float)nRepeatSeedsMS[i] / seedsTriedMS[i];
+							prm.seedHitAvgMS[i] = (float)seedHitTotMS[i] / seedsTriedMS[i];
+						}
 					}
 					size_t totnucs = 0;
 					for(size_t mate = 0; mate < (pair ? 2:1); mate++) {

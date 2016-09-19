@@ -610,17 +610,35 @@ void SamConfig::printAlignedOptFlags(
 		} else {
 			o.append("NA");
 		}
+		// Flags related to seed hits, specific to this mate but not to the
+		// strand aligned to
+		int mate = (rd.mate < 2 ? 0 : 1);
 		o.append(",");
-		itoa10<TAlScore>((int)(prm.seedsPerNuc * 1000), buf);
+		itoa10<TAlScore>((int)((prm.seedsPerNucMS[2 * mate] + prm.seedsPerNucMS[2 * mate + 1]) * 1000), buf);
 		o.append(buf);
 		o.append(",");
-		itoa10<TAlScore>((int)(prm.seedPctUnique * 1000), buf);
+		itoa10<TAlScore>((int)((prm.seedPctUniqueMS[2 * mate] + prm.seedPctUniqueMS[2 * mate + 1]) * 1000), buf);
 		o.append(buf);
 		o.append(",");
-		itoa10<TAlScore>((int)(prm.seedPctRep * 1000), buf);
+		itoa10<TAlScore>((int)((prm.seedPctRepMS[2 * mate] + prm.seedPctRepMS[2 * mate + 1]) * 1000), buf);
 		o.append(buf);
 		o.append(",");
-		itoa10<TAlScore>((int)(prm.seedHitAvg + 0.5), buf);
+		itoa10<TAlScore>((int)((prm.seedHitAvgMS[2 * mate] + prm.seedHitAvgMS[2 * mate + 1]) + 0.5f), buf);
+		o.append(buf);
+		// Flags related to seed hits again, but specific both to this mate and
+		// to the strand aligned to
+		int fw = res.fw() ? 0 : 1;
+		o.append(",");
+		itoa10<TAlScore>((int)(prm.seedsPerNucMS[2 * mate + fw] * 1000), buf);
+		o.append(buf);
+		o.append(",");
+		itoa10<TAlScore>((int)(prm.seedPctUniqueMS[2 * mate + fw] * 1000), buf);
+		o.append(buf);
+		o.append(",");
+		itoa10<TAlScore>((int)(prm.seedPctRepMS[2 * mate + fw] * 1000), buf);
+		o.append(buf);
+		o.append(",");
+		itoa10<TAlScore>((int)(prm.seedHitAvgMS[2 * mate + fw] + 0.5f), buf);
 		o.append(buf);
 	}
 }
