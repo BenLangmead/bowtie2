@@ -3826,14 +3826,24 @@ static void multiseedSearchWorker(void *vp) {
 							}
 						}
 					} // end loop over reseeding rounds
-					if(seedsTried != 0) {
+					if(seedsTried > 0) {
 						prm.seedPctUnique = (float)nUniqueSeeds / seedsTried;
 						prm.seedPctRep = (float)nRepeatSeeds / seedsTried;
 						prm.seedHitAvg = (float)seedHitTot / seedsTried;
-						for(int i = 0; i < 4; i++) {
+					} else {
+						prm.seedPctUnique = -1.0f;
+						prm.seedPctRep = -1.0f;
+						prm.seedHitAvg = -1.0f;
+					}
+					for(int i = 0; i < 4; i++) {
+						if(seedsTriedMS[i] > 0) {
 							prm.seedPctUniqueMS[i] = (float)nUniqueSeedsMS[i] / seedsTriedMS[i];
 							prm.seedPctRepMS[i] = (float)nRepeatSeedsMS[i] / seedsTriedMS[i];
 							prm.seedHitAvgMS[i] = (float)seedHitTotMS[i] / seedsTriedMS[i];
+						} else {
+							prm.seedPctUniqueMS[i] = -1.0f;
+							prm.seedPctRepMS[i] = -1.0f;
+							prm.seedHitAvgMS[i] = -1.0f;
 						}
 					}
 					size_t totnucs = 0;
@@ -3846,7 +3856,10 @@ static void multiseedSearchWorker(void *vp) {
 							totnucs += len;
 						}
 					}
-					prm.seedsPerNuc = (float)seedsTried / totnucs;
+					prm.seedsPerNuc = totnucs > 0 ? ((float)seedsTried / totnucs) : -1;
+					for(int i = 0; i < 4; i++) {
+						prm.seedsPerNucMS[i] = totnucs > 0 ? ((float)seedsTriedMS[i] / totnucs) : -1;
+					}
 					for(size_t i = 0; i < 2; i++) {
 						assert_leq(prm.nExIters, mxIter[i]);
 						assert_leq(prm.nExDps,   mxDp[i]);
