@@ -1003,7 +1003,7 @@ int SwDriver::extendSeeds(
 					resEe_.alres.reset();
 					const EEHit& h = eehits_[i];
 					assert_leq(h.score, perfectScore);
-					resEe_.alres.setScore(AlnScore(h.score, h.ns(), 0));
+					resEe_.alres.setScore(AlnScore(h.score, h.mms(), h.ns(), 0));
 					resEe_.alres.setShape(
 						refcoord.ref(),  // ref id
 						refcoord.off(),  // 0-based ref offset
@@ -1706,7 +1706,7 @@ int SwDriver::extendSeedsPaired(
 					resEe_.alres.reset();
 					const EEHit& h = eehits_[i];
 					assert_leq(h.score, perfectScore);
-					resEe_.alres.setScore(AlnScore(h.score, h.ns(), 0));
+					resEe_.alres.setScore(AlnScore(h.score, h.mms(), h.ns(), 0));
 					resEe_.alres.setShape(
 						refcoord.ref(),  // ref id
 						refcoord.off(),  // 0-based ref offset

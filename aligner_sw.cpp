@@ -431,7 +431,6 @@ int SwAligner::ungappedAlign(
 		// Got a result!  Fill in the rest of the result object.  
 	}
 	// Now fill in the edits
-	res.alres.setScore(AlnScore(score, ns, 0));
 	assert_geq(rowf, rowi);
 	EList<Edit>& ned = res.alres.ned();
 	size_t refns = 0;
@@ -450,6 +449,7 @@ int SwAligner::ungappedAlign(
 			}
 		}
 	}
+	res.alres.setScore(AlnScore(score, (int)ned.size(), ns, 0));
 	assert(Edit::repOk(ned, rd));
 	bool fw = coord.fw();
 	assert_leq(rowf, len-1);
