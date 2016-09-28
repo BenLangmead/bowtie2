@@ -716,9 +716,9 @@ void AlnSinkWrap::finishRead(
 				exhaust1, exhaust2, -1, -1);
 			// Sort by score then pick from low to high
 			AlnScore bestUScore, bestP1Score, bestP2Score, bestCScore;
-			int bestUDist, bestP1Dist, bestP2Dist, bestCDist;
+			AlnScore bestUDist, bestP1Dist, bestP2Dist, bestCDist;
 			AlnScore bestUnchosenUScore, bestUnchosenP1Score, bestUnchosenP2Score, bestUnchosenCScore;
-			int bestUnchosenUDist, bestUnchosenP1Dist, bestUnchosenP2Dist, bestUnchosenCDist;
+			AlnScore bestUnchosenUDist, bestUnchosenP1Dist, bestUnchosenP2Dist, bestUnchosenCDist;
 			// TODO: should probably package these variables up so it's not
 			// such a pain to pass them around
 			size_t off = selectByScore(
@@ -885,9 +885,9 @@ void AlnSinkWrap::finishRead(
 				assert(!rs1_[i].isFraglenSet() || abs(rs1_[i].fragmentLength()) == abs(rs2_[i].fragmentLength()));
 			}
 			AlnScore bestUScore, bestP1Score, bestP2Score, bestCScore;
-			int bestUDist, bestP1Dist, bestP2Dist, bestCDist;
+			AlnScore bestUDist, bestP1Dist, bestP2Dist, bestCDist;
 			AlnScore bestUnchosenUScore, bestUnchosenP1Score, bestUnchosenP2Score, bestUnchosenCScore;
-			int bestUnchosenUDist, bestUnchosenP1Dist, bestUnchosenP2Dist, bestUnchosenCDist;
+			AlnScore bestUnchosenUDist, bestUnchosenP1Dist, bestUnchosenP2Dist, bestUnchosenCDist;
 			ASSERT_ONLY(size_t off =) selectByScore(
 				&rs1_, &rs2_,
 				ndiscord, select1_,
@@ -1056,9 +1056,9 @@ void AlnSinkWrap::finishRead(
 				exhaust1, exhaust2, -1, -1);
 			// Sort by score then pick from low to high
 			AlnScore bestUScore, bestP1Score, bestP2Score, bestCScore;
-			int bestUDist, bestP1Dist, bestP2Dist, bestCDist;
+			AlnScore bestUDist, bestP1Dist, bestP2Dist, bestCDist;
 			AlnScore bestUnchosenUScore, bestUnchosenP1Score, bestUnchosenP2Score, bestUnchosenCScore;
-			int bestUnchosenUDist, bestUnchosenP1Dist, bestUnchosenP2Dist, bestUnchosenCDist;
+			AlnScore bestUnchosenUDist, bestUnchosenP1Dist, bestUnchosenP2Dist, bestUnchosenCDist;
 			size_t off = selectByScore(
 				&rs1u_, NULL, nunpair1, select1_, NULL, NULL,
 				bestUScore,
@@ -1109,9 +1109,9 @@ void AlnSinkWrap::finishRead(
 				exhaust1, exhaust2, -1, -1);
 			// Sort by score then pick from low to high
 			AlnScore bestUScore, bestP1Score, bestP2Score, bestCScore;
-			int bestUDist, bestP1Dist, bestP2Dist, bestCDist;
+			AlnScore bestUDist, bestP1Dist, bestP2Dist, bestCDist;
 			AlnScore bestUnchosenUScore, bestUnchosenP1Score, bestUnchosenP2Score, bestUnchosenCScore;
-			int bestUnchosenUDist, bestUnchosenP1Dist, bestUnchosenP2Dist, bestUnchosenCDist;
+			AlnScore bestUnchosenUDist, bestUnchosenP1Dist, bestUnchosenP2Dist, bestUnchosenCDist;
 			size_t off = selectByScore(
 				&rs2u_, NULL, nunpair2, select2_, NULL, NULL,
 				bestUScore,
@@ -1463,21 +1463,21 @@ size_t AlnSinkWrap::selectByScore(
 	const EList<AlnRes>* rs1u,   // alignments to select from (mate 1)
 	const EList<AlnRes>* rs2u,   // alignments to select from (mate 2, or NULL)
 	AlnScore&            bestUScore,
-	int&                 bestUDist,
+	AlnScore&            bestUDist,
 	AlnScore&            bestP1Score,
-	int&                 bestP1Dist,
+	AlnScore&            bestP1Dist,
 	AlnScore&            bestP2Score,
-	int&                 bestP2Dist,
+	AlnScore&            bestP2Dist,
 	AlnScore&            bestCScore,
-	int&                 bestCDist,
+	AlnScore&            bestCDist,
 	AlnScore&            bestUnchosenUScore,
-	int&                 bestUnchosenUDist,
+	AlnScore&            bestUnchosenUDist,
 	AlnScore&            bestUnchosenP1Score,
-	int&                 bestUnchosenP1Dist,
+	AlnScore&            bestUnchosenP1Dist,
 	AlnScore&            bestUnchosenP2Score,
-	int&                 bestUnchosenP2Dist,
+	AlnScore&            bestUnchosenP2Dist,
 	AlnScore&            bestUnchosenCScore,
-	int&                 bestUnchosenCDist,
+	AlnScore&            bestUnchosenCDist,
 	RandomSource&        rnd)
 	const
 {
@@ -1489,18 +1489,22 @@ size_t AlnSinkWrap::selectByScore(
 	assert(rs2 == NULL || rs2u != NULL);
 
 	bestUScore.invalidate();
-	bestUDist = std::numeric_limits<int>::max();
+	bestUDist.invalidate();
 	bestUnchosenUScore.invalidate();
-	bestUnchosenUDist = std::numeric_limits<int>::max();
+	bestUnchosenUDist.invalidate();
 
 	bestCScore.invalidate();
 	bestP1Score.invalidate();
 	bestP2Score.invalidate();
-	bestCDist = bestP1Dist = bestP2Dist = std::numeric_limits<int>::max();
+	bestCDist.invalidate();
+	bestP1Dist.invalidate();
+	bestP2Dist.invalidate();
 	bestUnchosenCScore.invalidate();
 	bestUnchosenP1Score.invalidate();
 	bestUnchosenP2Score.invalidate();
-	bestUnchosenCDist = bestUnchosenP1Dist = bestUnchosenP2Dist = std::numeric_limits<int>::max();
+	bestUnchosenCDist.invalidate();
+	bestUnchosenP1Dist.invalidate();
+	bestUnchosenP2Dist.invalidate();
 	
 	size_t sz = rs1->size(); // sz = # alignments found
 	assert_leq(num, sz);
@@ -1548,19 +1552,15 @@ size_t AlnSinkWrap::selectByScore(
 	for(size_t i = 0; i < num; i++) { select[i] = buf[i].second; }
 	
 	if(rs2 == NULL) {
-		bestUScore = (*rs1)[select[0]].score();
-		bestUDist = (*rs1)[select[0]].score().nedit();
+		bestUScore = bestUDist = (*rs1)[select[0]].score();
 	}
 	
 	// For paired-end read, find best alignment score among end
 	// alignments not chosen, for both ends
 	if(rs2 != NULL) {
-		bestCScore = (*rs1)[select[0]].score() + (*rs2)[select[0]].score();
-		bestCDist = (*rs1)[select[0]].score().nedit() + (*rs2)[select[0]].score().nedit();
-		bestP1Score = (*rs1)[select[0]].score();
-		bestP1Dist = (*rs1)[select[0]].score().nedit();
-		bestP2Score = (*rs2)[select[0]].score();
-		bestP2Dist = (*rs2)[select[0]].score().nedit();
+		bestCScore = bestCDist = (*rs1)[select[0]].score() + (*rs2)[select[0]].score();
+		bestP1Score = bestP1Dist = (*rs1)[select[0]].score();
+		bestP2Score = bestP2Dist = (*rs2)[select[0]].score();
 		for(size_t i = 0; i < rs1u->size(); i++) {
 			if((*rs1u)[i].refcoord() == (*rs1)[select[0]].refcoord()) {
 				continue;
@@ -1568,8 +1568,8 @@ size_t AlnSinkWrap::selectByScore(
 			if((*rs1u)[i].score() > bestUnchosenP1Score) {
 				bestUnchosenP1Score = (*rs1u)[i].score();
 			}
-			if((*rs1u)[i].score().nedit() < bestUnchosenP1Dist) {
-				bestUnchosenP1Dist = (*rs1u)[i].score().nedit();
+			if((*rs1u)[i].score().basesAligned() > bestUnchosenP1Dist.basesAligned()) {
+				bestUnchosenP1Dist = (*rs1u)[i].score();
 			}
 		}
 		for(size_t i = 0; i < rs2u->size(); i++) {
@@ -1579,28 +1579,25 @@ size_t AlnSinkWrap::selectByScore(
 			if((*rs2u)[i].score() > bestUnchosenP2Score) {
 				bestUnchosenP2Score = (*rs2u)[i].score();
 			}
-			if((*rs2u)[i].score().nedit() < bestUnchosenP2Dist) {
-				bestUnchosenP2Dist = (*rs2u)[i].score().nedit();
+			if((*rs2u)[i].score().basesAligned() > bestUnchosenP2Dist.basesAligned()) {
+				bestUnchosenP2Dist = (*rs2u)[i].score();
 			}
 		}
 		if(buf.size() > 1) {
 			bestUnchosenCScore = buf[1].first;
-			int ed = std::numeric_limits<int>::max();
-			int bestEd = ed;
 			for(size_t i = 1; i < buf.size(); i++) {
-				ed = (*rs1)[buf[i].second].score().nedit() +
-				     (*rs2)[buf[i].second].score().nedit();
-				if(ed < bestEd) {
-					bestEd = ed;
+				AlnScore dist = (*rs1)[buf[i].second].score() +
+				                (*rs2)[buf[i].second].score();
+				if(dist.basesAligned() > bestUnchosenCDist.basesAligned()) {
+					bestUnchosenCDist = dist;
 				}
 			}
-			bestUnchosenCDist = bestEd;
 		}
 	} else if(buf.size() > 1) {
 		bestUnchosenUScore = (*rs1)[buf[1].second].score();
 		for(size_t i = 1; i < buf.size(); i++) {
-			if((*rs1)[buf[1].second].score().nedit() < bestUnchosenUDist) {
-				bestUnchosenUDist = (*rs1)[buf[1].second].score().nedit();
+			if((*rs1)[buf[1].second].score().basesAligned() > bestUnchosenUDist.basesAligned()) {
+				bestUnchosenUDist = (*rs1)[buf[1].second].score();
 			}
 		}
 	}

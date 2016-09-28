@@ -1595,13 +1595,15 @@ int BtBranchTracer::trySolution(
 		return BT_REJECTED_CORE_DIAG;
 	}
 	off = br->leftmostCol();
+	size_t trimBeg = br->uppermostRow();
+	size_t trimEnd = prob_.qrylen_ - prob_.row_ - 1;
 	score.score_ = prob_.targ_;
+	score.basesAligned_ = (int)(prob_.qrylen_ - trimBeg - trimEnd - ned.size());
+	score.edits_ = (int)ned.size();
 	score.ns_    = ns;
 	score.gaps_  = ngap;
 	res.alres.setScore(score);
 	res.alres.setRefNs(nrefns);
-	size_t trimBeg = br->uppermostRow();
-	size_t trimEnd = prob_.qrylen_ - prob_.row_ - 1;
 	assert_leq(trimBeg, prob_.qrylen_);
 	assert_leq(trimEnd, prob_.qrylen_);
 	TRefOff refoff = off + prob_.refoff_ + prob_.rect_->refl;

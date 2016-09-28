@@ -63,8 +63,9 @@ public:
 	/**
 	 * Gapped scores are invalid until proven valid.
 	 */
-	inline AlnScore(TAlScore score, int edits, TAlScore ns, TAlScore gaps) {
+	inline AlnScore(TAlScore score, int basesAligned, int edits, TAlScore ns, TAlScore gaps) {
 		score_ = score;
+		basesAligned_ = basesAligned;
 		edits_ = edits;
 		ns_ = ns;
 		gaps_ = gaps;
@@ -75,7 +76,7 @@ public:
 	 * Reset the score.
 	 */
 	void reset() {
-		score_ = edits_ = ns_ = gaps_ = 0;
+		score_ = basesAligned_ = edits_ = ns_ = gaps_ = 0;
 	}
 
 	/**
@@ -100,6 +101,8 @@ public:
 	 */
 	inline void invalidate() {
 		score_ = MIN_I64;
+		edits_ = basesAligned_ = std::numeric_limits<int>::min();
+		ns_ = gaps_ = 0;
 		assert(!valid());
 	}
 	
@@ -140,6 +143,7 @@ public:
 	inline AlnScore& operator=(const AlnScore& o) {
 		// Profiling shows many cache misses on following lines
 		gaps_  = o.gaps_;
+		basesAligned_ = o.basesAligned_;
 		ns_    = o.ns_;
 		edits_ = o.edits_;
 		score_ = o.score_;
@@ -195,6 +199,7 @@ public:
 		if(!VALID_AL_SCORE(*this)) return *this;
 		AlnScore s;
 		s.gaps_ = gaps_ + o.gaps_;
+		s.basesAligned_ = basesAligned_ + o.basesAligned_;
 		s.ns_ = ns_ + o.ns_;
 		s.edits_ = edits_ + o.edits_;
 		s.score_ = score_ + o.score_;
@@ -208,6 +213,7 @@ public:
 	inline AlnScore operator+=(const AlnScore& o) {
 		if(VALID_AL_SCORE(*this)) {
 			gaps_ += o.gaps_;
+			basesAligned_ += o.basesAligned_;
 			score_ += o.score_;
 			edits_ += o.edits_;
 			ns_ += o.ns_;
@@ -219,10 +225,14 @@ public:
 	TAlScore penalty() const { return -score_; }
 	TAlScore gaps()    const { return  gaps_;  }
 	TAlScore ns()      const { return  ns_;    }
+	int basesAligned() const { return  basesAligned_; }
 	int nedit()        const { return  edits_; }
 
 	// Score accumulated so far (penalties are subtracted starting at 0)
 	TAlScore score_;
+	
+	// Number of bases matching between the read and reference
+	int basesAligned_;
 	
 	// Edit distance
 	int edits_;
@@ -1692,18 +1702,18 @@ public:
 		bestP1Score_.invalidate();
 		bestP2Score_.invalidate();
 		bestCScore_.invalidate();
-		bestUDist_ = std::numeric_limits<int>::max();
-		bestP1Dist_ = std::numeric_limits<int>::max();
-		bestP2Dist_ = std::numeric_limits<int>::max();
-		bestCDist_ = std::numeric_limits<int>::max();
+		bestUDist_.invalidate();
+		bestP1Dist_.invalidate();
+		bestP2Dist_.invalidate();
+		bestCDist_.invalidate();
 		bestUnchosenUScore_.invalidate();
 		bestUnchosenP1Score_.invalidate();
 		bestUnchosenP2Score_.invalidate();
 		bestUnchosenCScore_.invalidate();
-		bestUnchosenUDist_ = std::numeric_limits<int>::max();
-		bestUnchosenP1Dist_ = std::numeric_limits<int>::max();
-		bestUnchosenP2Dist_ = std::numeric_limits<int>::max();
-		bestUnchosenCDist_ = std::numeric_limits<int>::max();
+		bestUnchosenUDist_.invalidate();
+		bestUnchosenP1Dist_.invalidate();
+		bestUnchosenP2Dist_.invalidate();
+		bestUnchosenCDist_.invalidate();
 		other1_ = other2_ = 0;
 		paired_ = false;
 		exhausted1_ = exhausted2_ = false;
@@ -1774,19 +1784,19 @@ public:
 	AlnScore bestP1Score() const { return bestP1Score_; }
 	AlnScore bestP2Score() const { return bestP2Score_; }
 	AlnScore bestCScore()  const { return bestCScore_;  }
-	int bestUDist()  const { return bestUDist_;  }
-	int bestP1Dist() const { return bestP1Dist_; }
-	int bestP2Dist() const { return bestP2Dist_; }
-	int bestCDist()  const { return bestCDist_;  }
+	AlnScore bestUDist()   const { return bestUDist_;  }
+	AlnScore bestP1Dist()  const { return bestP1Dist_; }
+	AlnScore bestP2Dist()  const { return bestP2Dist_; }
+	AlnScore bestCDist()   const { return bestCDist_;  }
 
 	AlnScore bestUnchosenUScore()  const { return bestUnchosenUScore_;  }
 	AlnScore bestUnchosenP1Score() const { return bestUnchosenP1Score_; }
 	AlnScore bestUnchosenP2Score() const { return bestUnchosenP2Score_; }
 	AlnScore bestUnchosenCScore()  const { return bestUnchosenCScore_;  }
-	int bestUnchosenUDist()  const { return bestUnchosenUDist_;  }
-	int bestUnchosenP1Dist() const { return bestUnchosenP1Dist_; }
-	int bestUnchosenP2Dist() const { return bestUnchosenP2Dist_; }
-	int bestUnchosenCDist()  const { return bestUnchosenCDist_;  }
+	AlnScore bestUnchosenUDist()   const { return bestUnchosenUDist_;  }
+	AlnScore bestUnchosenP1Dist()  const { return bestUnchosenP1Dist_; }
+	AlnScore bestUnchosenP2Dist()  const { return bestUnchosenP2Dist_; }
+	AlnScore bestUnchosenCDist()   const { return bestUnchosenCDist_;  }
 
 	/**
 	 * Return best unchosen alignment score for end 1 or 2 of a pair.
@@ -1798,7 +1808,7 @@ public:
 	/**
 	 * Return best unchosen edit distance for end 1 or 2 of a pair.
 	 */
-	int bestUnchosenPDist(bool mate1) const {
+	AlnScore bestUnchosenPDist(bool mate1) const {
 		return mate1 ? bestUnchosenP1Dist_ : bestUnchosenP2Dist_;
 	}
 	
@@ -1819,7 +1829,7 @@ public:
 	 * Return best unchosen edit distance for end 1 or 2 whether
 	 * the read is a pair or not.
 	 */
-	int bestUnchosenDist(bool mate1) const {
+	AlnScore bestUnchosenDist(bool mate1) const {
 		if(mate1) {
 			return paired_ ? bestUnchosenP1Dist_ : bestUnchosenUDist();
 		} else {
@@ -1849,7 +1859,7 @@ public:
 	 * Return best edit distance for end 1 or 2 whether the read is
 	 * a pair or not.
 	 */
-	int bestDist(bool mate1) const {
+	AlnScore bestDist(bool mate1) const {
 		if(mate1) {
 			return paired_ ? bestP1Dist_ : bestUDist_;
 		} else {
@@ -1869,30 +1879,30 @@ public:
 	 */
 	void setBest(
 		AlnScore bestUScore,
-		int bestUDist,
+		AlnScore bestUDist,
 		AlnScore bestP1Score,
-		int bestP1Dist,
+		AlnScore bestP1Dist,
 		AlnScore bestP2Score,
-		int bestP2Dist,
+		AlnScore bestP2Dist,
 		AlnScore bestCScore,
-		int bestCDist,
+		AlnScore bestCDist,
 		AlnScore bestUnchosenUScore,
-		int bestUnchosenUDist,
+		AlnScore bestUnchosenUDist,
 		AlnScore bestUnchosenP1Score,
-		int bestUnchosenP1Dist,
+		AlnScore bestUnchosenP1Dist,
 		AlnScore bestUnchosenP2Score,
-		int bestUnchosenP2Dist,
+		AlnScore bestUnchosenP2Dist,
 		AlnScore bestUnchosenCScore,
-		int bestUnchosenCDist)
+		AlnScore bestUnchosenCDist)
 	{
-		assert(bestUScore.valid() == (bestUDist < std::numeric_limits<int>::max()));
-		assert(bestP1Score.valid() == (bestP1Dist < std::numeric_limits<int>::max()));
-		assert(bestP2Score.valid() == (bestP2Dist < std::numeric_limits<int>::max()));
-		assert(bestCScore.valid() == (bestCDist < std::numeric_limits<int>::max()));
-		assert(bestUnchosenUScore.valid() == (bestUnchosenUDist < std::numeric_limits<int>::max()));
-		assert(bestUnchosenP1Score.valid() == (bestUnchosenP1Dist < std::numeric_limits<int>::max()));
-		assert(bestUnchosenP2Score.valid() == (bestUnchosenP2Dist < std::numeric_limits<int>::max()));
-		assert(bestUnchosenCScore.valid() == (bestUnchosenCDist < std::numeric_limits<int>::max()));
+		assert(bestUScore.valid() == bestUDist.valid());
+		assert(bestP1Score.valid() == bestP1Dist.valid());
+		assert(bestP2Score.valid() == bestP2Dist.valid());
+		assert(bestCScore.valid() == bestCDist.valid());
+		assert(bestUnchosenUScore.valid() == bestUnchosenUDist.valid());
+		assert(bestUnchosenP1Score.valid() == bestUnchosenP1Dist.valid());
+		assert(bestUnchosenP2Score.valid() == bestUnchosenP2Dist.valid());
+		assert(bestUnchosenCScore.valid() == bestUnchosenCDist.valid());
 		bestUScore_ = bestUScore;
 		bestUDist_ = bestUDist;
 		bestP1Score_ = bestP1Score;
@@ -1922,22 +1932,22 @@ protected:
 	TRefOff  orefoff_;
 
 	AlnScore bestUScore_;
-	int bestUDist_;
+	AlnScore bestUDist_;
 	AlnScore bestP1Score_;
-	int bestP1Dist_;
+	AlnScore bestP1Dist_;
 	AlnScore bestP2Score_;
-	int bestP2Dist_;
+	AlnScore bestP2Dist_;
 	AlnScore bestCScore_;
-	int bestCDist_;
+	AlnScore bestCDist_;
 
 	AlnScore bestUnchosenUScore_;
-	int bestUnchosenUDist_;
+	AlnScore bestUnchosenUDist_;
 	AlnScore bestUnchosenP1Score_;
-	int bestUnchosenP1Dist_;
+	AlnScore bestUnchosenP1Dist_;
 	AlnScore bestUnchosenP2Score_;
-	int bestUnchosenP2Dist_;
+	AlnScore bestUnchosenP2Dist_;
 	AlnScore bestUnchosenCScore_;
-	int bestUnchosenCDist_;
+	AlnScore bestUnchosenCDist_;
 };
 
 #endif

@@ -1241,21 +1241,21 @@ protected:
 		const EList<AlnRes>* rs1u,   // alignments to select from (mate 1)
 		const EList<AlnRes>* rs2u,   // alignments to select from (mate 2, or NULL)
 		AlnScore&            bestUScore,
-		int&                 bestUDist,
+		AlnScore&            bestUDist,
 		AlnScore&            bestP1Score,
-		int&                 bestP1Dist,
+		AlnScore&            bestP1Dist,
 		AlnScore&            bestP2Score,
-		int&                 bestP2Dist,
+		AlnScore&            bestP2Dist,
 		AlnScore&            bestCScore,
-		int&                 bestCDist,
+		AlnScore&            bestCDist,
 		AlnScore&            bestUnchosenUScore,
-		int&                 bestUnchosenUDist,
+		AlnScore&            bestUnchosenUDist,
 		AlnScore&            bestUnchosenP1Score,
-		int&                 bestUnchosenP1Dist,
+		AlnScore&            bestUnchosenP1Dist,
 		AlnScore&            bestUnchosenP2Score,
-		int&                 bestUnchosenP2Dist,
+		AlnScore&            bestUnchosenP2Dist,
 		AlnScore&            bestUnchosenCScore,
-		int&                 bestUnchosenCDist,
+		AlnScore&            bestUnchosenCDist,
 		RandomSource&        rnd)
 		const;
 

@@ -547,12 +547,12 @@ void SamConfig::printAlignedOptFlags(
 			thirdBest[self] = mate1 ? prm.bestLtMinscMate1 : prm.bestLtMinscMate2;
 			
 			if(flags.partOfPair()) {
-				if(summ.bestUnchosenPDist(mate1) != ED_MAX) {
-					diffEd[self] = summ.bestUnchosenPDist(mate1) - best[self].nedit();
+				if(summ.bestUnchosenPDist(mate1).valid()) {
+					diffEd[self] = best[self].basesAligned() - summ.bestUnchosenPDist(mate1).basesAligned();
 				}
 			} else {
-				if(summ.bestUnchosenUDist() != ED_MAX) {
-					diffEd[self] = summ.bestUnchosenUDist() - best[self].nedit();
+				if(summ.bestUnchosenUDist().valid()) {
+					diffEd[self] = best[self].basesAligned() - summ.bestUnchosenUDist().basesAligned();
 				}
 			}
 		}
@@ -569,7 +569,9 @@ void SamConfig::printAlignedOptFlags(
 			best_conc = summ.bestCScore().score();
 			if(summ.bestUnchosenCScore().valid()) {
 				diff_conc = best_conc - summ.bestUnchosenCScore().score();
-				diffEd_conc = summ.bestUnchosenCScore().nedit() - summ.bestCScore().nedit();
+			}
+			if(summ.bestUnchosenCDist().valid()) {
+				diffEd_conc = summ.bestCDist().basesAligned() - summ.bestUnchosenCDist().basesAligned();
 			}
 		}
 		o.append("ZT:Z:");
@@ -626,7 +628,7 @@ void SamConfig::printAlignedOptFlags(
 		}
 		o.append(",");
 		// Edit distance diff for aligned pairs
-		if(diff_conc > MN) {
+		if(diffEd_conc != ED_MAX) {
 			itoa10<TAlScore>((int)diffEd_conc, buf);
 			o.append(buf);
 		} else {
