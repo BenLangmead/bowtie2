@@ -1566,6 +1566,13 @@ static void parseOptions(int argc, const char **argv) {
 		     << "); setting to 1 instead" << endl;
 		gGapBarrier = 1;
 	}
+	if(bonusMatch > 0 && !scoreMin.alwaysPositive()) {
+		cerr << "Error: the match penalty is greater than 0 (" << bonusMatch
+		     << ") but the --score-min function can be less than or equal to "
+			 << "zero.  Either let the match penalty be 0 or make --score-min "
+			 << "always positive." << endl;
+		throw 1;
+	}
 	if(multiseedMms >= multiseedLen) {
 		assert_gt(multiseedLen, 0);
 		cerr << "Warning: seed mismatches (" << multiseedMms
