@@ -82,6 +82,10 @@ public:
 	bool initialized() const { return type_ != 0; }
 	void reset() { type_ = 0; }
 	
+	bool alwaysPositive() const {
+		return f<int>(1.0) > 0 && (SIMPLE_FUNC_CONST || L_ >= 0.0);
+	}
+	
 	template<typename T>
 	T f(double x) const {
 		assert(type_ >= SIMPLE_FUNC_CONST && type_ <= SIMPLE_FUNC_LOG);
