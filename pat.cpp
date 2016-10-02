@@ -745,10 +745,10 @@ bool FastaPatternSource::read(
 			break;
 		}
 		r.name.append(c);
-		if(fb_.peek() == '>') {
-			// Empty sequence
-			break;
-		}
+		//if(fb_.peek() == '>') {
+		//	// Empty sequence
+		//	break;
+		//}
 		c = fb_.get();
 	}
 	if(c == '>') {
