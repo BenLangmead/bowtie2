@@ -205,12 +205,7 @@ public:
 	PatternSource(const PatternParams& p) :
 		seed_(p.seed),
 		readCnt_(0),
-		mutex()
-	{
-#ifdef WITH_COHORTLOCK
-		mutex.reset_lock(p.nthreads);
-#endif
-	}
+		mutex() { }
 	
 	virtual ~PatternSource() { }
 	
@@ -880,12 +875,7 @@ private:
  */
 class PatternComposer {
 public:
-	PatternComposer(const PatternParams& p) : seed_(p.seed), mutex_m()
-	{
-#ifdef WITH_COHORTLOCK
-		mutex_m.reset_lock(p.nthreads);
-#endif
-	}
+	PatternComposer(const PatternParams& p) : seed_(p.seed), mutex_m() { }
 	
 	virtual ~PatternComposer() { }
 	

@@ -30,11 +30,6 @@
 # include <tbb/spin_mutex.h>
 # include <tbb/queuing_mutex.h>
 # ifdef WITH_AFFINITY
-#  ifdef WITH_COHORTLOCK
-#   include "tkt.hpp"
-#   include "ptl.hpp"
-#   include "cohort.hpp"
-#  endif
 #  include <sched.h>
 #  include <tbb/task_group.h>
 #  include <tbb/task_scheduler_observer.h>
@@ -59,12 +54,6 @@
 #else
 # ifdef WITH_TBB
 #    ifdef WITH_AFFINITY
-#	ifdef WITH_COHORTLOCK
-#		define MUTEX_T CohortLock
-#	else
-#  		define MUTEX_T tbb::spin_mutex
-#	endif
-#    else
 #  	define MUTEX_T tbb::spin_mutex
 #    endif
 # else
@@ -88,7 +77,6 @@ public:
 			//the scoped lock
 			this->ptr_mutex = new MUTEX_T::scoped_lock(*ptr_mutex);
 #else
-//TODO: need to add special conditional for CohortLock here
 			this->ptr_mutex = ptr_mutex;
 			ptr_mutex->lock();
 #endif
