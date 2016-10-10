@@ -76,6 +76,11 @@ endif
 PTHREAD_PKG =
 PTHREAD_LIB = 
 
+#if we're not using TBB, then we can't use queuing locks
+ifeq (1,$(NO_TBB))
+	NO_QUEUELOCK=1
+endif
+
 ifeq (1,$(MINGW))
 	PTHREAD_LIB = 
 else
@@ -86,7 +91,8 @@ ifeq (1,$(NO_SPINLOCK))
 	override EXTRA_FLAGS += -DNO_SPINLOCK
 endif
 
-ifeq (1,$(WITH_TBB))
+#default is to use Intel TBB
+ifneq (1,$(NO_TBB))
 	LIBS = $(PTHREAD_LIB) -ltbb -ltbbmalloc_proxy
 	override EXTRA_FLAGS += -DWITH_TBB
 else
@@ -109,7 +115,9 @@ ifeq (1,$(WITH_AFFINITY))
 	override EXTRA_FLAGS += -DWITH_AFFINITY=1
 endif
 
-ifeq (1,$(WITH_QUEUELOCK))
+#default is to use Intel TBB's queuing lock for better thread scaling performance
+ifneq (1,$(NO_QUEUELOCK))
+	override EXTRA_FLAGS += -DNO_SPINLOCK
 	override EXTRA_FLAGS += -DWITH_QUEUELOCK=1
 endif
 
@@ -119,12 +127,7 @@ SHARED_CPPS = ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
               reference.cpp ds.cpp multikey_qsort.cpp limit.cpp \
 			  random_source.cpp
 
-ifeq (1,$(WITH_COHORTLOCK))
-	override EXTRA_FLAGS += -DWITH_COHORTLOCK=1
-	SHARED_CPPS += cohort.cpp cpu_numa_info.cpp
-endif
-
-ifneq (1,$(WITH_TBB))
+ifeq (1,$(NO_TBB))
 	SHARED_CPPS += tinythread.cpp
 endif
 
@@ -222,7 +225,7 @@ GENERAL_LIST = $(wildcard scripts/*.sh) \
 
 ifeq (1,$(WINDOWS))
 	BOWTIE2_BIN_LIST := $(BOWTIE2_BIN_LIST) bowtie2.bat bowtie2-build.bat bowtie2-inspect.bat 
-    ifeq (1,$(WITH_TBB)) 
+    ifneq (1,$(NO_TBB)) 
 	    override EXTRA_FLAGS += -static-libgcc -static-libstdc++
 	else
 	    override EXTRA_FLAGS += -static -static-libgcc -static-libstdc++
