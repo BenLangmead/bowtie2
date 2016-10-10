@@ -53,11 +53,9 @@
 # endif
 #else
 # ifdef WITH_TBB
-#    ifdef WITH_AFFINITY
-#  	define MUTEX_T tbb::spin_mutex
-#    endif
+#   define MUTEX_T tbb::spin_mutex
 # else
-#  	define MUTEX_T tthread::fast_mutex
+#   define MUTEX_T tthread::fast_mutex
 # endif
 #endif /* NO_SPINLOCK */
 
