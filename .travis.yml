@@ -1,14 +1,13 @@
 language: c++
 compiler:
-- clang
-- gcc
-branches:
-  only:
-  - master
-  - cleaner_parsing
-  - batch_parsing
-  - no-io
+        - clang
+        - gcc
+cache: apt
+addons:
+  apt:
+    packages:
+    - libtbb-dev
 script: make allall
 notifications:
-  slack:
-    secure: tfzT8N1fNV+oSV7tide9WrAj3ifs+LONJ3fCH1tUzexqrx23te4lE0oAj9C1cEMJ4evyRYwHNG8HZoLCOy8EfapqbWm6vgLIlkIBpeZ9E6f2jG6v0YuVDWWpqQC3qdGXCqWtHPjgs3i5OLsLwwQ/LItLoTqpBk2aYv+vGNs2F9g=
+          slack:
+                  secure: K/SdL+S1lb+Vf3KucmiMh4Fyd9sWmosw+mSRjtAjAzXUYZ3zMp91bM6GzHVD1nonMQWDu3vY6TOApvnikSfd4ZSRhO4ijDda5zF3SN19Uly4vXRTC0C4UKloyVqOjx2uwXU4Mz+7cuO9RCb4CczL2HUG9tiLN5BjfbnHvQlZzsE6dJuo+5BoKq88SbNhlBlGIuLWAsVmpnaozNjowNBLb2+BtrK5KSN5eTyCVerZeoJ2ChexDXGf7SnGVQhgu05hfOB52ti1mzRaTRGY91jnKAibBaO/gyW2Q5/AeBy+OrL5poenM0rAJHjztUCw1lC1G4Mej73YyHn6V1NF0DHSYM9l8aBe0nAweAuB4tuRJ9gJtqR6GjXdqURI5ABBsFIkb9pNbJz59g9sTpKrrWmIqqj7a8Eld7nk1K+IjBVOvDT9x3PWjl/H1sAl+0bRT42lu+zjJV9BIn/Fwn+xC0syRazgDimkfPLbn/aAEBKeofwdk/DHb3amBtbHsEFZsAdI5Mrq/tIuCYO0i7jYxlmNTNsXA5a0gF1OExGJvPPDV2/lp/bPx/ncvcZvwjpst6BEyJURmM5MsMCeHbiuPvlVmA4R29BTMBaW/ZN5smF4E+CkV2IxPlpgh2c+YSX44ikYnG3v4H5QKxLI4W4E+TTn9/1EmdO0KMzNG8gEiNnKcTg=
