@@ -21,21 +21,12 @@
 #define PAT_H_
 
 #include <cassert>
-#include <cmath>
-#include <stdexcept>
-#include <vector>
 #include <string>
-#include <cstring>
 #include <ctype.h>
-#include <fstream>
-#include <ctime>
-#include <sys/time.h>
 #include "alphabet.h"
 #include "assert_helpers.h"
-#include "tokenize.h"
 #include "random_source.h"
 #include "threading.h"
-#include "filebuf.h"
 #include "qual.h"
 #include "search_globals.h"
 #include "sstring.h"
@@ -285,22 +276,16 @@ public:
 	/**
 	 * Finishes parsing outside the critical section
 	 */
-	virtual bool parse(Read& ra, Read& rb, TReadId rdid) const {
-		cerr << "In VectorPatternSource.parse()" << endl;
-		throw 1;
-		return false;
-	}
+	virtual bool parse(Read& ra, Read& rb, TReadId rdid) const;
 	
 private:
 
-	size_t cur_;            // index for first read of next batch
-	size_t skip_;           // # reads to skip
-	bool paired_;           // ?
-	EList<BTDnaString> v_;  // forward sequences
-	EList<BTString> quals_; // forward qualities
-	EList<BTString> names_; // names
-	EList<int> trimmed3_;   // # bases trimmed from 3' end
-	EList<int> trimmed5_;   // # bases trimmed from 5' end
+	size_t cur_;               // index for first read of next batch
+	size_t skip_;              // # reads to skip
+	bool paired_;              // whether reads are paired
+	EList<string> tokbuf_;     // buffer for storing parsed tokens
+	EList<Read::TBuf> bufs_;   // per-read buffers
+	char nametmp_[20];         // temp buffer for constructing name
 };
 
 /**
@@ -791,7 +776,7 @@ public:
 	
 	/**
 	 * Reset this object and all the PatternSources under it so that
-	 * the next call to nextBatchPair gets the very first read pair.
+	 * the next call to nextBatch gets the very first read.
 	 */
 	virtual void reset() {
 		for(size_t i = 0; i < src_->size(); i++) {
@@ -859,7 +844,7 @@ public:
 	
 	/**
 	 * Reset this object and all the PatternSources under it so that
-	 * the next call to nextBatchPair gets the very first read pair.
+	 * the next call to nextBatch gets the very first read.
 	 */
 	virtual void reset() {
 		for(size_t i = 0; i < srca_->size(); i++) {

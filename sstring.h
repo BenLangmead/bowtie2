@@ -1735,9 +1735,9 @@ public:
 	}
 
 	/**
-	 * Assignment to other SStringFixed.
+	 * Assignment to other SStringExpandable.
 	 */
-	SStringExpandable<T,S>& operator=(const SStringExpandable<T,S>& o) {
+	SStringExpandable<T,S,M,I>& operator=(const SStringExpandable<T,S,M,I>& o) {
 		install(o.cs_, o.len_);
 		return *this;
 	}

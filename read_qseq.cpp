@@ -26,7 +26,7 @@
  * be tab, newline, etc.).
  */
 static int parseName(
-	SStringExpandable<char, 1024, 2, 1024>& buf, // buffer w/ raw qseq data
+	Read::TBuf& buf, // buffer w/ raw qseq data
 	size_t& cur,     // buffer cursor
 	Read& r,         // buffer for mate 1
 	int upto)        // stop parsing when we first reach character 'upto'

@@ -27,6 +27,7 @@
 #include "filebuf.h"
 #include "formats.h"
 #include "util.h"
+#include "tokenize.h"
 
 using namespace std;
 
@@ -449,74 +450,50 @@ void CFilePatternSource::open() {
 	return;
 }
 
+/**
+ * Constructor for vector pattern source, used when the user has
+ * specified the input strings on the command line using the -c
+ * option.
+ */
 VectorPatternSource::VectorPatternSource(
-	const EList<string>& v,
+	const EList<string>& seqs,
 	const PatternParams& p) :
 	PatternSource(p),
 	cur_(p.skip),
 	skip_(p.skip),
 	paired_(false),
-	v_(),
-	quals_()
+	tokbuf_(),
+	bufs_()
 {
-	for(size_t i = 0; i < v.size(); i++) {
-		EList<string> ss;
-		tokenize(v[i], ":", ss, 2);
-		assert_gt(ss.size(), 0);
-		assert_leq(ss.size(), 2);
-		// Initialize s
-		string s = ss[0];
-		int mytrim5 = gTrim5;
-		if(s.length() <= (size_t)(gTrim3 + mytrim5)) {
-			// Entire read is trimmed away
-			s.clear();
+	// Install sequences in buffers, ready for immediate copying in
+	// nextBatch().  Formatting of the buffer is just like
+	// TabbedPatternSource.
+	const size_t seqslen = seqs.size();
+	for(size_t i = 0; i < seqslen; i++) {
+		tokbuf_.clear();
+		tokenize(seqs[i], ":", tokbuf_, 2);
+		assert_gt(tokbuf_.size(), 0);
+		assert_leq(tokbuf_.size(), 2);
+		// Get another buffer ready
+		bufs_.expand();
+		bufs_.back().clear();
+		// Install name
+		itoa10<TReadId>(static_cast<TReadId>(i), nametmp_);
+		bufs_.back().install(nametmp_);
+		bufs_.back().append('\t');
+		// Install sequence
+		bufs_.back().append(tokbuf_[0].c_str());
+		bufs_.back().append('\t');
+		// Install qualities
+		if(tokbuf_.size() > 1) {
+			bufs_.back().append(tokbuf_[1].c_str());
 		} else {
-			// Trim on 5' (high-quality) end
-			if(mytrim5 > 0) {
-				s.erase(0, mytrim5);
-			}
-			// Trim on 3' (low-quality) end
-			if(gTrim3 > 0) {
-				s.erase(s.length()-gTrim3);
+			const size_t len = tokbuf_[0].length();
+			for(size_t i = 0; i < len; i++) {
+				bufs_.back().append('I');
 			}
 		}
-		//  Initialize vq
-		string vq;
-		if(ss.size() == 2) {
-			vq = ss[1];
-		}
-		// Trim qualities
-		if(vq.length() > (size_t)(gTrim3 + mytrim5)) {
-			// Trim on 5' (high-quality) end
-			if(mytrim5 > 0) {
-				vq.erase(0, mytrim5);
-			}
-			// Trim on 3' (low-quality) end
-			if(gTrim3 > 0) {
-				vq.erase(vq.length()-gTrim3);
-			}
-		}
-		// Pad quals with Is if necessary; this shouldn't happen
-		while(vq.length() < s.length()) {
-			vq.push_back('I');
-		}
-		// Truncate quals to match length of read if necessary;
-		// this shouldn't happen
-		if(vq.length() > s.length()) {
-			vq.erase(s.length());
-		}
-		assert_eq(vq.length(), s.length());
-		v_.expand();
-		v_.back().installChars(s);
-		quals_.push_back(BTString(vq));
-		trimmed3_.push_back(gTrim3);
-		trimmed5_.push_back(mytrim5);
-		// TODO: more work-intensive than it should be
-		ostringstream os;
-		os << (names_.size());
-		names_.push_back(BTString(os.str()));
 	}
-	assert_eq(v_.size(), quals_.size());
 }
 
 /**
@@ -530,72 +507,109 @@ pair<bool, int> VectorPatternSource::nextBatch(
 	bool batch_a,
 	bool lock)
 {
-	bool success = true;
-	int nread = 0;
-	pt.reset();
 	ThreadSafe ts(&mutex, lock);
-	pt.setReadId(readCnt_);
-#if 0
-	// TODO: set nread to min of pt.size() and total - cur_
-	// TODO: implement something like following function
-	pt.install_dummies(nread);
-#endif
-	readCnt_ += nread;
-	return make_pair(success, nread);
+	pt.setReadId(cur_);
+	EList<Read>& readbuf = batch_a ? pt.bufa_ : pt.bufb_;
+	size_t readi = 0;
+	for(; readi < pt.max_buf_ && cur_ < bufs_.size(); readi++, cur_++) {
+		readbuf[readi].readOrigBuf = bufs_[cur_];
+	}
+	readCnt_ += readi;
+	return make_pair(cur_ == bufs_.size(), readi);
 }
 
-#if 0
 /**
- * This is unused, but implementation is given for completeness.
+ * Finishes parsing outside the critical section.
  */
-pair<bool, int> VectorPatternSource::nextBatchPair(PerThreadReadBuf& pt)
-{
-	bool success = true;
-	int nread = 0;
-	// Let Strings begin at the beginning of the respective bufs
-	ra.reset();
-	rb.reset();
-	paired = true;
-	if(!paired_) {
-		paired_ = true;
-		cur_ <<= 1;
+bool VectorPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
+	// Very similar to TabbedPatternSource
+
+	// Light parser (nextBatchFromFile) puts unparsed data
+	// into Read& r, even when the read is paired.
+	assert(ra.empty());
+	assert(!ra.readOrigBuf.empty()); // raw data for read/pair is here
+	int c = '\t';
+	size_t cur = 0;
+	const size_t buflen = ra.readOrigBuf.length();
+	
+	// Loop over the two ends
+	for(int endi = 0; endi < 2 && c == '\t'; endi++) {
+		Read& r = ((endi == 0) ? ra : rb);
+		assert(r.name.empty());
+		// Parse name if (a) this is the first end, or
+		// (b) this is tab6
+		if(endi < 1 || paired_) {
+			// Parse read name
+			c = ra.readOrigBuf[cur++];
+			while(c != '\t' && cur < buflen) {
+				r.name.append(c);
+				c = ra.readOrigBuf[cur++];
+			}
+			assert_eq('\t', c);
+			if(cur >= buflen) {
+				return false; // record ended prematurely
+			}
+		} else if(endi > 0) {
+			// if this is the second end and we're parsing
+			// tab5, copy name from first end
+			rb.name = ra.name;
+		}
+
+		// Parse sequence
+		assert(r.patFw.empty());
+		c = ra.readOrigBuf[cur++];
+		int nchar = 0;
+		while(c != '\t' && cur < buflen) {
+			if(isalpha(c)) {
+				assert_in(toupper(c), "ACGTN");
+				if(nchar++ >= gTrim5) {
+					assert_neq(0, asc2dnacat[c]);
+					r.patFw.append(asc2dna[c]); // ascii to int
+				}
+			}
+			c = ra.readOrigBuf[cur++];
+		}
+		assert_eq('\t', c);
+		if(cur >= buflen) {
+			return false; // record ended prematurely
+		}
+		// record amt trimmed from 5' end due to --trim5
+		r.trimmed5 = (int)(nchar - r.patFw.length());
+		// record amt trimmed from 3' end due to --trim3
+		r.trimmed3 = (int)(r.patFw.trimEnd(gTrim3));
+		
+		// Parse qualities
+		assert(r.qual.empty());
+		c = ra.readOrigBuf[cur++];
+		int nqual = 0;
+		while(c != '\t' && c != '\n' && c != '\r') {
+			if(c == ' ') {
+				wrongQualityFormat(r.name);
+				return false;
+			}
+			char cadd = charToPhred33(c, false, false);
+			if(++nqual > gTrim5) {
+				r.qual.append(cadd);
+			}
+			if(cur >= buflen) break;
+			c = ra.readOrigBuf[cur++];
+		}
+		if(nchar > nqual) {
+			tooFewQualities(r.name);
+			return false;
+		} else if(nqual > nchar) {
+			tooManyQualities(r.name);
+			return false;
+		}
+		r.qual.trimEnd(gTrim3);
+		assert(c == '\t' || c == '\n' || c == '\r' || cur >= buflen);
+		assert_eq(r.patFw.length(), r.qual.length());
 	}
-	ThreadSafe ts(&mutex);
-	pt.setReadId(readCnt_);
-	if(cur_ >= v_.size()-1) {
-		ts.~ThreadSafe();
-		// Clear all the Strings, as a signal to the caller that
-		// we're out of reads
-		ra.reset();
-		rb.reset();
-		assert(ra.empty());
-		assert(rb.empty());
-		success = false;
-		done = true;
-		return false;
+	if(!rb.readOrigBuf.empty() && rb.patFw.empty()) {
+		return parse(rb, ra, rdid);
 	}
-	// Copy v_*, quals_* strings into the respective Strings
-	ra.patFw  = v_[cur_];
-	ra.qual = quals_[cur_];
-	ra.trimmed3 = trimmed3_[cur_];
-	ra.trimmed5 = trimmed5_[cur_];
-	cur_++;
-	rb.patFw  = v_[cur_];
-	rb.qual = quals_[cur_];
-	rb.trimmed3 = trimmed3_[cur_];
-	rb.trimmed5 = trimmed5_[cur_];
-	ostringstream os;
-	os << readCnt_;
-	ra.name = os.str();
-	rb.name = os.str();
-	cur_++;
-	done = cur_ >= v_.size()-1;
-	rdid = readCnt_;
-	readCnt_++;
-	success = true;
-	return make_pair(success, nread);
+	return true;
 }
-#endif
 
 /**
  * Light-parse a FASTA batch into the given buffer.
@@ -621,7 +635,7 @@ pair<bool, int> FastaPatternSource::nextBatchFromFile(
 	size_t readi = 0;
 	// Read until we run out of input or until we've filled the buffer
 	for(; readi < pt.max_buf_ && !done; readi++) {
-		SStringExpandable<char, 1024, 2, 1024>& buf = readbuf[readi].readOrigBuf;
+		Read::TBuf& buf = readbuf[readi].readOrigBuf;
 		buf.clear();
 		buf.append('>');
 		while(true) {
@@ -827,7 +841,7 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 	size_t readi = 0;
 	// Read until we run out of input or until we've filled the buffer
 	for(; readi < pt.max_buf_ && !done; readi++) {
-		SStringExpandable<char, 1024, 2, 1024>& buf = readbuf[readi].readOrigBuf;
+		Read::TBuf& buf = readbuf[readi].readOrigBuf;
 		assert(readi == 0 || buf.empty());
 		int newlines = 4;
 		while(newlines) {

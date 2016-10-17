@@ -26,7 +26,7 @@
 use strict;
 use warnings;
 use Getopt::Long;
-use FindBin qw($Bin); 
+use FindBin qw($Bin);
 use lib $Bin;
 use List::Util qw(max min);
 use Data::Dumper;
@@ -55,6 +55,812 @@ if(! -x $bowtie2 || ! -x $bowtie2_build) {
 (-x $bowtie2_build) || die "Cannot run '$bowtie2_build'";
 
 my @cases = (
+
+	# File format cases
+
+	# -c
+
+	{ name   => "Cline 1",
+		ref    => [ "AGCATCGATCAGTATCTGA" ],
+		cline_reads => "CATCGATCAGTATCTG",
+		hits   => [{ 2 => 1 }] },
+
+	{ name   => "Cline 2",
+		ref    => [ "AGCATCGATCAGTATCTGA" ],
+		cline_reads => "CATCGATCAGTATCTG:IIIIIIIIIIIIIIII",
+		hits   => [{ 2 => 1 }] },
+
+	{ name   => "Cline 2",
+		ref    => [ "AGCATCGATCAGTATCTGA" ],
+		cline_reads => "CATCGATCAGTATCTG:ABCDEDGHIJKLMNOP",
+		hits   => [{ 2 => 1 }] },
+
+	{ name   => "Cline 4",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  cline_reads  => "CATCGATCAGTATCTG:ABCDEDGHIJKLMNO", # qual too short
+	  should_abort => 1},
+
+	{ name   => "Cline 5",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  cline_reads  => "CATCGATCAGTATCTG:ABCDEDGHIJKLMNOPQ", # qual too long
+	  should_abort => 1},
+
+	# Part of sequence is trimmed
+	{ name   => "Cline 7",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  cline_reads => "CATCGATCAGTATCTG:IIIIIIIIIIIIIIII\n",
+	  args   => "--trim3 4",
+	  norc   => 1,
+	  hits   => [{ 2 => 1 }] },
+
+	# Whole sequence is trimmed
+	{ name   => "Cline 8",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  cline_reads => "CATCGATCAGTATCTG:IIIIIIIIIIIIIIII",
+	  args   => "--trim5 16",
+	  hits   => [{ "*" => 1 }] },
+
+	# Sequence is skipped
+	{ name   => "Cline 9",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  cline_reads => "CATCGATCAGTATCTG:IIIIIIIIIIIIIIII",
+	  args   => "-s 1",
+	  hits   => [{ }] },
+
+	{ name   => "Cline multiread 1",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  cline_reads => "CATCGATCAGTATCTG:IIIIIIIIIIIIIIII,".
+	                 "ATCGATCAGTATCTG:IIIIIIIIIIIIIII\n\n",
+	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
+
+	{ name   => "Cline multiread 2",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+		args   =>   "-u 1",
+	  cline_reads => "CATCGATCAGTATCTG:IIIIIIIIIIIIIIII,".
+	                 "ATCGATCAGTATCTG:IIIIIIIIIIIIIII\n\n",
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Cline multiread 3",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  args   =>   "-u 2",
+	  cline_reads  => "CATCGATCAGTATCTG,".
+	                  "ATCGATCAGTATCTG\r\n",
+	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
+
+	# Paired-end reads that should align
+	{ name     => "Cline paired 1",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  cline_reads1  => "AGCATCGATC:IIIIIIIIII,".
+	                   "TCAGTTTTTGA",
+	  cline_reads2  => "TCAGTTTTTGA,".
+	                   "AGCATCGATC:IIIIIIIIII",
+	  pairhits => [ { "0,8" => 1 }, { "0,8" => 1 } ] },
+
+	# Paired-end reads that should align
+	{ name     => "Cline paired 2",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  args     => "-s 1",
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  cline_reads1  => "AGCATCGATC:IIIIIIIIII,".
+	                   "TCAGTTTTTGA:IIIIIIIIIII",
+	  cline_reads2  => "TCAGTTTTTGA:IIIIIIIIIII,".
+	                   "AGCATCGATC:IIIIIIIIII",
+	  pairhits => [ { }, { "0,8" => 1 } ] },
+
+	# Paired-end reads that should align
+	{ name     => "Cline paired 3",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  args     => "-u 1",
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  cline_reads1  => "AGCATCGATC:IIIIIIIIII,".
+	                   "TCAGTTTTTGA:IIIIIIIIIII",
+	  cline_reads2  => "TCAGTTTTTGA:IIIIIIIIIII,".
+	                   "AGCATCGATC:IIIIIIIIII",
+	  pairhits => [ { "0,8" => 1 }, { } ] },
+
+	# -q
+
+	{ name   => "Fastq 1",
+	  ref    => [   "AGCATCGATCAGTATCTGA" ],
+	  fastq  => "\@r0\nCATCGATCAGTATCTG\n+\nIIIIIIIIIIIIIIII",
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Fastq 2",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fastq  => "\@r0\nCATCGATCAGTATCTG\n+\nIIIIIIIIIIIIIIII\n", # extra newline
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Fastq 3",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIIII\n",
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Fastq 4",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIII\n", # qual too short
+		#                                       CATCGATCAGTATCTG
+	  should_abort => 1},
+
+	# Name line doesn't start with @
+	{ name   => "Fastq 5",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIII\n",
+	  should_abort => 1,
+	  hits   => [{ }] },
+
+	# Name line doesn't start with @ (2)
+	{ name   => "Fastq 6",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fastq  => "r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIII\n",
+	  should_abort => 1,
+	  hits   => [{ }] },
+
+	# Part of sequence is trimmed
+	{ name   => "Fastq 7",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIIII\n",
+	  args   => "--trim3 4",
+	  norc   => 1,
+	  hits   => [{ 2 => 1 }] },
+
+	# Whole sequence is trimmed
+	{ name   => "Fastq 8",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIIII\n",
+	  args   => "--trim5 16",
+	  hits   => [{ "*" => 1 }] },
+
+	# Sequence is skipped
+	{ name   => "Fastq 9",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIIII\n",
+	  args   => "-s 1",
+	  hits   => [{ }] },
+
+	# Like Fastq 1 but with many extra newlines
+	{ name   => "Fastq multiread 1",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIIII\n".
+	            "\@r1\nATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIII\n",
+	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
+
+	# Like Fastq multiread 1 but with -u 1
+	{ name   => "Fastq multiread 2",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  args   =>   "-u 1",
+	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIIII\n".
+	            "\@r1\nATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIII\n",
+	  hits   => [{ 2 => 1 }] },
+
+	# Like Fastq multiread 1 but with -u 2
+	{ name   => "Fastq multiread 3",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  args   =>   "-u 2",
+	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIIII\n".
+	            "\@r1\nATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIII\n",
+	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
+
+	# Paired-end reads that should align
+	{ name     => "Fastq paired 1",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  fastq1  => "\@r0\nAGCATCGATC\r\n+\nIIIIIIIIII\n".
+	             "\@r1\nTCAGTTTTTGA\r\n+\nIIIIIIIIIII\n",
+	  fastq2  => "\@r0\nTCAGTTTTTGA\n+\nIIIIIIIIIII\n".
+	             "\@r1\nAGCATCGATC\r\n+\nIIIIIIIIII",
+	  pairhits => [ { "0,8" => 1 }, { "0,8" => 1 } ] },
+
+	# Paired-end reads that should align
+	{ name     => "Fastq paired 2",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  args     => "-s 1",
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  fastq1  => "\@r0\nAGCATCGATC\r\n+\nIIIIIIIIII\n".
+	             "\@r1\nTCAGTTTTTGA\n+\nIIIIIIIIIII\n",
+	  fastq2  => "\@r0\nTCAGTTTTTGA\n+\nIIIIIIIIIII\n".
+	             "\@r1\nAGCATCGATC\r\n+\nIIIIIIIIII",
+	  pairhits => [ { }, { "0,8" => 1 } ] },
+
+		# Paired-end reads that should align
+		{ name     => "Fastq paired 3",
+		  ref      => [     "AGCATCGATCAAAAACTGA" ],
+		  args     => "-u 1",
+		  #                  AGCATCGATC
+		  #                          TCAAAAACTGA
+		  #                  0123456789012345678
+		  fastq1  => "\@r0\nAGCATCGATC\r\n+\nIIIIIIIIII\n".
+		             "\@r1\nTCAGTTTTTGA\r\n+\nIIIIIIIIIII\n",
+		  fastq2  => "\@r0\nTCAGTTTTTGA\n+\nIIIIIIIIIII\n".
+		             "\@r1\nAGCATCGATC\r\n+\nIIIIIIIIII",
+		  pairhits => [ { "0,8" => 1 }, { } ] },
+
+	# -f
+
+	{ name   => "Fasta 1",
+	  ref    => [  "AGCATCGATCAGTATCTGA" ],
+	  fasta  => ">r0\nCATCGATCAGTATCTG",
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Fasta 2",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fasta  => ">r0\nCATCGATCAGTATCTG\n",
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Fasta 3",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fasta  => "\n\n\r\n>r0\nCATCGATCAGTATCTG\r\n\n",
+	  hits   => [{ 2 => 1 }] },
+
+	# Name line doesn't start with >
+	{ name   => "Fasta 5",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fasta  => "\n\n\r\nr0\nCATCGATCAGTATCTG\r",
+	  should_abort => 1,
+	  hits   => [{ }] },
+
+	# Name line doesn't start with > (2)
+	{ name   => "Fasta 6",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fasta  => "r0\nCATCGATCAGTATCTG\r",
+	  should_abort => 1,
+	  hits   => [{ }] },
+
+	{ name   => "Fasta 7",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fasta  => "\n\n\r\n\>r0\nCATCGATCAGTATCTG\r\n",
+	  args   => "--trim3 4",
+	  norc   => 1,
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Fasta 8",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fasta  => "\n\n\r\n\>r0\nCATCGATCAGTATCTG\r\n",
+	  args   => "--trim3 16",
+	  hits   => [{ "*" => 1 }] },
+
+	{ name   => "Fasta 9",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fasta  => "\n\n\r\n>r0\nCATCGATCAGTATCTG\r\n",
+	  args   => "-s 1",
+	  hits   => [{ }] },
+
+	{ name   => "Fasta multiread 1",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  fasta  => "\n\n\r\n>r0\nCATCGATCAGTATCTG\n\n".
+	            "\n\n\r\n>r1\nATCGATCAGTATCTG\n\n",
+	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
+
+	{ name   => "Fasta multiread 2",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  args   =>   "-u 1",
+	  fasta  => "\n\n\r\n>r0\nCATCGATCAGTATCTG\r\n".
+	            "\n\n\r\n>r1\nATCGATCAGTATCTG\r\n",
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Fasta multiread 3",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  args   =>   "-u 2",
+	  fasta  => "\n\n\r\n>r0\nCATCGATCAGTATCTG\r\n".
+	            "\n\n\r\n>r1\nATCGATCAGTATCTG\r\n",
+	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
+
+	{ name     => "Fasta paired 1",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  fasta1  => "\n\n\r\n>r0\nAGCATCGATC\r\n".
+	             "\n\n>r1\nTCAGTTTTTGA\r\n",
+	  fasta2  => "\n\n\r\n>r0\nTCAGTTTTTGA\n".
+	             "\n\n\r\n>r1\nAGCATCGATC",
+	  pairhits => [ { "0,8" => 1 }, { "0,8" => 1 } ] },
+
+	{ name     => "Fasta paired 2",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  args     => "-s 1",
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  fasta1  => ">r0\nAGCATCGATC\r\n".
+	             "\n\n>r1\nTCAGTTTTTGA\n",
+	  fasta2  => "\n\n\r\n>r0\nTCAGTTTTTGA\n".
+	             "\n\n\r\n>r1\nAGCATCGATC",
+	  pairhits => [ { }, { "0,8" => 1 } ] },
+
+	{ name     => "Fasta paired 3",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  args     => "-u 1",
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  fasta1  => "\n\n\r\n>r0\nAGCATCGATC\r\n".
+	             "\n\n>r1\nTCAGTTTTTGA\r\n",
+	  fasta2  => "\n\n\r\n>r0\nTCAGTTTTTGA\n".
+	             "\n\n\r\n>r1\nAGCATCGATC",
+	  pairhits => [ { "0,8" => 1 }, { } ] },
+
+	# -r
+
+	{ name   => "Raw 1",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  raw    =>     "CATCGATCAGTATCTG",
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Raw 2",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  raw    => "CATCGATCAGTATCTG\n",
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Raw 3",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  raw    => "\n\n\nCATCGATCAGTATCTG\n\n",
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Raw 7",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  raw    => "\n\n\r\nCATCGATCAGTATCTG\r\n",
+	  args   => "--trim3 4",
+	  norc   => 1,
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Raw 8",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  raw    => "\n\n\r\nCATCGATCAGTATCTG\r\n",
+	  args   => "--trim3 16",
+	  hits   => [{ "*" => 1 }] },
+
+	{ name   => "Raw 9",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  raw    => "CATCGATCAGTATCTG\n",
+	  args   => "-s 1",
+	  hits   => [{ }] },
+
+	{ name   => "Raw multiread 1",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  raw    => "\n\n\r\nCATCGATCAGTATCTG\n\n".
+	            "\n\n\r\nATCGATCAGTATCTG\n\n",
+	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
+
+	{ name   => "Raw multiread 2",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  args   =>   "-u 1",
+	  raw    => "\n\n\r\nCATCGATCAGTATCTG\r\n".
+	            "\n\n\r\nATCGATCAGTATCTG\r\n",
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Raw multiread 3",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  args   =>   "-u 2",
+	  raw    => "\n\n\r\nCATCGATCAGTATCTG\r\n".
+	            "\n\n\r\nATCGATCAGTATCTG\r\n",
+	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
+
+	{ name     => "Raw paired 1",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  raw1    => "\n\n\r\nAGCATCGATC\r\n".
+	             "\n\nTCAGTTTTTGA\r\n",
+	  raw2    => "\n\n\r\nTCAGTTTTTGA\n".
+	             "\n\n\r\nAGCATCGATC",
+	  pairhits => [ { "0,8" => 1 }, { "0,8" => 1 } ] },
+
+	{ name     => "Raw paired 2",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  args     => "-s 1",
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  raw1    => "AGCATCGATC\r\n".
+	             "\n\nTCAGTTTTTGA\n",
+	  raw2    => "\n\n\r\nTCAGTTTTTGA\n".
+	             "\n\n\r\nAGCATCGATC",
+	  pairhits => [ { }, { "0,8" => 1 } ] },
+
+	{ name     => "Raw paired 3",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  args     => "-u 1",
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  raw1    => "\n\n\r\nAGCATCGATC\r\n".
+	             "\n\nTCAGTTTTTGA\r\n",
+	  raw2    => "\n\n\r\nTCAGTTTTTGA\n".
+	             "\n\n\r\nAGCATCGATC",
+	  pairhits => [ { "0,8" => 1 }, { } ] },
+
+	# --12 / --tab5 / --tab6
+
+	{ name   => "Tabbed 1",
+	  ref    => [   "AGCATCGATCAGTATCTGA" ],
+	  tabbed => "r0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII",
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Tabbed 2",
+	  ref    => [   "AGCATCGATCAGTATCTGA" ],
+	  tabbed => "r0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII\n",  # extra newline
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Tabbed 3",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  tabbed => "\n\n\r\nr0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII\n\n",
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Tabbed 4",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  tabbed => "\n\n\r\nr0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIII\n\n", # qual too short
+	  should_abort => 1},
+
+	{ name   => "Tabbed 5",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  tabbed => "\n\n\r\nr0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIIII\n\n", # qual too long
+	  should_abort => 1},
+
+	{ name   => "Tabbed 7",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  tabbed => "\n\n\r\nr0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII\n\n",
+	  args   => "--trim3 4",
+	  norc   => 1,
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Tabbed 8",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  tabbed => "\n\n\r\nr0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII\n\n",
+	  args   => "--trim5 16",
+	  hits   => [{ "*" => 1 }] },
+
+	{ name   => "Tabbed 9",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  tabbed => "\n\n\r\nr0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII\n\n",
+	  args   => "-s 1",
+	  hits   => [{ }] },
+
+	{ name   => "Tabbed multiread 1",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  tabbed => "\n\n\r\nr0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII\n\n".
+	            "\n\n\r\nr1\tATCGATCAGTATCTG\tIIIIIIIIIIIIIII\n\n",
+	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
+
+	{ name   => "Tabbed multiread 2",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  args   =>   "-u 1",
+	  tabbed => "\n\n\r\nr0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII\n\n".
+	            "\n\n\r\nr1\tATCGATCAGTATCTG\tIIIIIIIIIIIIIII\n\n",
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Tabbed multiread 3",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  args   =>   "-u 2",
+	  tabbed => "\n\n\r\nr0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII\n\n".
+	            "\n\n\r\nr1\tATCGATCAGTATCTG\tIIIIIIIIIIIIIII\n\n",
+	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
+
+	{ name     => "Tabbed paired 1",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  tabbed  => "\n\n\r\nr0\tAGCATCGATC\tIIIIIIIIII\tTCAGTTTTTGA\tIIIIIIIIIII\n\n".
+	             "\n\nr1\tTCAGTTTTTGA\tIIIIIIIIIII\tAGCATCGATC\tIIIIIIIIII\n\n",
+	  paired => 1,
+	  pairhits => [ { "0,8" => 1 }, { "0,8" => 1 } ] },
+
+	{ name     => "Tabbed paired 2",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  args     => "-s 1",
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  tabbed   => "r0\tAGCATCGATC\tIIIIIIIIII\tTCAGTTTTTGA\tIIIIIIIIIII\n\n".
+	             "\nr1\tTCAGTTTTTGA\tIIIIIIIIIII\tAGCATCGATC\tIIIIIIIIII",
+	  paired   => 1,
+	  pairhits => [ { }, { "0,8" => 1 } ] },
+
+	{ name     => "Tabbed paired 3",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  args     => "-u 1",
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  tabbed   => "\n\n\r\nr0\tAGCATCGATC\tIIIIIIIIII\tTCAGTTTTTGA\tIIIIIIIIIII\n\n".
+	              "\n\nr1\tTCAGTTTTTGA\tIIIIIIIIIII\tAGCATCGATC\tIIIIIIIIII",
+	  paired   => 1,
+	  pairhits => [ { "0,8" => 1 }, { } ] },
+
+	# --qseq
+
+	{ name   => "Qseq 1",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  qseq   => join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "X", "Y",
+						   "Index",
+						   "0", # Mate
+						   "CATCGATCAGTATCTG",
+						   "IIIIIIIIIIIIIIII",
+						   "1"),
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Qseq 2",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  qseq   => join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "X", "Y",
+						   "Index",
+						   "0", # Mate
+						   "CATCGATCAGTATCTG",
+						   "IIIIIIIIIIIIIIII",
+						   "1")."\n",
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Qseq 3",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  qseq   => "\n\n\n".join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "X", "Y",
+						   "Index",
+						   "0", # Mate
+						   "CATCGATCAGTATCTG",
+						   "IIIIIIIIIIIIIIII",
+						   "1")."\n\n",
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Qseq 4",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  qseq   => "\n\n\n".join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "X", "Y",
+						   "Index",
+						   "0", # Mate
+						   "CATCGATCAGTATCTG",
+						   "IIIIIIIIIIIIIII",
+						   "1")."\n\n",
+	  should_abort => 1},
+
+	{ name   => "Qseq 7",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  qseq   => "\n\n\n".join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "X", "Y",
+						   "Index",
+						   "0", # Mate
+						   "CATCGATCAGTATCTG",
+						   "IIIIIIIIIIIIIIII",
+						   "1")."\n\n",
+	  args   => "--trim3 4",
+	  norc   => 1,
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Qseq 8",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  qseq   => "\n\n\n".join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "X", "Y",
+						   "Index",
+						   "0", # Mate
+						   "CATCGATCAGTATCTG",
+						   "IIIIIIIIIIIIIIII",
+						   "1")."\n\n",
+	  args   => "--trim3 16",
+	  hits   => [{ "*" => 1 }] },
+
+	{ name   => "Qseq 9",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  qseq   => "\n\n\n".join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "X", "Y",
+						   "Index",
+						   "0", # Mate
+						   "CATCGATCAGTATCTG",
+						   "IIIIIIIIIIIIIIII",
+						   "1")."\n\n",
+	  args   => "-s 1",
+	  hits   => [{ }] },
+
+	{ name   => "Qseq multiread 1",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  qseq   => "\n\n\n".join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "10", "10",
+						   "Index",
+						   "0", # Mate
+						   "CATCGATCAGTATCTG",
+						   "IIIIIIIIIIIIIIII",
+						   "1")."\n\n".
+						 join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "12", "15",
+						   "Index",
+						   "0", # Mate
+						   "ATCGATCAGTATCTG",
+						   "IIIIIIIIIIIIIII",
+						   "1")."\n\n",
+	  idx_map => { "MachName_RunNum_Lane_Tile_10_10_Index" => 0,
+	               "MachName_RunNum_Lane_Tile_12_15_Index" => 1 },
+	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
+
+	{ name   => "Qseq multiread 2",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  args   =>   "-u 1",
+	  qseq   => "\n\n\n".join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "10", "10",
+						   "Index",
+						   "0", # Mate
+						   "CATCGATCAGTATCTG",
+						   "IIIIIIIIIIIIIIII",
+						   "1")."\n\n".
+						 join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "12", "15",
+						   "Index",
+						   "0", # Mate
+						   "ATCGATCAGTATCTG",
+						   "IIIIIIIIIIIIIII",
+						   "1")."\n\n",
+	  idx_map => { "MachName_RunNum_Lane_Tile_10_10_Index" => 0,
+	               "MachName_RunNum_Lane_Tile_12_15_Index" => 1 },
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "Qseq multiread 3",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  args   =>   "-u 2",
+	  qseq   => "\n\n\n".join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "10", "10",
+						   "Index",
+						   "0", # Mate
+						   "CATCGATCAGTATCTG",
+						   "IIIIIIIIIIIIIIII",
+						   "1")."\n\n".
+						 join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "12", "15",
+						   "Index",
+						   "0", # Mate
+						   "ATCGATCAGTATCTG",
+						   "IIIIIIIIIIIIIII",
+						   "1")."\n\n",
+	  idx_map => { "MachName_RunNum_Lane_Tile_10_10_Index" => 0,
+	               "MachName_RunNum_Lane_Tile_12_15_Index" => 1 },
+	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
+
+	{ name   => "Qseq paired 1",
+	  ref    => [       "AGCATCGATCAAAAACTGA" ],
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  qseq1  => "\n\n\n".join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "10", "10",
+						   "Index",
+						   "1", # Mate
+						   "AGCATCGATC",
+						   "ABCBGACBCB",
+						   "1")."\n\n".
+						 join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "12", "15",
+						   "Index",
+						   "1", # Mate
+						   "TCAGTTTTTGA",
+						   "95849456875",
+						   "1")."\n\n",
+	  qseq2  => "\n\n\n".join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "10", "10",
+						   "Index",
+						   "2", # Mate
+						   "TCAGTTTTTGA",
+						   "ABCBGACBCBA",
+						   "1")."\n\n".
+						 join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "12", "15",
+						   "Index",
+						   "2", # Mate
+						   "AGCATCGATC",
+						   "AGGCBBGCBG",
+						   "1")."\n\n",
+	  idx_map => { "MachName_RunNum_Lane_Tile_10_10_Index" => 0,
+	               "MachName_RunNum_Lane_Tile_12_15_Index" => 1 },
+	  pairhits => [ { "0,8" => 1 }, { "0,8" => 1 } ] },
+
+	{ name   => "Qseq paired 2",
+	  ref    => [       "AGCATCGATCAAAAACTGA" ],
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  args     => "-s 1",
+	  qseq1  => "\n\n\n".join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "10", "10",
+						   "Index",
+						   "1", # Mate
+						   "AGCATCGATC",
+						   "ABCBGACBCB",
+						   "1")."\n\n".
+						 join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "12", "15",
+						   "Index",
+						   "1", # Mate
+						   "TCAGTTTTTGA",
+						   "95849456875",
+						   "1")."\n\n",
+	  qseq2  => "\n\n\n".join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "10", "10",
+						   "Index",
+						   "2", # Mate
+						   "TCAGTTTTTGA",
+						   "ABCBGACBCBA",
+						   "1")."\n\n".
+						 join("\t", "MachName",
+	                       "RunNum",
+						   "Lane",
+						   "Tile",
+						   "12", "15",
+						   "Index",
+						   "2", # Mate
+						   "AGCATCGATC",
+						   "AGGCBBGCBG",
+						   "1")."\n\n",
+	  idx_map => { "MachName_RunNum_Lane_Tile_10_10_Index" => 0,
+	               "MachName_RunNum_Lane_Tile_12_15_Index" => 1 },
+	  pairhits => [ { }, { "0,8" => 1 } ] },
 
 	{ name   => "Left-align insertion",
 	  ref    => [ "GCGATATCTACGACTGCTACGTACAAAAAAAAAAAAAAGTGTTTACGTTGCTAGACTCGATCGATCTGACAGC" ],
@@ -116,7 +922,7 @@ my @cases = (
 	},
 
 	# This won't necessarily pass because the original location of the deletion
-	# might 
+	# might
 	#{ name   => "Left-align deletion with mismatch at LHS",
 	#  ref    => [ "GCGATATCTACGACTGCTACGCCCAAAAAAAAAAAAAAGTGTTTACGTTGCTAGACTCGATCGATCTGACAGC" ],
 	#  norc   => 1,
@@ -137,14 +943,14 @@ my @cases = (
 	#  report => "",
 	#  args   => ""
 	#},
-	
+
 	{ name   => "Flags for when mates align non-concordantly, with many alignments for one",
 	#              012345678
 	  ref    => [ "CAGCGGCTAGCTATCGATCGTCCGGCAGCTATCATTATGATNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNAGGATAGATCGCTCGCCTGACCTATATCGCTCGCGATTACGAGCTACGTACTGGCTATCCGAGCTGACGCATCACGACGATCGAGGATAGATCGCTCGCCTGACCTATATCGCTCGCGATTACGAGCTACGTACTGGCTATCCGAGCTGACGCATCACGACGATCGAGGATAGATCGCTCGCCTGACCTATATCGCTCGCGATTACGAGCTACGTACTGGCTATCCGAGCTGACGCATCACGACGATCG" ],
 	#              0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901
-	#              0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9 
-	#              0                                                                                                   1                                                                                                   2                                                                                                   3                                                                                                   4                                                                                                   5                                                                                                   6                                                                                                   7                                                                                                   8                                                                                                   9                                                                                                   0                                                                                                   1                                                                                           
-	#              0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       1                                                                                                                                                                                               
+	#              0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9
+	#              0                                                                                                   1                                                                                                   2                                                                                                   3                                                                                                   4                                                                                                   5                                                                                                   6                                                                                                   7                                                                                                   8                                                                                                   9                                                                                                   0                                                                                                   1
+	#              0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       1
 	  norc => 1,
 	  mate1s => [   "GCGGCTAGCTATCGATCGTCCGGCAGCTATCATTATGA" ],
 	  mate2s => [                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      "ACGAGCTACGTACTGGCTATCCGAGCTGACGCATCACGACGA" ],
@@ -159,9 +965,9 @@ my @cases = (
 	#              012345678
 	  ref    => [ "CAGCGGCTAGCTATCGATCGTCCGGCAGCTATCATTATGATNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNAGGATAGATCGCTCGCCTGACCTATATCGCTCGCGATTACGAGCTACGTACTGGCTATCCGAGCTGACGCATCACGACGATCGAG" ],
 	#              01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567
-	#              0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2       
-	#              0                                                                                                   1                                                                                                   2                                                                                                   3                                                                                                   4                                                                                                   5                                                                                                   6                                                                                                   7                                                                                                   8                                                                                                   9                                                                                                   0                                                                                                   1                                                                                           
-	#              0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       1                                                                                                                                                                                               
+	#              0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2
+	#              0                                                                                                   1                                                                                                   2                                                                                                   3                                                                                                   4                                                                                                   5                                                                                                   6                                                                                                   7                                                                                                   8                                                                                                   9                                                                                                   0                                                                                                   1
+	#              0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       1
 	  norc => 1,
 	  mate1s => [   "GCGGCTAGCTATCGATCGTCCGGCAGCTATCATTATGA" ],
 	  mate2s => [                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      "ACGAGCTACGTACTGGCTATCCGAGCTGACGCATCACGACGA" ],
@@ -175,9 +981,9 @@ my @cases = (
 	#              012345678
 	  ref    => [ "CAGCGGCTAGCTATCGATCGTCCGGCAGCTATCATTATGATAGGATAGATCGCTCGCCTGACCTATATCGCTCGCGATTACGAGCTACGTACTGGCTATCCGAGCTGACGCATCACGACGATCGAGGATAGATCGCTCGCCTGACCTATATCGCTCGCGATTACGAGCTACGTACTGGCTATCCGAGCTGACGCATCACGACGATCGAGGATAGATCGCTCGCCTGACCTATATCGCTCGCGATTACGAGCTACGTACTGGCTATCCGAGCTGACGCATCACGACGATCG" ],
 	#              01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
-	#              0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         
-	#              0                                                                              *                    1                                                             *                                     2                                            *                                            
-	#              0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       1                                                                                                                                                                                               
+	#              0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8
+	#              0                                                                              *                    1                                                             *                                     2                                            *
+	#              0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       1
 	  norc => 1,
 	  mate1s => [   "GCGGCTAGCTATCGATCGTCCGGCAGCTATCATTATGA" ],
 	  mate2s => [   "TCGTCGTGATGCGTCAGCTCGGATAGCCAGTACGTAGCTCGT" ],
@@ -187,7 +993,7 @@ my @cases = (
 	  report => "",
 	  args   => ""
 	},
-	
+
 	# Checking MD:Z strings for alignment
 	{ name   => "MD:Z 1",
 	  ref    => [ "CACGATCGACTTGA"."C"."TCATCGACGCTATCATTAATATATATAAGCCCGCATCTA" ],
@@ -245,7 +1051,7 @@ my @cases = (
 		"MD:Z:13^NN0N39" => 1, # mismatching positions/bases
 		"YT:Z:UU"        => 1, # type of alignment (concordant/discordant/etc)
 	} ] },
-	
+
 	#
 	# Local alignment
 	#
@@ -271,13 +1077,13 @@ my @cases = (
 		"YP:i:0"   => 1, # read aligned repetitively in paired fashion
 		"YT:Z:UU"  => 1, # type of alignment (concordant/discordant/etc)
 	} ] },
-	
+
 	#   T T G A     T T G A
 	# T x         T   x
-	# T   x       T      
-	# G     x     G        
+	# T   x       T
+	# G     x     G
 	# T           T
-	
+
 	# Local alignment for a short hit where hit is trimmed at one end
 	{ name   => "Local alignment 2",
 	  ref    => [ "TTGA" ],
@@ -405,7 +1211,7 @@ my @cases = (
 	# alignment is reported in -k mode, what order are they reported in?  They
 	# should be in order by alignment score.
 	#
-	
+
 	{ name   => "Alignment order -k",
 	#              012345678
 	  ref    => [ "GCGCATGCACATATCANNNNNGCGCATGCACATATCTNNNNNNNNGCGCATGCACATATTTNNNNNNNNNGCGCATGGTGTTATCA" ],
@@ -423,7 +1229,7 @@ my @cases = (
 	  args   => "--min-score C,-24,0 -L 4",
 	  report => "-a"
 	},
-	
+
 	#
 	# What order are mates reported in?  Should be reporting in mate1/mate2
 	# order.
@@ -448,7 +1254,7 @@ my @cases = (
 	  args   => "",
 	  report => "-M 1"
 	},
-	
+
 	#
 	# Test dovetailing, containment, and overlapping
 	#
@@ -563,7 +1369,7 @@ my @cases = (
 	#
 	# Test XS:i with quality scaling
 	#
-	
+
 	{ name   => "Scoring params 1",
 	#              012345678
 	  ref    => [ "ACTATTGCGCGCATGCACATATCAATTAAGCCGTCTCTCTAAAGAGACCCCAATCTCGCGCGCTAGACGTCAGTAGTTTAATTTTATAAACACCTCGCTGCGGGG" ],
@@ -695,7 +1501,7 @@ my @cases = (
 	#
 	# Test XS:i with quality scaling
 	#
-	
+
 	{ name   => "Q XS:i 1a",
 	  ref    => [ "TTGTTCGATTGTTCGA" ],
 	  reads  => [ "TTGTTCGT" ],
@@ -823,7 +1629,7 @@ my @cases = (
 		  "MD:Z:7A0" => 1,
 		  "NM:i:1"   => 1, "XM:i:1"  => 1 } ],
 	},
-	
+
 	{ name   => "Q XS:i 1c",
 	  ref    => [ "TTGTTCGATTGTTCGA" ],
 	  reads  => [ "TTGTTCGT" ],
@@ -839,7 +1645,7 @@ my @cases = (
 		  "MD:Z:7A0" => 1,
 		  "NM:i:1"   => 1, "XM:i:1"  => 1 } ],
 	},
-	
+
 	{ name   => "Q XS:i 1c --ignore-quals",
 	  ref    => [ "TTGTTCGATTGTTCGA" ],
 	  reads  => [ "TTGTTCGT" ],
@@ -855,7 +1661,7 @@ my @cases = (
 		  "MD:Z:7A0" => 1,
 		  "NM:i:1"   => 1, "XM:i:1"  => 1 } ],
 	},
-	
+
 	# One mate aligns.  Ensuring that the unmapped mate gets reference
 	# information filled in from the other mate.
 	{ ref    => [ "CATCGACTGAGACTCGTACGACAATTACGCGCATTATTCGCATCACCAGCGCGGCGCGCGCCCCCTAT" ],
@@ -898,7 +1704,7 @@ my @cases = (
 	#
 	# Test XS:i
 	#
-	
+
 	{ name   => "XS:i 1",
 	  ref    => [ "TTGTTCGATTGTTCGA" ],
 	  reads  => [ "TTGTTCGT" ],
@@ -913,7 +1719,7 @@ my @cases = (
 		  "MD:Z:7A0" => 1,
 		  "NM:i:1"   => 1, "XM:i:1"  => 1 } ],
 	},
-	
+
 	{ name   => "XS:i 2",
 	  ref    => [ "TTGTTCGATTGTTCGA" ],
 	  reads  => [ "TTGTTCGT" ],
@@ -1006,8 +1812,8 @@ my @cases = (
 
 	{ name   => "XS:i 5a",
 	  ref    => [ "TTGTTCAATTGTTCGATTGTTCGTTTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAA" ],
-	  #            ||||||  ||||||| ||||||||||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  
-	  #            TTGTTCGT||||||| ||||||||TTGTTCGT||||||  TTGTTCGT||||||  TTGTTCGT||||||  TTGTTCGT||||||  TTGTTCGT||||||  TTGTTCGT||||||  
+	  #            ||||||  ||||||| ||||||||||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||
+	  #            TTGTTCGT||||||| ||||||||TTGTTCGT||||||  TTGTTCGT||||||  TTGTTCGT||||||  TTGTTCGT||||||  TTGTTCGT||||||  TTGTTCGT||||||
 	  #                    TTGTTCGT||||||||        TTGTTCGT        TTGTTCGT        TTGTTCGT        TTGTTCGT        TTGTTCGT        TTGTTCGT
 	  #                            TTGTTCGT
 	  reads  => [ "TTGTTCGT" ],
@@ -1024,8 +1830,8 @@ my @cases = (
 
 	{ name   => "XS:i 5b",
 	  ref    => [ "TTGTTCAATTGTTCGATTGTTCGTTTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAATTGTTCAA" ],
-	  #            ||||||  ||||||| ||||||||||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  
-	  #            TTGTTCGT||||||| ||||||||TTGTTCGT||||||  TTGTTCGT||||||  TTGTTCGT||||||  TTGTTCGT||||||  TTGTTCGT||||||  TTGTTCGT||||||  
+	  #            ||||||  ||||||| ||||||||||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||  ||||||
+	  #            TTGTTCGT||||||| ||||||||TTGTTCGT||||||  TTGTTCGT||||||  TTGTTCGT||||||  TTGTTCGT||||||  TTGTTCGT||||||  TTGTTCGT||||||
 	  #                    TTGTTCGT||||||||        TTGTTCGT        TTGTTCGT        TTGTTCGT        TTGTTCGT        TTGTTCGT        TTGTTCGT
 	  #                            TTGTTCGT
 	  reads  => [ "TTGTTCGT" ],
@@ -1086,7 +1892,7 @@ my @cases = (
 	},
 
 	# Some tricky SAM FLAGS field tests
-	
+
 	{ name     => "SAM paired-end where both mates align 1",
 	  ref      => [ "GCACTATCTACGCTTCGGCGTCGGCGAAAAAACGCACGACCGGGTGTGTGACAATCATATATAGCGCGC" ],
 	  #              012345678901234567890123456789012345678901234567890123456789012345678
@@ -1233,7 +2039,7 @@ my @cases = (
 	  args   => "--policy \"NP=Q\\;RDG=46.3220993654702\\;RFG=41.3796024365659\\;MIN=L,5.57015383125426,-3.28597145122829\\;NCEIL=L,0.263054599454459,0.130843661549367\\;SEED=1,29\\;IVAL=L,0.0169183264663712,3.75762168662522\" --overhang --trim5 6",
 	  reads  => [ "CTTTGCACCCCTCCCTTGTCGGCTCCCACCCATCCCCATCCGTTGTCCCCGCCCCCGCCCGCCGGTCGTCACTCCCCGTTTGCGTCATGCCCCTCACCCTCCCTTTGTCGGCTCGCACCCCTCCCCATCCGTTGTCCCCGCCCCCGCTCTCGGGGTCTTCACGCCCCGCTTGCTTCATGCCCCTCACTCGCACCCCG" ],
 	},
-	
+
 	{ name   => "matchesRef regression 3",
 	  ref    => [ "GAAGNTTTTCCAATATTTTTAATTTCCTCTATTTTTCTCTCGTCTTGNTCTAC" ],
 	  #
@@ -1259,7 +2065,7 @@ my @cases = (
 	  #                       ||||||||||||||||||||||||||||||||||||||||||||||||||
 	  reads  => [            "AAGGCCTAGAGGTCGACCGACAATCTGACCATGGGGCGAGGAGCGAGTACTGGTCTGGGG" ],
 	  #                       012345678901234567890123456789012345678901234567890123456789
-	  #                       0         1         2         3         4         5                  
+	  #                       0         1         2         3         4         5
 	  args   => "--overhang" },
 
 	# 1 discordant alignment and one concordant alignment.  Discordant because
@@ -1271,7 +2077,7 @@ my @cases = (
 	#                 ATAAAAATAT                 GTCGCTACCG
 	#                 ATAAAAATAT                TGTCGCTACC
 	#              01234567890123456789012
-	#              0         1         2  
+	#              0         1         2
 	#                                     0123456789012345678901234567
 	#                                     0         1         2
 	  mate1s    => [ "ATAAAAATAT", "ATAAAAATAT" ],
@@ -1283,690 +2089,6 @@ my @cases = (
 	  pairhits  => [ { "3,7" => 1 }, { "3,6" => 1 } ],
 	  rnext_map => [ { 3 => 1, 7 => 0 }, { 3 => 1, 6 => 0 } ],
 	  pnext_map => [ { 3 => 7, 7 => 3 }, { 3 => 6, 6 => 3 } ] },
-
-	{ name   => "Fastq 1",
-	  ref    => [   "AGCATCGATCAGTATCTGA" ],
-	  fastq  => "\@r0\nCATCGATCAGTATCTG\n+\nIIIIIIIIIIIIIIII",
-	  hits   => [{ 2 => 1 }] },
-
-	{ name   => "Tabbed 1",
-	  ref    => [   "AGCATCGATCAGTATCTGA" ],
-	  tabbed => "r0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII",
-	  hits   => [{ 2 => 1 }] },
-
-	{ name   => "Fasta 1",
-	  ref    => [  "AGCATCGATCAGTATCTGA" ],
-	  fasta  => ">r0\nCATCGATCAGTATCTG",
-	  hits   => [{ 2 => 1 }] },
-
-	{ name   => "Qseq 1",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  qseq   => join("\t", "MachName",
-	                       "RunNum",
-						   "Lane",
-						   "Tile",
-						   "X", "Y",
-						   "Index",
-						   "0", # Mate
-						   "CATCGATCAGTATCTG",
-						   "IIIIIIIIIIIIIIII",
-						   "1"),
-	  hits   => [{ 2 => 1 }] },
-
-	{ name   => "Raw 1",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  raw    =>     "CATCGATCAGTATCTG",
-	  hits   => [{ 2 => 1 }] },
-
-	# Like Fastq 1 but with extra newline
-	{ name   => "Fastq 2",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  fastq  => "\@r0\nCATCGATCAGTATCTG\n+\nIIIIIIIIIIIIIIII\n",
-	  hits   => [{ 2 => 1 }] },
-
-	{ name   => "Tabbed 1",
-	  ref    => [   "AGCATCGATCAGTATCTGA" ],
-	  tabbed => "r0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII\n",
-	  hits   => [{ 2 => 1 }] },
-	
-	{ name   => "Fasta 2",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  fasta  => ">r0\nCATCGATCAGTATCTG\n",
-	  hits   => [{ 2 => 1 }] },
-
-	{ name   => "Qseq 2",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  qseq   => join("\t", "MachName",
-	                       "RunNum",
-						   "Lane",
-						   "Tile",
-						   "X", "Y",
-						   "Index",
-						   "0", # Mate
-						   "CATCGATCAGTATCTG",
-						   "IIIIIIIIIIIIIIII",
-						   "1")."\n",
-	  hits   => [{ 2 => 1 }] },
-
-	{ name   => "Raw 2",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  raw    => "CATCGATCAGTATCTG\n",
-	  hits   => [{ 2 => 1 }] },
-
-	# Like Fastq 1 but with many extra newlines
-	{ name   => "Fastq 3",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIIII\n",
-	  hits   => [{ 2 => 1 }] },
-
-	{ name   => "Tabbed 3",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  tabbed => "\n\n\r\nr0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII\n\n",
-	  hits   => [{ 2 => 1 }] },
-
-	{ name   => "Fasta 3",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  fasta  => "\n\n\r\n>r0\nCATCGATCAGTATCTG\r\n\n",
-	  hits   => [{ 2 => 1 }] },
-
-	{ name   => "Qseq 3",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  qseq   => "\n\n\n".join("\t", "MachName",
-	                       "RunNum",
-						   "Lane",
-						   "Tile",
-						   "X", "Y",
-						   "Index",
-						   "0", # Mate
-						   "CATCGATCAGTATCTG",
-						   "IIIIIIIIIIIIIIII",
-						   "1")."\n\n",
-	  hits   => [{ 2 => 1 }] },
-
-	{ name   => "Raw 3",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  raw    => "\n\n\nCATCGATCAGTATCTG\n\n",
-	  hits   => [{ 2 => 1 }] },
-
-	# Quality string length doesn't match (too short by 1)
-	{ name   => "Fastq 4",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIII\n",
-	  should_abort => 1},
-
-	{ name   => "Tabbed 4",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  tabbed => "\n\n\r\nr0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIII\n\n",
-	  should_abort => 1},
-
-	{ name   => "Qseq 4",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  qseq   => "\n\n\n".join("\t", "MachName",
-	                       "RunNum",
-						   "Lane",
-						   "Tile",
-						   "X", "Y",
-						   "Index",
-						   "0", # Mate
-						   "CATCGATCAGTATCTG",
-						   "IIIIIIIIIIIIIII",
-						   "1")."\n\n",
-	  should_abort => 1},
-
-	# Name line doesn't start with @
-	{ name   => "Fastq 5",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIII\n",
-	  should_abort => 1,
-	  hits   => [{ }] },
-
-	# Name line doesn't start with >
-	{ name   => "Fasta 5",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  fasta  => "\n\n\r\nr0\nCATCGATCAGTATCTG\r",
-	  should_abort => 1,
-	  hits   => [{ }] },
-
-	# Name line doesn't start with @ (2)
-	{ name   => "Fastq 6",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  fastq  => "r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIII\n",
-	  should_abort => 1,
-	  hits   => [{ }] },
-
-	# Name line doesn't start with > (2)
-	{ name   => "Fasta 6",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  fasta  => "r0\nCATCGATCAGTATCTG\r",
-	  should_abort => 1,
-	  hits   => [{ }] },
-
-	# Part of sequence is trimmed
-	{ name   => "Fastq 7",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIIII\n",
-	  args   => "--trim3 4",
-	  norc   => 1,
-	  hits   => [{ 2 => 1 }] },
-
-	{ name   => "Tabbed 7",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  tabbed => "\n\n\r\nr0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII\n\n",
-	  args   => "--trim3 4",
-	  norc   => 1,
-	  hits   => [{ 2 => 1 }] },
-
-	{ name   => "Fasta 7",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  fasta  => "\n\n\r\n\>r0\nCATCGATCAGTATCTG\r\n",
-	  args   => "--trim3 4",
-	  norc   => 1,
-	  hits   => [{ 2 => 1 }] },
-
-	{ name   => "Qseq 7",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  qseq   => "\n\n\n".join("\t", "MachName",
-	                       "RunNum",
-						   "Lane",
-						   "Tile",
-						   "X", "Y",
-						   "Index",
-						   "0", # Mate
-						   "CATCGATCAGTATCTG",
-						   "IIIIIIIIIIIIIIII",
-						   "1")."\n\n",
-	  args   => "--trim3 4",
-	  norc   => 1,
-	  hits   => [{ 2 => 1 }] },
-
-	{ name   => "Raw 7",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  raw    => "\n\n\r\nCATCGATCAGTATCTG\r\n",
-	  args   => "--trim3 4",
-	  norc   => 1,
-	  hits   => [{ 2 => 1 }] },
-
-	# Whole sequence is trimmed
-	{ name   => "Fastq 8",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIIII\n",
-	  args   => "--trim5 16",
-	  hits   => [{ "*" => 1 }] },
-
-	{ name   => "Tabbed 8",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  tabbed => "\n\n\r\nr0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII\n\n",
-	  args   => "--trim5 16",
-	  hits   => [{ "*" => 1 }] },
-
-	{ name   => "Fasta 8",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  fasta  => "\n\n\r\n\>r0\nCATCGATCAGTATCTG\r\n",
-	  args   => "--trim3 16",
-	  hits   => [{ "*" => 1 }] },
-
-	{ name   => "Qseq 8",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  qseq   => "\n\n\n".join("\t", "MachName",
-	                       "RunNum",
-						   "Lane",
-						   "Tile",
-						   "X", "Y",
-						   "Index",
-						   "0", # Mate
-						   "CATCGATCAGTATCTG",
-						   "IIIIIIIIIIIIIIII",
-						   "1")."\n\n",
-	  args   => "--trim3 16",
-	  hits   => [{ "*" => 1 }] },
-
-	{ name   => "Raw 8",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  raw    => "\n\n\r\nCATCGATCAGTATCTG\r\n",
-	  args   => "--trim3 16",
-	  hits   => [{ "*" => 1 }] },
-
-	# Sequence is skipped
-	{ name   => "Fastq 9",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIIII\n",
-	  args   => "-s 1",
-	  hits   => [{ }] },
-
-	{ name   => "Tabbed 9",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  tabbed => "\n\n\r\nr0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII\n\n",
-	  args   => "-s 1",
-	  hits   => [{ }] },
-
-	{ name   => "Fasta 9",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  fasta  => "\n\n\r\n>r0\nCATCGATCAGTATCTG\r\n",
-	  args   => "-s 1",
-	  hits   => [{ }] },
-
-	{ name   => "Qseq 9",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  qseq   => "\n\n\n".join("\t", "MachName",
-	                       "RunNum",
-						   "Lane",
-						   "Tile",
-						   "X", "Y",
-						   "Index",
-						   "0", # Mate
-						   "CATCGATCAGTATCTG",
-						   "IIIIIIIIIIIIIIII",
-						   "1")."\n\n",
-	  args   => "-s 1",
-	  hits   => [{ }] },
-
-	{ name   => "Raw 9",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  raw    => "CATCGATCAGTATCTG\n",
-	  args   => "-s 1",
-	  hits   => [{ }] },
-
-	# Like Fastq 1 but with many extra newlines
-	{ name   => "Fastq multiread 1",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIIII\n".
-	            "\@r1\nATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIII\n",
-	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
-
-	{ name   => "Tabbed multiread 1",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  tabbed => "\n\n\r\nr0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII\n\n".
-	            "\n\n\r\nr1\tATCGATCAGTATCTG\tIIIIIIIIIIIIIII\n\n",
-	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
-
-	{ name   => "Fasta multiread 1",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  fasta  => "\n\n\r\n>r0\nCATCGATCAGTATCTG\n\n".
-	            "\n\n\r\n>r1\nATCGATCAGTATCTG\n\n",
-	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
-
-	{ name   => "Qseq multiread 1",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  qseq   => "\n\n\n".join("\t", "MachName",
-	                       "RunNum",
-						   "Lane",
-						   "Tile",
-						   "10", "10",
-						   "Index",
-						   "0", # Mate
-						   "CATCGATCAGTATCTG",
-						   "IIIIIIIIIIIIIIII",
-						   "1")."\n\n".
-						 join("\t", "MachName",
-	                       "RunNum",
-						   "Lane",
-						   "Tile",
-						   "12", "15",
-						   "Index",
-						   "0", # Mate
-						   "ATCGATCAGTATCTG",
-						   "IIIIIIIIIIIIIII",
-						   "1")."\n\n",
-	  idx_map => { "MachName_RunNum_Lane_Tile_10_10_Index" => 0,
-	               "MachName_RunNum_Lane_Tile_12_15_Index" => 1 },
-	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
-	
-	{ name   => "Raw multiread 1",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  raw    => "\n\n\r\nCATCGATCAGTATCTG\n\n".
-	            "\n\n\r\nATCGATCAGTATCTG\n\n",
-	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
-
-	# Like Fastq multiread 1 but with -u 1
-	{ name   => "Fastq multiread 2",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  args   =>   "-u 1",
-	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIIII\n".
-	            "\@r1\nATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIII\n",
-	  hits   => [{ 2 => 1 }] },
-
-	{ name   => "Tabbed multiread 2",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  args   =>   "-u 1",
-	  tabbed => "\n\n\r\nr0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII\n\n".
-	            "\n\n\r\nr1\tATCGATCAGTATCTG\tIIIIIIIIIIIIIII\n\n",
-	  hits   => [{ 2 => 1 }] },
-
-	{ name   => "Fasta multiread 2",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  args   =>   "-u 1",
-	  fasta  => "\n\n\r\n>r0\nCATCGATCAGTATCTG\r\n".
-	            "\n\n\r\n>r1\nATCGATCAGTATCTG\r\n",
-	  hits   => [{ 2 => 1 }] },
-
-	{ name   => "Qseq multiread 2",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  args   =>   "-u 1",
-	  qseq   => "\n\n\n".join("\t", "MachName",
-	                       "RunNum",
-						   "Lane",
-						   "Tile",
-						   "10", "10",
-						   "Index",
-						   "0", # Mate
-						   "CATCGATCAGTATCTG",
-						   "IIIIIIIIIIIIIIII",
-						   "1")."\n\n".
-						 join("\t", "MachName",
-	                       "RunNum",
-						   "Lane",
-						   "Tile",
-						   "12", "15",
-						   "Index",
-						   "0", # Mate
-						   "ATCGATCAGTATCTG",
-						   "IIIIIIIIIIIIIII",
-						   "1")."\n\n",
-	  idx_map => { "MachName_RunNum_Lane_Tile_10_10_Index" => 0,
-	               "MachName_RunNum_Lane_Tile_12_15_Index" => 1 },
-	  hits   => [{ 2 => 1 }] },
-
-	{ name   => "Raw multiread 2",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  args   =>   "-u 1",
-	  raw    => "\n\n\r\nCATCGATCAGTATCTG\r\n".
-	            "\n\n\r\nATCGATCAGTATCTG\r\n",
-	  hits   => [{ 2 => 1 }] },
-
-	# Like Fastq multiread 1 but with -u 2
-	{ name   => "Fastq multiread 3",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  args   =>   "-u 2",
-	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIIII\n".
-	            "\@r1\nATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIII\n",
-	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
-
-	{ name   => "Tabbed multiread 3",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  args   =>   "-u 2",
-	  tabbed => "\n\n\r\nr0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII\n\n".
-	            "\n\n\r\nr1\tATCGATCAGTATCTG\tIIIIIIIIIIIIIII\n\n",
-	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
-
-	{ name   => "Fasta multiread 3",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  args   =>   "-u 2",
-	  fasta  => "\n\n\r\n>r0\nCATCGATCAGTATCTG\r\n".
-	            "\n\n\r\n>r1\nATCGATCAGTATCTG\r\n",
-	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
-
-	{ name   => "Qseq multiread 3",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  args   =>   "-u 2",
-	  qseq   => "\n\n\n".join("\t", "MachName",
-	                       "RunNum",
-						   "Lane",
-						   "Tile",
-						   "10", "10",
-						   "Index",
-						   "0", # Mate
-						   "CATCGATCAGTATCTG",
-						   "IIIIIIIIIIIIIIII",
-						   "1")."\n\n".
-						 join("\t", "MachName",
-	                       "RunNum",
-						   "Lane",
-						   "Tile",
-						   "12", "15",
-						   "Index",
-						   "0", # Mate
-						   "ATCGATCAGTATCTG",
-						   "IIIIIIIIIIIIIII",
-						   "1")."\n\n",
-	  idx_map => { "MachName_RunNum_Lane_Tile_10_10_Index" => 0,
-	               "MachName_RunNum_Lane_Tile_12_15_Index" => 1 },
-	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
-	
-	{ name   => "Raw multiread 3",
-	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  args   =>   "-u 2",
-	  raw    => "\n\n\r\nCATCGATCAGTATCTG\r\n".
-	            "\n\n\r\nATCGATCAGTATCTG\r\n",
-	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
-	
-	# Paired-end reads that should align
-	{ name     => "Fastq paired 1",
-	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  #                  AGCATCGATC
-	  #                          TCAAAAACTGA
-	  #                  0123456789012345678
-	  fastq1  => "\@r0\nAGCATCGATC\r\n+\nIIIIIIIIII\n".
-	             "\@r1\nTCAGTTTTTGA\r\n+\nIIIIIIIIIII\n",
-	  fastq2  => "\@r0\nTCAGTTTTTGA\n+\nIIIIIIIIIII\n".
-	             "\@r1\nAGCATCGATC\r\n+\nIIIIIIIIII",
-	  pairhits => [ { "0,8" => 1 }, { "0,8" => 1 } ] },
-
-	{ name     => "Tabbed paired 1",
-	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  #                  AGCATCGATC
-	  #                          TCAAAAACTGA
-	  #                  0123456789012345678
-	  tabbed  => "\n\n\r\nr0\tAGCATCGATC\tIIIIIIIIII\tTCAGTTTTTGA\tIIIIIIIIIII\n\n".
-	             "\n\nr1\tTCAGTTTTTGA\tIIIIIIIIIII\tAGCATCGATC\tIIIIIIIIII\n\n",
-	  paired => 1,
-	  pairhits => [ { "0,8" => 1 }, { "0,8" => 1 } ] },
-
-	{ name     => "Fasta paired 1",
-	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  #                  AGCATCGATC
-	  #                          TCAAAAACTGA
-	  #                  0123456789012345678
-	  fasta1  => "\n\n\r\n>r0\nAGCATCGATC\r\n".
-	             "\n\n>r1\nTCAGTTTTTGA\r\n",
-	  fasta2  => "\n\n\r\n>r0\nTCAGTTTTTGA\n".
-	             "\n\n\r\n>r1\nAGCATCGATC",
-	  pairhits => [ { "0,8" => 1 }, { "0,8" => 1 } ] },
-
-	{ name   => "Qseq paired 1",
-	  ref    => [       "AGCATCGATCAAAAACTGA" ],
-	  #                  AGCATCGATC
-	  #                          TCAAAAACTGA
-	  #                  0123456789012345678
-	  qseq1  => "\n\n\n".join("\t", "MachName",
-	                       "RunNum",
-						   "Lane",
-						   "Tile",
-						   "10", "10",
-						   "Index",
-						   "1", # Mate
-						   "AGCATCGATC",
-						   "ABCBGACBCB",
-						   "1")."\n\n".
-						 join("\t", "MachName",
-	                       "RunNum",
-						   "Lane",
-						   "Tile",
-						   "12", "15",
-						   "Index",
-						   "1", # Mate
-						   "TCAGTTTTTGA",
-						   "95849456875",
-						   "1")."\n\n",
-	  qseq2  => "\n\n\n".join("\t", "MachName",
-	                       "RunNum",
-						   "Lane",
-						   "Tile",
-						   "10", "10",
-						   "Index",
-						   "2", # Mate
-						   "TCAGTTTTTGA",
-						   "ABCBGACBCBA",
-						   "1")."\n\n".
-						 join("\t", "MachName",
-	                       "RunNum",
-						   "Lane",
-						   "Tile",
-						   "12", "15",
-						   "Index",
-						   "2", # Mate
-						   "AGCATCGATC",
-						   "AGGCBBGCBG",
-						   "1")."\n\n",
-	  idx_map => { "MachName_RunNum_Lane_Tile_10_10_Index" => 0,
-	               "MachName_RunNum_Lane_Tile_12_15_Index" => 1 },
-	  pairhits => [ { "0,8" => 1 }, { "0,8" => 1 } ] },
-	
-	{ name     => "Raw paired 1",
-	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  #                  AGCATCGATC
-	  #                          TCAAAAACTGA
-	  #                  0123456789012345678
-	  raw1    => "\n\n\r\nAGCATCGATC\r\n".
-	             "\n\nTCAGTTTTTGA\r\n",
-	  raw2    => "\n\n\r\nTCAGTTTTTGA\n".
-	             "\n\n\r\nAGCATCGATC",
-	  pairhits => [ { "0,8" => 1 }, { "0,8" => 1 } ] },
-
-	# Paired-end reads that should align
-	{ name     => "Fastq paired 2",
-	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  args     => "-s 1",
-	  #                  AGCATCGATC
-	  #                          TCAAAAACTGA
-	  #                  0123456789012345678
-	  fastq1  => "\@r0\nAGCATCGATC\r\n+\nIIIIIIIIII\n".
-	             "\@r1\nTCAGTTTTTGA\n+\nIIIIIIIIIII\n",
-	  fastq2  => "\@r0\nTCAGTTTTTGA\n+\nIIIIIIIIIII\n".
-	             "\@r1\nAGCATCGATC\r\n+\nIIIIIIIIII",
-	  pairhits => [ { }, { "0,8" => 1 } ] },
-
-	{ name     => "Tabbed paired 2",
-	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  args     => "-s 1",
-	  #                  AGCATCGATC
-	  #                          TCAAAAACTGA
-	  #                  0123456789012345678
-	  tabbed   => "r0\tAGCATCGATC\tIIIIIIIIII\tTCAGTTTTTGA\tIIIIIIIIIII\n\n".
-	             "\nr1\tTCAGTTTTTGA\tIIIIIIIIIII\tAGCATCGATC\tIIIIIIIIII",
-	  paired   => 1,
-	  pairhits => [ { }, { "0,8" => 1 } ] },
-
-	{ name     => "Fasta paired 2",
-	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  args     => "-s 1",
-	  #                  AGCATCGATC
-	  #                          TCAAAAACTGA
-	  #                  0123456789012345678
-	  fasta1  => ">r0\nAGCATCGATC\r\n".
-	             "\n\n>r1\nTCAGTTTTTGA\n",
-	  fasta2  => "\n\n\r\n>r0\nTCAGTTTTTGA\n".
-	             "\n\n\r\n>r1\nAGCATCGATC",
-	  pairhits => [ { }, { "0,8" => 1 } ] },
-
-	{ name   => "Qseq paired 1",
-	  ref    => [       "AGCATCGATCAAAAACTGA" ],
-	  #                  AGCATCGATC
-	  #                          TCAAAAACTGA
-	  #                  0123456789012345678
-	  args     => "-s 1",
-	  qseq1  => "\n\n\n".join("\t", "MachName",
-	                       "RunNum",
-						   "Lane",
-						   "Tile",
-						   "10", "10",
-						   "Index",
-						   "1", # Mate
-						   "AGCATCGATC",
-						   "ABCBGACBCB",
-						   "1")."\n\n".
-						 join("\t", "MachName",
-	                       "RunNum",
-						   "Lane",
-						   "Tile",
-						   "12", "15",
-						   "Index",
-						   "1", # Mate
-						   "TCAGTTTTTGA",
-						   "95849456875",
-						   "1")."\n\n",
-	  qseq2  => "\n\n\n".join("\t", "MachName",
-	                       "RunNum",
-						   "Lane",
-						   "Tile",
-						   "10", "10",
-						   "Index",
-						   "2", # Mate
-						   "TCAGTTTTTGA",
-						   "ABCBGACBCBA",
-						   "1")."\n\n".
-						 join("\t", "MachName",
-	                       "RunNum",
-						   "Lane",
-						   "Tile",
-						   "12", "15",
-						   "Index",
-						   "2", # Mate
-						   "AGCATCGATC",
-						   "AGGCBBGCBG",
-						   "1")."\n\n",
-	  idx_map => { "MachName_RunNum_Lane_Tile_10_10_Index" => 0,
-	               "MachName_RunNum_Lane_Tile_12_15_Index" => 1 },
-	  pairhits => [ { }, { "0,8" => 1 } ] },
-
-	{ name     => "Raw paired 2",
-	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  args     => "-s 1",
-	  #                  AGCATCGATC
-	  #                          TCAAAAACTGA
-	  #                  0123456789012345678
-	  raw1    => "AGCATCGATC\r\n".
-	             "\n\nTCAGTTTTTGA\n",
-	  raw2    => "\n\n\r\nTCAGTTTTTGA\n".
-	             "\n\n\r\nAGCATCGATC",
-	  pairhits => [ { }, { "0,8" => 1 } ] },
-
-	# Paired-end reads that should align
-	{ name     => "Fastq paired 3",
-	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  args     => "-u 1",
-	  #                  AGCATCGATC
-	  #                          TCAAAAACTGA
-	  #                  0123456789012345678
-	  fastq1  => "\@r0\nAGCATCGATC\r\n+\nIIIIIIIIII\n".
-	             "\@r1\nTCAGTTTTTGA\r\n+\nIIIIIIIIIII\n",
-	  fastq2  => "\@r0\nTCAGTTTTTGA\n+\nIIIIIIIIIII\n".
-	             "\@r1\nAGCATCGATC\r\n+\nIIIIIIIIII",
-	  pairhits => [ { "0,8" => 1 }, { } ] },
-
-	{ name     => "Tabbed paired 3",
-	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  args     => "-u 1",
-	  #                  AGCATCGATC
-	  #                          TCAAAAACTGA
-	  #                  0123456789012345678
-	  tabbed   => "\n\n\r\nr0\tAGCATCGATC\tIIIIIIIIII\tTCAGTTTTTGA\tIIIIIIIIIII\n\n".
-	              "\n\nr1\tTCAGTTTTTGA\tIIIIIIIIIII\tAGCATCGATC\tIIIIIIIIII",
-	  paired   => 1,
-	  pairhits => [ { "0,8" => 1 }, { } ] },
-
-	{ name     => "Fasta paired 3",
-	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  args     => "-u 1",
-	  #                  AGCATCGATC
-	  #                          TCAAAAACTGA
-	  #                  0123456789012345678
-	  fasta1  => "\n\n\r\n>r0\nAGCATCGATC\r\n".
-	             "\n\n>r1\nTCAGTTTTTGA\r\n",
-	  fasta2  => "\n\n\r\n>r0\nTCAGTTTTTGA\n".
-	             "\n\n\r\n>r1\nAGCATCGATC",
-	  pairhits => [ { "0,8" => 1 }, { } ] },
-
-	{ name     => "Raw paired 3",
-	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  args     => "-u 1",
-	  #                  AGCATCGATC
-	  #                          TCAAAAACTGA
-	  #                  0123456789012345678
-	  raw1    => "\n\n\r\nAGCATCGATC\r\n".
-	             "\n\nTCAGTTTTTGA\r\n",
-	  raw2    => "\n\n\r\nTCAGTTTTTGA\n".
-	             "\n\n\r\nAGCATCGATC",
-	  pairhits => [ { "0,8" => 1 }, { } ] },
 
 	# Paired-end reads that should align
 	#{ name     => "Fastq paired 4",
@@ -2058,7 +2180,7 @@ my @cases = (
 	# count as a first-class read that gets propagated up into the alignment
 	# loop.  And it should be counted in the -s/-u totals.
 	#
-	
+
 	{ ref      => [     "AGCATCGATCAGTATCTGA" ],
 	  reads    => [ "",    "ATCGATCAGTA" ],
 	  args     => "-s 1",
@@ -2210,20 +2332,20 @@ my @cases = (
 	# paired-end modes.  Ensuring that SAM optional flags such as YM:i, YP:i
 	# are set properly in all cases.
 	#
-	
+
 	#
 	# Paired-end
 	#
 
 	{ name   => "P.M.58.G.b Unpaired -M 5 w/ 8 hits global, but mate #1 has just 1",
-	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2                                             0         1         2       
+	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2                                             0         1         2
 	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               0123456789012345678901234567                                      0123456789012345678901234567                                                                                                                                               0123456789012345678901234567
 	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               ACACACCCCTATAGCTCGGAGCTGACTG                                      ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               ACACACCCCTATAGCTCGGAGCTGACTG                                      ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               ACACACCCCTATAGCTCGGAGCTGACTG                                      ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               ACACACCCCTATAGCTCGGAGCTGACTG
 	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACACACACCCCTATAGCTCGGAGCTGACTGGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACACACACCCCTATAGCTCGGAGCTGACTGGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACACACACCCCTATAGCTCGGAGCTGACTGGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACACACACCCCTATAGCTCGGAGCTGACTGGATCGACGACGT" ],
 	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
-	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         
-	  #            0                                                                                                   1                                                                                                   2                                                                                                   3                                                                                                   4                                                                                                   5                                                                                                   6                                                                                                   7                                                                                                   8                                                                                                   9                                                                                                   
-	  #            0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9
+	  #            0                                                                                                   1                                                                                                   2                                                                                                   3                                                                                                   4                                                                                                   5                                                                                                   6                                                                                                   7                                                                                                   8                                                                                                   9
+	  #            0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  args     => "-X 1000",
@@ -2268,16 +2390,16 @@ my @cases = (
 		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:28" => 1,
 		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:0"  => 1 },
 	} ] },
-	
+
 	{ name   => "P.M.58.L.b Unpaired -M 5 w/ 8 hits local, but mate #1 has just 1",
-	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2                                             0         1         2       
+	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2                                             0         1         2
 	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               0123456789012345678901234567                                      0123456789012345678901234567                                                                                                                                               0123456789012345678901234567
 	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               ACACACCCCTATAGCTCGGAGCTGACTG                                      ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               ACACACCCCTATAGCTCGGAGCTGACTG                                      ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               ACACACCCCTATAGCTCGGAGCTGACTG                                      ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               ACACACCCCTATAGCTCGGAGCTGACTG
 	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACACACACCCCTATAGCTCGGAGCTGACTGGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACACACACCCCTATAGCTCGGAGCTGACTGGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACACACACCCCTATAGCTCGGAGCTGACTGGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACACACACCCCTATAGCTCGGAGCTGACTGGATCGACGACGT" ],
 	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
-	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         
-	  #            0                                                                                                   1                                                                                                   2                                                                                                   3                                                                                                   4                                                                                                   5                                                                                                   6                                                                                                   7                                                                                                   8                                                                                                   9                                                                                                   
-	  #            0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9
+	  #            0                                                                                                   1                                                                                                   2                                                                                                   3                                                                                                   4                                                                                                   5                                                                                                   6                                                                                                   7                                                                                                   8                                                                                                   9
+	  #            0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  args   =>  "-X 1000 --local",
@@ -2324,14 +2446,14 @@ my @cases = (
 	} ] },
 
 	{ name   => "P.k.58.G.b Unpaired -k 5 w/ 8 hits global, but mate #1 has just 1",
-	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2                                             0         1         2       
+	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2                                             0         1         2
 	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               0123456789012345678901234567                                      0123456789012345678901234567                                                                                                                                               0123456789012345678901234567
 	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               ACACACCCCTATAGCTCGGAGCTGACTG                                      ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               ACACACCCCTATAGCTCGGAGCTGACTG                                      ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               ACACACCCCTATAGCTCGGAGCTGACTG                                      ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               ACACACCCCTATAGCTCGGAGCTGACTG
 	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACACACACCCCTATAGCTCGGAGCTGACTGGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACACACACCCCTATAGCTCGGAGCTGACTGGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACACACACCCCTATAGCTCGGAGCTGACTGGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACACACACCCCTATAGCTCGGAGCTGACTGGATCGACGACGT" ],
 	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
-	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         
-	  #            0                                                                                                   1                                                                                                   2                                                                                                   3                                                                                                   4                                                                                                   5                                                                                                   6                                                                                                   7                                                                                                   8                                                                                                   9                                                                                                   
-	  #            0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9
+	  #            0                                                                                                   1                                                                                                   2                                                                                                   3                                                                                                   4                                                                                                   5                                                                                                   6                                                                                                   7                                                                                                   8                                                                                                   9
+	  #            0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  args   =>   "-X 1000",
@@ -2376,16 +2498,16 @@ my @cases = (
 		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:28" => 1,
 		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:0"  => 1 },
 	} ] },
-	
+
 	{ name   => "P.k.58.L.b Unpaired -k 5 w/ 8 hits local, but mate #1 has just 1",
-	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2                                             0         1         2       
+	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2                                             0         1         2
 	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               0123456789012345678901234567                                      0123456789012345678901234567                                                                                                                                               0123456789012345678901234567
 	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               ACACACCCCTATAGCTCGGAGCTGACTG                                      ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               ACACACCCCTATAGCTCGGAGCTGACTG                                      ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               ACACACCCCTATAGCTCGGAGCTGACTG                                      ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               ACACACCCCTATAGCTCGGAGCTGACTG
 	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACACACACCCCTATAGCTCGGAGCTGACTGGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACACACACCCCTATAGCTCGGAGCTGACTGGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACACACACCCCTATAGCTCGGAGCTGACTGGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACACACACCCCTATAGCTCGGAGCTGACTGGATCGACGACGT" ],
 	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
-	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         
-	  #            0                                                                                                   1                                                                                                   2                                                                                                   3                                                                                                   4                                                                                                   5                                                                                                   6                                                                                                   7                                                                                                   8                                                                                                   9                                                                                                   
-	  #            0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9
+	  #            0                                                                                                   1                                                                                                   2                                                                                                   3                                                                                                   4                                                                                                   5                                                                                                   6                                                                                                   7                                                                                                   8                                                                                                   9
+	  #            0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  args   =>   "-X 1000 --local",
@@ -2430,9 +2552,9 @@ my @cases = (
 		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:28" => 1,
 		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:66"  => 1 },
 	} ] },
-	
+
 	{ name   => "P.M.22.G. Paired -M 2 w/ 2 paired hit, 2 unpaired hits each, global",
-	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2       
+	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2
 	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               012345678901234567890123456789012                                 0123456789012345678901234567
 	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
 	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
@@ -2461,9 +2583,9 @@ my @cases = (
 		         "YM:i:0" => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
 	  }]
 	},
-	
+
 	{ name   => "P.M.22.L. Paired -M 2 w/ 2 paired hit, 2 unpaired hits each, local",
-	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2       
+	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2
 	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               012345678901234567890123456789012                                 0123456789012345678901234567
 	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
 	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
@@ -2494,7 +2616,7 @@ my @cases = (
 	},
 
 	{ name   => "P.k.2.G. Paired -k 1 w/ 2 paired hit, 2 unpaired hits each, global",
-	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2       
+	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2
 	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               012345678901234567890123456789012                                 0123456789012345678901234567
 	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
 	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
@@ -2525,7 +2647,7 @@ my @cases = (
 	},
 
 	{ name   => "P.k.2.L. Paired -k 1 w/ 2 paired hit, 2 unpaired hits each, local",
-	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2       
+	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2
 	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               012345678901234567890123456789012                                 0123456789012345678901234567
 	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
 	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
@@ -2556,7 +2678,7 @@ my @cases = (
 	},
 
 	{ name   => "P.M.2.G. Paired -M 1 w/ 2 paired hit, 2 unpaired hits each, global",
-	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2       
+	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2
 	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               012345678901234567890123456789012                                 0123456789012345678901234567
 	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
 	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
@@ -2584,9 +2706,9 @@ my @cases = (
 		         "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
 	  }]
 	},
-	
+
 	{ name   => "P.M.2.L. Paired -M 1 w/ 2 paired hit, 2 unpaired hits each, local",
-	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2       
+	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2
 	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               012345678901234567890123456789012                                 0123456789012345678901234567
 	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
 	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
@@ -2614,9 +2736,9 @@ my @cases = (
 		         "YM:i:1"  => 1, "YP:i:1"  => 1, "YT:Z:CP" => 1, "YS:i:66" => 1 },
 	  }]
 	},
-	
+
 	{ name   => "P.k.1.G. Paired -k w/ 1 paired hit, 1 unpaired hit each, global",
-	  #                        0         1         2         3                                   0         1         2       
+	  #                        0         1         2         3                                   0         1         2
 	  #                        012345678901234567890123456789012                                 0123456789012345678901234567
 	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
 	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
@@ -2638,9 +2760,9 @@ my @cases = (
 		        "YM:i:0" => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
 	  }]
 	},
-	
+
 	{ name   => "P.k.1.L. Paired -k 1 w/ 1 paired hit, 1 unpaired hit each, local",
-	  #                        0         1         2         3                                   0         1         2       
+	  #                        0         1         2         3                                   0         1         2
 	  #                        012345678901234567890123456789012                                 0123456789012345678901234567
 	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
 	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
@@ -2665,7 +2787,7 @@ my @cases = (
 	},
 
 	{ name   => "P.M.1.G. Paired -M w/ 1 paired hit, 1 unpaired hit each, global",
-	  #                        0         1         2         3                                   0         1         2       
+	  #                        0         1         2         3                                   0         1         2
 	  #                        012345678901234567890123456789012                                 0123456789012345678901234567
 	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
 	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
@@ -2688,9 +2810,9 @@ my @cases = (
 		        "YM:i:0" => 1, "YP:i:0" => 1, "YT:Z:CP" => 1, "YS:i:0" => 1 },
 	  }]
 	},
-	
+
 	{ name   => "P.M.1.L. Paired -M w/ 1 paired hit, 1 unpaired hit each, local",
-	  #                          0         1         2         3                                   0         1         2       
+	  #                          0         1         2         3                                   0         1         2
 	  #                          012345678901234567890123456789012                                 0123456789012345678901234567
 	  #                          CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
 	  ref      => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGTATCGA" ],
@@ -2715,12 +2837,12 @@ my @cases = (
 	},
 
 	{ name   => "P.M.58.G. Unpaired -M 5 w/ 8 hits global",
-	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2       
+	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2
 	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               012345678901234567890123456789012                                 0123456789012345678901234567
-	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                   
+	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
 	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGA" ],
 	  #            012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456
-	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0      
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0
 	  #            0                                                                                                   1                                                                                                   2                                                                                                   3                                                                                                   4                                                                                                   5                                                                                                   6                                                                                                   7                                                                                                   8                                                                                                   9                                                                                                   0                                                                                                   1                                                                                                   2                                                                                                   3                                                                                                   4                                                                                                   5                                                                                                   6                                                                                                   7                                                                                                   8                                                                                                   9                                                                                                   0                                                                                                   1                                                                                                   2                                                                                                   3                                                                                                   4                                                                                                   5                                                                                                   6
 	  #            0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   2                                                                                                   2                                                                                                   2                                                                                                   2                                                                                                   2                                                                                                   2                                                                                                   2
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
@@ -2813,16 +2935,16 @@ my @cases = (
 		          "XO:i:0" => 1, "XG:i:0" => 1, "NM:i:0"   => 1, "MD:Z:28" => 1,
 		          "YM:i:1" => 1, "YP:i:1" => 1, "YT:Z:CP"  => 1, "YS:i:0"  => 1 },
 	} ] },
-	
+
 	{ name   => "P.M.58.L. Unpaired -M 5 w/ 8 hits local",
-	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2       
+	  #                        0         1         2         3                                   0         1         2                                                                                                                                                      0         1         2         3                                   0         1         2
 	  #                        012345678901234567890123456789012                                 0123456789012345678901234567                                                                                                                                               012345678901234567890123456789012                                 0123456789012345678901234567
-	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                             
+	  #                        CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG                                                                                                                                               CAGCGTACGGTATCTAGCTATGGGCATCGATCG                                 ACACACCCCTATAGCTCGGAGCTGACTG
 	  ref    => [ "AGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTCACCAGCGTACGGTATCTAGCTATGGGCATCGATCGACGACGTACGAGCGGTATCTACAGCCACTCATCACACACCCCTATAGCTCGGAGCTGACTGGGTTACTGGGGGGGATGCGTATCGACTATCGACAATATGACGCGTCGGTCACCCCATAATATGCAAAAATTATAGCTCACGACGCGTACTAATAGAAAACGCGCTATCAGCCTCCGACGCGGCGGTATCGAAGACGCAGTC" ],
 	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345
-	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0     
-	  #            0                                                                                                   1                                                                                                   2                                                                                                   3                                                                                                   4                                                                                                   5                                                                                                   6                                                                                                   7                                                                                                   8                                                                                                   9                                                                                                   0                                                                                                   1                                                                                                   2                                                                                                   3                                                                                                   4                                                                                                   5                                                                                                   6                                                                                                   7                                                                                                   8                                                                                                   9     
-	  #            0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1     
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0
+	  #            0                                                                                                   1                                                                                                   2                                                                                                   3                                                                                                   4                                                                                                   5                                                                                                   6                                                                                                   7                                                                                                   8                                                                                                   9                                                                                                   0                                                                                                   1                                                                                                   2                                                                                                   3                                                                                                   4                                                                                                   5                                                                                                   6                                                                                                   7                                                                                                   8                                                                                                   9
+	  #            0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  args   =>   "--local -X 150",
@@ -2923,7 +3045,7 @@ my @cases = (
 		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
 	}]
 	},
-	
+
 	{ name   => "U.M.1.L. Unpaired -M w/ 1 hit local",
 	  #                        0         1         2         3
 	  #                        012345678901234567890123456789012
@@ -2972,7 +3094,7 @@ my @cases = (
 		"MD:Z:33"  => 1, # mismatching positions/bases
 		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
 	} ] },
-	
+
 	{ name   => "U.M.1.L. Unpaired -m w/ 1 hit local",
 	  #                        0         1         2         3
 	  #                        012345678901234567890123456789012
@@ -2996,9 +3118,9 @@ my @cases = (
 		"MD:Z:33"  => 1, # mismatching positions/bases
 		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
 	} ] },
-	
+
 	{ name   => "U.M.2.G. Unpaired -M 1 w/ 2 hit global",
-	  #                  0         1         2                     0         1         2         
+	  #                  0         1         2                     0         1         2
 	  #                  012345678901234567890123456789            012345678901234567890123456789
 	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA
 	  ref    => [ "AGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGA" ],
@@ -3022,9 +3144,9 @@ my @cases = (
 		"YM:i:1"   => 1, # read aligned repetitively in unpaired fashion
 		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
 	} ] },
-	
+
 	{ name   => "U.M.2.L. Unpaired -M 1 w/ 2 hit local",
-	  #                  0         1         2                     0         1         2         
+	  #                  0         1         2                     0         1         2
 	  #                  012345678901234567890123456789            012345678901234567890123456789
 	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA
 	  ref    => [ "AGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGA" ],
@@ -3050,7 +3172,7 @@ my @cases = (
 	} ] },
 
 	{ name   => "U.k.2.G. Unpaired -k 1 w/ 2 hit global",
-	  #                  0         1         2                     0         1         2         
+	  #                  0         1         2                     0         1         2
 	  #                  012345678901234567890123456789            012345678901234567890123456789
 	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA
 	  ref    => [ "AGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGA" ],
@@ -3075,7 +3197,7 @@ my @cases = (
 	} ] },
 
 	{ name   => "U.k.2.L. Unpaired -k 1 w/ 2 hit local",
-	  #                  0         1         2                     0         1         2         
+	  #                  0         1         2                     0         1         2
 	  #                  012345678901234567890123456789            012345678901234567890123456789
 	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA
 	  ref    => [ "AGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGA" ],
@@ -3100,7 +3222,7 @@ my @cases = (
 	} ] },
 
 	{ name   => "U.M.22.G. Unpaired -M 2 w/ 2 hit global",
-	  #                  0         1         2                     0         1         2         
+	  #                  0         1         2                     0         1         2
 	  #                  012345678901234567890123456789            012345678901234567890123456789
 	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA
 	  ref    => [ "AGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGA" ],
@@ -3123,9 +3245,9 @@ my @cases = (
 		"YM:i:0"   => 1, # read aligned repetitively in unpaired fashion
 		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
 	} ] },
-	
+
 	{ name   => "U.M.22.L. Unpaired -M 2 w/ 2 hit local",
-	  #                  0         1         2                     0         1         2         
+	  #                  0         1         2                     0         1         2
 	  #                  012345678901234567890123456789            012345678901234567890123456789
 	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA
 	  ref    => [ "AGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGA" ],
@@ -3150,7 +3272,7 @@ my @cases = (
 	} ] },
 
 	{ name   => "U.k.22.G. Unpaired -k 2 w/ 2 hit global",
-	  #                  0         1         2                     0         1         2         
+	  #                  0         1         2                     0         1         2
 	  #                  012345678901234567890123456789            012345678901234567890123456789
 	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA
 	  ref    => [ "AGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGA" ],
@@ -3172,9 +3294,9 @@ my @cases = (
 		"YM:i:0"   => 1, # read aligned repetitively in unpaired fashion
 		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
 	} ] },
-	
+
 	{ name   => "U.k.22.L. Unpaired -k 2 w/ 2 hit local",
-	  #                  0         1         2                     0         1         2         
+	  #                  0         1         2                     0         1         2
 	  #                  012345678901234567890123456789            012345678901234567890123456789
 	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA
 	  ref    => [ "AGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGA" ],
@@ -3199,12 +3321,12 @@ my @cases = (
 	} ] },
 
 	{ name   => "U.M.58.G. Unpaired -M 5 w/ 8 hits global",
-	  #                  0         1         2                     0         1         2                      0         1         2                     0         1         2                      0         1         2                     0         1         2                      0         1         2                     0         1         2                
-	  #                  012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789       
-	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA       
+	  #                  0         1         2                     0         1         2                      0         1         2                     0         1         2                      0         1         2                     0         1         2                      0         1         2                     0         1         2
+	  #                  012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789
+	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA
 	  ref    => [ "AGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGAAGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGAAGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGAAGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGA" ],
 	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
-	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3
 	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
 	  args   =>   "-X 150",
@@ -3224,14 +3346,14 @@ my @cases = (
 		"YM:i:1"   => 1, # read aligned repetitively in unpaired fashion
 		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
 	} ] },
-	
+
 	{ name   => "U.M.58.L. Unpaired -M 5 w/ 8 hits global",
-	  #                  0         1         2                     0         1         2                      0         1         2                     0         1         2                      0         1         2                     0         1         2                      0         1         2                     0         1         2                
-	  #                  012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789       
-	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA       
+	  #                  0         1         2                     0         1         2                      0         1         2                     0         1         2                      0         1         2                     0         1         2                      0         1         2                     0         1         2
+	  #                  012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789
+	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA
 	  ref    => [ "AGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGAAGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGAAGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGAAGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGA" ],
 	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
-	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3
 	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
 	  args   =>   "--local",
@@ -3253,12 +3375,12 @@ my @cases = (
 	} ] },
 
 	{ name   => "U.k.58.G. Unpaired -k 5 w/ 8 hits global",
-	  #                  0         1         2                     0         1         2                      0         1         2                     0         1         2                      0         1         2                     0         1         2                      0         1         2                     0         1         2                
-	  #                  012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789       
-	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA       
+	  #                  0         1         2                     0         1         2                      0         1         2                     0         1         2                      0         1         2                     0         1         2                      0         1         2                     0         1         2
+	  #                  012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789
+	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA
 	  ref    => [ "AGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGAAGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGAAGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGAAGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGA" ],
 	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
-	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3
 	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
 	  report =>   "-k 5",
@@ -3277,14 +3399,14 @@ my @cases = (
 		"YM:i:0"   => 1, # read aligned repetitively in unpaired fashion
 		"YT:Z:UU"  => 1, # unpaired read aligned in unpaired fashion
 	} ] },
-	
+
 	{ name   => "U.k.58.L. Unpaired -k 5 w/ 8 hits local",
-	  #                  0         1         2                     0         1         2                      0         1         2                     0         1         2                      0         1         2                     0         1         2                      0         1         2                     0         1         2                
-	  #                  012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789       
-	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA       
+	  #                  0         1         2                     0         1         2                      0         1         2                     0         1         2                      0         1         2                     0         1         2                      0         1         2                     0         1         2
+	  #                  012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789             012345678901234567890123456789            012345678901234567890123456789
+	  #                  AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA             AGATTACGGATCTACGATTCGAGTCGGTCA            AGATTACGGATCTACGATTCGAGTCGGTCA
 	  ref    => [ "AGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGAAGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGAAGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGAAGACGCAGATTACGGATCTACGATTCGAGTCGGTCAGTCACCAGCGTAAGATTACGGATCTACGATTCGAGTCGGTCAAGTGCGA" ],
 	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
-	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         
+	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3
 	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
 	  args   => "--local",
@@ -3459,7 +3581,7 @@ my @cases = (
 	  cigar  => [ "*" ] },
 
 	# Experiment with N filtering
-	
+
 	{ name => "N filtering 1",
 	  ref      => [ "GAGACTTTATACGCATCGAACTATCGCTCTA" ],
 	  reads    => [         "ATACGCATCGAAC" ],
@@ -3547,7 +3669,7 @@ my @cases = (
 	# G          x
 	# T           x
 	# T            x
-	
+
 	# Alignment with 1 reference gap
 	{ ref    => [ "TTGTTCGTTTGTT" ],
 	  reads  => [ "TTGTTCGATTTGTT" ], # budget = 3 + 14 * 3 = 45
@@ -3669,7 +3791,7 @@ my @cases = (
 	{ ref    => [ "ATAACCTTCG" ],
 	  reads  => [ "ATAATTCG" ], # 3 * 19 + 3 = 60
 	  #                ^
-	  #                4:CC>- 
+	  #                4:CC>-
 	  args   => "",
 	  report => "-a --overhang --gbar 3 --policy \"MMP=C30\\;RDG=5,5\\;SEED=0,4\\;IVAL=C,1,0\\;RFG=25,20\\;MIN=L,-3,-3\"",
 	  hits   => [ { 0 => 1 } ],
@@ -3686,7 +3808,7 @@ my @cases = (
 	{ ref    => [ "ATATGCCCCATGCCCCCCTCCG" ],
 	  reads  => [ "ATATGCCCCCCCCCCTCCG" ], # 3 * 19 + 3 = 60
 	  #                     ^
-	  #                     9:ATG>- 
+	  #                     9:ATG>-
 	  args   =>   "--policy \"SEED=0,8\\;IVAL=C,1,0\\;MMP=C30\\;RDG=5,5\\;RFG=25,15\\;MIN=L,-3,-3\"",
 	  hits   => [ { 0 => 1 } ],
 	  edits  => [ "9:ATG>-" ],
@@ -3703,8 +3825,8 @@ my @cases = (
 	{ ref    => [ "ATATGCCCCATGCCCCCCTCCG" ],
 	  reads  => [ "CGGAGGGGGGGGGGCATAT" ],
 	  #            ATATGCCCCCCCCCCTCCG
-	  #                     ^         
-	  #                     10:GTA>- 
+	  #                     ^
+	  #                     10:GTA>-
 	  args   => "",
 	  report => "-a --overhang --policy \"SEED=0,8\\;IVAL=C,1,0\\;MMP=C30\\;RDG=5,5\\;RFG=25,20\\;MIN=L,-3,-3\"",
 	  hits   => [ { 0 => 1 } ],
@@ -3878,7 +4000,7 @@ my @cases = (
 	  pairhits => [ { "*,*" => 1 } ] },
 
 	# Simple paired-end alignment
-	
+
 	{ name => "Simple paired-end 1",
 	  ref    => [ "CCCATATATATATCCCTTTTTTTCCCCCCCCTTTTCGCGCGCGCGTTTTCCCC" ],
 	#                 ATATATATAT                      CGCGCGCGCG
@@ -3936,7 +4058,7 @@ my @cases = (
 	  flags => [ "XM:0,XP:0,XT:UU,XC:6=1X" ] },
 
 	# Mess with arguments
-	
+
 	# Default should be 1-mismatch, so this shouldn't align
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTATTAGT" ],
@@ -4041,7 +4163,7 @@ sub writeReads($$$$$$$$$) {
 		$names,
 		$fq1,
 		$fq2) = @_;
-	
+
 	open(FQ1, ">$fq1") || die "Could not open '$fq1' for writing";
 	open(FQ2, ">$fq2") || die "Could not open '$fq2' for writing";
 	my $pe = (defined($mate1s) && $mate1s ne "");
@@ -4079,7 +4201,7 @@ sub writeReads($$$$$$$$$) {
 # Run bowtie2 with given arguments
 #
 sub runbowtie2($$$$$$$$$$$$$$$$$$$$$$) {
-	
+
 	my (
 		$do_build,
 		$large_idx,
@@ -4103,7 +4225,7 @@ sub runbowtie2($$$$$$$$$$$$$$$$$$$$$$) {
 		$header_ls,
 		$raw_header_ls,
 		$should_abort) = @_;
-	
+
 my  $idx_type = "";
 	$args .= " --quiet";
 	$reportargs = "-a" unless defined($reportargs);
@@ -4142,6 +4264,11 @@ my  $idx_type = "";
 		} elsif($read_file_format eq "tabbed") {
 			$formatarg = "--12";
 			$ext = ".tab";
+		} elsif($read_file_format eq "cline_reads") {
+			$formatarg = "-c";
+			$readarg = $read_file;
+			$mate1arg = $mate1_file;
+			$mate2arg = $mate2_file;
 		} elsif($read_file_format eq "fasta") {
 			$formatarg = "-f";
 			$ext = ".fa";
@@ -4154,24 +4281,26 @@ my  $idx_type = "";
 		} else {
 			die "Bad format: $read_file_format";
 		}
-		if(defined($read_file)) {
-			# Unpaired
-			open(RD, ">.simple_tests$ext") || die;
-			print RD $read_file;
-			close(RD);
-			$readarg = ".simple_tests$ext";
-		} else {
-			defined($mate1_file) || die;
-			defined($mate2_file) || die;
-			# Paired
-			open(M1, ">.simple_tests.1$ext") || die;
-			print M1 $mate1_file;
-			close(M1);
-			open(M2, ">.simple_tests.2$ext") || die;
-			print M2 $mate2_file;
-			close(M2);
-			$mate1arg = ".simple_tests.1$ext";
-			$mate2arg = ".simple_tests.2$ext";
+		if($formatarg ne "-c") {
+			if(defined($read_file)) {
+				# Unpaired
+				open(RD, ">.simple_tests$ext") || die;
+				print RD $read_file;
+				close(RD);
+				$readarg = ".simple_tests$ext";
+			} else {
+				defined($mate1_file) || die;
+				defined($mate2_file) || die;
+				# Paired
+				open(M1, ">.simple_tests.1$ext") || die;
+				print M1 $mate1_file;
+				close(M1);
+				open(M2, ">.simple_tests.2$ext") || die;
+				print M2 $mate2_file;
+				close(M2);
+				$mate1arg = ".simple_tests.1$ext";
+				$mate2arg = ".simple_tests.2$ext";
+			}
 		}
 	} else {
 		writeReads(
@@ -4275,36 +4404,39 @@ foreach my $large_idx (undef,1) {
 			for(my $fwi = $fwlo; $fwi <= $fwhi; $fwi++) {
 				my $fw = ($fwi == 0);
 				my $sam = 1;
-				
+
 				my $reads      = $c->{reads};
 				my $quals      = $c->{quals};
 				my $m1s        = $c->{mate1s};
 				my $q1s        = $c->{qual1s};
 				my $m2s        = $c->{mate2s};
 				my $q2s        = $c->{qual2s};
-				
+
 				my $read_file  = undef;
 				my $mate1_file = undef;
 				my $mate2_file = undef;
-				
+
 				$read_file  = $c->{fastq}   if defined($c->{fastq});
 				$read_file  = $c->{tabbed}  if defined($c->{tabbed});
 				$read_file  = $c->{fasta}   if defined($c->{fasta});
 				$read_file  = $c->{qseq}    if defined($c->{qseq});
 				$read_file  = $c->{raw}     if defined($c->{raw});
-		
+				$read_file  = $c->{cline_reads} if defined($c->{cline_reads});
+
 				$mate1_file = $c->{fastq1}  if defined($c->{fastq1});
 				$mate1_file = $c->{tabbed1} if defined($c->{tabbed1});
 				$mate1_file = $c->{fasta1}  if defined($c->{fasta1});
 				$mate1_file = $c->{qseq1}   if defined($c->{qseq1});
 				$mate1_file = $c->{raw1}    if defined($c->{raw1});
-		
+				$mate1_file = $c->{cline_reads1} if defined($c->{cline_reads1});
+
 				$mate2_file = $c->{fastq2}  if defined($c->{fastq2});
 				$mate2_file = $c->{tabbed2} if defined($c->{tabbed2});
 				$mate2_file = $c->{fasta2}  if defined($c->{fasta2});
 				$mate2_file = $c->{qseq2}   if defined($c->{qseq2});
 				$mate2_file = $c->{raw2}    if defined($c->{raw2});
-				
+				$mate2_file = $c->{cline_reads2} if defined($c->{cline_reads2});
+
 				my $read_file_format = undef;
 				if(!defined($reads) && !defined($m1s) && !defined($m2s)) {
 					defined($read_file) || defined($mate1_file) || die;
@@ -4313,6 +4445,7 @@ foreach my $large_idx (undef,1) {
 					$read_file_format = "fasta"  if defined($c->{fasta})  || defined($c->{fasta1});
 					$read_file_format = "qseq"   if defined($c->{qseq})   || defined($c->{qseq1});
 					$read_file_format = "raw"    if defined($c->{raw})    || defined($c->{raw1});
+					$read_file_format = "cline_reads" if defined($c->{cline_reads}) || defined($c->{cline_reads1});
 					next unless $fw;
 				}
 				# Run bowtie2
@@ -4475,7 +4608,7 @@ foreach my $large_idx (undef,1) {
 								$found = 1;
 								last;
 							}
-						} 
+						}
 						$found || die "No specified name matched reported name $readname";
 					}
 					# Make simply-named copies of some portions of the test case
@@ -4697,10 +4830,10 @@ foreach my $large_idx (undef,1) {
 					if($pe && $lastchr ne "") {
 						my $offkey_orig = $lastoff.",".$off_orig;
 						$offkey_orig = $off_orig.",".$lastoff_orig if $off_orig eq "*";
-		
+
 						my $offkey = $lastoff.",".$off;
 						$offkey = $off.",".$lastoff if $off eq "*";
-		
+
 						if($lastoff ne "*" && $off ne "*") {
 							$offkey = min($lastoff, $off).",".max($lastoff, $off);
 						}
@@ -4759,7 +4892,7 @@ foreach my $large_idx (undef,1) {
 							die "For edit string, expected \"$ex_edits\" got \"$eds\"\n";
 					}
 				}
-				# Go through all the per-read 
+				# Go through all the per-read
 				my $klim = 0;
 				$klim = scalar(@{$c->{hits}}) if defined($c->{hits});
 				$klim = max($klim, scalar(@{$c->{pairhits}})) if defined($c->{pairhits});
@@ -4786,7 +4919,7 @@ foreach my $large_idx (undef,1) {
 						die "Had $pairhits_orig_Left hit(s) left over at position $k";
 					}
 				}
-				
+
 				$c->{hits} = $hitstmp;
 				$c->{pairhits} = $pairhitstmp;
 				$c->{pairhits_orig} = $pairhits_orig_tmp;
