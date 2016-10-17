@@ -38,6 +38,8 @@ class HitSet;
  */
 struct Read {
 
+	typedef SStringExpandable<char, 1024, 2, 1024> TBuf;
+
 	Read() { reset(); }
 	
 	Read(const char *nm, const char *seq, const char *ql) { init(nm, seq, ql); }
@@ -248,7 +250,7 @@ struct Read {
 	BTString    qualRev;
 
 	// For remembering the exact input text used to define a read
-	SStringExpandable<char, 1024, 2, 1024> readOrigBuf;
+	TBuf readOrigBuf;
 
 	BTString name;      // read name
 	TReadId  rdid;      // 0-based id based on pair's offset in read file(s)
