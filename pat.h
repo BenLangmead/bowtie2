@@ -543,6 +543,7 @@ public:
 		bufCur_(0),
 		subReadCnt_(0llu)
 	{
+		assert_gt(freq_, 0);
 		resetForNextFile();
 	}
 
@@ -570,15 +571,15 @@ protected:
 	 */
 	virtual void resetForNextFile() {
 		eat_ = length_-1;
+		name_prefix_buf_.clear();
 		beginning_ = true;
 		bufCur_ = 0;
-		name_prefix_buf_.clear();
 		subReadCnt_ = readCnt_;
 	}
 
 private:
-	size_t length_;     /// length of reads to generate
-	size_t freq_;       /// frequency to sample reads
+	const size_t length_; /// length of reads to generate
+	const size_t freq_;   /// frequency to sample reads
 	size_t eat_;        /// number of characters we need to skip before
 	                    /// we have flushed all of the ambiguous or
 	                    /// non-existent characters out of our read

@@ -58,6 +58,77 @@ my @cases = (
 
 	# File format cases
 
+	# -F: FASTA continuous
+
+	{ name   => "FASTA-continuous 1",
+		ref    => [ "AGCATCGATCAGTATCTGA" ],
+		#            0123456789012345678
+		#            AGCATCGATC
+		#                     CAGTATCTGA
+		cont_fasta_reads => ">seq1\nAGCATCGATCAGTATCTGA\n",
+		idx_map => { "seq1_0" => 0, "seq1_9" => 1 },
+		args   => "-F 10,9",
+		hits   => [{ 0 => 1 }, { 9 => 1 }] },
+
+	{ name   => "FASTA-continuous 2",
+		ref    => [ "AGCATCGATCAGTATCTGA" ],
+		#            0123456789012345678
+		#      seq1: AGCATCGATCAGTATCTG
+		#            AGCATCGATC
+		#      seq2: AGCATCGATCAGTATCTGA
+		#            AGCATCGATC
+		#                     CAGTATCTGA
+		cont_fasta_reads => ">seq1\nAGCATCGATCAGTATCTG\n".
+		                    ">seq2\nAGCATCGATCAGTATCTGA\n",
+		idx_map => { "seq1_0" => 0, "seq2_0" => 1, "seq2_9" => 2 },
+		args   => "-F 10,9",
+		hits   => [{ 0 => 1 }, { 0 => 1 }, { 9 => 1 }] },
+
+	{ name   => "FASTA-continuous 3",
+		ref    => [ "AGCATCGATCAGTATCTGA" ],
+		#            0123456789012345678
+		#            AGCATCGATC
+		#                     CAGTATCTGA
+		cont_fasta_reads => ">seq1\nAGCATCGATCAGTATCTGA\n",
+		idx_map => { "seq1_0" => 0 },
+		args   => "-F 10,9 -u 1",
+		hits   => [{ 0 => 1 }] },
+
+	{ name   => "FASTA-continuous 4",
+		ref    => [ "AGCATCGATCAGTATCTGA" ],
+		#            0123456789012345678
+		#            AGCATCGATC
+		#                     CAGTATCTGA
+		cont_fasta_reads => ">seq1\nAGCATCGATCAGTATCTGA\n",
+		idx_map => { "seq1_9" => 0 },
+		args   => "-F 10,9 -s 1",
+		hits   => [{ 9 => 1 }] },
+
+	{ name   => "FASTA-continuous 5",
+		ref    => [ "AGCATCGATCAGTATCTGA" ],
+		#            0123456789012345678
+		#      seq1: AGCATCGATCAGTATCTG
+		#            AGCATCGATC
+		#      seq2: AGCATCGATCAGTATCTGA
+		#            AGCATCGATC
+		#                     CAGTATCTGA
+		cont_fasta_reads => ">seq1\nAGCATCGATCAGTATCTG\n".
+		                    ">seq2\nAGCATCGATCAGTATCTGA\n",
+		idx_map => { "seq2_0" => 0 },
+		args   => "-F 10,9 -u 1 -s 1",
+		hits   => [{ 0 => 1 }] },
+
+	{ name   => "FASTA-continuous 6",
+		ref    => [ "AGCATCGATCAG" ],
+		#            012345678901
+		#      seq1: AGCATCGATC
+		#             GCATCGATCA
+		#              CATCGATCAG
+		cont_fasta_reads => ">seq1\nAGCATCGATCAG\n",
+		idx_map => { "seq1_0" => 0, "seq1_1" => 1, "seq1_2" => 2 },
+		args   => "-F 10,1",
+		hits   => [{ 0 => 1 }, { 1 => 1 }, { 2 => 1 }] },
+
 	# -c
 
 	{ name   => "Cline 1",
@@ -4269,6 +4340,11 @@ my  $idx_type = "";
 			$readarg = $read_file;
 			$mate1arg = $mate1_file;
 			$mate2arg = $mate2_file;
+		} elsif($read_file_format eq "cont_fasta_reads") {
+			$formatarg = "";
+			$readarg = $read_file;
+			$mate1arg = $mate1_file;
+			$mate2arg = $mate2_file;
 		} elsif($read_file_format eq "fasta") {
 			$formatarg = "-f";
 			$ext = ".fa";
@@ -4422,6 +4498,7 @@ foreach my $large_idx (undef,1) {
 				$read_file  = $c->{qseq}    if defined($c->{qseq});
 				$read_file  = $c->{raw}     if defined($c->{raw});
 				$read_file  = $c->{cline_reads} if defined($c->{cline_reads});
+				$read_file  = $c->{cont_fasta_reads} if defined($c->{cont_fasta_reads});
 
 				$mate1_file = $c->{fastq1}  if defined($c->{fastq1});
 				$mate1_file = $c->{tabbed1} if defined($c->{tabbed1});
@@ -4429,6 +4506,7 @@ foreach my $large_idx (undef,1) {
 				$mate1_file = $c->{qseq1}   if defined($c->{qseq1});
 				$mate1_file = $c->{raw1}    if defined($c->{raw1});
 				$mate1_file = $c->{cline_reads1} if defined($c->{cline_reads1});
+				$mate1_file = $c->{cont_fasta_reads1} if defined($c->{cont_fasta_reads1});
 
 				$mate2_file = $c->{fastq2}  if defined($c->{fastq2});
 				$mate2_file = $c->{tabbed2} if defined($c->{tabbed2});
@@ -4436,6 +4514,7 @@ foreach my $large_idx (undef,1) {
 				$mate2_file = $c->{qseq2}   if defined($c->{qseq2});
 				$mate2_file = $c->{raw2}    if defined($c->{raw2});
 				$mate2_file = $c->{cline_reads2} if defined($c->{cline_reads2});
+				$mate2_file = $c->{cont_fasta_reads2} if defined($c->{cont_fasta_reads2});
 
 				my $read_file_format = undef;
 				if(!defined($reads) && !defined($m1s) && !defined($m2s)) {
@@ -4446,6 +4525,7 @@ foreach my $large_idx (undef,1) {
 					$read_file_format = "qseq"   if defined($c->{qseq})   || defined($c->{qseq1});
 					$read_file_format = "raw"    if defined($c->{raw})    || defined($c->{raw1});
 					$read_file_format = "cline_reads" if defined($c->{cline_reads}) || defined($c->{cline_reads1});
+					$read_file_format = "cont_fasta_reads" if defined($c->{cont_fasta_reads}) || defined($c->{cont_fasta_reads1});
 					next unless $fw;
 				}
 				# Run bowtie2

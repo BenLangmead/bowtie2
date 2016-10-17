@@ -739,7 +739,7 @@ pair<bool, int> FastaContinuousPatternSource::nextBatchFromFile(
 			break;
 		}
 		if(c == '>') {
-			name_prefix_buf_.clear();
+			resetForNextFile();
 			c = getc_unlocked(fp_);
 			bool sawSpace = false;
 			while(c != '\n' && c != '\r') {
@@ -754,50 +754,52 @@ pair<bool, int> FastaContinuousPatternSource::nextBatchFromFile(
 			while(c == '\n' || c == '\r') {
 				c = getc_unlocked(fp_);
 			}
-			name_prefix_buf_.append('_');
-		} else {
-			int cat = asc2dnacat[c];
-			if(cat >= 2) c = 'N';
-			if(cat == 0) {
-				// Non-DNA, non-IUPAC char; skip
-				continue;
-			} else {
-				// DNA char
-				buf_[bufCur_++] = c;
-				if(bufCur_ == 1024) {
-					bufCur_ = 0; // wrap around circular buf
-				}
-				if(eat_ > 0) {
-					eat_--;
-					// Try to keep readCnt_ aligned with the offset
-					// into the reference; that lets us see where
-					// the sampling gaps are by looking at the read
-					// name
-					if(!beginning_) {
-						readCnt_++;
-					}
-					continue;
-				}
-				// install name
-				readbuf[readi].readOrigBuf = name_prefix_buf_;
-				itoa10<TReadId>(readCnt_ - subReadCnt_, name_int_buf_);
-				readbuf[readi].readOrigBuf.append(name_int_buf_);
-				readbuf[readi].readOrigBuf.append('\t');
-				// install sequence
-				for(size_t i = 0; i < length_; i++) {
-					if(length_ - i <= bufCur_) {
-						c = buf_[bufCur_ - (length_ - i)];
-					} else {
-						// Rotate
-						c = buf_[bufCur_ - (length_ - i) + 1024];
-					}
-					readbuf[readi].readOrigBuf.append(c);
-				}
-				eat_ = freq_-1;
-				readCnt_++;
-				beginning_ = false;
-				readi++;
+			if(c < 0) {
+				break;
 			}
+			name_prefix_buf_.append('_');
+		}
+		int cat = asc2dnacat[c];
+		if(cat >= 2) c = 'N';
+		if(cat == 0) {
+			// Non-DNA, non-IUPAC char; skip
+			continue;
+		} else {
+			// DNA char
+			buf_[bufCur_++] = c;
+			if(bufCur_ == 1024) {
+				bufCur_ = 0; // wrap around circular buf
+			}
+			if(eat_ > 0) {
+				eat_--;
+				// Try to keep readCnt_ aligned with the offset
+				// into the reference; that lets us see where
+				// the sampling gaps are by looking at the read
+				// name
+				if(!beginning_) {
+					readCnt_++;
+				}
+				continue;
+			}
+			// install name
+			readbuf[readi].readOrigBuf = name_prefix_buf_;
+			itoa10<TReadId>(readCnt_ - subReadCnt_, name_int_buf_);
+			readbuf[readi].readOrigBuf.append(name_int_buf_);
+			readbuf[readi].readOrigBuf.append('\t');
+			// install sequence
+			for(size_t i = 0; i < length_; i++) {
+				if(length_ - i <= bufCur_) {
+					c = buf_[bufCur_ - (length_ - i)];
+				} else {
+					// Rotate
+					c = buf_[bufCur_ - (length_ - i) + 1024];
+				}
+				readbuf[readi].readOrigBuf.append(c);
+			}
+			eat_ = freq_-1;
+			readCnt_++;
+			beginning_ = false;
+			readi++;
 		}
 	}
 	return make_pair(c < 0, readi);
