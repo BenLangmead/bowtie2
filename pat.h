@@ -536,9 +536,12 @@ public:
 		const EList<std::string>& infiles,
 		const PatternParams& p) :
 		CFilePatternSource(infiles, p),
-		length_(p.sampleLen), freq_(p.sampleFreq),
-		eat_(length_-1), beginning_(true),
-		bufCur_(0), subReadCnt_(0llu)
+		length_(p.sampleLen),
+		freq_(p.sampleFreq),
+		eat_(length_-1),
+		beginning_(true),
+		bufCur_(0),
+		subReadCnt_(0llu)
 	{
 		resetForNextFile();
 	}
@@ -569,7 +572,7 @@ protected:
 		eat_ = length_-1;
 		beginning_ = true;
 		bufCur_ = 0;
-		nameBuf_.clear();
+		name_prefix_buf_.clear();
 		subReadCnt_ = readCnt_;
 	}
 
@@ -581,9 +584,9 @@ private:
 	                    /// non-existent characters out of our read
 	                    /// window
 	bool beginning_;    /// skipping over the first read length?
-	char buf_[1024];    /// read buffer
-	BTString nameBuf_;  /// read buffer for name of fasta record being
-	                    /// split into mers
+	char buf_[1024];    /// FASTA sequence buffer
+	Read::TBuf name_prefix_buf_; /// FASTA sequence name buffer
+	char name_int_buf_[20]; /// for composing offsets for names
 	size_t bufCur_;     /// buffer cursor; points to where we should
 	                    /// insert the next character
 	uint64_t subReadCnt_;/// number to subtract from readCnt_ to get

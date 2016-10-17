@@ -717,71 +717,73 @@ bool FastaPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 }
 
 /**
- * "Light" parser.  This is inside the critical section, so the key is to do
- * just enough parsing so that another function downstream (finalize()) can do
- * the rest of the parsing.  Really this function's only job is to stick every
- * for lines worth of the input file into a buffer (r.readOrigBuf).  finalize()
- * then parses the contents of r.readOrigBuf later.
+ * Light-parse a FASTA-continuous batch into the given buffer.
+ * This is trickier for FASTA-continuous than for other formats,
+ * for several reasons:
+ *
+ * 1. Reads are substrings of a longer FASTA input string
+ * 2. Reads may overlap w/r/t the longer FASTA string
+ * 3. Read names depend on the most recently observed FASTA
+ *    record name
  */
 pair<bool, int> FastaContinuousPatternSource::nextBatchFromFile(
 	PerThreadReadBuf& pt,
 	bool batch_a)
 {
-	throw 1;
-	return make_pair(false, 0);
-}
-
-/// Read another pattern from a FASTA input file
-bool FastaContinuousPatternSource::parse(
-	Read& r,
-	Read& rb,
-	TReadId rdid) const
-{
-	assert(r.empty());
-	assert(rb.empty());
-#if 0
-	r.reset();
-	while(true) {
-		int c = fb_.get();
-		if(c < 0) { return make_pair(true, 0); }
+	int c = -1;
+	EList<Read>& readbuf = batch_a ? pt.bufa_ : pt.bufb_;
+	size_t readi = 0;
+	while(readi < pt.max_buf_) {
+		c = getc_unlocked(fp_);
+		if(c < 0) {
+			break;
+		}
 		if(c == '>') {
-			resetForNextFile();
-			c = fb_.peek();
+			name_prefix_buf_.clear();
+			c = getc_unlocked(fp_);
 			bool sawSpace = false;
 			while(c != '\n' && c != '\r') {
 				if(!sawSpace) {
 					sawSpace = isspace(c);
 				}
 				if(!sawSpace) {
-					nameBuf_.append(c);
+					name_prefix_buf_.append(c);
 				}
-				fb_.get();
-				c = fb_.peek();
+				c = getc_unlocked(fp_);
 			}
 			while(c == '\n' || c == '\r') {
-				fb_.get();
-				c = fb_.peek();
+				c = getc_unlocked(fp_);
 			}
-			nameBuf_.append('_');
+			name_prefix_buf_.append('_');
 		} else {
 			int cat = asc2dnacat[c];
 			if(cat >= 2) c = 'N';
 			if(cat == 0) {
-				// Encountered non-DNA, non-IUPAC char; skip it
+				// Non-DNA, non-IUPAC char; skip
 				continue;
 			} else {
 				// DNA char
 				buf_[bufCur_++] = c;
-				if(bufCur_ == 1024) bufCur_ = 0;
+				if(bufCur_ == 1024) {
+					bufCur_ = 0; // wrap around circular buf
+				}
 				if(eat_ > 0) {
 					eat_--;
 					// Try to keep readCnt_ aligned with the offset
 					// into the reference; that lets us see where
 					// the sampling gaps are by looking at the read
 					// name
-					if(!beginning_) readCnt_++;
+					if(!beginning_) {
+						readCnt_++;
+					}
 					continue;
 				}
+				// install name
+				readbuf[readi].readOrigBuf = name_prefix_buf_;
+				itoa10<TReadId>(readCnt_ - subReadCnt_, name_int_buf_);
+				readbuf[readi].readOrigBuf.append(name_int_buf_);
+				readbuf[readi].readOrigBuf.append('\t');
+				// install sequence
 				for(size_t i = 0; i < length_; i++) {
 					if(length_ - i <= bufCur_) {
 						c = buf_[bufCur_ - (length_ - i)];
@@ -789,26 +791,73 @@ bool FastaContinuousPatternSource::parse(
 						// Rotate
 						c = buf_[bufCur_ - (length_ - i) + 1024];
 					}
-					r.patFw.append(asc2dna[c]);
-					r.qual.append('I');
+					readbuf[readi].readOrigBuf.append(c);
 				}
-				// Set up a default name if one hasn't been set
-				r.name = nameBuf_;
-				char cbuf[20];
-				itoa10<TReadId>(readCnt_ - subReadCnt_, cbuf);
-				r.name.append(cbuf);
 				eat_ = freq_-1;
 				readCnt_++;
 				beginning_ = false;
-				rdid = readCnt_-1;
-				break;
+				readi++;
 			}
 		}
 	}
-	return make_pair(false, 1);
-#endif
-	throw 1;
-	return false;
+	return make_pair(c < 0, readi);
+}
+
+/**
+ * Finalize FASTA-continuous parsing outside critical section.
+ */
+bool FastaContinuousPatternSource::parse(
+	Read& ra,
+	Read& rb,
+	TReadId rdid) const
+{
+	// Light parser (nextBatchFromFile) puts unparsed data
+	// into Read& r, even when the read is paired.
+	assert(ra.empty());
+	assert(rb.empty());
+	assert(!ra.readOrigBuf.empty()); // raw data for read/pair is here
+	assert(rb.readOrigBuf.empty());
+	int c = '\t';
+	size_t cur = 0;
+	const size_t buflen = ra.readOrigBuf.length();
+	
+	// Parse read name
+	c = ra.readOrigBuf[cur++];
+	while(c != '\t' && cur < buflen) {
+		ra.name.append(c);
+		c = ra.readOrigBuf[cur++];
+	}
+	assert_eq('\t', c);
+	if(cur >= buflen) {
+		return false; // record ended prematurely
+	}
+
+	// Parse sequence
+	assert(ra.patFw.empty());
+	c = ra.readOrigBuf[cur++];
+	int nchar = 0;
+	while(cur < buflen) {
+		if(isalpha(c)) {
+			assert_in(toupper(c), "ACGTN");
+			if(nchar++ >= gTrim5) {
+				assert_neq(0, asc2dnacat[c]);
+				ra.patFw.append(asc2dna[c]); // ascii to int
+			}
+		}
+		c = ra.readOrigBuf[cur++];
+	}
+	// record amt trimmed from 5' end due to --trim5
+	ra.trimmed5 = (int)(nchar - ra.patFw.length());
+	// record amt trimmed from 3' end due to --trim3
+	ra.trimmed3 = (int)(ra.patFw.trimEnd(gTrim3));
+	
+	// Make fake qualities
+	assert(ra.qual.empty());
+	const size_t len = ra.patFw.length();
+	for(size_t i = 0; i < len; i++) {
+		ra.qual.append('I');
+	}
+	return true;
 }
 
 
