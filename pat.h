@@ -181,7 +181,6 @@ class PatternSource {
 public:
 	
 	PatternSource(const PatternParams& p) :
-		seed_(p.seed),
 		readCnt_(0),
 		mutex() { }
 	
@@ -224,9 +223,6 @@ public:
 	TReadId readCount() const { return readCnt_; }
 	
 protected:
-	
-	/// Pseudo-random seed
-	const uint32_t seed_;
 	
 	/// The number of reads read by this PatternSource
 	volatile TReadId readCnt_;
@@ -448,7 +444,7 @@ public:
 	TabbedPatternSource(
 		const EList<std::string>& infiles,
 		const PatternParams& p,
-		bool  secondName) :
+		bool  secondName) :  // whether it's --12/--tab5 or --tab6
 		CFilePatternSource(infiles, p),
 		solQuals_(p.solexa64),
 		phred64Quals_(p.phred64),
@@ -545,6 +541,7 @@ public:
 	{
 		assert_gt(freq_, 0);
 		resetForNextFile();
+		assert_leq(length_, 1024);
 	}
 
 	virtual void reset() {
@@ -610,8 +607,7 @@ public:
 		first_(true),
 		solQuals_(p.solexa64),
 		phred64Quals_(p.phred64),
-		intQuals_(p.intQuals)
-	{ }
+		intQuals_(p.intQuals) { }
 	
 	virtual void reset() {
 		first_ = true;
@@ -686,16 +682,6 @@ protected:
 	}
 	
 private:
-
-	/**
-	 * Do things we need to do if we have to bail in the middle of a
-	 * read, usually because we reached the end of the input without
-	 * finishing.
-	 * TODO: still need this?
-	 */
-	void bail(Read& r) {
-		r.patFw.clear();
-	}
 	
 	bool first_;
 };
@@ -706,9 +692,7 @@ private:
  */
 class PatternComposer {
 public:
-	PatternComposer(const PatternParams& p) :
-		seed_(p.seed),
-		mutex_m() { }
+	PatternComposer(const PatternParams& p) : mutex_m() { }
 	
 	virtual ~PatternComposer() { }
 	
@@ -743,9 +727,6 @@ public:
 protected:
 	
 	static void free_EList_pmembers(const EList<PatternSource*>&);
-	
-	/// Pseudo-random seed
-	uint32_t seed_;
 	
 	/// Lock enforcing mutual exclusion for (a) file I/O, (b) writing fields
 	/// of this or another other shared object.
@@ -970,7 +951,7 @@ public:
 		pp_(pp) { }
 	
 	/**
-	 * Create a new heap-allocated WrappedPatternSourcePerThreads.
+	 * Create a new heap-allocated PatternSourcePerThreads.
 	 */
 	virtual PatternSourcePerThread* create() const {
 		return new PatternSourcePerThread(composer_, pp_);
@@ -978,7 +959,7 @@ public:
 	
 	/**
 	 * Create a new heap-allocated vector of heap-allocated
-	 * WrappedPatternSourcePerThreads.
+	 * PatternSourcePerThreads.
 	 */
 	virtual EList<PatternSourcePerThread*>* create(uint32_t n) const {
 		EList<PatternSourcePerThread*>* v = new EList<PatternSourcePerThread*>;
