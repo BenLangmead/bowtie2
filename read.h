@@ -57,6 +57,7 @@ struct Read {
 		name.clear();
 		filter = '?';
 		seed = 0;
+		parsed = false;
 		ns_ = 0;
 	}
 	
@@ -256,6 +257,7 @@ struct Read {
 	TReadId  rdid;      // 0-based id based on pair's offset in read file(s)
 	int      mate;      // 0 = single-end, 1 = mate1, 2 = mate2
 	uint32_t seed;      // random seed
+	bool     parsed;    // true iff read has been fully parsed
 	size_t   ns_;       // # Ns
 	char     filter;    // if read format permits filter char, set it here
 	int      trimmed5;  // amount actually trimmed off 5' end

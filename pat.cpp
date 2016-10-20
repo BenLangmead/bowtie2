@@ -605,7 +605,8 @@ bool VectorPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 		assert(c == '\t' || c == '\n' || c == '\r' || cur >= buflen);
 		assert_eq(r.patFw.length(), r.qual.length());
 	}
-	if(!rb.readOrigBuf.empty() && rb.patFw.empty()) {
+	ra.parsed = true;
+	if(!rb.parsed && !rb.readOrigBuf.empty()) {
 		return parse(rb, ra, rdid);
 	}
 	return true;
@@ -710,7 +711,8 @@ bool FastaPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 		itoa10<TReadId>(static_cast<TReadId>(rdid), cbuf);
 		r.name.install(cbuf);
 	}
-	if(!rb.readOrigBuf.empty() && rb.patFw.empty()) {
+	r.parsed = true;
+	if(!rb.parsed && !rb.readOrigBuf.empty()) {
 		return parse(rb, r, rdid);
 	}
 	return true;
@@ -971,54 +973,51 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 		c = r.readOrigBuf[cur++];
 	}
 	
-	// Now we're on the next non-blank line after the + line
-	if(r.patFw.empty()) {
-		return true; // done parsing empty read
-	}
-
 	assert(r.qual.empty());
-	int nqual = 0;
-	if (intQuals_) {
-		int cur_int = 0;
-		while(c != '\t' && c != '\n' && c != '\r') {
-			cur_int *= 10;
-			cur_int += (int)(c - '0');
-			c = r.readOrigBuf[cur++];
-			if(c == ' ' || c == '\t' || c == '\n' || c == '\r') {
-				char cadd = intToPhred33(cur_int, solQuals_);
-				cur_int = 0;
-				assert_geq(cadd, 33);
-				if(++nqual > gTrim5) {
-					r.qual.append(cadd);
+	if(nchar > 0) {
+		int nqual = 0;
+		if (intQuals_) {
+			int cur_int = 0;
+			while(c != '\t' && c != '\n' && c != '\r') {
+				cur_int *= 10;
+				cur_int += (int)(c - '0');
+				c = r.readOrigBuf[cur++];
+				if(c == ' ' || c == '\t' || c == '\n' || c == '\r') {
+					char cadd = intToPhred33(cur_int, solQuals_);
+					cur_int = 0;
+					assert_geq(cadd, 33);
+					if(++nqual > gTrim5) {
+						r.qual.append(cadd);
+					}
 				}
 			}
-		}
-	} else {
-		c = charToPhred33(c, solQuals_, phred64Quals_);
-		if(nqual++ >= r.trimmed5) {
-			r.qual.append(c);
-		}
-		while(cur < r.readOrigBuf.length()) {
-			c = r.readOrigBuf[cur++];
-			if (c == ' ') {
-				wrongQualityFormat(r.name);
-				return false;
-			}
-			if(c == '\r' || c == '\n') {
-				break;
-			}
+		} else {
 			c = charToPhred33(c, solQuals_, phred64Quals_);
 			if(nqual++ >= r.trimmed5) {
 				r.qual.append(c);
 			}
-		}
-		r.qual.trimEnd(r.trimmed3);
-		if(r.qual.length() < r.patFw.length()) {
-			tooFewQualities(r.name);
-			return false;
-		} else if(r.qual.length() > r.patFw.length()) {
-			tooManyQualities(r.name);
-			return false;
+			while(cur < r.readOrigBuf.length()) {
+				c = r.readOrigBuf[cur++];
+				if (c == ' ') {
+					wrongQualityFormat(r.name);
+					return false;
+				}
+				if(c == '\r' || c == '\n') {
+					break;
+				}
+				c = charToPhred33(c, solQuals_, phred64Quals_);
+				if(nqual++ >= r.trimmed5) {
+					r.qual.append(c);
+				}
+			}
+			r.qual.trimEnd(r.trimmed3);
+			if(r.qual.length() < r.patFw.length()) {
+				tooFewQualities(r.name);
+				return false;
+			} else if(r.qual.length() > r.patFw.length()) {
+				tooManyQualities(r.name);
+				return false;
+			}
 		}
 	}
 	// Set up a default name if one hasn't been set
@@ -1027,7 +1026,8 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 		itoa10<TReadId>(static_cast<TReadId>(readCnt_), cbuf);
 		r.name.install(cbuf);
 	}
-	if(!rb.readOrigBuf.empty() && rb.patFw.empty()) {
+	r.parsed = true;
+	if(!rb.parsed && !rb.readOrigBuf.empty()) {
 		return parse(rb, r, rdid);
 	}
 	return true;
@@ -1235,7 +1235,8 @@ bool RawPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 	for(size_t i = 0; i < len; i++) {
 		r.qual.append('I');
 	}
-	if(!rb.readOrigBuf.empty() && rb.patFw.empty()) {
+	r.parsed = true;
+	if(!rb.parsed && !rb.readOrigBuf.empty()) {
 		return parse(rb, r, rdid);
 	}
 	return true;
