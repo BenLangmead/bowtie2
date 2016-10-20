@@ -236,6 +236,18 @@ my @cases = (
 	                   "AGCATCGATC:IIIIIIIIII",
 	  pairhits => [ { "0,8" => 1 }, { } ] },
 
+	# Paired-end reads with left end entirely trimmed away
+	{ name     => "Cline paired 4",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  args     => "-3 7",
+	  #                  AGCATCG
+	  #                        GATCAAAAACTGA
+	  #                  0123456789012345678
+	  cline_reads1  => "AGCATCG:IIIIIII",
+	  cline_reads2  => "GATCAAAAACTGA:IIIIIIIIIIIII",
+		#                               GATCAGTTTTTGA
+	  pairhits => [ { "*,6" => 1 } ] },
+
 	# -q
 
 	{ name   => "Fastq 1",
@@ -343,18 +355,30 @@ my @cases = (
 	             "\@r1\nAGCATCGATC\r\n+\nIIIIIIIIII",
 	  pairhits => [ { }, { "0,8" => 1 } ] },
 
-		# Paired-end reads that should align
-		{ name     => "Fastq paired 3",
-		  ref      => [     "AGCATCGATCAAAAACTGA" ],
-		  args     => "-u 1",
-		  #                  AGCATCGATC
-		  #                          TCAAAAACTGA
-		  #                  0123456789012345678
-		  fastq1  => "\@r0\nAGCATCGATC\r\n+\nIIIIIIIIII\n".
-		             "\@r1\nTCAGTTTTTGA\r\n+\nIIIIIIIIIII\n",
-		  fastq2  => "\@r0\nTCAGTTTTTGA\n+\nIIIIIIIIIII\n".
-		             "\@r1\nAGCATCGATC\r\n+\nIIIIIIIIII",
-		  pairhits => [ { "0,8" => 1 }, { } ] },
+	# Paired-end reads that should align
+	{ name     => "Fastq paired 3",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  args     => "-u 1",
+	  #                  AGCATCGATC
+	  #                          TCAAAAACTGA
+	  #                  0123456789012345678
+	  fastq1  => "\@r0\nAGCATCGATC\r\n+\nIIIIIIIIII\n".
+				 "\@r1\nTCAGTTTTTGA\r\n+\nIIIIIIIIIII\n",
+	  fastq2  => "\@r0\nTCAGTTTTTGA\n+\nIIIIIIIIIII\n".
+				 "\@r1\nAGCATCGATC\r\n+\nIIIIIIIIII",
+	  pairhits => [ { "0,8" => 1 }, { } ] },
+
+	# Paired-end reads with left end entirely trimmed away
+	{ name     => "Fastq paired 4",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  args     => "-3 7",
+	  #                  AGCATCG
+	  #                        GATCAAAAACTGA
+	  #                  0123456789012345678
+	  fastq1  => "\@r0\nAGCATCG\n+\nIIIIIII\n",
+	  fastq2  => "\@r0\nGATCAAAAACTGA\n+\nIIIIIIIIIIIII\n",
+		#                               GATCAGTTTTTGA
+	  pairhits => [ { "*,6" => 1 } ] },
 
 	# -f
 
@@ -461,6 +485,18 @@ my @cases = (
 	             "\n\n\r\n>r1\nAGCATCGATC",
 	  pairhits => [ { "0,8" => 1 }, { } ] },
 
+	# Paired-end reads with left end entirely trimmed away
+	{ name     => "Fasta paired 4",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  args     => "-3 7",
+	  #                  AGCATCG
+	  #                        GATCAAAAACTGA
+	  #                  0123456789012345678
+	  fasta1  => ">\nAGCATCG\n",
+	  fasta2  => ">\nGATCAAAAACTGA\n",
+		#                               GATCAGTTTTTGA
+	  pairhits => [ { "*,6" => 1 } ] },
+
 	# -r
 
 	{ name   => "Raw 1",
@@ -551,6 +587,18 @@ my @cases = (
 	  raw2    => "\n\n\r\nTCAGTTTTTGA\n".
 	             "\n\n\r\nAGCATCGATC",
 	  pairhits => [ { "0,8" => 1 }, { } ] },
+
+	# Paired-end reads with left end entirely trimmed away
+	{ name     => "Raw paired 4",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  args     => "-3 7",
+	  #                  AGCATCG
+	  #                        GATCAAAAACTGA
+	  #                  0123456789012345678
+	  raw1     => "\nAGCATCG\n",
+	  raw2     => "\nGATCAAAAACTGA\n",
+		#                               GATCAGTTTTTGA
+	  pairhits => [ { "*,6" => 1 } ] },
 
 	# --12 / --tab5 / --tab6
 
@@ -649,6 +697,17 @@ my @cases = (
 	              "\n\nr1\tTCAGTTTTTGA\tIIIIIIIIIII\tAGCATCGATC\tIIIIIIIIII",
 	  paired   => 1,
 	  pairhits => [ { "0,8" => 1 }, { } ] },
+
+	# Paired-end reads with left end entirely trimmed away
+	{ name     => "Tabbed paired 4",
+	  ref      => [     "AGCATCGATCAAAAACTGA" ],
+	  args     => "-3 7",
+	  #                  AGCATCG
+	  #                        GATCAAAAACTGA
+	  #                  0123456789012345678
+	  tabbed     => "\nr0\tAGCATCG\tIIIIIII\tGATCAAAAACTGA\tIIIIIIIIIIIII\n",
+		paired   => 1,
+	  pairhits => [ { "*,6" => 1 } ] },
 
 	# --qseq
 
