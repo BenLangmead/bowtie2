@@ -225,7 +225,8 @@ bool QseqPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 		throw 1;
 	}
 	assert_eq(cur, buflen);
-	if(!rb.readOrigBuf.empty() && rb.patFw.empty()) {
+	r.parsed = true;
+	if(!rb.parsed && !rb.readOrigBuf.empty()) {
 		return parse(rb, r, rdid);
 	}
 	return true;
