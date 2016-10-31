@@ -634,6 +634,9 @@ pair<bool, int> FastaPatternSource::nextBatchFromFile(
 	}
 	bool done = false;
 	size_t readi = 0;
+	if (feof(fp_)) {
+		done = true;
+	}
 	// Read until we run out of input or until we've filled the buffer
 	for(; readi < pt.max_buf_ && !done; readi++) {
 		Read::TBuf& buf = readbuf[readi].readOrigBuf;
@@ -1190,6 +1193,10 @@ pair<bool, int> RawPatternSource::nextBatchFromFile(
 		while(c >= 0 && (c == '\n' || c == '\r')) {
 			c = getc_unlocked(fp_);
 		}
+	}
+	// incase a valid character is consumed between batches
+    if (c >= 0 && c != '\n' && c != '\r') {
+		ungetc(c, fp_);
 	}
 	return make_pair(c < 0, readi);
 }

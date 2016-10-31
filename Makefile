@@ -61,20 +61,20 @@ ifeq (1, $(POPCNT_CAPABILITY))
     INC += -I third_party
 endif
 
-MM_DEF = 
+MM_DEF =
 
 ifeq (1,$(BOWTIE_MM))
 	MM_DEF = -DBOWTIE_MM
 endif
 
-SHMEM_DEF = 
+SHMEM_DEF =
 
 ifeq (1,$(BOWTIE_SHARED_MEM))
 	SHMEM_DEF = -DBOWTIE_SHARED_MEM
 endif
 
 PTHREAD_PKG =
-PTHREAD_LIB = 
+PTHREAD_LIB =
 
 #if we're not using TBB, then we can't use queuing locks
 ifeq (1,$(NO_TBB))
@@ -82,7 +82,7 @@ ifeq (1,$(NO_TBB))
 endif
 
 ifeq (1,$(MINGW))
-	PTHREAD_LIB = 
+	PTHREAD_LIB =
 else
 	PTHREAD_LIB = -lpthread
 endif
@@ -98,13 +98,13 @@ ifneq (1,$(NO_TBB))
 else
 	LIBS = $(PTHREAD_LIB)
 endif
-SEARCH_LIBS = 
-BUILD_LIBS = 
+SEARCH_LIBS =
+BUILD_LIBS =
 INSPECT_LIBS =
 
 ifeq (1,$(MINGW))
-	BUILD_LIBS = 
-	INSPECT_LIBS = 
+	BUILD_LIBS =
+	INSPECT_LIBS =
 endif
 
 ifeq (1,$(WITH_THREAD_PROFILING))
@@ -180,7 +180,7 @@ ifeq (32,$(BITS))
   $(error bowtie2 compilation requires a 64-bit platform )
 endif
 
-SSE_FLAG=-msse2 
+SSE_FLAG=-msse2
 
 DEBUG_FLAGS    = -O0 -g3 -m64 $(SSE_FLAG)
 DEBUG_DEFS     = -DCOMPILER_OPTIONS="\"$(DEBUG_FLAGS) $(EXTRA_FLAGS)\""
@@ -224,8 +224,8 @@ GENERAL_LIST = $(wildcard scripts/*.sh) \
                VERSION
 
 ifeq (1,$(WINDOWS))
-	BOWTIE2_BIN_LIST := $(BOWTIE2_BIN_LIST) bowtie2.bat bowtie2-build.bat bowtie2-inspect.bat 
-    ifneq (1,$(NO_TBB)) 
+	BOWTIE2_BIN_LIST := $(BOWTIE2_BIN_LIST) bowtie2.bat bowtie2-build.bat bowtie2-inspect.bat
+    ifneq (1,$(NO_TBB))
 	    override EXTRA_FLAGS += -static-libgcc -static-libstdc++
 	else
 	    override EXTRA_FLAGS += -static -static-libgcc -static-libstdc++
@@ -246,7 +246,7 @@ SRC_PKG_LIST = $(wildcard *.h) \
                $(GENERAL_LIST)
 
 ifeq (1,$(WINDOWS))
-	BIN_PKG_LIST = $(GENERAL_LIST) bowtie2.bat bowtie2-build.bat bowtie2-inspect.bat 
+	BIN_PKG_LIST = $(GENERAL_LIST) bowtie2.bat bowtie2-build.bat bowtie2-inspect.bat
 else
 	BIN_PKG_LIST = $(GENERAL_LIST)
 endif
@@ -367,7 +367,7 @@ bowtie2-inspect-l: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 		$(SHARED_CPPS) \
 		$(LIBS) $(INSPECT_LIBS)
 
-bowtie2-inspect-s-debug: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS) 
+bowtie2-inspect-s-debug: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 	$(CXX) $(DEBUG_FLAGS) \
 		$(DEBUG_DEFS) $(EXTRA_FLAGS) \
 		$(DEFS) -DBOWTIE2 -DBOWTIE_INSPECT_MAIN -Wall \
@@ -431,21 +431,20 @@ bowtie2-src: $(SRC_PKG_LIST)
 	cp .src.tmp/bowtie2-$(VERSION)-source.zip .
 	rm -rf .src.tmp
 
-.PHONY: bowtie2-bin
-bowtie2-bin: $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX) 
+.PHONY: bowtie2-pkg
+bowtie2-bin: $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)
+	$(eval PKG_DIR=bowtie2-$(VERSION)$(if $(NO_TBB),-legacy))
 	chmod a+x scripts/*.sh scripts/*.pl
 	rm -rf .bin.tmp
-	mkdir .bin.tmp
-	mkdir .bin.tmp/bowtie2-$(VERSION)
+	mkdir -p .bin.tmp/$(PKG_DIR)
 	if [ -f bowtie2-align-s.exe ] ; then \
-		zip tmp.zip $(BIN_PKG_LIST) $(addsuffix .exe,$(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)) ; \
+		\# copy files while preserving directory structure \
+		tar cf - $(BIN_PKG_LIST) $(addsuffix .exe,$(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)) | tar - xf -C .bin.tmp/$(PKG_DIR) ; \
 	else \
-		zip tmp.zip $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX) ; \
+		tar cf - $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX) | tar xf - -C .bin.tmp/$(PKG_DIR) ; \
 	fi
-	mv tmp.zip .bin.tmp/bowtie2-$(VERSION)
-	cd .bin.tmp/bowtie2-$(VERSION) ; unzip tmp.zip ; rm -f tmp.zip
-	cd .bin.tmp ; zip -r bowtie2-$(VERSION).zip bowtie2-$(VERSION)
-	cp .bin.tmp/bowtie2-$(VERSION).zip .
+	cd .bin.tmp ; zip -r $(PKG_DIR).zip $(PKG_DIR)
+	cp .bin.tmp/$(PKG_DIR).zip .
 	rm -rf .bin.tmp
 
 bowtie2-seeds-debug: aligner_seed.cpp ccnt_lut.cpp alphabet.cpp aligner_seed.h bt2_idx.cpp bt2_io.cpp
@@ -478,6 +477,34 @@ install: all
 	for file in $(BOWTIE2_BIN_LIST) bowtie2-inspect bowtie2-build bowtie2 ; do \
 		cp -f $$file $(DESTDIR)$(bindir) ; \
 	done
+
+.PHONY: simple-test
+simple-test: all
+	sh ./scripts/test/simple_tests.sh
+
+.PHONY: random-test
+random-test: all
+	CMD='sh ./scripts/sim/run.sh $(if $(NUM_CORES), $(NUM_CORES), 2)' ; \
+	MODULE_URL="http://search.cpan.org/CPAN/authors/id/G/GR/GROMMEL/Math-Random-0.72.tar.gz" ; \
+	FILE_NAME=$$(basename $$MODULE_URL) ; \
+	if [ `perl -MMath::Random -e 1` ] ; then \
+		$$CMD ; \
+	else \
+		rm -rf .perllib.tmp && mkdir .perllib.tmp ; \
+		if [ `which wget` ] ; then \
+			wget --directory-prefix .perllib.tmp $$MODULE_URL ; \
+		else \
+			cd .perllib.tmp && curl -O $$MODULE_URL ; \
+		fi ; \
+		cd .perllib.tmp && tar xzf $$FILE_NAME ; \
+		cd $$(basename $$FILE_NAME .tar.gz) && perl Makefile.PL PREFIX=$(CURDIR)/.perllib.tmp && make && make install ; \
+		cd $(CURDIR) ; \
+		MODULE_PATH=$$(find $(CURDIR)/.perllib.tmp -type f -name Random.pm | head -1) ; PERL5LIB=$${MODULE_PATH%/*/*} $$CMD; \
+		rm -rf .perllib.tmp ; \
+	fi
+
+.PHONY: test
+test: simple-test random-test
 
 .PHONY: clean
 clean:
