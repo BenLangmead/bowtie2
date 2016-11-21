@@ -494,9 +494,9 @@ random-test: all
 		if [ `which wget` ] ; then \
 			wget --directory-prefix .perllib.tmp $$MODULE_URL ; \
 		else \
-			cd .perllib.tmp && curl -O $$MODULE_URL ; \
+			cd .perllib.tmp && curl -LO $$MODULE_URL ; \
 		fi ; \
-		cd .perllib.tmp && tar xzf $$FILE_NAME ; \
+		tar xzf $$FILE_NAME ; \
 		cd $$(basename $$FILE_NAME .tar.gz) && perl Makefile.PL PREFIX=$(CURDIR)/.perllib.tmp && make && make install ; \
 		cd $(CURDIR) ; \
 		MODULE_PATH=$$(find $(CURDIR)/.perllib.tmp -type f -name Random.pm | head -1) ; PERL5LIB=$${MODULE_PATH%/*/*} $$CMD; \
