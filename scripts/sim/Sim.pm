@@ -714,13 +714,8 @@ sub genPolicyRFG() {
 #
 sub genPolicyMIN($) {
 	my $local = shift;
-	return undef if ($local || int(rand(2)) == 0);
 	my $xx = Math::Random::random_uniform(1, 1, 10);
 	my $yy = Math::Random::random_uniform(1, 1, 10);
-	if(!$local) {
-		$xx = -$xx if int(rand(2)) == 0;
-		$yy = -$yy;
-	}
 	return "L,$xx,$yy";
 }
 
@@ -830,7 +825,7 @@ sub genAlignArgs {
 	}
 	$args{"--rdg"} = genPolicyRDG() if rand() < 0.5;
 	$args{"--rfg"} = genPolicyRFG() if rand() < 0.5;
-	$args{"--score-min"} = genPolicyMIN($local) if rand() < 0.5;
+	$args{"--score-min"} = genPolicyMIN($local);
 	$args{"--n-ceil"} = genPolicyNCEIL() if rand() < 0.5;
 	$args{"-N"} = genPolicySEED() if rand() < 0.5;
 	$args{"-D"} = genPolicyFailStreak() if rand() < 0.5;
