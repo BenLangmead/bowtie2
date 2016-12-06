@@ -479,29 +479,33 @@ install: all
 	done
 
 .PHONY: simple-test
-simple-test: all
-	sh ./scripts/test/simple_tests.sh
+simple-test: all install-perl-deps
+	CMD="sh ./scripts/test/simple_tests.sh" ; \
+	PERL_VERSION=$$(perl -e 'print substr($$^V, 1)') ; \
+	echo $$PERL_VERSION ; \
+	PERL5LIB=$$(find $(CURDIR)/.perllib.tmp -type d -name $$PERL_VERSION | tail -1) $$CMD ; \
+	rm -rf .perllib.tmp
 
 .PHONY: random-test
-random-test: all
+random-test: all install-perl-deps
 	CMD='sh ./scripts/sim/run.sh $(if $(NUM_CORES), $(NUM_CORES), 2)' ; \
-	MODULE_URL="http://search.cpan.org/CPAN/authors/id/G/GR/GROMMEL/Math-Random-0.72.tar.gz" ; \
-	FILE_NAME=$$(basename $$MODULE_URL) ; \
-	if [ `perl -MMath::Random -e 1` ] ; then \
-		$$CMD ; \
-	else \
-		rm -rf .perllib.tmp && mkdir .perllib.tmp ; \
-		if [ `which wget` ] ; then \
-			wget --directory-prefix .perllib.tmp $$MODULE_URL ; \
-		else \
-			cd .perllib.tmp && curl -LO $$MODULE_URL ; \
-		fi ; \
-		tar xzf $$FILE_NAME ; \
-		cd $$(basename $$FILE_NAME .tar.gz) && perl Makefile.PL PREFIX=$(CURDIR)/.perllib.tmp && make && make install ; \
-		cd $(CURDIR) ; \
-		MODULE_PATH=$$(find $(CURDIR)/.perllib.tmp -type f -name Random.pm | head -1) ; PERL5LIB=$${MODULE_PATH%/*/*} $$CMD; \
-		rm -rf .perllib.tmp ; \
-	fi
+	PERL_VERSION=$$(perl -e 'print substr($$^V, 1)') ; \
+	echo $$PERL_VERSION ; \
+	PERL5LIB=$$(find $(CURDIR)/.perllib.tmp -type d -name $$PERL_VERSION | tail -1) $$CMD ; \
+	rm -rf .perllib.tmp
+
+.PHONY: perl-deps
+install-perl-deps:
+	DL=$$([[ `which wget` ]] && echo wget || echo curl -LO) ; \
+	MODULE_URLS=$$(cpan -D Clone Math::Random Test::Deep | grep tar.gz) ; \
+	BASE_URL="http://search.cpan.org/CPAN/authors/id/" ; \
+	rm -rf .perllib.tmp && mkdir .perllib.tmp && cd .perllib.tmp ; \
+	for url in $$MODULE_URLS; do \
+		$$DL $${BASE_URL}$${url} ; \
+		filename=$$(basename $$url) ; \
+		tar xzf $$filename ; \
+		cd $$(basename $$filename .tar.gz) && perl Makefile.PL PREFIX=$(CURDIR)/.perllib.tmp && make && make install && make clean; \
+	done ; \
 
 .PHONY: test
 test: simple-test random-test
