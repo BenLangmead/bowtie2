@@ -44,6 +44,7 @@ static int sanityCheck;
 static int format;
 static TIndexOffU bmax;
 static TIndexOffU bmaxMultSqrt;
+bool bmaxDivNSet = false;
 static uint32_t bmaxDivN;
 static int dcv;
 static int noDc;
@@ -282,6 +283,7 @@ static bool parseOptions(int argc, const char **argv) {
 				bmaxDivN = 0xffffffff; // don't use multSqrt
 				break;
 			case ARG_BMAX_DIV:
+				bmaxDivNSet = true;
 				bmaxDivN = parseNumber<uint32_t>(1, "--bmaxdivn arg must be at least 1");
 				bmax = OFF_MASK;         // don't use bmax
 				bmaxMultSqrt = OFF_MASK; // don't use multSqrt
@@ -321,6 +323,9 @@ static bool parseOptions(int argc, const char **argv) {
 		cerr << "Warning: specified bmax is very small (" << bmax << ").  This can lead to" << endl
 		     << "extremely slow performance and memory exhaustion.  Perhaps you meant to specify" << endl
 		     << "a small --bmaxdivn?" << endl;
+	}
+	if (!bmaxDivNSet) {
+		bmaxDivN *= nthreads;
 	}
 	return abort;
 }
