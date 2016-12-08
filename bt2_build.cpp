@@ -44,7 +44,6 @@ static int sanityCheck;
 static int format;
 static TIndexOffU bmax;
 static TIndexOffU bmaxMultSqrt;
-bool bmaxDivNSet = false;
 static uint32_t bmaxDivN;
 static int dcv;
 static int noDc;
@@ -236,6 +235,7 @@ static T parseNumber(T lower, const char *errmsg) {
 static bool parseOptions(int argc, const char **argv) {
 	int option_index = 0;
 	int next_option;
+	bool bmaxDivNSet = false;
 	bool abort = false;
 	do {
 		next_option = getopt_long(
