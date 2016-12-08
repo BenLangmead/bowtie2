@@ -479,33 +479,24 @@ install: all
 	done
 
 .PHONY: simple-test
-simple-test: all install-perl-deps
-	CMD="sh ./scripts/test/simple_tests.sh" ; \
-	PERL_VERSION=$$(perl -e 'print substr($$^V, 1)') ; \
-	echo $$PERL_VERSION ; \
-	PERL5LIB=$$(find $(CURDIR)/.perllib.tmp -type d -name $$PERL_VERSION | tail -1) $$CMD ; \
-	rm -rf .perllib.tmp
+simple-test: all perl-deps
+	eval `perl -I $(CURDIR)/.perllib.tmp/lib/perl5 -Mlocal::lib=$(CURDIR)/.perllib.tmp` ; \
+	sh ./scripts/test/simple_tests.sh
 
 .PHONY: random-test
-random-test: all install-perl-deps
-	CMD='sh ./scripts/sim/run.sh $(if $(NUM_CORES), $(NUM_CORES), 2)' ; \
-	PERL_VERSION=$$(perl -e 'print substr($$^V, 1)') ; \
-	echo $$PERL_VERSION ; \
-	PERL5LIB=$$(find $(CURDIR)/.perllib.tmp -type d -name $$PERL_VERSION | tail -1) $$CMD ; \
-	rm -rf .perllib.tmp
+random-test: all perl-deps
+	eval `perl -I $(CURDIR)/.perllib.tmp/lib/perl5 -Mlocal::lib=$(CURDIR)/.perllib.tmp` ; \
+	sh ./scripts/sim/run.sh $(if $(NUM_CORES), $(NUM_CORES), 2)
 
 .PHONY: perl-deps
-install-perl-deps:
-	DL=$$([[ `which wget` ]] && echo wget || echo curl -LO) ; \
-	MODULE_URLS=$$(cpan -D Clone Math::Random Test::Deep | grep tar.gz) ; \
-	BASE_URL="http://search.cpan.org/CPAN/authors/id/" ; \
-	rm -rf .perllib.tmp && mkdir .perllib.tmp && cd .perllib.tmp ; \
-	for url in $$MODULE_URLS; do \
-		$$DL $${BASE_URL}$${url} ; \
-		filename=$$(basename $$url) ; \
-		tar xzf $$filename ; \
-		cd $$(basename $$filename .tar.gz) && perl Makefile.PL PREFIX=$(CURDIR)/.perllib.tmp && make && make install && make clean; \
-	done ; \
+perl-deps:
+	if [ ! -e .perllib.tmp ]; then \
+		DL=$$([ `which wget` ] && echo wget -O- || echo curl -L) ; \
+		mkdir .perllib.tmp ; \
+		$$DL http://cpanmin.us | perl - -l $(CURDIR)/.perllib.tmp App::cpanminus local::lib ; \
+		eval `perl -I $(CURDIR)/.perllib.tmp/lib/perl5 -Mlocal::lib=$(CURDIR)/.perllib.tmp` ; \
+		cpanm Math::Random Clone Test::Deep ; \
+	fi
 
 .PHONY: test
 test: simple-test random-test
@@ -517,3 +508,4 @@ clean:
 	bowtie2-src.zip bowtie2-bin.zip
 	rm -f core.* .tmp.head
 	rm -rf *.dSYM
+	rm -rf .perllib.tmp
