@@ -25,280 +25,209 @@
  * the sequence and the string stops at the next char upto (could
  * be tab, newline, etc.).
  */
-int QseqPatternSource::parseName(
-	Read& r,      // buffer for mate 1
-	Read* r2,     // buffer for mate 2 (NULL if mate2 is read separately)
-	bool append,     // true -> append characters, false -> skip them
-	bool clearFirst, // clear the name buffer first
-	bool warnEmpty,  // emit a warning if nothing was added to the name
-	bool useDefault, // if nothing is read, put readCnt_ as a default value
+static int parseName(
+	Read::TBuf& buf, // buffer w/ raw qseq data
+	size_t& cur,     // buffer cursor
+	Read& r,         // buffer for mate 1
 	int upto)        // stop parsing when we first reach character 'upto'
 {
-	if(clearFirst) {
-		if(r2 != NULL) r2->name.clear();
-		r.name.clear();
-	}
-	while(true) {
-		int c;
-		if((c = fb_.get()) < 0) {
-			// EOF reached in the middle of the name
-			return -1;
-		}
-		if(c == '\n' || c == '\r') {
-			// EOL reached in the middle of the name
-			return -1;
-		}
+	const size_t buflen = buf.length();
+	int c;
+	while(cur < buflen) {
+		c = buf[cur++];
+		assert(c != '\r' && c != '\n');
 		if(c == upto) {
-			// Finished with field
-			break;
+			break; // Finished with field
 		}
-		if(append) {
-			if(r2 != NULL) r2->name.append(c);
-			r.name.append(c);
-		}
+		r.name.append(c);
 	}
-	// Set up a default name if one hasn't been set
-	if(r.name.empty() && useDefault && append) {
-		char cbuf[20];
-		itoa10(readCnt_, cbuf);
-		r.name.append(cbuf);
-		if(r2 != NULL) r2->name.append(cbuf);
-	}
-	if(r.name.empty() && warnEmpty) {
-		cerr << "Warning: read had an empty name field" << endl;
+	if(cur >= buflen) {
+		return -1; // Error: buffer ended prematurely
 	}
 	return (int)r.name.length();
 }
 
-/**
- * Parse a single sequence from fb_ and store in r.  Assume
- * that the next character obtained via fb_.get() is the first
- * character of the sequence and the sequence stops at the next
- * char upto (could be tab, newline, etc.).
- */
-int QseqPatternSource::parseSeq(
-	Read& r,
-	int& charsRead,
-	int& trim5,
-	char upto)
-{
-	int begin = 0;
-	int c = fb_.get();
-	assert(c != upto);
-	r.patFw.clear();
-	r.color = gColor;
-	if(gColor) {
-		// NOTE: clearly this is not relevant for Illumina output, but
-		// I'm keeping it here in case there's some reason to put SOLiD
-		// data in this format in the future.
-	
-		// This may be a primer character.  If so, keep it in the
-		// 'primer' field of the read buf and parse the rest of the
-		// read without it.
-		c = toupper(c);
-		if(asc2dnacat[c] > 0) {
-			// First char is a DNA char
-			int c2 = toupper(fb_.peek());
-			// Second char is a color char
-			if(asc2colcat[c2] > 0) {
-				r.primer = c;
-				r.trimc = c2;
-				trim5 += 2; // trim primer and first color
-			}
-		}
-		if(c < 0) { return -1; }
-	}
-	while(c != upto) {
-		if(c == '.') c = 'N';
-		if(gColor) {
-			if(c >= '0' && c <= '4') c = "ACGTN"[(int)c - '0'];
-		}
-		if(isalpha(c)) {
-			assert_in(toupper(c), "ACGTN");
-			if(begin++ >= trim5) {
-				assert_neq(0, asc2dnacat[c]);
-				r.patFw.append(asc2dna[c]);
-			}
-			charsRead++;
-		}
-		if((c = fb_.get()) < 0) {
-			return -1;
-		}
-	}
-	r.patFw.trimEnd(gTrim3);
-	return (int)r.patFw.length();
-}
-
-/**
- * Parse a single quality string from fb_ and store in r.
- * Assume that the next character obtained via fb_.get() is
- * the first character of the quality string and the string stops
- * at the next char upto (could be tab, newline, etc.).
- */
-int QseqPatternSource::parseQuals(
-	Read& r,
-	int charsRead,
-	int dstLen,
-	int trim5,
-	char& c2,
-	char upto = '\t',
-	char upto2 = -1)
-{
-	int qualsRead = 0;
-	int c = 0;
-	if (intQuals_) {
-		// Probably not relevant
-		char buf[4096];
-		while (qualsRead < charsRead) {
-			qualToks_.clear();
-			if(!tokenizeQualLine(fb_, buf, 4096, qualToks_)) break;
-			for (unsigned int j = 0; j < qualToks_.size(); ++j) {
-				char c = intToPhred33(atoi(qualToks_[j].c_str()), solQuals_);
-				assert_geq(c, 33);
-				if (qualsRead >= trim5) {
-					r.qual.append(c);
-				}
-				++qualsRead;
-			}
-		} // done reading integer quality lines
-		if (charsRead > qualsRead) tooFewQualities(r.name);
-	} else {
-		// Non-integer qualities
-		while((qualsRead < dstLen + trim5) && c >= 0) {
-			c = fb_.get();
-			c2 = c;
-			if (c == ' ') wrongQualityFormat(r.name);
-			if(c < 0) {
-				// EOF occurred in the middle of a read - abort
-				return -1;
-			}
-			if(!isspace(c) && c != upto && (upto2 == -1 || c != upto2)) {
-				if (qualsRead >= trim5) {
-					c = charToPhred33(c, solQuals_, phred64Quals_);
-					assert_geq(c, 33);
-					r.qual.append(c);
-				}
-				qualsRead++;
-			} else {
-				break;
-			}
-		}
-	}
-	if(r.qual.length() < (size_t)dstLen) {
-		tooFewQualities(r.name);
-	}
-	// TODO: How to detect too many qualities??
-	r.qual.resize(dstLen);
-	while(c != -1 && c != upto && (upto2 == -1 || c != upto2)) {
-		c = fb_.get();
-		c2 = c;
-	}
-	return qualsRead;
-}
 
 /**
  * Read another pattern from a Qseq input file.
  */
-bool QseqPatternSource::read(
-	Read& r,
-	TReadId& rdid,
-	TReadId& endid,
-	bool& success,
-	bool& done)
+pair<bool, int> QseqPatternSource::nextBatchFromFile(
+	PerThreadReadBuf& pt,
+	bool batch_a)
 {
-	r.reset();
-	r.color = gColor;
-	success = true;
-	done = false;
-	readCnt_++;
-	rdid = endid = readCnt_-1;
-	peekOverNewline(fb_);
-	fb_.resetLastN();
+	int c = getc_unlocked(fp_);
+	while(c >= 0 && (c == '\n' || c == '\r')) {
+		c = getc_unlocked(fp_);
+	}
+	EList<Read>& readbuf = batch_a ? pt.bufa_ : pt.bufb_;
+	size_t readi = 0;
+	// Read until we run out of input or until we've filled the buffer
+	for(; readi < pt.max_buf_ && c >= 0; readi++) {
+		readbuf[readi].readOrigBuf.clear();
+		while(c >= 0 && c != '\n' && c != '\r') {
+			readbuf[readi].readOrigBuf.append(c);
+			c = getc_unlocked(fp_);
+		}
+		while(c >= 0 && (c == '\n' || c == '\r')) {
+			c = getc_unlocked(fp_);
+		}
+	}
+	return make_pair(c < 0, readi);
+}
+
+/**
+ *
+ */
+bool QseqPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
+	// Light parser (nextBatchFromFile) puts unparsed data
+	// into Read& r, even when the read is paired.
+	assert(r.empty());
+	assert(!r.readOrigBuf.empty()); // raw data for read/pair is here
+	int c = '\t';
+	size_t cur = 0;
+	const size_t buflen = r.readOrigBuf.length();
+	assert(r.name.empty());
+	
 	// 1. Machine name
-	if(parseName(r, NULL, true, true,  true, false, '\t') == -1) BAIL_UNPAIRED();
-	assert_neq('\t', fb_.peek());
+	if(parseName(r.readOrigBuf, cur, r, '\t') == -1) {
+		return false;
+	}
 	r.name.append('_');
 	// 2. Run number
-	if(parseName(r, NULL, true, false, true, false, '\t') == -1) BAIL_UNPAIRED();
-	assert_neq('\t', fb_.peek());
+	if(parseName(r.readOrigBuf, cur, r, '\t') == -1) {
+		return false;
+	}
 	r.name.append('_');
 	// 3. Lane number
-	if(parseName(r, NULL, true, false, true, false, '\t') == -1) BAIL_UNPAIRED();
-	assert_neq('\t', fb_.peek());
+	if(parseName(r.readOrigBuf, cur, r, '\t') == -1) {
+		return false;
+	}
 	r.name.append('_');
 	// 4. Tile number
-	if(parseName(r, NULL, true, false, true, false, '\t') == -1) BAIL_UNPAIRED();
-	assert_neq('\t', fb_.peek());
+	if(parseName(r.readOrigBuf, cur, r, '\t') == -1) {
+		return false;
+	}
 	r.name.append('_');
 	// 5. X coordinate of spot
-	if(parseName(r, NULL, true, false, true, false, '\t') == -1) BAIL_UNPAIRED();
-	assert_neq('\t', fb_.peek());
+	if(parseName(r.readOrigBuf, cur, r, '\t') == -1) {
+		return false;
+	}
 	r.name.append('_');
 	// 6. Y coordinate of spot
-	if(parseName(r, NULL, true, false, true, false, '\t') == -1) BAIL_UNPAIRED();
-	assert_neq('\t', fb_.peek());
+	if(parseName(r.readOrigBuf, cur, r, '\t') == -1) {
+		return false;
+	}
 	r.name.append('_');
 	// 7. Index
-	if(parseName(r, NULL, true, false, true, false, '\t') == -1) BAIL_UNPAIRED();
-	assert_neq('\t', fb_.peek());
+	if(parseName(r.readOrigBuf, cur, r, '\t') == -1) {
+		return false;
+	}
 	r.name.append('/');
 	// 8. Mate number
-	if(parseName(r, NULL, true, false, true, false, '\t') == -1) BAIL_UNPAIRED();
-	// Empty sequence??
-	if(fb_.peek() == '\t') {
-		// Get tab that separates seq from qual
-		ASSERT_ONLY(int c =) fb_.get();
+	if(parseName(r.readOrigBuf, cur, r, '\t') == -1) {
+		return false;
+	}
+	if(cur >= buflen) {
+		return false; // ended prematurely
+	}
+	c = r.readOrigBuf[cur++];
+	assert(c != '\r' && c != '\n');
+	// 9. Sequence & 10. Qualities
+	if(c == '\t') {
+		// empty sequence & qualities
+		c = r.readOrigBuf[cur++];
+		assert(c != '\r' && c != '\n');
 		assert_eq('\t', c);
-		assert_eq('\t', fb_.peek());
-		// Get tab that separates qual from filter
-		ASSERT_ONLY(c =) fb_.get();
-		assert_eq('\t', c);
-		// Next char is first char of filter flag
-		assert_neq('\t', fb_.peek());
-		fb_.resetLastN();
 		cerr << "Warning: skipping empty QSEQ read with name '" << r.name << "'" << endl;
 	} else {
-		assert_neq('\t', fb_.peek());
-		int charsRead = 0;
-		int mytrim5 = gTrim5;
 		// 9. Sequence
-		int dstLen = parseSeq(r, charsRead, mytrim5, '\t');
-		assert_neq('\t', fb_.peek());
-		if(dstLen < 0) BAIL_UNPAIRED();
-		char ct = 0;
-		// 10. Qualities
-		if(parseQuals(r, charsRead, dstLen, mytrim5, ct, '\t', -1) < 0) BAIL_UNPAIRED();
-		r.trimmed3 = gTrim3;
-		r.trimmed5 = mytrim5;
-		if(ct != '\t') {
-			cerr << "Error: QSEQ with name " << r.name << " did not have tab after qualities" << endl;
-			throw 1;
+		int nchar = 0;
+		while(c != '\t') {
+			if(c == '.') {
+				c = 'N';
+			}
+			if(isalpha(c)) {
+				assert_in(toupper(c), "ACGTN");
+				if(++nchar > gTrim5) {
+					assert_neq(0, asc2dnacat[c]);
+					r.patFw.append(asc2dna[c]);
+				}
+			}
+			if(cur >= buflen) {
+				break;
+			}
+			c = r.readOrigBuf[cur++];
 		}
-		assert_eq(ct, '\t');
+		if(cur >= buflen) {
+			return false; // ended prematurely
+		}
+		// record amt trimmed from 5' end due to --trim5
+		r.trimmed5 = (int)(nchar - r.patFw.length());
+		// record amt trimmed from 3' end due to --trim3
+		r.trimmed3 = (int)(r.patFw.trimEnd(gTrim3));
+		
+		// 10. Qualities
+		assert(r.qual.empty());
+		int nqual = 0;
+		if (intQuals_) {
+			int cur_int = 0;
+			while(c != '\t') {
+				cur_int *= 10;
+				cur_int += (int)(c - '0');
+				c = r.readOrigBuf[cur++];
+				assert(c != '\r' && c != '\n');
+				if(c == ' ' || c == '\t') {
+					char cadd = intToPhred33(cur_int, solQuals_);
+					cur_int = 0;
+					assert_geq(cadd, 33);
+					if(++nqual > gTrim5) {
+						r.qual.append(cadd);
+					}
+				}
+			}
+		} else {
+			while(cur < buflen) {
+				c = r.readOrigBuf[cur++];
+				assert(c != '\r' && c != '\n');
+				if (c == ' ') {
+					wrongQualityFormat(r.name);
+					return false;
+				} else if(c == '\t') {
+					break;
+				}
+				c = charToPhred33(c, solQuals_, phred64Quals_);
+				if(++nqual > r.trimmed5) {
+					r.qual.append(c);
+				}
+			}
+			r.qual.trimEnd(r.trimmed3);
+			if(r.qual.length() < r.patFw.length()) {
+				tooFewQualities(r.name);
+				return false;
+			} else if(r.qual.length() > r.patFw.length()) {
+				tooManyQualities(r.name);
+				return false;
+			}
+		}
 	}
+	assert_eq('\t', c);
+
 	// 11. Filter flag
-	int filt = fb_.get();
-	if(filt == -1) BAIL_UNPAIRED();
+	if(cur >= buflen) {
+		return false;
+	}
+	int filt = r.readOrigBuf[cur++];
 	r.filter = filt;
 	if(filt != '0' && filt != '1') {
 		// Bad value for filt
+		cerr << "Error: Bad value '" << filt
+		     << "' for qseq filter flag" << endl;
+		throw 1;
 	}
-	if(fb_.peek() != -1 && fb_.peek() != '\n') {
-		// Bad value right after the filt field
+	assert_eq(cur, buflen);
+	r.parsed = true;
+	if(!rb.parsed && !rb.readOrigBuf.empty()) {
+		return parse(rb, r, rdid);
 	}
-	fb_.get();
-	r.readOrigBuf.install(fb_.lastN(), fb_.lastNLen());
-	fb_.resetLastN();
-	if(r.qual.length() < r.patFw.length()) {
-		tooFewQualities(r.name);
-	} else if(r.qual.length() > r.patFw.length()) {
-		tooManyQualities(r.name);
-	}
-#ifndef NDEBUG
-	assert_eq(r.patFw.length(), r.qual.length());
-	for(size_t i = 0; i < r.qual.length(); i++) {
-		assert_geq((int)r.qual[i], 33);
-	}
-#endif
 	return true;
 }

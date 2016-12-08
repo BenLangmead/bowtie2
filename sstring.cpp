@@ -115,9 +115,9 @@ int main(void) {
 			assert(sstr_eq(s, s2));
 			if(i >= 10) {
 				BTDnaString s3;
-				s.windowGetDna(s3, true, false, 3, 4);
+				s.windowGetDna(s3, true, 3, 4);
 				assert(sstr_eq(s3.toZBuf(), (const char*)"TACG"));
-				s.windowGetDna(s3, false, false, 3, 4);
+				s.windowGetDna(s3, false, 3, 4);
 				assert(sstr_eq(s3.toZBuf(), (const char*)"CGTA"));
 				assert_eq('A', s.toChar(0));
 				assert_eq('G', s.toChar(2));

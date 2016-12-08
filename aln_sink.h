@@ -610,13 +610,6 @@ public:
 	virtual ~AlnSink() { }
 
 	/**
-	 * Called when the AlnSink is wrapped by a new AlnSinkWrap.  This helps us
-	 * keep track of whether the main lock or any of the per-stream locks will
-	 * be contended by multiple threads.
-	 */
-	void addWrapper() { numWrappers_++; }
-
-	/**
 	 * Append a single hit to the given output stream.  If
 	 * synchronization is required, append() assumes the caller has
 	 * already grabbed the appropriate lock.
@@ -868,7 +861,6 @@ public:
 protected:
 
 	OutputQueue&       oq_;           // output queue
-	int                numWrappers_;  // # threads owning a wrapper for this HitSink
 	const StrList&     refnames_;     // reference names
 	bool               quiet_;        // true -> don't print alignment stats at the end
 	ReportingMetrics   met_;          // global repository of reporting metrics

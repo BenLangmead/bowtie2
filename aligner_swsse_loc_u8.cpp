@@ -2011,7 +2011,6 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 			// it and add a nucleotide mismatch.
 			case SW_BT_OALL_DIAG: {
 				assert_gt(row, 0); assert_gt(col, 0);
-				// Check for color mismatch
 				int readC = (*rd_)[row];
 				int refNmask = (int)rf_[rfi_+col];
 				assert_gt(refNmask, 0);

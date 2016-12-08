@@ -359,7 +359,7 @@ SeedAligner::instantiateSeq(
 	// If fw is false, we take characters starting at the 3' end of the
 	// reverse complement of the read.
 	for(int i = 0; i < len; i++) {
-		seq.set(read.patFw.windowGetDna(i, fw, read.color, depth, len), i);
+		seq.set(read.patFw.windowGetDna(i, fw, depth, len), i);
 		qual.set(read.qual.windowGet(i, fw, depth, len), i);
 	}
 }
@@ -1689,7 +1689,6 @@ enum {
 static const char *short_opts = "vCt";
 static struct option long_opts[] = {
 	{(char*)"verbose",  no_argument,       0, 'v'},
-	{(char*)"color",    no_argument,       0, 'C'},
 	{(char*)"timing",   no_argument,       0, 't'},
 	{(char*)"nofw",     no_argument,       0, ARG_NOFW},
 	{(char*)"norc",     no_argument,       0, ARG_NORC},
@@ -1708,16 +1707,13 @@ static void printUsage(ostream& os) {
 	os << "  --nofw              don't align forward-oriented read" << endl;
 	os << "  --norc              don't align reverse-complemented read" << endl;
 	os << "  -t/--timing         show timing information" << endl;
-	os << "  -C/--color          colorspace mode" << endl;
 	os << "  -v/--verbose        talkative mode" << endl;
 }
 
 bool gNorc = false;
 bool gNofw = false;
-bool gColor = false;
 int gVerbose = 0;
 int gGapBarrier = 1;
-bool gColorExEnds = true;
 int gSnpPhred = 30;
 bool gReportOverhangs = true;
 
@@ -1726,7 +1722,6 @@ extern void aligner_random_seed_tests(
 	int num_tests,
 	TIndexOffU qslo,
 	TIndexOffU qshi,
-	bool color,
 	uint32_t seed);
 
 /**
@@ -1747,7 +1742,6 @@ int main(int argc, char **argv) {
 			argc, argv, short_opts, long_opts, &option_index);
 		switch (next_option) {
 			case 'v':       gVerbose = true; break;
-			case 'C':       gColor   = true; break;
 			case 't':       timing   = true; break;
 			case ARG_NOFW:  gNofw    = true; break;
 			case ARG_NORC:  gNorc    = true; break;
@@ -1760,7 +1754,6 @@ int main(int argc, char **argv) {
 					100,     // num references
 					100,   // queries per reference lo
 					400,   // queries per reference hi
-					false, // true -> generate colorspace reference/reads
 					18);   // pseudo-random seed
 				return 0;
 			}
@@ -1770,7 +1763,6 @@ int main(int argc, char **argv) {
 					100,   // num references
 					100,   // queries per reference lo
 					400,   // queries per reference hi
-					false, // true -> generate colorspace reference/reads
 					seed); // pseudo-random seed
 				return 0;
 			}
@@ -1795,7 +1787,7 @@ int main(int argc, char **argv) {
 	string ebwtBase(reffn);
 	BitPairReference ref(
 		ebwtBase,    // base path
-		gColor,      // whether we expect it to be colorspace
+		false,       // whether we expect it to be colorspace
 		sanity,      // whether to sanity-check reference as it's loaded
 		NULL,        // fasta files to sanity check reference against
 		NULL,        // another way of specifying original sequences
@@ -1808,7 +1800,7 @@ int main(int argc, char **argv) {
 	Timer *t = new Timer(cerr, "Time loading fw index: ", timing);
 	Ebwt ebwtFw(
 		ebwtBase,
-		gColor,      // index is colorspace
+		false,       // index is colorspace
 		0,           // don't need entireReverse for fw index
 		true,        // index is for the forward direction
 		-1,          // offrate (irrelevant)
@@ -1828,7 +1820,7 @@ int main(int argc, char **argv) {
 	t = new Timer(cerr, "Time loading bw index: ", timing);
 	Ebwt ebwtBw(
 		ebwtBase + ".rev",
-		gColor,      // index is colorspace
+		false,       // index is colorspace
 		1,           // need entireReverse
 		false,       // index is for the backward direction
 		-1,          // offrate (irrelevant)

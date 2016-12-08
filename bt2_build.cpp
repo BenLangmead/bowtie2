@@ -198,7 +198,6 @@ static struct option long_options[] = {
 	{(char*)"ntoa",         no_argument,       0,            ARG_NTOA},
 	{(char*)"justref",      no_argument,       0,            '3'},
 	{(char*)"noref",        no_argument,       0,            'r'},
-	{(char*)"color",        no_argument,       0,            'C'},
 	{(char*)"sa",           no_argument,       0,            ARG_SA},
 	{(char*)"reverse-each", no_argument,       0,            ARG_REVERSE_EACH},
     {(char*)"threads",      required_argument, 0,            ARG_THREADS},
@@ -248,10 +247,6 @@ static bool parseOptions(int argc, const char **argv) {
 			case 'f': format = FASTA; break;
 			case 'c': format = CMDLINE; break;
 			case 'p': packed = true; break;
-			case 'C':
-				cerr << "Error: -C specified but Bowtie 2 does not support colorspace input." << endl;
-				throw 1;
-				break;
 			case 'l':
 				lineRate = parseNumber<int>(3, "-l/--lineRate arg must be at least 3");
 				break;

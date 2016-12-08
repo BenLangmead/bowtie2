@@ -1520,7 +1520,6 @@ public:
 	char windowGetDna(
 		size_t i,
 		bool   fw,
-		bool   color,
 		size_t depth = 0,
 		size_t len = 0) const
 	{
@@ -1530,10 +1529,7 @@ public:
 		if(fw) {
 			return get(depth+i);
 		} else {
-			return
-				color ?
-					get(depth+len-i-1) :
-					compDna(get(depth+len-i-1));
+			return compDna(get(depth+len-i-1));
 		}
 	}
 
@@ -1545,7 +1541,6 @@ public:
 	void windowGetDna(
 		T&     buf,
 		bool   fw,
-		bool   color,
 		size_t depth = 0,
 		size_t len = 0) const
 	{
@@ -1556,9 +1551,7 @@ public:
 			buf.set(
 				(fw ?
 					get(depth+i) :
-					(color ?
-						get(depth+len-i-1) :
-						compDna(get(depth+len-i-1)))), i);
+					compDna(get(depth+len-i-1))), i);
 		}
 	}
 
@@ -1619,7 +1612,7 @@ protected:
 /**
  * Simple string class with backing memory that automatically expands as needed.
  */
-template<typename T, int S = 1024, int M = 2>
+template<typename T, int S = 1024, int M = 2, int I = 0>
 class SStringExpandable {
 
 public:
@@ -1629,7 +1622,11 @@ public:
 		printcs_(NULL),
 		len_(0),
 		sz_(0)
-	{ }
+	{
+		if(I > 0) {
+			expandNoCopy(I);
+		}
+	}
 
 	explicit SStringExpandable(size_t sz) :
 		cs_(NULL),
@@ -1738,9 +1735,9 @@ public:
 	}
 
 	/**
-	 * Assignment to other SStringFixed.
+	 * Assignment to other SStringExpandable.
 	 */
-	SStringExpandable<T,S>& operator=(const SStringExpandable<T,S>& o) {
+	SStringExpandable<T,S,M,I>& operator=(const SStringExpandable<T,S,M,I>& o) {
 		install(o.cs_, o.len_);
 		return *this;
 	}
@@ -1984,9 +1981,14 @@ public:
 	/**
 	 * Trim len characters from the end of the string.
 	 */
-	void trimEnd(size_t len) {
-		if(len >= len_) len_ = 0;
-		else len_ -= len;
+	size_t trimEnd(size_t len) {
+		if(len >= len_) {
+			size_t ret = len_;
+			len_ = 0;
+			return ret;
+		}
+		len_ -= len;
+		return len;
 	}
 
 	/**
@@ -2631,22 +2633,18 @@ public:
 	 * Either reverse or reverse-complement (depending on "color") this
 	 * DNA buffer in-place.
 	 */
-	void reverseComp(bool color = false) {
-		if(color) {
-			this->reverse();
-		} else {
-			for(size_t i = 0; i < (this->len_ >> 1); i++) {
-				char tmp1 = (this->cs_[i] == 4 ? 4 : this->cs_[i] ^ 3);
-				char tmp2 = (this->cs_[this->len_-i-1] == 4 ? 4 : this->cs_[this->len_-i-1] ^ 3);
-				this->cs_[i] = tmp2;
-				this->cs_[this->len_-i-1] = tmp1;
-			}
-			// Do middle element iff there are an odd number
-			if((this->len_ & 1) != 0) {
-				char tmp = this->cs_[this->len_ >> 1];
-				tmp = (tmp == 4 ? 4 : tmp ^ 3);
-				this->cs_[this->len_ >> 1] = tmp;
-			}
+	void reverseComp() {
+		for(size_t i = 0; i < (this->len_ >> 1); i++) {
+			char tmp1 = (this->cs_[i] == 4 ? 4 : this->cs_[i] ^ 3);
+			char tmp2 = (this->cs_[this->len_-i-1] == 4 ? 4 : this->cs_[this->len_-i-1] ^ 3);
+			this->cs_[i] = tmp2;
+			this->cs_[this->len_-i-1] = tmp1;
+		}
+		// Do middle element iff there are an odd number
+		if((this->len_ & 1) != 0) {
+			char tmp = this->cs_[this->len_ >> 1];
+			tmp = (tmp == 4 ? 4 : tmp ^ 3);
+			this->cs_[this->len_ >> 1] = tmp;
 		}
 	}
 
@@ -2782,7 +2780,6 @@ public:
 	char windowGetDna(
 		size_t i,
 		bool   fw,
-		bool   color,
 		size_t depth = 0,
 		size_t len = 0) const
 	{
@@ -2790,8 +2787,7 @@ public:
 		assert_lt(i, len);
 		assert_leq(len, this->len_ - depth);
 		if(fw) return this->cs_[depth+i];
-		else   return color ? this->cs_[depth+len-i-1] :
-		                      compDna(this->cs_[depth+len-i-1]);
+		else   return compDna(this->cs_[depth+len-i-1]);
 	}
 
 	/**
@@ -2801,7 +2797,6 @@ public:
 	void windowGetDna(
 		SDnaStringFixed<S>& buf,
 		bool   fw,
-		bool   color,
 		size_t depth = 0,
 		size_t len = 0) const
 	{
@@ -2809,8 +2804,7 @@ public:
 		assert_leq(len, this->len_ - depth);
 		for(size_t i = 0; i < len; i++) {
 			buf.append(fw ? this->cs_[depth+i] :
-			                (color ? this->cs_[depth+len-i-1] :
-			                         compDna(this->cs_[depth+len-i-1])));
+			                compDna(this->cs_[depth+len-i-1]));
 		}
 	}
 
@@ -2924,22 +2918,18 @@ public:
 	 * Either reverse or reverse-complement (depending on "color") this
 	 * DNA buffer in-place.
 	 */
-	void reverseComp(bool color = false) {
-		if(color) {
-			this->reverse();
-		} else {
-			for(size_t i = 0; i < (this->len_ >> 1); i++) {
-				char tmp1 = (this->cs_[i] == 4 ? 4 : this->cs_[i] ^ 3);
-				char tmp2 = (this->cs_[this->len_-i-1] == 4 ? 4 : this->cs_[this->len_-i-1] ^ 3);
-				this->cs_[i] = tmp2;
-				this->cs_[this->len_-i-1] = tmp1;
-			}
-			// Do middle element iff there are an odd number
-			if((this->len_ & 1) != 0) {
-				char tmp = this->cs_[this->len_ >> 1];
-				tmp = (tmp == 4 ? 4 : tmp ^ 3);
-				this->cs_[this->len_ >> 1] = tmp;
-			}
+	void reverseComp() {
+		for(size_t i = 0; i < (this->len_ >> 1); i++) {
+			char tmp1 = (this->cs_[i] == 4 ? 4 : this->cs_[i] ^ 3);
+			char tmp2 = (this->cs_[this->len_-i-1] == 4 ? 4 : this->cs_[this->len_-i-1] ^ 3);
+			this->cs_[i] = tmp2;
+			this->cs_[this->len_-i-1] = tmp1;
+		}
+		// Do middle element iff there are an odd number
+		if((this->len_ & 1) != 0) {
+			char tmp = this->cs_[this->len_ >> 1];
+			tmp = (tmp == 4 ? 4 : tmp ^ 3);
+			this->cs_[this->len_ >> 1] = tmp;
 		}
 	}
 
@@ -3091,7 +3081,6 @@ public:
 	char windowGetDna(
 		size_t i,
 		bool   fw,
-		bool   color,
 		size_t depth = 0,
 		size_t len = 0) const
 	{
@@ -3099,8 +3088,7 @@ public:
 		assert_lt(i, len);
 		assert_leq(len, this->len_ - depth);
 		if(fw) return this->cs_[depth+i];
-		else   return color ? this->cs_[depth+len-i-1] :
-		                      compDna(this->cs_[depth+len-i-1]);
+		else   return compDna(this->cs_[depth+len-i-1]);
 	}
 
 	/**
@@ -3110,7 +3098,6 @@ public:
 	void windowGetDna(
 		SDnaStringExpandable<S, M>& buf,
 		bool   fw,
-		bool   color,
 		size_t depth = 0,
 		size_t len = 0) const
 	{
@@ -3118,8 +3105,7 @@ public:
 		assert_leq(len, this->len_ - depth);
 		for(size_t i = 0; i < len; i++) {
 			buf.append(fw ? this->cs_[depth+i] :
-			                (color ? this->cs_[depth+len-i-1] :
-			                         compDna(this->cs_[depth+len-i-1])));
+			                compDna(this->cs_[depth+len-i-1]));
 		}
 	}
 
@@ -3208,22 +3194,18 @@ public:
 	 * Either reverse or reverse-complement (depending on "color") this
 	 * DNA buffer in-place.
 	 */
-	void reverseComp(bool color = false) {
-		if(color) {
-			this->reverse();
-		} else {
-			for(size_t i = 0; i < (this->len_ >> 1); i++) {
-				char tmp1 = maskcomp[(int)this->cs_[i]];
-				char tmp2 = maskcomp[(int)this->cs_[this->len_-i-1]];
-				this->cs_[i] = tmp2;
-				this->cs_[this->len_-i-1] = tmp1;
-			}
-			// Do middle element iff there are an odd number
-			if((this->len_ & 1) != 0) {
-				char tmp = this->cs_[this->len_ >> 1];
-				tmp = maskcomp[(int)tmp];
-				this->cs_[this->len_ >> 1] = tmp;
-			}
+	void reverseComp() {
+		for(size_t i = 0; i < (this->len_ >> 1); i++) {
+			char tmp1 = maskcomp[(int)this->cs_[i]];
+			char tmp2 = maskcomp[(int)this->cs_[this->len_-i-1]];
+			this->cs_[i] = tmp2;
+			this->cs_[this->len_-i-1] = tmp1;
+		}
+		// Do middle element iff there are an odd number
+		if((this->len_ & 1) != 0) {
+			char tmp = this->cs_[this->len_ >> 1];
+			tmp = maskcomp[(int)tmp];
+			this->cs_[this->len_ >> 1] = tmp;
 		}
 	}
 
@@ -3353,7 +3335,6 @@ public:
 	char windowGetDna(
 		size_t i,
 		bool   fw,
-		bool   color,
 		size_t depth = 0,
 		size_t len = 0) const
 	{
@@ -3361,8 +3342,7 @@ public:
 		assert_lt(i, len);
 		assert_leq(len, this->len_ - depth);
 		if(fw) return this->cs_[depth+i];
-		else   return color ? this->cs_[depth+len-i-1] :
-		                      maskcomp[this->cs_[depth+len-i-1]];
+		else   return maskcomp[this->cs_[depth+len-i-1]];
 	}
 
 	/**
@@ -3372,7 +3352,6 @@ public:
 	void windowGetDna(
 		SDnaStringFixed<S>& buf,
 		bool   fw,
-		bool   color,
 		size_t depth = 0,
 		size_t len = 0) const
 	{
@@ -3380,8 +3359,7 @@ public:
 		assert_leq(len, this->len_ - depth);
 		for(size_t i = 0; i < len; i++) {
 			buf.append(fw ? this->cs_[depth+i] :
-			                (color ? this->cs_[depth+len-i-1] :
-			                         maskcomp[this->cs_[depth+len-i-1]]));
+			                maskcomp[this->cs_[depth+len-i-1]]);
 		}
 	}
 
