@@ -1384,7 +1384,7 @@ static void parseOption(int next_option, const char *arg) {
 			polstr += ";";
 			EList<string> args;
 			tokenize(arg, ",", args);
-			if(args.size() > 3 && args.size() == 0) {
+			if(args.size() > 3 || args.size() == 0) {
 				cerr << "Error: expected 3 or fewer comma-separated "
 					 << "arguments to --n-ceil option, got "
 					 << args.size() << endl;
