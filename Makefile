@@ -432,8 +432,9 @@ bowtie2-src: $(SRC_PKG_LIST)
 	rm -rf .src.tmp
 
 .PHONY: bowtie2-pkg
-bowtie2-bin: $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)
-	$(eval PKG_DIR=bowtie2-$(VERSION)$(if $(NO_TBB),-legacy))
+bowtie2-pkg: $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)
+	$(eval HAS_TBB=$(shell strings bowtie2-align-l* | grep tbb))
+	$(eval PKG_DIR=bowtie2-$(VERSION)$(if $(HAS_TBB),,-legacy))
 	chmod a+x scripts/*.sh scripts/*.pl
 	rm -rf .bin.tmp
 	mkdir -p .bin.tmp/$(PKG_DIR)
@@ -495,7 +496,7 @@ perl-deps:
 		mkdir .perllib.tmp ; \
 		$$DL http://cpanmin.us | perl - -l $(CURDIR)/.perllib.tmp App::cpanminus local::lib ; \
 		eval `perl -I $(CURDIR)/.perllib.tmp/lib/perl5 -Mlocal::lib=$(CURDIR)/.perllib.tmp` ; \
-		cpanm Math::Random Clone Test::Deep ; \
+		cpanm Math::Random Clone Test::Deep Sys::Info ; \
 	fi
 
 .PHONY: test
