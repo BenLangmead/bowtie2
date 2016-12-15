@@ -80,8 +80,7 @@ using namespace std;
  */
 bool DynProgFramer::frameSeedExtensionRect(
 	int64_t  off,      // ref offset implied by seed hit assuming no gaps
-	size_t   rdlen,    // length of read sequence used in DP table (so len
-	                   // of +1 nucleotide sequence for colorspace reads)
+	size_t   rdlen,    // length of read sequence used in DP table
 	int64_t  reflen,   // length of reference sequence aligned to
 	size_t   maxrdgap, // max # of read gaps permitted in opp mate alignment
 	size_t   maxrfgap, // max # of ref gaps permitted in opp mate alignment

@@ -165,16 +165,18 @@ Bowtie 2 tools by running GNU `make` (usually with the command `make`, but
 sometimes with `gmake`) with no arguments.  If building with MinGW, run `make`
 from the MSYS environment.
 
-Bowtie 2 is using the multithreading software model in order to speed up 
-execution times on SMP architectures where this is possible. On POSIX 
-platforms (like linux, Mac OS, etc) it needs the pthread library. Although
-it is possible to use pthread library on non-POSIX platform like Windows, due
-to performance reasons bowtie 2 will try to use Windows native multithreading
-if possible. We recommend that you first install the [Threading Building Blocks library],
-also known as TBB, and then build using `make WITH_TBB=1`. TBB comes installed
-by default on many popular linux distros. If TBB is not available, then simply omit 
-the `WITH_TBB=1` option.
-
++Bowtie 2 is using the multithreading software model in order to
++speed up execution times on SMP architectures where this is possible.
++The Threading Building Blocks library, TBB, is now the default
++threading library in bowtie2. On POSIX platforms (like linux, Mac
++OS, etc) if TBB is not available the pthread library will be used.
++Although it is possible to use pthread library on Windows, a non-POSIX
++platform, due to performance reasons bowtie 2 will try to use Windows
++native multithreading if possible. We recommend that you first
++install the [Threading Building Blocks library], but if unable to
++do so please specify `make NO_TBB=1`. TBB comes installed by default
++on many popular linux distros. Please note, packages built without
++TBB will have _-legacy_ appended to the name.
 
 [MinGW]:    http://www.mingw.org/
 [MSYS]:     http://www.mingw.org/wiki/msys
@@ -2502,7 +2504,7 @@ automatically by default; use [`-a`/`--noauto`] to configure manually.
 The maximum number of suffixes allowed in a block.  Allowing more suffixes per
 block makes indexing faster, but increases peak memory usage.  Setting this
 option overrides any previous setting for [`--bmax`], or [`--bmaxdivn`]. 
-Default (in terms of the [`--bmaxdivn`] parameter) is [`--bmaxdivn`] 4.  This is
+Default (in terms of the [`--bmaxdivn`] parameter) is [`--bmaxdivn`] 4 * number of threads.  This is
 configured automatically by default; use [`-a`/`--noauto`] to configure manually.
 
 </td></tr><tr><td id="bowtie2-build-options-bmaxdivn">
@@ -2515,7 +2517,7 @@ configured automatically by default; use [`-a`/`--noauto`] to configure manually
 
 The maximum number of suffixes allowed in a block, expressed as a fraction of
 the length of the reference.  Setting this option overrides any previous setting
-for [`--bmax`], or [`--bmaxdivn`].  Default: [`--bmaxdivn`] 4.  This is
+for [`--bmax`], or [`--bmaxdivn`].  Default: [`--bmaxdivn`] 4 * number of threads.  This is
 configured automatically by default; use [`-a`/`--noauto`] to configure manually.
 
 </td></tr><tr><td id="bowtie2-build-options-dcv">

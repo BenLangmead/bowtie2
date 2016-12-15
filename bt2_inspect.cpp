@@ -71,7 +71,7 @@ static void printUsage(ostream& out) {
 	<< endl
 	<< "  By default, prints FASTA records of the indexed nucleotide sequences to" << endl
 	<< "  standard out.  With -n, just prints names.  With -s, just prints a summary of" << endl
-	<< "  the index parameters and sequences.  With -e, preserves colors if applicable." << endl
+	<< "  the index parameters and sequences." << endl
 	<< endl
 	<< "Options:" << endl;
 	if(wrapper == "basic-0") {
@@ -81,7 +81,6 @@ static void printUsage(ostream& out) {
 	out << "  -a/--across <int>  Number of characters across in FASTA output (default: 60)" << endl
 	<< "  -n/--names         Print reference sequence names only" << endl
 	<< "  -s/--summary       Print summary incl. ref names, lengths, index properties" << endl
-	<< "  -e/--bt2-ref      Reconstruct reference from ." + gEbwt_ext + " (slow, preserves colors)" << endl
 	<< "  -v/--verbose       Verbose output (for debugging)" << endl
 	<< "  -h/--help          print detailed description of tool and its options" << endl
 	<< "  --help             print this usage message" << endl
@@ -352,7 +351,6 @@ static void print_index_summary(
 	readEbwtRefnames(fname, p_refnames);
 	cout << "Flags" << '\t' << (-flags) << endl;
 	cout << "Reverse flags" << '\t' << (-flagsr) << endl;
-	cout << "Colorspace" << '\t' << (color ? "1" : "0") << endl;
 	cout << "2.0-compatible" << '\t' << (entireReverse ? "1" : "0") << endl;
 	cout << "SA-Sample" << "\t1 in " << (1 << ebwt.eh().offRate()) << endl;
 	cout << "FTab-Chars" << '\t' << ebwt.eh().ftabChars() << endl;

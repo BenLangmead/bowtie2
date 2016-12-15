@@ -42,37 +42,14 @@ extern uint8_t asc2dnamask[];
 extern int mask2popcnt[];
 /// Convert an ascii char to a 2-bit base: 0=A, 1=C, 2=G, 3=T, 4=N
 extern uint8_t asc2dna[];
-/// Convert an ascii char representing a base or a color to a 2-bit
-/// code: 0=A,0; 1=C,1; 2=G,2; 3=T,3; 4=N,.
-extern uint8_t asc2dnaOrCol[];
-/// Convert a pair of DNA masks to a color mask
-extern uint8_t dnamasks2colormask[16][16];
 
-/// Convert an ascii char to a color category.  Categories are:
-/// 0 -> invalid
-/// 1 -> unambiguous 0, 1, 2 or 3
-/// 2 -> ambiguous (not applicable for colors)
-/// 3 -> unmatchable
-extern uint8_t asc2colcat[];
 /// Convert an ascii char to a 2-bit base: 0=A, 1=C, 2=G, 3=T, 4=N
 extern uint8_t asc2col[];
-/// Convert an ascii char to its DNA complement, including IUPACs
-extern char asc2dnacomp[];
 
 /// Convert a pair of 2-bit (and 4=N) encoded DNA bases to a color
 extern uint8_t dinuc2color[5][5];
-/// Convert a 2-bit nucleotide (and 4=N) and a color to the
-/// corresponding 2-bit nucleotide
-extern uint8_t nuccol2nuc[5][5];
 /// Convert a 4-bit mask into an IUPAC code
 extern char mask2iupac[16];
-
-/// Convert an ascii color to an ascii dna char
-extern char col2dna[];
-/// Convert an ascii dna to a color char
-extern char dna2col[];
-/// Convert an ascii dna to a color char
-extern const char* dna2colstr[];
 
 /// Convert bit encoded DNA char to its complement
 extern int dnacomp[5];
@@ -82,41 +59,6 @@ extern const char *iupacs;
 
 /// Map from masks to their reverse-complement masks
 extern int maskcomp[16];
-
-/**
- * Return true iff c is a Dna character.
- */
-static inline bool isDna(char c) {
-	return asc2dnacat[(int)c] > 0;
-}
-
-/**
- * Return true iff c is a color character.
- */
-static inline bool isColor(char c) {
-	return asc2colcat[(int)c] > 0;
-}
-
-/**
- * Return true iff c is an ambiguous Dna character.
- */
-static inline bool isAmbigNuc(char c) {
-	return asc2dnacat[(int)c] == 2;
-}
-
-/**
- * Return true iff c is an ambiguous color character.
- */
-static inline bool isAmbigColor(char c) {
-	return asc2colcat[(int)c] == 2;
-}
-
-/**
- * Return true iff c is an ambiguous character.
- */
-static inline bool isAmbig(char c, bool color) {
-	return (color ? asc2colcat[(int)c] : asc2dnacat[(int)c]) == 2;
-}
 
 /**
  * Return true iff c is an unambiguous DNA character.
@@ -148,20 +90,6 @@ static inline char comp(char c) {
 static inline int compDna(int c) {
 	assert_leq(c, 4);
 	return dnacomp[c];
-}
-
-/**
- * Return true iff c is an unambiguous Dna character.
- */
-static inline bool isUnambigDna(char c) {
-	return asc2dnacat[(int)c] == 1;
-}
-
-/**
- * Return true iff c is an unambiguous color character (0,1,2,3).
- */
-static inline bool isUnambigColor(char c) {
-	return asc2colcat[(int)c] == 1;
 }
 
 /// Convert a pair of 2-bit (and 4=N) encoded DNA bases to a color

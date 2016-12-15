@@ -2252,8 +2252,6 @@ public:
 			-1,                        // seed length
 			-1,                        // seed interval
 			dr.minScore(),             // minimum score for valid alignment
-			-1,                        // nuc5p (for colorspace)
-			-1,                        // nuc3p (for colorspace)
 			false,                     // soft pre-trimming?
 			0,                         // 5p pre-trimming
 			0,                         // 3p pre-trimming
