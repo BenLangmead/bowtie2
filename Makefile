@@ -43,6 +43,7 @@ ifneq (,$(findstring MINGW,$(shell uname)))
 	# POSIX memory-mapped files not currently supported on Windows
 	BOWTIE_MM = 0
 	BOWTIE_SHARED_MEM = 0
+	override EXTRA_FLAGS += -ansi
 endif
 
 MACOS = 0
