@@ -439,11 +439,12 @@ bowtie2-pkg: $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)
 	rm -rf .bin.tmp
 	mkdir -p .bin.tmp/$(PKG_DIR)
 	if [ -f bowtie2-align-s.exe ] ; then \
-		\# copy files while preserving directory structure \
-		tar cf - $(BIN_PKG_LIST) $(addsuffix .exe,$(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)) | tar - xf -C .bin.tmp/$(PKG_DIR) ; \
+		zip tmp.zip $(BIN_PKG_LIST) $(addsuffix .exe,$(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)) ; \
 	else \
-		tar cf - $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX) | tar xf - -C .bin.tmp/$(PKG_DIR) ; \
+		zip tmp.zip $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX) ; \
 	fi
+	mv tmp.zip .bin.tmp/$(PKG_DIR)
+	cd .bin.tmp/$(PKG_DIR) ; unzip tmp.zip ; rm -f tmp.zip
 	cd .bin.tmp ; zip -r $(PKG_DIR).zip $(PKG_DIR)
 	cp .bin.tmp/$(PKG_DIR).zip .
 	rm -rf .bin.tmp
