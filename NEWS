@@ -25,7 +25,7 @@ Version 2.3.0 - Dec 13, 2016
      superior thread scaling.  It is widely available and widely installed.
      That said, we are also preserving a "legacy" version of Bowtie that,
      like previous releases, does not use TBB.  To compile Bowtie source
-     in legacy mode use `NO_TBB` (TODO: insert actual flag here).  To
+     in legacy mode use `NO_TBB=1`.  To
      use legacy binaries, download the appropriate binary archive with
      "legacy" in the name.
    * Bowtie now uses a queue-based lock rather
@@ -33,9 +33,9 @@ Version 2.3.0 - Dec 13, 2016
      scaling; we saw an order-of-magnitude throughput improvements at
      120 threads in one experiment, for example.
    * Unnecessary thread synchronization removed
-   * Fixed issue with parsing FASTA records with greater-than symbol in the name</li>
-   * Now detects and reports inconsistencies between `--score-min` and `--ma`</li>
-   * Changed default for `--bmaxdivn` to yield better memory footprint and running time when building an index with many threads</li>
+   * Fixed issue with parsing FASTA records with greater-than symbol in the name
+   * Now detects and reports inconsistencies between `--score-min` and `--ma`
+   * Changed default for `--bmaxdivn` to yield better memory footprint and running time when building an index with many threads
 
 Version 2.2.9 - Apr 22, 2016
    * Fixed the multiple threads issue for the bowtie2-build.
