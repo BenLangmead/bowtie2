@@ -1,3 +1,43 @@
+<h2>Version 2.2.4 - Oct 22, 2014</h2>
+<ul>
+   <li>Fixed a Mavericks OSX specific bug caused by some linkage ambiguities.</li>
+   <li>Added lz4 compression option for the wrapper.</li>
+   <li>Fixed the vanishing <tt><a href="manual.shtml#bowtie2-options-no-unal">--no-unal</a></tt> help line.</li>
+   <li>Added the static linkage for MinGW builds.</li>
+   <li>Added extra seed-hit output.</li>
+   <li>Fixed missing 0-length read in fastq <tt>--passthrough</tt> output.</li>
+   <li>Fixed an issue that would cause different output in <tt>-a</tt> mode depending on random seed.</li>
+</ul>
+
+<h2>Version 2.2.3 - May 30, 2014</h2>
+<ul>
+   <li>Fixed a bug that made loading an index into memory crash sometimes.</li>
+   <li>Fixed a silent failure to warn the user in case the <tt><a href="manual.shtml#bowtie2-options-x">-x</a></tt> option is missing.</li>
+   <li>Updated <tt><a href="manual.shtml#bowtie2-options-al">--al</a></tt>, <tt><a href="manual.shtml#bowtie2-options-un">--un</a></tt>, <tt><a href="manual.shtml#bowtie2-options-al-conc">al-conc</a></tt> and <tt><a href="manual.shtml#bowtie2-options-un-conc">un-conc</a></tt> options to avoid confusion in cases where the user does not provide a base file name.</li>
+   <li>Fixed a spurious assert that made bowtie2-inspect debug fail.</li>
+</ul>
+
+<h2>Version 2.2.2 - April 10, 2014</h2>
+<ul>
+   <li>Improved performance for cases where the reference contains ambiguous
+     or masked nucleobases represented by Ns. </li>
+</ul>
+
+<h2>Version 2.2.1 - February 28, 2014</h2>
+<ul>
+   <li>Improved way in which index files are loaded for alignment.  Should fix
+     efficiency problems on some filesystems.</li>
+   <li>Fixed a bug that made older systems unable to correctly deal with bowtie
+     relative symbolic links.</li>
+   <li>Fixed a bug that, for very big indexes, could determine to determine file
+     offsets correctly.</li>
+   <li>Fixed a bug where using <tt><a href="manual.shtml#bowtie2-options-no-unal">--no-unal</a></tt> option incorrectly suppressed
+     <tt><a href="manual.shtml#bowtie2-options-un">--un</a></tt>/<tt><a href="manual.shtml#bowtie2-options-un-conc">--un-conc</a></tt> output.</li>
+   <li>Dropped a perl dependency that could cause problems on old systems.</li>
+   <li>Added <tt><a href="manual.shtml#bowtie2-options-no-1mm-upfront">--no-1mm-upfront</a></tt> option and clarified documentation for parameters
+     governing the multiseed heuristic.</li>
+</ul>
+
 <h2>Bowtie 2 on GitHub - February 4, 2014</h2>
 <ul>
    <li>Bowtie 2 source now lives in a <a href="https://github.com/BenLangmead/bowtie2">public GitHub repository</a>.</li>
