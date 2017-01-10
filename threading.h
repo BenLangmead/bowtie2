@@ -35,6 +35,9 @@
 #  include <tbb/task_scheduler_observer.h>
 #  include <tbb/atomic.h>
 #  include <tbb/task_scheduler_init.h>
+#  ifdef WITH_COHORTLOCK
+#   include "cohort.hpp"
+#  endif
 # endif
 #else
 # include "tinythread.h"
@@ -43,10 +46,12 @@
 
 #ifdef NO_SPINLOCK
 # ifdef WITH_TBB
-#   ifdef WITH_QUEUELOCK
-#  	define MUTEX_T tbb::queuing_mutex
+#   if defined WITH_COHORTLOCK && defined WITH_AFFINITY
+#     define MUTEX_T CohortLock
+#   elif defined WITH_QUEUELOCK
+#     define MUTEX_T tbb::queuing_mutex
 #   else
-#       define MUTEX_T tbb::mutex
+#     define MUTEX_T tbb::mutex
 #   endif
 # else
 #   define MUTEX_T tthread::mutex
@@ -70,7 +75,7 @@ public:
 	
 	ThreadSafe(MUTEX_T* ptr_mutex, bool locked = true) : ptr_mutex(NULL) {
 		if(locked) {
-#if WITH_TBB && NO_SPINLOCK && WITH_QUEUELOCK
+#if WITH_TBB && NO_SPINLOCK && WITH_QUEUELOCK && !WITH_COHORTLOCK
 			//have to use the heap as we can't copy
 			//the scoped lock
 			this->ptr_mutex = new MUTEX_T::scoped_lock(*ptr_mutex);
@@ -83,7 +88,7 @@ public:
 
 	~ThreadSafe() {
 		if (ptr_mutex != NULL)
-#if WITH_TBB && NO_SPINLOCK && WITH_QUEUELOCK
+#if WITH_TBB && NO_SPINLOCK && WITH_QUEUELOCK && !WITH_COHORTLOCK
 			delete ptr_mutex;
 #else
 			ptr_mutex->unlock();
@@ -91,7 +96,7 @@ public:
 	}
 
 private:
-#if WITH_TBB && NO_SPINLOCK && WITH_QUEUELOCK
+#if WITH_TBB && NO_SPINLOCK && WITH_QUEUELOCK && !WITH_COHORTLOCK
 	MUTEX_T::scoped_lock* ptr_mutex;
 #else
 	MUTEX_T *ptr_mutex;

@@ -132,6 +132,13 @@ ifeq (1,$(NO_TBB))
 	SHARED_CPPS += tinythread.cpp
 endif
 
+#automatically set WITH_AFFINITY=1 if using COHORTLOCK
+ifeq (1,$(WITH_COHORTLOCK))
+	override EXTRA_FLAGS += -DWITH_COHORTLOCK=1
+	override EXTRA_FLAGS += -DWITH_AFFINITY=1
+	SHARED_CPPS += cohort.cpp cpu_numa_info.cpp
+endif
+
 SEARCH_CPPS = qual.cpp pat.cpp sam.cpp \
               read_qseq.cpp aligner_seed_policy.cpp \
               aligner_seed.cpp \
