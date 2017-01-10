@@ -3,7 +3,7 @@ Bowtie 2 NEWS
 
 Bowtie 2 is now available for download from the project website,
 http://bowtie-bio.sf.net/bowtie2.  2.0.0-beta1 is the first version released to
-the public and 2.2.5 is the latest version.  Bowtie 2 is licensed under
+the public and 2.3.0 is the latest version.  Bowtie 2 is licensed under
 the GPLv3 license.  See `LICENSE' file for details.
 
 Reporting Issues
@@ -15,6 +15,46 @@ Please report any issues using the Sourceforge bug tracker:
 
 Version Release History
 =======================
+
+Version 2.3.0 - Dec 13, 2016
+   * Code related to read parsing was completely rewritten to improve
+     scalability to many threads.  In short, the critical section is
+     simpler and parses input reads in batches rather than one at a time.
+     The improvement applies to all read formats.
+   * TBB is now the default threading library.  We consistently found TBB to give
+     superior thread scaling.  It is widely available and widely installed.
+     That said, we are also preserving a "legacy" version of Bowtie that,
+     like previous releases, does not use TBB.  To compile Bowtie source
+     in legacy mode use `NO_TBB=1`.  To
+     use legacy binaries, download the appropriate binary archive with
+     "legacy" in the name.
+   * Bowtie now uses a queue-based lock rather
+     than a spin or heavyweight lock.  We find this gives superior thread
+     scaling; we saw an order-of-magnitude throughput improvements at
+     120 threads in one experiment, for example.
+   * Unnecessary thread synchronization removed
+   * Fixed issue with parsing FASTA records with greater-than symbol in the name
+   * Now detects and reports inconsistencies between `--score-min` and `--ma`
+   * Changed default for `--bmaxdivn` to yield better memory footprint and running time when building an index with many threads
+
+Version 2.2.9 - Apr 22, 2016
+   * Fixed the multiple threads issue for the bowtie2-build.
+   * Fixed a TBB related build issue impacting TBB v4.4.
+
+Version 2.2.8 - Mar 10, 2016
+   * Various website updates.
+   * Fixed the bowtie2-build issue that made TBB compilation fail.
+   * Fixed the static build for Win32 platform.
+   
+
+Version 2.2.7 - Feb 10, 2016
+   * Added a parallel index build option: bowtie2-build --threads <# threads>.
+   * Fixed an issue whereby IUPAC codes (other than A/C/G/T/N) in reads were
+     converted to As. Now all non-A/C/G/T characters in reads become Ns.
+   * Fixed some compilation issues, including for the Intel C++ Compiler.
+   * Removed debugging code that could impede performance for many alignment
+     threads.
+   * Fixed a few typos in documentation.
 
 Version 2.2.6 - Jul 22, 2015
    * Switched to a stable sort to avoid some potential reproducibility confusions.

@@ -36,6 +36,7 @@ enum {
 	ARG_PARTITION,              // --partition
 	ARG_INTEGER_QUALS,          // --int-quals
 	ARG_FILEPAR,                // --filepar
+	ARG_READS_PER_BATCH,        // --reads-per-batch
 	ARG_SHMEM,                  // --shmem
 	ARG_MM,                     // --mm
 	ARG_MMSWEEP,                // --mmsweep
@@ -53,7 +54,6 @@ enum {
 	ARG_PHRED64,                // --phred64
 	ARG_PHRED33,                // --phred33
 	ARG_HADOOPOUT,              // --hadoopout
-	ARG_FUZZY,                  // --fuzzy
 	ARG_FULLREF,                // --fullref
 	ARG_USAGE,                  // --usage
 	ARG_SNPPHRED,               // --snpphred

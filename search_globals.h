@@ -23,12 +23,7 @@
 #include <stdint.h>
 
 // declared in ebwt_search.cpp
-extern bool     gColor;
-extern bool     gColorExEnds;
 extern bool     gReportOverhangs;
-extern bool     gColorSeq;
-extern bool     gColorEdit;
-extern bool     gColorQual;
 extern bool     gNoMaqRound;
 extern bool     gStrandFix;
 extern bool     gRangeMode;

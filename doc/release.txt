@@ -12,14 +12,16 @@ Prerequisites:
 - Need "pandoc" installed on at least one of those machines.
 - Need access to the GitHub repository.
 - Need a sourceforge account with the appropriate permissions.
+- TBB is now the default threading library and should be installed
+  either from source or using a package manager
 
  1. Check that the code compiles with no issues, including with very recent
     versions of g++, and with clang on a Mac.
     - To use clang on the Mac: "make CPP=clang++ allall"
 
- 2. Check that all the simple tests pass: "sh scripts/test/simple_tests.sh"
+ 2. Check that all the simple tests pass: "make simple-test"
 
- 3. Check that random tests pass: "sh scripts/sim/run.sh 1"
+ 3. Check that random tests pass: "make random-test"
 
  4. Check that performance, sensitivity and accuracy are not substantially
     changed.
@@ -68,34 +70,61 @@ Prerequisites:
      scp bowtie2-X.Y.Z-source.zip USERNAME@frs.sourceforge.net:/home/frs/project/bowtie-bio/bowtie2/X.Y.Z/
      (But replace X.Y.Z and USERNAME with appropriate values)
 
-13. Make Bowtie 2 Linux 32-bit and 64-bit binaries.
+13. Make Bowtie 2 Linux 64-bit binaries.
    - On a Linux machine (e.g. igmX), from the Bowtie 2 git root run "make clean"
-   - Then "make BITS=32 bowtie2-bin".  (Use "make -j12" or similar to use many
+   - Then "make bowtie2-pkg".  (Use "make -j12" or similar to use many
      CPUs at once).
    - Rename the resulting archive to match the typical naming scheme.  E.g.:
-     "mv bowtie2-X.Y.Z-32.zip bowtie2-X.Y.Z-linux-i386.zip"
+     "mv bowtie2-X.Y.Z.zip bowtie2-X.Y.Z-linux-x86_64.zip"
    - Upload to sourceforge:
-     scp bowtie2-X.Y.Z-linux-i386.zip USERNAME@frs.sourceforge.net:/home/frs/project/bowtie-bio/bowtie2/X.Y.Z/
+     scp bowtie2-X.Y.Z-linux-x86_64.zip USERNAME@frs.sourceforge.net:/home/frs/project/bowtie-bio/bowtie2/X.Y.Z/
      (But replace X.Y.Z and USERNAME with appropriate values)
-   - Repeat from the beginning but replacing "32" with "64" and "i386" with
-     "x86-64".
+   - Repeat from the beginning adding the NO_TBB=1 flag to the second step to create the legacy packages
 
-14. Make Bowtie 2 Mac OS X 32-bit and 64-bit binaries.
+14. Make Bowtie 2 Mac OS X 64-bit binaries.
    - From the Bowtie 2 git root run "make clean"
-   - Then "make EXTRA_FLAGS=-mmacosx-version-min=10.5 BITS=32 bowtie2-bin".
+   - Then "make EXTRA_FLAGS=-mmacosx-version-min=10.5 bowtie2-pkg".
      (Use "make -j12" or similar to use many CPUs at once).  The -mmacosx...
 	 flag forces the binaries to be backward compatible with Mac OS version
 	 10.5 and up.
    - Rename the resulting archive to match the typical naming scheme.  E.g.:
-     "mv bowtie2-X.Y.Z-32.zip bowtie2-X.Y.Z-macos-i386.zip"
+     "mv bowtie2-X.Y.Z.zip bowtie2-X.Y.Z-macos-x86_64.zip"
    - Upload to sourceforge:
-     scp bowtie2-X.Y.Z-macos-i386.zip USERNAME@frs.sourceforge.net:/home/frs/project/bowtie-bio/bowtie2/X.Y.Z/
+     scp bowtie2-X.Y.Z-macos-x86_64.zip USERNAME@frs.sourceforge.net:/home/frs/project/bowtie-bio/bowtie2/X.Y.Z/
      (But replace X.Y.Z and USERNAME with appropriate values)
-   - Repeat from the beginning but replacing "32" with "64" and "i386" with
-     "x86-64".
+   - Repeat from the beginning adding the NO_TBB=1 flag to the second step to create the legacy packages
 
-15. Make Windows 32-bit and 64-bit binaries
-   - TODO!  Need to regularly build Bowtie 2 on Windows.
+15. Make Windows 64-bit binaries
+    Prerequisites
+    -------------
+    By default MinGW can only compile 32 bit binaries, so MinGW-w64 will be needed for 64 bit binaries
+    MinGW installer - https://sourceforge.net/projects/mingw/files/Installer/mingw-get-setup.exe/download
+    MinGW64 - https://sourceforge.net/projects/tdm-gcc/files/latest/download
+    TBB - https://www.threadingbuildingblocks.org/sites/default/files/software_releases/source/tbb2017_20161128oss_src.tgz
+
+   - Download and run the mingw-get-setup installer and set the install directory to C:\MinGW\32
+   - When presented with the "MinGW Installation Manager" window click on "All Packages" and mark the msys-zip, msys-unzip, and msys-wget packages for installation.
+   - Download and run the mingw-w64-install installer and set the install directory to C:\MinGW\64
+   - Once all MinGW packages are installed open Windows Explorer and navigate to C:\MinGW\msys\1.0 and run the msys.bat file to start the MinGW shell.
+   - To build TBB from source
+       * wget --no-check-certificate <tbb url>
+       * tar -xzf <tbb_archive_name>.tgz
+       * cd into the TBB source directory
+       * run mingw32-make.exe compiler=gcc arch=intel64 runtime=mingw
+   - Upon successful compilation there should now exist a build directory which contains the dlls needed by the linker. Before building bowtie make sure that the following environment variables contain the path to the TBB headers and dlls respectfully. From the root of the TBB directory run:
+       * export CPATH=$CPATH:`pwd`/include
+       * export LIBRARY_PATH=$LIBRARY_PATH:`pwd`/build/windows_intel64_gcc_mingw_release
+       * the changes to the above environment variables will only available for the duration of the current shell session. To make them permanent make sure they are added to the ~/.profile file or your preferred shell’s rc file e.g. ~/.bashrc.
+
+   - From the MinGW shell cd to the Bowtie 2 git root run "make clean"
+   - Then "make bowtie2-pkg".  (Use "make -j12" or similar to use many
+     CPUs at once).
+   - Rename the resulting archive to match the typical naming scheme.  E.g.:
+     "mv bowtie2-X.Y.Z.zip bowtie2-X.Y.Z-mingw-x86_64.zip"
+   - Upload to sourceforge:
+     scp bowtie2-X.Y.Z-linux-x86_64.zip USERNAME@frs.sourceforge.net:/home/frs/project/bowtie-bio/bowtie2/X.Y.Z/
+     (But replace X.Y.Z and USERNAME with appropriate values)
+   - Repeat the above 4 steps adding the NO_TBB=1 flag to the second step to create the legacy packages
 
 16. Make a git annotated tag for the new version using "git tag -a"
    - See: http://git-scm.com/book/en/Git-Basics-Tagging

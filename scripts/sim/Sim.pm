@@ -33,6 +33,8 @@ use AlignmentCheck;
 use Math::Random;
 use List::Util qw(max min);
 use POSIX;
+use Sys::Info;
+use Sys::Info::Constants qw( :device_cpu );
 
 ##
 # Replacement for "die" that additionally writes error message to file so that
@@ -400,6 +402,9 @@ sub genBuildArgs {
 	if($r4 == 0) {
 		$args{"--offrate"} = int(rand(8))+1;
 	}
+	my $info = Sys::Info->new;
+	my $cpu = $info->device('CPU');
+	$args{"--threads"} = int(rand($cpu->count || 1)) + 1;
 	$args{"--large-index"} = "" if $large_index;
 	return \%args;
 }
@@ -666,21 +671,22 @@ sub genPolicyMA($) {
 # Generate a setting for MMP (mismatch penalty).
 #
 sub genPolicyMMP() {
-	my $op = substr("CQR", int(rand(3)), 1);
-	if($op eq "C") {
-		$op .= Math::Random::random_uniform(1, 1, 40);
-	}
-	return $op;
+	#my $op = substr("CQR", int(rand(3)), 1);
+	#if($op eq "C") {
+		my $op1 = Math::Random::random_uniform(1, 1, 10);
+		my $op2 = Math::Random::random_uniform(1, 1, 10);
+	#}
+	return max($op1, $op2).",".min($op1, $op2);
 }
 
 ##
 # Generate a setting for NP (penalty for a mismatch involving an N).
 #
 sub genPolicyNP() {
-	my $op = substr("CQR", int(rand(3)), 1);
-	if($op eq "C") {
-		$op .= int(Math::Random::random_exponential(1, 3))+1;
-	}
+	#my $op = substr("CQR", int(rand(3)), 1);
+	#if($op eq "C") {
+		my $op = int(Math::Random::random_exponential(1, 3))+1;
+	#}
 	return $op;
 }
 
@@ -713,13 +719,8 @@ sub genPolicyRFG() {
 #
 sub genPolicyMIN($) {
 	my $local = shift;
-	return undef if ($local || int(rand(2)) == 0);
 	my $xx = Math::Random::random_uniform(1, 1, 10);
 	my $yy = Math::Random::random_uniform(1, 1, 10);
-	if(!$local) {
-		$xx = -$xx if int(rand(2)) == 0;
-		$yy = -$yy;
-	}
 	return "L,$xx,$yy";
 }
 
@@ -829,7 +830,7 @@ sub genAlignArgs {
 	}
 	$args{"--rdg"} = genPolicyRDG() if rand() < 0.5;
 	$args{"--rfg"} = genPolicyRFG() if rand() < 0.5;
-	$args{"--score-min"} = genPolicyMIN($local) if rand() < 0.5;
+	$args{"--score-min"} = genPolicyMIN($local);
 	$args{"--n-ceil"} = genPolicyNCEIL() if rand() < 0.5;
 	$args{"-N"} = genPolicySEED() if rand() < 0.5;
 	$args{"-D"} = genPolicyFailStreak() if rand() < 0.5;

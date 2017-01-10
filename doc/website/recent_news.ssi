@@ -1,6 +1,35 @@
-
+<h2>Version 2.3.0 - Dec 13, 2016</h2>
+<p>This is a major release with some larger and many smaller changes.  These notes emphasize the large changes.  See commit history for details.</p>
+<ul>
+    <li>Code related to read parsing was completely rewritten to improve scalability to many threads.  In short, the critical section is simpler and parses input reads in batches rather than one at a time.  The improvement applies to all read formats.</li>
+    <li>TBB is now the default threading library.  We consistently found TBB to give superior thread scaling.  It is widely available and widely installed.  That said, we are also preserving a "legacy" version of Bowtie that, like previous releases, does not use TBB.  To compile Bowtie source in legacy mode use <tt>NO_TBB=1</tt>.  To  use legacy binaries, download the appropriate binary archive with "legacy" in the name.</li>
+    <li>Bowtie now uses a queue-based lock rather than a spin or heavyweight lock.  We find this gives superior thread scaling; we saw an order-of-magnitude throughput improvements at 120 threads in one experiment, for example.</li>
+    <li>Unnecessary thread synchronization removed</li>
+    <li>Fixed issue with parsing FASTA records with greater-than symbol in the name</li>
+    <li>Now detects and reports inconsistencies between <tt><a href="manual.shtml#bowtie2-options-score-min">--score-min</a></tt> and <tt><a href="manual.shtml#bowtie2-options-ma">--ma</a></tt></li>
+    <li>Changed default for <tt><a href="manual.shtml#bowtie2-build-options-bmaxdivn">--bmaxdivn</a></tt> to yield better memory footprint and running time when building an index with many threads</li>
+</ul>
 <h2>Bowtie2 developers note</h2>
 <p>As of Nov 2015 we had to fix the bowtie2 github repo and relabel the entire history. Developers and contributors should re-clone the bowtie2 github repo from this current state. </p>
+<h2>Version 2.2.9 - Apr 22, 2016</h2>
+<ul>
+   <li>Fixed the multiple threads issue for the bowtie2-build.</li>
+   <li>Fixed a TBB related build issue impacting TBB v4.4.</li>
+</ul>
+<h2>Version 2.2.8 - Mar 10, 2016</h2>
+<ul>
+   <li>Various website updates.</li>
+   <li>Fixed the bowtie2-build issue that made TBB compilation fail.</li>
+   <li>Fixed the static build for Win32 platform.</li>
+</ul>
+<h2>Version 2.2.7 - Feb 10, 2016</h2>
+<ul>
+   <li>Added a parallel index build option: bowtie2-build --threads <# threads>.</li>
+   <li>Fixed an issue whereby IUPAC codes (other than A/C/G/T/N) in reads were converted to As. Now all non-A/C/G/T characters in reads become Ns.</li>
+   <li>Fixed some compilation issues, including for the Intel C++ Compiler.</li>
+   <li>Removed debugging code that could impede performance for many alignment threads.</li>
+   <li>Fixed a few typos in documentation.</li>
+</ul>
 <h2>Version 2.2.6 - Jul 22, 2015</h2>
 <ul>
    <li>Switched to a stable sort to avoid some potential reproducibility confusions.</li>
@@ -29,69 +58,3 @@
 <ul>
    <li>Lighter is an extremely fast and memory-efficient program for correcting sequencing errors in DNA sequencing data.  For details on how error correction can help improve the speed and accuracy of downstream analysis tools, see the <a href="http://genomebiology.com/2014/15/11/509">paper in Genome Biology</a>.  Source and software <a href="https://github.com/mourisl/Lighter">available at GitHub</a>.
 </ul>
-
-
-<h2>Version 2.2.4 - Oct 22, 2014</h2>
-<ul>
-   <li>Fixed a Mavericks OSX specific bug caused by some linkage ambiguities.</li>
-   <li>Added lz4 compression option for the wrapper.</li>
-   <li>Fixed the vanishing <tt><a href="manual.shtml#bowtie2-options-no-unal">--no-unal</a></tt> help line.</li>
-   <li>Added the static linkage for MinGW builds.</li>
-   <li>Added extra seed-hit output.</li>
-   <li>Fixed missing 0-length read in fastq <tt>--passthrough</tt> output.</li>
-   <li>Fixed an issue that would cause different output in <tt>-a</tt> mode depending on random seed.</li>
-</ul>
-
-<h2>Version 2.2.3 - May 30, 2014</h2>
-<ul>
-   <li>Fixed a bug that made loading an index into memory crash sometimes.</li>
-   <li>Fixed a silent failure to warn the user in case the <tt><a href="manual.shtml#bowtie2-options-x">-x</a></tt> option is missing.</li>
-   <li>Updated <tt><a href="manual.shtml#bowtie2-options-al">--al</a></tt>, <tt><a href="manual.shtml#bowtie2-options-un">--un</a></tt>, <tt><a href="manual.shtml#bowtie2-options-al-conc">al-conc</a></tt> and <tt><a href="manual.shtml#bowtie2-options-un-conc">un-conc</a></tt> options to avoid confusion in cases where the user does not provide a base file name.</li>
-   <li>Fixed a spurious assert that made bowtie2-inspect debug fail.</li>
-</ul>
-
-<h2>Version 2.2.2 - April 10, 2014</h2>
-<ul>
-   <li>Improved performance for cases where the reference contains ambiguous 
-     or masked nucleobases represented by Ns. </li>
-</ul>
-
-<h2>Version 2.2.1 - February 28, 2014</h2>
-<ul>
-   <li>Improved way in which index files are loaded for alignment.  Should fix
-     efficiency problems on some filesystems.</li>
-   <li>Fixed a bug that made older systems unable to correctly deal with bowtie 
-     relative symbolic links.</li>
-   <li>Fixed a bug that, for very big indexes, could determine to determine file
-     offsets correctly.</li>
-   <li>Fixed a bug where using <tt><a href="manual.shtml#bowtie2-options-no-unal">--no-unal</a></tt> option incorrectly suppressed
-     <tt><a href="manual.shtml#bowtie2-options-un">--un</a></tt>/<tt><a href="manual.shtml#bowtie2-options-un-conc">--un-conc</a></tt> output.</li>
-   <li>Dropped a perl dependency that could cause problems on old systems.</li>
-   <li>Added <tt><a href="manual.shtml#bowtie2-options-no-1mm-upfront">--no-1mm-upfront</a></tt> option and clarified documentation for parameters
-     governing the multiseed heuristic.</li>
-</ul>
-
-<h2>Version 2.2.0 - February 17, 2014</h2>
-<ul>
-   <li>Improved index querying efficiency using "population count"
-       instructions available since
-       <a href="http://en.wikipedia.org/wiki/SSE4.2#SSE4.2">SSE4.2</a></li>
-   <li>Added support for large and small indexes, removing 4-billion-nucleotide
-       barrier. Bowtie 2 can now be used with reference genomes of any size.</li>
-   <li>Fixed bug that could cause bowtie2-build to crash when reference length
-       is close to 4 billion.</li>
-   <li>Added a <tt>CL:</tt> string to the <tt>@PG</tt> SAM header to preserve information about
-       the aligner binary and paramteres.</li>
-   <li>Fixed bug that could cause <tt>bowtie2-build</tt> to crash when reference length
-       is close to 4 billion.</li>
-   <li>No longer releasing 32-bit binaries. Simplified manual and Makefile
-       accordingly.</li>
-   <li>Credits to the Intel&reg; enabling team for performance optimizations
-       included in this release. Thank you!</li>
-   <li>Phased out CygWin support. MinGW can still be used for Windows building.</li>
-   <li>Added the .bat generation for Windows.</li>
-   <li>Fixed some issues with some uncommon chars in fasta files.</li>
-   <li>Fixed wrappers so bowtie can now be used with symlinks.</li>
-</ul>
-
-
