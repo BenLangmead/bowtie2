@@ -124,14 +124,14 @@ struct PerThreadReadBuf {
 	 */
 	void reset() {
 		cur_buf_ = bufa_.size();
-	        raw_buf_length = 0;
+		raw_buf_length = 0;
 		for(size_t i = 0; i < max_buf_; i++) {
 			bufa_[i].reset();
 			bufb_[i].reset();
 		}
 		for(size_t i = 0; i < max_raw_buf_+max_raw_buf_overrun_; i++) {
-	                raw_bufa_[i] = '\0';
-	                raw_bufb_[i] = '\0';
+			raw_bufa_[i] = '\0';
+			raw_bufb_[i] = '\0';
 		}
 		rdid_ = std::numeric_limits<TReadId>::max();
 	}
@@ -152,7 +152,7 @@ struct PerThreadReadBuf {
 	bool exhausted() {
 		//assert_leq(cur_buf_, bufa_.size());
 		assert_leq(cur_buf_, raw_buf_length);
-		return cur_buf_ >= max_raw_buf_-1;
+		return cur_buf_ >= raw_buf_length;
 	}
 	
 	/**
@@ -161,7 +161,7 @@ struct PerThreadReadBuf {
 	 */
 	void init() {
 		cur_buf_ = 0;
-	        raw_buf_length = 0;
+		raw_buf_length = 0;
 	}
 	
 	/**
