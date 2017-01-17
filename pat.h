@@ -124,9 +124,14 @@ struct PerThreadReadBuf {
 	 */
 	void reset() {
 		cur_buf_ = bufa_.size();
+	        raw_buf_length = 0;
 		for(size_t i = 0; i < max_buf_; i++) {
 			bufa_[i].reset();
 			bufb_[i].reset();
+		}
+		for(size_t i = 0; i < max_raw_buf_+max_raw_buf_overrun_; i++) {
+	                raw_bufa_[i] = '\0';
+	                raw_bufb_[i] = '\0';
 		}
 		rdid_ = std::numeric_limits<TReadId>::max();
 	}
@@ -135,16 +140,19 @@ struct PerThreadReadBuf {
 	 * Advance cursor to next element
 	 */
 	void next() {
-		assert_lt(cur_buf_, bufa_.size());
+		//assert_lt(cur_buf_, bufa_.size());
+		assert_lt(cur_buf_, raw_buf_length);
 		cur_buf_++;
 	}
 	
 	/**
 	 * Return true when there's nothing left for next().
 	 */
+	//TODO: modify to check raw buffers
 	bool exhausted() {
-		assert_leq(cur_buf_, bufa_.size());
-		return cur_buf_ >= bufa_.size()-1;
+		//assert_leq(cur_buf_, bufa_.size());
+		assert_leq(cur_buf_, raw_buf_length);
+		return cur_buf_ >= max_raw_buf_-1;
 	}
 	
 	/**
@@ -153,6 +161,7 @@ struct PerThreadReadBuf {
 	 */
 	void init() {
 		cur_buf_ = 0;
+	        raw_buf_length = 0;
 	}
 	
 	/**
@@ -161,7 +170,12 @@ struct PerThreadReadBuf {
 	void setReadId(TReadId rdid) {
 		rdid_ = rdid;
 	}
-	
+
+	size_t raw_buf_length;//actual length of buffer at any given time	
+	static const size_t max_raw_buf_ = 500000; //max # characters to read into buffer at once
+	static const size_t max_raw_buf_overrun_ = 2000; //additional head room for the raw buffer to fill to the end of the fastq record
+	char raw_bufa_[max_raw_buf_+max_raw_buf_overrun_];       //raw character buffer for mate as	
+	char raw_bufb_[max_raw_buf_+max_raw_buf_overrun_];       //raw character buffer for mate bs
 	const size_t max_buf_; // max # reads to read into buffer at once
 	EList<Read> bufa_;     // Read buffer for mate as
 	EList<Read> bufb_;     // Read buffer for mate bs

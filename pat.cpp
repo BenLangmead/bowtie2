@@ -879,8 +879,17 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 	PerThreadReadBuf& pt,
 	bool batch_a)
 {
+        //TODO: change this to read ~500K bytes 
+        //+ additional to the end of a FASTQ record
+        //into a raw buffer which is returned to
+        //PatternSourcePerThread::nextReadPair()
+        //which will then do the following parsing
+        //OUTSIDE of the CS
+        //So put the following parsing in a 
+        //separate function "lightParse(...)"
+        //in every PatternSource and PatternComposer
 	int c;
-	EList<Read>& readbuf = batch_a ? pt.bufa_ : pt.bufb_;
+	char* readBuf = batch_a ? pt.raw_bufa_ : pt.raw_bufb_;
 	if(first_) {
 		c = getc_unlocked(fp_);
 		while(c == '\r' || c == '\n') {
@@ -891,34 +900,47 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 			throw 1;
 		}
 		first_ = false;
-		readbuf[0].readOrigBuf.append('@');
+		readBuf[0]='@';
 	}
 	bool done = false, aborted = false;
-	size_t readi = 0;
-	// Read until we run out of input or until we've filled the buffer
-	for(; readi < pt.max_buf_ && !done; readi++) {
-		Read::TBuf& buf = readbuf[readi].readOrigBuf;
-		assert(readi == 0 || buf.empty());
-		int newlines = 4;
-		while(newlines) {
-			c = getc_unlocked(fp_);
-			done = c < 0;
-			if(c == '\n' || (done && newlines == 1)) {
-				// Saw newline, or EOF that we're
-				// interpreting as final newline
-				newlines--;
-				c = '\n';
-			} else if(done) {
-				aborted = true; // Unexpected EOF
-				break;
-			}
-			buf.append(c);
-		}
+	size_t bytes_read = fread(readBuf,1,pt.max_raw_buf_,fp_);
+	if (bytes_read == 0) {
+		done = true;
 	}
-	if(aborted) {
-		readi--;
+	else {
+	        size_t headroom = (pt.max_raw_buf_ - bytes_read) + pt.max_raw_buf_overrun_;
+	        size_t i = 0;
+		c = getc_unlocked(fp_);
+	        while(c != '@' && i < headroom) {
+	            readBuf[bytes_read+i] = c;
+		    c = getc_unlocked(fp_);
+	            i++;
+	        }
+	        assert_lt(i,headroom);
+	        if (c == '@') {
+	            readBuf[bytes_read+i] = c;
+                    int newlines = 4;
+	            //assumes we have enough head room
+	            //in the buffer for one last record
+                    while(newlines) {
+                            c = getc_unlocked(fp_);
+	                    i++;
+                            done = c < 0;
+                            if(c == '\n' || (done && newlines == 1)) {
+                                    // Saw newline, or EOF that we're
+                                    // interpreting as final newline
+                                    newlines--;
+                                    c = '\n';
+                            } else if(done) {
+                                    aborted = true; // Unexpected EOF
+                                    break;
+                            }
+	                    assert_lt(i,headroom);
+	            	    readBuf[bytes_read+i] = c;
+                    }
+	        }
 	}
-	return make_pair(done, readi);
+	return make_pair(done, aborted?1:0);
 }
 
 /**
