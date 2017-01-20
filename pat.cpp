@@ -148,6 +148,7 @@ pair<bool, bool> PatternSourcePerThread::nextReadPair() {
 			return make_pair(false, true);
 		}
 		last_batch_ = res.first;
+		//this is either # of reads or # of bytes depending on the parser
 		last_batch_size_ = res.second;
 		assert_eq(0, buf_.cur_buf_);
 	} else {
@@ -155,7 +156,10 @@ pair<bool, bool> PatternSourcePerThread::nextReadPair() {
 		assert_gt(buf_.cur_buf_, 0);
 	}
 	// Now fully parse read/pair *outside* the critical section
-	assert(!buf_.read_a().readOrigBuf.empty());
+	//TODO: need to have a generic function to check
+	//that either the readOrigBuf or the raw buffer is filled
+	//assert(!buf_.read_a().readOrigBuf.empty());
+	//assert_gt(buf_.raw_bufa_length_, 0);
 	assert(buf_.read_a().empty());
 	if(!parse(buf_.read_a(), buf_.read_b())) {
 		return make_pair(false, false);
@@ -879,7 +883,7 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 	PerThreadReadBuf& pt,
 	bool batch_a)
 {
-	//TODO: change this to read ~500K bytes 
+	//changing this to read ~500K bytes 
 	//+ additional to the end of a FASTQ record
 	//into a raw buffer which is returned to
 	//PatternSourcePerThread::nextReadPair()
@@ -889,7 +893,9 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 	//separate function "lightParse(...)"
 	//in every PatternSource and PatternComposer
 	int c;
+	pt.use_byte_buffer = true;
 	char* readBuf = batch_a ? pt.raw_bufa_ : pt.raw_bufb_;
+	size_t* raw_buf_length = batch_a ? &pt.raw_bufa_length : &pt.raw_bufb_length;
 	if(first_) {
 		c = getc_unlocked(fp_);
 		while(c == '\r' || c == '\n') {
@@ -919,14 +925,17 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 		size_t headroom = (pt.max_raw_buf_ - bytes_read) + pt.max_raw_buf_overrun_;
 		size_t i = 0;
 		c = getc_unlocked(fp_);
-		while(c != '@' && i < headroom) {
+		while(c != '@' && c >= 0 && i < headroom) {
 			readBuf[bytes_read+i] = c;
 			c = getc_unlocked(fp_);
 			i++;
 		}
+		done = c < 0;
 		assert_lt(i,headroom);
-		if (c == '@') {
-			readBuf[bytes_read+i] = c;
+		//maybe we can just skip this part by setting the fp_ position back one
+		if (c == '@')
+			fseeko(fp_,-1,SEEK_CUR);
+		/*	readBuf[bytes_read+i] = c;
 			int newlines = 4;
 			//assumes we have enough head room
 			//in the buffer for one last record
@@ -946,10 +955,12 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 				assert_lt(i,headroom);
 				readBuf[bytes_read+i] = c;
 			}
-		}
-		pt.raw_buf_length = bytes_read+i+1;
+		}*/
+		*raw_buf_length = bytes_read+i+1;
 	}
-	return make_pair(done, aborted?1:0);
+	//currently aborted isn't used, not clear how to check for this
+	//return make_pair(done, aborted?1:0);
+	return make_pair(done, *raw_buf_length);
 }
 
 /**

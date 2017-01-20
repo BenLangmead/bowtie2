@@ -104,12 +104,34 @@ struct PerThreadReadBuf {
 		bufb_.resize(max_buf);
 		reset();
 	}
+
+	void set_buf_ptrs(Read* r, bool is_read_a) {
+		char* raw_buf = is_read_a ? &(raw_bufa_[cur_raw_buf_]) : &(raw_bufb_[cur_raw_buf_]); 
+		r->readOrigRawBuf = raw_buf;
+		r->cur_raw_buf_ = &cur_raw_buf_;
+	}
 	
-	Read& read_a() { return bufa_[cur_buf_]; }
-	Read& read_b() { return bufb_[cur_buf_]; }
-	
-	const Read& read_a() const { return bufa_[cur_buf_]; }
-	const Read& read_b() const { return bufb_[cur_buf_]; }
+	Read& read_a() { 
+		if(use_byte_buffer)
+			set_buf_ptrs(&(bufa_[cur_buf_]), true);
+		return bufa_[cur_buf_]; 
+	}
+
+	Read& read_b() {
+		if(use_byte_buffer)
+			set_buf_ptrs(&(bufb_[cur_buf_]), false);
+		return bufb_[cur_buf_]; 
+	}
+
+	//if the constant version is needed
+	//then only support read batches	
+	const Read& read_a() const { 
+		return bufa_[cur_buf_]; 
+	}
+
+	const Read& read_b() const {
+		return bufb_[cur_buf_]; 
+	}
 	
 	/**
 	 * Return read id for read/pair currently in the buffer.
@@ -123,8 +145,11 @@ struct PerThreadReadBuf {
 	 * Reset state as though no reads have been read.
 	 */
 	void reset() {
+		use_byte_buffer = false;
 		cur_buf_ = bufa_.size();
-		raw_buf_length = 0;
+		cur_raw_buf_ = raw_bufa_length;
+		raw_bufa_length = 0;
+		raw_bufb_length = 0;
 		for(size_t i = 0; i < max_buf_; i++) {
 			bufa_[i].reset();
 			bufb_[i].reset();
@@ -139,20 +164,36 @@ struct PerThreadReadBuf {
 	/**
 	 * Advance cursor to next element
 	 */
+	//modified to check raw buffer
 	void next() {
-		//assert_lt(cur_buf_, bufa_.size());
-		assert_lt(cur_buf_, raw_buf_length);
+		if(use_byte_buffer) {
+			assert_lt(cur_raw_buf_, raw_bufa_length);
+			cur_raw_buf_++;
+			//since we don't know exactly
+			//how many reads we'll get
+			//we may need to resize
+			if(cur_buf_ >= max_buf_) {
+				max_buf_ *= 2;
+				bufa_.resize(max_buf_);
+				bufb_.resize(max_buf_);
+			}
+		}
+		
+		assert_lt(cur_buf_, bufa_.size());
 		cur_buf_++;
 	}
 	
 	/**
 	 * Return true when there's nothing left for next().
 	 */
-	//TODO: modify to check raw buffers
+	//modified to check raw buffer as well
 	bool exhausted() {
-		//assert_leq(cur_buf_, bufa_.size());
-		assert_leq(cur_buf_, raw_buf_length);
-		return cur_buf_ >= raw_buf_length;
+		if(use_byte_buffer) {
+			assert_leq(cur_raw_buf_, raw_bufa_length);
+			return cur_raw_buf_ >= raw_bufa_length;
+		}
+		assert_leq(cur_buf_, bufa_.size());
+		return cur_buf_ >= bufa_.size();
 	}
 	
 	/**
@@ -161,7 +202,7 @@ struct PerThreadReadBuf {
 	 */
 	void init() {
 		cur_buf_ = 0;
-		raw_buf_length = 0;
+		cur_raw_buf_ = 0;
 	}
 	
 	/**
@@ -171,15 +212,18 @@ struct PerThreadReadBuf {
 		rdid_ = rdid;
 	}
 
-	size_t raw_buf_length;//actual length of buffer at any given time	
-	static const size_t max_raw_buf_ = 500000; //max # characters to read into buffer at once
+	size_t raw_bufa_length; //actual length of buffer a at any given time	
+	size_t raw_bufb_length; //actual length of buffer b at any given time	
+	static const size_t max_raw_buf_ = 8000; //max # characters to read into buffer at once, ~32 100 bp reads
 	static const size_t max_raw_buf_overrun_ = 2000; //additional head room for the raw buffer to fill to the end of the fastq record
 	char raw_bufa_[max_raw_buf_+max_raw_buf_overrun_];       //raw character buffer for mate as	
 	char raw_bufb_[max_raw_buf_+max_raw_buf_overrun_];       //raw character buffer for mate bs
-	const size_t max_buf_; // max # reads to read into buffer at once
+	bool use_byte_buffer;
+	size_t max_buf_; // max # reads to read into buffer at once
 	EList<Read> bufa_;     // Read buffer for mate as
 	EList<Read> bufb_;     // Read buffer for mate bs
 	size_t cur_buf_;       // Read buffer currently active
+	size_t cur_raw_buf_;   // Byte buffer currently active
 	TReadId rdid_;         // index of read at offset 0 of bufa_/bufb_
 };
 

@@ -252,6 +252,9 @@ struct Read {
 
 	// For remembering the exact input text used to define a read
 	TBuf readOrigBuf;
+	// For those parsers which do byte block parsing
+	char* readOrigRawBuf;	
+	size_t* cur_raw_buf_;	
 
 	BTString name;      // read name
 	TReadId  rdid;      // 0-based id based on pair's offset in read file(s)
