@@ -254,7 +254,8 @@ struct Read {
 	TBuf readOrigBuf;
 	// For those parsers which do byte block parsing
 	char* readOrigRawBuf;	
-	size_t* cur_raw_buf_;	
+	size_t* cur_raw_buf_;
+	size_t raw_buf_len_;	
 
 	BTString name;      // read name
 	TReadId  rdid;      // 0-based id based on pair's offset in read file(s)

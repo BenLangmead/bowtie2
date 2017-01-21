@@ -931,7 +931,7 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 			i++;
 		}
 		done = c < 0;
-		assert_lt(i,headroom);
+		assert_leq(i,headroom);
 		//maybe we can just skip this part by setting the fp_ position back one
 		if (c == '@')
 			fseeko(fp_,-1,SEEK_CUR);
@@ -970,20 +970,32 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 	// We assume the light parser has put the raw data for the separate ends
 	// into separate Read objects.  That doesn't have to be the case, but
 	// that's how we've chosen to do it for FastqPatternSource
-	assert(!r.readOrigBuf.empty());
+	assert_gt(r.raw_buf_len_,0);
 	assert(r.empty());
 	int c;
-	size_t cur = 1;
-	const size_t buflen = r.readOrigBuf.length();
+	size_t cur = 0;
+	const size_t buflen = r.raw_buf_len_;
 
+	//make sure we're not stuck in the middle
+	//of a previously failed-to-parse read
+	do {
+		c = r.readOrigRawBuf[cur++];
+	} while(cur < buflen && c != '@');
+	//if we end up at the end of the buffer, bail
+	//for this read after setting the 
+	//perthread buffer cursor accordingly
+	if(cur >= buflen) {
+		*r.cur_raw_buf_ = buflen;
+		return false;
+	}
 	// Parse read name
 	assert(r.name.empty());
 	while(true) {
 		assert_lt(cur, buflen);
-		c = r.readOrigBuf[cur++];
+		c = r.readOrigRawBuf[cur++];
 		if(c == '\n' || c == '\r') {
 			do {
-				c = r.readOrigBuf[cur++];
+				c = r.readOrigRawBuf[cur++];
 			} while(c == '\n' || c == '\r');
 			break;
 		}
@@ -1003,19 +1015,21 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 				r.patFw.append(asc2dna[c]);
 			}
 		}
-		assert(cur < r.readOrigBuf.length());
-		c = r.readOrigBuf[cur++];
+		//assert(cur < r.readOrigBuf.length());
+		assert_lt(cur, buflen);
+		c = r.readOrigRawBuf[cur++];
 	}
 	r.trimmed5 = (int)(nchar - r.patFw.length());
 	r.trimmed3 = (int)(r.patFw.trimEnd(gTrim3));
 	
 	assert_eq('+', c);
 	do {
-		assert(cur < r.readOrigBuf.length());
-		c = r.readOrigBuf[cur++];
+		//assert(cur < r.readOrigBuf.length());
+		assert_lt(cur, buflen);
+		c = r.readOrigRawBuf[cur++];
 	} while(c != '\n' && c != '\r');
 	while(cur < buflen && (c == '\n' || c == '\r')) {
-		c = r.readOrigBuf[cur++];
+		c = r.readOrigRawBuf[cur++];
 	}
 	
 	assert(r.qual.empty());
@@ -1023,10 +1037,10 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 		int nqual = 0;
 		if (intQuals_) {
 			int cur_int = 0;
-			while(c != '\t' && c != '\n' && c != '\r') {
+			while(cur < buflen && c != '\t' && c != '\n' && c != '\r') {
 				cur_int *= 10;
 				cur_int += (int)(c - '0');
-				c = r.readOrigBuf[cur++];
+				c = r.readOrigRawBuf[cur++];
 				if(c == ' ' || c == '\t' || c == '\n' || c == '\r') {
 					char cadd = intToPhred33(cur_int, solQuals_);
 					cur_int = 0;
@@ -1041,8 +1055,8 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 			if(nqual++ >= r.trimmed5) {
 				r.qual.append(c);
 			}
-			while(cur < r.readOrigBuf.length()) {
-				c = r.readOrigBuf[cur++];
+			while(cur < buflen) {
+				c = r.readOrigRawBuf[cur++];
 				if (c == ' ') {
 					wrongQualityFormat(r.name);
 					return false;
@@ -1072,7 +1086,10 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 		r.name.install(cbuf);
 	}
 	r.parsed = true;
-	if(!rb.parsed && !rb.readOrigBuf.empty()) {
+	//update perthread buffer cursor so next read
+	//will start on the right position
+	*r.cur_raw_buf_ = *r.cur_raw_buf_ + cur;
+	if(!rb.parsed && rb.raw_buf_len_ > 0) {
 		return parse(rb, r, rdid);
 	}
 	return true;

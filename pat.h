@@ -106,20 +106,25 @@ struct PerThreadReadBuf {
 	}
 
 	void set_buf_ptrs(Read* r, bool is_read_a) {
-		char* raw_buf = is_read_a ? &(raw_bufa_[cur_raw_buf_]) : &(raw_bufb_[cur_raw_buf_]); 
-		r->readOrigRawBuf = raw_buf;
-		r->cur_raw_buf_ = &cur_raw_buf_;
+		r->readOrigRawBuf = &raw_bufa_[cur_raw_bufa_];
+		r->cur_raw_buf_ = &cur_raw_bufa_;
+		r->raw_buf_len_ = raw_bufa_length - (cur_raw_bufa_ + 1);
+		if(!is_read_a) {
+			r->readOrigRawBuf = &raw_bufb_[cur_raw_bufb_];
+			r->cur_raw_buf_ = &cur_raw_bufb_;
+			r->raw_buf_len_ = raw_bufb_length - (cur_raw_bufb_ + 1);
+		}
 	}
 	
 	Read& read_a() { 
 		if(use_byte_buffer)
-			set_buf_ptrs(&(bufa_[cur_buf_]), true);
+			set_buf_ptrs(&bufa_[cur_buf_], true);
 		return bufa_[cur_buf_]; 
 	}
 
 	Read& read_b() {
 		if(use_byte_buffer)
-			set_buf_ptrs(&(bufb_[cur_buf_]), false);
+			set_buf_ptrs(&bufb_[cur_buf_], false);
 		return bufb_[cur_buf_]; 
 	}
 
@@ -147,7 +152,8 @@ struct PerThreadReadBuf {
 	void reset() {
 		use_byte_buffer = false;
 		cur_buf_ = bufa_.size();
-		cur_raw_buf_ = raw_bufa_length;
+		cur_raw_bufa_ = raw_bufa_length;
+		cur_raw_bufb_ = raw_bufb_length;
 		raw_bufa_length = 0;
 		raw_bufb_length = 0;
 		for(size_t i = 0; i < max_buf_; i++) {
@@ -164,15 +170,16 @@ struct PerThreadReadBuf {
 	/**
 	 * Advance cursor to next element
 	 */
-	//modified to check raw buffer
+	//modified to check raw buffer if being used
+	//TODO: to we want to do both at the same time?
+	//yes I think so
 	void next() {
 		if(use_byte_buffer) {
-			assert_lt(cur_raw_buf_, raw_bufa_length);
-			cur_raw_buf_++;
+			assert_lt(cur_raw_bufa_, raw_bufa_length);
 			//since we don't know exactly
 			//how many reads we'll get
 			//we may need to resize
-			if(cur_buf_ >= max_buf_) {
+			if(cur_buf_ + 1 >= max_buf_) {
 				max_buf_ *= 2;
 				bufa_.resize(max_buf_);
 				bufb_.resize(max_buf_);
@@ -186,11 +193,11 @@ struct PerThreadReadBuf {
 	/**
 	 * Return true when there's nothing left for next().
 	 */
-	//modified to check raw buffer as well
+	//modified to check raw buffer if being used
 	bool exhausted() {
 		if(use_byte_buffer) {
-			assert_leq(cur_raw_buf_, raw_bufa_length);
-			return cur_raw_buf_ >= raw_bufa_length;
+			assert_leq(cur_raw_bufa_, raw_bufa_length);
+			return cur_raw_bufa_ >= raw_bufa_length;
 		}
 		assert_leq(cur_buf_, bufa_.size());
 		return cur_buf_ >= bufa_.size();
@@ -202,7 +209,8 @@ struct PerThreadReadBuf {
 	 */
 	void init() {
 		cur_buf_ = 0;
-		cur_raw_buf_ = 0;
+		cur_raw_bufa_ = 0;
+		cur_raw_bufb_ = 0;
 	}
 	
 	/**
@@ -223,7 +231,8 @@ struct PerThreadReadBuf {
 	EList<Read> bufa_;     // Read buffer for mate as
 	EList<Read> bufb_;     // Read buffer for mate bs
 	size_t cur_buf_;       // Read buffer currently active
-	size_t cur_raw_buf_;   // Byte buffer currently active
+	size_t cur_raw_bufa_;   // Byte buffer a currently active
+	size_t cur_raw_bufb_;   // Byte buffer b currently active
 	TReadId rdid_;         // index of read at offset 0 of bufa_/bufb_
 };
 
