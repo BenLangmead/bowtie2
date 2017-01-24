@@ -925,16 +925,42 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 		size_t headroom = (pt.max_raw_buf_ - bytes_read) + pt.max_raw_buf_overrun_;
 		size_t i = 0;
 		c = getc_unlocked(fp_);
-		while(c != '@' && c >= 0 && i < headroom) {
+		char prev_line_start_c = -1;
+		char prev_c=-1;
+		bool new_record = false;
+		int newlines = 0;
+		// check for:
+		// 1) out of input?
+		// 2) out of buffer? 
+		// 3) seen the start of a new FASTQ record OR
+		// 	if we have a new record, have we read all of it?
+		while(c >= 0 && i < headroom &&
+		      (!new_record || newlines < 4)) {
 			readBuf[bytes_read+i] = c;
+			prev_c = c;
 			c = getc_unlocked(fp_);
 			i++;
+			// check for new FASTQ record
+			// we must have:
+			// 1) a new line in the previous char
+			// 2) the previous line's first char is a '@' (header line)
+			// 3) the current char is starting at 'A' or greater (sequence line)
+			// 	or is a '-' or '*' as per IUPAC/FASTA formatting guidelines
+			if(!new_record && 
+			   (prev_c == '\n' || prev_c == '\r') &&
+			   prev_line_start_c == '@' &&
+			   (c >= 65 || c == '*' || c == '-')) {
+				new_record = true;
+				newlines = 1;
+			}
+			if(prev_c == '\n' || prev_c == '\r')
+				prev_line_start_c = c;
+			if(c == '\n' || c == '\r') 
+				newlines++;
 		}
 		done = c < 0;
 		assert_leq(i,headroom);
-		//maybe we can just skip this part by setting the fp_ position back one
-		if (c == '@')
-			fseeko(fp_,-1,SEEK_CUR);
+		//TODO: need to re-enable this since we need the 4 newlines to get the full last record
 		/*	readBuf[bytes_read+i] = c;
 			int newlines = 4;
 			//assumes we have enough head room
@@ -960,6 +986,9 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 	}
 	//currently aborted isn't used, not clear how to check for this
 	//return make_pair(done, aborted?1:0);
+	fprintf(stderr,"raw buf length:%d\n",*raw_buf_length);
+	fprintf(stderr,"raw buf contents:\n%s\n",readBuf);
+	fprintf(stderr,"END raw buf contents\n");
 	return make_pair(done, *raw_buf_length);
 }
 
