@@ -111,12 +111,12 @@ struct PerThreadReadBuf {
 		if(is_read_a) {
 			r->readOrigRawBuf = &raw_bufa_[cur_raw_bufa_];
 			r->cur_raw_buf_ = &cur_raw_bufa_;
-			r->raw_buf_len_ = raw_bufa_length - (cur_raw_bufa_ + 1);
+			r->raw_buf_len_ = raw_bufa_length - cur_raw_bufa_;
 		}
 		else {
 			r->readOrigRawBuf = &raw_bufb_[cur_raw_bufb_];
 			r->cur_raw_buf_ = &cur_raw_bufb_;
-			r->raw_buf_len_ = raw_bufb_length > 0? (raw_bufb_length - (cur_raw_bufb_ + 1)) : 0;
+			r->raw_buf_len_ = raw_bufb_length > 0? (raw_bufb_length - cur_raw_bufb_) : 0;
 		}
 	}
 	
