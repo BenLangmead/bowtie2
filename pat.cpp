@@ -896,6 +896,7 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 	pt.use_byte_buffer = true;
 	char* readBuf = batch_a ? pt.raw_bufa_ : pt.raw_bufb_;
 	size_t* raw_buf_length = batch_a ? &pt.raw_bufa_length : &pt.raw_bufb_length;
+	size_t bytes_read = 0;
 	if(first_) {
 		c = getc_unlocked(fp_);
 		while(c == '\r' || c == '\n') {
@@ -906,21 +907,22 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 			throw 1;
 		}
 		first_ = false;
-		readBuf[0]='@';
+		readBuf[bytes_read++]='@';
 	}
 	bool done = false, aborted = false;
 	//size_t bytes_read = fread(readBuf,1,pt.max_raw_buf_,fp_);
-	size_t bytes_read = 0;
 	for(;bytes_read<pt.max_raw_buf_;bytes_read++)
 	{
 		c = getc_unlocked(fp_);
-		if(c < 0) 
+		if(c < 0)
 			break;
 		readBuf[bytes_read] = c;
 	}	
 	if (bytes_read == 0) {
 		done = true;
 	}
+	// finish by filling the buffer out to the end of a FASTQ record
+	// so there's no partials
 	else {
 		size_t headroom = (pt.max_raw_buf_ - bytes_read) + pt.max_raw_buf_overrun_;
 		size_t i = 0;
@@ -958,6 +960,9 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 			if(c == '\n' || c == '\r') 
 				newlines++;
 		}
+		// get last newline
+		if(c >= 0 && i < headroom)
+			readBuf[bytes_read+i] = c;
 		done = c < 0;
 		assert_leq(i,headroom);
 		//TODO: need to re-enable this since we need the 4 newlines to get the full last record
@@ -982,7 +987,7 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 				readBuf[bytes_read+i] = c;
 			}
 		}*/
-		*raw_buf_length = bytes_read+i+1;
+		*raw_buf_length = bytes_read+i+(i>0?1:0);
 	}
 	//currently aborted isn't used, not clear how to check for this
 	//return make_pair(done, aborted?1:0);
@@ -1117,7 +1122,7 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 	r.parsed = true;
 	//update perthread buffer cursor so next read
 	//will start on the right position
-	*r.cur_raw_buf_ = *r.cur_raw_buf_ + cur;
+	*r.cur_raw_buf_ += cur;
 	if(!rb.parsed && rb.raw_buf_len_ > 0) {
 		return parse(rb, r, rdid);
 	}
