@@ -297,10 +297,18 @@ public:
 	 */
 	TReadId readCount() const { return readCnt_; }
 	
+	/**
+	 * Return number of bytes read by this stream so far.
+	 */
+	TReadId byteCount() const { return byteCnt_; }
+	
 protected:
 	
 	/// The number of reads read by this PatternSource
 	volatile TReadId readCnt_;
+	
+	/// The number of bytes read by this PatternSource
+	volatile TReadId byteCnt_;
 	
 	/// Lock enforcing mutual exclusion for (a) file I/O, (b) writing fields
 	/// of this or another other shared object.
