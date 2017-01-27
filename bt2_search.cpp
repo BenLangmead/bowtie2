@@ -3874,6 +3874,9 @@ static void multiseedSearchWorker(void *vp) {
 		else if(num_reads_aligned >= qUpto) {
 			break;
 		}
+		else if(num_reads_aligned < skipReads) {
+			patsrc.update_total_read_count(1);
+		}
 		if(metricsPerRead) {
 			MERGE_METRICS(metricsPt, nthreads > 1);
 			nametmp = ps->read_a().name;
