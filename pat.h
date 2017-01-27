@@ -775,7 +775,7 @@ private:
  */
 class PatternComposer {
 public:
-	PatternComposer(const PatternParams& p) : mutex_m() { }
+	PatternComposer(const PatternParams& p) : mutex_m(), mutex_m2() { }
 	
 	virtual ~PatternComposer() { }
 	
@@ -790,6 +790,11 @@ public:
 	 * Make appropriate call into the format layer to parse individual read.
 	 */
 	virtual bool parse(Read& ra, Read& rb, TReadId rdid) = 0;
+	
+	size_t update_total_read_count(size_t read_count); 
+	
+	size_t get_total_read_count() { return total_read_count; }
+
 	
 	/**
 	 * Given the values for all of the various arguments used to specify
@@ -814,6 +819,12 @@ protected:
 	/// Lock enforcing mutual exclusion for (a) file I/O, (b) writing fields
 	/// of this or another other shared object.
 	MUTEX_T mutex_m;
+
+	/// Similar to above, but only for the total_read_count variable
+	MUTEX_T mutex_m2;
+	
+	/// Number of reads read in from PatternSources	
+	volatile size_t total_read_count;
 };
 
 /**
@@ -861,7 +872,7 @@ public:
 	 * in the src_ field.
 	 */
 	virtual std::pair<bool, int> nextBatch(PerThreadReadBuf& pt);
-
+	
 	/**
 	 * Make appropriate call into the format layer to parse individual read.
 	 */
@@ -932,7 +943,7 @@ public:
 	 * srcb_ member functions.
 	 */
 	virtual std::pair<bool, int> nextBatch(PerThreadReadBuf& pt);
-
+	
 	/**
 	 * Make appropriate call into the format layer to parse individual read.
 	 */

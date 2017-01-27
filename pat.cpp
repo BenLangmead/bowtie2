@@ -272,6 +272,13 @@ pair<bool, int> DualPatternComposer::nextBatch(PerThreadReadBuf& pt) {
 	return make_pair(true, 0);
 }
 
+size_t PatternComposer::update_total_read_count(size_t read_count) {
+		// could use an atomic here, but going with locking for portability
+		ThreadSafe ts(&mutex_m2); 
+		total_read_count+=read_count; 
+		return total_read_count;
+	}
+
 /**
  * Given the values for all of the various arguments used to specify
  * the read and quality input, create a list of pattern sources to
