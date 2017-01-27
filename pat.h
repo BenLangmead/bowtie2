@@ -606,12 +606,13 @@ public:
 
 	FastqPatternSource(
 		const EList<std::string>& infiles,
-		const PatternParams& p) :
+		const PatternParams& p, bool interleaved = false) :
 		CFilePatternSource(infiles, p),
 		first_(true),
 		solQuals_(p.solexa64),
 		phred64Quals_(p.phred64),
-		intQuals_(p.intQuals) { }
+		intQuals_(p.intQuals),
+		interleaved_(interleaved) { }
 	
 	virtual void reset() {
 		first_ = true;
@@ -643,6 +644,7 @@ protected:
 	bool solQuals_;     // base qualities are log odds
 	bool phred64Quals_; // base qualities are on -64 scale
 	bool intQuals_;     // base qualities are space-separated strings
+	bool interleaved_;  // fastq reads are interleaved
 };
 
 /**

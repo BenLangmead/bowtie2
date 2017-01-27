@@ -4392,7 +4392,7 @@ my  $idx_type = "";
 			$formatarg = "-q";
 			$ext = ".fq";
 		} elsif($read_file_format eq "tabbed") {
-			$formatarg = "--12";
+			$formatarg = "--tab5";
 			$ext = ".tab";
 		} elsif($read_file_format eq "cline_reads") {
 			$formatarg = "-c";

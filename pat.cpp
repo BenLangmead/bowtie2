@@ -89,6 +89,7 @@ PatternSource* PatternSource::patsrcFromStrings(
 		case FASTA_CONT:  return new FastaContinuousPatternSource(qs, p);
 		case RAW:         return new RawPatternSource(qs, p);
 		case FASTQ:       return new FastqPatternSource(qs, p);
+		case MATES_12 :    return new FastqPatternSource(qs, p, true /* interleaved */);
 		case TAB_MATE5:   return new TabbedPatternSource(qs, p, false);
 		case TAB_MATE6:   return new TabbedPatternSource(qs, p, true);
 		case CMDLINE:     return new VectorPatternSource(qs, p);
@@ -880,7 +881,7 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 	bool batch_a)
 {
 	int c;
-	EList<Read>& readbuf = batch_a ? pt.bufa_ : pt.bufb_;
+	EList<Read>* readbuf = batch_a ? &pt.bufa_ : &pt.bufb_;
 	if(first_) {
 		c = getc_unlocked(fp_);
 		while(c == '\r' || c == '\n') {
@@ -891,13 +892,13 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 			throw 1;
 		}
 		first_ = false;
-		readbuf[0].readOrigBuf.append('@');
+		(*readbuf)[0].readOrigBuf.append('@');
 	}
 	bool done = false, aborted = false;
 	size_t readi = 0;
 	// Read until we run out of input or until we've filled the buffer
-	for(; readi < pt.max_buf_ && !done; readi++) {
-		Read::TBuf& buf = readbuf[readi].readOrigBuf;
+	while (readi < pt.max_buf_ && !done) {
+		Read::TBuf& buf = (*readbuf)[readi].readOrigBuf;
 		assert(readi == 0 || buf.empty());
 		int newlines = 4;
 		while(newlines) {
@@ -909,10 +910,28 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 				newlines--;
 				c = '\n';
 			} else if(done) {
-				aborted = true; // Unexpected EOF
+				// account for newline at the end of the file
+				if (newlines == 4) {
+					newlines = 0;
+				}
+				else {
+					aborted = true; // Unexpected EOF
+				}
 				break;
 			}
 			buf.append(c);
+		}
+		if (c > 0) {
+			if (interleaved_) {
+				// alternate between read buffers
+				batch_a = !batch_a;
+				readbuf = batch_a ? &pt.bufa_ : &pt.bufb_;
+				// increment read counter after each pair gets read
+				readi = batch_a ? ++readi : readi;
+			}
+			else {
+				readi++;
+			}
 		}
 	}
 	if(aborted) {

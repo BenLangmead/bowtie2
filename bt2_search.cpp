@@ -932,7 +932,7 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_DESC_PRIORITIZE: descPrioritizeRoots = true; break;
 		case '1': tokenize(arg, ",", mates1); break;
 		case '2': tokenize(arg, ",", mates2); break;
-		case ARG_ONETWO: tokenize(arg, ",", mates12); format = TAB_MATE5; break;
+		case ARG_ONETWO: tokenize(arg, ",", mates12); format = MATES_12; break;
 		case ARG_TAB5:   tokenize(arg, ",", mates12); format = TAB_MATE5; break;
 		case ARG_TAB6:   tokenize(arg, ",", mates12); format = TAB_MATE6; break;
 		case 'f': format = FASTA; break;

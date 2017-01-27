@@ -30,6 +30,7 @@ enum file_format {
 	FASTA = 1,
 	FASTA_CONT,
 	FASTQ,
+	MATES_12,
 	TAB_MATE5,
 	TAB_MATE6,
 	RAW,
