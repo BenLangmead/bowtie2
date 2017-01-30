@@ -206,6 +206,14 @@ struct PerThreadReadBuf {
 		assert_leq(cur_buf_, bufa_.size());
 		return cur_buf_ >= bufa_.size();
 	}
+
+	bool is_last(int last_buf_size) {
+		if(use_byte_buffer) {
+			//return cur_raw_bufa_ >= raw_bufa_length-1;
+			return exhausted();
+		}
+		return cur_buf_ == last_buf_size-1 ;
+	}
 	
 	/**
 	 * Just after a new batch has been loaded, use init to
@@ -226,7 +234,7 @@ struct PerThreadReadBuf {
 
 	size_t raw_bufa_length; //actual length of buffer a at any given time	
 	size_t raw_bufb_length; //actual length of buffer b at any given time	
-	static const size_t max_raw_buf_ = 8000; //max # characters to read into buffer at once, ~32 100 bp reads
+	static const size_t max_raw_buf_ = 8000; //max # characters to read into buffer at once, 8000 ~32 100 bp reads
 	static const size_t max_raw_buf_overrun_ = 2000; //additional head room for the raw buffer to fill to the end of the fastq record
 	char raw_bufa_[max_raw_buf_+max_raw_buf_overrun_];       //raw character buffer for mate as	
 	char raw_bufb_[max_raw_buf_+max_raw_buf_overrun_];       //raw character buffer for mate bs

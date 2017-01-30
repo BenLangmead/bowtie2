@@ -171,7 +171,8 @@ pair<bool, bool> PatternSourcePerThread::nextReadPair() {
 		finalize(buf_.read_a());
 	}
 	//bool this_is_last = buf_.cur_buf_ == last_batch_size_-1;
-	bool this_is_last = buf_.exhausted();
+	//bool this_is_last = buf_.exhausted();
+	bool this_is_last = buf_.is_last(last_batch_size_);
 	return make_pair(true, this_is_last ? last_batch_ : false);
 }
 
@@ -242,10 +243,10 @@ pair<bool, int> DualPatternComposer::nextBatch(PerThreadReadBuf& pt) {
 					pt,
 					false,  // batch B
 					false); // don't grab lock below
-				/*assert_eq((*srca_)[cur]->readCount(),
-				          (*srcb_)[cur]->readCount());*/
-				assert_eq((*srca_)[cur]->byteCount(),
-				          (*srcb_)[cur]->byteCount());
+				assert_eq((*srca_)[cur]->readCount(),
+				          (*srcb_)[cur]->readCount());
+				/*assert_eq((*srca_)[cur]->byteCount(),
+				          (*srcb_)[cur]->byteCount());*/
 			}
 			if(resa.second < resb.second) {
 				cerr << "Error, fewer reads in file specified with -1 "
@@ -406,39 +407,32 @@ pair<bool, int> CFilePatternSource::nextBatch(
 	bool lock)
 {
 	bool done = false;
-	//int nread = 0;
-	int nbytes = 0;
+	// will be nbytes if FASTQ parser used
+	int nread = 0;
 	
 	// synchronization at this level because both reading and manipulation of
 	// current file pointer have to be protected
 	ThreadSafe ts(&mutex, lock);
-	//pt.setReadId(readCnt_);
-	pt.setReadId(byteCnt_);
+	pt.setReadId(readCnt_);
 	while(true) { // loop that moves on to next file when needed
 		do {
 			pair<bool, int> ret = nextBatchFromFile(pt, batch_a);
 			done = ret.first;
-			//nread = ret.second;
-			nbytes = ret.second;
-		//} while(!done && nread == 0); // not sure why this would happen
-		} while(!done && nbytes == 0); // not sure why this would happen
+			nread = ret.second;
+		} while(!done && nread == 0); // not sure why this would happen
 		if(done && filecur_ < infiles_.size()) { // finished with this file
 			open();
 			resetForNextFile(); // reset state to handle a fresh file
 			filecur_++;
-			//if(nread == 0) {
-			if(nbytes == 0) {
+			if(nread == 0) {
 				continue;
 			}
 		}
 		break;
 	}
-	/*assert_geq(nread, 0);
+	assert_geq(nread, 0);
 	readCnt_ += nread;
-	return make_pair(done, nread);*/
-	assert_geq(nbytes, 0);
-	byteCnt_ += nbytes;
-	return make_pair(done, nbytes);
+	return make_pair(done, nread);
 }
 
 /**
