@@ -783,7 +783,7 @@ private:
  */
 class PatternComposer {
 public:
-	PatternComposer(const PatternParams& p) : mutex_m(), mutex_m2() { }
+	PatternComposer(const PatternParams& p) : mutex_m(), mutex_m2(), total_read_count(0) { }
 	
 	virtual ~PatternComposer() { }
 	
