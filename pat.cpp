@@ -884,6 +884,9 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 	EList<Read>* readbuf = batch_a ? &pt.bufa_ : &pt.bufb_;
 	if(first_) {
 		c = getc_unlocked(fp_);
+		if (feof(fp_)) {
+			return make_pair(true, 0);
+		}
 		while(c == '\r' || c == '\n') {
 			c = getc_unlocked(fp_);
 		}
