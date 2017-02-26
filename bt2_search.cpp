@@ -477,6 +477,7 @@ static struct option long_options[] = {
 	{(char*)"12",           required_argument, 0,            ARG_ONETWO},
 	{(char*)"tab5",         required_argument, 0,            ARG_TAB5},
 	{(char*)"tab6",         required_argument, 0,            ARG_TAB6},
+	{(char*)"interleaved",  required_argument, 0,            ARG_INTERLEAVED_FASTQ},
 	{(char*)"phred33-quals", no_argument,      0,            ARG_PHRED33},
 	{(char*)"phred64-quals", no_argument,      0,            ARG_PHRED64},
 	{(char*)"phred33",       no_argument,      0,            ARG_PHRED33},
@@ -932,9 +933,10 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_DESC_PRIORITIZE: descPrioritizeRoots = true; break;
 		case '1': tokenize(arg, ",", mates1); break;
 		case '2': tokenize(arg, ",", mates2); break;
-		case ARG_ONETWO: tokenize(arg, ",", mates12); format = MATES_12; break;
+		case ARG_ONETWO: tokenize(arg, ",", mates12); format = TAB_MATE5; break;
 		case ARG_TAB5:   tokenize(arg, ",", mates12); format = TAB_MATE5; break;
 		case ARG_TAB6:   tokenize(arg, ",", mates12); format = TAB_MATE6; break;
+		case ARG_INTERLEAVED_FASTQ: tokenize(arg, ",", mates12); format = INTERLEAVED; break;
 		case 'f': format = FASTA; break;
 		case 'F': {
 			format = FASTA_CONT;
