@@ -25,6 +25,7 @@ prefix = /usr/local
 bindir = $(prefix)/bin
 
 INC =
+LIBS = -lz
 GCC_PREFIX = $(shell dirname `which gcc`)
 GCC_SUFFIX =
 CC ?= $(GCC_PREFIX)/gcc$(GCC_SUFFIX)
@@ -94,10 +95,10 @@ endif
 
 #default is to use Intel TBB
 ifneq (1,$(NO_TBB))
-	LIBS = $(PTHREAD_LIB) -ltbb -ltbbmalloc_proxy
+	LIBS += $(PTHREAD_LIB) -ltbb -ltbbmalloc_proxy
 	override EXTRA_FLAGS += -DWITH_TBB
 else
-	LIBS = $(PTHREAD_LIB)
+	LIBS += $(PTHREAD_LIB)
 endif
 SEARCH_LIBS =
 BUILD_LIBS =
