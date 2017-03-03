@@ -516,7 +516,7 @@ if(defined($cap_out)) {
                 $fn1 = File::Spec->catpath($vol,$base_spec_dir,$fn1);
                 $fn2 = File::Spec->catpath($vol,$base_spec_dir,$fn2);
 				$fn1 ne $fn2 || Fail("$fn1\n$fn2\n");
-				my ($redir1, $redir2) = ("| paste - - - - | uniq | tr '\\t' '\\n' >$fn1", "| paste - - - - | uniq | tr '\\t' '\\n'>$fn2");
+				my ($redir1, $redir2) = (">$fn1", ">$fn2");
 				$redir1 = "| gzip -c $redir1"  if $read_compress{$i} eq "gzip";
 				$redir1 = "| bzip2 -c $redir1" if $read_compress{$i} eq "bzip2";
 				$redir1 = "| lz4 -c $redir1" if $read_compress{$i} eq "lz4";
@@ -550,7 +550,7 @@ if(defined($cap_out)) {
 			my $fl = substr($_, $tab1_i, $tab2_i - $tab1_i);
 			my $unal = ($fl & 4) != 0;
 			$filt = 1 if $no_unal && $unal;
-			if($passthru) {
+			if($passthru && ($fl & 256) == 0) {
 				if(scalar(keys %read_fhs) == 0) {
 					# Next line is read with some whitespace escaped
 					my $l = <BT>;
