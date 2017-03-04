@@ -241,7 +241,7 @@ int main(int argc, const char **argv) {
 					exit(EXIT_FAILURE);
 				}
 
-				for (int i = 0; i < fifonames.size(); i++) {
+				for (size_t i = 0; i < fifonames.size(); i++) {
 					pollfds[i].fd = open(fifonames[i], O_NONBLOCK | O_EXCL);
 					pollfds[i].events = POLLIN;
 				}
@@ -249,7 +249,7 @@ int main(int argc, const char **argv) {
 				printargs(myargs, args.size());
 
 				for (int count = 0;; count++) {
-					int r = poll(pollfds, fifonames.size(), -1);
+					size_t r = poll(pollfds, fifonames.size(), -1);
 					// wait until all fifos are ready
 					if (r != fifonames.size()) {
 						if (done)
@@ -266,12 +266,12 @@ int main(int argc, const char **argv) {
 					lastret = bowtie((int)args.size(), myargs);
 
 					// replace the args shuffled by getopt
-					for (int i = 0; i < args.size(); i++) {
+					for (size_t i = 0; i < args.size(); i++) {
 						myargs[i] = args[i].c_str();
 					}
 				}
 
-				for (int i = 0; i < fifonames.size(); i++) {
+				for (size_t i = 0; i < fifonames.size(); i++) {
 					if (close(pollfds[i].fd))
 						perror("close");
 					if (remove(fifonames[i]))

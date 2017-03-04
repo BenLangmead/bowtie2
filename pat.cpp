@@ -167,7 +167,7 @@ pair<bool, bool> PatternSourcePerThread::nextReadPair() {
 	} else {
 		finalize(buf_.read_a());
 	}
-	bool this_is_last = buf_.cur_buf_ == last_batch_size_-1;
+	bool this_is_last = buf_.cur_buf_ == static_cast<unsigned int>(last_batch_size_-1);
 	return make_pair(true, this_is_last ? last_batch_ : false);
 }
 
@@ -951,7 +951,7 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 				batch_a = !batch_a;
 				readbuf = batch_a ? &pt.bufa_ : &pt.bufb_;
 				// increment read counter after each pair gets read
-				readi = batch_a ? ++readi : readi;
+				readi = batch_a ? readi+1 : readi;
 			}
 			else {
 				readi++;
