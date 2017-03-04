@@ -55,6 +55,76 @@ extern "C" {
 
 static volatile sig_atomic_t done = false;
 
+static const char *options[] = {
+"--al",                 "--al-conc",               "--dpad",            "--end-to-end",
+"--fast",               "--fast-local",            "--fr",              "--gbar",
+"--ignore-quals",       "--int-quals",             "--local",           "--ma",
+"--met",                "--met-file",              "--met-stderr",      "--mm",
+"--mp",                 "--n-ceil",                "--no-1mm-upfront",  "--no-contain",
+"--no-discordant",      "--no-dovetail",           "--no-head",         "--no-mixed",
+"--no-overlap",         "--no-sq",                 "--no-unal",         "--nofw",
+"--non-deterministic",  "--norc",                  "--np",              "--omit-sec-seq",
+"--phred33",            "--phred64",               "--qc-filter",       "--qseq",
+"--quiet",              "--rdg",                   "--reorder",         "--rfg",
+"--rg",                 "--rg-id",                 "--score-min",       "--seed",
+"--sensitive",          "--sensitive-local",       "--un",              "--un-conc",
+"--un-gz",              "--version",               "--very-fast",       "--very-fast-local",
+"--very-sensitive",     "--very-sensitive-local",  "-3",                "-5",
+"-D",                   "-I",                      "-L",                "-N",
+"-R",                   "-X",                      "-a",                "-c",
+"-f",                   "-h",                      "-i",                "-k",
+"-p",                   "-q",                      "-r",                "-s",
+"-t",                   "-u",                      "-1",                "-2",
+"-S",                   "-U",                      "--all",             "--ff",
+"--help",               "--maxins",                "--minins",          "--rf",
+"--skip",               "--threads",               "--time",            "--trim3",
+"--trim5",              "--upto",                  NULL
+};
+
+
+static bool isdirectory(const char *path) {
+	struct stat statbuf;
+	if(stat(path, &statbuf) != 0) {
+		perror("stat");
+		return true;
+	}
+	return S_ISDIR(statbuf.st_mode);
+}
+
+static char *optgen(const char *text, int state) {
+	static int list_index, len;
+	const char *name = NULL;
+
+	if (!state) {
+		list_index = 0;
+		len = strlen(text);
+	}
+
+	name = rl_filename_completion_function(text, state);
+	if (name != NULL) {
+		rl_completion_append_character = isdirectory(name) ? '/': ' ';
+		return strdup(name);
+	}
+
+	if (text[0] == '-') {
+		while ((name = options[list_index++])) {
+			if (strncmp(name, text, len) == 0) {
+				return strdup(name);
+			}
+		}
+	}
+	return NULL;
+}
+
+static char **optcomplete(const char *text, int start, int end) {
+	rl_attempted_completion_over = 1;
+	return rl_completion_matches(text, optgen);
+}
+
+static void rlinit() {
+	rl_attempted_completion_function = optcomplete;
+}
+
 static void handler(int sig) {
 	done = true;
 }
@@ -108,14 +178,14 @@ bool called_from_wrapper(int argc, const char **argv) {
 }
 
 int main(int argc, const char **argv) {
-	int idx = called_from_wrapper(argc, argv) ? 3 : 1;
+	int offset = called_from_wrapper(argc, argv) ? 3 : 1;
 
-	if(argc > idx + 1 && strcmp(argv[idx], "-A") == 0) {
-		const char *file = argv[idx+1];
+	if(argc > offset + 1 && strcmp(argv[offset], "-A") == 0) {
+		const char *file = argv[offset+1];
 		ifstream in;
 		istream *inptr = &in;
 		if (strcmp(file, "-") == 0) {
-			inptr = &std::cin;
+			inptr = &cin;
 		}
 		else {
 			in.open(file);
@@ -123,28 +193,33 @@ int main(int argc, const char **argv) {
 		char buf[4096];
 		int lastret = -1;
 
+		rlinit();
 		while(_getline(inptr, buf, 4096)) {
 			done = false;
 			vector<string> args;
 			args.push_back(string(argv[0]));
+
+			if (offset > 1) {
+				args.push_back(string(argv[1]));
+				args.push_back(string(argv[2]));
+			}
+
 			tokenize(buf, " \t", args);
 			const char **myargs = (const char**)malloc(sizeof(char*)*args.size());
 			vector<char *> fifonames;
 			int sam_outfile_pos = -1;
+
 			for(size_t i = 0; i < args.size(); i++) {
 				if (args[i] == "_") {
 					if (i > 0 && args[i-1] == "-S") {
 						sam_outfile_pos = i;
-						myargs[i] = args[i].c_str();
 					}
 					else {
 						createfifo(fifonames);
-						myargs[i] = fifonames.back();
+						args[i] = fifonames.back();
 					}
 				}
-				else {
-					myargs[i] = args[i].c_str();
-				}
+				myargs[i] = args[i].c_str();
 			}
 			if(args.size() == 1) continue;
 
@@ -167,7 +242,7 @@ int main(int argc, const char **argv) {
 				}
 
 				for (int i = 0; i < fifonames.size(); i++) {
-					pollfds[i].fd = open(fifonames[i], O_RDONLY | O_NONBLOCK | O_EXCL);
+					pollfds[i].fd = open(fifonames[i], O_NONBLOCK | O_EXCL | O_EVTONLY);
 					pollfds[i].events = POLLIN;
 				}
 
@@ -189,6 +264,11 @@ int main(int argc, const char **argv) {
 					}
 
 					lastret = bowtie((int)args.size(), myargs);
+
+					// replace the args shuffled by getopt
+					for (int i = 0; i < args.size(); i++) {
+						myargs[i] = args[i].c_str();
+					}
 				}
 
 				for (int i = 0; i < fifonames.size(); i++) {
