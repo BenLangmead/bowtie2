@@ -16,7 +16,10 @@ Please report any issues using the Sourceforge bug tracker:
 Version Release History
 =======================
 
-Version 2.3.1 - Mar 03, 2017
+Version 2.3.1 - Mar 04, 2017
+Please note that as of this release Bowtie 2 now has dependencies on zlib and readline libraries.
+Make sure that all dependencies are met before attempting to build from source.
+
     * Added native support for gzipped read files.  The wrapper
       script is no longer responsible for decompression.  This
       simplifies the wrapper and improves speed and thread scalability

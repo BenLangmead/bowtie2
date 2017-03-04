@@ -1,4 +1,5 @@
 <h2>Version 2.3.1 - Mar 03, 2017</h2>
+<p>Please note that as of this release Bowtie 2 now has dependencies on zlib and readline libraries. Make sure that all dependencies are met before attempting to build from source.</p>
 <ul>
     <li>Added native support for gzipped read files. The wrapper script is no longer responsible for decompression.  This simplifies the wrapper and improves speed and thread scalability for gzipped inputs.</li>
     <li>Fixed a bug that caused <tt>'bowtie2-build'</tt> to crash when the first FASTA sequence contains all Ns.</li>
