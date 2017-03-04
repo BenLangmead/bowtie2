@@ -863,6 +863,25 @@ Reads (specified with `<m1>`, `<m2>`, `<s>`) are FASTQ files.  FASTQ files
 usually have extension `.fq` or `.fastq`.  FASTQ is the default format.  See
 also: `--solexa-quals` and `--int-quals`.
 
+    --interleaved
+
+Reads interleaved FASTQ files where the first two records (8 lines)
+represent a mate pair.
+
+    --tab5
+
+Each read or pair is on a single line. An unpaired read line is
+[name]\t[seq]\t[qual]\n. A paired-end read line is
+[name]\t[seq1]\t[qual1]\t[seq2]\t[qual2]\n. An input file can be a
+mix of unpaired and paired-end reads and Bowtie 2 recognizes each
+according to the number of fields, handling each as it should.
+
+    --tab6
+
+Similar to `--tab5` except, for paired-end reads, the second end can have a
+different name from the first:
+[name1]\t[seq1]\t[qual1]\t[name2]\t[seq2]\t[qual2]\n
+
     --qseq
 
 Reads (specified with `<m1>`, `<m2>`, `<s>`) are QSEQ files.  QSEQ files usually

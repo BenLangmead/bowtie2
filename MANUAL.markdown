@@ -921,6 +921,46 @@ usually have extension `.fq` or `.fastq`.  FASTQ is the default format.  See
 also: [`--solexa-quals`] and [`--int-quals`].
 
 </td></tr>
+<tr><td id="bowtie2-options-interleaved">
+
+[`--interleaved`]: #bowtie2-options-interleaved
+
+    --interleaved
+
+</td><td>
+
+Reads interleaved FASTQ files where the first two records (8 lines)
+represent a mate pair.
+
+</td></tr>
+<tr><td id="bowtie2-options-tab5">
+
+[`--tab5`]: #bowtie2-options-tab5
+
+    --tab5
+
+</td><td>
+
+Each read or pair is on a single line. An unpaired read line is
+[name]\t[seq]\t[qual]\n. A paired-end read line is
+[name]\t[seq1]\t[qual1]\t[seq2]\t[qual2]\n. An input file can be a
+mix of unpaired and paired-end reads and Bowtie 2 recognizes each
+according to the number of fields, handling each as it should.
+
+</td></tr>
+<tr><td id="bowtie2-options-tab6">
+
+[`--tab6`]: #bowtie2-options-tab6
+
+    --tab6
+
+</td><td>
+
+Similar to [`--tab5`] except, for paired-end reads, the second end can have a
+different name from the first:
+[name1]\t[seq1]\t[qual1]\t[name2]\t[seq2]\t[qual2]\n
+
+</td></tr>
 <tr><td id="bowtie2-options-qseq">
 
 [`--qseq`]: #bowtie2-options-qseq

@@ -358,6 +358,30 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC</code></pr
 </td>
 </tr>
 <tr>
+<td id="bowtie2-options-interleaved">
+<pre><code>--interleaved</code></pre>
+</td>
+<td>
+<p>Reads interleaved FASTQ files where the first two records (8 lines) represent a mate pair.</p>
+</td>
+</tr>
+<tr>
+<td id="bowtie2-options-tab5">
+<pre><code>--tab5</code></pre>
+</td>
+<td>
+<p>Each read or pair is on a single line. An unpaired read line is [name]. A paired-end read line is [name]. An input file can be a mix of unpaired and paired-end reads and Bowtie 2 recognizes each according to the number of fields, handling each as it should.</p>
+</td>
+</tr>
+<tr>
+<td id="bowtie2-options-tab6">
+<pre><code>--tab6</code></pre>
+</td>
+<td>
+<p>Similar to <a href="#bowtie2-options-tab5"><code>--tab5</code></a> except, for paired-end reads, the second end can have a different name from the first: [name1]</p>
+</td>
+</tr>
+<tr>
 <td id="bowtie2-options-qseq">
 <pre><code>--qseq</code></pre>
 </td>

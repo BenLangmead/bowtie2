@@ -3,7 +3,7 @@ Bowtie 2 NEWS
 
 Bowtie 2 is now available for download from the project website,
 http://bowtie-bio.sf.net/bowtie2.  2.0.0-beta1 is the first version released to
-the public and 2.3.0 is the latest version.  Bowtie 2 is licensed under
+the public and 2.3.1 is the latest version.  Bowtie 2 is licensed under
 the GPLv3 license.  See `LICENSE' file for details.
 
 Reporting Issues
@@ -15,6 +15,29 @@ Please report any issues using the Sourceforge bug tracker:
 
 Version Release History
 =======================
+
+Version 2.3.1 - Mar 03, 2017
+    * Added native support for gzipped read files.  The wrapper
+      script is no longer responsible for decompression.  This
+      simplifies the wrapper and improves speed and thread scalability
+      for gzipped inputs.
+    * Fixed a bug that caused `bowtie2-build` to crash when the
+      first FASTA sequence contains all Ns.
+    * Add support for interleaved FASTQ format (`-—interleaved`)
+    * Empty FASTQ inputs would yield an error in Bowtie 2 2.3.0,
+      whereas previous versions would simply align 0 reads and report
+      the SAM header as usual.  This version returns to the pre-2.3.0
+      behavior, resolving a compatibility issue between TopHat2 and
+      Bowtie 2 2.3.0.
+    * Fixed a bug whereby combining `-—un-conc*` with `-k` or `-a`
+      would cause `bowtie2` to print duplicate reads in one or both
+      of the `--un-conc*` output files, causing the ends to be
+      misaligned.
+    * The default `--score-min` for `--local` mode is now `G,20,8`.
+      That was the stated default in the documentation for a while,
+      but the actual default was `G,0,10` for many versions.  Now the
+      default matches the documentation and, we find, yields more
+      accurate alignments than `G,0,10`
 
 Version 2.3.0 - Dec 13, 2016
    * Code related to read parsing was completely rewritten to improve

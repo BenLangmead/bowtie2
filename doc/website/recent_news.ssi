@@ -1,3 +1,12 @@
+<h2>Version 2.3.1 - Mar 03, 2017</h2>
+<ul>
+    <li>Added native support for gzipped read files. The wrapper script is no longer responsible for decompression.  This simplifies the wrapper and improves speed and thread scalability for gzipped inputs.</li>
+    <li>Fixed a bug that caused <tt>'bowtie2-build'</tt> to crash when the first FASTA sequence contains all Ns.</li>
+    <li>Add support for interleaved FASTQ format <tt><a href="manual.shtml#bowtie2-options-interleaved">-—interleaved</a></tt>.</li>
+    <li>Empty FASTQ inputs would yield an error in Bowtie 2 2.3.0, whereas previous versions would simply align 0 reads and report the SAM header as usual.  This version returns to the pre-2.3.0 behavior, resolving a compatibility issue between TopHat2 and Bowtie 2 2.3.0.</li>
+    <li>Fixed a bug whereby combining <tt>'-—un-conc*</tt> with <tt>'-k'</tt> or <tt>'-a'</tt> would cause <tt>'bowtie2'</tt> to print duplicate reads in one or both of the <tt>'--un-conc*'</tt> output files, causing the ends to be misaligned.</li>
+    <li>The default <tt>'--score-min'</tt> for <tt>'--local'</tt> mode is now <tt>'G,20,8'</tt>. That was the stated default in the documentation for a while, but the actual default was <tt>'G,0,10'</tt> for many versions. Now the default matches the documentation and, we find, yields more accurate alignments than <tt>'G,0,10'</tt></li>
+</ul>
 <h2>Version 2.3.0 - Dec 13, 2016</h2>
 <p>This is a major release with some larger and many smaller changes.  These notes emphasize the large changes.  See commit history for details.</p>
 <ul>
