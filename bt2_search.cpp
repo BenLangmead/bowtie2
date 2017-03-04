@@ -754,7 +754,7 @@ static void printUsage(ostream& out) {
 	    << "  --fr/--rf/--ff     -1, -2 mates align fw/rev, rev/fw, fw/fw (--fr)" << endl
 		<< "  --no-mixed         suppress unpaired alignments for paired reads" << endl
 		<< "  --no-discordant    suppress discordant alignments for paired reads" << endl
-		<< "  --no-dovetail      not concordant when mates extend past each other" << endl
+		<< "  --dovetail         concordant when mates extend past each other" << endl;
 		<< "  --no-contain       not concordant when one mate alignment contains other" << endl
 		<< "  --no-overlap       not concordant when mates overlap at all" << endl
 		<< endl
