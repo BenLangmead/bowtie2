@@ -242,7 +242,7 @@ int main(int argc, const char **argv) {
 				}
 
 				for (int i = 0; i < fifonames.size(); i++) {
-					pollfds[i].fd = open(fifonames[i], O_NONBLOCK | O_EXCL | O_EVTONLY);
+					pollfds[i].fd = open(fifonames[i], O_NONBLOCK | O_EXCL);
 					pollfds[i].events = POLLIN;
 				}
 
