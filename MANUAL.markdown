@@ -123,8 +123,7 @@ you may want to consider using tools like [NUCmer], [BLAT], or [BLAST].  These
 tools can be extremely slow when the reference genome is long, but are often
 adequate when the reference is short.
 
-Bowtie 2 does not support alignment of colorspace reads.  This might be
-supported in future versions.
+Bowtie 2 does not support alignment of colorspace reads.
 
 [MUMmer]: http://mummer.sourceforge.net/
 [NUCmer]: http://mummer.sourceforge.net/manual/#nucmer
