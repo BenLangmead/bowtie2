@@ -27,6 +27,7 @@
 #include <math.h>
 #include <utility>
 #include <limits>
+#include <time.h>
 #include "alphabet.h"
 #include "assert_helpers.h"
 #include "endian_swap.h"
@@ -54,6 +55,9 @@
 #include "outq.h"
 #include "aligner_seed2.h"
 #include "bt2_search.h"
+#ifdef WITH_TBB
+ #include <tbb/compat/thread>
+#endif
 
 using namespace std;
 
@@ -2795,7 +2799,11 @@ void get_cpu_and_node(int& cpu, int& node) {
  * - 
  */
 #ifdef WITH_TBB
-void multiseedSearchWorker::operator()() const {
+//void multiseedSearchWorker::operator()() const {
+static void multiseedSearchWorker(void *vp) {
+	//int tid = *((int*)vp);
+	thread_tracking_pair *p = (thread_tracking_pair*) vp;
+	int tid = p->tid;
 #else
 static void multiseedSearchWorker(void *vp) {
 	int tid = *((int*)vp);
@@ -3897,11 +3905,19 @@ static void multiseedSearchWorker(void *vp) {
 	std::cout << ss.str();
 #endif
 
+#ifdef WITH_TBB
+	p->done->fetch_and_add(1);
+#endif
+
 	return;
 }
 
 #ifdef WITH_TBB
-void multiseedSearchWorker_2p5::operator()() const {
+//void multiseedSearchWorker_2p5::operator()() const {
+static void multiseedSearchWorker_2p5(void *vp) {
+	//int tid = *((int*)vp);
+	thread_tracking_pair *p = (thread_tracking_pair*) vp;
+	int tid = p->tid;
 #else
 static void multiseedSearchWorker_2p5(void *vp) {
 	int tid = *((int*)vp);
@@ -4232,9 +4248,13 @@ static void multiseedSearchWorker_2p5(void *vp) {
 	
 	// One last metrics merge
 	MERGE_METRICS(metrics, nthreads > 1);
+#ifdef WITH_TBB
+	p->done->fetch_and_add(1);
+#endif
 
 	return;
 }
+
 
 /**
  * Called once per alignment job.  Sets up global pointers to the
@@ -4276,7 +4296,8 @@ static void multiseedSearch(
 	if(!refs->loaded()) throw 1;
 	multiseed_refs = refs.get();
 #ifdef WITH_TBB
-	tbb::task_group tbb_grp;
+	//tbb::task_group tbb_grp;
+	AutoArray<std::thread*> threads(nthreads+1);
 #else
 	AutoArray<tthread::thread*> threads(nthreads+1);
 	AutoArray<int> tids(nthreads+1);
@@ -4310,18 +4331,36 @@ static void multiseedSearch(
 			startVerbose);
 	}
 	// Start the metrics thread
+	
+#ifdef WITH_TBB
+	tbb::atomic<int> all_threads_done;
+	all_threads_done = 0;
+#endif
 	{
 		Timer _t(cerr, "Multiseed full-index search: ", timing);
-
+		int mil = 10;
+		struct timespec ts = {0};
+		ts.tv_sec=0;
+		ts.tv_nsec = mil * 1000000L;
 		for(int i = 1; i <= nthreads; i++) {
 #ifdef WITH_TBB
+			thread_tracking_pair tp;
+			tp.tid = i;
+			tp.done = &all_threads_done;
 			if(bowtie2p5) {
-				tbb_grp.run(multiseedSearchWorker_2p5(i));
+				//tbb_grp.run(multiseedSearchWorker_2p5(i));
+				threads[i] = new std::thread(multiseedSearchWorker_2p5, (void*) &tp);
 			} else {
-				tbb_grp.run(multiseedSearchWorker(i));
+				//tbb_grp.run(multiseedSearchWorker(i));
+				threads[i] = new std::thread(multiseedSearchWorker, (void*) &tp);
 			}
+			threads[i]->detach();
+			nanosleep(&ts, (struct timespec *) NULL);
 		}
-		tbb_grp.wait();
+		while(all_threads_done < nthreads);
+		//tbb_grp.wait();
+     		/*for(int i=1; i<=nthreads; i++)
+        		threads[i]->join();*/
 #else
 			// Thread IDs start at 1
 			tids[i] = i;

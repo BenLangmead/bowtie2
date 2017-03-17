@@ -29,11 +29,11 @@
 # include <tbb/mutex.h>
 # include <tbb/spin_mutex.h>
 # include <tbb/queuing_mutex.h>
+# include <tbb/atomic.h>
 # ifdef WITH_AFFINITY
 #  include <sched.h>
 #  include <tbb/task_group.h>
 #  include <tbb/task_scheduler_observer.h>
-#  include <tbb/atomic.h>
 #  include <tbb/task_scheduler_init.h>
 # endif
 #else
@@ -59,6 +59,12 @@
 # endif
 #endif /* NO_SPINLOCK */
 
+#ifdef WITH_TBB
+struct thread_tracking_pair {
+	int tid;
+	tbb::atomic<int>* done;
+};
+#endif
 
 /**
  * Wrap a lock; obtain lock upon construction, release upon destruction.

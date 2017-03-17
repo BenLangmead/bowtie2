@@ -31,6 +31,15 @@
 
 using namespace std;
 
+/*void set_bufsz(unsigned bufsz) 
+{ 
+#if ZLIB_VERNUM < 0x1240        
+	std::fprintf(stderr, "Warning: gzbuffer added in zlib1.2.4. Unable to change buffer size from default of 8192.\n"); 
+#else        
+	gzbuffer(fp_, bufsz);
+#endif
+}*/
+
 /**
  * Calculate a per-read random seed based on a combination of
  * the read data (incl. sequence, name, quals) and the global
@@ -463,7 +472,19 @@ void CFilePatternSource::open() {
 			}
 		}
 		is_open_ = true;
-		compressed_ ? gzbuffer(zfp_, 64*1024) : setvbuf(fp_, buf_, _IOFBF, 64*1024);
+		if(compressed_)
+		{
+#if ZLIB_VERNUM >= 0x1240
+			//compressed_ ? set_bufsz(zfp_, 64*1024) : setvbuf(fp_, buf_, _IOFBF, 64*1024);
+			gzbuffer(zfp_, 64*1024);
+#else
+			fprintf(stderr, "Not using gzbuffer\n");
+#endif
+		}
+		else
+		{
+			setvbuf(fp_, buf_, _IOFBF, 64*1024);
+		}
 		return;
 	}
 	cerr << "Error: No input read files were valid" << endl;
