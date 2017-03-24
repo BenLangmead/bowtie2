@@ -24,9 +24,13 @@
  * the read with the given id.
  */
 void OutputQueue::beginRead(TReadId rdid, size_t threadId) {
-	ThreadSafe t(&mutex_m, threadSafe_);
-	nstarted_++;
 	if(reorder_) {
+		ThreadSafe t(&mutex_m, threadSafe_);
+#ifdef WITH_TBB
+		nstarted_.fetch_and_add(1);
+#else
+		nstarted_++;
+#endif
 		assert_geq(rdid, cur_);
 		assert_eq(lines_.size(), finished_.size());
 		assert_eq(lines_.size(), started_.size());
@@ -43,14 +47,22 @@ void OutputQueue::beginRead(TReadId rdid, size_t threadId) {
 		started_[rdid - cur_] = true;
 		finished_[rdid - cur_] = false;
 	}
+	else
+	{
+#ifdef WITH_TBB
+		nstarted_.fetch_and_add(1);
+#else
+		nstarted_++;
+#endif
+	}
 }
 
 /**
  * Writer is finished writing to 
  */
 void OutputQueue::finishRead(const BTString& rec, TReadId rdid, size_t threadId) {
-	ThreadSafe t(&mutex_m, threadSafe_);
 	if(reorder_) {
+		ThreadSafe t(&mutex_m, threadSafe_);
 		assert_geq(rdid, cur_);
 		assert_eq(lines_.size(), finished_.size());
 		assert_eq(lines_.size(), started_.size());
@@ -63,9 +75,20 @@ void OutputQueue::finishRead(const BTString& rec, TReadId rdid, size_t threadId)
 		flush(false, false); // don't force; already have lock
 	} else {
 		// obuf_ is the OutFileBuf for the output file
-		obuf_.writeString(rec);
-		nfinished_++;
-		nflushed_++;
+		if(perThreadCounter[threadId] >= perThreadBufSize_)
+		{
+			int i = 0;
+			for(i=0; i < perThreadBufSize_; i++)
+			{
+				ThreadSafe t(&mutex_m, threadSafe_);
+				obuf_.writeString(perThreadBuf[threadId][i]);
+				//TODO: turn these into atomics
+				nfinished_++;
+				nflushed_++;
+			}
+			perThreadCounter[threadId] = 0;
+		}
+		perThreadBuf[threadId][perThreadCounter[threadId]++] = rec;
 	}
 }
 
@@ -74,6 +97,19 @@ void OutputQueue::finishRead(const BTString& rec, TReadId rdid, size_t threadId)
  */
 void OutputQueue::flush(bool force, bool getLock) {
 	if(!reorder_) {
+		size_t i = 0;
+		int j = 0;
+		ThreadSafe t(&mutex_m, getLock && threadSafe_);
+		for(i=0;i<nthreads_;i++)
+		{
+			for(j=0;j<perThreadCounter[i];j++)
+			{
+				obuf_.writeString(perThreadBuf[i][j]);
+				nfinished_++;
+				nflushed_++;
+			}
+			perThreadCounter[i]=0;
+		}
 		return;
 	}
 	ThreadSafe t(&mutex_m, getLock && threadSafe_);

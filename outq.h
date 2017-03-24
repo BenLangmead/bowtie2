@@ -45,10 +45,10 @@ public:
 		bool reorder,
 		size_t nthreads,
 		bool threadSafe,
+		int perThreadBufSize,
 		TReadId rdid = 0) :
 		obuf_(obuf),
 		cur_(rdid),
-		nstarted_(0),
 		nfinished_(0),
 		nflushed_(0),
 		lines_(RES_CAT),
@@ -56,10 +56,27 @@ public:
 		finished_(RES_CAT),
 		reorder_(reorder),
 		threadSafe_(threadSafe),
-        mutex_m()
+		nthreads_(nthreads),
+        mutex_m(),
+	perThreadBufSize_(perThreadBufSize)
 	{
-		assert(nthreads <= 1 || threadSafe);
+		nstarted_=0;
+		assert(nthreads_ <= 2 || threadSafe);
+		if(!reorder)
+		{
+			fprintf(stderr,"perThreadBufSize for output is %d\n",perThreadBufSize_);
+			perThreadBuf = new BTString*[nthreads_];
+			perThreadCounter = new int[nthreads_];
+			size_t i = 0;
+			for(i=0;i<nthreads_;i++)
+			{
+				perThreadBuf[i] = new BTString[perThreadBufSize_];
+				perThreadCounter[i] = 0;
+			}
+		}
 	}
+
+	~OutputQueue() { }
 
 	/**
 	 * Caller is telling us that they're about to write output record(s) for
@@ -109,7 +126,11 @@ protected:
 
 	OutFileBuf&     obuf_;
 	TReadId         cur_;
+#ifdef WITH_TBB
+	tbb::atomic<TReadId> nstarted_;
+#else
 	TReadId         nstarted_;
+#endif
 	TReadId         nfinished_;
 	TReadId         nflushed_;
 	EList<BTString> lines_;
@@ -118,6 +139,12 @@ protected:
 	bool            reorder_;
 	bool            threadSafe_;
 	MUTEX_T         mutex_m;
+
+	// used for output read buffer	
+	size_t nthreads_;
+	BTString**	perThreadBuf;
+	int* 		perThreadCounter;
+	int perThreadBufSize_;
 };
 
 class OutputQueueMark {

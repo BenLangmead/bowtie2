@@ -37,6 +37,7 @@ enum {
 	ARG_INTEGER_QUALS,          // --int-quals
 	ARG_FILEPAR,                // --filepar
 	ARG_READS_PER_BATCH,        // --reads-per-batch
+	ARG_READS_PER_OUT_BATCH,    // --reads-per-out-batch
 	ARG_SHMEM,                  // --shmem
 	ARG_MM,                     // --mm
 	ARG_MMSWEEP,                // --mmsweep
