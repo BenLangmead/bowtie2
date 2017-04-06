@@ -34,8 +34,8 @@
 #include <vector>
 #include <iterator>
 #include <algorithm>
-#include <readline/readline.h>
-#include <readline/history.h>
+//#include <readline/readline.h>
+//#include <readline/history.h>
 
 using namespace std;
 
@@ -90,7 +90,7 @@ static bool isdirectory(const char *path) {
 	}
 	return S_ISDIR(statbuf.st_mode);
 }
-
+/*
 static char *optgen(const char *text, int state) {
 	static int list_index, len;
 	const char *name = NULL;
@@ -148,7 +148,7 @@ static int _getline(istream *in, char *buf, size_t len) {
 	}
 	buf[len-1] = '\0';
 	return strlen(buf);
-}
+}*/
 
 static int createfifo(vector<char *>& v) {
 	const char *pattern = "/tmp/btfifo.XX";
@@ -180,7 +180,7 @@ bool called_from_wrapper(int argc, const char **argv) {
 int main(int argc, const char **argv) {
 	int offset = called_from_wrapper(argc, argv) ? 3 : 1;
 
-	if(argc > offset + 1 && strcmp(argv[offset], "-A") == 0) {
+	/*if(argc > offset + 1 && strcmp(argv[offset], "-A") == 0) {
 		const char *file = argv[offset+1];
 		ifstream in;
 		istream *inptr = &in;
@@ -290,7 +290,7 @@ int main(int argc, const char **argv) {
 			return 0;
 		}
 		return lastret;
-	} else {
+	} else {*/
 		return bowtie(argc, argv);
-	}
+	//}
 }

@@ -435,56 +435,24 @@ pair<bool, int> CFilePatternSource::nextBatch(
 void CFilePatternSource::open() {
 	if(is_open_) {
 		is_open_ = false;
-		if (compressed_) {
-			gzclose(zfp_);
-			zfp_ = NULL;
-		}
-		else {
-			fclose(fp_);
-			fp_ = NULL;
-		}
+		fclose(fp_);
+		fp_ = NULL;
 	}
 	while(filecur_ < infiles_.size()) {
 		if(infiles_[filecur_] == "-") {
-			// always assume that data from stdin is compressed
-			compressed_ = true;
-			int fn = dup(fileno(stdin));
-			zfp_ = gzdopen(fn, "rb");
-		}
-		else {
-			compressed_ = false;
-			if (is_gzipped_file(infiles_[filecur_])) {
-				compressed_ = true;
-				zfp_ = gzopen(infiles_[filecur_].c_str(), "rb");
+			fp_ = stdin;
+		} else if((fp_ = fopen(infiles_[filecur_].c_str(), "rb")) == NULL) {
+			if(!errs_[filecur_]) {
+				cerr << "Warning: Could not open read file \""
+				<< infiles_[filecur_].c_str()
+				<< "\" for reading; skipping..." << endl;
+				errs_[filecur_] = true;
 			}
-			else {
-				fp_ = fopen(infiles_[filecur_].c_str(), "rb");
-			}
-			if((compressed_ && zfp_ == NULL) || (!compressed_ && fp_ == NULL)) {
-				if(!errs_[filecur_]) {
-					cerr << "Warning: Could not open read file \""
-					<< infiles_[filecur_].c_str()
-					<< "\" for reading; skipping..." << endl;
-					errs_[filecur_] = true;
-				}
-				filecur_++;
-				continue;
-			}
+			filecur_++;
+			continue;
 		}
 		is_open_ = true;
-		if(compressed_)
-		{
-#if ZLIB_VERNUM >= 0x1240
-			//compressed_ ? set_bufsz(zfp_, 64*1024) : setvbuf(fp_, buf_, _IOFBF, 64*1024);
-			gzbuffer(zfp_, 64*1024);
-#else
-			fprintf(stderr, "Not using gzbuffer\n");
-#endif
-		}
-		else
-		{
-			setvbuf(fp_, buf_, _IOFBF, 64*1024);
-		}
+		setvbuf(fp_, buf_, _IOFBF, 64*1024);
 		return;
 	}
 	cerr << "Error: No input read files were valid" << endl;
