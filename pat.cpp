@@ -693,6 +693,10 @@ pair<bool, int> FastaPatternSource::nextBatchFromFile(
 			buf.append(c);
 		}
 	}
+	// Immediate EOF case
+	if(done && readbuf[readi-1].readOrigBuf.length() == 1) {
+		readi--;
+	}
 	return make_pair(done, readi);
 }
 
