@@ -118,6 +118,12 @@ protected:
 	bool            reorder_;
 	bool            threadSafe_;
 	MUTEX_T         mutex_m;
+
+private:
+
+	void flushImpl(bool force);
+	void beginReadImpl(TReadId rdid, size_t threadId);
+	void finishReadImpl(const BTString& rec, TReadId rdid, size_t threadId);
 };
 
 class OutputQueueMark {

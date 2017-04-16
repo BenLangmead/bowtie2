@@ -283,6 +283,10 @@ public:
 	
 private:
 
+	pair<bool, int> nextBatchImpl(
+		PerThreadReadBuf& pt,
+		bool batch_a);
+
 	size_t cur_;			   // index for first read of next batch
 	size_t skip_;			   // # reads to skip
 	bool paired_;			   // whether reads are paired
@@ -414,6 +418,12 @@ protected:
 	bool first_;			 // parsing first record in first file?
 	char buf_[64*1024];		 // file buffer
 	bool compressed_;
+
+private:
+
+	pair<bool, int> nextBatchImpl(
+		PerThreadReadBuf& pt,
+		bool batch_a);
 };
 
 /**
