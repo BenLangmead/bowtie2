@@ -660,7 +660,7 @@ static void printUsage(ostream& out) {
 		tool_name = "bowtie2";
 	}
 	out << "Usage: " << endl
-	    << "  " << tool_name.c_str() << " [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r>} [-S <sam>]" << endl
+	    << "  " << tool_name.c_str() << " [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r> | --interleaved <i>} [-S <sam>]" << endl
 	    << endl
 		<<     "  <bt2-idx>  Index filename prefix (minus trailing .X." + gEbwt_ext + ")." << endl
 		<<     "             NOTE: Bowtie 1 and Bowtie 2 indexes are not compatible." << endl
@@ -676,6 +676,10 @@ static void printUsage(ostream& out) {
 	if(wrapper == "basic-0") {
 		out << "             Could be gzip'ed (extension: .gz) or bzip2'ed (extension: .bz2)." << endl;
 	}
+	out <<     "  <i>        Files with interleaved paired-end FASTQ reads" << endl
+	if(wrapper == "basic-0") {
+		out << "             Could be gzip'ed (extension: .gz) or bzip2'ed (extension: .bz2)." << endl;
+	}
 	out <<     "  <sam>      File for SAM output (default: stdout)" << endl
 	    << endl
 	    << "  <m1>, <m2>, <r> can be comma-separated lists (no whitespace) and can be" << endl
@@ -686,7 +690,6 @@ static void printUsage(ostream& out) {
 		<< endl
 	    << " Input:" << endl
 	    << "  -q                 query input files are FASTQ .fq/.fastq (default)" << endl
-		<< "  --interleaved      query input files are interleaved paired-end FASTQ reads" << endl
 		<< "  --tab5             query input files are TAB5 .tab5" << endl
 		<< "  --tab6             query input files are TAB6 .tab6" << endl
 	    << "  --qseq             query input files are in Illumina's qseq format" << endl
