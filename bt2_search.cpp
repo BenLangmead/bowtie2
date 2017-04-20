@@ -676,7 +676,7 @@ static void printUsage(ostream& out) {
 	if(wrapper == "basic-0") {
 		out << "             Could be gzip'ed (extension: .gz) or bzip2'ed (extension: .bz2)." << endl;
 	}
-	out <<     "  <i>        Files with interleaved paired-end FASTQ reads" << endl
+	out <<     "  <i>        Files with interleaved paired-end FASTQ reads" << endl;
 	if(wrapper == "basic-0") {
 		out << "             Could be gzip'ed (extension: .gz) or bzip2'ed (extension: .bz2)." << endl;
 	}
