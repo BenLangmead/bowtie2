@@ -463,7 +463,17 @@ void CFilePatternSource::open() {
 			}
 		}
 		is_open_ = true;
-		compressed_ ? gzbuffer(zfp_, 64*1024) : setvbuf(fp_, buf_, _IOFBF, 64*1024);
+        if (compressed_) {
+#if ZLIB_VERNUM < 0x1235
+            cerr << "Warning: gzbuffer added in zlib v1.2.3.5. Unable to change "
+                    "buffer size from default of 8192." << endl;
+#else
+            gzbuffer(zfp_, 64*1024);
+#endif
+        }
+        else {
+            setvbuf(fp_, buf_, _IOFBF, 64*1024);
+        }
 		return;
 	}
 	cerr << "Error: No input read files were valid" << endl;
