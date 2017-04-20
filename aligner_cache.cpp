@@ -111,7 +111,7 @@ bool AlignmentCache::addOnTheFly(
 	TIndexOffU botb,    // bottom range elt in BWT' index
 	bool getLock)
 {
-	if(getLock) {
+	if(shared_ && getLock) {
 		ThreadSafe ts(mutex_m);
 		return addOnTheFlyImpl(qv, sak, topf, botf, topb, botb);
 	} else {

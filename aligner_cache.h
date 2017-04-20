@@ -460,7 +460,7 @@ public:
 		size_t& nelt,
 		bool getLock = true)
 	{
-		if(getLock) {
+		if(shared_ && getLock) {
 			ThreadSafe ts(mutex_m);
 			queryQvalImpl(qv, satups, nrange, nelt);
 		} else {
@@ -494,7 +494,7 @@ public:
 		bool *added,
 		bool getLock = true)
 	{
-		if(getLock) {
+		if(shared_ && getLock) {
 			ThreadSafe ts(mutex_m);
 			return addImpl(qk, added);
 		} else {
