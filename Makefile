@@ -25,7 +25,11 @@ prefix = /usr/local
 bindir = $(prefix)/bin
 
 INC =
+<<<<<<< HEAD
 LIBS = -lreadline -ltermcap -lz
+=======
+LIBS = -lz
+>>>>>>> v2.3.1.1
 GCC_PREFIX = $(shell dirname `which gcc`)
 GCC_SUFFIX =
 CC ?= $(GCC_PREFIX)/gcc$(GCC_SUFFIX)
@@ -499,7 +503,7 @@ perl-deps:
 		mkdir .perllib.tmp ; \
 		$$DL http://cpanmin.us | perl - -l $(CURDIR)/.perllib.tmp App::cpanminus local::lib ; \
 		eval `perl -I $(CURDIR)/.perllib.tmp/lib/perl5 -Mlocal::lib=$(CURDIR)/.perllib.tmp` ; \
-		cpanm Math::Random Clone Test::Deep Sys::Info ; \
+		cpanm --force Math::Random Clone Test::Deep Sys::Info ; \
 	fi
 
 .PHONY: test
