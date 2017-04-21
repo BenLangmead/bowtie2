@@ -25,11 +25,7 @@ prefix = /usr/local
 bindir = $(prefix)/bin
 
 INC =
-<<<<<<< HEAD
-LIBS = -lreadline -ltermcap -lz
-=======
 LIBS = -lz
->>>>>>> v2.3.1.1
 GCC_PREFIX = $(shell dirname `which gcc`)
 GCC_SUFFIX =
 CC ?= $(GCC_PREFIX)/gcc$(GCC_SUFFIX)
