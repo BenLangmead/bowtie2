@@ -25,6 +25,7 @@ prefix = /usr/local
 bindir = $(prefix)/bin
 
 INC =
+LIBS = -lreadline -lz
 GCC_PREFIX = $(shell dirname `which gcc`)
 GCC_SUFFIX =
 CC ?= $(GCC_PREFIX)/gcc$(GCC_SUFFIX)
@@ -43,6 +44,7 @@ ifneq (,$(findstring MINGW,$(shell uname)))
 	# POSIX memory-mapped files not currently supported on Windows
 	BOWTIE_MM = 0
 	BOWTIE_SHARED_MEM = 0
+	override EXTRA_FLAGS += -ansi
 endif
 
 MACOS = 0
@@ -93,10 +95,10 @@ endif
 
 #default is to use Intel TBB
 ifneq (1,$(NO_TBB))
-	LIBS = $(PTHREAD_LIB) -ltbb -ltbbmalloc_proxy
+	LIBS += $(PTHREAD_LIB) -ltbb -ltbbmalloc_proxy
 	override EXTRA_FLAGS += -DWITH_TBB
 else
-	LIBS = $(PTHREAD_LIB)
+	LIBS += $(PTHREAD_LIB)
 endif
 SEARCH_LIBS =
 BUILD_LIBS =
@@ -432,17 +434,19 @@ bowtie2-src: $(SRC_PKG_LIST)
 	rm -rf .src.tmp
 
 .PHONY: bowtie2-pkg
-bowtie2-bin: $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)
-	$(eval PKG_DIR=bowtie2-$(VERSION)$(if $(NO_TBB),-legacy))
+bowtie2-pkg: $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)
+	$(eval HAS_TBB=$(shell strings bowtie2-align-l* | grep tbb))
+	$(eval PKG_DIR=bowtie2-$(VERSION)$(if $(HAS_TBB),,-legacy))
 	chmod a+x scripts/*.sh scripts/*.pl
 	rm -rf .bin.tmp
 	mkdir -p .bin.tmp/$(PKG_DIR)
 	if [ -f bowtie2-align-s.exe ] ; then \
-		\# copy files while preserving directory structure \
-		tar cf - $(BIN_PKG_LIST) $(addsuffix .exe,$(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)) | tar - xf -C .bin.tmp/$(PKG_DIR) ; \
+		zip tmp.zip $(BIN_PKG_LIST) $(addsuffix .exe,$(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)) ; \
 	else \
-		tar cf - $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX) | tar xf - -C .bin.tmp/$(PKG_DIR) ; \
+		zip tmp.zip $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX) ; \
 	fi
+	mv tmp.zip .bin.tmp/$(PKG_DIR)
+	cd .bin.tmp/$(PKG_DIR) ; unzip tmp.zip ; rm -f tmp.zip
 	cd .bin.tmp ; zip -r $(PKG_DIR).zip $(PKG_DIR)
 	cp .bin.tmp/$(PKG_DIR).zip .
 	rm -rf .bin.tmp
@@ -479,33 +483,24 @@ install: all
 	done
 
 .PHONY: simple-test
-simple-test: all install-perl-deps
-	CMD="sh ./scripts/test/simple_tests.sh" ; \
-	PERL_VERSION=$$(perl -e 'print substr($$^V, 1)') ; \
-	echo $$PERL_VERSION ; \
-	PERL5LIB=$$(find $(CURDIR)/.perllib.tmp -type d -name $$PERL_VERSION | tail -1) $$CMD ; \
-	rm -rf .perllib.tmp
+simple-test: all perl-deps
+	eval `perl -I $(CURDIR)/.perllib.tmp/lib/perl5 -Mlocal::lib=$(CURDIR)/.perllib.tmp` ; \
+	sh ./scripts/test/simple_tests.sh
 
 .PHONY: random-test
-random-test: all install-perl-deps
-	CMD='sh ./scripts/sim/run.sh $(if $(NUM_CORES), $(NUM_CORES), 2)' ; \
-	PERL_VERSION=$$(perl -e 'print substr($$^V, 1)') ; \
-	echo $$PERL_VERSION ; \
-	PERL5LIB=$$(find $(CURDIR)/.perllib.tmp -type d -name $$PERL_VERSION | tail -1) $$CMD ; \
-	rm -rf .perllib.tmp
+random-test: all perl-deps
+	eval `perl -I $(CURDIR)/.perllib.tmp/lib/perl5 -Mlocal::lib=$(CURDIR)/.perllib.tmp` ; \
+	sh ./scripts/sim/run.sh $(if $(NUM_CORES), $(NUM_CORES), 2)
 
 .PHONY: perl-deps
-install-perl-deps:
-	DL=$$([[ `which wget` ]] && echo wget || echo curl -LO) ; \
-	MODULE_URLS=$$(cpan -D Clone Math::Random Test::Deep | grep tar.gz) ; \
-	BASE_URL="http://search.cpan.org/CPAN/authors/id/" ; \
-	rm -rf .perllib.tmp && mkdir .perllib.tmp && cd .perllib.tmp ; \
-	for url in $$MODULE_URLS; do \
-		$$DL $${BASE_URL}$${url} ; \
-		filename=$$(basename $$url) ; \
-		tar xzf $$filename ; \
-		cd $$(basename $$filename .tar.gz) && perl Makefile.PL PREFIX=$(CURDIR)/.perllib.tmp && make && make install && make clean; \
-	done ; \
+perl-deps:
+	if [ ! -e .perllib.tmp ]; then \
+		DL=$$([ `which wget` ] && echo wget -O- || echo curl -L) ; \
+		mkdir .perllib.tmp ; \
+		$$DL http://cpanmin.us | perl - -l $(CURDIR)/.perllib.tmp App::cpanminus local::lib ; \
+		eval `perl -I $(CURDIR)/.perllib.tmp/lib/perl5 -Mlocal::lib=$(CURDIR)/.perllib.tmp` ; \
+		cpanm Math::Random Clone Test::Deep Sys::Info ; \
+	fi
 
 .PHONY: test
 test: simple-test random-test
@@ -517,3 +512,4 @@ clean:
 	bowtie2-src.zip bowtie2-bin.zip
 	rm -f core.* .tmp.head
 	rm -rf *.dSYM
+	rm -rf .perllib.tmp

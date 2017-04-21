@@ -33,6 +33,8 @@ use AlignmentCheck;
 use Math::Random;
 use List::Util qw(max min);
 use POSIX;
+use Sys::Info;
+use Sys::Info::Constants qw( :device_cpu );
 
 ##
 # Replacement for "die" that additionally writes error message to file so that
@@ -400,6 +402,9 @@ sub genBuildArgs {
 	if($r4 == 0) {
 		$args{"--offrate"} = int(rand(8))+1;
 	}
+	my $info = Sys::Info->new;
+	my $cpu = $info->device('CPU');
+	$args{"--threads"} = int(rand($cpu->count || 1)) + 1;
 	$args{"--large-index"} = "" if $large_index;
 	return \%args;
 }

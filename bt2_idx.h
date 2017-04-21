@@ -2595,9 +2595,11 @@ void Ebwt::joinToDisk(
 			if(npat >= 0) {
 				writeU<TIndexOffU>(out1, this->plen()[npat], this->toBe());
 			}
-			npat++;
-			this->plen()[npat] = (szs[i].len + szs[i].off);
+			this->plen()[++npat] = (szs[i].len + szs[i].off);
 		} else {
+			// edge case, but we could get here with npat == -1
+			// e.g. when building from a reference of all Ns
+			if (npat < 0) npat = 0;
 			this->plen()[npat] += (szs[i].len + szs[i].off);
 		}
 	}

@@ -89,6 +89,7 @@ PatternSource* PatternSource::patsrcFromStrings(
 		case FASTA_CONT:  return new FastaContinuousPatternSource(qs, p);
 		case RAW:         return new RawPatternSource(qs, p);
 		case FASTQ:       return new FastqPatternSource(qs, p);
+		case INTERLEAVED: return new FastqPatternSource(qs, p, true /* interleaved */);
 		case TAB_MATE5:   return new TabbedPatternSource(qs, p, false);
 		case TAB_MATE6:   return new TabbedPatternSource(qs, p, true);
 		case CMDLINE:     return new VectorPatternSource(qs, p);
@@ -373,14 +374,14 @@ PatternComposer* PatternComposer::setupPatternComposer(
 }
 
 void PatternComposer::free_EList_pmembers( const EList<PatternSource*> &elist) {
-    for (size_t i = 0; i < elist.size(); i++)
-        if (elist[i] != NULL)
-            delete elist[i];
+	for (size_t i = 0; i < elist.size(); i++)
+		if (elist[i] != NULL)
+			delete elist[i];
 }
 
 /**
  * Fill Read with the sequence, quality and name for the next
- * read in the list of read files.  This function gets called by
+ * read in the list of read files. This function gets called by
  * all the search threads, so we must handle synchronization.
  *
  * Returns pair<bool, int> where bool indicates whether we're
@@ -425,24 +426,44 @@ pair<bool, int> CFilePatternSource::nextBatch(
 void CFilePatternSource::open() {
 	if(is_open_) {
 		is_open_ = false;
-		fclose(fp_);
-		fp_ = NULL;
+		if (compressed_) {
+			gzclose(zfp_);
+			zfp_ = NULL;
+		}
+		else {
+			fclose(fp_);
+			fp_ = NULL;
+		}
 	}
 	while(filecur_ < infiles_.size()) {
 		if(infiles_[filecur_] == "-") {
-			fp_ = stdin;
-		} else if((fp_ = fopen(infiles_[filecur_].c_str(), "rb")) == NULL) {
-			if(!errs_[filecur_]) {
-				cerr << "Warning: Could not open read file \""
-				<< infiles_[filecur_].c_str()
-				<< "\" for reading; skipping..." << endl;
-				errs_[filecur_] = true;
+			// always assume that data from stdin is compressed
+			compressed_ = true;
+			int fn = dup(fileno(stdin));
+			zfp_ = gzdopen(fn, "rb");
+		}
+		else {
+			compressed_ = false;
+			if (is_gzipped_file(infiles_[filecur_])) {
+				compressed_ = true;
+				zfp_ = gzopen(infiles_[filecur_].c_str(), "rb");
 			}
-			filecur_++;
-			continue;
+			else {
+				fp_ = fopen(infiles_[filecur_].c_str(), "rb");
+			}
+			if((compressed_ && zfp_ == NULL) || (!compressed_ && fp_ == NULL)) {
+				if(!errs_[filecur_]) {
+					cerr << "Warning: Could not open read file \""
+					<< infiles_[filecur_].c_str()
+					<< "\" for reading; skipping..." << endl;
+					errs_[filecur_] = true;
+				}
+				filecur_++;
+				continue;
+			}
 		}
 		is_open_ = true;
-		setvbuf(fp_, buf_, _IOFBF, 64*1024);
+		compressed_ ? gzbuffer(zfp_, 64*1024) : setvbuf(fp_, buf_, _IOFBF, 64*1024);
 		return;
 	}
 	cerr << "Error: No input read files were valid" << endl;
@@ -499,7 +520,7 @@ VectorPatternSource::VectorPatternSource(
 /**
  * Read next batch.  However, batch concept is not very applicable for this
  * PatternSource where all the info has already been parsed into the fields
- * in the contsructor.  This essentially modifies the pt as though we read
+ * in the contsructor.	This essentially modifies the pt as though we read
  * in some number of patterns.
  */
 pair<bool, int> VectorPatternSource::nextBatch(
@@ -622,9 +643,12 @@ pair<bool, int> FastaPatternSource::nextBatchFromFile(
 	int c;
 	EList<Read>& readbuf = batch_a ? pt.bufa_ : pt.bufb_;
 	if(first_) {
-		c = getc_unlocked(fp_);
+		c = getc_wrapper();
+		if (c == EOF) {
+			return make_pair(true, 0);
+		}
 		while(c == '\r' || c == '\n') {
-			c = getc_unlocked(fp_);
+			c = getc_wrapper();
 		}
 		if(c != '>') {
 			cerr << "Error: reads file does not look like a FASTA file" << endl;
@@ -634,16 +658,13 @@ pair<bool, int> FastaPatternSource::nextBatchFromFile(
 	}
 	bool done = false;
 	size_t readi = 0;
-	if (feof(fp_)) {
-		done = true;
-	}
 	// Read until we run out of input or until we've filled the buffer
 	for(; readi < pt.max_buf_ && !done; readi++) {
 		Read::TBuf& buf = readbuf[readi].readOrigBuf;
 		buf.clear();
 		buf.append('>');
 		while(true) {
-			c = getc_unlocked(fp_);
+			c = getc_wrapper();
 			if(c < 0 || c == '>') {
 				done = c < 0;
 				break;
@@ -659,7 +680,7 @@ pair<bool, int> FastaPatternSource::nextBatchFromFile(
  */
 bool FastaPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 	// We assume the light parser has put the raw data for the separate ends
-	// into separate Read objects.  That doesn't have to be the case, but
+	// into separate Read objects.	That doesn't have to be the case, but
 	// that's how we've chosen to do it for FastqPatternSource
 	assert(!r.readOrigBuf.empty());
 	assert(r.empty());
@@ -729,7 +750,7 @@ bool FastaPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
  * 1. Reads are substrings of a longer FASTA input string
  * 2. Reads may overlap w/r/t the longer FASTA string
  * 3. Read names depend on the most recently observed FASTA
- *    record name
+ *	  record name
  */
 pair<bool, int> FastaContinuousPatternSource::nextBatchFromFile(
 	PerThreadReadBuf& pt,
@@ -739,13 +760,13 @@ pair<bool, int> FastaContinuousPatternSource::nextBatchFromFile(
 	EList<Read>& readbuf = batch_a ? pt.bufa_ : pt.bufb_;
 	size_t readi = 0;
 	while(readi < pt.max_buf_) {
-		c = getc_unlocked(fp_);
+		c = getc_wrapper();
 		if(c < 0) {
 			break;
 		}
 		if(c == '>') {
 			resetForNextFile();
-			c = getc_unlocked(fp_);
+			c = getc_wrapper();
 			bool sawSpace = false;
 			while(c != '\n' && c != '\r') {
 				if(!sawSpace) {
@@ -754,10 +775,10 @@ pair<bool, int> FastaContinuousPatternSource::nextBatchFromFile(
 				if(!sawSpace) {
 					name_prefix_buf_.append(c);
 				}
-				c = getc_unlocked(fp_);
+				c = getc_wrapper();
 			}
 			while(c == '\n' || c == '\r') {
-				c = getc_unlocked(fp_);
+				c = getc_wrapper();
 			}
 			if(c < 0) {
 				break;
@@ -869,7 +890,7 @@ bool FastaContinuousPatternSource::parse(
 
 
 /**
- * "Light" parser.  This is inside the critical section, so the key is to do
+ * "Light" parser. This is inside the critical section, so the key is to do
  * just enough parsing so that another function downstream (finalize()) can do
  * the rest of the parsing.  Really this function's only job is to stick every
  * for lines worth of the input file into a buffer (r.readOrigBuf).  finalize()
@@ -880,28 +901,32 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 	bool batch_a)
 {
 	int c;
-	EList<Read>& readbuf = batch_a ? pt.bufa_ : pt.bufb_;
+	EList<Read>* readbuf = batch_a ? &pt.bufa_ : &pt.bufb_;
 	if(first_) {
-		c = getc_unlocked(fp_);
+		c = getc_wrapper();
+		if (c == EOF) {
+			return make_pair(true, 0);
+		}
 		while(c == '\r' || c == '\n') {
-			c = getc_unlocked(fp_);
+			c = getc_wrapper();
 		}
 		if(c != '@') {
 			cerr << "Error: reads file does not look like a FASTQ file" << endl;
 			throw 1;
 		}
 		first_ = false;
-		readbuf[0].readOrigBuf.append('@');
+		(*readbuf)[0].readOrigBuf.append('@');
 	}
+
 	bool done = false, aborted = false;
 	size_t readi = 0;
 	// Read until we run out of input or until we've filled the buffer
-	for(; readi < pt.max_buf_ && !done; readi++) {
-		Read::TBuf& buf = readbuf[readi].readOrigBuf;
+	while (readi < pt.max_buf_ && !done) {
+		Read::TBuf& buf = (*readbuf)[readi].readOrigBuf;
 		assert(readi == 0 || buf.empty());
 		int newlines = 4;
 		while(newlines) {
-			c = getc_unlocked(fp_);
+			c = getc_wrapper();
 			done = c < 0;
 			if(c == '\n' || (done && newlines == 1)) {
 				// Saw newline, or EOF that we're
@@ -909,10 +934,28 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 				newlines--;
 				c = '\n';
 			} else if(done) {
-				aborted = true; // Unexpected EOF
+				// account for newline at the end of the file
+				if (newlines == 4) {
+					newlines = 0;
+				}
+				else {
+					aborted = true; // Unexpected EOF
+				}
 				break;
 			}
 			buf.append(c);
+		}
+		if (c > 0) {
+			if (interleaved_) {
+				// alternate between read buffers
+				batch_a = !batch_a;
+				readbuf = batch_a ? &pt.bufa_ : &pt.bufb_;
+				// increment read counter after each pair gets read
+				readi = batch_a ? ++readi : readi;
+			}
+			else {
+				readi++;
+			}
 		}
 	}
 	if(aborted) {
@@ -926,7 +969,7 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
  */
 bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 	// We assume the light parser has put the raw data for the separate ends
-	// into separate Read objects.  That doesn't have to be the case, but
+	// into separate Read objects. That doesn't have to be the case, but
 	// that's how we've chosen to do it for FastqPatternSource
 	assert(!r.readOrigBuf.empty());
 	assert(r.empty());
@@ -1043,9 +1086,9 @@ pair<bool, int> TabbedPatternSource::nextBatchFromFile(
 	PerThreadReadBuf& pt,
 	bool batch_a)
 {
-	int c = getc_unlocked(fp_);
+	int c = getc_wrapper();
 	while(c >= 0 && (c == '\n' || c == '\r')) {
-		c = getc_unlocked(fp_);
+		c = getc_wrapper();
 	}
 	EList<Read>& readbuf = batch_a ? pt.bufa_ : pt.bufb_;
 	size_t readi = 0;
@@ -1054,10 +1097,10 @@ pair<bool, int> TabbedPatternSource::nextBatchFromFile(
 		readbuf[readi].readOrigBuf.clear();
 		while(c >= 0 && c != '\n' && c != '\r') {
 			readbuf[readi].readOrigBuf.append(c);
-			c = getc_unlocked(fp_);
+			c = getc_wrapper();
 		}
 		while(c >= 0 && (c == '\n' || c == '\r')) {
-			c = getc_unlocked(fp_);
+			c = getc_wrapper();
 		}
 	}
 	return make_pair(c < 0, readi);
@@ -1177,9 +1220,9 @@ pair<bool, int> RawPatternSource::nextBatchFromFile(
 	PerThreadReadBuf& pt,
 	bool batch_a)
 {
-	int c = getc_unlocked(fp_);
+	int c = getc_wrapper();
 	while(c >= 0 && (c == '\n' || c == '\r')) {
-		c = getc_unlocked(fp_);
+		c = getc_wrapper();
 	}
 	EList<Read>& readbuf = batch_a ? pt.bufa_ : pt.bufb_;
 	size_t readi = 0;
@@ -1188,15 +1231,15 @@ pair<bool, int> RawPatternSource::nextBatchFromFile(
 		readbuf[readi].readOrigBuf.clear();
 		while(c >= 0 && c != '\n' && c != '\r') {
 			readbuf[readi].readOrigBuf.append(c);
-			c = getc_unlocked(fp_);
+			c = getc_wrapper();
 		}
 		while(c >= 0 && (c == '\n' || c == '\r')) {
-			c = getc_unlocked(fp_);
+			c = getc_wrapper();
 		}
 	}
 	// incase a valid character is consumed between batches
-    if (c >= 0 && c != '\n' && c != '\r') {
-		ungetc(c, fp_);
+	if (c >= 0 && c != '\n' && c != '\r') {
+		ungetc_wrapper(c);
 	}
 	return make_pair(c < 0, readi);
 }
@@ -1252,7 +1295,7 @@ bool RawPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 
 void wrongQualityFormat(const BTString& read_name) {
 	cerr << "Error: Encountered one or more spaces while parsing the quality "
-	     << "string for read " << read_name << ".  If this is a FASTQ file "
+		 << "string for read " << read_name << ".  If this is a FASTQ file "
 		 << "with integer (non-ASCII-encoded) qualities, try re-running with "
 		 << "the --integer-quals option." << endl;
 	throw 1;

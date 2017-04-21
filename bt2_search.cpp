@@ -477,6 +477,7 @@ static struct option long_options[] = {
 	{(char*)"12",           required_argument, 0,            ARG_ONETWO},
 	{(char*)"tab5",         required_argument, 0,            ARG_TAB5},
 	{(char*)"tab6",         required_argument, 0,            ARG_TAB6},
+	{(char*)"interleaved",  required_argument, 0,            ARG_INTERLEAVED_FASTQ},
 	{(char*)"phred33-quals", no_argument,      0,            ARG_PHRED33},
 	{(char*)"phred64-quals", no_argument,      0,            ARG_PHRED64},
 	{(char*)"phred33",       no_argument,      0,            ARG_PHRED33},
@@ -685,6 +686,9 @@ static void printUsage(ostream& out) {
 		<< endl
 	    << " Input:" << endl
 	    << "  -q                 query input files are FASTQ .fq/.fastq (default)" << endl
+		<< "  --interleaved      query input files are interleaved paired-end FASTQ reads" << endl
+		<< "  --tab5             query input files are TAB5 .tab5" << endl
+		<< "  --tab6             query input files are TAB6 .tab6" << endl
 	    << "  --qseq             query input files are in Illumina's qseq format" << endl
 	    << "  -f                 query input files are (multi-)FASTA .fa/.mfa" << endl
 	    << "  -r                 query input files are raw one-sequence-per-line" << endl
@@ -753,7 +757,7 @@ static void printUsage(ostream& out) {
 	    << "  --fr/--rf/--ff     -1, -2 mates align fw/rev, rev/fw, fw/fw (--fr)" << endl
 		<< "  --no-mixed         suppress unpaired alignments for paired reads" << endl
 		<< "  --no-discordant    suppress discordant alignments for paired reads" << endl
-		<< "  --no-dovetail      not concordant when mates extend past each other" << endl
+		<< "  --dovetail         concordant when mates extend past each other" << endl
 		<< "  --no-contain       not concordant when one mate alignment contains other" << endl
 		<< "  --no-overlap       not concordant when mates overlap at all" << endl
 		<< endl
@@ -935,6 +939,7 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_ONETWO: tokenize(arg, ",", mates12); format = TAB_MATE5; break;
 		case ARG_TAB5:   tokenize(arg, ",", mates12); format = TAB_MATE5; break;
 		case ARG_TAB6:   tokenize(arg, ",", mates12); format = TAB_MATE6; break;
+		case ARG_INTERLEAVED_FASTQ: tokenize(arg, ",", mates12); format = INTERLEAVED; break;
 		case 'f': format = FASTA; break;
 		case 'F': {
 			format = FASTA_CONT;
@@ -1384,7 +1389,7 @@ static void parseOption(int next_option, const char *arg) {
 			polstr += ";";
 			EList<string> args;
 			tokenize(arg, ",", args);
-			if(args.size() > 3 && args.size() == 0) {
+			if(args.size() > 3 || args.size() == 0) {
 				cerr << "Error: expected 3 or fewer comma-separated "
 					 << "arguments to --n-ceil option, got "
 					 << args.size() << endl;
