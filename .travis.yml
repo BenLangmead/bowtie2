@@ -14,7 +14,7 @@ branches:
   - batch_parsing
   - no-io
   - rel2.3
-  - v2.3.1.1
+  - v2.3.2
 script: make allall && make simple-test
 notifications:
   slack:
