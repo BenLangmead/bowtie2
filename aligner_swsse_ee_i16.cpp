@@ -1853,6 +1853,8 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseI16(
 	off = col;
 	assert_lt(col + (size_t)rfi_, (size_t)rff_);
 	score.gaps_ = gaps;
+	score.edits_ = (int)ned.size();
+	score.basesAligned_ = (int)(rdf_ - rdi_ - trimBeg - trimEnd - score.edits_);
 	res.alres.setScore(score);
 	res.alres.setShape(
 		refidx_,                  // ref id

@@ -379,7 +379,9 @@ pair<int, int> SeedAligner::instantiateSeeds(
 	bool norc,                 // don't align revcomp read
 	AlignmentCacheIface& cache,// holds some seed hits from previous reads
 	SeedResults& sr,           // holds all the seed hits
-	SeedSearchMetrics& met)    // metrics
+	SeedSearchMetrics& met,    // metrics
+	pair<int, int>& instFw,
+	pair<int, int>& instRc)
 {
 	assert(!seeds.empty());
 	assert_gt(read.length(), 0);
@@ -445,6 +447,7 @@ pair<int, int> SeedAligner::instantiateSeeds(
 				{
 					// Can we fill this seed hit in from the cache?
 					ret.first++;
+					if(fwi == 0) { instFw.first++; } else { instRc.first++; }
 				} else {
 					// Seed may fail to instantiate if there are Ns
 					// that prevent it from matching
