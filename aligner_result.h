@@ -1817,12 +1817,7 @@ public:
 	 * the read is a pair or not.
 	 */
 	AlnScore bestUnchosenScore(bool mate1) const {
-		if(mate1) {
-			return paired_ ? bestUnchosenP1Score_ : bestUnchosenUScore();
-		} else {
-			assert(paired_);
-			return bestUnchosenP2Score_;
-		}
+		return paired_ ? (mate1 ? bestUnchosenP1Score_ : bestUnchosenP2Score_) : bestUnchosenUScore();
 	}
 
 	/**
@@ -1830,12 +1825,7 @@ public:
 	 * the read is a pair or not.
 	 */
 	AlnScore bestUnchosenDist(bool mate1) const {
-		if(mate1) {
-			return paired_ ? bestUnchosenP1Dist_ : bestUnchosenUDist();
-		} else {
-			assert(paired_);
-			return bestUnchosenP2Dist_;
-		}
+		return paired_ ? (mate1 ? bestUnchosenP1Dist_ : bestUnchosenP2Dist_) : bestUnchosenUDist();
 	}
 
 	bool exhausted(bool mate1) const {
@@ -1847,12 +1837,7 @@ public:
 	 * a pair or not.
 	 */
 	AlnScore bestScore(bool mate1) const {
-		if(mate1) {
-			return paired_ ? bestP1Score_ : bestUScore_;
-		} else {
-			assert(paired_);
-			return bestP2Score_;
-		}
+		return paired_ ? (mate1 ? bestP1Score_ : bestP2Score_) : bestUScore_;
 	}
 
 	/**
@@ -1860,12 +1845,7 @@ public:
 	 * a pair or not.
 	 */
 	AlnScore bestDist(bool mate1) const {
-		if(mate1) {
-			return paired_ ? bestP1Dist_ : bestUDist_;
-		} else {
-			assert(paired_);
-			return bestP2Dist_;
-		}
+		return paired_ ? (mate1 ? bestP1Dist_ : bestP2Dist_) : bestUDist_;
 	}
 	
 	/**
