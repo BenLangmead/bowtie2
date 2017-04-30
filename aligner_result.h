@@ -906,6 +906,16 @@ public:
 		st.adjustOff(-trim_st);
 		en.adjustOff( trim_en);
 	}
+
+	/**
+	 * Updates the offset of the alignment to a new reference and 
+	 * new offset. This is used for collapsing alternate loci alignments.
+	 */
+	void translate(TRefId id, TRefOff off, bool fw, TIndexOffU reflen)
+	{
+	          refcoord_.init(id, off, fw);
+		  reflen_ = reflen;
+	}
 	
 	/**
 	 * Set the upstream-most reference offset involved in the alignment, and

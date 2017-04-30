@@ -2804,7 +2804,7 @@ static void multiseedSearchWorker(void *vp) {
 	assert(multiseedMms == 0 || multiseed_ebwtBw != NULL);
 	PatternComposer&        patsrc   = *multiseed_patsrc;
 	PatternParams           pp       = multiseed_pp;
-	const Ebwt&             ebwtFw   = *multiseed_ebwtFw;
+	Ebwt&             ebwtFw   = *multiseed_ebwtFw;
 	const Ebwt&             ebwtBw   = *multiseed_ebwtBw;
 	const Scoring&          sc       = *multiseed_sc;
 	const BitPairReference& ref      = *multiseed_refs;
@@ -3846,6 +3846,10 @@ static void multiseedSearchWorker(void *vp) {
 						assert_leq(prm.nEeFail,  streak[i]);
 					}
 
+					// Collapse any alignments that aligned to an alternate
+					// loci onto the primary.
+					msinkwrap.collapseAlternates(ebwtFw.refnames(), ebwtFw.plen(), ebwtFw.altmap());
+					
 				// Commit and report paired-end/unpaired alignments
 				//uint32_t sd = rds[0]->seed ^ rds[1]->seed;
 				//rnd.init(ROTL(sd, 20));

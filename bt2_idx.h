@@ -25,6 +25,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <vector>
 #include <memory>
 #include <fcntl.h>
 #include <math.h>
@@ -1181,6 +1182,7 @@ public:
 	bool        sanityCheck() const  { return _sanity; }
 	EList<string>& refnames()        { return _refnames; }
 	bool        fw() const           { return fw_; }
+	EMap<string, std::vector<string> >& altmap() { return _altmap; }
 #ifdef POPCNT_CAPABILITY 
     bool _usePOPCNTinstruction; 
 #endif 
@@ -2403,6 +2405,9 @@ template<typename Operation>
 	bool       _useMm;        /// use memory-mapped files to hold the index
 	bool       useShmem_;     /// use shared memory to hold large parts of the index
 	EList<string> _refnames; /// names of the reference sequences
+	EMap<string, std::vector<string> > _altmap; /// map of alternate loci accession id
+	                                                                               /// to tuple<parent accession, parent start,
+	                                                                               /// parent end, +/- (orientation)>
 	char *mmFile1_;
 	char *mmFile2_;
 	EbwtParams _eh;

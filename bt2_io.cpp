@@ -21,6 +21,7 @@
 #include <stdexcept>
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <stdlib.h>
 #include "bt2_idx.h"
 #include <iomanip>
@@ -501,18 +502,68 @@ void Ebwt::readIntoMemory(
 	// Read reference sequence names from primary index file (or not,
 	// if --refidx is specified)
 	if(loadNames) {
+		// open alt alignments file, currently hard coded
+		std::ifstream placements("all_alt_scaffold_placement.txt", ios::in);
+		// Check file was opened correctly?
 		while(true) {
 			char c = '\0';
 			if(MM_READ(_in1, (void *)(&c), (size_t)1) != (size_t)1) break;
 			bytesRead++;
 			if(c == '\0') break;
 			else if(c == '\n') {
+				string full_refname = this->_refnames.back();
+				string refname;
 				this->_refnames.push_back("");
+				// altmap is a map of key = altref name
+				// value = <primary correspondence refname, offset start, offset end, orientation>
+				for (size_t i = 0; i < full_refname.length(); i++) {
+					if (full_refname[i] == ' ') break;
+					refname += full_refname[i];
+				}			    
+				placements.clear();
+				placements.seekg(0, ios::beg);
+				std::string line;
+				std::string acc;
+				int n;
+				bool alt = false;
+				while(getline(placements, line)) {
+					istringstream linestream(line);
+					n = 5;
+					while(n-- > 0 && (linestream >> acc));
+					if (acc.compare(refname) == 0) {
+						alt = true;
+						break;
+					}
+				}
+				if (!alt) {
+					std::vector<string> tmp_tup;					
+					this->_altmap.insert(std::make_pair("", tmp_tup));
+					continue;
+				}
+				istringstream placement(line);
+				string parent_acc;
+				string parent_start_str;
+				string parent_end_str;
+				string ori;
+				n = 8;
+				while(n-- > 0 && (placement >> parent_acc));
+				n = 5;
+				while(n-- > 0 && (placement >> parent_start_str));
+				placement >> parent_end_str;
+				n = 2;
+				while(n-- > 0 && (placement >> ori));
+				std::vector<string> alt_tup;
+				alt_tup.push_back(parent_acc);
+				alt_tup.push_back(parent_start_str);
+				alt_tup.push_back(parent_end_str);
+				alt_tup.push_back(ori);
+				this->_altmap.insert(std::make_pair(refname, alt_tup));
 			} else {
 				if(this->_refnames.size() == 0) {
-					this->_refnames.push_back("");
+					this->_refnames.push_back(""); // do I need to do this for _altmap?
 				}
 				this->_refnames.back().push_back(c);
+				
 			}
 		}
 	}
