@@ -1226,15 +1226,15 @@ public:
 				parent_end += curr * multiplier;
 				multiplier *= 10; 
 			}
-			
 			bool orient = rs1u_[i].fw();
 			int64_t translated_off = 0;
-			if (altmap.get(rs1u_[i].refid()).second[3] == "+") {
+			if ((((altmap.get(rs1u_[i].refid())).second)[3]).compare("+") == 0) {
 				translated_off = rs1u_[i].refoff() + parent_start - 1; // -1 is because the reference file is 1 based but bowtie is 0 based
 			} else {
 				translated_off = parent_end - rs1u_[i].refoff() - rs1u_[i].readLength(); // Don't need a +1 beause reference file is already 1 off
 				orient = !orient;
 			}
+			
 
 			TRefId newId = -1;
 			//find corresponding primary assembly TRefID

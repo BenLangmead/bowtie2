@@ -547,11 +547,11 @@ void Ebwt::readIntoMemory(
 				string ori;
 				n = 8;
 				while(n-- > 0 && (placement >> parent_acc));
-				n = 5;
-				while(n-- > 0 && (placement >> parent_start_str));
-				placement >> parent_end_str;
 				n = 2;
 				while(n-- > 0 && (placement >> ori));
+				n = 3;
+				while(n-- > 0 && (placement >> parent_start_str));
+				placement >> parent_end_str;
 				std::vector<string> alt_tup;
 				alt_tup.push_back(parent_acc);
 				alt_tup.push_back(parent_start_str);
