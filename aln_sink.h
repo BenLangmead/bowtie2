@@ -1266,13 +1266,17 @@ public:
 		// now check for duplicates after collapsing.
 		// in the case of a duplicate found we will pick
 		// the alignment with the better alignment score. 
-		/*for (size_t j = rs1u_.size(); j > 0; j--) {
-		  for(size_t i = 0; i < j; i++) {
-           
-		  if (rs1u_[i].refid() == 
-
-		  }
-		  }*/
+		for (size_t j = rs1u_.size(); j > 0; j--) {
+			for(size_t k = 0; k < j; k++) {           
+				if ((rs1u_[k].refid() == rs1u_[j].refid()) && (rs1u_[k].refoff() == rs1u_[j].refoff())) {
+						if (rs1u_[k].score() >= rs1u_[j].score()) {
+							rs1u_.remove(j);
+						} else{
+							rs1u_.remove(k);
+						}
+				}
+			}
+		}
 	}
 
 protected:
