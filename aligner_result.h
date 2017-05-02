@@ -346,6 +346,7 @@ public:
 		mixedMode_  = mixedMode;
 		primary_    = primary;
 		oppAligned_ = oppAligned;
+		oppFw_     = oppFw;
 	}
 
 	/**
@@ -415,7 +416,7 @@ public:
 	inline bool isMixedMode() const {
 		return mixedMode_;
 	}
-	
+
 	/**
 	 * Return true iff the alignment params are such that it's possible for a
 	 * read to be suppressed for being repetitive.
@@ -494,6 +495,10 @@ public:
 		return oppAligned_;
 	}
 
+	inline bool isOppFw() const {
+		return oppFw_;
+	}
+
 protected:
 
 	// See ALN_FLAG_PAIR_* above
@@ -525,6 +530,9 @@ protected:
 
 	// True iff the opposite mate aligned
 	bool oppAligned_;
+
+	// True if opposite mate aligned in the forward direction
+	bool oppFw_;
 };
 
 static inline ostream& operator<<(ostream& os, const AlnScore& o) {
