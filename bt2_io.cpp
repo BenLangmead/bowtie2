@@ -528,8 +528,8 @@ void Ebwt::readIntoMemory(
 				bool alt = false;
 				while(getline(placements, line)) {
 					istringstream linestream(line);
-					n = 5;
-					while(n-- > 0 && (linestream >> acc));
+					n = 4;
+					while(n-- > 0 && std::getline(linestream, acc, '\t'));
 					if (acc.compare(refname) == 0) {
 						alt = true;
 						break;
@@ -545,12 +545,12 @@ void Ebwt::readIntoMemory(
 				string parent_start_str;
 				string parent_end_str;
 				string ori;
-				n = 8;
-				while(n-- > 0 && (placement >> parent_acc));
+				n = 7;
+				while(n-- > 0 && std::getline(placement, parent_acc, '\t'));
 				n = 2;
-				while(n-- > 0 && (placement >> ori));
+				while(n-- > 0 && std::getline(placement, ori, '\t'));
 				n = 3;
-				while(n-- > 0 && (placement >> parent_start_str));
+				while(n-- > 0 && std::getline(placement, parent_start_str, '\t'));
 				placement >> parent_end_str;
 				std::vector<string> alt_tup;
 				alt_tup.push_back(parent_acc);
