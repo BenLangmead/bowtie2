@@ -235,6 +235,7 @@ static bool arbitraryRandom;  // pseudo-randoms no longer a function of read pro
 static bool bowtie2p5;
 static string logDps;         // log seed-extend dynamic programming problems
 static string logDpsOpp;      // log mate-search dynamic programming problems
+static string altsFn;         // file with alt locus mapping
 
 static string bt2index;      // read Bowtie 2 index from files with this prefix
 static EList<pair<int, string> > extra_opts;
@@ -424,6 +425,7 @@ static void resetOptions() {
 	bowtie2p5 = false;
 	logDps.clear();          // log seed-extend dynamic programming problems
 	logDpsOpp.clear();       // log mate-search dynamic programming problems
+	altsFn.clear();          // file with alt locus mapping
 }
 
 static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:w:p:k:M:1:2:I:X:CQ:N:i:L:U:x:S:g:O:D:R:";
@@ -610,6 +612,7 @@ static struct option long_options[] = {
 	{(char*)"desc-fmops",       required_argument, 0,        ARG_DESC_FMOPS},
 	{(char*)"log-dp",           required_argument, 0,        ARG_LOG_DP},
 	{(char*)"log-dp-opp",       required_argument, 0,        ARG_LOG_DP_OPP},
+	{(char*)"alts",             required_argument, 0,        ARG_ALTS},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -917,6 +920,7 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_DESC_FMOPS: descentTotFmops = SimpleFunc::parse(arg, 0.0, 10.0, 100.0, DMAX); break;
 		case ARG_LOG_DP: logDps = arg; break;
 		case ARG_LOG_DP_OPP: logDpsOpp = arg; break;
+		case ARG_ALTS: altsFn = arg; break;
 		case ARG_DESC_LANDING: {
 			descLanding = parse<int>(arg);
 			if(descLanding < 1) {
