@@ -78,9 +78,9 @@ void OutputQueue::finishRead(const BTString& rec, TReadId rdid, size_t threadId)
 		if(perThreadCounter[threadId] >= perThreadBufSize_)
 		{
 			int i = 0;
+			ThreadSafe t(&mutex_m, threadSafe_);
 			for(i=0; i < perThreadBufSize_; i++)
 			{
-				ThreadSafe t(&mutex_m, threadSafe_);
 				obuf_.writeString(perThreadBuf[threadId][i]);
 				//TODO: turn these into atomics
 				nfinished_++;
