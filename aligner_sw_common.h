@@ -209,8 +209,8 @@ struct SwMetrics {
 	 * object.  This is the only safe way to update a SwMetrics shared
 	 * by multiple threads.
 	 */
-	void merge(const SwMetrics& r, bool getLock = false) {
-        ThreadSafe ts(&mutex_m, getLock);
+	void merge(const SwMetrics& r) {
+		ThreadSafe ts(mutex_m);
 		sws        += r.sws;
 		sws10      += r.sws10;
 		sws5       += r.sws5;

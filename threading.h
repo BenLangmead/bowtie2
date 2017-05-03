@@ -29,7 +29,7 @@
 # include <tbb/mutex.h>
 # include <tbb/spin_mutex.h>
 # include <tbb/queuing_mutex.h>
-# include <tbb/atomic.h>
+#  include <tbb/atomic.h>
 # ifdef WITH_AFFINITY
 #  include <sched.h>
 #  include <tbb/task_group.h>
@@ -66,41 +66,32 @@ struct thread_tracking_pair {
 };
 #endif
 
+
 /**
  * Wrap a lock; obtain lock upon construction, release upon destruction.
  */
 class ThreadSafe {
 public:
 
-	ThreadSafe() : ptr_mutex(NULL) { }
-	
-	ThreadSafe(MUTEX_T* ptr_mutex, bool locked = true) : ptr_mutex(NULL) {
-		if(locked) {
+	ThreadSafe(MUTEX_T& ptr_mutex) : mutex_(ptr_mutex) {
 #if WITH_TBB && NO_SPINLOCK && WITH_QUEUELOCK
-			//have to use the heap as we can't copy
-			//the scoped lock
-			this->ptr_mutex = new MUTEX_T::scoped_lock(*ptr_mutex);
 #else
-			this->ptr_mutex = ptr_mutex;
-			ptr_mutex->lock();
+		mutex_.lock();
 #endif
-		}
 	}
 
 	~ThreadSafe() {
-		if (ptr_mutex != NULL)
 #if WITH_TBB && NO_SPINLOCK && WITH_QUEUELOCK
-			delete ptr_mutex;
 #else
-			ptr_mutex->unlock();
+		mutex_.unlock();
 #endif
 	}
 
 private:
 #if WITH_TBB && NO_SPINLOCK && WITH_QUEUELOCK
-	MUTEX_T::scoped_lock* ptr_mutex;
+	MUTEX_T::scoped_lock mutex_;
 #else
-	MUTEX_T *ptr_mutex;
+	MUTEX_T& mutex_;
 #endif
 };
 

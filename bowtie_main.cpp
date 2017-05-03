@@ -97,7 +97,7 @@ static char *optgen(const char *text, int state) {
 
 	if (!state) {
 		list_index = 0;
-		len = strlen(text);
+		len = (int)strlen(text);
 	}
 
 	name = rl_filename_completion_function(text, state);
@@ -147,8 +147,8 @@ static int _getline(istream *in, char *buf, size_t len) {
 			buf[0] = '\0';
 	}
 	buf[len-1] = '\0';
-	return strlen(buf);
-}*/
+	return (int)strlen(buf);
+}
 
 static int createfifo(vector<char *>& v) {
 	const char *pattern = "/tmp/btfifo.XX";
@@ -163,7 +163,7 @@ static int createfifo(vector<char *>& v) {
 	}
 	v.push_back(fn);
 	return 0; 
-}
+}*/
 
 void printargs(const char **args, size_t size) {
 	copy(args, args+size, ostream_iterator<string>(cout, " "));
@@ -212,7 +212,7 @@ int main(int argc, const char **argv) {
 			for(size_t i = 0; i < args.size(); i++) {
 				if (args[i] == "_") {
 					if (i > 0 && args[i-1] == "-S") {
-						sam_outfile_pos = i;
+						sam_outfile_pos = (int)i;
 					}
 					else {
 						createfifo(fifonames);
@@ -249,7 +249,7 @@ int main(int argc, const char **argv) {
 				printargs(myargs, args.size());
 
 				for (int count = 0;; count++) {
-					size_t r = poll(pollfds, fifonames.size(), -1);
+					size_t r = poll(pollfds, (nfds_t)fifonames.size(), -1);
 					// wait until all fifos are ready
 					if (r != fifonames.size()) {
 						if (done)

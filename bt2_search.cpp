@@ -94,7 +94,6 @@ static uint32_t khits;    // number of hits per read; >1 is much slower
 static uint32_t mhits;    // don't report any hits if there are > mhits
 static int partitionSz;   // output a partitioning key in first field
 static int readsPerBatch; // # reads to read from input file at once
-static int readsPerBatchOutput; // # of reads to store for output at once
 static bool fileParallel; // separate threads read separate input files in parallel
 static bool useShmem;     // use shared memory to hold the index
 static bool useMm;        // use memory-mapped files to hold the index
@@ -281,7 +280,6 @@ static void resetOptions() {
 	mhits					= 50;    // stop after finding this many alignments+1
 	partitionSz				= 0;     // output a partitioning key in first field
 	readsPerBatch			= 16;    // # reads to read from input file at once
-	readsPerBatchOutput		= 512;   // # reads to store until we flush per-thread output buffer
 	fileParallel			= false; // separate threads read separate input files in parallel
 	useShmem				= false; // use shared memory to hold the index
 	useMm					= false; // use memory-mapped files to hold the index
@@ -461,7 +459,6 @@ static struct option long_options[] = {
 	{(char*)"upto",         required_argument, 0,            'u'},
 	{(char*)"version",      no_argument,       0,            ARG_VERSION},
 	{(char*)"reads-per-batch", required_argument, 0,         ARG_READS_PER_BATCH},
-	{(char*)"reads-per-out-batch", required_argument, 0,         ARG_READS_PER_OUT_BATCH},
 	{(char*)"filepar",      no_argument,       0,            ARG_FILEPAR},
 	{(char*)"help",         no_argument,       0,            'h'},
 	{(char*)"threads",      required_argument, 0,            'p'},
@@ -1220,9 +1217,6 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_READS_PER_BATCH:
 			readsPerBatch = parseInt(1, "--reads-per-batch arg must be at least 1", arg);
 			break;
-		case ARG_READS_PER_OUT_BATCH:
-			readsPerBatchOutput = parseInt(1, "--reads-per-out-batch arg must be at least 1", arg);
-			break;
 		case ARG_DPAD:
 			maxhalf = parseInt(0, "--dpad must be no less than 0", arg);
 			break;
@@ -1657,11 +1651,7 @@ struct OuterLoopMetrics {
 	 * is the only safe way to update an OuterLoopMetrics that's shared
 	 * by multiple threads.
 	 */
-	void merge(
-		const OuterLoopMetrics& m,
-		bool getLock = false)
-	{
-		ThreadSafe ts(&mutex_m, getLock);
+	void merge(const OuterLoopMetrics& m) {
 		reads += m.reads;
 		bases += m.bases;
 		srreads += m.srreads;
@@ -1740,39 +1730,38 @@ struct PerfMetrics {
 		const SSEMetrics *dpSse16Ma,
 		uint64_t nbtfiltst_,
 		uint64_t nbtfiltsc_,
-		uint64_t nbtfiltdo_,
-		bool getLock)
+		uint64_t nbtfiltdo_)
 	{
-		ThreadSafe ts(&mutex_m, getLock);
+		ThreadSafe ts(mutex_m);
 		if(ol != NULL) {
-			olmu.merge(*ol, false);
+			olmu.merge(*ol);
 		}
 		if(sd != NULL) {
-			sdmu.merge(*sd, false);
+			sdmu.merge(*sd);
 		}
 		if(wl != NULL) {
-			wlmu.merge(*wl, false);
+			wlmu.merge(*wl);
 		}
 		if(swSeed != NULL) {
-			swmuSeed.merge(*swSeed, false);
+			swmuSeed.merge(*swSeed);
 		}
 		if(swMate != NULL) {
-			swmuMate.merge(*swMate, false);
+			swmuMate.merge(*swMate);
 		}
 		if(rm != NULL) {
-			rpmu.merge(*rm, false);
+			rpmu.merge(*rm);
 		}
 		if(dpSse8Ex != NULL) {
-			dpSse8uSeed.merge(*dpSse8Ex, false);
+			dpSse8uSeed.merge(*dpSse8Ex);
 		}
 		if(dpSse8Ma != NULL) {
-			dpSse8uMate.merge(*dpSse8Ma, false);
+			dpSse8uMate.merge(*dpSse8Ma);
 		}
 		if(dpSse16Ex != NULL) {
-			dpSse16uSeed.merge(*dpSse16Ex, false);
+			dpSse16uSeed.merge(*dpSse16Ex);
 		}
 		if(dpSse16Ma != NULL) {
-			dpSse16uMate.merge(*dpSse16Ma, false);
+			dpSse16uMate.merge(*dpSse16Ma);
 		}
 		nbtfiltst_u += nbtfiltst_;
 		nbtfiltsc_u += nbtfiltsc_;
@@ -1788,10 +1777,9 @@ struct PerfMetrics {
 		OutFileBuf* o,        // file to send output to
 		bool metricsStderr,   // additionally output to stderr?
 		bool total,           // true -> report total, otherwise incremental
-		bool sync,            //  synchronize output
 		const BTString *name) // non-NULL name pointer if is per-read record
 	{
-		ThreadSafe ts(&mutex_m, sync);
+		ThreadSafe ts(mutex_m);
 		ostringstream stderrSs;
 		time_t curtime = time(0);
 		char buf[1024];
@@ -2524,15 +2512,15 @@ struct PerfMetrics {
 	}
 	
 	void mergeIncrementals() {
-		olm.merge(olmu, false);
-		sdm.merge(sdmu, false);
-		wlm.merge(wlmu, false);
-		swmSeed.merge(swmuSeed, false);
-		swmMate.merge(swmuMate, false);
-		dpSse8Seed.merge(dpSse8uSeed, false);
-		dpSse8Mate.merge(dpSse8uMate, false);
-		dpSse16Seed.merge(dpSse16uSeed, false);
-		dpSse16Mate.merge(dpSse16uMate, false);
+		olm.merge(olmu);
+		sdm.merge(sdmu);
+		wlm.merge(wlmu);
+		swmSeed.merge(swmuSeed);
+		swmMate.merge(swmuMate);
+		dpSse8Seed.merge(dpSse8uSeed);
+		dpSse8Mate.merge(dpSse8uMate);
+		dpSse16Seed.merge(dpSse16uSeed);
+		dpSse16Mate.merge(dpSse16uMate);
 		nbtfiltst_u += nbtfiltst;
 		nbtfiltsc_u += nbtfiltsc;
 		nbtfiltdo_u += nbtfiltdo;
@@ -2738,7 +2726,7 @@ static void setupMinScores(
 	}
 }
 
-#define MERGE_METRICS(met, sync) { \
+#define MERGE_METRICS(met) { \
 	msink.mergeMetrics(rpm); \
 	met.merge( \
 		&olm, \
@@ -2753,8 +2741,7 @@ static void setupMinScores(
 		&sseI16MateMet, \
 		nbtfiltst, \
 		nbtfiltsc, \
-		nbtfiltdo, \
-		sync); \
+		nbtfiltdo); \
 	olm.reset(); \
 	sdm.reset(); \
 	wlm.reset(); \
@@ -2997,14 +2984,14 @@ static void multiseedSearchWorker(void *vp) {
 			{
 				// Do a periodic merge.  Update global metrics, in a
 				// synchronized manner if needed.
-				MERGE_METRICS(metrics, nthreads > 1);
+				MERGE_METRICS(metrics);
 				mergei = 0;
 				// Check if a progress message should be printed
 				if(tid == 0) {
 					// Only thread 1 prints progress messages
 					time_t curTime = time(0);
 					if(curTime - iTime >= metricsIval) {
-						metrics.reportInterval(metricsOfb, metricsStderr, false, true, NULL);
+						metrics.reportInterval(metricsOfb, metricsStderr, false, NULL);
 						iTime = curTime;
 					}
 				}
@@ -3889,16 +3876,16 @@ static void multiseedSearchWorker(void *vp) {
 			break;
 		}
 		if(metricsPerRead) {
-			MERGE_METRICS(metricsPt, nthreads > 1);
+			MERGE_METRICS(metricsPt);
 			nametmp = ps->read_a().name;
 			metricsPt.reportInterval(
-				metricsOfb, metricsStderr, true, true, &nametmp);
+				metricsOfb, metricsStderr, true, &nametmp);
 			metricsPt.reset();
 		}
 	} // while(true)
 	
 	// One last metrics merge
-	MERGE_METRICS(metrics, nthreads > 1);
+	MERGE_METRICS(metrics);
 	
 	if(dpLog    != NULL) dpLog->close();
 	if(dpLogOpp != NULL) dpLogOpp->close();
@@ -4071,14 +4058,14 @@ static void multiseedSearchWorker_2p5(void *vp) {
 			{
 				// Do a periodic merge.  Update global metrics, in a
 				// synchronized manner if needed.
-				MERGE_METRICS(metrics, nthreads > 1);
+				MERGE_METRICS(metrics);
 				mergei = 0;
 				// Check if a progress message should be printed
 				if(tid == 0) {
 					// Only thread 1 prints progress messages
 					time_t curTime = time(0);
 					if(curTime - iTime >= metricsIval) {
-						metrics.reportInterval(metricsOfb, metricsStderr, false, true, NULL);
+						metrics.reportInterval(metricsOfb, metricsStderr, false, NULL);
 						iTime = curTime;
 					}
 				}
@@ -4244,16 +4231,16 @@ static void multiseedSearchWorker_2p5(void *vp) {
 			break;
 		}
 		if(metricsPerRead) {
-			MERGE_METRICS(metricsPt, nthreads > 1);
+			MERGE_METRICS(metricsPt);
 			nametmp = ps->read_a().name;
 			metricsPt.reportInterval(
-				metricsOfb, metricsStderr, true, true, &nametmp);
+				metricsOfb, metricsStderr, true, &nametmp);
 			metricsPt.reset();
 		}
 	} // while(true)
 	
 	// One last metrics merge
-	MERGE_METRICS(metrics, nthreads > 1);
+	MERGE_METRICS(metrics);
 #ifdef WITH_TBB
 	p->done->fetch_and_add(1);
 #endif
@@ -4303,10 +4290,10 @@ static void multiseedSearch(
 	multiseed_refs = refs.get();
 #ifdef WITH_TBB
 	//tbb::task_group tbb_grp;
-	AutoArray<std::thread*> threads(nthreads+1);
+	AutoArray<std::thread*> threads(nthreads);
 #else
-	AutoArray<tthread::thread*> threads(nthreads+1);
-	AutoArray<int> tids(nthreads+1);
+	AutoArray<tthread::thread*> threads(nthreads);
+	AutoArray<int> tids(nthreads);
 #endif
 	{
 		// Load the other half of the index into memory
@@ -4348,7 +4335,7 @@ static void multiseedSearch(
 		struct timespec ts = {0};
 		ts.tv_sec=0;
 		ts.tv_nsec = mil * 1000000L;
-		for(int i = 1; i <= nthreads; i++) {
+		for(int i = 0; i < nthreads; i++) {
 #ifdef WITH_TBB
 			thread_tracking_pair tp;
 			tp.tid = i;
@@ -4376,13 +4363,13 @@ static void multiseedSearch(
 				threads[i] = new tthread::thread(multiseedSearchWorker, (void*)&tids[i]);
 			}
 		}
-		for (int i = 1; i <= nthreads; i++) {
+		for (int i = 0; i < nthreads; i++) {
 			threads[i]->join();
 		}
 #endif
 	}
 	if(!metricsPerRead && (metricsOfb != NULL || metricsStderr)) {
-		metrics.reportInterval(metricsOfb, metricsStderr, true, false, NULL);
+		metrics.reportInterval(metricsOfb, metricsStderr, true, NULL);
 	}
 }
 
@@ -4516,9 +4503,9 @@ static void driver(
 	OutputQueue oq(
 		*fout,                   // out file buffer
 		reorder && nthreads > 1, // whether to reorder when there's >1 thread
-		nthreads+1,              // # threads
+		nthreads,                // # threads
 		nthreads > 1,            // whether to be thread-safe
-		readsPerBatchOutput,     // size of output buffer of reads 
+		readsPerBatch,     // size of output buffer of reads 
 		skipReads);              // first read will have this rdid
 	{
 		Timer _t(cerr, "Time searching: ", timing);

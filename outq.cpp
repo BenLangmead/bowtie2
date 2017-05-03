@@ -23,14 +23,13 @@
  * Caller is telling us that they're about to write output record(s) for
  * the read with the given id.
  */
-void OutputQueue::beginRead(TReadId rdid, size_t threadId) {
-	if(reorder_) {
-		ThreadSafe t(&mutex_m, threadSafe_);
+void OutputQueue::beginReadImpl(TReadId rdid, size_t threadId) {
 #ifdef WITH_TBB
-		nstarted_.fetch_and_add(1);
+	nstarted_.fetch_and_add(1);
 #else
-		nstarted_++;
+	nstarted_++;
 #endif
+	if(reorder_) {
 		assert_geq(rdid, cur_);
 		assert_eq(lines_.size(), finished_.size());
 		assert_eq(lines_.size(), started_.size());
@@ -47,22 +46,22 @@ void OutputQueue::beginRead(TReadId rdid, size_t threadId) {
 		started_[rdid - cur_] = true;
 		finished_[rdid - cur_] = false;
 	}
-	else
-	{
-#ifdef WITH_TBB
-		nstarted_.fetch_and_add(1);
-#else
-		nstarted_++;
-#endif
+}
+
+void OutputQueue::beginRead(TReadId rdid, size_t threadId) {
+	if(reorder_ && threadSafe_) {
+		ThreadSafe ts(mutex_m);
+		beginReadImpl(rdid, threadId);
+	} else {
+		beginReadImpl(rdid, threadId);
 	}
 }
 
 /**
  * Writer is finished writing to 
  */
-void OutputQueue::finishRead(const BTString& rec, TReadId rdid, size_t threadId) {
+void OutputQueue::finishReadImpl(const BTString& rec, TReadId rdid, size_t threadId) {
 	if(reorder_) {
-		ThreadSafe t(&mutex_m, threadSafe_);
 		assert_geq(rdid, cur_);
 		assert_eq(lines_.size(), finished_.size());
 		assert_eq(lines_.size(), started_.size());
@@ -75,19 +74,28 @@ void OutputQueue::finishRead(const BTString& rec, TReadId rdid, size_t threadId)
 		flush(false, false); // don't force; already have lock
 	} else {
 		// obuf_ is the OutFileBuf for the output file
-		if(perThreadCounter[threadId] >= perThreadBufSize_)
+		int i = 0;
+		for(i=0; i < perThreadBufSize_; i++)
 		{
-			int i = 0;
-			ThreadSafe t(&mutex_m, threadSafe_);
-			for(i=0; i < perThreadBufSize_; i++)
-			{
-				obuf_.writeString(perThreadBuf[threadId][i]);
-				//TODO: turn these into atomics
-				nfinished_++;
-				nflushed_++;
-			}
-			perThreadCounter[threadId] = 0;
+			obuf_.writeString(perThreadBuf[threadId][i]);
+			//TODO: turn these into atomics
+			nfinished_++;
+			nflushed_++;
 		}
+		perThreadCounter[threadId] = 0;
+	}
+}
+
+void OutputQueue::finishRead(const BTString& rec, TReadId rdid, size_t threadId) {
+	if(reorder_ || perThreadCounter[threadId] >= perThreadBufSize_) {
+		if(threadSafe_) {
+			ThreadSafe ts(mutex_m);
+			finishReadImpl(rec, rdid, threadId);
+		} else {
+			finishReadImpl(rec, rdid, threadId);
+		}
+	}
+	else if(!reorder_) {
 		perThreadBuf[threadId][perThreadCounter[threadId]++] = rec;
 	}
 }
@@ -95,11 +103,10 @@ void OutputQueue::finishRead(const BTString& rec, TReadId rdid, size_t threadId)
 /**
  * Write already-finished lines starting from cur_.
  */
-void OutputQueue::flush(bool force, bool getLock) {
+void OutputQueue::flushImpl(bool force) {
 	if(!reorder_) {
 		size_t i = 0;
 		int j = 0;
-		ThreadSafe t(&mutex_m, getLock && threadSafe_);
 		for(i=0;i<nthreads_;i++)
 		{
 			for(j=0;j<perThreadCounter[i];j++)
@@ -112,7 +119,6 @@ void OutputQueue::flush(bool force, bool getLock) {
 		}
 		return;
 	}
-	ThreadSafe t(&mutex_m, getLock && threadSafe_);
 	size_t nflush = 0;
 	while(nflush < finished_.size() && finished_[nflush]) {
 		assert(started_[nflush]);
@@ -131,6 +137,18 @@ void OutputQueue::flush(bool force, bool getLock) {
 		finished_.erase(0, nflush);
 		cur_ += nflush;
 		nflushed_ += nflush;
+	}
+}
+
+/**
+ * Write already-finished lines starting from cur_.
+ */
+void OutputQueue::flush(bool force, bool getLock) {
+	if(getLock && threadSafe_) {
+		ThreadSafe ts(mutex_m);
+		flushImpl(force);
+	} else {
+		flushImpl(force);
 	}
 }
 

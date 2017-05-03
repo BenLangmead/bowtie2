@@ -145,6 +145,12 @@ protected:
 	BTString**	perThreadBuf;
 	int* 		perThreadCounter;
 	int perThreadBufSize_;
+
+private:
+
+	void flushImpl(bool force);
+	void beginReadImpl(TReadId rdid, size_t threadId);
+	void finishReadImpl(const BTString& rec, TReadId rdid, size_t threadId);
 };
 
 class OutputQueueMark {
