@@ -770,10 +770,10 @@ static void printUsage(ostream& out) {
 	//}
 	out << "  -t/--time          print wall-clock time taken by search phases" << endl;
 	if(wrapper == "basic-0") {
-	out << "  --un <path>           write unpaired reads that didn't align to <path>" << endl
-	    << "  --al <path>           write unpaired reads that aligned at least once to <path>" << endl
-	    << "  --un-conc <path>      write pairs that didn't align concordantly to <path>" << endl
-	    << "  --al-conc <path>      write pairs that aligned concordantly at least once to <path>" << endl
+	out << "  --un <path>        write unpaired reads that didn't align to <path>" << endl
+	    << "  --al <path>        write unpaired reads that aligned at least once to <path>" << endl
+	    << "  --un-conc <path>   write pairs that didn't align concordantly to <path>" << endl
+	    << "  --al-conc <path>   write pairs that aligned concordantly at least once to <path>" << endl
 	    << "  (Note: for --un, --al, --un-conc, or --al-conc, add '-gz' to the option name, e.g." << endl
 		<< "  --un-gz <path>, to gzip compress output, or add '-bz2' to bzip2 compress output.)" << endl;
 	}
@@ -790,6 +790,8 @@ static void printUsage(ostream& out) {
 	    << "  --rg <text>        add <text> (\"lab:value\") to @RG line of SAM header." << endl
 	    << "                     Note: @RG line only printed when --rg-id is set." << endl
 	    << "  --omit-sec-seq     put '*' in SEQ and QUAL fields for secondary alignments." << endl
+	    << "  --sam-noqname-trunc Suppress standard behavior of truncating readname at first whitespace " << endl
+	    << "                      at the expense of generating non-standard SAM." << endl
 		<< endl
 	    << " Performance:" << endl
 	//    << "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl
