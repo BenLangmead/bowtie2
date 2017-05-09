@@ -36,6 +36,7 @@ enum {
 	ARG_PARTITION,              // --partition
 	ARG_INTEGER_QUALS,          // --int-quals
 	ARG_FILEPAR,                // --filepar
+	ARG_READS_PER_BATCH,        // --reads-per-batch
 	ARG_SHMEM,                  // --shmem
 	ARG_MM,                     // --mm
 	ARG_MMSWEEP,                // --mmsweep
@@ -53,7 +54,6 @@ enum {
 	ARG_PHRED64,                // --phred64
 	ARG_PHRED33,                // --phred33
 	ARG_HADOOPOUT,              // --hadoopout
-	ARG_FUZZY,                  // --fuzzy
 	ARG_FULLREF,                // --fullref
 	ARG_USAGE,                  // --usage
 	ARG_SNPPHRED,               // --snpphred
@@ -153,7 +153,8 @@ enum {
 	ARG_LOG_DP,                 // --log-dp
 	ARG_LOG_DP_OPP,             // --log-dp-opp
 	ARG_THREAD_CEILING,         // --thread-ceiling
-	ARG_THREAD_PIDDIR           // --thread-piddir
+	ARG_THREAD_PIDDIR,          // --thread-piddir
+	ARG_INTERLEAVED_FASTQ       // --interleaved
 };
 
 #endif

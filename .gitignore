@@ -6,6 +6,8 @@ bowtie2-inspect
 *.bt2
 *.bt2l
 *.dSYM
+*.pyc
+*.swp
 .run.pl.child.*
 .simple_tests*
 .idea

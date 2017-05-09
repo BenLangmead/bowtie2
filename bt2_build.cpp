@@ -198,7 +198,6 @@ static struct option long_options[] = {
 	{(char*)"ntoa",         no_argument,       0,            ARG_NTOA},
 	{(char*)"justref",      no_argument,       0,            '3'},
 	{(char*)"noref",        no_argument,       0,            'r'},
-	{(char*)"color",        no_argument,       0,            'C'},
 	{(char*)"sa",           no_argument,       0,            ARG_SA},
 	{(char*)"reverse-each", no_argument,       0,            ARG_REVERSE_EACH},
     {(char*)"threads",      required_argument, 0,            ARG_THREADS},
@@ -236,6 +235,7 @@ static T parseNumber(T lower, const char *errmsg) {
 static bool parseOptions(int argc, const char **argv) {
 	int option_index = 0;
 	int next_option;
+	bool bmaxDivNSet = false;
 	bool abort = false;
 	do {
 		next_option = getopt_long(
@@ -248,10 +248,6 @@ static bool parseOptions(int argc, const char **argv) {
 			case 'f': format = FASTA; break;
 			case 'c': format = CMDLINE; break;
 			case 'p': packed = true; break;
-			case 'C':
-				cerr << "Error: -C specified but Bowtie 2 does not support colorspace input." << endl;
-				throw 1;
-				break;
 			case 'l':
 				lineRate = parseNumber<int>(3, "-l/--lineRate arg must be at least 3");
 				break;
@@ -287,6 +283,7 @@ static bool parseOptions(int argc, const char **argv) {
 				bmaxDivN = 0xffffffff; // don't use multSqrt
 				break;
 			case ARG_BMAX_DIV:
+				bmaxDivNSet = true;
 				bmaxDivN = parseNumber<uint32_t>(1, "--bmaxdivn arg must be at least 1");
 				bmax = OFF_MASK;         // don't use bmax
 				bmaxMultSqrt = OFF_MASK; // don't use multSqrt
@@ -326,6 +323,9 @@ static bool parseOptions(int argc, const char **argv) {
 		cerr << "Warning: specified bmax is very small (" << bmax << ").  This can lead to" << endl
 		     << "extremely slow performance and memory exhaustion.  Perhaps you meant to specify" << endl
 		     << "a small --bmaxdivn?" << endl;
+	}
+	if (!bmaxDivNSet) {
+		bmaxDivN *= nthreads;
 	}
 	return abort;
 }
@@ -405,9 +405,9 @@ static void driver(
 	}
 	if(!reverse) {
 #ifdef BOWTIE_64BIT_INDEX
-		cerr << "Building a LARGE index" << endl;
+          if (verbose) cerr << "Building a LARGE index" << endl;
 #else
-		cerr << "Building a SMALL index" << endl;
+          if (verbose) cerr << "Building a SMALL index" << endl;
 #endif
 	}
 	// Vector for the ordered list of "records" comprising the input

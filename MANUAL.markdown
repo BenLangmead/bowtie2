@@ -123,8 +123,7 @@ you may want to consider using tools like [NUCmer], [BLAT], or [BLAST].  These
 tools can be extremely slow when the reference genome is long, but are often
 adequate when the reference is short.
 
-Bowtie 2 does not support alignment of colorspace reads.  This might be
-supported in future versions.
+Bowtie 2 does not support alignment of colorspace reads.
 
 [MUMmer]: http://mummer.sourceforge.net/
 [NUCmer]: http://mummer.sourceforge.net/manual/#nucmer
@@ -165,16 +164,18 @@ Bowtie 2 tools by running GNU `make` (usually with the command `make`, but
 sometimes with `gmake`) with no arguments.  If building with MinGW, run `make`
 from the MSYS environment.
 
-Bowtie 2 is using the multithreading software model in order to speed up 
-execution times on SMP architectures where this is possible. On POSIX 
-platforms (like linux, Mac OS, etc) it needs the pthread library. Although
-it is possible to use pthread library on non-POSIX platform like Windows, due
-to performance reasons bowtie 2 will try to use Windows native multithreading
-if possible. We recommend that you first install the [Threading Building Blocks library],
-also known as TBB, and then build using `make WITH_TBB=1`. TBB comes installed
-by default on many popular linux distros. If TBB is not available, then simply omit 
-the `WITH_TBB=1` option.
-
++Bowtie 2 is using the multithreading software model in order to
++speed up execution times on SMP architectures where this is possible.
++The Threading Building Blocks library, TBB, is now the default
++threading library in bowtie2. On POSIX platforms (like linux, Mac
++OS, etc) if TBB is not available the pthread library will be used.
++Although it is possible to use pthread library on Windows, a non-POSIX
++platform, due to performance reasons bowtie 2 will try to use Windows
++native multithreading if possible. We recommend that you first
++install the [Threading Building Blocks library], but if unable to
++do so please specify `make NO_TBB=1`. TBB comes installed by default
++on many popular linux distros. Please note, packages built without
++TBB will have _-legacy_ appended to the name.
 
 [MinGW]:    http://www.mingw.org/
 [MSYS]:     http://www.mingw.org/wiki/msys
@@ -917,6 +918,46 @@ File to write SAM alignments to.  By default, alignments are written to the
 Reads (specified with `<m1>`, `<m2>`, `<s>`) are FASTQ files.  FASTQ files
 usually have extension `.fq` or `.fastq`.  FASTQ is the default format.  See
 also: [`--solexa-quals`] and [`--int-quals`].
+
+</td></tr>
+<tr><td id="bowtie2-options-interleaved">
+
+[`--interleaved`]: #bowtie2-options-interleaved
+
+    --interleaved
+
+</td><td>
+
+Reads interleaved FASTQ files where the first two records (8 lines)
+represent a mate pair.
+
+</td></tr>
+<tr><td id="bowtie2-options-tab5">
+
+[`--tab5`]: #bowtie2-options-tab5
+
+    --tab5
+
+</td><td>
+
+Each read or pair is on a single line. An unpaired read line is
+[name]\t[seq]\t[qual]\n. A paired-end read line is
+[name]\t[seq1]\t[qual1]\t[seq2]\t[qual2]\n. An input file can be a
+mix of unpaired and paired-end reads and Bowtie 2 recognizes each
+according to the number of fields, handling each as it should.
+
+</td></tr>
+<tr><td id="bowtie2-options-tab6">
+
+[`--tab6`]: #bowtie2-options-tab6
+
+    --tab6
+
+</td><td>
+
+Similar to [`--tab5`] except, for paired-end reads, the second end can have a
+different name from the first:
+[name1]\t[seq1]\t[qual1]\t[name2]\t[seq2]\t[qual2]\n
 
 </td></tr>
 <tr><td id="bowtie2-options-qseq">
@@ -2502,7 +2543,7 @@ automatically by default; use [`-a`/`--noauto`] to configure manually.
 The maximum number of suffixes allowed in a block.  Allowing more suffixes per
 block makes indexing faster, but increases peak memory usage.  Setting this
 option overrides any previous setting for [`--bmax`], or [`--bmaxdivn`]. 
-Default (in terms of the [`--bmaxdivn`] parameter) is [`--bmaxdivn`] 4.  This is
+Default (in terms of the [`--bmaxdivn`] parameter) is [`--bmaxdivn`] 4 * number of threads.  This is
 configured automatically by default; use [`-a`/`--noauto`] to configure manually.
 
 </td></tr><tr><td id="bowtie2-build-options-bmaxdivn">
@@ -2515,7 +2556,7 @@ configured automatically by default; use [`-a`/`--noauto`] to configure manually
 
 The maximum number of suffixes allowed in a block, expressed as a fraction of
 the length of the reference.  Setting this option overrides any previous setting
-for [`--bmax`], or [`--bmaxdivn`].  Default: [`--bmaxdivn`] 4.  This is
+for [`--bmax`], or [`--bmaxdivn`].  Default: [`--bmaxdivn`] 4 * number of threads.  This is
 configured automatically by default; use [`-a`/`--noauto`] to configure manually.
 
 </td></tr><tr><td id="bowtie2-build-options-dcv">

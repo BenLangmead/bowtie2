@@ -197,6 +197,7 @@ public:
 					_buf_sz = _ins->gcount();
 				} else {
 					assert(_in != NULL);
+					// TODO: consider an _unlocked function
 					_buf_sz = fread(_buf, 1, BUF_SZ, _in);
 				}
 				_cur = 0;

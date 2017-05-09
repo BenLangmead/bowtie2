@@ -73,8 +73,6 @@ public:
 		bool print_xss,
 		bool print_yn,
 		bool print_xn,
-		bool print_cs,
-		bool print_cq,
 		bool print_x0,
 		bool print_x1,
 		bool print_xm,
@@ -121,8 +119,6 @@ public:
 		print_xss_(print_xss),
 		print_yn_(print_yn), // minimum valid score and perfect score
 		print_xn_(print_xn),
-		print_cs_(print_cs),
-		print_cq_(print_cq),
 		print_x0_(print_x0),
 		print_x1_(print_x1),
 		print_xm_(print_xm),
@@ -347,10 +343,6 @@ protected:
 	bool print_xss_;// Xs:i: Best invalid alignment score found
 	bool print_yn_; // YN:i:, Yn:i: minimum valid score and perfect score
 	bool print_xn_; // XN:i: Number of ambiguous bases in the referenece
-
-	// Other optional flags
-	bool print_cs_; // CS:Z: Color read sequence on the original strand
-	bool print_cq_; // CQ:Z: Color read quality on the original strand
 
 	// Following are printed by BWA
 	bool print_x0_; // X0:i: Number of best hits
