@@ -24,7 +24,7 @@ including for variation calling, ChIP-seq, RNA-seq, BS-seq.  [Bowtie 2] and
 tools, including [TopHat]: a fast splice junction mapper for RNA-seq reads,
 [Cufflinks]: a tool for transcriptome assembly and isoform quantitiation from
 RNA-seq reads, [Crossbow]: a cloud-enabled software tool for analyzing
-reseuqncing data, and [Myrna]: a cloud-enabled software tool for aligning
+resequencing data, and [Myrna]: a cloud-enabled software tool for aligning
 RNA-seq reads and measuring differential gene expression.
 
 If you use [Bowtie 2] for your published research, please cite the [Bowtie
@@ -59,6 +59,7 @@ The chief differences between Bowtie 1 and Bowtie 2 are:
 1. For reads longer than about 50 bp Bowtie 2 is generally faster, more
 sensitive, and uses less memory than Bowtie 1.  For relatively short reads (e.g.
 less than 50 bp) Bowtie 1 is sometimes faster and/or more sensitive.
+B
 
 2. Bowtie 2 supports gapped alignment with affine gap penalties. Number of gaps
 and gap lengths are not restricted, except by way of the configurable scoring
@@ -85,7 +86,7 @@ alignments lie along a continuous spectrum of alignment scores where the
 not align in a paired fashion, Bowtie 2 attempts to find unpaired alignments for
 each mate.
 
-8. Bowtie 2 reports a spectrum of mapping qualities, in contrast fo Bowtie 1
+8. Bowtie 2 reports a spectrum of mapping qualities, in contrast for Bowtie 1
 which reports either 0 or high.
 
 9. Bowtie 2 does not align colorspace reads.
@@ -113,8 +114,7 @@ you may want to consider using tools like [NUCmer], [BLAT], or [BLAST].  These
 tools can be extremely slow when the reference genome is long, but are often
 adequate when the reference is short.
 
-Bowtie 2 does not support alignment of colorspace reads.  This might be
-supported in future versions.
+Bowtie 2 does not support alignment of colorspace reads.
 
 [MUMmer]: http://mummer.sourceforge.net/
 [NUCmer]: http://mummer.sourceforge.net/manual/#nucmer
@@ -158,14 +158,14 @@ from the MSYS environment.
 +Bowtie 2 is using the multithreading software model in order to
 +speed up execution times on SMP architectures where this is possible.
 +The Threading Building Blocks library, TBB, is now the default
-+threading library in bowtie2. On POSIX platforms (like linux, Mac
-+OS, etc) if TBB is not available the pthread library will be used.
++threading library in Bowtie 2. On POSIX platforms (like Linux, Mac
++OS, etc.) if TBB is not available the pthread library will be used.
 +Although it is possible to use pthread library on Windows, a non-POSIX
-+platform, due to performance reasons bowtie 2 will try to use Windows
++platform, due to performance reasons Bowtie 2 will try to use Windows
 +native multithreading if possible. We recommend that you first
 +install the [Threading Building Blocks library], but if unable to
 +do so please specify `make NO_TBB=1`. TBB comes installed by default
-+on many popular linux distros. Please note, packages built without
++on many popular Linux distros. Please note, packages built without
 +TBB will have _-legacy_ appended to the name.
 
 [MinGW]:    http://www.mingw.org/
@@ -218,7 +218,7 @@ characters match.
 We use alignment to make an educated guess as to where a read originated with
 respect to the reference genome.  It's not always possible to determine this
 with certainty.  For instance, if the reference genome contains several long
-stretches of As (`AAAAAAAAA` etc) and the read sequence is a short stretch of As
+stretches of As (`AAAAAAAAA` etc.) and the read sequence is a short stretch of As
 (`AAAAAAA`), we cannot know for certain exactly where in the sea of `A`s the
 read originated.
 
@@ -268,7 +268,7 @@ Scores: higher = more similar
 
 An alignment score quantifies how similar the read sequence is to the reference
 sequence aligned to.  The higher the score, the more similar they are.  A score
-is calculated by subtracting penalties for each difference (mismatch, gap, etc)
+is calculated by subtracting penalties for each difference (mismatch, gap, etc.)
 and, in local alignment mode, adding bonuses for each match.
 
 The scores can be configured with the `--ma` (match bonus), `--mp` (mismatch
@@ -437,7 +437,7 @@ a pair.  See the [SAM specification] for a more detailed description of the
 
 ### Some SAM optional fields describe more paired-end properties
 
-The last severeal fields of each SAM record usually contain SAM optional fields,
+The last several fields of each SAM record usually contain SAM optional fields,
 which are simply tab-separated strings conveying additional information about
 the reads and alignments.  A SAM optional field is formatted like this: "XP:i:1"
 where "XP" is the `TAG`, "i" is the `TYPE` ("integer" in this case), and "1" is
@@ -552,7 +552,7 @@ beyond the first has the SAM 'secondary' bit (which equals 256) set in its FLAGS
 field.  See the [SAM specification] for details.
 
 Bowtie 2 does not "find" alignments in any specific order, so for reads that
-have more than N distinct, valid alignments, Bowtie 2 does not garantee that
+have more than N distinct, valid alignments, Bowtie 2 does not guarantee that
 the N alignments reported are the best possible in terms of alignment score.
 Still, this mode can be effective and fast in situations where the user cares
 more about whether a read aligns (or aligns a certain number of times) than
@@ -581,7 +581,7 @@ Bowtie 2's search for alignments for a given read is "randomized."  That is,
 when Bowtie 2 encounters a set of equally-good choices, it uses a pseudo-random
 number to choose.  For example, if Bowtie 2 discovers a set of 3 equally-good
 alignments and wants to decide which to report, it picks a pseudo-random integer
-0, 1 or 2 and reports the corresponding alignment.  Abitrary choices can crop up
+0, 1 or 2 and reports the corresponding alignment.  Arbitrary choices can crop up
 at various points during alignment.
 
 The pseudo-random number generator is re-initialized for every read, and the
@@ -612,18 +612,18 @@ does], except Bowtie 1 attempts to align the entire read this way.
 This initial step makes Bowtie 2 much faster than it would be without such a
 filter, but at the expense of missing some valid alignments.  For instance, it
 is possible for a read to have a valid overall alignment but to have no valid
-seed alignments because each potential seed alignment is interruped by too many
+seed alignments because each potential seed alignment is interrupted by too many
 mismatches or gaps.
 
-The tradeoff between speed and sensitivity/accuracy can be adjusted by setting
+The trade-off between speed and sensitivity/accuracy can be adjusted by setting
 the seed length (`-L`), the interval between extracted seeds (`-i`), and the
 number of mismatches permitted per seed (`-N`).  For more sensitive alignment,
 set these parameters to (a) make the seeds closer together, (b) make the seeds
 shorter, and/or (c) allow more mismatches.  You can adjust these options
 one-by-one, though Bowtie 2 comes with some useful combinations of options
-pre-packaged as "[preset options]."
+prepackaged as "[preset options]."
 
-`-D` and `-R` are also options that adjust the tradeoff between speed and
+`-D` and `-R` are also options that adjust the trade-off between speed and
 sensitivity/accuracy.
 
 ### FM Index memory footprint
@@ -667,7 +667,7 @@ Bowtie 2 comes with some useful combinations of parameters packaged into shorter
 "preset" parameters.  For example, running Bowtie 2 with the `--very-sensitive`
 option is the same as running with options: `-D 20 -R 3 -N 0 -L 20 -i S,1,0.50`.
  The preset options that come with Bowtie 2 are designed to cover a wide area of
-the speed/sensitivity/accuracy tradeoff space, with the presets ending in `fast`
+the speed/sensitivity/accuracy trade-off space, with the presets ending in `fast`
 generally being faster but less sensitive and less accurate, and the presets
 ending in `sensitive` generally being slower but more sensitive and more
 accurate.  See the [documentation for the preset options] for details.
@@ -678,7 +678,7 @@ Filtering
 Some reads are skipped or "filtered out" by Bowtie 2.  For example, reads may be
 filtered out because they are extremely short or have a high proportion of
 ambiguous nucleotides.  Bowtie 2 will still print a SAM record for such a read,
-but no alignment will be reported and and the `YF:i` SAM optional field will be
+but no alignment will be reported and the `YF:i` SAM optional field will be
 set to indicate the reason the read was filtered.
 
 * `YF:Z:LN`: the read was filtered because it had length less than or equal to
@@ -697,7 +697,7 @@ and the last (11th) field of the read's QSEQ record contains `1`.
 If a read could be filtered for more than one reason, the value `YF:Z` flag will
 reflect only one of those reasons.
 
-Alignment summmary
+Alignment summary
 ------------------
 
 When Bowtie 2 finishes running, it prints messages summarizing what happened. 
@@ -739,7 +739,7 @@ wrapper scripts that call binary programs as appropriate.  The wrappers shield
 users from having to distinguish between "small" and "large" index formats,
 discussed briefly in the following section.  Also, the `bowtie2` wrapper
 provides some key functionality, like the ability to handle compressed inputs,
-and the fucntionality for `--un`, `--al` and related options.
+and the functionality for `--un`, `--al` and related options.
 
 It is recommended that you always run the bowtie2 wrappers and not run the
 binaries directly.
@@ -1205,7 +1205,7 @@ be valid in that case.  If trimming options `-3` or `-5` are also used, the
 `-I` constraint is applied with respect to the untrimmed mates.
 
 The larger the difference between `-I` and `-X`, the slower Bowtie 2 will
-run.  This is because larger differences bewteen `-I` and `-X` require that
+run.  This is because larger differences between `-I` and `-X` require that
 Bowtie 2 scan a larger window to determine if a concordant alignment exists.
 For typical fragment length ranges (200 to 400 nucleotides), Bowtie 2 is very
 efficient.
@@ -1223,7 +1223,7 @@ constraint is applied with respect to the untrimmed mates, not the trimmed
 mates.
 
 The larger the difference between `-I` and `-X`, the slower Bowtie 2 will
-run.  This is because larger differences bewteen `-I` and `-X` require that
+run.  This is because larger differences between `-I` and `-X` require that
 Bowtie 2 scan a larger window to determine if a concordant alignment exists.
 For typical fragment length ranges (200 to 400 nucleotides), Bowtie 2 is very
 efficient.
@@ -1398,7 +1398,7 @@ Spec][SAM].  Specify `--rg` multiple times to set multiple fields.  See the
     --omit-sec-seq
 
 When printing secondary alignments, Bowtie 2 by default will write out the `SEQ`
-and `QUAL` strings.  Specifying this option causes Bowtie 2 to print an asterix
+and `QUAL` strings.  Specifying this option causes Bowtie 2 to print an asterisk
 in those fields instead.
 
 #### Performance options
@@ -1493,7 +1493,9 @@ left to right, the fields are:
     Note that the [SAM specification] disallows whitespace in the read name.
 	If the read name contains any whitespace characters, Bowtie 2 will truncate
 	the name at the first whitespace character.  This is similar to the
-	behavior of other tools.
+	behavior of other tools. The standard behavior of truncating at the first
+    whitespace can be suppressed with `--sam-noqname-trunc` at the expense of
+    generating non-standard SAM.
 
 2.  Sum of all applicable flags.  Flags relevant to Bowtie are:
 
@@ -1996,21 +1998,21 @@ Run the paired-end example:
 
     $BT2_HOME/bowtie2 -x $BT2_HOME/example/index/lambda_virus -1 $BT2_HOME/example/reads/reads_1.fq -2 $BT2_HOME/example/reads/reads_2.fq -S eg2.sam
 
-Use `samtools view` to convert the SAM file into a BAM file.  BAM is a the
+Use `samtools view` to convert the SAM file into a BAM file.  BAM is the
 binary format corresponding to the SAM text format.  Run:
 
     samtools view -bS eg2.sam > eg2.bam
 
 Use `samtools sort` to convert the BAM file to a sorted BAM file.
 
-    samtools sort eg2.bam eg2.sorted
+    samtools sort eg2.bam -o eg2.sorted.bam
 
 We now have a sorted BAM file called `eg2.sorted.bam`. Sorted BAM is a useful
 format because the alignments are (a) compressed, which is convenient for
 long-term storage, and (b) sorted, which is conveneint for variant discovery.
 To generate variant calls in VCF format, run:
 
-    samtools mpileup -uf $BT2_HOME/example/reference/lambda_virus.fa eg2.sorted.bam | bcftools view -bvcg - > eg2.raw.bcf
+    samtools mpileup -uf $BT2_HOME/example/reference/lambda_virus.fa eg2.sorted.bam | bcftools view -Ov - > eg2.raw.bcf
 
 Then to view the variants, run:
 

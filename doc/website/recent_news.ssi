@@ -1,3 +1,14 @@
+<h2>Version 2.3.2 - May 05, 2017</h2>
+</ul>
+    <li>Added support for interleaved paired-end FASTQ inputs (--interleaved)</li>
+    <li>Now reports MREVERSE SAM flag for unaligned end when only one end of a pair aligns</li>
+    <li>Fixed issue where first character of some read names was omitted from SAM output when using tabbed input formats</li>
+    <li>Added --sam-no-qname-trunc option, which causes entire read name, including spaces, to be written to SAM output.  This violates SAM specification, but can be useful in applications that immediately postprocess the SAM.</li>
+    <li>Fixed compilation error caused by pointer comparison issue in aligner_result.cpp</li>
+    <li>Removed termcap and readline dependencies introduced in v2.3.1</li>
+    <li>Fixed compilation issues caused by gzbuffer function when compiling with zlib v1.2.3.5 and earlier. Users compiling against these libraries will use the zlib default buffer size of 8Kb when decompressing read files.</li>
+    <li>Fixed issue that would cause Bowtie 2 hang when aligning FASTA inputs with more than one thread</li>
+</ul>
 <h2>Version 2.3.1 - Mar 03, 2017</h2>
 <p>Please note that as of this release Bowtie 2 now has dependencies on zlib and readline libraries. Make sure that all dependencies are met before attempting to build from source.</p>
 <ul>

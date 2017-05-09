@@ -670,10 +670,12 @@ public:
 		numRanges_ += qv.numRanges();
 		if(qv.numRanges() > 0) {
 			nonzTot_++;
-			if(qv.numRanges() == 1 and qv.numElts() == 1) {
+			if(qv.numRanges() == 1 && qv.numElts() == 1) {
 				uniTot_++;
+				uniTotS_[seedFw ? 0 : 1]++;
 			} else {
 				repTot_++;
+				repTotS_[seedFw ? 0 : 1]++;
 			}
 		}
 		assert(repOk(&ac));
@@ -729,8 +731,8 @@ public:
 		seqFw_.clear();
 		seqRc_.clear();
 		nonzTot_ = 0;
-		uniTot_ = 0;
-		repTot_ = 0;
+		uniTot_ = uniTotS_[0] = uniTotS_[1] = 0;
+		repTot_ = repTotS_[0] = repTotS_[1] = 0;
 		nonzFw_ = 0;
 		nonzRc_ = 0;
 		numOffs_ = 0;
@@ -827,10 +829,24 @@ public:
 	}
 
 	/**
-	 * Return fraction of seeds that align repetitively.
+	 * Return fraction of seeds that aligned uniquely on the given strand.
+	 */
+	size_t numUniqueSeedsStrand(bool fw) const {
+		return uniTotS_[fw ? 0 : 1];
+	}
+
+	/**
+	 * Return fraction of seeds that align repetitively on the given strand.
 	 */
 	size_t numRepeatSeeds() const {
 		return repTot_;
+	}
+
+	/**
+	 * Return fraction of seeds that align repetitively.
+	 */
+	size_t numRepeatSeedsStrand(bool fw) const {
+		return repTotS_[fw ? 0 : 1];
 	}
 	
 	/**
@@ -1329,7 +1345,9 @@ protected:
 	EList<bool>         sortedRc_;    // true iff rc QVal was sorted/ranked
 	size_t              nonzTot_;     // # offsets with non-zero size
 	size_t              uniTot_;      // # offsets unique hit
+	size_t              uniTotS_[2];  // # offsets unique hit on each strand
 	size_t              repTot_;      // # offsets repetitive hit
+	size_t              repTotS_[2];  // # offsets repetitive hit on each strand
 	size_t              nonzFw_;      // # offsets into fw read with non-0 size
 	size_t              nonzRc_;      // # offsets into rc read with non-0 size
 	size_t              numRanges_;   // # ranges added
@@ -1473,7 +1491,9 @@ public:
 		bool norc,                  // don't align revcomp read
 		AlignmentCacheIface& cache, // holds some seed hits from previous reads
 		SeedResults& sr,            // holds all the seed hits
-		SeedSearchMetrics& met);    // metrics
+		SeedSearchMetrics& met,     // metrics
+		std::pair<int, int>& instFw,
+		std::pair<int, int>& instRc);
 
 	/**
 	 * Iterate through the seeds that cover the read and initiate a
