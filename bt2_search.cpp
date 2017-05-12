@@ -4300,7 +4300,8 @@ static void multiseedSearch(
 			true,         // load ftab (in forward index)
 			true,         // load rstarts (in forward index)
 			!noRefNames,  // load names?
-			startVerbose);
+			startVerbose,
+			altsFn);
 	}
 	if(multiseedMms > 0 || do1mmUpFront) {
 		// Load the other half of the index into memory
@@ -4315,7 +4316,8 @@ static void multiseedSearch(
 			true,         // yes, need ftab in reverse index
 			false,        // don't load rstarts in reverse index
 			!noRefNames,  // load names?
-			startVerbose);
+			startVerbose,
+			altsFn);
 	}
 	// Start the metrics thread
 	{
@@ -4472,7 +4474,8 @@ static void driver(
 			true, // load ftab
 			true, // load rstarts
 			!noRefNames,
-			startVerbose);
+			startVerbose,
+			altsFn);
 		ebwt.checkOrigs(os, false, false);
 		ebwt.evictFromMemory();
 	}

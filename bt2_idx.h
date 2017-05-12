@@ -1253,7 +1253,8 @@ public:
 		bool loadFtab,
 		bool loadRstarts,
 		bool loadNames,
-		bool verbose)
+		bool verbose,
+		std::string altsFn = "")
 	{
 		readIntoMemory(
 			color,       // expect index to be colorspace?
@@ -1265,7 +1266,8 @@ public:
 			NULL,        // params
 			false,       // mmSweep
 			loadNames,   // loadNames
-			verbose);    // startVerbose
+			verbose,
+			altsFn);    // startVerbose
 	}
 
 	/**
@@ -1590,7 +1592,7 @@ public:
 	template <typename TStr> void buildToDisk(InorderBlockwiseSA<TStr>& sa, const TStr& s, ostream& out1, ostream& out2, ostream* saOut, ostream* bwtOut);
 
 	// I/O
-	void readIntoMemory(int color, int needEntireRev, bool loadSASamp, bool loadFtab, bool loadRstarts, bool justHeader, EbwtParams *params, bool mmSweep, bool loadNames, bool startVerbose);
+	void readIntoMemory(int color, int needEntireRev, bool loadSASamp, bool loadFtab, bool loadRstarts, bool justHeader, EbwtParams *params, bool mmSweep, bool loadNames, bool startVerbose, std::string altsFn = std::string(""));
 	void writeFromMemory(bool justHeader, ostream& out1, ostream& out2) const;
 	void writeFromMemory(bool justHeader, const string& out1, const string& out2) const;
 

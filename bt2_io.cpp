@@ -47,7 +47,8 @@ void Ebwt::readIntoMemory(
 	EbwtParams *params,
 	bool mmSweep,
 	bool loadNames,
-	bool startVerbose)
+	bool startVerbose,
+	string altsFn)
 {
 	bool switchEndian; // dummy; caller doesn't care
 #ifdef BOWTIE_MM
@@ -502,8 +503,8 @@ void Ebwt::readIntoMemory(
 	// Read reference sequence names from primary index file (or not,
 	// if --refidx is specified)
 	if(loadNames) {
-		// open alt alignments file, currently hard coded
-		std::ifstream placements("all_alt_scaffold_placement.txt", ios::in);
+		// open alt alignments file
+		std::ifstream placements(altsFn.c_str(), ios::in);
 		// Check file was opened correctly?
 		while(true) {
 			char c = '\0';
@@ -516,48 +517,50 @@ void Ebwt::readIntoMemory(
 				this->_refnames.push_back("");
 				// altmap is a map of key = altref name
 				// value = <primary correspondence refname, offset start, offset end, orientation>
-				for (size_t i = 0; i < full_refname.length(); i++) {
-					if (full_refname[i] == ' ') break;
-					refname += full_refname[i];
-				}			    
-				placements.clear();
-				placements.seekg(0, ios::beg);
-				std::string line;
-				std::string acc;
-				int n;
-				bool alt = false;
-				while(getline(placements, line)) {
-					istringstream linestream(line);
-					n = 4;
-					while(n-- > 0 && std::getline(linestream, acc, '\t'));
-					if (acc.compare(refname) == 0) {
-						alt = true;
-						break;
+				if (!altsFn.empty()) {
+					for (size_t i = 0; i < full_refname.length(); i++) {
+						if (full_refname[i] == ' ') break;
+						refname += full_refname[i];
+					}			    
+					placements.clear();
+					placements.seekg(0, ios::beg);
+					std::string line;
+					std::string acc;
+					int n;
+					bool alt = false;
+					while(getline(placements, line)) {
+						istringstream linestream(line);
+						n = 4;
+						while(n-- > 0 && std::getline(linestream, acc, '\t'));
+						if (acc.compare(refname) == 0) {
+							alt = true;
+							break;
+						}
 					}
+					if (!alt) {
+						std::vector<string> tmp_tup;					
+						this->_altmap.insert(std::make_pair("", tmp_tup));
+						continue;
+					}
+					istringstream placement(line);
+					string parent_acc;
+					string parent_start_str;
+					string parent_end_str;
+					string ori;
+					n = 7;
+					while(n-- > 0 && std::getline(placement, parent_acc, '\t'));
+					n = 2;
+					while(n-- > 0 && std::getline(placement, ori, '\t'));
+					n = 3;
+					while(n-- > 0 && std::getline(placement, parent_start_str, '\t'));
+					placement >> parent_end_str;
+					std::vector<string> alt_tup;
+					alt_tup.push_back(parent_acc);
+					alt_tup.push_back(parent_start_str);
+					alt_tup.push_back(parent_end_str);
+					alt_tup.push_back(ori);
+					this->_altmap.insert(std::make_pair(refname, alt_tup));
 				}
-				if (!alt) {
-					std::vector<string> tmp_tup;					
-					this->_altmap.insert(std::make_pair("", tmp_tup));
-					continue;
-				}
-				istringstream placement(line);
-				string parent_acc;
-				string parent_start_str;
-				string parent_end_str;
-				string ori;
-				n = 7;
-				while(n-- > 0 && std::getline(placement, parent_acc, '\t'));
-				n = 2;
-				while(n-- > 0 && std::getline(placement, ori, '\t'));
-				n = 3;
-				while(n-- > 0 && std::getline(placement, parent_start_str, '\t'));
-				placement >> parent_end_str;
-				std::vector<string> alt_tup;
-				alt_tup.push_back(parent_acc);
-				alt_tup.push_back(parent_start_str);
-				alt_tup.push_back(parent_end_str);
-				alt_tup.push_back(ori);
-				this->_altmap.insert(std::make_pair(refname, alt_tup));
 			} else {
 				if(this->_refnames.size() == 0) {
 					this->_refnames.push_back(""); // do I need to do this for _altmap?
