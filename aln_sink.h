@@ -1188,7 +1188,7 @@ public:
 		return best2Pair_;
 	}
 
-	/*
+	/**
 	 * Collapse alternate loci alignments onto the primary assembly.
 	 * Assume for now that we are only using unpaired reads.
 	 * Given this assumption I think that only rs1u_ will contain
@@ -1263,9 +1263,12 @@ public:
 	       
 		}
 
-		// now check for duplicates after collapsing.
+		// Now check for duplicates to collapse.
 		// in the case of a duplicate found we will pick
-		// the alignment with the better alignment score. 
+		// the alignment with the better alignment score
+		// and delete the other. An alignment is a duplicate
+		// if it has the same offset as another alignment
+		// after translation to the primary.
 		for (size_t j = rs1u_.size(); j > 0; j--) {
 			for(size_t k = 0; k < j; k++) {           
 				if ((rs1u_[k].refid() == rs1u_[j].refid()) && (rs1u_[k].refoff() == rs1u_[j].refoff())) {
