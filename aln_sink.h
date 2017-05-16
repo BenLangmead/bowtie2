@@ -1191,96 +1191,9 @@ public:
 	/**
 	 * Collapse alternate loci alignments onto the primary assembly.
 	 * Assume for now that we are only using unpaired reads.
-	 * Given this assumption I think that only rs1u_ will contain
-	 * alignments, but I should make sure. After collapsing an alignment
-	 * we will compare to others and see if its the same and keep the
-	 * one with the better alignment score. 
 	 */
 	void collapseAlternates(EList<string>& refnames, TIndexOffU* plen,
-				EMap<string, std::vector<string> >& altmap) {
-		// first collapse alignments to the primary
-		for(size_t i = 0; i < rs1u_.size(); i++) {
-			std::string full_curr_ref = refnames[rs1u_[i].refid()];
-			std::string curr_ref;
-			for (size_t j = 0; j < full_curr_ref.length(); j++) {
-				if (full_curr_ref[j] == ' ') break;
-				curr_ref += full_curr_ref[j];
-			}			
-			if (!altmap.contains(curr_ref)) continue; // not an alternate loci alignment
-			// having trouble compiling with stol (maybe bc of the version of
-			// g++ being used?) so I did it myself
-			std::string parent_start_str = altmap.get(rs1u_[i].refid()).second[1];
-			int64_t parent_start = 0;
-			int64_t multiplier = 1;
-			int curr;
-			for (size_t j = 0; j < parent_start_str.length(); j++) {
-				curr = parent_start_str[parent_start_str.length() - j - 1] - '0';
-					parent_start += curr * multiplier;
-					multiplier *= 10; 
-			}
-			std::string parent_end_str = altmap.get(rs1u_[i].refid()).second[2];
-			int64_t parent_end = 0;
-			multiplier = 1;
-			for (size_t j = 0; j < parent_end_str.length(); j++) {
-				curr = parent_end_str[parent_end_str.length() - j - 1] - '0';
-				parent_end += curr * multiplier;
-				multiplier *= 10; 
-			}
-			bool orient = rs1u_[i].fw();
-			int64_t translated_off = 0;
-			if ((((altmap.get(rs1u_[i].refid())).second)[3]).compare("+") == 0) {
-				translated_off = rs1u_[i].refoff() + parent_start - 1; // -1 is because the reference file is 1 based but bowtie is 0 based
-			} else {
-				translated_off = parent_end - rs1u_[i].refoff() - rs1u_[i].readLength(); // Don't need a +1 beause reference file is already 1 off
-				orient = !orient;
-			}
-			
-
-			TRefId newId = -1;
-			//find corresponding primary assembly TRefID
-			for (size_t j = 0; j < refnames.size(); j++) {
-				std::string full_tmp_ref = refnames[j];
-				std::string tmp_ref;
-				for (size_t k = 0; k < full_tmp_ref.length(); k++) {
-					if (full_tmp_ref[k] == ' ') break;
-					tmp_ref += full_tmp_ref[k];
-				}
-				if (tmp_ref.compare(altmap.get(rs1u_[i].refid()).second[0]) == 0) {
-					newId = j;
-					break;
-				}
-			}
-			
-			if (newId == -1) {
-				cerr << "Read aligned to an alternate loci reference "
-				     << "which had no parent on the primary reference "
-				     << "in given alternate placements file\n";
-				throw(-1);
-			}
-		
-			// now update alignment
-			rs1u_[i].translate(newId, translated_off, orient, plen[newId]);
-	       
-		}
-
-		// Now check for duplicates to collapse.
-		// in the case of a duplicate found we will pick
-		// the alignment with the better alignment score
-		// and delete the other. An alignment is a duplicate
-		// if it has the same offset as another alignment
-		// after translation to the primary.
-		for (size_t j = rs1u_.size(); j > 0; j--) {
-			for(size_t k = 0; k < j; k++) {           
-				if ((rs1u_[k].refid() == rs1u_[j].refid()) && (rs1u_[k].refoff() == rs1u_[j].refoff())) {
-						if (rs1u_[k].score() >= rs1u_[j].score()) {
-							rs1u_.remove(j);
-						} else{
-							rs1u_.remove(k);
-						}
-				}
-			}
-		}
-	}
+				EMap<string, std::vector<string> >& altmap);
 
 protected:
 
