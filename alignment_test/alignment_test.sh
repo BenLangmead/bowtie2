@@ -4,8 +4,6 @@
 
 ARGS=( "$@" )
 
-
-#needs to be much more comprehensie
 if [ $# -lt 1 ]
 then
     echo 
