@@ -287,7 +287,7 @@ static void resetOptions() {
 	thread_ceiling			= 0;     // max # threads user asked for
 	thread_stealing_dir		= ""; // keep track of pids in this directory
 	thread_stealing			= false; // true iff thread stealing is in use
-	FNAME_SIZE				= 200;
+	FNAME_SIZE				= 4096;
 	outType					= OUTPUT_SAM;  // style of output
 	noRefNames				= false; // true -> print reference indexes; not names
 	khits					= 1;     // number of hits per read; >1 is much slower
@@ -2810,24 +2810,26 @@ void get_cpu_and_node(int& cpu, int& node) {
 }
 #endif
 
-void increment_thread_counter() {
+class ThreadCounter {
+public:
+	ThreadCounter() {
 #ifdef WITH_TBB
-	thread_counter.fetch_and_increment();
+		thread_counter.fetch_and_increment();
 #else
-	ThreadSafe ts(&thread_counter_mutex);
-	thread_counter++;
+		ThreadSafe ts(&thread_counter_mutex);
+		thread_counter++;
 #endif
-}
-
-void decrement_thread_counter() {
+	}
+	
+	~ThreadCounter() {
 #ifdef WITH_TBB
-	thread_counter.fetch_and_decrement();
+		thread_counter.fetch_and_decrement();
 #else
-	ThreadSafe ts(&thread_counter_mutex);
-	thread_counter--;
+		ThreadSafe ts(&thread_counter_mutex);
+		thread_counter--;
 #endif
-}
-
+	}
+};
 
 /**
  * Called once per thread.  Sets up per-thread pointers to the shared global
@@ -2881,11 +2883,8 @@ static void multiseedSearchWorker(void *vp) {
 	// level.  These in turn can be used to diagnose performance
 	// problems, or generally characterize performance.
 
-	if(thread_stealing) {
-		increment_thread_counter();
-	}
+	ThreadCounter tc;
 
-	//const BitPairReference& refs   = *multiseed_refs;
 	auto_ptr<PatternSourcePerThreadFactory> patsrcFact(createPatsrcFactory(patsrc, pp, tid));
 	auto_ptr<PatternSourcePerThread> ps(patsrcFact->create());
 	
@@ -3985,10 +3984,6 @@ static void multiseedSearchWorker(void *vp) {
 	std::cout << ss.str();
 #endif
 
-	if(thread_stealing) {
-		decrement_thread_counter();
-	}
-
 	return;
 }
 
@@ -4014,10 +4009,7 @@ static void multiseedSearchWorker_2p5(void *vp) {
 	// level.  These in turn can be used to diagnose performance
 	// problems, or generally characterize performance.
 	
-	if(thread_stealing) {
-		increment_thread_counter();
-	}
-
+	ThreadCounter tc;
 	auto_ptr<PatternSourcePerThreadFactory> patsrcFact(createPatsrcFactory(patsrc, pp, tid));
 	auto_ptr<PatternSourcePerThread> ps(patsrcFact->create());
 	
@@ -4329,64 +4321,138 @@ static void multiseedSearchWorker_2p5(void *vp) {
 	// One last metrics merge
 	MERGE_METRICS(metrics, nthreads > 1 || thread_stealing);
 
-	if(thread_stealing) {
-		decrement_thread_counter();
-	}
-
 	return;
 }
 
-void del_pid(const char* dirname,int pid) {
-	struct stat finfo;
-	char* fname = (char*) calloc(FNAME_SIZE,sizeof(char));
-	sprintf(fname,"%s/%d",dirname,pid);
-	if(stat( fname, &finfo) != 0) {
-		free(fname);
-		return;
-	}
-	unlink(fname);
-	free(fname);
-} 
+/**
+ * Print friendly-ish message pertaining to failed system call.
+ */
+static void errno_message() {
+	int errnum = errno;
+	cerr << "errno is " << errnum << endl;
+	perror("perror error: ");
+}
 
-//from http://stackoverflow.com/questions/18100097/portable-way-to-check-if-directory-exists-windows-linux-c
-static void write_pid(const char* dirname,int pid) {
-	struct stat dinfo;
-	if(stat(dirname, &dinfo) != 0) {
-		mkdir(dirname,0755);
+/**
+ * Delete PID file.  Raise error if the file doesn't exist or if
+ * we fail to delete it.
+ */
+void del_pid(const char* dirname,int pid) {
+	char* fname = (char*)calloc(FNAME_SIZE, sizeof(char));
+	if(fname == NULL) {
+		errno_message();
+		cerr << "del_pid: could not allocate buffer" << endl;
+		throw 1;
 	}
-	char* fname = (char*) calloc(FNAME_SIZE,sizeof(char));
-	sprintf(fname,"%s/%d",dirname,pid);
-	FILE* f = fopen(fname,"w");
-	fclose(f);
+	snprintf(fname, FNAME_SIZE, "%s/%d", dirname, pid);
+	if(unlink(fname) != 0) {
+		if(errno != ENOENT) {
+			errno_message();
+			cerr << "del_pid: could not delete PID file " << fname << endl;
+			free(fname);
+			throw 1;
+		} else {
+			// Probably just a race between processes
+		}
+	}
 	free(fname);
 }
 
-//from  http://stackoverflow.com/questions/612097/how-can-i-get-the-list-of-files-in-a-directory-using-c-or-c
-static int read_dir(const char* dirname,int* num_pids) {
+/**
+ * Write PID file.
+ */
+static void write_pid(const char* dirname,int pid) {
+	struct stat dinfo;
+	if(stat(dirname, &dinfo) != 0) {
+		if(mkdir(dirname, 0755) != 0) {
+			if(errno != EEXIST) {
+				errno_message();
+				cerr << "write_pid: could not create PID directory " << dirname << endl;
+				throw 1;
+			}
+		}
+	}
+	char* fname = (char*)calloc(FNAME_SIZE, sizeof(char));
+	if(fname == NULL) {
+		errno_message();
+		cerr << "write_pid: could not allocate buffer" << endl;
+		throw 1;
+	}
+	snprintf(fname, FNAME_SIZE, "%s/%d", dirname, pid);
+	FILE *f = fopen(fname, "w");
+	if(f == NULL) {
+		errno_message();
+		cerr << "write_pid: could not open PID file " << fname << endl;
+		throw 1;
+	}
+	if(fclose(f) != 0) {
+		errno_message();
+		cerr << "write_pid: could not close PID file " << fname << endl;
+		throw 1;
+	}
+	free(fname);
+}
+
+/**
+ * Read all the PID files in the given PID directory.  If the
+ * process corresponding to a PID file seems to have expired,
+ * delete the PID file.  Return the lowest PID encountered for
+ * a still-valid process.
+ */
+static int read_dir(const char* dirname, int* num_pids) {
 	DIR *dir;
 	struct dirent *ent;
-	char* fname = (char*) calloc(FNAME_SIZE,sizeof(char));
+	char* fname = (char*)calloc(FNAME_SIZE, sizeof(char));
+	if(fname == NULL) {
+		errno_message();
+		cerr << "read_dir: could not allocate buffer" << endl;
+		throw 1;
+	}
+	dir = opendir(dirname);
+	if(dir == NULL) {
+		errno_message();
+		cerr << "read_dir: could not open directory " << dirname << endl;
+		free(fname);
+		throw 1;
+	}
 	int lowest_pid = -1;
-	if ((dir = opendir (dirname)) != NULL) {
-		while ((ent = readdir (dir)) != NULL) {
-			if(ent->d_name[0] == '.')
-				continue;
-			int pid = atoi(ent->d_name);
-			sprintf(fname,"/proc/%s", ent->d_name);
-			if(kill(pid, 0) != 0) {
-				//deleting pids can lead to race conditions if
-				//2 or more BT2 processes both try to delete
-				//so just skip instead
-				//del_pid(dirname,pid);
-				continue;
+	while(true) {
+		errno = 0;
+		ent = readdir(dir);
+		if(ent == NULL) {
+			if(errno != 0) {
+				errno_message();
+				cerr << "read_dir: could not read directory " << dirname << endl;
+				free(fname);
+				throw 1;
 			}
-			(*num_pids)++;
-			if(pid < lowest_pid || lowest_pid == -1)
-				lowest_pid = pid;
+			break;
 		}
-		closedir (dir);
-	} else {
-		perror (""); // could not open directory
+		if(ent->d_name[0] == '.') {
+			continue;
+		}
+		int pid = atoi(ent->d_name);
+		if(kill(pid, 0) != 0) {
+			if(errno == ESRCH) {
+				del_pid(dirname, pid);
+				continue;
+			} else {
+				errno_message();
+				cerr << "read_dir: could not interrogate pid " << pid << endl;
+				free(fname);
+				throw 1;
+			}
+		}
+		(*num_pids)++;
+		if(pid < lowest_pid || lowest_pid == -1) {
+			lowest_pid = pid;
+		}
+	}
+	if(closedir(dir) != 0) {
+		errno_message();
+		cerr << "read_dir: could not close directory " << dir << endl;
+		free(fname);
+		throw 1;
 	}
 	free(fname);
 	return lowest_pid;
@@ -4407,14 +4473,8 @@ static void steal_threads(int pid, int orig_nthreads, EList<int>& tids, EList<tt
 	if(lowest_pid != pid) {
 		return;
 	}
-	int in_use = ((num_pids-1) * orig_nthreads) + nthreads; //in_use is now baseline + ours
-	float spare = ncpu - in_use;
-	int spare_r = floor(spare);
-	float r = rand() % 100/100.0;
-	if(r <= (spare - spare_r)) {
-		spare_r = ceil(spare);
-	}
-	if(spare_r > 0) {
+	int in_use = ((num_pids-1) * orig_nthreads) + nthreads;
+	if(in_use < ncpu) {
 		nthreads++;
 #ifdef WITH_TBB
 		tbb_grp->run(multiseedSearchWorker(nthreads));
@@ -4493,6 +4553,8 @@ static void multiseedSearch(
 #else
 	EList<tthread::thread*> threads;
 	EList<int> tids;
+	threads.reserveExact(std::max(nthreads, thread_ceiling));
+	tids.reserveExact(std::max(nthreads, thread_ceiling));
 #endif
 	{
 		// Load the other half of the index into memory
