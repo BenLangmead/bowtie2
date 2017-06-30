@@ -685,6 +685,9 @@ public:
 
 	void flush() {
 		if(!fwrite((const void *)buf_, cur_, 1, out_)) {
+            if (errno == EPIPE) {
+                exit(EXIT_SUCCESS);
+            }
 			std::cerr << "Error while flushing and closing output" << std::endl;
 			throw 1;
 		}

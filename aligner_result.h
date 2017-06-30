@@ -295,7 +295,8 @@ public:
 			false,  // mixedMode
 			false,  // primary
 			false,  // oppAligned
-			false); // oppFw
+			false,  // oppFw
+			false); // scUnMapped
 	}
 
 	AlnFlags(
@@ -310,10 +311,11 @@ public:
 		bool mixedMode,
 		bool primary,
 		bool oppAligned, // opposite mate aligned?
-		bool oppFw)      // opposite mate aligned forward?
+		bool oppFw,      // opposite mate aligned forward?
+		bool scUnMapped)
 	{
 		init(pairing, canMax, maxed, maxedPair, nfilt, scfilt,
-		     lenfilt, qcfilt, mixedMode, primary, oppAligned, oppFw);
+		     lenfilt, qcfilt, mixedMode, primary, oppAligned, oppFw, scUnMapped);
 	}
 
 	/**
@@ -331,7 +333,8 @@ public:
 		bool mixedMode,
 		bool primary,
 		bool oppAligned,
-		bool oppFw)
+		bool oppFw,
+		bool scUnMapped)
 	{
 		assert_gt(pairing, 0);
 		assert_leq(pairing, ALN_FLAG_PAIR_UNPAIRED);
@@ -347,6 +350,7 @@ public:
 		primary_    = primary;
 		oppAligned_ = oppAligned;
 		oppFw_     = oppFw;
+		scUnMapped_ = scUnMapped;
 	}
 
 	/**
@@ -499,6 +503,10 @@ public:
 		return oppFw_;
 	}
 
+	inline bool scUnMapped() const {
+		return scUnMapped_;
+	}
+
 protected:
 
 	// See ALN_FLAG_PAIR_* above
@@ -533,7 +541,10 @@ protected:
 
 	// True if opposite mate aligned in the forward direction
 	bool oppFw_;
-};
+
+	// True if soft clipped bases are considered unmapped w/r/t TLEN
+	bool scUnMapped_;
+	};
 
 static inline ostream& operator<<(ostream& os, const AlnScore& o) {
 	os << o.score();
@@ -870,17 +881,20 @@ public:
 	 */
 	inline void getExtendedCoords(
 		Coord& st,  // out: install starting coordinate here
-		Coord& en)  // out: install ending coordinate here
+		Coord& en,  // out: install ending coordinate here
+		const AlnFlags& flags)
 		const
 	{
 		getCoords(st, en);
 		// Take trimming into account
-		int64_t trim_st  = (fw() ? trim5p_ : trim3p_);
-		int64_t trim_en  = (fw() ? trim3p_ : trim5p_);
-		trim_st += (fw() ? pretrim5p_ : pretrim3p_);
-		trim_en += (fw() ? pretrim3p_ : pretrim5p_);
-		st.adjustOff(-trim_st);
-		en.adjustOff( trim_en);
+		if (!flags.scUnMapped()) {
+			int64_t trim_st  = (fw() ? trim5p_ : trim3p_);
+			int64_t trim_en  = (fw() ? trim3p_ : trim5p_);
+			trim_st += (fw() ? pretrim5p_ : pretrim3p_);
+			trim_en += (fw() ? pretrim3p_ : pretrim5p_);
+			st.adjustOff(-trim_st);
+			en.adjustOff( trim_en);
+		}
 	}
 	
 	/**
@@ -1268,7 +1282,7 @@ public:
 			if((sameChr && refcoord_.ref() == omate->refcoord_.ref()) ||
 			   flags.alignedConcordant())
 			{
-				setFragmentLength(*omate);
+				setFragmentLength(*omate, flags);
 			} else {
 				assert(!isFraglenSet());
 			}
@@ -1283,12 +1297,12 @@ public:
 	 * by the user in how they set the maximum and minimum fragment length
 	 * settings.
 	 */
-	int64_t setFragmentLength(const AlnRes& omate) {
+	int64_t setFragmentLength(const AlnRes& omate, const AlnFlags& flags) {
 		Coord st, en;
 		Coord ost, oen;
 		assert_eq(refid(), omate.refid());
-		getExtendedCoords(st, en);
-		omate.getExtendedCoords(ost, oen);
+		getExtendedCoords(st, en, flags);
+		omate.getExtendedCoords(ost, oen, flags);
 		bool imUpstream = st.off() < ost.off();
 		TRefOff up = std::min(st.off(), ost.off());
 		TRefOff dn = std::max(en.off(), oen.off());
