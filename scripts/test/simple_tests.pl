@@ -36,10 +36,12 @@ use Test::Deep;
 
 my $bowtie2 = "";
 my $bowtie2_build = "";
+my $compressed;
 
 GetOptions(
-	"bowtie2=s"       => \$bowtie2,
-	"bowtie2-build=s" => \$bowtie2_build) || die "Bad options";
+	"compressed-reads" => \$compressed,
+	"bowtie2=s"        => \$bowtie2,
+	"bowtie2-build=s"  => \$bowtie2_build) || die "Bad options";
 
 if(! -x $bowtie2 || ! -x $bowtie2_build) {
 	my $bowtie2_dir = `dirname $bowtie2`;
@@ -4294,8 +4296,8 @@ sub writeReads($$$$$$$$$) {
 		$fq1,
 		$fq2) = @_;
 
-	open(FQ1, ">$fq1") || die "Could not open '$fq1' for writing";
-	open(FQ2, ">$fq2") || die "Could not open '$fq2' for writing";
+	open(FQ1, defined($compressed) ? "| gzip -c >$fq1.gz" : ">$fq1") || die "Could not open '$fq1' for writing";
+	open(FQ2, defined($compressed) ? "| gzip -c >$fq2.gz" : ">$fq2") || die "Could not open '$fq2' for writing";
 	my $pe = (defined($mate1s) && $mate1s ne "");
 	if($pe) {
 		for (0..scalar(@$mate1s)-1) {
@@ -4392,7 +4394,7 @@ my  $idx_type = "";
 			$formatarg = "-q";
 			$ext = ".fq";
 		} elsif($read_file_format eq "tabbed") {
-			$formatarg = "--12";
+			$formatarg = "--tab5";
 			$ext = ".tab";
 		} elsif($read_file_format eq "cline_reads") {
 			$formatarg = "-c";
@@ -4417,9 +4419,14 @@ my  $idx_type = "";
 			die "Bad format: $read_file_format";
 		}
 		if($formatarg ne "-c") {
+			my $cmd = ">";
+			if (defined($compressed)) {
+				$cmd = "| gzip -c" . $cmd;
+				$ext = $ext . ".gz";
+			}
 			if(defined($read_file)) {
 				# Unpaired
-				open(RD, ">.simple_tests$ext") || die;
+				open(RD, $cmd . ".simple_tests$ext") || die;
 				print RD $read_file;
 				close(RD);
 				$readarg = ".simple_tests$ext";
@@ -4427,10 +4434,10 @@ my  $idx_type = "";
 				defined($mate1_file) || die;
 				defined($mate2_file) || die;
 				# Paired
-				open(M1, ">.simple_tests.1$ext") || die;
+				open(M1, $cmd . ".simple_tests.1$ext") || die;
 				print M1 $mate1_file;
 				close(M1);
-				open(M2, ">.simple_tests.2$ext") || die;
+				open(M2, $cmd . ".simple_tests.2$ext") || die;
 				print M2 $mate2_file;
 				close(M2);
 				$mate1arg = ".simple_tests.1$ext";
@@ -4448,8 +4455,8 @@ my  $idx_type = "";
 			$names,
 			".simple_tests.1.fq",
 			".simple_tests.2.fq");
-		$mate1arg = ".simple_tests.1.fq";
-		$mate2arg = ".simple_tests.2.fq";
+		$mate1arg = defined($compressed) ? ".simple_tests.1.fq.gz" : ".simple_tests.1.fq";
+		$mate2arg = defined($compressed) ? ".simple_tests.2.fq.gz" : ".simple_tests.2.fq";
 		$formatarg = "-q";
 		$readarg = $mate1arg;
 	}

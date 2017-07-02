@@ -154,7 +154,7 @@ struct GroupWalkState {
 struct WalkMetrics {
 
 	WalkMetrics() {
-	    reset();
+		reset();
 	}
 
 	/**
@@ -162,12 +162,12 @@ struct WalkMetrics {
 	 * to update a WalkMetrics shared by many threads.
 	 */
 	void merge(const WalkMetrics& m, bool getLock = false) {
-		ThreadSafe ts(&mutex_m, getLock);
-		bwops += m.bwops;
-		branches += m.branches;
-		resolves += m.resolves;
-		refresolves += m.refresolves;
-		reports += m.reports;
+		if(getLock) {
+			ThreadSafe ts(mutex_m);
+			mergeImpl(m);
+		} else {
+			mergeImpl(m);
+		}
 	}
 	
 	/**
@@ -183,6 +183,19 @@ struct WalkMetrics {
 	uint64_t refresolves; // # resolutions caused by reference scanning
 	uint64_t reports;     // # offs reported (1 can be reported many times)
 	MUTEX_T mutex_m;
+
+private:
+	/**
+	 * Sum each across this object and 'm'.  This is the only safe way
+	 * to update a WalkMetrics shared by many threads.
+	 */
+	void mergeImpl(const WalkMetrics& m) {
+		bwops += m.bwops;
+		branches += m.branches;
+		resolves += m.resolves;
+		refresolves += m.refresolves;
+		reports += m.reports;
+	}
 };
 
 /**

@@ -55,9 +55,9 @@ pair<bool, int> QseqPatternSource::nextBatchFromFile(
 	PerThreadReadBuf& pt,
 	bool batch_a)
 {
-	int c = getc_unlocked(fp_);
+	int c = getc_wrapper();
 	while(c >= 0 && (c == '\n' || c == '\r')) {
-		c = getc_unlocked(fp_);
+		c = getc_wrapper();
 	}
 	EList<Read>& readbuf = batch_a ? pt.bufa_ : pt.bufb_;
 	size_t readi = 0;
@@ -66,10 +66,10 @@ pair<bool, int> QseqPatternSource::nextBatchFromFile(
 		readbuf[readi].readOrigBuf.clear();
 		while(c >= 0 && c != '\n' && c != '\r') {
 			readbuf[readi].readOrigBuf.append(c);
-			c = getc_unlocked(fp_);
+			c = getc_wrapper();
 		}
 		while(c >= 0 && (c == '\n' || c == '\r')) {
-			c = getc_unlocked(fp_);
+			c = getc_wrapper();
 		}
 	}
 	return make_pair(c < 0, readi);

@@ -244,89 +244,82 @@ public:
         return bsz;
     }
 
-    
-    /**
-     * Get the next suffix; compute the next bucket if necessary.
-     */
-    virtual TIndexOffU nextSuffix() 
-    {
-        // Launch threads if not
-        if(this->_nthreads > 1) 
-        {
+
+	/**
+	 * Get the next suffix; compute the next bucket if necessary.
+	 */
+	virtual TIndexOffU nextSuffix()
+	{
+		// Launch threads if not
+		if(this->_nthreads > 1) {
 #ifdef WITH_TBB
-            if(!thread_group_started)
-            {
+			if(!thread_group_started) {
 #else
-            if(_threads.size() == 0) 
-            {
+			if(_threads.size() == 0) {
 #endif
-	      _done.resize(_sampleSuffs.size() + 1);
-	      _done.fill(false);
-                _itrBuckets.resize(this->_nthreads);
-                _tparams.resize(this->_nthreads);
-                for(int tid = 0; tid < this->_nthreads; tid++) {
-                    _tparams[tid].first = this;
-                    _tparams[tid].second = tid;
+				_done.resize(_sampleSuffs.size() + 1);
+				_done.fill(false);
+				_itrBuckets.resize(this->_nthreads);
+				_tparams.resize(this->_nthreads);
+				for(int tid = 0; tid < this->_nthreads; tid++) {
+					_tparams[tid].first = this;
+					_tparams[tid].second = tid;
 #ifdef WITH_TBB
-	 	                tbb_grp.run(nextBlock_Worker((void*)&_tparams[tid]));
-		            }
-		            thread_group_started = true;
-            }
+					tbb_grp.run(nextBlock_Worker((void*)&_tparams[tid]));
+				}
+				thread_group_started = true;
 #else
-                    _threads.push_back(new tthread::thread(nextBlock_Worker, (void*)&_tparams[tid]));
-                }
-                assert_eq(_threads.size(), (size_t)this->_nthreads);
-            }
+					_threads.push_back(new tthread::thread(nextBlock_Worker, (void*)&_tparams[tid]));
+				}
+				assert_eq(_threads.size(), (size_t)this->_nthreads);
 #endif
-        }
-        if(this->_itrPushedBackSuffix != OFF_MASK) {
-            TIndexOffU tmp = this->_itrPushedBackSuffix;
-            this->_itrPushedBackSuffix = OFF_MASK;
-            return tmp;
-        }
-        while(this->_itrBucketPos >= this->_itrBucket.size() ||
-              this->_itrBucket.size() == 0)
-        {
-            if(!hasMoreBlocks()) {
-                throw out_of_range("No more suffixes");
-            }
-            if(this->_nthreads == 1) {
-                nextBlock((int)_cur);
-                _cur++;
-            } 
-            else 
-            {
-                while(!_done[this->_itrBucketIdx]) 
-                {
+			}
+		}
+		if(this->_itrPushedBackSuffix != OFF_MASK) {
+			TIndexOffU tmp = this->_itrPushedBackSuffix;
+			this->_itrPushedBackSuffix = OFF_MASK;
+			return tmp;
+		}
+		while(this->_itrBucketPos >= this->_itrBucket.size() ||
+		      this->_itrBucket.size() == 0)
+		{
+			if(!hasMoreBlocks()) {
+				throw out_of_range("No more suffixes");
+			}
+			if(this->_nthreads == 1) {
+				nextBlock((int)_cur);
+				_cur++;
+			} else {
+				while(!_done[this->_itrBucketIdx]) {
 #if defined(_TTHREAD_WIN32_)
-                    Sleep(1);
+					Sleep(1);
 #else
-                    const static timespec ts = {0, 1000000};  // 1 millisecond
-                    nanosleep(&ts, NULL);
+					const static timespec ts = {0, 1000000};  // 1 millisecond
+					nanosleep(&ts, NULL);
 #endif
-                }
-                // Read suffixes from a file
-                std::ostringstream number; number << this->_itrBucketIdx;
-                const string fname = _base_fname + "." + number.str() + ".sa";
-                ifstream sa_file(fname.c_str(), ios::binary);
-                if(!sa_file.good()) {
-                    cerr << "Could not open file for reading a suffix array: \"" << fname << "\"" << endl;
-                    throw 1;
-                }
-                size_t numSAs = readU<TIndexOffU>(sa_file, _bigEndian);
-                this->_itrBucket.resizeExact(numSAs);
-                for(size_t i = 0; i < numSAs; i++) {
-                    this->_itrBucket[i] = readU<TIndexOffU>(sa_file, _bigEndian);
-                }
-                sa_file.close();
-                std::remove(fname.c_str());
-            }
-            this->_itrBucketIdx++;
-            this->_itrBucketPos = 0;
-        }
-        return this->_itrBucket[this->_itrBucketPos++];
-    }
-    
+				}
+				// Read suffixes from a file
+				std::ostringstream number; number << this->_itrBucketIdx;
+				const string fname = _base_fname + "." + number.str() + ".sa";
+				ifstream sa_file(fname.c_str(), ios::binary);
+				if(!sa_file.good()) {
+					cerr << "Could not open file for reading a suffix array: \"" << fname << "\"" << endl;
+					throw 1;
+				}
+				size_t numSAs = readU<TIndexOffU>(sa_file, _bigEndian);
+				this->_itrBucket.resizeExact(numSAs);
+				for(size_t i = 0; i < numSAs; i++) {
+					this->_itrBucket[i] = readU<TIndexOffU>(sa_file, _bigEndian);
+				}
+				sa_file.close();
+				std::remove(fname.c_str());
+			}
+			this->_itrBucketIdx++;
+			this->_itrBucketPos = 0;
+		}
+		return this->_itrBucket[this->_itrBucketPos++];
+	}
+
     /// Defined in blockwise_sa.cpp
     virtual void nextBlock(int cur_block, int tid = 0);
     
@@ -361,7 +354,7 @@ public:
         while(true) {
             size_t cur = 0;
             {
-                ThreadSafe ts(&sa->_mutex, sa->_nthreads > 1);
+                ThreadSafe ts(sa->_mutex);
                 cur = sa->_cur;
                 if(cur > sa->_sampleSuffs.size()) break;
                 sa->_cur++;
@@ -1007,7 +1000,7 @@ void KarkkainenBlockwiseSA<TStr>::nextBlock(int cur_block, int tid) {
 #endif
     EList<TIndexOffU>& bucket = (this->_nthreads > 1 ? this->_itrBuckets[tid] : this->_itrBucket);
     {
-        ThreadSafe ts(&_mutex, this->_nthreads > 1);
+        ThreadSafe ts(_mutex);
         VMSG_NL("Getting block " << (cur_block+1) << " of " << _sampleSuffs.size()+1);
     }
     assert(_built);
@@ -1022,7 +1015,7 @@ void KarkkainenBlockwiseSA<TStr>::nextBlock(int cur_block, int tid) {
         // Special case: if _sampleSuffs is 0, then multikey-quicksort
         // everything
         {
-            ThreadSafe ts(&_mutex, this->_nthreads > 1);
+            ThreadSafe ts(_mutex);
             VMSG_NL("  No samples; assembling all-inclusive block");
         }
         assert_eq(0, cur_block);
@@ -1047,7 +1040,7 @@ void KarkkainenBlockwiseSA<TStr>::nextBlock(int cur_block, int tid) {
     } else {
         try {
             {
-                ThreadSafe ts(&_mutex, this->_nthreads > 1);
+                ThreadSafe ts(_mutex);
                 VMSG_NL("  Reserving size (" << this->bucketSz() << ") for bucket " << (cur_block+1));
             }
             // BTL: Add a +100 fudge factor; there seem to be instances
@@ -1076,7 +1069,7 @@ void KarkkainenBlockwiseSA<TStr>::nextBlock(int cur_block, int tid) {
         try {
             // Timer timer(cout, "  Calculating Z arrays time: ", this->verbose());
             {
-                ThreadSafe ts(&_mutex, this->_nthreads > 1);
+                ThreadSafe ts(_mutex);
                 VMSG_NL("  Calculating Z arrays for bucket " << (cur_block+1));
             }
             if(!last) {
@@ -1124,14 +1117,14 @@ void KarkkainenBlockwiseSA<TStr>::nextBlock(int cur_block, int tid) {
         {
             // Timer timer(cout, "  Block accumulator loop time: ", this->verbose());
             {
-                ThreadSafe ts(&_mutex, this->_nthreads > 1);
+                ThreadSafe ts(_mutex);
                 VMSG_NL("  Entering block accumulator loop for bucket " << (cur_block+1) << ":");
             }
             TIndexOffU lenDiv10 = (len + 9) / 10;
             for(TIndexOffU iten = 0, ten = 0; iten < len; iten += lenDiv10, ten++) {
                 TIndexOffU itenNext = iten + lenDiv10;
                 {
-                    ThreadSafe ts(&_mutex, this->_nthreads > 1);
+                    ThreadSafe ts(_mutex);
                     if(ten > 0) VMSG_NL("  bucket " << (cur_block+1) << ": " << (ten * 10) << "%");
                 }
                 for(TIndexOffU i = iten; i < itenNext && i < len; i++) {
@@ -1165,7 +1158,7 @@ void KarkkainenBlockwiseSA<TStr>::nextBlock(int cur_block, int tid) {
                 }
             } // end loop over all suffixes of t
             {
-                ThreadSafe ts(&_mutex, this->_nthreads > 1);
+                ThreadSafe ts(_mutex);
                 VMSG_NL("  bucket " << (cur_block+1) << ": 100%");
             }
         }
@@ -1174,7 +1167,7 @@ void KarkkainenBlockwiseSA<TStr>::nextBlock(int cur_block, int tid) {
     if(bucket.size() > 0) {
         Timer timer(cout, "  Sorting block time: ", this->verbose());
         {
-            ThreadSafe ts(&_mutex, this->_nthreads > 1);
+            ThreadSafe ts(_mutex);
             VMSG_NL("  Sorting block of length " << bucket.size() << " for bucket " << (cur_block+1));
         }
         this->qsort(bucket);
@@ -1187,7 +1180,7 @@ void KarkkainenBlockwiseSA<TStr>::nextBlock(int cur_block, int tid) {
         bucket.push_back(len);
     }
     {
-        ThreadSafe ts(&_mutex, this->_nthreads > 1);
+        ThreadSafe ts(_mutex);
         VMSG_NL("Returning block of " << bucket.size() << " for bucket " << (cur_block+1));
     }
 }

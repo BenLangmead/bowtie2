@@ -12,6 +12,7 @@ branches:
   - master
   - cleaner_parsing
   - batch_parsing
+  - batch_parsing_output
   - no-io
   - rel2.3
 script: make allall && make simple-test

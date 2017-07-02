@@ -123,8 +123,7 @@ you may want to consider using tools like [NUCmer], [BLAT], or [BLAST].  These
 tools can be extremely slow when the reference genome is long, but are often
 adequate when the reference is short.
 
-Bowtie 2 does not support alignment of colorspace reads.  This might be
-supported in future versions.
+Bowtie 2 does not support alignment of colorspace reads.
 
 [MUMmer]: http://mummer.sourceforge.net/
 [NUCmer]: http://mummer.sourceforge.net/manual/#nucmer
@@ -919,6 +918,46 @@ File to write SAM alignments to.  By default, alignments are written to the
 Reads (specified with `<m1>`, `<m2>`, `<s>`) are FASTQ files.  FASTQ files
 usually have extension `.fq` or `.fastq`.  FASTQ is the default format.  See
 also: [`--solexa-quals`] and [`--int-quals`].
+
+</td></tr>
+<tr><td id="bowtie2-options-interleaved">
+
+[`--interleaved`]: #bowtie2-options-interleaved
+
+    --interleaved
+
+</td><td>
+
+Reads interleaved FASTQ files where the first two records (8 lines)
+represent a mate pair.
+
+</td></tr>
+<tr><td id="bowtie2-options-tab5">
+
+[`--tab5`]: #bowtie2-options-tab5
+
+    --tab5
+
+</td><td>
+
+Each read or pair is on a single line. An unpaired read line is
+[name]\t[seq]\t[qual]\n. A paired-end read line is
+[name]\t[seq1]\t[qual1]\t[seq2]\t[qual2]\n. An input file can be a
+mix of unpaired and paired-end reads and Bowtie 2 recognizes each
+according to the number of fields, handling each as it should.
+
+</td></tr>
+<tr><td id="bowtie2-options-tab6">
+
+[`--tab6`]: #bowtie2-options-tab6
+
+    --tab6
+
+</td><td>
+
+Similar to [`--tab5`] except, for paired-end reads, the second end can have a
+different name from the first:
+[name1]\t[seq1]\t[qual1]\t[name2]\t[seq2]\t[qual2]\n
 
 </td></tr>
 <tr><td id="bowtie2-options-qseq">

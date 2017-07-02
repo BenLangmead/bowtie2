@@ -20,6 +20,9 @@
 #ifndef PAT_H_
 #define PAT_H_
 
+#include <stdio.h>
+#include <sys/stat.h>
+#include <zlib.h>
 #include <cassert>
 #include <string>
 #include <ctype.h>
@@ -75,18 +78,18 @@ struct PatternParams {
 		nthreads(nthreads_),
 		fixName(fixName_) { }
 
-	int format;           // file format
-	bool fileParallel;    // true -> wrap files with separate PatternComposers
-	uint32_t seed;        // pseudo-random seed
-	size_t max_buf;       // number of reads to buffer in one read
-	bool solexa64;        // true -> qualities are on solexa64 scale
-	bool phred64;         // true -> qualities are on phred64 scale
-	bool intQuals;        // true -> qualities are space-separated numbers
-	int sampleLen;        // length of sampled reads for FastaContinuous...
-	int sampleFreq;       // frequency of sampled reads for FastaContinuous...
-	size_t skip;          // skip the first 'skip' patterns
-	int nthreads;         // number of threads for locking
-	bool fixName;         //
+	int format;			  // file format
+	bool fileParallel;	  // true -> wrap files with separate PatternComposers
+	uint32_t seed;		  // pseudo-random seed
+	size_t max_buf;		  // number of reads to buffer in one read
+	bool solexa64;		  // true -> qualities are on solexa64 scale
+	bool phred64;		  // true -> qualities are on phred64 scale
+	bool intQuals;		  // true -> qualities are space-separated numbers
+	int sampleLen;		  // length of sampled reads for FastaContinuous...
+	int sampleFreq;		  // frequency of sampled reads for FastaContinuous...
+	size_t skip;		  // skip the first 'skip' patterns
+	int nthreads;		  // number of threads for locking
+	bool fixName;		  //
 };
 
 /**
@@ -231,7 +234,6 @@ struct PerThreadReadBuf {
 	void setReadId(TReadId rdid) {
 		rdid_ = rdid;
 	}
-
 	size_t raw_bufa_length; //actual length of buffer a at any given time	
 	size_t raw_bufb_length; //actual length of buffer b at any given time	
 	static const size_t max_raw_buf_ = 8000; //max # characters to read into buffer at once, 8000 ~32 100 bp reads
@@ -343,7 +345,7 @@ public:
 	/**
 	 * Read next batch.  However, batch concept is not very applicable for this
 	 * PatternSource where all the info has already been parsed into the fields
-	 * in the contsructor.  This essentially modifies the pt as though we read
+	 * in the contsructor.	This essentially modifies the pt as though we read
 	 * in some number of patterns.
 	 */
 	virtual std::pair<bool, int> nextBatch(
@@ -367,12 +369,16 @@ public:
 	
 private:
 
-	size_t cur_;               // index for first read of next batch
-	size_t skip_;              // # reads to skip
-	bool paired_;              // whether reads are paired
-	EList<string> tokbuf_;     // buffer for storing parsed tokens
+	pair<bool, int> nextBatchImpl(
+		PerThreadReadBuf& pt,
+		bool batch_a);
+
+	size_t cur_;			   // index for first read of next batch
+	size_t skip_;			   // # reads to skip
+	bool paired_;			   // whether reads are paired
+	EList<string> tokbuf_;	   // buffer for storing parsed tokens
 	EList<Read::TBuf> bufs_;   // per-read buffers
-	char nametmp_[20];         // temp buffer for constructing name
+	char nametmp_[20];		   // temp buffer for constructing name
 };
 
 /**
@@ -392,7 +398,8 @@ public:
 		fp_(NULL),
 		is_open_(false),
 		skip_(p.skip),
-		first_(true)
+		first_(true),
+		compressed_(false)
 	{
 		assert_gt(infiles.size(), 0);
 		errs_.resize(infiles_.size());
@@ -406,14 +413,14 @@ public:
 	 */
 	virtual ~CFilePatternSource() {
 		if(is_open_) {
-			assert(fp_ != NULL);
-			fclose(fp_);
+				assert(fp_ != NULL);
+				fclose(fp_);
 		}
 	}
 
 	/**
 	 * Fill Read with the sequence, quality and name for the next
-	 * read in the list of read files.  This function gets called by
+	 * read in the list of read files.	This function gets called by
 	 * all the search threads, so we must handle synchronization.
 	 *
 	 * Returns pair<bool, int> where bool indicates whether we're
@@ -439,7 +446,7 @@ protected:
 
 	/**
 	 * Light-parse a batch of unpaired reads from current file into the given
-	 * buffer.  Called from CFilePatternSource.nextBatch().
+	 * buffer.	Called from CFilePatternSource.nextBatch().
 	 */
 	virtual std::pair<bool, int> nextBatchFromFile(
 		PerThreadReadBuf& pt,
@@ -454,15 +461,49 @@ protected:
 	 * Open the next file in the list of input files.
 	 */
 	void open();
+
+	int getc_wrapper() {
+		//return compressed_ ? gzgetc(zfp_) : getc_unlocked(fp_);
+		return getc_unlocked(fp_);
+	}
+
+	int ungetc_wrapper(int c) {
+		//return compressed_ ? gzungetc(c, zfp_) : ungetc(c, fp_);
+		return ungetc(c, fp_);
+	}
+
+	bool is_gzipped_file(const std::string& filename) {
+		struct stat s;
+		if (stat(filename.c_str(), &s) != 0) {
+			perror("stat");
+		}
+		else {
+			if (S_ISFIFO(s.st_mode))
+				return true;
+		}
+		size_t pos = filename.find_last_of(".");
+		std::string ext = (pos == std::string::npos) ? "" : filename.substr(pos + 1);
+		if (ext == "" || ext == "gz" || ext == "Z") {
+			return true;
+		}
+		return false;
+	}
 	
 	EList<std::string> infiles_;  // filenames for read files
-	EList<bool> errs_;       // whether we've already printed an error for each file
-	size_t filecur_;         // index into infiles_ of next file to read
-	FILE *fp_;               // read file currently being read from
-	bool is_open_;           // whether fp_ is currently open
-	TReadId skip_;           // number of reads to skip
-	bool first_;             // parsing first record in first file?
-	char buf_[64*1024];      // file buffer
+	EList<bool> errs_;		 // whether we've already printed an error for each file
+	size_t filecur_;		 // index into infiles_ of next file to read
+	FILE *fp_;				 // read file currently being read from
+	bool is_open_;			 // whether fp_ is currently open
+	TReadId skip_;			 // number of reads to skip
+	bool first_;			 // parsing first record in first file?
+	char buf_[64*1024];		 // file buffer
+	bool compressed_;
+
+private:
+
+	pair<bool, int> nextBatchImpl(
+		PerThreadReadBuf& pt,
+		bool batch_a);
 };
 
 /**
@@ -556,10 +597,10 @@ protected:
 		PerThreadReadBuf& pt,
 		bool batch_a);
 
-	bool solQuals_;     // base qualities are log odds
+	bool solQuals_;		// base qualities are log odds
 	bool phred64Quals_; // base qualities are on -64 scale
-	bool intQuals_;     // base qualities are space-separated strings
-	bool secondName_;   // true if --tab6, false if --tab5
+	bool intQuals_;		// base qualities are space-separated strings
+	bool secondName_;	// true if --tab6, false if --tab5
 };
 
 /**
@@ -574,8 +615,8 @@ protected:
  * 5. X coordinate of spot
  * 6. Y coordinate of spot
  * 7. Index: "Index sequence or 0. For no indexing, or for a file that
- *    has not been demultiplexed yet, this field should have a value of
- *    0."
+ *	  has not been demultiplexed yet, this field should have a value of
+ *	  0."
  * 8. Read number: 1 for unpaired, 1 or 2 for paired
  * 9. Sequence
  * 10. Quality
@@ -607,9 +648,9 @@ protected:
 		PerThreadReadBuf& pt,
 		bool batch_a);
 
-	bool solQuals_;     // base qualities are log odds
+	bool solQuals_;		// base qualities are log odds
 	bool phred64Quals_; // base qualities are on -64 scale
-	bool intQuals_;     // base qualities are space-separated strings
+	bool intQuals_;		// base qualities are space-separated strings
 	EList<std::string> qualToks_;
 };
 
@@ -668,19 +709,19 @@ protected:
 private:
 	const size_t length_; /// length of reads to generate
 	const size_t freq_;   /// frequency to sample reads
-	size_t eat_;        /// number of characters we need to skip before
-	                    /// we have flushed all of the ambiguous or
-	                    /// non-existent characters out of our read
-	                    /// window
-	bool beginning_;    /// skipping over the first read length?
-	char buf_[1024];    /// FASTA sequence buffer
+	size_t eat_;		/// number of characters we need to skip before
+						/// we have flushed all of the ambiguous or
+						/// non-existent characters out of our read
+						/// window
+	bool beginning_;	/// skipping over the first read length?
+	char buf_[1024];	/// FASTA sequence buffer
 	Read::TBuf name_prefix_buf_; /// FASTA sequence name buffer
 	char name_int_buf_[20]; /// for composing offsets for names
-	size_t bufCur_;     /// buffer cursor; points to where we should
-	                    /// insert the next character
+	size_t bufCur_;		/// buffer cursor; points to where we should
+						/// insert the next character
 	uint64_t subReadCnt_;/// number to subtract from readCnt_ to get
-	                    /// the pat id to output (so it resets to 0 for
-	                    /// each new sequence)
+						/// the pat id to output (so it resets to 0 for
+						/// each new sequence)
 };
 
 /**
@@ -693,12 +734,13 @@ public:
 
 	FastqPatternSource(
 		const EList<std::string>& infiles,
-		const PatternParams& p) :
+		const PatternParams& p, bool interleaved = false) :
 		CFilePatternSource(infiles, p),
 		first_(true),
 		solQuals_(p.solexa64),
 		phred64Quals_(p.phred64),
-		intQuals_(p.intQuals) { }
+		intQuals_(p.intQuals),
+		interleaved_(interleaved) { }
 	
 	virtual void reset() {
 		first_ = true;
@@ -726,14 +768,15 @@ protected:
 		first_ = true;
 	}
 
-	bool first_;        // parsing first read in file
-	bool solQuals_;     // base qualities are log odds
+	bool first_;		// parsing first read in file
+	bool solQuals_;		// base qualities are log odds
 	bool phred64Quals_; // base qualities are on -64 scale
-	bool intQuals_;     // base qualities are space-separated strings
+	bool intQuals_;		// base qualities are space-separated strings
+	bool interleaved_;	// fastq reads are interleaved
 };
 
 /**
- * Read a Raw-format file (one sequence per line).  No quality strings
+ * Read a Raw-format file (one sequence per line).	No quality strings
  * allowed.  All qualities are assumed to be 'I' (40 on the Phred-33
  * scale).
  */
@@ -810,15 +853,15 @@ public:
 	 * dispense them.
 	 */
 	static PatternComposer* setupPatternComposer(
-		const EList<std::string>& si,    // singles, from argv
-		const EList<std::string>& m1,    // mate1's, from -1 arg
-		const EList<std::string>& m2,    // mate2's, from -2 arg
-		const EList<std::string>& m12,   // both mates on each line, from --12
-		const EList<std::string>& q,     // qualities associated with singles
-		const EList<std::string>& q1,    // qualities associated with m1
-		const EList<std::string>& q2,    // qualities associated with m2
-		const PatternParams& p,     // read-in params
-		bool verbose);              // be talkative?
+		const EList<std::string>& si,	 // singles, from argv
+		const EList<std::string>& m1,	 // mate1's, from -1 arg
+		const EList<std::string>& m2,	 // mate2's, from -2 arg
+		const EList<std::string>& m12,	 // both mates on each line, from --12
+		const EList<std::string>& q,	 // qualities associated with singles
+		const EList<std::string>& q1,	 // qualities associated with m1
+		const EList<std::string>& q2,	 // qualities associated with m2
+		const PatternParams& p,		// read-in params
+		bool verbose);				// be talkative?
 	
 protected:
 	
@@ -912,7 +955,7 @@ public:
 		// srca_ and srcb_ must be parallel
 		assert_eq(srca_->size(), srcb_->size());
 		for(size_t i = 0; i < srca_->size(); i++) {
-			// Can't have NULL first-mate sources.  Second-mate sources
+			// Can't have NULL first-mate sources.	Second-mate sources
 			// can be NULL, in the case when the corresponding first-
 			// mate source is unpaired.
 			assert((*srca_)[i] != NULL);
@@ -1035,10 +1078,10 @@ private:
 	}
 
 	PatternComposer& composer_; // pattern composer
-	PerThreadReadBuf buf_;      // read data buffer
-	const PatternParams& pp_;   // pattern-related parameters
-	bool last_batch_;           // true if this is final batch
-	int last_batch_size_;       // # reads read in previous batch
+	PerThreadReadBuf buf_;		// read data buffer
+	const PatternParams& pp_;	// pattern-related parameters
+	bool last_batch_;			// true if this is final batch
+	int last_batch_size_;		// # reads read in previous batch
 };
 
 /**

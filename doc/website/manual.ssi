@@ -1,5 +1,5 @@
 <h1>Table of Contents</h1>
-<p>&nbsp;Version <b>2.3.0</b></p>
+<p>&nbsp;Version <b>2.3.1</b></p>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
@@ -346,6 +346,27 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC</code></pr
 </td><td>
 
 <p>Reads (specified with <code>&lt;m1&gt;</code>, <code>&lt;m2&gt;</code>, <code>&lt;s&gt;</code>) are FASTQ files. FASTQ files usually have extension <code>.fq</code> or <code>.fastq</code>. FASTQ is the default format. See also: <a href="#bowtie2-options-solexa-quals"><code>--solexa-quals</code></a> and <a href="#bowtie2-options-int-quals"><code>--int-quals</code></a>.</p>
+</td></tr>
+<tr><td id="bowtie2-options-interleaved">
+
+<pre><code>--interleaved</code></pre>
+</td><td>
+
+<p>Reads interleaved FASTQ files where the first two records (8 lines) represent a mate pair.</p>
+</td></tr>
+<tr><td id="bowtie2-options-tab5">
+
+<pre><code>--tab5</code></pre>
+</td><td>
+
+<p>Each read or pair is on a single line. An unpaired read line is [name]. A paired-end read line is [name]. An input file can be a mix of unpaired and paired-end reads and Bowtie 2 recognizes each according to the number of fields, handling each as it should.</p>
+</td></tr>
+<tr><td id="bowtie2-options-tab6">
+
+<pre><code>--tab6</code></pre>
+</td><td>
+
+<p>Similar to <a href="#bowtie2-options-tab5"><code>--tab5</code></a> except, for paired-end reads, the second end can have a different name from the first: [name1]</p>
 </td></tr>
 <tr><td id="bowtie2-options-qseq">
 

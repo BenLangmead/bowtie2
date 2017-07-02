@@ -326,11 +326,11 @@ void SwDriver::extend(
 
 		// Have to do both because whether we can get through an N depends on
 		// which direction we're coming in
-		bool fwContains = ebwtFw.contains(tmp_rdseq_);
-		tmp_rdseq_.reverse();
-		bool bwContains = ebwtBw != NULL && ebwtBw->contains(tmp_rdseq_);
-		tmp_rdseq_.reverse();
-		assert(fwContains || bwContains);
+//		bool fwContains = ebwtFw.contains(tmp_rdseq_);
+//		tmp_rdseq_.reverse();
+//		bool bwContains = ebwtBw != NULL && ebwtBw->contains(tmp_rdseq_);
+//		tmp_rdseq_.reverse();
+//		assert(fwContains || bwContains);
 	}
 #endif
 	ASSERT_ONLY(tmp_rdseq_.reverse());
@@ -471,11 +471,11 @@ void SwDriver::extend(
 	
 		// Have to do both because whether we can get through an N depends on
 		// which direction we're coming in
-		bool fwContains = ebwtFw.contains(tmp_rdseq_);
-		tmp_rdseq_.reverse();
-		bool bwContains = ebwtBw != NULL && ebwtBw->contains(tmp_rdseq_);
-		tmp_rdseq_.reverse();
-		assert(fwContains || bwContains);
+//		bool fwContains = ebwtFw.contains(tmp_rdseq_);
+//		tmp_rdseq_.reverse();
+//		bool bwContains = ebwtBw != NULL && ebwtBw->contains(tmp_rdseq_);
+//		tmp_rdseq_.reverse();
+//		assert(fwContains || bwContains);
 	}
 #endif
 	assert_lt(nlex, rdlen);

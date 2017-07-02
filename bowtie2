@@ -217,7 +217,7 @@ for(my $i = 0; $i < scalar(@bt2_args); $i++) {
 			last;
 		}
 	}
-    if ($arg =~ /(gz|bz2|lz4)$/) {
+    if ($arg =~ /(bz2|lz4)$/) {
         push @bt2w_args, ("-U", $arg);
         $bt2_args[$i] = undef;
     }
@@ -316,7 +316,7 @@ sub cat_file($$) {
 sub wrapInput($$$) {
 	my ($unps, $mate1s, $mate2s) = @_;
 	for my $fn (@$unps, @$mate1s, @$mate2s) {
-		return 1 if $fn =~ /\.gz$/ || $fn =~ /\.bz2$/ || $fn =~ /\.lz4$/;
+		return 1 if $fn =~ /\.bz2$/ || $fn =~ /\.lz4$/;
 	}
 	return 0;
 }
@@ -550,7 +550,7 @@ if(defined($cap_out)) {
 			my $fl = substr($_, $tab1_i, $tab2_i - $tab1_i);
 			my $unal = ($fl & 4) != 0;
 			$filt = 1 if $no_unal && $unal;
-			if($passthru) {
+			if($passthru && ($fl & 256) == 0) {
 				if(scalar(keys %read_fhs) == 0) {
 					# Next line is read with some whitespace escaped
 					my $l = <BT>;
