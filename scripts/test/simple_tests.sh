@@ -31,5 +31,4 @@ make $* bowtie2-align-s \
 		bowtie2-build-l-debug && \
 perl scripts/test/simple_tests.pl \
 	--bowtie2=./bowtie2 \
-	--bowtie2-build=./bowtie2-build \
-	--compressed
+	--bowtie2-build=./bowtie2-build
