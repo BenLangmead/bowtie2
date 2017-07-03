@@ -53,6 +53,7 @@ extern "C" {
  * bowtie.
  */
 
+/*
 static volatile sig_atomic_t done = false;
 
 static const char *options[] = {
@@ -81,7 +82,6 @@ static const char *options[] = {
 "--trim5",              "--upto",                  NULL
 };
 
-
 static bool isdirectory(const char *path) {
 	struct stat statbuf;
 	if(stat(path, &statbuf) != 0) {
@@ -90,6 +90,7 @@ static bool isdirectory(const char *path) {
 	}
 	return S_ISDIR(statbuf.st_mode);
 }
+ */
 /*
 static char *optgen(const char *text, int state) {
 	static int list_index, len;
@@ -178,9 +179,8 @@ bool called_from_wrapper(int argc, const char **argv) {
 }
 
 int main(int argc, const char **argv) {
-	int offset = called_from_wrapper(argc, argv) ? 3 : 1;
-
-	/*if(argc > offset + 1 && strcmp(argv[offset], "-A") == 0) {
+	/*int offset = called_from_wrapper(argc, argv) ? 3 : 1;
+    if(argc > offset + 1 && strcmp(argv[offset], "-A") == 0) {
 		const char *file = argv[offset+1];
 		ifstream in;
 		istream *inptr = &in;
