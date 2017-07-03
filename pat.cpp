@@ -496,8 +496,8 @@ VectorPatternSource::VectorPatternSource(
 	const EList<string>& seqs,
 	const PatternParams& p) :
 	PatternSource(p),
-	cur_(p.skip),
-	skip_(p.skip),
+	cur_(0),
+	skip_(0),
 	paired_(false),
 	tokbuf_(),
 	bufs_()
