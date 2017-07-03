@@ -285,11 +285,11 @@ pair<bool, int> DualPatternComposer::nextBatch(PerThreadReadBuf& pt) {
 }
 
 size_t PatternComposer::update_total_read_count(size_t read_count) {
-		// could use an atomic here, but going with locking for portability
-		ThreadSafe ts(&mutex_m2); 
-		total_read_count+=read_count; 
-		return total_read_count;
-	}
+    // could use an atomic here, but going with locking for portability
+    ThreadSafe ts(mutex_m2);
+    total_read_count+=read_count; 
+    return total_read_count;
+}
 
 /**
  * Given the values for all of the various arguments used to specify
@@ -931,8 +931,7 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 	PerThreadReadBuf& pt,
 	bool batch_a)
 {
-<<<<<<< HEAD
-	//changing this to read ~500K bytes 
+	//changing this to read ~500K bytes
 	//+ additional to the end of a FASTQ record
 	//into a raw buffer which is returned to
 	//PatternSourcePerThread::nextReadPair()
@@ -946,10 +945,6 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 	char* readBuf = batch_a ? pt.raw_bufa_ : pt.raw_bufb_;
 	size_t* raw_buf_length = batch_a ? &pt.raw_bufa_length : &pt.raw_bufb_length;
 	size_t bytes_read = 0;
-=======
-	int c = -1;
-	EList<Read>* readbuf = batch_a ? &pt.bufa_ : &pt.bufb_;
->>>>>>> origin/batch_parsing_output
 	if(first_) {
 		c = getc_wrapper();
 		if (c == EOF) {
@@ -963,15 +958,10 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 			throw 1;
 		}
 		first_ = false;
-<<<<<<< HEAD
 		readBuf[bytes_read++]='@';
-=======
-		(*readbuf)[0].readOrigBuf.append('@');
->>>>>>> origin/batch_parsing_output
 	}
 
-	bool done = false, aborted = false;
-<<<<<<< HEAD
+    bool done = false; //, aborted = false;
 	//size_t bytes_read = fread(readBuf,1,pt.max_raw_buf_,fp_);
 	for(;bytes_read<pt.max_raw_buf_;bytes_read++)
 	{
@@ -1016,38 +1006,12 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 			   (c >= 65 || c == '*' || c == '-')) {
 				new_record = true;
 				newlines = 1;
-=======
-	size_t readi = 0;
-	// Read until we run out of input or until we've filled the buffer
-	while (readi < pt.max_buf_ && !done) {
-		Read::TBuf& buf = (*readbuf)[readi].readOrigBuf;
-		assert(readi == 0 || buf.empty());
-		int newlines = 4;
-		while(newlines) {
-			c = getc_wrapper();
-			done = c < 0;
-			if(c == '\n' || (done && newlines == 1)) {
-				// Saw newline, or EOF that we're
-				// interpreting as final newline
-				newlines--;
-				c = '\n';
-			} else if(done) {
-				// account for newline at the end of the file
-				if (newlines == 4) {
-					newlines = 0;
-				}
-				else {
-					aborted = true; // Unexpected EOF
-				}
-				break;
->>>>>>> origin/batch_parsing_output
 			}
 			if(prev_c == '\n' || prev_c == '\r')
 				prev_line_start_c = c;
 			if(c == '\n' || c == '\r') 
 				newlines++;
 		}
-<<<<<<< HEAD
 		// get last newline
 		if(c >= 0 && i < headroom)
 			readBuf[bytes_read+i] = c;
@@ -1076,20 +1040,6 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 			}
 		}*/
 		*raw_buf_length = bytes_read+i+(i>0?1:0);
-=======
-		if (c > 0) {
-			if (interleaved_) {
-				// alternate between read buffers
-				batch_a = !batch_a;
-				readbuf = batch_a ? &pt.bufa_ : &pt.bufb_;
-				// increment read counter after each pair gets read
-				readi = batch_a ? readi+1 : readi;
-			}
-			else {
-				readi++;
-			}
-		}
->>>>>>> origin/batch_parsing_output
 	}
 	//currently aborted isn't used, not clear how to check for this
 	//return make_pair(done, aborted?1:0);
