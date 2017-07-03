@@ -64,7 +64,7 @@ public:
 		assert(nthreads_ <= 2 || threadSafe);
 		if(!reorder)
 		{
-			fprintf(stderr,"perThreadBufSize for output is %d\n",perThreadBufSize_);
+			//fprintf(stderr,"perThreadBufSize for output is %d\n",perThreadBufSize_);
 			perThreadBuf = new BTString*[nthreads_];
 			perThreadCounter = new int[nthreads_];
 			size_t i = 0;
