@@ -744,7 +744,7 @@ sub genPolicySEED() {
 	my $sd = substr("012", int(rand(2)), 1);
 	if(rand() < 0.9) {
 		# Length
-		$sd .= ",".int(Math::Random::random_uniform(1, 12, 32));
+		$sd .= " -L".int(Math::Random::random_uniform(1, 12, 32));
 	}
 	return $sd;
 }

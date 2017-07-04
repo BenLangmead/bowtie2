@@ -1285,25 +1285,23 @@ static void parseOption(int next_option, const char *arg) {
 			break;
 		}
 		case 'N': {
-			if (!gSeedLenIsSet){
-				polstr += ";SEED=";
-				polstr += arg;
+			int64_t len = parse<size_t>(arg);
+			if (len < 0 || len > 1) {
+				cerr << "Error: -N argument must be within the interval [0,1]; was " << arg << endl;
+				throw 1;
 			}
+			polstr += ";SEED=";
+			polstr += arg;
 			break;
 		}
 		case 'L': {
 			int64_t len = parse<size_t>(arg);
-			if(len < 0) {
-				cerr << "Error: -L argument must be >= 0; was " << arg << endl;
-				throw 1;
-			}
-			if(len > 32) {
-				cerr << "Error: -L argument must be <= 32; was " << arg << endl;
+			if(len < 1 || len > 32) {
+				cerr << "Error: -L argument must be within the interval [1,32]; was " << arg << endl;
 				throw 1;
 			}
 			polstr += ";SEEDLEN=";
 			polstr += arg;
-			gSeedLenIsSet = true;
 			break;
 		}
 		case 'O':
@@ -1342,7 +1340,7 @@ static void parseOption(int next_option, const char *arg) {
 			// Seed mm and length arguments
 			polstr += "SEED=";
 			polstr += (args[0]); // # mismatches
-			if(args.size() >  1) polstr += ("," + args[ 1]); // length
+			if(args.size() >  1) polstr += (";SEEDLEN=" + args[1]); // length
 			if(args.size() >  2) polstr += (";IVAL=" + args[2]); // Func type
 			if(args.size() >  3) polstr += ("," + args[ 3]); // Constant term
 			if(args.size() >  4) polstr += ("," + args[ 4]); // Coefficient

@@ -534,9 +534,9 @@ void SeedAlignmentPolicy::parseString(
 		 *          interval is determined by IVAL.
 		 */
 		else if(tag == "SEED") {
-			if(ctoks.size() > 2) {
+			if(ctoks.size() > 1) {
 				cerr << "Error parsing alignment policy setting "
-				     << "'" << tag.c_str() << "'; RHS must have 1 or 2 tokens, "
+				     << "'" << tag.c_str() << "'; RHS must have 1 token, "
 					 << "had " << ctoks.size() << ".  "
 					 << "Policy: '" << s.c_str() << "'" << endl;
 				assert(false); throw 1;
@@ -552,13 +552,6 @@ void SeedAlignmentPolicy::parseString(
 					cerr << "Error: -N was set to a number less than 0 (" << multiseedMms << ")" << endl;
 					throw 1;
 				}
-			}
-			if(ctoks.size() >= 2) {
-				istringstream tmpss(ctoks[1]);
-				tmpss >> multiseedLen;
-			} else {
-				multiseedLen = gDefaultSeedLen;
-;
 			}
 		}
 		else if(tag == "SEEDLEN") {
