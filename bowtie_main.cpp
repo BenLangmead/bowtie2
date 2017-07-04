@@ -53,8 +53,9 @@ extern "C" {
  * bowtie.
  */
 
-static volatile sig_atomic_t done = false;
+//static volatile sig_atomic_t done = false;
 
+/*
 static const char *options[] = {
 "--al",                 "--al-conc",               "--dpad",            "--end-to-end",
 "--fast",               "--fast-local",            "--fr",              "--gbar",
@@ -90,6 +91,7 @@ static bool isdirectory(const char *path) {
 	}
 	return S_ISDIR(statbuf.st_mode);
 }
+*/
 /*
 static char *optgen(const char *text, int state) {
 	static int list_index, len;
@@ -178,9 +180,9 @@ bool called_from_wrapper(int argc, const char **argv) {
 }
 
 int main(int argc, const char **argv) {
-	int offset = called_from_wrapper(argc, argv) ? 3 : 1;
+	/*int offset = called_from_wrapper(argc, argv) ? 3 : 1;
 
-	/*if(argc > offset + 1 && strcmp(argv[offset], "-A") == 0) {
+	if(argc > offset + 1 && strcmp(argv[offset], "-A") == 0) {
 		const char *file = argv[offset+1];
 		ifstream in;
 		istream *inptr = &in;
