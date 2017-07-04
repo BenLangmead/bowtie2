@@ -56,15 +56,15 @@ public:
 		finished_(RES_CAT),
 		reorder_(reorder),
 		threadSafe_(threadSafe),
+		mutex_m(),
 		nthreads_(nthreads),
-        mutex_m(),
-	perThreadBufSize_(perThreadBufSize)
+		perThreadBufSize_(perThreadBufSize)
 	{
 		nstarted_=0;
 		assert(nthreads_ <= 2 || threadSafe);
 		if(!reorder)
 		{
-			fprintf(stderr,"perThreadBufSize for output is %d\n",perThreadBufSize_);
+			//fprintf(stderr,"perThreadBufSize for output is %d\n",perThreadBufSize_);
 			perThreadBuf = new BTString*[nthreads_];
 			perThreadCounter = new int[nthreads_];
 			size_t i = 0;
