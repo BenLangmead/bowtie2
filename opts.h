@@ -69,6 +69,7 @@ enum {
 	ARG_QUALS2,                 // --Q2
 	ARG_QSEQ,                   // --qseq
 	ARG_SEED_SUMM,              // --seed-summary
+	ARG_SC_UNMAPPED,            // --soft-clipped-unmapped-tlen
 	ARG_OVERHANG,               // --overhang
 	ARG_NO_CACHE,               // --no-cache
 	ARG_USE_CACHE,              // --cache

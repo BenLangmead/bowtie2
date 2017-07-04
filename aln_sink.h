@@ -1029,7 +1029,8 @@ public:
 		const PerReadMetrics& prm,      // per-read metrics
 		const Scoring& sc,              // scoring scheme
 		bool suppressSeedSummary = true,
-		bool suppressAlignments = false);
+		bool suppressAlignments = false,
+		bool scUnMapped = false);
 	
 	/**
 	 * Called by the aligner when a new unpaired or paired alignment is

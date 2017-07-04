@@ -658,7 +658,8 @@ void AlnSinkWrap::finishRead(
 	const PerReadMetrics& prm,      // per-read metrics
 	const Scoring& sc,              // scoring scheme
 	bool suppressSeedSummary,       // = true
-	bool suppressAlignments)        // = false
+	bool suppressAlignments,        // = false
+	bool scUnMapped)                // = false
 {
 	obuf_.clear();
 	OutputQueueMark qqm(g_.outq(), obuf_, rdid_, threadid_);
@@ -776,7 +777,8 @@ void AlnSinkWrap::finishRead(
 				st_.params().mixed,
 				true,       // primary
 				true,       // opp aligned
-				rs2->fw()); // opp fw
+				rs2->fw(),  // opp fw
+				scUnMapped);
 			AlnFlags flags2(
 				ALN_FLAG_PAIR_CONCORD_MATE2,
 				st_.params().mhitsSet(),
@@ -789,7 +791,8 @@ void AlnSinkWrap::finishRead(
 				st_.params().mixed,
 				false,      // primary
 				true,       // opp aligned
-				rs1->fw()); // opp fw
+				rs1->fw(),  // opp fw
+				scUnMapped);
 			// Issue: we only set the flags once, but some of the flags might
 			// vary from pair to pair among the pairs we're reporting.  For
 			// instance, whether the a given mate aligns to the forward strand.
@@ -838,7 +841,7 @@ void AlnSinkWrap::finishRead(
 			//g_.outq().finishRead(obuf_, rdid_, threadid_);
 			return;
 		}
-		// Report concordant paired-end alignments if possible
+		// Report disconcordant paired-end alignments if possible
 		else if(ndiscord > 0) {
 			ASSERT_ONLY(bool ret =) prepareDiscordants();
 			assert(ret);
@@ -861,7 +864,8 @@ void AlnSinkWrap::finishRead(
 				st_.params().mixed,
 				true,       // primary
 				true,       // opp aligned
-				rs2->fw()); // opp fw
+				rs2->fw(),  // opp fw
+				scUnMapped);
 			AlnFlags flags2(
 				ALN_FLAG_PAIR_DISCORD_MATE2,
 				st_.params().mhitsSet(),
@@ -874,7 +878,8 @@ void AlnSinkWrap::finishRead(
 				st_.params().mixed,
 				false,      // primary
 				true,       // opp aligned
-				rs1->fw()); // opp fw
+				rs1->fw(),  // opp fw
+				scUnMapped);
 			SeedAlSumm ssm1, ssm2;
 			sr1->toSeedAlSumm(ssm1);
 			sr2->toSeedAlSumm(ssm2);
@@ -1174,7 +1179,8 @@ void AlnSinkWrap::finishRead(
 				st_.params().mixed,
 				true,   // primary
 				repRs2 != NULL,                    // opp aligned
-				repRs2 == NULL || repRs2->fw());   // opp fw
+				repRs2 == NULL || repRs2->fw(),    // opp fw
+				scUnMapped);
 			for(size_t i = 0; i < rs1u_.size(); i++) {
 				rs1u_[i].setMateParams(ALN_RES_TYPE_UNPAIRED_MATE1, NULL, flags1);
 			}
@@ -1196,7 +1202,8 @@ void AlnSinkWrap::finishRead(
 				st_.params().mixed,
 				true,   // primary
 				repRs1 != NULL,                  // opp aligned
-				repRs1 == NULL || repRs1->fw()); // opp fw
+				repRs1 == NULL || repRs1->fw(),  // opp fw
+				scUnMapped);
 			for(size_t i = 0; i < rs2u_.size(); i++) {
 				rs2u_[i].setMateParams(ALN_RES_TYPE_UNPAIRED_MATE2, NULL, flags2);
 			}
@@ -1295,7 +1302,8 @@ void AlnSinkWrap::finishRead(
 				st_.params().mixed,
 				true,           // primary
 				repRs2 != NULL, // opp aligned
-				(repRs2 != NULL) ? repRs2->fw() : false); // opp fw
+				(repRs2 != NULL) ? repRs2->fw() : false, // opp fw
+				scUnMapped);
 			g_.reportUnaligned(
 				obuf_,      // string to write output to
 				staln_,
@@ -1341,7 +1349,8 @@ void AlnSinkWrap::finishRead(
 				st_.params().mixed,
 				true,           // primary
 				repRs1 != NULL, // opp aligned
-				(repRs1 != NULL) ? repRs1->fw() : false); // opp fw
+				(repRs1 != NULL) ? repRs1->fw() : false, // opp fw
+				scUnMapped);
 			g_.reportUnaligned(
 				obuf_,      // string to write output to
 				staln_,
