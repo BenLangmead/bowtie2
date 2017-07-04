@@ -64,6 +64,8 @@ struct PatternParams {
 		int sampleFreq_,
 		size_t skip_,
 		int nthreads_,
+		int block_bytes_,
+		int reads_per_block_,
 		bool fixName_) :
 		format(format_),
 		fileParallel(fileParallel_),
@@ -76,6 +78,8 @@ struct PatternParams {
 		sampleFreq(sampleFreq_),
 		skip(skip_),
 		nthreads(nthreads_),
+		block_bytes(block_bytes_),
+		reads_per_block(reads_per_block_),
 		fixName(fixName_) { }
 
 	int format;			  // file format
@@ -89,6 +93,8 @@ struct PatternParams {
 	int sampleFreq;		  // frequency of sampled reads for FastaContinuous...
 	size_t skip;		  // skip the first 'skip' patterns
 	int nthreads;		  // number of threads for locking
+	int block_bytes;      // # bytes in one input block, 0 if we're not using blocked input
+	int reads_per_block;  // # reads per input block, 0 if we're not using blockeds input
 	bool fixName;		  //
 };
 
@@ -188,6 +194,7 @@ class PatternSource {
 public:
 	
 	PatternSource(const PatternParams& p) :
+		pp_(p),
 		readCnt_(0),
 		mutex() { }
 	
@@ -208,7 +215,10 @@ public:
 	/**
 	 * Finishes parsing a given read.  Happens outside the critical section.
 	 */
-	virtual bool parse(Read& ra, Read& rb, TReadId rdid) const = 0;
+	virtual bool parse(
+		Read& ra, Read& rb,
+		ParsingCursor& cura, ParsingCursor& curb,
+		TReadId rdid) const = 0;
 	
 	/**
 	 * Reset so that next call to nextBatch* gets the first batch.
@@ -231,11 +241,14 @@ public:
 	
 protected:
 	
-	/// The number of reads read by this PatternSource
+	// Reference to global input-parsing parameters
+	const PatternParams& pp_;
+	
+	// The number of reads read by this PatternSource
 	volatile TReadId readCnt_;
 	
-	/// Lock enforcing mutual exclusion for (a) file I/O, (b) writing fields
-	/// of this or another other shared object.
+	// Lock enforcing mutual exclusion for (a) file I/O, (b) writing fields
+	// of this or another other shared object.
 	MUTEX_T mutex;
 };
 
@@ -279,7 +292,10 @@ public:
 	/**
 	 * Finishes parsing outside the critical section
 	 */
-	virtual bool parse(Read& ra, Read& rb, TReadId rdid) const;
+	virtual bool parse(
+		Read& ra, Read& rb,
+		ParsingCursor& cura, ParsingCursor& curb,
+		TReadId rdid) const;
 	
 private:
 
@@ -445,7 +461,10 @@ public:
 	/**
 	 * Finalize FASTA parsing outside critical section.
 	 */
-	virtual bool parse(Read& ra, Read& rb, TReadId rdid) const;
+	virtual bool parse(
+		Read& ra, Read& rb,
+		ParsingCursor& cura, ParsingCursor& curb,
+		TReadId rdid) const;
 
 protected:
 
@@ -500,7 +519,10 @@ public:
 	/**
 	 * Finalize tabbed parsing outside critical section.
 	 */
-	virtual bool parse(Read& ra, Read& rb, TReadId rdid) const;
+	virtual bool parse(
+		Read& ra, Read& rb,
+		ParsingCursor& cura, ParsingCursor& curb,
+		TReadId rdid) const;
 
 protected:
 
@@ -551,7 +573,10 @@ public:
 	/**
 	 * Finalize qseq parsing outside critical section.
 	 */
-	virtual bool parse(Read& ra, Read& rb, TReadId rdid) const;
+	virtual bool parse(
+		Read& ra, Read& rb,
+		ParsingCursor& cura, ParsingCursor& curb,
+		TReadId rdid) const;
 
 protected:
 	
@@ -598,7 +623,10 @@ public:
 	/**
 	 * Finalize FASTA parsing outside critical section.
 	 */
-	virtual bool parse(Read& ra, Read& rb, TReadId rdid) const;
+	virtual bool parse(
+		Read& ra, Read& rb,
+		ParsingCursor& cura, ParsingCursor& curb,
+		TReadId rdid) const;
 
 protected:
 
@@ -664,7 +692,10 @@ public:
 	/**
 	 * Finalize FASTQ parsing outside critical section.
 	 */
-	virtual bool parse(Read& ra, Read& rb, TReadId rdid) const;
+	virtual bool parse(
+		Read& ra, Read& rb,
+		ParsingCursor& cura, ParsingCursor& curb,
+		TReadId rdid) const;
 
 protected:
 
@@ -711,7 +742,10 @@ public:
 	/**
 	 * Finalize raw parsing outside critical section.
 	 */
-	virtual bool parse(Read& ra, Read& rb, TReadId rdid) const;
+	virtual bool parse(
+		Read& ra, Read& rb,
+		ParsingCursor& cura, ParsingCursor& curb,
+		TReadId rdid) const;
 
 protected:
 
@@ -754,7 +788,10 @@ public:
 	/**
 	 * Make appropriate call into the format layer to parse individual read.
 	 */
-	virtual bool parse(Read& ra, Read& rb, TReadId rdid) = 0;
+	virtual bool parse(
+		Read& ra, Read& rb,
+		ParsingCursor& cura, ParsingCursor& curb,
+		TReadId rdid) const = 0;
 	
 	/**
 	 * Given the values for all of the various arguments used to specify
@@ -830,8 +867,12 @@ public:
 	/**
 	 * Make appropriate call into the format layer to parse individual read.
 	 */
-	virtual bool parse(Read& ra, Read& rb, TReadId rdid) {
-		return (*src_)[0]->parse(ra, rb, rdid);
+	virtual bool parse(
+		Read& ra, Read& rb,
+		ParsingCursor& cura, ParsingCursor& curb,
+		TReadId rdid) const
+	{
+		return (*src_)[0]->parse(ra, rb, cura, curb, rdid);
 	}
 
 protected:
@@ -901,8 +942,12 @@ public:
 	/**
 	 * Make appropriate call into the format layer to parse individual read.
 	 */
-	virtual bool parse(Read& ra, Read& rb, TReadId rdid) {
-		return (*srca_)[0]->parse(ra, rb, rdid);
+	virtual bool parse(
+		Read& ra, Read& rb,
+		ParsingCursor& cura, ParsingCursor& curb,
+		TReadId rdid) const
+	{
+		return (*srca_)[0]->parse(ra, rb, cura, curb, rdid);
 	}
 
 protected:
@@ -927,7 +972,7 @@ public:
 		PatternComposer& composer,
 		const PatternParams& pp) :
 		composer_(composer),
-		buf_(pp.max_buf),
+		buf_(pp.block_bytes > 0 ? pp.reads_per_block : pp.max_buf),
 		pp_(pp),
 		last_batch_(false),
 		last_batch_size_(0) { }
@@ -943,7 +988,7 @@ public:
 	
 	const Read& read_a() const { return buf_.read_a(); }
 	const Read& read_b() const { return buf_.read_b(); }
-	
+
 private:
 	
 	/**
@@ -955,6 +1000,9 @@ private:
 		buf_.reset();
 		std::pair<bool, int> res = composer_.nextBatch(buf_);
 		buf_.init();
+		cura_.buf = &buf_.bufa_[0].readOrigBuf;
+		curb_.buf = &buf_.bufb_[0].readOrigBuf;
+		cura_.off = curb_.off = 0;
 		return res;
 	}
 	
@@ -977,11 +1025,19 @@ private:
 	 * format layer) to parse the read.
 	 */
 	bool parse(Read& ra, Read& rb) {
-		return composer_.parse(ra, rb, buf_.rdid());
+		// advance cursors to next read in case of non-blocked input
+		if(pp_.block_bytes == 0) {
+			cura_.buf = &ra.readOrigBuf;
+			curb_.buf = &rb.readOrigBuf;
+			cura_.off = curb_.off = 0;
+		}
+		bool ret = composer_.parse(ra, rb, cura_, curb_, buf_.rdid());
+		return ret;
 	}
 
 	PatternComposer& composer_; // pattern composer
 	PerThreadReadBuf buf_;		// read data buffer
+	ParsingCursor cura_, curb_; // parsing cursors
 	const PatternParams& pp_;	// pattern-related parameters
 	bool last_batch_;			// true if this is final batch
 	int last_batch_size_;		// # reads read in previous batch

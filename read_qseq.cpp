@@ -26,10 +26,10 @@
  * be tab, newline, etc.).
  */
 static int parseName(
-	Read::TBuf& buf, // buffer w/ raw qseq data
-	size_t& cur,     // buffer cursor
-	Read& r,         // buffer for mate 1
-	int upto)        // stop parsing when we first reach character 'upto'
+	const Read::TBuf& buf, // buffer w/ raw qseq data
+	size_t& cur,           // buffer cursor
+	Read& r,               // buffer for mate 1
+	int upto)              // stop parsing when we first reach character 'upto'
 {
 	const size_t buflen = buf.length();
 	int c;
@@ -78,64 +78,68 @@ pair<bool, int> QseqPatternSource::nextBatchFromFile(
 /**
  *
  */
-bool QseqPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
+bool QseqPatternSource::parse(
+	Read& r, Read& rb,
+	ParsingCursor& cura, ParsingCursor& curb,
+	TReadId rdid) const
+{
 	// Light parser (nextBatchFromFile) puts unparsed data
 	// into Read& r, even when the read is paired.
 	assert(r.empty());
-	assert(!r.readOrigBuf.empty()); // raw data for read/pair is here
+	assert(!cura.buf->empty()); // raw data for read/pair is here
 	int c = '\t';
-	size_t cur = 0;
-	const size_t buflen = r.readOrigBuf.length();
+	size_t& off = cura.off;
+	const size_t buflen = cura.buf->length();
 	assert(r.name.empty());
 	
 	// 1. Machine name
-	if(parseName(r.readOrigBuf, cur, r, '\t') == -1) {
+	if(parseName(*cura.buf, off, r, '\t') == -1) {
 		return false;
 	}
 	r.name.append('_');
 	// 2. Run number
-	if(parseName(r.readOrigBuf, cur, r, '\t') == -1) {
+	if(parseName(*cura.buf, off, r, '\t') == -1) {
 		return false;
 	}
 	r.name.append('_');
 	// 3. Lane number
-	if(parseName(r.readOrigBuf, cur, r, '\t') == -1) {
+	if(parseName(*cura.buf, off, r, '\t') == -1) {
 		return false;
 	}
 	r.name.append('_');
 	// 4. Tile number
-	if(parseName(r.readOrigBuf, cur, r, '\t') == -1) {
+	if(parseName(*cura.buf, off, r, '\t') == -1) {
 		return false;
 	}
 	r.name.append('_');
 	// 5. X coordinate of spot
-	if(parseName(r.readOrigBuf, cur, r, '\t') == -1) {
+	if(parseName(*cura.buf, off, r, '\t') == -1) {
 		return false;
 	}
 	r.name.append('_');
 	// 6. Y coordinate of spot
-	if(parseName(r.readOrigBuf, cur, r, '\t') == -1) {
+	if(parseName(*cura.buf, off, r, '\t') == -1) {
 		return false;
 	}
 	r.name.append('_');
 	// 7. Index
-	if(parseName(r.readOrigBuf, cur, r, '\t') == -1) {
+	if(parseName(*cura.buf, off, r, '\t') == -1) {
 		return false;
 	}
 	r.name.append('/');
 	// 8. Mate number
-	if(parseName(r.readOrigBuf, cur, r, '\t') == -1) {
+	if(parseName(*cura.buf, off, r, '\t') == -1) {
 		return false;
 	}
-	if(cur >= buflen) {
+	if(off >= buflen) {
 		return false; // ended prematurely
 	}
-	c = r.readOrigBuf[cur++];
+	c = (*cura.buf)[off++];
 	assert(c != '\r' && c != '\n');
 	// 9. Sequence & 10. Qualities
 	if(c == '\t') {
 		// empty sequence & qualities
-		c = r.readOrigBuf[cur++];
+		c = (*cura.buf)[off++];
 		assert(c != '\r' && c != '\n');
 		assert_eq('\t', c);
 		cerr << "Warning: skipping empty QSEQ read with name '" << r.name << "'" << endl;
@@ -153,12 +157,12 @@ bool QseqPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 					r.patFw.append(asc2dna[c]);
 				}
 			}
-			if(cur >= buflen) {
+			if(off >= buflen) {
 				break;
 			}
-			c = r.readOrigBuf[cur++];
+			c = (*cura.buf)[off++];
 		}
-		if(cur >= buflen) {
+		if(off >= buflen) {
 			return false; // ended prematurely
 		}
 		// record amt trimmed from 5' end due to --trim5
@@ -174,7 +178,7 @@ bool QseqPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 			while(c != '\t') {
 				cur_int *= 10;
 				cur_int += (int)(c - '0');
-				c = r.readOrigBuf[cur++];
+				c = (*cura.buf)[off++];
 				assert(c != '\r' && c != '\n');
 				if(c == ' ' || c == '\t') {
 					char cadd = intToPhred33(cur_int, solQuals_);
@@ -186,8 +190,8 @@ bool QseqPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 				}
 			}
 		} else {
-			while(cur < buflen) {
-				c = r.readOrigBuf[cur++];
+			while(off < buflen) {
+				c = (*cura.buf)[off++];
 				assert(c != '\r' && c != '\n');
 				if (c == ' ') {
 					wrongQualityFormat(r.name);
@@ -213,10 +217,10 @@ bool QseqPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 	assert_eq('\t', c);
 
 	// 11. Filter flag
-	if(cur >= buflen) {
+	if(off >= buflen) {
 		return false;
 	}
-	int filt = r.readOrigBuf[cur++];
+	int filt = (*cura.buf)[off++];
 	r.filter = filt;
 	if(filt != '0' && filt != '1') {
 		// Bad value for filt
@@ -224,10 +228,10 @@ bool QseqPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 		     << "' for qseq filter flag" << endl;
 		throw 1;
 	}
-	assert_eq(cur, buflen);
+	assert_eq(off, buflen);
 	r.parsed = true;
 	if(!rb.parsed && !rb.readOrigBuf.empty()) {
-		return parse(rb, r, rdid);
+		return parse(rb, r, curb, cura, rdid);
 	}
 	return true;
 }

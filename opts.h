@@ -152,7 +152,9 @@ enum {
 	ARG_DESC_FMOPS,             // --desc-fmops
 	ARG_LOG_DP,                 // --log-dp
 	ARG_LOG_DP_OPP,             // --log-dp-opp
-	ARG_INTERLEAVED_FASTQ       // --interleaved
+	ARG_INTERLEAVED_FASTQ,      // --interleaved
+	ARG_BLOCK_BYTES,            // --input-block-bytes
+	ARG_READS_PER_BLOCK         // --input-reads-per-block
 };
 
 #endif

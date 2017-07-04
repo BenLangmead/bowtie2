@@ -266,6 +266,22 @@ struct Read {
 };
 
 /**
+ * Pass this around when you want to be able to parse a buffer with data for
+ * many reads in it.  Alows it to be consumed bit by bit with a cursor.
+ */
+struct ParsingCursor {
+	
+	ParsingCursor() : buf(NULL), off(0) { }
+	
+	ParsingCursor(const Read::TBuf* buf_, size_t off_) :
+		buf(buf_),
+		off(off_) { }
+	
+	const Read::TBuf* buf;
+	size_t off;
+};
+
+/**
  * A string of FmStringOps represent a string of tasks performed by the
  * best-first alignment search.  We model the search as a series of FM ops
  * interspersed with reported alignments.

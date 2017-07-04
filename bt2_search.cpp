@@ -94,6 +94,8 @@ static uint32_t khits;    // number of hits per read; >1 is much slower
 static uint32_t mhits;    // don't report any hits if there are > mhits
 static int partitionSz;   // output a partitioning key in first field
 static int readsPerBatch; // # reads to read from input file at once
+static int blockBytes;    // bytes in a single input block
+static int readsPerBlock; // # reads in a single input block
 static bool fileParallel; // separate threads read separate input files in parallel
 static bool useShmem;     // use shared memory to hold the index
 static bool useMm;        // use memory-mapped files to hold the index
@@ -280,6 +282,8 @@ static void resetOptions() {
 	mhits					= 50;    // stop after finding this many alignments+1
 	partitionSz				= 0;     // output a partitioning key in first field
 	readsPerBatch			= 16;    // # reads to read from input file at once
+	blockBytes				= 65536; // bytes in a single input block
+	readsPerBlock			= 128;   // # reads in a single input block
 	fileParallel			= false; // separate threads read separate input files in parallel
 	useShmem				= false; // use shared memory to hold the index
 	useMm					= false; // use memory-mapped files to hold the index
@@ -459,6 +463,8 @@ static struct option long_options[] = {
 	{(char*)"upto",         required_argument, 0,            'u'},
 	{(char*)"version",      no_argument,       0,            ARG_VERSION},
 	{(char*)"reads-per-batch", required_argument, 0,         ARG_READS_PER_BATCH},
+	{(char*)"block-bytes",     required_argument, 0,         ARG_BLOCK_BYTES},
+	{(char*)"reads-per-block", required_argument, 0,         ARG_READS_PER_BLOCK},
 	{(char*)"filepar",      no_argument,       0,            ARG_FILEPAR},
 	{(char*)"help",         no_argument,       0,            'h'},
 	{(char*)"threads",      required_argument, 0,            'p'},
@@ -1216,6 +1222,12 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_PARTITION: partitionSz = parse<int>(arg); break;
 		case ARG_READS_PER_BATCH:
 			readsPerBatch = parseInt(1, "--reads-per-batch arg must be at least 1", arg);
+			break;
+		case ARG_BLOCK_BYTES:
+			blockBytes = parseInt(1, "--block-bytes arg must be at least 1", arg);
+			break;
+		case ARG_READS_PER_BLOCK:
+			readsPerBlock = parseInt(1, "--reads-per-block arg must be at least 1", arg);
 			break;
 		case ARG_DPAD:
 			maxhalf = parseInt(0, "--dpad must be no less than 0", arg);
@@ -4406,7 +4418,9 @@ static void driver(
 		fastaContLen,  // length of sampled reads for FastaContinuous...
 		fastaContFreq, // frequency of sampled reads for FastaContinuous...
 		skipReads,     // skip the first 'skip' patterns
-		nthreads,      //number of threads for locking
+		nthreads,      // number of threads for locking
+		blockBytes,    // # bytes in one input block, 0 if we're not using blocked input
+		readsPerBlock, // # reads per input block, 0 if we're not using blockeds input
 		outType != OUTPUT_SAM // whether to fix mate names
 	);
 	if(gVerbose || startVerbose) {

@@ -119,7 +119,7 @@ void PatternSourcePerThread::finalize(Read& ra) {
 	ra.mate = 1;
 	ra.rdid = buf_.rdid();
 	ra.seed = genRandSeed(ra.patFw, ra.qual, ra.name, pp_.seed);
-	ra.finalize();
+	ra.finalize(); // set ns_ and construct rev, revcomp
 	if(pp_.fixName) {
 		ra.fixMateName(1);
 	}
@@ -136,8 +136,8 @@ void PatternSourcePerThread::finalizePair(Read& ra, Read& rb) {
 	ra.rdid = rb.rdid = buf_.rdid();
 	ra.seed = genRandSeed(ra.patFw, ra.qual, ra.name, pp_.seed);
 	rb.seed = genRandSeed(rb.patFw, rb.qual, rb.name, pp_.seed);
-	ra.finalize();
-	rb.finalize();
+	ra.finalize(); // set ns_ and construct rev, revcomp
+	rb.finalize(); // set ns_ and construct rev, revcomp
 	if(pp_.fixName) {
 		ra.fixMateName(1);
 		rb.fixMateName(2);
@@ -188,6 +188,11 @@ pair<bool, bool> PatternSourcePerThread::nextReadPair() {
 pair<bool, int> SoloPatternComposer::nextBatch(PerThreadReadBuf& pt) {
 	size_t cur = cur_;
 	while(cur < src_->size()) {
+		// TODO: shouldn't ThreadSafe be up here, considering that return value
+		// of nextBatch might cause us to advance to next PatternSource?  Or
+		// perhaps there is no real scenario where we have many PatternSources
+		// to advance through?
+
 		// Patterns from srca_[cur_] are unpaired
 		pair<bool, int> res;
 		do {
@@ -430,10 +435,11 @@ pair<bool, int> CFilePatternSource::nextBatch(
 	bool lock)
 {
 	if(lock) {
-		// synchronization at this level because both reading and manipulation of
-		// current file pointer have to be protected
+		// Synchronization is up at this level because both reading and
+		// manipulation of current file pointer have to be protected.
 		ThreadSafe ts(mutex);
 		return nextBatchImpl(pt, batch_a);
+		// At this point, we're
 	} else {
 		return nextBatchImpl(pt, batch_a);
 	}
@@ -552,32 +558,37 @@ pair<bool, int> VectorPatternSource::nextBatch(
 /**
  * Finishes parsing outside the critical section.
  */
-bool VectorPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
+bool VectorPatternSource::parse(
+	Read& ra, Read& rb,
+	ParsingCursor& cura, ParsingCursor& curb,
+	TReadId rdid) const
+{
 	// Very similar to TabbedPatternSource
 
 	// Light parser (nextBatchFromFile) puts unparsed data
 	// into Read& r, even when the read is paired.
 	assert(ra.empty());
-	assert(!ra.readOrigBuf.empty()); // raw data for read/pair is here
+	assert(!cura.buf->empty()); // raw data for read/pair is here
 	int c = '\t';
-	size_t cur = 0;
-	const size_t buflen = ra.readOrigBuf.length();
 	
 	// Loop over the two ends
 	for(int endi = 0; endi < 2 && c == '\t'; endi++) {
 		Read& r = ((endi == 0) ? ra : rb);
+		ParsingCursor& cursor = ((endi == 0) ? cura : curb);
+		size_t& off = cursor.off;
+		const size_t buflen = cursor.buf->length();
 		assert(r.name.empty());
 		// Parse name if (a) this is the first end, or
 		// (b) this is tab6
 		if(endi < 1 || paired_) {
 			// Parse read name
-			c = ra.readOrigBuf[cur++];
-			while(c != '\t' && cur < buflen) {
+			c = (*cursor.buf)[off++];
+			while(c != '\t' && off < buflen) {
 				r.name.append(c);
-				c = ra.readOrigBuf[cur++];
+				c = (*cursor.buf)[off++];
 			}
 			assert_eq('\t', c);
-			if(cur >= buflen) {
+			if(off >= buflen) {
 				return false; // record ended prematurely
 			}
 		} else if(endi > 0) {
@@ -588,9 +599,9 @@ bool VectorPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 
 		// Parse sequence
 		assert(r.patFw.empty());
-		c = ra.readOrigBuf[cur++];
+		c = (*cura.buf)[off++];
 		int nchar = 0;
-		while(c != '\t' && cur < buflen) {
+		while(c != '\t' && off < buflen) {
 			if(isalpha(c)) {
 				assert_in(toupper(c), "ACGTN");
 				if(nchar++ >= gTrim5) {
@@ -598,10 +609,10 @@ bool VectorPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 					r.patFw.append(asc2dna[c]); // ascii to int
 				}
 			}
-			c = ra.readOrigBuf[cur++];
+			c = (*cura.buf)[off++];
 		}
 		assert_eq('\t', c);
-		if(cur >= buflen) {
+		if(off >= buflen) {
 			return false; // record ended prematurely
 		}
 		// record amt trimmed from 5' end due to --trim5
@@ -611,7 +622,7 @@ bool VectorPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 		
 		// Parse qualities
 		assert(r.qual.empty());
-		c = ra.readOrigBuf[cur++];
+		c = (*cura.buf)[off++];
 		int nqual = 0;
 		while(c != '\t' && c != '\n' && c != '\r') {
 			if(c == ' ') {
@@ -622,8 +633,8 @@ bool VectorPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 			if(++nqual > gTrim5) {
 				r.qual.append(cadd);
 			}
-			if(cur >= buflen) break;
-			c = ra.readOrigBuf[cur++];
+			if(off >= buflen) break;
+			c = (*cura.buf)[off++];
 		}
 		if(nchar > nqual) {
 			tooFewQualities(r.name);
@@ -633,12 +644,12 @@ bool VectorPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 			return false;
 		}
 		r.qual.trimEnd(gTrim3);
-		assert(c == '\t' || c == '\n' || c == '\r' || cur >= buflen);
+		assert(c == '\t' || c == '\n' || c == '\r' || off >= buflen);
 		assert_eq(r.patFw.length(), r.qual.length());
 	}
 	ra.parsed = true;
 	if(!rb.parsed && !rb.readOrigBuf.empty()) {
-		return parse(rb, ra, rdid);
+		return parse(rb, ra, curb, cura, rdid);
 	}
 	return true;
 }
@@ -692,29 +703,36 @@ pair<bool, int> FastaPatternSource::nextBatchFromFile(
 /**
  * Finalize FASTA parsing outside critical section.
  */
-bool FastaPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
+bool FastaPatternSource::parse(
+	Read& r, Read& rb,
+	ParsingCursor& cura, ParsingCursor& curb,
+	TReadId rdid) const
+{
 	// We assume the light parser has put the raw data for the separate ends
 	// into separate Read objects.	That doesn't have to be the case, but
 	// that's how we've chosen to do it for FastqPatternSource
 	assert(!r.readOrigBuf.empty());
 	assert(r.empty());
 	int c = -1;
-	size_t cur = 1;
-	const size_t buflen = r.readOrigBuf.length();
+	size_t& off = cura.off;  // starts at 0
+	if(off == 0) {
+		off = 1;
+	}
+	const size_t buflen = cura.buf->length();
 	
 	// Parse read name
 	assert(r.name.empty());
-	while(cur < buflen) {
-		c = r.readOrigBuf[cur++];
+	while(off < buflen) {
+		c = (*cura.buf)[off++];
 		if(c == '\n' || c == '\r') {
 			do {
-				c = r.readOrigBuf[cur++];
-			} while((c == '\n' || c == '\r') && cur < buflen);
+				c = (*cura.buf)[off++];
+			} while((c == '\n' || c == '\r') && off < buflen);
 			break;
 		}
 		r.name.append(c);
 	}
-	if(cur >= buflen) {
+	if(off >= buflen) {
 		return false; // FASTA ended prematurely
 	}
 	
@@ -722,8 +740,8 @@ bool FastaPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 	int nchar = 0;
 	assert(r.patFw.empty());
 	assert(c != '\n' && c != '\r');
-	assert_lt(cur, buflen);
-	while(c != '\n' && cur < buflen) {
+	assert_lt(off, buflen);
+	while(c != '\n' && off < buflen) {
 		if(c == '.') {
 			c = 'N';
 		}
@@ -733,8 +751,8 @@ bool FastaPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 				r.patFw.append(asc2dna[c]);
 			}
 		}
-		assert_lt(cur, buflen);
-		c = r.readOrigBuf[cur++];
+		assert_lt(off, buflen);
+		c = (*cura.buf)[off++];
 	}
 	r.trimmed5 = (int)(nchar - r.patFw.length());
 	r.trimmed3 = (int)(r.patFw.trimEnd(gTrim3));
@@ -751,7 +769,7 @@ bool FastaPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 	}
 	r.parsed = true;
 	if(!rb.parsed && !rb.readOrigBuf.empty()) {
-		return parse(rb, r, rdid);
+		return parse(rb, r, curb, cura, rdid);
 	}
 	return true;
 }
@@ -849,8 +867,8 @@ pair<bool, int> FastaContinuousPatternSource::nextBatchFromFile(
  * Finalize FASTA-continuous parsing outside critical section.
  */
 bool FastaContinuousPatternSource::parse(
-	Read& ra,
-	Read& rb,
+	Read& ra, Read& rb,
+	ParsingCursor& cura, ParsingCursor& curb,
 	TReadId rdid) const
 {
 	// Light parser (nextBatchFromFile) puts unparsed data
@@ -860,25 +878,25 @@ bool FastaContinuousPatternSource::parse(
 	assert(!ra.readOrigBuf.empty()); // raw data for read/pair is here
 	assert(rb.readOrigBuf.empty());
 	int c = '\t';
-	size_t cur = 0;
-	const size_t buflen = ra.readOrigBuf.length();
+	size_t& off = cura.off;
+	const size_t buflen = cura.buf->length();
 	
 	// Parse read name
-	c = ra.readOrigBuf[cur++];
-	while(c != '\t' && cur < buflen) {
+	c = (*cura.buf)[off++];
+	while(c != '\t' && off < buflen) {
 		ra.name.append(c);
-		c = ra.readOrigBuf[cur++];
+		c = (*cura.buf)[off++];
 	}
 	assert_eq('\t', c);
-	if(cur >= buflen) {
+	if(off >= buflen) {
 		return false; // record ended prematurely
 	}
 
 	// Parse sequence
 	assert(ra.patFw.empty());
-	c = ra.readOrigBuf[cur++];
+	c = (*cura.buf)[off++];
 	int nchar = 0;
-	while(cur < buflen) {
+	while(off < buflen) {
 		if(isalpha(c)) {
 			assert_in(toupper(c), "ACGTN");
 			if(nchar++ >= gTrim5) {
@@ -886,7 +904,7 @@ bool FastaContinuousPatternSource::parse(
 				ra.patFw.append(asc2dna[c]); // ascii to int
 			}
 		}
-		c = ra.readOrigBuf[cur++];
+		c = (*cura.buf)[off++];
 	}
 	// record amt trimmed from 5' end due to --trim5
 	ra.trimmed5 = (int)(nchar - ra.patFw.length());
@@ -902,6 +920,11 @@ bool FastaContinuousPatternSource::parse(
 	return true;
 }
 
+#ifdef HAVE_FREAD_UNLOCKED
+#define FREAD fread_unlocked
+#else
+#define FREAD fread
+#endif
 
 /**
  * "Light" parser. This is inside the critical section, so the key is to do
@@ -914,91 +937,154 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 	PerThreadReadBuf& pt,
 	bool batch_a)
 {
-	int c = -1;
 	EList<Read>* readbuf = batch_a ? &pt.bufa_ : &pt.bufb_;
-	if(first_) {
-		c = getc_wrapper();
-		if (c == EOF) {
-			return make_pair(true, 0);
+	bool use_fread = true;  // TODO
+	if(pp_.reads_per_block > 0) {
+		// We're going to stick all the unparsed data into the buffer for the
+		// first read in the group
+		(*readbuf)[0].readOrigBuf.resize(pp_.block_bytes);
+		char *buf = (*readbuf)[0].readOrigBuf.wbuf();
+		int nread = pp_.reads_per_block;
+		bool done = false;
+		int nl = 0, i = 0;
+		if(use_fread) {
+			int ret = (int)FREAD(buf, 1, pp_.block_bytes, fp_);
+			if(ret != pp_.block_bytes) {
+				assert_lt(ret, pp_.block_bytes);
+				if(ferror(fp_)) {
+					cerr << "Error while parsing FASTQ input" << endl;
+					throw 1;
+				} else if(feof(fp_)) {
+					// Count how many records got parsed
+					for(; i < ret; i++) {
+						if(buf[i] == '\n') {
+							nl++;
+						}
+					}
+					nread = (nl + 1) >> 2; // robust to missing newline at end
+					done = true;
+				} else {
+					cerr << "Unexpected end of file parsing FASTQ input"
+					     << endl;
+					throw 1;
+				}
+			}
+		} else {
+			for(int i = 0; i < pp_.block_bytes; i++) {
+				// Round EOF up to 0 for now. Keeps the loop simple and won't
+				// make a difference later when we count newlines or otherwise
+				// parse the buffer.
+				*buf++ = max(getc_wrapper(), 0);
+			}
+			if(feof(fp_)) {
+				// Count how many records got parsed
+				for(; i < pp_.block_bytes; i++) {
+					if(buf[i] == '\n') {
+						nl++;
+					}
+				}
+				nread = (nl + 1) >> 2; // robust to missing newline at end
+				done = true;
+			} else if(ferror(fp_)) {
+				cerr << "Error while parsing FASTQ input" << endl;
+				throw 1;
+			}
 		}
-		while(c == '\r' || c == '\n') {
+		return make_pair(done, nread);
+	} else {
+		int c = -1;
+		if(first_) {
 			c = getc_wrapper();
+			if (c == EOF) {
+				return make_pair(true, 0);
+			}
+			while(c == '\r' || c == '\n') {
+				c = getc_wrapper();
+			}
+			if(c != '@') {
+				cerr << "Error: reads file does not look like a FASTQ file"
+				     << endl;
+				throw 1;
+			}
+			first_ = false;
+			(*readbuf)[0].readOrigBuf.append('@');
 		}
-		if(c != '@') {
-			cerr << "Error: reads file does not look like a FASTQ file" << endl;
-			throw 1;
-		}
-		first_ = false;
-		(*readbuf)[0].readOrigBuf.append('@');
-	}
 
-	bool done = false, aborted = false;
-	size_t readi = 0;
-	// Read until we run out of input or until we've filled the buffer
-	while (readi < pt.max_buf_ && !done) {
-		Read::TBuf& buf = (*readbuf)[readi].readOrigBuf;
-		assert(readi == 0 || buf.empty());
-		int newlines = 4;
-		while(newlines) {
-			c = getc_wrapper();
-			done = c < 0;
-			if(c == '\n' || (done && newlines == 1)) {
-				// Saw newline, or EOF that we're
-				// interpreting as final newline
-				newlines--;
-				c = '\n';
-			} else if(done) {
-				// account for newline at the end of the file
-				if (newlines == 4) {
-					newlines = 0;
+		bool done = false, aborted = false;
+		size_t readi = 0;
+		// Read until we run out of input or until we've filled the buffer
+		while (readi < pt.max_buf_ && !done) {
+			Read::TBuf& buf = (*readbuf)[readi].readOrigBuf;
+			assert(readi == 0 || buf.empty());
+			int newlines = 4;
+			while(newlines) {
+				c = getc_wrapper();
+				done = c < 0;
+				if(c == '\n' || (done && newlines == 1)) {
+					// Saw newline, or EOF that we're
+					// interpreting as final newline
+					newlines--;
+					c = '\n';
+				} else if(done) {
+					// account for newline at the end of the file
+					if (newlines == 4) {
+						newlines = 0;
+					}
+					else {
+						aborted = true; // Unexpected EOF
+					}
+					break;
+				}
+				buf.append(c);
+			}
+			if (c > 0) {
+				if (interleaved_) {
+					// alternate between read buffers
+					batch_a = !batch_a;
+					readbuf = batch_a ? &pt.bufa_ : &pt.bufb_;
+					// increment read counter after each pair gets read
+					readi = batch_a ? readi+1 : readi;
 				}
 				else {
-					aborted = true; // Unexpected EOF
+					readi++;
 				}
-				break;
-			}
-			buf.append(c);
-		}
-		if (c > 0) {
-			if (interleaved_) {
-				// alternate between read buffers
-				batch_a = !batch_a;
-				readbuf = batch_a ? &pt.bufa_ : &pt.bufb_;
-				// increment read counter after each pair gets read
-				readi = batch_a ? readi+1 : readi;
-			}
-			else {
-				readi++;
 			}
 		}
+		if(aborted) {
+			readi--;
+		}
+		return make_pair(done, readi);
 	}
-	if(aborted) {
-		readi--;
-	}
-	return make_pair(done, readi);
 }
 
 /**
  * Finalize FASTQ parsing outside critical section.
  */
-bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
+bool FastqPatternSource::parse(
+	Read& r, Read& rb,
+	ParsingCursor& cura, ParsingCursor& curb,
+	TReadId rdid) const
+{
 	// We assume the light parser has put the raw data for the separate ends
 	// into separate Read objects. That doesn't have to be the case, but
 	// that's how we've chosen to do it for FastqPatternSource
-	assert(!r.readOrigBuf.empty());
+	assert(!cura.buf->empty());
 	assert(r.empty());
 	int c;
-	size_t cur = 1;
-	const size_t buflen = r.readOrigBuf.length();
+	size_t& off = cura.off;
+	if(off == 0) {
+		off = 1;
+	}
+	const size_t buflen = cura.buf->length();
 
 	// Parse read name
 	assert(r.name.empty());
 	while(true) {
-		assert_lt(cur, buflen);
-		c = r.readOrigBuf[cur++];
+		assert_lt(off, buflen);
+		c = (*cura.buf)[off++];
 		if(c == '\n' || c == '\r') {
 			do {
-				c = r.readOrigBuf[cur++];
+				c = (*cura.buf)[off++];
 			} while(c == '\n' || c == '\r');
 			break;
 		}
@@ -1018,19 +1104,19 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 				r.patFw.append(asc2dna[c]);
 			}
 		}
-		assert(cur < r.readOrigBuf.length());
-		c = r.readOrigBuf[cur++];
+		assert_lt(off, buflen);
+		c = (*cura.buf)[off++];
 	}
 	r.trimmed5 = (int)(nchar - r.patFw.length());
 	r.trimmed3 = (int)(r.patFw.trimEnd(gTrim3));
 	
 	assert_eq('+', c);
 	do {
-		assert(cur < r.readOrigBuf.length());
-		c = r.readOrigBuf[cur++];
+		assert(off < r.readOrigBuf.length());
+		c = (*cura.buf)[off++];
 	} while(c != '\n' && c != '\r');
-	while(cur < buflen && (c == '\n' || c == '\r')) {
-		c = r.readOrigBuf[cur++];
+	while(off < buflen && (c == '\n' || c == '\r')) {
+		c = (*cura.buf)[off++];
 	}
 	
 	assert(r.qual.empty());
@@ -1041,7 +1127,7 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 			while(c != '\t' && c != '\n' && c != '\r') {
 				cur_int *= 10;
 				cur_int += (int)(c - '0');
-				c = r.readOrigBuf[cur++];
+				c = (*cura.buf)[off++];
 				if(c == ' ' || c == '\t' || c == '\n' || c == '\r') {
 					char cadd = intToPhred33(cur_int, solQuals_);
 					cur_int = 0;
@@ -1056,8 +1142,8 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 			if(nqual++ >= r.trimmed5) {
 				r.qual.append(c);
 			}
-			while(cur < r.readOrigBuf.length()) {
-				c = r.readOrigBuf[cur++];
+			while(off < r.readOrigBuf.length()) {
+				c = (*cura.buf)[off++];
 				if (c == ' ') {
 					wrongQualityFormat(r.name);
 					return false;
@@ -1088,7 +1174,7 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 	}
 	r.parsed = true;
 	if(!rb.parsed && !rb.readOrigBuf.empty()) {
-		return parse(rb, r, rdid);
+		return parse(rb, r, curb, cura, rdid);
 	}
 	return true;
 }
@@ -1123,16 +1209,20 @@ pair<bool, int> TabbedPatternSource::nextBatchFromFile(
 /**
  * Finalize tabbed parsing outside critical section.
  */
-bool TabbedPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
+bool TabbedPatternSource::parse(
+	Read& ra, Read& rb,
+	ParsingCursor& cura, ParsingCursor& curb,
+	TReadId rdid) const
+{
 	// Light parser (nextBatchFromFile) puts unparsed data
 	// into Read& r, even when the read is paired.
 	assert(ra.empty());
 	assert(rb.empty());
-	assert(!ra.readOrigBuf.empty()); // raw data for read/pair is here
-	assert(rb.readOrigBuf.empty());
+	assert(!cura.buf->empty()); // raw data for read/pair is here
+	assert(curb.buf->empty());
 	int c = '\t';
-	size_t cur = 0;
-	const size_t buflen = ra.readOrigBuf.length();
+	size_t& off = cura.off;
+	const size_t buflen = cura.buf->length();
 	
 	// Loop over the two ends
 	for(int endi = 0; endi < 2 && c == '\t'; endi++) {
@@ -1142,13 +1232,13 @@ bool TabbedPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 		// (b) this is tab6
 		if(endi < 1 || secondName_) {
 			// Parse read name
-			c = ra.readOrigBuf[cur++];
-			while(c != '\t' && cur < buflen) {
+			c = (*cura.buf)[off++];
+			while(c != '\t' && off < buflen) {
 				r.name.append(c);
-				c = ra.readOrigBuf[cur++];
+				c = (*cura.buf)[off++];
 			}
 			assert_eq('\t', c);
-			if(cur >= buflen) {
+			if(off >= buflen) {
 				return false; // record ended prematurely
 			}
 		} else if(endi > 0) {
@@ -1159,9 +1249,9 @@ bool TabbedPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 
 		// Parse sequence
 		assert(r.patFw.empty());
-		c = ra.readOrigBuf[cur++];
+		c = (*cura.buf)[off++];
 		int nchar = 0;
-		while(c != '\t' && cur < buflen) {
+		while(c != '\t' && off < buflen) {
 			if(isalpha(c)) {
 				assert_in(toupper(c), "ACGTN");
 				if(nchar++ >= gTrim5) {
@@ -1169,10 +1259,10 @@ bool TabbedPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 					r.patFw.append(asc2dna[c]); // ascii to int
 				}
 			}
-			c = ra.readOrigBuf[cur++];
+			c = (*cura.buf)[off++];
 		}
 		assert_eq('\t', c);
-		if(cur >= buflen) {
+		if(off >= buflen) {
 			return false; // record ended prematurely
 		}
 		// record amt trimmed from 5' end due to --trim5
@@ -1182,14 +1272,14 @@ bool TabbedPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 		
 		// Parse qualities
 		assert(r.qual.empty());
-		c = ra.readOrigBuf[cur++];
+		c = (*cura.buf)[off++];
 		int nqual = 0;
 		if (intQuals_) {
 			int cur_int = 0;
-			while(c != '\t' && c != '\n' && c != '\r' && cur < buflen) {
+			while(c != '\t' && c != '\n' && c != '\r' && off < buflen) {
 				cur_int *= 10;
 				cur_int += (int)(c - '0');
-				c = ra.readOrigBuf[cur++];
+				c = (*cura.buf)[off++];
 				if(c == ' ' || c == '\t' || c == '\n' || c == '\r') {
 					char cadd = intToPhred33(cur_int, solQuals_);
 					cur_int = 0;
@@ -1209,8 +1299,8 @@ bool TabbedPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 				if(++nqual > gTrim5) {
 					r.qual.append(cadd);
 				}
-				if(cur >= buflen) break;
-				c = ra.readOrigBuf[cur++];
+				if(off >= buflen) break;
+				c = (*cura.buf)[off++];
 			}
 		}
 		if(nchar > nqual) {
@@ -1221,7 +1311,7 @@ bool TabbedPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 			return false;
 		}
 		r.qual.trimEnd(gTrim3);
-		assert(c == '\t' || c == '\n' || c == '\r' || cur >= buflen);
+		assert(c == '\t' || c == '\n' || c == '\r' || off >= buflen);
 		assert_eq(r.patFw.length(), r.qual.length());
 	}
 	return true;
@@ -1261,18 +1351,22 @@ pair<bool, int> RawPatternSource::nextBatchFromFile(
 /**
  * Finalize raw parsing outside critical section.
  */
-bool RawPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
+bool RawPatternSource::parse(
+	Read& r, Read& rb,
+	ParsingCursor& cura, ParsingCursor& curb,
+	TReadId rdid) const
+{
 	assert(r.empty());
-	assert(!r.readOrigBuf.empty()); // raw data for read/pair is here
+	assert(!cura.buf->empty()); // raw data for read/pair is here
 	int c = '\n';
-	size_t cur = 0;
-	const size_t buflen = r.readOrigBuf.length();
+	size_t& off = cura.off;
+	const size_t buflen = cura.buf->length();
 
 	// Parse sequence
 	assert(r.patFw.empty());
 	int nchar = 0;
-	while(cur < buflen) {
-		c = r.readOrigBuf[cur++];
+	while(off < buflen) {
+		c = (*cura.buf)[off++];
 		assert(c != '\r' && c != '\n');
 		if(isalpha(c)) {
 			assert_in(toupper(c), "ACGTN");
@@ -1282,7 +1376,7 @@ bool RawPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 			}
 		}
 	}
-	assert_eq(cur, buflen);
+	assert_eq(off, buflen);
 	// record amt trimmed from 5' end due to --trim5
 	r.trimmed5 = (int)(nchar - r.patFw.length());
 	// record amt trimmed from 3' end due to --trim3
@@ -1301,7 +1395,7 @@ bool RawPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 	}
 	r.parsed = true;
 	if(!rb.parsed && !rb.readOrigBuf.empty()) {
-		return parse(rb, r, rdid);
+		return parse(rb, r, curb, cura, rdid);
 	}
 	return true;
 }
