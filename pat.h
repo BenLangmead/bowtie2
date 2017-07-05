@@ -239,6 +239,11 @@ public:
 	 */
 	TReadId readCount() const { return readCnt_; }
 	
+	/**
+	 * Returns true iff file format can be parsed in fixed-size blocks.
+	 */
+	virtual bool supportsBlocks() const = 0;
+	
 protected:
 	
 	// Reference to global input-parsing parameters
@@ -297,6 +302,11 @@ public:
 		ParsingCursor& cura, ParsingCursor& curb,
 		TReadId rdid) const;
 	
+	/**
+	 * Returns true iff file format can be parsed in fixed-size blocks.
+	 */
+	virtual bool supportsBlocks() const { return false; }
+
 private:
 
 	pair<bool, int> nextBatchImpl(
@@ -466,6 +476,13 @@ public:
 		ParsingCursor& cura, ParsingCursor& curb,
 		TReadId rdid) const;
 
+	/**
+	 * Returns true iff file format can be parsed in fixed-size blocks.
+	 */
+	virtual bool supportsBlocks() const {
+		return false;  // but wouldn't be too much work to support it
+	}
+
 protected:
 
 	/**
@@ -524,6 +541,13 @@ public:
 		ParsingCursor& cura, ParsingCursor& curb,
 		TReadId rdid) const;
 
+	/**
+	 * Returns true iff file format can be parsed in fixed-size blocks.
+	 */
+	virtual bool supportsBlocks() const {
+		return false;  // but wouldn't be too much work to support it
+	}
+
 protected:
 
 	/**
@@ -578,6 +602,13 @@ public:
 		ParsingCursor& cura, ParsingCursor& curb,
 		TReadId rdid) const;
 
+	/**
+	 * Returns true iff file format can be parsed in fixed-size blocks.
+	 */
+	virtual bool supportsBlocks() const {
+		return false;  // but wouldn't be too much work to support it
+	}
+
 protected:
 	
 	/**
@@ -627,6 +658,11 @@ public:
 		Read& ra, Read& rb,
 		ParsingCursor& cura, ParsingCursor& curb,
 		TReadId rdid) const;
+
+	/**
+	 * Returns true iff file format can be parsed in fixed-size blocks.
+	 */
+	virtual bool supportsBlocks() const { return false; }
 
 protected:
 
@@ -697,6 +733,11 @@ public:
 		ParsingCursor& cura, ParsingCursor& curb,
 		TReadId rdid) const;
 
+	/**
+	 * Returns true iff file format can be parsed in fixed-size blocks.
+	 */
+	virtual bool supportsBlocks() const { return true; }
+
 protected:
 
 	/**
@@ -746,6 +787,13 @@ public:
 		Read& ra, Read& rb,
 		ParsingCursor& cura, ParsingCursor& curb,
 		TReadId rdid) const;
+
+	/**
+	 * Returns true iff file format can be parsed in fixed-size blocks.
+	 */
+	virtual bool supportsBlocks() const {
+		return false;  // but wouldn't be too much work to support it
+	}
 
 protected:
 
@@ -808,6 +856,11 @@ public:
 		const EList<std::string>& q2,	 // qualities associated with m2
 		const PatternParams& p,		// read-in params
 		bool verbose);				// be talkative?
+
+	/**
+	 * Returns true iff file format can be parsed in fixed-size blocks.
+	 */
+	virtual bool supportsBlocks() const = 0;
 	
 protected:
 	
@@ -873,6 +926,13 @@ public:
 		TReadId rdid) const
 	{
 		return (*src_)[0]->parse(ra, rb, cura, curb, rdid);
+	}
+
+	/**
+	 * Returns true iff file format can be parsed in fixed-size blocks.
+	 */
+	virtual bool supportsBlocks() const {
+		return (*src_)[0]->supportsBlocks();
 	}
 
 protected:
@@ -950,6 +1010,13 @@ public:
 		return (*srca_)[0]->parse(ra, rb, cura, curb, rdid);
 	}
 
+	/**
+	 * Returns true iff file format can be parsed in fixed-size blocks.
+	 */
+	virtual bool supportsBlocks() const {
+		return (*srca_)[0]->supportsBlocks();
+	}
+
 protected:
 	
 	volatile size_t cur_; // current element in parallel srca_, srcb_ vectors
@@ -972,7 +1039,8 @@ public:
 		PatternComposer& composer,
 		const PatternParams& pp) :
 		composer_(composer),
-		buf_(pp.block_bytes > 0 ? pp.reads_per_block : pp.max_buf),
+		blockReads_(pp.block_bytes > 0 && composer.supportsBlocks()),
+		buf_(blockReads_ ? pp.reads_per_block : pp.max_buf),
 		pp_(pp),
 		last_batch_(false),
 		last_batch_size_(0) { }
@@ -1026,7 +1094,7 @@ private:
 	 */
 	bool parse(Read& ra, Read& rb) {
 		// advance cursors to next read in case of non-blocked input
-		if(pp_.block_bytes == 0) {
+		if(!blockReads_) {
 			cura_.buf = &ra.readOrigBuf;
 			curb_.buf = &rb.readOrigBuf;
 			cura_.off = curb_.off = 0;
@@ -1036,11 +1104,12 @@ private:
 	}
 
 	PatternComposer& composer_; // pattern composer
-	PerThreadReadBuf buf_;		// read data buffer
+	bool blockReads_;           // read input in blocks?
+	PerThreadReadBuf buf_;      // read data buffer
 	ParsingCursor cura_, curb_; // parsing cursors
-	const PatternParams& pp_;	// pattern-related parameters
-	bool last_batch_;			// true if this is final batch
-	int last_batch_size_;		// # reads read in previous batch
+	const PatternParams& pp_;   // pattern-related parameters
+	bool last_batch_;           // true if this is final batch
+	int last_batch_size_;       // # reads read in previous batch
 };
 
 /**

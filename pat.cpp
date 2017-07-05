@@ -165,7 +165,7 @@ pair<bool, bool> PatternSourcePerThread::nextReadPair() {
 		assert_gt(buf_.cur_buf_, 0);
 	}
 	// Now fully parse read/pair *outside* the critical section
-	assert(!buf_.read_a().readOrigBuf.empty());
+	//assert(!buf_.read_a().readOrigBuf.empty());
 	assert(buf_.read_a().empty());
 	if(!parse(buf_.read_a(), buf_.read_b())) {
 		return make_pair(false, false);
@@ -1071,10 +1071,7 @@ bool FastqPatternSource::parse(
 	assert(!cura.buf->empty());
 	assert(r.empty());
 	int c;
-	size_t& off = cura.off;
-	if(off == 0) {
-		off = 1;
-	}
+	size_t& off = ++cura.off;
 	const size_t buflen = cura.buf->length();
 
 	// Parse read name
@@ -1112,7 +1109,7 @@ bool FastqPatternSource::parse(
 	
 	assert_eq('+', c);
 	do {
-		assert(off < r.readOrigBuf.length());
+		assert_lt(off, buflen);
 		c = (*cura.buf)[off++];
 	} while(c != '\n' && c != '\r');
 	while(off < buflen && (c == '\n' || c == '\r')) {
@@ -1142,13 +1139,13 @@ bool FastqPatternSource::parse(
 			if(nqual++ >= r.trimmed5) {
 				r.qual.append(c);
 			}
-			while(off < r.readOrigBuf.length()) {
+			while(off < buflen) {
 				c = (*cura.buf)[off++];
 				if (c == ' ') {
 					wrongQualityFormat(r.name);
 					return false;
 				}
-				if(c == '\r' || c == '\n') {
+				if(c == '\r' || c == '\n' || c == '\0') {
 					break;
 				}
 				c = charToPhred33(c, solQuals_, phred64Quals_);
@@ -1173,7 +1170,7 @@ bool FastqPatternSource::parse(
 		r.name.install(cbuf);
 	}
 	r.parsed = true;
-	if(!rb.parsed && !rb.readOrigBuf.empty()) {
+	if(!rb.parsed && curb.off < curb.buf->length()) {
 		return parse(rb, r, curb, cura, rdid);
 	}
 	return true;
