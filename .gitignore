@@ -24,3 +24,5 @@ bowtie2-align-l-debug
 bowtie2-inspect-s-debug
 bowtie2-inspect-l-debug
 Xcode
+reads_*.fq
+reads_*.sam
