@@ -152,7 +152,7 @@ bool QseqPatternSource::parse(
 			}
 			if(isalpha(c)) {
 				assert_in(toupper(c), "ACGTN");
-				if(++nchar > gTrim5) {
+				if(++nchar > pp_.trim5) {
 					assert_neq(0, asc2dnacat[c]);
 					r.patFw.append(asc2dna[c]);
 				}
@@ -168,7 +168,7 @@ bool QseqPatternSource::parse(
 		// record amt trimmed from 5' end due to --trim5
 		r.trimmed5 = (int)(nchar - r.patFw.length());
 		// record amt trimmed from 3' end due to --trim3
-		r.trimmed3 = (int)(r.patFw.trimEnd(gTrim3));
+		r.trimmed3 = (int)(r.patFw.trimEnd(pp_.trim3));
 		
 		// 10. Qualities
 		assert(r.qual.empty());
@@ -184,7 +184,7 @@ bool QseqPatternSource::parse(
 					char cadd = intToPhred33(cur_int, solQuals_);
 					cur_int = 0;
 					assert_geq(cadd, 33);
-					if(++nqual > gTrim5) {
+					if(++nqual > pp_.trim5) {
 						r.qual.append(cadd);
 					}
 				}

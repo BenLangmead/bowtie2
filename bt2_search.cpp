@@ -81,8 +81,8 @@ static bool allHits;      // for multihits, report just one
 static bool showVersion;  // just print version and quit?
 static int ipause;        // pause before maching?
 static uint32_t qUpto;    // max # of queries to read
-int gTrim5;               // amount to trim from 5' end
-int gTrim3;               // amount to trim from 3' end
+static int gTrim5;        // amount to trim from 5' end
+static int gTrim3;        // amount to trim from 3' end
 static int offRate;       // keep default offRate
 static bool solexaQuals;  // quality strings are solexa quals, not phred, and subtract 64 (not 33)
 static bool phred64Quals; // quality chars are phred, but must subtract 64 (not 33)
@@ -4415,6 +4415,8 @@ static void driver(
 		solexaQuals,   // true -> qualities are on solexa64 scale
 		phred64Quals,  // true -> qualities are on phred64 scale
 		integerQuals,  // true -> qualities are space-separated numbers
+		gTrim5,        // amt to hard clip from 5' end
+		gTrim3,        // amt to hard clip from 3' end
 		fastaContLen,  // length of sampled reads for FastaContinuous...
 		fastaContFreq, // frequency of sampled reads for FastaContinuous...
 		skipReads,     // skip the first 'skip' patterns

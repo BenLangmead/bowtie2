@@ -60,6 +60,8 @@ struct PatternParams {
 		bool solexa64_,
 		bool phred64_,
 		bool intQuals_,
+		int trim5_,
+		int trim3_,
 		int sampleLen_,
 		int sampleFreq_,
 		size_t skip_,
@@ -74,6 +76,8 @@ struct PatternParams {
 		solexa64(solexa64_),
 		phred64(phred64_),
 		intQuals(intQuals_),
+		trim5(trim5_),
+		trim3(trim3_),
 		sampleLen(sampleLen_),
 		sampleFreq(sampleFreq_),
 		skip(skip_),
@@ -89,6 +93,8 @@ struct PatternParams {
 	bool solexa64;		  // true -> qualities are on solexa64 scale
 	bool phred64;		  // true -> qualities are on phred64 scale
 	bool intQuals;		  // true -> qualities are space-separated numbers
+	int trim5;            // amt to hard clip from 5' end
+	int trim3;            // amt to hard clip from 3' end
 	int sampleLen;		  // length of sampled reads for FastaContinuous...
 	int sampleFreq;		  // frequency of sampled reads for FastaContinuous...
 	size_t skip;		  // skip the first 'skip' patterns
@@ -337,7 +343,6 @@ public:
 		filecur_(0),
 		fp_(NULL),
 		is_open_(false),
-		skip_(p.skip),
 		first_(true),
 		compressed_(false)
 	{
@@ -434,7 +439,6 @@ protected:
 	size_t filecur_;		 // index into infiles_ of next file to read
 	FILE *fp_;				 // read file currently being read from
 	bool is_open_;			 // whether fp_ is currently open
-	TReadId skip_;			 // number of reads to skip
 	bool first_;			 // parsing first record in first file?
 	char buf_[64*1024];		 // file buffer
 	bool compressed_;
@@ -493,18 +497,6 @@ protected:
 		bool batch_a);
 
 	/**
-	 * Scan to the next FASTA record (starting with >) and return the first
-	 * character of the record (which will always be >).
-	 */
-	static int skipToNextFastaRecord(FileBuf& in) {
-		int c;
-		while((c = in.get()) != '>') {
-			if(in.eof()) return -1;
-		}
-		return c;
-	}
-	
-	/**
 	 * Reset state to handle a fresh file
 	 */
 	virtual void resetForNextFile() {
@@ -528,9 +520,6 @@ public:
 		const PatternParams& p,
 		bool  secondName) :  // whether it's --12/--tab5 or --tab6
 		CFilePatternSource(infiles, p),
-		solQuals_(p.solexa64),
-		phred64Quals_(p.phred64),
-		intQuals_(p.intQuals),
 		secondName_(secondName) { }
 
 	/**
@@ -557,9 +546,6 @@ protected:
 		PerThreadReadBuf& pt,
 		bool batch_a);
 
-	bool solQuals_;		// base qualities are log odds
-	bool phred64Quals_; // base qualities are on -64 scale
-	bool intQuals_;		// base qualities are space-separated strings
 	bool secondName_;	// true if --tab6, false if --tab5
 };
 
@@ -632,10 +618,10 @@ class FastaContinuousPatternSource : public CFilePatternSource {
 public:
 	FastaContinuousPatternSource(
 		const EList<std::string>& infiles,
-		const PatternParams& p) :
-		CFilePatternSource(infiles, p),
-		length_(p.sampleLen),
-		freq_(p.sampleFreq),
+		const PatternParams& pp) :
+		CFilePatternSource(infiles, pp),
+		length_(pp.sampleLen),
+		freq_(pp.sampleFreq),
 		eat_(length_-1),
 		beginning_(true),
 		bufCur_(0),
@@ -715,9 +701,6 @@ public:
 		const PatternParams& p, bool interleaved = false) :
 		CFilePatternSource(infiles, p),
 		first_(true),
-		solQuals_(p.solexa64),
-		phred64Quals_(p.phred64),
-		intQuals_(p.intQuals),
 		interleaved_(interleaved) { }
 	
 	virtual void reset() {
@@ -755,9 +738,6 @@ protected:
 	}
 
 	bool first_;		// parsing first read in file
-	bool solQuals_;		// base qualities are log odds
-	bool phred64Quals_; // base qualities are on -64 scale
-	bool intQuals_;		// base qualities are space-separated strings
 	bool interleaved_;	// fastq reads are interleaved
 };
 
@@ -811,8 +791,6 @@ protected:
 		first_ = true;
 	}
 	
-private:
-	
 	bool first_;
 };
 
@@ -821,7 +799,9 @@ private:
  * (and possibly also single-end reads).
  */
 class PatternComposer {
+
 public:
+
 	PatternComposer(const PatternParams& p) : mutex_m() { }
 	
 	virtual ~PatternComposer() { }
@@ -1056,6 +1036,19 @@ public:
 	
 	const Read& read_a() const { return buf_.read_a(); }
 	const Read& read_b() const { return buf_.read_b(); }
+	
+	TReadId rdid() const { return buf_.rdid(); }
+
+	/**
+	 * Return true iff the read currently in the buffer is a
+	 * paired-end read.
+	 */
+	bool paired() const {
+		// can also do buf_.read_b().mate > 0, but the mate
+		// field isn't set until finalize is called, whereas
+		// parsed is set by the time parse() is finished.
+		return buf_.read_b().parsed;
+	}
 
 private:
 	
@@ -1099,8 +1092,7 @@ private:
 			curb_.buf = &rb.readOrigBuf;
 			cura_.off = curb_.off = 0;
 		}
-		bool ret = composer_.parse(ra, rb, cura_, curb_, buf_.rdid());
-		return ret;
+		return composer_.parse(ra, rb, cura_, curb_, buf_.rdid());
 	}
 
 	PatternComposer& composer_; // pattern composer

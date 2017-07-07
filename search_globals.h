@@ -35,8 +35,6 @@ extern bool     gMate1fw;
 extern bool     gMate2fw;
 extern int      gMinInsert;
 extern int      gMaxInsert;
-extern int      gTrim5;
-extern int      gTrim3;
 extern int      gGapBarrier;
 extern int      gAllowRedundant;
 
