@@ -1224,10 +1224,10 @@ static void parseOption(int next_option, const char *arg) {
 			readsPerBatch = parseInt(1, "--reads-per-batch arg must be at least 1", arg);
 			break;
 		case ARG_BLOCK_BYTES:
-			blockBytes = parseInt(1, "--block-bytes arg must be at least 1", arg);
+			blockBytes = parseInt(0, "--block-bytes arg must be non-negative", arg);
 			break;
 		case ARG_READS_PER_BLOCK:
-			readsPerBlock = parseInt(1, "--reads-per-block arg must be at least 1", arg);
+			readsPerBlock = parseInt(0, "--reads-per-block arg must be non-negative", arg);
 			break;
 		case ARG_DPAD:
 			maxhalf = parseInt(0, "--dpad must be no less than 0", arg);
