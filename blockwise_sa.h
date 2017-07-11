@@ -87,7 +87,11 @@ public:
 	_logger(__logger)
 	{ }
 
-	virtual ~BlockwiseSA() { }
+	virtual ~BlockwiseSA()
+#if __cplusplus >= 201103L
+	noexcept(false)
+#endif
+	{ }
 
 	/**
 	 * Get the next suffix; compute the next bucket if necessary.
@@ -216,6 +220,9 @@ public:
     { _randomSrc.init(__seed); reset(); }
     
     ~KarkkainenBlockwiseSA()
+#if __cplusplus >= 201103L
+    noexcept(false)
+#endif
     {
 #ifdef WITH_TBB
 		    tbb_grp.wait();
