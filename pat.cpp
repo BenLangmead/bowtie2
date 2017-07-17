@@ -735,6 +735,11 @@ bool FastaPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 		}
 		assert_lt(cur, buflen);
 		c = r.readOrigBuf[cur++];
+		if ((c == '\n' || c == '\r')
+				&& cur < buflen
+				&& r.readOrigBuf[cur] != '>') {
+			c = r.readOrigBuf[cur++];
+		}
 	}
 	r.trimmed5 = (int)(nchar - r.patFw.length());
 	r.trimmed3 = (int)(r.patFw.trimEnd(gTrim3));

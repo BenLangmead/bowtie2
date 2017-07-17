@@ -452,6 +452,27 @@ my @cases = (
 	            "\n\n\r\n>r1\nATCGATCAGTATCTG\r\n",
 	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
 
+	{ name   => "Fasta multiline 1",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  args   =>   "-u 2",
+	  fasta  => "\n\n\r\n>r0\nCATCGAT\nCAGTATCTG\r\n".
+	            "\n\n\r\n>r1\nATCGATCAGTATCTG\r\n",
+	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
+
+	{ name   => "Fasta multiline 2",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  args   =>   "-u 2",
+	  fasta  => "\n\n\r\n>r0\nCATCGAT\nCAGTATCTG\r\n".
+	            "\n\n\r\n>r1\nATCGATC\nAGTATCTG\r\n",
+	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
+
+	{ name   => "Fasta multiline 3",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  args   =>   "-u 2",
+	  fasta  => "\n\n\r\n>r0\nCATCGAT\nCAGTATCTG\r\n".
+	            "\n\n\r\n>\nATCGATC\nAGTATCTG\r\n",
+	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
+
 	{ name     => "Fasta paired 1",
 	  ref      => [     "AGCATCGATCAAAAACTGA" ],
 	  #                  AGCATCGATC
