@@ -347,7 +347,7 @@ sub Extract_IndexName_From {
             unless (@idx_filenames) {
                 Fail("\"" . $idx_basename . "\" is not a Bowtie 2 index\n");
             }
-            return idx_basename;
+            return $idx_basename;
         }
     }
     Info("Cannot find any index option (--reference-string, --ref-string or -x) in the given command line.\n");    
