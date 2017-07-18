@@ -310,6 +310,7 @@ public:
 		infiles_(infiles),
 		filecur_(0),
 		fp_(NULL),
+		zfp_(NULL),
 		is_open_(false),
 		skip_(p.skip),
 		first_(true),
@@ -327,8 +328,14 @@ public:
 	 */
 	virtual ~CFilePatternSource() {
 		if(is_open_) {
+			if (compressed_) {
+				assert(zfp_ != NULL);
+				gzclose(zfp_);
+			}
+			else {
 				assert(fp_ != NULL);
 				fclose(fp_);
+			}
 		}
 	}
 
@@ -377,13 +384,11 @@ protected:
 	void open();
 
 	int getc_wrapper() {
-		//return compressed_ ? gzgetc(zfp_) : getc_unlocked(fp_);
-		return getc_unlocked(fp_);
+		return compressed_ ? gzgetc(zfp_) : getc_unlocked(fp_);
 	}
 
 	int ungetc_wrapper(int c) {
-		//return compressed_ ? gzungetc(c, zfp_) : ungetc(c, fp_);
-		return ungetc(c, fp_);
+		return compressed_ ? gzungetc(c, zfp_) : ungetc(c, fp_);
 	}
 
 	bool is_gzipped_file(const std::string& filename) {
@@ -403,10 +408,11 @@ protected:
 		return false;
 	}
 	
-	EList<std::string> infiles_;  // filenames for read files
+	EList<std::string> infiles_;	 // filenames for read files
 	EList<bool> errs_;		 // whether we've already printed an error for each file
 	size_t filecur_;		 // index into infiles_ of next file to read
-	FILE *fp_;				 // read file currently being read from
+	FILE *fp_;			 // read file currently being read from
+	gzFile zfp_;			 // compressed version of fp_
 	bool is_open_;			 // whether fp_ is currently open
 	TReadId skip_;			 // number of reads to skip
 	bool first_;			 // parsing first record in first file?

@@ -11,10 +11,11 @@ branches:
   only:
   - master
   - cleaner_parsing
+  - scaling-old-parsing
   - batch_parsing
   - batch_parsing_output
-  - no-io
-  - rel2.3
+  - blocked_input
+  - v2.3.2
 script: make allall && make simple-test
 notifications:
   slack:

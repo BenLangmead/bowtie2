@@ -445,24 +445,54 @@ pair<bool, int> CFilePatternSource::nextBatch(
 void CFilePatternSource::open() {
 	if(is_open_) {
 		is_open_ = false;
-		fclose(fp_);
-		fp_ = NULL;
+		if (compressed_) {
+			gzclose(zfp_);
+			zfp_ = NULL;
+		}
+		else {
+			fclose(fp_);
+      			fp_ = NULL;
+      		}
 	}
 	while(filecur_ < infiles_.size()) {
 		if(infiles_[filecur_] == "-") {
-			fp_ = stdin;
-		} else if((fp_ = fopen(infiles_[filecur_].c_str(), "rb")) == NULL) {
-			if(!errs_[filecur_]) {
-				cerr << "Warning: Could not open read file \""
-				<< infiles_[filecur_].c_str()
-				<< "\" for reading; skipping..." << endl;
-				errs_[filecur_] = true;
+			// always assume that data from stdin is compressed
+			compressed_ = true;
+			int fn = dup(fileno(stdin));
+			zfp_ = gzdopen(fn, "rb");
+		}
+		else {
+			compressed_ = false;
+			if (is_gzipped_file(infiles_[filecur_])) {
+				compressed_ = true;
+				zfp_ = gzopen(infiles_[filecur_].c_str(), "rb");
 			}
-			filecur_++;
-			continue;
+			else {
+				fp_ = fopen(infiles_[filecur_].c_str(), "rb");
+			}
+			if((compressed_ && zfp_ == NULL) || (!compressed_ && fp_ == NULL)) {
+				if(!errs_[filecur_]) {
+					cerr << "Warning: Could not open read file \""
+					     << infiles_[filecur_].c_str()
+					     << "\" for reading; skipping..." << endl;
+					errs_[filecur_] = true;
+      				}
+      				filecur_++;
+      				continue;
+			}
 		}
 		is_open_ = true;
-		setvbuf(fp_, buf_, _IOFBF, 64*1024);
+        if (compressed_) {
+#if ZLIB_VERNUM < 0x1235
+            cerr << "Warning: gzbuffer added in zlib v1.2.3.5. Unable to change "
+                    "buffer size from default of 8192." << endl;
+#else
+            gzbuffer(zfp_, 64*1024);
+#endif
+        }
+        else {
+            setvbuf(fp_, buf_, _IOFBF, 64*1024);
+        }
 		return;
 	}
 	cerr << "Error: No input read files were valid" << endl;
@@ -1113,7 +1143,7 @@ pair<bool, int> TabbedPatternSource::nextBatchFromFile(
 			readbuf[readi].readOrigBuf.append(c);
 			c = getc_wrapper();
 		}
-		while(c >= 0 && (c == '\n' || c == '\r')) {
+		while(c >= 0 && (c == '\n' || c == '\r') && readi < pt.max_buf_ - 1) {
 			c = getc_wrapper();
 		}
 	}

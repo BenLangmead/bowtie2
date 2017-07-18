@@ -664,7 +664,7 @@ static void printUsage(ostream& out) {
 		tool_name = "bowtie2";
 	}
 	out << "Usage: " << endl
-	    << "  " << tool_name.c_str() << " [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r>} [-S <sam>]" << endl
+	    << "  " << tool_name.c_str() << " [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r> | --interleaved <i>} [-S <sam>]" << endl
 	    << endl
 		<<     "  <bt2-idx>  Index filename prefix (minus trailing .X." + gEbwt_ext + ")." << endl
 		<<     "             NOTE: Bowtie 1 and Bowtie 2 indexes are not compatible." << endl
@@ -680,6 +680,10 @@ static void printUsage(ostream& out) {
 	if(wrapper == "basic-0") {
 		out << "             Could be gzip'ed (extension: .gz) or bzip2'ed (extension: .bz2)." << endl;
 	}
+	out <<     "  <i>        Files with interleaved paired-end FASTQ reads" << endl;
+	if(wrapper == "basic-0") {
+		out << "             Could be gzip'ed (extension: .gz) or bzip2'ed (extension: .bz2)." << endl;
+	}
 	out <<     "  <sam>      File for SAM output (default: stdout)" << endl
 	    << endl
 	    << "  <m1>, <m2>, <r> can be comma-separated lists (no whitespace) and can be" << endl
@@ -690,7 +694,6 @@ static void printUsage(ostream& out) {
 		<< endl
 	    << " Input:" << endl
 	    << "  -q                 query input files are FASTQ .fq/.fastq (default)" << endl
-		<< "  --interleaved      query input files are interleaved paired-end FASTQ reads" << endl
 		<< "  --tab5             query input files are TAB5 .tab5" << endl
 		<< "  --tab6             query input files are TAB6 .tab6" << endl
 	    << "  --qseq             query input files are in Illumina's qseq format" << endl
@@ -791,6 +794,8 @@ static void printUsage(ostream& out) {
 	    << "  --rg <text>        add <text> (\"lab:value\") to @RG line of SAM header." << endl
 	    << "                     Note: @RG line only printed when --rg-id is set." << endl
 	    << "  --omit-sec-seq     put '*' in SEQ and QUAL fields for secondary alignments." << endl
+	    << "  --sam-noqname-trunc Suppress standard behavior of truncating readname at first whitespace " << endl
+	    << "                      at the expense of generating non-standard SAM." << endl
 		<< endl
 	    << " Performance:" << endl
 	//    << "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl
@@ -3378,6 +3383,7 @@ static void multiseedSearchWorker(void *vp) {
 								}
 							}
 						}
+
 						// 1-mismatch
 						if(do1mmUpFront && !seedSumm) {
 							for(size_t matei = 0; matei < (paired ? 2:1); matei++) {
@@ -3564,7 +3570,11 @@ static void multiseedSearchWorker(void *vp) {
 						nrounds[1] = min<size_t>(nrounds[1], interval[1]);
 						Constraint gc = Constraint::penaltyFuncBased(scoreMin);
 						size_t seedsTried = 0;
+					size_t seedsTriedMS[] = {0, 0, 0, 0};
 						size_t nUniqueSeeds = 0, nRepeatSeeds = 0, seedHitTot = 0;
+					size_t nUniqueSeedsMS[] = {0, 0, 0, 0};
+					size_t nRepeatSeedsMS[] = {0, 0, 0, 0};
+					size_t seedHitTotMS[] = {0, 0, 0, 0};
 						for(size_t roundi = 0; roundi < nSeedRounds; roundi++) {
 							ca.nextRead(); // Clear cache in preparation for new search
 							shs[0].clearSeeds();
@@ -3614,6 +3624,7 @@ static void multiseedSearchWorker(void *vp) {
 									continue;
 								}
 								// Instantiate the seeds
+							std::pair<int, int> instFw, instRc;
 								std::pair<int, int> inst = al.instantiateSeeds(
 									*seeds[mate],   // search seeds
 									offset,         // offset to begin extracting
@@ -3624,7 +3635,9 @@ static void multiseedSearchWorker(void *vp) {
 									norc[mate],     // don't align revcomp read
 									ca,             // holds some seed hits from previous reads
 									shs[mate],      // holds all the seed hits
-									sdm);           // metrics
+								sdm,            // metrics
+								instFw,
+								instRc);
 								assert(shs[mate].repOk(&ca.current()));
 								if(inst.first + inst.second == 0) {
 									// No seed hits!  Done with this mate.
@@ -3633,6 +3646,8 @@ static void multiseedSearchWorker(void *vp) {
 									break;
 								}
 								seedsTried += (inst.first + inst.second);
+							seedsTriedMS[mate * 2 + 0] = instFw.first + instFw.second;
+							seedsTriedMS[mate * 2 + 1] = instRc.first + instRc.second;
 								// Align seeds
 								al.searchAllSeeds(
 									*seeds[mate],     // search seeds
@@ -3656,8 +3671,14 @@ static void multiseedSearchWorker(void *vp) {
 							for(size_t mate = 0; mate < 2; mate++) {
 								if(!shs[mate].empty()) {
 									nUniqueSeeds += shs[mate].numUniqueSeeds();
+								nUniqueSeedsMS[mate * 2 + 0] += shs[mate].numUniqueSeedsStrand(true);
+								nUniqueSeedsMS[mate * 2 + 1] += shs[mate].numUniqueSeedsStrand(false);
 									nRepeatSeeds += shs[mate].numRepeatSeeds();
+								nRepeatSeedsMS[mate * 2 + 0] += shs[mate].numRepeatSeedsStrand(true);
+								nRepeatSeedsMS[mate * 2 + 1] += shs[mate].numRepeatSeedsStrand(false);
 									seedHitTot += shs[mate].numElts();
+								seedHitTotMS[mate * 2 + 0] += shs[mate].numEltsFw();
+								seedHitTotMS[mate * 2 + 1] += shs[mate].numEltsRc();
 								}
 							}
 							double uniqFactor[2] = { 0.0f, 0.0f };
@@ -3821,10 +3842,25 @@ static void multiseedSearchWorker(void *vp) {
 								}
 							}
 						} // end loop over reseeding rounds
-						if(seedsTried != 0) {
+					if(seedsTried > 0) {
 							prm.seedPctUnique = (float)nUniqueSeeds / seedsTried;
 							prm.seedPctRep = (float)nRepeatSeeds / seedsTried;
 							prm.seedHitAvg = (float)seedHitTot / seedsTried;
+					} else {
+						prm.seedPctUnique = -1.0f;
+						prm.seedPctRep = -1.0f;
+						prm.seedHitAvg = -1.0f;
+					}
+					for(int i = 0; i < 4; i++) {
+						if(seedsTriedMS[i] > 0) {
+							prm.seedPctUniqueMS[i] = (float)nUniqueSeedsMS[i] / seedsTriedMS[i];
+							prm.seedPctRepMS[i] = (float)nRepeatSeedsMS[i] / seedsTriedMS[i];
+							prm.seedHitAvgMS[i] = (float)seedHitTotMS[i] / seedsTriedMS[i];
+						} else {
+							prm.seedPctUniqueMS[i] = -1.0f;
+							prm.seedPctRepMS[i] = -1.0f;
+							prm.seedHitAvgMS[i] = -1.0f;
+						}
 						}
 						size_t totnucs = 0;
 						for(size_t mate = 0; mate < (paired ? 2:1); mate++) {
@@ -3836,7 +3872,10 @@ static void multiseedSearchWorker(void *vp) {
 								totnucs += len;
 							}
 						}
-						prm.seedsPerNuc = (float)seedsTried / totnucs;
+					prm.seedsPerNuc = totnucs > 0 ? ((float)seedsTried / totnucs) : -1;
+					for(int i = 0; i < 4; i++) {
+						prm.seedsPerNucMS[i] = totnucs > 0 ? ((float)seedsTriedMS[i] / totnucs) : -1;
+					}
 						for(size_t i = 0; i < 2; i++) {
 							assert_leq(prm.nExIters, mxIter[i]);
 							assert_leq(prm.nExDps,   mxDp[i]);

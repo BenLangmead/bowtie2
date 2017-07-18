@@ -56,9 +56,9 @@ public:
 		finished_(RES_CAT),
 		reorder_(reorder),
 		threadSafe_(threadSafe),
+		mutex_m(),
 		nthreads_(nthreads),
-        mutex_m(),
-	perThreadBufSize_(perThreadBufSize)
+		perThreadBufSize_(perThreadBufSize)
 	{
 		nstarted_=0;
 		assert(nthreads_ <= 2 || threadSafe);

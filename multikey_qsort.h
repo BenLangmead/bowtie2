@@ -610,14 +610,14 @@ void mkeyQSortSuf2(
         }
         // Do not recurse on ='s if the pivot was the off-the-end value;
         // they're already fully sorted
-        if(v != hi) { // recurse on ='s
+        //if(v != hi) { // recurse on ='s
             block_list.back().expand();
             block_list.back().back().begin = begin + r;
             block_list.back().back().end = begin + r + (a-begin) + (end-d-1);
             block_list.back().back().depth = depth + 1;
-        }
+        //}
         r = d-c;   // r <- # of >'s excluding those exhausted
-        if(r > 0 && v < hi-1) { // recurse on >'s
+        if(r > 0 /*&& v < hi-1*/) { // recurse on >'s
             block_list.back().expand();
             block_list.back().back().begin = end - r;
             block_list.back().back().end = end;

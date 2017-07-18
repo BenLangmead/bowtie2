@@ -61,7 +61,7 @@ public:
 		char *inps)
 	{
 		assert(!s.empty());
-		return !VALID_AL_SCORE(s.secbest(mate1));
+		return !VALID_AL_SCORE(s.bestUnchosenScore(mate1));
 	}
 };
 
@@ -120,20 +120,20 @@ public:
 		if(s.paired()) {
 			return pair_nosec_perf;
 		} else {
-			bool hasSecbest = VALID_AL_SCORE(s.secbest(mate1));
+			bool hasSecbest = VALID_AL_SCORE(s.bestUnchosenScore(mate1));
 			if(!flags.canMax() && !s.exhausted(mate1) && !hasSecbest) {
 				return 255;
 			}
 			TAlScore scMax = (TAlScore)sc_.perfectScore(rdlen);
 			TAlScore scMin = scoreMin_.f<TAlScore>((float)rdlen);
 			assert_geq(scMax, scMin);
-			TAlScore best  = scMax - s.best(mate1).score(); // best score (lower=better)
+			TAlScore best  = scMax - s.bestScore(mate1).score(); // best score (lower=better)
 			size_t best_bin = (size_t)((double)best * (10.0 / (double)(scMax - scMin)) + 0.5);
 			assert_geq(best_bin, 0);
 			assert_lt(best_bin, 11);
 			if(hasSecbest) {
-				assert_geq(s.best(mate1).score(), s.secbest(mate1).score());
-				size_t diff = s.best(mate1).score() - s.secbest(mate1).score();
+				assert_geq(s.bestScore(mate1).score(), s.bestUnchosenScore(mate1).score());
+				size_t diff = s.bestScore(mate1).score() - s.bestUnchosenScore(mate1).score();
 				size_t diff_bin = (size_t)((double)diff * (10.0 / (double)(scMax - scMin)) + 0.5);
 				assert_geq(diff_bin, 0);
 				assert_lt(diff_bin, 11);
@@ -194,8 +194,8 @@ public:
 	{
 		// Did the read have a second-best alignment?
 		bool hasSecbest = s.paired() ?
-			VALID_AL_SCORE(s.secbestPaired()) :
-			VALID_AL_SCORE(s.secbest(mate1));
+			VALID_AL_SCORE(s.bestUnchosenCScore()) :
+			VALID_AL_SCORE(s.bestUnchosenScore(mate1));
 		// This corresponds to a scenario where we found one and only one
 		// alignment but didn't really look for a second one
 		if(!flags.canMax() && !s.exhausted(mate1) && !hasSecbest) {
@@ -215,7 +215,7 @@ public:
 		TAlScore diff = (scPer - scMin);  // scores can vary by up to this much
 		TMapq ret = 0;
 		TAlScore best = s.paired() ?
-			s.bestPaired().score() : s.best(mate1).score();
+			s.bestCScore().score() : s.bestScore(mate1).score();
 		// best score but normalized so that 0 = worst valid score
 		TAlScore bestOver = best - scMin;
 		if(sc_.monotone) {
@@ -230,7 +230,7 @@ public:
 				else                                     ret = 0;
 			} else {
 				secbest = s.paired() ?
-					s.secbestPaired().score() : s.secbest(mate1).score();
+					s.bestUnchosenCScore().score() : s.bestUnchosenScore(mate1).score();
 				TAlScore bestdiff = abs(abs(static_cast<long>(best))-abs(static_cast<long>(secbest)));
 				if(bestdiff >= diff * (double)0.9f) {
 					if(bestOver == diff) {
@@ -340,7 +340,7 @@ public:
 				else                                     ret = 22;
 			} else {
 				secbest = s.paired() ?
-					s.secbestPaired().score() : s.secbest(mate1).score();
+					s.bestUnchosenCScore().score() : s.bestUnchosenScore(mate1).score();
 				TAlScore bestdiff = abs(abs(static_cast<long>(best))-abs(static_cast<long>(secbest)));
 				if     (bestdiff >= diff * (double)0.9f) ret = 40;
 				else if(bestdiff >= diff * (double)0.8f) ret = 39;
@@ -437,7 +437,7 @@ public:
 		char *inps)     // put string representation of inputs here
 		const
 	{
-		bool hasSecbest = VALID_AL_SCORE(s.secbest(mate1));
+		bool hasSecbest = VALID_AL_SCORE(s.bestUnchosenScore(mate1));
 		if(!flags.canMax() && !s.exhausted(mate1) && !hasSecbest) {
 			return 255;
 		}
@@ -448,7 +448,7 @@ public:
 		float sixth_2 = (float)(scPer - diff * (double)0.1666f * 2); 
 		float sixth_3 = (float)(scPer - diff * (double)0.1666f * 3);
 		TMapq ret = 0;
-		TAlScore best = s.best(mate1).score();
+		TAlScore best = s.bestScore(mate1).score();
 		if(!hasSecbest) {
 			// Top third?
 			if(best >= sixth_2) {
@@ -463,7 +463,7 @@ public:
 				ret = 10;
 			}
 		} else {
-			secbest = s.secbest(mate1).score();
+			secbest = s.bestUnchosenScore(mate1).score();
 			TAlScore bestdiff = abs(abs(static_cast<long>(best))-abs(static_cast<long>(secbest)));
 			if(bestdiff >= diff * 0.1666 * 5) {
 				ret = 6;

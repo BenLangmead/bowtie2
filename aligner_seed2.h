@@ -2235,6 +2235,8 @@ public:
 		}
 		AlnScore asc(
 			-dr.sink().bestPenalty(),  // numeric score
+			dr.query().length() - edits.size(),
+			(int)edits.size(),         // # edits
 			ns,                        // # Ns
 			ngap);                     // # gaps
 		rs.init(

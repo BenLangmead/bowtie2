@@ -1232,9 +1232,22 @@ protected:
 		EList<size_t>&       select, // prioritized list to put results in
 		const EList<AlnRes>* rs1u,   // alignments to select from (mate 1)
 		const EList<AlnRes>* rs2u,   // alignments to select from (mate 2, or NULL)
-		AlnScore&            bestUnchosen1,
-		AlnScore&            bestUnchosen2,
-		AlnScore&            bestUnchosenC,
+		AlnScore&            bestUScore,
+		AlnScore&            bestUDist,
+		AlnScore&            bestP1Score,
+		AlnScore&            bestP1Dist,
+		AlnScore&            bestP2Score,
+		AlnScore&            bestP2Dist,
+		AlnScore&            bestCScore,
+		AlnScore&            bestCDist,
+		AlnScore&            bestUnchosenUScore,
+		AlnScore&            bestUnchosenUDist,
+		AlnScore&            bestUnchosenP1Score,
+		AlnScore&            bestUnchosenP1Dist,
+		AlnScore&            bestUnchosenP2Score,
+		AlnScore&            bestUnchosenP2Dist,
+		AlnScore&            bestUnchosenCScore,
+		AlnScore&            bestUnchosenCDist,
 		RandomSource&        rnd)
 		const;
 
