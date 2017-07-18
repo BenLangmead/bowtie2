@@ -1,6 +1,5 @@
 <h2>Version 2.3.2 - May 05, 2017</h2>
-</ul>
-    <li>Added support for interleaved paired-end FASTQ inputs (--interleaved)</li>
+<ul>
     <li>Now reports MREVERSE SAM flag for unaligned end when only one end of a pair aligns</li>
     <li>Fixed issue where first character of some read names was omitted from SAM output when using tabbed input formats</li>
     <li>Added --sam-no-qname-trunc option, which causes entire read name, including spaces, to be written to SAM output.  This violates SAM specification, but can be useful in applications that immediately postprocess the SAM.</li>
