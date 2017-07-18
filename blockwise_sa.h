@@ -215,7 +215,7 @@ public:
 #endif
     { _randomSrc.init(__seed); reset(); }
     
-    ~KarkkainenBlockwiseSA()
+    ~KarkkainenBlockwiseSA() throw()
     {
 #ifdef WITH_TBB
 		    tbb_grp.wait();
