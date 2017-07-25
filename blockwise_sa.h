@@ -291,12 +291,7 @@ public:
 				_cur++;
 			} else {
 				while(!_done[this->_itrBucketIdx]) {
-#if defined(_TTHREAD_WIN32_)
-					Sleep(1);
-#else
-					const static timespec ts = {0, 1000000};  // 1 millisecond
-					nanosleep(&ts, NULL);
-#endif
+					SLEEP(1);
 				}
 				// Read suffixes from a file
 				std::ostringstream number; number << this->_itrBucketIdx;
