@@ -449,9 +449,13 @@ struct PerReadMetrics {
 	TAlScore bestLtMinscMate2; // best invalid score observed for mate 2
 	
 	float seedPctUnique; // % of read covered by unique seed hits
+	float seedPctUniqueMS[4]; // % of read covered by unique seed hits by mate and strand
 	float seedPctRep;    // % of read covered by repetitive seed hits
+	float seedPctRepMS[4];    // % of read covered by repetitive seed hits by mate and strand
 	float seedHitAvg;    // avg # seed hits per hitting seed
+	float seedHitAvgMS[4];    // avg # seed hits per hitting seed by mate and strand
 	float seedsPerNuc;   // # seeds tried / # alignable nucleotides
+	float seedsPerNucMS[4];   // # seeds tried / # alignable nucleotides by mate and strand
 	
 	// For collecting information to go into an FM string
 	bool doFmString;
