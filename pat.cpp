@@ -623,7 +623,7 @@ bool VectorPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 		while(c != '\t' && cur < buflen) {
 			if(isalpha(c)) {
 				assert_in(toupper(c), "ACGTN");
-				if(nchar++ >= gTrim5) {
+				if(nchar++ >= pp_.trim5) {
 					assert_neq(0, asc2dnacat[c]);
 					r.patFw.append(asc2dna[c]); // ascii to int
 				}
@@ -637,7 +637,7 @@ bool VectorPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 		// record amt trimmed from 5' end due to --trim5
 		r.trimmed5 = (int)(nchar - r.patFw.length());
 		// record amt trimmed from 3' end due to --trim3
-		r.trimmed3 = (int)(r.patFw.trimEnd(gTrim3));
+		r.trimmed3 = (int)(r.patFw.trimEnd(pp_.trim3));
 		
 		// Parse qualities
 		assert(r.qual.empty());
@@ -649,7 +649,7 @@ bool VectorPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 				return false;
 			}
 			char cadd = charToPhred33(c, false, false);
-			if(++nqual > gTrim5) {
+			if(++nqual > pp_.trim5) {
 				r.qual.append(cadd);
 			}
 			if(cur >= buflen) break;
@@ -662,7 +662,7 @@ bool VectorPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 			tooManyQualities(r.name);
 			return false;
 		}
-		r.qual.trimEnd(gTrim3);
+		r.qual.trimEnd(pp_.trim3);
 		assert(c == '\t' || c == '\n' || c == '\r' || cur >= buflen);
 		assert_eq(r.patFw.length(), r.qual.length());
 	}
@@ -759,7 +759,7 @@ bool FastaPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 		}
 		if(isalpha(c)) {
 			// If it's past the 5'-end trim point
-			if(nchar++ >= gTrim5) {
+			if(nchar++ >= pp_.trim5) {
 				r.patFw.append(asc2dna[c]);
 			}
 		}
@@ -767,7 +767,7 @@ bool FastaPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 		c = r.readOrigBuf[cur++];
 	}
 	r.trimmed5 = (int)(nchar - r.patFw.length());
-	r.trimmed3 = (int)(r.patFw.trimEnd(gTrim3));
+	r.trimmed3 = (int)(r.patFw.trimEnd(pp_.trim3));
 	
 	for(size_t i = 0; i < r.patFw.length(); i++) {
 		r.qual.append('I');
@@ -911,7 +911,7 @@ bool FastaContinuousPatternSource::parse(
 	while(cur < buflen) {
 		if(isalpha(c)) {
 			assert_in(toupper(c), "ACGTN");
-			if(nchar++ >= gTrim5) {
+			if(nchar++ >= pp_.trim5) {
 				assert_neq(0, asc2dnacat[c]);
 				ra.patFw.append(asc2dna[c]); // ascii to int
 			}
@@ -921,7 +921,7 @@ bool FastaContinuousPatternSource::parse(
 	// record amt trimmed from 5' end due to --trim5
 	ra.trimmed5 = (int)(nchar - ra.patFw.length());
 	// record amt trimmed from 3' end due to --trim3
-	ra.trimmed3 = (int)(ra.patFw.trimEnd(gTrim3));
+	ra.trimmed3 = (int)(ra.patFw.trimEnd(pp_.trim3));
 	
 	// Make fake qualities
 	assert(ra.qual.empty());
@@ -1044,7 +1044,7 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 		}
 		if(isalpha(c)) {
 			// If it's past the 5'-end trim point
-			if(nchar++ >= gTrim5) {
+			if(nchar++ >= pp_.trim5) {
 				r.patFw.append(asc2dna[c]);
 			}
 		}
@@ -1052,7 +1052,7 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 		c = r.readOrigBuf[cur++];
 	}
 	r.trimmed5 = (int)(nchar - r.patFw.length());
-	r.trimmed3 = (int)(r.patFw.trimEnd(gTrim3));
+	r.trimmed3 = (int)(r.patFw.trimEnd(pp_.trim3));
 	
 	assert_eq('+', c);
 	do {
@@ -1066,23 +1066,23 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 	assert(r.qual.empty());
 	if(nchar > 0) {
 		int nqual = 0;
-		if (intQuals_) {
+		if (pp_.intQuals) {
 			int cur_int = 0;
 			while(c != '\t' && c != '\n' && c != '\r') {
 				cur_int *= 10;
 				cur_int += (int)(c - '0');
 				c = r.readOrigBuf[cur++];
 				if(c == ' ' || c == '\t' || c == '\n' || c == '\r') {
-					char cadd = intToPhred33(cur_int, solQuals_);
+					char cadd = intToPhred33(cur_int, pp_.solexa64);
 					cur_int = 0;
 					assert_geq(cadd, 33);
-					if(++nqual > gTrim5) {
+					if(++nqual > pp_.trim5) {
 						r.qual.append(cadd);
 					}
 				}
 			}
 		} else {
-			c = charToPhred33(c, solQuals_, phred64Quals_);
+			c = charToPhred33(c, pp_.solexa64, pp_.phred64);
 			if(nqual++ >= r.trimmed5) {
 				r.qual.append(c);
 			}
@@ -1095,7 +1095,7 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 				if(c == '\r' || c == '\n') {
 					break;
 				}
-				c = charToPhred33(c, solQuals_, phred64Quals_);
+				c = charToPhred33(c, pp_.solexa64, pp_.phred64);
 				if(nqual++ >= r.trimmed5) {
 					r.qual.append(c);
 				}
@@ -1194,7 +1194,7 @@ bool TabbedPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 		while(c != '\t' && cur < buflen) {
 			if(isalpha(c)) {
 				assert_in(toupper(c), "ACGTN");
-				if(nchar++ >= gTrim5) {
+				if(nchar++ >= pp_.trim5) {
 					assert_neq(0, asc2dnacat[c]);
 					r.patFw.append(asc2dna[c]); // ascii to int
 				}
@@ -1208,23 +1208,23 @@ bool TabbedPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 		// record amt trimmed from 5' end due to --trim5
 		r.trimmed5 = (int)(nchar - r.patFw.length());
 		// record amt trimmed from 3' end due to --trim3
-		r.trimmed3 = (int)(r.patFw.trimEnd(gTrim3));
+		r.trimmed3 = (int)(r.patFw.trimEnd(pp_.trim3));
 		
 		// Parse qualities
 		assert(r.qual.empty());
 		c = ra.readOrigBuf[cur++];
 		int nqual = 0;
-		if (intQuals_) {
+		if (pp_.intQuals) {
 			int cur_int = 0;
 			while(c != '\t' && c != '\n' && c != '\r' && cur < buflen) {
 				cur_int *= 10;
 				cur_int += (int)(c - '0');
 				c = ra.readOrigBuf[cur++];
 				if(c == ' ' || c == '\t' || c == '\n' || c == '\r') {
-					char cadd = intToPhred33(cur_int, solQuals_);
+					char cadd = intToPhred33(cur_int, pp_.solexa64);
 					cur_int = 0;
 					assert_geq(cadd, 33);
-					if(++nqual > gTrim5) {
+					if(++nqual > pp_.trim5) {
 						r.qual.append(cadd);
 					}
 				}
@@ -1235,8 +1235,8 @@ bool TabbedPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 					wrongQualityFormat(r.name);
 					return false;
 				}
-				char cadd = charToPhred33(c, solQuals_, phred64Quals_);
-				if(++nqual > gTrim5) {
+				char cadd = charToPhred33(c, pp_.solexa64, pp_.phred64);
+				if(++nqual > pp_.trim5) {
 					r.qual.append(cadd);
 				}
 				if(cur >= buflen) break;
@@ -1250,7 +1250,7 @@ bool TabbedPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 			tooManyQualities(r.name);
 			return false;
 		}
-		r.qual.trimEnd(gTrim3);
+		r.qual.trimEnd(pp_.trim3);
 		assert(c == '\t' || c == '\n' || c == '\r' || cur >= buflen);
 		assert_eq(r.patFw.length(), r.qual.length());
 	}
@@ -1306,7 +1306,7 @@ bool RawPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 		assert(c != '\r' && c != '\n');
 		if(isalpha(c)) {
 			assert_in(toupper(c), "ACGTN");
-			if(nchar++ >= gTrim5) {
+			if(nchar++ >= pp_.trim5) {
 				assert_neq(0, asc2dnacat[c]);
 				r.patFw.append(asc2dna[c]); // ascii to int
 			}
@@ -1316,7 +1316,7 @@ bool RawPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 	// record amt trimmed from 5' end due to --trim5
 	r.trimmed5 = (int)(nchar - r.patFw.length());
 	// record amt trimmed from 3' end due to --trim3
-	r.trimmed3 = (int)(r.patFw.trimEnd(gTrim3));
+	r.trimmed3 = (int)(r.patFw.trimEnd(pp_.trim3));
 	
 	// Give the name field a dummy value
 	char cbuf[20];

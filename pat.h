@@ -60,6 +60,8 @@ struct PatternParams {
 		bool solexa64_,
 		bool phred64_,
 		bool intQuals_,
+		int trim5_,
+		int trim3_,
 		int sampleLen_,
 		int sampleFreq_,
 		size_t skip_,
@@ -72,6 +74,8 @@ struct PatternParams {
 		solexa64(solexa64_),
 		phred64(phred64_),
 		intQuals(intQuals_),
+		trim5(trim5_),
+		trim3(trim3_),
 		sampleLen(sampleLen_),
 		sampleFreq(sampleFreq_),
 		skip(skip_),
@@ -85,6 +89,8 @@ struct PatternParams {
 	bool solexa64;		  // true -> qualities are on solexa64 scale
 	bool phred64;		  // true -> qualities are on phred64 scale
 	bool intQuals;		  // true -> qualities are space-separated numbers
+	int trim5;            // amt to hard clip from 5' end
+	int trim3;            // amt to hard clip from 3' end
 	int sampleLen;		  // length of sampled reads for FastaContinuous...
 	int sampleFreq;		  // frequency of sampled reads for FastaContinuous...
 	size_t skip;		  // skip the first 'skip' patterns
@@ -188,6 +194,7 @@ class PatternSource {
 public:
 	
 	PatternSource(const PatternParams& p) :
+		pp_(p),
 		readCnt_(0),
 		mutex() { }
 	
@@ -231,11 +238,15 @@ public:
 	
 protected:
 	
-	/// The number of reads read by this PatternSource
+	
+	// Reference to global input-parsing parameters
+	const PatternParams& pp_;
+	
+	// The number of reads read by this PatternSource
 	volatile TReadId readCnt_;
 	
-	/// Lock enforcing mutual exclusion for (a) file I/O, (b) writing fields
-	/// of this or another other shared object.
+	// Lock enforcing mutual exclusion for (a) file I/O, (b) writing fields
+	// of this or another other shared object.
 	MUTEX_T mutex;
 };
 
@@ -498,9 +509,6 @@ public:
 		const PatternParams& p,
 		bool  secondName) :  // whether it's --12/--tab5 or --tab6
 		CFilePatternSource(infiles, p),
-		solQuals_(p.solexa64),
-		phred64Quals_(p.phred64),
-		intQuals_(p.intQuals),
 		secondName_(secondName) { }
 
 	/**
@@ -517,9 +525,6 @@ protected:
 		PerThreadReadBuf& pt,
 		bool batch_a);
 
-	bool solQuals_;		// base qualities are log odds
-	bool phred64Quals_; // base qualities are on -64 scale
-	bool intQuals_;		// base qualities are space-separated strings
 	bool secondName_;	// true if --tab6, false if --tab5
 };
 
@@ -549,10 +554,7 @@ public:
 	QseqPatternSource(
 		const EList<std::string>& infiles,
 		const PatternParams& p) :
-		CFilePatternSource(infiles, p),
-		solQuals_(p.solexa64),
-		phred64Quals_(p.phred64),
-		intQuals_(p.intQuals) { }
+		CFilePatternSource(infiles, p) { }
 
 	/**
 	 * Finalize qseq parsing outside critical section.
@@ -568,9 +570,6 @@ protected:
 		PerThreadReadBuf& pt,
 		bool batch_a);
 
-	bool solQuals_;		// base qualities are log odds
-	bool phred64Quals_; // base qualities are on -64 scale
-	bool intQuals_;		// base qualities are space-separated strings
 	EList<std::string> qualToks_;
 };
 
@@ -657,9 +656,6 @@ public:
 		const PatternParams& p, bool interleaved = false) :
 		CFilePatternSource(infiles, p),
 		first_(true),
-		solQuals_(p.solexa64),
-		phred64Quals_(p.phred64),
-		intQuals_(p.intQuals),
 		interleaved_(interleaved) { }
 	
 	virtual void reset() {
@@ -689,9 +685,6 @@ protected:
 	}
 
 	bool first_;		// parsing first read in file
-	bool solQuals_;		// base qualities are log odds
-	bool phred64Quals_; // base qualities are on -64 scale
-	bool intQuals_;		// base qualities are space-separated strings
 	bool interleaved_;	// fastq reads are interleaved
 };
 
