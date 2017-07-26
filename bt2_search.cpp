@@ -4383,10 +4383,6 @@ static void multiseedSearch(
 #endif
 	{
 		Timer _t(cerr, "Multiseed full-index search: ", timing);
-		int mil = 10;
-		struct timespec ts = {0};
-		ts.tv_sec=0;
-		ts.tv_nsec = mil * 1000000L;
 		for(int i = 0; i < nthreads; i++) {
 #ifdef WITH_TBB
 			thread_tracking_pair tp;
@@ -4400,12 +4396,11 @@ static void multiseedSearch(
 				threads[i] = new std::thread(multiseedSearchWorker, (void*) &tp);
 			}
 			threads[i]->detach();
-			nanosleep(&ts, (struct timespec *) NULL);
+			SLEEP(10);
 		}
-		while(all_threads_done < nthreads);
-		//tbb_grp.wait();
-     		/*for(int i=1; i<=nthreads; i++)
-        		threads[i]->join();*/
+		while(all_threads_done < nthreads) {
+			SLEEP(10);
+		}
 #else
 			// Thread IDs start at 1
 			tids[i] = i;
