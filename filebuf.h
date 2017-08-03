@@ -28,6 +28,8 @@
 #include <stdint.h>
 #include <stdexcept>
 #include "assert_helpers.h"
+#include <errno.h>
+#include <stdlib.h>
 
 /**
  * Simple, fast helper for determining if a character is a newline.
