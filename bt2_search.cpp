@@ -205,6 +205,7 @@ static size_t maxhalf;        // max width on one side of DP table
 static bool seedSumm;         // print summary information about seed hits, not alignments
 static bool scUnMapped;       // consider soft-clipped bases unmapped when calculating TLEN
 static bool doUngapped;       // do ungapped alignment
+static bool xeq;              // use X/= instead of M in CIGAR string
 static size_t maxIters;       // stop after this many extend loop iterations
 static size_t maxUg;          // stop after this many ungap extends
 static size_t maxDp;          // stop after this many DPs
@@ -391,6 +392,7 @@ static void resetOptions() {
 	maxhalf            = 15; // max width on one side of DP table
 	seedSumm           = false; // print summary information about seed hits, not alignments
 	scUnMapped         = false; // consider soft clipped bases unmapped when calculating TLEN
+	xeq                = false; // use =/X instead of M in CIGAR string
 	doUngapped         = true;  // do ungapped alignment
 	maxIters           = 400;   // max iterations of extend loop
 	maxUg              = 300;   // stop after this many ungap extends
@@ -614,6 +616,7 @@ static struct option long_options[] = {
 {(char*)"log-dp",                      required_argument,  0,                   ARG_LOG_DP},
 {(char*)"log-dp-opp",                  required_argument,  0,                   ARG_LOG_DP_OPP},
 {(char*)"soft-clipped-unmapped-tlen",  no_argument,        0,                   ARG_SC_UNMAPPED},
+{(char*)"xeq",                         no_argument,        0,                   ARG_XEQ},
 {(char*)0,                             0,                  0,                   0} //  terminator
 };
 
@@ -796,6 +799,7 @@ static void printUsage(ostream& out) {
 	    << "  --omit-sec-seq     put '*' in SEQ and QUAL fields for secondary alignments." << endl
 	    << "  --sam-noqname-trunc Suppress standard behavior of truncating readname at first whitespace " << endl
 	    << "                      at the expense of generating non-standard SAM." << endl
+	    << "  --xeq              Use '='/'X', instead of 'M,' to specify matches/mismatches in SAM record." << endl
 		<< endl
 	    << " Performance:" << endl
 	//    << "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl
@@ -991,6 +995,7 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_SHMEM: useShmem = true; break;
 		case ARG_SEED_SUMM: seedSumm = true; break;
 		case ARG_SC_UNMAPPED: scUnMapped = true; break;
+		case ARG_XEQ: xeq = true; break;
 		case ARG_MM: {
 #ifdef BOWTIE_MM
 			useMm = true;
@@ -3916,7 +3921,8 @@ static void multiseedSearchWorker(void *vp) {
 					sc,                   // scoring scheme
 					!seedSumm,            // suppress seed summaries?
 					seedSumm,             // suppress alignments?
-					scUnMapped);          // Consider soft-clipped bases unmapped when calculating TLEN
+					scUnMapped,           // Consider soft-clipped bases unmapped when calculating TLEN
+					xeq);
 				assert(!retry || msinkwrap.empty());
 			} // while(retry)
 		} // if(rdid >= skipReads && rdid < qUpto)
@@ -4266,7 +4272,8 @@ static void multiseedSearchWorker_2p5(void *vp) {
 				sc,                   // scoring scheme
 				!seedSumm,            // suppress seed summaries?
 				seedSumm,             // suppress alignments?
-				scUnMapped);          // Consider soft-clipped bases unmapped when calculating TLEN
+				scUnMapped,           // Consider soft-clipped bases unmapped when calculating TLEN
+				xeq);
 		} // if(rdid >= skipReads && rdid < qUpto)
 		else if(rdid >= qUpto) {
 			break;

@@ -1030,7 +1030,8 @@ public:
 		const Scoring& sc,              // scoring scheme
 		bool suppressSeedSummary = true,
 		bool suppressAlignments = false,
-		bool scUnMapped = false);
+		bool scUnMapped = false,
+		bool xeq = false);
 	
 	/**
 	 * Called by the aligner when a new unpaired or paired alignment is
