@@ -723,7 +723,7 @@ bool FastaPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 	assert(r.patFw.empty());
 	assert(c != '\n' && c != '\r');
 	assert_lt(cur, buflen);
-	while(c != '\n' && cur < buflen) {
+	while(cur < buflen) {
 		if(c == '.') {
 			c = 'N';
 		}
