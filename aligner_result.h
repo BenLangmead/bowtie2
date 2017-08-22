@@ -296,7 +296,8 @@ public:
 			false,  // primary
 			false,  // oppAligned
 			false,  // oppFw
-			false); // scUnMapped
+			false,  // scUnMapped
+			false); // xeq
 	}
 
 	AlnFlags(
@@ -312,10 +313,12 @@ public:
 		bool primary,
 		bool oppAligned, // opposite mate aligned?
 		bool oppFw,      // opposite mate aligned forward?
-		bool scUnMapped)
+		bool scUnMapped,
+		bool xeq)
 	{
 		init(pairing, canMax, maxed, maxedPair, nfilt, scfilt,
-		     lenfilt, qcfilt, mixedMode, primary, oppAligned, oppFw, scUnMapped);
+			 lenfilt, qcfilt, mixedMode, primary, oppAligned,
+			 oppFw, scUnMapped, xeq);
 	}
 
 	/**
@@ -334,7 +337,8 @@ public:
 		bool primary,
 		bool oppAligned,
 		bool oppFw,
-		bool scUnMapped)
+		bool scUnMapped,
+		bool xeq)
 	{
 		assert_gt(pairing, 0);
 		assert_leq(pairing, ALN_FLAG_PAIR_UNPAIRED);
@@ -351,6 +355,7 @@ public:
 		oppAligned_ = oppAligned;
 		oppFw_     = oppFw;
 		scUnMapped_ = scUnMapped;
+		xeq_ = xeq;
 	}
 
 	/**
@@ -499,12 +504,16 @@ public:
 		return oppAligned_;
 	}
 
-	inline bool isOppFw() const {
+	bool isOppFw() const {
 		return oppFw_;
 	}
 
-	inline bool scUnMapped() const {
+	bool scUnMapped() const {
 		return scUnMapped_;
+	}
+
+	bool xeq() const {
+		return xeq_;
 	}
 
 protected:
@@ -544,7 +553,9 @@ protected:
 
 	// True if soft clipped bases are considered unmapped w/r/t TLEN
 	bool scUnMapped_;
-	};
+
+	bool xeq_;
+};
 
 static inline ostream& operator<<(ostream& os, const AlnScore& o) {
 	os << o.score();
