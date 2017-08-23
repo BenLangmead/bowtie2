@@ -43,7 +43,7 @@ int main(int argc, const char **argv) {
 	if(argc > 2 && strcmp(argv[1], "-A") == 0) {
 		const char *file = argv[2];
 		ifstream in;
-		in.open(file);
+			in.open(file);
 		char buf[4096];
 		int lastret = -1;
 		while(in.getline(buf, 4095)) {

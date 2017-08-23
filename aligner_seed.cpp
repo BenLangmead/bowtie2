@@ -1526,7 +1526,7 @@ SeedAligner::searchSeedBi(
 		bool leaveZone = s.zones[i].first < 0;
 		//bool leaveZoneIns = zones_[i].second < 0;
 		Constraint& cons    = *zones[abs(s.zones[i].first)];
-		Constraint& insCons = *zones[abs(s.zones[i].second)];
+		//Constraint& insCons = *zones[abs(s.zones[i].second)];
 		int c = (*seq_)[off];  assert_range(0, 4, c);
 		int q = (*qual_)[off];
 		// Is it legal for us to advance on characters other than 'c'?
@@ -1598,14 +1598,14 @@ SeedAligner::searchSeedBi(
 				}
 				if(cons.canGap() && overall.canGap()) {
 					throw 1; // TODO
-					int delEx = 0;
-					if(cons.canDelete(delEx, *sc_) && overall.canDelete(delEx, *sc_)) {
-						// Try delete
-					}
-					int insEx = 0;
-					if(insCons.canInsert(insEx, *sc_) && overall.canInsert(insEx, *sc_)) {
-						// Try insert
-					}
+//					int delEx = 0;
+//					if(cons.canDelete(delEx, *sc_) && overall.canDelete(delEx, *sc_)) {
+//						// Try delete
+//					}
+//					int insEx = 0;
+//					if(insCons.canInsert(insEx, *sc_) && overall.canInsert(insEx, *sc_)) {
+//						// Try insert
+//					}
 				}
 			} // if(!bail)
 		}

@@ -11,9 +11,10 @@ branches:
   only:
   - master
   - cleaner_parsing
+  - scaling-old-parsing
   - batch_parsing
-  - no-io
-  - rel2.3
+  - batch_parsing_output
+  - blocked_input
   - v2.3.2
 script: make allall && make simple-test
 notifications:

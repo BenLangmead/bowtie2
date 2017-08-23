@@ -444,10 +444,8 @@ public:
 		samap_(CACHE_PAGE_SZ, CA_CAT),
 		salist_(CA_CAT),
 		shared_(shared),
-        mutex_m(),
-		version_(0)
-	{
-	}
+		mutex_m(),
+		version_(0) { }
 
 	/**
 	 * Given a QVal, populate the given EList of SATuples with records
@@ -462,37 +460,11 @@ public:
 		size_t& nelt,
 		bool getLock = true)
 	{
-        ThreadSafe ts(lockPtr(), shared_ && getLock);
-		assert(qv.repOk(*this));
-		const size_t refi = qv.offset();
-		const size_t reff = refi + qv.numRanges();
-		// For each reference sequence sufficiently similar to the
-		// query sequence in the QKey...
-		for(size_t i = refi; i < reff; i++) {
-			// Get corresponding SAKey, containing similar reference
-			// sequence & length
-			SAKey sak = qlist_.get(i);
-			// Shouldn't have identical keys in qlist_
-			assert(i == refi || qlist_.get(i) != qlist_.get(i-1));
-			// Get corresponding SANode
-			SANode *n = samap_.lookup(sak);
-			assert(n != NULL);
-			const SAVal& sav = n->payload;
-			assert(sav.repOk(*this));
-			if(sav.len > 0) {
-				nrange++;
-				satups.expand();
-				satups.back().init(sak, sav.topf, sav.topb, TSlice(salist_, sav.i, sav.len));
-				nelt += sav.len;
-#ifndef NDEBUG
-				// Shouldn't add consecutive identical entries too satups
-				if(i > refi) {
-					const SATuple b1 = satups.back();
-					const SATuple b2 = satups[satups.size()-2];
-					assert(b1.key != b2.key || b1.topf != b2.topf || b1.offs != b2.offs);
-				}
-#endif
-			}
+		if(shared_ && getLock) {
+			ThreadSafe ts(mutex_m);
+			queryQvalImpl(qv, satups, nrange, nelt);
+		} else {
+			queryQvalImpl(qv, satups, nrange, nelt);
 		}
 	}
 
@@ -522,12 +494,14 @@ public:
 		bool *added,
 		bool getLock = true)
 	{
-        ThreadSafe ts(lockPtr(), shared_ && getLock);
-		assert(qk.cacheable());
-		QNode *n = qmap_.add(pool(), qk, added);
-		return (n != NULL ? &n->payload : NULL);
+		if(shared_ && getLock) {
+			ThreadSafe ts(mutex_m);
+			return addImpl(qk, added);
+		} else {
+			return addImpl(qk, added);
+		}
 	}
-
+	
 	/**
 	 * Add a new association between a read sequnce ('seq') and a
 	 * reference sequence ('')
@@ -546,8 +520,8 @@ public:
 	 * ranges in this cache will become invalid and the corresponding
 	 * reads will have to be re-aligned.
 	 */
-	void clear(bool getLock = true) {
-        ThreadSafe ts(lockPtr(), shared_ && getLock);
+	void clear() {
+		ThreadSafe ts(mutex_m);
 		pool_.clear();
 		qmap_.clear();
 		qlist_.clear();
@@ -585,17 +559,9 @@ public:
 	 * Return the lock object.
 	 */
 	MUTEX_T& lock() {
-	    return mutex_m;
+		return mutex_m;
 	}
 
-	/**
-	 * Return a const pointer to the lock object.  This allows us to
-	 * write const member functions that grab the lock.
-	 */
-	MUTEX_T* lockPtr() const {
-	    return const_cast<MUTEX_T*>(&mutex_m);
-	}
-	
 	/**
 	 * Return true iff this cache is shared among threads.
 	 */
@@ -618,6 +584,79 @@ protected:
 	bool     shared_;  // true -> this cache is global
 	MUTEX_T mutex_m;    // mutex used for syncronization in case the the cache is shared.
 	uint32_t version_; // cache version
+
+private:
+
+	template <int S>
+	void queryQvalImpl(
+		const QVal& qv,
+		EList<SATuple, S>& satups,
+		size_t& nrange,
+		size_t& nelt)
+	{
+		assert(qv.repOk(*this));
+		const size_t refi = qv.offset();
+		const size_t reff = refi + qv.numRanges();
+		// For each reference sequence sufficiently similar to the
+		// query sequence in the QKey...
+		for(size_t i = refi; i < reff; i++) {
+			// Get corresponding SAKey, containing similar reference
+			// sequence & length
+			SAKey sak = qlist_.get(i);
+			// Shouldn't have identical keys in qlist_
+			assert(i == refi || qlist_.get(i) != qlist_.get(i-1));
+			// Get corresponding SANode
+			SANode *n = samap_.lookup(sak);
+			assert(n != NULL);
+			const SAVal& sav = n->payload;
+			assert(sav.repOk(*this));
+			if(sav.len > 0) {
+				nrange++;
+				satups.expand();
+				satups.back().init(sak, sav.topf, sav.topb, TSlice(salist_, sav.i, sav.len));
+				nelt += sav.len;
+#ifndef NDEBUG
+				// Shouldn't add consecutive identical entries too satups
+				if(i > refi) {
+					const SATuple b1 = satups.back();
+					const SATuple b2 = satups[satups.size()-2];
+					assert(b1.key != b2.key || b1.topf != b2.topf || b1.offs != b2.offs);
+				}
+#endif
+			}
+		}
+	}
+	
+	/**
+	 * Add a new association between a read sequnce ('seq') and a
+	 * reference sequence ('')
+	 */
+	bool addOnTheFlyImpl(
+		QVal& qv,         // qval that points to the range of reference substrings
+		const SAKey& sak, // the key holding the reference substring
+		TIndexOffU topf,    // top range elt in BWT index
+		TIndexOffU botf,    // bottom range elt in BWT index
+		TIndexOffU topb,    // top range elt in BWT' index
+		TIndexOffU botb);   // bottom range elt in BWT' index
+
+	/**
+	 * Add a new query key ('qk'), usually a 2-bit encoded substring of
+	 * the read) as the key in a new Red-Black node in the qmap and
+	 * return a pointer to the node's QVal.
+	 *
+	 * The expectation is that the caller is about to set about finding
+	 * associated reference substrings, and that there will be future
+	 * calls to addOnTheFly to add associations to reference substrings
+	 * found.
+	 */
+	QVal* addImpl(
+		const QKey& qk,
+		bool *added)
+	{
+		assert(qk.cacheable());
+		QNode *n = qmap_.add(pool(), qk, added);
+		return (n != NULL ? &n->payload : NULL);
+	}
 };
 
 /**
