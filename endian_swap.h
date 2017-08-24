@@ -107,9 +107,9 @@ static inline T endianizeU(T u, bool toBig) {
 		return u;
 	}
 	if(sizeof(T) == 4) {
-		return endianSwapU32((uint32_t)u);
+		return (T)endianSwapU32((uint32_t)u);
 	} else if(sizeof(T) == 8) {
-		return endianSwapU64((uint64_t)u);
+		return (T)endianSwapU64((uint64_t)u);
 	} else {
 		assert(false);
 	}

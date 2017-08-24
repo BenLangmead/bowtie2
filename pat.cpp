@@ -31,6 +31,15 @@
 
 using namespace std;
 
+/*void set_bufsz(unsigned bufsz) 
+{ 
+#if ZLIB_VERNUM < 0x1240        
+	std::fprintf(stderr, "Warning: gzbuffer added in zlib1.2.4. Unable to change buffer size from default of 8192.\n"); 
+#else        
+	gzbuffer(fp_, bufsz);
+#endif
+}*/
+
 /**
  * Calculate a per-read random seed based on a combination of
  * the read data (incl. sequence, name, quals) and the global
@@ -188,7 +197,7 @@ pair<bool, int> SoloPatternComposer::nextBatch(PerThreadReadBuf& pt) {
 				true); // grab lock below
 		} while(!res.first && res.second == 0);
 		if(res.second == 0) {
-			ThreadSafe ts(&mutex_m);
+			ThreadSafe ts(mutex_m);
 			if(cur + 1 > cur_) {
 				cur_++;
 			}
@@ -218,7 +227,7 @@ pair<bool, int> DualPatternComposer::nextBatch(PerThreadReadBuf& pt) {
 				true); // grab lock below
 			bool done = res.first;
 			if(!done && res.second == 0) {
-				ThreadSafe ts(&mutex_m);
+				ThreadSafe ts(mutex_m);
 				if(cur + 1 > cur_) cur_++;
 				cur = cur_; // Move on to next PatternSource
 				continue; // on to next pair of PatternSources
@@ -229,7 +238,7 @@ pair<bool, int> DualPatternComposer::nextBatch(PerThreadReadBuf& pt) {
 			// Lock to ensure that this thread gets parallel reads
 			// in the two mate files
 			{
-				ThreadSafe ts(&mutex_m);
+				ThreadSafe ts(mutex_m);
 				resa = (*srca_)[cur]->nextBatch(
 					pt,
 					true,   // batch A
@@ -246,7 +255,7 @@ pair<bool, int> DualPatternComposer::nextBatch(PerThreadReadBuf& pt) {
 				     << "than in file specified with -2" << endl;
 				throw 1;
 			} else if(resa.second == 0 && resb.second == 0) {
-				ThreadSafe ts(&mutex_m);
+				ThreadSafe ts(mutex_m);
 				if(cur + 1 > cur_) {
 					cur_++;
 				}
@@ -387,17 +396,12 @@ void PatternComposer::free_EList_pmembers( const EList<PatternSource*> &elist) {
  * Returns pair<bool, int> where bool indicates whether we're
  * completely done, and int indicates how many reads were read.
  */
-pair<bool, int> CFilePatternSource::nextBatch(
+pair<bool, int> CFilePatternSource::nextBatchImpl(
 	PerThreadReadBuf& pt,
-	bool batch_a,
-	bool lock)
+	bool batch_a)
 {
 	bool done = false;
 	int nread = 0;
-	
-	// synchronization at this level because both reading and manipulation of
-	// current file pointer have to be protected
-	ThreadSafe ts(&mutex, lock);
 	pt.setReadId(readCnt_);
 	while(true) { // loop that moves on to next file when needed
 		do {
@@ -420,6 +424,21 @@ pair<bool, int> CFilePatternSource::nextBatch(
 	return make_pair(done, nread);
 }
 
+pair<bool, int> CFilePatternSource::nextBatch(
+	PerThreadReadBuf& pt,
+	bool batch_a,
+	bool lock)
+{
+	if(lock) {
+		// synchronization at this level because both reading and manipulation of
+		// current file pointer have to be protected
+		ThreadSafe ts(mutex);
+		return nextBatchImpl(pt, batch_a);
+	} else {
+		return nextBatchImpl(pt, batch_a);
+	}
+}
+
 /**
  * Open the next file in the list of input files.
  */
@@ -432,8 +451,8 @@ void CFilePatternSource::open() {
 		}
 		else {
 			fclose(fp_);
-			fp_ = NULL;
-		}
+      			fp_ = NULL;
+      		}
 	}
 	while(filecur_ < infiles_.size()) {
 		if(infiles_[filecur_] == "-") {
@@ -454,12 +473,12 @@ void CFilePatternSource::open() {
 			if((compressed_ && zfp_ == NULL) || (!compressed_ && fp_ == NULL)) {
 				if(!errs_[filecur_]) {
 					cerr << "Warning: Could not open read file \""
-					<< infiles_[filecur_].c_str()
-					<< "\" for reading; skipping..." << endl;
+					     << infiles_[filecur_].c_str()
+					     << "\" for reading; skipping..." << endl;
 					errs_[filecur_] = true;
-				}
-				filecur_++;
-				continue;
+      				}
+      				filecur_++;
+      				continue;
 			}
 		}
 		is_open_ = true;
@@ -533,12 +552,10 @@ VectorPatternSource::VectorPatternSource(
  * in the contsructor.	This essentially modifies the pt as though we read
  * in some number of patterns.
  */
-pair<bool, int> VectorPatternSource::nextBatch(
+pair<bool, int> VectorPatternSource::nextBatchImpl(
 	PerThreadReadBuf& pt,
-	bool batch_a,
-	bool lock)
+	bool batch_a)
 {
-	ThreadSafe ts(&mutex, lock);
 	pt.setReadId(cur_);
 	EList<Read>& readbuf = batch_a ? pt.bufa_ : pt.bufb_;
 	size_t readi = 0;
@@ -547,6 +564,19 @@ pair<bool, int> VectorPatternSource::nextBatch(
 	}
 	readCnt_ += readi;
 	return make_pair(cur_ == bufs_.size(), readi);
+}
+
+pair<bool, int> VectorPatternSource::nextBatch(
+	PerThreadReadBuf& pt,
+	bool batch_a,
+	bool lock)
+{
+	if(lock) {
+		ThreadSafe ts(mutex);
+		return nextBatchImpl(pt, batch_a);
+	} else {
+		return nextBatchImpl(pt, batch_a);
+	}
 }
 
 /**
@@ -593,7 +623,7 @@ bool VectorPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 		while(c != '\t' && cur < buflen) {
 			if(isalpha(c)) {
 				assert_in(toupper(c), "ACGTN");
-				if(nchar++ >= gTrim5) {
+				if(nchar++ >= pp_.trim5) {
 					assert_neq(0, asc2dnacat[c]);
 					r.patFw.append(asc2dna[c]); // ascii to int
 				}
@@ -607,7 +637,7 @@ bool VectorPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 		// record amt trimmed from 5' end due to --trim5
 		r.trimmed5 = (int)(nchar - r.patFw.length());
 		// record amt trimmed from 3' end due to --trim3
-		r.trimmed3 = (int)(r.patFw.trimEnd(gTrim3));
+		r.trimmed3 = (int)(r.patFw.trimEnd(pp_.trim3));
 		
 		// Parse qualities
 		assert(r.qual.empty());
@@ -619,7 +649,7 @@ bool VectorPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 				return false;
 			}
 			char cadd = charToPhred33(c, false, false);
-			if(++nqual > gTrim5) {
+			if(++nqual > pp_.trim5) {
 				r.qual.append(cadd);
 			}
 			if(cur >= buflen) break;
@@ -632,7 +662,7 @@ bool VectorPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 			tooManyQualities(r.name);
 			return false;
 		}
-		r.qual.trimEnd(gTrim3);
+		r.qual.trimEnd(pp_.trim3);
 		assert(c == '\t' || c == '\n' || c == '\r' || cur >= buflen);
 		assert_eq(r.patFw.length(), r.qual.length());
 	}
@@ -729,7 +759,7 @@ bool FastaPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 		}
 		if(isalpha(c)) {
 			// If it's past the 5'-end trim point
-			if(nchar++ >= gTrim5) {
+			if(nchar++ >= pp_.trim5) {
 				r.patFw.append(asc2dna[c]);
 			}
 		}
@@ -742,7 +772,7 @@ bool FastaPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 		}
 	}
 	r.trimmed5 = (int)(nchar - r.patFw.length());
-	r.trimmed3 = (int)(r.patFw.trimEnd(gTrim3));
+	r.trimmed3 = (int)(r.patFw.trimEnd(pp_.trim3));
 	
 	for(size_t i = 0; i < r.patFw.length(); i++) {
 		r.qual.append('I');
@@ -886,7 +916,7 @@ bool FastaContinuousPatternSource::parse(
 	while(cur < buflen) {
 		if(isalpha(c)) {
 			assert_in(toupper(c), "ACGTN");
-			if(nchar++ >= gTrim5) {
+			if(nchar++ >= pp_.trim5) {
 				assert_neq(0, asc2dnacat[c]);
 				ra.patFw.append(asc2dna[c]); // ascii to int
 			}
@@ -896,7 +926,7 @@ bool FastaContinuousPatternSource::parse(
 	// record amt trimmed from 5' end due to --trim5
 	ra.trimmed5 = (int)(nchar - ra.patFw.length());
 	// record amt trimmed from 3' end due to --trim3
-	ra.trimmed3 = (int)(ra.patFw.trimEnd(gTrim3));
+	ra.trimmed3 = (int)(ra.patFw.trimEnd(pp_.trim3));
 	
 	// Make fake qualities
 	assert(ra.qual.empty());
@@ -919,7 +949,7 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 	PerThreadReadBuf& pt,
 	bool batch_a)
 {
-	int c;
+	int c = -1;
 	EList<Read>* readbuf = batch_a ? &pt.bufa_ : &pt.bufb_;
 	if(first_) {
 		c = getc_wrapper();
@@ -1019,7 +1049,7 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 		}
 		if(isalpha(c)) {
 			// If it's past the 5'-end trim point
-			if(nchar++ >= gTrim5) {
+			if(nchar++ >= pp_.trim5) {
 				r.patFw.append(asc2dna[c]);
 			}
 		}
@@ -1027,7 +1057,7 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 		c = r.readOrigBuf[cur++];
 	}
 	r.trimmed5 = (int)(nchar - r.patFw.length());
-	r.trimmed3 = (int)(r.patFw.trimEnd(gTrim3));
+	r.trimmed3 = (int)(r.patFw.trimEnd(pp_.trim3));
 	
 	assert_eq('+', c);
 	do {
@@ -1041,23 +1071,23 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 	assert(r.qual.empty());
 	if(nchar > 0) {
 		int nqual = 0;
-		if (intQuals_) {
+		if (pp_.intQuals) {
 			int cur_int = 0;
 			while(c != '\t' && c != '\n' && c != '\r') {
 				cur_int *= 10;
 				cur_int += (int)(c - '0');
 				c = r.readOrigBuf[cur++];
 				if(c == ' ' || c == '\t' || c == '\n' || c == '\r') {
-					char cadd = intToPhred33(cur_int, solQuals_);
+					char cadd = intToPhred33(cur_int, pp_.solexa64);
 					cur_int = 0;
 					assert_geq(cadd, 33);
-					if(++nqual > gTrim5) {
+					if(++nqual > pp_.trim5) {
 						r.qual.append(cadd);
 					}
 				}
 			}
 		} else {
-			c = charToPhred33(c, solQuals_, phred64Quals_);
+			c = charToPhred33(c, pp_.solexa64, pp_.phred64);
 			if(nqual++ >= r.trimmed5) {
 				r.qual.append(c);
 			}
@@ -1070,7 +1100,7 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 				if(c == '\r' || c == '\n') {
 					break;
 				}
-				c = charToPhred33(c, solQuals_, phred64Quals_);
+				c = charToPhred33(c, pp_.solexa64, pp_.phred64);
 				if(nqual++ >= r.trimmed5) {
 					r.qual.append(c);
 				}
@@ -1169,7 +1199,7 @@ bool TabbedPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 		while(c != '\t' && cur < buflen) {
 			if(isalpha(c)) {
 				assert_in(toupper(c), "ACGTN");
-				if(nchar++ >= gTrim5) {
+				if(nchar++ >= pp_.trim5) {
 					assert_neq(0, asc2dnacat[c]);
 					r.patFw.append(asc2dna[c]); // ascii to int
 				}
@@ -1183,23 +1213,23 @@ bool TabbedPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 		// record amt trimmed from 5' end due to --trim5
 		r.trimmed5 = (int)(nchar - r.patFw.length());
 		// record amt trimmed from 3' end due to --trim3
-		r.trimmed3 = (int)(r.patFw.trimEnd(gTrim3));
+		r.trimmed3 = (int)(r.patFw.trimEnd(pp_.trim3));
 		
 		// Parse qualities
 		assert(r.qual.empty());
 		c = ra.readOrigBuf[cur++];
 		int nqual = 0;
-		if (intQuals_) {
+		if (pp_.intQuals) {
 			int cur_int = 0;
 			while(c != '\t' && c != '\n' && c != '\r' && cur < buflen) {
 				cur_int *= 10;
 				cur_int += (int)(c - '0');
 				c = ra.readOrigBuf[cur++];
 				if(c == ' ' || c == '\t' || c == '\n' || c == '\r') {
-					char cadd = intToPhred33(cur_int, solQuals_);
+					char cadd = intToPhred33(cur_int, pp_.solexa64);
 					cur_int = 0;
 					assert_geq(cadd, 33);
-					if(++nqual > gTrim5) {
+					if(++nqual > pp_.trim5) {
 						r.qual.append(cadd);
 					}
 				}
@@ -1210,8 +1240,8 @@ bool TabbedPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 					wrongQualityFormat(r.name);
 					return false;
 				}
-				char cadd = charToPhred33(c, solQuals_, phred64Quals_);
-				if(++nqual > gTrim5) {
+				char cadd = charToPhred33(c, pp_.solexa64, pp_.phred64);
+				if(++nqual > pp_.trim5) {
 					r.qual.append(cadd);
 				}
 				if(cur >= buflen) break;
@@ -1225,7 +1255,7 @@ bool TabbedPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 			tooManyQualities(r.name);
 			return false;
 		}
-		r.qual.trimEnd(gTrim3);
+		r.qual.trimEnd(pp_.trim3);
 		assert(c == '\t' || c == '\n' || c == '\r' || cur >= buflen);
 		assert_eq(r.patFw.length(), r.qual.length());
 	}
@@ -1281,7 +1311,7 @@ bool RawPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 		assert(c != '\r' && c != '\n');
 		if(isalpha(c)) {
 			assert_in(toupper(c), "ACGTN");
-			if(nchar++ >= gTrim5) {
+			if(nchar++ >= pp_.trim5) {
 				assert_neq(0, asc2dnacat[c]);
 				r.patFw.append(asc2dna[c]); // ascii to int
 			}
@@ -1291,7 +1321,7 @@ bool RawPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 	// record amt trimmed from 5' end due to --trim5
 	r.trimmed5 = (int)(nchar - r.patFw.length());
 	// record amt trimmed from 3' end due to --trim3
-	r.trimmed3 = (int)(r.patFw.trimEnd(gTrim3));
+	r.trimmed3 = (int)(r.patFw.trimEnd(pp_.trim3));
 	
 	// Give the name field a dummy value
 	char cbuf[20];

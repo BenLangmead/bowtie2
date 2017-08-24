@@ -121,8 +121,8 @@ struct ReportingMetrics {
 	 * into this object.  This is the only safe way to update a
 	 * ReportingMetrics shared by multiple threads.
 	 */
-	void merge(const ReportingMetrics& met, bool getLock = false) {
-        ThreadSafe ts(&mutex_m, getLock);
+	void merge(const ReportingMetrics& met) {
+		ThreadSafe ts(mutex_m);
 		nread         += met.nread;
 
 		npaired       += met.npaired;
@@ -847,8 +847,8 @@ public:
 	/**
 	 * Merge given metrics in with ours by summing all individual metrics.
 	 */
-	void mergeMetrics(const ReportingMetrics& met, bool getLock = true) {
-		met_.merge(met, getLock);
+	void mergeMetrics(const ReportingMetrics& met) {
+		met_.merge(met);
 	}
 
 	/**
