@@ -17,6 +17,7 @@
  * along with Bowtie 2.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <time.h>
 #include <stdlib.h>
 #include <iostream>
 #include <fstream>
@@ -27,7 +28,8 @@
 #include <math.h>
 #include <utility>
 #include <limits>
-#include <time.h>
+#include <dirent.h>
+#include <signal.h>
 #include "alphabet.h"
 #include "assert_helpers.h"
 #include "endian_swap.h"
@@ -61,6 +63,14 @@
 
 using namespace std;
 
+static int FNAME_SIZE;
+#ifdef WITH_TBB
+static tbb::atomic<int> thread_counter;
+#else
+static int thread_counter;
+static MUTEX_T thread_counter_mutex; 
+#endif
+
 static EList<string> mates1;  // mated reads (first mate)
 static EList<string> mates2;  // mated reads (second mate)
 static EList<string> mates12; // mated reads (1st/2nd interleaved in 1 file)
@@ -88,6 +98,9 @@ static bool solexaQuals;  // quality strings are solexa quals, not phred, and su
 static bool phred64Quals; // quality chars are phred, but must subtract 64 (not 33)
 static bool integerQuals; // quality strings are space-separated strings of integers, not ASCII
 static int nthreads;      // number of pthreads operating concurrently
+static int thread_ceiling;// maximum number of threads user wants bowtie to use
+static string thread_stealing_dir; // keep track of pids in this directory
+static bool thread_stealing;// true iff thread stealing is in use
 static int outType;       // style of output
 static bool noRefNames;   // true -> print reference indexes; not names
 static uint32_t khits;    // number of hits per read; >1 is much slower
@@ -274,6 +287,10 @@ static void resetOptions() {
 	phred64Quals			= false; // quality chars are phred, but must subtract 64 (not 33)
 	integerQuals			= false; // quality strings are space-separated strings of integers, not ASCII
 	nthreads				= 1;     // number of pthreads operating concurrently
+	thread_ceiling			= 0;     // max # threads user asked for
+	thread_stealing_dir		= ""; // keep track of pids in this directory
+	thread_stealing			= false; // true iff thread stealing is in use
+	FNAME_SIZE				= 4096;
 	outType					= OUTPUT_SAM;  // style of output
 	noRefNames				= false; // true -> print reference indexes; not names
 	khits					= 1;     // number of hits per read; >1 is much slower
@@ -614,6 +631,8 @@ static struct option long_options[] = {
 	{(char*)"desc-fmops",       required_argument, 0,        ARG_DESC_FMOPS},
 	{(char*)"log-dp",           required_argument, 0,        ARG_LOG_DP},
 	{(char*)"log-dp-opp",       required_argument, 0,        ARG_LOG_DP_OPP},
+	{(char*)"thread-ceiling",   required_argument, 0,        ARG_THREAD_CEILING},
+	{(char*)"thread-piddir",    required_argument, 0,        ARG_THREAD_PIDDIR},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -1053,6 +1072,12 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_WRAPPER: wrapper = arg; break;
 		case 'p':
 			nthreads = parseInt(1, "-p/--threads arg must be at least 1", arg);
+			break;
+		case ARG_THREAD_CEILING:
+			thread_ceiling = parseInt(0, "--thread-ceiling must be at least 0", arg);
+			break;
+		case ARG_THREAD_PIDDIR:
+			thread_stealing_dir = arg;
 			break;
 		case ARG_FILEPAR:
 			fileParallel = true;
@@ -2781,6 +2806,27 @@ void get_cpu_and_node(int& cpu, int& node) {
 }
 #endif
 
+class ThreadCounter {
+public:
+	ThreadCounter() {
+#ifdef WITH_TBB
+		thread_counter.fetch_and_increment();
+#else
+		ThreadSafe ts(thread_counter_mutex);
+		thread_counter++;
+#endif
+	}
+	
+	~ThreadCounter() {
+#ifdef WITH_TBB
+		thread_counter.fetch_and_decrement();
+#else
+		ThreadSafe ts(thread_counter_mutex);
+		thread_counter--;
+#endif
+	}
+};
+
 /**
  * Called once per thread.  Sets up per-thread pointers to the shared global
  * data structures, creates per-thread structures, then enters the alignment
@@ -3971,6 +4017,7 @@ static void multiseedSearchWorker_2p5(void *vp) {
 	// level.  These in turn can be used to diagnose performance
 	// problems, or generally characterize performance.
 	
+	ThreadCounter tc;
 	auto_ptr<PatternSourcePerThreadFactory> patsrcFact(createPatsrcFactory(patsrc, pp, tid));
 	auto_ptr<PatternSourcePerThread> ps(patsrcFact->create());
 	
@@ -4279,15 +4326,186 @@ static void multiseedSearchWorker_2p5(void *vp) {
 		}
 	} // while(true)
 	
-	// One last metrics merge
-	MERGE_METRICS(metrics);
 #ifdef WITH_TBB
 	p->done->fetch_and_add(1);
 #endif
+	// One last metrics merge
+	MERGE_METRICS(metrics);
 
 	return;
 }
 
+
+/**
+ * Print friendly-ish message pertaining to failed system call.
+ */
+static void errno_message() {
+	int errnum = errno;
+	cerr << "errno is " << errnum << endl;
+	perror("perror error: ");
+}
+
+/**
+ * Delete PID file.  Raise error if the file doesn't exist or if
+ * we fail to delete it.
+ */
+void del_pid(const char* dirname,int pid) {
+	char* fname = (char*)calloc(FNAME_SIZE, sizeof(char));
+	if(fname == NULL) {
+		errno_message();
+		cerr << "del_pid: could not allocate buffer" << endl;
+		throw 1;
+	}
+	snprintf(fname, FNAME_SIZE, "%s/%d", dirname, pid);
+	if(unlink(fname) != 0) {
+		if(errno != ENOENT) {
+			errno_message();
+			cerr << "del_pid: could not delete PID file " << fname << endl;
+			free(fname);
+			throw 1;
+		} else {
+			// Probably just a race between processes
+		}
+	}
+	free(fname);
+}
+
+/**
+ * Write PID file.
+ */
+static void write_pid(const char* dirname,int pid) {
+	struct stat dinfo;
+	if(stat(dirname, &dinfo) != 0) {
+		if(mkdir(dirname, 0755) != 0) {
+			if(errno != EEXIST) {
+				errno_message();
+				cerr << "write_pid: could not create PID directory " << dirname << endl;
+				throw 1;
+			}
+		}
+	}
+	char* fname = (char*)calloc(FNAME_SIZE, sizeof(char));
+	if(fname == NULL) {
+		errno_message();
+		cerr << "write_pid: could not allocate buffer" << endl;
+		throw 1;
+	}
+	snprintf(fname, FNAME_SIZE, "%s/%d", dirname, pid);
+	FILE *f = fopen(fname, "w");
+	if(f == NULL) {
+		errno_message();
+		cerr << "write_pid: could not open PID file " << fname << endl;
+		throw 1;
+	}
+	if(fclose(f) != 0) {
+		errno_message();
+		cerr << "write_pid: could not close PID file " << fname << endl;
+		throw 1;
+	}
+	free(fname);
+}
+
+/**
+ * Read all the PID files in the given PID directory.  If the
+ * process corresponding to a PID file seems to have expired,
+ * delete the PID file.  Return the lowest PID encountered for
+ * a still-valid process.
+ */
+static int read_dir(const char* dirname, int* num_pids) {
+	DIR *dir;
+	struct dirent *ent;
+	char* fname = (char*)calloc(FNAME_SIZE, sizeof(char));
+	if(fname == NULL) {
+		errno_message();
+		cerr << "read_dir: could not allocate buffer" << endl;
+		throw 1;
+	}
+	dir = opendir(dirname);
+	if(dir == NULL) {
+		errno_message();
+		cerr << "read_dir: could not open directory " << dirname << endl;
+		free(fname);
+		throw 1;
+	}
+	int lowest_pid = -1;
+	while(true) {
+		errno = 0;
+		ent = readdir(dir);
+		if(ent == NULL) {
+			if(errno != 0) {
+				errno_message();
+				cerr << "read_dir: could not read directory " << dirname << endl;
+				free(fname);
+				throw 1;
+			}
+			break;
+		}
+		if(ent->d_name[0] == '.') {
+			continue;
+		}
+		int pid = atoi(ent->d_name);
+		if(kill(pid, 0) != 0) {
+			if(errno == ESRCH) {
+				del_pid(dirname, pid);
+				continue;
+			} else {
+				errno_message();
+				cerr << "read_dir: could not interrogate pid " << pid << endl;
+				free(fname);
+				throw 1;
+			}
+		}
+		(*num_pids)++;
+		if(pid < lowest_pid || lowest_pid == -1) {
+			lowest_pid = pid;
+		}
+	}
+	if(closedir(dir) != 0) {
+		errno_message();
+		cerr << "read_dir: could not close directory " << dir << endl;
+		free(fname);
+		throw 1;
+	}
+	free(fname);
+	return lowest_pid;
+}
+
+template<typename T>
+static void steal_threads(int pid, int orig_nthreads, EList<int>& tids, EList<T*>& threads)
+{
+	int ncpu = thread_ceiling;
+	if(thread_ceiling <= nthreads) {
+		return;
+	}
+	int num_pids = 0;
+	int lowest_pid = read_dir(thread_stealing_dir.c_str(), &num_pids);
+	if(lowest_pid != pid) {
+		return;
+	}
+	int in_use = ((num_pids-1) * orig_nthreads) + nthreads;
+	if(in_use < ncpu) {
+		nthreads++;
+		tids.push_back(nthreads);
+		threads.push_back(new T(multiseedSearchWorker, (void*)&tids.back()));
+		cerr << "pid " << pid << " started new worker # " << nthreads << endl;
+	}
+}
+
+template<typename T>
+static void thread_monitor(int pid, int orig_threads, EList<int>& tids, EList<T*>& threads)
+{
+	for(int j = 0; j < 10; j++) {
+		sleep(1);
+	}
+	int steal_ctr = 1;
+	while(thread_counter > 0) {
+		steal_threads(pid, orig_threads, tids, threads);
+		steal_ctr++;
+		for(int j = 0; j < 10; j++) {
+			sleep(1);
+		}
+	}
+}
 
 /**
  * Called once per alignment job.  Sets up global pointers to the
@@ -4328,13 +4546,15 @@ static void multiseedSearch(
 	delete _t;
 	if(!refs->loaded()) throw 1;
 	multiseed_refs = refs.get();
+	EList<int> tids;
 #ifdef WITH_TBB
 	//tbb::task_group tbb_grp;
-	AutoArray<std::thread*> threads(nthreads);
+	EList<std::thread*> threads;
 #else
-	AutoArray<tthread::thread*> threads(nthreads);
-	AutoArray<int> tids(nthreads);
+	EList<tthread::thread*> threads;
 #endif
+	threads.reserveExact(std::max(nthreads, thread_ceiling));
+	tids.reserveExact(std::max(nthreads, thread_ceiling));
 	{
 		// Load the other half of the index into memory
 		assert(!ebwtFw.isInMemory());
@@ -4371,37 +4591,54 @@ static void multiseedSearch(
 #endif
 	{
 		Timer _t(cerr, "Multiseed full-index search: ", timing);
+
+		int pid = 0;
+		if(thread_stealing) {
+			pid = getpid();
+			write_pid(thread_stealing_dir.c_str(), pid);
+			thread_counter = 0;
+		}
+		
 		for(int i = 0; i < nthreads; i++) {
+			tids.push_back(i);
 #ifdef WITH_TBB
 			thread_tracking_pair tp;
 			tp.tid = i;
 			tp.done = &all_threads_done;
 			if(bowtie2p5) {
-				//tbb_grp.run(multiseedSearchWorker_2p5(i));
-				threads[i] = new std::thread(multiseedSearchWorker_2p5, (void*) &tp);
+				threads.push_back(new std::thread(multiseedSearchWorker_2p5, (void*) &tp));
 			} else {
-				//tbb_grp.run(multiseedSearchWorker(i));
-				threads[i] = new std::thread(multiseedSearchWorker, (void*) &tp);
+				threads.push_back(new std::thread(multiseedSearchWorker, (void*) &tp));
 			}
 			threads[i]->detach();
 			SLEEP(10);
+#else
+			if(bowtie2p5) {
+				threads.push_back(new tthread::thread(multiseedSearchWorker_2p5, (void*)&tids.back()));
+			} else {
+				threads.push_back(new tthread::thread(multiseedSearchWorker, (void*)&tids.back()));
+			}
+#endif
 		}
+
+		if(thread_stealing) {
+			int orig_threads = nthreads;
+			thread_monitor(pid, orig_threads, tids, threads);
+		}
+	
+#ifdef WITH_TBB
 		while(all_threads_done < nthreads) {
 			SLEEP(10);
 		}
 #else
-			// Thread IDs start at 1
-			tids[i] = i;
-			if(bowtie2p5) {
-				threads[i] = new tthread::thread(multiseedSearchWorker_2p5, (void*)&tids[i]);
-			} else {
-				threads[i] = new tthread::thread(multiseedSearchWorker, (void*)&tids[i]);
-			}
-		}
 		for (int i = 0; i < nthreads; i++) {
 			threads[i]->join();
 		}
 #endif
+
+		if(thread_stealing) {
+			del_pid(thread_stealing_dir.c_str(), pid);
+		}
 	}
 	if(!metricsPerRead && (metricsOfb != NULL || metricsStderr)) {
 		metrics.reportInterval(metricsOfb, metricsStderr, true, NULL);
@@ -4538,12 +4775,12 @@ static void driver(
 		ebwt.evictFromMemory();
 	}
 	OutputQueue oq(
-		*fout,                   // out file buffer
-		reorder && nthreads > 1, // whether to reorder when there's >1 thread
-		nthreads,                // # threads
-		nthreads > 1,            // whether to be thread-safe
-		readsPerBatch,     // size of output buffer of reads 
-		skipReads);              // first read will have this rdid
+		*fout,                           // out file buffer
+		reorder && (nthreads > 1 || thread_stealing), // whether to reorder
+		nthreads,                        // # threads
+		nthreads > 1 || thread_stealing, // whether to be thread-safe
+		readsPerBatch,
+		skipReads);                      // first read will have this rdid
 	{
 		Timer _t(cerr, "Time searching: ", timing);
 		// Set up penalities
@@ -4748,6 +4985,13 @@ int bowtie(int argc, const char **argv) {
 			// Get index basename (but only if it wasn't specified via --index)
 			if(bt2index.empty()) {
 				cerr << "No index, query, or output file specified!" << endl;
+				printUsage(cerr);
+				return 1;
+			}
+			
+			thread_stealing = thread_ceiling > nthreads;
+			if(thread_stealing && thread_stealing_dir.empty()) {
+				cerr << "When --thread-ceiling is specified, must also specify --thread-piddir" << endl;
 				printUsage(cerr);
 				return 1;
 			}
