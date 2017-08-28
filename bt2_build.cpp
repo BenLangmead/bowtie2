@@ -17,6 +17,7 @@
  * along with Bowtie 2.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <zlib.h>
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -381,12 +382,26 @@ static void driver(
 	} else {
 		// Adapt sequence files to ifstreams
 		for(size_t i = 0; i < infiles.size(); i++) {
-			FILE *f = fopen(infiles[i].c_str(), "rb");
-			if (f == NULL) {
-				cerr << "Error: could not open "<< infiles[i].c_str() << endl;
-				throw 1;
+			FileBuf *fb;
+
+			size_t idx = infiles[i].find_last_of(".");
+			std::string ext = (idx == std::string::npos) ? "" : infiles[i].substr(idx + 1);
+			if (ext == "" || ext == "gz" || ext == "Z") {
+				gzFile zFp = gzopen(infiles[i].c_str(), "rb");
+				if (zFp == NULL) {
+					cerr << "Error: could not open "<< infiles[i].c_str() << endl;
+					throw 1;
+				}
+				fb = new FileBuf(zFp);
 			}
-			FileBuf *fb = new FileBuf(f);
+			else {
+				FILE *f = fopen(infiles[i].c_str(), "rb");
+				if (f == NULL) {
+					cerr << "Error: could not open "<< infiles[i].c_str() << endl;
+					throw 1;
+				}
+				fb = new FileBuf(f);
+			}
 			assert(fb != NULL);
 			if(fb->peek() == -1 || fb->eof()) {
 				cerr << "Warning: Empty fasta file: '" << infile.c_str() << "'" << endl;
