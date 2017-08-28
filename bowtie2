@@ -342,7 +342,12 @@ sub Extract_IndexName_From {
     my $index_opt = $ref_str ? '--index' : '-x';
     for (my $i=0; $i<@_; $i++) {
         if ($_[$i] eq $index_opt){
-            return $_[$i+1];
+            my $idx_basename = $_[$i+1];
+            my @idx_filenames = glob($idx_basename . "*.bt2");
+            unless (@idx_filenames) {
+                Fail("\"" . $idx_basename . "\" is not a Bowtie 2 index\n");
+            }
+            return $idx_basename;
         }
     }
     Info("Cannot find any index option (--reference-string, --ref-string or -x) in the given command line.\n");    
