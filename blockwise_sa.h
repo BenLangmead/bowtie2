@@ -29,6 +29,7 @@
 #include <stdlib.h>
 #include <iostream>
 #include <sstream>
+#include <memory>
 #include <stdexcept>
 #include "assert_helpers.h"
 #include "diff_sample.h"
@@ -257,8 +258,10 @@ public:
 #else
 			if(_threads.size() == 0) {
 #endif
-				_done.resize(_sampleSuffs.size() + 1);
-				_done.fill(false);
+                _done = std::auto_ptr<volatile bool>(new volatile bool[_sampleSuffs.size() + 1]); 
+                for (int i = 0; i < _sampleSuffs.size() + 1; i++) {
+                    _done.get()[i] = false;
+                }
 				_itrBuckets.resize(this->_nthreads);
 				_tparams.resize(this->_nthreads);
 				for(int tid = 0; tid < this->_nthreads; tid++) {
@@ -290,7 +293,7 @@ public:
 				nextBlock((int)_cur);
 				_cur++;
 			} else {
-				while(!_done[this->_itrBucketIdx]) {
+				while(!_done.get()[this->_itrBucketIdx]) {
 					SLEEP(1);
 				}
 				// Read suffixes from a file
@@ -370,7 +373,7 @@ public:
             }
             sa_file.close();
             sa->_itrBuckets[tid].clear();
-            sa->_done[cur] = true;
+            sa->_done.get()[cur] = true;
         }
     }
 #ifdef WITH_TBB
@@ -446,27 +449,27 @@ private:
 
 	void buildSamples();
 
-    EList<TIndexOffU>  _sampleSuffs; /// sample suffixes
-    int                _nthreads;    /// # of threads
-    TIndexOffU         _itrBucketIdx;
-    TIndexOffU         _cur;         /// offset to 1st elt of next block
-    const uint32_t   _dcV;         /// difference-cover periodicity
-    PtrWrap<TDC>     _dc;          /// queryable difference-cover data
-    bool             _built;       /// whether samples/DC have been built
-    RandomSource     _randomSrc;   /// source of pseudo-randoms
-    
-    MUTEX_T                 _mutex;       /// synchronization of output message
-    string                  _base_fname;  /// base file name for storing SA blocks
-    bool                    _bigEndian;   /// bigEndian?
+	EList<TIndexOffU>  _sampleSuffs; /// sample suffixes
+	int                _nthreads;    /// # of threads
+	TIndexOffU         _itrBucketIdx;
+	TIndexOffU         _cur;         /// offset to 1st elt of next block
+	const uint32_t   _dcV;         /// difference-cover periodicity
+	PtrWrap<TDC>     _dc;          /// queryable difference-cover data
+	bool             _built;       /// whether samples/DC have been built
+	RandomSource     _randomSrc;   /// source of pseudo-randoms
+
+	MUTEX_T                 _mutex;       /// synchronization of output message
+	string                  _base_fname;  /// base file name for storing SA blocks
+	bool                    _bigEndian;   /// bigEndian?
 #ifdef WITH_TBB
-    tbb::task_group 	    tbb_grp;	/// thread "list" via Intel TBB
-    bool		    thread_group_started;
+	tbb::task_group 	    tbb_grp;	/// thread "list" via Intel TBB
+	bool		    thread_group_started;
 #else
-    EList<tthread::thread*> _threads;     /// thread list
+	EList<tthread::thread*> _threads;     /// thread list
 #endif
-    EList<pair<KarkkainenBlockwiseSA*, int> > _tparams;
-    ELList<TIndexOffU>      _itrBuckets;  /// buckets
-    EList<bool>             _done;        /// is a block processed?
+	EList<pair<KarkkainenBlockwiseSA*, int> > _tparams;
+	ELList<TIndexOffU>      _itrBuckets;  /// buckets
+	std::auto_ptr<volatile bool>             _done;        /// is a block processed?
 };
 
 
