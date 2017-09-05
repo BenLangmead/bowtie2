@@ -95,7 +95,7 @@ void OutputQueue::finishRead(const BTString& rec, TReadId rdid, size_t threadId)
 			finishReadImpl(rec, rdid, threadId);
 		}
 	}
-	else if(!reorder_) {
+	if(!reorder_) {
 		perThreadBuf[threadId][perThreadCounter[threadId]++] = rec;
 	}
 }
