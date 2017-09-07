@@ -243,7 +243,6 @@ SRC_PKG_LIST = $(wildcard *.h) \
                $(wildcard *.c) \
                $(wildcard *.cpp) \
                $(wildcard third_party/*) \
-               doc/strip_markdown.pl \
                Makefile \
                $(GENERAL_LIST)
 
