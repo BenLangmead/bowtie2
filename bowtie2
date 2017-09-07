@@ -343,7 +343,7 @@ sub Extract_IndexName_From {
     for (my $i=0; $i<@_; $i++) {
         if ($_[$i] eq $index_opt){
             my $idx_basename = $_[$i+1];
-            my @idx_filenames = glob($idx_basename . "*.bt2");
+            my @idx_filenames = glob($idx_basename . "*.bt2{,l}");
             unless (@idx_filenames) {
                 Fail("\"" . $idx_basename . "\" is not a Bowtie 2 index\n");
             }
