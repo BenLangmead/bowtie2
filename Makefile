@@ -473,7 +473,7 @@ doc/manual.html: MANUAL.markdown
 	rm -f .tmp.head
 
 MANUAL: MANUAL.markdown
-	perl doc/strip_markdown.pl < $^ > $@
+	pandoc -f markdown -t plain $^ -o $@
 
 .PHONY: install
 install: all

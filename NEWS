@@ -1,20 +1,43 @@
 Bowtie 2 NEWS
 =============
 
-Bowtie 2 is now available for download from the project website,
-http://bowtie-bio.sf.net/bowtie2.  2.0.0-beta1 is the first version released to
-the public and 2.3.2 is the latest version.  Bowtie 2 is licensed under
-the GPLv3 license.  See `LICENSE' file for details.
+Bowtie 2 is available for download from the project website,
+http://bowtie-bio.sf.net/bowtie2 and on Github,
+https://github.com/BenLangmead/bowtie2/releases.  2.0.0-beta1 is
+the first version released to the public and 2.3.3 is the latest
+version.  Bowtie 2 is licensed under the GPLv3 license.  See `LICENSE'
+file for details.
 
 Reporting Issues
 ================
 
-Please report any issues using the Sourceforge bug tracker:
+Please report any issues to the Bowtie 2 Github page or using the Sourceforge bug tracker:
 
-  https://sourceforge.net/tracker/?group_id=236897&atid=1101606
+  * https://github.com/BenLangmead/bowtie2/issues
+  * https://sourceforge.net/tracker/?group_id=236897&atid=1101606
 
 Version Release History
 =======================
+
+Version 2.3.3 - Sep 09, 2017
+From this release forward prepackaged bowtie2 binaries are now
+statically linked to the zlib compression library and, the recommended
+threading library, TBB. Users who rely on prepackaged builds are
+no longer required to have these packages pre-installed. As a result
+of the aforementioned changes legacy packages have been discontinued.
+
+    * bowtie2-build now supports gzip-compressed FASTA inputs
+    * New --xeq parameter for bowtie2 disambiguates the 'M' CIGAR
+      flag. When specified, matches are indicated with the '=' operation and
+      mismatches with 'X'
+    * Fixed a possible infinite loop during parallel index building due
+      to the compiler optimizing away a loop condition
+    * Added --soft-clipped-unmapped-tlen parameter for bowtie2 that
+      ignores soft-clipped bases when calculating template length (TLEN)
+    * Added support for multi-line sequences in FASTA read inputs
+    * Expanded explanation of MD:Z field in manual
+    * Fixed a crashing bug when output is redirected to a pipe
+    * Fixed ambiguity in the SEED alignment policy that sometimes caused -N parameter to be ignored
 
 Version 2.3.2 - May 05, 2017
     * Added support for interleaved paired-end FASTQ inputs
