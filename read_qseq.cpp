@@ -53,14 +53,13 @@ static int parseName(
  */
 pair<bool, int> QseqPatternSource::nextBatchFromFile(
 	PerThreadReadBuf& pt,
-	bool batch_a)
+	bool batch_a, unsigned readi)
 {
 	int c = getc_wrapper();
 	while(c >= 0 && (c == '\n' || c == '\r')) {
 		c = getc_wrapper();
 	}
 	EList<Read>& readbuf = batch_a ? pt.bufa_ : pt.bufb_;
-	size_t readi = 0;
 	// Read until we run out of input or until we've filled the buffer
 	for(; readi < pt.max_buf_ && c >= 0; readi++) {
 		readbuf[readi].readOrigBuf.clear();

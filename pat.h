@@ -382,7 +382,8 @@ protected:
 	 */
 	virtual std::pair<bool, int> nextBatchFromFile(
 		PerThreadReadBuf& pt,
-		bool batch_a) = 0;
+		bool batch_a,
+		unsigned read_idx) = 0;
 
 	/**
 	 * Reset state to handle a fresh file
@@ -471,7 +472,8 @@ protected:
 	 */
 	virtual std::pair<bool, int> nextBatchFromFile(
 		PerThreadReadBuf& pt,
-		bool batch_a);
+		bool batch_a,
+		unsigned read_idx);
 
 	/**
 	 * Scan to the next FASTA record (starting with >) and return the first
@@ -523,7 +525,8 @@ protected:
 	 */
 	virtual std::pair<bool, int> nextBatchFromFile(
 		PerThreadReadBuf& pt,
-		bool batch_a);
+		bool batch_a,
+		unsigned read_idx);
 
 	bool secondName_;	// true if --tab6, false if --tab5
 };
@@ -568,7 +571,8 @@ protected:
 	 */
 	virtual std::pair<bool, int> nextBatchFromFile(
 		PerThreadReadBuf& pt,
-		bool batch_a);
+		bool batch_a,
+		unsigned read_idx);
 
 	EList<std::string> qualToks_;
 };
@@ -612,7 +616,8 @@ protected:
 	 */
 	virtual std::pair<bool, int> nextBatchFromFile(
 		PerThreadReadBuf& pt,
-		bool batch_a);
+		bool batch_a,
+		unsigned read_idx);
 	
 	/**
 	 * Reset state to be read for the next file.
@@ -675,7 +680,8 @@ protected:
 	 */
 	virtual std::pair<bool, int> nextBatchFromFile(
 		PerThreadReadBuf& pt,
-		bool batch_a);
+		bool batch_a,
+		unsigned read_idx);
 	
 	/**
 	 * Reset state to be ready for the next file.
@@ -719,7 +725,8 @@ protected:
 	 */
 	virtual std::pair<bool, int> nextBatchFromFile(
 		PerThreadReadBuf& pt,
-		bool batch_a);
+		bool batch_a,
+		unsigned read_idx);
 	
 	/**
 	 * Reset state to be ready for the next file.
