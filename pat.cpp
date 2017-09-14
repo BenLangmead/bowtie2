@@ -416,6 +416,7 @@ pair<bool, int> CFilePatternSource::nextBatchImpl(
 			if(nread == 0 || (nread < pt.max_buf_)) {
 				continue;
 			}
+            done = false;
 		}
 		break;
 	}
