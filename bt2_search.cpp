@@ -819,7 +819,7 @@ static void printUsage(ostream& out) {
 	    << "  --rg <text>        add <text> (\"lab:value\") to @RG line of SAM header." << endl
 	    << "                     Note: @RG line only printed when --rg-id is set." << endl
 	    << "  --omit-sec-seq     put '*' in SEQ and QUAL fields for secondary alignments." << endl
-	    << "  --sam-noqname-trunc Suppress standard behavior of truncating readname at first whitespace " << endl
+	    << "  --sam-no-qname-trunc Suppress standard behavior of truncating readname at first whitespace " << endl
 	    << "                      at the expense of generating non-standard SAM." << endl
 	    << "  --xeq              Use '='/'X', instead of 'M,' to specify matches/mismatches in SAM record." << endl
 	    << "  --soft-clipped-unmapped-tlen Exclude soft-clipped bases when reporting TLEN" << endl
