@@ -341,7 +341,7 @@ my @cases = (
 	  fastq1  => "\@r0\nAGCATCGATC\r\n+\nIIIIIIIIII\n".
 	             "\@r1\nTCAGTTTTTGA\r\n+\nIIIIIIIIIII\n",
 	  fastq2  => "\@r0\nTCAGTTTTTGA\n+\nIIIIIIIIIII\n".
-	             "\@r1\nAGCATCGATC\r\n+\nIIIIIIIIII",
+	             "\@r1\nAGCATCGATC\r\n+\nIIIIIIIIII\n",
 	  pairhits => [ { "0,8" => 1 }, { "0,8" => 1 } ] },
 
 	# Paired-end reads that should align
@@ -354,7 +354,7 @@ my @cases = (
 	  fastq1  => "\@r0\nAGCATCGATC\r\n+\nIIIIIIIIII\n".
 	             "\@r1\nTCAGTTTTTGA\n+\nIIIIIIIIIII\n",
 	  fastq2  => "\@r0\nTCAGTTTTTGA\n+\nIIIIIIIIIII\n".
-	             "\@r1\nAGCATCGATC\r\n+\nIIIIIIIIII",
+	             "\@r1\nAGCATCGATC\r\n+\nIIIIIIIIII\n",
 	  pairhits => [ { }, { "0,8" => 1 } ] },
 
 	# Paired-end reads that should align
@@ -367,7 +367,7 @@ my @cases = (
 	  fastq1  => "\@r0\nAGCATCGATC\r\n+\nIIIIIIIIII\n".
 				 "\@r1\nTCAGTTTTTGA\r\n+\nIIIIIIIIIII\n",
 	  fastq2  => "\@r0\nTCAGTTTTTGA\n+\nIIIIIIIIIII\n".
-				 "\@r1\nAGCATCGATC\r\n+\nIIIIIIIIII",
+				 "\@r1\nAGCATCGATC\r\n+\nIIIIIIIIII\n",
 	  pairhits => [ { "0,8" => 1 }, { } ] },
 
 	# Paired-end reads with left end entirely trimmed away
@@ -4327,16 +4327,18 @@ sub writeReads($$$$$$$$$) {
 		$fq1,
 		$fq2) = @_;
 
-	open(FQ1, defined($compressed) ? "| gzip -c >$fq1.gz" : ">$fq1") || die "Could not open '$fq1' for writing";
-	open(FQ2, defined($compressed) ? "| gzip -c >$fq2.gz" : ">$fq2") || die "Could not open '$fq2' for writing";
 	my $pe = (defined($mate1s) && $mate1s ne "");
 	if($pe) {
 		for (0..scalar(@$mate1s)-1) {
+			open(FQ1, defined($compressed) ? "| gzip -c >$fq1->[$_]" : ">$fq1->[$_]") || die "Could not open '$fq1->[$_]' for writing";
+			open(FQ2, defined($compressed) ? "| gzip -c >$fq2->[$_]" : ">$fq2->[$_]") || die "Could not open '$fq2->[$_]' for writing";
+
 			my $m1 = $mate1s->[$_];
 			my $m2 = $mate2s->[$_];
 			my $q1 = $qual1s->[$_];
 			my $q2 = $qual2s->[$_];
 			my $nm = $names->[$_];
+
 			defined($m1) || die;
 			defined($m2) || die;
 			$q1 = $q1 || ("I" x length($m1));
@@ -4344,20 +4346,24 @@ sub writeReads($$$$$$$$$) {
 			$nm = $nm || "r$_";
 			print FQ1 "\@$nm/1\n$m1\n+\n$q1\n";
 			print FQ2 "\@$nm/2\n$m2\n+\n$q2\n";
+			close(FQ1);
+			close(FQ2);
 		}
 	} else {
 		for (0..scalar(@$reads)-1) {
+			open(FQ1, defined($compressed) ? "| gzip -c >$fq1->[$_]" : ">$fq1->[$_]") || die "Could not open '$fq1->[$_]' for writing";
+
 			my $read = $reads->[$_];
 			defined($read) || die;
 			my $qual = $quals->[$_];
 			my $nm = $names->[$_];
+
 			$qual = $qual || ("I" x length($read));
 			$nm = $nm || "r$_";
 			print FQ1 "\@$nm\n$read\n+\n$qual\n";
+			close(FQ1);
 		}
 	}
-	close(FQ1);
-	close(FQ2);
 }
 
 ##
@@ -4476,6 +4482,21 @@ my  $idx_type = "";
 			}
 		}
 	} else {
+		$mate1arg = [];
+		$mate2arg = [];
+		my $ext = $compressed ? ".fq.gz" : ".fq";
+		my $base_filename = ".simple_tests";
+
+		for (0 .. scalar($pe ? @$mate1s : @$reads) - 1) {
+			my $f = $base_filename . ".1" . ('a' .. 'z')[$_] . $ext;
+			push @$mate1arg, $f;
+
+			if ($pe) {
+				$f = $base_filename . ".2" . ('a' .. 'z')[$_] . $ext;
+				push @$mate2arg, $f;
+			}
+		}
+
 		writeReads(
 			$reads,
 			$quals,
@@ -4484,10 +4505,9 @@ my  $idx_type = "";
 			$mate2s,
 			$qual2s,
 			$names,
-			".simple_tests.1.fq",
-			".simple_tests.2.fq");
-		$mate1arg = defined($compressed) ? ".simple_tests.1.fq.gz" : ".simple_tests.1.fq";
-		$mate2arg = defined($compressed) ? ".simple_tests.2.fq.gz" : ".simple_tests.2.fq";
+			$mate1arg,
+			$mate2arg);
+
 		$formatarg = "-q";
 		$readarg = $mate1arg;
 	}
@@ -4495,12 +4515,23 @@ my  $idx_type = "";
 	my $debug_arg = "";
 	$debug_arg = "--debug" if $debug_mode;
 	my $cmd;
+	my $batch_size = int(rand(16) + 1);
 	if($pe) {
 		# Paired-end case
-		$cmd = "$bowtie2 $debug_arg @ARGV $idx_type $args -x .simple_tests.tmp $formatarg -1 $mate1arg -2 $mate2arg";
+		if (ref $mate1arg eq "ARRAY") {
+			$cmd = "$bowtie2 $debug_arg @ARGV $idx_type $args --reads-per-batch $batch_size -x .simple_tests.tmp $formatarg -1 " . join(",", @$mate1arg) . " -2 " . join(",", @$mate2arg);
+		}
+		else {
+			$cmd = "$bowtie2 $debug_arg @ARGV $idx_type $args --reads-per-batch $batch_size -x .simple_tests.tmp $formatarg -1 $mate1arg -2 $mate2arg";
+		}
 	} else {
 		# Unpaired case
-		$cmd = "$bowtie2 $debug_arg @ARGV $idx_type $args -x .simple_tests.tmp $formatarg $readarg";
+		if (ref $readarg eq "ARRAY") {
+			$cmd = "$bowtie2 $debug_arg @ARGV $idx_type $args --reads-per-batch $batch_size -x .simple_tests.tmp $formatarg " . join(",", @$readarg);
+		}
+		else {
+			$cmd = "$bowtie2 $debug_arg @ARGV $idx_type $args --reads-per-batch $batch_size -x .simple_tests.tmp $formatarg $readarg";
+		}
 	}
 	print "$cmd\n";
 	open(BT, "$cmd |") || die "Could not open pipe '$cmd |'";
