@@ -963,7 +963,7 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 			throw 1;
 		}
 		first_ = false;
-		(*readbuf)[0].readOrigBuf.append('@');
+		(*readbuf)[readi].readOrigBuf.append('@');
 	}
 
 	bool done = false, aborted = false;
