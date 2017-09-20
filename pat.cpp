@@ -416,7 +416,7 @@ pair<bool, int> CFilePatternSource::nextBatchImpl(
 			if(nread == 0 || (nread < pt.max_buf_)) {
 				continue;
 			}
-            done = false;
+			done = false;
 		}
 		break;
 	}
@@ -846,18 +846,18 @@ pair<bool, int> FastaContinuousPatternSource::nextBatchFromFile(
 			}
 			if(eat_ > 0) {
 				eat_--;
-				// Try to keep readCnt_ aligned with the offset
+				// Try to keep cur_ aligned with the offset
 				// into the reference; that lets us see where
 				// the sampling gaps are by looking at the read
 				// name
 				if(!beginning_) {
-					readCnt_++;
+					cur_++;
 				}
 				continue;
 			}
 			// install name
 			readbuf[readi].readOrigBuf = name_prefix_buf_;
-			itoa10<TReadId>(readCnt_ - subReadCnt_, name_int_buf_);
+			itoa10<TReadId>(cur_ - last_, name_int_buf_);
 			readbuf[readi].readOrigBuf.append(name_int_buf_);
 			readbuf[readi].readOrigBuf.append('\t');
 			// install sequence
@@ -871,7 +871,7 @@ pair<bool, int> FastaContinuousPatternSource::nextBatchFromFile(
 				readbuf[readi].readOrigBuf.append(c);
 			}
 			eat_ = freq_-1;
-			readCnt_++;
+			cur_++;
 			beginning_ = false;
 			readi++;
 		}
@@ -970,7 +970,6 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 	// Read until we run out of input or until we've filled the buffer
 	while (readi < pt.max_buf_ && !done) {
 		Read::TBuf& buf = (*readbuf)[readi].readOrigBuf;
-		assert(readi == 0 || buf.empty());
 		int newlines = 4;
 		while(newlines) {
 			c = getc_wrapper();
@@ -1116,7 +1115,7 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 	// Set up a default name if one hasn't been set
 	if(r.name.empty()) {
 		char cbuf[20];
-		itoa10<TReadId>(static_cast<TReadId>(readCnt_), cbuf);
+		itoa10<TReadId>(static_cast<TReadId>(rdid), cbuf);
 		r.name.install(cbuf);
 	}
 	r.parsed = true;
