@@ -345,7 +345,13 @@ sub Extract_IndexName_From {
             my $idx_basename = $_[$i+1];
             my @idx_filenames = glob($idx_basename . "*.bt2{,l}");
             unless (@idx_filenames) {
-                Fail("\"" . $idx_basename . "\" is not a Bowtie 2 index\n");
+                if (exists $ENV{"BOWTIE2_INDEXES"}) {
+                    @idx_filenames = glob("$ENV{'BOWTIE2_INDEXES'}/$idx_basename" . "bt2{,l}");
+                }
+
+                if (!@idx_filenames) {
+                    Fail("\"" . $idx_basename . "\" does not exist or is not a Bowtie 2 index\n");
+                }
             }
             return $idx_basename;
         }
