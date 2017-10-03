@@ -592,7 +592,8 @@ public:
 		eat_(length_-1),
 		beginning_(true),
 		bufCur_(0),
-		subReadCnt_(0llu)
+		cur_(0llu),
+		last_(0llu)
 	{
 		assert_gt(freq_, 0);
 		resetForNextFile();
@@ -627,7 +628,7 @@ protected:
 		name_prefix_buf_.clear();
 		beginning_ = true;
 		bufCur_ = 0;
-		subReadCnt_ = readCnt_;
+		last_ = cur_;
 	}
 
 private:
@@ -643,7 +644,8 @@ private:
 	char name_int_buf_[20]; /// for composing offsets for names
 	size_t bufCur_;		/// buffer cursor; points to where we should
 						/// insert the next character
-	uint64_t subReadCnt_;/// number to subtract from readCnt_ to get
+	uint64_t cur_;
+	uint64_t last_;     /// number to subtract from readCnt_ to get
 						/// the pat id to output (so it resets to 0 for
 						/// each new sequence)
 };

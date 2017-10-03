@@ -71,6 +71,9 @@ pair<bool, int> QseqPatternSource::nextBatchFromFile(
 			c = getc_wrapper();
 		}
 	}
+	if (c != EOF) {
+		ungetc_wrapper(c);
+	}
 	return make_pair(c < 0, readi);
 }
 
