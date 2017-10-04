@@ -29,7 +29,11 @@
 #include <limits>
 #include <time.h>
 #include <dirent.h>
+
+#ifndef _WIN32
 #include <signal.h>
+#endif
+
 #include "alphabet.h"
 #include "assert_helpers.h"
 #include "endian_swap.h"
@@ -4353,7 +4357,7 @@ static void multiseedSearchWorker_2p5(void *vp) {
 	return;
 }
 
-
+#ifndef _WIN32
 /**
  * Print friendly-ish message pertaining to failed system call.
  */
@@ -4524,7 +4528,7 @@ static void thread_monitor(int pid, int orig_threads, EList<int>& tids, EList<T*
 		}
 	}
 }
-
+#endif
 /**
  * Called once per alignment job.  Sets up global pointers to the
  * shared global data structures, creates per-thread structures, then
@@ -4564,10 +4568,12 @@ static void multiseedSearch(
 	delete _t;
 	if(!refs->loaded()) throw 1;
 	multiseed_refs = refs.get();
-    sigset_t set;
-    sigemptyset(&set);
-    sigaddset(&set, SIGPIPE);
-    pthread_sigmask(SIG_BLOCK, &set, NULL);
+#ifndef _WIN32
+	sigset_t set;
+	sigemptyset(&set);
+	sigaddset(&set, SIGPIPE);
+	pthread_sigmask(SIG_BLOCK, &set, NULL);
+#endif
 	EList<int> tids;
 #ifdef WITH_TBB
 	//tbb::task_group tbb_grp;
@@ -4614,12 +4620,14 @@ static void multiseedSearch(
 	{
 		Timer _t(cerr, "Multiseed full-index search: ", timing);
 
+#ifndef _WIN32
 		int pid = 0;
 		if(thread_stealing) {
 			pid = getpid();
 			write_pid(thread_stealing_dir.c_str(), pid);
 			thread_counter = 0;
 		}
+#endif
 		
 		for(int i = 0; i < nthreads; i++) {
 #ifdef WITH_TBB
@@ -4644,10 +4652,12 @@ static void multiseedSearch(
 #endif
 		}
 
+#ifndef _WIN32
 		if(thread_stealing) {
 			int orig_threads = nthreads;
 			thread_monitor(pid, orig_threads, tids, threads);
 		}
+#endif
 	
 #ifdef WITH_TBB
 		while(all_threads_done < nthreads) {
@@ -4659,9 +4669,11 @@ static void multiseedSearch(
 		}
 #endif
 
+#ifndef _WIN32
 		if(thread_stealing) {
 			del_pid(thread_stealing_dir.c_str(), pid);
 		}
+#endif
 	}
 	if(!metricsPerRead && (metricsOfb != NULL || metricsStderr)) {
 		metrics.reportInterval(metricsOfb, metricsStderr, true, NULL);
@@ -5012,7 +5024,9 @@ int bowtie(int argc, const char **argv) {
 				return 1;
 			}
 			
+#ifndef _WIN32
 			thread_stealing = thread_ceiling > nthreads;
+#endif
 			if(thread_stealing && thread_stealing_dir.empty()) {
 				cerr << "When --thread-ceiling is specified, must also specify --thread-piddir" << endl;
 				printUsage(cerr);
