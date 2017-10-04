@@ -24,8 +24,8 @@
 prefix = /usr/local
 bindir = $(prefix)/bin
 
-INC = $(if $(RELEASE_BUILD),-I$(CURDIR)/.include,)
-LDFLAGS = $(if $(RELEASE_BUILD),-L$(CURDIR)/.lib,) -lz
+INC = $(if $(RELEASE_BUILD),-I$(CURDIR)/.include)
+LIBS = $(LDFLAGS) $(if $(RELEASE_BUILD),-L$(CURDIR)/.lib) -lz
 GCC_PREFIX = $(shell dirname `which gcc`)
 GCC_SUFFIX =
 CC ?= $(GCC_PREFIX)/gcc$(GCC_SUFFIX)
@@ -33,11 +33,11 @@ CPP ?= $(GCC_PREFIX)/g++$(GCC_SUFFIX)
 CXX ?= $(CPP)
 HEADERS = $(wildcard *.h)
 BOWTIE_MM = 1
-BOWTIE_SHARED_MEM = 0
+BOWTIE_SHARED_MEM =
 
 # Detect Cygwin or MinGW
-WINDOWS = 0
-MINGW = 0
+WINDOWS =
+MINGW =
 ifneq (,$(findstring MINGW,$(shell uname)))
 	WINDOWS = 1
 	MINGW = 1
@@ -47,7 +47,7 @@ ifneq (,$(findstring MINGW,$(shell uname)))
 	override EXTRA_FLAGS += -ansi
 endif
 
-MACOS = 0
+MACOS =
 ifneq (,$(findstring Darwin,$(shell uname)))
 	MACOS = 1
 	ifneq (,$(findstring 13,$(shell uname -r)))
@@ -98,10 +98,10 @@ endif
 
 #default is to use Intel TBB
 ifneq (1,$(NO_TBB))
-	LDFLAGS += $(PTHREAD_LIB) -ltbb -ltbbmalloc$(if $(RELEASE_BUILD),,_proxy)
+	LIBS += $(PTHREAD_LIB) -ltbb -ltbbmalloc$(if $(RELEASE_BUILD),,_proxy)
 	override EXTRA_FLAGS += -DWITH_TBB
 else
-	LDFLAGS += $(PTHREAD_LIB)
+	LIBS += $(PTHREAD_LIB)
 endif
 SEARCH_LIBS =
 BUILD_LIBS =
@@ -246,7 +246,6 @@ SRC_PKG_LIST = $(wildcard *.h) \
                $(wildcard *.c) \
                $(wildcard *.cpp) \
                $(wildcard third_party/*) \
-               doc/strip_markdown.pl \
                Makefile \
                $(GENERAL_LIST)
 
@@ -286,7 +285,7 @@ bowtie2-build-s: bt2_build.cpp $(SHARED_CPPS) $(HEADERS)
 		$(INC) \
 		-o $@ $< \
 		$(SHARED_CPPS) $(BUILD_CPPS_MAIN) \
-		$(LDFLAGS) $(BUILD_LIBS)
+		$(LIBS) $(BUILD_LIBS)
 
 bowtie2-build-l: bt2_build.cpp $(SHARED_CPPS) $(HEADERS)
 	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(EXTRA_FLAGS) \
@@ -294,7 +293,7 @@ bowtie2-build-l: bt2_build.cpp $(SHARED_CPPS) $(HEADERS)
 		$(INC) \
 		-o $@ $< \
 		$(SHARED_CPPS) $(BUILD_CPPS_MAIN) \
-		$(LDFLAGS) $(BUILD_LIBS)
+		$(LIBS) $(BUILD_LIBS)
 
 bowtie2-build-s-debug: bt2_build.cpp $(SHARED_CPPS) $(HEADERS)
 	$(CXX) $(DEBUG_FLAGS) $(DEBUG_DEFS) $(EXTRA_FLAGS) \
@@ -302,7 +301,7 @@ bowtie2-build-s-debug: bt2_build.cpp $(SHARED_CPPS) $(HEADERS)
 		$(INC) \
 		-o $@ $< \
 		$(SHARED_CPPS) $(BUILD_CPPS_MAIN) \
-		$(LDFLAGS) $(BUILD_LIBS)
+		$(LIBS) $(BUILD_LIBS)
 
 bowtie2-build-l-debug: bt2_build.cpp $(SHARED_CPPS) $(HEADERS)
 	$(CXX) $(DEBUG_FLAGS) $(DEBUG_DEFS) $(EXTRA_FLAGS) \
@@ -310,7 +309,7 @@ bowtie2-build-l-debug: bt2_build.cpp $(SHARED_CPPS) $(HEADERS)
 		$(INC) \
 		-o $@ $< \
 		$(SHARED_CPPS) $(BUILD_CPPS_MAIN) \
-		$(LDFLAGS) $(BUILD_LIBS)
+		$(LIBS) $(BUILD_LIBS)
 
 #
 # bowtie2-align targets
@@ -322,7 +321,7 @@ bowtie2-align-s: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARC
 		$(INC) \
 		-o $@ $< \
 		$(SHARED_CPPS) $(SEARCH_CPPS_MAIN) \
-		$(LDFLAGS) $(SEARCH_LIBS)
+		$(LIBS) $(SEARCH_LIBS)
 
 bowtie2-align-l: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
 	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(EXTRA_FLAGS) \
@@ -330,7 +329,7 @@ bowtie2-align-l: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARC
 		$(INC) \
 		-o $@ $< \
 		$(SHARED_CPPS) $(SEARCH_CPPS_MAIN) \
-		$(LDFLAGS) $(SEARCH_LIBS)
+		$(LIBS) $(SEARCH_LIBS)
 
 bowtie2-align-s-debug: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
 	$(CXX) $(DEBUG_FLAGS) \
@@ -339,7 +338,7 @@ bowtie2-align-s-debug: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $
 		$(INC) \
 		-o $@ $< \
 		$(SHARED_CPPS) $(SEARCH_CPPS_MAIN) \
-		$(LDFLAGS) $(SEARCH_LIBS)
+		$(LIBS) $(SEARCH_LIBS)
 
 bowtie2-align-l-debug: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
 	$(CXX) $(DEBUG_FLAGS) \
@@ -348,7 +347,7 @@ bowtie2-align-l-debug: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $
 		$(INC) \
 		-o $@ $< \
 		$(SHARED_CPPS) $(SEARCH_CPPS_MAIN) \
-		$(LDFLAGS) $(SEARCH_LIBS)
+		$(LIBS) $(SEARCH_LIBS)
 
 #
 # bowtie2-inspect targets
@@ -361,7 +360,7 @@ bowtie2-inspect-s: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 		$(INC) -I . \
 		-o $@ $< \
 		$(SHARED_CPPS) \
-		$(LDFLAGS) $(INSPECT_LIBS)
+		$(LIBS) $(INSPECT_LIBS)
 
 bowtie2-inspect-l: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 	$(CXX) $(RELEASE_FLAGS) \
@@ -370,7 +369,7 @@ bowtie2-inspect-l: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 		$(INC) -I . \
 		-o $@ $< \
 		$(SHARED_CPPS) \
-		$(LDFLAGS) $(INSPECT_LIBS)
+		$(LIBS) $(INSPECT_LIBS)
 
 bowtie2-inspect-s-debug: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 	$(CXX) $(DEBUG_FLAGS) \
@@ -379,7 +378,7 @@ bowtie2-inspect-s-debug: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 		$(INC) -I . \
 		-o $@ $< \
 		$(SHARED_CPPS) \
-		$(LDFLAGS) $(INSPECT_LIBS)
+		$(LIBS) $(INSPECT_LIBS)
 
 bowtie2-inspect-l-debug: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 	$(CXX) $(DEBUG_FLAGS) \
@@ -388,7 +387,7 @@ bowtie2-inspect-l-debug: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 		$(INC) -I . \
 		-o $@ $< \
 		$(SHARED_CPPS) \
-		$(LDFLAGS) $(INSPECT_LIBS)
+		$(LIBS) $(INSPECT_LIBS)
 
 #
 # bowtie2-dp targets
@@ -401,7 +400,7 @@ bowtie2-dp: bt2_dp.cpp $(HEADERS) $(SHARED_CPPS) $(DP_CPPS)
 		$(INC) -I . \
 		-o $@ $< \
 		$(DP_CPPS) $(SHARED_CPPS) \
-		$(LDFLAGS) $(SEARCH_LIBS)
+		$(LIBS) $(SEARCH_LIBS)
 
 bowtie2-dp-debug: bt2_dp.cpp $(HEADERS) $(SHARED_CPPS) $(DP_CPPS)
 	$(CXX) $(DEBUG_FLAGS) \
@@ -410,7 +409,7 @@ bowtie2-dp-debug: bt2_dp.cpp $(HEADERS) $(SHARED_CPPS) $(DP_CPPS)
 		$(INC) -I . \
 		-o $@ $< \
 		$(DP_CPPS) $(SHARED_CPPS) \
-		$(LDFLAGS) $(SEARCH_LIBS)
+		$(LIBS) $(SEARCH_LIBS)
 
 bowtie2.bat:
 	echo "@echo off" > bowtie2.bat
@@ -438,9 +437,7 @@ bowtie2-src: $(SRC_PKG_LIST)
 
 .PHONY: bowtie2-pkg
 bowtie2-pkg: static-libs $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)
-	$(eval RELEASE_BUILD=1)
-	$(eval HAS_TBB=$(shell strings bowtie2-align-l* | grep tbb))
-	$(eval PKG_DIR=bowtie2-$(VERSION)-$(if $(MACOS),macos,(if $(MINGW),mingw,linux))$(if $(HAS_TBB),,-legacy)-x86_64)
+	$(eval PKG_DIR=bowtie2-$(VERSION)-$(if $(MACOS),macos,$(if $(MINGW),mingw,linux))$(if $(HAS_TBB),,-legacy)-x86_64)
 	chmod a+x scripts/*.sh scripts/*.pl
 	rm -rf .bin.tmp
 	mkdir -p .bin.tmp/$(PKG_DIR)
@@ -463,7 +460,7 @@ bowtie2-seeds-debug: aligner_seed.cpp ccnt_lut.cpp alphabet.cpp aligner_seed.h b
 		$(INC) -I . \
 		-o $@ $< \
 		aligner_seed.cpp bt2_idx.cpp ccnt_lut.cpp alphabet.cpp bt2_io.cpp \
-		$(LDFLAGS)
+		$(LIBS)
 
 .PHONY: doc
 doc: doc/manual.html MANUAL
@@ -499,7 +496,7 @@ random-test: all perl-deps
 .PHONY: perl-deps
 perl-deps:
 	if [ ! -e .perllib.tmp ]; then \
-		DL=$$([ `which wget` ] && echo "wget -O-" || echo "curl -L") ; \
+		DL=$$([ `which wget` ] && echo "wget --no-check-certificate -O-" || echo "curl -L") ; \
 		mkdir .perllib.tmp ; \
 		$$DL http://cpanmin.us | perl - -l $(CURDIR)/.perllib.tmp App::cpanminus local::lib ; \
 		eval `perl -I $(CURDIR)/.perllib.tmp/lib/perl5 -Mlocal::lib=$(CURDIR)/.perllib.tmp` ; \
@@ -510,17 +507,18 @@ static-libs:
 	if [[ ! -d $(CURDIR)/.lib || ! -d $(CURDIR)/.inc ]]; then \
 		mkdir $(CURDIR)/.lib $(CURDIR)/.include ; \
 	fi ; \
-	if [[ `uname` == "Darwin" ]]; then \
+	if [[ `uname` = "Darwin" ]]; then \
 		export CFLAGS=-mmacosx-version-min=10.9 ; \
 		export CXXFLAGS=-mmacosx-version-min=10.9 ; \
 	fi ; \
-	DL=$$([ `which wget` ] && echo "wget" || echo "curl -LO") ; \
+	DL=$$([ `which wget` ] && echo "wget --no-check-certificate" || echo "curl -LO") ; \
 	cd /tmp ; \
 	$$DL https://zlib.net/zlib-1.2.11.tar.gz && tar xzf zlib-1.2.11.tar.gz && cd zlib-1.2.11 ; \
-	./configure --static && make && cp *.a $(CURDIR)/.lib && cp zconf.h zlib.h $(CURDIR)/.include ; \
+	$(if $(MINGW), mingw32-make -f win32/Makefile.gcc, ./configure --static && make) && cp libz.a $(CURDIR)/.lib && cp zconf.h zlib.h $(CURDIR)/.include ; \
 	cd .. ; \
 	$$DL https://github.com/01org/tbb/archive/2017_U8.tar.gz && tar xzf 2017_U8.tar.gz && cd tbb-2017_U8; \
-	make -j4 extra_inc=big_iron.inc && cp -r include/tbb $(CURDIR)/.include && cp build/*_release/*.a $(CURDIR)/.lib
+	$(if $(MINGW), mingw32-make comiler=gcc arch=ia64 runtime=mingw, make) extra_inc=big_iron.inc -j4 \
+	&& cp -r include/tbb $(CURDIR)/.include && cp build/*_release/*.a $(CURDIR)/.lib
 
 .PHONY: test
 test: simple-test random-test
@@ -534,3 +532,4 @@ clean:
 	rm -rf *.dSYM
 	rm -rf .perllib.tmp
 	rm -rf .include .lib
+	rm -rf .lib .include
