@@ -1927,8 +1927,8 @@ left to right, the fields are:
 	If the read name contains any whitespace characters, Bowtie 2 will truncate
 	the name at the first whitespace character.  This is similar to the
 	behavior of other tools. The standard behavior of truncating at the first
-    whitespace can be suppressed with `--sam-noqname-trunc` at the expense of
-    generating non-standard SAM.
+	whitespace can be suppressed with `--sam-no-qname-trunc` at the expense of
+	generating non-standard SAM.
 
 2.  Sum of all applicable flags.  Flags relevant to Bowtie are:
 
