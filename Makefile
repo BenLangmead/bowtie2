@@ -246,6 +246,7 @@ SRC_PKG_LIST = $(wildcard *.h) \
                $(wildcard *.c) \
                $(wildcard *.cpp) \
                $(wildcard third_party/*) \
+               doc/strip_markdown.pl \
                Makefile \
                $(GENERAL_LIST)
 
@@ -437,7 +438,7 @@ bowtie2-src: $(SRC_PKG_LIST)
 
 .PHONY: bowtie2-pkg
 bowtie2-pkg: static-libs $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)
-	$(eval PKG_DIR=bowtie2-$(VERSION)-$(if $(MACOS),macos,$(if $(MINGW),mingw,linux))$(if $(HAS_TBB),,-legacy)-x86_64)
+	$(eval PKG_DIR=bowtie2-$(VERSION)-$(if $(MACOS),macos,$(if $(MINGW),mingw,linux))-x86_64)
 	chmod a+x scripts/*.sh scripts/*.pl
 	rm -rf .bin.tmp
 	mkdir -p .bin.tmp/$(PKG_DIR)
@@ -517,7 +518,7 @@ static-libs:
 	$(if $(MINGW), mingw32-make -f win32/Makefile.gcc, ./configure --static && make) && cp libz.a $(CURDIR)/.lib && cp zconf.h zlib.h $(CURDIR)/.include ; \
 	cd .. ; \
 	$$DL https://github.com/01org/tbb/archive/2017_U8.tar.gz && tar xzf 2017_U8.tar.gz && cd tbb-2017_U8; \
-	$(if $(MINGW), mingw32-make comiler=gcc arch=ia64 runtime=mingw, make) extra_inc=big_iron.inc -j4 \
+	$(if $(MINGW), mingw32-make compiler=gcc arch=ia64 runtime=mingw, make) extra_inc=big_iron.inc -j4 \
 	&& cp -r include/tbb $(CURDIR)/.include && cp build/*_release/*.a $(CURDIR)/.lib
 
 .PHONY: test
@@ -532,4 +533,3 @@ clean:
 	rm -rf *.dSYM
 	rm -rf .perllib.tmp
 	rm -rf .include .lib
-	rm -rf .lib .include
