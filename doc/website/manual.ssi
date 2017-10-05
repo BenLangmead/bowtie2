@@ -1058,7 +1058,7 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 <p>Each subsequent line describes an alignment or, if the read failed to align, a read. Each line is a collection of at least 12 fields separated by tabs; from left to right, the fields are:</p>
 <ol style="list-style-type: decimal">
 <li><p>Name of read that aligned.</p>
-<p>Note that the <a href="http://samtools.sourceforge.net/SAM1.pdf">SAM specification</a> disallows whitespace in the read name. If the read name contains any whitespace characters, Bowtie 2 will truncate the name at the first whitespace character. This is similar to the behavior of other tools. The standard behavior of truncating at the first whitespace can be suppressed with <code>--sam-noqname-trunc</code> at the expense of generating non-standard SAM.</p></li>
+<p>Note that the <a href="http://samtools.sourceforge.net/SAM1.pdf">SAM specification</a> disallows whitespace in the read name. If the read name contains any whitespace characters, Bowtie 2 will truncate the name at the first whitespace character. This is similar to the behavior of other tools. The standard behavior of truncating at the first whitespace can be suppressed with <code>--sam-no-qname-trunc</code> at the expense of generating non-standard SAM.</p></li>
 <li><p>Sum of all applicable flags. Flags relevant to Bowtie are:</p>
 <table>
 <tr>
