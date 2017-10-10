@@ -92,7 +92,7 @@ public:
 #endif
 #endif
 		}
-		else
+		else {
 #ifdef WITH_TBB
 #ifdef WITH_QUEUELOCK
 		    this->lock = NULL;
@@ -100,7 +100,8 @@ public:
 		    this->ptr_mutex = NULL;
 #endif
 #endif
-	}
+		}
+    }
 
 	~ThreadSafe() {
 #ifdef WITH_TBB
@@ -108,13 +109,12 @@ public:
 	    //if (lock != NULL)
 	    // 	lock->release();
 	    delete this->lock;
-	}
 #else
 	    if (ptr_mutex != NULL)
 	        ptr_mutex->unlock();
+#endif
+#endif
 	}
-#endif
-#endif
     
 private:
 #ifdef WITH_TBB
