@@ -67,62 +67,46 @@
 class ThreadSafe {
 public:
 
-    ThreadSafe() {
-#ifdef WITH_TBB
-#ifdef WITH_QUEUELOCK
-	this->lock = NULL;
+	ThreadSafe() {
+#if WITH_TBB && WITH_QUEUELOCK
+		this->lock = NULL;
 #else
-	this->ptr_mutex = NULL;
-#endif
-#endif
-    }
-	
-    ThreadSafe(MUTEX_T* ptr_mutex, bool locked = true) {
-		if(locked) {
-#ifdef WITH_TBB
-#ifdef WITH_QUEUELOCK
-		    //printf("b4 scope locking\n");
-        	    /*MUTEX_T::scoped_lock new_lock(*ptr_mutex);
-		    this->lock = &new_lock;*/
-		    this->lock = new MUTEX_T::scoped_lock(*ptr_mutex);
-		    //printf("scope locking\n");
-#else
-		    this->ptr_mutex = ptr_mutex;
-		    ptr_mutex->lock();
-#endif
-#endif
-		}
-		else {
-#ifdef WITH_TBB
-#ifdef WITH_QUEUELOCK
-		    this->lock = NULL;
-#else
-		    this->ptr_mutex = NULL;
-#endif
-#endif
-		}
-    }
-
-	~ThreadSafe() {
-#ifdef WITH_TBB
-#ifdef WITH_QUEUELOCK
-	    //if (lock != NULL)
-	    // 	lock->release();
-	    delete this->lock;
-#else
-	    if (ptr_mutex != NULL)
-	        ptr_mutex->unlock();
-#endif
+		this->ptr_mutex = NULL;
 #endif
 	}
-    
+	
+	ThreadSafe(MUTEX_T* ptr_mutex, bool locked = true) {
+		if(locked) {
+#if WITH_TBB && WITH_QUEUELOCK
+			this->lock = new MUTEX_T::scoped_lock(*ptr_mutex);
+#else
+			this->ptr_mutex = ptr_mutex;
+			ptr_mutex->lock();
+#endif
+		} else {
+#if WITH_TBB && WITH_QUEUELOCK
+			this->lock = NULL;
+#else
+			this->ptr_mutex = NULL;
+#endif
+		}
+	}
+
+	~ThreadSafe() {
+#if WITH_TBB && WITH_QUEUELOCK
+		delete this->lock;
+#else
+		if (ptr_mutex != NULL) {
+			ptr_mutex->unlock();
+		}
+#endif
+	}
+
 private:
-#ifdef WITH_TBB
-#ifdef WITH_QUEUELOCK
+#if WITH_TBB && WITH_QUEUELOCK
 	MUTEX_T::scoped_lock* lock;
 #else
 	MUTEX_T *ptr_mutex;
-#endif
 #endif
 };
 
