@@ -94,10 +94,12 @@ public:
 
 	~ThreadSafe() {
 #if WITH_TBB && WITH_QUEUELOCK
-		delete this->lock;
+		if(this->lock != NULL) {
+			delete this->lock;
+		}
 #else
-		if (ptr_mutex != NULL) {
-			ptr_mutex->unlock();
+		if(this->ptr_mutex != NULL) {
+			this->ptr_mutex->unlock();
 		}
 #endif
 	}
