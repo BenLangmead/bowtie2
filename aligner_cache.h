@@ -580,13 +580,6 @@ public:
 	 * Return the pool.
 	 */
 	Pool& pool() { return pool_; }
-	
-	/**
-	 * Return the lock object.
-	 */
-	MUTEX_T& lock() {
-	    return mutex_m;
-	}
 
 	/**
 	 * Return a const pointer to the lock object.  This allows us to
