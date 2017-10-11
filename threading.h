@@ -96,6 +96,7 @@ public:
 #if WITH_TBB && WITH_QUEUELOCK
 		if(this->lock != NULL) {
 			delete this->lock;
+			this->lock = NULL;
 		}
 #else
 		if(this->ptr_mutex != NULL) {
