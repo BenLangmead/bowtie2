@@ -162,7 +162,7 @@ struct WalkMetrics {
 	 * to update a WalkMetrics shared by many threads.
 	 */
 	void merge(const WalkMetrics& m, bool getLock = false) {
-		ThreadSafe ts(&mutex_m, getLock);
+		ThreadSafe ts(&mutex_m);
 		bwops += m.bwops;
 		branches += m.branches;
 		resolves += m.resolves;

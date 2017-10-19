@@ -516,7 +516,7 @@ bool VectorPatternSource::nextReadImpl(
 {
 	// Let Strings begin at the beginning of the respective bufs
 	r.reset();
-	ThreadSafe ts(&mutex,doLocking_);
+	ThreadSafe ts(&mutex);
 	if(cur_ >= v_.size()) {
 		// Clear all the Strings, as a signal to the caller that
 		// we're out of reads
@@ -563,7 +563,7 @@ bool VectorPatternSource::nextReadPairImpl(
 		paired_ = true;
 		cur_ <<= 1;
 	}
-	ThreadSafe ts(&mutex,doLocking_);
+	ThreadSafe ts(&mutex);
 	if(cur_ >= v_.size()-1) {
 		// Clear all the Strings, as a signal to the caller that
 		// we're out of reads
@@ -707,11 +707,12 @@ bool FastaPatternSource::read(
 
 	// Pick off the first carat
 	if(first_) {
+		first_ = false;
 		if(c != '>') {
 			cerr << "Error: reads file does not look like a FASTA file" << endl;
+			bail(r);
 			throw 1;
 		}
-		first_ = false;
 	}
 	assert_eq('>', c);
 	c = fb_.get(); // get next char after '>'

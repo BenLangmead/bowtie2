@@ -67,37 +67,31 @@
 class ThreadSafe {
 public:
 
-	ThreadSafe() {
+	ThreadSafe()
 #if WITH_TBB && WITH_QUEUELOCK
-		this->lock = NULL;
+		: lock()
+#endif
+	{
+#if WITH_TBB && WITH_QUEUELOCK
 #else
 		this->ptr_mutex = NULL;
 #endif
 	}
 	
-	ThreadSafe(MUTEX_T* ptr_mutex, bool locked = true) {
-		if(locked) {
+	ThreadSafe(MUTEX_T* ptr_mutex)
 #if WITH_TBB && WITH_QUEUELOCK
-			this->lock = new MUTEX_T::scoped_lock(*ptr_mutex);
-#else
-			this->ptr_mutex = ptr_mutex;
-			ptr_mutex->lock();
+		: lock(*ptr_mutex)
 #endif
-		} else {
+	{
 #if WITH_TBB && WITH_QUEUELOCK
-			this->lock = NULL;
 #else
-			this->ptr_mutex = NULL;
+		this->ptr_mutex = ptr_mutex;
+		ptr_mutex->lock();
 #endif
-		}
 	}
 
 	~ThreadSafe() {
 #if WITH_TBB && WITH_QUEUELOCK
-		if(this->lock != NULL) {
-			delete this->lock;
-			this->lock = NULL;
-		}
 #else
 		if(this->ptr_mutex != NULL) {
 			this->ptr_mutex->unlock();
@@ -107,7 +101,7 @@ public:
 
 private:
 #if WITH_TBB && WITH_QUEUELOCK
-	MUTEX_T::scoped_lock* lock;
+	MUTEX_T::scoped_lock lock;
 #else
 	MUTEX_T *ptr_mutex;
 #endif

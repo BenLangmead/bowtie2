@@ -710,7 +710,7 @@ static void VSorting_worker(void *vp)
     while(true) {
         size_t cur = 0;
         {
-            ThreadSafe ts(param->mutex, true);
+            ThreadSafe ts(param->mutex);
             cur = *(param->cur);
             (*param->cur)++;
         }

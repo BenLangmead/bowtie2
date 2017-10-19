@@ -156,7 +156,7 @@ public:
 	 * whether locks will be contended.
 	 */
 	void addWrapper() {
-		ThreadSafe ts(&mutex,doLocking_);
+		ThreadSafe ts(&mutex);
 		numWrappers_++;
 	}
 	
@@ -749,7 +749,7 @@ public:
 		bool& done)
 	{
 		// We'll be manipulating our file handle/filecur_ state
-		ThreadSafe ts(&mutex,doLocking_);
+		ThreadSafe ts(&mutex);
 		while(true) {
 			do { read(r, rdid, endid, success, done); }
 			while(!success && !done);
@@ -781,7 +781,7 @@ public:
 	{
 		// We'll be manipulating our file handle/filecur_ state
 		//lock with doLocking_
-		ThreadSafe ts(&mutex,doLocking_);
+		ThreadSafe ts(&mutex);
 		while(true) {
 			do { readPair(ra, rb, rdid, endid, success, done, paired); }
 			while(!success && !done);

@@ -1647,7 +1647,7 @@ struct OuterLoopMetrics {
 		const OuterLoopMetrics& m,
 		bool getLock = false)
 	{
-		ThreadSafe ts(&mutex_m, getLock);
+		ThreadSafe ts(&mutex_m);
 		reads += m.reads;
 		bases += m.bases;
 		srreads += m.srreads;
@@ -1729,36 +1729,36 @@ struct PerfMetrics {
 		uint64_t nbtfiltdo_,
 		bool getLock)
 	{
-		ThreadSafe ts(&mutex_m, getLock);
+		ThreadSafe ts(&mutex_m);
 		if(ol != NULL) {
-			olmu.merge(*ol, false);
+			olmu.merge(*ol);
 		}
 		if(sd != NULL) {
-			sdmu.merge(*sd, false);
+			sdmu.merge(*sd);
 		}
 		if(wl != NULL) {
-			wlmu.merge(*wl, false);
+			wlmu.merge(*wl);
 		}
 		if(swSeed != NULL) {
-			swmuSeed.merge(*swSeed, false);
+			swmuSeed.merge(*swSeed);
 		}
 		if(swMate != NULL) {
-			swmuMate.merge(*swMate, false);
+			swmuMate.merge(*swMate);
 		}
 		if(rm != NULL) {
-			rpmu.merge(*rm, false);
+			rpmu.merge(*rm);
 		}
 		if(dpSse8Ex != NULL) {
-			dpSse8uSeed.merge(*dpSse8Ex, false);
+			dpSse8uSeed.merge(*dpSse8Ex);
 		}
 		if(dpSse8Ma != NULL) {
-			dpSse8uMate.merge(*dpSse8Ma, false);
+			dpSse8uMate.merge(*dpSse8Ma);
 		}
 		if(dpSse16Ex != NULL) {
-			dpSse16uSeed.merge(*dpSse16Ex, false);
+			dpSse16uSeed.merge(*dpSse16Ex);
 		}
 		if(dpSse16Ma != NULL) {
-			dpSse16uMate.merge(*dpSse16Ma, false);
+			dpSse16uMate.merge(*dpSse16Ma);
 		}
 		nbtfiltst_u += nbtfiltst_;
 		nbtfiltsc_u += nbtfiltsc_;
@@ -1774,10 +1774,9 @@ struct PerfMetrics {
 		OutFileBuf* o,        // file to send output to
 		bool metricsStderr,   // additionally output to stderr?
 		bool total,           // true -> report total, otherwise incremental
-		bool sync,            //  synchronize output
 		const BTString *name) // non-NULL name pointer if is per-read record
 	{
-		ThreadSafe ts(&mutex_m, sync);
+		ThreadSafe ts(&mutex_m);
 		ostringstream stderrSs;
 		time_t curtime = time(0);
 		char buf[1024];
@@ -2510,15 +2509,15 @@ struct PerfMetrics {
 	}
 	
 	void mergeIncrementals() {
-		olm.merge(olmu, false);
-		sdm.merge(sdmu, false);
-		wlm.merge(wlmu, false);
-		swmSeed.merge(swmuSeed, false);
-		swmMate.merge(swmuMate, false);
-		dpSse8Seed.merge(dpSse8uSeed, false);
-		dpSse8Mate.merge(dpSse8uMate, false);
-		dpSse16Seed.merge(dpSse16uSeed, false);
-		dpSse16Mate.merge(dpSse16uMate, false);
+		olm.merge(olmu);
+		sdm.merge(sdmu);
+		wlm.merge(wlmu);
+		swmSeed.merge(swmuSeed);
+		swmMate.merge(swmuMate);
+		dpSse8Seed.merge(dpSse8uSeed);
+		dpSse8Mate.merge(dpSse8uMate);
+		dpSse16Seed.merge(dpSse16uSeed);
+		dpSse16Mate.merge(dpSse16uMate);
 		nbtfiltst_u += nbtfiltst;
 		nbtfiltsc_u += nbtfiltsc;
 		nbtfiltdo_u += nbtfiltdo;
@@ -2983,7 +2982,7 @@ static void multiseedSearchWorker(void *vp) {
 					// Only thread 1 prints progress messages
 					time_t curTime = time(0);
 					if(curTime - iTime >= metricsIval) {
-						metrics.reportInterval(metricsOfb, metricsStderr, false, true, NULL);
+						metrics.reportInterval(metricsOfb, metricsStderr, false, NULL);
 						iTime = curTime;
 					}
 				}
@@ -3872,7 +3871,7 @@ static void multiseedSearchWorker(void *vp) {
 			MERGE_METRICS(metricsPt, nthreads > 1);
 			nametmp = ps->bufa().name;
 			metricsPt.reportInterval(
-				metricsOfb, metricsStderr, true, true, &nametmp);
+				metricsOfb, metricsStderr, true, &nametmp);
 			metricsPt.reset();
 		}
 	} // while(true)
@@ -4048,7 +4047,7 @@ static void multiseedSearchWorker_2p5(void *vp) {
 					// Only thread 1 prints progress messages
 					time_t curTime = time(0);
 					if(curTime - iTime >= metricsIval) {
-						metrics.reportInterval(metricsOfb, metricsStderr, false, true, NULL);
+						metrics.reportInterval(metricsOfb, metricsStderr, false, NULL);
 						iTime = curTime;
 					}
 				}
@@ -4218,7 +4217,7 @@ static void multiseedSearchWorker_2p5(void *vp) {
 			MERGE_METRICS(metricsPt, nthreads > 1);
 			nametmp = ps->bufa().name;
 			metricsPt.reportInterval(
-				metricsOfb, metricsStderr, true, true, &nametmp);
+				metricsOfb, metricsStderr, true, &nametmp);
 			metricsPt.reset();
 		}
 	} // while(true)
@@ -4328,7 +4327,7 @@ static void multiseedSearch(
 #endif
 	}
 	if(!metricsPerRead && (metricsOfb != NULL || metricsStderr)) {
-		metrics.reportInterval(metricsOfb, metricsStderr, true, false, NULL);
+		metrics.reportInterval(metricsOfb, metricsStderr, true, NULL);
 	}
 }
 
