@@ -95,6 +95,7 @@ static uint32_t mhits;    // don't report any hits if there are > mhits
 static int partitionSz;   // output a partitioning key in first field
 static int readsPerBatch; // # reads to read from input file at once
 static bool fileParallel; // separate threads read separate input files in parallel
+static size_t input_buffer_size; // for setvbuf on input stream
 static bool useShmem;     // use shared memory to hold the index
 static bool useMm;        // use memory-mapped files to hold the index
 static bool mmSweep;      // sweep through memory-mapped files immediately after mapping
@@ -281,6 +282,7 @@ static void resetOptions() {
 	partitionSz				= 0;     // output a partitioning key in first field
 	readsPerBatch			= 16;    // # reads to read from input file at once
 	fileParallel			= false; // separate threads read separate input files in parallel
+	input_buffer_size		= 64*1024; // for setvbuf on input stream
 	useShmem				= false; // use shared memory to hold the index
 	useMm					= false; // use memory-mapped files to hold the index
 	mmSweep					= false; // sweep through memory-mapped files immediately after mapping
@@ -460,6 +462,7 @@ static struct option long_options[] = {
 	{(char*)"version",      no_argument,       0,            ARG_VERSION},
 	{(char*)"reads-per-batch", required_argument, 0,         ARG_READS_PER_BATCH},
 	{(char*)"filepar",      no_argument,       0,            ARG_FILEPAR},
+	{(char*)"input-buffer-size", required_argument, 0,       ARG_INPUT_BUFFER_SIZE},
 	{(char*)"help",         no_argument,       0,            'h'},
 	{(char*)"threads",      required_argument, 0,            'p'},
 	{(char*)"khits",        required_argument, 0,            'k'},
@@ -1056,6 +1059,9 @@ static void parseOption(int next_option, const char *arg) {
 			break;
 		case ARG_FILEPAR:
 			fileParallel = true;
+			break;
+		case ARG_INPUT_BUFFER_SIZE:
+			input_buffer_size = parseInt(1024, "--input-buffer-size arg must be at least 1024", arg);
 			break;
 		case '3': gTrim3 = parseInt(0, "-3/--trim3 arg must be at least 0", arg); break;
 		case '5': gTrim5 = parseInt(0, "-5/--trim5 arg must be at least 0", arg); break;
@@ -4434,6 +4440,7 @@ static void driver(
 		fileParallel,  // true -> wrap files with separate PairedPatternSources
 		seed,          // pseudo-random seed
 		readsPerBatch, // # reads in a light parsing batch
+		input_buffer_size, // size reads to use when reading input
 		solexaQuals,   // true -> qualities are on solexa64 scale
 		phred64Quals,  // true -> qualities are on phred64 scale
 		integerQuals,  // true -> qualities are space-separated numbers

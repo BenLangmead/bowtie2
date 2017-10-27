@@ -91,7 +91,8 @@ static uint32_t genRandSeed(
  */
 PatternSource* PatternSource::patsrcFromStrings(
 	const PatternParams& p,
-	const EList<string>& qs)
+	const EList<string>& qs,
+	size_t buffer_sz)
 {
 	switch(p.format) {
 		case FASTA:       return new FastaPatternSource(qs, p);
@@ -305,7 +306,7 @@ PatternComposer* PatternComposer::setupPatternComposer(
 			tmp.push_back(m12[i]);
 			assert_eq(1, tmp.size());
 		}
-		ab->push_back(PatternSource::patsrcFromStrings(p, *qs));
+		ab->push_back(PatternSource::patsrcFromStrings(p, *qs, p.buffer_sz));
 		if(!p.fileParallel) {
 			break;
 		}
@@ -322,7 +323,7 @@ PatternComposer* PatternComposer::setupPatternComposer(
 			tmpSeq.push_back(m1[i]);
 			assert_eq(1, tmpSeq.size());
 		}
-		a->push_back(PatternSource::patsrcFromStrings(p, *qs));
+		a->push_back(PatternSource::patsrcFromStrings(p, *qs, p.buffer_sz));
 		if(!p.fileParallel) {
 			break;
 		}
@@ -339,7 +340,7 @@ PatternComposer* PatternComposer::setupPatternComposer(
 			tmpSeq.push_back(m2[i]);
 			assert_eq(1, tmpSeq.size());
 		}
-		b->push_back(PatternSource::patsrcFromStrings(p, *qs));
+		b->push_back(PatternSource::patsrcFromStrings(p, *qs, p.buffer_sz));
 		if(!p.fileParallel) {
 			break;
 		}
@@ -359,7 +360,7 @@ PatternComposer* PatternComposer::setupPatternComposer(
 			tmpSeq.push_back(si[i]);
 			assert_eq(1, tmpSeq.size());
 		}
-		patsrc = PatternSource::patsrcFromStrings(p, *qs);
+		patsrc = PatternSource::patsrcFromStrings(p, *qs, p.buffer_sz);
 		assert(patsrc != NULL);
 		a->push_back(patsrc);
 		b->push_back(NULL);
@@ -487,11 +488,11 @@ void CFilePatternSource::open() {
             cerr << "Warning: gzbuffer added in zlib v1.2.3.5. Unable to change "
                     "buffer size from default of 8192." << endl;
 #else
-            gzbuffer(zfp_, 64*1024);
+            gzbuffer(zfp_, (int)buffer_sz_);
 #endif
         }
         else {
-            setvbuf(fp_, buf_, _IOFBF, 64*1024);
+            setvbuf(fp_, buf_, _IOFBF, buffer_sz_);
         }
 		return;
 	}

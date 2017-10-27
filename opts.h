@@ -36,6 +36,7 @@ enum {
 	ARG_PARTITION,              // --partition
 	ARG_INTEGER_QUALS,          // --int-quals
 	ARG_FILEPAR,                // --filepar
+	ARG_INPUT_BUFFER_SIZE,      // --input-buffer-size
 	ARG_READS_PER_BATCH,        // --reads-per-batch
 	ARG_SHMEM,                  // --shmem
 	ARG_MM,                     // --mm
