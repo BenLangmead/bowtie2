@@ -91,8 +91,7 @@ static uint32_t genRandSeed(
  */
 PatternSource* PatternSource::patsrcFromStrings(
 	const PatternParams& p,
-	const EList<string>& qs,
-	size_t buffer_sz)
+	const EList<string>& qs)
 {
 	switch(p.format) {
 		case FASTA:       return new FastaPatternSource(qs, p);
@@ -306,7 +305,7 @@ PatternComposer* PatternComposer::setupPatternComposer(
 			tmp.push_back(m12[i]);
 			assert_eq(1, tmp.size());
 		}
-		ab->push_back(PatternSource::patsrcFromStrings(p, *qs, p.buffer_sz));
+		ab->push_back(PatternSource::patsrcFromStrings(p, *qs));
 		if(!p.fileParallel) {
 			break;
 		}
@@ -323,7 +322,7 @@ PatternComposer* PatternComposer::setupPatternComposer(
 			tmpSeq.push_back(m1[i]);
 			assert_eq(1, tmpSeq.size());
 		}
-		a->push_back(PatternSource::patsrcFromStrings(p, *qs, p.buffer_sz));
+		a->push_back(PatternSource::patsrcFromStrings(p, *qs));
 		if(!p.fileParallel) {
 			break;
 		}
@@ -340,7 +339,7 @@ PatternComposer* PatternComposer::setupPatternComposer(
 			tmpSeq.push_back(m2[i]);
 			assert_eq(1, tmpSeq.size());
 		}
-		b->push_back(PatternSource::patsrcFromStrings(p, *qs, p.buffer_sz));
+		b->push_back(PatternSource::patsrcFromStrings(p, *qs));
 		if(!p.fileParallel) {
 			break;
 		}
@@ -360,7 +359,7 @@ PatternComposer* PatternComposer::setupPatternComposer(
 			tmpSeq.push_back(si[i]);
 			assert_eq(1, tmpSeq.size());
 		}
-		patsrc = PatternSource::patsrcFromStrings(p, *qs, p.buffer_sz);
+		patsrc = PatternSource::patsrcFromStrings(p, *qs);
 		assert(patsrc != NULL);
 		a->push_back(patsrc);
 		b->push_back(NULL);

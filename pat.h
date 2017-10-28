@@ -232,8 +232,7 @@ public:
 	 */
 	static PatternSource* patsrcFromStrings(
 		const PatternParams& p,
-		const EList<std::string>& qs,
-		size_t input_buffer_sz);
+		const EList<std::string>& qs);
 	
 	/**
 	 * Return number of reads light-parsed by this stream so far.
