@@ -75,6 +75,21 @@ public:
 				perThreadCounter[i] = 0;
 			}
 		}
+		if(!ofn.empty()) {
+			ofh_ = fopen(ofn.c_str(), "w");
+			if(ofh_ == NULL) {
+				std::cerr << "Error: Could not open alignment output file "
+				          << ofn << std::endl;
+				throw 1;
+			}
+			obuf_ = new char[output_buffer_size];
+			int ret = setvbuf(ofh_, obuf_, _IOFBF, output_buffer_size);
+			if(ret != 0) {
+				std::cerr << "Warning: Could not allocate the proper "
+				          << "buffer size for output file stream. "
+				          << "Return value = " << ret << std::endl;
+			}
+		}
 	}
 
 	~OutputQueue() {
