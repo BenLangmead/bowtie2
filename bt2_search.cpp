@@ -95,7 +95,7 @@ static uint32_t mhits;    // don't report any hits if there are > mhits
 static int partitionSz;   // output a partitioning key in first field
 static int readsPerBatch; // # reads to read from input file at once
 static bool fileParallel; // separate threads read separate input files in parallel
-static size_t io_buffer_size; // for setvbuf on input stream
+static size_t io_buffer_size; // for setvbuf on input and output streams
 static bool useShmem;     // use shared memory to hold the index
 static bool useMm;        // use memory-mapped files to hold the index
 static bool mmSweep;      // sweep through memory-mapped files immediately after mapping
@@ -282,7 +282,7 @@ static void resetOptions() {
 	partitionSz				= 0;     // output a partitioning key in first field
 	readsPerBatch			= 16;    // # reads to read from input file at once
 	fileParallel			= false; // separate threads read separate input files in parallel
-	io_buffer_size			= 64*1024; // for setvbuf on input stream
+	io_buffer_size			= 512*1024; // for setvbuf on input and output streams
 	useShmem				= false; // use shared memory to hold the index
 	useMm					= false; // use memory-mapped files to hold the index
 	mmSweep					= false; // sweep through memory-mapped files immediately after mapping
