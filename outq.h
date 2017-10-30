@@ -41,13 +41,15 @@ class OutputQueue {
 public:
 
 	OutputQueue(
-		OutFileBuf& obuf,
+		const std::string& ofn, // empty -> stdin
+		size_t output_buffer_size,
 		bool reorder,
 		size_t nthreads,
 		bool threadSafe,
 		int perThreadBufSize,
 		TReadId rdid = 0) :
-		obuf_(obuf),
+		ofh_(stdout),
+		obuf_(NULL),
 		cur_(rdid),
 		nfinished_(0),
 		nflushed_(0),
@@ -75,7 +77,16 @@ public:
 		}
 	}
 
-	~OutputQueue() { }
+	~OutputQueue() {
+		if(obuf_ != NULL) {
+			delete[] obuf_;
+			obuf_ = NULL;
+		}
+		if(ofh_ != NULL) {
+			fclose(ofh_);
+			ofh_ = NULL;
+		}
+	}
 
 	/**
 	 * Caller is telling us that they're about to write output record(s) for
@@ -117,13 +128,19 @@ public:
 	}
 
 	/**
+	 * Write a c++ string to the write buffer and, if necessary, flush.
+	 */
+	void writeString(const BTString& s);
+	
+	/**
 	 * Write already-committed lines starting from cur_.
 	 */
 	void flush(bool force = false, bool getLock = true);
 
 protected:
 
-	OutFileBuf&     obuf_;
+	FILE            *ofh_;
+	char            *obuf_;
 	TReadId         cur_;
 #ifdef WITH_TBB
 	tbb::atomic<TReadId> nstarted_;
