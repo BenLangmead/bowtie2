@@ -490,14 +490,14 @@ void CFilePatternSource::open() {
 		is_open_ = true;
 		if (compressed_) {
 #if ZLIB_VERNUM < 0x1235
-			cerr << "Warning: gzbuffer added in zlib v1.2.3.5. Unable to change "
-			"buffer size from default of 8192." << endl;
+			cerr << "Warning: gzbuffer added in zlib v1.2.3.5. Unable to "
+			     << "change buffer size from default of 8192." << endl;
 #else
-			gzbuffer(zfp_, 64*1024);
+			gzbuffer(zfp_, (int)buffer_sz_);
 #endif
 		}
 		else {
-			setvbuf(fp_, buf_, _IOFBF, 64*1024);
+			setvbuf(fp_, buf_, _IOFBF, buffer_sz_);
 		}
 		return;
 	}

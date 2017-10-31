@@ -173,7 +173,7 @@ bool QseqPatternSource::parse(
 		// 10. Qualities
 		assert(r.qual.empty());
 		int nqual = 0;
-		if (intQuals_) {
+		if (pp_.intQuals) {
 			int cur_int = 0;
 			while(c != '\t') {
 				cur_int *= 10;
@@ -181,7 +181,7 @@ bool QseqPatternSource::parse(
 				c = (*cura.buf)[off++];
 				assert(c != '\r' && c != '\n');
 				if(c == ' ' || c == '\t') {
-					char cadd = intToPhred33(cur_int, solQuals_);
+					char cadd = intToPhred33(cur_int, pp_.solexa64);
 					cur_int = 0;
 					assert_geq(cadd, 33);
 					if(++nqual > pp_.trim5) {
@@ -199,7 +199,7 @@ bool QseqPatternSource::parse(
 				} else if(c == '\t') {
 					break;
 				}
-				c = charToPhred33(c, solQuals_, phred64Quals_);
+				c = charToPhred33(c, pp_.solexa64, pp_.phred64);
 				if(++nqual > r.trimmed5) {
 					r.qual.append(c);
 				}
