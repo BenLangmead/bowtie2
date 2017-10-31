@@ -4449,7 +4449,7 @@ static void driver(
 		fastaContLen,  // length of sampled reads for FastaContinuous...
 		fastaContFreq, // frequency of sampled reads for FastaContinuous...
 		skipReads,     // skip the first 'skip' patterns
-		nthreads,      //number of threads for locking
+		nthreads,      // number of threads for locking
 		outType != OUTPUT_SAM // whether to fix mate names
 	);
 	if(gVerbose || startVerbose) {

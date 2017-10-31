@@ -119,7 +119,7 @@ void PatternSourcePerThread::finalize(Read& ra) {
 	ra.mate = 1;
 	ra.rdid = buf_.rdid();
 	ra.seed = genRandSeed(ra.patFw, ra.qual, ra.name, pp_.seed);
-	ra.finalize();
+	ra.finalize(); // set ns_ and construct rev, revcomp
 	if(pp_.fixName) {
 		ra.fixMateName(1);
 	}
@@ -136,8 +136,8 @@ void PatternSourcePerThread::finalizePair(Read& ra, Read& rb) {
 	ra.rdid = rb.rdid = buf_.rdid();
 	ra.seed = genRandSeed(ra.patFw, ra.qual, ra.name, pp_.seed);
 	rb.seed = genRandSeed(rb.patFw, rb.qual, rb.name, pp_.seed);
-	ra.finalize();
-	rb.finalize();
+	ra.finalize(); // set ns_ and construct rev, revcomp
+	rb.finalize(); // set ns_ and construct rev, revcomp
 	if(pp_.fixName) {
 		ra.fixMateName(1);
 		rb.fixMateName(2);
@@ -165,7 +165,7 @@ pair<bool, bool> PatternSourcePerThread::nextReadPair() {
 		assert_gt(buf_.cur_buf_, 0);
 	}
 	// Now fully parse read/pair *outside* the critical section
-	assert(!buf_.read_a().readOrigBuf.empty());
+	//assert(!buf_.read_a().readOrigBuf.empty());
 	assert(buf_.read_a().empty());
 	if(!parse(buf_.read_a(), buf_.read_b())) {
 		return make_pair(false, false);
@@ -430,8 +430,8 @@ pair<bool, int> CFilePatternSource::nextBatch(
 	bool lock)
 {
 	if(lock) {
-		// synchronization at this level because both reading and manipulation of
-		// current file pointer have to be protected
+		// Synchronization is up at this level because both reading and
+		// manipulation of current file pointer have to be protected.
 		ThreadSafe ts(mutex);
 		return nextBatchImpl(pt, batch_a);
 	} else {
@@ -476,23 +476,23 @@ void CFilePatternSource::open() {
 					     << infiles_[filecur_].c_str()
 					     << "\" for reading; skipping..." << endl;
 					errs_[filecur_] = true;
-      				}
-      				filecur_++;
-      				continue;
+				}
+				filecur_++;
+				continue;
 			}
 		}
 		is_open_ = true;
-        if (compressed_) {
+		if (compressed_) {
 #if ZLIB_VERNUM < 0x1235
-            cerr << "Warning: gzbuffer added in zlib v1.2.3.5. Unable to change "
-                    "buffer size from default of 8192." << endl;
+			cerr << "Warning: gzbuffer added in zlib v1.2.3.5. Unable to "
+			     << "change buffer size from default of 8192." << endl;
 #else
-            gzbuffer(zfp_, (int)buffer_sz_);
+			gzbuffer(zfp_, (int)buffer_sz_);
 #endif
-        }
-        else {
-            setvbuf(fp_, buf_, _IOFBF, buffer_sz_);
-        }
+		}
+		else {
+			setvbuf(fp_, buf_, _IOFBF, buffer_sz_);
+		}
 		return;
 	}
 	cerr << "Error: No input read files were valid" << endl;
