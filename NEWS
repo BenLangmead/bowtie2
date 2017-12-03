@@ -19,6 +19,12 @@ Please report any issues to the Bowtie 2 Github page or using the Sourceforge bu
 Version Release History
 =======================
 
+Version 2.3.3.1 - Oct 05, 2017
+    * Fixed an issue causing input files to be skipped when running
+    multi-threaded alignment
+    * Fixed an issue causing the first character of a read name to be
+    dropped while parsing reads split across multiple input files
+
 Version 2.3.3 - Sep 09, 2017
 From this release forward prepackaged bowtie2 binaries are now
 statically linked to the zlib compression library and, the recommended

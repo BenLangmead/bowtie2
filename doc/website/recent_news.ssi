@@ -1,3 +1,9 @@
+<h2>Version 2.3.3.1 - October 05, 2017</h2>
+<ul>
+    <li>Fixed an issue causing input files to be skipped when running multi-threaded alignment</li>
+    <li>Fixed an issue causing the first character of a read name to be dropped while parsing reads split across multiple input files</li>
+</ul>
+
 <h2>Version 2.3.3 - September 06, 2017</h2>
 <p>From this release forward prepackaged bowtie2 binaries are now statically linked to the zlib compression library and, the recommended threading library, TBB. Users who rely on prepackaged builds are no longer required to have these packages pre-installed. As a result of the aforementioned changes legacy packages have been discontinued.</p>
 <ul>
@@ -21,6 +27,7 @@
     <li>Fixed compilation issues caused by gzbuffer function when compiling with zlib v1.2.3.5 and earlier. Users compiling against these libraries will use the zlib default buffer size of 8Kb when decompressing read files.</li>
     <li>Fixed issue that would cause Bowtie 2 hang when aligning FASTA inputs with more than one thread</li>
 </ul>
+
 <h2>Version 2.3.1 - Mar 03, 2017</h2>
 <p>Please note that as of this release Bowtie 2 now has dependencies on zlib and readline libraries. Make sure that all dependencies are met before attempting to build from source.</p>
 <ul>
@@ -31,6 +38,7 @@
     <li>Fixed a bug whereby combining <tt><a href="manual.shtml#bowtie2-options-un-conc">-—un-conc</a></tt> with <tt><a href="manual.shtml#bowtie2-options-k">-k</a></tt> or <tt><a href="manual.shtml#bowtie2-build-options-a">-a</a></tt> would cause <tt>bowtie2</tt> to print duplicate reads in one or both of the <tt><a href="manual.shtml#bowtie2-options-un-conc">--un-conc*</a></tt> output files, causing the ends to be misaligned.</li>
     <li>The default <tt><a href="manual.shtml#bowtie2-options-score-min">--score-min</a></tt> for <tt><a href="manual.shtml#bowtie2-options-local">--local</a></tt> mode is now <tt>'G,20,8'</tt>. That was the stated default in the documentation for a while, but the actual default was <tt>'G,0,10'</tt> for many versions. Now the default matches the documentation and, we find, yields more accurate alignments than <tt>'G,0,10'</tt></li>
 </ul>
+
 <h2>Version 2.3.0 - Dec 13, 2016</h2>
 <p>This is a major release with some larger and many smaller changes. These notes emphasize the large changes. See commit history for details.</p>
 <ul>
@@ -41,53 +49,4 @@
     <li>Fixed issue with parsing FASTA records with greater-than symbol in the name</li>
     <li>Now detects and reports inconsistencies between <tt><a href="manual.shtml#bowtie2-options-score-min">--score-min</a></tt> and <tt><a href="manual.shtml#bowtie2-options-ma">--ma</a></tt></li>
     <li>Changed default for <tt><a href="manual.shtml#bowtie2-build-options-bmaxdivn">--bmaxdivn</a></tt> to yield better memory footprint and running time when building an index with many threads</li>
-</ul>
-<h2>Bowtie2 developers note</h2>
-<p>As of Nov 2015 we had to fix the bowtie2 github repo and relabel the entire history. Developers and contributors should re-clone the bowtie2 github repo from this current state. </p>
-<h2>Version 2.2.9 - Apr 22, 2016</h2>
-<ul>
-   <li>Fixed the multiple threads issue for the bowtie2-build.</li>
-   <li>Fixed a TBB related build issue impacting TBB v4.4.</li>
-</ul>
-<h2>Version 2.2.8 - Mar 10, 2016</h2>
-<ul>
-   <li>Various website updates.</li>
-   <li>Fixed the bowtie2-build issue that made TBB compilation fail.</li>
-   <li>Fixed the static build for Win32 platform.</li>
-</ul>
-<h2>Version 2.2.7 - Feb 10, 2016</h2>
-<ul>
-   <li>Added a parallel index build option: bowtie2-build --threads &lt;# threads&gt;.</li>
-   <li>Fixed an issue whereby IUPAC codes (other than A/C/G/T/N) in reads were converted to As. Now all non-A/C/G/T characters in reads become Ns.</li>
-   <li>Fixed some compilation issues, including for the Intel C++ Compiler.</li>
-   <li>Removed debugging code that could impede performance for many alignment threads.</li>
-   <li>Fixed a few typos in documentation.</li>
-</ul>
-<h2>Version 2.2.6 - Jul 22, 2015</h2>
-<ul>
-   <li>Switched to a stable sort to avoid some potential reproducibility confusions.</li>
-   <li>Added <tt>'install'</tt> target for *nix platforms.</li>
-   <li>Added the Intel TBB option which provides in most situations a better performance output. TBB is not present by default in the current build but can be added by compiling the source code with <tt>WITH_TBB=1</tt> option.</li>
-   <li>Fixed a bug that caused seed lenght to be dependent of the <tt><a href="manual.shtml#bowtie2-options-L">-L</a></tt> and <tt><a href="manual.shtml#bowtie2-options-N">-N</a></tt> parameters order.</li>
-   <li>Fixed a bug that caused <tt><a href="manual.shtml#bowtie2-options-local">--local</a></tt> followed by <tt><a href="manual.shtml#bowtie2-options-N">-N</a></tt> to reset seed lenght to 22 which is actually the default value for global.</li>
-   <li>Enable compilation on FreeBDS and clang, although gmake port is still required.</li>
-   <li>Fixed an issue that made bowtie2 compilation process to fail on Snow Leopard.</li>
-</ul>
-
-<h2>Version 2.2.5 - Mar 9, 2015</h2>
-<ul>
-   <li>Fixed some situations where incorrectly we could detect a Mavericks platform.</li>
-   <li>Fixed some manual issues including some HTML bad formating.</li>
-   <li>Make sure the wrapper correctly identifies the platform under OSX.</li>
-   <li>Fixed <tt><a href="manual.shtml#bowtie2-options-rg">--rg</a></tt>/<tt><a href="manual.shtml#bowtie2-options-rg-id">--rg-id</a></tt> options where included spaces were incorrectly treated.</li>
-   <li>Various documentation fixes added by contributors.</li>
-   <li>Fixed the incorrect behavior where parameter file names may contain spaces.</li>
-   <li>Fixed bugs related with the presence of spaces in the path where bowtie binaries are stored.</li>
-   <li>Improved exception handling for missformated quality values.</li>
-   <li>Improved redundancy checks by correctly account for soft clipping.</li>
-</ul>
-
-<h2>Lighter released</h2>
-<ul>
-   <li>Lighter is an extremely fast and memory-efficient program for correcting sequencing errors in DNA sequencing data.  For details on how error correction can help improve the speed and accuracy of downstream analysis tools, see the <a href="http://genomebiology.com/2014/15/11/509">paper in Genome Biology</a>.  Source and software <a href="https://github.com/mourisl/Lighter">available at GitHub</a></li>.
 </ul>
