@@ -4576,8 +4576,9 @@ static void multiseedSearch(
 #endif
 	EList<int> tids;
 #ifdef WITH_TBB
-	//tbb::task_group tbb_grp;
 	EList<std::thread*> threads(nthreads);
+	EList<thread_tracking_pair> tps;
+	tps.resize(std::max(nthreads, thread_ceiling));
 #else
 	EList<tthread::thread*> threads;
 #endif
@@ -4630,20 +4631,20 @@ static void multiseedSearch(
 #endif
 		
 		for(int i = 0; i < nthreads; i++) {
+			tids.push_back(i);
 #ifdef WITH_TBB
-			thread_tracking_pair tp;
-			tp.tid = i;
-			tp.done = &all_threads_done;
+			tps[i].tid = i;
+			tps[i].done = &all_threads_done;
+
 			if(bowtie2p5) {
-				threads.push_back(new std::thread(multiseedSearchWorker_2p5, (void*) &tp));
+				threads.push_back(new std::thread(multiseedSearchWorker_2p5, (void*)&tps[i]));
 			} else {
-				threads.push_back(new std::thread(multiseedSearchWorker, (void*) &tp));
+				threads.push_back(new std::thread(multiseedSearchWorker, (void*)&tps[i]));
 			}
 			threads[i]->detach();
 			SLEEP(10);
 #else
 			// Thread IDs start at 1
-			tids.push_back(i);
 			if(bowtie2p5) {
 				threads.push_back(new tthread::thread(multiseedSearchWorker_2p5, (void*)&tids.back()));
 			} else {
