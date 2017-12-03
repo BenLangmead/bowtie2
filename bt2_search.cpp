@@ -4335,8 +4335,9 @@ static void multiseedSearch(
 	if(!refs->loaded()) throw 1;
 	multiseed_refs = refs.get();
 #ifdef WITH_TBB
-	//tbb::task_group tbb_grp;
-	AutoArray<std::thread*> threads(nthreads);
+	EList<std::thread*> threads(nthreads);
+	EList<thread_tracking_pair> tps;
+	tps.resize(std::max(nthreads, nthreads));
 #else
 	AutoArray<tthread::thread*> threads(nthreads);
 	AutoArray<int> tids(nthreads);
@@ -4379,15 +4380,13 @@ static void multiseedSearch(
 		Timer _t(cerr, "Multiseed full-index search: ", timing);
 		for(int i = 0; i < nthreads; i++) {
 #ifdef WITH_TBB
-			thread_tracking_pair tp;
-			tp.tid = i;
-			tp.done = &all_threads_done;
+			tps[i].tid = i;
+			tps[i].done = &all_threads_done;
+
 			if(bowtie2p5) {
-				//tbb_grp.run(multiseedSearchWorker_2p5(i));
-				threads[i] = new std::thread(multiseedSearchWorker_2p5, (void*) &tp);
+				threads.push_back(new std::thread(multiseedSearchWorker_2p5, (void*)&tps[i]));
 			} else {
-				//tbb_grp.run(multiseedSearchWorker(i));
-				threads[i] = new std::thread(multiseedSearchWorker, (void*) &tp);
+				threads.push_back(new std::thread(multiseedSearchWorker, (void*)&tps[i]));
 			}
 			threads[i]->detach();
 			SLEEP(10);
