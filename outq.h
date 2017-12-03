@@ -26,6 +26,7 @@
 #include "read.h"
 #include "threading.h"
 #include "mem_ids.h"
+#include <vector>
 
 /**
  * Encapsulates a list of lines of output.  If the earliest as-yet-unreported
@@ -66,12 +67,11 @@ public:
 		assert(nthreads_ <= 2 || threadSafe);
 		if(!reorder)
 		{
-			perThreadBuf = new BTString*[nthreads_];
+			perThreadBuf.resize(nthreads_, std::vector<BTString>(perThreadBufSize_));
 			perThreadCounter = new int[nthreads_];
 			size_t i = 0;
 			for(i=0;i<nthreads_;i++)
 			{
-				perThreadBuf[i] = new BTString[perThreadBufSize_];
 				perThreadCounter[i] = 0;
 			}
 		}
@@ -173,7 +173,7 @@ protected:
 
 	// used for output read buffer	
 	size_t nthreads_;
-	BTString**	perThreadBuf;
+	std::vector<vector<BTString> > perThreadBuf;
 	int* 		perThreadCounter;
 	int perThreadBufSize_;
 

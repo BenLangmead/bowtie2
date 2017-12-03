@@ -599,7 +599,10 @@ public:
 		if(cur_ + slen > BUF_SZ) {
 			if(cur_ > 0) flush();
 			if(slen >= BUF_SZ) {
-				fwrite(s.c_str(), slen, 1, out_);
+				if (slen != fwrite(s.c_str(), 1, slen, out_)) {
+					std::cerr << "Error: outputting data" << std::endl;
+					throw 1;
+				}
 			} else {
 				memcpy(&buf_[cur_], s.data(), slen);
 				assert_eq(0, cur_);
@@ -622,7 +625,10 @@ public:
 		if(cur_ + slen > BUF_SZ) {
 			if(cur_ > 0) flush();
 			if(slen >= BUF_SZ) {
-				fwrite(s.toZBuf(), slen, 1, out_);
+				if (slen != fwrite(s.toZBuf(), 1, slen, out_)) {
+					std::cerr << "Error outputting data" << std::endl;
+					throw 1;
+				}
 			} else {
 				memcpy(&buf_[cur_], s.toZBuf(), slen);
 				assert_eq(0, cur_);
@@ -684,7 +690,10 @@ public:
 	}
 
 	void flush() {
-		if(!fwrite((const void *)buf_, cur_, 1, out_)) {
+		if(cur_ != fwrite((const void *)buf_, 1, cur_, out_)) {
+			if (errno == EPIPE) {
+				exit(EXIT_SUCCESS);
+			}
 			std::cerr << "Error while flushing and closing output" << std::endl;
 			throw 1;
 		}
