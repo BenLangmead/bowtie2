@@ -26,3 +26,5 @@ bowtie2-inspect-l-debug
 Xcode
 reads_*.fq
 reads_*.sam
+.DS_Store
+.tmp.simple_tests.*.pl
