@@ -125,10 +125,11 @@ Building from source
 
 Building Bowtie 2 from source requires a GNU-like environment with GCC, GNU Make
 and other basics.  It should be possible to build Bowtie 2 on most vanilla Linux
-installations or on a Mac installation with [Xcode] installed.  Bowtie 2 can
-also be built on Windows using a 64-bit MinGW distribution and MSYS. In order 
-to simplify the MinGW setup it might be worth investigating popular MinGW personal 
-builds since these are coming already prepared with most of the toolchains needed.
+installations or on a Mac installation with [Xcode] installed.  (But see note
+about the TBB library below).  Bowtie 2 can also be built on Windows using a
+64-bit MinGW distribution and MSYS. In order to simplify the MinGW setup it might
+be worth investigating popular MinGW personal builds since these are coming
+already prepared with most of the toolchains needed.
 
 First, download the source package from the [sourceforge site].  Make sure
 you're getting the source package; the file downloaded should end in
@@ -137,19 +138,12 @@ Bowtie 2 tools by running GNU `make` (usually with the command `make`, but
 sometimes with `gmake`) with no arguments.  If building with MinGW, run `make`
 from the MSYS environment.
 
-Bowtie 2 is using the multithreading software model in order to
-speed up execution times on SMP architectures where this is possible.
-The Threading Building Blocks library, TBB, is now the default
-threading library in Bowtie 2. On POSIX platforms (like Linux, Mac
-OS, etc.) if TBB is not available the pthread library will be used.
-Although it is possible to use pthread library on Windows, a non-POSIX
-platform, due to performance reasons Bowtie 2 will try to use Windows
-native multithreading if possible. We recommend that you first
-install the [Threading Building Blocks library], but if unable to
-do so please specify `make NO_TBB=1`. TBB comes installed by default
-on many popular Linux distros. Please note, packages built without
-TBB will have _-legacy_ appended to the name.
-
+Bowtie 2 can be run on many threads. By default, Bowtie 2 uses the Threading
+Building Blocks library (TBB) for this. If TBB is not available on your system
+(e.g. `make` prints an error like `tbb/mutex.h: No such file or directory`),
+you can install it yourself (see [Threading Building Blocks library]) or build
+Bowtie 2 with `make NO_TBB=1` to use pthreads or Windows native multithreading
+instead.
 
 Adding to PATH
 --------------
