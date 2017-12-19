@@ -728,6 +728,9 @@ static void printUsage(ostream& out) {
 	    << "  --qseq             query input files are in Illumina's qseq format" << endl
 	    << "  -f                 query input files are (multi-)FASTA .fa/.mfa" << endl
 	    << "  -r                 query input files are raw one-sequence-per-line" << endl
+	    << "  -F k:<int>,i:<int> query input files are FASTA-Continuous where reads" << endl
+	    << "                     are substrings (k-mers) extracted from a FASTA file <s>" << endl
+	    << "                     and aligned at offsets 1, 1+i, 1+2i ... end of reference" << endl
 	    << "  -c                 <m1>, <m2>, <r> are sequences themselves, not files" << endl
 	    << "  -s/--skip <int>    skip the first <int> reads/pairs in the input (none)" << endl
 	    << "  -u/--upto <int>    stop after first <int> reads/pairs (no limit)" << endl
@@ -803,12 +806,12 @@ static void printUsage(ostream& out) {
 	//}
 	out << "  -t/--time          print wall-clock time taken by search phases" << endl;
 	if(wrapper == "basic-0") {
-	out << "  --un <path>           write unpaired reads that didn't align to <path>" << endl
-	    << "  --al <path>           write unpaired reads that aligned at least once to <path>" << endl
-	    << "  --un-conc <path>      write pairs that didn't align concordantly to <path>" << endl
-	    << "  --al-conc <path>      write pairs that aligned concordantly at least once to <path>" << endl
-	    << "  (Note: for --un, --al, --un-conc, or --al-conc, add '-gz' to the option name, e.g." << endl
-		<< "  --un-gz <path>, to gzip compress output, or add '-bz2' to bzip2 compress output.)" << endl;
+	out << "  --un <path>        write unpaired reads that didn't align to <path>" << endl
+	    << "  --al <path>        write unpaired reads that aligned at least once to <path>" << endl
+	    << "  --un-conc <path>   write pairs that didn't align concordantly to <path>" << endl
+	    << "  --al-conc <path>   write pairs that aligned concordantly at least once to <path>" << endl
+	    << "    (Note: for --un, --al, --un-conc, or --al-conc, add '-gz' to the option name, e.g." << endl
+	    << "    --un-gz <path>, to gzip compress output, or add '-bz2' to bzip2 compress output.)" << endl;
 	}
 	out << "  --quiet            print nothing to stderr except serious errors" << endl
 	//  << "  --refidx           refer to ref. seqs by 0-based index rather than name" << endl
