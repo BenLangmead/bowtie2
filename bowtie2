@@ -33,8 +33,10 @@ use warnings;
 use Getopt::Long qw(GetOptions);
 use File::Spec;
 use POSIX;
+use Sys::Hostname;
 
 
+my $host = hostname();
 my ($vol,$script_path,$prog);
 $prog = File::Spec->rel2abs( __FILE__ );
 
@@ -368,7 +370,7 @@ if(wrapInput(\@unps, \@mate1s, \@mate2s)) {
 		scalar(@mate2s) == scalar(@mate1s) ||
 			Fail("Different number of files specified with --reads/-1 as with -2\n");
 		# Make a named pipe for delivering mate #1s
-		my $m1fn = "$temp_dir/$$.inpipe1";
+		my $m1fn = "$temp_dir/${host}_$$.inpipe1";
 		push @to_delete, $m1fn;
 		push @bt2_args, "-1 $m1fn";
 		# Create named pipe 1 for writing
@@ -385,7 +387,7 @@ if(wrapInput(\@unps, \@mate1s, \@mate2s)) {
 			exit 0 unless $no_pipes;
 		}
 		# Make a named pipe for delivering mate #2s
-		my $m2fn = "$temp_dir/$$.inpipe2";
+		my $m2fn = "$temp_dir/${host}_$$.inpipe2";
 		push @to_delete, $m2fn;
 		push @bt2_args, "-2 $m2fn";
 		# Create named pipe 2 for writing
@@ -407,7 +409,7 @@ if(wrapInput(\@unps, \@mate1s, \@mate2s)) {
 		# Wrap unpaired inputs.
 		#
 		# Make a named pipe for delivering unpaired reads
-		my $ufn = "$temp_dir/$$.unp";
+		my $ufn = "$temp_dir/${host}_$$.unp";
 		push @to_delete, $ufn;
 		push @bt2_args, "-U $ufn";
 		# Create named pipe 2 for writing
@@ -436,7 +438,7 @@ if(wrapInput(\@unps, \@mate1s, \@mate2s)) {
 }
 
 if(defined($ref_str)) {
-	my $ofn = "$temp_dir/$$.ref_str.fa";
+	my $ofn = "$temp_dir/${host}_$$.ref_str.fa";
 	open(my $ofh, ">$ofn") ||
 		Fail("could not open temporary fasta file '$ofn' for writing.\n");
 	print {$ofh} ">1\n$ref_str\n";
