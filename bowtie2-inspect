@@ -31,7 +31,10 @@ from collections import deque
 def main():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--debug', action='store_true')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--debug', action='store_true')
+    group.add_argument('--sanitized', action='store_true')
+
     parser.add_argument('--verbose', action='store_true')
     parser.add_argument('--large-index', action='store_true')
 
@@ -56,6 +59,10 @@ def main():
     if script_options.debug:
         inspect_bin_spec += '-debug'
         inspect_bin_l += '-debug'
+
+    if script_options.sanitized:
+        inpsect_bin_spec += '-sanitized'
+        inspect_bin_l += '-sanitized'
         
     if script_options.large_index:
         inspect_bin_spec = os.path.join(ex_path,inspect_bin_l)

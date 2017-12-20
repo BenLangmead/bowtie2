@@ -61,7 +61,7 @@ static uint32_t genRandSeed(
 		int p = (int)qry[i];
 		assert_leq(p, 4);
 		size_t off = ((i & 15) << 1);
-		rseed ^= (p << off);
+		rseed ^= ((uint32_t)p << off);
 	}
 	// Throw all the quality values for the read into the random
 	// seed

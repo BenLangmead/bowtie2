@@ -21,374 +21,380 @@
 # Makefile for bowtie, bowtie2-build, bowtie2-inspect
 #
 
-prefix = /usr/local
-bindir = $(prefix)/bin
+prefix := /usr/local
+bindir := $(prefix)/bin
 
-INC = $(if $(RELEASE_BUILD),-I$(CURDIR)/.include)
-LIBS = $(LDFLAGS) $(if $(RELEASE_BUILD),-L$(CURDIR)/.lib) -lz
-GCC_PREFIX = $(shell dirname `which gcc`)
-GCC_SUFFIX =
+LDLIBS := -lz
+GCC_PREFIX := $(shell dirname `which gcc`)
+GCC_SUFFIX :=
 CC ?= $(GCC_PREFIX)/gcc$(GCC_SUFFIX)
 CPP ?= $(GCC_PREFIX)/g++$(GCC_SUFFIX)
 CXX ?= $(CPP)
-HEADERS = $(wildcard *.h)
-BOWTIE_MM = 1
-BOWTIE_SHARED_MEM =
 
-# Detect Cygwin or MinGW
-WINDOWS =
-MINGW =
-ifneq (,$(findstring MINGW,$(shell uname)))
-	WINDOWS = 1
-	MINGW = 1
-	# POSIX memory-mapped files not currently supported on Windows
-	BOWTIE_MM = 0
-	BOWTIE_SHARED_MEM = 0
-	override EXTRA_FLAGS += -ansi
+HEADERS := $(wildcard *.h)
+BOWTIE_MM := 1
+BOWTIE_SHARED_MEM :=
+
+ifdef ($RELEASE_BUILD)
+	LDFLAGS += -L$(CURDIR)/.lib
+	CPPFLAGS += -I$(CURDIR)/.include
 endif
 
-MACOS =
+# Detect Cygwin or MinGW
+WINDOWS :=
+MINGW :=
+ifneq (,$(findstring MINGW,$(shell uname)))
+	WINDOWS := 1
+	MINGW := 1
+	# POSIX memory-mapped files not currently supported on Windows
+	BOWTIE_MM := 0
+	BOWTIE_SHARED_MEM := 0
+	CXXFLAGS += -ansi
+endif
+
+MACOS :=
 ifneq (,$(findstring Darwin,$(shell uname)))
-	MACOS = 1
+	MACOS := 1
 	ifneq (,$(findstring 13,$(shell uname -r)))
-		CPP = clang++
-		CC = clang
-		override EXTRA_FLAGS += -stdlib=libstdc++
+		CXXFLAGS += -stdlib=libstdc++
 	endif
-	ifeq (1, $(RELEASE_BUILD))
-		EXTRA_FLAGS += -mmacosx-version-min=10.9
+	ifdef ($(RELEASE_BUILD))
+		CXXFLAGS += -mmacosx-version-min=10.9
 	endif
 endif
 
 POPCNT_CAPABILITY ?= 1
 ifeq (1, $(POPCNT_CAPABILITY))
-    override EXTRA_FLAGS += -DPOPCNT_CAPABILITY
-    INC += -I third_party
+    CXXFLAGS += -DPOPCNT_CAPABILITY
+    CPPFLAGS += -I third_party
 endif
 
-MM_DEF =
+MM_DEF :=
 
 ifeq (1,$(BOWTIE_MM))
-	MM_DEF = -DBOWTIE_MM
+	MM_DEF := -DBOWTIE_MM
 endif
 
-SHMEM_DEF =
+SHMEM_DEF :=
 
-ifeq (1,$(BOWTIE_SHARED_MEM))
-	SHMEM_DEF = -DBOWTIE_SHARED_MEM
+ifdef ($(BOWTIE_SHARED_MEM))
+	SHMEM_DEF := -DBOWTIE_SHARED_MEM
 endif
 
-PTHREAD_PKG =
-PTHREAD_LIB =
+PTHREAD_PKG :=
+PTHREAD_LIB :=
 
 #if we're not using TBB, then we can't use queuing locks
 ifeq (1,$(NO_TBB))
-	NO_QUEUELOCK=1
+	NO_QUEUELOCK := 1
 endif
 
 ifeq (1,$(MINGW))
-	PTHREAD_LIB =
+	PTHREAD_LIB :=
 else
-	PTHREAD_LIB = -lpthread
+	PTHREAD_LIB := -lpthread
 endif
 
 ifeq (1,$(NO_SPINLOCK))
-	override EXTRA_FLAGS += -DNO_SPINLOCK
+	CXXFLAGS += -DNO_SPINLOCK
 endif
 
 #default is to use Intel TBB
 ifneq (1,$(NO_TBB))
-	LIBS += $(PTHREAD_LIB) -ltbb -ltbbmalloc$(if $(RELEASE_BUILD),,_proxy)
-	override EXTRA_FLAGS += -DWITH_TBB
+	LDLIBS += $(PTHREAD_LIB) -ltbb
+	ifdef ($(RELEASE_BUILD))
+		LDLIBS += -ltbbmalloc
+	else
+		LDLIBS += -ltbbmalloc_proxy
+	endif
+	CXXFLAGS += -DWITH_TBB
 else
-	LIBS += $(PTHREAD_LIB)
-endif
-SEARCH_LIBS =
-BUILD_LIBS =
-INSPECT_LIBS =
-
-ifeq (1,$(MINGW))
-	BUILD_LIBS =
-	INSPECT_LIBS =
+	LDLIBS += $(PTHREAD_LIB)
 endif
 
 ifeq (1,$(WITH_THREAD_PROFILING))
-	override EXTRA_FLAGS += -DPER_THREAD_TIMING=1
+	CXXFLAGS += -DPER_THREAD_TIMING=1
 endif
 
 ifeq (1,$(WITH_AFFINITY))
-	override EXTRA_FLAGS += -DWITH_AFFINITY=1
+	CXXFLAGS += -DWITH_AFFINITY=1
 endif
 
 #default is to use Intel TBB's queuing lock for better thread scaling performance
 ifneq (1,$(NO_QUEUELOCK))
-	override EXTRA_FLAGS += -DNO_SPINLOCK
-	override EXTRA_FLAGS += -DWITH_QUEUELOCK=1
+	CXXFLAGS += -DNO_SPINLOCK
+	CXXFLAGS += -DWITH_QUEUELOCK=1
 endif
 
-
-SHARED_CPPS = ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
-              edit.cpp bt2_idx.cpp bt2_io.cpp bt2_util.cpp \
-              reference.cpp ds.cpp multikey_qsort.cpp limit.cpp \
-			  random_source.cpp
+SHARED_CPPS := ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
+               edit.cpp bt2_idx.cpp bt2_io.cpp bt2_util.cpp \
+               reference.cpp ds.cpp multikey_qsort.cpp limit.cpp \
+			   random_source.cpp
 
 ifeq (1,$(NO_TBB))
 	SHARED_CPPS += tinythread.cpp
 endif
 
-SEARCH_CPPS = qual.cpp pat.cpp sam.cpp \
-              read_qseq.cpp aligner_seed_policy.cpp \
-              aligner_seed.cpp \
-			  aligner_seed2.cpp \
-			  aligner_sw.cpp \
-			  aligner_sw_driver.cpp aligner_cache.cpp \
-			  aligner_result.cpp ref_coord.cpp mask.cpp \
-			  pe.cpp aln_sink.cpp dp_framer.cpp \
-			  scoring.cpp presets.cpp unique.cpp \
-			  simple_func.cpp \
-			  random_util.cpp \
-			  aligner_bt.cpp sse_util.cpp \
-			  aligner_swsse.cpp outq.cpp \
-			  aligner_swsse_loc_i16.cpp \
-			  aligner_swsse_ee_i16.cpp \
-			  aligner_swsse_loc_u8.cpp \
-			  aligner_swsse_ee_u8.cpp \
-			  aligner_driver.cpp
+SEARCH_CPPS := qual.cpp pat.cpp sam.cpp \
+               read_qseq.cpp aligner_seed_policy.cpp \
+               aligner_seed.cpp \
+			   aligner_seed2.cpp \
+			   aligner_sw.cpp \
+			   aligner_sw_driver.cpp aligner_cache.cpp \
+			   aligner_result.cpp ref_coord.cpp mask.cpp \
+			   pe.cpp aln_sink.cpp dp_framer.cpp \
+			   scoring.cpp presets.cpp unique.cpp \
+			   simple_func.cpp \
+			   random_util.cpp \
+			   aligner_bt.cpp sse_util.cpp \
+			   aligner_swsse.cpp outq.cpp \
+			   aligner_swsse_loc_i16.cpp \
+			   aligner_swsse_ee_i16.cpp \
+			   aligner_swsse_loc_u8.cpp \
+			   aligner_swsse_ee_u8.cpp \
+			   aligner_driver.cpp
 
-SEARCH_CPPS_MAIN = $(SEARCH_CPPS) bowtie_main.cpp
+SEARCH_CPPS_MAIN := $(SEARCH_CPPS) bowtie_main.cpp
 
-DP_CPPS = qual.cpp aligner_sw.cpp aligner_result.cpp ref_coord.cpp mask.cpp \
+DP_CPPS := qual.cpp aligner_sw.cpp aligner_result.cpp ref_coord.cpp mask.cpp \
           simple_func.cpp sse_util.cpp aligner_bt.cpp aligner_swsse.cpp \
 		  aligner_swsse_loc_i16.cpp aligner_swsse_ee_i16.cpp \
 		  aligner_swsse_loc_u8.cpp aligner_swsse_ee_u8.cpp scoring.cpp
 
-BUILD_CPPS = diff_sample.cpp
-BUILD_CPPS_MAIN = $(BUILD_CPPS) bowtie_build_main.cpp
+BUILD_CPPS := diff_sample.cpp
+BUILD_CPPS_MAIN := $(BUILD_CPPS) bowtie_build_main.cpp
 
-SEARCH_FRAGMENTS = $(wildcard search_*_phase*.c)
-VERSION = $(shell cat VERSION)
+SEARCH_FRAGMENTS := $(wildcard search_*_phase*.c)
+VERSION := $(shell cat VERSION)
 
-BITS=32
+BITS := 32
 ifeq (x86_64,$(shell uname -m))
-	BITS=64
+	BITS := 64
 endif
 ifeq (amd64,$(shell uname -m))
-	BITS=64
+	BITS := 64
 endif
 # msys will always be 32 bit so look at the cpu arch instead.
 ifneq (,$(findstring AMD64,$(PROCESSOR_ARCHITEW6432)))
 	ifeq (1,$(MINGW))
-		BITS=64
+		BITS := 64
 	endif
 endif
 ifeq (32,$(BITS))
   $(error bowtie2 compilation requires a 64-bit platform )
 endif
 
-SSE_FLAG=-msse2
+SSE_FLAG := -msse2
 
-DEBUG_FLAGS    = -O0 -g3 -m64 $(SSE_FLAG)
-DEBUG_DEFS     = -DCOMPILER_OPTIONS="\"$(DEBUG_FLAGS) $(EXTRA_FLAGS)\""
-RELEASE_FLAGS  = -O3 -m64 $(SSE_FLAG) -funroll-loops -g3
-RELEASE_DEFS   = -DCOMPILER_OPTIONS="\"$(RELEASE_FLAGS) $(EXTRA_FLAGS)\""
-NOASSERT_FLAGS = -DNDEBUG
-FILE_FLAGS     = -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
+DEBUG_FLAGS    := -O0 -g3 -m64 $(SSE_FLAG)
+RELEASE_FLAGS  := -O3 -m64 $(SSE_FLAG) -funroll-loops -g3
+NOASSERT_FLAGS := -DNDEBUG
+FILE_FLAGS     := -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
+DEBUG_DEFS     = -DCOMPILER_OPTIONS="\"$(DEBUG_FLAGS) $(CXXFLAGS)\""
+RELEASE_DEFS   = -DCOMPILER_OPTIONS="\"$(RELEASE_FLAGS) $(CXXFLAGS)\""
 
-BOWTIE2_BIN_LIST =     bowtie2-build-s \
-                       bowtie2-build-l \
-                       bowtie2-align-s \
-                       bowtie2-align-l \
-                       bowtie2-inspect-s \
-                       bowtie2-inspect-l
-BOWTIE2_BIN_LIST_AUX = bowtie2-build-s-debug \
-                       bowtie2-build-l-debug \
-                       bowtie2-align-s-debug \
-                       bowtie2-align-l-debug \
-                       bowtie2-inspect-s-debug \
-                       bowtie2-inspect-l-debug
+BOWTIE2_BIN_LIST :=     bowtie2-build-s \
+                        bowtie2-build-l \
+                        bowtie2-align-s \
+                        bowtie2-align-l \
+                        bowtie2-inspect-s \
+                        bowtie2-inspect-l
+BOWTIE2_BIN_LIST_DBG := bowtie2-build-s-debug \
+                        bowtie2-build-l-debug \
+                        bowtie2-align-s-debug \
+                        bowtie2-align-l-debug \
+                        bowtie2-inspect-s-debug \
+                        bowtie2-inspect-l-debug
+BOWTIE2_BIN_LIST_SAN := bowtie2-build-s-sanitized \
+                        bowtie2-build-l-sanitized \
+                        bowtie2-align-s-sanitized \
+                        bowtie2-align-l-sanitized \
+                        bowtie2-inspect-s-sanitized \
+                        bowtie2-inspect-l-sanitized
 
-GENERAL_LIST = $(wildcard scripts/*.sh) \
-               $(wildcard scripts/*.pl) \
-               doc/manual.html \
-               doc/README \
-               doc/style.css \
-			   $(wildcard example/index/*.bt2) \
-			   $(wildcard example/reads/*.fq) \
-			   $(wildcard example/reads/*.pl) \
-			   example/reference/lambda_virus.fa \
-               $(PTHREAD_PKG) \
-			   bowtie2 \
-			   bowtie2-build \
-			   bowtie2-inspect \
-               AUTHORS \
-               LICENSE \
-               NEWS \
-               MANUAL \
-               MANUAL.markdown \
-               TUTORIAL \
-               VERSION
+GENERAL_LIST := $(wildcard scripts/*.sh) \
+                $(wildcard scripts/*.pl) \
+                doc/manual.html \
+                doc/README \
+                doc/style.css \
+			    $(wildcard example/index/*.bt2) \
+			    $(wildcard example/reads/*.fq) \
+			    $(wildcard example/reads/*.pl) \
+			    example/reference/lambda_virus.fa \
+                $(PTHREAD_PKG) \
+			    bowtie2 \
+			    bowtie2-build \
+			    bowtie2-inspect \
+                AUTHORS \
+                LICENSE \
+                NEWS \
+                MANUAL \
+                MANUAL.markdown \
+                TUTORIAL \
+                VERSION
 
 ifeq (1,$(WINDOWS))
 	BOWTIE2_BIN_LIST := $(BOWTIE2_BIN_LIST) bowtie2.bat bowtie2-build.bat bowtie2-inspect.bat
     ifneq (1,$(NO_TBB))
-	    override EXTRA_FLAGS += -static-libgcc -static-libstdc++
+	    CXXFLAGS += -static-libgcc -static-libstdc++
 	else
-	    override EXTRA_FLAGS += -static -static-libgcc -static-libstdc++
+	    CXXFLAGS += -static -static-libgcc -static-libstdc++
 	endif
 endif
 
 # This is helpful on Windows under MinGW/MSYS, where Make might go for
 # the Windows FIND tool instead.
-FIND=$(shell which find)
+FIND := $(shell which find)
 
-SRC_PKG_LIST = $(wildcard *.h) \
-               $(wildcard *.hh) \
-               $(wildcard *.c) \
-               $(wildcard *.cpp) \
-               $(wildcard third_party/*) \
-               doc/strip_markdown.pl \
-               Makefile \
-               $(GENERAL_LIST)
+SRC_PKG_LIST := $(wildcard *.h) \
+                $(wildcard *.hh) \
+                $(wildcard *.c) \
+                $(wildcard *.cpp) \
+                $(wildcard third_party/*) \
+                doc/strip_markdown.pl \
+                Makefile \
+                $(GENERAL_LIST)
 
 ifeq (1,$(WINDOWS))
-	BIN_PKG_LIST = $(GENERAL_LIST) bowtie2.bat bowtie2-build.bat bowtie2-inspect.bat
+	BIN_PKG_LIST := $(GENERAL_LIST) bowtie2.bat bowtie2-build.bat bowtie2-inspect.bat
 else
-	BIN_PKG_LIST = $(GENERAL_LIST)
+	BIN_PKG_LIST := $(GENERAL_LIST)
 endif
 
 .PHONY: all allall both both-debug
 
-all: $(BOWTIE2_BIN_LIST)
+all: $(BOWTIE2_BIN_LIST) ;
+allall: $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_DBG) $(BOWTIE2_BIN_LIST_SAN) ;
+both: bowtie2-align-s bowtie2-build-s bowtie2-align-l bowtie2-build-l ;
+both-debug: bowtie2-align-s-debug bowtie2-build-s-debug bowtie2-align-l-debug bowtie2-build-l-debug ;
+both-sanitized: bowtie2-align-s-sanitized bowtie2-build-s-sanitized bowtie2-align-l-sanitized bowtie2-build-l-sanitized ;
 
-allall: $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)
+DEFS := -fno-strict-aliasing \
+        -DBOWTIE2_VERSION="\"`cat VERSION`\"" \
+        -DBUILD_HOST="\"`hostname`\"" \
+        -DBUILD_TIME="\"`date`\"" \
+        -DCOMPILER_VERSION="\"`$(CXX) -v 2>&1 | tail -1`\"" \
+        $(FILE_FLAGS) \
+        $(PREF_DEF) \
+        $(MM_DEF) \
+        $(SHMEM_DEF)
 
-both: bowtie2-align-s bowtie2-build-s bowtie2-align-l bowtie2-build-l
-
-both-debug: bowtie2-align-s-debug bowtie2-build-s-debug bowtie2-align-l-debug bowtie2-build-l-debug
-
-DEFS=-fno-strict-aliasing \
-     -DBOWTIE2_VERSION="\"`cat VERSION`\"" \
-     -DBUILD_HOST="\"`hostname`\"" \
-     -DBUILD_TIME="\"`date`\"" \
-     -DCOMPILER_VERSION="\"`$(CXX) -v 2>&1 | tail -1`\"" \
-     $(FILE_FLAGS) \
-     $(PREF_DEF) \
-     $(MM_DEF) \
-     $(SHMEM_DEF)
+# set compiler flags for all sanitized builds
+$(BOWTIE2_BIN_LIST_SAN): CXXFLAGS += -fsanitize=address,undefined
 
 #
 # bowtie2-build targets
 #
 
-bowtie2-build-s: bt2_build.cpp $(SHARED_CPPS) $(HEADERS)
-	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(EXTRA_FLAGS) \
+bowtie2-build-s-sanitized bowtie2-build-s: bt2_build.cpp $(SHARED_CPPS) $(HEADERS)
+	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(CXXFLAGS) \
 		$(DEFS) -DBOWTIE2 $(NOASSERT_FLAGS) -Wall \
-		$(INC) \
+		$(CPPFLAGS) \
 		-o $@ $< \
 		$(SHARED_CPPS) $(BUILD_CPPS_MAIN) \
-		$(LIBS) $(BUILD_LIBS)
+		$(LDFLAGS) $(LDLIBS)
 
-bowtie2-build-l: bt2_build.cpp $(SHARED_CPPS) $(HEADERS)
-	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(EXTRA_FLAGS) \
+bowtie2-build-l-sanitized bowtie2-build-l: bt2_build.cpp $(SHARED_CPPS) $(HEADERS)
+	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(CXXFLAGS) \
 		$(DEFS) -DBOWTIE2 -DBOWTIE_64BIT_INDEX $(NOASSERT_FLAGS) -Wall \
-		$(INC) \
+		$(CPPFLAGS) \
 		-o $@ $< \
 		$(SHARED_CPPS) $(BUILD_CPPS_MAIN) \
-		$(LIBS) $(BUILD_LIBS)
+		$(LDFLAGS) $(LDLIBS)
 
 bowtie2-build-s-debug: bt2_build.cpp $(SHARED_CPPS) $(HEADERS)
-	$(CXX) $(DEBUG_FLAGS) $(DEBUG_DEFS) $(EXTRA_FLAGS) \
+	$(CXX) $(DEBUG_FLAGS) $(DEBUG_DEFS) $(CXXFLAGS) \
 		$(DEFS) -DBOWTIE2 -Wall \
-		$(INC) \
+		$(CPPFLAGS) \
 		-o $@ $< \
 		$(SHARED_CPPS) $(BUILD_CPPS_MAIN) \
-		$(LIBS) $(BUILD_LIBS)
+		$(LDFLAGS) $(LDLIBS)
 
 bowtie2-build-l-debug: bt2_build.cpp $(SHARED_CPPS) $(HEADERS)
-	$(CXX) $(DEBUG_FLAGS) $(DEBUG_DEFS) $(EXTRA_FLAGS) \
+	$(CXX) $(DEBUG_FLAGS) $(DEBUG_DEFS) $(CXXFLAGS) \
 		$(DEFS) -DBOWTIE2 -DBOWTIE_64BIT_INDEX -Wall \
-		$(INC) \
+		$(CPPFLAGS) \
 		-o $@ $< \
 		$(SHARED_CPPS) $(BUILD_CPPS_MAIN) \
-		$(LIBS) $(BUILD_LIBS)
+		$(LDFLAGS) $(LDLIBS)
 
 #
 # bowtie2-align targets
 #
 
-bowtie2-align-s: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
-	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(EXTRA_FLAGS) \
+bowtie2-align-s-sanitized bowtie2-align-s: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
+	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(CXXFLAGS) \
 		$(DEFS) -DBOWTIE2 $(NOASSERT_FLAGS) -Wall \
-		$(INC) \
+		$(CPPFLAGS) \
 		-o $@ $< \
 		$(SHARED_CPPS) $(SEARCH_CPPS_MAIN) \
-		$(LIBS) $(SEARCH_LIBS)
+		$(LDFLAGS) $(LDLIBS)
 
-bowtie2-align-l: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
-	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(EXTRA_FLAGS) \
+bowtie2-align-l-sanitized bowtie2-align-l: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
+	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(CXXFLAGS) \
 		$(DEFS) -DBOWTIE2 -DBOWTIE_64BIT_INDEX $(NOASSERT_FLAGS) -Wall \
-		$(INC) \
+		$(CPPFLAGS) \
 		-o $@ $< \
 		$(SHARED_CPPS) $(SEARCH_CPPS_MAIN) \
-		$(LIBS) $(SEARCH_LIBS)
+		$(LDFLAGS) $(LDLIBS)
 
 bowtie2-align-s-debug: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
 	$(CXX) $(DEBUG_FLAGS) \
-		$(DEBUG_DEFS) $(EXTRA_FLAGS) \
+		$(DEBUG_DEFS) $(CXXFLAGS) \
 		$(DEFS) -DBOWTIE2 -Wall \
-		$(INC) \
+		$(CPPFLAGS) \
 		-o $@ $< \
 		$(SHARED_CPPS) $(SEARCH_CPPS_MAIN) \
-		$(LIBS) $(SEARCH_LIBS)
+		$(LDFLAGS) $(LDLIBS)
 
 bowtie2-align-l-debug: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
 	$(CXX) $(DEBUG_FLAGS) \
-		$(DEBUG_DEFS) $(EXTRA_FLAGS) \
+		$(DEBUG_DEFS) $(CXXFLAGS) \
 		$(DEFS) -DBOWTIE2 -DBOWTIE_64BIT_INDEX -Wall \
-		$(INC) \
+		$(CPPFLAGS) \
 		-o $@ $< \
 		$(SHARED_CPPS) $(SEARCH_CPPS_MAIN) \
-		$(LIBS) $(SEARCH_LIBS)
+		$(LDFLAGS) $(LDLIBS)
 
 #
 # bowtie2-inspect targets
 #
 
-bowtie2-inspect-s: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS)
+bowtie2-inspect-s-sanitized bowtie2-inspect-s: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 	$(CXX) $(RELEASE_FLAGS) \
-		$(RELEASE_DEFS) $(EXTRA_FLAGS) \
+		$(RELEASE_DEFS) $(CXXFLAGS) \
 		$(DEFS) -DBOWTIE2 -DBOWTIE_INSPECT_MAIN -Wall \
-		$(INC) -I . \
+		$(CPPFLAGS) -I . \
 		-o $@ $< \
 		$(SHARED_CPPS) \
-		$(LIBS) $(INSPECT_LIBS)
+		$(LDFLAGS) $(LDLIBS)
 
-bowtie2-inspect-l: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS)
+bowtie2-inspect-l-sanitized bowtie2-inspect-l: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 	$(CXX) $(RELEASE_FLAGS) \
-		$(RELEASE_DEFS) $(EXTRA_FLAGS) \
+		$(RELEASE_DEFS) $(CXXFLAGS) \
 		$(DEFS) -DBOWTIE2 -DBOWTIE_INSPECT_MAIN  -DBOWTIE_64BIT_INDEX -Wall \
-		$(INC) -I . \
+		$(CPPFLAGS) -I . \
 		-o $@ $< \
 		$(SHARED_CPPS) \
-		$(LIBS) $(INSPECT_LIBS)
+		$(LDFLAGS) $(LDLIBS)
 
 bowtie2-inspect-s-debug: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 	$(CXX) $(DEBUG_FLAGS) \
-		$(DEBUG_DEFS) $(EXTRA_FLAGS) \
+		$(DEBUG_DEFS) $(CXXFLAGS) \
 		$(DEFS) -DBOWTIE2 -DBOWTIE_INSPECT_MAIN -Wall \
-		$(INC) -I . \
+		$(CPPFLAGS) -I . \
 		-o $@ $< \
 		$(SHARED_CPPS) \
-		$(LIBS) $(INSPECT_LIBS)
+		$(LDFLAGS) $(LDLIBS)
 
 bowtie2-inspect-l-debug: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 	$(CXX) $(DEBUG_FLAGS) \
-		$(DEBUG_DEFS) $(EXTRA_FLAGS) \
+		$(DEBUG_DEFS) $(CXXFLAGS) \
 		$(DEFS) -DBOWTIE2 -DBOWTIE_64BIT_INDEX -DBOWTIE_INSPECT_MAIN -Wall \
-		$(INC) -I . \
+		$(CPPFLAGS) -I . \
 		-o $@ $< \
 		$(SHARED_CPPS) \
-		$(LIBS) $(INSPECT_LIBS)
+		$(LDFLAGS) $(LDLIBS)
 
 #
 # bowtie2-dp targets
@@ -396,21 +402,21 @@ bowtie2-inspect-l-debug: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 
 bowtie2-dp: bt2_dp.cpp $(HEADERS) $(SHARED_CPPS) $(DP_CPPS)
 	$(CXX) $(RELEASE_FLAGS) \
-		$(RELEASE_DEFS) $(EXTRA_FLAGS) $(NOASSERT_FLAGS) \
+		$(RELEASE_DEFS) $(CXXFLAGS) $(NOASSERT_FLAGS) \
 		$(DEFS) -DBOWTIE2 -DBOWTIE_DP_MAIN -Wall \
-		$(INC) -I . \
+		$(CPPFLAGS) -I . \
 		-o $@ $< \
 		$(DP_CPPS) $(SHARED_CPPS) \
-		$(LIBS) $(SEARCH_LIBS)
+		$(LDFLAGS) $(LDLIBS)
 
 bowtie2-dp-debug: bt2_dp.cpp $(HEADERS) $(SHARED_CPPS) $(DP_CPPS)
 	$(CXX) $(DEBUG_FLAGS) \
-		$(DEBUG_DEFS) $(EXTRA_FLAGS) \
+		$(DEBUG_DEFS) $(CXXFLAGS) \
 		$(DEFS) -DBOWTIE2 -DBOWTIE_DP_MAIN -Wall \
-		$(INC) -I . \
+		$(CPPFLAGS) -I . \
 		-o $@ $< \
 		$(DP_CPPS) $(SHARED_CPPS) \
-		$(LIBS) $(SEARCH_LIBS)
+		$(LDFLAGS) $(LDLIBS)
 
 bowtie2.bat:
 	echo "@echo off" > bowtie2.bat
@@ -437,15 +443,15 @@ bowtie2-src: $(SRC_PKG_LIST)
 	rm -rf .src.tmp
 
 .PHONY: bowtie2-pkg
-bowtie2-pkg: static-libs $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)
-	$(eval PKG_DIR=bowtie2-$(VERSION)-$(if $(MACOS),macos,$(if $(MINGW),mingw,linux))-x86_64)
+bowtie2-pkg: PKG_DIR := bowtie2-$(VERSION)-$(if $(MACOS),macos,$(if $(MINGW),mingw,linux))-x86_64)
+bowtie2-pkg: static-libs $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_DBG)
 	chmod a+x scripts/*.sh scripts/*.pl
 	rm -rf .bin.tmp
 	mkdir -p .bin.tmp/$(PKG_DIR)
 	if [ -f bowtie2-align-s.exe ] ; then \
-		zip tmp.zip $(BIN_PKG_LIST) $(addsuffix .exe,$(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)) ; \
+		zip tmp.zip $(BIN_PKG_LIST) $(addsuffix .exe,$(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_DBG)) ; \
 	else \
-		zip tmp.zip $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX) ; \
+		zip tmp.zip $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_DBG) ; \
 	fi
 	mv tmp.zip .bin.tmp/$(PKG_DIR)
 	cd .bin.tmp/$(PKG_DIR) ; unzip tmp.zip ; rm -f tmp.zip
@@ -455,13 +461,13 @@ bowtie2-pkg: static-libs $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_
 
 bowtie2-seeds-debug: aligner_seed.cpp ccnt_lut.cpp alphabet.cpp aligner_seed.h bt2_idx.cpp bt2_io.cpp
 	$(CXX) $(DEBUG_FLAGS) \
-		$(DEBUG_DEFS) $(EXTRA_FLAGS) \
+		$(DEBUG_DEFS) $(CXXFLAGS) \
 		-DSCAN_MAIN \
 		$(DEFS) -Wall \
-		$(INC) -I . \
+		$(CPPFLAGS) -I . \
 		-o $@ $< \
 		aligner_seed.cpp bt2_idx.cpp ccnt_lut.cpp alphabet.cpp bt2_io.cpp \
-		$(LIBS)
+		$(LDFLAGS) $(LDLIBS)
 
 .PHONY: doc
 doc: doc/manual.html MANUAL
@@ -526,8 +532,8 @@ test: simple-test random-test
 
 .PHONY: clean
 clean:
-	rm -f $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX) \
-	$(addsuffix .exe,$(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_AUX)) \
+	rm -f $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_DBG) $(BOWTIE2_BIN_LIST_SAN)\
+	$(addsuffix .exe,$(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_DBG)) \
 	bowtie2-src.zip bowtie2-bin.zip
 	rm -f core.* .tmp.head
 	rm -rf *.dSYM

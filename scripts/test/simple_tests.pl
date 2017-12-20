@@ -4374,7 +4374,7 @@ sub runbowtie2($$$$$$$$$$$$$$$$$$$$$$) {
 	my (
 		$do_build,
 		$large_idx,
-		$debug_mode,
+		$binary_type,
 		$args,
 		$fa,
 		$reportargs,       #5
@@ -4511,26 +4511,31 @@ my  $idx_type = "";
 		$formatarg = "-q";
 		$readarg = $mate1arg;
 	}
-	# Possibly add debug mode string
-	my $debug_arg = "";
-	$debug_arg = "--debug" if $debug_mode;
+
+	if ($binary_type eq "release") {
+		$binary_type = "";
+	}
+	else {
+		$binary_type = "--" . $binary_type;
+	}
+	
 	my $cmd;
 	my $batch_size = int(rand(16) + 1);
 	if($pe) {
 		# Paired-end case
 		if (ref $mate1arg eq "ARRAY") {
-			$cmd = "$bowtie2 $debug_arg @ARGV $idx_type $args --reads-per-batch $batch_size -x .simple_tests.tmp $formatarg -1 " . join(",", @$mate1arg) . " -2 " . join(",", @$mate2arg);
+			$cmd = "$bowtie2 $binary_type @ARGV $idx_type $args --reads-per-batch $batch_size -x .simple_tests.tmp $formatarg -1 " . join(",", @$mate1arg) . " -2 " . join(",", @$mate2arg);
 		}
 		else {
-			$cmd = "$bowtie2 $debug_arg @ARGV $idx_type $args --reads-per-batch $batch_size -x .simple_tests.tmp $formatarg -1 $mate1arg -2 $mate2arg";
+			$cmd = "$bowtie2 $binary_type @ARGV $idx_type $args --reads-per-batch $batch_size -x .simple_tests.tmp $formatarg -1 $mate1arg -2 $mate2arg";
 		}
 	} else {
 		# Unpaired case
 		if (ref $readarg eq "ARRAY") {
-			$cmd = "$bowtie2 $debug_arg @ARGV $idx_type $args --reads-per-batch $batch_size -x .simple_tests.tmp $formatarg " . join(",", @$readarg);
+			$cmd = "$bowtie2 $binary_type @ARGV $idx_type $args --reads-per-batch $batch_size -x .simple_tests.tmp $formatarg " . join(",", @$readarg);
 		}
 		else {
-			$cmd = "$bowtie2 $debug_arg @ARGV $idx_type $args --reads-per-batch $batch_size -x .simple_tests.tmp $formatarg $readarg";
+			$cmd = "$bowtie2 $binary_type @ARGV $idx_type $args --reads-per-batch $batch_size -x .simple_tests.tmp $formatarg $readarg";
 		}
 	}
 	print "$cmd\n";
@@ -4586,7 +4591,7 @@ sub matchSamOptionalFlags($$) {
 my $tmpfafn = ".simple_tests.pl.fa";
 my $last_ref = undef;
 foreach my $large_idx (undef,1) {
-	foreach my $debug_mode (undef,1) {
+	foreach my $binary_type ("release", "debug", "sanitized") {
 		for (my $ci = 0; $ci < scalar(@cases); $ci++) {
 			my $c = $cases[$ci];
 			last unless defined($c);
@@ -4702,7 +4707,7 @@ foreach my $large_idx (undef,1) {
 				runbowtie2(
 					$do_build && $first,
 					$large_idx,
-					$debug_mode,
+					$binary_type,
 					"$a",
 					$tmpfafn,
 					$c->{report},

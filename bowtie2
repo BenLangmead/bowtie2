@@ -136,6 +136,7 @@ if(!$saw_dd) {
 }
 
 my $debug = 0;
+my $sanitized = 0;
 my %read_fns = ();
 my %read_compress = ();
 my $cap_out = undef;       # Filename for passthrough
@@ -192,6 +193,10 @@ for(my $i = 0; $i < scalar(@bt2_args); $i++) {
 	}
 	if($arg eq "--debug") {
 		$debug = 1;
+		$bt2_args[$i] = undef;
+	}
+	if(not $debug and $arg eq "--sanitized") {
+		$sanitized = 1;
 		$bt2_args[$i] = undef;
 	}
 	if($arg eq "--no-unal") {
@@ -479,11 +484,17 @@ else {
     }
 }
 
-my $debug_str = ($debug ? "-debug" : "");
+my $suffix = "";
+if ($debug) {
+    $suffix = "-debug";
+}
+elsif($sanitized) {
+    $suffix = "-sanitized";
+}
 
 # Construct command invoking bowtie2-align
 quote_params(\@bt2_args);
-my $cmd = "\"$align_prog$debug_str\" --wrapper basic-0 ".join(" ", @bt2_args);
+my $cmd = "\"$align_prog$suffix\" --wrapper basic-0 ".join(" ", @bt2_args);
 
 # Possibly add read input on an anonymous pipe
 $cmd = "$readpipe $cmd" if defined($readpipe);
