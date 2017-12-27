@@ -2881,7 +2881,6 @@ static void multiseedSearchWorker(void *vp) {
 	const Ebwt&             ebwtBw   = *multiseed_ebwtBw;
 	const Scoring&          sc       = *multiseed_sc;
 	const BitPairReference& ref      = *multiseed_refs;
-	AlignmentCache&         scShared = *multiseed_ca;
 	AlnSink&                msink    = *multiseed_msink;
 	OutFileBuf*             metricsOfb = multiseed_metricsOfb;
 
@@ -2921,7 +2920,7 @@ static void multiseedSearchWorker(void *vp) {
 		AlignmentCacheIface ca(
 			&scCurrent,
 			scLocal.get(),
-			msNoCache ? NULL : &scShared);
+			msNoCache ? NULL : multiseed_ca);
 		
 		// Instantiate an object for holding reporting-related parameters.
 		ReportingParams rp(
