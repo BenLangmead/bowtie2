@@ -35,7 +35,7 @@ HEADERS := $(wildcard *.h)
 BOWTIE_MM := 1
 BOWTIE_SHARED_MEM :=
 
-ifdef ($RELEASE_BUILD)
+ifdef RELEASE_BUILD
 	LDFLAGS += -L$(CURDIR)/.lib
 	CPPFLAGS += -I$(CURDIR)/.include
 endif
@@ -58,7 +58,7 @@ ifneq (,$(findstring Darwin,$(shell uname)))
 	ifneq (,$(findstring 13,$(shell uname -r)))
 		CXXFLAGS += -stdlib=libstdc++
 	endif
-	ifdef ($(RELEASE_BUILD))
+	ifdef RELEASE_BUILD
 		CXXFLAGS += -mmacosx-version-min=10.9
 	endif
 endif
@@ -77,7 +77,7 @@ endif
 
 SHMEM_DEF :=
 
-ifdef ($(BOWTIE_SHARED_MEM))
+ifdef BOWTIE_SHARED_MEM
 	SHMEM_DEF := -DBOWTIE_SHARED_MEM
 endif
 
@@ -102,7 +102,7 @@ endif
 #default is to use Intel TBB
 ifneq (1,$(NO_TBB))
 	LDLIBS += $(PTHREAD_LIB) -ltbb
-	ifdef ($(RELEASE_BUILD))
+	ifdef RELEASE_BUILD
 		LDLIBS += -ltbbmalloc
 	else
 		LDLIBS += -ltbbmalloc_proxy
