@@ -193,6 +193,20 @@ FILE_FLAGS     := -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
 DEBUG_DEFS     = -DCOMPILER_OPTIONS="\"$(DEBUG_FLAGS) $(CXXFLAGS)\""
 RELEASE_DEFS   = -DCOMPILER_OPTIONS="\"$(RELEASE_FLAGS) $(CXXFLAGS)\""
 
+ifeq (0,$(shell $(CPP) -E -fsanitize=address,undefined btypes.h 2>&1 > /dev/null; echo $$?))
+	SANITIZER_FLAGS := -fsanitize=address,undefined
+endif
+ifndef SANITIZER_FLAGS
+	ifeq (0,$(shell $(CPP) -E -fsanitize=address btypes.h 2>&1 > /dev/null; echo $$?))
+		SANITIZER_FLAGS := -fsanitize=address
+	endif
+endif
+ifndef SANITIZER_FLAGS
+	ifeq (0,$(shell $(CPP) -E -fsanitize=undefined btypes.h 2>&1 > /dev/null; echo $$?))
+		SANITIZER_FLAGS := -fsanitize=undefined
+	endif
+endif
+
 BOWTIE2_BIN_LIST :=     bowtie2-build-s \
                         bowtie2-build-l \
                         bowtie2-align-s \
@@ -280,7 +294,7 @@ DEFS := -fno-strict-aliasing \
         $(SHMEM_DEF)
 
 # set compiler flags for all sanitized builds
-$(BOWTIE2_BIN_LIST_SAN): CXXFLAGS += -fsanitize=address,undefined
+$(BOWTIE2_BIN_LIST_SAN): CXXFLAGS += $(SANITIZER_FLAGS)
 
 #
 # bowtie2-build targets
