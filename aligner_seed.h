@@ -818,7 +818,7 @@ public:
 	 * Return average number of hits per seed.
 	 */
 	float averageHitsPerSeed() const {
-		return (float)numElts_ / (float)nonzTot_;
+		return nonzTot_ == 0 ? 0 : (float)numElts_ / (float)nonzTot_;
 	}
 
 	/**

@@ -65,17 +65,24 @@ public:
 		assert(nthreads_ <= 2 || threadSafe);
 		if(!reorder)
 		{
-			perThreadBuf.resize(nthreads_, std::vector<BTString>(perThreadBufSize_));
+			perThreadBuf = new BTString*[nthreads_];
 			perThreadCounter = new int[nthreads_];
 			size_t i = 0;
 			for(i=0;i<nthreads_;i++)
 			{
+				perThreadBuf[i] = new BTString[perThreadBufSize_];
 				perThreadCounter[i] = 0;
 			}
 		}
 	}
 
-	~OutputQueue() { }
+	~OutputQueue() {
+		for (size_t i = 0; i < nthreads_; i++) {
+			delete[] perThreadBuf[i];
+		}
+		delete[] perThreadBuf;
+		delete[] perThreadCounter;
+	}
 
 	/**
 	 * Caller is telling us that they're about to write output record(s) for
@@ -141,7 +148,7 @@ protected:
 
 	// used for output read buffer	
 	size_t nthreads_;
-	std::vector<vector<BTString> > perThreadBuf;
+	BTString** perThreadBuf;
 	int* 		perThreadCounter;
 	int perThreadBufSize_;
 

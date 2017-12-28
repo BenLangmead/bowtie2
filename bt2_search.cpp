@@ -4671,6 +4671,9 @@ static void multiseedSearch(
 			threads[i]->join();
 		}
 #endif
+		for (int i = 0; i < nthreads; ++i) {
+			delete threads[i];
+		}
 
 #ifndef _WIN32
 		if(thread_stealing) {

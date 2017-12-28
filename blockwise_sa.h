@@ -259,7 +259,7 @@ public:
 			if(_threads.size() == 0) {
 #endif
                 _done = std::auto_ptr<volatile bool>(new volatile bool[_sampleSuffs.size() + 1]); 
-                for (int i = 0; i < _sampleSuffs.size() + 1; i++) {
+                for (size_t i = 0; i < _sampleSuffs.size() + 1; i++) {
                     _done.get()[i] = false;
                 }
 				_itrBuckets.resize(this->_nthreads);
