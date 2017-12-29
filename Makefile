@@ -55,7 +55,7 @@ endif
 MACOS :=
 ifneq (,$(findstring Darwin,$(shell uname)))
 	MACOS := 1
-	ifneq (,$(findstring 13,$(shell uname -r)))
+	ifeq (1,$(shell uname -r | awk -F. '{ if ($$1 > 12 && $$1 < 16) print 1; }'))
 		CXXFLAGS += -stdlib=libstdc++
 	endif
 	ifdef RELEASE_BUILD
@@ -505,7 +505,7 @@ install: all
 	done
 
 .PHONY: simple-test
-simple-test: all perl-deps
+simple-test: perl-deps both both-debug both-sanitized
 	eval `perl -I $(CURDIR)/.perllib.tmp/lib/perl5 -Mlocal::lib=$(CURDIR)/.perllib.tmp` ; \
 	sh ./scripts/test/simple_tests.sh
 
@@ -521,9 +521,10 @@ perl-deps:
 		mkdir .perllib.tmp ; \
 		$$DL http://cpanmin.us | perl - -l $(CURDIR)/.perllib.tmp App::cpanminus local::lib ; \
 		eval `perl -I $(CURDIR)/.perllib.tmp/lib/perl5 -Mlocal::lib=$(CURDIR)/.perllib.tmp` ; \
-		cpanm --force Math::Random Clone Test::Deep Sys::Info ; \
+		$(CURDIR)/.perllib.tmp/bin/cpanm --force Math::Random Clone Test::Deep Sys::Info ; \
 	fi
 
+.PHONY: static-libs
 static-libs:
 	if [[ ! -d $(CURDIR)/.lib || ! -d $(CURDIR)/.inc ]]; then \
 		mkdir $(CURDIR)/.lib $(CURDIR)/.include ; \
@@ -532,7 +533,7 @@ static-libs:
 		export CFLAGS=-mmacosx-version-min=10.9 ; \
 		export CXXFLAGS=-mmacosx-version-min=10.9 ; \
 	fi ; \
-	DL=$$([ `which wget` ] && echo "wget --no-check-certificate" || echo "curl -LO") ; \
+	DL=$$([ `which wget` ] && echo "wget --no-check-certificate" || echo "curl -LOk") ; \
 	cd /tmp ; \
 	$$DL https://zlib.net/zlib-1.2.11.tar.gz && tar xzf zlib-1.2.11.tar.gz && cd zlib-1.2.11 ; \
 	$(if $(MINGW), mingw32-make -f win32/Makefile.gcc, ./configure --static && make) && cp libz.a $(CURDIR)/.lib && cp zconf.h zlib.h $(CURDIR)/.include ; \
