@@ -63,7 +63,8 @@ my @signame     = ();
 sub quote_params {
     my %params_2_quote = ('--rg' => 1, '--rg-id' => 1,
                           '-S' => 1, '-U' => 1,
-                          '-1' => 1, '-2' => 1
+                          '-1' => 1, '-2' => 1,
+                          '-x' => 1
     );
     my $param_list = shift;
     my $quoting = 0;

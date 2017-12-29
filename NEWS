@@ -19,7 +19,23 @@ Please report any issues to the Bowtie 2 Github page or using the Sourceforge bu
 Version Release History
 =======================
 
+Version 2.3.4 - Dec 29, 2017
+
+    * Fixed major issue causing corrupt SAM output when using many
+      threads (-p/--threads) on certain systems.
+    * Fixed an issue whereby bowtie2 processes could overwrite each
+      others' named pipes on HPC systems.
+    * Fixed an issue causing bowtie2-build and bowtie2-inspect to
+      return prematurely on Windows.
+    * Fixed issues raised by compiler "sanitizers" that could
+      potentially have caused memory corruption or undefined behavior.
+    * Added the "continuous FASTA" input format (`-F`) for aligning
+      all the k-mers in the sequences of a FASTA file.  Useful for
+      determining mapability of regions of the genome, and similar
+      tasks.
+
 Version 2.3.3.1 - Oct 05, 2017
+
     * Fixed an issue causing input files to be skipped when running
     multi-threaded alignment
     * Fixed an issue causing the first character of a read name to be
