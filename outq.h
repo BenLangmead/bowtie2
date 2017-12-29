@@ -26,6 +26,7 @@
 #include "read.h"
 #include "threading.h"
 #include "mem_ids.h"
+#include <vector>
 
 /**
  * Encapsulates a list of lines of output.  If the earliest as-yet-unreported
@@ -75,7 +76,13 @@ public:
 		}
 	}
 
-	~OutputQueue() { }
+	~OutputQueue() {
+		for (size_t i = 0; i < nthreads_; i++) {
+			delete[] perThreadBuf[i];
+		}
+		delete[] perThreadBuf;
+		delete[] perThreadCounter;
+	}
 
 	/**
 	 * Caller is telling us that they're about to write output record(s) for
@@ -141,7 +148,7 @@ protected:
 
 	// used for output read buffer	
 	size_t nthreads_;
-	BTString**	perThreadBuf;
+	BTString** perThreadBuf;
 	int* 		perThreadCounter;
 	int perThreadBufSize_;
 

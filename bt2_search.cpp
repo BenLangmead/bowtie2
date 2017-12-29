@@ -728,6 +728,9 @@ static void printUsage(ostream& out) {
 	    << "  --qseq             query input files are in Illumina's qseq format" << endl
 	    << "  -f                 query input files are (multi-)FASTA .fa/.mfa" << endl
 	    << "  -r                 query input files are raw one-sequence-per-line" << endl
+	    << "  -F k:<int>,i:<int> query input files are continuous FASTA where reads" << endl
+	    << "                     are substrings (k-mers) extracted from a FASTA file <s>" << endl
+	    << "                     and aligned at offsets 1, 1+i, 1+2i ... end of reference" << endl
 	    << "  -c                 <m1>, <m2>, <r> are sequences themselves, not files" << endl
 	    << "  -s/--skip <int>    skip the first <int> reads/pairs in the input (none)" << endl
 	    << "  -u/--upto <int>    stop after first <int> reads/pairs (no limit)" << endl
@@ -803,12 +806,12 @@ static void printUsage(ostream& out) {
 	//}
 	out << "  -t/--time          print wall-clock time taken by search phases" << endl;
 	if(wrapper == "basic-0") {
-	out << "  --un <path>           write unpaired reads that didn't align to <path>" << endl
-	    << "  --al <path>           write unpaired reads that aligned at least once to <path>" << endl
-	    << "  --un-conc <path>      write pairs that didn't align concordantly to <path>" << endl
-	    << "  --al-conc <path>      write pairs that aligned concordantly at least once to <path>" << endl
-	    << "  (Note: for --un, --al, --un-conc, or --al-conc, add '-gz' to the option name, e.g." << endl
-		<< "  --un-gz <path>, to gzip compress output, or add '-bz2' to bzip2 compress output.)" << endl;
+	out << "  --un <path>        write unpaired reads that didn't align to <path>" << endl
+	    << "  --al <path>        write unpaired reads that aligned at least once to <path>" << endl
+	    << "  --un-conc <path>   write pairs that didn't align concordantly to <path>" << endl
+	    << "  --al-conc <path>   write pairs that aligned concordantly at least once to <path>" << endl
+	    << "    (Note: for --un, --al, --un-conc, or --al-conc, add '-gz' to the option name, e.g." << endl
+	    << "    --un-gz <path>, to gzip compress output, or add '-bz2' to bzip2 compress output.)" << endl;
 	}
 	out << "  --quiet            print nothing to stderr except serious errors" << endl
 	//  << "  --refidx           refer to ref. seqs by 0-based index rather than name" << endl
@@ -2878,7 +2881,6 @@ static void multiseedSearchWorker(void *vp) {
 	const Ebwt&             ebwtBw   = *multiseed_ebwtBw;
 	const Scoring&          sc       = *multiseed_sc;
 	const BitPairReference& ref      = *multiseed_refs;
-	AlignmentCache&         scShared = *multiseed_ca;
 	AlnSink&                msink    = *multiseed_msink;
 	OutFileBuf*             metricsOfb = multiseed_metricsOfb;
 
@@ -2918,7 +2920,7 @@ static void multiseedSearchWorker(void *vp) {
 		AlignmentCacheIface ca(
 			&scCurrent,
 			scLocal.get(),
-			msNoCache ? NULL : &scShared);
+			msNoCache ? NULL : multiseed_ca);
 		
 		// Instantiate an object for holding reporting-related parameters.
 		ReportingParams rp(
@@ -4576,8 +4578,9 @@ static void multiseedSearch(
 #endif
 	EList<int> tids;
 #ifdef WITH_TBB
-	//tbb::task_group tbb_grp;
 	EList<std::thread*> threads(nthreads);
+	EList<thread_tracking_pair> tps;
+	tps.resize(std::max(nthreads, thread_ceiling));
 #else
 	EList<tthread::thread*> threads;
 #endif
@@ -4630,20 +4633,20 @@ static void multiseedSearch(
 #endif
 		
 		for(int i = 0; i < nthreads; i++) {
+			tids.push_back(i);
 #ifdef WITH_TBB
-			thread_tracking_pair tp;
-			tp.tid = i;
-			tp.done = &all_threads_done;
+			tps[i].tid = i;
+			tps[i].done = &all_threads_done;
+
 			if(bowtie2p5) {
-				threads.push_back(new std::thread(multiseedSearchWorker_2p5, (void*) &tp));
+				threads.push_back(new std::thread(multiseedSearchWorker_2p5, (void*)&tps[i]));
 			} else {
-				threads.push_back(new std::thread(multiseedSearchWorker, (void*) &tp));
+				threads.push_back(new std::thread(multiseedSearchWorker, (void*)&tps[i]));
 			}
 			threads[i]->detach();
 			SLEEP(10);
 #else
 			// Thread IDs start at 1
-			tids.push_back(i);
 			if(bowtie2p5) {
 				threads.push_back(new tthread::thread(multiseedSearchWorker_2p5, (void*)&tids.back()));
 			} else {
@@ -4668,6 +4671,9 @@ static void multiseedSearch(
 			threads[i]->join();
 		}
 #endif
+		for (int i = 0; i < nthreads; ++i) {
+			delete threads[i];
+		}
 
 #ifndef _WIN32
 		if(thread_stealing) {

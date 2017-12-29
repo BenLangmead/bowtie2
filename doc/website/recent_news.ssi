@@ -1,3 +1,12 @@
+<h2>Version 2.3.4 - December 29, 2017</h2>
+<ul>
+    <li>Fixed major issue causing corrupt SAM output when using many threads (<tt><a href="manual.shtml#bowtie2-options-p">-p/--threads</a></tt>) on certain systems.</li>
+    <li>Fixed an issue whereby bowtie2 processes could overwrite each others' named pipes on HPC systems.</li>
+    <li>Fixed an issue causing <tt>bowtie2-build</tt> and <tt>bowtie2-inspect</tt> to return prematurely on Windows.</li>
+    <li>Fixed issues raised by compiler "sanitizers" that could potentially have caused memory corruption or undefined behavior.</li>
+    <li>Added the "continuous FASTA" input format (<tt><a href="manual.shtml#bowtie2-options-F">-F</a></tt>) for aligning all the k-mers in the sequences of a FASTA file.  Useful for determining mapability of regions of the genome, and similar tasks.</li>
+</ul>
+
 <h2>Version 2.3.3.1 - October 05, 2017</h2>
 <ul>
     <li>Fixed an issue causing input files to be skipped when running multi-threaded alignment</li>

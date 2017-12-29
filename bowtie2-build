@@ -24,56 +24,47 @@ import os
 import sys
 import inspect
 import logging
-
-
-def build_args():
-    """
-    Parse the wrapper arguments. Returns the options,<programm arguments> tuple.
-    """
-
-    parsed_args = {}
-    to_remove = []
-    argv = sys.argv[:]
-    for i, arg in enumerate(argv):
-        if arg == '--large-index':
-            parsed_args[arg] = ""
-            to_remove.append(i)
-        elif arg == '--debug':
-            parsed_args[arg] = ""
-            to_remove.append(i)
-        elif arg == '--verbose':
-            parsed_args[arg] = ""
-            to_remove.append(i)
-
-    for i in reversed(to_remove):
-        del argv[i]
-
-    return parsed_args, argv
-
+import argparse
+import subprocess
+from collections import deque
 
 def main():
+    parser = argparse.ArgumentParser()
+
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--debug', action='store_true')
+    group.add_argument('--sanitized', action='store_true')
+
+    parser.add_argument('--verbose', action='store_true')
+    parser.add_argument('--large-index', action='store_true')
+
     logging.basicConfig(level=logging.ERROR,
                         format='%(levelname)s: %(message)s'
                         )
     delta               = 200
     small_index_max_size= 4 * 1024**3 - delta
-    build_bin_name      = "bowtie2-build"
-    build_bin_s         = "bowtie2-build-s"
-    build_bin_l         = "bowtie2-build-l"
+    build_bin_name      = 'bowtie2-build'
+    build_bin_s         = 'bowtie2-build-s'
+    build_bin_l         = 'bowtie2-build-l'
     curr_script         = os.path.realpath(inspect.getsourcefile(main))
     ex_path             = os.path.dirname(curr_script)
     build_bin_spec      = os.path.join(ex_path,build_bin_s)
 
-    options, argv = build_args()
+    script_options, argv = parser.parse_known_args()
+    argv = deque(argv)
 
-    if '--verbose' in options:
+    if script_options.verbose:
         logging.getLogger().setLevel(logging.INFO)
         
-    if '--debug' in options:
+    if script_options.debug:
         build_bin_spec += '-debug'
         build_bin_l += '-debug'
 
-    if '--large-index' in options:
+    if script_options.sanitized:
+        build_bin_spec += '-sanitized'
+        build_bin_l += '-sanitized'
+
+    if script_options.large_index:
         build_bin_spec = os.path.join(ex_path,build_bin_l)
     elif len(argv) >= 2:
         ref_fnames = argv[-2]
@@ -85,14 +76,11 @@ def main():
         if tot_size > small_index_max_size:
             build_bin_spec = os.path.join(ex_path,build_bin_l)
 
-    argv[0] = build_bin_name
-    argv.insert(1, 'basic-0')
-    argv.insert(1, '--wrapper')
-    logging.info('Command: %s %s' % (build_bin_spec, ' '.join(argv[1:])))
-    os.execv(build_bin_spec, argv)
+    argv.appendleft('basic-0')
+    argv.appendleft('--wrapper')
+    argv.appendleft(build_bin_spec)
+    logging.info('Command: %s' % ' '.join(argv))
+    subprocess.call(argv)
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
-
-
-

@@ -15,7 +15,7 @@ branches:
   - batch_parsing
   - batch_parsing_output
   - blocked_input
-  - v2.3.2
+  - bug_fixes
 script: make allall && make simple-test
 notifications:
   slack:

@@ -4,6 +4,10 @@
  ! of this text document, or see the HTML manual online.
  ! -->
 
+---
+title: Bowtie 2 Manual
+---
+
 Introduction
 ============
 
@@ -916,6 +920,22 @@ Reads (specified with `<m1>`, `<m2>`, `<s>`) are files with one input sequence
 per line, without any other information (no read names, no qualities).  When
 `-r` is set, the result is as if [`--ignore-quals`] is also set.
 
+</td></tr>
+<tr><td id="bowtie2-options-F">
+
+    -F k:<int>,i:<int>
+
+</td><td>
+
+Reads are substrings (k-mers) extracted from a FASTA file `<s>`.
+Specifically, for every reference sequence in FASTA file `<s>`, Bowtie
+2 aligns the k-mers at offsets 1, 1+i, 1+2i, ... until reaching the
+end of the reference. Each k-mer is aligned as a separate read.
+Quality values are set to all Is (40 on Phred scale). Each k-mer
+(read) is given a name like `<sequence>_<offset>`, where `<sequence>`
+is the name of the FASTA sequence it was drawn from and `<offset>`
+is its 0-based offset of origin with respect to the sequence. Only
+single k-mers, i.e. unpaired reads, can be aligned in this way.
 </td></tr>
 <tr><td id="bowtie2-options-c">
 
@@ -1921,8 +1941,8 @@ left to right, the fields are:
 	If the read name contains any whitespace characters, Bowtie 2 will truncate
 	the name at the first whitespace character.  This is similar to the
 	behavior of other tools. The standard behavior of truncating at the first
-	whitespace can be suppressed with `--sam-no-qname-trunc` at the expense of
-	generating non-standard SAM.
+    whitespace can be suppressed with `--sam-no-qname-trunc` at the expense of
+    generating non-standard SAM.
 
 2.  Sum of all applicable flags.  Flags relevant to Bowtie are:
 
@@ -2800,6 +2820,9 @@ for more details and variations on this process.
 [`-N`]:                                               #bowtie2-options-N
 [`-a`/`--noauto`]:                                    #bowtie2-build-options-a
 [`-a`]:                                               #bowtie2-options-a
+<!-- fasta-continuous option does not exist but was added to prevent
+warnings due to the case insensitive nature of markdown URLs -->
+[`-F`/--fasta-continuous]:                            #bowtie2-options-F
 [`-c`]:                                               #bowtie2-options-c
 [`-f`]:                                               #bowtie2-options-f
 [`-i`]:                                               #bowtie2-options-i

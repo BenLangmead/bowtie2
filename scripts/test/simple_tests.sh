@@ -21,14 +21,21 @@
 
 #  simple_tests.sh
 
+export ASAN_OPTIONS=halt_on_error=1
+export UBSAN_OPTIONS=halt_on_error=1
+
 make $* bowtie2-align-s \
 		bowtie2-align-l \
 		bowtie2-align-s-debug \
 		bowtie2-align-l-debug \
+		bowtie2-align-s-sanitized \
+		bowtie2-align-l-sanitized \
 		bowtie2-build-s \
 		bowtie2-build-l \
 		bowtie2-build-s-debug \
-		bowtie2-build-l-debug && \
+		bowtie2-build-l-debug \
+		bowtie2-build-s-sanitized \
+		bowtie2-build-l-sanitized && \
 perl scripts/test/simple_tests.pl \
 	--bowtie2=./bowtie2 \
 	--bowtie2-build=./bowtie2-build \

@@ -3093,7 +3093,7 @@ public:
 	 * Free each page.
 	 */
 	~Pool() {
-		delete super_pages;
+		delete[] super_pages;
 		for(size_t i = 0; i < pages_.size(); i++) {
 #ifdef USE_MEM_TALLY
 			gMemTally.del(cat_, pagesz_);

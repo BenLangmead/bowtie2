@@ -23,6 +23,12 @@ bowtie2-align-s-debug
 bowtie2-align-l-debug
 bowtie2-inspect-s-debug
 bowtie2-inspect-l-debug
+bowtie2-build-s-sanitized
+bowtie2-build-l-sanitized
+bowtie2-align-s-sanitized
+bowtie2-align-l-sanitized
+bowtie2-inspect-s-sanitized
+bowtie2-inspect-l-sanitized
 Xcode
 reads_*.fq
 reads_*.sam

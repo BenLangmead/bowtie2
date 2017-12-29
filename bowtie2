@@ -33,8 +33,10 @@ use warnings;
 use Getopt::Long qw(GetOptions);
 use File::Spec;
 use POSIX;
+use Sys::Hostname;
 
 
+my $host = hostname();
 my ($vol,$script_path,$prog);
 $prog = File::Spec->rel2abs( __FILE__ );
 
@@ -61,7 +63,8 @@ my @signame     = ();
 sub quote_params {
     my %params_2_quote = ('--rg' => 1, '--rg-id' => 1,
                           '-S' => 1, '-U' => 1,
-                          '-1' => 1, '-2' => 1
+                          '-1' => 1, '-2' => 1,
+                          '-x' => 1
     );
     my $param_list = shift;
     my $quoting = 0;
@@ -134,6 +137,7 @@ if(!$saw_dd) {
 }
 
 my $debug = 0;
+my $sanitized = 0;
 my %read_fns = ();
 my %read_compress = ();
 my $cap_out = undef;       # Filename for passthrough
@@ -190,6 +194,10 @@ for(my $i = 0; $i < scalar(@bt2_args); $i++) {
 	}
 	if($arg eq "--debug") {
 		$debug = 1;
+		$bt2_args[$i] = undef;
+	}
+	if(not $debug and $arg eq "--sanitized") {
+		$sanitized = 1;
 		$bt2_args[$i] = undef;
 	}
 	if($arg eq "--no-unal") {
@@ -368,7 +376,7 @@ if(wrapInput(\@unps, \@mate1s, \@mate2s)) {
 		scalar(@mate2s) == scalar(@mate1s) ||
 			Fail("Different number of files specified with --reads/-1 as with -2\n");
 		# Make a named pipe for delivering mate #1s
-		my $m1fn = "$temp_dir/$$.inpipe1";
+		my $m1fn = "$temp_dir/${host}_$$.inpipe1";
 		push @to_delete, $m1fn;
 		push @bt2_args, "-1 $m1fn";
 		# Create named pipe 1 for writing
@@ -385,7 +393,7 @@ if(wrapInput(\@unps, \@mate1s, \@mate2s)) {
 			exit 0 unless $no_pipes;
 		}
 		# Make a named pipe for delivering mate #2s
-		my $m2fn = "$temp_dir/$$.inpipe2";
+		my $m2fn = "$temp_dir/${host}_$$.inpipe2";
 		push @to_delete, $m2fn;
 		push @bt2_args, "-2 $m2fn";
 		# Create named pipe 2 for writing
@@ -407,7 +415,7 @@ if(wrapInput(\@unps, \@mate1s, \@mate2s)) {
 		# Wrap unpaired inputs.
 		#
 		# Make a named pipe for delivering unpaired reads
-		my $ufn = "$temp_dir/$$.unp";
+		my $ufn = "$temp_dir/${host}_$$.unp";
 		push @to_delete, $ufn;
 		push @bt2_args, "-U $ufn";
 		# Create named pipe 2 for writing
@@ -436,7 +444,7 @@ if(wrapInput(\@unps, \@mate1s, \@mate2s)) {
 }
 
 if(defined($ref_str)) {
-	my $ofn = "$temp_dir/$$.ref_str.fa";
+	my $ofn = "$temp_dir/${host}_$$.ref_str.fa";
 	open(my $ofh, ">$ofn") ||
 		Fail("could not open temporary fasta file '$ofn' for writing.\n");
 	print {$ofh} ">1\n$ref_str\n";
@@ -477,11 +485,17 @@ else {
     }
 }
 
-my $debug_str = ($debug ? "-debug" : "");
+my $suffix = "";
+if ($debug) {
+    $suffix = "-debug";
+}
+elsif($sanitized) {
+    $suffix = "-sanitized";
+}
 
 # Construct command invoking bowtie2-align
 quote_params(\@bt2_args);
-my $cmd = "\"$align_prog$debug_str\" --wrapper basic-0 ".join(" ", @bt2_args);
+my $cmd = "\"$align_prog$suffix\" --wrapper basic-0 ".join(" ", @bt2_args);
 
 # Possibly add read input on an anonymous pipe
 $cmd = "$readpipe $cmd" if defined($readpipe);
