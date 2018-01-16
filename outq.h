@@ -28,6 +28,18 @@
 #include "mem_ids.h"
 #include <vector>
 
+static std::string compose_multisam_name(const std::string& fn, int idx) {
+	assert_geq(idx, 0);
+	const size_t len = fn.length();
+	std::ostringstream os;
+	if(fn.substr(len-4, 4) == ".sam") {
+		os << fn.substr(0, len-3) << "part" << (idx+1) << ".sam";
+		return os.str();
+	}
+	os << fn << ".part" << (idx+1);
+	return os.str();
+}
+
 /**
  * Encapsulates a list of lines of output.  If the earliest as-yet-unreported
  * read has id N and Bowtie 2 wants to write a record for read with id N+1, we
@@ -48,9 +60,10 @@ public:
 		size_t nthreads,
 		bool threadSafe,
 		int perThreadBufSize,
+		int nmulti_output,
 		TReadId rdid = 0) :
-		ofh_(stdout),
-		obuf_(NULL),
+		ofhs_(),
+		obufs_(),
 		cur_(rdid),
 		nfinished_(0),
 		nflushed_(0),
@@ -59,7 +72,9 @@ public:
 		finished_(RES_CAT),
 		reorder_(reorder),
 		threadSafe_(threadSafe),
-		mutex_m(),
+		mutex_global_(),
+		mutexes_(),
+		nmulti_output_(nmulti_output),
 		nthreads_(nthreads),
 		perThreadBufSize_(perThreadBufSize)
 	{
@@ -75,31 +90,42 @@ public:
 				perThreadCounter[i] = 0;
 			}
 		}
-		if(!ofn.empty()) {
-			ofh_ = fopen(ofn.c_str(), "w");
-			if(ofh_ == NULL) {
+		assert_gt(nmulti_output_, 0);
+		if(ofn.empty() || ofn == "/dev/null") {
+			nmulti_output_ = 1;
+		}
+		std::string ofn_l = ofn;
+		for(int i = 0; i < nmulti_output_; i++) {
+			if(nmulti_output_ > 1) {
+				ofn_l = compose_multisam_name(ofn, i);
+			}
+			FILE *ofh = fopen(ofn_l.c_str(), "w");
+			if(ofh == NULL) {
 				std::cerr << "Error: Could not open alignment output file "
-				          << ofn << std::endl;
+				<< ofn_l << std::endl;
 				throw 1;
 			}
-			obuf_ = new char[output_buffer_size];
-			int ret = setvbuf(ofh_, obuf_, _IOFBF, output_buffer_size);
+			char *obuf = new char[output_buffer_size];
+			int ret = setvbuf(ofh, obuf, _IOFBF, output_buffer_size);
 			if(ret != 0) {
 				std::cerr << "Warning: Could not allocate the proper "
-				          << "buffer size for output file stream. "
-				          << "Return value = " << ret << std::endl;
+				<< "buffer size for output file stream. "
+				<< "Return value = " << ret << std::endl;
 			}
+			obufs_.push_back(obuf);
+			ofhs_.push_back(ofh);
+			mutexes_.push_back(new MUTEX_T());
 		}
 	}
 
 	~OutputQueue() {
-		if(obuf_ != NULL) {
-			delete[] obuf_;
-			obuf_ = NULL;
-		}
-		if(ofh_ != NULL) {
-			fclose(ofh_);
-			ofh_ = NULL;
+		for(int i = 0; i < (int)ofhs_.size(); i++) {
+			if(ofhs_[i] != NULL) {
+				delete[] obufs_[i];
+				delete mutexes_[i];
+				fclose(ofhs_[i]);
+				ofhs_[i] = NULL;
+			}
 		}
 	}
 
@@ -145,7 +171,7 @@ public:
 	/**
 	 * Write a c++ string to the write buffer and, if necessary, flush.
 	 */
-	void writeString(const BTString& s);
+	void writeString(const BTString& s, int outidx);
 	
 	/**
 	 * Write already-committed lines starting from cur_.
@@ -154,8 +180,8 @@ public:
 
 protected:
 
-	FILE            *ofh_;
-	char            *obuf_;
+	std::vector<FILE *> ofhs_;
+	std::vector<char *> obufs_;
 	TReadId         cur_;
 #ifdef WITH_TBB
 	tbb::atomic<TReadId> nstarted_;
@@ -169,8 +195,11 @@ protected:
 	EList<bool>     finished_;
 	bool            reorder_;
 	bool            threadSafe_;
-	MUTEX_T         mutex_m;
 
+	MUTEX_T         mutex_global_;  // for reorder bookkeeping
+	std::vector<MUTEX_T*> mutexes_;
+	int             nmulti_output_;
+	
 	// used for output read buffer	
 	size_t nthreads_;
 	std::vector<vector<BTString> > perThreadBuf;

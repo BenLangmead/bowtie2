@@ -51,7 +51,7 @@ void OutputQueue::beginReadImpl(TReadId rdid, size_t threadId) {
 
 void OutputQueue::beginRead(TReadId rdid, size_t threadId) {
 	if(reorder_ && threadSafe_) {
-		ThreadSafe ts(mutex_m);
+		ThreadSafe ts(mutex_global_);
 		beginReadImpl(rdid, threadId);
 	} else {
 		beginReadImpl(rdid, threadId);
@@ -75,10 +75,9 @@ void OutputQueue::finishReadImpl(const BTString& rec, TReadId rdid, size_t threa
 		flush(false, false); // don't force; already have lock
 	} else {
 		// obuf_ is the OutFileBuf for the output file
-		int i = 0;
-		for(i=0; i < perThreadBufSize_; i++)
-		{
-			writeString(perThreadBuf[threadId][i]);
+		int outidx = threadId % nmulti_output_;
+		for(int i = 0; i < perThreadBufSize_; i++) {
+			writeString(perThreadBuf[threadId][i], outidx);
 			//TODO: turn these into atomics
 			nfinished_++;
 			nflushed_++;
@@ -90,7 +89,7 @@ void OutputQueue::finishReadImpl(const BTString& rec, TReadId rdid, size_t threa
 void OutputQueue::finishRead(const BTString& rec, TReadId rdid, size_t threadId) {
 	if(reorder_ || perThreadCounter[threadId] >= perThreadBufSize_) {
 		if(threadSafe_) {
-			ThreadSafe ts(mutex_m);
+			ThreadSafe ts(mutex_global_);
 			finishReadImpl(rec, rdid, threadId);
 		} else {
 			finishReadImpl(rec, rdid, threadId);
@@ -106,13 +105,9 @@ void OutputQueue::finishRead(const BTString& rec, TReadId rdid, size_t threadId)
  */
 void OutputQueue::flushImpl(bool force) {
 	if(!reorder_) {
-		size_t i = 0;
-		int j = 0;
-		for(i=0;i<nthreads_;i++)
-		{
-			for(j=0;j<perThreadCounter[i];j++)
-			{
-				writeString(perThreadBuf[i][j]);
+		for(size_t i = 0; i < nthreads_; i++) {
+			for(int j = 0; j < perThreadCounter[i]; j++) {
+				writeString(perThreadBuf[i][j], 0);
 				nfinished_++;
 				nflushed_++;
 			}
@@ -131,7 +126,7 @@ void OutputQueue::flushImpl(bool force) {
 		for(size_t i = 0; i < nflush; i++) {
 			assert(started_[i]);
 			assert(finished_[i]);
-			writeString(lines_[i]);
+			writeString(lines_[i], 0);
 		}
 		lines_.erase(0, nflush);
 		started_.erase(0, nflush);
@@ -146,7 +141,7 @@ void OutputQueue::flushImpl(bool force) {
  */
 void OutputQueue::flush(bool force, bool getLock) {
 	if(getLock && threadSafe_) {
-		ThreadSafe ts(mutex_m);
+		ThreadSafe ts(mutex_global_);
 		flushImpl(force);
 	} else {
 		flushImpl(force);
@@ -156,9 +151,9 @@ void OutputQueue::flush(bool force, bool getLock) {
 /**
  * Write a c++ string to the write buffer and, if necessary, flush.
  */
-void OutputQueue::writeString(const BTString& s) {
+void OutputQueue::writeString(const BTString& s, int outidx) {
 	size_t slen = s.length();
-	size_t nwritten = fwrite(s.toZBuf(), 1, slen, ofh_);
+	size_t nwritten = fwrite(s.toZBuf(), 1, slen, ofhs_[outidx]);
 	if(nwritten != slen) {
 		cerr << "Wrote only " << nwritten << " out of " << slen
 		<< " bytes to output " << std::endl;

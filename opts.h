@@ -38,6 +38,7 @@ enum {
 	ARG_FILEPAR,                // --filepar
 	ARG_BUFFER_SIZE,            // --buffer-size
 	ARG_READS_PER_BATCH,        // --reads-per-batch
+	ARG_NUM_OUTPUTS,            // --num-outputs
 	ARG_SHMEM,                  // --shmem
 	ARG_MM,                     // --mm
 	ARG_MMSWEEP,                // --mmsweep
