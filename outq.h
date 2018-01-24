@@ -59,6 +59,8 @@ public:
 		threadSafe_(threadSafe),
 		mutex_m(),
 		nthreads_(nthreads),
+		perThreadBuf(NULL),
+		perThreadCounter(NULL),
 		perThreadBufSize_(perThreadBufSize)
 	{
 		nstarted_=0;
@@ -77,11 +79,13 @@ public:
 	}
 
 	~OutputQueue() {
-		for (size_t i = 0; i < nthreads_; i++) {
-			delete[] perThreadBuf[i];
+		if(perThreadBuf != NULL) {
+			for (size_t i = 0; i < nthreads_; i++) {
+				delete[] perThreadBuf[i];
+			}
+			delete[] perThreadBuf;
+			delete[] perThreadCounter;
 		}
-		delete[] perThreadBuf;
-		delete[] perThreadCounter;
 	}
 
 	/**
