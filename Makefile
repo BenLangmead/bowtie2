@@ -546,7 +546,7 @@ test: simple-test random-test
 
 .PHONY: clean
 clean:
-	rm -f $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_DBG) $(BOWTIE2_BIN_LIST_SAN)\
+	rm -f $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_DBG) $(BOWTIE2_BIN_LIST_SAN) \
 	$(addsuffix .exe,$(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_DBG)) \
 	bowtie2-src.zip bowtie2-bin.zip
 	rm -f core.* .tmp.head
