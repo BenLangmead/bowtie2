@@ -30,6 +30,7 @@ GCC_SUFFIX :=
 CC ?= $(GCC_PREFIX)/gcc$(GCC_SUFFIX)
 CPP ?= $(GCC_PREFIX)/g++$(GCC_SUFFIX)
 CXX ?= $(CPP)
+CXXFLAGS += -std=c++98
 
 HEADERS := $(wildcard *.h)
 BOWTIE_MM := 1
@@ -47,9 +48,8 @@ ifneq (,$(findstring MINGW,$(shell uname)))
 	WINDOWS := 1
 	MINGW := 1
 	# POSIX memory-mapped files not currently supported on Windows
-	BOWTIE_MM := 0
-	BOWTIE_SHARED_MEM := 0
-	CXXFLAGS += -ansi
+	BOWTIE_MM :=
+	BOWTIE_SHARED_MEM :=
 endif
 
 MACOS :=
