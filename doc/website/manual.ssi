@@ -1,5 +1,5 @@
 <h1>Table of Contents</h1>
-<p>&nbsp;Version <b>2.3.3</b></p>
+<p>&nbsp;Version <b>2.3.4.1</b></p>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
@@ -1005,7 +1005,7 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 <pre><code>--reorder</code></pre>
 </td>
 <td>
-<p>Guarantees that output SAM records are printed in an order corresponding to the order of the reads in the original input file, even when <a href="#bowtie2-options-p"><code>-p</code></a> is set greater than 1. Specifying <code>--reorder</code> and setting <a href="#bowtie2-options-p"><code>-p</code></a> greater than 1 causes Bowtie 2 to run somewhat slower and use somewhat more memory then if <code>--reorder</code> were not specified. Has no effect if <a href="#bowtie2-options-p"><code>-p</code></a> is set to 1, since output order will naturally correspond to input order in that case.</p>
+<p>Guarantees that output SAM records are printed in an order corresponding to the order of the reads in the original input file, even when <a href="#bowtie2-options-p"><code>-p</code></a> is set greater than 1. Specifying <code>--reorder</code> and setting <a href="#bowtie2-options-p"><code>-p</code></a> greater than 1 causes Bowtie 2 to run somewhat slower and use somewhat more memory than if <code>--reorder</code> were not specified. Has no effect if <a href="#bowtie2-options-p"><code>-p</code></a> is set to 1, since output order will naturally correspond to input order in that case.</p>
 </td>
 </tr>
 <tr>

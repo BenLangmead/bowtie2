@@ -1841,7 +1841,7 @@ not specified at build time).
 Guarantees that output SAM records are printed in an order corresponding to the
 order of the reads in the original input file, even when [`-p`] is set greater
 than 1.  Specifying `--reorder` and setting [`-p`] greater than 1 causes Bowtie
-2 to run somewhat slower and use somewhat more memory then if `--reorder` were
+2 to run somewhat slower and use somewhat more memory than if `--reorder` were
 not specified.  Has no effect if [`-p`] is set to 1, since output order will
 naturally correspond to input order in that case.
 
