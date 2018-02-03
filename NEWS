@@ -19,7 +19,7 @@ Please report any issues to the Bowtie 2 Github page or using the Sourceforge bu
 Version Release History
 =======================
 
-Version 2.3.4.1 - Feb 1, 2018
+Version 2.3.4.1 - Feb 3, 2018
 
     * Fixed an issue with `--reorder` that caused bowtie2 to crash
     while reordering SAM output

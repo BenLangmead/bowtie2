@@ -1,4 +1,4 @@
-<h2>Version 2.3.4.1 - February 01, 2018</h2>
+<h2>Version 2.3.4.1 - February 03, 2018</h2>
 <ul>
     <li>Fixed an issue with <tt><a href="manual.shtml#bowtie2-options-reorder">--reorder</a></tt> that caused bowtie2 to crash while reordering SAM output</li>
 </ul>
