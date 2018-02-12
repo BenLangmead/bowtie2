@@ -268,7 +268,7 @@ pair<bool, int> DualPatternComposer::nextBatch(PerThreadReadBuf& pt) {
 			}
 			assert_eq(resa.first, resb.first);
 			assert_eq(resa.second, resb.second);
-			return make_pair(resa.first, resa.second);
+			return make_pair(resa.first && cur == srca_->size() - 1, resa.second);
 		}
 	}
 	assert_leq(cur, srca_->size());

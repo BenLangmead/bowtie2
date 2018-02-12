@@ -153,7 +153,7 @@ struct PerThreadReadBuf {
 	 */
 	bool exhausted() {
 		assert_leq(cur_buf_, bufa_.size());
-		return cur_buf_ >= bufa_.size()-1;
+		return cur_buf_ >= bufa_.size()-1 || bufa_[cur_buf_+1].readOrigBuf.empty();
 	}
 	
 	/**
