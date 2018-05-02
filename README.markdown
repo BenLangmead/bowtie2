@@ -1,5 +1,7 @@
 Bowtie 2: http://bowtie-bio.sf.net/bowtie2
 
+[![Build Status](https://travis-ci.org/BenLangmead/bowtie2.svg?branch=master)](https://travis-ci.org/BenLangmead/bowtie2)
+
  - See AUTHORS for information about who wrote Bowtie 2 and its various
    components.
  - See LICENSE for license information.
