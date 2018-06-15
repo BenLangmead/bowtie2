@@ -71,7 +71,8 @@ void PresetsV0::apply(
 		policy += ";ROUNDS=1";
 		policy += ";IVAL=S,1,2.00";
 	} else if(preset == "fast-local") {
-		policy += ";SEED=0,22";
+		policy += ";SEED=0";
+		policy += ";SEEDLEN=22";
 		policy += ";DPS=10";
 		policy += ";ROUNDS=2";
 		policy += ";IVAL=S,1,1.75";
