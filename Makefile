@@ -30,6 +30,7 @@ GCC_SUFFIX :=
 CC ?= $(GCC_PREFIX)/gcc$(GCC_SUFFIX)
 CPP ?= $(GCC_PREFIX)/g++$(GCC_SUFFIX)
 CXX ?= $(CPP)
+CXXFLAGS += -std=c++98
 
 HEADERS := $(wildcard *.h)
 BOWTIE_MM := 1
@@ -47,9 +48,8 @@ ifneq (,$(findstring MINGW,$(shell uname)))
 	WINDOWS := 1
 	MINGW := 1
 	# POSIX memory-mapped files not currently supported on Windows
-	BOWTIE_MM := 0
-	BOWTIE_SHARED_MEM := 0
-	CXXFLAGS += -ansi
+	BOWTIE_MM :=
+	BOWTIE_SHARED_MEM :=
 endif
 
 MACOS :=
@@ -260,14 +260,13 @@ endif
 # the Windows FIND tool instead.
 FIND := $(shell which find)
 
-SRC_PKG_LIST := $(wildcard *.h) \
-                $(wildcard *.hh) \
-                $(wildcard *.c) \
-                $(wildcard *.cpp) \
-                $(wildcard third_party/*) \
-                doc/strip_markdown.pl \
-                Makefile \
-                $(GENERAL_LIST)
+SRC_PKG_LIST = $(wildcard *.h) \
+               $(wildcard *.hh) \
+               $(wildcard *.c) \
+               $(wildcard *.cpp) \
+               $(wildcard third_party/*) \
+               Makefile \
+               $(GENERAL_LIST)
 
 ifeq (1,$(WINDOWS))
 	BIN_PKG_LIST := $(GENERAL_LIST) bowtie2.bat bowtie2-build.bat bowtie2-inspect.bat
@@ -457,7 +456,7 @@ bowtie2-src: $(SRC_PKG_LIST)
 	rm -rf .src.tmp
 
 .PHONY: bowtie2-pkg
-bowtie2-pkg: PKG_DIR := bowtie2-$(VERSION)-$(if $(MACOS),macos,$(if $(MINGW),mingw,linux))-x86_64)
+bowtie2-pkg: PKG_DIR := bowtie2-$(VERSION)-$(if $(MACOS),macos,$(if $(MINGW),mingw,linux))-x86_64
 bowtie2-pkg: static-libs $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_DBG)
 	chmod a+x scripts/*.sh scripts/*.pl
 	rm -rf .bin.tmp
@@ -547,7 +546,7 @@ test: simple-test random-test
 
 .PHONY: clean
 clean:
-	rm -f $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_DBG) $(BOWTIE2_BIN_LIST_SAN)\
+	rm -f $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_DBG) $(BOWTIE2_BIN_LIST_SAN) \
 	$(addsuffix .exe,$(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_DBG)) \
 	bowtie2-src.zip bowtie2-bin.zip
 	rm -f core.* .tmp.head

@@ -77,7 +77,6 @@ def main():
     argv.appendleft('--wrapper')
     argv.appendleft(inspect_bin_spec)
     logging.info('Command: %s' %  ' '.join(argv))
-    print argv
     subprocess.call(argv)
         
 if __name__ == '__main__':
