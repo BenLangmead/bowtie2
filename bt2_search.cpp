@@ -97,6 +97,7 @@ static int ipause;        // pause before maching?
 static uint32_t qUpto;    // max # of queries to read
 static int gTrim5;        // amount to trim from 5' end
 static int gTrim3;        // amount to trim from 3' end
+static pair<int, int> trimReadsExceedingLen; // trim reads exceeding given length from either 3' or 5'-end
 static int offRate;       // keep default offRate
 static bool solexaQuals;  // quality strings are solexa quals, not phred, and subtract 64 (not 33)
 static bool phred64Quals; // quality chars are phred, but must subtract 64 (not 33)
@@ -288,6 +289,7 @@ static void resetOptions() {
 	qUpto					= 0xffffffff; // max # of queries to read
 	gTrim5					= 0; // amount to trim from 5' end
 	gTrim3					= 0; // amount to trim from 3' end
+	trimReadsExceedingLen = pair<int, int>(5, 0); // default: don't do any trimming
 	offRate					= -1; // keep default offRate
 	solexaQuals				= false; // quality strings are solexa quals, not phred, and subtract 64 (not 33)
 	phred64Quals			= false; // quality chars are phred, but must subtract 64 (not 33)
@@ -643,6 +645,7 @@ static struct option long_options[] = {
 {(char*)"xeq",                         no_argument,        0,                   ARG_XEQ},
 {(char*)"thread-ceiling",              required_argument,  0,                   ARG_THREAD_CEILING},
 {(char*)"thread-piddir",               required_argument,  0,                   ARG_THREAD_PIDDIR},
+{(char*)"trim-reads-exceeding-len",    required_argument,  0,                   ARG_TRIM_READS_EXCEEDING_LEN},
 {(char*)0,                             0,                  0,                   0} //  terminator
 };
 
@@ -736,6 +739,7 @@ static void printUsage(ostream& out) {
 	    << "  -u/--upto <int>    stop after first <int> reads/pairs (no limit)" << endl
 	    << "  -5/--trim5 <int>   trim <int> bases from 5'/left end of reads (0)" << endl
 	    << "  -3/--trim3 <int>   trim <int> bases from 3'/right end of reads (0)" << endl
+	    << "  --trim-reads-exceeding-len <3|5:int>   trim <int> bases from either 3'/right or 5'/left end of reads (no trimming)" << endl
 	    << "  --phred33          qualities are Phred+33 (default)" << endl
 	    << "  --phred64          qualities are Phred+64" << endl
 	    << "  --int-quals        qualities encoded as space-delimited integers" << endl
@@ -1101,6 +1105,17 @@ static void parseOption(int next_option, const char *arg) {
 			break;
 		case '3': gTrim3 = parseInt(0, "-3/--trim3 arg must be at least 0", arg); break;
 		case '5': gTrim5 = parseInt(0, "-5/--trim5 arg must be at least 0", arg); break;
+		case ARG_TRIM_READS_EXCEEDING_LEN:
+			trimReadsExceedingLen = parsePair<int>(arg, ':');
+			if (trimReadsExceedingLen.first != 3 && trimReadsExceedingLen.first != 5) {
+				cerr << "`--trim-reads-exceeding-len pos:n`: pos must be either 3 or 5" << endl;
+				throw 1;
+			}
+			if(trimReadsExceedingLen.second < 0) {
+				cerr << "`--trim-reads-exceeding-len pos:n`: n must be at least 0" << endl;
+				throw 1;
+			}
+			break;
 		case 'h': printUsage(cout); throw 0; break;
 		case ARG_USAGE: printUsage(cout); throw 0; break;
 		//
@@ -4717,6 +4732,7 @@ static void driver(
 		integerQuals,  // true -> qualities are space-separated numbers
 		gTrim5,        // amt to hard clip from 5' end
 		gTrim3,        // amt to hard clip from 3' end
+		trimReadsExceedingLen, // trim reads exceeding given length from either 3' or 5'-end
 		fastaContLen,  // length of sampled reads for FastaContinuous...
 		fastaContFreq, // frequency of sampled reads for FastaContinuous...
 		skipReads,     // skip the first 'skip' patterns

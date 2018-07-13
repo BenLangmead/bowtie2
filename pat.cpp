@@ -172,8 +172,11 @@ pair<bool, bool> PatternSourcePerThread::nextReadPair() {
 	}
 	// Finalize read/pair
 	if(!buf_.read_b().patFw.empty()) {
+		trim(buf_.read_a());
+		trim(buf_.read_b());
 		finalizePair(buf_.read_a(), buf_.read_b());
 	} else {
+		trim(buf_.read_a());
 		finalize(buf_.read_a());
 	}
 	bool this_is_last = buf_.cur_buf_ == static_cast<unsigned int>(last_batch_size_-1);

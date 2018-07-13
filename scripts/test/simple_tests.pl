@@ -158,6 +158,34 @@ my @cases = (
 	  cline_reads  => "CATCGATCAGTATCTG:ABCDEDGHIJKLMNOPQ", # qual too long
 	  should_abort => 1},
 
+	{ name   => "trim-reads-exceeding-len: trim from 5'-end",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  cline_reads => "CATCGATCAGTATCTG:IIIIIIIIIIIIIIII\n",
+	  args   => "--trim-reads-exceeding-len 5:12",
+	  norc   => 1,
+	  hits   => [{ 6 => 1 }] },
+
+	{ name   => "trim-reads-exceeding-len: trim from 3'-end",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  cline_reads => "CATCGATCAGTATCTG:IIIIIIIIIIIIIIII\n",
+	  args   => "--trim-reads-exceeding-len 3:12",
+	  norc   => 1,
+	  hits   => [{ 2 => 1 }] },
+
+	{ name   => "trim-reads-exceeding-len: invalid position",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  cline_reads => "CATCGATCAGTATCTG:IIIIIIIIIIIIIIII\n",
+	  args   => "--trim-reads-exceeding-len 4:12",
+	  norc   => 1,
+	  should_abort   => 1 },
+
+	{ name   => "trim-reads-exceeding-len: invalid count",
+	  ref    => [ "AGCATCGATCAGTATCTGA" ],
+	  cline_reads => "CATCGATCAGTATCTG:IIIIIIIIIIIIIIII\n",
+	  args   => "--trim-reads-exceeding-len 5:-12",
+	  norc   => 1,
+	  should_abort   => 1 },
+	
 	# Part of sequence is trimmed
 	{ name   => "Cline 7",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],

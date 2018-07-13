@@ -62,6 +62,7 @@ struct PatternParams {
 		bool intQuals_,
 		int trim5_,
 		int trim3_,
+		pair<int, int> trimReadsExceedingLen_,
 		int sampleLen_,
 		int sampleFreq_,
 		size_t skip_,
@@ -76,6 +77,7 @@ struct PatternParams {
 		intQuals(intQuals_),
 		trim5(trim5_),
 		trim3(trim3_),
+		trimReadsExceedingLen(trimReadsExceedingLen_),
 		sampleLen(sampleLen_),
 		sampleFreq(sampleFreq_),
 		skip(skip_),
@@ -91,6 +93,7 @@ struct PatternParams {
 	bool intQuals;		  // true -> qualities are space-separated numbers
 	int trim5;            // amt to hard clip from 5' end
 	int trim3;            // amt to hard clip from 3' end
+	pair<int, int> trimReadsExceedingLen;
 	int sampleLen;		  // length of sampled reads for FastaContinuous...
 	int sampleFreq;		  // frequency of sampled reads for FastaContinuous...
 	size_t skip;		  // skip the first 'skip' patterns
@@ -986,6 +989,27 @@ private:
 	 */
 	bool parse(Read& ra, Read& rb) {
 		return composer_.parse(ra, rb, buf_.rdid());
+	}
+
+	void trim(Read& r) {
+		if (pp_.trimReadsExceedingLen.second > 0) {
+			switch (pp_.trimReadsExceedingLen.first) {
+				case 3:
+					if (r.patFw.length() > pp_.trimReadsExceedingLen.second) {
+						r.trimmed5 = r.patFw.length() - pp_.trimReadsExceedingLen.second;
+						r.patFw.trimEnd(r.trimmed5);
+						r.qual.trimEnd(r.trimmed5);
+					}
+					break;
+				case 5:
+					if (r.patFw.length() > pp_.trimReadsExceedingLen.second) {
+						r.trimmed3 = r.patFw.length() - pp_.trimReadsExceedingLen.second;
+						r.patFw.trimBegin(r.trimmed3);
+						r.qual.trimBegin(r.trimmed3);
+					}
+					break;
+			}
+		}
 	}
 
 	PatternComposer& composer_; // pattern composer
