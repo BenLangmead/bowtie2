@@ -2596,6 +2596,8 @@ void Ebwt::joinToDisk(
 				writeU<TIndexOffU>(out1, this->plen()[npat], this->toBe());
 			}
 			this->plen()[++npat] = (szs[i].len + szs[i].off);
+		} else if(szs[i].first) {
+			// nothing
 		} else {
 			// edge case, but we could get here with npat == -1
 			// e.g. when building from a reference of all Ns
