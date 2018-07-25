@@ -133,8 +133,13 @@ my @cases = (
 
 	# -c
 
+	{ name   => "Align should not fail when first seq in ref is all Ns",
+		ref    => [ "NNNNNNNNNNNNNNN", "AGCATCGATCAGTATCTGA" ],
+		cline_reads => "CATCGATCAGTATCTG",
+		hits   => [{ 2 => 1 }] },
+
 	{ name   => "Cline 1",
-		ref    => [ "AGCATCGATCAGTATCTGA" ],
+		ref    => ["AGCATCGATCAGTATCTGA" ],
 		cline_reads => "CATCGATCAGTATCTG",
 		hits   => [{ 2 => 1 }] },
 
