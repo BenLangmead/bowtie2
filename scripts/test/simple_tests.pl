@@ -138,6 +138,16 @@ my @cases = (
 		cline_reads => "CATCGATCAGTATCTG",
 		hits   => [{ 2 => 1 }] },
 
+	{ name   => "Align should not fail when multiple seqs are all Ns",
+		ref    => [ "NNNNNNNNNNNNNNN", "NNNNNNNNNNNNNNN", "AGCATCGATCAGTATCTGA" ],
+		cline_reads => "CATCGATCAGTATCTG",
+		hits   => [{ 2 => 1 }] },
+
+	{ name   => "Should account for stretch of Ns at beginning",
+		ref    => [ "NNNNNNNNNNNNNNNAGCATCGATCAGTATCTGA" ],
+		cline_reads => "CATCGATCAGTATCTG",
+		hits   => [{ 17 => 1 }] },
+
 	{ name   => "Cline 1",
 		ref    => ["AGCATCGATCAGTATCTGA" ],
 		cline_reads => "CATCGATCAGTATCTG",
@@ -190,7 +200,7 @@ my @cases = (
 	  args   => "--trim-reads-exceeding-len 5:-12",
 	  norc   => 1,
 	  should_abort   => 1 },
-	
+
 	# Part of sequence is trimmed
 	{ name   => "Cline 7",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
@@ -4551,7 +4561,7 @@ my  $idx_type = "";
 	else {
 		$binary_type = "--" . $binary_type;
 	}
-	
+
 	my $cmd;
 	my $batch_size = int(rand(16) + 1);
 	if($pe) {
