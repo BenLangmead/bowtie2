@@ -4,10 +4,6 @@
  ! of this text document, or see the HTML manual online.
  ! -->
 
----
-title: Bowtie 2 Manual
----
-
 Introduction
 ============
 
