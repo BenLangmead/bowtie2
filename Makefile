@@ -36,9 +36,9 @@ HEADERS := $(wildcard *.h)
 BOWTIE_MM := 1
 BOWTIE_SHARED_MEM :=
 
-ifdef RELEASE_BUILD
-	LDFLAGS += -L$(CURDIR)/.lib
-	CPPFLAGS += -I$(CURDIR)/.include
+ifdef STATIC_BUILD
+	LDFLAGS += -L$(CURDIR)/.tmp/lib
+	CPPFLAGS += -I$(CURDIR)/.tmp/include
 endif
 
 # Detect Cygwin or MinGW
@@ -58,7 +58,7 @@ ifneq (,$(findstring Darwin,$(shell uname)))
 	ifeq (1,$(shell uname -r | awk -F. '{ if ($$1 > 12 && $$1 < 16) print 1; }'))
 		CXXFLAGS += -stdlib=libstdc++
 	endif
-	ifdef RELEASE_BUILD
+	ifdef STATIC_BUILD
 		CXXFLAGS += -mmacosx-version-min=10.9
 	endif
 endif
@@ -102,7 +102,7 @@ endif
 #default is to use Intel TBB
 ifneq (1,$(NO_TBB))
 	LDLIBS += $(PTHREAD_LIB) -ltbb
-	ifdef RELEASE_BUILD
+	ifdef STATIC_BUILD
 		LDLIBS += -ltbbmalloc
 	else
 		LDLIBS += -ltbbmalloc_proxy
@@ -443,8 +443,8 @@ bowtie2-inspect.bat:
 	echo "@echo off" > bowtie2-inspect.bat
 	echo "python %~dp0/bowtie2-inspect %*" >> bowtie2-inspect.bat
 
-.PHONY: bowtie2-src
-bowtie2-src: $(SRC_PKG_LIST)
+.PHONY: bowtie2-src-pkg
+bowtie2-src-pkg: $(SRC_PKG_LIST)
 	chmod a+x scripts/*.sh scripts/*.pl
 	mkdir .src.tmp
 	mkdir .src.tmp/bowtie2-$(VERSION)
@@ -455,9 +455,9 @@ bowtie2-src: $(SRC_PKG_LIST)
 	cp .src.tmp/bowtie2-$(VERSION)-source.zip .
 	rm -rf .src.tmp
 
-.PHONY: bowtie2-pkg
-bowtie2-pkg: PKG_DIR := bowtie2-$(VERSION)-$(if $(MACOS),macos,$(if $(MINGW),mingw,linux))-x86_64
-bowtie2-pkg: static-libs $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_DBG)
+.PHONY: bowtie2-bin-pkg
+bowtie2-bin-pkg: PKG_DIR := bowtie2-$(VERSION)-$(if $(MACOS),macos,$(if $(MINGW),mingw,linux))-x86_64
+bowtie2-bin-pkg: static-libs $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_DBG)
 	chmod a+x scripts/*.sh scripts/*.pl
 	rm -rf .bin.tmp
 	mkdir -p .bin.tmp/$(PKG_DIR)
@@ -506,41 +506,42 @@ install: all
 
 .PHONY: simple-test
 simple-test: perl-deps both both-debug both-sanitized
-	eval `perl -I $(CURDIR)/.perllib.tmp/lib/perl5 -Mlocal::lib=$(CURDIR)/.perllib.tmp` ; \
+	eval `perl -I $(CURDIR)/.tmp/lib/perl5 -Mlocal::lib=$(CURDIR)/.tmp` ; \
 	sh ./scripts/test/simple_tests.sh
 
 .PHONY: random-test
 random-test: all perl-deps
-	eval `perl -I $(CURDIR)/.perllib.tmp/lib/perl5 -Mlocal::lib=$(CURDIR)/.perllib.tmp` ; \
+	eval `perl -I $(CURDIR)/.tmp/lib/perl5 -Mlocal::lib=$(CURDIR)/.tmp` ; \
 	sh ./scripts/sim/run.sh $(if $(NUM_CORES), $(NUM_CORES), 2)
 
 .PHONY: perl-deps
 perl-deps:
-	if [ ! -e .perllib.tmp ]; then \
+	if [ ! -e .tmp ]; then \
 		DL=$$([ `which wget` ] && echo "wget --no-check-certificate -O-" || echo "curl -L") ; \
-		mkdir .perllib.tmp ; \
-		$$DL http://cpanmin.us | perl - -l $(CURDIR)/.perllib.tmp App::cpanminus local::lib ; \
-		eval `perl -I $(CURDIR)/.perllib.tmp/lib/perl5 -Mlocal::lib=$(CURDIR)/.perllib.tmp` ; \
-		$(CURDIR)/.perllib.tmp/bin/cpanm --force Math::Random Clone Test::Deep Sys::Info ; \
+		mkdir .tmp ; \
+		$$DL http://cpanmin.us | perl - -l $(CURDIR)/.tmp App::cpanminus local::lib ; \
+		eval `perl -I $(CURDIR)/.tmp/lib/perl5 -Mlocal::lib=$(CURDIR)/.tmp` ; \
+		$(CURDIR)/.tmp/bin/cpanm --force Math::Random Clone Test::Deep Sys::Info ; \
 	fi
 
 .PHONY: static-libs
 static-libs:
-	if [[ ! -d $(CURDIR)/.lib || ! -d $(CURDIR)/.inc ]]; then \
-		mkdir $(CURDIR)/.lib $(CURDIR)/.include ; \
+	if [[ ! -d $(CURDIR)/.tmp/lib || ! -d $(CURDIR)/.tmp/include ]]; then \
+		mkdir $(CURDIR)/.tmp/lib $(CURDIR)/.tmp/include ; \
 	fi ; \
 	if [[ `uname` = "Darwin" ]]; then \
 		export CFLAGS=-mmacosx-version-min=10.9 ; \
 		export CXXFLAGS=-mmacosx-version-min=10.9 ; \
 	fi ; \
 	DL=$$([ `which wget` ] && echo "wget --no-check-certificate" || echo "curl -LOk") ; \
-	cd /tmp ; \
+	mkdir .tmp ; \
+	cd .tmp ; \
 	$$DL https://zlib.net/zlib-1.2.11.tar.gz && tar xzf zlib-1.2.11.tar.gz && cd zlib-1.2.11 ; \
-	$(if $(MINGW), mingw32-make -f win32/Makefile.gcc, ./configure --static && make) && cp libz.a $(CURDIR)/.lib && cp zconf.h zlib.h $(CURDIR)/.include ; \
+	$(if $(MINGW), mingw32-make -f win32/Makefile.gcc, ./configure --static && make) && cp libz.a $(CURDIR)/.tmp/lib && cp zconf.h zlib.h $(CURDIR)/.tmp/include ; \
 	cd .. ; \
 	$$DL https://github.com/01org/tbb/archive/2017_U8.tar.gz && tar xzf 2017_U8.tar.gz && cd tbb-2017_U8; \
 	$(if $(MINGW), mingw32-make compiler=gcc arch=ia64 runtime=mingw, make) extra_inc=big_iron.inc -j4 \
-	&& cp -r include/tbb $(CURDIR)/.include && cp build/*_release/*.a $(CURDIR)/.lib
+	&& cp -r include/tbb $(CURDIR)/.tmp/include && cp build/*_release/*.a $(CURDIR)/.tmp/lib
 
 .PHONY: test
 test: simple-test random-test
@@ -549,8 +550,7 @@ test: simple-test random-test
 clean:
 	rm -f $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_DBG) $(BOWTIE2_BIN_LIST_SAN) \
 	$(addsuffix .exe,$(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_DBG)) \
-	bowtie2-src.zip bowtie2-bin.zip
+	bowtie2-*.zip
 	rm -f core.* .tmp.head
 	rm -rf *.dSYM
-	rm -rf .perllib.tmp
-	rm -rf .include .lib
+	rm -rf .tmp
