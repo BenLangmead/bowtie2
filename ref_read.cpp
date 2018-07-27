@@ -273,12 +273,16 @@ fastaRefReadSizes(
 				cerr << e.what() << endl;
 				throw 1;
 			}
+			first = false;
 			// Add the length of this record.
-			if(rec.first) numSeqs++;
+			if(rec.len == 0 && rec.first) {
+				continue;
+			} else if(rec.first) {
+				numSeqs++;
+			}
 			unambigTot += rec.len;
 			bothTot += rec.len;
 			bothTot += rec.off;
-			first = false;
 			if(rec.len == 0 && rec.off == 0 && !rec.first) continue;
 			recs.push_back(rec);
 		}

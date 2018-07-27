@@ -939,17 +939,13 @@ void Ebwt::szsToDisk(const EList<RefRecord>& szs, ostream& os, int reverse) {
 	TIndexOffU seq = 0;
 	TIndexOffU off = 0;
 	TIndexOffU totlen = 0;
-	TIndexOffU n_empty_seq = 0;
 	for(unsigned int i = 0; i < szs.size(); i++) {
-		if(szs[i].first) seq++;
-		if(szs[i].len == 0) {
-			if(szs[i].first) n_empty_seq++;
-			continue;
-		}
+		if(szs[i].len == 0) continue;
 		if(szs[i].first) off = 0;
 		off += szs[i].off;
+		if(szs[i].first && szs[i].len > 0) seq++;
 		TIndexOffU seqm1 = seq-1;
-		assert_lt(seqm1, _nPat + n_empty_seq);
+		assert_lt(seqm1, _nPat);
 		TIndexOffU fwoff = off;
 		if(reverse == REF_READ_REVERSE) {
 			// Invert pattern idxs

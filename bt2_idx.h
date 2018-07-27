@@ -2530,6 +2530,9 @@ TStr Ebwt::join(EList<FileBuf*>& l,
 		while(!l[i]->eof()) {
 			RefRecord rec = fastaRefReadAppend(*l[i], first, ret, dstoff, rpcp);
 			first = false;
+			if(rec.first && rec.len == 0) {
+				continue;
+			}
 			TIndexOffU bases = rec.len;
 			assert_eq(rec.off, szs[szsi].off);
 			assert_eq(rec.len, szs[szsi].len);
@@ -2596,9 +2599,7 @@ void Ebwt::joinToDisk(
 				writeU<TIndexOffU>(out1, this->plen()[npat], this->toBe());
 			}
 			this->plen()[++npat] = (szs[i].len + szs[i].off);
-		} else if(szs[i].first) {
-			// nothing
-		} else {
+		} else if(!szs[i].first) {
 			// edge case, but we could get here with npat == -1
 			// e.g. when building from a reference of all Ns
 			if (npat < 0) npat = 0;
@@ -2641,6 +2642,9 @@ void Ebwt::joinToDisk(
 				//assert_eq(0, _refnames.back().length());
 				_refnames.pop_back();
 			}
+			if(rec.first && rec.len == 0) {
+				continue;
+			}
 			assert_lt(szsi, szs.size());
 			assert_eq(rec.off, szs[szsi].off);
 			assert_eq(rec.len, szs[szsi].len);
@@ -2648,7 +2652,7 @@ void Ebwt::joinToDisk(
 			assert(rec.first || rec.off > 0);
 			ASSERT_ONLY(szsi++);
 			// Increment seqsRead if this is the first fragment
-			if(rec.first && rec.len > 0) seqsRead++;
+			if(rec.first) seqsRead++;
 			if(bases == 0) continue;
 			assert_leq(bases, this->plen()[seqsRead-1]);
 			// Reset the patoff if this is the first fragment
