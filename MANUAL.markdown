@@ -140,7 +140,7 @@ The table below list some of the commands for a few of the more popular
 operating systems.
 
 <table>
-<tr><th>OS</th><th>Update</th><th>Search</th><th>Install</th></tr>
+<tr><th>OS</th><th>Sync Package List</th><th>Search</th><th>Install</th></tr>
 <tr><td>Ubuntu, Mint, Debian</td>
 <td>
 
@@ -169,7 +169,7 @@ operating systems.
 </td>
 <td>
 
-    yum install tbb tbb-devel.x86_64
+    yum install tbb-devel.x86_64
 
 </td></tr>
 <tr><td>Arch</td>
@@ -223,17 +223,18 @@ operating systems.
 <tr><td>FreeBSD</td>
 <td>
 
-  portsnap fetch update
+    portsnap fetch update
 
 </td>
 <td>
 
-  make search name=tbb
+    make search name=tbb
 
 </td>
 <td>
 
-  cd /usr/ports/devel/tbb && make install && make clean
+    cd /usr/ports/devel/tbb && make install && make clean
+
 </table>
 
 The Bowtie 2 Makefile also includes recipes for basic automatic dependency
