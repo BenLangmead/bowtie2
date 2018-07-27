@@ -134,9 +134,117 @@ from the MSYS environment.
 Bowtie 2 can be run on many threads. By default, Bowtie 2 uses the Threading
 Building Blocks library (TBB) for this. If TBB is not available on your system
 (e.g. `make` prints an error like `tbb/mutex.h: No such file or directory`),
-you can install it yourself (see [Threading Building Blocks library]) or build
-Bowtie 2 with `make NO_TBB=1` to use pthreads or Windows native multithreading
-instead.
+you can install it yourself from source (see [Threading Building Blocks library])
+or install it using your operating system's preferred package manager.
+The table below list some of the commands for a few of the more popular
+operating systems.
+
+<table>
+<tr><th>OS</th><th>Update</th><th>Search</th><th>Install</th></tr>
+<tr><td>Ubuntu, Mint, Debian</td>
+<td>
+
+    apt-get update
+
+</td>
+<td>
+
+    apt-cache search tbb
+
+</td>
+<td>
+
+    apt-get install libtbb-dev
+
+</td></tr>
+<tr><td>Fedora, CentOS</td>
+<td>
+
+    yum check-update
+
+</td>
+<td>
+    yum search tbb
+
+</td>
+<td>
+
+    yum install tbb tbb-devel.x86_64
+
+</td></tr>
+<tr><td>Arch</td>
+<td>
+
+    packman -Sy
+
+</td>
+<td>
+
+    pacman -Ss tbb
+
+</td>
+<td>
+
+    pacman -S extra/intel-tbb
+
+</td></tr>
+<tr><td>Gentoo</td>
+<td>
+
+    emerge --sync
+
+</td>
+<td>
+
+    emerge --search tbb
+
+</td>
+<td>
+
+    emerge dev-cpp/tbb
+
+</td>
+<tr><td>MacOS</td>
+<td>
+
+    brew update
+
+</td>
+<td>
+
+    brew search tbb
+
+</td>
+<td>
+
+    brew install tbb
+
+</td></tr>
+<tr><td>FreeBSD</td>
+<td>
+
+  portsnap fetch update
+
+</td>
+<td>
+
+  make search name=tbb
+
+</td>
+<td>
+
+  cd /usr/ports/devel/tbb && make install && make clean
+</table>
+
+The Bowtie 2 Makefile also includes recipes for basic automatic dependency
+management. Running `make static-libs && make STATIC_BUILD=1` will issue
+a series of commands that will:
+  1. download TBB and zlib
+  2. compile them as static libraries
+  3. link the resulting libraries to the compiled Bowtie 2 binaries
+
+If all fails Bowtie 2 can be built with `make NO_TBB=1` to use pthreads
+or Windows native multithreading instead.
 
 Adding to PATH
 --------------
