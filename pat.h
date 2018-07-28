@@ -62,7 +62,7 @@ struct PatternParams {
 		bool intQuals_,
 		int trim5_,
 		int trim3_,
-		pair<int, int> trimReadsExceedingLen_,
+		pair<short, size_t> trimReadsExceedingLen_,
 		int sampleLen_,
 		int sampleFreq_,
 		size_t skip_,
@@ -93,7 +93,7 @@ struct PatternParams {
 	bool intQuals;		  // true -> qualities are space-separated numbers
 	int trim5;            // amt to hard clip from 5' end
 	int trim3;            // amt to hard clip from 3' end
-	pair<int, int> trimReadsExceedingLen;
+	pair<short, size_t> trimReadsExceedingLen;
 	int sampleLen;		  // length of sampled reads for FastaContinuous...
 	int sampleFreq;		  // frequency of sampled reads for FastaContinuous...
 	size_t skip;		  // skip the first 'skip' patterns
