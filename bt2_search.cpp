@@ -948,6 +948,9 @@ static string applyPreset(const string& sorig, Presets& presets) {
 static bool saw_M;
 static bool saw_a;
 static bool saw_k;
+static bool saw_trim3;
+static bool saw_trim5;
+static bool saw_trim_reads_exceeding_len;
 static EList<string> presetList;
 
 /**
@@ -1483,12 +1486,6 @@ static void parseOption(int next_option, const char *arg) {
 			printUsage(cerr);
 			throw 1;
 	}
-	if (!localAlign && scUnMapped) {
-		scUnMapped = false;
-		cerr << "WARNING: --soft-clipped-unmapped-tlen can only be set for "
-		     << "local alignment... ignoring" << endl;
-	}
-
 }
 
 /**
@@ -1500,6 +1497,9 @@ static void parseOptions(int argc, const char **argv) {
 	saw_M = false;
 	saw_a = false;
 	saw_k = false;
+	saw_trim3 = false;
+	saw_trim5 = false;
+	saw_trim_reads_exceeding_len = false;
 	presetList.clear();
 	if(startVerbose) { cerr << "Parsing options: "; logTime(cerr, true); }
 	while(true) {
@@ -1517,6 +1517,17 @@ static void parseOptions(int argc, const char **argv) {
 			}
 		}
 		parseOption(next_option, arg);
+	}
+
+	if (!localAlign && scUnMapped) {
+		cerr << "ERROR: --soft-clipped-unmapped-tlen can only be set for local alignments." << endl;
+		exit(1);
+	}
+
+	if ((saw_trim3 || saw_trim5) && saw_trim_reads_exceeding_len) {
+		cerr << "ERROR: --trim5/--trim3 and --trim-reads-exceeding-len are mutually exclusive "
+			 << "options." << endl;
+		exit(1);
 	}
 	// Now parse all the presets.  Might want to pick which presets version to
 	// use according to other parameters.
