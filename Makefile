@@ -487,8 +487,8 @@ doc: doc/manual.html MANUAL
 
 doc/manual.html: MANUAL.markdown
 	echo "<h1>Table of Contents</h1>" > .tmp.head
-	pandoc -T "Bowtie 2 Manual" -B .tmp.head \
-	       --metadata title:" "\
+	pandoc -B .tmp.head \
+	       --metadata title:"Bowtie 2 Manual"\
 	       --css doc/style.css -o $@ \
 	       --from markdown --to HTML \
 	       --table-of-contents $^
