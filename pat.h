@@ -406,6 +406,10 @@ protected:
 		return compressed_ ? gzungetc(c, zfp_) : ungetc(c, fp_);
 	}
 
+	void parse_bam_header();
+
+	char *get_bam_alignment_record();
+
 	bool is_gzipped_file(const std::string& filename) {
 		struct stat s;
 		if (stat(filename.c_str(), &s) != 0) {
@@ -697,6 +701,77 @@ protected:
 
 	bool first_;		// parsing first read in file
 	bool interleaved_;	// fastq reads are interleaved
+};
+
+class BAMPatternSource : public CFilePatternSource {
+
+public:
+
+	BAMPatternSource(
+		const EList<std::string>& infiles,
+		const PatternParams& p) :
+		CFilePatternSource(infiles, p),
+		first_(true) {}
+
+	virtual void reset() {
+		first_ = true;
+		CFilePatternSource::reset();
+	}
+
+	/**
+	 * Finalize BAM parsing outside critical section.
+	 */
+	virtual bool parse(Read& ra, Read& rb, TReadId rdid) const;
+
+protected:
+
+	/**
+	 * Light-parse a batch into the given buffer.
+	 */
+	virtual std::pair<bool, int> nextBatchFromFile(
+		PerThreadReadBuf& pt,
+		bool batch_a,
+		unsigned readi) {
+		bool done = false;
+		while (readi < pt.max_buf_ && !done) {
+			char *aln_rec = get_bam_alignment_record();
+			if (aln_rec == NULL) {
+				done = true;
+				break;
+			}
+			pt.bufa_[readi].readOrigBuf.install(aln_rec);
+			delete[] aln_rec;
+		}
+		return make_pair(done, readi);
+	}
+
+	/**
+	 * Reset state to be ready for the next file.
+	 */
+	virtual void resetForNextFile() {
+		first_ = true;
+	}
+
+	bool first_; // parsing first read in file
+
+private:
+	struct AlnRecField {
+		enum aln_rec_field_names {
+			refID,
+			pos,
+			l_read_name,
+			mapq,
+			bin,
+			n_cigar_op,
+			flag,
+			l_seq,
+			next_refID,
+			next_pos,
+			tlen,
+		};
+	};
+
+	static const int aln_rec_field_sizes[];
 };
 
 /**

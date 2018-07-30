@@ -504,6 +504,50 @@ void CFilePatternSource::open() {
 	return;
 }
 
+void CFilePatternSource::parse_bam_header() {
+	char magic[4];
+
+	if (gzread(zfp_, magic, 4) != 4 || strncmp(magic, "BAM\001", 4)) {
+		std::cerr << "This file is not a BAM file" << std::endl;
+		exit(1);
+	}
+
+	int32_t l_text = 0;
+	char *text = NULL;
+	int32_t n_ref;
+
+	gzread(zfp_, &l_text, sizeof(l_text));
+	text = new char[l_text+1];
+	gzread(zfp_, text, l_text);
+	if (gzread(zfp_, &n_ref, sizeof(n_ref) != 4)) {
+		std::cerr << "Unable to read n_ref" << std::endl;
+	}
+
+	for (int i = 0; i < n_ref; i++) {
+		int32_t l_name;
+		char *name = NULL;
+		int32_t l_ref;;
+
+		gzread(zfp_, &l_name, sizeof(l_name));
+		name = new char[l_name+1];
+		gzread(zfp_, name, l_name);
+		gzread(zfp_, &l_ref, sizeof(l_ref));
+		delete[] name;
+	}
+}
+
+char *CFilePatternSource::get_bam_alignment_record() {
+	int32_t block_size;
+	if (gzread(zfp_, &block_size, sizeof(block_size)) != sizeof(block_size)) {
+		std::cerr << "Unable to read BAM alignment block size" << std::endl;
+	}
+	char *aln_block = new char[block_size];
+	if (gzread(zfp_, aln_block, block_size) != block_size) {
+		std::cerr << "Unable to read BAM alignment block" << std::endl;
+	}
+	return aln_block;
+}
+
 /**
  * Constructor for vector pattern source, used when the user has
  * specified the input strings on the command line using the -c
@@ -1125,6 +1169,24 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 	if(!rb.parsed && !rb.readOrigBuf.empty()) {
 		return parse(rb, r, rdid);
 	}
+	return true;
+}
+
+const int aln_rec_field_sizes[] = {
+		sizeof(int32_t),   //refID
+		sizeof(int32_t),   //pos
+		sizeof(int32_t),   //l_read_name
+		sizeof(uint8_t),   //mapq
+		sizeof(uint8_t),   //bin
+		sizeof(uint16_t),  //n_cigar_og
+		sizeof(uint16_t),  //flag
+		sizeof(uint16_t),  //l_seq
+		sizeof(int32_t),   //next_refID
+		sizeof(int32_t),   //next_pos
+		sizeof(int32_t)    //read_name
+};
+
+bool BAMPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 	return true;
 }
 
