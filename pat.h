@@ -410,26 +410,30 @@ protected:
 		int r = gzread(zfp_, buf, len);
 		if (r < 0) {
 			const char *err = gzerror(zfp_, NULL);
-			std::cerr << err << std::endl;
+			if (err != NULL) {
+				std::cerr << err << std::endl;
+			}
 		}
 		return r;
 	}
 
-	bool is_gzipped_file(const std::string& filename) {
-		struct stat s;
-		if (stat(filename.c_str(), &s) != 0) {
-			perror("stat");
+	bool is_gzipped_file(const char* filename) {
+		FILE* f = fopen(filename, "rb");
+		if (ferror(f) > 0) {
+			return false;
 		}
-		else {
-			if (S_ISFIFO(s.st_mode))
-				return true;
+
+		bool ret = false;
+		uint8_t byte1, byte2;
+
+		fread(&byte1, 1, sizeof(uint8_t), f);
+		fread(&byte2, 1, sizeof(uint8_t), f);
+		if (byte1 == 0x1f && byte2 == 0x8b) {
+			ret = true;
 		}
-		size_t pos = filename.find_last_of(".");
-		std::string ext = (pos == std::string::npos) ? "" : filename.substr(pos + 1);
-		if (ext == "" || ext == "gz" || ext == "Z" || "bam") {
-			return true;
-		}
-		return false;
+		fclose(f);
+
+		return ret;
 	}
 	
 	EList<std::string> infiles_;	 // filenames for read files

@@ -469,23 +469,22 @@ void CFilePatternSource::open() {
 			zfp_ = gzdopen(fn, "rb");
 		}
 		else {
-			compressed_ = false;
-			if (is_gzipped_file(infiles_[filecur_])) {
-				compressed_ = true;
-				zfp_ = gzopen(infiles_[filecur_].c_str(), "rb");
-			}
-			else {
-				fp_ = fopen(infiles_[filecur_].c_str(), "rb");
+			const char* filename = infiles_[filecur_].c_str();
+			compressed_ = is_gzipped_file(filename);
+			if (compressed_) {
+				zfp_ = gzopen(filename, "rb");
+			} else {
+				fp_ = fopen(filename, "rb");
 			}
 			if((compressed_ && zfp_ == NULL) || (!compressed_ && fp_ == NULL)) {
 				if(!errs_[filecur_]) {
 					cerr << "Warning: Could not open read file \""
-					     << infiles_[filecur_].c_str()
+					     << filename
 					     << "\" for reading; skipping..." << endl;
 					errs_[filecur_] = true;
-      				}
-      				filecur_++;
-      				continue;
+				}
+				filecur_++;
+				continue;
 			}
 		}
 		is_open_ = true;
