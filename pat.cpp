@@ -1206,33 +1206,19 @@ bool BAMPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 
 	memcpy(&l_read_name, buf + offset[BAMField::l_read_name], sizeof(l_read_name));
 	memcpy(&n_cigar_op, buf + offset[BAMField::n_cigar_op], sizeof(n_cigar_op));
-	memcpy(&l_seq, buf + offset[BAMField::l_seq],  sizeof(l_seq));
-
-	char* read_name = new char[l_read_name];
-	uint32_t* cigar = new uint32_t[n_cigar_op];
-	uint8_t* seq = new uint8_t[(l_seq+1)/2];
-	char* qual = new char[l_seq];
+	memcpy(&l_seq, buf + offset[BAMField::l_seq], sizeof(l_seq));
 
 	int off = offset[BAMField::read_name];
-	memcpy(read_name, buf + off, l_read_name);
-	off += l_read_name;
-	memcpy(cigar, buf + off, n_cigar_op);
-	off += sizeof(uint32_t) * n_cigar_op;
-	memcpy(seq, buf + off, (l_seq+1)/2);
+	ra.name.install(buf + off, l_read_name);
+	off += (l_read_name + sizeof(uint32_t) * n_cigar_op);
+	const char* seq = buf + off;
 	off += (l_seq+1)/2;
-	memcpy(qual, buf + off, l_seq);
-
-	ra.name.install(read_name);
+	const char* qual = buf + off;
 	for (int i = 0; i < l_seq; i++) {
 		ra.qual.append(qual[i] + 33 < 126 ? qual[i] + 33 : 126);
-		int base = "=ACMGRSVTWYHKDBN"[seq[i/2] >> 4*(1-(i)%2) & 0xf];
+		int base = "=ACMGRSVTWYHKDBN"[static_cast<uint8_t>(seq[i/2]) >> 4*(1-(i)%2) & 0xf];
 		ra.patFw.append(asc2dna[base]);
 	}
-
-	delete[] read_name;
-	delete[] cigar;
-	delete[] seq;
-	delete[] qual;
 
 	return true;
 }
