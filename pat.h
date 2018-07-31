@@ -406,9 +406,19 @@ protected:
 		return compressed_ ? gzungetc(c, zfp_) : ungetc(c, fp_);
 	}
 
+	int gzread_wrapper(gzFile file, voidp buf, unsigned len) {
+		int r = gzread(file, buf, len);
+		if (r < 0) {
+			const char *err = gzerror(file, NULL);
+			std::cerr << err << std::endl;
+		}
+		return r;
+	}
+
+
 	void parse_bam_header();
 
-	char *get_bam_alignment_record();
+	pair<char*, int> get_bam_alignment_record();
 
 	bool is_gzipped_file(const std::string& filename) {
 		struct stat s;
@@ -421,7 +431,7 @@ protected:
 		}
 		size_t pos = filename.find_last_of(".");
 		std::string ext = (pos == std::string::npos) ? "" : filename.substr(pos + 1);
-		if (ext == "" || ext == "gz" || ext == "Z") {
+		if (ext == "" || ext == "gz" || ext == "Z" || "bam") {
 			return true;
 		}
 		return false;
@@ -733,14 +743,15 @@ protected:
 		bool batch_a,
 		unsigned readi) {
 		bool done = false;
-		while (readi < pt.max_buf_ && !done) {
-			char *aln_rec = get_bam_alignment_record();
-			if (aln_rec == NULL) {
+		while (readi < pt.max_buf_) {
+			pair<char*, int> aln_rec = get_bam_alignment_record();
+			if (aln_rec.first == NULL) {
 				done = true;
 				break;
 			}
-			pt.bufa_[readi].readOrigBuf.install(aln_rec);
-			delete[] aln_rec;
+			pt.bufa_[readi].readOrigBuf.install(aln_rec.first, aln_rec.second);
+			delete[] aln_rec.first;
+			readi++;
 		}
 		return make_pair(done, readi);
 	}
@@ -755,8 +766,8 @@ protected:
 	bool first_; // parsing first read in file
 
 private:
-	struct AlnRecField {
-		enum aln_rec_field_names {
+	struct BAMField {
+		enum aln_rec_field_name {
 			refID,
 			pos,
 			l_read_name,
@@ -768,10 +779,11 @@ private:
 			next_refID,
 			next_pos,
 			tlen,
+			read_name,
 		};
 	};
 
-	static const int aln_rec_field_sizes[];
+	static const int offset[];
 };
 
 /**

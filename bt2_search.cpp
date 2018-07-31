@@ -457,7 +457,7 @@ static void resetOptions() {
 	logDpsOpp.clear();       // log mate-search dynamic programming problems
 }
 
-static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:w:p:k:M:1:2:I:X:CQ:N:i:L:U:x:S:g:O:D:R:";
+static const char *short_options = "bfF:qbzhcu:rv:s:aP:t3:5:w:p:k:M:1:2:I:X:CQ:N:i:L:U:x:S:g:O:D:R:";
 
 static struct option long_options[] = {
 {(char*)"verbose",                     no_argument,        0,                   ARG_VERBOSE},
@@ -990,6 +990,7 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_TAB5:   tokenize(arg, ",", mates12); format = TAB_MATE5; break;
 		case ARG_TAB6:   tokenize(arg, ",", mates12); format = TAB_MATE6; break;
 		case ARG_INTERLEAVED_FASTQ: tokenize(arg, ",", mates12); format = INTERLEAVED; break;
+		case 'b': format = BAM; break;
 		case 'f': format = FASTA; break;
 		case 'F': {
 			format = FASTA_CONT;

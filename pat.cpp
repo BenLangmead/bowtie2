@@ -18,9 +18,11 @@
  */
 
 #include <cmath>
+#include <stdio.h>
 #include <iostream>
 #include <string>
 #include <stdexcept>
+#include <string.h>
 #include "sstring.h"
 
 #include "pat.h"
@@ -98,6 +100,7 @@ PatternSource* PatternSource::patsrcFromStrings(
 		case FASTA_CONT:  return new FastaContinuousPatternSource(qs, p);
 		case RAW:         return new RawPatternSource(qs, p);
 		case FASTQ:       return new FastqPatternSource(qs, p);
+		case BAM:         return new BAMPatternSource(qs, p);
 		case INTERLEAVED: return new FastqPatternSource(qs, p, true /* interleaved */);
 		case TAB_MATE5:   return new TabbedPatternSource(qs, p, false);
 		case TAB_MATE6:   return new TabbedPatternSource(qs, p, true);
@@ -507,7 +510,7 @@ void CFilePatternSource::open() {
 void CFilePatternSource::parse_bam_header() {
 	char magic[4];
 
-	if (gzread(zfp_, magic, 4) != 4 || strncmp(magic, "BAM\001", 4)) {
+	if (gzread_wrapper(zfp_, magic, 4) != 4 || strncmp(magic, "BAM\001", 4) != 0) {
 		std::cerr << "This file is not a BAM file" << std::endl;
 		exit(1);
 	}
@@ -516,36 +519,44 @@ void CFilePatternSource::parse_bam_header() {
 	char *text = NULL;
 	int32_t n_ref;
 
-	gzread(zfp_, &l_text, sizeof(l_text));
+	gzread_wrapper(zfp_, &l_text, sizeof(l_text));
 	text = new char[l_text+1];
-	gzread(zfp_, text, l_text);
-	if (gzread(zfp_, &n_ref, sizeof(n_ref) != 4)) {
+	gzread_wrapper(zfp_, text, l_text);
+	if (gzread_wrapper(zfp_, &n_ref, 4) != 4) {
 		std::cerr << "Unable to read n_ref" << std::endl;
 	}
 
-	for (int i = 0; i < n_ref; i++) {
+	for (int i = 0; i != n_ref; i++) {
 		int32_t l_name;
 		char *name = NULL;
-		int32_t l_ref;;
+		int32_t l_ref;
 
-		gzread(zfp_, &l_name, sizeof(l_name));
+		gzread_wrapper(zfp_, &l_name, sizeof(l_name));
 		name = new char[l_name+1];
-		gzread(zfp_, name, l_name);
-		gzread(zfp_, &l_ref, sizeof(l_ref));
+		gzread_wrapper(zfp_, name, l_name);
+		gzread_wrapper(zfp_, &l_ref, sizeof(l_ref));
 		delete[] name;
 	}
+	delete[] text;
 }
 
-char *CFilePatternSource::get_bam_alignment_record() {
+pair<char*, int> CFilePatternSource::get_bam_alignment_record() {
+	if (first_) {
+		parse_bam_header();
+	}
+
+	int r;
 	int32_t block_size;
-	if (gzread(zfp_, &block_size, sizeof(block_size)) != sizeof(block_size)) {
-		std::cerr << "Unable to read BAM alignment block size" << std::endl;
+	if ((r = gzread_wrapper(zfp_, &block_size, 4)) != 4) {
+		return make_pair((char*)NULL, 0);
 	}
 	char *aln_block = new char[block_size];
-	if (gzread(zfp_, aln_block, block_size) != block_size) {
-		std::cerr << "Unable to read BAM alignment block" << std::endl;
+	if (gzread_wrapper(zfp_, aln_block, block_size) != block_size) {
+		delete[] aln_block;
+		aln_block = NULL;
 	}
-	return aln_block;
+	first_ = false;
+	return std::make_pair(aln_block, block_size);
 }
 
 /**
@@ -1172,21 +1183,57 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 	return true;
 }
 
-const int aln_rec_field_sizes[] = {
-		sizeof(int32_t),   //refID
-		sizeof(int32_t),   //pos
-		sizeof(int32_t),   //l_read_name
-		sizeof(uint8_t),   //mapq
-		sizeof(uint8_t),   //bin
-		sizeof(uint16_t),  //n_cigar_og
-		sizeof(uint16_t),  //flag
-		sizeof(uint16_t),  //l_seq
-		sizeof(int32_t),   //next_refID
-		sizeof(int32_t),   //next_pos
-		sizeof(int32_t)    //read_name
+const int BAMPatternSource::offset[] = {
+	0,   //refID
+	4,   //pos
+	8,   //l_read_name
+	9,   //mapq
+	10,  //bin
+	12,  //n_cigar_op
+	14,  //flag
+	16,  //l_seq
+	20,  //next_refID
+	24,  //next_pos
+	28,  //tlen
+	32,  //read_name
 };
 
 bool BAMPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
+	uint8_t l_read_name;
+	int32_t l_seq;
+	uint16_t n_cigar_op;
+	const char* buf = ra.readOrigBuf.buf();
+
+	memcpy(&l_read_name, buf + offset[BAMField::l_read_name], sizeof(l_read_name));
+	memcpy(&n_cigar_op, buf + offset[BAMField::n_cigar_op], sizeof(n_cigar_op));
+	memcpy(&l_seq, buf + offset[BAMField::l_seq],  sizeof(l_seq));
+
+	char* read_name = new char[l_read_name];
+	uint32_t* cigar = new uint32_t[n_cigar_op];
+	uint8_t* seq = new uint8_t[(l_seq+1)/2];
+	char* qual = new char[l_seq];
+
+	int off = offset[BAMField::read_name];
+	memcpy(read_name, buf + off, l_read_name);
+	off += l_read_name;
+	memcpy(cigar, buf + off, n_cigar_op);
+	off += sizeof(uint32_t) * n_cigar_op;
+	memcpy(seq, buf + off, (l_seq+1)/2);
+	off += (l_seq+1)/2;
+	memcpy(qual, buf + off, l_seq);
+
+	ra.name.install(read_name);
+	for (int i = 0; i < l_seq; i++) {
+		ra.qual.append(qual[i] + 33 < 126 ? qual[i] + 33 : 126);
+		int base = "=ACMGRSVTWYHKDBN"[seq[i/2] >> 4*(1-(i)%2) & 0xf];
+		ra.patFw.append(asc2dna[base]);
+	}
+
+	delete[] read_name;
+	delete[] cigar;
+	delete[] seq;
+	delete[] qual;
+
 	return true;
 }
 
