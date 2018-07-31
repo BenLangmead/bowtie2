@@ -507,58 +507,6 @@ void CFilePatternSource::open() {
 	return;
 }
 
-void CFilePatternSource::parse_bam_header() {
-	char magic[4];
-
-	if (gzread_wrapper(zfp_, magic, 4) != 4 || strncmp(magic, "BAM\001", 4) != 0) {
-		std::cerr << "This file is not a BAM file" << std::endl;
-		exit(1);
-	}
-
-	int32_t l_text = 0;
-	char *text = NULL;
-	int32_t n_ref;
-
-	gzread_wrapper(zfp_, &l_text, sizeof(l_text));
-	text = new char[l_text+1];
-	gzread_wrapper(zfp_, text, l_text);
-	if (gzread_wrapper(zfp_, &n_ref, 4) != 4) {
-		std::cerr << "Unable to read n_ref" << std::endl;
-	}
-
-	for (int i = 0; i != n_ref; i++) {
-		int32_t l_name;
-		char *name = NULL;
-		int32_t l_ref;
-
-		gzread_wrapper(zfp_, &l_name, sizeof(l_name));
-		name = new char[l_name+1];
-		gzread_wrapper(zfp_, name, l_name);
-		gzread_wrapper(zfp_, &l_ref, sizeof(l_ref));
-		delete[] name;
-	}
-	delete[] text;
-}
-
-pair<char*, int> CFilePatternSource::get_bam_alignment_record() {
-	if (first_) {
-		parse_bam_header();
-	}
-
-	int r;
-	int32_t block_size;
-	if ((r = gzread_wrapper(zfp_, &block_size, 4)) != 4) {
-		return make_pair((char*)NULL, 0);
-	}
-	char *aln_block = new char[block_size];
-	if (gzread_wrapper(zfp_, aln_block, block_size) != block_size) {
-		delete[] aln_block;
-		aln_block = NULL;
-	}
-	first_ = false;
-	return std::make_pair(aln_block, block_size);
-}
-
 /**
  * Constructor for vector pattern source, used when the user has
  * specified the input strings on the command line using the -c
@@ -1198,6 +1146,96 @@ const int BAMPatternSource::offset[] = {
 	32,  //read_name
 };
 
+bool BAMPatternSource::parse_bam_header() {
+	char magic[4];
+
+	if (zread(magic, 4) != 4 || strncmp(magic, "BAM\001", 4) != 0) {
+		std::cerr << "This file is not a BAM file" << std::endl;
+		return false;
+	}
+
+	int32_t l_text = 0;
+	int32_t n_ref  = 0;
+	char* data = NULL;
+	int32_t size = 0;
+
+	if (zread(&l_text, sizeof(l_text)) != sizeof(l_text)) {
+		return false;
+	}
+
+	size = l_text + 1;
+	data = new char[size];
+	if (data == NULL) {
+		return false;
+	}
+	if (zread(data, l_text) != l_text) {
+		delete[] data;
+		return false;
+	}
+	if (zread(&n_ref, sizeof(n_ref)) != sizeof(n_ref)) {
+		delete[] data;
+		return false;
+	}
+
+	for (int i = 0; i != n_ref; i++) {
+		int32_t l_name, l_ref;
+		if (zread(&l_name, sizeof(l_name)) != sizeof(l_name)) {
+			delete[] data;
+			return false;
+		}
+		if (l_name > size) {
+			size = l_name;
+			delete[] data;
+			data = new char[size];
+		}
+		if (zread(data, l_name) != l_name) {
+			delete[] data;
+			return false;
+		}
+		if (zread(&l_ref, sizeof(l_ref)) != sizeof(l_ref)) {
+			delete[] data;
+			return false;
+		}
+	}
+
+	delete[] data;
+
+	return true;
+}
+
+std::pair<bool, int> BAMPatternSource::nextBatchFromFile(PerThreadReadBuf& pt,
+		bool batch_a, unsigned readi) {
+	if (first_) {
+		first_ = false;
+		if (!parse_bam_header()) {
+			std::cerr << "Unable to parse BAM file" << std::endl;
+			return make_pair(true, 0);
+		}
+	}
+
+	bool done = false;
+
+	while (readi < pt.max_buf_) {
+		int r;
+		int32_t block_size;
+		EList<Read>& readbuf = batch_a ? pt.bufa_ : pt.bufb_;
+		if ((r = zread(&block_size, sizeof(block_size))) != sizeof(block_size)) {
+			return make_pair(true, readi);
+		}
+
+		if (readbuf[readi].readOrigBuf.length() < block_size) {
+			readbuf[readi].readOrigBuf.resize(block_size * 2);
+		}
+
+		if (zread(readbuf[readi].readOrigBuf.wbuf(), block_size) != block_size) {
+			done = true;
+			break;
+		}
+		readi++;
+	}
+	return make_pair(done, readi);
+}
+
 bool BAMPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 	uint8_t l_read_name;
 	int32_t l_seq;
@@ -1209,14 +1247,14 @@ bool BAMPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 	memcpy(&l_seq, buf + offset[BAMField::l_seq], sizeof(l_seq));
 
 	int off = offset[BAMField::read_name];
-	ra.name.install(buf + off, l_read_name);
+	ra.name.install(buf + off, l_read_name-1);
 	off += (l_read_name + sizeof(uint32_t) * n_cigar_op);
 	const char* seq = buf + off;
 	off += (l_seq+1)/2;
 	const char* qual = buf + off;
 	for (int i = 0; i < l_seq; i++) {
-		ra.qual.append(qual[i] + 33 < 126 ? qual[i] + 33 : 126);
-		int base = "=ACMGRSVTWYHKDBN"[static_cast<uint8_t>(seq[i/2]) >> 4*(1-(i)%2) & 0xf];
+		ra.qual.append(qual[i] + 33);
+		int base = "=ACMGRSVTWYHKDBN"[static_cast<uint8_t>(seq[i/2]) >> 4*(1-(i%2)) & 0xf];
 		ra.patFw.append(asc2dna[base]);
 	}
 

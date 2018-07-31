@@ -406,19 +406,14 @@ protected:
 		return compressed_ ? gzungetc(c, zfp_) : ungetc(c, fp_);
 	}
 
-	int gzread_wrapper(gzFile file, voidp buf, unsigned len) {
-		int r = gzread(file, buf, len);
+	int zread(voidp buf, unsigned len) {
+		int r = gzread(zfp_, buf, len);
 		if (r < 0) {
-			const char *err = gzerror(file, NULL);
+			const char *err = gzerror(zfp_, NULL);
 			std::cerr << err << std::endl;
 		}
 		return r;
 	}
-
-
-	void parse_bam_header();
-
-	pair<char*, int> get_bam_alignment_record();
 
 	bool is_gzipped_file(const std::string& filename) {
 		struct stat s;
@@ -738,23 +733,9 @@ protected:
 	/**
 	 * Light-parse a batch into the given buffer.
 	 */
-	virtual std::pair<bool, int> nextBatchFromFile(
-		PerThreadReadBuf& pt,
-		bool batch_a,
-		unsigned readi) {
-		bool done = false;
-		while (readi < pt.max_buf_) {
-			pair<char*, int> aln_rec = get_bam_alignment_record();
-			if (aln_rec.first == NULL) {
-				done = true;
-				break;
-			}
-			pt.bufa_[readi].readOrigBuf.install(aln_rec.first, aln_rec.second);
-			delete[] aln_rec.first;
-			readi++;
-		}
-		return make_pair(done, readi);
-	}
+	virtual std::pair<bool, int> nextBatchFromFile(PerThreadReadBuf& pt, bool batch_a,
+			unsigned readi);
+
 
 	/**
 	 * Reset state to be ready for the next file.
@@ -766,6 +747,9 @@ protected:
 	bool first_; // parsing first read in file
 
 private:
+
+	bool parse_bam_header();
+
 	struct BAMField {
 		enum aln_rec_field_name {
 			refID,
