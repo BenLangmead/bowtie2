@@ -305,6 +305,11 @@ public:
 		const PerReadMetrics& prm, // per-read metrics
 		const Scoring& sc)         // scoring scheme
 		const;
+
+	/**
+	 * Print optional flags that that have been preserve from BAM input
+	 */
+	void printPreservedOptFlags(BTString& o, const Read& rd) const;
 	
 	/**
 	 * Return true iff we should try to obey the SAM spec's recommendations

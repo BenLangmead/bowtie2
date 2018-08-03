@@ -157,6 +157,7 @@ enum {
 	ARG_THREAD_CEILING,         // --thread-ceiling
 	ARG_THREAD_PIDDIR,          // --thread-piddir
 	ARG_INTERLEAVED_FASTQ,      // --interleaved
+	ARG_PRESERVE_SAM_TAGS,      // --preserve-sam-tags
 	ARG_TRIM_READS_EXCEEDING_LEN// --trim-reads-exceeding-len
 };
 

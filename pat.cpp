@@ -20,6 +20,7 @@
 #include <cmath>
 #include <stdio.h>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <stdexcept>
 #include <string.h>
@@ -1221,11 +1222,9 @@ std::pair<bool, int> BAMPatternSource::nextBatchFromFile(PerThreadReadBuf& pt,
 		if ((r = zread(&block_size, sizeof(block_size))) != sizeof(block_size)) {
 			return make_pair(true, readi);
 		}
-
 		if (readbuf[readi].readOrigBuf.length() < block_size) {
-			readbuf[readi].readOrigBuf.resize(block_size * 2);
+			readbuf[readi].readOrigBuf.resize(block_size);
 		}
-
 		if (zread(readbuf[readi].readOrigBuf.wbuf(), block_size) != block_size) {
 			done = true;
 			break;
@@ -1240,6 +1239,7 @@ bool BAMPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 	int32_t l_seq;
 	uint16_t n_cigar_op;
 	const char* buf = ra.readOrigBuf.buf();
+	int block_size = ra.readOrigBuf.length();
 
 	memcpy(&l_read_name, buf + offset[BAMField::l_read_name], sizeof(l_read_name));
 	memcpy(&n_cigar_op, buf + offset[BAMField::n_cigar_op], sizeof(n_cigar_op));
@@ -1255,6 +1255,10 @@ bool BAMPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 		ra.qual.append(qual[i] + 33);
 		int base = "=ACMGRSVTWYHKDBN"[static_cast<uint8_t>(seq[i/2]) >> 4*(1-(i%2)) & 0xf];
 		ra.patFw.append(asc2dna[base]);
+	}
+	if (pp_.preserve_sam_tags) {
+		off += l_seq;
+		ra.preservedOptFlags.install(buf + off, block_size - off);
 	}
 
 	return true;

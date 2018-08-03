@@ -177,6 +177,7 @@ static bool sam_print_zi;
 static bool sam_print_zp;
 static bool sam_print_zu;
 static bool sam_print_zt;
+static bool preserve_sam_tags; // Only applies when aligning BAM files
 static bool bwaSwLike;
 static bool gSeedLenIsSet;
 static float bwaSwLikeC;
@@ -371,6 +372,7 @@ static void resetOptions() {
 	sam_print_zp            = false;
 	sam_print_zu            = false;
 	sam_print_zt            = false;
+	preserve_sam_tags       = false;
 	bwaSwLike               = false;
 	gSeedLenIsSet			= false;
 	bwaSwLikeC              = 5.5f;
@@ -645,6 +647,7 @@ static struct option long_options[] = {
 {(char*)"xeq",                         no_argument,        0,                   ARG_XEQ},
 {(char*)"thread-ceiling",              required_argument,  0,                   ARG_THREAD_CEILING},
 {(char*)"thread-piddir",               required_argument,  0,                   ARG_THREAD_PIDDIR},
+{(char*)"preserve-sam-tags",           no_argument,        0,                   ARG_PRESERVE_SAM_TAGS},
 {(char*)"trim-reads-exceeding-len",    required_argument,  0,                   ARG_TRIM_READS_EXCEEDING_LEN},
 {(char*)0,                             0,                  0,                   0} //  terminator
 };
@@ -951,6 +954,8 @@ static bool saw_k;
 static bool saw_trim3;
 static bool saw_trim5;
 static bool saw_trim_reads_exceeding_len;
+static bool saw_bam;
+static bool saw_preserve_sam_tags;
 static EList<string> presetList;
 
 /**
@@ -990,7 +995,11 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_TAB5:   tokenize(arg, ",", mates12); format = TAB_MATE5; break;
 		case ARG_TAB6:   tokenize(arg, ",", mates12); format = TAB_MATE6; break;
 		case ARG_INTERLEAVED_FASTQ: tokenize(arg, ",", mates12); format = INTERLEAVED; break;
-		case 'b': format = BAM; break;
+		case 'b': {
+			format = BAM;
+			saw_bam = true;
+			break;
+		}
 		case 'f': format = FASTA; break;
 		case 'F': {
 			format = FASTA_CONT;
@@ -1034,6 +1043,11 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_SEED_SUMM: seedSumm = true; break;
 		case ARG_SC_UNMAPPED: scUnMapped = true; break;
 		case ARG_XEQ: xeq = true; break;
+		case ARG_PRESERVE_SAM_TAGS: {
+			preserve_sam_tags = true;
+			saw_preserve_sam_tags = true;
+			break;
+		}
 		case ARG_MM: {
 #ifdef BOWTIE_MM
 			useMm = true;
@@ -1503,6 +1517,8 @@ static void parseOptions(int argc, const char **argv) {
 	saw_trim3 = false;
 	saw_trim5 = false;
 	saw_trim_reads_exceeding_len = false;
+	saw_bam = false;
+	saw_preserve_sam_tags = false;
 	presetList.clear();
 	if(startVerbose) { cerr << "Parsing options: "; logTime(cerr, true); }
 	while(true) {
@@ -1530,6 +1546,11 @@ static void parseOptions(int argc, const char **argv) {
 	if ((saw_trim3 || saw_trim5) && saw_trim_reads_exceeding_len) {
 		cerr << "ERROR: --trim5/--trim3 and --trim-reads-exceeding-len are mutually exclusive "
 			 << "options." << endl;
+		exit(1);
+	}
+
+	if (!saw_bam && saw_preserve_sam_tags) {
+		cerr << "--preserve_sam_tag can only be set when when aligning BAM reads." << endl;
 		exit(1);
 	}
 	// Now parse all the presets.  Might want to pick which presets version to
@@ -4751,7 +4772,8 @@ static void driver(
 		fastaContFreq, // frequency of sampled reads for FastaContinuous...
 		skipReads,     // skip the first 'skip' patterns
 		nthreads,      //number of threads for locking
-		outType != OUTPUT_SAM // whether to fix mate names
+		outType != OUTPUT_SAM, // whether to fix mate names
+		preserve_sam_tags // keep existing SAM tags when aligning BAM files
 	);
 	if(gVerbose || startVerbose) {
 		cerr << "Creating PatternSource: "; logTime(cerr, true);
