@@ -1214,11 +1214,14 @@ std::pair<bool, int> BAMPatternSource::nextBatchFromFile(PerThreadReadBuf& pt,
 	}
 
 	bool done = false;
+	bool read1 = true;
 
 	while (readi < pt.max_buf_) {
 		int r;
+		uint16_t flag;
 		int32_t block_size;
-		EList<Read>& readbuf = batch_a ? pt.bufa_ : pt.bufb_;
+		EList<Read>& readbuf = pp_.align_paired_reads && !read1 ? pt.bufb_ : pt.bufa_;
+
 		if ((r = zread(&block_size, sizeof(block_size))) != sizeof(block_size)) {
 			return make_pair(true, readi);
 		}
@@ -1229,7 +1232,27 @@ std::pair<bool, int> BAMPatternSource::nextBatchFromFile(PerThreadReadBuf& pt,
 			done = true;
 			break;
 		}
-		readi++;
+		memcpy(&flag, readbuf[readi].readOrigBuf.buf() + offset[BAMField::flag], sizeof(flag));
+		if (!pp_.align_paired_reads && ((flag & 0x40) != 0 || (flag & 0x80) != 0)) {
+			readbuf[readi].readOrigBuf.clear();
+			continue;
+		}
+		if (pp_.align_paired_reads && ((flag & 0x40) == 0 && (flag & 0x80) == 0)) {
+			readbuf[readi].readOrigBuf.clear();
+			continue;
+		}
+		if (pp_.align_paired_reads && read1 && (flag & 0x40) == 0) {
+			std::cerr << "Paired reads are out of order" << std::endl;
+			return make_pair(true, readi == 0 ? readi : readi-1);
+		}
+		if (pp_.align_paired_reads && !read1 && (flag & 0x80) == 0) {
+			std::cerr << "Paired reads are out of order" << std::endl;
+			return make_pair(true, readi == 0 ? readi : readi-1);
+		}
+
+		read1 = !read1;
+		readi = (pp_.align_paired_reads
+				 && pt.bufb_[readi].readOrigBuf.length() == 0) ? readi : readi + 1;
 	}
 	return make_pair(done, readi);
 }
@@ -1259,6 +1282,11 @@ bool BAMPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 	if (pp_.preserve_sam_tags) {
 		off += l_seq;
 		ra.preservedOptFlags.install(buf + off, block_size - off);
+	}
+
+	ra.parsed = true;
+	if (!rb.parsed && rb.readOrigBuf.length() != 0) {
+		return parse(rb, ra, rdid);
 	}
 
 	return true;

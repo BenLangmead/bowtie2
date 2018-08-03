@@ -158,6 +158,7 @@ enum {
 	ARG_THREAD_PIDDIR,          // --thread-piddir
 	ARG_INTERLEAVED_FASTQ,      // --interleaved
 	ARG_PRESERVE_SAM_TAGS,      // --preserve-sam-tags
+	ARG_ALIGN_PAIRED_READS,     // --align-paired-reads
 	ARG_TRIM_READS_EXCEEDING_LEN// --trim-reads-exceeding-len
 };
 

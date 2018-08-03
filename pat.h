@@ -68,7 +68,8 @@ struct PatternParams {
 		size_t skip_,
 		int nthreads_,
 		bool fixName_,
-		bool preserve_sam_tags_) :
+		bool preserve_sam_tags_,
+		bool align_paired_reads_) :
 		format(format_),
 		fileParallel(fileParallel_),
 		seed(seed_),
@@ -84,7 +85,8 @@ struct PatternParams {
 		skip(skip_),
 		nthreads(nthreads_),
 		fixName(fixName_),
-		preserve_sam_tags(preserve_sam_tags_) { }
+		preserve_sam_tags(preserve_sam_tags_),
+		align_paired_reads(align_paired_reads_) { }
 
 	int format;			  // file format
 	bool fileParallel;	  // true -> wrap files with separate PatternComposers
@@ -102,6 +104,7 @@ struct PatternParams {
 	int nthreads;		  // number of threads for locking
 	bool fixName;		  //
 	bool preserve_sam_tags; // keep existing SAM tags when aligning BAM files
+	bool align_paired_reads;
 };
 
 /**
