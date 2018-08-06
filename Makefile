@@ -527,7 +527,7 @@ perl-deps:
 .PHONY: static-libs
 static-libs:
 	if [[ ! -d $(CURDIR)/.tmp/lib || ! -d $(CURDIR)/.tmp/include ]]; then \
-		mkdir $(CURDIR)/.tmp/lib $(CURDIR)/.tmp/include ; \
+		mkdir -p $(CURDIR)/.tmp/lib $(CURDIR)/.tmp/include ; \
 	fi ; \
 	if [[ `uname` = "Darwin" ]]; then \
 		export CFLAGS=-mmacosx-version-min=10.9 ; \
