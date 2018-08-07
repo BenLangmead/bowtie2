@@ -157,7 +157,7 @@ enum {
 	ARG_THREAD_CEILING,         // --thread-ceiling
 	ARG_THREAD_PIDDIR,          // --thread-piddir
 	ARG_INTERLEAVED_FASTQ,      // --interleaved
-	ARG_TRIM_READS_EXCEEDING_LEN// --trim-reads-exceeding-len
+	ARG_TRIM_TO                 // --trim-reads-exceeding-len
 };
 
 #endif

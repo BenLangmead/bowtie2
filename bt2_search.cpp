@@ -97,7 +97,7 @@ static int ipause;        // pause before maching?
 static uint32_t qUpto;    // max # of queries to read
 static int gTrim5;        // amount to trim from 5' end
 static int gTrim3;        // amount to trim from 3' end
-static pair<short, size_t> trimReadsExceedingLen; // trim reads exceeding given length from either 3' or 5'-end
+static pair<short, size_t> trimTo; // trim reads exceeding given length from either 3' or 5'-end
 static int offRate;       // keep default offRate
 static bool solexaQuals;  // quality strings are solexa quals, not phred, and subtract 64 (not 33)
 static bool phred64Quals; // quality chars are phred, but must subtract 64 (not 33)
@@ -289,7 +289,7 @@ static void resetOptions() {
 	qUpto					= 0xffffffff; // max # of queries to read
 	gTrim5					= 0; // amount to trim from 5' end
 	gTrim3					= 0; // amount to trim from 3' end
-	trimReadsExceedingLen = pair<short, size_t>(5, 0); // default: don't do any trimming
+	trimTo = pair<short, size_t>(5, 0); // default: don't do any trimming
 	offRate					= -1; // keep default offRate
 	solexaQuals				= false; // quality strings are solexa quals, not phred, and subtract 64 (not 33)
 	phred64Quals			= false; // quality chars are phred, but must subtract 64 (not 33)
@@ -645,7 +645,7 @@ static struct option long_options[] = {
 {(char*)"xeq",                         no_argument,        0,                   ARG_XEQ},
 {(char*)"thread-ceiling",              required_argument,  0,                   ARG_THREAD_CEILING},
 {(char*)"thread-piddir",               required_argument,  0,                   ARG_THREAD_PIDDIR},
-{(char*)"trim-reads-exceeding-len",    required_argument,  0,                   ARG_TRIM_READS_EXCEEDING_LEN},
+{(char*)"trim-to",                     required_argument,  0,                   ARG_TRIM_TO},
 {(char*)0,                             0,                  0,                   0} //  terminator
 };
 
@@ -739,7 +739,8 @@ static void printUsage(ostream& out) {
 	    << "  -u/--upto <int>    stop after first <int> reads/pairs (no limit)" << endl
 	    << "  -5/--trim5 <int>   trim <int> bases from 5'/left end of reads (0)" << endl
 	    << "  -3/--trim3 <int>   trim <int> bases from 3'/right end of reads (0)" << endl
-	    << "  --trim-reads-exceeding-len <3|5:int>   trim <int> bases from either 3'/right or 5'/left end of reads (no trimming)" << endl
+	    << "  --trim-to [3:|5:]<int> trim reads exceeding <int> bases from either 3' or 5' end" << endl
+	    << "                     If the read end is not specified then it defaults to 3 (0)" << endl
 	    << "  --phred33          qualities are Phred+33 (default)" << endl
 	    << "  --phred64          qualities are Phred+64" << endl
 	    << "  --int-quals        qualities encoded as space-delimited integers" << endl
@@ -950,7 +951,7 @@ static bool saw_a;
 static bool saw_k;
 static bool saw_trim3;
 static bool saw_trim5;
-static bool saw_trim_reads_exceeding_len;
+static bool saw_trim_to;
 static EList<string> presetList;
 
 /**
@@ -1108,17 +1109,24 @@ static void parseOption(int next_option, const char *arg) {
 			break;
 		case '3': gTrim3 = parseInt(0, "-3/--trim3 arg must be at least 0", arg); break;
 		case '5': gTrim5 = parseInt(0, "-5/--trim5 arg must be at least 0", arg); break;
-		case ARG_TRIM_READS_EXCEEDING_LEN: {
+		case ARG_TRIM_TO: {
+			if (strlen(arg) > 1 && arg[1] != ':') {
+				trimTo.first = 3;
+				trimTo.second = parseInt(0, "--trim-to: the number of bases to trim must be at least 0", arg);
+				break;
+			}
 			pair<int, int> res = parsePair<int>(arg, ':');
 			if (res.first != 3 && res.first != 5) {
-				cerr << "--trim-reads-exceeding-len pos:n: pos must be either 3 or 5" << endl;
+				cerr << "--trim-to: trim position must be either 3 or 5" << endl;
+				printUsage(cerr);
 				throw 1;
 			}
 			if(res.second < 0) {
-				cerr << "--trim-reads-exceeding-len pos:n: n must be at least 0" << endl;
+				cerr << "--trim-to: the number bases to trim must be at least 0" << endl;
+				printUsage(cerr);
 				throw 1;
 			}
-			trimReadsExceedingLen = static_cast<pair<short, size_t> >(res);
+			trimTo = static_cast<pair<short, size_t> >(res);
 			break;
 		}
 		case 'h': printUsage(cout); throw 0; break;
@@ -1501,7 +1509,7 @@ static void parseOptions(int argc, const char **argv) {
 	saw_k = false;
 	saw_trim3 = false;
 	saw_trim5 = false;
-	saw_trim_reads_exceeding_len = false;
+	saw_trim_to = false;
 	presetList.clear();
 	if(startVerbose) { cerr << "Parsing options: "; logTime(cerr, true); }
 	while(true) {
@@ -1526,8 +1534,8 @@ static void parseOptions(int argc, const char **argv) {
 		exit(1);
 	}
 
-	if ((saw_trim3 || saw_trim5) && saw_trim_reads_exceeding_len) {
-		cerr << "ERROR: --trim5/--trim3 and --trim-reads-exceeding-len are mutually exclusive "
+	if ((saw_trim3 || saw_trim5) && saw_trim_to) {
+		cerr << "ERROR: --trim5/--trim3 and --trim-to are mutually exclusive "
 			 << "options." << endl;
 		exit(1);
 	}
@@ -4745,7 +4753,7 @@ static void driver(
 		integerQuals,  // true -> qualities are space-separated numbers
 		gTrim5,        // amt to hard clip from 5' end
 		gTrim3,        // amt to hard clip from 3' end
-		trimReadsExceedingLen, // trim reads exceeding given length from either 3' or 5'-end
+		trimTo,        // trim reads exceeding given length from either 3' or 5'-end
 		fastaContLen,  // length of sampled reads for FastaContinuous...
 		fastaContFreq, // frequency of sampled reads for FastaContinuous...
 		skipReads,     // skip the first 'skip' patterns
