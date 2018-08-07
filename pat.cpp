@@ -18,9 +18,12 @@
  */
 
 #include <cmath>
+#include <stdio.h>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <stdexcept>
+#include <string.h>
 #include "sstring.h"
 
 #include "pat.h"
@@ -98,6 +101,7 @@ PatternSource* PatternSource::patsrcFromStrings(
 		case FASTA_CONT:  return new FastaContinuousPatternSource(qs, p);
 		case RAW:         return new RawPatternSource(qs, p);
 		case FASTQ:       return new FastqPatternSource(qs, p);
+		case BAM:         return new BAMPatternSource(qs, p);
 		case INTERLEAVED: return new FastqPatternSource(qs, p, true /* interleaved */);
 		case TAB_MATE5:   return new TabbedPatternSource(qs, p, false);
 		case TAB_MATE6:   return new TabbedPatternSource(qs, p, true);
@@ -466,23 +470,22 @@ void CFilePatternSource::open() {
 			zfp_ = gzdopen(fn, "rb");
 		}
 		else {
-			compressed_ = false;
-			if (is_gzipped_file(infiles_[filecur_])) {
-				compressed_ = true;
-				zfp_ = gzopen(infiles_[filecur_].c_str(), "rb");
-			}
-			else {
-				fp_ = fopen(infiles_[filecur_].c_str(), "rb");
+			const char* filename = infiles_[filecur_].c_str();
+			compressed_ = is_gzipped_file(filename);
+			if (compressed_) {
+				zfp_ = gzopen(filename, "rb");
+			} else {
+				fp_ = fopen(filename, "rb");
 			}
 			if((compressed_ && zfp_ == NULL) || (!compressed_ && fp_ == NULL)) {
 				if(!errs_[filecur_]) {
 					cerr << "Warning: Could not open read file \""
-					     << infiles_[filecur_].c_str()
+					     << filename
 					     << "\" for reading; skipping..." << endl;
 					errs_[filecur_] = true;
-      				}
-      				filecur_++;
-      				continue;
+				}
+				filecur_++;
+				continue;
 			}
 		}
 		is_open_ = true;
@@ -1125,6 +1128,167 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 	if(!rb.parsed && !rb.readOrigBuf.empty()) {
 		return parse(rb, r, rdid);
 	}
+	return true;
+}
+
+const int BAMPatternSource::offset[] = {
+	0,   //refID
+	4,   //pos
+	8,   //l_read_name
+	9,   //mapq
+	10,  //bin
+	12,  //n_cigar_op
+	14,  //flag
+	16,  //l_seq
+	20,  //next_refID
+	24,  //next_pos
+	28,  //tlen
+	32,  //read_name
+};
+
+bool BAMPatternSource::parse_bam_header() {
+	char magic[4];
+
+	if (zread(magic, 4) != 4 || strncmp(magic, "BAM\001", 4) != 0) {
+		std::cerr << "This file is not a BAM file" << std::endl;
+		return false;
+	}
+
+	int32_t l_text = 0;
+	int32_t n_ref  = 0;
+	char* data = NULL;
+	int32_t size = 0;
+
+	if (zread(&l_text, sizeof(l_text)) != sizeof(l_text)) {
+		return false;
+	}
+
+	size = l_text + 1;
+	data = new char[size];
+	if (data == NULL) {
+		return false;
+	}
+	if (zread(data, l_text) != l_text) {
+		delete[] data;
+		return false;
+	}
+	if (zread(&n_ref, sizeof(n_ref)) != sizeof(n_ref)) {
+		delete[] data;
+		return false;
+	}
+
+	for (int i = 0; i != n_ref; i++) {
+		int32_t l_name, l_ref;
+		if (zread(&l_name, sizeof(l_name)) != sizeof(l_name)) {
+			delete[] data;
+			return false;
+		}
+		if (l_name > size) {
+			size = l_name;
+			delete[] data;
+			data = new char[size];
+		}
+		if (zread(data, l_name) != l_name) {
+			delete[] data;
+			return false;
+		}
+		if (zread(&l_ref, sizeof(l_ref)) != sizeof(l_ref)) {
+			delete[] data;
+			return false;
+		}
+	}
+
+	delete[] data;
+
+	return true;
+}
+
+std::pair<bool, int> BAMPatternSource::nextBatchFromFile(PerThreadReadBuf& pt,
+		bool batch_a, unsigned readi) {
+	if (first_) {
+		first_ = false;
+		if (!parse_bam_header()) {
+			std::cerr << "Unable to parse BAM file" << std::endl;
+			return make_pair(true, 0);
+		}
+	}
+
+	bool done = false;
+	bool read1 = true;
+
+	while (readi < pt.max_buf_) {
+		int r;
+		uint16_t flag;
+		int32_t block_size;
+		EList<Read>& readbuf = pp_.align_paired_reads && !read1 ? pt.bufb_ : pt.bufa_;
+
+		if ((r = zread(&block_size, sizeof(block_size))) != sizeof(block_size)) {
+			return make_pair(true, readi);
+		}
+		if (readbuf[readi].readOrigBuf.length() < block_size) {
+			readbuf[readi].readOrigBuf.resize(block_size);
+		}
+		if (zread(readbuf[readi].readOrigBuf.wbuf(), block_size) != block_size) {
+			done = true;
+			break;
+		}
+		memcpy(&flag, readbuf[readi].readOrigBuf.buf() + offset[BAMField::flag], sizeof(flag));
+		if (!pp_.align_paired_reads && ((flag & 0x40) != 0 || (flag & 0x80) != 0)) {
+			readbuf[readi].readOrigBuf.clear();
+			continue;
+		}
+		if (pp_.align_paired_reads && ((flag & 0x40) == 0 && (flag & 0x80) == 0)) {
+			readbuf[readi].readOrigBuf.clear();
+			continue;
+		}
+		if (pp_.align_paired_reads && read1 && (flag & 0x40) == 0) {
+			std::cerr << "Paired reads are out of order" << std::endl;
+			return make_pair(true, readi == 0 ? readi : readi-1);
+		}
+		if (pp_.align_paired_reads && !read1 && (flag & 0x80) == 0) {
+			std::cerr << "Paired reads are out of order" << std::endl;
+			return make_pair(true, readi == 0 ? readi : readi-1);
+		}
+
+		read1 = !read1;
+		readi = (pp_.align_paired_reads
+				 && pt.bufb_[readi].readOrigBuf.length() == 0) ? readi : readi + 1;
+	}
+	return make_pair(done, readi);
+}
+
+bool BAMPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
+	uint8_t l_read_name;
+	int32_t l_seq;
+	uint16_t n_cigar_op;
+	const char* buf = ra.readOrigBuf.buf();
+	int block_size = ra.readOrigBuf.length();
+
+	memcpy(&l_read_name, buf + offset[BAMField::l_read_name], sizeof(l_read_name));
+	memcpy(&n_cigar_op, buf + offset[BAMField::n_cigar_op], sizeof(n_cigar_op));
+	memcpy(&l_seq, buf + offset[BAMField::l_seq], sizeof(l_seq));
+
+	int off = offset[BAMField::read_name];
+	ra.name.install(buf + off, l_read_name-1);
+	off += (l_read_name + sizeof(uint32_t) * n_cigar_op);
+	const char* seq = buf + off;
+	off += (l_seq+1)/2;
+	const char* qual = buf + off;
+	for (int i = 0; i < l_seq; i++) {
+		ra.qual.append(qual[i] + 33);
+		int base = "=ACMGRSVTWYHKDBN"[static_cast<uint8_t>(seq[i/2]) >> 4*(1-(i%2)) & 0xf];
+		ra.patFw.append(asc2dna[base]);
+	}
+	if (pp_.preserve_sam_tags) {
+		off += l_seq;
+		ra.preservedOptFlags.install(buf + off, block_size - off);
+	}
+
+	ra.parsed = true;
+	if (!rb.parsed && rb.readOrigBuf.length() != 0) {
+		return parse(rb, ra, rdid);
+	}
+
 	return true;
 }
 

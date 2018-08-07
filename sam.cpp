@@ -873,3 +873,92 @@ void SamConfig::printEmptyOptFlags(
 		printOptFieldNewlineEscapedZ(o, rd.readOrigBuf);
 	}
 }
+
+void SamConfig::printPreservedOptFlags(BTString& o, const Read& rd) const {
+    if (rd.preservedOptFlags.length() != 0) {
+		char buf[1024];
+		const char* b = rd.preservedOptFlags.buf();
+		int i = 0, len = rd.preservedOptFlags.length();
+		while (i < len) {
+			o.append('\t');
+			char tag[2], val_type;
+			memcpy(tag, b + i, 2 * sizeof(char));
+			o.append(tag, 2);
+			i += 2 * sizeof(char);
+			memcpy(&val_type, b + i, 1);
+			o.append(':');
+			if (val_type == 'c' || val_type == 'C'
+					|| val_type == 'i' || val_type == 'I'
+					|| val_type == 's' || val_type == 'S') {
+				o.append('i');
+			} else {
+				o.append(val_type);
+			}
+			o.append(':');
+			i += sizeof(char);
+			switch (val_type) {
+				case 'A':
+					char A_val;
+					memcpy(&A_val, b + i, sizeof(A_val));
+					i += sizeof(A_val);
+					itoa10<char>(A_val, buf);
+					o.append(buf);
+					break;
+				case 'c':
+					int8_t c_val;
+					memcpy(&c_val, b + i, sizeof(c_val));
+					i += sizeof(c_val);
+					itoa10<int8_t>(c_val, buf);
+					o.append(buf);
+					break;
+				case 'C':
+					uint8_t C_val;
+					memcpy(&C_val, b + i, sizeof(C_val));
+					i += sizeof(C_val);
+					itoa10<uint8_t>(C_val, buf);
+					o.append(buf);
+					break;
+				case 's':
+					int16_t s_val;
+					memcpy(&s_val, b + i, sizeof(s_val));
+					i += sizeof(s_val);
+					itoa10<int16_t>(s_val, buf);
+					o.append(buf);
+					break;
+				case 'S':
+					uint16_t S_val;
+					memcpy(&S_val, b + i, sizeof(S_val));
+					i += sizeof(S_val);
+					itoa10<uint16_t>(S_val, buf);
+					o.append(buf);
+					break;
+				case 'i':
+					int32_t i_val;
+					memcpy(&i_val, b + i, sizeof(i_val));
+					i += sizeof(i_val);
+					itoa10<int32_t>(i_val, buf);
+					o.append(buf);
+					break;
+				case 'I':
+					uint32_t I_val;
+					memcpy(&I_val, b + i, sizeof(I_val));
+					i += sizeof(I_val);
+					itoa10<uint32_t>(I_val, buf);
+					o.append(buf);
+					break;
+				case 'Z':
+					char c;
+					memcpy(&c, b + i, sizeof(char));
+					while (c != '\0') {
+						o.append(c);
+						i++;
+						memcpy(&c, b + i, sizeof(char));
+					}
+					i++;
+					break;
+				default:
+					break;
+			}
+		}
+    }
+}

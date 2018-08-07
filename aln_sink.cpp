@@ -2110,6 +2110,7 @@ void AlnSinkSam::appendMate(
 			prm,         // per-read metrics
 			sc);         // scoring scheme
 	}
+	samc_.printPreservedOptFlags(o, rd);
 	o.append('\n');
 }
 

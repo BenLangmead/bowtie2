@@ -67,7 +67,9 @@ struct PatternParams {
 		int sampleFreq_,
 		size_t skip_,
 		int nthreads_,
-		bool fixName_) :
+		bool fixName_,
+		bool preserve_sam_tags_,
+		bool align_paired_reads_) :
 		format(format_),
 		fileParallel(fileParallel_),
 		seed(seed_),
@@ -82,7 +84,9 @@ struct PatternParams {
 		sampleFreq(sampleFreq_),
 		skip(skip_),
 		nthreads(nthreads_),
-		fixName(fixName_) { }
+		fixName(fixName_),
+		preserve_sam_tags(preserve_sam_tags_),
+		align_paired_reads(align_paired_reads_) { }
 
 	int format;			  // file format
 	bool fileParallel;	  // true -> wrap files with separate PatternComposers
@@ -99,6 +103,8 @@ struct PatternParams {
 	size_t skip;		  // skip the first 'skip' patterns
 	int nthreads;		  // number of threads for locking
 	bool fixName;		  //
+	bool preserve_sam_tags; // keep existing SAM tags when aligning BAM files
+	bool align_paired_reads;
 };
 
 /**
@@ -406,21 +412,34 @@ protected:
 		return compressed_ ? gzungetc(c, zfp_) : ungetc(c, fp_);
 	}
 
-	bool is_gzipped_file(const std::string& filename) {
-		struct stat s;
-		if (stat(filename.c_str(), &s) != 0) {
-			perror("stat");
+	int zread(voidp buf, unsigned len) {
+		int r = gzread(zfp_, buf, len);
+		if (r < 0) {
+			const char *err = gzerror(zfp_, NULL);
+			if (err != NULL) {
+				std::cerr << err << std::endl;
+			}
 		}
-		else {
-			if (S_ISFIFO(s.st_mode))
-				return true;
+		return r;
+	}
+
+	bool is_gzipped_file(const char* filename) {
+		FILE* f = fopen(filename, "rb");
+		if (ferror(f) > 0) {
+			return false;
 		}
-		size_t pos = filename.find_last_of(".");
-		std::string ext = (pos == std::string::npos) ? "" : filename.substr(pos + 1);
-		if (ext == "" || ext == "gz" || ext == "Z") {
-			return true;
+
+		bool ret = false;
+		uint8_t byte1, byte2;
+
+		fread(&byte1, 1, sizeof(uint8_t), f);
+		fread(&byte2, 1, sizeof(uint8_t), f);
+		if (byte1 == 0x1f && byte2 == 0x8b) {
+			ret = true;
 		}
-		return false;
+		fclose(f);
+
+		return ret;
 	}
 	
 	EList<std::string> infiles_;	 // filenames for read files
@@ -697,6 +716,68 @@ protected:
 
 	bool first_;		// parsing first read in file
 	bool interleaved_;	// fastq reads are interleaved
+};
+
+class BAMPatternSource : public CFilePatternSource {
+
+public:
+
+	BAMPatternSource(
+		const EList<std::string>& infiles,
+		const PatternParams& p) :
+		CFilePatternSource(infiles, p),
+		first_(true) {}
+
+	virtual void reset() {
+		first_ = true;
+		CFilePatternSource::reset();
+	}
+
+	/**
+	 * Finalize BAM parsing outside critical section.
+	 */
+	virtual bool parse(Read& ra, Read& rb, TReadId rdid) const;
+
+protected:
+
+	/**
+	 * Light-parse a batch into the given buffer.
+	 */
+	virtual std::pair<bool, int> nextBatchFromFile(PerThreadReadBuf& pt, bool batch_a,
+			unsigned readi);
+
+
+	/**
+	 * Reset state to be ready for the next file.
+	 */
+	virtual void resetForNextFile() {
+		first_ = true;
+	}
+
+	bool first_; // parsing first read in file
+
+private:
+
+	bool parse_bam_header();
+
+	struct BAMField {
+		enum aln_rec_field_name {
+			refID,
+			pos,
+			l_read_name,
+			mapq,
+			bin,
+			n_cigar_op,
+			flag,
+			l_seq,
+			next_refID,
+			next_pos,
+			tlen,
+			read_name,
+		};
+	};
+
+	static const int offset[];
 };
 
 /**
