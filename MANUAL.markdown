@@ -1083,6 +1083,17 @@ Trim `<int>` bases from 5' (left) end of each read before alignment (default: 0)
 
 Trim `<int>` bases from 3' (right) end of each read before alignment (default: 0).
 
+</td></tr><tr><td id="bowtie2-options-trim-to">
+
+    --trim-to [3:|5:]<int>
+
+</td><td>
+
+Trim reads exceeding `<int>` bases. Bases will be trimmed from either the 3' (right)
+or 5' (left) end of the read. If the read end if not specified, bowtie 2 will default
+to trimming from the 3' (right) end of the read. [`--trim-to`] and [`-3`]/[`-5`] are
+mutually exclusive.
+
 </td></tr><tr><td id="bowtie2-options-phred33-quals">
 
     --phred33
@@ -1872,7 +1883,8 @@ in those fields instead.
 
 </td><td>
 
-Consider soft-clipped bases unmapped when calculating `TLEN`.
+Consider soft-clipped bases unmapped when calculating `TLEN`. Only available
+in [`--local`] mode.
 
 </td></tr>
 <tr><td id="bowtie2-options-sam-no-qname-trunc">
@@ -2912,6 +2924,7 @@ for more details and variations on this process.
 [`-3`]:                                               #bowtie2-options-3
 [`-5`/`--trim5`]:                                     #bowtie2-options-5
 [`-5`]:                                               #bowtie2-options-5
+[`--trim-to`]:                                        #bowtie2-options-trim-to
 [`-D`]:                                               #bowtie2-options-D
 [`-L`]:                                               #bowtie2-options-L
 [`-N`]:                                               #bowtie2-options-N
