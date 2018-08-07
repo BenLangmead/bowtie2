@@ -3,33 +3,35 @@
 INTRODUCTION
 
 
-What is Bowtie 2?
-
 Bowtie 2 is an ultrafast and memory-efficient tool for aligning
 sequencing reads to long reference sequences. It is particularly good at
-aligning reads of about 50 up to 100s or 1,000s of characters to
-relatively long (e.g. mammalian) genomes. Bowtie 2 indexes the genome
-with an FM Index (based on the Burrows-Wheeler Transform or BWT) to keep
-its memory footprint small: for the human genome, its memory footprint
-is typically around 3.2 gigabytes of RAM. Bowtie 2 supports gapped,
-local, and paired-end alignment modes. Multiple processors can be used
-simultaneously to achieve greater alignment speed. Cufflinks: a tool for
-transcriptome assembly and isoform quantitiation from Bowtie 2 outputs
-alignments in SAM format, enabling interoperation with a large number of
-other tools (e.g. SAMtools, GATK) that use SAM. Bowtie 2 is distributed
-under the GPLv3 license, and it runs on the command line under Windows,
-Mac OS X and Linux.
+aligning reads of about 50 up to 100s of characters to relatively long
+(e.g. mammalian) genomes. Bowtie 2 indexes the genome with an FM Index
+(based on the Burrows-Wheeler Transform or BWT) to keep its memory
+footprint small: for the human genome, its memory footprint is typically
+around 3.2 gigabytes of RAM. Bowtie 2 supports gapped, local, and
+paired-end alignment modes. Multiple processors can be used
+simultaneously to achieve greater alignment speed.
+
+Bowtie 2 outputs alignments in SAM format, enabling interoperation with
+a large number of other tools (e.g. SAMtools, GATK) that use SAM. Bowtie
+2 is distributed under the GPLv3 license, and it runs on the command
+line under Windows, Mac OS X and Linux.
 
 Bowtie 2 is often the first step in pipelines for comparative genomics,
 including for variation calling, ChIP-seq, RNA-seq, BS-seq. Bowtie 2 and
 Bowtie (also called “Bowtie 1” here) are also tightly integrated into
-some tools, including TopHat: a fast splice junction mapper for RNA-seq
-reads, RNA-seq reads, Crossbow: a cloud-enabled software tool for
-analyzing resequencing data, and Myrna: a cloud-enabled software tool
-for aligning RNA-seq reads and measuring differential gene expression.
+many other tools, some of which are listed here.
 
-If you use Bowtie 2 for your published research, please cite the Bowtie
-paper. Thank you!
+If you use Bowtie 2 for your published research, please cite our work.
+Papers describing Bowtie 2 are:
+
+-   Langmead B, Wilks C, Antonescu V, Charles R. Scaling read aligners
+    to hundreds of threads on general-purpose processors.
+    _Bioinformatics_. 2018 Jul 18. doi: 10.1093/bioinformatics/bty648.
+
+-   Langmead B, Salzberg SL. Fast gapped-read alignment with Bowtie 2.
+    _Nature Methods_. 2012 Mar 4;9(4):357-9. doi: 10.1038/nmeth.1923.
 
 
 How is Bowtie 2 different from Bowtie 1?
@@ -86,38 +88,30 @@ Bowtie 1’s.
 
 What isn’t Bowtie 2?
 
-Bowtie 1 and Bowtie 2 are not general-purpose alignment tools like
-MUMmer, BLAST or Vmatch. Bowtie 2 works best when aligning to large
-genomes, though it supports arbitrarily small reference sequences
-(e.g. amplicons). It handles very long reads (i.e. upwards of 10s or
-100s of kilobases), but it is optimized for the read lengths and error
-modes yielded by recent sequencers, such as the Illumina HiSeq 2000,
-Roche 454, and Ion Torrent instruments.
+Bowtie 2 is geared toward aligning relatively short sequencing reads to
+long genomes. That said, it handles arbitrarily small reference
+sequences ( e.g. amplicons) and very long reads (i.e. upwards of 10s or
+100s of kilobases), though it is slower in those settings. It is
+optimized for the read lengths and error modes yielded by typical
+Illumina sequencers.
 
-If your goal is to align two very large sequences (e.g. two genomes),
-consider using MUMmer. If your goal is very sensitive alignment to a
-relatively short reference sequence (e.g. a bacterial genome), this can
-be done with Bowtie 2 but you may want to consider using tools like
-NUCmer, BLAT, or BLAST. These tools can be extremely slow when the
-reference genome is long, but are often adequate when the reference is
-short.
-
-Bowtie 2 does not support alignment of colorspace reads.
-
-
-What does it mean that some older Bowtie 2 versions are “beta”?
-
-We said those Bowtie 2 versions were in “beta” to convey that it was not
-as polished as a tool that had been around for a while, and was still in
-flux. Since version 2.0.1, we declared Bowtie 2 was no longer “beta”.
+Bowtie 2 does not support alignment of colorspace reads. (Bowtie 1
+does.)
 
 
 
 OBTAINING BOWTIE 2
 
 
-Download Bowtie 2 sources and binaries from the Download section of the
-Sourceforge site. Binaries are available for the Intel x86_64
+Bowtie 2 is available from various package managers, notably Bioconda.
+With Bioconda installed, you should be able to install Bowtie 2 with
+conda install bowtie2.
+
+Containerized versions of Bowtie 2 are also available via the
+Biocontainers project (e.g. via Docker Hub).
+
+You can also download Bowtie 2 sources and binaries from the Download
+section of the Sourceforge site. Binaries are available for the x86_64
 architecture running Linux, Mac OS X, and Windows. If you plan to
 compile Bowtie 2 yourself, make sure to get the source package, i.e.,
 the filename that ends in “-source.zip”.
@@ -145,8 +139,64 @@ Bowtie 2 can be run on many threads. By default, Bowtie 2 uses the
 Threading Building Blocks library (TBB) for this. If TBB is not
 available on your system (e.g. make prints an error like
 tbb/mutex.h: No such file or directory), you can install it yourself
-(see Threading Building Blocks library) or build Bowtie 2 with
-make NO_TBB=1 to use pthreads or Windows native multithreading instead.
+from source (see Threading Building Blocks library) or install it using
+your operating system’s preferred package manager. The table below list
+some of the commands for a few of the more popular operating systems.
+
+OS
+Sync Package List
+Search
+Install
+Ubuntu, Mint, Debian
+    apt-get update
+
+    apt-cache search tbb
+
+    apt-get install libtbb-dev
+
+Fedora, CentOS
+    yum check-update
+
+yum search tbb
+
+    yum install tbb-devel.x86_64
+
+Arch
+    packman -Sy
+
+    pacman -Ss tbb
+
+    pacman -S extra/intel-tbb
+
+Gentoo
+    emerge --sync
+
+    emerge --search tbb
+
+    emerge dev-cpp/tbb
+
+MacOS
+    brew update
+
+    brew search tbb
+
+    brew install tbb
+
+FreeBSD
+    portsnap fetch update
+
+    make search name=tbb
+
+    cd /usr/ports/devel/tbb && make install && make clean
+
+The Bowtie 2 Makefile also includes recipes for basic automatic
+dependency management. Running make static-libs && make STATIC_BUILD=1
+will issue a series of commands that will: 1. download TBB and zlib 2.
+compile them as static libraries 3. link the resulting libraries to the
+compiled Bowtie 2 binaries
+
+If all fails Bowtie 2 can be built with make NO_TBB=1 to use pthreads or
+Windows native multithreading instead.
 
 
 Adding to PATH
@@ -923,6 +973,13 @@ Trim <int> bases from 5’ (left) end of each read before alignment
 Trim <int> bases from 3’ (right) end of each read before alignment
 (default: 0).
 
+    --trim-to [3:|5:]<int>
+
+Trim reads exceeding <int> bases. Bases will be trimmed from either the
+3’ (right) or 5’ (left) end of the read. If the read end if not
+specified, bowtie 2 will default to trimming from the 3’ (right) end of
+the read. --trim-to and -3/-5 are mutually exclusive.
+
     --phred33
 
 Input qualities are ASCII chars equal to the Phred quality plus 33. This
@@ -1416,7 +1473,8 @@ print an asterisk in those fields instead.
 
     --soft-clipped-unmapped-tlen
 
-Consider soft-clipped bases unmapped when calculating TLEN.
+Consider soft-clipped bases unmapped when calculating TLEN. Only
+available in --local mode.
 
     --sam-no-qname-trunc
 

@@ -19,10 +19,38 @@ Please report any issues to the Bowtie 2 Github page or using the Sourceforge bu
 Version Release History
 =======================
 
+Version 2.3.4.2 - Aug 7, 2018
+
+    * Fixed issue causing `bowtie2` to fail in `--fast-local` mode.
+    * Fixed issue causing `--soft-clipped-unmapped-tlen` to be a positional argument.
+    * New option `--trim-to N` causes `bowtie2` to trim reads longer
+      than `N` bases to exactly `N` bases.  Can trim from either 3'
+      or 5' end, e.g. `--trim-to 5:30` trims reads to 30 bases,
+      truncating at the 5' end.
+    * Updated "Building from source" manual section with additional
+      instructions on installing TBB.
+    * Several other updates to manual, including new mentions of
+      [Bioconda](http://bioconda.github.io) and
+      [Biocontainers](https://biocontainers.pro).
+    * Fixed an issue preventing `bowtie2` from processing more than
+      one pattern source when running single threaded.
+    * Fixed an issue causing `bowtie2` and `bowtie2-inspect` to crash if
+      the index contains a gap-only segment.
+    * Added experimental BAM input mode `-b`. Works only with unpaired
+      input reads and BAM files that are sorted by read name (`samtools
+      sort -n`). BAM input mode also supports the following options:
+        o `--preserve-sam-tags`: Preserve any optional fields present in BAM record
+        o `--align-paired-reads`: Paired-end mode for BAM files
+
+Thread-scaling paper appears - July 19, 2018
+
+    * Our latest work on Bowtie's core thread scaling capabilities
+      [just appeared Open Access in the journal Bioinformatics](href="https://academic.oup.com/bioinformatics/advance-article/doi/10.1093/bioinformatics/bty648/5055585)
+
 Version 2.3.4.1 - Feb 3, 2018
 
     * Fixed an issue with `--reorder` that caused bowtie2 to crash
-    while reordering SAM output
+      while reordering SAM output
 
 Version 2.3.4 - Dec 29, 2017
 

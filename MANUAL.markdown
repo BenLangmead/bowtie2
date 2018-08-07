@@ -1877,7 +1877,7 @@ and `QUAL` strings.  Specifying this option causes Bowtie 2 to print an asterisk
 in those fields instead.
 
 </td></tr>
-<tr><td id="bowtie2-options-soft-clipped-unmapped-tlen-sec-seq">
+<tr><td id="bowtie2-options-soft-clipped-unmapped-tlen">
 
     --soft-clipped-unmapped-tlen
 
