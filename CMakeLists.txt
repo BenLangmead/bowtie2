@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 2.8)
 cmake_policy(SET CMP0048 NEW)
 cmake_policy(SET CMP0005 NEW)
 
-project(bowtie2 LANGUAGES CXX VERSION "2.3.3.1")
+project(bowtie2 LANGUAGES CXX VERSION "2.3.4.2")
 
 enable_testing()
 
@@ -32,6 +32,10 @@ if (MINGW)
     option(BOWTIE_MM "Memory mapped files not supported on Windows" OFF)
     option(BOWTIE_SHARED_MEM "Shared memory not supported on Windows" OFF)
 endif(MINGW)
+
+if (APPLE)
+    set(CMAKE_XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT "dwarf-with-dsym")
+endif(APPLE)
 
 set(BOWTIE2_BIN_LIST
     bowtie2-build-s
@@ -164,12 +168,5 @@ add_executable(bowtie2-inspect-l ${INSPECT_CPPS} ${SHARED_CPPS})
 set_target_properties(bowtie2-align-l bowtie2-build-l bowtie2-inspect-l PROPERTIES COMPILE_FLAGS "-DBOWTIE2_64BIT_INDEX")
 set_target_properties(bowtie2-inspect-s bowtie2-inspect-l PROPERTIES COMPILE_FLAGS "-DBOWTIE_INSPECT_MAIN")
 set_target_properties(${BOWTIE2_BIN_LIST} PROPERTIES DEBUG_POSTFIX "-debug")
-
-function(_get_perl_deps)
-    file(DOWNLOAD "http://cpanmin.us" "${PROJECT_SOURCE_DIR}/.bowtie2-deps/cpanmin.pl")
-    execute_process(COMMAND sh "-c"  "cat ${PROJECT_SOURCE_DIR}/.bowtie2-deps/cpanmin.pl | perl - -l ${PROJECT_SOURCE_DIR}/.bowtie2-deps App::cpanminus local::lib")
-    execute_process(COMMAND perl -I ${PROJECT_SOURCE_DIR}/.bowtie2-deps/lib/perl5 -Mlocal::lib=${PROJECT_SOURCE_DIR}/.bowtie2-deps)
-    execute_process(COMMAND cpanm --force Math::Random Clone Test::Deep Sys::Info)
-endfunction(_get_perl_deps)
 
 add_test(NAME simple-align COMMAND ${PROJECT_SOURCE_DIR}/bowtie2 -x example/index/lambda_virus example/reads/longreads.fq)
