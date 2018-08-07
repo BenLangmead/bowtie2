@@ -7,11 +7,12 @@
     <li>Several other updates to manual, including new mentions of <a href="http://bioconda.github.io">Bioconda</a> and <a href="https://biocontainers.pro">Biocontainers</a>.</li>
     <li>Fixed an issue preventing <code>bowtie2</code> from processing more than one pattern source when running single threaded.</li>
     <li>Fixed an issue causing <code>bowtie2</code> and <code>bowtie2-inspect</code> to crash if the index contains a gap-only segment.</li>
-    <li>Added experimental BAM input mode <code>-b</code>. Works only with unpaired input reads and BAM files that are sorted by read name (<code>samtools sort -n</code>). BAM input mode also supports the following options:<li>
+    <li>Added <i>experimental</i> BAM input mode <code>-b</code>. Works only with unpaired input reads and BAM files that are sorted by read name (<code>samtools sort -n</code>). BAM input mode also supports the following options:<li>
         <ul>
             <li><code>--preserve-sam-tags</code>: Preserve any optional fields present in BAM record</li>
             <li><code>--align-paired-reads</code>: Paired-end mode for BAM files</li>
         </ul>
+    <li>Add <i>experimental</i> CMake support</li>
 </ul>
 
 <h2>Thread-scaling paper appears - July 19, 2018</h2>

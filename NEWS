@@ -41,6 +41,7 @@ Version 2.3.4.2 - Aug 7, 2018
       sort -n`). BAM input mode also supports the following options:
         o `--preserve-sam-tags`: Preserve any optional fields present in BAM record
         o `--align-paired-reads`: Paired-end mode for BAM files
+    * Added experimental cmake support
 
 Thread-scaling paper appears - July 19, 2018
 
