@@ -471,7 +471,7 @@ void CFilePatternSource::open() {
 		}
 		else {
 			const char* filename = infiles_[filecur_].c_str();
-			compressed_ = is_gzipped_file(filename);
+			// compressed_ = is_gzipped_file(filename);
 			if (compressed_) {
 				zfp_ = gzopen(filename, "rb");
 			} else {
@@ -1203,40 +1203,121 @@ bool BAMPatternSource::parse_bam_header() {
 	return true;
 }
 
-std::pair<bool, int> BAMPatternSource::nextBatchFromFile(PerThreadReadBuf& pt,
-		bool batch_a, unsigned readi) {
-	if (first_) {
-		first_ = false;
-		if (!parse_bam_header()) {
-			std::cerr << "Unable to parse BAM file" << std::endl;
-			return make_pair(true, 0);
-		}
+uint16_t BAMPatternSource::nextBGZFBlockFromFile(BGZF& b) {
+	fread(&b.hdr, sizeof b.hdr, 1, fp_);
+	if (ferror(fp_)) {
+		return 0;
 	}
 
+	b.extra = new uint8_t[b.hdr.xlen];
+	fread(b.extra, b.hdr.xlen, 1, fp_);
+	if (ferror(fp_)) {
+		return 0;
+	}
+
+	if (b.extra[0] != 66 || b.extra[1] != 67) {
+		return 0;
+	}
+
+	uint16_t bsize = *((uint16_t *)(b.extra + 4));
+	bsize -= (b.hdr.xlen + 19);
+	b.cdata = new uint8_t[bsize];
+
+	fread(b.cdata, bsize, 1, fp_);
+	if (ferror(fp_)) {
+		return 0;
+	}
+
+	fread(&b.ftr, sizeof b.ftr, 1, fp_);
+	if (ferror(fp_)) {
+		return 0;
+	}
+
+	return bsize;
+}
+
+std::pair<bool, int> BAMPatternSource::nextBatch(PerThreadReadBuf& pt, bool batch_a, bool lock) {
+	BGZF BGZF_block;
+	uint16_t cdata_len;
+
+	unsigned nread = 0;
+	bool done = false;
+
+	pt.setReadId(readCnt_);
+
+	do {
+		if (bam_batch_indexes_[pt.tid_] == bam_batches_[pt.tid_].size()) {
+			if (lock) {
+				ThreadSafe ts(MUTEX_T);
+				if (first_) {
+					// discard header
+					first_ = false;
+					nextBGZFBlockFromFile(BGZF_block);
+				}
+				cdata_len = nextBGZFBlockFromFile(BGZF_block);
+			} else {
+				cdata_len = nextBGZFBlockFromFile(BGZF_block);
+			}
+
+			bam_batch_indexes_[pt.tid_] = 0;
+
+			if (cdata_len == 0) {
+				return make_pair(true, nread);
+			}
+
+			bam_batches_[pt.tid_].resize(BGZF_block.ftr.isize);
+
+			int ret_code = decompress_bgzf_block(&bam_batches_[pt.tid_][0], BGZF_block.ftr.isize, BGZF_block.cdata, cdata_len);
+			if (ret_code != Z_STREAM_END) {
+				return make_pair(true, 0);
+			}
+
+			uLong crc = crc32(0L, Z_NULL, 0);
+			crc = crc32(crc, &bam_batches_[pt.tid_][0], bam_batches_[pt.tid_].size());
+			assert(crc == BGZF_block.ftr.crc32);
+		}
+
+		std::pair<bool, int> ret = get_alignments(pt, batch_a, nread);
+
+		done = ret.first;
+	} while (!done && nread < pt.max_buf_);
+
+	readCnt_ += nread;
+
+    return make_pair(done, nread);
+}
+
+std::pair<bool, int> BAMPatternSource::get_alignments(PerThreadReadBuf& pt, bool batch_a, unsigned& readi) {
+	size_t& i = bam_batch_indexes_[pt.tid_];
 	bool done = false;
 	bool read1 = true;
 
 	while (readi < pt.max_buf_) {
-		int r;
+		if (i == bam_batches_[pt.tid_].size()) {
+			return make_pair(false, readi);
+		}
+
 		uint16_t flag;
 		int32_t block_size;
 		EList<Read>& readbuf = pp_.align_paired_reads && !read1 ? pt.bufb_ : pt.bufa_;
 
-		if ((r = zread(&block_size, sizeof(block_size))) != sizeof(block_size)) {
-			return make_pair(true, readi);
+		memcpy(&block_size, &bam_batches_[pt.tid_][0] + i, sizeof(block_size));
+		if (block_size <= 0) {
+			return make_pair(done, readi);
 		}
-		if (readbuf[readi].readOrigBuf.length() < block_size) {
-			readbuf[readi].readOrigBuf.resize(block_size);
-		}
-		if (zread(readbuf[readi].readOrigBuf.wbuf(), block_size) != block_size) {
-			done = true;
-			break;
-		}
-		memcpy(&flag, readbuf[readi].readOrigBuf.buf() + offset[BAMField::flag], sizeof(flag));
+		i += sizeof(block_size);
+
+		memcpy(&flag, &bam_batches_[pt.tid_][0] + i + offset[BAMField::flag], sizeof(flag));
 		if (!pp_.align_paired_reads && ((flag & 0x40) != 0 || (flag & 0x80) != 0)) {
-			readbuf[readi].readOrigBuf.clear();
+			i += block_size;
 			continue;
 		}
+
+		readbuf[readi].readOrigBuf.resize(block_size);
+
+		memcpy(readbuf[readi].readOrigBuf.wbuf(), &bam_batches_[pt.tid_][0] + i, block_size);
+		i += block_size;
+
 		if (pp_.align_paired_reads && ((flag & 0x40) == 0 && (flag & 0x80) == 0)) {
 			readbuf[readi].readOrigBuf.clear();
 			continue;
@@ -1254,7 +1335,33 @@ std::pair<bool, int> BAMPatternSource::nextBatchFromFile(PerThreadReadBuf& pt,
 		readi = (pp_.align_paired_reads
 				 && pt.bufb_[readi].readOrigBuf.length() == 0) ? readi : readi + 1;
 	}
+
 	return make_pair(done, readi);
+}
+
+int BAMPatternSource::decompress_bgzf_block(uint8_t *dst, size_t dst_len, uint8_t *src, size_t src_len) {
+    int ret;
+    z_stream strm;
+
+    strm.zalloc = Z_NULL;
+    strm.zfree = Z_NULL;
+    strm.opaque = Z_NULL;
+    strm.avail_in = 0;
+    strm.next_in = Z_NULL;
+
+    ret = inflateInit2(&strm, -15);
+    if (ret != Z_OK) {
+        return ret;
+    }
+
+    strm.avail_in = src_len;
+    strm.next_in = src;
+    strm.avail_out = dst_len;
+    strm.next_out = dst;
+
+    ret = inflate(&strm, Z_NO_FLUSH);
+
+    return ret;
 }
 
 bool BAMPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {

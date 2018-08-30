@@ -26,6 +26,7 @@
 #include <cassert>
 #include <string>
 #include <ctype.h>
+#include <vector>
 #include "alphabet.h"
 #include "assert_helpers.h"
 #include "random_source.h"
@@ -112,11 +113,12 @@ struct PatternParams {
  */
 struct PerThreadReadBuf {
 	
-	PerThreadReadBuf(size_t max_buf) :
+	PerThreadReadBuf(size_t max_buf, int tid) :
 		max_buf_(max_buf),
 		bufa_(max_buf),
 		bufb_(max_buf),
-		rdid_()
+		rdid_(),
+		tid_(tid)
 	{
 		bufa_.resize(max_buf);
 		bufb_.resize(max_buf);
@@ -185,6 +187,7 @@ struct PerThreadReadBuf {
 	EList<Read> bufb_;	   // Read buffer for mate bs
 	size_t cur_buf_;	   // Read buffer currently active
 	TReadId rdid_;		   // index of read at offset 0 of bufa_/bufb_
+	int tid_;
 };
 
 extern void wrongQualityFormat(const BTString& read_name);
@@ -719,46 +722,37 @@ protected:
 };
 
 class BAMPatternSource : public CFilePatternSource {
+	struct hdr {
+		uint8_t id1;
+		uint8_t id2;
+		uint8_t cm;
+		uint8_t flg;
+		uint32_t mtime;
+		uint8_t xfl;
+		uint8_t os;
+		uint16_t xlen;
+	};
 
-public:
+	struct ftr {
+		uint32_t crc32;
+		uint32_t isize;
+	};
 
-	BAMPatternSource(
-		const EList<std::string>& infiles,
-		const PatternParams& p) :
-		CFilePatternSource(infiles, p),
-		first_(true) {}
+	struct BGZF {
+		hdr hdr;
+		uint8_t *extra;
+		uint8_t *cdata;
+		ftr ftr;
 
-	virtual void reset() {
-		first_ = true;
-		CFilePatternSource::reset();
-	}
-
-	/**
-	 * Finalize BAM parsing outside critical section.
-	 */
-	virtual bool parse(Read& ra, Read& rb, TReadId rdid) const;
-
-protected:
-
-	/**
-	 * Light-parse a batch into the given buffer.
-	 */
-	virtual std::pair<bool, int> nextBatchFromFile(PerThreadReadBuf& pt, bool batch_a,
-			unsigned readi);
-
-
-	/**
-	 * Reset state to be ready for the next file.
-	 */
-	virtual void resetForNextFile() {
-		first_ = true;
-	}
-
-	bool first_; // parsing first read in file
-
-private:
-
-	bool parse_bam_header();
+		// ~BGZF() {
+		// 	if (extra != NULL) {
+		// 		delete[] extra;
+		// 	}
+		// 	if (cdata != NULL) {
+		// 		delete[] cdata;
+		// 	}
+		// }
+	};
 
 	struct BAMField {
 		enum aln_rec_field_name {
@@ -777,7 +771,75 @@ private:
 		};
 	};
 
+public:
+
+	BAMPatternSource(
+		const EList<std::string>& infiles,
+		const PatternParams& p) :
+		CFilePatternSource(infiles, p),
+		first_(true),
+		bam_batches_(p.nthreads),
+		bam_batch_indexes_(p.nthreads),
+		pp_(p) {
+			// uncompressed size of BGZF block is limited to 2**16 bytes
+			for (int i = 0; i < bam_batches_.size(); ++i) {
+				bam_batches_[i].reserve(1 << 16);
+			}
+
+			// block_.extra = new uint8_t[6];
+			// block_.cdata = new uint8_t[1 << 15];
+		}
+
+	virtual void reset() {
+		first_ = true;
+		CFilePatternSource::reset();
+	}
+
+	/**
+	 * Finalize BAM parsing outside critical section.
+	 */
+	virtual bool parse(Read& ra, Read& rb, TReadId rdid) const;
+
+	// ~BAMPatternSource() {
+	// 	delete[] block_.extra;
+	// 	delete[] block_.cdata;
+	// }
+
+protected:
+
+	virtual std::pair<bool, int> nextBatch(PerThreadReadBuf& pt, bool batch_a, bool lock = true);
+
+	uint16_t nextBGZFBlockFromFile(BGZF& block);
+
+	/**
+	 * Reset state to be ready for the next file.
+	 */
+	virtual void resetForNextFile() {
+		first_ = true;
+	}
+
+	bool first_; // parsing first read in file
+
+private:
+
+	bool parse_bam_header();
+
+	virtual std::pair<bool, int> nextBatchFromFile(PerThreadReadBuf&, bool, unsigned) {
+		return make_pair(true, 0);
+	}
+
+	int decompress_bgzf_block(uint8_t *dst, size_t dst_len, uint8_t *src, size_t src_len);
+
+	std::pair<bool, int> get_alignments(PerThreadReadBuf& pt, bool batch_a, unsigned& readi);
+
 	static const int offset[];
+
+    std::vector<std::vector<uint8_t> > bam_batches_;
+	std::vector<size_t> bam_batch_indexes_;
+	
+	PatternParams pp_;
+
+	// BGZF block_;
 };
 
 /**
@@ -1017,9 +1079,9 @@ public:
 	
 	PatternSourcePerThread(
 		PatternComposer& composer,
-		const PatternParams& pp) :
+		const PatternParams& pp, int tid) :
 		composer_(composer),
-		buf_(pp.max_buf),
+		buf_(pp.max_buf, tid),
 		pp_(pp),
 		last_batch_(false),
 		last_batch_size_(0) { }
@@ -1107,15 +1169,16 @@ class PatternSourcePerThreadFactory {
 public:
 	PatternSourcePerThreadFactory(
 		PatternComposer& composer,
-		const PatternParams& pp) :
+		const PatternParams& pp, int tid) :
 		composer_(composer),
-		pp_(pp) { }
+		pp_(pp),
+		tid_(tid) { }
 	
 	/**
 	 * Create a new heap-allocated PatternSourcePerThreads.
 	 */
 	virtual PatternSourcePerThread* create() const {
-		return new PatternSourcePerThread(composer_, pp_);
+		return new PatternSourcePerThread(composer_, pp_, tid_);
 	}
 	
 	/**
@@ -1125,7 +1188,7 @@ public:
 	virtual EList<PatternSourcePerThread*>* create(uint32_t n) const {
 		EList<PatternSourcePerThread*>* v = new EList<PatternSourcePerThread*>;
 		for(size_t i = 0; i < n; i++) {
-			v->push_back(new PatternSourcePerThread(composer_, pp_));
+			v->push_back(new PatternSourcePerThread(composer_, pp_, tid_));
 			assert(v->back() != NULL);
 		}
 		return v;
@@ -1135,6 +1198,7 @@ private:
 	/// Container for obtaining paired reads from PatternSources
 	PatternComposer& composer_;
 	const PatternParams& pp_;
+	int tid_;
 };
 
 #endif /*PAT_H_*/

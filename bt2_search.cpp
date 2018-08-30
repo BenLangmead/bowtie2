@@ -1735,7 +1735,7 @@ createPatsrcFactory(
 	int tid)
 {
 	PatternSourcePerThreadFactory *patsrcFact;
-	patsrcFact = new PatternSourcePerThreadFactory(patcomp, pp);
+	patsrcFact = new PatternSourcePerThreadFactory(patcomp, pp, tid);
 	assert(patsrcFact != NULL);
 	return patsrcFact;
 }
