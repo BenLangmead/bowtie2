@@ -740,18 +740,8 @@ class BAMPatternSource : public CFilePatternSource {
 
 	struct BGZF {
 		hdr hdr;
-		uint8_t *extra;
-		uint8_t *cdata;
+		uint8_t cdata[1 << 16];
 		ftr ftr;
-
-		// ~BGZF() {
-		// 	if (extra != NULL) {
-		// 		delete[] extra;
-		// 	}
-		// 	if (cdata != NULL) {
-		// 		delete[] cdata;
-		// 	}
-		// }
 	};
 
 	struct BAMField {
@@ -778,6 +768,7 @@ public:
 		const PatternParams& p) :
 		CFilePatternSource(infiles, p),
 		first_(true),
+        blocks_(p.nthreads),
 		bam_batches_(p.nthreads),
 		bam_batch_indexes_(p.nthreads),
 		pp_(p) {
@@ -785,9 +776,6 @@ public:
 			for (int i = 0; i < bam_batches_.size(); ++i) {
 				bam_batches_[i].reserve(1 << 16);
 			}
-
-			// block_.extra = new uint8_t[6];
-			// block_.cdata = new uint8_t[1 << 15];
 		}
 
 	virtual void reset() {
@@ -799,11 +787,6 @@ public:
 	 * Finalize BAM parsing outside critical section.
 	 */
 	virtual bool parse(Read& ra, Read& rb, TReadId rdid) const;
-
-	// ~BAMPatternSource() {
-	// 	delete[] block_.extra;
-	// 	delete[] block_.cdata;
-	// }
 
 protected:
 
@@ -833,13 +816,13 @@ private:
 	std::pair<bool, int> get_alignments(PerThreadReadBuf& pt, bool batch_a, unsigned& readi);
 
 	static const int offset[];
+    static const uint8_t EOF_MARKER[];
 
+    std::vector<BGZF> blocks_;
     std::vector<std::vector<uint8_t> > bam_batches_;
 	std::vector<size_t> bam_batch_indexes_;
-	
-	PatternParams pp_;
 
-	// BGZF block_;
+	PatternParams pp_;
 };
 
 /**
