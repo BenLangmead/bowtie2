@@ -232,14 +232,13 @@ pair<bool, int> DualPatternComposer::nextBatch(PerThreadReadBuf& pt) {
 				pt,
 				true,  // batch A (or pairs)
 				true); // grab lock below
-			bool done = res.first;
-			if(!done && res.second == 0) {
+			if(res.second == 0) {
 				ThreadSafe ts(mutex_m);
 				if(cur + 1 > cur_) cur_++;
 				cur = cur_; // Move on to next PatternSource
 				continue; // on to next pair of PatternSources
 			}
-			return make_pair(done, res.second);
+			return make_pair(res.first && cur == srca_->size() - 1, res.second);
 		} else {
 			pair<bool, int> resa, resb;
 			// Lock to ensure that this thread gets parallel reads
