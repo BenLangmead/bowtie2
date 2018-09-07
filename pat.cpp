@@ -299,7 +299,6 @@ PatternComposer* PatternComposer::setupPatternComposer(
 {
 	EList<PatternSource*>* a  = new EList<PatternSource*>();
 	EList<PatternSource*>* b  = new EList<PatternSource*>();
-	EList<PatternSource*>* ab = new EList<PatternSource*>();
 	// Create list of pattern sources for paired reads appearing
 	// interleaved in a single file
 	for(size_t i = 0; i < m12.size(); i++) {
@@ -311,7 +310,8 @@ PatternComposer* PatternComposer::setupPatternComposer(
 			tmp.push_back(m12[i]);
 			assert_eq(1, tmp.size());
 		}
-		ab->push_back(PatternSource::patsrcFromStrings(p, *qs));
+		a->push_back(PatternSource::patsrcFromStrings(p, *qs));
+		b->push_back(NULL);
 		if(!p.fileParallel) {
 			break;
 		}
@@ -375,16 +375,7 @@ PatternComposer* PatternComposer::setupPatternComposer(
 	}
 
 	PatternComposer *patsrc = NULL;
-	if(m12.size() > 0) {
-		patsrc = new SoloPatternComposer(ab, p);
-		for(size_t i = 0; i < a->size(); i++) delete (*a)[i];
-		for(size_t i = 0; i < b->size(); i++) delete (*b)[i];
-		delete a; delete b;
-	} else {
-		patsrc = new DualPatternComposer(a, b, p);
-		for(size_t i = 0; i < ab->size(); i++) delete (*ab)[i];
-		delete ab;
-	}
+	patsrc = new DualPatternComposer(a, b, p);
 	return patsrc;
 }
 
@@ -470,7 +461,7 @@ void CFilePatternSource::open() {
 		}
 		else {
 			const char* filename = infiles_[filecur_].c_str();
-			// compressed_ = is_gzipped_file(filename);
+			compressed_ = is_gzipped_file(filename);
 			if (compressed_) {
 				zfp_ = gzopen(filename, "rb");
 			} else {
