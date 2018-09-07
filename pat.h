@@ -768,7 +768,7 @@ public:
 		const PatternParams& p) :
 		CFilePatternSource(infiles, p),
 		first_(true),
-        blocks_(p.nthreads),
+		blocks_(p.nthreads),
 		bam_batches_(p.nthreads),
 		bam_batch_indexes_(p.nthreads),
 		pp_(p) {
@@ -818,8 +818,8 @@ private:
 	static const int offset[];
     static const uint8_t EOF_MARKER[];
 
-    std::vector<BGZF> blocks_;
-    std::vector<std::vector<uint8_t> > bam_batches_;
+	std::vector<BGZF> blocks_;
+	std::vector<std::vector<uint8_t> > bam_batches_;
 	std::vector<size_t> bam_batch_indexes_;
 
 	PatternParams pp_;
