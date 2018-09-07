@@ -55,6 +55,7 @@ struct PatternParams {
 
 	PatternParams(
 		int format_,
+		bool interleaved_,
 		bool fileParallel_,
 		uint32_t seed_,
 		size_t max_buf_,
@@ -72,6 +73,7 @@ struct PatternParams {
 		bool preserve_sam_tags_,
 		bool align_paired_reads_) :
 		format(format_),
+		interleaved(interleaved_),
 		fileParallel(fileParallel_),
 		seed(seed_),
 		max_buf(max_buf_),
@@ -90,6 +92,7 @@ struct PatternParams {
 		align_paired_reads(align_paired_reads_) { }
 
 	int format;			  // file format
+	bool interleaved;	  // some or all of the FASTQ reads are interleaved
 	bool fileParallel;	  // true -> wrap files with separate PatternComposers
 	uint32_t seed;		  // pseudo-random seed
 	size_t max_buf;		  // number of reads to buffer in one read
@@ -685,7 +688,7 @@ public:
 
 	FastqPatternSource(
 		const EList<std::string>& infiles,
-		const PatternParams& p, bool interleaved = false) :
+		const PatternParams& p, bool interleaved) :
 		CFilePatternSource(infiles, p),
 		first_(true),
 		interleaved_(interleaved) { }
@@ -906,7 +909,7 @@ public:
 		const EList<std::string>& q,	 // qualities associated with singles
 		const EList<std::string>& q1,	 // qualities associated with m1
 		const EList<std::string>& q2,	 // qualities associated with m2
-		const PatternParams& p,		// read-in params
+		PatternParams& p,		// read-in params
 		bool verbose);				// be talkative?
 	
 protected:

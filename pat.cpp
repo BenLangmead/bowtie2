@@ -100,9 +100,8 @@ PatternSource* PatternSource::patsrcFromStrings(
 		case FASTA:       return new FastaPatternSource(qs, p);
 		case FASTA_CONT:  return new FastaContinuousPatternSource(qs, p);
 		case RAW:         return new RawPatternSource(qs, p);
-		case FASTQ:       return new FastqPatternSource(qs, p);
+		case FASTQ:       return new FastqPatternSource(qs, p, p.interleaved);
 		case BAM:         return new BAMPatternSource(qs, p);
-		case INTERLEAVED: return new FastqPatternSource(qs, p, true /* interleaved */);
 		case TAB_MATE5:   return new TabbedPatternSource(qs, p, false);
 		case TAB_MATE6:   return new TabbedPatternSource(qs, p, true);
 		case CMDLINE:     return new VectorPatternSource(qs, p);
@@ -294,7 +293,7 @@ PatternComposer* PatternComposer::setupPatternComposer(
 	const EList<string>& q,    // qualities associated with singles
 	const EList<string>& q1,   // qualities associated with m1
 	const EList<string>& q2,   // qualities associated with m2
-	const PatternParams& p,    // read-in parameters
+	PatternParams& p,    // read-in parameters
 	bool verbose)              // be talkative?
 {
 	EList<PatternSource*>* a  = new EList<PatternSource*>();
@@ -312,6 +311,7 @@ PatternComposer* PatternComposer::setupPatternComposer(
 		}
 		a->push_back(PatternSource::patsrcFromStrings(p, *qs));
 		b->push_back(NULL);
+		p.interleaved = false;
 		if(!p.fileParallel) {
 			break;
 		}

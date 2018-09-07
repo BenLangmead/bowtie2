@@ -84,6 +84,7 @@ static bool startVerbose; // be talkative at startup
 int gQuiet;               // print nothing but the alignments
 static int sanityCheck;   // enable expensive sanity checks
 static int format;        // default read format is FASTQ
+static bool interleaved;  // reads are interleaved
 static string origString; // reference text, or filename(s)
 static int seed;          // srandom() seed
 static int timing;        // whether to report basic timing data
@@ -278,6 +279,7 @@ static void resetOptions() {
 	gQuiet					= false;
 	sanityCheck				= 0;  // enable expensive sanity checks
 	format					= FASTQ; // default read format is FASTQ
+	interleaved				= false; // reads are not interleaved by default
 	origString				= ""; // reference text, or filename(s)
 	seed					= 0; // srandom() seed
 	timing					= 0; // whether to report basic timing data
@@ -999,7 +1001,12 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_ONETWO: tokenize(arg, ",", mates12); format = TAB_MATE5; break;
 		case ARG_TAB5:   tokenize(arg, ",", mates12); format = TAB_MATE5; break;
 		case ARG_TAB6:   tokenize(arg, ",", mates12); format = TAB_MATE6; break;
-		case ARG_INTERLEAVED_FASTQ: tokenize(arg, ",", mates12); format = INTERLEAVED; break;
+		case ARG_INTERLEAVED_FASTQ: {
+			tokenize(arg, ",", mates12);
+			format = FASTQ;
+			interleaved = true;
+			break;
+		}
 		case 'b': {
 			format = BAM;
 			saw_bam = true;
@@ -4782,6 +4789,7 @@ static void driver(
 	}
 	PatternParams pp(
 		format,        // file format
+		interleaved,   // some or all of the reads are interleaved
 		fileParallel,  // true -> wrap files with separate PairedPatternSources
 		seed,          // pseudo-random seed
 		readsPerBatch, // # reads in a light parsing batch
