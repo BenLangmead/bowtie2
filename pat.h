@@ -856,7 +856,7 @@ private:
 
 	std::pair<bool, int> get_alignments(PerThreadReadBuf& pt, bool batch_a, unsigned& readi);
 
-	bool store_orphan_mate(const uint8_t* read, size_t read_len);
+	void store_orphan_mate(const uint8_t* read, size_t read_len);
 
 	void get_orphaned_pairs(EList<Read>& buf_a, EList<Read>& buf_b, const size_t max_buf, unsigned& readi);
 
