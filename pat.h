@@ -725,7 +725,7 @@ protected:
 };
 
 class BAMPatternSource : public CFilePatternSource {
-	struct hdr {
+	struct hdr_t {
 		uint8_t id1;
 		uint8_t id2;
 		uint8_t cm;
@@ -736,15 +736,34 @@ class BAMPatternSource : public CFilePatternSource {
 		uint16_t xlen;
 	};
 
-	struct ftr {
+	struct ftr_t {
 		uint32_t crc32;
 		uint32_t isize;
 	};
 
 	struct BGZF {
-		hdr hdr;
+		hdr_t hdr;
 		uint8_t cdata[1 << 16];
-		ftr ftr;
+		ftr_t ftr;
+	};
+
+	struct orphan_mate_t {
+		orphan_mate_t() :
+			data(NULL),
+			size(0),
+			cap(0) {}
+
+		void reset() {
+			size = 0;
+		}
+
+		bool empty() const {
+			return size == 0;
+		}
+
+		uint8_t* data;
+		uint16_t size;
+		uint16_t cap;
 	};
 
 	struct BAMField {
@@ -774,9 +793,12 @@ public:
 		blocks_(p.nthreads),
 		bam_batches_(p.nthreads),
 		bam_batch_indexes_(p.nthreads),
+		orphan_mate1s(p.nthreads * 2),
+		orphan_mate2s(p.nthreads * 2),
+		orphan_mates_mutex_(),
 		pp_(p) {
 			// uncompressed size of BGZF block is limited to 2**16 bytes
-			for (int i = 0; i < bam_batches_.size(); ++i) {
+			for (size_t i = 0; i < bam_batches_.size(); ++i) {
 				bam_batches_[i].reserve(1 << 16);
 			}
 		}
@@ -790,6 +812,22 @@ public:
 	 * Finalize BAM parsing outside critical section.
 	 */
 	virtual bool parse(Read& ra, Read& rb, TReadId rdid) const;
+
+	~BAMPatternSource() {
+		// only temporary until c++11
+		for (size_t i = 0; i < orphan_mate1s.size(); i++) {
+			if (orphan_mate1s[i].data != NULL) {
+				delete[] orphan_mate1s[i].data;
+			}
+		}
+
+		for (size_t i = 0; i < orphan_mate2s.size(); i++) {
+			if (orphan_mate2s[i].data != NULL) {
+				delete[] orphan_mate2s[i].data;
+			}
+		}
+	}
+
 
 protected:
 
@@ -818,12 +856,26 @@ private:
 
 	std::pair<bool, int> get_alignments(PerThreadReadBuf& pt, bool batch_a, unsigned& readi);
 
+	bool store_orphan_mate(const uint8_t* read, size_t read_len);
+
+	void get_orphaned_pairs(EList<Read>& buf_a, EList<Read>& buf_b, const size_t max_buf, unsigned& readi);
+
+	size_t get_matching_read(const uint8_t* rec);
+
+	static int compare_read_names(const void* m1, const void* m2);
+
+	static bool compare_read_names2(const orphan_mate_t& m1, const orphan_mate_t& m2);
+
 	static const int offset[];
-    static const uint8_t EOF_MARKER[];
+	static const uint8_t EOF_MARKER[];
 
 	std::vector<BGZF> blocks_;
 	std::vector<std::vector<uint8_t> > bam_batches_;
 	std::vector<size_t> bam_batch_indexes_;
+
+	std::vector<orphan_mate_t> orphan_mate1s;
+	std::vector<orphan_mate_t> orphan_mate2s;
+	MUTEX_T orphan_mates_mutex_;
 
 	PatternParams pp_;
 };

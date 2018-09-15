@@ -231,7 +231,7 @@ pair<bool, int> DualPatternComposer::nextBatch(PerThreadReadBuf& pt) {
 				pt,
 				true,  // batch A (or pairs)
 				true); // grab lock below
-			if(res.second == 0) {
+			if(res.second == 0 && cur < srca_->size() - 1) {
 				ThreadSafe ts(mutex_m);
 				if(cur + 1 > cur_) cur_++;
 				cur = cur_; // Move on to next PatternSource
@@ -461,9 +461,15 @@ void CFilePatternSource::open() {
 		}
 		else {
 			const char* filename = infiles_[filecur_].c_str();
-			compressed_ = is_gzipped_file(filename);
-			if (compressed_) {
+			const char* ext = filename + infiles_[filecur_].length();
+
+			// Only temporary until we have a separate BGZFPatternSource
+			while (ext != filename && *--ext != '.') ;
+			bool bam_file = ext != filename && strncmp(ext, ".bam", 4) == 0;
+
+			if (!bam_file && is_gzipped_file(filename)) {
 				zfp_ = gzopen(filename, "rb");
+				compressed_ = true;
 			} else {
 				fp_ = fopen(filename, "rb");
 			}
@@ -1273,11 +1279,13 @@ std::pair<bool, int> BAMPatternSource::nextBatch(PerThreadReadBuf& pt, bool batc
 				cdata_len = nextBGZFBlockFromFile(block);
 			}
 
-			bam_batch_indexes_[pt.tid_] = 0;
-
 			if (cdata_len == 0) {
-				return make_pair(true, nread);
+				ThreadSafe ts(orphan_mates_mutex_);
+				get_orphaned_pairs(pt.bufa_, pt.bufb_, pt.max_buf_, nread);
+				return make_pair(nread == 0, nread);
 			}
+
+			bam_batch_indexes_[pt.tid_] = 0;
 
 			batch.resize(block.ftr.isize);
 
@@ -1297,7 +1305,7 @@ std::pair<bool, int> BAMPatternSource::nextBatch(PerThreadReadBuf& pt, bool batc
 		done = ret.first;
 	} while (!done && nread < pt.max_buf_);
 
-	readCnt_ += nread;
+	readCnt_ += 1;
 
 	return make_pair(done, nread);
 }
@@ -1335,26 +1343,118 @@ std::pair<bool, int> BAMPatternSource::get_alignments(PerThreadReadBuf& pt, bool
 			continue;
 		}
 
-		readbuf[readi].readOrigBuf.resize(block_size);
+		if (pp_.align_paired_reads && (((flag & 0x40) != 0
+				&& i + block_size == bam_batches_[pt.tid_].size())
+				|| ((flag & 0x80) != 0 && i == sizeof(block_size))))
+		{
+			ThreadSafe ts(orphan_mates_mutex_);
+			store_orphan_mate(&bam_batches_[pt.tid_][0] + i, block_size);
+			i += block_size;
+			get_orphaned_pairs(pt.bufa_, pt.bufb_, pt.max_buf_, readi);
+		} else {
+			readbuf[readi].readOrigBuf.resize(block_size);
 
-		memcpy(readbuf[readi].readOrigBuf.wbuf(), &bam_batches_[pt.tid_][0] + i, block_size);
-		i += block_size;
+			memcpy(readbuf[readi].readOrigBuf.wbuf(), &bam_batches_[pt.tid_][0] + i, block_size);
+			i += block_size;
 
-		if (pp_.align_paired_reads && read1 && (flag & 0x40) == 0) {
-			std::cerr << "Paired reads are out of order" << std::endl;
-			return make_pair(true, readi == 0 ? readi : readi-1);
+			read1 = !read1;
+			readi = (pp_.align_paired_reads
+					 && pt.bufb_[readi].readOrigBuf.length() == 0) ? readi : readi + 1;
 		}
-		if (pp_.align_paired_reads && !read1 && (flag & 0x80) == 0) {
-			std::cerr << "Paired reads are out of order" << std::endl;
-			return make_pair(true, readi == 0 ? readi : readi-1);
-		}
-
-		read1 = !read1;
-		readi = (pp_.align_paired_reads
-				 && pt.bufb_[readi].readOrigBuf.length() == 0) ? readi : readi + 1;
 	}
 
 	return make_pair(done, readi);
+}
+
+void BAMPatternSource::store_orphan_mate(const uint8_t* r, size_t read_len) {
+	uint8_t flag;
+	memcpy(&flag, r + offset[BAMField::flag], sizeof(flag));
+
+	std::vector<orphan_mate_t>&
+		orphan_mates = (flag & 0x40) != 0 ? orphan_mate1s : orphan_mate2s;
+
+	size_t i;
+	for (i = 0; i < orphan_mates.size() && !orphan_mates[i].empty(); ++i) ;
+
+	if (i == orphan_mates.size()) {
+		orphan_mates.resize(orphan_mates.size() * 2);
+	}
+
+	orphan_mate_t& mate = orphan_mates[i];
+
+	if (mate.data == NULL || mate.cap < read_len) {
+		mate.data = new uint8_t[read_len];
+		mate.cap = read_len;
+	}
+
+	if (mate.cap < read_len) {
+		mate.data = new uint8_t[read_len];
+		mate.cap = read_len;
+	}
+
+	mate.size = read_len;
+
+	memcpy(mate.data, r, read_len);
+}
+
+int BAMPatternSource::compare_read_names(const void* m1, const void* m2) {
+	const orphan_mate_t* mate1 = (const orphan_mate_t*)m1;
+	const orphan_mate_t* mate2 = (const orphan_mate_t*)m2;
+
+	const char* r1 = (const char *)(mate1->data + offset[BAMField::read_name]);
+	const char* r2 = (const char *)(mate2->data + offset[BAMField::read_name]);
+
+	return strcmp(r1, r2);
+}
+
+bool BAMPatternSource::compare_read_names2(const orphan_mate_t& m1, const orphan_mate_t& m2) {
+	if (m1.empty()) {
+		return false;
+	}
+
+	if (m2.empty()) {
+		return true;
+	}
+
+	const char* r1 = (const char *)(m1.data + offset[BAMField::read_name]);
+	const char* r2 = (const char *)(m2.data + offset[BAMField::read_name]);
+
+	return strcmp(r1, r2);
+}
+
+void BAMPatternSource::get_orphaned_pairs(EList<Read>& buf_a, EList<Read>& buf_b, const size_t max_buf, unsigned& readi) {
+	std::sort(orphan_mate1s.begin(), orphan_mate1s.end(), &BAMPatternSource::compare_read_names2);
+	std::sort(orphan_mate2s.begin(), orphan_mate2s.end(), &BAMPatternSource::compare_read_names2);
+
+	size_t lim1, lim2;
+	for (lim1 = 0; lim1 < orphan_mate1s.size() && !orphan_mate1s[lim1].empty(); lim1++) ;
+	for (lim2 = 0; lim2 < orphan_mate2s.size() && !orphan_mate2s[lim2].empty(); lim2++) ;
+
+	if (lim2 == 0) {
+		return;
+	}
+
+	for (size_t i = 0; i < lim1 && readi < max_buf; ++i) {
+		orphan_mate_t* mate1 = &orphan_mate1s[i];
+		orphan_mate_t* mate2 = (orphan_mate_t*)bsearch(mate1, &orphan_mate2s[0], lim2,
+		                            sizeof(orphan_mate2s[0]), compare_read_names);
+
+		if (mate2 != NULL) {
+			Read& ra = buf_a[readi];
+			Read& rb = buf_b[readi];
+
+			ra.readOrigBuf.resize(mate1->size);
+			rb.readOrigBuf.resize(mate2->size);
+
+			memcpy(ra.readOrigBuf.wbuf(), mate1->data, mate1->size);
+			memcpy(rb.readOrigBuf.wbuf(), mate2->data, mate2->size);
+
+			mate1->reset();
+			mate2->reset();
+
+			readi++;
+		}
+	}
 }
 
 int BAMPatternSource::decompress_bgzf_block(uint8_t *dst, size_t dst_len, uint8_t *src, size_t src_len) {
