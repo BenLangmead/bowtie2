@@ -18,10 +18,10 @@
         </tr>
       <tr>
       <td>
-        <a href="https://sourceforge.net/projects/bowtie-bio/files/bowtie2/2.3.4.2">Bowtie2 2.3.4.2</a>
+        <a href="https://sourceforge.net/projects/bowtie-bio/files/bowtie2/2.3.4.3">Bowtie2 2.3.4.3</a>
       </td>
       <td align="right">
-        08/07/18&nbsp;
+        09/17/18&nbsp;
       </td>
       </tr>
       <tr>
@@ -164,6 +164,7 @@
   <h2>Related publications</h2>
   <div class="box">
     <ul>
+      <li style="font-size: x-small; line-height: 130%">Langmead B, Wilks C., Antonescu V., Charles R. <a href="https://doi.org/10.1093/bioinformatics/bty648"><b>Scaling read aligners to hundreds of threads on general-purpose processors</b></a>. <i><a href="https://academic.oup.com/bioinformatics">Bioinformatics</a></i>. bty648.<br/><br/></li>
       <li style="font-size: x-small; line-height: 130%">Langmead B, Salzberg S. <a href="http://www.nature.com/nmeth/journal/v9/n4/full/nmeth.1923.html"><b>Fast gapped-read alignment with Bowtie 2</b></a>. <i><a href="http://www.nature.com/nmeth">Nature Methods</a></i>. 2012, 9:357-359.<br/><br/></li>
       <li style="font-size: x-small; line-height: 130%">Langmead B, Trapnell C, Pop M, Salzberg SL. <a href="http://genomebiology.com/2009/10/3/R25"><b>Ultrafast and memory-efficient alignment of short DNA sequences to the human genome</b></a>. <i><a href="http://genomebiology.com">Genome Biology</a></i> <b>10</b>:R25.<br/><br/></li>
     </ul>

@@ -19,6 +19,14 @@ Please report any issues to the Bowtie 2 Github page or using the Sourceforge bu
 Version Release History
 =======================
 
+Version 2.3.4.3 - Sep 17, 2018
+
+    * Fixed an issue causing `bowtie2-build` and `bowtie2-inspect`
+      to output incomplete help text.
+    * Fixed an issue causing `bowtie2-inspect` to crash.
+    * Fixed an issue preventing `bowtie2` from processing paired and/or
+      unpaired FASTQ reads together with interleaved FASTQ reads.
+
 Version 2.3.4.2 - Aug 7, 2018
 
     * Fixed issue causing `bowtie2` to fail in `--fast-local` mode.

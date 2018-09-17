@@ -29,14 +29,14 @@ import subprocess
 from collections import deque
 
 def main():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(add_help = False)
+
+    parser.add_argument('--large-index', action='store_true')
+    parser.add_argument('--verbose', action='store_true')
 
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--debug', action='store_true')
     group.add_argument('--sanitized', action='store_true')
-
-    parser.add_argument('--verbose', action='store_true')
-    parser.add_argument('--large-index', action='store_true')
 
     logging.basicConfig(level=logging.ERROR,
                         format='%(levelname)s: %(message)s'
@@ -51,7 +51,11 @@ def main():
     build_bin_spec      = os.path.join(ex_path,build_bin_s)
 
     script_options, argv = parser.parse_known_args()
+    print_help = False
     argv = deque(argv)
+
+    if '-h' in argv or '--help' in argv:
+        print_help = True
 
     if script_options.verbose:
         logging.getLogger().setLevel(logging.INFO)

@@ -1,17 +1,22 @@
-<h2>Version 2.3.4.2 - August 07, 1987</h2>
+<h2>Version 2.3.4.3 - September 17, 2018</h2>
 <ul>
-    <li>Fixed issue causing <code>bowtie2</code> to fail in <code><a href="bowtie2-options-fast-local">--fast-local</a></code> mode.</li>
-    <li>Fixed issue causing <code><a href="bowtie2-options-soft-clipped-unmapped-tlen>--soft-clipped-unmapped-tlen</a></code> to be a positional argument.</li>
-    <li>New option <code><a href="bowtie2-options-trim-to">--trim-to</a> N</code> causes <code>bowtie2</code> to trim reads longer than <code>N</code> bases to exactly <code>N</code> bases.  Can trim from either 3&#39; or 5&#39; end, e.g. <code><a href="bowtie2-options-trim-to">--trim-to</a> 5:30</code> trims reads to 30 bases, truncating at the 5&#39; end.</li>
-    <li>Updated <a href="#building-from-source">&quot;Building from source&quot;</a> manual section with additional instructions on installing TBB.</li>
+    <li>Fixed an issue causing <code>bowtie2-build</code> and <code>bowtie2-inspect</code> to output incomplete help text.</li>
+    <li>Fixed an issue causing <code>bowtie2-align</code> to crash.</li>
+    <li>Fixed an issue preventing <code>bowtie2</code> from processing paired and/or unpaired FASTQ reads together with interleaved FASTQ reads.</li>
+</ul>
+
+<h2>Version 2.3.4.2 - August 07, 2018</h2>
+<ul>
+    <li>Fixed issue causing <code>bowtie2</code> to fail in <code><a href="manual.shtml#bowtie2-options-fast-local">--fast-local</a></code> mode.</li>
+    <li>Fixed issue causing <code><a href="manual.shtml#bowtie2-options-soft-clipped-unmapped-tlen">--soft-clipped-unmapped-tlen</a></code> to be a positional argument.</li>
+    <li>New option <code><a href="manual.shtml#bowtie2-options-trim-to">--trim-to</a> N</code> causes <code>bowtie2</code> to trim reads longer than <code>N</code> bases to exactly <code>N</code> bases.  Can trim from either 3&#39; or 5&#39; end, e.g. <code><a href="manual.shtml#bowtie2-options-trim-to">--trim-to</a> 5:30</code> trims reads to 30 bases, truncating at the 5&#39; end.</li>
+    <li>Updated <a href="manual.shtml#building-from-source">&quot;Building from source&quot;</a> manual section with additional instructions on installing TBB.</li>
     <li>Several other updates to manual, including new mentions of <a href="http://bioconda.github.io">Bioconda</a> and <a href="https://biocontainers.pro">Biocontainers</a>.</li>
     <li>Fixed an issue preventing <code>bowtie2</code> from processing more than one pattern source when running single threaded.</li>
     <li>Fixed an issue causing <code>bowtie2</code> and <code>bowtie2-inspect</code> to crash if the index contains a gap-only segment.</li>
     <li>Added <i>experimental</i> BAM input mode <code>-b</code>. Works only with unpaired input reads and BAM files that are sorted by read name (<code>samtools sort -n</code>). BAM input mode also supports the following options:<li>
-        <ul>
-            <li><code>--preserve-sam-tags</code>: Preserve any optional fields present in BAM record</li>
-            <li><code>--align-paired-reads</code>: Paired-end mode for BAM files</li>
-        </ul>
+        &nbsp&nbsp&nbsp&nbsp<code>--preserve-sam-tags</code>: Preserve any optional fields present in BAM record</li>
+        &nbsp&nbsp&nbsp&nbsp<code>--align-paired-reads</code>: Paired-end mode for BAM files</li>
     <li>Add <i>experimental</i> CMake support</li>
 </ul>
 

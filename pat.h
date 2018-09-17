@@ -26,6 +26,7 @@
 #include <cassert>
 #include <string>
 #include <ctype.h>
+#include <vector>
 #include "alphabet.h"
 #include "assert_helpers.h"
 #include "random_source.h"
@@ -54,6 +55,7 @@ struct PatternParams {
 
 	PatternParams(
 		int format_,
+		bool interleaved_,
 		bool fileParallel_,
 		uint32_t seed_,
 		size_t max_buf_,
@@ -71,6 +73,7 @@ struct PatternParams {
 		bool preserve_sam_tags_,
 		bool align_paired_reads_) :
 		format(format_),
+		interleaved(interleaved_),
 		fileParallel(fileParallel_),
 		seed(seed_),
 		max_buf(max_buf_),
@@ -89,6 +92,7 @@ struct PatternParams {
 		align_paired_reads(align_paired_reads_) { }
 
 	int format;			  // file format
+	bool interleaved;	  // some or all of the FASTQ reads are interleaved
 	bool fileParallel;	  // true -> wrap files with separate PatternComposers
 	uint32_t seed;		  // pseudo-random seed
 	size_t max_buf;		  // number of reads to buffer in one read
@@ -112,11 +116,12 @@ struct PatternParams {
  */
 struct PerThreadReadBuf {
 	
-	PerThreadReadBuf(size_t max_buf) :
+	PerThreadReadBuf(size_t max_buf, int tid) :
 		max_buf_(max_buf),
 		bufa_(max_buf),
 		bufb_(max_buf),
-		rdid_()
+		rdid_(),
+		tid_(tid)
 	{
 		bufa_.resize(max_buf);
 		bufb_.resize(max_buf);
@@ -185,6 +190,7 @@ struct PerThreadReadBuf {
 	EList<Read> bufb_;	   // Read buffer for mate bs
 	size_t cur_buf_;	   // Read buffer currently active
 	TReadId rdid_;		   // index of read at offset 0 of bufa_/bufb_
+	int tid_;
 };
 
 extern void wrongQualityFormat(const BTString& read_name);
@@ -682,7 +688,7 @@ public:
 
 	FastqPatternSource(
 		const EList<std::string>& infiles,
-		const PatternParams& p, bool interleaved = false) :
+		const PatternParams& p, bool interleaved) :
 		CFilePatternSource(infiles, p),
 		first_(true),
 		interleaved_(interleaved) { }
@@ -719,46 +725,46 @@ protected:
 };
 
 class BAMPatternSource : public CFilePatternSource {
+	struct hdr_t {
+		uint8_t id1;
+		uint8_t id2;
+		uint8_t cm;
+		uint8_t flg;
+		uint32_t mtime;
+		uint8_t xfl;
+		uint8_t os;
+		uint16_t xlen;
+	};
 
-public:
+	struct ftr_t {
+		uint32_t crc32;
+		uint32_t isize;
+	};
 
-	BAMPatternSource(
-		const EList<std::string>& infiles,
-		const PatternParams& p) :
-		CFilePatternSource(infiles, p),
-		first_(true) {}
+	struct BGZF {
+		hdr_t hdr;
+		uint8_t cdata[1 << 16];
+		ftr_t ftr;
+	};
 
-	virtual void reset() {
-		first_ = true;
-		CFilePatternSource::reset();
-	}
+	struct orphan_mate_t {
+		orphan_mate_t() :
+			data(NULL),
+			size(0),
+			cap(0) {}
 
-	/**
-	 * Finalize BAM parsing outside critical section.
-	 */
-	virtual bool parse(Read& ra, Read& rb, TReadId rdid) const;
+		void reset() {
+			size = 0;
+		}
 
-protected:
+		bool empty() const {
+			return size == 0;
+		}
 
-	/**
-	 * Light-parse a batch into the given buffer.
-	 */
-	virtual std::pair<bool, int> nextBatchFromFile(PerThreadReadBuf& pt, bool batch_a,
-			unsigned readi);
-
-
-	/**
-	 * Reset state to be ready for the next file.
-	 */
-	virtual void resetForNextFile() {
-		first_ = true;
-	}
-
-	bool first_; // parsing first read in file
-
-private:
-
-	bool parse_bam_header();
+		uint8_t* data;
+		uint16_t size;
+		uint16_t cap;
+	};
 
 	struct BAMField {
 		enum aln_rec_field_name {
@@ -777,7 +783,101 @@ private:
 		};
 	};
 
+public:
+
+	BAMPatternSource(
+		const EList<std::string>& infiles,
+		const PatternParams& p) :
+		CFilePatternSource(infiles, p),
+		first_(true),
+		blocks_(p.nthreads),
+		bam_batches_(p.nthreads),
+		bam_batch_indexes_(p.nthreads),
+		orphan_mate1s(p.nthreads * 2),
+		orphan_mate2s(p.nthreads * 2),
+		orphan_mates_mutex_(),
+		pp_(p) {
+			// uncompressed size of BGZF block is limited to 2**16 bytes
+			for (size_t i = 0; i < bam_batches_.size(); ++i) {
+				bam_batches_[i].reserve(1 << 16);
+			}
+		}
+
+	virtual void reset() {
+		first_ = true;
+		CFilePatternSource::reset();
+	}
+
+	/**
+	 * Finalize BAM parsing outside critical section.
+	 */
+	virtual bool parse(Read& ra, Read& rb, TReadId rdid) const;
+
+	~BAMPatternSource() {
+		// only temporary until c++11
+		for (size_t i = 0; i < orphan_mate1s.size(); i++) {
+			if (orphan_mate1s[i].data != NULL) {
+				delete[] orphan_mate1s[i].data;
+			}
+		}
+
+		for (size_t i = 0; i < orphan_mate2s.size(); i++) {
+			if (orphan_mate2s[i].data != NULL) {
+				delete[] orphan_mate2s[i].data;
+			}
+		}
+	}
+
+
+protected:
+
+	virtual std::pair<bool, int> nextBatch(PerThreadReadBuf& pt, bool batch_a, bool lock = true);
+
+	uint16_t nextBGZFBlockFromFile(BGZF& block);
+
+	/**
+	 * Reset state to be ready for the next file.
+	 */
+	virtual void resetForNextFile() {
+		first_ = true;
+	}
+
+	bool first_; // parsing first read in file
+
+private:
+
+	bool parse_bam_header();
+
+	virtual std::pair<bool, int> nextBatchFromFile(PerThreadReadBuf&, bool, unsigned) {
+		return make_pair(true, 0);
+	}
+
+	int decompress_bgzf_block(uint8_t *dst, size_t dst_len, uint8_t *src, size_t src_len);
+
+	std::pair<bool, int> get_alignments(PerThreadReadBuf& pt, bool batch_a, unsigned& readi);
+
+	void store_orphan_mate(const uint8_t* read, size_t read_len);
+
+	void get_orphaned_pairs(EList<Read>& buf_a, EList<Read>& buf_b, const size_t max_buf, unsigned& readi);
+
+	size_t get_matching_read(const uint8_t* rec);
+
+	static int compare_read_names(const void* m1, const void* m2);
+
+	static bool compare_read_names2(const orphan_mate_t& m1, const orphan_mate_t& m2);
+
 	static const int offset[];
+	static const uint8_t EOF_MARKER[];
+
+	std::vector<BGZF> blocks_;
+	std::vector<std::vector<uint8_t> > bam_batches_;
+	std::vector<size_t> bam_batch_indexes_;
+
+	std::vector<orphan_mate_t> orphan_mate1s;
+	std::vector<orphan_mate_t> orphan_mate2s;
+	MUTEX_T orphan_mates_mutex_;
+
+	PatternParams pp_;
 };
 
 /**
@@ -861,7 +961,7 @@ public:
 		const EList<std::string>& q,	 // qualities associated with singles
 		const EList<std::string>& q1,	 // qualities associated with m1
 		const EList<std::string>& q2,	 // qualities associated with m2
-		const PatternParams& p,		// read-in params
+		PatternParams& p,		// read-in params
 		bool verbose);				// be talkative?
 	
 protected:
@@ -1017,9 +1117,9 @@ public:
 	
 	PatternSourcePerThread(
 		PatternComposer& composer,
-		const PatternParams& pp) :
+		const PatternParams& pp, int tid) :
 		composer_(composer),
-		buf_(pp.max_buf),
+		buf_(pp.max_buf, tid),
 		pp_(pp),
 		last_batch_(false),
 		last_batch_size_(0) { }
@@ -1107,15 +1207,16 @@ class PatternSourcePerThreadFactory {
 public:
 	PatternSourcePerThreadFactory(
 		PatternComposer& composer,
-		const PatternParams& pp) :
+		const PatternParams& pp, int tid) :
 		composer_(composer),
-		pp_(pp) { }
+		pp_(pp),
+		tid_(tid) { }
 	
 	/**
 	 * Create a new heap-allocated PatternSourcePerThreads.
 	 */
 	virtual PatternSourcePerThread* create() const {
-		return new PatternSourcePerThread(composer_, pp_);
+		return new PatternSourcePerThread(composer_, pp_, tid_);
 	}
 	
 	/**
@@ -1125,7 +1226,7 @@ public:
 	virtual EList<PatternSourcePerThread*>* create(uint32_t n) const {
 		EList<PatternSourcePerThread*>* v = new EList<PatternSourcePerThread*>;
 		for(size_t i = 0; i < n; i++) {
-			v->push_back(new PatternSourcePerThread(composer_, pp_));
+			v->push_back(new PatternSourcePerThread(composer_, pp_, tid_));
 			assert(v->back() != NULL);
 		}
 		return v;
@@ -1135,6 +1236,7 @@ private:
 	/// Container for obtaining paired reads from PatternSources
 	PatternComposer& composer_;
 	const PatternParams& pp_;
+	int tid_;
 };
 
 #endif /*PAT_H_*/
