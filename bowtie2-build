@@ -32,11 +32,11 @@ def main():
     parser = argparse.ArgumentParser(add_help = False)
 
     parser.add_argument('--large-index', action='store_true')
-    parser.add_argument('--verbose', action='store_true', help='log command entered')
+    parser.add_argument('--verbose', action='store_true')
 
     group = parser.add_mutually_exclusive_group()
-    group.add_argument('--debug', action='store_true', help='use the debug binary; slower, assertions enabled')
-    group.add_argument('--sanitized', action='store_true', help='use sanitized binary; slower, uses ASan and/or UBSan')
+    group.add_argument('--debug', action='store_true')
+    group.add_argument('--sanitized', action='store_true')
 
     logging.basicConfig(level=logging.ERROR,
                         format='%(levelname)s: %(message)s'
@@ -84,16 +84,7 @@ def main():
     argv.appendleft('--wrapper')
     argv.appendleft(build_bin_spec)
     logging.info('Command: %s' % ' '.join(argv))
-    ret_code = subprocess.call(argv)
-
-    if print_help or ret_code != 0:
-        print '\nAvailable only in bowtie2-build script'
-        help_lines = parser.format_help().splitlines()[-3:]
-        help_lines = [line.split(None, 1) for line in help_lines]
-        for l in help_lines:
-            print >> sys.stderr, '    {0: <24}{1}'.format(*l)
-
-    sys.exit(ret_code)
+    sys.exit(subprocess.call(argv))
 
 if __name__ == '__main__':
     main()

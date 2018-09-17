@@ -142,7 +142,10 @@ static void printUsage(ostream& out) {
 		<< "                            <reference_in>)" << endl;
 	if(wrapper == "basic-0") {
 	out << "    --large-index           force generated index to be 'large', even if ref" << endl
-		<< "                            has fewer than 4 billion nucleotides" << endl;
+		<< "                            has fewer than 4 billion nucleotides" << endl
+		<< "    --debug                 use the debug binary; slower, assertions enabled" << endl
+		<< "    --sanitized             use sanitized binary; slower, uses ASan and/or UBSan" << endl
+		<< "    --verbose               log the issued command" << endl;
 	}
 	out << "    -a/--noauto             disable automatic -p/--bmax/--dcv memory-fitting" << endl
 	    << "    -p/--packed             use packed strings internally; slower, less memory" << endl

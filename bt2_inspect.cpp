@@ -76,14 +76,16 @@ static void printUsage(ostream& out) {
 	<< "Options:" << endl;
 	if(wrapper == "basic-0") {
 		out << "  --large-index      force inspection of the 'large' index, even if a" << endl
-			<< "                     'small' one is present." << endl;
+			<< "                     'small' one is present." << endl
+			<< "  --debug            use the debug binary; slower, assertions enabled" << endl
+			<< "  --sanitized        use sanitized binary; slower, uses ASan and/or UBSan" << endl
+			<< "  --verbose          log the issued command" << endl;
 	}
 	out << "  -a/--across <int>  Number of characters across in FASTA output (default: 60)" << endl
 	<< "  -n/--names         Print reference sequence names only" << endl
 	<< "  -s/--summary       Print summary incl. ref names, lengths, index properties" << endl
 	<< "  -v/--verbose       Verbose output (for debugging)" << endl
 	<< "  -h/--help          print detailed description of tool and its options" << endl
-	<< "  --help             print this usage message" << endl
 	;
 	if(wrapper.empty()) {
 		cerr << endl
