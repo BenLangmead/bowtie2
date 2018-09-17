@@ -152,7 +152,7 @@ Fedora, CentOS
 <pre><code>yum check-update</code></pre>
 </td>
 <td>
-<p>yum search tbb</p>
+<pre><code>yum search tbb</code></pre>
 </td>
 <td>
 <pre><code>yum install tbb-devel.x86_64</code></pre>
