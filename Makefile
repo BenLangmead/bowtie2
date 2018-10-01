@@ -284,8 +284,8 @@ both-sanitized: bowtie2-align-s-sanitized bowtie2-build-s-sanitized bowtie2-alig
 
 DEFS := -fno-strict-aliasing \
         -DBOWTIE2_VERSION="\"`cat VERSION`\"" \
-        -DBUILD_HOST="\"`hostname`\"" \
-        -DBUILD_TIME="\"`date`\"" \
+        -DBUILD_HOST="\"${HOSTNAME:-`hostname`}\"" \
+        -DBUILD_TIME="\"`date -u -r NEWS`\"" \
         -DCOMPILER_VERSION="\"`$(CXX) -v 2>&1 | tail -1`\"" \
         $(FILE_FLAGS) \
         $(PREF_DEF) \
