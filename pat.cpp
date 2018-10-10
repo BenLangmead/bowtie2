@@ -106,6 +106,10 @@ PatternSource* PatternSource::patsrcFromStrings(
 		case TAB_MATE6:   return new TabbedPatternSource(qs, p, true);
 		case CMDLINE:     return new VectorPatternSource(qs, p);
 		case QSEQ:        return new QseqPatternSource(qs, p);
+#ifdef USE_SRA
+		case SRA_FASTA:
+		case SRA_FASTQ:   return new SRAPatternSource(qs, p);
+#endif
 		default: {
 			cerr << "Internal error; bad patsrc format: " << p.format << endl;
 			throw 1;
@@ -293,6 +297,9 @@ PatternComposer* PatternComposer::setupPatternComposer(
 	const EList<string>& q,    // qualities associated with singles
 	const EList<string>& q1,   // qualities associated with m1
 	const EList<string>& q2,   // qualities associated with m2
+#ifdef USE_SRA
+	const EList<string>& sra_accs, // SRA accessions
+#endif
 	PatternParams& p,    // read-in parameters
 	bool verbose)              // be talkative?
 {
@@ -316,6 +323,24 @@ PatternComposer* PatternComposer::setupPatternComposer(
 			break;
 		}
 	}
+
+#ifdef USE_SRA
+	for(size_t i = 0; i < sra_accs.size(); i++) {
+		const EList<string>* qs = &sra_accs;
+		EList<string> tmp;
+		if(p.fileParallel) {
+			// Feed query files one to each PatternSource
+			qs = &tmp;
+			tmp.push_back(sra_accs[i]);
+			assert_eq(1, tmp.size());
+		}
+		a->push_back(PatternSource::patsrcFromStrings(p, *qs));
+		b->push_back(NULL);
+		if(!p.fileParallel) {
+			break;
+		}
+	}
+#endif
 
 	// Create list of pattern sources for paired reads
 	for(size_t i = 0; i < m1.size(); i++) {
@@ -1749,3 +1774,189 @@ void tooManyQualities(const BTString& read_name) {
 		 << "characters." << endl;
 	throw 1;
 }
+
+#ifdef USE_SRA
+
+std::pair<bool, int> SRAPatternSource::nextBatchImpl(
+	PerThreadReadBuf& pt,
+	bool batch_a)
+{
+	pt.setReadId(cur_);
+	EList<Read>& readbuf = batch_a ? pt.bufa_ : pt.bufb_;
+	size_t readi = 0;
+	for(; readi < pt.max_buf_; readi++, cur_++) {
+		if(!sra_it_->nextRead() || !sra_it_->nextFragment()) {
+			break;
+		}
+		const ngs::StringRef rname = sra_it_->getReadId();
+		const ngs::StringRef ra_seq = sra_it_->getFragmentBases();
+		const ngs::StringRef ra_qual = sra_it_->getFragmentQualities();
+		readbuf[readi].readOrigBuf.install(rname.data(), rname.size());
+		readbuf[readi].readOrigBuf.append('\t');
+		readbuf[readi].readOrigBuf.append(ra_seq.data(), ra_seq.size());
+		readbuf[readi].readOrigBuf.append('\t');
+		readbuf[readi].readOrigBuf.append(ra_qual.data(), ra_qual.size());
+		if(sra_it_->nextFragment()) {
+			const ngs::StringRef rb_seq = sra_it_->getFragmentBases();
+			const ngs::StringRef rb_qual = sra_it_->getFragmentQualities();
+			readbuf[readi].readOrigBuf.append('\t');
+			readbuf[readi].readOrigBuf.append(rb_seq.data(), rb_seq.size());
+			readbuf[readi].readOrigBuf.append('\t');
+			readbuf[readi].readOrigBuf.append(rb_qual.data(), rb_qual.size());
+		}
+		readbuf[readi].readOrigBuf.append('\n');
+		if(!sra_it_->nextRead()) {
+			break;
+		}
+	}
+	readCnt_ += readi;
+	return make_pair(!sra_it_->nextRead(), readi);
+}
+
+/**
+ * TODO: need to think about whether this can be done in a sensible way
+ */
+std::pair<bool, int> SRAPatternSource::nextBatch(
+	PerThreadReadBuf& pt,
+	bool batch_a,
+	bool lock)
+{
+	if(lock) {
+		// synchronization at this level because both reading and manipulation of
+		// current file pointer have to be protected
+		ThreadSafe ts(mutex);
+		return nextBatchImpl(pt, batch_a);
+	} else {
+		return nextBatchImpl(pt, batch_a);
+	}
+}
+
+/**
+ * Finalize tabbed parsing outside critical section.
+ */
+bool SRAPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
+	// Light parser (nextBatchFromFile) puts unparsed data
+	// into Read& r, even when the read is paired.
+	assert(ra.empty());
+	assert(rb.empty());
+	assert(!ra.readOrigBuf.empty()); // raw data for read/pair is here
+	assert(rb.readOrigBuf.empty());
+	int c = '\t';
+	size_t cur = 0;
+	const size_t buflen = ra.readOrigBuf.length();
+
+	// Loop over the two ends
+	for(int endi = 0; endi < 2 && c == '\t'; endi++) {
+		Read& r = ((endi == 0) ? ra : rb);
+		assert(r.name.empty());
+		// Parse name if (a) this is the first end, or
+		// (b) this is tab6
+		if(endi < 1) {
+			// Parse read name
+			c = ra.readOrigBuf[cur++];
+			while(c != '\t' && cur < buflen) {
+				r.name.append(c);
+				c = ra.readOrigBuf[cur++];
+			}
+			assert_eq('\t', c);
+			if(cur >= buflen) {
+				return false; // record ended prematurely
+			}
+		} else if(endi > 0) {
+			// if this is the second end and we're parsing
+			// tab5, copy name from first end
+			rb.name = ra.name;
+		}
+
+		// Parse sequence
+		assert(r.patFw.empty());
+		c = ra.readOrigBuf[cur++];
+		int nchar = 0;
+		while(c != '\t' && cur < buflen) {
+			if(isalpha(c)) {
+				assert_in(toupper(c), "ACGTN");
+				if(nchar++ >= pp_.trim5) {
+					assert_neq(0, asc2dnacat[c]);
+					r.patFw.append(asc2dna[c]); // ascii to int
+				}
+			}
+			c = ra.readOrigBuf[cur++];
+		}
+		assert_eq('\t', c);
+		if(cur >= buflen) {
+			return false; // record ended prematurely
+		}
+		// record amt trimmed from 5' end due to --trim5
+		r.trimmed5 = (int)(nchar - r.patFw.length());
+		// record amt trimmed from 3' end due to --trim3
+		r.trimmed3 = (int)(r.patFw.trimEnd(pp_.trim3));
+
+		// Parse qualities
+		assert(r.qual.empty());
+		c = ra.readOrigBuf[cur++];
+		int nqual = 0;
+		if (pp_.intQuals) {
+			int cur_int = 0;
+			while(c != '\t' && c != '\n' && c != '\r' && cur < buflen) {
+				cur_int *= 10;
+				cur_int += (int)(c - '0');
+				c = ra.readOrigBuf[cur++];
+				if(c == ' ' || c == '\t' || c == '\n' || c == '\r') {
+					char cadd = intToPhred33(cur_int, pp_.solexa64);
+					cur_int = 0;
+					assert_geq(cadd, 33);
+					if(++nqual > pp_.trim5) {
+						r.qual.append(cadd);
+					}
+				}
+			}
+		} else {
+			while(c != '\t' && c != '\n' && c != '\r') {
+				if(c == ' ') {
+					wrongQualityFormat(r.name);
+					return false;
+				}
+				char cadd = charToPhred33(c, pp_.solexa64, pp_.phred64);
+				if(++nqual > pp_.trim5) {
+					r.qual.append(cadd);
+				}
+				if(cur >= buflen) break;
+				c = ra.readOrigBuf[cur++];
+			}
+		}
+		if(nchar > nqual) {
+			tooFewQualities(r.name);
+			return false;
+		} else if(nqual > nchar) {
+			tooManyQualities(r.name);
+			return false;
+		}
+		r.qual.trimEnd(pp_.trim3);
+		assert(c == '\t' || c == '\n' || c == '\r' || cur >= buflen);
+		assert_eq(r.patFw.length(), r.qual.length());
+	}
+	return true;
+}
+
+void SRAPatternSource::open() {
+	const string& sra_acc = sra_accs_[sra_acc_cur_];
+	string version = "bowtie2";
+	ncbi::NGS::setAppVersionString(version);
+	assert(!sra_acc.empty());
+	try {
+		// open requested accession using SRA implementation of the API
+		ngs::ReadCollection sra_run = ncbi::NGS::openReadCollection(sra_acc);
+		
+		// compute window to iterate through
+		size_t MAX_ROW = sra_run.getReadCount();
+		if(MAX_ROW == 0) {
+			return;
+		}
+		sra_it_ = new ngs::ReadIterator(sra_run.getReadRange(1, MAX_ROW, ngs::Read::all));
+		assert(sra_it_ != NULL);
+	} catch(...) {
+		cerr << "Warning: Could not access \"" << sra_acc << "\" for reading; skipping..." << endl;
+	}
+}
+
+#endif

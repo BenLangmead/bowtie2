@@ -35,7 +35,9 @@ enum file_format {
 	TAB_MATE6,
 	RAW,
 	CMDLINE,
-	QSEQ
+	QSEQ,
+	SRA_FASTA,
+	SRA_FASTQ
 };
 
 static const std::string file_format_names[] = {
@@ -44,12 +46,13 @@ static const std::string file_format_names[] = {
 	"FASTA sampling",
 	"FASTQ",
 	"BAM",
-	"Tabbed mated",
+	"Tabbed 5-field",
+	"Tabbed 6-field",
 	"Raw",
 	"Command line",
 	"Qseq",
-	"Chain file",
-	"Random"
+    "SRA Fasta",
+    "SRA Fastq"
 };
 
 #endif /*FORMATS_H_*/

@@ -32,3 +32,6 @@ bowtie2-inspect-l-sanitized
 Xcode
 reads_*.fq
 reads_*.sam
+ncbi-vdb-*
+ngs-*
+cmake-build-*

@@ -72,7 +72,7 @@ static int FNAME_SIZE;
 static tbb::atomic<int> thread_counter;
 #else
 static int thread_counter;
-static MUTEX_T thread_counter_mutex; 
+static MUTEX_T thread_counter_mutex;
 #endif
 
 static EList<string> mates1;  // mated reads (first mate)
@@ -266,6 +266,10 @@ static string logDpsOpp;      // log mate-search dynamic programming problems
 static string bt2index;      // read Bowtie 2 index from files with this prefix
 static EList<pair<int, string> > extra_opts;
 static size_t extra_opts_cur;
+
+#ifdef USE_SRA
+static EList<string> sra_accs;
+#endif
 
 #define DMAX std::numeric_limits<double>::max()
 
@@ -461,6 +465,9 @@ static void resetOptions() {
 	bowtie2p5 = false;
 	logDps.clear();          // log seed-extend dynamic programming problems
 	logDpsOpp.clear();       // log mate-search dynamic programming problems
+#ifdef USE_SRA
+	sra_accs.clear();
+#endif
 }
 
 static const char *short_options = "bfF:qbzhcu:rv:s:aP:t3:5:w:p:k:M:1:2:I:X:CQ:N:i:L:U:x:S:g:O:D:R:";
@@ -654,6 +661,9 @@ static struct option long_options[] = {
 {(char*)"trim-to",                     required_argument,  0,                   ARG_TRIM_TO},
 {(char*)"preserve-sam-tags",           no_argument,        0,                   ARG_PRESERVE_SAM_TAGS},
 {(char*)"align-paired-reads",          no_argument,        0,                   ARG_ALIGN_PAIRED_READS},
+#ifdef USE_SRA
+{(char*)"sra-acc",                     required_argument,  0,                   ARG_SRA_ACC},
+#endif
 {(char*)0,                             0,                  0,                   0} //  terminator
 };
 
@@ -1029,7 +1039,7 @@ static void parseOption(int next_option, const char *arg) {
 			// -b INT   Mismatch penalty [3]
 			// -q INT   Gap open penalty [5]
 			// -r INT   Gap extension penalty. The penalty for a contiguous
-			//          gap of size k is q+k*r. [2] 
+			//          gap of size k is q+k*r. [2]
 			polstr += ";MA=1;MMP=C3;RDG=5,2;RFG=5,2";
 			break;
 		}
@@ -1522,7 +1532,14 @@ static void parseOption(int next_option, const char *arg) {
 			}
 			break;
 		}
-		case ARG_VERSION: showVersion = 1; break;
+#ifdef USE_SRA
+        case ARG_SRA_ACC: {
+            tokenize(arg, ",", sra_accs);
+            format = SRA_FASTA;
+            break;
+        }
+#endif
+        case ARG_VERSION: showVersion = 1; break;
 		default:
 			printUsage(cerr);
 			throw 1;
@@ -1829,7 +1846,7 @@ struct PerfMetrics {
 		nbtfiltst = 0;
 		nbtfiltsc = 0;
 		nbtfiltdo = 0;
-		
+
 		olmu.reset();
 		sdmu.reset();
 		wlmu.reset();
@@ -1923,7 +1940,7 @@ struct PerfMetrics {
 				/*  5 */ "SameReadBase"   "\t"
 				/*  6 */ "UnfilteredRead" "\t"
 				/*  7 */ "UnfilteredBase" "\t"
-				
+
 				/*  8 */ "Paired"         "\t"
 				/*  9 */ "Unpaired"       "\t"
 				/* 10 */ "AlConUni"       "\t"
@@ -1939,7 +1956,7 @@ struct PerfMetrics {
 				/* 20 */ "AlUnpUni"       "\t"
 				/* 21 */ "AlUnpRep"       "\t"
 				/* 22 */ "AlUnpFail"      "\t"
-				
+
 				/* 23 */ "SeedSearch"     "\t"
 				/* 24 */ "NRange"         "\t"
 				/* 25 */ "NElt"           "\t"
@@ -2061,19 +2078,19 @@ struct PerfMetrics {
 				/* 129 */ "DebugMemPeak"   "\t" // DEBUG_CAT
 #endif
 				"\n";
-			
+
 			if(name != NULL) {
 				if(o != NULL) o->writeChars("Name\t");
 				if(metricsStderr) stderrSs << "Name\t";
 			}
-			
+
 			if(o != NULL) o->writeChars(str);
 			if(metricsStderr) stderrSs << str;
 			first = false;
 		}
-		
+
 		if(total) mergeIncrementals();
-		
+
 		// 0. Read name, if needed
 		if(name != NULL) {
 			if(o != NULL) {
@@ -2084,14 +2101,14 @@ struct PerfMetrics {
 				stderrSs << (*name) << '\t';
 			}
 		}
-			
+
 		// 1. Current time in secs
 		itoa10<time_t>(curtime, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		
+
 		const OuterLoopMetrics& ol = total ? olm : olmu;
-		
+
 		// 2. Reads
 		itoa10<uint64_t>(ol.reads, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
@@ -2181,7 +2198,7 @@ struct PerfMetrics {
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 
 		const SeedSearchMetrics& sd = total ? sdm : sdmu;
-		
+
 		// 23. Seed searches
 		itoa10<uint64_t>(sd.seedsearch, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
@@ -2214,9 +2231,9 @@ struct PerfMetrics {
 		itoa10<uint64_t>(sd.bweds, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		
+
 		const WalkMetrics& wl = total ? wlm : wlmu;
-		
+
 		// 31. Burrows-Wheeler ops in resolver
 		itoa10<uint64_t>(wl.bwops, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
@@ -2233,7 +2250,7 @@ struct PerfMetrics {
 		itoa10<uint64_t>(wl.reports, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		
+
 		// 35. Redundant seed hit
 		itoa10<uint64_t>(total ? swmSeed.rshit : swmuSeed.rshit, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
@@ -2251,7 +2268,7 @@ struct PerfMetrics {
 		itoa10<uint64_t>(total ? sdm.bestmin2 : sdmu.bestmin2, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		
+
 		// 39. Exact aligner attempts
 		itoa10<uint64_t>(total ? swmSeed.exatts : swmuSeed.exatts, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
@@ -2332,9 +2349,9 @@ struct PerfMetrics {
 		itoa10<uint64_t>(total ? swmMate.sws3 : swmuMate.sws3, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		
+
 		const SSEMetrics& dpSse16s = total ? dpSse16Seed : dpSse16uSeed;
-		
+
 		// 58. 16-bit SSE seed-extend DPs tried
 		itoa10<uint64_t>(dpSse16s.dp, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
@@ -2395,9 +2412,9 @@ struct PerfMetrics {
 		itoa10<uint64_t>(dpSse16s.nrej, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		
+
 		const SSEMetrics& dpSse8s = total ? dpSse8Seed : dpSse8uSeed;
-		
+
 		// 73. 8-bit SSE seed-extend DPs tried
 		itoa10<uint64_t>(dpSse8s.dp, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
@@ -2458,9 +2475,9 @@ struct PerfMetrics {
 		itoa10<uint64_t>(dpSse8s.nrej, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		
+
 		const SSEMetrics& dpSse16m = total ? dpSse16Mate : dpSse16uMate;
-		
+
 		// 88. 16-bit SSE mate-finding DPs tried
 		itoa10<uint64_t>(dpSse16m.dp, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
@@ -2521,9 +2538,9 @@ struct PerfMetrics {
 		itoa10<uint64_t>(dpSse16m.nrej, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		
+
 		const SSEMetrics& dpSse8m = total ? dpSse8Mate : dpSse8uMate;
-		
+
 		// 103. 8-bit SSE mate-finding DPs tried
 		itoa10<uint64_t>(dpSse8m.dp, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
@@ -2584,7 +2601,7 @@ struct PerfMetrics {
 		itoa10<uint64_t>(dpSse8m.nrej, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		
+
 		// 118. Backtrace candidates filtered due to starting cell
 		itoa10<uint64_t>(total ? nbtfiltst : nbtfiltst_u, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
@@ -2597,7 +2614,7 @@ struct PerfMetrics {
 		itoa10<uint64_t>(total ? nbtfiltdo : nbtfiltdo_u, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		
+
 #ifdef USE_MEM_TALLY
 		// 121. Overall memory peak
 		itoa10<size_t>(gMemTally.peak() >> 20, buf);
@@ -2641,7 +2658,7 @@ struct PerfMetrics {
 		if(metricsStderr) cerr << stderrSs.str().c_str() << endl;
 		if(!total) mergeIncrementals();
 	}
-	
+
 	void mergeIncrementals() {
 		olm.merge(olmu);
 		sdm.merge(sdmu);
@@ -2917,7 +2934,7 @@ public:
 		thread_counter++;
 #endif
 	}
-	
+
 	~ThreadCounter() {
 #ifdef WITH_TBB
 		thread_counter.fetch_and_decrement();
@@ -2941,7 +2958,7 @@ public:
  *     we can skip all stages, report the result immediately and move to next
  *     read/pair
  *   + If not identical, continue
- * - 
+ * -
  */
 #ifdef WITH_TBB
 //void multiseedSearchWorker::operator()() const {
@@ -2968,10 +2985,10 @@ static void multiseedSearchWorker(void *vp) {
 #ifdef PER_THREAD_TIMING
 		uint64_t ncpu_changeovers = 0;
 		uint64_t nnuma_changeovers = 0;
-		
+
 		int current_cpu = 0, current_node = 0;
 		get_cpu_and_node(current_cpu, current_node);
-		
+
 		std::stringstream ss;
 		std::string msg;
 		ss << "thread: " << tid << " time: ";
@@ -2983,11 +3000,11 @@ static void multiseedSearchWorker(void *vp) {
 		// events of interest on a per-read, per-seed, per-join, or per-SW
 		// level.  These in turn can be used to diagnose performance
 		// problems, or generally characterize performance.
-		
+
 		//const BitPairReference& refs   = *multiseed_refs;
 		auto_ptr<PatternSourcePerThreadFactory> patsrcFact(createPatsrcFactory(patsrc, pp, tid));
 		auto_ptr<PatternSourcePerThread> ps(patsrcFact->create());
-		
+
 		// Thread-local cache for seed alignments
 		PtrWrap<AlignmentCache> scLocal;
 		if(!msNoCache) {
@@ -2995,13 +3012,13 @@ static void multiseedSearchWorker(void *vp) {
 		}
 		AlignmentCache scCurrent(seedCacheCurrentMB * 1024 * 1024, false);
 		// Thread-local cache for current seed alignments
-		
+
 		// Interfaces for alignment and seed caches
 		AlignmentCacheIface ca(
 			&scCurrent,
 			scLocal.get(),
 			msNoCache ? NULL : multiseed_ca);
-		
+
 		// Instantiate an object for holding reporting-related parameters.
 		ReportingParams rp(
 			(allHits ? std::numeric_limits<THitInt>::max() : khits), // -k
@@ -3013,14 +3030,14 @@ static void multiseedSearchWorker(void *vp) {
 
 		// Instantiate a mapping quality calculator
 		auto_ptr<Mapq> bmapq(new_mapq(mapqv, scoreMin, sc));
-		
+
 		// Make a per-thread wrapper for the global MHitSink object.
 		AlnSinkWrap msinkwrap(
 			msink,         // global sink
 			rp,            // reporting parameters
 			*bmapq,        // MAPQ calculator
 			(size_t)tid);  // thread id
-		
+
 		// Write dynamic-programming problem descriptions here
 		ofstream *dpLog = NULL, *dpLogOpp = NULL;
 		if(!logDps.empty()) {
@@ -3031,7 +3048,7 @@ static void multiseedSearchWorker(void *vp) {
 			dpLogOpp = new ofstream(logDpsOpp.c_str(), ofstream::out);
 			dpLogOpp->sync_with_stdio(false);
 		}
-		
+
 		SeedAligner al;
 		SwDriver sd(exactCacheCurrentMB * 1024 * 1024);
 		SwAligner sw(dpLog), osw(dpLogOpp);
@@ -3074,12 +3091,12 @@ static void multiseedSearchWorker(void *vp) {
 			gContainMatesOK,
 			gOlapMatesOK,
 			gExpandToFrag);
-		
+
 		PerfMetrics metricsPt; // per-thread metrics object; for read-level metrics
 		BTString nametmp;
 		EList<Seed> seeds1, seeds2;
 		EList<Seed> *seeds[2] = { &seeds1, &seeds2 };
-		
+
 		PerReadMetrics prm;
 
 		// Used by thread with threadid == 1 to measure time elapsed
@@ -3349,7 +3366,7 @@ static void multiseedSearchWorker(void *vp) {
 					// Whether we're done with mate1 / mate2
 					bool done[2] = { !filt[0], !filt[1] };
 					size_t nelt[2] = {0, 0};
-										
+
 						// Find end-to-end exact alignments for each read
 						if(doExactUpFront) {
 							for(size_t matei = 0; matei < (paired ? 2:1); matei++) {
@@ -3748,7 +3765,7 @@ static void multiseedSearchWorker(void *vp) {
 								if(interval[mate] <= (int)roundi) {
 									// Can't do this round, seeds already packed as
 									// tight as possible
-									continue; 
+									continue;
 								}
 								size_t offset = (interval[mate] * roundi) / nrounds[mate];
 								assert(roundi == 0 || offset > 0);
@@ -3978,7 +3995,7 @@ static void multiseedSearchWorker(void *vp) {
 									}
 								} // if(!seedSumm)
 							} // for(size_t matei = 0; matei < 2; matei++)
-							
+
 							// We don't necessarily have to continue investigating both
 							// mates.  We continue on a mate only if its average
 							// interval length is high (> 1000)
@@ -4071,10 +4088,10 @@ static void multiseedSearchWorker(void *vp) {
 			metricsPt.reset();
 		}
 	} // while(true)
-	
+
 	// One last metrics merge
 	MERGE_METRICS(metrics);
-	
+
 	if(dpLog    != NULL) dpLog->close();
 	if(dpLogOpp != NULL) dpLogOpp->close();
 
@@ -4118,11 +4135,11 @@ static void multiseedSearchWorker_2p5(void *vp) {
 	// events of interest on a per-read, per-seed, per-join, or per-SW
 	// level.  These in turn can be used to diagnose performance
 	// problems, or generally characterize performance.
-	
+
 	ThreadCounter tc;
 	auto_ptr<PatternSourcePerThreadFactory> patsrcFact(createPatsrcFactory(patsrc, pp, tid));
 	auto_ptr<PatternSourcePerThread> ps(patsrcFact->create());
-	
+
 	// Instantiate an object for holding reporting-related parameters.
 	ReportingParams rp(
 		(allHits ? std::numeric_limits<THitInt>::max() : khits), // -k
@@ -4134,7 +4151,7 @@ static void multiseedSearchWorker_2p5(void *vp) {
 
 	// Instantiate a mapping quality calculator
 	auto_ptr<Mapq> bmapq(new_mapq(mapqv, scoreMin, sc));
-	
+
 	// Make a per-thread wrapper for the global MHitSink object.
 	AlnSinkWrap msinkwrap(
 		msink,         // global sink
@@ -4181,7 +4198,7 @@ static void multiseedSearchWorker_2p5(void *vp) {
 		gContainMatesOK,
 		gOlapMatesOK,
 		gExpandToFrag);
-	
+
 	AlignerDriver ald(
 		descConsExp,         // exponent for interpolating maximum penalty
 		descPrioritizeRoots, // whether to select roots with scores and weights
@@ -4190,10 +4207,10 @@ static void multiseedSearchWorker_2p5(void *vp) {
 		gVerbose,            // verbose?
 		descentTotSz,        // limit on total bytes of best-first search data
 		descentTotFmops);    // limit on total number of FM index ops in BFS
-	
+
 	PerfMetrics metricsPt; // per-thread metrics object; for read-level metrics
 	BTString nametmp;
-	
+
 	PerReadMetrics prm;
 
 	// Used by thread with threadid == 1 to measure time elapsed
@@ -4429,7 +4446,7 @@ static void multiseedSearchWorker_2p5(void *vp) {
 			metricsPt.reset();
 		}
 	} // while(true)
-	
+
 	// One last metrics merge
 	MERGE_METRICS(metrics);
 #ifdef WITH_TBB
@@ -4695,7 +4712,7 @@ static void multiseedSearch(
 			startVerbose);
 	}
 	// Start the metrics thread
-	
+
 #ifdef WITH_TBB
 	tbb::atomic<int> all_threads_done;
 	all_threads_done = 0;
@@ -4711,7 +4728,7 @@ static void multiseedSearch(
 			thread_counter = 0;
 		}
 #endif
-		
+
 		for(int i = 0; i < nthreads; i++) {
 			tids.push_back(i);
 #ifdef WITH_TBB
@@ -4741,7 +4758,7 @@ static void multiseedSearch(
 			thread_monitor(pid, orig_threads, tids, threads);
 		}
 #endif
-	
+
 #ifdef WITH_TBB
 		while(all_threads_done < nthreads) {
 			SLEEP(10);
@@ -4818,6 +4835,9 @@ static void driver(
 		qualities,   // qualities associated with singles
 		qualities1,  // qualities associated with m1
 		qualities2,  // qualities associated with m2
+#ifdef USE_SRA
+		sra_accs,    // SRA accessions
+#endif
 		pp,          // read read-in parameters
 		gVerbose || startVerbose); // be talkative
 	// Open hit output file
@@ -4904,7 +4924,7 @@ static void driver(
 		reorder && (nthreads > 1 || thread_stealing), // whether to reorder
 		nthreads,                        // # threads
 		nthreads > 1 || thread_stealing, // whether to be thread-safe
-		readsPerBatch,                   // size of output buffer of reads 
+		readsPerBatch,                   // size of output buffer of reads
 		skipReads);                      // first read will have this rdid
 	{
 		Timer _t(cerr, "Time searching: ", timing);
@@ -5113,7 +5133,7 @@ int bowtie(int argc, const char **argv) {
 				printUsage(cerr);
 				return 1;
 			}
-			
+
 #ifndef _WIN32
 			thread_stealing = thread_ceiling > nthreads;
 #endif
@@ -5125,11 +5145,18 @@ int bowtie(int argc, const char **argv) {
 
 			// Get query filename
 			bool got_reads = !queries.empty() || !mates1.empty() || !mates12.empty();
+#ifdef USE_SRA
+			got_reads = got_reads || !sra_accs.empty();
+#endif
 			if(optind >= argc) {
 				if(!got_reads) {
 					printUsage(cerr);
 					cerr << "***" << endl
+#ifdef USE_SRA
+					     << "Error: Must specify at least one read input with -U/-1/-2/--sra-acc" << endl;
+#else
 					     << "Error: Must specify at least one read input with -U/-1/-2" << endl;
+#endif
 					return 1;
 				}
 			} else if(!got_reads) {
