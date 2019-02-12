@@ -1784,8 +1784,10 @@ std::pair<bool, int> SRAPatternSource::nextBatchImpl(
 	pt.setReadId(cur_);
 	EList<Read>& readbuf = batch_a ? pt.bufa_ : pt.bufb_;
 	size_t readi = 0;
+	bool done = false;
 	for(; readi < pt.max_buf_; readi++, cur_++) {
 		if(!sra_it_->nextRead() || !sra_it_->nextFragment()) {
+			done = true;
 			break;
 		}
 		const ngs::StringRef rname = sra_it_->getReadId();
@@ -1805,12 +1807,9 @@ std::pair<bool, int> SRAPatternSource::nextBatchImpl(
 			readbuf[readi].readOrigBuf.append(rb_qual.data(), rb_qual.size());
 		}
 		readbuf[readi].readOrigBuf.append('\n');
-		if(!sra_it_->nextRead()) {
-			break;
-		}
 	}
 	readCnt_ += readi;
-	return make_pair(!sra_it_->nextRead(), readi);
+	return make_pair(done, readi);
 }
 
 /**
@@ -1946,7 +1945,7 @@ void SRAPatternSource::open() {
 	try {
 		// open requested accession using SRA implementation of the API
 		ngs::ReadCollection sra_run = ncbi::NGS::openReadCollection(sra_acc);
-		
+
 		// compute window to iterate through
 		size_t MAX_ROW = sra_run.getReadCount();
 		if(MAX_ROW == 0) {
