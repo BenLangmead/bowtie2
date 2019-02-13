@@ -1781,26 +1781,26 @@ std::pair<bool, int> SRAPatternSource::nextBatchImpl(
 	PerThreadReadBuf& pt,
 	bool batch_a)
 {
-	pt.setReadId(cur_);
 	EList<Read>& readbuf = batch_a ? pt.bufa_ : pt.bufb_;
 	size_t readi = 0;
 	bool done = false;
-	for(; readi < pt.max_buf_; readi++, cur_++) {
-		if(!sra_it_->nextRead() || !sra_it_->nextFragment()) {
+
+	for(; readi < pt.max_buf_; readi++) {
+		if(!sra_its_[pt.tid_]->nextRead() || !sra_its_[pt.tid_]->nextFragment()) {
 			done = true;
 			break;
 		}
-		const ngs::StringRef rname = sra_it_->getReadId();
-		const ngs::StringRef ra_seq = sra_it_->getFragmentBases();
-		const ngs::StringRef ra_qual = sra_it_->getFragmentQualities();
+		const ngs::StringRef rname = sra_its_[pt.tid_]->getReadId();
+		const ngs::StringRef ra_seq = sra_its_[pt.tid_]->getFragmentBases();
+		const ngs::StringRef ra_qual = sra_its_[pt.tid_]->getFragmentQualities();
 		readbuf[readi].readOrigBuf.install(rname.data(), rname.size());
 		readbuf[readi].readOrigBuf.append('\t');
 		readbuf[readi].readOrigBuf.append(ra_seq.data(), ra_seq.size());
 		readbuf[readi].readOrigBuf.append('\t');
 		readbuf[readi].readOrigBuf.append(ra_qual.data(), ra_qual.size());
-		if(sra_it_->nextFragment()) {
-			const ngs::StringRef rb_seq = sra_it_->getFragmentBases();
-			const ngs::StringRef rb_qual = sra_it_->getFragmentQualities();
+		if(sra_its_[pt.tid_]->nextFragment()) {
+			const ngs::StringRef rb_seq = sra_its_[pt.tid_]->getFragmentBases();
+			const ngs::StringRef rb_qual = sra_its_[pt.tid_]->getFragmentQualities();
 			readbuf[readi].readOrigBuf.append('\t');
 			readbuf[readi].readOrigBuf.append(rb_seq.data(), rb_seq.size());
 			readbuf[readi].readOrigBuf.append('\t');
@@ -1808,7 +1808,14 @@ std::pair<bool, int> SRAPatternSource::nextBatchImpl(
 		}
 		readbuf[readi].readOrigBuf.append('\n');
 	}
-	readCnt_ += readi;
+
+	pt.setReadId(readCnt_);
+
+	{
+		ThreadSafe ts(mutex);
+		readCnt_ += readi;
+	}
+
 	return make_pair(done, readi);
 }
 
@@ -1823,7 +1830,6 @@ std::pair<bool, int> SRAPatternSource::nextBatch(
 	if(lock) {
 		// synchronization at this level because both reading and manipulation of
 		// current file pointer have to be protected
-		ThreadSafe ts(mutex);
 		return nextBatchImpl(pt, batch_a);
 	} else {
 		return nextBatchImpl(pt, batch_a);
@@ -1951,8 +1957,22 @@ void SRAPatternSource::open() {
 		if(MAX_ROW == 0) {
 			return;
 		}
-		sra_it_ = new ngs::ReadIterator(sra_run.getReadRange(1, MAX_ROW, ngs::Read::all));
-		assert(sra_it_ != NULL);
+
+		size_t window_size = MAX_ROW / sra_its_.size();
+		size_t remainder = MAX_ROW % sra_its_.size();
+		size_t i = 0, start = 1;
+
+		while (i < sra_its_.size()) {
+			sra_its_[i] = new ngs::ReadIterator(sra_run.getReadRange(start, window_size, ngs::Read::all));
+			assert(sra_its_[i] != NULL);
+
+			i++;
+			start += window_size;
+			if (i == sra_its_.size() - 1) {
+				window_size += remainder;
+			}
+		}
+
 	} catch(...) {
 		cerr << "Warning: Could not access \"" << sra_acc << "\" for reading; skipping..." << endl;
 	}
