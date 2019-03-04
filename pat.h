@@ -432,14 +432,25 @@ protected:
 	bool is_gzipped_file(const char* filename) {
 		FILE* f = fopen(filename, "rb");
 		if (ferror(f) > 0) {
+                        std::cerr << "Error opening file" << std::endl;
+                        fclose(f);
+
 			return false;
 		}
 
 		bool ret = false;
 		uint8_t byte1, byte2;
 
-		fread(&byte1, 1, sizeof(uint8_t), f);
-		fread(&byte2, 1, sizeof(uint8_t), f);
+		size_t r1 = fread(&byte1, 1, sizeof(uint8_t), f);
+		size_t r2 = fread(&byte2, 1, sizeof(uint8_t), f);
+
+                if (r1 == 0 || r2 == 0) {
+                        std::cerr << "Unable to read file magic number" << std::endl;
+                        fclose(f);
+
+                        return false;
+                }
+
 		if (byte1 == 0x1f && byte2 == 0x8b) {
 			ret = true;
 		}
@@ -447,7 +458,7 @@ protected:
 
 		return ret;
 	}
-	
+
 	EList<std::string> infiles_;	 // filenames for read files
 	EList<bool> errs_;		 // whether we've already printed an error for each file
 	size_t filecur_;		 // index into infiles_ of next file to read
@@ -1211,14 +1222,14 @@ public:
 		composer_(composer),
 		pp_(pp),
 		tid_(tid) { }
-	
+
 	/**
 	 * Create a new heap-allocated PatternSourcePerThreads.
 	 */
 	virtual PatternSourcePerThread* create() const {
 		return new PatternSourcePerThread(composer_, pp_, tid_);
 	}
-	
+
 	/**
 	 * Create a new heap-allocated vector of heap-allocated
 	 * PatternSourcePerThreads.
@@ -1231,7 +1242,9 @@ public:
 		}
 		return v;
 	}
-	
+
+	virtual ~PatternSourcePerThreadFactory() {}
+
 private:
 	/// Container for obtaining paired reads from PatternSources
 	PatternComposer& composer_;
