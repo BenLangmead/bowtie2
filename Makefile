@@ -36,10 +36,8 @@ HEADERS := $(wildcard *.h)
 BOWTIE_MM := 1
 BOWTIE_SHARED_MEM :=
 
-ifdef STATIC_BUILD
-	LDFLAGS += -L$(CURDIR)/.tmp/lib
-	CPPFLAGS += -I$(CURDIR)/.tmp/include
-endif
+NGS_VER ?= 2.9.2
+VDB_VER ?= 2.9.2-1
 
 # Detect Cygwin or MinGW
 WINDOWS :=
@@ -63,10 +61,15 @@ ifneq (,$(findstring Darwin,$(shell uname)))
 	endif
 endif
 
+ifdef STATIC_BUILD
+	LDFLAGS += -L$(CURDIR)/.tmp/lib
+	CPPFLAGS += -I$(CURDIR)/.tmp/include
+endif
+
 POPCNT_CAPABILITY ?= 1
 ifeq (1, $(POPCNT_CAPABILITY))
-    CXXFLAGS += -DPOPCNT_CAPABILITY
-    CPPFLAGS += -I third_party
+	CXXFLAGS += -DPOPCNT_CAPABILITY
+	CPPFLAGS += -I third_party
 endif
 
 MM_DEF :=
@@ -104,12 +107,25 @@ ifneq (1,$(NO_TBB))
 	LDLIBS += $(PTHREAD_LIB) -ltbb
 	ifdef STATIC_BUILD
 		LDLIBS += -ltbbmalloc
+		LDLIBS += -ldl
 	else
 		LDLIBS += -ltbbmalloc_proxy
 	endif
 	CXXFLAGS += -DWITH_TBB
 else
 	LDLIBS += $(PTHREAD_LIB)
+endif
+
+USE_SRA ?= 0
+ifeq (1, $(USE_SRA))
+	$(MAKE) -c $(CURDIR) sra-deps
+
+	LDFLAGS += -L$(CURDIR)/.tmp/lib64
+	LDLIBS += -ldl
+	LDLIBS += -lncbi-ngs-c++-static
+	LDLIBS += -lngs-c++-static
+	LDLIBS += -lncbi-vdb-static
+	CXXFLAGS += -DUSE_SRA
 endif
 
 ifeq (1,$(WITH_THREAD_PROFILING))
@@ -456,8 +472,8 @@ bowtie2-src-pkg: $(SRC_PKG_LIST)
 	rm -rf .src.tmp
 
 .PHONY: bowtie2-bin-pkg
-bowtie2-bin-pkg: PKG_DIR := bowtie2-$(VERSION)-$(if $(MACOS),macos,$(if $(MINGW),mingw,linux))-x86_64
-bowtie2-bin-pkg: static-libs $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_DBG)
+bowtie2-bin-pkg: PKG_DIR := bowtie2-$(VERSION)-$(if $(USE_SRA),sra-)$(if $(MACOS),macos,$(if $(MINGW),mingw,linux))-x86_64
+bowtie2-bin-pkg: $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_DBG)
 	chmod a+x scripts/*.sh scripts/*.pl
 	rm -rf .bin.tmp
 	mkdir -p .bin.tmp/$(PKG_DIR)
@@ -526,22 +542,57 @@ perl-deps:
 
 .PHONY: static-libs
 static-libs:
-	if [[ ! -d $(CURDIR)/.tmp/lib || ! -d $(CURDIR)/.tmp/include ]]; then \
-		mkdir -p $(CURDIR)/.tmp/lib $(CURDIR)/.tmp/include ; \
+	if [ ! -d "$(CURDIR)/.tmp" ] ; then \
+		mkdir $(CURDIR)/.tmp ; \
 	fi ; \
-	if [[ `uname` = "Darwin" ]]; then \
+	if [ `uname` = "Darwin" ]; then \
 		export CFLAGS=-mmacosx-version-min=10.9 ; \
 		export CXXFLAGS=-mmacosx-version-min=10.9 ; \
 	fi ; \
+	cd $(CURDIR)/.tmp ; \
 	DL=$$([ `which wget` ] && echo "wget --no-check-certificate" || echo "curl -LOk") ; \
-	mkdir .tmp ; \
-	cd .tmp ; \
-	$$DL https://zlib.net/zlib-1.2.11.tar.gz && tar xzf zlib-1.2.11.tar.gz && cd zlib-1.2.11 ; \
-	$(if $(MINGW), mingw32-make -f win32/Makefile.gcc, ./configure --static && make) && cp libz.a $(CURDIR)/.tmp/lib && cp zconf.h zlib.h $(CURDIR)/.tmp/include ; \
-	cd .. ; \
-	$$DL https://github.com/01org/tbb/archive/2017_U8.tar.gz && tar xzf 2017_U8.tar.gz && cd tbb-2017_U8; \
-	$(if $(MINGW), mingw32-make compiler=gcc arch=ia64 runtime=mingw, make) extra_inc=big_iron.inc -j4 \
-	&& cp -r include/tbb $(CURDIR)/.tmp/include && cp build/*_release/*.a $(CURDIR)/.tmp/lib
+	if [ ! -f "$(CURDIR)/.tmp/include/zlib.h" ] ; then \
+		$$DL https://zlib.net/zlib-1.2.11.tar.gz && tar xzf zlib-1.2.11.tar.gz && cd zlib-1.2.11 ; \
+		$(if $(MINGW), mingw32-make -f win32/Makefile.gcc, ./configure --static --prefix=$(CURDIR)/.tmp && make && make install) ; \
+		rm -f zlib-1.2.11 ; \
+		cd .. ; \
+	fi ; \
+	if [ ! -d "$(CURDIR)/.tmp/include/tbb" ] ; then \
+		$$DL https://github.com/01org/tbb/archive/2017_U8.tar.gz && tar xzf 2017_U8.tar.gz && cd tbb-2017_U8; \
+		$(if $(MINGW), mingw32-make compiler=gcc arch=ia64 runtime=mingw, make) extra_inc=big_iron.inc -j4 \
+		&& cp -r include/tbb $(CURDIR)/.tmp/include && cp build/*_release/*.a $(CURDIR)/.tmp/lib ; \
+		rm -f 2017_U8.tar.gz ; \
+	fi
+
+.PHONY: sra-deps
+sra-deps:
+	DL=$$([`which wget` ] && echo "wget --no-check-certificate" || echo "curl -LOk") ; \
+	if [ ! -d "$(CURDIR)/.tmp" ] ; then \
+		mkdir $(CURDIR)/.tmp ; \
+	fi ; \
+	if [ `uname` = "Darwin" ]; then \
+		export CFLAGS=-mmacosx-version-min=10.9 ; \
+		export CXXFLAGS=-mmacosx-version-min=10.9 ; \
+	fi ; \
+	if [ ! -f "$(CURDIR)/.tmp/include/ngs/Alignment.hpp" ] ; then \
+		if [ ! -d "$(CURDIR)/.tmp/ngs-$(NGS_VER)/ngs-sdk" ] ; then \
+			cd $(CURDIR)/.tmp ; \
+			$$DL https://github.com/ncbi/ngs/archive/$(NGS_VER).tar.gz ; \
+			tar xzvf $(NGS_VER).tar.gz ; \
+			rm -f $(NGS_VER).tar.gz ; \
+		fi ; \
+		cd $(CURDIR)/.tmp/ngs-$(NGS_VER) && ./configure --prefix=$(CURDIR)/.tmp --build-prefix=`pwd`/build ; \
+		make && make install ; \
+	fi ; \
+	if [ ! -f "$(CURDIR)/.tmp/include/ncbi-vdb/NGS.hpp" ] ; then \
+		if [ ! -d "$(CURDIR)/.tmp/ncbi-vdb-$(VDB_VER)/vdb3" ] ; then \
+			cd $(CURDIR)/.tmp ; \
+	 		$$DL https://github.com/ncbi/ncbi-vdb/archive/$(VDB_VER).tar.gz ; \
+	 		tar zxvf $(VDB_VER).tar.gz ; \
+	 		rm -f $(VDB_VER).tar.gz ; \
+	 	fi ; \
+	 	cd $(CURDIR)/.tmp/ncbi-vdb-$(VDB_VER) && ./configure --prefix=$(CURDIR)/.tmp --build-prefix=`pwd`/build --with-ngs-sdk=$(CURDIR)/.tmp && make && make install ; \
+	 fi ;
 
 .PHONY: test
 test: simple-test random-test
