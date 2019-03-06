@@ -118,8 +118,6 @@ endif
 
 USE_SRA ?= 0
 ifeq (1, $(USE_SRA))
-	$(MAKE) -c $(CURDIR) sra-deps
-
 	LDFLAGS += -L$(CURDIR)/.tmp/lib64
 	LDLIBS += -ldl
 	LDLIBS += -lncbi-ngs-c++-static
