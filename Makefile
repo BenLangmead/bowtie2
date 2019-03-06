@@ -119,10 +119,12 @@ endif
 USE_SRA ?= 0
 ifeq (1, $(USE_SRA))
 	LDFLAGS += -L$(CURDIR)/.tmp/lib64
-	LDLIBS += -ldl
+
 	LDLIBS += -lncbi-ngs-c++-static
 	LDLIBS += -lngs-c++-static
 	LDLIBS += -lncbi-vdb-static
+	LDLIBS += -ldl
+
 	CXXFLAGS += -DUSE_SRA
 endif
 
@@ -564,7 +566,7 @@ static-libs:
 
 .PHONY: sra-deps
 sra-deps:
-	DL=$$([`which wget` ] && echo "wget --no-check-certificate" || echo "curl -LOk") ; \
+	DL=$$([ `which wget` ] && echo "wget --no-check-certificate" || echo "curl -LOk") ; \
 	if [ ! -d "$(CURDIR)/.tmp" ] ; then \
 		mkdir $(CURDIR)/.tmp ; \
 	fi ; \
