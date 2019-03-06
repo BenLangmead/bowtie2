@@ -1954,13 +1954,23 @@ void SRAPatternSource::open() {
 
 		// compute window to iterate through
 		size_t MAX_ROW = sra_run.getReadCount();
-		if(MAX_ROW == 0) {
+		pp_.upto -= pp_.skip;
+
+		if (pp_.upto <= MAX_ROW) {
+			MAX_ROW = pp_.upto;
+		}
+		if(MAX_ROW < 0) {
 			return;
 		}
 
 		size_t window_size = MAX_ROW / sra_its_.size();
 		size_t remainder = MAX_ROW % sra_its_.size();
 		size_t i = 0, start = 1;
+
+		if (pp_.skip > 0) {
+			start = pp_.skip + 1;
+			readCnt_ = pp_.skip;
+		}
 
 		while (i < sra_its_.size()) {
 			sra_its_[i] = new ngs::ReadIterator(sra_run.getReadRange(start, window_size, ngs::Read::all));
