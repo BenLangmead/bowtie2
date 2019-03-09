@@ -120,6 +120,10 @@ USE_SRA ?= 0
 ifeq (1, $(USE_SRA))
 	LDFLAGS += -L$(CURDIR)/.tmp/lib64
 
+	ifndef ($(STATIC_BUILD))
+		CPPFLAGS += -I$(CURDIR)/.tmp/include
+	endif
+
 	LDLIBS += -lncbi-ngs-c++-static
 	LDLIBS += -lngs-c++-static
 	LDLIBS += -lncbi-vdb-static
@@ -532,12 +536,13 @@ random-test: all perl-deps
 
 .PHONY: perl-deps
 perl-deps:
-	if [ ! -e .tmp ]; then \
+	if [ ! -d "$(CURDIR)/.tmp" ]; then \
+		mkdir $(CURDIR)/.tmp ; \
+	else \
 		DL=$$([ `which wget` ] && echo "wget --no-check-certificate -O-" || echo "curl -L") ; \
-		mkdir .tmp ; \
 		$$DL http://cpanmin.us | perl - -l $(CURDIR)/.tmp App::cpanminus local::lib ; \
 		eval `perl -I $(CURDIR)/.tmp/lib/perl5 -Mlocal::lib=$(CURDIR)/.tmp` ; \
-		$(CURDIR)/.tmp/bin/cpanm --force Math::Random Clone Test::Deep Sys::Info ; \
+		$(CURDIR)/.tmp/bin/cpanm --force File::Which Math::Random Clone Test::Deep Sys::Info ; \
 	fi
 
 .PHONY: static-libs

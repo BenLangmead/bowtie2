@@ -33,6 +33,7 @@ use Data::Dumper;
 use DNA;
 use Clone qw(clone);
 use Test::Deep;
+use File::Which qw(which);
 
 my $bowtie2 = "";
 my $bowtie2_build = "";
@@ -55,6 +56,8 @@ if(! -x $bowtie2 || ! -x $bowtie2_build) {
 
 (-x $bowtie2)       || die "Cannot run '$bowtie2'";
 (-x $bowtie2_build) || die "Cannot run '$bowtie2_build'";
+
+my $compiled_with_sra = (`$bowtie2 --version` =~ /USE_SRA/) && defined(which "latf-load");
 
 my @cases = (
 
@@ -4361,11 +4364,33 @@ sub writeFasta($$) {
 	close(FA);
 }
 
+sub convertFastqToSRA($$$) {
+	my ($fq1, $fq2, $pe) = @_;
+	my $latf_cmd;
+
+	if ($pe) {
+		if (ref $fq1 eq "ARRAY") {
+			$latf_cmd = "latf-load -p ILLUMINA -o .test_sra --quality PHRED_33 " . join(" ", @$fq1) . " " . join(" ", @$fq2);
+		} else {
+			$latf_cmd = "latf-load -p ILLUMINA -o .test_sra --quality PHRED_33 " . $fq1 . " " . $fq2;
+		}
+	} else {
+		if (ref $fq1 eq "ARRAY") {
+			$latf_cmd = "latf-load -p ILLUMINA -o .test_sra --quality PHRED_33 " . join(" ", @$fq1);
+		} else {
+			$latf_cmd = "latf-load -p ILLUMINA -o .test_sra --quality PHRED_33 " . $fq1;
+		}
+	}
+
+	print "$latf_cmd\n";
+	system($latf_cmd);
+}
+
 ##
 # Take a lists of named reads/mates and write them to appropriate
 # files.
 #
-sub writeReads($$$$$$$$$) {
+sub writeReads($$$$$$$$$$$) {
 	my (
 		$reads,
 		$quals,
@@ -4374,6 +4399,8 @@ sub writeReads($$$$$$$$$) {
 		$mate2s,
 		$qual2s,
 		$names,
+		$test_sra,
+	        $has_poison_reads,
 		$fq1,
 		$fq2) = @_;
 
@@ -4391,11 +4418,22 @@ sub writeReads($$$$$$$$$) {
 
 			defined($m1) || die;
 			defined($m2) || die;
+
+			if ($m1 eq "" || $m2 eq "") {
+				$$has_poison_reads = 1;
+			}
+
 			$q1 = $q1 || ("I" x length($m1));
 			$q2 = $q2 || ("I" x length($m2));
 			$nm = $nm || "r$_";
-			print FQ1 "\@$nm/1\n$m1\n+\n$q1\n";
-			print FQ2 "\@$nm/2\n$m2\n+\n$q2\n";
+			if ($test_sra) {
+				print FQ1 "\@$nm#$_/1\n$m1\n+\n$q1\n";
+				print FQ2 "\@$nm#$_/2\n$m2\n+\n$q2\n";
+			} else {
+				print FQ1 "\@$nm/1\n$m1\n+\n$q1\n";
+				print FQ2 "\@$nm/2\n$m2\n+\n$q2\n";
+			}
+
 			close(FQ1);
 			close(FQ2);
 		}
@@ -4405,6 +4443,11 @@ sub writeReads($$$$$$$$$) {
 
 			my $read = $reads->[$_];
 			defined($read) || die;
+
+			if ($read eq "") {
+				$$has_poison_reads = 1;
+			}
+
 			my $qual = $quals->[$_];
 			my $nm = $names->[$_];
 
@@ -4419,7 +4462,7 @@ sub writeReads($$$$$$$$$) {
 ##
 # Run bowtie2 with given arguments
 #
-sub runbowtie2($$$$$$$$$$$$$$$$$$$$$$) {
+sub runbowtie2($$$$$$$$$$$$$$$$$$$$$$$$) {
 
 	my (
 		$do_build,
@@ -4439,13 +4482,15 @@ sub runbowtie2($$$$$$$$$$$$$$$$$$$$$$) {
 		$mate2s,
 		$qual2s,
 		$names,
+		$test_sra,
+		$has_poison_reads,
 		$ls,
 		$rawls,
 		$header_ls,
 		$raw_header_ls,
 		$should_abort) = @_;
 
-my  $idx_type = "";
+	my  $idx_type = "";
 	$args .= " --quiet";
 	$reportargs = "-a" unless defined($reportargs);
 	$args .= " $reportargs";
@@ -4466,15 +4511,18 @@ my  $idx_type = "";
 	}
 	my $pe = (defined($mate1s) && $mate1s ne "");
 	$pe = $pe || (defined($mate1_file));
+	my $cmd;
 	my $mate1arg;
 	my $mate2arg;
 	my $readarg;
 	my $formatarg = "-c";
+	my $batch_size = int(rand(16) + 1);
 	my ($readstr, $m1str, $m2str) = (undef, undef, undef);
 	$readstr = join(",", @$reads)  if defined($reads);
 	$m1str   = join(",", @$mate1s) if defined($mate1s);
 	$m2str   = join(",", @$mate2s) if defined($mate2s);
-	if(defined($read_file) || defined($mate1_file)) {
+
+	if (defined($read_file) || defined($mate1_file)) {
 		defined($read_file_format) || die;
 		my $ext = "";
 		if($read_file_format eq "fastq") {
@@ -4520,6 +4568,11 @@ my  $idx_type = "";
 			} else {
 				defined($mate1_file) || die;
 				defined($mate2_file) || die;
+
+				if ($test_sra) {
+					$mate1_file =~ s/r(\d+)/r#\1\/1/g;
+					$mate2_file =~ s/r(\d+)/r#\1\/2/g;
+				}
 				# Paired
 				open(M1, $cmd . ".simple_tests.1$ext") || die;
 				print M1 $mate1_file;
@@ -4555,6 +4608,8 @@ my  $idx_type = "";
 			$mate2s,
 			$qual2s,
 			$names,
+			$test_sra,
+			$has_poison_reads,
 			$mate1arg,
 			$mate2arg);
 
@@ -4569,25 +4624,29 @@ my  $idx_type = "";
 		$binary_type = "--" . $binary_type;
 	}
 
-	my $cmd;
-	my $batch_size = int(rand(16) + 1);
-	if($pe) {
-		# Paired-end case
-		if (ref $mate1arg eq "ARRAY") {
-			$cmd = "$bowtie2 $binary_type @ARGV $idx_type $args --reads-per-batch $batch_size -x .simple_tests.tmp $formatarg -1 " . join(",", @$mate1arg) . " -2 " . join(",", @$mate2arg);
-		}
-		else {
-			$cmd = "$bowtie2 $binary_type @ARGV $idx_type $args --reads-per-batch $batch_size -x .simple_tests.tmp $formatarg -1 $mate1arg -2 $mate2arg";
-		}
+	if ($test_sra) {
+		convertFastqToSRA(defined($readarg) ? $readarg : $mate1arg, $mate2arg, $pe);
+		$cmd = "$bowtie2 $binary_type @ARGV $idx_type $args --reads-per-batch $batch_size -x .simple_tests.tmp --sra-acc .test_sra";
 	} else {
-		# Unpaired case
-		if (ref $readarg eq "ARRAY") {
-			$cmd = "$bowtie2 $binary_type @ARGV $idx_type $args --reads-per-batch $batch_size -x .simple_tests.tmp $formatarg " . join(",", @$readarg);
+		if($pe) {
+			# Paired-end case
+			if (ref $mate1arg eq "ARRAY") {
+				$cmd = "$bowtie2 $binary_type @ARGV $idx_type $args --reads-per-batch $batch_size -x .simple_tests.tmp $formatarg -1 " . join(",", @$mate1arg) . " -2 " . join(",", @$mate2arg);
+			}
+			else {
+				$cmd = "$bowtie2 $binary_type @ARGV $idx_type $args --reads-per-batch $batch_size -x .simple_tests.tmp $formatarg -1 $mate1arg -2 $mate2arg";
+			}
+		} else {
+			# Unpaired case
+			if (ref $readarg eq "ARRAY") {
+				$cmd = "$bowtie2 $binary_type @ARGV $idx_type $args --reads-per-batch $batch_size -x .simple_tests.tmp $formatarg " . join(",", @$readarg);
+			}
+			else {
+				$cmd = "$bowtie2 $binary_type @ARGV $idx_type $args --reads-per-batch $batch_size -x .simple_tests.tmp $formatarg $readarg";
+			}
 		}
-		else {
-			$cmd = "$bowtie2 $binary_type @ARGV $idx_type $args --reads-per-batch $batch_size -x .simple_tests.tmp $formatarg $readarg";
-		}
-	}
+        }
+
 	print "$cmd\n";
 	open(BT, "$cmd |") || die "Could not open pipe '$cmd |'";
 	while(<BT>) {
@@ -4712,10 +4771,13 @@ foreach my $large_idx (undef,1) {
 					next unless $fw;
 				}
 				# Run bowtie2
-				my @lines = ();
-				my @rawlines = ();
-				my @header_lines = ();
-				my @header_rawlines = ();
+				my $test_sra = 0;
+				my $reads_are_fastq = 0;
+				# flag to indicate whether sample fastq has empty sequences
+				# qualities. latf-load cannot convert such reads to SRA, so
+				# it is best if we ignore them.
+				my $has_poison_reads = 0;
+
 				print $c->{name}." " if defined($c->{name});
 				print "(fw:".($fw ? 1 : 0).", sam:$sam)\n";
 				my $mate1fw = 1;
@@ -4754,7 +4816,13 @@ foreach my $large_idx (undef,1) {
 					$a .= ($mate1fw ? "f" : "r");
 					$a .= ($mate2fw ? "f" : "r");
 				}
-				runbowtie2(
+
+			      START:
+				my @lines = ();
+				my @rawlines = ();
+				my @header_lines = ();
+				my @header_rawlines = ();
+				my $cmd = runbowtie2(
 					$do_build && $first,
 					$large_idx,
 					$binary_type,
@@ -4772,11 +4840,18 @@ foreach my $large_idx (undef,1) {
 					$m2s,              # mate #2 sequence list
 					$q2s,              # mate #2 quality list
 					$c->{names},
+					$test_sra,
+					\$has_poison_reads,
 					\@lines,
 					\@rawlines,
 					\@header_lines,
 					\@header_rawlines,
 					$c->{should_abort});
+
+				if (defined($c->{fastq}) || defined($c->{fastq1}) || !defined($read_file_format)) {
+					$reads_are_fastq = 1;
+				}
+
 				$first = 0;
 				my $pe = defined($c->{mate1s}) && $c->{mate1s} ne "";
 				$pe = $pe || defined($mate1_file);
@@ -4853,7 +4928,11 @@ foreach my $large_idx (undef,1) {
 					}
 					$readname ne "" || die "readname was blank:\n".Dumper($c);
 					my $rdi = $readname;
-					$rdi = substr($rdi, 1) if substr($rdi, 0, 1) eq "r";
+					if ($test_sra and $readname =~ /^\.test_sra/) {
+						$rdi = substr($rdi, -1) - 1;
+					} else {
+						$rdi = substr($rdi, 1) if substr($rdi, 0, 1) eq "r";
+					}
 					my $mate = 0;
 					if($readname =~ /\//) {
 						($rdi, $mate) = split(/\//, $readname);
@@ -5155,6 +5234,7 @@ foreach my $large_idx (undef,1) {
 							die "For edit string, expected \"$ex_edits\" got \"$eds\"\n";
 					}
 				}
+
 				# Go through all the per-read
 				my $klim = 0;
 				$klim = scalar(@{$c->{hits}}) if defined($c->{hits});
@@ -5186,6 +5266,12 @@ foreach my $large_idx (undef,1) {
 				$c->{hits} = $hitstmp;
 				$c->{pairhits} = $pairhitstmp;
 				$c->{pairhits_orig} = $pairhits_orig_tmp;
+
+
+				if ($compiled_with_sra && $reads_are_fastq && !$has_poison_reads && !$test_sra) {
+					$test_sra = 1;
+					goto START;
+				}
 			}
 			$last_ref = undef if $first;
 		}
