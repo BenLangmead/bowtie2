@@ -226,10 +226,10 @@ for(my $i = 0; $i < scalar(@bt2_args); $i++) {
 			last;
 		}
 	}
-    if ($arg =~ /(bz2|lz4)$/) {
-        push @bt2w_args, ("-U", $arg);
-        $bt2_args[$i] = undef;
-    }
+        if ($arg =~ /(\.bz2|\.lz4)$/) {
+            push @bt2w_args, ("-U", $arg);
+            $bt2_args[$i] = undef;
+        }
 }
 # If the user asked us to redirect some reads to files, or to suppress
 # unaligned reads, then we need to capture the output from Bowtie 2 and pass it
