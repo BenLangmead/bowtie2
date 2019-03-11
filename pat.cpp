@@ -24,6 +24,7 @@
 #include <string>
 #include <stdexcept>
 #include <string.h>
+#include <fcntl.h>
 #include "sstring.h"
 
 #include "pat.h"
@@ -456,24 +457,39 @@ void CFilePatternSource::open() {
 		if(infiles_[filecur_] == "-") {
 			// always assume that data from stdin is compressed
 			compressed_ = true;
-			int fn = dup(fileno(stdin));
-			zfp_ = gzdopen(fn, "rb");
+			int fd = dup(fileno(stdin));
+			zfp_ = gzdopen(fd, "rb");
+
+			if (zfp_ == NULL) {
+				close(fd);
+			}
 		}
 		else {
 			const char* filename = infiles_[filecur_].c_str();
-			const char* ext = filename + infiles_[filecur_].length();
 
-			// Only temporary until we have a separate BGZFPatternSource
-			while (ext != filename && *--ext != '.') ;
-			bool bam_file = ext != filename && strncmp(ext, ".bam", 4) == 0;
+			int fd = ::open(filename, O_RDONLY);
+			bool is_fifo = false;
 
-			if (!bam_file && is_gzipped_file(filename)) {
-				zfp_ = gzopen(filename, "rb");
+#ifndef _WIN32
+			struct stat st;
+			if (fstat(fd, &st) != 0) {
+				perror("stat");
+			}
+
+			is_fifo = S_ISFIFO(st.st_mode) != 0;
+#endif
+			if (pp_.format != BAM || is_fifo || is_gzipped_file(fd)) {
+				zfp_ = gzdopen(fd, "r");
 				compressed_ = true;
 			} else {
-				fp_ = fopen(filename, "rb");
+				fp_ = fdopen(fd, "rb");
 			}
+
 			if((compressed_ && zfp_ == NULL) || (!compressed_ && fp_ == NULL)) {
+				if (fd != -1) {
+					close(fd);
+				}
+
 				if(!errs_[filecur_]) {
 					cerr << "Warning: Could not open read file \""
 					     << filename
@@ -485,17 +501,17 @@ void CFilePatternSource::open() {
 			}
 		}
 		is_open_ = true;
-        if (compressed_) {
+		if (compressed_) {
 #if ZLIB_VERNUM < 0x1235
-            cerr << "Warning: gzbuffer added in zlib v1.2.3.5. Unable to change "
-                    "buffer size from default of 8192." << endl;
+			cerr << "Warning: gzbuffer added in zlib v1.2.3.5. Unable to change "
+				"buffer size from default of 8192." << endl;
 #else
-            gzbuffer(zfp_, 64*1024);
+			gzbuffer(zfp_, 128*1024);
 #endif
-        }
-        else {
-            setvbuf(fp_, buf_, _IOFBF, 64*1024);
-        }
+		}
+		else {
+			setvbuf(fp_, buf_, _IOFBF, 64*1024);
+		}
 		return;
 	}
 	cerr << "Error: No input read files were valid" << endl;

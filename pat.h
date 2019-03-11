@@ -21,6 +21,7 @@
 #define PAT_H_
 
 #include <stdio.h>
+#include <unistd.h>
 #include <sys/stat.h>
 #include <zlib.h>
 #include <cassert>
@@ -429,34 +430,27 @@ protected:
 		return r;
 	}
 
-	bool is_gzipped_file(const char* filename) {
-		FILE* f = fopen(filename, "rb");
-		if (ferror(f) > 0) {
-                        std::cerr << "Error opening file" << std::endl;
-                        fclose(f);
-
+	bool is_gzipped_file(int fd) {
+		if (fd == -1) {
 			return false;
 		}
 
-		bool ret = false;
 		uint8_t byte1, byte2;
 
-		size_t r1 = fread(&byte1, 1, sizeof(uint8_t), f);
-		size_t r2 = fread(&byte2, 1, sizeof(uint8_t), f);
+		ssize_t r1 = read(fd, &byte1, sizeof(uint8_t));
+		ssize_t r2 = read(fd, &byte2, sizeof(uint8_t));
 
+		lseek(fd, 0, SEEK_SET);
                 if (r1 == 0 || r2 == 0) {
                         std::cerr << "Unable to read file magic number" << std::endl;
-                        fclose(f);
-
                         return false;
                 }
 
 		if (byte1 == 0x1f && byte2 == 0x8b) {
-			ret = true;
+			return true;
 		}
-		fclose(f);
 
-		return ret;
+		return false;
 	}
 
 	EList<std::string> infiles_;	 // filenames for read files
