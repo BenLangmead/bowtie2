@@ -51,7 +51,7 @@
  * Parameters affecting how reads and read in.
  */
 struct PatternParams {
-	
+
 	PatternParams() { }
 
 	PatternParams(
@@ -93,7 +93,7 @@ struct PatternParams {
 		align_paired_reads(align_paired_reads_) { }
 
 	int format;			  // file format
-	bool interleaved;	  // some or all of the FASTQ reads are interleaved
+	bool interleaved;	  // some or all of the FASTQ/FASTA reads are interleaved
 	bool fileParallel;	  // true -> wrap files with separate PatternComposers
 	uint32_t seed;		  // pseudo-random seed
 	size_t max_buf;		  // number of reads to buffer in one read
@@ -477,13 +477,14 @@ private:
 class FastaPatternSource : public CFilePatternSource {
 
 public:
-	
+
 	FastaPatternSource(
 		const EList<std::string>& infiles,
-		const PatternParams& p) :
+		const PatternParams& p, bool interleaved) :
 		CFilePatternSource(infiles, p),
-		first_(true) { }
-	
+		first_(true),
+		interleaved_(interleaved) { }
+
 	/**
 	 * Reset so that next call to nextBatch* gets the first batch.
 	 * Should only be called by the master thread.
@@ -492,7 +493,7 @@ public:
 		first_ = true;
 		CFilePatternSource::reset();
 	}
-	
+
 	/**
 	 * Finalize FASTA parsing outside critical section.
 	 */
@@ -519,15 +520,16 @@ protected:
 		}
 		return c;
 	}
-	
+
 	/**
 	 * Reset state to handle a fresh file
 	 */
 	virtual void resetForNextFile() {
 		first_ = true;
 	}
-	
+
 	bool first_;
+	bool interleaved_;
 };
 
 /**
@@ -697,7 +699,7 @@ public:
 		CFilePatternSource(infiles, p),
 		first_(true),
 		interleaved_(interleaved) { }
-	
+
 	virtual void reset() {
 		first_ = true;
 		CFilePatternSource::reset();
@@ -717,7 +719,7 @@ protected:
 		PerThreadReadBuf& pt,
 		bool batch_a,
 		unsigned read_idx);
-	
+
 	/**
 	 * Reset state to be ready for the next file.
 	 */

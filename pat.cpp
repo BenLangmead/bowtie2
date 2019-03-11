@@ -35,15 +35,6 @@
 
 using namespace std;
 
-/*void set_bufsz(unsigned bufsz) 
-{ 
-#if ZLIB_VERNUM < 0x1240        
-	std::fprintf(stderr, "Warning: gzbuffer added in zlib1.2.4. Unable to change buffer size from default of 8192.\n"); 
-#else        
-	gzbuffer(fp_, bufsz);
-#endif
-}*/
-
 /**
  * Calculate a per-read random seed based on a combination of
  * the read data (incl. sequence, name, quals) and the global
@@ -98,7 +89,7 @@ PatternSource* PatternSource::patsrcFromStrings(
 	const EList<string>& qs)
 {
 	switch(p.format) {
-		case FASTA:       return new FastaPatternSource(qs, p);
+		case FASTA:       return new FastaPatternSource(qs, p, p.interleaved);
 		case FASTA_CONT:  return new FastaContinuousPatternSource(qs, p);
 		case RAW:         return new RawPatternSource(qs, p);
 		case FASTQ:       return new FastqPatternSource(qs, p, p.interleaved);
@@ -700,7 +691,7 @@ pair<bool, int> FastaPatternSource::nextBatchFromFile(
 	bool batch_a, unsigned readi)
 {
 	int c;
-	EList<Read>& readbuf = batch_a ? pt.bufa_ : pt.bufb_;
+	EList<Read>* readbuf = batch_a ? &pt.bufa_ : &pt.bufb_;
 	if(first_) {
 		c = getc_wrapper();
 		if (c == EOF) {
@@ -717,8 +708,8 @@ pair<bool, int> FastaPatternSource::nextBatchFromFile(
 	}
 	bool done = false;
 	// Read until we run out of input or until we've filled the buffer
-	for(; readi < pt.max_buf_ && !done; readi++) {
-		Read::TBuf& buf = readbuf[readi].readOrigBuf;
+	while (readi < pt.max_buf_ && !done) {
+		Read::TBuf& buf = (*readbuf)[readi].readOrigBuf;
 		buf.clear();
 		buf.append('>');
 		while(true) {
@@ -729,9 +720,19 @@ pair<bool, int> FastaPatternSource::nextBatchFromFile(
 			}
 			buf.append(c);
 		}
+		if (interleaved_) {
+			// alternate between read buffers
+			batch_a = !batch_a;
+			readbuf = batch_a ? &pt.bufa_ : &pt.bufb_;
+			// increment read counter after each pair gets read
+			readi = batch_a ? readi+1 : readi;
+		} else {
+			readi++;
+		}
+
 	}
 	// Immediate EOF case
-	if(done && readbuf[readi-1].readOrigBuf.length() == 1) {
+	if(done && (*readbuf)[readi-1].readOrigBuf.length() == 1) {
 		readi--;
 	}
 	return make_pair(done, readi);
@@ -749,7 +750,7 @@ bool FastaPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 	int c = -1;
 	size_t cur = 1;
 	const size_t buflen = r.readOrigBuf.length();
-	
+
 	// Parse read name
 	assert(r.name.empty());
 	while(cur < buflen) {
@@ -765,7 +766,7 @@ bool FastaPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 	if(cur >= buflen) {
 		return false; // FASTA ended prematurely
 	}
-	
+
 	// Parse sequence
 	int nchar = 0;
 	assert(r.patFw.empty());
@@ -791,7 +792,7 @@ bool FastaPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 	}
 	r.trimmed5 = (int)(nchar - r.patFw.length());
 	r.trimmed3 = (int)(r.patFw.trimEnd(pp_.trim3));
-	
+
 	for(size_t i = 0; i < r.patFw.length(); i++) {
 		r.qual.append('I');
 	}

@@ -514,7 +514,7 @@ static struct option long_options[] = {
 {(char*)"12",                          required_argument,  0,                   ARG_ONETWO},
 {(char*)"tab5",                        required_argument,  0,                   ARG_TAB5},
 {(char*)"tab6",                        required_argument,  0,                   ARG_TAB6},
-{(char*)"interleaved",                 required_argument,  0,                   ARG_INTERLEAVED_FASTQ},
+{(char*)"interleaved",                 required_argument,  0,                   ARG_INTERLEAVED},
 {(char*)"phred33-quals",               no_argument,        0,                   ARG_PHRED33},
 {(char*)"phred64-quals",               no_argument,        0,                   ARG_PHRED64},
 {(char*)"phred33",                     no_argument,        0,                   ARG_PHRED33},
@@ -720,7 +720,7 @@ static void printUsage(ostream& out) {
 	if(wrapper == "basic-0") {
 		out << "             Could be gzip'ed (extension: .gz) or bzip2'ed (extension: .bz2)." << endl;
 	}
-	out <<     "  <i>        Files with interleaved paired-end FASTQ reads" << endl;
+	out <<     "  <i>        Files with interleaved paired-end FASTQ/FASTA reads" << endl;
 	if(wrapper == "basic-0") {
 		out << "             Could be gzip'ed (extension: .gz) or bzip2'ed (extension: .bz2)." << endl;
 	}
@@ -1001,9 +1001,8 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_ONETWO: tokenize(arg, ",", mates12); format = TAB_MATE5; break;
 		case ARG_TAB5:   tokenize(arg, ",", mates12); format = TAB_MATE5; break;
 		case ARG_TAB6:   tokenize(arg, ",", mates12); format = TAB_MATE6; break;
-		case ARG_INTERLEAVED_FASTQ: {
+		case ARG_INTERLEAVED: {
 			tokenize(arg, ",", mates12);
-			format = FASTQ;
 			interleaved = true;
 			break;
 		}
@@ -1647,6 +1646,10 @@ static void parseOptions(int argc, const char **argv) {
 		cerr << "Error: " << mates1.size() << " mate files/sequences were specified with -1, but " << mates2.size() << endl
 		     << "mate files/sequences were specified with -2.  The same number of mate files/" << endl
 		     << "sequences must be specified with -1 and -2." << endl;
+		throw 1;
+	}
+	if(interleaved && (format != FASTA || format != FASTQ)) {
+		cerr << "Error: --interleaved only works in combination with FASTA (-f) and FASTQ (-q) formats." << endl;
 		throw 1;
 	}
 	if(qualities.size() && format != FASTA) {

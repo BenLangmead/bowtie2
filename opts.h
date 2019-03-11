@@ -156,7 +156,7 @@ enum {
 	ARG_XEQ,                    // --xeq
 	ARG_THREAD_CEILING,         // --thread-ceiling
 	ARG_THREAD_PIDDIR,          // --thread-piddir
-	ARG_INTERLEAVED_FASTQ,      // --interleaved
+	ARG_INTERLEAVED,            // --interleaved
 	ARG_TRIM_TO,                // --trim-to
 	ARG_PRESERVE_SAM_TAGS,      // --preserve-sam-tags
 	ARG_ALIGN_PAIRED_READS,     // --align-paired-reads
