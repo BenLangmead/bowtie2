@@ -355,7 +355,8 @@ sub Extract_IndexName_From {
             my @idx_filenames = glob($idx_basename . "*.bt2{,l}");
             unless (@idx_filenames) {
                 if (exists $ENV{"BOWTIE2_INDEXES"}) {
-                    @idx_filenames = glob("$ENV{'BOWTIE2_INDEXES'}/$idx_basename" . "bt2{,l}");
+                    @idx_filenames = glob("$ENV{'BOWTIE2_INDEXES'}/$idx_basename" . "*.bt2{,l}");
+                    $idx_basename = $ENV{"BOWTIE2_INDEXES"} . "/" . $idx_basename;
                 }
 
                 if (!@idx_filenames) {
