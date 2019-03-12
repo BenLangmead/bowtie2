@@ -39,6 +39,14 @@
 #include "read.h"
 #include "util.h"
 
+#ifdef USE_SRA
+#include <ncbi-vdb/NGS.hpp>
+#include <ngs/ErrorMsg.hpp>
+#include <ngs/ReadCollection.hpp>
+#include <ngs/ReadIterator.hpp>
+#include <ngs/Read.hpp>
+#endif
+
 #ifdef _WIN32
 #define getc_unlocked _fgetc_nolock
 #endif
@@ -51,7 +59,6 @@
  * Parameters affecting how reads and read in.
  */
 struct PatternParams {
-
 	PatternParams() { }
 
 	PatternParams(
@@ -69,6 +76,7 @@ struct PatternParams {
 		int sampleLen_,
 		int sampleFreq_,
 		size_t skip_,
+		size_t upto_,
 		int nthreads_,
 		bool fixName_,
 		bool preserve_sam_tags_,
@@ -87,6 +95,7 @@ struct PatternParams {
 		sampleLen(sampleLen_),
 		sampleFreq(sampleFreq_),
 		skip(skip_),
+		upto(upto_),
 		nthreads(nthreads_),
 		fixName(fixName_),
 		preserve_sam_tags(preserve_sam_tags_),
@@ -106,6 +115,7 @@ struct PatternParams {
 	int sampleLen;		  // length of sampled reads for FastaContinuous...
 	int sampleFreq;		  // frequency of sampled reads for FastaContinuous...
 	size_t skip;		  // skip the first 'skip' patterns
+	size_t upto;		  // max number of queries to read
 	int nthreads;		  // number of threads for locking
 	bool fixName;		  //
 	bool preserve_sam_tags; // keep existing SAM tags when aligning BAM files
@@ -968,6 +978,9 @@ public:
 		const EList<std::string>& q,	 // qualities associated with singles
 		const EList<std::string>& q1,	 // qualities associated with m1
 		const EList<std::string>& q2,	 // qualities associated with m2
+#ifdef USE_SRA
+		const EList<string>& sra_accs,   // SRA accessions
+#endif
 		PatternParams& p,		// read-in params
 		bool verbose);				// be talkative?
 	
@@ -1219,6 +1232,8 @@ public:
 		pp_(pp),
 		tid_(tid) { }
 
+	virtual ~PatternSourcePerThreadFactory() { }
+
 	/**
 	 * Create a new heap-allocated PatternSourcePerThreads.
 	 */
@@ -1247,5 +1262,102 @@ private:
 	const PatternParams& pp_;
 	int tid_;
 };
+
+#ifdef USE_SRA
+
+namespace ngs {
+	class ReadCollection;
+	class ReadIterator;
+}
+
+/**
+ * Pattern source for reading directly from the SRA archive.
+ */
+class SRAPatternSource : public PatternSource {
+public:
+	SRAPatternSource(
+		const EList<string>& sra_accs,
+		const PatternParams& p) :
+		PatternSource(p),
+		sra_accs_(sra_accs),
+		sra_acc_cur_(0),
+		cur_(0),
+		first_(true),
+		sra_its_(p.nthreads),
+		mutex_m(),
+		pp_(p)
+	{
+		assert_gt(sra_accs_.size(), 0);
+		errs_.resize(sra_accs_.size());
+		errs_.fill(0, sra_accs_.size(), false);
+		open(); // open first file in the list
+		sra_acc_cur_++;
+	}
+
+	virtual ~SRAPatternSource() {
+		for (size_t i = 0; i < sra_its_.size(); i++) {
+			if(sra_its_[i] != NULL) {
+				delete sra_its_[i];
+				sra_its_[i] = NULL;
+			}
+		}
+	}
+
+	/**
+	 * Fill Read with the sequence, quality and name for the next
+	 * read in the list of read files.	This function gets called by
+	 * all the search threads, so we must handle synchronization.
+	 *
+	 * Returns pair<bool, int> where bool indicates whether we're
+	 * completely done, and int indicates how many reads were read.
+	 */
+	virtual std::pair<bool, int> nextBatch(
+		PerThreadReadBuf& pt,
+		bool batch_a,
+		bool lock);
+
+	/**
+	 * Finishes parsing outside the critical section
+	 */
+	virtual bool parse(Read& ra, Read& rb, TReadId rdid) const;
+
+	/**
+	 * Reset so that next call to nextBatch* gets the first batch.
+	 * Should only be called by the master thread.
+	 */
+	virtual void reset() {
+		PatternSource::reset();
+		sra_acc_cur_ = 0,
+		open();
+		sra_acc_cur_++;
+	}
+
+protected:
+
+	std::pair<bool, int> nextBatchImpl(
+		PerThreadReadBuf& pt,
+		bool batch_a);
+
+	/**
+	 * Open the next file in the list of input files.
+	 */
+	void open();
+
+	EList<string> sra_accs_; // filenames for read files
+	EList<bool> errs_;       // whether we've already printed an error for each file
+	size_t sra_acc_cur_;     // index into infiles_ of next file to read
+	size_t cur_;             // current read id
+	bool first_;
+
+	std::vector<ngs::ReadIterator*> sra_its_;
+
+	/// Lock enforcing mutual exclusion for (a) file I/O, (b) writing fields
+	/// of this or another other shared object.
+	MUTEX_T mutex_m;
+
+	PatternParams pp_;
+};
+
+#endif
 
 #endif /*PAT_H_*/

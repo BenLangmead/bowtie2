@@ -160,7 +160,7 @@ enum {
 	ARG_TRIM_TO,                // --trim-to
 	ARG_PRESERVE_SAM_TAGS,      // --preserve-sam-tags
 	ARG_ALIGN_PAIRED_READS,     // --align-paired-reads
+	ARG_SRA_ACC                 // --sra-acc
 };
 
 #endif
-
