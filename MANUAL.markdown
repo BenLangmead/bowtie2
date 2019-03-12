@@ -1166,7 +1166,7 @@ Same as: `-D 10 -R 2 -N 0 -L 22 -i S,0,2.50`
 
 </td><td>
 
-Same as: `-D 15 -R 2 -L 22 -i S,1,1.15` (default in [`--end-to-end`] mode)
+Same as: `-D 15 -R 2 -N 0 -L 22 -i S,1,1.15` (default in [`--end-to-end`] mode)
 
 </td></tr>
 <tr><td id="bowtie2-options-very-sensitive">
@@ -1244,8 +1244,8 @@ alignment].  Can be set to 0 or 1. Setting this higher makes alignment slower
 
 Sets the length of the seed substrings to align during [multiseed alignment].
 Smaller values make alignment slower but more sensitive. Default: the
-[`--sensitive`] preset is used by default, which sets `-L` to 20 both in
-[`--end-to-end`] mode and in [`--local`] mode.
+[`--sensitive`] preset is used by default, which sets `-L` to 22 and
+20 in [`--end-to-end`] mode and in [`--local`] mode.
 
 </td></tr>
 <tr><td id="bowtie2-options-i">

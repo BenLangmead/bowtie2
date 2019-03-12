@@ -30,10 +30,10 @@ void PresetsV0::apply(
 {
 	// Presets:                 Same as:
 	//  For --end-to-end:
-	//   --very-fast            -M 5 -R 1 -N 0 -L 22 -i S,1,2.50
-	//   --fast                 -M 10 -R 2 -N 0 -L 22 -i S,1,2.50
-	//   --sensitive            -M 15 -R 2 -N 0 -L 22 -i S,1,1.15
-	//   --very-sensitive       -M 25 -R 3 -N 0 -L 19 -i S,1,0.50
+	//   --very-fast            -D 5  -R 1 -N 0 -L 22 -i S,0,2.50
+	//   --fast                 -D 10 -R 2 -N 0 -L 22 -i S,0,2.50
+	//   --sensitive            -D 15 -R 2 -N 0 -L 22 -i S,1,1.15
+	//   --very-sensitive       -D 20 -R 3 -N 0 -L 20 -i S,1,0.50
 	if(preset == "very-fast") {
 		policy += ";SEED=0";
 		policy += ";SEEDLEN=22";
@@ -60,10 +60,10 @@ void PresetsV0::apply(
 		policy += ";IVAL=S,1,0.50";
 	}
 	//  For --local:
-	//   --very-fast-local      -M 1 -N 0 -L 25 -i S,1,2.00
-	//   --fast-local           -M 2 -N 0 -L 22 -i S,1,1.75
-	//   --sensitive-local      -M 2 -N 0 -L 20 -i S,1,0.75 (default)
-	//   --very-sensitive-local -M 3 -N 0 -L 20 -i S,1,0.50
+	//   --very-fast-local      -D 5  -R 1 -N 0 -L 25 -i S,1,2.00
+	//   --fast-local           -D 10 -R 2 -N 0 -L 22 -i S,1,1.75
+	//   --sensitive-local      -D 15 -R 2 -N 0 -L 20 -i S,1,0.75 (default)
+	//   --very-sensitive-local -D 20 -R 3 -N 0 -L 20 -i S,1,0.50
 	else if(preset == "very-fast-local") {
 		policy += ";SEED=0";
 		policy += ";SEEDLEN=25";
