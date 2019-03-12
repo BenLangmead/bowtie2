@@ -45,8 +45,8 @@ def main():
     inspect_bin_name      = 'bowtie-inspect'
     inspect_bin_s         = 'bowtie2-inspect-s'
     inspect_bin_l         = 'bowtie2-inspect-l'
-    idx_ext_l             = '.1.bt2l';
-    idx_ext_s             = '.1.bt2';
+    idx_ext_l             = '.1.bt2l'
+    idx_ext_s             = '.1.bt2'
     curr_script           = os.path.realpath(inspect.getsourcefile(main))
     ex_path               = os.path.dirname(curr_script)
     inspect_bin_spec      = os.path.join(ex_path,inspect_bin_s)
