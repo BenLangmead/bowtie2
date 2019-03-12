@@ -1232,8 +1232,6 @@ public:
 		pp_(pp),
 		tid_(tid) { }
 
-	virtual ~PatternSourcePerThreadFactory() { }
-
 	/**
 	 * Create a new heap-allocated PatternSourcePerThreads.
 	 */
