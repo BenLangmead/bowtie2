@@ -366,6 +366,9 @@ void Ebwt::readIntoMemory(
 					cerr << "Error reading _ebwt[] array: " << r << ", "
 						 << bytesLeft << gLastIOErrMsg << endl;
 					throw 1;
+				} else if (r == 0) {
+					cerr << "Error reading _ebwt[] array: no more data" << endl;
+					throw 1;
 				}
 				pebwt += r;
 				bytesLeft -= r;
@@ -597,6 +600,9 @@ void Ebwt::readIntoMemory(
 							if(MM_IS_IO_ERR(_in2,r,bytesLeft)) {
 								cerr << "Error reading block of _offs[] array: "
 								     << r << ", " << bytesLeft << gLastIOErrMsg << endl;
+								throw 1;
+							} else if (r == 0) {
+								cerr << "Error reading block of _offs[] array: no more data" << endl;
 								throw 1;
 							}
 							offs += r;
