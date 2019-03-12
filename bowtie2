@@ -45,31 +45,33 @@ while (-f $prog && -l $prog){
     $prog = File::Spec->rel2abs(readlink($prog), $dir);
 }
 
-($vol,$script_path,$prog) 
+($vol,$script_path,$prog)
                 = File::Spec->splitpath($prog);
 my $os_is_nix   = $^O ne "MSWin32";
-my $align_bin_s = $os_is_nix ? 'bowtie2-align-s' : 'bowtie2-align-s.exe'; 
-my $build_bin   = $os_is_nix ? 'bowtie2-build' : 'bowtie2-build.exe';               
-my $align_bin_l = $os_is_nix ? 'bowtie2-align-l' : 'bowtie2-align-l.exe'; 
+my $align_bin_s = $os_is_nix ? 'bowtie2-align-s' : 'bowtie2-align-s.exe';
+my $build_bin   = $os_is_nix ? 'bowtie2-build' : 'bowtie2-build.exe';
+my $align_bin_l = $os_is_nix ? 'bowtie2-align-l' : 'bowtie2-align-l.exe';
 my $align_prog_s= File::Spec->catpath($vol,$script_path,$align_bin_s);
 my $align_prog_l= File::Spec->catpath($vol,$script_path,$align_bin_l);
 my $align_prog  = $align_prog_s;
-my $idx_ext_l     = 'bt2l'; 
-my $idx_ext_s     = 'bt2'; 
-my $idx_ext       = $idx_ext_s; 
+my $idx_ext_l     = 'bt2l';
+my $idx_ext_s     = 'bt2';
+my $idx_ext       = $idx_ext_s;
 my %signo       = ();
 my @signame     = ();
 
 sub quote_params {
-    my %params_2_quote = ('--rg' => 1, '--rg-id' => 1,
-                          '-S' => 1, '-U' => 1,
+    my %params_2_quote = ('-S' => 1, '-U' => 1,
                           '-1' => 1, '-2' => 1,
                           '-x' => 1, '-b' => 1,
                           '--interleaved' => 1,
+                          '--rg' => 1,'--rg-id' => 1,
+                          '--tab5' => 1, '--tab6' => 1,
+                          '--sam-acc' => 1, '--bam' => 1
     );
     my $param_list = shift;
     my $quoting = 0;
-    
+
     for (my $i=0; $i<scalar(@{$param_list}); $i++){
         if($quoting){
             $quoting = 0;
@@ -344,7 +346,7 @@ sub Error {
 
 sub Fail {
     Error(@_);
-    die("Exiting now ...\n");    
+    die("Exiting now ...\n");
 }
 
 sub Extract_IndexName_From {
@@ -366,7 +368,7 @@ sub Extract_IndexName_From {
             return $idx_basename;
         }
     }
-    Info("Cannot find any index option (--reference-string, --ref-string or -x) in the given command line.\n");    
+    Info("Cannot find any index option (--reference-string, --ref-string or -x) in the given command line.\n");
 }
 
 if(wrapInput(\@unps, \@mate1s, \@mate2s)) {
@@ -455,7 +457,7 @@ if(defined($ref_str)) {
 	system("$build_bin $ofn $ofn") == 0 ||
 		Fail("bowtie2-build returned non-0 exit level.\n");
 	push @bt2_args, ("--index", "$ofn");
-	push @to_delete, ("$ofn.1.".$idx_ext, "$ofn.2.".$idx_ext, 
+	push @to_delete, ("$ofn.1.".$idx_ext, "$ofn.2.".$idx_ext,
 	                  "$ofn.3.".$idx_ext, "$ofn.4.".$idx_ext,
 	                  "$ofn.rev.1.".$idx_ext, "$ofn.rev.2.".$idx_ext);
 }
@@ -475,7 +477,7 @@ if ($large_idx) {
     Info("Using large index (${index_name}.1.${idx_ext_l}).\n");
 }
 else {
-    if ((-f $index_name.".1.".$idx_ext_l) && 
+    if ((-f $index_name.".1.".$idx_ext_l) &&
         (not -f $index_name.".1.".$idx_ext_s)) {
         Info("Cannot find a small index but a large one seems to be present.\n");
         Info("Switching to using the large index (${index_name}.1.${idx_ext_l}).\n");
