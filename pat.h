@@ -422,7 +422,12 @@ protected:
 	void open();
 
 	int getc_wrapper() {
-		return compressed_ ? gzgetc(zfp_) : getc_unlocked(fp_);
+		int c;
+		do {
+			c = compressed_ ? gzgetc(zfp_) : getc_unlocked(fp_);
+		} while (c != EOF && c != '\t' && c != '\r' && c != '\n' && !isprint(c));
+
+		return c;
 	}
 
 	int ungetc_wrapper(int c) {
