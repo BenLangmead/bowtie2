@@ -257,6 +257,7 @@ my @unps = ();
 my @mate1s = ();
 my @mate2s = ();
 my @to_delete = ();
+my @to_kill = ();
 my $temp_dir = "/tmp";
 my $bam_out = 0;
 my $ref_str = undef;
@@ -384,7 +385,10 @@ if(wrapInput(\@unps, \@mate1s, \@mate2s)) {
 			mkfifo($m1fn, 0700) || Fail("mkfifo($m1fn) failed.\n");
 		}
 		my $pid = 0;
-		$pid = fork() unless $no_pipes;
+		unless ($no_pipes) {
+			$pid = fork();
+			push @to_kill, $pid if $pid;
+		}
 		if($pid == 0) {
 			# Open named pipe 1 for writing
 			open(my $ofh, ">$m1fn") || Fail("Can't open '$m1fn' for writing\n");
@@ -401,7 +405,10 @@ if(wrapInput(\@unps, \@mate1s, \@mate2s)) {
 			mkfifo($m2fn, 0700) || Fail("mkfifo($m2fn) failed.\n");
 		}
 		$pid = 0;
-		$pid = fork() unless $no_pipes;
+		unless ($no_pipes) {
+			$pid = fork();
+			push @to_kill, $pid if $pid;
+		}
 		if($pid == 0) {
 			# Open named pipe 2 for writing
 			open(my $ofh, ">$m2fn") || Fail("Can't open '$m2fn' for writing.\n");
@@ -423,7 +430,10 @@ if(wrapInput(\@unps, \@mate1s, \@mate2s)) {
 			mkfifo($ufn, 0700) || Fail("mkfifo($ufn) failed.\n");
 		}
 		my $pid = 0;
-		$pid = fork() unless $no_pipes;
+		unless ($no_pipes) {
+			$pid = fork();
+			push @to_kill, $pid if $pid;
+		}
 		if($pid == 0) {
 			# Open named pipe 2 for writing
 			open(my $ofh, ">$ufn") || Fail("Can't open '$ufn' for writing.\n");
@@ -622,6 +632,7 @@ if(defined($cap_out)) {
 	$ret = system($cmd);
 }
 if(!$keep) { for(@to_delete) { unlink($_); } }
+kill 'HUP', @to_kill;
 
 if ($ret == -1) {
     Error("Failed to execute bowtie2-align: $!\n");
