@@ -1314,7 +1314,11 @@ public:
 		assert_eq(refid(), omate.refid());
 		getExtendedCoords(st, en, flags);
 		omate.getExtendedCoords(ost, oen, flags);
-		bool imUpstream = st.off() < ost.off();
+		bool imUpstream = false;
+		if ((st.off() == ost.off() && st.fw()) || st.off() < ost.off()) {
+			imUpstream = true;
+		}
+
 		TRefOff up = std::min(st.off(), ost.off());
 		TRefOff dn = std::max(en.off(), oen.off());
 		assert_geq(dn, up);
