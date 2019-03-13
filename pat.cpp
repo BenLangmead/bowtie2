@@ -954,9 +954,9 @@ bool FastaContinuousPatternSource::parse(
 
 	// Parse sequence
 	assert(ra.patFw.empty());
-	c = ra.readOrigBuf[cur++];
 	int nchar = 0;
 	while(cur < buflen) {
+		c = ra.readOrigBuf[cur++];
 		if(isalpha(c)) {
 			assert_in(toupper(c), "ACGTN");
 			if(nchar++ >= pp_.trim5) {
@@ -964,7 +964,6 @@ bool FastaContinuousPatternSource::parse(
 				ra.patFw.append(asc2dna[c]); // ascii to int
 			}
 		}
-		c = ra.readOrigBuf[cur++];
 	}
 	// record amt trimmed from 5' end due to --trim5
 	ra.trimmed5 = (int)(nchar - ra.patFw.length());

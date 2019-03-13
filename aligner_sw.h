@@ -70,7 +70,11 @@
 #include <iostream>
 #include <limits>
 #include "threading.h"
+#ifdef WITH_AARCH64
+#include "simde/x86/sse2.h"
+#else
 #include <emmintrin.h>
+#endif
 #include "aligner_sw_common.h"
 #include "aligner_sw_nuc.h"
 #include "ds.h"
