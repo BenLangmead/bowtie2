@@ -714,7 +714,11 @@ static void printUsage(ostream& out) {
 		tool_name = "bowtie2";
 	}
 	out << "Usage: " << endl
+#ifdef USE_SRA
 	    << "  " << tool_name.c_str() << " [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r> | --interleaved <i> | --sra-acc <acc>} [-S <sam>]" << endl
+#else
+	    << "  " << tool_name.c_str() << " [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r> | --interleaved <i>} [-S <sam>]" << endl
+#endif
 	    << endl
 		<<     "  <bt2-idx>  Index filename prefix (minus trailing .X." + gEbwt_ext + ")." << endl
 		<<     "             NOTE: Bowtie 1 and Bowtie 2 indexes are not compatible." << endl
@@ -731,11 +735,13 @@ static void printUsage(ostream& out) {
 		out << "             Could be gzip'ed (extension: .gz) or bzip2'ed (extension: .bz2)." << endl;
 	}
 	out <<     "  <i>        Files with interleaved paired-end FASTQ/FASTA reads" << endl;
-	out <<     "  <acc>      Files are SRA accessions. Accessions not found in local storage will\n"
-	    <<     "             be fetched from NCBI." << endl;
 	if(wrapper == "basic-0") {
 		out << "             Could be gzip'ed (extension: .gz) or bzip2'ed (extension: .bz2)." << endl;
 	}
+#ifdef USE_SRA
+	out <<     "  <acc>      Files are SRA accessions. Accessions not found in local storage will\n"
+	    <<     "             be fetched from NCBI." << endl;
+#endif
 	out <<     "  <sam>      File for SAM output (default: stdout)" << endl
 	    << endl
 	    << "  <m1>, <m2>, <r> can be comma-separated lists (no whitespace) and can be" << endl
