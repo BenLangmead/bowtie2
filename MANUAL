@@ -14,7 +14,7 @@ paired-end alignment modes. Multiple processors can be used
 simultaneously to achieve greater alignment speed.
 
 Bowtie 2 outputs alignments in SAM format, enabling interoperation with
-a large number of other tools (e.g. SAMtools, GATK) that use SAM. Bowtie
+a large number of other tools (e.g. SAMtools, GATK) that use SAM. Bowtie
 2 is distributed under the GPLv3 license, and it runs on the command
 line under Windows, Mac OS X and Linux.
 
@@ -46,7 +46,7 @@ The chief differences between Bowtie 1 and Bowtie 2 are:
 
 1.  For reads longer than about 50 bp Bowtie 2 is generally faster, more
     sensitive, and uses less memory than Bowtie 1. For relatively short
-    reads ( e.g. less than 50 bp) Bowtie 1 is sometimes faster and/or
+    reads (e.g. less than 50 bp) Bowtie 1 is sometimes faster and/or
     more sensitive.
 
 2.  Bowtie 2 supports gapped alignment with affine gap penalties. Number
@@ -63,7 +63,7 @@ The chief differences between Bowtie 1 and Bowtie 2 are:
 4.  There is no upper limit on read length in Bowtie 2. Bowtie 1 had an
     upper limit of around 1000 bp.
 
-5.  Bowtie 2 allows alignments to overlap ambiguous characters (e.g. Ns)
+5.  Bowtie 2 allows alignments to overlap ambiguous characters (e.g. Ns)
     in the reference. Bowtie 1 does not.
 
 6.  Bowtie 2 does away with Bowtie 1’s notion of alignment “stratum”,
@@ -90,7 +90,7 @@ What isn’t Bowtie 2?
 
 Bowtie 2 is geared toward aligning relatively short sequencing reads to
 long genomes. That said, it handles arbitrarily small reference
-sequences ( e.g. amplicons) and very long reads (i.e. upwards of 10s or
+sequences (e.g. amplicons) and very long reads (i.e. upwards of 10s or
 100s of kilobases), though it is slower in those settings. It is
 optimized for the read lengths and error modes yielded by typical
 Illumina sequencers.
@@ -108,7 +108,7 @@ With Bioconda installed, you should be able to install Bowtie 2 with
 conda install bowtie2.
 
 Containerized versions of Bowtie 2 are also available via the
-Biocontainers project (e.g. via Docker Hub).
+Biocontainers project (e.g. via Docker Hub).
 
 You can also download Bowtie 2 sources and binaries from the Download
 section of the Sourceforge site. Binaries are available for the x86_64
@@ -137,57 +137,35 @@ make from the MSYS environment.
 
 Bowtie 2 can be run on many threads. By default, Bowtie 2 uses the
 Threading Building Blocks library (TBB) for this. If TBB is not
-available on your system (e.g. make prints an error like
+available on your system (e.g. make prints an error like
 tbb/mutex.h: No such file or directory), you can install it yourself
 from source (see Threading Building Blocks library) or install it using
 your operating system’s preferred package manager. The table below list
 some of the commands for a few of the more popular operating systems.
 
-OS
-Sync Package List
-Search
-Install
-Ubuntu, Mint, Debian
-    apt-get update
+  -----------------------------------------------------------------------
+  Operating System Sync Package   Search           Install
+                   List                            
+  ---------------- -------------- ---------------- ----------------------
+  Ubuntu, Mint,    apt-get update apt-cache search apt-get install
+  Debian                          tbb              libtbb-dev
 
-    apt-cache search tbb
+  Fedora, CentOS   yum            yum search tbb   yum install
+                   check-update                    tbb-devel.x86_64
 
-    apt-get install libtbb-dev
+  Arch             packman -Sy    pacman -Ss tbb   pacman -S
+                                                   extra/intel-tbb
 
-Fedora, CentOS
-    yum check-update
+  Gentoo           emerge –sync   emerge –search   emerge dev-cpp/tbb
+                                  tbb              
 
-yum search tbb
+  macOS            brew update    brew search tbb  brew install tbb
 
-    yum install tbb-devel.x86_64
+  FreeBSD          pkg update     pkg search tbb   pkg install tbb-2019.1
+  -----------------------------------------------------------------------
 
-Arch
-    packman -Sy
-
-    pacman -Ss tbb
-
-    pacman -S extra/intel-tbb
-
-Gentoo
-    emerge --sync
-
-    emerge --search tbb
-
-    emerge dev-cpp/tbb
-
-MacOS
-    brew update
-
-    brew search tbb
-
-    brew install tbb
-
-FreeBSD
-    portsnap fetch update
-
-    make search name=tbb
-
-    cd /usr/ports/devel/tbb && make install && make clean
+If all fails Bowtie 2 can be built with make NO_TBB=1 to use pthreads or
+Windows native multithreading instead.
 
 The Bowtie 2 Makefile also includes recipes for basic automatic
 dependency management. Running make static-libs && make STATIC_BUILD=1
@@ -195,8 +173,11 @@ will issue a series of commands that will: 1. download TBB and zlib 2.
 compile them as static libraries 3. link the resulting libraries to the
 compiled Bowtie 2 binaries
 
-If all fails Bowtie 2 can be built with make NO_TBB=1 to use pthreads or
-Windows native multithreading instead.
+As of version 2.3.5 bowtie2 now supports aligning SRA reads. Prepackaged
+builds will include a package that supports SRA. If you’re building
+bowtie2 from source please make sure that the Java runtime is available
+on your system. You can then proceed with the build by running
+make sra-deps && make USE_SRA=1.
 
 
 Adding to PATH
@@ -328,7 +309,7 @@ the read and the reference.
 
 Valid alignments meet or exceed the minimum score threshold
 
-For an alignment to be considered “valid” (i.e. “good enough”) by Bowtie
+For an alignment to be considered “valid” (i.e. “good enough”) by Bowtie
 2, it must have an alignment score no less than the minimum score
 threshold. The threshold is configurable and is expressed as a function
 of the read length. In end-to-end alignment mode, the default minimum
@@ -846,7 +827,7 @@ alignment to be considered valid, and x is the read length.
 
 Usage
 
-    bowtie2 [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r> | --interleaved <i>} -S [<sam>]
+    bowtie2 [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r> | --interleaved <i> | --sra-acc <acc>} -S [<sam>]
 
 Main arguments
 
@@ -861,7 +842,7 @@ BOWTIE2_INDEXES environment variable.
     -1 <m1>
 
 Comma-separated list of files containing mate 1s (filename usually
-includes _1), e.g. -1 flyA_1.fq,flyB_1.fq. Sequences specified with this
+includes _1), e.g. -1 flyA_1.fq,flyB_1.fq. Sequences specified with this
 option must correspond file-for-file and read-for-read with those
 specified in <m2>. Reads may be a mix of different lengths. If - is
 specified, bowtie2 will read the mate 1s from the “standard in” or
@@ -870,7 +851,7 @@ specified, bowtie2 will read the mate 1s from the “standard in” or
     -2 <m2>
 
 Comma-separated list of files containing mate 2s (filename usually
-includes _2), e.g. -2 flyA_2.fq,flyB_2.fq. Sequences specified with this
+includes _2), e.g. -2 flyA_2.fq,flyB_2.fq. Sequences specified with this
 option must correspond file-for-file and read-for-read with those
 specified in <m1>. Reads may be a mix of different lengths. If - is
 specified, bowtie2 will read the mate 2s from the “standard in” or
@@ -882,6 +863,21 @@ Comma-separated list of files containing unpaired reads to be aligned,
 e.g. lane1.fq,lane2.fq,lane3.fq,lane4.fq. Reads may be a mix of
 different lengths. If - is specified, bowtie2 gets the reads from the
 “standard in” or “stdin” filehandle.
+
+    --interleaved
+
+Reads interleaved FASTQ files where the first two records (8 lines)
+represent a mate pair.
+
+    --sra-acc
+
+Reads are SRA accessions. If the accession provided cannot be found in
+local storage it will be fetched from the NCBI database. If you find
+that SRA alignments are long running please rerun your command with the
+-p/--threads parameter set to desired number of threads.
+
+NB: this option is only available if bowtie 2 is compiled with the
+necessary SRA libraries. See Obtaining Bowtie 2 for details.
 
     -S <sam>
 
@@ -897,11 +893,6 @@ Input options
 Reads (specified with <m1>, <m2>, <s>) are FASTQ files. FASTQ files
 usually have extension .fq or .fastq. FASTQ is the default format. See
 also: --solexa-quals and --int-quals.
-
-    --interleaved
-
-Reads interleaved FASTQ files where the first two records (8 lines)
-represent a mate pair.
 
     --tab5
 
@@ -1016,7 +1007,8 @@ Same as: -D 10 -R 2 -N 0 -L 22 -i S,0,2.50
 
     --sensitive
 
-Same as: -D 15 -R 2 -L 22 -i S,1,1.15 (default in --end-to-end mode)
+Same as: -D 15 -R 2 -N 0 -L 22 -i S,1,1.15 (default in --end-to-end
+mode)
 
     --very-sensitive
 
@@ -1053,8 +1045,8 @@ alignment slower (often much slower) but increases sensitivity. Default:
 
 Sets the length of the seed substrings to align during multiseed
 alignment. Smaller values make alignment slower but more sensitive.
-Default: the --sensitive preset is used by default, which sets -L to 20
-both in --end-to-end mode and in --local mode.
+Default: the --sensitive preset is used by default, which sets -L to 22
+and 20 in --end-to-end mode and in --local mode.
 
     -i <func>
 
@@ -1151,9 +1143,9 @@ one end to the other. Rather, some characters may be omitted (“soft
 clipped”) from the ends in order to achieve the greatest possible
 alignment score. The match bonus --ma is used in this mode, and the best
 possible alignment score is equal to the match bonus (--ma) times the
-length of the read. Specifying --local and one of the presets (e.g.
---local --very-fast) is equivalent to specifying the local version of
-the preset (--very-fast-local). This is mutually exclusive with
+length of the read. Specifying --local and one of the presets
+(e.g. --local --very-fast) is equivalent to specifying the local version
+of the preset (--very-fast-local). This is mutually exclusive with
 --end-to-end. --end-to-end is the default mode.
 
 Scoring options
@@ -1459,7 +1451,7 @@ record, with value set to <text>.
 
     --rg <text>
 
-Add <text> (usually of the form TAG:VAL, e.g. SM:Pool1) as a field on
+Add <text> (usually of the form TAG:VAL, e.g. SM:Pool1) as a field on
 the @RG header line. Note: in order for the @RG line to appear, --rg-id
 must also be specified. This is because the ID tag is required by the
 SAM Spec. Specify --rg multiple times to set multiple fields. See the
@@ -2043,7 +2035,7 @@ You will see something like this:
     @HD VN:1.0  SO:unsorted
     @SQ SN:gi|9626243|ref|NC_001416.1|  LN:48502
     @PG ID:bowtie2  PN:bowtie2  VN:2.0.1
-    r1  0   gi|9626243|ref|NC_001416.1| 18401   42  122M    *   0   0   TGAATGCGAACTCCGGGACGCTCAGTAATGTGACGATAGCTGAAAACTGTACGATAAACNGTACGCTGAGGGCAGAAAAAATCGTCGGGGACATTNTAAAGGCGGCGAGCGCGGCTTTTCCG  +"@6<:27(F&5)9)"B:%B+A-%5A?2$HCB0B+0=D<7E/<.03#!.F77@6B==?C"7>;))%;,3-$.A06+<-1/@@?,26">=?*@'0;$:;??G+:#+(A?9+10!8!?()?7C>  AS:i:-5 XN:i:0  XM:i:3  XO:i:0  XG:i:0  NM:i:3  MD:Z:59G13G21G26    YT:Z:UU
+    r1  0   gi|9626243|ref|NC_001416.1| 18401   42  122M    *   0   0   TGAATGCGAACTCCGGGACGCTCAGTAATGTGACGATAGCTGAAAACTGTACGATAAACNGTACGCTGAGGGCAGAAAAAATCGTCGGGGACATTNTAAAGGCGGCGAGCGCGGCTTTTCCG  +"@6<:27(F&5)9"B):%B+A-%5A?2$HCB0B+0=D<7E/<.03#!.F77@6B==?C"7>;))%;,3-$.A06+<-1/@@?,26">=?*@'0;$:;??G+:#+(A?9+10!8!?()?7C>  AS:i:-5 XN:i:0  XM:i:3  XO:i:0  XG:i:0  NM:i:3  MD:Z:59G13G21G26    YT:Z:UU
     r2  0   gi|9626243|ref|NC_001416.1| 8886    42  275M    *   0   0   NTTNTGATGCGGGCTTGTGGAGTTCAGCCGATCTGACTTATGTCATTACCTATGAAATGTGAGGACGCTATGCCTGTACCAAATCCTACAATGCCGGTGAAAGGTGCCGGGATCACCCTGTGGGTTTATAAGGGGATCGGTGACCCCTACGCGAATCCGCTTTCAGACGTTGACTGGTCGCGTCTGGCAAAAGTTAAAGACCTGACGCCCGGCGAACTGACCGCTGAGNCCTATGACGACAGCTATCTCGATGATGAAGATGCAGACTGGACTGC (#!!'+!$""%+(+)'%)%!+!(&++)''"#"#&#"!'!("%'""("+&%$%*%%#$%#%#!)*'(#")(($&$'&%+&#%*)*#*%*')(%+!%%*"$%"#+)$&&+)&)*+!"*)!*!("&&"*#+"&"'(%)*("'!$*!!%$&&&$!!&&"(*"$&"#&!$%'%"#)$#+%*+)!&*)+(""#!)!%*#"*)*')&")($+*%%)!*)!('(%""+%"$##"#+(('!*(($*'!"*('"+)&%#&$+('**$$&+*&!#%)')'(+(!%+ AS:i:-14    XN:i:0  XM:i:8  XO:i:0  XG:i:0  NM:i:8  MD:Z:0A0C0G0A108C23G9T81T46 YT:Z:UU
     r3  16  gi|9626243|ref|NC_001416.1| 11599   42  338M    *   0   0   GGGCGCGTTACTGGGATGATCGTGAAAAGGCCCGTCTTGCGCTTGAAGCCGCCCGAAAGAAGGCTGAGCAGCAGACTCAAGAGGAGAAAAATGCGCAGCAGCGGAGCGATACCGAAGCGTCACGGCTGAAATATACCGAAGAGGCGCAGAAGGCTNACGAACGGCTGCAGACGCCGCTGCAGAAATATACCGCCCGTCAGGAAGAACTGANCAAGGCACNGAAAGACGGGAAAATCCTGCAGGCGGATTACAACACGCTGATGGCGGCGGCGAAAAAGGATTATGAAGCGACGCTGTAAAAGCCGAAACAGTCCAGCGTGAAGGTGTCTGCGGGCGAT  7F$%6=$:9B@/F'>=?!D?@0(:A*)7/>9C>6#1<6:C(.CC;#.;>;2'$4D:?&B!>689?(0(G7+0=@37F)GG=>?958.D2E04C<E,*AD%G0.%$+A:'H;?8<72:88?E6((CF)6DF#.)=>B>D-="C'B080E'5BH"77':"@70#4%A5=6.2/1>;9"&-H6)=$/0;5E:<8G!@::1?2DC7C*;@*#.1C0.D>H/20,!"C-#,6@%<+<D(AG-).?&#0.00'@)/F8?B!&"170,)>:?<A7#1(A@0E#&A.*DC.E")AH"+.,5,2>5"2?:G,F"D0B8D-6$65D<D!A/38860.*4;4B<*31?6  AS:i:-22    XN:i:0  XM:i:8  XO:i:0  XG:i:0  NM:i:8  MD:Z:80C4C16A52T23G30A8T76A41   YT:Z:UU
     r4  0   gi|9626243|ref|NC_001416.1| 40075   42  184M    *   0   0   GGGCCAATGCGCTTACTGATGCGGAATTACGCCGTAAGGCCGCAGATGAGCTTGTCCATATGACTGCGAGAATTAACNGTGGTGAGGCGATCCCTGAACCAGTAAAACAACTTCCTGTCATGGGCGGTAGACCTCTAAATCGTGCACAGGCTCTGGCGAAGATCGCAGAAATCAAAGCTAAGT(=8B)GD04*G%&4F,1'A>.C&7=F$,+#6!))43C,5/5+)?-/0>/D3=-,2/+.1?@->;)00!'3!7BH$G)HG+ADC'#-9F)7<7"$?&.>0)@5;4,!0-#C!15CF8&HB+B==H>7,/)C5)5*+(F5A%D,EA<(>G9E0>7&/E?4%;#'92)<5+@7:A.(BG@BG86@.G AS:i:-1 XN:i:0  XM:i:1  XO:i:0  XG:i:0  NM:i:1  MD:Z:77C106 YT:Z:UU

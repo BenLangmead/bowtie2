@@ -139,103 +139,17 @@ or install it using your operating system's preferred package manager.
 The table below list some of the commands for a few of the more popular
 operating systems.
 
-<table>
-<tr><th>OS</th><th>Sync Package List</th><th>Search</th><th>Install</th></tr>
-<tr><td>Ubuntu, Mint, Debian</td>
-<td>
+| Operating System     | Sync Package List | Search               | Install                      |
+|:---------------------|:------------------|:---------------------|:-----------------------------|
+| Ubuntu, Mint, Debian | apt-get update    | apt-cache search tbb | apt-get install libtbb-dev   |
+| Fedora, CentOS       | yum check-update  | yum search tbb       | yum install tbb-devel.x86_64 |
+| Arch                 | packman -Sy       | pacman -Ss tbb       | pacman -S extra/intel-tbb    |
+| Gentoo               | emerge --sync     | emerge --search tbb  | emerge dev-cpp/tbb           |
+| macOS                | brew update       | brew search tbb      | brew install tbb             |
+| FreeBSD              | pkg update        | pkg search tbb       | pkg install tbb-2019.1       |
 
-    apt-get update
-
-</td>
-<td>
-
-    apt-cache search tbb
-
-</td>
-<td>
-
-    apt-get install libtbb-dev
-
-</td></tr>
-<tr><td>Fedora, CentOS</td>
-<td>
-
-    yum check-update
-
-</td>
-<td>
-    yum search tbb
-
-</td>
-<td>
-
-    yum install tbb-devel.x86_64
-
-</td></tr>
-<tr><td>Arch</td>
-<td>
-
-    packman -Sy
-
-</td>
-<td>
-
-    pacman -Ss tbb
-
-</td>
-<td>
-
-    pacman -S extra/intel-tbb
-
-</td></tr>
-<tr><td>Gentoo</td>
-<td>
-
-    emerge --sync
-
-</td>
-<td>
-
-    emerge --search tbb
-
-</td>
-<td>
-
-    emerge dev-cpp/tbb
-
-</td>
-<tr><td>MacOS</td>
-<td>
-
-    brew update
-
-</td>
-<td>
-
-    brew search tbb
-
-</td>
-<td>
-
-    brew install tbb
-
-</td></tr>
-<tr><td>FreeBSD</td>
-<td>
-
-    portsnap fetch update
-
-</td>
-<td>
-
-    make search name=tbb
-
-</td>
-<td>
-
-    cd /usr/ports/devel/tbb && make install && make clean
-
-</table>
+If all fails Bowtie 2 can be built with `make NO_TBB=1` to use pthreads
+or Windows native multithreading instead.
 
 The Bowtie 2 Makefile also includes recipes for basic automatic dependency
 management. Running `make static-libs && make STATIC_BUILD=1` will issue
@@ -244,8 +158,10 @@ a series of commands that will:
   2. compile them as static libraries
   3. link the resulting libraries to the compiled Bowtie 2 binaries
 
-If all fails Bowtie 2 can be built with `make NO_TBB=1` to use pthreads
-or Windows native multithreading instead.
+As of version 2.3.5 bowtie2 now supports aligning SRA reads. Prepackaged
+builds will include a package that supports SRA. If you're building bowtie2
+from source please make sure that the Java runtime is available on your system.
+You can then proceed with the build by running `make sra-deps && make USE_SRA=1`.
 
 Adding to PATH
 --------------
@@ -822,7 +738,7 @@ Performance tuning
 
 1.  If your computer has multiple processors/cores, use `-p`
 
-    The [`-p`] option causes Bowtie 2 to launch a specified number of parallel
+	The [`-p`] option causes Bowtie 2 to launch a specified number of parallel
     search threads.  Each thread runs on a different processor/core and all
     threads find alignments in parallel, increasing alignment throughput by
     approximately a multiple of the number of threads (though in practice,
@@ -875,11 +791,11 @@ considered valid, and `x` is the read length.
 
 ### Usage
 
-    bowtie2 [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r> | --interleaved <i>} -S [<sam>]
+    bowtie2 [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r> | --interleaved <i> | --sra-acc <acc>} -S [<sam>]
 
 ### Main arguments
 
-<table><tr><td>
+<table><tr><td id="bowtie2-options-x">
 
     -x <bt2-idx>
 
@@ -890,7 +806,8 @@ any of the index files up to but not including the final `.1.bt2` / `.rev.1.bt2`
 / etc.  `bowtie2` looks for the specified index first in the current directory,
 then in the directory specified in the `BOWTIE2_INDEXES` environment variable.
 
-</td></tr><tr><td>
+</td></tr>
+<tr><td id="bowtie2-options-1">
 
     -1 <m1>
 
@@ -902,7 +819,8 @@ correspond file-for-file and read-for-read with those specified in `<m2>`. Reads
 may be a mix of different lengths. If `-` is specified, `bowtie2` will read the
 mate 1s from the "standard in" or "stdin" filehandle.
 
-</td></tr><tr><td>
+</td></tr>
+<tr><td id="bowtie2-options-2">
 
     -2 <m2>
 
@@ -914,7 +832,8 @@ correspond file-for-file and read-for-read with those specified in `<m1>`. Reads
 may be a mix of different lengths. If `-` is specified, `bowtie2` will read the
 mate 2s from the "standard in" or "stdin" filehandle.
 
-</td></tr><tr><td>
+</td></tr>
+<tr><td id="bowtie2-options-U">
 
     -U <r>
 
@@ -925,7 +844,33 @@ Comma-separated list of files containing unpaired reads to be aligned, e.g.
 If `-` is specified, `bowtie2` gets the reads from the "standard in" or "stdin"
 filehandle.
 
-</td></tr><tr><td>
+</td></tr>
+<tr><td id="bowtie2-options-interleaved">
+
+    --interleaved
+
+</td><td>
+
+Reads interleaved FASTQ files where the first two records (8 lines)
+represent a mate pair.
+
+</td></tr>
+<tr><td id="bowtie2-options-sra-acc">
+
+    --sra-acc
+
+</td><td>
+
+Reads are SRA accessions. If the accession provided cannot be found in
+local storage it will be fetched from the NCBI database. If you find that
+SRA alignments are long running please rerun your command with the
+[`-p`/`--threads`] parameter set to desired number of threads.
+
+NB: this option is only available if bowtie 2 is compiled with the necessary
+SRA libraries. See [Obtaining Bowtie 2][obtain Bowtie 2] for details.
+
+</td></tr>
+<tr><td id="bowtie2-options-S">
 
     -S <sam>
 
@@ -950,16 +895,6 @@ File to write SAM alignments to.  By default, alignments are written to the
 Reads (specified with `<m1>`, `<m2>`, `<s>`) are FASTQ files.  FASTQ files
 usually have extension `.fq` or `.fastq`.  FASTQ is the default format.  See
 also: [`--solexa-quals`] and [`--int-quals`].
-
-</td></tr>
-<tr><td id="bowtie2-options-interleaved">
-
-    --interleaved
-
-</td><td>
-
-Reads interleaved FASTQ files where the first two records (8 lines)
-represent a mate pair.
 
 </td></tr>
 <tr><td id="bowtie2-options-tab5">
@@ -2703,7 +2638,7 @@ You will see something like this:
     @HD	VN:1.0	SO:unsorted
     @SQ	SN:gi|9626243|ref|NC_001416.1|	LN:48502
     @PG	ID:bowtie2	PN:bowtie2	VN:2.0.1
-    r1	0	gi|9626243|ref|NC_001416.1|	18401	42	122M	*	0	0	TGAATGCGAACTCCGGGACGCTCAGTAATGTGACGATAGCTGAAAACTGTACGATAAACNGTACGCTGAGGGCAGAAAAAATCGTCGGGGACATTNTAAAGGCGGCGAGCGCGGCTTTTCCG	+"@6<:27(F&5)9)"B:%B+A-%5A?2$HCB0B+0=D<7E/<.03#!.F77@6B==?C"7>;))%;,3-$.A06+<-1/@@?,26">=?*@'0;$:;??G+:#+(A?9+10!8!?()?7C>	AS:i:-5	XN:i:0	XM:i:3	XO:i:0	XG:i:0	NM:i:3	MD:Z:59G13G21G26	YT:Z:UU
+    r1	0	gi|9626243|ref|NC_001416.1|	18401	42	122M	*	0	0	TGAATGCGAACTCCGGGACGCTCAGTAATGTGACGATAGCTGAAAACTGTACGATAAACNGTACGCTGAGGGCAGAAAAAATCGTCGGGGACATTNTAAAGGCGGCGAGCGCGGCTTTTCCG	+"@6<:27(F&5)9"B):%B+A-%5A?2$HCB0B+0=D<7E/<.03#!.F77@6B==?C"7>;))%;,3-$.A06+<-1/@@?,26">=?*@'0;$:;??G+:#+(A?9+10!8!?()?7C>	AS:i:-5	XN:i:0	XM:i:3	XO:i:0	XG:i:0	NM:i:3	MD:Z:59G13G21G26	YT:Z:UU
     r2	0	gi|9626243|ref|NC_001416.1|	8886	42	275M	*	0	0	NTTNTGATGCGGGCTTGTGGAGTTCAGCCGATCTGACTTATGTCATTACCTATGAAATGTGAGGACGCTATGCCTGTACCAAATCCTACAATGCCGGTGAAAGGTGCCGGGATCACCCTGTGGGTTTATAAGGGGATCGGTGACCCCTACGCGAATCCGCTTTCAGACGTTGACTGGTCGCGTCTGGCAAAAGTTAAAGACCTGACGCCCGGCGAACTGACCGCTGAGNCCTATGACGACAGCTATCTCGATGATGAAGATGCAGACTGGACTGC	(#!!'+!$""%+(+)'%)%!+!(&++)''"#"#&#"!'!("%'""("+&%$%*%%#$%#%#!)*'(#")(($&$'&%+&#%*)*#*%*')(%+!%%*"$%"#+)$&&+)&)*+!"*)!*!("&&"*#+"&"'(%)*("'!$*!!%$&&&$!!&&"(*"$&"#&!$%'%"#)$#+%*+)!&*)+(""#!)!%*#"*)*')&")($+*%%)!*)!('(%""+%"$##"#+(('!*(($*'!"*('"+)&%#&$+('**$$&+*&!#%)')'(+(!%+	AS:i:-14	XN:i:0	XM:i:8	XO:i:0	XG:i:0	NM:i:8	MD:Z:0A0C0G0A108C23G9T81T46	YT:Z:UU
     r3	16	gi|9626243|ref|NC_001416.1|	11599	42	338M	*	0	0	GGGCGCGTTACTGGGATGATCGTGAAAAGGCCCGTCTTGCGCTTGAAGCCGCCCGAAAGAAGGCTGAGCAGCAGACTCAAGAGGAGAAAAATGCGCAGCAGCGGAGCGATACCGAAGCGTCACGGCTGAAATATACCGAAGAGGCGCAGAAGGCTNACGAACGGCTGCAGACGCCGCTGCAGAAATATACCGCCCGTCAGGAAGAACTGANCAAGGCACNGAAAGACGGGAAAATCCTGCAGGCGGATTACAACACGCTGATGGCGGCGGCGAAAAAGGATTATGAAGCGACGCTGTAAAAGCCGAAACAGTCCAGCGTGAAGGTGTCTGCGGGCGAT	7F$%6=$:9B@/F'>=?!D?@0(:A*)7/>9C>6#1<6:C(.CC;#.;>;2'$4D:?&B!>689?(0(G7+0=@37F)GG=>?958.D2E04C<E,*AD%G0.%$+A:'H;?8<72:88?E6((CF)6DF#.)=>B>D-="C'B080E'5BH"77':"@70#4%A5=6.2/1>;9"&-H6)=$/0;5E:<8G!@::1?2DC7C*;@*#.1C0.D>H/20,!"C-#,6@%<+<D(AG-).?&#0.00'@)/F8?B!&"170,)>:?<A7#1(A@0E#&A.*DC.E")AH"+.,5,2>5"2?:G,F"D0B8D-6$65D<D!A/38860.*4;4B<*31?6	AS:i:-22	XN:i:0	XM:i:8	XO:i:0	XG:i:0	NM:i:8	MD:Z:80C4C16A52T23G30A8T76A41	YT:Z:UU
     r4	0	gi|9626243|ref|NC_001416.1|	40075	42	184M	*	0	0	GGGCCAATGCGCTTACTGATGCGGAATTACGCCGTAAGGCCGCAGATGAGCTTGTCCATATGACTGCGAGAATTAACNGTGGTGAGGCGATCCCTGAACCAGTAAAACAACTTCCTGTCATGGGCGGTAGACCTCTAAATCGTGCACAGGCTCTGGCGAAGATCGCAGAAATCAAAGCTAAGT(=8B)GD04*G%&4F,1'A>.C&7=F$,+#6!))43C,5/5+)?-/0>/D3=-,2/+.1?@->;)00!'3!7BH$G)HG+ADC'#-9F)7<7"$?&.>0)@5;4,!0-#C!15CF8&HB+B==H>7,/)C5)5*+(F5A%D,EA<(>G9E0>7&/E?4%;#'92)<5+@7:A.(BG@BG86@.G	AS:i:-1	XN:i:0	XM:i:1	XO:i:0	XG:i:0	NM:i:1	MD:Z:77C106	YT:Z:UU
@@ -2861,6 +2796,7 @@ for more details and variations on this process.
 [`--ignore-quals`]:                                   #bowtie2-options-ignore-quals
 [`--int-quals`]:                                      #bowtie2-options-int-quals
 [`--interleaved`]:                                    #bowtie2-options-interleaved
+[`--sra-acc`]:                                        #bowtie2-options-sra-acc
 [`--large-index`]:                                    #bowtie2-build-options-large-index
 [`--local`]:                                          #bowtie2-options-local
 [`--ma`]:                                             #bowtie2-options-ma

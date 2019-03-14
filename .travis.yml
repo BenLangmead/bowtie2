@@ -1,13 +1,20 @@
 sudo: required
+
 language: c++
+
+dist: trusty
+
 compiler:
 - clang
 - gcc
+
 cache: apt
+
 addons:
   apt:
     packages:
     - libtbb-dev
+
 branches:
   only:
   - master
@@ -17,8 +24,42 @@ branches:
   - batch_parsing_output
   - blocked_input
   - bug_fixes
+
+env:
+  - NO_TBB=1
+# - NO_TBB=0
+
 matrix:
+  fast_finish: true
   include:
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-4.9
+      env:
+         - MATRIX_EVAL="CC=gcc-4.9 && CXX=g++-4.9"
+
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-8
+      env:
+        - MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
+
+    # macOS 10.13
+    - os: osx
+      osx_image: xcode10.1
+
+    # macOS 10.11
+    - os: osx
+      osx_image: xcode8
+
   # aarch64 - ARM 64-bit
   - name: aarch64
     install:
@@ -39,6 +80,11 @@ matrix:
     # Set POPCNT_CAPABILITY=0 to avoid a build error.
     # NO_TBB=1 possibly saves the running time.
     - docker run --rm -e CXXFLAGS="$CXXFLAGS" -e POPCNT_CAPABILITY=0 -t bowtie2 make -s -j 4 all
+
+
+before_install:
+    - eval "${MATRIX_EVAL}"
+
 script: make allall && make simple-test
 notifications:
   slack:

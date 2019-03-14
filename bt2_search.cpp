@@ -714,7 +714,7 @@ static void printUsage(ostream& out) {
 		tool_name = "bowtie2";
 	}
 	out << "Usage: " << endl
-	    << "  " << tool_name.c_str() << " [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r> | --interleaved <i>} [-S <sam>]" << endl
+	    << "  " << tool_name.c_str() << " [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r> | --interleaved <i> | --sra-acc <acc>} [-S <sam>]" << endl
 	    << endl
 		<<     "  <bt2-idx>  Index filename prefix (minus trailing .X." + gEbwt_ext + ")." << endl
 		<<     "             NOTE: Bowtie 1 and Bowtie 2 indexes are not compatible." << endl
@@ -731,6 +731,8 @@ static void printUsage(ostream& out) {
 		out << "             Could be gzip'ed (extension: .gz) or bzip2'ed (extension: .bz2)." << endl;
 	}
 	out <<     "  <i>        Files with interleaved paired-end FASTQ/FASTA reads" << endl;
+	out <<     "  <acc>      Files are SRA accessions. Accessions not found in local storage will\n"
+	    <<     "             be fetched from NCBI." << endl;
 	if(wrapper == "basic-0") {
 		out << "             Could be gzip'ed (extension: .gz) or bzip2'ed (extension: .bz2)." << endl;
 	}
@@ -741,11 +743,11 @@ static void printUsage(ostream& out) {
 		// Wrapper script should write <bam> line next
 		<< endl
 	    << "Options (defaults in parentheses):" << endl
-		<< endl
+	    << endl
 	    << " Input:" << endl
 	    << "  -q                 query input files are FASTQ .fq/.fastq (default)" << endl
-		<< "  --tab5             query input files are TAB5 .tab5" << endl
-		<< "  --tab6             query input files are TAB6 .tab6" << endl
+	    << "  --tab5             query input files are TAB5 .tab5" << endl
+	    << "  --tab6             query input files are TAB6 .tab6" << endl
 	    << "  --qseq             query input files are in Illumina's qseq format" << endl
 	    << "  -f                 query input files are (multi-)FASTA .fa/.mfa" << endl
 	    << "  -r                 query input files are raw one-sequence-per-line" << endl
