@@ -71,7 +71,7 @@ public:
 		gaps_ = gaps;
 		assert(valid());
 	}
-	
+
 	/**
 	 * Reset the score.
 	 */
@@ -88,7 +88,7 @@ public:
 		assert(!s.valid());
 		return s;
 	}
-	
+
 	/**
 	 * Return true iff this score has a valid value.
 	 */
@@ -105,7 +105,7 @@ public:
 		ns_ = gaps_ = 0;
 		assert(!valid());
 	}
-	
+
 	/**
 	 * Increment the number of gaps.  If currently invalid, this makes
 	 * the score valid with gaps == 1.
@@ -230,17 +230,17 @@ public:
 
 	// Score accumulated so far (penalties are subtracted starting at 0)
 	TAlScore score_;
-	
+
 	// Number of bases matching between the read and reference
 	int basesAligned_;
-	
+
 	// Edit distance
 	int edits_;
-	
+
 	// Ns accumulated so far.  An N opposite a non-gap counts as 1 N
 	// (even if it's N-to-N)
 	TAlScore ns_;
-	
+
 	// # gaps encountered so far, unless that number exceeds the
 	// target, in which case the score becomes invalid and therefore <=
 	// all other scores
@@ -257,7 +257,7 @@ enum {
 	// alignment for a read
 	ALN_FLAG_PAIR_DISCORD_MATE1,
 	ALN_FLAG_PAIR_DISCORD_MATE2,
-	
+
 	// This is an unpaired alignment but the read in question is a pair;
 	// usually, this happens because the read had no reportable paired-end
 	// alignments
@@ -365,7 +365,7 @@ public:
 		assert_gt(pairing_, 0);
 		return pairing_ < ALN_FLAG_PAIR_UNPAIRED;
 	}
-	
+
 #ifndef NDEBUG
 	/**
 	 * Check that the flags are internally consistent.
@@ -410,14 +410,14 @@ public:
 	inline bool isPrimary() const {
 		return primary_;
 	}
-	
+
 	/**
 	 * Set the primary flag.
 	 */
 	void setPrimary(bool primary) {
 		primary_ = primary;
 	}
-	
+
 	/**
 	 * Return whether both paired and unpaired alignments are considered for
 	 * pairs & their constituent mates
@@ -433,14 +433,14 @@ public:
 	inline bool canMax() const {
 		return canMax_;
 	}
-	
+
 	/**
 	 * Return true iff the alignment was filtered out.
 	 */
 	bool filtered() const {
 		return !nfilt_ || !scfilt_ || !lenfilt_ || !qcfilt_;
 	}
-	
+
 	/**
 	 * Return true iff the read is mate #1 of a pair, regardless of whether it
 	 * aligned as a pair.
@@ -460,7 +460,7 @@ public:
 		       pairing_ == ALN_FLAG_PAIR_DISCORD_MATE2 ||
 			   pairing_ == ALN_FLAG_PAIR_UNPAIRED_MATE2;
 	}
-	
+
 	/**
 	 * Return true iff the read aligned as either mate of a concordant pair.
 	 */
@@ -476,7 +476,7 @@ public:
 		return pairing_ == ALN_FLAG_PAIR_DISCORD_MATE1 ||
 		       pairing_ == ALN_FLAG_PAIR_DISCORD_MATE2;
 	}
-	
+
 	/**
 	 * Return true iff the read aligned as either mate of a pair, concordant or
 	 * discordant.
@@ -524,25 +524,25 @@ protected:
 	// True iff the alignment params are such that it's possible for a read to
 	// be suppressed for being repetitive
 	bool canMax_;
-	
+
 	// This alignment is sampled from among many alignments that, taken
 	// together, cause this mate to align non-uniquely
 	bool maxed_;
-	
+
 	// The paired-end read of which this mate is part has repetitive concordant
 	// alignments
 	bool maxedPair_;
-	
+
 	bool nfilt_;   // read/mate filtered b/c proportion of Ns exceeded ceil
 	bool scfilt_;  // read/mate filtered b/c length can't provide min score
 	bool lenfilt_; // read/mate filtered b/c less than or equal to seed mms
 	bool qcfilt_;  // read/mate filtered by upstream qc
-	
+
 	// Whether both paired and unpaired alignments are considered for pairs &
 	// their constituent mates
 	bool mixedMode_;
-	
-	// The read is the primary read 
+
+	// The read is the primary read
 	bool primary_;
 
 	// True iff the opposite mate aligned
@@ -580,7 +580,7 @@ enum {
 struct SeedAlSumm {
 
 	SeedAlSumm() { reset(); }
-	
+
 	void reset() {
 		nonzTot = nonzFw = nonzRc = 0;
 		nrangeTot = nrangeFw = nrangeRc = 0;
@@ -636,7 +636,7 @@ public:
 	{
 		reset();
 	}
-	
+
 	/**
 	 * Reset to an uninitialized state.
 	 */
@@ -654,12 +654,12 @@ public:
 		mdzChr_.clear();
 		mdzRun_.clear();
 	}
-	
+
 	/**
 	 * Return true iff the stacked alignment has been initialized.
 	 */
 	bool inited() const { return inited_; }
-	
+
 	/**
 	 * Initialized the stacked alignment with respect to a read string, a list of
 	 * edits (expressed left-to-right), and integers indicating how much hard and
@@ -679,7 +679,7 @@ public:
 		size_t trimLH,
 		size_t trimRS,
 		size_t trimRH);
-	
+
 	/**
 	 * Left-align all the gaps.  If this changes the alignment and the CIGAR or
 	 * MD:Z strings have already been calculated, this renders them invalid.
@@ -696,7 +696,7 @@ public:
 	 * with a mismatch with a different base quality.
 	 */
 	void leftAlign(bool pastMms);
-	
+
 	/**
 	 * Build the CIGAR list, if it hasn't already built.  Returns true iff it
 	 * was built for the first time.
@@ -714,13 +714,13 @@ public:
 	 * char buffer.
 	 */
 	void writeCigar(BTString* o, char* oc) const;
-	
+
 	/**
 	 * Write an MD:Z representation of the alignment to the given string and/or
 	 * char buffer.
 	 */
 	void writeMdz(BTString* o, char* oc) const;
-	
+
 	/**
 	 * Check internal consistency.
 	 */
@@ -804,7 +804,7 @@ public:
 	 * Clear all contents.
 	 */
 	void reset();
-	
+
 	/**
 	 * Reverse all edit lists.
 	 */
@@ -812,7 +812,7 @@ public:
 		ned_.reverse();
 		aed_.reverse();
 	}
-	
+
 	/**
 	 * Invert positions of edits so that they're with respect to the other end
 	 * of the alignment.  The assumption is that the .pos fields of the edits
@@ -826,7 +826,7 @@ public:
 		Edit::invertPoss(ned_, rdexrows_, false);
 		Edit::invertPoss(aed_, rdexrows_, false);
 	}
-	
+
 	/**
 	 * Return true iff no result has been installed.
 	 */
@@ -858,7 +858,7 @@ public:
 		assert(shapeSet_);
 		return refcoord_.orient();
 	}
-	
+
 	/**
 	 * Return the 0-based offset of the alignment into the reference
 	 * sequence it aligned to.
@@ -907,7 +907,7 @@ public:
 			en.adjustOff( trim_en);
 		}
 	}
-	
+
 	/**
 	 * Set the upstream-most reference offset involved in the alignment, and
 	 * the extent of the alignment (w/r/t the reference)
@@ -959,7 +959,7 @@ public:
 		nuc5p_ = fw ? nup : ndn;
 		nuc3p_ = fw ? ndn : nup;
 	}
-	
+
 	/**
 	 * Return the 0-based offset of the leftmost reference position involved in
 	 * the alignment.
@@ -983,14 +983,14 @@ public:
 	Coord& refcoord() {
 		return refcoord_;
 	}
-	
+
 	/**
 	 * Return true if this alignment is to the Watson strand.
 	 */
 	inline bool fw() const {
 		return refcoord_.fw();
 	}
-	
+
 	AlnScore           score()          const { return score_;    }
 	AlnScore           oscore()         const { return oscore_;   }
 	EList<Edit>&       ned()                  { return ned_;      }
@@ -1009,7 +1009,7 @@ public:
 	size_t refExtent() const {
 		return rfextent_;
 	}
-	
+
 	/**
 	 * Return length of reference sequence aligned to.
 	 */
@@ -1044,7 +1044,7 @@ public:
 		const Read& rd,
 		const BTString* dqs,
 		BTString& o) const;
-	
+
 	/**
 	 * Print a stacked alignment with the reference on top, query on bottom,
 	 * and lines connecting matched-up positions.
@@ -1069,7 +1069,7 @@ public:
 		o << "^" << std::endl;
 		o << "(" << refcoord_.ref() << "," << refcoord_.off() << ")" << std::endl;
 	}
-	
+
 #ifndef NDEBUG
 	/**
 	 * Check that alignment score is internally consistent.
@@ -1089,7 +1089,7 @@ public:
 		assert(empty() || rfextent_ > 0);
 		return true;
 	}
-	
+
 	/**
 	 * Check that alignment score is internally consistent.
 	 */
@@ -1116,7 +1116,7 @@ public:
 		SStringExpandable<uint32_t>& destU32,
 		EList<bool>& matches);
 #endif
-	
+
 	/**
 	 * Set information about the alignment parameters that led to this
 	 * alignment.
@@ -1132,7 +1132,7 @@ public:
 		seedival_ = seedival;
 		minsc_ = minsc;
 	}
-	
+
 	// Accessors for alignment parameters
 	int     seedmms()    const { return seedmms_;  }
 	int     seedlen()    const { return seedlen_;  }
@@ -1141,7 +1141,7 @@ public:
 
 	/**
 	 * Is the ith row from the 5' end of the DP table one of the ones
-	 * soft-trimmed away by local alignment? 
+	 * soft-trimmed away by local alignment?
 	 */
 	inline bool trimmedRow5p(size_t i) const {
 		return i < trim5p_ || rdrows_ - i - 1 < trim3p_;
@@ -1149,7 +1149,7 @@ public:
 
 	/**
 	 * Is the ith character from the 5' end of read sequence one of the ones
-	 * soft-trimmed away by local alignment? 
+	 * soft-trimmed away by local alignment?
 	 */
 	inline bool trimmedPos5p(size_t i) const {
 		return i < trim5p_ || rdlen_ - i - 1 < trim3p_;
@@ -1170,7 +1170,7 @@ public:
 	inline bool alignedPos5p(size_t i) const {
 		return !trimmedPos5p(i);
 	}
-	
+
 	/**
 	 * Return true iff this AlnRes and the given AlnRes overlap.  Two AlnRess
 	 * overlap if they share a cell in the overall dynamic programming table:
@@ -1196,7 +1196,7 @@ public:
 	 * considered.
 	 */
 	bool overlap(AlnRes& res);
-	
+
 	/**
 	 * Return true iff this read was unpaired to begin with.
 	 */
@@ -1253,7 +1253,7 @@ public:
 		return type_ == ALN_RES_TYPE_MATE2 ||
 		       type_ == ALN_RES_TYPE_UNPAIRED_MATE2;
 	}
-	
+
 	/**
 	 * Return true iff this read aligned as mate #2 in a concordant or
 	 * discordant pair.
@@ -1262,14 +1262,14 @@ public:
 		assert_gt(type_, 0);
 		return type_ == ALN_RES_TYPE_MATE2;
 	}
-	
+
 	/**
 	 * Return true iff fragment length is set.
 	 */
 	bool isFraglenSet() const {
 		return fraglenSet_;
 	}
-	
+
 	/**
 	 * Set whether this alignment is unpaired, or is mate #1 or mate #2 in a
 	 * paired-end alignment.
@@ -1299,7 +1299,7 @@ public:
 			}
 		}
 	}
-	
+
 	/**
 	 * Assuming this alignment and the given alignment are at the extreme ends
 	 * of a fragment, return the length of the fragment.  We take all clipping,
@@ -1314,9 +1314,21 @@ public:
 		assert_eq(refid(), omate.refid());
 		getExtendedCoords(st, en, flags);
 		omate.getExtendedCoords(ost, oen, flags);
-		bool imUpstream = false;
-		if ((st.off() == ost.off() && st.fw()) || st.off() < ost.off()) {
+		bool imUpstream;
+
+		if (st.off() == ost.off()) {
+			// --ff case
+			if (st.fw() && ost.fw() && readMate1()) {
+				imUpstream = true;
+			} else if (st.fw() && !ost.fw()) {
+				imUpstream = true;
+			} else {
+				imUpstream = false;
+			}
+		} else if (st.off() < ost.off()) {
 			imUpstream = true;
+		} else {
+			imUpstream = false;
 		}
 
 		TRefOff up = std::min(st.off(), ost.off());
@@ -1329,7 +1341,7 @@ public:
 		fraglenSet_ = true;
 		return fraglen_;
 	}
-	
+
 	/**
 	 * Return fragment length inferred by a paired-end alignment, or -1 if the
 	 * alignment is not part of a pair.
@@ -1339,7 +1351,7 @@ public:
 		assert(fraglenSet_);
 		return fraglen_;
 	}
-	
+
 	/**
 	 * Initialize new AlnRes.
 	 */
@@ -1377,7 +1389,7 @@ public:
 		if(trimSoft_ == soft) trim += trim5p_;
 		return trim;
 	}
-	
+
 	/**
 	 * Return number of bases trimmed from the 3' end.  Argument determines
 	 * whether we're counting hard- or soft-trimmed bases.
@@ -1411,12 +1423,12 @@ public:
 	void setRefNs(size_t refns) {
 		refns_ = refns;
 	}
-	
+
 	/**
 	 * Return the number of reference Ns covered by the alignment.
 	 */
 	size_t refNs() const { return refns_; }
-	
+
 	/**
 	 * Clip away portions of the alignment that are outside the given bounds.
 	 * Clipping is soft if soft == true, hard otherwise.
@@ -1437,7 +1449,7 @@ public:
 	 * In debug mode, we put a copy of the decoded nucleotide sequence here.
 	 */
 	ASSERT_ONLY(BTDnaString drd);
-	
+
 	/**
 	 * Return true iff this AlnRes should come before the given AlnRes in a
 	 * prioritized list of results.
@@ -1445,7 +1457,7 @@ public:
 	bool operator<(const AlnRes& o) const {
 		return score_ > o.score_;
 	}
-	
+
 	bool operator==(const AlnRes& o) const {
 		return
 			shapeSet_     == o.shapeSet_ &&
@@ -1477,7 +1489,7 @@ public:
 			trim5p_       == o.trim5p_ &&
 			trim3p_       == o.trim3p_;
 	}
-	
+
 	/**
 	 * Initialize a StackedAln (stacked alignment) object w/r/t this alignment.
 	 */
@@ -1537,14 +1549,14 @@ protected:
 	int         type_;         // unpaired or mate #1 or mate #2?
 	bool        fraglenSet_;   // true iff a fragment length has been inferred
 	int64_t     fraglen_;      // inferred fragment length
-	
+
 	// A tricky aspect of trimming is that we have to decide what the units are:
 	// read positions, reference positions???  We choose read positions here.
 	// In other words, if an alignment overhangs the end of the reference and
 	// part of the overhanging portion is a reference gap, we have to make sure
 	// the trim amount reflects the number of *read characters* to trim
 	// including the character opposite the reference gap.
-	
+
 	// Nucleotide-sequence trimming
 	bool        pretrimSoft_;  // trimming prior to alignment is soft?
 	size_t      pretrim5p_;    // # bases trimmed from 5p end prior to alignment
@@ -1560,14 +1572,14 @@ protected:
  * they have at least one cell in common in the overall DP table.
  */
 struct RedundantCell {
-	
+
 	RedundantCell() {
 		rfid = 0;
 		fw = true;
 		rfoff = 0;
 		rdoff = 0;
 	}
-	
+
 	RedundantCell(
 		TRefId  rfid_,
 		bool    fw_,
@@ -1576,7 +1588,7 @@ struct RedundantCell {
 	{
 		init(rfid_, fw_, rfoff_, rdoff_);
 	}
-	
+
 	void init(
 		TRefId  rfid_,
 		bool    fw_,
@@ -1588,7 +1600,7 @@ struct RedundantCell {
 		rfoff = rfoff_;
 		rdoff = rdoff_;
 	}
-	
+
 	/**
 	 * Return true iff this RedundantCell is less than the given RedundantCell.
 	 */
@@ -1652,7 +1664,7 @@ public:
 	 * Empty the cell database.
 	 */
 	void reset() { cells_.clear(); }
-	
+
 	/**
 	 * Initialize and set the list of sets to equal the read length.
 	 */
@@ -1667,7 +1679,7 @@ public:
 	 * Add all of the cells involved in the given alignment to the database.
 	 */
 	void add(const AlnRes& res);
-	
+
 	/**
 	 * Return true iff the given alignment has at least one cell that overlaps
 	 * one of the cells in the database.
@@ -1708,7 +1720,7 @@ public:
 		TRefId orefid,
 		TRefOff orefoff)
 	{
-		init(rd1, rd2, rs1, rs2, rs1u, rs2u, exhausted1, exhausted2, 
+		init(rd1, rd2, rs1, rs2, rs1u, rs2u, exhausted1, exhausted2,
 		     orefid, orefoff);
 	}
 
@@ -1730,7 +1742,7 @@ public:
 			orefid,
 			orefoff);
 	}
-	
+
 	/**
 	 * Set to uninitialized state.
 	 */
@@ -1757,7 +1769,7 @@ public:
 		orefid_ = -1;
 		orefoff_ = -1;
 	}
-	
+
 	void init(
 		const Read* rd1,
 		const Read* rd2,
@@ -1769,7 +1781,7 @@ public:
 		bool exhausted2,
 		TRefId orefid,
 		TRefOff orefoff);
-	
+
 	/**
 	 * Initialize given fields.  See constructor for how fields are set.
 	 */
@@ -1791,7 +1803,7 @@ public:
 		orefoff_       = orefoff;
 		assert(repOk());
 	}
-	
+
 	/**
 	 * Return true iff there is at least a best alignment
 	 */
@@ -1799,7 +1811,7 @@ public:
 		assert(repOk());
 		return !VALID_AL_SCORE(bestScore(true));
 	}
-	
+
 #ifndef NDEBUG
 	/**
 	 * Check that the summary is internally consistent.
@@ -1808,7 +1820,7 @@ public:
 		return true;
 	}
 #endif
-	
+
 	TNumAlns other1()        const { return other1_;        }
 	TNumAlns other2()        const { return other2_;        }
 	bool     paired()        const { return paired_;        }
@@ -1816,7 +1828,7 @@ public:
 	bool     exhausted2()    const { return exhausted2_;    }
 	TRefId   orefid()        const { return orefid_;        }
 	TRefOff  orefoff()       const { return orefoff_;       }
-	
+
 	AlnScore bestUScore()  const { return bestUScore_;  }
 	AlnScore bestP1Score() const { return bestP1Score_; }
 	AlnScore bestP2Score() const { return bestP2Score_; }
@@ -1848,7 +1860,7 @@ public:
 	AlnScore bestUnchosenPDist(bool mate1) const {
 		return mate1 ? bestUnchosenP1Dist_ : bestUnchosenP2Dist_;
 	}
-	
+
 	/**
 	 * Return best unchosen alignment score for end 1 or 2 whether
 	 * the read is a pair or not.
@@ -1868,7 +1880,7 @@ public:
 	bool exhausted(bool mate1) const {
 		return mate1 ? exhausted1_ : exhausted2_;
 	}
-	
+
 	/**
 	 * Return best alignment score for end 1 or 2 whether the read is
 	 * a pair or not.
@@ -1884,7 +1896,7 @@ public:
 	AlnScore bestDist(bool mate1) const {
 		return paired_ ? (mate1 ? bestP1Dist_ : bestP2Dist_) : bestUDist_;
 	}
-	
+
 	/**
 	 * Add information about unchosen alignments to the summary.  This is
 	 * in its own "setter" function because it's not known until we've
@@ -1937,9 +1949,9 @@ public:
 		bestUnchosenCScore_ = bestUnchosenCScore;
 		bestUnchosenCDist_ = bestUnchosenCDist;
 	}
-	
+
 protected:
-	
+
 	TNumAlns other1_;        // # more alignments within N points of second-best
 	TNumAlns other2_;        // # more alignments within N points of second-best
 	bool     paired_;        // results are paired

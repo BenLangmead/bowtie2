@@ -2109,7 +2109,77 @@ my @cases = (
 
 	# Some tricky SAM FLAGS field tests
 
-	{ name     => "SAM paired-end where both mates align 1",
+        { name     => "SAM paired-end where both alignments start at the same offset (fr case)",
+	  ref      => [ "GCACTATCTACGCTTCGGCGTCGGCGAAAAAACGCACGACCGGGTGTGTGACAATCATATATAGCGCGC" ],
+	  #              012345678901234567890123456789012345678901234567890123456789012345678
+	  #              0         1         2         3         4         5         6
+	  mate1s   => [    "CTATCTACGCTTCGGCGTCGGTGA" ],
+          mate2s   => [    "TCACCGACGCCGAAGCGTAGATAG" ],
+	  #                 -----------------------------------------------------
+	  #                 01234567890123456789012345678901234567890123456789012
+	  #                 0         1         2         3         4         5
+	  #  0x1    template having multiple fragments in sequencing
+	  #  0x2    each fragment properly aligned according to the aligner
+	  #  0x4    fragment unmapped
+	  #  0x8    next fragment in the template unmapped
+	  # 0x10    SEQ being reverse complemented
+	  # 0x20    SEQ of the next fragment in the template being reversed
+	  # 0x40    the first fragment in the template
+	  # 0x80    the last fragment in the template
+	  pairhits     => [{ "3,3" => 1 }],
+	  norc         => 1,
+	  samflags_map => [{ 3 => [99, 147] }],
+	  tlen_map     => [{ 3 => [24, -24] }] },
+
+        { name     => "SAM paired-end where both alignments start at the same offset (ff case)",
+	  ref      => [ "GCACTATCTACGCTTCGGCGTCGGCGAAAAAACGCACGACCGGGTGTGTGACAATCATATATAGCGCGC" ],
+	  #              012345678901234567890123456789012345678901234567890123456789012345678
+	  #              0         1         2         3         4         5         6
+	  mate1s   => [    "CTATCTACGCTTCGGCGTCGGTGA" ],
+          mate2s   => [    "CTATCTACGCTTCGGCGTCGGTGA" ],
+	  #                 -----------------------------------------------------
+	  #                 01234567890123456789012345678901234567890123456789012
+	  #                 0         1         2         3         4         5
+	  #  0x1    template having multiple fragments in sequencing
+	  #  0x2    each fragment properly aligned according to the aligner
+	  #  0x4    fragment unmapped
+	  #  0x8    next fragment in the template unmapped
+	  # 0x10    SEQ being reverse complemented
+	  # 0x20    SEQ of the next fragment in the template being reversed
+	  # 0x40    the first fragment in the template
+	  # 0x80    the last fragment in the template
+	  pairhits     => [{ "3,3" => 1 }],
+          mate1fw      => 1,
+          mate2fw      => 1,
+          norc         => 1,
+	  samflags_map => [{ 3 => [67, 131] }],
+	  tlen_map     => [{ 3 => [24, -24] }] },
+
+        { name     => "SAM paired-end where both alignments start at the same offset (rf case)",
+	  ref      => [ "GCACTATCTACGCTTCGGCGTCGGCGAAAAAACGCACGACCGGGTGTGTGACAATCATATATAGCGCGC" ],
+	  #              012345678901234567890123456789012345678901234567890123456789012345678
+	  #              0         1         2         3         4         5         6
+          mate1s   => [    "TCACCGACGCCGAAGCGTAGATAG" ],
+          mate2s   => [    "CTATCTACGCTTCGGCGTCGGTGA" ],
+	  #                 -----------------------------------------------------
+	  #                 01234567890123456789012345678901234567890123456789012
+	  #                 0         1         2         3         4         5
+	  #  0x1    template having multiple fragments in sequencing
+	  #  0x2    each fragment properly aligned according to the aligner
+	  #  0x4    fragment unmapped
+	  #  0x8    next fragment in the template unmapped
+	  # 0x10    SEQ being reverse complemented
+	  # 0x20    SEQ of the next fragment in the template being reversed
+	  # 0x40    the first fragment in the template
+	  # 0x80    the last fragment in the template
+	  pairhits     => [{ "3,3" => 1 }],
+          mate1fw      => 0,
+          mate2fw      => 1,
+          norc         => 1,
+	  samflags_map => [{ 3 => [83, 163] }],
+	  tlen_map     => [{ 3 => [-24, 24] }] },
+
+        { name     => "SAM paired-end where both mates align 1",
 	  ref      => [ "GCACTATCTACGCTTCGGCGTCGGCGAAAAAACGCACGACCGGGTGTGTGACAATCATATATAGCGCGC" ],
 	  #              012345678901234567890123456789012345678901234567890123456789012345678
 	  #              0         1         2         3         4         5         6
@@ -5065,6 +5135,9 @@ foreach my $large_idx (undef,1) {
 						if(defined($ex_samflags_map)) {
 							if(defined($c->{samflags_map}->[$rdi]->{$off})) {
 								my $ex = $c->{samflags_map}->[$rdi]->{$off};
+                                                                if (ref $ex eq "ARRAY") {
+                                                                        $ex = $ex->[$off == $lastoff];
+                                                                }
 								$samflags eq $ex || die
 									"Expected FLAGS value $ex at offset $off, got $samflags"
 							} else {
@@ -5162,6 +5235,9 @@ foreach my $large_idx (undef,1) {
 						if(defined($c->{tlen_map})) {
 							if(defined($c->{tlen_map}->[$rdi]->{$off})) {
 								my $ex = $c->{tlen_map}->[$rdi]->{$off};
+                                                                if (ref $ex eq "ARRAY") {
+                                                                        $ex = $ex->[$off == $lastoff];
+                                                                }
 								$tlen eq $ex || die
 									"Expected TLEN '$ex' at offset $off, got '$tlen'"
 							} else {
