@@ -550,12 +550,11 @@ random-test: all perl-deps
 perl-deps:
 	if [ ! -d "$(CURDIR)/.tmp" ]; then \
 		mkdir $(CURDIR)/.tmp ; \
-	else \
-		DL=$$([ `which wget` ] && echo "wget --no-check-certificate -O-" || echo "curl -L") ; \
-		$$DL http://cpanmin.us | perl - -l $(CURDIR)/.tmp App::cpanminus local::lib ; \
-		eval `perl -I $(CURDIR)/.tmp/lib/perl5 -Mlocal::lib=$(CURDIR)/.tmp` ; \
-		$(CURDIR)/.tmp/bin/cpanm --force File::Which Math::Random Clone Test::Deep Sys::Info ; \
 	fi
+	DL=$$([ `which wget` ] && echo "wget --no-check-certificate -O-" || echo "curl -L") ; \
+	$$DL http://cpanmin.us | perl - -l $(CURDIR)/.tmp App::cpanminus local::lib ; \
+	eval `perl -I $(CURDIR)/.tmp/lib/perl5 -Mlocal::lib=$(CURDIR)/.tmp` ; \
+	$(CURDIR)/.tmp/bin/cpanm --force File::Which Math::Random Clone Test::Deep Sys::Info ; \
 
 .PHONY: static-libs
 static-libs:
