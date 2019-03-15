@@ -111,7 +111,9 @@ ifneq (1,$(NO_TBB))
 	LDLIBS += $(PTHREAD_LIB) -ltbb
 	ifdef STATIC_BUILD
 		LDLIBS += -ltbbmalloc
+	ifndef MINGW
 		LDLIBS += -ldl
+	endif
 	else
 		LDLIBS += -ltbbmalloc_proxy
 	endif
@@ -131,7 +133,9 @@ ifeq (1, $(USE_SRA))
 	LDLIBS += -lncbi-ngs-c++-static
 	LDLIBS += -lngs-c++-static
 	LDLIBS += -lncbi-vdb-static
+	ifndef MINGW
 	LDLIBS += -ldl
+	endif
 
 	CXXFLAGS += -DUSE_SRA
 endif
