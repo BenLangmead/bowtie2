@@ -551,7 +551,7 @@ perl-deps:
 	if [ ! -d "$(CURDIR)/.tmp" ]; then \
 		mkdir $(CURDIR)/.tmp ; \
 	fi
-	DL=$$([ `which wget` ] && echo "wget --no-check-certificate -O-" || echo "curl -L") ; \
+	DL=$$(([ `which wget` ] && echo "wget --no-check-certificate -O-") || echo "curl -L") ; \
 	$$DL http://cpanmin.us | perl - -l $(CURDIR)/.tmp App::cpanminus local::lib ; \
 	eval `perl -I $(CURDIR)/.tmp/lib/perl5 -Mlocal::lib=$(CURDIR)/.tmp` ; \
 	$(CURDIR)/.tmp/bin/cpanm --force File::Which Math::Random Clone Test::Deep Sys::Info ; \
@@ -566,7 +566,7 @@ static-libs:
 		export CXXFLAGS=-mmacosx-version-min=10.9 ; \
 	fi ; \
 	cd $(CURDIR)/.tmp ; \
-	DL=$$([ `which wget` ] && echo "wget --no-check-certificate" || echo "curl -LOk") ; \
+	DL=$$(([ `which wget` ] && echo "wget --no-check-certificate") || echo "curl -LOk") ; \
 	if [ ! -f "$(CURDIR)/.tmp/include/zlib.h" ] ; then \
 		$$DL https://zlib.net/zlib-1.2.11.tar.gz && tar xzf zlib-1.2.11.tar.gz && cd zlib-1.2.11 ; \
 		$(if $(MINGW), mingw32-make -f win32/Makefile.gcc, ./configure --static --prefix=$(CURDIR)/.tmp && make && make install) ; \
@@ -582,7 +582,7 @@ static-libs:
 
 .PHONY: sra-deps
 sra-deps:
-	DL=$$([ `which wget` ] && echo "wget --no-check-certificate" || echo "curl -LOk") ; \
+	DL=$$(([ `which wget` ] && echo "wget --no-check-certificate") || echo "curl -LOk") ; \
 	if [ ! -d "$(CURDIR)/.tmp" ] ; then \
 		mkdir $(CURDIR)/.tmp ; \
 	fi ; \
