@@ -549,7 +549,7 @@ random-test: all perl-deps
 .PHONY: perl-deps
 perl-deps:
 	if [ ! -d "$(CURDIR)/.tmp" ]; then \
-		mkdir $(CURDIR)/.tmp ; \
+		mkdir -p $(CURDIR)/.tmp/include $(CURDIR)/.tmp/lib ; \
 	fi
 	DL=$$( ( which wget >/dev/null 2>&1 && echo "wget --no-check-certificate -O-" ) || echo "curl -L") ; \
 	$$DL http://cpanmin.us | perl - -l $(CURDIR)/.tmp App::cpanminus local::lib ; \
@@ -559,7 +559,7 @@ perl-deps:
 .PHONY: static-libs
 static-libs:
 	if [ ! -d "$(CURDIR)/.tmp" ] ; then \
-		mkdir $(CURDIR)/.tmp ; \
+		mkdir -p $(CURDIR)/.tmp/include $(CURDIR)/.tmp/lib ; \
 	fi ; \
 	if [ `uname` = "Darwin" ]; then \
 		export CFLAGS=-mmacosx-version-min=10.9 ; \
@@ -569,7 +569,8 @@ static-libs:
 	DL=$$( ( which wget >/dev/null 2>&1 && echo "wget --no-check-certificate" ) || echo "curl -LOk") ; \
 	if [ ! -f "$(CURDIR)/.tmp/include/zlib.h" ] ; then \
 		$$DL https://zlib.net/zlib-1.2.11.tar.gz && tar xzf zlib-1.2.11.tar.gz && cd zlib-1.2.11 ; \
-		$(if $(MINGW), mingw32-make -f win32/Makefile.gcc, ./configure --static --prefix=$(CURDIR)/.tmp && make && make install) ; \
+		$(if $(MINGW), mingw32-make -f win32/Makefile.gcc, ./configure --static && make) ; \
+		cp zlib.h zconf.h $(CURDIR)/.tmp/include && cp libz.a $(CURDIR)/.tmp/lib ; \
 		rm -f zlib-1.2.11 ; \
 	fi ; \
 	if [ ! -d "$(CURDIR)/.tmp/include/tbb" ] ; then \
@@ -584,7 +585,7 @@ static-libs:
 sra-deps:
 	DL=$$( ( which wget >/dev/null 2>&1 && echo "wget --no-check-certificate" ) || echo "curl -LOk") ; \
 	if [ ! -d "$(CURDIR)/.tmp" ] ; then \
-		mkdir $(CURDIR)/.tmp ; \
+		mkdir -p $(CURDIR)/.tmp/include $(CURDIR)/.tmp/lib ; \
 	fi ; \
 	if [ `uname` = "Darwin" ]; then \
 		export CFLAGS=-mmacosx-version-min=10.9 ; \
