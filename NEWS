@@ -19,7 +19,7 @@ Please report any issues to the Bowtie 2 Github page or using the Sourceforge bu
 Version Release History
 =======================
 
-Version 2.3.5 - Mar 15, 2019
+Version 2.3.5 - Mar 16, 2019
 
     * Added support for obtaining input reads directly from the Sequence Read Archive, via NCBI's [NGS language bindings](https://github.com/ncbi/ngs).  This is activated via the [`--sra-acc`](manual.shtml#bowtie2-options-sra-acc) option.  This implementation is based on Daehwan Kim's in [HISAT2](https://ccb.jhu.edu/software/hisat2).  Supports both unpaired and paired-end inputs.
     * Bowtie 2 now compiles on ARM architectures (via [#216](https://github.com/BenLangmead/bowtie2/pull/216))
