@@ -34,6 +34,7 @@ libraries installed. See the
 section of the manual for details.
 
 ## Getting started
+Looking to try out Bowtie 2? Check out the [Bowtie 2 UI](http://bit.ly/bt2ui-beta) (currently in beta).
 
 ### Alignment
 `bowtie2` takes a Bowtie 2 index and a set of sequencing read files and outputs a
@@ -122,4 +123,4 @@ bowtie2-inspect --large-index example/index/lambda_virus
 
 ## Related Work
 
-Check out the [Bowtie 2 UI](http://bit.ly/bt2ui-beta]), a [shiny](https://shiny.rstudio.com), frontend to the Bowtie2 command line.
+Check out the [Bowtie 2 UI](http://bit.ly/bt2ui-beta), a [shiny](https://shiny.rstudio.com), frontend to the Bowtie 2 command line.

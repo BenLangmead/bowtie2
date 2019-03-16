@@ -122,8 +122,11 @@ else
 	LDLIBS += $(PTHREAD_LIB)
 endif
 
-USE_SRA ?= 0
+USE_SRA ?=
 ifeq (1, $(USE_SRA))
+ifdef MINGW
+	$(error "SRA binaries cannot be built on MINGW")
+else
 	LDFLAGS += -L$(CURDIR)/.tmp/lib64
 
 	ifndef ($(STATIC_BUILD))
@@ -133,11 +136,10 @@ ifeq (1, $(USE_SRA))
 	LDLIBS += -lncbi-ngs-c++-static
 	LDLIBS += -lngs-c++-static
 	LDLIBS += -lncbi-vdb-static
-	ifndef MINGW
 	LDLIBS += -ldl
-	endif
 
 	CXXFLAGS += -DUSE_SRA
+endif
 endif
 
 ifeq (1,$(WITH_THREAD_PROFILING))

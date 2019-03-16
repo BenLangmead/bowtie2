@@ -1,3 +1,22 @@
+<h2>Version 2.3.5 - March 15, 2019</h2>
+<p>Check out the <a href="http://bit.ly/bt2ui-beta">Bowtie 2 UI</a>, currently in beta, a <a href="https://shiny.rstudio.com">shiny</a>, frontend to the Bowtie2 command line.</p>
+
+<ul>
+    <li>Added support for obtaining input reads directly from the Sequence Read Archive, via NCBI’s <a href="https://github.com/ncbi/ngs">NGS language bindings</a>. This is activated via the <a href="manual.shtml#bowtie2-options-sra-acc"><code>--sra-acc</code></a> option. This implementation is based on Daehwan Kim’s in <a href="https://ccb.jhu.edu/software/hisat2">HISAT2</a>. Supports both unpaired and paired-end inputs.</li>
+    <li>Bowtie 2 now compiles on ARM architectures (via <a href="https://github.com/BenLangmead/bowtie2/pull/216">#216</a>)</li>
+    <li><code><a href="manual.shtml#bowtie2-options-interleaved">--interleaved</a></code> can now be combined with FASTA inputs (worked only with FASTQ before)</li>
+    <li>Fixed issue whereby large indexes were not successfully found in the <code>$BOWTIE2_INDEXES</code> directory</li>
+    <li>Fixed input from FIFOs (e.g. via process substitution) to distinguish gzip-compressed versus uncompressed input</li>
+    <li>Fixed issue whereby arguments containing <code>bz2</code> <code>lz4</code> were misinterpretted as files</li>
+    <li>Fixed several compiler warnings</li>
+    <li>Fixed issue whereby both ends of a paired-end read could have negative TLEN if they exactly coincided</li>
+    <li>Fixed issue whereby <code>bowtie2-build</code> would hang on end-of-file (via <a href="https://github.com/BenLangmead/bowtie2/pull/228">#228</a>)</li>
+    <li>Fixed issue whereby wrapper script would sometimes create zombie processes (via <a href="https://github.com/BenLangmead/bowtie2/pull/51">#51</a>)</li>
+    <li>Fixed issue whereby <code>bowtie2-build</code> and <code>bowtie2-inspect</code> wrappers would fail on some versions of Python/PyPy</li>
+    <li>Replaced old, unhelpful <code>README.md</code> in the project with a version that includes badges, links and some highlights from the manual</li>
+    <li>Note: BAM input support and CMake build support both remain experimental, but we expect to finalize them in the next release</li>
+</ul>
+
 <h2>Version 2.3.4.3 - September 17, 2018</h2>
 <ul>
     <li>Fixed an issue causing <code>bowtie2-build</code> and <code>bowtie2-inspect</code> to output incomplete help text.</li>

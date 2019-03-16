@@ -19,6 +19,22 @@ Please report any issues to the Bowtie 2 Github page or using the Sourceforge bu
 Version Release History
 =======================
 
+Version 2.3.5 - Mar 15, 2019
+
+    * Added support for obtaining input reads directly from the Sequence Read Archive, via NCBI's [NGS language bindings](https://github.com/ncbi/ngs).  This is activated via the [`--sra-acc`](manual.shtml#bowtie2-options-sra-acc) option.  This implementation is based on Daehwan Kim's in [HISAT2](https://ccb.jhu.edu/software/hisat2).  Supports both unpaired and paired-end inputs.
+    * Bowtie 2 now compiles on ARM architectures (via [#216](https://github.com/BenLangmead/bowtie2/pull/216))
+    * `--interleaved` can now be combined with FASTA inputs (worked only with FASTQ before)
+    * Fixed issue whereby large indexes were not successfully found in the `$BOWTIE2_INDEXES` directory
+    * Fixed input from FIFOs (e.g. via process substitution) to distinguish gzip-compressed versus uncompressed input
+    * Fixed issue whereby arguments containing `bz2` `lz4` were misinterpretted as files
+    * Fixed several compiler warnings
+    * Fixed issue whereby both ends of a paired-end read could have negative TLEN if they exactly coincided
+    * Fixed issue whereby `bowtie2-build` would hang on end-of-file (via [#228](https://github.com/BenLangmead/bowtie2/pull/228))
+    * Fixed issue whereby wrapper script would sometimes create zombie processes (via [#51](https://github.com/BenLangmead/bowtie2/pull/51))
+    * Fixed issue whereby `bowtie2-build` and `bowtie2-inspect` wrappers would fail on some versions of Python/PyPy
+    * Replaced old, unhelpful `README.md` in the project with a version that includes badges, links and some highlights from the manual
+    * Note: BAM input support and CMake build support both remain experimental, but we expect to finalize them in the next release
+
 Version 2.3.4.3 - Sep 17, 2018
 
     * Fixed an issue causing `bowtie2-build` and `bowtie2-inspect`
