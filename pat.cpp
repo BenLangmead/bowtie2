@@ -494,7 +494,7 @@ void CFilePatternSource::open() {
 
 			is_fifo = S_ISFIFO(st.st_mode) != 0;
 #endif
-			if (pp_.format != BAM || is_fifo || is_gzipped_file(fd)) {
+			if (pp_.format != BAM && (is_fifo || is_gzipped_file(fd))) {
 				zfp_ = gzdopen(fd, "r");
 				compressed_ = true;
 			} else {
