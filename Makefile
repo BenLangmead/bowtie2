@@ -32,7 +32,7 @@ CPP ?= $(GCC_PREFIX)/g++$(GCC_SUFFIX)
 CXX ?= $(CPP)
 CXXFLAGS += -std=c++98
 ifeq (aarch64,$(shell uname -m))
-	CXXFLAGS += -fopenmp-simd -DWITH_AARCH64
+	CXXFLAGS += -fopenmp-simd
 	CPPFLAGS += -Ithird_party/simde
 endif
 
