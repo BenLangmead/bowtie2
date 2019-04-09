@@ -1541,10 +1541,17 @@ bool BAMPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 	off += (l_seq+1)/2;
 	const char* qual = buf + off;
 	for (int i = 0; i < l_seq; i++) {
-		ra.qual.append(qual[i] + 33);
-		int base = "=ACMGRSVTWYHKDBN"[static_cast<uint8_t>(seq[i/2]) >> 4*(1-(i%2)) & 0xf];
-		ra.patFw.append(asc2dna[base]);
+		if (i < pp_.trim5) {
+			ra.trimmed5 += 1;
+		} else {
+			ra.qual.append(qual[i] + 33);
+			int base = "=ACMGRSVTWYHKDBN"[static_cast<uint8_t>(seq[i/2]) >> 4*(1-(i%2)) & 0xf];
+			ra.patFw.append(asc2dna[base]);
+		}
 	}
+	ra.trimmed3 = (int)(ra.patFw.trimEnd(pp_.trim3));
+	ra.qual.trimEnd(ra.trimmed3);
+
 	if (pp_.preserve_sam_tags) {
 		off += l_seq;
 		ra.preservedOptFlags.install(buf + off, block_size - off);
