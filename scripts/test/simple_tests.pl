@@ -58,6 +58,7 @@ if(! -x $bowtie2 || ! -x $bowtie2_build) {
 (-x $bowtie2_build) || die "Cannot run '$bowtie2_build'";
 
 my $compiled_with_sra = (`$bowtie2 --version` =~ /USE_SRA/) && defined(which "latf-load");
+my $should_test_bam = defined(which "samtools");
 
 my @cases = (
 
@@ -4456,6 +4457,32 @@ sub convertFastqToSRA($$$) {
 	system($latf_cmd);
 }
 
+sub convertFastqToBAM($$$) {
+        my ($fq1, $fq2, $pe) = @_;
+        my $bam_cmd;
+
+        if (! -e ".dummy_index.1.bt2") {
+                system("./bowtie2-build -c NNNGNNN .dummy_index");
+        }
+
+        if ($pe) {
+                if (ref $fq1 eq "ARRAY") {
+                        $bam_cmd = "./bowtie2 -x .dummy_index -1" . join(",", @$fq1) . " -2 " . join(",", @$fq2) . "| samtools view -b -o .test.bam";
+                } else {
+                        $bam_cmd = "./bowtie2 -x .dummy_index -1 $fq1 -2 $fq2 | samtools view -b -o .test.bam";
+                }
+        } else {
+                if (ref $fq1 eq "ARRAY") {
+                        $bam_cmd = "./bowtie2 -x .dummy_index " . join(",", @$fq1) . " | samtools view -b -o .test.bam";
+                } else {
+                        $bam_cmd = "./bowtie2 -x .dummy_index $fq1 | samtools view -b -o .test.bam";
+                }
+        }
+
+        print "$bam_cmd\n";
+        system($bam_cmd);
+}
+
 ##
 # Take a lists of named reads/mates and write them to appropriate
 # files.
@@ -4532,7 +4559,7 @@ sub writeReads($$$$$$$$$$$) {
 ##
 # Run bowtie2 with given arguments
 #
-sub runbowtie2($$$$$$$$$$$$$$$$$$$$$$$$) {
+sub runbowtie2($$$$$$$$$$$$$$$$$$$$$$$$$) {
 
 	my (
 		$do_build,
@@ -4552,6 +4579,7 @@ sub runbowtie2($$$$$$$$$$$$$$$$$$$$$$$$) {
 		$mate2s,
 		$qual2s,
 		$names,
+                $test_bam,
 		$test_sra,
 		$has_poison_reads,
 		$ls,
@@ -4697,7 +4725,13 @@ sub runbowtie2($$$$$$$$$$$$$$$$$$$$$$$$) {
 	if ($test_sra) {
 		convertFastqToSRA(defined($readarg) ? $readarg : $mate1arg, $mate2arg, $pe);
 		$cmd = "$bowtie2 $binary_type @ARGV $idx_type $args --reads-per-batch $batch_size -x .simple_tests.tmp --sra-acc .test_sra";
-	} else {
+	} elsif ($test_bam) {
+                convertFastqToBAM(defined($readarg) ? $readarg : $mate1arg, $mate2arg, $pe);
+                $cmd = "$bowtie2 $binary_type @ARGV $idx_type $args --reads-per-batch $batch_size -x .simple_tests.tmp -b .test.bam";
+                if ($pe) {
+                        $cmd = $cmd . " --align-paired-reads";
+                }
+        } else {
 		if($pe) {
 			# Paired-end case
 			if (ref $mate1arg eq "ARRAY") {
@@ -4841,7 +4875,8 @@ foreach my $large_idx (undef,1) {
 					next unless $fw;
 				}
 				# Run bowtie2
-				my $test_sra = 0;
+                                my $test_bam = 0;
+                                my $test_sra = 0;
 				my $reads_are_fastq = 0;
 				# flag to indicate whether sample fastq has empty sequences
 				# qualities. latf-load cannot convert such reads to SRA, so
@@ -4910,7 +4945,8 @@ foreach my $large_idx (undef,1) {
 					$m2s,              # mate #2 sequence list
 					$q2s,              # mate #2 quality list
 					$c->{names},
-					$test_sra,
+                                        $test_bam,
+                                        $test_sra,
 					\$has_poison_reads,
 					\@lines,
 					\@rawlines,
@@ -5343,6 +5379,11 @@ foreach my $large_idx (undef,1) {
 				$c->{pairhits} = $pairhitstmp;
 				$c->{pairhits_orig} = $pairhits_orig_tmp;
 
+
+                                if ($should_test_bam && !$c->{should_abort} && $reads_are_fastq && !$has_poison_reads && !$test_bam) {
+                                        $test_bam = 1;
+                                        goto START;
+                                }
 
 				if ($compiled_with_sra && $reads_are_fastq && !$has_poison_reads && !$test_sra) {
 					$test_sra = 1;
