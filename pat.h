@@ -878,7 +878,7 @@ private:
 
 	int decompress_bgzf_block(uint8_t *dst, size_t dst_len, uint8_t *src, size_t src_len);
 
-	std::pair<bool, int> get_alignments(PerThreadReadBuf& pt, bool batch_a, unsigned& readi);
+	std::pair<bool, int> get_alignments(PerThreadReadBuf& pt, bool batch_a, unsigned& readi, bool lock);
 
 	void store_orphan_mate(const uint8_t* read, size_t read_len);
 

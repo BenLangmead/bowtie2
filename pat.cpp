@@ -1303,6 +1303,9 @@ std::pair<bool, int> BAMPatternSource::nextBatch(PerThreadReadBuf& pt, bool batc
 	unsigned nread = 0;
 	bool done = false;
 
+	// --skip and --upto does not work properly when nthreads > 1 because reads are obtained
+	// outside the critical section. We simply ignore any race conditions when
+	// setting readId and readCnt_.
 	pt.setReadId(readCnt_);
 
 	do {
@@ -1321,8 +1324,13 @@ std::pair<bool, int> BAMPatternSource::nextBatch(PerThreadReadBuf& pt, bool batc
 			}
 
 			if (cdata_len == 0) {
-				ThreadSafe ts(orphan_mates_mutex_);
-				get_orphaned_pairs(pt.bufa_, pt.bufb_, pt.max_buf_, nread);
+				if (lock) {
+					ThreadSafe ts(orphan_mates_mutex_);
+					get_orphaned_pairs(pt.bufa_, pt.bufb_, pt.max_buf_, nread);
+				} else {
+					get_orphaned_pairs(pt.bufa_, pt.bufb_, pt.max_buf_, nread);
+				}
+
 				return make_pair(nread == 0, nread);
 			}
 
@@ -1341,17 +1349,18 @@ std::pair<bool, int> BAMPatternSource::nextBatch(PerThreadReadBuf& pt, bool batc
 			assert(crc == block.ftr.crc32);
 		}
 
-		std::pair<bool, int> ret = get_alignments(pt, batch_a, nread);
+		std::pair<bool, int> ret = get_alignments(pt, batch_a, nread, lock);
 
 		done = ret.first;
 	} while (!done && nread < pt.max_buf_);
 
-	readCnt_ += 1;
+	// Does not work for nthreads > 1
+	readCnt_ += nread;
 
 	return make_pair(done, nread);
 }
 
-std::pair<bool, int> BAMPatternSource::get_alignments(PerThreadReadBuf& pt, bool batch_a, unsigned& readi) {
+std::pair<bool, int> BAMPatternSource::get_alignments(PerThreadReadBuf& pt, bool batch_a, unsigned& readi, bool lock) {
 	size_t& i = bam_batch_indexes_[pt.tid_];
 	bool done = false;
 	bool read1 = true;
@@ -1388,10 +1397,17 @@ std::pair<bool, int> BAMPatternSource::get_alignments(PerThreadReadBuf& pt, bool
 				&& i + block_size == bam_batches_[pt.tid_].size())
 				|| ((flag & 0x80) != 0 && i == sizeof(block_size))))
 		{
-			ThreadSafe ts(orphan_mates_mutex_);
-			store_orphan_mate(&bam_batches_[pt.tid_][0] + i, block_size);
-			i += block_size;
-			get_orphaned_pairs(pt.bufa_, pt.bufb_, pt.max_buf_, readi);
+			if (lock) {
+				ThreadSafe ts(orphan_mates_mutex_);
+				store_orphan_mate(&bam_batches_[pt.tid_][0] + i, block_size);
+				i += block_size;
+				get_orphaned_pairs(pt.bufa_, pt.bufb_, pt.max_buf_, readi);
+			} else {
+				store_orphan_mate(&bam_batches_[pt.tid_][0] + i, block_size);
+				i += block_size;
+				get_orphaned_pairs(pt.bufa_, pt.bufb_, pt.max_buf_, readi);
+			}
+
 		} else {
 			readbuf[readi].readOrigBuf.resize(block_size);
 
