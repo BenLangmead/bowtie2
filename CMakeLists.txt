@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 2.8)
 cmake_policy(SET CMP0048 NEW)
 cmake_policy(SET CMP0005 NEW)
 
-project(bowtie2 LANGUAGES CXX VERSION "2.3.4.3")
+project(bowtie2 LANGUAGES CXX VERSION "2.3.5.1")
 
 enable_testing()
 
@@ -213,12 +213,14 @@ else()
   else()
     set(TBB_VER 2019_U4)
 
-    if (CMAKE_SYSTEM_NAME EQUAL Linux)
+    if (CMAKE_SYSTEM_NAME STREQUAL Linux)
       set(tbb_os linux)
-    elseif (CMAKE_SYSTEM_NAME EQUAL Darwin)
+    elseif (CMAKE_SYSTEM_NAME STREQUAL Darwin)
       set(tbb_os macos)
-    else()
+    elseif (CMAKE_SYSTEM_NAME STREQUAL Windows)
       set(tbb_os windows)
+    else()
+      set(tbb_os ${CMAKE_SYSTEM_NAME})
     endif()
 
     find_program(MAKE_EXE NAMES gmake nmake make)
@@ -271,6 +273,6 @@ add_executable(bowtie2-inspect-l ${INSPECT_CPPS} ${SHARED_CPPS})
 
 set_target_properties(bowtie2-align-l bowtie2-build-l bowtie2-inspect-l PROPERTIES COMPILE_FLAGS "-DBOWTIE2_64BIT_INDEX")
 set_target_properties(bowtie2-inspect-s bowtie2-inspect-l PROPERTIES COMPILE_FLAGS "-DBOWTIE_INSPECT_MAIN")
-set_target_properties(${BOWTIE2_BIN_LIST} PROPERTIES DEBUG_POSTFIX "-debug")
+set_target_properties(${BOWTIE2_BIN_LIST} PROPERTIES DEBUG_POSTFIX -debug)
 
 add_test(NAME simple-align COMMAND ${PROJECT_SOURCE_DIR}/bowtie2 -x example/index/lambda_virus example/reads/longreads.fq)
