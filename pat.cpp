@@ -1303,11 +1303,6 @@ std::pair<bool, int> BAMPatternSource::nextBatch(PerThreadReadBuf& pt, bool batc
 	unsigned nread = 0;
 	bool done = false;
 
-	// --skip and --upto does not work properly when nthreads > 1 because reads are obtained
-	// outside the critical section. We simply ignore any race conditions when
-	// setting readId and readCnt_.
-	pt.setReadId(readCnt_);
-
 	do {
 		if (bam_batch_indexes_[pt.tid_] >= bam_batches_[pt.tid_].size()) {
 			BGZF& block = blocks_[pt.tid_];
@@ -1354,8 +1349,14 @@ std::pair<bool, int> BAMPatternSource::nextBatch(PerThreadReadBuf& pt, bool batc
 		done = ret.first;
 	} while (!done && nread < pt.max_buf_);
 
-	// Does not work for nthreads > 1
-	readCnt_ += nread;
+	if (lock) {
+		ThreadSafe ts(mutex);
+		pt.setReadId(readCnt_);
+		readCnt_ += nread;
+	} else {
+		pt.setReadId(readCnt_);
+		readCnt_ += nread;
+	}
 
 	return make_pair(done, nread);
 }
