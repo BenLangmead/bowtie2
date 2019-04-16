@@ -3,7 +3,6 @@ cmake_minimum_required(VERSION 2.8)
 cmake_policy(SET CMP0048 NEW)
 cmake_policy(SET CMP0005 NEW)
 
-# set(CMAKE_OSX_DEPLOYMENT_TARGET "10.6")
 project(bowtie2 LANGUAGES CXX VERSION "2.3.4.3")
 
 enable_testing()
@@ -127,12 +126,64 @@ if (POPCNT_CAPABILITY)
 endif()
 
 if (USE_SRA)
+  set(NGS_VER 2.9.2)
+  set(NCBI_VDB_VER 2.9.2-1)
+
+  find_package(Java COMPONENTS Development REQUIRED)
+  find_package(PythonInterp REQUIRED)
+  find_package(Perl REQUIRED)
+
+  find_program(MAKE_EXE NAMES gmake nmake make)
+  ExternalProject_add(ngs_project
+    URL https://github.com/ncbi/ngs/archive/${NGS_VER}.tar.gz
+    PREFIX ${CMAKE_CURRENT_BINARY_DIR}/ngs-${NGS_VER}
+    BUILD_IN_SOURCE 1
+    CONFIGURE_COMMAND ./configure --prefix=install
+    BUILD_COMMAND ${MAKE_EXE}
+    INSTALL_COMMAND ${MAKE_EXE} install
+    )
+
+  ExternalProject_Get_Property(ngs_project SOURCE_DIR)
+  set(NGS_INSTALL_DIR ${SOURCE_DIR}/ngs-sdk/install)
+
+  link_directories(${NGS_INSTALL_DIR}/lib64)
+  include_directories(${NGS_INSTALL_DIR}/include)
+
+  add_library(ngs-c++-static STATIC IMPORTED)
+  add_dependencies(ngs-c++-static ngs_project)
+  find_library(LIBNGS_CPP ngs-c++-static PATHS ${NGS_INSTALL_DIR}/lib64 NO_DEFAULT_PATH)
+  set_property(TARGET ngs-c++-static PROPERTY IMPORTED_LOCATION ${LIBNGS_CPP})
+
+  link_libraries(ngs-c++-static)
+
+  ExternalProject_add(ncbi_vdb_project
+    URL https://github.com/ncbi/ncbi-vdb/archive/${NCBI_VDB_VER}.tar.gz
+    PREFIX ${CMAKE_CURRENT_BINARY_DIR}/ncbi-vdb-${NCBI_VDB_VER}
+    BUILD_IN_SOURCE 1
+    CONFIGURE_COMMAND ./configure --prefix=install --with-ngs-sdk=${NGS_INSTALL_DIR}
+    BUILD_COMMAND ${MAKE_EXE}
+    INSTALL_COMMAND ${MAKE_EXE} install
+    DEPENDS ngs_project
+    )
+
+  ExternalProject_Get_Property(ncbi_vdb_project SOURCE_DIR)
+  set(NCBI_VDB_INSTALL_DIR ${SOURCE_DIR}/install)
+
+  link_directories(${NCBI_VDB_INSTALL_DIR}/lib64)
+  include_directories(${NCBI_VDB_INSTALL_DIR}/include)
+
+  add_library(ncbi-ngs-c++-static STATIC IMPORTED)
+  add_dependencies(ncbi-ngs-c++-static ncbi_vdb_project)
+  find_library(LIBNCBI_NGS_CPP ncbi-ngs-c++-static PATHS ${NCBI_VDB_INSTALL_DIR}/lib64 NO_DEFAULT_ATH)
+  set_property(TARGET ncbi-ngs-c++-static PROPERTY IMPORTED_LOCATION ${LIBNCBI_NGS_CPP})
+
+  add_library(ncbi-vdb-static STATIC IMPORTED)
+  add_dependencies(ncbi-vdb-static ncbi_vdb_project)
+  find_library(LIBNCBI_VDB ncbi-vdb-static PATHS ${NCBI_VDB_INSTALL_DIR}/lib64 NO_DEFAULT_PATH)
+  set_property(TARGET ncbi-vdb-static PROPERTY IMPORTED_LOCATION ${LIBNCBI_VDB})
+
+  link_libraries(ncbi-ngs-c++-static ncbi-vdb-static)
   add_definitions(-DUSE_SRA)
-  link_directories(${CMAKE_SOURCE_DIR}/ngs-2.9.2/install/lib64)
-  link_directories(${CMAKE_SOURCE_DIR}/ncbi-vdb-2.9.2-1/install/lib64)
-  include_directories(${CMAKE_SOURCE_DIR}/ngs-2.9.2/install/include)
-  include_directories(${CMAKE_SOURCE_DIR}/ncbi-vdb-2.9.2-1/install/include)
-  link_libraries(ncbi-ngs-c++-static ngs-c++-static ncbi-vdb-static dl)
 endif()
 
 if (WITH_THREAD_PROFILING)
@@ -145,27 +196,38 @@ endif()
 
 find_package(ZLIB REQUIRED)
 
+
+find_package(Threads REQUIRED)
+link_libraries(Threads::Threads)
+
 if (NO_TBB)
-  find_package(Threads REQUIRED)
-  link_libraries(Threads::Threads)
   set(SHARED_CPPS ${SHARED_CPPS} tinythread.cpp)
 else()
-  find_path(TBB_INCLUDE_PATH tbb)
   find_library(TBB_LIB_PATH tbb)
-  find_library(TBBMALLOC_PROXY_LIB_PATH tbbmalloc_proxy)
 
   if (TBB_LIB_PATH)
+    find_path(TBB_INCLUDE_PATH tbb)
+    find_library(TBBMALLOC_PROXY_LIB_PATH tbbmalloc_proxy)
     include_directories(${TBB_INCLUDE_PATH})
     link_libraries(${TBB_LIB_PATH} ${TBBMALLOC_PROXY_LIB_PATH})
   else()
     set(TBB_VER 2019_U4)
 
+    if (CMAKE_SYSTEM_NAME EQUAL Linux)
+      set(tbb_os linux)
+    elseif (CMAKE_SYSTEM_NAME EQUAL Darwin)
+      set(tbb_os macos)
+    else()
+      set(tbb_os windows)
+    endif()
+
+    find_program(MAKE_EXE NAMES gmake nmake make)
     ExternalProject_Add(tbb_project
       URL https://github.com/01org/tbb/archive/2019_U4.tar.gz
       PREFIX ${CMAKE_CURRENT_BINARY_DIR}/tbb-${TBB_VER}
       BUILD_IN_SOURCE 1
       CONFIGURE_COMMAND ""
-      BUILD_COMMAND make tbb_build_prefix=${TBB_VER}
+      BUILD_COMMAND ${MAKE_EXE} tbb_build_prefix=${TBB_VER} tbb_os=${tbb_os}
       INSTALL_COMMAND ""
       PREFIX=${CMAKE_CURRENT_BINARY_DIR}/tbb_project
       )
@@ -173,26 +235,19 @@ else()
     ExternalProject_Get_Property(tbb_project SOURCE_DIR)
 
     set(TBB_SOURCE_DIR ${SOURCE_DIR})
-    set(TBB_DEBUG_DIR ${TBB_SOURCE_DIR}/build/${TBB_VER}_debug)
     set(TBB_RELEASE_DIR ${TBB_SOURCE_DIR}/build/${TBB_VER}_release)
     include_directories(${TBB_SOURCE_DIR}/include)
 
-    if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-      set(TBB_LIBS ${TBB_DEBUG_DIR}/tbb_debug ${TBB_DEBUG_DIR}/tbbmalloc_proxy_debug)
-      add_library(tbb_debug SHARED IMPORTED)
-      add_library(tbbmalloc_proxy_debug SHARED IMPORTED)
-      add_dependencies(tbb_debug tbb_project)
-      add_dependencies(tbbmalloc_proxy_debug tbb_project)
-      # set_property(TARGET tbb_debug PROPERTY IMPORTED_LOCATION ${TBB_DEBUG_DIR}/)
-    else()
-      set(TBB_LIBS ${TBB_RELEASE_DIR}/tbb ${TBB_RELEASE_DIR}/tbbmalloc_proxy)
-      add_library(tbb SHARED IMPORTED)
-      add_library(tbbmalloc_proxy SHARED IMPORTED)
-      set_property(TARGET tbb PROPERTY IMPORTED_LOCATION ${TBB_RELEASE_DIR}/libtbb.dylib)
-      set_property(TARGET tbbmalloc_proxy PROPERTY IMPORTED_LOCATION ${TBB_RELEASE_DIR}/libtbbmalloc_proxy.dylib)
-      add_dependencies(tbb tbb_project)
-      add_dependencies(tbbmalloc_proxy tbb_project)
-    endif()
+    link_directories(${TBB_RELEASE_DIR})
+    add_library(tbb SHARED IMPORTED)
+    add_dependencies(tbb tbb_project)
+    find_library(LIBTBB tbb PATHS ${TBB_RELEASE_DIR} NO_DEFAULT_PATH)
+    set_property(TARGET tbb PROPERTY IMPORTED_LOCATION ${LIBTBB})
+
+    add_library(tbbmalloc_proxy SHARED IMPORTED)
+    add_dependencies(tbbmalloc_proxy tbb_project)
+    find_library(LIBTBBMALLOC_PROXY tbbmalloc_proxy PATHS ${TBB_RELEASE_DIR} NO_DEFAULT_PATH)
+    set_property(TARGET tbbmalloc_proxy PROPERTY IMPORTED_LOCATION ${LIBTBBMALLOC_PROXY})
     link_libraries(tbb tbbmalloc_proxy)
   endif()
   add_definitions(-DWITH_TBB -DWITH_QUEUELOCK=1 -DNO_SPINLOCK)
@@ -213,8 +268,6 @@ add_executable(bowtie2-build-s ${BUILD_CPPS} ${SHARED_CPPS})
 add_executable(bowtie2-build-l ${BUILD_CPPS} ${SHARED_CPPS})
 add_executable(bowtie2-inspect-s ${INSPECT_CPPS} ${SHARED_CPPS})
 add_executable(bowtie2-inspect-l ${INSPECT_CPPS} ${SHARED_CPPS})
-
-# target_link_libraries(bowtie2-align-s tbb tbbmalloc_proxy)
 
 set_target_properties(bowtie2-align-l bowtie2-build-l bowtie2-inspect-l PROPERTIES COMPILE_FLAGS "-DBOWTIE2_64BIT_INDEX")
 set_target_properties(bowtie2-inspect-s bowtie2-inspect-l PROPERTIES COMPILE_FLAGS "-DBOWTIE_INSPECT_MAIN")
