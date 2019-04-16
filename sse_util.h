@@ -24,11 +24,7 @@
 #include "ds.h"
 #include "limit.h"
 #include <iostream>
-#ifdef WITH_AARCH64
-#include "simde/x86/sse2.h"
-#else
-#include <emmintrin.h>
-#endif
+#include "sse_wrap.h"
 
 class EList_m128i {
 public:
