@@ -1326,7 +1326,8 @@ std::pair<bool, int> BAMPatternSource::nextBatch(PerThreadReadBuf& pt, bool batc
 					get_orphaned_pairs(pt.bufa_, pt.bufb_, pt.max_buf_, nread);
 				}
 
-				return make_pair(nread == 0, nread);
+				done = nread == 0;
+				break;
 			}
 
 			bam_batch_indexes_[pt.tid_] = 0;
