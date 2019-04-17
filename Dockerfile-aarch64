@@ -18,12 +18,4 @@ RUN add-apt-repository -y universe && \
   apt-get install -yq \
   libtbb-dev
 
-# Patch to run with SIMD Everywhere (simde) for aarch64 case.
-# https://github.com/nemequ/simde
-# https://gitlab.com/arm-hpc/packages/wikis/packages/bowtie2
-RUN sed -i 's/__m/simde__m/g' aligner_*
-RUN sed -i 's/__m/simde__m/g' sse_util*
-RUN sed -i 's/_mm_/simde_mm_/g' aligner_*
-RUN sed -i 's/_mm_/simde_mm_/g' sse_util*
-
 CMD bash
