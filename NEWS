@@ -4,7 +4,7 @@ Bowtie 2 NEWS
 Bowtie 2 is available for download from the project website,
 http://bowtie-bio.sf.net/bowtie2 and on Github,
 https://github.com/BenLangmead/bowtie2/releases.  2.0.0-beta1 is
-the first version released to the public and 2.3.3 is the latest
+the first version released to the public and 2.3.5.1 is the latest
 version.  Bowtie 2 is licensed under the GPLv3 license.  See `LICENSE'
 file for details.
 
@@ -18,6 +18,14 @@ Please report any issues to the Bowtie 2 Github page or using the Sourceforge bu
 
 Version Release History
 =======================
+
+Version 2.3.5.1 - Apr 16, 2019
+
+    * Added official support for BAM input files
+    * Added official support for CMake build system
+    * Added changes to Makefile for creating Reproducible builds (via [210](https://github.com/BenLangmead/bowtie2/pull/210))
+    * Fix an issue whereby building on aarch64 would require patching sed commands (via [#243](https://github.com/BenLangmead/bowtie2/pull/243))
+    * Fix an issue whereby `bowtie2` would incorrectly throw an error while processing `--interleaved` input
 
 Version 2.3.5 - Mar 16, 2019
 

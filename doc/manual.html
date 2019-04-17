@@ -371,7 +371,7 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC</code></pr
 <pre><code>f(x) = 1.0 + 5.4 * ln(x)</code></pre>
 <p>See the documentation for the option in question to learn what the parameter <code>x</code> is for. For example, in the case if the <a href="#bowtie2-options-score-min"><code>--score-min</code></a> option, the function <code>f(x)</code> sets the minimum alignment score necessary for an alignment to be considered valid, and <code>x</code> is the read length.</p>
 <h3 id="usage">Usage</h3>
-<pre><code>bowtie2 [options]* -x &lt;bt2-idx&gt; {-1 &lt;m1&gt; -2 &lt;m2&gt; | -U &lt;r&gt; | --interleaved &lt;i&gt; | --sra-acc &lt;acc&gt;} -S [&lt;sam&gt;]</code></pre>
+<pre><code>bowtie2 [options]* -x &lt;bt2-idx&gt; {-1 &lt;m1&gt; -2 &lt;m2&gt; | -U &lt;r&gt; | --interleaved &lt;i&gt; | --sra-acc &lt;acc&gt; | b &lt;bam&gt;} -S [&lt;sam&gt;]</code></pre>
 <h3 id="main-arguments">Main arguments</h3>
 <table>
 <tr>
@@ -421,6 +421,14 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC</code></pr
 <td>
 <p>Reads are SRA accessions. If the accession provided cannot be found in local storage it will be fetched from the NCBI database. If you find that SRA alignments are long running please rerun your command with the <a href="#bowtie2-options-p"><code>-p</code>/<code>--threads</code></a> parameter set to desired number of threads.</p>
 <p>NB: this option is only available if bowtie 2 is compiled with the necessary SRA libraries. See <a href="#obtaining-bowtie-2">Obtaining Bowtie 2</a> for details.</p>
+</td>
+</tr>
+<tr>
+<td id="bowtie2-options-b">
+<pre><code>-b &lt;bam&gt;</code></pre>
+</td>
+<td>
+<p>Reads are unaligned BAM records sorted by read name. The <a href="#bowtie2-options-align-paired-reads"><code>--align-paired-reads</code></a> and <a href="#bowtie2-options-preserve-tags"><code>--preserve-tags</code></a> options affect the way Bowtie 2 processes records.</p>
 </td>
 </tr>
 <tr>
@@ -903,6 +911,25 @@ Seed 4 rc:                   TTATGCATGA</code></pre>
 </td>
 <td>
 <p>If one mate alignment overlaps the other at all, consider that to be non-concordant. See also: <a href="#mates-can-overlap-contain-or-dovetail-each-other">Mates can overlap, contain or dovetail each other</a>. Default: mates can overlap in a concordant alignment.</p>
+</td>
+</tr>
+</table>
+<h4 id="bam-options">BAM options</h4>
+<table>
+<tr>
+<td id="bowtie2-options-align-paired-reads">
+<pre><code>--align-paired-reads</code></pre>
+</td>
+<td>
+<p>Bowtie 2 will, by default, attempt to align unpaired BAM reads. Use this option to align paired-end reads instead.</p>
+</td>
+</tr>
+<tr>
+<td id="bowtie2-options-preserve-tags">
+<pre><code>--preserve-tags</code></pre>
+</td>
+<td>
+<p>Preserve tags from the original BAM record by appending them to the end of the corresponding Bowtie 2 SAM output.</p>
 </td>
 </tr>
 </table>

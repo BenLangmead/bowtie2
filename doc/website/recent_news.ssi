@@ -1,3 +1,12 @@
+<h2>Version 2.3.5.1 - April 16, 2019</h2>
+<ul>
+    <li>Added official support for BAM input files</li>
+    <li>Added official support for CMake build system</li>
+    <li>Added changes to Makefile for creating Reproducible builds (via <a href="https://github.com/BenLangmead/bowtie2/pull/210">#210</a>))</li>
+    <li>Fix an issue whereby building on aarch64 would require patching sed commands (via <a href="https://github.com/BenLangmead/bowtie2/pull/243">#243</a>))</li>
+    <li>Fix an issue whereby <code>bowtie2</code> would incorrectly throw an error while processing <code><a href="manual.shtml#bowtie2-options-interleaved">--interleaved</a></code> input</li>
+</ul>
+
 <h2>Version 2.3.5 - March 16, 2019</h2>
 <p>Check out the <a href="http://bit.ly/bt2ui-beta">Bowtie 2 UI</a>, currently in beta, a <a href="https://shiny.rstudio.com">shiny</a>, frontend to the Bowtie2 command line.</p>
 

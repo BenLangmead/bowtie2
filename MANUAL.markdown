@@ -791,7 +791,7 @@ considered valid, and `x` is the read length.
 
 ### Usage
 
-    bowtie2 [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r> | --interleaved <i> | --sra-acc <acc>} -S [<sam>]
+    bowtie2 [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r> | --interleaved <i> | --sra-acc <acc> | b <bam>} -S [<sam>]
 
 ### Main arguments
 
@@ -868,6 +868,17 @@ SRA alignments are long running please rerun your command with the
 
 NB: this option is only available if bowtie 2 is compiled with the necessary
 SRA libraries. See [Obtaining Bowtie 2][obtain Bowtie 2] for details.
+
+</td></tr>
+<tr><td id="bowtie2-options-b">
+
+    -b <bam>
+
+</td><td>
+
+Reads are unaligned BAM records sorted by read name.
+The [`--align-paired-reads`] and [`--preserve-tags`] options
+affect the way Bowtie 2 processes records.
 
 </td></tr>
 <tr><td id="bowtie2-options-S">
@@ -1602,6 +1613,31 @@ can contain the other in a concordant alignment.
 If one mate alignment overlaps the other at all, consider that to be
 non-concordant.  See also: [Mates can overlap, contain or dovetail each other].
 Default: mates can overlap in a concordant alignment.
+
+</td></tr></table>
+
+#### BAM options
+
+<table>
+
+<tr><td id="bowtie2-options-align-paired-reads">
+
+    --align-paired-reads
+
+</td><td>
+
+Bowtie 2 will, by default, attempt to align unpaired BAM reads.
+Use this option to align paired-end reads instead.
+
+</td></tr>
+<tr><td id="bowtie2-options-preserve-tags">
+
+    --preserve-tags
+
+</td><td>
+
+Preserve tags from the original BAM record by appending them to the end
+of the corresponding Bowtie 2 SAM output.
 
 </td></tr></table>
 
@@ -2781,6 +2817,7 @@ for more details and variations on this process.
 [`--al-gz`]:                                          #bowtie2-options-al
 [`--al-lz4`]:                                         #bowtie2-options-al
 [`--al`]:                                             #bowtie2-options-al
+[`--align-paired-reads`]:                             #bowtie2-options-align-paired-reads
 [`--bmax`]:                                           #bowtie2-build-options-bmax
 [`--bmaxdivn`]:                                       #bowtie2-build-options-bmaxdivn
 [`--dcv`]:                                            #bowtie2-build-options-dcv
@@ -2823,6 +2860,7 @@ for more details and variations on this process.
 [`--packed`]:                                         #bowtie2-build-options-p
 [`--phred33`]:                                        #bowtie2-options-phred33-quals
 [`--phred64`]:                                        #bowtie2-options-phred64-quals
+[`--preserve-tags`]:                                  #bowtie2-options-preserve-tags
 [`--qc-filter`]:                                      #bowtie2-options-qc-filter
 [`--qseq`]:                                           #bowtie2-options-qseq
 [`--quiet`]:                                          #bowtie2-options-quiet
@@ -2869,6 +2907,7 @@ for more details and variations on this process.
 <!-- fasta-continuous option does not exist but was added to prevent
 warnings due to the case insensitive nature of markdown URLs -->
 [`-F`/--fasta-continuous]:                            #bowtie2-options-F
+[`-b`]:                                               #bowtie2-options-b
 [`-c`]:                                               #bowtie2-options-c
 [`-f`]:                                               #bowtie2-options-f
 [`-i`]:                                               #bowtie2-options-i

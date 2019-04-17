@@ -827,7 +827,7 @@ alignment to be considered valid, and x is the read length.
 
 Usage
 
-    bowtie2 [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r> | --interleaved <i> | --sra-acc <acc>} -S [<sam>]
+    bowtie2 [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r> | --interleaved <i> | --sra-acc <acc> | b <bam>} -S [<sam>]
 
 Main arguments
 
@@ -878,6 +878,12 @@ that SRA alignments are long running please rerun your command with the
 
 NB: this option is only available if bowtie 2 is compiled with the
 necessary SRA libraries. See Obtaining Bowtie 2 for details.
+
+    -b <bam>
+
+Reads are unaligned BAM records sorted by read name. The
+--align-paired-reads and --preserve-tags options affect the way Bowtie 2
+processes records.
 
     -S <sam>
 
@@ -1332,6 +1338,18 @@ other. Default: a mate can contain the other in a concordant alignment.
 If one mate alignment overlaps the other at all, consider that to be
 non-concordant. See also: Mates can overlap, contain or dovetail each
 other. Default: mates can overlap in a concordant alignment.
+
+BAM options
+
+    --align-paired-reads
+
+Bowtie 2 will, by default, attempt to align unpaired BAM reads. Use this
+option to align paired-end reads instead.
+
+    --preserve-tags
+
+Preserve tags from the original BAM record by appending them to the end
+of the corresponding Bowtie 2 SAM output.
 
 Output options
 
