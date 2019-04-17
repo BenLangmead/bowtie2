@@ -268,20 +268,23 @@ GENERAL_LIST := $(wildcard scripts/*.sh) \
                 $(wildcard scripts/*.pl) \
                 doc/manual.html \
                 doc/README \
+		Dockerfile-aarch64 \
                 doc/style.css \
-			    $(wildcard example/index/*.bt2) \
-			    $(wildcard example/reads/*.fq) \
-			    $(wildcard example/reads/*.pl) \
-			    example/reference/lambda_virus.fa \
+		$(wildcard example/index/*.bt2) \
+		$(wildcard example/reads/*.fq) \
+		$(wildcard example/reads/*.pl) \
+		example/reads/combined_reads.bam \
+		example/reference/lambda_virus.fa \
                 $(PTHREAD_PKG) \
-			    bowtie2 \
-			    bowtie2-build \
-			    bowtie2-inspect \
+		bowtie2 \
+		bowtie2-build \
+		bowtie2-inspect \
                 AUTHORS \
                 LICENSE \
                 NEWS \
                 MANUAL \
                 MANUAL.markdown \
+		README.md \
                 TUTORIAL \
                 VERSION
 
@@ -304,6 +307,7 @@ SRC_PKG_LIST = $(wildcard *.h) \
                $(wildcard *.cpp) \
                $(wildcard third_party/*) \
                Makefile \
+               CMakeLists.txt \
                $(GENERAL_LIST)
 
 ifeq (1,$(WINDOWS))
