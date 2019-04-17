@@ -81,7 +81,7 @@ struct PatternParams {
 		size_t upto_,
 		int nthreads_,
 		bool fixName_,
-		bool preserve_sam_tags_,
+		bool preserve_tags_,
 		bool align_paired_reads_) :
 		format(format_),
 		interleaved(interleaved_),
@@ -100,7 +100,7 @@ struct PatternParams {
 		upto(upto_),
 		nthreads(nthreads_),
 		fixName(fixName_),
-		preserve_sam_tags(preserve_sam_tags_),
+		preserve_tags(preserve_tags_),
 		align_paired_reads(align_paired_reads_) { }
 
 	int format;			  // file format
@@ -111,8 +111,8 @@ struct PatternParams {
 	bool solexa64;		  // true -> qualities are on solexa64 scale
 	bool phred64;		  // true -> qualities are on phred64 scale
 	bool intQuals;		  // true -> qualities are space-separated numbers
-	int trim5;            // amt to hard clip from 5' end
-	int trim3;            // amt to hard clip from 3' end
+	int trim5;                // amt to hard clip from 5' end
+	int trim3;                // amt to hard clip from 3' end
 	pair<short, size_t> trimTo;
 	int sampleLen;		  // length of sampled reads for FastaContinuous...
 	int sampleFreq;		  // frequency of sampled reads for FastaContinuous...
@@ -120,7 +120,7 @@ struct PatternParams {
 	size_t upto;		  // max number of queries to read
 	int nthreads;		  // number of threads for locking
 	bool fixName;		  //
-	bool preserve_sam_tags; // keep existing SAM tags when aligning BAM files
+	bool preserve_tags;       // keep existing tags when aligning BAM files
 	bool align_paired_reads;
 };
 

@@ -178,7 +178,7 @@ static bool sam_print_zi;
 static bool sam_print_zp;
 static bool sam_print_zu;
 static bool sam_print_zt;
-static bool preserve_sam_tags; // Only applies when aligning BAM files
+static bool preserve_tags;     // Only applies when aligning BAM files
 static bool align_paired_reads; // Process only the paired reads in BAM file
 static bool bwaSwLike;
 static bool gSeedLenIsSet;
@@ -379,7 +379,7 @@ static void resetOptions() {
 	sam_print_zp            = false;
 	sam_print_zu            = false;
 	sam_print_zt            = false;
-	preserve_sam_tags       = false;
+	preserve_tags           = false;
 	align_paired_reads      = false;
 	bwaSwLike               = false;
 	gSeedLenIsSet			= false;
@@ -659,7 +659,7 @@ static struct option long_options[] = {
 {(char*)"thread-ceiling",              required_argument,  0,                   ARG_THREAD_CEILING},
 {(char*)"thread-piddir",               required_argument,  0,                   ARG_THREAD_PIDDIR},
 {(char*)"trim-to",                     required_argument,  0,                   ARG_TRIM_TO},
-{(char*)"preserve-sam-tags",           no_argument,        0,                   ARG_PRESERVE_SAM_TAGS},
+{(char*)"preserve-tags",               no_argument,        0,                   ARG_PRESERVE_TAGS},
 {(char*)"align-paired-reads",          no_argument,        0,                   ARG_ALIGN_PAIRED_READS},
 #ifdef USE_SRA
 {(char*)"sra-acc",                     required_argument,  0,                   ARG_SRA_ACC},
@@ -715,9 +715,9 @@ static void printUsage(ostream& out) {
 	}
 	out << "Usage: " << endl
 #ifdef USE_SRA
-	    << "  " << tool_name.c_str() << " [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r> | --interleaved <i> | --sra-acc <acc>} [-S <sam>]" << endl
+	    << "  " << tool_name.c_str() << " [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r> | --interleaved <i> | --sra-acc <acc> | -b <bam>} [-S <sam>]" << endl
 #else
-	    << "  " << tool_name.c_str() << " [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r> | --interleaved <i>} [-S <sam>]" << endl
+	    << "  " << tool_name.c_str() << " [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r> | --interleaved <i> | -b <bam>} [-S <sam>]" << endl
 #endif
 	    << endl
 		<<     "  <bt2-idx>  Index filename prefix (minus trailing .X." + gEbwt_ext + ")." << endl
@@ -742,6 +742,7 @@ static void printUsage(ostream& out) {
 	out <<     "  <acc>      Files are SRA accessions. Accessions not found in local storage will\n"
 	    <<     "             be fetched from NCBI." << endl;
 #endif
+	out <<     "  <bam>      Files are unaligned BAM sorted by read name." << endl;
 	out <<     "  <sam>      File for SAM output (default: stdout)" << endl
 	    << endl
 	    << "  <m1>, <m2>, <r> can be comma-separated lists (no whitespace) and can be" << endl
@@ -770,67 +771,73 @@ static void printUsage(ostream& out) {
 	    << "  --phred33          qualities are Phred+33 (default)" << endl
 	    << "  --phred64          qualities are Phred+64" << endl
 	    << "  --int-quals        qualities encoded as space-delimited integers" << endl
-		<< endl
+	    << endl
 	    << " Presets:                 Same as:" << endl
-		<< "  For --end-to-end:" << endl
-		<< "   --very-fast            -D 5 -R 1 -N 0 -L 22 -i S,0,2.50" << endl
-		<< "   --fast                 -D 10 -R 2 -N 0 -L 22 -i S,0,2.50" << endl
-		<< "   --sensitive            -D 15 -R 2 -N 0 -L 22 -i S,1,1.15 (default)" << endl
-		<< "   --very-sensitive       -D 20 -R 3 -N 0 -L 20 -i S,1,0.50" << endl
-		<< endl
-		<< "  For --local:" << endl
-		<< "   --very-fast-local      -D 5 -R 1 -N 0 -L 25 -i S,1,2.00" << endl
-		<< "   --fast-local           -D 10 -R 2 -N 0 -L 22 -i S,1,1.75" << endl
-		<< "   --sensitive-local      -D 15 -R 2 -N 0 -L 20 -i S,1,0.75 (default)" << endl
-		<< "   --very-sensitive-local -D 20 -R 3 -N 0 -L 20 -i S,1,0.50" << endl
-		<< endl
+	    << "  For --end-to-end:" << endl
+	    << "   --very-fast            -D 5 -R 1 -N 0 -L 22 -i S,0,2.50" << endl
+	    << "   --fast                 -D 10 -R 2 -N 0 -L 22 -i S,0,2.50" << endl
+	    << "   --sensitive            -D 15 -R 2 -N 0 -L 22 -i S,1,1.15 (default)" << endl
+	    << "   --very-sensitive       -D 20 -R 3 -N 0 -L 20 -i S,1,0.50" << endl
+	    << endl
+	    << "  For --local:" << endl
+	    << "   --very-fast-local      -D 5 -R 1 -N 0 -L 25 -i S,1,2.00" << endl
+	    << "   --fast-local           -D 10 -R 2 -N 0 -L 22 -i S,1,1.75" << endl
+	    << "   --sensitive-local      -D 15 -R 2 -N 0 -L 20 -i S,1,0.75 (default)" << endl
+	    << "   --very-sensitive-local -D 20 -R 3 -N 0 -L 20 -i S,1,0.50" << endl
+	    << endl
 	    << " Alignment:" << endl
-		<< "  -N <int>           max # mismatches in seed alignment; can be 0 or 1 (0)" << endl
-		<< "  -L <int>           length of seed substrings; must be >3, <32 (22)" << endl
-		<< "  -i <func>          interval between seed substrings w/r/t read len (S,1,1.15)" << endl
-		<< "  --n-ceil <func>    func for max # non-A/C/G/Ts permitted in aln (L,0,0.15)" << endl
-		<< "  --dpad <int>       include <int> extra ref chars on sides of DP table (15)" << endl
-		<< "  --gbar <int>       disallow gaps within <int> nucs of read extremes (4)" << endl
-		<< "  --ignore-quals     treat all quality values as 30 on Phred scale (off)" << endl
+	    << "  -N <int>           max # mismatches in seed alignment; can be 0 or 1 (0)" << endl
+	    << "  -L <int>           length of seed substrings; must be >3, <32 (22)" << endl
+	    << "  -i <func>          interval between seed substrings w/r/t read len (S,1,1.15)" << endl
+	    << "  --n-ceil <func>    func for max # non-A/C/G/Ts permitted in aln (L,0,0.15)" << endl
+	    << "  --dpad <int>       include <int> extra ref chars on sides of DP table (15)" << endl
+	    << "  --gbar <int>       disallow gaps within <int> nucs of read extremes (4)" << endl
+	    << "  --ignore-quals     treat all quality values as 30 on Phred scale (off)" << endl
 	    << "  --nofw             do not align forward (original) version of read (off)" << endl
 	    << "  --norc             do not align reverse-complement version of read (off)" << endl
 	    << "  --no-1mm-upfront   do not allow 1 mismatch alignments before attempting to" << endl
 	    << "                     scan for the optimal seeded alignments"
 	    << endl
-		<< "  --end-to-end       entire read must align; no clipping (on)" << endl
-		<< "   OR" << endl
-		<< "  --local            local alignment; ends might be soft clipped (off)" << endl
-		<< endl
+	    << "  --end-to-end       entire read must align; no clipping (on)" << endl
+	    << "   OR" << endl
+	    << "  --local            local alignment; ends might be soft clipped (off)" << endl
+	    << endl
 	    << " Scoring:" << endl
-		<< "  --ma <int>         match bonus (0 for --end-to-end, 2 for --local) " << endl
-		<< "  --mp <int>         max penalty for mismatch; lower qual = lower penalty (6)" << endl
-		<< "  --np <int>         penalty for non-A/C/G/Ts in read/ref (1)" << endl
-		<< "  --rdg <int>,<int>  read gap open, extend penalties (5,3)" << endl
-		<< "  --rfg <int>,<int>  reference gap open, extend penalties (5,3)" << endl
-		<< "  --score-min <func> min acceptable alignment score w/r/t read length" << endl
-		<< "                     (G,20,8 for local, L,-0.6,-0.6 for end-to-end)" << endl
-		<< endl
+	    << "  --ma <int>         match bonus (0 for --end-to-end, 2 for --local) " << endl
+	    << "  --mp <int>         max penalty for mismatch; lower qual = lower penalty (6)" << endl
+	    << "  --np <int>         penalty for non-A/C/G/Ts in read/ref (1)" << endl
+	    << "  --rdg <int>,<int>  read gap open, extend penalties (5,3)" << endl
+	    << "  --rfg <int>,<int>  reference gap open, extend penalties (5,3)" << endl
+	    << "  --score-min <func> min acceptable alignment score w/r/t read length" << endl
+	    << "                     (G,20,8 for local, L,-0.6,-0.6 for end-to-end)" << endl
+	    << endl
 	    << " Reporting:" << endl
 	    << "  (default)          look for multiple alignments, report best, with MAPQ" << endl
-		<< "   OR" << endl
+	    << "   OR" << endl
 	    << "  -k <int>           report up to <int> alns per read; MAPQ not meaningful" << endl
-		<< "   OR" << endl
+	    << "   OR" << endl
 	    << "  -a/--all           report all alignments; very slow, MAPQ not meaningful" << endl
-		<< endl
+	    << endl
 	    << " Effort:" << endl
 	    << "  -D <int>           give up extending after <int> failed extends in a row (15)" << endl
 	    << "  -R <int>           for reads w/ repetitive seeds, try <int> sets of seeds (2)" << endl
-		<< endl
-		<< " Paired-end:" << endl
+	    << endl
+	    << " Paired-end:" << endl
 	    << "  -I/--minins <int>  minimum fragment length (0)" << endl
 	    << "  -X/--maxins <int>  maximum fragment length (500)" << endl
 	    << "  --fr/--rf/--ff     -1, -2 mates align fw/rev, rev/fw, fw/fw (--fr)" << endl
-		<< "  --no-mixed         suppress unpaired alignments for paired reads" << endl
-		<< "  --no-discordant    suppress discordant alignments for paired reads" << endl
-		<< "  --dovetail         concordant when mates extend past each other" << endl
-		<< "  --no-contain       not concordant when one mate alignment contains other" << endl
-		<< "  --no-overlap       not concordant when mates overlap at all" << endl
-		<< endl
+	    << "  --no-mixed         suppress unpaired alignments for paired reads" << endl
+	    << "  --no-discordant    suppress discordant alignments for paired reads" << endl
+	    << "  --dovetail         concordant when mates extend past each other" << endl
+	    << "  --no-contain       not concordant when one mate alignment contains other" << endl
+	    << "  --no-overlap       not concordant when mates overlap at all" << endl
+	    << endl
+	    << " BAM:" << endl
+	    << "  --align-paired-reads Bowtie2 will, by default, attempt to align unpaired BAM reads." << endl
+	    << "                     Use this option to align paired-end reads instead." << endl
+	    << "  --preserve-tags    Preserve tags from the original BAM record by" << endl
+	    << "                     appending them to the end of the corresponding SAM output." << endl
+	    << endl
 	    << " Output:" << endl;
 	//if(wrapper == "basic-0") {
 	//	out << "  --bam              output directly to BAM (by piping through 'samtools view')" << endl;
@@ -846,9 +853,9 @@ static void printUsage(ostream& out) {
 	}
 	out << "  --quiet            print nothing to stderr except serious errors" << endl
 	//  << "  --refidx           refer to ref. seqs by 0-based index rather than name" << endl
-		<< "  --met-file <path>  send metrics to file at <path> (off)" << endl
-		<< "  --met-stderr       send metrics to stderr (off)" << endl
-		<< "  --met <int>        report internal counters & metrics every <int> secs (1)" << endl
+	    << "  --met-file <path>  send metrics to file at <path> (off)" << endl
+	    << "  --met-stderr       send metrics to stderr (off)" << endl
+	    << "  --met <int>        report internal counters & metrics every <int> secs (1)" << endl
 	// Following is supported in the wrapper instead
 	    << "  --no-unal          suppress SAM records for unaligned reads" << endl
 	    << "  --no-head          suppress header lines, i.e. lines starting with @" << endl
@@ -861,7 +868,7 @@ static void printUsage(ostream& out) {
 	    << "                      at the expense of generating non-standard SAM." << endl
 	    << "  --xeq              Use '='/'X', instead of 'M,' to specify matches/mismatches in SAM record." << endl
 	    << "  --soft-clipped-unmapped-tlen Exclude soft-clipped bases when reporting TLEN" << endl
-		<< endl
+	    << endl
 	    << " Performance:" << endl
 	//    << "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl
 	    << "  -p/--threads <int> number of alignment threads to launch (1)" << endl
@@ -872,20 +879,19 @@ static void printUsage(ostream& out) {
 #ifdef BOWTIE_SHARED_MEM
 		//<< "  --shmem            use shared mem for index; many 'bowtie's can share" << endl
 #endif
-		<< endl
+	    << endl
 	    << " Other:" << endl
-		<< "  --qc-filter        filter out reads that are bad according to QSEQ filter" << endl
+	    << "  --qc-filter        filter out reads that are bad according to QSEQ filter" << endl
 	    << "  --seed <int>       seed for random number generator (0)" << endl
 	    << "  --non-deterministic seed rand. gen. arbitrarily instead of using read attributes" << endl
 	//  << "  --verbose          verbose output for debugging" << endl
 	    << "  --version          print version information and quit" << endl
-	    << "  -h/--help          print this usage message" << endl
-	    ;
+	    << "  -h/--help          print this usage message" << endl;
 	if(wrapper.empty()) {
 		cerr << endl
 		     << "*** Warning ***" << endl
-			 << "'bowtie2-align' was run directly.  It is recommended that you run the wrapper script 'bowtie2' instead." << endl
-			 << endl;
+		     << "'bowtie2-align' was run directly.  It is recommended that you run the wrapper script 'bowtie2' instead." << endl
+		     << endl;
 	}
 }
 
@@ -979,7 +985,7 @@ static bool saw_trim3;
 static bool saw_trim5;
 static bool saw_trim_to;
 static bool saw_bam;
-static bool saw_preserve_sam_tags;
+static bool saw_preserve_tags;
 static bool saw_align_paired_reads;
 static EList<string> presetList;
 
@@ -1072,9 +1078,9 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_SEED_SUMM: seedSumm = true; break;
 		case ARG_SC_UNMAPPED: scUnMapped = true; break;
 		case ARG_XEQ: xeq = true; break;
-		case ARG_PRESERVE_SAM_TAGS: {
-			preserve_sam_tags = true;
-			saw_preserve_sam_tags = true;
+		case ARG_PRESERVE_TAGS: {
+			preserve_tags = true;
+			saw_preserve_tags = true;
 			break;
 		}
 		case ARG_ALIGN_PAIRED_READS: {
@@ -1566,7 +1572,7 @@ static void parseOptions(int argc, const char **argv) {
 	saw_trim5 = false;
 	saw_trim_to = false;
 	saw_bam = false;
-	saw_preserve_sam_tags = false;
+	saw_preserve_tags = false;
 	saw_align_paired_reads = false;
 	presetList.clear();
 	if(startVerbose) { cerr << "Parsing options: "; logTime(cerr, true); }
@@ -1598,8 +1604,8 @@ static void parseOptions(int argc, const char **argv) {
 		exit(1);
 	}
 
-	if (!saw_bam && saw_preserve_sam_tags) {
-		cerr << "--preserve_sam_tag can only be used when aligning BAM reads." << endl;
+	if (!saw_bam && saw_preserve_tags) {
+		cerr << "--preserve_tags can only be used when aligning BAM reads." << endl;
 		exit(1);
 	}
 
@@ -4833,7 +4839,7 @@ static void driver(
 		qUpto,         // max number of queries to read
 		nthreads,      //number of threads for locking
 		outType != OUTPUT_SAM, // whether to fix mate names
-		preserve_sam_tags, // keep existing SAM tags when aligning BAM files
+		preserve_tags, // keep existing tags when aligning BAM files
 		align_paired_reads // Align only the paired reads in BAM file
 	);
 	if(gVerbose || startVerbose) {

@@ -1570,7 +1570,7 @@ bool BAMPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 	ra.trimmed3 = (int)(ra.patFw.trimEnd(pp_.trim3));
 	ra.qual.trimEnd(ra.trimmed3);
 
-	if (pp_.preserve_sam_tags) {
+	if (pp_.preserve_tags) {
 		off += l_seq;
 		ra.preservedOptFlags.install(buf + off, block_size - off);
 	}
