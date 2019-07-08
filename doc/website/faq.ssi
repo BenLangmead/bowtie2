@@ -41,7 +41,7 @@ executable will not work.
 
 <h2>Are Bowtie 2 and Bowtie 1 genome indexes compatible?</h2>
 No.  Bowtie 2 indexes are formatted differently.  Bowtie 1 indexes do not work
-with Bowtie 2 and Bowtie 2 indexes do not work with Bowtie 1.
+with Bowtie 2. Bowtie 2 indexes do work with Bowtie 1 as of version 1.2.3.
 
 <h2>Does Bowtie 2 supersede Bowtie 1?</h2>
 Mostly, but not entirely.  If your reads are shorter than 50 bp, you
