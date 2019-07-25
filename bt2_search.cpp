@@ -2992,7 +2992,7 @@ static void multiseedSearchWorker(void *vp) {
 	PatternComposer&        patsrc   = *multiseed_patsrc;
 	PatternParams           pp       = multiseed_pp;
 	const Ebwt&             ebwtFw   = *multiseed_ebwtFw;
-	const Ebwt&             ebwtBw   = *multiseed_ebwtBw;
+	const Ebwt*             ebwtBw   = multiseed_ebwtBw;
 	const Scoring&          sc       = *multiseed_sc;
 	const BitPairReference& ref      = *multiseed_refs;
 	AlnSink&                msink    = *multiseed_msink;
@@ -3445,7 +3445,7 @@ static void multiseedSearchWorker(void *vp) {
 										!filt[mate ^ 1],// opposite mate filtered out?
 										shs[mate],      // seed hits for anchor
 										ebwtFw,         // bowtie index
-										&ebwtBw,        // rev bowtie index
+										ebwtBw,         // rev bowtie index
 										ref,            // packed reference strings
 										sw,             // dyn prog aligner, anchor
 										osw,            // dyn prog aligner, opposite
@@ -3495,7 +3495,7 @@ static void multiseedSearchWorker(void *vp) {
 										mate == 0,      // mate #1?
 										shs[mate],      // seed hits
 										ebwtFw,         // bowtie index
-										&ebwtBw,        // rev bowtie index
+										ebwtBw,         // rev bowtie index
 										ref,            // packed reference strings
 										sw,             // dynamic prog aligner
 										sc,             // scoring scheme
@@ -3587,7 +3587,7 @@ static void multiseedSearchWorker(void *vp) {
 									swmSeed.mm1atts++;
 									al.oneMmSearch(
 										&ebwtFw,        // BWT index
-										&ebwtBw,        // BWT' index
+										ebwtBw,         // BWT' index
 										*rds[mate],     // read
 										sc,             // scoring scheme
 										minsc[mate],    // minimum score
@@ -3627,7 +3627,7 @@ static void multiseedSearchWorker(void *vp) {
 										!filt[mate ^ 1],// opposite mate filtered out?
 										shs[mate],      // seed hits for anchor
 										ebwtFw,         // bowtie index
-										&ebwtBw,        // rev bowtie index
+										ebwtBw,         // rev bowtie index
 										ref,            // packed reference strings
 										sw,             // dyn prog aligner, anchor
 										osw,            // dyn prog aligner, opposite
@@ -3677,7 +3677,7 @@ static void multiseedSearchWorker(void *vp) {
 										mate == 0,      // mate #1?
 										shs[mate],      // seed hits
 										ebwtFw,         // bowtie index
-										&ebwtBw,        // rev bowtie index
+										ebwtBw,         // rev bowtie index
 										ref,            // packed reference strings
 										sw,             // dynamic prog aligner
 										sc,             // scoring scheme
@@ -3832,7 +3832,7 @@ static void multiseedSearchWorker(void *vp) {
 								al.searchAllSeeds(
 									*seeds[mate],     // search seeds
 									&ebwtFw,          // BWT index
-									&ebwtBw,          // BWT' index
+									ebwtBw,           // BWT' index
 									*rds[mate],       // read
 									sc,               // scoring scheme
 									ca,               // alignment cache
@@ -3903,7 +3903,7 @@ static void multiseedSearchWorker(void *vp) {
 											!filt[mate ^ 1],// opposite mate filtered out?
 											shs[mate],      // seed hits for anchor
 											ebwtFw,         // bowtie index
-											&ebwtBw,        // rev bowtie index
+											ebwtBw,         // rev bowtie index
 											ref,            // packed reference strings
 											sw,             // dyn prog aligner, anchor
 											osw,            // dyn prog aligner, opposite
@@ -3953,7 +3953,7 @@ static void multiseedSearchWorker(void *vp) {
 											mate == 0,      // mate #1?
 											shs[mate],      // seed hits
 											ebwtFw,         // bowtie index
-											&ebwtBw,        // rev bowtie index
+											ebwtBw,         // rev bowtie index
 											ref,            // packed reference strings
 											sw,             // dynamic prog aligner
 											sc,             // scoring scheme
@@ -4656,14 +4656,14 @@ static void multiseedSearch(
 	PatternComposer& patsrc,      // pattern source
 	AlnSink& msink,               // hit sink
 	Ebwt& ebwtFw,                 // index of original text
-	Ebwt& ebwtBw,                 // index of mirror text
+	Ebwt* ebwtBw,                 // index of mirror text
 	OutFileBuf *metricsOfb)
 {
 	multiseed_patsrc = &patsrc;
 	multiseed_pp = pp;
 	multiseed_msink  = &msink;
 	multiseed_ebwtFw = &ebwtFw;
-	multiseed_ebwtBw = &ebwtBw;
+	multiseed_ebwtBw = ebwtBw;
 	multiseed_sc     = &sc;
 	multiseed_metricsOfb      = metricsOfb;
 	Timer *_t = new Timer(cerr, "Time loading reference: ", timing);
@@ -4715,9 +4715,9 @@ static void multiseedSearch(
 	}
 	if(multiseedMms > 0 || do1mmUpFront) {
 		// Load the other half of the index into memory
-		assert(!ebwtBw.isInMemory());
+		assert(!ebwtBw->isInMemory());
 		Timer _t(cerr, "Time loading mirror index: ", timing);
-		ebwtBw.loadIntoMemory(
+		ebwtBw->loadIntoMemory(
 			0, // colorspace?
 			// It's bidirectional search, so we need the reverse to be
 			// constructed as the reverse of the concatenated strings.
@@ -4875,47 +4875,23 @@ static void driver(
 	adjIdxBase = adjustEbwtBase(argv0, bt2indexBase, gVerbose);
 	Ebwt ebwt(
 		adjIdxBase,
-	    0,        // index is colorspace
+		0,        // index is colorspace
 		-1,       // fw index
-	    true,     // index is for the forward direction
-	    /* overriding: */ offRate,
+		true,     // index is for the forward direction
+		/* overriding: */ offRate,
 		0, // amount to add to index offrate or <= 0 to do nothing
-	    useMm,    // whether to use memory-mapped files
-	    useShmem, // whether to use shared memory
-	    mmSweep,  // sweep memory-mapped files
-	    !noRefNames, // load names?
+		useMm,    // whether to use memory-mapped files
+		useShmem, // whether to use shared memory
+		mmSweep,  // sweep memory-mapped files
+		!noRefNames, // load names?
 		true,        // load SA sample?
 		true,        // load ftab?
 		true,        // load rstarts?
-	    gVerbose, // whether to be talkative
-	    startVerbose, // talkative during initialization
-	    false /*passMemExc*/,
-	    sanityCheck);
-	Ebwt* ebwtBw = NULL;
-	// We need the mirror index if mismatches are allowed
-	if(multiseedMms > 0 || do1mmUpFront) {
-		if(gVerbose || startVerbose) {
-			cerr << "About to initialize rev Ebwt: "; logTime(cerr, true);
-		}
-		ebwtBw = new Ebwt(
-			adjIdxBase + ".rev",
-			0,       // index is colorspace
-			1,       // TODO: maybe not
-		    false, // index is for the reverse direction
-		    /* overriding: */ offRate,
-			0, // amount to add to index offrate or <= 0 to do nothing
-		    useMm,    // whether to use memory-mapped files
-		    useShmem, // whether to use shared memory
-		    mmSweep,  // sweep memory-mapped files
-		    !noRefNames, // load names?
-			true,        // load SA sample?
-			true,        // load ftab?
-			true,        // load rstarts?
-		    gVerbose,    // whether to be talkative
-		    startVerbose, // talkative during initialization
-		    false /*passMemExc*/,
-		    sanityCheck);
-	}
+		gVerbose, // whether to be talkative
+		startVerbose, // talkative during initialization
+		false /*passMemExc*/,
+		sanityCheck);
+
 	if(sanityCheck && !os.empty()) {
 		// Sanity check number of patterns and pattern lengths in Ebwt
 		// against original strings
@@ -4946,7 +4922,7 @@ static void driver(
 		skipReads);                      // first read will have this rdid
 	{
 		Timer _t(cerr, "Time searching: ", timing);
-		// Set up penalities
+		// Set up pexnalities
 		if(bonusMatch > 0 && !localAlign) {
 			cerr << "Warning: Match bonus always = 0 in --end-to-end mode; ignoring user setting" << endl;
 			bonusMatch = 0;
@@ -5053,21 +5029,55 @@ static void driver(
 		// Do the search for all input reads
 		assert(patsrc != NULL);
 		assert(mssink != NULL);
-		multiseedSearch(
-			sc,      // scoring scheme
-			pp,      // pattern params
-			*patsrc, // pattern source
-			*mssink, // hit sink
-			ebwt,    // BWT
-			*ebwtBw, // BWT'
-			metricsOfb);
+                if(multiseedMms > 0 || do1mmUpFront) {
+			if(gVerbose || startVerbose) {
+				cerr << "About to initialize rev Ebwt: "; logTime(cerr, true);
+			}
+
+			// We need the mirror index if mismatches are allowed
+			Ebwt ebwtBw = Ebwt(
+				adjIdxBase + ".rev",
+				0,       // index is colorspace
+				1,       // TODO: maybe not
+				false, // index is for the reverse direction
+				/* overriding: */ offRate,
+				0, // amount to add to index offrate or <= 0 to do nothing
+				useMm,    // whether to use memory-mapped files
+				useShmem, // whether to use shared memory
+				mmSweep,  // sweep memory-mapped files
+				!noRefNames, // load names?
+				true,        // load SA sample?
+				true,        // load ftab?
+				true,        // load rstarts?
+				gVerbose,    // whether to be talkative
+				startVerbose, // talkative during initialization
+				false /*passMemExc*/,
+				sanityCheck);
+
+			multiseedSearch(
+				sc,      // scoring scheme
+				pp,      // pattern params
+				*patsrc, // pattern source
+				*mssink, // hit sink
+				ebwt,    // BWT
+				&ebwtBw, // BWT'
+				metricsOfb);
+                } else {
+			multiseedSearch(
+				sc,      // scoring scheme
+				pp,      // pattern params
+				*patsrc, // pattern source
+				*mssink, // hit sink
+				ebwt,    // BWT
+				NULL,    // BWT'
+				metricsOfb);
+		}
+
 		// Evict any loaded indexes from memory
 		if(ebwt.isInMemory()) {
 			ebwt.evictFromMemory();
 		}
-		if(ebwtBw != NULL) {
-			delete ebwtBw;
-		}
+
 		if(!gQuiet && !seedSumm) {
 			size_t repThresh = mhits;
 			if(repThresh == 0) {
