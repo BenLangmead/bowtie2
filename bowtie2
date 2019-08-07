@@ -159,11 +159,7 @@ my $readpipe = undef;
 my $log_fName = undef;
 my $help = 0;
 
-# my @bt2w_args_cp = (@bt2w_args>0) ? @bt2w_args : @bt2_args;
-Getopt::Long::Configure("pass_through","no_ignore_case");
-
-my @old_ARGV = @ARGV;
-# @ARGV = @bt2w_args_cp;
+Getopt::Long::Configure("pass_through","no_ignore_case", "no_auto_abbrev", "bundling_values");
 
 GetOptions(
     "1=s{1,}"                       => \@mate1s,
@@ -190,11 +186,11 @@ GetOptions(
     "al=s"                          => \&handle_un_or_al,
     "al-gz=s"                       => \&handle_un_or_al,
     "al-bz2=s"                      => \&handle_un_or_al,
-    "al-lz4=s{1}"                   => \&handle_un_or_al,
+    "al-lz4=s"                      => \&handle_un_or_al,
     "un-conc=s"                     => \&handle_un_or_al,
     "un-conc-gz=s"                  => \&handle_un_or_al,
     "un-conc-bz2=s"                 => \&handle_un_or_al,
-    "un-conc-lz4=s{1}"              => \&handle_un_or_al,
+    "un-conc-lz4=s"                 => \&handle_un_or_al,
     "al-conc=s"                     => \&handle_un_or_al,
     "al-conc-gz=s"                  => \&handle_un_or_al,
     "al-conc-bz2=s"                 => \&handle_un_or_al,
@@ -202,7 +198,7 @@ GetOptions(
     "un-mates=s"                    => \&handle_un_or_al,
     "un-mates-gz=s"                 => \&handle_un_or_al,
     "un-mates-bz2=s"                => \&handle_un_or_al,
-    "un-mates-lz4=s{1}"             => \&handle_un_or_al,
+    "un-mates-lz4=s"                => \&handle_un_or_al,
     "log-file=s"                    => \$log_fName,
     "help|h"                        => \$help
     );
