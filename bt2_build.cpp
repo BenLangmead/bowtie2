@@ -520,6 +520,12 @@ static void driver(
 			}
 		}
 	}
+
+        for (size_t i = 0; i < is.size(); ++i) {
+		if (is[i] != NULL) {
+			delete is[i];
+		}
+        }
 }
 
 static const char *argv0 = NULL;
