@@ -8,6 +8,7 @@ addons:
   apt:
     packages:
     - libtbb-dev
+    - zlib1g-dev
 branches:
   only:
   - master
@@ -20,11 +21,15 @@ branches:
 matrix:
   include:
   # aarch64 - ARM 64-bit
-  - name: aarch64
-    install:
-    - docker run --rm --privileged multiarch/qemu-user-static:register --reset
-    - docker build --rm -t bowtie2 -f Dockerfile-aarch64 .
-    script:
+  - arch: arm64
+    compiler: gcc
+    env:
+    # Suppress warnings to see the Travis log easily.
+    - CXXFLAGS="-Wno-deprecated-declarations -Wno-misleading-indentation -Wno-narrowing -Wno-unused-function -Wno-unused-result"
+    # Set POPCNT_CAPABILITY=0 to avoid a build error.
+    # NO_TBB=1 possibly saves the running time.
+    - POPCNT_CAPABILITY=0
+    before_script:
     # Ping stdout every 9 minutes or Travis kills build,
     # as travis_wait does not show the command output while processing.
     # https://docs.travis-ci.com/user/common-build-problems/#build-times-out-because-no-output-was-received
@@ -32,13 +37,8 @@ matrix:
       while sleep 9m; do
           echo "====[ $SECONDS seconds still running ]===="
       done &
-    # Suppress warnings to see the Travis log easily.
-    - CXXFLAGS="-Wno-deprecated-declarations -Wno-misleading-indentation -Wno-narrowing -Wno-unused-function -Wno-unused-result"
-    # Run "make all" as "make allall simple-test" exceeds the Travis maximum
-    # time limit (50 minutes).
-    # Set POPCNT_CAPABILITY=0 to avoid a build error.
-    # NO_TBB=1 possibly saves the running time.
-    - docker run --rm -e CXXFLAGS="$CXXFLAGS" -e POPCNT_CAPABILITY=0 -t bowtie2 make -s -j 4 all
+    # Run "make all" to save the running time.
+    script: make -s -j 4 all
 script: make allall && make simple-test
 notifications:
   slack:
