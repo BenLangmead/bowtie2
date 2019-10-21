@@ -126,7 +126,7 @@ enum {
 	ARG_SEED_BOOST_THRESH,      // --seed-boost
 	ARG_READ_TIMES,             // --read-times
 	ARG_EXTEND_ITERS,           // --extends
-	ARG_DP_MATE_STREAK_THRESH,  // --db-mate-streak
+	ARG_DP_MATE_STREAK_THRESH,  // --dp-mate-streak
 	ARG_DP_FAIL_STREAK_THRESH,  // --dp-fail-streak
 	ARG_UG_FAIL_STREAK_THRESH,  // --ug-fail-streak
 	ARG_EE_FAIL_STREAK_THRESH,  // --ee-fail-streak

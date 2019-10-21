@@ -1,0 +1,31 @@
+#  Presets:                 Same as:
+#  For --end-to-end:
+#   --very-fast            -D 5 -R 1 -N 0 -L 22 -i S,0,2.50
+#   --fast                 -D 10 -R 2 -N 0 -L 22 -i S,0,2.50
+#   --sensitive            -D 15 -R 2 -N 0 -L 22 -i S,1,1.15 (default)
+#   --very-sensitive       -D 20 -R 3 -N 0 -L 20 -i S,1,0.50
+def0_vf ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 --very-fast --reorder -p 8 -U
+def1_f  ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 --fast --reorder -p 8 -U
+def2_s  ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 --sensitive --reorder -p 8 -U
+def3_vs ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 --very-sensitive --reorder -p 8 -U
+sL20    ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 2 -N 0 -L 20 -i S,1,1.15 --reorder -p 8 -U
+sL22    ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 2 -N 0 -L 22 -i S,1,1.15 --reorder -p 8 -U
+sL24    ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 2 -N 0 -L 24 -i S,1,1.15 --reorder -p 8 -U
+sL26    ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 2 -N 0 -L 26 -i S,1,1.15 --reorder -p 8 -U
+sL28    ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 2 -N 0 -L 28 -i S,1,1.15 --reorder -p 8 -U
+sL30    ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 2 -N 0 -L 30 -i S,1,1.15 --reorder -p 8 -U
+sL32    ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 2 -N 0 -L 32 -i S,1,1.15 --reorder -p 8 -U
+sR3     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 3 -N 0 -L 22 -i S,1,1.15 --reorder -p 8 -U
+sR4     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 4 -N 0 -L 22 -i S,1,1.15 --reorder -p 8 -U
+sR5     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 5 -N 0 -L 22 -i S,1,1.15 --reorder -p 8 -U
+sR6     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 6 -N 0 -L 22 -i S,1,1.15 --reorder -p 8 -U
+sR7     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 7 -N 0 -L 22 -i S,1,1.15 --reorder -p 8 -U
+fR3     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 10 -R 3 -N 0 -L 22 -i S,0,2.50 --reorder -p 8 -U
+fR4     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 10 -R 4 -N 0 -L 22 -i S,0,2.50 --reorder -p 8 -U
+fR5     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 10 -R 5 -N 0 -L 22 -i S,0,2.50 --reorder -p 8 -U
+fR6     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 10 -R 6 -N 0 -L 22 -i S,0,2.50 --reorder -p 8 -U
+fR7     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 10 -R 7 -N 0 -L 22 -i S,0,2.50 --reorder -p 8 -U
+sD20    ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 20 -R 2 -N 0 -L 22 -i S,1,1.15 --reorder -p 8 -U
+sD40    ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 40 -R 2 -N 0 -L 22 -i S,1,1.15 --reorder -p 8 -U
+sD60    ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 60 -R 2 -N 0 -L 22 -i S,1,1.15 --reorder -p 8 -U
+sD80    ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 80 -R 2 -N 0 -L 22 -i S,1,1.15 --reorder -p 8 -U
