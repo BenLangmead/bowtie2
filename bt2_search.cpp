@@ -3872,7 +3872,7 @@ static void multiseedSearchWorker(void *vp) {
 										if (((double) shs[mate].numRepeatSeeds()) / succeeded > 0.8) {
 											//assert_lt(min_hits_per_seed, std::numeric_limits<TIndexOffU>::max());
 											adjust_up[mate] = max((int)lround(log10(shs[mate].numElts())), 1);
-											if(adjust_up[mate] > 2) {
+											if(adjust_up[mate] > 3 && shs[mate].numUniqueSeeds() == 0) {
 												good[mate] = false;
 											}
 										}
