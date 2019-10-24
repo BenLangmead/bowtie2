@@ -876,6 +876,22 @@ public:
 	}
 	
 	/**
+	 * Return the minimum number of hits for any seed with at least one hit.
+	 */
+	TIndexOffU minHitsPerSeed() const {
+		TIndexOffU minimum = std::numeric_limits<TIndexOffU>::max();
+		for(size_t i = 0; i < numOffs_; i++) {
+			if(hitsFw_[i].valid() && hitsFw_[i].numElts() > 0) {
+				minimum = min(minimum, hitsFw_[i].numElts());
+			}
+			if(hitsRc_[i].valid() && hitsRc_[i].numElts() > 0) {
+				minimum = min(minimum, hitsRc_[i].numElts());
+			}
+		}
+		return minimum;
+	}
+
+	/**
 	 * Return a number that's meant to quantify how hopeful we are that this
 	 * set of seed hits will lead to good alignments.
 	 */
