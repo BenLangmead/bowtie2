@@ -2018,7 +2018,7 @@ void SRAPatternSource::open() {
 			return;
 		}
 		if (pp_.sra_sample_size > 0) {
-			int i;
+			size_t i;
 			size_t window_size = pp_.sra_sample_size;
 			size_t num_starts = MAX_ROW / pp_.sra_sample_size;
 			std::vector<size_t> starts{num_starts};
@@ -2028,7 +2028,7 @@ void SRAPatternSource::open() {
 				if (i == 0)
 					starts[i] = start;
 				else
-					starts[i] = start[i-1] + window_size;
+					starts[i] = starts[i-1] + window_size;
 				if (starts[i] > MAX_ROW ||
 				    (starts[i] + window_size) > MAX_ROW) {
 					break;
@@ -2040,7 +2040,7 @@ void SRAPatternSource::open() {
 			std::random_device rd;
 			std::default_random_engine re(rd());
 			std::shuffle(starts.begin(), starts.end(), re);
-			for (int j = 0; j < sra_its_.size(); j++) {
+			for (size_t j = 0; j < sra_its_.size(); j++) {
 				sra_its_[j] = new ngs::ReadIterator(sra_run.getReadRange(starts[i], window_size, ngs::Read::all));
 				assert(sra_its_[j] != NULL);
 			}
