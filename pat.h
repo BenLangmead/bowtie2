@@ -45,6 +45,8 @@
 #include <ngs/ReadCollection.hpp>
 #include <ngs/ReadIterator.hpp>
 #include <ngs/Read.hpp>
+
+#define MIN(x, y) ((x) < (y)) ? (x) : (y)
 #endif
 
 #ifdef _WIN32
@@ -82,6 +84,9 @@ struct PatternParams {
 		int nthreads_,
 		bool fixName_,
 		bool preserve_tags_,
+#ifdef USE_SRA
+		size_t sra_sample_size,
+#endif
 		bool align_paired_reads_) :
 		format(format_),
 		interleaved(interleaved_),
@@ -101,6 +106,9 @@ struct PatternParams {
 		nthreads(nthreads_),
 		fixName(fixName_),
 		preserve_tags(preserve_tags_),
+#ifdef USE_SRA
+		sra_sample_size(sra_sample_size_),
+#endif
 		align_paired_reads(align_paired_reads_) { }
 
 	int format;			  // file format
@@ -121,6 +129,9 @@ struct PatternParams {
 	int nthreads;		  // number of threads for locking
 	bool fixName;		  //
 	bool preserve_tags;       // keep existing tags when aligning BAM files
+#ifdef USE_SRA
+	size_t sra_sample_size;   // number of reads in each sra sample batch
+#endif
 	bool align_paired_reads;
 };
 

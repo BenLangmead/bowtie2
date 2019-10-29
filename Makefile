@@ -30,7 +30,7 @@ GCC_SUFFIX :=
 CC ?= $(GCC_PREFIX)/gcc$(GCC_SUFFIX)
 CPP ?= $(GCC_PREFIX)/g++$(GCC_SUFFIX)
 CXX ?= $(CPP)
-CXXFLAGS += -std=c++98
+CXXFLAGS += -std=c++11
 ifeq (aarch64,$(shell uname -m))
 	CXXFLAGS += -fopenmp-simd
 	CPPFLAGS += -Ithird_party/simde
@@ -40,8 +40,8 @@ HEADERS := $(wildcard *.h)
 BOWTIE_MM := 1
 BOWTIE_SHARED_MEM :=
 
-NGS_VER ?= 2.9.2
-VDB_VER ?= 2.9.2-1
+NGS_VER ?= 2.10.0
+VDB_VER ?= 2.10.0
 
 # Detect Cygwin or MinGW
 WINDOWS :=

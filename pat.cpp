@@ -25,8 +25,13 @@
 #include <stdexcept>
 #include <string.h>
 #include <fcntl.h>
-#include "sstring.h"
 
+#ifdef USE_SRA
+#include <algorithm>
+#include <random>
+#endif
+
+#include "sstring.h"
 #include "pat.h"
 #include "filebuf.h"
 #include "formats.h"
@@ -1248,13 +1253,13 @@ bool BAMPatternSource::parse_bam_header() {
 
 uint16_t BAMPatternSource::nextBGZFBlockFromFile(BGZF& b) {
 	size_t r = fread(&b.hdr, sizeof(b.hdr), 1, fp_);
-	if ((r == 0 && ferror_unlocked(fp_)) || feof_unlocked(fp_)) {
+	if ((r == 0 && ferror(fp_)) || feof(fp_)) {
 		return 0;
 	}
 
 	uint8_t *extra = new uint8_t[b.hdr.xlen];
 	r = fread(extra, b.hdr.xlen, 1, fp_);
-	if (r == 0 && ferror_unlocked(fp_)) {
+	if (r == 0 && ferror(fp_)) {
 		return 0;
 	}
 
@@ -1285,12 +1290,12 @@ uint16_t BAMPatternSource::nextBGZFBlockFromFile(BGZF& b) {
 	}
 
 	r = fread(b.cdata, bsize, 1, fp_);
-	if (r == 0 && ferror_unlocked(fp_)) {
+	if (r == 0 && ferror(fp_)) {
 		return 0;
 	}
 
 	r = fread(&b.ftr, sizeof b.ftr, 1, fp_);
-	if (r == 0 && ferror_unlocked(fp_)) {
+	if (r == 0 && ferror(fp_)) {
 		return 0;
 	}
 
@@ -1992,38 +1997,69 @@ void SRAPatternSource::open() {
 	try {
 		// open requested accession using SRA implementation of the API
 		ngs::ReadCollection sra_run = ncbi::NGS::openReadCollection(sra_acc);
-
-		// compute window to iterate through
-		size_t MAX_ROW = sra_run.getReadCount();
-		pp_.upto -= pp_.skip;
-
-		if (pp_.upto <= MAX_ROW) {
-			MAX_ROW = pp_.upto;
-		}
-		if(MAX_ROW < 0) {
-			return;
-		}
-
-		size_t window_size = MAX_ROW / sra_its_.size();
-		size_t remainder = MAX_ROW % sra_its_.size();
-		size_t i = 0, start = 1;
-
+		size_t start = 1;
 		if (pp_.skip > 0) {
 			start = pp_.skip + 1;
 			readCnt_ = pp_.skip;
 		}
 
-		while (i < sra_its_.size()) {
-			sra_its_[i] = new ngs::ReadIterator(sra_run.getReadRange(start, window_size, ngs::Read::all));
-			assert(sra_its_[i] != NULL);
+		// compute window to iterate through
+		if (pp_.skip > sra_run.getReadCount()) {
+			std::cerr << "attempting to skip more than the maximum available reads" << std::endl;
+			throw();
+		}
+		size_t MAX_ROW = sra_run.getReadCount() - pp_.skip;
+		// pp_.upto -= pp_.skip;
 
-			i++;
-			start += window_size;
-			if (i == sra_its_.size() - 1) {
-				window_size += remainder;
+		if (pp_.upto < MAX_ROW) {
+			MAX_ROW = pp_.upto;
+		}
+		if (MAX_ROW == 0) {
+			return;
+		}
+		if (pp_.sra_sample_size > 0) {
+			size_t i;
+			size_t window_size = pp_.sample_sra;
+			size_t num_starts = MAX_ROW / pp_.sra_sample_size;
+			std::vector starts{num_starts};
+
+			starts[0] = start;
+			for (i = 0; i < num_starts; i++) {
+				if (i == 0)
+					starts[i] = start;
+				else
+					starts[i] = start[i-1] + window_size;
+				if (starts[i] > MAX_ROW ||
+				    (starts[i] + window_size) > MAX_ROW) {
+					break;
+				}
+                        }
+                        starts.resize(i);
+                        sra_its_.resize(MIN(i, sra_its_.size()));
+
+			std::random_device rd;
+			std::default_random_engine re(rd());
+			std::shuffle(starts.begin(), starts.end(), re);
+			for (size_t j = 0; j < sra_its_.size(); j++) {
+				sra_its_[j] = new ngs::ReadIterator(sra_run.getReadRange(starts[i], window_size, ngs::Read::all));
+				assert(sra_its_[j] != NULL);
+			}
+		} else {
+			size_t window_size = MAX_ROW / sra_its_.size();
+			size_t remainder = MAX_ROW % sra_its_.size();
+			size_t i = 0;
+
+			while (i < sra_its_.size()) {
+				sra_its_[i] = new ngs::ReadIterator(sra_run.getReadRange(start, window_size, ngs::Read::all));
+				assert(sra_its_[i] != NULL);
+
+				i++;
+				start += window_size;
+				if (i == sra_its_.size() - 1) {
+					window_size += remainder;
+				}
 			}
 		}
-
 	} catch(...) {
 		cerr << "Warning: Could not access \"" << sra_acc << "\" for reading; skipping..." << endl;
 	}
