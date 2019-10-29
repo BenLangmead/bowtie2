@@ -85,7 +85,7 @@ struct PatternParams {
 		bool fixName_,
 		bool preserve_tags_,
 #ifdef USE_SRA
-		size_t sra_sample_size,
+		size_t sra_sample_size_,
 #endif
 		bool align_paired_reads_) :
 		format(format_),

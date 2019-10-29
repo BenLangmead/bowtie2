@@ -2006,7 +2006,7 @@ void SRAPatternSource::open() {
 		// compute window to iterate through
 		if (pp_.skip > sra_run.getReadCount()) {
 			std::cerr << "attempting to skip more than the maximum available reads" << std::endl;
-			throw();
+			throw 1;
 		}
 		size_t MAX_ROW = sra_run.getReadCount() - pp_.skip;
 		// pp_.upto -= pp_.skip;
@@ -2018,10 +2018,10 @@ void SRAPatternSource::open() {
 			return;
 		}
 		if (pp_.sra_sample_size > 0) {
-			size_t i;
-			size_t window_size = pp_.sample_sra;
+			int i;
+			size_t window_size = pp_.sra_sample_size;
 			size_t num_starts = MAX_ROW / pp_.sra_sample_size;
-			std::vector starts{num_starts};
+			std::vector<size_t> starts{num_starts};
 
 			starts[0] = start;
 			for (i = 0; i < num_starts; i++) {
@@ -2040,7 +2040,7 @@ void SRAPatternSource::open() {
 			std::random_device rd;
 			std::default_random_engine re(rd());
 			std::shuffle(starts.begin(), starts.end(), re);
-			for (size_t j = 0; j < sra_its_.size(); j++) {
+			for (int j = 0; j < sra_its_.size(); j++) {
 				sra_its_[j] = new ngs::ReadIterator(sra_run.getReadRange(starts[i], window_size, ngs::Read::all));
 				assert(sra_its_[j] != NULL);
 			}
