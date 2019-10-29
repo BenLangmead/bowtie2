@@ -269,7 +269,6 @@ static size_t extra_opts_cur;
 
 #ifdef USE_SRA
 static EList<string> sra_accs;
-static size_t sra_sample_size;
 #endif
 
 #define DMAX std::numeric_limits<double>::max()
@@ -468,7 +467,6 @@ static void resetOptions() {
 	logDpsOpp.clear();       // log mate-search dynamic programming problems
 #ifdef USE_SRA
 	sra_accs.clear();
-	sra_sample_size = 0;
 #endif
 }
 
@@ -665,7 +663,6 @@ static struct option long_options[] = {
 {(char*)"align-paired-reads",          no_argument,        0,                   ARG_ALIGN_PAIRED_READS},
 #ifdef USE_SRA
 {(char*)"sra-acc",                     required_argument,  0,                   ARG_SRA_ACC},
-{(char*)"sample-sra",                  required_argument,  0,                   ARG_SAMPLE_SRA},
 #endif
 {(char*)0,                             0,                  0,                   0} //  terminator
 };
@@ -1554,9 +1551,6 @@ static void parseOption(int next_option, const char *arg) {
             format = SRA_FASTA;
             break;
         }
-	case ARG_SAMPLE_SRA:
-		sra_sample_size = (size_t)parseInt(0, "-s arg must be positive", arg);
-		break;
 #endif
         case ARG_VERSION: showVersion = 1; break;
 		default:
@@ -4828,28 +4822,25 @@ static void driver(
 		parseFastas(origFiles, names, nameLens, os, seqLens);
 	}
 	PatternParams pp(
-		format,			// file format
-		interleaved,		// some or all of the reads are interleaved
-		fileParallel,		// true -> wrap files with separate PairedPatternSources
-		seed,			// pseudo-random seed
-		readsPerBatch,		// # reads in a light parsing batch
-		solexaQuals,		// true -> qualities are on solexa64 scale
-		phred64Quals,		// true -> qualities are on phred64 scale
-		integerQuals,		// true -> qualities are space-separated numbers
-		gTrim5,			// amt to hard clip from 5' end
-		gTrim3,			// amt to hard clip from 3' end
-		trimTo,			// trim reads exceeding given length from either 3' or 5'-end
-		fastaContLen,		// length of sampled reads for FastaContinuous...
-		fastaContFreq,		// frequency of sampled reads for FastaContinuous...
-		skipReads,		// skip the first 'skip' patterns
-		qUpto,			// max number of queries to read
-		nthreads,		//number of threads for locking
-		outType != OUTPUT_SAM,	// whether to fix mate names
-		preserve_tags,		// keep existing tags when aligning BAM files
-#ifdef USE_SRA
-		sra_sample_size,	// number of reads in each sra sample batch
-#endif
-		align_paired_reads 	// Align only the paired reads in BAM file
+		format,        // file format
+		interleaved,   // some or all of the reads are interleaved
+		fileParallel,  // true -> wrap files with separate PairedPatternSources
+		seed,          // pseudo-random seed
+		readsPerBatch, // # reads in a light parsing batch
+		solexaQuals,   // true -> qualities are on solexa64 scale
+		phred64Quals,  // true -> qualities are on phred64 scale
+		integerQuals,  // true -> qualities are space-separated numbers
+		gTrim5,        // amt to hard clip from 5' end
+		gTrim3,        // amt to hard clip from 3' end
+		trimTo,        // trim reads exceeding given length from either 3' or 5'-end
+		fastaContLen,  // length of sampled reads for FastaContinuous...
+		fastaContFreq, // frequency of sampled reads for FastaContinuous...
+		skipReads,     // skip the first 'skip' patterns
+		qUpto,         // max number of queries to read
+		nthreads,      //number of threads for locking
+		outType != OUTPUT_SAM, // whether to fix mate names
+		preserve_tags, // keep existing tags when aligning BAM files
+		align_paired_reads // Align only the paired reads in BAM file
 	);
 	if(gVerbose || startVerbose) {
 		cerr << "Creating PatternSource: "; logTime(cerr, true);
