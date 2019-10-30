@@ -258,7 +258,7 @@ public:
 #else
 			if(_threads.size() == 0) {
 #endif
-                _done = std::auto_ptr<volatile bool>(new volatile bool[_sampleSuffs.size() + 1]); 
+                _done = std::unique_ptr<volatile bool>(new volatile bool[_sampleSuffs.size() + 1]);
                 for (size_t i = 0; i < _sampleSuffs.size() + 1; i++) {
                     _done.get()[i] = false;
                 }
@@ -469,7 +469,7 @@ private:
 #endif
 	EList<pair<KarkkainenBlockwiseSA*, int> > _tparams;
 	ELList<TIndexOffU>      _itrBuckets;  /// buckets
-	std::auto_ptr<volatile bool>             _done;        /// is a block processed?
+	std::unique_ptr<volatile bool>             _done;        /// is a block processed?
 };
 
 

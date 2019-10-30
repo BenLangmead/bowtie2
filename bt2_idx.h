@@ -445,9 +445,7 @@ inline static int pop64(uint64_t x) {
 #ifdef POPCNT_CAPABILITY
     struct USE_POPCNT_INSTRUCTION {
         inline static int pop64(uint64_t x) {
-            int64_t count;
-            asm ("popcnt %[x],%[count]\n": [count] "=&r" (count): [x] "r" (x));
-            return count;
+	    return __builtin_popcountll(x);
         }
     };
 #endif
@@ -824,11 +822,11 @@ public:
 		EList<FileBuf*> is(EBWT_CAT);
 		RefReadInParams refparams(color, REF_READ_FORWARD, false, false);
 		// Adapt sequence strings to stringstreams open for input
-		auto_ptr<stringstream> ss(new stringstream());
+		std::unique_ptr<stringstream> ss(new stringstream());
 		for(TIndexOffU i = 0; i < strs.size(); i++) {
 			(*ss) << ">" << i << endl << strs[i] << endl;
 		}
-		auto_ptr<FileBuf> fb(new FileBuf(ss.get()));
+		std::unique_ptr<FileBuf> fb(new FileBuf(ss.get()));
 		assert(!fb->eof());
 		assert(fb->get() == '>');
 		ASSERT_ONLY(fb->reset());
