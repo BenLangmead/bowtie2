@@ -2021,9 +2021,8 @@ void SRAPatternSource::open() {
 			size_t i;
 			size_t window_size = pp_.sra_sample_size;
 			size_t num_starts = MAX_ROW / pp_.sra_sample_size;
-			std::vector<size_t> starts{num_starts};
+			std::vector<size_t> starts(num_starts);
 
-			starts[0] = start;
 			for (i = 0; i < num_starts; i++) {
 				if (i == 0)
 					starts[i] = start;
@@ -2041,7 +2040,7 @@ void SRAPatternSource::open() {
 			std::default_random_engine re(rd());
 			std::shuffle(starts.begin(), starts.end(), re);
 			for (size_t j = 0; j < sra_its_.size(); j++) {
-				sra_its_[j] = new ngs::ReadIterator(sra_run.getReadRange(starts[i], window_size, ngs::Read::all));
+				sra_its_[j] = new ngs::ReadIterator(sra_run.getReadRange(starts[j], window_size, ngs::Read::all));
 				assert(sra_its_[j] != NULL);
 			}
 		} else {
