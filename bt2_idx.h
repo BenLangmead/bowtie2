@@ -430,13 +430,13 @@ struct USE_POPCNT_GENERIC {
 // Use this standard bit-bashing population count
 inline static int pop64(uint64_t x) {
 	// Lots of cache misses on following lines (>10K)
-	x = x - ((x >> 1) & 0x5555555555555555llu);
-	x = (x & 0x3333333333333333llu) + ((x >> 2) & 0x3333333333333333llu);
-	x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0Fllu;
-	x = x + (x >> 8);
-	x = x + (x >> 16);
-	x = x + (x >> 32);
-	return (int)(x & 0x3Fllu);
+	// x = x - ((x >> 1) & 0x5555555555555555llu);
+	// x = (x & 0x3333333333333333llu) + ((x >> 2) & 0x3333333333333333llu);
+	// x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0Fllu;
+	// x = x + (x >> 8);
+	// x = x + (x >> 16);
+	// x = x + (x >> 32);
+	return (int)__builtin_popcountll(x);
 }
 #ifdef POPCNT_CAPABILITY  // wrapping a "struct"
 };
