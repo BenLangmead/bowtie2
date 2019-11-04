@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
 """
  Copyright 2014, Ben Langmead <langmea@cs.jhu.edu>
@@ -71,7 +71,11 @@ def main():
     if script_options.large_index:
         build_bin_spec = os.path.join(ex_path,build_bin_l)
     elif len(argv) >= 2:
-        ref_fnames = argv[-2]
+        ref_fnames = None
+        for arg in argv:
+            if not arg.startswith("-"):
+                ref_fnames = arg
+                break
         tot_size = 0
         for fn in ref_fnames.split(','):
             if os.path.exists(fn):
