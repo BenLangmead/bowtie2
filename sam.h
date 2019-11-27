@@ -221,21 +221,22 @@ public:
 		const
 	{
 		size_t namelen = name.length();
-		if(omitSlashMate &&
-		   namelen >= 2 &&
-		   name[namelen-2] == '/' &&
-		   (name[namelen-1] == '1' || name[namelen-1] == '2' || name[namelen-1] == '3'))
-		{
-			namelen -= 2;
-		}
 		if(truncQname_ && namelen > 255) {
 			namelen = 255;
 		}
 		for(size_t i = 0; i < namelen; i++) {
 			if(truncQname_ && isspace(name[i])) {
-				return;
+				break;
 			}
 			o.append(name[i]);
+		}
+		size_t olen = o.length();
+		if(omitSlashMate &&
+		   olen >= 2 &&
+		   o[olen-2] == '/' &&
+		   (o[olen-1] == '1' || o[olen-1] == '2' || o[olen-1] == '3'))
+		{
+			o.resize(olen-2);
 		}
 	}
 
