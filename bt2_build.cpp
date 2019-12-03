@@ -94,7 +94,7 @@ static void resetOptions() {
 	writeRef     = true;  // write compact reference to .3.gEbwt_ext/.4.gEbwt_ext
 	justRef      = false; // *just* write compact reference, don't index
 	reverseEach  = false;
-    nthreads     = 1;
+	nthreads     = 1;
 	wrapper.clear();
 }
 
@@ -111,7 +111,7 @@ enum {
 	ARG_USAGE,
 	ARG_REVERSE_EACH,
 	ARG_SA,
-    ARG_THREADS,
+	ARG_THREADS,
 	ARG_WRAPPER
 };
 
@@ -120,7 +120,7 @@ enum {
  */
 static void printUsage(ostream& out) {
 	out << "Bowtie 2 version " << string(BOWTIE2_VERSION).c_str() << " by Ben Langmead (langmea@cs.jhu.edu, www.cs.jhu.edu/~langmea)" << endl;
-	
+
 #ifdef BOWTIE_64BIT_INDEX
 	string tool_name = "bowtie2-build-l";
 #else
@@ -129,17 +129,17 @@ static void printUsage(ostream& out) {
 	if(wrapper == "basic-0") {
 		tool_name = "bowtie2-build";
 	}
-	
+
 	//               1         2         3         4         5         6         7         8
 	//      12345678901234567890123456789012345678901234567890123456789012345678901234567890
 	out << "Usage: " << tool_name << " [options]* <reference_in> <bt2_index_base>" << endl
 	    << "    reference_in            comma-separated list of files with ref sequences" << endl
 	    << "    bt2_index_base          write " + gEbwt_ext + " data to files with this dir/basename" << endl
-		<< "*** Bowtie 2 indexes work only with v2 (not v1).  Likewise for v1 indexes. ***" << endl
+	    << "*** Bowtie 2 indexes work only with v2 (not v1).  Likewise for v1 indexes. ***" << endl
 	    << "Options:" << endl
 	    << "    -f                      reference files are Fasta (default)" << endl
 	    << "    -c                      reference sequences given on cmd line (as" << endl
-		<< "                            <reference_in>)" << endl;
+	    << "                            <reference_in>)" << endl;
 	if(wrapper == "basic-0") {
 	out << "    --large-index           force generated index to be 'large', even if ref" << endl
 		<< "                            has fewer than 4 billion nucleotides" << endl
@@ -157,7 +157,7 @@ static void printUsage(ostream& out) {
 	    << "    -3/--justref            just build .3/.4 index files" << endl
 	    << "    -o/--offrate <int>      SA is sampled every 2^<int> BWT chars (default: 5)" << endl
 	    << "    -t/--ftabchars <int>    # of chars consumed in initial lookup (default: 10)" << endl
-        << "    --threads <int>         # of threads" << endl
+	    << "    --threads <int>         # of threads" << endl
 	    //<< "    --ntoa                  convert Ns in reference to As" << endl
 	    //<< "    --big --little          endianness (default: little, this host: "
 	    //<< (currentlyBigEndian()? "big":"little") << ")" << endl
@@ -204,7 +204,7 @@ static struct option long_options[] = {
 	{(char*)"noref",        no_argument,       0,            'r'},
 	{(char*)"sa",           no_argument,       0,            ARG_SA},
 	{(char*)"reverse-each", no_argument,       0,            ARG_REVERSE_EACH},
-    {(char*)"threads",      required_argument, 0,            ARG_THREADS},
+	{(char*)"threads",      required_argument, 0,            ARG_THREADS},
 	{(char*)"usage",        no_argument,       0,            ARG_USAGE},
 	{(char*)"wrapper",      required_argument, 0,            ARG_WRAPPER},
 	{(char*)0, 0, 0, 0} // terminator
@@ -305,9 +305,9 @@ static bool parseOptions(int argc, const char **argv) {
 				doSaFile = true;
 				break;
 			case ARG_NTOA: nsToAs = true; break;
-            case ARG_THREADS:
-                nthreads = parseNumber<int>(0, "--threads arg must be at least 1");
-                break;
+			case ARG_THREADS:
+				nthreads = parseNumber<int>(0, "--threads arg must be at least 1");
+				break;
 			case 'a': autoMem = false; break;
 			case 'q': verbose = false; break;
 			case 's': sanityCheck = true; break;
@@ -345,7 +345,7 @@ static void deleteIdxFiles(
 	bool doRef,
 	bool justRef)
 {
-	
+
 	for(size_t i = 0; i < filesWritten.size(); i++) {
 		cerr << "Deleting \"" << filesWritten[i].c_str()
 		     << "\" file written during aborted indexing attempt." << endl;
@@ -423,9 +423,9 @@ static void driver(
 	}
 	if(!reverse) {
 #ifdef BOWTIE_64BIT_INDEX
-          if (verbose) cerr << "Building a LARGE index" << endl;
+		if (verbose) cerr << "Building a LARGE index" << endl;
 #else
-          if (verbose) cerr << "Building a SMALL index" << endl;
+		if (verbose) cerr << "Building a SMALL index" << endl;
 #endif
 	}
 	// Vector for the ordered list of "records" comprising the input
@@ -455,11 +455,11 @@ static void driver(
 		TStr(),
 		packed,
 		0,
-		1,  // TODO: maybe not?
+		1,            // TODO: maybe not?
 		lineRate,
 		offRate,      // suffix-array sampling rate
 		ftabChars,    // number of chars in initial arrow-pair calc
-              nthreads,
+		nthreads,     // number of threads
 		outfile,      // basename for .?.ebwt files
 		reverse == 0, // fw
 		!entireSA,    // useBlockwise
@@ -523,6 +523,7 @@ static void driver(
 
         for (size_t i = 0; i < is.size(); ++i) {
 		if (is[i] != NULL) {
+			is[i]->close();
 			delete is[i];
 		}
         }
@@ -621,11 +622,11 @@ int bowtie_build(int argc, const char **argv) {
 			cout << "  Endianness: " << (bigEndian? "big":"little") << endl
 				 << "  Actual local endianness: " << (currentlyBigEndian()? "big":"little") << endl
 				 << "  Sanity checking: " << (sanityCheck? "enabled":"disabled") << endl;
-	#ifdef NDEBUG
+#ifdef NDEBUG
 			cout << "  Assertions: disabled" << endl;
-	#else
+#else
 			cout << "  Assertions: enabled" << endl;
-	#endif
+#endif
 			cout << "  Random seed: " << seed << endl;
 			cout << "  Sizeofs: void*:" << sizeof(void*) << ", int:" << sizeof(int) << ", long:" << sizeof(long) << ", size_t:" << sizeof(size_t) << endl;
 			cout << "Input files DNA, " << file_format_names[format].c_str() << ":" << endl;
