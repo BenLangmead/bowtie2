@@ -215,21 +215,23 @@ public:
 ,thread_group_started(false)
 #endif
     { _randomSrc.init(__seed); reset(); }
-    
+
     ~KarkkainenBlockwiseSA() throw()
     {
 #ifdef WITH_TBB
-		    tbb_grp.wait();
+	    tbb_grp.wait();
 #else
-        if(_threads.size() > 0) {
-            for (size_t tid = 0; tid < _threads.size(); tid++) {
-                _threads[tid]->join();
-                delete _threads[tid];
-            }
-        }
+	    if(_threads.size() > 0) {
+		    for (size_t tid = 0; tid < _threads.size(); tid++) {
+			    _threads[tid]->join();
+			    delete _threads[tid];
+		    }
+	    }
 #endif
+	    if (_done != NULL)
+		    delete[] _done;
     }
-    
+
     /**
      * Allocate an amount of memory that simulates the peak memory
      * usage of the DifferenceCoverSample with the given text and v.
@@ -258,9 +260,9 @@ public:
 #else
 			if(_threads.size() == 0) {
 #endif
-                _done = std::auto_ptr<volatile bool>(new volatile bool[_sampleSuffs.size() + 1]); 
+                _done = new volatile bool[_sampleSuffs.size() + 1;
                 for (size_t i = 0; i < _sampleSuffs.size() + 1; i++) {
-                    _done.get()[i] = false;
+                    _done[i] = false;
                 }
 				_itrBuckets.resize(this->_nthreads);
 				_tparams.resize(this->_nthreads);
@@ -293,7 +295,7 @@ public:
 				nextBlock((int)_cur);
 				_cur++;
 			} else {
-				while(!_done.get()[this->_itrBucketIdx]) {
+				while(!_done[this->_itrBucketIdx]) {
 					SLEEP(1);
 				}
 				// Read suffixes from a file
@@ -373,7 +375,7 @@ public:
             }
             sa_file.close();
             sa->_itrBuckets[tid].clear();
-            sa->_done.get()[cur] = true;
+            sa->_done[cur] = true;
         }
     }
 #ifdef WITH_TBB
@@ -469,7 +471,7 @@ private:
 #endif
 	EList<pair<KarkkainenBlockwiseSA*, int> > _tparams;
 	ELList<TIndexOffU>      _itrBuckets;  /// buckets
-	std::auto_ptr<volatile bool>             _done;        /// is a block processed?
+	volatile bool *_done;        /// is a block processed?
 };
 
 
