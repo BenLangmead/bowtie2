@@ -522,10 +522,9 @@ static void driver(
 	}
 
         for (size_t i = 0; i < is.size(); ++i) {
-		if (is[i] != NULL) {
-			is[i]->close();
+		if (is[i] != NULL)
+			// FileBuf object closes file when deconstructed
 			delete is[i];
-		}
         }
 }
 
