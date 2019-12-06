@@ -260,7 +260,7 @@ public:
 #else
 			if(_threads.size() == 0) {
 #endif
-                _done = new volatile bool[_sampleSuffs.size() + 1;
+                _done = new volatile bool[_sampleSuffs.size() + 1];
                 for (size_t i = 0; i < _sampleSuffs.size() + 1; i++) {
                     _done[i] = false;
                 }
