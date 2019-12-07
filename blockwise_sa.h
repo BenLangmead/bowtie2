@@ -199,18 +199,27 @@ class KarkkainenBlockwiseSA : public InorderBlockwiseSA<TStr> {
 public:
 	typedef DifferenceCoverSample<TStr> TDC;
 
-    KarkkainenBlockwiseSA(const TStr& __text,
-                          TIndexOffU __bucketSz,
-                          int __nthreads,
-                          uint32_t __dcV,
-                          uint32_t __seed = 0,
-                          bool __sanityCheck = false,
-                          bool __passMemExc = false,
-                          bool __verbose = false,
-                          string base_fname = "",
-                          ostream& __logger = cout) :
-    InorderBlockwiseSA<TStr>(__text, __bucketSz, __sanityCheck, __passMemExc, __verbose, __logger),
-    _sampleSuffs(EBWTB_CAT), _nthreads(__nthreads), _itrBucketIdx(0), _cur(0), _dcV(__dcV), _dc(EBWTB_CAT), _built(false), _base_fname(base_fname), _bigEndian(currentlyBigEndian())
+	KarkkainenBlockwiseSA(const TStr& __text,
+			      TIndexOffU __bucketSz,
+			      int __nthreads,
+			      uint32_t __dcV,
+			      uint32_t __seed = 0,
+			      bool __sanityCheck = false,
+			      bool __passMemExc = false,
+			      bool __verbose = false,
+			      string base_fname = "",
+			      ostream& __logger = cout) :
+		InorderBlockwiseSA<TStr>(__text, __bucketSz, __sanityCheck, __passMemExc, __verbose, __logger),
+		_sampleSuffs(EBWTB_CAT),
+		_nthreads(__nthreads),
+		_itrBucketIdx(0),
+		_cur(0),
+		_dcV(__dcV),
+		_dc(EBWTB_CAT),
+		_built(false),
+		_base_fname(base_fname),
+		_bigEndian(currentlyBigEndian()),
+		_done(NULL)
 #ifdef WITH_TBB
 ,thread_group_started(false)
 #endif
