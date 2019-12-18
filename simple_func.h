@@ -50,7 +50,7 @@ public:
 	SimpleFunc(int type, double I, double X, double C, double L) {
 		init(type, I, X, C, L);
 	}
-	
+
 	void init(int type, double I, double X, double C, double L) {
 		type_ = type; I_ = I; X_ = X; C_ = C; L_ = L;
 	}
@@ -60,7 +60,7 @@ public:
 		I_ = -std::numeric_limits<double>::max();
 		X_ = std::numeric_limits<double>::max();
 	}
-	
+
 	void setType (int type ) { type_ = type; }
 	void setMin  (double mn) { I_ = mn; }
 	void setMax  (double mx) { X_ = mx; }
@@ -72,20 +72,20 @@ public:
 	double getMax  () const { return X_; }
 	double getConst() const { return C_; }
 	double getCoeff() const { return L_; }
-	
+
 	void mult(double x) {
 		if(I_ < std::numeric_limits<double>::max()) {
 			I_ *= x; X_ *= x; C_ *= x; L_ *= x;
 		}
 	}
-	
+
 	bool initialized() const { return type_ != 0; }
 	void reset() { type_ = 0; }
-	
+
 	bool alwaysPositive() const {
-		return f<int>(1.0) > 0 && (SIMPLE_FUNC_CONST || L_ >= 0.0);
+		return f<double>(1.0) > 0 && (SIMPLE_FUNC_CONST || L_ >= 0.0);
 	}
-	
+
 	template<typename T>
 	T f(double x) const {
 		assert(type_ >= SIMPLE_FUNC_CONST && type_ <= SIMPLE_FUNC_LOG);
@@ -110,9 +110,9 @@ public:
 			return (T)ret;
 		}
 	}
-	
+
 	static int parseType(const std::string& otype);
-	
+
 	static SimpleFunc parse(
 		const std::string& s,
 		double defaultConst = 0.0,
