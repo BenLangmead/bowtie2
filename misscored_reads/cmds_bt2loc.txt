@@ -4,10 +4,10 @@
 #   --fast-local           -D 10 -R 2 -N 0 -L 22 -i S,1,1.75
 #   --sensitive-local      -D 15 -R 2 -N 0 -L 20 -i S,1,0.75 (default)
 #   --very-sensitive-local -D 20 -R 3 -N 0 -L 20 -i S,1,0.50
-def0_fl   ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 --fast-local --reorder -p 8 -U
-def0_sl   ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 --sensitive-local --reorder -p 8 -U
-def0_vsl  ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 --very-sensitive-local --reorder -p 8 -U
 def0_vfl  ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 --very-fast-local --reorder -p 8 -U
+def1_fl   ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 --fast-local --reorder -p 8 -U
+def2_sl   ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 --sensitive-local --reorder -p 8 -U
+def3_vsl  ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 --very-sensitive-local --reorder -p 8 -U
 slL20     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 2 -N 0 -L 20 -i S,1,0.75 --local --reorder -p 8 -U
 slL22     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 2 -N 0 -L 22 -i S,1,0.75 --local --reorder -p 8 -U
 slL24     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 2 -N 0 -L 24 -i S,1,0.75 --local --reorder -p 8 -U
