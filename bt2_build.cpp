@@ -266,6 +266,10 @@ static bool parseOptions(int argc, const char **argv) {
 				break;
 			case 't':
 				ftabChars = parseNumber<int>(1, "-t/--ftabChars arg must be at least 1");
+				if (ftabChars > 16) {
+					std::cerr << "-t/--ftabChars arg must not exceed 16" << std::endl;
+					throw 1;
+				}
 				break;
 			case 'n':
 				// all f-s is used to mean "not set", so put 'e' on end
