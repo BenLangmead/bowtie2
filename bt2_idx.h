@@ -443,13 +443,11 @@ inline static int pop64(uint64_t x) {
 #endif
 
 #ifdef POPCNT_CAPABILITY
-    struct USE_POPCNT_INSTRUCTION {
-        inline static int pop64(uint64_t x) {
-            int64_t count;
-            asm ("popcnt %[x],%[count]\n": [count] "=&r" (count): [x] "r" (x));
-            return count;
-        }
-    };
+struct USE_POPCNT_INSTRUCTION {
+	inline static int pop64(uint64_t x) {
+		return __builtin_popcountll(x);
+	}
+};
 #endif
 
 /**
