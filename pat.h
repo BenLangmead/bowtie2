@@ -49,8 +49,6 @@
 
 #ifdef _WIN32
 #define getc_unlocked _fgetc_nolock
-#define feof_unlocked feof
-#define ferror_unlocked ferror
 #endif
 
 /**

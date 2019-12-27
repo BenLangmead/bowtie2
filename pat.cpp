@@ -1248,13 +1248,13 @@ bool BAMPatternSource::parse_bam_header() {
 
 uint16_t BAMPatternSource::nextBGZFBlockFromFile(BGZF& b) {
 	size_t r = fread(&b.hdr, sizeof(b.hdr), 1, fp_);
-	if ((r == 0 && ferror_unlocked(fp_)) || feof_unlocked(fp_)) {
+	if ((r == 0 && ferror(fp_)) || feof(fp_)) {
 		return 0;
 	}
 
 	uint8_t *extra = new uint8_t[b.hdr.xlen];
 	r = fread(extra, b.hdr.xlen, 1, fp_);
-	if (r == 0 && ferror_unlocked(fp_)) {
+	if (r == 0 && ferror(fp_)) {
 		return 0;
 	}
 
@@ -1285,12 +1285,12 @@ uint16_t BAMPatternSource::nextBGZFBlockFromFile(BGZF& b) {
 	}
 
 	r = fread(b.cdata, bsize, 1, fp_);
-	if (r == 0 && ferror_unlocked(fp_)) {
+	if (r == 0 && ferror(fp_)) {
 		return 0;
 	}
 
 	r = fread(&b.ftr, sizeof b.ftr, 1, fp_);
-	if (r == 0 && ferror_unlocked(fp_)) {
+	if (r == 0 && ferror(fp_)) {
 		return 0;
 	}
 
