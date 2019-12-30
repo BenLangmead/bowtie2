@@ -862,9 +862,6 @@ protected:
 	bool first_; // parsing first read in file
 
 private:
-
-	bool parse_bam_header();
-
 	virtual std::pair<bool, int> nextBatchFromFile(PerThreadReadBuf&, bool, unsigned) {
 		return make_pair(true, 0);
 	}
