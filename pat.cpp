@@ -31,6 +31,7 @@
 #include "filebuf.h"
 #include "formats.h"
 #include "util.h"
+#include "str_util.h"
 #include "tokenize.h"
 
 using namespace std;
@@ -1319,13 +1320,6 @@ std::pair<bool, int> BAMPatternSource::nextBatch(PerThreadReadBuf& pt, bool batc
 			}
 
 			if (cdata_len == 0) {
-				if (lock) {
-					ThreadSafe ts(orphan_mates_mutex_);
-					get_orphaned_pairs(pt.bufa_, pt.bufb_, pt.max_buf_, nread);
-				} else {
-					get_orphaned_pairs(pt.bufa_, pt.bufb_, pt.max_buf_, nread);
-				}
-
 				done = nread == 0;
 				break;
 			}
@@ -1401,13 +1395,11 @@ std::pair<bool, int> BAMPatternSource::get_alignments(PerThreadReadBuf& pt, bool
 		{
 			if (lock) {
 				ThreadSafe ts(orphan_mates_mutex_);
-				store_orphan_mate(&bam_batches_[pt.tid_][0] + i, block_size);
+				get_or_store_orhaned_mate(pt.bufa_, pt.bufb_, readi, &bam_batches_[pt.tid_][0] + i, block_size);
 				i += block_size;
-				get_orphaned_pairs(pt.bufa_, pt.bufb_, pt.max_buf_, readi);
 			} else {
-				store_orphan_mate(&bam_batches_[pt.tid_][0] + i, block_size);
+				get_or_store_orhaned_mate(pt.bufa_, pt.bufb_, readi, &bam_batches_[pt.tid_][0] + i, block_size);
 				i += block_size;
-				get_orphaned_pairs(pt.bufa_, pt.bufb_, pt.max_buf_, readi);
 			}
 
 		} else {
@@ -1417,43 +1409,12 @@ std::pair<bool, int> BAMPatternSource::get_alignments(PerThreadReadBuf& pt, bool
 			i += block_size;
 
 			read1 = !read1;
-			readi = (pp_.align_paired_reads
-					 && pt.bufb_[readi].readOrigBuf.length() == 0) ? readi : readi + 1;
+			readi = (pp_.align_paired_reads &&
+				 pt.bufb_[readi].readOrigBuf.length() == 0) ? readi : readi + 1;
 		}
 	}
 
 	return make_pair(done, readi);
-}
-
-void BAMPatternSource::store_orphan_mate(const uint8_t* r, size_t read_len) {
-	uint8_t flag;
-	memcpy(&flag, r + offset[BAMField::flag], sizeof(flag));
-
-	std::vector<orphan_mate_t>&
-		orphan_mates = (flag & 0x40) != 0 ? orphan_mate1s : orphan_mate2s;
-
-	size_t i;
-	for (i = 0; i < orphan_mates.size() && !orphan_mates[i].empty(); ++i) ;
-
-	if (i == orphan_mates.size()) {
-		orphan_mates.resize(orphan_mates.size() * 2);
-	}
-
-	orphan_mate_t& mate = orphan_mates[i];
-
-	if (mate.data == NULL || mate.cap < read_len) {
-		mate.data = new uint8_t[read_len];
-		mate.cap = read_len;
-	}
-
-	if (mate.cap < read_len) {
-		mate.data = new uint8_t[read_len];
-		mate.cap = read_len;
-	}
-
-	mate.size = read_len;
-
-	memcpy(mate.data, r, read_len);
 }
 
 int BAMPatternSource::compare_read_names(const void* m1, const void* m2) {
@@ -1481,38 +1442,55 @@ bool BAMPatternSource::compare_read_names2(const orphan_mate_t& m1, const orphan
 	return strcmp(r1, r2);
 }
 
-void BAMPatternSource::get_orphaned_pairs(EList<Read>& buf_a, EList<Read>& buf_b, const size_t max_buf, unsigned& readi) {
-	std::sort(orphan_mate1s.begin(), orphan_mate1s.end(), &BAMPatternSource::compare_read_names2);
-	std::sort(orphan_mate2s.begin(), orphan_mate2s.end(), &BAMPatternSource::compare_read_names2);
+void BAMPatternSource::get_or_store_orhaned_mate(EList<Read>& buf_a, EList<Read>& buf_b, unsigned& readi, const uint8_t *mate, size_t mate_len) {
+	const char *read_name =
+		(const char *)(mate + offset[BAMField::read_name]);
+	size_t i;
+	uint32_t hash = hash_str(read_name);
+	orphan_mate_t *empty_slot = NULL;
 
-	size_t lim1, lim2;
-	for (lim1 = 0; lim1 < orphan_mate1s.size() && !orphan_mate1s[lim1].empty(); lim1++) ;
-	for (lim2 = 0; lim2 < orphan_mate2s.size() && !orphan_mate2s[lim2].empty(); lim2++) ;
-
-	if (lim2 == 0) {
-		return;
+	for (i = 0; i < orphan_mates.size(); i++) {
+		if (empty_slot == NULL && orphan_mates[i].empty())
+			empty_slot = &orphan_mates[i];
+		if (orphan_mates[i].hash == hash)
+			break;
 	}
-
-	for (size_t i = 0; i < lim1 && readi < max_buf; ++i) {
-		orphan_mate_t* mate1 = &orphan_mate1s[i];
-		orphan_mate_t* mate2 = (orphan_mate_t*)bsearch(mate1, &orphan_mate2s[0], lim2,
-		                            sizeof(orphan_mate2s[0]), compare_read_names);
-
-		if (mate2 != NULL) {
-			Read& ra = buf_a[readi];
-			Read& rb = buf_b[readi];
-
-			ra.readOrigBuf.resize(mate1->size);
-			rb.readOrigBuf.resize(mate2->size);
-
-			memcpy(ra.readOrigBuf.wbuf(), mate1->data, mate1->size);
-			memcpy(rb.readOrigBuf.wbuf(), mate2->data, mate2->size);
-
-			mate1->reset();
-			mate2->reset();
-
-			readi++;
+	if (i == orphan_mates.size()) {
+		// vector is full
+		if (empty_slot == NULL) {
+			orphan_mates.push_back(orphan_mate_t());
+			empty_slot = &orphan_mates.back();
 		}
+		empty_slot->hash = hash;
+		if (empty_slot->cap < mate_len) {
+			delete[] empty_slot->data;
+			empty_slot->data = NULL;
+		}
+		if (empty_slot->data == NULL) {
+			empty_slot->data = new uint8_t[mate_len];
+			empty_slot->cap = mate_len;
+		}
+		memcpy(empty_slot->data, mate, mate_len);
+		empty_slot->size = mate_len;
+	} else {
+		uint8_t flag;
+		Read& ra = buf_a[readi];
+		Read& rb = buf_b[readi];
+
+		memcpy(&flag, mate + offset[BAMField::flag], sizeof(flag));
+		if ((flag & 0x40) != 0) {
+			ra.readOrigBuf.resize(mate_len);
+			memcpy(ra.readOrigBuf.wbuf(), mate, mate_len);
+			rb.readOrigBuf.resize(orphan_mates[i].size);
+			memcpy(rb.readOrigBuf.wbuf(), orphan_mates[i].data, orphan_mates[i].size);
+		} else {
+			rb.readOrigBuf.resize(mate_len);
+			memcpy(rb.readOrigBuf.wbuf(), mate, mate_len);
+			ra.readOrigBuf.resize(orphan_mates[i].size);
+			memcpy(ra.readOrigBuf.wbuf(), orphan_mates[i].data, orphan_mates[i].size);
+		}
+		readi++;
+		orphan_mates[i].reset();
 	}
 }
 

@@ -21,6 +21,7 @@
 #define PAT_H_
 
 #include <stdio.h>
+#include <stdint.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <zlib.h>
@@ -126,7 +127,7 @@ struct PatternParams {
  * All per-thread storage for input read data.
  */
 struct PerThreadReadBuf {
-	
+
 	PerThreadReadBuf(size_t max_buf, int tid) :
 		max_buf_(max_buf),
 		bufa_(max_buf),
@@ -138,13 +139,13 @@ struct PerThreadReadBuf {
 		bufb_.resize(max_buf);
 		reset();
 	}
-	
+
 	Read& read_a() { return bufa_[cur_buf_]; }
 	Read& read_b() { return bufb_[cur_buf_]; }
-	
+
 	const Read& read_a() const { return bufa_[cur_buf_]; }
 	const Read& read_b() const { return bufb_[cur_buf_]; }
-	
+
 	/**
 	 * Return read id for read/pair currently in the buffer.
 	 */
@@ -152,7 +153,7 @@ struct PerThreadReadBuf {
 		assert_neq(rdid_, std::numeric_limits<TReadId>::max());
 		return rdid_ + cur_buf_;
 	}
-	
+
 	/**
 	 * Reset state as though no reads have been read.
 	 */
@@ -164,7 +165,7 @@ struct PerThreadReadBuf {
 		}
 		rdid_ = std::numeric_limits<TReadId>::max();
 	}
-	
+
 	/**
 	 * Advance cursor to next element
 	 */
@@ -172,7 +173,7 @@ struct PerThreadReadBuf {
 		assert_lt(cur_buf_, bufa_.size());
 		cur_buf_++;
 	}
-	
+
 	/**
 	 * Return true when there's nothing left for next().
 	 */
@@ -180,7 +181,7 @@ struct PerThreadReadBuf {
 		assert_leq(cur_buf_, bufa_.size());
 		return cur_buf_ >= bufa_.size()-1 || bufa_[cur_buf_+1].readOrigBuf.empty();
 	}
-	
+
 	/**
 	 * Just after a new batch has been loaded, use init to
 	 * set cur_buf_ appropriately.
@@ -188,14 +189,14 @@ struct PerThreadReadBuf {
 	void init() {
 		cur_buf_ = 0;
 	}
-	
+
 	/**
 	 * Set read id of first read in buffer.
 	 */
 	void setReadId(TReadId rdid) {
 		rdid_ = rdid;
 	}
-	
+
 	const size_t max_buf_; // max # reads to read into buffer at once
 	EList<Read> bufa_;	   // Read buffer for mate as
 	EList<Read> bufb_;	   // Read buffer for mate bs
@@ -216,16 +217,16 @@ extern void tooManyQualities(const BTString& read_name);
  * calls to lock() and unlock().
  */
 class PatternSource {
-	
+
 public:
-	
+
 	PatternSource(const PatternParams& p) :
 		pp_(p),
 		readCnt_(0),
 		mutex() { }
-	
+
 	virtual ~PatternSource() { }
-	
+
 	/**
 	 * Implementation to be provided by concrete subclasses.  An
 	 * implementation for this member is only relevant for formats
@@ -237,17 +238,17 @@ public:
 		PerThreadReadBuf& pt,
 		bool batch_a,
 		bool lock = true) = 0;
-	
+
 	/**
 	 * Finishes parsing a given read.  Happens outside the critical section.
 	 */
 	virtual bool parse(Read& ra, Read& rb, TReadId rdid) const = 0;
-	
+
 	/**
 	 * Reset so that next call to nextBatch* gets the first batch.
 	 */
 	virtual void reset() { readCnt_ = 0; }
-	
+
 	/**
 	 * Return a new dynamically allocated PatternSource for the given
 	 * format, using the given list of strings as the filenames to read
@@ -256,21 +257,21 @@ public:
 	static PatternSource* patsrcFromStrings(
 		const PatternParams& p,
 		const EList<std::string>& qs);
-	
+
 	/**
 	 * Return number of reads light-parsed by this stream so far.
 	 */
 	TReadId readCount() const { return readCnt_; }
-	
+
 protected:
-	
-	
+
+
 	// Reference to global input-parsing parameters
 	const PatternParams& pp_;
-	
+
 	// The number of reads read by this PatternSource
 	volatile TReadId readCnt_;
-	
+
 	// Lock enforcing mutual exclusion for (a) file I/O, (b) writing fields
 	// of this or another other shared object.
 	MUTEX_T mutex;
@@ -290,9 +291,9 @@ public:
 	VectorPatternSource(
 		const EList<std::string>& v,
 		const PatternParams& p);
-	
+
 	virtual ~VectorPatternSource() { }
-	
+
 	/**
 	 * Read next batch.  However, batch concept is not very applicable for this
 	 * PatternSource where all the info has already been parsed into the fields
@@ -303,7 +304,7 @@ public:
 		PerThreadReadBuf& pt,
 		bool batch_a,
 		bool lock = true);
-	
+
 	/**
 	 * Reset so that next call to nextBatch* gets the first batch.
 	 */
@@ -317,7 +318,7 @@ public:
 	 * Finishes parsing outside the critical section
 	 */
 	virtual bool parse(Read& ra, Read& rb, TReadId rdid) const;
-	
+
 private:
 
 	pair<bool, int> nextBatchImpl(
@@ -388,7 +389,7 @@ public:
 		PerThreadReadBuf& pt,
 		bool batch_a,
 		bool lock = true);
-	
+
 	/**
 	 * Reset so that next call to nextBatch* gets the first batch.
 	 * Should only be called by the master thread.
@@ -415,7 +416,7 @@ protected:
 	 * Reset state to handle a fresh file
 	 */
 	virtual void resetForNextFile() { }
-	
+
 	/**
 	 * Open the next file in the list of input files.
 	 */
@@ -615,7 +616,7 @@ public:
 	virtual bool parse(Read& ra, Read& rb, TReadId rdid) const;
 
 protected:
-	
+
 	/**
 	 * Light-parse a batch into the given buffer.
 	 */
@@ -669,7 +670,7 @@ protected:
 		PerThreadReadBuf& pt,
 		bool batch_a,
 		unsigned read_idx);
-	
+
 	/**
 	 * Reset state to be read for the next file.
 	 */
@@ -773,10 +774,12 @@ class BAMPatternSource : public CFilePatternSource {
 		orphan_mate_t() :
 			data(NULL),
 			size(0),
-			cap(0) {}
+			cap(0),
+			hash(0) {}
 
 		void reset() {
 			size = 0;
+			hash = 0;
 		}
 
 		bool empty() const {
@@ -786,6 +789,7 @@ class BAMPatternSource : public CFilePatternSource {
 		uint8_t* data;
 		uint16_t size;
 		uint16_t cap;
+		uint32_t hash;
 	};
 
 	struct BAMField {
@@ -815,8 +819,7 @@ public:
 		blocks_(p.nthreads),
 		bam_batches_(p.nthreads),
 		bam_batch_indexes_(p.nthreads),
-		orphan_mate1s(p.nthreads * 2),
-		orphan_mate2s(p.nthreads * 2),
+		orphan_mates(p.nthreads * 2),
 		orphan_mates_mutex_(),
 		pp_(p) {
 			// uncompressed size of BGZF block is limited to 2**16 bytes
@@ -836,16 +839,9 @@ public:
 	virtual bool parse(Read& ra, Read& rb, TReadId rdid) const;
 
 	~BAMPatternSource() {
-		// only temporary until c++11
-		for (size_t i = 0; i < orphan_mate1s.size(); i++) {
-			if (orphan_mate1s[i].data != NULL) {
-				delete[] orphan_mate1s[i].data;
-			}
-		}
-
-		for (size_t i = 0; i < orphan_mate2s.size(); i++) {
-			if (orphan_mate2s[i].data != NULL) {
-				delete[] orphan_mate2s[i].data;
+		for (size_t i = 0; i < orphan_mates.size(); i++) {
+			if (orphan_mates[i].data != NULL) {
+				delete[] orphan_mates[i].data;
 			}
 		}
 	}
@@ -875,17 +871,12 @@ private:
 	}
 
 	int decompress_bgzf_block(uint8_t *dst, size_t dst_len, uint8_t *src, size_t src_len);
-
 	std::pair<bool, int> get_alignments(PerThreadReadBuf& pt, bool batch_a, unsigned& readi, bool lock);
-
 	void store_orphan_mate(const uint8_t* read, size_t read_len);
-
 	void get_orphaned_pairs(EList<Read>& buf_a, EList<Read>& buf_b, const size_t max_buf, unsigned& readi);
-
+	void get_or_store_orhaned_mate(EList<Read>& buf_a, EList<Read>& buf_b, unsigned& readi, const uint8_t *mate, size_t mate_len);
 	size_t get_matching_read(const uint8_t* rec);
-
 	static int compare_read_names(const void* m1, const void* m2);
-
 	static bool compare_read_names2(const orphan_mate_t& m1, const orphan_mate_t& m2);
 
 	static const int offset[];
@@ -895,8 +886,7 @@ private:
 	std::vector<std::vector<uint8_t> > bam_batches_;
 	std::vector<size_t> bam_batch_indexes_;
 
-	std::vector<orphan_mate_t> orphan_mate1s;
-	std::vector<orphan_mate_t> orphan_mate2s;
+	std::vector<orphan_mate_t> orphan_mates;
 	MUTEX_T orphan_mates_mutex_;
 
 	PatternParams pp_;
@@ -935,16 +925,16 @@ protected:
 		PerThreadReadBuf& pt,
 		bool batch_a,
 		unsigned read_idx);
-	
+
 	/**
 	 * Reset state to be ready for the next file.
 	 */
 	virtual void resetForNextFile() {
 		first_ = true;
 	}
-	
+
 private:
-	
+
 	bool first_;
 };
 
@@ -955,21 +945,21 @@ private:
 class PatternComposer {
 public:
 	PatternComposer(const PatternParams& p) : mutex_m() { }
-	
+
 	virtual ~PatternComposer() { }
-	
+
 	virtual void reset() = 0;
-	
+
 	/**
 	 * Member function override by concrete, format-specific classes.
 	 */
 	virtual std::pair<bool, int> nextBatch(PerThreadReadBuf& pt) = 0;
-	
+
 	/**
 	 * Make appropriate call into the format layer to parse individual read.
 	 */
 	virtual bool parse(Read& ra, Read& rb, TReadId rdid) = 0;
-	
+
 	/**
 	 * Given the values for all of the various arguments used to specify
 	 * the read and quality input, create a list of pattern sources to
@@ -988,11 +978,11 @@ public:
 #endif
 		PatternParams& p,		// read-in params
 		bool verbose);				// be talkative?
-	
+
 protected:
-	
+
 	static void free_EList_pmembers(const EList<PatternSource*>&);
-	
+
 	/// Lock enforcing mutual exclusion for (a) file I/O, (b) writing fields
 	/// of this or another other shared object.
 	MUTEX_T mutex_m;
@@ -1003,9 +993,9 @@ protected:
  * unpaired reads, where the paired-end must come from parallel files.
  */
 class SoloPatternComposer : public PatternComposer {
-	
+
 public:
-	
+
 	SoloPatternComposer(
 		const EList<PatternSource*>* src,
 		const PatternParams& p) :
@@ -1018,12 +1008,12 @@ public:
 			assert((*src_)[i] != NULL);
 		}
 	}
-	
+
 	virtual ~SoloPatternComposer() {
 		free_EList_pmembers(*src_);
 		delete src_;
 	}
-	
+
 	/**
 	 * Reset this object and all the PatternSources under it so that
 	 * the next call to nextBatch gets the very first read.
@@ -1034,7 +1024,7 @@ public:
 		}
 		cur_ = 0;
 	}
-	
+
 	/**
 	 * Calls member functions of the individual PatternSource objects
 	 * to get more reads.  Since there's no need to keep two separate
@@ -1061,9 +1051,9 @@ protected:
  * unpaired reads, where the paired-end must come from parallel files.
  */
 class DualPatternComposer : public PatternComposer {
-	
+
 public:
-	
+
 	DualPatternComposer(
 		const EList<PatternSource*>* srca,
 		const EList<PatternSource*>* srcb,
@@ -1084,14 +1074,14 @@ public:
 			}
 		}
 	}
-	
+
 	virtual ~DualPatternComposer() {
 		free_EList_pmembers(*srca_);
 		delete srca_;
 		free_EList_pmembers(*srcb_);
 		delete srcb_;
 	}
-	
+
 	/**
 	 * Reset this object and all the PatternSources under it so that
 	 * the next call to nextBatch gets the very first read.
@@ -1105,7 +1095,7 @@ public:
 		}
 		cur_ = 0;
 	}
-	
+
 	/**
 	 * Calls member functions of the individual PatternSource objects
 	 * to get more reads.  Since we need to keep the two separate
@@ -1123,7 +1113,7 @@ public:
 	}
 
 protected:
-	
+
 	volatile size_t cur_; // current element in parallel srca_, srcb_ vectors
 	const EList<PatternSource*>* srca_; // for 1st matesunpaired
 	const EList<PatternSource*>* srcb_; // for 2nd mates
@@ -1137,9 +1127,9 @@ protected:
  * is thread-safe.
  */
 class PatternSourcePerThread {
-	
+
 public:
-	
+
 	PatternSourcePerThread(
 		PatternComposer& composer,
 		const PatternParams& pp, int tid) :
@@ -1148,21 +1138,21 @@ public:
 		pp_(pp),
 		last_batch_(false),
 		last_batch_size_(0) { }
-	
+
 	/**
 	 * Use objects in the PatternSource and/or PatternComposer
 	 * hierarchies to populate the per-thread buffers.
 	 */
 	std::pair<bool, bool> nextReadPair();
-	
+
 	Read& read_a() { return buf_.read_a(); }
 	Read& read_b() { return buf_.read_b(); }
-	
+
 	const Read& read_a() const { return buf_.read_a(); }
 	const Read& read_b() const { return buf_.read_b(); }
-	
+
 private:
-	
+
 	/**
 	 * When we've finished fully parsing and dishing out reads in
 	 * the current batch, we go get the next one by calling into
@@ -1174,7 +1164,7 @@ private:
 		buf_.init();
 		return res;
 	}
-	
+
 	/**
 	 * Once name/sequence/qualities have been parsed for an
 	 * unpaired read, set all the other key fields of the Read
@@ -1188,7 +1178,7 @@ private:
 	 * structs.
 	 */
 	void finalizePair(Read& ra, Read& rb);
-	
+
 	/**
 	 * Call into composition layer (which in turn calls into
 	 * format layer) to parse the read.
