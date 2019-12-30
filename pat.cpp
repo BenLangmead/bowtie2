@@ -1306,7 +1306,7 @@ std::pair<bool, int> BAMPatternSource::nextBatch(PerThreadReadBuf& pt, bool batc
 
 	do {
 		if (bam_batch_indexes_[pt.tid_] >= bam_batches_[pt.tid_].size()) {
-			BGZF& block = blocks_[pt.tid_];
+			BGZF block;
 			std::vector<uint8_t>& batch = bam_batches_[pt.tid_];
 			if (lock) {
 				ThreadSafe ts(mutex);
