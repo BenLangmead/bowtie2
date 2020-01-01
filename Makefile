@@ -21,8 +21,8 @@
 # Makefile for bowtie, bowtie2-build, bowtie2-inspect
 #
 
-prefix := /usr/local
-bindir := $(prefix)/bin
+PREFIX := /usr/local
+bindir := $(PREFIX)/bin
 
 LDLIBS := -lz
 GCC_PREFIX := $(shell dirname `which gcc`)
@@ -30,7 +30,7 @@ GCC_SUFFIX :=
 CC ?= $(GCC_PREFIX)/gcc$(GCC_SUFFIX)
 CPP ?= $(GCC_PREFIX)/g++$(GCC_SUFFIX)
 CXX ?= $(CPP)
-CXXFLAGS += -std=c++98
+
 ifeq (aarch64,$(shell uname -m))
 	CXXFLAGS += -fopenmp-simd
 	CPPFLAGS += -Ithird_party/simde
