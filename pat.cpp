@@ -197,7 +197,7 @@ pair<bool, int> SoloPatternComposer::nextBatch(PerThreadReadBuf& pt) {
 			res = (*src_)[cur]->nextBatch(
 				pt,
 				true,  // batch A (or pairs)
-				true); // grab lock below
+				lock_); // grab lock below
 		} while(!res.first && res.second == 0);
 		if(res.second == 0) {
 			ThreadSafe ts(mutex_m);
@@ -227,7 +227,7 @@ pair<bool, int> DualPatternComposer::nextBatch(PerThreadReadBuf& pt) {
 			pair<bool, int> res = (*srca_)[cur]->nextBatch(
 				pt,
 				true,  // batch A (or pairs)
-				true); // grab lock below
+				lock_); // grab lock below
 			if(res.second == 0 && cur < srca_->size() - 1) {
 				ThreadSafe ts(mutex_m);
 				if(cur + 1 > cur_) cur_++;
@@ -1244,12 +1244,17 @@ std::pair<bool, int> BAMPatternSource::nextBatch(PerThreadReadBuf& pt, bool batc
 			if (lock) {
 				ThreadSafe ts(mutex);
 				if (first_) {
+                                        // parse the BAM header;
 					nextBGZFBlockFromFile(block);
-                                        // parse_bam_header();
 					first_ = false;
 				}
 				cdata_len = nextBGZFBlockFromFile(block);
 			} else {
+				if (first_) {
+					// parse the BAM header
+					nextBGZFBlockFromFile(block);
+					first_ = false;
+				}
 				cdata_len = nextBGZFBlockFromFile(block);
 			}
 			if (cdata_len == 0) {

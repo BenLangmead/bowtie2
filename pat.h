@@ -998,6 +998,7 @@ public:
 		src_(src)
 	{
 		assert(src_ != NULL);
+		lock_ = p.nthreads > 1;
 		for(size_t i = 0; i < src_->size(); i++) {
 			assert((*src_)[i] != NULL);
 		}
@@ -1036,6 +1037,7 @@ public:
 	}
 
 protected:
+	volatile bool lock_;
 	volatile size_t cur_; // current element in parallel srca_, srcb_ vectors
 	const EList<PatternSource*>* src_; /// PatternSources for paired-end reads
 };
@@ -1058,6 +1060,7 @@ public:
 		assert(srcb_ != NULL);
 		// srca_ and srcb_ must be parallel
 		assert_eq(srca_->size(), srcb_->size());
+		lock_ = p.nthreads > 1;
 		for(size_t i = 0; i < srca_->size(); i++) {
 			// Can't have NULL first-mate sources.	Second-mate sources
 			// can be NULL, in the case when the corresponding first-
@@ -1108,6 +1111,7 @@ public:
 
 protected:
 
+	volatile bool lock_;
 	volatile size_t cur_; // current element in parallel srca_, srcb_ vectors
 	const EList<PatternSource*>* srca_; // for 1st matesunpaired
 	const EList<PatternSource*>* srcb_; // for 2nd mates
