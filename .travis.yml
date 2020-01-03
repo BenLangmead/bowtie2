@@ -1,5 +1,4 @@
 sudo: required
-dist: bionic
 language: cpp
 branches:
   only:
@@ -19,6 +18,8 @@ matrix:
             - ubuntu-toolchain-r-test
           packages:
             - g++-4.9
+            - libtbb-dev
+            - zlib1g-dev
       env:
         - MATRIX_EVAL="CC=gcc-4.9 && CXX=g++-4.9"
     - os: linux
@@ -28,6 +29,8 @@ matrix:
             - ubuntu-toolchain-r-test
           packages:
             - g++-8
+            - libtbb-dev
+            - zlib1g-dev
       env:
         - MATRIX_EVAL="CC=gcc-8 && CXX=g++-8 && CXXFLAGS='-fuse-ld=gold'"
     - os: linux
@@ -37,6 +40,8 @@ matrix:
             - llvm-toolchain-trusty-5.0
           packages:
             - clang-5.0
+            - libtbb-dev
+            - zlib1g-dev
       env:
         - MATRIX_EVAL="CC=clang-5.0 && CXX=clang++-5.0"
     # aarch64 - ARM 64-bit
