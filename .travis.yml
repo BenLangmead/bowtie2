@@ -33,18 +33,16 @@ matrix:
             - zlib1g-dev
       env:
         - MATRIX_EVAL="CC=gcc-8 && CXX=g++-8 && CXXFLAGS='-fuse-ld=gold'"
-    - os: linux
+    - os: osx
+      osx_image: xcode11.3
+      compiler: clang
       addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-            - llvm-toolchain-trusty-5.0
+        homebrew:
           packages:
-            - clang-5.0
-            - libtbb-dev
-            - zlib1g-dev
+          - tbb
+          update: true
       env:
-        - MATRIX_EVAL="CC=clang-5.0 && CXX=clang++-5.0"
+        - MATRIX_EVAL="CC=clang && CXX=clang++"
     # aarch64 - ARM 64-bit
     - name: aarch64
       install:
