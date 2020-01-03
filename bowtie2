@@ -161,11 +161,11 @@ my $help = 0;
 
 # Travis' MacOS image does not like bundling_values
 eval {
-    Getopt::Long::Configure("pass_through","no_ignore_case", "no_auto_abbrev", "bundling_values");
+    Getopt::Long::Configure("pass_through", "no_ignore_case", "no_auto_abbrev", "bundling_values");
     1;
 }
 or do {
-    Getopt::long::Configure("pass_through", "no_ignore_case", "no_auto_abbrev");
+    Getopt::Long::Configure("pass_through", "no_ignore_case", "no_auto_abbrev");
 };
 
 GetOptions(
