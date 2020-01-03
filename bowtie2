@@ -159,7 +159,14 @@ my $readpipe = undef;
 my $log_fName = undef;
 my $help = 0;
 
-Getopt::Long::Configure("pass_through","no_ignore_case", "no_auto_abbrev", "bundling_values");
+# Travis' MacOS image does not like bundling_values
+eval {
+    Getopt::Long::Configure("pass_through","no_ignore_case", "no_auto_abbrev", "bundling_values");
+    1;
+}
+or do {
+    Getopt::long::Configure("pass_through", "no_ignore_case", "no_auto_abbrev");
+};
 
 GetOptions(
     "1=s{1,}"                       => \@mate1s,
