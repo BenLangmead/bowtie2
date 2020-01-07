@@ -30,7 +30,7 @@ GCC_SUFFIX :=
 CC ?= $(GCC_PREFIX)/gcc$(GCC_SUFFIX)
 CPP ?= $(GCC_PREFIX)/g++$(GCC_SUFFIX)
 CXX ?= $(CPP)
-ifeq (aarch64,$(shell uname -p))
+ifeq (aarch64,$(shell uname -m))
 	CXXFLAGS += -fopenmp-simd -DWITH_AARCH64
 	CPPFLAGS += -Ithird_party/simde
 endif
@@ -197,13 +197,13 @@ SEARCH_FRAGMENTS := $(wildcard search_*_phase*.c)
 VERSION := $(shell cat VERSION)
 
 BITS := 32
-ifeq (x86_64,$(shell uname -p))
+ifeq (x86_64,$(shell uname -m))
 	BITS := 64
 endif
-ifeq (amd64,$(shell uname -p))
+ifeq (amd64,$(shell uname -m))
 	BITS := 64
 endif
-ifeq (aarch64,$(shell uname -p))
+ifeq (aarch64,$(shell uname -m))
 	BITS := 64
 endif
 # msys will always be 32 bit so look at the cpu arch instead.
@@ -218,7 +218,7 @@ endif
 
 SSE_FLAG := -msse2
 M64_FLAG := -m64
-ifeq (aarch64,$(shell uname -p))
+ifeq (aarch64,$(shell uname -m))
 	SSE_FLAG =
 	M64_FLAG =
 endif
