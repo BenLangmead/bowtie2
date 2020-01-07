@@ -63,7 +63,7 @@ matrix:
         - POPCNT_CAPABILITY=0
       script: scripts/travis_wait.sh make -s -j $NPROC allall
     # IBM Z (big endian)
-      - os: linux
+    - os: linux
       arch: 390x
       env:
         - POPCNT_CAPABILITY=0
