@@ -55,13 +55,19 @@ matrix:
       env:
         - CC=clang
         - CXX=clang++
+        - NPROC="$(sysctl -n hw.activecpu)"
     # ARM 64-bit
     - name: arm64
       compiler: gcc
       env:
         # Set POPCNT_CAPABILITY=0 to avoid build error
         - POPCNT_CAPABILITY=0
-      script: scripts/travis_wait.sh make -s -j $NPROC allall
+      script:
+        - |
+          while sleep 9m; do
+              echo "====[ $SECONDS seconds still running ]===="
+          done &
+        - make -s -j $NPROC allall
     # IBM Z (big endian)
     - os: linux
       arch: 390x
@@ -83,7 +89,7 @@ before_script:
   - echo CC=${CC} CXX=${CXX} NPROC=${NPROC}
   - $CC --version
   - $CXX --version
-script: scripts/travis_wait.sh make -j $NPROC allall && make simple-test
+script: make -j $NPROC allall && make simple-test
 notifications:
   slack:
     secure: tfzT8N1fNV+oSV7tide9WrAj3ifs+LONJ3fCH1tUzexqrx23te4lE0oAj9C1cEMJ4evyRYwHNG8HZoLCOy8EfapqbWm6vgLIlkIBpeZ9E6f2jG6v0YuVDWWpqQC3qdGXCqWtHPjgs3i5OLsLwwQ/LItLoTqpBk2aYv+vGNs2F9g=
