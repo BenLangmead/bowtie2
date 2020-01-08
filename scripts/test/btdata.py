@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 Note: This would look so much better replaced by XML or at least JSON. But 
       is not worth to do it for now.
@@ -6,7 +6,7 @@ Note: This would look so much better replaced by XML or at least JSON. But
 
 import os
 import gzip
-import urllib2
+import urllib.request, urllib.error, urllib.parse
 import logging
 
 
@@ -66,14 +66,14 @@ class LargeTestsData(object):
     def init_data(self):
         """ Try and init the data we need.
         """
-        for genome,gdata in self.genomes.iteritems():
+        for genome,gdata in self.genomes.items():
             gn_path  = os.path.join(self.data_dir_path,genome)
             gn_fasta = os.path.join(gn_path,gdata['ref_name'])
             if not os.path.exists(gn_fasta):
                 self._get_genome(genome)
                 self._build_genome(genome)
         
-        for genome,gdata in self.joint_genomes.iteritems():
+        for genome,gdata in self.joint_genomes.items():
             gn_path  = os.path.join(self.data_dir_path,genome)
             gn_fasta = os.path.join(gn_path,gdata['ref_name'])
             if not os.path.exists(gn_fasta):
@@ -103,7 +103,7 @@ class LargeTestsData(object):
             
             try:
                 f = open(fname,'wb')
-                u = urllib2.urlopen(uri)
+                u = urllib.request.urlopen(uri)
                 f.write(u.read())
             except:
                 f.close()

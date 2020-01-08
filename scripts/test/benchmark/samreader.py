@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 A reader of SAM format.
 
@@ -49,7 +49,7 @@ class SamHeader(object):
         self.curr_idx = 0
         return self
 
-    def next(self):
+    def __next__(self):
         if self.curr_idx == len(self.header_lines):
             raise StopIteration
             
@@ -114,7 +114,7 @@ class SamReader(object):
         self._source_fh.seek(self.header.end_header_pointer)
         return self
 
-    def next(self):
+    def __next__(self):
         line = self._source_fh.readline()
         if not line:
             raise StopIteration

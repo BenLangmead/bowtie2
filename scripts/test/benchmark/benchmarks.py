@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 A few items to deal with sets of benchmarks.
 """
@@ -57,7 +57,7 @@ class Benchmarks(object):
         self.set_idx = 0
         return self
 
-    def next(self):
+    def __next__(self):
         if self.set_idx == len(self.values):
             raise StopIteration
 
@@ -250,7 +250,7 @@ class TestAccuracy(Runable):
                     delta = [0, 1]
                     logging.debug("%s: missed (pos:%d vs %d)" % (q_name, orig[1], rec.pos))
                 try:
-                    mapq_summary[rec.mapq] = map(sum, zip(delta, mapq_summary[rec.mapq]))
+                    mapq_summary[rec.mapq] = list(map(sum, list(zip(delta, mapq_summary[rec.mapq]))))
                 except KeyError:
                     mapq_summary[rec.mapq] = delta
 

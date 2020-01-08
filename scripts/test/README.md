@@ -13,11 +13,11 @@ From root:
 
 #### Regression tests
 
-They use the Python infrastructure in the `scripts/test` subdirectory, including `bt2face.py`, `dataface.py` and `btdata.py`.
+They use the Python3 infrastructure in the `scripts/test` subdirectory, including `bt2face.py`, `dataface.py` and `btdata.py`.
 
 From root:
 
-    python scripts/test/regressions.py --verbose
+    python3 scripts/test/regressions.py --verbose
 
 Val Antonescu originally set these up.
 
@@ -27,7 +27,7 @@ Builds an index consisting of both human and mouse genomes, pushing the genome s
 
 From root:
 
-    python scripts/test/large_idx.py --verbose
+    python3 scripts/test/large_idx.py --verbose
 
 #### Randomized tests
 
