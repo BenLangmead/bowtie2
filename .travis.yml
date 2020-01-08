@@ -57,7 +57,8 @@ matrix:
         - CXX=clang++
         - NPROC="$(sysctl -n hw.activecpu)"
     # ARM 64-bit
-    - name: arm64
+    - os: linux
+      arch: arm64
       compiler: gcc
       env:
         # Set POPCNT_CAPABILITY=0 to avoid build error
@@ -70,7 +71,7 @@ matrix:
         - make -s -j $NPROC allall
     # IBM Z (big endian)
     - os: linux
-      arch: 390x
+      arch: s390x
       env:
         - POPCNT_CAPABILITY=0
         - NO_TBB=1
