@@ -31,8 +31,8 @@ CC ?= $(GCC_PREFIX)/gcc$(GCC_SUFFIX)
 CPP ?= $(GCC_PREFIX)/g++$(GCC_SUFFIX)
 CXX ?= $(CPP)
 ifeq (aarch64,$(shell uname -m))
-	CXXFLAGS += -fopenmp-simd
-	CPPFLAGS += -Ithird_party/simde
+        CXXFLAGS += -fopenmp-simd -DWITH_AARCH64
+        CPPFLAGS += -Ithird_party/simde
 endif
 
 HEADERS := $(wildcard *.h)
@@ -46,45 +46,45 @@ VDB_VER ?= 2.9.2-1
 WINDOWS :=
 MINGW :=
 ifneq (,$(findstring MINGW,$(shell uname)))
-	WINDOWS := 1
-	MINGW := 1
-	# POSIX memory-mapped files not currently supported on Windows
-	BOWTIE_MM :=
-	BOWTIE_SHARED_MEM :=
+        WINDOWS := 1
+        MINGW := 1
+        # POSIX memory-mapped files not currently supported on Windows
+        BOWTIE_MM :=
+        BOWTIE_SHARED_MEM :=
 endif
 
 MACOS :=
 ifneq (,$(findstring Darwin,$(shell uname)))
-	MACOS := 1
-	ifeq (1,$(shell uname -r | awk -F. '{ if ($$1 > 12 && $$1 < 16) print 1; }'))
-		CXXFLAGS += -stdlib=libstdc++
-	endif
-	ifdef STATIC_BUILD
-		CXXFLAGS += -mmacosx-version-min=10.9
-	endif
+        MACOS := 1
+        ifeq (1,$(shell uname -r | awk -F. '{ if ($$1 > 12 && $$1 < 16) print 1; }'))
+                CXXFLAGS += -stdlib=libstdc++
+        endif
+        ifdef STATIC_BUILD
+                CXXFLAGS += -mmacosx-version-min=10.9
+        endif
 endif
 
 ifdef STATIC_BUILD
-	LDFLAGS += -L$(CURDIR)/.tmp/lib
-	CPPFLAGS += -I$(CURDIR)/.tmp/include
+        LDFLAGS += -L$(CURDIR)/.tmp/lib
+        CPPFLAGS += -I$(CURDIR)/.tmp/include
 endif
 
 POPCNT_CAPABILITY ?= 1
 ifeq (1, $(POPCNT_CAPABILITY))
-	CXXFLAGS += -DPOPCNT_CAPABILITY
-	CPPFLAGS += -I third_party
+        CXXFLAGS += -DPOPCNT_CAPABILITY
+        CPPFLAGS += -I third_party
 endif
 
 MM_DEF :=
 
 ifeq (1,$(BOWTIE_MM))
-	MM_DEF := -DBOWTIE_MM
+        MM_DEF := -DBOWTIE_MM
 endif
 
 SHMEM_DEF :=
 
 ifdef BOWTIE_SHARED_MEM
-	SHMEM_DEF := -DBOWTIE_SHARED_MEM
+        SHMEM_DEF := -DBOWTIE_SHARED_MEM
 endif
 
 PTHREAD_PKG :=
@@ -92,103 +92,103 @@ PTHREAD_LIB :=
 
 #if we're not using TBB, then we can't use queuing locks
 ifeq (1,$(NO_TBB))
-	NO_QUEUELOCK := 1
+        NO_QUEUELOCK := 1
 endif
 
 ifeq (1,$(MINGW))
-	PTHREAD_LIB :=
+        PTHREAD_LIB :=
 else
-	PTHREAD_LIB := -lpthread
+        PTHREAD_LIB := -lpthread
 endif
 
 ifeq (1,$(NO_SPINLOCK))
-	CXXFLAGS += -DNO_SPINLOCK
+        CXXFLAGS += -DNO_SPINLOCK
 endif
 
 #default is to use Intel TBB
 ifneq (1,$(NO_TBB))
-	LDLIBS += $(PTHREAD_LIB) -ltbb
-	ifdef STATIC_BUILD
-		LDLIBS += -ltbbmalloc
-	ifndef MINGW
-		LDLIBS += -ldl
-	endif
-	else
-		LDLIBS += -ltbbmalloc_proxy
-	endif
-	CXXFLAGS += -DWITH_TBB
+        LDLIBS += $(PTHREAD_LIB) -ltbb
+        ifdef STATIC_BUILD
+                LDLIBS += -ltbbmalloc
+                ifndef MINGW
+                        LDLIBS += -ldl
+                endif
+        else
+                LDLIBS += -ltbbmalloc_proxy
+        endif
+        CXXFLAGS += -DWITH_TBB
 else
-	LDLIBS += $(PTHREAD_LIB)
+        LDLIBS += $(PTHREAD_LIB)
 endif
 
 USE_SRA ?=
 ifeq (1, $(USE_SRA))
-ifdef MINGW
-	$(error "SRA binaries cannot be built on MINGW")
-else
-	LDFLAGS += -L$(CURDIR)/.tmp/lib64
+        ifdef MINGW
+                $(error "SRA binaries cannot be built on MINGW")
+        else
+                LDFLAGS += -L$(CURDIR)/.tmp/lib64
 
-	ifndef ($(STATIC_BUILD))
-		CPPFLAGS += -I$(CURDIR)/.tmp/include
-	endif
+                ifndef ($(STATIC_BUILD))
+                        CPPFLAGS += -I$(CURDIR)/.tmp/include
+                endif
 
-	LDLIBS += -lncbi-ngs-c++-static
-	LDLIBS += -lngs-c++-static
-	LDLIBS += -lncbi-vdb-static
-	LDLIBS += -ldl
+                LDLIBS += -lncbi-ngs-c++-static
+                LDLIBS += -lngs-c++-static
+                LDLIBS += -lncbi-vdb-static
+                LDLIBS += -ldl
 
-	CXXFLAGS += -DUSE_SRA
-endif
+                CXXFLAGS += -DUSE_SRA
+        endif
 endif
 
 ifeq (1,$(WITH_THREAD_PROFILING))
-	CXXFLAGS += -DPER_THREAD_TIMING=1
+        CXXFLAGS += -DPER_THREAD_TIMING=1
 endif
 
 ifeq (1,$(WITH_AFFINITY))
-	CXXFLAGS += -DWITH_AFFINITY=1
+        CXXFLAGS += -DWITH_AFFINITY=1
 endif
 
 #default is to use Intel TBB's queuing lock for better thread scaling performance
 ifneq (1,$(NO_QUEUELOCK))
-	CXXFLAGS += -DNO_SPINLOCK
-	CXXFLAGS += -DWITH_QUEUELOCK=1
+        CXXFLAGS += -DNO_SPINLOCK
+        CXXFLAGS += -DWITH_QUEUELOCK=1
 endif
 
-SHARED_CPPS := ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
-               edit.cpp bt2_idx.cpp bt2_io.cpp bt2_util.cpp \
-               reference.cpp ds.cpp multikey_qsort.cpp limit.cpp \
-			   random_source.cpp
+SHARED_CPPS :=  ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
+                edit.cpp bt2_idx.cpp bt2_io.cpp bt2_util.cpp \
+                reference.cpp ds.cpp multikey_qsort.cpp limit.cpp \
+		random_source.cpp
 
 ifeq (1,$(NO_TBB))
-	SHARED_CPPS += tinythread.cpp
+        SHARED_CPPS += tinythread.cpp
 endif
 
-SEARCH_CPPS := qual.cpp pat.cpp sam.cpp \
-               read_qseq.cpp aligner_seed_policy.cpp \
-               aligner_seed.cpp \
-			   aligner_seed2.cpp \
-			   aligner_sw.cpp \
-			   aligner_sw_driver.cpp aligner_cache.cpp \
-			   aligner_result.cpp ref_coord.cpp mask.cpp \
-			   pe.cpp aln_sink.cpp dp_framer.cpp \
-			   scoring.cpp presets.cpp unique.cpp \
-			   simple_func.cpp \
-			   random_util.cpp \
-			   aligner_bt.cpp sse_util.cpp \
-			   aligner_swsse.cpp outq.cpp \
-			   aligner_swsse_loc_i16.cpp \
-			   aligner_swsse_ee_i16.cpp \
-			   aligner_swsse_loc_u8.cpp \
-			   aligner_swsse_ee_u8.cpp \
-			   aligner_driver.cpp
+SEARCH_CPPS :=  qual.cpp pat.cpp sam.cpp \
+                read_qseq.cpp aligner_seed_policy.cpp \
+                aligner_seed.cpp \
+                aligner_seed2.cpp \
+                aligner_sw.cpp \
+                aligner_sw_driver.cpp aligner_cache.cpp \
+                aligner_result.cpp ref_coord.cpp mask.cpp \
+                pe.cpp aln_sink.cpp dp_framer.cpp \
+                scoring.cpp presets.cpp unique.cpp \
+                simple_func.cpp \
+                random_util.cpp \
+                aligner_bt.cpp sse_util.cpp \
+                aligner_swsse.cpp outq.cpp \
+                aligner_swsse_loc_i16.cpp \
+                aligner_swsse_ee_i16.cpp \
+                aligner_swsse_loc_u8.cpp \
+                aligner_swsse_ee_u8.cpp \
+                aligner_driver.cpp
 
 SEARCH_CPPS_MAIN := $(SEARCH_CPPS) bowtie_main.cpp
 
 DP_CPPS := qual.cpp aligner_sw.cpp aligner_result.cpp ref_coord.cpp mask.cpp \
-          simple_func.cpp sse_util.cpp aligner_bt.cpp aligner_swsse.cpp \
-		  aligner_swsse_loc_i16.cpp aligner_swsse_ee_i16.cpp \
-		  aligner_swsse_loc_u8.cpp aligner_swsse_ee_u8.cpp scoring.cpp
+        simple_func.cpp sse_util.cpp aligner_bt.cpp aligner_swsse.cpp \
+        aligner_swsse_loc_i16.cpp aligner_swsse_ee_i16.cpp \
+        aligner_swsse_loc_u8.cpp aligner_swsse_ee_u8.cpp scoring.cpp
 
 BUILD_CPPS := diff_sample.cpp
 BUILD_CPPS_MAIN := $(BUILD_CPPS) bowtie_build_main.cpp
@@ -198,19 +198,19 @@ VERSION := $(shell cat VERSION)
 
 BITS := 32
 ifeq (x86_64,$(shell uname -m))
-	BITS := 64
-endif
-ifeq (amd64,$(shell uname -m))
-	BITS := 64
-endif
-ifeq (aarch64,$(shell uname -m))
-	BITS := 64
+        BITS := 64
+else ifeq (amd64,$(shell uname -m))
+        BITS := 64
+else ifeq (aarch64,$(shell uname -m))
+        BITS := 64
+else ifeq (s390x,$(shell uname -m))
+        BITS := 64
 endif
 # msys will always be 32 bit so look at the cpu arch instead.
 ifneq (,$(findstring AMD64,$(PROCESSOR_ARCHITEW6432)))
-	ifeq (1,$(MINGW))
-		BITS := 64
-	endif
+        ifeq (1,$(MINGW))
+                BITS := 64
+        endif
 endif
 ifeq (32,$(BITS))
   $(error bowtie2 compilation requires a 64-bit platform )
@@ -219,8 +219,8 @@ endif
 SSE_FLAG := -msse2
 M64_FLAG := -m64
 ifeq (aarch64,$(shell uname -m))
-	SSE_FLAG =
-	M64_FLAG =
+        SSE_FLAG =
+        M64_FLAG =
 endif
 
 DEBUG_FLAGS    := -O0 -g3 $(M64_FLAG) $(SSE_FLAG)
@@ -230,18 +230,13 @@ FILE_FLAGS     := -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
 DEBUG_DEFS     = -DCOMPILER_OPTIONS="\"$(DEBUG_FLAGS) $(CXXFLAGS)\""
 RELEASE_DEFS   = -DCOMPILER_OPTIONS="\"$(RELEASE_FLAGS) $(CXXFLAGS)\""
 
-ifeq (0,$(shell $(CPP) -E -fsanitize=address,undefined btypes.h 2>&1 > /dev/null; echo $$?))
-	SANITIZER_FLAGS := -fsanitize=address,undefined
-endif
-ifndef SANITIZER_FLAGS
-	ifeq (0,$(shell $(CPP) -E -fsanitize=address btypes.h 2>&1 > /dev/null; echo $$?))
-		SANITIZER_FLAGS := -fsanitize=address
-	endif
-endif
-ifndef SANITIZER_FLAGS
-	ifeq (0,$(shell $(CPP) -E -fsanitize=undefined btypes.h 2>&1 > /dev/null; echo $$?))
-		SANITIZER_FLAGS := -fsanitize=undefined
-	endif
+SANITIZER_FLAGS :=
+ifeq (0,$(shell $(CXX) -E -fsanitize=address,undefined btypes.h > /dev/null 2>&1; echo $$?))
+        SANITIZER_FLAGS := -fsanitize=address,undefined
+else ifeq (0,$(shell $(CXX) -E -fsanitize=address btypes.h > /dev/null 2>&1; echo $$?))
+        SANITIZER_FLAGS := -fsanitize=address
+else ifeq (0,$(shell $(CXX) -E -fsanitize=undefined btypes.h > /dev/null 2>&1; echo $$?))
+        SANITIZER_FLAGS := -fsanitize=undefined
 endif
 
 BOWTIE2_BIN_LIST :=     bowtie2-build-s \
@@ -262,38 +257,41 @@ BOWTIE2_BIN_LIST_SAN := bowtie2-build-s-sanitized \
                         bowtie2-align-l-sanitized \
                         bowtie2-inspect-s-sanitized \
                         bowtie2-inspect-l-sanitized
+ifndef SANITIZER_FLAGS
+        BOWTIE2_BIN_LIST_SAN =
+endif
 
 GENERAL_LIST := $(wildcard scripts/*.sh) \
                 $(wildcard scripts/*.pl) \
                 doc/manual.html \
                 doc/README \
-		Dockerfile-aarch64 \
+                Dockerfile-aarch64 \
                 doc/style.css \
-		$(wildcard example/index/*.bt2) \
-		$(wildcard example/reads/*.fq) \
-		$(wildcard example/reads/*.pl) \
-		example/reads/combined_reads.bam \
-		example/reference/lambda_virus.fa \
+                $(wildcard example/index/*.bt2) \
+                $(wildcard example/reads/*.fq) \
+                $(wildcard example/reads/*.pl) \
+                example/reads/combined_reads.bam \
+                example/reference/lambda_virus.fa \
                 $(PTHREAD_PKG) \
-		bowtie2 \
-		bowtie2-build \
-		bowtie2-inspect \
+                bowtie2 \
+                bowtie2-build \
+                bowtie2-inspect \
                 AUTHORS \
                 LICENSE \
                 NEWS \
                 MANUAL \
                 MANUAL.markdown \
-		README.md \
+                README.md \
                 TUTORIAL \
                 VERSION
 
 ifeq (1,$(WINDOWS))
-	BOWTIE2_BIN_LIST := $(BOWTIE2_BIN_LIST) bowtie2.bat bowtie2-build.bat bowtie2-inspect.bat
-    ifneq (1,$(NO_TBB))
-	    CXXFLAGS += -static-libgcc -static-libstdc++
-	else
-	    CXXFLAGS += -static -static-libgcc -static-libstdc++
-	endif
+        BOWTIE2_BIN_LIST := $(BOWTIE2_BIN_LIST) bowtie2.bat bowtie2-build.bat bowtie2-inspect.bat
+        ifneq (1,$(NO_TBB))
+                CXXFLAGS += -static-libgcc -static-libstdc++
+        else
+                CXXFLAGS += -static -static-libgcc -static-libstdc++
+        endif
 endif
 
 # This is helpful on Windows under MinGW/MSYS, where Make might go for
@@ -310,9 +308,9 @@ SRC_PKG_LIST = $(wildcard *.h) \
                $(GENERAL_LIST)
 
 ifeq (1,$(WINDOWS))
-	BIN_PKG_LIST := $(GENERAL_LIST) bowtie2.bat bowtie2-build.bat bowtie2-inspect.bat
+        BIN_PKG_LIST := $(GENERAL_LIST) bowtie2.bat bowtie2-build.bat bowtie2-inspect.bat
 else
-	BIN_PKG_LIST := $(GENERAL_LIST)
+        BIN_PKG_LIST := $(GENERAL_LIST)
 endif
 
 .PHONY: all allall both both-debug
@@ -326,7 +324,7 @@ both-sanitized: bowtie2-align-s-sanitized bowtie2-build-s-sanitized bowtie2-alig
 DEFS := -fno-strict-aliasing \
         -DBOWTIE2_VERSION="\"`cat VERSION`\"" \
         -DBUILD_HOST="\"${HOSTNAME:-`hostname`}\"" \
-        -DBUILD_TIME="\"`date -u -r NEWS`\"" \
+        -DBUILD_TIME="\"`date -u`\"" \
         -DCOMPILER_VERSION="\"`$(CXX) -v 2>&1 | tail -1`\"" \
         $(FILE_FLAGS) \
         $(PREF_DEF) \
@@ -334,7 +332,11 @@ DEFS := -fno-strict-aliasing \
         $(SHMEM_DEF)
 
 # set compiler flags for all sanitized builds
-$(BOWTIE2_BIN_LIST_SAN): CXXFLAGS += $(SANITIZER_FLAGS)
+ifdef BOWTIE2_BIN_LIST_SAN
+$(BOWTIE2_BIN_LIST_SAN): CXXFLAGS+=$(SANITIZER_FLAGS)
+else
+$(BOWTIE2_BIN_LIST_SAN): $(error "Compiler does not support...")
+endif
 
 #
 # bowtie2-build targets
@@ -478,11 +480,11 @@ bowtie2.bat:
 
 bowtie2-build.bat:
 	echo "@echo off" > bowtie2-build.bat
-	echo "python %~dp0/bowtie2-build %*" >> bowtie2-build.bat
+	echo "python3 %~dp0/bowtie2-build %*" >> bowtie2-build.bat
 
 bowtie2-inspect.bat:
 	echo "@echo off" > bowtie2-inspect.bat
-	echo "python %~dp0/bowtie2-inspect %*" >> bowtie2-inspect.bat
+	echo "python3 %~dp0/bowtie2-inspect %*" >> bowtie2-inspect.bat
 
 .PHONY: bowtie2-src-pkg
 bowtie2-src-pkg: $(SRC_PKG_LIST)
