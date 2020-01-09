@@ -51,24 +51,25 @@ matrix:
         homebrew:
           packages:
             - tbb
+            - python
           update: true
       env:
         - CC=clang
         - CXX=clang++
         - NPROC="$(sysctl -n hw.activecpu)"
     # ARM 64-bit
-    # - os: linux
-    #   arch: arm64
-    #   compiler: gcc
-    #   env:
-    #     # Set POPCNT_CAPABILITY=0 to avoid build error
-    #     - POPCNT_CAPABILITY=0
-    #   script:
-    #     - |
-    #       while sleep 9m; do
-    #           echo "====[ $SECONDS seconds still running ]===="
-    #       done &
-    #     - make -s -j $NPROC allall
+     - os: linux
+       arch: arm64
+       compiler: gcc
+       env:
+         # Set POPCNT_CAPABILITY=0 to avoid build error
+         - POPCNT_CAPABILITY=0
+       script:
+         - |
+           while sleep 9m; do
+               echo "====[ $SECONDS seconds still running ]===="
+           done &
+         - make -s -j $NPROC allall
     # IBM Z (big endian)
     - os: linux
       arch: s390x
