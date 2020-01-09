@@ -60,7 +60,65 @@
       Bowtie 2 and <a href="http://bowtie-bio.sourceforge.net/index.shtml">Bowtie</a> indexes.
       <br/><br/>
     </p>
+      <!-- GRCh38 -->
+      <tr>
+        <td>
+          <a href="ftp://ftp.ncbi.nlm.nih.gov/genomes/archive/old_genbank/Eukaryotes/vertebrates_mammals/Homo_sapiens/GRCh38/seqs_for_alignment_pipelines/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.bowtie_index.tar.gz"><i>H. sapiens</i>, NCBI GRCh38</a>
+        </td>
+        <td align="right">
+          <b>3.5 GB</b>
+        </td>
+      </tr>
+
+      <!-- GRCh38 major-allele -->
+      <tr>
+        <td>
+          <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/grch38_1kgmaj_bt2.zip"><i>H. sapiens</i>, NCBI GRCh38 <br/> with 1KGenomes major SNPs</a>
+        </td>
+        <td align="right">
+          <b>3.5 GB</b>
+        </td>
+      </tr>
+      <tr>
+        <td colspan="2" style="font-size: x-small">&nbsp;&nbsp;<a href="https://github.com/BenLangmead/bowtie-majref">How we built this</a>, <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie_indexes/grch38_1kgmaj.fa.gz">FASTA</a>
+        </td>
+      </tr>
+
+      <!-- hg19 -->
+      <tr>
+        <td>
+          <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/hg19.zip"><i>H. sapiens</i>, UCSC hg19</a>
+        </td>
+        <td align="right">
+          <b>3.5 GB</b>
+        </td>
+      </tr>
+      <!--
+      <tr>
+        <td colspan="2" style="font-size: x-small">&nbsp;or:
+		  <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/hg19.1.zip">part 1</a> (1.5 GB),
+          <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/hg19.2.zip">part 2</a> (650 MB),
+          <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/hg19.3.zip">part 3</a> (1.5 GB)
+        </td>
+      </tr>
+      -->
+
+      <!-- hg19 major-allele -->
+      <tr>
+        <td>
+          <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/hg19_1kgmaj_bt2.zip"><i>H. sapiens</i>, UCSC hg19 <br/> with 1KGenomes major SNPs</a>
+        </td>
+        <td align="right">
+          <b>3.5 GB</b>
+        </td>
+      </tr>
+      <tr>
+        <td colspan="2" style="font-size: x-small">&nbsp;&nbsp;<a href="https://github.com/BenLangmead/bowtie-majref">How we built this</a>, <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie_indexes/hg19_1kgmaj.fa.gz">FASTA</a>
+        </td>
+      </tr>
+
       <!-- hg18 -->
+      <!--
       <tr>
         <td>
           <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/hg18.zip"><i>H. sapiens</i>, UCSC hg18</a>
@@ -76,33 +134,7 @@
           <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/hg18.3.zip">part 3</a> (1.5 GB)
         </td>
       </tr>
-
-      <!-- hg19 -->
-      <tr>
-        <td>
-          <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/hg19.zip"><i>H. sapiens</i>, UCSC hg19</a>
-        </td>
-        <td align="right">
-          <b>3.5 GB</b>
-        </td>
-      </tr>
-      <tr>
-        <td colspan="2" style="font-size: x-small">&nbsp;or:
-		  <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/hg19.1.zip">part 1</a> (1.5 GB),
-          <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/hg19.2.zip">part 2</a> (650 MB),
-          <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/hg19.3.zip">part 3</a> (1.5 GB)
-        </td>
-      </tr>
-
-      <!-- GRCh38 -->
-      <tr>
-        <td>
-          <a href="ftp://ftp.ncbi.nlm.nih.gov/genomes/archive/old_genbank/Eukaryotes/vertebrates_mammals/Homo_sapiens/GRCh38/seqs_for_alignment_pipelines/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.bowtie_index.tar.gz"><i>H. sapiens</i>, NCBI GRCh38</a>
-        </td>
-        <td align="right">
-          <b>3.5 GB</b>
-        </td>
-      </tr>
+      -->
 
       <!-- mm10 -->
       <tr>
@@ -113,6 +145,7 @@
           <b>3.2 GB</b>
         </td>
       </tr>
+      <!--
       <tr>
         <td colspan="2" style="font-size: x-small">&nbsp;or:
 		  <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/mm10.1.zip">part 1</a> (1.3 GB),
@@ -120,6 +153,7 @@
           <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/mm10.3.zip">part 3</a> (1.3 GB)
         </td>
       </tr>
+      -->
 
       <!-- mm9 -->
       <tr>
@@ -130,6 +164,7 @@
           <b>3.2 GB</b>
         </td>
       </tr>
+      <!--
       <tr>
         <td colspan="2" style="font-size: x-small">&nbsp;or:
           <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/mm9.1.zip">part 1</a> (1.3 GB),
@@ -137,6 +172,7 @@
           <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/mm9.3.zip">part 3</a> (1.3 GB)
         </td>
       </tr>
+      -->
 
       <!-- rn4 -->
       <tr>
@@ -147,6 +183,7 @@
           <b>3.1 GB</b>
         </td>
       </tr>
+      <!--
       <tr>
         <td colspan="2" style="font-size: x-small">&nbsp;or:
           <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/rn4.1.zip">part 1</a> (1.3 GB),
@@ -154,12 +191,15 @@
           <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/rn4.3.zip">part 3</a> (1.3 GB)
         </td>
       </tr>
+      -->
 
     </table>
+    <!--
     <p style="font-size: x-small; line-height: 130%">
       Some unzip programs cannot handle archives >2 GB.  If you have
       problems downloading or unzipping a >2 GB index, try downloading
       in parts.</p>
+    -->
   </div>
   <h2>Related publications</h2>
   <div class="box">
