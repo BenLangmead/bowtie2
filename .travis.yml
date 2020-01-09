@@ -45,7 +45,7 @@ matrix:
         - CXXFLAGS="-fuse-ld=gold"
     # MacOS
     - os: osx
-      osx_image: xcode10.1
+      osx_image: xcode11.2
       compiler: clang
       addons:
         homebrew:
@@ -57,18 +57,18 @@ matrix:
         - CXX=clang++
         - NPROC="$(sysctl -n hw.activecpu)"
     # ARM 64-bit
-    - os: linux
-      arch: arm64
-      compiler: gcc
-      env:
-        # Set POPCNT_CAPABILITY=0 to avoid build error
-        - POPCNT_CAPABILITY=0
-      script:
-        - |
-          while sleep 9m; do
-              echo "====[ $SECONDS seconds still running ]===="
-          done &
-        - make -s -j $NPROC allall
+    # - os: linux
+    #   arch: arm64
+    #   compiler: gcc
+    #   env:
+    #     # Set POPCNT_CAPABILITY=0 to avoid build error
+    #     - POPCNT_CAPABILITY=0
+    #   script:
+    #     - |
+    #       while sleep 9m; do
+    #           echo "====[ $SECONDS seconds still running ]===="
+    #       done &
+    #     - make -s -j $NPROC allall
     # IBM Z (big endian)
     - os: linux
       arch: s390x
@@ -76,11 +76,6 @@ matrix:
         - POPCNT_CAPABILITY=0
         - NO_TBB=1
 cache: apt
-addons:
-  apt:
-    packages:
-      - libtbb-dev
-      - zlib1g-dev
 env:
   global:
     - NPROC="$(nproc)"
