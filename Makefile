@@ -227,14 +227,6 @@ ifeq (32,$(BITS))
   $(error bowtie2 compilation requires a 64-bit platform )
 endif
 
-
-ifeq (aarch64,$(shell uname -m))
-        SSE_FLAG =
-        M64_FLAG =
-endif
-
-ifeq ()
-
 DEBUG_FLAGS    := -O0 -g3 $(M64_FLAG) $(SSE_FLAG)
 RELEASE_FLAGS  := -O3 $(M64_FLAG) $(SSE_FLAG) -funroll-loops -g3
 NOASSERT_FLAGS := -DNDEBUG
