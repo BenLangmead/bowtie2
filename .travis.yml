@@ -76,6 +76,11 @@ matrix:
       env:
         - POPCNT_CAPABILITY=0
         - NO_TBB=1
+    - os: linux
+      arch: ppc64le
+      env:
+        - POPCNT_CAPABILITY=0
+        - NO_TBB=1
 cache: apt
 env:
   global:
