@@ -197,16 +197,25 @@ SEARCH_FRAGMENTS := $(wildcard search_*_phase*.c)
 VERSION := $(shell cat VERSION)
 
 BITS := 32
+SSE_FLAG := -msse2
+M64_FLAG := -m64
 ifeq (x86_64,$(shell uname -m))
         BITS := 64
 else ifeq (amd64,$(shell uname -m))
         BITS := 64
 else ifeq (aarch64,$(shell uname -m))
         BITS := 64
+        SSE_FLAG :=
+        M64_FLAG :=
 else ifeq (s390x,$(shell uname -m))
         BITS := 64
+        SSE_FLAG :=
+        M64_FLAG :=
 else ifeq (ppc64le,$(shell uname -m))
         BITS := 64
+        M64_FLAG :=
+        SSE_FLAG := -maltivec -mcpu=power8 -mtune=power9
+	CXXFLAGS += -DNO_WARN_X86_INTRINSICS -Wno-narrowing
 endif
 # msys will always be 32 bit so look at the cpu arch instead.
 ifneq (,$(findstring AMD64,$(PROCESSOR_ARCHITEW6432)))
@@ -218,12 +227,13 @@ ifeq (32,$(BITS))
   $(error bowtie2 compilation requires a 64-bit platform )
 endif
 
-SSE_FLAG := -msse2
-M64_FLAG := -m64
+
 ifeq (aarch64,$(shell uname -m))
         SSE_FLAG =
         M64_FLAG =
 endif
+
+ifeq ()
 
 DEBUG_FLAGS    := -O0 -g3 $(M64_FLAG) $(SSE_FLAG)
 RELEASE_FLAGS  := -O3 $(M64_FLAG) $(SSE_FLAG) -funroll-loops -g3

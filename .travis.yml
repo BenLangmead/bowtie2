@@ -47,6 +47,8 @@ matrix:
     - os: osx
       osx_image: xcode11.2
       compiler: clang
+      env:
+        - PATH="/usr/local/bin:$PATH"
       addons:
         homebrew:
           packages:
@@ -64,6 +66,7 @@ matrix:
       env:
         # Set POPCNT_CAPABILITY=0 to avoid build error
         - POPCNT_CAPABILITY=0
+        - NO_TBB=1
       script:
         - |
           while sleep 9m; do
@@ -76,6 +79,7 @@ matrix:
       env:
         - POPCNT_CAPABILITY=0
         - NO_TBB=1
+    # PPC64LE
     - os: linux
       arch: ppc64le
       env:
