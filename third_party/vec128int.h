@@ -302,7 +302,7 @@ VECLIB_INLINE __m128i vec_shiftrightimmediate16ub (__m128i v, intlit8 count)
   } else {
     /* The PowerPC Architecture says all shift count fields must contain the same shift count. */
     __m128i_union replicated_count;
-    replicated_count.as_vector_signed_short = vec_splats ((unsigned char) count);
+    replicated_count.as_vector_unsigned_char = vec_splats ((unsigned char) count);
     return (__m128i) vec_sr ((vector unsigned char) v, replicated_count.as_vector_unsigned_char);
   }
 }
