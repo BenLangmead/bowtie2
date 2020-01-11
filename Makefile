@@ -158,7 +158,7 @@ endif
 SHARED_CPPS :=  ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
                 edit.cpp bt2_idx.cpp bt2_io.cpp bt2_util.cpp \
                 reference.cpp ds.cpp multikey_qsort.cpp limit.cpp \
-		random_source.cpp
+                random_source.cpp
 
 ifeq (1,$(NO_TBB))
         SHARED_CPPS += tinythread.cpp
@@ -215,7 +215,8 @@ else ifeq (ppc64le,$(shell uname -m))
         BITS := 64
         M64_FLAG :=
         SSE_FLAG := -maltivec -mcpu=power8 -mtune=power9
-	CXXFLAGS += -DNO_WARN_X86_INTRINSICS -Wno-narrowing
+        # CXXFLAGS += -DNO_WARN_X86_INTRINSICS -Wno-narrowing
+        CPPFLAGS += -Ithird_party
 endif
 # msys will always be 32 bit so look at the cpu arch instead.
 ifneq (,$(findstring AMD64,$(PROCESSOR_ARCHITEW6432)))
