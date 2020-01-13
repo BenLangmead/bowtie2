@@ -27,15 +27,13 @@
 #ifndef SSE_WRAP_H_
 #define SSE_WRAP_H_
 
-#if defined(__aarch64__)
+#if defined(__aarch64__) || defined(__s390x__) || defined(__powerpc__)
 #include "simde/x86/sse2.h"
-#elif defined(__PPC64__)
-#include "vec128int.h"
 #else
 #include <emmintrin.h>
 #endif
 
-#if defined(__aarch64__)
+#if defined(__aarch64__) || defined(__s390x__) || defined(__powerpc__)
 typedef simde__m128i __m128i;
 #define _mm_adds_epi16(x, y) simde_mm_adds_epi16(x, y)
 #define _mm_adds_epu8(x, y) simde_mm_adds_epu8(x, y)
@@ -64,34 +62,6 @@ typedef simde__m128i __m128i;
 #define _mm_subs_epi16(x, y) simde_mm_subs_epi16(x, y)
 #define _mm_subs_epu8(x, y) simde_mm_subs_epu8(x, y)
 #define _mm_xor_si128(x, y) simde_mm_xor_si128(x, y)
-#elif defined(__PPC64__)
-#define _mm_adds_epi16(x, y) vec_addsaturating8sh(x, y)
-#define _mm_adds_epu8(x, y) vec_addsaturating16ub(x, y)
-#define _mm_cmpeq_epi16(x, y) vec_compareeq8sh(x, y)
-#define _mm_cmpeq_epi8(x, y) vec_compareeq16sb(x, y)
-#define _mm_cmpgt_epi16(x, y) vec_comparegt8sh(x, y)
-#define _mm_cmpgt_epi8(x, y) vec_comparegt16sb(x, y)
-#define _mm_cmplt_epi16(x, y) vec_comparelt8sh(x, y)
-#define _mm_cmplt_epu8(x, y) vec_comparelt16ub(x, y)
-#define _mm_extract_epi16(x, y) vec_extract8sh(x, y)
-#define _mm_insert_epi16(x, y, z) vec_insert8sh(x, y, z)
-#define _mm_load_si128(x) vec_load1q(x)
-#define _mm_max_epi16(x, y) vec_max8sh(x, y)
-#define _mm_max_epu8(x, y) vec_max16ub(x, y)
-#define _mm_movemask_epi8(x) vec_extractupperbit16sb(x)
-#define _mm_or_si128(x, y) vec_bitor1q(x, y)
-#define _mm_setzero_si128() vec_zero1q()
-#define _mm_shuffle_epi32(x, y) vec_permute4sw(x, y)
-#define _mm_shufflelo_epi16(x, y) vec_permutelower4sh(x, y)
-#define _mm_slli_epi16(x, y) vec_shiftleftimmediate8sh(x, y)
-#define _mm_slli_si128(x, y) vec_shiftleftbytes1q(x, y)
-#define _mm_srli_epi16(x, y) vec_shiftrightimmediate8sh(x, y)
-#define _mm_srli_epu8(x, y) vec_shiftrightimmediate16ub(x, y)
-#define _mm_srli_si128(x, y) vec_shiftrightbytes1q(x, y)
-#define _mm_store_si128(x, y) vec_store1q(x, y)
-#define _mm_subs_epi16(x, y) vec_subtractsaturating8sh(x, y)
-#define _mm_subs_epu8(x, y) vec_subtractsaturating16ub(x, y)
-#define _mm_xor_si128(x, y) vec_bitxor1q(x, y)
 #endif
 
 #endif /* SSE_WRAP_H_ */
