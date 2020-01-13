@@ -78,6 +78,10 @@ matrix:
     # PPC64LE
     - os: linux
       arch: ppc64le
+      addons:
+        apt:
+          packages:
+            - libasan2
       env:
         - POPCNT_CAPABILITY=0
         - NO_TBB=1
