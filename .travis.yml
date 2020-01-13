@@ -48,17 +48,13 @@ matrix:
       osx_image: xcode11.2
       compiler: clang
       env:
-        - PATH="/usr/local/bin:$PATH"
-      addons:
-        homebrew:
-          packages:
-            - tbb
-            - python
-          update: true
-      env:
         - CC=clang
         - CXX=clang++
         - NPROC="$(sysctl -n hw.activecpu)"
+      before_install:
+        - brew unlink python@2
+        - brew install tbb
+        - brew install python
     # ARM 64-bit
     - os: linux
       arch: arm64
@@ -91,7 +87,7 @@ env:
     - NPROC="$(nproc)"
 before_script:
   - uname -m
-  - python --version
+  - python3 --version
   - echo CC=${CC} CXX=${CXX} NPROC=${NPROC}
   - $CC --version
   - $CXX --version
