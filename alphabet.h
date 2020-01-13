@@ -49,7 +49,7 @@ extern uint8_t asc2col[];
 /// Convert a pair of 2-bit (and 4=N) encoded DNA bases to a color
 extern uint8_t dinuc2color[5][5];
 /// Convert a 4-bit mask into an IUPAC code
-extern char mask2iupac[16];
+extern signed char mask2iupac[16];
 
 /// Convert bit encoded DNA char to its complement
 extern int dnacomp[5];
