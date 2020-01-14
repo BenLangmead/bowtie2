@@ -199,17 +199,17 @@ else ifeq (aarch64,$(shell uname -m))
   BITS := 64
   SSE_FLAG :=
   CXXFLAGS := -fopenmp-simd
-  CPPFLAGS := -Ithird_party
+  CPPFLAGS := -Ithird_party/simde
 else ifeq (s390x,$(shell uname -m))
   BITS := 64
   SSE_FLAG :=
   CXXFLAGS := -fopenmp-simd
-  CPPFLAGS := -Ithird_party
+  CPPFLAGS := -Ithird_party/simde
 else ifeq (ppc64le,$(shell uname -m))
   BITS := 64
   SSE_FLAG :=
   CXXFLAGS := -fopenmp-simd
-  CPPFLAGS += -Ithird_party
+  CPPFLAGS += -Ithird_party/simde
 endif
 # msys will always be 32 bit so look at the cpu arch instead.
 ifneq (,$(findstring AMD64,$(PROCESSOR_ARCHITEW6432)))
