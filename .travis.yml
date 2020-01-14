@@ -83,13 +83,13 @@ matrix:
           sources:
             - ubuntu-toolchain-r-test
           packages:
-            - g++8
+            - g++7
             - libasan2
       env:
         - POPCNT_CAPABILITY=0
         - NO_TBB=1
-        - CC=gcc-8
-        - CXX=g++-8
+        - CC=gcc-7
+        - CXX=g++-7
 cache: apt
 env:
   global:
