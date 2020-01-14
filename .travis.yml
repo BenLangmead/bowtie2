@@ -81,10 +81,13 @@ matrix:
       addons:
         apt:
           packages:
+            - g++8
             - libasan2
       env:
         - POPCNT_CAPABILITY=0
         - NO_TBB=1
+        - CC=gcc-8
+        - CXX=g++-8
 cache: apt
 env:
   global:
