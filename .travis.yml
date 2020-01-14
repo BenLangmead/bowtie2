@@ -80,6 +80,8 @@ matrix:
       arch: ppc64le
       addons:
         apt:
+          sources:
+            - ubuntu-toolchain-r-test
           packages:
             - g++8
             - libasan2
