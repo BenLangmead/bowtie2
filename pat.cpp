@@ -1347,31 +1347,6 @@ std::pair<bool, int> BAMPatternSource::get_alignments(PerThreadReadBuf& pt, bool
 	return make_pair(done, readi);
 }
 
-int BAMPatternSource::compare_read_names(const void* m1, const void* m2) {
-	const orphan_mate_t* mate1 = (const orphan_mate_t*)m1;
-	const orphan_mate_t* mate2 = (const orphan_mate_t*)m2;
-
-	const char* r1 = (const char *)(mate1->data + offset[BAMField::read_name]);
-	const char* r2 = (const char *)(mate2->data + offset[BAMField::read_name]);
-
-	return strcmp(r1, r2);
-}
-
-bool BAMPatternSource::compare_read_names2(const orphan_mate_t& m1, const orphan_mate_t& m2) {
-	if (m1.empty()) {
-		return false;
-	}
-
-	if (m2.empty()) {
-		return true;
-	}
-
-	const char* r1 = (const char *)(m1.data + offset[BAMField::read_name]);
-	const char* r2 = (const char *)(m2.data + offset[BAMField::read_name]);
-
-	return strcmp(r1, r2);
-}
-
 void BAMPatternSource::get_or_store_orhaned_mate(EList<Read>& buf_a, EList<Read>& buf_b, unsigned& readi, const uint8_t *mate, size_t mate_len) {
 	const char *read_name =
 		(const char *)(mate + offset[BAMField::read_name]);

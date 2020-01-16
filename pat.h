@@ -872,8 +872,6 @@ private:
 	void get_orphaned_pairs(EList<Read>& buf_a, EList<Read>& buf_b, const size_t max_buf, unsigned& readi);
 	void get_or_store_orhaned_mate(EList<Read>& buf_a, EList<Read>& buf_b, unsigned& readi, const uint8_t *mate, size_t mate_len);
 	size_t get_matching_read(const uint8_t* rec);
-	static int compare_read_names(const void* m1, const void* m2);
-	static bool compare_read_names2(const orphan_mate_t& m1, const orphan_mate_t& m2);
 
 	static const int offset[];
 	static const uint8_t EOF_MARKER[];
