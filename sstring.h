@@ -501,7 +501,6 @@ inline const char * sstr_to_cstr<std::basic_string<char> >(
  */
 template<typename T>
 class SString {
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
 public:
 
 	explicit SString() :
