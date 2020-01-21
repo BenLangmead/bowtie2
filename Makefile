@@ -112,7 +112,7 @@ ifneq (1,$(NO_TBB))
   else
     LDLIBS += -ltbbmalloc_proxy
   endif
-  CXXFLAGS += -DWITH_TBB
+  CXXFLAGS += -DWITH_TBB -std=c++11
 else
   LDLIBS += $(PTHREAD_LIB)
 endif

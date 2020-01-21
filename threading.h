@@ -26,10 +26,10 @@
 #include <cstring>
 
 #ifdef WITH_TBB
-# include <tbb/mutex.h>
+# include <mutex>
 # include <tbb/spin_mutex.h>
 # include <tbb/queuing_mutex.h>
-#  include <tbb/atomic.h>
+#  include <atomic>
 # ifdef WITH_AFFINITY
 #  include <sched.h>
 #  include <tbb/task_group.h>
@@ -46,7 +46,7 @@
 #   ifdef WITH_QUEUELOCK
 #  	define MUTEX_T tbb::queuing_mutex
 #   else
-#       define MUTEX_T tbb::mutex
+#       define MUTEX_T std::mutex
 #   endif
 # else
 #   define MUTEX_T tthread::mutex
@@ -62,7 +62,7 @@
 #ifdef WITH_TBB
 struct thread_tracking_pair {
 	int tid;
-	tbb::atomic<int>* done;
+	std::atomic<int>* done;
 };
 #endif
 
@@ -109,7 +109,7 @@ private:
 //ripped entirely from;
 //https://software.intel.com/en-us/blogs/2013/10/31/applying-intel-threading-building-blocks-observers-for-thread-affinity-on-intel
 class concurrency_tracker: public tbb::task_scheduler_observer {
-    tbb::atomic<int> num_threads;
+    std::atomic<int> num_threads;
 public:
     concurrency_tracker() : num_threads() { observe(true); }
     /*override*/ void on_scheduler_entry( bool ) { ++num_threads; }
@@ -123,7 +123,7 @@ class pinning_observer: public tbb::task_scheduler_observer {
     int ncpus;
 
     const int pinning_step;
-    tbb::atomic<int> thread_index;
+    std::atomic<int> thread_index;
 public:
     pinning_observer( int pinning_step=1 ) : pinning_step(pinning_step), thread_index() {
         for ( ncpus = sizeof(cpu_set_t)/CHAR_BIT; ncpus < 16*1024 /* some reasonable limit */; ncpus <<= 1 ) {

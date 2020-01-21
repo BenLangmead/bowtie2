@@ -25,7 +25,7 @@
  */
 void OutputQueue::beginReadImpl(TReadId rdid, size_t threadId) {
 #ifdef WITH_TBB
-	nstarted_.fetch_and_add(1);
+	nstarted_.fetch_add(1);
 #else
 	nstarted_++;
 #endif

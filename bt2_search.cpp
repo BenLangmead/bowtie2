@@ -62,14 +62,14 @@
 #include "aligner_seed2.h"
 #include "bt2_search.h"
 #ifdef WITH_TBB
- #include <tbb/compat/thread>
+ #include <thread>
 #endif
 
 using namespace std;
 
 static int FNAME_SIZE;
 #ifdef WITH_TBB
-static tbb::atomic<int> thread_counter;
+static std::atomic<int> thread_counter;
 #else
 static int thread_counter;
 static MUTEX_T thread_counter_mutex;
@@ -2945,7 +2945,7 @@ class ThreadCounter {
 public:
 	ThreadCounter() {
 #ifdef WITH_TBB
-		thread_counter.fetch_and_increment();
+		thread_counter.fetch_add(1);
 #else
 		ThreadSafe ts(thread_counter_mutex);
 		thread_counter++;
@@ -2954,7 +2954,7 @@ public:
 
 	~ThreadCounter() {
 #ifdef WITH_TBB
-		thread_counter.fetch_and_decrement();
+		thread_counter.fetch_sub(1);
 #else
 		ThreadSafe ts(thread_counter_mutex);
 		thread_counter--;
@@ -4121,7 +4121,7 @@ static void multiseedSearchWorker(void *vp) {
 #endif
 	}
 #ifdef WITH_TBB
-	p->done->fetch_and_add(1);
+	p->done->fetch_add(1);
 #endif
 
 	return;
@@ -4467,7 +4467,7 @@ static void multiseedSearchWorker_2p5(void *vp) {
 	// One last metrics merge
 	MERGE_METRICS(metrics);
 #ifdef WITH_TBB
-	p->done->fetch_and_add(1);
+	p->done->fetch_add(1);
 #endif
 
 	return;
@@ -4731,7 +4731,7 @@ static void multiseedSearch(
 	// Start the metrics thread
 
 #ifdef WITH_TBB
-	tbb::atomic<int> all_threads_done;
+	std::atomic<int> all_threads_done;
 	all_threads_done = 0;
 #endif
 	{
