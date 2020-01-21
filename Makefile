@@ -189,6 +189,15 @@ BUILD_CPPS_MAIN := $(BUILD_CPPS) bowtie_build_main.cpp
 SEARCH_FRAGMENTS := $(wildcard search_*_phase*.c)
 VERSION := $(shell cat VERSION)
 
+SANITIZER_FLAGS :=
+ifeq (0,$(shell $(CXX) -E -fsanitize=address,undefined btypes.h > /dev/null 2>&1; echo $$?))
+  SANITIZER_FLAGS := -fsanitize=address,undefined
+else ifeq (0,$(shell $(CXX) -E -fsanitize=address btypes.h > /dev/null 2>&1; echo $$?))
+  SANITIZER_FLAGS := -fsanitize=address
+else ifeq (0,$(shell $(CXX) -E -fsanitize=undefined btypes.h > /dev/null 2>&1; echo $$?))
+  SANITIZER_FLAGS := -fsanitize=undefined
+endif
+
 BITS := 32
 SSE_FLAG := -msse2
 ifeq (x86_64,$(shell uname -m))
@@ -205,11 +214,13 @@ else ifeq (s390x,$(shell uname -m))
   SSE_FLAG :=
   CXXFLAGS := -fopenmp-simd
   CPPFLAGS := -Ithird_party/simde
+  SANITIZER_FLAGS :=
 else ifeq (ppc64le,$(shell uname -m))
   BITS := 64
   SSE_FLAG :=
   CXXFLAGS := -fopenmp-simd
   CPPFLAGS += -Ithird_party/simde
+  SANITIZER_FLAGS :=
 endif
 # msys will always be 32 bit so look at the cpu arch instead.
 ifneq (,$(findstring AMD64,$(PROCESSOR_ARCHITEW6432)))
@@ -227,15 +238,6 @@ NOASSERT_FLAGS := -DNDEBUG
 FILE_FLAGS     := -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
 DEBUG_DEFS     = -DCOMPILER_OPTIONS="\"$(DEBUG_FLAGS) $(CXXFLAGS)\""
 RELEASE_DEFS   = -DCOMPILER_OPTIONS="\"$(RELEASE_FLAGS) $(CXXFLAGS)\""
-
-SANITIZER_FLAGS :=
-ifeq (0,$(shell $(CXX) -E -fsanitize=address,undefined btypes.h > /dev/null 2>&1; echo $$?))
-  SANITIZER_FLAGS := -fsanitize=address,undefined
-else ifeq (0,$(shell $(CXX) -E -fsanitize=address btypes.h > /dev/null 2>&1; echo $$?))
-  SANITIZER_FLAGS := -fsanitize=address
-else ifeq (0,$(shell $(CXX) -E -fsanitize=undefined btypes.h > /dev/null 2>&1; echo $$?))
-  SANITIZER_FLAGS := -fsanitize=undefined
-endif
 
 BOWTIE2_BIN_LIST := bowtie2-build-s \
   bowtie2-build-l \
