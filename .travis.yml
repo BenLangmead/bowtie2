@@ -70,26 +70,17 @@ matrix:
           done &
         - make -s -j $NPROC allall
     # IBM Z (big endian)
-    - os: linux
-      arch: s390x
-      env:
-        - POPCNT_CAPABILITY=0
-        - NO_TBB=1
+    # - os: linux
+    #   arch: s390x
+    #   env:
+    #     - POPCNT_CAPABILITY=0
+    #     - NO_TBB=1
     # PPC64LE
     - os: linux
       arch: ppc64le
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - g++7
-            - libasan2
       env:
         - POPCNT_CAPABILITY=0
         - NO_TBB=1
-        - CC=gcc-7
-        - CXX=g++-7
 cache: apt
 env:
   global:
