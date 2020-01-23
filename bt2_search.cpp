@@ -65,6 +65,10 @@
  #include <thread>
 #endif
 
+#if __cplusplus <= 199711L
+#define unique_ptr auto_ptr
+#endif
+
 using namespace std;
 
 static int FNAME_SIZE;
@@ -1615,7 +1619,7 @@ static void parseOptions(int argc, const char **argv) {
 	}
 	// Now parse all the presets.  Might want to pick which presets version to
 	// use according to other parameters.
-	auto_ptr<Presets> presets(new PresetsV0());
+	unique_ptr<Presets> presets(new PresetsV0());
 	// Apply default preset
 	if(!defaultPreset.empty()) {
 		polstr = applyPreset(defaultPreset, *presets.get()) + polstr;
@@ -3019,8 +3023,8 @@ static void multiseedSearchWorker(void *vp) {
 		// problems, or generally characterize performance.
 
 		//const BitPairReference& refs   = *multiseed_refs;
-		auto_ptr<PatternSourcePerThreadFactory> patsrcFact(createPatsrcFactory(patsrc, pp, tid));
-		auto_ptr<PatternSourcePerThread> ps(patsrcFact->create());
+		unique_ptr<PatternSourcePerThreadFactory> patsrcFact(createPatsrcFactory(patsrc, pp, tid));
+		unique_ptr<PatternSourcePerThread> ps(patsrcFact->create());
 
 		// Thread-local cache for seed alignments
 		PtrWrap<AlignmentCache> scLocal;
@@ -3046,7 +3050,7 @@ static void multiseedSearchWorker(void *vp) {
 			gReportMixed);     // report unpaired alignments for paired reads?
 
 		// Instantiate a mapping quality calculator
-		auto_ptr<Mapq> bmapq(new_mapq(mapqv, scoreMin, sc));
+		unique_ptr<Mapq> bmapq(new_mapq(mapqv, scoreMin, sc));
 
 		// Make a per-thread wrapper for the global MHitSink object.
 		AlnSinkWrap msinkwrap(
@@ -4154,8 +4158,8 @@ static void multiseedSearchWorker_2p5(void *vp) {
 	// problems, or generally characterize performance.
 
 	ThreadCounter tc;
-	auto_ptr<PatternSourcePerThreadFactory> patsrcFact(createPatsrcFactory(patsrc, pp, tid));
-	auto_ptr<PatternSourcePerThread> ps(patsrcFact->create());
+	unique_ptr<PatternSourcePerThreadFactory> patsrcFact(createPatsrcFactory(patsrc, pp, tid));
+	unique_ptr<PatternSourcePerThread> ps(patsrcFact->create());
 
 	// Instantiate an object for holding reporting-related parameters.
 	ReportingParams rp(
@@ -4167,7 +4171,7 @@ static void multiseedSearchWorker_2p5(void *vp) {
 		gReportMixed);     // report unpaired alignments for paired reads?
 
 	// Instantiate a mapping quality calculator
-	auto_ptr<Mapq> bmapq(new_mapq(mapqv, scoreMin, sc));
+	unique_ptr<Mapq> bmapq(new_mapq(mapqv, scoreMin, sc));
 
 	// Make a per-thread wrapper for the global MHitSink object.
 	AlnSinkWrap msinkwrap(
@@ -4667,7 +4671,7 @@ static void multiseedSearch(
 	multiseed_sc     = &sc;
 	multiseed_metricsOfb      = metricsOfb;
 	Timer *_t = new Timer(cerr, "Time loading reference: ", timing);
-	auto_ptr<BitPairReference> refs(
+	unique_ptr<BitPairReference> refs(
 		new BitPairReference(
 			adjIdxBase,
 			false,
