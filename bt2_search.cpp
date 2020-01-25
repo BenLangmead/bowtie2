@@ -1621,8 +1621,11 @@ static void parseOptions(int argc, const char **argv) {
 	// use according to other parameters.
 	unique_ptr<Presets> presets(new PresetsV0());
 	// Apply default preset
-	if(!defaultPreset.empty()) {
+	if (presetList.empty())
 		polstr = applyPreset(defaultPreset, *presets.get()) + polstr;
+	else {
+		for (size_t i = presetList.size(); i != 0; i--)
+			polstr = applyPreset(presetList[i-1], *presets.get()) + polstr;
 	}
 	// Apply specified presets
 	for(size_t i = 0; i < presetList.size(); i++) {
