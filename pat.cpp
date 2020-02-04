@@ -1192,6 +1192,8 @@ const uint8_t BAMPatternSource::EOF_MARKER[] = {
 
 uint16_t BAMPatternSource::nextBGZFBlockFromFile(BGZF& b) {
         if (fread(&b.hdr, sizeof(b.hdr), 1, fp_) != 1) {
+		if (feof(fp_))
+			return 0;
                 std::cerr << "Error while reading BAM header" << std::endl;
                 exit(EXIT_FAILURE);
         }
@@ -1204,7 +1206,6 @@ uint16_t BAMPatternSource::nextBGZFBlockFromFile(BGZF& b) {
             memcmp(EOF_MARKER + sizeof(b.hdr), extra, 6 /* sizeof BAM subfield */) == 0)
 	{
 		delete[] extra;
-		fclose(fp_);
 		return 0;
 	}
 	uint16_t bsize = 0;
