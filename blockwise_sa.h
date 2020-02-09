@@ -1137,7 +1137,7 @@ void KarkkainenBlockwiseSA<TStr>::nextBlock(int cur_block, int tid) {
                     if(ten > 0) VMSG_NL("  bucket " << (cur_block+1) << ": " << (ten * 10) << "%");
                 }
                 for(TIndexOffU i = iten; i < itenNext && i < len; i++) {
-                    assert_lt(jLo, (TIndexOff)i); assert_lt(jHi, (TIndexOff)i);
+                    assert_lt(jLo, (int64_t)i); assert_lt(jHi, (int64_t)i);
                     // Advance the upper-bound comparison by one character
                     if(i == hi || i == lo) continue; // equal to one of the bookends
                     if(hi != OFF_MASK && !suffixCmp(hi, i, jHi, kHi, kHiSoft, zHi)) {
