@@ -409,6 +409,17 @@ void SeedAlignmentPolicy::parseString(
 				}
 				// Set type to =quality
 				penMmcType = COST_MODEL_QUAL;
+				/* The match penalty may get set before
+				 * the --ignore-quals parameter gets parsed.
+				 * Since the match penalty policy depends on
+				 * the whether or not --ignore-quals was set
+				 * we do a check here and adjust the parameter
+				 * accordingly.
+				 */
+				if (ignoreQuals) {
+					penMmcMin = penMmcMax;
+					penMmcType = COST_MODEL_CONSTANT;
+				}
 			} else if(ctoks[0][0] == 'R') {
 				// Set type to=Maq-quality
 				penMmcType = COST_MODEL_ROUNDED_QUAL;
