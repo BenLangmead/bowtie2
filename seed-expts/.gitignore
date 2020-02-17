@@ -1,0 +1,5 @@
+*.sam
+*.fastq
+*.txt
+*.Rmd
+*.html
