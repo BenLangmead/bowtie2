@@ -991,6 +991,7 @@ static bool saw_trim_to;
 static bool saw_bam;
 static bool saw_preserve_tags;
 static bool saw_align_paired_reads;
+static string mmp_arg;
 static EList<string> presetList;
 
 /**
@@ -1500,21 +1501,13 @@ static void parseOption(int next_option, const char *arg) {
 		}
 		case ARG_SCORE_MA:  polstr += ";MA=";    polstr += arg; break;
 		case ARG_SCORE_MMP: {
-			EList<string> args;
-			tokenize(arg, ",", args);
-			if(args.size() > 2 || args.size() == 0) {
-				cerr << "Error: expected 1 or 2 comma-separated "
-					 << "arguments to --mmp option, got " << args.size() << endl;
-				throw 1;
-			}
-			if(args.size() >= 1) {
-				polstr += ";MMP=Q,";
-				polstr += args[0];
-				if(args.size() >= 2) {
-					polstr += ",";
-					polstr += args[1];
-				}
-			}
+			/* The match penalty may get set before
+			 * the --ignore-quals parameter gets parsed.
+			 * Since the match penalty policy depends on
+			 * the whether or not --ignore-quals was set
+			 * we save the argument here and parse later.
+			 */
+			mmp_arg = arg;
 			break;
 		}
 		case ARG_SCORE_NP:  polstr += ";NP=C";   polstr += arg; break;
@@ -1578,6 +1571,7 @@ static void parseOptions(int argc, const char **argv) {
 	saw_bam = false;
 	saw_preserve_tags = false;
 	saw_align_paired_reads = false;
+	mmp_arg = "";
 	presetList.clear();
 	if(startVerbose) { cerr << "Parsing options: "; logTime(cerr, true); }
 	while(true) {
@@ -1616,6 +1610,26 @@ static void parseOptions(int argc, const char **argv) {
 	if (!saw_bam && saw_align_paired_reads) {
 		cerr << "--align-paired-reads can only be used when aligning BAM reads." << endl;
 		exit(1);
+	}
+	if (mmp_arg.length() != 0) {
+		EList<string> args;
+		tokenize(mmp_arg.c_str(), ",", args);
+		if(args.size() > 2 || args.size() == 0) {
+			cerr << "Error: expected 1 or 2 comma-separated "
+			     << "arguments to --mmp option, got " << args.size() << endl;
+			throw 1;
+		}
+		if(args.size() >= 1) {
+			if (ignoreQuals)
+				polstr += ";MMP=C,";
+			else
+				polstr += ";MMP=Q,";
+			polstr += args[0];
+			if(args.size() >= 2) {
+				polstr += ",";
+				polstr += args[1];
+			}
+		}
 	}
 	// Now parse all the presets.  Might want to pick which presets version to
 	// use according to other parameters.
