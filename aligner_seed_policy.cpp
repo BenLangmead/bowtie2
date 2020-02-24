@@ -417,8 +417,16 @@ void SeedAlignmentPolicy::parseString(
 				 * accordingly.
 				 */
 				if (ignoreQuals) {
+					if (gVerbose)
+						cerr << "Changing MMP=Q," << penMmcMax << " to ";
 					penMmcMin = penMmcMax;
 					penMmcType = COST_MODEL_CONSTANT;
+					if (gVerbose) {
+						cerr << "MMP=C," << penMmcMax
+						     << " because of --ignore-quals"
+						     << endl;
+					}
+
 				}
 			} else if(ctoks[0][0] == 'R') {
 				// Set type to=Maq-quality
