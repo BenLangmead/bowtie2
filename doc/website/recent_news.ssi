@@ -1,3 +1,19 @@
+<h2>Version 2.4.0 - Feb 25, 2020</h2>
+<ul>
+    <li>Fixed an issue in BAM pattern source where one thread would prematurely close the read file pointer resulting in other threads crashing because of “Bad file descriptor” errors.</li>
+    <li>Fixed an issue that would cause bowtie2 to crash with <code><a href="manual.shtml#bowtie2-options-no-1mm-upfront">--no-1mm-upfront</a></code> specified</li>
+    <li>Modified bowtie2-build script to better handle of flags and positional parameters</li>
+    <li>Migrated all python scripts to python3.</li>
+    <li>Added support for wildcards in input files to bowtie2 wrapper script e.g. <code>bowtie2 -x index -q *.fq as opposed to bowtie2 -x index -q 1.fq,2.fq,3.fq...</code></li>
+    <li>Fixed an issue causing bowtie2 to incorrectly process read names see <a href="https://github.com/BenLangmead/bowtie2/issues/265">#265</a></li>
+    <li>Added support for allowing presets to be overridden by more specific options e.g <code>bowtie2 -x index --local --very-fast-local --L22 -q reads.fq</code> will cause bowtie2 to use a seed length of 22 instead of a seed length of 25 that’s configured for <code><a href="manual.shtml#bowtie2-options-very-fast-local">--very-fast-local</a></code> preset.</li>
+    <li>Modified SAM output for <code><a href="manual.shtml#bowtie2-options-k">-k</a></code>/<code><a href="manual.shtml#bowtie2-options-a">-a</a></code> so that supplementary alignments get assigned a MAPQ of 255.</li>
+    <li>Fixed an issue that would cause bowtie2-build to not generate reverse index files.</li>
+    <li>Added preliminary support for ppc64le architectures with the help of SIMDE project see <a href="https://github.com/BenLangmead/bowtie2/issues/271">#271</a> for details.</li>
+    <li>Fixed an issue causing bowtie2 to incorrectly calculate the MAPQ when <code><a href="manual.shtml#bowtie2-options-mp">--mp</a></code> was specified in combination with <code><a href="manual.shtml#bowtie2-options-ignore-quals">--ignore-quals</a></code>.</li>
+</ul>
+
+
 <h2>1000-Genomes major-allele SNP references -- April 26, 2019</h2>
 <ul>
     <li>For each base where the typical reference has the non-majority allele (according to the <a href="http://www.internationalgenome.org">1000 Genomes Project</a>, we substituted in the majority allele instead

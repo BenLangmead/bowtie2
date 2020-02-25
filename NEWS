@@ -4,7 +4,7 @@ Bowtie 2 NEWS
 Bowtie 2 is available for download from the project website,
 http://bowtie-bio.sf.net/bowtie2 and on Github,
 https://github.com/BenLangmead/bowtie2/releases.  2.0.0-beta1 is
-the first version released to the public and 2.3.5.1 is the latest
+the first version released to the public and 2.4.0 is the latest
 version.  Bowtie 2 is licensed under the GPLv3 license.  See `LICENSE'
 file for details.
 
@@ -18,6 +18,33 @@ Please report any issues to the Bowtie 2 Github page or using the Sourceforge bu
 
 Version Release History
 =======================
+
+Version 2.4.0 - Feb 25, 2020
+
+    * Fixed an issue in BAM pattern source where one thread would prematurely
+      close the read file pointer resulting in other threads crashing because
+      of "Bad file descriptor" errors.
+    * Fixed an issue that would cause bowtie2 to crash with `--no-1mm-upfront`
+      specified
+    * Modified bowtie2-build script to better handle of flags and positional
+      parameters
+    * Migrated all python scripts to python3.
+    * Added support for wildcards in input files to bowtie2 wrapper script e.g.
+      `bowtie2 -x index -q *.fq as opposed to bowtie2 -x index -q 1.fq,2.fq,3.fq...`
+    * Fixed an issue causing bowtie2 to incorrectly process read names see
+      [#265](https://github.com/BenLangmead/bowtie2/issues/265)
+    * Added support for allowing presets to be overridden by more specific
+      options e.g `bowtie2 -x index --local --very-fast-local --L22 -q reads.fq`
+      will cause bowtie2 to use a seed length of 22 instead of a seed length
+      of 25 that's configured for `--very-fast-local` preset.
+    * Modified SAM output for `-k`/`-a` so that supplementary alignments get
+      assigned a MAPQ of 255.
+    * Fixed an issue that would cause bowtie2-build to not generate
+      reverse index files.
+    * Added preliminary support for ppc64le architectures with the help of
+      SIMDE project see [#271](https://github.com/BenLangmead/bowtie2/issues/271) for details.
+    * Fixed an issue causing bowtie2 to incorrectly calculate the MAPQ
+      when `--mp` was specified in combination with `--ignore-quals`.
 
 Version 2.3.5.1 - Apr 16, 2019
 

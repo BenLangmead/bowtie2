@@ -531,7 +531,8 @@ alignments.  It reports all alignments found, in descending order by alignment
 score.  The alignment score for a paired-end alignment equals the sum of the
 alignment scores of the individual mates.  Each reported read or pair alignment
 beyond the first has the SAM 'secondary' bit (which equals 256) set in its FLAGS
-field.  See the [SAM specification] for details.
+field.  Supplementary alignments will also be assigned a MAPQ of 255.
+See the [SAM specification] for details.
 
 Bowtie 2 does not "find" alignments in any specific order, so for reads that
 have more than N distinct, valid alignments, Bowtie 2 does not guarantee that
@@ -548,8 +549,8 @@ number of alignments Bowtie 2 should report.  Alignments are reported in
 descending order by alignment score.  The alignment score for a paired-end
 alignment equals the sum of the alignment scores of the individual mates.  Each
 reported read or pair alignment beyond the first has the SAM 'secondary' bit
-(which equals 256) set in its FLAGS field.  See the [SAM specification] for
-details.
+(which equals 256) set in its FLAGS field.  Supplementary alignments will be assigned
+a MAPQ of 255. See the [SAM specification] for details.
 
 Some tools are designed with this reporting mode in mind.  Bowtie 2 is not!  For
 very large genomes, this mode is very slow.
@@ -648,6 +649,10 @@ generally being faster but less sensitive and less accurate, and the presets
 ending in `sensitive` generally being slower but more sensitive and more
 accurate.  See the [documentation for the preset options] for details.
 
+As of Bowtie2 v2.4.0, individual preset values can be overridden by providing the
+specific options e.g. the configured seed length of 20 in the [`--very-senitive`]
+preset above can be changed to 25 by also specifying the `-L 25` parameter
+anywhere on the command line.
 
 Filtering
 ---------
