@@ -1,7 +1,4 @@
-
-
-INTRODUCTION
-
+Introduction
 
 Bowtie 2 is an ultrafast and memory-efficient tool for aligning
 sequencing reads to long reference sequences. It is particularly good at
@@ -28,11 +25,10 @@ Papers describing Bowtie 2 are:
 
 -   Langmead B, Wilks C, Antonescu V, Charles R. Scaling read aligners
     to hundreds of threads on general-purpose processors.
-    _Bioinformatics_. 2018 Jul 18. doi: 10.1093/bioinformatics/bty648.
+    Bioinformatics. 2018 Jul 18. doi: 10.1093/bioinformatics/bty648.
 
 -   Langmead B, Salzberg SL. Fast gapped-read alignment with Bowtie 2.
-    _Nature Methods_. 2012 Mar 4;9(4):357-9. doi: 10.1038/nmeth.1923.
-
+    Nature Methods. 2012 Mar 4;9(4):357-9. doi: 10.1038/nmeth.1923.
 
 How is Bowtie 2 different from Bowtie 1?
 
@@ -85,7 +81,6 @@ Bowtie 2 is not a “drop-in” replacement for Bowtie 1. Bowtie 2’s
 command-line arguments and genome index format are both different from
 Bowtie 1’s.
 
-
 What isn’t Bowtie 2?
 
 Bowtie 2 is geared toward aligning relatively short sequencing reads to
@@ -98,10 +93,7 @@ Illumina sequencers.
 Bowtie 2 does not support alignment of colorspace reads. (Bowtie 1
 does.)
 
-
-
-OBTAINING BOWTIE 2
-
+Obtaining Bowtie 2
 
 Bowtie 2 is available from various package managers, notably Bioconda.
 With Bioconda installed, you should be able to install Bowtie 2 with
@@ -115,7 +107,6 @@ section of the Sourceforge site. Binaries are available for the x86_64
 architecture running Linux, Mac OS X, and Windows. If you plan to
 compile Bowtie 2 yourself, make sure to get the source package, i.e.,
 the filename that ends in “-source.zip”.
-
 
 Building from source
 
@@ -179,7 +170,6 @@ bowtie2 from source please make sure that the Java runtime is available
 on your system. You can then proceed with the build by running
 make sra-deps && make USE_SRA=1.
 
-
 Adding to PATH
 
 By adding your new Bowtie 2 directory to your PATH environment variable,
@@ -195,10 +185,7 @@ the executables, including bowtie2, bowtie2-align-s, bowtie2-align-l,
 bowtie2-build, bowtie2-build-s, bowtie2-build-l, bowtie2-inspect,
 bowtie2-inspect-s and bowtie2-inspect-l.
 
-
-
-THE bowtie2 ALIGNER
-
+The bowtie2 aligner
 
 bowtie2 takes a Bowtie 2 index and a set of sequencing read files and
 outputs a set of alignments in SAM format.
@@ -222,7 +209,6 @@ determine this with certainty. For instance, if the reference genome
 contains several long stretches of As (AAAAAAAAA etc.) and the read
 sequence is a short stretch of As (AAAAAAA), we cannot know for certain
 exactly where in the sea of As the read originated.
-
 
 End-to-end alignment versus local alignment
 
@@ -264,7 +250,6 @@ produced by Bowtie 2 only in local mode.
       Read:      ACGGTTGCGTTAA-TCCGCCACG
                      ||||||||| ||||||
       Reference: TAACTTGCGTTAAATCCGCCTGG
-
 
 Scores: higher = more similar
 
@@ -319,7 +304,6 @@ where L is the read length. This can be configured with the --score-min
 option. For details on how to set options like --score-min that
 correspond to functions, see the section on setting function options.
 
-
 Mapping quality: higher = more unique
 
 The aligner cannot always assign a read to its point of origin with high
@@ -345,7 +329,6 @@ callers. For instance, a variant caller might choose to ignore evidence
 from alignments with mapping quality less than, say, 10. A mapping
 quality of 10 or less indicates that there is at least a 1 in 10 chance
 that the read truly originated elsewhere.
-
 
 Aligning pairs
 
@@ -494,7 +477,6 @@ causes Bowtie 2 to consider cases where one mate alignment contains the
 other as non-concordant. Setting --dovetail causes Bowtie 2 to consider
 cases where the mate alignments dovetail as concordant.
 
-
 Reporting
 
 The reporting mode governs how many alignments Bowtie 2 looks for, and
@@ -558,8 +540,9 @@ distinct alignments. It reports all alignments found, in descending
 order by alignment score. The alignment score for a paired-end alignment
 equals the sum of the alignment scores of the individual mates. Each
 reported read or pair alignment beyond the first has the SAM ‘secondary’
-bit (which equals 256) set in its FLAGS field. See the SAM specification
-for details.
+bit (which equals 256) set in its FLAGS field. Supplementary alignments
+will also be assigned a MAPQ of 255. See the SAM specification for
+details.
 
 Bowtie 2 does not “find” alignments in any specific order, so for reads
 that have more than N distinct, valid alignments, Bowtie 2 does not
@@ -576,7 +559,8 @@ descending order by alignment score. The alignment score for a
 paired-end alignment equals the sum of the alignment scores of the
 individual mates. Each reported read or pair alignment beyond the first
 has the SAM ‘secondary’ bit (which equals 256) set in its FLAGS field.
-See the SAM specification for details.
+Supplementary alignments will be assigned a MAPQ of 255. See the SAM
+specification for details.
 
 Some tools are designed with this reporting mode in mind. Bowtie 2 is
 not! For very large genomes, this mode is very slow.
@@ -608,7 +592,6 @@ generator. When this is specified, Bowtie 2 might report different
 alignments for identical reads. This is counter-intuitive for some
 users, but might be more appropriate in situations where the input
 consists of many identical reads.
-
 
 Multiseed heuristic
 
@@ -644,7 +627,6 @@ Index itself is typically the largest data structure used. For instance,
 the memory footprint of the FM Index for the human genome is about 3.2
 gigabytes of RAM.
 
-
 Ambiguous characters
 
 Non-whitespace characters besides A, C, G or T are considered
@@ -660,11 +642,10 @@ ambiguous reference characters in a valid alignment. The optional field
 XN:i reports the number of ambiguous reference characters overlapped by
 an alignment.
 
-Note that the multiseed heuristic cannot find _seed_ alignments that
+Note that the multiseed heuristic cannot find seed alignments that
 overlap ambiguous reference characters. For an alignment overlapping an
 ambiguous reference character to be found, it must have one or more seed
 alignments that do not overlap ambiguous reference characters.
-
 
 Presets: setting many settings at once
 
@@ -679,6 +660,10 @@ the presets ending in sensitive generally being slower but more
 sensitive and more accurate. See the documentation for the preset
 options for details.
 
+As of Bowtie2 v2.4.0, individual preset values can be overridden by
+providing the specific options e.g. the configured seed length of 20 in
+the [--very-senitive] preset above can be changed to 25 by also
+specifying the -L 25 parameter anywhere on the command line.
 
 Filtering
 
@@ -706,7 +691,6 @@ filtered.
 
 If a read could be filtered for more than one reason, the value YF:Z
 flag will reflect only one of those reasons.
-
 
 Alignment summary
 
@@ -742,7 +726,6 @@ For datasets consisting of pairs, the summary might look like this:
 
 The indentation indicates how subtotals relate to totals.
 
-
 Wrapper scripts
 
 The bowtie2, bowtie2-build and bowtie2-inspect executables are actually
@@ -756,7 +739,6 @@ related options.
 It is recommended that you always run the bowtie2 wrappers and not run
 the binaries directly.
 
-
 Small and large indexes
 
 bowtie2-build can index reference genomes of any size. For genomes less
@@ -767,7 +749,6 @@ numbers. Small indexes are stored in files with the .bt2 extension, and
 large indexes are stored in files with the .bt2l extension. The user
 need not worry about whether a particular index is small or large; the
 wrapper scripts will automatically build and use the appropriate index.
-
 
 Performance tuning
 
@@ -794,9 +775,8 @@ Performance tuning
 3.  If bowtie2 “thrashes”, try increasing bowtie2-build --offrate
 
     If bowtie2 runs very slowly on a relatively low-memory computer, try
-    setting -o/--offrate to a _larger_ value when building the index.
-    This decreases the memory footprint of the index.
-
+    setting -o/--offrate to a larger value when building the index. This
+    decreases the memory footprint of the index.
 
 Command Line
 
@@ -1121,17 +1101,17 @@ strands enabled.
     --no-1mm-upfront
 
 By default, Bowtie 2 will attempt to find either an exact or a
-1-mismatch end-to-end alignment for the read _before_ trying the
-multiseed heuristic. Such alignments can be found very quickly, and many
-short read alignments have exact or near-exact end-to-end alignments.
-However, this can lead to unexpected alignments when the user also sets
-options governing the multiseed heuristic, like -L and -N. For instance,
-if the user specifies -N 0 and -L equal to the length of the read, the
-user will be surprised to find 1-mismatch alignments reported. This
-option prevents Bowtie 2 from searching for 1-mismatch end-to-end
-alignments before using the multiseed heuristic, which leads to the
-expected behavior when combined with options such as -L and -N. This
-comes at the expense of speed.
+1-mismatch end-to-end alignment for the read before trying the multiseed
+heuristic. Such alignments can be found very quickly, and many short
+read alignments have exact or near-exact end-to-end alignments. However,
+this can lead to unexpected alignments when the user also sets options
+governing the multiseed heuristic, like -L and -N. For instance, if the
+user specifies -N 0 and -L equal to the length of the read, the user
+will be surprised to find 1-mismatch alignments reported. This option
+prevents Bowtie 2 from searching for 1-mismatch end-to-end alignments
+before using the multiseed heuristic, which leads to the expected
+behavior when combined with options such as -L and -N. This comes at the
+expense of speed.
 
     --end-to-end
 
@@ -1568,7 +1548,6 @@ Print version information and quit.
 
 Print usage information and quit.
 
-
 SAM output
 
 Following is a brief description of the SAM format as output by bowtie2.
@@ -1732,10 +1711,7 @@ A string representation of the mismatched reference bases in the
 alignment. See SAM Tags format specification for details. Only present
 if SAM record is for an aligned read.
 
-
-
-THE bowtie2-build INDEXER
-
+The bowtie2-build indexer
 
 bowtie2-build builds a Bowtie index from a set of DNA sequences.
 bowtie2-build outputs a set of 6 files with suffixes .1.bt2, .2.bt2,
@@ -1774,7 +1750,6 @@ The Bowtie 2 index is based on the FM Index of Ferragina and Manzini,
 which in turn is based on the Burrows-Wheeler transform. The algorithm
 used to build the index is based on the blockwise algorithm of
 Karkkainen.
-
 
 Command Line
 
@@ -1919,10 +1894,7 @@ Print usage information and quit.
 
 Print version information and quit.
 
-
-
-THE bowtie2-inspect INDEX INSPECTOR
-
+The bowtie2-inspect index inspector
 
 bowtie2-inspect extracts information from a Bowtie index about what kind
 of index it is and what reference sequences were used to build it. When
@@ -1931,7 +1903,6 @@ the sequences of the original references (with all non-A/C/G/T
 characters converted to Ns). It can also be used to extract just the
 reference sequence names using the -n/--names option or a more verbose
 summary using the -s/--summary option.
-
 
 Command Line
 
@@ -1989,10 +1960,7 @@ Print version information and quit.
 
 Print usage information and quit.
 
-
-
-GETTING STARTED WITH BOWTIE 2: LAMBDA PHAGE EXAMPLE
-
+Getting started with Bowtie 2: Lambda phage example
 
 Bowtie 2 comes with some example files to get you started. The example
 files are not scientifically significant; we use the Lambda phage
@@ -2005,7 +1973,6 @@ BT2_HOME environment variable to point to the new Bowtie 2 directory
 containing the bowtie2, bowtie2-build and bowtie2-inspect binaries. This
 is important, as the BT2_HOME variable is used in the commands below to
 refer to that directory.
-
 
 Indexing a reference genome
 
@@ -2028,7 +1995,6 @@ commas to separate file names. For more details on how to create an
 index with bowtie2-build, see the manual section on index building. You
 may also want to bypass this process by obtaining a pre-built index. See
 using a pre-built index below for an example.
-
 
 Aligning example reads
 
@@ -2066,7 +2032,6 @@ rest of the lines are SAM alignments, one line per read or mate. See the
 Bowtie 2 manual section on SAM output and the SAM specification for
 details about how to interpret the SAM file format.
 
-
 Paired-end example
 
 To align paired-end reads included with Bowtie 2, stay in the same
@@ -2077,7 +2042,6 @@ directory and run:
 This aligns a set of paired-end reads to the reference genome, with
 results written to the file eg2.sam.
 
-
 Local alignment example
 
 To use local alignment to align some longer reads included with Bowtie
@@ -2087,7 +2051,6 @@ To use local alignment to align some longer reads included with Bowtie
 
 This aligns the long reads to the reference genome using local
 alignment, with results written to the file eg3.sam.
-
 
 Using SAMtools/BCFtools downstream
 

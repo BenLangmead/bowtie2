@@ -6,10 +6,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
   <title>Bowtie 2 Manual</title>
   <style>
-      code{white-space: pre-wrap;}
-      span.smallcaps{font-variant: small-caps;}
-      span.underline{text-decoration: underline;}
-      div.column{display: inline-block; vertical-align: top; width: 50%;}
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    span.underline{text-decoration: underline;}
+    div.column{display: inline-block; vertical-align: top; width: 50%;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    ul.task-list{list-style: none;}
   </style>
   <link rel="stylesheet" href="doc/style.css" />
   <!--[if lt IE 9]>
@@ -21,28 +23,34 @@
 <header id="title-block-header">
 <h1 class="title">Bowtie 2 Manual</h1>
 </header>
-<nav id="TOC">
+<nav id="TOC" role="doc-toc">
 <ul>
-<li><a href="#introduction">Introduction</a><ul>
+<li><a href="#introduction">Introduction</a>
+<ul>
 <li><a href="#how-is-bowtie-2-different-from-bowtie-1">How is Bowtie 2 different from Bowtie 1?</a></li>
 <li><a href="#what-isnt-bowtie-2">What isn’t Bowtie 2?</a></li>
 </ul></li>
-<li><a href="#obtaining-bowtie-2">Obtaining Bowtie 2</a><ul>
+<li><a href="#obtaining-bowtie-2">Obtaining Bowtie 2</a>
+<ul>
 <li><a href="#building-from-source">Building from source</a></li>
 <li><a href="#adding-to-path">Adding to PATH</a></li>
 </ul></li>
-<li><a href="#the-bowtie2-aligner">The <code>bowtie2</code> aligner</a><ul>
-<li><a href="#end-to-end-alignment-versus-local-alignment">End-to-end alignment versus local alignment</a><ul>
+<li><a href="#the-bowtie2-aligner">The <code>bowtie2</code> aligner</a>
+<ul>
+<li><a href="#end-to-end-alignment-versus-local-alignment">End-to-end alignment versus local alignment</a>
+<ul>
 <li><a href="#end-to-end-alignment-example">End-to-end alignment example</a></li>
 <li><a href="#local-alignment-example">Local alignment example</a></li>
 </ul></li>
-<li><a href="#scores-higher-more-similar">Scores: higher = more similar</a><ul>
+<li><a href="#scores-higher-more-similar">Scores: higher = more similar</a>
+<ul>
 <li><a href="#end-to-end-alignment-score-example">End-to-end alignment score example</a></li>
 <li><a href="#local-alignment-score-example">Local alignment score example</a></li>
 <li><a href="#valid-alignments-meet-or-exceed-the-minimum-score-threshold">Valid alignments meet or exceed the minimum score threshold</a></li>
 </ul></li>
 <li><a href="#mapping-quality-higher-more-unique">Mapping quality: higher = more unique</a></li>
-<li><a href="#aligning-pairs">Aligning pairs</a><ul>
+<li><a href="#aligning-pairs">Aligning pairs</a>
+<ul>
 <li><a href="#paired-inputs">Paired inputs</a></li>
 <li><a href="#paired-sam-output">Paired SAM output</a></li>
 <li><a href="#concordant-pairs-match-pair-expectations-discordant-pairs-dont">Concordant pairs match pair expectations, discordant pairs don’t</a></li>
@@ -51,14 +59,16 @@
 <li><a href="#some-sam-optional-fields-describe-more-paired-end-properties">Some SAM optional fields describe more paired-end properties</a></li>
 <li><a href="#mates-can-overlap-contain-or-dovetail-each-other">Mates can overlap, contain, or dovetail each other</a></li>
 </ul></li>
-<li><a href="#reporting">Reporting</a><ul>
+<li><a href="#reporting">Reporting</a>
+<ul>
 <li><a href="#distinct-alignments-map-a-read-to-different-places">Distinct alignments map a read to different places</a></li>
 <li><a href="#default-mode-search-for-multiple-alignments-report-the-best-one">Default mode: search for multiple alignments, report the best one</a></li>
 <li><a href="#k-mode-search-for-one-or-more-alignments-report-each">-k mode: search for one or more alignments, report each</a></li>
 <li><a href="#a-mode-search-for-and-report-all-alignments">-a mode: search for and report all alignments</a></li>
 <li><a href="#randomness-in-bowtie-2">Randomness in Bowtie 2</a></li>
 </ul></li>
-<li><a href="#multiseed-heuristic">Multiseed heuristic</a><ul>
+<li><a href="#multiseed-heuristic">Multiseed heuristic</a>
+<ul>
 <li><a href="#fm-index-memory-footprint">FM Index memory footprint</a></li>
 </ul></li>
 <li><a href="#ambiguous-characters">Ambiguous characters</a></li>
@@ -68,7 +78,8 @@
 <li><a href="#wrapper-scripts">Wrapper scripts</a></li>
 <li><a href="#small-and-large-indexes">Small and large indexes</a></li>
 <li><a href="#performance-tuning">Performance tuning</a></li>
-<li><a href="#command-line">Command Line</a><ul>
+<li><a href="#command-line">Command Line</a>
+<ul>
 <li><a href="#setting-function-options">Setting function options</a></li>
 <li><a href="#usage">Usage</a></li>
 <li><a href="#main-arguments">Main arguments</a></li>
@@ -76,19 +87,24 @@
 </ul></li>
 <li><a href="#sam-output">SAM output</a></li>
 </ul></li>
-<li><a href="#the-bowtie2-build-indexer">The <code>bowtie2-build</code> indexer</a><ul>
-<li><a href="#command-line-1">Command Line</a><ul>
+<li><a href="#the-bowtie2-build-indexer">The <code>bowtie2-build</code> indexer</a>
+<ul>
+<li><a href="#command-line-1">Command Line</a>
+<ul>
 <li><a href="#main-arguments-1">Main arguments</a></li>
 <li><a href="#options-1">Options</a></li>
 </ul></li>
 </ul></li>
-<li><a href="#the-bowtie2-inspect-index-inspector">The <code>bowtie2-inspect</code> index inspector</a><ul>
-<li><a href="#command-line-2">Command Line</a><ul>
+<li><a href="#the-bowtie2-inspect-index-inspector">The <code>bowtie2-inspect</code> index inspector</a>
+<ul>
+<li><a href="#command-line-2">Command Line</a>
+<ul>
 <li><a href="#main-arguments-2">Main arguments</a></li>
 <li><a href="#options-2">Options</a></li>
 </ul></li>
 </ul></li>
-<li><a href="#getting-started-with-bowtie-2-lambda-phage-example">Getting started with Bowtie 2: Lambda phage example</a><ul>
+<li><a href="#getting-started-with-bowtie-2-lambda-phage-example">Getting started with Bowtie 2: Lambda phage example</a>
+<ul>
 <li><a href="#indexing-a-reference-genome">Indexing a reference genome</a></li>
 <li><a href="#aligning-example-reads">Aligning example reads</a></li>
 <li><a href="#paired-end-example">Paired-end example</a></li>
@@ -292,10 +308,10 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC</code></pr
 <p>See also: <a href="#bowtie2-options-D"><code>-D</code></a>, which puts an upper limit on the number of dynamic programming problems (i.e. seed extensions) that can “fail” in a row before Bowtie 2 stops searching. Increasing <a href="#bowtie2-options-D"><code>-D</code></a> makes Bowtie 2 slower, but increases the likelihood that it will report the correct alignment for a read that aligns many places.</p>
 <p>See also: <a href="#bowtie2-options-R"><code>-R</code></a>, which sets the maximum number of times Bowtie 2 will “re-seed” when attempting to align a read with repetitive seeds. Increasing <a href="#bowtie2-options-R"><code>-R</code></a> makes Bowtie 2 slower, but increases the likelihood that it will report the correct alignment for a read that aligns many places.</p>
 <h3 id="k-mode-search-for-one-or-more-alignments-report-each">-k mode: search for one or more alignments, report each</h3>
-<p>In <a href="#bowtie2-options-k"><code>-k</code></a> mode, Bowtie 2 searches for up to N distinct, valid alignments for each read, where N equals the integer specified with the <code>-k</code> parameter. That is, if <code>-k 2</code> is specified, Bowtie 2 will search for at most 2 distinct alignments. It reports all alignments found, in descending order by alignment score. The alignment score for a paired-end alignment equals the sum of the alignment scores of the individual mates. Each reported read or pair alignment beyond the first has the SAM ‘secondary’ bit (which equals 256) set in its FLAGS field. See the <a href="http://samtools.sourceforge.net/SAM1.pdf">SAM specification</a> for details.</p>
+<p>In <a href="#bowtie2-options-k"><code>-k</code></a> mode, Bowtie 2 searches for up to N distinct, valid alignments for each read, where N equals the integer specified with the <code>-k</code> parameter. That is, if <code>-k 2</code> is specified, Bowtie 2 will search for at most 2 distinct alignments. It reports all alignments found, in descending order by alignment score. The alignment score for a paired-end alignment equals the sum of the alignment scores of the individual mates. Each reported read or pair alignment beyond the first has the SAM ‘secondary’ bit (which equals 256) set in its FLAGS field. Supplementary alignments will also be assigned a MAPQ of 255. See the <a href="http://samtools.sourceforge.net/SAM1.pdf">SAM specification</a> for details.</p>
 <p>Bowtie 2 does not “find” alignments in any specific order, so for reads that have more than N distinct, valid alignments, Bowtie 2 does not guarantee that the N alignments reported are the best possible in terms of alignment score. Still, this mode can be effective and fast in situations where the user cares more about whether a read aligns (or aligns a certain number of times) than where exactly it originated.</p>
 <h3 id="a-mode-search-for-and-report-all-alignments">-a mode: search for and report all alignments</h3>
-<p><a href="#bowtie2-options-a"><code>-a</code></a> mode is similar to <a href="#bowtie2-options-k"><code>-k</code></a> mode except that there is no upper limit on the number of alignments Bowtie 2 should report. Alignments are reported in descending order by alignment score. The alignment score for a paired-end alignment equals the sum of the alignment scores of the individual mates. Each reported read or pair alignment beyond the first has the SAM ‘secondary’ bit (which equals 256) set in its FLAGS field. See the <a href="http://samtools.sourceforge.net/SAM1.pdf">SAM specification</a> for details.</p>
+<p><a href="#bowtie2-options-a"><code>-a</code></a> mode is similar to <a href="#bowtie2-options-k"><code>-k</code></a> mode except that there is no upper limit on the number of alignments Bowtie 2 should report. Alignments are reported in descending order by alignment score. The alignment score for a paired-end alignment equals the sum of the alignment scores of the individual mates. Each reported read or pair alignment beyond the first has the SAM ‘secondary’ bit (which equals 256) set in its FLAGS field. Supplementary alignments will be assigned a MAPQ of 255. See the <a href="http://samtools.sourceforge.net/SAM1.pdf">SAM specification</a> for details.</p>
 <p>Some tools are designed with this reporting mode in mind. Bowtie 2 is not! For very large genomes, this mode is very slow.</p>
 <h3 id="randomness-in-bowtie-2">Randomness in Bowtie 2</h3>
 <p>Bowtie 2’s search for alignments for a given read is “randomized.” That is, when Bowtie 2 encounters a set of equally-good choices, it uses a pseudo-random number to choose. For example, if Bowtie 2 discovers a set of 3 equally-good alignments and wants to decide which to report, it picks a pseudo-random integer 0, 1 or 2 and reports the corresponding alignment. Arbitrary choices can crop up at various points during alignment.</p>
@@ -314,6 +330,7 @@ Reference: GCAGATTATATGAGTCAGCTACGATATTGTTTGGGGTGACACATTACGCGTCTTTGAC</code></pr
 <p>Note that the <a href="#multiseed-heuristic">multiseed heuristic</a> cannot find <em>seed</em> alignments that overlap ambiguous reference characters. For an alignment overlapping an ambiguous reference character to be found, it must have one or more seed alignments that do not overlap ambiguous reference characters.</p>
 <h2 id="presets-setting-many-settings-at-once">Presets: setting many settings at once</h2>
 <p>Bowtie 2 comes with some useful combinations of parameters packaged into shorter “preset” parameters. For example, running Bowtie 2 with the <a href="#bowtie2-options-very-sensitive"><code>--very-sensitive</code></a> option is the same as running with options: <code>-D 20 -R 3 -N 0 -L 20 -i S,1,0.50</code>. The preset options that come with Bowtie 2 are designed to cover a wide area of the speed/sensitivity/accuracy trade-off space, with the presets ending in <code>fast</code> generally being faster but less sensitive and less accurate, and the presets ending in <code>sensitive</code> generally being slower but more sensitive and more accurate. See the <a href="#preset-options-in---end-to-end-mode">documentation for the preset options</a> for details.</p>
+<p>As of Bowtie2 v2.4.0, individual preset values can be overridden by providing the specific options e.g. the configured seed length of 20 in the [<code>--very-senitive</code>] preset above can be changed to 25 by also specifying the <code>-L 25</code> parameter anywhere on the command line.</p>
 <h2 id="filtering">Filtering</h2>
 <p>Some reads are skipped or “filtered out” by Bowtie 2. For example, reads may be filtered out because they are extremely short or have a high proportion of ambiguous nucleotides. Bowtie 2 will still print a SAM record for such a read, but no alignment will be reported and the <code>YF:i</code> SAM optional field will be set to indicate the reason the read was filtered.</p>
 <ul>
