@@ -63,7 +63,7 @@ matrix:
         # Set POPCNT_CAPABILITY=0 to avoid build error
         - POPCNT_CAPABILITY=0
         - NO_TBB=1
-      script: make -j $NPROC allall
+      script: travis_wait 30 make -j $NPROC allall
     # IBM Z (big endian)
     # - os: linux
     #   arch: s390x
