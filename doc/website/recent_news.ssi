@@ -1,16 +1,16 @@
 <h2>Version 2.4.0 - Feb 25, 2020</h2>
 <ul>
-    <li>Fixed an issue in BAM pattern source where one thread would prematurely close the read file pointer resulting in other threads crashing because of “Bad file descriptor” errors.</li>
-    <li>Fixed an issue that would cause bowtie2 to crash with <code><a href="manual.shtml#bowtie2-options-no-1mm-upfront">--no-1mm-upfront</a></code> specified</li>
-    <li>Modified bowtie2-build script to better handle of flags and positional parameters</li>
-    <li>Migrated all python scripts to python3.</li>
-    <li>Added support for wildcards in input files to bowtie2 wrapper script e.g. <code>bowtie2 -x index -q *.fq as opposed to bowtie2 -x index -q 1.fq,2.fq,3.fq...</code></li>
-    <li>Fixed an issue causing bowtie2 to incorrectly process read names see <a href="https://github.com/BenLangmead/bowtie2/issues/265">#265</a></li>
-    <li>Added support for allowing presets to be overridden by more specific options e.g <code>bowtie2 -x index --local --very-fast-local --L22 -q reads.fq</code> will cause bowtie2 to use a seed length of 22 instead of a seed length of 25 that’s configured for <code><a href="manual.shtml#bowtie2-options-very-fast-local">--very-fast-local</a></code> preset.</li>
-    <li>Modified SAM output for <code><a href="manual.shtml#bowtie2-options-k">-k</a></code>/<code><a href="manual.shtml#bowtie2-options-a">-a</a></code> so that supplementary alignments get assigned a MAPQ of 255.</li>
-    <li>Fixed an issue that would cause bowtie2-build to not generate reverse index files.</li>
-    <li>Added preliminary support for ppc64le architectures with the help of SIMDE project see <a href="https://github.com/BenLangmead/bowtie2/issues/271">#271</a> for details.</li>
-    <li>Fixed an issue causing bowtie2 to incorrectly calculate the MAPQ when <code><a href="manual.shtml#bowtie2-options-mp">--mp</a></code> was specified in combination with <code><a href="manual.shtml#bowtie2-options-ignore-quals">--ignore-quals</a></code>.</li>
+    <li>Fixed an issue in <code>-b <bam></code> input mode where one might prematurely close the read file pointer causing “Bad file descriptor” in other threads</li>
+    <li>Fixed an issue that could cause <code>bowtie2</code> to crash in <code><a href="manual.shtml#bowtie2-options-no-1mm-upfront">--no-1mm-upfront</a></code> mode</li>
+    <li>Modified <code>bowtie2-build</code> to better handle of flags and positional parameters</li>
+    <li>Migrated all <code>python</code> scripts to <code>python3</code></li>
+    <li>Added support for wildcards in input files to <code>bowtie2</code>, e.g. <code>bowtie2 -x index -q *.fq</code> as opposed to <code>bowtie2 -x index -q 1.fq,2.fq,3.fq...</code></li>
+    <li>Fixed an issue causing <code>bowtie2</code> to incorrectly process read names with slash mates plus extra characters (see <a href="https://github.com/BenLangmead/bowtie2/issues/265">#265</a>)</li>
+    <li>Clarified support for overriding presets with more specific options e.g <code>bowtie2 -x index --local --very-fast-local --L22 -q reads.fq</code> will set the seed length to 22, overriding the 25 set by <code><a href="manual.shtml#bowtie2-options-very-fast-local">--very-fast-local</a></code></li>
+    <li>Modified SAM output for <code><a href="manual.shtml#bowtie2-options-k">-k</a></code>/<code><a href="manual.shtml#bowtie2-options-a">-a</a></code> so that supplementary alignments get assigned a MAPQ of 255</li>
+    <li>Fixed an issue that would sometimes cause <code>bowtie2-build</code> to not generate reverse index files</li>
+    <li>Added preliminary support for ppc64le architectures with the help of SIMDE project (see <a href="https://github.com/BenLangmead/bowtie2/issues/271">#271</a>)</li>
+    <li>Fixed an issue causing <code>bowtie2</code> to incorrectly calculate the MAPQ when <code><a href="manual.shtml#bowtie2-options-mp">--mp</a></code> was specified in combination with <code><a href="manual.shtml#bowtie2-options-ignore-quals">--ignore-quals</a></code></li>
 </ul>
 
 
