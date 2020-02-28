@@ -5,7 +5,7 @@
 
 <h2>Version 2.4.0 - Feb 25, 2020</h2>
 <ul>
-    <li>Fixed an issue in <code>-b <bam></code> input mode where one might prematurely close the read file pointer causing “Bad file descriptor” in other threads</li>
+    <li>Fixed an issue in <code>-b &lt;bam&gt;</code> input mode where one might prematurely close the read file pointer causing “Bad file descriptor” in other threads</li>
     <li>Fixed an issue that could cause <code>bowtie2</code> to crash in <code><a href="manual.shtml#bowtie2-options-no-1mm-upfront">--no-1mm-upfront</a></code> mode</li>
     <li>Modified <code>bowtie2-build</code> to better handle of flags and positional parameters</li>
     <li>Migrated all <code>python</code> scripts to <code>python3</code></li>
