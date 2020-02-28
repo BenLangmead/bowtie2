@@ -19,32 +19,34 @@ Please report any issues to the Bowtie 2 Github page or using the Sourceforge bu
 Version Release History
 =======================
 
+Version 2.4.1 - Feb 28, 2020
+
+    * Fixed an issue that would cause the `bowtie2` wrapper script to incorrectly
+      process certain arguments.
+
 Version 2.4.0 - Feb 25, 2020
 
-    * Fixed an issue in BAM pattern source where one thread would prematurely
-      close the read file pointer resulting in other threads crashing because
-      of "Bad file descriptor" errors.
-    * Fixed an issue that would cause bowtie2 to crash with `--no-1mm-upfront`
-      specified
-    * Modified bowtie2-build script to better handle of flags and positional
-      parameters
-    * Migrated all python scripts to python3.
-    * Added support for wildcards in input files to bowtie2 wrapper script e.g.
-      `bowtie2 -x index -q *.fq as opposed to bowtie2 -x index -q 1.fq,2.fq,3.fq...`
-    * Fixed an issue causing bowtie2 to incorrectly process read names see
-      [#265](https://github.com/BenLangmead/bowtie2/issues/265)
-    * Added support for allowing presets to be overridden by more specific
-      options e.g `bowtie2 -x index --local --very-fast-local --L22 -q reads.fq`
-      will cause bowtie2 to use a seed length of 22 instead of a seed length
-      of 25 that's configured for `--very-fast-local` preset.
+    * Fixed an issue in `-b <bam>` input mode where one might prematurely close the
+      read file pointer causing “Bad file descriptor” in other threads
+    * Fixed an issue that could cause `bowtie2` to crash in `--no-1mm-upfront` mode
+    * Modified `bowtie2-build` to better handle of flags and positional parameters
+    * Migrated all `python` scripts to `python3`
+    * Added support for wildcards in input files to `bowtie2`, e.g. `bowtie2 -x
+      index -q *.fq` as opposed to `bowtie2 -x index -q 1.fq,2.fq,3.fq...`
+    * Fixed an issue causing <code>bowtie2</code> to incorrectly process read names
+      with slash mates plus extra characters (see
+      [#265](https://github.com/BenLangmead/bowtie2/issues/265))
+    * Clarified support for overriding presets with more specific options e.g
+      `bowtie2 -x index --local --very-fast-local --L22 -q reads.fq` will set the
+      seed length to 22, overriding the 25 set by `--very-fast-local`
     * Modified SAM output for `-k`/`-a` so that supplementary alignments get
-      assigned a MAPQ of 255.
-    * Fixed an issue that would cause bowtie2-build to not generate
-      reverse index files.
-    * Added preliminary support for ppc64le architectures with the help of
-      SIMDE project see [#271](https://github.com/BenLangmead/bowtie2/issues/271) for details.
-    * Fixed an issue causing bowtie2 to incorrectly calculate the MAPQ
-      when `--mp` was specified in combination with `--ignore-quals`.
+      assigned a MAPQ of 255
+    * Fixed an issue that would sometimes cause `bowtie2-build` to not generate
+      reverse index files
+    * Added preliminary support for ppc64le architectures with the help of SIMDE
+      project (see [#271](https://github.com/BenLangmead/bowtie2/issues/271))
+    * Fixed an issue causing `bowtie2` to incorrectly calculate the MAPQ when `--mp`
+      was specified in combination with `--ignore-quals`
 
 Version 2.3.5.1 - Apr 16, 2019
 

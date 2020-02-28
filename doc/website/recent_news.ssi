@@ -1,3 +1,8 @@
+<h2>Version 2.4.1 - Feb 28, 2020</h2>
+<ul>
+    <li>Fixed an issue that would cause the <code>bowtie2</code> wrapper script to incorrectly process certain arguments<li>
+</ul>
+
 <h2>Version 2.4.0 - Feb 25, 2020</h2>
 <ul>
     <li>Fixed an issue in <code>-b <bam></code> input mode where one might prematurely close the read file pointer causing “Bad file descriptor” in other threads</li>
