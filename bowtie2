@@ -131,7 +131,7 @@ my $large_idx = 0;
 
 sub handle_un_or_al {
     my ($opt, $value) = @_;
-    my ($name, $type_of_compression) = $opt =~ /((?:al|un)-(?:conc|mates))(?:-(gz|bz2|lz4))?/;
+    my ($name, $type_of_compression) = $opt =~ /((?:al|un)(?:-conc|-mates)?)(?:-(gz|bz2|lz4))?/;
 
     $read_fns{$name} = $value;
     $read_compress{$name} = "";
@@ -207,10 +207,12 @@ GetOptions(
     "un-mates-bz2=s"                => \&handle_un_or_al,
     "un-mates-lz4=s"                => \&handle_un_or_al,
     "log-file=s"                    => \$log_fName,
-    "help|h"                        => \$help
     );
 
 my @bt2_args = @ARGV;
+if ($verbose == 1) {
+    push @bt2_args, "--verbose";
+}
 
 # If the user asked us to redirect some reads to files, or to suppress
 # unaligned reads, then we need to capture the output from Bowtie 2 and pass it
