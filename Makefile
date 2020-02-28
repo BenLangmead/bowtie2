@@ -265,7 +265,6 @@ GENERAL_LIST := $(wildcard scripts/*.sh) \
   $(wildcard scripts/*.pl) \
   doc/manual.html \
   doc/README \
-  Dockerfile-aarch64 \
   doc/style.css \
   $(wildcard example/index/*.bt2) \
   $(wildcard example/reads/*.fq) \
