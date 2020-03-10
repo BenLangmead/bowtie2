@@ -233,9 +233,8 @@ if(scalar(keys %read_fns) > 0 || $no_unal) {
             $bt2_args[$i+1] = undef;
         }
     }
+    @bt2_args = grep defined, @bt2_args;
 }
-
-@bt2_args = grep defined, @bt2_args;
 
 my $old_stderr;
 
