@@ -210,6 +210,7 @@ GetOptions(
     );
 
 my @bt2_args = @ARGV;
+
 if ($verbose == 1) {
     push @bt2_args, "--verbose";
 }
@@ -233,6 +234,8 @@ if(scalar(keys %read_fns) > 0 || $no_unal) {
         }
     }
 }
+
+@bt2_args = grep defined, @bt2_args;
 
 my $old_stderr;
 
