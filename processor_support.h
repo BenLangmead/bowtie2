@@ -4,7 +4,7 @@
 // Utility class ProcessorSupport provides POPCNTenabled() to determine
 // processor support for POPCNT instruction. It uses CPUID to
 // retrieve the processor capabilities.
-// for Intel ICC compiler __cpuid() is an intrinsic 
+// for Intel ICC compiler __cpuid() is an intrinsic
 // for Microsoft compiler __cpuid() is provided by #include <intrin.h>
 // for GCC compiler __get_cpuid() is provided by #include <cpuid.h>
 
@@ -25,16 +25,16 @@ struct regs_t {unsigned int EAX, EBX, ECX, EDX;};
 
 class ProcessorSupport {
 
-#ifdef POPCNT_CAPABILITY 
+#ifdef POPCNT_CAPABILITY
 
-public: 
-    ProcessorSupport() { } 
+public:
+    ProcessorSupport() { }
     bool POPCNTenabled()
     {
     // from: Intel® 64 and IA-32 Architectures Software Developer’s Manual, 325462-036US,March 2013
     //Before an application attempts to use the POPCNT instruction, it must check that the
     //processor supports SSE4.2
-    //“(if CPUID.01H:ECX.SSE4_2[bit 20] = 1) and POPCNT (if CPUID.01H:ECX.POPCNT[bit 23] = 1)”
+    //"(if CPUID.01H:ECX.SSE4_2[bit 20] = 1) and POPCNT (if CPUID.01H:ECX.POPCNT[bit 23] = 1)"
     //
     // see p.272 of http://download.intel.com/products/processor/manual/253667.pdf available at
     // http://www.intel.com/content/www/us/en/processors/architectures-software-developer-manuals.html
@@ -49,7 +49,7 @@ public:
 #elif defined(USING_GCC_COMPILER)
         __get_cpuid(0x1, &regs.EAX, &regs.EBX, &regs.ECX, &regs.EDX);
 #else
-        std::cerr << “ERROR: please define __cpuid() for this build.\n”; 
+        std::cerr << "ERROR: please define __cpuid() for this build.\n";
         assert(0);
 #endif
         if( !( (regs.ECX & BIT(20)) && (regs.ECX & BIT(23)) ) ) return false;
@@ -64,7 +64,3 @@ public:
 };
 
 #endif /*PROCESSOR_SUPPORT_H_*/
-
-
-
-
