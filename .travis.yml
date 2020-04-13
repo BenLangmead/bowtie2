@@ -86,7 +86,11 @@ before_script:
   - echo CC=${CC} CXX=${CXX} NPROC=${NPROC}
   - $CC --version
   - $CXX --version
-script: make -j $NPROC allall && make simple-test
+script:
+  - set -e
+  - make -j $NPROC allall
+  - make simple-test
+  - set +e
 notifications:
   slack:
     secure: tfzT8N1fNV+oSV7tide9WrAj3ifs+LONJ3fCH1tUzexqrx23te4lE0oAj9C1cEMJ4evyRYwHNG8HZoLCOy8EfapqbWm6vgLIlkIBpeZ9E6f2jG6v0YuVDWWpqQC3qdGXCqWtHPjgs3i5OLsLwwQ/LItLoTqpBk2aYv+vGNs2F9g=
