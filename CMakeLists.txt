@@ -24,14 +24,13 @@ set(USE_SRA ${USE_SRA})
 set(WITH_THREAD_PROFILING ${WITH_THREAD_PROFILING})
 set(NO_POPCNT_CAPABILITY ${NO_POPCNT_CAPABILITY})
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
-set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m64 -g3 -Wall -msse2")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -funroll-loops")
 set(INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/bin" CACHE PATH "Installation directory for executables")
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS on)
-
 
 if (MINGW)
   option(BOWTIE_MM "Memory mapped files not supported on Windows" OFF)
@@ -297,7 +296,9 @@ set_target_properties(bowtie2-inspect-s bowtie2-inspect-l PROPERTIES COMPILE_FLA
 # set_target_properties(${BOWTIE2_BIN_LIST} PROPERTIES DEBUG_POSTFIX -debug)
 
 install(TARGETS ${BOWTIE2_BIN_LIST} DESTINATION bin)
-install(FILES ${BOWTIE2_WRAPPER_SCRIPTS} DESTINATION bin)
+install(FILES ${BOWTIE2_WRAPPER_SCRIPTS}
+  PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+  DESTINATION bin)
 if (LIBTBB)
   install(FILES ${LIBTBB} DESTINATION lib)
   install(DIRECTORY ${TBB_INCLUDE_PATH} DESTINATION include)
@@ -314,7 +315,7 @@ add_test(NAME simple-align
   COMMAND bowtie2 -x example/index/lambda_virus example/reads/longreads.fq -u 10)
 add_test(NAME simple-build
   WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-  COMMAND bowtie2-build -c GGGCGGCGACCTCGCGGGTTTTCGCTA out)
+  COMMAND bowtie2-build-s -c GGGCGGCGACCTCGCGGGTTTTCGCTA out)
 add_test(NAME simple-inspect
   WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-  COMMAND bowtie2-inspect out && rm out*)
+  COMMAND bowtie2-inspect-s out && rm out*)
