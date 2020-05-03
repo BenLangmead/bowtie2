@@ -207,18 +207,18 @@ else ifeq (amd64,$(shell uname -m))
 else ifeq (aarch64,$(shell uname -m))
   BITS := 64
   SSE_FLAG :=
-  CXXFLAGS := -fopenmp-simd
-  CPPFLAGS := -Ithird_party/simde
+  CXXFLAGS += -fopenmp-simd
+  CPPFLAGS += -Ithird_party/simde
 else ifeq (s390x,$(shell uname -m))
   BITS := 64
   SSE_FLAG :=
-  CXXFLAGS := -fopenmp-simd
-  CPPFLAGS := -Ithird_party/simde
+  CXXFLAGS += -fopenmp-simd
+  CPPFLAGS += -Ithird_party/simde
   SANITIZER_FLAGS :=
 else ifeq (ppc64le,$(shell uname -m))
   BITS := 64
   SSE_FLAG :=
-  CXXFLAGS := -fopenmp-simd
+  CXXFLAGS += -fopenmp-simd
   CPPFLAGS += -Ithird_party/simde
   SANITIZER_FLAGS :=
 endif
