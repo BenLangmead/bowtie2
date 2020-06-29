@@ -219,10 +219,10 @@ public:
 		_built(false),
 		_base_fname(base_fname),
 		_bigEndian(currentlyBigEndian()),
-		_done(NULL)
 #ifdef WITH_TBB
-,thread_group_started(false)
+		thread_group_started(false),
 #endif
+		_done(NULL)
     { _randomSrc.init(__seed); reset(); }
 
     ~KarkkainenBlockwiseSA() throw()
