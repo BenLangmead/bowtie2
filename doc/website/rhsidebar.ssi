@@ -36,47 +36,38 @@
     <ul>
       <li><a href="https://github.com/BenLangmead/bowtie2">Bowtie GitHub repository</a></li>
       <li><a href="https://github.com/BenLangmead/bowtie2/issues">Report an issue</a></li>
-      <!--<li><a href="https://lists.sourceforge.net/lists/listinfo/bowtie-bio-announce">Bowtie Mailing list</a></li>-->
+      <li><a href="http://bowtie-bio.sourceforge.net">Bowtie</a></li>
+      <li><a href="https://scholar.google.com/scholar?oi=bibs&hl=en&cites=4636016874467197548,6107215684849002">Papers citing Bowtie 2</a></li>
     </ul>
-  </div>
-  <h2>Related Tools</h2>
-  <div class="box">
-      <table width="100%">
-      <tr><td><a href="http://bowtie-bio.sf.net">Bowtie</a>: Ultrafast short read alignment</td></tr>
-      <tr><td><a href="http://bowtie-bio.sf.net/crossbow">Crossbow</a>: Genotyping, cloud computing</td></tr>
-      <tr><td><a href="http://bowtie-bio.sf.net/myrna">Myrna</a>: Cloud, differential gene expression</td></tr>
-      <tr><td><a href="http://tophat.cbcb.umd.edu">Tophat</a>: RNA-Seq splice junction mapper</td></tr>
-      <tr><td><a href="http://cufflinks.cbcb.umd.edu">Cufflinks</a>: Isoform assembly, quantitation</td></tr>
-      <tr><td><a href="https://github.com/mourisl/Lighter">Lighter</a>: Fast error correction</td></tr>
-      </table>
   </div>
   <h2>Indexes</h2>
   <div class="box">
     <table width="100%">
-    <p style="font-size: small; line-height: 130%">
-      Consider using Illumina's
-      <a href="http://support.illumina.com/sequencing/sequencing_software/igenome.ilmn">iGenomes</a>
-      collection.  Each iGenomes archive contains pre-built
-      Bowtie 2 and <a href="http://bowtie-bio.sourceforge.net/index.shtml">Bowtie</a> indexes.
-      <br/><br/>
-    </p>
-      <!-- GRCh38 -->
+
       <tr>
         <td>
-          <a href="ftp://ftp.ncbi.nlm.nih.gov/genomes/archive/old_genbank/Eukaryotes/vertebrates_mammals/Homo_sapiens/GRCh38/seqs_for_alignment_pipelines/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.bowtie_index.tar.gz"><i>H. sapiens</i>, NCBI GRCh38</a>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/GRCh38_noalt_as.zip"><i>H. sapiens</i>, GRCh38 no-alt analysis set</a>
         </td>
         <td align="right">
-          <b>3.5 GB</b>
+            NCBI
         </td>
       </tr>
 
-      <!-- GRCh38 major-allele -->
       <tr>
         <td>
-          <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/grch38_1kgmaj_bt2.zip"><i>H. sapiens</i>, NCBI GRCh38 <br/> with 1KGenomes major SNPs</a>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/GRCh38_noalt_decoy_as.zip"><i>H. sapiens</i>, GRCh38 no-alt +decoy set</a>
         </td>
         <td align="right">
-          <b>3.5 GB</b>
+            NCBI
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/grch38_1kgmaj.zip"><i>H. sapiens</i>, GRCh38 + major SNVs</a>
+        </td>
+        <td align="right">
+            NCBI+1KG
         </td>
       </tr>
       <tr>
@@ -84,155 +75,260 @@
         </td>
       </tr>
 
-      <!-- hg19 -->
       <tr>
         <td>
-          <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/hg19.zip"><i>H. sapiens</i>, UCSC hg19</a>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/GRCh37.zip"><i>H. sapiens</i>, GRCh37</a>
         </td>
         <td align="right">
-          <b>3.5 GB</b>
-        </td>
-      </tr>
-      <!--
-      <tr>
-        <td colspan="2" style="font-size: x-small">&nbsp;or:
-		  <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/hg19.1.zip">part 1</a> (1.5 GB),
-          <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/hg19.2.zip">part 2</a> (650 MB),
-          <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/hg19.3.zip">part 3</a> (1.5 GB)
-        </td>
-      </tr>
-      -->
-
-      <!-- hg19 major-allele -->
-      <tr>
-        <td>
-          <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/hg19_1kgmaj_bt2.zip"><i>H. sapiens</i>, UCSC hg19 <br/> with 1KGenomes major SNPs</a>
-        </td>
-        <td align="right">
-          <b>3.5 GB</b>
-        </td>
-      </tr>
-      <tr>
-        <td colspan="2" style="font-size: x-small">&nbsp;&nbsp;<a href="https://github.com/BenLangmead/bowtie-majref">How we built this</a>, <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie_indexes/hg19_1kgmaj.fa.gz">FASTA</a>
+            NCBI
         </td>
       </tr>
 
-      <!-- hg18 -->
-      <!--
       <tr>
         <td>
-          <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/hg18.zip"><i>H. sapiens</i>, UCSC hg18</a>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/Ash1v1.7.zip"><i>H. sapiens</i>, Ash1.7</a>
         </td>
         <td align="right">
-          <b>3.5 GB</b>
+            JHU
         </td>
       </tr>
-      <tr>
-        <td colspan="2" style="font-size: x-small">&nbsp;or:
-		  <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/hg18.1.zip">part 1</a> (1.5 GB),
-          <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/hg18.2.zip">part 2</a> (651 MB),
-          <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/hg18.3.zip">part 3</a> (1.5 GB)
-        </td>
-      </tr>
-      -->
 
-      <!-- mm10 -->
       <tr>
         <td>
-          <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/mm10.zip"><i>M. musculus</i>, UCSC mm10</a>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/hg19.zip"><i>H. sapiens</i>, hg19</a>
         </td>
         <td align="right">
-          <b>3.2 GB</b>
+            UCSC
         </td>
       </tr>
-      <!--
-      <tr>
-        <td colspan="2" style="font-size: x-small">&nbsp;or:
-		  <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/mm10.1.zip">part 1</a> (1.3 GB),
-          <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/mm10.2.zip">part 2</a> (600 MB),
-          <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/mm10.3.zip">part 3</a> (1.3 GB)
-        </td>
-      </tr>
-      -->
 
-      <!-- mm9 -->
       <tr>
         <td>
-          <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/mm9.zip"><i>M. musculus</i>, UCSC mm9</a>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/hg18.zip"><i>H. sapiens</i>, hg18</a>
         </td>
         <td align="right">
-          <b>3.2 GB</b>
+            UCSC
         </td>
       </tr>
-      <!--
-      <tr>
-        <td colspan="2" style="font-size: x-small">&nbsp;or:
-          <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/mm9.1.zip">part 1</a> (1.3 GB),
-          <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/mm9.2.zip">part 2</a> (593 MB),
-          <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/mm9.3.zip">part 3</a> (1.3 GB)
-        </td>
-      </tr>
-      -->
 
-      <!-- rn4 -->
       <tr>
         <td>
-          <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/rn4.zip"><i>R. norvegicus</i>, UCSC rn4</a>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/GRCm38.zip"><i>M. Musculus</i>, GRCm38</a>
         </td>
         <td align="right">
-          <b>3.1 GB</b>
+            NCBI
         </td>
       </tr>
-      <!--
-      <tr>
-        <td colspan="2" style="font-size: x-small">&nbsp;or:
-          <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/rn4.1.zip">part 1</a> (1.3 GB),
-          <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/rn4.2.zip">part 2</a> (580 MB),
-          <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/rn4.3.zip">part 3</a> (1.3 GB)
-        </td>
-      </tr>
-      -->
 
-    </table>
-    <!--
-    <p style="font-size: x-small; line-height: 130%">
-      Some unzip programs cannot handle archives >2 GB.  If you have
-      problems downloading or unzipping a >2 GB index, try downloading
-      in parts.</p>
-    -->
+      <tr>
+        <td>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/mm10.zip"><i>M. Musculus</i>, mm10</a>
+        </td>
+        <td align="right">
+            UCSC
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/mm9.zip"><i>M. Musculus</i>, mm9</a>
+        </td>
+        <td align="right">
+            UCSC
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/Clint_PTRv2.zip"><i>P. troglodytes</i>, Clint_PTRv2</a>
+        </td>
+        <td align="right">
+            NCBI
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/CHIMP2.1.4.zip"><i>P. troglodytes</i>, CHIMP2.1.4</a>
+        </td>
+        <td align="right">
+            Ensembl
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/Mmul_10.zip"><i>M. mulatta</i>, MMul_10</a>
+        </td>
+        <td align="right">
+            Ensembl
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/ARS-UCD1.2.zip"><i>B. taurus</i>, ARS-UCD1.2</a>
+        </td>
+        <td align="right">
+            NCBI
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/Sscrofa11.1.zip"><i>S. scrofa</i>, Sscrofa11.1</a>
+        </td>
+        <td align="right">
+            NCBI
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/CanFam3.1.zip"><i>C. familiaris</i>, CanFam3.1</a>
+        </td>
+        <td align="right">
+            Ensembl
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/rn4.zip"><i>R. norvegicus</i>, rn4</a>
+        </td>
+        <td align="right">
+            UCSC
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/Rnor_6.0.zip"><i>R. norvegicus</i>, Rnor6.0</a>
+        </td>
+        <td align="right">
+            NCBI
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/GRCg6a.zip"><i>G. gallus</i>, GRCg6a</a>
+        </td>
+        <td align="right">
+            NCBI
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/Galgal4.zip"><i>G. gallus</i>, Galgal4</a>
+        </td>
+        <td align="right">
+            Ensembl
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/GRCz11.zip"><i>D. rerio</i>, GRCz11</a>
+        </td>
+        <td align="right">
+            NCBI
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/GRCz10.zip"><i>D. rerio</i>, GRCz10</a>
+        </td>
+        <td align="right">
+            NCBI
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/AGPv4.zip"><i>Z. mays</i>, AGPv4</a>
+        </td>
+        <td align="right">
+            Ensembl
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/Build_4.0.zip"><i>O. sativa</i>, Build_4.0</a>
+        </td>
+        <td align="right">
+            NCBI
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/TAIR10.zip"><i>A. thaliana</i>, TAIR10</a>
+        </td>
+        <td align="right">
+            Ensembl
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/BDGP6.zip"><i>D. melanogaster</i>, BDGP6</a>
+        </td>
+        <td align="right">
+            Ensembl
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/Dmel_A4_1.0.zip"><i>D. melanogaster</i>, Dmel A4 1.0</a>
+        </td>
+        <td align="right">
+            NCBI
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/WBcel235.zip"><i>C. elegans</i>, WBcel235</a>
+        </td>
+        <td align="right">
+            Ensembl
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/R64-1-1.zip"><i>S. cerevisiae</i>, R64-1-1</a>
+        </td>
+        <td align="right">
+            Ensembl
+        </td>
+      </tr>
+
   </div>
-  <h2>Related publications</h2>
+  <h2>Publications</h2>
   <div class="box">
     <ul>
-      <li style="font-size: x-small; line-height: 130%">Langmead B, Wilks C., Antonescu V., Charles R. <a href="https://doi.org/10.1093/bioinformatics/bty648"><b>Scaling read aligners to hundreds of threads on general-purpose processors</b></a>. <i><a href="https://academic.oup.com/bioinformatics">Bioinformatics</a></i>. bty648.<br/><br/></li>
       <li style="font-size: x-small; line-height: 130%">Langmead B, Salzberg S. <a href="http://www.nature.com/nmeth/journal/v9/n4/full/nmeth.1923.html"><b>Fast gapped-read alignment with Bowtie 2</b></a>. <i><a href="http://www.nature.com/nmeth">Nature Methods</a></i>. 2012, 9:357-359.<br/><br/></li>
-      <li style="font-size: x-small; line-height: 130%">Langmead B, Trapnell C, Pop M, Salzberg SL. <a href="http://genomebiology.com/2009/10/3/R25"><b>Ultrafast and memory-efficient alignment of short DNA sequences to the human genome</b></a>. <i><a href="http://genomebiology.com">Genome Biology</a></i> <b>10</b>:R25.<br/><br/></li>
+      <br/><br/>
+      <li style="font-size: x-small; line-height: 130%">Langmead B, Wilks C, Antonescu V, Charles R. <a href="https://doi.org/10.1093/bioinformatics/bty648"><b>Scaling read aligners to hundreds of threads on general-purpose processors</b></a>. <i><a href="https://academic.oup.com/bioinformatics">Bioinformatics</a></i> Vol 35, Iss 3, 2019, pp 421–432.
+      <br/><br/>
     </ul>
   </div>
   <h2>Contributors</h2>
   <div class="box">
     <ul>
-      <li><a href="http://www.cs.jhu.edu/~langmea/index.shtml">Ben Langmead</a></li>
-      <li><a href="http://www.ccb.jhu.edu/people/infphilo">Daehwan Kim</a></li>
+      <li><a href="http://www.langmead-lab.org">Ben Langmead</a></li>
+      <li>Daehwan Kim</li>
       <li>Rone Charles</li>
+      <li>Nae-Chyun Chen</li>
       <li>Chris Wilks</li>
       <li>Valentin Antonescu</li>
     </ul>
   </div>
-<!--
-  <h2>Other Documentation</h2>
-  <div class="box">
-    <ul>
-      <li>Bio. of Genomes poster, 5/11 (<a href="http://www.cbcb.umd.edu/~langmead/bog2011_poster.ppt">.ppt</a>, <a href="http://www.cbcb.umd.edu/~langmead/bog2011_poster.pdf">.pdf</a>)</li>
-    </ul>
-  </div>
--->
-  <h2>Related links</h2>
-  <div class="box">
-    <ul>
-	  <li><a href="http://scholar.google.com/scholar?oi=bibs&hl=en&cites=4636016874467197548">Papers citing Bowtie 2</a></li>
-      <li><a href="http://www.jhu.edu/">Johns Hopkins University</a></li>
-      <li><a href="http://www.cs.jhu.edu/">JHU Computer Science</a></li>
-    </ul>
-  </div>
 </div> <!-- End of "rightside" -->
+
