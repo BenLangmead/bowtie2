@@ -1,3 +1,33 @@
+<h2>Version 2.3.3.1 - October 05, 2017</h2>
+<ul>
+    <li>Fixed an issue causing input files to be skipped when running multi-threaded alignment</li>
+    <li>Fixed an issue causing the first character of a read name to be dropped while parsing reads split across multiple input files</li>
+</ul>
+
+<h2>Version 2.3.3 - September 06, 2017</h2>
+<p>From this release forward prepackaged bowtie2 binaries are now statically linked to the zlib compression library and, the recommended threading library, TBB. Users who rely on prepackaged builds are no longer required to have these packages pre-installed. As a result of the aforementioned changes legacy packages have been discontinued.</p>
+<ul>
+    <li><tt>bowtie2-build</tt> now supports gzip-compressed FASTA inputs</li>
+    <li>New <tt><a href="manual.shtml#bowtie2-options-xeq">--xeq</a></tt> parameter for <tt>bowtie2</tt> disambiguates the 'M' CIGAR flag. When specified, matches are indicated with the <tt>=</tt> operation and mismatches with <tt>X</tt></li>
+    <li>Fixed a possible infinite loop during parallel index building due to the compiler optimizing away a loop condition</li>
+    <li>Added <tt><a href="manual.shtml#bowtie2-options-soft-clipped-unmapped-tlen">--soft-clipped-unmapped-tlen</a></tt> parameter for <tt>bowtie2</tt> that ignores soft-clipped bases when calculating template length (TLEN)</li>
+    <li>Added support for multi-line sequences in FASTA read inputs</li>
+    <li>Expanded explanation of <tt><a href="manual.shtml#bowtie2-build-opt-fields-md">MD:Z</a></tt> field in manual</li>
+    <li>Fixed a crashing bug when output is redirected to a pipe</li>
+    <li>Fixed ambiguity in the <tt>SEED</tt> alignment policy that sometimes caused <tt><a href="manual.shtml#bowtie2-options-N">-N</a></tt> parameter to be ignored</li>
+</ul>
+
+<h2>Version 2.3.2 - May 05, 2017</h2>
+<ul>
+    <li>Now reports MREVERSE SAM flag for unaligned end when only one end of a pair aligns</li>
+    <li>Fixed issue where first character of some read names was omitted from SAM output when using tabbed input formats</li>
+    <li>Added <tt><a href="manual.shtml#bowtie2-options-sam-no-qname-trunc">--sam-no-qname-trunc</a></tt> option, which causes entire read name, including spaces, to be written to SAM output.  This violates SAM specification, but can be useful in applications that immediately postprocess the SAM.</li>
+    <li>Fixed compilation error caused by pointer comparison issue in aligner_result.cpp</li>
+    <li>Removed termcap and readline dependencies introduced in v2.3.1</li>
+    <li>Fixed compilation issues caused by gzbuffer function when compiling with zlib v1.2.3.5 and earlier. Users compiling against these libraries will use the zlib default buffer size of 8Kb when decompressing read files.</li>
+    <li>Fixed issue that would cause Bowtie 2 hang when aligning FASTA inputs with more than one thread</li>
+</ul>
+
 <h2>Version 2.3.1 - Mar 03, 2017</h2>
 <p>Please note that as of this release Bowtie 2 now has dependencies on zlib and readline libraries. Make sure that all dependencies are met before attempting to build from source.</p>
 <ul>
