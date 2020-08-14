@@ -309,6 +309,10 @@
         </td>
       </tr>
     </table>
+    <p style="font-size: x-small; line-height: 130%">
+    All indexes are <tt>.bt2</tt> format and are compatible with both Bowtie 2 and with Bowtie as of v1.2.3</p>
+    <p style="font-size: x-small; line-height: 130%">
+    Index storage is thanks to <a href="https://aws.amazon.com/opendata/">AWS Public Datasets</a> program.  See the <a href="https://benlangmead.github.io/aws-indexes/bowtie">Index zone</a> page for details on the best ways to obtain this data, including from the AWS cloud.</p>
   </div>
   <h2>Publications</h2>
   <div class="box">
