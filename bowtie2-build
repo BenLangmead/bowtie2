@@ -71,11 +71,7 @@ def main():
     if script_options.large_index:
         build_bin_spec = os.path.join(ex_path,build_bin_l)
     elif len(argv) >= 2:
-        ref_fnames = None
-        for arg in argv:
-            if not arg.startswith("-"):
-                ref_fnames = arg
-                break
+        ref_fnames = argv[-2]
         tot_size = 0
         for fn in ref_fnames.split(','):
             if os.path.exists(fn):
