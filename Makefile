@@ -187,7 +187,7 @@ BUILD_CPPS := diff_sample.cpp
 BUILD_CPPS_MAIN := $(BUILD_CPPS) bowtie_build_main.cpp
 
 SEARCH_FRAGMENTS := $(wildcard search_*_phase*.c)
-VERSION := $(shell cat VERSION)
+VERSION := $(shell cat BOWTIE2_VERSION)
 
 SANITIZER_FLAGS :=
 ifeq (0,$(shell $(CXX) -E -fsanitize=address,undefined btypes.h > /dev/null 2>&1; echo $$?))
@@ -282,7 +282,7 @@ GENERAL_LIST := $(wildcard scripts/*.sh) \
   MANUAL.markdown \
   README.md \
   TUTORIAL \
-  VERSION
+  BOWTIE2_VERSION
 
 ifeq (1,$(WINDOWS))
   BOWTIE2_BIN_LIST := $(BOWTIE2_BIN_LIST) bowtie2.bat bowtie2-build.bat bowtie2-inspect.bat
@@ -321,7 +321,7 @@ both-debug: bowtie2-align-s-debug bowtie2-build-s-debug bowtie2-align-l-debug bo
 both-sanitized: bowtie2-align-s-sanitized bowtie2-build-s-sanitized bowtie2-align-l-sanitized bowtie2-build-l-sanitized ;
 
 DEFS := -fno-strict-aliasing \
-  -DBOWTIE2_VERSION="\"`cat VERSION`\"" \
+  -DBOWTIE2_VERSION="\"`cat BOWTIE2_VERSION`\"" \
   -DBUILD_HOST="\"${HOSTNAME:-`hostname`}\"" \
   -DBUILD_TIME="\"`date -u`\"" \
   -DCOMPILER_VERSION="\"`$(CXX) -v 2>&1 | tail -1`\"" \
