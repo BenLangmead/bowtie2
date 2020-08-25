@@ -419,7 +419,7 @@ bowtie2-inspect-s-sanitized bowtie2-inspect-s: bt2_inspect.cpp $(HEADERS) $(SHAR
 	$(CXX) $(RELEASE_FLAGS) \
 		$(RELEASE_DEFS) $(CXXFLAGS) \
 		$(DEFS) -DBOWTIE2 -DBOWTIE_INSPECT_MAIN -Wall \
-		$(CPPFLAGS) -I . \
+		$(CPPFLAGS) \
 		-o $@ $< \
 		$(SHARED_CPPS) \
 		$(LDFLAGS) $(LDLIBS)
@@ -428,7 +428,7 @@ bowtie2-inspect-l-sanitized bowtie2-inspect-l: bt2_inspect.cpp $(HEADERS) $(SHAR
 	$(CXX) $(RELEASE_FLAGS) \
 		$(RELEASE_DEFS) $(CXXFLAGS) \
 		$(DEFS) -DBOWTIE2 -DBOWTIE_INSPECT_MAIN  -DBOWTIE_64BIT_INDEX -Wall \
-		$(CPPFLAGS) -I . \
+		$(CPPFLAGS) \
 		-o $@ $< \
 		$(SHARED_CPPS) \
 		$(LDFLAGS) $(LDLIBS)
@@ -437,7 +437,7 @@ bowtie2-inspect-s-debug: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 	$(CXX) $(DEBUG_FLAGS) \
 		$(DEBUG_DEFS) $(CXXFLAGS) \
 		$(DEFS) -DBOWTIE2 -DBOWTIE_INSPECT_MAIN -Wall \
-		$(CPPFLAGS) -I . \
+		$(CPPFLAGS) \
 		-o $@ $< \
 		$(SHARED_CPPS) \
 		$(LDFLAGS) $(LDLIBS)
@@ -446,7 +446,7 @@ bowtie2-inspect-l-debug: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 	$(CXX) $(DEBUG_FLAGS) \
 		$(DEBUG_DEFS) $(CXXFLAGS) \
 		$(DEFS) -DBOWTIE2 -DBOWTIE_64BIT_INDEX -DBOWTIE_INSPECT_MAIN -Wall \
-		$(CPPFLAGS) -I . \
+		$(CPPFLAGS) \
 		-o $@ $< \
 		$(SHARED_CPPS) \
 		$(LDFLAGS) $(LDLIBS)
@@ -459,7 +459,7 @@ bowtie2-dp: bt2_dp.cpp $(HEADERS) $(SHARED_CPPS) $(DP_CPPS)
 	$(CXX) $(RELEASE_FLAGS) \
 		$(RELEASE_DEFS) $(CXXFLAGS) $(NOASSERT_FLAGS) \
 		$(DEFS) -DBOWTIE2 -DBOWTIE_DP_MAIN -Wall \
-		$(CPPFLAGS) -I . \
+		$(CPPFLAGS) \
 		-o $@ $< \
 		$(DP_CPPS) $(SHARED_CPPS) \
 		$(LDFLAGS) $(LDLIBS)
@@ -468,7 +468,7 @@ bowtie2-dp-debug: bt2_dp.cpp $(HEADERS) $(SHARED_CPPS) $(DP_CPPS)
 	$(CXX) $(DEBUG_FLAGS) \
 		$(DEBUG_DEFS) $(CXXFLAGS) \
 		$(DEFS) -DBOWTIE2 -DBOWTIE_DP_MAIN -Wall \
-		$(CPPFLAGS) -I . \
+		$(CPPFLAGS) \
 		-o $@ $< \
 		$(DP_CPPS) $(SHARED_CPPS) \
 		$(LDFLAGS) $(LDLIBS)
@@ -519,7 +519,7 @@ bowtie2-seeds-debug: aligner_seed.cpp ccnt_lut.cpp alphabet.cpp aligner_seed.h b
 		$(DEBUG_DEFS) $(CXXFLAGS) \
 		-DSCAN_MAIN \
 		$(DEFS) -Wall \
-		$(CPPFLAGS) -I . \
+		$(CPPFLAGS) \
 		-o $@ $< \
 		aligner_seed.cpp bt2_idx.cpp ccnt_lut.cpp alphabet.cpp bt2_io.cpp \
 		$(LDFLAGS) $(LDLIBS)
