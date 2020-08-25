@@ -65,11 +65,11 @@ matrix:
         - NO_TBB=1
       script: travis_wait 30 make -j $NPROC allall
     # IBM Z (big endian)
-    - os: linux
-      arch: s390x
-      env:
-        - POPCNT_CAPABILITY=0
-        - NO_TBB=1
+    # - os: linux
+    #   arch: s390x
+    #   env:
+    #     - POPCNT_CAPABILITY=0
+    #     - NO_TBB=1
     # PPC64LE
     - os: linux
       arch: ppc64le
