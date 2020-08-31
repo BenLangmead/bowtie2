@@ -27,11 +27,11 @@ Version 2.4.1 - Feb 28, 2020
 Version 2.4.0 - Feb 25, 2020
 
     * Fixed an issue in `-b <bam>` input mode where one might prematurely close the
-      read file pointer causing “Bad file descriptor” in other threads
+      read file pointer causing "Bad file descriptor" in other threads
     * Fixed an issue that could cause `bowtie2` to crash in `--no-1mm-upfront` mode
     * Modified `bowtie2-build` to better handle of flags and positional parameters
     * Migrated all `python` scripts to `python3`
-    * Added support for wildcards in input files to `bowtie2`, e.g. `bowtie2 -x
+    * Added support for wildcards in input files to `bowtie2`, e.g. `bowtie2 -x
       index -q *.fq` as opposed to `bowtie2 -x index -q 1.fq,2.fq,3.fq...`
     * Fixed an issue causing <code>bowtie2</code> to incorrectly process read names
       with slash mates plus extra characters (see
@@ -187,13 +187,13 @@ Make sure that all dependencies are met before attempting to build from source.
       for gzipped inputs.
     * Fixed a bug that caused `bowtie2-build` to crash when the
       first FASTA sequence contains all Ns.
-    * Add support for interleaved FASTQ format (`-—interleaved`)
+    * Add support for interleaved FASTQ format (`--interleaved`)
     * Empty FASTQ inputs would yield an error in Bowtie 2 2.3.0,
       whereas previous versions would simply align 0 reads and report
       the SAM header as usual.  This version returns to the pre-2.3.0
       behavior, resolving a compatibility issue between TopHat2 and
       Bowtie 2 2.3.0.
-    * Fixed a bug whereby combining `-—un-conc*` with `-k` or `-a`
+    * Fixed a bug whereby combining `--un-conc*` with `-k` or `-a`
       would cause `bowtie2` to print duplicate reads in one or both
       of the `--un-conc*` output files, causing the ends to be
       misaligned.
@@ -370,7 +370,7 @@ Version 2.0.4 - December 17, 2012
 
 Version 2.0.3 - December 14, 2012
    * Fixed thread safely issues that could cause crashes with a large number of
-     threads.  Thanks to John O’Neill for identifying these issues.
+     threads.  Thanks to John O'Neill for identifying these issues.
    * Fixed some problems with pseudo-random number generation that could cause
      unequal distribution of alignments across equally good candidate loci.
    * The --un, --al, --un-conc, and --al-conc options (and their compressed
