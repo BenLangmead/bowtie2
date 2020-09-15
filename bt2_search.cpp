@@ -99,7 +99,7 @@ static bool metricsPerRead; // report a metrics tuple for every read
 static bool allHits;      // for multihits, report just one
 static bool showVersion;  // just print version and quit?
 static int ipause;        // pause before maching?
-static uint32_t qUpto;    // max # of queries to read
+static uint64_t qUpto;    // max # of queries to read
 static int gTrim5;        // amount to trim from 5' end
 static int gTrim3;        // amount to trim from 3' end
 static pair<short, size_t> trimTo; // trim reads exceeding given length from either 3' or 5'-end
@@ -298,7 +298,7 @@ static void resetOptions() {
 	allHits					= false; // for multihits, report just one
 	showVersion				= false; // just print version and quit?
 	ipause					= 0; // pause before maching?
-	qUpto					= 0xffffffff; // max # of queries to read
+	qUpto					= 0xffffffffffffffff; // max # of queries to read
 	gTrim5					= 0; // amount to trim from 5' end
 	gTrim3					= 0; // amount to trim from 3' end
 	trimTo = pair<short, size_t>(5, 0); // default: don't do any trimming
