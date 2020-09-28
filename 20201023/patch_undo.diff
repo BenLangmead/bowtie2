@@ -1,0 +1,1126 @@
+diff --git b/aligner_seed.h a/aligner_seed.h
+index 63f642c..cdd6968 100644
+--- b/aligner_seed.h
++++ a/aligner_seed.h
+@@ -875,22 +875,6 @@ public:
+ 		return med1 + med2 * 0.5f;
+ 	}
+ 	
+-	/**
+-	 * Return the minimum number of hits for any seed with at least one hit.
+-	 */
+-	TIndexOffU minHitsPerSeed() const {
+-		TIndexOffU minimum = std::numeric_limits<TIndexOffU>::max();
+-		for(size_t i = 0; i < numOffs_; i++) {
+-			if(hitsFw_[i].valid() && hitsFw_[i].numElts() > 0) {
+-				minimum = min(minimum, hitsFw_[i].numElts());
+-			}
+-			if(hitsRc_[i].valid() && hitsRc_[i].numElts() > 0) {
+-				minimum = min(minimum, hitsRc_[i].numElts());
+-			}
+-		}
+-		return minimum;
+-	}
+-
+ 	/**
+ 	 * Return a number that's meant to quantify how hopeful we are that this
+ 	 * set of seed hits will lead to good alignments.
+diff --git b/bt2_search.cpp a/bt2_search.cpp
+index d034dfd..828c83e 100644
+--- b/bt2_search.cpp
++++ a/bt2_search.cpp
+@@ -3757,14 +3757,11 @@ static void multiseedSearchWorker(void *vp) {
+ 						nrounds[1] = min<size_t>(nrounds[1], interval[1]);
+ 						Constraint gc = Constraint::penaltyFuncBased(scoreMin);
+ 						size_t seedsTried = 0;
+-						size_t seedsTriedMS[] = {0, 0, 0, 0};
++					size_t seedsTriedMS[] = {0, 0, 0, 0};
+ 						size_t nUniqueSeeds = 0, nRepeatSeeds = 0, seedHitTot = 0;
+-						size_t nUniqueSeedsMS[] = {0, 0, 0, 0};
+-						size_t nRepeatSeedsMS[] = {0, 0, 0, 0};
+-						size_t seedHitTotMS[] = {0, 0, 0, 0};
+-						int adjust_up[] = {0, 0};
+-						bool adjust_down[] = {false, false};
+-						int seed_increment = 5;
++					size_t nUniqueSeedsMS[] = {0, 0, 0, 0};
++					size_t nRepeatSeedsMS[] = {0, 0, 0, 0};
++					size_t seedHitTotMS[] = {0, 0, 0, 0};
+ 						for(size_t roundi = 0; roundi < nSeedRounds; roundi++) {
+ 							ca.nextRead(); // Clear cache in preparation for new search
+ 							shs[0].clearSeeds();
+@@ -3773,17 +3770,12 @@ static void multiseedSearchWorker(void *vp) {
+ 							assert(shs[1].empty());
+ 							assert(shs[0].repOk(&ca.current()));
+ 							assert(shs[1].repOk(&ca.current()));
++							//if(roundi > 0) {
++							//	if(seedlens[0] > 8) seedlens[0]--;
++							//	if(seedlens[1] > 8) seedlens[1]--;
++							//}
+ 							for(size_t matei = 0; matei < (paired ? 2:1); matei++) {
+ 								size_t mate = matemap[matei];
+-								if(adjust_up[mate] > 0) {
+-									seedlens[mate] = min(seedlens[mate] + adjust_up[mate], (int)rds[mate]->length());
+-									seedlens[mate] = min(seedlens[mate], 32);
+-								}
+-								else if(adjust_down[mate]) {
+-									seedlens[mate] = max(seedlens[mate] - seed_increment, 8);
+-								}
+-								adjust_up[mate] = 0;
+-								adjust_down[mate] = false;
+ 								if(done[mate] || msinkwrap.state().doneWithMate(mate == 0)) {
+ 									// Done with this mate
+ 									done[mate] = true;
+@@ -3819,7 +3811,7 @@ static void multiseedSearchWorker(void *vp) {
+ 									continue;
+ 								}
+ 								// Instantiate the seeds
+-							    std::pair<int, int> instFw, instRc;
++							std::pair<int, int> instFw, instRc;
+ 								std::pair<int, int> inst = al.instantiateSeeds(
+ 									*seeds[mate],   // search seeds
+ 									offset,         // offset to begin extracting
+@@ -3830,19 +3822,19 @@ static void multiseedSearchWorker(void *vp) {
+ 									norc[mate],     // don't align revcomp read
+ 									ca,             // holds some seed hits from previous reads
+ 									shs[mate],      // holds all the seed hits
+-									sdm,            // metrics
+-									instFw,
+-									instRc);
++								sdm,            // metrics
++								instFw,
++								instRc);
+ 								assert(shs[mate].repOk(&ca.current()));
+ 								if(inst.first + inst.second == 0) {
+ 									// No seed hits!  Done with this mate.
+ 									assert(shs[mate].empty());
+-									//done[mate] = true;
+-									continue;
++									done[mate] = true;
++									break;
+ 								}
+ 								seedsTried += (inst.first + inst.second);
+-								seedsTriedMS[mate * 2 + 0] = instFw.first + instFw.second;
+-								seedsTriedMS[mate * 2 + 1] = instRc.first + instRc.second;
++							seedsTriedMS[mate * 2 + 0] = instFw.first + instFw.second;
++							seedsTriedMS[mate * 2 + 1] = instRc.first + instRc.second;
+ 								// Align seeds
+ 								al.searchAllSeeds(
+ 									*seeds[mate],     // search seeds
+@@ -3855,49 +3847,27 @@ static void multiseedSearchWorker(void *vp) {
+ 									sdm,              // metrics
+ 									prm);             // per-read metrics
+ 								assert(shs[mate].repOk(&ca.current()));
+-								//if(shs[mate].empty()) {
++								if(shs[mate].empty()) {
+ 									// No seed alignments!  Done with this mate.
+-									//done[mate] = true;
+-									//break;
+-								//}
+-							} // end seed instantiation loop
+-							bool good[] = {true, true};
++									done[mate] = true;
++									break;
++								}
++							}
++							// shs contain what we need to know to update our seed
++							// summaries for this seeding
+ 							for(size_t mate = 0; mate < 2; mate++) {
+ 								if(!shs[mate].empty()) {
+ 									nUniqueSeeds += shs[mate].numUniqueSeeds();
+-									nUniqueSeedsMS[mate * 2 + 0] += shs[mate].numUniqueSeedsStrand(true);
+-									nUniqueSeedsMS[mate * 2 + 1] += shs[mate].numUniqueSeedsStrand(false);
++								nUniqueSeedsMS[mate * 2 + 0] += shs[mate].numUniqueSeedsStrand(true);
++								nUniqueSeedsMS[mate * 2 + 1] += shs[mate].numUniqueSeedsStrand(false);
+ 									nRepeatSeeds += shs[mate].numRepeatSeeds();
+-									nRepeatSeedsMS[mate * 2 + 0] += shs[mate].numRepeatSeedsStrand(true);
+-									nRepeatSeedsMS[mate * 2 + 1] += shs[mate].numRepeatSeedsStrand(false);
++								nRepeatSeedsMS[mate * 2 + 0] += shs[mate].numRepeatSeedsStrand(true);
++								nRepeatSeedsMS[mate * 2 + 1] += shs[mate].numRepeatSeedsStrand(false);
+ 									seedHitTot += shs[mate].numElts();
+-									seedHitTotMS[mate * 2 + 0] += shs[mate].numEltsFw();
+-									seedHitTotMS[mate * 2 + 1] += shs[mate].numEltsRc();
+-									if (roundi < nSeedRounds-1) {
+-										size_t succeeded = shs[mate].numUniqueSeeds() + shs[mate].numRepeatSeeds();
+-										//TIndexOffU min_hits_per_seed = shs[mate].minHitsPerSeed();
+-										if (((double) shs[mate].numRepeatSeeds()) / succeeded > 0.8) {
+-											//assert_lt(min_hits_per_seed, std::numeric_limits<TIndexOffU>::max());
+-											adjust_up[mate] = max((int)lround(log10(shs[mate].numElts())), 1);
+-											if(adjust_up[mate] > 3 && shs[mate].numUniqueSeeds() == 0) {
+-												good[mate] = false;
+-											}
+-										}
+-										size_t tried = seedsTriedMS[mate * 2 + 0] + seedsTriedMS[mate * 2 + 1];
+-										if (((double)succeeded / tried) < 0.2 && !adjust_up[mate]) {
+-											if(shs[mate].numUniqueSeeds() + shs[mate].numRepeatSeeds() == 0) {
+-												good[mate] = false;
+-											}
+-											adjust_down[mate] = true;
+-										}
+-									}
+-								} else {
+-									good[mate] = false;
++								seedHitTotMS[mate * 2 + 0] += shs[mate].numEltsFw();
++								seedHitTotMS[mate * 2 + 1] += shs[mate].numEltsRc();
+ 								}
+ 							}
+-							if(!good[0] && !good[1]) {
+-								continue; // skip seed investigation
+-							}
+ 							double uniqFactor[2] = { 0.0f, 0.0f };
+ 							for(size_t i = 0; i < 2; i++) {
+ 								if(!shs[i].empty()) {
+@@ -4059,25 +4029,25 @@ static void multiseedSearchWorker(void *vp) {
+ 								}
+ 							}
+ 						} // end loop over reseeding rounds
+-						if(seedsTried > 0) {
++					if(seedsTried > 0) {
+ 							prm.seedPctUnique = (float)nUniqueSeeds / seedsTried;
+ 							prm.seedPctRep = (float)nRepeatSeeds / seedsTried;
+ 							prm.seedHitAvg = (float)seedHitTot / seedsTried;
++					} else {
++						prm.seedPctUnique = -1.0f;
++						prm.seedPctRep = -1.0f;
++						prm.seedHitAvg = -1.0f;
++					}
++					for(int i = 0; i < 4; i++) {
++						if(seedsTriedMS[i] > 0) {
++							prm.seedPctUniqueMS[i] = (float)nUniqueSeedsMS[i] / seedsTriedMS[i];
++							prm.seedPctRepMS[i] = (float)nRepeatSeedsMS[i] / seedsTriedMS[i];
++							prm.seedHitAvgMS[i] = (float)seedHitTotMS[i] / seedsTriedMS[i];
+ 						} else {
+-							prm.seedPctUnique = -1.0f;
+-							prm.seedPctRep = -1.0f;
+-							prm.seedHitAvg = -1.0f;
++							prm.seedPctUniqueMS[i] = -1.0f;
++							prm.seedPctRepMS[i] = -1.0f;
++							prm.seedHitAvgMS[i] = -1.0f;
+ 						}
+-						for(int i = 0; i < 4; i++) {
+-							if(seedsTriedMS[i] > 0) {
+-								prm.seedPctUniqueMS[i] = (float)nUniqueSeedsMS[i] / seedsTriedMS[i];
+-								prm.seedPctRepMS[i] = (float)nRepeatSeedsMS[i] / seedsTriedMS[i];
+-								prm.seedHitAvgMS[i] = (float)seedHitTotMS[i] / seedsTriedMS[i];
+-							} else {
+-								prm.seedPctUniqueMS[i] = -1.0f;
+-								prm.seedPctRepMS[i] = -1.0f;
+-								prm.seedHitAvgMS[i] = -1.0f;
+-							}
+ 						}
+ 						size_t totnucs = 0;
+ 						for(size_t mate = 0; mate < (paired ? 2:1); mate++) {
+@@ -4089,10 +4059,10 @@ static void multiseedSearchWorker(void *vp) {
+ 								totnucs += len;
+ 							}
+ 						}
+-						prm.seedsPerNuc = totnucs > 0 ? ((float)seedsTried / totnucs) : -1;
+-						for(int i = 0; i < 4; i++) {
+-							prm.seedsPerNucMS[i] = totnucs > 0 ? ((float)seedsTriedMS[i] / totnucs) : -1;
+-						}
++					prm.seedsPerNuc = totnucs > 0 ? ((float)seedsTried / totnucs) : -1;
++					for(int i = 0; i < 4; i++) {
++						prm.seedsPerNucMS[i] = totnucs > 0 ? ((float)seedsTriedMS[i] / totnucs) : -1;
++					}
+ 						for(size_t i = 0; i < 2; i++) {
+ 							assert_leq(prm.nExIters, mxIter[i]);
+ 							assert_leq(prm.nExDps,   mxDp[i]);
+diff --git b/misscored_reads/aligner.sh a/misscored_reads/aligner.sh
+deleted file mode 100755
+index 7813cd2..0000000
+--- b/misscored_reads/aligner.sh
++++ /dev/null
+@@ -1,17 +0,0 @@
+-#!/usr/bin/env bash
+-
+-set -ex
+-
+-for al in bt2 bt2loc ; do
+-  for level in high low ; do
+-    READS_SUMM="${al}_${level}.reads.csv"
+-    CMDS_SUMM="${al}_${level}.cmds.csv"
+-    if [[ ! -f ${READS_SUMM} || ! -f ${CMDS_SUMM} ]] ; then
+-      python vassess_aligner.py \
+-        cmds_${al}.txt ${al}_${level}.fastq \
+-        ${READS_SUMM} ${CMDS_SUMM}
+-    else
+-      echo "*** Found ${READS_SUMM} ${CMDS_SUMM} so skipping... ***"
+-    fi
+-  done
+-done
+diff --git b/misscored_reads/cmds_bt2.txt a/misscored_reads/cmds_bt2.txt
+deleted file mode 100644
+index 2a87ee9..0000000
+--- b/misscored_reads/cmds_bt2.txt
++++ /dev/null
+@@ -1,31 +0,0 @@
+-#  Presets:                 Same as:
+-#  For --end-to-end:
+-#   --very-fast            -D 5 -R 1 -N 0 -L 22 -i S,0,2.50
+-#   --fast                 -D 10 -R 2 -N 0 -L 22 -i S,0,2.50
+-#   --sensitive            -D 15 -R 2 -N 0 -L 22 -i S,1,1.15 (default)
+-#   --very-sensitive       -D 20 -R 3 -N 0 -L 20 -i S,1,0.50
+-def0_vf ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 --very-fast --reorder -p 8 -U
+-def1_f  ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 --fast --reorder -p 8 -U
+-def2_s  ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 --sensitive --reorder -p 8 -U
+-def3_vs ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 --very-sensitive --reorder -p 8 -U
+-sL20    ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 2 -N 0 -L 20 -i S,1,1.15 --reorder -p 8 -U
+-sL22    ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 2 -N 0 -L 22 -i S,1,1.15 --reorder -p 8 -U
+-sL24    ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 2 -N 0 -L 24 -i S,1,1.15 --reorder -p 8 -U
+-sL26    ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 2 -N 0 -L 26 -i S,1,1.15 --reorder -p 8 -U
+-sL28    ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 2 -N 0 -L 28 -i S,1,1.15 --reorder -p 8 -U
+-sL30    ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 2 -N 0 -L 30 -i S,1,1.15 --reorder -p 8 -U
+-sL32    ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 2 -N 0 -L 32 -i S,1,1.15 --reorder -p 8 -U
+-sR3     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 3 -N 0 -L 22 -i S,1,1.15 --reorder -p 8 -U
+-sR4     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 4 -N 0 -L 22 -i S,1,1.15 --reorder -p 8 -U
+-sR5     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 5 -N 0 -L 22 -i S,1,1.15 --reorder -p 8 -U
+-sR6     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 6 -N 0 -L 22 -i S,1,1.15 --reorder -p 8 -U
+-sR7     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 7 -N 0 -L 22 -i S,1,1.15 --reorder -p 8 -U
+-fR3     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 10 -R 3 -N 0 -L 22 -i S,0,2.50 --reorder -p 8 -U
+-fR4     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 10 -R 4 -N 0 -L 22 -i S,0,2.50 --reorder -p 8 -U
+-fR5     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 10 -R 5 -N 0 -L 22 -i S,0,2.50 --reorder -p 8 -U
+-fR6     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 10 -R 6 -N 0 -L 22 -i S,0,2.50 --reorder -p 8 -U
+-fR7     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 10 -R 7 -N 0 -L 22 -i S,0,2.50 --reorder -p 8 -U
+-sD20    ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 20 -R 2 -N 0 -L 22 -i S,1,1.15 --reorder -p 8 -U
+-sD40    ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 40 -R 2 -N 0 -L 22 -i S,1,1.15 --reorder -p 8 -U
+-sD60    ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 60 -R 2 -N 0 -L 22 -i S,1,1.15 --reorder -p 8 -U
+-sD80    ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 80 -R 2 -N 0 -L 22 -i S,1,1.15 --reorder -p 8 -U
+diff --git b/misscored_reads/cmds_bt2loc.txt a/misscored_reads/cmds_bt2loc.txt
+deleted file mode 100644
+index d582052..0000000
+--- b/misscored_reads/cmds_bt2loc.txt
++++ /dev/null
+@@ -1,27 +0,0 @@
+-#  Presets:                 Same as:
+-#  For --local:
+-#   --very-fast-local      -D 5 -R 1 -N 0 -L 25 -i S,1,2.00
+-#   --fast-local           -D 10 -R 2 -N 0 -L 22 -i S,1,1.75
+-#   --sensitive-local      -D 15 -R 2 -N 0 -L 20 -i S,1,0.75 (default)
+-#   --very-sensitive-local -D 20 -R 3 -N 0 -L 20 -i S,1,0.50
+-def0_vfl  ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 --very-fast-local --reorder -p 8 -U
+-def1_fl   ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 --fast-local --reorder -p 8 -U
+-def2_sl   ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 --sensitive-local --reorder -p 8 -U
+-def3_vsl  ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 --very-sensitive-local --reorder -p 8 -U
+-slL20     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 2 -N 0 -L 20 -i S,1,0.75 --local --reorder -p 8 -U
+-slL22     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 2 -N 0 -L 22 -i S,1,0.75 --local --reorder -p 8 -U
+-slL24     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 2 -N 0 -L 24 -i S,1,0.75 --local --reorder -p 8 -U
+-slL26     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 2 -N 0 -L 26 -i S,1,0.75 --local --reorder -p 8 -U
+-slL28     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 2 -N 0 -L 28 -i S,1,0.75 --local --reorder -p 8 -U
+-slL30     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 2 -N 0 -L 30 -i S,1,0.75 --local --reorder -p 8 -U
+-slL32     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 2 -N 0 -L 32 -i S,1,0.75 --local --reorder -p 8 -U
+-slR3      ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 3 -N 0 -L 20 -i S,1,0.75 --local --reorder -p 8 -U
+-slR4      ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 4 -N 0 -L 20 -i S,1,0.75 --local --reorder -p 8 -U
+-slR5      ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 5 -N 0 -L 20 -i S,1,0.75 --local --reorder -p 8 -U
+-slR6      ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 6 -N 0 -L 20 -i S,1,0.75 --local --reorder -p 8 -U
+-slR7      ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 7 -N 0 -L 20 -i S,1,0.75 --local --reorder -p 8 -U
+-slR8      ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 15 -R 8 -N 0 -L 20 -i S,1,0.75 --local --reorder -p 8 -U
+-slD20     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 20 -R 2 -N 0 -L 20 -i S,1,0.75 --local --reorder -p 8 -U
+-slD40     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 40 -R 2 -N 0 -L 20 -i S,1,0.75 --local --reorder -p 8 -U
+-slD60     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 60 -R 2 -N 0 -L 20 -i S,1,0.75 --local --reorder -p 8 -U
+-slD80     ../bowtie2-align-s -x ~/indexes/bowtie2/hg38 -D 80 -R 2 -N 0 -L 20 -i S,1,0.75 --local --reorder -p 8 -U
+diff --git b/misscored_reads/compare.py a/misscored_reads/compare.py
+deleted file mode 100644
+index 0a86c5a..0000000
+--- b/misscored_reads/compare.py
++++ /dev/null
+@@ -1,92 +0,0 @@
+-#!/usr/bin/env python
+-
+-"""
+-TODO: specify a particular setup as being the "reference" and compare against it
+-Then we can automate the process of checking if any of our experiments exceed old S/VS modes on 2 out of the 3 major criteria:
+-
+-- lower n_unal
+-- lower as_i diff
+-- lower time
+-"""
+-
+-from __future__ import print_function
+-import os
+-import sys
+-from collections import defaultdict
+-
+-if len(sys.argv) < 6:
+-    raise ValueError('Requires arguments (1) aligner, (2) dataset, '
+-                     '(3) target series, (4) target command, (5) query series')
+-
+-aligner = sys.argv[1]
+-dataset = sys.argv[2]
+-target_series = sys.argv[3]
+-target_cmd = sys.argv[4]
+-query_series = sys.argv[5]
+-
+-target_fn = os.path.join(target_series, '%s_%s.cmds.csv' % (aligner, dataset))
+-if not os.path.exists(target_fn):
+-    raise RuntimeError('No such target file "%s"' % target_fn)
+-target = {}
+-with open(target_fn, 'rt') as fh:
+-    for ln in fh:
+-        tokens = ln.split(',')
+-        if tokens[0] == target_cmd:
+-            target['time'] = float(tokens[1])
+-            target[tokens[2]] = float(tokens[3])
+-
+-assert 'time' in target
+-assert 'as_diff_mean' in target
+-assert 'n_unal' in target
+-assert 'xs_diff_mean' in target
+-
+-query_fn = os.path.join(query_series, '%s_%s.cmds.csv' % (aligner, dataset))
+-if not os.path.exists(query_fn):
+-    raise RuntimeError('No such query file "%s"' % query_fn)
+-query = defaultdict(dict)
+-with open(query_fn, 'rt') as fh:
+-    # command,elapsed,statistic,mean,med,max,min
+-    # def0_vf,5.9200220108,as_diff_mean,18.2343866598,16.05,52.0,-1
+-    # def0_vf,5.9200220108,xs_diff_mean,17.1496019176,18.65,47.0,-12.0
+-    for ln in fh:
+-        tokens = ln.split(',')
+-        if tokens[0] == 'command':
+-            continue
+-        cmd, time, stat, mean, med, mx, mn = tokens
+-        query[cmd]['time'] = float(time)
+-        query[cmd][stat] = float(mean)
+-
+-time_as = []
+-time_nunal = []
+-as_nunal = []
+-all3 = []
+-
+-for cmd in query.keys():
+-    time_diff = query[cmd]['time'] - target['time']
+-    as_diff_mean_diff = query[cmd]['as_diff_mean'] - target['as_diff_mean']
+-    n_unal_diff = query[cmd]['n_unal'] - target['n_unal']
+-    if time_diff <= 0 and as_diff_mean_diff <= 0:
+-        time_as.append((cmd, time_diff, as_diff_mean_diff, n_unal_diff))
+-    if time_diff <= 0 and n_unal_diff <= 0:
+-        time_nunal.append((cmd, time_diff, as_diff_mean_diff, n_unal_diff))
+-    if as_diff_mean_diff <= 0 and n_unal_diff <= 0:
+-        as_nunal.append((cmd, time_diff, as_diff_mean_diff, n_unal_diff))
+-    if time_diff <= 0 and as_diff_mean_diff <= 0 and n_unal_diff <= 0:
+-        all3.append((cmd, time_diff, as_diff_mean_diff, n_unal_diff))
+-
+-
+-print('Time and AS:i better:')
+-for cmd, time_diff, as_diff_mean_diff, n_unal_diff in time_as:
+-    print(','.join(map(str, [cmd, time_diff, as_diff_mean_diff, n_unal_diff])))
+-
+-print('Time and n_unal better:')
+-for cmd, time_diff, as_diff_mean_diff, n_unal_diff in time_nunal:
+-    print(','.join(map(str, [cmd, time_diff, as_diff_mean_diff, n_unal_diff])))
+-
+-print('AS:i and n_unal better:')
+-for cmd, time_diff, as_diff_mean_diff, n_unal_diff in as_nunal:
+-    print(','.join(map(str, [cmd, time_diff, as_diff_mean_diff, n_unal_diff])))
+-
+-print('All 3 better:')
+-for cmd, time_diff, as_diff_mean_diff, n_unal_diff in all3:
+-    print(','.join(map(str, [cmd, time_diff, as_diff_mean_diff, n_unal_diff])))
+diff --git b/misscored_reads/compare_all.sh a/misscored_reads/compare_all.sh
+deleted file mode 100755
+index ebcb446..0000000
+--- b/misscored_reads/compare_all.sh
++++ /dev/null
+@@ -1,39 +0,0 @@
+-#!/bin/bash
+-
+-echo "======================"
+-echo "===   SENSITIVE   ==="
+-echo "======================"
+-
+-echo "----- E2E Low -----"
+-python compare.py bt2 low archive-master def2_s $1
+-
+-echo
+-echo "----- E2E High -----"
+-python compare.py bt2 high archive-master def2_s $1
+-
+-echo
+-echo "----- Local Low -----"
+-python compare.py bt2loc low archive-master def0_sl $1
+-
+-echo
+-echo "----- Local High -----"
+-python compare.py bt2loc high archive-master def0_sl $1
+-
+-echo "======================"
+-echo "=== VERY SENSITIVE ==="
+-echo "======================"
+-
+-echo "----- E2E Low -----"
+-python compare.py bt2 low archive-master def3_vs $1
+-
+-echo
+-echo "----- E2E High -----"
+-python compare.py bt2 high archive-master def3_vs $1
+-
+-echo
+-echo "----- Local Low -----"
+-python compare.py bt2loc low archive-master def0_vsl $1
+-
+-echo
+-echo "----- Local High -----"
+-python compare.py bt2loc high archive-master def0_vsl $1
+diff --git b/misscored_reads/reads.sh a/misscored_reads/reads.sh
+deleted file mode 100755
+index 487f7e9..0000000
+--- b/misscored_reads/reads.sh
++++ /dev/null
+@@ -1,9 +0,0 @@
+-#!/usr/bin/env bash
+-
+-set -ex
+-
+-for al in bt2 bt2loc ; do
+-  for level in high low ; do
+-    python vassess_reads.py vargas_misscored_${al}_${level}.sam > ${al}_${level}.fastq
+-  done
+-done
+diff --git b/misscored_reads/vassess_aligner.py a/misscored_reads/vassess_aligner.py
+deleted file mode 100644
+index 3fac5f9..0000000
+--- b/misscored_reads/vassess_aligner.py
++++ /dev/null
+@@ -1,133 +0,0 @@
+-#!/usr/bin/env python
+-
+-"""
+-vassess_aligner.py
+-
+-Given:
+- 1. a file containing aligner commands
+- 2. a FASTQ file generated by vassess_reads.py
+-
+-Run each of the aligner commands on the FASTQ file and collect various
+-statistics about how close the aligner came to the true values of AS:i and
+-XS:i.  Statistics are collected at two levels of granularity: per-read
+-(third argument) and per-command (fourth argument).
+-"""
+-
+-from __future__ import print_function
+-import os
+-import sys
+-import subprocess
+-import time
+-import numpy as np
+-from collections import defaultdict
+-from subprocess import PIPE
+-
+-
+-def flush_command_data(cmd_name, elapsed, cmd_summary_fh, per_read_summary, print_header=False):
+-    assert len(per_read_summary) > 0
+-    assert len(per_read_summary[0]) == 4
+-    if print_header:
+-        cmd_summary_fh.write('command,elapsed,statistic,mean,med,max,min\n')
+-    for coli, colname in enumerate(['as_diff_mean', 'xs_diff_mean', 'n_unal', 'n_xs']):
+-        column = [row[coli] for row in per_read_summary]
+-        column.sort()
+-        col_min, col_med, col_max, col_mean = column[0], column[len(column)/2], column[-1], np.mean(column)
+-        cmd_summary_fh.write(','.join(map(str, [cmd_name, elapsed, colname, col_mean, col_med, col_max, col_min])) + '\n')
+-
+-
+-def flush_read_data(cmd_name, read_name, read_buffer, per_read_summary_fh, per_read_summary):
+-    n_unal, n_xs = 0, 0
+-    ass, xss = [], []
+-    for asi, xsi in read_buffer:
+-        if asi is None and xsi is None:
+-            n_unal += 1
+-        else:
+-            if xsi is not None:
+-                xss.append(xsi)
+-            else:
+-                n_xs += 1
+-            if asi is not None:
+-                ass.append(asi)
+-    as_min, as_med, as_max, as_mean = -1, -1, -1, -1
+-    if len(ass) > 0:
+-        ass.sort()
+-        as_min, as_med, as_max, as_mean = ass[0], ass[len(ass)/2], ass[-1], np.mean(ass)
+-    xs_min, xs_med, xs_max, xs_mean = -1, -1, -1, -1
+-    if len(xss) > 0:
+-        xss.sort()
+-        xs_min, xs_med, xs_max, xs_mean = xss[0], xss[len(xss)/2], xss[-1], np.mean(xss)
+-    record = list(map(str, [cmd_name, read_name, as_mean, xs_mean,
+-                            n_unal, n_xs, as_min, as_med, as_max, xs_min, xs_med, xs_max]))
+-    per_read_summary.append([as_mean, xs_mean, n_unal, n_xs])
+-    per_read_summary_fh.write(','.join(record) + '\n')
+-
+-
+-def go(cmds, reads_fn, read_summary_fn, cmd_summary_fn):
+-    with open(read_summary_fn, 'wt') as read_summ_fh:
+-        with open(cmd_summary_fn, 'wt') as cmd_summary_fh:
+-            first = True
+-            for cmd in cmds:
+-                if cmd[0] == '#':
+-                    continue
+-                if len(cmd.strip()) == 0:
+-                    continue
+-                cmd_tokens = cmd.rstrip().split()
+-                cmd_name, cmd = cmd_tokens[0], ' '.join(cmd_tokens[1:])
+-                cmd += ' %s -S tmp.sam' % reads_fn
+-                assert not os.path.exists('tmp.sam')
+-                print('Trying "%s" command "%s"...' % (cmd_name, cmd), file=sys.stderr)
+-                time_i = time.time()
+-                os.system(cmd)
+-                elapsed = time.time() - time_i
+-                read_buffer, per_read_summary = [], []
+-                last_read_name = None
+-                with open('tmp.sam', 'rt') as fh:
+-                    for ln in fh:
+-                        if ln[0] == '@':
+-                            continue
+-                        tokens = ln.rstrip().split('\t')
+-                        name = tokens[0]
+-                        name_tokens = name.split(':')
+-                        if last_read_name is None:
+-                            last_read_name = name_tokens[0]
+-                        if name_tokens[0] != last_read_name:
+-                            flush_read_data(cmd_name, last_read_name, read_buffer, read_summ_fh, per_read_summary)
+-                            read_buffer = []
+-                            last_read_name = name_tokens[0]
+-                        assert len(name_tokens) >= 3
+-                        asi_best, xsi_best, trial = int(name_tokens[-3]), int(name_tokens[-2]), name_tokens[-1]
+-                        flags = int(tokens[1])
+-                        if flags & 4 != 0:
+-                            read_buffer.append((None, None))
+-                        else:
+-                            asi, xsi = None, None
+-                            for tok in tokens[11:]:
+-                                if tok[:5] == 'AS:i:':
+-                                    asi = int(tok[5:])
+-                                if tok[:5] == 'XS:i:':
+-                                    xsi = int(tok[5:])
+-                                if asi is not None and xsi is not None:
+-                                    break
+-                            if asi is not None and xsi is not None:
+-                                read_buffer.append((asi_best - asi, xsi_best - xsi))
+-                            elif asi is not None:
+-                                read_buffer.append((asi_best - asi, None))
+-                            else:
+-                                raise RuntimeError('No AS:i or XS:i for aligned read: ' + ln)
+-                os.remove('tmp.sam')
+-                assert not os.path.exists('tmp.sam')
+-                if len(read_buffer) > 0:
+-                    flush_read_data(cmd_name, last_read_name, read_buffer, read_summ_fh, per_read_summary)
+-                flush_command_data(cmd_name, elapsed, cmd_summary_fh, per_read_summary, first)
+-                first = False
+-
+-
+-if __name__ == '__main__':
+-    if len(sys.argv) < 5:
+-        raise ValueError('Expected arguments: '
+-                         '(1) File with aligner commands, '
+-                         '(2) Reads file, '
+-                         '(3) Read summary output filename, '
+-                         '(4) Command summary output filename')
+-    with open(sys.argv[1]) as fh_:
+-        go(fh_.readlines(), sys.argv[2], sys.argv[3], sys.argv[4])
+diff --git b/misscored_reads/vassess_reads.py a/misscored_reads/vassess_reads.py
+deleted file mode 100644
+index 9de7131..0000000
+--- b/misscored_reads/vassess_reads.py
++++ /dev/null
+@@ -1,47 +0,0 @@
+-#!/usr/bin/env python
+-
+-"""
+-vassess_reads.py
+-
+-Given a Vargas SAM file, construct a corresponding FASTQ file that includes
+-all the reads with Vargas AS:i and XS:i in the read name.  Make many
+-replicates of each reads so we can assess how pseudo-randomness used by the
+-aligner affects the result.
+-"""
+-
+-from __future__ import print_function
+-import os
+-import sys
+-
+-
+-def go(vargas_fn, trials):
+-    if not os.path.exists(vargas_fn):
+-        raise RuntimeException('Vargas SAM file "%s" does not exist' % vargas_fn)
+-    with open(vargas_fn, 'rt') as fh:
+-        for ln in fh:
+-            if ln[0] == '@':
+-                continue
+-            tokens = ln.rstrip().split('\t')
+-            assert len(tokens) >= 11
+-            name, seq, quality = tokens[0], tokens[9], tokens[10]
+-            asi, ssi = None, None
+-            for tok in tokens[11:]:
+-                if tok[:5] == 'AS:i:':
+-                    asi = int(tok[5:])
+-                if tok[:5] == 'ss:i:':
+-                    ssi = int(tok[5:])
+-                if asi is not None and ssi is not None:
+-                    break
+-            assert asi is not None and ssi is not None
+-            read_body = '\n'.join([seq, '+', quality])
+-            for i in range(trials):
+-                print('@%s:%d:%d:%d' % (name, asi, ssi, i))
+-                print(read_body)
+-
+-
+-if __name__ == '__main__':
+-    # TODO: make this a parameter
+-    trials = 20
+-    if len(sys.argv) < 2:
+-        raise ValueError('Expected argument: (1) Vargas SAM')
+-    go(sys.argv[1], trials)
+diff --git b/opts.h a/opts.h
+index cc8eb1d..ef04204 100644
+--- b/opts.h
++++ a/opts.h
+@@ -126,7 +126,7 @@ enum {
+ 	ARG_SEED_BOOST_THRESH,      // --seed-boost
+ 	ARG_READ_TIMES,             // --read-times
+ 	ARG_EXTEND_ITERS,           // --extends
+-	ARG_DP_MATE_STREAK_THRESH,  // --dp-mate-streak
++	ARG_DP_MATE_STREAK_THRESH,  // --db-mate-streak
+ 	ARG_DP_FAIL_STREAK_THRESH,  // --dp-fail-streak
+ 	ARG_UG_FAIL_STREAK_THRESH,  // --ug-fail-streak
+ 	ARG_EE_FAIL_STREAK_THRESH,  // --ee-fail-streak
+diff --git b/seed-expts/.gitignore a/seed-expts/.gitignore
+deleted file mode 100644
+index 9af3adb..0000000
+--- b/seed-expts/.gitignore
++++ /dev/null
+@@ -1,5 +0,0 @@
+-*.sam
+-*.fastq
+-*.txt
+-*.Rmd
+-*.html
+diff --git b/seed-expts/aligner.sh a/seed-expts/aligner.sh
+deleted file mode 100755
+index 7813cd2..0000000
+--- b/seed-expts/aligner.sh
++++ /dev/null
+@@ -1,17 +0,0 @@
+-#!/usr/bin/env bash
+-
+-set -ex
+-
+-for al in bt2 bt2loc ; do
+-  for level in high low ; do
+-    READS_SUMM="${al}_${level}.reads.csv"
+-    CMDS_SUMM="${al}_${level}.cmds.csv"
+-    if [[ ! -f ${READS_SUMM} || ! -f ${CMDS_SUMM} ]] ; then
+-      python vassess_aligner.py \
+-        cmds_${al}.txt ${al}_${level}.fastq \
+-        ${READS_SUMM} ${CMDS_SUMM}
+-    else
+-      echo "*** Found ${READS_SUMM} ${CMDS_SUMM} so skipping... ***"
+-    fi
+-  done
+-done
+diff --git b/seed-expts/combine.py a/seed-expts/combine.py
+deleted file mode 100644
+index 6854ab9..0000000
+--- b/seed-expts/combine.py
++++ /dev/null
+@@ -1,38 +0,0 @@
+-#!/usr/bin/env python
+-
+-from __future__ import print_function
+-
+-import sys
+-from collections import defaultdict
+-
+-fn1 = sys.argv[1]
+-fn2 = sys.argv[2]
+-
+-scrape = ['mc:i:', 'mp:i:', 'AS:i:', 'sc:i:', 'su:Z:', 'ss:i:', 'sp:i:']
+-
+-# ERR239486.11882    0    chr7    58784192    255    *    *    0    0    CTCTGTTTGTAAAGTCTGCAAGTGGATATATGGAACTCTTTGAGGCCTTCGTTGGAAACGGGATTTCTTCATTTCATGCTAGACAGAAGAATTCTCAGTA    DCEEFHEGGFFGGIHFGHGGHGFHHHDGGHGHCGHHGHGHGHFGHHHGGGFGGHFDEGHGGHFFHGDGGHDIHGGGHFIGCIGJGHHIHGC@CGFGHGBH    st:Z:fwd    sc:i:1327    su:Z:chr7    ss:i:-15    sp:i:58785313    RG:Z:VAUGRP    AS:i:-10    mp:i:58784291    mc:i:4
+-
+-varg_results = defaultdict(dict)
+-
+-with open(fn1, 'rt') as fh:
+-    for ln in fh:
+-        if ln[0] == '@':
+-            continue
+-        toks = ln.split('\t')
+-        assert len(toks) >= 11
+-        for tok in toks[12:]:
+-            for scr in scrape:
+-                if tok.startswith(scr):
+-                    varg_results[toks[0]][scr] = tok[len(scr):].strip()
+-
+-with open(fn2, 'rt') as fh:
+-    for ln in fh:
+-        if ln[0] == '@':
+-            print(ln, end='')
+-            continue
+-        toks = ln.split('\t')
+-        assert toks[0] in varg_results
+-        print(ln.rstrip(), end='')
+-        for k, v in varg_results[toks[0]].items():
+-            print('\t' + k + v, end='')
+-        print()
+diff --git b/seed-expts/compare.py a/seed-expts/compare.py
+deleted file mode 100644
+index 0a86c5a..0000000
+--- b/seed-expts/compare.py
++++ /dev/null
+@@ -1,92 +0,0 @@
+-#!/usr/bin/env python
+-
+-"""
+-TODO: specify a particular setup as being the "reference" and compare against it
+-Then we can automate the process of checking if any of our experiments exceed old S/VS modes on 2 out of the 3 major criteria:
+-
+-- lower n_unal
+-- lower as_i diff
+-- lower time
+-"""
+-
+-from __future__ import print_function
+-import os
+-import sys
+-from collections import defaultdict
+-
+-if len(sys.argv) < 6:
+-    raise ValueError('Requires arguments (1) aligner, (2) dataset, '
+-                     '(3) target series, (4) target command, (5) query series')
+-
+-aligner = sys.argv[1]
+-dataset = sys.argv[2]
+-target_series = sys.argv[3]
+-target_cmd = sys.argv[4]
+-query_series = sys.argv[5]
+-
+-target_fn = os.path.join(target_series, '%s_%s.cmds.csv' % (aligner, dataset))
+-if not os.path.exists(target_fn):
+-    raise RuntimeError('No such target file "%s"' % target_fn)
+-target = {}
+-with open(target_fn, 'rt') as fh:
+-    for ln in fh:
+-        tokens = ln.split(',')
+-        if tokens[0] == target_cmd:
+-            target['time'] = float(tokens[1])
+-            target[tokens[2]] = float(tokens[3])
+-
+-assert 'time' in target
+-assert 'as_diff_mean' in target
+-assert 'n_unal' in target
+-assert 'xs_diff_mean' in target
+-
+-query_fn = os.path.join(query_series, '%s_%s.cmds.csv' % (aligner, dataset))
+-if not os.path.exists(query_fn):
+-    raise RuntimeError('No such query file "%s"' % query_fn)
+-query = defaultdict(dict)
+-with open(query_fn, 'rt') as fh:
+-    # command,elapsed,statistic,mean,med,max,min
+-    # def0_vf,5.9200220108,as_diff_mean,18.2343866598,16.05,52.0,-1
+-    # def0_vf,5.9200220108,xs_diff_mean,17.1496019176,18.65,47.0,-12.0
+-    for ln in fh:
+-        tokens = ln.split(',')
+-        if tokens[0] == 'command':
+-            continue
+-        cmd, time, stat, mean, med, mx, mn = tokens
+-        query[cmd]['time'] = float(time)
+-        query[cmd][stat] = float(mean)
+-
+-time_as = []
+-time_nunal = []
+-as_nunal = []
+-all3 = []
+-
+-for cmd in query.keys():
+-    time_diff = query[cmd]['time'] - target['time']
+-    as_diff_mean_diff = query[cmd]['as_diff_mean'] - target['as_diff_mean']
+-    n_unal_diff = query[cmd]['n_unal'] - target['n_unal']
+-    if time_diff <= 0 and as_diff_mean_diff <= 0:
+-        time_as.append((cmd, time_diff, as_diff_mean_diff, n_unal_diff))
+-    if time_diff <= 0 and n_unal_diff <= 0:
+-        time_nunal.append((cmd, time_diff, as_diff_mean_diff, n_unal_diff))
+-    if as_diff_mean_diff <= 0 and n_unal_diff <= 0:
+-        as_nunal.append((cmd, time_diff, as_diff_mean_diff, n_unal_diff))
+-    if time_diff <= 0 and as_diff_mean_diff <= 0 and n_unal_diff <= 0:
+-        all3.append((cmd, time_diff, as_diff_mean_diff, n_unal_diff))
+-
+-
+-print('Time and AS:i better:')
+-for cmd, time_diff, as_diff_mean_diff, n_unal_diff in time_as:
+-    print(','.join(map(str, [cmd, time_diff, as_diff_mean_diff, n_unal_diff])))
+-
+-print('Time and n_unal better:')
+-for cmd, time_diff, as_diff_mean_diff, n_unal_diff in time_nunal:
+-    print(','.join(map(str, [cmd, time_diff, as_diff_mean_diff, n_unal_diff])))
+-
+-print('AS:i and n_unal better:')
+-for cmd, time_diff, as_diff_mean_diff, n_unal_diff in as_nunal:
+-    print(','.join(map(str, [cmd, time_diff, as_diff_mean_diff, n_unal_diff])))
+-
+-print('All 3 better:')
+-for cmd, time_diff, as_diff_mean_diff, n_unal_diff in all3:
+-    print(','.join(map(str, [cmd, time_diff, as_diff_mean_diff, n_unal_diff])))
+diff --git b/seed-expts/compare_all.sh a/seed-expts/compare_all.sh
+deleted file mode 100755
+index ebcb446..0000000
+--- b/seed-expts/compare_all.sh
++++ /dev/null
+@@ -1,39 +0,0 @@
+-#!/bin/bash
+-
+-echo "======================"
+-echo "===   SENSITIVE   ==="
+-echo "======================"
+-
+-echo "----- E2E Low -----"
+-python compare.py bt2 low archive-master def2_s $1
+-
+-echo
+-echo "----- E2E High -----"
+-python compare.py bt2 high archive-master def2_s $1
+-
+-echo
+-echo "----- Local Low -----"
+-python compare.py bt2loc low archive-master def0_sl $1
+-
+-echo
+-echo "----- Local High -----"
+-python compare.py bt2loc high archive-master def0_sl $1
+-
+-echo "======================"
+-echo "=== VERY SENSITIVE ==="
+-echo "======================"
+-
+-echo "----- E2E Low -----"
+-python compare.py bt2 low archive-master def3_vs $1
+-
+-echo
+-echo "----- E2E High -----"
+-python compare.py bt2 high archive-master def3_vs $1
+-
+-echo
+-echo "----- Local Low -----"
+-python compare.py bt2loc low archive-master def0_vsl $1
+-
+-echo
+-echo "----- Local High -----"
+-python compare.py bt2loc high archive-master def0_vsl $1
+diff --git b/seed-expts/convert.sh a/seed-expts/convert.sh
+deleted file mode 100755
+index d97a8b4..0000000
+--- b/seed-expts/convert.sh
++++ /dev/null
+@@ -1,10 +0,0 @@
+-#!/bin/sh
+-
+-for al in bt2 bt2loc bwam ; do
+-    for level in high low ; do
+-	awk '{print "@"$1; print $10; print "+"; print $11}' \
+-	    misscored_${al}_${level}.sam > \
+-	    misscored_${al}_${level}.fastq
+-    done
+-done
+-
+diff --git b/seed-expts/reads.sh a/seed-expts/reads.sh
+deleted file mode 100755
+index 487f7e9..0000000
+--- b/seed-expts/reads.sh
++++ /dev/null
+@@ -1,9 +0,0 @@
+-#!/usr/bin/env bash
+-
+-set -ex
+-
+-for al in bt2 bt2loc ; do
+-  for level in high low ; do
+-    python vassess_reads.py vargas_misscored_${al}_${level}.sam > ${al}_${level}.fastq
+-  done
+-done
+diff --git b/seed-expts/vassess_aligner.py a/seed-expts/vassess_aligner.py
+deleted file mode 100644
+index 3fac5f9..0000000
+--- b/seed-expts/vassess_aligner.py
++++ /dev/null
+@@ -1,133 +0,0 @@
+-#!/usr/bin/env python
+-
+-"""
+-vassess_aligner.py
+-
+-Given:
+- 1. a file containing aligner commands
+- 2. a FASTQ file generated by vassess_reads.py
+-
+-Run each of the aligner commands on the FASTQ file and collect various
+-statistics about how close the aligner came to the true values of AS:i and
+-XS:i.  Statistics are collected at two levels of granularity: per-read
+-(third argument) and per-command (fourth argument).
+-"""
+-
+-from __future__ import print_function
+-import os
+-import sys
+-import subprocess
+-import time
+-import numpy as np
+-from collections import defaultdict
+-from subprocess import PIPE
+-
+-
+-def flush_command_data(cmd_name, elapsed, cmd_summary_fh, per_read_summary, print_header=False):
+-    assert len(per_read_summary) > 0
+-    assert len(per_read_summary[0]) == 4
+-    if print_header:
+-        cmd_summary_fh.write('command,elapsed,statistic,mean,med,max,min\n')
+-    for coli, colname in enumerate(['as_diff_mean', 'xs_diff_mean', 'n_unal', 'n_xs']):
+-        column = [row[coli] for row in per_read_summary]
+-        column.sort()
+-        col_min, col_med, col_max, col_mean = column[0], column[len(column)/2], column[-1], np.mean(column)
+-        cmd_summary_fh.write(','.join(map(str, [cmd_name, elapsed, colname, col_mean, col_med, col_max, col_min])) + '\n')
+-
+-
+-def flush_read_data(cmd_name, read_name, read_buffer, per_read_summary_fh, per_read_summary):
+-    n_unal, n_xs = 0, 0
+-    ass, xss = [], []
+-    for asi, xsi in read_buffer:
+-        if asi is None and xsi is None:
+-            n_unal += 1
+-        else:
+-            if xsi is not None:
+-                xss.append(xsi)
+-            else:
+-                n_xs += 1
+-            if asi is not None:
+-                ass.append(asi)
+-    as_min, as_med, as_max, as_mean = -1, -1, -1, -1
+-    if len(ass) > 0:
+-        ass.sort()
+-        as_min, as_med, as_max, as_mean = ass[0], ass[len(ass)/2], ass[-1], np.mean(ass)
+-    xs_min, xs_med, xs_max, xs_mean = -1, -1, -1, -1
+-    if len(xss) > 0:
+-        xss.sort()
+-        xs_min, xs_med, xs_max, xs_mean = xss[0], xss[len(xss)/2], xss[-1], np.mean(xss)
+-    record = list(map(str, [cmd_name, read_name, as_mean, xs_mean,
+-                            n_unal, n_xs, as_min, as_med, as_max, xs_min, xs_med, xs_max]))
+-    per_read_summary.append([as_mean, xs_mean, n_unal, n_xs])
+-    per_read_summary_fh.write(','.join(record) + '\n')
+-
+-
+-def go(cmds, reads_fn, read_summary_fn, cmd_summary_fn):
+-    with open(read_summary_fn, 'wt') as read_summ_fh:
+-        with open(cmd_summary_fn, 'wt') as cmd_summary_fh:
+-            first = True
+-            for cmd in cmds:
+-                if cmd[0] == '#':
+-                    continue
+-                if len(cmd.strip()) == 0:
+-                    continue
+-                cmd_tokens = cmd.rstrip().split()
+-                cmd_name, cmd = cmd_tokens[0], ' '.join(cmd_tokens[1:])
+-                cmd += ' %s -S tmp.sam' % reads_fn
+-                assert not os.path.exists('tmp.sam')
+-                print('Trying "%s" command "%s"...' % (cmd_name, cmd), file=sys.stderr)
+-                time_i = time.time()
+-                os.system(cmd)
+-                elapsed = time.time() - time_i
+-                read_buffer, per_read_summary = [], []
+-                last_read_name = None
+-                with open('tmp.sam', 'rt') as fh:
+-                    for ln in fh:
+-                        if ln[0] == '@':
+-                            continue
+-                        tokens = ln.rstrip().split('\t')
+-                        name = tokens[0]
+-                        name_tokens = name.split(':')
+-                        if last_read_name is None:
+-                            last_read_name = name_tokens[0]
+-                        if name_tokens[0] != last_read_name:
+-                            flush_read_data(cmd_name, last_read_name, read_buffer, read_summ_fh, per_read_summary)
+-                            read_buffer = []
+-                            last_read_name = name_tokens[0]
+-                        assert len(name_tokens) >= 3
+-                        asi_best, xsi_best, trial = int(name_tokens[-3]), int(name_tokens[-2]), name_tokens[-1]
+-                        flags = int(tokens[1])
+-                        if flags & 4 != 0:
+-                            read_buffer.append((None, None))
+-                        else:
+-                            asi, xsi = None, None
+-                            for tok in tokens[11:]:
+-                                if tok[:5] == 'AS:i:':
+-                                    asi = int(tok[5:])
+-                                if tok[:5] == 'XS:i:':
+-                                    xsi = int(tok[5:])
+-                                if asi is not None and xsi is not None:
+-                                    break
+-                            if asi is not None and xsi is not None:
+-                                read_buffer.append((asi_best - asi, xsi_best - xsi))
+-                            elif asi is not None:
+-                                read_buffer.append((asi_best - asi, None))
+-                            else:
+-                                raise RuntimeError('No AS:i or XS:i for aligned read: ' + ln)
+-                os.remove('tmp.sam')
+-                assert not os.path.exists('tmp.sam')
+-                if len(read_buffer) > 0:
+-                    flush_read_data(cmd_name, last_read_name, read_buffer, read_summ_fh, per_read_summary)
+-                flush_command_data(cmd_name, elapsed, cmd_summary_fh, per_read_summary, first)
+-                first = False
+-
+-
+-if __name__ == '__main__':
+-    if len(sys.argv) < 5:
+-        raise ValueError('Expected arguments: '
+-                         '(1) File with aligner commands, '
+-                         '(2) Reads file, '
+-                         '(3) Read summary output filename, '
+-                         '(4) Command summary output filename')
+-    with open(sys.argv[1]) as fh_:
+-        go(fh_.readlines(), sys.argv[2], sys.argv[3], sys.argv[4])
+diff --git b/seed-expts/vassess_reads.py a/seed-expts/vassess_reads.py
+deleted file mode 100644
+index 9de7131..0000000
+--- b/seed-expts/vassess_reads.py
++++ /dev/null
+@@ -1,47 +0,0 @@
+-#!/usr/bin/env python
+-
+-"""
+-vassess_reads.py
+-
+-Given a Vargas SAM file, construct a corresponding FASTQ file that includes
+-all the reads with Vargas AS:i and XS:i in the read name.  Make many
+-replicates of each reads so we can assess how pseudo-randomness used by the
+-aligner affects the result.
+-"""
+-
+-from __future__ import print_function
+-import os
+-import sys
+-
+-
+-def go(vargas_fn, trials):
+-    if not os.path.exists(vargas_fn):
+-        raise RuntimeException('Vargas SAM file "%s" does not exist' % vargas_fn)
+-    with open(vargas_fn, 'rt') as fh:
+-        for ln in fh:
+-            if ln[0] == '@':
+-                continue
+-            tokens = ln.rstrip().split('\t')
+-            assert len(tokens) >= 11
+-            name, seq, quality = tokens[0], tokens[9], tokens[10]
+-            asi, ssi = None, None
+-            for tok in tokens[11:]:
+-                if tok[:5] == 'AS:i:':
+-                    asi = int(tok[5:])
+-                if tok[:5] == 'ss:i:':
+-                    ssi = int(tok[5:])
+-                if asi is not None and ssi is not None:
+-                    break
+-            assert asi is not None and ssi is not None
+-            read_body = '\n'.join([seq, '+', quality])
+-            for i in range(trials):
+-                print('@%s:%d:%d:%d' % (name, asi, ssi, i))
+-                print(read_body)
+-
+-
+-if __name__ == '__main__':
+-    # TODO: make this a parameter
+-    trials = 20
+-    if len(sys.argv) < 2:
+-        raise ValueError('Expected argument: (1) Vargas SAM')
+-    go(sys.argv[1], trials)

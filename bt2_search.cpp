@@ -3757,14 +3757,11 @@ static void multiseedSearchWorker(void *vp) {
 						nrounds[1] = min<size_t>(nrounds[1], interval[1]);
 						Constraint gc = Constraint::penaltyFuncBased(scoreMin);
 						size_t seedsTried = 0;
-						size_t seedsTriedMS[] = {0, 0, 0, 0};
+					size_t seedsTriedMS[] = {0, 0, 0, 0};
 						size_t nUniqueSeeds = 0, nRepeatSeeds = 0, seedHitTot = 0;
-						size_t nUniqueSeedsMS[] = {0, 0, 0, 0};
-						size_t nRepeatSeedsMS[] = {0, 0, 0, 0};
-						size_t seedHitTotMS[] = {0, 0, 0, 0};
-						int adjust_up[] = {0, 0};
-						bool adjust_down[] = {false, false};
-						int seed_increment = 5;
+					size_t nUniqueSeedsMS[] = {0, 0, 0, 0};
+					size_t nRepeatSeedsMS[] = {0, 0, 0, 0};
+					size_t seedHitTotMS[] = {0, 0, 0, 0};
 						for(size_t roundi = 0; roundi < nSeedRounds; roundi++) {
 							ca.nextRead(); // Clear cache in preparation for new search
 							shs[0].clearSeeds();
@@ -3773,17 +3770,12 @@ static void multiseedSearchWorker(void *vp) {
 							assert(shs[1].empty());
 							assert(shs[0].repOk(&ca.current()));
 							assert(shs[1].repOk(&ca.current()));
+							//if(roundi > 0) {
+							//	if(seedlens[0] > 8) seedlens[0]--;
+							//	if(seedlens[1] > 8) seedlens[1]--;
+							//}
 							for(size_t matei = 0; matei < (paired ? 2:1); matei++) {
 								size_t mate = matemap[matei];
-								if(adjust_up[mate] > 0) {
-									seedlens[mate] = min(seedlens[mate] + adjust_up[mate], (int)rds[mate]->length());
-									seedlens[mate] = min(seedlens[mate], 32);
-								}
-								else if(adjust_down[mate]) {
-									seedlens[mate] = max(seedlens[mate] - seed_increment, 8);
-								}
-								adjust_up[mate] = 0;
-								adjust_down[mate] = false;
 								if(done[mate] || msinkwrap.state().doneWithMate(mate == 0)) {
 									// Done with this mate
 									done[mate] = true;
@@ -3819,7 +3811,7 @@ static void multiseedSearchWorker(void *vp) {
 									continue;
 								}
 								// Instantiate the seeds
-							    std::pair<int, int> instFw, instRc;
+							std::pair<int, int> instFw, instRc;
 								std::pair<int, int> inst = al.instantiateSeeds(
 									*seeds[mate],   // search seeds
 									offset,         // offset to begin extracting
@@ -3830,19 +3822,19 @@ static void multiseedSearchWorker(void *vp) {
 									norc[mate],     // don't align revcomp read
 									ca,             // holds some seed hits from previous reads
 									shs[mate],      // holds all the seed hits
-									sdm,            // metrics
-									instFw,
-									instRc);
+								sdm,            // metrics
+								instFw,
+								instRc);
 								assert(shs[mate].repOk(&ca.current()));
 								if(inst.first + inst.second == 0) {
 									// No seed hits!  Done with this mate.
 									assert(shs[mate].empty());
-									//done[mate] = true;
-									continue;
+									done[mate] = true;
+									break;
 								}
 								seedsTried += (inst.first + inst.second);
-								seedsTriedMS[mate * 2 + 0] = instFw.first + instFw.second;
-								seedsTriedMS[mate * 2 + 1] = instRc.first + instRc.second;
+							seedsTriedMS[mate * 2 + 0] = instFw.first + instFw.second;
+							seedsTriedMS[mate * 2 + 1] = instRc.first + instRc.second;
 								// Align seeds
 								al.searchAllSeeds(
 									*seeds[mate],     // search seeds
@@ -3855,48 +3847,26 @@ static void multiseedSearchWorker(void *vp) {
 									sdm,              // metrics
 									prm);             // per-read metrics
 								assert(shs[mate].repOk(&ca.current()));
-								//if(shs[mate].empty()) {
+								if(shs[mate].empty()) {
 									// No seed alignments!  Done with this mate.
-									//done[mate] = true;
-									//break;
-								//}
-							} // end seed instantiation loop
-							bool good[] = {true, true};
+									done[mate] = true;
+									break;
+								}
+							}
+							// shs contain what we need to know to update our seed
+							// summaries for this seeding
 							for(size_t mate = 0; mate < 2; mate++) {
 								if(!shs[mate].empty()) {
 									nUniqueSeeds += shs[mate].numUniqueSeeds();
-									nUniqueSeedsMS[mate * 2 + 0] += shs[mate].numUniqueSeedsStrand(true);
-									nUniqueSeedsMS[mate * 2 + 1] += shs[mate].numUniqueSeedsStrand(false);
+								nUniqueSeedsMS[mate * 2 + 0] += shs[mate].numUniqueSeedsStrand(true);
+								nUniqueSeedsMS[mate * 2 + 1] += shs[mate].numUniqueSeedsStrand(false);
 									nRepeatSeeds += shs[mate].numRepeatSeeds();
-									nRepeatSeedsMS[mate * 2 + 0] += shs[mate].numRepeatSeedsStrand(true);
-									nRepeatSeedsMS[mate * 2 + 1] += shs[mate].numRepeatSeedsStrand(false);
+								nRepeatSeedsMS[mate * 2 + 0] += shs[mate].numRepeatSeedsStrand(true);
+								nRepeatSeedsMS[mate * 2 + 1] += shs[mate].numRepeatSeedsStrand(false);
 									seedHitTot += shs[mate].numElts();
-									seedHitTotMS[mate * 2 + 0] += shs[mate].numEltsFw();
-									seedHitTotMS[mate * 2 + 1] += shs[mate].numEltsRc();
-									if (roundi < nSeedRounds-1) {
-										size_t succeeded = shs[mate].numUniqueSeeds() + shs[mate].numRepeatSeeds();
-										//TIndexOffU min_hits_per_seed = shs[mate].minHitsPerSeed();
-										if (((double) shs[mate].numRepeatSeeds()) / succeeded > 0.8) {
-											//assert_lt(min_hits_per_seed, std::numeric_limits<TIndexOffU>::max());
-											adjust_up[mate] = max((int)lround(log10(shs[mate].numElts())), 1);
-											if(adjust_up[mate] > 3 && shs[mate].numUniqueSeeds() == 0) {
-												good[mate] = false;
-											}
-										}
-										size_t tried = seedsTriedMS[mate * 2 + 0] + seedsTriedMS[mate * 2 + 1];
-										if (((double)succeeded / tried) < 0.2 && !adjust_up[mate]) {
-											if(shs[mate].numUniqueSeeds() + shs[mate].numRepeatSeeds() == 0) {
-												good[mate] = false;
-											}
-											adjust_down[mate] = true;
-										}
-									}
-								} else {
-									good[mate] = false;
+								seedHitTotMS[mate * 2 + 0] += shs[mate].numEltsFw();
+								seedHitTotMS[mate * 2 + 1] += shs[mate].numEltsRc();
 								}
-							}
-							if(!good[0] && !good[1]) {
-								continue; // skip seed investigation
 							}
 							double uniqFactor[2] = { 0.0f, 0.0f };
 							for(size_t i = 0; i < 2; i++) {
@@ -4059,25 +4029,25 @@ static void multiseedSearchWorker(void *vp) {
 								}
 							}
 						} // end loop over reseeding rounds
-						if(seedsTried > 0) {
+					if(seedsTried > 0) {
 							prm.seedPctUnique = (float)nUniqueSeeds / seedsTried;
 							prm.seedPctRep = (float)nRepeatSeeds / seedsTried;
 							prm.seedHitAvg = (float)seedHitTot / seedsTried;
+					} else {
+						prm.seedPctUnique = -1.0f;
+						prm.seedPctRep = -1.0f;
+						prm.seedHitAvg = -1.0f;
+					}
+					for(int i = 0; i < 4; i++) {
+						if(seedsTriedMS[i] > 0) {
+							prm.seedPctUniqueMS[i] = (float)nUniqueSeedsMS[i] / seedsTriedMS[i];
+							prm.seedPctRepMS[i] = (float)nRepeatSeedsMS[i] / seedsTriedMS[i];
+							prm.seedHitAvgMS[i] = (float)seedHitTotMS[i] / seedsTriedMS[i];
 						} else {
-							prm.seedPctUnique = -1.0f;
-							prm.seedPctRep = -1.0f;
-							prm.seedHitAvg = -1.0f;
+							prm.seedPctUniqueMS[i] = -1.0f;
+							prm.seedPctRepMS[i] = -1.0f;
+							prm.seedHitAvgMS[i] = -1.0f;
 						}
-						for(int i = 0; i < 4; i++) {
-							if(seedsTriedMS[i] > 0) {
-								prm.seedPctUniqueMS[i] = (float)nUniqueSeedsMS[i] / seedsTriedMS[i];
-								prm.seedPctRepMS[i] = (float)nRepeatSeedsMS[i] / seedsTriedMS[i];
-								prm.seedHitAvgMS[i] = (float)seedHitTotMS[i] / seedsTriedMS[i];
-							} else {
-								prm.seedPctUniqueMS[i] = -1.0f;
-								prm.seedPctRepMS[i] = -1.0f;
-								prm.seedHitAvgMS[i] = -1.0f;
-							}
 						}
 						size_t totnucs = 0;
 						for(size_t mate = 0; mate < (paired ? 2:1); mate++) {
@@ -4089,10 +4059,10 @@ static void multiseedSearchWorker(void *vp) {
 								totnucs += len;
 							}
 						}
-						prm.seedsPerNuc = totnucs > 0 ? ((float)seedsTried / totnucs) : -1;
-						for(int i = 0; i < 4; i++) {
-							prm.seedsPerNucMS[i] = totnucs > 0 ? ((float)seedsTriedMS[i] / totnucs) : -1;
-						}
+					prm.seedsPerNuc = totnucs > 0 ? ((float)seedsTried / totnucs) : -1;
+					for(int i = 0; i < 4; i++) {
+						prm.seedsPerNucMS[i] = totnucs > 0 ? ((float)seedsTriedMS[i] / totnucs) : -1;
+					}
 						for(size_t i = 0; i < 2; i++) {
 							assert_leq(prm.nExIters, mxIter[i]);
 							assert_leq(prm.nExDps,   mxDp[i]);
