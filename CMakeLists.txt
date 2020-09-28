@@ -3,7 +3,8 @@ cmake_minimum_required(VERSION 2.8)
 cmake_policy(SET CMP0048 NEW)
 cmake_policy(SET CMP0005 NEW)
 
-project(bowtie2 LANGUAGES CXX VERSION "2.3.5.1")
+file(STRINGS ${CMAKE_SOURCE_DIR}/BOWTIE2_VERSION PROJECT_VERSION)
+project(bowtie2 LANGUAGES CXX VERSION ${PROJECT_VERSION})
 
 enable_testing()
 
@@ -17,19 +18,19 @@ ProcessorCount(NUM_CORES)
 option(BOWTIE_MM "enable bowtie2 memory mapping" ON)
 option(BOWITE_SHARED_MM "enable shared memory mapping" ON)
 
-set(CMAKE_CXX_STANDARD 98)
 set(NO_TBB ${NO_TBB})
 set(NO_SPINLOCK ${NO_SPINLOCK})
-set(USE_SRA 0)
+set(USE_SRA ${USE_SRA})
 set(WITH_THREAD_PROFILING ${WITH_THREAD_PROFILING})
-set(POPCNT_CAPABILITY ${POPCNT_CAPABILITY})
+set(NO_POPCNT_CAPABILITY ${NO_POPCNT_CAPABILITY})
+set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
+set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m64 -g3 -Wall -msse2")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -funroll-loops")
 set(INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/bin" CACHE PATH "Installation directory for executables")
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS on)
-
 
 if (MINGW)
   option(BOWTIE_MM "Memory mapped files not supported on Windows" OFF)
@@ -48,6 +49,12 @@ set(BOWTIE2_BIN_LIST
   bowtie2-align-l
   bowtie2-inspect-s
   bowtie2-inspect-l
+  )
+
+set(BOWTIE2_WRAPPER_SCRIPTS
+  bowtie2
+  bowtie2-build
+  bowtie2-inspect
   )
 
 set(SHARED_CPPS
@@ -120,7 +127,7 @@ if (NO_SPINLOCK)
   add_definitions(-DNO_SPINLOCK)
 endif()
 
-if (POPCNT_CAPABILITY)
+if (NOT NO_POPCNT_CAPABILITY)
   add_definitions(-DPOPCNT_CAPABILITY)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I third_party")
 endif()
@@ -204,9 +211,8 @@ if (NO_TBB)
   set(SHARED_CPPS ${SHARED_CPPS} tinythread.cpp)
 else()
   find_library(TBB_LIB_PATH tbb)
-
   if (TBB_LIB_PATH)
-    find_path(TBB_INCLUDE_PATH tbb)
+    find_path(TBB_INCLUDE_PATH tbb/tbb.h)
     link_libraries(${TBB_LIB_PATH})
     find_library(TBBMALLOC_PROXY_LIB_PATH tbbmalloc_proxy)
     if (NOT TBBMALLOC_PROXY_LIB_PATH)
@@ -241,10 +247,10 @@ else()
       )
 
     ExternalProject_Get_Property(tbb_project SOURCE_DIR)
-
     set(TBB_SOURCE_DIR ${SOURCE_DIR})
     set(TBB_RELEASE_DIR ${TBB_SOURCE_DIR}/build/${TBB_VER}_release)
     include_directories(${TBB_SOURCE_DIR}/include)
+    find_path(TBB_INCLUDE_PATH PATHS ${TBB_SOURCE_DIR}/include NAMES tbb/tbb.h)
 
     link_directories(${TBB_RELEASE_DIR})
     add_library(tbb SHARED IMPORTED)
@@ -287,6 +293,29 @@ add_executable(bowtie2-inspect-l ${INSPECT_CPPS} ${SHARED_CPPS})
 
 set_target_properties(bowtie2-align-l bowtie2-build-l bowtie2-inspect-l PROPERTIES COMPILE_FLAGS "-DBOWTIE2_64BIT_INDEX")
 set_target_properties(bowtie2-inspect-s bowtie2-inspect-l PROPERTIES COMPILE_FLAGS "-DBOWTIE_INSPECT_MAIN")
-set_target_properties(${BOWTIE2_BIN_LIST} PROPERTIES DEBUG_POSTFIX -debug)
+# set_target_properties(${BOWTIE2_BIN_LIST} PROPERTIES DEBUG_POSTFIX -debug)
 
-add_test(NAME simple-align COMMAND ${PROJECT_SOURCE_DIR}/bowtie2 -x example/index/lambda_virus example/reads/longreads.fq)
+install(TARGETS ${BOWTIE2_BIN_LIST} DESTINATION bin)
+install(FILES ${BOWTIE2_WRAPPER_SCRIPTS}
+  PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+  DESTINATION bin)
+if (LIBTBB)
+  install(FILES ${LIBTBB} DESTINATION lib)
+  install(DIRECTORY ${TBB_INCLUDE_PATH} DESTINATION include)
+endif()
+if (LIBTBBMALLOC)
+  install(FILES ${LIBTBBMALLOC} DESTINATION lib)
+endif()
+if (LIBTBBMALLOC_PROXY)
+  install(FILES ${LIBTBBMALLOC_PROXY} DESTINATION lib)
+endif()
+
+add_test(NAME simple-align
+  WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+  COMMAND bowtie2 -x example/index/lambda_virus example/reads/longreads.fq -u 10)
+add_test(NAME simple-build
+  WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+  COMMAND bowtie2-build-s -c GGGCGGCGACCTCGCGGGTTTTCGCTA out)
+add_test(NAME simple-inspect
+  WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+  COMMAND bowtie2-inspect-s out && rm out*)

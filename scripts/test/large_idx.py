@@ -1,8 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import os
 import gzip
-import urllib2
+import urllib.request, urllib.error, urllib.parse
 import inspect
 import unittest
 import logging
@@ -69,7 +69,7 @@ class TestLargeIndex(unittest.TestCase):
    
 def get_suite():
     tests = ['test_human','test_mouse','test_large_index']
-    return unittest.TestSuite(map(TestLargeIndex,tests))
+    return unittest.TestSuite(list(map(TestLargeIndex,tests)))
 
     
             

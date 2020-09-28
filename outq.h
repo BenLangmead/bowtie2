@@ -137,7 +137,7 @@ protected:
 	OutFileBuf&     obuf_;
 	TReadId         cur_;
 #ifdef WITH_TBB
-	tbb::atomic<TReadId> nstarted_;
+	std::atomic<TReadId> nstarted_;
 #else
 	TReadId         nstarted_;
 #endif

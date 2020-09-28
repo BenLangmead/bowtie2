@@ -20,6 +20,7 @@
 #ifndef STR_UTIL_H_
 #define STR_UTIL_H_
 
+#include <stdint.h>
 #include <string>
 
 /**
@@ -44,4 +45,18 @@ hash_string(const std::string& s) {
 	return ret;
 }
 
+/*
+ * Implementation of the FNV-1a hash function.
+ * https://tools.etf.org/html/draft/eastlake-fnv-03
+*/
+static inline uint32_t hash_str(const char *str) {
+	int c;
+	const uint32_t FNV_PRIME = 0x010000193;
+	uint32_t hash = 0x811C9Dc5;
+
+
+	while ((c = *str++) != '\0')
+		hash = (hash ^ c) * FNV_PRIME;
+	return hash;
+}
 #endif /* STR_UTIL_H_ */

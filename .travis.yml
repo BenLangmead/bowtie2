@@ -1,45 +1,92 @@
+dist: xenial
+language: cpp
 sudo: required
-language: c++
-compiler:
-- clang
-- gcc
-cache: apt
-addons:
-  apt:
-    packages:
-    - libtbb-dev
 branches:
   only:
-  - master
-  - cleaner_parsing
-  - scaling-old-parsing
-  - batch_parsing
-  - batch_parsing_output
-  - blocked_input
-  - bug_fixes
+    - master
+    - cleaner_parsing
+    - scaling-old-parsing
+    - batch_parsing
+    - batch_parsing_output
+    - blocked_input
+    - bug_fixes
 matrix:
   include:
-  # aarch64 - ARM 64-bit
-  - name: aarch64
-    install:
-    - docker run --rm --privileged multiarch/qemu-user-static:register --reset
-    - docker build --rm -t bowtie2 -f Dockerfile-aarch64 .
-    script:
-    # Ping stdout every 9 minutes or Travis kills build,
-    # as travis_wait does not show the command output while processing.
-    # https://docs.travis-ci.com/user/common-build-problems/#build-times-out-because-no-output-was-received
-    - |
-      while sleep 9m; do
-          echo "====[ $SECONDS seconds still running ]===="
-      done &
-    # Suppress warnings to see the Travis log easily.
-    - CXXFLAGS="-Wno-deprecated-declarations -Wno-misleading-indentation -Wno-narrowing -Wno-unused-function -Wno-unused-result"
-    # Run "make all" as "make allall simple-test" exceeds the Travis maximum
-    # time limit (50 minutes).
-    # Set POPCNT_CAPABILITY=0 to avoid a build error.
-    # NO_TBB=1 possibly saves the running time.
-    - docker run --rm -e CXXFLAGS="$CXXFLAGS" -e POPCNT_CAPABILITY=0 -t bowtie2 make -s -j 4 all
-script: make allall && make simple-test
+    # Linux (gcc4.9)
+    - os: linux
+      language: python
+      python: "3.4"
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-4.9
+            - libtbb-dev
+            - zlib1g-dev
+      env:
+        - CC=gcc-4.9
+        - CXX=g++-4.9
+    # Linux (gcc8)
+    - os: linux
+      language: python
+      python: "3.8"
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-8
+            - libtbb-dev
+            - zlib1g-dev
+      env:
+        - CC=gcc-8
+        - CXX=g++-8
+        - CXXFLAGS="-fuse-ld=gold"
+    # MacOS
+    - os: osx
+      osx_image: xcode11.2
+      compiler: clang
+      env:
+        - CC=clang
+        - CXX=clang++
+        - NPROC="$(sysctl -n hw.activecpu)"
+      before_install:
+        - brew unlink python@2
+        - brew install tbb
+        - brew install python
+    # ARM 64-bit
+    - os: linux
+      arch: arm64
+      compiler: gcc
+      env:
+        # Set POPCNT_CAPABILITY=0 to avoid build error
+        - POPCNT_CAPABILITY=0
+        - NO_TBB=1
+      script: travis_wait 30 make -j $NPROC allall
+    # IBM Z (big endian)
+    # - os: linux
+    #   arch: s390x
+    #   env:
+    #     - POPCNT_CAPABILITY=0
+    #     - NO_TBB=1
+    # PPC64LE
+    - os: linux
+      arch: ppc64le
+      env:
+        - POPCNT_CAPABILITY=0
+        - NO_TBB=1
+cache: apt
+env:
+  global:
+    - NPROC="$(nproc)"
+before_script:
+  - uname -m
+  - python3 --version
+  - echo CC=${CC} CXX=${CXX} NPROC=${NPROC}
+  - $CC --version
+  - $CXX --version
+script: make -j $NPROC allall && make simple-test
 notifications:
   slack:
     secure: tfzT8N1fNV+oSV7tide9WrAj3ifs+LONJ3fCH1tUzexqrx23te4lE0oAj9C1cEMJ4evyRYwHNG8HZoLCOy8EfapqbWm6vgLIlkIBpeZ9E6f2jG6v0YuVDWWpqQC3qdGXCqWtHPjgs3i5OLsLwwQ/LItLoTqpBk2aYv+vGNs2F9g=

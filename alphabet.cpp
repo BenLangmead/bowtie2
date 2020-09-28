@@ -204,7 +204,7 @@ int dnacomp[5] = {
 
 const char *iupacs = "!ACMGRSVTWYHKDBN!acmgrsvtwyhkdbn";
 
-char mask2iupac[16] = {
+signed char mask2iupac[16] = {
 	-1,
 	'A', // 0001
 	'C', // 0010

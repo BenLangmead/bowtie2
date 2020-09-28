@@ -27,13 +27,13 @@
 #ifndef SSE_WRAP_H_
 #define SSE_WRAP_H_
 
-#ifdef __aarch64__
+#if defined(__aarch64__) || defined(__s390x__) || defined(__powerpc__)
 #include "simde/x86/sse2.h"
 #else
 #include <emmintrin.h>
 #endif
 
-#ifdef __aarch64__
+#if defined(__aarch64__) || defined(__s390x__) || defined(__powerpc__)
 typedef simde__m128i __m128i;
 #define _mm_adds_epi16(x, y) simde_mm_adds_epi16(x, y)
 #define _mm_adds_epu8(x, y) simde_mm_adds_epu8(x, y)

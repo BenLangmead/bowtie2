@@ -1,12 +1,12 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
-Note: This would look so much better replaced by XML or at least JSON. But 
+Note: This would look so much better replaced by XML or at least JSON. But
       is not worth to do it for now.
 """
 
 import os
 import gzip
-import urllib2
+import urllib.request, urllib.error, urllib.parse
 import logging
 
 
@@ -15,7 +15,7 @@ class LargeTestsData(object):
     Large index tests use quite big datasets. Make sure these
     are present before starting the time consuming tests.
     """
-    
+
     def __init__(self,bt2_path=''):
         self.data_dir       = 'big_data'
         curr_path           = os.path.realpath(bt2_path)
@@ -24,13 +24,13 @@ class LargeTestsData(object):
         curr_path           = os.path.join(curr_path,'test')
         self.data_dir_path  = os.path.join(curr_path,self.data_dir)
         self.reads_dir_path = os.path.join(curr_path,'reads')
-        
+
         try:
             os.stat(self.data_dir_path)
         except:
             logging.error("Cannot find the working datadir %s!" % self.data_dir_path)
-            raise 
-        
+            raise
+
         self.genomes = dict()
         self.genomes['human'] = dict()
         hm = self.genomes['human']
@@ -41,7 +41,7 @@ class LargeTestsData(object):
         for i in range(1,22):
             chromosomes.append('chr%d' % i)
         chromosomes.extend(['chrX', 'chrY', 'chrM'])
-        
+
         self.genomes['mouse'] = dict()
         ms = self.genomes['mouse']
         ms['link'] = "ftp://hgdownload.cse.ucsc.edu/goldenPath/rn4/chromosomes"
@@ -51,7 +51,7 @@ class LargeTestsData(object):
         for i in range(1,21):
             chromosomes.append('chr%d' % i)
         chromosomes.extend(['chrX', 'chrM'])
-           
+
         self.joint_genomes = dict()
         self.joint_genomes['ms_hum'] = dict()
         mh = self.joint_genomes['ms_hum']
@@ -60,50 +60,50 @@ class LargeTestsData(object):
         mh['genomes'] = ['human','mouse']
 
         self.init_data()
-        
+
 
 
     def init_data(self):
         """ Try and init the data we need.
         """
-        for genome,gdata in self.genomes.iteritems():
+        for genome,gdata in list(self.genomes.items()):
             gn_path  = os.path.join(self.data_dir_path,genome)
             gn_fasta = os.path.join(gn_path,gdata['ref_name'])
             if not os.path.exists(gn_fasta):
                 self._get_genome(genome)
                 self._build_genome(genome)
-        
-        for genome,gdata in self.joint_genomes.iteritems():
+
+        for genome,gdata in list(self.joint_genomes.items()):
             gn_path  = os.path.join(self.data_dir_path,genome)
             gn_fasta = os.path.join(gn_path,gdata['ref_name'])
             if not os.path.exists(gn_fasta):
                 self._build_joint_genome(genome)
 
-            
-        
+
+
     def _get_genome(self,genome):
         g        = self.genomes[genome]
         gn_path  = os.path.join(self.data_dir_path,genome)
-        
+
         if not os.path.exists(gn_path):
             os.mkdir(gn_path)
-            
+
         logging.info("Downloading genome: %s " % genome)
-        
+
         for chrs in g['chromosomes']:
             chr_file = chrs + ".fa.gz"
             fname = os.path.join(gn_path,chr_file)
-            
+
             if os.path.exists(fname):
                 logging.info("Skip %s (already present)" % chr_file)
                 continue
-            
-            uri = g['link'] + r"/" + chr_file 
+
+            uri = g['link'] + r"/" + chr_file
             logging.info("file: %s" % chr_file)
-            
+
             try:
                 f = open(fname,'wb')
-                u = urllib2.urlopen(uri)
+                u = urllib.request.urlopen(uri)
                 f.write(u.read())
             except:
                 f.close()
@@ -114,9 +114,9 @@ class LargeTestsData(object):
                 os.close(u.fileno())
                 u.close()
                 f.close()
-                
-        
-        
+
+
+
     def _build_genome(self,genome):
         g        = self.genomes[genome]
         gn_path  = os.path.join(self.data_dir_path,genome)
@@ -125,11 +125,11 @@ class LargeTestsData(object):
         logging.info("Building fasta file for genome: %s" % genome)
 
         f_gn = open(gn_fasta,'wb')
-        
+
         for chrs in g['chromosomes']:
             chr_file = chrs + ".fa.gz"
             fname = os.path.join(gn_path,chr_file)
-        
+
             try:
                 f_chr = gzip.open(fname,'rb')
                 f_gn.write(f_chr.read())
@@ -143,7 +143,7 @@ class LargeTestsData(object):
 
         f_gn.close()
 
-        
+
 
     def _build_joint_genome(self,genome):
         jg        = self.joint_genomes[genome]
@@ -152,7 +152,7 @@ class LargeTestsData(object):
 
         if not os.path.exists(jgn_path):
             os.mkdir(jgn_path)
-         
+
         logging.info("Building fasta file for genome: %s" % genome)
 
         f_jg = open(jgn_fasta,'wb')
@@ -169,31 +169,24 @@ class LargeTestsData(object):
                 raise
             else:
                 fin.close()
-                
+
         f_jg.close()
-                
-  
-  
+
+
+
 class ExampleData(object):
     """ The example data.
     """
-    
+
     def __init__(self,bt2_path=''):
         curr_path           = os.path.realpath(bt2_path)
         curr_path           = os.path.join(curr_path,'example')
         self.index_dir_path = os.path.join(curr_path,'index')
         self.reads_dir_path = os.path.join(curr_path,'reads')
         self.ref_dir_path   = os.path.join(curr_path,'reference')
-        
+
         try:
             os.stat(curr_path)
         except:
             logging.error("Cannot find the example datadir %s!" % curr_path)
-            raise 
-    
-    
-    
-    
-    
-                
-
+            raise

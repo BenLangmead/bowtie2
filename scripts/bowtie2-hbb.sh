@@ -40,11 +40,16 @@ if [ $use_sra -eq 1 ] ; then
     make sra-deps
 fi
 
+libstdcpp=`find /opt/rh -name libstdc++.a -print | head -1`
+if [ ! -z $libstdcpp ] ; then
+    cp $libstdcpp /hbb_exe_gc_hardened/lib
+fi
+
 # this variant creates static binaries with PIC
 source /hbb_exe_gc_hardened/activate
 
 mkdir /mybin
-echo  'res=`echo $@ | sed "s/-L.*$//"`; echo $res; echo $res; /opt/rh/devtoolset-7/root/usr/bin/ar $res;' > /mybin/ar
+echo  'res=`echo $@ | sed "s/-L.*$//"`; /opt/rh/devtoolset-7/root/usr/bin/ar $res;' > /mybin/ar
 chmod +x /mybin/ar && export PATH=/mybin:$PATH
 
 make static-libs

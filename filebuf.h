@@ -87,6 +87,11 @@ public:
 		assert(_ins != NULL);
 	}
 
+
+	~FileBuf() {
+		close();
+	}
+
 	/**
 	 * Return true iff there is a stream ready to read.
 	 */

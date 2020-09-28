@@ -57,6 +57,9 @@ if(! -x $bowtie2 || ! -x $bowtie2_build) {
 (-x $bowtie2)       || die "Cannot run '$bowtie2'";
 (-x $bowtie2_build) || die "Cannot run '$bowtie2_build'";
 
+`$bowtie2 --help` || die "Wrapper terminated with non-zero exit code.";
+`$bowtie2 --version` || die "Wrapper terminated with non-zero exit code.";
+
 my $compiled_with_sra = (`$bowtie2 --version` =~ /USE_SRA/) && defined(which "latf-load");
 my $should_test_bam = defined(which "samtools");
 

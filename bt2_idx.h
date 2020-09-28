@@ -55,9 +55,13 @@
 #include "mem_ids.h"
 #include "btypes.h"
 
-#ifdef POPCNT_CAPABILITY 
-    #include "processor_support.h" 
-#endif 
+#ifdef POPCNT_CAPABILITY
+    #include "processor_support.h"
+#endif
+
+#if __cplusplus <= 199711L
+#define unique_ptr auto_ptr
+#endif
 
 using namespace std;
 
@@ -171,16 +175,16 @@ public:
 	int32_t   offRate() const       { return _offRate; }
 	TIndexOffU offMask() const       { return _offMask; }
 	int32_t   ftabChars() const     { return _ftabChars; }
-	int32_t eftabLen() const      { return _eftabLen; } 
-	int32_t eftabSz() const       { return _eftabSz; } 
+	int32_t eftabLen() const      { return _eftabLen; }
+	int32_t eftabSz() const       { return _eftabSz; }
 	TIndexOffU ftabLen() const       { return _ftabLen; }
 	TIndexOffU ftabSz() const        { return _ftabSz; }
 	TIndexOffU offsLen() const       { return _offsLen; }
 	uint64_t offsSz() const        { return _offsSz; }
-	int32_t lineSz() const        { return _lineSz; } 
-	int32_t sideSz() const        { return _sideSz; } 
-	int32_t sideBwtSz() const     { return _sideBwtSz; } 
-	int32_t sideBwtLen() const    { return _sideBwtLen; } 
+	int32_t lineSz() const        { return _lineSz; }
+	int32_t sideSz() const        { return _sideSz; }
+	int32_t sideBwtSz() const     { return _sideBwtSz; }
+	int32_t sideBwtLen() const    { return _sideBwtLen; }
 	TIndexOffU numSides() const      { return _numSides; }
 	TIndexOffU numLines() const      { return _numLines; }
 	TIndexOffU ebwtTotLen() const    { return _ebwtTotLen; }
@@ -256,14 +260,14 @@ public:
 	int32_t  _ftabChars;
 	uint32_t _eftabLen;
 	uint32_t _eftabSz;
-	TIndexOffU _ftabLen; 
-	TIndexOffU _ftabSz; 
+	TIndexOffU _ftabLen;
+	TIndexOffU _ftabSz;
 	TIndexOffU _offsLen;
 	uint64_t _offsSz;
-	uint32_t _lineSz; 
-	uint32_t _sideSz; 
-	uint32_t _sideBwtSz; 
-	uint32_t _sideBwtLen; 
+	uint32_t _lineSz;
+	uint32_t _sideSz;
+	uint32_t _sideBwtSz;
+	uint32_t _sideBwtLen;
 	TIndexOffU _numSides;
 	TIndexOffU _numLines;
 	TIndexOffU _ebwtTotLen;
@@ -361,7 +365,7 @@ struct SideLocus {
 		assert_lt(_by, (int)ep._sideBwtSz);
 		_bp = _charOff & 3;  // bit-pair within byte
 	}
-	
+
 	/**
 	 * Transform this SideLocus to refer to the next side (i.e. the one
 	 * corresponding to the next side downstream).  Set all cursors to
@@ -384,14 +388,14 @@ struct SideLocus {
 		}
 		return false;
 	}
-	
+
 	/**
 	 * Convert locus to BW row it corresponds to.
 	 */
 	TIndexOffU toBWRow() const {
 		return _sideNum * 48*OFF_SIZE + _charOff;
 	}
-	
+
 #ifndef NDEBUG
 	/**
 	 * Check that SideLocus is internally consistent and consistent
@@ -443,13 +447,11 @@ inline static int pop64(uint64_t x) {
 #endif
 
 #ifdef POPCNT_CAPABILITY
-    struct USE_POPCNT_INSTRUCTION {
-        inline static int pop64(uint64_t x) {
-            int64_t count;
-            asm ("popcnt %[x],%[count]\n": [count] "=&r" (count): [x] "r" (x));
-            return count;
-        }
-    };
+struct USE_POPCNT_INSTRUCTION {
+	inline static int pop64(uint64_t x) {
+		return __builtin_popcountll(x);
+	}
+};
 #endif
 
 /**
@@ -535,10 +537,10 @@ public:
 	     Ebwt_INITS
 	{
 		assert(!useMm || !useShmem);
-#ifdef POPCNT_CAPABILITY 
-        ProcessorSupport ps; 
-        _usePOPCNTinstruction = ps.POPCNTenabled(); 
-#endif 
+#ifdef POPCNT_CAPABILITY
+        ProcessorSupport ps;
+        _usePOPCNTinstruction = ps.POPCNTenabled();
+#endif
 		packed_ = false;
 		_useMm = useMm;
 		useShmem_ = useShmem;
@@ -608,10 +610,10 @@ public:
 			color,
 			refparams.reverse == REF_READ_REVERSE)
 	{
-#ifdef POPCNT_CAPABILITY 
-        ProcessorSupport ps; 
-        _usePOPCNTinstruction = ps.POPCNTenabled(); 
-#endif 
+#ifdef POPCNT_CAPABILITY
+        ProcessorSupport ps;
+        _usePOPCNTinstruction = ps.POPCNTenabled();
+#endif
 		_in1Str = file + ".1." + gEbwt_ext;
 		_in2Str = file + ".2." + gEbwt_ext;
 		packed_ = packed;
@@ -654,25 +656,25 @@ public:
 		// Build SA(T) and BWT(T) block by block
 		initFromVector<TStr>(
 			is,
-		    szs,
-		    sztot,
-		    refparams,
-		    fout1,
-		    fout2,
-                             file,
+			szs,
+			sztot,
+			refparams,
+			fout1,
+			fout2,
+			file,
 			saOut,
 			bwtOut,
-            nthreads,
-		    useBlockwise,
-		    bmax,
-		    bmaxSqrtMult,
-		    bmaxDivN,
-		    dcv,
-		    seed,
-		    verbose);
+			nthreads,
+			useBlockwise,
+			bmax,
+			bmaxSqrtMult,
+			bmaxDivN,
+			dcv,
+			seed,
+			verbose);
 		// Close output files
 		fout1.flush();
-		
+
 		int64_t tellpSz1 = (int64_t)fout1.tellp();
 		VMSG_NL("Wrote " << fout1.tellp() << " bytes to primary EBWT file: " << _in1Str.c_str());
 		fout1.close();
@@ -683,7 +685,7 @@ public:
 			     << " but is actually " << fileSize(_in1Str.c_str()) << "." << endl;
 		}
 		fout2.flush();
-		
+
 		int64_t tellpSz2 = (int64_t)fout2.tellp();
 		VMSG_NL("Wrote " << fout2.tellp() << " bytes to secondary EBWT file: " << _in2Str.c_str());
 		fout2.close();
@@ -692,12 +694,13 @@ public:
 			cerr << "Index is corrupt: File size for " << _in2Str.c_str() << " should have been " << tellpSz2
 			     << " but is actually " << fileSize(_in2Str.c_str()) << "." << endl;
 		}
-		
+
 		if(saOut != NULL) {
 			// Check on suffix array output file size
 			int64_t tellpSzSa = (int64_t)saOut->tellp();
 			VMSG_NL("Wrote " << tellpSzSa << " bytes to suffix-array file: " << _inSaStr.c_str());
 			saOut->close();
+			delete saOut;
 			if(tellpSzSa > fileSize(_inSaStr.c_str())) {
 				err = true;
 				cerr << "Index is corrupt: File size for " << _inSaStr.c_str() << " should have been " << tellpSzSa
@@ -710,18 +713,19 @@ public:
 			int64_t tellpSzBwt = (int64_t)bwtOut->tellp();
 			VMSG_NL("Wrote " << tellpSzBwt << " bytes to BWT file: " << _inBwtStr.c_str());
 			bwtOut->close();
+			delete bwtOut;
 			if(tellpSzBwt > fileSize(_inBwtStr.c_str())) {
 				err = true;
 				cerr << "Index is corrupt: File size for " << _inBwtStr.c_str() << " should have been " << tellpSzBwt
 					 << " but is actually " << fileSize(_inBwtStr.c_str()) << "." << endl;
 			}
 		}
-		
+
 		if(err) {
 			cerr << "Please check if there is a problem with the disk or if disk is full." << endl;
 			throw 1;
 		}
-		
+
 		// Reopen as input streams
 		VMSG_NL("Re-opening _in1 and _in2 as input streams");
 		if(_sanity) {
@@ -744,7 +748,7 @@ public:
 		}
 		VMSG_NL("Returning from Ebwt constructor");
 	}
-	
+
 	/**
 	 * Static constructor for a pair of forward/reverse indexes for the
 	 * given reference string.
@@ -793,7 +797,7 @@ public:
 			autoMem,
 			sanity);
 	}
-	
+
 	/**
 	 * Static constructor for a pair of forward/reverse indexes for the
 	 * given list of reference strings.
@@ -824,11 +828,11 @@ public:
 		EList<FileBuf*> is(EBWT_CAT);
 		RefReadInParams refparams(color, REF_READ_FORWARD, false, false);
 		// Adapt sequence strings to stringstreams open for input
-		auto_ptr<stringstream> ss(new stringstream());
+		unique_ptr<stringstream> ss(new stringstream());
 		for(TIndexOffU i = 0; i < strs.size(); i++) {
 			(*ss) << ">" << i << endl << strs[i] << endl;
 		}
-		auto_ptr<FileBuf> fb(new FileBuf(ss.get()));
+		unique_ptr<FileBuf> fb(new FileBuf(ss.get()));
 		assert(!fb->eof());
 		assert(fb->get() == '>');
 		ASSERT_ONLY(fb->reset());
@@ -895,7 +899,7 @@ public:
 			sanity);      // verify results and internal consistency
 		return make_pair(ebwtFw, ebwtBw);
 	}
-	
+
 	/// Return true iff the Ebwt is packed
 	bool isPacked() { return packed_; }
 
@@ -903,7 +907,7 @@ public:
 	 * Write the rstarts array given the szs array for the reference.
 	 */
 	void szsToDisk(const EList<RefRecord>& szs, ostream& os, int reverse);
-	
+
 	/**
 	 * Helper for the constructors above.  Takes a vector of text
 	 * strings and joins them into a single string with a call to
@@ -920,11 +924,11 @@ public:
 	                    TIndexOffU sztot,
 	                    const RefReadInParams& refparams,
 	                    ofstream& out1,
-	                    ofstream& out2,
-                        const string& outfile,
+			    ofstream& out2,
+                            const string& outfile,
 	                    ofstream* saOut,
 	                    ofstream* bwtOut,
-                        int nthreads,
+                            int nthreads,
 	                    bool useBlockwise,
 	                    TIndexOffU bmax,
 	                    TIndexOffU bmaxSqrtMult,
@@ -949,7 +953,8 @@ public:
 				{
 					Timer timer(cout, "  Time to join reference sequences: ", _verbose);
 					joinToDisk(is, szs, sztot, refparams, s, out1, out2);
-				} {
+				}
+                                {
 					Timer timer(cout, "  Time to reverse reference sequence: ", _verbose);
 					EList<RefRecord> tmp(EBWT_CAT);
 					s.reverse();
@@ -1055,7 +1060,7 @@ public:
 					// constructing the DifferenceCoverSample
 					dcv <<= 1;
 					TIndexOffU sz = (TIndexOffU)DifferenceCoverSample<TStr>::simulateAllocs(s, dcv >> 1);
-                    if(nthreads > 1) sz *= (nthreads + 1);
+					if(nthreads > 1) sz *= (nthreads + 1);
 					AutoArray<uint8_t> tmp(sz, EBWT_CAT);
 					dcv >>= 1;
 					// Likewise with the KarkkainenBlockwiseSA
@@ -1121,7 +1126,7 @@ public:
 		}
 		VMSG_NL("Returning from initFromVector");
 	}
-	
+
 	/**
 	 * Return the length that the joined string of the given string
 	 * list will have.  Note that this is indifferent to how the text
@@ -1159,7 +1164,7 @@ public:
 	inline const EbwtParams& eh() const     { return _eh; }
 	TIndexOffU    zOff() const         { return _zOff; }
 	TIndexOffU    zEbwtByteOff() const { return _zEbwtByteOff; }
-	TIndexOff         zEbwtBpOff() const   { return _zEbwtBpOff; } 
+	TIndexOff         zEbwtBpOff() const   { return _zEbwtBpOff; }
 	TIndexOffU    nPat() const         { return _nPat; }
 	TIndexOffU    nFrag() const        { return _nFrag; }
 	inline TIndexOffU*   fchr()              { return _fchr.get(); }
@@ -1181,9 +1186,9 @@ public:
 	bool        sanityCheck() const  { return _sanity; }
 	EList<string>& refnames()        { return _refnames; }
 	bool        fw() const           { return fw_; }
-#ifdef POPCNT_CAPABILITY 
-    bool _usePOPCNTinstruction; 
-#endif 
+#ifdef POPCNT_CAPABILITY
+	bool _usePOPCNTinstruction;
+#endif
 
 	/**
 	 * Returns true iff the index contains the given string (exactly).  The
@@ -1207,7 +1212,7 @@ public:
 	{
 		return contains(BTDnaString(str, true), top, bot);
 	}
-	
+
 	/// Return true iff the Ebwt is currently in memory
 	bool isInMemory() const {
 		if(ebwt() != NULL) {
@@ -1314,7 +1319,7 @@ public:
 		}
 		return ftabOff;
 	}
-	
+
 	/**
 	 * Non-static facade for static function ftabHi.
 	 */
@@ -1367,7 +1372,7 @@ public:
 			_eh._eftabLen,
 			i);
 	}
-	
+
 	/**
 	 * Get low bound of ftab range.
 	 */
@@ -1381,7 +1386,7 @@ public:
 	TIndexOffU ftabHi(const BTDnaString& seq, size_t off) const {
 		return ftabHi(ftabSeqToInt(seq, off, false));
 	}
-	
+
 	/**
 	 * Extract characters from seq starting at offset 'off' and going either
 	 * forward or backward, depending on 'rev'.  Order matters when compiling
@@ -1406,7 +1411,7 @@ public:
 		assert_geq(bot, top);
 		return true;
 	}
-	
+
 	/**
 	 * Get "low interpretation" of ftab entry at index i.  The low
 	 * interpretation of a regular ftab entry is just the entry
@@ -1525,7 +1530,7 @@ public:
 	void print(ostream& out) const {
 		print(out, _eh);
 	}
-	
+
 	/**
 	 * Pretty-print the Ebwt and given EbwtParams to the given output
 	 * stream.
@@ -1751,7 +1756,7 @@ public:
 	 *         Side ptr (result from SideLocus.side())
 	 *
 	 * And following it is a reverse side shaped like:
-	 * 
+	 *
 	 * [G] [T] XXXXXXXXXXXXXXXX
 	 * -4- -4- --------56------ (numbers in bytes)
 	 *         ^
@@ -1813,7 +1818,7 @@ public:
             for(; i + 7 < l._by; i += 8) {
                 cCnt += countInU64<USE_POPCNT_INSTRUCTION>(c, *(uint64_t*)&side[i]);
             }
-        } 
+        }
         else {
             for(; i + 7 < l._by; i += 8) {
                 cCnt += countInU64<USE_POPCNT_GENERIC>(c, *(uint64_t*)&side[i]);
@@ -1823,7 +1828,7 @@ public:
         for(; i + 7 < l._by; i += 8) {
             cCnt += countInU64(c, *(uint64_t*)&side[i]);
         }
-#endif		
+#endif
 		// Count occurences of c in the rest of the side (using LUT)
 		for(; i < l._by; i++) {
 			cCnt += cCntLUT_4[0][c][side[i]];
@@ -1880,7 +1885,7 @@ template<typename Operation>
 		tmp = pop64(x3);
 #endif
 		arrs[2] += (uint32_t) tmp;
-	
+
 		c0 = c_table[3];
 		x0 = dw ^ c0;
 		x1 = (x0 >> 1);
@@ -1921,7 +1926,7 @@ template<typename Operation>
 				countInU64Ex<USE_POPCNT_GENERIC>(*(uint64_t*)&side[i], arrs);
 			}
 		}
-#else 
+#else
 		for(; i+7 < l._by; i += 8) {
 			countInU64Ex(*(uint64_t*)&side[i], arrs);
 		}
@@ -2381,7 +2386,7 @@ template<typename Operation>
 	string     _inBwtStr; // filename for BWT file
 	TIndexOffU  _zOff;
 	TIndexOffU  _zEbwtByteOff;
-	TIndexOff   _zEbwtBpOff; 
+	TIndexOff   _zEbwtBpOff;
 	TIndexOffU  _nPat;  /// number of reference texts
 	TIndexOffU  _nFrag; /// number of fragments
 	APtrWrap<TIndexOffU> _plen;
@@ -2789,21 +2794,21 @@ void Ebwt::buildToDisk(
 	                               // end)
 	// Iterate over packed bwt bytes
 	VMSG_NL("Entering Ebwt loop");
-	ASSERT_ONLY(TIndexOffU beforeEbwtOff = (TIndexOffU)out1.tellp()); // @double-check - pos_type, std::streampos 
-	
+	ASSERT_ONLY(TIndexOffU beforeEbwtOff = (TIndexOffU)out1.tellp()); // @double-check - pos_type, std::streampos
+
 	// First integer in the suffix-array output file is the length of the
 	// array, including $
 	if(saOut != NULL) {
 		// Write length word
 		writeU<TIndexOffU>(*saOut, len+1, this->toBe());
 	}
-	
+
 	// First integer in the BWT output file is the length of BWT(T), including $
 	if(bwtOut != NULL) {
 		// Write length word
 		writeU<TIndexOffU>(*bwtOut, len+1, this->toBe());
 	}
-	
+
 	while(side < ebwtTotSz) {
 		// Sanity-check our cursor into the side buffer
 		assert_geq(sideCur, 0);
@@ -2829,7 +2834,7 @@ void Ebwt::buildToDisk(
 				}
 				// TODO: what exactly to write to the BWT output file?  How to
 				// represent $?  How to pack nucleotides into bytes/words?
-				
+
 				// (that might have triggered sa to calc next suf block)
 				if(saElt == 0) {
 					// Don't add the '$' in the last column to the BWT

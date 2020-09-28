@@ -179,14 +179,15 @@ void calcExhaustiveDC(T i, bool verbose = false, bool sanityCheck = false) {
 					assert_gt(d2, 0);
 
 					if(!diffs[d1]) {
-                                                diffCnt++;
-                                        }
-                                        diffs[d1] = true;
+						diffCnt++;
+						diffs[d1] = true;
+					}
 
-                                        if (!diffs[d2]) {
-                                                diffCnt++;
+					if (!diffs[d2]) {
+						diffCnt++;
+						diffs[d2] = true;
+
                                         }
-                                        diffs[d2] = true;
 				}
 			}
 			// Do we observe all possible differences (except 0)
