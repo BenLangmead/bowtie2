@@ -1,0 +1,5 @@
+fly_A4 indexes/Dmel_A4_1.0/Dmel_A4_1.0
+fly_BDGP6 indexes/BDGP6/BDGP6
+human_Ash1 indexes/Ash1v1.7/Ash1v1.7
+human_GRCh38 indexes/GRCh38_noalt_as/GRCh38_noalt_as
+mouse_GRCm38  indexes/GRCm38/GRCm38
