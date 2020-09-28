@@ -1,0 +1,10 @@
+-rw-r--r--  1 langmead  staff  35487873 Sep 28 12:28 fly_A4_local.sam
+-rw-r--r--  1 langmead  staff  35483348 Sep 28 12:28 fly_A4_semiglobal.sam
+-rw-r--r--  1 langmead  staff  33821186 Sep 28 12:28 fly_BDGP6_local.sam
+-rw-r--r--  1 langmead  staff  33687193 Sep 28 12:28 fly_BDGP6_semiglobal.sam
+-rw-r--r--  1 langmead  staff  34318648 Sep 28 12:28 human_Ash1_local.sam
+-rw-r--r--  1 langmead  staff  34294751 Sep 28 12:28 human_Ash1_semiglobal.sam
+-rw-r--r--  1 langmead  staff  34299286 Sep 28 12:28 human_GRCh38_local.sam
+-rw-r--r--  1 langmead  staff  34331093 Sep 28 12:28 human_GRCh38_semiglobal.sam
+-rw-r--r--  1 langmead  staff  54009543 Sep 28 12:28 mouse_GRCm38_local.sam
+-rw-r--r--  1 langmead  staff  53873159 Sep 28 12:28 mouse_GRCm38_semiglobal.sam
