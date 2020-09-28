@@ -33,7 +33,7 @@ def flush_command_data(cmd_name, elapsed, cmd_summary_fh, per_read_summary, prin
     for coli, colname in enumerate(['as_diff_mean', 'xs_diff_mean', 'n_unal', 'n_xs']):
         column = [row[coli] for row in per_read_summary]
         column.sort()
-        col_min, col_med, col_max, col_mean = column[0], column[len(column)/2], column[-1], np.mean(column)
+        col_min, col_med, col_max, col_mean = column[0], column[len(column)//2], column[-1], np.mean(column)
         cmd_summary_fh.write(','.join(map(str, [cmd_name, elapsed, colname, col_mean, col_med, col_max, col_min])) + '\n')
 
 
@@ -53,11 +53,11 @@ def flush_read_data(cmd_name, read_name, read_buffer, per_read_summary_fh, per_r
     as_min, as_med, as_max, as_mean = -1, -1, -1, -1
     if len(ass) > 0:
         ass.sort()
-        as_min, as_med, as_max, as_mean = ass[0], ass[len(ass)/2], ass[-1], np.mean(ass)
+        as_min, as_med, as_max, as_mean = ass[0], ass[len(ass)//2], ass[-1], np.mean(ass)
     xs_min, xs_med, xs_max, xs_mean = -1, -1, -1, -1
     if len(xss) > 0:
         xss.sort()
-        xs_min, xs_med, xs_max, xs_mean = xss[0], xss[len(xss)/2], xss[-1], np.mean(xss)
+        xs_min, xs_med, xs_max, xs_mean = xss[0], xss[len(xss)//2], xss[-1], np.mean(xss)
     record = list(map(str, [cmd_name, read_name, as_mean, xs_mean,
                             n_unal, n_xs, as_min, as_med, as_max, xs_min, xs_med, xs_max]))
     per_read_summary.append([as_mean, xs_mean, n_unal, n_xs])
