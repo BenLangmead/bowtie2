@@ -1,0 +1,27 @@
+#  Presets:                 Same as:
+#  For --local:
+#   --very-fast-local      -D 5 -R 1 -N 0 -L 25 -i S,1,2.00
+#   --fast-local           -D 10 -R 2 -N 0 -L 22 -i S,1,1.75
+#   --sensitive-local      -D 15 -R 2 -N 0 -L 20 -i S,1,0.75 (default)
+#   --very-sensitive-local -D 20 -R 3 -N 0 -L 20 -i S,1,0.50
+def0_vfl  ../bowtie2-align-s --very-fast-local --reorder -p 8 -U
+def1_fl   ../bowtie2-align-s --fast-local --reorder -p 8 -U
+def2_sl   ../bowtie2-align-s --sensitive-local --reorder -p 8 -U
+def3_vsl  ../bowtie2-align-s --very-sensitive-local --reorder -p 8 -U
+slL20     ../bowtie2-align-s -D 15 -R 2 -N 0 -L 20 -i S,1,0.75 --local --reorder -p 8 -U
+slL22     ../bowtie2-align-s -D 15 -R 2 -N 0 -L 22 -i S,1,0.75 --local --reorder -p 8 -U
+slL24     ../bowtie2-align-s -D 15 -R 2 -N 0 -L 24 -i S,1,0.75 --local --reorder -p 8 -U
+slL26     ../bowtie2-align-s -D 15 -R 2 -N 0 -L 26 -i S,1,0.75 --local --reorder -p 8 -U
+slL28     ../bowtie2-align-s -D 15 -R 2 -N 0 -L 28 -i S,1,0.75 --local --reorder -p 8 -U
+slL30     ../bowtie2-align-s -D 15 -R 2 -N 0 -L 30 -i S,1,0.75 --local --reorder -p 8 -U
+slL32     ../bowtie2-align-s -D 15 -R 2 -N 0 -L 32 -i S,1,0.75 --local --reorder -p 8 -U
+slR3      ../bowtie2-align-s -D 15 -R 3 -N 0 -L 20 -i S,1,0.75 --local --reorder -p 8 -U
+slR4      ../bowtie2-align-s -D 15 -R 4 -N 0 -L 20 -i S,1,0.75 --local --reorder -p 8 -U
+slR5      ../bowtie2-align-s -D 15 -R 5 -N 0 -L 20 -i S,1,0.75 --local --reorder -p 8 -U
+slR6      ../bowtie2-align-s -D 15 -R 6 -N 0 -L 20 -i S,1,0.75 --local --reorder -p 8 -U
+slR7      ../bowtie2-align-s -D 15 -R 7 -N 0 -L 20 -i S,1,0.75 --local --reorder -p 8 -U
+slR8      ../bowtie2-align-s -D 15 -R 8 -N 0 -L 20 -i S,1,0.75 --local --reorder -p 8 -U
+slD20     ../bowtie2-align-s -D 20 -R 2 -N 0 -L 20 -i S,1,0.75 --local --reorder -p 8 -U
+slD40     ../bowtie2-align-s -D 40 -R 2 -N 0 -L 20 -i S,1,0.75 --local --reorder -p 8 -U
+slD60     ../bowtie2-align-s -D 60 -R 2 -N 0 -L 20 -i S,1,0.75 --local --reorder -p 8 -U
+slD80     ../bowtie2-align-s -D 80 -R 2 -N 0 -L 20 -i S,1,0.75 --local --reorder -p 8 -U
