@@ -1,6 +1,9 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
-from __future__ import print_function
+"""
+Takes a Vargas SAM file and an aligner-generated SAM file containing the same
+reads, and adds all the Vargas annotations to the aligner-generated SAM.
+"""
 
 import sys
 from collections import defaultdict

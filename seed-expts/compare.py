@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """
 TODO: specify a particular setup as being the "reference" and compare against it
@@ -9,7 +9,6 @@ Then we can automate the process of checking if any of our experiments exceed ol
 - lower time
 """
 
-from __future__ import print_function
 import os
 import sys
 from collections import defaultdict

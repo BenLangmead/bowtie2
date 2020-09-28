@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """
 vassess_reads.py
@@ -9,7 +9,6 @@ replicates of each reads so we can assess how pseudo-randomness used by the
 aligner affects the result.
 """
 
-from __future__ import print_function
 import os
 import sys
 
