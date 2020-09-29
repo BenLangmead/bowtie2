@@ -41,9 +41,9 @@ Looking to try out Bowtie 2? Check out the [Bowtie 2 UI](http://bit.ly/bt2ui-bet
 set of alignments in SAM format.
 
 "Alignment" is the process by which we discover how and where the read sequences are
-similar to the reference sequence. An “alignment” is a result from this process,
-specifically: an alignment is a way of “lining up” some or all of the characters in
-the read with some characters from the reference in a way that reveals how they’re
+similar to the reference sequence. An "alignment" is a result from this process,
+specifically: an alignment is a way of "lining up" some or all of the characters in
+the read with some characters from the reference in a way that reveals how they're
 similar. For example:
 
 ```
@@ -54,7 +54,7 @@ similar. For example:
 Where dash symbols represent gaps and vertical bars show where aligned characters match.
 
 We use alignment to make an educated guess as to where a read originated with
-respect to the reference genome. It’s not always possible to determine this with
+respect to the reference genome. It's not always possible to determine this with
 certainty. For instance, if the reference genome contains several long stretches of
 As (`AAAAAAAAA` etc.) and the read sequence is a short stretch of As (`AAAAAAA`), we
 cannot know for certain exactly where in the sea of As the read originated.
@@ -77,7 +77,7 @@ have a `bt2l` termination. These files together constitute the index: they are a
 that is needed to align reads to that reference. The original sequence FASTA files
 are no longer used by Bowtie 2 once the index is built.
 
-Bowtie 2’s `.bt2` index format is different from Bowtie 1’s `.ebwt` format, and they
+Bowtie 2's `.bt2` index format is different from Bowtie 1's `.ebwt` format, and they
 are not compatible with each other.
 
 **Examples**

@@ -2112,6 +2112,7 @@ void AlnSinkSam::appendMate(
 			sc);         // scoring scheme
 	}
 	samc_.printPreservedOptFlags(o, rd);
+	samc_.printComment(o, rd.name);
 	o.append('\n');
 }
 

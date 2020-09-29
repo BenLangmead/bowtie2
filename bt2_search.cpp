@@ -142,6 +142,7 @@ static uint32_t fastaContFreq;
 static bool hadoopOut; // print Hadoop status and summary messages
 static bool fullRef;
 static bool samTruncQname; // whether to truncate QNAME to 255 chars
+static bool samAppendComment; // append FASTA/FASTQ comment to SAM record
 static bool samOmitSecSeqQual; // omit SEQ/QUAL for 2ndary alignments?
 static bool samNoUnal; // don't print records for unaligned reads
 static bool samNoHead; // don't print any header lines in SAM output
@@ -281,194 +282,195 @@ static void resetOptions() {
 	mates1.clear();
 	mates2.clear();
 	mates12.clear();
-	adjIdxBase	            = "";
-	gVerbose                = 0;
-	startVerbose			= 0;
-	gQuiet					= false;
-	sanityCheck				= 0;  // enable expensive sanity checks
-	format					= FASTQ; // default read format is FASTQ
-	interleaved				= false; // reads are not interleaved by default
-	origString				= ""; // reference text, or filename(s)
-	seed					= 0; // srandom() seed
-	timing					= 0; // whether to report basic timing data
-	metricsIval				= 1; // interval between alignment metrics messages (0 = no messages)
-	metricsFile             = ""; // output file to put alignment metrics in
-	metricsStderr           = false; // print metrics to stderr (in addition to --metrics-file if it's specified
-	metricsPerRead          = false; // report a metrics tuple for every read?
-	allHits					= false; // for multihits, report just one
-	showVersion				= false; // just print version and quit?
-	ipause					= 0; // pause before maching?
-	qUpto					= 0xffffffff; // max # of queries to read
-	gTrim5					= 0; // amount to trim from 5' end
-	gTrim3					= 0; // amount to trim from 3' end
-	trimTo = pair<short, size_t>(5, 0); // default: don't do any trimming
-	offRate					= -1; // keep default offRate
-	solexaQuals				= false; // quality strings are solexa quals, not phred, and subtract 64 (not 33)
-	phred64Quals			= false; // quality chars are phred, but must subtract 64 (not 33)
-	integerQuals			= false; // quality strings are space-separated strings of integers, not ASCII
-	nthreads				= 1;     // number of pthreads operating concurrently
-	thread_ceiling			= 0;     // max # threads user asked for
-	thread_stealing_dir		= ""; // keep track of pids in this directory
-	thread_stealing			= false; // true iff thread stealing is in use
-	FNAME_SIZE				= 4096;
-	outType					= OUTPUT_SAM;  // style of output
-	noRefNames				= false; // true -> print reference indexes; not names
-	khits					= 1;     // number of hits per read; >1 is much slower
-	mhits					= 50;    // stop after finding this many alignments+1
-	partitionSz				= 0;     // output a partitioning key in first field
-	readsPerBatch			= 16;    // # reads to read from input file at once
-	fileParallel			= false; // separate threads read separate input files in parallel
-	useShmem				= false; // use shared memory to hold the index
-	useMm					= false; // use memory-mapped files to hold the index
-	mmSweep					= false; // sweep through memory-mapped files immediately after mapping
-	gMinInsert				= 0;     // minimum insert size
-	gMaxInsert				= 500;   // maximum insert size
-	gMate1fw				= true;  // -1 mate aligns in fw orientation on fw strand
-	gMate2fw				= false; // -2 mate aligns in rc orientation on fw strand
-	gFlippedMatesOK         = false; // allow mates to be in wrong order
-	gDovetailMatesOK        = false; // allow one mate to extend off the end of the other
-	gContainMatesOK         = true;  // allow one mate to contain the other in PE alignment
-	gOlapMatesOK            = true;  // allow mates to overlap in PE alignment
-	gExpandToFrag           = true;  // incr max frag length to =larger mate len if necessary
-	gReportDiscordant       = true;  // find and report discordant paired-end alignments
-	gReportMixed            = true;  // find and report unpaired alignments for paired reads
+	adjIdxBase	    = "";
+	gVerbose            = 0;
+	startVerbose	    = 0;
+	gQuiet		    = false;
+	sanityCheck	    = 0;	// enable expensive sanity checks
+	format		    = FASTQ;	// default read format is FASTQ
+	interleaved	    = false;	// reads are not interleaved by default
+	origString	    = "";	// reference text, or filename(s)
+	seed		    = 0;	// srandom() seed
+	timing		    = 0;	// whether to report basic timing data
+	metricsIval	    = 1;	// interval between alignment metrics messages (0 = no messages)
+	metricsFile         = "";	// output file to put alignment metrics in
+	metricsStderr       = false;	// print metrics to stderr (in addition to --metrics-file if it's specified
+	metricsPerRead      = false;	// report a metrics tuple for every read?
+	allHits		    = false;	// for multihits, report just one
+	showVersion	    = false;	// just print version and quit?
+	ipause		    = 0;	// pause before maching?
+	qUpto		    = 0xffffffff;	// max # of queries to read
+	gTrim5		    = 0;	// amount to trim from 5' end
+	gTrim3		    = 0;	// amount to trim from 3' end
+	trimTo		    = pair<short, size_t>(5, 0);	// default: don't do any trimming
+	offRate		    = -1;	// keep default offRate
+	solexaQuals	    = false;	// quality strings are solexa quals, not phred, and subtract 64 (not 33)
+	phred64Quals	    = false;	// quality chars are phred, but must subtract 64 (not 33)
+	integerQuals	    = false;	// quality strings are space-separated strings of integers, not ASCII
+	nthreads	    = 1;	// number of pthreads operating concurrently
+	thread_ceiling	    = 0;	// max # threads user asked for
+	thread_stealing_dir = "";	// keep track of pids in this directory
+	thread_stealing	    = false;	// true iff thread stealing is in use
+	FNAME_SIZE	    = 4096;
+	outType		    = OUTPUT_SAM;	// style of output
+	noRefNames	    = false;	// true -> print reference indexes; not names
+	khits		    = 1;	// number of hits per read; >1 is much slower
+	mhits		    = 50;	// stop after finding this many alignments+1
+	partitionSz	    = 0;	// output a partitioning key in first field
+	readsPerBatch	    = 16;	// # reads to read from input file at once
+	fileParallel	    = false;	// separate threads read separate input files in parallel
+	useShmem	    = false;	// use shared memory to hold the index
+	useMm		    = false;	// use memory-mapped files to hold the index
+	mmSweep		    = false;	// sweep through memory-mapped files immediately after mapping
+	gMinInsert	    = 0;	// minimum insert size
+	gMaxInsert	    = 500;	// maximum insert size
+	gMate1fw	    = true;	// -1 mate aligns in fw orientation on fw strand
+	gMate2fw	    = false;	// -2 mate aligns in rc orientation on fw strand
+	gFlippedMatesOK     = false;	// allow mates to be in wrong order
+	gDovetailMatesOK    = false;	// allow one mate to extend off the end of the other
+	gContainMatesOK     = true;	// allow one mate to contain the other in PE alignment
+	gOlapMatesOK        = true;	// allow mates to overlap in PE alignment
+	gExpandToFrag       = true;	// incr max frag length to =larger mate len if necessary
+	gReportDiscordant   = true;	// find and report discordant paired-end alignments
+	gReportMixed        = true;	// find and report unpaired alignments for paired reads
 
-	cacheLimit				= 5;     // ranges w/ size > limit will be cached
-	cacheSize				= 0;     // # words per range cache
-	skipReads				= 0;     // # reads/read pairs to skip
-	gNofw					= false; // don't align fw orientation of read
-	gNorc					= false; // don't align rc orientation of read
-	fastaContLen			= 0;
-	fastaContFreq			= 0;
-	hadoopOut				= false; // print Hadoop status and summary messages
-	fullRef					= false; // print entire reference name instead of just up to 1st space
-	samTruncQname           = true;  // whether to truncate QNAME to 255 chars
-	samOmitSecSeqQual       = false; // omit SEQ/QUAL for 2ndary alignments?
-	samNoUnal               = false; // omit SAM records for unaligned reads
-	samNoHead				= false; // don't print any header lines in SAM output
-	samNoSQ					= false; // don't print @SQ header lines
-	sam_print_as            = true;
-	sam_print_xs            = true;
-	sam_print_xss           = false; // Xs:i and Ys:i
-	sam_print_yn            = false; // YN:i and Yn:i
-	sam_print_xn            = true;
-	sam_print_x0            = true;
-	sam_print_x1            = true;
-	sam_print_xm            = true;
-	sam_print_xo            = true;
-	sam_print_xg            = true;
-	sam_print_nm            = true;
-	sam_print_md            = true;
-	sam_print_yf            = true;
-	sam_print_yi            = false;
-	sam_print_ym            = false;
-	sam_print_yp            = false;
-	sam_print_yt            = true;
-	sam_print_ys            = true;
-	sam_print_zs            = false;
-	sam_print_xr            = false;
-	sam_print_xt            = false;
-	sam_print_xd            = false;
-	sam_print_xu            = false;
-	sam_print_yl            = false;
-	sam_print_ye            = false;
-	sam_print_yu            = false;
-	sam_print_xp            = false;
-	sam_print_yr            = false;
-	sam_print_zb            = false;
-	sam_print_zr            = false;
-	sam_print_zf            = false;
-	sam_print_zm            = false;
-	sam_print_zi            = false;
-	sam_print_zp            = false;
-	sam_print_zu            = false;
-	sam_print_zt            = false;
-	preserve_tags           = false;
-	align_paired_reads      = false;
-	bwaSwLike               = false;
-	gSeedLenIsSet			= false;
-	bwaSwLikeC              = 5.5f;
-	bwaSwLikeT              = 20.0f;
-	gDefaultSeedLen			= DEFAULT_SEEDLEN;
-	qcFilter                = false; // don't believe upstream qc by default
-	rgid					= "";    // SAM outputs for @RG header line
-	rgs						= "";    // SAM outputs for @RG header line
-	rgs_optflag				= "";    // SAM optional flag to add corresponding to @RG ID
-	msample				    = true;
-	gGapBarrier				= 4;     // disallow gaps within this many chars of either end of alignment
+	cacheLimit	    = 5;	// ranges w/ size > limit will be cached
+	cacheSize	    = 0;	// # words per range cache
+	skipReads	    = 0;	// # reads/read pairs to skip
+	gNofw		    = false;	// don't align fw orientation of read
+	gNorc		    = false;	// don't align rc orientation of read
+	fastaContLen	    = 0;
+	fastaContFreq	    = 0;
+	hadoopOut	    = false;	// print Hadoop status and summary messages
+	fullRef		    = false;	// print entire reference name instead of just up to 1st space
+	samTruncQname       = true;	// whether to truncate QNAME to 255 chars
+	samAppendComment    = false;	// append FASTA/Q comment to SAM record
+	samOmitSecSeqQual   = false;	// omit SEQ/QUAL for 2ndary alignments?
+	samNoUnal           = false;	// omit SAM records for unaligned reads
+	samNoHead	    = false;	// don't print any header lines in SAM output
+	samNoSQ		    = false;	// don't print @SQ header lines
+	sam_print_as        = true;
+	sam_print_xs        = true;
+	sam_print_xss       = false;	// Xs:i and Ys:i
+	sam_print_yn        = false;	// YN:i and Yn:i
+	sam_print_xn        = true;
+	sam_print_x0        = true;
+	sam_print_x1        = true;
+	sam_print_xm        = true;
+	sam_print_xo        = true;
+	sam_print_xg        = true;
+	sam_print_nm        = true;
+	sam_print_md        = true;
+	sam_print_yf        = true;
+	sam_print_yi        = false;
+	sam_print_ym        = false;
+	sam_print_yp        = false;
+	sam_print_yt        = true;
+	sam_print_ys        = true;
+	sam_print_zs        = false;
+	sam_print_xr        = false;
+	sam_print_xt        = false;
+	sam_print_xd        = false;
+	sam_print_xu        = false;
+	sam_print_yl        = false;
+	sam_print_ye        = false;
+	sam_print_yu        = false;
+	sam_print_xp        = false;
+	sam_print_yr        = false;
+	sam_print_zb        = false;
+	sam_print_zr        = false;
+	sam_print_zf        = false;
+	sam_print_zm        = false;
+	sam_print_zi        = false;
+	sam_print_zp        = false;
+	sam_print_zu        = false;
+	sam_print_zt        = false;
+	preserve_tags       = false;
+	align_paired_reads  = false;
+	bwaSwLike           = false;
+	gSeedLenIsSet	    = false;
+	bwaSwLikeC          = 5.5f;
+	bwaSwLikeT          = 20.0f;
+	gDefaultSeedLen	    = DEFAULT_SEEDLEN;
+	qcFilter            = false;	// don't believe upstream qc by default
+	rgid		    = "";	// SAM outputs for @RG header line
+	rgs		    = "";	// SAM outputs for @RG header line
+	rgs_optflag	    = "";	// SAM optional flag to add corresponding to @RG ID
+	msample		    = true;
+	gGapBarrier	    = 4;	// disallow gaps within this many chars of either end of alignment
 	qualities.clear();
 	qualities1.clear();
 	qualities2.clear();
 	polstr.clear();
-	msNoCache       = true; // true -> disable local cache
-	bonusMatchType  = DEFAULT_MATCH_BONUS_TYPE;
-	bonusMatch      = DEFAULT_MATCH_BONUS;
-	penMmcType      = DEFAULT_MM_PENALTY_TYPE;
-	penMmcMax       = DEFAULT_MM_PENALTY_MAX;
-	penMmcMin       = DEFAULT_MM_PENALTY_MIN;
-	penNType        = DEFAULT_N_PENALTY_TYPE;
-	penN            = DEFAULT_N_PENALTY;
-	penNCatPair     = DEFAULT_N_CAT_PAIR; // concatenate mates before N filtering?
-	localAlign      = false;     // do local alignment in DP steps
-	noisyHpolymer   = false;
-	penRdGapConst   = DEFAULT_READ_GAP_CONST;
-	penRfGapConst   = DEFAULT_REF_GAP_CONST;
-	penRdGapLinear  = DEFAULT_READ_GAP_LINEAR;
-	penRfGapLinear  = DEFAULT_REF_GAP_LINEAR;
+	msNoCache	    = true;	// true -> disable local cache
+	bonusMatchType	    = DEFAULT_MATCH_BONUS_TYPE;
+	bonusMatch	    = DEFAULT_MATCH_BONUS;
+	penMmcType	    = DEFAULT_MM_PENALTY_TYPE;
+	penMmcMax	    = DEFAULT_MM_PENALTY_MAX;
+	penMmcMin	    = DEFAULT_MM_PENALTY_MIN;
+	penNType	    = DEFAULT_N_PENALTY_TYPE;
+	penN		    = DEFAULT_N_PENALTY;
+	penNCatPair	    = DEFAULT_N_CAT_PAIR;	// concatenate mates before N filtering?
+	localAlign	    = false;	// do local alignment in DP steps
+	noisyHpolymer	    = false;
+	penRdGapConst	    = DEFAULT_READ_GAP_CONST;
+	penRfGapConst	    = DEFAULT_REF_GAP_CONST;
+	penRdGapLinear	    = DEFAULT_READ_GAP_LINEAR;
+	penRfGapLinear	    = DEFAULT_REF_GAP_LINEAR;
 	scoreMin.init  (SIMPLE_FUNC_LINEAR, DEFAULT_MIN_CONST,   DEFAULT_MIN_LINEAR);
 	nCeil.init     (SIMPLE_FUNC_LINEAR, 0.0f, DMAX, 2.0f, 0.1f);
 	msIval.init    (SIMPLE_FUNC_LINEAR, 1.0f, DMAX, DEFAULT_IVAL_B, DEFAULT_IVAL_A);
-	descConsExp     = 2.0;
+	descConsExp	    = 2.0;
 	descPrioritizeRoots = false;
-	descLanding = 20;
+	descLanding	    = 20;
 	descentTotSz.init(SIMPLE_FUNC_LINEAR, 1024.0, DMAX, 0.0, 1024.0);
 	descentTotFmops.init(SIMPLE_FUNC_LINEAR, 100.0, DMAX, 0.0, 10.0);
-	multiseedMms    = DEFAULT_SEEDMMS;
-	multiseedLen    = gDefaultSeedLen;
-	multiseedOff    = 0;
-	seedCacheLocalMB   = 32; // # MB to use for non-shared seed alignment cacheing
-	seedCacheCurrentMB = 20; // # MB to use for current-read seed hit cacheing
-	exactCacheCurrentMB = 20; // # MB to use for current-read seed hit cacheing
-	maxhalf            = 15; // max width on one side of DP table
-	seedSumm           = false; // print summary information about seed hits, not alignments
-	scUnMapped         = false; // consider soft clipped bases unmapped when calculating TLEN
-	xeq                = false; // use =/X instead of M in CIGAR string
-	doUngapped         = true;  // do ungapped alignment
-	maxIters           = 400;   // max iterations of extend loop
-	maxUg              = 300;   // stop after this many ungap extends
-	maxDp              = 300;   // stop after this many dp extends
-	maxItersIncr       = 20;    // amt to add to maxIters for each -k > 1
-	maxEeStreak        = 15;    // stop after this many end-to-end fails in a row
-	maxUgStreak        = 15;    // stop after this many ungap fails in a row
-	maxDpStreak        = 15;    // stop after this many dp fails in a row
-	maxStreakIncr      = 10;    // amt to add to streak for each -k > 1
-	maxMateStreak      = 10;    // in PE: abort seed range after N mate-find fails
-	doExtend           = true;  // do seed extensions
-	enable8            = true;  // use 8-bit SSE where possible?
-	cminlen            = 2000;  // longer reads use checkpointing
-	cpow2              = 4;     // checkpoint interval log2
-	doTri              = false; // do triangular mini-fills?
-	defaultPreset      = "sensitive%LOCAL%"; // default preset; applied immediately
+	multiseedMms	    = DEFAULT_SEEDMMS;
+	multiseedLen	    = gDefaultSeedLen;
+	multiseedOff	    = 0;
+	seedCacheLocalMB    = 32;	// # MB to use for non-shared seed alignment cacheing
+	seedCacheCurrentMB  = 20;	// # MB to use for current-read seed hit cacheing
+	exactCacheCurrentMB = 20;	// # MB to use for current-read seed hit cacheing
+	maxhalf		    = 15;	// max width on one side of DP table
+	seedSumm	    = false;	// print summary information about seed hits, not alignments
+	scUnMapped	    = false;	// consider soft clipped bases unmapped when calculating TLEN
+	xeq		    = false;	// use =/X instead of M in CIGAR string
+	doUngapped	    = true;	// do ungapped alignment
+	maxIters	    = 400;	// max iterations of extend loop
+	maxUg		    = 300;	// stop after this many ungap extends
+	maxDp		    = 300;	// stop after this many dp extends
+	maxItersIncr	    = 20;	// amt to add to maxIters for each -k > 1
+	maxEeStreak	    = 15;	// stop after this many end-to-end fails in a row
+	maxUgStreak	    = 15;	// stop after this many ungap fails in a row
+	maxDpStreak	    = 15;	// stop after this many dp fails in a row
+	maxStreakIncr	    = 10;	// amt to add to streak for each -k > 1
+	maxMateStreak	    = 10;	// in PE: abort seed range after N mate-find fails
+	doExtend	    = true;	// do seed extensions
+	enable8		    = true;	// use 8-bit SSE where possible?
+	cminlen		    = 2000;	// longer reads use checkpointing
+	cpow2		    = 4;	// checkpoint interval log2
+	doTri		    = false;	// do triangular mini-fills?
+	defaultPreset	    = "sensitive%LOCAL%";	// default preset; applied immediately
 	extra_opts.clear();
-	extra_opts_cur = 0;
-	bt2index.clear();        // read Bowtie 2 index from files with this prefix
-	ignoreQuals = false;     // all mms incur same penalty, regardless of qual
-	wrapper.clear();         // type of wrapper script, so we can print correct usage
-	queries.clear();         // list of query files
-	outfile.clear();         // write SAM output to this file
-	mapqv = 2;               // MAPQ calculation version
-	tighten = 3;             // -M tightening mode
-	doExactUpFront = true;   // do exact search up front if seeds seem good enough
-	do1mmUpFront = true;    // do 1mm search up front if seeds seem good enough
-	seedBoostThresh = 300;   // if average non-zero position has more than this many elements
-	nSeedRounds = 2;         // # rounds of seed searches to do for repetitive reads
-	do1mmMinLen = 60;        // length below which we disable 1mm search
-	reorder = false;         // reorder SAM records with -p > 1
-	sampleFrac = 1.1f;       // align all reads
-	arbitraryRandom = false; // let pseudo-random seeds be a function of read properties
-	bowtie2p5 = false;
-	logDps.clear();          // log seed-extend dynamic programming problems
-	logDpsOpp.clear();       // log mate-search dynamic programming problems
+	extra_opts_cur	    = 0;
+	bt2index.clear();       // read Bowtie 2 index from files with this prefix
+	ignoreQuals	    = false;	// all mms incur same penalty, regardless of qual
+	wrapper.clear();        // type of wrapper script, so we can print correct usage
+	queries.clear();        // list of query files
+	outfile.clear();        // write SAM output to this file
+	mapqv		    = 2;	// MAPQ calculation version
+	tighten		    = 3;	// -M tightening mode
+	doExactUpFront	    = true;	// do exact search up front if seeds seem good enough
+	do1mmUpFront	    = true;	// do 1mm search up front if seeds seem good enough
+	seedBoostThresh	    = 300;	// if average non-zero position has more than this many elements
+	nSeedRounds	    = 2;	// # rounds of seed searches to do for repetitive reads
+	do1mmMinLen	    = 60;	// length below which we disable 1mm search
+	reorder		    = false;	// reorder SAM records with -p > 1
+	sampleFrac	    = 1.1f;	// align all reads
+	arbitraryRandom	    = false;	// let pseudo-random seeds be a function of read properties
+	bowtie2p5	    = false;
+	logDps.clear();         // log seed-extend dynamic programming problems
+	logDpsOpp.clear();      // log mate-search dynamic programming problems
 #ifdef USE_SRA
 	sra_accs.clear();
 #endif
@@ -668,6 +670,7 @@ static struct option long_options[] = {
 #ifdef USE_SRA
 {(char*)"sra-acc",                     required_argument,  0,                   ARG_SRA_ACC},
 #endif
+{(char*)"sam-append-comment",          no_argument,        0,                   ARG_SAM_APPEND_COMMENT},
 {(char*)0,                             0,                  0,                   0} //  terminator
 };
 
@@ -837,7 +840,8 @@ static void printUsage(ostream& out) {
 	    << "  --no-overlap       not concordant when mates overlap at all" << endl
 	    << endl
 	    << " BAM:" << endl
-	    << "  --align-paired-reads Bowtie2 will, by default, attempt to align unpaired BAM reads." << endl
+	    << "  --align-paired-reads" << endl
+	    << "                     Bowtie2 will, by default, attempt to align unpaired BAM reads." << endl
 	    << "                     Use this option to align paired-end reads instead." << endl
 	    << "  --preserve-tags    Preserve tags from the original BAM record by" << endl
 	    << "                     appending them to the end of the corresponding SAM output." << endl
@@ -868,10 +872,14 @@ static void printUsage(ostream& out) {
 	    << "  --rg <text>        add <text> (\"lab:value\") to @RG line of SAM header." << endl
 	    << "                     Note: @RG line only printed when --rg-id is set." << endl
 	    << "  --omit-sec-seq     put '*' in SEQ and QUAL fields for secondary alignments." << endl
-	    << "  --sam-no-qname-trunc Suppress standard behavior of truncating readname at first whitespace " << endl
-	    << "                      at the expense of generating non-standard SAM." << endl
+	    << "  --sam-no-qname-trunc" << endl
+	    << "                     Suppress standard behavior of truncating readname at first whitespace " << endl
+	    << "                     at the expense of generating non-standard SAM." << endl
 	    << "  --xeq              Use '='/'X', instead of 'M,' to specify matches/mismatches in SAM record." << endl
-	    << "  --soft-clipped-unmapped-tlen Exclude soft-clipped bases when reporting TLEN" << endl
+	    << "  --soft-clipped-unmapped-tlen" << endl
+	    << "                     Exclude soft-clipped bases when reporting TLEN" << endl
+	    << "  --sam-append-comment" << endl
+	    << "                     Append FASTA/FASTQ comment to SAM record" << endl
 	    << endl
 	    << " Performance:" << endl
 	//    << "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl
@@ -887,7 +895,8 @@ static void printUsage(ostream& out) {
 	    << " Other:" << endl
 	    << "  --qc-filter        filter out reads that are bad according to QSEQ filter" << endl
 	    << "  --seed <int>       seed for random number generator (0)" << endl
-	    << "  --non-deterministic seed rand. gen. arbitrarily instead of using read attributes" << endl
+	    << "  --non-deterministic" << endl
+	    << "                     seed rand. gen. arbitrarily instead of using read attributes" << endl
 	//  << "  --verbose          verbose output for debugging" << endl
 	    << "  --version          print version information and quit" << endl
 	    << "  -h/--help          print this usage message" << endl;
@@ -1282,6 +1291,7 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_NO_FW: gNofw = true; break;
 		case ARG_NO_RC: gNorc = true; break;
 		case ARG_SAM_NO_QNAME_TRUNC: samTruncQname = false; break;
+		case ARG_SAM_APPEND_COMMENT: samAppendComment = true; break;
 		case ARG_SAM_OMIT_SEC_SEQ: samOmitSecSeqQual = true; break;
 		case ARG_SAM_NO_UNAL: samNoUnal = true; break;
 		case ARG_SAM_NOHEAD: samNoHead = true; break;
@@ -1690,7 +1700,11 @@ static void parseOptions(int argc, const char **argv) {
 		cerr << "Error: --interleaved only works in combination with FASTA (-f) and FASTQ (-q) formats." << endl;
 		throw 1;
 	}
-	if(qualities.size() && format != FASTA) {
+        if (samAppendComment && (format != FASTA && format != FASTQ)) {
+		cerr << "Error --sam-append-comment only works with FASTA (-f) and FASTQ (-q) formats. " << endl;
+		throw 1;
+        }
+        if(qualities.size() && format != FASTA) {
 		cerr << "Error: one or more quality files were specified with -Q but -f was not" << endl
 		     << "enabled.  -Q works only in combination with -f and -C." << endl;
 		throw 1;
@@ -4959,6 +4973,7 @@ static void driver(
 			refnames,               // reference sequence names
 			reflens,                // reference sequence lengths
 			samTruncQname,          // whether to truncate QNAME to 255 chars
+			samAppendComment,	// append FASTA/FASTQ comment to SAM record
 			samOmitSecSeqQual,      // omit SEQ/QUAL for 2ndary alignments?
 			samNoUnal,              // omit unaligned-read records?
 			string("bowtie2"),      // program id
