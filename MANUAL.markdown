@@ -107,11 +107,13 @@ install bowtie2`.
 Containerized versions of Bowtie 2 are also available via the [Biocontainers](https://BioContainers.pro)
 project (e.g. [via Docker Hub](https://hub.docker.com/r/biocontainers/bowtie2/)).
 
-You can also download Bowtie 2 sources and binaries from the [Download] section
-of the Sourceforge site.  Binaries are available for the `x86_64` architecture
-running Linux, Mac OS X, and Windows.  If you plan to compile Bowtie 2 yourself,
-make sure to get the source package, i.e., the filename that ends in
-"-source.zip".
+You can also download Bowtie 2 sources and binaries from the
+[Download] section of the Sourceforge site.  Binaries are available
+for the `x86_64` architecture running Linux, Mac OS X, and Windows.
+FreeBSD users can obtain the latest version of Bowtie 2 from ports
+using `pkg install bowtie2`. If you plan to compile Bowtie 2 yourself,
+make sure to get the source package, i.e., the filename that ends
+in "-source.zip".
 
 Building from source
 --------------------
