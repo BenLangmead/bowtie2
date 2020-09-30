@@ -2,6 +2,9 @@
 
 set -ex
 
+# Make empty string to use full set of reads
+SUFFIX="_300k"
+
 for ver in versions/* ; do
   ver="${ver:9}"
   echo "=== Version ${ver} ==="
@@ -15,7 +18,9 @@ for ver in versions/* ; do
         python vassess_aligner.py \
             cmds_${mode}.txt \
             "${ver}" \
-            "reads/${genome}_${mode}.fastq" \
+            "${mode}" \
+            "${genome}" \
+            "reads/${genome}_${mode}${SUFFIX}.fastq" \
             "${index}" \
             "${READS_SUMM}" \
             "${CMDS_SUMM}"

@@ -25,16 +25,16 @@ from collections import defaultdict
 from subprocess import PIPE
 
 
-def flush_command_data(cmd_name, elapsed, cmd_summary_fh, per_read_summary, print_header=False):
+def flush_command_data(version, mode, genome, cmd_name, elapsed, cmd_summary_fh, per_read_summary, print_header=False):
     assert len(per_read_summary) > 0
     assert len(per_read_summary[0]) == 4
     if print_header:
-        cmd_summary_fh.write('command,elapsed,statistic,mean,med,max,min\n')
+        cmd_summary_fh.write('version,mode,genome,command,elapsed,statistic,mean,med,max,min\n')
     for coli, colname in enumerate(['as_diff_mean', 'xs_diff_mean', 'n_unal', 'n_xs']):
         column = [row[coli] for row in per_read_summary]
         column.sort()
         col_min, col_med, col_max, col_mean = column[0], column[len(column)//2], column[-1], np.mean(column)
-        cmd_summary_fh.write(','.join(map(str, [cmd_name, elapsed, colname, col_mean, col_med, col_max, col_min])) + '\n')
+        cmd_summary_fh.write(','.join(map(str, [version, mode, genome, cmd_name, elapsed, colname, col_mean, col_med, col_max, col_min])) + '\n')
 
 
 def flush_read_data(cmd_name, read_name, read_buffer, per_read_summary_fh, per_read_summary):
@@ -64,7 +64,7 @@ def flush_read_data(cmd_name, read_name, read_buffer, per_read_summary_fh, per_r
     per_read_summary_fh.write(','.join(record) + '\n')
 
 
-def go(cmds, version, reads_fn, index_fn, read_summary_fn, cmd_summary_fn):
+def go(cmds, version, mode, genome, reads_fn, index_fn, read_summary_fn, cmd_summary_fn):
     align_exe = os.path.join('versions', version, 'bowtie2-align-s')
     if not os.path.exists(align_exe):
         ret = os.system('bash make_version.bash ' + version)
@@ -83,7 +83,7 @@ def go(cmds, version, reads_fn, index_fn, read_summary_fn, cmd_summary_fn):
                 cmd_tokens = cmd.rstrip().split()
                 cmd_name, cmd = cmd_tokens[0], align_exe + ' ' + ' '.join(cmd_tokens[1:])
                 tmpdir = tempfile.mkdtemp()
-                cmd += ' %s -x %s -S %s/tmp.sam' % (reads_fn, index_fn, tmpdir)
+                cmd += ' %s -t -x %s -S %s/tmp.sam' % (reads_fn, index_fn, tmpdir)
                 print('Trying "%s" command "%s"...' % (cmd_name, cmd), file=sys.stderr)
                 time_i = time.time()
                 os.system(cmd)
@@ -127,7 +127,7 @@ def go(cmds, version, reads_fn, index_fn, read_summary_fn, cmd_summary_fn):
                 assert not os.path.exists('tmp.sam')
                 if len(read_buffer) > 0:
                     flush_read_data(cmd_name, last_read_name, read_buffer, read_summ_fh, per_read_summary)
-                flush_command_data(cmd_name, elapsed, cmd_summary_fh, per_read_summary, first)
+                flush_command_data(version, mode, genome, cmd_name, elapsed, cmd_summary_fh, per_read_summary, first)
                 first = False
 
 
@@ -136,9 +136,11 @@ if __name__ == '__main__':
         raise ValueError('Expected arguments: '
                          '(1) File with aligner commands, '
                          '(2) Aligner version, '
-                         '(3) Reads file, '
-                         '(4) Index file, '
-                         '(5) Read summary output filename, '
-                         '(6) Command summary output filename')
+                         '(3) Aligner mode, '
+                         '(4) Genome, '
+                         '(5) Reads file, '
+                         '(6) Index file, '
+                         '(7) Read summary output filename, '
+                         '(8) Command summary output filename')
     with open(sys.argv[1]) as fh_:
-        go(fh_.readlines(), sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6])
+        go(fh_.readlines(), sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6], sys.argv[7], sys.argv[8])
