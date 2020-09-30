@@ -65,10 +65,13 @@ def flush_read_data(cmd_name, read_name, read_buffer, per_read_summary_fh, per_r
 
 
 def go(cmds, version, reads_fn, index_fn, read_summary_fn, cmd_summary_fn):
-    # TODO:
-    bin_version = os.path.join(version, 'bowtie2-align-s')
-    if not os.path.exists(os.path.join(version, 'bowtie2-align-s')):
-
+    align_exe = os.path.join('versions', version, 'bowtie2-align-s')
+    if not os.path.exists(align_exe):
+        ret = os.system('bash make_version.bash ' + version)
+        if ret != 0:
+            raise RuntimeError('make_version failed')
+    if not os.path.exists(align_exe):
+        raise RuntimeError('make_version succeeded but binary was not created')
     with open(read_summary_fn, 'wt') as read_summ_fh:
         with open(cmd_summary_fn, 'wt') as cmd_summary_fh:
             first = True
@@ -78,7 +81,7 @@ def go(cmds, version, reads_fn, index_fn, read_summary_fn, cmd_summary_fn):
                 if len(cmd.strip()) == 0:
                     continue
                 cmd_tokens = cmd.rstrip().split()
-                cmd_name, cmd = cmd_tokens[0], bin_version + ' '.join(cmd_tokens[1:])
+                cmd_name, cmd = cmd_tokens[0], align_exe + ' ' + ' '.join(cmd_tokens[1:])
                 tmpdir = tempfile.mkdtemp()
                 cmd += ' %s -x %s -S %s/tmp.sam' % (reads_fn, index_fn, tmpdir)
                 print('Trying "%s" command "%s"...' % (cmd_name, cmd), file=sys.stderr)
@@ -131,8 +134,8 @@ def go(cmds, version, reads_fn, index_fn, read_summary_fn, cmd_summary_fn):
 if __name__ == '__main__':
     if len(sys.argv) < 6:
         raise ValueError('Expected arguments: '
-                         '(1) Aligner version, '
-                         '(2) File with aligner commands, '
+                         '(1) File with aligner commands, '
+                         '(2) Aligner version, '
                          '(3) Reads file, '
                          '(4) Index file, '
                          '(5) Read summary output filename, '
