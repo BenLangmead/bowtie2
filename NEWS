@@ -19,6 +19,17 @@ Please report any issues to the Bowtie 2 Github page or using the Sourceforge bu
 Version Release History
 =======================
 
+Version 2.4.2 - Sep 30, 2020
+
+    * Fixed an issue that would cause the `bowtie2` wrapper script to throw
+      an error when using wrapper-specific arguments.
+    * Added new `--sam-append-comment` flag that appends comment from FASTA/Q
+      read to corresponding SAM record.
+    * Fixed an issue that would cause qupto, `-u`, to overflow when there
+      are >= 2^32 query sequences (PR #312).
+    * Fixed an issue that would cause bowtie2-build script to incorrectly
+      process reference files.
+
 Version 2.4.1 - Feb 28, 2020
 
     * Fixed an issue that would cause the `bowtie2` wrapper script to incorrectly
