@@ -1,0 +1,135 @@
+---
+title: "adseed"
+output:
+  html_document:
+    toc: true
+---
+
+## Adaptive seeding performance comparison
+
+```{r wd}
+setwd('~/git/bowtie2/seed-expts')
+```
+
+```{r lib}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(ggrepel)
+```
+
+# Local alignment
+
+## Fly
+
+```{r read_fly_local}
+fly_a4_local_new <- read.table('fly_A4_local_20201023_olddisqual.cmds.csv', sep=',', quote='', comment.char='', header=T)
+fly_bdgp6_local_new <- read.table('fly_BDGP6_local_20201023_olddisqual.cmds.csv', sep=',', quote='', comment.char='', header=T)
+
+fly_a4_local_old <- read.table('fly_A4_local_default.cmds.csv', sep=',', quote='', comment.char='', header=T)
+fly_bdgp6_local_old <- read.table('fly_BDGP6_local_default.cmds.csv', sep=',', quote='', comment.char='', header=T)
+```
+
+```{r plot_helper}
+scatter_repel <- function(old, new) {
+  old$baseline <- 'Baseline'
+  new$baseline <- 'Modified'
+  m <- rbind(old, new)
+  m <- m %>% filter(command != 'def0_vfl' & command != 'slL32' & command != 'slL30' & command != 'slL28')
+  baseline_elapsed <- m$elapsed[grepl('^def2_s', m$command)]
+  m$speed <- ifelse(m$elapsed < baseline_elapsed*0.95, 'Fast', ifelse(m$elapsed < baseline_elapsed *1.05, 'Similar to default', 'Slow'))
+  means <- m %>% filter(statistic == 'as_diff_mean')
+  n_unals <- m %>% filter(statistic == 'n_unal')
+  ggplot(means, aes(x=mean, y=n_unals$mean, color=speed, label=command, shape=baseline)) +
+    geom_point() +
+    geom_text_repel() +
+    labs(x='AS Diff (smaller better)', y='# unaligned (smaller better)') +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+}
+```
+
+```{r plot_fly_a4_local}
+scatter_repel(fly_a4_local_old, fly_a4_local_new)
+```
+
+```{r plot_fly_bdgp6_local}
+scatter_repel(fly_bdgp6_local_old, fly_bdgp6_local_new)
+```
+
+## Human
+
+```{r read_human_local}
+human_grch38_local_new <- read.table('human_GRCh38_local_20201023_olddisqual.cmds.csv', sep=',', quote='', comment.char='', header=T)
+human_ash1_local_new <- read.table('human_Ash1_local_20201023_olddisqual.cmds.csv', sep=',', quote='', comment.char='', header=T)
+
+human_grch38_local_old <- read.table('human_GRCh38_local_default.cmds.csv', sep=',', quote='', comment.char='', header=T)
+human_ash1_local_old <- read.table('human_Ash1_local_default.cmds.csv', sep=',', quote='', comment.char='', header=T)
+```
+
+```{r plot_human_grch38_local}
+scatter_repel(human_grch38_local_old, human_grch38_local_new)
+```
+```{r plot_human_ash1_local}
+scatter_repel(human_ash1_local_old, human_ash1_local_new)
+```
+
+## Mouse
+
+```{r read_mouse_local}
+mouse_GRCm38_local_new <- read.table('mouse_GRCm38_local_20201023_olddisqual.cmds.csv', sep=',', quote='', comment.char='', header=T)
+
+mouse_GRCm38_local_old <- read.table('mouse_GRCm38_local_default.cmds.csv', sep=',', quote='', comment.char='', header=T)
+```
+
+```{r plot_mouse_grcm38_local}
+scatter_repel(mouse_GRCm38_local_old, mouse_GRCm38_local_new)
+```
+
+# End-to-end alignment
+
+## Fly
+
+```{r read_fly_semiglobal}
+fly_a4_semiglobal_new <- read.table('fly_A4_semiglobal_20201023_olddisqual.cmds.csv', sep=',', quote='', comment.char='', header=T)
+fly_bdgp6_semiglobal_new <- read.table('fly_BDGP6_semiglobal_20201023_olddisqual.cmds.csv', sep=',', quote='', comment.char='', header=T)
+
+fly_a4_semiglobal_old <- read.table('fly_A4_semiglobal_default.cmds.csv', sep=',', quote='', comment.char='', header=T)
+fly_bdgp6_semiglobal_old <- read.table('fly_BDGP6_semiglobal_default.cmds.csv', sep=',', quote='', comment.char='', header=T)
+```
+
+```{r plot_flysemiglobal}
+scatter_repel(fly_a4_semiglobal_old, fly_a4_semiglobal_new)
+```
+
+```{r plot_fly_a4_semiglobal}
+scatter_repel(fly_bdgp6_semiglobal_old, fly_bdgp6_semiglobal_new)
+```
+
+## Human
+
+```{r read_human_semiglobal}
+human_grch38_semiglobal_new <- read.table('human_GRCh38_semiglobal_20201023_olddisqual.cmds.csv', sep=',', quote='', comment.char='', header=T)
+human_ash1_semiglobal_new <- read.table('human_Ash1_semiglobal_20201023_olddisqual.cmds.csv', sep=',', quote='', comment.char='', header=T)
+
+human_grch38_semiglobal_old <- read.table('human_GRCh38_semiglobal_default.cmds.csv', sep=',', quote='', comment.char='', header=T)
+human_ash1_semiglobal_old <- read.table('human_Ash1_semiglobal_default.cmds.csv', sep=',', quote='', comment.char='', header=T)
+```
+
+```{r plot_human_grch38_semiglobal}
+scatter_repel(human_grch38_semiglobal_old, human_grch38_semiglobal_new)
+```
+```{r plot_human_ash1_semiglobal}
+scatter_repel(human_ash1_semiglobal_old, human_ash1_semiglobal_new)
+```
+## Mouse
+
+```{r read_mouse_semiglobal}
+mouse_GRCm38_semiglobal_new <- read.table('mouse_GRCm38_semiglobal_20201023_olddisqual.cmds.csv', sep=',', quote='', comment.char='', header=T)
+
+mouse_GRCm38_semiglobal_old <- read.table('mouse_GRCm38_semiglobal_default.cmds.csv', sep=',', quote='', comment.char='', header=T)
+```
+
+```{r plot_mouse_grcm38_semiglobal}
+scatter_repel(mouse_GRCm38_semiglobal_old, mouse_GRCm38_semiglobal_new)
+```
