@@ -43,6 +43,7 @@
   <h2>Indexes</h2>
   <div class="box">
     <table width="100%">
+
       <tr>
         <td>
             <a href="https://genome-idx.s3.amazonaws.com/bt/GRCh38_noalt_as.zip"><i>H. sapiens</i>, GRCh38 no-alt analysis set</a>
@@ -66,7 +67,11 @@
             <a href="https://genome-idx.s3.amazonaws.com/bt/grch38_1kgmaj.zip"><i>H. sapiens</i>, GRCh38 + major SNVs</a>
         </td>
         <td align="right">
-            NCBI+1KG<sup>1</sup>
+            NCBI+1KG
+        </td>
+      </tr>
+      <tr>
+        <td colspan="2" style="font-size: x-small">&nbsp;&nbsp;<a href="https://github.com/BenLangmead/bowtie-majref">How we built this</a>, <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie_indexes/grch38_1kgmaj.fa.gz">FASTA</a>
         </td>
       </tr>
 
@@ -84,7 +89,7 @@
             <a href="https://genome-idx.s3.amazonaws.com/bt/Ash1v1.7.zip"><i>H. sapiens</i>, Ash1.7</a>
         </td>
         <td align="right">
-            JHU <sup>2</sup>
+            JHU
         </td>
       </tr>
 
