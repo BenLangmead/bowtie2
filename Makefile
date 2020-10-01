@@ -322,7 +322,7 @@ both-sanitized: bowtie2-align-s-sanitized bowtie2-build-s-sanitized bowtie2-alig
 
 DEFS := -fno-strict-aliasing \
   -DBOWTIE2_VERSION="\"`cat BOWTIE2_VERSION`\"" \
-  -DBUILD_HOST="\"${HOSTNAME:-`hostname`}\"" \
+  -DBUILD_HOST="\"$${HOSTNAME:-`hostname`}\"" \
   -DBUILD_TIME="\"`date -u`\"" \
   -DCOMPILER_VERSION="\"`$(CXX) -v 2>&1 | tail -1`\"" \
   $(FILE_FLAGS) \
