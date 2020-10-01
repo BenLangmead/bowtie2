@@ -219,10 +219,10 @@ public:
 		_built(false),
 		_base_fname(base_fname),
 		_bigEndian(currentlyBigEndian()),
-		_done(NULL)
 #ifdef WITH_TBB
-,thread_group_started(false)
+		thread_group_started(false),
 #endif
+		_done(NULL)
     { _randomSrc.init(__seed); reset(); }
 
     ~KarkkainenBlockwiseSA() throw()
@@ -315,10 +315,10 @@ public:
 					cerr << "Could not open file for reading a suffix array: \"" << fname << "\"" << endl;
 					throw 1;
 				}
-				size_t numSAs = readU<TIndexOffU>(sa_file, _bigEndian);
+				size_t numSAs = readU<TIndexOffU>(sa_file, false /* do not endian swap */);
 				this->_itrBucket.resizeExact(numSAs);
 				for(size_t i = 0; i < numSAs; i++) {
-					this->_itrBucket[i] = readU<TIndexOffU>(sa_file, _bigEndian);
+					this->_itrBucket[i] = readU<TIndexOffU>(sa_file, false);
 				}
 				sa_file.close();
 				std::remove(fname.c_str());

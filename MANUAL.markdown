@@ -19,7 +19,7 @@ processors can be used simultaneously to achieve greater alignment speed.
 Bowtie 2 outputs alignments in [SAM] format, enabling interoperation with a
 large number of other tools (e.g. [SAMtools], [GATK]) that use SAM.  Bowtie 2 is
 distributed under the [GPLv3 license], and it runs on the command line under
-Windows, Mac OS X and Linux.
+Windows, Mac OS X and Linux and BSD.
 
 [Bowtie 2] is often the first step in pipelines for comparative genomics,
 including for variation calling, ChIP-seq, RNA-seq, BS-seq.  [Bowtie 2] and
@@ -107,11 +107,13 @@ install bowtie2`.
 Containerized versions of Bowtie 2 are also available via the [Biocontainers](https://BioContainers.pro)
 project (e.g. [via Docker Hub](https://hub.docker.com/r/biocontainers/bowtie2/)).
 
-You can also download Bowtie 2 sources and binaries from the [Download] section
-of the Sourceforge site.  Binaries are available for the `x86_64` architecture
-running Linux, Mac OS X, and Windows.  If you plan to compile Bowtie 2 yourself,
-make sure to get the source package, i.e., the filename that ends in
-"-source.zip".
+You can also download Bowtie 2 sources and binaries from the
+[Download] section of the Sourceforge site.  Binaries are available
+for the `x86_64` architecture running Linux, Mac OS X, and Windows.
+FreeBSD users can obtain the latest version of Bowtie 2 from ports
+using `pkg install bowtie2`. If you plan to compile Bowtie 2 yourself,
+make sure to get the source package, i.e., the filename that ends
+in "-source.zip".
 
 Building from source
 --------------------
@@ -1880,6 +1882,16 @@ at the expense of generating non-standard SAM
 </td><td>
 
 Use `'='/'X'`, instead of `'M'`, to specify matches/mismatches in SAM record
+
+</td></tr>
+<tr><td id="bowtie2-options-sam-append-comment">
+
+    --sam-append-comment
+
+</td><td>
+
+Append FASTA/FASTQ comment to SAM record, where a comment is everything
+after the first space in the read name.
 
 </td></tr>
 </table>

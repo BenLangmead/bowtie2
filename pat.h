@@ -77,7 +77,7 @@ struct PatternParams {
 		int sampleLen_,
 		int sampleFreq_,
 		size_t skip_,
-		size_t upto_,
+		uint64_t upto_,
 		int nthreads_,
 		bool fixName_,
 		bool preserve_tags_,
@@ -116,7 +116,7 @@ struct PatternParams {
 	int sampleLen;		  // length of sampled reads for FastaContinuous...
 	int sampleFreq;		  // frequency of sampled reads for FastaContinuous...
 	size_t skip;		  // skip the first 'skip' patterns
-	size_t upto;		  // max number of queries to read
+	uint64_t upto;		  // max number of queries to read
 	int nthreads;		  // number of threads for locking
 	bool fixName;		  //
 	bool preserve_tags;       // keep existing tags when aligning BAM files

@@ -27,7 +27,7 @@ Prerequisites:
     changed.
     - TODO!  Need infrastructure for this.
 
- 5. Update VERSION with new version number if this hasn't already been done.
+ 5. Update BOWTIE2_VERSION with new version number if this hasn't already been done.
 
  6. Update NEWS and doc/website/recent_news.ssi if this hasn't already been
     done. (And even if it has, make sure the release date mentioned in those
