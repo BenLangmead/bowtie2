@@ -43,7 +43,6 @@
   <h2>Indexes</h2>
   <div class="box">
     <table width="100%">
-
       <tr>
         <td>
             <a href="https://genome-idx.s3.amazonaws.com/bt/GRCh38_noalt_as.zip"><i>H. sapiens</i>, GRCh38 no-alt analysis set</a>
@@ -67,11 +66,7 @@
             <a href="https://genome-idx.s3.amazonaws.com/bt/grch38_1kgmaj.zip"><i>H. sapiens</i>, GRCh38 + major SNVs</a>
         </td>
         <td align="right">
-            NCBI+1KG
-        </td>
-      </tr>
-      <tr>
-        <td colspan="2" style="font-size: x-small">&nbsp;&nbsp;<a href="https://github.com/BenLangmead/bowtie-majref">How we built this</a>, <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie_indexes/grch38_1kgmaj.fa.gz">FASTA</a>
+            NCBI+1KG<sup>1</sup>
         </td>
       </tr>
 
@@ -89,7 +84,7 @@
             <a href="https://genome-idx.s3.amazonaws.com/bt/Ash1v1.7.zip"><i>H. sapiens</i>, Ash1.7</a>
         </td>
         <td align="right">
-            JHU
+            JHU <sup>2</sup>
         </td>
       </tr>
 
@@ -114,6 +109,15 @@
       <tr>
         <td>
             <a href="https://genome-idx.s3.amazonaws.com/bt/GRCm38.zip"><i>M. Musculus</i>, GRCm38</a>
+        </td>
+        <td align="right">
+            NCBI
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/GRCm39.zip"><i>M. Musculus</i>, GRCm39</a>
         </td>
         <td align="right">
             NCBI
@@ -194,6 +198,15 @@
 
       <tr>
         <td>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/canfam4.zip"><i>C. familiaris</i>, CanFam4</a>
+        </td>
+        <td align="right">
+            Ensembl
+        </td>
+      </tr>
+
+      <tr>
+        <td>
             <a href="https://genome-idx.s3.amazonaws.com/bt/rn4.zip"><i>R. norvegicus</i>, rn4</a>
         </td>
         <td align="right">
@@ -252,6 +265,15 @@
         </td>
         <td align="right">
             Ensembl
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/Zm-B73-REFERENCE-NAM-5.0.zip"><i>Z. mays</i>, B73 RefGenV5</a>
+        </td>
+        <td align="right">
+            NCBI
         </td>
       </tr>
 
