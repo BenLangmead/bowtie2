@@ -532,12 +532,13 @@ doc/manual.html: MANUAL.markdown
 	pandoc -B .tmp.head \
 	       --metadata title:"Bowtie 2 Manual"\
 	       --css doc/style.css -o $@ \
-	       --from markdown --to HTML \
+	       --from markdown-smart \
+	       --to HTML --ascii \
 	       --table-of-contents $^
 	rm -f .tmp.head
 
 MANUAL: MANUAL.markdown
-	pandoc -f markdown -t plain $^ -o $@
+	pandoc -f markdown-smart -t plain --ascii $^ -o $@
 
 .PHONY: install
 install: all
