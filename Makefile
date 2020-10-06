@@ -586,10 +586,10 @@ static-libs:
 	fi ; \
 	if [ ! -d "$(CURDIR)/.tmp/include/tbb" ] ; then \
 		cd $(CURDIR)/.tmp ; \
-		$$DL https://github.com/01org/tbb/archive/2019_U4.tar.gz && tar xzf 2019_U4.tar.gz && cd tbb-2019_U4; \
+		$$DL https://github.com/01org/tbb/archive/2020_U3.tar.gz && tar xzf 2020_U3.tar.gz && cd oneTBB-2020_U3; \
 		$(if $(MINGW), mingw32-make compiler=gcc arch=ia64 runtime=mingw, make) extra_inc=big_iron.inc -j4 \
 		&& cp -r include/tbb $(CURDIR)/.tmp/include && cp build/*_release/*.a $(CURDIR)/.tmp/lib ; \
-		rm -f 2019_U4.tar.gz ; \
+		rm -f 2020_U3.tar.gz ; \
 	fi
 
 .PHONY: sra-deps
