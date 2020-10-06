@@ -19,7 +19,7 @@ Please report any issues to the Bowtie 2 Github page or using the Sourceforge bu
 Version Release History
 =======================
 
-Version 2.4.2 - Sep 30, 2020
+Version 2.4.2 - Oct 5, 2020
 
     * Fixed an issue that would cause the `bowtie2` wrapper script to throw
       an error when using wrapper-specific arguments.
