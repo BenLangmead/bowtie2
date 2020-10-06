@@ -24,6 +24,7 @@
 PREFIX := /usr/local
 bindir := $(PREFIX)/bin
 
+ARCH := $(shell uname -m)
 LDLIBS := -lz
 GCC_PREFIX := $(shell dirname `which gcc`)
 GCC_SUFFIX :=
@@ -498,7 +499,7 @@ bowtie2-src-pkg: $(SRC_PKG_LIST)
 	rm -rf .src.tmp
 
 .PHONY: bowtie2-bin-pkg
-bowtie2-bin-pkg: PKG_DIR := bowtie2-$(VERSION)-$(if $(USE_SRA),sra-)$(if $(MACOS),macos,$(if $(MINGW),mingw,linux))-x86_64
+bowtie2-bin-pkg: PKG_DIR := bowtie2-$(VERSION)-$(if $(USE_SRA),sra-)$(if $(MACOS),macos,$(if $(MINGW),mingw,linux))-$(ARCH)
 bowtie2-bin-pkg: $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_DBG)
 	chmod a+x scripts/*.sh scripts/*.pl
 	rm -rf .bin.tmp
