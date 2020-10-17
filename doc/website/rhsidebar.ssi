@@ -86,10 +86,28 @@
 
       <tr>
         <td>
-            <a href="https://genome-idx.s3.amazonaws.com/bt/Ash1v1.7.zip"><i>H. sapiens</i>, Ash1.7</a>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/Ash1v1.7.zip"><i>H. sapiens</i>, Ash1v1.7</a>
         </td>
         <td align="right">
             JHU
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/Ash1_v2.0.zip"><i>H. sapiens</i>, Ash1v2.0</a>
+        </td>
+        <td align="right">
+            JHU
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/chm13.draft_v1.0_plusY.zip"><i>H. sapiens</i>, CHM13plusY</a>
+        </td>
+        <td align="right">
+            <a href="https://github.com/nanopore-wgs-consortium/CHM13">T2T</a>
         </td>
       </tr>
 
