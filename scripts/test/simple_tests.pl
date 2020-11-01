@@ -4886,8 +4886,10 @@ foreach my $large_idx (undef,1) {
 				# it is best if we ignore them.
 				my $has_poison_reads = 0;
 
-				print $c->{name}." " if defined($c->{name});
-				print "(fw:".($fw ? 1 : 0).", sam:$sam)\n";
+				print "==== ";
+				print "".$c->{name}." " if defined($c->{name});
+				print "(fw:".($fw ? 1 : 0).", sam:$sam)";
+				print " ====\n";
 				my $mate1fw = 1;
 				my $mate2fw = 0;
 				$mate1fw = $c->{mate1fw} if defined($c->{mate1fw});
