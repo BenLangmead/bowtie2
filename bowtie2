@@ -131,13 +131,14 @@ my $large_idx = 0;
 
 sub handle_un_or_al {
     my ($opt, $value) = @_;
-    my ($name, $type_of_compression) = $opt =~ /((?:al|un)(?:-conc|-mates)?)(?:-(gz|bz2|lz4))?/;
+    my ($name, $type_of_compression) = $opt =~ /((?:al|un)(?:-conc|-mates)?)(?:-(gz|bz2|lz4|zst))?/;
 
     $read_fns{$name} = $value;
     $read_compress{$name} = "";
     $read_compress{$name} = "gzip"  if defined $type_of_compression && $type_of_compression eq "gz";
     $read_compress{$name} = "bzip2" if defined $type_of_compression && $type_of_compression eq "bz2";
     $read_compress{$name} = "lz4"   if defined $type_of_compression && $type_of_compression eq "lz4";
+    $read_compress{$name} = "zstd"  if defined $type_of_compression && $type_of_compression eq "zst";
 }
 
 my @unps = ();
@@ -190,22 +191,27 @@ GetOptions(
     "un-gz=s"                       => \&handle_un_or_al,
     "un-bz2=s"                      => \&handle_un_or_al,
     "un-lz4=s"                      => \&handle_un_or_al,
+    "un-zst=s"                      => \&handle_un_or_al,
     "al=s"                          => \&handle_un_or_al,
     "al-gz=s"                       => \&handle_un_or_al,
     "al-bz2=s"                      => \&handle_un_or_al,
     "al-lz4=s"                      => \&handle_un_or_al,
+    "al-zst=s"                      => \&handle_un_or_al,
     "un-conc=s"                     => \&handle_un_or_al,
     "un-conc-gz=s"                  => \&handle_un_or_al,
     "un-conc-bz2=s"                 => \&handle_un_or_al,
     "un-conc-lz4=s"                 => \&handle_un_or_al,
+    "un-conc-zst=s"                 => \&handle_un_or_al,
     "al-conc=s"                     => \&handle_un_or_al,
     "al-conc-gz=s"                  => \&handle_un_or_al,
     "al-conc-bz2=s"                 => \&handle_un_or_al,
     "al-conc-lz4=s"                 => \&handle_un_or_al,
+    "al-conc-zst=s"                 => \&handle_un_or_al,
     "un-mates=s"                    => \&handle_un_or_al,
     "un-mates-gz=s"                 => \&handle_un_or_al,
     "un-mates-bz2=s"                => \&handle_un_or_al,
     "un-mates-lz4=s"                => \&handle_un_or_al,
+    "un-mates-zst=s"                => \&handle_un_or_al,
     "log-file=s"                    => \$log_fName,
     );
 
@@ -255,6 +261,9 @@ sub cat_file($$) {
     } elsif($ifn =~ /\.lz4/) {
         open($ifh, "lz4 -dc \"$ifn\" |") ||
             Fail("Could not open lz4ed read file: $ifn \n");
+    } elsif($ifn =~ /\.zst/) {
+        open($ifh, "zstd -dfc \"$ifn\" |") ||
+            Fail("Could not open zstded read file: $ifn \n");
     } else {
         open($ifh, $ifn) || Fail("Could not open read file: $ifn \n");
     }
@@ -295,7 +304,7 @@ sub maybe_wrap_input {
     if (scalar(@$orig_m2s) == 0) {
         my $fn = "$temp_dir/${host}_$$." . $ext;
         for (my $i = 0; $i < scalar(@$orig_m1s); $i++) {
-            if ($orig_m1s->[$i] !~ /\.bz2$/ && $orig_m1s->[$i] !~ /\.lz4$/) {
+            if ($orig_m1s->[$i] !~ /\.bz2$/ && $orig_m1s->[$i] !~ /\.lz4$/ && $orig_m1s->[$i] !~ /\.zst$/) {
                 push @m1s, $orig_m1s->[$i];
             } else {
                 push @wrapped_m1s, $orig_m1s->[$i];
@@ -312,8 +321,8 @@ sub maybe_wrap_input {
         my $fn2 = "$temp_dir/${host}_$$" . $ext . "2";
 
         for (my $i = 0; $i < scalar(@$orig_m1s); $i++) {
-            if ($orig_m1s->[$i] !~ /\.bz2$/ && $orig_m1s->[$i] !~ /\.lz4$/
-                && $orig_m2s->[$i] !~ /\.bz2$/ && $orig_m2s->[$i] !~ /\.lz4$/) {
+            if ($orig_m1s->[$i] !~ /\.bz2$/ && $orig_m1s->[$i] !~ /\.lz4$/ && $orig_m1s->[$i] !~ /\.zst$/
+                && $orig_m2s->[$i] !~ /\.bz2$/ && $orig_m2s->[$i] !~ /\.lz4$/ && $orig_m2s->[$i] !~ /\.zst$/) {
                 push @m1s, $orig_m1s->[$i];
                 push @m2s, $orig_m2s->[$i];
             } else {
@@ -508,9 +517,11 @@ if(defined($cap_out)) {
                 $redir1 = "| gzip -c $redir1"  if $read_compress{$i} eq "gzip";
                 $redir1 = "| bzip2 -c $redir1" if $read_compress{$i} eq "bzip2";
                 $redir1 = "| lz4 -c $redir1" if $read_compress{$i} eq "lz4";
+                $redir1 = "| zstd -c $redir1" if $read_compress{$i} eq "zstd";
                 $redir2 = "| gzip -c $redir2"  if $read_compress{$i} eq "gzip";
                 $redir2 = "| bzip2 -c $redir2" if $read_compress{$i} eq "bzip2";
                 $redir2 = "| lz4 -c $redir2" if $read_compress{$i} eq "lz4";
+                $redir2 = "| zstd -c $redir2" if $read_compress{$i} eq "zstd";
                 open($read_fhs{$i}{1}, $redir1) || Fail("Could not open --$i mate-1 output file '$fn1'\n");
                 open($read_fhs{$i}{2}, $redir2) || Fail("Could not open --$i mate-2 output file '$fn2'\n");
                 push @fhs_to_close, $read_fhs{$i}{1};
@@ -523,6 +534,7 @@ if(defined($cap_out)) {
                 $redir = "| gzip -c $redir"  if $read_compress{$i} eq "gzip";
                 $redir = "| bzip2 -c $redir" if $read_compress{$i} eq "bzip2";
                 $redir = "| lz4 -c $redir" if $read_compress{$i} eq "lz4";
+                $redir = "| zstd -c $redir" if $read_compress{$i} eq "zstd";
                 open($read_fhs{$i}, $redir) || Fail("Could not open --$i output file '$read_fns{$i}'\n");
                 push @fhs_to_close, $read_fhs{$i};
             }
