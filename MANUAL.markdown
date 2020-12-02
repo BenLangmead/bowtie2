@@ -2757,7 +2757,7 @@ format because the alignments are (a) compressed, which is convenient for
 long-term storage, and (b) sorted, which is conveneint for variant discovery.
 To generate variant calls in VCF format, run:
 
-    samtools mpileup -uf $BT2_HOME/example/reference/lambda_virus.fa eg2.sorted.bam | bcftools view -Ov - > eg2.raw.bcf
+    bcftools mpileup -f $BT2_HOME/example/reference/lambda_virus.fa eg2.sorted.bam | bcftools view -Ov - > eg2.raw.bcf
 
 Then to view the variants, run:
 
