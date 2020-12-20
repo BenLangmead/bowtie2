@@ -17,6 +17,8 @@
  * along with Bowtie 2.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <mutex>
+
 #include "aligner_cache.h"
 #include "tinythread.h"
 
@@ -98,8 +100,8 @@ bool AlignmentCache::addOnTheFlyImpl(
 	}
 	// Now that we know all allocations have succeeded, we can do a few final
 	// updates
-	
-	return true; 
+
+	return true;
 }
 
 bool AlignmentCache::addOnTheFly(
@@ -112,7 +114,7 @@ bool AlignmentCache::addOnTheFly(
 	bool getLock)
 {
 	if(shared_ && getLock) {
-		ThreadSafe ts(mutex_m);
+		std::lock_guard<MUTEX_T> lg(mutex_m);
 		return addOnTheFlyImpl(qv, sak, topf, botf, topb, botb);
 	} else {
 		return addOnTheFlyImpl(qv, sak, topf, botf, topb, botb);

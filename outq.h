@@ -33,7 +33,7 @@
  * read has id N and Bowtie 2 wants to write a record for read with id N+1, we
  * resize the lines_ and committed_ lists to have at least 2 elements (1 for N,
  * 1 for N+1) and return the BTString * associated with the 2nd element.  When
- * the user calls commit() for the read with id N, 
+ * the user calls commit() for the read with id N,
  */
 class OutputQueue {
 
@@ -93,19 +93,19 @@ public:
 	 * the read with the given id.
 	 */
 	void beginRead(TReadId rdid, size_t threadId);
-	
+
 	/**
-	 * Writer is finished writing to 
+	 * Writer is finished writing to
 	 */
 	void finishRead(const BTString& rec, TReadId rdid, size_t threadId);
-	
+
 	/**
 	 * Return the number of records currently being buffered.
 	 */
 	size_t size() const {
 		return lines_.size();
 	}
-	
+
 	/**
 	 * Return the number of records that have been flushed so far.
 	 */
@@ -136,11 +136,7 @@ protected:
 
 	OutFileBuf&     obuf_;
 	TReadId         cur_;
-#ifdef WITH_TBB
 	std::atomic<TReadId> nstarted_;
-#else
-	TReadId         nstarted_;
-#endif
 	TReadId         nfinished_;
 	TReadId         nflushed_;
 	EList<BTString> lines_;
@@ -150,7 +146,7 @@ protected:
 	bool            threadSafe_;
 	MUTEX_T         mutex_m;
 
-	// used for output read buffer	
+	// used for output read buffer
 	size_t nthreads_;
 	BTString** perThreadBuf;
 	int* 		perThreadCounter;
@@ -177,11 +173,11 @@ public:
 	{
 		q_.beginRead(rdid, threadId);
 	}
-	
+
 	~OutputQueueMark() {
 		q_.finishRead(rec_, rdid_, threadId_);
 	}
-	
+
 protected:
 	OutputQueue& q_;
 	const BTString& rec_;

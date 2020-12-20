@@ -200,7 +200,7 @@ pair<bool, int> SoloPatternComposer::nextBatch(PerThreadReadBuf& pt) {
 				lock_); // grab lock below
 		} while(!res.first && res.second == 0);
 		if(res.second == 0) {
-			ThreadSafe ts(mutex_m);
+			std::lock_guard<MUTEX_T> lg(mutex_m);
 			if(cur + 1 > cur_) {
 				cur_++;
 			}
@@ -229,7 +229,7 @@ pair<bool, int> DualPatternComposer::nextBatch(PerThreadReadBuf& pt) {
 				true,  // batch A (or pairs)
 				lock_); // grab lock below
 			if(res.second == 0 && cur < srca_->size() - 1) {
-				ThreadSafe ts(mutex_m);
+				std::lock_guard<MUTEX_T> lg(mutex_m);
 				if(cur + 1 > cur_) cur_++;
 				cur = cur_; // Move on to next PatternSource
 				continue; // on to next pair of PatternSources
@@ -240,7 +240,7 @@ pair<bool, int> DualPatternComposer::nextBatch(PerThreadReadBuf& pt) {
 			// Lock to ensure that this thread gets parallel reads
 			// in the two mate files
 			{
-				ThreadSafe ts(mutex_m);
+				std::lock_guard<MUTEX_T> lg(mutex_m);
 				resa = (*srca_)[cur]->nextBatch(
 					pt,
 					true,   // batch A
@@ -257,7 +257,7 @@ pair<bool, int> DualPatternComposer::nextBatch(PerThreadReadBuf& pt) {
 				     << "than in file specified with -2" << endl;
 				throw 1;
 			} else if(resa.second == 0 && resb.second == 0) {
-				ThreadSafe ts(mutex_m);
+				std::lock_guard<MUTEX_T> lg(mutex_m);
 				if(cur + 1 > cur_) {
 					cur_++;
 				}
@@ -448,7 +448,7 @@ pair<bool, int> CFilePatternSource::nextBatch(
 	if(lock) {
 		// synchronization at this level because both reading and manipulation of
 		// current file pointer have to be protected
-		ThreadSafe ts(mutex);
+		std::lock_guard<MUTEX_T> lg(mutex);
 		return nextBatchImpl(pt, batch_a);
 	} else {
 		return nextBatchImpl(pt, batch_a);
@@ -608,7 +608,7 @@ pair<bool, int> VectorPatternSource::nextBatch(
 	bool lock)
 {
 	if(lock) {
-		ThreadSafe ts(mutex);
+		std::lock_guard<MUTEX_T> lg(mutex);
 		return nextBatchImpl(pt, batch_a);
 	} else {
 		return nextBatchImpl(pt, batch_a);
@@ -1243,7 +1243,7 @@ std::pair<bool, int> BAMPatternSource::nextBatch(PerThreadReadBuf& pt, bool batc
 			BGZF block;
 			std::vector<uint8_t>& batch = bam_batches_[pt.tid_];
 			if (lock) {
-				ThreadSafe ts(mutex);
+				std::lock_guard<MUTEX_T> lg(mutex);
 				if (first_) {
                                         // parse the BAM header;
 					nextBGZFBlockFromFile(block);
@@ -1277,7 +1277,7 @@ std::pair<bool, int> BAMPatternSource::nextBatch(PerThreadReadBuf& pt, bool batc
 	} while (!done && nread < pt.max_buf_);
 
 	if (lock) {
-		ThreadSafe ts(mutex);
+		std::lock_guard<MUTEX_T> lg(mutex);
 		pt.setReadId(readCnt_);
 		readCnt_ += nread;
 	} else {
@@ -1325,7 +1325,7 @@ std::pair<bool, int> BAMPatternSource::get_alignments(PerThreadReadBuf& pt, bool
                      ((flag & 0x80) != 0 && i == sizeof(block_size))))
 		{
 			if (lock) {
-				ThreadSafe ts(orphan_mates_mutex_);
+				std::lock_guard<MUTEX_T> lg(orphan_mates_mutex_);
 				get_or_store_orhaned_mate(pt.bufa_, pt.bufb_, readi, &bam_batches_[pt.tid_][0] + i, block_size);
 				i += block_size;
 			} else {
@@ -1737,7 +1737,7 @@ std::pair<bool, int> SRAPatternSource::nextBatchImpl(
 	pt.setReadId(readCnt_);
 
 	{
-		ThreadSafe ts(mutex);
+		std::lock_guard<MUTEX_T> lg(mutex);
 		readCnt_ += readi;
 	}
 

@@ -49,7 +49,7 @@
  *
  *    Key:   Reference substring (2-bit-per-base encoded + length)
  *    Value: (a) top from BWT, (b) length of range, (c) offset of first
- *           range element in 
+ *           range element in
  *
  * For both multimaps, we use a combo Red-Black tree and EList.  The payload in
  * the Red-Black tree nodes points to a range in the EList.
@@ -83,7 +83,7 @@ struct QKey {
 	QKey(const BTDnaString& s ASSERT_ONLY(, BTDnaString& tmp)) {
 		init(s ASSERT_ONLY(, tmp));
 	}
-	
+
 	/**
 	 * Initialize QKey from DNA string.  Rightmost character is placed in the
 	 * least significant bitpair.
@@ -115,7 +115,7 @@ struct QKey {
 			return true; // was cacheable
 		}
 	}
-	
+
 	/**
 	 * Convert this key to a DNA string.
 	 */
@@ -127,12 +127,12 @@ struct QKey {
 			sq >>= 2;
 		}
 	}
-	
+
 	/**
 	 * Return true iff the read substring is cacheable.
 	 */
 	bool cacheable() const { return len != 0xffffffff; }
-	
+
 	/**
 	 * Reset to uninitialized state.
 	 */
@@ -166,7 +166,7 @@ struct QKey {
 	bool operator!=(const QKey& o) const {
 		return !(*this == o);
 	}
-	
+
 #ifndef NDEBUG
 	/**
 	 * Check that this is a valid, initialized QKey.
@@ -214,7 +214,7 @@ public:
 		assert(valid());
 		return eltn_;
 	}
-	
+
 	/**
 	 * Return true iff the read substring is not associated with any
 	 * reference substrings.
@@ -228,21 +228,21 @@ public:
 	 * Return true iff the QVal is valid.
 	 */
 	bool valid() const { return rangen_ != OFF_MASK; }
-	
+
 	/**
 	 * Reset to invalid state.
 	 */
 	void reset() {
 		i_ = 0; rangen_ = eltn_ = OFF_MASK;
 	}
-	
+
 	/**
 	 * Initialize Qval.
 	 */
 	void init(TIndexOffU i, TIndexOffU ranges, TIndexOffU elts) {
 		i_ = i; rangen_ = ranges; eltn_ = elts;
 	}
-	
+
 	/**
 	 * Tally another range with given number of elements.
 	 */
@@ -250,7 +250,7 @@ public:
 		rangen_++;
 		eltn_ += numElts;
 	}
-	
+
 #ifndef NDEBUG
 	/**
 	 * Check that this QVal is internally consistent and consistent
@@ -293,7 +293,7 @@ struct SAVal {
 	 */
 	bool repOk(const AlignmentCache& ac) const;
 #endif
-	
+
 	/**
 	 * Initialize the SAVal.
 	 */
@@ -330,7 +330,7 @@ public:
 	SATuple(SAKey k, TIndexOffU tf, TIndexOffU tb, TSlice o) {
 		init(k, tf, tb, o);
 	}
-	
+
 	void init(SAKey k, TIndexOffU tf, TIndexOffU tb, TSlice o) {
 		key = k; topf = tf; topb = tb; offs = o;
 	}
@@ -345,7 +345,7 @@ public:
 		topb = OFF_MASK; // unknown!
 		offs.init(src.offs, first, last);
 	}
-	
+
 #ifndef NDEBUG
 	/**
 	 * Check that this SATuple is internally consistent and that its
@@ -381,13 +381,13 @@ public:
 		}
 		return topf > o.topf;
 	}
-	
+
 	bool operator==(const SATuple& o) const {
 		return key == o.key && topf == o.topf && topb == o.topb && offs == o.offs;
 	}
 
 	void reset() { topf = topb = OFF_MASK; offs.reset(); }
-	
+
 	/**
 	 * Set the length to be at most the original length.
 	 */
@@ -395,7 +395,7 @@ public:
 		assert_leq(nlen, offs.size());
 		offs.setLength(nlen);
 	}
-	
+
 	/**
 	 * Return the number of times this reference substring occurs in the
 	 * reference, which is also the size of the 'offs' TSlice.
@@ -461,7 +461,7 @@ public:
 		bool getLock = true)
 	{
 		if(shared_ && getLock) {
-			ThreadSafe ts(mutex_m);
+			std::lock_guard<MUTEX_T> lg(mutex_m);
 			queryQvalImpl(qv, satups, nrange, nelt);
 		} else {
 			queryQvalImpl(qv, satups, nrange, nelt);
@@ -478,7 +478,7 @@ public:
 		assert(!ret || salist_.empty());
 		return ret;
 	}
-	
+
 	/**
 	 * Add a new query key ('qk'), usually a 2-bit encoded substring of
 	 * the read) as the key in a new Red-Black node in the qmap and
@@ -495,13 +495,13 @@ public:
 		bool getLock = true)
 	{
 		if(shared_ && getLock) {
-			ThreadSafe ts(mutex_m);
+			std::lock_guard<MUTEX_T> lg(mutex_m);
 			return addImpl(qk, added);
 		} else {
 			return addImpl(qk, added);
 		}
 	}
-	
+
 	/**
 	 * Add a new association between a read sequnce ('seq') and a
 	 * reference sequence ('')
@@ -521,7 +521,7 @@ public:
 	 * reads will have to be re-aligned.
 	 */
 	void clear() {
-		ThreadSafe ts(mutex_m);
+		std::lock_guard<MUTEX_T> lg(mutex_m);
 		pool_.clear();
 		qmap_.clear();
 		qlist_.clear();
@@ -554,7 +554,7 @@ public:
 	 * Return the pool.
 	 */
 	Pool& pool() { return pool_; }
-	
+
 	/**
 	 * Return the lock object.
 	 */
@@ -566,7 +566,7 @@ public:
 	 * Return true iff this cache is shared among threads.
 	 */
 	bool shared() const { return shared_; }
-	
+
 	/**
 	 * Return the current "version" of the cache, i.e. the total number
 	 * of times it has turned over since its creation.
@@ -580,7 +580,7 @@ protected:
 	TQList                 qlist_;  // list of reference substrings
 	RedBlack<SAKey, SAVal> samap_;  // map from reference substrings to SA ranges
 	TSAList                salist_; // list of SA ranges
-	
+
 	bool     shared_;  // true -> this cache is global
 	MUTEX_T mutex_m;    // mutex used for syncronization in case the the cache is shared.
 	uint32_t version_; // cache version
@@ -626,7 +626,7 @@ private:
 			}
 		}
 	}
-	
+
 	/**
 	 * Add a new association between a read sequnce ('seq') and a
 	 * reference sequence ('')
@@ -787,7 +787,7 @@ public:
 		return 0; // Need to search for it
 	}
 	ASSERT_ONLY(BTDnaString tmpdnastr_);
-	
+
 	/**
 	 * Called when is finished aligning a read (and so is finished
 	 * adding associated reference strings).  Returns a copy of the
@@ -843,14 +843,14 @@ public:
 		resetRead();
 		assert(!aligning());
 	}
-	
+
 	/**
 	 * Return true iff we're in the middle of aligning a sequence.
 	 */
 	bool aligning() const {
 		return qv_ != NULL;
 	}
-	
+
 	/**
 	 * Clears both the local and shared caches.
 	 */
@@ -859,7 +859,7 @@ public:
 		if(local_   != NULL) local_->clear();
 		if(shared_  != NULL) shared_->clear();
 	}
-	
+
 	/**
 	 * Add an alignment to the running list of alignments being
 	 * compiled for the current read in the local cache.
@@ -872,7 +872,7 @@ public:
 		TIndexOffU botb,            // bot in BWT' index
 		bool getLock = true)      // true -> lock is not held by caller
 	{
-		
+
 		assert(aligning());
 		assert(repOk());
 		ASSERT_ONLY(BTDnaString tmp);
@@ -906,10 +906,10 @@ public:
 	 * Return a pointer to the current-read cache object.
 	 */
 	const AlignmentCache* currentCache() const { return current_; }
-	
+
 	size_t curNumRanges() const { return rangen_; }
 	size_t curNumElts()   const { return eltsn_;  }
-	
+
 #ifndef NDEBUG
 	/**
 	 * Check that AlignmentCacheIface is internally consistent.
@@ -924,7 +924,7 @@ public:
 		return true;
 	}
 #endif
-	
+
 	/**
 	 * Return the alignment cache for the current read.
 	 */
@@ -947,7 +947,7 @@ protected:
 	QVal *qv_; // pointer to value representation for current read substring
 	QVal qvbuf_; // buffer for when key is uncacheable but we need a qv
 	bool cacheable_; // true iff the read substring currently being aligned is cacheable
-	
+
 	size_t rangen_; // number of ranges since last alignment job began
 	size_t eltsn_;  // number of elements since last alignment job began
 

@@ -17,18 +17,19 @@
  * along with Bowtie 2.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdlib.h>
-#include <iostream>
-#include <fstream>
-#include <string>
 #include <cassert>
-#include <stdexcept>
-#include <getopt.h>
-#include <math.h>
-#include <utility>
-#include <limits>
-#include <time.h>
 #include <dirent.h>
+#include <fstream>
+#include <getopt.h>
+#include <iostream>
+#include <limits>
+#include <math.h>
+#include <stdexcept>
+#include <stdlib.h>
+#include <string>
+#include <thread>
+#include <time.h>
+#include <utility>
 
 #ifndef _WIN32
 #include <signal.h>
@@ -61,24 +62,11 @@
 #include "outq.h"
 #include "aligner_seed2.h"
 #include "bt2_search.h"
-#ifdef WITH_TBB
- #include <thread>
-#endif
-
-#if __cplusplus <= 199711L
-#define unique_ptr auto_ptr
-#endif
 
 using namespace std;
 
 static int FNAME_SIZE;
-#ifdef WITH_TBB
 static std::atomic<int> thread_counter;
-#else
-static int thread_counter;
-static MUTEX_T thread_counter_mutex;
-#endif
-
 static EList<string> mates1;  // mated reads (first mate)
 static EList<string> mates2;  // mated reads (second mate)
 static EList<string> mates12; // mated reads (1st/2nd interleaved in 1 file)
@@ -1918,7 +1906,7 @@ struct PerfMetrics {
 		uint64_t nbtfiltsc_,
 		uint64_t nbtfiltdo_)
 	{
-		ThreadSafe ts(mutex_m);
+		std::lock_guard<MUTEX_T> lg(mutex_m);
 		if(ol != NULL) {
 			olmu.merge(*ol);
 		}
@@ -1965,7 +1953,7 @@ struct PerfMetrics {
 		bool total,           // true -> report total, otherwise incremental
 		const BTString *name) // non-NULL name pointer if is per-read record
 	{
-		ThreadSafe ts(mutex_m);
+		std::lock_guard<MUTEX_T> lg(mutex_m);
 		ostringstream stderrSs;
 		time_t curtime = time(0);
 		char buf[1024];
@@ -2965,21 +2953,11 @@ void get_cpu_and_node(int& cpu, int& node) {
 class ThreadCounter {
 public:
 	ThreadCounter() {
-#ifdef WITH_TBB
 		thread_counter.fetch_add(1);
-#else
-		ThreadSafe ts(thread_counter_mutex);
-		thread_counter++;
-#endif
 	}
 
 	~ThreadCounter() {
-#ifdef WITH_TBB
 		thread_counter.fetch_sub(1);
-#else
-		ThreadSafe ts(thread_counter_mutex);
-		thread_counter--;
-#endif
 	}
 };
 
@@ -2998,16 +2976,11 @@ public:
  *   + If not identical, continue
  * -
  */
-#ifdef WITH_TBB
 //void multiseedSearchWorker::operator()() const {
 static void multiseedSearchWorker(void *vp) {
 	//int tid = *((int*)vp);
 	thread_tracking_pair *p = (thread_tracking_pair*) vp;
 	int tid = p->tid;
-#else
-static void multiseedSearchWorker(void *vp) {
-	int tid = *((int*)vp);
-#endif
 	assert(multiseed_ebwtFw != NULL);
 	assert(multiseedMms == 0 || multiseed_ebwtBw != NULL);
 	PatternComposer&        patsrc   = *multiseed_patsrc;
@@ -4141,23 +4114,16 @@ static void multiseedSearchWorker(void *vp) {
 		std::cout << ss.str();
 #endif
 	}
-#ifdef WITH_TBB
 	p->done->fetch_add(1);
-#endif
 
 	return;
 }
 
-#ifdef WITH_TBB
 //void multiseedSearchWorker_2p5::operator()() const {
 static void multiseedSearchWorker_2p5(void *vp) {
 	//int tid = *((int*)vp);
 	thread_tracking_pair *p = (thread_tracking_pair*) vp;
 	int tid = p->tid;
-#else
-static void multiseedSearchWorker_2p5(void *vp) {
-	int tid = *((int*)vp);
-#endif
 	assert(multiseed_ebwtFw != NULL);
 	assert(multiseedMms == 0 || multiseed_ebwtBw != NULL);
 	PatternComposer&        patsrc   = *multiseed_patsrc;
@@ -4487,9 +4453,7 @@ static void multiseedSearchWorker_2p5(void *vp) {
 
 	// One last metrics merge
 	MERGE_METRICS(metrics);
-#ifdef WITH_TBB
 	p->done->fetch_add(1);
-#endif
 
 	return;
 }
@@ -4712,13 +4676,9 @@ static void multiseedSearch(
 	pthread_sigmask(SIG_BLOCK, &set, NULL);
 #endif
 	EList<int> tids;
-#ifdef WITH_TBB
 	EList<std::thread*> threads(nthreads);
 	EList<thread_tracking_pair> tps;
 	tps.resize(std::max(nthreads, thread_ceiling));
-#else
-	EList<tthread::thread*> threads;
-#endif
 	threads.reserveExact(std::max(nthreads, thread_ceiling));
 	tids.reserveExact(std::max(nthreads, thread_ceiling));
 	{
@@ -4751,10 +4711,8 @@ static void multiseedSearch(
 	}
 	// Start the metrics thread
 
-#ifdef WITH_TBB
 	std::atomic<int> all_threads_done;
 	all_threads_done = 0;
-#endif
 	{
 		Timer _t(cerr, "Multiseed full-index search: ", timing);
 
@@ -4769,7 +4727,6 @@ static void multiseedSearch(
 
 		for(int i = 0; i < nthreads; i++) {
 			tids.push_back(i);
-#ifdef WITH_TBB
 			tps[i].tid = i;
 			tps[i].done = &all_threads_done;
 
@@ -4780,14 +4737,6 @@ static void multiseedSearch(
 			}
 			threads[i]->detach();
 			SLEEP(10);
-#else
-			// Thread IDs start at 1
-			if(bowtie2p5) {
-				threads.push_back(new tthread::thread(multiseedSearchWorker_2p5, (void*)&tids.back()));
-			} else {
-				threads.push_back(new tthread::thread(multiseedSearchWorker, (void*)&tids.back()));
-			}
-#endif
 		}
 
 #ifndef _WIN32
@@ -4797,15 +4746,9 @@ static void multiseedSearch(
 		}
 #endif
 
-#ifdef WITH_TBB
 		while(all_threads_done < nthreads) {
 			SLEEP(10);
 		}
-#else
-		for (int i = 0; i < nthreads; i++) {
-			threads[i]->join();
-		}
-#endif
 		for (int i = 0; i < nthreads; ++i) {
 			delete threads[i];
 		}
@@ -5134,12 +5077,10 @@ extern "C" {
  */
 int bowtie(int argc, const char **argv) {
 	try {
-	#ifdef WITH_TBB
 	#ifdef WITH_AFFINITY
 		//CWILKS: adjust this depending on # of hyperthreads per core
 		pinning_observer pinner( 2 /* the number of hyper threads on each core */ );
         	pinner.observe( true );
-	#endif
 	#endif
 		// Reset all global state, including getopt state
 		opterr = optind = 1;
@@ -5269,13 +5210,11 @@ int bowtie(int argc, const char **argv) {
 			}
 			driver<SString<char> >("DNA", bt2index, outfile);
 		}
-	#ifdef WITH_TBB
-	#ifdef WITH_AFFINITY
+#ifdef WITH_AFFINITY
 		// Always disable observation before observers destruction
     		//tracker.observe( false );
     		pinner.observe( false );
-	#endif
-	#endif
+#endif
 		return 0;
 	} catch(std::exception& e) {
 		cerr << "Error: Encountered exception: '" << e.what() << "'" << endl;

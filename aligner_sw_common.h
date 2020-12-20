@@ -210,7 +210,7 @@ struct SwMetrics {
 	 * by multiple threads.
 	 */
 	void merge(const SwMetrics& r) {
-		ThreadSafe ts(mutex_m);
+		std::lock_guard<MUTEX_T> lg(mutex_m);
 		sws        += r.sws;
 		sws10      += r.sws10;
 		sws5       += r.sws5;

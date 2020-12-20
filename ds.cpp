@@ -25,7 +25,7 @@ MemoryTally gMemTally;
  * Tally a memory allocation of size amt bytes.
  */
 void MemoryTally::add(int cat, uint64_t amt) {
-	ThreadSafe ts(mutex_m);
+	std::lock_guard<MUTEX_T> lg(mutex_m);
 	tots_[cat] += amt;
 	tot_ += amt;
 	if(tots_[cat] > peaks_[cat]) {
@@ -40,13 +40,13 @@ void MemoryTally::add(int cat, uint64_t amt) {
  * Tally a memory free of size amt bytes.
  */
 void MemoryTally::del(int cat, uint64_t amt) {
-	ThreadSafe ts(mutex_m);
+	std::lock_guard<MUTEX_T> lg(mutex_m);
 	assert_geq(tots_[cat], amt);
 	assert_geq(tot_, amt);
 	tots_[cat] -= amt;
 	tot_ -= amt;
 }
-	
+
 #ifdef MAIN_DS
 
 #include <limits>
@@ -122,11 +122,11 @@ int main(void) {
 		EBitList<128> l;
 		assert_eq(0, l.size());
 		assert_eq(std::numeric_limits<size_t>::max(), l.max());
-		
+
 		assert(!l.test(0));
 		assert(!l.test(1));
 		assert(!l.test(10));
-		
+
 		for(int i = 0; i < 3; i++) {
 			l.set(10);
 			assert(!l.test(0));
@@ -135,12 +135,12 @@ int main(void) {
 			assert(l.test(10));
 			assert(!l.test(11));
 		}
-		
+
 		assert_eq(10, l.max());
 		l.clear();
 		assert(!l.test(10));
 		assert_eq(std::numeric_limits<size_t>::max(), l.max());
-		
+
 		RandomSource rnd(12);
 		size_t lim = 2000;
 		for(size_t i = 0; i < lim; i++) {

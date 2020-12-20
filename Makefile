@@ -24,7 +24,7 @@
 PREFIX := /usr/local
 bindir := $(PREFIX)/bin
 
-LDLIBS := -lz
+LDLIBS := -lz -lpthread
 GCC_PREFIX := $(shell dirname `which gcc`)
 GCC_SUFFIX :=
 CC ?= $(GCC_PREFIX)/gcc$(GCC_SUFFIX)
@@ -101,22 +101,6 @@ ifeq (1,$(NO_SPINLOCK))
   CXXFLAGS += -DNO_SPINLOCK
 endif
 
-#default is to use Intel TBB
-ifneq (1,$(NO_TBB))
-  LDLIBS += $(PTHREAD_LIB) -ltbb
-  ifdef STATIC_BUILD
-    LDLIBS += -ltbbmalloc
-    ifndef MINGW
-      LDLIBS += -ldl
-    endif
-  else
-    LDLIBS += -ltbbmalloc_proxy
-  endif
-  CXXFLAGS += -DWITH_TBB -std=c++11
-else
-  LDLIBS += $(PTHREAD_LIB)
-endif
-
 USE_SRA ?=
 ifeq (1, $(USE_SRA))
   ifdef MINGW
@@ -149,7 +133,7 @@ ifneq (1,$(NO_QUEUELOCK))
 endif
 
 SHARED_CPPS :=  ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
-  edit.cpp bt2_idx.cpp bt2_io.cpp bt2_util.cpp \
+  edit.cpp bt2_locks.cpp bt2_idx.cpp bt2_io.cpp bt2_util.cpp \
   reference.cpp ds.cpp multikey_qsort.cpp limit.cpp \
   random_source.cpp
 
