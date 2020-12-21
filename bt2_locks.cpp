@@ -1,7 +1,5 @@
 #include "bt2_locks.h"
 
-#if (__cplusplus >= 201103L)
-
 void mcs_lock::lock() {
 	node.next = nullptr;
 	node.unlocked = false;
@@ -37,4 +35,3 @@ void spin_lock::lock() {
 void spin_lock::unlock() {
 	flag.clear(std::memory_order_release);
 }
-#endif
