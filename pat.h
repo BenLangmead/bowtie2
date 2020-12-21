@@ -39,7 +39,6 @@
 #include "ds.h"
 #include "read.h"
 #include "util.h"
-#include "/usr/local/include/zstd.h"
 #ifdef WITH_ZSTD
 #include "zstd_decompress.h"
 #endif
