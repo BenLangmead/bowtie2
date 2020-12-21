@@ -461,19 +461,26 @@ pair<bool, int> CFilePatternSource::nextBatch(
 void CFilePatternSource::open() {
 	if(is_open_) {
 		is_open_ = false;
-		if (compressed_) {
+		switch (compressionType_) {
+		case CompressionType::GZIP:
 			gzclose(zfp_);
 			zfp_ = NULL;
-		}
-		else {
+			break;
+#ifdef WITH_ZSTD
+		case CompressionType::ZSTD:
+			zstdClose(zstdfp_);
+			zstdfp_ = NULL;
+			break;
+#endif
+		case CompressionType::NONE:
 			fclose(fp_);
-      			fp_ = NULL;
-      		}
+			fp_ = NULL;
+		}
 	}
 	while(filecur_ < infiles_.size()) {
 		if(infiles_[filecur_] == "-") {
 			// always assume that data from stdin is compressed
-			compressed_ = true;
+			compressionType_ = CompressionType::GZIP;
 			int fd = dup(fileno(stdin));
 			zfp_ = gzdopen(fd, "rb");
 
@@ -495,14 +502,29 @@ void CFilePatternSource::open() {
 
 			is_fifo = S_ISFIFO(st.st_mode) != 0;
 #endif
-			if (pp_.format != BAM && (is_fifo || is_gzipped_file(fd))) {
-				zfp_ = gzdopen(fd, "r");
-				compressed_ = true;
-			} else {
-				fp_ = fdopen(fd, "rb");
-			}
+#define CHECK_ERROR(exp) ((exp) == NULL) ? true : false
 
-			if((compressed_ && zfp_ == NULL) || (!compressed_ && fp_ == NULL)) {
+			bool err = false;
+                        if (pp_.format == BAM) {
+				err = CHECK_ERROR(fp_ = fdopen(fd, "rb"));
+				compressionType_ = CompressionType::NONE;
+                        } else if (is_fifo) {
+				err = CHECK_ERROR(zfp_ = gzdopen(fd, "rb"));
+				compressionType_ = CompressionType::GZIP;
+                        } else if (is_gzipped_file(fd)) {
+				err = CHECK_ERROR(zfp_ = gzdopen(fd, "rb"));
+				compressionType_ = CompressionType::GZIP;
+#ifdef WITH_ZSTD
+                        } else if (is_zstd_file(fd)) {
+				err = CHECK_ERROR(zstdfp_ = zstdFdOpen(fd));
+				compressionType_ = CompressionType::ZSTD;
+#endif
+                        } else {
+				err = CHECK_ERROR(fp_ = fdopen(fd, "r"));
+				compressionType_ = CompressionType::NONE;
+                        }
+
+			if(err) {
 				if (fd != -1) {
 					close(fd);
 				}
@@ -514,11 +536,12 @@ void CFilePatternSource::open() {
 					errs_[filecur_] = true;
 				}
 				filecur_++;
+				compressionType_ = CompressionType::NONE;
 				continue;
 			}
 		}
 		is_open_ = true;
-		if (compressed_) {
+		if (compressionType_ == CompressionType::GZIP) {
 #if ZLIB_VERNUM < 0x1235
 			cerr << "Warning: gzbuffer added in zlib v1.2.3.5. Unable to change "
 				"buffer size from default of 8192." << endl;
@@ -526,7 +549,7 @@ void CFilePatternSource::open() {
 			gzbuffer(zfp_, 128*1024);
 #endif
 		}
-		else {
+		else if (compressionType_ == CompressionType::NONE) {
 			setvbuf(fp_, buf_, _IOFBF, 64*1024);
 		}
 		return;

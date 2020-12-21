@@ -39,6 +39,10 @@
 #include "ds.h"
 #include "read.h"
 #include "util.h"
+#include "/usr/local/include/zstd.h"
+#ifdef WITH_ZSTD
+#include "zstd_decompress.h"
+#endif
 
 #ifdef USE_SRA
 #include <ncbi-vdb/NGS.hpp>
@@ -340,6 +344,13 @@ private:
  * critical section.
  */
 class CFilePatternSource : public PatternSource {
+	enum CompressionType {
+		NONE,
+		GZIP,
+#ifdef WITH_ZSTD
+		ZSTD,
+#endif
+	};
 public:
 	CFilePatternSource(
 		const EList<std::string>& infiles,
@@ -349,10 +360,13 @@ public:
 		filecur_(0),
 		fp_(NULL),
 		zfp_(NULL),
+#ifdef WITH_ZSTD
+		zstdfp_(NULL),
+#endif
 		is_open_(false),
 		skip_(p.skip),
 		first_(true),
-		compressed_(false)
+		compressionType_(CompressionType::NONE)
 	{
 		assert_gt(infiles.size(), 0);
 		errs_.resize(infiles_.size());
@@ -366,13 +380,21 @@ public:
 	 */
 	virtual ~CFilePatternSource() {
 		if(is_open_) {
-			if (compressed_) {
-				assert(zfp_ != NULL);
-				gzclose(zfp_);
-			}
-			else {
+			switch (compressionType_) {
+			case CompressionType::NONE:
 				assert(fp_ != NULL);
 				fclose(fp_);
+				break;
+			case CompressionType::GZIP:
+				assert(zfp_ != NULL);
+				gzclose(zfp_);
+				break;
+#ifdef WITH_ZSTD
+			case CompressionType::ZSTD:
+				assert(zstdfp_ != NULL);
+				zstdClose(zstdfp_);
+				break;
+#endif
 			}
 		}
 	}
@@ -424,15 +446,37 @@ protected:
 
 	int getc_wrapper() {
 		int c;
+
 		do {
-			c = compressed_ ? gzgetc(zfp_) : getc_unlocked(fp_);
+			switch (compressionType_) {
+			case CompressionType::GZIP:
+				c = gzgetc(zfp_);
+				break;
+#ifdef WITH_ZSTD
+			case CompressionType::ZSTD:
+				c = zstdGetc(zstdfp_);
+				break;
+#endif
+			case CompressionType::NONE:
+				c = getc_unlocked(fp_);
+				break;
+			}
 		} while (c != EOF && c != '\t' && c != '\r' && c != '\n' && !isprint(c));
 
 		return c;
 	}
 
 	int ungetc_wrapper(int c) {
-		return compressed_ ? gzungetc(c, zfp_) : ungetc(c, fp_);
+		switch (compressionType_) {
+		case CompressionType::GZIP:
+			return gzungetc(c, zfp_);
+#ifdef WITH_ZSTD
+		case CompressionType::ZSTD:
+			return zstdUngetc(c, zstdfp_);
+#endif
+		case CompressionType::NONE:
+			return ungetc(c, fp_);
+		}
 	}
 
 	int zread(voidp buf, unsigned len) {
@@ -469,16 +513,36 @@ protected:
 		return false;
 	}
 
+#ifdef WITH_ZSTD
+	bool is_zstd_file(int fd) {
+		if (fd == -1)
+			return false;
+
+		int magic;
+
+                if (read(fd, &magic, sizeof(int)) != sizeof(int)) {
+			std::cerr << "is_zstd_file: unable to read magic number" << std::endl;
+			return false;
+                }
+		lseek(fd, 0, SEEK_SET);
+
+                return magic == 0xfd2fb528;
+	}
+#endif
+
 	EList<std::string> infiles_;	 // filenames for read files
 	EList<bool> errs_;		 // whether we've already printed an error for each file
 	size_t filecur_;		 // index into infiles_ of next file to read
 	FILE *fp_;			 // read file currently being read from
 	gzFile zfp_;			 // compressed version of fp_
+#ifdef WITH_ZSTD
+	zstdStrm *zstdfp_;	         // zstd compressed file
+#endif
 	bool is_open_;			 // whether fp_ is currently open
 	TReadId skip_;			 // number of reads to skip
 	bool first_;			 // parsing first record in first file?
 	char buf_[64*1024];		 // file buffer
-	bool compressed_;
+	CompressionType compressionType_;
 
 private:
 

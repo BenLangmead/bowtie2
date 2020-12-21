@@ -157,6 +157,11 @@ SEARCH_CPPS :=  qual.cpp pat.cpp sam.cpp \
   aligner_swsse_ee_u8.cpp \
   aligner_driver.cpp
 
+ifeq (1, $(WITH_ZSTD))
+  SEARCH_LDLIBS := -lzstd
+  SEARCH_CPPS += zstd_decompress.cpp
+endif
+
 SEARCH_CPPS_MAIN := $(SEARCH_CPPS) bowtie_main.cpp
 
 DP_CPPS := qual.cpp aligner_sw.cpp aligner_result.cpp ref_coord.cpp mask.cpp \
@@ -364,7 +369,7 @@ bowtie2-align-s-sanitized bowtie2-align-s: bt2_search.cpp $(SEARCH_CPPS) $(SHARE
 		$(CPPFLAGS) \
 		-o $@ $< \
 		$(SHARED_CPPS) $(SEARCH_CPPS_MAIN) \
-		$(LDFLAGS) $(LDLIBS)
+		$(LDFLAGS) $(LDLIBS) $(SEARCH_LDLIBS)
 
 bowtie2-align-l-sanitized bowtie2-align-l: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
 	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(CXXFLAGS) \
@@ -372,7 +377,7 @@ bowtie2-align-l-sanitized bowtie2-align-l: bt2_search.cpp $(SEARCH_CPPS) $(SHARE
 		$(CPPFLAGS) \
 		-o $@ $< \
 		$(SHARED_CPPS) $(SEARCH_CPPS_MAIN) \
-		$(LDFLAGS) $(LDLIBS)
+		$(LDFLAGS) $(LDLIBS) $(SEARCH_LDLIBS)
 
 bowtie2-align-s-debug: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
 	$(CXX) $(DEBUG_FLAGS) \
@@ -381,7 +386,7 @@ bowtie2-align-s-debug: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $
 		$(CPPFLAGS) \
 		-o $@ $< \
 		$(SHARED_CPPS) $(SEARCH_CPPS_MAIN) \
-		$(LDFLAGS) $(LDLIBS)
+		$(LDFLAGS) $(LDLIBS) $(SEARCH_LDLIBS)
 
 bowtie2-align-l-debug: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
 	$(CXX) $(DEBUG_FLAGS) \
@@ -390,7 +395,7 @@ bowtie2-align-l-debug: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $
 		$(CPPFLAGS) \
 		-o $@ $< \
 		$(SHARED_CPPS) $(SEARCH_CPPS_MAIN) \
-		$(LDFLAGS) $(LDLIBS)
+		$(LDFLAGS) $(LDLIBS) $(SEARCH_LDLIBS)
 
 #
 # bowtie2-inspect targets
