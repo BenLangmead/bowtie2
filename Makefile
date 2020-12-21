@@ -24,16 +24,13 @@
 PREFIX := /usr/local
 bindir := $(PREFIX)/bin
 
-LDLIBS := -lz -lpthread
-GCC_PREFIX := $(shell dirname `which gcc`)
-GCC_SUFFIX :=
-CC ?= $(GCC_PREFIX)/gcc$(GCC_SUFFIX)
-CPP ?= $(GCC_PREFIX)/g++$(GCC_SUFFIX)
-CXX ?= $(CPP)
+LDLIBS := -lpthread -lz
 
 HEADERS := $(wildcard *.h)
 BOWTIE_MM := 1
 BOWTIE_SHARED_MEM :=
+
+CXXFLAGS += -std=c++11
 
 NGS_VER ?= 2.9.2
 VDB_VER ?= 2.9.2-1
