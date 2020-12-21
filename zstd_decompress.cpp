@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "/usr/local/include/zstd.h"
+#include <zstd.h>
 
 #include "zstd_decompress.h"
 
@@ -39,6 +39,7 @@ zstdStrm *zstdOpen(const char *fn) {
 		return NULL;
         fp = fopen(fn, "rb");
         if (fp == NULL) {
+		zstdClose(s);
 		return NULL;
         }
         s->fp = fp;
@@ -50,11 +51,14 @@ zstdStrm *zstdFdOpen(int fd) {
 	FILE *fp;
 	zstdStrm *s;
 
+	if (fp == -1)
+		return NULL;
 	s = zstdStrmInit();
 	if (s == NULL)
 		return NULL;
 	fp = fdopen(fd, "rb");
 	if (fp == NULL)
+		zstdClose(s);
 		return NULL;
 	s->fp = fp;
 
