@@ -447,35 +447,28 @@ protected:
 		int c;
 
 		do {
-			switch (compressionType_) {
-			case CompressionType::GZIP:
+			if (compressionType_ == CompressionType::GZIP)
 				c = gzgetc(zfp_);
-				break;
 #ifdef WITH_ZSTD
-			case CompressionType::ZSTD:
+			else if (compressionType_ == CompressionType::ZSTD)
 				c = zstdGetc(zstdfp_);
-				break;
 #endif
-			case CompressionType::NONE:
+			else
 				c = getc_unlocked(fp_);
-				break;
-			}
 		} while (c != EOF && c != '\t' && c != '\r' && c != '\n' && !isprint(c));
 
 		return c;
 	}
 
 	int ungetc_wrapper(int c) {
-		switch (compressionType_) {
-		case CompressionType::GZIP:
+		if (compressionType_ == CompressionType::GZIP)
 			return gzungetc(c, zfp_);
 #ifdef WITH_ZSTD
-		case CompressionType::ZSTD:
+		else if (compressionType_ == CompressionType::ZSTD)
 			return zstdUngetc(c, zstdfp_);
 #endif
-		case CompressionType::NONE:
+		else
 			return ungetc(c, fp_);
-		}
 	}
 
 	int zread(voidp buf, unsigned len) {
