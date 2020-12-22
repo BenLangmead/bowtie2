@@ -51,16 +51,17 @@ zstdStrm *zstdFdOpen(int fd) {
 	FILE *fp;
 	zstdStrm *s;
 
-	if (fp == -1)
+	if (fd == -1)
 		return NULL;
 	s = zstdStrmInit();
 	if (s == NULL)
 		return NULL;
 	fp = fdopen(fd, "rb");
-	if (fp == NULL)
+        if (fp == NULL) {
 		zstdClose(s);
 		return NULL;
-	s->fp = fp;
+        }
+        s->fp = fp;
 
 	return s;
 }
