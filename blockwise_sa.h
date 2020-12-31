@@ -665,7 +665,7 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
 			tparams[tid].begin = (tid == 0 ? 0 : len / this->_nthreads * tid);
 			tparams[tid].end = (tid + 1 == this->_nthreads ? len : len / this->_nthreads * (tid + 1));
 			if(this->_nthreads == 1) {
-				BinarySorting_worker<TStr>((void*)&tparams[tid]);
+				BinarySorting_worker<TStr>((void*)&tparams[tid])();
 			} else {
 				threads[tid] = new std::thread(BinarySorting_worker<TStr>(((void*)&tparams[tid])));
 			}
