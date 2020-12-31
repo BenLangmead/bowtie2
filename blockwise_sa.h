@@ -675,6 +675,8 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
 			for (int tid = 0; tid < this->_nthreads; tid++) {
 				threads[tid]->join();
 			}
+			for (int tid = 0; tid < this->_nthreads; tid++)
+				delete threads[tid];
 		}
 		EList<TIndexOffU>& bucketSzs = tparams[0].bucketSzs;
 		EList<TIndexOffU>& bucketReps = tparams[0].bucketReps;

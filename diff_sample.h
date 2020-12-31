@@ -827,6 +827,8 @@ void DifferenceCoverSample<TStr>::build(int nthreads) {
 					for (int tid = 0; tid < nthreads; tid++) {
 						threads[tid]->join();
 					}
+					for (int tid = 0; tid < nthreads; tid++)
+						delete threads[tid];
 				}
 				if(this->sanityCheck()) {
 					sanityCheckOrderedSufs(t, t.length(), sPrimeArr, sPrimeSz, v);
