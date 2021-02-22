@@ -155,7 +155,15 @@ void SamConfig::printAlignedOptFlags(
 			WRITE_SEP();
 			o.append("XS:i:");
 			o.append(buf);
-		}
+		}  else {
+			int mate = (rd.mate < 2 ? 0 : 1);
+			float seedHitAvgMS = (prm.seedHitAvgMS[2 * mate] + prm.seedHitAvgMS[2 * mate + 1]) + 0.5f;
+                        if (seedHitAvgMS < prm.maxDPFails) {
+				WRITE_SEP();
+				o.append("XT:U");
+                        }
+                }
+
 	}
 	if(print_xn_) {
 		// XN:i: Number of ambiguous bases in the referenece
@@ -164,6 +172,7 @@ void SamConfig::printAlignedOptFlags(
 		o.append("XN:i:");
 		o.append(buf);
 	}
+
 	if(print_x0_) {
 		// X0:i: Number of best hits
 	}

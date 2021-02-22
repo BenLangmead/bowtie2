@@ -3350,6 +3350,7 @@ static void multiseedSearchWorker(void *vp) {
 						streak[1] = (size_t)ceil((double)streak[1] / 2.0);
 						assert_gt(streak[1], 0);
 					}
+					prm.maxDPFails = streak[0];
 					assert_gt(streak[0], 0);
 					// Calculate # seed rounds for each mate
 					size_t nrounds[2] = { nSeedRounds, nSeedRounds };
@@ -4395,6 +4396,7 @@ static void multiseedSearchWorker_2p5(void *vp) {
 				assert_gt(streak[1], 0);
 			}
 			assert_gt(streak[0], 0);
+			prm.maxDPFails = streak[0];
 			// Increment counters according to what got filtered
 			for(size_t mate = 0; mate < (paired ? 2:1); mate++) {
 				if(!filt[mate]) {
