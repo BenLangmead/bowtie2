@@ -102,8 +102,8 @@ static inline int64_t endianSwapI64(int64_t u) {
  * that u currently has the endianness of the current machine.
  */
 template <typename T>
-static inline T endianizeU(T u, bool toBig) {
-	if(toBig == currentlyBigEndian()) {
+static inline T endianizeU(T u, bool switchEndian) {
+	if(!switchEndian) {
 		return u;
 	}
 	if(sizeof(T) == 4) {
@@ -121,8 +121,8 @@ static inline T endianizeU(T u, bool toBig) {
  * that u currently has the endianness of the current machine.
  */
 template <typename T>
-static inline T endianizeI(T i, bool toBig) {
-	if(toBig == currentlyBigEndian()) {
+static inline T endianizeI(T i, bool switchEndian) {
+	if(!switchEndian) {
 		return i;
 	}
 	if(sizeof(T) == 4) {
