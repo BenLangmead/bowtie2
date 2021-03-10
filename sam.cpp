@@ -160,7 +160,7 @@ void SamConfig::printAlignedOptFlags(
 			float seedHitAvgMS = (prm.seedHitAvgMS[2 * mate] + prm.seedHitAvgMS[2 * mate + 1]) + 0.5f;
                         if (seedHitAvgMS < prm.maxDPFails) {
 				WRITE_SEP();
-				o.append("XT:U");
+				o.append("XT:Z:U");
                         }
                 }
 
