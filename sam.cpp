@@ -158,10 +158,10 @@ void SamConfig::printAlignedOptFlags(
 		}  else {
 			int mate = (rd.mate < 2 ? 0 : 1);
 			float seedHitAvgMS = (prm.seedHitAvgMS[2 * mate] + prm.seedHitAvgMS[2 * mate + 1]) + 0.5f;
-                        if (seedHitAvgMS < prm.maxDPFails) {
-				WRITE_SEP();
-				o.append("XT:Z:U");
-                        }
+                        // if (seedHitAvgMS < prm.maxDPFails) {
+			// 	WRITE_SEP();
+			// 	o.append("XT:Z:U");
+                        // }
                 }
 
 	}
