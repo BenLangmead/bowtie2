@@ -1,3 +1,4 @@
 [submodule "third_party/simde"]
 	path = third_party/simde
 	url = https://github.com/nemequ/simde.git
+	branch = master
