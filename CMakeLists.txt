@@ -1,9 +1,9 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.1.0 FATAL_ERROR)
 
 cmake_policy(SET CMP0048 NEW)
 cmake_policy(SET CMP0005 NEW)
 
-file(STRINGS ${CMAKE_SOURCE_DIR}/VERSION PROJECT_VERSION)
+file(STRINGS ${CMAKE_SOURCE_DIR}/BOWTIE2_VERSION PROJECT_VERSION)
 project(bowtie2 LANGUAGES CXX VERSION ${PROJECT_VERSION})
 
 enable_testing()
@@ -17,6 +17,11 @@ ProcessorCount(NUM_CORES)
 
 option(BOWTIE_MM "enable bowtie2 memory mapping" ON)
 option(BOWITE_SHARED_MM "enable shared memory mapping" ON)
+
+list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_11 FOUND_CXX_11)
+if (FOUND_CXX_11)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+endif()
 
 set(NO_TBB ${NO_TBB})
 set(NO_SPINLOCK ${NO_SPINLOCK})

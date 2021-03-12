@@ -32,7 +32,7 @@
 #include "btypes.h"
 
 /**
- * Tally how much memory is allocated to certain 
+ * Tally how much memory is allocated to certain
  */
 class MemoryTally {
 
@@ -52,7 +52,7 @@ public:
 	 * Tally a memory free of size amt bytes.
 	 */
 	void del(int cat, uint64_t amt);
-	
+
 	/**
 	 * Return the total amount of memory allocated.
 	 */
@@ -122,7 +122,7 @@ public:
 		memset(t_, 0, sz * sizeof(T));
 		sz_ = sz;
 	}
-	
+
 	~AutoArray() {
 		if(t_ != NULL) {
 			delete[] t_;
@@ -131,15 +131,15 @@ public:
 #endif
 		}
 	}
-	
+
 	T& operator[](size_t sz) {
 		return t_[sz];
 	}
-	
+
 	const T& operator[](size_t sz) const {
 		return t_[sz];
 	}
-	
+
 	size_t size() const { return sz_; }
 
 private:
@@ -180,7 +180,7 @@ public:
 	}
 
 	~PtrWrap() { free(); }
-	
+
 	void init(T* p, bool freeable = true) {
 		assert(p_ == NULL);
 		p_ = p;
@@ -193,7 +193,7 @@ public:
 		(void)cat_;
 #endif
 	}
-	
+
 	void free() {
 		if(p_ != NULL) {
 			if(freeable_) {
@@ -205,7 +205,7 @@ public:
 			p_ = NULL;
 		}
 	}
-	
+
 	inline T* get() { return p_; }
 	inline const T* get() const { return p_; }
 
@@ -241,14 +241,14 @@ public:
 	{
 		reset();
 	}
-	
+
 	void reset() {
 		free();
 		init(NULL, 0);
 	}
 
 	~APtrWrap() { free(); }
-	
+
 	void init(T* p, size_t sz, bool freeable = true) {
 		assert(p_ == NULL);
 		p_ = p;
@@ -262,7 +262,7 @@ public:
 		(void)cat_;
 #endif
 	}
-	
+
 	void free() {
 		if(p_ != NULL) {
 			if(freeable_) {
@@ -274,7 +274,7 @@ public:
 			p_ = NULL;
 		}
 	}
-	
+
 	inline T* get() { return p_; }
 	inline const T* get() const { return p_; }
 
@@ -410,7 +410,7 @@ public:
 		}
 		return *this;
 	}
-	
+
 	/**
 	 * Transfer the guts of another EList into this one without using
 	 * operator=, etc.  We have to set EList o's list_ field to NULL to
@@ -439,7 +439,7 @@ public:
 	 * Return number of elements allocated.
 	 */
 	inline size_t capacity() const { return sz_; }
-	
+
 	/**
 	 * Return the total size in bytes occupied by this list.
 	 */
@@ -457,7 +457,7 @@ public:
 		        2 * sizeof(size_t) +
 				sz_ * sizeof(T);
 	}
-	
+
 	/**
 	 * Ensure that there is sufficient capacity to expand to include
 	 * 'thresh' more elements without having to expand.
@@ -481,7 +481,7 @@ public:
 	 * Return true iff there are no elements.
 	 */
 	inline bool empty() const { return cur_ == 0; }
-	
+
 	/**
 	 * Return true iff list hasn't been initialized yet.
 	 */
@@ -765,14 +765,14 @@ public:
 	inline T& get(size_t i) {
 		return operator[](i);
 	}
-	
+
 	/**
 	 * Return a reference to the ith element.
 	 */
 	inline const T& get(size_t i) const {
 		return operator[](i);
 	}
-	
+
 	/**
 	 * Return a reference to the ith element.  This version is not
 	 * inlined, which guarantees we can use it from the debugger.
@@ -780,7 +780,7 @@ public:
 	T& getSlow(size_t i) {
 		return operator[](i);
 	}
-	
+
 	/**
 	 * Return a reference to the ith element.  This version is not
 	 * inlined, which guarantees we can use it from the debugger.
@@ -788,7 +788,7 @@ public:
 	const T& getSlow(size_t i) const {
 		return operator[](i);
 	}
-	
+
 	/**
 	 * Sort some of the contents.
 	 */
@@ -797,7 +797,7 @@ public:
 		if(num < 2) return;
 		std::stable_sort(list_ + begin, list_ + begin + num);
 	}
-	
+
 	/**
 	 * Shuffle a portion of the list.
 	 */
@@ -813,7 +813,7 @@ public:
 			left--;
 		}
 	}
-	
+
 	/**
 	 * Sort contents
 	 */
@@ -845,7 +845,7 @@ public:
 		}
 		cur_--;
 	}
-	
+
 	/**
 	 * Return a pointer to the beginning of the buffer.
 	 */
@@ -1109,7 +1109,7 @@ public:
 		}
 		return *this;
 	}
-	
+
 	/**
 	 * Transfer the guts of another EList into this one without using
 	 * operator=, etc.  We have to set EList o's list_ field to NULL to
@@ -1223,14 +1223,14 @@ public:
 	inline EList<T, S1>& get(size_t i) {
 		return operator[](i);
 	}
-	
+
 	/**
 	 * Return a reference to the ith element.
 	 */
 	inline const EList<T, S1>& get(size_t i) const {
 		return operator[](i);
 	}
-	
+
 	/**
 	 * Return a reference to the ith element.  This version is not
 	 * inlined, which guarantees we can use it from the debugger.
@@ -1238,7 +1238,7 @@ public:
 	EList<T, S1>& getSlow(size_t i) {
 		return operator[](i);
 	}
-	
+
 	/**
 	 * Return a reference to the ith element.  This version is not
 	 * inlined, which guarantees we can use it from the debugger.
@@ -1246,12 +1246,12 @@ public:
 	const EList<T, S1>& getSlow(size_t i) const {
 		return operator[](i);
 	}
-	
+
 	/**
 	 * Return a pointer to the beginning of the buffer.
 	 */
 	EList<T, S1> *ptr() { return list_; }
-	
+
 	/**
 	 * Set the memory category for this object and all children.
 	 */
@@ -1451,7 +1451,7 @@ public:
 		}
 		return *this;
 	}
-	
+
 	/**
 	 * Transfer the guts of another EList into this one without using
 	 * operator=, etc.  We have to set EList o's list_ field to NULL to
@@ -1563,14 +1563,14 @@ public:
 	inline ELList<T, S1, S2>& get(size_t i) {
 		return operator[](i);
 	}
-	
+
 	/**
 	 * Return a reference to the ith element.
 	 */
 	inline const ELList<T, S1, S2>& get(size_t i) const {
 		return operator[](i);
 	}
-	
+
 	/**
 	 * Return a reference to the ith element.  This version is not
 	 * inlined, which guarantees we can use it from the debugger.
@@ -1578,7 +1578,7 @@ public:
 	ELList<T, S1, S2>& getSlow(size_t i) {
 		return operator[](i);
 	}
-	
+
 	/**
 	 * Return a reference to the ith element.  This version is not
 	 * inlined, which guarantees we can use it from the debugger.
@@ -1586,7 +1586,7 @@ public:
 	const ELList<T, S1, S2>& getSlow(size_t i) const {
 		return operator[](i);
 	}
-	
+
 	/**
 	 * Return a pointer to the beginning of the buffer.
 	 */
@@ -1605,7 +1605,7 @@ public:
 			}
 		}
 	}
-	
+
 	/**
 	 * Return memory category.
 	 */
@@ -1792,7 +1792,7 @@ public:
 	size_t totalCapacityBytes() const {
 		return sizeof(int) + sz_ * sizeof(T) + 2 * sizeof(size_t);
 	}
-	
+
 	/**
 	 * Return true iff there are no elements.
 	 */
@@ -1879,7 +1879,7 @@ public:
 	 * Return memory category.
 	 */
 	int cat() const { return cat_; }
-	
+
 	/**
 	 * Set the memory category for this object.
 	 */
@@ -2138,7 +2138,7 @@ public:
 		}
 		return *this;
 	}
-	
+
 	/**
 	 * Transfer the guts of another ESet into this one without using
 	 * operator=, etc.  We have to set ESet o's list_ field to NULL to
@@ -2252,14 +2252,14 @@ public:
 	inline ESet<T>& get(size_t i) {
 		return operator[](i);
 	}
-	
+
 	/**
 	 * Return a reference to the ith element.
 	 */
 	inline const ESet<T>& get(size_t i) const {
 		return operator[](i);
 	}
-	
+
 	/**
 	 * Return a reference to the ith element.  This version is not
 	 * inlined, which guarantees we can use it from the debugger.
@@ -2267,7 +2267,7 @@ public:
 	ESet<T>& getSlow(size_t i) {
 		return operator[](i);
 	}
-	
+
 	/**
 	 * Return a reference to the ith element.  This version is not
 	 * inlined, which guarantees we can use it from the debugger.
@@ -2275,7 +2275,7 @@ public:
 	const ESet<T>& getSlow(size_t i) const {
 		return operator[](i);
 	}
-	
+
 	/**
 	 * Return a pointer to the beginning of the buffer.
 	 */
@@ -2453,7 +2453,8 @@ public:
 		cur_ = o.cur_;
 		free();
 		list_ = alloc(sz_);
-		memcpy(list_, o.list_, cur_ * sizeof(std::pair<K, V>));
+		for (size_t i = 0; i < cur_; i++)
+			list_[i] = o.list_[i];
 		return *this;
 	}
 
@@ -2461,7 +2462,7 @@ public:
 	 * Return number of elements.
 	 */
 	size_t size() const { return cur_; }
-	
+
 	/**
 	 * Return the total size in bytes occupied by this map.
 	 */
@@ -2566,7 +2567,7 @@ public:
 		if(sz <= cur_) return;
 		if(sz_ < sz) expandCopy(sz);
 	}
-	
+
 	/**
 	 * Get the ith key, value pair in the map.
 	 */
@@ -2574,7 +2575,7 @@ public:
 		assert_lt(i, cur_);
 		return list_[i];
 	}
-	
+
 	/**
 	 * Get the ith key, value pair in the map.
 	 */
@@ -2744,16 +2745,16 @@ class EFactory {
 public:
 
 	explicit EFactory(size_t isz, int cat = 0) : l_(isz, cat) { }
-	
+
 	explicit EFactory(int cat = 0) : l_(cat) { }
-	
+
 	/**
 	 * Clear the list.
 	 */
 	void clear() {
 		l_.clear();
 	}
-	
+
 	/**
 	 * Add one additional item to the list and return its ID.
 	 */
@@ -2761,7 +2762,7 @@ public:
 		l_.expand();
 		return l_.size()-1;
 	}
-	
+
 	/**
 	 * Return the number of items in the list.
 	 */
@@ -2782,7 +2783,7 @@ public:
 	size_t totalCapacityBytes() const {
 		return 	l_.totalCapacityBytes();
 	}
-    
+
     /**
      * Resize the list.
      */
@@ -2796,7 +2797,7 @@ public:
 	bool empty() const {
 		return size() == 0;
 	}
-	
+
 	/**
 	 * Shrink the list such that the  topmost (most recently allocated) element
 	 * is removed.
@@ -2804,7 +2805,7 @@ public:
 	void pop() {
 		l_.resize(l_.size()-1);
 	}
-	
+
 	/**
 	 * Return mutable list item at offset 'off'
 	 */
@@ -2833,7 +2834,7 @@ class EBitList {
 public:
 
 	explicit EBitList(size_t isz, int cat = 0) : l_(isz, cat) { reset(); }
-	
+
 	explicit EBitList(int cat = 0) : l_(cat) { reset(); }
 
 	/**
@@ -2842,7 +2843,7 @@ public:
 	void clear() {
 		reset();
 	}
-	
+
 	/**
 	 * Reset to empty state.
 	 */
@@ -2871,14 +2872,14 @@ public:
 		}
 		return (l_[off >> 3] & (1 << (off & 7))) != 0;
 	}
-	
+
 	/**
 	 * Return size of the underlying byte array.
 	 */
 	size_t size() const {
 		return l_.size();
 	}
-	
+
 	/**
 	 * Resize to accomodate at least the given number of bits.
 	 */
@@ -2891,7 +2892,7 @@ public:
 			}
 		}
 	}
-	
+
 	/**
 	 * Return max set bit.
 	 */
@@ -2929,7 +2930,7 @@ public:
 		}
 		assert(repOk());
 	}
-	
+
 	/**
 	 * Return the topmost element.
 	 */
@@ -2937,7 +2938,7 @@ public:
 		assert_gt(l_.size(), 0);
 		return l_[0];
 	}
-	
+
 	/**
 	 * Remove the topmost element.
 	 */
@@ -2980,7 +2981,7 @@ public:
 		assert(repOk());
 		return ret;
 	}
-	
+
 	/**
 	 * Return number of elements in the heap.
 	 */
@@ -3001,21 +3002,21 @@ public:
 	size_t totalCapacityBytes() const {
 		return 	l_.totalCapacityBytes();
 	}
-	
+
 	/**
 	 * Return true when heap is empty.
 	 */
 	bool empty() const {
 		return l_.empty();
 	}
-	
+
 	/**
 	 * Return element at offset i.
 	 */
 	const T& operator[](size_t i) const {
 		return l_[i];
 	}
-	
+
 #ifndef NDEBUG
 	/**
 	 * Check that heap property holds.
@@ -3045,7 +3046,7 @@ public:
 		return true;
 	}
 #endif
-	
+
 	/**
 	 * Clear the heap so that it's empty.
 	 */
@@ -3077,7 +3078,7 @@ public:
 		size_t super_page_num = ((bytes+pagesz-1)/pagesz + 1);
 		super_pages = new uint8_t[pagesz*super_page_num];
 		for(size_t i = 0; i < super_page_num ; i++) {
-			pages_.push_back(&super_pages[i*pagesz]);	
+			pages_.push_back(&super_pages[i*pagesz]);
 #ifdef USE_MEM_TALLY
 			gMemTally.add(cat, pagesz);
 #else
@@ -3088,7 +3089,7 @@ public:
 		}
 		assert(repOk());
 	}
-	
+
 	/**
 	 * Free each page.
 	 */
@@ -3267,7 +3268,7 @@ public:
 	size_t size() const {
 		return curPage_ * PLIST_PER_PAGE + cur_;
 	}
-	
+
 	/**
 	 * Return true iff the PList has no elements.
 	 */
@@ -3296,7 +3297,7 @@ public:
 		assert(page < pages_.size()-1 || elt < cur_);
 		return pages_[page][elt];
 	}
-	
+
 	/**
 	 * Get the most recently added element.
 	 */
@@ -3307,7 +3308,7 @@ public:
 		assert(page < pages_.size()-1 || elt < cur_);
 		return pages_[page][elt];
 	}
-	
+
 	/**
 	 * Get const version of the most recently added element.
 	 */
@@ -3402,7 +3403,7 @@ public:
 		len_(len),
 		list_(&list)
 	{ }
-	
+
 	/**
 	 * Initialize from a piece of another PListSlice.
 	 */
@@ -3413,7 +3414,7 @@ public:
 		len_ = last - first;
 		list_ = sl.list_;
 	}
-	
+
 	/**
 	 * Reset state to be empty.
 	 */
@@ -3421,7 +3422,7 @@ public:
 		i_ = len_ = 0;
 		list_ = NULL;
 	}
-	
+
 	/**
 	 * Get the ith element of the slice.
 	 */
@@ -3464,14 +3465,14 @@ public:
 	bool valid() const {
 		return len_ != 0;
 	}
-	
+
 	/**
 	 * Return number of elements in the slice.
 	 */
 	size_t size() const {
 		return len_;
 	}
-	
+
 #ifndef NDEBUG
 	/**
 	 * Ensure that the PListSlice is internally consistent and
@@ -3482,7 +3483,7 @@ public:
 		return true;
 	}
 #endif
-	
+
 	/**
 	 * Return true iff this slice refers to the same slice of the same
 	 * list as the given slice.
@@ -3498,7 +3499,7 @@ public:
 	bool operator!=(const EListSlice& sl) const {
 		return !(*this == sl);
 	}
-	
+
 	/**
 	 * Set the length.  This could leave things inconsistent (e.g. could
 	 * include elements that fall off the end of list_).
@@ -3506,7 +3507,7 @@ public:
 	void setLength(size_t nlen) {
 		len_ = nlen;
 	}
-	
+
 protected:
 	size_t i_;
 	size_t len_;
@@ -3534,7 +3535,7 @@ public:
 		len_(len),
 		list_(&list)
 	{ }
-	
+
 	/**
 	 * Initialize from a piece of another PListSlice.
 	 */
@@ -3545,7 +3546,7 @@ public:
 		len_ = (TIndexOffU)(last - first);
 		list_ = sl.list_;
 	}
-	
+
 	/**
 	 * Reset state to be empty.
 	 */
@@ -3553,7 +3554,7 @@ public:
 		i_ = len_ = 0;
 		list_ = NULL;
 	}
-	
+
 	/**
 	 * Get the ith element of the slice.
 	 */
@@ -3596,14 +3597,14 @@ public:
 	bool valid() const {
 		return len_ != 0;
 	}
-	
+
 	/**
 	 * Return number of elements in the slice.
 	 */
 	size_t size() const {
 		return len_;
 	}
-	
+
 #ifndef NDEBUG
 	/**
 	 * Ensure that the PListSlice is internally consistent and
@@ -3614,7 +3615,7 @@ public:
 		return true;
 	}
 #endif
-	
+
 	/**
 	 * Return true iff this slice refers to the same slice of the same
 	 * list as the given slice.
@@ -3630,7 +3631,7 @@ public:
 	bool operator!=(const PListSlice& sl) const {
 		return !(*this == sl);
 	}
-	
+
 	/**
 	 * Set the length.  This could leave things inconsistent (e.g. could
 	 * include elements that fall off the end of list_).
@@ -3638,7 +3639,7 @@ public:
 	void setLength(size_t nlen) {
 		len_ = (TIndexOffU)nlen;
 	}
-	
+
 protected:
 	TIndexOffU i_;
 	TIndexOffU len_;
@@ -3678,7 +3679,7 @@ public:
 		if(parent->parent == NULL) return NULL; // parent has no siblings
 		return (parent->parent->left == parent) ? parent->parent->right : parent->parent->left;
 	}
-	
+
 	/**
 	 * Return true iff this node is its parent's left child.
 	 */
@@ -3707,11 +3708,11 @@ public:
 	int numChildren() const {
 		return ((left != NULL) ? 1 : 0) + ((right != NULL) ? 1 : 0);
 	}
-	
+
 #ifndef NDEBUG
 	/**
 	 * Check that node is internally consistent.
-	 */ 
+	 */
 	bool repOk() const {
 		if(parent != NULL) {
 			assert(parent->left == this || parent->right == this);
@@ -3856,7 +3857,7 @@ public:
 		return true;
 	}
 #endif
-	
+
 	/**
 	 * Clear all state.
 	 */
@@ -3867,14 +3868,14 @@ public:
 		intenseRepOkCnt_ = 0;
 		pages_.clear();
 	}
-	
+
 	/**
 	 * Return number of keys added.
 	 */
 	size_t size() const {
 		return keys_;
 	}
-	
+
 	/**
 	 * Return true iff there are no keys in the map.
 	 */
@@ -3974,7 +3975,7 @@ protected:
 				nodes + 1,                       // # nodes so far on path
 				black + (n->left->red ? 0 : 1),  // # black so far on path
 				blackConst,                      // invariant # black nodes on root->leaf path
-				minNodes,                        // min root->leaf len so far         
+				minNodes,                        // min root->leaf len so far
 				maxNodes,                        // max root->leaf len so far
 				nodesTot);                       // tot nodes so far
 		}
@@ -3990,7 +3991,7 @@ protected:
 				nodes + 1,                       // # nodes so far on path
 				black + (n->right->red ? 0 : 1), // # black so far on path
 				blackConst,                      // invariant # black nodes on root->leaf path
-				minNodes,                        // min root->leaf len so far         
+				minNodes,                        // min root->leaf len so far
 				maxNodes,                        // max root->leaf len so far
 				nodesTot);                       // tot nodes so far
 		}
@@ -4157,9 +4158,9 @@ protected:
  */
 template <typename T>
 struct DoublyLinkedList {
-	
+
 	DoublyLinkedList() : payload(), prev(NULL), next(NULL) { }
-	
+
 	/**
 	 * Add all elements in the doubly-linked list to the provided EList.
 	 */
@@ -4177,7 +4178,7 @@ struct DoublyLinkedList {
 			cur = cur->prev;
 		}
 	}
-	
+
 	T                    payload;
 	DoublyLinkedList<T> *prev;
 	DoublyLinkedList<T> *next;
@@ -4189,7 +4190,7 @@ struct Pair {
 	T2 b;
 
 	Pair() : a(), b() { }
-	
+
 	Pair(
 		const T1& a_,
 		const T2& b_) { a = a_; b = b_; }
@@ -4197,7 +4198,7 @@ struct Pair {
 	bool operator==(const Pair& o) const {
 		return a == o.a && b == o.b;
 	}
-	
+
 	bool operator<(const Pair& o) const {
 		if(a < o.a) return true;
 		if(a > o.a) return false;
@@ -4222,7 +4223,7 @@ struct Triple {
 	bool operator==(const Triple& o) const {
 		return a == o.a && b == o.b && c == o.c;
 	}
-	
+
 	bool operator<(const Triple& o) const {
 		if(a < o.a) return true;
 		if(a > o.a) return false;
@@ -4252,7 +4253,7 @@ struct Quad {
 	{
 		init(a_, b_, c_, d_);
 	}
-	
+
 	void init(
 		const T1& a_,
 		const T1& b_,
@@ -4265,7 +4266,7 @@ struct Quad {
 	bool operator==(const Quad& o) const {
 		return a == o.a && b == o.b && c == o.c && d == o.d;
 	}
-	
+
 	bool operator<(const Quad& o) const {
 		if(a < o.a) return true;
 		if(a > o.a) return false;

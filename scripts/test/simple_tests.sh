@@ -24,7 +24,8 @@
 export ASAN_OPTIONS=halt_on_error=1
 export UBSAN_OPTIONS=halt_on_error=1
 
-make $* bowtie2-align-s \
+MAKE=`which gmake || which make`
+$MAKE $* bowtie2-align-s \
 		bowtie2-align-l \
 		bowtie2-align-s-debug \
 		bowtie2-align-l-debug \

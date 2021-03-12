@@ -173,7 +173,7 @@ BUILD_CPPS := diff_sample.cpp
 BUILD_CPPS_MAIN := $(BUILD_CPPS) bowtie_build_main.cpp
 
 SEARCH_FRAGMENTS := $(wildcard search_*_phase*.c)
-VERSION := $(shell cat VERSION)
+VERSION := $(shell cat BOWTIE2_VERSION)
 
 SANITIZER_FLAGS :=
 ifeq (0,$(shell $(CXX) -E -fsanitize=address,undefined btypes.h > /dev/null 2>&1; echo $$?))
@@ -254,7 +254,7 @@ GENERAL_LIST := $(wildcard scripts/*.sh) \
   MANUAL.markdown \
   README.md \
   TUTORIAL \
-  VERSION
+  BOWTIE2_VERSION
 
 ifeq (1,$(WINDOWS))
   BOWTIE2_BIN_LIST := $(BOWTIE2_BIN_LIST) bowtie2.bat bowtie2-build.bat bowtie2-inspect.bat
@@ -293,8 +293,8 @@ both-debug: bowtie2-align-s-debug bowtie2-build-s-debug bowtie2-align-l-debug bo
 both-sanitized: bowtie2-align-s-sanitized bowtie2-build-s-sanitized bowtie2-align-l-sanitized bowtie2-build-l-sanitized ;
 
 DEFS := -fno-strict-aliasing \
-  -DBOWTIE2_VERSION="\"`cat VERSION`\"" \
-  -DBUILD_HOST="\"${HOSTNAME:-`hostname`}\"" \
+  -DBOWTIE2_VERSION="\"`cat BOWTIE2_VERSION`\"" \
+  -DBUILD_HOST="\"$${HOSTNAME:-`hostname`}\"" \
   -DBUILD_TIME="\"`date -u`\"" \
   -DCOMPILER_VERSION="\"`$(CXX) -v 2>&1 | tail -1`\"" \
   $(FILE_FLAGS) \
@@ -470,7 +470,7 @@ bowtie2-src-pkg: $(SRC_PKG_LIST)
 	rm -rf .src.tmp
 
 .PHONY: bowtie2-bin-pkg
-bowtie2-bin-pkg: PKG_DIR := bowtie2-$(VERSION)-$(if $(USE_SRA),sra-)$(if $(MACOS),macos,$(if $(MINGW),mingw,linux))-x86_64
+bowtie2-bin-pkg: PKG_DIR := bowtie2-$(VERSION)-$(if $(USE_SRA),sra-)$(if $(MACOS),macos,$(if $(MINGW),mingw,linux))-$(ARCH)
 bowtie2-bin-pkg: $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_DBG)
 	chmod a+x scripts/*.sh scripts/*.pl
 	rm -rf .bin.tmp
@@ -504,7 +504,8 @@ doc/manual.html: MANUAL.markdown
 	pandoc -B .tmp.head \
 	       --metadata title:"Bowtie 2 Manual"\
 	       --css doc/style.css -o $@ \
-	       --from markdown --to HTML \
+	       --from markdown \
+	       --to HTML \
 	       --table-of-contents $^
 	rm -f .tmp.head
 
@@ -557,10 +558,10 @@ static-libs:
 	fi ; \
 	if [ ! -d "$(CURDIR)/.tmp/include/tbb" ] ; then \
 		cd $(CURDIR)/.tmp ; \
-		$$DL https://github.com/01org/tbb/archive/2019_U4.tar.gz && tar xzf 2019_U4.tar.gz && cd tbb-2019_U4; \
+		$$DL https://github.com/01org/tbb/archive/2020_U3.tar.gz && tar xzf 2020_U3.tar.gz && cd oneTBB-2020_U3; \
 		$(if $(MINGW), mingw32-make compiler=gcc arch=ia64 runtime=mingw, make) extra_inc=big_iron.inc -j4 \
 		&& cp -r include/tbb $(CURDIR)/.tmp/include && cp build/*_release/*.a $(CURDIR)/.tmp/lib ; \
-		rm -f 2019_U4.tar.gz ; \
+		rm -f 2020_U3.tar.gz ; \
 	fi
 
 .PHONY: sra-deps

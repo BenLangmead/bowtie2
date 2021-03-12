@@ -1,6 +1,6 @@
 
 <!-- badges: start -->
-[![Generic badge](https://img.shields.io/badge/version-2.4.1-green.svg)](https://shields.io/)
+[![Generic badge](https://img.shields.io/badge/version-2.4.2-green.svg)](https://shields.io/)
 [![Build Status](https://travis-ci.org/BenLangmead/bowtie2.svg?branch=master)](https://travis-ci.org/BenLangmead/bowtie2)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 <!--badges: end -->

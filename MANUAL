@@ -13,7 +13,7 @@ simultaneously to achieve greater alignment speed.
 Bowtie 2 outputs alignments in SAM format, enabling interoperation with
 a large number of other tools (e.g. SAMtools, GATK) that use SAM. Bowtie
 2 is distributed under the GPLv3 license, and it runs on the command
-line under Windows, Mac OS X and Linux.
+line under Windows, Mac OS X and Linux and BSD.
 
 Bowtie 2 is often the first step in pipelines for comparative genomics,
 including for variation calling, ChIP-seq, RNA-seq, BS-seq. Bowtie 2 and
@@ -104,9 +104,11 @@ Biocontainers project (e.g. via Docker Hub).
 
 You can also download Bowtie 2 sources and binaries from the Download
 section of the Sourceforge site. Binaries are available for the x86_64
-architecture running Linux, Mac OS X, and Windows. If you plan to
-compile Bowtie 2 yourself, make sure to get the source package, i.e.,
-the filename that ends in "-source.zip".
+architecture running Linux, Mac OS X, and Windows. FreeBSD users can
+obtain the latest version of Bowtie 2 from ports using
+pkg install bowtie2. If you plan to compile Bowtie 2 yourself, make sure
+to get the source package, i.e., the filename that ends in
+"-source.zip".
 
 Building from source
 
@@ -147,7 +149,7 @@ some of the commands for a few of the more popular operating systems.
   Arch             packman -Sy    pacman -Ss tbb   pacman -S
                                                    extra/intel-tbb
 
-  Gentoo           emerge -sync   emerge -search   emerge dev-cpp/tbb
+  Gentoo           emerge --sync  emerge --search  emerge dev-cpp/tbb
                                   tbb              
 
   macOS            brew update    brew search tbb  brew install tbb
@@ -216,7 +218,7 @@ By default, Bowtie 2 performs end-to-end read alignment. That is, it
 searches for alignments involving all of the read characters. This is
 also called an "untrimmed" or "unclipped" alignment.
 
-When the -local option is specified, Bowtie 2 performs local read
+When the --local option is specified, Bowtie 2 performs local read
 alignment. In this mode, Bowtie 2 might "trim" or "clip" some read
 characters from one or both ends of the alignment if doing so maximizes
 the alignment score.
@@ -977,9 +979,9 @@ versions (prior to 1.3). Default: off.
     --int-quals
 
 Quality values are represented in the read input file as space-separated
-ASCII integers, e.g., 40 40 30 40..., rather than ASCII characters, e.g.,
-II?I.... Integers are treated as being on the Phred quality scale unless
---solexa-quals is also specified. Default: off.
+ASCII integers, e.g., 40 40 30 40..., rather than ASCII characters,
+e.g., II?I.... Integers are treated as being on the Phred quality scale
+unless --solexa-quals is also specified. Default: off.
 
 Preset options in --end-to-end mode
 
@@ -1129,9 +1131,9 @@ one end to the other. Rather, some characters may be omitted ("soft
 clipped") from the ends in order to achieve the greatest possible
 alignment score. The match bonus --ma is used in this mode, and the best
 possible alignment score is equal to the match bonus (--ma) times the
-length of the read. Specifying --local and one of the presets
-(e.g. --local --very-fast) is equivalent to specifying the local version
-of the preset (--very-fast-local). This is mutually exclusive with
+length of the read. Specifying --local and one of the presets (e.g.
+--local --very-fast) is equivalent to specifying the local version of
+the preset (--very-fast-local). This is mutually exclusive with
 --end-to-end. --end-to-end is the default mode.
 
 Scoring options
@@ -1474,6 +1476,11 @@ the expense of generating non-standard SAM
     --xeq
 
 Use '='/'X', instead of 'M', to specify matches/mismatches in SAM record
+
+    --sam-append-comment
+
+Append FASTA/FASTQ comment to SAM record, where a comment is everything
+after the first space in the read name.
 
 Performance options
 

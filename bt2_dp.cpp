@@ -33,7 +33,7 @@ int gQuiet;                 // print nothing but the alignments
 static int sanityCheck;     // enable expensive sanity checks
 static int seed;            // srandom() seed
 static bool showVersion;    // just print version and quit?
-static uint32_t qUpto;      // max # of queries to read
+static uint64_t qUpto;      // max # of queries to read
 static int nthreads;        // number of pthreads operating concurrently
 static uint32_t skipReads;  // # reads/read pairs to skip
 int gGapBarrier;            // # diags on top/bot only to be entered diagonally
@@ -67,7 +67,7 @@ static void resetOptions() {
 	sanityCheck				= 0;  // enable expensive sanity checks
 	seed					= 0; // srandom() seed
 	showVersion				= false; // just print version and quit?
-	qUpto					= 0xffffffff; // max # of queries to read
+	qUpto					= 0xffffffffffffffff; // max # of queries to read
 	nthreads				= 1;     // number of pthreads operating concurrently
 	skipReads				= 0;     // # reads/read pairs to skip
 	gGapBarrier				= 4;     // disallow gaps within this many chars of either end of alignment
