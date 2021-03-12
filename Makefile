@@ -192,7 +192,7 @@ else ifneq (,$(findstring $(shell uname -m), aarch64 s390x ppc64 ppc64le))
   BITS := 64
   SSE_FLAG :=
   CXXFLAGS += -fopenmp-simd
-  CPPFLAGS += -Ithird_party/simde
+  CPPFLAGS += -Ithird_party
 endif
 # msys will always be 32 bit so look at the cpu arch instead.
 ifneq (,$(findstring AMD64,$(PROCESSOR_ARCHITEW6432)))
