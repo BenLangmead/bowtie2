@@ -819,7 +819,7 @@ public:
 	 */
 	float averageHitsPerSeed() const {
 		if (nonzTot_ == 0)
-			return std::numeric_limits<float>::max();
+			return std::numeric_limits<float>::infinity();
 		else
 			return (float)numElts_ / (float)nonzTot_;
 	}
