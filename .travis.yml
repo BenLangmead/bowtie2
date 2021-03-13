@@ -1,4 +1,4 @@
-dist: xenial
+dist: trusty
 language: cpp
 sudo: required
 branches:
@@ -12,58 +12,58 @@ branches:
     - bug_fixes
 matrix:
   include:
-    # Linux (gcc4.9)
-    - os: linux
-      language: python
-      python: "3.4"
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - g++-4.9
-            - libtbb-dev
-            - zlib1g-dev
-      env:
-        - CC=gcc-4.9
-        - CXX=g++-4.9
-    # Linux (gcc8)
-    - os: linux
-      language: python
-      python: "3.8"
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - g++-8
-            - libtbb-dev
-            - zlib1g-dev
-      env:
-        - CC=gcc-8
-        - CXX=g++-8
-        - CXXFLAGS="-fuse-ld=gold"
+    # # Linux (gcc4.9)
+    # - os: linux
+    #   language: python
+    #   python: "3.4"
+    #   addons:
+    #     apt:
+    #       sources:
+    #         - ubuntu-toolchain-r-test
+    #       packages:
+    #         - g++-4.9
+    #         - libtbb-dev
+    #         - zlib1g-dev
+    #   env:
+    #     - CC=gcc-4.9
+    #     - CXX=g++-4.9
+    # # Linux (gcc8)
+    # - os: linux
+    #   language: python
+    #   python: "3.8"
+    #   addons:
+    #     apt:
+    #       sources:
+    #         - ubuntu-toolchain-r-test
+    #       packages:
+    #         - g++-8
+    #         - libtbb-dev
+    #         - zlib1g-dev
+    #   env:
+    #     - CC=gcc-8
+    #     - CXX=g++-8
+    #     - CXXFLAGS="-fuse-ld=gold"
     # MacOS
-    - os: osx
-      osx_image: xcode11.2
-      compiler: clang
-      env:
-        - CC=clang
-        - CXX=clang++
-        - NPROC="$(sysctl -n hw.activecpu)"
-      before_install:
-        - brew unlink python@2
-        - brew install tbb
-        - brew install python
-    # ARM 64-bit
-    - os: linux
-      arch: arm64
-      compiler: gcc
-      env:
-        # Set POPCNT_CAPABILITY=0 to avoid build error
-        - POPCNT_CAPABILITY=0
-        - NO_TBB=1
-      script: travis_wait 30 make -j4 allall
+    # - os: osx
+    #   osx_image: xcode11.2
+    #   compiler: clang
+    #   env:
+    #     - CC=clang
+    #     - CXX=clang++
+    #     - NPROC="$(sysctl -n hw.activecpu)"
+    #   before_install:
+    #     - brew unlink python@2
+    #     - brew install tbb
+    #     - brew install python
+    # # ARM 64-bit
+    # - os: linux
+    #   arch: arm64
+    #   compiler: gcc
+    #   env:
+    #     # Set POPCNT_CAPABILITY=0 to avoid build error
+    #     - POPCNT_CAPABILITY=0
+    #     - NO_TBB=1
+    #   script: travis_wait 30 make -j4 allall
     # IBM Z (big endian)
     - os: linux
       arch: s390x
