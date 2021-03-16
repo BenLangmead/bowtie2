@@ -326,24 +326,24 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 	assert(!d.profbuf_.empty());
 	assert_gt(d.bias_, 0);
 	assert_lt(d.bias_, 127);
-	
+
 	assert_gt(d.maxBonus_, 0);
 	size_t iter =
 		(dpRows() + (NWORDS_PER_REG-1)) / NWORDS_PER_REG; // iter = segLen
-	
+
 	// Now set up the score vectors.  We just need two columns worth, which
 	// we'll call "left" and "right".
 	d.vecbuf_.resize(ROWSTRIDE_2COL * iter * 2);
 	d.vecbuf_.zero();
 	__m128i *vbuf_l = d.vecbuf_.ptr();
 	__m128i *vbuf_r = d.vecbuf_.ptr() + (ROWSTRIDE_2COL * iter);
-	
+
 	// This is the data structure that holds candidate cells per diagonal.
 	const size_t ndiags = rff_ - rfi_ + dpRows() - 1;
 	if(!debug) {
 		btdiag_.init(ndiags, 2);
 	}
-	
+
 	// Data structure that holds checkpointed anti-diagonals
 	TAlScore perfectScore = sc_->perfectScore(dpRows());
 	bool checkpoint = true;
@@ -397,7 +397,7 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 	rfgapo = _mm_insert_epi16(rfgapo, dup, 0);
 	rfgapo = _mm_shufflelo_epi16(rfgapo, 0);
 	rfgapo = _mm_shuffle_epi32(rfgapo, 0);
-	
+
 	// Set all elts to reference gap extension penalty
 	assert_gt(sc_->refGapExtend(), 0);
 	assert_leq(sc_->refGapExtend(), MAX_U8);
@@ -414,7 +414,7 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 	rdgapo = _mm_insert_epi16(rdgapo, dup, 0);
 	rdgapo = _mm_shufflelo_epi16(rdgapo, 0);
 	rdgapo = _mm_shuffle_epi32(rdgapo, 0);
-	
+
 	// Set all elts to read gap extension penalty
 	assert_gt(sc_->readGapExtend(), 0);
 	assert_leq(sc_->readGapExtend(), MAX_U8);
@@ -423,7 +423,7 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 	rdgape = _mm_insert_epi16(rdgape, dup, 0);
 	rdgape = _mm_shufflelo_epi16(rdgape, 0);
 	rdgape = _mm_shuffle_epi32(rdgape, 0);
-	
+
 	// Set all elts to minimum score threshold.  Actually, to 1 less than the
 	// threshold so we can use gt instead of geq.
 	dup = (((int)minsc_ - 1) << 8) | (((int)minsc_ - 1) & 0x00ff);
@@ -438,13 +438,13 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 	vhi = _mm_cmpeq_epi16(vhi, vhi); // all elts = 0xffff
 	vlo = _mm_xor_si128(vlo, vlo);   // all elts = 0
 	vmax = vlo;
-	
+
 	// Make a vector of bias offsets
 	dup = (d.bias_ << 8) | (d.bias_ & 0x00ff);
 	vbias = _mm_insert_epi16(vbias, dup, 0);
 	vbias = _mm_shufflelo_epi16(vbias, 0);
 	vbias = _mm_shuffle_epi32(vbias, 0);
-	
+
 	// Points to a long vector of __m128i where each element is a block of
 	// contiguous cells in the E, F or H matrix.  If the index % 3 == 0, then
 	// the block of cells is from the E matrix.  If index % 3 == 1, they're
@@ -454,18 +454,18 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 	const __m128i *pvScore; // points into the query profile
 
 	const size_t colstride = ROWSTRIDE_2COL * iter;
-	
+
 	// Initialize the H and E vectors in the first matrix column
 	__m128i *pvELeft = vbuf_l + 0; __m128i *pvERight = vbuf_r + 0;
 	/* __m128i *pvFLeft = vbuf_l + 1; */ __m128i *pvFRight = vbuf_r + 1;
 	__m128i *pvHLeft = vbuf_l + 2; __m128i *pvHRight = vbuf_r + 2;
-	
+
 	for(size_t i = 0; i < iter; i++) {
 		// start low in local mode
 		_mm_store_si128(pvERight, vlo); pvERight += ROWSTRIDE_2COL;
 		_mm_store_si128(pvHRight, vlo); pvHRight += ROWSTRIDE_2COL;
 	}
-	
+
 	assert_gt(sc_->gapbar, 0);
 	size_t nfixup = 0;
 	TAlScore matchsc = sc_->match(30);
@@ -482,7 +482,7 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 	// separates the processing of the first row from the others and might make
 	// it difficult to use the first-row results in the next row, but it might
 	// be the simplest and least disruptive way to deal with the st_ constraint.
-	
+
 	size_t off = MAX_SIZE_T, lastoff;
 	bool bailed = false;
 	for(size_t i = (size_t)rfi_; i < (size_t)rff_; i++) {
@@ -493,22 +493,22 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 		pvELeft = vbuf_l + 0; pvERight = vbuf_r + 0;
 		/* pvFLeft = vbuf_l + 1; */ pvFRight = vbuf_r + 1;
 		pvHLeft = vbuf_l + 2; pvHRight = vbuf_r + 2;
-		
+
 		// Fetch this column's reference mask
 		const int refm = (int)rf_[i];
-		
+
 		// Fetch the appropriate query profile
 		lastoff = off;
 		off = (size_t)firsts5[refm] * iter * 2;
 		pvScore = d.profbuf_.ptr() + off; // even elts = query profile, odd = gap barrier
-		
+
 		// Load H vector from the final row of the previous column.
 		// ??? perhaps we should calculate the next iter's F instead of the
 		// current iter's?  The way we currently do it, seems like it will
 		// almost always require at least one fixup loop iter (to recalculate
 		// this topmost F).
 		vh = _mm_load_si128(pvHLeft + colstride - ROWSTRIDE_2COL);
-		
+
 		// Set all cells to low value
 		vf = _mm_xor_si128(vf, vf);
 		// vf now contains the vertical contribution
@@ -517,19 +517,19 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 		// No need to veto ref gap extensions, they're all 0x00s
 		_mm_store_si128(pvFRight, vf);
 		pvFRight += ROWSTRIDE_2COL;
-		
+
 		// Shift down so that topmost (least sig) cell gets 0
 		vh = _mm_slli_si128(vh, NBYTES_PER_WORD);
-		
+
 		// We pull out one loop iteration to make it easier to veto values in the top row
-		
+
 		// Load cells from E, calculated previously
 		ve = _mm_load_si128(pvELeft);
 		vhd = _mm_load_si128(pvHLeft);
 		assert_all_lt(ve, vhi);
 		pvELeft += ROWSTRIDE_2COL;
 		// ve now contains the horizontal contribution
-		
+
 		// Factor in query profile (matches and mismatches)
 		vh = _mm_adds_epu8(vh, pvScore[0]);
 		vh = _mm_subs_epu8(vh, vbias);
@@ -546,7 +546,7 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 
 		// Update highest score so far
 		vcolmax = vh;
-		
+
 		// Save the new vH values
 		_mm_store_si128(pvHRight, vh);
 
@@ -554,15 +554,15 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 		assert_all_lt(ve, vhi);
 		pvHRight += ROWSTRIDE_2COL;
 		pvHLeft += ROWSTRIDE_2COL;
-		
+
 		// Save E values
 		_mm_store_si128(pvERight, ve);
 		pvERight += ROWSTRIDE_2COL;
-		
+
 		// Update vf value
 		vf = _mm_subs_epu8(vf, rfgapo);
 		assert_all_lt(vf, vhi);
-		
+
 		pvScore += 2; // move on to next query profile
 
 		// For each character in the reference text:
@@ -573,16 +573,16 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 			vhd = _mm_load_si128(pvHLeft);
 			assert_all_lt(ve, vhi);
 			pvELeft += ROWSTRIDE_2COL;
-			
+
 			// Store cells in F, calculated previously
 			vf = _mm_subs_epu8(vf, pvScore[1]); // veto some ref gap extensions
 			_mm_store_si128(pvFRight, vf);
 			pvFRight += ROWSTRIDE_2COL;
-			
+
 			// Factor in query profile (matches and mismatches)
 			vh = _mm_adds_epu8(vh, pvScore[0]);
 			vh = _mm_subs_epu8(vh, vbias);
-			
+
 			// Update H, factoring in E and F
 			vh = _mm_max_epu8(vh, vf);
 
@@ -591,13 +591,13 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 			vhd = _mm_subs_epu8(vhd, pvScore[1]); // veto some read gap opens
 			ve = _mm_subs_epu8(ve, rdgape);
 			ve = _mm_max_epu8(ve, vhd);
-			
+
 			vh = _mm_max_epu8(vh, ve);
 			vtmp = vh;
-			
+
 			// Update highest score encountered this far
 			vcolmax = _mm_max_epu8(vcolmax, vh);
-			
+
 			// Save the new vH values
 			_mm_store_si128(pvHRight, vh);
 
@@ -606,32 +606,32 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 			assert_all_lt(ve, vhi);
 			pvHRight += ROWSTRIDE_2COL;
 			pvHLeft += ROWSTRIDE_2COL;
-			
+
 			// Save E values
 			_mm_store_si128(pvERight, ve);
 			pvERight += ROWSTRIDE_2COL;
-			
+
 			// Update vf value
 			vtmp = _mm_subs_epu8(vtmp, rfgapo);
 			vf = _mm_subs_epu8(vf, rfgape);
 			assert_all_lt(vf, vhi);
 			vf = _mm_max_epu8(vf, vtmp);
-			
+
 			pvScore += 2; // move on to next query profile / gap veto
 		}
 		// pvHStore, pvELoad, pvEStore have all rolled over to the next column
 		pvFRight -= colstride; // reset to start of column
 		vtmp = _mm_load_si128(pvFRight);
-		
+
 		pvHRight -= colstride; // reset to start of column
 		vh = _mm_load_si128(pvHRight);
-		
+
 		pvScore = d.profbuf_.ptr() + off + 1; // reset veto vector
-		
+
 		// vf from last row gets shifted down by one to overlay the first row
 		// rfgape has already been subtracted from it.
 		vf = _mm_slli_si128(vf, NBYTES_PER_WORD);
-		
+
 		vf = _mm_subs_epu8(vf, *pvScore); // veto some ref gap extensions
 		vf = _mm_max_epu8(vtmp, vf);
 		// TODO: We're testing whether F changed.  Can't we just assume that F
@@ -640,26 +640,26 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 		vtmp = _mm_subs_epu8(vf, vtmp);
 		vtmp = _mm_cmpeq_epi8(vtmp, vzero);
 		int cmp = _mm_movemask_epi8(vtmp);
-		
+
 		// If any element of vtmp is greater than H - gap-open...
 		j = 0;
 		while(cmp != 0xffff) {
 			// Store this vf
 			_mm_store_si128(pvFRight, vf);
 			pvFRight += ROWSTRIDE_2COL;
-			
+
 			// Update vh w/r/t new vf
 			vh = _mm_max_epu8(vh, vf);
-			
+
 			// Save vH values
 			_mm_store_si128(pvHRight, vh);
 			pvHRight += ROWSTRIDE_2COL;
-			
+
 			// Update highest score encountered so far.
 			vcolmax = _mm_max_epu8(vcolmax, vh);
 
 			pvScore += 2;
-			
+
 			assert_lt(j, iter);
 			if(++j == iter) {
 				pvFRight -= colstride;
@@ -673,7 +673,7 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 				vtmp = _mm_load_si128(pvFRight);   // load next vf ASAP
 				vh = _mm_load_si128(pvHRight);     // load next vh ASAP
 			}
-			
+
 			// Update F with another gap extension
 			vf = _mm_subs_epu8(vf, rfgape);
 			vf = _mm_subs_epu8(vf, *pvScore); // veto some ref gap extensions
@@ -725,7 +725,7 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 
 		// Save some elements to checkpoints
 		if(checkpoint) {
-			
+
 			__m128i *pvE = vbuf_r + 0;
 			__m128i *pvF = vbuf_r + 1;
 			__m128i *pvH = vbuf_r + 2;
@@ -782,7 +782,7 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 				} // while(true)
 			} else {
 				// Checkpoint for square mini-fills
-			
+
 				// If this is the first column, take this opportunity to
 				// pre-calculate the coordinates of the elements we're going to
 				// checkpoint.
@@ -852,15 +852,18 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 			vtmp = _mm_srli_si128(vmaxtmp, 1);
 			vmaxtmp = _mm_max_epu8(vmaxtmp, vtmp);
 			int score = _mm_extract_epi16(vmaxtmp, 0);
+#if (defined SIMDE_ENDIAN_ORDER && SIMDE_ENDIAN_ORDER == SIMDE_BIG_ENDIAN)
+			score = (score >> 8) && 0x00ff;
+#else
 			score = score & 0x00ff;
-
+#endif
 			// Could we have saturated?
 			if(score + d.bias_ >= 255) {
 				flag = -2; // yes
 				if(!debug) met.dpsat++;
 				return MIN_I64;
 			}
-			
+
 			if(score < minsc_) {
 				size_t ncolleft = rff_ - i - 1;
 				if(score + (TAlScore)ncolleft * matchsc < minsc_) {
@@ -870,13 +873,13 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 					break;
 				}
 			}
-			
+
 			leftmax = score;
 		}
 	}
-	
+
 	lastoff = off;
-	
+
 	// Now we'd like to know exactly which cells in the *rightmost* column are
 	// candidates we might backtrace from.  Did *any* elements exceed the
 	// minimum score threshold?
@@ -924,7 +927,7 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 	vmax = _mm_max_epu8(vmax, vtmp);
 	vtmp = _mm_srli_si128(vmax, 1);
 	vmax = _mm_max_epu8(vmax, vtmp);
-	
+
 	// Update metrics
 	if(!debug) {
 		size_t ninner = (rff_ - rfi_) * iter;
@@ -933,12 +936,17 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 		met.inner += ninner;                    // DP inner loop iters
 		met.fixup += nfixup;                    // DP fixup loop iters
 	}
-	
+
 	int score = _mm_extract_epi16(vmax, 0);
-	score = score & 0x00ff;
+#if (defined SIMDE_ENDIAN_ORDER && SIMDE_ENDIAN_ORDER == SIMDE_BIG_ENDIAN)
+	        score = (score >> 8) && 0x00ff;
+#else
+		score = score & 0x00ff;
+#endif
+
 
 	flag = 0;
-	
+
 	// Could we have saturated?
 	if(score + d.bias_ >= 255) {
 		flag = -2; // yes
@@ -952,15 +960,15 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 		if(!debug) met.dpfail++;
 		return (TAlScore)score;
 	}
-	
+
 	// Now take all the backtrace candidates in the btdaig_ structure and
 	// dump them into the btncand_ array.  They'll be sorted later.
 	if(!debug) {
 		assert(!btdiag_.empty());
-		btdiag_.dump(btncand_);	
+		btdiag_.dump(btncand_);
 		assert(!btncand_.empty());
 	}
-	
+
 	// Return largest score
 	if(!debug) met.dpsucc++;
 	return (TAlScore)score;
@@ -996,7 +1004,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 		(dpRows() + (NWORDS_PER_REG-1)) / NWORDS_PER_REG; // iter = segLen
 
 	int dup;
-	
+
 	// Many thanks to Michael Farrar for releasing his striped Smith-Waterman
 	// implementation:
 	//
@@ -1027,7 +1035,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 	rfgapo = _mm_insert_epi16(rfgapo, dup, 0);
 	rfgapo = _mm_shufflelo_epi16(rfgapo, 0);
 	rfgapo = _mm_shuffle_epi32(rfgapo, 0);
-	
+
 	// Set all elts to reference gap extension penalty
 	assert_gt(sc_->refGapExtend(), 0);
 	assert_leq(sc_->refGapExtend(), MAX_U8);
@@ -1044,7 +1052,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 	rdgapo = _mm_insert_epi16(rdgapo, dup, 0);
 	rdgapo = _mm_shufflelo_epi16(rdgapo, 0);
 	rdgapo = _mm_shuffle_epi32(rdgapo, 0);
-	
+
 	// Set all elts to read gap extension penalty
 	assert_gt(sc_->readGapExtend(), 0);
 	assert_leq(sc_->readGapExtend(), MAX_U8);
@@ -1053,17 +1061,17 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 	rdgape = _mm_insert_epi16(rdgape, dup, 0);
 	rdgape = _mm_shufflelo_epi16(rdgape, 0);
 	rdgape = _mm_shuffle_epi32(rdgape, 0);
-	
+
 	vhi = _mm_cmpeq_epi16(vhi, vhi); // all elts = 0xffff
 	vlo = _mm_xor_si128(vlo, vlo);   // all elts = 0
 	vmax = vlo;
-	
+
 	// Make a vector of bias offsets
 	dup = (d.bias_ << 8) | (d.bias_ & 0x00ff);
 	vbias = _mm_insert_epi16(vbias, dup, 0);
 	vbias = _mm_shufflelo_epi16(vbias, 0);
 	vbias = _mm_shuffle_epi32(vbias, 0);
-	
+
 	// Points to a long vector of __m128i where each element is a block of
 	// contiguous cells in the E, F or H matrix.  If the index % 3 == 0, then
 	// the block of cells is from the E matrix.  If index % 3 == 1, they're
@@ -1076,11 +1084,11 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 	const size_t colstride = d.mat_.colstride();
 	//const size_t rowstride = d.mat_.rowstride();
 	assert_eq(ROWSTRIDE, colstride / iter);
-	
+
 	// Initialize the H and E vectors in the first matrix column
 	__m128i *pvHTmp = d.mat_.tmpvec(0, 0);
 	__m128i *pvETmp = d.mat_.evec(0, 0);
-	
+
 	for(size_t i = 0; i < iter; i++) {
 		_mm_store_si128(pvETmp, vlo);
 		_mm_store_si128(pvHTmp, vlo); // start low in local mode
@@ -1094,11 +1102,11 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 	__m128i *pvEStore = d.mat_.evecUnsafe(0, 1);
 	__m128i *pvFStore = d.mat_.fvec(0, 0);
 	__m128i *pvFTmp   = NULL;
-	
+
 	assert_gt(sc_->gapbar, 0);
 	size_t nfixup = 0;
 	TAlScore matchsc = sc_->match(30);
-	
+
 	// Fill in the table as usual but instead of using the same gap-penalty
 	// vector for each iteration of the inner loop, load words out of a
 	// pre-calculated gap vector parallel to the query profile.  The pre-
@@ -1110,57 +1118,57 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 	// separates the processing of the first row from the others and might make
 	// it difficult to use the first-row results in the next row, but it might
 	// be the simplest and least disruptive way to deal with the st_ constraint.
-	
+
 	colstop_ = rff_ - rfi_;
 	lastsolcol_ = 0;
 	for(size_t i = (size_t)rfi_; i < (size_t)rff_; i++) {
 		assert(pvFStore == d.mat_.fvec(0, i - rfi_));
 		assert(pvHStore == d.mat_.hvec(0, i - rfi_));
-		
+
 		// Fetch this column's reference mask
 		const int refm = (int)rf_[i];
-		
+
 		// Fetch the appropriate query profile
 		size_t off = (size_t)firsts5[refm] * iter * 2;
 		pvScore = d.profbuf_.ptr() + off; // even elts = query profile, odd = gap barrier
-		
+
 		// Load H vector from the final row of the previous column
 		vh = _mm_load_si128(pvHLoad + colstride - ROWSTRIDE);
-		
+
 		// Set all cells to low value
 		vf = _mm_xor_si128(vf, vf);
-		
+
 		// Store cells in F, calculated previously
 		// No need to veto ref gap extensions, they're all 0x00s
 		_mm_store_si128(pvFStore, vf);
 		pvFStore += ROWSTRIDE;
-		
+
 		// Shift down so that topmost (least sig) cell gets 0
 		vh = _mm_slli_si128(vh, NBYTES_PER_WORD);
-		
+
 		// We pull out one loop iteration to make it easier to veto values in the top row
-		
+
 		// Load cells from E, calculated previously
 		ve = _mm_load_si128(pvELoad);
 		assert_all_lt(ve, vhi);
 		pvELoad += ROWSTRIDE;
-		
+
 		// Factor in query profile (matches and mismatches)
 		vh = _mm_adds_epu8(vh, pvScore[0]);
 		vh = _mm_subs_epu8(vh, vbias);
-		
+
 		// Update H, factoring in E and F
 		vh = _mm_max_epu8(vh, ve);
 		vh = _mm_max_epu8(vh, vf);
-		
+
 		// Update highest score so far
 		vcolmax = _mm_xor_si128(vcolmax, vcolmax);
 		vcolmax = _mm_max_epu8(vcolmax, vh);
-		
+
 		// Save the new vH values
 		_mm_store_si128(pvHStore, vh);
 		pvHStore += ROWSTRIDE;
-		
+
 		// Update vE value
 		vf = vh;
 		vh = _mm_subs_epu8(vh, rdgapo);
@@ -1168,19 +1176,19 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 		ve = _mm_subs_epu8(ve, rdgape);
 		ve = _mm_max_epu8(ve, vh);
 		assert_all_lt(ve, vhi);
-		
+
 		// Load the next h value
 		vh = _mm_load_si128(pvHLoad);
 		pvHLoad += ROWSTRIDE;
-		
+
 		// Save E values
 		_mm_store_si128(pvEStore, ve);
 		pvEStore += ROWSTRIDE;
-		
+
 		// Update vf value
 		vf = _mm_subs_epu8(vf, rfgapo);
 		assert_all_lt(vf, vhi);
-		
+
 		pvScore += 2; // move on to next query profile
 
 		// For each character in the reference text:
@@ -1190,27 +1198,27 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 			ve = _mm_load_si128(pvELoad);
 			assert_all_lt(ve, vhi);
 			pvELoad += ROWSTRIDE;
-			
+
 			// Store cells in F, calculated previously
 			vf = _mm_subs_epu8(vf, pvScore[1]); // veto some ref gap extensions
 			_mm_store_si128(pvFStore, vf);
 			pvFStore += ROWSTRIDE;
-			
+
 			// Factor in query profile (matches and mismatches)
 			vh = _mm_adds_epu8(vh, pvScore[0]);
 			vh = _mm_subs_epu8(vh, vbias);
-			
+
 			// Update H, factoring in E and F
 			vh = _mm_max_epu8(vh, ve);
 			vh = _mm_max_epu8(vh, vf);
-			
+
 			// Update highest score encountered this far
 			vcolmax = _mm_max_epu8(vcolmax, vh);
-			
+
 			// Save the new vH values
 			_mm_store_si128(pvHStore, vh);
 			pvHStore += ROWSTRIDE;
-			
+
 			// Update vE value
 			vtmp = vh;
 			vh = _mm_subs_epu8(vh, rdgapo);
@@ -1218,64 +1226,64 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 			ve = _mm_subs_epu8(ve, rdgape);
 			ve = _mm_max_epu8(ve, vh);
 			assert_all_lt(ve, vhi);
-			
+
 			// Load the next h value
 			vh = _mm_load_si128(pvHLoad);
 			pvHLoad += ROWSTRIDE;
-			
+
 			// Save E values
 			_mm_store_si128(pvEStore, ve);
 			pvEStore += ROWSTRIDE;
-			
+
 			// Update vf value
 			vtmp = _mm_subs_epu8(vtmp, rfgapo);
 			vf = _mm_subs_epu8(vf, rfgape);
 			assert_all_lt(vf, vhi);
 			vf = _mm_max_epu8(vf, vtmp);
-			
+
 			pvScore += 2; // move on to next query profile / gap veto
 		}
 		// pvHStore, pvELoad, pvEStore have all rolled over to the next column
 		pvFTmp = pvFStore;
 		pvFStore -= colstride; // reset to start of column
 		vtmp = _mm_load_si128(pvFStore);
-		
+
 		pvHStore -= colstride; // reset to start of column
 		vh = _mm_load_si128(pvHStore);
-		
+
 		pvEStore -= colstride; // reset to start of column
 		ve = _mm_load_si128(pvEStore);
-		
+
 		pvHLoad = pvHStore;    // new pvHLoad = pvHStore
 		pvScore = d.profbuf_.ptr() + off + 1; // reset veto vector
-		
+
 		// vf from last row gets shifted down by one to overlay the first row
 		// rfgape has already been subtracted from it.
 		vf = _mm_slli_si128(vf, NBYTES_PER_WORD);
-		
+
 		vf = _mm_subs_epu8(vf, *pvScore); // veto some ref gap extensions
 		vf = _mm_max_epu8(vtmp, vf);
 		vtmp = _mm_subs_epu8(vf, vtmp);
 		vtmp = _mm_cmpeq_epi8(vtmp, vzero);
 		int cmp = _mm_movemask_epi8(vtmp);
-		
+
 		// If any element of vtmp is greater than H - gap-open...
 		j = 0;
 		while(cmp != 0xffff) {
 			// Store this vf
 			_mm_store_si128(pvFStore, vf);
 			pvFStore += ROWSTRIDE;
-			
+
 			// Update vh w/r/t new vf
 			vh = _mm_max_epu8(vh, vf);
-			
+
 			// Save vH values
 			_mm_store_si128(pvHStore, vh);
 			pvHStore += ROWSTRIDE;
-			
+
 			// Update highest score encountered this far
 			vcolmax = _mm_max_epu8(vcolmax, vh);
-			
+
 			// Update E in case it can be improved using our new vh
 			vh = _mm_subs_epu8(vh, rdgapo);
 			vh = _mm_subs_epu8(vh, *pvScore); // veto some read gap opens
@@ -1283,7 +1291,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 			_mm_store_si128(pvEStore, ve);
 			pvEStore += ROWSTRIDE;
 			pvScore += 2;
-			
+
 			assert_lt(j, iter);
 			if(++j == iter) {
 				pvFStore -= colstride;
@@ -1300,7 +1308,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 				vh = _mm_load_si128(pvHStore);     // load next vh ASAP
 				ve = _mm_load_si128(pvEStore);     // load next vh ASAP
 			}
-			
+
 			// Update F with another gap extension
 			vf = _mm_subs_epu8(vf, rfgape);
 			vf = _mm_subs_epu8(vf, *pvScore); // veto some ref gap extensions
@@ -1330,6 +1338,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 
 		// Store column maximum vector in first element of tmp
 		vmax = _mm_max_epu8(vmax, vcolmax);
+
 		_mm_store_si128(d.mat_.tmpvec(0, i - rfi_), vcolmax);
 
 		{
@@ -1344,15 +1353,18 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 			vtmp = _mm_srli_si128(vmaxtmp, 1);
 			vmaxtmp = _mm_max_epu8(vmaxtmp, vtmp);
 			int score = _mm_extract_epi16(vmaxtmp, 0);
+#if (defined SIMDE_ENDIAN_ORDER && SIMDE_ENDIAN_ORDER == SIMDE_BIG_ENDIAN)
+			score = (score >> 8) && 0x00ff;
+#else
 			score = score & 0x00ff;
-
+#endif
 			// Could we have saturated?
 			if(score + d.bias_ >= 255) {
 				flag = -2; // yes
 				if(!debug) met.dpsat++;
 				return MIN_I64;
 			}
-			
+
 			if(score < minsc_) {
 				size_t ncolleft = rff_ - i - 1;
 				if(score + (TAlScore)ncolleft * matchsc < minsc_) {
@@ -1365,10 +1377,10 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 				lastsolcol_ = i - rfi_;
 			}
 		}
-		
+
 		// pvELoad and pvHLoad are already where they need to be
-		
-		// Adjust the load and store vectors here.  
+
+		// Adjust the load and store vectors here.
 		pvHStore = pvHLoad + colstride;
 		pvEStore = pvELoad + colstride;
 		pvFStore = pvFTmp;
@@ -1383,7 +1395,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 	vmax = _mm_max_epu8(vmax, vtmp);
 	vtmp = _mm_srli_si128(vmax, 1);
 	vmax = _mm_max_epu8(vmax, vtmp);
-	
+
 	// Update metrics
 	if(!debug) {
 		size_t ninner = (rff_ - rfi_) * iter;
@@ -1392,12 +1404,15 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 		met.inner += ninner;                    // DP inner loop iters
 		met.fixup += nfixup;                    // DP fixup loop iters
 	}
-	
-	int score = _mm_extract_epi16(vmax, 0);
-	score = score & 0x00ff;
 
+	int score = _mm_extract_epi16(vmax, 0);
+#if (defined SIMDE_ENDIAN_ORDER && SIMDE_ENDIAN_ORDER == SIMDE_BIG_ENDIAN)
+	        score = (score >> 8) && 0x00ff;
+#else
+		score = score & 0x00ff;
+#endif
 	flag = 0;
-	
+
 	// Could we have saturated?
 	if(score + d.bias_ >= 255) {
 		flag = -2; // yes
@@ -1411,7 +1426,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 		if(!debug) met.dpfail++;
 		return (TAlScore)score;
 	}
-	
+
 	// Return largest score
 	if(!debug) met.dpsucc++;
 	return (TAlScore)score;
@@ -1435,7 +1450,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
  *      **OO0oo----   o: "RHS gap" diagonals
  *      -**OO0oo---   O: "LHS gap" diagonals
  *      --**OO0oo--   *: "LHS extra" diagonals
- *      ---**OO0oo-   -: cells that can't possibly be involved in a valid    
+ *      ---**OO0oo-   -: cells that can't possibly be involved in a valid
  *      ----**OO0oo      alignment that overlaps one of the core diagonals
  *
  * The anchor-to-left case looks like this:
@@ -1506,7 +1521,11 @@ bool SwAligner::gatherCellsNucleotidesLocalSseU8(TAlScore best) {
 		vtmp = _mm_srli_si128(vmax, 1);
 		vmax = _mm_max_epu8(vmax, vtmp);
 		int score = _mm_extract_epi16(vmax, 0);
+#if (defined SIMDE_ENDIAN_ORDER && SIMDE_ENDIAN_ORDER == SIMDE_BIG_ENDIAN)
+	        score = (score >> 8) & 0x00ff;
+#else
 		score = score & 0x00ff;
+#endif
 #ifndef NDEBUG
 		{
 			// Start in upper vector row and move down
@@ -1667,7 +1686,7 @@ bool SwAligner::gatherCellsNucleotidesLocalSseU8(TAlScore best) {
  *      **OO0oo----   o: right-hand "gap" diagonals: band of 'maxgap' diags
  *      -**OO0oo---   O: left-hand "gap" diagonals: band of 'maxgap' diags
  *      --**OO0oo--   *: "extra" diagonals: additional band of 'maxgap' diags
- *      ---**OO0oo-   +: cells not in any of the above 
+ *      ---**OO0oo-   +: cells not in any of the above
  *      ----**OO0oo
  *            |-|
  *   Gotta touch one of these diags
@@ -1702,7 +1721,7 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 	EList<Edit>& ned = res.alres.ned();
 	assert(ned.empty());
 	assert_gt(dpRows(), row);
-	size_t trimEnd = dpRows() - row - 1; 
+	size_t trimEnd = dpRows() - row - 1;
 	size_t trimBeg = 0;
 	size_t ct = SSEMatrix::H; // cell type
 	// Row and col in terms of where they fall in the SSE vector matrix
