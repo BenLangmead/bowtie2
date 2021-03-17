@@ -1322,7 +1322,12 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseU8(
 	assert_lt(row, rd_->length());
 	btnstack_.clear(); // empty the backtrack stack
 	btcells_.clear();  // empty the cells-so-far list
-	AlnScore score;
+	AlnScore score(
+		0,				 // score
+		std::numeric_limits<int>::min(), // bases aligned
+		std::numeric_limits<int>::min(), // edits
+		0,				 // ns
+		0);				 // gaps
 	size_t origCol = col;
 	size_t gaps = 0, readGaps = 0, refGaps = 0;
 	res.alres.reset();
