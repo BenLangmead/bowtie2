@@ -852,11 +852,8 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 			vtmp = _mm_srli_si128(vmaxtmp, 1);
 			vmaxtmp = _mm_max_epu8(vmaxtmp, vtmp);
 			int score = _mm_extract_epi16(vmaxtmp, 0);
-#if (defined SIMDE_ENDIAN_ORDER && SIMDE_ENDIAN_ORDER == SIMDE_BIG_ENDIAN)
-			score = (score >> 8) && 0x00ff;
-#else
 			score = score & 0x00ff;
-#endif
+
 			// Could we have saturated?
 			if(score + d.bias_ >= 255) {
 				flag = -2; // yes
@@ -938,13 +935,7 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 	}
 
 	int score = _mm_extract_epi16(vmax, 0);
-#if (defined SIMDE_ENDIAN_ORDER && SIMDE_ENDIAN_ORDER == SIMDE_BIG_ENDIAN)
-	        score = (score >> 8) && 0x00ff;
-#else
-		score = score & 0x00ff;
-#endif
-
-
+	score = score & 0x00ff;
 	flag = 0;
 
 	// Could we have saturated?
@@ -1353,11 +1344,8 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 			vtmp = _mm_srli_si128(vmaxtmp, 1);
 			vmaxtmp = _mm_max_epu8(vmaxtmp, vtmp);
 			int score = _mm_extract_epi16(vmaxtmp, 0);
-#if (defined SIMDE_ENDIAN_ORDER && SIMDE_ENDIAN_ORDER == SIMDE_BIG_ENDIAN)
-			score = (score >> 8) && 0x00ff;
-#else
 			score = score & 0x00ff;
-#endif
+
 			// Could we have saturated?
 			if(score + d.bias_ >= 255) {
 				flag = -2; // yes
@@ -1406,11 +1394,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 	}
 
 	int score = _mm_extract_epi16(vmax, 0);
-#if (defined SIMDE_ENDIAN_ORDER && SIMDE_ENDIAN_ORDER == SIMDE_BIG_ENDIAN)
-	        score = (score >> 8) && 0x00ff;
-#else
-		score = score & 0x00ff;
-#endif
+	score = score & 0x00ff;
 	flag = 0;
 
 	// Could we have saturated?
@@ -1521,7 +1505,7 @@ bool SwAligner::gatherCellsNucleotidesLocalSseU8(TAlScore best) {
 		vtmp = _mm_srli_si128(vmax, 1);
 		vmax = _mm_max_epu8(vmax, vtmp);
 		int score = _mm_extract_epi16(vmax, 0);
-#if (defined SIMDE_ENDIAN_ORDER && SIMDE_ENDIAN_ORDER == SIMDE_BIG_ENDIAN)
+#if defined(SIMDE_ENDIAN_ORDER) && SIMDE_ENDIAN_ORDER == SIMDE_ENDIAN_BIG
 	        score = (score >> 8) & 0x00ff;
 #else
 		score = score & 0x00ff;
