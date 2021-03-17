@@ -73,9 +73,12 @@ matrix:
     # PPC64LE
     - os: linux
       arch: ppc64le
+      compiler: clang
       env:
         - POPCNT_CAPABILITY=0
         - NO_TBB=1
+        - CC=clang
+        - CXX=clang++
 cache: apt
 env:
   global:
