@@ -817,11 +817,11 @@ public:
 	/**
 	 * Return average number of hits per seed.
 	 */
-	float averageHitsPerSeed() const {
+	uint64_t averageHitsPerSeed() const {
 		if (nonzTot_ == 0)
-			return std::numeric_limits<float>::infinity();
+			return std::numeric_limits<uint64_t>::max();
 		else
-			return (float)numElts_ / (float)nonzTot_;
+			return numElts_ / nonzTot_;
 	}
 
 	/**
