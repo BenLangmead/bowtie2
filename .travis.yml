@@ -70,6 +70,8 @@ matrix:
       env:
         - POPCNT_CAPABILITY=0
         - NO_TBB=1
+        - CC=clang
+        - CXX=clang++
     # PPC64LE
     - os: linux
       arch: ppc64le
