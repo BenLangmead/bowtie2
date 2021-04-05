@@ -29,8 +29,6 @@ matrix:
         - CXX=g++-4.9
     # Linux (gcc8)
     - os: linux
-      language: python
-      python: "3.8"
       addons:
         apt:
           sources:
