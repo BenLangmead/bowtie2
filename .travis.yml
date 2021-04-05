@@ -58,11 +58,13 @@ matrix:
     # ARM 64-bit
     - os: linux
       arch: arm64
-      compiler: gcc
+      compiler: clang
       env:
         # Set POPCNT_CAPABILITY=0 to avoid build error
         - POPCNT_CAPABILITY=0
         - NO_TBB=1
+        - CC=clang
+        - CXX=clang++
       script: travis_wait 30 make -j4 allall
     # IBM Z (big endian)
     - os: linux
