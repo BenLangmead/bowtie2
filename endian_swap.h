@@ -39,6 +39,15 @@ static inline bool currentlyBigEndian() {
 	static uint8_t endianCheck[] = {1, 0, 0, 0};
 	return *((uint32_t*)endianCheck) != 1;
 }
+/**
+ * Return copy of uint16_t argument with byte order reversed.
+ */
+static inline uint16_t endianSwapU16(uint16_t u) {
+	uint16_t tmp = 0;
+	tmp |= ((u >> 8) & (0xff << 0));
+	tmp |= ((u << 8) & (0xff << 8));
+	return tmp;
+}
 
 /**
  * Return copy of uint32_t argument with byte order reversed.

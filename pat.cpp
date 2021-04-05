@@ -33,6 +33,7 @@
 #include "util.h"
 #include "str_util.h"
 #include "tokenize.h"
+#include "endian_swap.h"
 
 using namespace std;
 
@@ -1220,6 +1221,10 @@ uint16_t BAMPatternSource::nextBGZFBlockFromFile(BGZF& b) {
                 std::cerr << "Error while reading BAM header" << std::endl;
                 exit(EXIT_FAILURE);
         }
+	if (currentlyBigEndian()) {
+		b.hdr.mtime = endianSwapU32(b.hdr.mtime);
+		b.hdr.xlen  = endianSwapU16(b.hdr.xlen);
+	}
 	uint8_t *extra = new uint8_t[b.hdr.xlen];
         if (fread(extra, b.hdr.xlen, 1, fp_) != 1) {
                 std::cerr << "Error while reading BAM extra subfields" << std::endl;
@@ -1235,11 +1240,15 @@ uint16_t BAMPatternSource::nextBGZFBlockFromFile(BGZF& b) {
 	for (uint16_t i = 0; i < b.hdr.xlen;) {
 		if (extra[0] == 66 && extra[1] == 67) {
 			bsize = *((uint16_t *)(extra + 4));
+			if (currentlyBigEndian())
+				bsize = endianSwapU16(bsize);
 			bsize -= (b.hdr.xlen + 19);
 			break;
 		}
 		i = i + 2;
 		uint16_t sub_field_len = *((uint16_t *)(extra + 2));
+		if (currentlyBigEndian())
+			sub_field_len = endianSwapU16(sub_field_len);
 		i = i + 2 + sub_field_len;
 	}
 	delete[] extra;
@@ -1253,6 +1262,10 @@ uint16_t BAMPatternSource::nextBGZFBlockFromFile(BGZF& b) {
                 std::cerr << "Error while reading BAM footer" << std::endl;
                 exit(EXIT_FAILURE);
         }
+	if (currentlyBigEndian()) {
+		b.ftr.crc32 = endianSwapU32(b.ftr.crc32);
+		b.ftr.isize = endianSwapU32(b.ftr.isize);
+	}
 	return bsize;
 }
 
@@ -1325,12 +1338,16 @@ std::pair<bool, int> BAMPatternSource::get_alignments(PerThreadReadBuf& pt, bool
 		EList<Read>& readbuf = pp_.align_paired_reads && !read1 ? pt.bufb_ : pt.bufa_;
 
 		memcpy(&block_size, &bam_batches_[pt.tid_][0] + i, sizeof(block_size));
+		if (currentlyBigEndian())
+			block_size = endianSwapU32(block_size);
 		if (block_size <= 0) {
 			return make_pair(done, readi);
 		}
 		i += sizeof(block_size);
 
 		memcpy(&flag, &bam_batches_[pt.tid_][0] + i + offset[BAMField::flag], sizeof(flag));
+		if (currentlyBigEndian())
+			flag = endianSwapU16(flag);
 		if (!pp_.align_paired_reads && ((flag & 0x40) != 0 || (flag & 0x80) != 0)) {
 			readbuf[readi].readOrigBuf.clear();
 			i += block_size;
@@ -1458,6 +1475,10 @@ bool BAMPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 	memcpy(&l_read_name, buf + offset[BAMField::l_read_name], sizeof(l_read_name));
 	memcpy(&n_cigar_op, buf + offset[BAMField::n_cigar_op], sizeof(n_cigar_op));
 	memcpy(&l_seq, buf + offset[BAMField::l_seq], sizeof(l_seq));
+	if (currentlyBigEndian()) {
+		n_cigar_op = endianSwapU16(n_cigar_op);
+		l_seq = endianSwapU32(l_seq);
+	}
 
 	int off = offset[BAMField::read_name];
 	ra.name.install(buf + off, l_read_name-1);
