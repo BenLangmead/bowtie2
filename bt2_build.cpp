@@ -34,6 +34,9 @@
 #include "filebuf.h"
 #include "reference.h"
 #include "ds.h"
+#ifdef WITH_ZSTD
+#include "zstd_decompress.h"
+#endif
 
 /**
  * \file Driver for the bowtie-build indexing tool.
@@ -400,8 +403,14 @@ static void driver(
 					throw 1;
 				}
 				fb = new FileBuf(zFp);
-			}
-			else {
+			} else if (ext == "zstd" || ext == "zst") {
+				zstdStrm *zstdFp = zstdOpen(infiles[i].c_str());
+				if (zstdFp == NULL) {
+					cerr << "Error: could not open " << infiles[i].c_str() << endl;
+					throw 1;
+				}
+				fb = new FileBuf(zstdFp);
+			} else {
 				FILE *f = fopen(infiles[i].c_str(), "rb");
 				if (f == NULL) {
 					cerr << "Error: could not open "<< infiles[i].c_str() << endl;

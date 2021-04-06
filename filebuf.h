@@ -31,6 +31,9 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <zlib.h>
+#ifdef WITH_ZSTD
+#include "zstd_decompress.h"
+#endif
 
 /**
  * Simple, fast helper for determining if a character is a newline.
@@ -75,6 +78,12 @@ public:
 		assert(_zIn != NULL);
 	}
 
+	FileBuf(zstdStrm *zstdIn) {
+		init();
+		_zstdIn = zstdIn;
+		assert(_zstdIn != NULL);
+	}
+
 	FileBuf(std::ifstream *inf) {
 		init();
 		_inf = inf;
@@ -109,6 +118,8 @@ public:
 			_inf->close();
 		} else if(_zIn != NULL) {
 			gzclose(_zIn);
+		} else if(_zstdIn != NULL) {
+			zstdClose(_zstdIn);
 		} else {
 			// can't close _ins
 		}
@@ -118,7 +129,7 @@ public:
 	 * Get the next character of input and advance.
 	 */
 	int get() {
-		assert(_in != NULL || _zIn != NULL || _inf != NULL || _ins != NULL);
+		assert(_in != NULL || _zIn != NULL || _inf != NULL || _ins != NULL || _zstdIn != NULL);
 		int c = peek();
 		if(c != -1) {
 			_cur++;
@@ -142,6 +153,7 @@ public:
 		_zIn = NULL;
 		_inf = NULL;
 		_ins = NULL;
+		_zstdIn = NULL;
 		_cur = BUF_SZ;
 		_buf_sz = BUF_SZ;
 		_done = false;
@@ -155,6 +167,21 @@ public:
 		_zIn = in;
 		_inf = NULL;
 		_ins = NULL;
+		_zstdIn = NULL;
+		_cur = BUF_SZ;
+		_buf_sz = BUF_SZ;
+		_done = false;
+	}
+
+	/**
+	 * Initialize the buffer with a new ZSTD file.
+	 */
+	void newFile(zstdStrm *s) {
+		_in = NULL;
+		_zIn = NULL;
+		_inf = NULL;
+		_ins = NULL;
+		_zstdIn = s;
 		_cur = BUF_SZ;
 		_buf_sz = BUF_SZ;
 		_done = false;
@@ -168,6 +195,7 @@ public:
 		_zIn = NULL;
 		_inf = __inf;
 		_ins = NULL;
+		_zstdIn = NULL;
 		_cur = BUF_SZ;
 		_buf_sz = BUF_SZ;
 		_done = false;
@@ -181,6 +209,7 @@ public:
 		_zIn = NULL;
 		_inf = NULL;
 		_ins = __ins;
+		_zstdIn = NULL;
 		_cur = BUF_SZ;
 		_buf_sz = BUF_SZ;
 		_done = false;
@@ -199,6 +228,8 @@ public:
 			_ins->seekg(0, std::ios::beg);
 		} else if (_zIn != NULL) {
 			gzrewind(_zIn);
+		} else if (_zstdIn) {
+			zstdRewind(_zstdIn);
 		} else {
 			rewind(_in);
 		}
@@ -213,7 +244,7 @@ public:
 	 * Occasionally we'll need to read in a new buffer's worth of data.
 	 */
 	int peek() {
-		assert(_in != NULL || _zIn != NULL || _inf != NULL || _ins != NULL);
+		assert(_in != NULL || _zIn != NULL || _inf != NULL || _ins != NULL || _zstdIn != NULL);
 		assert_leq(_cur, _buf_sz);
 		if(_cur == _buf_sz) {
 			if(_done) {
@@ -231,12 +262,14 @@ public:
 				} else if(_ins != NULL) {
 					_ins->read((char*)_buf, BUF_SZ);
 					_buf_sz = _ins->gcount();
-				} else {
+                                } else if (_zstdIn != NULL) {
+					_buf_sz = zstdRead(_zstdIn, (void *)_buf, BUF_SZ);
+                                } else {
 					assert(_in != NULL);
 					// TODO: consider an _unlocked function
 					_buf_sz = fread(_buf, 1, BUF_SZ, _in);
-				}
-				_cur = 0;
+                                }
+                                _cur = 0;
 				if(_buf_sz == 0) {
 					// Exhausted, and we have nothing to return to the
 					// caller
@@ -470,6 +503,7 @@ private:
 		_zIn = NULL;
 		_inf = NULL;
 		_ins = NULL;
+		_zstdIn = NULL;
 		_cur = _buf_sz = BUF_SZ;
 		_done = false;
 		_lastn_cur = 0;
@@ -479,6 +513,7 @@ private:
 	static const size_t BUF_SZ = 256 * 1024;
 	FILE     *_in;
 	gzFile   _zIn;
+	zstdStrm *_zstdIn;
 	std::ifstream *_inf;
 	std::istream  *_ins;
 	size_t    _cur;
