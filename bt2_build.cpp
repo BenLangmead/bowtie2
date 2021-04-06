@@ -403,6 +403,7 @@ static void driver(
 					throw 1;
 				}
 				fb = new FileBuf(zFp);
+#ifdef WITH_ZSTD
 			} else if (ext == "zstd" || ext == "zst") {
 				zstdStrm *zstdFp = zstdOpen(infiles[i].c_str());
 				if (zstdFp == NULL) {
@@ -410,6 +411,7 @@ static void driver(
 					throw 1;
 				}
 				fb = new FileBuf(zstdFp);
+#endif
 			} else {
 				FILE *f = fopen(infiles[i].c_str(), "rb");
 				if (f == NULL) {

@@ -77,12 +77,13 @@ public:
 		_zIn = in;
 		assert(_zIn != NULL);
 	}
-
+#ifdef WITH_ZSTD
 	FileBuf(zstdStrm *zstdIn) {
 		init();
 		_zstdIn = zstdIn;
 		assert(_zstdIn != NULL);
 	}
+#endif
 
 	FileBuf(std::ifstream *inf) {
 		init();
@@ -118,8 +119,10 @@ public:
 			_inf->close();
 		} else if(_zIn != NULL) {
 			gzclose(_zIn);
+#ifdef WITH_ZSTD
 		} else if(_zstdIn != NULL) {
 			zstdClose(_zstdIn);
+#endif
 		} else {
 			// can't close _ins
 		}
@@ -129,7 +132,10 @@ public:
 	 * Get the next character of input and advance.
 	 */
 	int get() {
-		assert(_in != NULL || _zIn != NULL || _inf != NULL || _ins != NULL || _zstdIn != NULL);
+		assert(_in != NULL || _zIn != NULL || _inf != NULL || _ins != NULL);
+#ifdef WITH_ZSTD
+		assert(zstdIn != NULL)
+#endif
 		int c = peek();
 		if(c != -1) {
 			_cur++;
@@ -153,7 +159,9 @@ public:
 		_zIn = NULL;
 		_inf = NULL;
 		_ins = NULL;
+#ifdef WITH_ZSTD
 		_zstdIn = NULL;
+#endif
 		_cur = BUF_SZ;
 		_buf_sz = BUF_SZ;
 		_done = false;
@@ -167,12 +175,15 @@ public:
 		_zIn = in;
 		_inf = NULL;
 		_ins = NULL;
+#ifdef WITH_ZSTD
 		_zstdIn = NULL;
+#endif
 		_cur = BUF_SZ;
 		_buf_sz = BUF_SZ;
 		_done = false;
 	}
 
+#ifdef WITH_ZSTD
 	/**
 	 * Initialize the buffer with a new ZSTD file.
 	 */
@@ -186,7 +197,7 @@ public:
 		_buf_sz = BUF_SZ;
 		_done = false;
 	}
-
+#endif
 	/**
 	 * Initialize the buffer with a new ifstream.
 	 */
@@ -195,7 +206,9 @@ public:
 		_zIn = NULL;
 		_inf = __inf;
 		_ins = NULL;
+#ifdef WITH_ZSTD
 		_zstdIn = NULL;
+#endif
 		_cur = BUF_SZ;
 		_buf_sz = BUF_SZ;
 		_done = false;
@@ -209,7 +222,9 @@ public:
 		_zIn = NULL;
 		_inf = NULL;
 		_ins = __ins;
+#ifdef WITH_ZSTD
 		_zstdIn = NULL;
+#endif
 		_cur = BUF_SZ;
 		_buf_sz = BUF_SZ;
 		_done = false;
@@ -228,8 +243,10 @@ public:
 			_ins->seekg(0, std::ios::beg);
 		} else if (_zIn != NULL) {
 			gzrewind(_zIn);
+#ifdef WITH_ZSTD
 		} else if (_zstdIn) {
 			zstdRewind(_zstdIn);
+#endif
 		} else {
 			rewind(_in);
 		}
@@ -244,7 +261,10 @@ public:
 	 * Occasionally we'll need to read in a new buffer's worth of data.
 	 */
 	int peek() {
-		assert(_in != NULL || _zIn != NULL || _inf != NULL || _ins != NULL || _zstdIn != NULL);
+		assert(_in != NULL || _zIn != NULL || _inf != NULL || _ins != NULL);
+#ifdef WITH_ZSTD
+		assert(zstdIn != NULL);
+#endif
 		assert_leq(_cur, _buf_sz);
 		if(_cur == _buf_sz) {
 			if(_done) {
@@ -262,8 +282,10 @@ public:
 				} else if(_ins != NULL) {
 					_ins->read((char*)_buf, BUF_SZ);
 					_buf_sz = _ins->gcount();
+#ifdef WITH_ZSTD
                                 } else if (_zstdIn != NULL) {
 					_buf_sz = zstdRead(_zstdIn, (void *)_buf, BUF_SZ);
+#endif
                                 } else {
 					assert(_in != NULL);
 					// TODO: consider an _unlocked function
@@ -503,7 +525,9 @@ private:
 		_zIn = NULL;
 		_inf = NULL;
 		_ins = NULL;
+#ifdef WITH_ZSTD
 		_zstdIn = NULL;
+#endif
 		_cur = _buf_sz = BUF_SZ;
 		_done = false;
 		_lastn_cur = 0;
@@ -513,7 +537,9 @@ private:
 	static const size_t BUF_SZ = 256 * 1024;
 	FILE     *_in;
 	gzFile   _zIn;
+#ifdef WITH_ZSTD
 	zstdStrm *_zstdIn;
+#endif
 	std::ifstream *_inf;
 	std::istream  *_ins;
 	size_t    _cur;
