@@ -399,7 +399,7 @@ static void resetOptions() {
 	penNType	    = DEFAULT_N_PENALTY_TYPE;
 	penN		    = DEFAULT_N_PENALTY;
 	penNCatPair	    = DEFAULT_N_CAT_PAIR;	// concatenate mates before N filtering?
-	localAlign	    = false;	// do local alignment in DP steps
+	localAlign	    = true;	// do local alignment in DP steps
 	noisyHpolymer	    = false;
 	penRdGapConst	    = DEFAULT_READ_GAP_CONST;
 	penRfGapConst	    = DEFAULT_REF_GAP_CONST;
