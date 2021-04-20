@@ -188,7 +188,7 @@ BITS := 32
 SSE_FLAG := -msse2
 ifneq (,$(findstring $(shell uname -m), x86_64 amd64))
   BITS := 64
-else ifneq (,$(findstring $(shell uname -m), aarch64 s390x ppc64 ppc64le))
+else ifneq (,$(findstring $(shell uname -m), aarch64 arm64 s390x ppc64 ppc64le))
   BITS := 64
   SSE_FLAG :=
   CXXFLAGS += -fopenmp-simd
