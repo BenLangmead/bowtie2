@@ -57,12 +57,34 @@ ifneq (,$(findstring Darwin,$(shell uname)))
   endif
 endif
 
+BITS := 32
+ifneq (,$(findstring $(shell uname -m), x86_64 amd64))
+  BITS := 64
+  SSE_FLAG := -msse2
+  POPCNT_CAPABILITY ?= 1
+else ifneq (,$(findstring $(shell uname -m), aarch64 arm64 s390x ppc64 ppc64le))
+  BITS := 64
+  SSE_FLAG :=
+  CXXFLAGS += -fopenmp-simd
+  CPPFLAGS += -Ithird_party
+  POPCNT_CAPABILITY ?= 0
+endif
+
+# msys will always be 32 bit so look at the cpu arch instead.
+ifneq (,$(findstring AMD64,$(PROCESSOR_ARCHITEW6432)))
+  ifeq (1,$(MINGW))
+    BITS := 64
+  endif
+endif
+ifeq (32,$(BITS))
+  $(error bowtie2 compilation requires a 64-bit platform )
+endif
+
 ifdef STATIC_BUILD
   LDFLAGS += -L$(CURDIR)/.tmp/lib
   CPPFLAGS += -I$(CURDIR)/.tmp/include
 endif
 
-POPCNT_CAPABILITY ?= 1
 ifeq (1, $(POPCNT_CAPABILITY))
   CXXFLAGS += -DPOPCNT_CAPABILITY
   CPPFLAGS += -I third_party
@@ -182,26 +204,6 @@ else ifeq (0,$(shell $(CXX) -E -fsanitize=address btypes.h > /dev/null 2>&1; ech
   SANITIZER_FLAGS := -fsanitize=address
 else ifeq (0,$(shell $(CXX) -E -fsanitize=undefined btypes.h > /dev/null 2>&1; echo $$?))
   SANITIZER_FLAGS := -fsanitize=undefined
-endif
-
-BITS := 32
-SSE_FLAG := -msse2
-ifneq (,$(findstring $(shell uname -m), x86_64 amd64))
-  BITS := 64
-else ifneq (,$(findstring $(shell uname -m), aarch64 arm64 s390x ppc64 ppc64le))
-  BITS := 64
-  SSE_FLAG :=
-  CXXFLAGS += -fopenmp-simd
-  CPPFLAGS += -Ithird_party
-endif
-# msys will always be 32 bit so look at the cpu arch instead.
-ifneq (,$(findstring AMD64,$(PROCESSOR_ARCHITEW6432)))
-  ifeq (1,$(MINGW))
-    BITS := 64
-  endif
-endif
-ifeq (32,$(BITS))
-  $(error bowtie2 compilation requires a 64-bit platform )
 endif
 
 DEBUG_FLAGS    := -O0 -g3 $(SSE_FLAG)
