@@ -46,17 +46,17 @@ class mcs_lock {
 public:
 	mcs_lock(): q(nullptr) {}
         struct mcs_node {
-		mcs_node *next;
+		std::atomic<mcs_node *> next;
 		std::atomic_bool unlocked;
         };
 
 	void lock();
 	void unlock();
-	typedef mcs_node* mcs_node_ptr;
+	typedef std::atomic<mcs_node *> mcs_node_ptr;
 private:
 	void spin_while_eq(const volatile mcs_node_ptr& value, mcs_node *expected) {
 		cpu_backoff backoff;
-		while (value == expected)
+		while (value.load(std::memory_order_acquire) == expected)
 			backoff.pause();
 	}
 

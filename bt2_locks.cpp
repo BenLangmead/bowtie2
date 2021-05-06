@@ -2,18 +2,18 @@
 
 void mcs_lock::lock() {
 	node.next = nullptr;
-	node.unlocked = false;
 
-	mcs_node *pred = q.exchange(&node, std::memory_order_release);
+	mcs_node *pred = q.exchange(&node, std::memory_order_acq_rel);
 	if (pred) {
-		pred->next = &node;
+		node.unlocked = false;
+		pred->next.store(&node, std::memory_order_release);
 		spin_while_eq(node.unlocked, false);
 	}
 	node.unlocked.load(std::memory_order_acquire);
 }
 
 void mcs_lock::unlock() {
-	if (!node.next) {
+	if (!node.next.load(std::memory_order_acquire)) {
 		mcs_node *node_ptr = &node;
 		if (q.compare_exchange_strong(node_ptr,
 					      (mcs_node *)nullptr,
@@ -21,10 +21,10 @@ void mcs_lock::unlock() {
 			return;
 		spin_while_eq(node.next, (mcs_node *)nullptr);
 	}
-	node.next->unlocked.store(true, std::memory_order_release);
+	node.next.load(std::memory_order_acquire)->unlocked.store(true, std::memory_order_release);
 }
 
-thread_local mcs_lock::mcs_node mcs_lock::node;
+thread_local mcs_lock::mcs_node mcs_lock::node{};
 
 void spin_lock::lock() {
 	cpu_backoff backoff;
