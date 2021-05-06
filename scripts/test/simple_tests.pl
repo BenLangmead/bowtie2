@@ -76,7 +76,7 @@ my @cases = (
 		#                     CAGTATCTGA
 		cont_fasta_reads => ">seq1\nAGCATCGATCAGTATCTGA\n",
 		idx_map => { "seq1_0" => 0, "seq1_9" => 1 },
-		args   => "--end-to-end -F 10,9",
+		args   => "-F 10,9",
 		hits   => [{ 0 => 1 }, { 9 => 1 }] },
 
 	{ name   => "FASTA-continuous 2",
@@ -90,7 +90,7 @@ my @cases = (
 		cont_fasta_reads => ">seq1\nAGCATCGATCAGTATCTG\n".
 		                    ">seq2\nAGCATCGATCAGTATCTGA\n",
 		idx_map => { "seq1_0" => 0, "seq2_0" => 1, "seq2_9" => 2 },
-		args   => "--end-to-end -F 10,9",
+		args   => "-F 10,9",
 		hits   => [{ 0 => 1 }, { 0 => 1 }, { 9 => 1 }] },
 
 	{ name   => "FASTA-continuous 3",
@@ -100,7 +100,7 @@ my @cases = (
 		#                     CAGTATCTGA
 		cont_fasta_reads => ">seq1\nAGCATCGATCAGTATCTGA\n",
 		idx_map => { "seq1_0" => 0 },
-		args   => "--end-to-end -F 10,9 -u 1",
+		args   => "-F 10,9 -u 1",
 		hits   => [{ 0 => 1 }] },
 
 	{ name   => "FASTA-continuous 4",
@@ -110,7 +110,7 @@ my @cases = (
 		#                     CAGTATCTGA
 		cont_fasta_reads => ">seq1\nAGCATCGATCAGTATCTGA\n",
 		idx_map => { "seq1_9" => 0 },
-		args   => "--end-to-end -F 10,9 -s 1",
+		args   => "-F 10,9 -s 1",
 		hits   => [{ 9 => 1 }] },
 
 	{ name   => "FASTA-continuous 5",
@@ -124,7 +124,7 @@ my @cases = (
 		cont_fasta_reads => ">seq1\nAGCATCGATCAGTATCTG\n".
 		                    ">seq2\nAGCATCGATCAGTATCTGA\n",
 		idx_map => { "seq2_0" => 0 },
-		args   => "--end-to-end -F 10,9 -u 1 -s 1",
+		args   => "-F 10,9 -u 1 -s 1",
 		hits   => [{ 0 => 1 }] },
 
 	{ name   => "FASTA-continuous 6",
@@ -135,7 +135,7 @@ my @cases = (
 		#              CATCGATCAG
 		cont_fasta_reads => ">seq1\nAGCATCGATCAG\n",
 		idx_map => { "seq1_0" => 0, "seq1_1" => 1, "seq1_2" => 2 },
-		args   => "--end-to-end -F 10,1",
+		args   => "-F 10,1",
 		hits   => [{ 0 => 1 }, { 1 => 1 }, { 2 => 1 }] },
 
 	# -c
@@ -183,35 +183,35 @@ my @cases = (
 	{ name   => "trim-to: trim from 5'-end",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
 	  cline_reads => "CATCGATCAGTATCTG:IIIIIIIIIIIIIIII\n",
-	  args   => "--end-to-end --trim-to 5:12",
+	  args   => "--trim-to 5:12",
 	  norc   => 1,
 	  hits   => [{ 6 => 1 }] },
 
 	{ name   => "trim-to: trim from 3'-end",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
 	  cline_reads => "CATCGATCAGTATCTG:IIIIIIIIIIIIIIII\n",
-	  args   => "--end-to-end --trim-to 3:12",
+	  args   => "--trim-to 3:12",
 	  norc   => 1,
 	  hits   => [{ 2 => 1 }] },
 
 	{ name   => "trim-to: trim from 3'-end (default)",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
 	  cline_reads => "CATCGATCAGTATCTG:IIIIIIIIIIIIIIII\n",
-	  args   => "--end-to-end --trim-to 12",
+	  args   => "--trim-to 12",
 	  norc   => 1,
 	  hits   => [{ 2 => 1 }] },
 
 	{ name   => "trim-to: invalid position",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
 	  cline_reads => "CATCGATCAGTATCTG:IIIIIIIIIIIIIIII\n",
-	  args   => "--end-to-end --trim-to 4:12",
+	  args   => "--trim-to 4:12",
 	  norc   => 1,
 	  should_abort   => 1 },
 
 	{ name   => "trim-to: invalid count",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
 	  cline_reads => "CATCGATCAGTATCTG:IIIIIIIIIIIIIIII\n",
-	  args   => "--end-to-end --trim-to 5:-12",
+	  args   => "--trim-to 5:-12",
 	  norc   => 1,
 	  should_abort   => 1 },
 
@@ -219,7 +219,7 @@ my @cases = (
 	{ name   => "Cline 7",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
 	  cline_reads => "CATCGATCAGTATCTG:IIIIIIIIIIIIIIII\n",
-	  args   => "--end-to-end --trim3 4",
+	  args   => "--trim3 4",
 	  norc   => 1,
 	  hits   => [{ 2 => 1 }] },
 
@@ -227,14 +227,14 @@ my @cases = (
 	{ name   => "Cline 8",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
 	  cline_reads => "CATCGATCAGTATCTG:IIIIIIIIIIIIIIII",
-	  args   => "--end-to-end --trim5 16",
+	  args   => "--trim5 16",
 	  hits   => [{ "*" => 1 }] },
 
 	# Sequence is skipped
 	{ name   => "Cline 9",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
 	  cline_reads => "CATCGATCAGTATCTG:IIIIIIIIIIIIIIII",
-	  args   => "--end-to-end -s 1",
+	  args   => "-s 1",
 	  hits   => [{ }] },
 
 	{ name   => "Cline multiread 1",
@@ -245,14 +245,14 @@ my @cases = (
 
 	{ name   => "Cline multiread 2",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-		args   =>   "--end-to-end -u 1",
+		args   =>   "-u 1",
 	  cline_reads => "CATCGATCAGTATCTG:IIIIIIIIIIIIIIII,".
 	                 "ATCGATCAGTATCTG:IIIIIIIIIIIIIII\n\n",
 	  hits   => [{ 2 => 1 }] },
 
 	{ name   => "Cline multiread 3",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  args   =>   "--end-to-end -u 2",
+	  args   =>   "-u 2",
 	  cline_reads  => "CATCGATCAGTATCTG,".
 	                  "ATCGATCAGTATCTG\r\n",
 	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
@@ -272,7 +272,7 @@ my @cases = (
 	# Paired-end reads that should align
 	{ name     => "Cline paired 2",
 	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  args     => "--end-to-end -s 1",
+	  args     => "-s 1",
 	  #                  AGCATCGATC
 	  #                          TCAAAAACTGA
 	  #                  0123456789012345678
@@ -285,7 +285,7 @@ my @cases = (
 	# Paired-end reads that should align
 	{ name     => "Cline paired 3",
 	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  args     => "--end-to-end -u 1",
+	  args     => "-u 1",
 	  #                  AGCATCGATC
 	  #                          TCAAAAACTGA
 	  #                  0123456789012345678
@@ -298,7 +298,7 @@ my @cases = (
 	# Paired-end reads with left end entirely trimmed away
 	{ name     => "Cline paired 4",
 	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  args     => "--end-to-end -3 7",
+	  args     => "-3 7",
 	  #                  AGCATCG
 	  #                        GATCAAAAACTGA
 	  #                  0123456789012345678
@@ -348,7 +348,7 @@ my @cases = (
 	{ name   => "Fastq 7",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
 	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIIII\n",
-	  args   => "--end-to-end --trim3 4",
+	  args   => "--trim3 4",
 	  norc   => 1,
 	  hits   => [{ 2 => 1 }] },
 
@@ -356,14 +356,14 @@ my @cases = (
 	{ name   => "Fastq 8",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
 	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIIII\n",
-	  args   => "--end-to-end --trim5 16",
+	  args   => "--trim5 16",
 	  hits   => [{ "*" => 1 }] },
 
 	# Sequence is skipped
 	{ name   => "Fastq 9",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
 	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIIII\n",
-	  args   => "--end-to-end -s 1",
+	  args   => "-s 1",
 	  hits   => [{ }] },
 
 	# Like Fastq 1 but with many extra newlines
@@ -376,7 +376,7 @@ my @cases = (
 	# Like Fastq multiread 1 but with -u 1
 	{ name   => "Fastq multiread 2",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  args   =>   "--end-to-end -u 1",
+	  args   =>   "-u 1",
 	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIIII\n".
 	            "\@r1\nATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIII\n",
 	  hits   => [{ 2 => 1 }] },
@@ -384,7 +384,7 @@ my @cases = (
 	# Like Fastq multiread 1 but with -u 2
 	{ name   => "Fastq multiread 3",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  args   =>   "--end-to-end -u 2",
+	  args   =>   "-u 2",
 	  fastq  => "\@r0\nCATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIIII\n".
 	            "\@r1\nATCGATCAGTATCTG\r\n+\nIIIIIIIIIIIIIII\n",
 	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
@@ -404,7 +404,7 @@ my @cases = (
 	# Paired-end reads that should align
 	{ name     => "Fastq paired 2",
 	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  args     => "--end-to-end -s 1",
+	  args     => "-s 1",
 	  #                  AGCATCGATC
 	  #                          TCAAAAACTGA
 	  #                  0123456789012345678
@@ -417,7 +417,7 @@ my @cases = (
 	# Paired-end reads that should align
 	{ name     => "Fastq paired 3",
 	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  args     => "--end-to-end -u 1",
+	  args     => "-u 1",
 	  #                  AGCATCGATC
 	  #                          TCAAAAACTGA
 	  #                  0123456789012345678
@@ -430,7 +430,7 @@ my @cases = (
 	# Paired-end reads with left end entirely trimmed away
 	{ name     => "Fastq paired 4",
 	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  args     => "--end-to-end -3 7",
+	  args     => "-3 7",
 	  #                  AGCATCG
 	  #                        GATCAAAAACTGA
 	  #                  0123456789012345678
@@ -473,20 +473,20 @@ my @cases = (
 	{ name   => "Fasta 7",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
 	  fasta  => "\n\n\r\n\>r0\nCATCGATCAGTATCTG\r\n",
-	  args   => "--end-to-end --trim3 4",
+	  args   => "--trim3 4",
 	  norc   => 1,
 	  hits   => [{ 2 => 1 }] },
 
 	{ name   => "Fasta 8",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
 	  fasta  => "\n\n\r\n\>r0\nCATCGATCAGTATCTG\r\n",
-	  args   => "--end-to-end --trim3 16",
+	  args   => "--trim3 16",
 	  hits   => [{ "*" => 1 }] },
 
 	{ name   => "Fasta 9",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
 	  fasta  => "\n\n\r\n>r0\nCATCGATCAGTATCTG\r\n",
-	  args   => "--end-to-end -s 1",
+	  args   => "-s 1",
 	  hits   => [{ }] },
 
 	{ name   => "Fasta multiread 1",
@@ -497,35 +497,35 @@ my @cases = (
 
 	{ name   => "Fasta multiread 2",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  args   =>   "--end-to-end -u 1",
+	  args   =>   "-u 1",
 	  fasta  => "\n\n\r\n>r0\nCATCGATCAGTATCTG\r\n".
 	            "\n\n\r\n>r1\nATCGATCAGTATCTG\r\n",
 	  hits   => [{ 2 => 1 }] },
 
 	{ name   => "Fasta multiread 3",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  args   =>   "--end-to-end -u 2",
+	  args   =>   "-u 2",
 	  fasta  => "\n\n\r\n>r0\nCATCGATCAGTATCTG\r\n".
 	            "\n\n\r\n>r1\nATCGATCAGTATCTG\r\n",
 	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
 
 	{ name   => "Fasta multiline 1",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  args   =>   "--end-to-end -u 2",
+	  args   =>   "-u 2",
 	  fasta  => "\n\n\r\n>r0\nCATCGAT\nCAGTATCTG\r\n".
 	            "\n\n\r\n>r1\nATCGATCAGTATCTG\r\n",
 	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
 
 	{ name   => "Fasta multiline 2",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  args   =>   "--end-to-end -u 2",
+	  args   =>   "-u 2",
 	  fasta  => "\n\n\r\n>r0\nCATCGAT\nCAGTATCTG\r\n".
 	            "\n\n\r\n>r1\nATCGATC\nAGTATCTG\r\n",
 	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
 
 	{ name   => "Fasta multiline 3",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  args   =>   "--end-to-end -u 2",
+	  args   =>   "-u 2",
 	  fasta  => "\n\n\r\n>r0\nCATCGAT\nCAGTATCTG\r\n".
 	            "\n\n\r\n>\nATCGATC\nAGTATCTG\r\n",
 	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
@@ -543,7 +543,7 @@ my @cases = (
 
 	{ name     => "Fasta paired 2",
 	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  args     => "--end-to-end -s 1",
+	  args     => "-s 1",
 	  #                  AGCATCGATC
 	  #                          TCAAAAACTGA
 	  #                  0123456789012345678
@@ -555,7 +555,7 @@ my @cases = (
 
 	{ name     => "Fasta paired 3",
 	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  args     => "--end-to-end -u 1",
+	  args     => "-u 1",
 	  #                  AGCATCGATC
 	  #                          TCAAAAACTGA
 	  #                  0123456789012345678
@@ -568,7 +568,7 @@ my @cases = (
 	# Paired-end reads with left end entirely trimmed away
 	{ name     => "Fasta paired 4",
 	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  args     => "--end-to-end -3 7",
+	  args     => "-3 7",
 	  #                  AGCATCG
 	  #                        GATCAAAAACTGA
 	  #                  0123456789012345678
@@ -597,20 +597,20 @@ my @cases = (
 	{ name   => "Raw 7",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
 	  raw    => "\n\n\r\nCATCGATCAGTATCTG\r\n",
-	  args   => "--end-to-end --trim3 4",
+	  args   => "--trim3 4",
 	  norc   => 1,
 	  hits   => [{ 2 => 1 }] },
 
 	{ name   => "Raw 8",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
 	  raw    => "\n\n\r\nCATCGATCAGTATCTG\r\n",
-	  args   => "--end-to-end --trim3 16",
+	  args   => "--trim3 16",
 	  hits   => [{ "*" => 1 }] },
 
 	{ name   => "Raw 9",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
 	  raw    => "CATCGATCAGTATCTG\n",
-	  args   => "--end-to-end -s 1",
+	  args   => "-s 1",
 	  hits   => [{ }] },
 
 	{ name   => "Raw multiread 1",
@@ -621,14 +621,14 @@ my @cases = (
 
 	{ name   => "Raw multiread 2",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  args   =>   "--end-to-end -u 1",
+	  args   =>   "-u 1",
 	  raw    => "\n\n\r\nCATCGATCAGTATCTG\r\n".
 	            "\n\n\r\nATCGATCAGTATCTG\r\n",
 	  hits   => [{ 2 => 1 }] },
 
 	{ name   => "Raw multiread 3",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  args   =>   "--end-to-end -u 2",
+	  args   =>   "-u 2",
 	  raw    => "\n\n\r\nCATCGATCAGTATCTG\r\n".
 	            "\n\n\r\nATCGATCAGTATCTG\r\n",
 	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
@@ -646,7 +646,7 @@ my @cases = (
 
 	{ name     => "Raw paired 2",
 	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  args     => "--end-to-end -s 1",
+	  args     => "-s 1",
 	  #                  AGCATCGATC
 	  #                          TCAAAAACTGA
 	  #                  0123456789012345678
@@ -658,7 +658,7 @@ my @cases = (
 
 	{ name     => "Raw paired 3",
 	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  args     => "--end-to-end -u 1",
+	  args     => "-u 1",
 	  #                  AGCATCGATC
 	  #                          TCAAAAACTGA
 	  #                  0123456789012345678
@@ -671,7 +671,7 @@ my @cases = (
 	# Paired-end reads with left end entirely trimmed away
 	{ name     => "Raw paired 4",
 	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  args     => "--end-to-end -3 7",
+	  args     => "-3 7",
 	  #                  AGCATCG
 	  #                        GATCAAAAACTGA
 	  #                  0123456789012345678
@@ -710,20 +710,20 @@ my @cases = (
 	{ name   => "Tabbed 7",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
 	  tabbed => "\n\n\r\nr0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII\n\n",
-	  args   => "--end-to-end --trim3 4",
+	  args   => "--trim3 4",
 	  norc   => 1,
 	  hits   => [{ 2 => 1 }] },
 
 	{ name   => "Tabbed 8",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
 	  tabbed => "\n\n\r\nr0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII\n\n",
-	  args   => "--end-to-end --trim5 16",
+	  args   => "--trim5 16",
 	  hits   => [{ "*" => 1 }] },
 
 	{ name   => "Tabbed 9",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
 	  tabbed => "\n\n\r\nr0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII\n\n",
-	  args   => "--end-to-end -s 1",
+	  args   => "-s 1",
 	  hits   => [{ }] },
 
 	{ name   => "Tabbed multiread 1",
@@ -734,14 +734,14 @@ my @cases = (
 
 	{ name   => "Tabbed multiread 2",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  args   =>   "--end-to-end -u 1",
+	  args   =>   "-u 1",
 	  tabbed => "\n\n\r\nr0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII\n\n".
 	            "\n\n\r\nr1\tATCGATCAGTATCTG\tIIIIIIIIIIIIIII\n\n",
 	  hits   => [{ 2 => 1 }] },
 
 	{ name   => "Tabbed multiread 3",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  args   =>   "--end-to-end -u 2",
+	  args   =>   "-u 2",
 	  tabbed => "\n\n\r\nr0\tCATCGATCAGTATCTG\tIIIIIIIIIIIIIIII\n\n".
 	            "\n\n\r\nr1\tATCGATCAGTATCTG\tIIIIIIIIIIIIIII\n\n",
 	  hits   => [{ 2 => 1 }, { 3 => 1 }] },
@@ -758,7 +758,7 @@ my @cases = (
 
 	{ name     => "Tabbed paired 2",
 	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  args     => "--end-to-end -s 1",
+	  args     => "-s 1",
 	  #                  AGCATCGATC
 	  #                          TCAAAAACTGA
 	  #                  0123456789012345678
@@ -769,7 +769,7 @@ my @cases = (
 
 	{ name     => "Tabbed paired 3",
 	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  args     => "--end-to-end -u 1",
+	  args     => "-u 1",
 	  #                  AGCATCGATC
 	  #                          TCAAAAACTGA
 	  #                  0123456789012345678
@@ -781,7 +781,7 @@ my @cases = (
 	# Paired-end reads with left end entirely trimmed away
 	{ name     => "Tabbed paired 4",
 	  ref      => [     "AGCATCGATCAAAAACTGA" ],
-	  args     => "--end-to-end -3 7",
+	  args     => "-3 7",
 	  #                  AGCATCG
 	  #                        GATCAAAAACTGA
 	  #                  0123456789012345678
@@ -859,7 +859,7 @@ my @cases = (
 						   "CATCGATCAGTATCTG",
 						   "IIIIIIIIIIIIIIII",
 						   "1")."\n\n",
-	  args   => "--end-to-end --trim3 4",
+	  args   => "--trim3 4",
 	  norc   => 1,
 	  hits   => [{ 2 => 1 }] },
 
@@ -875,7 +875,7 @@ my @cases = (
 						   "CATCGATCAGTATCTG",
 						   "IIIIIIIIIIIIIIII",
 						   "1")."\n\n",
-	  args   => "--end-to-end --trim3 16",
+	  args   => "--trim3 16",
 	  hits   => [{ "*" => 1 }] },
 
 	{ name   => "Qseq 9",
@@ -890,7 +890,7 @@ my @cases = (
 						   "CATCGATCAGTATCTG",
 						   "IIIIIIIIIIIIIIII",
 						   "1")."\n\n",
-	  args   => "--end-to-end -s 1",
+	  args   => "-s 1",
 	  hits   => [{ }] },
 
 	{ name   => "Qseq multiread 1",
@@ -921,7 +921,7 @@ my @cases = (
 
 	{ name   => "Qseq multiread 2",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  args   =>   "--end-to-end -u 1",
+	  args   =>   "-u 1",
 	  qseq   => "\n\n\n".join("\t", "MachName",
 	                       "RunNum",
 						   "Lane",
@@ -948,7 +948,7 @@ my @cases = (
 
 	{ name   => "Qseq multiread 3",
 	  ref    => [ "AGCATCGATCAGTATCTGA" ],
-	  args   =>   "--end-to-end -u 2",
+	  args   =>   "-u 2",
 	  qseq   => "\n\n\n".join("\t", "MachName",
 	                       "RunNum",
 						   "Lane",
@@ -1027,7 +1027,7 @@ my @cases = (
 	  #                  AGCATCGATC
 	  #                          TCAAAAACTGA
 	  #                  0123456789012345678
-	  args     => "--end-to-end -s 1",
+	  args     => "-s 1",
 	  qseq1  => "\n\n\n".join("\t", "MachName",
 	                       "RunNum",
 						   "Lane",
@@ -1088,7 +1088,7 @@ my @cases = (
 		"XO:i:1" => 1,
 		"AS:i:-8" => 1 } ],
 	  report => "",
-	  args   => "--end-to-end"
+	  args   => ""
 	},
 
 	{ name   => "Left-align deletion",
@@ -1107,7 +1107,7 @@ my @cases = (
 		"XO:i:1" => 1,
 		"AS:i:-8" => 1 } ],
 	  report => "",
-	  args   => "--end-to-end"
+	  args   => ""
 	},
 
 	{ name   => "Left-align insertion with mismatch at LHS",
@@ -1128,7 +1128,7 @@ my @cases = (
 		"XM:i:1" => 1,
 		"AS:i:-14" => 1 } ],
 	  report => "",
-	  args   => "--end-to-end"
+	  args   => ""
 	},
 
 	# This won't necessarily pass because the original location of the deletion
@@ -1168,7 +1168,7 @@ my @cases = (
 	  #                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 ACGAGCTACGTACTGGCTATCCGAGCTGACGCATCACGACGA                                         ACGAGCTACGTACTGGCTATCCGAGCTGACGCATCACGACGA                                         ACGAGCTACGTACTGGCTATCCGAGCTGACGCATCACGACGA
 	  samflags_map => [{ 981 => (1 | 128), 1064 => (1 | 128), 1147 => (1 | 128), 2 => (1 | 64) }],
 	  report => "",
-	  args   => "--end-to-end"
+	  args   => ""
 	},
 
 	{ name   => "Flags for when mates align non-concordantly, with many alignments for one",
@@ -1184,7 +1184,7 @@ my @cases = (
 	  tlen_map     => [{ 2 => 1021, 981 => -1021 }],
 	  samflags_map => [{ 981 => (1 | 128), 2 => (1 | 64) }],
 	  report => "",
-	  args   => "--end-to-end"
+	  args   => ""
 	},
 
 	{ name   => "MREVERSE flag is set if mate does not align",
@@ -1194,7 +1194,7 @@ my @cases = (
 	  mate2s => [   "CAGCGGCCCTGCCTCCTACCCTTGCGCCTCATGACCAGCTTGTTGAAGAGATCCGACATCAAGTGCCCACCTTGGCTCGTGGCTCTCACTGCAACGGGAA" ],
 	  samflags_map => [{ 50 => (1 | 8 | 16 | 64), "*" => (1 | 4 | 32 | 128) }],
 	  report => "",
-	  args   => "--end-to-end"
+	  args   => ""
 	},
 
 	{ name   => "Flags for when mates align non-concordantly, with many alignments for one",
@@ -1211,7 +1211,7 @@ my @cases = (
 	  #                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 ACGAGCTACGTACTGGCTATCCGAGCTGACGCATCACGACGA                                         ACGAGCTACGTACTGGCTATCCGAGCTGACGCATCACGACGA                                         ACGAGCTACGTACTGGCTATCCGAGCTGACGCATCACGACGA
 	  samflags_map => [{ 79 => (1 | 2 | 16 | 128), 162 => (1 | 2 | 16 | 128), 245 => (1 | 2 | 16 | 128), 2 => (1 | 2 | 32 | 64) }],
 	  report => "",
-	  args   => "--end-to-end"
+	  args   => ""
 	},
 
 	# Checking MD:Z strings for alignment
@@ -1437,7 +1437,7 @@ my @cases = (
 	  ref    => [ "GCGCATGCACATATCANNNNNGCGCATGCACATATCTNNNNNNNNGCGCATGCACATATTTNNNNNNNNNGCGCATGGTGTTATCA" ],
 	  reads  => [ "GCGCATGCACATATCA" ],
 	  quals  => [ "GOAIYEFGFIWDSFIU" ],
-	  args   => "--end-to-end --min-score C,-24,0 -L 4",
+	  args   => "--min-score C,-24,0 -L 4",
 	  report => "-k 4"
 	},
 
@@ -1446,7 +1446,7 @@ my @cases = (
 	  ref    => [ "GCGCATGCACATATCANNNNNGCGCATGCACATATCTNNNNNNNNGCGCATGCACATATTTNNNNNNNNNGCGCATGGTGTTATCA" ],
 	  reads  => [ "GCGCATGCACATATCA" ],
 	  quals  => [ "GOAIYEFGFIWDSFIU" ],
-	  args   => "--end-to-end --min-score C,-24,0 -L 4",
+	  args   => "--min-score C,-24,0 -L 4",
 	  report => "-a"
 	},
 
@@ -1461,7 +1461,7 @@ my @cases = (
 	  mate1s => [ "CTATCATCACGCGGATATT", "GGGGGGGGTCTACCCCTAA", "ATACGGCCATCGCGGCGGCATTACTCGGCG" ],
 	  mate2s => [ "GGGGGGGGTCTACCCCTAA", "CTATCATCACGCGGATATT", "AGCCAATGAGCTGACTAGAGCGTTTT" ],
 	  quals  => [ "GOAIYEFGFIWDSFIU" ],
-	  args   => "--end-to-end",
+	  args   => "",
 	  report => "-a"
 	},
 
@@ -1471,7 +1471,7 @@ my @cases = (
 	  mate1s => [ "CTATCATCACGCGGATATT", "GGGGGGGGTCTACCCCTAA", "ATACGGCCATCGCGGCGGCATTACTCGGCG" ],
 	  mate2s => [ "GGGGGGGGTCTACCCCTAA", "CTATCATCACGCGGATATT", "AGCCAATGAGCTGACTAGAGCGTTTT" ],
 	  quals  => [ "GOAIYEFGFIWDSFIU" ],
-	  args   => "--end-to-end",
+	  args   => "",
 	  report => "-M 1"
 	},
 
@@ -1521,7 +1521,7 @@ my @cases = (
 	  mate2s   => [                        "CGCATCGACATTAATATCC" ],
 	  pairhits => [{ "1,23" => 1 }],
 	  mate1fw  => 1, mate2fw => 1,
-	  args     => "--end-to-end --no-dovetail",
+	  args     => "--no-dovetail",
 	  report   => "-M 1"
 	},
 	{ name     => "Non-overlapping; --un-conc=.tmp.simple_tests.pl",
@@ -1531,7 +1531,7 @@ my @cases = (
 	  mate2s   => [                        "CGCATCGACATTAATATCC" ],
 	  pairhits => [{ "1,23" => 1 }],
 	  mate1fw  => 1, mate2fw => 1,
-	  args     => "--end-to-end --un-conc=.tmp.simple_tests.pl",
+	  args     => "--un-conc=.tmp.simple_tests.pl",
 	  report   => "-M 1"
 	},
 	{ name     => "Non-overlapping; --no-overlap",
@@ -1541,7 +1541,7 @@ my @cases = (
 	  mate2s   => [                        "CGCATCGACATTAATATCC" ],
 	  pairhits => [{ "1,23" => 1 }],
 	  mate1fw  => 1, mate2fw => 1,
-	  args     => "--end-to-end --no-overlap",
+	  args     => "--no-overlap",
 	  report   => "-M 1"
 	},
 
@@ -1552,7 +1552,7 @@ my @cases = (
 	  mate2s   => [                    "TTAGCGCATCGACATTAATATCC" ],
 	  pairhits => [{ "1,19" => 1 }],
 	  mate1fw  => 1, mate2fw => 1,
-	  args     => "--end-to-end",
+	  args     => "",
 	  report   => "-M 1"
 	},
 	{ name     => "Overlapping; --no-dovetail",
@@ -1562,7 +1562,7 @@ my @cases = (
 	  mate2s   => [                    "TTAGCGCATCGACATTAATATCC" ],
 	  pairhits => [{ "1,19" => 1 }],
 	  mate1fw  => 1, mate2fw => 1,
-	  args     => "--end-to-end --no-dovetail",
+	  args     => "--no-dovetail",
 	  report   => "-M 1"
 	},
 	{ name     => "Overlapping; --no-contain",
@@ -1572,7 +1572,7 @@ my @cases = (
 	  mate2s   => [                    "TTAGCGCATCGACATTAATATCC" ],
 	  pairhits => [{ "1,19" => 1 }],
 	  mate1fw  => 1, mate2fw => 1,
-	  args     => "--end-to-end --no-contain",
+	  args     => "--no-contain",
 	  report   => "-M 1"
 	},
 	{ name     => "Overlapping; --no-overlap",
@@ -1582,7 +1582,7 @@ my @cases = (
 	  mate2s   => [                    "TTAGCGCATCGACATTAATATCC" ],
 	  pairhits => [],
 	  mate1fw  => 1, mate2fw => 1,
-	  args     => "--end-to-end --no-overlap",
+	  args     => "--no-overlap",
 	  report   => "-M 1"
 	},
 
@@ -1597,7 +1597,7 @@ my @cases = (
 	  quals  => [         "GOAIYEFGFIWDSFIUYWEHRIWQWLFNSLDKkjdfglduhiuevhsiuqkAUHFIUEHGIUDJFHSKseuweyriwfskdgbiuuhh" ],
 	  #                    0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567
 	  #                    0         1         2         3         4         5         6         7         8
-	  args   => "--end-to-end",
+	  args   => "",
 	  report => "-M 1",
 	  hits   => [ { 8 => 1 } ],
 	  cigar  => [ "88M" ],
@@ -1615,7 +1615,7 @@ my @cases = (
 	  quals  => [         "GOAIYEFGFIWDSFIUYWEHRIWQWLFNSLDKkjdfg". "iuevhsiuqkAUHFIUEHGIUDJFHSKseuweyriwfskdgbiuuhh" ],
 	  #                    0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567
 	  #                    0         1         2         3         4         5         6         7         8
-	  args   => "--end-to-end --ignore-quals --score-min C,-40,0 -N 1 -L 20",
+	  args   => "--ignore-quals --score-min C,-40,0 -N 1 -L 20",
 	  report => "-M 1",
 	  hits   => [ { 8 => 1 } ],
 	  cigar  => [ "37M4D30M3I14M" ],
@@ -1638,7 +1638,7 @@ my @cases = (
 	  quals  => [         "GOAIYEFGFIWDSFIUYWEHRIWQWLFNSLDKkjdfg". "iuevhsiuqkAUHFIUEHGIUDJFHSKseuweyriwfskdgbiuuhh" ],
 	  #                    0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567
 	  #                    0         1         2         3         4         5         6         7         8
-	  args   => "--end-to-end --ignore-quals --rfg 1,2 --score-min C,-40,0 -N 1 -L 20",
+	  args   => "--ignore-quals --rfg 1,2 --score-min C,-40,0 -N 1 -L 20",
 	  report => "-M 1",
 	  hits   => [ { 8 => 1 } ],
 	  cigar  => [ "37M4D30M3I14M" ],
@@ -1660,7 +1660,7 @@ my @cases = (
 	  quals  => [         "GOAIYEFGFIWDSFIUYWEHRIWQWLFNSLDKkjdfg". "iuevhsiuqkAUHFIUEHGIUDJFHSKseuweyriwfskdgbiuuhh" ],
 	  #                    0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567
 	  #                    0         1         2         3         4         5         6         7         8
-	  args   => "--end-to-end --ignore-quals --rdg 1,2 --score-min C,-40,0 -N 1 -L 20",
+	  args   => "--ignore-quals --rdg 1,2 --score-min C,-40,0 -N 1 -L 20",
 	  report => "-M 1",
 	  hits   => [ { 8 => 1 } ],
 	  cigar  => [ "37M4D30M3I14M" ],
@@ -1682,7 +1682,7 @@ my @cases = (
 	  quals  => [         "GOAIYEFGFIWDSFIUYWEHRIWQWLFNSLDKkjdfg". "iuevhsiuqkAUHFIUEHGIUDJFHSKseuweyriwfskdgbiuuhh" ],
 	  #                    0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567
 	  #                    0         1         2         3         4         5         6         7         8
-	  args   => "--end-to-end --ignore-quals --mp 8 --score-min C,-40,0 -N 1 -L 20",
+	  args   => "--ignore-quals --mp 8 --score-min C,-40,0 -N 1 -L 20",
 	  report => "-M 1",
 	  hits   => [ { 8 => 1 } ],
 	  cigar  => [ "37M4D30M3I14M" ],
@@ -1704,7 +1704,7 @@ my @cases = (
 	  quals  => [         "GOAIYEFGFIWDSFIUYWEHRIWQWLFNSLDKkjdfg". "iuevhsiuqkAUHFIUEHGIUDJFHSKseuweyriwfskdgbiuuhh" ],
 	  #                    0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567
 	  #                    0         1         2         3         4         5         6         7         8
-	  args   => "--end-to-end --ignore-quals --np 4 --score-min C,-41,0 -N 1 -L 20",
+	  args   => "--ignore-quals --np 4 --score-min C,-41,0 -N 1 -L 20",
 	  report => "-M 1",
 	  hits   => [ { 8 => 1 } ],
 	  cigar  => [ "37M4D30M3I14M" ],
@@ -1726,7 +1726,7 @@ my @cases = (
 	  ref    => [ "TTGTTCGATTGTTCGA" ],
 	  reads  => [ "TTGTTCGT" ],
 	  quals  => [ "IIIIIIIA" ],
-	  args   => "--end-to-end --multiseed=0,7,C,1 --score-min=C,-6",
+	  args   => "--multiseed=0,7,C,1 --score-min=C,-6",
 	  report => "-M 1",
 	  hits   => [ { 0 => 1, 8 => 1 } ],
 	  hits_are_superset => [ 1 ],
@@ -1742,7 +1742,7 @@ my @cases = (
 	  ref    => [ "TTGTTCGATTGTTCGA" ],
 	  reads  => [ "TTGTTCGT" ],
 	  quals  => [ "IIIIIII!" ],
-	  args   => "--end-to-end -L 6 --mp 3,3 --score-min=C,-6",
+	  args   => "-L 6 --mp 3,3 --score-min=C,-6",
 	  report => "-M 1",
 	  hits   => [ { 0 => 1, 8 => 1 } ],
 	  hits_are_superset => [ 1 ],
@@ -1758,7 +1758,7 @@ my @cases = (
 	  ref    => [ "TTGTTCGATTGTTCGA" ],
 	  reads  => [ "TTGTTCGT" ],
 	  quals  => [ "IIIIIII!" ],
-	  args   => "--end-to-end -L 6 --mp 6,3 --score-min=C,-6",
+	  args   => "-L 6 --mp 6,3 --score-min=C,-6",
 	  report => "-M 1",
 	  hits   => [ { 0 => 1, 8 => 1 } ],
 	  hits_are_superset => [ 1 ],
@@ -1774,7 +1774,7 @@ my @cases = (
 	  ref    => [ "TTGTTCGATTGTTCGA" ],
 	  reads  => [ "TTGTTCGT" ],
 	  quals  => [ "IIIIIIII" ],
-	  args   => "--end-to-end -L 6 --mp 3,3 --score-min=C,-6",
+	  args   => "-L 6 --mp 3,3 --score-min=C,-6",
 	  report => "-M 1",
 	  hits   => [ { 0 => 1, 8 => 1 } ],
 	  hits_are_superset => [ 1 ],
@@ -1790,7 +1790,7 @@ my @cases = (
 	  ref    => [ "TTGTTCGATTGTTCGA" ],
 	  reads  => [ "TTGTTCGT" ],
 	  quals  => [ "IIIIIIII" ],
-	  args   => "--end-to-end -L 6 --mp 6,3 --score-min=C,-6",
+	  args   => "-L 6 --mp 6,3 --score-min=C,-6",
 	  report => "-M 1",
 	  hits   => [ { 0 => 1, 8 => 1 } ],
 	  hits_are_superset => [ 1 ],
@@ -1806,7 +1806,7 @@ my @cases = (
 	  ref    => [ "TTGTTCGATTGTTCGA" ],
 	  reads  => [ "TTGTTCGT" ],
 	  quals  => [ "IIIIIIIA" ],
-	  args   => "--end-to-end --multiseed=0,7,C,1 --score-min=C,-6 --ignore-quals",
+	  args   => "--multiseed=0,7,C,1 --score-min=C,-6 --ignore-quals",
 	  report => "-M 1",
 	  hits   => [ { 0 => 1, 8 => 1 } ],
 	  hits_are_superset => [ 1 ],
@@ -1822,7 +1822,7 @@ my @cases = (
 	  ref    => [ "TTGTTCGATTGTTCGA" ],
 	  reads  => [ "TTGTTCGT" ],
 	  quals  => [ "IIIIIII5" ],
-	  args   => "--end-to-end --multiseed=0,7,C,1 --score-min=C,-6",
+	  args   => "--multiseed=0,7,C,1 --score-min=C,-6",
 	  report => "-M 1",
 	  hits   => [ { 0 => 1, 8 => 1 } ],
 	  hits_are_superset => [ 1 ],
@@ -1838,7 +1838,7 @@ my @cases = (
 	  ref    => [ "TTGTTCGATTGTTCGA" ],
 	  reads  => [ "TTGTTCGT" ],
 	  quals  => [ "IIIIIII5" ],
-	  args   => "--end-to-end --multiseed=0,7,C,1 --score-min=C,-6 --ignore-quals",
+	  args   => "--multiseed=0,7,C,1 --score-min=C,-6 --ignore-quals",
 	  report => "-M 1",
 	  hits   => [ { 0 => 1, 8 => 1 } ],
 	  hits_are_superset => [ 1 ],
@@ -1854,7 +1854,7 @@ my @cases = (
 	  ref    => [ "TTGTTCGATTGTTCGA" ],
 	  reads  => [ "TTGTTCGT" ],
 	  quals  => [ "IIIIIII4" ],
-	  args   => "--end-to-end --multiseed=0,7,C,1 --score-min=C,-6",
+	  args   => "--multiseed=0,7,C,1 --score-min=C,-6",
 	  report => "-M 1",
 	  hits   => [ { 0 => 1, 8 => 1 } ],
 	  hits_are_superset => [ 1 ],
@@ -1870,7 +1870,7 @@ my @cases = (
 	  ref    => [ "TTGTTCGATTGTTCGA" ],
 	  reads  => [ "TTGTTCGT" ],
 	  quals  => [ "IIIIIII4" ],
-	  args   => "--end-to-end --multiseed=0,7,C,1 --score-min=C,-6 --ignore-quals",
+	  args   => "--multiseed=0,7,C,1 --score-min=C,-6 --ignore-quals",
 	  report => "-M 1",
 	  hits   => [ { 0 => 1, 8 => 1 } ],
 	  hits_are_superset => [ 1 ],
@@ -1895,7 +1895,7 @@ my @cases = (
 
 	{ ref    => [ "TTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCGT" ],
-	  args   => "--end-to-end --multiseed=0,4,C,1,0",
+	  args   => "--multiseed=0,4,C,1,0",
 	  report => "-M 1"
 	},
 
@@ -1928,7 +1928,7 @@ my @cases = (
 	{ name   => "XS:i 1",
 	  ref    => [ "TTGTTCGATTGTTCGA" ],
 	  reads  => [ "TTGTTCGT" ],
-	  args   => "--end-to-end --multiseed=0,7,C,1 --score-min=C,-6",
+	  args   => "--multiseed=0,7,C,1 --score-min=C,-6",
 	  report => "-M 1",
 	  hits   => [ { 0 => 1, 8 => 1 } ],
 	  hits_are_superset => [ 1 ],
@@ -1943,7 +1943,7 @@ my @cases = (
 	{ name   => "XS:i 2",
 	  ref    => [ "TTGTTCGATTGTTCGA" ],
 	  reads  => [ "TTGTTCGT" ],
-	  args   => "--end-to-end --multiseed=0,7,C,1 --score-min=C,-5",
+	  args   => "--multiseed=0,7,C,1 --score-min=C,-5",
 	  report => "",
 	  cigar  => [ "*" ],
 	  samoptflags => [{ "YT:Z:UU" => 1, "YM:i:0" => 1 }],
@@ -1953,7 +1953,7 @@ my @cases = (
 	  ref    => [ "TTGTTCGATTGTTCGT" ],
 	  #                    TTGTTCGT
 	  reads  => [ "TTGTTCGT" ],
-	  args   => "--end-to-end --multiseed=0,7,C,1 --score-min=C,-6",
+	  args   => "--multiseed=0,7,C,1 --score-min=C,-6",
 	  report => "-M 1",
 	  hits   => [ { 8 => 1 } ],
 	  cigar  => [ "8M" ],
@@ -1968,7 +1968,7 @@ my @cases = (
 	  ref    => [ "TTGTTCGATTGTTCGT" ],
 	  #                    TTGTTCGT
 	  reads  => [ "TTGTTCGT" ],
-	  args   => "--end-to-end --multiseed=0,7,C,1 --score-min=C,-6 --seed=52",
+	  args   => "--multiseed=0,7,C,1 --score-min=C,-6 --seed=52",
 	  report => "-M 1",
 	  hits   => [ { 8 => 1 } ],
 	  cigar  => [ "8M" ],
@@ -1983,7 +1983,7 @@ my @cases = (
 	  ref    => [ "TTGTTCGATTGTTCGT" ],
 	  #                    TTGTTCGT
 	  reads  => [ "TTGTTCGT" ],
-	  args   => "--end-to-end --multiseed=0,7,C,1 --score-min=C,-6 --seed=53",
+	  args   => "--multiseed=0,7,C,1 --score-min=C,-6 --seed=53",
 	  report => "-M 2",
 	  hits   => [ { 8 => 1 } ],
 	  cigar  => [ "8M" ],
@@ -2001,7 +2001,7 @@ my @cases = (
 	  #                    TTGTTCGT||||||||
 	  #                            TTGTTCGT
 	  reads  => [ "TTGTTCGT" ],
-	  args   => "--end-to-end --multiseed=0,6,C,1 --score-min=C,-12 --seed=53",
+	  args   => "--multiseed=0,6,C,1 --score-min=C,-12 --seed=53",
 	  report => "-M 2",
 	  hits   => [ { 16 => 1 } ],
 	  cigar  => [ "8M" ],
@@ -2019,7 +2019,7 @@ my @cases = (
 	  #                    TTGTTCGT||||||||
 	  #                            TTGTTCGT
 	  reads  => [ "TTGTTCGT" ],
-	  args   => "--end-to-end --multiseed=0,6,C,1 --score-min=C,-12 --seed=54",
+	  args   => "--multiseed=0,6,C,1 --score-min=C,-12 --seed=54",
 	  report => "-M 3",
 	  hits   => [ { 16 => 1 } ],
 	  cigar  => [ "8M" ],
@@ -2037,7 +2037,7 @@ my @cases = (
 	  #                    TTGTTCGT||||||||        TTGTTCGT        TTGTTCGT        TTGTTCGT        TTGTTCGT        TTGTTCGT        TTGTTCGT
 	  #                            TTGTTCGT
 	  reads  => [ "TTGTTCGT" ],
-	  args   => "--end-to-end --multiseed=0,6,C,1,1 --score-min=C,-12 --seed=54",
+	  args   => "--multiseed=0,6,C,1,1 --score-min=C,-12 --seed=54",
 	  report => "-M 1",
 	  hits   => [ { 16 => 1 } ],
 	  cigar  => [ "8M" ],
@@ -2055,7 +2055,7 @@ my @cases = (
 	  #                    TTGTTCGT||||||||        TTGTTCGT        TTGTTCGT        TTGTTCGT        TTGTTCGT        TTGTTCGT        TTGTTCGT
 	  #                            TTGTTCGT
 	  reads  => [ "TTGTTCGT" ],
-	  args   => "--end-to-end --multiseed=0,5,C,1,1 --score-min=C,-12 --seed=55",
+	  args   => "--multiseed=0,5,C,1,1 --score-min=C,-12 --seed=55",
 	  report => "-M 1",
 	  hits   => [ { 16 => 1 } ],
 	  cigar  => [ "8M" ],
@@ -2076,7 +2076,7 @@ my @cases = (
 	  reads    => [    "TAGATTCCACTACGCTAACCATCGAGAACTCGTCTCAGAGTTTCGATAGGAAAATC" ],
 	  #                 01234567890123456789012345678901234567890123456789012345
 	  #                           1         2         3         4         5
-	  args     => "--end-to-end --bwa-sw-like",
+	  args     => "--bwa-sw-like",
 	  hits     => [{ 3 => 1 }],
 	  samoptflags => [{ "AS:i:56" => 1, "NM:i:0" => 1,
 	                    "MD:Z:56" => 1, "YT:Z:UU" => 1 }]
@@ -2088,7 +2088,7 @@ my @cases = (
 	  reads    => [    "TAGATTCCACTACGCTAACCATCGAGTTCTCGTCTCAGAGTTTCGATAGGAAAATC" ],
 	  #                 01234567890123456789012345678901234567890123456789012345
 	  #                           1         2         3         4         5
-	  args     => "--end-to-end --bwa-sw-like -L 18",
+	  args     => "--bwa-sw-like -L 18",
 	  hits     => [{ 3 => 1 }],
 	  # Tot matches = 54
 	  # Tot penalties = 6
@@ -2102,7 +2102,7 @@ my @cases = (
 	  reads    => [    "TAGATTCCACTACGCTAACCATCGAG"."TCGTCTCAGAGTTTCGATAGGAAAATC" ],
 	  #                 01234567890123456789012345678901234567890123456789012345
 	  #                           1         2         3         4         5
-	  args     => "--end-to-end --bwa-sw-like -i C,1,0",
+	  args     => "--bwa-sw-like -i C,1,0",
 	  hits     => [{ 3 => 1 }],
 	  # Tot matches = 53
 	  # Tot penalties = 11
@@ -2326,7 +2326,7 @@ my @cases = (
 	  #       NNNNNGA------A-------------------G-NTTT
 	  #            ||||||||||||||||||||||||||||||||||
 	  #       CCAAT-ATTTTTAATTTCCTCTATTTTTCTCTCGTCTTG
-	  args   => "--end-to-end --policy \"NP=Q\\;RDG=46.3220993654702\\;RFG=41.3796024365659\\;MIN=L,5.57015383125426,-3.28597145122829\\;NCEIL=L,0.263054599454459,0.130843661549367\\;SEED=1\\;SEEDLEN=29\\;IVAL=L,0.0169183264663712,3.75762168662522\" --overhang --trim5 6",
+	  args   => "--policy \"NP=Q\\;RDG=46.3220993654702\\;RFG=41.3796024365659\\;MIN=L,5.57015383125426,-3.28597145122829\\;NCEIL=L,0.263054599454459,0.130843661549367\\;SEED=1\\;SEEDLEN=29\\;IVAL=L,0.0169183264663712,3.75762168662522\" --overhang --trim5 6",
 	  reads  => [ "CTTTGCACCCCTCCCTTGTCGGCTCCCACCCATCCCCATCCGTTGTCCCCGCCCCCGCCCGCCGGTCGTCACTCCCCGTTTGCGTCATGCCCCTCACCCTCCCTTTGTCGGCTCGCACCCCTCCCCATCCGTTGTCCCCGCCCCCGCTCTCGGGGTCTTCACGCCCCGCTTGCTTCATGCCCCTCACTCGCACCCCG" ],
 	},
 
@@ -2336,14 +2336,14 @@ my @cases = (
 	  #       NNNNNGA------A-------------------G-NTTT
 	  #            ||||||||||||||||||||||||||||||||||
 	  #       CCAAT-ATTTTTAATTTCCTCTATTTTTCTCTCGTCTTG
-	  args   => "--end-to-end --policy \"MMP=R\\;MIN=L,8.8,-8.1\" --overhang",
+	  args   => "--policy \"MMP=R\\;MIN=L,8.8,-8.1\" --overhang",
 	  reads  => [ "CAAGACGAGAGAAAAATAGAGGAAATTAAAAATATTGG" ],
 	},
 
 	{ name   => "matchesRef regression 2",
 	  ref    => ["GTTGTCGGCAGCTCTGGATATGTGNTCTCGGGTTTATNTCGTTGTCG",
 	             "CCTTGTTNTTAATGCTGCCTGGTTTNG"],
-	  args   =>  "--end-to-end --policy \"RDG=2.02030755427021,2.81949533273331\\;MIN=L,-6.52134769703939,-3.39889659588514\\;IVAL=L,0.127835912101927\" --overhang --trim5 5",
+	  args   =>  "--policy \"RDG=2.02030755427021,2.81949533273331\\;MIN=L,-6.52134769703939,-3.39889659588514\\;IVAL=L,0.127835912101927\" --overhang --trim5 5",
 	  mate1s => ["TCTGGCGGTTGCGAAGGCCCCTGGCGGTTGCTATGTCCTCTGGCGGTTGCGTTGTCGGCAGCTCG"],
 	  mate2s => ["AGAACACATATCCAGAGCTGCCGACAACGAAATGAACCCGAGAGCACAAATCCAGAG"] },
 
@@ -2356,7 +2356,7 @@ my @cases = (
 	  reads  => [            "AAGGCCTAGAGGTCGACCGACAATCTGACCATGGGGCGAGGAGCGAGTACTGGTCTGGGG" ],
 	  #                       012345678901234567890123456789012345678901234567890123456789
 	  #                       0         1         2         3         4         5
-	  args   => "--end-to-end --overhang" },
+	  args   => "--overhang" },
 
 	# 1 discordant alignment and one concordant alignment.  Discordant because
 	# the fragment is too long.
@@ -2374,7 +2374,7 @@ my @cases = (
 	  mate2s    => [ "GTCGCTACCG", "TGTCGCTACC" ],
 	  mate1fw   => 1,
 	  mate2fw   => 1,
-	  args      =>   "--end-to-end -I 0 -X 35",
+	  args      =>   "-I 0 -X 35",
 	  # Not really any way to flag an alignment as discordant
 	  pairhits  => [ { "3,7" => 1 }, { "3,6" => 1 } ],
 	  rnext_map => [ { 3 => 1, 7 => 0 }, { 3 => 1, 6 => 0 } ],
@@ -2473,52 +2473,52 @@ my @cases = (
 
 	{ ref      => [     "AGCATCGATCAGTATCTGA" ],
 	  reads    => [ "",    "ATCGATCAGTA" ],
-	  args     => "--end-to-end -s 1",
+	  args     => "-s 1",
 	  hits     => [ {}, { 3 => 1 }] },
 
 	{ ref      => [     "AGCATCGATCAGTATCTGA" ],
 	  mate1s   => [ "", "AGCATCGATC" ],
 	  mate2s   => [ "",          "TCAGATACTG" ],
-	  args     => "--end-to-end -s 1",
+	  args     => "-s 1",
 	  pairhits => [ {}, { "0,9" => 1 }] },
 
 	{ ref      => [     "AGCATCGATCAGTATCTGA" ],
 	  reads    => [ "",    "ATCGATCAGTA" ],
-	  args     => "--end-to-end -s 2",
+	  args     => "-s 2",
 	  hits     => [ {}, {} ] },
 
 	{ ref      => [     "AGCATCGATCAGTATCTGA" ],
 	  mate1s   => [ "", "AGCATCGATC" ],
 	  mate2s   => [ "",          "TCAGATACTG" ],
-	  args     => "--end-to-end -s 2",
+	  args     => "-s 2",
 	  pairhits => [ {}, {} ] },
 
 	{ ref    => [     "AGCATCGATCAGTATCTGA" ],
 	  reads  => [ "",    "ATCGATCAGTA", "AGTATCTGA" ],
-	  args   => "--end-to-end -s 1 -u 1",
+	  args   => "-s 1 -u 1",
 	  hits   => [ {}, { 3 => 1 }] },
 
 	{ ref    => [     "AGCATCGATCAGTATCTGA" ],
 	  reads  => [ "AC",  "ATCGATCAGTA" ],
-	  args   => "--end-to-end -s 1 --trim3 2",
+	  args   => "-s 1 --trim3 2",
 	  norc   => 1,
 	  hits   => [ {}, { 3 => 1 }] },
 
 	{ ref    => [     "AGCATCGATCAGTATCTGA" ],
 	  reads  => [ "AC",  "ATCGATCAGTA" ],
-	  args   => "--end-to-end -s 1 --trim3 2",
+	  args   => "-s 1 --trim3 2",
 	  nofw   => 1,
 	  hits   => [ {}, { 5 => 1 }] },
 
 	{ ref    => [     "AGCATCGATCAGTATCTGA" ],
 	  reads  => [ "AC",  "ATCGATCAGTA" ],
-	  args   => "--end-to-end -s 1 --trim5 2",
+	  args   => "-s 1 --trim5 2",
 	  nofw   => 1,
 	  hits   => [ {}, { 3 => 1 }] },
 
 	{ ref    => [     "AGCATCGATCAGTATCTGA" ],
 	  reads  => [ "AC",  "ATCGATCAGTA" ],
-	  args   => "--end-to-end -s 1 --trim5 2",
+	  args   => "-s 1 --trim5 2",
 	  norc   => 1,
 	  hits   => [ {}, { 5 => 1 }] },
 
@@ -2528,7 +2528,7 @@ my @cases = (
 
 	{ ref    => [ "TGC" ],
 	  reads  => [ "ATGC" ],
-	  args   => "--end-to-end --overhang --policy \"SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;NCEIL=L,1,0\"",
+	  args   => "--overhang --policy \"SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;NCEIL=L,1,0\"",
 	  hits   => [ { 0 => 1 } ],
 	  cigar  => [ "1S3M" ],
 	  samoptflags => [
@@ -2537,7 +2537,7 @@ my @cases = (
 
 	{ ref    => [ "TTGTTCGT" ],
 	  reads  => [ "TTGTTCG" ],
-	  args   => "--end-to-end --policy \"SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;NCEIL=L,2,0\"",
+	  args   => "--policy \"SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;NCEIL=L,2,0\"",
 	  hits   => [ { 0 => 1 } ],
 	  cigar  => [ "7M" ],
 	  samoptflags => [ { "AS:i:0" => 1, "YT:Z:UU" => 1, "MD:Z:7" => 1 } ]
@@ -2545,7 +2545,7 @@ my @cases = (
 
 	{ ref    => [ "TTGTTCGT" ],
 	  reads  => [ "TTGTTCG" ],
-	  args   => "--end-to-end",
+	  args   => "",
 	  hits   => [ { 0 => 1 } ],
 	  flags => [ "XM:0,XP:0,XT:UU,XC:7=" ],
 	  cigar  => [ "7M" ],
@@ -2554,7 +2554,7 @@ my @cases = (
 
 	{ ref    => [ "TTGTTCGT" ],
 	  reads  => [  "TGTTCGT", "TTGTTCG" ],
-	  args   => "--end-to-end --overhang",
+	  args   => "--overhang",
 	  hits   => [ { 1 => 1 }, { 0 => 1 } ],
 	  flags => [ "XM:0,XP:0,XT:UU,XC:7=", "XM:0,XP:0,XT:UU,XC:7=" ],
 	  cigar  => [ "7M", "7M" ],
@@ -2566,7 +2566,7 @@ my @cases = (
 
 	{ ref    => [ "TTGTTCGT" ],
 	  reads  => [ "TGTTCGT", "TTGTTCG" ],
-	  args   => "--end-to-end",
+	  args   => "",
 	  hits   => [ { 1 => 1 }, { 0 => 1 } ],
 	  flags => [ "XM:0,XP:0,XT:UU,XC:7=", "XM:0,XP:0,XT:UU,XC:7=" ],
 	  cigar  => [ "7M", "7M" ],
@@ -2582,7 +2582,7 @@ my @cases = (
 	#                GTTCGTA
 	#             ATTGTTC
 	  reads  => [ "TGTTCGT", "GTTCGTA", "ATTGTTC" ],
-	  args   => "--end-to-end --overhang --policy \"SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;NCEIL=L,2,0\"",
+	  args   => "--overhang --policy \"SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;NCEIL=L,2,0\"",
 	  hits   => [ { 1 => 1 }, { 2 => 1 }, { 0 => 1 } ],
 	  cigar  => [ "7M", "6M1S", "1S6M" ],
 	  samoptflags => [
@@ -2594,7 +2594,7 @@ my @cases = (
 	# Same as previous case but --overhang not specified
 	{ ref    => [ "TTGTTCGT" ],
 	  reads  => [ "TGTTCGT", "TTGTTCG", "GTTCGTA", "ATTGTTC" ],
-	  args   => "--end-to-end --policy \"SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;NCEIL=L,2,0\"",
+	  args   => "--policy \"SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;NCEIL=L,2,0\"",
 	  hits   => [ { 1 => 1 }, { 0 => 1 } ], # only the internal hits
 	  cigar  => [ "7M", "7M", "*", "*" ],
 	  samoptflags => [
@@ -2609,12 +2609,12 @@ my @cases = (
 	# a special NCEIL setting.
 	{ ref    => [ "TTGTTCGT" ],
 	  reads  => [ "TTGTTCG" ],
-	  args   => "--end-to-end --overhang --policy \"SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;NCEIL=L,2,0\"",
+	  args   => "--overhang --policy \"SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;NCEIL=L,2,0\"",
 	  hits   => [ { 0 => 1 } ]},
 
 	{ ref    => [ "TTGTTCGT" ],
 	  reads  => [ "TTGTTCG" ],
-	  args   => "--end-to-end --overhang",
+	  args   => "--overhang",
 	  hits   => [ { 0 => 1 } ]},
 
 	#
@@ -2638,7 +2638,7 @@ my @cases = (
 	  #            0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
-	  args     => "--end-to-end -X 1000",
+	  args     => "-X 1000",
 	  report   => "-M 5",
 	  pairhits   => [{ "12,78"  => 1, "12,249" => 1, "12,315" => 1,
 	                   "12,486" => 1, "12,552" => 1, "12,723" => 1,
@@ -2746,7 +2746,7 @@ my @cases = (
 	  #            0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
-	  args   =>   "--end-to-end -X 1000",
+	  args   =>   "-X 1000",
 	  report =>   "-k 5",
 	  pairhits   => [{ "12,78"  => 1, "12,249" => 1, "12,315" => 1,
 	                   "12,486" => 1, "12,552" => 1, "12,723" => 1,
@@ -2854,7 +2854,7 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1, mate2fw => 0,
-	  args    => "--end-to-end -X 150",
+	  args    => "-X 150",
 	  report  => "-M 2",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
 	  cigar_map => [{
@@ -2916,7 +2916,7 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1, mate2fw => 0,
-	  args    => "--end-to-end -X 150",
+	  args    => "-X 150",
 	  report  => "-k 1",
 	  pairhits  => [ { "12,78" => 1, "249,315" => 1 } ],
 	  hits_are_superset => [ 1 ],
@@ -3086,7 +3086,7 @@ my @cases = (
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
 	  mate1fw => 1,  mate2fw => 0,
-	  args    =>   "--end-to-end -X 150",
+	  args    =>   "-X 150",
 	  report  =>   "-M 1",
 	  pairhits  => [ { "12,78" => 1 } ],
 	  cigar_map => [{
@@ -3137,7 +3137,7 @@ my @cases = (
 	  #            0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   0                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   1                                                                                                   2                                                                                                   2                                                                                                   2                                                                                                   2                                                                                                   2                                                                                                   2                                                                                                   2
 	  mate1s => [ "CAGCGTACGGTATCTAGCTATGGGCATCGATCG" ],
 	  mate2s => [ "CAGTCAGCTCCGAGCTATAGGGGTGTGT" ], # rev comped
-	  args   =>   "--end-to-end -X 150",
+	  args   =>   "-X 150",
 	  report =>   "-M 5",
 	  pairhits  => [ { "12,78"     => 1, "249,315"   => 1, "486,552"   => 1,
 	                   "723,789"   => 1, "960,1026"  => 1, "1197,1263" => 1,
@@ -3417,7 +3417,7 @@ my @cases = (
 	  #            0123456789012345678901234567890123456789012345678901234567890123456789012345678901234
 	  #            0         1         2         3         4         5         6         7         8
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
-	  args   =>   "--end-to-end",
+	  args   =>   "",
 	  report =>   "-M 1",
 	  hits   => [ { 6 => 1, 48 => 1 } ],
 	  hits_are_superset => [ 1 ],
@@ -3619,7 +3619,7 @@ my @cases = (
 	  #            0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0         1         2         3
 	  #            0                                                                                                   1                                                                                                   2                                                                                                   3
 	  reads  => [ "AGATTACGGATCTACGATTCGAGTCGGTCA" ],
-	  args   =>   "--end-to-end -X 150",
+	  args   =>   "-X 150",
 	  report =>   "-M 5",
 	  hits   => [ { 6 => 1, 48 => 1, 91 => 1, 133 => 1, 176 => 1, 218 => 1, 261 => 1, 303 => 1 } ],
 	  hits_are_superset => [ 1 ],
@@ -3725,7 +3725,7 @@ my @cases = (
 	# Just enough budget for hits, so it should align
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCAT" ], # budget = 3 + 8 * 3 = 27
-	  args   => "--end-to-end -L 6 -i C,1,0 --policy \"MMP=C27\\;MIN=L,-3,-3\\;RDG=25,15\\;RFG=25,15\"", # penalty = 27
+	  args   => "-L 6 -i C,1,0 --policy \"MMP=C27\\;MIN=L,-3,-3\\;RDG=25,15\\;RFG=25,15\"", # penalty = 27
 	  report => "-a",
 	  hits   => [ { 0 => 1, 8 => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU,XC:6=1X1=" ],
@@ -3736,7 +3736,7 @@ my @cases = (
 	# Not quite enough budget for hits, so it should NOT align
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCAT" ], # budget = 3 + 8 * 3 = 27
-	  args   =>   "--end-to-end -L 6 -i C,1,0 --policy \"MMP=C28\\;MIN=L,-3,-3\\;RDG=25,15\\;RFG=25,15\"", # penalty = 28
+	  args   =>   "-L 6 -i C,1,0 --policy \"MMP=C28\\;MIN=L,-3,-3\\;RDG=25,15\\;RFG=25,15\"", # penalty = 28
 	  report =>   "-a",
 	  hits   => [ { "*" => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU" ],
@@ -3749,7 +3749,7 @@ my @cases = (
 	{ ref    => [ "AAAAAAAAAAAAAAAAAAAAAAAAACCCCCCCCCCCCCCCCCCCCCCCC" ],
 	  reads  => [ "AA", "AA", "AA", "AA", "CC", "CC", "CC", "CC", "AA", "AA", "AA", "AA", "CC", "CC", "CC", "CC" ],
 	  names  => [ "r1", "r1", "r1", "r1", "r2", "r2", "r2", "r2", "r3", "r3", "r3", "r3", "r4", "r4", "r4", "r4" ],
-	  args   => "--end-to-end --policy \"SEED=1\\;SEEDLEN=2\"",
+	  args   => "--policy \"SEED=1\\;SEEDLEN=2\"",
 	  check_random => 1,
 	  report => "-k 1" },
 
@@ -3761,7 +3761,7 @@ my @cases = (
 	{ name   => "Gap penalties 1",
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCTTTGTT" ], # budget = 3 + 12 * 3 = 39
-	  args   =>   "--end-to-end --policy \"MMP=C30\\;SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;RDG=29,10\\;RFG=25,15\\;MIN=L,-3,-3\"",
+	  args   =>   "--policy \"MMP=C30\\;SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;RDG=29,10\\;RFG=25,15\\;MIN=L,-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU,XC:6=1D6=" ],
@@ -3775,7 +3775,7 @@ my @cases = (
 	{ name   => "Gap penalties 2",
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCTTTGTT" ], # budget = 3 + 12 * 3 = 39
-	  args   =>   "--end-to-end --policy \"MMP=C30\\;SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;RDG=30,10\\;RFG=25,15\\;MIN=L,-3,-3\"",
+	  args   =>   "--policy \"MMP=C30\\;SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;RDG=30,10\\;RFG=25,15\\;MIN=L,-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { "*" => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU" ],
@@ -3787,7 +3787,7 @@ my @cases = (
 	{ name   => "Gap penalties 3",
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCGATTTGTT" ], # budget = 3 + 14 * 3 = 45
-	  args   =>   "--end-to-end --policy \"MMP=C30\\;SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;RDG=25,15\\;RFG=30,15\\;MIN=L,-3,-3\"",
+	  args   =>   "--policy \"MMP=C30\\;SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;RDG=25,15\\;RFG=30,15\\;MIN=L,-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU,XC:7=1I6=" ],
@@ -3832,7 +3832,7 @@ my @cases = (
 	{ name   => "Gap penalties 4",
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCGATTTGTT" ], # budget = 3 + 14 * 3 = 45
-	  args   =>   "--end-to-end --policy \"MMP=C30\\;SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;RDG=25,15\\;RFG=30,16\\;MIN=L,-3,-3\"",
+	  args   =>   "--policy \"MMP=C30\\;SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;RDG=25,15\\;RFG=30,16\\;MIN=L,-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { "*" => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU" ],
@@ -3843,7 +3843,7 @@ my @cases = (
 	{ name   => "Gap penalties 5",
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTCGATTTGTT" ], # budget = 3 + 14 * 3 = 45
-	  args   =>   "--end-to-end --policy \"MMP=C30\\;SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;RDG=25,15\\;RFG=31,15\\;MIN=L,-3,-3\"",
+	  args   =>   "--policy \"MMP=C30\\;SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;RDG=25,15\\;RFG=31,15\\;MIN=L,-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { "*" => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU" ],
@@ -3854,7 +3854,7 @@ my @cases = (
 	{ name   => "Gap penalties 6",
 	  ref    => [ "ATTGTTCGTTTGTTCGTA" ],
 	  reads  => [ "ATTGTTGTTTGATTCGTA" ], # budget = 3 + 18 * 3 = 57
-	  args   =>   "--end-to-end --policy \"MMP=C30\\;SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;RDG=19,10\\;RFG=18,10\\;MIN=L,-3,-3\"",
+	  args   =>   "--policy \"MMP=C30\\;SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;RDG=19,10\\;RFG=18,10\\;MIN=L,-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU,XC:6=1D5=1I6=" ],
@@ -3864,7 +3864,7 @@ my @cases = (
 	{ name   => "Gap penalties 7",
 	  ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTGTTGTTTGATTCGT" ], # budget = 3 + 16 * 3 = 51
-	  args   =>   "--end-to-end --policy \"MMP=C30\\;SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;RDG=16,10\\;RFG=16,10\\;MIN=L,-3,-3\"",
+	  args   =>   "--policy \"MMP=C30\\;SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;RDG=16,10\\;RFG=16,10\\;MIN=L,-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { "*" => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU" ],
@@ -3877,7 +3877,7 @@ my @cases = (
 	  reads    => [         "ATACGCATCGAAC" ],
 	  #              0123456789012345678901234567890
 	  #                        1         2         3
-	  args     =>   "--end-to-end --policy \"NCEIL=L,0,0\"",
+	  args     =>   "--policy \"NCEIL=L,0,0\"",
 	  report   =>   "-a",
 	  hits     => [ { 8 => 1 } ],
 	  flags => [ "XM:0,XP:0,XT:UU,XC:13=" ] },
@@ -3887,7 +3887,7 @@ my @cases = (
 	  reads    => [         "ATACGCATCGAAC" ],
 	  #              0123456789012345678901234567890
 	  #                        1         2         3
-	  args     =>   "--end-to-end --policy \"NCEIL=L,0,0\"",
+	  args     =>   "--policy \"NCEIL=L,0,0\"",
 	  report   =>   "-a",
 	  hits     => [ { "*" => 1 } ] },
 
@@ -3896,7 +3896,7 @@ my @cases = (
 	  reads    => [         "ATACGCATCGAAC" ],
 	  #              0123456789012345678901234567890
 	  #                        1         2         3
-	  args     =>   "--end-to-end --policy \"NCEIL=L,0,0\"",
+	  args     =>   "--policy \"NCEIL=L,0,0\"",
 	  report   =>   "-a",
 	  hits     => [ { "*" => 1 } ] },
 
@@ -3905,7 +3905,7 @@ my @cases = (
 	  reads    => [         "ATACGCATCGAAC" ],
 	  #              0123456789012345678901234567890
 	  #                        1         2         3
-	  args     =>   "--end-to-end --policy \"NCEIL=L,0,0\"",
+	  args     =>   "--policy \"NCEIL=L,0,0\"",
 	  report   =>   "-a",
 	  hits     => [ { "*" => 1 } ] },
 
@@ -3914,7 +3914,7 @@ my @cases = (
 	  reads    => [         "ATACGCATCGAAC" ],
 	  #              0123456789012345678901234567890
 	  #                        1         2         3
-	  args     =>   "--end-to-end --policy \"NCEIL=L,0,0.1\\;SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\"",
+	  args     =>   "--policy \"NCEIL=L,0,0.1\\;SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\"",
 	  report   =>   "-a",
 	  hits     => [ { 8 => 1 } ],
 	  flags => [ "XM:0,XP:0,XT:UU,XC:2=1X10=" ] },
@@ -3924,7 +3924,7 @@ my @cases = (
 	  reads    => [         "ATACGCATCGAAC" ],
 	  #              0123456789012345678901234567890
 	  #                        1         2         3
-	  args     =>   "--end-to-end --policy \"NCEIL=L,0,0.1\\;SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\"",
+	  args     =>   "--policy \"NCEIL=L,0,0.1\\;SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\"",
 	  report   =>   "-a",
 	  hits     => [ { "*" => 1 } ] },
 
@@ -3933,7 +3933,7 @@ my @cases = (
 	# Alignment with 1 reference gap
 	{ ref    => [ "TTTTGTTCGTTTG" ],
 	  reads  => [ "TTTTGTTCGATTTG" ], # budget = 3 + 14 * 3 = 45
-	  args   =>   "--end-to-end --policy \"SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;MMP=C30\\;RDG=25,15\\;RFG=25,20\\;MIN=L,-3,-3\"",
+	  args   =>   "--policy \"SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;MMP=C30\\;RDG=25,15\\;RFG=25,20\\;MIN=L,-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1 } ],
 	  flags => [ "XM:0,XP:0,XT:UU,XC:9=1I4=" ],
@@ -3963,7 +3963,7 @@ my @cases = (
 	# Alignment with 1 reference gap
 	{ ref    => [ "TTGTTCGTTTGTT" ],
 	  reads  => [ "TTGTTCGATTTGTT" ], # budget = 3 + 14 * 3 = 45
-	  args   =>   "--end-to-end --policy \"SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;MMP=C30\\;RDG=25,15\\;RFG=25,20\\;MIN=L,-3,-3\"",
+	  args   =>   "--policy \"SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;MMP=C30\\;RDG=25,15\\;RFG=25,20\\;MIN=L,-3,-3\"",
 	  report =>   "-a",
 	  hits   => [ { 0 => 1 } ],
 	  flags => [ "XM:0,XP:0,XT:UU,XC:7=1I6=" ],
@@ -3976,7 +3976,7 @@ my @cases = (
 
 	{ ref    => [ "ACNCA" ],
 	  reads  => [ "CA" ],
-	  args   => "--end-to-end",
+	  args   => "",
 	  report => "-a --policy \"SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;NCEIL=L,0,0\"",
 	  hits   => [ { 3 => 1 } ],
 	  edits  => [ ],
@@ -3990,7 +3990,7 @@ my @cases = (
 	{ name   => "N ceil = 0, 2 legit hits (1)",
 	  ref    => [ "ACNCA" ],
 	  reads  => [ "AC" ],
-	  args   => "--end-to-end",
+	  args   => "",
 	  report => "-a --policy \"SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;NCEIL=L,0,0\"",
 	  hits   => [ { 0 => 1 } ],
 	  edits  => [ ],
@@ -4001,7 +4001,7 @@ my @cases = (
 	#              0123456789012345678901234
 	#              0         1         2
 	  reads  => [ "CG" ],
-	  args   => "--end-to-end",
+	  args   => "",
 	  report => "-a --policy \"SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;NCEIL=L,0,0\"",
 	  hits   => [ { 13 => 2, 23 => 2 } ],
 	  edits  => [ ],
@@ -4016,7 +4016,7 @@ my @cases = (
 	#              0123456789012345678901234567890123456
 	#              0         1         2         3
 	  reads  => [ "CG" ],
-	  args   => "--end-to-end",
+	  args   => "",
 	  report => "-a --policy \"SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;NCEIL=L,0,0\"",
 	  hits   => [ { 13 => 2, 23 => 2, 31 => 2 } ],
 	  edits  => [ ],
@@ -4035,7 +4035,7 @@ my @cases = (
 	#              0123456789012345678901234567890123456
 	#              0         1         2         3
 	  reads  => [ "CG" ],
-	  args   => "--end-to-end",
+	  args   => "",
 	  report => "-a --policy \"SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;NCEIL=L,0,0\"",
 	  hits   => [ { 13 => 2, 23 => 2, 31 => 2 } ],
 	  edits  => [ ],
@@ -4058,7 +4058,7 @@ my @cases = (
 	# second read has compatible one
 	{ ref    => [ "TTGTTYGT" ],
 	  reads  => [ "TTGTTGGT", "TTGTTCGT" ],
-	  args   => "--end-to-end",
+	  args   => "",
 	  report => "-a --policy \"SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;NCEIL=L,2,0\"",
 	  hits   => [ { 0 => 1 }, { 0 => 1 } ],
 	  norc   => 1,
@@ -4082,7 +4082,7 @@ my @cases = (
 	  reads  => [ "ATAATTCG" ], # 3 * 19 + 3 = 60
 	  #                ^
 	  #                4:CC>-
-	  args   => "--end-to-end",
+	  args   => "",
 	  report => "-a --overhang --gbar 3 --policy \"MMP=C30\\;RDG=5,5\\;SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;RFG=25,20\\;MIN=L,-3,-3\"",
 	  hits   => [ { 0 => 1 } ],
 	  edits  => [ "4:CC>-" ],
@@ -4099,7 +4099,7 @@ my @cases = (
 	  reads  => [ "ATATGCCCCCCCCCCTCCG" ], # 3 * 19 + 3 = 60
 	  #                     ^
 	  #                     9:ATG>-
-	  args   =>   "--end-to-end --policy \"SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;MMP=C30\\;RDG=5,5\\;RFG=25,15\\;MIN=L,-3,-3\"",
+	  args   =>   "--policy \"SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;MMP=C30\\;RDG=5,5\\;RFG=25,15\\;MIN=L,-3,-3\"",
 	  hits   => [ { 0 => 1 } ],
 	  edits  => [ "9:ATG>-" ],
 	  norc   => 1,
@@ -4117,7 +4117,7 @@ my @cases = (
 	  #            ATATGCCCCCCCCCCTCCG
 	  #                     ^
 	  #                     10:GTA>-
-	  args   => "--end-to-end",
+	  args   => "",
 	  report => "-a --overhang --policy \"SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;MMP=C30\\;RDG=5,5\\;RFG=25,20\\;MIN=L,-3,-3\"",
 	  hits   => [ { 0 => 1 } ],
 	  edits  => [ "10:GTA>-" ],
@@ -4155,7 +4155,7 @@ my @cases = (
 	  mate2s   => [ "GTCGCTACCG", "TGTCGCTACC", "CTGTCGCTAC", "CCTGTCGCTA",
 	                "GTCGCTACCG", "TGTCGCTACC", "CTGTCGCTAC", "CCTGTCGCTA" ],
 	  mate1fw => 1,  mate2fw => 1,
-	  args     =>   "--end-to-end -I 0 -X 35",
+	  args     =>   "-I 0 -X 35",
 	  # Not really any way to flag an alignment as discordant
 	  pairhits => [ { "3,30" => 1 }, { "3,29" => 1 }, { "3,28" => 1 }, { "3,27" => 1 },
 	                { "4,30" => 1 }, { "4,29" => 1 }, { "4,28" => 1 }, { "4,27" => 1 } ],
@@ -4178,7 +4178,7 @@ my @cases = (
 	  mate1s => [ "ATAAAAATAT", "ATAAAAATAT" ],
 	  mate2s => [ "GGCCCGCCCG", "CCGGGCCCGC" ],
 	  mate1fw => 1,  mate2fw => 1,
-	  args   =>   "--end-to-end -I 0 -X 36",
+	  args   =>   "-I 0 -X 36",
 	  # Not really any way to flag an alignment as discordant
 	  pairhits => [ { "3,30" => 1 }, { "3,27" => 1 } ],
 	  flags => [ "XM:0,XP:0,XT:DP,XC:10=", "XM:0,XP:0,XT:CP,XC:10=" ] },
@@ -4195,7 +4195,7 @@ my @cases = (
 	  mate1s => [ "ATAAAAATAT" ],
 	  mate2s => [ "CGATCGCCCG" ],
 	  mate1fw => 1,  mate2fw => 1,
-	  args   =>   "--end-to-end -I 0 -X 36",
+	  args   =>   "-I 0 -X 36",
 	  # Not really any way to flag an alignment as discordant
 	  pairhits => [ { "3,30" => 1 } ],
 	  flags => [ "XM:0,XP:0,XT:DP,XC:10=" ] },
@@ -4212,7 +4212,7 @@ my @cases = (
 	  mate1s => [ "ATAAAAATAT" ],
 	  mate2s => [ "CGATCGCCCG" ],
 	  mate1fw => 1,  mate2fw => 1,
-	  args   =>   "--end-to-end -I 28 -X 80",
+	  args   =>   "-I 28 -X 80",
 	  # Not really any way to flag an alignment as discordant
 	  pairhits => [ { "3,20" => 1 } ],
 	  flags => [ "XM:0,XP:0,XT:DP,XC:10=" ] },
@@ -4227,7 +4227,7 @@ my @cases = (
 	  mate1s  => [ "ATATATATAT" ],
 	  mate2s  => [ "CGCGCGCGCG" ],
 	  mate1fw => 1,  mate2fw => 0,
-	  args    => "--end-to-end -I 0 -X 80",
+	  args    => "-I 0 -X 80",
 	  report  => "-M 2",
 	  lines   => 2,
 	  pairhits => [ { "3,59" => 1, "19,59" => 1, "37,59" => 1 } ],
@@ -4244,7 +4244,7 @@ my @cases = (
 	  mate1s => [ "ATATATATAT" ],
 	  mate2s => [ "CGCGCGCGCG" ],
 	  mate1fw => 1,  mate2fw => 0,
-	  args   =>   "--end-to-end -I 0 -X 80",
+	  args   =>   "-I 0 -X 80",
 	  pairhits => [ { "3,59" => 1, "19,59" => 1, "37,59" => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:CP,XC:10=" ] },
 
@@ -4258,7 +4258,7 @@ my @cases = (
 	  mate1s => [ "ATATATATAT" ],
 	  mate2s => [ "CCCCCGGGGG" ],
 	  mate1fw => 1,  mate2fw => 1,
-	  args   =>   "--end-to-end -I 0 -X 50 --nofw",
+	  args   =>   "-I 0 -X 50 --nofw",
 	  nofw   => 1,
 	  pairhits  => [ { "*,3"  => 1 } ],
 	  flags_map => [ {  3     => "XM:0,XP:0,XT:UP,XC:10=",
@@ -4286,7 +4286,7 @@ my @cases = (
 	  mate1s => [ "ATATATATAT" ],
 	  mate2s => [ "CCCCCGGGGG" ],
 	  mate1fw => 1,  mate2fw => 1,
-	  args   =>   "--end-to-end -I 0 -X 50 --no-mixed",
+	  args   =>   "-I 0 -X 50 --no-mixed",
 	  pairhits => [ { "*,*" => 1 } ] },
 
 	# Simple paired-end alignment
@@ -4299,7 +4299,7 @@ my @cases = (
 	  mate1s => [ "ATATATATAT" ],
 	  mate2s => [ "CGCGCGCGCG" ],
 	  mate1fw => 1,  mate2fw => 1,
-	  args   =>   "--end-to-end -I 0 -X 50",
+	  args   =>   "-I 0 -X 50",
 	  pairhits => [ { "3,35" => 1 } ],
 	  flags => [ "XM:0,XP:0,XT:CP,XC:10=" ],
 	  cigar_map => [{
@@ -4324,7 +4324,7 @@ my @cases = (
 	{ ref    => [ "AAAAAAAAAAAAAAAAAAAAAAAAACCCCCCCCCCCCCCCCCCCCCCCC" ],
 	  reads  => [ "AA", "AA", "AA", "AA", "CC", "CC", "CC", "CC", "AA", "AA", "AA", "AA", "CC", "CC", "CC", "CC" ],
 	  names  => [ "r1", "r1", "r1", "r1", "r2", "r2", "r2", "r2", "r3", "r3", "r3", "r3", "r4", "r4", "r4", "r4" ],
-	  args   => "--end-to-end",
+	  args   => "",
 	  check_random => 1,
 	  report => "-k 1" },
 
@@ -4343,7 +4343,7 @@ my @cases = (
 	# Read 3 overhangs right end
 	{ ref    => [ "TTGTTCGT"  ],
 	  reads  => [   "GTTCGTA" ],
-	  args   => "--end-to-end --overhang --policy \"SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;NCEIL=L,2,0\"",
+	  args   => "--overhang --policy \"SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;NCEIL=L,2,0\"",
 	  hits   => [ { 2 => 1 } ],
 	  flags => [ "XM:0,XP:0,XT:UU,XC:6=1X" ] },
 
@@ -4352,7 +4352,7 @@ my @cases = (
 	# Default should be 1-mismatch, so this shouldn't align
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTATTAGT" ],
-	  args   => "--end-to-end",
+	  args   => "",
 	  hits   => [ { "*" => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU" ],
 	  cigar  => [ "*" ],
@@ -4362,7 +4362,7 @@ my @cases = (
 	# Shouldn't align with 0 mismatches either
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTATTAGT" ],
-	  args   => "--end-to-end --policy SEED=0",
+	  args   => "--policy SEED=0",
 	  hits   => [ { "*" => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU" ],
 	  cigar  => [ "*" ],
@@ -4374,7 +4374,7 @@ my @cases = (
 	# wedge a length-3 seed in (there's no room)
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [ "TTATTAGT" ],
-	  args   => "--end-to-end --policy \"SEED=0\\;SEEDLEN=3\\;IVAL=C,1,0\\;MMP=C1\"",
+	  args   => "--policy \"SEED=0\\;SEEDLEN=3\\;IVAL=C,1,0\\;MMP=C1\"",
 	  hits   => [ { "*" => 1 } ],
 	  flags  => [ "XM:0,XP:0,XT:UU" ],
 	  cigar  => [ "*" ],
@@ -4386,7 +4386,7 @@ my @cases = (
 	# length-2 seed in
 	{ ref    => [ "TTGTTCGTTTGTTCGT" ],
 	  reads  => [      "TTATTAGT" ],
-	  args   => "--end-to-end --policy \"SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;MMP=C1\"",
+	  args   => "--policy \"SEED=0\\;SEEDLEN=2\\;IVAL=C,1,0\\;MMP=C1\"",
 	  #
 	  # TTGTTCGTTTGTTCGT TTGTTCGTTTGTTCGT TTGTTCGTTTGTTCGT
 	  # || || ||            ||  |             |  || ||
@@ -4592,9 +4592,6 @@ sub runbowtie2($$$$$$$$$$$$$$$$$$$$$$$$$) {
 		$should_abort) = @_;
 
 	my  $idx_type = "";
-        unless ($args =~ /--end-to-end|--local/) {
-            $args .= " --end-to-end ";
-        }
 	$args .= " --quiet";
 	$reportargs = "-a" unless defined($reportargs);
 	$args .= " $reportargs";
