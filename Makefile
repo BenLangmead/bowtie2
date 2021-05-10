@@ -105,11 +105,6 @@ endif
 PTHREAD_PKG :=
 PTHREAD_LIB :=
 
-#if we're not using TBB, then we can't use queuing locks
-ifeq (1,$(NO_TBB))
-  NO_QUEUELOCK := 1
-endif
-
 ifeq (1,$(MINGW))
   PTHREAD_LIB :=
 else
@@ -145,7 +140,7 @@ ifeq (1,$(WITH_AFFINITY))
   CXXFLAGS += -DWITH_AFFINITY=1
 endif
 
-#default is to use Intel TBB's queuing lock for better thread scaling performance
+#default is to use queue lock for better thread scaling performance
 ifneq (1,$(NO_QUEUELOCK))
   CXXFLAGS += -DNO_SPINLOCK
   CXXFLAGS += -DWITH_QUEUELOCK=1
@@ -155,10 +150,6 @@ SHARED_CPPS :=  ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
   edit.cpp bt2_locks.cpp bt2_idx.cpp bt2_io.cpp bt2_util.cpp \
   reference.cpp ds.cpp multikey_qsort.cpp limit.cpp \
   random_source.cpp
-
-ifeq (1,$(NO_TBB))
-  SHARED_CPPS += tinythread.cpp
-endif
 
 SEARCH_CPPS :=  qual.cpp pat.cpp sam.cpp \
   read_qseq.cpp aligner_seed_policy.cpp \
@@ -260,11 +251,7 @@ GENERAL_LIST := $(wildcard scripts/*.sh) \
 
 ifeq (1,$(WINDOWS))
   BOWTIE2_BIN_LIST := $(BOWTIE2_BIN_LIST) bowtie2.bat bowtie2-build.bat bowtie2-inspect.bat
-  ifneq (1,$(NO_TBB))
-    CXXFLAGS += -static-libgcc -static-libstdc++
-  else
-    CXXFLAGS += -static -static-libgcc -static-libstdc++
-  endif
+  CXXFLAGS += -static-libgcc -static-libstdc++
 endif
 
 # This is helpful on Windows under MinGW/MSYS, where Make might go for
@@ -557,13 +544,6 @@ static-libs:
 		$(if $(MINGW), mingw32-make -f win32/Makefile.gcc, ./configure --static && make) ; \
 		cp zlib.h zconf.h $(CURDIR)/.tmp/include && cp libz.a $(CURDIR)/.tmp/lib ; \
 		rm -f zlib-1.2.11 ; \
-	fi ; \
-	if [ ! -d "$(CURDIR)/.tmp/include/tbb" ] ; then \
-		cd $(CURDIR)/.tmp ; \
-		$$DL https://github.com/01org/tbb/archive/2020_U3.tar.gz && tar xzf 2020_U3.tar.gz && cd oneTBB-2020_U3; \
-		$(if $(MINGW), mingw32-make compiler=gcc arch=ia64 runtime=mingw, make) extra_inc=big_iron.inc -j4 \
-		&& cp -r include/tbb $(CURDIR)/.tmp/include && cp build/*_release/*.a $(CURDIR)/.tmp/lib ; \
-		rm -f 2020_U3.tar.gz ; \
 	fi
 
 .PHONY: sra-deps
