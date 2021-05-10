@@ -247,7 +247,7 @@ static int tighten;           // -M tighten mode (0=none, 1=best, 2=secbest+1)
 static bool doExactUpFront;   // do exact search up front if seeds seem good enough
 static bool do1mmUpFront;     // do 1mm search up front if seeds seem good enough
 static size_t do1mmMinLen;    // length below which we disable 1mm e2e search
-static int seedBoostThresh;   // if average non-zero position has more than this many elements
+static size_t seedBoostThresh;   // if average non-zero position has more than this many elements
 static size_t nSeedRounds;    // # seed rounds
 static bool reorder;          // true -> reorder SAM recs in -p mode
 static float sampleFrac;      // only align random fraction of input reads
@@ -1239,7 +1239,7 @@ static void parseOption(int next_option, const char *arg) {
 			break;
 		}
 		case ARG_SEED_BOOST_THRESH: {
-			seedBoostThresh = parse<int>(arg);
+			seedBoostThresh = parse<size_t>(arg);
 			break;
 		}
 		case 'a': {
