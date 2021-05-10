@@ -20,7 +20,6 @@
 #include <mutex>
 
 #include "aligner_cache.h"
-#include "tinythread.h"
 
 #ifndef NDEBUG
 /**
