@@ -117,13 +117,15 @@ in "-source.zip".
 
 Building from source
 --------------------
+Building from source
 
-Building Bowtie 2 from source requires a GNU-like environment with GCC, GNU Make
-and other basics.  It should be possible to build Bowtie 2 on most vanilla Linux
-installations or on a Mac installation with [Xcode] installed.  (But see note
-about the TBB library below).  Bowtie 2 can also be built on Windows using a
-64-bit MinGW distribution and MSYS. In order to simplify the MinGW setup it might
-be worth investigating popular MinGW personal builds since these are coming
+Building Bowtie 2 from source requires a GNU-like environment with
+Clang/GCC, GNU Make and other basics. It should be possible to build
+Bowtie 2 on most vanilla *NIX installations or on a Mac installation
+with Xcode installed.
+Bowtie 2 can also be built on Windows using a 64-bit MinGW distribution
+and MSYS. In order to simplify the MinGW setup it might be worth
+investigating popular MinGW personal builds since these are coming
 already prepared with most of the toolchains needed.
 
 First, download the source package from the [sourceforge site].  Make sure
@@ -133,30 +135,10 @@ Bowtie 2 tools by running GNU `make` (usually with the command `make`, but
 sometimes with `gmake`) with no arguments.  If building with MinGW, run `make`
 from the MSYS environment.
 
-Bowtie 2 can be run on many threads. By default, Bowtie 2 uses the Threading
-Building Blocks library (TBB) for this. If TBB is not available on your system
-(e.g. `make` prints an error like `tbb/mutex.h: No such file or directory`),
-you can install it yourself from source (see [Threading Building Blocks library])
-or install it using your operating system's preferred package manager.
-The table below list some of the commands for a few of the more popular
-operating systems.
-
-| Operating System     | Sync Package List | Search               | Install                      |
-|:---------------------|:------------------|:---------------------|:-----------------------------|
-| Ubuntu, Mint, Debian | apt-get update    | apt-cache search tbb | apt-get install libtbb-dev   |
-| Fedora, CentOS       | yum check-update  | yum search tbb       | yum install tbb-devel.x86_64 |
-| Arch                 | packman -Sy       | pacman -Ss tbb       | pacman -S extra/intel-tbb    |
-| Gentoo               | emerge --sync     | emerge --search tbb  | emerge dev-cpp/tbb           |
-| macOS                | brew update       | brew search tbb      | brew install tbb             |
-| FreeBSD              | pkg update        | pkg search tbb       | pkg install tbb-2019.1       |
-
-If all fails Bowtie 2 can be built with `make NO_TBB=1` to use pthreads
-or Windows native multithreading instead.
-
 The Bowtie 2 Makefile also includes recipes for basic automatic dependency
 management. Running `make static-libs && make STATIC_BUILD=1` will issue
 a series of commands that will:
-  1. download TBB and zlib
+  1. download zstd and zlib
   2. compile them as static libraries
   3. link the resulting libraries to the compiled Bowtie 2 binaries
 
@@ -2814,7 +2796,6 @@ for more details and variations on this process.
 [SAM]:                                                http://samtools.sourceforge.net/SAM1.pdf
 [SAMtools]:                                           http://samtools.sourceforge.net
 [Smith-Waterman]:                                     http://en.wikipedia.org/wiki/Smith_waterman
-[Threading Building Blocks library]:                  https://www.threadingbuildingblocks.org
 [TopHat]:                                             http://tophat.cbcb.umd.edu/
 [UCSC]:                                               http://genome.ucsc.edu/cgi-bin/hgGateway
 [Xcode]:                                              http://developer.apple.com/xcode/
