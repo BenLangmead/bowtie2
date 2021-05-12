@@ -1,6 +1,6 @@
 
 <!-- badges: start -->
-[![Generic badge](https://img.shields.io/badge/version-2.4.2-green.svg)](https://shields.io/)
+[![Generic badge](https://img.shields.io/badge/version-2.4.3-green.svg)](https://shields.io/)
 [![Build Status](https://travis-ci.org/BenLangmead/bowtie2.svg?branch=master)](https://travis-ci.org/BenLangmead/bowtie2)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 <!--badges: end -->
@@ -24,12 +24,12 @@ Containerized versions of Bowtie 2 are also available via the
 [Biocontainers](https://biocontainers.pro/) project (e.g. via
 [Docker Hub](https://hub.docker.com/r/biocontainers/bowtie2/)).
 
-You can also download Bowtie 2 sources and binaries from the "releases" tab on this
-page. Binaries are available for the x86_64 architecture running Linux, Mac OS X,
-and Windows. We are planning on adding experimental support for ARM-64 in an
-upcoming release. If you plan to compile Bowtie 2 yourself, make sure you have the
-[TBB](https://www.threadingbuildingblocks.org/) and [zlib](https://www.zlib.net)
-libraries installed. See the
+You can also download Bowtie 2 sources and binaries from the
+"releases" tab on this page. Binaries are available for the Linux,
+Mac OS X, and Windows. By utilizing the [SIMDE project](https://github.com/simd-everywhere/simde)
+Bowtie 2 now supports the following architectures: ARM64, PPC64, and
+s390x.  If you plan to compile Bowtie 2 yourself, make sure you at least have
+the [zlib](https://www.zlib.net) library and header files installed. See the
 [Building from source](http://bowtie-bio.sourceforge.net/bowtie2/manual.shtml#building-from-source)
 section of the manual for details.
 
