@@ -544,7 +544,13 @@ static-libs:
 		$(if $(MINGW), mingw32-make -f win32/Makefile.gcc, ./configure --static && make) ; \
 		cp zlib.h zconf.h $(CURDIR)/.tmp/include && cp libz.a $(CURDIR)/.tmp/lib ; \
 		rm -f zlib-1.2.11 ; \
-	fi
+	fi ; \
+        if [ ! -f "$(CURDIR)/.tmp/include/zstd.h" ]; then \
+                cd $(CURDIR)/.tmp ; \
+                $$DL https://github.com/facebook/zstd/releases/download/v1.4.9/zstd-1.4.9.tar.gz && tar xzf zstd-1.4.9.tar.gz ; \
+                cd zstd-1.4.9 && $(MAKE) ; \
+                cd $(CURDIR)/.tmp/zstd-1.4.9/lib && cp zstd.h $(CURDIR)/.tmp/include && cp libzstd.a $(CURDIR)/.tmp/lib ; \
+        fi
 
 .PHONY: sra-deps
 sra-deps:
