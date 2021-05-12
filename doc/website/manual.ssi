@@ -125,65 +125,10 @@
 <p>Containerized versions of Bowtie 2 are also available via the <a href="https://BioContainers.pro">Biocontainers</a> project (e.g. <a href="https://hub.docker.com/r/biocontainers/bowtie2/">via Docker Hub</a>).</p>
 <p>You can also download Bowtie 2 sources and binaries from the <a href="https://sourceforge.net/projects/bowtie-bio/files/bowtie2/">Download</a> section of the Sourceforge site. Binaries are available for the <code>x86_64</code> architecture running Linux, Mac OS X, and Windows. FreeBSD users can obtain the latest version of Bowtie 2 from ports using <code>pkg install bowtie2</code>. If you plan to compile Bowtie 2 yourself, make sure to get the source package, i.e., the filename that ends in "-source.zip".</p>
 <h2 id="building-from-source">Building from source</h2>
-<p>Building Bowtie 2 from source requires a GNU-like environment with GCC, GNU Make and other basics. It should be possible to build Bowtie 2 on most vanilla Linux installations or on a Mac installation with <a href="http://developer.apple.com/xcode/">Xcode</a> installed. (But see note about the TBB library below). Bowtie 2 can also be built on Windows using a 64-bit MinGW distribution and MSYS. In order to simplify the MinGW setup it might be worth investigating popular MinGW personal builds since these are coming already prepared with most of the toolchains needed.</p>
+<p>Building from source</p>
+<p>Building Bowtie 2 from source requires a GNU-like environment with Clang/GCC, GNU Make and other basics. It should be possible to build Bowtie 2 on most vanilla *NIX installations or on a Mac installation with Xcode installed. Bowtie 2 can also be built on Windows using a 64-bit MinGW distribution and MSYS. In order to simplify the MinGW setup it might be worth investigating popular MinGW personal builds since these are coming already prepared with most of the toolchains needed.</p>
 <p>First, download the source package from the <a href="https://sourceforge.net/projects/bowtie-bio/files/bowtie2/">sourceforge site</a>. Make sure you're getting the source package; the file downloaded should end in <code>-source.zip</code>. Unzip the file, change to the unzipped directory, and build the Bowtie 2 tools by running GNU <code>make</code> (usually with the command <code>make</code>, but sometimes with <code>gmake</code>) with no arguments. If building with MinGW, run <code>make</code> from the MSYS environment.</p>
-<p>Bowtie 2 can be run on many threads. By default, Bowtie 2 uses the Threading Building Blocks library (TBB) for this. If TBB is not available on your system (e.g. <code>make</code> prints an error like <code>tbb/mutex.h: No such file or directory</code>), you can install it yourself from source (see <a href="https://www.threadingbuildingblocks.org">Threading Building Blocks library</a>) or install it using your operating system's preferred package manager. The table below list some of the commands for a few of the more popular operating systems.</p>
-<table>
-<colgroup>
-<col style="width: 23%" />
-<col style="width: 20%" />
-<col style="width: 23%" />
-<col style="width: 32%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th style="text-align: left;">Operating System</th>
-<th style="text-align: left;">Sync Package List</th>
-<th style="text-align: left;">Search</th>
-<th style="text-align: left;">Install</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td style="text-align: left;">Ubuntu, Mint, Debian</td>
-<td style="text-align: left;">apt-get update</td>
-<td style="text-align: left;">apt-cache search tbb</td>
-<td style="text-align: left;">apt-get install libtbb-dev</td>
-</tr>
-<tr class="even">
-<td style="text-align: left;">Fedora, CentOS</td>
-<td style="text-align: left;">yum check-update</td>
-<td style="text-align: left;">yum search tbb</td>
-<td style="text-align: left;">yum install tbb-devel.x86_64</td>
-</tr>
-<tr class="odd">
-<td style="text-align: left;">Arch</td>
-<td style="text-align: left;">packman -Sy</td>
-<td style="text-align: left;">pacman -Ss tbb</td>
-<td style="text-align: left;">pacman -S extra/intel-tbb</td>
-</tr>
-<tr class="even">
-<td style="text-align: left;">Gentoo</td>
-<td style="text-align: left;">emerge --sync</td>
-<td style="text-align: left;">emerge --search tbb</td>
-<td style="text-align: left;">emerge dev-cpp/tbb</td>
-</tr>
-<tr class="odd">
-<td style="text-align: left;">macOS</td>
-<td style="text-align: left;">brew update</td>
-<td style="text-align: left;">brew search tbb</td>
-<td style="text-align: left;">brew install tbb</td>
-</tr>
-<tr class="even">
-<td style="text-align: left;">FreeBSD</td>
-<td style="text-align: left;">pkg update</td>
-<td style="text-align: left;">pkg search tbb</td>
-<td style="text-align: left;">pkg install tbb-2019.1</td>
-</tr>
-</tbody>
-</table>
-<p>If all fails Bowtie 2 can be built with <code>make NO_TBB=1</code> to use pthreads or Windows native multithreading instead.</p>
-<p>The Bowtie 2 Makefile also includes recipes for basic automatic dependency management. Running <code>make static-libs &amp;&amp; make STATIC_BUILD=1</code> will issue a series of commands that will: 1. download TBB and zlib 2. compile them as static libraries 3. link the resulting libraries to the compiled Bowtie 2 binaries</p>
+<p>The Bowtie 2 Makefile also includes recipes for basic automatic dependency management. Running <code>make static-libs &amp;&amp; make STATIC_BUILD=1</code> will issue a series of commands that will: 1. download zstd and zlib 2. compile them as static libraries 3. link the resulting libraries to the compiled Bowtie 2 binaries</p>
 <p>As of version 2.3.5 bowtie2 now supports aligning SRA reads. Prepackaged builds will include a package that supports SRA. If you're building bowtie2 from source please make sure that the Java runtime is available on your system. You can then proceed with the build by running <code>make sra-deps &amp;&amp; make USE_SRA=1</code>.</p>
 <h2 id="adding-to-path">Adding to PATH</h2>
 <p>By adding your new Bowtie 2 directory to your <a href="http://en.wikipedia.org/wiki/PATH_(variable)">PATH environment variable</a>, you ensure that whenever you run <code>bowtie2</code>, <code>bowtie2-build</code> or <code>bowtie2-inspect</code> from the command line, you will get the version you just installed without having to specify the entire path. This is recommended for most users. To do this, follow your operating system's instructions for adding the directory to your <a href="http://en.wikipedia.org/wiki/PATH_(variable)">PATH</a>.</p>
@@ -1651,7 +1596,7 @@ r7  16  gi|9626243|ref|NC_001416.1| 4692    42  143M    *   0   0   TCAGCCGGACGC
 <p>Use <code>samtools sort</code> to convert the BAM file to a sorted BAM file.</p>
 <pre><code>samtools sort eg2.bam -o eg2.sorted.bam</code></pre>
 <p>We now have a sorted BAM file called <code>eg2.sorted.bam</code>. Sorted BAM is a useful format because the alignments are (a) compressed, which is convenient for long-term storage, and (b) sorted, which is conveneint for variant discovery. To generate variant calls in VCF format, run:</p>
-<pre><code>samtools mpileup -uf $BT2_HOME/example/reference/lambda_virus.fa eg2.sorted.bam | bcftools view -Ov - &gt; eg2.raw.bcf</code></pre>
+<pre><code>bcftools mpileup -f $BT2_HOME/example/reference/lambda_virus.fa eg2.sorted.bam | bcftools view -Ov - &gt; eg2.raw.bcf</code></pre>
 <p>Then to view the variants, run:</p>
 <pre><code>bcftools view eg2.raw.bcf</code></pre>
 <p>See the official SAMtools guide to <a href="http://samtools.sourceforge.net/mpileup.shtml">Calling SNPs/INDELs with SAMtools/BCFtools</a> for more details and variations on this process.</p>
