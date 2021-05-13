@@ -32,6 +32,7 @@ BOWTIE_SHARED_MEM :=
 
 CXXFLAGS += -std=c++11
 
+ARCH = $(shell uname -m)
 NGS_VER ?= 2.9.2
 VDB_VER ?= 2.9.2-1
 
