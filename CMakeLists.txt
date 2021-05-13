@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.1.0 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
 
 cmake_policy(SET CMP0048 NEW)
 cmake_policy(SET CMP0005 NEW)
@@ -16,26 +16,22 @@ include(CheckSymbolExists)
 ProcessorCount(NUM_CORES)
 
 option(BOWTIE_MM "enable bowtie2 memory mapping" ON)
-option(BOWITE_SHARED_MM "enable shared memory mapping" ON)
+option(BOWITE_SHARED_MM "enable shared memory mapping" OFF)
 
-list(FIND CMAKE_CXX_COMPILE_FEATURES cxx_std_11 FOUND_CXX_11)
-if (FOUND_CXX_11)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-endif()
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-set(NO_TBB ${NO_TBB})
-set(NO_SPINLOCK ${NO_SPINLOCK})
 set(USE_SRA ${USE_SRA})
 set(WITH_THREAD_PROFILING ${WITH_THREAD_PROFILING})
-set(NO_POPCNT_CAPABILITY ${NO_POPCNT_CAPABILITY})
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m64 -g3 -Wall -msse2")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m64 -g3 -Wall")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -funroll-loops")
 set(INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/bin" CACHE PATH "Installation directory for executables")
 
-set(CMAKE_EXPORT_COMPILE_COMMANDS on)
+include_directories(${SOURCE_DIR}/third_party)
 
 if (MINGW)
   option(BOWTIE_MM "Memory mapped files not supported on Windows" OFF)
@@ -70,6 +66,7 @@ set(SHARED_CPPS
   edit.cpp
   bt2_idx.cpp
   bt2_io.cpp
+  bt2_locks.cpp
   bt2_util.cpp
   reference.cpp
   ds.cpp
@@ -124,6 +121,14 @@ add_definitions(
   -D_GNU_SOURCE
   )
 
+if (BOWTIE_MM)
+  add_definitions(-DBOWTIE_MM)
+endif()
+
+if (BOWTIE_SHARED_MEM)
+  add_definitions(-DBOWTIE_SHARED_MEM)
+endif()
+
 if (WITH_AFFINITY)
   add_definitions(-DWITH_AFFINITY=1)
 endif()
@@ -132,9 +137,17 @@ if (NO_SPINLOCK)
   add_definitions(-DNO_SPINLOCK)
 endif()
 
-if (NOT NO_POPCNT_CAPABILITY)
+if (NOT NO_QUEUELOCK)
+  add_definitions(-DNO_SPINLOCK)
+  add_definitions(-DWITH_QUEUELOCK=1)
+endif()
+
+ execute_process(COMMAND uname -m OUTPUT_VARIABLE ARCH)
+if (${ARCH} MATCHES aarch64|arm64|390x|ppc64|ppc64le)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp-simd")
+elseif (${ARCH} MATCHES amd64|x64_64)
   add_definitions(-DPOPCNT_CAPABILITY)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I third_party")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse2")
 endif()
 
 if (USE_SRA)
@@ -204,81 +217,18 @@ endif()
 
 if (CMAKE_BUILD_TYPE STREQUAL "Release")
   add_definitions(-DNDEBUG)
+else()
+  message("--------------------------------------------------------------------------")
+  message("ATTN: Targets built in debug mode will have `-debug' appended to its name.")
+  message("See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html")
+  message("--------------------------------------------------------------------------")
+  set(CMAKE_EXECUTABLE_SUFFIX "-debug")
 endif()
 
 find_package(ZLIB REQUIRED)
 
-
 find_package(Threads REQUIRED)
 link_libraries(Threads::Threads)
-
-if (NO_TBB)
-  set(SHARED_CPPS ${SHARED_CPPS} tinythread.cpp)
-else()
-  find_library(TBB_LIB_PATH tbb)
-  if (TBB_LIB_PATH)
-    find_path(TBB_INCLUDE_PATH tbb/tbb.h)
-    link_libraries(${TBB_LIB_PATH})
-    find_library(TBBMALLOC_PROXY_LIB_PATH tbbmalloc_proxy)
-    if (NOT TBBMALLOC_PROXY_LIB_PATH)
-      find_library(TBBMALLOC_LIB_PATH tbbmalloc)
-      link_libraries(${TBBMALLOC_LIB_PATH})
-    else()
-      link_libraries(${TBBMALLOC_PROXY_LIB_PATH})
-    endif()
-    include_directories(${TBB_INCLUDE_PATH})
-  else()
-    set(TBB_VER 2019_U4)
-
-    if (CMAKE_SYSTEM_NAME STREQUAL Linux)
-      set(tbb_os linux)
-    elseif (CMAKE_SYSTEM_NAME STREQUAL Darwin)
-      set(tbb_os macos)
-    elseif (CMAKE_SYSTEM_NAME STREQUAL Windows)
-      set(tbb_os windows)
-    else()
-      set(tbb_os ${CMAKE_SYSTEM_NAME})
-    endif()
-
-    find_program(MAKE_EXE NAMES gmake nmake make)
-    ExternalProject_Add(tbb_project
-      URL https://github.com/01org/tbb/archive/2019_U4.tar.gz
-      PREFIX ${CMAKE_CURRENT_BINARY_DIR}/tbb-${TBB_VER}
-      BUILD_IN_SOURCE 1
-      CONFIGURE_COMMAND ""
-      BUILD_COMMAND ${MAKE_EXE} tbb_build_prefix=${TBB_VER} tbb_os=${tbb_os}
-      INSTALL_COMMAND ""
-      PREFIX=${CMAKE_CURRENT_BINARY_DIR}/tbb_project
-      )
-
-    ExternalProject_Get_Property(tbb_project SOURCE_DIR)
-    set(TBB_SOURCE_DIR ${SOURCE_DIR})
-    set(TBB_RELEASE_DIR ${TBB_SOURCE_DIR}/build/${TBB_VER}_release)
-    include_directories(${TBB_SOURCE_DIR}/include)
-    find_path(TBB_INCLUDE_PATH PATHS ${TBB_SOURCE_DIR}/include NAMES tbb/tbb.h)
-
-    link_directories(${TBB_RELEASE_DIR})
-    add_library(tbb SHARED IMPORTED)
-    add_dependencies(tbb tbb_project)
-    find_library(LIBTBB tbb PATHS ${TBB_RELEASE_DIR} NO_DEFAULT_PATH)
-    set_property(TARGET tbb PROPERTY IMPORTED_LOCATION ${LIBTBB})
-
-    add_library(tbbmalloc_proxy SHARED IMPORTED)
-    add_dependencies(tbbmalloc_proxy tbb_project)
-    find_library(LIBTBBMALLOC_PROXY tbbmalloc_proxy PATHS ${TBB_RELEASE_DIR} NO_DEFAULT_PATH)
-    if (NOT LIBTBBMALLOC_PROXY)
-      add_library(tbbmalloc SHARED IMPORTED)
-      add_dependencies(tbbmalloc tbb_project)
-      find_library(LIBTBBMALLOC tbbmalloc PATHS ${TBB_RELEASE_DIR} NO_DEFAULT_PATH)
-      set_property(TARGET tbbmalloc PROPERTY IMPORTED_LOCATION ${LIBTBBMALLOC})
-      link_libraries(tbb tbbmalloc)
-    else()
-      set_property(TARGET tbbmalloc_proxy PROPERTY IMPORTED_LOCATION ${LIBTBBMALLOC_PROXY})
-      link_libraries(tbb tbbmalloc_proxy)
-    endif()
-  endif()
-  add_definitions(-DWITH_TBB -DWITH_QUEUELOCK=1 -DNO_SPINLOCK)
-endif()
 
 if (ZLIB_FOUND)
   link_libraries(${ZLIB_LIBRARIES})
@@ -298,22 +248,11 @@ add_executable(bowtie2-inspect-l ${INSPECT_CPPS} ${SHARED_CPPS})
 
 set_target_properties(bowtie2-align-l bowtie2-build-l bowtie2-inspect-l PROPERTIES COMPILE_FLAGS "-DBOWTIE2_64BIT_INDEX")
 set_target_properties(bowtie2-inspect-s bowtie2-inspect-l PROPERTIES COMPILE_FLAGS "-DBOWTIE_INSPECT_MAIN")
-# set_target_properties(${BOWTIE2_BIN_LIST} PROPERTIES DEBUG_POSTFIX -debug)
 
 install(TARGETS ${BOWTIE2_BIN_LIST} DESTINATION bin)
 install(FILES ${BOWTIE2_WRAPPER_SCRIPTS}
   PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
   DESTINATION bin)
-if (LIBTBB)
-  install(FILES ${LIBTBB} DESTINATION lib)
-  install(DIRECTORY ${TBB_INCLUDE_PATH} DESTINATION include)
-endif()
-if (LIBTBBMALLOC)
-  install(FILES ${LIBTBBMALLOC} DESTINATION lib)
-endif()
-if (LIBTBBMALLOC_PROXY)
-  install(FILES ${LIBTBBMALLOC_PROXY} DESTINATION lib)
-endif()
 
 add_test(NAME simple-align
   WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
