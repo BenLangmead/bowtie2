@@ -4,7 +4,7 @@ Bowtie 2 NEWS
 Bowtie 2 is available for download from the project website,
 http://bowtie-bio.sf.net/bowtie2 and on Github,
 https://github.com/BenLangmead/bowtie2/releases.  2.0.0-beta1 is
-the first version released to the public and 2.4.1 is the latest
+the first version released to the public and 2.4.3 is the latest
 version.  Bowtie 2 is licensed under the GPLv3 license.  See `LICENSE'
 file for details.
 
@@ -18,6 +18,21 @@ Please report any issues to the Bowtie 2 Github page or using the Sourceforge bu
 
 Version Release History
 =======================
+
+Version 2.4.3 - May 13, 2021
+
+    * Replaced TBB concurrency with C++ threads
+    * Added native support for processing Zstd-compressed read files
+      to bowtie2
+    * Added native support for processing Zstd-compressed
+      reference-genome files to bowtie2-build
+    * Fixed an issue causing `bowtie2` to report incorrect alignments
+      on big-endian machines
+    * Fixed an issue causing `bowtie2` to incorrectly process BAM
+      files on big-endian machines
+    * Fixed an issue causing Bowtie2 to set an incorrect MAPQ when AS and
+      XS are the maximum for read length
+    * Add support for building on Apple M1 processors
 
 Version 2.4.2 - Oct 5, 2020
 

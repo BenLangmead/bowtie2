@@ -1,3 +1,14 @@
+<h2>Version 2.4.3 - May 13, 2021</h2>
+<ul>
+    <li>Replaced TBB concurrency with C++ threads</li>
+    <li>Added native support for processing Zstd-compressed read files to <code>>bowtie2</code></li>
+    <li>Added native support for processing Zstd-compressed reference-genome files to bowtie2-build</li>
+    <li>Fixed an issue causing <code>bowtie2</code> to report incorrect alignments on big-endian machines</li>
+    <li>Fixed an issue causing <code>bowtie2</code> to incorrectly process BAM files on big-endian machines</li>
+    <li>Fixed an issue causing <code>bowtie2</code> to set an incorrect MAPQ when AS and XS are the maximum for read length</li>
+    <li>Add support for building on Apple M1 processors</li>
+</ul>
+
 <h2>Version 2.4.2 - Oct 5, 2020 </h2>
 <ul>
     <li>Fixed an issue that would cause the <code>bowtie2</code> wrapper script to throw an error when using wrapper-specific arguments.</li>
