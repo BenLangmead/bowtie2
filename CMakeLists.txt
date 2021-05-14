@@ -16,7 +16,7 @@ include(CheckSymbolExists)
 ProcessorCount(NUM_CORES)
 
 option(BOWTIE_MM "enable bowtie2 memory mapping" ON)
-option(BOWITE_SHARED_MM "enable shared memory mapping" OFF)
+option(BOWTIE_SHARED_MEM "enable shared memory mapping" OFF)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
