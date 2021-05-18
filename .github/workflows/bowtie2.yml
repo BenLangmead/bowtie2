@@ -1,0 +1,31 @@
+name: Basic compile and test on Ubuntu and MacOS
+on:
+  push:
+    branches: [ bug_fixes ]
+  pull_request:
+    branches: [ $default-branch ]
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v2
+      - name: Install zlib development files
+        run: |
+          sudo apt-get update
+          sudo apt-get install zlib1g-dev
+  linux:
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: |
+          make allall
+          make simple-test
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: |
+          make allall
+          make simple-test
