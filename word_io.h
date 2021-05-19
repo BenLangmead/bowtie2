@@ -121,8 +121,9 @@ static inline T readU(std::istream& in, bool swap) {
 template <typename T>
 static inline T readU(FILE* in, bool swap) {
 	T x;
-	if(fread((void *)&x, 1, sizeof(T), in) != sizeof(T)) {
-		assert(false);
+	if(fread((void *)&x, sizeof(T), 1, in) != 1) {
+		perror("readU");
+		exit(1);
 	}
 	if(swap) {
 		if(sizeof(T) == 4) {
@@ -191,8 +192,9 @@ static inline T readI(std::istream& in, bool swap) {
 template <typename T>
 static inline T readI(FILE* in, bool swap) {
 	T x;
-	if(fread((void *)&x, 1, sizeof(T), in) != sizeof(T)) {
-		assert(false);
+	if(fread((void *)&x, sizeof(T), 1, in) != 1) {
+		perror("readI");
+		exit(1);
 	}
 	if(swap) {
 		if(sizeof(T) == 4) {
