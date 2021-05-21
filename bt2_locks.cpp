@@ -1,6 +1,6 @@
 #include "bt2_locks.h"
 
-void mcs_lock::lock() {
+void mcs_lock::lock(mcs_node &node) {
 	node.next = nullptr;
 
 	mcs_node *pred = q.exchange(&node, std::memory_order_acq_rel);
@@ -12,7 +12,7 @@ void mcs_lock::lock() {
 	node.unlocked.load(std::memory_order_acquire);
 }
 
-void mcs_lock::unlock() {
+void mcs_lock::unlock(mcs_node &node) {
 	if (!node.next.load(std::memory_order_acquire)) {
 		mcs_node *node_ptr = &node;
 		if (q.compare_exchange_strong(node_ptr,
@@ -24,7 +24,6 @@ void mcs_lock::unlock() {
 	node.next.load(std::memory_order_acquire)->unlocked.store(true, std::memory_order_release);
 }
 
-thread_local mcs_lock::mcs_node mcs_lock::node{};
 
 void spin_lock::lock() {
 	cpu_backoff backoff;

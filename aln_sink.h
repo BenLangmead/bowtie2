@@ -122,7 +122,7 @@ struct ReportingMetrics {
 	 * ReportingMetrics shared by multiple threads.
 	 */
 	void merge(const ReportingMetrics& met) {
-		std::lock_guard<MUTEX_T> lg(mutex_m);
+		ThreadSafe ts(mutex_m);
 		nread         += met.nread;
 
 		npaired       += met.npaired;

@@ -113,7 +113,7 @@ bool AlignmentCache::addOnTheFly(
 	bool getLock)
 {
 	if(shared_ && getLock) {
-		std::lock_guard<MUTEX_T> lg(mutex_m);
+		ThreadSafe ts(mutex_m);
 		return addOnTheFlyImpl(qv, sak, topf, botf, topb, botb);
 	} else {
 		return addOnTheFlyImpl(qv, sak, topf, botf, topb, botb);

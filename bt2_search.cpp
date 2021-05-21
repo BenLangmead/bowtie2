@@ -1906,7 +1906,7 @@ struct PerfMetrics {
 		uint64_t nbtfiltsc_,
 		uint64_t nbtfiltdo_)
 	{
-		std::lock_guard<MUTEX_T> lg(mutex_m);
+		ThreadSafe ts(mutex_m);
 		if(ol != NULL) {
 			olmu.merge(*ol);
 		}
@@ -1953,7 +1953,7 @@ struct PerfMetrics {
 		bool total,           // true -> report total, otherwise incremental
 		const BTString *name) // non-NULL name pointer if is per-read record
 	{
-		std::lock_guard<MUTEX_T> lg(mutex_m);
+		ThreadSafe ts(mutex_m);
 		ostringstream stderrSs;
 		time_t curtime = time(0);
 		char buf[1024];

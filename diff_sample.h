@@ -710,7 +710,7 @@ public:
 			while(true) {
 				size_t cur = 0;
 				{
-					std::lock_guard<MUTEX_T> lg(*param->mutex);
+					ThreadSafe ts(*param->mutex);
 					cur = *(param->cur);
 					(*param->cur)++;
 				}

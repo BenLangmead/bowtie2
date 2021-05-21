@@ -50,23 +50,22 @@ public:
 		std::atomic_bool unlocked;
         };
 
-	void lock();
-	void unlock();
+	void lock(mcs_node &node);
+	void unlock(mcs_node &node);
 	typedef std::atomic<mcs_node *> mcs_node_ptr;
 private:
-	void spin_while_eq(const volatile mcs_node_ptr& value, mcs_node *expected) {
+	void spin_while_eq(const volatile mcs_node_ptr& value, const volatile mcs_node *expected) {
 		cpu_backoff backoff;
 		while (value.load(std::memory_order_acquire) == expected)
 			backoff.pause();
 	}
 
-	void spin_while_eq(const volatile std::atomic_bool& value, bool expected) {
+	void spin_while_eq(const volatile std::atomic_bool& value, const volatile bool expected) {
 	 	cpu_backoff backoff;
 	 	while (value.load(std::memory_order_acquire) == expected)
 	 		backoff.pause();
 	}
         std::atomic<mcs_node *> q;
-        static thread_local mcs_node node;
 };
 
 #endif // __MCS_LOCK_H__

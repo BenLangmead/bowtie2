@@ -48,7 +48,7 @@ void OutputQueue::beginReadImpl(TReadId rdid, size_t threadId) {
 
 void OutputQueue::beginRead(TReadId rdid, size_t threadId) {
 	if(reorder_ && threadSafe_) {
-		std::lock_guard<MUTEX_T> lg(mutex_m);
+		ThreadSafe ts(mutex_m);
 		beginReadImpl(rdid, threadId);
 	} else {
 		beginReadImpl(rdid, threadId);
@@ -87,7 +87,7 @@ void OutputQueue::finishReadImpl(const BTString& rec, TReadId rdid, size_t threa
 void OutputQueue::finishRead(const BTString& rec, TReadId rdid, size_t threadId) {
 	if(reorder_ || perThreadCounter[threadId] >= perThreadBufSize_) {
 		if(threadSafe_) {
-			std::lock_guard<MUTEX_T> lg(mutex_m);
+			ThreadSafe ts(mutex_m);
 			finishReadImpl(rec, rdid, threadId);
 		} else {
 			finishReadImpl(rec, rdid, threadId);
@@ -143,7 +143,7 @@ void OutputQueue::flushImpl(bool force) {
  */
 void OutputQueue::flush(bool force, bool getLock) {
 	if(getLock && threadSafe_) {
-		std::lock_guard<MUTEX_T> lg (mutex_m);
+		ThreadSafe ts (mutex_m);
 		flushImpl(force);
 	} else {
 		flushImpl(force);

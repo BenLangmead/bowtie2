@@ -461,7 +461,7 @@ public:
 		bool getLock = true)
 	{
 		if(shared_ && getLock) {
-			std::lock_guard<MUTEX_T> lg(mutex_m);
+			ThreadSafe ts(mutex_m);
 			queryQvalImpl(qv, satups, nrange, nelt);
 		} else {
 			queryQvalImpl(qv, satups, nrange, nelt);
@@ -495,7 +495,7 @@ public:
 		bool getLock = true)
 	{
 		if(shared_ && getLock) {
-			std::lock_guard<MUTEX_T> lg(mutex_m);
+			ThreadSafe ts(mutex_m);
 			return addImpl(qk, added);
 		} else {
 			return addImpl(qk, added);
@@ -521,7 +521,7 @@ public:
 	 * reads will have to be re-aligned.
 	 */
 	void clear() {
-		std::lock_guard<MUTEX_T> lg(mutex_m);
+		ThreadSafe ts(mutex_m);
 		pool_.clear();
 		qmap_.clear();
 		qlist_.clear();

@@ -338,7 +338,8 @@ public:
 			while(true) {
 				size_t cur = 0;
 				{
-					std::lock_guard<MUTEX_T> lg(sa->_mutex);
+					ThreadSafe ts(sa->_mutex);
+
 					cur = sa->_cur;
 					if(cur > sa->_sampleSuffs.size()) break;
 					sa->_cur++;
@@ -958,7 +959,7 @@ void KarkkainenBlockwiseSA<TStr>::nextBlock(int cur_block, int tid) {
 #endif
 	EList<TIndexOffU>& bucket = (this->_nthreads > 1 ? this->_itrBuckets[tid] : this->_itrBucket);
 	{
-		std::lock_guard<MUTEX_T> lg(_mutex);
+		ThreadSafe ts(_mutex);
 		VMSG_NL("Getting block " << (cur_block+1) << " of " << _sampleSuffs.size()+1);
 	}
 	assert(_built);
@@ -973,7 +974,7 @@ void KarkkainenBlockwiseSA<TStr>::nextBlock(int cur_block, int tid) {
 		// Special case: if _sampleSuffs is 0, then multikey-quicksort
 		// everything
 		{
-			std::lock_guard<MUTEX_T> lg(_mutex);
+			ThreadSafe ts(_mutex);
 			VMSG_NL("  No samples; assembling all-inclusive block");
 		}
 		assert_eq(0, cur_block);
@@ -998,7 +999,7 @@ void KarkkainenBlockwiseSA<TStr>::nextBlock(int cur_block, int tid) {
 	} else {
 		try {
 			{
-				std::lock_guard<MUTEX_T> lg(_mutex);
+				ThreadSafe ts(_mutex);
 				VMSG_NL("  Reserving size (" << this->bucketSz() << ") for bucket " << (cur_block+1));
 			}
 			// BTL: Add a +100 fudge factor; there seem to be instances
@@ -1027,7 +1028,7 @@ void KarkkainenBlockwiseSA<TStr>::nextBlock(int cur_block, int tid) {
 		try {
 			// Timer timer(cout, "  Calculating Z arrays time: ", this->verbose());
 			{
-				std::lock_guard<MUTEX_T> lg(_mutex);
+				ThreadSafe ts(_mutex);
 				VMSG_NL("  Calculating Z arrays for bucket " << (cur_block+1));
 			}
 			if(!last) {
@@ -1075,14 +1076,14 @@ void KarkkainenBlockwiseSA<TStr>::nextBlock(int cur_block, int tid) {
 		{
 			// Timer timer(cout, "  Block accumulator loop time: ", this->verbose());
 			{
-				std::lock_guard<MUTEX_T> lg(_mutex);
+				ThreadSafe ts(_mutex);
 				VMSG_NL("  Entering block accumulator loop for bucket " << (cur_block+1) << ":");
 			}
 			TIndexOffU lenDiv10 = (len + 9) / 10;
 			for(TIndexOffU iten = 0, ten = 0; iten < len; iten += lenDiv10, ten++) {
 				TIndexOffU itenNext = iten + lenDiv10;
 				{
-					std::lock_guard<MUTEX_T> lg(_mutex);
+					ThreadSafe ts(_mutex);
 					if(ten > 0) VMSG_NL("  bucket " << (cur_block+1) << ": " << (ten * 10) << "%");
 				}
 				for(TIndexOffU i = iten; i < itenNext && i < len; i++) {
@@ -1116,7 +1117,7 @@ void KarkkainenBlockwiseSA<TStr>::nextBlock(int cur_block, int tid) {
 				}
 			} // end loop over all suffixes of t
 			{
-				std::lock_guard<MUTEX_T> lg(_mutex);
+				ThreadSafe ts(_mutex);
 				VMSG_NL("  bucket " << (cur_block+1) << ": 100%");
 			}
 		}
@@ -1125,7 +1126,7 @@ void KarkkainenBlockwiseSA<TStr>::nextBlock(int cur_block, int tid) {
 	if(bucket.size() > 0) {
 		Timer timer(cout, "  Sorting block time: ", this->verbose());
 		{
-			std::lock_guard<MUTEX_T> lg(_mutex);
+			ThreadSafe ts(_mutex);
 			VMSG_NL("  Sorting block of length " << bucket.size() << " for bucket " << (cur_block+1));
 		}
 		this->qsort(bucket);
@@ -1138,7 +1139,7 @@ void KarkkainenBlockwiseSA<TStr>::nextBlock(int cur_block, int tid) {
 		bucket.push_back(len);
 	}
 	{
-		std::lock_guard<MUTEX_T> lg(_mutex);
+		ThreadSafe ts(_mutex);
 		VMSG_NL("Returning block of " << bucket.size() << " for bucket " << (cur_block+1));
 	}
 }

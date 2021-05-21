@@ -163,7 +163,7 @@ struct WalkMetrics {
 	 */
 	void merge(const WalkMetrics& m, bool getLock = false) {
 		if(getLock) {
-			std::lock_guard<MUTEX_T> lg(mutex_m);
+			ThreadSafe ts(mutex_m);
 			mergeImpl(m);
 		} else {
 			mergeImpl(m);

@@ -50,6 +50,51 @@ struct thread_tracking_pair {
 } while(false)
 #endif
 
+#ifdef NO_SPINLOCK
+#   ifdef WITH_QUEUELOCK
+#       define MUTEX_T mcs_lock
+#   else
+#       define MUTEX_T std::mutex
+#   endif
+#else
+# ifdef WITH_TBB
+#   define MUTEX_T spin_lock
+# endif
+#endif /* NO_SPINLOCK */
+/**
+ * Wrap a lock; obtain lock upon construction, release upon destruction.
+ */
+class ThreadSafe {
+public:
+
+	ThreadSafe(MUTEX_T& mutex) :
+#if NO_SPINLOCK && WITH_QUEUELOCK
+		node_{},
+#endif
+		mutex_(mutex) {
+#if NO_SPINLOCK && WITH_QUEUELOCK
+		mutex_.lock(node_);
+#else
+		mutex_.lock();
+#endif
+
+	}
+
+	~ThreadSafe() {
+#if NO_SPINLOCK && WITH_QUEUELOCK
+		mutex_.unlock(node_);
+#else
+		mutex_.unlock();
+#endif
+	}
+
+private:
+#if NO_SPINLOCK && WITH_QUEUELOCK
+	MUTEX_T::mcs_node node_;
+#endif
+	MUTEX_T& mutex_;
+};
+
 #ifdef WITH_TBB
 #ifdef WITH_AFFINITY
 //ripped entirely from;
