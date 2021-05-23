@@ -1,3 +1,8 @@
+<h2>Version 2.4.4 - May 23, 2021</h2>
+<ul>
+    <li>Fixed an issue that would sometimes cause deadlocks in <code>bowtie2</code> when running multithreaded</li>
+</ul>
+
 <h2>Version 2.4.3 - May 13, 2021</h2>
 <ul>
     <li>Replaced TBB concurrency with C++ threads</li>

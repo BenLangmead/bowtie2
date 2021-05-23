@@ -4,7 +4,7 @@ Bowtie 2 NEWS
 Bowtie 2 is available for download from the project website,
 http://bowtie-bio.sf.net/bowtie2 and on Github,
 https://github.com/BenLangmead/bowtie2/releases.  2.0.0-beta1 is
-the first version released to the public and 2.4.3 is the latest
+the first version released to the public and 2.4.4 is the latest
 version.  Bowtie 2 is licensed under the GPLv3 license.  See `LICENSE'
 file for details.
 
@@ -18,6 +18,11 @@ Please report any issues to the Bowtie 2 Github page or using the Sourceforge bu
 
 Version Release History
 =======================
+
+Version 2.4.4 - May 23, 2021
+
+    * Fixed an issue that would sometimes cause deadlocks in `bowtie2`
+      when running multithreaded
 
 Version 2.4.3 - May 13, 2021
 
