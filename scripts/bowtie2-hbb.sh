@@ -48,6 +48,9 @@ mkdir /mybin
 echo  'res=`echo $@ | sed "s/-L.*$//"`; /opt/rh/devtoolset-8/root/usr/bin/ar $res;' > /mybin/ar
 chmod +x /mybin/ar && export PATH=/mybin:$PATH
 
+# this version of pandoc does not support 'smart' filters
+sed -i 's/-smart//' Makefile
+
 make static-libs
 if [ $? -ne 0 ] ; then
     echo "Unable to build tbb and/or zlib static dependencies"
