@@ -1,7 +1,7 @@
 name: Basic compile and test on Ubuntu and MacOS
 on:
   push:
-    branches: [ bug_fixes ]
+    branches: [ bug_fixes master ]
   pull_request:
     branches: [ $default-branch ]
 jobs:
