@@ -39,16 +39,16 @@ jobs:
     runs-on: ubuntu-latest
     needs: setup
     steps:
+      - uses: actions/checkout@v2
       - name: Run simple tests
-        uses: actions/checkout@v2
         run: |
           make allall
           make simple-test
   macos:
     runs-on: macos-latest
     steps:
+      - uses: actions/checkout@v2
       - name: Run simple tests
-        uses: actions/checkout@v2
         run: |
           make allall
           make simple-test
