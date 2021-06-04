@@ -1,3 +1,12 @@
+<h2>LevioSAM paper and indel-aware major allele references - June 4, 2021</h2>
+<ul>
+    <li>The <a href="https://doi.org/10.1093/bioinformatics/btab396">levioSAM paper</a> is out in the journal <em>Bioinformatics</em>
+    <li>LevioSAM is a tool that rapidly "lifts" alignments between reference genomes related through a VCF file or chain file
+    <li>LevioSAM makes it easy to align to one reference with Bowtie 2 (or other aligner), then immediately translate the alignments to a different coordinate system
+    <li>As a demonstration, we are adding new major-allele versions of human references (GRCh38 and h19) that contain both major-allele SNVs and major-allele (small) indels.  Because they include indels, these are more comprehensive than the SNV-only major-allele reference we released previously.  LevioSAM provides the ability to translate the alignments back to the original (indel-less) references immediately after.
+    <li>Detailed instructions on using levioSAM+Bowtie2 in this context are available in the <a href="https://github.com/alshai/levioSAM">levioSAM repo</a> <a href="https://github.com/alshai/levioSAM/blob/master/README.md">README.md</a>
+</ul>
+
 <h2>Version 2.4.4 - May 23, 2021</h2>
 <ul>
     <li>Fixed an issue that would sometimes cause deadlocks in <code>bowtie2</code> when running multithreaded</li>

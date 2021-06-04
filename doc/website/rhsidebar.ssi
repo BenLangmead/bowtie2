@@ -64,14 +64,28 @@
 
       <tr>
         <td>
-            <a href="https://genome-idx.s3.amazonaws.com/bt/grch38_1kgmaj.zip"><i>H. sapiens</i>, GRCh38 + major SNVs</a>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/grch38_1kgmaj_snvs_bt2.zip"><i>H. sapiens</i>, GRCh38 + major SNVs</a>
         </td>
         <td align="right">
             NCBI+1KG
         </td>
       </tr>
       <tr>
-        <td colspan="2" style="font-size: x-small">&nbsp;&nbsp;<a href="https://github.com/BenLangmead/bowtie-majref">How we built this</a>, <a href="ftp://ftp.ccb.jhu.edu/pub/data/bowtie_indexes/grch38_1kgmaj.fa.gz">FASTA</a>
+        <td colspan="2" style="font-size: x-small">&nbsp;&nbsp;<a href="https://github.com/BenLangmead/bowtie-majref">How we built this</a>, <a href="https://genome-idx.s3.amazonaws.com/bt/grch38_1kgmaj_snvs.fa.gz">FASTA</a>
+        </td>
+      </tr>
+
+      <!-- New as of 6/3/2021 -->
+      <tr>
+        <td>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/grch38_1kgmaj_snvindels_bt2.zip"><i>H. sapiens</i>, GRCh38 + major SNVs &amp; indels</a>
+        </td>
+        <td align="right">
+            NCBI+1KG
+        </td>
+      </tr>
+      <tr>
+        <td colspan="2" style="font-size: x-small">&nbsp;&nbsp;<a href="https://github.com/BenLangmead/bowtie-majref">How we built this</a>, <a href="https://github.com/alshai/levioSAM/blob/master/README.md">Use with levioSAM</a>, <a href="https://genome-idx.s3.amazonaws.com/bt/grch38_1kgmaj_snvindels.fa.gz">FASTA</a>
         </td>
       </tr>
 
@@ -117,6 +131,34 @@
         </td>
         <td align="right">
             UCSC
+        </td>
+      </tr>
+
+      <!-- New as of 6/3/2021 -->
+      <tr>
+        <td>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/hg19_1kgmaj_snvs_bt2.zip"><i>H. sapiens</i>, hg19 + major SNVs</a>
+        </td>
+        <td align="right">
+            UCSC+1KG
+        </td>
+      </tr>
+      <tr>
+        <td colspan="2" style="font-size: x-small">&nbsp;&nbsp;<a href="https://github.com/BenLangmead/bowtie-majref">How we built this</a>, <a href="https://genome-idx.s3.amazonaws.com/bt/hg19_1kgmaj_snvs.fa.gz">FASTA</a>
+        </td>
+      </tr>
+
+      <!-- New as of 6/3/2021 -->
+      <tr>
+        <td>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/hg19_1kgmaj_snvindels_bt2.zip"><i>H. sapiens</i>, hg19 + major SNVs &amp; indels</a>
+        </td>
+        <td align="right">
+            UCSC+1KG
+        </td>
+      </tr>
+      <tr>
+        <td colspan="2" style="font-size: x-small">&nbsp;&nbsp;<a href="https://github.com/BenLangmead/bowtie-majref">How we built this</a>, <a href="https://github.com/alshai/levioSAM/blob/master/README.md">Use with levioSAM</a>, <a href="https://genome-idx.s3.amazonaws.com/bt/hg19_1kgmaj_snvindels.fa.gz">FASTA</a>
         </td>
       </tr>
 
