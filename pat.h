@@ -826,6 +826,11 @@ class BAMPatternSource : public CFilePatternSource {
 		ftr_t ftr;
 	};
 
+	struct partial_block {
+		char data[500];
+		size_t len;
+	};
+
 	struct orphan_mate_t {
 		orphan_mate_t() :
 			data(NULL),
@@ -872,15 +877,14 @@ public:
 		const PatternParams& p) :
 		CFilePatternSource(infiles, p),
 		first_(true),
-		bam_batches_(p.nthreads),
-		bam_batch_indexes_(p.nthreads),
+		alignment_batch(0),
+		alignment_offset(0),
 		orphan_mates(p.nthreads * 2),
+		delta_(0),
 		orphan_mates_mutex_(),
-		pp_(p) {
-			// uncompressed size of BGZF block is limited to 2**16 bytes
-			for (size_t i = 0; i < bam_batches_.size(); ++i) {
-				bam_batches_[i].reserve(1 << 16);
-			}
+		pp_(p)
+		{
+			alignment_batch.reserve(1 << 16);
 		}
 
 	virtual void reset() {
@@ -929,12 +933,13 @@ private:
 	void get_or_store_orhaned_mate(EList<Read>& buf_a, EList<Read>& buf_b, unsigned& readi, const uint8_t *mate, size_t mate_len);
 	size_t get_matching_read(const uint8_t* rec);
 
-	static const int offset[];
+        static const int offset[];
 	static const uint8_t EOF_MARKER[];
 
-	std::vector<std::vector<uint8_t> > bam_batches_;
-	std::vector<size_t> bam_batch_indexes_;
+	std::vector<uint8_t> alignment_batch;
+	size_t alignment_offset;
 	std::vector<orphan_mate_t> orphan_mates;
+	size_t delta_;
 	MUTEX_T orphan_mates_mutex_;
 
 	PatternParams pp_;

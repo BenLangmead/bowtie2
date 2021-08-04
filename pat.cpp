@@ -1274,78 +1274,85 @@ std::pair<bool, int> BAMPatternSource::nextBatch(PerThreadReadBuf& pt, bool batc
 	uint16_t cdata_len;
 	unsigned nread = 0;
 
+	ThreadSafe ts(mutex);
 	do {
-		if (bam_batch_indexes_[pt.tid_] >= bam_batches_[pt.tid_].size()) {
+		if (alignment_offset >= alignment_batch.size()) {
 			BGZF block;
-			std::vector<uint8_t>& batch = bam_batches_[pt.tid_];
-			if (lock) {
-				ThreadSafe ts(mutex);
-				if (first_) {
-                                        // parse the BAM header;
-					nextBGZFBlockFromFile(block);
-					first_ = false;
-				}
-				cdata_len = nextBGZFBlockFromFile(block);
-			} else {
-				if (first_) {
-					// parse the BAM header
-					nextBGZFBlockFromFile(block);
-					first_ = false;
-				}
-				cdata_len = nextBGZFBlockFromFile(block);
-			}
+			cdata_len = nextBGZFBlockFromFile(block);
 			if (cdata_len == 0) {
 				done = nread == 0;
 				break;
 			}
-			bam_batch_indexes_[pt.tid_] = 0;
-			batch.resize(block.ftr.isize);
-			int ret_code = decompress_bgzf_block(&batch[0], block.ftr.isize, block.cdata, cdata_len);
+			alignment_offset = 0;
+			alignment_batch.resize(block.ftr.isize + delta_);
+			int ret_code = decompress_bgzf_block(&alignment_batch[0] + delta_, block.ftr.isize, block.cdata, cdata_len);
 			if (ret_code != Z_OK) {
 				return make_pair(true, 0);
 			}
 			uLong crc = crc32(0L, Z_NULL, 0);
-			crc = crc32(crc, &batch[0], batch.size());
+			crc = crc32(crc, &alignment_batch[0] + delta_, alignment_batch.size() - delta_);
 			assert(crc == block.ftr.crc32);
+			delta_ = 0;
 		}
 		std::pair<bool, int> ret = get_alignments(pt, batch_a, nread, lock);
 		done = ret.first;
 	} while (!done && nread < pt.max_buf_);
 
-	if (lock) {
-		ThreadSafe ts(mutex);
-		pt.setReadId(readCnt_);
-		readCnt_ += nread;
-	} else {
-		pt.setReadId(readCnt_);
-		readCnt_ += nread;
-	}
+	pt.setReadId(readCnt_);
+	readCnt_ += nread;
+
 	return make_pair(done, nread);
 }
 
 std::pair<bool, int> BAMPatternSource::get_alignments(PerThreadReadBuf& pt, bool batch_a, unsigned& readi, bool lock) {
-	size_t& i = bam_batch_indexes_[pt.tid_];
+	size_t& i = alignment_offset;
 	bool done = false;
 	bool read1 = true;
 
+	if (first_) {
+		char magic[4];
+		uint32_t l_text;
+		uint32_t nref;
+
+		memcpy(magic, &alignment_batch[0], 4);
+		assert(magic[0] == 'B'&& magic[1] == 'A' && magic[2] == 'M' && magic[3] == 1);
+		i += 4;
+		memcpy(&l_text, &alignment_batch[0] + i, sizeof(l_text));
+		i = i + sizeof(uint32_t) + l_text;
+		memcpy(&nref, &alignment_batch[0] + i, sizeof(nref));
+		i += sizeof(nref);
+		for (uint32_t j = 0; j < nref; j++) {
+			uint32_t l_name;
+			memcpy(&l_name, &alignment_batch[0] + i, sizeof(l_name));
+			i = i + sizeof(l_name) + l_name + sizeof(uint32_t);
+		}
+		first_ = false;
+	}
 	while (readi < pt.max_buf_) {
-		if (i >= bam_batches_[pt.tid_].size()) {
+		if (i >= alignment_batch.size()) {
 			return make_pair(false, readi);
 		}
 
 		uint16_t flag;
-		int32_t block_size;
+		uint32_t block_size;
 		EList<Read>& readbuf = pp_.align_paired_reads && !read1 ? pt.bufb_ : pt.bufa_;
 
-		memcpy(&block_size, &bam_batches_[pt.tid_][0] + i, sizeof(block_size));
+		memcpy(&block_size, &alignment_batch[0] + i, sizeof(block_size));
 		if (currentlyBigEndian())
 			block_size = endianSwapU32(block_size);
-		if (block_size <= 0) {
+		if (block_size == 0) {
+			return make_pair(done, readi);
+		}
+		if (block_size > (alignment_batch.size() - i)) {
+			// copy the rest of the block to an array
+			// and get another batch of alignments
+			delta_ = alignment_batch.size() - i;
+			memcpy(&alignment_batch[0], &alignment_batch[0] + i, delta_);
+			i = alignment_batch.size();
 			return make_pair(done, readi);
 		}
 		i += sizeof(block_size);
-
-		memcpy(&flag, &bam_batches_[pt.tid_][0] + i + offset[BAMField::flag], sizeof(flag));
+		memcpy(&flag, &alignment_batch[0] + i + offset[BAMField::flag], sizeof(flag));
 		if (currentlyBigEndian())
 			flag = endianSwapU16(flag);
 		if (!pp_.align_paired_reads && ((flag & 0x40) != 0 || (flag & 0x80) != 0)) {
@@ -1361,22 +1368,22 @@ std::pair<bool, int> BAMPatternSource::get_alignments(PerThreadReadBuf& pt, bool
 		}
 
 		if (pp_.align_paired_reads &&
-                    (((flag & 0x40) != 0 && i + block_size == bam_batches_[pt.tid_].size()) ||
+                    (((flag & 0x40) != 0 && i + block_size == alignment_batch.size()) ||
                      ((flag & 0x80) != 0 && i == sizeof(block_size))))
 		{
 			if (lock) {
 				ThreadSafe ts(orphan_mates_mutex_);
-				get_or_store_orhaned_mate(pt.bufa_, pt.bufb_, readi, &bam_batches_[pt.tid_][0] + i, block_size);
+				get_or_store_orhaned_mate(pt.bufa_, pt.bufb_, readi, &alignment_batch[0] + i, block_size);
 				i += block_size;
 			} else {
-				get_or_store_orhaned_mate(pt.bufa_, pt.bufb_, readi, &bam_batches_[pt.tid_][0] + i, block_size);
+				get_or_store_orhaned_mate(pt.bufa_, pt.bufb_, readi, &alignment_batch[0] + i, block_size);
 				i += block_size;
 			}
 
 		} else {
 			readbuf[readi].readOrigBuf.resize(block_size);
 
-			memcpy(readbuf[readi].readOrigBuf.wbuf(), &bam_batches_[pt.tid_][0] + i, block_size);
+			memcpy(readbuf[readi].readOrigBuf.wbuf(), &alignment_batch[0] + i, block_size);
 			i += block_size;
 
 			read1 = !read1;
