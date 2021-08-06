@@ -1345,7 +1345,7 @@ std::pair<bool, int> BAMPatternSource::get_alignments(PerThreadReadBuf& pt, bool
 		if (block_size == 0) {
 			return make_pair(done, readi);
 		}
-		if (block_size >= (alignment_batch.size() - i - sizeof(block_size))) {
+		if (block_size > (alignment_batch.size() - i - sizeof(block_size))) {
 		  next_batch:
 			delta_ = alignment_batch.size() - i;
 			memcpy(&alignment_batch[0], &alignment_batch[0] + i, delta_);
