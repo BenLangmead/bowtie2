@@ -480,16 +480,20 @@ void CFilePatternSource::open() {
 	}
 	while(filecur_ < infiles_.size()) {
 		if(infiles_[filecur_] == "-") {
-			// always assume that data from stdin is compressed
-			compressionType_ = CompressionType::GZIP;
 			int fd = dup(fileno(stdin));
-			zfp_ = gzdopen(fd, "rb");
+			if (pp_.format == BAM) {
+				compressionType_ = CompressionType::NONE;
+				fp_ = fdopen(fd, "rb");
+			} else {
+				// always assume that data from stdin is compressed
+				compressionType_ = CompressionType::GZIP;
+				zfp_ = gzdopen(fd, "rb");
 
-			if (zfp_ == NULL) {
-				close(fd);
+				if (zfp_ == NULL) {
+					close(fd);
+				}
 			}
-		}
-		else {
+		} else {
 			const char* filename = infiles_[filecur_].c_str();
 
 			int fd = ::open(filename, O_RDONLY);
