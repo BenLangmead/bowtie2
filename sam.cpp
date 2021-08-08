@@ -908,6 +908,7 @@ void SamConfig::printPreservedOptFlags(BTString& o, const Read& rd) const {
 				i += sizeof(count);
 				o.append(":B:");
 				o.append(val_type);
+				o.append(",");
 			} else {
 				o.append(':');
 				if (val_type == 'c' || val_type == 'C'
@@ -918,9 +919,8 @@ void SamConfig::printPreservedOptFlags(BTString& o, const Read& rd) const {
 					o.append(val_type);
                                 }
 				i += sizeof(char);
-
+				o.append(':');
                         }
-                        o.append(':');
 			switch (val_type) {
 			case 'A':
 				readTagVal<char>(o, b, i, count);
