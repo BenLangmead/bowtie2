@@ -1361,12 +1361,16 @@ std::pair<bool, int> BAMPatternSource::get_alignments(PerThreadReadBuf& pt, bool
 		if (currentlyBigEndian())
 			flag = endianSwapU16(flag);
 		EList<Read>& readbuf = (pp_.align_paired_reads && (flag & 0x80)) != 0 ? pt.bufb_ : pt.bufa_;
+		if ((flag & 0x4) == 0) {
+			readbuf[readi].readOrigBuf.clear();
+			i += block_size;
+			continue;
+		}
 		if (!pp_.align_paired_reads && ((flag & 0x40) != 0 || (flag & 0x80) != 0)) {
 			readbuf[readi].readOrigBuf.clear();
 			i += block_size;
 			continue;
 		}
-
 		if (pp_.align_paired_reads && ((flag & 0x40) == 0 && (flag & 0x80) == 0)) {
 			readbuf[readi].readOrigBuf.clear();
 			i += block_size;
