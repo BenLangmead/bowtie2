@@ -526,11 +526,6 @@ void SamConfig::printAlignedOptFlags(
 		o.append("ZI:i:");
 		o.append(buf);
 	}
-	if(print_xr_) {
-		// Original read string
-		o.append("\n");
-		printOptFieldNewlineEscapedZ(o, rd.readOrigBuf);
-	}
 	if(print_zt_) {
 		// ZT:Z: Extra features for MAPQ estimation
 		WRITE_SEP();
@@ -880,11 +875,6 @@ void SamConfig::printEmptyOptFlags(
 		itoa10<uint64_t>(prm.nExIters, buf);
 		o.append("ZI:i:");
 		o.append(buf);
-	}
-	if(print_xr_) {
-		// Original read string
-		o.append("\n");
-		printOptFieldNewlineEscapedZ(o, rd.readOrigBuf);
 	}
 }
 

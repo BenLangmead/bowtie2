@@ -360,6 +360,10 @@ public:
 		return noUnal_;
 	}
 
+	bool passthrough() const {
+		return print_xr_;
+	}
+
 protected:
 
 	bool truncQname_;   // truncate QNAME to 255 chars?
