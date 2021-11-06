@@ -1613,6 +1613,15 @@ protected:
 		Constraint overall,    // overall constraints
 		DoublyLinkedList<Edit> *prevEdit);  // previous edit
 	
+        inline void prefetchNextLocsBi(
+                SideLocus& tloc,            // top locus
+                SideLocus& bloc,            // bot locus
+                TIndexOffU topf,              // top in BWT
+                TIndexOffU botf,              // bot in BWT
+                TIndexOffU topb,              // top in BWT'
+                TIndexOffU botb,              // bot in BWT'
+                int step);                  // step to get ready for
+
 	/**
 	 * Get tloc and bloc ready for the next step.
 	 */

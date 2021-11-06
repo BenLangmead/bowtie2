@@ -346,6 +346,27 @@ struct SideLocus {
 			}
 		}
 
+        static void prefetchFromTopBot(
+                TIndexOffU top,
+                TIndexOffU bot,
+                const EbwtParams& ep,
+                const uint8_t* ebwt,
+                const SideLocus& ltop,
+                const SideLocus& lbot)
+                {
+                        const TIndexOffU sideBwtLen = ep._sideBwtLen;
+                        assert_gt(bot, top);
+                        ltop.prefetchFromRow(top, ep, ebwt);
+                        TIndexOffU spread = bot - top;
+                        // Many cache misses on the following lines
+                        if(ltop._charOff + spread < sideBwtLen) {
+   				// nothing to do
+                                //lbot._sideByteOff == ltop._sideByteOff;
+                        } else {
+                                lbot.prefetchFromRow(bot, ep, ebwt);
+                        }
+                }
+
 	/**
 	 * Calculate SideLocus based on a row and other relevant
 	 * information about the shape of the Ebwt.
@@ -365,6 +386,19 @@ struct SideLocus {
 		assert_lt(_by, (int)ep._sideBwtSz);
 		_bp = _charOff & 3;  // bit-pair within byte
 	}
+
+        void prefetchFromRow(TIndexOffU row, const EbwtParams& ep, const uint8_t* ebwt) const {
+                const int32_t sideSz     = ep._sideSz;
+                // Side length is hard-coded for now; this allows the compiler
+                // to do clever things to accelerate / and %.
+                TIndexOffU sideNum                  = row / (48*OFF_SIZE);
+                TIndexOffU sideByteOff              = sideNum * sideSz;
+                TIndexOffU charOff                  = row % (48*OFF_SIZE);
+                TIndexOffU by = charOff >> 2; // byte within side
+		__builtin_prefetch(ebwt + sideByteOff);
+                if (by>=64) __builtin_prefetch(ebwt + sideByteOff + 64); //64 byte cache lines
+		__builtin_prefetch(ebwt + sideByteOff + sideSz);
+        }
 
 	/**
 	 * Transform this SideLocus to refer to the next side (i.e. the one
