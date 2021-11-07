@@ -1107,8 +1107,6 @@ SeedAligner::searchSeedBi() {
 
 inline void
 SeedAligner::prefetchNextLocsBi(
-        SideLocus& tloc,            // top locus
-        SideLocus& bloc,            // bot locus
         TIndexOffU topf,              // top in BWT
         TIndexOffU botf,              // bot in BWT
         TIndexOffU topb,              // top in BWT'
@@ -1116,27 +1114,29 @@ SeedAligner::prefetchNextLocsBi(
         int step                    // step to get ready for
         )
 {
-        if(step == (int)s_->steps.size()) return; // no more steps!
-        // Which direction are we going in next?
-        if(s_->steps[step] > 0) {
-                // Left to right; use BWT'
-                if(botb - topb == 1) {
-                        // Already down to 1 row; just init top locus
-                        tloc.prefetchFromRow(topb, ebwtBw_->eh(), ebwtBw_->ebwt());
-                } else {
-                        SideLocus::prefetchFromTopBot(
-                                topb, botb, ebwtBw_->eh(), ebwtBw_->ebwt(), tloc, bloc);
-                }
-        } else {
-                // Right to left; use BWT
-                if(botf - topf == 1) {
-                        // Already down to 1 row; just init top locus
-                        tloc.prefetchFromRow(topf, ebwtFw_->eh(), ebwtFw_->ebwt());
-                } else {
-                        SideLocus::prefetchFromTopBot(
-                                topf, botf, ebwtFw_->eh(), ebwtFw_->ebwt(), tloc, bloc);
-                }
-        }
+	if(step == (int)s_->steps.size()) return; // no more steps!
+	// Which direction are we going in next?
+	if(s_->steps[step] > 0) {
+		// Left to right; use BWT'
+		if(botb - topb == 1) {
+			// Already down to 1 row; just init top locus
+			SideLocus::prefetchFromRow(
+				topb, ebwtBw_->eh(), ebwtBw_->ebwt());
+		} else {
+			SideLocus::prefetchFromTopBot(
+				topb, botb, ebwtBw_->eh(), ebwtBw_->ebwt());
+		}
+	} else {
+		// Right to left; use BWT
+		if(botf - topf == 1) {
+			// Already down to 1 row; just init top locus
+			SideLocus::prefetchFromRow(
+				topf, ebwtFw_->eh(), ebwtFw_->ebwt());
+		} else {
+			SideLocus::prefetchFromTopBot(
+				topf, botf, ebwtFw_->eh(), ebwtFw_->ebwt());
+		}
+	}
 }
 
 /**
@@ -1514,7 +1514,7 @@ SeedAligner::searchSeedBi(
 			}
 			return true;
 		}
-                prefetchNextLocsBi(tloc, bloc, topf, botf, topb, botb, step);
+                prefetchNextLocsBi(topf, botf, topb, botb, step);
 		nextLocsBi(tloc, bloc, topf, botf, topb, botb, step);
 		assert(tloc.valid());
 	} else assert(prevEdit != NULL);
@@ -1561,7 +1561,7 @@ SeedAligner::searchSeedBi(
                 int c = (*seq_)[off];  assert_range(0, 4, c);
 		// not 100% sure we need it, but redundant prefetches are not dangerous
 		// and helps in the average case
-                prefetchNextLocsBi(tloc, bloc, tf[c], bf[c], tb[c], bb[c], i+1);
+                prefetchNextLocsBi(tf[c], bf[c], tb[c], bb[c], i+1);
 
 		//
 		bool leaveZone = s.zones[i].first < 0;
