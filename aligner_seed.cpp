@@ -1514,7 +1514,6 @@ SeedAligner::searchSeedBi(
 			}
 			return true;
 		}
-                prefetchNextLocsBi(topf, botf, topb, botb, step);
 		nextLocsBi(tloc, bloc, topf, botf, topb, botb, step);
 		assert(tloc.valid());
 	} else assert(prevEdit != NULL);

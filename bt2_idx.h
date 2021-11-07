@@ -327,11 +327,12 @@ struct SideLocus {
 		const EbwtParams& ep,
 		const uint8_t* ebwt,
 		SideLocus& ltop,
-		SideLocus& lbot)
+		SideLocus& lbot,
+		bool prefetch=true)
 		{
 			const TIndexOffU sideBwtLen = ep._sideBwtLen;
 			assert_gt(bot, top);
-			ltop.initFromRow(top, ep, ebwt);
+			ltop.initFromRow(top, ep, ebwt, prefetch);
 			TIndexOffU spread = bot - top;
 			// Many cache misses on the following lines
 			const TIndexOffU charOffSum = ltop._charOff + spread;
@@ -343,8 +344,9 @@ struct SideLocus {
 				lbot._by = bcharOff >> 2;
 				assert_lt(lbot._by, (int)ep._sideBwtSz);
 				lbot._bp = bcharOff & 3;
+				// no need for any prefetch, same _sideByteOff
 			} else {
-				lbot.initFromRow(bot, ep, ebwt);
+				lbot.initFromRow(bot, ep, ebwt, prefetch);
 			}
 		}
 
@@ -363,7 +365,10 @@ struct SideLocus {
 	 * Calculate SideLocus based on a row and other relevant
 	 * information about the shape of the Ebwt.
 	 */
-	void initFromRow(TIndexOffU row, const EbwtParams& ep, const uint8_t* ebwt) {
+	void initFromRow(TIndexOffU row,
+			const EbwtParams& ep,
+			const uint8_t* ebwt,
+			bool prefetch=true) {
 		const int32_t sideSz     = ep._sideSz;
 		// Side length is hard-coded for now; this allows the compiler
 		// to do clever things to accelerate / and %.
@@ -372,7 +377,15 @@ struct SideLocus {
 		const int32_t charOff     = row % (48*OFF_SIZE);
 		_sideNum                  = sideNum;
 		_charOff                  = charOff;
-		_sideByteOff              = sideNum * sideSz;
+		const TIndexOffU sByteOff = sideNum * sideSz;
+		if (prefetch) {
+			__builtin_prefetch(ebwt + sByteOff);
+#if (OFF_SIZE>4)
+			__builtin_prefetch(ebwt + sByteOff + 64); //64 byte cache lines
+#endif
+                }
+
+		_sideByteOff              = sByteOff;
 		assert_leq(row, ep._len);
 		assert_leq(_sideByteOff + sideSz, ep._ebwtTotSz);
 		// Tons of cache misses on the next line
