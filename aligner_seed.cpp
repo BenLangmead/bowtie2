@@ -1533,9 +1533,9 @@ SeedAligner::searchSeedBi(
 		off = s.steps[i];
 		bool ltr = off > 0;
 		const Ebwt* ebwt = ltr ? ebwtBw_ : ebwtFw_;
-                assert(ebwt != NULL);
-                off = abs(off)-1;
-                __builtin_prefetch(&((*seq_)[off]));
+		assert(ebwt != NULL);
+		off = abs(off)-1;
+		__builtin_prefetch(&((*seq_)[off]));
 		if(ltr) {
 			tp[0] = tp[1] = tp[2] = tp[3] = topf;
 			bp[0] = bp[1] = bp[2] = bp[3] = botf;
@@ -1557,17 +1557,17 @@ SeedAligner::searchSeedBi(
 		}
 		TIndexOffU *tf = ltr ? tp : t, *tb = ltr ? t : tp;
 		TIndexOffU *bf = ltr ? bp : b, *bb = ltr ? b : bp;
-                int c = (*seq_)[off];  assert_range(0, 4, c);
+		int c = (*seq_)[off];  assert_range(0, 4, c);
 		// not 100% sure we need it, but redundant prefetches are not dangerous
 		// and helps in the average case
-                prefetchNextLocsBi(tf[c], bf[c], tb[c], bb[c], i+1);
+		prefetchNextLocsBi(tf[c], bf[c], tb[c], bb[c], i+1);
 
 		//
 		bool leaveZone = s.zones[i].first < 0;
 		//bool leaveZoneIns = zones_[i].second < 0;
 		Constraint& cons    = *zones[abs(s.zones[i].first)];
 		//Constraint& insCons = *zones[abs(s.zones[i].second)];
-                int q = (*qual_)[off];
+		int q = (*qual_)[off];
 		// Is it legal for us to advance on characters other than 'c'?
 		if(!(cons.mustMatch() && !overall.mustMatch()) || c == 4) {
 			// There may be legal edits
