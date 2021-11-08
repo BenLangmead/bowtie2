@@ -1852,6 +1852,7 @@ public:
 	 *
 	 * This is a performance-critical function.  This is the top search-
 	 * related hit in the time profile.
+	 * The bottleneck seems to be cache misses due to random memory access pattern.
 	 *
 	 * Function gets 11.09% in profile
 	 */
@@ -1952,6 +1953,10 @@ public:
 	 * Counts the number of occurrences of all four nucleotides in the
 	 * given side up to (but not including) the given byte/bitpair (by/bp).
 	 * Count for 'a' goes in arrs[0], 'c' in arrs[1], etc.
+	 *
+	 * This is a performance-critical function.  This is the top search-
+	 * related hit in the time profile.
+	 * The bottleneck seems to be cache misses due to random memory access pattern.
 	 */
 	inline void countUpToEx(const SideLocus& l, TIndexOffU* arrs) const {
 		int i = 0;
