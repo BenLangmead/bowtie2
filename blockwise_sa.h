@@ -22,6 +22,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <future>
 #include <iostream>
 #include <sstream>
 #include <thread>
@@ -38,6 +39,7 @@
 #include "ds.h"
 #include "mem_ids.h"
 #include "word_io.h"
+#include "threadpool.h"
 
 using namespace std;
 
@@ -198,6 +200,7 @@ public:
 	KarkkainenBlockwiseSA(const TStr& __text,
 			      TIndexOffU __bucketSz,
 			      int __nthreads,
+			      thread_pool& pool,
 			      uint32_t __dcV,
 			      uint32_t __seed = 0,
 			      bool __sanityCheck = false,
@@ -208,6 +211,7 @@ public:
 		InorderBlockwiseSA<TStr>(__text, __bucketSz, __sanityCheck, __passMemExc, __verbose, __logger),
 		_sampleSuffs(EBWTB_CAT),
 		_nthreads(__nthreads),
+		_pool(pool),
 		_itrBucketIdx(0),
 		_cur(0),
 		_dcV(__dcV),
@@ -218,17 +222,7 @@ public:
 		_done(NULL)
 		{ _randomSrc.init(__seed); reset(); }
 
-	~KarkkainenBlockwiseSA() throw()
-		{
-			if(_threads.size() > 0) {
-				for (size_t tid = 0; tid < _threads.size(); tid++) {
-					_threads[tid]->join();
-					delete _threads[tid];
-				}
-			}
-			if (_done != NULL)
-				delete[] _done;
-		}
+	~KarkkainenBlockwiseSA() throw() {}
 
 	/**
 	 * Allocate an amount of memory that simulates the peak memory
@@ -253,7 +247,7 @@ public:
 		{
 			// Launch threads if not
 			if(this->_nthreads > 1) {
-				if(_threads.size() == 0) {
+				if(_tparams.size() == 0) {
 					_done = new volatile bool[_sampleSuffs.size() + 1];
 					for (size_t i = 0; i < _sampleSuffs.size() + 1; i++) {
 						_done[i] = false;
@@ -263,9 +257,8 @@ public:
 					for(int tid = 0; tid < this->_nthreads; tid++) {
 						_tparams[tid].first = this;
 						_tparams[tid].second = tid;
-						_threads.push_back(new thread(nextBlock_Worker((void*)&_tparams[tid])));
+						_pool.submit(nextBlock_Worker((void *)&_tparams[tid]));
 					}
-					assert_eq(_threads.size(), (size_t)this->_nthreads);
 				}
 			}
 			if(this->_itrPushedBackSuffix != OFF_MASK) {
@@ -396,7 +389,7 @@ private:
 		assert(_dc.get() == NULL);
 		if(_dcV != 0) {
 			_dc.init(new TDC(this->text(), _dcV, this->verbose(), this->sanityCheck()));
-			_dc.get()->build(this->_nthreads);
+			_dc.get()->build(_pool, this->_nthreads);
 		}
 		// Calculate sample suffixes
 		if(this->bucketSz() <= this->text().length()) {
@@ -436,6 +429,7 @@ private:
 
 	EList<TIndexOffU>  _sampleSuffs; /// sample suffixes
 	int                _nthreads;    /// # of threads
+	thread_pool& _pool;
 	TIndexOffU         _itrBucketIdx;
 	TIndexOffU         _cur;         /// offset to 1st elt of next block
 	const uint32_t   _dcV;         /// difference-cover periodicity
@@ -638,7 +632,7 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
 	// Iterate until all buckets are less than
 	while(--limit >= 0) {
 		TIndexOffU numBuckets = (TIndexOffU)_sampleSuffs.size()+1;
-		AutoArray<std::thread*> threads(this->_nthreads);
+		std::vector<std::future<void> > threads(this->_nthreads);
 		EList<BinarySortingParam<TStr> > tparams;
 		tparams.resize(this->_nthreads);
 		for(int tid = 0; tid < this->_nthreads; tid++) {
@@ -668,16 +662,14 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
 			if(this->_nthreads == 1) {
 				BinarySorting_worker<TStr>((void*)&tparams[tid])();
 			} else {
-				threads[tid] = new std::thread(BinarySorting_worker<TStr>(((void*)&tparams[tid])));
+				threads[tid] = _pool.submit(BinarySorting_worker<TStr>(((void*)&tparams[tid])));
 			}
 		}
 
 		if(this->_nthreads > 1) {
 			for (int tid = 0; tid < this->_nthreads; tid++) {
-				threads[tid]->join();
+				threads[tid].get();
 			}
-			for (int tid = 0; tid < this->_nthreads; tid++)
-				delete threads[tid];
 		}
 		EList<TIndexOffU>& bucketSzs = tparams[0].bucketSzs;
 		EList<TIndexOffU>& bucketReps = tparams[0].bucketReps;

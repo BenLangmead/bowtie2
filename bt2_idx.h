@@ -54,6 +54,7 @@
 #include "random_source.h"
 #include "mem_ids.h"
 #include "btypes.h"
+#include "threadpool.h"
 
 #ifdef POPCNT_CAPABILITY
 #include "processor_support.h"
@@ -1018,6 +1019,7 @@ public:
 			streampos out1pos = out1.tellp();
 			streampos out2pos = out2.tellp();
 			// Look for bmax/dcv parameters that work.
+			thread_pool pool(nthreads);
 			while(true) {
 				if(!first && bmax < 40 && _passMemExc) {
 					cerr << "Could not find approrpiate bmax/dcv settings for building this index." << endl;
@@ -1081,7 +1083,7 @@ public:
 						VMSG_NL("");
 					}
 					VMSG_NL("Constructing suffix-array element generator");
-					KarkkainenBlockwiseSA<TStr> bsa(s, bmax, nthreads, dcv, seed, _sanity, _passMemExc, _verbose, outfile);
+					KarkkainenBlockwiseSA<TStr> bsa(s, bmax, nthreads, pool, dcv, seed, _sanity, _passMemExc, _verbose, outfile);
 					assert(bsa.suffixItrIsReset());
 					assert_eq(bsa.size(), s.length()+1);
 					VMSG_NL("Converting suffix-array elements to index image");
@@ -2807,7 +2809,6 @@ void Ebwt::buildToDisk(
 		// Write length word
 		writeU<TIndexOffU>(*bwtOut, len+1, _switchEndian);
 	}
-
 	while(side < ebwtTotSz) {
 		// Sanity-check our cursor into the side buffer
 		assert_geq(sideCur, 0);
