@@ -360,6 +360,14 @@ static void deleteIdxFiles(
 	}
 }
 
+static void renameIdxFiles() {
+	for (size_t i = 0; i < filesWritten.size(); i++) {
+		std::string oldName = filesWritten[i] + ".tmp";
+		std::cerr << "Renaming " << oldName << " to " << filesWritten[i] << std::endl;
+		std::rename(oldName.c_str(), filesWritten[i].c_str());
+	}
+}
+
 /**
  * Drive the index construction process and optionally sanity-check the
  * result.
@@ -686,7 +694,6 @@ int bowtie_build(int argc, const char **argv) {
 		if(packed) {
 			driver<S2bDnaString>(infile, infiles, outfile + ".rev", true, reverseType);
 		}
-		return 0;
 	} catch(std::exception& e) {
 		cerr << "Error: Encountered exception: '" << e.what() << "'" << endl;
 		cerr << "Command: ";
@@ -704,5 +711,7 @@ int bowtie_build(int argc, const char **argv) {
 		deleteIdxFiles(outfile, writeRef || justRef, justRef);
 		return e;
 	}
+	renameIdxFiles();
+	return 0;
 }
 }
