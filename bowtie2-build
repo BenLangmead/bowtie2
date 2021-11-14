@@ -28,11 +28,17 @@ import argparse
 import subprocess
 from collections import deque
 
+class ArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        pass
+
 def main():
-    parser = argparse.ArgumentParser(add_help = False)
+    parser = ArgumentParser(add_help = False)
 
     parser.add_argument('--large-index', action='store_true')
     parser.add_argument('--verbose', action='store_true')
+    parser.add_argument('fastas', nargs='+', type=str, default=[])
+    parser.add_argument('index_basename', type=str, default="")
 
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--debug', action='store_true')
@@ -51,11 +57,7 @@ def main():
     build_bin_spec      = os.path.join(ex_path,build_bin_s)
 
     script_options, argv = parser.parse_known_args()
-    print_help = False
     argv = deque(argv)
-
-    if '-h' in argv or '--help' in argv:
-        print_help = True
 
     if script_options.verbose:
         logging.getLogger().setLevel(logging.INFO)
@@ -68,21 +70,29 @@ def main():
         build_bin_spec += '-sanitized'
         build_bin_l += '-sanitized'
 
+    fastas = []
+    for fasta in script_options.fastas:
+        fastas.extend(fasta.split(","))
     if script_options.large_index:
         build_bin_spec = os.path.join(ex_path,build_bin_l)
-    elif len(argv) >= 2:
-        ref_fnames = argv[-2]
+    if fastas:
+        ref_fnames = script_options.fastas
         tot_size = 0
-        for fn in ref_fnames.split(','):
-            if os.path.exists(fn):
-                statinfo = os.stat(fn)
-                tot_size += statinfo.st_size
+        for fn in fastas:
+            tot_size += os.stat(fn).st_size
         if tot_size > small_index_max_size:
             build_bin_spec = os.path.join(ex_path,build_bin_l)
 
+    if not os.path.exists(build_bin_spec):
+        sys.stderr.write("{0} does not exist, try running [g]make {0} first\n".format(os.path.basename(build_bin_spec)))
+        sys.exit(1)
     argv.appendleft('basic-0')
     argv.appendleft('--wrapper')
     argv.appendleft(build_bin_spec)
+    if fastas:
+        argv.append(','.join(fastas))
+    if script_options.index_basename:
+        argv.append(script_options.index_basename)
     logging.info('Command: %s' % ' '.join(argv))
     sys.exit(subprocess.call(list(argv)))
 
