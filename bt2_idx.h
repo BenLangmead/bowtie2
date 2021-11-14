@@ -327,43 +327,93 @@ struct SideLocus {
 		const EbwtParams& ep,
 		const uint8_t* ebwt,
 		SideLocus& ltop,
-		SideLocus& lbot)
+		SideLocus& lbot,
+		bool prefetch=true)
 		{
 			const TIndexOffU sideBwtLen = ep._sideBwtLen;
 			assert_gt(bot, top);
-			ltop.initFromRow(top, ep, ebwt);
+			ltop.initFromRow(top, ep, ebwt, prefetch);
 			TIndexOffU spread = bot - top;
 			// Many cache misses on the following lines
-			if(ltop._charOff + spread < sideBwtLen) {
-				lbot._charOff = (uint32_t)(ltop._charOff + spread);
+			const TIndexOffU charOffSum = ltop._charOff + spread;
+			if(charOffSum < sideBwtLen) {
+				const uint32_t bcharOff = (uint32_t) charOffSum;
+				lbot._charOff = bcharOff;
 				lbot._sideNum = ltop._sideNum;
 				lbot._sideByteOff = ltop._sideByteOff;
-				lbot._by = lbot._charOff >> 2;
+				lbot._by = bcharOff >> 2;
 				assert_lt(lbot._by, (int)ep._sideBwtSz);
-				lbot._bp = lbot._charOff & 3;
+				lbot._bp = bcharOff & 3;
+				// no need for any prefetch, same _sideByteOff
 			} else {
-				lbot.initFromRow(bot, ep, ebwt);
+				lbot.initFromRow(bot, ep, ebwt, prefetch);
 			}
+		}
+
+	static void prefetchFromTopBot(
+		TIndexOffU top,
+		TIndexOffU bot,
+		const EbwtParams& ep,
+		const uint8_t* ebwt)
+		{
+			prefetchFromRow(top, ep, ebwt);
+			// not trying to be smart... prefetches are cheap
+			prefetchFromRow(bot, ep, ebwt);
 		}
 
 	/**
 	 * Calculate SideLocus based on a row and other relevant
 	 * information about the shape of the Ebwt.
 	 */
-	void initFromRow(TIndexOffU row, const EbwtParams& ep, const uint8_t* ebwt) {
+	void initFromRow(TIndexOffU row,
+			const EbwtParams& ep,
+			const uint8_t* ebwt,
+			bool prefetch=true) {
 		const int32_t sideSz     = ep._sideSz;
 		// Side length is hard-coded for now; this allows the compiler
 		// to do clever things to accelerate / and %.
-		_sideNum                  = row / (48*OFF_SIZE);
-		assert_lt(_sideNum, ep._numSides);
-		_charOff                  = row % (48*OFF_SIZE);
-		_sideByteOff              = _sideNum * sideSz;
+		const TIndexOffU sideNum  = row / (48*OFF_SIZE);
+		assert_lt(sideNum, ep._numSides);
+		const int32_t charOff     = row % (48*OFF_SIZE);
+		_sideNum                  = sideNum;
+		_charOff                  = charOff;
+		const TIndexOffU sByteOff = sideNum * sideSz;
+		if (prefetch) {
+			__builtin_prefetch(ebwt + sByteOff);
+#if (OFF_SIZE>4)
+			__builtin_prefetch(ebwt + sByteOff + 64); //64 byte cache lines
+#endif
+                }
+
+		_sideByteOff              = sByteOff;
 		assert_leq(row, ep._len);
 		assert_leq(_sideByteOff + sideSz, ep._ebwtTotSz);
 		// Tons of cache misses on the next line
-		_by = _charOff >> 2; // byte within side
+		_by = charOff >> 2; // byte within side
 		assert_lt(_by, (int)ep._sideBwtSz);
-		_bp = _charOff & 3;  // bit-pair within byte
+		_bp = charOff & 3;  // bit-pair within byte
+	}
+
+	/**
+ 	 * Prefetch cache lines used by side(row). 
+ 	 */ 
+	static void prefetchFromRow(TIndexOffU row, const EbwtParams& ep, const uint8_t* ebwt) {
+		const int32_t sideSz         = ep._sideSz;
+		// Side length is hard-coded for now; this allows the compiler
+		// to do clever things to accelerate / and %.
+		const TIndexOffU sideNum     = row / (48*OFF_SIZE);
+		const TIndexOffU sideByteOff = sideNum * sideSz;
+		__builtin_prefetch(ebwt + sideByteOff);
+#if (OFF_SIZE>4)
+		__builtin_prefetch(ebwt + sideByteOff + 64); //64 byte cache lines
+#endif
+	}
+
+	void prefetch(const uint8_t* ebwt) const {
+                __builtin_prefetch(ebwt + _sideByteOff);
+#if (OFF_SIZE>4)
+                __builtin_prefetch(ebwt + _sideByteOff + 64); //64 byte cache lines
+#endif
 	}
 
 	/**
@@ -1802,6 +1852,7 @@ public:
 	 *
 	 * This is a performance-critical function.  This is the top search-
 	 * related hit in the time profile.
+	 * The bottleneck seems to be cache misses due to random memory access pattern.
 	 *
 	 * Function gets 11.09% in profile
 	 */
@@ -1902,6 +1953,10 @@ public:
 	 * Counts the number of occurrences of all four nucleotides in the
 	 * given side up to (but not including) the given byte/bitpair (by/bp).
 	 * Count for 'a' goes in arrs[0], 'c' in arrs[1], etc.
+	 *
+	 * This is a performance-critical function.  This is the top search-
+	 * related hit in the time profile.
+	 * The bottleneck seems to be cache misses due to random memory access pattern.
 	 */
 	inline void countUpToEx(const SideLocus& l, TIndexOffU* arrs) const {
 		int i = 0;
@@ -2010,6 +2065,9 @@ public:
 			assert_eq(0, tops[1]); assert_eq(0, bots[1]);
 			assert_eq(0, tops[2]); assert_eq(0, bots[2]);
 			assert_eq(0, tops[3]); assert_eq(0, bots[3]);
+			// hopefully ltop and lbot were already prefetched
+			// if not, we have time to prefetch lbot while procssing ltop
+			lbot.prefetch(this->ebwt());
 			countBt2SideEx(ltop, tops);
 			countBt2SideEx(lbot, bots);
 #ifndef NDEBUG
