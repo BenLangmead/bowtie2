@@ -79,7 +79,10 @@ def main():
         ref_fnames = script_options.fastas
         tot_size = 0
         for fn in fastas:
-            tot_size += os.stat(fn).st_size
+            try:
+                tot_size += os.stat(fn).st_size
+            except FileNotFoundError:
+                continue
         if tot_size > small_index_max_size:
             build_bin_spec = os.path.join(ex_path,build_bin_l)
 
