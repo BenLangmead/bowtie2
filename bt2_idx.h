@@ -545,8 +545,8 @@ public:
 		packed_ = false;
 		_useMm = useMm;
 		useShmem_ = useShmem;
-		_in1Str = in + ".1." + gEbwt_ext + ".tmp";
-		_in2Str = in + ".2." + gEbwt_ext + ".tmp";
+		_in1Str = in + ".1." + gEbwt_ext;
+		_in2Str = in + ".2." + gEbwt_ext;
 		readIntoMemory(
 			color,       // expect index to be colorspace?
 			fw ? -1 : needEntireReverse, // need REF_READ_REVERSE
