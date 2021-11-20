@@ -807,7 +807,7 @@ void DifferenceCoverSample<TStr>::build(thread_pool& pool, int nthreads) {
 				mkeyQSortSuf2(t, sPrimeArr, sPrimeSz, sPrimeOrderArr, 4,
 				              this->verbose(), false, query_depth, &boundaries);
 				if(boundaries.size() > 0) {
-					std::vector<std::future<void> > threads(nthreads);
+					std::vector<std::future<void> > threads(pool.size());
 					EList<VSortingParam<TStr> > tparams;
 					size_t cur = 0;
 					MUTEX_T mutex;
@@ -823,9 +823,12 @@ void DifferenceCoverSample<TStr>::build(thread_pool& pool, int nthreads) {
 						tparams[tid].boundaries = &boundaries;
 						tparams[tid].cur = &cur;
 						tparams[tid].mutex = &mutex;
-						threads[tid] = pool.submit(VSorting_worker<TStr>(((void*)&tparams[tid])));
+						if (tid == nthreads - 1)
+							VSorting_worker<TStr>(((void*)&tparams[tid]));
+						else
+							threads[tid] = pool.submit(VSorting_worker<TStr>(((void*)&tparams[tid])));
 					}
-					for (int tid = 0; tid < nthreads; tid++) {
+					for (int tid = 0; tid < pool.size(); tid++) {
 						threads[tid].get();
 					}
 				}

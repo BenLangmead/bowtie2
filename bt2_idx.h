@@ -1019,7 +1019,7 @@ public:
 			streampos out1pos = out1.tellp();
 			streampos out2pos = out2.tellp();
 			// Look for bmax/dcv parameters that work.
-			thread_pool pool(nthreads);
+			thread_pool pool(nthreads - 1);
 			while(true) {
 				if(!first && bmax < 40 && _passMemExc) {
 					cerr << "Could not find approrpiate bmax/dcv settings for building this index." << endl;

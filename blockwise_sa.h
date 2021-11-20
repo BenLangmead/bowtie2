@@ -257,7 +257,10 @@ public:
 					for(int tid = 0; tid < this->_nthreads; tid++) {
 						_tparams[tid].first = this;
 						_tparams[tid].second = tid;
-						_pool.submit(nextBlock_Worker((void *)&_tparams[tid]));
+						if (tid == _nthreads - 1)
+							nextBlock_Worker((void *)&_tparams[tid]);
+						else
+							_pool.submit(nextBlock_Worker((void *)&_tparams[tid]));
 					}
 				}
 			}
@@ -516,7 +519,7 @@ struct BinarySortingParam {
 };
 
 template<typename TStr>
-class BinarySorting_worker {
+class  BinarySorting_worker {
         void *vp;
 
 public:
@@ -632,7 +635,7 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
 	// Iterate until all buckets are less than
 	while(--limit >= 0) {
 		TIndexOffU numBuckets = (TIndexOffU)_sampleSuffs.size()+1;
-		std::vector<std::future<void> > threads(this->_nthreads);
+		std::vector<std::future<void> > threads(_pool.size());
 		EList<BinarySortingParam<TStr> > tparams;
 		tparams.resize(this->_nthreads);
 		for(int tid = 0; tid < this->_nthreads; tid++) {
@@ -659,7 +662,7 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
 			tparams[tid].sampleSuffs = &_sampleSuffs;
 			tparams[tid].begin = (tid == 0 ? 0 : len / this->_nthreads * tid);
 			tparams[tid].end = (tid + 1 == this->_nthreads ? len : len / this->_nthreads * (tid + 1));
-			if(this->_nthreads == 1) {
+			if(this->_nthreads == 1 || tid == _nthreads - 1) {
 				BinarySorting_worker<TStr>((void*)&tparams[tid])();
 			} else {
 				threads[tid] = _pool.submit(BinarySorting_worker<TStr>(((void*)&tparams[tid])));
@@ -667,7 +670,7 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
 		}
 
 		if(this->_nthreads > 1) {
-			for (int tid = 0; tid < this->_nthreads; tid++) {
+			for (int tid = 0; tid < _pool.size(); tid++) {
 				threads[tid].get();
 			}
 		}
