@@ -2347,7 +2347,7 @@ public:
 		assert_lt(_zEbwtBpOff, 4);
 		assert_lt(_zEbwtByteOff, eh._ebwtTotSz);
 		assert_lt(_zOff, eh._bwtLen);
-		assert_geq(_nFrag, _nPat);
+		// assert_geq(_nFrag, _nPat);
 		return true;
 	}
 
@@ -2536,9 +2536,6 @@ TStr Ebwt::join(EList<FileBuf*>& l,
 		while(!l[i]->eof()) {
 			RefRecord rec = fastaRefReadAppend(*l[i], first, ret, dstoff, rpcp);
 			first = false;
-			if(rec.first && rec.len == 0) {
-				continue;
-			}
 			TIndexOffU bases = rec.len;
 			assert_eq(rec.off, szs[szsi].off);
 			assert_eq(rec.len, szs[szsi].len);
@@ -2583,10 +2580,10 @@ void Ebwt::joinToDisk(
 	this->_nFrag = 0;
 	for(TIndexOffU i = 0; i < szs.size(); i++) {
 		if(szs[i].len > 0) this->_nFrag++;
-		if(szs[i].first && szs[i].len > 0) this->_nPat++;
+		if(szs[i].first) this->_nPat++;
 	}
 	assert_gt(this->_nPat, 0);
-	assert_geq(this->_nFrag, this->_nPat);
+	// assert_geq(this->_nFrag, this->_nPat);
 	_rstarts.reset();
 	writeU<TIndexOffU>(out1, this->_nPat, _switchEndian);
 	// Allocate plen[]
@@ -2600,15 +2597,12 @@ void Ebwt::joinToDisk(
 	// For each pattern, set plen
 	TIndexOff npat = -1;
 	for(TIndexOffU i = 0; i < szs.size(); i++) {
-		if(szs[i].first && szs[i].len > 0) {
+		if(szs[i].first) {
 			if(npat >= 0) {
 				writeU<TIndexOffU>(out1, this->plen()[npat], _switchEndian);
 			}
 			this->plen()[++npat] = (szs[i].len + szs[i].off);
-		} else if(!szs[i].first) {
-			// edge case, but we could get here with npat == -1
-			// e.g. when building from a reference of all Ns
-			if (npat < 0) npat = 0;
+		} else {
 			this->plen()[npat] += (szs[i].len + szs[i].off);
 		}
 	}
@@ -2635,7 +2629,7 @@ void Ebwt::joinToDisk(
 				*l[i], first, ret, dstoff, rpcp, &_refnames.back());
 			first = false;
 			TIndexOffU bases = rec.len;
-			if(rec.first && rec.len > 0) {
+			if(rec.first) {
 				if(_refnames.back().length() == 0) {
 					// If name was empty, replace with an index
 					ostringstream stm;
@@ -2645,11 +2639,8 @@ void Ebwt::joinToDisk(
 			} else {
 				// This record didn't actually start a new sequence so
 				// no need to add a name
-				//assert_eq(0, _refnames.back().length());
+				// assert_eq(0, _refnames.back().length());
 				_refnames.pop_back();
-			}
-			if(rec.first && rec.len == 0) {
-				continue;
 			}
 			assert_lt(szsi, szs.size());
 			assert_eq(rec.off, szs[szsi].off);
@@ -2657,6 +2648,7 @@ void Ebwt::joinToDisk(
 			assert_eq(rec.first, szs[szsi].first);
 			assert(rec.first || rec.off > 0);
 			ASSERT_ONLY(szsi++);
+
 			// Increment seqsRead if this is the first fragment
 			if(rec.first) seqsRead++;
 			if(bases == 0) continue;

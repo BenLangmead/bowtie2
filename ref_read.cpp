@@ -275,9 +275,7 @@ fastaRefReadSizes(
 			}
 			first = false;
 			// Add the length of this record.
-			if(rec.len == 0 && rec.first) {
-				continue;
-			} else if(rec.first) {
+			if(rec.first) {
 				numSeqs++;
 			}
 			unambigTot += rec.len;
