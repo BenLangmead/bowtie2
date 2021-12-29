@@ -79,15 +79,16 @@ public:
 			}
 		}
 	~thread_pool() {
-		done = true;
-                std::unique_lock<std::mutex> lock(m);
-                cv.notify_all();
-                lock.unlock();
-		for (std::thread& thread: threads) {
-			thread.join();
-		}
-
-	}
+		if (nthreads > 0) {
+			done = true;
+			std::unique_lock<std::mutex> lock(m);
+			cv.notify_all();
+			lock.unlock();
+			for (std::thread &thread : threads) {
+				thread.join();
+			}
+                }
+        }
 
 	template<typename Function, typename... Args>
 	std::future<typename std::result_of<Function(Args...)>::type>
