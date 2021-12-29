@@ -19,15 +19,25 @@
  along with Bowtie 2.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-
 import os
 import sys
+import gzip
 import struct
 import inspect
 import logging
 import argparse
 import subprocess
 from collections import deque
+
+def get_gunzip_size(fn):
+    size = 0
+    with gzip.open(fn) as f:
+        while True:
+            data = f.read(8192)
+            size += len(data)
+            if not data:
+                break
+    return size
 
 def main():
     parser = argparse.ArgumentParser(add_help = False)
