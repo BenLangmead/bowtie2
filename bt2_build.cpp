@@ -145,10 +145,10 @@ static void printUsage(ostream& out) {
 	    << "                            <reference_in>)" << endl;
 	if(wrapper == "basic-0") {
 	out << "    --large-index           force generated index to be 'large', even if ref" << endl
-		<< "                            has fewer than 4 billion nucleotides" << endl
-		<< "    --debug                 use the debug binary; slower, assertions enabled" << endl
-		<< "    --sanitized             use sanitized binary; slower, uses ASan and/or UBSan" << endl
-		<< "    --verbose               log the issued command" << endl;
+	    << "                            has fewer than 4 billion nucleotides" << endl
+	    << "    --debug                 use the debug binary; slower, assertions enabled" << endl
+	    << "    --sanitized             use sanitized binary; slower, uses ASan and/or UBSan" << endl
+	    << "    --verbose               log the issued command" << endl;
 	}
 	out << "    -a/--noauto             disable automatic -p/--bmax/--dcv memory-fitting" << endl
 	    << "    -p/--packed             use packed strings internally; slower, less memory" << endl
@@ -166,16 +166,15 @@ static void printUsage(ostream& out) {
 	    //<< (currentlyBigEndian()? "big":"little") << ")" << endl
 	    << "    --seed <int>            seed for random number generator" << endl
 	    << "    -q/--quiet              verbose output (for debugging)" << endl
-	    << "    -h/--help               print detailed description of tool and its options" << endl
-	    << "    --usage                 print this usage message" << endl
+	    << "    --h/--help              print this message and quit" << endl
 	    << "    --version               print version information and quit" << endl
 	    ;
 	if(wrapper.empty()) {
 		cerr << endl
 		     << "*** Warning ***" << endl
-			 << "'" << tool_name << "' was run directly.  It is recommended "
-			 << "that you run the wrapper script 'bowtie2-build' instead."
-			 << endl << endl;
+		     << "'" << tool_name << "' was run directly.  It is recommended "
+		     << "that you run the wrapper script 'bowtie2-build' instead."
+		     << endl << endl;
 	}
 }
 
