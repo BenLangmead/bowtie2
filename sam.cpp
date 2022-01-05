@@ -59,7 +59,7 @@ void SamConfig::printHeader(
 	bool printSq,
 	bool printPg) const
 {
-	if(printHd) printHdLine(o, "1.0");
+	if(printHd) printHdLine(o, "1.5");
 	if(printSq) printSqLines(o);
 	if(!rgid.empty()) {
 		o.append("@RG");
@@ -76,7 +76,7 @@ void SamConfig::printHeader(
 void SamConfig::printHdLine(BTString& o, const char *samver) const {
 	o.append("@HD\tVN:");
 	o.append(samver);
-	o.append("\tSO:unsorted\n");
+	o.append("\tSO:unsorted\tGO:query\n");
 }
 
 /**
