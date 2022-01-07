@@ -27,7 +27,6 @@ import inspect
 import logging
 import argparse
 import subprocess
-from collections import deque
 
 def get_gunzip_size(fn):
     size = 0
@@ -62,7 +61,6 @@ def main():
     build_bin_spec      = os.path.join(ex_path,build_bin_s)
 
     script_options, argv = parser.parse_known_args()
-    argv = deque(argv)
 
     if script_options.verbose:
         logging.getLogger().setLevel(logging.INFO)
@@ -105,11 +103,11 @@ def main():
         sys.stderr.write('{0} does not exist, try running `[g]make {0}\'\n'.format(os.path.basename(build_bin_spec)))
         sys.exit(1)
 
-    argv.appendleft('basic-0')
-    argv.appendleft('--wrapper')
-    argv.appendleft(build_bin_spec)
+    argv.insert(0, 'basic-0')
+    argv.insert(0, '--wrapper')
+    argv.insert(0, build_bin_spec)
     logging.info('Command: %s' % ' '.join(argv))
-    sys.exit(subprocess.call(list(argv)))
+    sys.exit(subprocess.call(argv))
 
 if __name__ == '__main__':
     main()
