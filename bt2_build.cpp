@@ -138,7 +138,7 @@ static void printUsage(ostream& out) {
 	out << "Usage: " << tool_name << " [options]* <reference_in> <bt2_index_base>" << endl
 	    << "    reference_in            comma-separated list of files with ref sequences" << endl
 	    << "    bt2_index_base          write " + gEbwt_ext + " data to files with this dir/basename" << endl
-	    << "*** Bowtie 2 indexes work only with v2 (not v1).  Likewise for v1 indexes. ***" << endl
+	    << "*** Bowtie 2 indexes will work with Bowtie v1.2.3 and later. ***" << endl
 	    << "Options:" << endl
 	    << "    -f                      reference files are Fasta (default)" << endl
 	    << "    -c                      reference sequences given on cmd line (as" << endl
