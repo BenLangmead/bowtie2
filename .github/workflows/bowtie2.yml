@@ -52,3 +52,4 @@ jobs:
         run: |
           make allall
           make simple-test
+          make random-test

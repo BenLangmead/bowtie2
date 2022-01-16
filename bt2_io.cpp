@@ -287,7 +287,7 @@ void Ebwt::readIntoMemory(
 		cerr << "Reading rstarts (" << this->_nFrag*3 << "): ";
 		logTime(cerr);
 	}
-	assert_geq(this->_nFrag, this->_nPat);
+	// assert_geq(this->_nFrag, this->_nPat);
 	_rstarts.reset();
 	if(loadRstarts) {
 		if(_useMm) {
@@ -695,9 +695,9 @@ readEbwtRefnames(FILE* fin, EList<string>& refnames) {
 	while(true) {
 		char c = '\0';
 		int read_value = 0;
-        read_value = fgetc(fin);
+		read_value = fgetc(fin);
 		if(read_value == EOF) break;
-        c = read_value;
+		c = read_value;
 		if(c == '\0') break;
 		else if(c == '\n') {
 			refnames.push_back("");
@@ -713,7 +713,7 @@ readEbwtRefnames(FILE* fin, EList<string>& refnames) {
 	}
 
 	// Be kind
-    fseeko(fin, 0, SEEK_SET);
+	fseeko(fin, 0, SEEK_SET);
 	assert(ferror(fin) == 0);
 }
 
@@ -935,10 +935,11 @@ void Ebwt::szsToDisk(const EList<RefRecord>& szs, ostream& os, int reverse) {
 	TIndexOffU off = 0;
 	TIndexOffU totlen = 0;
 	for(unsigned int i = 0; i < szs.size(); i++) {
-		if(szs[i].len == 0) continue;
 		if(szs[i].first) off = 0;
 		off += szs[i].off;
-		if(szs[i].first && szs[i].len > 0) seq++;
+		if(szs[i].first) seq++;
+		if(szs[i].len == 0) continue;
+
 		TIndexOffU seqm1 = seq-1;
 		assert_lt(seqm1, _nPat);
 		TIndexOffU fwoff = off;

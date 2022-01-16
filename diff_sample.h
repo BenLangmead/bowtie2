@@ -30,6 +30,7 @@
 #include "mem_ids.h"
 #include "ls.h"
 #include "btypes.h"
+#include "threadpool.h"
 
 using namespace std;
 
@@ -506,7 +507,7 @@ public:
 	const EList<uint32_t>& dmap() const  { return _dmap; }
 	ostream& log() const                 { return _logger; }
 
-	void     build(int nthreads);
+	void     build(thread_pool& pool, int nthreads);
 	uint32_t tieBreakOff(TIndexOffU i, TIndexOffU j) const;
 	int64_t  breakTie(TIndexOffU i, TIndexOffU j) const;
 	bool     isCovered(TIndexOffU i) const;
@@ -740,7 +741,7 @@ public:
  * packed according to the mu mapping, in _isaPrime.
  */
 template <typename TStr>
-void DifferenceCoverSample<TStr>::build(int nthreads) {
+void DifferenceCoverSample<TStr>::build(thread_pool& pool, int nthreads) {
 	// Local names for relevant types
 	VMSG_NL("Building DifferenceCoverSample");
 	// Local names for relevant data
@@ -806,7 +807,7 @@ void DifferenceCoverSample<TStr>::build(int nthreads) {
 				mkeyQSortSuf2(t, sPrimeArr, sPrimeSz, sPrimeOrderArr, 4,
 				              this->verbose(), false, query_depth, &boundaries);
 				if(boundaries.size() > 0) {
-					AutoArray<std::thread*> threads(nthreads);
+					std::vector<std::future<void> > threads(pool.size());
 					EList<VSortingParam<TStr> > tparams;
 					size_t cur = 0;
 					MUTEX_T mutex;
@@ -822,13 +823,14 @@ void DifferenceCoverSample<TStr>::build(int nthreads) {
 						tparams[tid].boundaries = &boundaries;
 						tparams[tid].cur = &cur;
 						tparams[tid].mutex = &mutex;
-						threads[tid] = new std::thread(VSorting_worker<TStr>(((void*)&tparams[tid])));
+						if (tid == nthreads - 1)
+							VSorting_worker<TStr>(((void*)&tparams[tid]));
+						else
+							threads[tid] = pool.submit(VSorting_worker<TStr>(((void*)&tparams[tid])));
 					}
-					for (int tid = 0; tid < nthreads; tid++) {
-						threads[tid]->join();
+					for (int tid = 0; tid < pool.size(); tid++) {
+						threads[tid].get();
 					}
-					for (int tid = 0; tid < nthreads; tid++)
-						delete threads[tid];
 				}
 				if(this->sanityCheck()) {
 					sanityCheckOrderedSufs(t, t.length(), sPrimeArr, sPrimeSz, v);

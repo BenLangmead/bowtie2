@@ -2114,6 +2114,12 @@ void AlnSinkSam::appendMate(
 	samc_.printPreservedOptFlags(o, rd);
 	samc_.printComment(o, rd.name);
 	o.append('\n');
+	if(samc_.passthrough()) {
+		// Original read string
+		samc_.printOptFieldNewlineEscapedZ(o, rd.readOrigBuf);
+		o.append('\n');
+	}
+
 }
 
 #ifdef ALN_SINK_MAIN

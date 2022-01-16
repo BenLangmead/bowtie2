@@ -480,16 +480,20 @@ void CFilePatternSource::open() {
 	}
 	while(filecur_ < infiles_.size()) {
 		if(infiles_[filecur_] == "-") {
-			// always assume that data from stdin is compressed
-			compressionType_ = CompressionType::GZIP;
 			int fd = dup(fileno(stdin));
-			zfp_ = gzdopen(fd, "rb");
+			if (pp_.format == BAM) {
+				compressionType_ = CompressionType::NONE;
+				fp_ = fdopen(fd, "rb");
+			} else {
+				// always assume that data from stdin is compressed
+				compressionType_ = CompressionType::GZIP;
+				zfp_ = gzdopen(fd, "rb");
 
-			if (zfp_ == NULL) {
-				close(fd);
+				if (zfp_ == NULL) {
+					close(fd);
+				}
 			}
-		}
-		else {
+		} else {
 			const char* filename = infiles_[filecur_].c_str();
 
 			int fd = ::open(filename, O_RDONLY);
@@ -1289,9 +1293,11 @@ std::pair<bool, int> BAMPatternSource::nextBatch(PerThreadReadBuf& pt, bool batc
 			if (ret_code != Z_OK) {
 				return make_pair(true, 0);
 			}
+#ifndef NDEBUG
 			uLong crc = crc32(0L, Z_NULL, 0);
 			crc = crc32(crc, &alignment_batch[0] + delta_, alignment_batch.size() - delta_);
 			assert(crc == block.ftr.crc32);
+#endif
 			delta_ = 0;
 		}
 		std::pair<bool, int> ret = get_alignments(pt, batch_a, nread, lock);
@@ -1307,7 +1313,6 @@ std::pair<bool, int> BAMPatternSource::nextBatch(PerThreadReadBuf& pt, bool batc
 std::pair<bool, int> BAMPatternSource::get_alignments(PerThreadReadBuf& pt, bool batch_a, unsigned& readi, bool lock) {
 	size_t& i = alignment_offset;
 	bool done = false;
-	bool read1 = true;
 
 	if (first_) {
 		char magic[4];
@@ -1334,18 +1339,18 @@ std::pair<bool, int> BAMPatternSource::get_alignments(PerThreadReadBuf& pt, bool
 		}
 
 		uint16_t flag;
-		uint32_t block_size;
-		EList<Read>& readbuf = pp_.align_paired_reads && !read1 ? pt.bufb_ : pt.bufa_;
+		uint32_t block_size = -1;
 
+		if ((alignment_batch.size() - i) < sizeof(block_size))
+			goto next_batch;
 		memcpy(&block_size, &alignment_batch[0] + i, sizeof(block_size));
 		if (currentlyBigEndian())
 			block_size = endianSwapU32(block_size);
 		if (block_size == 0) {
 			return make_pair(done, readi);
 		}
-		if (block_size > (alignment_batch.size() - i)) {
-			// copy the rest of the block to an array
-			// and get another batch of alignments
+		if (block_size > (alignment_batch.size() - i - sizeof(block_size))) {
+		  next_batch:
 			delta_ = alignment_batch.size() - i;
 			memcpy(&alignment_batch[0], &alignment_batch[0] + i, delta_);
 			i = alignment_batch.size();
@@ -1355,121 +1360,54 @@ std::pair<bool, int> BAMPatternSource::get_alignments(PerThreadReadBuf& pt, bool
 		memcpy(&flag, &alignment_batch[0] + i + offset[BAMField::flag], sizeof(flag));
 		if (currentlyBigEndian())
 			flag = endianSwapU16(flag);
+		EList<Read>& readbuf = (pp_.align_paired_reads && (flag & 0x80)) != 0 ? pt.bufb_ : pt.bufa_;
+		if ((flag & 0x4) == 0) {
+			readbuf[readi].readOrigBuf.clear();
+			i += block_size;
+			continue;
+		}
 		if (!pp_.align_paired_reads && ((flag & 0x40) != 0 || (flag & 0x80) != 0)) {
 			readbuf[readi].readOrigBuf.clear();
 			i += block_size;
 			continue;
 		}
-
 		if (pp_.align_paired_reads && ((flag & 0x40) == 0 && (flag & 0x80) == 0)) {
 			readbuf[readi].readOrigBuf.clear();
 			i += block_size;
 			continue;
 		}
 
-		if (pp_.align_paired_reads &&
-                    (((flag & 0x40) != 0 && i + block_size == alignment_batch.size()) ||
-                     ((flag & 0x80) != 0 && i == sizeof(block_size))))
-		{
-			if (lock) {
-				ThreadSafe ts(orphan_mates_mutex_);
-				get_or_store_orhaned_mate(pt.bufa_, pt.bufb_, readi, &alignment_batch[0] + i, block_size);
-				i += block_size;
-			} else {
-				get_or_store_orhaned_mate(pt.bufa_, pt.bufb_, readi, &alignment_batch[0] + i, block_size);
-				i += block_size;
-			}
-
-		} else {
-			readbuf[readi].readOrigBuf.resize(block_size);
-
-			memcpy(readbuf[readi].readOrigBuf.wbuf(), &alignment_batch[0] + i, block_size);
-			i += block_size;
-
-			read1 = !read1;
-			readi = (pp_.align_paired_reads &&
-				 pt.bufb_[readi].readOrigBuf.length() == 0) ? readi : readi + 1;
-		}
+		readbuf[readi].readOrigBuf.resize(block_size);
+		memcpy(readbuf[readi].readOrigBuf.wbuf(), &alignment_batch[0] + i, block_size);
+		i += block_size;
+		readi += (pp_.align_paired_reads &&
+			  pt.bufb_[readi].readOrigBuf.length() == 0) ? 0 : 1;
 	}
 
 	return make_pair(done, readi);
 }
 
-void BAMPatternSource::get_or_store_orhaned_mate(EList<Read>& buf_a, EList<Read>& buf_b, unsigned& readi, const uint8_t *mate, size_t mate_len) {
-	const char *read_name =
-		(const char *)(mate + offset[BAMField::read_name]);
-	size_t i;
-	uint32_t hash = hash_str(read_name);
-	orphan_mate_t *empty_slot = NULL;
-
-	for (i = 0; i < orphan_mates.size(); i++) {
-		if (empty_slot == NULL && orphan_mates[i].empty())
-			empty_slot = &orphan_mates[i];
-		if (orphan_mates[i].hash == hash)
-			break;
-	}
-	if (i == orphan_mates.size()) {
-		// vector is full
-		if (empty_slot == NULL) {
-			orphan_mates.push_back(orphan_mate_t());
-			empty_slot = &orphan_mates.back();
-		}
-		empty_slot->hash = hash;
-		if (empty_slot->cap < mate_len) {
-			delete[] empty_slot->data;
-			empty_slot->data = NULL;
-		}
-		if (empty_slot->data == NULL) {
-			empty_slot->data = new uint8_t[mate_len];
-			empty_slot->cap = mate_len;
-		}
-		memcpy(empty_slot->data, mate, mate_len);
-		empty_slot->size = mate_len;
-	} else {
-		uint8_t flag;
-		Read& ra = buf_a[readi];
-		Read& rb = buf_b[readi];
-
-		memcpy(&flag, mate + offset[BAMField::flag], sizeof(flag));
-		if ((flag & 0x40) != 0) {
-			ra.readOrigBuf.resize(mate_len);
-			memcpy(ra.readOrigBuf.wbuf(), mate, mate_len);
-			rb.readOrigBuf.resize(orphan_mates[i].size);
-			memcpy(rb.readOrigBuf.wbuf(), orphan_mates[i].data, orphan_mates[i].size);
-		} else {
-			rb.readOrigBuf.resize(mate_len);
-			memcpy(rb.readOrigBuf.wbuf(), mate, mate_len);
-			ra.readOrigBuf.resize(orphan_mates[i].size);
-			memcpy(ra.readOrigBuf.wbuf(), orphan_mates[i].data, orphan_mates[i].size);
-		}
-		readi++;
-		orphan_mates[i].reset();
-	}
-}
-
 int BAMPatternSource::decompress_bgzf_block(uint8_t *dst, size_t dst_len, uint8_t *src, size_t src_len) {
-	z_stream strm;
+	stream.zalloc = Z_NULL;
+	stream.zfree = Z_NULL;
+	stream.opaque = Z_NULL;
 
-	strm.zalloc = Z_NULL;
-	strm.zfree = Z_NULL;
-	strm.opaque = Z_NULL;
+	stream.avail_in = src_len;
+	stream.next_in = src;
+	stream.avail_out = dst_len;
+	stream.next_out = dst;
 
-	strm.avail_in = src_len;
-	strm.next_in = src;
-	strm.avail_out = dst_len;
-	strm.next_out = dst;
-
-	int ret  = inflateInit2(&strm, -8);
+	int ret  = inflateInit2(&stream, -8);
 	if (ret != Z_OK) {
 		return ret;
 	}
 
-	ret = inflate(&strm, Z_FINISH);
+	ret = inflate(&stream, Z_FINISH);
 	if (ret != Z_STREAM_END) {
 		return ret;
 	}
 
-	return inflateEnd(&strm);
+	return inflateReset(&stream);
 }
 
 bool BAMPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {

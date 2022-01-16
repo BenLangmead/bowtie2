@@ -1529,6 +1529,14 @@ Sequence-N  &lt;name&gt;  &lt;len&gt;</code></pre>
 </td>
 </tr>
 <tr>
+<td id="bowtie2-inspect-options-o">
+<pre><code>-o/--output &lt;filename&gt;</code></pre>
+</td>
+<td>
+<p>Save output to user-specified filename (default: stdout)</p>
+</td>
+</tr>
+<tr>
 <td>
 <pre><code>-v/--verbose</code></pre>
 </td>

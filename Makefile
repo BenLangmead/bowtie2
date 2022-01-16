@@ -43,6 +43,9 @@ ifneq (,$(findstring MINGW,$(shell uname)))
   WINDOWS := 1
   MINGW := 1
   # POSIX memory-mapped files not currently supported on Windows
+endif
+
+ifeq (1, $(WINDOWS))
   BOWTIE_MM :=
   BOWTIE_SHARED_MEM :=
 endif
@@ -252,7 +255,7 @@ GENERAL_LIST := $(wildcard scripts/*.sh) \
 
 ifeq (1,$(WINDOWS))
   BOWTIE2_BIN_LIST := $(BOWTIE2_BIN_LIST) bowtie2.bat bowtie2-build.bat bowtie2-inspect.bat
-  CXXFLAGS += -static-libgcc -static-libstdc++
+  CXXFLAGS += -static-libgcc -static-libstdc++ -static
 endif
 
 # This is helpful on Windows under MinGW/MSYS, where Make might go for

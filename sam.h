@@ -21,6 +21,7 @@
 #define SAM_H_
 
 #include <string>
+#include <vector>
 #include "ds.h"
 #include "read.h"
 #include "util.h"
@@ -328,6 +329,22 @@ public:
 		}
 	}
 
+	template<typename T>
+	static void readTagVal(BTString& o, const char *data, size_t &offset, size_t count) {
+		std::vector<T> val(count);
+		size_t i = 0;
+
+		memcpy(val.data(), data + offset, sizeof(T) * count);
+		do {
+			std::string str = std::to_string(val[i]);
+			o.append(str.c_str(), str.length());
+			if (i < (count - 1))
+				o.append(",");
+		} while (++i < count);
+		offset += sizeof(T) * count;
+	}
+
+
         /**
 	 * Return true iff we should try to obey the SAM spec's recommendations
 	 * that:
@@ -341,6 +358,10 @@ public:
 
 	bool omitUnalignedReads() const {
 		return noUnal_;
+	}
+
+	bool passthrough() const {
+		return print_xr_;
 	}
 
 protected:

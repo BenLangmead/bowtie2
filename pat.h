@@ -826,33 +826,6 @@ class BAMPatternSource : public CFilePatternSource {
 		ftr_t ftr;
 	};
 
-	struct partial_block {
-		char data[500];
-		size_t len;
-	};
-
-	struct orphan_mate_t {
-		orphan_mate_t() :
-			data(NULL),
-			size(0),
-			cap(0),
-			hash(0) {}
-
-		void reset() {
-			size = 0;
-			hash = 0;
-		}
-
-		bool empty() const {
-			return size == 0;
-		}
-
-		uint8_t* data;
-		uint16_t size;
-		uint16_t cap;
-		uint32_t hash;
-	};
-
 	struct BAMField {
 		enum aln_rec_field_name {
 			refID,
@@ -879,11 +852,12 @@ public:
 		first_(true),
 		alignment_batch(0),
 		alignment_offset(0),
-		orphan_mates(p.nthreads * 2),
 		delta_(0),
-		orphan_mates_mutex_(),
 		pp_(p)
 		{
+			stream.zalloc = Z_NULL;
+			stream.zfree = Z_NULL;
+			stream.opaque = Z_NULL;
 			alignment_batch.reserve(1 << 16);
 		}
 
@@ -898,11 +872,6 @@ public:
 	virtual bool parse(Read& ra, Read& rb, TReadId rdid) const;
 
 	~BAMPatternSource() {
-		for (size_t i = 0; i < orphan_mates.size(); i++) {
-			if (orphan_mates[i].data != NULL) {
-				delete[] orphan_mates[i].data;
-			}
-		}
 	}
 
 
@@ -928,19 +897,14 @@ private:
 
 	int decompress_bgzf_block(uint8_t *dst, size_t dst_len, uint8_t *src, size_t src_len);
 	std::pair<bool, int> get_alignments(PerThreadReadBuf& pt, bool batch_a, unsigned& readi, bool lock);
-	void store_orphan_mate(const uint8_t* read, size_t read_len);
-	void get_orphaned_pairs(EList<Read>& buf_a, EList<Read>& buf_b, const size_t max_buf, unsigned& readi);
-	void get_or_store_orhaned_mate(EList<Read>& buf_a, EList<Read>& buf_b, unsigned& readi, const uint8_t *mate, size_t mate_len);
-	size_t get_matching_read(const uint8_t* rec);
 
         static const int offset[];
 	static const uint8_t EOF_MARKER[];
 
 	std::vector<uint8_t> alignment_batch;
 	size_t alignment_offset;
-	std::vector<orphan_mate_t> orphan_mates;
 	size_t delta_;
-	MUTEX_T orphan_mates_mutex_;
+	z_stream stream;
 
 	PatternParams pp_;
 };

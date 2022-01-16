@@ -138,17 +138,17 @@ static void printUsage(ostream& out) {
 	out << "Usage: " << tool_name << " [options]* <reference_in> <bt2_index_base>" << endl
 	    << "    reference_in            comma-separated list of files with ref sequences" << endl
 	    << "    bt2_index_base          write " + gEbwt_ext + " data to files with this dir/basename" << endl
-	    << "*** Bowtie 2 indexes work only with v2 (not v1).  Likewise for v1 indexes. ***" << endl
+	    << "*** Bowtie 2 indexes will work with Bowtie v1.2.3 and later. ***" << endl
 	    << "Options:" << endl
 	    << "    -f                      reference files are Fasta (default)" << endl
 	    << "    -c                      reference sequences given on cmd line (as" << endl
 	    << "                            <reference_in>)" << endl;
 	if(wrapper == "basic-0") {
 	out << "    --large-index           force generated index to be 'large', even if ref" << endl
-		<< "                            has fewer than 4 billion nucleotides" << endl
-		<< "    --debug                 use the debug binary; slower, assertions enabled" << endl
-		<< "    --sanitized             use sanitized binary; slower, uses ASan and/or UBSan" << endl
-		<< "    --verbose               log the issued command" << endl;
+	    << "                            has fewer than 4 billion nucleotides" << endl
+	    << "    --debug                 use the debug binary; slower, assertions enabled" << endl
+	    << "    --sanitized             use sanitized binary; slower, uses ASan and/or UBSan" << endl
+	    << "    --verbose               log the issued command" << endl;
 	}
 	out << "    -a/--noauto             disable automatic -p/--bmax/--dcv memory-fitting" << endl
 	    << "    -p/--packed             use packed strings internally; slower, less memory" << endl
@@ -166,16 +166,15 @@ static void printUsage(ostream& out) {
 	    //<< (currentlyBigEndian()? "big":"little") << ")" << endl
 	    << "    --seed <int>            seed for random number generator" << endl
 	    << "    -q/--quiet              verbose output (for debugging)" << endl
-	    << "    -h/--help               print detailed description of tool and its options" << endl
-	    << "    --usage                 print this usage message" << endl
+	    << "    --h/--help              print this message and quit" << endl
 	    << "    --version               print version information and quit" << endl
 	    ;
 	if(wrapper.empty()) {
 		cerr << endl
 		     << "*** Warning ***" << endl
-			 << "'" << tool_name << "' was run directly.  It is recommended "
-			 << "that you run the wrapper script 'bowtie2-build' instead."
-			 << endl << endl;
+		     << "'" << tool_name << "' was run directly.  It is recommended "
+		     << "that you run the wrapper script 'bowtie2-build' instead."
+		     << endl << endl;
 	}
 }
 
@@ -357,6 +356,14 @@ static void deleteIdxFiles(
 		cerr << "Deleting \"" << filesWritten[i].c_str()
 		     << "\" file written during aborted indexing attempt." << endl;
 		remove(filesWritten[i].c_str());
+	}
+}
+
+static void renameIdxFiles() {
+	for (size_t i = 0; i < filesWritten.size(); i++) {
+		std::string oldName = filesWritten[i] + ".tmp";
+		std::cerr << "Renaming " << oldName << " to " << filesWritten[i] << std::endl;
+		std::rename(oldName.c_str(), filesWritten[i].c_str());
 	}
 }
 
@@ -686,7 +693,6 @@ int bowtie_build(int argc, const char **argv) {
 		if(packed) {
 			driver<S2bDnaString>(infile, infiles, outfile + ".rev", true, reverseType);
 		}
-		return 0;
 	} catch(std::exception& e) {
 		cerr << "Error: Encountered exception: '" << e.what() << "'" << endl;
 		cerr << "Command: ";
@@ -704,5 +710,7 @@ int bowtie_build(int argc, const char **argv) {
 		deleteIdxFiles(outfile, writeRef || justRef, justRef);
 		return e;
 	}
+	renameIdxFiles();
+	return 0;
 }
 }

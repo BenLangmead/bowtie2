@@ -1924,6 +1924,10 @@ format:
 Fields are separated by tabs. Colorspace is always set to 0 for Bowtie
 2.
 
+    -o/--output <filename>
+
+Save output to user-specified filename (default: stdout)
+
     -v/--verbose
 
 Print verbose output (for debugging).

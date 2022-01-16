@@ -1,3 +1,25 @@
+<h2>Version 2.4.5 - Jan 16, 2022</h2>
+<h3 id="bowtie2">bowtie2</h3>
+<ul>
+    <li>Fixed issues with <code>bowtie2</code> BAM parser that would cause <code>bowtie2</code> to crash when processing input that was encoded with tools other than samtools e.g. Picard.</li>
+    <li>Fixed an issue causing <code>bowtie2</code> to drop certain optional fields when when aligning BAM reads with the <code><a href="manual.shtml#bowtie2-options-preserve-tags">--preserve-tags</a></code> option.</li>
+    <li>Fixed an issue causing <code>bowtie2</code> to produce mangled SAM output when specifying <code><a href="manual.shtml#bowtie2-options-sam-append-comment">--sam-append-comment</a></code> together with the <code>--passthrough</code> option.</li>
+    <li>Appended <code>GO:query</code> to SAM <code>@HD</code> entry to indicate that reads are grouped by query name, bump SAM version to 1.5 to indicate support for this change.</li>
+</ul>
+
+<h3 id="bowtie2-build">bowtie2-build</h3>
+<ul>
+    <li>Implemented thread pool to address performance regressions introduced during the switch to C++11 threads.</li>
+    <li>Fixed an issue causing masked-sequence metadata to be omitted from index. This issue would subsequently result in sequence data, <code>@SQ</code>, being left out from alignment SAM header.</li>
+    <li>Included <code>.tmp</code> extension to index files currenlty being built. The extension is removed only upon successful build. This change seeks to address the assumption that <code>bowtie2-build</code> ran successfully without building the reverse indexes.</li>
+    <li>Fixed an issue causing <code>bowtie2-build</code> to sometimes incorrectly calculate input size. This issue would result in the wrong index type being chosen and only happened with GZip compressed files.</li>
+</ul>
+
+<h3 id="bowtie2-inspect">bowtie2-inspect</h3>
+<ul>
+    <li>Added a new <code><a href="manual.shtml#bowtie2-inspect-options-o">-o/--output</a></code> option to save the output of <code>bowtie2-inspect</code> to a file instead of being dumped to standard output.</li>
+</ul>
+
 <h2>Version 2.4.4 - May 23, 2021</h2>
 <ul>
     <li>Fixed an issue that would sometimes cause deadlocks in <code>bowtie2</code> when running multithreaded</li>
