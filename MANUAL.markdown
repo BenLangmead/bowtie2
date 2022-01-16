@@ -2584,6 +2584,14 @@ names and lengths of the input sequences.  The summary has this format:
 
 Fields are separated by tabs.  Colorspace is always set to 0 for Bowtie 2.
 
+</td></tr><tr><td id="bowtie2-inspect-options-o">
+
+    -o/--output <filename>
+
+</td><td>
+
+Save output to user-specified filename (default: stdout)
+
 </td></tr><tr><td>
 
     -v/--verbose
@@ -2913,6 +2921,7 @@ warnings due to the case insensitive nature of markdown URLs -->
 [`-m`]:                                               #bowtie2-options-m
 [`-n`/`--names`]:                                     #bowtie2-inspect-options-n
 [`-o`/`--offrate`]:                                   #bowtie2-options-o
+[`-o`/`--output`]:                                    #bowtie2-inspect-options-o
 [`-o`]:                                               #bowtie2-options-o
 [`-p`/`--packed`]:                                    #bowtie2-build-options-p
 [`-p`/`--threads`]:                                   #bowtie2-options-p
