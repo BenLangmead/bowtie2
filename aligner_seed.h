@@ -214,7 +214,7 @@ struct Constraint {
 	 * are helpful to resolve instances where two search roots would
 	 * otherwise overlap in what alignments they can find.
 	 */
-	bool acceptable() {
+	bool acceptable() const {
 		assert(instantiated);
 		return edits   <= editsCeil &&
 		       mms     <= mmsCeil   &&
@@ -1809,7 +1809,23 @@ protected:
 		Constraint c2,         // constraints to enforce in seed zone 2
 		Constraint overall,    // overall constraints
 		DoublyLinkedList<Edit> *prevEdit);  // previous edit
-	
+
+	// helper function
+	bool startSearchSeedBi(
+		SeedSearchInput &params,
+		int depth,            // recursion depth
+		const Constraint &c0, // constraints to enforce in seed zone 0
+		const Constraint &c1, // constraints to enforce in seed zone 1
+		const Constraint &c2, // constraints to enforce in seed zone 2
+		DoublyLinkedList<Edit> *prevEdit,  // previous edit
+		int &step,            // depth into steps_[] array
+		TIndexOffU &topf,     // top in BWT
+		TIndexOffU &botf,     // bot in BWT
+		TIndexOffU &topb,     // top in BWT'
+		TIndexOffU &botb,     // bot in BWT'
+		SideLocus &tloc,      // locus for top (perhaps unititialized)
+		SideLocus &bloc);     // locus for bot (perhaps unititialized)
+
 	/**
 	 * Get tloc and bloc ready for the next step.
 	 */

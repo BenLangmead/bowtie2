@@ -1428,6 +1428,113 @@ SeedAligner::reportHit(
 	return;
 }
 
+// return true, if we are already done
+bool
+SeedAligner::startSearchSeedBi(
+	SeedSearchInput &params,
+	int depth,            // recursion depth
+	const Constraint &c0, // constraints to enforce in seed zone 0
+	const Constraint &c1, // constraints to enforce in seed zone 1
+	const Constraint &c2, // constraints to enforce in seed zone 2
+	DoublyLinkedList<Edit> *prevEdit,  // previous edit
+	int &step,            // depth into steps_[] array
+	TIndexOffU &topf,     // top in BWT
+	TIndexOffU &botf,     // bot in BWT
+	TIndexOffU &topb,     // top in BWT'
+	TIndexOffU &botb,     // bot in BWT'
+	SideLocus &tloc,      // locus for top (perhaps unititialized)
+	SideLocus &bloc       // locus for bot (perhaps unititialized)
+	)
+{
+	SeedSearchCache &cache = params.cache;
+	const InstantiatedSeed& seed = params.seed;
+	const BTDnaString& seq = cache.getSeq();
+
+	assert_gt(seed.steps.size(), 0);
+	assert(ebwtBw_ == NULL || ebwtBw_->eh().ftabChars() == ebwtFw_->eh().ftabChars());
+#ifndef NDEBUG
+	for(int i = 0; i < 4; i++) {
+		assert(ebwtBw_ == NULL || ebwtBw_->fchr()[i] == ebwtFw_->fchr()[i]);
+	}
+#endif
+	if(step == (int)seed.steps.size()) {
+		// Finished aligning seed
+		assert(c0.acceptable());
+		assert(c1.acceptable());
+		assert(c2.acceptable());
+		reportHit(cache, topf, botf, topb, botb, seq.length(), prevEdit);
+		return true;
+	}
+#ifndef NDEBUG
+	if(depth > 0) {
+		assert(botf - topf == 1 ||  bloc.valid());
+		assert(botf - topf > 1  || !bloc.valid());
+	}
+#endif
+	if(step == 0) {
+		// Just starting
+		assert(prevEdit == NULL);
+		assert(!tloc.valid());
+		assert(!bloc.valid());
+		int off = seed.steps[0];
+		bool ltr = off > 0;
+		off = abs(off)-1;
+		// Check whether/how far we can jump using ftab or fchr
+		int ftabLen = ebwtFw_->eh().ftabChars();
+		if(ftabLen > 1 && ftabLen <= seed.maxjump) {
+			if(!ltr) {
+				assert_geq(off+1, ftabLen-1);
+				off = off - ftabLen + 1;
+			}
+			ebwtFw_->ftabLoHi(seq, off, false, topf, botf);
+			#ifdef NDEBUG
+			if(botf - topf == 0) return true;
+			#endif
+			#ifdef NDEBUG
+			if(ebwtBw_ != NULL) {
+				topb = ebwtBw_->ftabHi(seq, off);
+				botb = topb + (botf-topf);
+			}
+			#else
+			if(ebwtBw_ != NULL) {
+				ebwtBw_->ftabLoHi(seq, off, false, topb, botb);
+				assert_eq(botf-topf, botb-topb);
+			}
+			if(botf - topf == 0) return true;
+			#endif
+			step += ftabLen;
+		} else if(seed.maxjump > 0) {
+			// Use fchr
+			int c = seq[off];
+			assert_range(0, 3, c);
+			topf = topb = ebwtFw_->fchr()[c];
+			botf = botb = ebwtFw_->fchr()[c+1];
+			if(botf - topf == 0) return true;
+			step++;
+		} else {
+			assert_eq(0, seed.maxjump);
+			topf = topb = 0;
+			botf = botb = ebwtFw_->fchr()[4];
+		}
+		if(step == (int)seed.steps.size()) {
+			// Finished aligning seed
+			assert(c0.acceptable());
+			assert(c1.acceptable());
+			assert(c2.acceptable());
+			reportHit(cache, topf, botf, topb, botb, seq.length(), prevEdit);
+			return true;
+		}
+		nextLocsBi(seed, tloc, bloc, topf, botf, topb, botb, step);
+		assert(tloc.valid());
+	} else assert(prevEdit != NULL);
+	assert(tloc.valid());
+	assert(botf - topf == 1 ||  bloc.valid());
+	assert(botf - topf > 1  || !bloc.valid());
+	assert_geq(step, 0);
+
+	return false;
+}
+
 /**
  * Given a seed, search.  Assumes zone 0 = no backtracking.
  *
@@ -1461,90 +1568,16 @@ SeedAligner::searchSeedBi(
 	const BTDnaString& seq = cache.getSeq();
 	const BTString& qual = cache.getQual();
 
-	assert(s_ != NULL);
-	assert_gt(seed.steps.size(), 0);
-	assert(ebwtBw_ == NULL || ebwtBw_->eh().ftabChars() == ebwtFw_->eh().ftabChars());
-#ifndef NDEBUG
-	for(int i = 0; i < 4; i++) {
-		assert(ebwtBw_ == NULL || ebwtBw_->fchr()[i] == ebwtFw_->fchr()[i]);
-	}
-#endif
-	if(step == (int)seed.steps.size()) {
-		// Finished aligning seed
-		assert(c0.acceptable());
-		assert(c1.acceptable());
-		assert(c2.acceptable());
-		reportHit(cache, topf, botf, topb, botb, seq.length(), prevEdit);
+	bool done = startSearchSeedBi(
+			params,
+			depth, c0, c1, c2, prevEdit,
+			step,
+			topf, botf, topb, botb,
+			tloc, bloc);
+	if(done) {
 		return;
 	}
-#ifndef NDEBUG
-	if(depth > 0) {
-		assert(botf - topf == 1 ||  bloc.valid());
-		assert(botf - topf > 1  || !bloc.valid());
-	}
-#endif
-	int off;
 	TIndexOffU tp[4], bp[4]; // dest BW ranges for "prime" index
-	if(step == 0) {
-		// Just starting
-		assert(prevEdit == NULL);
-		assert(!tloc.valid());
-		assert(!bloc.valid());
-		off = seed.steps[0];
-		bool ltr = off > 0;
-		off = abs(off)-1;
-		// Check whether/how far we can jump using ftab or fchr
-		int ftabLen = ebwtFw_->eh().ftabChars();
-		if(ftabLen > 1 && ftabLen <= seed.maxjump) {
-			if(!ltr) {
-				assert_geq(off+1, ftabLen-1);
-				off = off - ftabLen + 1;
-			}
-			ebwtFw_->ftabLoHi(seq, off, false, topf, botf);
-			#ifdef NDEBUG
-			if(botf - topf == 0) return;
-			#endif
-			#ifdef NDEBUG
-			if(ebwtBw_ != NULL) {
-				topb = ebwtBw_->ftabHi(seq, off);
-				botb = topb + (botf-topf);
-			}
-			#else
-			if(ebwtBw_ != NULL) {
-				ebwtBw_->ftabLoHi(seq, off, false, topb, botb);
-				assert_eq(botf-topf, botb-topb);
-			}
-			if(botf - topf == 0) return;
-			#endif
-			step += ftabLen;
-		} else if(seed.maxjump > 0) {
-			// Use fchr
-			int c = seq[off];
-			assert_range(0, 3, c);
-			topf = topb = ebwtFw_->fchr()[c];
-			botf = botb = ebwtFw_->fchr()[c+1];
-			if(botf - topf == 0) return;
-			step++;
-		} else {
-			assert_eq(0, seed.maxjump);
-			topf = topb = 0;
-			botf = botb = ebwtFw_->fchr()[4];
-		}
-		if(step == (int)seed.steps.size()) {
-			// Finished aligning seed
-			assert(c0.acceptable());
-			assert(c1.acceptable());
-			assert(c2.acceptable());
-			reportHit(cache, topf, botf, topb, botb, seq.length(), prevEdit);
-			return;
-		}
-		nextLocsBi(seed, tloc, bloc, topf, botf, topb, botb, step);
-		assert(tloc.valid());
-	} else assert(prevEdit != NULL);
-	assert(tloc.valid());
-	assert(botf - topf == 1 ||  bloc.valid());
-	assert(botf - topf > 1  || !bloc.valid());
-	assert_geq(step, 0);
 	TIndexOffU t[4], b[4]; // dest BW ranges
 	Constraint* zones[3] = { &c0, &c1, &c2 };
 	ASSERT_ONLY(TIndexOffU lasttot = botf - topf);
@@ -1554,7 +1587,7 @@ SeedAligner::searchSeedBi(
 		assert(botf - topf > 1  || !bloc.valid());
 		assert(ebwtBw_ == NULL || botf-topf == botb-topb);
 		assert(tloc.valid());
-		off = seed.steps[i];
+		int off = seed.steps[i];
 		bool ltr = off > 0;
 		const Ebwt* ebwt = ltr ? ebwtBw_ : ebwtFw_;
 		assert(ebwt != NULL);
