@@ -65,6 +65,39 @@
 
 #define CACHE_PAGE_SZ (16 * 1024)
 
+class BwtTopBot {
+public:
+	BwtTopBot() : topf(0), botf(0), topb(0), botb(0) {}
+
+	BwtTopBot(
+		TIndexOffU _topf,        // top in BWT
+		TIndexOffU _botf,        // bot in BWT
+		TIndexOffU _topb,        // top in BWT'
+		TIndexOffU _botb)        // bot in BWT'
+	: topf(_topf)
+	, botf(_botf)
+	, topb(_topb)
+	, botb(_botb)
+	{}
+
+	void set(
+		TIndexOffU _topf,        // top in BWT
+		TIndexOffU _botf,        // bot in BWT
+		TIndexOffU _topb,        // top in BWT'
+		TIndexOffU _botb)        // bot in BWT'
+	{
+		topf = _topf;
+		botf = _botf;
+		topb = _topb;
+		botb = _botb;
+	}
+
+	TIndexOffU topf;        // top in BWT
+	TIndexOffU botf;        // bot in BWT
+	TIndexOffU topb;        // top in BWT'
+	TIndexOffU botb;        // bot in BWT'
+};
+
 typedef PListSlice<TIndexOffU, CACHE_PAGE_SZ> TSlice;
 
 /**
