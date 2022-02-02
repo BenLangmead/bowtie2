@@ -1455,6 +1455,8 @@ struct SeedSearchMetrics {
 	MUTEX_T  mutex_m;
 };
 
+class SeedAlignerSearchParams;
+
 /**
  * Wrap the search cache with all the relevant objects
  */
@@ -1805,27 +1807,14 @@ protected:
 		SeedSearchInput &params,
 		int step,                // depth into steps_[] array
 		int depth,               // recursion depth
-		BwtTopBot bwt,         // The 4 BWT idxs
-		SideLocus tloc,        // locus for top (perhaps unititialized)
-		SideLocus bloc,        // locus for bot (perhaps unititialized)
-		Constraint c0,         // constraints to enforce in seed zone 0
-		Constraint c1,         // constraints to enforce in seed zone 1
-		Constraint c2,         // constraints to enforce in seed zone 2
-		Constraint overall,    // overall constraints
-		DoublyLinkedList<Edit> *prevEdit);  // previous edit
+		SeedAlignerSearchParams &p); // all the remaining params
 
 	// helper function
 	bool startSearchSeedBi(
 		SeedSearchInput &params,
 		int depth,            // recursion depth
-		const Constraint &c0, // constraints to enforce in seed zone 0
-		const Constraint &c1, // constraints to enforce in seed zone 1
-		const Constraint &c2, // constraints to enforce in seed zone 2
-		DoublyLinkedList<Edit> *prevEdit,  // previous edit
 		int &step,            // depth into steps_[] array
-		BwtTopBot &bwt,        // The 4 BWT idxs
-		SideLocus &tloc,      // locus for top (perhaps unititialized)
-		SideLocus &bloc);     // locus for bot (perhaps unititialized)
+		SeedAlignerSearchParams &p); // all the remaining params
 
 	/**
 	 * Get tloc and bloc ready for the next step.
