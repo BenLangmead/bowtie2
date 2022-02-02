@@ -1108,6 +1108,7 @@ bool SeedAligner::oneMmSearch(
 
 class SeedAlignerSearchParams {
 public:
+	int step;
 	BwtTopBot bwt;         // The 4 BWT idxs
 	SideLocus tloc;       // locus for top (perhaps unititialized)
 	SideLocus bloc;       // locus for bot (perhaps unititialized)
@@ -1116,13 +1117,15 @@ public:
 	DoublyLinkedList<Edit> *prevEdit;  // previous edit
 
 	SeedAlignerSearchParams(
-		const BwtTopBot &_bwt,         // The 4 BWT idxs
+		const int _step,              // depth into steps_[] array
+		const BwtTopBot &_bwt,        // The 4 BWT idxs
 		const SideLocus &_tloc,       // locus for top (perhaps unititialized)
 		const SideLocus &_bloc,       // locus for bot (perhaps unititialized)
 		const std::array<Constraint,3> _cv,        // constraints to enforce in seed zones
 		const Constraint &_overall,   // overall constraints to enforce
 		DoublyLinkedList<Edit> *_prevEdit)  // previous edit
-	: bwt(_bwt)
+	: step(_step)
+	, bwt(_bwt)
 	, tloc(_tloc)
 	, bloc(_bloc)
 	, cv(_cv)
@@ -1131,7 +1134,8 @@ public:
 	{}
 
 	SeedAlignerSearchParams(
-		const BwtTopBot &_bwt,         // The 4 BWT idxs
+		const int _step,              // depth into steps_[] array
+		const BwtTopBot &_bwt,        // The 4 BWT idxs
 		const SideLocus &_tloc,       // locus for top (perhaps unititialized)
 		const SideLocus &_bloc,       // locus for bot (perhaps unititialized)
 		const Constraint &_c0,        // constraints to enforce in seed zone 0
@@ -1139,7 +1143,8 @@ public:
 		const Constraint &_c2,        // constraints to enforce in seed zone 2
 		const Constraint &_overall,   // overall constraints to enforce
 		DoublyLinkedList<Edit> *_prevEdit)  // previous edit
-	: bwt(_bwt)
+	: step(_step)
+	, bwt(_bwt)
 	, tloc(_tloc)
 	, bloc(_bloc)
 	, cv{ _c0, _c1, _c2 }
@@ -1147,14 +1152,15 @@ public:
 	, prevEdit(_prevEdit)
 	{}
 
-	// create an empty bwt, tloc and bloc
+	// create an empty bwt, tloc and bloc, with step=0
 	SeedAlignerSearchParams(
 		const Constraint &_c0,        // constraints to enforce in seed zone 0
 		const Constraint &_c1,        // constraints to enforce in seed zone 1
 		const Constraint &_c2,        // constraints to enforce in seed zone 2
 		const Constraint &_overall,   // overall constraints to enforce
 		DoublyLinkedList<Edit> *_prevEdit)  // previous edit
-	: bwt()
+	: step(0)
+	, bwt()
 	, tloc()
 	, bloc()
 	, cv{ _c0, _c1, _c2 }
@@ -1179,7 +1185,7 @@ SeedAligner::searchSeedBi(SeedSearchInput &params) {
 	SeedAlignerSearchParams p(seed.cons[0], seed.cons[1], seed.cons[2], seed.overall, NULL);
 	searchSeedBi(
 		params,
-		0, 0,
+		0, 
 		p);
 }
 
@@ -1495,7 +1501,6 @@ bool
 SeedAligner::startSearchSeedBi(
 	SeedSearchInput &params,
 	int depth,            // recursion depth
-	int &step,            // depth into steps_[] array
 	SeedAlignerSearchParams &p
 	)
 {
@@ -1510,7 +1515,7 @@ SeedAligner::startSearchSeedBi(
 		assert(ebwtBw_ == NULL || ebwtBw_->fchr()[i] == ebwtFw_->fchr()[i]);
 	}
 #endif
-	if(step == (int)seed.steps.size()) {
+	if(p.step == (int)seed.steps.size()) {
 		// Finished aligning seed
 		p.checkCV();
 		reportHit(cache, p.bwt, seq.length(), p.prevEdit);
@@ -1522,7 +1527,7 @@ SeedAligner::startSearchSeedBi(
 		assert(p.bwt.botf - p.bwt.topf > 1  || !p.bloc.valid());
 	}
 #endif
-	if(step == 0) {
+	if(p.step == 0) {
 		// Just starting
 		assert(p.prevEdit == NULL);
 		assert(!p.tloc.valid());
@@ -1553,7 +1558,7 @@ SeedAligner::startSearchSeedBi(
 			}
 			if(p.bwt.botf - p.bwt.topf == 0) return true;
 			#endif
-			step += ftabLen;
+			p.step += ftabLen;
 		} else if(seed.maxjump > 0) {
 			// Use fchr
 			int c = seq[off];
@@ -1561,25 +1566,25 @@ SeedAligner::startSearchSeedBi(
 			p.bwt.topf = p.bwt.topb = ebwtFw_->fchr()[c];
 			p.bwt.botf = p.bwt.botb = ebwtFw_->fchr()[c+1];
 			if(p.bwt.botf - p.bwt.topf == 0) return true;
-			step++;
+			p.step++;
 		} else {
 			assert_eq(0, seed.maxjump);
 			p.bwt.topf = p.bwt.topb = 0;
 			p.bwt.botf = p.bwt.botb = ebwtFw_->fchr()[4];
 		}
-		if(step == (int)seed.steps.size()) {
+		if(p.step == (int)seed.steps.size()) {
 			// Finished aligning seed
 			p.checkCV();
 			reportHit(cache, p.bwt, seq.length(), p.prevEdit);
 			return true;
 		}
-		nextLocsBi(seed, p.tloc, p.bloc, p.bwt, step);
+		nextLocsBi(seed, p.tloc, p.bloc, p.bwt, p.step);
 		assert(p.tloc.valid());
 	} else assert(p.prevEdit != NULL);
 	assert(p.tloc.valid());
 	assert(p.bwt.botf - p.bwt.topf == 1 ||  p.bloc.valid());
 	assert(p.bwt.botf - p.bwt.topf > 1  || !p.bloc.valid());
-	assert_geq(step, 0);
+	assert_geq(p.step, 0);
 
 	return false;
 }
@@ -1713,7 +1718,6 @@ private:
 void
 SeedAligner::searchSeedBi(
 	SeedSearchInput &params,
-	int step,             // depth into steps_[] array
 	int depth,            // recursion depth
 	SeedAlignerSearchParams &p // all the remaining params
 #if 0
@@ -1729,7 +1733,6 @@ SeedAligner::searchSeedBi(
 	bool done = startSearchSeedBi(
 			params,
 			depth,
-			step,
 			p);
 	if(done) {
 		return;
@@ -1737,7 +1740,7 @@ SeedAligner::searchSeedBi(
 
 	SeedAlignerSearchState sstate;
 	sstate.initLastTot(p.bwt.botf - p.bwt.topf);
-	for(size_t i = step; i < seed.steps.size(); i++) {
+	for(size_t i = p.step; i < seed.steps.size(); i++) {
 		assert_gt(p.bwt.botf, p.bwt.topf);
 		assert(p.bwt.botf - p.bwt.topf == 1 ||  p.bloc.valid());
 		assert(p.bwt.botf - p.bwt.topf > 1  || !p.bloc.valid());
@@ -1797,6 +1800,7 @@ SeedAligner::searchSeedBi(
 							nextLocsBi(seed, p.tloc, p.bloc, rstate.bwt, i+1);
 							bwedits_++;
 							SeedAlignerSearchParams p2(
+								i+1,             // depth into steps_[] array
 								rstate.bwt,      // The 4 BWT idxs
 								p.tloc,          // locus for top (perhaps unititialized)
 								p.bloc,          // locus for bot (perhaps unititialized)
@@ -1805,7 +1809,6 @@ SeedAligner::searchSeedBi(
 								&rstate.editl);  // latest edit
 							searchSeedBi(
 								params,
-								i+1,     // depth into steps_[] array
 								depth+1, // recursion depth
 								p2);
 							// as rstate gets out of scope, p.prevEdit->next is updated

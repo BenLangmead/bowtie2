@@ -1805,7 +1805,6 @@ protected:
 	 */
 	void searchSeedBi(
 		SeedSearchInput &params,
-		int step,                // depth into steps_[] array
 		int depth,               // recursion depth
 		SeedAlignerSearchParams &p); // all the remaining params
 
@@ -1813,7 +1812,6 @@ protected:
 	bool startSearchSeedBi(
 		SeedSearchInput &params,
 		int depth,            // recursion depth
-		int &step,            // depth into steps_[] array
 		SeedAlignerSearchParams &p); // all the remaining params
 
 	/**
