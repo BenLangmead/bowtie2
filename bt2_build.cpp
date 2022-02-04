@@ -362,7 +362,8 @@ static void deleteIdxFiles(
 static void renameIdxFiles() {
 	for (size_t i = 0; i < filesWritten.size(); i++) {
 		std::string oldName = filesWritten[i] + ".tmp";
-		std::cerr << "Renaming " << oldName << " to " << filesWritten[i] << std::endl;
+		if (verbose)
+			std::cerr << "Renaming " << oldName << " to " << filesWritten[i] << std::endl;
 		std::rename(oldName.c_str(), filesWritten[i].c_str());
 	}
 }
