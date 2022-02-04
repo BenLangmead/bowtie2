@@ -1625,10 +1625,6 @@ static void parseOptions(int argc, const char **argv) {
 		for (size_t i = presetList.size(); i != 0; i--)
 			polstr = applyPreset(presetList[i-1], *presets.get()) + polstr;
 	}
-	// Apply specified presets
-	for(size_t i = 0; i < presetList.size(); i++) {
-		polstr += applyPreset(presetList[i], *presets.get());
-	}
 	for(size_t i = 0; i < extra_opts.size(); i++) {
 		next_option = extra_opts[extra_opts_cur].first;
 		const char *arg = extra_opts[extra_opts_cur].second.c_str();
