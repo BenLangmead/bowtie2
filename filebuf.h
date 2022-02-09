@@ -701,7 +701,14 @@ public:
 	 */
 	void write(char c) {
 		assert(!closed_);
-		if(cur_ == cap_) flush();
+		if(cur_ == cap_) {
+			if(flushBlocking()) {
+				// minimize blocking, increase buffer instead
+				increaseBuffer(BUF_SZ);
+			} else {
+				flush();
+			}
+		}
 		buf_[cur_++] = c;
 	}
 
@@ -732,10 +739,15 @@ public:
 	void writeChars(const char * s, size_t len) {
 		assert(!closed_);
 		if(cur_ + len > cap_) {
-			if(cur_ > 0) flush();
-			// expand the buffer, if needed
-			// so we can keep using async writes
-			if(len >= cap_) resizeBuffer(len+BUF_SZ); // add a little spare
+			if(flushBlocking()) {
+				// minimize blocking, increase buffer instead
+				resizeBuffer(cur_ + len + BUF_SZ); // add a little spare
+			} else {
+				if(cur_ > 0) flush();
+				// expand the buffer, if needed
+				// so we can keep using async writes
+				if(len >= cap_) resizeBufferNoCopy(len+BUF_SZ); // add a little spare
+			}
 		}
 		memcpy(&buf_[cur_], s, len);
 		cur_ += len;
@@ -800,8 +812,14 @@ public:
 		return name_;
 	}
 
+	bool flushBlocking() const {
+		return asyncData_.buf!=NULL;
+	}
+
 private:
-	void resizeBuffer(size_t len) {
+	// increase the current buffer to at least len
+	void resizeBufferNoCopy(size_t len) {
+		assert_eq(cur_, 0);
 		// round up to multiple of BUF_SZ
 		size_t newCap = ((len+BUF_SZ-1)/BUF_SZ)*BUF_SZ;
 		if(buf_==buf1_) {
@@ -816,6 +834,47 @@ private:
 			cap2_ = newCap;
 			buf_ = buf2_;
 			cap_ = cap2_;
+		}
+	}
+
+	// increase the current buffer to at least len
+	// copy over the content
+	void resizeBuffer(size_t len) {
+		if(cur_==0) {
+			// nothing to copy, use the more efficient version
+			resizeBufferNoCopy(len);
+			return;
+		}
+
+		// round up to multiple of BUF_SZ
+		size_t newCap = ((len+BUF_SZ-1)/BUF_SZ)*BUF_SZ;
+		if(buf_==buf1_) {
+			const char* oldBuf = buf1_;
+			buf1_ = new char[newCap];
+			memcpy(buf1_, oldBuf, cur_);
+			delete[] oldBuf;
+			cap1_ = newCap;
+			buf_ = buf1_;
+			cap_ = cap1_;
+		} else {
+			const char* oldBuf =  buf2_;
+			buf2_ = new char[newCap];
+			memcpy(buf2_, oldBuf, cur_);
+			delete[] oldBuf;
+			cap2_ = newCap;
+			buf_ = buf2_;
+			cap_ = cap2_;
+		}
+	}
+
+	// increase the current buffer by delta
+	// copy over the content
+	void increaseBuffer(size_t delta) {
+		size_t newCap = cap_+delta;
+		if(cur_>0) {
+			resizeBuffer(newCap);
+		} else {
+			resizeBufferNoCopy(newCap);
 		}
 	}
 
