@@ -631,8 +631,10 @@ public:
 	 * Open a new output stream to a file with given name.
 	 */
 	OutFileBuf(const std::string& out, bool binary = false) :
-		name_(out.c_str()), out_(NULL), cur_(0), buf_(buf1_), closed_(false),
-		asyncData_(out_), asynct_(writeAsync, &asyncData_)
+		name_(out.c_str()), out_(NULL), cur_(0), closed_(false),
+		asyncData_(out_), asynct_(writeAsync, &asyncData_),
+		buf1_(new char[BUF_SZ]), buf2_(new char[BUF_SZ]), cap1_(BUF_SZ), cap2_(BUF_SZ),
+		buf_(buf1_), cap_(cap1_)
 	{
 		out_ = fopen(out.c_str(), binary ? "wb" : "w");
 		if(out_ == NULL) {
@@ -647,8 +649,10 @@ public:
 	 * Open a new output stream to a file with given name.
 	 */
 	OutFileBuf(const char *out, bool binary = false) :
-		name_(out), out_(NULL), cur_(0), buf_(buf1_), closed_(false),
-		asyncData_(out_), asynct_(writeAsync, &asyncData_)
+		name_(out), out_(NULL), cur_(0), closed_(false),
+		asyncData_(out_), asynct_(writeAsync, &asyncData_),
+		buf1_(new char[BUF_SZ]), buf2_(new char[BUF_SZ]), cap1_(BUF_SZ), cap2_(BUF_SZ),
+		buf_(buf1_), cap_(cap1_)
 	{
 		assert(out != NULL);
 		out_ = fopen(out, binary ? "wb" : "w");
@@ -662,8 +666,10 @@ public:
 	 * Open a new output stream to standard out.
 	 */
 	OutFileBuf() :
-		name_("cout"), out_(stdout), cur_(0), buf_(buf1_), closed_(false),
-		asyncData_(out_), asynct_(writeAsync, &asyncData_) {}
+		name_("cout"), out_(stdout), cur_(0), closed_(false),
+		asyncData_(out_), asynct_(writeAsync, &asyncData_),
+		buf1_(new char[BUF_SZ]), buf2_(new char[BUF_SZ]), cap1_(BUF_SZ), cap2_(BUF_SZ),
+		buf_(buf1_), cap_(cap1_) {}
 	
 	/**
 	 * Close buffer when object is destroyed.
@@ -672,6 +678,8 @@ public:
 		close();
 		asyncData_.notifyAbort();
 		asynct_.join();
+		delete[] buf2_;
+		delete[] buf1_;
 	}
 
 	/**
@@ -693,7 +701,7 @@ public:
 	 */
 	void write(char c) {
 		assert(!closed_);
-		if(cur_ == BUF_SZ) flush();
+		if(cur_ == cap_) flush();
 		buf_[cur_++] = c;
 	}
 
@@ -703,25 +711,8 @@ public:
 	void writeString(const std::string& s) {
 		assert(!closed_);
 		size_t slen = s.length();
-		if(cur_ + slen > BUF_SZ) {
-			if(cur_ > 0) flush();
-			if(slen >= BUF_SZ) {
-				// make sure async is not writing, too
-				asyncData_.waitIdle();
-				if (slen != fwrite(s.c_str(), 1, slen, out_)) {
-					std::cerr << "Error: outputting data" << std::endl;
-					throw 1;
-				}
-			} else {
-				memcpy(&buf_[cur_], s.data(), slen);
-				assert_eq(0, cur_);
-				cur_ = slen;
-			}
-		} else {
-			memcpy(&buf_[cur_], s.data(), slen);
-			cur_ += slen;
-		}
-		assert_leq(cur_, BUF_SZ);
+		const char *cstr = s.c_str();
+		writeChars(cstr, slen);
 	}
 
 	/**
@@ -731,25 +722,8 @@ public:
 	void writeString(const T& s) {
 		assert(!closed_);
 		size_t slen = s.length();
-		if(cur_ + slen > BUF_SZ) {
-			if(cur_ > 0) flush();
-			if(slen >= BUF_SZ) {
-				// make sure async is not writing, too
-				asyncData_.waitIdle();
-				if (slen != fwrite(s.toZBuf(), 1, slen, out_)) {
-					std::cerr << "Error outputting data" << std::endl;
-					throw 1;
-				}
-			} else {
-				memcpy(&buf_[cur_], s.toZBuf(), slen);
-				assert_eq(0, cur_);
-				cur_ = slen;
-			}
-		} else {
-			memcpy(&buf_[cur_], s.toZBuf(), slen);
-			cur_ += slen;
-		}
-		assert_leq(cur_, BUF_SZ);
+		const char *zbuf = s.toZBuf();
+		writeChars(zbuf, slen);
 	}
 
 	/**
@@ -757,25 +731,15 @@ public:
 	 */
 	void writeChars(const char * s, size_t len) {
 		assert(!closed_);
-		if(cur_ + len > BUF_SZ) {
+		if(cur_ + len > cap_) {
 			if(cur_ > 0) flush();
-			if(len >= BUF_SZ) {
-				// make sure async is not writing, too
-				asyncData_.waitIdle();
-				if (fwrite(s, len, 1, out_) != 1) {
-					std::cerr << "Error outputting data" << std::endl;
-					throw 1;
-				}
-			} else {
-				memcpy(&buf_[cur_], s, len);
-				assert_eq(0, cur_);
-				cur_ = len;
-			}
-		} else {
-			memcpy(&buf_[cur_], s, len);
-			cur_ += len;
+			// expand the buffer, if needed
+			// so we can keep using async writes
+			if(len >= cap_) resizeBuffer(len+BUF_SZ); // add a little spare
 		}
-		assert_leq(cur_, BUF_SZ);
+		memcpy(&buf_[cur_], s, len);
+		cur_ += len;
+		assert_leq(cur_, cap_);
 	}
 
 	/**
@@ -812,7 +776,13 @@ public:
 		// start the async write
 		asyncData_.setBuf(buf_, cur_);
 		// switch to the other buffer
-		buf_ = (buf_==buf1_) ? buf2_ : buf1_;
+		if(buf_==buf1_) {
+			buf_ = buf2_;
+			cap_ = cap2_;
+		} else {
+			buf_ = buf1_;
+			cap_ = cap1_;
+		}
 		cur_ = 0;
 	}
 
@@ -831,6 +801,24 @@ public:
 	}
 
 private:
+	void resizeBuffer(size_t len) {
+		// round up to multiple of BUF_SZ
+		size_t newCap = ((len+BUF_SZ-1)/BUF_SZ)*BUF_SZ;
+		if(buf_==buf1_) {
+			delete[] buf1_;
+			buf1_ = new char[newCap];
+			cap1_ = newCap;
+			buf_ = buf1_;
+			cap_ = cap1_;
+		} else {
+			delete[] buf2_;
+			buf2_ = new char[newCap];
+			cap2_ = newCap;
+			buf_ = buf2_;
+			cap_ = cap2_;
+		}
+	}
+
 	class AsyncData {
 	public:
 		bool abort; // the async thread will abort when this is set to true
@@ -908,17 +896,20 @@ private:
 
 	}
 
-	static const size_t BUF_SZ = 64 * 1024;
+	static const size_t BUF_SZ = 16 * 1024;
 
 	const char *name_;
 	FILE       *out_;
 	size_t      cur_;
-	char*       buf_; // points to one of the two buffers below
 	bool        closed_;
 	AsyncData   asyncData_;
 	std::thread asynct_;
-	char        buf1_[BUF_SZ]; // (large) output buffer
-	char        buf2_[BUF_SZ]; // (large) output buffer
+	char       *buf1_; // (large) output buffer
+	char       *buf2_; // (large) output buffer
+	size_t      cap1_; //capacity of buf1_
+	size_t      cap2_; //capacity of buf2_
+	char*       buf_; // points to one of the two buffers below
+	size_t      cap_; // capacity of the pointed buffer
 };
 
 #endif /*ndef FILEBUF_H_*/
