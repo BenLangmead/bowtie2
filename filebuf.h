@@ -23,6 +23,8 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <condition_variable>
+#include <thread>
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
@@ -629,7 +631,8 @@ public:
 	 * Open a new output stream to a file with given name.
 	 */
 	OutFileBuf(const std::string& out, bool binary = false) :
-		name_(out.c_str()), cur_(0), closed_(false)
+		name_(out.c_str()), out_(NULL), cur_(0), buf_(buf1_), closed_(false),
+		asyncData_(out_), asynct_(writeAsync, &asyncData_)
 	{
 		out_ = fopen(out.c_str(), binary ? "wb" : "w");
 		if(out_ == NULL) {
@@ -644,7 +647,8 @@ public:
 	 * Open a new output stream to a file with given name.
 	 */
 	OutFileBuf(const char *out, bool binary = false) :
-		name_(out), cur_(0), closed_(false)
+		name_(out), out_(NULL), cur_(0), buf_(buf1_), closed_(false),
+		asyncData_(out_), asynct_(writeAsync, &asyncData_)
 	{
 		assert(out != NULL);
 		out_ = fopen(out, binary ? "wb" : "w");
@@ -657,14 +661,18 @@ public:
 	/**
 	 * Open a new output stream to standard out.
 	 */
-	OutFileBuf() : name_("cout"), cur_(0), closed_(false) {
-		out_ = stdout;
-	}
+	OutFileBuf() :
+		name_("cout"), out_(stdout), cur_(0), buf_(buf1_), closed_(false),
+		asyncData_(out_), asynct_(writeAsync, &asyncData_) {}
 	
 	/**
 	 * Close buffer when object is destroyed.
 	 */
-	~OutFileBuf() { close(); }
+	~OutFileBuf() {
+		close();
+		asyncData_.notifyAbort();
+		asynct_.join();
+	}
 
 	/**
 	 * Open a new output stream to a file with given name.
@@ -698,6 +706,8 @@ public:
 		if(cur_ + slen > BUF_SZ) {
 			if(cur_ > 0) flush();
 			if(slen >= BUF_SZ) {
+				// make sure async is not writing, too
+				asyncData_.waitIdle();
 				if (slen != fwrite(s.c_str(), 1, slen, out_)) {
 					std::cerr << "Error: outputting data" << std::endl;
 					throw 1;
@@ -724,6 +734,8 @@ public:
 		if(cur_ + slen > BUF_SZ) {
 			if(cur_ > 0) flush();
 			if(slen >= BUF_SZ) {
+				// make sure async is not writing, too
+				asyncData_.waitIdle();
 				if (slen != fwrite(s.toZBuf(), 1, slen, out_)) {
 					std::cerr << "Error outputting data" << std::endl;
 					throw 1;
@@ -748,6 +760,8 @@ public:
 		if(cur_ + len > BUF_SZ) {
 			if(cur_ > 0) flush();
 			if(len >= BUF_SZ) {
+				// make sure async is not writing, too
+				asyncData_.waitIdle();
 				if (fwrite(s, len, 1, out_) != 1) {
 					std::cerr << "Error outputting data" << std::endl;
 					throw 1;
@@ -777,6 +791,7 @@ public:
 	void close() {
 		if(closed_) return;
 		if(cur_ > 0) flush();
+		asyncData_.waitIdle();
 		closed_ = true;
 		if(out_ != stdout) {
 			fclose(out_);
@@ -792,13 +807,12 @@ public:
 	}
 
 	void flush() {
-		if(cur_ != fwrite((const void *)buf_, 1, cur_, out_)) {
-			if (errno == EPIPE) {
-				exit(EXIT_SUCCESS);
-			}
-			std::cerr << "Error while flushing and closing output" << std::endl;
-			throw 1;
-		}
+		// there still could have been an outstanding async write
+		asyncData_.waitIdle();
+		// start the async write
+		asyncData_.setBuf(buf_, cur_);
+		// switch to the other buffer
+		buf_ = (buf_==buf1_) ? buf2_ : buf1_;
 		cur_ = 0;
 	}
 
@@ -817,14 +831,94 @@ public:
 	}
 
 private:
+	class AsyncData {
+	public:
+		bool abort; // the async thread will abort when this is set to true
+		FILE*      &out;
 
-	static const size_t BUF_SZ = 16 * 1024;
+		const char* buf;
+		size_t      cur;
+
+		std::mutex m;
+		std::condition_variable cv;
+
+		// m and cv default constructors are OK as-is
+		AsyncData(FILE* &_out) : abort(false), out(_out), buf(NULL) {}
+
+		void notifyAbort() {
+			{
+				std::lock_guard<std::mutex> lk(m);
+				abort = true;
+			}
+			cv.notify_all();
+		}
+
+		void waitIdle() {
+			std::unique_lock<std::mutex> lk(m);
+			while(buf!=NULL) cv.wait(lk);
+		}
+
+		void setBuf(const char* _buf, size_t _cur) {
+			{
+				std::lock_guard<std::mutex> lk(m);
+				buf = _buf;
+				cur = _cur;
+			}
+			cv.notify_all();
+		}
+
+		// returns abort
+		bool waitForBuf() {
+			std::unique_lock<std::mutex> lk(m);
+			while((buf==NULL)&&(!abort)) cv.wait(lk);
+			return abort;
+		}
+
+		// returns abort
+		bool writeComplete() {
+			bool ret;
+			{
+				std::lock_guard<std::mutex> lk(m);
+				buf = NULL;
+				ret = abort;
+			}
+			cv.notify_all();
+			return ret;
+		}
+
+
+
+	};
+
+	static void writeAsync(AsyncData *asyncDataPtr) {
+		AsyncData &asyncData = *asyncDataPtr;
+		bool abort = false;
+		while(!abort) {
+			abort = asyncData.waitForBuf();
+			if(abort) break;
+			if(asyncData.cur != fwrite((const void *)asyncData.buf, 1, asyncData.cur, asyncData.out)) {
+				if (errno == EPIPE) {
+					exit(EXIT_SUCCESS);
+				}
+				std::cerr << "Error while flushing and closing output" << std::endl;
+				throw 1;
+			}
+			abort = asyncData.writeComplete();
+		}
+
+	}
+
+	static const size_t BUF_SZ = 64 * 1024;
 
 	const char *name_;
 	FILE       *out_;
 	size_t      cur_;
-	char        buf_[BUF_SZ]; // (large) input buffer
+	char*       buf_; // points to one of the two buffers below
 	bool        closed_;
+	AsyncData   asyncData_;
+	std::thread asynct_;
+	char        buf1_[BUF_SZ]; // (large) output buffer
+	char        buf2_[BUF_SZ]; // (large) output buffer
 };
 
 #endif /*ndef FILEBUF_H_*/
