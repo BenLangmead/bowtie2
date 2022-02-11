@@ -325,8 +325,47 @@ public:
 
 			for (i = 0; i < name.length() && !isspace(name[i]); i++) ;
 			o.append('\t');
+			if (isIllumina(name.toZBuf() + i + 1))
+				o.append("BC:Z:");
 			o.append(name.toZBuf() + i + 1);
+			name.toZBuf();
 		}
+	}
+
+	bool isIllumina(const char *str) const {
+		const char *start, *end;
+		int field = 0;
+
+		for (start = str, end = str; *end != '\0' && *end != ' '; end++) {
+			if (*end == ':') {
+				switch (field) {
+                                case 0: {
+					char *endptr;
+					long read = strtol(start, &endptr, 10);
+					if (endptr != end || (read != 1 && read != 2))
+						return false;
+					break;
+                                }
+                                case 1:
+					if (*start != 'N' && *start != 'Y')
+						return false;
+					break;
+				case 2: {
+					char *endptr;
+					long controlNumber = strtol(start, &endptr, 10);
+					if (endptr != end || controlNumber % 2 != 0)
+						return false;
+					break;
+
+				}
+				default:
+					return false;
+				}
+				start = end + 1, field++;
+			}
+
+		}
+		return true;
 	}
 
 	template<typename T>
