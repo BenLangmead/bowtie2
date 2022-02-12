@@ -328,7 +328,6 @@ public:
 			if (isIllumina(name.toZBuf() + i + 1))
 				o.append("BC:Z:");
 			o.append(name.toZBuf() + i + 1);
-			name.toZBuf();
 		}
 	}
 
