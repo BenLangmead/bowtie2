@@ -1047,9 +1047,6 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 			c = getc_wrapper();
 			done = c < 0;
 			if(c == '\n' || (done && newlines == 1)) {
-				while ((c = getc_wrapper()) == '\n') ;
-				if (c != '\n')
-					ungetc_wrapper(c);
 				// Saw newline, or EOF that we're
 				// interpreting as final newline
 				newlines--;
