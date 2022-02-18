@@ -325,9 +325,12 @@ public:
 
 			for (i = 0; i < name.length() && !isspace(name[i]); i++) ;
 			o.append('\t');
-			if (isIllumina(name.toZBuf() + i + 1))
-				o.append("BC:Z:");
-			o.append(name.toZBuf() + i + 1);
+			if (i < name.length()) {
+				const char *comment = name.toZBuf() + i + 1;
+				if (isIllumina(comment))
+					o.append("BC:Z:");
+				o.append(comment);
+			}
 		}
 	}
 
