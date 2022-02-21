@@ -266,6 +266,17 @@ static EList<string> sra_accs;
 
 #define DMAX std::numeric_limits<double>::max()
 
+static void set_format(int &current_format, file_format format) {
+	if (current_format == UNKNOWN)
+		current_format = format;
+	else {
+		std::cerr << file_format_names[current_format] << " and "
+			  << file_format_names[format] << " formats are "
+			  << "mutually exclusive." << std::endl;
+		exit(1);
+	}
+}
+
 static void resetOptions() {
 	mates1.clear();
 	mates2.clear();
@@ -275,7 +286,7 @@ static void resetOptions() {
 	startVerbose	    = 0;
 	gQuiet		    = false;
 	sanityCheck	    = 0;	// enable expensive sanity checks
-	format		    = FASTQ;	// default read format is FASTQ
+	format		    = UNKNOWN;	// default read format is FASTQ
 	interleaved	    = false;	// reads are not interleaved by default
 	origString	    = "";	// reference text, or filename(s)
 	seed		    = 0;	// srandom() seed
@@ -1023,22 +1034,22 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_DESC_PRIORITIZE: descPrioritizeRoots = true; break;
 		case '1': tokenize(arg, ",", mates1); break;
 		case '2': tokenize(arg, ",", mates2); break;
-		case ARG_ONETWO: tokenize(arg, ",", mates12); format = TAB_MATE5; break;
-		case ARG_TAB5:   tokenize(arg, ",", mates12); format = TAB_MATE5; break;
-		case ARG_TAB6:   tokenize(arg, ",", mates12); format = TAB_MATE6; break;
+		case ARG_ONETWO: tokenize(arg, ",", mates12); set_format(format, TAB_MATE5); break;
+		case ARG_TAB5:   tokenize(arg, ",", mates12); set_format(format, TAB_MATE5); break;
+		case ARG_TAB6:   tokenize(arg, ",", mates12); set_format(format, TAB_MATE6); break;
 		case ARG_INTERLEAVED: {
 			tokenize(arg, ",", mates12);
 			interleaved = true;
 			break;
 		}
 		case 'b': {
-			format = BAM;
+			set_format(format, BAM);
 			saw_bam = true;
 			break;
 		}
-		case 'f': format = FASTA; break;
+		case 'f': set_format(format, FASTA); break;
 		case 'F': {
-			format = FASTA_CONT;
+			set_format(format, FASTA_CONT);
 			pair<uint32_t, uint32_t> p = parsePair<uint32_t>(arg, ',');
 			fastaContLen = p.first;
 			fastaContFreq = p.second;
@@ -1057,10 +1068,10 @@ static void parseOption(int next_option, const char *arg) {
 			polstr += ";MA=1;MMP=C3;RDG=5,2;RFG=5,2";
 			break;
 		}
-		case 'q': format = FASTQ; break;
-		case 'r': format = RAW; break;
-		case 'c': format = CMDLINE; break;
-		case ARG_QSEQ: format = QSEQ; break;
+		case 'q': set_format(format, FASTQ); break;
+		case 'r': set_format(format, RAW); break;
+		case 'c': set_format(format, CMDLINE); break;
+		case ARG_QSEQ: set_format(format, QSEQ); break;
 		case 'I':
 			gMinInsert = parseInt(0, "-I arg must be positive", arg);
 			break;
@@ -1550,7 +1561,7 @@ static void parseOption(int next_option, const char *arg) {
 #ifdef USE_SRA
         case ARG_SRA_ACC: {
             tokenize(arg, ",", sra_accs);
-            format = SRA_FASTA;
+            set_format(format, SRA_FASTA);
             break;
         }
 #endif
@@ -1674,6 +1685,8 @@ static void parseOptions(int argc, const char **argv) {
 		assert_gt(mhits, 0);
 		msample = true;
 	}
+	if (format == UNKNOWN)
+		set_format(format, FASTQ);
 	if(mates1.size() != mates2.size()) {
 		cerr << "Error: " << mates1.size() << " mate files/sequences were specified with -1, but " << mates2.size() << endl
 		     << "mate files/sequences were specified with -2.  The same number of mate files/" << endl
