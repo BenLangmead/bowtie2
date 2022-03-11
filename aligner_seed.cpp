@@ -487,7 +487,6 @@ void SeedAligner::searchAllSeeds(
 	ebwtBw_ = ebwtBw;
 	sc_ = &pens;
 	read_ = &read;
-	ca_ = &cache;
 	bwops_ = bwedits_ = 0;
 	uint64_t possearches = 0, seedsearches = 0, intrahits = 0, interhits = 0, ooms = 0;
 	// For each instantiated seed
@@ -500,12 +499,12 @@ void SeedAligner::searchAllSeeds(
 				// Cache hit in an across-read cache
 				continue;
 			}
-			QVal qv;
 			const BTDnaString& seq  = sr.seqs(fw)[i];  // seed sequence
 			const BTString& qual = sr.quals(fw)[i]; // seed qualities
+			SeedSearchCache srcache(cache, seq, qual);
 			// Tell the cache that we've started aligning, so the cache can
 			// expect a series of on-the-fly updates
-			int ret = cache.beginAlign(seq, qual, qv);
+			int ret = srcache.beginAlign();
 			ASSERT_ONLY(hits_.clear());
 			if(ret == -1) {
 				// Out of memory when we tried to add key to map
@@ -515,7 +514,7 @@ void SeedAligner::searchAllSeeds(
 			bool abort = false;
 			if(ret == 0) {
 				// Not already in cache
-				assert(cache.aligning());
+				assert(srcache.aligning());
 				possearches++;
 				for(size_t j = 0; j < iss.size(); j++) {
 					// Set seq and qual appropriately, using the seed sequences
@@ -523,29 +522,29 @@ void SeedAligner::searchAllSeeds(
 					assert_eq(fw, iss[j].fw);
 					assert_eq(i, (int)iss[j].seedoffidx);
 					// Do the search with respect to seq, qual and seed
-					if(!searchSeedBi(seq, qual, iss[j])) {
+					if(!searchSeedBi(srcache, iss[j])) {
 						// Memory exhausted during search
 						ooms++;
 						abort = true;
 						break;
 					}
 					seedsearches++;
-					assert(cache.aligning());
+					assert(srcache.aligning());
 				}
 				if(!abort) {
-					qv = cache.finishAlign();
+					srcache.finishAlign();
 				}
 			} else {
 				// Already in cache
 				assert_eq(1, ret);
-				assert(qv.valid());
+				assert(srcache.qvValid());
 				intrahits++;
 			}
-			assert(abort || !cache.aligning());
-			if(qv.valid()) {
+			assert(abort || !srcache.aligning());
+			if(srcache.qvValid()) {
 				sr.add(
-					qv,    // range of ranges in cache
-					cache.current(), // cache
+					srcache.getQv(),   // range of ranges in cache
+					srcache.current(), // cache
 					i,     // seed index (from 5' end)
 					fw);   // whether seed is from forward read
 			}
@@ -1093,12 +1092,11 @@ bool SeedAligner::oneMmSearch(
  */
 bool
 SeedAligner::searchSeedBi(
-		const BTDnaString& seq,  // sequence of current seed
-		const BTString& qual,     // quality string for current seed
+		SeedSearchCache &cache,  // local seed alignment cache
 		const InstantiatedSeed& seed // current instantiated seed
 		) {
 	return searchSeedBi(
-		seq, qual, seed,
+		cache, seed,
 		0, 0,
 		0, 0, 0, 0,
 		SideLocus(), SideLocus(),
@@ -1224,7 +1222,7 @@ SeedAligner::nextLocsBi(
  */
 bool
 SeedAligner::extendAndReportHit(
-	const BTDnaString& seq,  // sequence of current seed
+	SeedSearchCache &cache,              // local seed alignment cache
 	size_t off,                          // offset of seed currently being searched
 	bool fw,                             // orientation of seed currently being searched
 	TIndexOffU topf,                     // top in BWT
@@ -1349,7 +1347,7 @@ SeedAligner::extendAndReportHit(
 	assert_lt(nlex, rdlen);
 	assert_leq(nlex, off);
 	assert_lt(nrex, rdlen);
-	return reportHit(seq, topf, botf, topb, botb, len, prevEdit);
+	return reportHit(cache, topf, botf, topb, botb, len, prevEdit);
 }
 
 /**
@@ -1358,7 +1356,7 @@ SeedAligner::extendAndReportHit(
  */
 bool
 SeedAligner::reportHit(
-	const BTDnaString& seq,  // sequence of current seed
+	SeedSearchCache &cache,              // local seed alignment cache
 	TIndexOffU topf,                     // top in BWT
 	TIndexOffU botf,                     // bot in BWT
 	TIndexOffU topb,                     // top in BWT'
@@ -1366,6 +1364,8 @@ SeedAligner::reportHit(
 	uint16_t len,                      // length of hit
 	DoublyLinkedList<Edit> *prevEdit)  // previous edit
 {
+	const BTDnaString& seq = cache.getSeq();
+
 	// Add information about the seed hit to AlignmentCache.  This
 	// information eventually makes its way back to the SeedResults
 	// object when we call finishAlign(...).
@@ -1384,12 +1384,12 @@ SeedAligner::reportHit(
 	// happens, it may be because our zone Constraints are not set up
 	// properly and erroneously return true from acceptable() when they
 	// should return false in some cases.
-	assert_eq(hits_.size(), ca_->curNumRanges());
+	assert_eq(hits_.size(), cache.curNumRanges());
 	assert(hits_.insert(rf));
-	if(!ca_->addOnTheFly(rf, topf, botf, topb, botb)) {
+	if(!cache.addOnTheFly(rf, topf, botf, topb, botb)) {
 		return false;
 	}
-	assert_eq(hits_.size(), ca_->curNumRanges());
+	assert_eq(hits_.size(), cache.curNumRanges());
 #ifndef NDEBUG
 	// Sanity check that the topf/botf and topb/botb ranges really
 	// correspond to the reference sequence aligned to
@@ -1421,8 +1421,7 @@ SeedAligner::reportHit(
  */
 bool
 SeedAligner::searchSeedBi(
-	const BTDnaString& seq,  // sequence of current seed
-	const BTString& qual,    // quality string for current seed
+	SeedSearchCache &cache,  // local seed alignment cache
 	const InstantiatedSeed& seed, // current instantiated seed
 	int step,             // depth into steps_[] array
 	int depth,            // recursion depth
@@ -1442,6 +1441,9 @@ SeedAligner::searchSeedBi(
 #endif
 	)
 {
+	const BTDnaString& seq = cache.getSeq();
+	const BTString& qual = cache.getQual();
+
 	assert(s_ != NULL);
 	assert_gt(seed.steps.size(), 0);
 	assert(ebwtBw_ == NULL || ebwtBw_->eh().ftabChars() == ebwtFw_->eh().ftabChars());
@@ -1455,7 +1457,7 @@ SeedAligner::searchSeedBi(
 		assert(c0.acceptable());
 		assert(c1.acceptable());
 		assert(c2.acceptable());
-		if(!reportHit(seq, topf, botf, topb, botb, seq.length(), prevEdit)) {
+		if(!reportHit(cache, topf, botf, topb, botb, seq.length(), prevEdit)) {
 			return false; // Memory exhausted
 		}
 		return true;
@@ -1518,7 +1520,7 @@ SeedAligner::searchSeedBi(
 			assert(c0.acceptable());
 			assert(c1.acceptable());
 			assert(c2.acceptable());
-			if(!reportHit(seq, topf, botf, topb, botb, seq.length(), prevEdit)) {
+			if(!reportHit(cache, topf, botf, topb, botb, seq.length(), prevEdit)) {
 				return false; // Memory exhausted
 			}
 			return true;
@@ -1617,7 +1619,7 @@ SeedAligner::searchSeedBi(
 							assert(editl.next == NULL);
 							bwedits_++;
 							if(!searchSeedBi(
-								seq, qual, seed,
+								cache, seed,
 								i+1,     // depth into steps_[] array
 								depth+1, // recursion depth
 								tf[j],   // top in BWT
@@ -1693,7 +1695,7 @@ SeedAligner::searchSeedBi(
 			assert(c0.acceptable());
 			assert(c1.acceptable());
 			assert(c2.acceptable());
-			if(!reportHit(seq, topf, botf, topb, botb, seq.length(), prevEdit)) {
+			if(!reportHit(cache, topf, botf, topb, botb, seq.length(), prevEdit)) {
 				return false; // Memory exhausted
 			}
 			return true;

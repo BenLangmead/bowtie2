@@ -1455,6 +1455,81 @@ struct SeedSearchMetrics {
 };
 
 /**
+ * Wrap the search cache with all the relevant objects
+ */
+class SeedSearchCache {
+
+public:
+	SeedSearchCache(
+		AlignmentCacheIface& _cache, // local alignment cache for seed alignments
+		const BTDnaString& _seq,  // sequence of current seed
+		const BTString& _qual     // quality string for current seed
+		)
+		: qv()
+		, cache(_cache)
+		, seq(_seq)
+		, qual(_qual)
+	{}
+
+	/**
+	 * This function is called whenever we start to align a new read or
+	 * read substring.
+	 *
+	 * See AlignmentCacheIface::beginAlign for details
+	 */
+	int beginAlign() { return cache.beginAlign(seq, qual, qv);}
+
+	/**
+         * Called when is finished aligning a read (and so is finished
+         * adding associated reference strings).  Returns a copy of the
+         * final QVal object and resets the alignment state of the
+         * current-read cache.
+         *
+         * Also, if the alignment is cacheable, it commits it to the next
+         * cache up in the cache hierarchy.
+         */
+        void finishAlign(bool getLock = true) { qv = cache.finishAlign(getLock); }
+
+        /**
+         * Add an alignment to the running list of alignments being
+         * compiled for the current read in the local cache.
+         */
+        bool addOnTheFly(
+                const BTDnaString& rfseq, // reference sequence close to read seq
+                TIndexOffU topf,            // top in BWT index
+                TIndexOffU botf,            // bot in BWT index
+                TIndexOffU topb,            // top in BWT' index
+                TIndexOffU botb,            // bot in BWT' index
+                bool getLock = true)      // true -> lock is not held by caller
+        { return cache.addOnTheFly(rfseq, topf, botf, topb, botb, getLock); }
+
+	/**
+	 * Return true iff we're in the middle of aligning a sequence.
+	 */
+	bool aligning() const { return cache.aligning(); }
+
+	/**
+	 * Return the alignment cache for the current read.
+	 */
+	const AlignmentCache& current() { return cache.current();}
+
+	const AlignmentCache* currentCache() const { return cache.currentCache();}
+	size_t curNumRanges() const { return cache.curNumRanges();}
+
+	bool qvValid() const { return qv.valid();}
+
+	const QVal&          getQv() const {return qv;}
+	const BTDnaString&   getSeq() const {return seq;}
+	const BTString&      getQual() const {return qual;}
+
+protected:
+	QVal                 qv;
+	AlignmentCacheIface& cache; // local alignment cache for seed alignments
+	const BTDnaString&   seq;   // sequence of current seed
+	const BTString&      qual;  // quality string for current seed
+};
+
+/**
  * Given an index and a seeding scheme, searches for seed hits.
  */
 class SeedAligner {
@@ -1571,7 +1646,7 @@ protected:
 	 * calling reportHit().
 	 */
 	bool extendAndReportHit(
-		const BTDnaString& seq,              // sequence of current seed
+		SeedSearchCache &cache,              // local seed alignment cache
 		size_t off,                          // offset of seed currently being searched
 		bool fw,                             // orientation of seed currently being searched
 		TIndexOffU topf,                     // top in BWT
@@ -1586,7 +1661,7 @@ protected:
 	 * false if the hit could not be reported because of, e.g., cache exhaustion.
 	 */
 	bool reportHit(
-		const BTDnaString& seq,  // sequence of current seed
+		SeedSearchCache &cache,  // local seed alignment cache
 		TIndexOffU topf,         // top in BWT
 		TIndexOffU botf,         // bot in BWT
 		TIndexOffU topb,         // top in BWT'
@@ -1598,16 +1673,14 @@ protected:
 	 * Given an instantiated seed (in s_ and other fields), search
 	 */
 	bool searchSeedBi(
-		const BTDnaString& seq,  // sequence of current seed
-		const BTString& qual,    // quality string for current seed
+		SeedSearchCache &cache,         // local seed alignment cache
 		const InstantiatedSeed& seed);  // current instantiated seed
 	
 	/**
 	 * Main, recursive implementation of the seed search.
 	 */
 	bool searchSeedBi(
-		const BTDnaString& seq,  // sequence of current seed
-		const BTString& qual,    // quality string for current seed
+		SeedSearchCache &cache,  // local seed alignment cache
 		const InstantiatedSeed& seed,  // current instantiated seed
 		int step,                // depth into steps_[] array
 		int depth,               // recursion depth
@@ -1653,7 +1726,6 @@ protected:
 	const Read* read_;         // read whose seeds are currently being aligned
 	
 	EList<Edit> edits_;        // temporary place to sort edits
-	AlignmentCacheIface *ca_;  // local alignment cache for seed alignments
 	EList<uint32_t> offIdx2off_;// offset idx to read offset map, set up instantiateSeeds()
 	uint64_t bwops_;           // Burrows-Wheeler operations
 	uint64_t bwedits_;         // Burrows-Wheeler edits
