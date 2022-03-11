@@ -1571,6 +1571,7 @@ protected:
 	 * calling reportHit().
 	 */
 	bool extendAndReportHit(
+		const BTDnaString& seq,              // sequence of current seed
 		TIndexOffU topf,                     // top in BWT
 		TIndexOffU botf,                     // bot in BWT
 		TIndexOffU topb,                     // top in BWT'
@@ -1583,6 +1584,7 @@ protected:
 	 * false if the hit could not be reported because of, e.g., cache exhaustion.
 	 */
 	bool reportHit(
+		const BTDnaString& seq,  // sequence of current seed
 		TIndexOffU topf,         // top in BWT
 		TIndexOffU botf,         // bot in BWT
 		TIndexOffU topb,         // top in BWT'
@@ -1593,14 +1595,18 @@ protected:
 	/**
 	 * Given an instantiated seed (in s_ and other fields), search
 	 */
-	bool searchSeedBi();
+	bool searchSeedBi(
+		const BTDnaString& seq,  // sequence of current seed
+		const BTString& qual);    // quality string for current seed
 	
 	/**
 	 * Main, recursive implementation of the seed search.
 	 */
 	bool searchSeedBi(
-		int step,              // depth into steps_[] array
-		int depth,             // recursion depth
+		const BTDnaString& seq,  // sequence of current seed
+		const BTString& qual,    // quality string for current seed
+		int step,                // depth into steps_[] array
+		int depth,               // recursion depth
 		TIndexOffU topf,         // top in BWT
 		TIndexOffU botf,         // bot in BWT
 		TIndexOffU topb,         // top in BWT'
@@ -1642,8 +1648,6 @@ protected:
 	const Read* read_;         // read whose seeds are currently being aligned
 	
 	// The following are set just before a call to searchSeedBi()
-	const BTDnaString* seq_;   // sequence of current seed
-	const BTString* qual_;     // quality string for current seed
 	size_t off_;               // offset of seed currently being searched
 	bool fw_;                  // orientation of seed currently being searched
 	
