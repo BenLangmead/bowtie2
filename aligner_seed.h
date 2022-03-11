@@ -1573,6 +1573,7 @@ protected:
 	bool extendAndReportHit(
 		const BTDnaString& seq,              // sequence of current seed
 		size_t off,                          // offset of seed currently being searched
+		bool fw,                             // orientation of seed currently being searched
 		TIndexOffU topf,                     // top in BWT
 		TIndexOffU botf,                     // bot in BWT
 		TIndexOffU topb,                     // top in BWT'
@@ -1647,9 +1648,6 @@ protected:
 	const InstantiatedSeed* s_;// current instantiated seed
 	
 	const Read* read_;         // read whose seeds are currently being aligned
-	
-	// The following are set just before a call to searchSeedBi()
-	bool fw_;                  // orientation of seed currently being searched
 	
 	EList<Edit> edits_;        // temporary place to sort edits
 	AlignmentCacheIface *ca_;  // local alignment cache for seed alignments

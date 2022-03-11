@@ -503,7 +503,6 @@ void SeedAligner::searchAllSeeds(
 			QVal qv;
 			const BTDnaString& seq  = sr.seqs(fw)[i];  // seed sequence
 			const BTString& qual = sr.quals(fw)[i]; // seed qualities
-			fw_   = fw;               // seed orientation
 			// Tell the cache that we've started aligning, so the cache can
 			// expect a series of on-the-fly updates
 			int ret = cache.beginAlign(seq, qual, qv);
@@ -1225,6 +1224,7 @@ bool
 SeedAligner::extendAndReportHit(
 	const BTDnaString& seq,  // sequence of current seed
 	size_t off,                          // offset of seed currently being searched
+	bool fw,                             // orientation of seed currently being searched
 	TIndexOffU topf,                     // top in BWT
 	TIndexOffU botf,                     // bot in BWT
 	TIndexOffU topb,                     // top in BWT'
@@ -1240,7 +1240,7 @@ SeedAligner::extendAndReportHit(
 		const Ebwt *ebwt = ebwtFw_;
 		assert(ebwt != NULL);
 		// Extend left using forward index
-		const BTDnaString& seq = fw_ ? read_->patFw : read_->patRc;
+		const BTDnaString& seq = fw ? read_->patFw : read_->patRc;
 		// See what we get by extending 
 		TIndexOffU top = topf, bot = botf;
 		t[0] = t[1] = t[2] = t[3] = 0;
@@ -1296,7 +1296,7 @@ SeedAligner::extendAndReportHit(
 		const Ebwt *ebwt = ebwtBw_;
 		assert(ebwt != NULL);
 		// Extend right using backward index
-		const BTDnaString& seq = fw_ ? read_->patFw : read_->patRc;
+		const BTDnaString& seq = fw ? read_->patFw : read_->patRc;
 		// See what we get by extending 
 		TIndexOffU top = topb, bot = botb;
 		t[0] = t[1] = t[2] = t[3] = 0;
