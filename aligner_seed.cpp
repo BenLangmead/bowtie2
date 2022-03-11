@@ -492,7 +492,6 @@ void SeedAligner::searchAllSeeds(
 	uint64_t possearches = 0, seedsearches = 0, intrahits = 0, interhits = 0, ooms = 0;
 	// For each instantiated seed
 	for(int i = 0; i < (int)sr.numOffs(); i++) {
-		size_t off = sr.idx2off(i);
 		for(int fwi = 0; fwi < 2; fwi++) {
 			bool fw = (fwi == 0);
 			assert(sr.repOk(&cache.current()));
@@ -504,7 +503,6 @@ void SeedAligner::searchAllSeeds(
 			QVal qv;
 			const BTDnaString& seq  = sr.seqs(fw)[i];  // seed sequence
 			const BTString& qual = sr.quals(fw)[i]; // seed qualities
-			off_  = off;              // seed offset (from 5')
 			fw_   = fw;               // seed orientation
 			// Tell the cache that we've started aligning, so the cache can
 			// expect a series of on-the-fly updates
@@ -1226,6 +1224,7 @@ SeedAligner::nextLocsBi(
 bool
 SeedAligner::extendAndReportHit(
 	const BTDnaString& seq,  // sequence of current seed
+	size_t off,                          // offset of seed currently being searched
 	TIndexOffU topf,                     // top in BWT
 	TIndexOffU botf,                     // bot in BWT
 	TIndexOffU topb,                     // top in BWT'
@@ -1237,7 +1236,7 @@ SeedAligner::extendAndReportHit(
 	TIndexOffU t[4], b[4];
 	TIndexOffU tp[4], bp[4];
 	SideLocus tloc, bloc;
-	if(off_ > 0) {
+	if(off > 0) {
 		const Ebwt *ebwt = ebwtFw_;
 		assert(ebwt != NULL);
 		// Extend left using forward index
@@ -1250,7 +1249,7 @@ SeedAligner::extendAndReportHit(
 		bp[0] = bp[1] = bp[2] = bp[3] = botb;
 		SideLocus tloc, bloc;
 		INIT_LOCS(top, bot, tloc, bloc, *ebwt);
-		for(size_t ii = off_; ii > 0; ii--) {
+		for(size_t ii = off; ii > 0; ii--) {
 			size_t i = ii-1;
 			// Get char from read
 			int rdc = seq.get(i);
@@ -1292,7 +1291,7 @@ SeedAligner::extendAndReportHit(
 		}
 	}
 	size_t rdlen = read_->length();
-	size_t nright = rdlen - off_ - len;
+	size_t nright = rdlen - off - len;
 	if(nright > 0 && ebwtBw_ != NULL) {
 		const Ebwt *ebwt = ebwtBw_;
 		assert(ebwt != NULL);
@@ -1305,7 +1304,7 @@ SeedAligner::extendAndReportHit(
 		tp[0] = tp[1] = tp[2] = tp[3] = topb;
 		bp[0] = bp[1] = bp[2] = bp[3] = botb;
 		INIT_LOCS(top, bot, tloc, bloc, *ebwt);
-		for(size_t i = off_ + len; i < rdlen; i++) {
+		for(size_t i = off + len; i < rdlen; i++) {
 			// Get char from read
 			int rdc = seq.get(i);
 			// See what we get by extending 
@@ -1346,7 +1345,7 @@ SeedAligner::extendAndReportHit(
 		}
 	}
 	assert_lt(nlex, rdlen);
-	assert_leq(nlex, off_);
+	assert_leq(nlex, off);
 	assert_lt(nrex, rdlen);
 	return reportHit(seq, topf, botf, topb, botb, len, prevEdit);
 }
