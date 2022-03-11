@@ -522,9 +522,8 @@ void SeedAligner::searchAllSeeds(
 					// and qualities already installed in SeedResults
 					assert_eq(fw, iss[j].fw);
 					assert_eq(i, (int)iss[j].seedoffidx);
-					s_ = &iss[j];
-					// Do the search with respect to seq, qual and s_.
-					if(!searchSeedBi(seq, qual)) {
+					// Do the search with respect to seq, qual and seed
+					if(!searchSeedBi(seq, qual, iss[j])) {
 						// Memory exhausted during search
 						ooms++;
 						abort = true;
@@ -1095,19 +1094,21 @@ bool SeedAligner::oneMmSearch(
 bool
 SeedAligner::searchSeedBi(
 		const BTDnaString& seq,  // sequence of current seed
-		const BTString& qual     // quality string for current seed
+		const BTString& qual,     // quality string for current seed
+		const InstantiatedSeed& seed // current instantiated seed
 		) {
 	return searchSeedBi(
-		seq, qual,
+		seq, qual, seed,
 		0, 0,
 		0, 0, 0, 0,
 		SideLocus(), SideLocus(),
-		s_->cons[0], s_->cons[1], s_->cons[2], s_->overall,
+		seed.cons[0], seed.cons[1], seed.cons[2], seed.overall,
 		NULL);
 }
 
 inline void
 SeedAligner::prefetchNextLocsBi(
+	const InstantiatedSeed& seed, // current instantiated seed
         TIndexOffU topf,              // top in BWT
         TIndexOffU botf,              // bot in BWT
         TIndexOffU topb,              // top in BWT'
@@ -1115,9 +1116,9 @@ SeedAligner::prefetchNextLocsBi(
         int step                    // step to get ready for
         )
 {
-	if(step == (int)s_->steps.size()) return; // no more steps!
+	if(step == (int)seed.steps.size()) return; // no more steps!
 	// Which direction are we going in next?
-	if(s_->steps[step] > 0) {
+	if(seed.steps[step] > 0) {
 		// Left to right; use BWT'
 		if(botb - topb == 1) {
 			// Already down to 1 row; just init top locus
@@ -1146,8 +1147,9 @@ SeedAligner::prefetchNextLocsBi(
  */
 inline void
 SeedAligner::nextLocsBi(
-	SideLocus& tloc,            // top locus
-	SideLocus& bloc,            // bot locus
+	const InstantiatedSeed& seed, // current instantiated seed
+	SideLocus& tloc,              // top locus
+	SideLocus& bloc,              // bot locus
 	TIndexOffU topf,              // top in BWT
 	TIndexOffU botf,              // bot in BWT
 	TIndexOffU topb,              // top in BWT'
@@ -1163,9 +1165,9 @@ SeedAligner::nextLocsBi(
 	assert(ebwtBw_ == NULL || botb > 0);
 	assert_geq(step, 0); // next step can't be first one
 	assert(ebwtBw_ == NULL || botf-topf == botb-topb);
-	if(step == (int)s_->steps.size()) return; // no more steps!
+	if(step == (int)seed.steps.size()) return; // no more steps!
 	// Which direction are we going in next?
-	if(s_->steps[step] > 0) {
+	if(seed.steps[step] > 0) {
 		// Left to right; use BWT'
 		if(botb - topb == 1) {
 			// Already down to 1 row; just init top locus
@@ -1195,8 +1197,8 @@ SeedAligner::nextLocsBi(
 			// Inherit state from the predecessor
 			ot = *prevOt;
 		}
-		bool ltr = s_->steps[step-1] > 0;
-		int adj = abs(s_->steps[step-1])-1;
+		bool ltr = seed.steps[step-1] > 0;
+		int adj = abs(seed.steps[step-1])-1;
 		const Ebwt* ebwt = ltr ? ebwtBw_ : ebwtFw_;
 		ot.update(
 			ltr ? topb : topf,    // top
@@ -1421,6 +1423,7 @@ bool
 SeedAligner::searchSeedBi(
 	const BTDnaString& seq,  // sequence of current seed
 	const BTString& qual,    // quality string for current seed
+	const InstantiatedSeed& seed, // current instantiated seed
 	int step,             // depth into steps_[] array
 	int depth,            // recursion depth
 	TIndexOffU topf,        // top in BWT
@@ -1440,15 +1443,14 @@ SeedAligner::searchSeedBi(
 	)
 {
 	assert(s_ != NULL);
-	const InstantiatedSeed& s = *s_;
-	assert_gt(s.steps.size(), 0);
+	assert_gt(seed.steps.size(), 0);
 	assert(ebwtBw_ == NULL || ebwtBw_->eh().ftabChars() == ebwtFw_->eh().ftabChars());
 #ifndef NDEBUG
 	for(int i = 0; i < 4; i++) {
 		assert(ebwtBw_ == NULL || ebwtBw_->fchr()[i] == ebwtFw_->fchr()[i]);
 	}
 #endif
-	if(step == (int)s.steps.size()) {
+	if(step == (int)seed.steps.size()) {
 		// Finished aligning seed
 		assert(c0.acceptable());
 		assert(c1.acceptable());
@@ -1471,12 +1473,12 @@ SeedAligner::searchSeedBi(
 		assert(prevEdit == NULL);
 		assert(!tloc.valid());
 		assert(!bloc.valid());
-		off = s.steps[0];
+		off = seed.steps[0];
 		bool ltr = off > 0;
 		off = abs(off)-1;
 		// Check whether/how far we can jump using ftab or fchr
 		int ftabLen = ebwtFw_->eh().ftabChars();
-		if(ftabLen > 1 && ftabLen <= s.maxjump) {
+		if(ftabLen > 1 && ftabLen <= seed.maxjump) {
 			if(!ltr) {
 				assert_geq(off+1, ftabLen-1);
 				off = off - ftabLen + 1;
@@ -1498,7 +1500,7 @@ SeedAligner::searchSeedBi(
 			if(botf - topf == 0) return true;
 			#endif
 			step += ftabLen;
-		} else if(s.maxjump > 0) {
+		} else if(seed.maxjump > 0) {
 			// Use fchr
 			int c = seq[off];
 			assert_range(0, 3, c);
@@ -1507,11 +1509,11 @@ SeedAligner::searchSeedBi(
 			if(botf - topf == 0) return true;
 			step++;
 		} else {
-			assert_eq(0, s.maxjump);
+			assert_eq(0, seed.maxjump);
 			topf = topb = 0;
 			botf = botb = ebwtFw_->fchr()[4];
 		}
-		if(step == (int)s.steps.size()) {
+		if(step == (int)seed.steps.size()) {
 			// Finished aligning seed
 			assert(c0.acceptable());
 			assert(c1.acceptable());
@@ -1521,7 +1523,7 @@ SeedAligner::searchSeedBi(
 			}
 			return true;
 		}
-		nextLocsBi(tloc, bloc, topf, botf, topb, botb, step);
+		nextLocsBi(seed, tloc, bloc, topf, botf, topb, botb, step);
 		assert(tloc.valid());
 	} else assert(prevEdit != NULL);
 	assert(tloc.valid());
@@ -1531,13 +1533,13 @@ SeedAligner::searchSeedBi(
 	TIndexOffU t[4], b[4]; // dest BW ranges
 	Constraint* zones[3] = { &c0, &c1, &c2 };
 	ASSERT_ONLY(TIndexOffU lasttot = botf - topf);
-	for(int i = step; i < (int)s.steps.size(); i++) {
+	for(int i = step; i < (int)seed.steps.size(); i++) {
 		assert_gt(botf, topf);
 		assert(botf - topf == 1 ||  bloc.valid());
 		assert(botf - topf > 1  || !bloc.valid());
 		assert(ebwtBw_ == NULL || botf-topf == botb-topb);
 		assert(tloc.valid());
-		off = s.steps[i];
+		off = seed.steps[i];
 		bool ltr = off > 0;
 		const Ebwt* ebwt = ltr ? ebwtBw_ : ebwtFw_;
 		assert(ebwt != NULL);
@@ -1567,13 +1569,13 @@ SeedAligner::searchSeedBi(
 		int c = seq[off];  assert_range(0, 4, c);
 		// not 100% sure we need it, but redundant prefetches are not dangerous
 		// and helps in the average case
-		prefetchNextLocsBi(tf[c], bf[c], tb[c], bb[c], i+1);
+		prefetchNextLocsBi(seed, tf[c], bf[c], tb[c], bb[c], i+1);
 
 		//
-		bool leaveZone = s.zones[i].first < 0;
+		bool leaveZone = seed.zones[i].first < 0;
 		//bool leaveZoneIns = zones_[i].second < 0;
-		Constraint& cons    = *zones[abs(s.zones[i].first)];
-		//Constraint& insCons = *zones[abs(s.zones[i].second)];
+		Constraint& cons    = *zones[abs(seed.zones[i].first)];
+		//Constraint& insCons = *zones[abs(seed.zones[i].second)];
 		int q = qual[off];
 		// Is it legal for us to advance on characters other than 'c'?
 		if(!(cons.mustMatch() && !overall.mustMatch()) || c == 4) {
@@ -1601,9 +1603,9 @@ SeedAligner::searchSeedBi(
 						for(int j = 0; j < 4; j++) {
 							if(j == c || b[j] == t[j]) continue;
 							// Potential mismatch
-							nextLocsBi(tloc, bloc, tf[j], bf[j], tb[j], bb[j], i+1);
+							nextLocsBi(seed, tloc, bloc, tf[j], bf[j], tb[j], bb[j], i+1);
 							int loff = off;
-							if(!ltr) loff = (int)(s.steps.size() - loff - 1);
+							if(!ltr) loff = (int)(seed.steps.size() - loff - 1);
 							assert(prevEdit == NULL || prevEdit->next == NULL);
 							Edit edit(off, j, c, EDIT_TYPE_MM, false);
 							DoublyLinkedList<Edit> editl;
@@ -1615,7 +1617,7 @@ SeedAligner::searchSeedBi(
 							assert(editl.next == NULL);
 							bwedits_++;
 							if(!searchSeedBi(
-								seq, qual,
+								seq, qual, seed,
 								i+1,     // depth into steps_[] array
 								depth+1, // recursion depth
 								tf[j],   // top in BWT
@@ -1686,7 +1688,7 @@ SeedAligner::searchSeedBi(
 		}
 		topf = tf[c]; botf = bf[c];
 		topb = tb[c]; botb = bb[c];
-		if(i+1 == (int)s.steps.size()) {
+		if(i+1 == (int)seed.steps.size()) {
 			// Finished aligning seed
 			assert(c0.acceptable());
 			assert(c1.acceptable());
@@ -1696,7 +1698,7 @@ SeedAligner::searchSeedBi(
 			}
 			return true;
 		}
-		nextLocsBi(tloc, bloc, tf[c], bf[c], tb[c], bb[c], i+1);
+		nextLocsBi(seed, tloc, bloc, tf[c], bf[c], tb[c], bb[c], i+1);
 	}
 	return true;
 }

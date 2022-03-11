@@ -1599,7 +1599,8 @@ protected:
 	 */
 	bool searchSeedBi(
 		const BTDnaString& seq,  // sequence of current seed
-		const BTString& qual);    // quality string for current seed
+		const BTString& qual,    // quality string for current seed
+		const InstantiatedSeed& seed);  // current instantiated seed
 	
 	/**
 	 * Main, recursive implementation of the seed search.
@@ -1607,6 +1608,7 @@ protected:
 	bool searchSeedBi(
 		const BTDnaString& seq,  // sequence of current seed
 		const BTString& qual,    // quality string for current seed
+		const InstantiatedSeed& seed,  // current instantiated seed
 		int step,                // depth into steps_[] array
 		int depth,               // recursion depth
 		TIndexOffU topf,         // top in BWT
@@ -1625,6 +1627,7 @@ protected:
 	 * Get tloc and bloc ready for the next step.
 	 */
 	inline void nextLocsBi(
+		const InstantiatedSeed& seed, // current instantiated seed
 		SideLocus& tloc,            // top locus
 		SideLocus& bloc,            // bot locus
 		TIndexOffU topf,              // top in BWT
@@ -1634,6 +1637,7 @@ protected:
 		int step);                  // step to get ready for
 	
 	inline void prefetchNextLocsBi(
+		const InstantiatedSeed& seed, // current instantiated seed
 		TIndexOffU topf,              // top in BWT
 		TIndexOffU botf,              // bot in BWT
 		TIndexOffU topb,              // top in BWT'
@@ -1645,7 +1649,6 @@ protected:
 	const Ebwt* ebwtFw_;       // forward index (BWT)
 	const Ebwt* ebwtBw_;       // backward/mirror index (BWT')
 	const Scoring* sc_;        // scoring scheme
-	const InstantiatedSeed* s_;// current instantiated seed
 	
 	const Read* read_;         // read whose seeds are currently being aligned
 	
