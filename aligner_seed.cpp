@@ -490,18 +490,26 @@ void SeedAligner::searchAllSeeds(
 	bwops_ = bwedits_ = 0;
 	uint64_t possearches = 0, seedsearches = 0, intrahits = 0, interhits = 0, ooms = 0;
 
+	// TODO: Define is somewhere else
+	const int ibatch_size = 8;
+
 	// Use MultiCache to validate functionality
 	// TODO: decouple creation and use
 	SeedSearchMultiCache mcache(cache);
 	std::vector<SeedSearchInput> paramVec;
 
-	mcache.reserve(sr.numOffs()*2);
-	paramVec.reserve(sr.numOffs()*2*16); // assume no more than 16 iss per cache, on average
+	mcache.reserve(ibatch_size);
+	paramVec.reserve(ibatch_size*16); // assume no more than 16 iss per cache, on average
 
 	for(int fwi = 0; fwi < 2; fwi++) {
-		bool fw = (fwi == 0);
-		// For each instantiated seed
-		for(int i = 0; i < (int)sr.numOffs(); i++) {
+		const bool fw = (fwi == 0);
+                int i =0;
+		// For each instantiated seed, but batched
+		while (i < (int)sr.numOffs()) {
+		   const int ibatch_max = std::min(i+ibatch_size,(int)sr.numOffs());
+		   mcache.clear();
+		   paramVec.clear();
+		   for(; i < ibatch_max; i++) {
 			assert(sr.repOk(&cache.current()));
 			EList<InstantiatedSeed>& iss = sr.instantiatedSeeds(fw, i);
 			if(iss.empty()) {
@@ -562,8 +570,9 @@ void SeedAligner::searchAllSeeds(
 					mcache.getSeedOffIdx(mnr),     // seed index (from 5' end)
 					mcache.getFw(mnr));   // whether seed is from forward read
 			}
-		}
-	}
+		   } // internal i (batch) loop
+		} // external i while
+	} // for fwi
 	prm.nSeedRanges = sr.numRanges();
 	prm.nSeedElts = sr.numElts();
 	prm.nSeedRangesFw = sr.numRangesFw();

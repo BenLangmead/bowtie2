@@ -1555,9 +1555,8 @@ public:
 
 	// Same semantics as std::vector
 	void reserve(size_t new_cap) { cacheVec.reserve(new_cap); }
-
 	size_t size() const {return cacheVec.size(); }
-
+	void clear() { cacheVec.clear(); }
 	void pop_back() { cacheVec.pop_back(); }
 
 	// Access one of the search caches
