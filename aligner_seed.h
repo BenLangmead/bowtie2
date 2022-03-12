@@ -1470,7 +1470,10 @@ public:
 		, cache(_cache)
 		, seq(_seq)
 		, qual(_qual)
-	{}
+		, cachedEls()
+	{
+		cachedEls.reserve(16); // do not expect I will need more
+	}
 
 	/**
 	 * This function is called whenever we start to align a new read or
@@ -1479,6 +1482,23 @@ public:
 	 * See AlignmentCacheIface::beginAlign for details
 	 */
 	int beginAlign() { return cache.beginAlign(seq, qual, qv);}
+
+        /**
+         * Add an alignment to the running list of alignments being
+         * compiled for the current read in the local cache.
+         */
+	bool addAllCached(bool getLock = true)
+	{
+		const size_t nEls = cachedEls.size();
+		bool success = true;
+		for(size_t i=0; i<nEls; i++) {
+			AddEl &el = cachedEls[i];
+			success &= cache.addOnTheFly(el.sak, el.topf, el.botf, el.topb, el.botb, getLock);
+		}
+		cachedEls.clear();
+		return success;
+	}
+
 
 	/**
          * Called when is finished aligning a read (and so is finished
@@ -1493,16 +1513,17 @@ public:
 
         /**
          * Add an alignment to the running list of alignments being
-         * compiled for the current read in the local cache.
+         * compiled for the current read in the local memory buffer.
          */
-        bool addOnTheFly(
+        void addOnTheFly(
                 const BTDnaString& rfseq, // reference sequence close to read seq
                 TIndexOffU topf,            // top in BWT index
                 TIndexOffU botf,            // bot in BWT index
                 TIndexOffU topb,            // top in BWT' index
-                TIndexOffU botb,            // bot in BWT' index
-                bool getLock = true)      // true -> lock is not held by caller
-        { return cache.addOnTheFly(rfseq, topf, botf, topb, botb, getLock); }
+                TIndexOffU botb)            // bot in BWT' index
+	{
+		cachedEls.emplace_back(rfseq, topf, botf, topb, botb);
+	}
 
 	/**
 	 * Return true iff we're in the middle of aligning a sequence.
@@ -1524,10 +1545,34 @@ public:
 	const BTString&      getQual() const {return qual;}
 
 protected:
+	class AddEl {
+	public:
+        	AddEl(
+                	const BTDnaString& rfseq, // reference sequence close to read seq
+                	TIndexOffU _topf,            // top in BWT index
+                	TIndexOffU _botf,            // bot in BWT index
+                	TIndexOffU _topb,            // top in BWT' index
+                	TIndexOffU _botb             // bot in BWT' index
+			) :
+			ASSERT_ONLY(tm(), )
+			sak(rfseq ASSERT_ONLY(, tmp)),
+			topf(_topf), botf(_botf), topb(_topb), botb(_botb) 
+		{}
+
+                ASSERT_ONLY(BTDnaString tmp;)
+                SAKey      sak;
+                TIndexOffU topf;            // top in BWT index
+                TIndexOffU botf;            // bot in BWT index
+                TIndexOffU topb;            // top in BWT' index
+                TIndexOffU botb;            // bot in BWT' index
+	};
+
 	QVal                 qv;
 	AlignmentCacheIface& cache; // local alignment cache for seed alignments
 	const BTDnaString&   seq;   // sequence of current seed
 	const BTString&      qual;  // quality string for current seed
+
+	std::vector<AddEl>    cachedEls; // tmp storage of values that will go in the cache
 };
 
 /**

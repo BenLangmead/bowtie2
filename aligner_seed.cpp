@@ -550,6 +550,12 @@ void SeedAligner::searchAllSeeds(
 						abort = true;
 						break;
 					}
+					if(!srcache.addAllCached()){
+						// Memory exhausted during copy
+						ooms++;
+						abort = true;
+						break;
+					}
 					seedsearches++;
 					assert(srcache.aligning());
 				}
@@ -1401,16 +1407,15 @@ SeedAligner::reportHit(
 	} else {
 		rf = seq;
 	}
+	// Note: Disabled, as we now use memory cache
 	// Sanity check: shouldn't add the same hit twice.  If this
 	// happens, it may be because our zone Constraints are not set up
 	// properly and erroneously return true from acceptable() when they
 	// should return false in some cases.
-	assert_eq(hits_.size(), cache.curNumRanges());
-	assert(hits_.insert(rf));
-	if(!cache.addOnTheFly(rf, topf, botf, topb, botb)) {
-		return false;
-	}
-	assert_eq(hits_.size(), cache.curNumRanges());
+	//assert_eq(hits_.size(), cache.curNumRanges());
+	//assert(hits_.insert(rf));
+	cache.addOnTheFly(rf, topf, botf, topb, botb);
+	//assert_eq(hits_.size(), cache.curNumRanges());
 #ifndef NDEBUG
 	// Sanity check that the topf/botf and topb/botb ranges really
 	// correspond to the reference sequence aligned to

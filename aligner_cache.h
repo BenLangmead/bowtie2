@@ -883,7 +883,7 @@ public:
 	 * compiled for the current read in the local cache.
 	 */
 	bool addOnTheFly(
-		const BTDnaString& rfseq, // reference sequence close to read seq
+		const SAKey& sak, // the key holding the reference substring
 		TIndexOffU topf,            // top in BWT index
 		TIndexOffU botf,            // bot in BWT index
 		TIndexOffU topb,            // top in BWT' index
@@ -893,8 +893,6 @@ public:
 
 		assert(aligning());
 		assert(repOk());
-		ASSERT_ONLY(BTDnaString tmp);
-		SAKey sak(rfseq ASSERT_ONLY(, tmp));
 		//assert(sak.cacheable());
 		if(current_->addOnTheFly((*qv_), sak, topf, botf, topb, botb, getLock)) {
 			rangen_++;
@@ -902,6 +900,20 @@ public:
 			return true;
 		}
 		return false;
+	}
+
+	bool addOnTheFly(
+		const BTDnaString& rfseq, // reference sequence close to read seq
+		TIndexOffU topf,            // top in BWT index
+		TIndexOffU botf,            // bot in BWT index
+		TIndexOffU topb,            // top in BWT' index
+		TIndexOffU botb,            // bot in BWT' index
+		bool getLock = true)      // true -> lock is not held by caller
+	{
+
+		ASSERT_ONLY(BTDnaString tmp);
+		SAKey sak(rfseq ASSERT_ONLY(, tmp));
+		return addOnTheFly(sak, topf, botf, topb, botb, getLock);
 	}
 
 	/**
