@@ -493,8 +493,6 @@ void SeedAligner::searchAllSeeds(
 	// TODO: Define is somewhere else
 	const int ibatch_size = 8;
 
-	// Use MultiCache to validate functionality
-	// TODO: decouple creation and use
 	SeedSearchMultiCache mcache(cache);
 	std::vector<SeedSearchInput> paramVec;
 
@@ -509,6 +507,7 @@ void SeedAligner::searchAllSeeds(
 		   const int ibatch_max = std::min(i+ibatch_size,(int)sr.numOffs());
 		   mcache.clear();
 		   paramVec.clear();
+		   // start aligning and find list of seeds to search
 		   for(; i < ibatch_max; i++) {
 			assert(sr.repOk(&cache.current()));
 			EList<InstantiatedSeed>& iss = sr.instantiatedSeeds(fw, i);
@@ -521,20 +520,7 @@ void SeedAligner::searchAllSeeds(
 			mcache.emplace_back(seq, qual, i, fw);
 			const size_t mnr = mcache.size()-1;
 			SeedSearchCache &srcache = mcache[mnr];
-			// Tell the cache that we've started aligning, so the cache can
-			// expect a series of on-the-fly updates
-			int ret = srcache.beginAlign();
-			ASSERT_ONLY(hits_.clear());
-			if(ret == -1) {
-				// Out of memory when we tried to add key to map
-				ooms++;
-				mcache.pop_back();
-				continue;
-			}
-			bool abort = false;
 			{
-				// Not already in cache
-				assert(srcache.aligning());
 				possearches++;
 				for(size_t j = 0; j < iss.size(); j++) {
 					// Set seq and qual appropriately, using the seed sequences
@@ -542,23 +528,37 @@ void SeedAligner::searchAllSeeds(
 					assert_eq(fw, iss[j].fw);
 					assert_eq(i, (int)iss[j].seedoffidx);
 					paramVec.emplace_back(srcache, iss[j]);
-					SeedSearchInput &srinput = paramVec.back();
-					// Do the search with respect to seq, qual and seed
-					searchSeedBi(srinput);
-					if(!srcache.addAllCached()){
-						// Memory exhausted during copy
-						ooms++;
-						abort = true;
-						break;
-					}
 					seedsearches++;
-					assert(srcache.aligning());
-				}
-				if(!abort) {
-					srcache.finishAlign();
 				}
 			}
-			assert(abort || !srcache.aligning());
+		   } // internal i (batch) loop
+
+		   // do the searches
+		   for (size_t pnr=0; pnr<paramVec.size(); pnr++) {
+			SeedSearchInput &srinput = paramVec[pnr];
+			// Do the search with respect to srinput
+			searchSeedBi(srinput);
+		   } // pnr loop
+
+		   // finish aligning and add to SeedResult
+		   for (size_t mnr=0; mnr<mcache.size(); mnr++) {
+			SeedSearchCache &srcache = mcache[mnr];
+			// Tell the cache that we've started aligning, so the cache can
+			// expect a series of on-the-fly updates
+			int ret = srcache.beginAlign();
+			if(ret == -1) {
+				// Out of memory when we tried to add key to map
+				ooms++;
+				continue;
+			}
+			assert(srcache.aligning());
+			if(!srcache.addAllCached()){
+				// Memory exhausted during copy
+				ooms++;
+				continue;
+			}
+			srcache.finishAlign();
+			assert(!srcache.aligning());
 			if(srcache.qvValid()) {
 				sr.add(
 					srcache.getQv(),   // range of ranges in cache
@@ -566,7 +566,7 @@ void SeedAligner::searchAllSeeds(
 					mcache.getSeedOffIdx(mnr),     // seed index (from 5' end)
 					mcache.getFw(mnr));   // whether seed is from forward read
 			}
-		   } // internal i (batch) loop
+		   } // mnr loop
 		} // external i while
 	} // for fwi
 	prm.nSeedRanges = sr.numRanges();
