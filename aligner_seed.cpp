@@ -498,10 +498,10 @@ void SeedAligner::searchAllSeeds(
 	mcache.reserve(sr.numOffs()*2);
 	paramVec.reserve(sr.numOffs()*2*16); // assume no more than 16 iss per cache, on average
 
-	// For each instantiated seed
-	for(int i = 0; i < (int)sr.numOffs(); i++) {
-		for(int fwi = 0; fwi < 2; fwi++) {
-			bool fw = (fwi == 0);
+	for(int fwi = 0; fwi < 2; fwi++) {
+		bool fw = (fwi == 0);
+		// For each instantiated seed
+		for(int i = 0; i < (int)sr.numOffs(); i++) {
 			assert(sr.repOk(&cache.current()));
 			EList<InstantiatedSeed>& iss = sr.instantiatedSeeds(fw, i);
 			if(iss.empty()) {
