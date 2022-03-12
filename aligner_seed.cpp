@@ -532,7 +532,7 @@ void SeedAligner::searchAllSeeds(
 				continue;
 			}
 			bool abort = false;
-			if(ret == 0) {
+			{
 				// Not already in cache
 				assert(srcache.aligning());
 				possearches++;
@@ -557,11 +557,6 @@ void SeedAligner::searchAllSeeds(
 				if(!abort) {
 					srcache.finishAlign();
 				}
-			} else {
-				// Already in cache
-				assert_eq(1, ret);
-				assert(srcache.qvValid());
-				intrahits++;
 			}
 			assert(abort || !srcache.aligning());
 			if(srcache.qvValid()) {

@@ -771,8 +771,6 @@ public:
 	 * Returns:
 	 *  -1 if out of memory
 	 *  0 if key was found in cache
-	 *  1 if key was not found in cache (and there's enough memory to
-	 *    add a new key)
 	 */
 	int beginAlign(
 		const BTDnaString& seq,
@@ -782,13 +780,6 @@ public:
 	{
 		assert(repOk());
 		qk_.init(seq ASSERT_ONLY(, tmpdnastr_));
-		//if(qk_.cacheable() && (qv_ = current_->query(qk_, getLock)) != NULL) {
-		//	// qv_ holds the answer
-		//	assert(qv_->valid());
-		//	qv = *qv_;
-		//	resetRead();
-		//	return 1; // found in cache
-		//} else
 		if(qk_.cacheable()) {
 			// Make a QNode for this key and possibly add the QNode to the
 			// Red-Black map; but if 'seq' isn't cacheable, just create the
