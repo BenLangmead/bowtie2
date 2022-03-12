@@ -684,6 +684,24 @@ public:
 		assert(current_ != NULL);
 	}
 
+	/**
+         * The new object will share the cache pointers
+	 */
+	AlignmentCacheIface(AlignmentCacheIface& other) :
+		qk_(),
+		qv_(NULL),
+		cacheable_(false),
+		rangen_(0),
+		eltsn_(0),
+		current_(other.current_),
+		local_(other.local_),
+		shared_(other.shared_)
+	{
+		assert(current_ != NULL);
+	}
+
+	AlignmentCacheIface(AlignmentCacheIface&& other)  = default;
+
 #if 0
 	/**
 	 * Query the relevant set of caches, looking for a QVal to go with

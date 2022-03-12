@@ -23,6 +23,7 @@
 #include <iostream>
 #include <utility>
 #include <limits>
+#include <vector>
 #include "qual.h"
 #include "ds.h"
 #include "sstring.h"
@@ -1528,6 +1529,49 @@ protected:
 	const BTDnaString&   seq;   // sequence of current seed
 	const BTString&      qual;  // quality string for current seed
 };
+
+/**
+ * Wrap the search cache with all the relevant objects
+ */
+class SeedSearchMultiCache {
+
+public:
+	SeedSearchMultiCache(
+		AlignmentCacheIface& cache
+		) 
+		: masterCache(cache)
+	{}
+
+	void emplace_back( 
+		const BTDnaString& seq,  // sequence of current seed
+		const BTString& qual     // quality string for current seed
+		)
+	{
+		cacheVec.emplace_back(masterCache); // makes a new object, sharing the buffers
+		// emplace_back does not return reference until c++17
+		AlignmentCacheIface& cacheEl = cacheVec.back();
+		srcacheVec.emplace_back(cacheEl, seq, qual);
+	}
+
+	// Same semantics as std::vector
+	void reserve(size_t new_cap) { 
+		cacheVec.reserve(new_cap); 
+		srcacheVec.reserve(new_cap);
+	}
+
+	size_t size() const {return srcacheVec.size(); }
+
+	// Access one of the search caches
+	const SeedSearchCache& operator[](size_t idx) const { return srcacheVec[idx]; }
+	SeedSearchCache& operator[](size_t idx) { return srcacheVec[idx]; }
+
+protected:
+	AlignmentCacheIface& masterCache;
+
+	std::vector<AlignmentCacheIface> cacheVec;  // cache object vector
+	std::vector<SeedSearchCache>   srcacheVec;  // search wrapper vector, maps to element above
+};
+
 
 /**
  * Given an index and a seeding scheme, searches for seed hits.

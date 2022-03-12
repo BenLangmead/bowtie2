@@ -489,6 +489,12 @@ void SeedAligner::searchAllSeeds(
 	read_ = &read;
 	bwops_ = bwedits_ = 0;
 	uint64_t possearches = 0, seedsearches = 0, intrahits = 0, interhits = 0, ooms = 0;
+
+	// Use MultiCache to validate functionality
+	// TODO: decouple creation and use
+	SeedSearchMultiCache mcache(cache);
+	mcache.reserve(sr.numOffs()*2);
+
 	// For each instantiated seed
 	for(int i = 0; i < (int)sr.numOffs(); i++) {
 		for(int fwi = 0; fwi < 2; fwi++) {
@@ -501,7 +507,8 @@ void SeedAligner::searchAllSeeds(
 			}
 			const BTDnaString& seq  = sr.seqs(fw)[i];  // seed sequence
 			const BTString& qual = sr.quals(fw)[i]; // seed qualities
-			SeedSearchCache srcache(cache, seq, qual);
+			mcache.emplace_back(seq,qual);
+			SeedSearchCache &srcache = mcache[mcache.size()-1];
 			// Tell the cache that we've started aligning, so the cache can
 			// expect a series of on-the-fly updates
 			int ret = srcache.beginAlign();
