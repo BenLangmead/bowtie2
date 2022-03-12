@@ -1551,6 +1551,7 @@ public:
 		// emplace_back does not return reference until c++17
 		AlignmentCacheIface& cacheEl = cacheVec.back();
 		srcacheVec.emplace_back(cacheEl, seq, qual);
+		// TODO: handle eventual exception
 	}
 
 	// Same semantics as std::vector
@@ -1561,6 +1562,11 @@ public:
 
 	size_t size() const {return srcacheVec.size(); }
 
+	void pop_back() {
+		srcacheVec.pop_back();
+		cacheVec.pop_back();
+	}
+
 	// Access one of the search caches
 	const SeedSearchCache& operator[](size_t idx) const { return srcacheVec[idx]; }
 	SeedSearchCache& operator[](size_t idx) { return srcacheVec[idx]; }
@@ -1570,6 +1576,17 @@ protected:
 
 	std::vector<AlignmentCacheIface> cacheVec;  // cache object vector
 	std::vector<SeedSearchCache>   srcacheVec;  // search wrapper vector, maps to element above
+};
+
+class SeedSearchInput {
+public:
+	SeedSearchInput(
+		SeedSearchCache &_cache,         // local seed alignment cache
+		const InstantiatedSeed& _seed    // current instantiated seed
+	) : cache(_cache), seed(_seed) {}
+
+	SeedSearchCache &cache;        // local seed alignment cache
+	const InstantiatedSeed& seed;  // current instantiated seed
 };
 
 
@@ -1716,16 +1733,13 @@ protected:
 	/**
 	 * Given an instantiated seed (in s_ and other fields), search
 	 */
-	bool searchSeedBi(
-		SeedSearchCache &cache,         // local seed alignment cache
-		const InstantiatedSeed& seed);  // current instantiated seed
+	bool searchSeedBi(SeedSearchInput &params);
 	
 	/**
 	 * Main, recursive implementation of the seed search.
 	 */
 	bool searchSeedBi(
-		SeedSearchCache &cache,  // local seed alignment cache
-		const InstantiatedSeed& seed,  // current instantiated seed
+		SeedSearchInput &params,
 		int step,                // depth into steps_[] array
 		int depth,               // recursion depth
 		TIndexOffU topf,         // top in BWT

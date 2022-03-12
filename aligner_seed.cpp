@@ -493,7 +493,10 @@ void SeedAligner::searchAllSeeds(
 	// Use MultiCache to validate functionality
 	// TODO: decouple creation and use
 	SeedSearchMultiCache mcache(cache);
+	std::vector<SeedSearchInput> paramVec;
+
 	mcache.reserve(sr.numOffs()*2);
+	paramVec.reserve(sr.numOffs()*2*16); // assume no more than 16 iss per cache, on average
 
 	// For each instantiated seed
 	for(int i = 0; i < (int)sr.numOffs(); i++) {
@@ -516,6 +519,7 @@ void SeedAligner::searchAllSeeds(
 			if(ret == -1) {
 				// Out of memory when we tried to add key to map
 				ooms++;
+				mcache.pop_back();
 				continue;
 			}
 			bool abort = false;
@@ -528,8 +532,10 @@ void SeedAligner::searchAllSeeds(
 					// and qualities already installed in SeedResults
 					assert_eq(fw, iss[j].fw);
 					assert_eq(i, (int)iss[j].seedoffidx);
+					paramVec.emplace_back(srcache, iss[j]);
+					SeedSearchInput &srinput = paramVec.back();
 					// Do the search with respect to seq, qual and seed
-					if(!searchSeedBi(srcache, iss[j])) {
+					if(!searchSeedBi(srinput)) {
 						// Memory exhausted during search
 						ooms++;
 						abort = true;
@@ -1098,12 +1104,10 @@ bool SeedAligner::oneMmSearch(
  * Wrapper for initial invocation of searchSeed.
  */
 bool
-SeedAligner::searchSeedBi(
-		SeedSearchCache &cache,  // local seed alignment cache
-		const InstantiatedSeed& seed // current instantiated seed
-		) {
+SeedAligner::searchSeedBi(SeedSearchInput &params) {
+	const InstantiatedSeed& seed = params.seed;
 	return searchSeedBi(
-		cache, seed,
+		params,
 		0, 0,
 		0, 0, 0, 0,
 		SideLocus(), SideLocus(),
@@ -1428,8 +1432,7 @@ SeedAligner::reportHit(
  */
 bool
 SeedAligner::searchSeedBi(
-	SeedSearchCache &cache,  // local seed alignment cache
-	const InstantiatedSeed& seed, // current instantiated seed
+	SeedSearchInput &params,
 	int step,             // depth into steps_[] array
 	int depth,            // recursion depth
 	TIndexOffU topf,        // top in BWT
@@ -1448,6 +1451,8 @@ SeedAligner::searchSeedBi(
 #endif
 	)
 {
+	SeedSearchCache &cache = params.cache;
+	const InstantiatedSeed& seed = params.seed;
 	const BTDnaString& seq = cache.getSeq();
 	const BTString& qual = cache.getQual();
 
@@ -1626,7 +1631,7 @@ SeedAligner::searchSeedBi(
 							assert(editl.next == NULL);
 							bwedits_++;
 							if(!searchSeedBi(
-								cache, seed,
+								params,
 								i+1,     // depth into steps_[] array
 								depth+1, // recursion depth
 								tf[j],   // top in BWT
