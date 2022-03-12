@@ -1766,7 +1766,7 @@ protected:
 	 * we're done, which actually adds the hit to the cache.  Returns result from
 	 * calling reportHit().
 	 */
-	bool extendAndReportHit(
+	void extendAndReportHit(
 		SeedSearchCache &cache,              // local seed alignment cache
 		size_t off,                          // offset of seed currently being searched
 		bool fw,                             // orientation of seed currently being searched
@@ -1778,10 +1778,9 @@ protected:
 		DoublyLinkedList<Edit> *prevEdit); // previous edit
 
 	/**
-	 * Report a seed hit found by searchSeedBi() by adding it to the cache.  Return
-	 * false if the hit could not be reported because of, e.g., cache exhaustion.
+	 * Report a seed hit found by searchSeedBi() by adding it to the cache.
 	 */
-	bool reportHit(
+	void reportHit(
 		SeedSearchCache &cache,  // local seed alignment cache
 		TIndexOffU topf,         // top in BWT
 		TIndexOffU botf,         // bot in BWT
@@ -1793,12 +1792,12 @@ protected:
 	/**
 	 * Given an instantiated seed (in s_ and other fields), search
 	 */
-	bool searchSeedBi(SeedSearchInput &params);
+	void searchSeedBi(SeedSearchInput &params);
 	
 	/**
 	 * Main, recursive implementation of the seed search.
 	 */
-	bool searchSeedBi(
+	void searchSeedBi(
 		SeedSearchInput &params,
 		int step,                // depth into steps_[] array
 		int depth,               // recursion depth

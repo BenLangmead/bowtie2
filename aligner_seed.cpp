@@ -544,12 +544,7 @@ void SeedAligner::searchAllSeeds(
 					paramVec.emplace_back(srcache, iss[j]);
 					SeedSearchInput &srinput = paramVec.back();
 					// Do the search with respect to seq, qual and seed
-					if(!searchSeedBi(srinput)) {
-						// Memory exhausted during search
-						ooms++;
-						abort = true;
-						break;
-					}
+					searchSeedBi(srinput);
 					if(!srcache.addAllCached()){
 						// Memory exhausted during copy
 						ooms++;
@@ -1119,10 +1114,10 @@ bool SeedAligner::oneMmSearch(
 /**
  * Wrapper for initial invocation of searchSeed.
  */
-bool
+void
 SeedAligner::searchSeedBi(SeedSearchInput &params) {
 	const InstantiatedSeed& seed = params.seed;
-	return searchSeedBi(
+	searchSeedBi(
 		params,
 		0, 0,
 		0, 0, 0, 0,
@@ -1247,7 +1242,7 @@ SeedAligner::nextLocsBi(
  * we're done, which actually adds the hit to the cache.  Returns result from
  * calling reportHit().
  */
-bool
+void
 SeedAligner::extendAndReportHit(
 	SeedSearchCache &cache,              // local seed alignment cache
 	size_t off,                          // offset of seed currently being searched
@@ -1374,14 +1369,14 @@ SeedAligner::extendAndReportHit(
 	assert_lt(nlex, rdlen);
 	assert_leq(nlex, off);
 	assert_lt(nrex, rdlen);
-	return reportHit(cache, topf, botf, topb, botb, len, prevEdit);
+	reportHit(cache, topf, botf, topb, botb, len, prevEdit);
 }
 
 /**
  * Report a seed hit found by searchSeedBi() by adding it to the cache.  Return
  * false if the hit could not be reported because of, e.g., cache exhaustion.
  */
-bool
+void
 SeedAligner::reportHit(
 	SeedSearchCache &cache,              // local seed alignment cache
 	TIndexOffU topf,                     // top in BWT
@@ -1435,7 +1430,7 @@ SeedAligner::reportHit(
 		}
 	}
 #endif
-	return true;
+	return;
 }
 
 /**
@@ -1445,7 +1440,7 @@ SeedAligner::reportHit(
  * 1. Edits
  * 2. Bidirectional BWT range(s) on either end
  */
-bool
+void
 SeedAligner::searchSeedBi(
 	SeedSearchInput &params,
 	int step,             // depth into steps_[] array
@@ -1484,10 +1479,8 @@ SeedAligner::searchSeedBi(
 		assert(c0.acceptable());
 		assert(c1.acceptable());
 		assert(c2.acceptable());
-		if(!reportHit(cache, topf, botf, topb, botb, seq.length(), prevEdit)) {
-			return false; // Memory exhausted
-		}
-		return true;
+		reportHit(cache, topf, botf, topb, botb, seq.length(), prevEdit);
+		return;
 	}
 #ifndef NDEBUG
 	if(depth > 0) {
@@ -1514,7 +1507,7 @@ SeedAligner::searchSeedBi(
 			}
 			ebwtFw_->ftabLoHi(seq, off, false, topf, botf);
 			#ifdef NDEBUG
-			if(botf - topf == 0) return true;
+			if(botf - topf == 0) return;
 			#endif
 			#ifdef NDEBUG
 			if(ebwtBw_ != NULL) {
@@ -1526,7 +1519,7 @@ SeedAligner::searchSeedBi(
 				ebwtBw_->ftabLoHi(seq, off, false, topb, botb);
 				assert_eq(botf-topf, botb-topb);
 			}
-			if(botf - topf == 0) return true;
+			if(botf - topf == 0) return;
 			#endif
 			step += ftabLen;
 		} else if(seed.maxjump > 0) {
@@ -1535,7 +1528,7 @@ SeedAligner::searchSeedBi(
 			assert_range(0, 3, c);
 			topf = topb = ebwtFw_->fchr()[c];
 			botf = botb = ebwtFw_->fchr()[c+1];
-			if(botf - topf == 0) return true;
+			if(botf - topf == 0) return;
 			step++;
 		} else {
 			assert_eq(0, seed.maxjump);
@@ -1547,10 +1540,8 @@ SeedAligner::searchSeedBi(
 			assert(c0.acceptable());
 			assert(c1.acceptable());
 			assert(c2.acceptable());
-			if(!reportHit(cache, topf, botf, topb, botb, seq.length(), prevEdit)) {
-				return false; // Memory exhausted
-			}
-			return true;
+			reportHit(cache, topf, botf, topb, botb, seq.length(), prevEdit);
+			return;
 		}
 		nextLocsBi(seed, tloc, bloc, topf, botf, topb, botb, step);
 		assert(tloc.valid());
@@ -1645,7 +1636,7 @@ SeedAligner::searchSeedBi(
 							}
 							assert(editl.next == NULL);
 							bwedits_++;
-							if(!searchSeedBi(
+							searchSeedBi(
 								params,
 								i+1,     // depth into steps_[] array
 								depth+1, // recursion depth
@@ -1659,10 +1650,7 @@ SeedAligner::searchSeedBi(
 								c1,      // constraints to enforce in seed zone 1
 								c2,      // constraints to enforce in seed zone 2
 								overall, // overall constraints to enforce
-								&editl))  // latest edit
-							{
-								return false;
-							}
+								&editl);  // latest edit
 							if(prevEdit != NULL) prevEdit->next = NULL;
 						}
 					} else {
@@ -1688,12 +1676,12 @@ SeedAligner::searchSeedBi(
 			} // if(!bail)
 		}
 		if(c == 4) {
-			return true; // couldn't handle the N
+			return; // couldn't handle the N
 		}
 		if(leaveZone && (!cons.acceptable() || !overall.acceptable())) {
 			// Not enough edits to make this path non-redundant with
 			// other seeds
-			return true;
+			return;
 		}
 		if(!bloc.valid()) {
 			assert(ebwtBw_ == NULL || bp[c] == tp[c]+1);
@@ -1702,7 +1690,7 @@ SeedAligner::searchSeedBi(
 			bwops_++;
 			t[c] = ebwt->mapLF1(top, tloc, c);
 			if(t[c] == OFF_MASK) {
-				return true;
+				return;
 			}
 			assert_geq(t[c], ebwt->fchr()[c]);
 			assert_lt(t[c],  ebwt->fchr()[c+1]);
@@ -1713,7 +1701,7 @@ SeedAligner::searchSeedBi(
 		assert_leq(bf[c]-tf[c], lasttot);
 		ASSERT_ONLY(lasttot = bf[c]-tf[c]);
 		if(b[c] == t[c]) {
-			return true;
+			return;
 		}
 		topf = tf[c]; botf = bf[c];
 		topb = tb[c]; botb = bb[c];
@@ -1722,14 +1710,12 @@ SeedAligner::searchSeedBi(
 			assert(c0.acceptable());
 			assert(c1.acceptable());
 			assert(c2.acceptable());
-			if(!reportHit(cache, topf, botf, topb, botb, seq.length(), prevEdit)) {
-				return false; // Memory exhausted
-			}
-			return true;
+			reportHit(cache, topf, botf, topb, botb, seq.length(), prevEdit);
+			return;
 		}
 		nextLocsBi(seed, tloc, bloc, tf[c], bf[c], tb[c], bb[c], i+1);
 	}
-	return true;
+	return;
 }
 
 #ifdef ALIGNER_SEED_MAIN
