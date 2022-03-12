@@ -1540,42 +1540,58 @@ public:
 		AlignmentCacheIface& cache
 		) 
 		: masterCache(cache)
+		, cacheVec()
 	{}
 
 	void emplace_back( 
 		const BTDnaString& seq,  // sequence of current seed
-		const BTString& qual     // quality string for current seed
+		const BTString& qual,    // quality string for current seed
+		int seedoffidx,          // seed index
+		bool fw                  // is it fw?
 		)
 	{
-		cacheVec.emplace_back(masterCache); // makes a new object, sharing the buffers
-		// emplace_back does not return reference until c++17
-		AlignmentCacheIface& cacheEl = cacheVec.back();
-		srcacheVec.emplace_back(cacheEl, seq, qual);
-		// TODO: handle eventual exception
+		cacheVec.emplace_back(masterCache, seq, qual, seedoffidx, fw);
 	}
 
 	// Same semantics as std::vector
-	void reserve(size_t new_cap) { 
-		cacheVec.reserve(new_cap); 
-		srcacheVec.reserve(new_cap);
-	}
+	void reserve(size_t new_cap) { cacheVec.reserve(new_cap); }
 
-	size_t size() const {return srcacheVec.size(); }
+	size_t size() const {return cacheVec.size(); }
 
-	void pop_back() {
-		srcacheVec.pop_back();
-		cacheVec.pop_back();
-	}
+	void pop_back() { cacheVec.pop_back(); }
 
 	// Access one of the search caches
-	const SeedSearchCache& operator[](size_t idx) const { return srcacheVec[idx]; }
-	SeedSearchCache& operator[](size_t idx) { return srcacheVec[idx]; }
+	const SeedSearchCache& operator[](size_t idx) const { return cacheVec[idx].srcache; }
+	SeedSearchCache& operator[](size_t idx) { return cacheVec[idx].srcache; }
+
+	int getSeedOffIdx(size_t idx) const { return cacheVec[idx].seedoffidx; }
+	bool getFw(size_t idx) const { return cacheVec[idx].fw; }
 
 protected:
+	class CacheEl {
+	public:
+		CacheEl(
+			AlignmentCacheIface& _masterCache, // base cache to point to
+			const BTDnaString& _seq,  // sequence of current seed
+			const BTString& _qual,    // quality string for current seed
+			int _seedoffidx,          // seed index
+			bool _fw                  // is it fw?
+			)
+			: cache(_masterCache) // make a nexw copy, share buffers
+			, srcache(cache, _seq, _qual)
+			, seedoffidx(_seedoffidx)
+			, fw(_fw) {}
+		
+
+		AlignmentCacheIface cache;   // cache object
+		SeedSearchCache   srcache;   // search wrapper
+		int                 seedoffidx; // seed index
+		bool                fw;      // is it fw?
+	};
+
 	AlignmentCacheIface& masterCache;
 
-	std::vector<AlignmentCacheIface> cacheVec;  // cache object vector
-	std::vector<SeedSearchCache>   srcacheVec;  // search wrapper vector, maps to element above
+	std::vector<CacheEl> cacheVec;
 };
 
 class SeedSearchInput {

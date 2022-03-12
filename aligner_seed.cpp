@@ -510,8 +510,9 @@ void SeedAligner::searchAllSeeds(
 			}
 			const BTDnaString& seq  = sr.seqs(fw)[i];  // seed sequence
 			const BTString& qual = sr.quals(fw)[i]; // seed qualities
-			mcache.emplace_back(seq,qual);
-			SeedSearchCache &srcache = mcache[mcache.size()-1];
+			mcache.emplace_back(seq, qual, i, fw);
+			const size_t mnr = mcache.size()-1;
+			SeedSearchCache &srcache = mcache[mnr];
 			// Tell the cache that we've started aligning, so the cache can
 			// expect a series of on-the-fly updates
 			int ret = srcache.beginAlign();
@@ -558,8 +559,8 @@ void SeedAligner::searchAllSeeds(
 				sr.add(
 					srcache.getQv(),   // range of ranges in cache
 					srcache.current(), // cache
-					i,     // seed index (from 5' end)
-					fw);   // whether seed is from forward read
+					mcache.getSeedOffIdx(mnr),     // seed index (from 5' end)
+					mcache.getFw(mnr));   // whether seed is from forward read
 			}
 		}
 	}
