@@ -1640,6 +1640,36 @@ public:
 
 };
 
+class SeedAlignerSearchSave {
+public:
+	SeedAlignerSearchSave(
+		Constraint &cons, Constraint &ovCons,
+		SideLocus &tloc, SideLocus &bloc)
+	: orgCons(cons), orgOvCons(ovCons)
+	, orgTloc(tloc), orgBloc(bloc)
+	, oldCons(cons), oldOvCons(ovCons)
+	, oldTloc(tloc), oldBloc(bloc)
+	{}
+
+	~SeedAlignerSearchSave() {
+		orgCons = oldCons; orgOvCons = oldOvCons;
+		orgTloc = oldTloc; orgBloc = oldBloc;
+	}
+
+private:
+	// reference to the original variables
+	Constraint &orgCons;
+	Constraint &orgOvCons;
+	SideLocus &orgTloc;
+	SideLocus &orgBloc;
+
+	// copy of the originals
+	const Constraint oldCons;
+	const Constraint oldOvCons;
+	const SideLocus oldTloc;
+	const SideLocus oldBloc;
+};
+
 /**
  * Given a seed, search.  Assumes zone 0 = no backtracking.
  *
@@ -1720,8 +1750,7 @@ SeedAligner::searchSeedBi(
 			if(!bail) {
 				int q = qual[sstate.off];
 				if((cons.canMismatch(q, *sc_) && p.overall.canMismatch(q, *sc_)) || c == 4) {
-					Constraint oldCons = cons, oldOvCons = p.overall;
-					SideLocus oldTloc = p.tloc, oldBloc = p.bloc;
+					SeedAlignerSearchSave save(cons, p.overall, p.tloc, p.bloc);
 					if(c != 4) {
 						cons.chargeMismatch(q, *sc_);
 						p.overall.chargeMismatch(q, *sc_);
@@ -1763,10 +1792,9 @@ SeedAligner::searchSeedBi(
 						// Not enough edits to make this path
 						// non-redundant with other seeds
 					}
-					cons = oldCons;
-					p.overall = oldOvCons;
-					p.tloc = oldTloc;
-					p.bloc = oldBloc;
+
+					// as olds gets out of scope,
+					// restores cons, p.overall, p.tloc, p.bloc
 				}
 				if(cons.canGap() && p.overall.canGap()) {
 					throw 1; // TODO
