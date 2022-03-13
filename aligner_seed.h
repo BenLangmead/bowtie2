@@ -1462,15 +1462,14 @@ class SeedSearchCache {
 
 public:
 	SeedSearchCache(
-		AlignmentCacheIface& _cache, // local alignment cache for seed alignments
 		const BTDnaString& _seq,  // sequence of current seed
 		const BTString& _qual     // quality string for current seed
 		)
 		: qv()
-		, cache(_cache)
 		, seq(_seq)
 		, qual(_qual)
 		, cachedEls()
+		, cachep(NULL)
 	{
 		cachedEls.reserve(16); // do not expect I will need more
 	}
@@ -1481,7 +1480,14 @@ public:
 	 *
 	 * See AlignmentCacheIface::beginAlign for details
 	 */
-	int beginAlign() { return cache.beginAlign(seq, qual, qv);}
+	int beginAlign(AlignmentCacheIface& cache) 
+	{ 
+		int ret = cache.beginAlign(seq, qual, qv);
+		if (ret>=0) {
+			cachep = &cache;
+		}
+		return ret;
+	}
 
         /**
          * Add an alignment to the running list of alignments being
@@ -1489,11 +1495,12 @@ public:
          */
 	bool addAllCached(bool getLock = true)
 	{
+		if (!aligning()) return false;
 		const size_t nEls = cachedEls.size();
 		bool success = true;
 		for(size_t i=0; i<nEls; i++) {
 			AddEl &el = cachedEls[i];
-			success &= cache.addOnTheFly(el.sak, el.topf, el.botf, el.topb, el.botb, getLock);
+			success &= cachep->addOnTheFly(el.sak, el.topf, el.botf, el.topb, el.botb, getLock);
 		}
 		cachedEls.clear();
 		return success;
@@ -1509,7 +1516,12 @@ public:
          * Also, if the alignment is cacheable, it commits it to the next
          * cache up in the cache hierarchy.
          */
-        void finishAlign(bool getLock = true) { qv = cache.finishAlign(getLock); }
+        void finishAlign(bool getLock = true) 
+	{ 
+		assert(cachep!=NULL);
+		qv = cachep->finishAlign(getLock); 
+		cachep = NULL;
+	}
 
         /**
          * Add an alignment to the running list of alignments being
@@ -1528,15 +1540,7 @@ public:
 	/**
 	 * Return true iff we're in the middle of aligning a sequence.
 	 */
-	bool aligning() const { return cache.aligning(); }
-
-	/**
-	 * Return the alignment cache for the current read.
-	 */
-	const AlignmentCache& current() { return cache.current();}
-
-	const AlignmentCache* currentCache() const { return cache.currentCache();}
-	size_t curNumRanges() const { return cache.curNumRanges();}
+	bool aligning() const { return ((cachep!=NULL) && (cachep->aligning())); }
 
 	bool qvValid() const { return qv.valid();}
 
@@ -1568,11 +1572,11 @@ protected:
 	};
 
 	QVal                 qv;
-	AlignmentCacheIface& cache; // local alignment cache for seed alignments
 	const BTDnaString&   seq;   // sequence of current seed
 	const BTString&      qual;  // quality string for current seed
 
 	std::vector<AddEl>    cachedEls; // tmp storage of values that will go in the cache
+	AlignmentCacheIface*  cachep; // local alignment cache for seed alignment, set at beginAliginings
 };
 
 /**
@@ -1582,10 +1586,8 @@ class SeedSearchMultiCache {
 
 public:
 	SeedSearchMultiCache(
-		AlignmentCacheIface& cache
 		) 
-		: masterCache(cache)
-		, cacheVec()
+		: cacheVec()
 	{}
 
 	void emplace_back( 
@@ -1595,7 +1597,7 @@ public:
 		bool fw                  // is it fw?
 		)
 	{
-		cacheVec.emplace_back(masterCache, seq, qual, seedoffidx, fw);
+		cacheVec.emplace_back(seq, qual, seedoffidx, fw);
 	}
 
 	// Same semantics as std::vector
@@ -1615,25 +1617,20 @@ protected:
 	class CacheEl {
 	public:
 		CacheEl(
-			AlignmentCacheIface& _masterCache, // base cache to point to
 			const BTDnaString& _seq,  // sequence of current seed
 			const BTString& _qual,    // quality string for current seed
 			int _seedoffidx,          // seed index
 			bool _fw                  // is it fw?
 			)
-			: cache(_masterCache) // make a nexw copy, share buffers
-			, srcache(cache, _seq, _qual)
+			: srcache(_seq, _qual)
 			, seedoffidx(_seedoffidx)
 			, fw(_fw) {}
 		
 
-		AlignmentCacheIface cache;   // cache object
-		SeedSearchCache   srcache;   // search wrapper
+		SeedSearchCache     srcache;   // search wrapper
 		int                 seedoffidx; // seed index
 		bool                fw;      // is it fw?
 	};
-
-	AlignmentCacheIface& masterCache;
 
 	std::vector<CacheEl> cacheVec;
 };

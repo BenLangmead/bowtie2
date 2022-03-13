@@ -493,7 +493,7 @@ void SeedAligner::searchAllSeeds(
 	// TODO: Define is somewhere else
 	const int ibatch_size = 8;
 
-	SeedSearchMultiCache mcache(cache);
+	SeedSearchMultiCache mcache;
 	std::vector<SeedSearchInput> paramVec;
 
 	mcache.reserve(ibatch_size);
@@ -545,7 +545,7 @@ void SeedAligner::searchAllSeeds(
 			SeedSearchCache &srcache = mcache[mnr];
 			// Tell the cache that we've started aligning, so the cache can
 			// expect a series of on-the-fly updates
-			int ret = srcache.beginAlign();
+			int ret = srcache.beginAlign(cache);
 			if(ret == -1) {
 				// Out of memory when we tried to add key to map
 				ooms++;
@@ -562,7 +562,7 @@ void SeedAligner::searchAllSeeds(
 			if(srcache.qvValid()) {
 				sr.add(
 					srcache.getQv(),   // range of ranges in cache
-					srcache.current(), // cache
+					cache.current(), // cache
 					mcache.getSeedOffIdx(mnr),     // seed index (from 5' end)
 					mcache.getFw(mnr));   // whether seed is from forward read
 			}
