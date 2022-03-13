@@ -1670,6 +1670,39 @@ private:
 	const SideLocus oldBloc;
 };
 
+// State used for recursion
+class SeedAlignerSearchRecState {
+public:
+	SeedAlignerSearchRecState(
+			int j,
+			int c,
+			const SeedAlignerSearchState &sstate,
+			DoublyLinkedList<Edit> *prevEdit)
+	: bwt(sstate.tf[j], sstate.bf[j], sstate.tb[j], sstate.bb[j])
+	, edit(sstate.off, j, c, EDIT_TYPE_MM, false)
+	, editl()
+	, _prevEdit(prevEdit)
+	{
+		assert(_prevEdit == NULL || _prevEdit->next == NULL);
+		editl.payload = edit;
+		if(_prevEdit != NULL) {
+			_prevEdit->next = &editl;
+			editl.prev = _prevEdit;
+		}
+		assert(editl.next == NULL);
+	}
+
+	~SeedAlignerSearchRecState() {
+		if(_prevEdit != NULL) _prevEdit->next = NULL;
+	}
+
+	BwtTopBot bwt;
+	Edit edit;
+	DoublyLinkedList<Edit> editl;
+private:
+	DoublyLinkedList<Edit> *_prevEdit;
+};
+
 /**
  * Given a seed, search.  Assumes zone 0 = no backtracking.
  *
@@ -1759,34 +1792,23 @@ SeedAligner::searchSeedBi(
 					if(!leaveZone || (cons.acceptable() && p.overall.acceptable())) {
 						for(int j = 0; j < 4; j++) {
 							if(j == c || sstate.b[j] == sstate.t[j]) continue;
-							BwtTopBot bwt2(sstate.tf[j], sstate.bf[j], sstate.tb[j], sstate.bb[j]);
 							// Potential mismatch
-							nextLocsBi(seed, p.tloc, p.bloc, bwt2, i+1);
-							int loff = sstate.off;
-							if(!sstate.ltr) loff = (int)(seed.steps.size() - loff - 1);
-							assert(p.prevEdit == NULL || p.prevEdit->next == NULL);
-							Edit edit(sstate.off, j, c, EDIT_TYPE_MM, false);
-							DoublyLinkedList<Edit> editl;
-							editl.payload = edit;
-							if(p.prevEdit != NULL) {
-								p.prevEdit->next = &editl;
-								editl.prev = p.prevEdit;
-							}
-							assert(editl.next == NULL);
+							SeedAlignerSearchRecState rstate(j, c, sstate, p.prevEdit);
+							nextLocsBi(seed, p.tloc, p.bloc, rstate.bwt, i+1);
 							bwedits_++;
 							SeedAlignerSearchParams p2(
-								bwt2,    // The 4 BWT idxs
-								p.tloc,  // locus for top (perhaps unititialized)
-								p.bloc,  // locus for bot (perhaps unititialized)
-								p.cv,    // constraints to enforce in seed zones
-								p.overall, // overall constraints to enforce
-								&editl);  // latest edit
+								rstate.bwt,      // The 4 BWT idxs
+								p.tloc,          // locus for top (perhaps unititialized)
+								p.bloc,          // locus for bot (perhaps unititialized)
+								p.cv,            // constraints to enforce in seed zones
+								p.overall,       // overall constraints to enforce
+								&rstate.editl);  // latest edit
 							searchSeedBi(
 								params,
 								i+1,     // depth into steps_[] array
 								depth+1, // recursion depth
 								p2);
-							if(p.prevEdit != NULL) p.prevEdit->next = NULL;
+							// as rstate gets out of scope, p.prevEdit->next is updated
 						}
 					} else {
 						// Not enough edits to make this path
