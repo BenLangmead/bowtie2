@@ -1783,14 +1783,10 @@ protected:
 	{ reportHit(cache, bwt.topf, bwt.botf, bwt.topb, bwt.botb, len, prevEdit); }
 
 	/**
+	 * Main, recursive implementation of the seed search.
 	 * Given a vector of instantiated seeds, search
 	 */
 	void searchSeedBi(const size_t nparams, SeedAlignerSearchParams paramVec[]);
-	
-	/**
-	 * Main, recursive implementation of the seed search.
-	 */
-	void searchSeedBi(SeedAlignerSearchParams &p);
 
 	// helper function
 	bool startSearchSeedBi(SeedAlignerSearchParams &p);

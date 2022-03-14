@@ -1197,16 +1197,6 @@ bool SeedAligner::oneMmSearch(
 	return results;
 }
 
-/**
- * Wrapper for initial invocation of searchSeed.
- */
-void
-SeedAligner::searchSeedBi(const size_t nparams, SeedAligner::SeedAlignerSearchParams paramVec[]) {
-	for (size_t pnr=0; pnr<nparams; pnr++) {
-		searchSeedBi(paramVec[pnr]);
-	} 
-}
-
 inline void
 SeedAligner::prefetchNextLocsBi(
 	const InstantiatedSeed& seed, // current instantiated seed
@@ -1613,7 +1603,19 @@ public:
 	TIndexOffU ntop;
 	int off;
 	bool ltr;
+	bool done;
 public:
+	SeedAlignerSearchState()
+	: tp{0,0,0,0}, bp{0,0,0,0}
+	, t{0,0,0,0}, b{0,0,0,0}
+	, tf(NULL), tb(NULL), bf(NULL), bb(NULL)
+	, ebwt(NULL)
+	, ntop(0)
+	, off(0)
+	, ltr(false)
+	, done(false)
+	{}
+
 	void setOff(
 		size_t _off,
 		const BwtTopBot &bwt,      // The 4 BWT idxs
@@ -1730,21 +1732,46 @@ private:
  * 2. Bidirectional BWT range(s) on either end
  */
 void
-SeedAligner::searchSeedBi(SeedAligner::SeedAlignerSearchParams &p)
+SeedAligner::searchSeedBi(const size_t nparams, SeedAligner::SeedAlignerSearchParams paramVec[]) 
 {
-	SeedSearchCache &cache = p.cs.cache;
-	const InstantiatedSeed& seed = p.cs.seed;
-	const BTDnaString& seq = cache.getSeq();
-	const BTString& qual = cache.getQual();
+	size_t nleft = nparams; // will keep track of how many are not done yet
+	std::vector<SeedAlignerSearchState> sstateVec(nparams);
 
-	bool done = startSearchSeedBi(p);
-	if(done) {
-		return;
+	for (size_t n=0; n<nparams; n++) {
+		SeedAlignerSearchParams& p= paramVec[n];
+		const bool done = startSearchSeedBi(p);
+
+		SeedAlignerSearchState& sstate = sstateVec[n];
+		sstate.done = done;
+		if(done) {
+			nleft--;
+		} else {
+			sstate.initLastTot(p.bwt.botf - p.bwt.topf);
+		}
 	}
 
-	SeedAlignerSearchState sstate;
-	sstate.initLastTot(p.bwt.botf - p.bwt.topf);
-	for(size_t i = p.step; i < seed.steps.size(); i++) {
+	while (nleft>0) {
+	   // Note: We can do the params in any order we want
+	   // but we must do the steps inside the same param in order
+	   // Will loop over all of them, and just check which ones are invalid
+           for (size_t n=0; n<nparams; n++) {
+                SeedAlignerSearchState& sstate = sstateVec[n];
+		if (sstate.done) continue;
+
+		SeedAlignerSearchParams& p= paramVec[n];
+		const InstantiatedSeed& seed = p.cs.seed;
+		if (p.step >= (int) seed.steps.size()) {
+			sstate.done = true;
+			nleft--;
+			continue;
+		}
+		size_t i = p.step; // call the stepIdx i for historical reasons
+		p.step++; // get ready for the next iteration
+
+		SeedSearchCache &cache = p.cs.cache;
+		const BTDnaString& seq = cache.getSeq();
+		const BTString& qual = cache.getQual();
+
 		assert_gt(p.bwt.botf, p.bwt.topf);
 		assert(p.bwt.botf - p.bwt.topf == 1 ||  p.bloc.valid());
 		assert(p.bwt.botf - p.bwt.topf > 1  || !p.bloc.valid());
@@ -1766,10 +1793,6 @@ SeedAligner::searchSeedBi(SeedAligner::SeedAlignerSearchParams &p)
 #endif
 		}
 		int c = seq[sstate.off];  assert_range(0, 4, c);
-		// not 100% sure we need it, but redundant prefetches are not dangerous
-		// and helps in the average case
-		prefetchNextLocsBi(seed, sstate.tf[c], sstate.bf[c], sstate.tb[c], sstate.bb[c], i+1);
-
 		//
 		bool leaveZone = seed.zones[i].first < 0;
 		//bool leaveZoneIns = zones_[i].second < 0;
@@ -1813,7 +1836,8 @@ SeedAligner::searchSeedBi(SeedAligner::SeedAlignerSearchParams &p)
 								p.cv,            // constraints to enforce in seed zones
 								p.overall,       // overall constraints to enforce
 								&rstate.editl);  // latest edit
-							searchSeedBi(p2);
+							// recursion is rare, so just do one at a time
+							searchSeedBi(1, &p2);
 							// as rstate gets out of scope, p.prevEdit->next is updated
 						}
 					} else {
@@ -1837,13 +1861,17 @@ SeedAligner::searchSeedBi(SeedAligner::SeedAlignerSearchParams &p)
 				}
 			} // if(!bail)
 		}
-		if(c == 4) {
-			return; // couldn't handle the N
+		if(c == 4) { // couldn't handle the N
+			sstate.done = true;
+			nleft--;
+			continue;
 		}
 		if(leaveZone && (!cons.acceptable() || !p.overall.acceptable())) {
 			// Not enough edits to make this path non-redundant with
 			// other seeds
-			return;
+			sstate.done = true;
+			nleft--;
+			continue;
 		}
 		if(!p.bloc.valid()) {
 			assert(ebwtBw_ == NULL || sstate.bp[c] == sstate.tp[c]+1);
@@ -1851,7 +1879,9 @@ SeedAligner::searchSeedBi(SeedAligner::SeedAlignerSearchParams &p)
 			bwops_++;
 			sstate.t[c] = sstate.ebwt->mapLF1(sstate.ntop, p.tloc, c);
 			if(sstate.t[c] == OFF_MASK) {
-				return;
+				sstate.done = true;
+				nleft--;
+				continue;
 			}
 			assert_geq(sstate.t[c], sstate.ebwt->fchr()[c]);
 			assert_lt(sstate.t[c],  sstate.ebwt->fchr()[c+1]);
@@ -1861,17 +1891,22 @@ SeedAligner::searchSeedBi(SeedAligner::SeedAlignerSearchParams &p)
 		assert(ebwtBw_ == NULL || sstate.bf[c]-sstate.tf[c] == sstate.bb[c]-sstate.tb[c]);
 		sstate.assertLeqAndSetLastTot(sstate.bf[c]-sstate.tf[c]);
 		if(sstate.b[c] == sstate.t[c]) {
-			return;
+			sstate.done = true;
+			nleft--;
+			continue;
 		}
 		p.bwt.set(sstate.tf[c], sstate.bf[c], sstate.tb[c], sstate.bb[c]);
 		if(i+1 == seed.steps.size()) {
 			// Finished aligning seed
 			p.checkCV();
 			reportHit(cache, p.bwt, seq.length(), p.prevEdit);
-			return;
+			sstate.done = true;
+			nleft--;
+			continue;
 		}
 		nextLocsBi(seed, p.tloc, p.bloc, p.bwt, i+1);
-	}
+	   } // for n
+	} // while
 	return;
 }
 
