@@ -75,6 +75,85 @@ Constraint Constraint::editBased(int edits) {
 	return c;
 }
 
+// Input to seachSeedBi
+class SeedAlignerSearchParams {
+public:
+	SeedSearchInput params;
+	int step;
+	BwtTopBot bwt;         // The 4 BWT idxs
+	SideLocus tloc;       // locus for top (perhaps unititialized)
+	SideLocus bloc;       // locus for bot (perhaps unititialized)
+	std::array<Constraint,3> cv;        // constraints to enforce in seed zones
+	Constraint overall;   // overall constraints to enforce
+	DoublyLinkedList<Edit> *prevEdit;  // previous edit
+
+	SeedAlignerSearchParams(
+		SeedSearchInput &_params,
+		const int _step,              // depth into steps_[] array
+		const BwtTopBot &_bwt,        // The 4 BWT idxs
+		const SideLocus &_tloc,       // locus for top (perhaps unititialized)
+		const SideLocus &_bloc,       // locus for bot (perhaps unititialized)
+		const std::array<Constraint,3> _cv,        // constraints to enforce in seed zones
+		const Constraint &_overall,   // overall constraints to enforce
+		DoublyLinkedList<Edit> *_prevEdit)  // previous edit
+	: params(_params)
+	, step(_step)
+	, bwt(_bwt)
+	, tloc(_tloc)
+	, bloc(_bloc)
+	, cv(_cv)
+	, overall(_overall)
+	, prevEdit(_prevEdit)
+	{}
+
+	SeedAlignerSearchParams(
+		SeedSearchInput &_params,
+		const int _step,              // depth into steps_[] array
+		const BwtTopBot &_bwt,        // The 4 BWT idxs
+		const SideLocus &_tloc,       // locus for top (perhaps unititialized)
+		const SideLocus &_bloc,       // locus for bot (perhaps unititialized)
+		const Constraint &_c0,        // constraints to enforce in seed zone 0
+		const Constraint &_c1,        // constraints to enforce in seed zone 1
+		const Constraint &_c2,        // constraints to enforce in seed zone 2
+		const Constraint &_overall,   // overall constraints to enforce
+		DoublyLinkedList<Edit> *_prevEdit)  // previous edit
+	: params(_params)
+	, step(_step)
+	, bwt(_bwt)
+	, tloc(_tloc)
+	, bloc(_bloc)
+	, cv{ _c0, _c1, _c2 }
+	, overall(_overall)
+	, prevEdit(_prevEdit)
+	{}
+
+	// create an empty bwt, tloc and bloc, with step=0
+	SeedAlignerSearchParams(
+		SeedSearchInput &_params,
+		const Constraint &_c0,        // constraints to enforce in seed zone 0
+		const Constraint &_c1,        // constraints to enforce in seed zone 1
+		const Constraint &_c2,        // constraints to enforce in seed zone 2
+		const Constraint &_overall,   // overall constraints to enforce
+		DoublyLinkedList<Edit> *_prevEdit)  // previous edit
+	: params(_params)
+	, step(0)
+	, bwt()
+	, tloc()
+	, bloc()
+	, cv{ _c0, _c1, _c2 }
+	, overall(_overall)
+	, prevEdit(_prevEdit)
+	{}
+
+	void checkCV() const {
+			assert(cv[0].acceptable());
+			assert(cv[1].acceptable());
+			assert(cv[2].acceptable());
+	}
+
+};
+
+
 //
 // Some static methods for constructing some standard SeedPolicies
 //
@@ -1101,83 +1180,6 @@ bool SeedAligner::oneMmSearch(
 	} // for(int fw = 0; fw < 2; fw++)
 	return results;
 }
-
-class SeedAlignerSearchParams {
-public:
-	SeedSearchInput params;
-	int step;
-	BwtTopBot bwt;         // The 4 BWT idxs
-	SideLocus tloc;       // locus for top (perhaps unititialized)
-	SideLocus bloc;       // locus for bot (perhaps unititialized)
-	std::array<Constraint,3> cv;        // constraints to enforce in seed zones
-	Constraint overall;   // overall constraints to enforce
-	DoublyLinkedList<Edit> *prevEdit;  // previous edit
-
-	SeedAlignerSearchParams(
-		SeedSearchInput &_params,
-		const int _step,              // depth into steps_[] array
-		const BwtTopBot &_bwt,        // The 4 BWT idxs
-		const SideLocus &_tloc,       // locus for top (perhaps unititialized)
-		const SideLocus &_bloc,       // locus for bot (perhaps unititialized)
-		const std::array<Constraint,3> _cv,        // constraints to enforce in seed zones
-		const Constraint &_overall,   // overall constraints to enforce
-		DoublyLinkedList<Edit> *_prevEdit)  // previous edit
-	: params(_params)
-	, step(_step)
-	, bwt(_bwt)
-	, tloc(_tloc)
-	, bloc(_bloc)
-	, cv(_cv)
-	, overall(_overall)
-	, prevEdit(_prevEdit)
-	{}
-
-	SeedAlignerSearchParams(
-		SeedSearchInput &_params,
-		const int _step,              // depth into steps_[] array
-		const BwtTopBot &_bwt,        // The 4 BWT idxs
-		const SideLocus &_tloc,       // locus for top (perhaps unititialized)
-		const SideLocus &_bloc,       // locus for bot (perhaps unititialized)
-		const Constraint &_c0,        // constraints to enforce in seed zone 0
-		const Constraint &_c1,        // constraints to enforce in seed zone 1
-		const Constraint &_c2,        // constraints to enforce in seed zone 2
-		const Constraint &_overall,   // overall constraints to enforce
-		DoublyLinkedList<Edit> *_prevEdit)  // previous edit
-	: params(_params)
-	, step(_step)
-	, bwt(_bwt)
-	, tloc(_tloc)
-	, bloc(_bloc)
-	, cv{ _c0, _c1, _c2 }
-	, overall(_overall)
-	, prevEdit(_prevEdit)
-	{}
-
-	// create an empty bwt, tloc and bloc, with step=0
-	SeedAlignerSearchParams(
-		SeedSearchInput &_params,
-		const Constraint &_c0,        // constraints to enforce in seed zone 0
-		const Constraint &_c1,        // constraints to enforce in seed zone 1
-		const Constraint &_c2,        // constraints to enforce in seed zone 2
-		const Constraint &_overall,   // overall constraints to enforce
-		DoublyLinkedList<Edit> *_prevEdit)  // previous edit
-	: params(_params)
-	, step(0)
-	, bwt()
-	, tloc()
-	, bloc()
-	, cv{ _c0, _c1, _c2 }
-	, overall(_overall)
-	, prevEdit(_prevEdit)
-	{}
-
-	void checkCV() const {
-			assert(cv[0].acceptable());
-			assert(cv[1].acceptable());
-			assert(cv[2].acceptable());
-	}
-
-};
 
 /**
  * Wrapper for initial invocation of searchSeed.
