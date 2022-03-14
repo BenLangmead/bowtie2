@@ -76,19 +76,24 @@ Constraint Constraint::editBased(int edits) {
 }
 
 // Input to seachSeedBi
-class SeedAlignerSearchParams {
+class SeedAligner::SeedAlignerSearchParams {
 public:
-	SeedSearchInput params;
-	int step;
-	BwtTopBot bwt;         // The 4 BWT idxs
-	SideLocus tloc;       // locus for top (perhaps unititialized)
-	SideLocus bloc;       // locus for bot (perhaps unititialized)
-	std::array<Constraint,3> cv;        // constraints to enforce in seed zones
-	Constraint overall;   // overall constraints to enforce
-	DoublyLinkedList<Edit> *prevEdit;  // previous edit
+	class CacheAndSeed {
+	public:
+		CacheAndSeed(
+			SeedSearchCache &_cache,         // local seed alignment cache
+			const InstantiatedSeed& _seed    // current instantiated seed
+		) : cache(_cache), seed(_seed) {}
+
+		CacheAndSeed(CacheAndSeed &other) = default;
+		CacheAndSeed(CacheAndSeed &&other) = default;
+
+		SeedSearchCache &cache;        // local seed alignment cache
+		const InstantiatedSeed& seed;  // current instantiated seed
+	};
 
 	SeedAlignerSearchParams(
-		SeedSearchInput &_params,
+		CacheAndSeed &_cs,
 		const int _step,              // depth into steps_[] array
 		const BwtTopBot &_bwt,        // The 4 BWT idxs
 		const SideLocus &_tloc,       // locus for top (perhaps unititialized)
@@ -96,7 +101,7 @@ public:
 		const std::array<Constraint,3> _cv,        // constraints to enforce in seed zones
 		const Constraint &_overall,   // overall constraints to enforce
 		DoublyLinkedList<Edit> *_prevEdit)  // previous edit
-	: params(_params)
+	: cs(_cs)
 	, step(_step)
 	, bwt(_bwt)
 	, tloc(_tloc)
@@ -107,7 +112,7 @@ public:
 	{}
 
 	SeedAlignerSearchParams(
-		SeedSearchInput &_params,
+		CacheAndSeed &_cs,
 		const int _step,              // depth into steps_[] array
 		const BwtTopBot &_bwt,        // The 4 BWT idxs
 		const SideLocus &_tloc,       // locus for top (perhaps unititialized)
@@ -117,7 +122,7 @@ public:
 		const Constraint &_c2,        // constraints to enforce in seed zone 2
 		const Constraint &_overall,   // overall constraints to enforce
 		DoublyLinkedList<Edit> *_prevEdit)  // previous edit
-	: params(_params)
+	: cs(_cs)
 	, step(_step)
 	, bwt(_bwt)
 	, tloc(_tloc)
@@ -128,21 +133,18 @@ public:
 	{}
 
 	// create an empty bwt, tloc and bloc, with step=0
+	// and constratins from seed, for initial searchSeedBi invocation
 	SeedAlignerSearchParams(
-		SeedSearchInput &_params,
-		const Constraint &_c0,        // constraints to enforce in seed zone 0
-		const Constraint &_c1,        // constraints to enforce in seed zone 1
-		const Constraint &_c2,        // constraints to enforce in seed zone 2
-		const Constraint &_overall,   // overall constraints to enforce
-		DoublyLinkedList<Edit> *_prevEdit)  // previous edit
-	: params(_params)
+		SeedSearchCache &cache,         // local seed alignment cache
+		const InstantiatedSeed& seed)   // current instantiated seed
+	: cs(cache, seed)
 	, step(0)
 	, bwt()
 	, tloc()
 	, bloc()
-	, cv{ _c0, _c1, _c2 }
-	, overall(_overall)
-	, prevEdit(_prevEdit)
+	, cv{ seed.cons[0], seed.cons[1], seed.cons[2]  }
+	, overall(seed.overall)
+	, prevEdit(NULL)
 	{}
 
 	void checkCV() const {
@@ -151,6 +153,14 @@ public:
 			assert(cv[2].acceptable());
 	}
 
+	CacheAndSeed cs;   // local seed alignment cache and associated instatiated seed
+	int step;
+	BwtTopBot bwt;         // The 4 BWT idxs
+	SideLocus tloc;       // locus for top (perhaps unititialized)
+	SideLocus bloc;       // locus for bot (perhaps unititialized)
+	std::array<Constraint,3> cv;        // constraints to enforce in seed zones
+	Constraint overall;   // overall constraints to enforce
+	DoublyLinkedList<Edit> *prevEdit;  // previous edit
 };
 
 
@@ -573,7 +583,7 @@ void SeedAligner::searchAllSeeds(
 	const int ibatch_size = 8;
 
 	SeedSearchMultiCache mcache;
-	std::vector<SeedSearchInput> paramVec;
+	std::vector<SeedAlignerSearchParams> paramVec;
 
 	mcache.reserve(ibatch_size);
 	paramVec.reserve(ibatch_size*16); // assume no more than 16 iss per cache, on average
@@ -1185,12 +1195,9 @@ bool SeedAligner::oneMmSearch(
  * Wrapper for initial invocation of searchSeed.
  */
 void
-SeedAligner::searchSeedBi(const size_t nparams, SeedSearchInput paramVec[]) {
+SeedAligner::searchSeedBi(const size_t nparams, SeedAligner::SeedAlignerSearchParams paramVec[]) {
 	for (size_t pnr=0; pnr<nparams; pnr++) {
-		SeedSearchInput &params = paramVec[pnr];
-		const InstantiatedSeed& seed = params.seed;
-		SeedAlignerSearchParams p(params, seed.cons[0], seed.cons[1], seed.cons[2], seed.overall, NULL);
-		searchSeedBi(p,0);
+		searchSeedBi(paramVec[pnr], 0);
 	} 
 }
 
@@ -1504,13 +1511,12 @@ SeedAligner::reportHit(
 // return true, if we are already done
 bool
 SeedAligner::startSearchSeedBi(
-	SeedAlignerSearchParams &p,
+	SeedAligner::SeedAlignerSearchParams &p,
 	int depth            // recursion depth
 	)
 {
-	SeedSearchInput &params = p.params;
-	SeedSearchCache &cache = params.cache;
-	const InstantiatedSeed& seed = params.seed;
+	SeedSearchCache &cache = p.cs.cache;
+	const InstantiatedSeed& seed = p.cs.seed;
 	const BTDnaString& seq = cache.getSeq();
 
 	assert_gt(seed.steps.size(), 0);
@@ -1722,13 +1728,12 @@ private:
  */
 void
 SeedAligner::searchSeedBi(
-	SeedAlignerSearchParams &p,
+	SeedAligner::SeedAlignerSearchParams &p,
 	int depth            // recursion depth
 	)
 {
-	SeedSearchInput &params = p.params;
-	SeedSearchCache &cache = params.cache;
-	const InstantiatedSeed& seed = params.seed;
+	SeedSearchCache &cache = p.cs.cache;
+	const InstantiatedSeed& seed = p.cs.seed;
 	const BTDnaString& seq = cache.getSeq();
 	const BTString& qual = cache.getQual();
 
@@ -1801,7 +1806,7 @@ SeedAligner::searchSeedBi(
 							nextLocsBi(seed, p.tloc, p.bloc, rstate.bwt, i+1);
 							bwedits_++;
 							SeedAlignerSearchParams p2(
-								params,
+								p.cs,
 								i+1,             // depth into steps_[] array
 								rstate.bwt,      // The 4 BWT idxs
 								p.tloc,          // locus for top (perhaps unititialized)

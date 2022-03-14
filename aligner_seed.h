@@ -1455,8 +1455,6 @@ struct SeedSearchMetrics {
 	MUTEX_T  mutex_m;
 };
 
-class SeedAlignerSearchParams;
-
 /**
  * Wrap the search cache with all the relevant objects
  */
@@ -1637,21 +1635,6 @@ protected:
 	std::vector<CacheEl> cacheVec;
 };
 
-class SeedSearchInput {
-public:
-	SeedSearchInput(
-		SeedSearchCache &_cache,         // local seed alignment cache
-		const InstantiatedSeed& _seed    // current instantiated seed
-	) : cache(_cache), seed(_seed) {}
-
-	SeedSearchInput(SeedSearchInput &other) = default;
-	SeedSearchInput(SeedSearchInput &&other) = default;
-
-	SeedSearchCache &cache;        // local seed alignment cache
-	const InstantiatedSeed& seed;  // current instantiated seed
-};
-
-
 /**
  * Given an index and a seeding scheme, searches for seed hits.
  */
@@ -1760,6 +1743,7 @@ public:
 		SeedSearchMetrics& met);   // metrics
 
 protected:
+	class SeedAlignerSearchParams;
 
 	/**
 	 * Report a seed hit found by searchSeedBi(), but first try to extend it out in
@@ -1801,7 +1785,7 @@ protected:
 	/**
 	 * Given a vector of instantiated seeds, search
 	 */
-	void searchSeedBi(const size_t nparams, SeedSearchInput paramVec[]);
+	void searchSeedBi(const size_t nparams, SeedAlignerSearchParams paramVec[]);
 	
 	/**
 	 * Main, recursive implementation of the seed search.
