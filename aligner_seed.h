@@ -1799,9 +1799,9 @@ protected:
 	{ reportHit(cache, bwt.topf, bwt.botf, bwt.topb, bwt.botb, len, prevEdit); }
 
 	/**
-	 * Given an instantiated seed (in s_ and other fields), search
+	 * Given a vector of instantiated seeds, search
 	 */
-	void searchSeedBi(SeedSearchInput &params);
+	void searchSeedBi(const size_t nparams, SeedSearchInput paramVec[]);
 	
 	/**
 	 * Main, recursive implementation of the seed search.

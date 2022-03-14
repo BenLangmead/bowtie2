@@ -534,11 +534,7 @@ void SeedAligner::searchAllSeeds(
 		   } // internal i (batch) loop
 
 		   // do the searches
-		   for (size_t pnr=0; pnr<paramVec.size(); pnr++) {
-			SeedSearchInput &srinput = paramVec[pnr];
-			// Do the search with respect to srinput
-			searchSeedBi(srinput);
-		   } // pnr loop
+		   if (!paramVec.empty()) searchSeedBi(paramVec.size(), &(paramVec[0]));
 
 		   // finish aligning and add to SeedResult
 		   for (size_t mnr=0; mnr<mcache.size(); mnr++) {
@@ -1187,12 +1183,13 @@ public:
  * Wrapper for initial invocation of searchSeed.
  */
 void
-SeedAligner::searchSeedBi(SeedSearchInput &params) {
-	const InstantiatedSeed& seed = params.seed;
-	SeedAlignerSearchParams p(params, seed.cons[0], seed.cons[1], seed.cons[2], seed.overall, NULL);
-	searchSeedBi(
-		p,
-		0); 
+SeedAligner::searchSeedBi(const size_t nparams, SeedSearchInput paramVec[]) {
+	for (size_t pnr=0; pnr<nparams; pnr++) {
+		SeedSearchInput &params = paramVec[pnr];
+		const InstantiatedSeed& seed = params.seed;
+		SeedAlignerSearchParams p(params, seed.cons[0], seed.cons[1], seed.cons[2], seed.overall, NULL);
+		searchSeedBi(p,0);
+	} 
 }
 
 inline void
