@@ -1108,6 +1108,7 @@ bool SeedAligner::oneMmSearch(
 
 class SeedAlignerSearchParams {
 public:
+	SeedSearchInput params;
 	int step;
 	BwtTopBot bwt;         // The 4 BWT idxs
 	SideLocus tloc;       // locus for top (perhaps unititialized)
@@ -1117,6 +1118,7 @@ public:
 	DoublyLinkedList<Edit> *prevEdit;  // previous edit
 
 	SeedAlignerSearchParams(
+		SeedSearchInput &_params,
 		const int _step,              // depth into steps_[] array
 		const BwtTopBot &_bwt,        // The 4 BWT idxs
 		const SideLocus &_tloc,       // locus for top (perhaps unititialized)
@@ -1124,7 +1126,8 @@ public:
 		const std::array<Constraint,3> _cv,        // constraints to enforce in seed zones
 		const Constraint &_overall,   // overall constraints to enforce
 		DoublyLinkedList<Edit> *_prevEdit)  // previous edit
-	: step(_step)
+	: params(_params)
+	, step(_step)
 	, bwt(_bwt)
 	, tloc(_tloc)
 	, bloc(_bloc)
@@ -1134,6 +1137,7 @@ public:
 	{}
 
 	SeedAlignerSearchParams(
+		SeedSearchInput &_params,
 		const int _step,              // depth into steps_[] array
 		const BwtTopBot &_bwt,        // The 4 BWT idxs
 		const SideLocus &_tloc,       // locus for top (perhaps unititialized)
@@ -1143,7 +1147,8 @@ public:
 		const Constraint &_c2,        // constraints to enforce in seed zone 2
 		const Constraint &_overall,   // overall constraints to enforce
 		DoublyLinkedList<Edit> *_prevEdit)  // previous edit
-	: step(_step)
+	: params(_params)
+	, step(_step)
 	, bwt(_bwt)
 	, tloc(_tloc)
 	, bloc(_bloc)
@@ -1154,12 +1159,14 @@ public:
 
 	// create an empty bwt, tloc and bloc, with step=0
 	SeedAlignerSearchParams(
+		SeedSearchInput &_params,
 		const Constraint &_c0,        // constraints to enforce in seed zone 0
 		const Constraint &_c1,        // constraints to enforce in seed zone 1
 		const Constraint &_c2,        // constraints to enforce in seed zone 2
 		const Constraint &_overall,   // overall constraints to enforce
 		DoublyLinkedList<Edit> *_prevEdit)  // previous edit
-	: step(0)
+	: params(_params)
+	, step(0)
 	, bwt()
 	, tloc()
 	, bloc()
@@ -1182,11 +1189,10 @@ public:
 void
 SeedAligner::searchSeedBi(SeedSearchInput &params) {
 	const InstantiatedSeed& seed = params.seed;
-	SeedAlignerSearchParams p(seed.cons[0], seed.cons[1], seed.cons[2], seed.overall, NULL);
+	SeedAlignerSearchParams p(params, seed.cons[0], seed.cons[1], seed.cons[2], seed.overall, NULL);
 	searchSeedBi(
-		params,
-		0, 
-		p);
+		p,
+		0); 
 }
 
 inline void
@@ -1499,11 +1505,11 @@ SeedAligner::reportHit(
 // return true, if we are already done
 bool
 SeedAligner::startSearchSeedBi(
-	SeedSearchInput &params,
-	int depth,            // recursion depth
-	SeedAlignerSearchParams &p
+	SeedAlignerSearchParams &p,
+	int depth            // recursion depth
 	)
 {
+	SeedSearchInput &params = p.params;
 	SeedSearchCache &cache = params.cache;
 	const InstantiatedSeed& seed = params.seed;
 	const BTDnaString& seq = cache.getSeq();
@@ -1717,23 +1723,19 @@ private:
  */
 void
 SeedAligner::searchSeedBi(
-	SeedSearchInput &params,
-	int depth,            // recursion depth
-	SeedAlignerSearchParams &p // all the remaining params
-#if 0
-	, const SABWOffTrack* prevOt // prev off tracker (if tracking started)
-#endif
+	SeedAlignerSearchParams &p,
+	int depth            // recursion depth
 	)
 {
+	SeedSearchInput &params = p.params;
 	SeedSearchCache &cache = params.cache;
 	const InstantiatedSeed& seed = params.seed;
 	const BTDnaString& seq = cache.getSeq();
 	const BTString& qual = cache.getQual();
 
 	bool done = startSearchSeedBi(
-			params,
-			depth,
-			p);
+			p,
+			depth);
 	if(done) {
 		return;
 	}
@@ -1800,6 +1802,7 @@ SeedAligner::searchSeedBi(
 							nextLocsBi(seed, p.tloc, p.bloc, rstate.bwt, i+1);
 							bwedits_++;
 							SeedAlignerSearchParams p2(
+								params,
 								i+1,             // depth into steps_[] array
 								rstate.bwt,      // The 4 BWT idxs
 								p.tloc,          // locus for top (perhaps unititialized)
@@ -1808,9 +1811,8 @@ SeedAligner::searchSeedBi(
 								p.overall,       // overall constraints to enforce
 								&rstate.editl);  // latest edit
 							searchSeedBi(
-								params,
-								depth+1, // recursion depth
-								p2);
+								p2,
+								depth+1); // recursion depth
 							// as rstate gets out of scope, p.prevEdit->next is updated
 						}
 					} else {

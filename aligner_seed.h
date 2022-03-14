@@ -1644,6 +1644,9 @@ public:
 		const InstantiatedSeed& _seed    // current instantiated seed
 	) : cache(_cache), seed(_seed) {}
 
+	SeedSearchInput(SeedSearchInput &other) = default;
+	SeedSearchInput(SeedSearchInput &&other) = default;
+
 	SeedSearchCache &cache;        // local seed alignment cache
 	const InstantiatedSeed& seed;  // current instantiated seed
 };
@@ -1804,15 +1807,13 @@ protected:
 	 * Main, recursive implementation of the seed search.
 	 */
 	void searchSeedBi(
-		SeedSearchInput &params,
-		int depth,               // recursion depth
-		SeedAlignerSearchParams &p); // all the remaining params
+		SeedAlignerSearchParams &p,
+		int depth);               // recursion depth
 
 	// helper function
 	bool startSearchSeedBi(
-		SeedSearchInput &params,
-		int depth,            // recursion depth
-		SeedAlignerSearchParams &p); // all the remaining params
+		SeedAlignerSearchParams &p,
+		int depth);            // recursion depth
 
 	/**
 	 * Get tloc and bloc ready for the next step.
