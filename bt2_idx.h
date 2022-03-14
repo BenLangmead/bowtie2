@@ -381,8 +381,9 @@ struct SideLocus {
 		const TIndexOffU sByteOff = sideNum * sideSz;
 		if (prefetch) {
 			__builtin_prefetch(ebwt + sByteOff);
-#if (OFF_SIZE>4)
 			__builtin_prefetch(ebwt + sByteOff + 64); //64 byte cache lines
+#if (OFF_SIZE>4)
+			__builtin_prefetch(ebwt + sByteOff + 2*64);
 #endif
                 }
 
@@ -405,15 +406,17 @@ struct SideLocus {
 		const TIndexOffU sideNum     = row / (48*OFF_SIZE);
 		const TIndexOffU sideByteOff = sideNum * sideSz;
 		__builtin_prefetch(ebwt + sideByteOff);
-#if (OFF_SIZE>4)
 		__builtin_prefetch(ebwt + sideByteOff + 64); //64 byte cache lines
+#if (OFF_SIZE>4)
+		__builtin_prefetch(ebwt + sideByteOff + 2*64);
 #endif
 	}
 
 	void prefetch(const uint8_t* ebwt) const {
                 __builtin_prefetch(ebwt + _sideByteOff);
-#if (OFF_SIZE>4)
                 __builtin_prefetch(ebwt + _sideByteOff + 64); //64 byte cache lines
+#if (OFF_SIZE>4)
+                __builtin_prefetch(ebwt + _sideByteOff + 2*64);
 #endif
 	}
 
