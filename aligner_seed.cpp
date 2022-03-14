@@ -94,7 +94,8 @@ public:
 
 	SeedAlignerSearchParams(
 		CacheAndSeed &_cs,
-		const int _step,              // depth into steps_[] array
+		const int _step,              // depth into steps[] array
+		const int _depth,             // recursion depth
 		const BwtTopBot &_bwt,        // The 4 BWT idxs
 		const SideLocus &_tloc,       // locus for top (perhaps unititialized)
 		const SideLocus &_bloc,       // locus for bot (perhaps unititialized)
@@ -103,6 +104,7 @@ public:
 		DoublyLinkedList<Edit> *_prevEdit)  // previous edit
 	: cs(_cs)
 	, step(_step)
+	, depth(_depth)
 	, bwt(_bwt)
 	, tloc(_tloc)
 	, bloc(_bloc)
@@ -113,7 +115,8 @@ public:
 
 	SeedAlignerSearchParams(
 		CacheAndSeed &_cs,
-		const int _step,              // depth into steps_[] array
+		const int _step,              // depth into steps[] array
+		const int _depth,             // recursion depth
 		const BwtTopBot &_bwt,        // The 4 BWT idxs
 		const SideLocus &_tloc,       // locus for top (perhaps unititialized)
 		const SideLocus &_bloc,       // locus for bot (perhaps unititialized)
@@ -124,6 +127,7 @@ public:
 		DoublyLinkedList<Edit> *_prevEdit)  // previous edit
 	: cs(_cs)
 	, step(_step)
+	, depth(_depth)
 	, bwt(_bwt)
 	, tloc(_tloc)
 	, bloc(_bloc)
@@ -139,6 +143,7 @@ public:
 		const InstantiatedSeed& seed)   // current instantiated seed
 	: cs(cache, seed)
 	, step(0)
+	, depth(0)
 	, bwt()
 	, tloc()
 	, bloc()
@@ -153,9 +158,10 @@ public:
 			assert(cv[2].acceptable());
 	}
 
-	CacheAndSeed cs;   // local seed alignment cache and associated instatiated seed
-	int step;
-	BwtTopBot bwt;         // The 4 BWT idxs
+	CacheAndSeed cs;      // local seed alignment cache and associated instatiated seed
+	int step;             // depth into steps[] array
+	int depth;            // recursion depth
+	BwtTopBot bwt;        // The 4 BWT idxs
 	SideLocus tloc;       // locus for top (perhaps unititialized)
 	SideLocus bloc;       // locus for bot (perhaps unititialized)
 	std::array<Constraint,3> cv;        // constraints to enforce in seed zones
@@ -1197,7 +1203,7 @@ bool SeedAligner::oneMmSearch(
 void
 SeedAligner::searchSeedBi(const size_t nparams, SeedAligner::SeedAlignerSearchParams paramVec[]) {
 	for (size_t pnr=0; pnr<nparams; pnr++) {
-		searchSeedBi(paramVec[pnr], 0);
+		searchSeedBi(paramVec[pnr]);
 	} 
 }
 
@@ -1510,10 +1516,7 @@ SeedAligner::reportHit(
 
 // return true, if we are already done
 bool
-SeedAligner::startSearchSeedBi(
-	SeedAligner::SeedAlignerSearchParams &p,
-	int depth            // recursion depth
-	)
+SeedAligner::startSearchSeedBi(SeedAligner::SeedAlignerSearchParams &p)
 {
 	SeedSearchCache &cache = p.cs.cache;
 	const InstantiatedSeed& seed = p.cs.seed;
@@ -1533,7 +1536,7 @@ SeedAligner::startSearchSeedBi(
 		return true;
 	}
 #ifndef NDEBUG
-	if(depth > 0) {
+	if(p.depth > 0) {
 		assert(p.bwt.botf - p.bwt.topf == 1 ||  p.bloc.valid());
 		assert(p.bwt.botf - p.bwt.topf > 1  || !p.bloc.valid());
 	}
@@ -1727,19 +1730,14 @@ private:
  * 2. Bidirectional BWT range(s) on either end
  */
 void
-SeedAligner::searchSeedBi(
-	SeedAligner::SeedAlignerSearchParams &p,
-	int depth            // recursion depth
-	)
+SeedAligner::searchSeedBi(SeedAligner::SeedAlignerSearchParams &p)
 {
 	SeedSearchCache &cache = p.cs.cache;
 	const InstantiatedSeed& seed = p.cs.seed;
 	const BTDnaString& seq = cache.getSeq();
 	const BTString& qual = cache.getQual();
 
-	bool done = startSearchSeedBi(
-			p,
-			depth);
+	bool done = startSearchSeedBi(p);
 	if(done) {
 		return;
 	}
@@ -1807,16 +1805,15 @@ SeedAligner::searchSeedBi(
 							bwedits_++;
 							SeedAlignerSearchParams p2(
 								p.cs,
-								i+1,             // depth into steps_[] array
+								i+1,             // depth into steps[] array
+								p.depth+1,       // recursion depth
 								rstate.bwt,      // The 4 BWT idxs
 								p.tloc,          // locus for top (perhaps unititialized)
 								p.bloc,          // locus for bot (perhaps unititialized)
 								p.cv,            // constraints to enforce in seed zones
 								p.overall,       // overall constraints to enforce
 								&rstate.editl);  // latest edit
-							searchSeedBi(
-								p2,
-								depth+1); // recursion depth
+							searchSeedBi(p2);
 							// as rstate gets out of scope, p.prevEdit->next is updated
 						}
 					} else {

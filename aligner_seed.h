@@ -1790,14 +1790,10 @@ protected:
 	/**
 	 * Main, recursive implementation of the seed search.
 	 */
-	void searchSeedBi(
-		SeedAlignerSearchParams &p,
-		int depth);               // recursion depth
+	void searchSeedBi(SeedAlignerSearchParams &p);
 
 	// helper function
-	bool startSearchSeedBi(
-		SeedAlignerSearchParams &p,
-		int depth);            // recursion depth
+	bool startSearchSeedBi(SeedAlignerSearchParams &p);
 
 	/**
 	 * Get tloc and bloc ready for the next step.
