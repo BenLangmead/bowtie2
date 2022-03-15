@@ -1914,7 +1914,9 @@ SeedAligner::searchSeedBi(const size_t nparams, SeedAligner::SeedAlignerSearchPa
 			assert_gt(sstate.b[c], 0);
 		}
 		assert(ebwtBw_ == NULL || sstate.bf[c]-sstate.tf[c] == sstate.bb[c]-sstate.tb[c]);
+#ifndef NDEBUG
 		sstate.assertLeqAndSetLastTot(sstate.bf[c]-sstate.tf[c]);
+#endif
 		if(sstate.b[c] == sstate.t[c]) {
 			sstate.done = true;
 			nleft--;
