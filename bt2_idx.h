@@ -1387,6 +1387,12 @@ public:
 			i);
 	}
 
+	void ftabHiPrefetch(TIndexOffU i) const {
+		Ebwt::ftabHiPrefetch(
+			ftab(),
+			i);
+	}
+
 	/**
 	 * Get "high interpretation" of ftab entry at index i.  The high
 	 * interpretation of a regular ftab entry is just the entry
@@ -1414,6 +1420,13 @@ public:
 			}
 		}
 
+	static void ftabHiPrefetch(
+		const TIndexOffU *ftab,
+		TIndexOffU i)
+		{
+			__builtin_prefetch(&(ftab[i]));
+		}
+
 	/**
 	 * Non-static facade for static function ftabLo.
 	 */
@@ -1426,6 +1439,32 @@ public:
 			_eh._eftabLen,
 			i);
 	}
+
+	void ftabLoPrefetch(TIndexOffU i) const {
+		Ebwt::ftabLoPrefetch(
+			ftab(),
+			i);
+	}
+
+	/**
+	 * Get low and high bound of ftab range.
+	 */
+	void
+	ftabLoHi(
+		TIndexOffU i,
+		TIndexOffU& top,
+		TIndexOffU& bot) const
+		{
+			top = ftabHi(i);
+			bot = ftabLo(i+1);
+			assert_geq(bot, top);
+		}
+
+	void ftabLoHiPrefetch(TIndexOffU i) const
+		{
+			ftabHiPrefetch(i);
+			ftabLoPrefetch(i+1);
+		}
 
 	/**
 	 * Get low bound of ftab range.
@@ -1460,9 +1499,7 @@ public:
 			if(fi == std::numeric_limits<TIndexOffU>::max()) {
 				return false;
 			}
-			top = ftabHi(fi);
-			bot = ftabLo(fi+1);
-			assert_geq(bot, top);
+			ftabLoHi(fi, top, bot);
 			return true;
 		}
 
@@ -1491,6 +1528,13 @@ public:
 				assert_lt(efIdx*2+1, eftabLen);
 				return eftab[efIdx*2];
 			}
+		}
+
+	static void ftabLoPrefetch(
+		const TIndexOffU *ftab,
+		TIndexOffU i)
+		{
+			__builtin_prefetch(&(ftab[i]));
 		}
 
 	/**
