@@ -615,7 +615,12 @@ void SeedAligner::searchAllSeeds(
 	bwops_ = bwedits_ = 0;
 	uint64_t possearches = 0, seedsearches = 0, intrahits = 0, interhits = 0, ooms = 0;
 
-	// TODO: Define is somewhere else
+	/**
+	 * TODO: Define is somewhere else
+	 * Note: The ideal may be dependent on the CPU model, but 8 seems to work fine.
+	 *       2 is too small for prefetch to be fully effective, 4 seems already OK, 
+	 *       and 32 is too big (cache trashing).
+	 **/
 	const int ibatch_size = 8;
 
 	SeedSearchMultiCache mcache;

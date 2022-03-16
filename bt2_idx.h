@@ -1899,11 +1899,13 @@ public:
 	 * Counts the number of occurrences of character 'c' in the given Ebwt
 	 * side up to (but not including) the given byte/bitpair (by/bp).
 	 *
-	 * This is a performance-critical function.  This is the top search-
+	 * This is a performance-critical function.  This used to be the top search-
 	 * related hit in the time profile.
-	 * The bottleneck seems to be cache misses due to random memory access pattern.
+	 * The bottleneck was due to cache misses due to random memory access pattern.
 	 *
-	 * Function gets 11.09% in profile
+	 * The use of prefetch instructions in initFromRow, when applied enough in advance,
+	 * mostly eliminate the cache misses. 
+	 *
 	 */
 	inline TIndexOffU countUpTo(const SideLocus& l, int c) const { // @double-check
 		// Count occurrences of c in each 64-bit (using bit trickery);
