@@ -864,73 +864,101 @@ size_t SeedAligner::exactSweep(
 	SeedSearchMetrics& met)     // metrics
 {
 	assert_gt(mineMax, 0);
-	TIndexOffU top = 0, bot = 0;
-	SideLocus tloc, bloc;
 	const size_t len = read.length();
+	const int ftabLen = ebwt.eh().ftabChars();
+
 	size_t nelt = 0;
+
+	std::array<SideLocus,2> tloc;
+	std::array<SideLocus,2> bloc;
+	TIndexOffU top[2] = {0, 0};
+	TIndexOffU bot[2] = {0, 0};
+
+	size_t dep[2] = {0, 0};
+	size_t nedit[2] = {0, 0};
+	bool doInit[2] = {true, true};
+
+	size_t prefetch_count = 0;
+	bool done[2] = {nofw, norc};
+
 	for(int fwi = 0; fwi < 2; fwi++) {
-		bool fw = (fwi == 0);
-		if( fw && nofw) continue;
-		if(!fw && norc) continue;
-		const BTDnaString& seq = fw ? read.patFw : read.patRc;
-		assert(!seq.empty());
-		size_t prefetch_count = 0;
-		__builtin_prefetch(&(seq[len-1]));
-		if (len>48) __builtin_prefetch(&(seq[len-49])); // HW prefetch prediction assumes forward, help it
- 
-		int ftabLen = ebwt.eh().ftabChars();
-		size_t dep = 0;
-		size_t nedit = 0;
-		bool done = false;
-		bool doInit = true;
-		while(dep < len && !done) {
-			prefetch_count++;
-			if (prefetch_count>=48) { // cache line is 64 bytes, but we may skip some deps
-				const size_t left = len-dep;
-				if (left>48) __builtin_prefetch(&(seq[left-49])); // HW prefetch prediction assumes forward, help it
-				prefetch_count=0;
-			}
-			if (doInit) {
-				exactSweepInit(ebwt, seq, ftabLen, len,  // in
-						dep, top, bot);          // out
-				if ( exactSweepStep(ebwt, top, bot, mineMax,
-						tloc, bloc,
-						fw ? mineFw : mineRc,
-						nedit, done) ) {
-					continue;
-				}
-				doInit=false;
-			}
-
-			exactSweepMapLF(ebwt, seq, len, dep, tloc, bloc,
-					top, bot, bwops_);
-
-			if ( exactSweepStep(ebwt, top, bot, mineMax,
-						tloc, bloc,
-						fw ? mineFw : mineRc,
-						nedit, done) ) {
-				doInit=true;
-			}
-			dep++;
+		if (!done[fwi]) {
+			bool fw = (fwi == 0);
+			const BTDnaString& seq = fw ? read.patFw : read.patRc;
+			assert(!seq.empty());
+			__builtin_prefetch(&(seq[len-1]));
+			if (len>48) __builtin_prefetch(&(seq[len-49])); // HW prefetch prediction assumes forward, help it
 		}
-		if( (!done) && (dep >= len) ) {
-				// Set the minimum # edits
-				if(fw) { mineFw = nedit; } else { mineRc = nedit; }
-				// Done
-				if(nedit == 0 && bot > top) {
-					if(repex) {
-						// This is an exact hit
-						int64_t score = len * sc.match();
-						if(fw) {
-							hits.addExactEeFw(top, bot, NULL, NULL, fw, score);
-							assert(ebwt.contains(seq, NULL, NULL));
-						} else {
-							hits.addExactEeRc(top, bot, NULL, NULL, fw, score);
-							assert(ebwt.contains(seq, NULL, NULL));
-						}
+	}
+
+	while( (dep[0] < len && !done[0]) || (dep[1] < len && !done[1]) ) {
+		prefetch_count++;
+		if (prefetch_count>=48) { // cache line is 64 bytes, but we may skip some deps
+			for(int fwi = 0; fwi < 2; fwi++) {
+				if (!done[fwi]) {
+					bool fw = (fwi == 0);
+					const BTDnaString& seq = fw ? read.patFw : read.patRc;
+					const size_t left = len-dep[fwi];
+					if (left>48) {
+						__builtin_prefetch(&(seq[left-49])); // HW prefetch prediction assumes forward, help it
 					}
-					nelt += (bot - top);
 				}
+			}
+			prefetch_count=0;
+		}
+		// by doing both fw in the internal loop, I give the prefetch in exactSweepStep to be effective
+		for(int fwi = 0; fwi < 2; fwi++) {
+			if (!done[fwi]) {
+				bool fw = (fwi == 0);
+				const BTDnaString& seq = fw ? read.patFw : read.patRc;
+
+				if (doInit[fwi]) {
+					exactSweepInit(ebwt, seq, ftabLen, len,            // in
+							dep[fwi], top[fwi], bot[fwi]);          // out
+					if ( exactSweepStep(ebwt, top[fwi], bot[fwi], mineMax,
+							tloc[fwi], bloc[fwi],
+							fw ? mineFw : mineRc,
+							nedit[fwi], done[fwi]) ) {
+						continue;
+					}
+					doInit[fwi]=false;
+				}
+
+				exactSweepMapLF(ebwt, seq, len, dep[fwi], tloc[fwi], bloc[fwi],
+						top[fwi], bot[fwi], bwops_);
+
+				if ( exactSweepStep(ebwt, top[fwi], bot[fwi], mineMax,
+							tloc[fwi], bloc[fwi],
+							fw ? mineFw : mineRc,
+							nedit[fwi], done[fwi]) ) {
+					doInit[fwi]=true;
+				}
+				dep[fwi]++;
+			}
+		}
+	}
+
+	for(int fwi = 0; fwi < 2; fwi++) {
+		if( (!done[fwi]) && (dep[fwi] >= len) ) {
+			const bool fw = (fwi == 0);
+
+			// Set the minimum # edits
+			if(fw) { mineFw = nedit[fwi]; } else { mineRc = nedit[fwi]; }
+			// Done
+			if(nedit[fwi] == 0 && bot[fwi] > top[fwi]) {
+				if(repex) {
+					// This is an exact hit
+					int64_t score = len * sc.match();
+					if(fw) {
+						hits.addExactEeFw(top[fwi], bot[fwi], NULL, NULL, fw, score);
+						assert(ebwt.contains(fw ? read.patFw : read.patRc, NULL, NULL));
+					} else {
+						hits.addExactEeRc(top[fwi], bot[fwi], NULL, NULL, fw, score);
+						assert(ebwt.contains(fw ? read.patFw : read.patRc, NULL, NULL));
+					}
+				}
+				nelt += (bot[fwi] - top[fwi]);
+			}
 		}
 	}
 	return nelt;
