@@ -841,12 +841,22 @@ size_t SeedAligner::exactSweep(
 		if(!fw && norc) continue;
 		const BTDnaString& seq = fw ? read.patFw : read.patRc;
 		assert(!seq.empty());
+		size_t prefetch_count = 0;
+		__builtin_prefetch(&(seq[len-1]));
+		if (len>48) __builtin_prefetch(&(seq[len-49])); // HW prefetch prediction assumes forward, help it
+ 
 		int ftabLen = ebwt.eh().ftabChars();
 		size_t dep = 0;
 		size_t nedit = 0;
 		bool done = false;
 		bool doInit = true;
 		while(dep < len && !done) {
+			prefetch_count++;
+			if (prefetch_count>=48) { // cache line is 64 bytes, but we may skip some deps
+				const size_t left = len-dep;
+				if (left>48) __builtin_prefetch(&(seq[left-49])); // HW prefetch prediction assumes forward, help it
+				prefetch_count=0;
+			}
 			if (doInit) {
 				exactSweepInit(ebwt, seq, ftabLen, len,  // in
 						dep, top, bot);          // out
