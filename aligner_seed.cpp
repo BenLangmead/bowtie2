@@ -787,6 +787,39 @@ inline void exactSweepInit(
 	}
 }
 
+inline void exactSweepMapLF(
+	const Ebwt&        ebwt,
+	const BTDnaString& seq,
+	const size_t       len,
+	const size_t       dep,
+	const SideLocus   &tloc, 
+	const SideLocus  &bloc,
+	TIndexOffU        &top, 
+	TIndexOffU        &bot,
+	uint64_t          &bwops           // Burrows-Wheeler operations
+)
+{
+	int c = seq[len-dep-1];
+	if(c > 3) {
+		top = bot = 0;
+	} else {
+		if(bloc.valid()) {
+			bwops += 2;
+			top = ebwt.mapLF(tloc, c);
+			bot = ebwt.mapLF(bloc, c);
+		} else {
+			bwops++;
+			top = ebwt.mapLF1(top, tloc, c);
+			if(top == OFF_MASK) {
+				top = bot = 0;
+			} else {
+				bot = top+1;
+			}
+		}
+	}
+}
+
+
 inline bool exactSweepStep(
 	const Ebwt&        ebwt,    // BWT index
 	const TIndexOffU   top, 
@@ -869,24 +902,9 @@ size_t SeedAligner::exactSweep(
 				doInit=false;
 			}
 
-			int c = seq[len-dep-1];
-			if(c > 3) {
-					top = bot = 0;
-			} else {
-					if(bloc.valid()) {
-						bwops_ += 2;
-						top = ebwt.mapLF(tloc, c);
-						bot = ebwt.mapLF(bloc, c);
-					} else {
-						bwops_++;
-						top = ebwt.mapLF1(top, tloc, c);
-						if(top == OFF_MASK) {
-							top = bot = 0;
-						} else {
-							bot = top+1;
-						}
-					}
-			}
+			exactSweepMapLF(ebwt, seq, len, dep, tloc, bloc,
+					top, bot, bwops_);
+
 			if ( exactSweepStep(ebwt, top, bot, mineMax,
 						tloc, bloc,
 						fw ? mineFw : mineRc,
