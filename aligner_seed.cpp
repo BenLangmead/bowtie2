@@ -882,10 +882,9 @@ size_t SeedAligner::exactSweep(
 				}
 				dep++;
 			}
-			if(done) {
-				break;
-			}
-			if(dep == len) {
+			dep++;
+		}
+		if( (!done) && (dep >= len) ) {
 				// Set the minimum # edits
 				if(fw) { mineFw = nedit; } else { mineRc = nedit; }
 				// Done
@@ -903,9 +902,6 @@ size_t SeedAligner::exactSweep(
 					}
 					nelt += (bot - top);
 				}
-				break;
-			}
-			dep++;
 		}
 	}
 	return nelt;
