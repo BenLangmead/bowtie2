@@ -746,6 +746,47 @@ bool SeedAligner::sanityPartial(
 	return true;
 }
 
+inline void exactSweepInit(
+	const Ebwt&        ebwt,
+	const BTDnaString& seq,
+	const int          ftabLen,
+	const size_t       len,
+	size_t            &dep,
+	TIndexOffU        &top, 
+	TIndexOffU        &bot
+	)
+{
+	top = bot = 0;
+
+	const size_t left = len - dep;
+	assert_gt(left, 0);
+	bool doFtab = ftabLen > 1 && left >= (size_t)ftabLen;
+	if(doFtab) {
+		const size_t endi = len-dep-1;
+		// Does N interfere with use of Ftab?
+		for(size_t i = 0; i < (size_t)ftabLen; i++) {
+			int c = seq[endi-i];
+			if(c > 3) {
+				doFtab = false;
+				break;
+			}
+		}
+	}
+	if(doFtab) {
+		// Use ftab
+		ebwt.ftabLoHi(seq, left - ftabLen, false, top, bot);
+		dep += (size_t)ftabLen;
+	} else {
+		// Use fchr
+		int c = seq[len-dep-1];
+		if(c < 4) {
+			top = ebwt.fchr()[c];
+			bot = ebwt.fchr()[c+1];
+		}
+		dep++;
+	}
+}
+
 /**
  * Sweep right-to-left and left-to-right using exact matching.  Remember all
  * the SA ranges encountered along the way.  Report exact matches if there are
@@ -781,33 +822,8 @@ size_t SeedAligner::exactSweep(
 		size_t nedit = 0;
 		bool done = false;
 		while(dep < len && !done) {
-			top = bot = 0;
-			size_t left = len - dep;
-			assert_gt(left, 0);
-			bool doFtab = ftabLen > 1 && left >= (size_t)ftabLen;
-			if(doFtab) {
-				// Does N interfere with use of Ftab?
-				for(size_t i = 0; i < (size_t)ftabLen; i++) {
-					int c = seq[len-dep-1-i];
-					if(c > 3) {
-						doFtab = false;
-						break;
-					}
-				}
-			}
-			if(doFtab) {
-				// Use ftab
-				ebwt.ftabLoHi(seq, len - dep - ftabLen, false, top, bot);
-				dep += (size_t)ftabLen;
-			} else {
-				// Use fchr
-				int c = seq[len-dep-1];
-				if(c < 4) {
-					top = ebwt.fchr()[c];
-					bot = ebwt.fchr()[c+1];
-				}
-				dep++;
-			}
+			exactSweepInit(ebwt, seq, ftabLen, len,  // in
+					dep, top, bot);          // out
 			if(bot <= top) {
 				nedit++;
 				if(nedit >= mineMax) {
