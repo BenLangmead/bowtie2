@@ -845,21 +845,24 @@ size_t SeedAligner::exactSweep(
 		size_t dep = 0;
 		size_t nedit = 0;
 		bool done = false;
+		bool doInit = true;
 		while(dep < len && !done) {
-			exactSweepInit(ebwt, seq, ftabLen, len,  // in
-					dep, top, bot);          // out
-			if ( exactSweepStep(ebwt, top, bot, mineMax,
-					tloc, bloc,
-					fw ? mineFw : mineRc,
-					nedit, done) ) {
-				continue;
+			if (doInit) {
+				exactSweepInit(ebwt, seq, ftabLen, len,  // in
+						dep, top, bot);          // out
+				if ( exactSweepStep(ebwt, top, bot, mineMax,
+						tloc, bloc,
+						fw ? mineFw : mineRc,
+						nedit, done) ) {
+					continue;
+				}
+				doInit=false;
 			}
-			// Keep going
-			while(dep < len) {
-				int c = seq[len-dep-1];
-				if(c > 3) {
+
+			int c = seq[len-dep-1];
+			if(c > 3) {
 					top = bot = 0;
-				} else {
+			} else {
 					if(bloc.valid()) {
 						bwops_ += 2;
 						top = ebwt.mapLF(tloc, c);
@@ -873,14 +876,12 @@ size_t SeedAligner::exactSweep(
 							bot = top+1;
 						}
 					}
-				}
-				if ( exactSweepStep(ebwt, top, bot, mineMax,
+			}
+			if ( exactSweepStep(ebwt, top, bot, mineMax,
 						tloc, bloc,
 						fw ? mineFw : mineRc,
 						nedit, done) ) {
-					break;
-				}
-				dep++;
+				doInit=true;
 			}
 			dep++;
 		}
