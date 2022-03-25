@@ -787,6 +787,30 @@ inline void exactSweepInit(
 	}
 }
 
+inline bool exactSweepStep(
+	const Ebwt&        ebwt,    // BWT index
+	const TIndexOffU   top, 
+	const TIndexOffU   bot,
+	const size_t       mineMax, // don't care about edit bounds > this
+	SideLocus         &tloc, 
+	SideLocus         &bloc,
+	size_t            &mineCnt, // minimum # edits
+	size_t            &nedit,
+	bool              &done
+	)
+{
+	if(bot <= top) {
+		nedit++;
+		if(nedit >= mineMax) {
+			mineCnt = nedit;
+			done = true;
+		}
+		return true;
+	}
+	INIT_LOCS(top, bot, tloc, bloc, ebwt);
+	return false;
+}
+
 /**
  * Sweep right-to-left and left-to-right using exact matching.  Remember all
  * the SA ranges encountered along the way.  Report exact matches if there are
@@ -824,15 +848,12 @@ size_t SeedAligner::exactSweep(
 		while(dep < len && !done) {
 			exactSweepInit(ebwt, seq, ftabLen, len,  // in
 					dep, top, bot);          // out
-			if(bot <= top) {
-				nedit++;
-				if(nedit >= mineMax) {
-					if(fw) { mineFw = nedit; } else { mineRc = nedit; }
-					break;
-				}
+			if ( exactSweepStep(ebwt, top, bot, mineMax,
+					tloc, bloc,
+					fw ? mineFw : mineRc,
+					nedit, done) ) {
 				continue;
 			}
-			INIT_LOCS(top, bot, tloc, bloc, ebwt);
 			// Keep going
 			while(dep < len) {
 				int c = seq[len-dep-1];
@@ -853,15 +874,12 @@ size_t SeedAligner::exactSweep(
 						}
 					}
 				}
-				if(bot <= top) {
-					nedit++;
-					if(nedit >= mineMax) {
-						if(fw) { mineFw = nedit; } else { mineRc = nedit; }
-						done = true;
-					}
+				if ( exactSweepStep(ebwt, top, bot, mineMax,
+						tloc, bloc,
+						fw ? mineFw : mineRc,
+						nedit, done) ) {
 					break;
 				}
-				INIT_LOCS(top, bot, tloc, bloc, ebwt);
 				dep++;
 			}
 			if(done) {
