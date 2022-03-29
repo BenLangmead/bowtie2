@@ -30,7 +30,7 @@ HEADERS := $(wildcard *.h)
 BOWTIE_MM := 1
 BOWTIE_SHARED_MEM :=
 
-CXXFLAGS += -std=c++17
+CXXFLAGS += -std=c++11
 
 ARCH = $(shell uname -m)
 NGS_VER ?= 2.9.2
