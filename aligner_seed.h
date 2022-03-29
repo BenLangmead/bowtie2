@@ -1558,7 +1558,7 @@ protected:
                 	TIndexOffU _topb,            // top in BWT' index
                 	TIndexOffU _botb             // bot in BWT' index
 			) :
-			ASSERT_ONLY(tm(), )
+			ASSERT_ONLY(tmp(), )
 			sak(rfseq ASSERT_ONLY(, tmp)),
 			topf(_topf), botf(_botf), topb(_topb), botb(_botb) 
 		{}
