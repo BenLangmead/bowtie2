@@ -925,16 +925,18 @@ size_t SeedAligner::exactSweep(
 					doInit[fwi]=false;
 				}
 
-				exactSweepMapLF(ebwt, seq, len, dep[fwi], tloc[fwi], bloc[fwi],
-						top[fwi], bot[fwi], bwops_);
+				if (dep[fwi]< len) {
+					exactSweepMapLF(ebwt, seq, len, dep[fwi], tloc[fwi], bloc[fwi],
+							top[fwi], bot[fwi], bwops_);
 
-				if ( exactSweepStep(ebwt, top[fwi], bot[fwi], mineMax,
-							tloc[fwi], bloc[fwi],
-							fw ? mineFw : mineRc,
-							nedit[fwi], done[fwi]) ) {
-					doInit[fwi]=true;
+					if ( exactSweepStep(ebwt, top[fwi], bot[fwi], mineMax,
+								tloc[fwi], bloc[fwi],
+								fw ? mineFw : mineRc,
+								nedit[fwi], done[fwi]) ) {
+						doInit[fwi]=true;
+					}
+					dep[fwi]++;
 				}
-				dep[fwi]++;
 			}
 		}
 	}
