@@ -17,6 +17,7 @@
  * along with Bowtie 2.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <array>
 #include "aligner_cache.h"
 #include "aligner_seed.h"
 #include "search_globals.h"
