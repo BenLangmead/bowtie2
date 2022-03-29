@@ -2005,9 +2005,12 @@ public:
 	 * given side up to (but not including) the given byte/bitpair (by/bp).
 	 * Count for 'a' goes in arrs[0], 'c' in arrs[1], etc.
 	 *
-	 * This is a performance-critical function.  This is the top search-
+	 * This is a performance-critical function.  This used to be the top search-
 	 * related hit in the time profile.
-	 * The bottleneck seems to be cache misses due to random memory access pattern.
+	 * The bottleneck was due to cache misses due to random memory access pattern.
+	 *
+	 * The use of prefetch instructions in initFromRow, when applied enough in advance,
+	 * mostly eliminate the cache misses. 
 	 */
 	inline void countUpToEx(const SideLocus& l, TIndexOffU* arrs) const {
 		int i = 0;
