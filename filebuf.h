@@ -702,7 +702,7 @@ public:
 	void write(char c) {
 		assert(!closed_);
 		if(cur_ == cap_) {
-			if(flushBlocking()) {
+			if(flushBlocking() && (cap_<MAX_BUF_SZ)) {
 				// minimize blocking, increase buffer instead
 				increaseBuffer(BUF_SZ);
 			} else {
@@ -739,7 +739,7 @@ public:
 	void writeChars(const char * s, size_t len) {
 		assert(!closed_);
 		if(cur_ + len > cap_) {
-			if(flushBlocking()) {
+			if(flushBlocking() && (cap_<MAX_BUF_SZ)) {
 				// minimize blocking, increase buffer instead
 				resizeBuffer(cur_ + len + BUF_SZ); // add a little spare
 			} else {
@@ -818,6 +818,9 @@ public:
 
 private:
 	size_t roundBufferSize(size_t len) const {
+		// do exponential increases to reduce number of resizes during the process lifetime
+		// but only up to MAX_BUF_SZ
+		len = std::max(len, std::min((cap_*2), MAX_BUF_SZ) );
 		// round up to multiple of BUF_SZ
 		return ((len+BUF_SZ-1)/BUF_SZ)*BUF_SZ;
 	}
@@ -960,11 +963,12 @@ private:
 
 	}
 
-	static const size_t BUF_SZ = 16 * 1024;
+	static const size_t BUF_SZ = ((size_t) 16) * 1024;
+	static const size_t MAX_BUF_SZ = ((size_t) 16) * 1024 * 1024 * 1024;
 
 	const char *name_;
 	FILE       *out_;
-	size_t      cur_;
+	size_t      cur_;  // how much of the buffer is currently filled
 	bool        closed_;
 	AsyncData   asyncData_;
 	std::thread asynct_;
