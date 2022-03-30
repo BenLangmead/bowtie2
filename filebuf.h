@@ -820,7 +820,10 @@ private:
 	size_t roundBufferSize(size_t len) const {
 		// do exponential increases to reduce number of resizes during the process lifetime
 		// but only up to MAX_BUF_SZ
-		len = std::max(len, std::min((cap_*2), MAX_BUF_SZ) );
+		// Note: Cannot use std::min or max, as it will require MAX_BUF_SZ to have storage (before c++17)
+		size_t dsize = cap_*2;
+		if (dsize>MAX_BUF_SZ) dsize = MAX_BUF_SZ;
+		if (len<dsize) len=dsize;
 		// round up to multiple of BUF_SZ
 		return ((len+BUF_SZ-1)/BUF_SZ)*BUF_SZ;
 	}
@@ -963,8 +966,8 @@ private:
 
 	}
 
-	static const size_t BUF_SZ = ((size_t) 16) * 1024;
-	static const size_t MAX_BUF_SZ = ((size_t) 16) * 1024 * 1024 * 1024;
+	static constexpr size_t BUF_SZ = 16ul * 1024ul;
+	static constexpr size_t MAX_BUF_SZ = 16ul * 1024ul * 1024ul * 1024ul;
 
 	const char *name_;
 	FILE       *out_;
