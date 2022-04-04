@@ -104,7 +104,7 @@
 
       <tr>
         <td>
-            <a href="https://genome-idx.s3.amazonaws.com/bt/chm13.draft_v1.0_plusY.zip"><i>H. sapiens</i>, CHM13 v1, plusY</a>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/chm13v2.0.zip"><i>H. sapiens</i>, CHM13 v2</a>
         </td>
         <td align="right">
             <a href="https://github.com/nanopore-wgs-consortium/CHM13">T2T</a>
@@ -113,7 +113,7 @@
 
       <tr>
         <td>
-            <a href="https://genome-idx.s3.amazonaws.com/bt/chm13v2.0.zip"><i>H. sapiens</i>, CHM13 v2</a>
+            <a href="https://genome-idx.s3.amazonaws.com/bt/chm13.draft_v1.0_plusY.zip"><i>H. sapiens</i>, CHM13 v1, plus Y</a>
         </td>
         <td align="right">
             <a href="https://github.com/nanopore-wgs-consortium/CHM13">T2T</a>
