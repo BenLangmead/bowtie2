@@ -23,6 +23,8 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <condition_variable>
+#include <thread>
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
@@ -629,7 +631,10 @@ public:
 	 * Open a new output stream to a file with given name.
 	 */
 	OutFileBuf(const std::string& out, bool binary = false) :
-		name_(out.c_str()), cur_(0), closed_(false)
+		name_(out.c_str()), out_(NULL), cur_(0), closed_(false),
+		asyncData_(out_), asynct_(writeAsync, &asyncData_),
+		buf1_(new char[BUF_SZ]), buf2_(new char[BUF_SZ]), cap1_(BUF_SZ), cap2_(BUF_SZ),
+		buf_(buf1_), cap_(cap1_)
 	{
 		out_ = fopen(out.c_str(), binary ? "wb" : "w");
 		if(out_ == NULL) {
@@ -644,7 +649,10 @@ public:
 	 * Open a new output stream to a file with given name.
 	 */
 	OutFileBuf(const char *out, bool binary = false) :
-		name_(out), cur_(0), closed_(false)
+		name_(out), out_(NULL), cur_(0), closed_(false),
+		asyncData_(out_), asynct_(writeAsync, &asyncData_),
+		buf1_(new char[BUF_SZ]), buf2_(new char[BUF_SZ]), cap1_(BUF_SZ), cap2_(BUF_SZ),
+		buf_(buf1_), cap_(cap1_)
 	{
 		assert(out != NULL);
 		out_ = fopen(out, binary ? "wb" : "w");
@@ -657,14 +665,22 @@ public:
 	/**
 	 * Open a new output stream to standard out.
 	 */
-	OutFileBuf() : name_("cout"), cur_(0), closed_(false) {
-		out_ = stdout;
-	}
+	OutFileBuf() :
+		name_("cout"), out_(stdout), cur_(0), closed_(false),
+		asyncData_(out_), asynct_(writeAsync, &asyncData_),
+		buf1_(new char[BUF_SZ]), buf2_(new char[BUF_SZ]), cap1_(BUF_SZ), cap2_(BUF_SZ),
+		buf_(buf1_), cap_(cap1_) {}
 	
 	/**
 	 * Close buffer when object is destroyed.
 	 */
-	~OutFileBuf() { close(); }
+	~OutFileBuf() {
+		close();
+		asyncData_.notifyAbort();
+		asynct_.join();
+		delete[] buf2_;
+		delete[] buf1_;
+	}
 
 	/**
 	 * Open a new output stream to a file with given name.
@@ -685,7 +701,14 @@ public:
 	 */
 	void write(char c) {
 		assert(!closed_);
-		if(cur_ == BUF_SZ) flush();
+		if(cur_ == cap_) {
+			if(flushBlocking() && (cap_<MAX_BUF_SZ)) {
+				// minimize blocking, increase buffer instead
+				increaseBuffer(BUF_SZ);
+			} else {
+				flush();
+			}
+		}
 		buf_[cur_++] = c;
 	}
 
@@ -695,23 +718,8 @@ public:
 	void writeString(const std::string& s) {
 		assert(!closed_);
 		size_t slen = s.length();
-		if(cur_ + slen > BUF_SZ) {
-			if(cur_ > 0) flush();
-			if(slen >= BUF_SZ) {
-				if (slen != fwrite(s.c_str(), 1, slen, out_)) {
-					std::cerr << "Error: outputting data" << std::endl;
-					throw 1;
-				}
-			} else {
-				memcpy(&buf_[cur_], s.data(), slen);
-				assert_eq(0, cur_);
-				cur_ = slen;
-			}
-		} else {
-			memcpy(&buf_[cur_], s.data(), slen);
-			cur_ += slen;
-		}
-		assert_leq(cur_, BUF_SZ);
+		const char *cstr = s.c_str();
+		writeChars(cstr, slen);
 	}
 
 	/**
@@ -721,23 +729,8 @@ public:
 	void writeString(const T& s) {
 		assert(!closed_);
 		size_t slen = s.length();
-		if(cur_ + slen > BUF_SZ) {
-			if(cur_ > 0) flush();
-			if(slen >= BUF_SZ) {
-				if (slen != fwrite(s.toZBuf(), 1, slen, out_)) {
-					std::cerr << "Error outputting data" << std::endl;
-					throw 1;
-				}
-			} else {
-				memcpy(&buf_[cur_], s.toZBuf(), slen);
-				assert_eq(0, cur_);
-				cur_ = slen;
-			}
-		} else {
-			memcpy(&buf_[cur_], s.toZBuf(), slen);
-			cur_ += slen;
-		}
-		assert_leq(cur_, BUF_SZ);
+		const char *zbuf = s.toZBuf();
+		writeChars(zbuf, slen);
 	}
 
 	/**
@@ -745,23 +738,20 @@ public:
 	 */
 	void writeChars(const char * s, size_t len) {
 		assert(!closed_);
-		if(cur_ + len > BUF_SZ) {
-			if(cur_ > 0) flush();
-			if(len >= BUF_SZ) {
-				if (fwrite(s, len, 1, out_) != 1) {
-					std::cerr << "Error outputting data" << std::endl;
-					throw 1;
-				}
+		if(cur_ + len > cap_) {
+			if(flushBlocking() && (cap_<MAX_BUF_SZ)) {
+				// minimize blocking, increase buffer instead
+				resizeBuffer(cur_ + len + BUF_SZ); // add a little spare
 			} else {
-				memcpy(&buf_[cur_], s, len);
-				assert_eq(0, cur_);
-				cur_ = len;
+				if(cur_ > 0) flush();
+				// expand the buffer, if needed
+				// so we can keep using async writes
+				if(len >= cap_) resizeBufferNoCopy(len+BUF_SZ); // add a little spare
 			}
-		} else {
-			memcpy(&buf_[cur_], s, len);
-			cur_ += len;
 		}
-		assert_leq(cur_, BUF_SZ);
+		memcpy(&buf_[cur_], s, len);
+		cur_ += len;
+		assert_leq(cur_, cap_);
 	}
 
 	/**
@@ -777,6 +767,7 @@ public:
 	void close() {
 		if(closed_) return;
 		if(cur_ > 0) flush();
+		asyncData_.waitIdle();
 		closed_ = true;
 		if(out_ != stdout) {
 			fclose(out_);
@@ -792,12 +783,17 @@ public:
 	}
 
 	void flush() {
-		if(cur_ != fwrite((const void *)buf_, 1, cur_, out_)) {
-			if (errno == EPIPE) {
-				exit(EXIT_SUCCESS);
-			}
-			std::cerr << "Error while flushing and closing output" << std::endl;
-			throw 1;
+		// there still could have been an outstanding async write
+		asyncData_.waitIdle();
+		// start the async write
+		asyncData_.setBuf(buf_, cur_);
+		// switch to the other buffer
+		if(buf_==buf1_) {
+			buf_ = buf2_;
+			cap_ = cap2_;
+		} else {
+			buf_ = buf1_;
+			cap_ = cap1_;
 		}
 		cur_ = 0;
 	}
@@ -816,15 +812,175 @@ public:
 		return name_;
 	}
 
-private:
+	bool flushBlocking() const {
+		return asyncData_.buf!=NULL;
+	}
 
-	static const size_t BUF_SZ = 16 * 1024;
+private:
+	size_t roundBufferSize(size_t len) const {
+		// do exponential increases to reduce number of resizes during the process lifetime
+		// but only up to MAX_BUF_SZ
+		// Note: Cannot use std::min or max, as it will require MAX_BUF_SZ to have storage (before c++17)
+		size_t dsize = cap_*2;
+		if (dsize>MAX_BUF_SZ) dsize = MAX_BUF_SZ;
+		if (len<dsize) len=dsize;
+		// round up to multiple of BUF_SZ
+		return ((len+BUF_SZ-1)/BUF_SZ)*BUF_SZ;
+	}
+
+	static char* _resizeSpecificBufferNoCopy(
+						const size_t newCap, 
+						char* &buf, size_t &cap) { // buffer to resize
+		delete[] buf;
+		buf = new char[newCap];
+		cap = newCap;
+		return buf;
+	}
+
+
+
+	// increase the current buffer to at least len
+	void resizeBufferNoCopy(size_t len) {
+		assert_eq(cur_, 0);
+		// round up to multiple of BUF_SZ
+		const size_t newCap = roundBufferSize(len);
+		bool is1 = (buf_==buf1_);
+		buf_ = _resizeSpecificBufferNoCopy(newCap,
+						is1 ? buf1_ : buf2_,
+						is1 ? cap1_ : cap2_);
+		cap_ = newCap;
+	}
+
+
+	static char* _resizeSpecificBufferCopy(
+						const size_t newCap,
+						const size_t oldDataSize,  // number of bytes to preserve
+						char* &buf, size_t &cap) { // buffer to resize
+		const char* oldBuf = buf;
+		buf = new char[newCap];
+		memcpy(buf, oldBuf, oldDataSize);
+		delete[] oldBuf;
+		cap = newCap;
+		return buf;
+	}
+
+	// increase the current buffer to at least len
+	// copy over the content
+	void resizeBuffer(size_t len) {
+		if(cur_==0) {
+			// nothing to copy, use the more efficient version
+			resizeBufferNoCopy(len);
+			return;
+		}
+
+		// round up to multiple of BUF_SZ
+		size_t newCap = roundBufferSize(len);
+		bool is1 = (buf_==buf1_);
+		buf_ = _resizeSpecificBufferCopy(newCap, cur_,
+						is1 ? buf1_ : buf2_,
+						is1 ? cap1_ : cap2_);
+		cap_ = newCap;
+	}
+
+	// increase the current buffer by delta
+	// copy over the content
+	void increaseBuffer(size_t delta) {
+		size_t newCap = cap_+delta;
+		resizeBuffer(newCap);
+	}
+
+	class AsyncData {
+	public:
+		bool abort; // the async thread will abort when this is set to true
+		FILE*      &out;
+
+		const char* buf;
+		size_t      cur;
+
+		std::mutex m;
+		std::condition_variable cv;
+
+		// m and cv default constructors are OK as-is
+		AsyncData(FILE* &_out) : abort(false), out(_out), buf(NULL) {}
+
+		void notifyAbort() {
+			{
+				std::lock_guard<std::mutex> lk(m);
+				abort = true;
+			}
+			cv.notify_all();
+		}
+
+		void waitIdle() {
+			std::unique_lock<std::mutex> lk(m);
+			while(buf!=NULL) cv.wait(lk);
+		}
+
+		void setBuf(const char* _buf, size_t _cur) {
+			{
+				std::lock_guard<std::mutex> lk(m);
+				buf = _buf;
+				cur = _cur;
+			}
+			cv.notify_all();
+		}
+
+		// returns abort
+		bool waitForBuf() {
+			std::unique_lock<std::mutex> lk(m);
+			while((buf==NULL)&&(!abort)) cv.wait(lk);
+			return abort;
+		}
+
+		// returns abort
+		bool writeComplete() {
+			bool ret;
+			{
+				std::lock_guard<std::mutex> lk(m);
+				buf = NULL;
+				ret = abort;
+			}
+			cv.notify_all();
+			return ret;
+		}
+
+
+
+	};
+
+	static void writeAsync(AsyncData *asyncDataPtr) {
+		AsyncData &asyncData = *asyncDataPtr;
+		bool abort = false;
+		while(!abort) {
+			abort = asyncData.waitForBuf();
+			if(abort) break;
+			if(asyncData.cur != fwrite((const void *)asyncData.buf, 1, asyncData.cur, asyncData.out)) {
+				if (errno == EPIPE) {
+					exit(EXIT_SUCCESS);
+				}
+				std::cerr << "Error while flushing and closing output" << std::endl;
+				throw 1;
+			}
+			abort = asyncData.writeComplete();
+		}
+
+	}
+
+	static constexpr size_t BUF_SZ = 16ul * 1024ul;
+	static constexpr size_t MAX_BUF_SZ = 16ul * 1024ul * 1024ul * 1024ul;
 
 	const char *name_;
 	FILE       *out_;
-	size_t      cur_;
-	char        buf_[BUF_SZ]; // (large) input buffer
+	size_t      cur_;  // how much of the buffer is currently filled
 	bool        closed_;
+	AsyncData   asyncData_;
+	std::thread asynct_;
+	char       *buf1_; // (large) output buffer
+	char       *buf2_; // (large) output buffer
+	size_t      cap1_; //capacity of buf1_
+	size_t      cap2_; //capacity of buf2_
+	char*       buf_; // points to one of the two buffers below
+	size_t      cap_; // capacity of the pointed buffer
 };
 
 #endif /*ndef FILEBUF_H_*/
