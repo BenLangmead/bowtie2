@@ -381,8 +381,9 @@ struct SideLocus {
 		const TIndexOffU sByteOff = sideNum * sideSz;
 		if (prefetch) {
 			__builtin_prefetch(ebwt + sByteOff);
-#if (OFF_SIZE>4)
 			__builtin_prefetch(ebwt + sByteOff + 64); //64 byte cache lines
+#if (OFF_SIZE>4)
+			__builtin_prefetch(ebwt + sByteOff + 2*64);
 #endif
                 }
 
@@ -405,15 +406,17 @@ struct SideLocus {
 		const TIndexOffU sideNum     = row / (48*OFF_SIZE);
 		const TIndexOffU sideByteOff = sideNum * sideSz;
 		__builtin_prefetch(ebwt + sideByteOff);
-#if (OFF_SIZE>4)
 		__builtin_prefetch(ebwt + sideByteOff + 64); //64 byte cache lines
+#if (OFF_SIZE>4)
+		__builtin_prefetch(ebwt + sideByteOff + 2*64);
 #endif
 	}
 
 	void prefetch(const uint8_t* ebwt) const {
                 __builtin_prefetch(ebwt + _sideByteOff);
-#if (OFF_SIZE>4)
                 __builtin_prefetch(ebwt + _sideByteOff + 64); //64 byte cache lines
+#if (OFF_SIZE>4)
+                __builtin_prefetch(ebwt + _sideByteOff + 2*64);
 #endif
 	}
 
@@ -1384,6 +1387,12 @@ public:
 			i);
 	}
 
+	void ftabHiPrefetch(TIndexOffU i) const {
+		Ebwt::ftabHiPrefetch(
+			ftab(),
+			i);
+	}
+
 	/**
 	 * Get "high interpretation" of ftab entry at index i.  The high
 	 * interpretation of a regular ftab entry is just the entry
@@ -1411,6 +1420,13 @@ public:
 			}
 		}
 
+	static void ftabHiPrefetch(
+		const TIndexOffU *ftab,
+		TIndexOffU i)
+		{
+			__builtin_prefetch(&(ftab[i]));
+		}
+
 	/**
 	 * Non-static facade for static function ftabLo.
 	 */
@@ -1423,6 +1439,32 @@ public:
 			_eh._eftabLen,
 			i);
 	}
+
+	void ftabLoPrefetch(TIndexOffU i) const {
+		Ebwt::ftabLoPrefetch(
+			ftab(),
+			i);
+	}
+
+	/**
+	 * Get low and high bound of ftab range.
+	 */
+	void
+	ftabLoHi(
+		TIndexOffU i,
+		TIndexOffU& top,
+		TIndexOffU& bot) const
+		{
+			top = ftabHi(i);
+			bot = ftabLo(i+1);
+			assert_geq(bot, top);
+		}
+
+	void ftabLoHiPrefetch(TIndexOffU i) const
+		{
+			ftabHiPrefetch(i);
+			ftabLoPrefetch(i+1);
+		}
 
 	/**
 	 * Get low bound of ftab range.
@@ -1457,9 +1499,7 @@ public:
 			if(fi == std::numeric_limits<TIndexOffU>::max()) {
 				return false;
 			}
-			top = ftabHi(fi);
-			bot = ftabLo(fi+1);
-			assert_geq(bot, top);
+			ftabLoHi(fi, top, bot);
 			return true;
 		}
 
@@ -1488,6 +1528,13 @@ public:
 				assert_lt(efIdx*2+1, eftabLen);
 				return eftab[efIdx*2];
 			}
+		}
+
+	static void ftabLoPrefetch(
+		const TIndexOffU *ftab,
+		TIndexOffU i)
+		{
+			__builtin_prefetch(&(ftab[i]));
 		}
 
 	/**
@@ -1852,11 +1899,13 @@ public:
 	 * Counts the number of occurrences of character 'c' in the given Ebwt
 	 * side up to (but not including) the given byte/bitpair (by/bp).
 	 *
-	 * This is a performance-critical function.  This is the top search-
+	 * This is a performance-critical function.  This used to be the top search-
 	 * related hit in the time profile.
-	 * The bottleneck seems to be cache misses due to random memory access pattern.
+	 * The bottleneck was due to cache misses due to random memory access pattern.
 	 *
-	 * Function gets 11.09% in profile
+	 * The use of prefetch instructions in initFromRow, when applied enough in advance,
+	 * mostly eliminate the cache misses. 
+	 *
 	 */
 	inline TIndexOffU countUpTo(const SideLocus& l, int c) const { // @double-check
 		// Count occurrences of c in each 64-bit (using bit trickery);
@@ -1956,9 +2005,12 @@ public:
 	 * given side up to (but not including) the given byte/bitpair (by/bp).
 	 * Count for 'a' goes in arrs[0], 'c' in arrs[1], etc.
 	 *
-	 * This is a performance-critical function.  This is the top search-
+	 * This is a performance-critical function.  This used to be the top search-
 	 * related hit in the time profile.
-	 * The bottleneck seems to be cache misses due to random memory access pattern.
+	 * The bottleneck was due to cache misses due to random memory access pattern.
+	 *
+	 * The use of prefetch instructions in initFromRow, when applied enough in advance,
+	 * mostly eliminate the cache misses. 
 	 */
 	inline void countUpToEx(const SideLocus& l, TIndexOffU* arrs) const {
 		int i = 0;

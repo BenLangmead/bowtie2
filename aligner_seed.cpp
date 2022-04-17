@@ -17,6 +17,7 @@
  * along with Bowtie 2.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <array>
 #include "aligner_cache.h"
 #include "aligner_seed.h"
 #include "search_globals.h"
@@ -74,6 +75,131 @@ Constraint Constraint::editBased(int edits) {
 	c.dels = c.ins = c.mms = 0;
 	return c;
 }
+
+// Input to seachSeedBi
+class SeedAligner::SeedAlignerSearchParams {
+public:
+	class CacheAndSeed {
+	public:
+		CacheAndSeed(
+			SeedSearchCache &_cache,         // local seed alignment cache
+			const InstantiatedSeed& _seed,   // current instantiated seed
+		        const Ebwt* ebwtFw, 	         // forward index (BWT)
+			const Ebwt* ebwtBw               // backward/mirror index (BWT')
+
+		) : cache(_cache)
+		  , seed(_seed)
+		  , hasi0(false), fwi0(0), bwi0(0) // just set a default
+		{
+	                int off = seed.steps[0];
+	                bool ltr = off > 0;
+        	        off = abs(off)-1;
+			int ftabLen = ebwtFw->eh().ftabChars();
+			hasi0 = (ftabLen > 1 && ftabLen <= seed.maxjump);
+			if(hasi0) {
+				if(!ltr) {
+					assert_geq(off+1, ftabLen-1);
+					off = off - ftabLen + 1;
+				}
+				// startSearchSeedBi will need them, start prefetching now
+				fwi0 = ebwtFw->ftabSeqToInt( cache.getSeq(), off, false);
+				ebwtFw->ftabLoHiPrefetch(fwi0);
+				if(ebwtBw!=NULL) {
+					bwi0 = ebwtBw->ftabSeqToInt( cache.getSeq(), off, false);
+					ebwtBw->ftabLoHiPrefetch(bwi0);
+				}
+			}
+		}
+
+		CacheAndSeed(CacheAndSeed &other) = default;
+		CacheAndSeed(CacheAndSeed &&other) = default;
+
+		SeedSearchCache &cache;        // local seed alignment cache
+		const InstantiatedSeed& seed;  // current instantiated seed
+		bool hasi0;
+		TIndexOffU fwi0;                // Idx of fw ftab
+		TIndexOffU bwi0;                // Idx of bw ftab
+	};
+
+	SeedAlignerSearchParams(
+		CacheAndSeed &_cs,
+		const int _step,              // depth into steps[] array
+		const int _depth,             // recursion depth
+		const BwtTopBot &_bwt,        // The 4 BWT idxs
+		const SideLocus &_tloc,       // locus for top (perhaps unititialized)
+		const SideLocus &_bloc,       // locus for bot (perhaps unititialized)
+		const std::array<Constraint,3> _cv,        // constraints to enforce in seed zones
+		const Constraint &_overall,   // overall constraints to enforce
+		DoublyLinkedList<Edit> *_prevEdit)  // previous edit
+	: cs(_cs)
+	, step(_step)
+	, depth(_depth)
+	, bwt(_bwt)
+	, tloc(_tloc)
+	, bloc(_bloc)
+	, cv(_cv)
+	, overall(_overall)
+	, prevEdit(_prevEdit)
+	{}
+
+	SeedAlignerSearchParams(
+		CacheAndSeed &_cs,
+		const int _step,              // depth into steps[] array
+		const int _depth,             // recursion depth
+		const BwtTopBot &_bwt,        // The 4 BWT idxs
+		const SideLocus &_tloc,       // locus for top (perhaps unititialized)
+		const SideLocus &_bloc,       // locus for bot (perhaps unititialized)
+		const Constraint &_c0,        // constraints to enforce in seed zone 0
+		const Constraint &_c1,        // constraints to enforce in seed zone 1
+		const Constraint &_c2,        // constraints to enforce in seed zone 2
+		const Constraint &_overall,   // overall constraints to enforce
+		DoublyLinkedList<Edit> *_prevEdit)  // previous edit
+	: cs(_cs)
+	, step(_step)
+	, depth(_depth)
+	, bwt(_bwt)
+	, tloc(_tloc)
+	, bloc(_bloc)
+	, cv{ _c0, _c1, _c2 }
+	, overall(_overall)
+	, prevEdit(_prevEdit)
+	{}
+
+	// create an empty bwt, tloc and bloc, with step=0
+	// and constratins from seed, for initial searchSeedBi invocation
+	SeedAlignerSearchParams(
+		SeedSearchCache &cache,         // local seed alignment cache
+		const InstantiatedSeed& seed,   // current instantiated seed
+	        const Ebwt* ebwtFw, 	        // forward index (BWT)
+		const Ebwt* ebwtBw)             // backward/mirror index (BWT')
+	: cs(cache, seed, ebwtFw, ebwtBw)
+	, step(0)
+	, depth(0)
+	, bwt()
+	, tloc()
+	, bloc()
+	, cv{ seed.cons[0], seed.cons[1], seed.cons[2]  }
+	, overall(seed.overall)
+	, prevEdit(NULL)
+	{}
+
+	void checkCV() const {
+			assert(cv[0].acceptable());
+			assert(cv[1].acceptable());
+			assert(cv[2].acceptable());
+	}
+
+	CacheAndSeed cs;      // local seed alignment cache and associated instatiated seed
+	int step;             // depth into steps[] array
+	int depth;            // recursion depth
+	BwtTopBot bwt;        // The 4 BWT idxs
+	SideLocus tloc;       // locus for top (perhaps unititialized)
+	SideLocus bloc;       // locus for bot (perhaps unititialized)
+	std::array<Constraint,3> cv;        // constraints to enforce in seed zones
+	Constraint overall;   // overall constraints to enforce
+	DoublyLinkedList<Edit> *prevEdit;  // previous edit
+};
+
 
 //
 // Some static methods for constructing some standard SeedPolicies
@@ -487,74 +613,89 @@ void SeedAligner::searchAllSeeds(
 	ebwtBw_ = ebwtBw;
 	sc_ = &pens;
 	read_ = &read;
-	ca_ = &cache;
 	bwops_ = bwedits_ = 0;
 	uint64_t possearches = 0, seedsearches = 0, intrahits = 0, interhits = 0, ooms = 0;
-	// For each instantiated seed
-	for(int i = 0; i < (int)sr.numOffs(); i++) {
-		size_t off = sr.idx2off(i);
-		for(int fwi = 0; fwi < 2; fwi++) {
-			bool fw = (fwi == 0);
+
+	/**
+	 * TODO: Define is somewhere else
+	 * Note: The ideal may be dependent on the CPU model, but 8 seems to work fine.
+	 *       2 is too small for prefetch to be fully effective, 4 seems already OK, 
+	 *       and 32 is too big (cache trashing).
+	 **/
+	const int ibatch_size = 8;
+
+	SeedSearchMultiCache mcache;
+	std::vector<SeedAlignerSearchParams> paramVec;
+
+	mcache.reserve(ibatch_size);
+	paramVec.reserve(ibatch_size*16); // assume no more than 16 iss per cache, on average
+
+	for(int fwi = 0; fwi < 2; fwi++) {
+		const bool fw = (fwi == 0);
+                int i =0;
+		// For each instantiated seed, but batched
+		while (i < (int)sr.numOffs()) {
+		   const int ibatch_max = std::min(i+ibatch_size,(int)sr.numOffs());
+		   mcache.clear();
+		   paramVec.clear();
+		   // start aligning and find list of seeds to search
+		   for(; i < ibatch_max; i++) {
 			assert(sr.repOk(&cache.current()));
 			EList<InstantiatedSeed>& iss = sr.instantiatedSeeds(fw, i);
 			if(iss.empty()) {
 				// Cache hit in an across-read cache
 				continue;
 			}
-			QVal qv;
-			seq_  = &sr.seqs(fw)[i];  // seed sequence
-			qual_ = &sr.quals(fw)[i]; // seed qualities
-			off_  = off;              // seed offset (from 5')
-			fw_   = fw;               // seed orientation
+			const BTDnaString& seq  = sr.seqs(fw)[i];  // seed sequence
+			const BTString& qual = sr.quals(fw)[i]; // seed qualities
+			mcache.emplace_back(seq, qual, i, fw);
+			const size_t mnr = mcache.size()-1;
+			SeedSearchCache &srcache = mcache[mnr];
+			{
+				possearches++;
+				for(size_t j = 0; j < iss.size(); j++) {
+					// Set seq and qual appropriately, using the seed sequences
+					// and qualities already installed in SeedResults
+					assert_eq(fw, iss[j].fw);
+					assert_eq(i, (int)iss[j].seedoffidx);
+					paramVec.emplace_back(srcache, iss[j], ebwtFw_, ebwtBw_);
+					seedsearches++;
+				}
+			}
+		   } // internal i (batch) loop
+
+		   // do the searches
+		   if (!paramVec.empty()) searchSeedBi(paramVec.size(), &(paramVec[0]));
+
+		   // finish aligning and add to SeedResult
+		   for (size_t mnr=0; mnr<mcache.size(); mnr++) {
+			SeedSearchCache &srcache = mcache[mnr];
 			// Tell the cache that we've started aligning, so the cache can
 			// expect a series of on-the-fly updates
-			int ret = cache.beginAlign(*seq_, *qual_, qv);
-			ASSERT_ONLY(hits_.clear());
+			int ret = srcache.beginAlign(cache);
 			if(ret == -1) {
 				// Out of memory when we tried to add key to map
 				ooms++;
 				continue;
 			}
-			bool abort = false;
-			if(ret == 0) {
-				// Not already in cache
-				assert(cache.aligning());
-				possearches++;
-				for(size_t j = 0; j < iss.size(); j++) {
-					// Set seq_ and qual_ appropriately, using the seed sequences
-					// and qualities already installed in SeedResults
-					assert_eq(fw, iss[j].fw);
-					assert_eq(i, (int)iss[j].seedoffidx);
-					s_ = &iss[j];
-					// Do the search with respect to seq_, qual_ and s_.
-					if(!searchSeedBi()) {
-						// Memory exhausted during search
-						ooms++;
-						abort = true;
-						break;
-					}
-					seedsearches++;
-					assert(cache.aligning());
-				}
-				if(!abort) {
-					qv = cache.finishAlign();
-				}
-			} else {
-				// Already in cache
-				assert_eq(1, ret);
-				assert(qv.valid());
-				intrahits++;
+			assert(srcache.aligning());
+			if(!srcache.addAllCached()){
+				// Memory exhausted during copy
+				ooms++;
+				continue;
 			}
-			assert(abort || !cache.aligning());
-			if(qv.valid()) {
+			srcache.finishAlign();
+			assert(!srcache.aligning());
+			if(srcache.qvValid()) {
 				sr.add(
-					qv,    // range of ranges in cache
+					srcache.getQv(),   // range of ranges in cache
 					cache.current(), // cache
-					i,     // seed index (from 5' end)
-					fw);   // whether seed is from forward read
+					mcache.getSeedOffIdx(mnr),     // seed index (from 5' end)
+					mcache.getFw(mnr));   // whether seed is from forward read
 			}
-		}
-	}
+		   } // mnr loop
+		} // external i while
+	} // for fwi
 	prm.nSeedRanges = sr.numRanges();
 	prm.nSeedElts = sr.numElts();
 	prm.nSeedRangesFw = sr.numRangesFw();
@@ -606,6 +747,104 @@ bool SeedAligner::sanityPartial(
 	return true;
 }
 
+inline void exactSweepInit(
+	const Ebwt&        ebwt,
+	const BTDnaString& seq,
+	const int          ftabLen,
+	const size_t       len,
+	size_t            &dep,
+	TIndexOffU        &top, 
+	TIndexOffU        &bot
+	)
+{
+	top = bot = 0;
+
+	const size_t left = len - dep;
+	assert_gt(left, 0);
+	bool doFtab = ftabLen > 1 && left >= (size_t)ftabLen;
+	if(doFtab) {
+		const size_t endi = len-dep-1;
+		// Does N interfere with use of Ftab?
+		for(size_t i = 0; i < (size_t)ftabLen; i++) {
+			int c = seq[endi-i];
+			if(c > 3) {
+				doFtab = false;
+				break;
+			}
+		}
+	}
+	if(doFtab) {
+		// Use ftab
+		ebwt.ftabLoHi(seq, left - ftabLen, false, top, bot);
+		dep += (size_t)ftabLen;
+	} else {
+		// Use fchr
+		int c = seq[len-dep-1];
+		if(c < 4) {
+			top = ebwt.fchr()[c];
+			bot = ebwt.fchr()[c+1];
+		}
+		dep++;
+	}
+}
+
+inline void exactSweepMapLF(
+	const Ebwt&        ebwt,
+	const BTDnaString& seq,
+	const size_t       len,
+	const size_t       dep,
+	const SideLocus   &tloc, 
+	const SideLocus  &bloc,
+	TIndexOffU        &top, 
+	TIndexOffU        &bot,
+	uint64_t          &bwops           // Burrows-Wheeler operations
+)
+{
+	int c = seq[len-dep-1];
+	if(c > 3) {
+		top = bot = 0;
+	} else {
+		if(bloc.valid()) {
+			bwops += 2;
+			top = ebwt.mapLF(tloc, c);
+			bot = ebwt.mapLF(bloc, c);
+		} else {
+			bwops++;
+			top = ebwt.mapLF1(top, tloc, c);
+			if(top == OFF_MASK) {
+				top = bot = 0;
+			} else {
+				bot = top+1;
+			}
+		}
+	}
+}
+
+
+inline bool exactSweepStep(
+	const Ebwt&        ebwt,    // BWT index
+	const TIndexOffU   top, 
+	const TIndexOffU   bot,
+	const size_t       mineMax, // don't care about edit bounds > this
+	SideLocus         &tloc, 
+	SideLocus         &bloc,
+	size_t            &mineCnt, // minimum # edits
+	size_t            &nedit,
+	bool              &done
+	)
+{
+	if(bot <= top) {
+		nedit++;
+		if(nedit >= mineMax) {
+			mineCnt = nedit;
+			done = true;
+		}
+		return true;
+	}
+	INIT_LOCS(top, bot, tloc, bloc, ebwt);
+	return false;
+}
+
 /**
  * Sweep right-to-left and left-to-right using exact matching.  Remember all
  * the SA ranges encountered along the way.  Report exact matches if there are
@@ -626,112 +865,103 @@ size_t SeedAligner::exactSweep(
 	SeedSearchMetrics& met)     // metrics
 {
 	assert_gt(mineMax, 0);
-	TIndexOffU top = 0, bot = 0;
-	SideLocus tloc, bloc;
 	const size_t len = read.length();
+	const int ftabLen = ebwt.eh().ftabChars();
+
 	size_t nelt = 0;
+
+	std::array<SideLocus,2> tloc;
+	std::array<SideLocus,2> bloc;
+	TIndexOffU top[2] = {0, 0};
+	TIndexOffU bot[2] = {0, 0};
+
+	size_t dep[2] = {0, 0};
+	size_t nedit[2] = {0, 0};
+	bool doInit[2] = {true, true};
+
+	size_t prefetch_count = 0;
+	bool done[2] = {nofw, norc};
+
 	for(int fwi = 0; fwi < 2; fwi++) {
-		bool fw = (fwi == 0);
-		if( fw && nofw) continue;
-		if(!fw && norc) continue;
-		const BTDnaString& seq = fw ? read.patFw : read.patRc;
-		assert(!seq.empty());
-		int ftabLen = ebwt.eh().ftabChars();
-		size_t dep = 0;
-		size_t nedit = 0;
-		bool done = false;
-		while(dep < len && !done) {
-			top = bot = 0;
-			size_t left = len - dep;
-			assert_gt(left, 0);
-			bool doFtab = ftabLen > 1 && left >= (size_t)ftabLen;
-			if(doFtab) {
-				// Does N interfere with use of Ftab?
-				for(size_t i = 0; i < (size_t)ftabLen; i++) {
-					int c = seq[len-dep-1-i];
-					if(c > 3) {
-						doFtab = false;
-						break;
+		if (!done[fwi]) {
+			bool fw = (fwi == 0);
+			const BTDnaString& seq = fw ? read.patFw : read.patRc;
+			assert(!seq.empty());
+			__builtin_prefetch(&(seq[len-1]));
+			if (len>48) __builtin_prefetch(&(seq[len-49])); // HW prefetch prediction assumes forward, help it
+		}
+	}
+
+	while( (dep[0] < len && !done[0]) || (dep[1] < len && !done[1]) ) {
+		prefetch_count++;
+		if (prefetch_count>=48) { // cache line is 64 bytes, but we may skip some deps
+			for(int fwi = 0; fwi < 2; fwi++) {
+				if (!done[fwi]) {
+					bool fw = (fwi == 0);
+					const BTDnaString& seq = fw ? read.patFw : read.patRc;
+					const size_t left = len-dep[fwi];
+					if (left>48) {
+						__builtin_prefetch(&(seq[left-49])); // HW prefetch prediction assumes forward, help it
 					}
 				}
 			}
-			if(doFtab) {
-				// Use ftab
-				ebwt.ftabLoHi(seq, len - dep - ftabLen, false, top, bot);
-				dep += (size_t)ftabLen;
-			} else {
-				// Use fchr
-				int c = seq[len-dep-1];
-				if(c < 4) {
-					top = ebwt.fchr()[c];
-					bot = ebwt.fchr()[c+1];
+			prefetch_count=0;
+		}
+		// by doing both fw in the internal loop, I give the prefetch in exactSweepStep to be effective
+		for(int fwi = 0; fwi < 2; fwi++) {
+			if (!done[fwi]) {
+				bool fw = (fwi == 0);
+				const BTDnaString& seq = fw ? read.patFw : read.patRc;
+
+				if (doInit[fwi]) {
+					exactSweepInit(ebwt, seq, ftabLen, len,            // in
+							dep[fwi], top[fwi], bot[fwi]);          // out
+					if ( exactSweepStep(ebwt, top[fwi], bot[fwi], mineMax,
+							tloc[fwi], bloc[fwi],
+							fw ? mineFw : mineRc,
+							nedit[fwi], done[fwi]) ) {
+						continue;
+					}
+					doInit[fwi]=false;
 				}
-				dep++;
-			}
-			if(bot <= top) {
-				nedit++;
-				if(nedit >= mineMax) {
-					if(fw) { mineFw = nedit; } else { mineRc = nedit; }
-					break;
+
+				if (dep[fwi]< len) {
+					exactSweepMapLF(ebwt, seq, len, dep[fwi], tloc[fwi], bloc[fwi],
+							top[fwi], bot[fwi], bwops_);
+
+					if ( exactSweepStep(ebwt, top[fwi], bot[fwi], mineMax,
+								tloc[fwi], bloc[fwi],
+								fw ? mineFw : mineRc,
+								nedit[fwi], done[fwi]) ) {
+						doInit[fwi]=true;
+					}
+					dep[fwi]++;
 				}
-				continue;
 			}
-			INIT_LOCS(top, bot, tloc, bloc, ebwt);
-			// Keep going
-			while(dep < len) {
-				int c = seq[len-dep-1];
-				if(c > 3) {
-					top = bot = 0;
-				} else {
-					if(bloc.valid()) {
-						bwops_ += 2;
-						top = ebwt.mapLF(tloc, c);
-						bot = ebwt.mapLF(bloc, c);
+		}
+	}
+
+	for(int fwi = 0; fwi < 2; fwi++) {
+		if( (!done[fwi]) && (dep[fwi] >= len) ) {
+			const bool fw = (fwi == 0);
+
+			// Set the minimum # edits
+			if(fw) { mineFw = nedit[fwi]; } else { mineRc = nedit[fwi]; }
+			// Done
+			if(nedit[fwi] == 0 && bot[fwi] > top[fwi]) {
+				if(repex) {
+					// This is an exact hit
+					int64_t score = len * sc.match();
+					if(fw) {
+						hits.addExactEeFw(top[fwi], bot[fwi], NULL, NULL, fw, score);
+						assert(ebwt.contains(fw ? read.patFw : read.patRc, NULL, NULL));
 					} else {
-						bwops_++;
-						top = ebwt.mapLF1(top, tloc, c);
-						if(top == OFF_MASK) {
-							top = bot = 0;
-						} else {
-							bot = top+1;
-						}
+						hits.addExactEeRc(top[fwi], bot[fwi], NULL, NULL, fw, score);
+						assert(ebwt.contains(fw ? read.patFw : read.patRc, NULL, NULL));
 					}
 				}
-				if(bot <= top) {
-					nedit++;
-					if(nedit >= mineMax) {
-						if(fw) { mineFw = nedit; } else { mineRc = nedit; }
-						done = true;
-					}
-					break;
-				}
-				INIT_LOCS(top, bot, tloc, bloc, ebwt);
-				dep++;
+				nelt += (bot[fwi] - top[fwi]);
 			}
-			if(done) {
-				break;
-			}
-			if(dep == len) {
-				// Set the minimum # edits
-				if(fw) { mineFw = nedit; } else { mineRc = nedit; }
-				// Done
-				if(nedit == 0 && bot > top) {
-					if(repex) {
-						// This is an exact hit
-						int64_t score = len * sc.match();
-						if(fw) {
-							hits.addExactEeFw(top, bot, NULL, NULL, fw, score);
-							assert(ebwt.contains(seq, NULL, NULL));
-						} else {
-							hits.addExactEeRc(top, bot, NULL, NULL, fw, score);
-							assert(ebwt.contains(seq, NULL, NULL));
-						}
-					}
-					nelt += (bot - top);
-				}
-				break;
-			}
-			dep++;
 		}
 	}
 	return nelt;
@@ -1092,21 +1322,9 @@ bool SeedAligner::oneMmSearch(
 	return results;
 }
 
-/**
- * Wrapper for initial invcation of searchSeed.
- */
-bool
-SeedAligner::searchSeedBi() {
-	return searchSeedBi(
-		0, 0,
-		0, 0, 0, 0,
-		SideLocus(), SideLocus(),
-		s_->cons[0], s_->cons[1], s_->cons[2], s_->overall,
-		NULL);
-}
-
 inline void
 SeedAligner::prefetchNextLocsBi(
+	const InstantiatedSeed& seed, // current instantiated seed
         TIndexOffU topf,              // top in BWT
         TIndexOffU botf,              // bot in BWT
         TIndexOffU topb,              // top in BWT'
@@ -1114,9 +1332,9 @@ SeedAligner::prefetchNextLocsBi(
         int step                    // step to get ready for
         )
 {
-	if(step == (int)s_->steps.size()) return; // no more steps!
+	if(step == (int)seed.steps.size()) return; // no more steps!
 	// Which direction are we going in next?
-	if(s_->steps[step] > 0) {
+	if(seed.steps[step] > 0) {
 		// Left to right; use BWT'
 		if(botb - topb == 1) {
 			// Already down to 1 row; just init top locus
@@ -1145,8 +1363,9 @@ SeedAligner::prefetchNextLocsBi(
  */
 inline void
 SeedAligner::nextLocsBi(
-	SideLocus& tloc,            // top locus
-	SideLocus& bloc,            // bot locus
+	const InstantiatedSeed& seed, // current instantiated seed
+	SideLocus& tloc,              // top locus
+	SideLocus& bloc,              // bot locus
 	TIndexOffU topf,              // top in BWT
 	TIndexOffU botf,              // bot in BWT
 	TIndexOffU topb,              // top in BWT'
@@ -1162,9 +1381,9 @@ SeedAligner::nextLocsBi(
 	assert(ebwtBw_ == NULL || botb > 0);
 	assert_geq(step, 0); // next step can't be first one
 	assert(ebwtBw_ == NULL || botf-topf == botb-topb);
-	if(step == (int)s_->steps.size()) return; // no more steps!
+	if(step == (int)seed.steps.size()) return; // no more steps!
 	// Which direction are we going in next?
-	if(s_->steps[step] > 0) {
+	if(seed.steps[step] > 0) {
 		// Left to right; use BWT'
 		if(botb - topb == 1) {
 			// Already down to 1 row; just init top locus
@@ -1194,8 +1413,8 @@ SeedAligner::nextLocsBi(
 			// Inherit state from the predecessor
 			ot = *prevOt;
 		}
-		bool ltr = s_->steps[step-1] > 0;
-		int adj = abs(s_->steps[step-1])-1;
+		bool ltr = seed.steps[step-1] > 0;
+		int adj = abs(seed.steps[step-1])-1;
 		const Ebwt* ebwt = ltr ? ebwtBw_ : ebwtFw_;
 		ot.update(
 			ltr ? topb : topf,    // top
@@ -1219,8 +1438,11 @@ SeedAligner::nextLocsBi(
  * we're done, which actually adds the hit to the cache.  Returns result from
  * calling reportHit().
  */
-bool
+void
 SeedAligner::extendAndReportHit(
+	SeedSearchCache &cache,              // local seed alignment cache
+	size_t off,                          // offset of seed currently being searched
+	bool fw,                             // orientation of seed currently being searched
 	TIndexOffU topf,                     // top in BWT
 	TIndexOffU botf,                     // bot in BWT
 	TIndexOffU topb,                     // top in BWT'
@@ -1232,11 +1454,11 @@ SeedAligner::extendAndReportHit(
 	TIndexOffU t[4], b[4];
 	TIndexOffU tp[4], bp[4];
 	SideLocus tloc, bloc;
-	if(off_ > 0) {
+	if(off > 0) {
 		const Ebwt *ebwt = ebwtFw_;
 		assert(ebwt != NULL);
 		// Extend left using forward index
-		const BTDnaString& seq = fw_ ? read_->patFw : read_->patRc;
+		const BTDnaString& seq = fw ? read_->patFw : read_->patRc;
 		// See what we get by extending 
 		TIndexOffU top = topf, bot = botf;
 		t[0] = t[1] = t[2] = t[3] = 0;
@@ -1245,7 +1467,7 @@ SeedAligner::extendAndReportHit(
 		bp[0] = bp[1] = bp[2] = bp[3] = botb;
 		SideLocus tloc, bloc;
 		INIT_LOCS(top, bot, tloc, bloc, *ebwt);
-		for(size_t ii = off_; ii > 0; ii--) {
+		for(size_t ii = off; ii > 0; ii--) {
 			size_t i = ii-1;
 			// Get char from read
 			int rdc = seq.get(i);
@@ -1287,12 +1509,12 @@ SeedAligner::extendAndReportHit(
 		}
 	}
 	size_t rdlen = read_->length();
-	size_t nright = rdlen - off_ - len;
+	size_t nright = rdlen - off - len;
 	if(nright > 0 && ebwtBw_ != NULL) {
 		const Ebwt *ebwt = ebwtBw_;
 		assert(ebwt != NULL);
 		// Extend right using backward index
-		const BTDnaString& seq = fw_ ? read_->patFw : read_->patRc;
+		const BTDnaString& seq = fw ? read_->patFw : read_->patRc;
 		// See what we get by extending 
 		TIndexOffU top = topb, bot = botb;
 		t[0] = t[1] = t[2] = t[3] = 0;
@@ -1300,7 +1522,7 @@ SeedAligner::extendAndReportHit(
 		tp[0] = tp[1] = tp[2] = tp[3] = topb;
 		bp[0] = bp[1] = bp[2] = bp[3] = botb;
 		INIT_LOCS(top, bot, tloc, bloc, *ebwt);
-		for(size_t i = off_ + len; i < rdlen; i++) {
+		for(size_t i = off + len; i < rdlen; i++) {
 			// Get char from read
 			int rdc = seq.get(i);
 			// See what we get by extending 
@@ -1341,17 +1563,18 @@ SeedAligner::extendAndReportHit(
 		}
 	}
 	assert_lt(nlex, rdlen);
-	assert_leq(nlex, off_);
+	assert_leq(nlex, off);
 	assert_lt(nrex, rdlen);
-	return reportHit(topf, botf, topb, botb, len, prevEdit);
+	reportHit(cache, topf, botf, topb, botb, len, prevEdit);
 }
 
 /**
  * Report a seed hit found by searchSeedBi() by adding it to the cache.  Return
  * false if the hit could not be reported because of, e.g., cache exhaustion.
  */
-bool
+void
 SeedAligner::reportHit(
+	SeedSearchCache &cache,              // local seed alignment cache
 	TIndexOffU topf,                     // top in BWT
 	TIndexOffU botf,                     // bot in BWT
 	TIndexOffU topb,                     // top in BWT'
@@ -1359,6 +1582,8 @@ SeedAligner::reportHit(
 	uint16_t len,                      // length of hit
 	DoublyLinkedList<Edit> *prevEdit)  // previous edit
 {
+	const BTDnaString& seq = cache.getSeq();
+
 	// Add information about the seed hit to AlignmentCache.  This
 	// information eventually makes its way back to the SeedResults
 	// object when we call finishAlign(...).
@@ -1368,21 +1593,20 @@ SeedAligner::reportHit(
 	if(prevEdit != NULL) {
 		prevEdit->toList(edits_);
 		Edit::sort(edits_);
-		assert(Edit::repOk(edits_, *seq_));
-		Edit::toRef(*seq_, edits_, rf);
+		assert(Edit::repOk(edits_, seq));
+		Edit::toRef(seq, edits_, rf);
 	} else {
-		rf = *seq_;
+		rf = seq;
 	}
+	// Note: Disabled, as we now use memory cache
 	// Sanity check: shouldn't add the same hit twice.  If this
 	// happens, it may be because our zone Constraints are not set up
 	// properly and erroneously return true from acceptable() when they
 	// should return false in some cases.
-	assert_eq(hits_.size(), ca_->curNumRanges());
-	assert(hits_.insert(rf));
-	if(!ca_->addOnTheFly(rf, topf, botf, topb, botb)) {
-		return false;
-	}
-	assert_eq(hits_.size(), ca_->curNumRanges());
+	//assert_eq(hits_.size(), cache.curNumRanges());
+	//assert(hits_.insert(rf));
+	cache.addOnTheFly(rf, topf, botf, topb, botb);
+	//assert_eq(hits_.size(), cache.curNumRanges());
 #ifndef NDEBUG
 	// Sanity check that the topf/botf and topb/botb ranges really
 	// correspond to the reference sequence aligned to
@@ -1402,8 +1626,223 @@ SeedAligner::reportHit(
 		}
 	}
 #endif
-	return true;
+	return;
 }
+
+// return true, if we are already done
+bool
+SeedAligner::startSearchSeedBi(SeedAligner::SeedAlignerSearchParams &p)
+{
+	SeedSearchCache &cache = p.cs.cache;
+	const InstantiatedSeed& seed = p.cs.seed;
+	const BTDnaString& seq = cache.getSeq();
+
+	assert_gt(seed.steps.size(), 0);
+	assert(ebwtBw_ == NULL || ebwtBw_->eh().ftabChars() == ebwtFw_->eh().ftabChars());
+#ifndef NDEBUG
+	for(int i = 0; i < 4; i++) {
+		assert(ebwtBw_ == NULL || ebwtBw_->fchr()[i] == ebwtFw_->fchr()[i]);
+	}
+#endif
+	if(p.step == (int)seed.steps.size()) {
+		// Finished aligning seed
+		p.checkCV();
+		reportHit(cache, p.bwt, seq.length(), p.prevEdit);
+		return true;
+	}
+#ifndef NDEBUG
+	if(p.depth > 0) {
+		assert(p.bwt.botf - p.bwt.topf == 1 ||  p.bloc.valid());
+		assert(p.bwt.botf - p.bwt.topf > 1  || !p.bloc.valid());
+	}
+#endif
+	if(p.step == 0) {
+		// Just starting
+		assert(p.prevEdit == NULL);
+		assert(!p.tloc.valid());
+		assert(!p.bloc.valid());
+		int off = seed.steps[0];
+		off = abs(off)-1;
+		// Check whether/how far we can jump using ftab or fchr
+		int ftabLen = ebwtFw_->eh().ftabChars();
+		if(p.cs.hasi0) { //if(ftabLen > 1 && ftabLen <= seed.maxjump)
+			ebwtFw_->ftabLoHi(p.cs.fwi0, p.bwt.topf, p.bwt.botf);
+			#ifdef NDEBUG
+			if(p.bwt.botf - p.bwt.topf == 0) return true;
+			#endif
+			#ifdef NDEBUG
+			if(ebwtBw_ != NULL) {
+				p.bwt.topb = ebwtBw_->ftabHi(p.cs.bwi0);
+				p.bwt.botb = p.bwt.topb + (p.bwt.botf-p.bwt.topf);
+			}
+			#else
+			if(ebwtBw_ != NULL) {
+				ebwtBw_->ftabLoHi(p.cs.bwi0, p.bwt.topb, p.bwt.botb);
+				assert_eq(p.bwt.botf-p.bwt.topf, p.bwt.botb-p.bwt.topb);
+			}
+			if(p.bwt.botf - p.bwt.topf == 0) return true;
+			#endif
+			p.step += ftabLen;
+		} else if(seed.maxjump > 0) {
+			// Use fchr
+			int c = seq[off];
+			assert_range(0, 3, c);
+			p.bwt.topf = p.bwt.topb = ebwtFw_->fchr()[c];
+			p.bwt.botf = p.bwt.botb = ebwtFw_->fchr()[c+1];
+			if(p.bwt.botf - p.bwt.topf == 0) return true;
+			p.step++;
+		} else {
+			assert_eq(0, seed.maxjump);
+			p.bwt.topf = p.bwt.topb = 0;
+			p.bwt.botf = p.bwt.botb = ebwtFw_->fchr()[4];
+		}
+		if(p.step == (int)seed.steps.size()) {
+			// Finished aligning seed
+			p.checkCV();
+			reportHit(cache, p.bwt, seq.length(), p.prevEdit);
+			return true;
+		}
+		nextLocsBi(seed, p.tloc, p.bloc, p.bwt, p.step);
+		assert(p.tloc.valid());
+	} else assert(p.prevEdit != NULL);
+	assert(p.tloc.valid());
+	assert(p.bwt.botf - p.bwt.topf == 1 ||  p.bloc.valid());
+	assert(p.bwt.botf - p.bwt.topf > 1  || !p.bloc.valid());
+	assert_geq(p.step, 0);
+
+	return false;
+}
+
+class SeedAlignerSearchState {
+public:
+	TIndexOffU tp[4], bp[4]; // dest BW ranges for "prime" index
+	TIndexOffU t[4], b[4];   // dest BW ranges
+	TIndexOffU *tf, *tb, *bf, *bb; // depend on ltr
+	const Ebwt* ebwt;
+
+	TIndexOffU ntop;
+	int off;
+	bool ltr;
+	bool done;
+public:
+	SeedAlignerSearchState()
+	: tp{0,0,0,0}, bp{0,0,0,0}
+	, t{0,0,0,0}, b{0,0,0,0}
+	, tf(NULL), tb(NULL), bf(NULL), bb(NULL)
+	, ebwt(NULL)
+	, ntop(0)
+	, off(0)
+	, ltr(false)
+	, done(false)
+	{}
+
+	void setOff(
+		size_t _off,
+		const BwtTopBot &bwt,      // The 4 BWT idxs
+		const Ebwt* ebwtFw_,       // forward index (BWT)
+		const Ebwt* ebwtBw_)       // backward/mirror index (BWT')
+	{
+		off = _off;
+		ltr = off > 0;
+		t[0] = t[1] = t[2] = t[3] = b[0] = b[1] = b[2] = b[3] = 0;
+		off = abs(off)-1;
+		if(ltr) {
+			ebwt = ebwtBw_;
+			tp[0] = tp[1] = tp[2] = tp[3] = bwt.topf;
+			bp[0] = bp[1] = bp[2] = bp[3] = bwt.botf;
+			tf = tp; tb = t;
+			bf = bp; bb = b;
+			ntop = bwt.topb;
+		} else {
+			ebwt = ebwtFw_;
+			tp[0] = tp[1] = tp[2] = tp[3] = bwt.topb;
+			bp[0] = bp[1] = bp[2] = bp[3] = bwt.botb;
+			tf = t; tb = tp;
+			bf = b; bb = bp;
+			ntop = bwt.topf;
+		}
+		assert(ebwt != NULL);
+	}
+
+public:
+#ifndef NDEBUG
+	TIndexOffU lasttot;
+
+	void initLastTot(TIndexOffU tot) { lasttot = tot;}
+	void assertLeqAndSetLastTot(TIndexOffU tot) {
+		assert_leq(tot, lasttot);
+		lasttot = tot;
+	}
+#else
+	// noop in production code
+	void initLastTot(TIndexOffU tot) {}
+	void assertLeqAndSetLastTot(TIndexOffU tot) {};
+#endif
+
+};
+
+class SeedAlignerSearchSave {
+public:
+	SeedAlignerSearchSave(
+		Constraint &cons, Constraint &ovCons,
+		SideLocus &tloc, SideLocus &bloc)
+	: orgCons(cons), orgOvCons(ovCons)
+	, orgTloc(tloc), orgBloc(bloc)
+	, oldCons(cons), oldOvCons(ovCons)
+	, oldTloc(tloc), oldBloc(bloc)
+	{}
+
+	~SeedAlignerSearchSave() {
+		orgCons = oldCons; orgOvCons = oldOvCons;
+		orgTloc = oldTloc; orgBloc = oldBloc;
+	}
+
+private:
+	// reference to the original variables
+	Constraint &orgCons;
+	Constraint &orgOvCons;
+	SideLocus &orgTloc;
+	SideLocus &orgBloc;
+
+	// copy of the originals
+	const Constraint oldCons;
+	const Constraint oldOvCons;
+	const SideLocus oldTloc;
+	const SideLocus oldBloc;
+};
+
+// State used for recursion
+class SeedAlignerSearchRecState {
+public:
+	SeedAlignerSearchRecState(
+			int j,
+			int c,
+			const SeedAlignerSearchState &sstate,
+			DoublyLinkedList<Edit> *prevEdit)
+	: bwt(sstate.tf[j], sstate.bf[j], sstate.tb[j], sstate.bb[j])
+	, edit(sstate.off, j, c, EDIT_TYPE_MM, false)
+	, editl()
+	, _prevEdit(prevEdit)
+	{
+		assert(_prevEdit == NULL || _prevEdit->next == NULL);
+		editl.payload = edit;
+		if(_prevEdit != NULL) {
+			_prevEdit->next = &editl;
+			editl.prev = _prevEdit;
+		}
+		assert(editl.next == NULL);
+	}
+
+	~SeedAlignerSearchRecState() {
+		if(_prevEdit != NULL) _prevEdit->next = NULL;
+	}
+
+	BwtTopBot bwt;
+	Edit edit;
+	DoublyLinkedList<Edit> editl;
+private:
+	DoublyLinkedList<Edit> *_prevEdit;
+};
 
 /**
  * Given a seed, search.  Assumes zone 0 = no backtracking.
@@ -1412,230 +1851,124 @@ SeedAligner::reportHit(
  * 1. Edits
  * 2. Bidirectional BWT range(s) on either end
  */
-bool
-SeedAligner::searchSeedBi(
-	int step,             // depth into steps_[] array
-	int depth,            // recursion depth
-	TIndexOffU topf,        // top in BWT
-	TIndexOffU botf,        // bot in BWT
-	TIndexOffU topb,        // top in BWT'
-	TIndexOffU botb,        // bot in BWT'
-	SideLocus tloc,       // locus for top (perhaps unititialized)
-	SideLocus bloc,       // locus for bot (perhaps unititialized)
-	Constraint c0,        // constraints to enforce in seed zone 0
-	Constraint c1,        // constraints to enforce in seed zone 1
-	Constraint c2,        // constraints to enforce in seed zone 2
-	Constraint overall,   // overall constraints to enforce
-	DoublyLinkedList<Edit> *prevEdit  // previous edit
-#if 0
-	, const SABWOffTrack* prevOt // prev off tracker (if tracking started)
-#endif
-	)
+void
+SeedAligner::searchSeedBi(const size_t nparams, SeedAligner::SeedAlignerSearchParams paramVec[]) 
 {
-	assert(s_ != NULL);
-	const InstantiatedSeed& s = *s_;
-	assert_gt(s.steps.size(), 0);
-	assert(ebwtBw_ == NULL || ebwtBw_->eh().ftabChars() == ebwtFw_->eh().ftabChars());
-#ifndef NDEBUG
-	for(int i = 0; i < 4; i++) {
-		assert(ebwtBw_ == NULL || ebwtBw_->fchr()[i] == ebwtFw_->fchr()[i]);
-	}
-#endif
-	if(step == (int)s.steps.size()) {
-		// Finished aligning seed
-		assert(c0.acceptable());
-		assert(c1.acceptable());
-		assert(c2.acceptable());
-		if(!reportHit(topf, botf, topb, botb, seq_->length(), prevEdit)) {
-			return false; // Memory exhausted
-		}
-		return true;
-	}
-#ifndef NDEBUG
-	if(depth > 0) {
-		assert(botf - topf == 1 ||  bloc.valid());
-		assert(botf - topf > 1  || !bloc.valid());
-	}
-#endif
-	int off;
-	TIndexOffU tp[4], bp[4]; // dest BW ranges for "prime" index
-	if(step == 0) {
-		// Just starting
-		assert(prevEdit == NULL);
-		assert(!tloc.valid());
-		assert(!bloc.valid());
-		off = s.steps[0];
-		bool ltr = off > 0;
-		off = abs(off)-1;
-		// Check whether/how far we can jump using ftab or fchr
-		int ftabLen = ebwtFw_->eh().ftabChars();
-		if(ftabLen > 1 && ftabLen <= s.maxjump) {
-			if(!ltr) {
-				assert_geq(off+1, ftabLen-1);
-				off = off - ftabLen + 1;
-			}
-			ebwtFw_->ftabLoHi(*seq_, off, false, topf, botf);
-			#ifdef NDEBUG
-			if(botf - topf == 0) return true;
-			#endif
-			#ifdef NDEBUG
-			if(ebwtBw_ != NULL) {
-				topb = ebwtBw_->ftabHi(*seq_, off);
-				botb = topb + (botf-topf);
-			}
-			#else
-			if(ebwtBw_ != NULL) {
-				ebwtBw_->ftabLoHi(*seq_, off, false, topb, botb);
-				assert_eq(botf-topf, botb-topb);
-			}
-			if(botf - topf == 0) return true;
-			#endif
-			step += ftabLen;
-		} else if(s.maxjump > 0) {
-			// Use fchr
-			int c = (*seq_)[off];
-			assert_range(0, 3, c);
-			topf = topb = ebwtFw_->fchr()[c];
-			botf = botb = ebwtFw_->fchr()[c+1];
-			if(botf - topf == 0) return true;
-			step++;
+	size_t nleft = nparams; // will keep track of how many are not done yet
+	std::vector<SeedAlignerSearchState> sstateVec(nparams);
+
+	for (size_t n=0; n<nparams; n++) {
+		SeedAlignerSearchParams& p= paramVec[n];
+		const bool done = startSearchSeedBi(p);
+
+		SeedAlignerSearchState& sstate = sstateVec[n];
+		sstate.done = done;
+		if(done) {
+			nleft--;
 		} else {
-			assert_eq(0, s.maxjump);
-			topf = topb = 0;
-			botf = botb = ebwtFw_->fchr()[4];
+			sstate.initLastTot(p.bwt.botf - p.bwt.topf);
 		}
-		if(step == (int)s.steps.size()) {
-			// Finished aligning seed
-			assert(c0.acceptable());
-			assert(c1.acceptable());
-			assert(c2.acceptable());
-			if(!reportHit(topf, botf, topb, botb, seq_->length(), prevEdit)) {
-				return false; // Memory exhausted
-			}
-			return true;
+	}
+
+	while (nleft>0) {
+	   // Note: We can do the params in any order we want
+	   // but we must do the steps inside the same param in order
+	   // Will loop over all of them, and just check which ones are invalid
+           for (size_t n=0; n<nparams; n++) {
+                SeedAlignerSearchState& sstate = sstateVec[n];
+		if (sstate.done) continue;
+
+		SeedAlignerSearchParams& p= paramVec[n];
+		const InstantiatedSeed& seed = p.cs.seed;
+		if (p.step >= (int) seed.steps.size()) {
+			sstate.done = true;
+			nleft--;
+			continue;
 		}
-		nextLocsBi(tloc, bloc, topf, botf, topb, botb, step);
-		assert(tloc.valid());
-	} else assert(prevEdit != NULL);
-	assert(tloc.valid());
-	assert(botf - topf == 1 ||  bloc.valid());
-	assert(botf - topf > 1  || !bloc.valid());
-	assert_geq(step, 0);
-	TIndexOffU t[4], b[4]; // dest BW ranges
-	Constraint* zones[3] = { &c0, &c1, &c2 };
-	ASSERT_ONLY(TIndexOffU lasttot = botf - topf);
-	for(int i = step; i < (int)s.steps.size(); i++) {
-		assert_gt(botf, topf);
-		assert(botf - topf == 1 ||  bloc.valid());
-		assert(botf - topf > 1  || !bloc.valid());
-		assert(ebwtBw_ == NULL || botf-topf == botb-topb);
-		assert(tloc.valid());
-		off = s.steps[i];
-		bool ltr = off > 0;
-		const Ebwt* ebwt = ltr ? ebwtBw_ : ebwtFw_;
-		assert(ebwt != NULL);
-		off = abs(off)-1;
-		__builtin_prefetch(&((*seq_)[off]));
-		if(ltr) {
-			tp[0] = tp[1] = tp[2] = tp[3] = topf;
-			bp[0] = bp[1] = bp[2] = bp[3] = botf;
-		} else {
-			tp[0] = tp[1] = tp[2] = tp[3] = topb;
-			bp[0] = bp[1] = bp[2] = bp[3] = botb;
-		}
-		t[0] = t[1] = t[2] = t[3] = b[0] = b[1] = b[2] = b[3] = 0;
-		if(bloc.valid()) {
+		size_t i = p.step; // call the stepIdx i for historical reasons
+		p.step++; // get ready for the next iteration
+
+		SeedSearchCache &cache = p.cs.cache;
+		const BTDnaString& seq = cache.getSeq();
+		const BTString& qual = cache.getQual();
+
+		assert_gt(p.bwt.botf, p.bwt.topf);
+		assert(p.bwt.botf - p.bwt.topf == 1 ||  p.bloc.valid());
+		assert(p.bwt.botf - p.bwt.topf > 1  || !p.bloc.valid());
+		assert(ebwtBw_ == NULL || p.bwt.botf-p.bwt.topf == p.bwt.botb-p.bwt.topb);
+		assert(p.tloc.valid());
+		sstate.setOff(seed.steps[i], p.bwt, ebwtFw_, ebwtBw_);
+		__builtin_prefetch(&(seq[sstate.off]));
+		__builtin_prefetch(&(qual[sstate.off]));
+		if(p.bloc.valid()) {
 			// Range delimited by tloc/bloc has size >1.  If size == 1,
 			// we use a simpler query (see if(!bloc.valid()) blocks below)
 			bwops_++;
-			ebwt->mapBiLFEx(tloc, bloc, t, b, tp, bp);
-			ASSERT_ONLY(TIndexOffU tot = (b[0]-t[0])+(b[1]-t[1])+(b[2]-t[2])+(b[3]-t[3]));
-			ASSERT_ONLY(TIndexOffU totp = (bp[0]-tp[0])+(bp[1]-tp[1])+(bp[2]-tp[2])+(bp[3]-tp[3]));
+			sstate.ebwt->mapBiLFEx(p.tloc, p.bloc, sstate.t, sstate.b, sstate.tp, sstate.bp);
+			ASSERT_ONLY(TIndexOffU tot = (sstate.b[0]-sstate.t[0])+(sstate.b[1]-sstate.t[1])+(sstate.b[2]-sstate.t[2])+(sstate.b[3]-sstate.t[3]));
+			ASSERT_ONLY(TIndexOffU totp = (sstate.bp[0]-sstate.tp[0])+(sstate.bp[1]-sstate.tp[1])+(sstate.bp[2]-sstate.tp[2])+(sstate.bp[3]-sstate.tp[3]));
 			assert_eq(tot, totp);
-			assert_leq(tot, lasttot);
-			ASSERT_ONLY(lasttot = tot);
+#ifndef NDEBUG
+			sstate.assertLeqAndSetLastTot(tot);
+#endif
 		}
-		TIndexOffU *tf = ltr ? tp : t, *tb = ltr ? t : tp;
-		TIndexOffU *bf = ltr ? bp : b, *bb = ltr ? b : bp;
-		int c = (*seq_)[off];  assert_range(0, 4, c);
-		// not 100% sure we need it, but redundant prefetches are not dangerous
-		// and helps in the average case
-		prefetchNextLocsBi(tf[c], bf[c], tb[c], bb[c], i+1);
-
+		int c = seq[sstate.off];  assert_range(0, 4, c);
 		//
-		bool leaveZone = s.zones[i].first < 0;
+		bool leaveZone = seed.zones[i].first < 0;
 		//bool leaveZoneIns = zones_[i].second < 0;
-		Constraint& cons    = *zones[abs(s.zones[i].first)];
-		//Constraint& insCons = *zones[abs(s.zones[i].second)];
-		int q = (*qual_)[off];
+		Constraint& cons    = p.cv[abs(seed.zones[i].first)];
+		//Constraint& insCons = p.cv[abs(seed.zones[i].second)];
 		// Is it legal for us to advance on characters other than 'c'?
-		if(!(cons.mustMatch() && !overall.mustMatch()) || c == 4) {
+		if(!(cons.mustMatch() && !p.overall.mustMatch()) || c == 4) {
 			// There may be legal edits
 			bool bail = false;
-			if(!bloc.valid()) {
+			if(!p.bloc.valid()) {
 				// Range delimited by tloc/bloc has size 1
-				TIndexOffU ntop = ltr ? topb : topf;
 				bwops_++;
-				int cc = ebwt->mapLF1(ntop, tloc);
+				int cc = sstate.ebwt->mapLF1(sstate.ntop, p.tloc);
 				assert_range(-1, 3, cc);
 				if(cc < 0) bail = true;
-				else { t[cc] = ntop; b[cc] = ntop+1; }
+				else { sstate.t[cc] = sstate.ntop; sstate.b[cc] = sstate.ntop+1; }
 			}
 			if(!bail) {
-				if((cons.canMismatch(q, *sc_) && overall.canMismatch(q, *sc_)) || c == 4) {
-					Constraint oldCons = cons, oldOvCons = overall;
-					SideLocus oldTloc = tloc, oldBloc = bloc;
+				int q = qual[sstate.off];
+				if((cons.canMismatch(q, *sc_) && p.overall.canMismatch(q, *sc_)) || c == 4) {
+					SeedAlignerSearchSave save(cons, p.overall, p.tloc, p.bloc);
 					if(c != 4) {
 						cons.chargeMismatch(q, *sc_);
-						overall.chargeMismatch(q, *sc_);
+						p.overall.chargeMismatch(q, *sc_);
 					}
 					// Can leave the zone as-is
-					if(!leaveZone || (cons.acceptable() && overall.acceptable())) {
+					if(!leaveZone || (cons.acceptable() && p.overall.acceptable())) {
 						for(int j = 0; j < 4; j++) {
-							if(j == c || b[j] == t[j]) continue;
+							if(j == c || sstate.b[j] == sstate.t[j]) continue;
 							// Potential mismatch
-							nextLocsBi(tloc, bloc, tf[j], bf[j], tb[j], bb[j], i+1);
-							int loff = off;
-							if(!ltr) loff = (int)(s.steps.size() - loff - 1);
-							assert(prevEdit == NULL || prevEdit->next == NULL);
-							Edit edit(off, j, c, EDIT_TYPE_MM, false);
-							DoublyLinkedList<Edit> editl;
-							editl.payload = edit;
-							if(prevEdit != NULL) {
-								prevEdit->next = &editl;
-								editl.prev = prevEdit;
-							}
-							assert(editl.next == NULL);
+							SeedAlignerSearchRecState rstate(j, c, sstate, p.prevEdit);
+							nextLocsBi(seed, p.tloc, p.bloc, rstate.bwt, i+1);
 							bwedits_++;
-							if(!searchSeedBi(
-								i+1,     // depth into steps_[] array
-								depth+1, // recursion depth
-								tf[j],   // top in BWT
-								bf[j],   // bot in BWT
-								tb[j],   // top in BWT'
-								bb[j],   // bot in BWT'
-								tloc,    // locus for top (perhaps unititialized)
-								bloc,    // locus for bot (perhaps unititialized)
-								c0,      // constraints to enforce in seed zone 0
-								c1,      // constraints to enforce in seed zone 1
-								c2,      // constraints to enforce in seed zone 2
-								overall, // overall constraints to enforce
-								&editl))  // latest edit
-							{
-								return false;
-							}
-							if(prevEdit != NULL) prevEdit->next = NULL;
+							SeedAlignerSearchParams p2(
+								p.cs,
+								i+1,             // depth into steps[] array
+								p.depth+1,       // recursion depth
+								rstate.bwt,      // The 4 BWT idxs
+								p.tloc,          // locus for top (perhaps unititialized)
+								p.bloc,          // locus for bot (perhaps unititialized)
+								p.cv,            // constraints to enforce in seed zones
+								p.overall,       // overall constraints to enforce
+								&rstate.editl);  // latest edit
+							// recursion is rare, so just do one at a time
+							searchSeedBi(1, &p2);
+							// as rstate gets out of scope, p.prevEdit->next is updated
 						}
 					} else {
 						// Not enough edits to make this path
 						// non-redundant with other seeds
 					}
-					cons = oldCons;
-					overall = oldOvCons;
-					tloc = oldTloc;
-					bloc = oldBloc;
+
+					// as olds gets out of scope,
+					// restores cons, p.overall, p.tloc, p.bloc
 				}
-				if(cons.canGap() && overall.canGap()) {
+				if(cons.canGap() && p.overall.canGap()) {
 					throw 1; // TODO
 //					int delEx = 0;
 //					if(cons.canDelete(delEx, *sc_) && overall.canDelete(delEx, *sc_)) {
@@ -1648,49 +1981,55 @@ SeedAligner::searchSeedBi(
 				}
 			} // if(!bail)
 		}
-		if(c == 4) {
-			return true; // couldn't handle the N
+		if(c == 4) { // couldn't handle the N
+			sstate.done = true;
+			nleft--;
+			continue;
 		}
-		if(leaveZone && (!cons.acceptable() || !overall.acceptable())) {
+		if(leaveZone && (!cons.acceptable() || !p.overall.acceptable())) {
 			// Not enough edits to make this path non-redundant with
 			// other seeds
-			return true;
+			sstate.done = true;
+			nleft--;
+			continue;
 		}
-		if(!bloc.valid()) {
-			assert(ebwtBw_ == NULL || bp[c] == tp[c]+1);
+		if(!p.bloc.valid()) {
+			assert(ebwtBw_ == NULL || sstate.bp[c] == sstate.tp[c]+1);
 			// Range delimited by tloc/bloc has size 1
-			TIndexOffU top = ltr ? topb : topf;
 			bwops_++;
-			t[c] = ebwt->mapLF1(top, tloc, c);
-			if(t[c] == OFF_MASK) {
-				return true;
+			sstate.t[c] = sstate.ebwt->mapLF1(sstate.ntop, p.tloc, c);
+			if(sstate.t[c] == OFF_MASK) {
+				sstate.done = true;
+				nleft--;
+				continue;
 			}
-			assert_geq(t[c], ebwt->fchr()[c]);
-			assert_lt(t[c],  ebwt->fchr()[c+1]);
-			b[c] = t[c]+1;
-			assert_gt(b[c], 0);
+			assert_geq(sstate.t[c], sstate.ebwt->fchr()[c]);
+			assert_lt(sstate.t[c],  sstate.ebwt->fchr()[c+1]);
+			sstate.b[c] = sstate.t[c]+1;
+			assert_gt(sstate.b[c], 0);
 		}
-		assert(ebwtBw_ == NULL || bf[c]-tf[c] == bb[c]-tb[c]);
-		assert_leq(bf[c]-tf[c], lasttot);
-		ASSERT_ONLY(lasttot = bf[c]-tf[c]);
-		if(b[c] == t[c]) {
-			return true;
+		assert(ebwtBw_ == NULL || sstate.bf[c]-sstate.tf[c] == sstate.bb[c]-sstate.tb[c]);
+#ifndef NDEBUG
+		sstate.assertLeqAndSetLastTot(sstate.bf[c]-sstate.tf[c]);
+#endif
+		if(sstate.b[c] == sstate.t[c]) {
+			sstate.done = true;
+			nleft--;
+			continue;
 		}
-		topf = tf[c]; botf = bf[c];
-		topb = tb[c]; botb = bb[c];
-		if(i+1 == (int)s.steps.size()) {
+		p.bwt.set(sstate.tf[c], sstate.bf[c], sstate.tb[c], sstate.bb[c]);
+		if(i+1 == seed.steps.size()) {
 			// Finished aligning seed
-			assert(c0.acceptable());
-			assert(c1.acceptable());
-			assert(c2.acceptable());
-			if(!reportHit(topf, botf, topb, botb, seq_->length(), prevEdit)) {
-				return false; // Memory exhausted
-			}
-			return true;
+			p.checkCV();
+			reportHit(cache, p.bwt, seq.length(), p.prevEdit);
+			sstate.done = true;
+			nleft--;
+			continue;
 		}
-		nextLocsBi(tloc, bloc, tf[c], bf[c], tb[c], bb[c], i+1);
-	}
-	return true;
+		nextLocsBi(seed, p.tloc, p.bloc, p.bwt, i+1);
+	   } // for n
+	} // while
+	return;
 }
 
 #ifdef ALIGNER_SEED_MAIN
