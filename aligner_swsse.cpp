@@ -47,8 +47,8 @@ void SSEMatrix::init(
 			 << " vectors per cell" << endl;
 		throw e;
 	}
-	assert(wperv_ == 8 || wperv_ == 16);
-	vecshift_ = (wperv_ == 8) ? 3 : 4;
+	assert(wperv_ == (NBYTES_PER_REG/2) || wperv_ == NBYTES_PER_REG);
+	vecshift_ = (wperv_ == NBYTES_PER_REG) ? 4 : 3;
 	nvecrow_ = (nrow + (wperv_-1)) >> vecshift_;
 	nveccol_ = ncol;
 	colstride_ = nvecPerCol_ * nvecPerCell_;
@@ -79,10 +79,10 @@ int SSEMatrix::eltSlow(size_t row, size_t col, size_t mat) const {
 	size_t rowelt = row / nvecrow_;
 	size_t rowvec = row % nvecrow_;
 	size_t eltvec = (col * colstride_) + (rowvec * rowstride_) + mat;
-	if(wperv_ == 16) {
+	if(wperv_ == NBYTES_PER_REG) {
 		return (int)((uint8_t*)(matbuf_.ptr() + eltvec))[rowelt];
 	} else {
-		assert_eq(8, wperv_);
+		assert_eq((NBYTES_PER_REG/2), wperv_);
 		return (int)((int16_t*)(matbuf_.ptr() + eltvec))[rowelt];
 	}
 }

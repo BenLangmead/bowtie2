@@ -228,10 +228,10 @@ struct SSEMatrix {
 		size_t rowvec = row % nvecrow_;
 		size_t eltvec = (col * colstride_) + (rowvec * rowstride_) + mat;
 		assert_lt(eltvec, matbuf_.size());
-		if(wperv_ == 16) {
+		if(wperv_ == NBYTES_PER_REG) {
 			return (int)((uint8_t*)(matbuf_.ptr() + eltvec))[rowelt];
 		} else {
-			assert_eq(8, wperv_);
+			assert_eq((NBYTES_PER_REG/2), wperv_);
 			return (int)((int16_t*)(matbuf_.ptr() + eltvec))[rowelt];
 		}
 	}
@@ -413,8 +413,8 @@ struct SSEData {
 	SSEMatrix      mat_;         // SSE matrix for holding all E, F, H vectors
 	size_t         maxPen_;      // biggest penalty of all
 	size_t         maxBonus_;    // biggest bonus of all
-	size_t         lastIter_;    // which 128-bit striped word has final row?
-	size_t         lastWord_;    // which word within 128-word has final row?
+	size_t         lastIter_;    // which N-bit striped word has final row?
+	size_t         lastWord_;    // which word within N-word has final row?
 	int            bias_;        // all scores shifted up by this for unsigned
 };
 

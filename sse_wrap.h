@@ -33,6 +33,8 @@
 #include <emmintrin.h>
 #endif
 
+#define NBYTES_PER_REG 16
+
 #if defined(__aarch64__) || defined(__s390x__) || defined(__powerpc__)
 typedef simde__m128i SSERegI;
 #define sse_adds_epi16(x, y) simde_mm_adds_epi16(x, y)

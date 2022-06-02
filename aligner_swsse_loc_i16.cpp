@@ -55,8 +55,7 @@
 #include <limits>
 #include "aligner_sw.h"
 
-static const size_t NBYTES_PER_REG  = 16;
-static const size_t NWORDS_PER_REG  = 8;
+static const size_t NWORDS_PER_REG  = NBYTES_PER_REG/2;
 static const size_t NBITS_PER_WORD  = 16;
 static const size_t NBYTES_PER_WORD = 2;
 

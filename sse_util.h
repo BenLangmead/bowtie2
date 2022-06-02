@@ -379,7 +379,7 @@ public:
 		debug_ = true;
 		commitMap_.clear();
 		firstCommit_ = true;
-		size_t perword = (is8 ? 16 : 8);
+		size_t perword = NBYTES_PER_REG / (is8 ? 1 : 2);
 		is8_ = is8;
 		niter_ = ((nrow_ + perword - 1) / perword);
 		if(doTri) {
