@@ -234,43 +234,43 @@ static bool cellOkEnd2EndI16(
 #else
 
 #define assert_all_eq0(x) { \
-	SSERegI z = _mm_setzero_si128(); \
-	SSERegI tmp = _mm_setzero_si128(); \
-	z = _mm_xor_si128(z, z); \
-	tmp = _mm_cmpeq_epi16(x, z); \
-	assert_eq(0xffff, _mm_movemask_epi8(tmp)); \
+	SSERegI z = sse_setzero_siall(); \
+	SSERegI tmp = sse_setzero_siall(); \
+	z = sse_xor_siall(z, z); \
+	tmp = sse_cmpeq_epi16(x, z); \
+	assert_eq(0xffff, sse_movemask_epi8(tmp)); \
 }
 
 #define assert_all_gt(x, y) { \
-	SSERegI tmp = _mm_cmpgt_epi16(x, y); \
-	assert_eq(0xffff, _mm_movemask_epi8(tmp)); \
+	SSERegI tmp = sse_cmpgt_epi16(x, y); \
+	assert_eq(0xffff, sse_movemask_epi8(tmp)); \
 }
 
 #define assert_all_gt_lo(x) { \
-	SSERegI z = _mm_setzero_si128(); \
-	SSERegI tmp = _mm_setzero_si128(); \
-	z = _mm_xor_si128(z, z); \
-	tmp = _mm_cmpgt_epi16(x, z); \
-	assert_eq(0xffff, _mm_movemask_epi8(tmp)); \
+	SSERegI z = sse_setzero_siall(); \
+	SSERegI tmp = sse_setzero_siall(); \
+	z = sse_xor_siall(z, z); \
+	tmp = sse_cmpgt_epi16(x, z); \
+	assert_eq(0xffff, sse_movemask_epi8(tmp)); \
 }
 
 #define assert_all_lt(x, y) { \
-	SSERegI tmp = _mm_cmplt_epi16(x, y); \
-	assert_eq(0xffff, _mm_movemask_epi8(tmp)); \
+	SSERegI tmp = sse_cmplt_epi16(x, y); \
+	assert_eq(0xffff, sse_movemask_epi8(tmp)); \
 }
 
 #define assert_all_leq(x, y) { \
-	SSERegI tmp = _mm_cmpgt_epi16(x, y); \
-	assert_eq(0x0000, _mm_movemask_epi8(tmp)); \
+	SSERegI tmp = sse_cmpgt_epi16(x, y); \
+	assert_eq(0x0000, sse_movemask_epi8(tmp)); \
 }
 
 #define assert_all_lt_hi(x) { \
-	SSERegI z = _mm_setzero_si128(); \
-	SSERegI tmp = _mm_setzero_si128(); \
-	z = _mm_cmpeq_epi16(z, z); \
-	z = _mm_srli_epi16(z, 1); \
-	tmp = _mm_cmplt_epi16(x, z); \
-	assert_eq(0xffff, _mm_movemask_epi8(tmp)); \
+	SSERegI z = sse_setzero_siall(); \
+	SSERegI tmp = sse_setzero_siall(); \
+	z = sse_cmpeq_epi16(z, z); \
+	z = sse_srli_epi16(z, 1); \
+	tmp = sse_cmplt_epi16(x, z); \
+	assert_eq(0xffff, sse_movemask_epi8(tmp)); \
 }
 #endif
 
@@ -354,65 +354,65 @@ TAlScore SwAligner::alignGatherEE16(int& flag, bool debug) {
 	// Much of the implmentation below is adapted from Michael's code.
 
 	// Set all elts to reference gap open penalty
-	SSERegI rfgapo   = _mm_setzero_si128();
-	SSERegI rfgape   = _mm_setzero_si128();
-	SSERegI rdgapo   = _mm_setzero_si128();
-	SSERegI rdgape   = _mm_setzero_si128();
-	SSERegI vlo      = _mm_setzero_si128();
-	SSERegI vhi      = _mm_setzero_si128();
-	SSERegI vhilsw   = _mm_setzero_si128();
-	SSERegI vlolsw   = _mm_setzero_si128();
-	SSERegI ve       = _mm_setzero_si128();
-	SSERegI vf       = _mm_setzero_si128();
-	SSERegI vh       = _mm_setzero_si128();
-	SSERegI vhd      = _mm_setzero_si128();
-	SSERegI vhdtmp   = _mm_setzero_si128();
-	SSERegI vtmp     = _mm_setzero_si128();
+	SSERegI rfgapo   = sse_setzero_siall();
+	SSERegI rfgape   = sse_setzero_siall();
+	SSERegI rdgapo   = sse_setzero_siall();
+	SSERegI rdgape   = sse_setzero_siall();
+	SSERegI vlo      = sse_setzero_siall();
+	SSERegI vhi      = sse_setzero_siall();
+	SSERegI vhilsw   = sse_setzero_siall();
+	SSERegI vlolsw   = sse_setzero_siall();
+	SSERegI ve       = sse_setzero_siall();
+	SSERegI vf       = sse_setzero_siall();
+	SSERegI vh       = sse_setzero_siall();
+	SSERegI vhd      = sse_setzero_siall();
+	SSERegI vhdtmp   = sse_setzero_siall();
+	SSERegI vtmp     = sse_setzero_siall();
 
 	assert_gt(sc_->refGapOpen(), 0);
 	assert_leq(sc_->refGapOpen(), MAX_I16);
-	rfgapo = _mm_insert_epi16(rfgapo, sc_->refGapOpen(), 0);
-	rfgapo = _mm_shufflelo_epi16(rfgapo, 0);
-	rfgapo = _mm_shuffle_epi32(rfgapo, 0);
+	rfgapo = sse_insert_epi16(rfgapo, sc_->refGapOpen(), 0);
+	rfgapo = sse_shufflelo_epi16(rfgapo, 0);
+	rfgapo = sse_shuffle_epi32(rfgapo, 0);
 	
 	// Set all elts to reference gap extension penalty
 	assert_gt(sc_->refGapExtend(), 0);
 	assert_leq(sc_->refGapExtend(), MAX_I16);
 	assert_leq(sc_->refGapExtend(), sc_->refGapOpen());
-	rfgape = _mm_insert_epi16(rfgape, sc_->refGapExtend(), 0);
-	rfgape = _mm_shufflelo_epi16(rfgape, 0);
-	rfgape = _mm_shuffle_epi32(rfgape, 0);
+	rfgape = sse_insert_epi16(rfgape, sc_->refGapExtend(), 0);
+	rfgape = sse_shufflelo_epi16(rfgape, 0);
+	rfgape = sse_shuffle_epi32(rfgape, 0);
 
 	// Set all elts to read gap open penalty
 	assert_gt(sc_->readGapOpen(), 0);
 	assert_leq(sc_->readGapOpen(), MAX_I16);
-	rdgapo = _mm_insert_epi16(rdgapo, sc_->readGapOpen(), 0);
-	rdgapo = _mm_shufflelo_epi16(rdgapo, 0);
-	rdgapo = _mm_shuffle_epi32(rdgapo, 0);
+	rdgapo = sse_insert_epi16(rdgapo, sc_->readGapOpen(), 0);
+	rdgapo = sse_shufflelo_epi16(rdgapo, 0);
+	rdgapo = sse_shuffle_epi32(rdgapo, 0);
 	
 	// Set all elts to read gap extension penalty
 	assert_gt(sc_->readGapExtend(), 0);
 	assert_leq(sc_->readGapExtend(), MAX_I16);
 	assert_leq(sc_->readGapExtend(), sc_->readGapOpen());
-	rdgape = _mm_insert_epi16(rdgape, sc_->readGapExtend(), 0);
-	rdgape = _mm_shufflelo_epi16(rdgape, 0);
-	rdgape = _mm_shuffle_epi32(rdgape, 0);
+	rdgape = sse_insert_epi16(rdgape, sc_->readGapExtend(), 0);
+	rdgape = sse_shufflelo_epi16(rdgape, 0);
+	rdgape = sse_shuffle_epi32(rdgape, 0);
 
 	// Set all elts to 0x8000 (min value for signed 16-bit)
-	vlo = _mm_cmpeq_epi16(vlo, vlo);             // all elts = 0xffff
-	vlo = _mm_slli_epi16(vlo, NBITS_PER_WORD-1); // all elts = 0x8000
+	vlo = sse_cmpeq_epi16(vlo, vlo);             // all elts = 0xffff
+	vlo = sse_slli_epi16(vlo, NBITS_PER_WORD-1); // all elts = 0x8000
 	
 	// Set all elts to 0x7fff (max value for signed 16-bit)
-	vhi = _mm_cmpeq_epi16(vhi, vhi);             // all elts = 0xffff
-	vhi = _mm_srli_epi16(vhi, 1);                // all elts = 0x7fff
+	vhi = sse_cmpeq_epi16(vhi, vhi);             // all elts = 0xffff
+	vhi = sse_srli_epi16(vhi, 1);                // all elts = 0x7fff
 	
 	// vlolsw: topmost (least sig) word set to 0x8000, all other words=0
-	vlolsw = _mm_shuffle_epi32(vlo, 0);
-	vlolsw = _mm_srli_si128(vlolsw, NBYTES_PER_REG - NBYTES_PER_WORD);
+	vlolsw = sse_shuffle_epi32(vlo, 0);
+	vlolsw = sse_srli_siall(vlolsw, NBYTES_PER_REG - NBYTES_PER_WORD);
 	
 	// vhilsw: topmost (least sig) word set to 0x7fff, all other words=0
-	vhilsw = _mm_shuffle_epi32(vhi, 0);
-	vhilsw = _mm_srli_si128(vhilsw, NBYTES_PER_REG - NBYTES_PER_WORD);
+	vhilsw = sse_shuffle_epi32(vhi, 0);
+	vhilsw = sse_srli_siall(vhilsw, NBYTES_PER_REG - NBYTES_PER_WORD);
 	
 	// Points to a long vector of SSERegI where each element is a block of
 	// contiguous cells in the E, F or H matrix.  If the index % 3 == 0, then
@@ -434,11 +434,11 @@ TAlScore SwAligner::alignGatherEE16(int& flag, bool debug) {
 	TCScore lrmax = MIN_I16;
 	
 	for(size_t i = 0; i < iter; i++) {
-		_mm_store_si128(pvERight, vlo); pvERight += ROWSTRIDE_2COL;
+		sse_store_siall(pvERight, vlo); pvERight += ROWSTRIDE_2COL;
 		// Could initialize Hs to high or low.  If high, cells in the lower
 		// triangle will have somewhat more legitiate scores, but still won't
 		// be exhaustively scored.
-		_mm_store_si128(pvHRight, vlo); pvHRight += ROWSTRIDE_2COL;
+		sse_store_siall(pvHRight, vlo); pvHRight += ROWSTRIDE_2COL;
 	}
 	
 	assert_gt(sc_->gapbar, 0);
@@ -474,49 +474,49 @@ TAlScore SwAligner::alignGatherEE16(int& flag, bool debug) {
 		pvScore = d.profbuf_.ptr() + off; // even elts = query profile, odd = gap barrier
 		
 		// Set all cells to low value
-		vf = _mm_cmpeq_epi16(vf, vf);
-		vf = _mm_slli_epi16(vf, NBITS_PER_WORD-1);
-		vf = _mm_or_si128(vf, vlolsw);
+		vf = sse_cmpeq_epi16(vf, vf);
+		vf = sse_slli_epi16(vf, NBITS_PER_WORD-1);
+		vf = sse_or_siall(vf, vlolsw);
 		
 		// Load H vector from the final row of the previous column
-		vh = _mm_load_si128(pvHLeft + colstride - ROWSTRIDE_2COL);
+		vh = sse_load_siall(pvHLeft + colstride - ROWSTRIDE_2COL);
 		// Shift 2 bytes down so that topmost (least sig) cell gets 0
-		vh = _mm_slli_si128(vh, NBYTES_PER_WORD);
+		vh = sse_slli_siall(vh, NBYTES_PER_WORD);
 		// Fill topmost (least sig) cell with high value
-		vh = _mm_or_si128(vh, vhilsw);
+		vh = sse_or_siall(vh, vhilsw);
 		
 		// For each character in the reference text:
 		size_t j;
 		for(j = 0; j < iter; j++) {
 			// Load cells from E, calculated previously
-			ve = _mm_load_si128(pvELeft);
-			vhd = _mm_load_si128(pvHLeft);
+			ve = sse_load_siall(pvELeft);
+			vhd = sse_load_siall(pvHLeft);
 			assert_all_lt(ve, vhi);
 			pvELeft += ROWSTRIDE_2COL;
 			
 			// Store cells in F, calculated previously
-			vf = _mm_adds_epi16(vf, pvScore[1]); // veto some ref gap extensions
-			vf = _mm_adds_epi16(vf, pvScore[1]); // veto some ref gap extensions
-			_mm_store_si128(pvFRight, vf);
+			vf = sse_adds_epi16(vf, pvScore[1]); // veto some ref gap extensions
+			vf = sse_adds_epi16(vf, pvScore[1]); // veto some ref gap extensions
+			sse_store_siall(pvFRight, vf);
 			pvFRight += ROWSTRIDE_2COL;
 			
 			// Factor in query profile (matches and mismatches)
-			vh = _mm_adds_epi16(vh, pvScore[0]);
+			vh = sse_adds_epi16(vh, pvScore[0]);
 			
 			// Update H, factoring in E and F
-			vh = _mm_max_epi16(vh, vf);
+			vh = sse_max_epi16(vh, vf);
 			
 			// Update vE value
 			vhdtmp = vhd;
-			vhd = _mm_subs_epi16(vhd, rdgapo);
-			vhd = _mm_adds_epi16(vhd, pvScore[1]); // veto some read gap opens
-			vhd = _mm_adds_epi16(vhd, pvScore[1]); // veto some read gap opens
-			ve = _mm_subs_epi16(ve, rdgape);
-			ve = _mm_max_epi16(ve, vhd);
-			vh = _mm_max_epi16(vh, ve);
+			vhd = sse_subs_epi16(vhd, rdgapo);
+			vhd = sse_adds_epi16(vhd, pvScore[1]); // veto some read gap opens
+			vhd = sse_adds_epi16(vhd, pvScore[1]); // veto some read gap opens
+			ve = sse_subs_epi16(ve, rdgape);
+			ve = sse_max_epi16(ve, vhd);
+			vh = sse_max_epi16(vh, ve);
 
 			// Save the new vH values
-			_mm_store_si128(pvHRight, vh);
+			sse_store_siall(pvHRight, vh);
 			pvHRight += ROWSTRIDE_2COL;
 			vtmp = vh;
 			assert_all_lt(ve, vhi);
@@ -526,49 +526,49 @@ TAlScore SwAligner::alignGatherEE16(int& flag, bool debug) {
 			pvHLeft += ROWSTRIDE_2COL;
 
 			// Save E values
-			_mm_store_si128(pvERight, ve);
+			sse_store_siall(pvERight, ve);
 			pvERight += ROWSTRIDE_2COL;
 			
 			// Update vf value
-			vtmp = _mm_subs_epi16(vtmp, rfgapo);
-			vf = _mm_subs_epi16(vf, rfgape);
+			vtmp = sse_subs_epi16(vtmp, rfgapo);
+			vf = sse_subs_epi16(vf, rfgape);
 			assert_all_lt(vf, vhi);
-			vf = _mm_max_epi16(vf, vtmp);
+			vf = sse_max_epi16(vf, vtmp);
 			
 			pvScore += 2; // move on to next query profile / gap veto
 		}
 		// pvHStore, pvELoad, pvEStore have all rolled over to the next column
 		pvFRight -= colstride; // reset to start of column
-		vtmp = _mm_load_si128(pvFRight);
+		vtmp = sse_load_siall(pvFRight);
 		
 		pvHRight -= colstride; // reset to start of column
-		vh = _mm_load_si128(pvHRight);
+		vh = sse_load_siall(pvHRight);
 		
 		pvScore = d.profbuf_.ptr() + off + 1; // reset veto vector
 		
 		// vf from last row gets shifted down by one to overlay the first row
 		// rfgape has already been subtracted from it.
-		vf = _mm_slli_si128(vf, NBYTES_PER_WORD);
-		vf = _mm_or_si128(vf, vlolsw);
+		vf = sse_slli_siall(vf, NBYTES_PER_WORD);
+		vf = sse_or_siall(vf, vlolsw);
 		
-		vf = _mm_adds_epi16(vf, *pvScore); // veto some ref gap extensions
-		vf = _mm_adds_epi16(vf, *pvScore); // veto some ref gap extensions
-		vf = _mm_max_epi16(vtmp, vf);
-		vtmp = _mm_cmpgt_epi16(vf, vtmp);
-		int cmp = _mm_movemask_epi8(vtmp);
+		vf = sse_adds_epi16(vf, *pvScore); // veto some ref gap extensions
+		vf = sse_adds_epi16(vf, *pvScore); // veto some ref gap extensions
+		vf = sse_max_epi16(vtmp, vf);
+		vtmp = sse_cmpgt_epi16(vf, vtmp);
+		int cmp = sse_movemask_epi8(vtmp);
 		
 		// If any element of vtmp is greater than H - gap-open...
 		j = 0;
 		while(cmp != 0x0000) {
 			// Store this vf
-			_mm_store_si128(pvFRight, vf);
+			sse_store_siall(pvFRight, vf);
 			pvFRight += ROWSTRIDE_2COL;
 			
 			// Update vh w/r/t new vf
-			vh = _mm_max_epi16(vh, vf);
+			vh = sse_max_epi16(vh, vf);
 			
 			// Save vH values
-			_mm_store_si128(pvHRight, vh);
+			sse_store_siall(pvHRight, vh);
 			pvHRight += ROWSTRIDE_2COL;
 			
 			pvScore += 2;
@@ -576,25 +576,25 @@ TAlScore SwAligner::alignGatherEE16(int& flag, bool debug) {
 			assert_lt(j, iter);
 			if(++j == iter) {
 				pvFRight -= colstride;
-				vtmp = _mm_load_si128(pvFRight);   // load next vf ASAP
+				vtmp = sse_load_siall(pvFRight);   // load next vf ASAP
 				pvHRight -= colstride;
-				vh = _mm_load_si128(pvHRight);     // load next vh ASAP
+				vh = sse_load_siall(pvHRight);     // load next vh ASAP
 				pvScore = d.profbuf_.ptr() + off + 1;
 				j = 0;
-				vf = _mm_slli_si128(vf, NBYTES_PER_WORD);
-				vf = _mm_or_si128(vf, vlolsw);
+				vf = sse_slli_siall(vf, NBYTES_PER_WORD);
+				vf = sse_or_siall(vf, vlolsw);
 			} else {
-				vtmp = _mm_load_si128(pvFRight);   // load next vf ASAP
-				vh = _mm_load_si128(pvHRight);     // load next vh ASAP
+				vtmp = sse_load_siall(pvFRight);   // load next vf ASAP
+				vh = sse_load_siall(pvHRight);     // load next vh ASAP
 			}
 			
 			// Update F with another gap extension
-			vf = _mm_subs_epi16(vf, rfgape);
-			vf = _mm_adds_epi16(vf, *pvScore); // veto some ref gap extensions
-			vf = _mm_adds_epi16(vf, *pvScore); // veto some ref gap extensions
-			vf = _mm_max_epi16(vtmp, vf);
-			vtmp = _mm_cmpgt_epi16(vf, vtmp);
-			cmp = _mm_movemask_epi8(vtmp);
+			vf = sse_subs_epi16(vf, rfgape);
+			vf = sse_adds_epi16(vf, *pvScore); // veto some ref gap extensions
+			vf = sse_adds_epi16(vf, *pvScore); // veto some ref gap extensions
+			vf = sse_max_epi16(vtmp, vf);
+			vtmp = sse_cmpgt_epi16(vf, vtmp);
+			cmp = sse_movemask_epi8(vtmp);
 			nfixup++;
 		}
 
@@ -820,67 +820,67 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag, bool debug) {
 	// Much of the implmentation below is adapted from Michael's code.
 
 	// Set all elts to reference gap open penalty
-	SSERegI rfgapo   = _mm_setzero_si128();
-	SSERegI rfgape   = _mm_setzero_si128();
-	SSERegI rdgapo   = _mm_setzero_si128();
-	SSERegI rdgape   = _mm_setzero_si128();
-	SSERegI vlo      = _mm_setzero_si128();
-	SSERegI vhi      = _mm_setzero_si128();
-	SSERegI vhilsw   = _mm_setzero_si128();
-	SSERegI vlolsw   = _mm_setzero_si128();
-	SSERegI ve       = _mm_setzero_si128();
-	SSERegI vf       = _mm_setzero_si128();
-	SSERegI vh       = _mm_setzero_si128();
+	SSERegI rfgapo   = sse_setzero_siall();
+	SSERegI rfgape   = sse_setzero_siall();
+	SSERegI rdgapo   = sse_setzero_siall();
+	SSERegI rdgape   = sse_setzero_siall();
+	SSERegI vlo      = sse_setzero_siall();
+	SSERegI vhi      = sse_setzero_siall();
+	SSERegI vhilsw   = sse_setzero_siall();
+	SSERegI vlolsw   = sse_setzero_siall();
+	SSERegI ve       = sse_setzero_siall();
+	SSERegI vf       = sse_setzero_siall();
+	SSERegI vh       = sse_setzero_siall();
 #if 0
-	SSERegI vhd      = _mm_setzero_si128();
-	SSERegI vhdtmp   = _mm_setzero_si128();
+	SSERegI vhd      = sse_setzero_siall();
+	SSERegI vhdtmp   = sse_setzero_siall();
 #endif
-	SSERegI vtmp     = _mm_setzero_si128();
+	SSERegI vtmp     = sse_setzero_siall();
 
 	assert_gt(sc_->refGapOpen(), 0);
 	assert_leq(sc_->refGapOpen(), MAX_I16);
-	rfgapo = _mm_insert_epi16(rfgapo, sc_->refGapOpen(), 0);
-	rfgapo = _mm_shufflelo_epi16(rfgapo, 0);
-	rfgapo = _mm_shuffle_epi32(rfgapo, 0);
+	rfgapo = sse_insert_epi16(rfgapo, sc_->refGapOpen(), 0);
+	rfgapo = sse_shufflelo_epi16(rfgapo, 0);
+	rfgapo = sse_shuffle_epi32(rfgapo, 0);
 	
 	// Set all elts to reference gap extension penalty
 	assert_gt(sc_->refGapExtend(), 0);
 	assert_leq(sc_->refGapExtend(), MAX_I16);
 	assert_leq(sc_->refGapExtend(), sc_->refGapOpen());
-	rfgape = _mm_insert_epi16(rfgape, sc_->refGapExtend(), 0);
-	rfgape = _mm_shufflelo_epi16(rfgape, 0);
-	rfgape = _mm_shuffle_epi32(rfgape, 0);
+	rfgape = sse_insert_epi16(rfgape, sc_->refGapExtend(), 0);
+	rfgape = sse_shufflelo_epi16(rfgape, 0);
+	rfgape = sse_shuffle_epi32(rfgape, 0);
 
 	// Set all elts to read gap open penalty
 	assert_gt(sc_->readGapOpen(), 0);
 	assert_leq(sc_->readGapOpen(), MAX_I16);
-	rdgapo = _mm_insert_epi16(rdgapo, sc_->readGapOpen(), 0);
-	rdgapo = _mm_shufflelo_epi16(rdgapo, 0);
-	rdgapo = _mm_shuffle_epi32(rdgapo, 0);
+	rdgapo = sse_insert_epi16(rdgapo, sc_->readGapOpen(), 0);
+	rdgapo = sse_shufflelo_epi16(rdgapo, 0);
+	rdgapo = sse_shuffle_epi32(rdgapo, 0);
 	
 	// Set all elts to read gap extension penalty
 	assert_gt(sc_->readGapExtend(), 0);
 	assert_leq(sc_->readGapExtend(), MAX_I16);
 	assert_leq(sc_->readGapExtend(), sc_->readGapOpen());
-	rdgape = _mm_insert_epi16(rdgape, sc_->readGapExtend(), 0);
-	rdgape = _mm_shufflelo_epi16(rdgape, 0);
-	rdgape = _mm_shuffle_epi32(rdgape, 0);
+	rdgape = sse_insert_epi16(rdgape, sc_->readGapExtend(), 0);
+	rdgape = sse_shufflelo_epi16(rdgape, 0);
+	rdgape = sse_shuffle_epi32(rdgape, 0);
 
 	// Set all elts to 0x8000 (min value for signed 16-bit)
-	vlo = _mm_cmpeq_epi16(vlo, vlo);             // all elts = 0xffff
-	vlo = _mm_slli_epi16(vlo, NBITS_PER_WORD-1); // all elts = 0x8000
+	vlo = sse_cmpeq_epi16(vlo, vlo);             // all elts = 0xffff
+	vlo = sse_slli_epi16(vlo, NBITS_PER_WORD-1); // all elts = 0x8000
 	
 	// Set all elts to 0x7fff (max value for signed 16-bit)
-	vhi = _mm_cmpeq_epi16(vhi, vhi);             // all elts = 0xffff
-	vhi = _mm_srli_epi16(vhi, 1);                // all elts = 0x7fff
+	vhi = sse_cmpeq_epi16(vhi, vhi);             // all elts = 0xffff
+	vhi = sse_srli_epi16(vhi, 1);                // all elts = 0x7fff
 	
 	// vlolsw: topmost (least sig) word set to 0x8000, all other words=0
-	vlolsw = _mm_shuffle_epi32(vlo, 0);
-	vlolsw = _mm_srli_si128(vlolsw, NBYTES_PER_REG - NBYTES_PER_WORD);
+	vlolsw = sse_shuffle_epi32(vlo, 0);
+	vlolsw = sse_srli_siall(vlolsw, NBYTES_PER_REG - NBYTES_PER_WORD);
 	
 	// vhilsw: topmost (least sig) word set to 0x7fff, all other words=0
-	vhilsw = _mm_shuffle_epi32(vhi, 0);
-	vhilsw = _mm_srli_si128(vhilsw, NBYTES_PER_REG - NBYTES_PER_WORD);
+	vhilsw = sse_shuffle_epi32(vhi, 0);
+	vhilsw = sse_srli_siall(vhilsw, NBYTES_PER_REG - NBYTES_PER_WORD);
 	
 	// Points to a long vector of SSERegI where each element is a block of
 	// contiguous cells in the E, F or H matrix.  If the index % 3 == 0, then
@@ -903,11 +903,11 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag, bool debug) {
 	TCScore lrmax = MIN_I16;
 	
 	for(size_t i = 0; i < iter; i++) {
-		_mm_store_si128(pvETmp, vlo);
+		sse_store_siall(pvETmp, vlo);
 		// Could initialize Hs to high or low.  If high, cells in the lower
 		// triangle will have somewhat more legitiate scores, but still won't
 		// be exhaustively scored.
-		_mm_store_si128(pvHTmp, vlo);
+		sse_store_siall(pvHTmp, vlo);
 		pvETmp += ROWSTRIDE;
 		pvHTmp += ROWSTRIDE;
 	}
@@ -948,60 +948,60 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag, bool debug) {
 		pvScore = d.profbuf_.ptr() + off; // even elts = query profile, odd = gap barrier
 		
 		// Set all cells to low value
-		vf = _mm_cmpeq_epi16(vf, vf);
-		vf = _mm_slli_epi16(vf, NBITS_PER_WORD-1);
-		vf = _mm_or_si128(vf, vlolsw);
+		vf = sse_cmpeq_epi16(vf, vf);
+		vf = sse_slli_epi16(vf, NBITS_PER_WORD-1);
+		vf = sse_or_siall(vf, vlolsw);
 		
 		// Load H vector from the final row of the previous column
-		vh = _mm_load_si128(pvHLoad + colstride - ROWSTRIDE);
+		vh = sse_load_siall(pvHLoad + colstride - ROWSTRIDE);
 		// Shift 2 bytes down so that topmost (least sig) cell gets 0
-		vh = _mm_slli_si128(vh, NBYTES_PER_WORD);
+		vh = sse_slli_siall(vh, NBYTES_PER_WORD);
 		// Fill topmost (least sig) cell with high value
-		vh = _mm_or_si128(vh, vhilsw);
+		vh = sse_or_siall(vh, vhilsw);
 		
 		// For each character in the reference text:
 		size_t j;
 		for(j = 0; j < iter; j++) {
 			// Load cells from E, calculated previously
-			ve = _mm_load_si128(pvELoad);
+			ve = sse_load_siall(pvELoad);
 #if 0
-			vhd = _mm_load_si128(pvHLoad);
+			vhd = sse_load_siall(pvHLoad);
 #endif
 			assert_all_lt(ve, vhi);
 			pvELoad += ROWSTRIDE;
 			
 			// Store cells in F, calculated previously
-			vf = _mm_adds_epi16(vf, pvScore[1]); // veto some ref gap extensions
-			vf = _mm_adds_epi16(vf, pvScore[1]); // veto some ref gap extensions
-			_mm_store_si128(pvFStore, vf);
+			vf = sse_adds_epi16(vf, pvScore[1]); // veto some ref gap extensions
+			vf = sse_adds_epi16(vf, pvScore[1]); // veto some ref gap extensions
+			sse_store_siall(pvFStore, vf);
 			pvFStore += ROWSTRIDE;
 			
 			// Factor in query profile (matches and mismatches)
-			vh = _mm_adds_epi16(vh, pvScore[0]);
+			vh = sse_adds_epi16(vh, pvScore[0]);
 			
 			// Update H, factoring in E and F
-			vh = _mm_max_epi16(vh, ve);
-			vh = _mm_max_epi16(vh, vf);
+			vh = sse_max_epi16(vh, ve);
+			vh = sse_max_epi16(vh, vf);
 			
 			// Save the new vH values
-			_mm_store_si128(pvHStore, vh);
+			sse_store_siall(pvHStore, vh);
 			pvHStore += ROWSTRIDE;
 			
 			// Update vE value
 			vtmp = vh;
 #if 0
 			vhdtmp = vhd;
-			vhd = _mm_subs_epi16(vhd, rdgapo);
-			vhd = _mm_adds_epi16(vhd, pvScore[1]); // veto some read gap opens
-			vhd = _mm_adds_epi16(vhd, pvScore[1]); // veto some read gap opens
-			ve = _mm_subs_epi16(ve, rdgape);
-			ve = _mm_max_epi16(ve, vhd);
+			vhd = sse_subs_epi16(vhd, rdgapo);
+			vhd = sse_adds_epi16(vhd, pvScore[1]); // veto some read gap opens
+			vhd = sse_adds_epi16(vhd, pvScore[1]); // veto some read gap opens
+			ve = sse_subs_epi16(ve, rdgape);
+			ve = sse_max_epi16(ve, vhd);
 #else
-			vh = _mm_subs_epi16(vh, rdgapo);
-			vh = _mm_adds_epi16(vh, pvScore[1]); // veto some read gap opens
-			vh = _mm_adds_epi16(vh, pvScore[1]); // veto some read gap opens
-			ve = _mm_subs_epi16(ve, rdgape);
-			ve = _mm_max_epi16(ve, vh);
+			vh = sse_subs_epi16(vh, rdgapo);
+			vh = sse_adds_epi16(vh, pvScore[1]); // veto some read gap opens
+			vh = sse_adds_epi16(vh, pvScore[1]); // veto some read gap opens
+			ve = sse_subs_epi16(ve, rdgape);
+			ve = sse_max_epi16(ve, vh);
 #endif
 			assert_all_lt(ve, vhi);
 			
@@ -1009,34 +1009,34 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag, bool debug) {
 #if 0
 			vh = vhdtmp;
 #else
-			vh = _mm_load_si128(pvHLoad);
+			vh = sse_load_siall(pvHLoad);
 #endif
 			pvHLoad += ROWSTRIDE;
 			
 			// Save E values
-			_mm_store_si128(pvEStore, ve);
+			sse_store_siall(pvEStore, ve);
 			pvEStore += ROWSTRIDE;
 			
 			// Update vf value
-			vtmp = _mm_subs_epi16(vtmp, rfgapo);
-			vf = _mm_subs_epi16(vf, rfgape);
+			vtmp = sse_subs_epi16(vtmp, rfgapo);
+			vf = sse_subs_epi16(vf, rfgape);
 			assert_all_lt(vf, vhi);
-			vf = _mm_max_epi16(vf, vtmp);
+			vf = sse_max_epi16(vf, vtmp);
 			
 			pvScore += 2; // move on to next query profile / gap veto
 		}
 		// pvHStore, pvELoad, pvEStore have all rolled over to the next column
 		pvFTmp = pvFStore;
 		pvFStore -= colstride; // reset to start of column
-		vtmp = _mm_load_si128(pvFStore);
+		vtmp = sse_load_siall(pvFStore);
 		
 		pvHStore -= colstride; // reset to start of column
-		vh = _mm_load_si128(pvHStore);
+		vh = sse_load_siall(pvHStore);
 		
 #if 0
 #else
 		pvEStore -= colstride; // reset to start of column
-		ve = _mm_load_si128(pvEStore);
+		ve = sse_load_siall(pvEStore);
 #endif
 		
 		pvHLoad = pvHStore;    // new pvHLoad = pvHStore
@@ -1044,37 +1044,37 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag, bool debug) {
 		
 		// vf from last row gets shifted down by one to overlay the first row
 		// rfgape has already been subtracted from it.
-		vf = _mm_slli_si128(vf, NBYTES_PER_WORD);
-		vf = _mm_or_si128(vf, vlolsw);
+		vf = sse_slli_siall(vf, NBYTES_PER_WORD);
+		vf = sse_or_siall(vf, vlolsw);
 		
-		vf = _mm_adds_epi16(vf, *pvScore); // veto some ref gap extensions
-		vf = _mm_adds_epi16(vf, *pvScore); // veto some ref gap extensions
-		vf = _mm_max_epi16(vtmp, vf);
-		vtmp = _mm_cmpgt_epi16(vf, vtmp);
-		int cmp = _mm_movemask_epi8(vtmp);
+		vf = sse_adds_epi16(vf, *pvScore); // veto some ref gap extensions
+		vf = sse_adds_epi16(vf, *pvScore); // veto some ref gap extensions
+		vf = sse_max_epi16(vtmp, vf);
+		vtmp = sse_cmpgt_epi16(vf, vtmp);
+		int cmp = sse_movemask_epi8(vtmp);
 		
 		// If any element of vtmp is greater than H - gap-open...
 		j = 0;
 		while(cmp != 0x0000) {
 			// Store this vf
-			_mm_store_si128(pvFStore, vf);
+			sse_store_siall(pvFStore, vf);
 			pvFStore += ROWSTRIDE;
 			
 			// Update vh w/r/t new vf
-			vh = _mm_max_epi16(vh, vf);
+			vh = sse_max_epi16(vh, vf);
 			
 			// Save vH values
-			_mm_store_si128(pvHStore, vh);
+			sse_store_siall(pvHStore, vh);
 			pvHStore += ROWSTRIDE;
 			
 			// Update E in case it can be improved using our new vh
 #if 0
 #else
-			vh = _mm_subs_epi16(vh, rdgapo);
-			vh = _mm_adds_epi16(vh, *pvScore); // veto some read gap opens
-			vh = _mm_adds_epi16(vh, *pvScore); // veto some read gap opens
-			ve = _mm_max_epi16(ve, vh);
-			_mm_store_si128(pvEStore, ve);
+			vh = sse_subs_epi16(vh, rdgapo);
+			vh = sse_adds_epi16(vh, *pvScore); // veto some read gap opens
+			vh = sse_adds_epi16(vh, *pvScore); // veto some read gap opens
+			ve = sse_max_epi16(ve, vh);
+			sse_store_siall(pvEStore, ve);
 			pvEStore += ROWSTRIDE;
 #endif
 			pvScore += 2;
@@ -1082,34 +1082,34 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag, bool debug) {
 			assert_lt(j, iter);
 			if(++j == iter) {
 				pvFStore -= colstride;
-				vtmp = _mm_load_si128(pvFStore);   // load next vf ASAP
+				vtmp = sse_load_siall(pvFStore);   // load next vf ASAP
 				pvHStore -= colstride;
-				vh = _mm_load_si128(pvHStore);     // load next vh ASAP
+				vh = sse_load_siall(pvHStore);     // load next vh ASAP
 #if 0
 #else
 				pvEStore -= colstride;
-				ve = _mm_load_si128(pvEStore);     // load next ve ASAP
+				ve = sse_load_siall(pvEStore);     // load next ve ASAP
 #endif
 				pvScore = d.profbuf_.ptr() + off + 1;
 				j = 0;
-				vf = _mm_slli_si128(vf, NBYTES_PER_WORD);
-				vf = _mm_or_si128(vf, vlolsw);
+				vf = sse_slli_siall(vf, NBYTES_PER_WORD);
+				vf = sse_or_siall(vf, vlolsw);
 			} else {
-				vtmp = _mm_load_si128(pvFStore);   // load next vf ASAP
-				vh = _mm_load_si128(pvHStore);     // load next vh ASAP
+				vtmp = sse_load_siall(pvFStore);   // load next vf ASAP
+				vh = sse_load_siall(pvHStore);     // load next vh ASAP
 #if 0
 #else
-				ve = _mm_load_si128(pvEStore);     // load next vh ASAP
+				ve = sse_load_siall(pvEStore);     // load next vh ASAP
 #endif
 			}
 			
 			// Update F with another gap extension
-			vf = _mm_subs_epi16(vf, rfgape);
-			vf = _mm_adds_epi16(vf, *pvScore); // veto some ref gap extensions
-			vf = _mm_adds_epi16(vf, *pvScore); // veto some ref gap extensions
-			vf = _mm_max_epi16(vtmp, vf);
-			vtmp = _mm_cmpgt_epi16(vf, vtmp);
-			cmp = _mm_movemask_epi8(vtmp);
+			vf = sse_subs_epi16(vf, rfgape);
+			vf = sse_adds_epi16(vf, *pvScore); // veto some ref gap extensions
+			vf = sse_adds_epi16(vf, *pvScore); // veto some ref gap extensions
+			vf = sse_max_epi16(vtmp, vf);
+			vtmp = sse_cmpgt_epi16(vf, vtmp);
+			cmp = sse_movemask_epi8(vtmp);
 			nfixup++;
 		}
 
