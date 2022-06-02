@@ -226,12 +226,13 @@ private:
 		SSERegI* tmp = last_alloc_;
 		size_t tmpint = (size_t)tmp;
 		// Align it!
-		if((tmpint & 0xf) != 0) {
-			tmpint += 15;
-			tmpint &= (~0xf);
+		const size_t alignmask = NBYTES_PER_REG-1;
+		if((tmpint & alignmask) != 0) {
+			tmpint += alignmask;
+			tmpint &= (~alignmask);
 			tmp = reinterpret_cast<SSERegI*>(tmpint);
 		}
-		assert_eq(0, (tmpint & 0xf)); // should be 16-byte aligned
+		assert_eq(0, (tmpint & alignmask)); // should be NBYTES_PER_REG-byte aligned
 		assert(tmp != NULL);
 #ifdef USE_MEM_TALLY
 		gMemTally.add(cat_, sz);
