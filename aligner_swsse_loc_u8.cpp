@@ -83,13 +83,13 @@ void SwAligner::buildQueryProfileLocalSseU8(bool fw) {
 	const size_t len = rd->length();
 	const size_t seglen = (len + (NWORDS_PER_REG-1)) / NWORDS_PER_REG;
 	// How many SSERegI's are needed
-	size_t n128s =
+	size_t nsses =
 		64 +                    // slack bytes, for alignment?
 		(seglen * ALPHA_SIZE)   // query profile data
 		* 2;                    // & gap barrier data
-	assert_gt(n128s, 0);
+	assert_gt(nsses, 0);
 	SSEData& d = fw ? sseU8fw_ : sseU8rc_;
-	d.profbuf_.resizeNoCopy(n128s);
+	d.profbuf_.resizeNoCopy(nsses);
 	assert(!d.profbuf_.empty());
 	d.maxPen_      = d.maxBonus_ = 0;
 	d.lastIter_    = d.lastWord_ = 0;
