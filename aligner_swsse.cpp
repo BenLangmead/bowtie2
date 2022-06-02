@@ -47,8 +47,13 @@ void SSEMatrix::init(
 			 << " vectors per cell" << endl;
 		throw e;
 	}
-	assert(wperv_ == (NBYTES_PER_REG/2) || wperv_ == NBYTES_PER_REG);
-	vecshift_ = (wperv_ == NBYTES_PER_REG) ? 4 : 3;
+	{
+		// compute vecshift_=log2(wperv)
+		size_t wp = wperv;
+		assert(wp == (NBYTES_PER_REG/2) || wp == NBYTES_PER_REG);
+	        vecshift_ = 0;
+        	while( wp>>=1 ) vecshift_++;
+	}
 	nvecrow_ = (nrow + (wperv_-1)) >> vecshift_;
 	nveccol_ = ncol;
 	colstride_ = nvecPerCol_ * nvecPerCell_;
