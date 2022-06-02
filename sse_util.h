@@ -26,13 +26,13 @@
 #include <iostream>
 #include "sse_wrap.h"
 
-class EList_m128i {
+class EList_sse   {
 public:
 
 	/**
 	 * Allocate initial default of S elements.
 	 */
-	explicit EList_m128i(int cat = 0) :
+	explicit EList_sse  (int cat = 0) :
 		cat_(cat), last_alloc_(NULL), list_(NULL), sz_(0), cur_(0)
 	{
 		assert_geq(cat, 0);
@@ -41,7 +41,7 @@ public:
 	/**
 	 * Destructor.
 	 */
-	~EList_m128i() { free(); }
+	~EList_sse  () { free(); }
 
 	/**
 	 * Return number of elements.
@@ -103,7 +103,7 @@ public:
 	 */
 	void zero() {
 		if(cur_ > 0) {
-			memset(list_, 0, cur_ * sizeof(__m128i));
+			memset(list_, 0, cur_ * sizeof(SSERegI));
 		}
 	}
 
@@ -148,7 +148,7 @@ public:
 	/**
 	 * Return a reference to the ith element.
 	 */
-	inline __m128i& operator[](size_t i) {
+	inline SSERegI& operator[](size_t i) {
 		assert_lt(i, cur_);
 		return list_[i];
 	}
@@ -156,7 +156,7 @@ public:
 	/**
 	 * Return a reference to the ith element.
 	 */
-	inline __m128i operator[](size_t i) const {
+	inline SSERegI operator[](size_t i) const {
 		assert_lt(i, cur_);
 		return list_[i];
 	}
@@ -164,26 +164,26 @@ public:
 	/**
 	 * Return a reference to the ith element.
 	 */
-	inline __m128i& get(size_t i) {
+	inline SSERegI& get(size_t i) {
 		return operator[](i);
 	}
 	
 	/**
 	 * Return a reference to the ith element.
 	 */
-	inline __m128i get(size_t i) const {
+	inline SSERegI get(size_t i) const {
 		return operator[](i);
 	}
 
 	/**
 	 * Return a pointer to the beginning of the buffer.
 	 */
-	__m128i *ptr() { return list_; }
+	SSERegI *ptr() { return list_; }
 
 	/**
 	 * Return a const pointer to the beginning of the buffer.
 	 */
-	const __m128i *ptr() const { return list_; }
+	const SSERegI *ptr() const { return list_; }
 
 	/**
 	 * Return memory category.
@@ -214,22 +214,22 @@ private:
 	 * Allocate a T array of length sz_ and store in list_.  Also,
 	 * tally into the global memory tally.
 	 */
-	__m128i *alloc(size_t sz) {
-		__m128i* last_alloc_;
+	SSERegI *alloc(size_t sz) {
+		SSERegI* last_alloc_;
 		try {
-			last_alloc_ = new __m128i[sz + 2];
+			last_alloc_ = new SSERegI[sz + 2];
 		} catch(std::bad_alloc& e) {
-			std::cerr << "Error: Out of memory allocating " << sz << " __m128i's for DP matrix: '" << e.what() << "'" << std::endl;
+			std::cerr << "Error: Out of memory allocating " << sz << " SSERegI's for DP matrix: '" << e.what() << "'" << std::endl;
 			throw e;
 		}
                 this->last_alloc_ = last_alloc_;
-		__m128i* tmp = last_alloc_;
+		SSERegI* tmp = last_alloc_;
 		size_t tmpint = (size_t)tmp;
 		// Align it!
 		if((tmpint & 0xf) != 0) {
 			tmpint += 15;
 			tmpint &= (~0xf);
-			tmp = reinterpret_cast<__m128i*>(tmpint);
+			tmp = reinterpret_cast<SSERegI*>(tmpint);
 		}
 		assert_eq(0, (tmpint & 0xf)); // should be 16-byte aligned
 		assert(tmp != NULL);
@@ -272,8 +272,8 @@ private:
 	 */
 	void expandCopyExact(size_t newsz) {
 		if(newsz <= sz_) return;
-                __m128i* prev_last_alloc = last_alloc_;
-		__m128i* tmp = alloc(newsz);
+                SSERegI* prev_last_alloc = last_alloc_;
+		SSERegI* tmp = alloc(newsz);
 		assert(tmp != NULL);
 		size_t cur = cur_;
 		if(list_ != NULL) {
@@ -281,7 +281,7 @@ private:
 				// Note: operator= is used
 				tmp[i] = list_[i];
 			}
-                        __m128i* current_last_alloc = last_alloc_;
+                        SSERegI* current_last_alloc = last_alloc_;
                         last_alloc_ = prev_last_alloc;
 			free();
                         last_alloc_ = current_last_alloc;
@@ -312,7 +312,7 @@ private:
 		assert(list_ != NULL);
 		assert_gt(newsz, 0);
 		free();
-		__m128i* tmp = alloc(newsz);
+		SSERegI* tmp = alloc(newsz);
 		assert(tmp != NULL);
 		list_ = tmp;
 		sz_ = newsz;
@@ -320,8 +320,8 @@ private:
 	}
 
 	int      cat_;        // memory category, for accounting purposes
-	__m128i* last_alloc_; // what new[] originally returns
-	__m128i *list_;       // list ptr, aligned version of what new[] returns
+	SSERegI* last_alloc_; // what new[] originally returns
+	SSERegI *list_;       // list ptr, aligned version of what new[] returns
 	size_t   sz_;         // capacity
 	size_t   cur_;        // occupancy (AKA size)
 };
@@ -408,11 +408,11 @@ public:
 	 */
 	int64_t debugCell(size_t row, size_t col, int hef) const {
 		assert(debug_);
-		const __m128i* ptr = qcolsD_.ptr() + hef;
+		const SSERegI* ptr = qcolsD_.ptr() + hef;
 		// Fast forward to appropriate column
 		ptr += ((col * niter_) << 2);
-		size_t mod = row % niter_; // which m128i
-		size_t div = row / niter_; // offset into m128i
+		size_t mod = row % niter_; // which SSERegI
+		size_t div = row / niter_; // offset into SSERegI
 		// Fast forward to appropriate word
 		ptr += (mod << 2);
 		// Extract score
@@ -486,10 +486,10 @@ public:
 		// It must be in a checkpointed column
 		assert_eq(lomask_, (col & lomask_));
 		// Fast forward to appropriate column
-		const __m128i* ptr = qcols_.ptr() + hef;
+		const SSERegI* ptr = qcols_.ptr() + hef;
 		ptr += (((col >> perpow2_) * niter_) << 2);
-		size_t mod = row % niter_; // which m128i
-		size_t div = row / niter_; // offset into m128i
+		size_t mod = row % niter_; // which SSERegI
+		size_t div = row / niter_; // offset into SSERegI
 		// Fast forward to appropriate word
 		ptr += (mod << 2);
 		// Extract score
@@ -516,7 +516,7 @@ public:
 	/**
 	 * Given a column of filled-in cells, save the checkpointed cells in cs_.
 	 */
-	void commitCol(__m128i *pvH, __m128i *pvE, __m128i *pvF, size_t coli);
+	void commitCol(SSERegI *pvH, SSERegI *pvE, SSERegI *pvF, size_t coli);
 	
 	/**
 	 * Reset the state of the Checkpointer.
@@ -573,11 +573,11 @@ public:
 	
 	// We store columns in this way to reduce overhead of populating them
 	bool          is8_;     // true -> fill used 8-bit cells
-	size_t        niter_;   // # __m128i words per column
-	EList_m128i   qcols_;   // checkpoint E/F/H values for select columns
+	size_t        niter_;   // # SSERegI words per column
+	EList_sse     qcols_;   // checkpoint E/F/H values for select columns
 	
 	bool          debug_;   // get debug checkpoints? (i.e. fill qcolsD_?)
-	EList_m128i   qcolsD_;  // checkpoint E/F/H values for all columns (debug)
+	EList_sse     qcolsD_;  // checkpoint E/F/H values for all columns (debug)
 };
 
 #endif

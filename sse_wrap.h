@@ -34,7 +34,7 @@
 #endif
 
 #if defined(__aarch64__) || defined(__s390x__) || defined(__powerpc__)
-typedef simde__m128i __m128i;
+typedef simde__m128i SSERegI;
 #define _mm_adds_epi16(x, y) simde_mm_adds_epi16(x, y)
 #define _mm_adds_epu8(x, y) simde_mm_adds_epu8(x, y)
 #define _mm_cmpeq_epi16(x, y) simde_mm_cmpeq_epi16(x, y)
@@ -62,6 +62,10 @@ typedef simde__m128i __m128i;
 #define _mm_subs_epi16(x, y) simde_mm_subs_epi16(x, y)
 #define _mm_subs_epu8(x, y) simde_mm_subs_epu8(x, y)
 #define _mm_xor_si128(x, y) simde_mm_xor_si128(x, y)
+
+#else
+typedef __m128i SSERegI;
+
 #endif
 
 #endif /* SSE_WRAP_H_ */

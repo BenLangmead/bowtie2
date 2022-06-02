@@ -23,7 +23,7 @@
 
 /**
  * Given a number of rows (nrow), a number of columns (ncol), and the
- * number of words to fit inside a single __m128i vector, initialize the
+ * number of words to fit inside a single SSERegI vector, initialize the
  * matrix buffer to accomodate the needed configuration of vectors.
  */
 void SSEMatrix::init(

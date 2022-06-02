@@ -83,7 +83,7 @@ void SwAligner::buildQueryProfileLocalSseU8(bool fw) {
 	const BTString* qu = fw ? qufw_ : qurc_;
 	const size_t len = rd->length();
 	const size_t seglen = (len + (NWORDS_PER_REG-1)) / NWORDS_PER_REG;
-	// How many __m128i's are needed
+	// How many SSERegI's are needed
 	size_t n128s =
 		64 +                    // slack bytes, for alignment?
 		(seglen * ALPHA_SIZE)   // query profile data
@@ -248,37 +248,37 @@ static bool cellOkLocalU8(
 #else
 
 #define assert_all_eq0(x) { \
-	__m128i z = _mm_setzero_si128(); \
-	__m128i tmp = _mm_setzero_si128(); \
+	SSERegI z = _mm_setzero_si128(); \
+	SSERegI tmp = _mm_setzero_si128(); \
 	z = _mm_xor_si128(z, z); \
 	tmp = _mm_cmpeq_epi16(x, z); \
 	assert_eq(0xffff, _mm_movemask_epi8(tmp)); \
 }
 
 #define assert_all_gt(x, y) { \
-	__m128i tmp = _mm_cmpgt_epu8(x, y); \
+	SSERegI tmp = _mm_cmpgt_epu8(x, y); \
 	assert_eq(0xffff, _mm_movemask_epi8(tmp)); \
 }
 
 #define assert_all_gt_lo(x) { \
-	__m128i z = _mm_setzero_si128(); \
-	__m128i tmp = _mm_setzero_si128(); \
+	SSERegI z = _mm_setzero_si128(); \
+	SSERegI tmp = _mm_setzero_si128(); \
 	z = _mm_xor_si128(z, z); \
 	tmp = _mm_cmpgt_epu8(x, z); \
 	assert_eq(0xffff, _mm_movemask_epi8(tmp)); \
 }
 
 #define assert_all_lt(x, y) { \
-	__m128i z = _mm_setzero_si128(); \
+	SSERegI z = _mm_setzero_si128(); \
 	z = _mm_xor_si128(z, z); \
-	__m128i tmp = _mm_subs_epu8(y, x); \
+	SSERegI tmp = _mm_subs_epu8(y, x); \
 	tmp = _mm_cmpeq_epi16(tmp, z); \
 	assert_eq(0x0000, _mm_movemask_epi8(tmp)); \
 }
 
 #define assert_all_lt_hi(x) { \
-	__m128i z = _mm_setzero_si128(); \
-	__m128i tmp = _mm_setzero_si128(); \
+	SSERegI z = _mm_setzero_si128(); \
+	SSERegI tmp = _mm_setzero_si128(); \
 	z = _mm_cmpeq_epu8(z, z); \
 	z = _mm_srli_epu8(z, 1); \
 	tmp = _mm_cmplt_epu8(x, z); \
@@ -335,8 +335,8 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 	// we'll call "left" and "right".
 	d.vecbuf_.resize(ROWSTRIDE_2COL * iter * 2);
 	d.vecbuf_.zero();
-	__m128i *vbuf_l = d.vecbuf_.ptr();
-	__m128i *vbuf_r = d.vecbuf_.ptr() + (ROWSTRIDE_2COL * iter);
+	SSERegI *vbuf_l = d.vecbuf_.ptr();
+	SSERegI *vbuf_r = d.vecbuf_.ptr() + (ROWSTRIDE_2COL * iter);
 
 	// This is the data structure that holds candidate cells per diagonal.
 	const size_t ndiags = rff_ - rfi_ + dpRows() - 1;
@@ -369,25 +369,25 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 	// Much of the implmentation below is adapted from Michael's code.
 
 	// Set all elts to reference gap open penalty
-	__m128i rfgapo   = _mm_setzero_si128();
-	__m128i rfgape   = _mm_setzero_si128();
-	__m128i rdgapo   = _mm_setzero_si128();
-	__m128i rdgape   = _mm_setzero_si128();
-	__m128i vlo      = _mm_setzero_si128();
-	__m128i vhi      = _mm_setzero_si128();
-	__m128i vmax     = _mm_setzero_si128();
-	__m128i vcolmax  = _mm_setzero_si128();
-	__m128i vmaxtmp  = _mm_setzero_si128();
-	__m128i ve       = _mm_setzero_si128();
-	__m128i vf       = _mm_setzero_si128();
-	__m128i vh       = _mm_setzero_si128();
-	__m128i vhd      = _mm_setzero_si128();
-	__m128i vhdtmp   = _mm_setzero_si128();
-	__m128i vtmp     = _mm_setzero_si128();
-	__m128i vzero    = _mm_setzero_si128();
-	__m128i vbias    = _mm_setzero_si128();
-	__m128i vbiasm1  = _mm_setzero_si128();
-	__m128i vminsc   = _mm_setzero_si128();
+	SSERegI rfgapo   = _mm_setzero_si128();
+	SSERegI rfgape   = _mm_setzero_si128();
+	SSERegI rdgapo   = _mm_setzero_si128();
+	SSERegI rdgape   = _mm_setzero_si128();
+	SSERegI vlo      = _mm_setzero_si128();
+	SSERegI vhi      = _mm_setzero_si128();
+	SSERegI vmax     = _mm_setzero_si128();
+	SSERegI vcolmax  = _mm_setzero_si128();
+	SSERegI vmaxtmp  = _mm_setzero_si128();
+	SSERegI ve       = _mm_setzero_si128();
+	SSERegI vf       = _mm_setzero_si128();
+	SSERegI vh       = _mm_setzero_si128();
+	SSERegI vhd      = _mm_setzero_si128();
+	SSERegI vhdtmp   = _mm_setzero_si128();
+	SSERegI vtmp     = _mm_setzero_si128();
+	SSERegI vzero    = _mm_setzero_si128();
+	SSERegI vbias    = _mm_setzero_si128();
+	SSERegI vbiasm1  = _mm_setzero_si128();
+	SSERegI vminsc   = _mm_setzero_si128();
 
 	int dup;
 
@@ -445,20 +445,20 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 	vbias = _mm_shufflelo_epi16(vbias, 0);
 	vbias = _mm_shuffle_epi32(vbias, 0);
 
-	// Points to a long vector of __m128i where each element is a block of
+	// Points to a long vector of SSERegI where each element is a block of
 	// contiguous cells in the E, F or H matrix.  If the index % 3 == 0, then
 	// the block of cells is from the E matrix.  If index % 3 == 1, they're
 	// from the F matrix.  If index % 3 == 2, then they're from the H matrix.
 	// Blocks of cells are organized in the same interleaved manner as they are
 	// calculated by the Farrar algorithm.
-	const __m128i *pvScore; // points into the query profile
+	const SSERegI *pvScore; // points into the query profile
 
 	const size_t colstride = ROWSTRIDE_2COL * iter;
 
 	// Initialize the H and E vectors in the first matrix column
-	__m128i *pvELeft = vbuf_l + 0; __m128i *pvERight = vbuf_r + 0;
-	/* __m128i *pvFLeft = vbuf_l + 1; */ __m128i *pvFRight = vbuf_r + 1;
-	__m128i *pvHLeft = vbuf_l + 2; __m128i *pvHRight = vbuf_r + 2;
+	SSERegI *pvELeft = vbuf_l + 0; SSERegI *pvERight = vbuf_r + 0;
+	/* SSERegI *pvFLeft = vbuf_l + 1; */ SSERegI *pvFRight = vbuf_r + 1;
+	SSERegI *pvHLeft = vbuf_l + 2; SSERegI *pvHRight = vbuf_r + 2;
 
 	for(size_t i = 0; i < iter; i++) {
 		// start low in local mode
@@ -726,9 +726,9 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 		// Save some elements to checkpoints
 		if(checkpoint) {
 
-			__m128i *pvE = vbuf_r + 0;
-			__m128i *pvF = vbuf_r + 1;
-			__m128i *pvH = vbuf_r + 2;
+			SSERegI *pvE = vbuf_r + 0;
+			SSERegI *pvF = vbuf_r + 1;
+			SSERegI *pvH = vbuf_r + 2;
 			size_t coli = i - rfi_;
 			if(coli < cper_.locol_) cper_.locol_ = coli;
 			if(coli > cper_.hicol_) cper_.hicol_ = coli;
@@ -824,16 +824,16 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 					assert_gt(coli, 0);
 					size_t wordspercol = cper_.niter_ * ROWSTRIDE_2COL;
 					size_t coloff = (coli >> cper_.perpow2_) * wordspercol;
-					__m128i *dst = cper_.qcols_.ptr() + coloff;
-					memcpy(dst, vbuf_r, sizeof(__m128i) * wordspercol);
+					SSERegI *dst = cper_.qcols_.ptr() + coloff;
+					memcpy(dst, vbuf_r, sizeof(SSERegI) * wordspercol);
 				}
 			}
 			if(cper_.debug_) {
 				// Save the column using memcpys
 				size_t wordspercol = cper_.niter_ * ROWSTRIDE_2COL;
 				size_t coloff = coli * wordspercol;
-				__m128i *dst = cper_.qcolsD_.ptr() + coloff;
-				memcpy(dst, vbuf_r, sizeof(__m128i) * wordspercol);
+				SSERegI *dst = cper_.qcolsD_.ptr() + coloff;
+				memcpy(dst, vbuf_r, sizeof(SSERegI) * wordspercol);
 			}
 		}
 
@@ -1004,21 +1004,21 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 	// Much of the implmentation below is adapted from Michael's code.
 
 	// Set all elts to reference gap open penalty
-	__m128i rfgapo   = _mm_setzero_si128();
-	__m128i rfgape   = _mm_setzero_si128();
-	__m128i rdgapo   = _mm_setzero_si128();
-	__m128i rdgape   = _mm_setzero_si128();
-	__m128i vlo      = _mm_setzero_si128();
-	__m128i vhi      = _mm_setzero_si128();
-	__m128i vmax     = _mm_setzero_si128();
-	__m128i vcolmax  = _mm_setzero_si128();
-	__m128i vmaxtmp  = _mm_setzero_si128();
-	__m128i ve       = _mm_setzero_si128();
-	__m128i vf       = _mm_setzero_si128();
-	__m128i vh       = _mm_setzero_si128();
-	__m128i vtmp     = _mm_setzero_si128();
-	__m128i vzero    = _mm_setzero_si128();
-	__m128i vbias    = _mm_setzero_si128();
+	SSERegI rfgapo   = _mm_setzero_si128();
+	SSERegI rfgape   = _mm_setzero_si128();
+	SSERegI rdgapo   = _mm_setzero_si128();
+	SSERegI rdgape   = _mm_setzero_si128();
+	SSERegI vlo      = _mm_setzero_si128();
+	SSERegI vhi      = _mm_setzero_si128();
+	SSERegI vmax     = _mm_setzero_si128();
+	SSERegI vcolmax  = _mm_setzero_si128();
+	SSERegI vmaxtmp  = _mm_setzero_si128();
+	SSERegI ve       = _mm_setzero_si128();
+	SSERegI vf       = _mm_setzero_si128();
+	SSERegI vh       = _mm_setzero_si128();
+	SSERegI vtmp     = _mm_setzero_si128();
+	SSERegI vzero    = _mm_setzero_si128();
+	SSERegI vbias    = _mm_setzero_si128();
 
 	assert_gt(sc_->refGapOpen(), 0);
 	assert_leq(sc_->refGapOpen(), MAX_U8);
@@ -1063,13 +1063,13 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 	vbias = _mm_shufflelo_epi16(vbias, 0);
 	vbias = _mm_shuffle_epi32(vbias, 0);
 
-	// Points to a long vector of __m128i where each element is a block of
+	// Points to a long vector of SSERegI where each element is a block of
 	// contiguous cells in the E, F or H matrix.  If the index % 3 == 0, then
 	// the block of cells is from the E matrix.  If index % 3 == 1, they're
 	// from the F matrix.  If index % 3 == 2, then they're from the H matrix.
 	// Blocks of cells are organized in the same interleaved manner as they are
 	// calculated by the Farrar algorithm.
-	const __m128i *pvScore; // points into the query profile
+	const SSERegI *pvScore; // points into the query profile
 
 	d.mat_.init(dpRows(), rff_ - rfi_, NWORDS_PER_REG);
 	const size_t colstride = d.mat_.colstride();
@@ -1077,8 +1077,8 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 	assert_eq(ROWSTRIDE, colstride / iter);
 
 	// Initialize the H and E vectors in the first matrix column
-	__m128i *pvHTmp = d.mat_.tmpvec(0, 0);
-	__m128i *pvETmp = d.mat_.evec(0, 0);
+	SSERegI *pvHTmp = d.mat_.tmpvec(0, 0);
+	SSERegI *pvETmp = d.mat_.evec(0, 0);
 
 	for(size_t i = 0; i < iter; i++) {
 		_mm_store_si128(pvETmp, vlo);
@@ -1087,12 +1087,12 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 		pvHTmp += ROWSTRIDE;
 	}
 	// These are swapped just before the innermost loop
-	__m128i *pvHStore = d.mat_.hvec(0, 0);
-	__m128i *pvHLoad  = d.mat_.tmpvec(0, 0);
-	__m128i *pvELoad  = d.mat_.evec(0, 0);
-	__m128i *pvEStore = d.mat_.evecUnsafe(0, 1);
-	__m128i *pvFStore = d.mat_.fvec(0, 0);
-	__m128i *pvFTmp   = NULL;
+	SSERegI *pvHStore = d.mat_.hvec(0, 0);
+	SSERegI *pvHLoad  = d.mat_.tmpvec(0, 0);
+	SSERegI *pvELoad  = d.mat_.evec(0, 0);
+	SSERegI *pvEStore = d.mat_.evecUnsafe(0, 1);
+	SSERegI *pvFStore = d.mat_.fvec(0, 0);
+	SSERegI *pvFTmp   = NULL;
 
 	assert_gt(sc_->gapbar, 0);
 	size_t nfixup = 0;
@@ -1495,8 +1495,8 @@ bool SwAligner::gatherCellsNucleotidesLocalSseU8(TAlScore best) {
 		size_t nrow_hi = nrow;
 		// First, check if there is a cell in this column with a score
 		// above the score threshold
-		__m128i vmax = *d.mat_.tmpvec(0, j);
-		__m128i vtmp = _mm_srli_si128(vmax, 8);
+		SSERegI vmax = *d.mat_.tmpvec(0, j);
+		SSERegI vtmp = _mm_srli_si128(vmax, 8);
 		vmax = _mm_max_epu8(vmax, vtmp);
 		vtmp = _mm_srli_si128(vmax, 4);
 		vmax = _mm_max_epu8(vmax, vtmp);
@@ -1514,7 +1514,7 @@ bool SwAligner::gatherCellsNucleotidesLocalSseU8(TAlScore best) {
 		{
 			// Start in upper vector row and move down
 			TAlScore max = 0;
-			__m128i *pvH = d.mat_.hvec(0, j);
+			SSERegI *pvH = d.mat_.hvec(0, j);
 			for(size_t i = 0; i < iter; i++) {
 				for(size_t k = 0; k < NWORDS_PER_REG; k++) {
 					TAlScore sc = (TAlScore)((TCScore*)pvH)[k];
@@ -1532,11 +1532,11 @@ bool SwAligner::gatherCellsNucleotidesLocalSseU8(TAlScore best) {
 			continue;
 		}
 		// Get pointer to first cell in column to examine:
-		__m128i *pvHorig = d.mat_.hvec(0, j);
-		__m128i *pvH     = pvHorig;
+		SSERegI *pvHorig = d.mat_.hvec(0, j);
+		SSERegI *pvH     = pvHorig;
 		// Get pointer to the vector in the following column that corresponds
 		// to the cells diagonally down and to the right from the cells in pvH
-		__m128i *pvHSucc = (j < ncol-1) ? d.mat_.hvec(0, j+1) : NULL;
+		SSERegI *pvHSucc = (j < ncol-1) ? d.mat_.hvec(0, j+1) : NULL;
 		// Start in upper vector row and move down
 		for(size_t i = 0; i < iter; i++) {
 			if(pvHSucc != NULL) {
@@ -1712,7 +1712,7 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 	size_t rowelt, rowvec, eltvec;
 	size_t left_rowelt, up_rowelt, upleft_rowelt;
 	size_t left_rowvec, up_rowvec, upleft_rowvec;
-	__m128i *cur_vec, *left_vec, *up_vec, *upleft_vec;
+	SSERegI *cur_vec, *left_vec, *up_vec, *upleft_vec;
 	NEW_ROW_COL(row, col);
 	while((int)row >= 0) {
 		met.btcell++;

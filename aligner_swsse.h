@@ -82,7 +82,7 @@ struct SSEMetrics {
  *
  * Matrix memory is laid out as follows:
  *
- * - Elements (individual cell scores) are packed into __m128i vectors
+ * - Elements (individual cell scores) are packed into SSERegI vectors
  * - Vectors are packed into quartets, quartet elements correspond to: a vector
  *   from E, one from F, one from H, and one that's "reserved"
  * - Quartets are packed into columns, where the number of quartets is
@@ -109,7 +109,7 @@ struct SSEMatrix {
 	/**
 	 * Return a pointer to the matrix buffer.
 	 */
-	inline __m128i *ptr() {
+	inline SSERegI *ptr() {
 		assert(inited_);
 		return matbuf_.ptr();
 	}
@@ -118,7 +118,7 @@ struct SSEMatrix {
 	 * Return a pointer to the E vector at the given row and column.  Note:
 	 * here row refers to rows of vectors, not rows of elements.
 	 */
-	inline __m128i* evec(size_t row, size_t col) {
+	inline SSERegI* evec(size_t row, size_t col) {
 		assert_lt(row, nvecrow_);
 		assert_lt(col, nveccol_);
 		size_t elt = row * rowstride() + col * colstride() + E;
@@ -130,7 +130,7 @@ struct SSEMatrix {
 	 * Like evec, but it's allowed to ask for a pointer to one column after the
 	 * final one.
 	 */
-	inline __m128i* evecUnsafe(size_t row, size_t col) {
+	inline SSERegI* evecUnsafe(size_t row, size_t col) {
 		assert_lt(row, nvecrow_);
 		assert_leq(col, nveccol_);
 		size_t elt = row * rowstride() + col * colstride() + E;
@@ -142,7 +142,7 @@ struct SSEMatrix {
 	 * Return a pointer to the F vector at the given row and column.  Note:
 	 * here row refers to rows of vectors, not rows of elements.
 	 */
-	inline __m128i* fvec(size_t row, size_t col) {
+	inline SSERegI* fvec(size_t row, size_t col) {
 		assert_lt(row, nvecrow_);
 		assert_lt(col, nveccol_);
 		size_t elt = row * rowstride() + col * colstride() + F;
@@ -154,7 +154,7 @@ struct SSEMatrix {
 	 * Return a pointer to the H vector at the given row and column.  Note:
 	 * here row refers to rows of vectors, not rows of elements.
 	 */
-	inline __m128i* hvec(size_t row, size_t col) {
+	inline SSERegI* hvec(size_t row, size_t col) {
 		assert_lt(row, nvecrow_);
 		assert_lt(col, nveccol_);
 		size_t elt = row * rowstride() + col * colstride() + H;
@@ -166,7 +166,7 @@ struct SSEMatrix {
 	 * Return a pointer to the TMP vector at the given row and column.  Note:
 	 * here row refers to rows of vectors, not rows of elements.
 	 */
-	inline __m128i* tmpvec(size_t row, size_t col) {
+	inline SSERegI* tmpvec(size_t row, size_t col) {
 		assert_lt(row, nvecrow_);
 		assert_lt(col, nveccol_);
 		size_t elt = row * rowstride() + col * colstride() + TMP;
@@ -178,7 +178,7 @@ struct SSEMatrix {
 	 * Like tmpvec, but it's allowed to ask for a pointer to one column after
 	 * the final one.
 	 */
-	inline __m128i* tmpvecUnsafe(size_t row, size_t col) {
+	inline SSERegI* tmpvecUnsafe(size_t row, size_t col) {
 		assert_lt(row, nvecrow_);
 		assert_leq(col, nveccol_);
 		size_t elt = row * rowstride() + col * colstride() + TMP;
@@ -188,7 +188,7 @@ struct SSEMatrix {
 	
 	/**
 	 * Given a number of rows (nrow), a number of columns (ncol), and the
-	 * number of words to fit inside a single __m128i vector, initialize the
+	 * number of words to fit inside a single SSERegI vector, initialize the
 	 * matrix buffer to accomodate the needed configuration of vectors.
 	 */
 	void init(
@@ -197,13 +197,13 @@ struct SSEMatrix {
 		size_t wperv);
 	
 	/**
-	 * Return the number of __m128i's you need to skip over to get from one
+	 * Return the number of SSERegI's you need to skip over to get from one
 	 * cell to the cell one column over from it.
 	 */
 	inline size_t colstride() const { return colstride_; }
 
 	/**
-	 * Return the number of __m128i's you need to skip over to get from one
+	 * Return the number of SSERegI's you need to skip over to get from one
 	 * cell to the cell one row down from it.
 	 */
 	inline size_t rowstride() const { return rowstride_; }
@@ -395,7 +395,7 @@ struct SSEMatrix {
 	size_t           nvecPerCell_; // # vectors per matrix cell (4)
 	size_t           colstride_;   // # vectors b/t adjacent cells in same row
 	size_t           rowstride_;   // # vectors b/t adjacent cells in same col
-	EList_m128i      matbuf_;      // buffer for holding vectors
+	EList_sse        matbuf_;      // buffer for holding vectors
 	ELList<uint16_t> masks_;       // buffer for masks/backtracking flags
 	EList<bool>      reset_;       // true iff row in masks_ has been reset
 };
@@ -406,8 +406,8 @@ struct SSEMatrix {
  */
 struct SSEData {
 	SSEData(int cat = 0) : profbuf_(cat), mat_(cat) { }
-	EList_m128i    profbuf_;     // buffer for query profile & temp vecs
-	EList_m128i    vecbuf_;      // buffer for 2 column vectors (not using mat_)
+	EList_sse      profbuf_;     // buffer for query profile & temp vecs
+	EList_sse      vecbuf_;      // buffer for 2 column vectors (not using mat_)
 	size_t         qprofStride_; // stride for query profile
 	size_t         gbarStride_;  // gap barrier for query profile
 	SSEMatrix      mat_;         // SSE matrix for holding all E, F, H vectors
