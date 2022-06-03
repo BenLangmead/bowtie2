@@ -370,32 +370,24 @@ TAlScore SwAligner::alignGatherEE16(int& flag, bool debug) {
 
 	assert_gt(sc_->refGapOpen(), 0);
 	assert_leq(sc_->refGapOpen(), MAX_I16);
-	rfgapo = sse_insert_epi16(rfgapo, sc_->refGapOpen(), 0);
-	rfgapo = sse_shufflelo_epi16(rfgapo, 0);
-	rfgapo = sse_shuffle_epi32(rfgapo, 0);
+	sse_fill_i16(sc_->refGapOpen(), rfgapo);
 	
 	// Set all elts to reference gap extension penalty
 	assert_gt(sc_->refGapExtend(), 0);
 	assert_leq(sc_->refGapExtend(), MAX_I16);
 	assert_leq(sc_->refGapExtend(), sc_->refGapOpen());
-	rfgape = sse_insert_epi16(rfgape, sc_->refGapExtend(), 0);
-	rfgape = sse_shufflelo_epi16(rfgape, 0);
-	rfgape = sse_shuffle_epi32(rfgape, 0);
+	sse_fill_i16(sc_->refGapExtend(), rfgape);
 
 	// Set all elts to read gap open penalty
 	assert_gt(sc_->readGapOpen(), 0);
 	assert_leq(sc_->readGapOpen(), MAX_I16);
-	rdgapo = sse_insert_epi16(rdgapo, sc_->readGapOpen(), 0);
-	rdgapo = sse_shufflelo_epi16(rdgapo, 0);
-	rdgapo = sse_shuffle_epi32(rdgapo, 0);
+	sse_fill_i16(sc_->readGapOpen(), rdgapo);
 	
 	// Set all elts to read gap extension penalty
 	assert_gt(sc_->readGapExtend(), 0);
 	assert_leq(sc_->readGapExtend(), MAX_I16);
 	assert_leq(sc_->readGapExtend(), sc_->readGapOpen());
-	rdgape = sse_insert_epi16(rdgape, sc_->readGapExtend(), 0);
-	rdgape = sse_shufflelo_epi16(rdgape, 0);
-	rdgape = sse_shuffle_epi32(rdgape, 0);
+	sse_fill_i16(sc_->readGapExtend(), rdgape);
 
 	// Set all elts to 0x8000 (min value for signed 16-bit)
 	vlo = sse_cmpeq_epi16(vlo, vlo);             // all elts = 0xffff
@@ -838,32 +830,24 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag, bool debug) {
 
 	assert_gt(sc_->refGapOpen(), 0);
 	assert_leq(sc_->refGapOpen(), MAX_I16);
-	rfgapo = sse_insert_epi16(rfgapo, sc_->refGapOpen(), 0);
-	rfgapo = sse_shufflelo_epi16(rfgapo, 0);
-	rfgapo = sse_shuffle_epi32(rfgapo, 0);
+	sse_fill_i16(sc_->refGapOpen(), rfgapo);
 	
 	// Set all elts to reference gap extension penalty
 	assert_gt(sc_->refGapExtend(), 0);
 	assert_leq(sc_->refGapExtend(), MAX_I16);
 	assert_leq(sc_->refGapExtend(), sc_->refGapOpen());
-	rfgape = sse_insert_epi16(rfgape, sc_->refGapExtend(), 0);
-	rfgape = sse_shufflelo_epi16(rfgape, 0);
-	rfgape = sse_shuffle_epi32(rfgape, 0);
+	sse_fill_i16(sc_->refGapExtend(), rfgape);
 
 	// Set all elts to read gap open penalty
 	assert_gt(sc_->readGapOpen(), 0);
 	assert_leq(sc_->readGapOpen(), MAX_I16);
-	rdgapo = sse_insert_epi16(rdgapo, sc_->readGapOpen(), 0);
-	rdgapo = sse_shufflelo_epi16(rdgapo, 0);
-	rdgapo = sse_shuffle_epi32(rdgapo, 0);
+	sse_fill_i16(sc_->readGapOpen(), rdgapo);
 	
 	// Set all elts to read gap extension penalty
 	assert_gt(sc_->readGapExtend(), 0);
 	assert_leq(sc_->readGapExtend(), MAX_I16);
 	assert_leq(sc_->readGapExtend(), sc_->readGapOpen());
-	rdgape = sse_insert_epi16(rdgape, sc_->readGapExtend(), 0);
-	rdgape = sse_shufflelo_epi16(rdgape, 0);
-	rdgape = sse_shuffle_epi32(rdgape, 0);
+	sse_fill_i16(sc_->readGapExtend(), rdgape);
 
 	// Set all elts to 0x8000 (min value for signed 16-bit)
 	vlo = sse_cmpeq_epi16(vlo, vlo);             // all elts = 0xffff

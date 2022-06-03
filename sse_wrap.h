@@ -97,4 +97,17 @@ typedef __m128i SSERegI;
 
 #endif
 
+#define sse_fill_i16(inval, outval) { \
+	outval = sse_setzero_siall(); \
+	outval = sse_insert_epi16(outval, inval, 0); \
+	outval = sse_shufflelo_epi16(outval, 0); \
+	outval = sse_shuffle_epi32(outval, 0); \
+}
+
+#define sse_fill_u8(inval, outval) {\
+	int invalloc = inval; \
+	int dup = (invalloc << 8) | (invalloc & 0x00ff); \
+	sse_fill_i16(dup, outval);\
+}
+
 #endif /* SSE_WRAP_H_ */

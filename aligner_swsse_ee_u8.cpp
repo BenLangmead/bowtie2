@@ -316,8 +316,6 @@ TAlScore SwAligner::alignGatherEE8(int& flag, bool debug) {
 	size_t iter =
 		(dpRows() + (NWORDS_PER_REG-1)) / NWORDS_PER_REG; // iter = segLen
 	
-	int dup;
-	
 	// Now set up the score vectors.  We just need two columns worth, which
 	// we'll call "left" and "right".
 	d.vecbuf_.resize(4 * 2 * iter);
@@ -373,36 +371,24 @@ TAlScore SwAligner::alignGatherEE8(int& flag, bool debug) {
 
 	assert_gt(sc_->refGapOpen(), 0);
 	assert_leq(sc_->refGapOpen(), MAX_U8);
-	dup = (sc_->refGapOpen() << 8) | (sc_->refGapOpen() & 0x00ff);
-	rfgapo = sse_insert_epi16(rfgapo, dup, 0);
-	rfgapo = sse_shufflelo_epi16(rfgapo, 0);
-	rfgapo = sse_shuffle_epi32(rfgapo, 0);
+	sse_fill_u8(sc_->refGapOpen(), rfgapo);
 	
 	// Set all elts to reference gap extension penalty
 	assert_gt(sc_->refGapExtend(), 0);
 	assert_leq(sc_->refGapExtend(), MAX_U8);
 	assert_leq(sc_->refGapExtend(), sc_->refGapOpen());
-	dup = (sc_->refGapExtend() << 8) | (sc_->refGapExtend() & 0x00ff);
-	rfgape = sse_insert_epi16(rfgape, dup, 0);
-	rfgape = sse_shufflelo_epi16(rfgape, 0);
-	rfgape = sse_shuffle_epi32(rfgape, 0);
+	sse_fill_u8(sc_->refGapExtend(), rfgape);
 
 	// Set all elts to read gap open penalty
 	assert_gt(sc_->readGapOpen(), 0);
 	assert_leq(sc_->readGapOpen(), MAX_U8);
-	dup = (sc_->readGapOpen() << 8) | (sc_->readGapOpen() & 0x00ff);
-	rdgapo = sse_insert_epi16(rdgapo, dup, 0);
-	rdgapo = sse_shufflelo_epi16(rdgapo, 0);
-	rdgapo = sse_shuffle_epi32(rdgapo, 0);
+	sse_fill_u8(sc_->readGapOpen(), rdgapo);
 	
 	// Set all elts to read gap extension penalty
 	assert_gt(sc_->readGapExtend(), 0);
 	assert_leq(sc_->readGapExtend(), MAX_U8);
 	assert_leq(sc_->readGapExtend(), sc_->readGapOpen());
-	dup = (sc_->readGapExtend() << 8) | (sc_->readGapExtend() & 0x00ff);
-	rdgape = sse_insert_epi16(rdgape, dup, 0);
-	rdgape = sse_shufflelo_epi16(rdgape, 0);
-	rdgape = sse_shuffle_epi32(rdgape, 0);
+	sse_fill_u8(sc_->readGapExtend(), rdgape);
 	
 	vhi = sse_cmpeq_epi16(vhi, vhi); // all elts = 0xffff
 	vlo = sse_xor_siall(vlo, vlo);   // all elts = 0
@@ -809,8 +795,6 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag, bool debug) {
 	size_t iter =
 		(dpRows() + (NWORDS_PER_REG-1)) / NWORDS_PER_REG; // iter = segLen
 
-	int dup;
-	
 	// Many thanks to Michael Farrar for releasing his striped Smith-Waterman
 	// implementation:
 	//
@@ -838,36 +822,24 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag, bool debug) {
 
 	assert_gt(sc_->refGapOpen(), 0);
 	assert_leq(sc_->refGapOpen(), MAX_U8);
-	dup = (sc_->refGapOpen() << 8) | (sc_->refGapOpen() & 0x00ff);
-	rfgapo = sse_insert_epi16(rfgapo, dup, 0);
-	rfgapo = sse_shufflelo_epi16(rfgapo, 0);
-	rfgapo = sse_shuffle_epi32(rfgapo, 0);
+	sse_fill_u8(sc_->refGapOpen(), rfgapo);
 	
 	// Set all elts to reference gap extension penalty
 	assert_gt(sc_->refGapExtend(), 0);
 	assert_leq(sc_->refGapExtend(), MAX_U8);
 	assert_leq(sc_->refGapExtend(), sc_->refGapOpen());
-	dup = (sc_->refGapExtend() << 8) | (sc_->refGapExtend() & 0x00ff);
-	rfgape = sse_insert_epi16(rfgape, dup, 0);
-	rfgape = sse_shufflelo_epi16(rfgape, 0);
-	rfgape = sse_shuffle_epi32(rfgape, 0);
+	sse_fill_u8(sc_->refGapExtend(), rfgape);
 
 	// Set all elts to read gap open penalty
 	assert_gt(sc_->readGapOpen(), 0);
 	assert_leq(sc_->readGapOpen(), MAX_U8);
-	dup = (sc_->readGapOpen() << 8) | (sc_->readGapOpen() & 0x00ff);
-	rdgapo = sse_insert_epi16(rdgapo, dup, 0);
-	rdgapo = sse_shufflelo_epi16(rdgapo, 0);
-	rdgapo = sse_shuffle_epi32(rdgapo, 0);
+	sse_fill_u8(sc_->readGapOpen(), rdgapo);
 	
 	// Set all elts to read gap extension penalty
 	assert_gt(sc_->readGapExtend(), 0);
 	assert_leq(sc_->readGapExtend(), MAX_U8);
 	assert_leq(sc_->readGapExtend(), sc_->readGapOpen());
-	dup = (sc_->readGapExtend() << 8) | (sc_->readGapExtend() & 0x00ff);
-	rdgape = sse_insert_epi16(rdgape, dup, 0);
-	rdgape = sse_shufflelo_epi16(rdgape, 0);
-	rdgape = sse_shuffle_epi32(rdgape, 0);
+	sse_fill_u8(sc_->readGapExtend(), rdgape);
 	
 	vhi = sse_cmpeq_epi16(vhi, vhi); // all elts = 0xffff
 	vlo = sse_xor_siall(vlo, vlo);   // all elts = 0
