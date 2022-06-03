@@ -385,7 +385,6 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 	SSERegI vzero    = sse_setzero_siall();
 	SSERegI vbias    = sse_setzero_siall();
 	SSERegI vbiasm1  = sse_setzero_siall();
-	SSERegI vminsc   = sse_setzero_siall();
 
 	assert_gt(sc_->refGapOpen(), 0);
 	assert_leq(sc_->refGapOpen(), MAX_U8);
@@ -410,7 +409,6 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 
 	// Set all elts to minimum score threshold.  Actually, to 1 less than the
 	// threshold so we can use gt instead of geq.
-	sse_fill_u8(((int)minsc_ - 1), vminsc);
 	sse_fill_u8((d.bias_ - 1), vbiasm1);
 
 	sse_fill_u8_opt(0xff, vhi);

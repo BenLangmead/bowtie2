@@ -360,7 +360,6 @@ TAlScore SwAligner::alignGatherLoc16(int& flag, bool debug) {
 	SSERegI rdgapo   = sse_setzero_siall();
 	SSERegI rdgape   = sse_setzero_siall();
 	SSERegI vlo      = sse_setzero_siall();
-	SSERegI vhi      = sse_setzero_siall();
 	SSERegI vlolsw   = sse_setzero_siall();
 	SSERegI vmax     = sse_setzero_siall();
 	SSERegI vcolmax  = sse_setzero_siall();
@@ -371,7 +370,6 @@ TAlScore SwAligner::alignGatherLoc16(int& flag, bool debug) {
 	SSERegI vhdtmp   = sse_setzero_siall();
 	SSERegI vtmp     = sse_setzero_siall();
 	SSERegI vzero    = sse_setzero_siall();
-	SSERegI vminsc   = sse_setzero_siall();
 
 	assert_gt(sc_->refGapOpen(), 0);
 	assert_leq(sc_->refGapOpen(), MAX_I16);
@@ -394,15 +392,14 @@ TAlScore SwAligner::alignGatherLoc16(int& flag, bool debug) {
 	assert_leq(sc_->readGapExtend(), sc_->readGapOpen());
 	sse_fill_i16(sc_->readGapExtend(), rdgape);
 	
-	// Set all elts to minimum score threshold.  Actually, to 1 less than the
-	// threshold so we can use gt instead of geq.
-	sse_fill_i16(((int)minsc_-1), vminsc);
-
 	// Set all elts to 0x8000 (min value for signed 16-bit)
 	sse_fill_i16(0x8000, vlo);
-	
+
+#ifndef NDEBUG	
 	// Set all elts to 0x7fff (max value for signed 16-bit)
+	SSERegI vhi      = sse_setzero_siall();
 	sse_fill_i16(0x7fff, vhi);
+#endif
 	
 	// Set all elts to 0x8000 (min value for signed 16-bit)
 	vmax = vlo;
@@ -975,7 +972,6 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag, bool debug) {
 	SSERegI rdgapo   = sse_setzero_siall();
 	SSERegI rdgape   = sse_setzero_siall();
 	SSERegI vlo      = sse_setzero_siall();
-	SSERegI vhi      = sse_setzero_siall();
 	SSERegI vlolsw   = sse_setzero_siall();
 	SSERegI vmax     = sse_setzero_siall();
 	SSERegI vcolmax  = sse_setzero_siall();
@@ -1007,9 +1003,12 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag, bool debug) {
 
 	// Set all elts to 0x8000 (min value for signed 16-bit)
 	sse_fill_i16(0x8000, vlo);
-	
+
+#ifndef NDEBUG	
 	// Set all elts to 0x7fff (max value for signed 16-bit)
+	SSERegI vhi      = sse_setzero_siall();
 	sse_fill_i16(0x7fff, vhi);
+#endif
 	
 	// Set all elts to 0x8000 (min value for signed 16-bit)
 	vmax = vlo;

@@ -64,6 +64,7 @@ typedef simde__m128i SSERegI;
 #define sse_subs_epi16(x, y) simde_mm_subs_epi16(x, y)
 #define sse_subs_epu8(x, y) simde_mm_subs_epu8(x, y)
 #define sse_xor_siall(x, y) simde_mm_xor_si128(x, y)
+#define sse_set1_epi16(x) simde_mm_set1_epi16(x)
 
 #else
 typedef __m128i SSERegI;
@@ -94,17 +95,13 @@ typedef __m128i SSERegI;
 #define sse_subs_epi16(x, y) _mm_subs_epi16(x, y)
 #define sse_subs_epu8(x, y) _mm_subs_epu8(x, y)
 #define sse_xor_siall(x, y) _mm_xor_si128(x, y)
+#define sse_set1_epi16(x) _mm_set1_epi16(x)
 
 #endif
 
 /* Fill all elements in outval with inval */
 /* opt version will check for special ivals that can use shortcuts */
-#define sse_fill_i16(inval, outval) { \
-	outval = sse_setzero_siall(); \
-	outval = sse_insert_epi16(outval, inval, 0); \
-	outval = sse_shufflelo_epi16(outval, 0); \
-	outval = sse_shuffle_epi32(outval, 0); \
-}
+#define sse_fill_i16(inval, outval) outval=sse_set1_epi16(inval)
 
 #define sse_fill_i16_opt(inval, outval) { \
 	if (inval==0xffff) sse_cmpeq_epi16(outval, outval); \

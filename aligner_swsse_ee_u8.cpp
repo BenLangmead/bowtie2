@@ -359,7 +359,6 @@ TAlScore SwAligner::alignGatherEE8(int& flag, bool debug) {
 	SSERegI rdgapo   = sse_setzero_siall();
 	SSERegI rdgape   = sse_setzero_siall();
 	SSERegI vlo      = sse_setzero_siall();
-	SSERegI vhi      = sse_setzero_siall();
 	SSERegI ve       = sse_setzero_siall();
 	SSERegI vf       = sse_setzero_siall();
 	SSERegI vh       = sse_setzero_siall();
@@ -390,7 +389,10 @@ TAlScore SwAligner::alignGatherEE8(int& flag, bool debug) {
 	assert_leq(sc_->readGapExtend(), sc_->readGapOpen());
 	sse_fill_u8(sc_->readGapExtend(), rdgape);
 
+#ifndef NDEBUG
+	SSERegI vhi      = sse_setzero_siall();
 	sse_fill_u8_opt(0xff, vhi)
+#endif
 	sse_fill_u8_opt(0, vlo);
 
 	// vhilsw: topmost (least sig) word set to 0xff, all other words=0

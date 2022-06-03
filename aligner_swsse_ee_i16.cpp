@@ -358,7 +358,6 @@ TAlScore SwAligner::alignGatherEE16(int& flag, bool debug) {
 	SSERegI rdgapo   = sse_setzero_siall();
 	SSERegI rdgape   = sse_setzero_siall();
 	SSERegI vlo      = sse_setzero_siall();
-	SSERegI vhi      = sse_setzero_siall();
 	SSERegI vhilsw   = sse_setzero_siall();
 	SSERegI vlolsw   = sse_setzero_siall();
 	SSERegI ve       = sse_setzero_siall();
@@ -391,10 +390,13 @@ TAlScore SwAligner::alignGatherEE16(int& flag, bool debug) {
 
 	// Set all elts to 0x8000 (min value for signed 16-bit)
 	sse_fill_i16(0x8000, vlo);
-	
+
+#ifndef NDEBUG	
 	// Set all elts to 0x7fff (max value for signed 16-bit)
+	SSERegI vhi      = sse_setzero_siall();
 	sse_fill_i16(0x7fff, vhi);
-	
+#endif
+
 	// vlolsw: topmost (least sig) word set to 0x8000, all other words=0
 	sse_set_low_i16(0x8000, vlolsw);
 	
@@ -812,7 +814,6 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag, bool debug) {
 	SSERegI rdgapo   = sse_setzero_siall();
 	SSERegI rdgape   = sse_setzero_siall();
 	SSERegI vlo      = sse_setzero_siall();
-	SSERegI vhi      = sse_setzero_siall();
 	SSERegI vhilsw   = sse_setzero_siall();
 	SSERegI vlolsw   = sse_setzero_siall();
 	SSERegI ve       = sse_setzero_siall();
@@ -847,10 +848,13 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag, bool debug) {
 
 	// Set all elts to 0x8000 (min value for signed 16-bit)
 	sse_fill_i16(0x8000, vlo);
-	
+
+#ifndef NDEBUG	
 	// Set all elts to 0x7fff (max value for signed 16-bit)
+	SSERegI vhi      = sse_setzero_siall();
 	sse_fill_i16(0x7fff, vhi);
-	
+#endif
+
 	// vlolsw: topmost (least sig) word set to 0x8000, all other words=0
 	sse_set_low_i16(0x8000, vlolsw);
 	
