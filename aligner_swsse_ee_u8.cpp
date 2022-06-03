@@ -389,13 +389,12 @@ TAlScore SwAligner::alignGatherEE8(int& flag, bool debug) {
 	assert_leq(sc_->readGapExtend(), MAX_U8);
 	assert_leq(sc_->readGapExtend(), sc_->readGapOpen());
 	sse_fill_u8(sc_->readGapExtend(), rdgape);
-	
-	vhi = sse_cmpeq_epi16(vhi, vhi); // all elts = 0xffff
-	vlo = sse_xor_siall(vlo, vlo);   // all elts = 0
-	
-	// vhilsw: topmost (least sig) word set to 0x7fff, all other words=0
-	vhilsw = sse_shuffle_epi32(vhi, 0);
-	vhilsw = sse_srli_siall(vhilsw, NBYTES_PER_REG - NBYTES_PER_WORD);
+
+	sse_fill_u8_opt(0xff, vhi)
+	sse_fill_u8_opt(0, vlo);
+
+	// vhilsw: topmost (least sig) word set to 0xff, all other words=0
+	sse_set_low_u8(0xff, vhilsw);
 	
 	// Points to a long vector of SSERegI where each element is a block of
 	// contiguous cells in the E, F or H matrix.  If the index % 3 == 0, then
@@ -840,13 +839,12 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag, bool debug) {
 	assert_leq(sc_->readGapExtend(), MAX_U8);
 	assert_leq(sc_->readGapExtend(), sc_->readGapOpen());
 	sse_fill_u8(sc_->readGapExtend(), rdgape);
+
+	sse_fill_u8_opt(0xff, vhi);
+	sse_fill_u8_opt(0, vlo);	
 	
-	vhi = sse_cmpeq_epi16(vhi, vhi); // all elts = 0xffff
-	vlo = sse_xor_siall(vlo, vlo);   // all elts = 0
-	
-	// vhilsw: topmost (least sig) word set to 0x7fff, all other words=0
-	vhilsw = sse_shuffle_epi32(vhi, 0);
-	vhilsw = sse_srli_siall(vhilsw, NBYTES_PER_REG - NBYTES_PER_WORD);
+	// vhilsw: topmost (least sig) word set to 0xff, all other words=0
+	sse_set_low_u8(0xff, vhilsw);	
 	
 	// Points to a long vector of SSERegI where each element is a block of
 	// contiguous cells in the E, F or H matrix.  If the index % 3 == 0, then

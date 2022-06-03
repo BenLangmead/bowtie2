@@ -390,20 +390,16 @@ TAlScore SwAligner::alignGatherEE16(int& flag, bool debug) {
 	sse_fill_i16(sc_->readGapExtend(), rdgape);
 
 	// Set all elts to 0x8000 (min value for signed 16-bit)
-	vlo = sse_cmpeq_epi16(vlo, vlo);             // all elts = 0xffff
-	vlo = sse_slli_epi16(vlo, NBITS_PER_WORD-1); // all elts = 0x8000
+	sse_fill_i16(0x8000, vlo);
 	
 	// Set all elts to 0x7fff (max value for signed 16-bit)
-	vhi = sse_cmpeq_epi16(vhi, vhi);             // all elts = 0xffff
-	vhi = sse_srli_epi16(vhi, 1);                // all elts = 0x7fff
+	sse_fill_i16(0x7fff, vhi);
 	
 	// vlolsw: topmost (least sig) word set to 0x8000, all other words=0
-	vlolsw = sse_shuffle_epi32(vlo, 0);
-	vlolsw = sse_srli_siall(vlolsw, NBYTES_PER_REG - NBYTES_PER_WORD);
+	sse_set_low_i16(0x8000, vlolsw);
 	
 	// vhilsw: topmost (least sig) word set to 0x7fff, all other words=0
-	vhilsw = sse_shuffle_epi32(vhi, 0);
-	vhilsw = sse_srli_siall(vhilsw, NBYTES_PER_REG - NBYTES_PER_WORD);
+	sse_set_low_i16(0x7fff, vhilsw); 
 	
 	// Points to a long vector of SSERegI where each element is a block of
 	// contiguous cells in the E, F or H matrix.  If the index % 3 == 0, then
@@ -850,20 +846,16 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag, bool debug) {
 	sse_fill_i16(sc_->readGapExtend(), rdgape);
 
 	// Set all elts to 0x8000 (min value for signed 16-bit)
-	vlo = sse_cmpeq_epi16(vlo, vlo);             // all elts = 0xffff
-	vlo = sse_slli_epi16(vlo, NBITS_PER_WORD-1); // all elts = 0x8000
+	sse_fill_i16(0x8000, vlo);
 	
 	// Set all elts to 0x7fff (max value for signed 16-bit)
-	vhi = sse_cmpeq_epi16(vhi, vhi);             // all elts = 0xffff
-	vhi = sse_srli_epi16(vhi, 1);                // all elts = 0x7fff
+	sse_fill_i16(0x7fff, vhi);
 	
 	// vlolsw: topmost (least sig) word set to 0x8000, all other words=0
-	vlolsw = sse_shuffle_epi32(vlo, 0);
-	vlolsw = sse_srli_siall(vlolsw, NBYTES_PER_REG - NBYTES_PER_WORD);
+	sse_set_low_i16(0x8000, vlolsw);
 	
 	// vhilsw: topmost (least sig) word set to 0x7fff, all other words=0
-	vhilsw = sse_shuffle_epi32(vhi, 0);
-	vhilsw = sse_srli_siall(vhilsw, NBYTES_PER_REG - NBYTES_PER_WORD);
+	sse_set_low_i16(0x7fff, vhilsw);
 	
 	// Points to a long vector of SSERegI where each element is a block of
 	// contiguous cells in the E, F or H matrix.  If the index % 3 == 0, then

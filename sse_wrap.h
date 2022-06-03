@@ -97,6 +97,8 @@ typedef __m128i SSERegI;
 
 #endif
 
+/* Fill all elements in outval with inval */
+/* opt version will check for special ivals that can use shortcuts */
 #define sse_fill_i16(inval, outval) { \
 	outval = sse_setzero_siall(); \
 	outval = sse_insert_epi16(outval, inval, 0); \
@@ -104,10 +106,34 @@ typedef __m128i SSERegI;
 	outval = sse_shuffle_epi32(outval, 0); \
 }
 
+#define sse_fill_i16_opt(inval, outval) { \
+	if (inval==0xffff) sse_cmpeq_epi16(outval, outval); \
+	else if (inval==0) sse_xor_siall(outval, outval); \
+	else sse_fill_i16(inval, outval); \
+}
+
 #define sse_fill_u8(inval, outval) {\
 	int invalloc = inval; \
 	int dup = (invalloc << 8) | (invalloc & 0x00ff); \
-	sse_fill_i16(dup, outval);\
+	sse_fill_i16(dup, outval); \
 }
+
+#define sse_fill_u8_opt(inval, outval) {\
+	if (inval==0xff) sse_cmpeq_epi16(outval, outval); \
+	else if (inval==0) sse_xor_siall(outval, outval); \
+	else sse_fill_u8(inval, outval); \
+}
+
+/* Set the low element with invl, all others to 0 */
+#define sse_set_low_i16(inval, outval) { \
+	outval = sse_setzero_siall(); \
+	outval = sse_insert_epi16(outval, inval, 0); \
+}
+
+#define sse_set_low_u8(inval, outval) { \
+	outval = sse_setzero_siall(); \
+	outval = sse_insert_epi16(outval, inval, 0); \
+}
+
 
 #endif /* SSE_WRAP_H_ */

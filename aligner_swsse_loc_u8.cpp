@@ -414,8 +414,8 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 	sse_fill_u8(((int)minsc_ - 1), vminsc);
 	sse_fill_u8((d.bias_ - 1), vbiasm1);
 
-	vhi = sse_cmpeq_epi16(vhi, vhi); // all elts = 0xffff
-	vlo = sse_xor_siall(vlo, vlo);   // all elts = 0
+	sse_fill_u8_opt(0xff, vhi);
+	sse_fill_u8_opt(0, vlo);
 	vmax = vlo;
 
 	// Make a vector of bias offsets
@@ -1015,8 +1015,8 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 	assert_leq(sc_->readGapExtend(), sc_->readGapOpen());
 	sse_fill_u8(sc_->readGapExtend(), rdgape);
 
-	vhi = sse_cmpeq_epi16(vhi, vhi); // all elts = 0xffff
-	vlo = sse_xor_siall(vlo, vlo);   // all elts = 0
+	sse_fill_u8_opt(0xff, vhi);
+	sse_fill_u8_opt(0, vlo);
 	vmax = vlo;
 
 	// Make a vector of bias offsets
