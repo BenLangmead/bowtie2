@@ -135,5 +135,18 @@ typedef __m128i SSERegI;
 	outval = sse_insert_epi16(outval, inval, 0); \
 }
 
+/* compute the max val of a vector */
+#define sse_max_score_i16(inval, outval) { \
+		SSERegI vlmax = inval; \
+		SSERegI vltmp = sse_srli_siall(vlmax, 8); \
+		vlmax = sse_max_epu8(vlmax, vltmp); \
+		vltmp = sse_srli_siall(vlmax, 4); \
+		vlmax = sse_max_epu8(vlmax, vltmp); \
+		vltmp = sse_srli_siall(vlmax, 2); \
+		vlmax = sse_max_epu8(vlmax, vltmp); \
+		vltmp = sse_srli_siall(vlmax, 1); \
+		vlmax = sse_max_epu8(vlmax, vltmp); \
+		outval = sse_extract_epi16(vlmax, 0); \
+}
 
 #endif /* SSE_WRAP_H_ */

@@ -376,7 +376,6 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 	SSERegI vhi      = sse_setzero_siall();
 	SSERegI vmax     = sse_setzero_siall();
 	SSERegI vcolmax  = sse_setzero_siall();
-	SSERegI vmaxtmp  = sse_setzero_siall();
 	SSERegI ve       = sse_setzero_siall();
 	SSERegI vf       = sse_setzero_siall();
 	SSERegI vh       = sse_setzero_siall();
@@ -818,16 +817,8 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 
 		{
 			// Get single largest score in this column
-			vmaxtmp = vcolmax;
-			vtmp = sse_srli_siall(vmaxtmp, 8);
-			vmaxtmp = sse_max_epu8(vmaxtmp, vtmp);
-			vtmp = sse_srli_siall(vmaxtmp, 4);
-			vmaxtmp = sse_max_epu8(vmaxtmp, vtmp);
-			vtmp = sse_srli_siall(vmaxtmp, 2);
-			vmaxtmp = sse_max_epu8(vmaxtmp, vtmp);
-			vtmp = sse_srli_siall(vmaxtmp, 1);
-			vmaxtmp = sse_max_epu8(vmaxtmp, vtmp);
-			int score = sse_extract_epi16(vmaxtmp, 0);
+			int score = 0;
+			sse_max_score_i16(vcolmax, score);
 			score = score & 0x00ff;
 
 			// Could we have saturated?
@@ -891,16 +882,6 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 		}
 	}
 
-	// Find largest score in vmax
-	vtmp = sse_srli_siall(vmax, 8);
-	vmax = sse_max_epu8(vmax, vtmp);
-	vtmp = sse_srli_siall(vmax, 4);
-	vmax = sse_max_epu8(vmax, vtmp);
-	vtmp = sse_srli_siall(vmax, 2);
-	vmax = sse_max_epu8(vmax, vtmp);
-	vtmp = sse_srli_siall(vmax, 1);
-	vmax = sse_max_epu8(vmax, vtmp);
-
 	// Update metrics
 	if(!debug) {
 		size_t ninner = (rff_ - rfi_) * iter;
@@ -910,7 +891,9 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 		met.fixup += nfixup;                    // DP fixup loop iters
 	}
 
-	int score = sse_extract_epi16(vmax, 0);
+	// Find largest score in vmax
+	int score = 0;
+	sse_max_score_i16(vmax, score);
 	score = score & 0x00ff;
 	flag = 0;
 
@@ -986,7 +969,6 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 	SSERegI vhi      = sse_setzero_siall();
 	SSERegI vmax     = sse_setzero_siall();
 	SSERegI vcolmax  = sse_setzero_siall();
-	SSERegI vmaxtmp  = sse_setzero_siall();
 	SSERegI ve       = sse_setzero_siall();
 	SSERegI vf       = sse_setzero_siall();
 	SSERegI vh       = sse_setzero_siall();
@@ -1293,16 +1275,8 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 
 		{
 			// Get single largest score in this column
-			vmaxtmp = vcolmax;
-			vtmp = sse_srli_siall(vmaxtmp, 8);
-			vmaxtmp = sse_max_epu8(vmaxtmp, vtmp);
-			vtmp = sse_srli_siall(vmaxtmp, 4);
-			vmaxtmp = sse_max_epu8(vmaxtmp, vtmp);
-			vtmp = sse_srli_siall(vmaxtmp, 2);
-			vmaxtmp = sse_max_epu8(vmaxtmp, vtmp);
-			vtmp = sse_srli_siall(vmaxtmp, 1);
-			vmaxtmp = sse_max_epu8(vmaxtmp, vtmp);
-			int score = sse_extract_epi16(vmaxtmp, 0);
+			int score = 0;
+			sse_max_score_i16(vcolmax, score);
 			score = score & 0x00ff;
 
 			// Could we have saturated?
@@ -1333,16 +1307,6 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 		pvFStore = pvFTmp;
 	}
 
-	// Find largest score in vmax
-	vtmp = sse_srli_siall(vmax, 8);
-	vmax = sse_max_epu8(vmax, vtmp);
-	vtmp = sse_srli_siall(vmax, 4);
-	vmax = sse_max_epu8(vmax, vtmp);
-	vtmp = sse_srli_siall(vmax, 2);
-	vmax = sse_max_epu8(vmax, vtmp);
-	vtmp = sse_srli_siall(vmax, 1);
-	vmax = sse_max_epu8(vmax, vtmp);
-
 	// Update metrics
 	if(!debug) {
 		size_t ninner = (rff_ - rfi_) * iter;
@@ -1352,7 +1316,9 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 		met.fixup += nfixup;                    // DP fixup loop iters
 	}
 
-	int score = sse_extract_epi16(vmax, 0);
+	// Find largest score in vmax
+	int score = 0;
+	sse_max_score_i16(vmax, score);
 	score = score & 0x00ff;
 	flag = 0;
 
@@ -1454,16 +1420,8 @@ bool SwAligner::gatherCellsNucleotidesLocalSseU8(TAlScore best) {
 		size_t nrow_hi = nrow;
 		// First, check if there is a cell in this column with a score
 		// above the score threshold
-		SSERegI vmax = *d.mat_.tmpvec(0, j);
-		SSERegI vtmp = sse_srli_siall(vmax, 8);
-		vmax = sse_max_epu8(vmax, vtmp);
-		vtmp = sse_srli_siall(vmax, 4);
-		vmax = sse_max_epu8(vmax, vtmp);
-		vtmp = sse_srli_siall(vmax, 2);
-		vmax = sse_max_epu8(vmax, vtmp);
-		vtmp = sse_srli_siall(vmax, 1);
-		vmax = sse_max_epu8(vmax, vtmp);
-		int score = sse_extract_epi16(vmax, 0);
+		int score = 0;
+		sse_max_score_i16(*d.mat_.tmpvec(0, j), score);
 #if defined(SIMDE_ENDIAN_ORDER) && SIMDE_ENDIAN_ORDER == SIMDE_ENDIAN_BIG
 	        score = (score >> 8) & 0x00ff;
 #else

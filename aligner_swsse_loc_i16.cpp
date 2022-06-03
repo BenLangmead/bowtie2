@@ -364,7 +364,6 @@ TAlScore SwAligner::alignGatherLoc16(int& flag, bool debug) {
 	SSERegI vlolsw   = sse_setzero_siall();
 	SSERegI vmax     = sse_setzero_siall();
 	SSERegI vcolmax  = sse_setzero_siall();
-	SSERegI vmaxtmp  = sse_setzero_siall();
 	SSERegI ve       = sse_setzero_siall();
 	SSERegI vf       = sse_setzero_siall();
 	SSERegI vh       = sse_setzero_siall();
@@ -824,14 +823,8 @@ TAlScore SwAligner::alignGatherLoc16(int& flag, bool debug) {
 		vmax = sse_max_epi16(vmax, vcolmax);
 		{
 			// Get single largest score in this column
-			vmaxtmp = vcolmax;
-			vtmp = sse_srli_siall(vmaxtmp, 8);
-			vmaxtmp = sse_max_epi16(vmaxtmp, vtmp);
-			vtmp = sse_srli_siall(vmaxtmp, 4);
-			vmaxtmp = sse_max_epi16(vmaxtmp, vtmp);
-			vtmp = sse_srli_siall(vmaxtmp, 2);
-			vmaxtmp = sse_max_epi16(vmaxtmp, vtmp);
-			int16_t ret = sse_extract_epi16(vmaxtmp, 0);
+			int16_t ret = 0;
+			sse_max_score_i16(vcolmax, ret);
 			TAlScore score = (TAlScore)(ret + 0x8000);
 			if(ret == MIN_I16) {
 				score = MIN_I64;
@@ -893,13 +886,8 @@ TAlScore SwAligner::alignGatherLoc16(int& flag, bool debug) {
 	}
 
 	// Find largest score in vmax
-	vtmp = sse_srli_siall(vmax, 8);
-	vmax = sse_max_epi16(vmax, vtmp);
-	vtmp = sse_srli_siall(vmax, 4);
-	vmax = sse_max_epi16(vmax, vtmp);
-	vtmp = sse_srli_siall(vmax, 2);
-	vmax = sse_max_epi16(vmax, vtmp);
-	int16_t ret = sse_extract_epi16(vmax, 0);
+	int16_t ret = 0;
+	sse_max_score_i16(vmax, ret);
 
 	// Update metrics
 	if(!debug) {
@@ -991,7 +979,6 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag, bool debug) {
 	SSERegI vlolsw   = sse_setzero_siall();
 	SSERegI vmax     = sse_setzero_siall();
 	SSERegI vcolmax  = sse_setzero_siall();
-	SSERegI vmaxtmp  = sse_setzero_siall();
 	SSERegI ve       = sse_setzero_siall();
 	SSERegI vf       = sse_setzero_siall();
 	SSERegI vh       = sse_setzero_siall();
@@ -1313,14 +1300,8 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag, bool debug) {
 
 		{
 			// Get single largest score in this column
-			vmaxtmp = vcolmax;
-			vtmp = sse_srli_siall(vmaxtmp, 8);
-			vmaxtmp = sse_max_epi16(vmaxtmp, vtmp);
-			vtmp = sse_srli_siall(vmaxtmp, 4);
-			vmaxtmp = sse_max_epi16(vmaxtmp, vtmp);
-			vtmp = sse_srli_siall(vmaxtmp, 2);
-			vmaxtmp = sse_max_epi16(vmaxtmp, vtmp);
-			int16_t ret = sse_extract_epi16(vmaxtmp, 0);
+			int16_t ret = 0;
+			sse_max_score_i16(vcolmax, ret);
 			TAlScore score = (TAlScore)(ret + 0x8000);
 			
 			if(score < minsc_) {
@@ -1345,13 +1326,8 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag, bool debug) {
 	}
 
 	// Find largest score in vmax
-	vtmp = sse_srli_siall(vmax, 8);
-	vmax = sse_max_epi16(vmax, vtmp);
-	vtmp = sse_srli_siall(vmax, 4);
-	vmax = sse_max_epi16(vmax, vtmp);
-	vtmp = sse_srli_siall(vmax, 2);
-	vmax = sse_max_epi16(vmax, vtmp);
-	int16_t ret = sse_extract_epi16(vmax, 0);
+	int16_t ret = 0;
+	sse_max_score_i16(vmax, ret);
 
 	// Update metrics
 	if(!debug) {
@@ -1470,14 +1446,9 @@ bool SwAligner::gatherCellsNucleotidesLocalSseI16(TAlScore best) {
 		size_t nrow_hi = nrow;
 		// First, check if there is a cell in this column with a score
 		// above the score threshold
-		SSERegI vmax = *d.mat_.tmpvec(0, j);
-		SSERegI vtmp = sse_srli_siall(vmax, 8);
-		vmax = sse_max_epi16(vmax, vtmp);
-		vtmp = sse_srli_siall(vmax, 4);
-		vmax = sse_max_epi16(vmax, vtmp);
-		vtmp = sse_srli_siall(vmax, 2);
-		vmax = sse_max_epi16(vmax, vtmp);
-		TAlScore score = (TAlScore)((int16_t)sse_extract_epi16(vmax, 0) + 0x8000);
+		uint16_t ret = 0;
+		sse_max_score_i16(*d.mat_.tmpvec(0, j), ret);
+		TAlScore score = (TAlScore)(ret + 0x8000);
 		assert_geq(score, 0);
 #ifndef NDEBUG
 		{
