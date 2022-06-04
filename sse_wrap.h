@@ -27,6 +27,63 @@
 #ifndef SSE_WRAP_H_
 #define SSE_WRAP_H_
 
+#ifndef IGOR_SSE2_ONLY
+#include <immintrin.h>
+#define NBYTES_PER_REG 32
+#define SSE_MASK_ALL ((int) 0xffffffff)
+
+typedef __m256i SSERegI;
+#define sse_adds_epi16(x, y) _mm256_adds_epi16(x, y)
+#define sse_adds_epu8(x, y) _mm256_adds_epu8(x, y)
+#define sse_cmpeq_epi16(x, y) _mm256_cmpeq_epi16(x, y)
+#define sse_cmpeq_epi8(x, y) _mm256_cmpeq_epi8(x, y)
+#define sse_cmpgt_epi16(x, y) _mm256_cmpgt_epi16(x, y)
+#define sse_cmpgt_epi8(x, y) _mm256_cmpgt_epi8(x, y)
+#define sse_cmplt_epi16(x, y) _mm256_cmplt_epi16(x, y)
+#define sse_cmplt_epu8(x, y) _mm256_cmplt_epu8(x, y)
+#define sse_extract_epi16(x, y) _mm256_extract_epi16(x, y)
+#define sse_insert_epi16(x, y, z) _mm256_insert_epi16(x, y, z)
+#define sse_load_siall(x) _mm256_load_si256(x)
+#define sse_max_epi16(x, y) _mm256_max_epi16(x, y)
+#define sse_max_epu8(x, y) _mm256_max_epu8(x, y)
+#define sse_movemask_epi8(x) _mm256_movemask_epi8(x)
+#define sse_or_siall(x, y) _mm256_or_si256(x, y)
+#define sse_setzero_siall() _mm256_setzero_si256()
+#define sse_shuffle_epi32(x, y) _mm256_shuffle_epi32(x, y)
+#define sse_shufflelo_epi16(x, y) _mm256_shufflelo_epi16(x, y)
+#define sse_slli_epi16(x, y) _mm256_slli_epi16(x, y)
+#define sse_srli_epi16(x, y) _mm256_srli_epi16(x, y)
+#define sse_srli_epu8(x, y) _mm256_srli_epu8(x, y)
+#define sse_store_siall(x, y) _mm256_store_si256(x, y)
+#define sse_subs_epi16(x, y) _mm256_subs_epi16(x, y)
+#define sse_subs_epu8(x, y) _mm256_subs_epu8(x, y)
+#define sse_xor_siall(x, y) _mm256_xor_si256(x, y)
+#define sse_set1_epi16(x) _mm256_set1_epi16(x)
+
+/* AVX2 does not have a native 256-bit shift instruction */
+#define sse_slli_siall(x, y) \
+	_mm256_alignr_epi8(x, _mm256_permute2x128_si256(x, x, _MM_SHUFFLE(0, 0, 2, 0)), 16-y)
+
+#define sse_srli_siall(x, y) \
+	_mm256_alignr_epi8(_mm256_permute2x128_si256(x, x, _MM_SHUFFLE(2, 0, 0, 1)), x, y)
+
+/* compute the max val of a vector */
+#define sse_max_score_i16(inval, outval) { \
+		SSERegI vlmax = inval; \
+		SSERegI vltmp = sse_srli_siall(vlmax, 8); \
+		vlmax = sse_max_epu8(vlmax, vltmp); \
+		vltmp = sse_srli_siall(vlmax, 4); \
+		vlmax = sse_max_epu8(vlmax, vltmp); \
+		vltmp = sse_srli_siall(vlmax, 2); \
+		vlmax = sse_max_epu8(vlmax, vltmp); \
+		vltmp = sse_srli_siall(vlmax, 1); \
+		vlmax = sse_max_epu8(vlmax, vltmp); \
+		outval = sse_extract_epi16(vlmax, 0); \
+}
+
+
+#else /* SSE2 */
+
 #if defined(__aarch64__) || defined(__s390x__) || defined(__powerpc__)
 #include "simde/x86/sse2.h"
 #else
@@ -100,6 +157,22 @@ typedef __m128i SSERegI;
 
 #endif
 
+/* compute the max val of a vector */
+#define sse_max_score_i16(inval, outval) { \
+		SSERegI vlmax = inval; \
+		SSERegI vltmp = sse_srli_siall(vlmax, 8); \
+		vlmax = sse_max_epu8(vlmax, vltmp); \
+		vltmp = sse_srli_siall(vlmax, 4); \
+		vlmax = sse_max_epu8(vlmax, vltmp); \
+		vltmp = sse_srli_siall(vlmax, 2); \
+		vlmax = sse_max_epu8(vlmax, vltmp); \
+		vltmp = sse_srli_siall(vlmax, 1); \
+		vlmax = sse_max_epu8(vlmax, vltmp); \
+		outval = sse_extract_epi16(vlmax, 0); \
+}
+
+#endif /*IGOR_SSE2_ONLY*/
+
 /* Fill all elements in outval with inval */
 /* opt version will check for special ivals that can use shortcuts */
 #define sse_fill_i16(inval, outval) outval=sse_set1_epi16(inval)
@@ -131,20 +204,6 @@ typedef __m128i SSERegI;
 #define sse_set_low_u8(inval, outval) { \
 	outval = sse_setzero_siall(); \
 	outval = sse_insert_epi16(outval, inval, 0); \
-}
-
-/* compute the max val of a vector */
-#define sse_max_score_i16(inval, outval) { \
-		SSERegI vlmax = inval; \
-		SSERegI vltmp = sse_srli_siall(vlmax, 8); \
-		vlmax = sse_max_epu8(vlmax, vltmp); \
-		vltmp = sse_srli_siall(vlmax, 4); \
-		vlmax = sse_max_epu8(vlmax, vltmp); \
-		vltmp = sse_srli_siall(vlmax, 2); \
-		vlmax = sse_max_epu8(vlmax, vltmp); \
-		vltmp = sse_srli_siall(vlmax, 1); \
-		vlmax = sse_max_epu8(vlmax, vltmp); \
-		outval = sse_extract_epi16(vlmax, 0); \
 }
 
 #endif /* SSE_WRAP_H_ */
