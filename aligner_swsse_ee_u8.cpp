@@ -240,12 +240,12 @@ static bool cellOkEnd2EndU8(
 	SSERegI tmp = sse_setzero_siall(); \
 	z = sse_xor_siall(z, z); \
 	tmp = sse_cmpeq_epi16(x, z); \
-	assert_eq(0xffff, sse_movemask_epi8(tmp)); \
+	assert_eq(SSE_MASK_ALL, sse_movemask_epi8(tmp)); \
 }
 
 #define assert_all_gt(x, y) { \
 	SSERegI tmp = sse_cmpgt_epu8(x, y); \
-	assert_eq(0xffff, sse_movemask_epi8(tmp)); \
+	assert_eq(SSE_MASK_ALL, sse_movemask_epi8(tmp)); \
 }
 
 #define assert_all_gt_lo(x) { \
@@ -253,7 +253,7 @@ static bool cellOkEnd2EndU8(
 	SSERegI tmp = sse_setzero_siall(); \
 	z = sse_xor_siall(z, z); \
 	tmp = sse_cmpgt_epu8(x, z); \
-	assert_eq(0xffff, sse_movemask_epi8(tmp)); \
+	assert_eq(SSE_MASK_ALL, sse_movemask_epi8(tmp)); \
 }
 
 #define assert_all_lt(x, y) { \
@@ -270,7 +270,7 @@ static bool cellOkEnd2EndU8(
 	z = sse_cmpeq_epu8(z, z); \
 	z = sse_srli_epu8(z, 1); \
 	tmp = sse_cmplt_epu8(x, z); \
-	assert_eq(0xffff, sse_movemask_epi8(tmp)); \
+	assert_eq(SSE_MASK_ALL, sse_movemask_epi8(tmp)); \
 }
 #endif
 
@@ -539,7 +539,7 @@ TAlScore SwAligner::alignGatherEE8(int& flag, bool debug) {
 		
 		// If any element of vtmp is greater than H - gap-open...
 		j = 0;
-		while(cmp != 0xffff) {
+		while(cmp != SSE_MASK_ALL) {
 			// Store this vf
 			sse_store_siall(pvFRight, vf);
 			pvFRight += ROWSTRIDE_2COL;
@@ -1013,7 +1013,7 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag, bool debug) {
 		
 		// If any element of vtmp is greater than H - gap-open...
 		j = 0;
-		while(cmp != 0xffff) {
+		while(cmp != SSE_MASK_ALL) {
 			// Store this vf
 			sse_store_siall(pvFStore, vf);
 			pvFStore += ROWSTRIDE;

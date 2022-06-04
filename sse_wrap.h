@@ -34,6 +34,7 @@
 #endif
 
 #define NBYTES_PER_REG 16
+#define SSE_MASK_ALL 0xffff
 
 #if defined(__aarch64__) || defined(__s390x__) || defined(__powerpc__)
 typedef simde__m128i SSERegI;

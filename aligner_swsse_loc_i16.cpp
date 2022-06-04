@@ -237,12 +237,12 @@ static bool cellOkLocalI16(
 	SSERegI tmp = sse_setzero_siall(); \
 	z = sse_xor_siall(z, z); \
 	tmp = sse_cmpeq_epi16(x, z); \
-	assert_eq(0xffff, sse_movemask_epi8(tmp)); \
+	assert_eq(SSE_MASK_ALL, sse_movemask_epi8(tmp)); \
 }
 
 #define assert_all_gt(x, y) { \
 	SSERegI tmp = sse_cmpgt_epi16(x, y); \
-	assert_eq(0xffff, sse_movemask_epi8(tmp)); \
+	assert_eq(SSE_MASK_ALL, sse_movemask_epi8(tmp)); \
 }
 
 #define assert_all_gt_lo(x) { \
@@ -250,12 +250,12 @@ static bool cellOkLocalI16(
 	SSERegI tmp = sse_setzero_siall(); \
 	z = sse_xor_siall(z, z); \
 	tmp = sse_cmpgt_epi16(x, z); \
-	assert_eq(0xffff, sse_movemask_epi8(tmp)); \
+	assert_eq(SSE_MASK_ALL, sse_movemask_epi8(tmp)); \
 }
 
 #define assert_all_lt(x, y) { \
 	SSERegI tmp = sse_cmplt_epi16(x, y); \
-	assert_eq(0xffff, sse_movemask_epi8(tmp)); \
+	assert_eq(SSE_MASK_ALL, sse_movemask_epi8(tmp)); \
 }
 
 #define assert_all_leq(x, y) { \
@@ -269,7 +269,7 @@ static bool cellOkLocalI16(
 	z = sse_cmpeq_epi16(z, z); \
 	z = sse_srli_epi16(z, 1); \
 	tmp = sse_cmplt_epi16(x, z); \
-	assert_eq(0xffff, sse_movemask_epi8(tmp)); \
+	assert_eq(SSE_MASK_ALL, sse_movemask_epi8(tmp)); \
 }
 #endif
 
