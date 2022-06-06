@@ -187,8 +187,8 @@ typedef __m128i SSERegI;
 #define sse_fill_i16(inval, outval) outval=sse_set1_epi16(inval)
 
 #define sse_fill_i16_opt(inval, outval) { \
-	if (inval==0xffff) sse_cmpeq_epi16(outval, outval); \
-	else if (inval==0) sse_xor_siall(outval, outval); \
+	if (inval==0xffff) outval = sse_cmpeq_epi16(outval, outval); \
+	else if (inval==0) outval = sse_xor_siall(outval, outval); \
 	else sse_fill_i16(inval, outval); \
 }
 
@@ -199,8 +199,8 @@ typedef __m128i SSERegI;
 }
 
 #define sse_fill_u8_opt(inval, outval) {\
-	if (inval==0xff) sse_cmpeq_epi16(outval, outval); \
-	else if (inval==0) sse_xor_siall(outval, outval); \
+	if (inval==0xff) outval = sse_cmpeq_epi16(outval, outval); \
+	else if (inval==0) outval = sse_xor_siall(outval, outval); \
 	else sse_fill_u8(inval, outval); \
 }
 
