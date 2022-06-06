@@ -49,8 +49,6 @@ typedef __m256i SSERegI;
 #define sse_movemask_epi8(x) _mm256_movemask_epi8(x)
 #define sse_or_siall(x, y) _mm256_or_si256(x, y)
 #define sse_setzero_siall() _mm256_setzero_si256()
-#define sse_shuffle_epi32(x, y) _mm256_shuffle_epi32(x, y)
-#define sse_shufflelo_epi16(x, y) _mm256_shufflelo_epi16(x, y)
 #define sse_slli_epi16(x, y) _mm256_slli_epi16(x, y)
 #define sse_srli_epi16(x, y) _mm256_srli_epi16(x, y)
 #define sse_srli_epu8(x, y) _mm256_srli_epu8(x, y)
@@ -61,22 +59,37 @@ typedef __m256i SSERegI;
 #define sse_set1_epi16(x) _mm256_set1_epi16(x)
 
 /* AVX2 does not have a native 256-bit shift instruction */
+/* Note only works for y<=16, which is OK for this code */
 #define sse_slli_siall(x, y) \
 	_mm256_alignr_epi8(x, _mm256_permute2x128_si256(x, x, _MM_SHUFFLE(0, 0, 2, 0)), 16-y)
 
 #define sse_srli_siall(x, y) \
 	_mm256_alignr_epi8(_mm256_permute2x128_si256(x, x, _MM_SHUFFLE(2, 0, 0, 1)), x, y)
 
+/* we can avoid one instruction, when y==16 */
+#define sse_slli_siall_16(x) \
+	_mm256_permute2x128_si256(x, x, _MM_SHUFFLE(0, 0, 2, 0))
+
+#define sse_srli_siall_16(x) \
+	_mm256_permute2x128_si256(x, x, _MM_SHUFFLE(2, 0, 0, 1))
+
+/* this operates on the 2x 128-bit lanes independenty */
+#define sse_slli_si128(x, y) _mm256_slli_si256(x, y)
+#define sse_srli_si128(x, y) _mm256_srli_si256(x, y)
+
 /* compute the max val of a vector */
 #define sse_max_score_i16(inval, outval) { \
 		SSERegI vlmax = inval; \
-		SSERegI vltmp = sse_srli_siall(vlmax, 8); \
+		SSERegI vltmp = sse_srli_siall(vlmax, 16); \
 		vlmax = sse_max_epu8(vlmax, vltmp); \
-		vltmp = sse_srli_siall(vlmax, 4); \
+		/* we use only 128-bit hers, use the fast version */ \
+		vltmp = sse_srli_si128(vlmax, 8); \
 		vlmax = sse_max_epu8(vlmax, vltmp); \
-		vltmp = sse_srli_siall(vlmax, 2); \
+		vltmp = sse_srli_si128(vlmax, 4); \
 		vlmax = sse_max_epu8(vlmax, vltmp); \
-		vltmp = sse_srli_siall(vlmax, 1); \
+		vltmp = sse_srli_si128(vlmax, 2); \
+		vlmax = sse_max_epu8(vlmax, vltmp); \
+		vltmp = sse_srli_si128(vlmax, 1); \
 		vlmax = sse_max_epu8(vlmax, vltmp); \
 		outval = sse_extract_epi16(vlmax, 0); \
 }
@@ -111,8 +124,6 @@ typedef simde__m128i SSERegI;
 #define sse_movemask_epi8(x) simde_mm_movemask_epi8(x)
 #define sse_or_siall(x, y) simde_mm_or_si128(x, y)
 #define sse_setzero_siall() simde_mm_setzero_si128()
-#define sse_shuffle_epi32(x, y) simde_mm_shuffle_epi32(x, y)
-#define sse_shufflelo_epi16(x, y) simde_mm_shufflelo_epi16(x, y)
 #define sse_slli_epi16(x, y) simde_mm_slli_epi16(x, y)
 #define sse_slli_siall(x, y) simde_mm_slli_si128(x, y)
 #define sse_srli_epi16(x, y) simde_mm_srli_epi16(x, y)
@@ -142,8 +153,6 @@ typedef __m128i SSERegI;
 #define sse_movemask_epi8(x) _mm_movemask_epi8(x)
 #define sse_or_siall(x, y) _mm_or_si128(x, y)
 #define sse_setzero_siall() _mm_setzero_si128()
-#define sse_shuffle_epi32(x, y) _mm_shuffle_epi32(x, y)
-#define sse_shufflelo_epi16(x, y) _mm_shufflelo_epi16(x, y)
 #define sse_slli_epi16(x, y) _mm_slli_epi16(x, y)
 #define sse_slli_siall(x, y) _mm_slli_si128(x, y)
 #define sse_srli_epi16(x, y) _mm_srli_epi16(x, y)
