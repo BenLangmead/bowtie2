@@ -27,7 +27,7 @@
 #ifndef SSE_WRAP_H_
 #define SSE_WRAP_H_
 
-#ifndef IGOR_SSE2_ONLY
+#ifdef SSE_AVX2
 #include <immintrin.h>
 #define NBYTES_PER_REG 32
 #define SSE_MASK_ALL ((int) 0xffffffff)
@@ -95,7 +95,7 @@ typedef __m256i SSERegI;
 }
 
 
-#else /* SSE2 */
+#else /* no SSE_AVX2 */
 
 #if defined(__aarch64__) || defined(__s390x__) || defined(__powerpc__)
 #include "simde/x86/sse2.h"
@@ -180,7 +180,7 @@ typedef __m128i SSERegI;
 		outval = sse_extract_epi16(vlmax, 0); \
 }
 
-#endif /*IGOR_SSE2_ONLY*/
+#endif /* SSE_AVX2 */
 
 /* Fill all elements in outval with inval */
 /* opt version will check for special ivals that can use shortcuts */
