@@ -1453,7 +1453,7 @@ bool SwAligner::gatherCellsNucleotidesLocalSseI16(TAlScore best) {
 		{
 			// Start in upper vector row and move down
 			TAlScore max = 0;
-			SSERegI *vmax = *d.mat_.tmpvec(0, j);
+			SSERegI vmax = *d.mat_.tmpvec(0, j);
 			SSERegI *pvH = d.mat_.hvec(0, j);
 			for(size_t i = 0; i < iter; i++) {
 				for(size_t k = 0; k < NWORDS_PER_REG; k++) {
