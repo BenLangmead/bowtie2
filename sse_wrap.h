@@ -170,6 +170,17 @@ typedef __m128i SSERegI;
 #define sse_max_score_i16(inval, outval) { \
 		SSERegI vlmax = inval; \
 		SSERegI vltmp = sse_srli_siall(vlmax, 8); \
+		vlmax = sse_max_epi16(vlmax, vltmp); \
+		vltmp = sse_srli_siall(vlmax, 4); \
+		vlmax = sse_max_epi16(vlmax, vltmp); \
+		vltmp = sse_srli_siall(vlmax, 2); \
+		vlmax = sse_max_epi16(vlmax, vltmp); \
+		outval = sse_extract_epi16(vlmax, 0); \
+}
+
+#define sse_max_score_u8(inval, outval) { \
+		SSERegI vlmax = inval; \
+		SSERegI vltmp = sse_srli_siall(vlmax, 8); \
 		vlmax = sse_max_epu8(vlmax, vltmp); \
 		vltmp = sse_srli_siall(vlmax, 4); \
 		vlmax = sse_max_epu8(vlmax, vltmp); \
@@ -178,6 +189,7 @@ typedef __m128i SSERegI;
 		vltmp = sse_srli_siall(vlmax, 1); \
 		vlmax = sse_max_epu8(vlmax, vltmp); \
 		outval = sse_extract_epi16(vlmax, 0); \
+		outval = outval & 0x00ff; \
 }
 
 #endif /* SSE_AVX2 */

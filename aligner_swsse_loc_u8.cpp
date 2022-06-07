@@ -816,8 +816,7 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 		{
 			// Get single largest score in this column
 			int score = 0;
-			sse_max_score_i16(vcolmax, score);
-			score = score & 0x00ff;
+			sse_max_score_u8(vcolmax, score);
 
 			// Could we have saturated?
 			if(score + d.bias_ >= 255) {
@@ -891,8 +890,7 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 
 	// Find largest score in vmax
 	int score = 0;
-	sse_max_score_i16(vmax, score);
-	score = score & 0x00ff;
+	sse_max_score_u8(vmax, score);
 	flag = 0;
 
 	// Could we have saturated?
@@ -1274,8 +1272,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 		{
 			// Get single largest score in this column
 			int score = 0;
-			sse_max_score_i16(vcolmax, score);
-			score = score & 0x00ff;
+			sse_max_score_u8(vcolmax, score);
 
 			// Could we have saturated?
 			if(score + d.bias_ >= 255) {
@@ -1316,8 +1313,7 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 
 	// Find largest score in vmax
 	int score = 0;
-	sse_max_score_i16(vmax, score);
-	score = score & 0x00ff;
+	sse_max_score_u8(vmax, score);
 	flag = 0;
 
 	// Could we have saturated?
@@ -1419,12 +1415,7 @@ bool SwAligner::gatherCellsNucleotidesLocalSseU8(TAlScore best) {
 		// First, check if there is a cell in this column with a score
 		// above the score threshold
 		int score = 0;
-		sse_max_score_i16(*d.mat_.tmpvec(0, j), score);
-#if defined(SIMDE_ENDIAN_ORDER) && SIMDE_ENDIAN_ORDER == SIMDE_ENDIAN_BIG
-	        score = (score >> 8) & 0x00ff;
-#else
-		score = score & 0x00ff;
-#endif
+		sse_max_score_u8(*d.mat_.tmpvec(0, j), score);
 #ifndef NDEBUG
 		{
 			// Start in upper vector row and move down
