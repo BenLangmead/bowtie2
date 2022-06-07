@@ -62,4 +62,12 @@ jobs:
         run: |
           make clean; make -j4 allall
           make simple-test
+  macos-randomtest:
+    runs-on: macos-latest
+    needs: macos
+    steps:
+      - uses: actions/checkout@v2
+      - name: Run simple tests
+        run: |
+          make clean; make -j4 allall
           make random-test
