@@ -495,5 +495,6 @@ inline void SSEMatrix::fMaskSet(
 
 #define ROWSTRIDE_2COL 4
 #define ROWSTRIDE 4
+#define ROWSTRIDE_LOG2 2
 
 #endif /*ndef ALIGNER_SWSSE_H_*/

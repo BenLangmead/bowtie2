@@ -19,6 +19,7 @@
 
 #include "aligner_bt.h"
 #include "mask.h"
+#include "aligner_swsse.h"
 
 using namespace std;
 
@@ -700,7 +701,7 @@ void BtBranchTracer::squareFill(
 			if(j == 0 && xi > 0) {
 				// Get values for left neighbors from the checkpoint
 				if(is8_) {
-					size_t vecoff = (regmod << 6) + regdiv;
+					size_t vecoff = (regmod << (ROWSTRIDE_LOG2+BYTES_LOG2_PER_REG)) + regdiv;
 					sc_e_lf = ((uint8_t*)(qlf + 0))[vecoff];
 					sc_h_lf = ((uint8_t*)(qlf + 2))[vecoff];
 					if(local) {
@@ -712,7 +713,7 @@ void BtBranchTracer::squareFill(
 						else sc_e_lf -= 0xff;
 					}
 				} else {
-					size_t vecoff = (regmod << 5) + regdiv;
+					size_t vecoff = (regmod << (ROWSTRIDE_LOG2+BYTES_LOG2_PER_REG-1)) + regdiv;
 					sc_e_lf = ((int16_t*)(qlf + 0))[vecoff];
 					sc_h_lf = ((int16_t*)(qlf + 2))[vecoff];
 					if(local) {

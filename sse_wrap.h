@@ -30,6 +30,7 @@
 #ifdef SSE_AVX2
 #include <immintrin.h>
 #define NBYTES_PER_REG 32
+#define BYTES_LOG2_PER_REG 5
 #define SSE_MASK_ALL ((int) 0xffffffff)
 
 typedef __m256i SSERegI;
@@ -118,6 +119,7 @@ typedef __m256i SSERegI;
 #endif
 
 #define NBYTES_PER_REG 16
+#define BYTES_LOG2_PER_REG 4
 #define SSE_MASK_ALL 0xffff
 
 #if defined(__aarch64__) || defined(__s390x__) || defined(__powerpc__)

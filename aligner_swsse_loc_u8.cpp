@@ -729,8 +729,8 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 								row_div++;
 							}
 							size_t delt = idxrow + row;
-							size_t vecoff = (row_mod << 6) + row_div;
-							assert_lt(row_div, 16);
+							size_t vecoff = (row_mod << (ROWSTRIDE_LOG2+BYTES_LOG2_PER_REG)) + row_div;
+							assert_lt(row_div, NBYTES_PER_REG);
 							int16_t h_sc = ((uint8_t*)pvH)[vecoff];
 							int16_t e_sc = ((uint8_t*)pvE)[vecoff];
 							int16_t f_sc = ((uint8_t*)pvF)[vecoff];
@@ -769,7 +769,7 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 							cpimod -= iter;
 							cpidiv++;
 						}
-						size_t vecoff = (cpimod << 6) + cpidiv;
+						size_t vecoff = (cpimod << (ROWSTRIDE_LOG2+BYTES_LOG2_PER_REG)) + cpidiv;
 						cper_.commitMap_.push_back(vecoff);
 						cpi += cper_.per_;
 						cpimod += cper_.per_;
