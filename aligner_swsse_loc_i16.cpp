@@ -1445,7 +1445,7 @@ bool SwAligner::gatherCellsNucleotidesLocalSseI16(TAlScore best) {
 		size_t nrow_hi = nrow;
 		// First, check if there is a cell in this column with a score
 		// above the score threshold
-		uint16_t ret = 0;
+		int16_t ret = 0;
 		sse_max_score_i16(*d.mat_.tmpvec(0, j), ret);
 		TAlScore score = (TAlScore)(ret + 0x8000);
 		assert_geq(score, 0);
