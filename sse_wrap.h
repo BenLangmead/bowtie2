@@ -39,8 +39,7 @@ typedef __m256i SSERegI;
 #define sse_cmpeq_epi8(x, y) _mm256_cmpeq_epi8(x, y)
 #define sse_cmpgt_epi16(x, y) _mm256_cmpgt_epi16(x, y)
 #define sse_cmpgt_epi8(x, y) _mm256_cmpgt_epi8(x, y)
-#define sse_cmplt_epi16(x, y) _mm256_cmplt_epi16(x, y)
-#define sse_cmplt_epu8(x, y) _mm256_cmplt_epu8(x, y)
+#define sse_cmplt_epi16(x, y) _mm256_cmpgt_epi16(y,x)
 #define sse_extract_epi16(x, y) _mm256_extract_epi16(x, y)
 #define sse_insert_epi16(x, y, z) _mm256_insert_epi16(x, y, z)
 #define sse_load_siall(x) _mm256_load_si256(x)
@@ -81,6 +80,20 @@ typedef __m256i SSERegI;
 #define sse_max_score_i16(inval, outval) { \
 		SSERegI vlmax = inval; \
 		SSERegI vltmp = sse_srli_siall(vlmax, 16); \
+		vlmax = sse_max_epi16(vlmax, vltmp); \
+		/* we use only 128-bit hers, use the fast version */ \
+		vltmp = sse_srli_si128(vlmax, 8); \
+		vlmax = sse_max_epi16(vlmax, vltmp); \
+		vltmp = sse_srli_si128(vlmax, 4); \
+		vlmax = sse_max_epi16(vlmax, vltmp); \
+		vltmp = sse_srli_si128(vlmax, 2); \
+		vlmax = sse_max_epi16(vlmax, vltmp); \
+		outval = sse_extract_epi16(vlmax, 0); \
+}
+
+#define sse_max_score_u8(inval, outval) { \
+		SSERegI vlmax = inval; \
+		SSERegI vltmp = sse_srli_siall(vlmax, 16); \
 		vlmax = sse_max_epu8(vlmax, vltmp); \
 		/* we use only 128-bit hers, use the fast version */ \
 		vltmp = sse_srli_si128(vlmax, 8); \
@@ -92,6 +105,7 @@ typedef __m256i SSERegI;
 		vltmp = sse_srli_si128(vlmax, 1); \
 		vlmax = sse_max_epu8(vlmax, vltmp); \
 		outval = sse_extract_epi16(vlmax, 0); \
+		outval = outval & 0x00ff; \
 }
 
 
