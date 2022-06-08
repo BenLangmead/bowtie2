@@ -1,4 +1,4 @@
-name: Basic compile and test on Ubuntu and MacOS
+name: Compile and run simple tests on Ubuntu and MacOS
 on:
   push:
     branches:
@@ -62,4 +62,3 @@ jobs:
         run: |
           make allall
           make simple-test
-          make random-test
