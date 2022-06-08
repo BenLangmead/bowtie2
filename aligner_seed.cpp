@@ -896,7 +896,7 @@ size_t SeedAligner::exactSweep(
 		prefetch_count++;
 		if (prefetch_count>=48) { // cache line is 64 bytes, but we may skip some deps
 			for(int fwi = 0; fwi < 2; fwi++) {
-				if (!done[fwi]) {
+				if (dep[fwi] < len && !done[fwi]) {
 					bool fw = (fwi == 0);
 					const BTDnaString& seq = fw ? read.patFw : read.patRc;
 					const size_t left = len-dep[fwi];
@@ -909,7 +909,7 @@ size_t SeedAligner::exactSweep(
 		}
 		// by doing both fw in the internal loop, I give the prefetch in exactSweepStep to be effective
 		for(int fwi = 0; fwi < 2; fwi++) {
-			if (!done[fwi]) {
+			if (dep[fwi] < len && !done[fwi]) {
 				bool fw = (fwi == 0);
 				const BTDnaString& seq = fw ? read.patFw : read.patRc;
 
