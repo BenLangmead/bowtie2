@@ -43,7 +43,7 @@ jobs:
       - name: Run random tests
         run: |
           make clean; make -j4 allall
-          export NUM_CPUS=1
+          export NUM_CORES=1
           make random-test
   linux-avx2:
     runs-on: ubuntu-latest
@@ -54,7 +54,7 @@ jobs:
         run: |
           export SSE_AVX2=1
           make clean; make -j4 allall
-          export NUM_CPUS=1
+          export NUM_CORES=1
           make random-test
   macos:
     runs-on: macos-latest
@@ -63,5 +63,5 @@ jobs:
       - name: Run random tests
         run: |
           make clean; make -j4 allall
-          export NUM_CPUS=1
+          export NUM_CORES=1
           make random-test
