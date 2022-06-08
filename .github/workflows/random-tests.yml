@@ -42,7 +42,8 @@ jobs:
       - uses: actions/checkout@v2
       - name: Run random tests
         run: |
-          make allall
+          make clean; make -j4 allall
+          export NUM_CPUS=1
           make random-test
   macos:
     runs-on: macos-latest
@@ -50,5 +51,6 @@ jobs:
       - uses: actions/checkout@v2
       - name: Run random tests
         run: |
-          make allall
+          make clean; make -j4 allall
+          export NUM_CPUS=1
           make random-test

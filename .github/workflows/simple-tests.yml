@@ -60,5 +60,5 @@ jobs:
       - uses: actions/checkout@v2
       - name: Run simple tests
         run: |
-          make allall
+          make clean; make -j4 allall
           make simple-test
