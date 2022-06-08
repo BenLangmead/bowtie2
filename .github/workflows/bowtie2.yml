@@ -60,6 +60,6 @@ jobs:
       - uses: actions/checkout@v2
       - name: Run simple tests
         run: |
-          make clean; make -j4 allall
+          make allall
           make simple-test
           make random-test
