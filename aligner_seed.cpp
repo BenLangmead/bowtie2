@@ -1105,6 +1105,40 @@ SeedAligner::searchSeedBi() {
 		NULL);
 }
 
+inline void
+SeedAligner::prefetchNextLocsBi(
+        TIndexOffU topf,              // top in BWT
+        TIndexOffU botf,              // bot in BWT
+        TIndexOffU topb,              // top in BWT'
+        TIndexOffU botb,              // bot in BWT'
+        int step                    // step to get ready for
+        )
+{
+	if(step == (int)s_->steps.size()) return; // no more steps!
+	// Which direction are we going in next?
+	if(s_->steps[step] > 0) {
+		// Left to right; use BWT'
+		if(botb - topb == 1) {
+			// Already down to 1 row; just init top locus
+			SideLocus::prefetchFromRow(
+				topb, ebwtBw_->eh(), ebwtBw_->ebwt());
+		} else {
+			SideLocus::prefetchFromTopBot(
+				topb, botb, ebwtBw_->eh(), ebwtBw_->ebwt());
+		}
+	} else {
+		// Right to left; use BWT
+		if(botf - topf == 1) {
+			// Already down to 1 row; just init top locus
+			SideLocus::prefetchFromRow(
+				topf, ebwtFw_->eh(), ebwtFw_->ebwt());
+		} else {
+			SideLocus::prefetchFromTopBot(
+				topf, botf, ebwtFw_->eh(), ebwtFw_->ebwt());
+		}
+	}
+}
+
 /**
  * Get tloc, bloc ready for the next step.  If the new range is under
  * the ceiling.
@@ -1500,6 +1534,8 @@ SeedAligner::searchSeedBi(
 		bool ltr = off > 0;
 		const Ebwt* ebwt = ltr ? ebwtBw_ : ebwtFw_;
 		assert(ebwt != NULL);
+		off = abs(off)-1;
+		__builtin_prefetch(&((*seq_)[off]));
 		if(ltr) {
 			tp[0] = tp[1] = tp[2] = tp[3] = topf;
 			bp[0] = bp[1] = bp[2] = bp[3] = botf;
@@ -1521,13 +1557,16 @@ SeedAligner::searchSeedBi(
 		}
 		TIndexOffU *tf = ltr ? tp : t, *tb = ltr ? t : tp;
 		TIndexOffU *bf = ltr ? bp : b, *bb = ltr ? b : bp;
-		off = abs(off)-1;
+		int c = (*seq_)[off];  assert_range(0, 4, c);
+		// not 100% sure we need it, but redundant prefetches are not dangerous
+		// and helps in the average case
+		prefetchNextLocsBi(tf[c], bf[c], tb[c], bb[c], i+1);
+
 		//
 		bool leaveZone = s.zones[i].first < 0;
 		//bool leaveZoneIns = zones_[i].second < 0;
 		Constraint& cons    = *zones[abs(s.zones[i].first)];
 		//Constraint& insCons = *zones[abs(s.zones[i].second)];
-		int c = (*seq_)[off];  assert_range(0, 4, c);
 		int q = (*qual_)[off];
 		// Is it legal for us to advance on characters other than 'c'?
 		if(!(cons.mustMatch() && !overall.mustMatch()) || c == 4) {
