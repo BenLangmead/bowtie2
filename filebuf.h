@@ -136,7 +136,7 @@ public:
 	int get() {
 		assert(_in != NULL || _zIn != NULL || _inf != NULL || _ins != NULL);
 #ifdef WITH_ZSTD
-		assert(zstdIn != NULL)
+		assert(zstdIn != NULL);
 #endif
 		int c = peek();
 		if(c != -1) {

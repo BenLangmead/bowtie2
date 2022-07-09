@@ -176,6 +176,7 @@ SEARCH_CPPS :=  qual.cpp pat.cpp sam.cpp \
 
 ifeq (1, $(WITH_ZSTD))
   LDLIBS += -lzstd
+  CXXFLAGS += -DWITH_ZSTD
   SHARED_CPPS += zstd_decompress.cpp
 endif
 
