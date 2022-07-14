@@ -19,6 +19,7 @@
 
 #include "aligner_bt.h"
 #include "mask.h"
+#include "aligner_swsse.h"
 
 using namespace std;
 
@@ -626,7 +627,7 @@ void BtBranchTracer::squareFill(
 	const TAlScore sc_rfe = prob_.sc_->refGapExtend();
 	const bool local = !prob_.sc_->monotone;
 	const CpQuad *qup = NULL;
-	const __m128i *qlf = NULL;
+	const SSERegI *qlf = NULL;
 	size_t per = prob_.cper_->per_;
 	ASSERT_ONLY(size_t nrow = prob_.cper_->nrow());
 	size_t ncol = prob_.cper_->ncol();
@@ -637,7 +638,7 @@ void BtBranchTracer::squareFill(
 		qup = prob_.cper_->qrows_.ptr() + (ncol * (ydiv-1)) + xdiv * per;
 	}
 	if(!left) {
-		// Set up the column pointers to point to the first __m128i word in the
+		// Set up the column pointers to point to the first SSERegI word in the
 		// relevant column
 		size_t off = (niter << 2) * (xdiv-1);
 		qlf = prob_.cper_->qcols_.ptr() + off;
@@ -647,8 +648,8 @@ void BtBranchTracer::squareFill(
 	size_t xi = xedge, yi = yedge; // iterators for columns, rows
 	size_t ii = 0; // iterator into packed square
 	// Iterate over rows, then over columns
-	size_t m128mod = yi % prob_.cper_->niter_;
-	size_t m128div = yi / prob_.cper_->niter_;
+	size_t regmod = yi % prob_.cper_->niter_;
+	size_t regdiv = yi / prob_.cper_->niter_;
 	int16_t sc_h_dg_lastrow = MIN_I16;
 	for(size_t i = 0; i <= ymod; i++, yi++) {
 		assert_lt(yi, nrow);
@@ -700,7 +701,7 @@ void BtBranchTracer::squareFill(
 			if(j == 0 && xi > 0) {
 				// Get values for left neighbors from the checkpoint
 				if(is8_) {
-					size_t vecoff = (m128mod << 6) + m128div;
+					size_t vecoff = (regmod << (ROWSTRIDE_LOG2+BYTES_LOG2_PER_REG)) + regdiv;
 					sc_e_lf = ((uint8_t*)(qlf + 0))[vecoff];
 					sc_h_lf = ((uint8_t*)(qlf + 2))[vecoff];
 					if(local) {
@@ -712,7 +713,7 @@ void BtBranchTracer::squareFill(
 						else sc_e_lf -= 0xff;
 					}
 				} else {
-					size_t vecoff = (m128mod << 5) + m128div;
+					size_t vecoff = (regmod << (ROWSTRIDE_LOG2+BYTES_LOG2_PER_REG-1)) + regdiv;
 					sc_e_lf = ((int16_t*)(qlf + 0))[vecoff];
 					sc_h_lf = ((int16_t*)(qlf + 2))[vecoff];
 					if(local) {
@@ -856,11 +857,11 @@ void BtBranchTracer::squareFill(
 			sc_h_lf_last = sc_best;
 			sc_e_lf_last = sc_e_best;
 		}
-		// Update m128mod, m128div
-		m128mod++;
-		if(m128mod == prob_.cper_->niter_) {
-			m128mod = 0;
-			m128div++;
+		// Update regmod, regdiv
+		regmod++;
+		if(regmod == prob_.cper_->niter_) {
+			regmod = 0;
+			regdiv++;
 		}
 		// update qup
 		ii += sq_ncol;

@@ -23,7 +23,7 @@
 
 /**
  * Given a number of rows (nrow), a number of columns (ncol), and the
- * number of words to fit inside a single __m128i vector, initialize the
+ * number of words to fit inside a single SSERegI vector, initialize the
  * matrix buffer to accomodate the needed configuration of vectors.
  */
 void SSEMatrix::init(
@@ -47,8 +47,13 @@ void SSEMatrix::init(
 			 << " vectors per cell" << endl;
 		throw e;
 	}
-	assert(wperv_ == 8 || wperv_ == 16);
-	vecshift_ = (wperv_ == 8) ? 3 : 4;
+	{
+		// compute vecshift_=log2(wperv)
+		size_t wp = wperv;
+		assert(wp == (NBYTES_PER_REG/2) || wp == NBYTES_PER_REG);
+	        vecshift_ = 0;
+        	while( wp>>=1 ) vecshift_++;
+	}
 	nvecrow_ = (nrow + (wperv_-1)) >> vecshift_;
 	nveccol_ = ncol;
 	colstride_ = nvecPerCol_ * nvecPerCell_;
@@ -79,10 +84,10 @@ int SSEMatrix::eltSlow(size_t row, size_t col, size_t mat) const {
 	size_t rowelt = row / nvecrow_;
 	size_t rowvec = row % nvecrow_;
 	size_t eltvec = (col * colstride_) + (rowvec * rowstride_) + mat;
-	if(wperv_ == 16) {
+	if(wperv_ == NBYTES_PER_REG) {
 		return (int)((uint8_t*)(matbuf_.ptr() + eltvec))[rowelt];
 	} else {
-		assert_eq(8, wperv_);
+		assert_eq((NBYTES_PER_REG/2), wperv_);
 		return (int)((int16_t*)(matbuf_.ptr() + eltvec))[rowelt];
 	}
 }
