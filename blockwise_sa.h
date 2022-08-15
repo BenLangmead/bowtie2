@@ -28,6 +28,15 @@
 #include <thread>
 #include <memory>
 #include <stdexcept>
+
+#ifdef USE_SAIS
+#ifdef BOWTIE_64BIT_INDEX
+#include <libsais64.h>
+#else
+#include <libsais.h>
+#endif
+#endif
+
 #include "assert_helpers.h"
 #include "diff_sample.h"
 #include "multikey_qsort.h"
@@ -185,9 +194,52 @@ public:
 		BlockwiseSA<TStr>(__text, __bucketSz, __sanityCheck, __passMemExc, __verbose, __logger)
 		{ }
 };
+#ifdef USE_SAIS
+template<typename TStr>
+class SAISBlockwiseSA : public InorderBlockwiseSA<TStr> {
+public:
+	SAISBlockwiseSA(TStr& __text, TIndexOffU __bucketSz, int __nthreads) :
+		InorderBlockwiseSA<TStr>(__text, __bucketSz, false, false, false, cout), _i(0), _nthreads(__nthreads)
+		{
+			__text.wbuf()[__text.length()] = (char)127; // $ is larger than any character in the suffix array
+			_suffixes.resize(__text.length() + 1);
+#ifdef BOWTIE_64BIT_INDEX
+			libsais64_omp((const uint8_t *)__text.buf(), (int64_t *)(_suffixes.ptr()), (int64_t)_suffixes.size(), 0, NULL, _nthreads);
+
+#else
+			libsais_omp((const uint8_t *)__text.buf(), (int32_t *)(_suffixes.ptr()), (int32_t)_suffixes.size(), 0, NULL, _nthreads);
+
+#endif
+			_suffixes[__text.length()] = __text.length();
+		}
 
 
+	inline TIndexOffU nextSuffix() {
+		return _suffixes[_i++];
+	}
 
+	void reset() {
+		_i = 0;
+	}
+
+	bool isReset() {
+		return _i == 0;
+	}
+
+	void nextBlock(int a, int b) {
+		return;
+	}
+
+	bool hasMoreBlocks() const {
+		return _i == _suffixes.size();
+	}
+
+private:
+	TIndexOffU _i;
+	EList<TIndexOffU> _suffixes;
+	int _nthreads;
+};
+#endif
 /**
  * Build the SA a block at a time according to the scheme outlined in
  * Karkkainen's "Fast BWT" paper.

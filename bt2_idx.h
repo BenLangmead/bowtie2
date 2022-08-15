@@ -1133,7 +1133,11 @@ public:
 						VMSG_NL("");
 					}
 					VMSG_NL("Constructing suffix-array element generator");
+#ifdef USE_SAIS
+					SAISBlockwiseSA<TStr> bsa(s, bmax, nthreads);
+#else
 					KarkkainenBlockwiseSA<TStr> bsa(s, bmax, nthreads, pool, dcv, seed, _sanity, _passMemExc, _verbose, outfile);
+#endif
 					assert(bsa.suffixItrIsReset());
 					assert_eq(bsa.size(), s.length()+1);
 					VMSG_NL("Converting suffix-array elements to index image");

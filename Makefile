@@ -74,6 +74,13 @@ else ifneq (,$(findstring $(shell uname -m), aarch64 arm64 s390x ppc64 ppc64le))
   POPCNT_CAPABILITY ?= 0
 endif
 
+ifdef USE_SAIS
+  CPPFLAGS += -Ithird_party/libsais/include
+  CXXFLAGS += -DUSE_SAIS
+  LDFLAGS += -Lthird_party/libsais/lib
+  LDLIBS += -lsais
+endif
+
 # msys will always be 32 bit so look at the cpu arch instead.
 ifneq (,$(findstring AMD64,$(PROCESSOR_ARCHITEW6432)))
   ifeq (1,$(MINGW))
@@ -306,7 +313,6 @@ endif
 #
 # bowtie2-build targets
 #
-
 bowtie2-build-s-sanitized bowtie2-build-s: bt2_build.cpp $(SHARED_CPPS) $(HEADERS)
 	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(CXXFLAGS) \
 		$(DEFS) -DBOWTIE2 $(NOASSERT_FLAGS) -Wall \
