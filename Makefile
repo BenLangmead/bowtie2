@@ -182,6 +182,7 @@ SEARCH_CPPS :=  qual.cpp pat.cpp sam.cpp \
 ifeq (1, $(WITH_ZSTD))
   LDLIBS += -lzstd
   SHARED_CPPS += zstd_decompress.cpp
+  CXXFLAGS += -DWITH_ZSTD
 endif
 
 SEARCH_CPPS_MAIN := $(SEARCH_CPPS) bowtie_main.cpp
