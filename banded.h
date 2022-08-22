@@ -46,7 +46,7 @@ public:
 
 protected:
 
-	EList_m128i mat_;
+	EList_sse   mat_;
 };
 
 #endif

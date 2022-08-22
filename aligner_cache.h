@@ -65,6 +65,39 @@
 
 #define CACHE_PAGE_SZ (16 * 1024)
 
+class BwtTopBot {
+public:
+	BwtTopBot() : topf(0), botf(0), topb(0), botb(0) {}
+
+	BwtTopBot(
+		TIndexOffU _topf,        // top in BWT
+		TIndexOffU _botf,        // bot in BWT
+		TIndexOffU _topb,        // top in BWT'
+		TIndexOffU _botb)        // bot in BWT'
+	: topf(_topf)
+	, botf(_botf)
+	, topb(_topb)
+	, botb(_botb)
+	{}
+
+	void set(
+		TIndexOffU _topf,        // top in BWT
+		TIndexOffU _botf,        // bot in BWT
+		TIndexOffU _topb,        // top in BWT'
+		TIndexOffU _botb)        // bot in BWT'
+	{
+		topf = _topf;
+		botf = _botf;
+		topb = _topb;
+		botb = _botb;
+	}
+
+	TIndexOffU topf;        // top in BWT
+	TIndexOffU botf;        // bot in BWT
+	TIndexOffU topb;        // top in BWT'
+	TIndexOffU botb;        // bot in BWT'
+};
+
 typedef PListSlice<TIndexOffU, CACHE_PAGE_SZ> TSlice;
 
 /**
@@ -753,8 +786,6 @@ public:
 	 * Returns:
 	 *  -1 if out of memory
 	 *  0 if key was found in cache
-	 *  1 if key was not found in cache (and there's enough memory to
-	 *    add a new key)
 	 */
 	int beginAlign(
 		const BTDnaString& seq,
@@ -764,13 +795,6 @@ public:
 	{
 		assert(repOk());
 		qk_.init(seq ASSERT_ONLY(, tmpdnastr_));
-		//if(qk_.cacheable() && (qv_ = current_->query(qk_, getLock)) != NULL) {
-		//	// qv_ holds the answer
-		//	assert(qv_->valid());
-		//	qv = *qv_;
-		//	resetRead();
-		//	return 1; // found in cache
-		//} else
 		if(qk_.cacheable()) {
 			// Make a QNode for this key and possibly add the QNode to the
 			// Red-Black map; but if 'seq' isn't cacheable, just create the
@@ -865,7 +889,7 @@ public:
 	 * compiled for the current read in the local cache.
 	 */
 	bool addOnTheFly(
-		const BTDnaString& rfseq, // reference sequence close to read seq
+		const SAKey& sak, // the key holding the reference substring
 		TIndexOffU topf,            // top in BWT index
 		TIndexOffU botf,            // bot in BWT index
 		TIndexOffU topb,            // top in BWT' index
@@ -875,8 +899,6 @@ public:
 
 		assert(aligning());
 		assert(repOk());
-		ASSERT_ONLY(BTDnaString tmp);
-		SAKey sak(rfseq ASSERT_ONLY(, tmp));
 		//assert(sak.cacheable());
 		if(current_->addOnTheFly((*qv_), sak, topf, botf, topb, botb, getLock)) {
 			rangen_++;
@@ -884,6 +906,20 @@ public:
 			return true;
 		}
 		return false;
+	}
+
+	bool addOnTheFly(
+		const BTDnaString& rfseq, // reference sequence close to read seq
+		TIndexOffU topf,            // top in BWT index
+		TIndexOffU botf,            // bot in BWT index
+		TIndexOffU topb,            // top in BWT' index
+		TIndexOffU botb,            // bot in BWT' index
+		bool getLock = true)      // true -> lock is not held by caller
+	{
+
+		ASSERT_ONLY(BTDnaString tmp);
+		SAKey sak(rfseq ASSERT_ONLY(, tmp));
+		return addOnTheFly(sak, topf, botf, topb, botb, getLock);
 	}
 
 	/**
