@@ -81,7 +81,7 @@ endif
 
 ifdef USE_SAIS
   CPPFLAGS += -Ithird_party/libsais/include
-  CXXFLAGS += -DUSE_SAIS
+  CXXFLAGS += -fopenmp -DUSE_SAIS
   LDFLAGS += -Lthird_party/libsais/lib
   LDLIBS += -lsais
 endif
