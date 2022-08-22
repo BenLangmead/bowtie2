@@ -23,6 +23,7 @@
 #include <iostream>
 #include <utility>
 #include <limits>
+#include <vector>
 #include "qual.h"
 #include "ds.h"
 #include "sstring.h"
@@ -65,7 +66,7 @@ struct Constraint {
 	 * Return true iff penalities and constraints prevent us from
 	 * adding any edits.
 	 */
-	bool mustMatch() {
+	bool mustMatch() const {
 		assert(instantiated);
 		return (mms == 0 && edits == 0) ||
 		        penalty == 0 ||
@@ -75,7 +76,7 @@ struct Constraint {
 	/**
 	 * Return true iff a mismatch of the given quality is permitted.
 	 */
-	bool canMismatch(int q, const Scoring& cm) {
+	bool canMismatch(int q, const Scoring& cm) const {
 		assert(instantiated);
 		return (mms > 0 || edits > 0) &&
 		       penalty >= cm.mm(q);
@@ -84,7 +85,7 @@ struct Constraint {
 	/**
 	 * Return true iff a mismatch of the given quality is permitted.
 	 */
-	bool canN(int q, const Scoring& cm) {
+	bool canN(int q, const Scoring& cm) const {
 		assert(instantiated);
 		return (mms > 0 || edits > 0) &&
 		       penalty >= cm.n(q);
@@ -94,7 +95,7 @@ struct Constraint {
 	 * Return true iff a mismatch of *any* quality (even qual=1) is
 	 * permitted.
 	 */
-	bool canMismatch() {
+	bool canMismatch() const {
 		assert(instantiated);
 		return (mms > 0 || edits > 0) && penalty > 0;
 	}
@@ -103,7 +104,7 @@ struct Constraint {
 	 * Return true iff a mismatch of *any* quality (even qual=1) is
 	 * permitted.
 	 */
-	bool canN() {
+	bool canN() const {
 		assert(instantiated);
 		return (mms > 0 || edits > 0);
 	}
@@ -112,7 +113,7 @@ struct Constraint {
 	 * Return true iff a deletion of the given extension (0=open, 1=1st
 	 * extension, etc) is permitted.
 	 */
-	bool canDelete(int ex, const Scoring& cm) {
+	bool canDelete(int ex, const Scoring& cm) const {
 		assert(instantiated);
 		return (dels > 0 && edits > 0) &&
 		       penalty >= cm.del(ex);
@@ -121,7 +122,7 @@ struct Constraint {
 	/**
 	 * Return true iff a deletion of any extension is permitted.
 	 */
-	bool canDelete() {
+	bool canDelete() const {
 		assert(instantiated);
 		return (dels > 0 || edits > 0) &&
 		       penalty > 0;
@@ -131,7 +132,7 @@ struct Constraint {
 	 * Return true iff an insertion of the given extension (0=open,
 	 * 1=1st extension, etc) is permitted.
 	 */
-	bool canInsert(int ex, const Scoring& cm) {
+	bool canInsert(int ex, const Scoring& cm) const {
 		assert(instantiated);
 		return (ins > 0 || edits > 0) &&
 		       penalty >= cm.ins(ex);
@@ -140,7 +141,7 @@ struct Constraint {
 	/**
 	 * Return true iff an insertion of any extension is permitted.
 	 */
-	bool canInsert() {
+	bool canInsert() const {
 		assert(instantiated);
 		return (ins > 0 || edits > 0) &&
 		       penalty > 0;
@@ -149,7 +150,7 @@ struct Constraint {
 	/**
 	 * Return true iff a gap of any extension is permitted
 	 */
-	bool canGap() {
+	bool canGap() const {
 		assert(instantiated);
 		return ((ins > 0 || dels > 0) || edits > 0) && penalty > 0;
 	}
@@ -213,7 +214,7 @@ struct Constraint {
 	 * are helpful to resolve instances where two search roots would
 	 * otherwise overlap in what alignments they can find.
 	 */
-	bool acceptable() {
+	bool acceptable() const {
 		assert(instantiated);
 		return edits   <= editsCeil &&
 		       mms     <= mmsCeil   &&
@@ -1455,6 +1456,186 @@ struct SeedSearchMetrics {
 };
 
 /**
+ * Wrap the search cache with all the relevant objects
+ */
+class SeedSearchCache {
+
+public:
+	SeedSearchCache(
+		const BTDnaString& _seq,  // sequence of current seed
+		const BTString& _qual     // quality string for current seed
+		)
+		: qv()
+		, seq(_seq)
+		, qual(_qual)
+		, cachedEls()
+		, cachep(NULL)
+	{
+		cachedEls.reserve(16); // do not expect I will need more
+	}
+
+	/**
+	 * This function is called whenever we start to align a new read or
+	 * read substring.
+	 *
+	 * See AlignmentCacheIface::beginAlign for details
+	 */
+	int beginAlign(AlignmentCacheIface& cache) 
+	{ 
+		int ret = cache.beginAlign(seq, qual, qv);
+		if (ret>=0) {
+			cachep = &cache;
+		}
+		return ret;
+	}
+
+        /**
+         * Add an alignment to the running list of alignments being
+         * compiled for the current read in the local cache.
+         */
+	bool addAllCached(bool getLock = true)
+	{
+		if (!aligning()) return false;
+		const size_t nEls = cachedEls.size();
+		bool success = true;
+		for(size_t i=0; i<nEls; i++) {
+			AddEl &el = cachedEls[i];
+			success &= cachep->addOnTheFly(el.sak, el.topf, el.botf, el.topb, el.botb, getLock);
+		}
+		cachedEls.clear();
+		return success;
+	}
+
+
+	/**
+         * Called when is finished aligning a read (and so is finished
+         * adding associated reference strings).  Returns a copy of the
+         * final QVal object and resets the alignment state of the
+         * current-read cache.
+         *
+         * Also, if the alignment is cacheable, it commits it to the next
+         * cache up in the cache hierarchy.
+         */
+        void finishAlign(bool getLock = true) 
+	{ 
+		assert(cachep!=NULL);
+		qv = cachep->finishAlign(getLock); 
+		cachep = NULL;
+	}
+
+        /**
+         * Add an alignment to the running list of alignments being
+         * compiled for the current read in the local memory buffer.
+         */
+        void addOnTheFly(
+                const BTDnaString& rfseq, // reference sequence close to read seq
+                TIndexOffU topf,            // top in BWT index
+                TIndexOffU botf,            // bot in BWT index
+                TIndexOffU topb,            // top in BWT' index
+                TIndexOffU botb)            // bot in BWT' index
+	{
+		cachedEls.emplace_back(rfseq, topf, botf, topb, botb);
+	}
+
+	/**
+	 * Return true iff we're in the middle of aligning a sequence.
+	 */
+	bool aligning() const { return ((cachep!=NULL) && (cachep->aligning())); }
+
+	bool qvValid() const { return qv.valid();}
+
+	const QVal&          getQv() const {return qv;}
+	const BTDnaString&   getSeq() const {return seq;}
+	const BTString&      getQual() const {return qual;}
+
+protected:
+	class AddEl {
+	public:
+        	AddEl(
+                	const BTDnaString& rfseq, // reference sequence close to read seq
+                	TIndexOffU _topf,            // top in BWT index
+                	TIndexOffU _botf,            // bot in BWT index
+                	TIndexOffU _topb,            // top in BWT' index
+                	TIndexOffU _botb             // bot in BWT' index
+			) :
+			ASSERT_ONLY(tmp(), )
+			sak(rfseq ASSERT_ONLY(, tmp)),
+			topf(_topf), botf(_botf), topb(_topb), botb(_botb) 
+		{}
+
+                ASSERT_ONLY(BTDnaString tmp;)
+                SAKey      sak;
+                TIndexOffU topf;            // top in BWT index
+                TIndexOffU botf;            // bot in BWT index
+                TIndexOffU topb;            // top in BWT' index
+                TIndexOffU botb;            // bot in BWT' index
+	};
+
+	QVal                 qv;
+	const BTDnaString&   seq;   // sequence of current seed
+	const BTString&      qual;  // quality string for current seed
+
+	std::vector<AddEl>    cachedEls; // tmp storage of values that will go in the cache
+	AlignmentCacheIface*  cachep; // local alignment cache for seed alignment, set at beginAliginings
+};
+
+/**
+ * Wrap the search cache with all the relevant objects
+ */
+class SeedSearchMultiCache {
+
+public:
+	SeedSearchMultiCache(
+		) 
+		: cacheVec()
+	{}
+
+	void emplace_back( 
+		const BTDnaString& seq,  // sequence of current seed
+		const BTString& qual,    // quality string for current seed
+		int seedoffidx,          // seed index
+		bool fw                  // is it fw?
+		)
+	{
+		cacheVec.emplace_back(seq, qual, seedoffidx, fw);
+	}
+
+	// Same semantics as std::vector
+	void reserve(size_t new_cap) { cacheVec.reserve(new_cap); }
+	size_t size() const {return cacheVec.size(); }
+	void clear() { cacheVec.clear(); }
+	void pop_back() { cacheVec.pop_back(); }
+
+	// Access one of the search caches
+	const SeedSearchCache& operator[](size_t idx) const { return cacheVec[idx].srcache; }
+	SeedSearchCache& operator[](size_t idx) { return cacheVec[idx].srcache; }
+
+	int getSeedOffIdx(size_t idx) const { return cacheVec[idx].seedoffidx; }
+	bool getFw(size_t idx) const { return cacheVec[idx].fw; }
+
+protected:
+	class CacheEl {
+	public:
+		CacheEl(
+			const BTDnaString& _seq,  // sequence of current seed
+			const BTString& _qual,    // quality string for current seed
+			int _seedoffidx,          // seed index
+			bool _fw                  // is it fw?
+			)
+			: srcache(_seq, _qual)
+			, seedoffidx(_seedoffidx)
+			, fw(_fw) {}
+		
+
+		SeedSearchCache     srcache;   // search wrapper
+		int                 seedoffidx; // seed index
+		bool                fw;      // is it fw?
+	};
+
+	std::vector<CacheEl> cacheVec;
+};
+
+/**
  * Given an index and a seeding scheme, searches for seed hits.
  */
 class SeedAligner {
@@ -1562,6 +1743,7 @@ public:
 		SeedSearchMetrics& met);   // metrics
 
 protected:
+	class SeedAlignerSearchParams;
 
 	/**
 	 * Report a seed hit found by searchSeedBi(), but first try to extend it out in
@@ -1570,7 +1752,10 @@ protected:
 	 * we're done, which actually adds the hit to the cache.  Returns result from
 	 * calling reportHit().
 	 */
-	bool extendAndReportHit(
+	void extendAndReportHit(
+		SeedSearchCache &cache,              // local seed alignment cache
+		size_t off,                          // offset of seed currently being searched
+		bool fw,                             // orientation of seed currently being searched
 		TIndexOffU topf,                     // top in BWT
 		TIndexOffU botf,                     // bot in BWT
 		TIndexOffU topb,                     // top in BWT'
@@ -1579,44 +1764,38 @@ protected:
 		DoublyLinkedList<Edit> *prevEdit); // previous edit
 
 	/**
-	 * Report a seed hit found by searchSeedBi() by adding it to the cache.  Return
-	 * false if the hit could not be reported because of, e.g., cache exhaustion.
+	 * Report a seed hit found by searchSeedBi() by adding it to the cache.
 	 */
-	bool reportHit(
+	void reportHit(
+		SeedSearchCache &cache,  // local seed alignment cache
 		TIndexOffU topf,         // top in BWT
 		TIndexOffU botf,         // bot in BWT
 		TIndexOffU topb,         // top in BWT'
 		TIndexOffU botb,         // bot in BWT'
 		uint16_t len,          // length of hit
 		DoublyLinkedList<Edit> *prevEdit);  // previous edit
-	
-	/**
-	 * Given an instantiated seed (in s_ and other fields), search
-	 */
-	bool searchSeedBi();
-	
+
+	void reportHit(
+		SeedSearchCache &cache,  // local seed alignment cache
+		const BwtTopBot &bwt,  // The 4 BWT idxs
+		uint16_t len,          // length of hit
+		DoublyLinkedList<Edit> *prevEdit)  // previous edit
+	{ reportHit(cache, bwt.topf, bwt.botf, bwt.topb, bwt.botb, len, prevEdit); }
+
 	/**
 	 * Main, recursive implementation of the seed search.
+	 * Given a vector of instantiated seeds, search
 	 */
-	bool searchSeedBi(
-		int step,              // depth into steps_[] array
-		int depth,             // recursion depth
-		TIndexOffU topf,         // top in BWT
-		TIndexOffU botf,         // bot in BWT
-		TIndexOffU topb,         // top in BWT'
-		TIndexOffU botb,         // bot in BWT'
-		SideLocus tloc,        // locus for top (perhaps unititialized)
-		SideLocus bloc,        // locus for bot (perhaps unititialized)
-		Constraint c0,         // constraints to enforce in seed zone 0
-		Constraint c1,         // constraints to enforce in seed zone 1
-		Constraint c2,         // constraints to enforce in seed zone 2
-		Constraint overall,    // overall constraints
-		DoublyLinkedList<Edit> *prevEdit);  // previous edit
-	
+	void searchSeedBi(const size_t nparams, SeedAlignerSearchParams paramVec[]);
+
+	// helper function
+	bool startSearchSeedBi(SeedAlignerSearchParams &p);
+
 	/**
 	 * Get tloc and bloc ready for the next step.
 	 */
-	inline void nextLocsBi(
+	void nextLocsBi(
+		const InstantiatedSeed& seed, // current instantiated seed
 		SideLocus& tloc,            // top locus
 		SideLocus& bloc,            // bot locus
 		TIndexOffU topf,              // top in BWT
@@ -1625,30 +1804,37 @@ protected:
 		TIndexOffU botb,              // bot in BWT'
 		int step);                  // step to get ready for
 	
-	inline void prefetchNextLocsBi(
+	void nextLocsBi(
+		const InstantiatedSeed& seed, // current instantiated seed
+		SideLocus& tloc,            // top locus
+		SideLocus& bloc,            // bot locus
+		const BwtTopBot &bwt,       // The 4 BWT idxs
+		int step)                   // step to get ready for
+	{ nextLocsBi(seed, tloc, bloc, bwt.topf, bwt.botf, bwt.topb, bwt.botb, step); }
+
+	void prefetchNextLocsBi(
+		const InstantiatedSeed& seed, // current instantiated seed
 		TIndexOffU topf,              // top in BWT
 		TIndexOffU botf,              // bot in BWT
 		TIndexOffU topb,              // top in BWT'
 		TIndexOffU botb,              // bot in BWT'
 		int step);                  // step to get ready for
 
+	void prefetchNextLocsBi(
+		const InstantiatedSeed& seed, // current instantiated seed
+		const BwtTopBot &bwt,       // The 4 BWT idxs
+		int step)                   // step to get ready for
+	{ prefetchNextLocsBi(seed, bwt.topf, bwt.botf, bwt.topb, bwt.botb, step); }
+
 	// Following are set in searchAllSeeds then used by searchSeed()
 	// and other protected members.
 	const Ebwt* ebwtFw_;       // forward index (BWT)
 	const Ebwt* ebwtBw_;       // backward/mirror index (BWT')
 	const Scoring* sc_;        // scoring scheme
-	const InstantiatedSeed* s_;// current instantiated seed
 	
 	const Read* read_;         // read whose seeds are currently being aligned
 	
-	// The following are set just before a call to searchSeedBi()
-	const BTDnaString* seq_;   // sequence of current seed
-	const BTString* qual_;     // quality string for current seed
-	size_t off_;               // offset of seed currently being searched
-	bool fw_;                  // orientation of seed currently being searched
-	
 	EList<Edit> edits_;        // temporary place to sort edits
-	AlignmentCacheIface *ca_;  // local alignment cache for seed alignments
 	EList<uint32_t> offIdx2off_;// offset idx to read offset map, set up instantiateSeeds()
 	uint64_t bwops_;           // Burrows-Wheeler operations
 	uint64_t bwedits_;         // Burrows-Wheeler edits

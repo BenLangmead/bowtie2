@@ -64,7 +64,12 @@ endif
 BITS := 32
 ifneq (,$(findstring $(shell uname -m), x86_64 amd64))
   BITS := 64
-  SSE_FLAG := -msse2
+  ifeq (1, $(SSE_AVX2))
+	SSE_FLAG := -mavx2 -faligned-new -DSSE_AVX2
+  else
+	SSE_FLAG := -msse2
+  endif
+
   POPCNT_CAPABILITY ?= 1
 else ifneq (,$(findstring $(shell uname -m), aarch64 arm64 s390x ppc64 ppc64le))
   BITS := 64
