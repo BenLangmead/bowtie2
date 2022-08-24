@@ -510,9 +510,9 @@ protected:
 		if (fd == -1)
 			return false;
 
-		int magic;
+		unsigned magic;
 
-                if (read(fd, &magic, sizeof(int)) != sizeof(int)) {
+                if (read(fd, &magic, sizeof(unsigned)) != sizeof(unsigned)) {
 			std::cerr << "is_zstd_file: unable to read magic number" << std::endl;
 			return false;
                 }

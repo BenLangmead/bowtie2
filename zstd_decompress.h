@@ -14,7 +14,7 @@ struct zstd_stream {
         size_t        i_pos;
         void         *i_buf;
         void         *o_buf;
-        ZSTD_DStream *strm;
+        ZSTD_DCtx    *strm;
         FILE         *fp;
 };
 

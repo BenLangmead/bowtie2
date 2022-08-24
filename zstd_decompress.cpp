@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,7 +23,12 @@ zstdStrm *zstdStrmInit()
 		zstdClose(s);
                 return NULL;
         }
-        if ((s->strm = ZSTD_createDStream()) == NULL) {
+	if ((s->o_buf = malloc(ZSTD_DStreamOutSize())) == NULL) {
+		zstdClose(s);
+                return NULL;
+        }
+
+        if ((s->strm = ZSTD_createDCtx()) == NULL) {
                 zstdClose(s);
                 return NULL;
         }
@@ -69,19 +75,21 @@ zstdStrm *zstdFdOpen(int fd) {
 int zstdDecompress(zstdStrm *s)
 {
         int ret;
-
         ZSTD_inBuffer in = { s->i_buf, s->i_len, s->i_pos };
-        ZSTD_outBuffer out = { s->o_buf, s->o_len, s->o_pos };
+	ZSTD_outBuffer out = { s->o_buf, s->o_len, s->o_pos };
 
-        ret = ZSTD_decompressStream(s->strm, &out, &in);
-        s->i_pos = in.pos;
-        s->o_pos = out.pos;
+	ret = ZSTD_decompressStream(s->strm, &out, &in);
+	s->i_pos = in.pos;
+	s->o_pos = out.pos;
 
         return ret;
 }
 
 int zstdRead(zstdStrm *s, void *buf, size_t len)
 {
+	if (s->i_pos == s->i_len && feof(s->fp))
+		return -1;
+
         s->o_pos = 0;
         s->o_buf = buf;
         s->o_len = len;
@@ -94,8 +102,17 @@ int zstdRead(zstdStrm *s, void *buf, size_t len)
                 int ret;
 
                 if ((s->i_pos == 0 || s->i_pos == s->i_len) && !feof(s->fp)) {
-                        s->i_pos = 0;
-                        s->i_len = fread(s->i_buf, 1, ZSTD_DStreamInSize(), s->fp);
+                        int nread;
+			size_t nleft = ZSTD_DStreamInSize();
+
+			s->i_len = s->i_pos = 0;
+			do {
+				nread = fread((char *)s->i_buf + s->i_len, 1, nleft, s->fp);
+				s->i_len += nread;
+				if (feof(s->fp))
+					break;
+				nleft -= nread;
+			} while (nleft > 0);
                 }
                 ret = zstdDecompress(s);
                 if (ret == 0)
@@ -122,9 +139,18 @@ int zstdUngetc(int c, zstdStrm *s)
 
 int zstdGetc(zstdStrm *s)
 {
-        unsigned char c;
+        int ret;
 
-        return zstdRead(s, &c, 1) == 1 ? c : EOF;
+
+	if (s->o_len == 0) {
+		ret = zstdRead(s, s->o_buf, ZSTD_DStreamOutSize());
+		if (ret < 0)
+			return ret;
+		s->o_len = s->o_pos;
+		s->o_pos = 0;
+	}
+	s->o_len--;
+	return ((char *)s->o_buf)[s->o_pos++];
 }
 
 int zstdClose(zstdStrm *s)
@@ -135,6 +161,8 @@ int zstdClose(zstdStrm *s)
                 fclose(s->fp);
         if (s->i_buf != NULL)
                 free(s->i_buf);
+        if (s->o_buf != NULL)
+                free(s->o_buf);
         if (s->strm != NULL)
 		ZSTD_freeDStream(s->strm);
 	bzero(s, sizeof(zstdStrm));
