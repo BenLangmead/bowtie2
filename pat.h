@@ -29,6 +29,7 @@
 #include <string>
 #include <ctype.h>
 #include <vector>
+#include <queue>
 #include "alphabet.h"
 #include "assert_helpers.h"
 #include "random_source.h"
@@ -180,7 +181,7 @@ struct PerThreadReadBuf {
 	/**
 	 * Return true when there's nothing left for next().
 	 */
-	bool exhausted() {
+	bool exhausted() const {
 		assert_leq(cur_buf_, bufa_.size());
 		return cur_buf_ >= bufa_.size()-1 || bufa_[cur_buf_+1].readOrigBuf.empty();
 	}
@@ -1160,6 +1161,9 @@ public:
 		last_batch_(false),
 		last_batch_size_(0) { }
 
+	// If it returns true, nextReadPair is non-blocking and should return success
+	bool nextReadPairReady() const {return !buf_.exhausted();}
+
 	/**
 	 * Use objects in the PatternSource and/or PatternComposer
 	 * hierarchies to populate the per-thread buffers.
@@ -1275,6 +1279,69 @@ private:
 	PatternComposer& composer_;
 	const PatternParams& pp_;
 	int tid_;
+};
+
+// TODO: For now just a thread-safe queue
+class PatternSourceReadAheadFactory {
+public:
+	PatternSourceReadAheadFactory(
+		PatternComposer& composer,
+		const PatternParams& pp, size_t n, int tid) :
+		psfact_(composer,pp,tid),
+		psq_(),
+		n_(n),
+		mutex_m() {
+		for (size_t i=0; i<n; i++) {
+			psq_.push(psfact_.create());
+		}
+	}
+
+	virtual ~PatternSourceReadAheadFactory() {
+		while (!psq_.empty()) {
+			delete psq_.front();
+			psq_.pop();
+		}
+	}
+
+	PatternSourcePerThread* pop() {
+		PatternSourcePerThread* ret = NULL;
+		do {
+			ThreadSafe ts(mutex_m);
+			if (!psq_.empty()) {
+				ret = psq_.front();
+				psq_.pop();
+			}
+			// a well designed code should never need more than one try, but just in case
+		} while (ret==NULL) ;
+		return ret;
+	}
+	void push(PatternSourcePerThread* ps) {
+		ThreadSafe ts(mutex_m);
+		psq_.push(ps);
+	}
+
+private:
+	PatternSourcePerThreadFactory psfact_;
+	std::queue<PatternSourcePerThread*> psq_;
+	size_t n_;
+	MUTEX_T mutex_m;
+};
+
+// Simple wrapper for safely holding the result of PatternSourceReadAheadFactory
+class PatternSourceReadAhead {
+public:
+	PatternSourceReadAhead(PatternSourceReadAheadFactory& fact) :
+		fact_(fact),
+		ptr_(fact.pop()) {}
+
+	~PatternSourceReadAhead() {
+		fact_.push(ptr_);
+	}
+
+	PatternSourcePerThread* ptr() {return ptr_;}
+private:
+	PatternSourceReadAheadFactory& fact_;
+	PatternSourcePerThread* ptr_;
 };
 
 #ifdef USE_SRA
