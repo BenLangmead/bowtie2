@@ -793,8 +793,10 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag, bool debug) {
 	assert(!d.profbuf_.empty());
 
 	assert_eq(0, d.maxBonus_);
-	size_t iter =
+	const size_t iter =
 		(dpRows() + (NWORDS_PER_REG-1)) / NWORDS_PER_REG; // iter = segLen
+
+        const size_t lastWordIdx = NWORDS_PER_REG*(d.lastIter_*ROWSTRIDE)+d.lastWord_;
 
 	// Many thanks to Michael Farrar for releasing his striped Smith-Waterman
 	// implementation:
@@ -820,6 +822,9 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag, bool debug) {
 	SSERegI vtmp     = sse_setzero_siall();
 	SSERegI vzero    = sse_setzero_siall();
 	SSERegI vhilsw   = sse_setzero_siall();
+
+	SSERegI vs0     = sse_setzero_siall();
+	SSERegI vs1     = sse_setzero_siall();
 
 	assert_gt(sc_->refGapOpen(), 0);
 	assert_leq(sc_->refGapOpen(), MAX_U8);
@@ -924,6 +929,10 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag, bool debug) {
 		// For each character in the reference text:
 		size_t j;
 		for(j = 0; j < iter; j++) {
+			vs0 = sse_load_siall(pvScore);
+                        pvScore++;
+			vs1 = sse_load_siall(pvScore);
+                        pvScore++;
 			// Load cells from E, calculated previously
 			ve = sse_load_siall(pvELoad);
 #if 0
@@ -933,12 +942,12 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag, bool debug) {
 			pvELoad += ROWSTRIDE;
 			
 			// Store cells in F, calculated previously
-			vf = sse_subs_epu8(vf, pvScore[1]); // veto some ref gap extensions
+			vf = sse_subs_epu8(vf, vs1); // veto some ref gap extensions
 			sse_store_siall(pvFStore, vf);
 			pvFStore += ROWSTRIDE;
 			
 			// Factor in query profile (matches and mismatches)
-			vh = sse_subs_epu8(vh, pvScore[0]);
+			vh = sse_subs_epu8(vh, vs0);
 			
 			// Update H, factoring in E and F
 			vh = sse_max_epu8(vh, ve);
@@ -953,12 +962,12 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag, bool debug) {
 #if 0
 			vhdtmp = vhd;
 			vhd = sse_subs_epu8(vhd, rdgapo);
-			vhd = sse_subs_epu8(vhd, pvScore[1]); // veto some read gap opens
+			vhd = sse_subs_epu8(vhd, vs1); // veto some read gap opens
 			ve = sse_subs_epu8(ve, rdgape);
 			ve = sse_max_epu8(ve, vhd);
 #else
 			vh = sse_subs_epu8(vh, rdgapo);
-			vh = sse_subs_epu8(vh, pvScore[1]); // veto some read gap opens
+			vh = sse_subs_epu8(vh, vs1); // veto some read gap opens
 			ve = sse_subs_epu8(ve, rdgape);
 			ve = sse_max_epu8(ve, vh);
 #endif
@@ -981,35 +990,35 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag, bool debug) {
 			vf = sse_subs_epu8(vf, rfgape);
 			assert_all_lt(vf, vhi);
 			vf = sse_max_epu8(vf, vtmp);
-			
-			pvScore += 2; // move on to next query profile / gap veto
 		}
+		pvScore -= (iter*2) - 1; // reset veto vector
+	        vs1 = sse_load_siall(pvScore);
+
 		// pvHStore, pvELoad, pvEStore have all rolled over to the next column
 		pvFTmp = pvFStore;
 		pvFStore -= colstride; // reset to start of column
 		vtmp = sse_load_siall(pvFStore);
 		
+		// vf from last row gets shifted down by one to overlay the first row
+		// rfgape has already been subtracted from it.
+		vf = sse_slli_siall(vf, NBYTES_PER_WORD);
+		
+		vf = sse_subs_epu8(vf, vs1); // veto some ref gap extensions
+		vf = sse_max_epu8(vtmp, vf);
+		vtmp = sse_subs_epu8(vf, vtmp);
+		vtmp = sse_cmpeq_epi8(vtmp, vzero);
+		int cmp = sse_movemask_epi8(vtmp);
+	
+		// Load after computing cmp, so the result is ready by the time it is tested in while
 		pvHStore -= colstride; // reset to start of column
 		vh = sse_load_siall(pvHStore);
+		pvHLoad = pvHStore;    // new pvHLoad = pvHStore
 		
 #if 0
 #else
 		pvEStore -= colstride; // reset to start of column
 		ve = sse_load_siall(pvEStore);
 #endif
-		
-		pvHLoad = pvHStore;    // new pvHLoad = pvHStore
-		pvScore = d.profbuf_.ptr() + off + 1; // reset veto vector
-		
-		// vf from last row gets shifted down by one to overlay the first row
-		// rfgape has already been subtracted from it.
-		vf = sse_slli_siall(vf, NBYTES_PER_WORD);
-		
-		vf = sse_subs_epu8(vf, *pvScore); // veto some ref gap extensions
-		vf = sse_max_epu8(vtmp, vf);
-		vtmp = sse_subs_epu8(vf, vtmp);
-		vtmp = sse_cmpeq_epi8(vtmp, vzero);
-		int cmp = sse_movemask_epi8(vtmp);
 		
 		// If any element of vtmp is greater than H - gap-open...
 		j = 0;
@@ -1029,7 +1038,7 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag, bool debug) {
 #if 0
 #else
 			vh = sse_subs_epu8(vh, rdgapo);
-			vh = sse_subs_epu8(vh, *pvScore); // veto some read gap opens
+			vh = sse_subs_epu8(vh, vs1); // veto some read gap opens
 			ve = sse_max_epu8(ve, vh);
 			sse_store_siall(pvEStore, ve);
 			pvEStore += ROWSTRIDE;
@@ -1038,34 +1047,31 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag, bool debug) {
 			
 			assert_lt(j, iter);
 			if(++j == iter) {
-				pvFStore -= colstride;
-				vtmp = sse_load_siall(pvFStore);   // load next vf ASAP
-				pvHStore -= colstride;
-				vh = sse_load_siall(pvHStore);     // load next vh ASAP
-#if 0
-#else
-				pvEStore -= colstride;
-				ve = sse_load_siall(pvEStore);     // load next ve ASAP
-#endif
-				pvScore = d.profbuf_.ptr() + off + 1;
+				pvScore -= iter*2;
 				j = 0;
+				pvFStore -= colstride;
+				pvHStore -= colstride;
+				pvEStore -= colstride;
 				vf = sse_slli_siall(vf, NBYTES_PER_WORD);
-			} else {
-				vtmp = sse_load_siall(pvFStore);   // load next vf ASAP
-				vh = sse_load_siall(pvHStore);     // load next vh ASAP
-#if 0
-#else
-				ve = sse_load_siall(pvEStore);     // load next vh ASAP
-#endif
 			}
-			
+			vs1 = sse_load_siall(pvScore);
+			vtmp = sse_load_siall(pvFStore);   // load next vf ASAP
+
 			// Update F with another gap extension
 			vf = sse_subs_epu8(vf, rfgape);
-			vf = sse_subs_epu8(vf, *pvScore); // veto some ref gap extensions
+			vf = sse_subs_epu8(vf, vs1); // veto some ref gap extensions
 			vf = sse_max_epu8(vtmp, vf);
 			vtmp = sse_subs_epu8(vf, vtmp);
 			vtmp = sse_cmpeq_epi8(vtmp, vzero);
 			cmp = sse_movemask_epi8(vtmp);
+
+			// Load after computing cmp, so the result is afailable by the time it is tested
+			vh = sse_load_siall(pvHStore);     // load next vh 
+#if 0
+#else
+			ve = sse_load_siall(pvEStore);     // load next ve
+#endif
+			
 			nfixup++;
 		}
 		
@@ -1086,9 +1092,8 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag, bool debug) {
 		}
 #endif
 		
-		SSERegI *vtmp = d.mat_.hvec(d.lastIter_, i-rfi_);
 		// Note: we may not want to extract from the final row
-		TCScore lr = ((TCScore*)(vtmp))[d.lastWord_];
+		TCScore lr = ((TCScore*)(pvHLoad))[lastWordIdx];
 		found = true;
 		if(lr > lrmax) {
 			lrmax = lr;
