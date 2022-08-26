@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <condition_variable>
 #include <sys/stat.h>
 #include <zlib.h>
 #include <cassert>
@@ -1281,50 +1282,134 @@ private:
 	int tid_;
 };
 
-// TODO: For now just a thread-safe queue
 class PatternSourceReadAheadFactory {
 public:
+	class ReadElement {
+	public:
+		PatternSourcePerThread *ps;  // not owned, just a pointer
+		std::pair<bool, bool>   readResult;
+	};
+
 	PatternSourceReadAheadFactory(
 		PatternComposer& composer,
 		const PatternParams& pp, size_t n, int tid) :
 		psfact_(composer,pp,tid),
-		psq_(),
+		psq_ready_(),
+		psq_idle_(psfact_,n),
 		n_(n),
-		mutex_m() {
-		for (size_t i=0; i<n; i++) {
-			psq_.push(psfact_.create());
-		}
+		asynct_(readAsync, this) {}
+
+	~PatternSourceReadAheadFactory() {
+		returnUnready(NULL); // this will signal asynct_ it is time to quit
+		asynct_.join();
 	}
 
-	virtual ~PatternSourceReadAheadFactory() {
-		while (!psq_.empty()) {
-			delete psq_.front();
-			psq_.pop();
-		}
+	// wait for data, if none in the queue
+	ReadElement nextReadPair() {
+		return psq_ready_.pop();
 	}
 
-	PatternSourcePerThread* pop() {
-		PatternSourcePerThread* ret = NULL;
-		do {
-			ThreadSafe ts(mutex_m);
-			if (!psq_.empty()) {
-				ret = psq_.front();
-				psq_.pop();
-			}
-			// a well designed code should never need more than one try, but just in case
-		} while (ret==NULL) ;
-		return ret;
+	void returnUnready(PatternSourcePerThread* ps) {
+		psq_idle_.push(ps);
 	}
-	void push(PatternSourcePerThread* ps) {
-		ThreadSafe ts(mutex_m);
-		psq_.push(ps);
+
+	void returnUnready(ReadElement& re) {
+		returnUnready(re.ps);
 	}
 
 private:
+
+	template <typename T>
+	class LockedQueue {
+	public:
+		virtual ~LockedQueue() {}
+
+		bool empty() {
+			bool ret = false;
+			{
+				std::unique_lock<std::mutex> lk(m_);
+				ret = q_.empty();
+			}
+			return ret;
+		}
+
+		void push(T& ps) {
+			{
+				std::unique_lock<std::mutex> lk(m_);
+				q_.push(ps);
+			}
+			cv_.notify_all();
+		}
+
+		// wait for data, if none in the queue
+		T pop() {
+			T ret;
+			{
+				std::unique_lock<std::mutex> lk(m_);
+				while (q_.empty()) cv_.wait(lk);
+				ret = q_.front();
+				q_.pop();
+			}
+			return ret;
+		}
+
+	protected:
+		std::mutex m_;
+		std::condition_variable cv_;
+		std::queue<T> q_;
+	};
+
+	class LockedPSQueue : public LockedQueue<PatternSourcePerThread*> {
+	public:
+		LockedPSQueue(PatternSourcePerThreadFactory& psfact, size_t n) : 
+			LockedQueue<PatternSourcePerThread*>() {
+			for (size_t i=0; i<n; i++) {
+				q_.push(psfact.create());
+			}
+		}
+
+		virtual ~LockedPSQueue() {
+			while (!q_.empty()) {
+				delete q_.front();
+				q_.pop();
+			}
+		}
+	};
+
+	class LockedREQueue : public LockedQueue<ReadElement> {
+	public:
+		virtual ~LockedREQueue() {
+			// we actually own ps while in the queue
+			while (!q_.empty()) {
+				delete q_.front().ps;
+				q_.pop();
+			}
+		}
+	};
+
+        static void readAsync(PatternSourceReadAheadFactory *obj) {
+		LockedREQueue &psq_ready = obj->psq_ready_;
+		LockedPSQueue &psq_idle = obj->psq_idle_;
+                while(true) {
+			ReadElement re;
+			re.ps = psq_idle.pop();
+			if (re.ps==NULL) break; // the destructor added this in the queue
+
+			if (re.ps->nextReadPairReady()) {
+				// Should never get in here, but just in case
+				re.readResult = make_pair(true, false);
+			} else {
+				re.readResult = re.ps->nextReadPair();
+			}
+			psq_ready.push(re);
+                }
+	}
+
 	PatternSourcePerThreadFactory psfact_;
-	std::queue<PatternSourcePerThread*> psq_;
-	size_t n_;
-	MUTEX_T mutex_m;
+	LockedREQueue psq_ready_;
+	LockedPSQueue psq_idle_;
+	const size_t n_;
+	std::thread asynct_;
 };
 
 // Simple wrapper for safely holding the result of PatternSourceReadAheadFactory
@@ -1332,16 +1417,17 @@ class PatternSourceReadAhead {
 public:
 	PatternSourceReadAhead(PatternSourceReadAheadFactory& fact) :
 		fact_(fact),
-		ptr_(fact.pop()) {}
+		re_(fact.nextReadPair()) {}
 
 	~PatternSourceReadAhead() {
-		fact_.push(ptr_);
+		fact_.returnUnready(re_);
 	}
 
-	PatternSourcePerThread* ptr() {return ptr_;}
+	const std::pair<bool, bool>& readResult() const { return re_.readResult;}
+	PatternSourcePerThread* ptr() {return re_.ps;}
 private:
 	PatternSourceReadAheadFactory& fact_;
-	PatternSourcePerThread* ptr_;
+	PatternSourceReadAheadFactory::ReadElement re_;
 };
 
 #ifdef USE_SRA
