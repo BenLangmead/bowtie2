@@ -4718,7 +4718,7 @@ static void multiseedSearch(
 	}
 
 	// Important: Need at least nthreads+1 elements, more is OK
-	PatternSourceReadAheadFactory readahead_factory(patsrc,pp,2*nthreads+1,0);
+	PatternSourceReadAheadFactory readahead_factory(patsrc,pp,2*nthreads+1);
 	multiseed_readahead_factory = &readahead_factory;
 
 	// Start the metrics thread

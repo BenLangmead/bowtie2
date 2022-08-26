@@ -133,12 +133,11 @@ struct PatternParams {
  */
 struct PerThreadReadBuf {
 
-	PerThreadReadBuf(size_t max_buf, int tid) :
+	PerThreadReadBuf(size_t max_buf) :
 		max_buf_(max_buf),
 		bufa_(max_buf),
 		bufb_(max_buf),
-		rdid_(),
-		tid_(tid)
+		rdid_()
 	{
 		bufa_.resize(max_buf);
 		bufb_.resize(max_buf);
@@ -207,7 +206,6 @@ struct PerThreadReadBuf {
 	EList<Read> bufb_;	   // Read buffer for mate bs
 	size_t cur_buf_;	   // Read buffer currently active
 	TReadId rdid_;		   // index of read at offset 0 of bufa_/bufb_
-	int tid_;
 };
 
 extern void wrongQualityFormat(const BTString& read_name);
@@ -1155,9 +1153,9 @@ public:
 
 	PatternSourcePerThread(
 		PatternComposer& composer,
-		const PatternParams& pp, int tid) :
+		const PatternParams& pp) :
 		composer_(composer),
-		buf_(pp.max_buf, tid),
+		buf_(pp.max_buf),
 		pp_(pp),
 		last_batch_(false),
 		last_batch_size_(0) { }
@@ -1248,16 +1246,15 @@ class PatternSourcePerThreadFactory {
 public:
 	PatternSourcePerThreadFactory(
 		PatternComposer& composer,
-		const PatternParams& pp, int tid) :
+		const PatternParams& pp) :
 		composer_(composer),
-		pp_(pp),
-		tid_(tid) { }
+		pp_(pp) {}
 
 	/**
 	 * Create a new heap-allocated PatternSourcePerThreads.
 	 */
 	virtual PatternSourcePerThread* create() const {
-		return new PatternSourcePerThread(composer_, pp_, tid_);
+		return new PatternSourcePerThread(composer_, pp_);
 	}
 
 	/**
@@ -1267,7 +1264,7 @@ public:
 	virtual EList<PatternSourcePerThread*>* create(uint32_t n) const {
 		EList<PatternSourcePerThread*>* v = new EList<PatternSourcePerThread*>;
 		for(size_t i = 0; i < n; i++) {
-			v->push_back(new PatternSourcePerThread(composer_, pp_, tid_));
+			v->push_back(new PatternSourcePerThread(composer_, pp_));
 			assert(v->back() != NULL);
 		}
 		return v;
@@ -1279,7 +1276,6 @@ private:
 	/// Container for obtaining paired reads from PatternSources
 	PatternComposer& composer_;
 	const PatternParams& pp_;
-	int tid_;
 };
 
 class PatternSourceReadAheadFactory {
@@ -1292,8 +1288,8 @@ public:
 
 	PatternSourceReadAheadFactory(
 		PatternComposer& composer,
-		const PatternParams& pp, size_t n, int tid) :
-		psfact_(composer,pp,tid),
+		const PatternParams& pp, size_t n) :
+		psfact_(composer,pp),
 		psq_ready_(),
 		psq_idle_(psfact_,n),
 		n_(n),
