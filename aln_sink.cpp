@@ -834,7 +834,9 @@ void AlnSinkWrap::finishRead(
 			} else {
 				met.nconcord_uni++;
 				assert(!rs1_.empty());
-				if(rs1_.size() == 1) {
+				AlnScore sc1 = concordSumm.bestUnchosenP1Score();
+				AlnScore sc2 = concordSumm.bestUnchosenP2Score();
+				if(!sc1.valid() && !sc2.valid()) {
 					met.nconcord_uni1++;
 				} else {
 					met.nconcord_uni2++;
