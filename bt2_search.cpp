@@ -1776,6 +1776,7 @@ static void parseOptions(int argc, const char **argv) {
 
 static const char *argv0 = NULL;
 
+#if 0
 /// Create a PatternSourcePerThread for the current thread according
 /// to the global params and return a pointer to it
 static PatternSourcePerThreadFactory*
@@ -1789,11 +1790,11 @@ createPatsrcFactory(
 	assert(patsrcFact != NULL);
 	return patsrcFact;
 }
+#endif
 
 #define PTHREAD_ATTRS (PTHREAD_CREATE_JOINABLE | PTHREAD_CREATE_DETACHED)
 
-static PatternComposer*         multiseed_patsrc;
-static PatternParams            multiseed_pp;
+static PatternSourceReadAheadFactory* multiseed_readahead_factory;
 static Ebwt*                    multiseed_ebwtFw;
 static Ebwt*                    multiseed_ebwtBw;
 static Scoring*                 multiseed_sc;
@@ -2983,8 +2984,7 @@ static void multiseedSearchWorker(void *vp) {
 	int tid = p->tid;
 	assert(multiseed_ebwtFw != NULL);
 	assert(multiseedMms == 0 || multiseed_ebwtBw != NULL);
-	PatternComposer&        patsrc   = *multiseed_patsrc;
-	PatternParams           pp       = multiseed_pp;
+	PatternSourceReadAheadFactory& readahead_factory =  *multiseed_readahead_factory;
 	const Ebwt&             ebwtFw   = *multiseed_ebwtFw;
 	const Ebwt*             ebwtBw   = multiseed_ebwtBw;
 	const Scoring&          sc       = *multiseed_sc;
@@ -3013,8 +3013,6 @@ static void multiseedSearchWorker(void *vp) {
 		// problems, or generally characterize performance.
 
 		//const BitPairReference& refs   = *multiseed_refs;
-		unique_ptr<PatternSourcePerThreadFactory> patsrcFact(createPatsrcFactory(patsrc, pp, tid));
-		unique_ptr<PatternSourcePerThread> ps(patsrcFact->create());
 
 		// Thread-local cache for seed alignments
 		PtrWrap<AlignmentCache> scLocal;
@@ -3133,7 +3131,14 @@ static void multiseedSearchWorker(void *vp) {
 		int mergeival = 16;
 		bool done = false;
 		while(!done) {
-			pair<bool, bool> ret = ps->nextReadPair();
+		   PatternSourceReadAhead psrah(readahead_factory);
+		   PatternSourcePerThread* const ps = psrah.ptr();
+		   bool firstPS = true;
+                   do {
+			pair<bool, bool> ret = firstPS ? 
+						psrah.readResult() : // nextReadPair was already called in the psrah constructor
+						ps->nextReadPair();
+			firstPS = false;
 			bool success = ret.first;
 			done = ret.second;
 			if(!success && done) {
@@ -4099,6 +4104,7 @@ static void multiseedSearchWorker(void *vp) {
 				metricsOfb, metricsStderr, true, &nametmp);
 			metricsPt.reset();
 		}
+	   } while (ps->nextReadPairReady()); // must read the whole cached buffer
 	} // while(true)
 
 	// One last metrics merge
@@ -4127,8 +4133,7 @@ static void multiseedSearchWorker_2p5(void *vp) {
 	int tid = p->tid;
 	assert(multiseed_ebwtFw != NULL);
 	assert(multiseedMms == 0 || multiseed_ebwtBw != NULL);
-	PatternComposer&        patsrc   = *multiseed_patsrc;
-	PatternParams           pp       = multiseed_pp;
+	PatternSourceReadAheadFactory& readahead_factory =  *multiseed_readahead_factory;
 	const Ebwt&             ebwtFw   = *multiseed_ebwtFw;
 	const Ebwt&             ebwtBw   = *multiseed_ebwtBw;
 	const Scoring&          sc       = *multiseed_sc;
@@ -4142,8 +4147,6 @@ static void multiseedSearchWorker_2p5(void *vp) {
 	// problems, or generally characterize performance.
 
 	ThreadCounter tc;
-	unique_ptr<PatternSourcePerThreadFactory> patsrcFact(createPatsrcFactory(patsrc, pp, tid));
-	unique_ptr<PatternSourcePerThread> ps(patsrcFact->create());
 
 	// Instantiate an object for holding reporting-related parameters.
 	ReportingParams rp(
@@ -4240,6 +4243,9 @@ static void multiseedSearchWorker_2p5(void *vp) {
 	int mergei = 0;
 	int mergeival = 16;
 	while(true) {
+	   PatternSourceReadAhead psrah(readahead_factory);
+	   PatternSourcePerThread* const ps = psrah.ptr();
+	   do {
 		pair<bool, bool> ret = ps->nextReadPair();
 		bool success = ret.first;
 		bool done = ret.second;
@@ -4451,6 +4457,7 @@ static void multiseedSearchWorker_2p5(void *vp) {
 				metricsOfb, metricsStderr, true, &nametmp);
 			metricsPt.reset();
 		}
+	   } while (ps->nextReadPairReady()); // must read the whole cached buffer
 	} // while(true)
 
 	// One last metrics merge
@@ -4646,8 +4653,6 @@ static void multiseedSearch(
 	Ebwt* ebwtBw,                 // index of mirror text
 	OutFileBuf *metricsOfb)
 {
-	multiseed_patsrc = &patsrc;
-	multiseed_pp = pp;
 	multiseed_msink  = &msink;
 	multiseed_ebwtFw = &ebwtFw;
 	multiseed_ebwtBw = ebwtBw;
@@ -4711,6 +4716,11 @@ static void multiseedSearch(
 			!noRefNames,  // load names?
 			startVerbose);
 	}
+
+	// Important: Need at least nthreads+1 elements, more is OK
+	PatternSourceReadAheadFactory readahead_factory(patsrc,pp,2*nthreads+1);
+	multiseed_readahead_factory = &readahead_factory;
+
 	// Start the metrics thread
 
 	std::atomic<int> all_threads_done;

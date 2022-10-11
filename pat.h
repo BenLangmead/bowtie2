@@ -23,12 +23,14 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <condition_variable>
 #include <sys/stat.h>
 #include <zlib.h>
 #include <cassert>
 #include <string>
 #include <ctype.h>
 #include <vector>
+#include <queue>
 #include "alphabet.h"
 #include "assert_helpers.h"
 #include "random_source.h"
@@ -131,12 +133,11 @@ struct PatternParams {
  */
 struct PerThreadReadBuf {
 
-	PerThreadReadBuf(size_t max_buf, int tid) :
+	PerThreadReadBuf(size_t max_buf) :
 		max_buf_(max_buf),
 		bufa_(max_buf),
 		bufb_(max_buf),
-		rdid_(),
-		tid_(tid)
+		rdid_()
 	{
 		bufa_.resize(max_buf);
 		bufb_.resize(max_buf);
@@ -180,7 +181,7 @@ struct PerThreadReadBuf {
 	/**
 	 * Return true when there's nothing left for next().
 	 */
-	bool exhausted() {
+	bool exhausted() const {
 		assert_leq(cur_buf_, bufa_.size());
 		return cur_buf_ >= bufa_.size()-1 || bufa_[cur_buf_+1].readOrigBuf.empty();
 	}
@@ -205,7 +206,6 @@ struct PerThreadReadBuf {
 	EList<Read> bufb_;	   // Read buffer for mate bs
 	size_t cur_buf_;	   // Read buffer currently active
 	TReadId rdid_;		   // index of read at offset 0 of bufa_/bufb_
-	int tid_;
 };
 
 extern void wrongQualityFormat(const BTString& read_name);
@@ -1153,12 +1153,15 @@ public:
 
 	PatternSourcePerThread(
 		PatternComposer& composer,
-		const PatternParams& pp, int tid) :
+		const PatternParams& pp) :
 		composer_(composer),
-		buf_(pp.max_buf, tid),
+		buf_(pp.max_buf),
 		pp_(pp),
 		last_batch_(false),
 		last_batch_size_(0) { }
+
+	// If it returns true, nextReadPair is non-blocking and should return success
+	bool nextReadPairReady() const {return !buf_.exhausted();}
 
 	/**
 	 * Use objects in the PatternSource and/or PatternComposer
@@ -1243,16 +1246,15 @@ class PatternSourcePerThreadFactory {
 public:
 	PatternSourcePerThreadFactory(
 		PatternComposer& composer,
-		const PatternParams& pp, int tid) :
+		const PatternParams& pp) :
 		composer_(composer),
-		pp_(pp),
-		tid_(tid) { }
+		pp_(pp) {}
 
 	/**
 	 * Create a new heap-allocated PatternSourcePerThreads.
 	 */
 	virtual PatternSourcePerThread* create() const {
-		return new PatternSourcePerThread(composer_, pp_, tid_);
+		return new PatternSourcePerThread(composer_, pp_);
 	}
 
 	/**
@@ -1262,7 +1264,7 @@ public:
 	virtual EList<PatternSourcePerThread*>* create(uint32_t n) const {
 		EList<PatternSourcePerThread*>* v = new EList<PatternSourcePerThread*>;
 		for(size_t i = 0; i < n; i++) {
-			v->push_back(new PatternSourcePerThread(composer_, pp_, tid_));
+			v->push_back(new PatternSourcePerThread(composer_, pp_));
 			assert(v->back() != NULL);
 		}
 		return v;
@@ -1274,7 +1276,154 @@ private:
 	/// Container for obtaining paired reads from PatternSources
 	PatternComposer& composer_;
 	const PatternParams& pp_;
-	int tid_;
+};
+
+class PatternSourceReadAheadFactory {
+public:
+	class ReadElement {
+	public:
+		PatternSourcePerThread *ps;  // not owned, just a pointer
+		std::pair<bool, bool>   readResult;
+	};
+
+	PatternSourceReadAheadFactory(
+		PatternComposer& composer,
+		const PatternParams& pp, size_t n) :
+		psfact_(composer,pp),
+		psq_ready_(),
+		psq_idle_(psfact_,n),
+		n_(n),
+		asynct_(readAsync, this) {}
+
+	~PatternSourceReadAheadFactory() {
+		returnUnready(NULL); // this will signal asynct_ it is time to quit
+		asynct_.join();
+	}
+
+	// wait for data, if none in the queue
+	ReadElement nextReadPair() {
+		return psq_ready_.pop();
+	}
+
+	void returnUnready(PatternSourcePerThread* ps) {
+		psq_idle_.push(ps);
+	}
+
+	void returnUnready(ReadElement& re) {
+		returnUnready(re.ps);
+	}
+
+private:
+
+	template <typename T>
+	class LockedQueue {
+	public:
+		virtual ~LockedQueue() {}
+
+		bool empty() {
+			bool ret = false;
+			{
+				std::unique_lock<std::mutex> lk(m_);
+				ret = q_.empty();
+			}
+			return ret;
+		}
+
+		void push(T& ps) {
+			{
+				std::unique_lock<std::mutex> lk(m_);
+				q_.push(ps);
+			}
+			cv_.notify_all();
+		}
+
+		// wait for data, if none in the queue
+		T pop() {
+			T ret;
+			{
+				std::unique_lock<std::mutex> lk(m_);
+				while (q_.empty()) cv_.wait(lk);
+				ret = q_.front();
+				q_.pop();
+			}
+			return ret;
+		}
+
+	protected:
+		std::mutex m_;
+		std::condition_variable cv_;
+		std::queue<T> q_;
+	};
+
+	class LockedPSQueue : public LockedQueue<PatternSourcePerThread*> {
+	public:
+		LockedPSQueue(PatternSourcePerThreadFactory& psfact, size_t n) : 
+			LockedQueue<PatternSourcePerThread*>() {
+			for (size_t i=0; i<n; i++) {
+				q_.push(psfact.create());
+			}
+		}
+
+		virtual ~LockedPSQueue() {
+			while (!q_.empty()) {
+				delete q_.front();
+				q_.pop();
+			}
+		}
+	};
+
+	class LockedREQueue : public LockedQueue<ReadElement> {
+	public:
+		virtual ~LockedREQueue() {
+			// we actually own ps while in the queue
+			while (!q_.empty()) {
+				delete q_.front().ps;
+				q_.pop();
+			}
+		}
+	};
+
+        static void readAsync(PatternSourceReadAheadFactory *obj) {
+		LockedREQueue &psq_ready = obj->psq_ready_;
+		LockedPSQueue &psq_idle = obj->psq_idle_;
+                while(true) {
+			ReadElement re;
+			re.ps = psq_idle.pop();
+			if (re.ps==NULL) break; // the destructor added this in the queue
+
+			if (re.ps->nextReadPairReady()) {
+				// Should never get in here, but just in case
+				re.readResult = make_pair(true, false);
+			} else {
+				re.readResult = re.ps->nextReadPair();
+			}
+			psq_ready.push(re);
+                }
+	}
+
+	PatternSourcePerThreadFactory psfact_;
+	LockedREQueue psq_ready_;
+	LockedPSQueue psq_idle_;
+	const size_t n_;
+	std::thread asynct_;
+};
+
+// Simple wrapper for safely holding the result of PatternSourceReadAheadFactory
+class PatternSourceReadAhead {
+public:
+	PatternSourceReadAhead(PatternSourceReadAheadFactory& fact) :
+		fact_(fact),
+		re_(fact.nextReadPair()) {}
+
+	~PatternSourceReadAhead() {
+		fact_.returnUnready(re_);
+	}
+
+	const std::pair<bool, bool>& readResult() const { return re_.readResult;}
+	PatternSourcePerThread* ptr() {return re_.ps;}
+private:
+	PatternSourceReadAheadFactory& fact_;
+	PatternSourceReadAheadFactory::ReadElement re_;
 };
 
 #ifdef USE_SRA
