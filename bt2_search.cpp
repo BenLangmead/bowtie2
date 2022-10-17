@@ -4104,6 +4104,7 @@ static void multiseedSearchWorker(void *vp) {
 			} // while(retry)
 		} // if(rdid >= skipReads && rdid < qUpto)
 		else if(rdid >= qUpto) {
+			done = true;
 			break;
 		}
 		if(metricsPerRead) {
