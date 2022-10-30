@@ -19,6 +19,18 @@ Please report any issues to the Bowtie 2 Github page or using the Sourceforge bu
 Version Release History
 =======================
 
+## Version 2.5.0 - Oct 30, 2022 ##
+
+### bowtie2 ###
+  * Overall improvements in the use of prefetch instructions. (contribution by Igor Sfiligoi)
+  * Made input/output fully asynchronous by using a dedicated thread. (contribution by Igor Sfiligoi)
+  * Added support for AVX2 256-bit instructions with can be enabled by
+    setting the `SSE_AXV2` environment variable at compile time. (contribution by Igor Sfiligoi)
+  * Fixed an issue causing `bowtie2` to crash when processing ZSTD
+    files with high compression ratios.
+  * Changed the way that unique alignments are counted in summary
+    message to better match up with filters on SAM output
+
 ## Version 2.4.5 - Jan 15, 2022 ##
 
 ### bowtie2 ###

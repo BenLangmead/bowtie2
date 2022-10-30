@@ -104,9 +104,6 @@ Bowtie 2 is available from various package managers, notably [Bioconda](https://
 With Bioconda installed, you should be able to install Bowtie 2 with `conda
 install bowtie2`.
 
-Containerized versions of Bowtie 2 are also available via the [Biocontainers](https://BioContainers.pro)
-project (e.g. [via Docker Hub](https://hub.docker.com/r/biocontainers/bowtie2/)).
-
 You can also download Bowtie 2 sources and binaries from the
 [Download] section of the Sourceforge site.  Binaries are available
 for the `x86_64` architecture running Linux, Mac OS X, and Windows.

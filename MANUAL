@@ -99,9 +99,6 @@ Bowtie 2 is available from various package managers, notably Bioconda.
 With Bioconda installed, you should be able to install Bowtie 2 with
 conda install bowtie2.
 
-Containerized versions of Bowtie 2 are also available via the
-Biocontainers project (e.g. via Docker Hub).
-
 You can also download Bowtie 2 sources and binaries from the Download
 section of the Sourceforge site. Binaries are available for the x86_64
 architecture running Linux, Mac OS X, and Windows. FreeBSD users can
@@ -1596,8 +1593,8 @@ by tabs; from left to right, the fields are:
 6.  CIGAR string representation of alignment
 
 7.  Name of reference sequence where mate's alignment occurs. Set to =
-    if the mate's reference sequence is the same as this alignment's, or
-    * if there is no mate.
+    if the mate's reference sequence is the same as this alignment's,
+    or * if there is no mate.
 
 8.  1-based offset into the forward reference strand where leftmost
     character of the mate's alignment occurs. Offset is 0 if there is no

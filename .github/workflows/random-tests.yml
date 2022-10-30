@@ -1,4 +1,4 @@
-name: Compile and run random tests on Ubuntu and MacOS
+name: Random Tests
 on:
   push:
     branches:

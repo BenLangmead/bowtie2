@@ -1,4 +1,4 @@
-name: Compile and run simple tests on Ubuntu and MacOS
+name: Simple Tests
 on:
   push:
     branches:
