@@ -564,7 +564,7 @@ static-libs:
         if [ ! -f "$(CURDIR)/.tmp/include/zstd.h" ]; then \
                 cd $(CURDIR)/.tmp ; \
                 $$DL https://github.com/facebook/zstd/releases/download/v1.5.1/zstd-1.5.1.tar.gz && tar xzf zstd-1.5.1.tar.gz ; \
-                cd zstd-1.5.1 && $(MAKE) ; \
+                cd zstd-1.5.1 && $(MAKE) lib ; \
                 cd $(CURDIR)/.tmp/zstd-1.5.1/lib && cp zstd.h $(CURDIR)/.tmp/include && cp libzstd.a $(CURDIR)/.tmp/lib ; \
         fi
 
