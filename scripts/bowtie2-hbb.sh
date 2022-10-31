@@ -44,10 +44,6 @@ fi
 # this variant creates static binaries with PIC
 source /hbb_exe_gc_hardened/activate
 
-mkdir /mybin
-echo  'res=`echo $@ | sed "s/-L.*$//"`; /opt/rh/devtoolset-8/root/usr/bin/ar $res;' > /mybin/ar
-chmod +x /mybin/ar && export PATH=/mybin:$PATH
-
 # this version of pandoc does not support 'smart' filters
 sed -i 's/-smart//' Makefile
 
