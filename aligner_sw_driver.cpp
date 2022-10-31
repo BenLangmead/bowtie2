@@ -1071,7 +1071,7 @@ int SwDriver::extendSeeds(
 						swmSeed.ungapsucc++;
 					}
 				}
-				int64_t pastedRefoff = (int64_t)wr.toff - rdoff;
+				// int64_t pastedRefoff = (int64_t)wr.toff - rdoff;
 				DPRect rect;
 				if(state == FOUND_NONE) {
 					found = dpframe.frameSeedExtensionRect(
@@ -1090,7 +1090,7 @@ int SwDriver::extendSeeds(
 						continue;
 					}
 				}
-				int64_t leftShift = refoff - rect.refl;
+				// int64_t leftShift = refoff - rect.refl;
 				size_t nwindow = 0;
 				if((int64_t)toff >= rect.refl) {
 					nwindow = (size_t)(toff - rect.refl);
@@ -1098,7 +1098,7 @@ int SwDriver::extendSeeds(
 				// NOTE: We might be taking off more than we should because the
 				// pasted string omits non-A/C/G/T characters, but we included them
 				// when calculating leftShift.  We'll account for this later.
-				pastedRefoff -= leftShift;
+				// pastedRefoff -= leftShift;
 				size_t nsInLeftShift = 0;
 				if(state == FOUND_NONE) {
 					if(!swa.initedRead()) {
@@ -1766,7 +1766,7 @@ int SwDriver::extendSeedsPaired(
 						swmSeed.ungapsucc++;
 					}
 				}
-				int64_t pastedRefoff = (int64_t)wr.toff - rdoff;
+				// int64_t pastedRefoff = (int64_t)wr.toff - rdoff;
 				DPRect rect;
 				if(state == FOUND_NONE) {
 					found = dpframe.frameSeedExtensionRect(
@@ -1785,7 +1785,7 @@ int SwDriver::extendSeedsPaired(
 						continue;
 					}
 				}
-				int64_t leftShift = refoff - rect.refl;
+				// int64_t leftShift = refoff - rect.refl;
 				size_t nwindow = 0;
 				if((int64_t)toff >= rect.refl) {
 					nwindow = (size_t)(toff - rect.refl);
@@ -1793,7 +1793,7 @@ int SwDriver::extendSeedsPaired(
 				// NOTE: We might be taking off more than we should because the
 				// pasted string omits non-A/C/G/T characters, but we included them
 				// when calculating leftShift.  We'll account for this later.
-				pastedRefoff -= leftShift;
+				// pastedRefoff -= leftShift;
 				size_t nsInLeftShift = 0;
 				if(state == FOUND_NONE) {
 					if(!swa.initedRead()) {

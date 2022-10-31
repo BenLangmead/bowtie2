@@ -2732,7 +2732,6 @@ void Ebwt::joinToDisk(
 	for(unsigned int i = 0; i < l.size(); i++) {
 		assert(!l[i]->eof());
 		bool first = true;
-		TIndexOffU patoff = 0;
 		// For each *fragment* (not necessary an entire sequence) we
 		// can pull out of istream l[i]...
 		while(!l[i]->eof()) {
@@ -2767,17 +2766,9 @@ void Ebwt::joinToDisk(
 			if(rec.first) seqsRead++;
 			if(bases == 0) continue;
 			assert_leq(bases, this->plen()[seqsRead-1]);
-			// Reset the patoff if this is the first fragment
-			if(rec.first) patoff = 0;
-			patoff += rec.off; // add fragment's offset from end of last frag.
 			// Adjust rpcps
 			//uint32_t seq = seqsRead-1;
 			ASSERT_ONLY(entsWritten++);
-			// This is where rstarts elements are written to the output stream
-			//writeU32(out1, oldRetLen, this->toBe()); // offset from beginning of joined string
-			//writeU32(out1, seq,       this->toBe()); // sequence id
-			//writeU32(out1, patoff,    this->toBe()); // offset into sequence
-			patoff += bases;
 		}
 		assert_gt(szsi, 0);
 		l[i]->reset();

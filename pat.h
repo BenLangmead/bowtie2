@@ -1292,7 +1292,6 @@ public:
 		psfact_(composer,pp),
 		psq_ready_(),
 		psq_idle_(psfact_,n),
-		n_(n),
 		asynct_(readAsync, this) {}
 
 	~PatternSourceReadAheadFactory() {
@@ -1404,7 +1403,6 @@ private:
 	PatternSourcePerThreadFactory psfact_;
 	LockedREQueue psq_ready_;
 	LockedPSQueue psq_idle_;
-	const size_t n_;
 	std::thread asynct_;
 };
 
