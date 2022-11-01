@@ -3,7 +3,7 @@
 <ul>
     <li>Overall improvements in the use of prefetch instructions. (contribution by Igor Sfiligoi)</li>
     <li>Made input/output fully asynchronous by using a dedicated thread. (contribution by Igor Sfiligoi)</li>
-    <li>Added support for AVX2 256-bit instructions with can be enabled by setting the <code>SSE_AXV2<code> environment variable at compile time. (contribution by Igor Sfiligoi)</li>
+    <li>Added support for AVX2 256-bit instructions with can be enabled by setting the <code>SSE_AXV2</code> environment variable at compile time. (contribution by Igor Sfiligoi)</li>
     <li>Fixed an issue causing <code>bowtie2</code> to crash when processing ZSTD files with high compression ratios.</li>
     <li>Changed the way that unique alignments are counted in summary message to better match up with filters on SAM output</li>
 </ul>
