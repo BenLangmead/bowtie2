@@ -1,4 +1,4 @@
-<h2>Version 2.5.0 - Oct 30, 2022</h2>
+<h2>Version 2.5.0 - Oct 31, 2022</h2>
 <h3 id="bowtie2">bowtie2</h3>
 <ul>
     <li>Overall improvements in the use of prefetch instructions. (contribution by Igor Sfiligoi)</li>

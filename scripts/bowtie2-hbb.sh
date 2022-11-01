@@ -53,7 +53,7 @@ if [ $? -ne 0 ] ; then
     exit 1
 fi
 
-make -j4 bowtie2-bin-pkg STATIC_BUILD=1 WITH_ZSTD=1 USE_SRA=$use_sra
+make bowtie2-bin-pkg STATIC_BUILD=1 WITH_ZSTD=1 USE_SRA=$use_sra
 if [ $? -ne 0 ] ; then
     echo "Unable to create bowtie2 package"
     exit 1
