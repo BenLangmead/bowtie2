@@ -1699,28 +1699,29 @@ std::pair<bool, int> SRAPatternSource::nextBatchImpl(
 	size_t readi = 0;
 	bool done = false;
 
-	for(; readi < pt.max_buf_; readi++) {
-		if(!sra_its_[pt.tid_]->nextRead() || !sra_its_[pt.tid_]->nextFragment()) {
+	while (readi < pt.max_buf_) {
+		if(!read_iter_->nextRead() || !read_iter_->nextFragment()) {
 			done = true;
 			break;
 		}
-		const ngs::StringRef rname = sra_its_[pt.tid_]->getReadId();
-		const ngs::StringRef ra_seq = sra_its_[pt.tid_]->getFragmentBases();
-		const ngs::StringRef ra_qual = sra_its_[pt.tid_]->getFragmentQualities();
+		const ngs::StringRef rname = read_iter_->getReadId();
+		const ngs::StringRef ra_seq = read_iter_->getFragmentBases();
+		const ngs::StringRef ra_qual = read_iter_->getFragmentQualities();
 		readbuf[readi].readOrigBuf.install(rname.data(), rname.size());
 		readbuf[readi].readOrigBuf.append('\t');
 		readbuf[readi].readOrigBuf.append(ra_seq.data(), ra_seq.size());
 		readbuf[readi].readOrigBuf.append('\t');
 		readbuf[readi].readOrigBuf.append(ra_qual.data(), ra_qual.size());
-		if(sra_its_[pt.tid_]->nextFragment()) {
-			const ngs::StringRef rb_seq = sra_its_[pt.tid_]->getFragmentBases();
-			const ngs::StringRef rb_qual = sra_its_[pt.tid_]->getFragmentQualities();
+		if(read_iter_->nextFragment()) {
+			const ngs::StringRef rb_seq = read_iter_->getFragmentBases();
+			const ngs::StringRef rb_qual = read_iter_->getFragmentQualities();
 			readbuf[readi].readOrigBuf.append('\t');
 			readbuf[readi].readOrigBuf.append(rb_seq.data(), rb_seq.size());
 			readbuf[readi].readOrigBuf.append('\t');
 			readbuf[readi].readOrigBuf.append(rb_qual.data(), rb_qual.size());
 		}
 		readbuf[readi].readOrigBuf.append('\n');
+		readi++;
 	}
 
 	pt.setReadId(readCnt_);
@@ -1877,26 +1878,14 @@ void SRAPatternSource::open() {
 			return;
 		}
 
-		size_t window_size = MAX_ROW / sra_its_.size();
-		size_t remainder = MAX_ROW % sra_its_.size();
-		size_t i = 0, start = 1;
+		int size_t = 1;
 
 		if (pp_.skip > 0) {
 			start = pp_.skip + 1;
 			readCnt_ = pp_.skip;
 		}
 
-		while (i < sra_its_.size()) {
-			sra_its_[i] = new ngs::ReadIterator(sra_run.getReadRange(start, window_size, ngs::Read::all));
-			assert(sra_its_[i] != NULL);
-
-			i++;
-			start += window_size;
-			if (i == sra_its_.size() - 1) {
-				window_size += remainder;
-			}
-		}
-
+		read_iter_ = new ngs::ReadIterator(sra_run.getReadRange(start, MAX_ROW, ngs::Read::all));
 	} catch(...) {
 		cerr << "Warning: Could not access \"" << sra_acc << "\" for reading; skipping..." << endl;
 	}
