@@ -1878,7 +1878,7 @@ void SRAPatternSource::open() {
 			return;
 		}
 
-		int size_t = 1;
+		size_t start = 1;
 
 		if (pp_.skip > 0) {
 			start = pp_.skip + 1;
