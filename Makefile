@@ -33,8 +33,8 @@ BOWTIE_SHARED_MEM :=
 CXXFLAGS += -std=c++11
 
 ARCH = $(shell uname -m)
-NGS_VER ?= 2.9.2
-VDB_VER ?= 2.9.2-1
+NGS_VER ?= 2.10.2
+VDB_VER ?= 2.10.2
 
 # Detect Cygwin or MinGW
 WINDOWS :=
@@ -71,7 +71,7 @@ ifneq (,$(findstring $(shell uname -m), x86_64 amd64))
   endif
 
   POPCNT_CAPABILITY ?= 1
-else ifneq (,$(findstring $(shell uname -m), aarch64 arm64 s390x ppc64 ppc64le))
+else ifneq (,$(findstring $(shell uname -m), aarch64 arm64 s390x powerpc64 powerpc64le ppc64 ppc64le))
   BITS := 64
   SSE_FLAG :=
   CXXFLAGS += -fopenmp-simd

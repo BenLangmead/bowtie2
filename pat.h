@@ -1444,7 +1444,7 @@ public:
 		sra_acc_cur_(0),
 		cur_(0),
 		first_(true),
-		sra_its_(p.nthreads),
+		// sra_its_(p.nthreads),
 		mutex_m(),
 		pp_(p)
 	{
@@ -1456,12 +1456,13 @@ public:
 	}
 
 	virtual ~SRAPatternSource() {
-		for (size_t i = 0; i < sra_its_.size(); i++) {
-			if(sra_its_[i] != NULL) {
-				delete sra_its_[i];
-				sra_its_[i] = NULL;
-			}
-		}
+		// for (size_t i = 0; i < sra_its_.size(); i++) {
+		// 	if(sra_its_[i] != NULL) {
+		// 		delete sra_its_[i];
+		// 		sra_its_[i] = NULL;
+		// 	}
+		// }
+		delete read_iter_;
 	}
 
 	/**
@@ -1510,7 +1511,7 @@ protected:
 	size_t cur_;             // current read id
 	bool first_;
 
-	std::vector<ngs::ReadIterator*> sra_its_;
+	ngs::ReadIterator* read_iter_;
 
 	/// Lock enforcing mutual exclusion for (a) file I/O, (b) writing fields
 	/// of this or another other shared object.
