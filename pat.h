@@ -1444,7 +1444,6 @@ public:
 		sra_acc_cur_(0),
 		cur_(0),
 		first_(true),
-		// sra_its_(p.nthreads),
 		mutex_m(),
 		pp_(p)
 	{
@@ -1456,12 +1455,6 @@ public:
 	}
 
 	virtual ~SRAPatternSource() {
-		// for (size_t i = 0; i < sra_its_.size(); i++) {
-		// 	if(sra_its_[i] != NULL) {
-		// 		delete sra_its_[i];
-		// 		sra_its_[i] = NULL;
-		// 	}
-		// }
 		delete read_iter_;
 	}
 
@@ -1489,7 +1482,9 @@ public:
 	 */
 	virtual void reset() {
 		PatternSource::reset();
-		sra_acc_cur_ = 0,
+		sra_acc_cur_ = 0;
+		if (read_iter_)
+			delete read_iter_;
 		open();
 		sra_acc_cur_++;
 	}
