@@ -516,7 +516,7 @@ if(defined($cap_out)) {
                                 $base_spec_dir = $read_fns{$i};
                                 $base_fname = undef;
                         }
-                        if($i =~ /-conc$|^un-mate$/) {
+                        if($i =~ /-conc$|^un-mates$/) {
                                 # Open 2 output files, one for mate 1, one for mate 2
                                 my ($fn1, $fn2);
                                 if ($base_fname) {
@@ -609,7 +609,7 @@ if(defined($cap_out)) {
                                                 }
                                         }
                                         # paired read failed to align concordantly or discordantly
-                                        if (defined($read_fhs{"un-mates"}) && $pair && $unal && ($fl & 8) != 0) {
+                                        if (defined($read_fhs{"un-mates"}) && $pair && $unal && ($fl & 4) != 0) {
                                                 if ($mate1) {
                                                         print {$read_fhs{"un-mates"}{1}} $l if defined($read_fhs{"un-mates"});
                                                 } else {
