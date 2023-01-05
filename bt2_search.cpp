@@ -3323,7 +3323,7 @@ static void multiseedSearchWorker(void *vp) {
 					exhaustive[0] = exhaustive[1] = false;
 					size_t matemap[2] = { 0, 1 };
 					bool pairPostFilt = filt[0] && filt[1];
-					if(false && pairPostFilt) {
+					if(pairPostFilt) {
 						rnd.init(ps->read_a().seed ^ ps->read_b().seed);
 					} else {
 						rnd.init(ps->read_a().seed);
@@ -3903,7 +3903,7 @@ static void multiseedSearchWorker(void *vp) {
 								// Sort seed hits into ranks
 								shs[mate].rankSeedHits(rnd, msinkwrap.allHits());
 								int ret = 0;
-								if(false && paired) {
+								if(paired) {
 									// Paired-end dynamic programming driver
 									ret = sd.extendSeedsPaired(
 										*rds[mate],     // mate to align as anchor
@@ -3973,11 +3973,11 @@ static void multiseedSearchWorker(void *vp) {
 										nceil[mate],    // N ceil for anchor
 										maxhalf,        // max width on one DP side
 										doUngapped,     // do ungapped alignment
-										mxIter[mate] * 2,   // max extend loop iters
-										mxUg[mate] * 2,     // max # ungapped extends
-										mxDp[mate] * 2,     // max # DPs
-										streak[mate] * 2,   // stop after streak of this many end-to-end fails
-										streak[mate] * 2,   // stop after streak of this many ungap fails
+										mxIter[mate],   // max extend loop iters
+										mxUg[mate],     // max # ungapped extends
+										mxDp[mate],     // max # DPs
+										streak[mate],   // stop after streak of this many end-to-end fails
+										streak[mate],   // stop after streak of this many ungap fails
 										doExtend,       // extend seed hits
 										enable8,        // use 8-bit SSE where possible
 										cminlen,        // checkpoint if read is longer
@@ -4071,9 +4071,9 @@ static void multiseedSearchWorker(void *vp) {
 						assert_leq(prm.nMateDps, mxDp[i]);
 						assert_leq(prm.nExUgs,   mxUg[i]);
 						assert_leq(prm.nMateUgs, mxUg[i]);
-						// assert_leq(prm.nDpFail,  streak[i]);
-						// assert_leq(prm.nUgFail,  streak[i]);
-						// assert_leq(prm.nEeFail,  streak[i]);
+						assert_leq(prm.nDpFail,  streak[i]);
+						assert_leq(prm.nUgFail,  streak[i]);
+						assert_leq(prm.nEeFail,  streak[i]);
 					}
 
 				// Commit and report paired-end/unpaired alignments
@@ -4380,7 +4380,7 @@ static void multiseedSearchWorker_2p5(void *vp) {
 			}
 			exhaustive[0] = exhaustive[1] = false;
 			bool pairPostFilt = filt[0] && filt[1];
-			if(false && pairPostFilt) {
+			if(pairPostFilt) {
 				rnd.init(ROTL((rds[0]->seed ^ rds[1]->seed), 10));
 			}
 			// Calculate streak length
