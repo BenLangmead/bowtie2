@@ -117,7 +117,7 @@ bowtie2-inspect --large-index example/index/lambda_virus
 
 - Langmead B, Salzberg S. __[Fast gapped-read alignment with Bowtie 2](http://www.nature.com/nmeth/journal/v9/n4/full/nmeth.1923.html)__. [Nature Methods](http://www.nature.com/nmeth). 2012, 9:357-359.
 
-- Langmead B, Trapnell C, Pop M, Salzberg SL. __[Ultrafast and memory-efficient alignment of short DNA sequences to the human genome](http://genomebiology.com/2009/10/3/R25)__. [Genome Biology](http://genomebiology.com/) 10:R25.
+- Langmead B, Trapnell C, Pop M, Salzberg SL. __[Ultrafast and memory-efficient alignment of short DNA sequences to the human genome](https://genomebiology.biomedcentral.com/articles/10.1186/gb-2009-10-3-r25)__. [Genome Biology](https://genomebiology.biomedcentral.com/) 10:R25.
 
 ### Related Publications
 
