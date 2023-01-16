@@ -1,3 +1,12 @@
+<h2>Version 2.5.1 - Feb 16, 2023</h2>
+<h3 id="bowtie2">bowtie2</h3>
+<ul>
+    <li>Fixed an issue affecting <code>bowtie2</code> alignment accuracy.</li>
+    <li>Updated the versions of the NCBI <code>NGS</code> and <code>VDB</code> libraries used by <code>bowtie2</code>.</li>
+    <li>Fixed a segmentation fault that would occur while aligning SRA data.</li>
+    <li>Fixed an issue preventing <code><a href="manual.shtml#bowtie2-options-un-mates">--un-mates</a></code> from properly saving unaligned mates.</li>
+</ul>
+
 <h2>Version 2.5.0 - Oct 31, 2022</h2>
 <h3 id="bowtie2">bowtie2</h3>
 <ul>
