@@ -32,14 +32,13 @@ BOWTIE_SHARED_MEM :=
 
 CXXFLAGS += -std=c++11
 
-ARCH = $(shell uname -m)
 NGS_VER ?= 2.10.2
 VDB_VER ?= 2.10.2
 
 # Detect Cygwin or MinGW
 WINDOWS :=
 MINGW :=
-ifneq (,$(findstring MINGW,$(shell uname)))
+ifneq (,$(findstring mingw,$(shell $(CXX) --version)))
   WINDOWS := 1
   MINGW := 1
   # POSIX memory-mapped files not currently supported on Windows
@@ -62,7 +61,8 @@ ifneq (,$(findstring Darwin,$(shell uname)))
 endif
 
 BITS := 32
-ifneq (,$(findstring $(shell uname -m), x86_64 amd64))
+ARCH ?= $(shell uname -m)
+ifneq (,$(findstring $(ARCH), x86_64 amd64))
   BITS := 64
   ifeq (1, $(SSE_AVX2))
 	SSE_FLAG := -mavx2 -faligned-new -DSSE_AVX2
@@ -71,7 +71,7 @@ ifneq (,$(findstring $(shell uname -m), x86_64 amd64))
   endif
 
   POPCNT_CAPABILITY ?= 1
-else ifneq (,$(findstring $(shell uname -m), aarch64 arm64 s390x powerpc64 powerpc64le ppc64 ppc64le))
+else ifneq (,$(findstring $(ARCH), aarch64 arm64 s390x powerpc64 powerpc64le ppc64 ppc64le))
   BITS := 64
   SSE_FLAG :=
   CXXFLAGS += -fopenmp-simd
