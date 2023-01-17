@@ -19,7 +19,7 @@ Please report any issues to the Bowtie 2 Github page or using the Sourceforge bu
 Version Release History
 =======================
 
-## Version 2.5.1 - Feb 16, 2023 ##
+## Version 2.5.1 - Feb 17, 2023 ##
 
 ### bowtie2 ###
   * Fixed an issue affecting `bowtie2` alignment accuracy.
